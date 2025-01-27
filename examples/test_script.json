@@ -1,0 +1,15 @@
+[
+    {
+        "action": "click",
+        "params": {
+            "x": 100,
+            "y": 200
+        }
+    },
+    {
+        "action": "type",
+        "params": {
+            "text": "Hello, World!"
+        }
+    }
+]
