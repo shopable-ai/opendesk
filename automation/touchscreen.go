@@ -12,14 +12,17 @@ func NewTouchscreen() *Touchscreen {
 	return &Touchscreen{}
 }
 
-func (t *Touchscreen) Tap(x, y int) chan error {
-	done := make(chan error)
-	go func() {
-		defer close(done)
-		// 模拟触摸屏点击
-		robotgo.Move(x, y)           // 使用 robotgo.Move 替代 robotgo.MoveMouse
-		robotgo.Click("left", false) // 使用 robotgo.Click 替代 robotgo.MouseClick
-		time.Sleep(100 * time.Millisecond)
-	}()
-	return done
+// Tap simulates a touchscreen tap event at the specified coordinates
+func (t *Touchscreen) tap(x, y int) error {
+	// 生成 touchstart 事件
+	robotgo.Move(x, y)
+	robotgo.Toggle("left", "down")
+
+	// 短暂延迟模拟触摸持续时间
+	time.Sleep(50 * time.Millisecond)
+
+	// 生成 touchend 事件
+	robotgo.Toggle("left", "up")
+
+	return nil
 }
