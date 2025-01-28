@@ -1,6 +1,7 @@
 package automation
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/go-vgo/robotgo"
@@ -12,76 +13,116 @@ func NewMouse() *Mouse {
 	return &Mouse{}
 }
 
-func (m *Mouse) Move(x, y int, options ...map[string]interface{}) chan error {
-	done := make(chan error)
-	go func() {
-		defer close(done)
-		steps := 1
-		if len(options) > 0 {
-			if s, ok := options[0]["steps"].(int); ok {
-				steps = s
-			}
+// Click 实现鼠标点击
+func (m *Mouse) click(x, y int, options ...MouseOptions) error {
+	fmt.Println("click", x, y)
+	// 设置默认值
+	opts := MouseOptions{
+		Button:     "left",
+		ClickCount: 1,
+		Delay:      0,
+	}
+
+	// 使用提供的选项覆盖默认值
+	if len(options) > 0 {
+		if options[0].Button != "" {
+			opts.Button = options[0].Button
 		}
-		for i := 0; i < steps; i++ {
-			robotgo.Move(x, y) // 使用 robotgo.Move 替代 robotgo.MoveMouse
+		if options[0].ClickCount > 0 {
+			opts.ClickCount = options[0].ClickCount
 		}
-	}()
-	return done
+		if options[0].Delay > 0 {
+			opts.Delay = options[0].Delay
+		}
+	}
+
+	// 移动到指定位置
+	if err := m.move(x, y, MouseOptions{}); err != nil {
+		return err
+	}
+
+	// 点击指定次数
+	for i := 0; i < opts.ClickCount; i++ {
+		if err := m.down(MouseOptions{Button: opts.Button}); err != nil {
+			return err
+		}
+
+		if opts.Delay > 0 {
+			time.Sleep(time.Duration(opts.Delay) * time.Millisecond)
+		}
+
+		if err := m.up(MouseOptions{Button: opts.Button}); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
-func (m *Mouse) Click(x, y int, options ...map[string]interface{}) chan error {
-	done := make(chan error)
-	go func() {
-		defer close(done)
-		button := "left"
-		clickCount := 1
-		delay := 0
-		if len(options) > 0 {
-			if b, ok := options[0]["button"].(string); ok {
-				button = b
-			}
-			if c, ok := options[0]["clickCount"].(int); ok {
-				clickCount = c
-			}
-			if d, ok := options[0]["delay"].(int); ok {
-				delay = d
-			}
+// Down 实现鼠标按下
+func (m *Mouse) down(options ...MouseOptions) error {
+	opts := MouseOptions{
+		Button:     "left",
+		ClickCount: 1,
+	}
+
+	if len(options) > 0 {
+		if options[0].Button != "" {
+			opts.Button = options[0].Button
 		}
-		m.Move(x, y).Wait()
-		for i := 0; i < clickCount; i++ {
-			robotgo.Click(button, false) // 使用 robotgo.Click 替代 robotgo.MouseClick
-			time.Sleep(time.Duration(delay) * time.Millisecond)
+		if options[0].ClickCount > 0 {
+			opts.ClickCount = options[0].ClickCount
 		}
-	}()
-	return done
+	}
+
+	robotgo.Toggle(opts.Button, "down")
+	return nil
 }
 
-func (m *Mouse) Down(options ...map[string]interface{}) chan error {
-	done := make(chan error)
-	go func() {
-		defer close(done)
-		button := "left"
-		if len(options) > 0 {
-			if b, ok := options[0]["button"].(string); ok {
-				button = b
-			}
+// Move 实现鼠标移动
+func (m *Mouse) move(x, y int, options ...MouseOptions) error {
+	opts := MouseOptions{
+		Steps: 1,
+	}
+
+	if len(options) > 0 && options[0].Steps > 0 {
+		opts.Steps = options[0].Steps
+	}
+
+	// 如果 steps > 1，实现平滑移动
+	if opts.Steps > 1 {
+		currentX, currentY := robotgo.GetMousePos()
+
+		for step := 1; step <= opts.Steps; step++ {
+			nextX := currentX + ((x - currentX) * step / opts.Steps)
+			nextY := currentY + ((y - currentY) * step / opts.Steps)
+
+			robotgo.MoveMouse(nextX, nextY)
+			time.Sleep(time.Millisecond) // 添加小延迟使移动更平滑
 		}
-		robotgo.Toggle(button, "down") // 使用 robotgo.Toggle 替代 robotgo.MouseToggle
-	}()
-	return done
+	} else {
+		robotgo.MoveMouse(x, y)
+	}
+
+	return nil
 }
 
-func (m *Mouse) Up(options ...map[string]interface{}) chan error {
-	done := make(chan error)
-	go func() {
-		defer close(done)
-		button := "left"
-		if len(options) > 0 {
-			if b, ok := options[0]["button"].(string); ok {
-				button = b
-			}
+// Up 实现鼠标释放
+func (m *Mouse) up(options ...MouseOptions) error {
+	opts := MouseOptions{
+		Button:     "left",
+		ClickCount: 1,
+	}
+
+	if len(options) > 0 {
+		if options[0].Button != "" {
+			opts.Button = options[0].Button
 		}
-		robotgo.Toggle(button, "up") // 使用 robotgo.Toggle 替代 robotgo.MouseToggle
-	}()
-	return done
+		if options[0].ClickCount > 0 {
+			opts.ClickCount = options[0].ClickCount
+		}
+	}
+
+	robotgo.Toggle(opts.Button, "up")
+	return nil
 }

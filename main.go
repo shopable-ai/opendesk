@@ -1,38 +1,109 @@
-// main.go
 package main
 
 import (
 	"flag"
 	"fmt"
 	"os"
-	"testMonkey-go/automation" // 使用模块名而不是相对路径
+	"path/filepath"
+	"strings"
+	"testMonkey-go/automation"
 	"time"
+
+	"github.com/dop251/goja"
 )
 
+// 全局变量，保持运行时环境
+var (
+	jsRuntime *goja.Runtime
+	page      *automation.Page
+)
+
+func initRuntime() {
+	if jsRuntime == nil {
+		jsRuntime = goja.New()
+		page = automation.NewPage()
+
+		// 自动映射各个对象的方法
+		automation.AutoMapMethods(jsRuntime, page.Keyboard(), "keyboard")
+		automation.AutoMapMethods(jsRuntime, page.Mouse(), "mouse")
+		automation.AutoMapMethods(jsRuntime, page.Touchscreen(), "touchscreen")
+		automation.AutoMapMethods(jsRuntime, page, "page")
+		automation.AutoMapMethods(jsRuntime, automation.NewConsole(), "console")
+
+		// notify 函数仍然保持原样，因为它是特殊情况
+		jsRuntime.Set("notify", func(call goja.FunctionCall) goja.Value {
+			// 现有的 notify 实现...
+			return goja.Undefined()
+		})
+	}
+}
+
 func main() {
-	scriptPath := flag.String("script", "", "脚本文件路径")
-	delay := flag.Int("delay", 3, "开始前等待时间(秒)")
+	scriptPath := flag.String("script", "", "Script file path (.txt or .js)")
+	delay := flag.Int("delay", 3, "Delay before start (seconds)")
 	flag.Parse()
 
 	if *scriptPath == "" {
-		fmt.Println("请指定脚本文件路径: -script path/to/script.txt")
+		fmt.Println("Please specify script path: -script path/to/script.[txt|js]")
 		return
 	}
 
-	// 读取脚本文件
 	content, err := os.ReadFile(*scriptPath)
 	if err != nil {
-		fmt.Printf("读取脚本文件失败: %v\n", err)
+		fmt.Printf("Failed to read script: %v\n", err)
 		return
 	}
 
-	fmt.Printf("程序将在 %d 秒后开始运行...\n", *delay)
+	// 执行脚本前初始化运行时环境
+	initRuntime()
+
+	fmt.Printf("Starting in %d seconds...\n", *delay)
 	time.Sleep(time.Duration(*delay) * time.Second)
 
-	if err := automation.RunScript(string(content)); err != nil {
-		fmt.Printf("脚本执行失败: %v\n", err)
+	// Execute the script based on file extension
+	ext := strings.ToLower(filepath.Ext(*scriptPath))
+	fmt.Printf("Detected file extension: %s\n", ext) // Debug logging
+
+	if ext == ".js" {
+		err = executeJavaScript(string(content))
+	} else {
+		page := automation.NewPage()
+		err = automation.RunScript(page, string(content))
+	}
+
+	if err != nil {
+		fmt.Printf("Script execution failed: %v\n", err)
 		return
 	}
 
-	fmt.Println("脚本执行完成!")
+	fmt.Println("Script execution completed!")
+}
+
+func executeJavaScript(script string) error {
+	// 处理脚本包装
+	script = strings.TrimSpace(script)
+	if !strings.HasPrefix(script, "(async") && !strings.HasPrefix(script, "async") {
+		script = fmt.Sprintf(`
+			(async () => {
+				try {
+					%s
+				} catch (err) {
+					console.error("Script execution error:", err);
+					throw err;
+				}
+			})();
+		`, script)
+	}
+
+	_, err := jsRuntime.RunString(script)
+	return err
+}
+
+func executeTextScript(script string) error {
+	browser := automation.NewBrowser()
+	page, err := browser.NewPage()
+	if err != nil {
+		return err
+	}
+	return automation.RunScript(page, script)
 }
