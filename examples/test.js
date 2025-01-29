@@ -8,7 +8,27 @@
 // });
 
 // console.log("Starting test...");
+// Show/Hide desktop
+async function toggleDesktop() {
+    // await keyboard.down("Meta");
+    // await keyboard.press("d");
+    // await keyboard.up("Meta");
 
+    // Using the combination method (recommended)
+    await keyboard.combination("Meta", "d");
+}
+
+await toggleDesktop();
+await page.waitFor(1000);
+
+// Test right click
+await page.mouse.click(250, 135, { button: "right" });
+await page.waitFor(1000);
+
+
+// Test double click
+await page.mouse.click(40, 135, { clickCount: 2 });
+await page.waitFor(1000);
 
 await page.mouse.click(500, 500);
 // await mouse.click(500, 500);

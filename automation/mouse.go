@@ -15,7 +15,21 @@ func NewMouse() *Mouse {
 
 // Click 实现鼠标点击，接收单个options参数
 func (m *Mouse) Click(x, y int, options interface{}) error {
-	fmt.Println("click", x, y)
+	// Log options if provided
+	if options != nil {
+		if optMap, ok := options.(map[string]interface{}); ok {
+			fmt.Printf("Click options: Button=%v, ClickCount=%v, Delay=%v\n",
+				optMap["button"],
+				optMap["clickCount"],
+				optMap["delay"])
+		} else {
+			fmt.Printf("Options provided but not in expected format: %+v\n", options)
+		}
+	} else {
+		fmt.Println("No options provided, using defaults")
+
+	}
+
 	opts := MouseOptions{
 		Button:     "left",
 		ClickCount: 1,
@@ -41,6 +55,7 @@ func (m *Mouse) Click(x, y int, options interface{}) error {
 	if err := m.Move(x, y, nil); err != nil {
 		return err
 	}
+	fmt.Println("click", x, y, opts)
 
 	// 点击指定次数
 	for i := 0; i < opts.ClickCount; i++ {
