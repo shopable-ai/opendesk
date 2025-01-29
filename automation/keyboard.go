@@ -2,6 +2,7 @@ package automation
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/go-vgo/robotgo"
@@ -13,6 +14,7 @@ func NewKeyboard() *Keyboard {
 	return &Keyboard{}
 }
 
+// Type types the given text string
 func (k *Keyboard) Type(text string) error {
 	if text == "" {
 		return fmt.Errorf("input text cannot be empty")
@@ -22,11 +24,108 @@ func (k *Keyboard) Type(text string) error {
 	return nil
 }
 
+// Press presses and releases a single key
 func (k *Keyboard) Press(key string) error {
 	if key == "" {
 		return fmt.Errorf("key cannot be empty")
 	}
+
+	// Convert common key names
+	key = normalizeKeyName(key)
+
 	robotgo.KeyTap(key)
 	time.Sleep(50 * time.Millisecond)
 	return nil
+}
+
+// Down holds down a key
+func (k *Keyboard) Down(key string) error {
+	if key == "" {
+		return fmt.Errorf("key cannot be empty")
+	}
+
+	// Convert common key names
+	key = normalizeKeyName(key)
+
+	robotgo.KeyToggle(key, "down")
+	time.Sleep(50 * time.Millisecond)
+	return nil
+}
+
+// Up releases a key
+func (k *Keyboard) Up(key string) error {
+	if key == "" {
+		return fmt.Errorf("key cannot be empty")
+	}
+
+	// Convert common key names
+	key = normalizeKeyName(key)
+
+	robotgo.KeyToggle(key, "up")
+	time.Sleep(50 * time.Millisecond)
+	return nil
+}
+
+// Combination presses multiple keys simultaneously
+func (k *Keyboard) Combination(keys ...string) error {
+	if len(keys) == 0 {
+		return fmt.Errorf("no keys provided")
+	}
+
+	// Convert all keys
+	normalizedKeys := make([]string, len(keys))
+	for i, key := range keys {
+		normalizedKeys[i] = normalizeKeyName(key)
+	}
+
+	// Hold down all keys in order
+	for _, key := range normalizedKeys {
+		if err := k.Down(key); err != nil {
+			return err
+		}
+	}
+
+	// Release all keys in reverse order
+	for i := len(normalizedKeys) - 1; i >= 0; i-- {
+		if err := k.Up(normalizedKeys[i]); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// normalizeKeyName converts common key names to robotgo format
+func normalizeKeyName(key string) string {
+	keyMap := map[string]string{
+		"Meta":       "command", // Windows key
+		"Control":    "ctrl",
+		"Shift":      "shift",
+		"Alt":        "alt",
+		"Enter":      "enter",
+		"Backspace":  "backspace",
+		"Delete":     "delete",
+		"Escape":     "escape",
+		"Tab":        "tab",
+		"Space":      "space",
+		"ArrowUp":    "up",
+		"ArrowDown":  "down",
+		"ArrowLeft":  "left",
+		"ArrowRight": "right",
+	}
+
+	// Convert to lowercase for case-insensitive matching
+	normalizedKey := strings.ToLower(key)
+
+	// Check if we have a mapping for this key
+	if mapped, exists := keyMap[key]; exists {
+		return mapped
+	}
+
+	// If it's a single character, return as is
+	if len(normalizedKey) == 1 {
+		return normalizedKey
+	}
+
+	return key
 }
