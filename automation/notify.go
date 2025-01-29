@@ -1,64 +1,39 @@
-// automation/notify.go
-
 package automation
 
 import (
 	"fmt"
-	"os/exec"
-	"runtime"
-	"strconv"
+	"time"
+
+	"github.com/gen2brain/beeep"
 )
 
+// NotifyOptions defines the options for system notifications
 type NotifyOptions struct {
-	Title   string `json:"title,omitempty"`
-	Message string `json:"message"`
-	Sound   bool   `json:"sound,omitempty"`
-	Timeout int    `json:"timeout,omitempty"`
+	Title   string        `json:"title,omitempty"`
+	Message string        `json:"message"`
+	Sound   bool          `json:"sound,omitempty"`
+	Timeout time.Duration `json:"timeout,omitempty"`
 }
 
-// Notify is a global function for system notifications
+// Notify sends a system notification
 func Notify(options *NotifyOptions) error {
 	if options == nil {
 		return fmt.Errorf("notify options cannot be nil")
 	}
 
+	// Set default values
 	if options.Title == "" {
 		options.Title = "TestMonkey Notification"
 	}
-
 	if options.Timeout == 0 {
-		options.Timeout = 3000
+		options.Timeout = 3 * time.Second
 	}
 
-	switch runtime.GOOS {
-	case "darwin":
-		script := fmt.Sprintf(`display notification "%s" with title "%s"`,
-			options.Message, options.Title)
-		if options.Sound {
-			script += ` sound name "default"`
-		}
-		cmd := exec.Command("osascript", "-e", script)
-		return cmd.Run()
-
-	case "windows":
-		flags := 0x0
-		if options.Sound {
-			flags = 0x40 // 添加声音
-		}
-		script := fmt.Sprintf(`(New-Object -ComObject Wscript.Shell).Popup("%s", %d, "%s", %d)`,
-			options.Message, options.Timeout/1000, options.Title, flags)
-		cmd := exec.Command("powershell", "-Command", script)
-		return cmd.Run()
-
-	default: // Linux
-		args := []string{
-			"--expire-time", strconv.Itoa(options.Timeout),
-		}
-		if options.Sound {
-			args = append(args, "--urgency=normal")
-		}
-		args = append(args, options.Title, options.Message)
-		cmd := exec.Command("notify-send", args...)
-		return cmd.Run()
+	// Use beeep for cross-platform notifications
+	err := beeep.Notify(options.Title, options.Message, "")
+	if err != nil {
+		return fmt.Errorf("notification failed: %v", err)
 	}
+
+	return nil
 }

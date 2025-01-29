@@ -1,7 +1,8 @@
 # 使用说明
 
 ## 运行使用
-testMonkey.exe -script examples/test_http.js -delay 1
+testMonkey.exe -script examples/notify.js
+testMonkey.exe -script examples/notify.js -delay 1
 
 
 ## CLI 模式运行脚本文件
@@ -11,6 +12,8 @@ go run main.go -script examples/test_http.js -delay 1
 go run main.go -script examples/promise.js -delay 1
 go run main.go -script examples/test_timer.js
 go run main.go -script examples/test_sleep.js
+go run main.go -script examples/notify.js
+
 
 go run main.go -script examples/test.txt -delay 1
 

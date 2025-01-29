@@ -42,8 +42,41 @@ func initRuntime() {
 		debugPageObject(jsRuntime, "axios")
 
 		// notify 函数仍然保持原样，因为它是特殊情况
+
+		// 实现 notify 函数
 		jsRuntime.Set("notify", func(call goja.FunctionCall) goja.Value {
-			// 现有的 notify 实现...
+			fmt.Println("Notify function called") // 调试日志
+
+			if len(call.Arguments) < 1 {
+				fmt.Println("No arguments provided to notify")
+				return goja.Undefined()
+			}
+
+			// 解析参数
+			options := call.Argument(0).ToObject(jsRuntime)
+			if options == nil {
+				fmt.Println("Failed to parse notify options")
+				return goja.Undefined()
+			}
+
+			// 转换为 NotifyOptions
+			notifyOpts := &automation.NotifyOptions{
+				Title:   toString(options.Get("title")),
+				Message: toString(options.Get("message")),
+				Sound:   toBool(options.Get("sound")),
+				Timeout: time.Duration(toInt(options.Get("timeout"))) * time.Millisecond,
+			}
+
+			fmt.Printf("Sending notification: %+v\n", notifyOpts) // 调试日志
+
+			// 调用通知
+			err := automation.Notify(notifyOpts)
+			if err != nil {
+				fmt.Printf("Notification error: %v\n", err) // 调试日志
+				panic(jsRuntime.NewGoError(err))
+			}
+
+			fmt.Println("Notification sent successfully") // 调试日志
 			return goja.Undefined()
 		})
 	}
@@ -209,4 +242,27 @@ func debugPageObject(runtime *goja.Runtime, objName string) {
 			fmt.Printf("- %s.%s: %v\n", objName, key, value)
 		}
 	}
+}
+
+// 辅助函数用于类型转换
+func toString(v goja.Value) string {
+	if v == nil || goja.IsUndefined(v) {
+		return ""
+	}
+	return v.String()
+}
+
+func toBool(v goja.Value) bool {
+	if v == nil || goja.IsUndefined(v) {
+		return false
+	}
+	return v.ToBoolean()
+}
+
+func toInt(v goja.Value) int {
+	if v == nil || goja.IsUndefined(v) {
+		return 0
+	}
+	num := v.ToInteger()
+	return int(num)
 }

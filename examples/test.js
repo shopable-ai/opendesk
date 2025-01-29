@@ -1,11 +1,11 @@
 
 
 // 使用全局 notify
-// await notify({
-//     title: "Test Started",
-//     message: "Starting automation...",
-//     sound: true
-// });
+await notify({
+    title: "Test Started",
+    message: "Starting automation...",
+    sound: true
+});
 
 // console.log("Starting test...");
 // Show/Hide desktop
