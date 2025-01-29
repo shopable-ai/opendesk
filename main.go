@@ -51,7 +51,7 @@ func initRuntime() {
 
 func main() {
 	scriptPath := flag.String("script", "", "Script file path (.txt or .js)")
-	delay := flag.Int("delay", 3, "Delay before start (seconds)")
+	delay := flag.Int("delay", 0, "Delay before start (seconds)") // 把默认值改为 0
 	flag.Parse()
 
 	if *scriptPath == "" {
@@ -68,12 +68,15 @@ func main() {
 	// 执行脚本前初始化运行时环境
 	initRuntime()
 
-	fmt.Printf("Starting in %d seconds...\n", *delay)
-	time.Sleep(time.Duration(*delay) * time.Second)
+	// 只有当明确指定了 delay 参数且大于 0 时才等待
+	if flag.Lookup("delay").Value.String() != "0" {
+		fmt.Printf("Starting in %d seconds...\n", *delay)
+		time.Sleep(time.Duration(*delay) * time.Second)
+	}
 
 	// Execute the script based on file extension
 	ext := strings.ToLower(filepath.Ext(*scriptPath))
-	fmt.Printf("Detected file extension: %s\n", ext) // Debug logging
+	fmt.Printf("Detected file extension: %s\n", ext)
 
 	if ext == ".js" {
 		err = executeJavaScript(string(content))
