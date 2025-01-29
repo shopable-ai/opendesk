@@ -38,10 +38,14 @@ func (a *Axios) RegisterInRuntime() {
 	a.runtime.Set("axios", obj)
 }
 
+// 固定使用 Chrome 的 User-Agent
+const defaultUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
 func (a *Axios) makeRequest(method, urlStr string, data interface{}, config map[string]interface{}) (goja.Value, error) {
 	var body io.Reader
 	headers := make(http.Header)
-	headers.Set("User-Agent", "Axios/1.0")
+	// 使用随机浏览器 User-Agent
+	headers.Set("User-Agent", defaultUserAgent)
 
 	if data != nil {
 		switch v := data.(type) {
