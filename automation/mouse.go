@@ -1,6 +1,7 @@
 package automation
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -13,49 +14,91 @@ func NewMouse() *Mouse {
 	return &Mouse{}
 }
 
-// Click 实现鼠标点击，接收单个options参数
 func (m *Mouse) Click(x, y int, options interface{}) error {
-	// Log options if provided
-	if options != nil {
-		if optMap, ok := options.(map[string]interface{}); ok {
-			fmt.Printf("Click options: Button=%v, ClickCount=%v, Delay=%v\n",
-				optMap["button"],
-				optMap["clickCount"],
-				optMap["delay"])
-		} else {
-			fmt.Printf("Options provided but not in expected format: %+v\n", options)
-		}
-	} else {
-		fmt.Println("No options provided, using defaults")
+	fmt.Printf("Clicking at coordinates: x=%d, y=%d\n", x, y)
 
-	}
-
+	// Initialize default options
 	opts := MouseOptions{
 		Button:     "left",
-		ClickCount: 1,
+		ClickCount: 1, // 默认值为1
 		Delay:      0,
 	}
 
-	// 如果提供了options，尝试从map中获取值
+	// Parse options if provided
 	if options != nil {
 		if optMap, ok := options.(map[string]interface{}); ok {
-			if button, ok := optMap["button"].(string); ok {
-				opts.Button = button
+			// 解析选项
+			button, hasButton := optMap["button"]
+			clickCount, hasClickCount := optMap["clickCount"]
+			delay, hasDelay := optMap["delay"]
+
+			// 如果未找到，尝试首字母大写的键
+			if !hasButton {
+				button, hasButton = optMap["Button"]
 			}
-			if clickCount, ok := optMap["clickCount"].(int); ok {
-				opts.ClickCount = clickCount
+			if !hasClickCount {
+				clickCount, hasClickCount = optMap["ClickCount"]
 			}
-			if delay, ok := optMap["delay"].(int); ok {
-				opts.Delay = delay
+			if !hasDelay {
+				delay, hasDelay = optMap["Delay"]
+			}
+
+			// 更新选项之前先打印解析到的值
+			fmt.Printf("Parsing options: Button=%v, ClickCount=%v, Delay=%v\n",
+				button, clickCount, delay)
+
+			if hasButton {
+				if buttonStr, ok := button.(string); ok {
+					opts.Button = buttonStr
+				}
+			}
+			if hasClickCount {
+				switch v := clickCount.(type) {
+				case int:
+					opts.ClickCount = v
+				case int64:
+					opts.ClickCount = int(v)
+					fmt.Printf("Converted from int64: %d\n", v)
+				case float64:
+					opts.ClickCount = int(v)
+				case json.Number:
+					if count, err := v.Int64(); err == nil {
+						opts.ClickCount = int(count)
+						fmt.Printf("Converted from json.Number: %d\n", count)
+					}
+				default:
+					fmt.Printf("Unexpected clickCount type: %T\n", v)
+				}
+			}
+			if hasDelay {
+				switch v := delay.(type) {
+				case int:
+					opts.Delay = v
+				case float64:
+					opts.Delay = int(v)
+				}
 			}
 		}
 	}
 
-	// 移动到指定位置
-	if err := m.Move(x, y, nil); err != nil {
-		return err
+	// Log the final options we'll use
+	fmt.Printf("Using options: Button=%s, ClickCount=%d, Delay=%d\n",
+		opts.Button, opts.ClickCount, opts.Delay)
+
+	// Validate button type
+	if !isValidButton(opts.Button) {
+		return fmt.Errorf("invalid button type: %s", opts.Button)
 	}
-	fmt.Println("click", x, y, opts)
+
+	// Move to position
+	if err := m.Move(x, y, nil); err != nil {
+		return fmt.Errorf("failed to move mouse: %v", err)
+	}
+
+	// Handle single click case
+	fmt.Printf("Performing click with button: %s\n", opts.Button)
+
+	// Execute click
 
 	// 点击指定次数
 	for i := 0; i < opts.ClickCount; i++ {
@@ -75,26 +118,7 @@ func (m *Mouse) Click(x, y int, options interface{}) error {
 	return nil
 }
 
-// Down 实现鼠标按下
-func (m *Mouse) Down(options interface{}) error {
-	opts := MouseOptions{
-		Button:     "left",
-		ClickCount: 1,
-	}
-
-	if options != nil {
-		if optMap, ok := options.(map[string]interface{}); ok {
-			if button, ok := optMap["button"].(string); ok {
-				opts.Button = button
-			}
-		}
-	}
-
-	robotgo.Toggle(opts.Button, "down")
-	return nil
-}
-
-// Move 实现鼠标移动
+// Move implements smooth mouse movement
 func (m *Mouse) Move(x, y int, options interface{}) error {
 	opts := MouseOptions{
 		Steps: 1,
@@ -108,29 +132,25 @@ func (m *Mouse) Move(x, y int, options interface{}) error {
 		}
 	}
 
-	// 如果 steps > 1，实现平滑移动
 	if opts.Steps > 1 {
 		currentX, currentY := robotgo.GetMousePos()
-
 		for step := 1; step <= opts.Steps; step++ {
 			nextX := currentX + ((x - currentX) * step / opts.Steps)
 			nextY := currentY + ((y - currentY) * step / opts.Steps)
-
 			robotgo.MoveMouse(nextX, nextY)
 			time.Sleep(time.Millisecond)
 		}
 	} else {
-		robotgo.MoveMouse(x, y)
+		robotgo.Move(x, y)
 	}
 
 	return nil
 }
 
-// Up 实现鼠标释放
-func (m *Mouse) Up(options interface{}) error {
+// Down implements mouse button down
+func (m *Mouse) Down(options interface{}) error {
 	opts := MouseOptions{
-		Button:     "left",
-		ClickCount: 1,
+		Button: "left",
 	}
 
 	if options != nil {
@@ -141,6 +161,41 @@ func (m *Mouse) Up(options interface{}) error {
 		}
 	}
 
+	if !isValidButton(opts.Button) {
+		return fmt.Errorf("invalid button type: %s", opts.Button)
+	}
+
+	robotgo.Toggle(opts.Button, "down")
+	return nil
+}
+
+// Up implements mouse button release
+func (m *Mouse) Up(options interface{}) error {
+	opts := MouseOptions{
+		Button: "left",
+	}
+
+	if options != nil {
+		if optMap, ok := options.(map[string]interface{}); ok {
+			if button, ok := optMap["button"].(string); ok {
+				opts.Button = button
+			}
+		}
+	}
+
+	if !isValidButton(opts.Button) {
+		return fmt.Errorf("invalid button type: %s", opts.Button)
+	}
+
 	robotgo.Toggle(opts.Button, "up")
 	return nil
+}
+
+func isValidButton(button string) bool {
+	validButtons := map[string]bool{
+		"left":   true,
+		"right":  true,
+		"middle": true,
+	}
+	return validButtons[button]
 }
