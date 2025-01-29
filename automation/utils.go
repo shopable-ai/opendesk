@@ -1,4 +1,3 @@
-// automation/utils.go
 package automation
 
 import (
@@ -26,7 +25,7 @@ func AutoMapMethods(runtime *goja.Runtime, goObj interface{}, jsObjName string) 
 		wrapper := createJSMethodWrapper(runtime, val, method)
 		jsObj[jsMethodName] = wrapper
 	}
-	// 打印数据  'js:', jsObjName, jsObj
+
 	fmt.Println("js:", jsObjName, jsObj)
 	runtime.Set(jsObjName, jsObj)
 	return jsObj
@@ -47,33 +46,50 @@ func createJSMethodWrapper(runtime *goja.Runtime, receiver reflect.Value, method
 		numIn := methodType.NumIn()
 		inputs := make([]reflect.Value, numIn)
 
-		// 设置receiver
+		// Set receiver
 		inputs[0] = receiver
 
-		// 转换参数
+		// Convert parameters
 		for i := 1; i < numIn; i++ {
+			paramType := methodType.In(i)
+
 			if i-1 < len(call.Arguments) {
 				jsArg := call.Arguments[i-1]
-				goArg := reflect.New(methodType.In(i)).Elem()
 
-				if err := runtime.ExportTo(jsArg, goArg.Addr().Interface()); err != nil {
-					panic(runtime.NewGoError(err))
+				// 如果参数类型是 interface{}，直接传入 JS 对象
+				if paramType.Kind() == reflect.Interface {
+					if jsObj := jsArg.ToObject(runtime); jsObj != nil {
+						mapped := make(map[string]interface{})
+						for _, key := range jsObj.Keys() {
+							mapped[key] = jsObj.Get(key).Export()
+						}
+						inputs[i] = reflect.ValueOf(mapped)
+					} else {
+						inputs[i] = reflect.Zero(paramType)
+					}
+				} else {
+					// 处理其他类型的参数
+					goArg := reflect.New(paramType).Elem()
+					if err := runtime.ExportTo(jsArg, goArg.Addr().Interface()); err != nil {
+						panic(runtime.NewGoError(fmt.Errorf("failed to convert parameter %d: %v", i, err)))
+					}
+					inputs[i] = goArg
 				}
-				inputs[i] = goArg
 			} else {
-				inputs[i] = reflect.Zero(methodType.In(i))
+				// 对于缺失的参数使用零值
+				inputs[i] = reflect.Zero(paramType)
 			}
 		}
 
-		// 调用方法
+		// Call method
 		results := method.Func.Call(inputs)
 
-		// 处理返回值
+		// Handle return values
 		if len(results) == 0 {
 			return goja.Undefined()
 		}
 
-		// 检查错误返回值
+		// Check for error return value
 		if len(results) > 0 {
 			lastResult := results[len(results)-1]
 			if lastResult.Type().Implements(reflect.TypeOf((*error)(nil)).Elem()) {
@@ -84,12 +100,12 @@ func createJSMethodWrapper(runtime *goja.Runtime, receiver reflect.Value, method
 			}
 		}
 
-		// 如果没有其他返回值
+		// Return undefined if no other return values
 		if len(results) == 0 {
 			return goja.Undefined()
 		}
 
-		// 转换返回值为 JavaScript 值
+		// Convert return value to JavaScript value
 		result := runtime.ToValue(results[0].Interface())
 		return result
 	}

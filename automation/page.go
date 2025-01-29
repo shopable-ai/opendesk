@@ -14,38 +14,38 @@ import (
 )
 
 type Page struct {
-	mouse       *Mouse // 直接作为字段而不是方法
-	keyboard    *Keyboard
-	touchscreen *Touchscreen
-	pid         int32
-	executable  string
+	Mouse       *Mouse // 公开字段
+	Keyboard    *Keyboard
+	Touchscreen *Touchscreen
+	Pid         int32
+	Executable  string
 }
 
 func NewPage() *Page {
 	return &Page{
-		mouse:       NewMouse(), // 初始化时创建
-		keyboard:    NewKeyboard(),
-		touchscreen: NewTouchscreen(),
-		pid:         int32(os.Getpid()),
+		Mouse:       NewMouse(), // 初始化时创建
+		Keyboard:    NewKeyboard(),
+		Touchscreen: NewTouchscreen(),
+		Pid:         int32(os.Getpid()),
 	}
 }
 
-// Mouse returns the Mouse instance
-func (p *Page) Mouse() *Mouse {
-	return p.mouse
-}
+// // Mouse returns the Mouse instance
+// func (p *Page) GetMouse() *Mouse {
+// 	return p.Mouse
+// }
 
-// Keyboard returns the Keyboard instance
-func (p *Page) Keyboard() *Keyboard {
-	return p.keyboard
-}
+// // Keyboard returns the Keyboard instance
+// func (p *Page) Keyboard() *Keyboard {
+// 	return p.Keyboard
+// }
 
-// Touchscreen returns the Touchscreen instance
-func (p *Page) Touchscreen() *Touchscreen {
-	return p.touchscreen
-}
+// // Touchscreen returns the Touchscreen instance
+// func (p *Page) Touchscreen() *Touchscreen {
+// 	return p.Touchscreen
+// }
 
-func (p *Page) screenshot(options *ScreenshotOptions) (string, error) {
+func (p *Page) Screenshot(options *ScreenshotOptions) (string, error) {
 	options = mergeWithDefaultOptions(options)
 
 	var x, y, width, height int
@@ -107,7 +107,7 @@ func (p *Page) Goto(url string) error {
 	return cmd.Run()
 }
 
-func (p *Page) title() string {
+func (p *Page) Title() string {
 	title := robotgo.GetTitle()
 	return title
 }
@@ -131,14 +131,12 @@ func (p *Page) WaitFor(milliseconds int64) error {
 	return nil
 }
 
-func (p *Page) url() string {
+func (p *Page) Url() string {
 	// Since we store the executable path in Page struct
-	return p.executable
+	return p.Executable
 }
 
 // mergeWithDefaultOptions merges provided options with default values
-
-// page.go modifications
 func mergeWithDefaultOptions(options *ScreenshotOptions) *ScreenshotOptions {
 	if options == nil {
 		return &ScreenshotOptions{

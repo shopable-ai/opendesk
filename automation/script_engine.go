@@ -48,7 +48,7 @@ func executeLine(page *Page, line string) error {
 			}
 		}
 
-		return page.Mouse().click(x, y, options)
+		return page.Mouse.Click(x, y, options)
 	}
 
 	// mouse.move(x, y[, options])
@@ -64,7 +64,7 @@ func executeLine(page *Page, line string) error {
 			}
 		}
 
-		return page.Mouse().move(x, y, options)
+		return page.Mouse.Move(x, y, options)
 	}
 
 	// mouse.down([options])
@@ -84,7 +84,7 @@ func executeLine(page *Page, line string) error {
 			}
 		}
 
-		return page.Mouse().down(options)
+		return page.Mouse.Down(options)
 	}
 
 	// mouse.up([options])
@@ -104,24 +104,24 @@ func executeLine(page *Page, line string) error {
 			}
 		}
 
-		return page.Mouse().up(options)
+		return page.Mouse.Up(options)
 	}
 
 	// touchscreen.tap(x, y)
 	if matches := regexp.MustCompile(`touchscreen\.tap\((\d+),\s*(\d+)\)`).FindStringSubmatch(line); matches != nil {
 		x, _ := strconv.Atoi(matches[1])
 		y, _ := strconv.Atoi(matches[2])
-		return page.Touchscreen().tap(x, y)
+		return page.Touchscreen.Tap(x, y)
 	}
 
 	// keyboard.type("text")
 	if matches := regexp.MustCompile(`keyboard\.type\("([^"]*)"\)`).FindStringSubmatch(line); matches != nil {
-		return page.Keyboard().Type(matches[1])
+		return page.Keyboard.Type(matches[1])
 	}
 
 	// keyboard.Press("key")
 	if matches := regexp.MustCompile(`keyboard\.press\("([^"]*)"\)`).FindStringSubmatch(line); matches != nil {
-		return page.Keyboard().Press(matches[1])
+		return page.Keyboard.Press(matches[1])
 	}
 
 	// screenshot with options object
@@ -183,13 +183,13 @@ func executeLine(page *Page, line string) error {
 			options.Encoding = encoding[1]
 		}
 
-		_, err := page.screenshot(options) // 忽略第一个返回值，只使用 error
+		_, err := page.Screenshot(options) // 忽略第一个返回值，只使用 error
 		return err
 	}
 
 	// Support for legacy format: screenshot("filename")
 	if matches := regexp.MustCompile(`screenshot\("([^"]*)"\)`).FindStringSubmatch(line); matches != nil {
-		_, err := page.screenshot(&ScreenshotOptions{
+		_, err := page.Screenshot(&ScreenshotOptions{
 			Path:     matches[1],
 			Type:     "png",
 			Encoding: "binary",
@@ -206,14 +206,14 @@ func executeLine(page *Page, line string) error {
 
 	// title()
 	if matches := regexp.MustCompile(`title\(\)`).FindStringSubmatch(line); matches != nil {
-		title := page.title()
+		title := page.Title()
 		fmt.Printf("Window Title: %s\n", title)
 		return nil
 	}
 
 	// url()
 	if matches := regexp.MustCompile(`url\(\)`).FindStringSubmatch(line); matches != nil {
-		url := page.url()
+		url := page.Url()
 		fmt.Printf("Executable Path: %s\n", url)
 		return nil
 	}

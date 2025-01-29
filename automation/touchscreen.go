@@ -13,7 +13,7 @@ func NewTouchscreen() *Touchscreen {
 }
 
 // Tap simulates a touchscreen tap event at the specified coordinates
-func (t *Touchscreen) tap(x, y int) error {
+func (t *Touchscreen) Tap(x, y int) error {
 	// 生成 touchstart 事件
 	robotgo.Move(x, y)
 	robotgo.Toggle("left", "down")
