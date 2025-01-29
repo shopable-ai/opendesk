@@ -26,6 +26,24 @@ console.info("Keyboard actions completed");
 const base64Image = await page.screenshot();
 console.log("Screenshot (base64):", base64Image.substring(0, 100));
 
+
+const selectedApi = 'http://ip-api.com/json/?lang=zh-CN';
+try {
+    const response = await axios.get(selectedApi);
+    console.log('IP details:', JSON.stringify(response.data, null, 2));
+} catch (error) {
+    console.error('Error:', error.message || error);
+}
+// axios.get(selectedApi)
+//     .then(response => {
+//         // 直接输出 JSON 格式的返回数据
+//         console.log('Your IP details:', response.data);
+//     })
+//     .catch(error => {
+//         console.error('Error fetching IP address:', error);
+//     });
+
+  
 // 指定 path 保存文件
 await page.screenshot({
     path: "test.png"
