@@ -43,53 +43,65 @@ func toLowerFirst(str string) string {
 func createJSMethodWrapper(runtime *goja.Runtime, receiver reflect.Value, method reflect.Method) func(call goja.FunctionCall) goja.Value {
 	return func(call goja.FunctionCall) goja.Value {
 		methodType := method.Type
+
+		// 检查方法是否是可变参数方法
+		isVariadic := methodType.IsVariadic()
+
+		// 计算固定参数的数量（不包括接收者）
 		numIn := methodType.NumIn()
-		inputs := make([]reflect.Value, numIn)
+		if isVariadic {
+			numIn--
+		}
 
-		// Set receiver
-		inputs[0] = receiver
+		inputs := make([]reflect.Value, 0, len(call.Arguments)+1)
+		inputs = append(inputs, receiver) // 添加接收者
 
-		// Convert parameters
+		// 处理固定参数
 		for i := 1; i < numIn; i++ {
 			paramType := methodType.In(i)
-
 			if i-1 < len(call.Arguments) {
 				jsArg := call.Arguments[i-1]
-
-				// 如果参数类型是 interface{}，直接传入 JS 对象
-				if paramType.Kind() == reflect.Interface {
-					if jsObj := jsArg.ToObject(runtime); jsObj != nil {
-						mapped := make(map[string]interface{})
-						for _, key := range jsObj.Keys() {
-							mapped[key] = jsObj.Get(key).Export()
-						}
-						inputs[i] = reflect.ValueOf(mapped)
-					} else {
-						inputs[i] = reflect.Zero(paramType)
-					}
-				} else {
-					// 处理其他类型的参数
-					goArg := reflect.New(paramType).Elem()
-					if err := runtime.ExportTo(jsArg, goArg.Addr().Interface()); err != nil {
-						panic(runtime.NewGoError(fmt.Errorf("failed to convert parameter %d: %v", i, err)))
-					}
-					inputs[i] = goArg
+				goArg := reflect.New(paramType).Elem()
+				if err := runtime.ExportTo(jsArg, goArg.Addr().Interface()); err != nil {
+					panic(runtime.NewGoError(fmt.Errorf("failed to convert parameter %d: %v", i, err)))
 				}
+				inputs = append(inputs, goArg)
 			} else {
-				// 对于缺失的参数使用零值
-				inputs[i] = reflect.Zero(paramType)
+				inputs = append(inputs, reflect.Zero(paramType))
 			}
 		}
 
-		// Call method
+		// 处理可变参数
+		if isVariadic {
+			sliceType := methodType.In(methodType.NumIn() - 1)
+			elemType := sliceType.Elem()
+
+			// 将剩余的参数转换为切片元素
+			for i := numIn - 1; i < len(call.Arguments); i++ {
+				jsArg := call.Arguments[i]
+				goArg := reflect.New(elemType).Elem()
+
+				// 特殊处理 interface{} 类型
+				if elemType.Kind() == reflect.Interface {
+					goArg = reflect.ValueOf(jsArg.Export())
+				} else {
+					if err := runtime.ExportTo(jsArg, goArg.Addr().Interface()); err != nil {
+						panic(runtime.NewGoError(fmt.Errorf("failed to convert variadic parameter %d: %v", i, err)))
+					}
+				}
+				inputs = append(inputs, goArg)
+			}
+		}
+
+		// 调用方法
 		results := method.Func.Call(inputs)
 
-		// Handle return values
+		// 处理返回值
 		if len(results) == 0 {
 			return goja.Undefined()
 		}
 
-		// Check for error return value
+		// 检查错误返回值
 		if len(results) > 0 {
 			lastResult := results[len(results)-1]
 			if lastResult.Type().Implements(reflect.TypeOf((*error)(nil)).Elem()) {
@@ -100,14 +112,13 @@ func createJSMethodWrapper(runtime *goja.Runtime, receiver reflect.Value, method
 			}
 		}
 
-		// Return undefined if no other return values
+		// 如果没有其他返回值，返回 undefined
 		if len(results) == 0 {
 			return goja.Undefined()
 		}
 
-		// Convert return value to JavaScript value
-		result := runtime.ToValue(results[0].Interface())
-		return result
+		// 转换返回值为 JavaScript 值
+		return runtime.ToValue(results[0].Interface())
 	}
 }
 

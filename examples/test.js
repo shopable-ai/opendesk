@@ -24,7 +24,7 @@ console.info("Keyboard actions completed");
 
 // 不指定 path，自动返回 base64
 const base64Image = await page.screenshot();
-console.log("Screenshot (base64):", base64Image);
+console.log("Screenshot (base64):", base64Image.substring(0, 100));
 
 // 指定 path 保存文件
 await page.screenshot({
