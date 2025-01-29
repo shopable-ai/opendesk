@@ -27,12 +27,19 @@ func initRuntime() {
 			panic(err)
 		}
 
+		// 初始化并注册 axios
+		axios := automation.NewAxios(jsRuntime)
+		axios.RegisterInRuntime()
+
 		// 可以添加这行来调试环境设置
 		printJSEnvironment(jsRuntime)
 
 		// 或者只调试特定对象
 		debugPageObject(jsRuntime, "page")
 		debugPageObject(jsRuntime, "mouse")
+
+		// 调试 axios 对象
+		debugPageObject(jsRuntime, "axios")
 
 		// notify 函数仍然保持原样，因为它是特殊情况
 		jsRuntime.Set("notify", func(call goja.FunctionCall) goja.Value {
@@ -88,19 +95,37 @@ func executeJavaScript(script string) error {
 	script = strings.TrimSpace(script)
 	if !strings.HasPrefix(script, "(async") && !strings.HasPrefix(script, "async") {
 		script = fmt.Sprintf(`
-			(async () => {
-				try {
-					%s
-				} catch (err) {
-					console.error("Script execution error:", err);
-					throw err;
-				}
-			})();
-		`, script)
+            (async () => {
+                try {
+                    %s
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                } catch (err) {
+                    console.error("Script execution error:", err.message || err);
+                }
+            })();
+        `, script)
 	}
 
-	_, err := jsRuntime.RunString(script)
-	return err
+	// 添加 Promise 完成处理
+	completeScript := fmt.Sprintf(`
+        (async () => {
+            try {
+                await %s;
+                console.log("Script execution completed");
+            } catch (err) {
+                console.error("Error in script execution:", err.message || err);
+            }
+        })();
+    `, script)
+
+	_, err := jsRuntime.RunString(completeScript)
+	if err != nil {
+		return fmt.Errorf("script execution failed: %v", err)
+	}
+
+	// 等待异步操作完成
+	time.Sleep(3 * time.Second)
+	return nil
 }
 
 func executeTextScript(script string) error {

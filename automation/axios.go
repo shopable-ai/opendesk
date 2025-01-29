@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -17,6 +18,11 @@ type AxiosResponse struct {
 	Status  int                    `json:"status"`
 	Headers map[string][]string    `json:"headers"`
 	Config  map[string]interface{} `json:"config"`
+}
+
+type requestResult struct {
+	response *AxiosResponse
+	err      error
 }
 
 // Axios represents the axios instance
@@ -36,87 +42,120 @@ func NewAxios(runtime *goja.Runtime) *Axios {
 }
 
 // RegisterInRuntime registers axios in the Goja runtime
+
 func (a *Axios) RegisterInRuntime() {
-	axios := a.runtime.NewObject()
-
-	// Register methods
-	must(axios.Set("get", a.get))
-	must(axios.Set("post", a.post))
-	must(axios.Set("put", a.put))
-	must(axios.Set("delete", a.delete))
-
-	a.runtime.Set("axios", axios)
-
-	// 注册基础的异步支持
-	_, err := a.runtime.RunString(`
-        // Promise polyfill
-        if (typeof Promise === 'undefined') {
-            Promise = function(executor) {
-                var chain = [], thenFn, catchFn;
-                var state = 'pending';
-                var value;
-                
-                function resolve(val) {
-                    state = 'resolved';
-                    value = val;
-                    if (thenFn) thenFn(val);
-                }
-                
-                function reject(val) {
-                    state = 'rejected';
-                    value = val;
-                    if (catchFn) catchFn(val);
-                }
-                
-                this.then = function(fn) {
-                    thenFn = fn;
-                    if (state === 'resolved') thenFn(value);
-                    return this;
-                };
-                
-                this.catch = function(fn) {
-                    catchFn = fn;
-                    if (state === 'rejected') catchFn(value);
-                    return this;
-                };
-                
-                executor(resolve, reject);
-            };
-        }
-    `)
-	if err != nil {
-		panic(err)
-	}
+	obj := a.runtime.NewObject()
+	obj.Set("get", a.get)
+	a.runtime.Set("axios", obj)
 }
 
 func (a *Axios) get(call goja.FunctionCall) goja.Value {
 	url := call.Argument(0).String()
-	config := make(map[string]interface{})
-	if len(call.Arguments) > 1 {
-		if configArg := call.Argument(1).ToObject(a.runtime); configArg != nil {
-			config = configArg.Export().(map[string]interface{})
-		}
-	}
 
-	promiseConstructor := a.runtime.Get("Promise")
-	promise, _ := a.runtime.New(promiseConstructor, a.runtime.ToValue(func(resolve, reject goja.Value) {
-		go func() {
-			resp, err := a.makeRequest("GET", url, nil, config)
-			a.runtime.Set("_axiosResolve", resolve)
-			a.runtime.Set("_axiosReject", reject)
-			a.runtime.Set("_axiosResponse", resp)
-			if err != nil {
-				errObj := a.runtime.NewObject()
-				must(errObj.Set("message", err.Error()))
-				a.runtime.Set("_axiosError", errObj)
-				a.runtime.RunString("_axiosReject(_axiosError)")
-			} else {
-				a.runtime.RunString("_axiosResolve(_axiosResponse)")
-			}
-		}()
+	jsPromise := a.runtime.Get("Promise")
+	promise, _ := a.runtime.New(jsPromise, a.runtime.ToValue(func(resolve, reject goja.Value) {
+		// 将 resolve 和 reject 存储为临时变量
+		a.runtime.Set("_tempResolve", resolve)
+		a.runtime.Set("_tempReject", reject)
+
+		// 执行 HTTP 请求
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			a.runtime.Set("_tempErr", err.Error())
+			a.runtime.RunString("_tempReject(_tempErr)")
+			return
+		}
+
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("User-Agent", "Axios/1.0")
+
+		resp, err := a.client.Do(req)
+		if err != nil {
+			a.runtime.Set("_tempErr", err.Error())
+			a.runtime.RunString("_tempReject(_tempErr)")
+			return
+		}
+		defer resp.Body.Close()
+
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			a.runtime.Set("_tempErr", err.Error())
+			a.runtime.RunString("_tempReject(_tempErr)")
+			return
+		}
+
+		var data interface{}
+		if err := json.Unmarshal(body, &data); err != nil {
+			data = string(body)
+		}
+
+		response := map[string]interface{}{
+			"data":    data,
+			"status":  resp.StatusCode,
+			"headers": resp.Header,
+		}
+
+		a.runtime.Set("_tempResponse", response)
+		a.runtime.RunString("_tempResolve(_tempResponse)")
 	}))
 
 	return promise
+}
+
+func (a *Axios) makeRequest(method, url string, data interface{}, config map[string]interface{}) (*AxiosResponse, error) {
+	var req *http.Request
+	var err error
+
+	ctx := context.Background()
+
+	if data != nil {
+		body, err := json.Marshal(data)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal request body: %w", err)
+		}
+		req, err = http.NewRequestWithContext(ctx, method, url, bytes.NewReader(body))
+	} else {
+		req, err = http.NewRequestWithContext(ctx, method, url, nil)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Add default headers
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", "Axios/1.0")
+
+	// Add headers from config
+	if headers, ok := config["headers"].(map[string]interface{}); ok {
+		for key, value := range headers {
+			req.Header.Set(key, fmt.Sprint(value))
+		}
+	}
+
+	resp, err := a.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	var responseData interface{}
+	if err := json.Unmarshal(bodyBytes, &responseData); err != nil {
+		// 如果不是 JSON，使用原始字符串
+		responseData = string(bodyBytes)
+	}
+
+	return &AxiosResponse{
+		Data:    responseData,
+		Status:  resp.StatusCode,
+		Headers: resp.Header,
+		Config:  config,
+	}, nil
 }
 
 func (a *Axios) post(call goja.FunctionCall) goja.Value {
@@ -217,53 +256,6 @@ func (a *Axios) delete(call goja.FunctionCall) goja.Value {
 	}))
 
 	return promise
-}
-
-func (a *Axios) makeRequest(method, url string, data interface{}, config map[string]interface{}) (*AxiosResponse, error) {
-	ctx := context.Background()
-
-	var bodyReader *bytes.Reader
-	if data != nil {
-		body, err := json.Marshal(data)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal request body: %w", err)
-		}
-		bodyReader = bytes.NewReader(body)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, method, url, bodyReader)
-	if err != nil {
-		return nil, err
-	}
-
-	// Add default headers
-	req.Header.Set("Content-Type", "application/json")
-
-	// Add headers from config
-	if headers, ok := config["headers"].(map[string]interface{}); ok {
-		for key, value := range headers {
-			req.Header.Set(key, fmt.Sprint(value))
-		}
-	}
-
-	resp, err := a.client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	var responseData interface{}
-	decoder := json.NewDecoder(resp.Body)
-	if err := decoder.Decode(&responseData); err != nil {
-		return nil, err
-	}
-
-	return &AxiosResponse{
-		Data:    responseData,
-		Status:  resp.StatusCode,
-		Headers: resp.Header,
-		Config:  config,
-	}, nil
 }
 
 func must(err error) {

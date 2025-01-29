@@ -3,6 +3,7 @@ package automation
 import (
 	"fmt"
 	"reflect"
+	"time"
 	"unicode"
 
 	"github.com/dop251/goja"
@@ -174,9 +175,28 @@ func MapPageToJS(runtime *goja.Runtime, page *Page) error {
 }
 
 // InitJS 初始化 JS 环境，同时支持全局对象和 page 属性
+// InitJS 初始化 JS 环境
 func InitJS(runtime *goja.Runtime) error {
 	// 创建新的 page 实例
 	page := NewPage()
+
+	// 注册 setTimeout
+	runtime.Set("setTimeout", func(call goja.FunctionCall) goja.Value {
+		callback := call.Argument(0)
+		delay := call.Argument(1).ToInteger()
+
+		go func() {
+			time.Sleep(time.Duration(delay) * time.Millisecond)
+			if fn, ok := goja.AssertFunction(callback); ok {
+				_, err := fn(goja.Undefined())
+				if err != nil {
+					fmt.Printf("Error in setTimeout callback: %v\n", err)
+				}
+			}
+		}()
+
+		return goja.Undefined()
+	})
 
 	// 映射组件到全局对象
 	mouseMethods := AutoMapObject(runtime, page.Mouse)
@@ -209,6 +229,10 @@ func InitJS(runtime *goja.Runtime) error {
 	// 映射 console 对象
 	consoleMethods := AutoMapObject(runtime, NewConsole())
 	runtime.Set("console", consoleMethods)
+
+	// 初始化并注册 axios
+	axios := NewAxios(runtime)
+	axios.RegisterInRuntime()
 
 	return nil
 }
