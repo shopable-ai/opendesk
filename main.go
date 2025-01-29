@@ -23,10 +23,14 @@ func initRuntime() {
 		jsRuntime = goja.New()
 		page = automation.NewPage()
 
+		// 初始化 axios
+		axios := automation.NewAxios(jsRuntime)
+		axios.RegisterInRuntime()
+
 		// 自动映射各个对象的方法
-		automation.AutoMapMethods(jsRuntime, page.Keyboard(), "keyboard")
-		automation.AutoMapMethods(jsRuntime, page.Mouse(), "mouse")
-		automation.AutoMapMethods(jsRuntime, page.Touchscreen(), "touchscreen")
+		automation.AutoMapMethods(jsRuntime, page.Keyboard, "keyboard")
+		automation.AutoMapMethods(jsRuntime, page.Mouse, "mouse")
+		automation.AutoMapMethods(jsRuntime, page.Touchscreen, "touchscreen")
 		automation.AutoMapMethods(jsRuntime, page, "page")
 		automation.AutoMapMethods(jsRuntime, automation.NewConsole(), "console")
 
