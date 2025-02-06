@@ -230,6 +230,10 @@ func InitJS(runtime *goja.Runtime) error {
 	consoleMethods := AutoMapObject(runtime, NewConsole())
 	runtime.Set("console", consoleMethods)
 
+	windowManager := NewWindowManager()
+	windowMethods := AutoMapObject(runtime, windowManager)
+	runtime.Set("window", windowMethods)
+
 	// 初始化计时器系统
 	timer := NewTimer(runtime)
 	timer.RegisterInRuntime()
