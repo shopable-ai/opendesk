@@ -83,14 +83,19 @@ func initRuntime() {
 }
 
 func main() {
+	// 记录开始时间
+	startTime := time.Now()
+
 	scriptPath := flag.String("script", "", "Script file path (.txt or .js)")
-	delay := flag.Int("delay", 0, "Delay before start (seconds)") // 把默认值改为 0
+	delay := flag.Int("delay", 0, "Delay before start (seconds)")
 	flag.Parse()
 
 	if *scriptPath == "" {
 		fmt.Println("Please specify script path: -script path/to/script.[txt|js]")
 		return
 	}
+
+	fmt.Printf("[%s] 开始执行脚本...\n", time.Now().Format("15:04:05.000"))
 
 	content, err := os.ReadFile(*scriptPath)
 	if err != nil {
@@ -103,13 +108,13 @@ func main() {
 
 	// 只有当明确指定了 delay 参数且大于 0 时才等待
 	if flag.Lookup("delay").Value.String() != "0" {
-		fmt.Printf("Starting in %d seconds...\n", *delay)
+		fmt.Printf("[%s] 等待 %d 秒后开始...\n", time.Now().Format("15:04:05.000"), *delay)
 		time.Sleep(time.Duration(*delay) * time.Second)
 	}
 
 	// Execute the script based on file extension
 	ext := strings.ToLower(filepath.Ext(*scriptPath))
-	fmt.Printf("Detected file extension: %s\n", ext)
+	fmt.Printf("[%s] 检测到文件扩展名: %s\n", time.Now().Format("15:04:05.000"), ext)
 
 	if ext == ".js" {
 		err = executeJavaScript(string(content))
@@ -119,14 +124,19 @@ func main() {
 	}
 
 	if err != nil {
-		fmt.Printf("Script execution failed: %v\n", err)
+		fmt.Printf("[%s] 脚本执行失败: %v\n", time.Now().Format("15:04:05.000"), err)
 		return
 	}
 
-	fmt.Println("Script execution completed!")
+	// 计算并显示总执行时间
+	executionTime := time.Since(startTime)
+	fmt.Printf("[%s] 脚本执行完成！总耗时: %v\n", time.Now().Format("15:04:05.000"), executionTime)
 }
 
 func executeJavaScript(script string) error {
+	startTime := time.Now()
+	fmt.Printf("[%s] 开始执行 JavaScript...\n", startTime.Format("15:04:05.000"))
+
 	// 处理脚本包装
 	script = strings.TrimSpace(script)
 	if !strings.HasPrefix(script, "(async") && !strings.HasPrefix(script, "async") {
@@ -136,10 +146,10 @@ func executeJavaScript(script string) error {
                     %s
                     await new Promise(resolve => setTimeout(resolve, 2000));
                 } catch (err) {
-                    console.error("Script execution error:", err.message || err);
+                    console.error("[%s] Script execution error:", err.message || err);
                 }
             })();
-        `, script)
+        `, script, time.Now().Format("15:04:05.000"))
 	}
 
 	// 添加 Promise 完成处理
@@ -147,12 +157,12 @@ func executeJavaScript(script string) error {
         (async () => {
             try {
                 await %s;
-                console.log("Script execution completed");
+                console.log("[%s] Script execution completed");
             } catch (err) {
-                console.error("Error in script execution:", err.message || err);
+                console.error("[%s] Error in script execution:", err.message || err);
             }
         })();
-    `, script)
+    `, script, time.Now().Format("15:04:05.000"), time.Now().Format("15:04:05.000"))
 
 	_, err := jsRuntime.RunString(completeScript)
 	if err != nil {
@@ -161,6 +171,9 @@ func executeJavaScript(script string) error {
 
 	// 等待异步操作完成
 	time.Sleep(3 * time.Second)
+
+	executionTime := time.Since(startTime)
+	fmt.Printf("[%s] JavaScript 执行完成，耗时: %v\n", time.Now().Format("15:04:05.000"), executionTime)
 	return nil
 }
 

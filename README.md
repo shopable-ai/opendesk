@@ -13,6 +13,7 @@ go run main.go -script examples/promise.js -delay 1
 go run main.go -script examples/test_timer.js
 go run main.go -script examples/test_sleep.js
 go run main.go -script examples/notify.js
+go run main.go -script examples/window.js -delay 2
 
 
 go run main.go -script examples/test.txt -delay 1
