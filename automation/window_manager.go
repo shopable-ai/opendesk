@@ -2,7 +2,9 @@ package automation
 
 import (
 	"fmt"
+	"sort"
 	"strings"
+	"syscall"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -11,14 +13,18 @@ import (
 // WindowInfo represents information about a window
 // WindowInfo 结构体增加新字段
 type WindowInfo struct {
-	Title     string `json:"title"`
-	ProcessID uint32 `json:"pid"`
-	X         int32  `json:"x"`
-	Y         int32  `json:"y"`
-	Width     int32  `json:"width"`
-	Height    int32  `json:"height"`
-	ExeName   string `json:"exe_name"` // 添加可执行文件名
-	ExePath   string `json:"exe_path"` // 添加可执行文件完整路径
+	Title        string  `json:"title"`
+	ProcessID    uint32  `json:"pid"`
+	X            int32   `json:"x"`
+	Y            int32   `json:"y"`
+	Width        int32   `json:"width"`
+	Height       int32   `json:"height"`
+	ExeName      string  `json:"exe_name"`
+	ExePath      string  `json:"exe_path"`
+	IsForeground bool    `json:"is_foreground"`
+	HasFocus     bool    `json:"has_focus"`
+	Handle       uintptr `json:"handle"`   // Add Handle field
+	IsPopup      bool    `json:"is_popup"` // Add IsPopup field
 }
 
 // WindowManager handles window-related operations
@@ -63,8 +69,16 @@ var (
 	EM_GETTEXT       = 0x000D
 	EM_GETTEXTLENGTH = 0x000E
 	// 用于获取富文本框内容
-	WM_GETTEXT       = 0x000D
-	WM_GETTEXTLENGTH = 0x000E
+	WM_GETTEXT          = 0x000D
+	WM_GETTEXTLENGTH    = 0x000E
+	procIsWindowVisible = windows.NewLazySystemDLL("user32.dll").NewProc("IsWindowVisible")
+	procGetWindowLongW  = windows.NewLazySystemDLL("user32.dll").NewProc("GetWindowLongW")
+)
+
+// 添加新的系统调用
+var (
+	user32            = syscall.NewLazyDLL("user32.dll")
+	procGetWindowLong = user32.NewProc("GetWindowLongW")
 )
 
 type GUITHREADINFO struct {
@@ -80,12 +94,15 @@ type GUITHREADINFO struct {
 }
 
 const (
-	SW_HIDE     = 0
-	SW_NORMAL   = 1
-	SW_MINIMIZE = 6
-	SW_MAXIMIZE = 3
-	SW_RESTORE  = 9
-	WM_CLOSE    = 0x0010
+	SW_HIDE            = 0
+	SW_NORMAL          = 1
+	SW_MINIMIZE        = 6
+	SW_MAXIMIZE        = 3
+	SW_RESTORE         = 9
+	GWL_STYLE    int32 = -16
+	WS_POPUP           = 0x80000000
+	WM_CLOSE           = 0x0010
+	GWL_STYLE_32       = -16
 )
 
 func getWindowTitle(hwnd windows.Handle) string {
@@ -421,26 +438,6 @@ func (w *WindowManager) GetContent(selector string) (string, error) {
 	return w.getWindowContent(windows.Handle(hwnd)), nil
 }
 
-// getWindowClass 获取窗口的类名
-func getWindowClass(hwnd windows.Handle) string {
-	// 分配缓冲区用于存储类名
-	buf := make([]uint16, 256)
-
-	// 调用 GetClassName API 获取窗口类名
-	ret, _, _ := procGetClassName.Call(
-		uintptr(hwnd),
-		uintptr(unsafe.Pointer(&buf[0])),
-		uintptr(len(buf)),
-	)
-
-	if ret == 0 {
-		return ""
-	}
-
-	// 转换为字符串并返回
-	return windows.UTF16ToString(buf)
-}
-
 // getWindowContent 增强版获取窗口的完整内容
 func (w *WindowManager) getWindowContent(hwnd windows.Handle) string {
 	var content strings.Builder
@@ -539,8 +536,159 @@ func getRichEditContent(hwnd windows.Handle) string {
 	return windows.UTF16ToString(buffer)
 }
 
-// getFocusWindow 获取窗口当前焦点控件
-func getFocusWindow(hwnd windows.Handle) uintptr {
+// getWindowText 获取窗口的文本内容
+func getWindowText(hwnd windows.Handle) string {
+	textLen, _, _ := procGetWindowTextLengthW.Call(uintptr(hwnd))
+	if textLen == 0 {
+		return ""
+	}
+
+	buffer := make([]uint16, textLen+1)
+	procGetWindowTextW.Call(
+		uintptr(hwnd),
+		uintptr(unsafe.Pointer(&buffer[0])),
+		uintptr(len(buffer)),
+	)
+
+	return windows.UTF16ToString(buffer)
+}
+
+// Then modify the ListWindows function to use the helper
+func (w *WindowManager) ListWindows() ([]map[string]interface{}, error) {
+	var windowsList []map[string]interface{}
+
+	enumWindows := func(hwnd syscall.Handle, lparam uintptr) uintptr {
+		// Check window visibility
+		isVisible, _, _ := procIsWindowVisible.Call(uintptr(hwnd))
+		if isVisible == 0 {
+			return 1
+		}
+
+		// Get window title
+		title := getWindowTitle(windows.Handle(hwnd))
+		if title == "" {
+			return 1
+		}
+
+		// Get window metrics
+		x, y, width, height := getWindowRect(windows.Handle(hwnd))
+		processId := getWindowProcessId(windows.Handle(hwnd))
+
+		// Get process information
+		exeName, exePath, _ := getProcessExecutableInfo(processId)
+
+		// Check if window is foreground
+		foregroundHwnd, _, _ := procGetForegroundWindow.Call()
+		isForeground := uintptr(hwnd) == foregroundHwnd
+
+		// Check focus state
+		hasFocus := false
+		focusHwnd := getForegroundWindow()
+		if focusHwnd != 0 {
+			focusHandle := windows.Handle(focusHwnd)
+			threadFocus := getFocusWindow(focusHandle)
+			hasFocus = uintptr(hwnd) == threadFocus
+		}
+
+		// Get window style
+		style := getWindowStyle(hwnd)
+		isPopup := (style & WS_POPUP) == WS_POPUP
+
+		// Create a map for window info
+		windowInfo := map[string]interface{}{
+			"title":        title,
+			"processId":    processId,
+			"x":            x,
+			"y":            y,
+			"width":        width,
+			"height":       height,
+			"exeName":      exeName,
+			"exePath":      exePath,
+			"isForeground": isForeground,
+			"hasFocus":     hasFocus,
+			"isPopup":      isPopup,
+			"handle":       uintptr(hwnd),
+		}
+
+		windowsList = append(windowsList, windowInfo)
+		return 1
+	}
+
+	// Enumerate windows
+	cb := syscall.NewCallback(enumWindows)
+	ret, _, _ := procEnumWindows.Call(cb, 0)
+	if ret == 0 {
+		return nil, fmt.Errorf("EnumWindows failed")
+	}
+
+	// Sort windows by foreground status and title
+	sort.Slice(windowsList, func(i, j int) bool {
+		if windowsList[i]["isForeground"].(bool) != windowsList[j]["isForeground"].(bool) {
+			return windowsList[i]["isForeground"].(bool)
+		}
+		return windowsList[i]["title"].(string) < windowsList[j]["title"].(string)
+	})
+
+	return windowsList, nil
+}
+
+func getWindowStyle(hwnd syscall.Handle) uint32 {
+	ret, _, _ := procGetWindowLongW.Call(
+		uintptr(hwnd),
+		^uintptr(15), // This is equivalent to -16 but avoids the overflow
+	)
+	return uint32(ret)
+}
+
+// Add these to your console.go or appropriate logging file:
+func (c *Console) formatWindowInfo(info *WindowInfo) string {
+	if info == nil {
+		return "null"
+	}
+	return fmt.Sprintf(
+		"{title: %q, processId: %d, exeName: %q, isForeground: %v, hasFocus: %v, isPopup: %v, handle: %d, dimensions: {x: %d, y: %d, width: %d, height: %d}}",
+		info.Title,
+		info.ProcessID,
+		info.ExeName,
+		info.IsForeground,
+		info.HasFocus,
+		info.IsPopup,
+		info.Handle,
+		info.X,
+		info.Y,
+		info.Width,
+		info.Height,
+	)
+}
+
+// Keep only one version of getWindowClass
+func getWindowClass(hwnd windows.Handle) string {
+	buf := make([]uint16, 256)
+	ret, _, _ := procGetClassName.Call(
+		uintptr(hwnd),
+		uintptr(unsafe.Pointer(&buf[0])),
+		uintptr(len(buf)),
+	)
+	if ret == 0 {
+		return ""
+	}
+	return windows.UTF16ToString(buf)
+}
+
+// isWindowVisible 判断窗口是否可见
+func isWindowVisible(hwnd syscall.Handle) bool {
+	ret, _, _ := windows.NewLazySystemDLL("user32.dll").NewProc("IsWindowVisible").Call(uintptr(hwnd))
+	return ret != 0
+}
+
+// getForegroundWindow 获取前台窗口句柄
+func getForegroundWindow() uintptr {
+	hwnd, _, _ := procGetForegroundWindow.Call()
+	return hwnd
+}
+
+// Function to get focused window of a thread
+func getFocusWindowHandle(hwnd windows.Handle) uintptr {
 	var threadId uint32
 	procGetWindowThreadProcessId.Call(
 		uintptr(hwnd),
@@ -558,19 +706,77 @@ func getFocusWindow(hwnd windows.Handle) uintptr {
 	return uintptr(gui.HwndFocus)
 }
 
-// getWindowText 获取窗口的文本内容
-func getWindowText(hwnd windows.Handle) string {
-	textLen, _, _ := procGetWindowTextLengthW.Call(uintptr(hwnd))
-	if textLen == 0 {
-		return ""
+// Add this to your automation/window.go file
+
+// GetFocusWindow returns information about the currently focused window
+func (w *WindowManager) GetFocusWindow() (*WindowInfo, error) {
+	// Get the foreground window first
+	hwnd, _, _ := procGetForegroundWindow.Call()
+	if hwnd == 0 {
+		// If no foreground window, return null without error
+		return nil, nil
 	}
 
-	buffer := make([]uint16, textLen+1)
-	procGetWindowTextW.Call(
+	// Get the focused window handle
+	focusHwnd := getFocusWindow(windows.Handle(hwnd))
+	if focusHwnd == 0 {
+		// If no focus window, fall back to foreground window
+		focusHwnd = hwnd
+	}
+
+	// Get window properties
+	title := getWindowTitle(windows.Handle(focusHwnd))
+	x, y, width, height := getWindowRect(windows.Handle(focusHwnd))
+	processId := getWindowProcessId(windows.Handle(focusHwnd))
+
+	// Get executable information
+	exeName, exePath, _ := getProcessExecutableInfo(processId)
+
+	// Check if window is foreground
+	foregroundHwnd, _, _ := procGetForegroundWindow.Call()
+	isForeground := focusHwnd == foregroundHwnd
+
+	// Get window style to check if it's a popup
+	style := getWindowStyle(syscall.Handle(focusHwnd))
+	isPopup := (style & WS_POPUP) == WS_POPUP
+
+	return &WindowInfo{
+		Title:        title,
+		ProcessID:    processId,
+		X:            x,
+		Y:            y,
+		Width:        width,
+		Height:       height,
+		ExeName:      exeName,
+		ExePath:      exePath,
+		IsForeground: isForeground,
+		HasFocus:     focusHwnd == hwnd,
+		Handle:       uintptr(focusHwnd),
+		IsPopup:      isPopup,
+	}, nil
+}
+
+// Modify getFocusWindow to be more robust
+func getFocusWindow(hwnd windows.Handle) uintptr {
+	var threadId uint32
+	procGetWindowThreadProcessId.Call(
 		uintptr(hwnd),
-		uintptr(unsafe.Pointer(&buffer[0])),
-		uintptr(len(buffer)),
+		uintptr(unsafe.Pointer(&threadId)),
 	)
 
-	return windows.UTF16ToString(buffer)
+	var gui GUITHREADINFO
+	gui.CbSize = uint32(unsafe.Sizeof(gui))
+
+	ret, _, _ := procGetGUIThreadInfo.Call(
+		uintptr(threadId),
+		uintptr(unsafe.Pointer(&gui)),
+	)
+
+	if ret == 0 || gui.HwndFocus == 0 {
+		// If we can't get focus info or there's no focus window,
+		// return the original window handle
+		return uintptr(hwnd)
+	}
+
+	return uintptr(gui.HwndFocus)
 }
