@@ -3,11 +3,13 @@ module testMonkey-go
 go 1.23.5
 
 require (
+	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/dblohm7/wingoes v0.0.0-20240820181039-f2b84150679e // indirect
 	github.com/dlclark/regexp2 v1.11.4 // indirect
 	github.com/dop251/goja v0.0.0-20250125213203-5ef83b82af17 // indirect
 	github.com/dop251/goja_nodejs v0.0.0-20240728170619-29b559befffc // indirect
 	github.com/ebitengine/purego v0.8.0 // indirect
+	github.com/faiface/beep v1.1.0 // indirect
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/gen2brain/beeep v0.0.0-20240516210008-9c006672e7f4 // indirect
 	github.com/gen2brain/shm v0.1.1 // indirect
@@ -25,6 +27,8 @@ require (
 	github.com/go-vgo/robotgo v0.110.5 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/google/pprof v0.0.0-20240727154555-813a5fbdbec8 // indirect
+	github.com/hajimehoshi/go-mp3 v0.3.4 // indirect
+	github.com/hajimehoshi/oto v1.0.1 // indirect
 	github.com/jezek/xgb v1.1.1 // indirect
 	github.com/kbinani/screenshot v0.0.0-20240820160931-a8a2c5d0e191 // indirect
 	github.com/lufia/plan9stats v0.0.0-20240909124753-873cd0166683 // indirect
@@ -34,6 +38,7 @@ require (
 	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d // indirect
 	github.com/otiai10/gosseract v2.2.1+incompatible // indirect
 	github.com/oxtoacart/bpool v0.0.0-20190530202638-03653db5a59c // indirect
+	github.com/pkg/errors v0.9.1 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
 	github.com/robotn/xgb v0.10.0 // indirect
 	github.com/robotn/xgbutil v0.10.0 // indirect
@@ -49,7 +54,9 @@ require (
 	github.com/vcaesar/tt v0.20.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	golang.org/x/exp v0.0.0-20241004190924-225e2abe05e6 // indirect
+	golang.org/x/exp/shiny v0.0.0-20250128182459-e0ece0dbea4c // indirect
 	golang.org/x/image v0.21.0 // indirect
-	golang.org/x/sys v0.26.0 // indirect
+	golang.org/x/mobile v0.0.0-20231127183840-76ac6878050a // indirect
+	golang.org/x/sys v0.30.0 // indirect
 	golang.org/x/text v0.19.0 // indirect
 )

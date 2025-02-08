@@ -16,7 +16,7 @@ for (let i = 1; i <= 3; i++) {
         
     // 等待2秒
     console.log('等待 2 秒...');
-    await sleep(8000);
+    await sleep(2000);
 }
 
 // 测试窗口操作
