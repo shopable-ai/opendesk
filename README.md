@@ -14,13 +14,19 @@ go run main.go -script examples/timer.js
 go run main.go -script examples/sleep.js
 go run main.go -script examples/notify.js
 go run main.go -script examples/window.js -delay 2
+go run main.go -script examples/window-info.js
 go run main.go -script examples/clipboard.js
 go run main.go -script examples/appStorage.js
 go run main.go -script examples/screen.js
 go run main.go -script examples/sound.js
 go run main.go -script examples/file.js
 
-go run main.go -script examples/test.txt -delay 1
+go run main.go -script examples/start.js -timeout 0   # 无超时时限，默认 -timeout 30 分钟
+
+go run main.go -http   # 启动 HTTP 服务器模式
+
+go run main.go -script examples/test.txt -delay 1  # 后期未使用，可能无法使用
+
 
 
 ## 构建
