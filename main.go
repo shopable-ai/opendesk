@@ -110,14 +110,13 @@ func initRuntime() {
 var isAutoRunJs bool = false
 
 func main() {
-	// 直接调用 Sync，因为 os.Stdout 本身就是 *os.File
 	os.Stdout.Sync()
 
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Printf("Recovered from panic: %v\n", r)
 			fmt.Println("\nPress 'Enter' to exit...")
-			fmt.Scanln() // 等待用户按回车
+			fmt.Scanln()
 		}
 	}()
 
@@ -130,17 +129,15 @@ func main() {
 	// 检查是否是双击启动（无参数启动）
 	if len(os.Args) == 1 {
 		isAutoRunJs = true
-		fmt.Println("[DEBUG] Double-clicked detected. isAutoRunJs set to true.")
+		config.HttpMode = true // 双击启动时默认启用 HTTP 模式
+		fmt.Println("[DEBUG] Double-clicked detected. Setting default HTTP mode.")
 	}
 
 	// 明确设置 HTTP 模式的 isAutoRunJs
 	if config.HttpMode {
 		isAutoRunJs = true
-		fmt.Println("[DEBUG] HTTP mode detected. isAutoRunJs set to true.")
+		fmt.Println("[DEBUG] HTTP mode active.")
 	}
-
-	// 创建一个通道用于同步
-	done := make(chan bool)
 
 	// 如果是双击启动或HTTP模式
 	if isAutoRunJs {
@@ -163,38 +160,9 @@ func main() {
 			}()
 		}
 
-		// 如果是 HTTP 模式，启动服务器
-		if config.HttpMode {
-			fmt.Println("[INFO] Starting HTTP server...")
-			go startHttpServer()
-		}
-
-		// 启动用户交互
-		go func() {
-			fmt.Println("\n[INFO] Program is running...")
-			fmt.Println("[INFO] Press 'q' and Enter to quit, or just Enter to refresh status")
-
-			for {
-				var input string
-				fmt.Scanln(&input)
-
-				if input == "q" {
-					fmt.Println("[INFO] Exiting program...")
-					done <- true
-					return
-				}
-
-				// 显示当前状态
-				fmt.Println("\n[STATUS] Program is still running")
-				fmt.Println("[STATUS] Press 'q' and Enter to quit")
-			}
-		}()
-
-		// 等待退出信号
-		<-done
-		fmt.Println("[INFO] Program terminated.")
-		fmt.Println("\nPress 'Enter' to exit...")
-		fmt.Scanln()
+		// 启动 HTTP 服务器（默认行为）
+		fmt.Println("[INFO] Starting HTTP server...")
+		startHttpServer() // 这会阻塞主线程
 		return
 	}
 
@@ -210,11 +178,23 @@ func main() {
 		}
 
 		fmt.Println("[DEBUG] Script execution completed")
+
+		// 如果指定了 HTTP 模式，继续运行 HTTP 服务器
+		if config.HttpMode {
+			startHttpServer()
+		}
 		return
 	}
 
 	// 没有脚本的情况
 	fmt.Println("Please specify script path: -script path/to/script.[txt|js]")
+
+	// 如果是 HTTP 模式，启动服务器
+	if config.HttpMode {
+		startHttpServer()
+		return
+	}
+
 	if isAutoRunJs {
 		fmt.Println("\nPress 'Enter' to exit...")
 		fmt.Scanln()
