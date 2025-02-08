@@ -110,16 +110,27 @@ func initRuntime() {
 var isAutoRunJs bool = false
 
 func main() {
+	// 直接调用 Sync，因为 os.Stdout 本身就是 *os.File
+	os.Stdout.Sync()
+
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Printf("Recovered from panic: %v\n", r)
+			fmt.Println("\nPress 'Enter' to exit...")
+			fmt.Scanln() // 等待用户按回车
+		}
+	}()
+
 	config := parseFlags()
 
+	fmt.Println("[DEBUG] Program starting...")
 	fmt.Println("[DEBUG] Initializing runtime...")
 	initRuntime()
 
 	// 检查是否是双击启动（无参数启动）
-	// Check if double-clicked (no arguments)
 	if len(os.Args) == 1 {
 		isAutoRunJs = true
-		fmt.Println("[DEBUG] double-clicked detected. isAutoRunJs set to true.")
+		fmt.Println("[DEBUG] Double-clicked detected. isAutoRunJs set to true.")
 	}
 
 	// 明确设置 HTTP 模式的 isAutoRunJs
@@ -127,49 +138,87 @@ func main() {
 		isAutoRunJs = true
 		fmt.Println("[DEBUG] HTTP mode detected. isAutoRunJs set to true.")
 	}
+
+	// 创建一个通道用于同步
+	done := make(chan bool)
+
+	// 如果是双击启动或HTTP模式
 	if isAutoRunJs {
+		// 尝试查找和执行脚本
 		scriptFile, err := findScriptFile()
 		if err != nil {
-			fmt.Printf("No script file found in current directory: %v\n", err)
-			if config.HttpMode {
-				startHttpServer()
-			} else {
-				fmt.Println("Please specify script path: -script path/to/script.[txt|js]")
+			fmt.Printf("[INFO] No tm.config.js found: %v\n", err)
+		} else {
+			fmt.Printf("[INFO] Found script file: %s\n", scriptFile)
+			config.ScriptPath = scriptFile
+
+			// 在新的 goroutine 中执行脚本
+			go func() {
+				fmt.Println("[INFO] Starting script execution...")
+				if err := executeScript(config); err != nil {
+					fmt.Printf("[ERROR] Script execution failed: %v\n", err)
+				} else {
+					fmt.Println("[INFO] Script execution completed successfully")
+				}
+			}()
+		}
+
+		// 如果是 HTTP 模式，启动服务器
+		if config.HttpMode {
+			fmt.Println("[INFO] Starting HTTP server...")
+			go startHttpServer()
+		}
+
+		// 启动用户交互
+		go func() {
+			fmt.Println("\n[INFO] Program is running...")
+			fmt.Println("[INFO] Press 'q' and Enter to quit, or just Enter to refresh status")
+
+			for {
+				var input string
+				fmt.Scanln(&input)
+
+				if input == "q" {
+					fmt.Println("[INFO] Exiting program...")
+					done <- true
+					return
+				}
+
+				// 显示当前状态
+				fmt.Println("\n[STATUS] Program is still running")
+				fmt.Println("[STATUS] Press 'q' and Enter to quit")
 			}
-			return
-		}
-		fmt.Printf("[DEBUG] Found script file: %s\n", scriptFile) // 添加找到脚本日志
-		config.ScriptPath = scriptFile
+		}()
+
+		// 等待退出信号
+		<-done
+		fmt.Println("[INFO] Program terminated.")
+		fmt.Println("\nPress 'Enter' to exit...")
+		fmt.Scanln()
+		return
 	}
 
-	if config.Delay > 0 {
-		fmt.Printf("[DEBUG] Delaying for %d seconds\n", config.Delay) // 添加延迟日志
-		time.Sleep(time.Duration(config.Delay) * time.Second)
-	}
-
-	// Execute script if specified
+	// 命令行模式的处理
 	if config.ScriptPath != "" {
-		fmt.Printf("[DEBUG] Executing script: %s\n", config.ScriptPath) // 添加执行脚本日志
+		fmt.Printf("[DEBUG] Executing script: %s\n", config.ScriptPath)
 
-		// Add delay if specified
-		if isAutoRunJs {
-			fmt.Printf("[DEBUG] isAutoRunJs is true. Waiting %d seconds before script execution...\n", 2)
-			time.Sleep(time.Duration(2) * time.Second)
+		if err := executeScript(config); err != nil {
+			fmt.Printf("[ERROR] Script execution failed: %v\n", err)
+			fmt.Println("\nPress 'Enter' to exit...")
+			fmt.Scanln()
+			os.Exit(1)
 		}
-		executeScript(config)
-		return
-	} else {
-		fmt.Println("[DEBUG] No script path specified") // 添加未找到脚本的提示
-	}
 
-	// Start HTTP server if in HTTP mode
-	if config.HttpMode {
-		startHttpServer()
+		fmt.Println("[DEBUG] Script execution completed")
 		return
 	}
 
-	fmt.Println("[DEBUG] No script path specified") // 添加未找到脚本的提示
+	// 没有脚本的情况
 	fmt.Println("Please specify script path: -script path/to/script.[txt|js]")
+	if isAutoRunJs {
+		fmt.Println("\nPress 'Enter' to exit...")
+		fmt.Scanln()
+	}
 }
 
 func findScriptFile() (string, error) {
@@ -599,12 +648,14 @@ func startHttpServer() {
 	}
 	fmt.Printf("http://localhost:%s\n", port)
 	fmt.Println("----------------------------------------")
+	fmt.Println("服务器已启动，按 Ctrl+C 关闭")
 
 	// Wrap handlers with CORS middleware
 	http.HandleFunc("/SCRIPT_RUN", corsMiddleware(handleScriptExecution))
 	http.HandleFunc("/status", corsMiddleware(handleStatus))
 	http.HandleFunc("/", corsMiddleware(handleRoot))
 
+	// 直接使用 ListenAndServe，这将阻塞主线程
 	serverAddr := ":" + port
 	if err := http.ListenAndServe(serverAddr, nil); err != nil {
 		fmt.Printf("Server failed to start: %v\n", err)
