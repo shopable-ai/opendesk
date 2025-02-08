@@ -18,3 +18,15 @@ for (let i = 1; i <= 3; i++) {
     console.log('等待 2 秒...');
     await sleep(2000);
 }
+
+const windows = await window.listWindows();
+console.log('所有窗口信息:', windows);
+
+// 获取并监控千牛弹窗
+const qianniuWindows = windows.filter(win => 
+    win.exeName?.includes('AliWorkbench.exe')
+);
+console.log('千牛弹窗:', qianniuWindows);
+
+const focusWindow = await window.getFocusWindow();
+console.log('当前焦点窗口信息:', focusWindow);
