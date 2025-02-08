@@ -13,7 +13,12 @@ import (
 	"time"
 
 	"github.com/dop251/goja"
+	"github.com/go-vgo/robotgo"
 )
+
+func init() {
+	fmt.Printf("robotgo version: %s\n", robotgo.Version)
+}
 
 // 全局变量，保持运行时环境
 var (
