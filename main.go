@@ -107,6 +107,8 @@ func initRuntime() {
 	}
 }
 
+var isAutoRunJs bool = false
+
 func main() {
 	config := parseFlags()
 
@@ -114,9 +116,18 @@ func main() {
 	initRuntime()
 
 	// 检查是否是双击启动（无参数启动）
-
 	// Check if double-clicked (no arguments)
 	if len(os.Args) == 1 {
+		isAutoRunJs = true
+		fmt.Println("[DEBUG] double-clicked detected. isAutoRunJs set to true.")
+	}
+
+	// 明确设置 HTTP 模式的 isAutoRunJs
+	if config.HttpMode {
+		isAutoRunJs = true
+		fmt.Println("[DEBUG] HTTP mode detected. isAutoRunJs set to true.")
+	}
+	if isAutoRunJs {
 		scriptFile, err := findScriptFile()
 		if err != nil {
 			fmt.Printf("No script file found in current directory: %v\n", err)
@@ -131,11 +142,24 @@ func main() {
 		config.ScriptPath = scriptFile
 	}
 
+	if config.Delay > 0 {
+		fmt.Printf("[DEBUG] Delaying for %d seconds\n", config.Delay) // 添加延迟日志
+		time.Sleep(time.Duration(config.Delay) * time.Second)
+	}
+
 	// Execute script if specified
 	if config.ScriptPath != "" {
 		fmt.Printf("[DEBUG] Executing script: %s\n", config.ScriptPath) // 添加执行脚本日志
+
+		// Add delay if specified
+		if isAutoRunJs {
+			fmt.Printf("[DEBUG] isAutoRunJs is true. Waiting %d seconds before script execution...\n", 2)
+			time.Sleep(time.Duration(2) * time.Second)
+		}
 		executeScript(config)
 		return
+	} else {
+		fmt.Println("[DEBUG] No script path specified") // 添加未找到脚本的提示
 	}
 
 	// Start HTTP server if in HTTP mode
@@ -144,7 +168,7 @@ func main() {
 		return
 	}
 
-	fmt.Println("[DEBUG] No script path specified") // 添加未找
+	fmt.Println("[DEBUG] No script path specified") // 添加未找到脚本的提示
 	fmt.Println("Please specify script path: -script path/to/script.[txt|js]")
 }
 
