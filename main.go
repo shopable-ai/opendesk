@@ -137,6 +137,9 @@ func executeJavaScript(script string) error {
 	startTime := time.Now()
 	fmt.Printf("[%s] 开始执行 JavaScript...\n", startTime.Format("15:04:05.000"))
 
+	// 创建一个channel来等待脚本完成
+	done := make(chan error)
+
 	// 处理脚本包装
 	script = strings.TrimSpace(script)
 	if !strings.HasPrefix(script, "(async") && !strings.HasPrefix(script, "async") {
@@ -144,33 +147,78 @@ func executeJavaScript(script string) error {
             (async () => {
                 try {
                     %s
-                    await new Promise(resolve => setTimeout(resolve, 2000));
                 } catch (err) {
                     console.error("[%s] Script execution error:", err.message || err);
+                    throw err;
                 }
             })();
         `, script, time.Now().Format("15:04:05.000"))
 	}
 
-	// 添加 Promise 完成处理
+	// 添加Promise完成处理和全局完成标记
 	completeScript := fmt.Sprintf(`
+        // 初始化全局状态
+        globalThis.__scriptComplete = false;
+        globalThis.__activeTimers = globalThis.__activeTimers || 0;
+
         (async () => {
             try {
+                // 执行主脚本
                 await %s;
-                console.log("[%s] Script execution completed");
+
+                // 等待所有pending的定时器完成
+                await new Promise(resolve => {
+                    const checkTimers = () => {
+                        // 检查是否还有活动的定时器
+                        const activeTimers = globalThis.__activeTimers || 0;
+                        if (activeTimers === 0) {
+                            globalThis.__scriptComplete = true;
+                            resolve();
+                        } else {
+                            setTimeout(checkTimers, 100);
+                        }
+                    };
+                    checkTimers();
+                });
+
+                console.log("[%s] Script execution completed successfully");
             } catch (err) {
                 console.error("[%s] Error in script execution:", err.message || err);
+                throw err;
             }
         })();
     `, script, time.Now().Format("15:04:05.000"), time.Now().Format("15:04:05.000"))
 
-	_, err := jsRuntime.RunString(completeScript)
-	if err != nil {
-		return fmt.Errorf("script execution failed: %v", err)
-	}
+	// 在goroutine中执行脚本
+	go func() {
+		_, err := jsRuntime.RunString(completeScript)
+		if err != nil {
+			done <- fmt.Errorf("script execution failed: %v", err)
+			return
+		}
 
-	// 等待异步操作完成
-	time.Sleep(3 * time.Second)
+		// 等待脚本实际完成
+		for {
+			time.Sleep(100 * time.Millisecond)
+			// 修复：正确获取单个返回值
+			completeValue := jsRuntime.Get("__scriptComplete")
+			if completeValue != nil && completeValue.ToBoolean() {
+				break
+			}
+		}
+
+		done <- nil
+	}()
+
+	// 等待脚本完成或超时
+	select {
+	case err := <-done:
+		if err != nil {
+			return err
+		}
+	case <-time.After(30 * time.Minute): // 设置合理的超时时间
+		return fmt.Errorf("script execution timed out")
+	}
 
 	executionTime := time.Since(startTime)
 	fmt.Printf("[%s] JavaScript 执行完成，耗时: %v\n", time.Now().Format("15:04:05.000"), executionTime)
