@@ -1,8 +1,11 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
+	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,6 +20,28 @@ var (
 	jsRuntime *goja.Runtime
 	page      *automation.Page
 )
+
+// Config holds the application configuration
+type Config struct {
+	ScriptPath string
+	Delay      int
+	Timeout    int // 修改为 timeout，单位为分钟
+	HttpMode   bool
+	Port       string
+}
+
+func parseFlags() *Config {
+	config := &Config{}
+
+	flag.StringVar(&config.ScriptPath, "script", "", "Script file path (.txt or .js)")
+	flag.IntVar(&config.Delay, "delay", 0, "Delay before start (seconds)")
+	flag.IntVar(&config.Timeout, "timeout", 30, "Execution timeout in minutes (0 for no timeout)") // 默认30分钟
+	flag.BoolVar(&config.HttpMode, "http", false, "Start in HTTP server mode")
+	flag.StringVar(&config.Port, "port", "8080", "HTTP server port")
+
+	flag.Parse()
+	return config
+}
 
 func initRuntime() {
 	if jsRuntime == nil {
@@ -83,64 +108,69 @@ func initRuntime() {
 }
 
 func main() {
-	// 记录开始时间
-	startTime := time.Now()
+	config := parseFlags()
 
-	scriptPath := flag.String("script", "", "Script file path (.txt or .js)")
-	delay := flag.Int("delay", 0, "Delay before start (seconds)")
-	flag.Parse()
+	// 检查是否是双击启动（无参数启动）
 
-	if *scriptPath == "" {
-		fmt.Println("Please specify script path: -script path/to/script.[txt|js]")
+	// Check if double-clicked (no arguments)
+	if len(os.Args) == 1 {
+		scriptFile, err := findScriptFile()
+		if err != nil {
+			fmt.Printf("No script file found in current directory: %v\n", err)
+			if config.HttpMode {
+				startHttpServer()
+			} else {
+				fmt.Println("Please specify script path: -script path/to/script.[txt|js]")
+			}
+			return
+		}
+		config.ScriptPath = scriptFile
+	}
+
+	// Execute script if specified
+	if config.ScriptPath != "" {
+		executeScript(config)
 		return
 	}
 
-	fmt.Printf("[%s] 开始执行脚本...\n", time.Now().Format("15:04:05.000"))
-
-	content, err := os.ReadFile(*scriptPath)
-	if err != nil {
-		fmt.Printf("Failed to read script: %v\n", err)
+	// Start HTTP server if in HTTP mode
+	if config.HttpMode {
+		startHttpServer()
 		return
 	}
 
-	// 执行脚本前初始化运行时环境
-	initRuntime()
-
-	// 只有当明确指定了 delay 参数且大于 0 时才等待
-	if flag.Lookup("delay").Value.String() != "0" {
-		fmt.Printf("[%s] 等待 %d 秒后开始...\n", time.Now().Format("15:04:05.000"), *delay)
-		time.Sleep(time.Duration(*delay) * time.Second)
-	}
-
-	// Execute the script based on file extension
-	ext := strings.ToLower(filepath.Ext(*scriptPath))
-	fmt.Printf("[%s] 检测到文件扩展名: %s\n", time.Now().Format("15:04:05.000"), ext)
-
-	if ext == ".js" {
-		err = executeJavaScript(string(content))
-	} else {
-		page := automation.NewPage()
-		err = automation.RunScript(page, string(content))
-	}
-
-	if err != nil {
-		fmt.Printf("[%s] 脚本执行失败: %v\n", time.Now().Format("15:04:05.000"), err)
-		return
-	}
-
-	// 计算并显示总执行时间
-	executionTime := time.Since(startTime)
-	fmt.Printf("[%s] 脚本执行完成！总耗时: %v\n", time.Now().Format("15:04:05.000"), executionTime)
+	fmt.Println("Please specify script path: -script path/to/script.[txt|js]")
 }
 
-func executeJavaScript(script string) error {
+func findScriptFile() (string, error) {
+	extensions := []string{".js", ".txt"}
+	files, err := os.ReadDir(".")
+	if err != nil {
+		return "", err
+	}
+
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+		ext := strings.ToLower(filepath.Ext(file.Name()))
+		for _, validExt := range extensions {
+			if ext == validExt {
+				return file.Name(), nil
+			}
+		}
+	}
+	return "", fmt.Errorf("no script file found")
+}
+
+func executeJavaScript(script string, timeoutMinutes int) error {
 	startTime := time.Now()
 	fmt.Printf("[%s] 开始执行 JavaScript...\n", startTime.Format("15:04:05.000"))
 
 	// 创建一个channel来等待脚本完成
 	done := make(chan error)
 
-	// 处理脚本包装
+	// 处理脚本包装逻辑（保持不变）...
 	script = strings.TrimSpace(script)
 	if !strings.HasPrefix(script, "(async") && !strings.HasPrefix(script, "async") {
 		script = fmt.Sprintf(`
@@ -155,21 +185,17 @@ func executeJavaScript(script string) error {
         `, script, time.Now().Format("15:04:05.000"))
 	}
 
-	// 添加Promise完成处理和全局完成标记
+	// 添加Promise完成处理和全局完成标记（保持不变）...
 	completeScript := fmt.Sprintf(`
-        // 初始化全局状态
         globalThis.__scriptComplete = false;
         globalThis.__activeTimers = globalThis.__activeTimers || 0;
 
         (async () => {
             try {
-                // 执行主脚本
                 await %s;
 
-                // 等待所有pending的定时器完成
                 await new Promise(resolve => {
                     const checkTimers = () => {
-                        // 检查是否还有活动的定时器
                         const activeTimers = globalThis.__activeTimers || 0;
                         if (activeTimers === 0) {
                             globalThis.__scriptComplete = true;
@@ -200,7 +226,6 @@ func executeJavaScript(script string) error {
 		// 等待脚本实际完成
 		for {
 			time.Sleep(100 * time.Millisecond)
-			// 修复：正确获取单个返回值
 			completeValue := jsRuntime.Get("__scriptComplete")
 			if completeValue != nil && completeValue.ToBoolean() {
 				break
@@ -210,28 +235,200 @@ func executeJavaScript(script string) error {
 		done <- nil
 	}()
 
-	// 等待脚本完成或超时
-	select {
-	case err := <-done:
-		if err != nil {
-			return err
+	// 根据 timeout 参数决定执行模式
+	var err error
+	if timeoutMinutes == 0 {
+		// 无超时模式
+		err = <-done
+	} else {
+		// 有超时限制的模式
+		select {
+		case err = <-done:
+			// 正常完成
+		case <-time.After(time.Duration(timeoutMinutes) * time.Minute):
+			err = fmt.Errorf("script execution timed out after %d minutes", timeoutMinutes)
 		}
-	case <-time.After(30 * time.Minute): // 设置合理的超时时间
-		return fmt.Errorf("script execution timed out")
 	}
 
+	// 检查执行结果
+	if err != nil {
+		return fmt.Errorf("[%s] 执行失败: %v", time.Now().Format("15:04:05.000"), err)
+	}
+
+	// 计算并显示执行时间
 	executionTime := time.Since(startTime)
 	fmt.Printf("[%s] JavaScript 执行完成，耗时: %v\n", time.Now().Format("15:04:05.000"), executionTime)
 	return nil
 }
 
-func executeTextScript(script string) error {
-	browser := automation.NewBrowser()
-	page, err := browser.NewPage()
-	if err != nil {
-		return err
+// Helper function to create standardized API response
+type APIResponse struct {
+	Code    int         `json:"code"`
+	Message string      `json:"message"`
+	Data    interface{} `json:"data,omitempty"`
+}
+
+func writeJSONResponse(w http.ResponseWriter, response APIResponse) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+// Modified handleScriptExecution function
+func handleScriptExecution(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSONResponse(w, APIResponse{
+			Code:    400,
+			Message: "Method not allowed",
+		})
+		return
 	}
-	return automation.RunScript(page, script)
+
+	// Parse request body
+	var requestBody struct {
+		Script *string `json:"script"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&requestBody); err != nil {
+		writeJSONResponse(w, APIResponse{
+			Code:    400,
+			Message: "Failed to parse request body: " + err.Error(),
+		})
+		return
+	}
+
+	// Check for missing script parameter
+	if requestBody.Script == nil {
+		writeJSONResponse(w, APIResponse{
+			Code:    400,
+			Message: "Missing required parameter: script",
+		})
+		return
+	}
+
+	// Check for empty script content
+	if strings.TrimSpace(*requestBody.Script) == "" {
+		writeJSONResponse(w, APIResponse{
+			Code:    400,
+			Message: "Script content cannot be empty",
+		})
+		return
+	}
+
+	// Create local temporary directory
+	tmpDir, err := createLocalTempDir()
+	if err != nil {
+		writeJSONResponse(w, APIResponse{
+			Code:    500,
+			Message: "Failed to create temporary directory: " + err.Error(),
+		})
+		return
+	}
+
+	// Create temporary file in the local directory
+	scriptContent := []byte(*requestBody.Script)
+	tempFileName, err := createTempFile(tmpDir, "script-*.js", scriptContent)
+	if err != nil {
+		cleanup(tmpDir)
+		writeJSONResponse(w, APIResponse{
+			Code:    500,
+			Message: err.Error(),
+		})
+		return
+	}
+
+	// Create configuration
+	config := &Config{
+		ScriptPath: tempFileName,
+		Timeout:    30,
+	}
+
+	// Execute script in a new goroutine
+	go func() {
+		fmt.Printf("[%s] Executing script from file: %s\n",
+			time.Now().Format("15:04:05.000"),
+			tempFileName)
+
+		if err := executeScript(config); err != nil {
+			fmt.Printf("[%s] Script execution error: %v\n",
+				time.Now().Format("15:04:05.000"),
+				err)
+			updateScriptStatus("error", err)
+		} else {
+			updateScriptStatus("completed", nil)
+		}
+
+		// Cleanup after execution
+		if err := cleanup(tmpDir); err != nil {
+			fmt.Printf("[%s] Warning: Failed to cleanup temporary directory: %v\n",
+				time.Now().Format("15:04:05.000"),
+				err)
+		}
+	}()
+
+	// Return success response
+	writeJSONResponse(w, APIResponse{
+		Code:    0,
+		Message: "Script execution started successfully",
+		Data: map[string]interface{}{
+			"script_path": tempFileName,
+		},
+	})
+}
+
+// 全局变量用于跟踪脚本执行状态
+var scriptStatus = struct {
+	Status    string
+	StartTime time.Time
+	Error     string
+}{
+	Status: "idle",
+}
+
+// 用于更新脚本状态的辅助函数
+func updateScriptStatus(status string, err error) {
+	scriptStatus.Status = status
+	if err != nil {
+		scriptStatus.Error = err.Error()
+	} else {
+		scriptStatus.Error = ""
+	}
+	if status == "running" {
+		scriptStatus.StartTime = time.Now()
+	}
+}
+
+// 修改 executeScript 函数的返回值类型，使其返回错误
+func executeScript(config *Config) error {
+	startTime := time.Now()
+	fmt.Printf("[%s] Starting script execution...\n", startTime.Format("15:04:05.000"))
+
+	content, err := os.ReadFile(config.ScriptPath)
+	if err != nil {
+		return fmt.Errorf("failed to read script: %v", err)
+	}
+
+	initRuntime()
+
+	ext := strings.ToLower(filepath.Ext(config.ScriptPath))
+	fmt.Printf("[%s] Detected file extension: %s\n", time.Now().Format("15:04:05.000"), ext)
+
+	if ext == ".js" {
+		err = executeJavaScript(string(content), config.Timeout)
+	} else {
+		page := automation.NewPage()
+		err = automation.RunScript(page, string(content))
+	}
+
+	if err != nil {
+		return fmt.Errorf("script execution failed: %v", err)
+	}
+
+	executionTime := time.Since(startTime)
+	fmt.Printf("[%s] Script execution completed! Total time: %v\n",
+		time.Now().Format("15:04:05.000"),
+		executionTime)
+
+	return nil
 }
 
 // printJSEnvironment 用于调试输出当前设置的所有全局变量和方法
@@ -326,4 +523,197 @@ func toInt(v goja.Value) int {
 	}
 	num := v.ToInteger()
 	return int(num)
+}
+
+// 获取本机IP地址
+func getLocalIPs() []string {
+	var ips []string
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return ips
+	}
+
+	for _, addr := range addrs {
+		// 检查ip地址判断是否回环地址
+		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipnet.IP.To4() != nil {
+				ips = append(ips, ipnet.IP.String())
+			}
+		}
+	}
+	return ips
+}
+
+// Modified startHttpServer function
+func startHttpServer() {
+	const port = "60844"
+
+	// 获取并打印本机IP地址
+	ips := getLocalIPs()
+	fmt.Println("\n可用的服务地址:")
+	for _, ip := range ips {
+		fmt.Printf("http://%s:%s\n", ip, port)
+	}
+	fmt.Printf("http://localhost:%s\n", port)
+	fmt.Println("----------------------------------------")
+
+	http.HandleFunc("/SCRIPT_RUN", handleScriptExecution)
+	http.HandleFunc("/status", handleStatus)
+
+	serverAddr := ":" + port
+	if err := http.ListenAndServe(serverAddr, nil); err != nil {
+		fmt.Printf("Server failed to start: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+// Modified handleStatus function
+func handleStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSONResponse(w, APIResponse{
+			Code:    400,
+			Message: "Method not allowed",
+		})
+		return
+	}
+
+	if scriptStatus.Error != "" {
+		writeJSONResponse(w, APIResponse{
+			Code:    500,
+			Message: scriptStatus.Error,
+			Data: map[string]interface{}{
+				"status":     scriptStatus.Status,
+				"start_time": scriptStatus.StartTime.Format(time.RFC3339),
+			},
+		})
+		return
+	}
+
+	writeJSONResponse(w, APIResponse{
+		Code:    0, // 成功时返回 0
+		Message: "Success",
+		Data: map[string]interface{}{
+			"status":     scriptStatus.Status,
+			"start_time": scriptStatus.StartTime.Format(time.RFC3339),
+		},
+	})
+}
+
+func handleRoot(w http.ResponseWriter, r *http.Request) {
+	// 检查 public/index.html 是否存在
+	indexPath := filepath.Join("public", "index.html")
+	if _, err := os.Stat(indexPath); err == nil {
+		// 存在 index.html，直接返回文件内容
+		content, err := os.ReadFile(indexPath)
+		if err != nil {
+			http.Error(w, "Error reading index.html", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(content)
+		return
+	}
+
+	// 如果不存在 index.html，显示默认界面
+	if r.URL.Path != "/" {
+		http.NotFound(w, r)
+		return
+	}
+
+	html := `
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Script Execution Interface</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        .button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <h1>Script Execution Interface</h1>
+    <form action="/execute" method="post" enctype="multipart/form-data">
+        <div class="form-group">
+            <label for="script">Script File (.js or .txt):</label>
+            <input type="file" id="script" name="script" accept=".js,.txt" required>
+        </div>
+        <div class="form-group">
+            <label for="delay">Delay before execution (seconds):</label>
+            <input type="number" id="delay" name="delay" value="0" min="0">
+        </div>
+        <div class="form-group">
+            <label for="timeout">Execution timeout (minutes, 0 for no timeout):</label>
+            <input type="number" id="timeout" name="timeout" value="30" min="0">
+        </div>
+        <button type="submit" class="button">Execute Script</button>
+    </form>
+</body>
+</html>
+`
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Write([]byte(html))
+}
+
+// createLocalTempDir creates a temporary directory in the current working directory
+func createLocalTempDir() (string, error) {
+	// Create a 'tmp' directory in the current working directory
+	tmpDir := filepath.Join(".", "tmp")
+	err := os.MkdirAll(tmpDir, 0755)
+	if err != nil {
+		return "", fmt.Errorf("failed to create local temp directory: %v", err)
+	}
+	return tmpDir, nil
+}
+
+// createTempFile creates a temporary file in the specified directory with given prefix and content
+func createTempFile(dir, prefix string, content []byte) (string, error) {
+	// Create a temporary file with a random name
+	tempFile, err := os.CreateTemp(dir, prefix)
+	if err != nil {
+		return "", fmt.Errorf("failed to create temp file: %v", err)
+	}
+
+	// Write content to the file
+	if _, err := tempFile.Write(content); err != nil {
+		tempFile.Close()
+		os.Remove(tempFile.Name())
+		return "", fmt.Errorf("failed to write to temp file: %v", err)
+	}
+
+	// Ensure content is written to disk
+	if err := tempFile.Sync(); err != nil {
+		tempFile.Close()
+		os.Remove(tempFile.Name())
+		return "", fmt.Errorf("failed to sync temp file: %v", err)
+	}
+
+	tempFile.Close()
+	return tempFile.Name(), nil
+}
+
+// cleanup removes the temporary directory and its contents
+func cleanup(tmpDir string) error {
+	return os.RemoveAll(tmpDir)
 }
