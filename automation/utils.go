@@ -234,6 +234,25 @@ func InitJS(runtime *goja.Runtime) error {
 	windowMethods := AutoMapObject(runtime, windowManager)
 	runtime.Set("window", windowMethods)
 
+	// 初始化剪贴板
+	clipboard := NewClipboard()
+	clipboardMethods := AutoMapObject(runtime, clipboard)
+	runtime.Set("clipboard", clipboardMethods)
+
+	// 初始化剪贴板
+	fileSystem := NewFileSystem()
+	fileSystemMethods := AutoMapObject(runtime, fileSystem)
+	runtime.Set("File", fileSystemMethods)
+
+	// 初始化 AppStorage
+	appStorage := NewAppStorage("testMonkey")
+	appStorageMethods := AutoMapObject(runtime, appStorage)
+	runtime.Set("AppStorage", appStorageMethods)
+
+	sound := NewSound()
+	soundMethods := AutoMapObject(runtime, sound)
+	runtime.Set("Sound", soundMethods)
+
 	// 初始化计时器系统
 	timer := NewTimer(runtime)
 	timer.RegisterInRuntime()
@@ -277,6 +296,13 @@ func InitJS(runtime *goja.Runtime) error {
 
 	// 设置 page 对象到 JS 运行时
 	runtime.Set("page", pageObj)
+
+	// 初始化屏幕
+	screen := NewScreen()
+	screenMethods := AutoMapObject(runtime, screen)
+	runtime.Set("Screen", screenMethods)
+	// 直接在 runtime 中设置别名或引用
+	runtime.RunString(`Screen.screenshot = page.screenshot;`)
 
 	// 初始化并注册 axios
 	axios := NewAxios(runtime)

@@ -51,7 +51,33 @@ var (
 	procEnumWindows              = windows.NewLazySystemDLL("user32.dll").NewProc("EnumWindows")
 	procSendMessageW             = windows.NewLazySystemDLL("user32.dll").NewProc("SendMessageW")
 	procTerminateProcess         = kernel32.NewProc("TerminateProcess")
+	procGetWindowDC              = windows.NewLazySystemDLL("user32.dll").NewProc("GetWindowDC")
+	procGetClientRect            = windows.NewLazySystemDLL("user32.dll").NewProc("GetClientRect")
+	procGetDC                    = windows.NewLazySystemDLL("user32.dll").NewProc("GetDC")
+	procReleaseDC                = windows.NewLazySystemDLL("user32.dll").NewProc("ReleaseDC")
+	procEnumChildWindows         = windows.NewLazySystemDLL("user32.dll").NewProc("EnumChildWindows")
+	procGetClassName             = windows.NewLazySystemDLL("user32.dll").NewProc("GetClassNameW")
+	procGetWindow                = windows.NewLazySystemDLL("user32.dll").NewProc("GetWindow")
+	procGetGUIThreadInfo         = windows.NewLazySystemDLL("user32.dll").NewProc("GetGUIThreadInfo")
+	// 用于获取编辑框内容
+	EM_GETTEXT       = 0x000D
+	EM_GETTEXTLENGTH = 0x000E
+	// 用于获取富文本框内容
+	WM_GETTEXT       = 0x000D
+	WM_GETTEXTLENGTH = 0x000E
 )
+
+type GUITHREADINFO struct {
+	CbSize        uint32
+	Flags         uint32
+	HwndActive    windows.Handle
+	HwndFocus     windows.Handle
+	HwndCapture   windows.Handle
+	HwndMenuOwner windows.Handle
+	HwndMoveSize  windows.Handle
+	HwndCaret     windows.Handle
+	RcCaret       windows.Rect
+}
 
 const (
 	SW_HIDE     = 0
@@ -337,4 +363,214 @@ func (w *WindowManager) Kill(processId uint32) error {
 	}
 
 	return nil
+}
+
+// Title 获取当前活动窗口的标题
+func (w *WindowManager) Title() string {
+	hwnd, _, _ := procGetForegroundWindow.Call()
+	if hwnd == 0 {
+		return ""
+	}
+	return getWindowTitle(windows.Handle(hwnd))
+}
+
+// GetTitle 获取指定窗口的标题
+func (w *WindowManager) GetTitle(selector string) (string, error) {
+	titlePtr, err := windows.UTF16PtrFromString(selector)
+	if err != nil {
+		return "", fmt.Errorf("invalid selector: %v", err)
+	}
+
+	hwnd, _, _ := procFindWindowW.Call(
+		0,
+		uintptr(unsafe.Pointer(titlePtr)),
+	)
+
+	if hwnd == 0 {
+		return "", fmt.Errorf("window with selector '%s' not found", selector)
+	}
+
+	return getWindowTitle(windows.Handle(hwnd)), nil
+}
+
+// Content 获取当前活动窗口的内容
+func (w *WindowManager) Content() string {
+	hwnd, _, _ := procGetForegroundWindow.Call()
+	if hwnd == 0 {
+		return ""
+	}
+	return w.getWindowContent(windows.Handle(hwnd))
+}
+
+// GetContent 获取指定窗口的内容
+func (w *WindowManager) GetContent(selector string) (string, error) {
+	titlePtr, err := windows.UTF16PtrFromString(selector)
+	if err != nil {
+		return "", fmt.Errorf("invalid selector: %v", err)
+	}
+
+	hwnd, _, _ := procFindWindowW.Call(
+		0,
+		uintptr(unsafe.Pointer(titlePtr)),
+	)
+
+	if hwnd == 0 {
+		return "", fmt.Errorf("window with selector '%s' not found", selector)
+	}
+
+	return w.getWindowContent(windows.Handle(hwnd)), nil
+}
+
+// getWindowClass 获取窗口的类名
+func getWindowClass(hwnd windows.Handle) string {
+	// 分配缓冲区用于存储类名
+	buf := make([]uint16, 256)
+
+	// 调用 GetClassName API 获取窗口类名
+	ret, _, _ := procGetClassName.Call(
+		uintptr(hwnd),
+		uintptr(unsafe.Pointer(&buf[0])),
+		uintptr(len(buf)),
+	)
+
+	if ret == 0 {
+		return ""
+	}
+
+	// 转换为字符串并返回
+	return windows.UTF16ToString(buf)
+}
+
+// getWindowContent 增强版获取窗口的完整内容
+func (w *WindowManager) getWindowContent(hwnd windows.Handle) string {
+	var content strings.Builder
+
+	// 1. 获取主窗口基本内容
+	mainText := getWindowText(hwnd)
+	if mainText != "" {
+		content.WriteString(mainText)
+		content.WriteString("\n")
+	}
+
+	// 2. 获取窗口类名
+	className := getWindowClass(hwnd)
+
+	// 3. 特殊处理不同类型的控件
+	switch className {
+	case "Edit", "RichEdit", "RichEdit20W", "RICHEDIT50W":
+		if text := getRichEditContent(hwnd); text != "" {
+			content.WriteString(text)
+			content.WriteString("\n")
+		}
+	}
+
+	// 4. 获取所有子窗口内容
+	var getChildContent func(hwnd windows.Handle)
+	getChildContent = func(hwnd windows.Handle) {
+		// 获取子窗口类名
+		childClass := getWindowClass(hwnd)
+
+		// 根据不同类型的控件获取内容
+		var childText string
+		switch childClass {
+		case "Edit", "RichEdit", "RichEdit20W", "RICHEDIT50W":
+			childText = getRichEditContent(hwnd)
+		default:
+			childText = getWindowText(hwnd)
+		}
+
+		if childText != "" {
+			content.WriteString(childText)
+			content.WriteString("\n")
+		}
+
+		// 递归获取子窗口的内容
+		callback := func(childHwnd windows.Handle, lparam uintptr) uintptr {
+			getChildContent(childHwnd)
+			return 1
+		}
+
+		procEnumChildWindows.Call(
+			uintptr(hwnd),
+			windows.NewCallback(callback),
+			0,
+		)
+	}
+
+	// 5. 获取焦点窗口的内容
+	if focusHwnd := getFocusWindow(hwnd); focusHwnd != 0 {
+		if focusText := getWindowText(windows.Handle(focusHwnd)); focusText != "" {
+			content.WriteString(focusText)
+			content.WriteString("\n")
+		}
+	}
+
+	// 开始获取子窗口内容
+	getChildContent(hwnd)
+
+	return content.String()
+}
+
+// getRichEditContent 获取富文本框内容
+func getRichEditContent(hwnd windows.Handle) string {
+	// 获取文本长度
+	length, _, _ := procSendMessageW.Call(
+		uintptr(hwnd),
+		uintptr(WM_GETTEXTLENGTH),
+		0,
+		0,
+	)
+
+	if length == 0 {
+		return ""
+	}
+
+	// 分配缓冲区
+	buffer := make([]uint16, length+1)
+
+	// 获取文本内容
+	procSendMessageW.Call(
+		uintptr(hwnd),
+		uintptr(WM_GETTEXT),
+		uintptr(length+1),
+		uintptr(unsafe.Pointer(&buffer[0])),
+	)
+
+	return windows.UTF16ToString(buffer)
+}
+
+// getFocusWindow 获取窗口当前焦点控件
+func getFocusWindow(hwnd windows.Handle) uintptr {
+	var threadId uint32
+	procGetWindowThreadProcessId.Call(
+		uintptr(hwnd),
+		uintptr(unsafe.Pointer(&threadId)),
+	)
+
+	var gui GUITHREADINFO
+	gui.CbSize = uint32(unsafe.Sizeof(gui))
+
+	procGetGUIThreadInfo.Call(
+		uintptr(threadId),
+		uintptr(unsafe.Pointer(&gui)),
+	)
+
+	return uintptr(gui.HwndFocus)
+}
+
+// getWindowText 获取窗口的文本内容
+func getWindowText(hwnd windows.Handle) string {
+	textLen, _, _ := procGetWindowTextLengthW.Call(uintptr(hwnd))
+	if textLen == 0 {
+		return ""
+	}
+
+	buffer := make([]uint16, textLen+1)
+	procGetWindowTextW.Call(
+		uintptr(hwnd),
+		uintptr(unsafe.Pointer(&buffer[0])),
+		uintptr(len(buffer)),
+	)
+
+	return windows.UTF16ToString(buffer)
 }
