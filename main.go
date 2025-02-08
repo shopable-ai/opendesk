@@ -110,6 +110,9 @@ func initRuntime() {
 func main() {
 	config := parseFlags()
 
+	fmt.Println("[DEBUG] Initializing runtime...")
+	initRuntime()
+
 	// 检查是否是双击启动（无参数启动）
 
 	// Check if double-clicked (no arguments)
@@ -124,11 +127,13 @@ func main() {
 			}
 			return
 		}
+		fmt.Printf("[DEBUG] Found script file: %s\n", scriptFile) // 添加找到脚本日志
 		config.ScriptPath = scriptFile
 	}
 
 	// Execute script if specified
 	if config.ScriptPath != "" {
+		fmt.Printf("[DEBUG] Executing script: %s\n", config.ScriptPath) // 添加执行脚本日志
 		executeScript(config)
 		return
 	}
@@ -139,28 +144,21 @@ func main() {
 		return
 	}
 
+	fmt.Println("[DEBUG] No script path specified") // 添加未找
 	fmt.Println("Please specify script path: -script path/to/script.[txt|js]")
 }
 
 func findScriptFile() (string, error) {
-	extensions := []string{".js", ".txt"}
-	files, err := os.ReadDir(".")
-	if err != nil {
-		return "", err
+	fmt.Println("[DEBUG] Looking for tm.config.js...")
+
+	// 只查找 tm.config.js
+	if _, err := os.Stat("tm.config.js"); err == nil {
+		fmt.Println("[DEBUG] Found tm.config.js")
+		return "tm.config.js", nil
 	}
 
-	for _, file := range files {
-		if file.IsDir() {
-			continue
-		}
-		ext := strings.ToLower(filepath.Ext(file.Name()))
-		for _, validExt := range extensions {
-			if ext == validExt {
-				return file.Name(), nil
-			}
-		}
-	}
-	return "", fmt.Errorf("no script file found")
+	fmt.Println("[DEBUG] tm.config.js not found")
+	return "", fmt.Errorf("tm.config.js not found")
 }
 
 func executeJavaScript(script string, timeoutMinutes int) error {
@@ -407,11 +405,10 @@ func executeScript(config *Config) error {
 		return fmt.Errorf("failed to read script: %v", err)
 	}
 
-	initRuntime()
-
 	ext := strings.ToLower(filepath.Ext(config.ScriptPath))
 	fmt.Printf("[%s] Detected file extension: %s\n", time.Now().Format("15:04:05.000"), ext)
 
+	// 所有 .js 文件都通过 executeJavaScript 处理
 	if ext == ".js" {
 		err = executeJavaScript(string(content), config.Timeout)
 	} else {
@@ -544,6 +541,28 @@ func getLocalIPs() []string {
 	return ips
 }
 
+// enableCORS adds CORS headers to the response
+func enableCORS(w http.ResponseWriter) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+	w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+}
+
+// corsMiddleware wraps an http.HandlerFunc and adds CORS support
+func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		enableCORS(w)
+
+		// Handle preflight requests
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		next(w, r)
+	}
+}
+
 // Modified startHttpServer function
 func startHttpServer() {
 	const port = "60844"
@@ -557,8 +576,10 @@ func startHttpServer() {
 	fmt.Printf("http://localhost:%s\n", port)
 	fmt.Println("----------------------------------------")
 
-	http.HandleFunc("/SCRIPT_RUN", handleScriptExecution)
-	http.HandleFunc("/status", handleStatus)
+	// Wrap handlers with CORS middleware
+	http.HandleFunc("/SCRIPT_RUN", corsMiddleware(handleScriptExecution))
+	http.HandleFunc("/status", corsMiddleware(handleStatus))
+	http.HandleFunc("/", corsMiddleware(handleRoot))
 
 	serverAddr := ":" + port
 	if err := http.ListenAndServe(serverAddr, nil); err != nil {
