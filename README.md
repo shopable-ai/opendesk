@@ -7,7 +7,11 @@ testMonkey.exe -script examples/notify.js -delay 1
 
 ## CLI 模式运行脚本文件
 go run main.go -script examples/test.js -delay 1
+
+go run main.go -script examples/page.js
 go run main.go -script examples/mouse.js
+go run main.go -script examples/keyboard.js
+go run main.go -script examples/screenshot.js
 
 go run main.go -script examples/http.js -delay 1
 go run main.go -script examples/promise.js -delay 1

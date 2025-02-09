@@ -77,44 +77,44 @@ func (p *Page) Screenshot(options interface{}) (string, error) {
 	// Parse options if provided
 	if options != nil {
 		if optMap, ok := options.(map[string]interface{}); ok {
-			log.Printf("Parsing options map: %+v", optMap)
+			// log.Printf("Parsing options map: %+v", optMap)
 
 			// Try to parse path
 			if path, hasPath := optMap["path"]; hasPath {
 				if pathStr, ok := path.(string); ok {
 					opts.Path = pathStr
-					log.Printf("Found path: %s", opts.Path)
+					// log.Printf("Found path: %s", opts.Path)
 				}
 			}
 
 			// Try to parse clip
 			if clipData, hasClip := optMap["clip"]; hasClip {
-				log.Printf("Found clip data of type %T: %+v", clipData, clipData)
+				// log.Printf("Found clip data of type %T: %+v", clipData, clipData)
 
 				if clipMap, ok := clipData.(map[string]interface{}); ok {
 					clip := &ClipOptions{}
 
 					// Debug each coordinate value and its type
-					for k, v := range clipMap {
-						log.Printf("Clip coordinate %s is of type %T with value %v", k, v, v)
-					}
+					// for k, v := range clipMap {
+					// 	log.Printf("Clip coordinate %s is of type %T with value %v", k, v, v)
+					// }
 
 					// Parse clip coordinates with type conversion
 					if x, ok := clipMap["x"]; ok {
 						switch v := x.(type) {
 						case float64:
 							clip.X = int(v)
-							log.Printf("Parsed X from float64: %v -> %d", v, clip.X)
+							// log.Printf("Parsed X from float64: %v -> %d", v, clip.X)
 						case int:
 							clip.X = v
-							log.Printf("Parsed X from int: %d", v)
+							// log.Printf("Parsed X from int: %d", v)
 						case int64:
 							clip.X = int(v)
-							log.Printf("Parsed X from int64: %d -> %d", v, clip.X)
+							// log.Printf("Parsed X from int64: %d -> %d", v, clip.X)
 						case json.Number:
 							if xVal, err := v.Int64(); err == nil {
 								clip.X = int(xVal)
-								log.Printf("Parsed X from json.Number: %v -> %d", v, clip.X)
+								// log.Printf("Parsed X from json.Number: %v -> %d", v, clip.X)
 							}
 						default:
 							log.Printf("Unexpected type for X: %T", x)
@@ -125,17 +125,17 @@ func (p *Page) Screenshot(options interface{}) (string, error) {
 						switch v := y.(type) {
 						case float64:
 							clip.Y = int(v)
-							log.Printf("Parsed Y from float64: %v -> %d", v, clip.Y)
+							// log.Printf("Parsed Y from float64: %v -> %d", v, clip.Y)
 						case int:
 							clip.Y = v
-							log.Printf("Parsed Y from int: %d", v)
+							// log.Printf("Parsed Y from int: %d", v)
 						case int64:
 							clip.Y = int(v)
-							log.Printf("Parsed Y from int64: %d -> %d", v, clip.Y)
+							// log.Printf("Parsed Y from int64: %d -> %d", v, clip.Y)
 						case json.Number:
 							if yVal, err := v.Int64(); err == nil {
 								clip.Y = int(yVal)
-								log.Printf("Parsed Y from json.Number: %v -> %d", v, clip.Y)
+								// log.Printf("Parsed Y from json.Number: %v -> %d", v, clip.Y)
 							}
 						default:
 							log.Printf("Unexpected type for Y: %T", y)
@@ -146,17 +146,17 @@ func (p *Page) Screenshot(options interface{}) (string, error) {
 						switch v := width.(type) {
 						case float64:
 							clip.Width = int(v)
-							log.Printf("Parsed Width from float64: %v -> %d", v, clip.Width)
+							// log.Printf("Parsed Width from float64: %v -> %d", v, clip.Width)
 						case int:
 							clip.Width = v
-							log.Printf("Parsed Width from int: %d", v)
+							// log.Printf("Parsed Width from int: %d", v)
 						case int64:
 							clip.Width = int(v)
-							log.Printf("Parsed Width from int64: %d -> %d", v, clip.Width)
+							// log.Printf("Parsed Width from int64: %d -> %d", v, clip.Width)
 						case json.Number:
 							if wVal, err := v.Int64(); err == nil {
 								clip.Width = int(wVal)
-								log.Printf("Parsed Width from json.Number: %v -> %d", v, clip.Width)
+								// log.Printf("Parsed Width from json.Number: %v -> %d", v, clip.Width)
 							}
 						default:
 							log.Printf("Unexpected type for Width: %T", width)
@@ -167,17 +167,17 @@ func (p *Page) Screenshot(options interface{}) (string, error) {
 						switch v := height.(type) {
 						case float64:
 							clip.Height = int(v)
-							log.Printf("Parsed Height from float64: %v -> %d", v, clip.Height)
+							// log.Printf("Parsed Height from float64: %v -> %d", v, clip.Height)
 						case int:
 							clip.Height = v
-							log.Printf("Parsed Height from int: %d", v)
+							// log.Printf("Parsed Height from int: %d", v)
 						case int64:
 							clip.Height = int(v)
-							log.Printf("Parsed Height from int64: %d -> %d", v, clip.Height)
+							// log.Printf("Parsed Height from int64: %d -> %d", v, clip.Height)
 						case json.Number:
 							if hVal, err := v.Int64(); err == nil {
 								clip.Height = int(hVal)
-								log.Printf("Parsed Height from json.Number: %v -> %d", v, clip.Height)
+								// log.Printf("Parsed Height from json.Number: %v -> %d", v, clip.Height)
 							}
 						default:
 							log.Printf("Unexpected type for Height: %T", height)
@@ -185,8 +185,8 @@ func (p *Page) Screenshot(options interface{}) (string, error) {
 					}
 
 					// Log final parsed values
-					log.Printf("Final clip values - X:%d, Y:%d, Width:%d, Height:%d",
-						clip.X, clip.Y, clip.Width, clip.Height)
+					// log.Printf("Final clip values - X:%d, Y:%d, Width:%d, Height:%d",
+					// 	clip.X, clip.Y, clip.Width, clip.Height)
 
 					// Only set the clip if we got valid values
 					if clip.Width > 0 && clip.Height > 0 {
@@ -201,23 +201,23 @@ func (p *Page) Screenshot(options interface{}) (string, error) {
 		}
 	}
 
-	log.Printf("Final parsed options: %+v", opts)
+	// log.Printf("Final parsed options: %+v", opts)
 
 	var x, y, width, height int
 
 	// Set screenshot area and log dimensions
 	if opts.FullPage {
 		width, height = robotgo.GetScreenSize()
-		log.Printf("Taking full page screenshot: width=%d, height=%d", width, height)
+		// log.Printf("Taking full page screenshot: width=%d, height=%d", width, height)
 	} else if opts.Clip != nil {
 		x = opts.Clip.X
 		y = opts.Clip.Y
 		width = opts.Clip.Width
 		height = opts.Clip.Height
-		log.Printf("Taking clipped screenshot: x=%d, y=%d, width=%d, height=%d", x, y, width, height)
+		// log.Printf("Taking clipped screenshot: x=%d, y=%d, width=%d, height=%d", x, y, width, height)
 	} else {
 		width, height = robotgo.GetScreenSize()
-		log.Printf("Taking default screenshot: width=%d, height=%d", width, height)
+		// log.Printf("Taking default screenshot: width=%d, height=%d", width, height)
 	}
 
 	// Validate dimensions before capture
@@ -226,7 +226,7 @@ func (p *Page) Screenshot(options interface{}) (string, error) {
 	}
 
 	// Capture screen
-	log.Printf("Attempting to capture screen with dimensions: x=%d, y=%d, width=%d, height=%d", x, y, width, height)
+	// log.Printf("Attempting to capture screen with dimensions: x=%d, y=%d, width=%d, height=%d", x, y, width, height)
 	bit := robotgo.CaptureScreen(x, y, width, height)
 	if bit == nil {
 		return "", fmt.Errorf("failed to capture screen")
@@ -258,17 +258,17 @@ func (p *Page) Screenshot(options interface{}) (string, error) {
 		if err := png.Encode(outputFile, img); err != nil {
 			return "", fmt.Errorf("failed to encode and save image: %v", err)
 		}
-		log.Printf("Screenshot saved successfully to: %s", absPath)
+		// log.Printf("Screenshot saved successfully to: %s", absPath)
 	}
 
 	// Always convert to base64
-	log.Printf("Converting screenshot to base64")
+	// log.Printf("Converting screenshot to base64")
 	var buf bytes.Buffer
 	if err := png.Encode(&buf, img); err != nil {
 		return "", fmt.Errorf("failed to encode image to base64: %v", err)
 	}
 	base64Str = base64.StdEncoding.EncodeToString(buf.Bytes())
-	log.Printf("Base64 conversion successful")
+	// log.Printf("Base64 conversion successful")
 	return fmt.Sprintf("data:image/png;base64,%s", base64Str), nil
 }
 
