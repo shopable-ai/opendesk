@@ -233,6 +233,9 @@ func (p *Page) Screenshot(options interface{}) (string, error) {
 	}
 	defer robotgo.FreeBitmap(bit)
 
+	var base64Str string
+	img := robotgo.ToImage(bit)
+
 	// Handle file saving if path is specified
 	if opts.Path != "" {
 		absPath, err := filepath.Abs(opts.Path)
@@ -246,7 +249,6 @@ func (p *Page) Screenshot(options interface{}) (string, error) {
 		}
 
 		log.Printf("Saving screenshot to: %s", absPath)
-		img := robotgo.ToImage(bit)
 		outputFile, err := os.Create(absPath)
 		if err != nil {
 			return "", fmt.Errorf("failed to create output file: %v", err)
@@ -259,20 +261,15 @@ func (p *Page) Screenshot(options interface{}) (string, error) {
 		log.Printf("Screenshot saved successfully to: %s", absPath)
 	}
 
-	// Always convert to base64 if no path is specified
-	if opts.Path == "" {
-		log.Printf("Converting screenshot to base64")
-		img := robotgo.ToImage(bit)
-		var buf bytes.Buffer
-		if err := png.Encode(&buf, img); err != nil {
-			return "", fmt.Errorf("failed to encode image: %v", err)
-		}
-		base64Str := base64.StdEncoding.EncodeToString(buf.Bytes())
-		log.Printf("Base64 conversion successful")
-		return fmt.Sprintf("data:image/png;base64,%s", base64Str), nil
+	// Always convert to base64
+	log.Printf("Converting screenshot to base64")
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		return "", fmt.Errorf("failed to encode image to base64: %v", err)
 	}
-
-	return "", nil
+	base64Str = base64.StdEncoding.EncodeToString(buf.Bytes())
+	log.Printf("Base64 conversion successful")
+	return fmt.Sprintf("data:image/png;base64,%s", base64Str), nil
 }
 
 func (p *Page) Goto(url string) error {
