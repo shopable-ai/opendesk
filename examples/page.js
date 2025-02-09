@@ -13,13 +13,13 @@ await page.mouse.click(500, 500);
 // await mouse.click(500, 500);
 // await touchscreen.tap(500, 500);
 
-await keyboard.type("Hello World");
-await page.waitFor(2000);
-await keyboard.press("Enter");
-await keyboard.type("test monkey");
-await page.waitFor(2000);
+// await keyboard.type("Hello World");
+// await page.waitFor(2000);
+// await keyboard.press("Enter");
+// await keyboard.type("test monkey");
+// await page.waitFor(2000);
 
-console.info("Keyboard actions completed");
+// console.info("Keyboard actions completed");
 
 // 不指定 path，自动返回 base64，截图
 const base64Image = await page.screenshot();
