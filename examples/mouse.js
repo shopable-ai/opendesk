@@ -1,11 +1,12 @@
 
 console.log('click xy 1715, 185');
-await page.mouse.click(1715, 185);
+await page.mouse.click(550, 185);
+// await page.mouse.click(1715, 185);
 await page.waitFor(1000);
 
-console.log('move xy 650, 300');
+console.log('move xy 550, 300');
 // 移动到新位置 (1715-300 = 1415)
-await page.mouse.move(650, 300);
+await page.mouse.move(550, 300);
 await page.waitFor(1000);
 
 console.log('scroll down');
@@ -24,12 +25,13 @@ console.log('scroll up');
 await page.mouse.wheel({ deltaY: -300 });
 await page.waitFor(1000);
 
-// await page.mouse.wheel({ 
-//     deltaY: 500,
-//     steps: 10,   // 分10步平滑滚动
-//     delay: 30    // 每步延迟30ms
-// });
 
+// 平滑滚动
+await page.mouse.wheel({ 
+    deltaY: 300,
+    steps: 10,
+    delay: 30
+});
 
 console.log('right click');
 await page.mouse.click(650, 300, { button: "right" });
