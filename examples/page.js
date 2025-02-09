@@ -31,4 +31,14 @@ await page.screenshot({
     path: "test.png"
 });
 
+await page.screenshot({
+    path: 'screenshot_cut.png',
+    clip: {
+      x: 100,       // 截图区域的x坐标
+      y: 100,       // 截图区域的y坐标  
+      width: 500, // 截图区域的宽度
+      height: 300 // 截图区域的高度
+    }
+});
+
 // 需要使用区域截图的demo，

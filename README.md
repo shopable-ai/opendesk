@@ -21,6 +21,7 @@ go run main.go -script examples/appStorage.js
 go run main.go -script examples/screen.js
 go run main.go -script examples/sound.js
 go run main.go -script examples/file.js
+go run main.go -script examples/imageColor.js
 
 go run main.go -script examples/start.js -timeout 0   # 无超时时限，默认 -timeout 30 分钟
 
