@@ -253,6 +253,10 @@ func InitJS(runtime *goja.Runtime) error {
 	soundMethods := AutoMapObject(runtime, sound)
 	runtime.Set("Sound", soundMethods)
 
+	imageColor := NewImageColor()
+	imageColorMethods := AutoMapObject(runtime, imageColor)
+	runtime.Set("ImageColor", imageColorMethods)
+
 	// 初始化计时器系统
 	timer := NewTimer(runtime)
 	timer.RegisterInRuntime()

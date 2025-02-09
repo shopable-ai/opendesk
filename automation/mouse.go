@@ -8,6 +8,15 @@ import (
 	"github.com/go-vgo/robotgo"
 )
 
+var (
+	mouseEvent = user32.NewProc("mouse_event")
+)
+
+const (
+	MOUSEEVENTF_WHEEL    = 0x0800
+	MOUSEEVENTF_ABSOLUTE = 0x8000
+)
+
 type Mouse struct{}
 
 func NewMouse() *Mouse {
@@ -209,6 +218,12 @@ type MouseWheelOptions struct {
 }
 
 func (m *Mouse) Wheel(options interface{}) error {
+	// 先尝试获取 mouse_event 并检查是否成功
+	mouseEvent := user32.NewProc("mouse_event")
+	if mouseEvent == nil {
+		return fmt.Errorf("failed to get mouse_event procedure")
+	}
+
 	// 默认选项
 	opts := MouseWheelOptions{
 		DeltaX: 0,
@@ -220,78 +235,37 @@ func (m *Mouse) Wheel(options interface{}) error {
 	// 解析选项
 	if options != nil {
 		if optMap, ok := options.(map[string]interface{}); ok {
-			// 处理 deltaY
 			if dy, ok := optMap["deltaY"].(int); ok {
 				opts.DeltaY = dy
 			} else if dy, ok := optMap["deltaY"].(float64); ok {
 				opts.DeltaY = int(dy)
 			}
-
-			// 处理 deltaX
-			if dx, ok := optMap["deltaX"].(int); ok {
-				opts.DeltaX = dx
-			} else if dx, ok := optMap["deltaX"].(float64); ok {
-				opts.DeltaX = int(dx)
-			}
-
-			// 处理 steps
-			if steps, ok := optMap["steps"].(int); ok {
-				opts.Steps = steps
-			} else if steps, ok := optMap["steps"].(float64); ok {
-				opts.Steps = int(steps)
-			}
-
-			// 处理 delay
-			if delay, ok := optMap["delay"].(int); ok {
-				opts.Delay = delay
-			} else if delay, ok := optMap["delay"].(float64); ok {
-				opts.Delay = int(delay)
-			}
 		}
 	}
 
-	// 记录滚动操作
-	fmt.Printf("Scrolling with deltaX=%d, deltaY=%d, steps=%d, delay=%d\n",
-		opts.DeltaX, opts.DeltaY, opts.Steps, opts.Delay)
+	fmt.Printf("Starting wheel operation with deltaY=%d\n", opts.DeltaY)
 
-	// 计算每步的滚动量
-	if opts.Steps < 1 {
-		opts.Steps = 1
+	// 试试直接使用固定值测试
+	wheelDelta := 120 // 使用标准的滚轮单位
+	if opts.DeltaY > 0 {
+		wheelDelta = -120 // 向下滚动
 	}
 
-	// 转换deltaY为滚动单位
-	// robotgo.ScrollRelative 接受相对滚动量，正值向上滚动，负值向下滚动
-	// 而 puppeteer 中正值表示向下滚动，所以需要取反
-	scrollAmount := -opts.DeltaY / 120 // 使用120作为一个标准滚动单位
+	// 调用 mouse_event 并检查返回值
+	r1, r2, err := mouseEvent.Call(
+		uintptr(MOUSEEVENTF_WHEEL),
+		0,
+		0,
+		uintptr(wheelDelta),
+		0,
+	)
 
-	// 如果滚动量太小，确保至少滚动一次
-	if scrollAmount == 0 {
-		if opts.DeltaY > 0 {
-			scrollAmount = -1
-		} else if opts.DeltaY < 0 {
-			scrollAmount = 1
-		}
+	fmt.Printf("mouse_event results: r1=%d, r2=%d, err=%v\n", r1, r2, err)
+
+	if err != nil && err.Error() != "The operation completed successfully." {
+		return fmt.Errorf("mouse_event failed: %v", err)
 	}
 
-	stepAmount := scrollAmount / opts.Steps
-	if stepAmount == 0 {
-		stepAmount = scrollAmount
-		opts.Steps = 1
-	}
-
-	// 分步执行滚动
-	for i := 0; i < opts.Steps; i++ {
-		robotgo.ScrollRelative(0, stepAmount)
-
-		if opts.Delay > 0 {
-			time.Sleep(time.Duration(opts.Delay) * time.Millisecond)
-		}
-	}
-
-	// TODO: 目前 robotgo 不直接支持水平滚动
-	if opts.DeltaX != 0 {
-		fmt.Printf("Warning: Horizontal scrolling (deltaX) is not supported by current implementation\n")
-	}
-
+	time.Sleep(100 * time.Millisecond)
 	return nil
 }
