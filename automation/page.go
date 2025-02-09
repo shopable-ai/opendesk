@@ -3,10 +3,13 @@ package automation
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"image/png"
+	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"time"
 
@@ -45,46 +48,214 @@ func NewPage() *Page {
 // 	return p.Touchscreen
 // }
 
-func (p *Page) Screenshot(options *ScreenshotOptions) (string, error) {
-	options = mergeWithDefaultOptions(options)
-
-	var x, y, width, height int
-
-	// Set screenshot area
-	if options.FullPage {
-		width, height = robotgo.GetScreenSize()
-	} else if options.Clip != nil {
-		x = options.Clip.X
-		y = options.Clip.Y
-		width = options.Clip.Width
-		height = options.Clip.Height
-	} else {
-		width, height = robotgo.GetScreenSize()
+// checkDirPermissions verifies that we have write permissions to the directory
+func checkDirPermissions(dir string) error {
+	// Try to create a temporary file in the directory
+	tempFile := filepath.Join(dir, ".permission_check")
+	f, err := os.Create(tempFile)
+	if err != nil {
+		return fmt.Errorf("no write permission: %v", err)
 	}
 
-	// 使用robotgo的正确API进行截图
-	bit := robotgo.CaptureScreen(x, y, width, height)
-	defer robotgo.FreeBitmap(bit)
+	// Clean up
+	f.Close()
+	os.Remove(tempFile)
 
-	// 如果指定了路径，保存文件
-	if options.Path != "" {
-		err := robotgo.SaveCapture(options.Path, x, y, width, height)
-		if err != nil {
-			return "", fmt.Errorf("failed to save image: %v", err)
+	return nil
+}
+
+func (p *Page) Screenshot(options interface{}) (string, error) {
+	log.Printf("Starting screenshot with raw options: %+v", options)
+
+	// Initialize default options
+	opts := ScreenshotOptions{
+		Type:     "png",
+		Quality:  100,
+		Encoding: "binary",
+	}
+
+	// Parse options if provided
+	if options != nil {
+		if optMap, ok := options.(map[string]interface{}); ok {
+			log.Printf("Parsing options map: %+v", optMap)
+
+			// Try to parse path
+			if path, hasPath := optMap["path"]; hasPath {
+				if pathStr, ok := path.(string); ok {
+					opts.Path = pathStr
+					log.Printf("Found path: %s", opts.Path)
+				}
+			}
+
+			// Try to parse clip
+			if clipData, hasClip := optMap["clip"]; hasClip {
+				log.Printf("Found clip data of type %T: %+v", clipData, clipData)
+
+				if clipMap, ok := clipData.(map[string]interface{}); ok {
+					clip := &ClipOptions{}
+
+					// Debug each coordinate value and its type
+					for k, v := range clipMap {
+						log.Printf("Clip coordinate %s is of type %T with value %v", k, v, v)
+					}
+
+					// Parse clip coordinates with type conversion
+					if x, ok := clipMap["x"]; ok {
+						switch v := x.(type) {
+						case float64:
+							clip.X = int(v)
+							log.Printf("Parsed X from float64: %v -> %d", v, clip.X)
+						case int:
+							clip.X = v
+							log.Printf("Parsed X from int: %d", v)
+						case json.Number:
+							if xVal, err := v.Int64(); err == nil {
+								clip.X = int(xVal)
+								log.Printf("Parsed X from json.Number: %v -> %d", v, clip.X)
+							}
+						default:
+							log.Printf("Unexpected type for X: %T", x)
+						}
+					}
+
+					if y, ok := clipMap["y"]; ok {
+						switch v := y.(type) {
+						case float64:
+							clip.Y = int(v)
+							log.Printf("Parsed Y from float64: %v -> %d", v, clip.Y)
+						case int:
+							clip.Y = v
+							log.Printf("Parsed Y from int: %d", v)
+						case json.Number:
+							if yVal, err := v.Int64(); err == nil {
+								clip.Y = int(yVal)
+								log.Printf("Parsed Y from json.Number: %v -> %d", v, clip.Y)
+							}
+						default:
+							log.Printf("Unexpected type for Y: %T", y)
+						}
+					}
+
+					if width, ok := clipMap["width"]; ok {
+						switch v := width.(type) {
+						case float64:
+							clip.Width = int(v)
+							log.Printf("Parsed Width from float64: %v -> %d", v, clip.Width)
+						case int:
+							clip.Width = v
+							log.Printf("Parsed Width from int: %d", v)
+						case json.Number:
+							if wVal, err := v.Int64(); err == nil {
+								clip.Width = int(wVal)
+								log.Printf("Parsed Width from json.Number: %v -> %d", v, clip.Width)
+							}
+						default:
+							log.Printf("Unexpected type for Width: %T", width)
+						}
+					}
+
+					if height, ok := clipMap["height"]; ok {
+						switch v := height.(type) {
+						case float64:
+							clip.Height = int(v)
+							log.Printf("Parsed Height from float64: %v -> %d", v, clip.Height)
+						case int:
+							clip.Height = v
+							log.Printf("Parsed Height from int: %d", v)
+						case json.Number:
+							if hVal, err := v.Int64(); err == nil {
+								clip.Height = int(hVal)
+								log.Printf("Parsed Height from json.Number: %v -> %d", v, clip.Height)
+							}
+						default:
+							log.Printf("Unexpected type for Height: %T", height)
+						}
+					}
+
+					// Log final parsed values
+					log.Printf("Final clip values - X:%d, Y:%d, Width:%d, Height:%d",
+						clip.X, clip.Y, clip.Width, clip.Height)
+
+					// Only set the clip if we got valid values
+					if clip.Width > 0 && clip.Height > 0 {
+						opts.Clip = clip
+					} else {
+						log.Printf("Warning: Invalid clip dimensions detected")
+					}
+				} else {
+					log.Printf("Warning: clip data is not a map: %T", clipData)
+				}
+			}
 		}
 	}
 
-	// 如果需要返回base64或没有指定路径
-	if options.Path == "" || options.Encoding == "base64" {
-		// 转换为标准image
-		img := robotgo.ToImage(bit)
+	log.Printf("Final parsed options: %+v", opts)
 
-		// 转换为base64
+	var x, y, width, height int
+
+	// Set screenshot area and log dimensions
+	if opts.FullPage {
+		width, height = robotgo.GetScreenSize()
+		log.Printf("Taking full page screenshot: width=%d, height=%d", width, height)
+	} else if opts.Clip != nil {
+		x = opts.Clip.X
+		y = opts.Clip.Y
+		width = opts.Clip.Width
+		height = opts.Clip.Height
+		log.Printf("Taking clipped screenshot: x=%d, y=%d, width=%d, height=%d", x, y, width, height)
+	} else {
+		width, height = robotgo.GetScreenSize()
+		log.Printf("Taking default screenshot: width=%d, height=%d", width, height)
+	}
+
+	// Validate dimensions before capture
+	if width <= 0 || height <= 0 {
+		return "", fmt.Errorf("invalid dimensions: width=%d, height=%d", width, height)
+	}
+
+	// Capture screen
+	log.Printf("Attempting to capture screen with dimensions: x=%d, y=%d, width=%d, height=%d", x, y, width, height)
+	bit := robotgo.CaptureScreen(x, y, width, height)
+	if bit == nil {
+		return "", fmt.Errorf("failed to capture screen")
+	}
+	defer robotgo.FreeBitmap(bit)
+
+	// Handle file saving
+	if opts.Path != "" {
+		absPath, err := filepath.Abs(opts.Path)
+		if err != nil {
+			return "", fmt.Errorf("failed to get absolute path: %v", err)
+		}
+
+		dir := filepath.Dir(absPath)
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return "", fmt.Errorf("failed to create directory: %v", err)
+		}
+
+		log.Printf("Saving screenshot to: %s", absPath)
+		img := robotgo.ToImage(bit)
+		outputFile, err := os.Create(absPath)
+		if err != nil {
+			return "", fmt.Errorf("failed to create output file: %v", err)
+		}
+		defer outputFile.Close()
+
+		if err := png.Encode(outputFile, img); err != nil {
+			return "", fmt.Errorf("failed to encode and save image: %v", err)
+		}
+		log.Printf("Screenshot saved successfully to: %s", absPath)
+	} else {
+		log.Printf("No path specified, not saving screenshot")
+	}
+
+	// Handle base64 encoding
+	if opts.Encoding == "base64" {
+		img := robotgo.ToImage(bit)
 		var buf bytes.Buffer
 		if err := png.Encode(&buf, img); err != nil {
 			return "", fmt.Errorf("failed to encode image: %v", err)
 		}
-
 		base64Str := base64.StdEncoding.EncodeToString(buf.Bytes())
 		return fmt.Sprintf("data:image/png;base64,%s", base64Str), nil
 	}
