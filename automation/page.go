@@ -108,6 +108,9 @@ func (p *Page) Screenshot(options interface{}) (string, error) {
 						case int:
 							clip.X = v
 							log.Printf("Parsed X from int: %d", v)
+						case int64:
+							clip.X = int(v)
+							log.Printf("Parsed X from int64: %d -> %d", v, clip.X)
 						case json.Number:
 							if xVal, err := v.Int64(); err == nil {
 								clip.X = int(xVal)
@@ -126,6 +129,9 @@ func (p *Page) Screenshot(options interface{}) (string, error) {
 						case int:
 							clip.Y = v
 							log.Printf("Parsed Y from int: %d", v)
+						case int64:
+							clip.Y = int(v)
+							log.Printf("Parsed Y from int64: %d -> %d", v, clip.Y)
 						case json.Number:
 							if yVal, err := v.Int64(); err == nil {
 								clip.Y = int(yVal)
@@ -144,6 +150,9 @@ func (p *Page) Screenshot(options interface{}) (string, error) {
 						case int:
 							clip.Width = v
 							log.Printf("Parsed Width from int: %d", v)
+						case int64:
+							clip.Width = int(v)
+							log.Printf("Parsed Width from int64: %d -> %d", v, clip.Width)
 						case json.Number:
 							if wVal, err := v.Int64(); err == nil {
 								clip.Width = int(wVal)
@@ -162,6 +171,9 @@ func (p *Page) Screenshot(options interface{}) (string, error) {
 						case int:
 							clip.Height = v
 							log.Printf("Parsed Height from int: %d", v)
+						case int64:
+							clip.Height = int(v)
+							log.Printf("Parsed Height from int64: %d -> %d", v, clip.Height)
 						case json.Number:
 							if hVal, err := v.Int64(); err == nil {
 								clip.Height = int(hVal)
