@@ -42,7 +42,7 @@ await page.waitFor(2000);
 
 console.info("Keyboard actions completed");
 
-// 不指定 path，自动返回 base64
+// 不指定 path，自动返回 base64，截图
 const base64Image = await page.screenshot();
 console.log("Screenshot (base64):", base64Image.substring(0, 100));
 

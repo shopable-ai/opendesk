@@ -103,6 +103,14 @@ const (
 	WS_POPUP           = 0x80000000
 	WM_CLOSE           = 0x0010
 	GWL_STYLE_32       = -16
+	// 新增常量
+	HWND_TOP              = 0
+	HWND_TOPMOST   uint32 = 0xFFFFFFFF // -1 的无符号表示
+	HWND_NOTOPMOST uint32 = 0xFFFFFFFE // -2 的无符号表示
+
+	SWP_NOMOVE     = 0x0002
+	SWP_NOSIZE     = 0x0001
+	SWP_SHOWWINDOW = 0x0040
 )
 
 func getWindowTitle(hwnd windows.Handle) string {
@@ -779,4 +787,187 @@ func getFocusWindow(hwnd windows.Handle) uintptr {
 	}
 
 	return uintptr(gui.HwndFocus)
+}
+
+// 添加新的Windows API调用
+var (
+	// 已有的变量声明
+	procSetWindowPos = windows.NewLazySystemDLL("user32.dll").NewProc("SetWindowPos")
+)
+
+// SetAlwaysOnTop 设置窗口始终置顶
+func (w *WindowManager) SetAlwaysOnTop(title string, alwaysOnTop bool) error {
+	if title == "" {
+		return fmt.Errorf("window title cannot be empty")
+	}
+
+	titlePtr, err := windows.UTF16PtrFromString(title)
+	if err != nil {
+		return fmt.Errorf("invalid title: %v", err)
+	}
+
+	hwnd, _, err := procFindWindowW.Call(
+		0,
+		uintptr(unsafe.Pointer(titlePtr)),
+	)
+
+	if hwnd == 0 {
+		lastErr := syscall.GetLastError()
+		return fmt.Errorf("FindWindow failed for '%s': %v", title, lastErr)
+	}
+
+	// 确保窗口可见
+	visible, _, _ := procIsWindowVisible.Call(hwnd)
+	if visible == 0 {
+		lastErr := syscall.GetLastError()
+		return fmt.Errorf("window '%s' is not visible: %v", title, lastErr)
+	}
+
+	// 记录原始窗口位置和大小
+	var rect windows.Rect
+	ret, _, err := procGetWindowRect.Call(
+		hwnd,
+		uintptr(unsafe.Pointer(&rect)),
+	)
+	if ret == 0 {
+		lastErr := syscall.GetLastError()
+		return fmt.Errorf("GetWindowRect failed for '%s': %v", title, lastErr)
+	}
+
+	// 如果窗口在屏幕外，先移动到可见区域
+	if rect.Left < -10000 || rect.Top < -10000 {
+		ret, _, err = procMoveWindow.Call(
+			hwnd,
+			100,
+			100,
+			uintptr(rect.Right-rect.Left),
+			uintptr(rect.Bottom-rect.Top),
+			1,
+		)
+		if ret == 0 {
+			lastErr := syscall.GetLastError()
+			return fmt.Errorf("MoveWindow failed for '%s': %v", title, lastErr)
+		}
+	}
+
+	// 先尝试激活窗口
+	ret, _, err = procSetForegroundWindow.Call(hwnd)
+	if ret == 0 {
+		// 记录错误但继续执行
+		fmt.Printf("Warning: SetForegroundWindow failed for '%s': %v\n", title, err)
+	}
+
+	// 设置窗口位置
+	var flag uintptr
+	if alwaysOnTop {
+		flag = ^uintptr(0) // HWND_TOPMOST (-1)
+	} else {
+		flag = ^uintptr(1) // HWND_NOTOPMOST (-2)
+	}
+
+	ret, _, err = procSetWindowPos.Call(
+		hwnd,
+		flag,
+		uintptr(rect.Left),
+		uintptr(rect.Top),
+		uintptr(rect.Right-rect.Left),
+		uintptr(rect.Bottom-rect.Top),
+		uintptr(SWP_SHOWWINDOW),
+	)
+
+	if ret == 0 {
+		lastErr := syscall.GetLastError()
+		return fmt.Errorf("SetWindowPos failed for '%s': %v", title, lastErr)
+	}
+
+	return nil
+}
+
+// UnsetTopMost 取消窗口的置顶状态
+func (w *WindowManager) UnsetTopMost(title string) error {
+	if title == "" {
+		return fmt.Errorf("window title cannot be empty")
+	}
+	return w.SetAlwaysOnTop(title, false)
+}
+
+// BringToTop 将窗口带到最顶层（一次性）
+func (w *WindowManager) BringToTop(title string) error {
+	if title == "" {
+		return fmt.Errorf("window title cannot be empty")
+	}
+
+	titlePtr, err := windows.UTF16PtrFromString(title)
+	if err != nil {
+		return fmt.Errorf("invalid title: %v", err)
+	}
+
+	hwnd, _, err := procFindWindowW.Call(
+		0,
+		uintptr(unsafe.Pointer(titlePtr)),
+	)
+
+	if hwnd == 0 {
+		lastErr := syscall.GetLastError()
+		return fmt.Errorf("FindWindow failed for '%s': %v", title, lastErr)
+	}
+
+	// 确保窗口可见
+	visible, _, _ := procIsWindowVisible.Call(hwnd)
+	if visible == 0 {
+		lastErr := syscall.GetLastError()
+		return fmt.Errorf("window '%s' is not visible: %v", title, lastErr)
+	}
+
+	// 记录原始窗口位置和大小
+	var rect windows.Rect
+	ret, _, err := procGetWindowRect.Call(
+		hwnd,
+		uintptr(unsafe.Pointer(&rect)),
+	)
+	if ret == 0 {
+		lastErr := syscall.GetLastError()
+		return fmt.Errorf("GetWindowRect failed for '%s': %v", title, lastErr)
+	}
+
+	// 如果窗口在屏幕外，先移动到可见区域
+	if rect.Left < -10000 || rect.Top < -10000 {
+		ret, _, err = procMoveWindow.Call(
+			hwnd,
+			100,
+			100,
+			uintptr(rect.Right-rect.Left),
+			uintptr(rect.Bottom-rect.Top),
+			1,
+		)
+		if ret == 0 {
+			lastErr := syscall.GetLastError()
+			return fmt.Errorf("MoveWindow failed for '%s': %v", title, lastErr)
+		}
+	}
+
+	// 将窗口设置为前台窗口
+	ret, _, err = procSetForegroundWindow.Call(hwnd)
+	if ret == 0 {
+		// 记录错误但继续执行
+		fmt.Printf("Warning: SetForegroundWindow failed for '%s': %v\n", title, err)
+	}
+
+	// 将窗口移动到最顶层
+	ret, _, err = procSetWindowPos.Call(
+		hwnd,
+		0, // HWND_TOP
+		uintptr(rect.Left),
+		uintptr(rect.Top),
+		uintptr(rect.Right-rect.Left),
+		uintptr(rect.Bottom-rect.Top),
+		uintptr(SWP_SHOWWINDOW),
+	)
+
+	if ret == 0 {
+		lastErr := syscall.GetLastError()
+		return fmt.Errorf("SetWindowPos failed for '%s': %v", title, lastErr)
+	}
+
+	return nil
 }

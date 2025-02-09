@@ -1,4 +1,3 @@
-// automation/console.go
 package automation
 
 import (
@@ -17,13 +16,33 @@ func NewConsole() *Console {
 	return &Console{}
 }
 
+// formatArgs formats arguments, converting objects to JSON
+func formatArgs(args ...interface{}) []interface{} {
+	formattedArgs := make([]interface{}, len(args))
+	for i, arg := range args {
+		switch v := arg.(type) {
+		case string, int, int64, float64, bool:
+			formattedArgs[i] = v
+		default:
+			// Try to marshal non-primitive types to JSON
+			jsonData, err := json.MarshalIndent(v, "", "  ")
+			if err != nil {
+				formattedArgs[i] = fmt.Sprintf("%+v", v)
+			} else {
+				formattedArgs[i] = string(jsonData)
+			}
+		}
+	}
+	return formattedArgs
+}
+
 // Log 普通日志打印
 func (c *Console) Log(args ...interface{}) {
 	prefix := color.BlueString("[LOG]")
 	timeStr := time.Now().Format("15:04:05.000")
 	location := getFileAndLine()
 	fmt.Printf("%s %s %s: ", prefix, timeStr, location)
-	fmt.Println(args...)
+	fmt.Println(formatArgs(args...)...)
 }
 
 // Info 信息日志
@@ -32,7 +51,7 @@ func (c *Console) Info(args ...interface{}) {
 	timeStr := time.Now().Format("15:04:05.000")
 	location := getFileAndLine()
 	fmt.Printf("%s %s %s: ", prefix, timeStr, location)
-	fmt.Println(args...)
+	fmt.Println(formatArgs(args...)...)
 }
 
 // Warn 警告日志
@@ -41,7 +60,7 @@ func (c *Console) Warn(args ...interface{}) {
 	timeStr := time.Now().Format("15:04:05.000")
 	location := getFileAndLine()
 	fmt.Printf("%s %s %s: ", prefix, timeStr, location)
-	fmt.Println(args...)
+	fmt.Println(formatArgs(args...)...)
 }
 
 // Error 错误日志
@@ -50,7 +69,7 @@ func (c *Console) Error(args ...interface{}) {
 	timeStr := time.Now().Format("15:04:05.000")
 	location := getFileAndLine()
 	fmt.Printf("%s %s %s: ", prefix, timeStr, location)
-	fmt.Println(args...)
+	fmt.Println(formatArgs(args...)...)
 }
 
 // Debug 调试日志
@@ -59,7 +78,7 @@ func (c *Console) Debug(args ...interface{}) {
 	timeStr := time.Now().Format("15:04:05.000")
 	location := getFileAndLine()
 	fmt.Printf("%s %s %s: ", prefix, timeStr, location)
-	fmt.Println(args...)
+	fmt.Println(formatArgs(args...)...)
 }
 
 // Table 打印表格形式的数据
@@ -69,7 +88,6 @@ func (c *Console) Table(data interface{}) {
 	location := getFileAndLine()
 	fmt.Printf("%s %s %s:\n", prefix, timeStr, location)
 
-	// 将数据转换为JSON字符串并格式化输出
 	jsonData, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
 		c.Error("Failed to format table data:", err)
