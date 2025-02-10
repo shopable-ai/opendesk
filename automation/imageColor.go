@@ -1,13 +1,18 @@
 package automation
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"image"
 	"image/color"
+	"image/jpeg"
 	"image/png"
+	"log"
 	"math"
+	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -21,22 +26,35 @@ func NewImageColor() *ImageColor {
 
 // decodeBitmap converts a base64 image string to an image.Image
 func (ic *ImageColor) decodeBitmap(imageStr string) (image.Image, error) {
-	// Remove data URL prefix if present
+	// 处理空输入
+	if imageStr == "" {
+		return nil, fmt.Errorf("empty image string")
+	}
+
+	// 移除 data URL 前缀
 	base64Str := imageStr
 	if strings.Contains(imageStr, "base64,") {
 		base64Str = strings.Split(imageStr, "base64,")[1]
 	}
 
-	// Decode base64 string
+	// 解码 base64
 	imageBytes, err := base64.StdEncoding.DecodeString(base64Str)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode base64: %v", err)
 	}
 
-	// Decode image
-	img, err := png.Decode(strings.NewReader(string(imageBytes)))
+	// 创建字节读取器
+	reader := bytes.NewReader(imageBytes)
+
+	// 尝试解码为 PNG
+	img, err := png.Decode(reader)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode image: %v", err)
+		// PNG 解码失败，重置读取器并尝试 JPEG
+		reader.Seek(0, 0)
+		img, err = jpeg.Decode(reader)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode image as PNG or JPEG: %v", err)
+		}
 	}
 
 	return img, nil
@@ -119,48 +137,133 @@ func (ic *ImageColor) FindColor(imageStr, colorStr string, optionsStr ...string)
 }
 
 // FindColorBlocks 搜索颜色区域
-// optionsStr 是可选参数，不传则使用默认值
 func (ic *ImageColor) FindColorBlocks(imageStr, colorStr string, optionsStr ...string) (string, error) {
-	img, err := ic.decodeBitmap(imageStr)
-	if err != nil {
-		return "", err
+	log.Printf("FindColorBlocks started - color: %s", colorStr)
+
+	// Check if color is empty
+	if colorStr == "" {
+		log.Printf("Color string is empty, returning empty array")
+		return "[]", nil
 	}
 
-	targetColor, err := parseHexColor(colorStr)
+	// Decode bitmap
+	log.Printf("Attempting to decode bitmap, length of imageStr: %d", len(imageStr))
+	img, err := ic.decodeBitmap(imageStr)
 	if err != nil {
+		log.Printf("Failed to decode bitmap: %v", err)
+		return "", fmt.Errorf("failed to decode bitmap: %v", err)
+	}
+	log.Printf("Successfully decoded bitmap")
+
+	// Parse target color and convert to RGBA
+	log.Printf("Parsing color: %s", colorStr)
+	colorValue, err := parseHexColor(colorStr)
+	if err != nil {
+		log.Printf("Color parsing failed: %v", err)
 		return "", fmt.Errorf("invalid color format: %v", err)
 	}
 
-	// Parse options with defaults
+	// Convert color.Color to color.RGBA
+	r, g, b, a := colorValue.RGBA()
+	targetColor := color.RGBA{
+		R: uint8(r >> 8),
+		G: uint8(g >> 8),
+		B: uint8(b >> 8),
+		A: uint8(a >> 8),
+	}
+
+	log.Printf("Successfully parsed color: R=%d, G=%d, B=%d",
+		targetColor.R, targetColor.G, targetColor.B)
+
+	// Parse options
+	log.Printf("Processing options, optionsStr length: %d", len(optionsStr))
 	var options *FindColorOptions
 	if len(optionsStr) > 0 && optionsStr[0] != "" {
+		log.Printf("Parsing options string: %s", optionsStr[0])
 		options, err = ParseOptions(optionsStr[0])
 		if err != nil {
+			log.Printf("Options parsing failed: %v", err)
 			return "", fmt.Errorf("invalid options format: %v", err)
 		}
+	} else {
+		log.Printf("No options provided, using defaults")
+		options = &FindColorOptions{} // Add default values
 	}
 
 	// Get search bounds
+	if options == nil {
+		log.Printf("Error: options is nil")
+		return "", fmt.Errorf("options cannot be nil")
+	}
+
+	bounds := img.Bounds()
+	log.Printf("Image bounds: Min(%d,%d) Max(%d,%d)",
+		bounds.Min.X, bounds.Min.Y, bounds.Max.X, bounds.Max.Y)
+
 	x, y, width, height, threshold := options.GetSearchBounds(img)
+	log.Printf("Search bounds: x=%d, y=%d, width=%d, height=%d, threshold=%d",
+		x, y, width, height, threshold)
 
-	// Create a sub-image for the search area
+	// Validate bounds
+	if width <= 0 || height <= 0 {
+		log.Printf("Invalid search bounds: width=%d, height=%d", width, height)
+		return "", fmt.Errorf("invalid search bounds: width=%d, height=%d", width, height)
+	}
+
+	// Validate image bounds
+	if x < bounds.Min.X || y < bounds.Min.Y ||
+		x+width > bounds.Max.X || y+height > bounds.Max.Y {
+		log.Printf("Search bounds outside image dimensions: x=%d, y=%d, width=%d, height=%d",
+			x, y, width, height)
+		return "", fmt.Errorf("search bounds outside image dimensions")
+	}
+
+	// Create sub-image
+	log.Printf("Creating sub-image for search area")
 	searchBounds := image.Rect(x, y, x+width, y+height)
-	searchArea := img.(interface {
+	subImage, ok := img.(interface {
 		SubImage(r image.Rectangle) image.Image
-	}).SubImage(searchBounds)
+	})
+	if !ok {
+		log.Printf("Image does not support SubImage")
+		return "", fmt.Errorf("image does not support SubImage")
+	}
+	searchArea := subImage.SubImage(searchBounds)
+	log.Printf("Successfully created search area sub-image")
 
-	// Detect color blocks in the search area
+	// Detect color blocks
+	log.Printf("Starting color block detection")
 	blocks := ic.detectColorBlocks(searchArea, targetColor, threshold)
-	blocks = ic.mergeOverlappingBlocks(blocks)
-	blocks = ic.classifyBlockShapes(searchArea, blocks, targetColor, threshold)
+	log.Printf("Found %d initial blocks", len(blocks))
 
-	// Adjust coordinates to be relative to the full image
+	if blocks == nil {
+		log.Printf("No blocks found")
+		return "[]", nil
+	}
+
+	// Process blocks
+	blocks = ic.mergeOverlappingBlocks(blocks)
+	log.Printf("After merging: %d blocks", len(blocks))
+
+	blocks = ic.classifyBlockShapes(searchArea, blocks, targetColor, threshold)
+	log.Printf("After classification: %d blocks", len(blocks))
+
+	// Adjust coordinates
+	log.Printf("Adjusting block coordinates")
 	for i := range blocks {
 		blocks[i].X += x
 		blocks[i].Y += y
 	}
 
-	jsonResult, _ := json.Marshal(blocks)
+	// Marshal results
+	log.Printf("Marshaling results")
+	jsonResult, err := json.Marshal(blocks)
+	if err != nil {
+		log.Printf("JSON marshaling failed: %v", err)
+		return "", fmt.Errorf("failed to marshal results: %v", err)
+	}
+
+	log.Printf("Successfully completed FindColorBlocks, result length: %d", len(jsonResult))
 	return string(jsonResult), nil
 }
 
@@ -255,18 +358,41 @@ func parseHexColor(s string) (color.Color, error) {
 	return c, nil
 }
 
-// GetSize returns the dimensions of the image as an array [width, height]
+// Fixed GetSize function to properly handle cropped images:
 func (ic *ImageColor) GetSize(imageStr string) []int {
-	img, err := ic.decodeBitmap(imageStr)
+	// Handle empty input
+	if imageStr == "" {
+		return nil
+	}
+
+	// Remove data URL prefix if present
+	base64Str := imageStr
+	if strings.Contains(imageStr, "base64,") {
+		base64Str = strings.Split(imageStr, "base64,")[1]
+	}
+
+	// Decode base64 string
+	imageBytes, err := base64.StdEncoding.DecodeString(base64Str)
 	if err != nil {
 		return nil
 	}
 
-	bounds := img.Bounds()
-	return []int{
-		bounds.Max.X - bounds.Min.X,
-		bounds.Max.Y - bounds.Min.Y,
+	// Create a bytes reader
+	reader := bytes.NewReader(imageBytes)
+
+	// Try to decode as PNG first
+	config, err := png.DecodeConfig(reader)
+	if err != nil {
+		// If PNG decode fails, reset reader and try JPEG
+		reader.Seek(0, 0)
+		config, err = jpeg.DecodeConfig(reader)
+		if err != nil {
+			return nil
+		}
 	}
+
+	// Return actual dimensions from the image config
+	return []int{config.Width, config.Height}
 }
 
 // ColorBlock represents a detected color block region
@@ -471,4 +597,153 @@ func max(a, b int) int {
 		return a
 	}
 	return b
+}
+
+func (ic *ImageColor) Crop(imageStr string, options interface{}) (string, error) {
+	// Decode original image
+	img, err := ic.decodeBitmap(imageStr)
+	if err != nil {
+		return "", fmt.Errorf("failed to decode image: %v", err)
+	}
+
+	// Get original dimensions
+	bounds := img.Bounds()
+	originalWidth := bounds.Max.X - bounds.Min.X
+	originalHeight := bounds.Max.Y - bounds.Min.Y
+
+	// Initialize default values to entire image
+	x := 0
+	y := 0
+	width := originalWidth
+	height := originalHeight
+
+	// Use provided options if available
+	if options != nil {
+		if optMap, ok := options.(map[string]interface{}); ok {
+			if val, ok := optMap["x"].(float64); ok {
+				x = int(val)
+			}
+			if val, ok := optMap["y"].(float64); ok {
+				y = int(val)
+			}
+			if val, ok := optMap["width"].(float64); ok {
+				width = int(val)
+			}
+			if val, ok := optMap["height"].(float64); ok {
+				height = int(val)
+			}
+		}
+	}
+
+	// Validate and adjust coordinates and dimensions
+	if x < 0 {
+		width += x
+		x = 0
+	}
+	if y < 0 {
+		height += y
+		y = 0
+	}
+	if x >= originalWidth || y >= originalHeight {
+		return "", fmt.Errorf("coordinates out of bounds: x=%d, y=%d", x, y)
+	}
+
+	// Adjust width and height to fit within bounds
+	if width <= 0 || height <= 0 {
+		return "", fmt.Errorf("invalid dimensions: width=%d, height=%d", width, height)
+	}
+	if x+width > originalWidth {
+		width = originalWidth - x
+	}
+	if y+height > originalHeight {
+		height = originalHeight - y
+	}
+
+	// Create new RGBA image with exact cropped dimensions
+	croppedImg := image.NewRGBA(image.Rect(0, 0, width, height))
+
+	// Copy pixels from source to cropped image
+	for dy := 0; dy < height; dy++ {
+		for dx := 0; dx < width; dx++ {
+			sourceColor := img.At(x+dx, y+dy)
+			croppedImg.Set(dx, dy, sourceColor)
+		}
+	}
+
+	// Encode to PNG
+	var buf bytes.Buffer
+	encoder := png.Encoder{
+		CompressionLevel: png.BestCompression,
+	}
+	if err := encoder.Encode(&buf, croppedImg); err != nil {
+		return "", fmt.Errorf("failed to encode cropped image: %v", err)
+	}
+
+	// Convert to base64
+	base64Str := base64.StdEncoding.EncodeToString(buf.Bytes())
+	return "data:image/png;base64," + base64Str, nil
+}
+
+func (ic *ImageColor) Save(image string, path string, format string, quality int) (bool, error) {
+	// 参数验证和默认值设置
+	if path == "" {
+		return false, fmt.Errorf("path cannot be empty")
+	}
+
+	// 设置默认格式
+	if format == "" {
+		format = "png"
+	}
+	format = strings.ToLower(format)
+	if format != "png" && format != "jpeg" && format != "jpg" {
+		format = "png"
+	}
+
+	// 设置默认质量并验证范围
+	if quality <= 0 {
+		quality = 100
+	}
+	if quality > 100 {
+		quality = 100
+	}
+
+	// 解码base64图片
+	img, err := ic.decodeBitmap(image)
+	if err != nil {
+		return false, fmt.Errorf("failed to decode image: %v", err)
+	}
+
+	// 确保目录存在
+	dir := filepath.Dir(path)
+	if dir != "." {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return false, fmt.Errorf("failed to create directory: %v", err)
+		}
+	}
+
+	// 创建输出文件
+	file, err := os.Create(path)
+	if err != nil {
+		return false, fmt.Errorf("failed to create file: %v", err)
+	}
+	defer file.Close()
+
+	// 根据格式保存图片
+	switch format {
+	case "jpeg", "jpg":
+		err = jpeg.Encode(file, img, &jpeg.Options{
+			Quality: quality,
+		})
+	default: // png
+		encoder := png.Encoder{
+			CompressionLevel: png.BestCompression,
+		}
+		err = encoder.Encode(file, img)
+	}
+
+	if err != nil {
+		return false, fmt.Errorf("failed to encode image: %v", err)
+	}
+
+	return true, nil
 }
