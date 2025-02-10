@@ -98,20 +98,102 @@ func (k *Keyboard) Combination(keys ...string) error {
 // normalizeKeyName converts common key names to robotgo format
 func normalizeKeyName(key string) string {
 	keyMap := map[string]string{
-		"Meta":       "command", // Windows key
-		"Control":    "ctrl",
-		"Shift":      "shift",
-		"Alt":        "alt",
+		// Special keys
+		"Meta":        "command", // Windows key
+		"Control":     "ctrl",
+		"Shift":       "shift",
+		"Alt":         "alt",
+		"AltGraph":    "alt", // Right Alt
+		"CapsLock":    "caps",
+		"NumLock":     "numlock",
+		"ScrollLock":  "scrolllock",
+		"PrintScreen": "printscreen",
+		"Pause":       "pause",
+		"Break":       "break",
+
+		// Navigation keys
 		"Enter":      "enter",
+		"Return":     "enter",
+		"Tab":        "tab",
 		"Backspace":  "backspace",
 		"Delete":     "delete",
+		"Insert":     "insert",
+		"Home":       "home",
+		"End":        "end",
+		"PageUp":     "pageup",
+		"PageDown":   "pagedown",
 		"Escape":     "escape",
-		"Tab":        "tab",
 		"Space":      "space",
 		"ArrowUp":    "up",
 		"ArrowDown":  "down",
 		"ArrowLeft":  "left",
 		"ArrowRight": "right",
+
+		// Function keys
+		"F1":  "f1",
+		"F2":  "f2",
+		"F3":  "f3",
+		"F4":  "f4",
+		"F5":  "f5",
+		"F6":  "f6",
+		"F7":  "f7",
+		"F8":  "f8",
+		"F9":  "f9",
+		"F10": "f10",
+		"F11": "f11",
+		"F12": "f12",
+		"F13": "f13",
+		"F14": "f14",
+		"F15": "f15",
+		"F16": "f16",
+		"F17": "f17",
+		"F18": "f18",
+		"F19": "f19",
+		"F20": "f20",
+
+		// Numpad keys
+		"NumpadEnter":    "enter",
+		"NumpadDivide":   "numpaddivide",
+		"NumpadMultiply": "numpadmultiply",
+		"NumpadSubtract": "numpadsubtract",
+		"NumpadAdd":      "numpadadd",
+		"NumpadDecimal":  "numpaddecimal",
+		"Numpad0":        "numpad0",
+		"Numpad1":        "numpad1",
+		"Numpad2":        "numpad2",
+		"Numpad3":        "numpad3",
+		"Numpad4":        "numpad4",
+		"Numpad5":        "numpad5",
+		"Numpad6":        "numpad6",
+		"Numpad7":        "numpad7",
+		"Numpad8":        "numpad8",
+		"Numpad9":        "numpad9",
+
+		// Media keys
+		"AudioVolumeMute":    "volumemute",
+		"AudioVolumeDown":    "volumedown",
+		"AudioVolumeUp":      "volumeup",
+		"MediaPlayPause":     "playpause",
+		"MediaTrackPrevious": "prevtrack",
+		"MediaTrackNext":     "nexttrack",
+
+		// Browser keys
+		"BrowserBack":      "browserback",
+		"BrowserForward":   "browserforward",
+		"BrowserRefresh":   "browserrefresh",
+		"BrowserStop":      "browserstop",
+		"BrowserSearch":    "browsersearch",
+		"BrowserFavorites": "browserfavorites",
+		"BrowserHome":      "browserhome",
+
+		// Additional common keys
+		"ContextMenu": "menu",
+		"Help":        "help",
+		"Select":      "select",
+		"Clear":       "clear",
+		"Sleep":       "sleep",
+		"Power":       "power",
+		"Apps":        "apps",
 	}
 
 	// Convert to lowercase for case-insensitive matching

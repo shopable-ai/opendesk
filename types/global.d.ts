@@ -42,6 +42,7 @@ declare global {
      */
     function getClipboard(): string;
 
+    async function sleep(ms: number): Promise<void>;
 }
 
 // 使文件成为模块

@@ -87,7 +87,7 @@ declare class Screen {
      * @returns Base64 encoded image string or empty string if saved to file
      * @throws Error if screenshot fails
      */
-    captureScreen(options?: ScreenshotOptions): Promise<string>;
+    screenshot(options?: ScreenshotOptions): Promise<string>;
 }
 
 declare global {
