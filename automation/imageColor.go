@@ -138,7 +138,7 @@ func (ic *ImageColor) FindColor(imageStr, colorStr string, optionsStr ...string)
 
 // FindColorBlocks 搜索颜色区域
 func (ic *ImageColor) FindColorBlocks(imageStr, colorStr string, optionsStr ...string) (string, error) {
-	log.Printf("FindColorBlocks started - color: %s", colorStr)
+	// log.Printf("FindColorBlocks started - color: %s", colorStr)
 
 	// Check if color is empty
 	if colorStr == "" {
@@ -147,16 +147,16 @@ func (ic *ImageColor) FindColorBlocks(imageStr, colorStr string, optionsStr ...s
 	}
 
 	// Decode bitmap
-	log.Printf("Attempting to decode bitmap, length of imageStr: %d", len(imageStr))
+	// log.Printf("Attempting to decode bitmap, length of imageStr: %d", len(imageStr))
 	img, err := ic.decodeBitmap(imageStr)
 	if err != nil {
 		log.Printf("Failed to decode bitmap: %v", err)
 		return "", fmt.Errorf("failed to decode bitmap: %v", err)
 	}
-	log.Printf("Successfully decoded bitmap")
+	// log.Printf("Successfully decoded bitmap")
 
 	// Parse target color and convert to RGBA
-	log.Printf("Parsing color: %s", colorStr)
+	// log.Printf("Parsing color: %s", colorStr)
 	colorValue, err := parseHexColor(colorStr)
 	if err != nil {
 		log.Printf("Color parsing failed: %v", err)
@@ -172,21 +172,21 @@ func (ic *ImageColor) FindColorBlocks(imageStr, colorStr string, optionsStr ...s
 		A: uint8(a >> 8),
 	}
 
-	log.Printf("Successfully parsed color: R=%d, G=%d, B=%d",
-		targetColor.R, targetColor.G, targetColor.B)
+	// log.Printf("Successfully parsed color: R=%d, G=%d, B=%d",
+	//	targetColor.R, targetColor.G, targetColor.B)
 
 	// Parse options
-	log.Printf("Processing options, optionsStr length: %d", len(optionsStr))
+	// log.Printf("Processing options, optionsStr length: %d", len(optionsStr))
 	var options *FindColorOptions
 	if len(optionsStr) > 0 && optionsStr[0] != "" {
-		log.Printf("Parsing options string: %s", optionsStr[0])
+		// log.Printf("Parsing options string: %s", optionsStr[0])
 		options, err = ParseOptions(optionsStr[0])
 		if err != nil {
 			log.Printf("Options parsing failed: %v", err)
 			return "", fmt.Errorf("invalid options format: %v", err)
 		}
 	} else {
-		log.Printf("No options provided, using defaults")
+		// log.Printf("No options provided, using defaults")
 		options = &FindColorOptions{} // Add default values
 	}
 
@@ -197,12 +197,12 @@ func (ic *ImageColor) FindColorBlocks(imageStr, colorStr string, optionsStr ...s
 	}
 
 	bounds := img.Bounds()
-	log.Printf("Image bounds: Min(%d,%d) Max(%d,%d)",
-		bounds.Min.X, bounds.Min.Y, bounds.Max.X, bounds.Max.Y)
+	// log.Printf("Image bounds: Min(%d,%d) Max(%d,%d)",
+	//	bounds.Min.X, bounds.Min.Y, bounds.Max.X, bounds.Max.Y)
 
 	x, y, width, height, threshold := options.GetSearchBounds(img)
-	log.Printf("Search bounds: x=%d, y=%d, width=%d, height=%d, threshold=%d",
-		x, y, width, height, threshold)
+	// log.Printf("Search bounds: x=%d, y=%d, width=%d, height=%d, threshold=%d",
+	//	x, y, width, height, threshold)
 
 	// Validate bounds
 	if width <= 0 || height <= 0 {
@@ -219,7 +219,7 @@ func (ic *ImageColor) FindColorBlocks(imageStr, colorStr string, optionsStr ...s
 	}
 
 	// Create sub-image
-	log.Printf("Creating sub-image for search area")
+	// log.Printf("Creating sub-image for search area")
 	searchBounds := image.Rect(x, y, x+width, y+height)
 	subImage, ok := img.(interface {
 		SubImage(r image.Rectangle) image.Image
@@ -229,41 +229,41 @@ func (ic *ImageColor) FindColorBlocks(imageStr, colorStr string, optionsStr ...s
 		return "", fmt.Errorf("image does not support SubImage")
 	}
 	searchArea := subImage.SubImage(searchBounds)
-	log.Printf("Successfully created search area sub-image")
+	// log.Printf("Successfully created search area sub-image")
 
 	// Detect color blocks
-	log.Printf("Starting color block detection")
+	// log.Printf("Starting color block detection")
 	blocks := ic.detectColorBlocks(searchArea, targetColor, threshold)
-	log.Printf("Found %d initial blocks", len(blocks))
+	// log.Printf("Found %d initial blocks", len(blocks))
 
 	if blocks == nil {
-		log.Printf("No blocks found")
+		// log.Printf("No blocks found")
 		return "[]", nil
 	}
 
 	// Process blocks
 	blocks = ic.mergeOverlappingBlocks(blocks)
-	log.Printf("After merging: %d blocks", len(blocks))
+	// log.Printf("After merging: %d blocks", len(blocks))
 
 	blocks = ic.classifyBlockShapes(searchArea, blocks, targetColor, threshold)
-	log.Printf("After classification: %d blocks", len(blocks))
+	// log.Printf("After classification: %d blocks", len(blocks))
 
 	// Adjust coordinates
-	log.Printf("Adjusting block coordinates")
+	// log.Printf("Adjusting block coordinates")
 	for i := range blocks {
 		blocks[i].X += x
 		blocks[i].Y += y
 	}
 
 	// Marshal results
-	log.Printf("Marshaling results")
+	// log.Printf("Marshaling results")
 	jsonResult, err := json.Marshal(blocks)
 	if err != nil {
 		log.Printf("JSON marshaling failed: %v", err)
 		return "", fmt.Errorf("failed to marshal results: %v", err)
 	}
 
-	log.Printf("Successfully completed FindColorBlocks, result length: %d", len(jsonResult))
+	// log.Printf("Successfully completed FindColorBlocks, result length: %d", len(jsonResult))
 	return string(jsonResult), nil
 }
 
