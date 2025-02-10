@@ -117,7 +117,7 @@ declare class ImageColor {
      * @param height Height of the region (optional)
      * @param threshold Gray color threshold (0-255)
      */
-    isGray(imageStr: string, x: number, y: number, width?: number, height?: number, threshold?: number): Promise<boolean>;
+    isGrey(imageStr: string, x: number, y: number, width?: number, height?: number, threshold?: number): Promise<boolean>;
 
     /**
      * Gets the dimensions of an image
@@ -132,7 +132,7 @@ declare class ImageColor {
      * @param options Crop options
      * @returns Base64 encoded cropped image string
      */
-    crop(imageStr: string, options?: CropOptions): Promise<string>;
+    clip(imageStr: string, options?: CropOptions): Promise<string>;
 
     /**
      * Saves an image to a file
