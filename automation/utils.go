@@ -223,6 +223,59 @@ func loadPolyfills(runtime *goja.Runtime) error {
 	return nil
 }
 
+// loadJSLibs 加载 jslibs 目录下的所有 JavaScript 库文件
+func loadJSLibs(runtime *goja.Runtime) error {
+	// 获取当前目录
+	dir, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get working directory: %v", err)
+	}
+
+	// jslibs 目录路径
+	jslibsDir := filepath.Join(dir, "jslibs")
+
+	// 如果目录不存在，创建它
+	if err := os.MkdirAll(jslibsDir, 0755); err != nil {
+		return fmt.Errorf("failed to create jslibs directory: %v", err)
+	}
+
+	// 读取目录中的所有文件
+	entries, err := os.ReadDir(jslibsDir)
+	if err != nil {
+		return fmt.Errorf("failed to read jslibs directory: %v", err)
+	}
+
+	// 收集所有 .js 文件
+	var jsFiles []string
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".js") {
+			jsFiles = append(jsFiles, entry.Name())
+		}
+	}
+
+	// 按文件名排序，确保加载顺序一致
+	sort.Strings(jsFiles)
+
+	// 加载每个 JavaScript 库文件
+	for _, file := range jsFiles {
+		filePath := filepath.Join(jslibsDir, file)
+		content, err := os.ReadFile(filePath)
+		if err != nil {
+			return fmt.Errorf("failed to read JS library file %s: %v", file, err)
+		}
+
+		// 执行 JavaScript 库代码
+		_, err = runtime.RunString(string(content))
+		if err != nil {
+			return fmt.Errorf("failed to execute JS library %s: %v", file, err)
+		}
+
+		fmt.Printf("Loaded JS library: %s\n", file)
+	}
+
+	return nil
+}
+
 // InitJS 初始化 JS 环境
 
 func InitJS(runtime *goja.Runtime) error {
@@ -270,6 +323,11 @@ func InitJS(runtime *goja.Runtime) error {
 	// 然后加载 polyfills
 	if err := loadPolyfills(runtime); err != nil {
 		return fmt.Errorf("failed to load polyfills: %v", err)
+	}
+
+	// 加载 jslibs
+	if err := loadJSLibs(runtime); err != nil {
+		return fmt.Errorf("failed to load JS libraries: %v", err)
 	}
 
 	// 创建新的 page 实例
