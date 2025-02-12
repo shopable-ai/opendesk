@@ -225,7 +225,7 @@ async function handleOrder(win) {
     console.log('点击订单区域,开始键盘操作，按下翻页end');
     // Press End key
     await keyboard.press('End');
-    await sleep(500);
+    await sleep(800);
 
     screenshot = await page.screenshot({
         path: 'temp/orderStatusEnd.png',
@@ -236,7 +236,7 @@ async function handleOrder(win) {
             height: win.height
         }
     });
-    await sleep(100);
+    // await sleep(100);
 
     console.log('开始准备在订单区域找色')
     // Look for order block first
@@ -260,33 +260,66 @@ async function handleOrder(win) {
     return orderBlock;
 }
 
-// Click copy button and send message
+
+// Modified handleCopyAndSend function
 async function handleCopyAndSend(win, orderBlockData) {
+    // Store initial clipboard content
+    const initialClipboard = getClipboard();
+    
     // 通过订单色块计算"点我复制"按钮位置
     const copyButtonX = orderBlockData.x + 370;  // 相对于订单色块的X偏移
-    const copyButtonY = orderBlockData.y + 250;  // 相对于订单色块的Y偏移
+    const copyButtonY = orderBlockData.y + 20 + orderBlockData.height ;  // 相对于订单色块的Y偏移  210  250
     console.log('点我复制 按钮位置- 色块相对坐标:', {copyButtonX, copyButtonY});
-    
-    // 把 copyButtonX 转换为窗口坐标， copyButtonX + win.width - 480
     const panelX = copyButtonX + win.width - 480;
     const panelY = copyButtonY;
     console.log('点我复制 按钮位置- 窗口坐标:', {panelX, panelY});
-
-    // 转换为屏幕坐标
     const absoluteX = win.x + panelX;
     const absoluteY = win.y + panelY;
     
     console.log('点我复制 按钮坐标:', {absoluteX, absoluteY});
     
+    await mouse.move(absoluteX, absoluteY);
+    await sleep(500);
     // 点击复制按钮
     await mouse.click(absoluteX, absoluteY);
     await sleep(500);
-
-    // Calculate send button position
+    
+    // Get new clipboard content and check if it changed
+    const newClipboard = getClipboard();
+    if (newClipboard === initialClipboard) {
+        console.log('剪贴板内容未变化，当前内容是：' + newClipboard);
+        return false;
+    }
+    
+    // Load configuration
+    const config = await loadConfig();
+        
+    let gotData = false;
+    let content = '';
+    // Query product information
+    try {
+        const apiResponse = await queryProductInfo(config.apiEndpoint, newClipboard);
+        if (apiResponse.code === 1000 && apiResponse.data) {
+            // Set clipboard content with product info and paste
+            const productInfo = `${apiResponse.data.title}\n${apiResponse.data.content}`;
+            content = productInfo;
+            gotData = true;
+            // copyToClipboard(productInfo);
+            // await keyboard.combination('Control', 'v');
+            // await sleep(500);
+        }else {
+            content = '错误信息: ' +  apiResponse.message;
+            console.error('获取产品信息失败:', apiResponse.message);
+        }
+    } catch (error) {
+        content = '错误信息: ' +  error.message;
+        console.error('获取产品信息失败:', error);
+    }
+    
+    // Calculate and verify send button position
     const sendButtonX = win.width - 480 - 20 - 65;
     const sendButtonY = win.height - 25;
-
-    // Verify blue send button
+    
     const buttonScreenshot = await page.screenshot({
         clip: {
             x: win.x + sendButtonX,
@@ -295,29 +328,29 @@ async function handleCopyAndSend(win, orderBlockData) {
             height: 25
         }
     });
-
+    
     const hasSendButton = await ImageColor.hasColor(
         buttonScreenshot,
         COLORS.BLUE_SIDEBAR
     );
-
+    
     if (!hasSendButton) {
         console.log('未找到发送按钮');
         return false;
     }
-
-    console.log('找到发送按钮', {sendButtonX, sendButtonY});
-
-    // Click edit area and type message
+    
+    // Click edit area and send message
     await mouse.click(win.x + sendButtonX, win.y + sendButtonY - 20);
     await sleep(500);
-    await keyboard.type('老板还需要购买什么？');
+    content = content || '老板需要购买什么？'
+    await keyboard.type(content);
     await sleep(500);
-
-    // Click send button
-    await mouse.click(win.x + sendButtonX, win.y + sendButtonY);
-    await sleep(500);
-
+    if (gotData) {
+        console.log('点击发送按钮');
+        await mouse.click(win.x + sendButtonX, win.y + sendButtonY);
+        await sleep(500);        
+    }
+    
     return true;
 }
 
@@ -394,34 +427,119 @@ function getOrderStatus(firstPointColor, secondPointColor) {
 }
 
 
+
+// Configuration type definition
+class Config {
+    constructor() {
+        this.apiEndpoint = '';
+        this.apiCheckEndpoint = '';
+    }
+}
+
+// API Response type definition
+class APIResponse {
+    constructor() {
+        this.code = 0;
+        this.message = '';
+        this.data = {
+            title: '',
+            content: ''
+        };
+    }
+}
+
+// Load configuration from ini file
+async function loadConfig() {
+    try {
+        // Check if config file exists
+        if (!File.exists('config.ini')) {
+            console.error('配置文件 config.ini 不存在');
+            throw new Error('Configuration file config.ini does not exist');
+        }
+        
+        const configContent = File.read('config.ini');
+        const config = new Config();
+        
+        // Parse INI content
+        const lines = configContent.split('\n');
+        for (const line of lines) {
+            const [key, value] = line.split('=').map(s => s.trim());
+            if (key === 'api_endpoint') {
+                config.apiEndpoint = value;
+            } else if (key === 'api_check') {
+                config.apiCheckEndpoint = value;
+            }
+        }
+        
+        return config;
+    } catch (error) {
+        throw new Error(`Failed to load config: ${error.message}`);
+    }
+}
+
+
+// Check API health
+async function checkAPIHealth(checkEndpoint) {
+    try {
+        const response = await axios.get(checkEndpoint);
+        if (response.status !== 200) {
+            throw new Error(`API health check failed: status code ${response.status}`);
+        }
+        return response.data;
+    } catch (error) {
+        throw new Error(`API health check failed: ${error.message}`);
+    }
+}
+
+// Query product information
+async function queryProductInfo(apiEndpoint, title) {
+    try {
+        const queryString = `${apiEndpoint}?title=${encodeURIComponent(title)}`;
+        console.log(`${new Date().toISOString()} API请求URL: ${queryString}`);
+        const response = await axios.get(queryString);
+        
+        console.log(`${new Date().toISOString()} API原始响应:`, response.data);
+        
+        if (response.status !== 200) {
+            throw new Error(`HTTP request failed: ${response.status}`);
+        }
+        
+        return response.data;
+    } catch (error) {
+        throw new Error(`Failed to query product info: ${error.message}`);
+    }
+}
+
 // Main automation flow
 async function main() {
-    // Wait for notification window
+    // Load configuration first
+    const config = await loadConfig();
+    console.log(`${new Date().toISOString()} 配置加载完成:`, config);
+        
+    // Check API health before starting
+    let statusRes = await checkAPIHealth(config.apiCheckEndpoint);
+    console.log(`${new Date().toISOString()} API健康检查结果:`, statusRes);
+    
+    // Continue with existing flow
     const notificationWindow = await waitForChatNotification();
     if (!notificationWindow) return;
-
+    
     console.log('消息窗口已打开');
-
-    // Check and click contact button
+    
     const contactSuccess = await checkContactButton(notificationWindow);
-    console.log('检查联系人按钮:', contactSuccess);
     if (!contactSuccess) return;
     console.log('已点击联系人按钮');
-
-    // Wait for reception window
+    
     const receptionWindow = await waitForReceptionWindow();
     if (!receptionWindow) return;
-
-    // Handle order processing and get order block data
+    
     const orderBlockData = await handleOrder(receptionWindow);
     if (!orderBlockData) return;
     console.log('订单栏，已经完成翻页', orderBlockData);
-
-    // Handle copy and send using order block data
+    
     await handleCopyAndSend(receptionWindow, orderBlockData);
 
 }
-
 
 // Start automation
 await main().catch(console.error);
