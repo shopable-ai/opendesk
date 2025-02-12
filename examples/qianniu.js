@@ -1,0 +1,427 @@
+// Constants
+const COLORS = {
+    YELLOW_BUTTON: '#FEEBA6',
+    BLUE_SIDEBAR: '#3D7FFF',
+    GREEN_STATUS: '#20AE10',
+    GRAY_STATUS: '#B6B9C3',
+    ORDER_BLOCK: '#E6EAF5',
+    PURPLE_STATUS: '#C651A3',
+    BLUE_STATUS: '#3D5EFF'
+};
+
+// Order status enum
+const ORDER_STATUS = {
+    PENDING_SHIPMENT: 'PENDING_SHIPMENT',
+    PENDING_PAYMENT: 'PENDING_PAYMENT',
+    REFUND_COMPLETED: 'REFUND_COMPLETED',
+    ORDER_CLOSED: 'ORDER_CLOSED',
+    UNKNOWN: 'UNKNOWN_STATUS'
+};
+
+// Status display names
+const STATUS_NAMES = {
+    [ORDER_STATUS.PENDING_SHIPMENT]: '待发货',
+    [ORDER_STATUS.PENDING_PAYMENT]: '待付款',
+    [ORDER_STATUS.REFUND_COMPLETED]: '退款完成',
+    [ORDER_STATUS.ORDER_CLOSED]: '订单关闭',
+    [ORDER_STATUS.UNKNOWN]: '未知状态'
+};
+
+
+// Order status color constants
+const STATUS_COLORS = {
+    [ORDER_STATUS.PENDING_SHIPMENT]: {
+        primary: '#dcefff'     // 待发货 第一点
+    },
+    [ORDER_STATUS.PENDING_PAYMENT]: {
+        primary: '#ffe5d5'     // 待付款 第一点
+    },
+    [ORDER_STATUS.REFUND_COMPLETED]: {
+        primary: '#f6f6f6',    // 退款完成 第一点
+    },
+    [ORDER_STATUS.ORDER_CLOSED]: {
+        primary: '#f6f6f6',    // 订单关闭 第一点
+        secondary: '#999999'    // 订单关闭 第二点
+    }
+};
+
+
+// Wait for chat notification window
+async function waitForChatNotification() {
+    
+    const activeWindow = await window.getActiveWindow();
+    
+    if (!activeWindow.title.endsWith('消息通知') || 
+        activeWindow.exeName !== 'AliWorkbench.exe') {
+        console.log('当前窗口不是消息通知:', activeWindow.title, activeWindow);
+        return null;
+    }
+
+    let {x,y,width,height} = activeWindow;
+    // 给窗口截图
+    const screenshot = await page.screenshot({ clip: {x, y, width, height} });
+    console.log('截图完成', screenshot.substring(0, 100));
+
+    // Get colors at specific points (getColorAt should return hex values)
+    const firstPointColor = await ImageColor.pixel(screenshot, 140 , 43 ); 
+    const secondPointColor = await ImageColor.pixel(screenshot, 143 , 60); 
+
+    console.log('颜色值:', {        firstPoint: firstPointColor,        secondPoint: secondPointColor    })
+    // Determine status
+    const status = getOrderStatus(firstPointColor, secondPointColor);
+    console.log('检测到订单状态:', STATUS_NAMES[status], '颜色值:', {
+        firstPoint: firstPointColor,
+        secondPoint: secondPointColor
+    });
+
+    // 如果状态不是代付款，则直接跳出
+    if (status !== ORDER_STATUS.PENDING_PAYMENT ) {
+        console.log('订单状态不是代付款，退出');
+        return null;
+    }
+    
+    // console.log('找到消息通知窗口:', activeWindow);
+    return activeWindow;
+
+    // const windows = await window.listWindows();
+        
+    // // 获取并监控千牛弹窗
+    // const qianniuWindows = windows.filter(win => 
+    //     win.exeName?.includes('AliWorkbench.exe')
+    // );
+    // const messageWindow = qianniuWindows.find(win => 
+    //     win.title.endsWith('-消息通知')
+    // );
+
+    // if (!messageWindow) {
+    //     console.log('未找到消息通知窗口', qianniuWindows);
+    //     // 当前窗口是什么？
+    //     console.log('当前窗口', await window.getCurrentWindow());
+    //     return null;
+    // }
+
+    // return messageWindow;
+}
+
+// Check for contact button color block
+async function checkContactButton(win) {
+    // Get screenshot of the button area
+    const screenshot = await page.screenshot({
+        clip: {
+            x: win.x + 130,
+            y: win.y + 70,
+            width: win.width - 130,
+            height: 40
+        }
+    });
+
+    // Look for yellow color block
+    let colorBlock = await ImageColor.findColorBlocks(
+        screenshot,
+        COLORS.YELLOW_BUTTON
+    );
+
+    console.log('findColorBlocks', typeof colorBlock);
+    if (!colorBlock) {
+        console.log('未找到"和我联系"按钮 色块');
+        return false;
+    }
+
+    // colorBlock 如果是字符串，则转换json
+    if (typeof colorBlock === 'string') {
+        colorBlock = JSON.parse(colorBlock);
+    }
+    console.log('找到"和我联系"按钮 色块', colorBlock, typeof colorBlock);
+
+    // Convert coordinates and click
+    const blockData = colorBlock[0];
+    // 色块中心点相对于截图区域的坐标
+    const blockCenterX = blockData.x + (blockData.width / 2);
+    const blockCenterY = blockData.y + (blockData.height / 2);
+    
+    // 将相对坐标转换为窗口坐标，然后转换为屏幕坐标
+    const clickX = win.x + 130 + blockCenterX; // 130是截图起始x偏移
+    const clickY = win.y + 70 + blockCenterY;  // 70是截图起始y偏移
+    
+    console.log('找到色块 -和我联系：', blockData);
+    console.log('计算得到点击坐标 -和我联系：', {clickX, clickY} , { winX: win.x, winY: win.y, blockX:  blockData.x, blockY:  blockData.y});
+    
+    await mouse.click(clickX, clickY);
+    await sleep(1000);
+    return true;
+}
+
+// Wait for reception window
+async function waitForReceptionWindow() {
+    const activeWindow = await window.getActiveWindow();
+    
+    if (!activeWindow.title.endsWith('-接待中心') || 
+        activeWindow.exeName !== 'AliWorkbench.exe') {
+        console.log('当前窗口不是接待中心:', activeWindow.title);
+        return null;
+    }
+    
+    console.log('找到接待中心窗口:', activeWindow);
+    return activeWindow;
+}
+
+// Handle order scroll and status check
+async function handleOrder(win) {
+    const orderAreaX = win.width - 480;
+    const orderAreaY = 100;
+
+    console.log('点击订单区域');
+    // Click order area
+    await mouse.click(win.x + orderAreaX, win.y + orderAreaY + 10);
+    await sleep(500);
+
+    // 先按下pageup，回复到最上面状态，才能取色
+    console.log('先按下pageup，回复到最上面状态，才能取色');
+    await keyboard.press('PageUp');
+    await sleep(500);
+    
+    // Get order status area screenshot
+    let screenshot = await page.screenshot({
+        path: 'temp/orderStatus.png',
+        clip: {
+            x: win.x + orderAreaX,
+            y: win.y,
+            width: 480,
+            height: win.height
+        }
+    });
+
+    console.log('开始检查订单状态');
+
+    // Check for green "待发货" status
+    const hasGreenStatus = ImageColor.hasColor(
+        screenshot,
+        COLORS.GREEN_STATUS,
+        33,
+        665,
+        40,
+        18
+    );
+    console.log('hasColor检查绿色状态结果:', hasGreenStatus);
+
+    // 寻找绿色块
+    let greenBlocks = await ImageColor.findColorBlocks(
+        screenshot,
+        COLORS.GREEN_STATUS
+    );
+    
+    if (typeof greenBlocks === 'string') {
+        greenBlocks = JSON.parse(greenBlocks);
+    }
+    console.log('第一次截图找到的绿色块:', greenBlocks);
+
+    if (!hasGreenStatus) {
+        await Sound.playWarning();
+        console.log('订单状态不是待发货');
+        return false;
+    }
+    console.log('订单状态是待发货');
+
+    console.log('点击订单区域,开始键盘操作，按下翻页end');
+    // Press End key
+    await keyboard.press('End');
+    await sleep(500);
+
+    screenshot = await page.screenshot({
+        path: 'temp/orderStatusEnd.png',
+        clip: {
+            x: win.x + orderAreaX,
+            y: win.y,
+            width: 480,
+            height: win.height
+        }
+    });
+    await sleep(100);
+
+    console.log('开始准备在订单区域找色')
+    // Look for order block first
+    let orderBlock = await ImageColor.findColorBlocks(
+        screenshot,
+        COLORS.ORDER_BLOCK
+    );
+    console.log('第二次截图找到的订单色块:', orderBlock);
+    // 如果是字符串，则转换
+    if (typeof orderBlock === 'string') {
+        orderBlock = JSON.parse(orderBlock);
+    }
+    console.log('找到的订单色块:', orderBlock);
+
+    if (!orderBlock) {
+        console.log('未找到订单区域');
+        return false;
+    }
+    // 从数组中提取第一个元素，
+    orderBlock = orderBlock[0];
+    return orderBlock;
+}
+
+// Click copy button and send message
+async function handleCopyAndSend(win, orderBlockData) {
+    // 通过订单色块计算"点我复制"按钮位置
+    const copyButtonX = orderBlockData.x + 370;  // 相对于订单色块的X偏移
+    const copyButtonY = orderBlockData.y + 250;  // 相对于订单色块的Y偏移
+    console.log('点我复制 按钮位置- 色块相对坐标:', {copyButtonX, copyButtonY});
+    
+    // 把 copyButtonX 转换为窗口坐标， copyButtonX + win.width - 480
+    const panelX = copyButtonX + win.width - 480;
+    const panelY = copyButtonY;
+    console.log('点我复制 按钮位置- 窗口坐标:', {panelX, panelY});
+
+    // 转换为屏幕坐标
+    const absoluteX = win.x + panelX;
+    const absoluteY = win.y + panelY;
+    
+    console.log('点我复制 按钮坐标:', {absoluteX, absoluteY});
+    
+    // 点击复制按钮
+    await mouse.click(absoluteX, absoluteY);
+    await sleep(500);
+
+    // Calculate send button position
+    const sendButtonX = win.width - 480 - 20 - 65;
+    const sendButtonY = win.height - 25;
+
+    // Verify blue send button
+    const buttonScreenshot = await page.screenshot({
+        clip: {
+            x: win.x + sendButtonX,
+            y: win.y + sendButtonY,
+            width: 65,
+            height: 25
+        }
+    });
+
+    const hasSendButton = await ImageColor.hasColor(
+        buttonScreenshot,
+        COLORS.BLUE_SIDEBAR
+    );
+
+    if (!hasSendButton) {
+        console.log('未找到发送按钮');
+        return false;
+    }
+
+    console.log('找到发送按钮', {sendButtonX, sendButtonY});
+
+    // Click edit area and type message
+    await mouse.click(win.x + sendButtonX, win.y + sendButtonY - 20);
+    await sleep(500);
+    await keyboard.type('老板还需要购买什么？');
+    await sleep(500);
+
+    // Click send button
+    await mouse.click(win.x + sendButtonX, win.y + sendButtonY);
+    await sleep(500);
+
+    return true;
+}
+
+/**
+ * Determines order status based on color points in the notification window
+ * @param {string} firstPointColor - Hex color value at coordinates (140,43)
+ * @param {string} secondPointColor - Hex color value at coordinates (143,60), only used for order closed status
+ * @returns {string} The detected order status from ORDER_STATUS enum
+ */
+function getOrderStatus(firstPointColor, secondPointColor) {
+    // Normalize hex colors to lowercase and ensure # prefix
+    const normalizeColor = (color) => {
+        if (!color) return '';
+        color = color.toLowerCase();
+        return color.startsWith('#') ? color : `#${color}`;
+    };
+
+    const firstColor = normalizeColor(firstPointColor);
+    const secondColor = normalizeColor(secondPointColor);
+
+    console.log('Analyzing colors:', { firstColor, secondColor });
+
+    // First check for grey status (refund completed or order closed)
+    if (firstColor === STATUS_COLORS[ORDER_STATUS.REFUND_COMPLETED].primary) {
+        // If second point matches order closed secondary color, it's order closed
+        if (secondColor === STATUS_COLORS[ORDER_STATUS.ORDER_CLOSED].secondary) {
+            console.log('Matched order closed status (both points)');
+            return ORDER_STATUS.ORDER_CLOSED;
+        }
+        // Otherwise it's refund completed
+        console.log('Matched refund completed status');
+        return ORDER_STATUS.REFUND_COMPLETED;
+    }
+
+    // Check if the color is grey
+    const isGrey = ImageColor.isGrey(firstColor);
+    console.log('Grey check result:', { isGrey, firstColor });
+
+    if (isGrey) {
+        console.log('Color is grey, returning unknown status');
+        return ORDER_STATUS.UNKNOWN;
+    }
+
+    // For non-grey colors, first check for pending payment (close match)
+    const pendingPaymentColor = STATUS_COLORS[ORDER_STATUS.PENDING_PAYMENT].primary;
+    const isPendingPayment = ImageColor.isColorSimilar(firstColor, pendingPaymentColor, 0.95);
+    console.log('Pending payment check:', {
+        sourceColor: firstColor,
+        targetColor: pendingPaymentColor,
+        result: isPendingPayment
+    });
+
+    if (isPendingPayment.data) {
+        console.log('Matched pending payment status');
+        return ORDER_STATUS.PENDING_PAYMENT;
+    }
+
+    // Finally check for pending shipment
+    const pendingShipmentColor = STATUS_COLORS[ORDER_STATUS.PENDING_SHIPMENT].primary;
+    const isPendingShipment = ImageColor.isColorSimilar(firstColor, pendingShipmentColor, 0.85);
+    console.log('Pending shipment check:', {
+        sourceColor: firstColor,
+        targetColor: pendingShipmentColor,
+        result: isPendingShipment
+    });
+
+    if (isPendingShipment.data) {
+        console.log('Matched pending shipment status');
+        return ORDER_STATUS.PENDING_SHIPMENT;
+    }
+
+    console.log('No status match found, returning unknown');
+    return ORDER_STATUS.UNKNOWN;
+}
+
+
+// Main automation flow
+async function main() {
+    // Wait for notification window
+    const notificationWindow = await waitForChatNotification();
+    if (!notificationWindow) return;
+
+    console.log('消息窗口已打开');
+
+    // Check and click contact button
+    const contactSuccess = await checkContactButton(notificationWindow);
+    console.log('检查联系人按钮:', contactSuccess);
+    if (!contactSuccess) return;
+    console.log('已点击联系人按钮');
+
+    // Wait for reception window
+    const receptionWindow = await waitForReceptionWindow();
+    if (!receptionWindow) return;
+
+    // Handle order processing and get order block data
+    const orderBlockData = await handleOrder(receptionWindow);
+    if (!orderBlockData) return;
+    console.log('订单栏，已经完成翻页', orderBlockData);
+
+    // Handle copy and send using order block data
+    await handleCopyAndSend(receptionWindow, orderBlockData);
+
+}
+
+
+// Start automation
+await main().catch(console.error);
