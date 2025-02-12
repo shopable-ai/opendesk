@@ -8,7 +8,7 @@ import (
 	"sync"
 )
 
-// AppStorage provides persistent key-value storage functionality
+// AppStorage provides localStorage-like persistent storage
 type AppStorage struct {
 	mutex    sync.RWMutex
 	filePath string
@@ -17,117 +17,167 @@ type AppStorage struct {
 
 // NewAppStorage creates a new AppStorage instance
 func NewAppStorage(appName string) *AppStorage {
-	// Determine storage path based on OS
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		panic(fmt.Sprintf("failed to get home directory: %v", err))
 	}
 
-	// Create app-specific storage directory
 	storageDir := filepath.Join(homeDir, ".testmonkey", appName)
-	err = os.MkdirAll(storageDir, 0755)
-	if err != nil {
+	if err := os.MkdirAll(storageDir, 0755); err != nil {
 		panic(fmt.Sprintf("failed to create storage directory: %v", err))
 	}
 
-	// Storage file path
-	filePath := filepath.Join(storageDir, "storage.json")
-
 	storage := &AppStorage{
-		filePath: filePath,
+		filePath: filepath.Join(storageDir, "storage.json"),
 		data:     make(map[string]string),
 	}
 
-	// Load existing data
 	storage.load()
-
 	return storage
 }
 
-// load reads data from the storage file
 func (s *AppStorage) load() {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	// If file doesn't exist, initialize an empty map
+	if s.data == nil {
+		s.data = make(map[string]string)
+	}
+
 	if _, err := os.Stat(s.filePath); os.IsNotExist(err) {
 		return
 	}
 
-	// Read file
 	content, err := os.ReadFile(s.filePath)
 	if err != nil {
 		fmt.Printf("Failed to read storage file: %v\n", err)
 		return
 	}
 
-	// Unmarshal JSON
 	if len(content) > 0 {
 		if err := json.Unmarshal(content, &s.data); err != nil {
 			fmt.Printf("Failed to parse storage file: %v\n", err)
+			s.data = make(map[string]string)
 		}
 	}
 }
 
-// save writes data to the storage file
-func (s *AppStorage) save() error {
+func (s *AppStorage) save() {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	// Marshal data to JSON
-	content, err := json.Marshal(s.data)
-	if err != nil {
-		return fmt.Errorf("failed to serialize storage data: %v", err)
+	if s.data == nil {
+		s.data = make(map[string]string)
 	}
 
-	// Write to file
-	return os.WriteFile(s.filePath, content, 0644)
-}
+	content, err := json.MarshalIndent(s.data, "", "  ")
+	if err != nil {
+		fmt.Printf("Failed to serialize storage data: %v\n", err)
+		return
+	}
 
-// SetItem stores a key-value pair
-func (s *AppStorage) SetItem(key, value string) error {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
+	dir := filepath.Dir(s.filePath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		fmt.Printf("Failed to create directory: %v\n", err)
+		return
+	}
 
-	s.data[key] = value
-	return s.save()
+	if err := os.WriteFile(s.filePath, content, 0644); err != nil {
+		fmt.Printf("Failed to write storage file: %v\n", err)
+	}
 }
 
 // GetItem retrieves a value by key
-func (s *AppStorage) GetItem(key string) (string, bool) {
+func (s *AppStorage) GetItem(key string) string {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
+	if s.data == nil {
+		s.data = make(map[string]string)
+		return ""
+	}
+
 	value, exists := s.data[key]
-	return value, exists
+	if !exists {
+		return ""
+	}
+	return value
 }
 
-// RemoveItem removes a key-value pair
-func (s *AppStorage) RemoveItem(key string) error {
+// SetItem stores a value
+func (s *AppStorage) SetItem(key string, value interface{}) {
 	s.mutex.Lock()
-	defer s.mutex.Unlock()
 
+	if s.data == nil {
+		s.data = make(map[string]string)
+	}
+
+	// Convert value to string
+	var strValue string
+	switch v := value.(type) {
+	case string:
+		strValue = v
+	case []byte:
+		strValue = string(v)
+	default:
+		strValue = fmt.Sprintf("%v", v)
+	}
+
+	s.data[key] = strValue
+	s.mutex.Unlock()
+
+	s.save()
+}
+
+// RemoveItem removes an item from storage
+func (s *AppStorage) RemoveItem(key string) {
+	s.mutex.Lock()
+	if s.data == nil {
+		s.data = make(map[string]string)
+	}
 	delete(s.data, key)
-	return s.save()
+	s.mutex.Unlock()
+	s.save()
 }
 
 // Clear removes all items
-func (s *AppStorage) Clear() error {
+func (s *AppStorage) Clear() {
 	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
 	s.data = make(map[string]string)
-	return s.save()
+	s.mutex.Unlock()
+	s.save()
 }
 
-// Keys returns all stored keys
-func (s *AppStorage) Keys() []string {
+// GetLength returns the number of items
+func (s *AppStorage) GetLength() int {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
+
+	if s.data == nil {
+		s.data = make(map[string]string)
+		return 0
+	}
+	return len(s.data)
+}
+
+// Key gets the key at the specified index
+func (s *AppStorage) Key(index int) string {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	if s.data == nil {
+		s.data = make(map[string]string)
+		return ""
+	}
+
+	if index < 0 || index >= len(s.data) {
+		return ""
+	}
 
 	keys := make([]string, 0, len(s.data))
 	for k := range s.data {
 		keys = append(keys, k)
 	}
-	return keys
+
+	return keys[index]
 }
