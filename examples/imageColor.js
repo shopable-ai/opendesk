@@ -1,4 +1,8 @@
 
+let similar = ImageColor.isColorSimilar("#FF5733", "#FF6E4A", 0.85)
+console.log("Is #FF5733 similar to #FF6E4A with 85% similarity? ", similar.data, similar );
+
+
 // Take screenshot
 let base64Image = await page.screenshot();
 console.log("Screenshot captured, checking for colors...");
@@ -26,9 +30,9 @@ const hasBlack = await ImageColor.hasColor(base64Image, "#000000", 0, 0);
 console.log("Has black color:", hasBlack);
 await page.waitFor(1000);
 
-// Test isGray in a region
-const isGrayRegion = await ImageColor.isGray(base64Image, 0, 0, 200, 200, 10);
-console.log("Region is gray:", isGrayRegion);
+// Test isGrey in a region
+const isGreyRegion = await ImageColor.isGrey(base64Image, 0, 0, 200, 200, 10);
+console.log("Region is gray:", isGreyRegion);
 await page.waitFor(1000);
 
 // Get image size
@@ -141,5 +145,12 @@ const goldenColorHex = "#FFD101";
 const goldenBlocks = await ImageColor.findColorBlocks(base64Image, goldenColorHex);
 console.log("\nSearching for RGB(255,209,1) / #FFD101", goldenBlocks);
 
+// Test case 1: Crop central region
+const croppedImage1 = await ImageColor.clip(base64Image,  {x: 100,y: 100,width: 200,height: 200});
+console.log("Cropped central region:", {
+    options: cropOptions1,
+    resultLength: croppedImage1.length,
+    success: croppedImage1.startsWith("data:image/png;base64,") || croppedImage1.length > 0
+});
 
 console.info("ImageColor tests completed successfully");
