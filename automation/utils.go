@@ -283,6 +283,11 @@ func InitJS(runtime *goja.Runtime) error {
 	consoleMethods := AutoMapObject(runtime, NewConsole())
 	runtime.Set("console", consoleMethods)
 
+	// Initialize System
+	system := NewSystem()
+	systemMethods := AutoMapObject(runtime, system)
+	runtime.Set("System", systemMethods)
+
 	windowManager := NewWindowManager()
 	windowMethods := AutoMapObject(runtime, windowManager)
 	runtime.Set("window", windowMethods)
