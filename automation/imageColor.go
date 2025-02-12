@@ -13,7 +13,10 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+
+	"gocv.io/x/gocv"
 )
 
 // ImageColor provides image analysis and color manipulation functionality
@@ -275,13 +278,36 @@ func (ic *ImageColor) HasColor(imageStr, colorStr string, x, y int, width, heigh
 }
 
 // IsGray checks if a region contains only gray colors
-func (ic *ImageColor) IsGray(imageStr string, x, y int, width, height *int, threshold int) (bool, error) {
+// IsGrey checks if a color or region contains only grey colors
+func (ic *ImageColor) IsGrey(imageStr string, x, y int, width, height *int, threshold int) (bool, error) {
+	// For hex color string (single color check)
+	if strings.HasPrefix(imageStr, "#") {
+		// Parse hex color
+		color, err := ic.parseHexColor(imageStr)
+		if err != nil {
+			return false, fmt.Errorf("invalid hex color: %v", err)
+		}
+
+		r, g, b := color.R, color.G, color.B
+
+		// Check if the color is grey (all RGB components are similar)
+		maxDiff := math.Max(math.Max(
+			math.Abs(float64(r)-float64(g)),
+			math.Abs(float64(g)-float64(b))),
+			math.Abs(float64(b)-float64(r)))
+
+		return maxDiff <= float64(threshold), nil
+	}
+
+	// For image region check
 	img, err := ic.decodeBitmap(imageStr)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("failed to decode image: %v", err)
 	}
 
 	bounds := img.Bounds()
+
+	// Calculate region dimensions
 	w := bounds.Max.X - x
 	h := bounds.Max.Y - y
 	if width != nil {
@@ -291,14 +317,24 @@ func (ic *ImageColor) IsGray(imageStr string, x, y int, width, height *int, thre
 		h = *height
 	}
 
+	// Validate coordinates
+	if x < 0 || y < 0 || x >= bounds.Max.X || y >= bounds.Max.Y {
+		return false, fmt.Errorf("invalid coordinates: x=%d, y=%d", x, y)
+	}
+
+	// Check each pixel in the region
 	for i := x; i < x+w && i < bounds.Max.X; i++ {
 		for j := y; j < y+h && j < bounds.Max.Y; j++ {
 			r, g, b, _ := img.At(i, j).RGBA()
+			// Convert from uint32 to uint8 (0-255 range)
 			r, g, b = r>>8, g>>8, b>>8
 
-			if math.Max(math.Max(math.Abs(float64(r)-float64(g)),
+			maxDiff := math.Max(math.Max(
+				math.Abs(float64(r)-float64(g)),
 				math.Abs(float64(g)-float64(b))),
-				math.Abs(float64(b)-float64(r))) > float64(threshold) {
+				math.Abs(float64(b)-float64(r)))
+
+			if maxDiff > float64(threshold) {
 				return false, nil
 			}
 		}
@@ -307,29 +343,55 @@ func (ic *ImageColor) IsGray(imageStr string, x, y int, width, height *int, thre
 	return true, nil
 }
 
-// Helper function to parse hex color
-func parseHexColor(s string) (color.Color, error) {
-	c := color.RGBA{
-		A: 0xff,
+// parseHexColor parses a hex color string into RGB components
+func (ic *ImageColor) parseHexColor(hexColor string) (color.RGBA, error) {
+	hexColor = strings.TrimPrefix(hexColor, "#")
+
+	if len(hexColor) != 6 {
+		return color.RGBA{}, fmt.Errorf("invalid hex color length")
 	}
 
-	s = strings.TrimPrefix(s, "#")
-	switch len(s) {
-	case 6:
-		_, err := fmt.Sscanf(s, "%02x%02x%02x", &c.R, &c.G, &c.B)
-		if err != nil {
-			return nil, err
-		}
-	case 8:
-		_, err := fmt.Sscanf(s, "%02x%02x%02x%02x", &c.R, &c.G, &c.B, &c.A)
-		if err != nil {
-			return nil, err
-		}
-	default:
-		return nil, fmt.Errorf("invalid color format")
+	// Parse RGB values
+	rgb, err := strconv.ParseUint(hexColor, 16, 32)
+	if err != nil {
+		return color.RGBA{}, err
 	}
 
-	return c, nil
+	return color.RGBA{
+		R: uint8(rgb >> 16),
+		G: uint8((rgb >> 8) & 0xFF),
+		B: uint8(rgb & 0xFF),
+		A: 255,
+	}, nil
+}
+
+// parseHexColor parses a hex color string into RGBA
+func parseHexColor(hexColor string) (color.RGBA, error) {
+	hexColor = strings.TrimPrefix(hexColor, "#")
+
+	if len(hexColor) != 6 {
+		return color.RGBA{}, fmt.Errorf("invalid hex color length")
+	}
+
+	// Parse RGB values
+	rgb, err := strconv.ParseUint(hexColor, 16, 32)
+	if err != nil {
+		return color.RGBA{}, err
+	}
+
+	r := uint8(rgb >> 16)
+	g := uint8((rgb >> 8) & 0xFF)
+	b := uint8(rgb & 0xFF)
+
+	// Add debug logging
+	fmt.Printf("Parsing hex color #%s -> RGB(%d,%d,%d)\n", hexColor, r, g, b)
+
+	return color.RGBA{
+		R: r,
+		G: g,
+		B: b,
+		A: 255,
+	}, nil
 }
 
 // Fixed GetSize function to properly handle cropped images:
@@ -573,7 +635,7 @@ func max(a, b int) int {
 	return b
 }
 
-func (ic *ImageColor) Crop(imageStr string, options interface{}) (string, error) {
+func (ic *ImageColor) Clip(imageStr string, options interface{}) (string, error) {
 	// Decode original image
 	img, err := ic.decodeBitmap(imageStr)
 	if err != nil {
@@ -721,3 +783,504 @@ func (ic *ImageColor) Save(image string, path string, format string, quality int
 
 	return true, nil
 }
+
+// FindRedChannel finds the first non-grayscale pixel with significant red component
+func (ic *ImageColor) FindRedChannel(imageStr string, x, y int, width, height *int) (string, error) {
+	img, err := ic.decodeBitmap(imageStr)
+	if err != nil {
+		return "", err
+	}
+
+	bounds := img.Bounds()
+	w := bounds.Max.X - x
+	h := bounds.Max.Y - y
+	if width != nil {
+		w = *width
+	}
+	if height != nil {
+		h = *height
+	}
+
+	for i := x; i < x+w && i < bounds.Max.X; i++ {
+		for j := y; j < y+h && j < bounds.Max.Y; j++ {
+			r, g, b, _ := img.At(i, j).RGBA()
+			// Convert from 0-65535 to 0-255 range
+			r, g, b = r>>8, g>>8, b>>8
+
+			// Check if red component is significant and pixel is not grayscale
+			if r > 20 && !(math.Abs(float64(r)-float64(g)) < 10 &&
+				math.Abs(float64(g)-float64(b)) < 10 &&
+				math.Abs(float64(b)-float64(r)) < 10) {
+				return fmt.Sprintf("#%02x%02x%02x", r, g, b), nil
+			}
+		}
+	}
+
+	return "", nil
+}
+
+// FindGreenChannel finds the first non-grayscale pixel with significant green component
+func (ic *ImageColor) FindGreenChannel(imageStr string, x, y int, width, height *int) (string, error) {
+	img, err := ic.decodeBitmap(imageStr)
+	if err != nil {
+		return "", err
+	}
+
+	bounds := img.Bounds()
+	w := bounds.Max.X - x
+	h := bounds.Max.Y - y
+	if width != nil {
+		w = *width
+	}
+	if height != nil {
+		h = *height
+	}
+
+	for i := x; i < x+w && i < bounds.Max.X; i++ {
+		for j := y; j < y+h && j < bounds.Max.Y; j++ {
+			r, g, b, _ := img.At(i, j).RGBA()
+			// Convert from 0-65535 to 0-255 range
+			r, g, b = r>>8, g>>8, b>>8
+
+			// Check if green component is significant and pixel is not grayscale
+			if g > 20 && !(math.Abs(float64(r)-float64(g)) < 10 &&
+				math.Abs(float64(g)-float64(b)) < 10 &&
+				math.Abs(float64(b)-float64(r)) < 10) {
+				return fmt.Sprintf("#%02x%02x%02x", r, g, b), nil
+			}
+		}
+	}
+
+	return "", nil
+}
+
+// FindBlueChannel finds the first non-grayscale pixel with significant blue component
+func (ic *ImageColor) FindBlueChannel(imageStr string, x, y int, width, height *int) (string, error) {
+	img, err := ic.decodeBitmap(imageStr)
+	if err != nil {
+		return "", err
+	}
+
+	bounds := img.Bounds()
+	w := bounds.Max.X - x
+	h := bounds.Max.Y - y
+	if width != nil {
+		w = *width
+	}
+	if height != nil {
+		h = *height
+	}
+
+	for i := x; i < x+w && i < bounds.Max.X; i++ {
+		for j := y; j < y+h && j < bounds.Max.Y; j++ {
+			r, g, b, _ := img.At(i, j).RGBA()
+			// Convert from 0-65535 to 0-255 range
+			r, g, b = r>>8, g>>8, b>>8
+
+			// Check if blue component is significant and pixel is not grayscale
+			if b > 20 && !(math.Abs(float64(r)-float64(g)) < 10 &&
+				math.Abs(float64(g)-float64(b)) < 10 &&
+				math.Abs(float64(b)-float64(r)) < 10) {
+				return fmt.Sprintf("#%02x%02x%02x", r, g, b), nil
+			}
+		}
+	}
+
+	return "", nil
+}
+
+// ToRGB converts a hex color string to RGB format
+func (ic *ImageColor) ToRGB(colorStr string) (string, error) {
+	c, err := parseHexColor(colorStr)
+	if err != nil {
+		return "", err
+	}
+
+	r, g, b, _ := c.RGBA()
+	return fmt.Sprintf("rgb(%d,%d,%d)", r>>8, g>>8, b>>8), nil
+}
+
+// ToRGBA converts a hex color string to RGBA format
+func (ic *ImageColor) ToRGBA(colorStr string) (string, error) {
+	c, err := parseHexColor(colorStr)
+	if err != nil {
+		return "", err
+	}
+
+	r, g, b, a := c.RGBA()
+	return fmt.Sprintf("rgba(%d,%d,%d,%f)", r>>8, g>>8, b>>8, float64(a>>8)/255.0), nil
+}
+
+// RGBToHSL converts RGB values to HSL
+func rgbToHSL(r, g, b uint32) (h, s, l float64) {
+	// Convert RGB to 0-1 range
+	rf := float64(r) / 255.0
+	gf := float64(g) / 255.0
+	bf := float64(b) / 255.0
+
+	max := math.Max(math.Max(rf, gf), bf)
+	min := math.Min(math.Min(rf, gf), bf)
+
+	// Calculate luminance
+	l = (max + min) / 2.0
+
+	// If max equals min, it's a shade of grey
+	if max == min {
+		h = 0
+		s = 0
+		return h, s * 100, l * 100
+	}
+
+	// Calculate saturation
+	if l <= 0.5 {
+		s = (max - min) / (max + min)
+	} else {
+		s = (max - min) / (2.0 - max - min)
+	}
+
+	// Calculate hue
+	var delta = max - min
+	if delta == 0 {
+		delta = 1 // Prevent division by zero
+	}
+
+	switch max {
+	case rf:
+		h = ((gf - bf) / delta)
+		if gf < bf {
+			h += 6
+		}
+	case gf:
+		h = ((bf - rf) / delta) + 2
+	case bf:
+		h = ((rf - gf) / delta) + 4
+	}
+	h *= 60
+
+	// Ensure hue is between 0-360
+	if h < 0 {
+		h += 360
+	}
+
+	// Add debug logging
+	fmt.Printf("RGB(%d,%d,%d) -> HSL(%.2f,%.2f,%.2f)\n", r, g, b, h, s*100, l*100)
+
+	return h, s * 100, l * 100
+}
+
+// ToHSL converts a hex color string to HSL format
+func (ic *ImageColor) ToHSL(colorStr string) (string, error) {
+	c, err := parseHexColor(colorStr)
+	if err != nil {
+		return "", err
+	}
+
+	r, g, b, _ := c.RGBA()
+	h, s, l := rgbToHSL(r, g, b)
+	return fmt.Sprintf("hsl(%f,%f%%,%f%%)", h, s, l), nil
+}
+
+// ToHSLA converts a hex color string to HSLA format
+func (ic *ImageColor) ToHSLA(colorStr string) (string, error) {
+	c, err := parseHexColor(colorStr)
+	if err != nil {
+		return "", err
+	}
+
+	r, g, b, a := c.RGBA()
+	h, s, l := rgbToHSL(r, g, b)
+	return fmt.Sprintf("hsla(%f,%f%%,%f%%,%f)", h, s, l, float64(a>>8)/255.0), nil
+}
+
+// ColorSimilarity represents the similarity between two colors
+type ColorSimilarity struct {
+	Similar    bool    `json:"similar"`
+	Similarity float64 `json:"similarity"` // 0-1 range
+	Reason     string  `json:"reason"`
+}
+
+// IsColorSimilar checks if two colors are similar
+func (ic *ImageColor) IsColorSimilar(targetColor, gradientColor string, tolerance float64) (map[string]interface{}, error) {
+	// Default tolerance if not specified or invalid
+	if tolerance <= 0 || tolerance > 1 {
+		tolerance = 0.85
+	}
+
+	// Parse both colors
+	target, err := parseHexColor(targetColor)
+	if err != nil {
+		return nil, fmt.Errorf("invalid target color: %v", err)
+	}
+
+	gradient, err := parseHexColor(gradientColor)
+	if err != nil {
+		return nil, fmt.Errorf("invalid gradient color: %v", err)
+	}
+
+	// Get RGB values and convert to 0-255 range
+	tr, tg, tb := uint32(target.R), uint32(target.G), uint32(target.B)
+	gr, gg, gb := uint32(gradient.R), uint32(gradient.G), uint32(gradient.B)
+
+	// Convert to HSL
+	th, ts, tl := rgbToHSL(tr, tg, tb)
+	gh, gs, gl := rgbToHSL(gr, gg, gb)
+
+	// Calculate hue difference considering the circular nature of hue
+	hDiff := math.Abs(th - gh)
+	if hDiff > 180 {
+		hDiff = 360 - hDiff
+	}
+
+	// Normalize differences to 0-1 range
+	normHDiff := hDiff / 180.0 // Normalize hue difference to 0-1
+	normSDiff := math.Abs(ts-gs) / 100.0
+	normLDiff := math.Abs(tl-gl) / 100.0
+
+	// Strong hue penalty for large hue differences
+	huePenalty := 0.0
+	if normHDiff > 0.25 { // More than 45 degrees difference
+		huePenalty = normHDiff * 2.0
+	}
+
+	// Calculate weighted similarity
+	const (
+		hueWeight        = 0.6
+		saturationWeight = 0.25
+		lightnessWeight  = 0.15
+	)
+
+	// Calculate overall difference with penalties
+	totalDiff := (normHDiff * hueWeight) +
+		(normSDiff * saturationWeight) +
+		(normLDiff * lightnessWeight) +
+		huePenalty
+
+	// Calculate similarity (0-1 range)
+	similarity := math.Max(0, math.Min(1, 1.0-totalDiff))
+	similarity = math.Round(similarity*10000) / 10000
+
+	// Add debug logging
+	fmt.Printf("Color comparison:\n")
+	fmt.Printf("Target:  HSL(%.2f, %.2f, %.2f)\n", th, ts, tl)
+	fmt.Printf("Compare: HSL(%.2f, %.2f, %.2f)\n", gh, gs, gl)
+	fmt.Printf("Differences - H: %.2f, S: %.2f, L: %.2f\n", hDiff, math.Abs(ts-gs), math.Abs(tl-gl))
+	fmt.Printf("Similarity: %.4f\n", similarity)
+
+	// Determine if colors are similar based on tolerance
+	similar := similarity >= tolerance
+
+	// Generate result
+	result := map[string]interface{}{
+		"data":       similar,
+		"similarity": similarity,
+		"details": map[string]interface{}{
+			"hueDiff":        math.Round(hDiff*100) / 100,
+			"saturationDiff": math.Round(math.Abs(ts-gs)*100) / 100,
+			"lightnessDiff":  math.Round(math.Abs(tl-gl)*100) / 100,
+			"hue1":           math.Round(th*100) / 100,
+			"hue2":           math.Round(gh*100) / 100,
+		},
+		"reason": fmt.Sprintf("Colors are %.1f%% similar", similarity*100),
+	}
+
+	if !similar {
+		result["reason"] = fmt.Sprintf("Colors differ by %.1f degrees in hue, %.1f%% in saturation, %.1f%% in lightness",
+			hDiff, math.Abs(ts-gs), math.Abs(tl-gl))
+	}
+
+	return result, nil
+}
+
+// loadImage 智能判断并加载图像
+func loadImage(input string) (gocv.Mat, error) {
+	// 判断是否为base64编码
+	if isBase64(input) {
+		return loadImageFromBase64(input)
+	}
+	// 否则视为文件路径
+	return loadImageFromPath(input)
+}
+
+// isBase64 判断字符串是否为base64编码
+func isBase64(str string) bool {
+	// 检查是否包含base64前缀
+	if strings.HasPrefix(str, "data:image") && strings.Contains(str, ";base64,") {
+		return true
+	}
+
+	// 移除可能的空白字符
+	str = strings.TrimSpace(str)
+
+	// 检查字符串长度是否为4的倍数(base64特征)
+	if len(str)%4 != 0 {
+		return false
+	}
+
+	// 检查是否只包含base64合法字符
+	for _, c := range str {
+		if !((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+			(c >= '0' && c <= '9') || c == '+' || c == '/' || c == '=') {
+			return false
+		}
+	}
+
+	return true
+}
+
+// // loadImageFromPath 从文件路径加载图像
+// func loadImageFromPath(path string) (gocv.Mat, error) {
+// 	// 处理路径
+// 	if !filepath.IsAbs(path) {
+// 		currentDir, err := os.Getwd()
+// 		if err != nil {
+// 			return gocv.Mat{}, fmt.Errorf("获取当前目录失败: %v", err)
+// 		}
+// 		path = filepath.Join(currentDir, path)
+// 	}
+
+// 	// 检查文件是否存在
+// 	if _, err := os.Stat(path); os.IsNotExist(err) {
+// 		return gocv.Mat{}, fmt.Errorf("文件不存在: %s", path)
+// 	}
+
+// 	// 读取图像
+// 	img := gocv.IMRead(path, gocv.IMReadColor)
+// 	if img.Empty() {
+// 		return gocv.Mat{}, fmt.Errorf("无法读取图像: %s", path)
+// 	}
+// 	return img, nil
+// }
+
+// // loadImageFromBase64 从base64字符串加载图像
+// func loadImageFromBase64(base64Str string) (gocv.Mat, error) {
+// 	// 移除可能的Data URI前缀
+// 	if strings.Contains(base64Str, ";base64,") {
+// 		base64Str = strings.Split(base64Str, ";base64,")[1]
+// 	}
+
+// 	// 解码base64
+// 	imgData, err := base64.StdEncoding.DecodeString(base64Str)
+// 	if err != nil {
+// 		return gocv.Mat{}, fmt.Errorf("base64解码失败: %v", err)
+// 	}
+
+// 	// 将字节数据转换为Mat
+// 	img, err := gocv.IMDecode(imgData, gocv.IMReadColor)
+// 	if err != nil {
+// 		return gocv.Mat{}, fmt.Errorf("图像解码失败: %v", err)
+// 	}
+// 	if img.Empty() {
+// 		return gocv.Mat{}, fmt.Errorf("无法读取base64图像")
+// 	}
+// 	return img, nil
+// }
+
+// // FindImage 在大图中查找小图，返回结果对象
+// func FindImage(largeImg, smallImg string, threshold float32) map[string]interface{} {
+// 	result := make(map[string]interface{})
+
+// 	// 加载大图
+// 	large, err := loadImage(largeImg)
+// 	if err != nil {
+// 		result["success"] = false
+// 		result["error"] = fmt.Sprintf("加载大图失败: %v", err)
+// 		return result
+// 	}
+// 	defer large.Close()
+
+// 	// 加载小图
+// 	small, err := loadImage(smallImg)
+// 	if err != nil {
+// 		result["success"] = false
+// 		result["error"] = fmt.Sprintf("加载小图失败: %v", err)
+// 		return result
+// 	}
+// 	defer small.Close()
+
+// 	// 创建结果矩阵
+// 	resultMat := gocv.NewMat()
+// 	defer resultMat.Close()
+
+// 	// 执行模板匹配
+// 	gocv.MatchTemplate(large, small, &resultMat, gocv.TmCcoeffNormed, gocv.NewMat())
+
+// 	// 获取最佳匹配位置
+// 	_, maxVal, _, maxLoc := gocv.MinMaxLoc(resultMat)
+
+// 	// 如果匹配度小于阈值,返回错误
+// 	if maxVal < float64(threshold) {
+// 		result["success"] = false
+// 		result["error"] = fmt.Sprintf("未找到匹配图像 (最大匹配度: %f)", maxVal)
+// 		return result
+// 	}
+
+// 	// 计算匹配区域的中心点
+// 	x := maxLoc.X + small.Cols()/2
+// 	y := maxLoc.Y + small.Rows()/2
+
+// 	// 构造返回结果
+// 	result["success"] = true
+// 	result["x"] = x
+// 	result["y"] = y
+// 	result["confidence"] = maxVal // 添加匹配度信息
+
+// 	return result
+// }
+
+// // FindAllImages 找出所有匹配的位置
+// func FindAllImages(largeImg, smallImg string, threshold float32) map[string]interface{} {
+// 	result := make(map[string]interface{})
+
+// 	// 加载大图
+// 	large, err := loadImage(largeImg)
+// 	if err != nil {
+// 		result["success"] = false
+// 		result["error"] = fmt.Sprintf("加载大图失败: %v", err)
+// 		return result
+// 	}
+// 	defer large.Close()
+
+// 	// 加载小图
+// 	small, err := loadImage(smallImg)
+// 	if err != nil {
+// 		result["success"] = false
+// 		result["error"] = fmt.Sprintf("加载小图失败: %v", err)
+// 		return result
+// 	}
+// 	defer small.Close()
+
+// 	// 创建结果矩阵
+// 	resultMat := gocv.NewMat()
+// 	defer resultMat.Close()
+
+// 	// 执行模板匹配
+// 	gocv.MatchTemplate(large, small, &resultMat, gocv.TmCcoeffNormed, gocv.NewMat())
+
+// 	// 存储所有匹配位置
+// 	var matches []map[string]interface{}
+// 	rows := resultMat.Rows()
+// 	cols := resultMat.Cols()
+
+// 	// 遍历结果矩阵查找所有匹配位置
+// 	for y := 0; y < rows; y++ {
+// 		for x := 0; x < cols; x++ {
+// 			val := resultMat.GetFloatAt(y, x)
+// 			if val >= float64(threshold) {
+// 				centerX := x + small.Cols()/2
+// 				centerY := y + small.Rows()/2
+// 				match := map[string]interface{}{
+// 					"x":          centerX,
+// 					"y":          centerY,
+// 					"confidence": val,
+// 				}
+// 				matches = append(matches, match)
+// 			}
+// 		}
+// 	}
+
+// 	result["success"] = true
+// 	result["matches"] = matches
+// 	result["count"] = len(matches)
+
+// 	return result
+// }
