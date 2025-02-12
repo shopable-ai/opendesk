@@ -1,3 +1,5 @@
+let position = await page.mouse.getPos();
+console.log("mouse position: ", position);
 
 console.log('click xy 1715, 185');
 await page.mouse.click(550, 185);

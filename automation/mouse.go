@@ -200,6 +200,16 @@ func (m *Mouse) Up(options interface{}) error {
 	return nil
 }
 
+// GetPos returns the current mouse position with additional screen context
+func (m *Mouse) GetPos() map[string]interface{} {
+	x, y := robotgo.GetMousePos()
+
+	return map[string]interface{}{
+		"x": x,
+		"y": y,
+	}
+}
+
 func isValidButton(button string) bool {
 	validButtons := map[string]bool{
 		"left":   true,

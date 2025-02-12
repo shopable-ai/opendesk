@@ -98,6 +98,13 @@ declare class Mouse {
     up(options?: MouseButtonOptions): Promise<void>;
 
     /**
+     * Gets the current mouse position
+     * @returns The current mouse position
+     * @throws Error if the mouse_event procedure fails
+     * */
+    getPos(): Promise<object>;
+
+    /**
      * Performs mouse wheel scrolling
      * @param options Wheel options
      * @throws Error if the mouse_event procedure fails
