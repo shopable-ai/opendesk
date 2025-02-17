@@ -971,3 +971,100 @@ func (w *WindowManager) BringToTop(title string) error {
 
 	return nil
 }
+
+// BringToTopByPID 通过进程ID将窗口带到最顶层
+func (w *WindowManager) BringToTopByPID(pid uint32) error {
+	var targetHwnd uintptr
+	var foundWindow bool
+
+	// 定义枚举窗口的回调函数
+	enumWindows := func(hwnd syscall.Handle, lparam uintptr) uintptr {
+		// 检查窗口可见性
+		isVisible, _, _ := procIsWindowVisible.Call(uintptr(hwnd))
+		if isVisible == 0 {
+			return 1
+		}
+
+		// 获取窗口的进程ID
+		var windowPID uint32
+		procGetWindowThreadProcessId.Call(
+			uintptr(hwnd),
+			uintptr(unsafe.Pointer(&windowPID)),
+		)
+
+		// 如果找到匹配的进程ID
+		if windowPID == pid {
+			targetHwnd = uintptr(hwnd)
+			foundWindow = true
+			return 0 // 停止枚举
+		}
+
+		return 1 // 继续枚举
+	}
+
+	// 枚举所有窗口
+	cb := syscall.NewCallback(enumWindows)
+	procEnumWindows.Call(cb, 0)
+
+	if !foundWindow {
+		return fmt.Errorf("no visible window found for process ID %d", pid)
+	}
+
+	// 确保窗口可见
+	visible, _, _ := procIsWindowVisible.Call(targetHwnd)
+	if visible == 0 {
+		return fmt.Errorf("window for process ID %d is not visible", pid)
+	}
+
+	// 获取窗口位置和大小
+	var rect windows.Rect
+	ret, _, err := procGetWindowRect.Call(
+		targetHwnd,
+		uintptr(unsafe.Pointer(&rect)),
+	)
+	if ret == 0 {
+		lastErr := syscall.GetLastError()
+		return fmt.Errorf("GetWindowRect failed for PID %d: %v", pid, lastErr)
+	}
+
+	// 如果窗口在屏幕外，移动到可见区域
+	if rect.Left < -10000 || rect.Top < -10000 {
+		ret, _, err = procMoveWindow.Call(
+			targetHwnd,
+			100,
+			100,
+			uintptr(rect.Right-rect.Left),
+			uintptr(rect.Bottom-rect.Top),
+			1,
+		)
+		if ret == 0 {
+			lastErr := syscall.GetLastError()
+			return fmt.Errorf("MoveWindow failed for PID %d: %v", pid, lastErr)
+		}
+	}
+
+	// 将窗口设置为前台窗口
+	ret, _, err = procSetForegroundWindow.Call(targetHwnd)
+	if ret == 0 {
+		// 记录警告但继续执行
+		fmt.Printf("Warning: SetForegroundWindow failed for PID %d: %v\n", pid, err)
+	}
+
+	// 将窗口移动到最顶层
+	ret, _, err = procSetWindowPos.Call(
+		targetHwnd,
+		0, // HWND_TOP
+		uintptr(rect.Left),
+		uintptr(rect.Top),
+		uintptr(rect.Right-rect.Left),
+		uintptr(rect.Bottom-rect.Top),
+		uintptr(SWP_SHOWWINDOW),
+	)
+
+	if ret == 0 {
+		lastErr := syscall.GetLastError()
+		return fmt.Errorf("SetWindowPos failed for PID %d: %v", pid, lastErr)
+	}
+
+	return nil
+}
