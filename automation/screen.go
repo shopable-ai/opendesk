@@ -53,11 +53,11 @@ func (s *Screen) Pixels(points []interface{}, scaled bool) []string {
 				colors[i] = ""
 				continue
 			}
-			x = toInt(p[0])
-			y = toInt(p[1])
+			x = jsToInt(p[0])
+			y = jsToInt(p[1])
 		case map[string]interface{}:
-			x = toInt(p["x"])
-			y = toInt(p["y"])
+			x = jsToInt(p["x"])
+			y = jsToInt(p["y"])
 		default:
 			colors[i] = ""
 			continue
