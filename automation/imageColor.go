@@ -15,8 +15,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-
-	"gocv.io/x/gocv"
 )
 
 // ImageColor provides image analysis and color manipulation functionality
@@ -95,8 +93,7 @@ func (ic *ImageColor) Pixel(imageStr string, x, y int) (string, error) {
 }
 
 // FindColor 搜索特定颜色
-// optionsStr 是可选参数，不传则使用默认值
-func (ic *ImageColor) FindColor(imageStr, colorStr string, optionsStr ...string) (string, error) {
+func (ic *ImageColor) FindColor(imageStr, colorStr string, options interface{}) (string, error) {
 	img, err := ic.decodeBitmap(imageStr)
 	if err != nil {
 		return "", err
@@ -108,25 +105,51 @@ func (ic *ImageColor) FindColor(imageStr, colorStr string, optionsStr ...string)
 		return "", fmt.Errorf("invalid color format: %v", err)
 	}
 
-	// Parse options with defaults
-	var options *FindColorOptions
-	if len(optionsStr) > 0 && optionsStr[0] != "" {
-		options, err = ParseOptions(optionsStr[0])
-		if err != nil {
-			return "", fmt.Errorf("invalid options format: %v", err)
+	// Initialize default options
+	findOptions := &FindColorOptions{} // Add default values
+
+	// Parse options if provided
+	if options != nil {
+		if optMap, ok := options.(map[string]interface{}); ok {
+			// Parse x, y coordinates
+			if x, exists := optMap["x"]; exists {
+				val := jsToInt(x)
+				findOptions.X = &val
+			}
+			if y, exists := optMap["y"]; exists {
+				val := jsToInt(y)
+				findOptions.Y = &val
+			}
+
+			// Parse width and height
+			if width, exists := optMap["width"]; exists {
+				val := jsToInt(width)
+				findOptions.Width = &val
+			}
+			if height, exists := optMap["height"]; exists {
+				val := jsToInt(height)
+				findOptions.Height = &val
+			}
+
+			// Parse threshold
+			if threshold, exists := optMap["threshold"]; exists {
+				val := jsToInt(threshold)
+				findOptions.Threshold = &val
+			}
 		}
 	}
 
 	// Get search bounds
-	x, y, width, height, threshold := options.GetSearchBounds(img)
+	x, y, width, height, threshold := findOptions.GetSearchBounds(img)
 
 	// Search for color
 	for searchX := x; searchX < x+width; searchX++ {
 		for searchY := y; searchY < y+height; searchY++ {
 			if ic.colorsMatch(img.At(searchX, searchY), targetColor, threshold) {
 				result := map[string]interface{}{
-					"x": searchX,
-					"y": searchY,
+					"x":     searchX,
+					"y":     searchY,
+					"found": true,
 				}
 				jsonResult, _ := json.Marshal(result)
 				return string(jsonResult), nil
@@ -139,8 +162,7 @@ func (ic *ImageColor) FindColor(imageStr, colorStr string, optionsStr ...string)
 	return string(jsonResult), nil
 }
 
-// FindColorBlocks 搜索颜色区域
-func (ic *ImageColor) FindColorBlocks(imageStr, colorStr string, optionsStr ...string) ([]map[string]interface{}, error) {
+func (ic *ImageColor) FindColorBlocks(imageStr, colorStr string, options interface{}) ([]map[string]interface{}, error) {
 	// Check if color is empty
 	if colorStr == "" {
 		log.Printf("Color string is empty, returning empty array")
@@ -170,26 +192,45 @@ func (ic *ImageColor) FindColorBlocks(imageStr, colorStr string, optionsStr ...s
 		A: uint8(a >> 8),
 	}
 
-	// Parse options
-	var options *FindColorOptions
-	if len(optionsStr) > 0 && optionsStr[0] != "" {
-		options, err = ParseOptions(optionsStr[0])
-		if err != nil {
-			log.Printf("Options parsing failed: %v", err)
-			return nil, fmt.Errorf("invalid options format: %v", err)
+	// Initialize default options
+	findOptions := &FindColorOptions{} // Add default values
+
+	// Parse options if provided
+	if options != nil {
+		if optMap, ok := options.(map[string]interface{}); ok {
+			// Parse x, y coordinates
+			if x, exists := optMap["x"]; exists {
+				val := jsToInt(x)
+				findOptions.X = &val
+			}
+			if y, exists := optMap["y"]; exists {
+				val := jsToInt(y)
+				findOptions.Y = &val
+			}
+
+			// Parse width and height
+			if width, exists := optMap["width"]; exists {
+				val := jsToInt(width)
+				findOptions.Width = &val
+			}
+			if height, exists := optMap["height"]; exists {
+				val := jsToInt(height)
+				findOptions.Height = &val
+			}
+
+			// Parse threshold
+			if threshold, exists := optMap["threshold"]; exists {
+				val := jsToInt(threshold)
+				findOptions.Threshold = &val
+			}
+
+			// Additional options can be added here
 		}
-	} else {
-		options = &FindColorOptions{} // Add default values
 	}
 
 	// Get search bounds
-	if options == nil {
-		log.Printf("Error: options is nil")
-		return nil, fmt.Errorf("options cannot be nil")
-	}
-
 	bounds := img.Bounds()
-	x, y, width, height, threshold := options.GetSearchBounds(img)
+	x, y, width, height, threshold := findOptions.GetSearchBounds(img)
 
 	// Validate bounds
 	if width <= 0 || height <= 0 {
@@ -244,6 +285,23 @@ func (ic *ImageColor) FindColorBlocks(imageStr, colorStr string, optionsStr ...s
 	return result, nil
 }
 
+// Helper function to convert interface{} to int
+func jsToInt(value interface{}) int {
+	switch v := value.(type) {
+	case int:
+		return v
+	case int64:
+		return int(v)
+	case float64:
+		return int(v)
+	case json.Number:
+		if num, err := v.Int64(); err == nil {
+			return int(num)
+		}
+	}
+	return 0
+}
+
 // HasColor checks if a color exists in a region
 func (ic *ImageColor) HasColor(imageStr, colorStr string, x, y int, width, height *int, threshold int) (bool, error) {
 	img, err := ic.decodeBitmap(imageStr)
@@ -278,8 +336,7 @@ func (ic *ImageColor) HasColor(imageStr, colorStr string, x, y int, width, heigh
 }
 
 // IsGray checks if a region contains only gray colors
-// IsGrey checks if a color or region contains only grey colors
-func (ic *ImageColor) IsGrey(imageStr string, x, y int, width, height *int, threshold int) (bool, error) {
+func (ic *ImageColor) IsGray(imageStr string, x, y int, width, height *int, threshold int) (bool, error) {
 	// For hex color string (single color check)
 	if strings.HasPrefix(imageStr, "#") {
 		// Parse hex color
@@ -290,7 +347,7 @@ func (ic *ImageColor) IsGrey(imageStr string, x, y int, width, height *int, thre
 
 		r, g, b := color.R, color.G, color.B
 
-		// Check if the color is grey (all RGB components are similar)
+		// Check if the color is Gray (all RGB components are similar)
 		maxDiff := math.Max(math.Max(
 			math.Abs(float64(r)-float64(g)),
 			math.Abs(float64(g)-float64(b))),
@@ -924,7 +981,7 @@ func rgbToHSL(r, g, b uint32) (h, s, l float64) {
 	// Calculate luminance
 	l = (max + min) / 2.0
 
-	// If max equals min, it's a shade of grey
+	// If max equals min, it's a shade of Gray
 	if max == min {
 		h = 0
 		s = 0
@@ -1091,15 +1148,15 @@ func (ic *ImageColor) IsColorSimilar(targetColor, gradientColor string, toleranc
 	return result, nil
 }
 
-// loadImage 智能判断并加载图像
-func loadImage(input string) (gocv.Mat, error) {
-	// 判断是否为base64编码
-	if isBase64(input) {
-		return loadImageFromBase64(input)
-	}
-	// 否则视为文件路径
-	return loadImageFromPath(input)
-}
+// // loadImage 智能判断并加载图像
+// func loadImage(input string) (gocv.Mat, error) {
+// 	// 判断是否为base64编码
+// 	if isBase64(input) {
+// 		return loadImageFromBase64(input)
+// 	}
+// 	// 否则视为文件路径
+// 	return loadImageFromPath(input)
+// }
 
 // isBase64 判断字符串是否为base64编码
 func isBase64(str string) bool {

@@ -14,13 +14,13 @@ await page.waitFor(1000);
 
 // Test finding a specific color (e.g., white #FFFFFF)
 // Convert options to JSON string
-const options = JSON.stringify({
+const options = {
     threshold: 5,
     x: 0,
     y: 0,
     width: 500,
     height: 500
-});
+};
 const findWhite = await ImageColor.findColor(base64Image, "#FFFFFF", options);
 console.log("Found white color at:", findWhite);
 await page.waitFor(1000);
@@ -30,9 +30,9 @@ const hasBlack = await ImageColor.hasColor(base64Image, "#000000", 0, 0);
 console.log("Has black color:", hasBlack);
 await page.waitFor(1000);
 
-// Test isGrey in a region
-const isGreyRegion = await ImageColor.isGrey(base64Image, 0, 0, 200, 200, 10);
-console.log("Region is gray:", isGreyRegion);
+// Test isGray in a region
+const isGrayRegion = await ImageColor.isGray(base64Image, 0, 0, 200, 200, 10);
+console.log("Region is gray:", isGrayRegion);
 await page.waitFor(1000);
 
 // Get image size
@@ -69,24 +69,29 @@ await page.waitFor(1000);
 base64Image = await page.screenshot();
 
 // Test for light gray color (RGB 245,245,245 = #F5F5F5)
-const lightGrayOptions = JSON.stringify({
+const lightGrayOptions = {
     threshold: 5,  // Adjust threshold as needed
     x: 0,
     y: 0,
     width: size[0],
     height: size[1]
-});
+}
 
 // Find color using original method
 const lightGrayResult = await ImageColor.findColor(base64Image, "#F5F5F5", lightGrayOptions);
 console.log("Light gray area found (original method):", lightGrayResult);
 
+
+console.log("start to find color blocks");
+
 // Find color blocks using new method
 const lightGrayBlocks = await ImageColor.findColorBlocks(base64Image, "#F5F5F5", lightGrayOptions);
-console.log("Light gray blocks found (new method):", JSON.parse(lightGrayBlocks));
+console.log("Light gray blocks found (new method):", lightGrayBlocks );
+
+console.log("end to find color blocks");
 
 // Analyze and log details about found blocks
-const blocks = JSON.parse(lightGrayBlocks);
+const blocks = lightGrayBlocks;
 if (blocks && blocks.length > 0) {
     console.log("\nDetailed analysis of found color blocks:");
     blocks.forEach((block, index) => {
@@ -148,7 +153,6 @@ console.log("\nSearching for RGB(255,209,1) / #FFD101", goldenBlocks);
 // Test case 1: Crop central region
 const croppedImage1 = await ImageColor.clip(base64Image,  {x: 100,y: 100,width: 200,height: 200});
 console.log("Cropped central region:", {
-    options: cropOptions1,
     resultLength: croppedImage1.length,
     success: croppedImage1.startsWith("data:image/png;base64,") || croppedImage1.length > 0
 });
