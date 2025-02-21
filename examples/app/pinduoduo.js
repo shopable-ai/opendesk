@@ -1,3 +1,5 @@
+// 微信窗口必须要在桌面可视区域里，现在置顶微信窗口还有问题。微信消息提醒小窗口会被错误置顶。
+
 // Function to get Pinduoduo window
 async function getPinduoduoWindow() {
     let windows = await window.listWindows();
