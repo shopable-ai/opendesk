@@ -429,6 +429,11 @@ async function handleCopyAndSend(win, orderBlockData, shouldSend = true) {
     return await clickSendMessage(win);
 }
 
+// Cache variables for last known values
+let firstPointColorLast = '';
+let secondPointColorLast = ''; 
+let orderStatusLast = '';
+
 /**
  * Determines order status based on color points in the notification window
  * @param {string} firstPointColor - Hex color value at coordinates (140,43)
@@ -446,17 +451,29 @@ function getOrderStatus(firstPointColor, secondPointColor) {
     const firstColor = normalizeColor(firstPointColor);
     const secondColor = normalizeColor(secondPointColor);
 
-    console.log('Analyzing colors:', { firstColor, secondColor });
+    // Check cache - if colors haven't changed, return cached status
+    if (firstColor === firstPointColorLast && 
+        secondColor === secondPointColorLast && 
+        orderStatusLast) {
+        console.log('Using cached status:', orderStatusLast);
+        return orderStatusLast;
+    }
+
+    console.log('Cache miss - analyzing colors:', { firstColor, secondColor });
 
     // First check for grey status (refund completed or order closed)
     if (firstColor === STATUS_COLORS[ORDER_STATUS.REFUND_COMPLETED].primary) {
         // If second point matches order closed secondary color, it's order closed
         if (secondColor === STATUS_COLORS[ORDER_STATUS.ORDER_CLOSED].secondary) {
             console.log('Matched order closed status (both points)');
+            // Update cache
+            updateCache(firstColor, secondColor, ORDER_STATUS.ORDER_CLOSED);
             return ORDER_STATUS.ORDER_CLOSED;
         }
         // Otherwise it's refund completed
         console.log('Matched refund completed status');
+        // Update cache
+        updateCache(firstColor, secondColor, ORDER_STATUS.REFUND_COMPLETED);
         return ORDER_STATUS.REFUND_COMPLETED;
     }
 
@@ -466,6 +483,8 @@ function getOrderStatus(firstPointColor, secondPointColor) {
 
     if (isGray) {
         console.log('Color is grey, returning unknown status');
+        // Update cache
+        updateCache(firstColor, secondColor, ORDER_STATUS.UNKNOWN);
         return ORDER_STATUS.UNKNOWN;
     }
 
@@ -480,6 +499,8 @@ function getOrderStatus(firstPointColor, secondPointColor) {
 
     if (isPendingPayment.data) {
         console.log('Matched pending payment status');
+        // Update cache
+        updateCache(firstColor, secondColor, ORDER_STATUS.PENDING_PAYMENT);
         return ORDER_STATUS.PENDING_PAYMENT;
     }
 
@@ -494,11 +515,28 @@ function getOrderStatus(firstPointColor, secondPointColor) {
 
     if (isPendingShipment.data) {
         console.log('Matched pending shipment status');
+        // Update cache
+        updateCache(firstColor, secondColor, ORDER_STATUS.PENDING_SHIPMENT);
         return ORDER_STATUS.PENDING_SHIPMENT;
     }
 
     console.log('No status match found, returning unknown');
+    // Update cache
+    updateCache(firstColor, secondColor, ORDER_STATUS.UNKNOWN);
     return ORDER_STATUS.UNKNOWN;
+}
+
+/**
+ * Updates the cache with new color values and status
+ * @param {string} firstColor - Normalized first point color
+ * @param {string} secondColor - Normalized second point color
+ * @param {string} status - Detected order status
+ */
+function updateCache(firstColor, secondColor, status) {
+    firstPointColorLast = firstColor;
+    secondPointColorLast = secondColor;
+    orderStatusLast = status;
+    console.log('Cache updated:', { firstColor, secondColor, status });
 }
 
 
