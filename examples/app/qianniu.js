@@ -46,8 +46,8 @@ const STATUS_COLORS = {
 };
 
 
-// Wait for chat notification window
-async function waitForChatNotification() {
+// get chat notification window
+async function getChatNotification() {
     
     const activeWindow = await window.getActiveWindow();
     
@@ -292,7 +292,7 @@ async function handleCopyAndSend(win, orderBlockData) {
     }
     
     // Load configuration
-    const config = await loadConfig();
+    // const config = await loadConfig();
         
     let gotData = false;
     let content = '';
@@ -478,16 +478,18 @@ async function loadConfig() {
 }
 
 
-// Check API health
+// Check API health ,  返回true or false
 async function checkAPIHealth(checkEndpoint) {
     try {
         const response = await axios.get(checkEndpoint);
-        if (response.status !== 200) {
-            throw new Error(`API health check failed: status code ${response.status}`);
-        }
-        return response.data;
+        // response.data = {  "code": 1000,  "data": "测试成功",  "message": "success"} 
+        if (response.status !== 200) return false;
+        if (response.data.code !== 1000)  return false;
+        
+        return true;
     } catch (error) {
-        throw new Error(`API health check failed: ${error.message}`);
+        // throw new Error(`API health check failed: ${error.message}`);
+        return false;
     }
 }
 
@@ -510,18 +512,27 @@ async function queryProductInfo(apiEndpoint, title) {
     }
 }
 
+let config ;
+
 // Main automation flow
 async function main() {
     // Load configuration first
-    const config = await loadConfig();
+    config = config || await loadConfig();
     console.log(`${new Date().toISOString()} 配置加载完成:`, config);
         
     // Check API health before starting
     let statusRes = await checkAPIHealth(config.apiCheckEndpoint);
     console.log(`${new Date().toISOString()} API健康检查结果:`, statusRes);
+    if (!statusRes) {
+        notify({
+            title: "自动发货问题",
+            message: "服务器访问失败，请检查网络获服务器状态",
+            sound: true,
+        });
+    }
     
     // Continue with existing flow
-    const notificationWindow = await waitForChatNotification();
+    const notificationWindow = await getChatNotification();
     if (!notificationWindow) return;
     
     console.log('消息窗口已打开');
