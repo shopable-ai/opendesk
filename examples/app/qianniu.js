@@ -75,8 +75,8 @@ async function getChatNotification() {
     });
 
     // 如果状态不是代付款，则直接跳出
-    if (status !== ORDER_STATUS.PENDING_PAYMENT ) {
-        console.log('订单状态不是代付款，退出');
+    if (status !== ORDER_STATUS.PENDING_PAYMENT && status !== ORDER_STATUS.PENDING_SHIPMENT) {
+        console.log('订单状态不是代付款获待发货，退出');
         return null;
     }
     
@@ -103,8 +103,12 @@ async function getChatNotification() {
     // return messageWindow;
 }
 
-// Check for contact button color block
-async function clickContactMeButton(win) {
+/**
+ * Gets the status information of the contact button by analyzing a screenshot
+ * @param {Object} win - Window coordinates and dimensions
+ * @returns {Promise<Object|null>} Button status information or null if not found
+ */
+async function getContactButtonStatus(win) {
     // Get screenshot of the button area
     const screenshot = await page.screenshot({
         clip: {
@@ -121,32 +125,56 @@ async function clickContactMeButton(win) {
         COLORS.YELLOW_BUTTON
     );
 
-    console.log('findColorBlocks', typeof colorBlock);
+    // If no color block found, return null
     if (!colorBlock) {
         console.log('未找到"和我联系"按钮 色块');
-        return false;
+        return null;
     }
 
-    // colorBlock 如果是字符串，则转换json
+    // Parse color block if it's a string
     if (typeof colorBlock === 'string') {
         colorBlock = JSON.parse(colorBlock);
     }
-    console.log('找到"和我联系"按钮 色块', colorBlock, typeof colorBlock);
 
-    // Convert coordinates and click
+    // Get the first block data
     const blockData = colorBlock[0];
-    // 色块中心点相对于截图区域的坐标
-    const blockCenterX = blockData.x + (blockData.width / 2);
-    const blockCenterY = blockData.y + (blockData.height / 2);
     
-    // 将相对坐标转换为窗口坐标，然后转换为屏幕坐标
-    const clickX = win.x + 130 + blockCenterX; // 130是截图起始x偏移
-    const clickY = win.y + 70 + blockCenterY;  // 70是截图起始y偏移
+    // Calculate center coordinates relative to window
+    const centerCoordinates = {
+        x: win.x + 130 + blockData.x + (blockData.width / 2),
+        y: win.y + 70 + blockData.y + (blockData.height / 2)
+    };
+
+    return {
+        blockData,
+        centerCoordinates,
+        isFound: true
+    };
+}
+
+/**
+ * Clicks the contact button based on its detected position
+ * @param {Object} win - Window coordinates and dimensions
+ * @returns {Promise<boolean>} Success status of the click operation
+ */
+async function clickContactMeButton(win) {
+    const buttonStatus = await getContactButtonStatus(win);
     
-    console.log('找到色块 -和我联系：', blockData);
-    console.log('计算得到点击坐标 -和我联系：', {clickX, clickY} , { winX: win.x, winY: win.y, blockX:  blockData.x, blockY:  blockData.y});
+    if (!buttonStatus) {
+        return false;
+    }
+
+    const { centerCoordinates } = buttonStatus;
     
-    await mouse.click(clickX, clickY);
+    console.log('找到色块 -和我联系：', buttonStatus.blockData);
+    console.log('计算得到点击坐标 -和我联系：', centerCoordinates, {
+        winX: win.x,
+        winY: win.y,
+        blockX: buttonStatus.blockData.x,
+        blockY: buttonStatus.blockData.y
+    });
+
+    await mouse.click(centerCoordinates.x, centerCoordinates.y);
     await sleep(1000);
     return true;
 }
@@ -448,10 +476,10 @@ function getOrderStatus(firstPointColor, secondPointColor) {
     }
 
     // Check if the color is grey
-    const isGrey = ImageColor.isGrey(firstColor);
-    console.log('Grey check result:', { isGrey, firstColor });
+    const isGray = ImageColor.isGray(firstColor);
+    console.log('Grey check result:', { isGray, firstColor });
 
-    if (isGrey) {
+    if (isGray) {
         console.log('Color is grey, returning unknown status');
         return ORDER_STATUS.UNKNOWN;
     }
@@ -591,101 +619,112 @@ async function clickCopyAndInputProduct() {
     // Copy and send
     await handleCopyAndSend(chatMsgWindow, orderBlockData,false);            
 }
+let config;
+let serviceReady = false;
 
-let config ;
-// Main automation flow with continuous running
-async function notifyToChatCopyAndSend() {
+// Single execution of the automation sequence
+async function executeSingleAutomation() {
     try {
-        // Load configuration first (only once)
-        config = config || await loadConfig();
-        console.log(`${new Date().toISOString()} 配置加载完成:`, config);
-        
-        // Check API health before starting main loop
-        let statusRes = await checkAPIHealth(config.apiCheckEndpoint);
-        console.log(`${new Date().toISOString()} API健康检查结果:`, statusRes);
-        if (!statusRes) {
-            notify({
-                title: "自动发货问题",
-                message: "服务器访问失败，请检查网络获服务器状态",
-                sound: true,
-            });
+        // Load configuration if not already loaded
+        if (!config) {
+            config = config || await loadConfig();
+            console.log(`${new Date().toISOString()} 配置加载完成:`, config);
         }
         
-        // Continuous running loop
-        while (true) {
-            try {
-                console.log(`${new Date().toISOString()} 开始检测消息通知`);
-                
-                // Try to get chat notification window
-                const notificationWindow = await getChatNotification();
-                
-                // If no notification window found, wait and continue to next iteration
-                if (!notificationWindow) {
-                    console.log(`${new Date().toISOString()} 未找到消息通知窗口，等待1分钟`);
-                    await sleep(60000); // Sleep for 1 minute
-                    continue;
-                }
-                
-                console.log('消息窗口已打开');
-                
-                // Try to click contact button
-                const contactSuccess = await clickContactMeButton(notificationWindow);
-                if (!contactSuccess) {
-                    await sleep(1000); // Short wait before next attempt
-                    continue;
-                }
-                console.log('已点击联系人按钮');
-                
-                // Wait for reception window
-                const chatMsgWindow = await getChatWindow();
-                if (!chatMsgWindow) {
-                    await sleep(1000); // Short wait before next attempt
-                    continue;
-                }
-                
-                // Handle order
-                const orderBlockData = await getOrderBlock(chatMsgWindow);
-                if (!orderBlockData) {
-                    await sleep(1000); // Short wait before next attempt
-                    continue;
-                }
-                console.log('订单栏，已经完成翻页', orderBlockData);
-                
-                // Copy and send
-                await handleCopyAndSend(chatMsgWindow, orderBlockData,true);
-                
-                // Add a small wait after complete cycle to prevent immediate re-execution
-                await sleep(1000);                
-            } catch (iterationError) {
-                console.error(`${new Date().toISOString()} 本次迭代出错:`, iterationError);
-                // Wait a bit before retrying in case of unexpected error
-                await sleep(30000); // 30 seconds wait on error
+        if (!serviceReady) {
+            // Check API health
+            let statusRes = await checkAPIHealth(config.apiCheckEndpoint);
+            console.log(`${new Date().toISOString()} API健康检查结果:`, statusRes);
+            if (!statusRes) {
+                notify({
+                    title: "自动发货问题",
+                    message: "服务器访问失败，请检查网络获服务器状态",
+                    sound: true,
+                });
+                return false;
             }
+            serviceReady = true;        
+        }
+        
+        // Try to get chat notification window
+        const notificationWindow = await getChatNotification();
+        
+        // If no notification window found, return false
+        if (!notificationWindow) {
+            console.log(`${new Date().toISOString()} 未找到消息通知窗口`);
+            return false;
+        }
+        
+        console.log('消息窗口已打开');
+
+        // return true;   // 测试用
+        
+        // Try to click contact button
+        const contactSuccess = await clickContactMeButton(notificationWindow);
+        if (!contactSuccess) {
+            return false;
+        }
+        console.log('已点击联系人按钮');
+        
+        // Wait for reception window
+        const chatMsgWindow = await getChatWindow();
+        if (!chatMsgWindow) {
+            return false;
+        }
+        
+        // Handle order
+        const orderBlockData = await getOrderBlock(chatMsgWindow);
+        if (!orderBlockData) {
+            return false;
+        }
+        console.log('订单栏，已经完成翻页', orderBlockData);
+        
+        // Copy and send
+        await handleCopyAndSend(chatMsgWindow, orderBlockData, true);
+        
+        return true;
+    } catch (error) {
+        console.error(`${new Date().toISOString()} 执行出错:`, error);
+        return false;
+    }
+}
+
+// Continuous running version using the single execution function
+async function notifyToChatCopyAndSend() {
+    try {
+        while (true) {
+            const success = await executeSingleAutomation();
+            
+            // Wait between iterations
+            await sleep(success ? 1000 : 60000); // Wait 1 second on success, 1 minute on failure
         }
     } catch (mainError) {
         console.error(`${new Date().toISOString()} 主进程发生严重错误:`, mainError);
-        // Notify about critical error
         notify({
             title: "自动发货系统崩溃",
             message: "主进程发生严重错误，需要手动重启",
             sound: true,
         });
-        // Optionally rethrow or handle as needed
         throw mainError;
     }
 }
 
 // Start automation with error handling
-async function startAutomation() {
+async function startAutomation(continuous = true) {
     try {
-        await notifyToChatCopyAndSend();
+        if (continuous) {
+            await notifyToChatCopyAndSend();
+        } else {
+            return await executeSingleAutomation();
+        }
     } catch (error) {
         console.error(`${new Date().toISOString()} 自动化流程终止:`, error);
-        // Optional: Add logic to restart or alert
+        return false;
     }
 }
 
 // Start the automation
 // await startAutomation();
+await startAutomation(false);  // 执行单个
 
-await clickCopyAndInputProduct();
+// await clickCopyAndInputProduct();
