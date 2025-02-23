@@ -104,7 +104,7 @@ async function getChatNotification() {
 }
 
 // Check for contact button color block
-async function checkContactButton(win) {
+async function clickContactMeButton(win) {
     // Get screenshot of the button area
     const screenshot = await page.screenshot({
         clip: {
@@ -152,13 +152,25 @@ async function checkContactButton(win) {
 }
 
 // Wait for reception window
-async function waitForReceptionWindow() {
+async function getChatWindow() {
     const activeWindow = await window.getActiveWindow();
     
     if (!activeWindow.title.endsWith('-接待中心') || 
         activeWindow.exeName !== 'AliWorkbench.exe') {
         console.log('当前窗口不是接待中心:', activeWindow.title);
-        return null;
+        
+        const windows = await window.listWindows();
+            
+        // 获取并监控千牛弹窗
+        const qianniuWindows = windows.filter(win => 
+            win.exeName?.includes('AliWorkbench.exe')
+        );
+        const chatWindow = qianniuWindows.find(win => 
+            win.title.endsWith('-接待中心')
+        );
+        
+        if (chatWindow) await window.bringToTop(chatWindow.title);
+        return chatWindow;
     }
     
     console.log('找到接待中心窗口:', activeWindow);
@@ -166,13 +178,13 @@ async function waitForReceptionWindow() {
 }
 
 // Handle order scroll and status check
-async function handleOrder(win) {
+async function getOrderBlock(win) {
     const orderAreaX = win.width - 480;
     const orderAreaY = 100;
 
-    console.log('点击订单区域');
+    console.log('点击订单区域, xy:', win.x + orderAreaX + 10, win.y + orderAreaY + 10 );
     // Click order area
-    await mouse.click(win.x + orderAreaX, win.y + orderAreaY + 10);
+    await mouse.click(win.x + orderAreaX + 10, win.y + orderAreaY + 10);
     await sleep(500);
 
     // 先按下pageup，回复到最上面状态，才能取色
@@ -197,10 +209,10 @@ async function handleOrder(win) {
     const hasGreenStatus = ImageColor.hasColor(
         screenshot,
         COLORS.GREEN_STATUS,
-        33,
-        665,
-        40,
-        18
+        0,
+        500,
+        480,
+        win.height - 100 - 500
     );
     console.log('hasColor检查绿色状态结果:', hasGreenStatus);
 
@@ -209,13 +221,12 @@ async function handleOrder(win) {
         screenshot,
         COLORS.GREEN_STATUS
     );
+    // "height": 18,    "width": 40,
+    let greenBlock = greenBlocks.find((block) => block.height === 18 && block.width === 40);
     
-    if (typeof greenBlocks === 'string') {
-        greenBlocks = JSON.parse(greenBlocks);
-    }
     console.log('第一次截图找到的绿色块:', greenBlocks);
 
-    if (!hasGreenStatus) {
+    if (!hasGreenStatus && !greenBlock) {
         await Sound.playWarning();
         console.log('订单状态不是待发货');
         return false;
@@ -266,7 +277,7 @@ async function handleOrder(win) {
  * @param {Object} orderBlockData - Data about the order block
  * @returns {Object} Object containing clipboard content and success status
  */
-async function handleCopyOrder(win, orderBlockData) {
+async function clickCopyGetProduct(win, orderBlockData) {
     // Store initial clipboard content
     const initialClipboard = getClipboard();
     
@@ -300,6 +311,7 @@ async function handleCopyOrder(win, orderBlockData) {
             content: null 
         };
     }
+    let title = newClipboard; 
     
     // Load configuration
     const config = await loadConfig();
@@ -309,22 +321,23 @@ async function handleCopyOrder(win, orderBlockData) {
     
     // Query product information
     try {
-        const apiResponse = await queryProductInfo(config.apiEndpoint, newClipboard);
+        const apiResponse = await queryProductInfo(config.apiEndpoint, title);
         if (apiResponse.code === 1000 && apiResponse.data) {
             // Prepare product info content
             content = `${apiResponse.data.title}\n${apiResponse.data.content}`;
             gotData = true;
         } else {
             content = '错误信息: ' +  apiResponse.message;
-            console.error('获取产品信息失败:', apiResponse.message);
+            console.error('获取产品信息失败:', apiResponse.message ,'标题:', title);
         }
     } catch (error) {
         content = '错误信息: ' +  error.message;
-        console.error('获取产品信息失败:', error);
+        console.error('获取产品信息失败:', error ,'标题:', title);
     }
     
     return { 
         success: true, 
+        title,
         content: content || '老板需要购买什么？',
         gotData: gotData
     };
@@ -336,29 +349,28 @@ async function handleCopyOrder(win, orderBlockData) {
  * @param {string} content - Message content to send
  * @returns {boolean} Success status of sending message
  */
-async function handleSendMessage(win, content) {
+async function clickSendMessage(win) {
     // Calculate send button position
     const sendButtonX = win.width - 480 - 20 - 65;
     const sendButtonY = win.height - 25;
+       
+    // Click send button
+    await mouse.click(win.x + sendButtonX, win.y + sendButtonY);
+    await sleep(500);
     
-    const buttonScreenshot = await page.screenshot({
-        clip: {
-            x: win.x + sendButtonX,
-            y: win.y + sendButtonY,
-            width: 65,
-            height: 25
-        }
-    });
-    
-    const hasSendButton = await ImageColor.hasColor(
-        buttonScreenshot,
-        COLORS.BLUE_SIDEBAR
-    );
-    
-    if (!hasSendButton) {
-        console.log('未找到发送按钮');
-        return false;
-    }
+    return true;
+}
+
+/**
+ * Internal method to prepare message input
+ * @param {Object} win - Window object
+ * @param {string} content - Message content to input
+ * @returns {Promise<boolean>} Success status of preparing input
+ */
+async function inputChatMsg(win, content) {
+    // Calculate send button position (used as reference)
+    const sendButtonX = win.width - 480 - 20 - 65;
+    const sendButtonY = win.height - 25;
     
     // Click edit area to focus
     await mouse.click(win.x + sendButtonX, win.y + sendButtonY - 20);
@@ -368,35 +380,40 @@ async function handleSendMessage(win, content) {
     await keyboard.type(content);
     await sleep(500);
     
-    // Click send button
-    await mouse.click(win.x + sendButtonX, win.y + sendButtonY);
-    await sleep(500);
-    
     return true;
 }
 
 /**
- * Combined method that calls copy and send methods
+ * Combined method that copies order and optionally sends message
  * @param {Object} win - Window object
  * @param {Object} orderBlockData - Data about the order block
- * @returns {boolean} Success status of the entire process
+ * @param {boolean} [shouldSend=true] - Whether to send the message
+ * @returns {Promise<boolean>} Success status of the entire process
  */
-async function handleCopyAndSend(win, orderBlockData) {
+async function handleCopyAndSend(win, orderBlockData, shouldSend = true) {
     // First, attempt to copy order information
-    const copyResult = await handleCopyOrder(win, orderBlockData);
+    const copyResult = await clickCopyGetProduct(win, orderBlockData);
     
     // If copy was not successful, return false
     if (!copyResult.success) {
         return false;
     }
     
-    // If we didn't get product data, still try to send a default message
+    // If we didn't get product data, log a message
     if (!copyResult.gotData) {
-        console.log('未获取到产品数据，发送默认消息');
+        console.log('未获取到产品数据，使用默认消息');
+        notify({ title: '未获取到产品数据' , message : '商品标题:' + copyResult.title });
+        return false;
     }
     
+    // Prepare message input
+    await inputChatMsg(win, copyResult.content);
+    
+    // If shouldSend is false, we're done
+    if (!shouldSend)  return true;
+    
     // Attempt to send the message
-    return await handleSendMessage(win, copyResult.content);
+    return await clickSendMessage(win);
 }
 
 /**
@@ -557,9 +574,27 @@ async function queryProductInfo(apiEndpoint, title) {
     }
 }
 
+async function clickCopyAndInputProduct() {
+    // Wait for reception window
+    const chatMsgWindow = await getChatWindow();
+    if (!chatMsgWindow)  return false;
+    console.log('已找到聊天窗口');
+        
+    // Handle order
+    const orderBlockData = await getOrderBlock(chatMsgWindow);
+    if (!orderBlockData) {
+        notify({ title: '订单栏，未找到订单', message: '可能订单太多，暂未处理', type: 'error'});
+        return false;
+    }
+
+    console.log('订单栏，已经完成翻页', orderBlockData);    
+    // Copy and send
+    await handleCopyAndSend(chatMsgWindow, orderBlockData,false);            
+}
+
 let config ;
 // Main automation flow with continuous running
-async function main() {
+async function notifyToChatCopyAndSend() {
     try {
         // Load configuration first (only once)
         config = config || await loadConfig();
@@ -594,30 +629,30 @@ async function main() {
                 console.log('消息窗口已打开');
                 
                 // Try to click contact button
-                const contactSuccess = await checkContactButton(notificationWindow);
+                const contactSuccess = await clickContactMeButton(notificationWindow);
                 if (!contactSuccess) {
-                    await sleep(5000); // Short wait before next attempt
+                    await sleep(1000); // Short wait before next attempt
                     continue;
                 }
                 console.log('已点击联系人按钮');
                 
                 // Wait for reception window
-                const receptionWindow = await waitForReceptionWindow();
-                if (!receptionWindow) {
-                    await sleep(5000); // Short wait before next attempt
+                const chatMsgWindow = await getChatWindow();
+                if (!chatMsgWindow) {
+                    await sleep(1000); // Short wait before next attempt
                     continue;
                 }
                 
                 // Handle order
-                const orderBlockData = await handleOrder(receptionWindow);
+                const orderBlockData = await getOrderBlock(chatMsgWindow);
                 if (!orderBlockData) {
-                    await sleep(5000); // Short wait before next attempt
+                    await sleep(1000); // Short wait before next attempt
                     continue;
                 }
                 console.log('订单栏，已经完成翻页', orderBlockData);
                 
                 // Copy and send
-                await handleCopyAndSend(receptionWindow, orderBlockData);
+                await handleCopyAndSend(chatMsgWindow, orderBlockData,true);
                 
                 // Add a small wait after complete cycle to prevent immediate re-execution
                 await sleep(1000);                
@@ -643,7 +678,7 @@ async function main() {
 // Start automation with error handling
 async function startAutomation() {
     try {
-        await main();
+        await notifyToChatCopyAndSend();
     } catch (error) {
         console.error(`${new Date().toISOString()} 自动化流程终止:`, error);
         // Optional: Add logic to restart or alert
@@ -651,5 +686,6 @@ async function startAutomation() {
 }
 
 // Start the automation
-await startAutomation();
+// await startAutomation();
 
+await clickCopyAndInputProduct();
