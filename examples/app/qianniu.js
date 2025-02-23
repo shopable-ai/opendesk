@@ -145,6 +145,10 @@ async function getContactButtonStatus(win) {
         y: win.y + 70 + blockData.y + (blockData.height / 2)
     };
 
+    
+    console.log('找到色块 -和我联系：', blockData);
+    console.log('计算得到点击坐标 -和我联系：', centerCoordinates);
+
     return {
         blockData,
         centerCoordinates,
@@ -152,33 +156,14 @@ async function getContactButtonStatus(win) {
     };
 }
 
-/**
- * Clicks the contact button based on its detected position
- * @param {Object} win - Window coordinates and dimensions
- * @returns {Promise<boolean>} Success status of the click operation
- */
-async function clickContactMeButton(win) {
-    const buttonStatus = await getContactButtonStatus(win);
-    
-    if (!buttonStatus) {
-        return false;
-    }
 
-    const { centerCoordinates } = buttonStatus;
-    
-    console.log('找到色块 -和我联系：', buttonStatus.blockData);
-    console.log('计算得到点击坐标 -和我联系：', centerCoordinates, {
-        winX: win.x,
-        winY: win.y,
-        blockX: buttonStatus.blockData.x,
-        blockY: buttonStatus.blockData.y
-    });
-
-    await mouse.click(centerCoordinates.x, centerCoordinates.y);
+// Click contact button - now only handles the click operation
+async function clickContactMeButton(btn) {
+    await mouse.click(btn.x, btn.y);
     await sleep(1000);
     return true;
 }
-
+  
 // Wait for reception window
 async function getChatWindow() {
     const activeWindow = await window.getActiveWindow();
@@ -622,70 +607,77 @@ async function clickCopyAndInputProduct() {
 let config;
 let serviceReady = false;
 
+
 // Single execution of the automation sequence
 async function executeSingleAutomation() {
     try {
-        // Load configuration if not already loaded
-        if (!config) {
-            config = config || await loadConfig();
-            console.log(`${new Date().toISOString()} 配置加载完成:`, config);
+      // Load configuration if not already loaded
+      if (!config) {
+        config = config || await loadConfig();
+        console.log(`${new Date().toISOString()} 配置加载完成:`, config);
+      }
+  
+      if (!serviceReady) {
+        // Check API health
+        let statusRes = await checkAPIHealth(config.apiCheckEndpoint);
+        console.log(`${new Date().toISOString()} API健康检查结果:`, statusRes);
+        if (!statusRes) {
+          notify({
+            title: "自动发货问题",
+            message: "服务器访问失败，请检查网络获服务器状态",
+            sound: true,
+          });
+          return false;
         }
-        
-        if (!serviceReady) {
-            // Check API health
-            let statusRes = await checkAPIHealth(config.apiCheckEndpoint);
-            console.log(`${new Date().toISOString()} API健康检查结果:`, statusRes);
-            if (!statusRes) {
-                notify({
-                    title: "自动发货问题",
-                    message: "服务器访问失败，请检查网络获服务器状态",
-                    sound: true,
-                });
-                return false;
-            }
-            serviceReady = true;        
-        }
-        
-        // Try to get chat notification window
-        const notificationWindow = await getChatNotification();
-        
-        // If no notification window found, return false
-        if (!notificationWindow) {
-            console.log(`${new Date().toISOString()} 未找到消息通知窗口`);
-            return false;
-        }
-        
-        console.log('消息窗口已打开');
-
-        // return true;   // 测试用
-        
-        // Try to click contact button
-        const contactSuccess = await clickContactMeButton(notificationWindow);
-        if (!contactSuccess) {
-            return false;
-        }
-        console.log('已点击联系人按钮');
-        
-        // Wait for reception window
-        const chatMsgWindow = await getChatWindow();
-        if (!chatMsgWindow) {
-            return false;
-        }
-        
-        // Handle order
-        const orderBlockData = await getOrderBlock(chatMsgWindow);
-        if (!orderBlockData) {
-            return false;
-        }
-        console.log('订单栏，已经完成翻页', orderBlockData);
-        
-        // Copy and send
-        await handleCopyAndSend(chatMsgWindow, orderBlockData, true);
-        
-        return true;
-    } catch (error) {
-        console.error(`${new Date().toISOString()} 执行出错:`, error);
+        serviceReady = true;
+      }
+  
+      // Try to get chat notification window
+      const notificationWindow = await getChatNotification();
+  
+      // If no notification window found, return false
+      if (!notificationWindow) {
+        console.log(`${new Date().toISOString()} 未找到消息通知窗口`);
         return false;
+      }
+  
+      console.log('消息窗口已打开');
+  
+      // Get contact button status
+      const buttonStatus = await getContactButtonStatus(notificationWindow);
+      if (!buttonStatus) {
+        console.log('未找到联系按钮');
+        return false;
+      }
+  
+  
+      // Click the button using the coordinates from buttonStatus
+      const contactSuccess = await clickContactMeButton(buttonStatus.centerCoordinates);
+      if (!contactSuccess) {
+        return false;
+      }
+      console.log('已点击联系人按钮');
+  
+      // Wait for reception window
+      const chatMsgWindow = await getChatWindow();
+      if (!chatMsgWindow) {
+        return false;
+      }
+  
+      // Handle order
+      const orderBlockData = await getOrderBlock(chatMsgWindow);
+      if (!orderBlockData) {
+        return false;
+      }
+      console.log('订单栏，已经完成翻页', orderBlockData);
+  
+      // Copy and send
+      await handleCopyAndSend(chatMsgWindow, orderBlockData, true);
+  
+      return true;
+    } catch (error) {
+      console.error(`${new Date().toISOString()} 执行出错:`, error);
+      return false;
     }
 }
 
