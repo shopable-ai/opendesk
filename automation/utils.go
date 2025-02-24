@@ -186,7 +186,7 @@ func loadPolyfills(runtime *goja.Runtime) error {
 	}
 
 	// polyfills 目录路径
-	polyfillsDir := filepath.Join(dir, "automation", "polyfills")
+	polyfillsDir := filepath.Join(dir, "polyfills")
 
 	// 读取目录中的所有文件
 	entries, err := os.ReadDir(polyfillsDir)
@@ -296,6 +296,11 @@ func InitJS(runtime *goja.Runtime) error {
 	clipboard := NewClipboard()
 	clipboardMethods := AutoMapObject(runtime, clipboard)
 	runtime.Set("clipboard", clipboardMethods)
+
+	// Initialize FloatingWindow
+	floatingWindow := NewFloatingWindow()
+	floatingWindowMethods := AutoMapObject(runtime, floatingWindow)
+	runtime.Set("FloatingWindow", floatingWindowMethods)
 
 	// 初始化剪贴板
 	fileSystem := NewFileSystem()
