@@ -46,18 +46,46 @@ const STATUS_COLORS = {
 };
 
 
-// get chat notification window
-async function getChatNotification() {
-    
+/**
+ * 
+ * @returns {Promise<Window>} - 返回当前活跃窗口 [窗口，是否待发货状态，状态]
+ */
+async function getNotifyWindow() {
+    console.log('getNotifyWindow in');
     const activeWindow = await window.getActiveWindow();
+    let notifyWindow = null;
     
-    if (!activeWindow.title.endsWith('消息通知') || 
-        activeWindow.exeName !== 'AliWorkbench.exe') {
-        console.log('当前窗口不是消息通知:', activeWindow.title, activeWindow);
-        return null;
+    if ( activeWindow.title.endsWith('消息通知') && activeWindow.exeName === 'AliWorkbench.exe' ) notifyWindow = activeWindow;
+    else {
+        let windows = await window.list();
+        notifyWindow = windows.find(win => win.title.endsWith('消息通知') && win.exeName === 'AliWorkbench.exe');
+    }   
+    //  if (!activeWindow.title.endsWith('消息通知') || activeWindow.exeName !== 'AliWorkbench.exe')    
+    if (!notifyWindow) {
+        console.log('当前窗口不是消息通知:', activeWindow.title); // , activeWindow
+        return [null, null, null];
     }
+    console.log('getNotifyWindow bringToTop start');
+    console.log('getNotifyWindow 窗口:', notifyWindow);
+    // console.log('把窗口置顶:', notifyWindow.title, notifyWindow.processId);
+    try {
+        // window.bringToTop(notifyWindow.title);
+        window.bringToTop(notifyWindow.title,notifyWindow.processId);
+        // window.bringToTopByPID(notifyWindow.processId);
+    } catch (err) {
+        console.error('Failed to bring window to top:', err);
+        return [null, null, null];
+    }
+    console.log('getNotifyWindow bringToTop end');
+    // console.log('当前窗口:', notifyWindow.title, notifyWindow.processId);
 
-    let {x,y,width,height} = activeWindow;
+    let {x,y,width,height} = notifyWindow;
+    // 如果 x y 远小于0 ， + witth , height 也《0 , 则不在可视区 ，则跳出
+    if ( x < 0 && y < 0 && x + width < 0 && y + height < 0 ) {
+        console.log('当前窗口不在可视区:', notifyWindow);
+        return [notifyWindow, null, null];
+    }
+    console.log('getNotifyWindow 截图区域:');
     // 给窗口截图
     const screenshot = await page.screenshot({ clip: {x, y, width, height} });
     console.log('截图完成', screenshot.substring(0, 100));
@@ -66,24 +94,23 @@ async function getChatNotification() {
     const firstPointColor = await ImageColor.pixel(screenshot, 140 , 43 ); 
     const secondPointColor = await ImageColor.pixel(screenshot, 143 , 60); 
 
-    console.log('颜色值:', {        firstPoint: firstPointColor,        secondPoint: secondPointColor    })
+    // console.log('颜色值:', {        firstPoint: firstPointColor,        secondPoint: secondPointColor    })
     // Determine status
     const status = getOrderStatus(firstPointColor, secondPointColor);
-    console.log('检测到订单状态:', STATUS_NAMES[status], '颜色值:', {
-        firstPoint: firstPointColor,
-        secondPoint: secondPointColor
-    });
+    console.log('检测到订单状态:', STATUS_NAMES[status], '颜色值:', JSON.stringify({firstPoint: firstPointColor,secondPoint: secondPointColor}));
 
     // 如果状态不是代付款，则直接跳出
-    if (status !== ORDER_STATUS.PENDING_PAYMENT && status !== ORDER_STATUS.PENDING_SHIPMENT) {
-        console.log('订单状态不是代付款获待发货，退出');
-        return null;
+    // status !== ORDER_STATUS.PENDING_PAYMENT &&
+    if ( status !== ORDER_STATUS.PENDING_SHIPMENT) {
+        console.log('订单状态不是待发货，退出');
+        // console.log('订单状态不是代付款或待发货，退出');
+        return [notifyWindow, false, status];
     }
     
     // console.log('找到消息通知窗口:', activeWindow);
-    return activeWindow;
+    return [notifyWindow, true, status];
 
-    // const windows = await window.listWindows();
+    // const windows = await window.list();
         
     // // 获取并监控千牛弹窗
     // const qianniuWindows = windows.filter(win => 
@@ -108,7 +135,7 @@ async function getChatNotification() {
  * @param {Object} win - Window coordinates and dimensions
  * @returns {Promise<Object|null>} Button status information or null if not found
  */
-async function getContactButtonStatus(win) {
+async function getContactButtonPosition(win) {
     // Get screenshot of the button area
     const screenshot = await page.screenshot({
         clip: {
@@ -172,7 +199,7 @@ async function getChatWindow() {
         activeWindow.exeName !== 'AliWorkbench.exe') {
         console.log('当前窗口不是接待中心:', activeWindow.title);
         
-        const windows = await window.listWindows();
+        const windows = await window.list();
             
         // 获取并监控千牛弹窗
         const qianniuWindows = windows.filter(win => 
@@ -459,7 +486,7 @@ function getOrderStatus(firstPointColor, secondPointColor) {
         return orderStatusLast;
     }
 
-    console.log('Cache miss - analyzing colors:', { firstColor, secondColor });
+    // console.log('Cache miss - analyzing colors:', { firstColor, secondColor });
 
     // First check for grey status (refund completed or order closed)
     if (firstColor === STATUS_COLORS[ORDER_STATUS.REFUND_COMPLETED].primary) {
@@ -479,10 +506,10 @@ function getOrderStatus(firstPointColor, secondPointColor) {
 
     // Check if the color is grey
     const isGray = ImageColor.isGray(firstColor);
-    console.log('Grey check result:', { isGray, firstColor });
+    // console.log('Grey check result:', { isGray, firstColor });
 
     if (isGray) {
-        console.log('Color is grey, returning unknown status');
+        // console.log('Color is grey, returning unknown status');
         // Update cache
         updateCache(firstColor, secondColor, ORDER_STATUS.UNKNOWN);
         return ORDER_STATUS.UNKNOWN;
@@ -491,14 +518,14 @@ function getOrderStatus(firstPointColor, secondPointColor) {
     // For non-grey colors, first check for pending payment (close match)
     const pendingPaymentColor = STATUS_COLORS[ORDER_STATUS.PENDING_PAYMENT].primary;
     const isPendingPayment = ImageColor.isColorSimilar(firstColor, pendingPaymentColor, 0.95);
-    console.log('Pending payment check:', {
-        sourceColor: firstColor,
-        targetColor: pendingPaymentColor,
-        result: isPendingPayment
-    });
+    // console.log('Pending payment check:', {
+    //     sourceColor: firstColor,
+    //     targetColor: pendingPaymentColor,
+    //     result: isPendingPayment
+    // });
 
     if (isPendingPayment.data) {
-        console.log('Matched pending payment status');
+        // console.log('Matched pending payment status');
         // Update cache
         updateCache(firstColor, secondColor, ORDER_STATUS.PENDING_PAYMENT);
         return ORDER_STATUS.PENDING_PAYMENT;
@@ -507,20 +534,20 @@ function getOrderStatus(firstPointColor, secondPointColor) {
     // Finally check for pending shipment
     const pendingShipmentColor = STATUS_COLORS[ORDER_STATUS.PENDING_SHIPMENT].primary;
     const isPendingShipment = ImageColor.isColorSimilar(firstColor, pendingShipmentColor, 0.85);
-    console.log('Pending shipment check:', {
-        sourceColor: firstColor,
-        targetColor: pendingShipmentColor,
-        result: isPendingShipment
-    });
+    // console.log('Pending shipment check:', {
+    //     sourceColor: firstColor,
+    //     targetColor: pendingShipmentColor,
+    //     result: isPendingShipment
+    // });
 
     if (isPendingShipment.data) {
-        console.log('Matched pending shipment status');
+        // console.log('Matched pending shipment status');
         // Update cache
         updateCache(firstColor, secondColor, ORDER_STATUS.PENDING_SHIPMENT);
         return ORDER_STATUS.PENDING_SHIPMENT;
     }
 
-    console.log('No status match found, returning unknown');
+    // console.log('No status match found, returning unknown');
     // Update cache
     updateCache(firstColor, secondColor, ORDER_STATUS.UNKNOWN);
     return ORDER_STATUS.UNKNOWN;
@@ -536,7 +563,7 @@ function updateCache(firstColor, secondColor, status) {
     firstPointColorLast = firstColor;
     secondPointColorLast = secondColor;
     orderStatusLast = status;
-    console.log('Cache updated:', { firstColor, secondColor, status });
+    // console.log('Cache updated:', { firstColor, secondColor, status });
 }
 
 
@@ -666,32 +693,63 @@ async function executeSingleAutomation() {
             sound: true,
           });
           return false;
+        }else {
+          notify({
+            title: "自动发货检查",
+            message: "服务器正常",
+            sound: true,
+            timeout: 3000
+          })
         }
         serviceReady = true;
       }
   
       // Try to get chat notification window
-      const notificationWindow = await getChatNotification();
-  
+      const notifyWindowInfo = await getNotifyWindow();    
+      let [notifyWindow, isShip, status] = notifyWindowInfo;
+
+      console.log(`${new Date().toISOString()} 消息窗口状态:`, status);
       // If no notification window found, return false
-      if (!notificationWindow) {
-        console.log(`${new Date().toISOString()} 未找到消息通知窗口`);
+      if (!notifyWindow || !isShip) {
+        // console.log(`${new Date().toISOString()} 未找到消息通知窗口`);
+        if (notifyWindow) {
+            console.log(`${new Date().toISOString()} 消息窗口已打开，不是发货状态，退出。status:`, status);                
+            window.closeWindow(notifyWindow.title);
+        }
         return false;
       }
   
-      console.log('消息窗口已打开');
+      console.log('消息窗口已打开，status:');
   
       // Get contact button status
-      const buttonStatus = await getContactButtonStatus(notificationWindow);
+      const buttonStatus = await getContactButtonPosition(notifyWindow);
       if (!buttonStatus) {
         console.log('未找到联系按钮');
+        // 不是待发货状态，自动关闭窗口
+        notify({
+          title: "自动发货提示",
+          message: "未找到联系按钮，自动关闭窗口，否则新订单不会提醒",
+          sound: true,            
+          timeout: 3000
+        })
+        window.closeWindow(notificationWindow.title);
         return false;
       }
-  
-  
+      
+    //   return true;  // 测试用，实际使用时需要删除
+      
+      console.log(`${new Date().toISOString()} 联系按钮位置:`, buttonStatus);
       // Click the button using the coordinates from buttonStatus
       const contactSuccess = await clickContactMeButton(buttonStatus.centerCoordinates);
       if (!contactSuccess) {
+        notify({
+          title: "自动发货提示",
+          message: "不是待发货消息提示，自动关闭窗口，否则新订单不会提醒",
+          sound: true,
+          timeout: 3000          
+        })
+        window.closeWindow(notificationWindow.title);
+        // window.kill(notifyWindow.processId); // 一个进程多个窗口，会导致整个程序悲观，
         return false;
       }
       console.log('已点击联系人按钮');
@@ -702,6 +760,9 @@ async function executeSingleAutomation() {
         return false;
       }
   
+      
+      window.closeWindow(notificationWindow.title);
+
       // Handle order
       const orderBlockData = await getOrderBlock(chatMsgWindow);
       if (!orderBlockData) {
@@ -726,7 +787,8 @@ async function notifyToChatCopyAndSend() {
             const success = await executeSingleAutomation();
             
             // Wait between iterations
-            await sleep(success ? 1000 : 60000); // Wait 1 second on success, 1 minute on failure
+            await sleep(success ? 1000 : 2000);
+            // await sleep(success ? 1000 : 60000); // Wait 1 second on success, 1 minute on failure
         }
     } catch (mainError) {
         console.error(`${new Date().toISOString()} 主进程发生严重错误:`, mainError);
@@ -754,7 +816,7 @@ async function startAutomation(continuous = true) {
 }
 
 // Start the automation
-// await startAutomation();
-await startAutomation(false);  // 执行单个
+await startAutomation();
+// await startAutomation(false);  // 执行单个
 
 // await clickCopyAndInputProduct();
