@@ -285,23 +285,6 @@ func (ic *ImageColor) FindColorBlocks(imageStr, colorStr string, options interfa
 	return result, nil
 }
 
-// Helper function to convert interface{} to int
-func jsToInt(value interface{}) int {
-	switch v := value.(type) {
-	case int:
-		return v
-	case int64:
-		return int(v)
-	case float64:
-		return int(v)
-	case json.Number:
-		if num, err := v.Int64(); err == nil {
-			return int(num)
-		}
-	}
-	return 0
-}
-
 // HasColor checks if a color exists in a region
 func (ic *ImageColor) HasColor(imageStr, colorStr string, x, y int, width, height *int, threshold int) (bool, error) {
 	img, err := ic.decodeBitmap(imageStr)

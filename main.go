@@ -65,11 +65,9 @@ func initRuntime() {
 		printJSEnvironment(jsRuntime)
 
 		// 或者只调试特定对象
-		debugPageObject(jsRuntime, "page")
-		debugPageObject(jsRuntime, "mouse")
-
-		// 调试 axios 对象
-		debugPageObject(jsRuntime, "axios")
+		// debugPageObject(jsRuntime, "page")
+		// debugPageObject(jsRuntime, "mouse")
+		// debugPageObject(jsRuntime, "axios")
 
 		// notify 函数仍然保持原样，因为它是特殊情况
 
@@ -491,16 +489,16 @@ func printJSEnvironment(runtime *goja.Runtime) {
 	fmt.Println("\nJS environment:")
 
 	// 打印全局对象
-	fmt.Println("\nGlobal objects:")
-	fmt.Println("- mouse:", runtime.Get("mouse"))
-	fmt.Println("- keyboard:", runtime.Get("keyboard"))
-	fmt.Println("- touchscreen:", runtime.Get("touchscreen"))
-	fmt.Println("- console:", runtime.Get("console"))
+	// fmt.Println("\nGlobal objects:")
+	// fmt.Println("- mouse:", runtime.Get("mouse"))
+	// fmt.Println("- keyboard:", runtime.Get("keyboard"))
+	// fmt.Println("- touchscreen:", runtime.Get("touchscreen"))
+	// fmt.Println("- console:", runtime.Get("console"))
 
 	// 打印 page 对象及其属性
-	fmt.Println("\nPage object and properties:")
+	// fmt.Println("\nPage object and properties:")
 	page := runtime.Get("page")
-	fmt.Println("- page:", page)
+	// fmt.Println("- page:", page)
 
 	if pageObj := page.ToObject(runtime); pageObj != nil {
 		fmt.Println("\nPage methods:")

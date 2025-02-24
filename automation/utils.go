@@ -283,6 +283,11 @@ func InitJS(runtime *goja.Runtime) error {
 	consoleMethods := AutoMapObject(runtime, NewConsole())
 	runtime.Set("console", consoleMethods)
 
+	// Initialize HTTPClient
+	httpClient := NewHTTPClient(runtime)
+	httpMethods := AutoMapObject(runtime, httpClient)
+	runtime.Set("http", httpMethods)
+
 	// Initialize System
 	system := NewSystem()
 	systemMethods := AutoMapObject(runtime, system)
@@ -325,10 +330,10 @@ func InitJS(runtime *goja.Runtime) error {
 	timer.RegisterInRuntime()
 
 	// 创建全局对象
-	global := runtime.GlobalObject()
-	if err := global.Set("globalThis", global); err != nil {
-		return fmt.Errorf("failed to set globalThis: %v", err)
-	}
+	// global := runtime.GlobalObject()
+	// if err := global.Set("globalThis", global); err != nil {
+	// 	return fmt.Errorf("failed to set globalThis: %v", err)
+	// }
 
 	// 然后加载 polyfills
 	if err := loadPolyfills(runtime); err != nil {
@@ -377,8 +382,8 @@ func InitJS(runtime *goja.Runtime) error {
 	runtime.RunString(`Screen.screenshot = page.screenshot;`)
 
 	// 初始化并注册 axios
-	axios := NewAxios(runtime)
-	axios.RegisterInRuntime()
+	// axios := NewAxios(runtime)
+	// axios.RegisterInRuntime()
 
 	// 验证初始化
 	_, err := runtime.RunString(`

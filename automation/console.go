@@ -16,15 +16,21 @@ func NewConsole() *Console {
 	return &Console{}
 }
 
-// formatArgs formats arguments, converting objects to JSON
+// formatArgs 格式化参数，处理 null 值
 func formatArgs(args ...interface{}) []interface{} {
 	formattedArgs := make([]interface{}, len(args))
 	for i, arg := range args {
+		// 首先处理 null 值
+		if arg == nil {
+			formattedArgs[i] = "null"
+			continue
+		}
+
 		switch v := arg.(type) {
 		case string, int, int64, float64, bool:
 			formattedArgs[i] = v
 		default:
-			// Try to marshal non-primitive types to JSON
+			// 尝试将非基础类型转换为 JSON
 			jsonData, err := json.MarshalIndent(v, "", "  ")
 			if err != nil {
 				formattedArgs[i] = fmt.Sprintf("%+v", v)
