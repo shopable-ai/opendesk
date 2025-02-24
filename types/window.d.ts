@@ -179,7 +179,7 @@ declare class WindowManager {
      * @returns Array of window information
      * @throws Error if the enumeration fails
      */
-    listWindows(): Promise<Record<string, any>[]>;
+    list(): Promise<Record<string, any>[]>;
 
     /**
      * Sets whether a window should stay on top of other windows
