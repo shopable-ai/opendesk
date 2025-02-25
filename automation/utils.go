@@ -381,23 +381,23 @@ func InitJS(runtime *goja.Runtime) error {
 	// 直接在 runtime 中设置别名或引用
 	runtime.RunString(`Screen.screenshot = page.screenshot;`)
 
-	// 初始化并注册 axios
+	// 初始化并注册 axios , 已经被http.go 和axios.js替代
 	// axios := NewAxios(runtime)
 	// axios.RegisterInRuntime()
 
 	// 验证初始化
-	_, err := runtime.RunString(`
-        console.log('JavaScript runtime initialized successfully');
-        console.log('Timer functions available:', {
-            setTimeout: typeof setTimeout === 'function',
-            setInterval: typeof setInterval === 'function',
-            clearTimeout: typeof clearTimeout === 'function',
-            clearInterval: typeof clearInterval === 'function'
-        });
-    `)
-	if err != nil {
-		return fmt.Errorf("failed to verify initialization: %v", err)
-	}
+	// _, err := runtime.RunString(`
+	//     console.log('JavaScript runtime initialized successfully');
+	//     console.log('Timer functions available:', {
+	//         setTimeout: typeof setTimeout === 'function',
+	//         setInterval: typeof setInterval === 'function',
+	//         clearTimeout: typeof clearTimeout === 'function',
+	//         clearInterval: typeof clearInterval === 'function'
+	//     });
+	// `)
+	// if err != nil {
+	// 	return fmt.Errorf("failed to verify initialization: %v", err)
+	// }
 
 	return nil
 }

@@ -72,7 +72,7 @@ func initRuntime() {
 		// notify 函数仍然保持原样，因为它是特殊情况
 
 		// 实现 notify 函数
-		jsRuntime.Set("notify", func(call goja.FunctionCall) goja.Value {
+		jsRuntime.Set("notify____Inject", func(call goja.FunctionCall) goja.Value {
 			fmt.Println("Notify function called") // 调试日志
 
 			if len(call.Arguments) < 1 {
@@ -497,44 +497,44 @@ func printJSEnvironment(runtime *goja.Runtime) {
 
 	// 打印 page 对象及其属性
 	// fmt.Println("\nPage object and properties:")
-	page := runtime.Get("page")
+	// page := runtime.Get("page")
 	// fmt.Println("- page:", page)
 
-	if pageObj := page.ToObject(runtime); pageObj != nil {
-		fmt.Println("\nPage methods:")
-		for _, key := range pageObj.Keys() {
-			value := pageObj.Get(key)
-			fmt.Printf("  - page.%s: %v\n", key, value)
+	// if pageObj := page.ToObject(runtime); pageObj != nil {
+	// 	fmt.Println("\nPage methods:")
+	// 	for _, key := range pageObj.Keys() {
+	// 		value := pageObj.Get(key)
+	// 		fmt.Printf("  - page.%s: %v\n", key, value)
 
-			// 如果是对象类型的属性，进一步打印其方法
-			if obj := value.ToObject(runtime); obj != nil {
-				fmt.Printf("    Methods of page.%s:\n", key)
-				for _, methodKey := range obj.Keys() {
-					methodValue := obj.Get(methodKey)
-					fmt.Printf("      - %s: %v\n", methodKey, methodValue)
-				}
-			}
-		}
-	}
+	// 		// 如果是对象类型的属性，进一步打印其方法
+	// 		if obj := value.ToObject(runtime); obj != nil {
+	// 			fmt.Printf("    Methods of page.%s:\n", key)
+	// 			for _, methodKey := range obj.Keys() {
+	// 				methodValue := obj.Get(methodKey)
+	// 				fmt.Printf("      - %s: %v\n", methodKey, methodValue)
+	// 			}
+	// 		}
+	// 	}
+	// }
 
-	fmt.Println("\nExample property access:")
-	fmt.Println("- page.mouse:", runtime.Get("page").ToObject(runtime).Get("mouse"))
-	fmt.Println("- page.keyboard:", runtime.Get("page").ToObject(runtime).Get("keyboard"))
-	fmt.Println("- page.touchscreen:", runtime.Get("page").ToObject(runtime).Get("touchscreen"))
+	// fmt.Println("\nExample property access:")
+	// fmt.Println("- page.mouse:", runtime.Get("page").ToObject(runtime).Get("mouse"))
+	// fmt.Println("- page.keyboard:", runtime.Get("page").ToObject(runtime).Get("keyboard"))
+	// fmt.Println("- page.touchscreen:", runtime.Get("page").ToObject(runtime).Get("touchscreen"))
 
 	// 尝试执行一个简单的方法来验证可用性
-	fmt.Println("\nTrying to get page title:")
-	if fn := runtime.Get("page").ToObject(runtime).Get("title"); fn != nil {
-		result, err := runtime.RunString("page.title()")
-		if err == nil {
-			fmt.Printf("  Title result: %v\n", result)
-		} else {
-			fmt.Printf("  Error calling title: %v\n", err)
-		}
-	}
+	// fmt.Println("\nTrying to get page title:")
+	// if fn := runtime.Get("page").ToObject(runtime).Get("title"); fn != nil {
+	// 	result, err := runtime.RunString("page.title()")
+	// 	if err == nil {
+	// 		fmt.Printf("  Title result: %v\n", result)
+	// 	} else {
+	// 		fmt.Printf("  Error calling title: %v\n", err)
+	// 	}
+	// }
 
-	fmt.Println("\nEnd of JS environment debug info")
-	fmt.Println("----------------------------------------")
+	// fmt.Println("\nEnd of JS environment debug info")
+	// fmt.Println("----------------------------------------")
 }
 
 // 可选：添加更具体的调试帮助函数

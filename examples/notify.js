@@ -6,3 +6,6 @@ await notify({
     sound: true,
     timeout: 3000
 });
+
+await sleep(3000);
+notify('测试通知')
