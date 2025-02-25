@@ -24,7 +24,7 @@ func NewMouse() *Mouse {
 }
 
 func (m *Mouse) Click(x, y int, options interface{}) error {
-	fmt.Printf("Clicking at coordinates: x=%d, y=%d\n", x, y)
+	// fmt.Printf("Clicking at coordinates: x=%d, y=%d\n", x, y)
 
 	// Initialize default options
 	opts := MouseOptions{
@@ -91,8 +91,8 @@ func (m *Mouse) Click(x, y int, options interface{}) error {
 	}
 
 	// Log the final options we'll use
-	fmt.Printf("Using options: Button=%s, ClickCount=%d, Delay=%d\n",
-		opts.Button, opts.ClickCount, opts.Delay)
+	// fmt.Printf("Using options: Button=%s, ClickCount=%d, Delay=%d\n",
+	// opts.Button, opts.ClickCount, opts.Delay)
 
 	// Validate button type
 	if !isValidButton(opts.Button) {
