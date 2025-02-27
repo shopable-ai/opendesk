@@ -1,3 +1,4 @@
+console.log('tm.config.js loaded，可以在这里放不同项目的业务逻辑代码.')
 // Constants
 const COLORS = {
     YELLOW_BUTTON: '#FEEBA6',
@@ -51,10 +52,10 @@ const STATUS_COLORS = {
  * @returns {Promise<Window>} - 返回当前活跃窗口 [窗口，是否待发货状态，状态]
  */
 async function getNotifyWindow() {
-    console.log('getNotifyWindow in');
+    // console.log('getNotifyWindow in');
     const activeWindow = await window.getActiveWindow();
-    let notifyWindow = null;
-    
+    let notifyWindow = null;    
+    // console.log('getNotifyWindow  activeWindow.title: ', activeWindow.title, 'activeWindow.exeName: ', activeWindow.exeName);
     if ( activeWindow.title.endsWith('消息通知') && activeWindow.exeName === 'AliWorkbench.exe' ) notifyWindow = activeWindow;
     else {
         let windows = await window.list();
@@ -62,11 +63,12 @@ async function getNotifyWindow() {
     }   
     //  if (!activeWindow.title.endsWith('消息通知') || activeWindow.exeName !== 'AliWorkbench.exe')    
     if (!notifyWindow) {
-        console.log('当前窗口不是消息通知:', activeWindow.title); // , activeWindow
-        return [null, null, null];
+        console.log('当前窗口不是消息通知:', activeWindow.exeName); // , activeWindow
+        if (!activeWindow.title) console.warn('当前窗口没有标题', notifyWindow);
+        return [null, null, null]; 
     }
-    console.log('getNotifyWindow bringToTop start');
-    console.log('getNotifyWindow 窗口:', notifyWindow);
+    // console.log('getNotifyWindow bringToTop start');
+    console.log('getNotifyWindow 窗口:', notifyWindow.title);
     // console.log('把窗口置顶:', notifyWindow.title, notifyWindow.processId);
     try {
         // window.bringToTop(notifyWindow.title);
@@ -88,7 +90,7 @@ async function getNotifyWindow() {
     console.log('getNotifyWindow 截图区域:');
     // 给窗口截图
     const screenshot = await page.screenshot({ clip: {x, y, width, height} });
-    console.log('截图完成', screenshot.substring(0, 100));
+    // console.log('截图完成', screenshot.substring(0, 100));
 
     // Get colors at specific points (getColorAt should return hex values)
     const firstPointColor = await ImageColor.pixel(screenshot, 140 , 43 ); 
@@ -100,8 +102,8 @@ async function getNotifyWindow() {
     console.log('检测到订单状态:', STATUS_NAMES[status], '颜色值:', JSON.stringify({firstPoint: firstPointColor,secondPoint: secondPointColor}));
 
     // 如果状态不是代付款，则直接跳出
-    // status !== ORDER_STATUS.PENDING_PAYMENT &&
-    if ( status !== ORDER_STATUS.PENDING_SHIPMENT) {
+    // 
+    if ( status !== ORDER_STATUS.PENDING_PAYMENT && status !== ORDER_STATUS.PENDING_SHIPMENT) {
         console.log('订单状态不是待发货，退出');
         // console.log('订单状态不是代付款或待发货，退出');
         return [notifyWindow, false, status];
@@ -173,8 +175,8 @@ async function getContactButtonPosition(win) {
     };
 
     
-    console.log('找到色块 -和我联系：', blockData);
-    console.log('计算得到点击坐标 -和我联系：', centerCoordinates);
+    console.log('找到色块 -和我联系：', JSON.stringify(blockData));
+    console.log('计算得到点击坐标 -和我联系：', JSON.stringify(centerCoordinates));
 
     return {
         blockData,
@@ -202,25 +204,73 @@ async function getChatWindow() {
         const windows = await window.list();
             
         // 获取并监控千牛弹窗
-        const qianniuWindows = windows.filter(win => 
-            win.exeName?.includes('AliWorkbench.exe')
-        );
-        const chatWindow = qianniuWindows.find(win => 
-            win.title.endsWith('-接待中心')
-        );
+        const qianniuWindows = windows.filter(win =>win.exeName?.includes('AliWorkbench.exe'));
+        const chatWindows = qianniuWindows.filter(win =>win.title.endsWith('-接待中心'));
+        console.log('千牛接待中心窗口列表:', chatWindows);
+
+        // const chatWindow = qianniuWindows.find(win =>win.title.endsWith('-接待中心'));
+        // chatWindow 从， chatWindows 中获取，index 数值最大的窗口
+        const chatWindow = chatWindows.reduce((prev, current) => { return prev?.index > current?.index ? prev : current;}, null);
         
-        if (chatWindow) await window.bringToTop(chatWindow.title);
+        if (chatWindow) {
+            console.log('置顶接待中心窗口');
+            await window.bringToTop(chatWindow.title);
+            await sleep(500);
+        }
         return chatWindow;
     }
     
-    console.log('找到接待中心窗口:', activeWindow);
+    console.log('找到接待中心窗口:', activeWindow.title);
     return activeWindow;
+}
+
+async function clickWaitShipTab(win,orderBlockData) {  
+    // 订单中坐标 80， 630
+    //   大分辨率 80， 595
+    // 色块 +60 ，  -25
+    let btnX = orderBlockData.x + 70;
+    let btnY = orderBlockData.y - 22;
+  
+    const panelX = btnX + win.width - 480;
+    const panelY = btnY;
+
+    const absoluteX = win.x + panelX;
+    const absoluteY = win.y + panelY;     
+
+    console.log('点击待发货选项卡按钮, xy:', btnX, btnY, absoluteX, absoluteY);
+    await mouse.click(absoluteX, absoluteY);
+    await sleep(500);
+}
+
+async function clickShipOrder(win,orderBlockData) {    
+    // 色块 + 210, 70 , 通过色块，点击发货按钮，
+    let btnX = orderBlockData.x + 210;
+    let btnY = orderBlockData.y + 70;
+
+    const panelX = btnX + win.width - 480;
+    const panelY = btnY;
+
+    const absoluteX = win.x + panelX;
+    const absoluteY = win.y + panelY;    
+
+    console.log('点击发货:', btnX, btnY, absoluteX, absoluteY);
+    await mouse.click(absoluteX, absoluteY);
+    await sleep(600);
+
+    // 确定发货 窗口右下角 -60， -30
+    let submitBtnX = win.x + win.width - 60;
+    let submitBtnY = win.y + win.height - 30;
+    console.log('点击确定发货:', submitBtnX, submitBtnY);
+    await mouse.click(submitBtnX, submitBtnY);
+    await sleep(500);
 }
 
 // Handle order scroll and status check
 async function getOrderBlock(win) {
     const orderAreaX = win.width - 480;
     const orderAreaY = 100;
+    let orderBlock;
+    let screenshot;
 
     console.log('点击订单区域, xy:', win.x + orderAreaX + 10, win.y + orderAreaY + 10 );
     // Click order area
@@ -230,10 +280,21 @@ async function getOrderBlock(win) {
     // 先按下pageup，回复到最上面状态，才能取色
     console.log('先按下pageup，回复到最上面状态，才能取色');
     await keyboard.press('PageUp');
+    await sleep(100);
+    await keyboard.press('PageUp');
     await sleep(500);
+
+    screenshot = await page.screenshot({
+        path: 'temp/orderStatusEnd.png',
+        clip: {x: win.x + orderAreaX,y: win.y,width: 480,height: win.height}
+    });    
+    // 通过色块的相对坐标，找到待发货选项卡，坐标位置不固定，
+    orderBlock = await ImageColor.findColorBlocks(screenshot,COLORS.ORDER_BLOCK);
+    // console.log('找到待发货选项卡，坐标位置不固定，',orderBlock);
+    await clickWaitShipTab(win,orderBlock[0]);
     
     // Get order status area screenshot
-    let screenshot = await page.screenshot({
+    screenshot = await page.screenshot({
         path: 'temp/orderStatus.png',
         clip: {
             x: win.x + orderAreaX,
@@ -264,43 +325,32 @@ async function getOrderBlock(win) {
     // "height": 18,    "width": 40,
     let greenBlock = greenBlocks.find((block) => block.height === 18 && block.width === 40);
     
-    console.log('第一次截图找到的绿色块:', greenBlocks);
+    // console.log('第一次截图找到的绿色块:', greenBlocks);
 
     if (!hasGreenStatus && !greenBlock) {
         await Sound.playWarning();
-        console.log('订单状态不是待发货');
+        console.log('订单状态不是待发货，没有绿色快');
         return false;
     }
-    console.log('订单状态是待发货');
 
-    console.log('点击订单区域,开始键盘操作，按下翻页end');
+    console.log('订单状态是待发货，点击订单区域,开始键盘操作，按下翻页end');
     // Press End key
     await keyboard.press('End');
-    await sleep(800);
+    await sleep(100);
+    await keyboard.press('End');
+    await sleep(100);
+    await keyboard.press('End');
+    await sleep(500);
 
     screenshot = await page.screenshot({
         path: 'temp/orderStatusEnd.png',
-        clip: {
-            x: win.x + orderAreaX,
-            y: win.y,
-            width: 480,
-            height: win.height
-        }
+        clip: {x: win.x + orderAreaX,y: win.y,width: 480,height: win.height}
     });
     // await sleep(100);
-
-    console.log('开始准备在订单区域找色')
-    // Look for order block first
-    let orderBlock = await ImageColor.findColorBlocks(
-        screenshot,
-        COLORS.ORDER_BLOCK
-    );
-    console.log('第二次截图找到的订单色块:', orderBlock);
-    // 如果是字符串，则转换
-    if (typeof orderBlock === 'string') {
-        orderBlock = JSON.parse(orderBlock);
-    }
-    console.log('找到的订单色块:', orderBlock);
+    // console.log('开始准备在订单区域找色')    
+    orderBlock = await ImageColor.findColorBlocks(screenshot,COLORS.ORDER_BLOCK);
+    // console.log('第二次截图找到的订单色块:', orderBlock);
+    // console.log('找到的订单色块:', orderBlock);
 
     if (!orderBlock) {
         console.log('未找到订单区域');
@@ -319,42 +369,49 @@ async function getOrderBlock(win) {
  */
 async function clickCopyGetProduct(win, orderBlockData) {
     // Store initial clipboard content
-    const initialClipboard = getClipboard();
+    let newClipboard, initialClipboard = '' ;
+    try{
+        initialClipboard = getClipboard();
+    }catch(e){
+        console.log('获取剪切板内容失败',e)
+    }
+    
     
     // 通过订单色块计算"点我复制"按钮位置
     const copyButtonX = orderBlockData.x + 370;  // 相对于订单色块的X偏移
     const copyButtonY = orderBlockData.y + 20 + orderBlockData.height;  // 相对于订单色块的Y偏移
-    console.log('点我复制 按钮位置- 色块相对坐标:', {copyButtonX, copyButtonY});
+    console.log('点我复制 按钮位置- 色块相对坐标:', JSON.stringify({copyButtonX, copyButtonY}));
     
     const panelX = copyButtonX + win.width - 480;
     const panelY = copyButtonY;
-    console.log('点我复制 按钮位置- 窗口坐标:', {panelX, panelY});
+    console.log('点我复制 按钮位置- 窗口坐标:', JSON.stringify({panelX, panelY}));
     
     const absoluteX = win.x + panelX;
     const absoluteY = win.y + panelY;
     
-    console.log('点我复制 按钮坐标:', {absoluteX, absoluteY});
+    console.log('点我复制 按钮坐标:', JSON.stringify({absoluteX, absoluteY}));
     
     await mouse.move(absoluteX, absoluteY);
     await sleep(500);
     
     // 点击复制按钮
     await mouse.click(absoluteX, absoluteY);
-    await sleep(500);
-    
+    await sleep(900);
+
     // Get new clipboard content and check if it changed
-    const newClipboard = getClipboard();
-    if (newClipboard === initialClipboard) {
-        console.log('剪贴板内容未变化，当前内容是：' + newClipboard);
-        return { 
-            success: false, 
-            content: null 
-        };
+    try{
+        newClipboard = getClipboard();
+    }catch(e){
+        console.log('获取剪切板内容失败',e)
     }
     let title = newClipboard; 
+    if (!newClipboard || newClipboard == initialClipboard) {
+        console.log('剪贴板内容未变化，当前内容是：' + newClipboard);
+        return {  success: false, title,  content: '' };
+    }
     
     // Load configuration
-    const config = await loadConfig();
+    // const config = await loadConfig();
     
     let content = '';
     let gotData = false;
@@ -412,12 +469,15 @@ async function inputChatMsg(win, content) {
     const sendButtonX = win.width - 480 - 20 - 65;
     const sendButtonY = win.height - 25;
     
+    await copyToClipboard(content); // 重置剪切板
     // Click edit area to focus
     await mouse.click(win.x + sendButtonX, win.y + sendButtonY - 20);
     await sleep(500);
     
     // Type message
-    await keyboard.type(content);
+    // await keyboard.type(content);
+    // keyboard 组合键 ctrl + v
+    await keyboard.combination('ctrl', 'v');
     await sleep(500);
     
     return true;
@@ -435,25 +495,29 @@ async function handleCopyAndSend(win, orderBlockData, shouldSend = true) {
     const copyResult = await clickCopyGetProduct(win, orderBlockData);
     
     // If copy was not successful, return false
-    if (!copyResult.success) {
-        return false;
-    }
-    
+    if (!copyResult.success)  return false;
+        
     // If we didn't get product data, log a message
     if (!copyResult.gotData) {
         console.log('未获取到产品数据，使用默认消息');
         notify({ title: '未获取到产品数据' , message : '商品标题:' + copyResult.title });
         return false;
     }
-    
+    let content = '商品标题: ' + copyResult.title + '\n\n发货内容: ' +  copyResult.content + '\n\n' + config.contentPostfix; 
     // Prepare message input
-    await inputChatMsg(win, copyResult.content);
+    await inputChatMsg(win, content );
     
     // If shouldSend is false, we're done
     if (!shouldSend)  return true;
     
+    console.log('点击发送消息')
     // Attempt to send the message
-    return await clickSendMessage(win);
+    await clickSendMessage(win);
+
+    await sleep(500);    
+
+    await clickShipOrder(win, orderBlockData);
+    return true;
 }
 
 // Cache variables for last known values
@@ -573,6 +637,7 @@ class Config {
     constructor() {
         this.apiEndpoint = '';
         this.apiCheckEndpoint = '';
+        this.contentPostfix = '';
     }
 }
 
@@ -608,6 +673,8 @@ async function loadConfig() {
                 config.apiEndpoint = value;
             } else if (key === 'api_check') {
                 config.apiCheckEndpoint = value;
+            }else if (key === 'content_postfix') {
+                config.contentPostfix = value;
             }
         }
         
@@ -637,10 +704,10 @@ async function checkAPIHealth(checkEndpoint) {
 async function queryProductInfo(apiEndpoint, title) {
     try {
         const queryString = `${apiEndpoint}?title=${encodeURIComponent(title)}`;
-        console.log(`${new Date().toISOString()} API请求URL: ${queryString}`);
+        console.log(`API请求URL: ${queryString}`);
         const response = await axios.get(queryString);
         
-        console.log(`${new Date().toISOString()} API原始响应:`, response.data);
+        console.log(`API原始响应:`, response.data);
         
         if (response.status !== 200) {
             throw new Error(`HTTP request failed: ${response.status}`);
@@ -656,7 +723,7 @@ async function clickCopyAndInputProduct() {
     // Wait for reception window
     const chatMsgWindow = await getChatWindow();
     if (!chatMsgWindow)  return false;
-    console.log('已找到聊天窗口');
+    // console.log('已找到聊天窗口');
         
     // Handle order
     const orderBlockData = await getOrderBlock(chatMsgWindow);
@@ -665,7 +732,9 @@ async function clickCopyAndInputProduct() {
         return false;
     }
 
-    console.log('订单栏，已经完成翻页', orderBlockData);    
+    // return await clickShipOrder(chatMsgWindow, orderBlockData);  // 测试用，直接进行点击发货，不用获取虚拟商品内容和输入
+
+    console.log('订单栏，已经完成翻页');    // , orderBlockData
     // Copy and send
     await handleCopyAndSend(chatMsgWindow, orderBlockData,false);            
 }
@@ -679,13 +748,13 @@ async function executeSingleAutomation() {
       // Load configuration if not already loaded
       if (!config) {
         config = config || await loadConfig();
-        console.log(`${new Date().toISOString()} 配置加载完成:`, config);
+        console.log(`配置加载完成:`, config);
       }
   
       if (!serviceReady) {
         // Check API health
         let statusRes = await checkAPIHealth(config.apiCheckEndpoint);
-        console.log(`${new Date().toISOString()} API健康检查结果:`, statusRes);
+        console.log(`API健康检查结果:`, statusRes);
         if (!statusRes) {
           notify({
             title: "自动发货问题",
@@ -693,38 +762,54 @@ async function executeSingleAutomation() {
             sound: true,
           });
           return false;
-        }else {
+        } else {
           notify({
             title: "自动发货检查",
             message: "服务器正常",
             sound: true,
             timeout: 3000
           })
+          serviceReady = true;
         }
-        serviceReady = true;
       }
-  
+      
+    //   console.log('开始获取消息窗口')
       // Try to get chat notification window
       const notifyWindowInfo = await getNotifyWindow();    
       let [notifyWindow, isShip, status] = notifyWindowInfo;
 
-      console.log(`${new Date().toISOString()} 消息窗口状态:`, status);
+      if ( status == ORDER_STATUS.PENDING_PAYMENT ) {
+        console.log('代付款状态,等待5秒。');
+        notify({
+          title: "代付款状态,等待5秒。",
+          message: "有的小额免密支付很快",
+          sound: true,
+          timeout: 3000
+        })
+        await sleep(5000); 
+      }
+    //   console.log(`消息窗口状态:`, status);
       // If no notification window found, return false
       if (!notifyWindow || !isShip) {
-        // console.log(`${new Date().toISOString()} 未找到消息通知窗口`);
+        // console.log(`未找到消息通知窗口`);
         if (notifyWindow) {
-            console.log(`${new Date().toISOString()} 消息窗口已打开，不是发货状态，退出。status:`, status);                
+            console.log(`消息窗口已打开，不是发货状态，退出。status:`, status);     
+            console.info(`关闭消息窗口，title:`, notifyWindow.title);           
             window.closeWindow(notifyWindow.title);
+            console.info('窗口关闭成功，js');
         }
         return false;
       }
   
       console.log('消息窗口已打开，status:');
   
+
       // Get contact button status
       const buttonStatus = await getContactButtonPosition(notifyWindow);
       if (!buttonStatus) {
         console.log('未找到联系按钮');
+        console.info(`未找到联系按钮，关闭消息窗口，title:`, notifyWindow.title);
+        window.closeWindow(notifyWindow.title);
         // 不是待发货状态，自动关闭窗口
         notify({
           title: "自动发货提示",
@@ -732,50 +817,52 @@ async function executeSingleAutomation() {
           sound: true,            
           timeout: 3000
         })
-        window.closeWindow(notificationWindow.title);
         return false;
       }
       
     //   return true;  // 测试用，实际使用时需要删除
       
-      console.log(`${new Date().toISOString()} 联系按钮位置:`, buttonStatus);
+      console.log(`联系按钮位置:`, JSON.stringify(buttonStatus.centerCoordinates));
       // Click the button using the coordinates from buttonStatus
       const contactSuccess = await clickContactMeButton(buttonStatus.centerCoordinates);
       if (!contactSuccess) {
+        console.info(`不是待发货消息提示，关闭消息窗口，title:`, notifyWindow.title);
         notify({
           title: "自动发货提示",
           message: "不是待发货消息提示，自动关闭窗口，否则新订单不会提醒",
           sound: true,
           timeout: 3000          
         })
-        window.closeWindow(notificationWindow.title);
+        window.closeWindow(notifyWindow.title);
         // window.kill(notifyWindow.processId); // 一个进程多个窗口，会导致整个程序悲观，
         return false;
       }
       console.log('已点击联系人按钮');
   
+      await sleep(800);
+
       // Wait for reception window
       const chatMsgWindow = await getChatWindow();
       if (!chatMsgWindow) {
         return false;
       }
-  
-      
-      window.closeWindow(notificationWindow.title);
+            
+      console.info(`正常打开聊天窗口，关闭消息窗口，title:`, notifyWindow.title);
+      window.closeWindow(notifyWindow.title);
 
       // Handle order
       const orderBlockData = await getOrderBlock(chatMsgWindow);
       if (!orderBlockData) {
         return false;
       }
-      console.log('订单栏，已经完成翻页', orderBlockData);
+      console.log('订单栏，已经完成翻页'); // , orderBlockData
   
       // Copy and send
       await handleCopyAndSend(chatMsgWindow, orderBlockData, true);
   
       return true;
     } catch (error) {
-      console.error(`${new Date().toISOString()} 执行出错:`, error);
+      console.error(`执行出错:`, error);
       return false;
     }
 }
@@ -786,12 +873,11 @@ async function notifyToChatCopyAndSend() {
         while (true) {
             const success = await executeSingleAutomation();
             
-            // Wait between iterations
             await sleep(success ? 1000 : 2000);
             // await sleep(success ? 1000 : 60000); // Wait 1 second on success, 1 minute on failure
         }
     } catch (mainError) {
-        console.error(`${new Date().toISOString()} 主进程发生严重错误:`, mainError);
+        console.error(`主进程发生严重错误:`, mainError);
         notify({
             title: "自动发货系统崩溃",
             message: "主进程发生严重错误，需要手动重启",
@@ -810,13 +896,13 @@ async function startAutomation(continuous = true) {
             return await executeSingleAutomation();
         }
     } catch (error) {
-        console.error(`${new Date().toISOString()} 自动化流程终止:`, error);
+        console.error(`自动化流程终止:`, error);
         return false;
     }
 }
 
 // Start the automation
-await startAutomation();
+// await startAutomation();
 // await startAutomation(false);  // 执行单个
 
-// await clickCopyAndInputProduct();
+await clickCopyAndInputProduct();
