@@ -23,9 +23,7 @@ const windows = await window.list();
 console.log('所有窗口信息:', windows);
 
 // 获取并监控千牛弹窗
-const qianniuWindows = windows.filter(win => 
-    win.exeName?.includes('AliWorkbench.exe')
-);
+const qianniuWindows = windows.filter(win => win.exeName?.includes('AliWorkbench.exe'));
 console.log('千牛弹窗:', qianniuWindows);
 
 // 找到接待中心和消息通知窗口

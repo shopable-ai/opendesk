@@ -65,7 +65,7 @@ func checkDirPermissions(dir string) error {
 }
 
 func (p *Page) Screenshot(options interface{}) (string, error) {
-	log.Printf("Starting screenshot with raw options: %+v", options)
+	// log.Printf("Starting screenshot with raw options: %+v", options)
 
 	// Initialize default options
 	opts := ScreenshotOptions{
