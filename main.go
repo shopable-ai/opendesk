@@ -327,7 +327,7 @@ func writeJSONResponse(w http.ResponseWriter, response APIResponse) {
 	json.NewEncoder(w).Encode(response)
 }
 
-// Modified handleScriptExecution function
+// Modified handleScriptExecution function to run scripts directly in the runtime
 func handleScriptExecution(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeJSONResponse(w, APIResponse{
@@ -350,6 +350,9 @@ func handleScriptExecution(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 打印接收到的消息
+	fmt.Println("[DEBUG] Received script execution request")
+
 	// Check for missing script parameter
 	if requestBody.Script == nil {
 		writeJSONResponse(w, APIResponse{
@@ -368,41 +371,28 @@ func handleScriptExecution(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create local temporary directory
-	tmpDir, err := createLocalTempDir()
-	if err != nil {
-		writeJSONResponse(w, APIResponse{
-			Code:    500,
-			Message: "Failed to create temporary directory: " + err.Error(),
-		})
-		return
+	// 打印脚本长度和前20个字符
+	scriptContent := *requestBody.Script
+	scriptLength := len(scriptContent)
+	previewLength := 20
+	if scriptLength < previewLength {
+		previewLength = scriptLength
 	}
+	scriptPreview := scriptContent[:previewLength]
+	fmt.Printf("[DEBUG] Script length: %d characters\n", scriptLength)
+	fmt.Printf("[DEBUG] Script preview: %s\n", scriptPreview)
 
-	// Create temporary file in the local directory
-	scriptContent := []byte(*requestBody.Script)
-	tempFileName, err := createTempFile(tmpDir, "script-*.js", scriptContent)
-	if err != nil {
-		cleanup(tmpDir)
-		writeJSONResponse(w, APIResponse{
-			Code:    500,
-			Message: err.Error(),
-		})
-		return
-	}
+	// Set script status to running
+	updateScriptStatus("running", nil)
 
-	// Create configuration
-	config := &Config{
-		ScriptPath: tempFileName,
-		Timeout:    30,
-	}
-
-	// Execute script in a new goroutine
+	// Execute script in a new goroutine directly using the runtime
 	go func() {
-		fmt.Printf("[%s] Executing script from file: %s\n",
-			time.Now().Format("15:04:05.000"),
-			tempFileName)
+		scriptContent := *requestBody.Script
+		fmt.Printf("[%s] Executing script directly in runtime\n",
+			time.Now().Format("15:04:05.000"))
 
-		if err := executeScript(config); err != nil {
+		// Use the default timeout of 30 minutes
+		if err := executeJavaScript(scriptContent, 30); err != nil {
 			fmt.Printf("[%s] Script execution error: %v\n",
 				time.Now().Format("15:04:05.000"),
 				err)
@@ -410,22 +400,12 @@ func handleScriptExecution(w http.ResponseWriter, r *http.Request) {
 		} else {
 			updateScriptStatus("completed", nil)
 		}
-
-		// Cleanup after execution
-		if err := cleanup(tmpDir); err != nil {
-			fmt.Printf("[%s] Warning: Failed to cleanup temporary directory: %v\n",
-				time.Now().Format("15:04:05.000"),
-				err)
-		}
 	}()
 
 	// Return success response
 	writeJSONResponse(w, APIResponse{
 		Code:    0,
 		Message: "Script execution started successfully",
-		Data: map[string]interface{}{
-			"script_path": tempFileName,
-		},
 	})
 }
 
