@@ -1129,6 +1129,8 @@ func (w *WindowManager) List() ([]map[string]interface{}, error) {
 
 	// 创建最终的窗口信息列表，但使用map[string]interface{}格式
 	var windowsList []map[string]interface{}
+	windowCount := len(orderedWindows)
+
 	for i, hwnd := range orderedWindows {
 		// 获取窗口信息，与之前相同
 		title := getWindowTitle(windows.Handle(hwnd))
@@ -1150,6 +1152,9 @@ func (w *WindowManager) List() ([]map[string]interface{}, error) {
 		isPopup := (style & WS_POPUP) == WS_POPUP
 
 		// 使用map[string]interface{}代替结构体
+		// 修改索引值，使其类似于HTML的z-index：数字越大，显示层级越高
+		zIndex := windowCount - i - 1
+
 		windowInfo := map[string]interface{}{
 			"title":        title,
 			"processId":    processId,
@@ -1163,7 +1168,7 @@ func (w *WindowManager) List() ([]map[string]interface{}, error) {
 			"hasFocus":     hasFocus,
 			"isPopup":      isPopup,
 			"handle":       uintptr(hwnd),
-			"index":        i, // 这个索引现在基于真实Z顺序
+			"index":        zIndex, // 数字越大，显示层级越高，类似HTML的z-index
 		}
 
 		windowsList = append(windowsList, windowInfo)
