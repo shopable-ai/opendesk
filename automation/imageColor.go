@@ -424,7 +424,7 @@ func parseHexColor(hexColor string) (color.RGBA, error) {
 	b := uint8(rgb & 0xFF)
 
 	// Add debug logging
-	fmt.Printf("Parsing hex color #%s -> RGB(%d,%d,%d)\n", hexColor, r, g, b)
+	// fmt.Printf("Parsing hex color #%s -> RGB(%d,%d,%d)\n", hexColor, r, g, b)
 
 	return color.RGBA{
 		R: r,
@@ -1003,7 +1003,7 @@ func rgbToHSL(r, g, b uint32) (h, s, l float64) {
 	}
 
 	// Add debug logging
-	fmt.Printf("RGB(%d,%d,%d) -> HSL(%.2f,%.2f,%.2f)\n", r, g, b, h, s*100, l*100)
+	// fmt.Printf("RGB(%d,%d,%d) -> HSL(%.2f,%.2f,%.2f)\n", r, g, b, h, s*100, l*100)
 
 	return h, s * 100, l * 100
 }
@@ -1100,11 +1100,11 @@ func (ic *ImageColor) IsColorSimilar(targetColor, gradientColor string, toleranc
 	similarity = math.Round(similarity*10000) / 10000
 
 	// Add debug logging
-	fmt.Printf("Color comparison:\n")
-	fmt.Printf("Target:  HSL(%.2f, %.2f, %.2f)\n", th, ts, tl)
-	fmt.Printf("Compare: HSL(%.2f, %.2f, %.2f)\n", gh, gs, gl)
-	fmt.Printf("Differences - H: %.2f, S: %.2f, L: %.2f\n", hDiff, math.Abs(ts-gs), math.Abs(tl-gl))
-	fmt.Printf("Similarity: %.4f\n", similarity)
+	// fmt.Printf("Color comparison:\n")
+	// fmt.Printf("Target:  HSL(%.2f, %.2f, %.2f)\n", th, ts, tl)
+	// fmt.Printf("Compare: HSL(%.2f, %.2f, %.2f)\n", gh, gs, gl)
+	// fmt.Printf("Differences - H: %.2f, S: %.2f, L: %.2f\n", hDiff, math.Abs(ts-gs), math.Abs(tl-gl))
+	// fmt.Printf("Similarity: %.4f\n", similarity)
 
 	// Determine if colors are similar based on tolerance
 	similar := similarity >= tolerance
