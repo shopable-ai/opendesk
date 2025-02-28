@@ -462,6 +462,74 @@ func (w *WindowManager) SetWindowBounds(title string, x, y, width, height int) e
 	return nil
 }
 
+// SetWidth sets only the width of a window while maintaining its current position and height
+func (w *WindowManager) SetWidth(title string, width int) error {
+	titlePtr, _ := windows.UTF16PtrFromString(title)
+
+	// Find the window
+	hwnd, _, _ := procFindWindowW.Call(
+		0,
+		uintptr(unsafe.Pointer(titlePtr)),
+	)
+
+	if hwnd == 0 {
+		return fmt.Errorf("window not found")
+	}
+
+	// Get the current window position and size
+	var rect RECT
+	_, _, _ = procGetWindowRect.Call(
+		hwnd,
+		uintptr(unsafe.Pointer(&rect)),
+	)
+
+	// Set the window width while maintaining its position and height
+	procMoveWindow.Call(
+		hwnd,
+		uintptr(rect.Left),
+		uintptr(rect.Top),
+		uintptr(width),
+		uintptr(rect.Bottom-rect.Top),
+		1, // repaint
+	)
+
+	return nil
+}
+
+// SetHeight sets only the height of a window while maintaining its current position and width
+func (w *WindowManager) SetHeight(title string, height int) error {
+	titlePtr, _ := windows.UTF16PtrFromString(title)
+
+	// Find the window
+	hwnd, _, _ := procFindWindowW.Call(
+		0,
+		uintptr(unsafe.Pointer(titlePtr)),
+	)
+
+	if hwnd == 0 {
+		return fmt.Errorf("window not found")
+	}
+
+	// Get the current window position and size
+	var rect RECT
+	_, _, _ = procGetWindowRect.Call(
+		hwnd,
+		uintptr(unsafe.Pointer(&rect)),
+	)
+
+	// Set the window height while maintaining its position and width
+	procMoveWindow.Call(
+		hwnd,
+		uintptr(rect.Left),
+		uintptr(rect.Top),
+		uintptr(rect.Right-rect.Left),
+		uintptr(height),
+		1, // repaint
+	)
+
+	return nil
+}
+
 // Maximize maximizes the specified window
 func (w *WindowManager) Maximize(title string) error {
 	titlePtr, _ := windows.UTF16PtrFromString(title)
