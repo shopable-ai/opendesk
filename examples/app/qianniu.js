@@ -5,7 +5,7 @@ const COLORS = {
     BLUE_SIDEBAR: '#3D7FFF',
     GREEN_STATUS: '#20AE10',
     GRAY_STATUS: '#B6B9C3',
-    ORDER_BLOCK: '#E6EAF5',
+    ORDER_BLOCK: '#E8EAF0', // '#E6EAF5',  // 灰色
     PURPLE_STATUS: '#C651A3',
     BLUE_STATUS: '#3D5EFF'
 };
@@ -195,6 +195,7 @@ async function clickContactMeButton(btn) {
   
 // Wait for reception window
 async function getChatWindow() {
+    let chatWindow = null;
     const activeWindow = await window.getActiveWindow();
     
     if (!activeWindow.title.endsWith('-接待中心') || 
@@ -206,32 +207,41 @@ async function getChatWindow() {
         // 获取并监控千牛弹窗
         const qianniuWindows = windows.filter(win =>win.exeName?.includes('AliWorkbench.exe'));
         const chatWindows = qianniuWindows.filter(win =>win.title.endsWith('-接待中心'));
-        console.log('千牛接待中心窗口列表:', chatWindows);
+        // console.log('千牛接待中心窗口列表:', chatWindows);
 
         // const chatWindow = qianniuWindows.find(win =>win.title.endsWith('-接待中心'));
         // chatWindow 从， chatWindows 中获取，index 数值最大的窗口
-        const chatWindow = chatWindows.reduce((prev, current) => { return prev?.index > current?.index ? prev : current;}, null);
+        chatWindow = chatWindows.reduce((prev, current) => { return prev?.index > current?.index ? prev : current;}, null);
         
         if (chatWindow) {
             console.log('置顶接待中心窗口');
             await window.bringToTop(chatWindow.title);
             await sleep(500);
         }
-        return chatWindow;
+    }else {
+        chatWindow = activeWindow;
     }
     
-    console.log('找到接待中心窗口:', activeWindow.title);
-    return activeWindow;
+    console.log('找到接待中心窗口:', chatWindow?.title);
+    if (chatWindow?.title) {
+        window.setHeight(chatWindow.title, 900);
+        console.log('设置接待中心窗口高度 900');
+        chatWindow = await window.getActiveWindow();
+        await sleep(500);
+    }
+    return chatWindow;
 }
 
 async function clickWaitShipTab(win,orderBlockData) {  
     // 订单中坐标 80， 630
     //   大分辨率 80， 595
     // 色块 +60 ，  -25
-    let btnX = orderBlockData.x + 70;
-    let btnY = orderBlockData.y - 22;
+    // let btnX = orderBlockData.x + 70;
+    // let btnY = orderBlockData.y - 22;
+    let btnX = 80;
+    let btnY = 630;
   
-    const panelX = btnX + win.width - 480;
+    const panelX = btnX + win.width - WINDOW_ORDER_WIDTH;
     const panelY = btnY;
 
     const absoluteX = win.x + panelX;
@@ -247,7 +257,7 @@ async function clickShipOrder(win,orderBlockData) {
     let btnX = orderBlockData.x + 210;
     let btnY = orderBlockData.y + 70;
 
-    const panelX = btnX + win.width - 480;
+    const panelX = btnX + win.width - WINDOW_ORDER_WIDTH;
     const panelY = btnY;
 
     const absoluteX = win.x + panelX;
@@ -265,16 +275,22 @@ async function clickShipOrder(win,orderBlockData) {
     await sleep(500);
 }
 
+let WINDOW_ORDER_WIDTH = 480;
+let WINDOW_ORDER_HEADER_HEIGHT = 100;
+// 高分辨率下窗口高度信息不同.
+// let WINDOW_ORDER_WIDTH = 600;
+// let WINDOW_ORDER_HEADER_HEIGHT = 120;
+
 // Handle order scroll and status check
 async function getOrderBlock(win) {
-    const orderAreaX = win.width - 480;
-    const orderAreaY = 100;
-    let orderBlock;
+    const orderAreaX = win.width - WINDOW_ORDER_WIDTH;
+    const orderAreaY = WINDOW_ORDER_HEADER_HEIGHT;
+    let orderBlocks, orderBlock;
     let screenshot;
 
-    console.log('点击订单区域, xy:', win.x + orderAreaX + 10, win.y + orderAreaY + 10 );
+    console.log('点击订单区域, xy:', win.x + orderAreaX + 10, win.y + orderAreaY + 50 );
     // Click order area
-    await mouse.click(win.x + orderAreaX + 10, win.y + orderAreaY + 10);
+    await mouse.click(win.x + orderAreaX + 10, win.y + orderAreaY + 50);
     await sleep(500);
 
     // 先按下pageup，回复到最上面状态，才能取色
@@ -286,20 +302,41 @@ async function getOrderBlock(win) {
 
     screenshot = await page.screenshot({
         path: 'temp/orderStatusEnd.png',
-        clip: {x: win.x + orderAreaX,y: win.y,width: 480,height: win.height}
+        clip: {x: win.x + orderAreaX,y: win.y,width: WINDOW_ORDER_WIDTH,height: win.height}
     });    
     // 通过色块的相对坐标，找到待发货选项卡，坐标位置不固定，
-    orderBlock = await ImageColor.findColorBlocks(screenshot,COLORS.ORDER_BLOCK);
+    orderBlocks = await ImageColor.findColorBlocks(screenshot,COLORS.ORDER_BLOCK);
+    // for-each orderBlocks , 区域截图保持，方便调试
+    orderBlocks.forEach(block => {
+        page.screenshot({
+            path: 'temp/orderStatus_' + block.x + '_' + block.y + '_' + block.width + '_' + block.height + '.png',
+            clip: {x: win.x + orderAreaX + block.x,y: win.y + orderAreaY + block.y,width: 20,height: 20}
+        });
+    })
+    // 寻找 400 - 20 ~ 400 + 60 ， 190 - 20 ~ 190 + 60 之间 的色块
+    orderBlocks = orderBlocks.filter(block => block.x >= 400 - 20 && block.x <= 400 + 200 && block.y >= 190 - 100 && block.y <= 190 + 60);
+    orderBlock = orderBlocks[0];
+    if (!orderBlock) orderBlock = { x:30, y:730, width: 430, height: 180 };
+    // 截图保持区域orderBlock，方便调试
+    // screenshot = await page.screenshot({
+    //     path: 'temp/orderBlock.png',
+    //     clip: {
+    //         x: win.x + orderAreaX + orderBlock.x,
+    //         y: win.y + orderAreaY + orderBlock.y,
+    //         width: orderBlock.width,
+    //         height: orderBlock.height
+    //     }
+    // })    
     // console.log('找到待发货选项卡，坐标位置不固定，',orderBlock);
-    await clickWaitShipTab(win,orderBlock[0]);
+    await clickWaitShipTab(win,orderBlock);
     
-    // Get order status area screenshot
+    // 订单区域，右侧整个部分，包括header
     screenshot = await page.screenshot({
         path: 'temp/orderStatus.png',
         clip: {
             x: win.x + orderAreaX,
             y: win.y,
-            width: 480,
+            width: WINDOW_ORDER_WIDTH,
             height: win.height
         }
     });
@@ -312,8 +349,8 @@ async function getOrderBlock(win) {
         COLORS.GREEN_STATUS,
         0,
         500,
-        480,
-        win.height - 100 - 500
+        WINDOW_ORDER_WIDTH,
+        win.height - WINDOW_ORDER_HEADER_HEIGHT - 500
     );
     console.log('hasColor检查绿色状态结果:', hasGreenStatus);
 
@@ -322,14 +359,15 @@ async function getOrderBlock(win) {
         screenshot,
         COLORS.GREEN_STATUS
     );
-    // "height": 18,    "width": 40,
-    let greenBlock = greenBlocks.find((block) => block.height === 18 && block.width === 40);
+    // "height": 18 ~ 30,    "width": 40 ~ 60,
+    // let greenBlock = greenBlocks.find((block) => block.height === 18 && block.width === 40);
+    let greenBlock = greenBlocks.find((block) => block.height > 18 && block.height < 30 && block.width > 40 && block.width < 60);
     
     // console.log('第一次截图找到的绿色块:', greenBlocks);
 
     if (!hasGreenStatus && !greenBlock) {
         await Sound.playWarning();
-        console.log('订单状态不是待发货，没有绿色快');
+        console.log('订单状态不是待发货，没有绿色快', greenBlocks.length , JSON.stringify(greenBlocks));
         return false;
     }
 
@@ -344,7 +382,7 @@ async function getOrderBlock(win) {
 
     screenshot = await page.screenshot({
         path: 'temp/orderStatusEnd.png',
-        clip: {x: win.x + orderAreaX,y: win.y,width: 480,height: win.height}
+        clip: {x: win.x + orderAreaX,y: win.y,width: WINDOW_ORDER_WIDTH,height: win.height}
     });
     // await sleep(100);
     // console.log('开始准备在订单区域找色')    
@@ -371,6 +409,7 @@ async function clickCopyGetProduct(win, orderBlockData) {
     // Store initial clipboard content
     let newClipboard, initialClipboard = '' ;
     try{
+        copyToClipboard(" ");
         initialClipboard = getClipboard();
     }catch(e){
         console.log('获取剪切板内容失败',e)
@@ -382,7 +421,7 @@ async function clickCopyGetProduct(win, orderBlockData) {
     const copyButtonY = orderBlockData.y + 20 + orderBlockData.height;  // 相对于订单色块的Y偏移
     console.log('点我复制 按钮位置- 色块相对坐标:', JSON.stringify({copyButtonX, copyButtonY}));
     
-    const panelX = copyButtonX + win.width - 480;
+    const panelX = copyButtonX + win.width - WINDOW_ORDER_WIDTH;
     const panelY = copyButtonY;
     console.log('点我复制 按钮位置- 窗口坐标:', JSON.stringify({panelX, panelY}));
     
@@ -448,7 +487,7 @@ async function clickCopyGetProduct(win, orderBlockData) {
  */
 async function clickSendMessage(win) {
     // Calculate send button position
-    const sendButtonX = win.width - 480 - 20 - 65;
+    const sendButtonX = win.width - WINDOW_ORDER_WIDTH - 20 - 65;
     const sendButtonY = win.height - 25;
        
     // Click send button
@@ -466,7 +505,7 @@ async function clickSendMessage(win) {
  */
 async function inputChatMsg(win, content) {
     // Calculate send button position (used as reference)
-    const sendButtonX = win.width - 480 - 20 - 65;
+    const sendButtonX = win.width - WINDOW_ORDER_WIDTH - 20 - 65;
     const sendButtonY = win.height - 25;
     
     await copyToClipboard(content); // 重置剪切板

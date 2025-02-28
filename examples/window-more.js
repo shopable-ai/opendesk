@@ -9,11 +9,7 @@ for (let i = 1; i <= 3; i++) {
     // 获取窗口标题
     const title = await window.title();
     console.log('当前窗口标题:', title);
-    
-    // 获取窗口内容
-    const content = await window.content();
-    console.log('当前窗口内容:', content);
-        
+            
     // 等待2秒
     console.log('等待 2 秒...');
     await sleep(2000);
@@ -32,6 +28,12 @@ await sleep(2000);
 // 恢复窗口
 console.log('\n恢复窗口到正常大小...');
 await window.restore(windowTitle);
+await sleep(2000);
+
+// 设置窗口高度900px
+console.log('\n设置窗口高度为900px...');
+notify('设置窗口高度为900px...');
+await window.setHeight(windowTitle, 900);
 await sleep(2000);
 
 // 最小化窗口
