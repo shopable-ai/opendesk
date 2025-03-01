@@ -177,103 +177,232 @@ func MapPageToJS(runtime *goja.Runtime, page *Page) error {
 	return nil
 }
 
-// loadPolyfills 加载所有 polyfill 文件
-func loadPolyfills(runtime *goja.Runtime) error {
-	// 获取当前目录
-	dir, err := os.Getwd()
+// getExecutableDir returns the directory where the executable is located
+func getExecutableDir() (string, error) {
+	execPath, err := os.Executable()
 	if err != nil {
-		return fmt.Errorf("failed to get working directory: %v", err)
+		return "", fmt.Errorf("failed to get executable path: %v", err)
 	}
-
-	// polyfills 目录路径
-	polyfillsDir := filepath.Join(dir, "polyfills")
-
-	// 读取目录中的所有文件
-	entries, err := os.ReadDir(polyfillsDir)
-	if err != nil {
-		return fmt.Errorf("failed to read polyfills directory: %v", err)
-	}
-
-	// 对文件名进行排序，确保加载顺序一致
-	files := make([]string, 0)
-	for _, entry := range entries {
-		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".js") {
-			files = append(files, entry.Name())
-		}
-	}
-	sort.Strings(files)
-
-	// 加载每个 polyfill 文件
-	for _, file := range files {
-		filePath := filepath.Join(polyfillsDir, file)
-		content, err := os.ReadFile(filePath)
-		if err != nil {
-			return fmt.Errorf("failed to read polyfill file %s: %v", file, err)
-		}
-
-		// 执行 polyfill 代码
-		_, err = runtime.RunString(string(content))
-		if err != nil {
-			return fmt.Errorf("failed to execute polyfill %s: %v", file, err)
-		}
-
-		fmt.Printf("Loaded polyfill: %s\n", file)
-	}
-
-	return nil
+	execDir := filepath.Dir(execPath)
+	fmt.Printf("[DEBUG] Executable directory: %s\n", execDir)
+	return execDir, nil
 }
 
-// loadJSLibs 加载 jslibs 目录下的所有 JavaScript 库文件
+// getScriptDir returns the directory of the currently running script (if specified)
+func getScriptDir() (string, bool, error) {
+	// Search for -script flag in command line arguments
+	scriptPath := ""
+	for i, arg := range os.Args {
+		if arg == "-script" && i+1 < len(os.Args) {
+			scriptPath = os.Args[i+1]
+			break
+		}
+		if strings.HasPrefix(arg, "-script=") {
+			scriptPath = strings.TrimPrefix(arg, "-script=")
+			break
+		}
+	}
+
+	if scriptPath == "" {
+		return "", false, nil
+	}
+
+	// Make sure we have absolute path
+	if !filepath.IsAbs(scriptPath) {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return "", false, fmt.Errorf("failed to get working directory: %v", err)
+		}
+		scriptPath = filepath.Join(cwd, scriptPath)
+	}
+
+	scriptDir := filepath.Dir(scriptPath)
+	fmt.Printf("[DEBUG] Script directory: %s\n", scriptDir)
+	return scriptDir, true, nil
+}
+
+// loadPolyfills loads all polyfill files
+func loadPolyfills(runtime *goja.Runtime) error {
+	// First try script directory if available
+	scriptDir, hasScriptDir, err := getScriptDir()
+	if err != nil {
+		fmt.Printf("[WARN] Error determining script directory: %v\n", err)
+	}
+
+	// Get the executable directory as fallback
+	execDir, err := getExecutableDir()
+	if err != nil {
+		return fmt.Errorf("failed to get executable directory: %v", err)
+	}
+
+	// List of directories to check for polyfills
+	dirsToCheck := []string{}
+
+	// Add script directory first if available
+	if hasScriptDir {
+		dirsToCheck = append(dirsToCheck, filepath.Join(scriptDir, "polyfills"))
+	}
+
+	// Add executable directory
+	dirsToCheck = append(dirsToCheck, filepath.Join(execDir, "polyfills"))
+
+	// Try one directory up from executable
+	dirsToCheck = append(dirsToCheck, filepath.Join(filepath.Dir(execDir), "polyfills"))
+
+	// Finally, try current working directory
+	cwd, err := os.Getwd()
+	if err == nil {
+		dirsToCheck = append(dirsToCheck, filepath.Join(cwd, "polyfills"))
+	}
+
+	// Try each directory
+	var lastErr error
+	for _, polyfillsDir := range dirsToCheck {
+		fmt.Printf("[DEBUG] Checking for polyfills in: %s\n", polyfillsDir)
+
+		// Check if directory exists
+		if _, err := os.Stat(polyfillsDir); os.IsNotExist(err) {
+			fmt.Printf("[DEBUG] Directory does not exist: %s\n", polyfillsDir)
+			lastErr = fmt.Errorf("directory does not exist: %s", polyfillsDir)
+			continue
+		}
+
+		// Try to read the directory
+		entries, err := os.ReadDir(polyfillsDir)
+		if err != nil {
+			fmt.Printf("[DEBUG] Failed to read directory: %s (Error: %v)\n", polyfillsDir, err)
+			lastErr = fmt.Errorf("failed to read polyfills directory: %v", err)
+			continue
+		}
+
+		// Found valid directory, proceed with loading
+		fmt.Printf("[INFO] Found polyfills directory: %s\n", polyfillsDir)
+
+		// Sort filenames to ensure consistent loading order
+		files := make([]string, 0)
+		for _, entry := range entries {
+			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".js") {
+				files = append(files, entry.Name())
+			}
+		}
+		sort.Strings(files)
+
+		// Load each polyfill file
+		for _, file := range files {
+			filePath := filepath.Join(polyfillsDir, file)
+			content, err := os.ReadFile(filePath)
+			if err != nil {
+				return fmt.Errorf("failed to read polyfill file %s: %v", file, err)
+			}
+
+			// Execute polyfill code
+			_, err = runtime.RunString(string(content))
+			if err != nil {
+				return fmt.Errorf("failed to execute polyfill %s: %v", file, err)
+			}
+
+			fmt.Printf("Loaded polyfill: %s\n", file)
+		}
+
+		// Successfully loaded polyfills from this directory
+		return nil
+	}
+
+	// If we got here, we failed to find polyfills in any directory
+	return fmt.Errorf("could not find polyfills directory. Tried: %v. Last error: %v", dirsToCheck, lastErr)
+}
+
+// loadJSLibs loads all JavaScript library files
 func loadJSLibs(runtime *goja.Runtime) error {
-	// 获取当前目录
-	dir, err := os.Getwd()
+	// First try script directory if available
+	scriptDir, hasScriptDir, err := getScriptDir()
 	if err != nil {
-		return fmt.Errorf("failed to get working directory: %v", err)
+		fmt.Printf("[WARN] Error determining script directory: %v\n", err)
 	}
 
-	// jslibs 目录路径
-	jslibsDir := filepath.Join(dir, "jslibs")
-
-	// 如果目录不存在，创建它
-	if err := os.MkdirAll(jslibsDir, 0755); err != nil {
-		return fmt.Errorf("failed to create jslibs directory: %v", err)
-	}
-
-	// 读取目录中的所有文件
-	entries, err := os.ReadDir(jslibsDir)
+	// Get the executable directory as fallback
+	execDir, err := getExecutableDir()
 	if err != nil {
-		return fmt.Errorf("failed to read jslibs directory: %v", err)
+		return fmt.Errorf("failed to get executable directory: %v", err)
 	}
 
-	// 收集所有 .js 文件
-	var jsFiles []string
-	for _, entry := range entries {
-		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".js") {
-			jsFiles = append(jsFiles, entry.Name())
+	// List of directories to check for jslibs
+	dirsToCheck := []string{}
+
+	// Add script directory first if available
+	if hasScriptDir {
+		dirsToCheck = append(dirsToCheck, filepath.Join(scriptDir, "jslibs"))
+	}
+
+	// Add executable directory
+	dirsToCheck = append(dirsToCheck, filepath.Join(execDir, "jslibs"))
+
+	// Try one directory up from executable
+	dirsToCheck = append(dirsToCheck, filepath.Join(filepath.Dir(execDir), "jslibs"))
+
+	// Finally, try current working directory
+	cwd, err := os.Getwd()
+	if err == nil {
+		dirsToCheck = append(dirsToCheck, filepath.Join(cwd, "jslibs"))
+	}
+
+	// Try each directory
+	var lastErr error
+	for _, jslibsDir := range dirsToCheck {
+		fmt.Printf("[DEBUG] Checking for jslibs in: %s\n", jslibsDir)
+
+		// Check if directory exists
+		if _, err := os.Stat(jslibsDir); os.IsNotExist(err) {
+			fmt.Printf("[DEBUG] Directory does not exist: %s\n", jslibsDir)
+			lastErr = fmt.Errorf("directory does not exist: %s", jslibsDir)
+			continue
 		}
-	}
 
-	// 按文件名排序，确保加载顺序一致
-	sort.Strings(jsFiles)
-
-	// 加载每个 JavaScript 库文件
-	for _, file := range jsFiles {
-		filePath := filepath.Join(jslibsDir, file)
-		content, err := os.ReadFile(filePath)
+		// Try to read the directory
+		entries, err := os.ReadDir(jslibsDir)
 		if err != nil {
-			return fmt.Errorf("failed to read JS library file %s: %v", file, err)
+			fmt.Printf("[DEBUG] Failed to read directory: %s (Error: %v)\n", jslibsDir, err)
+			lastErr = fmt.Errorf("failed to read jslibs directory: %v", err)
+			continue
 		}
 
-		// 执行 JavaScript 库代码
-		_, err = runtime.RunString(string(content))
-		if err != nil {
-			return fmt.Errorf("failed to execute JS library %s: %v", file, err)
+		// Found valid directory, proceed with loading
+		fmt.Printf("[INFO] Found jslibs directory: %s\n", jslibsDir)
+
+		// Collect all .js files
+		var jsFiles []string
+		for _, entry := range entries {
+			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".js") {
+				jsFiles = append(jsFiles, entry.Name())
+			}
 		}
 
-		fmt.Printf("Loaded JS library: %s\n", file)
+		// Sort by filename to ensure consistent loading order
+		sort.Strings(jsFiles)
+
+		// Load each JavaScript library file
+		for _, file := range jsFiles {
+			filePath := filepath.Join(jslibsDir, file)
+			content, err := os.ReadFile(filePath)
+			if err != nil {
+				return fmt.Errorf("failed to read JS library file %s: %v", file, err)
+			}
+
+			// Execute JavaScript library code
+			_, err = runtime.RunString(string(content))
+			if err != nil {
+				return fmt.Errorf("failed to execute JS library %s: %v", file, err)
+			}
+
+			fmt.Printf("Loaded JS library: %s\n", file)
+		}
+
+		// Successfully loaded jslibs from this directory
+		return nil
 	}
 
-	return nil
+	// If we got here, we failed to find jslibs in any directory
+	return fmt.Errorf("could not find jslibs directory. Tried: %v. Last error: %v", dirsToCheck, lastErr)
 }
 
 // InitJS 初始化 JS 环境
