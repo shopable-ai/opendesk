@@ -188,221 +188,114 @@ func getExecutableDir() (string, error) {
 	return execDir, nil
 }
 
-// getScriptDir returns the directory of the currently running script (if specified)
-func getScriptDir() (string, bool, error) {
-	// Search for -script flag in command line arguments
-	scriptPath := ""
-	for i, arg := range os.Args {
-		if arg == "-script" && i+1 < len(os.Args) {
-			scriptPath = os.Args[i+1]
-			break
-		}
-		if strings.HasPrefix(arg, "-script=") {
-			scriptPath = strings.TrimPrefix(arg, "-script=")
-			break
-		}
-	}
-
-	if scriptPath == "" {
-		return "", false, nil
-	}
-
-	// Make sure we have absolute path
-	if !filepath.IsAbs(scriptPath) {
-		cwd, err := os.Getwd()
-		if err != nil {
-			return "", false, fmt.Errorf("failed to get working directory: %v", err)
-		}
-		scriptPath = filepath.Join(cwd, scriptPath)
-	}
-
-	scriptDir := filepath.Dir(scriptPath)
-	fmt.Printf("[DEBUG] Script directory: %s\n", scriptDir)
-	return scriptDir, true, nil
-}
-
-// loadPolyfills loads all polyfill files
 func loadPolyfills(runtime *goja.Runtime) error {
-	// First try script directory if available
-	scriptDir, hasScriptDir, err := getScriptDir()
-	if err != nil {
-		fmt.Printf("[WARN] Error determining script directory: %v\n", err)
-	}
-
-	// Get the executable directory as fallback
+	// Get the executable directory
 	execDir, err := getExecutableDir()
 	if err != nil {
 		return fmt.Errorf("failed to get executable directory: %v", err)
 	}
 
-	// List of directories to check for polyfills
-	dirsToCheck := []string{}
+	// polyfills directory is a subdirectory of the executable directory
+	polyfillsDir := filepath.Join(execDir, "polyfills")
+	fmt.Printf("[DEBUG] Looking for polyfills in: %s\n", polyfillsDir)
 
-	// Add script directory first if available
-	if hasScriptDir {
-		dirsToCheck = append(dirsToCheck, filepath.Join(scriptDir, "polyfills"))
+	// Create the directory if it doesn't exist
+	if err := os.MkdirAll(polyfillsDir, 0755); err != nil {
+		return fmt.Errorf("failed to create polyfills directory: %v", err)
 	}
 
-	// Add executable directory
-	dirsToCheck = append(dirsToCheck, filepath.Join(execDir, "polyfills"))
-
-	// Try one directory up from executable
-	dirsToCheck = append(dirsToCheck, filepath.Join(filepath.Dir(execDir), "polyfills"))
-
-	// Finally, try current working directory
-	cwd, err := os.Getwd()
-	if err == nil {
-		dirsToCheck = append(dirsToCheck, filepath.Join(cwd, "polyfills"))
+	// Read all files in the directory
+	entries, err := os.ReadDir(polyfillsDir)
+	if err != nil {
+		return fmt.Errorf("failed to read polyfills directory: %v", err)
 	}
 
-	// Try each directory
-	var lastErr error
-	for _, polyfillsDir := range dirsToCheck {
-		fmt.Printf("[DEBUG] Checking for polyfills in: %s\n", polyfillsDir)
-
-		// Check if directory exists
-		if _, err := os.Stat(polyfillsDir); os.IsNotExist(err) {
-			fmt.Printf("[DEBUG] Directory does not exist: %s\n", polyfillsDir)
-			lastErr = fmt.Errorf("directory does not exist: %s", polyfillsDir)
-			continue
+	// Filter and sort JavaScript files
+	files := make([]string, 0)
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".js") {
+			files = append(files, entry.Name())
 		}
+	}
+	sort.Strings(files)
 
-		// Try to read the directory
-		entries, err := os.ReadDir(polyfillsDir)
+	if len(files) == 0 {
+		fmt.Printf("[WARN] No polyfill files found in: %s\n", polyfillsDir)
+	}
+
+	// Load each polyfill file
+	for _, file := range files {
+		filePath := filepath.Join(polyfillsDir, file)
+		content, err := os.ReadFile(filePath)
 		if err != nil {
-			fmt.Printf("[DEBUG] Failed to read directory: %s (Error: %v)\n", polyfillsDir, err)
-			lastErr = fmt.Errorf("failed to read polyfills directory: %v", err)
-			continue
+			return fmt.Errorf("failed to read polyfill file %s: %v", file, err)
 		}
 
-		// Found valid directory, proceed with loading
-		fmt.Printf("[INFO] Found polyfills directory: %s\n", polyfillsDir)
-
-		// Sort filenames to ensure consistent loading order
-		files := make([]string, 0)
-		for _, entry := range entries {
-			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".js") {
-				files = append(files, entry.Name())
-			}
-		}
-		sort.Strings(files)
-
-		// Load each polyfill file
-		for _, file := range files {
-			filePath := filepath.Join(polyfillsDir, file)
-			content, err := os.ReadFile(filePath)
-			if err != nil {
-				return fmt.Errorf("failed to read polyfill file %s: %v", file, err)
-			}
-
-			// Execute polyfill code
-			_, err = runtime.RunString(string(content))
-			if err != nil {
-				return fmt.Errorf("failed to execute polyfill %s: %v", file, err)
-			}
-
-			fmt.Printf("Loaded polyfill: %s\n", file)
+		// Execute polyfill code
+		_, err = runtime.RunString(string(content))
+		if err != nil {
+			return fmt.Errorf("failed to execute polyfill %s: %v", file, err)
 		}
 
-		// Successfully loaded polyfills from this directory
-		return nil
+		fmt.Printf("Loaded polyfill: %s\n", file)
 	}
 
-	// If we got here, we failed to find polyfills in any directory
-	return fmt.Errorf("could not find polyfills directory. Tried: %v. Last error: %v", dirsToCheck, lastErr)
+	return nil
 }
 
-// loadJSLibs loads all JavaScript library files
 func loadJSLibs(runtime *goja.Runtime) error {
-	// First try script directory if available
-	scriptDir, hasScriptDir, err := getScriptDir()
-	if err != nil {
-		fmt.Printf("[WARN] Error determining script directory: %v\n", err)
-	}
-
-	// Get the executable directory as fallback
+	// Get the executable directory
 	execDir, err := getExecutableDir()
 	if err != nil {
 		return fmt.Errorf("failed to get executable directory: %v", err)
 	}
 
-	// List of directories to check for jslibs
-	dirsToCheck := []string{}
+	// jslibs directory is a subdirectory of the executable directory
+	jslibsDir := filepath.Join(execDir, "jslibs")
+	fmt.Printf("[DEBUG] Looking for JS libraries in: %s\n", jslibsDir)
 
-	// Add script directory first if available
-	if hasScriptDir {
-		dirsToCheck = append(dirsToCheck, filepath.Join(scriptDir, "jslibs"))
+	// Create the directory if it doesn't exist
+	if err := os.MkdirAll(jslibsDir, 0755); err != nil {
+		return fmt.Errorf("failed to create jslibs directory: %v", err)
 	}
 
-	// Add executable directory
-	dirsToCheck = append(dirsToCheck, filepath.Join(execDir, "jslibs"))
-
-	// Try one directory up from executable
-	dirsToCheck = append(dirsToCheck, filepath.Join(filepath.Dir(execDir), "jslibs"))
-
-	// Finally, try current working directory
-	cwd, err := os.Getwd()
-	if err == nil {
-		dirsToCheck = append(dirsToCheck, filepath.Join(cwd, "jslibs"))
+	// Read all files in the directory
+	entries, err := os.ReadDir(jslibsDir)
+	if err != nil {
+		return fmt.Errorf("failed to read jslibs directory: %v", err)
 	}
 
-	// Try each directory
-	var lastErr error
-	for _, jslibsDir := range dirsToCheck {
-		fmt.Printf("[DEBUG] Checking for jslibs in: %s\n", jslibsDir)
-
-		// Check if directory exists
-		if _, err := os.Stat(jslibsDir); os.IsNotExist(err) {
-			fmt.Printf("[DEBUG] Directory does not exist: %s\n", jslibsDir)
-			lastErr = fmt.Errorf("directory does not exist: %s", jslibsDir)
-			continue
+	// Filter and sort JavaScript library files
+	var jsFiles []string
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".js") {
+			jsFiles = append(jsFiles, entry.Name())
 		}
+	}
+	sort.Strings(jsFiles)
 
-		// Try to read the directory
-		entries, err := os.ReadDir(jslibsDir)
+	if len(jsFiles) == 0 {
+		fmt.Printf("[WARN] No JS library files found in: %s\n", jslibsDir)
+	}
+
+	// Load each JavaScript library file
+	for _, file := range jsFiles {
+		filePath := filepath.Join(jslibsDir, file)
+		content, err := os.ReadFile(filePath)
 		if err != nil {
-			fmt.Printf("[DEBUG] Failed to read directory: %s (Error: %v)\n", jslibsDir, err)
-			lastErr = fmt.Errorf("failed to read jslibs directory: %v", err)
-			continue
+			return fmt.Errorf("failed to read JS library file %s: %v", file, err)
 		}
 
-		// Found valid directory, proceed with loading
-		fmt.Printf("[INFO] Found jslibs directory: %s\n", jslibsDir)
-
-		// Collect all .js files
-		var jsFiles []string
-		for _, entry := range entries {
-			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".js") {
-				jsFiles = append(jsFiles, entry.Name())
-			}
+		// Execute JavaScript library code
+		_, err = runtime.RunString(string(content))
+		if err != nil {
+			return fmt.Errorf("failed to execute JS library %s: %v", file, err)
 		}
 
-		// Sort by filename to ensure consistent loading order
-		sort.Strings(jsFiles)
-
-		// Load each JavaScript library file
-		for _, file := range jsFiles {
-			filePath := filepath.Join(jslibsDir, file)
-			content, err := os.ReadFile(filePath)
-			if err != nil {
-				return fmt.Errorf("failed to read JS library file %s: %v", file, err)
-			}
-
-			// Execute JavaScript library code
-			_, err = runtime.RunString(string(content))
-			if err != nil {
-				return fmt.Errorf("failed to execute JS library %s: %v", file, err)
-			}
-
-			fmt.Printf("Loaded JS library: %s\n", file)
-		}
-
-		// Successfully loaded jslibs from this directory
-		return nil
+		fmt.Printf("Loaded JS library: %s\n", file)
 	}
 
-	// If we got here, we failed to find jslibs in any directory
-	return fmt.Errorf("could not find jslibs directory. Tried: %v. Last error: %v", dirsToCheck, lastErr)
+	return nil
 }
 
 // InitJS 初始化 JS 环境
