@@ -292,7 +292,7 @@ func (p *Page) Title() string {
 	return title
 }
 
-// Page 结构体中添加 WaitFor 方法
+// Page 结构体中添加 WaitFor 方法 , 直接在polyfill中的js里面实现，因为有同名的。
 func (p *Page) WaitFor(milliseconds int64) error {
 	// 打印信息
 	fmt.Printf("Waiting for %d milliseconds...\n", milliseconds)
