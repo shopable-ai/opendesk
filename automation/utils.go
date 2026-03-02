@@ -357,6 +357,16 @@ func InitJS(runtime *goja.Runtime) error {
 	// 	return fmt.Errorf("failed to set globalThis: %v", err)
 	// }
 
+	// 然后加载 polyfills
+	if err := loadPolyfills(runtime); err != nil {
+		return fmt.Errorf("failed to load polyfills: %v", err)
+	}
+
+	// 加载 jslibs
+	if err := loadJSLibs(runtime); err != nil {
+		return fmt.Errorf("failed to load JS libraries: %v", err)
+	}
+
 	// 创建新的 page 实例
 	page := NewPage()
 
@@ -384,7 +394,7 @@ func InitJS(runtime *goja.Runtime) error {
 	pageObj["touchscreen"] = touchscreenMethods
 
 	// 设置 page 对象到 JS 运行时
-	runtime.Set("page____Inject", pageObj)
+	runtime.Set("page", pageObj)
 
 	// 初始化屏幕
 	screen := NewScreen()
@@ -393,16 +403,6 @@ func InitJS(runtime *goja.Runtime) error {
 	// 直接在 runtime 中设置别名或引用
 	runtime.RunString(`Screen.screenshot = page.screenshot;`)
 
-	// 然后加载 polyfills
-	if err := loadPolyfills(runtime); err != nil {
-		return fmt.Errorf("failed to load polyfills: %v", err)
-	}
-
-	// 加载 jslibs
-	if err := loadJSLibs(runtime); err != nil {
-		return fmt.Errorf("failed to load JS libraries: %v", err)
-	}
-	
 	// 初始化并注册 axios , 已经被http.go 和axios.js替代
 	// axios := NewAxios(runtime)
 	// axios.RegisterInRuntime()

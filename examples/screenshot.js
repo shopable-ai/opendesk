@@ -7,9 +7,9 @@
 // Test 2: 保存到指定路径
 console.log("\nTest 2: Save to Path");
 let testImageBase = await page.screenshot({
-    path: "temp/test.png"
+    path: "temp/screenshot.png"
 });
-console.log("Screenshot saved to temp/test.png", testImageBase.substring(0, 100) + "...");
+console.log("Screenshot saved to temp/screenshot.png", testImageBase.substring(0, 100) + "...");
 
 // Test 3: 指定区域截图
 console.log("\nTest 3: Clipped Screenshot");

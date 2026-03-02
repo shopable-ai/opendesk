@@ -187,8 +187,8 @@ func (a *Axios) patch(call goja.FunctionCall) goja.Value {
 	return a.httpMethod(http.MethodPatch, call)
 }
 
-func must(err error) {
-	if err != nil {
-		panic(err)
-	}
-}
+// func must(err error) {
+// 	if err != nil {
+// 		panic(err)
+// 	}
+// }
