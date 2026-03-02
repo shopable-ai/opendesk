@@ -143,6 +143,10 @@ declare class ImageColor {
      * @returns true if successful
      */
     save(imageStr: string, path: string, format?: string, quality?: number): Promise<boolean>;
+    
+    findPos(sourceImgStr: string, templateImgStr: string, args?: number[]): Promise<{confidence,found,x,y,width,height}>;
+
+    loadBase64(path: string): Promise<string>;
 }
 
 declare global {

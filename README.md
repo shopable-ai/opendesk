@@ -25,7 +25,22 @@ go run main.go -script examples/appStorage.js
 go run main.go -script examples/screen.js
 go run main.go -script examples/sound.js
 go run main.go -script examples/file.js
+go run main.go -script examples/os.js
+
+
+go run main.go -script examples/clipboard.test.js
+
+go run main.go -script examples/globalThis.js
+
 go run main.go -script examples/imageColor.js
+go run main.go -script examples/opencv.js
+
+
+go run main.go -script examples/app/pinduoduo.js
+go run main.go -script examples/app/qianniu.js
+
+### libs
+go run main.go -script examples/moment.js
 
 go run main.go -script examples/start.js -timeout 0   # 无超时时限，默认 -timeout 30 分钟
 
@@ -33,7 +48,21 @@ go run main.go -http   # 启动 HTTP 服务器模式
 
 go run main.go -script examples/test.txt -delay 1  # 后期未使用，可能无法使用
 
+testMonkey.exe -script examples/app/qianniu.js
 
+### 测试
+testMonkey.exe -script examples/clipboard.test.js
+go run main.go -script examples/clipboard.test.js
+testMonkey.exe -script examples/opencv.js
+
+
+
+C:/Users/111/Documents/workspace/testMonkey-go/testMonkey.exe  -script C:/Users/111/Documents/workspace/testMonkey-go/examples/app/clickQianniuFloat.js
+
+
+## 调试
+直接代码运行。
+> 发布环境，exe直接运行。把代码从默认的ts.config.js中提取出来，放到其他文件。 cmd 运行，如 testMonkey.exe -script qianniu.js  就可以看到报错信息。
 
 ## 构建
 
@@ -49,3 +78,8 @@ curl -X POST http://localhost:8080 -d '[
     {"action": "click", "params": {"x": 100, "y": 200}},
     {"action": "type", "params": {"text": "Hello, World!"}}
 ]'
+
+
+
+## 代码说明
+axios.go 被http.go 和axios.js 代替， 可以删除。

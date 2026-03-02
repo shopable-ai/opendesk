@@ -2,7 +2,7 @@
 
 // Function to get Pinduoduo window
 async function getPinduoduoWindow() {
-    let windows = await window.listWindows();
+    let windows = await window.list();
     return windows?.find(win => 
         win.exeName === 'WeChatAppEx.exe' && 
         win.title === '拼多多'
@@ -69,7 +69,7 @@ async function automationWithStop() {
 // await page.waitFor(1500);
 // await slide();
 
-let windows = await window.listWindows();
+let windows = await window.list();
 // console.log('所有窗口信息:', windows);
 console.log('窗口数量:', windows.length);
 
@@ -77,7 +77,7 @@ console.log('窗口数量:', windows.length);
 let windowPinduoduo = windows?.find(win => win.exeName == 'WeChatAppEx.exe' && win.title== '拼多多');
 
 async function openPinduoduoVideo(windows = null) {
-    windows = windows || await window.listWindows();
+    windows = windows || await window.list();
     const windowPinduoduo = windows?.find(win => 
         win.exeName === 'WeChatAppEx.exe' && 
         win.title === '拼多多'
@@ -108,7 +108,7 @@ async function openPinduoduoVideo(windows = null) {
 
 async function closePinduoduoWindow(windowPinduoduo = null) {
     if (!windowPinduoduo) {
-        let windows = await window.listWindows();
+        let windows = await window.list();
         windowPinduoduo = windows?.find(win => 
             win.exeName === 'WeChatAppEx.exe' && 
             win.title === '拼多多'
@@ -127,7 +127,7 @@ async function closePinduoduoWindow(windowPinduoduo = null) {
 
 // Usage example:
 async function handlePinduoduoVideo(windows) {
-    windows = windows || await window.listWindows();
+    windows = windows || await window.list();
     const window = await openPinduoduoVideo(windows);
     if (window) {
         await closePinduoduoWindow(window);
@@ -136,7 +136,7 @@ async function handlePinduoduoVideo(windows) {
 
 // get wechat window
 async function getWechatWindow() {
-    let windows = await window.listWindows();
+    let windows = await window.list();
     let wechats , wechatWindow;
     wechats = windows.filter(win => win.exeName == 'WeChat.exe' && win.title== '微信');
     // 如果wechats 里面有多个窗口，则取 width height 最大的一个
@@ -149,7 +149,7 @@ async function getWechatWindow() {
 }
 
 async function topWechatWindows() {
-    let windows = await window.listWindows();
+    let windows = await window.list();
     let wechats , wechatWindow;
     wechats = windows.filter(win => win.exeName == 'WeChat.exe' && win.title== '微信');
     console.log('topWechatWindows wechats', wechats);
@@ -174,7 +174,7 @@ async function topWechatWindows() {
 }
 
 async function openMiniAppWindow() {
-    let windows = await window.listWindows();
+    let windows = await window.list();
     // let wechatWindow = windows.find(win => win.exeName == 'WeChat.exe' && win.title== '微信'); 
     let wechatWindow = await getWechatWindow();
     let wechats = windows.filter(win => win.exeName == 'WeChat.exe' && win.title== '微信');    
@@ -218,7 +218,7 @@ console.log('miniAppWindows', miniAppWindows? miniAppWindows : '未找到微信�
 if ( !miniAppWindows) {
     console.log("未找到微信小程序窗口，尝试打开");
     await openMiniAppWindow();
-    windows = await window.listWindows();
+    windows = await window.list();
     miniAppWindows = windows.find(win => win.exeName == 'WeChatAppEx.exe' && win.title== '微信');
 }
 

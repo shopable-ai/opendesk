@@ -105,6 +105,9 @@ declare class WindowManager {
      */
     setWindowBounds(title: string, x: number, y: number, width: number, height: number): Promise<void>;
 
+    setWidth(title: string, width: number): Promise<void>;
+    setHeight(title: string, height: number): Promise<void>;
+    
     /**
      * Maximizes the specified window
      * @param title The window title

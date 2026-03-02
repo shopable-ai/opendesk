@@ -136,7 +136,11 @@ async function autoClickQianniuShops(options = {}) {
     // 点击所有悬浮窗口的相对坐标
     await clickAllFloatingWindows(relativeX, relativeY);
     
-    console.log('自动点击完成');
+    if (floatingWindows.length > 0) {
+        console.log('自动点击完成');        
+    }else {
+        notify('没有找到悬浮窗口');
+    }
 }
 
 

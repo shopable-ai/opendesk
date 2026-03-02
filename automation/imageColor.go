@@ -15,6 +15,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"gocv.io/x/gocv"
 )
 
 // ImageColor provides image analysis and color manipulation functionality
@@ -23,6 +25,145 @@ type ImageColor struct{}
 // NewImageColor creates a new instance of ImageColor
 func NewImageColor() *ImageColor {
 	return &ImageColor{}
+}
+
+// FindPos 用图找图功能（模板匹配），返回位置、置信度以及模板的宽高
+func (ic *ImageColor) FindPos(sourceImgStr, templateImgStr string, args ...float32) (map[string]interface{}, error) {
+	threshold := float32(0.8)
+	if len(args) > 0 {
+		threshold = args[0]
+	}
+
+	// Load source and template images
+	sourceImg, err := ic.loadImage(sourceImgStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load source image: %v", err)
+	}
+	templateImg, err := ic.loadImage(templateImgStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load template image: %v", err)
+	}
+
+	// Convert to gocv.Mat
+	sourceMat, err := gocv.ImageToMatRGB(sourceImg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert source image to Mat: %v", err)
+	}
+	defer sourceMat.Close()
+
+	templateMat, err := gocv.ImageToMatRGB(templateImg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert template image to Mat: %v", err)
+	}
+	defer templateMat.Close()
+
+	// Ensure template is smaller than source
+	if templateMat.Cols() > sourceMat.Cols() || templateMat.Rows() > sourceMat.Rows() {
+		return nil, fmt.Errorf("template (%dx%d) larger than source (%dx%d)",
+			templateMat.Cols(), templateMat.Rows(), sourceMat.Cols(), sourceMat.Rows())
+	}
+
+	// Create result matrix
+	resultWidth := sourceMat.Cols() - templateMat.Cols() + 1
+	resultHeight := sourceMat.Rows() - templateMat.Rows() + 1
+	result := gocv.NewMatWithSize(resultHeight, resultWidth, gocv.MatTypeCV32F)
+	defer result.Close()
+
+	// Perform template matching
+	gocv.MatchTemplate(sourceMat, templateMat, &result, gocv.TmCcoeffNormed, gocv.NewMat())
+
+	// Find best match
+	_, maxVal, _, maxLoc := gocv.MinMaxLoc(result)
+
+	// Get template dimensions
+	templateWidth := templateMat.Cols()
+	templateHeight := templateMat.Rows()
+
+	// Prepare result
+	res := make(map[string]interface{})
+	res["confidence"] = float64(maxVal)
+	res["width"] = templateWidth
+	res["height"] = templateHeight
+
+	if maxVal < threshold {
+		res["x"] = -1
+		res["y"] = -1
+		res["found"] = false
+	} else {
+		res["x"] = maxLoc.X
+		res["y"] = maxLoc.Y
+		res["found"] = true
+	}
+
+	return res, nil
+}
+
+// loadImage 加载图像，支持 base64 字符串或文件路径（绝对/相对）
+func (ic *ImageColor) loadImage(imgStr string) (image.Image, error) {
+	// 检查是否为 base64 字符串
+	if strings.Contains(imgStr, "base64,") || len(imgStr) > 100 { // 粗略判断是否可能是 base64
+		return ic.decodeBitmap(imgStr)
+	}
+
+	// 视为文件路径，处理相对路径和绝对路径
+	path := imgStr
+	if !filepath.IsAbs(path) {
+		// 如果是相对路径，转换为绝对路径（基于当前工作目录）
+		absPath, err := filepath.Abs(path)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve relative path: %v", err)
+		}
+		path = absPath
+	}
+
+	// 从文件读取图像
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open image file: %v", err)
+	}
+	defer file.Close()
+
+	// 尝试解码为 PNG 或 JPEG
+	img, err := png.Decode(file)
+	if err != nil {
+		// 重置文件指针，尝试 JPEG
+		file.Seek(0, 0)
+		img, err = jpeg.Decode(file)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode image file as PNG or JPEG: %v", err)
+		}
+	}
+	return img, nil
+}
+
+func (ic *ImageColor) LoadBase64(imagePath string) (string, error) {
+	// 打开图片文件
+	file, err := os.Open(imagePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to open image file: %v", err)
+	}
+	defer file.Close()
+
+	// 解码图片
+	img, _, err := image.Decode(file)
+	if err != nil {
+		return "", fmt.Errorf("failed to decode image from path: %v", err)
+	}
+
+	// 创建缓冲区
+	var buf bytes.Buffer
+	encoder := png.Encoder{
+		CompressionLevel: png.BestCompression,
+	}
+
+	// 编码为PNG
+	if err := encoder.Encode(&buf, img); err != nil {
+		return "", fmt.Errorf("failed to encode image to PNG: %v", err)
+	}
+
+	// 转换为base64
+	base64Str := base64.StdEncoding.EncodeToString(buf.Bytes())
+	return "data:image/png;base64," + base64Str, nil
 }
 
 // decodeBitmap converts a base64 image string to an image.Image
@@ -441,34 +582,19 @@ func (ic *ImageColor) GetSize(imageStr string) []int {
 		return nil
 	}
 
-	// Remove data URL prefix if present
-	base64Str := imageStr
-	if strings.Contains(imageStr, "base64,") {
-		base64Str = strings.Split(imageStr, "base64,")[1]
-	}
-
-	// Decode base64 string
-	imageBytes, err := base64.StdEncoding.DecodeString(base64Str)
+	// 使用 loadImage 方法加载图像
+	img, err := ic.loadImage(imageStr)
 	if err != nil {
 		return nil
 	}
 
-	// Create a bytes reader
-	reader := bytes.NewReader(imageBytes)
+	// 获取图像尺寸
+	bounds := img.Bounds()
+	width := bounds.Max.X - bounds.Min.X
+	height := bounds.Max.Y - bounds.Min.Y
 
-	// Try to decode as PNG first
-	config, err := png.DecodeConfig(reader)
-	if err != nil {
-		// If PNG decode fails, reset reader and try JPEG
-		reader.Seek(0, 0)
-		config, err = jpeg.DecodeConfig(reader)
-		if err != nil {
-			return nil
-		}
-	}
-
-	// Return actual dimensions from the image config
-	return []int{config.Width, config.Height}
+	// 返回实际尺寸
+	return []int{width, height}
 }
 
 // ColorBlock represents a detected color block region
@@ -1130,16 +1256,6 @@ func (ic *ImageColor) IsColorSimilar(targetColor, gradientColor string, toleranc
 
 	return result, nil
 }
-
-// // loadImage 智能判断并加载图像
-// func loadImage(input string) (gocv.Mat, error) {
-// 	// 判断是否为base64编码
-// 	if isBase64(input) {
-// 		return loadImageFromBase64(input)
-// 	}
-// 	// 否则视为文件路径
-// 	return loadImageFromPath(input)
-// }
 
 // isBase64 判断字符串是否为base64编码
 func isBase64(str string) bool {
