@@ -1,8 +1,8 @@
 # 使用说明
 
 ## 运行使用
-testMonkey.exe -script examples/notify.js
-testMonkey.exe -script examples/notify.js -delay 1
+clawdesk.exe -script examples/notify.js
+clawdesk.exe -script examples/notify.js -delay 1
 
 
 ## CLI 模式运行脚本文件
@@ -48,27 +48,27 @@ go run main.go -http   # 启动 HTTP 服务器模式
 
 go run main.go -script examples/test.txt -delay 1  # 后期未使用，可能无法使用
 
-testMonkey.exe -script examples/app/qianniu.js
+clawdesk.exe -script examples/app/qianniu.js
 
 ### 测试
-testMonkey.exe -script examples/clipboard.test.js
+clawdesk.exe -script examples/clipboard.test.js
 go run main.go -script examples/clipboard.test.js
-testMonkey.exe -script examples/opencv.js
+clawdesk.exe -script examples/opencv.js
 
 
 
-C:/Users/111/Documents/workspace/testMonkey-go/testMonkey.exe  -script C:/Users/111/Documents/workspace/testMonkey-go/examples/app/clickQianniuFloat.js
+C:/Users/111/Documents/workspace/clawdesk/clawdesk.exe -script C:/Users/111/Documents/workspace/clawdesk/examples/app/clickQianniuFloat.js
 
 
 ## 调试
 直接代码运行。
-> 发布环境，exe直接运行。把代码从默认的ts.config.js中提取出来，放到其他文件。 cmd 运行，如 testMonkey.exe -script qianniu.js  就可以看到报错信息。
+> 发布环境，exe直接运行。把代码从默认的ts.config.js中提取出来，放到其他文件。 cmd 运行，如 clawdesk.exe -script qianniu.js  就可以看到报错信息。
 
 ## 构建
 
-go build -o testMonkey.exe main.go
+go build -o clawdesk.exe main.go
 
-go build -ldflags="-s -w" -o testMonkey.exe main.go
+go build -ldflags="-s -w" -o clawdesk.exe main.go
 
 ## HTTP 服务器模式
 旧版本,可能无法使用
