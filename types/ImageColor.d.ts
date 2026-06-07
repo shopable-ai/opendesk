@@ -8,6 +8,113 @@ interface ColorBlock {
     match: number;
 }
 
+interface LayoutSeparator {
+    orientation: "vertical" | "horizontal";
+    position: number;
+    thickness: number;
+    score: number;
+    source: string;
+    confidence: number;
+    meta?: Record<string, any>;
+}
+
+interface LayoutRegion {
+    id: string;
+    role: string;
+    label: string;
+    bbox: {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+    };
+    center?: { x: number; y: number };
+    avgColor?: string;
+    confidence?: number;
+    meta?: Record<string, any>;
+}
+
+interface LayoutSeparatorHint {
+    label?: string;
+    from: number;
+    to: number;
+}
+
+interface LayoutAnalyzeOptions {
+    cellSize?: number;
+    quantize?: number;
+    tolerance?: number;
+    minRegionArea?: number;
+    maxRegions?: number;
+    maxDepth?: number;
+    minSplitSpan?: number;
+    minSeparatorScore?: number;
+    maxSeparatorCandidates?: number;
+    separatorHints?: {
+        vertical?: LayoutSeparatorHint[];
+        horizontal?: LayoutSeparatorHint[];
+    };
+    profile?: string;
+    /**
+     * Cell color computation mode
+     * - "mean": arithmetic mean (original, faster but sensitive to text noise)
+     * - "median": median value (default, more robust against text/foreground noise)
+     * - "trimmed": trimmed mean (removes outliers)
+     * - "dominant": dominant color (most frequent)
+     * @default "median"
+     */
+    cellColorMode?: "mean" | "median" | "trimmed" | "dominant";
+    /**
+     * Boundary span width for region contrast calculation
+     * Defines how many cells on each side to consider when computing region-level color contrast
+     * Higher values provide more stable boundaries but may miss narrow separators
+     * @default 3
+     * @range 1-8
+     */
+    boundarySpanWidth?: number;
+}
+
+interface LayoutAnalyzeResult {
+    width: number;
+    height: number;
+    grid: {
+        cellSize: number;
+        gridWidth: number;
+        gridHeight: number;
+        quantize: number;
+        tolerance: number;
+        minRegionArea: number;
+        maxDepth: number;
+        minSplitSpan: number;
+        minSeparatorScore: number;
+        maxSeparatorCandidates: number;
+    };
+    regions: LayoutRegion[];
+    separators: {
+        vertical: LayoutSeparator[];
+        horizontal: LayoutSeparator[];
+    };
+    floodRegions: Array<{
+        label: number;
+        bbox: { x: number; y: number; width: number; height: number };
+        area: number;
+        fillRatio: number;
+        avgColor: string;
+    }>;
+    warnings: string[];
+    debug: {
+        separatorHints: {
+            vertical: LayoutSeparatorHint[];
+            horizontal: LayoutSeparatorHint[];
+        };
+        rootCandidates: {
+            vertical: LayoutSeparator[];
+            horizontal: LayoutSeparator[];
+        };
+        tree: Record<string, any>;
+    };
+}
+
 interface CropOptions {
     /**
      * X coordinate of the crop start point
@@ -134,6 +241,8 @@ declare class ImageColor {
      */
     clip(imageStr: string, options?: CropOptions): Promise<string>;
 
+    resize(imageStr: string, width: number, height: number): Promise<string>;
+
     /**
      * Saves an image to a file
      * @param imageStr Base64 encoded image string
@@ -147,6 +256,8 @@ declare class ImageColor {
     findPos(sourceImgStr: string, templateImgStr: string, args?: number[]): Promise<{confidence,found,x,y,width,height}>;
 
     loadBase64(path: string): Promise<string>;
+
+    analyzeLayout(imageStr: string, options?: LayoutAnalyzeOptions): Promise<LayoutAnalyzeResult>;
 }
 
 declare global {

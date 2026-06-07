@@ -15,7 +15,10 @@ type ScreenshotOptions struct {
 	FullPage       bool         `json:"fullPage"`
 	OmitBackground bool         `json:"omitBackground"`
 	Encoding       string       `json:"encoding"`
+	ReturnType     string       `json:"returnType"`
 	Path           string       `json:"path"`
+	Target         string       `json:"target"`
+	DisplayIndex   int          `json:"displayIndex"`
 	Clip           *ClipOptions `json:"clip"`
 }
 
@@ -36,6 +39,7 @@ const (
 	DefaultType     = "png"
 	DefaultQuality  = 100
 	DefaultEncoding = "binary"
+	DefaultTarget   = "activeWindow"
 )
 
 // DefaultScreenshotOptions provides default values
@@ -45,6 +49,9 @@ var DefaultScreenshotOptions = ScreenshotOptions{
 	FullPage:       false,
 	OmitBackground: false,
 	Encoding:       DefaultEncoding,
+	ReturnType:     "",
+	Target:         DefaultTarget,
+	DisplayIndex:   0,
 }
 
 // Helper functions for creating pointers to values

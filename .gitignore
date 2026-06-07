@@ -1,2 +1,29 @@
 temp/
 __debug*
+
+# macOS / editor noise
+.DS_Store
+
+# local agent/tool state
+.hermes/
+.omx/
+.playwright-cli/
+.playwright-mcp/
+
+# runtime and build output
+.runtime/
+dist/
+coverage.out
+visualize
+annotate
+
+# Python cache
+__pycache__/
+*.pyc
+
+# generated test output
+automation/test_images_output/
+test_images_output/
+drawing_demo.png
+wechat_quick_test.png
+wechat_analysis_output.txt

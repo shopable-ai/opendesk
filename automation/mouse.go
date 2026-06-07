@@ -8,15 +8,6 @@ import (
 	"github.com/go-vgo/robotgo"
 )
 
-var (
-	mouseEvent = user32.NewProc("mouse_event")
-)
-
-const (
-	MOUSEEVENTF_WHEEL    = 0x0800
-	MOUSEEVENTF_ABSOLUTE = 0x8000
-)
-
 type Mouse struct{}
 
 func NewMouse() *Mouse {
@@ -228,12 +219,6 @@ type MouseWheelOptions struct {
 }
 
 func (m *Mouse) Wheel(options interface{}) error {
-	// 先尝试获取 mouse_event 并检查是否成功
-	mouseEvent := user32.NewProc("mouse_event")
-	if mouseEvent == nil {
-		return fmt.Errorf("failed to get mouse_event procedure")
-	}
-
 	// 默认选项
 	opts := MouseWheelOptions{
 		DeltaX: 0,
@@ -250,32 +235,47 @@ func (m *Mouse) Wheel(options interface{}) error {
 			} else if dy, ok := optMap["deltaY"].(float64); ok {
 				opts.DeltaY = int(dy)
 			}
+			if dx, ok := optMap["deltaX"].(int); ok {
+				opts.DeltaX = dx
+			} else if dx, ok := optMap["deltaX"].(float64); ok {
+				opts.DeltaX = int(dx)
+			}
+			if steps, ok := optMap["steps"].(int); ok {
+				opts.Steps = steps
+			} else if steps, ok := optMap["steps"].(float64); ok {
+				opts.Steps = int(steps)
+			}
+			if delay, ok := optMap["delay"].(int); ok {
+				opts.Delay = delay
+			} else if delay, ok := optMap["delay"].(float64); ok {
+				opts.Delay = int(delay)
+			}
 		}
 	}
 
-	fmt.Printf("Starting wheel operation with deltaY=%d\n", opts.DeltaY)
-
-	// 试试直接使用固定值测试
-	wheelDelta := 120 // 使用标准的滚轮单位
-	if opts.DeltaY > 0 {
-		wheelDelta = -120 // 向下滚动
+	if opts.Steps <= 0 {
+		opts.Steps = 1
 	}
 
-	// 调用 mouse_event 并检查返回值
-	r1, r2, err := mouseEvent.Call(
-		uintptr(MOUSEEVENTF_WHEEL),
-		0,
-		0,
-		uintptr(wheelDelta),
-		0,
-	)
+	stepDeltaX := opts.DeltaX / opts.Steps
+	stepDeltaY := opts.DeltaY / opts.Steps
+	remainX := opts.DeltaX % opts.Steps
+	remainY := opts.DeltaY % opts.Steps
 
-	fmt.Printf("mouse_event results: r1=%d, r2=%d, err=%v\n", r1, r2, err)
-
-	if err != nil && err.Error() != "The operation completed successfully." {
-		return fmt.Errorf("mouse_event failed: %v", err)
+	for i := 0; i < opts.Steps; i++ {
+		dx := stepDeltaX
+		dy := stepDeltaY
+		if i == opts.Steps-1 {
+			dx += remainX
+			dy += remainY
+		}
+		if dx != 0 || dy != 0 {
+			robotgo.ScrollRelative(dx, dy)
+		}
+		if opts.Delay > 0 {
+			time.Sleep(time.Duration(opts.Delay) * time.Millisecond)
+		}
 	}
 
-	time.Sleep(100 * time.Millisecond)
 	return nil
 }

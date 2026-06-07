@@ -12,6 +12,28 @@ import (
 	"github.com/dop251/goja"
 )
 
+// InitJSOptions 控制 JS 运行时初始化行为。
+type InitJSOptions struct {
+	EventSink EventSink
+}
+
+func emitRuntimeLog(sink EventSink, level, message string, fields map[string]any) {
+	if sink != nil {
+		sink.Emit("framework", level, "runtime", "log", message, fields)
+		return
+	}
+	prefix := "[INFO]"
+	switch strings.ToLower(strings.TrimSpace(level)) {
+	case "debug":
+		prefix = "[DEBUG]"
+	case "warn":
+		prefix = "[WARN]"
+	case "error":
+		prefix = "[ERROR]"
+	}
+	fmt.Printf("%s %s\n", prefix, message)
+}
+
 func AutoMapMethods(runtime *goja.Runtime, goObj interface{}, jsObjName string) map[string]interface{} {
 	val := reflect.ValueOf(goObj)
 	typ := val.Type()
@@ -122,7 +144,16 @@ func createJSMethodWrapper(runtime *goja.Runtime, receiver reflect.Value, method
 		}
 
 		// 转换返回值为 JavaScript 值
-		return runtime.ToValue(results[0].Interface())
+		return jsValueForResult(runtime, results[0].Interface())
+	}
+}
+
+func jsValueForResult(runtime *goja.Runtime, result interface{}) goja.Value {
+	switch v := result.(type) {
+	case []byte:
+		return runtime.ToValue(runtime.NewArrayBuffer(v))
+	default:
+		return runtime.ToValue(result)
 	}
 }
 
@@ -177,40 +208,102 @@ func MapPageToJS(runtime *goja.Runtime, page *Page) error {
 	return nil
 }
 
-// getExecutableDir returns the directory where the executable is located
-func getExecutableDir() (string, error) {
+func getExecutableDirWithSink(sink EventSink) (string, error) {
 	execPath, err := os.Executable()
 	if err != nil {
 		return "", fmt.Errorf("failed to get executable path: %v", err)
 	}
 	execDir := filepath.Dir(execPath)
-	fmt.Printf("[DEBUG] Executable directory: %s\n", execDir)
+	emitRuntimeLog(sink, "debug", fmt.Sprintf("Executable directory: %s", execDir), nil)
 	return execDir, nil
 }
 
-func loadPolyfills(runtime *goja.Runtime) error {
-	// Get the executable directory
-	execDir, err := getExecutableDir()
+// getExecutableDir 返回可执行文件所在目录。
+func getExecutableDir() (string, error) {
+	return getExecutableDirWithSink(nil)
+}
+
+func hasJSFiles(dir string) bool {
+	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return fmt.Errorf("failed to get executable directory: %v", err)
+		return false
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".js") {
+			return true
+		}
+	}
+	return false
+}
+
+// resolveResourceDirWithSink 优先查找可执行文件目录，其次查找当前工作目录。
+func resolveResourceDirWithSink(name string, sink EventSink) (string, error) {
+	candidates := make([]string, 0, 8)
+
+	appendProbeChain := func(base string) {
+		if strings.TrimSpace(base) == "" {
+			return
+		}
+		current := base
+		for {
+			candidates = append(candidates, filepath.Join(current, name))
+			parent := filepath.Dir(current)
+			if parent == current {
+				break
+			}
+			current = parent
+		}
 	}
 
-	// polyfills directory is a subdirectory of the executable directory
-	polyfillsDir := filepath.Join(execDir, "polyfills")
-	fmt.Printf("[DEBUG] Looking for polyfills in: %s\n", polyfillsDir)
-
-	// Create the directory if it doesn't exist
-	if err := os.MkdirAll(polyfillsDir, 0755); err != nil {
-		return fmt.Errorf("failed to create polyfills directory: %v", err)
+	if execDir, err := getExecutableDirWithSink(sink); err == nil {
+		appendProbeChain(execDir)
+	}
+	if wd, err := os.Getwd(); err == nil {
+		appendProbeChain(wd)
 	}
 
-	// Read all files in the directory
+	seen := make(map[string]struct{})
+	for _, dir := range candidates {
+		if _, ok := seen[dir]; ok {
+			continue
+		}
+		seen[dir] = struct{}{}
+
+		emitRuntimeLog(sink, "debug", fmt.Sprintf("Probing %s in: %s", name, dir), nil)
+		if hasJSFiles(dir) {
+			emitRuntimeLog(sink, "debug", fmt.Sprintf("Using %s from: %s", name, dir), nil)
+			return dir, nil
+		}
+	}
+
+	if len(candidates) == 0 {
+		return "", fmt.Errorf("no candidate directory available for %s", name)
+	}
+
+	if err := os.MkdirAll(candidates[0], 0o755); err != nil {
+		return "", fmt.Errorf("failed to create %s directory: %v", name, err)
+	}
+	emitRuntimeLog(sink, "warn", fmt.Sprintf("No JS files found for %s, fallback directory: %s", name, candidates[0]), nil)
+	return candidates[0], nil
+}
+
+// resolveResourceDir 保持原有无 sink 调用入口。
+func resolveResourceDir(name string) (string, error) {
+	return resolveResourceDirWithSink(name, nil)
+}
+
+func loadPolyfillsWithSink(runtime *goja.Runtime, sink EventSink) error {
+	polyfillsDir, err := resolveResourceDirWithSink("polyfills", sink)
+	if err != nil {
+		return fmt.Errorf("failed to resolve polyfills directory: %v", err)
+	}
+	emitRuntimeLog(sink, "debug", fmt.Sprintf("Looking for polyfills in: %s", polyfillsDir), nil)
+
 	entries, err := os.ReadDir(polyfillsDir)
 	if err != nil {
 		return fmt.Errorf("failed to read polyfills directory: %v", err)
 	}
 
-	// Filter and sort JavaScript files
 	files := make([]string, 0)
 	for _, entry := range entries {
 		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".js") {
@@ -220,52 +313,41 @@ func loadPolyfills(runtime *goja.Runtime) error {
 	sort.Strings(files)
 
 	if len(files) == 0 {
-		fmt.Printf("[WARN] No polyfill files found in: %s\n", polyfillsDir)
+		emitRuntimeLog(sink, "warn", fmt.Sprintf("No polyfill files found in: %s", polyfillsDir), nil)
 	}
 
-	// Load each polyfill file
 	for _, file := range files {
 		filePath := filepath.Join(polyfillsDir, file)
 		content, err := os.ReadFile(filePath)
 		if err != nil {
 			return fmt.Errorf("failed to read polyfill file %s: %v", file, err)
 		}
-
-		// Execute polyfill code
 		_, err = runtime.RunString(string(content))
 		if err != nil {
 			return fmt.Errorf("failed to execute polyfill %s: %v", file, err)
 		}
-
-		fmt.Printf("Loaded polyfill: %s\n", file)
+		emitRuntimeLog(sink, "debug", fmt.Sprintf("Loaded polyfill: %s", file), nil)
 	}
 
 	return nil
 }
 
-func loadJSLibs(runtime *goja.Runtime) error {
-	// Get the executable directory
-	execDir, err := getExecutableDir()
+func loadPolyfills(runtime *goja.Runtime) error {
+	return loadPolyfillsWithSink(runtime, nil)
+}
+
+func loadJSLibsWithSink(runtime *goja.Runtime, sink EventSink) error {
+	jslibsDir, err := resolveResourceDirWithSink("jslibs", sink)
 	if err != nil {
-		return fmt.Errorf("failed to get executable directory: %v", err)
+		return fmt.Errorf("failed to resolve jslibs directory: %v", err)
 	}
+	emitRuntimeLog(sink, "debug", fmt.Sprintf("Looking for JS libraries in: %s", jslibsDir), nil)
 
-	// jslibs directory is a subdirectory of the executable directory
-	jslibsDir := filepath.Join(execDir, "jslibs")
-	fmt.Printf("[DEBUG] Looking for JS libraries in: %s\n", jslibsDir)
-
-	// Create the directory if it doesn't exist
-	if err := os.MkdirAll(jslibsDir, 0755); err != nil {
-		return fmt.Errorf("failed to create jslibs directory: %v", err)
-	}
-
-	// Read all files in the directory
 	entries, err := os.ReadDir(jslibsDir)
 	if err != nil {
 		return fmt.Errorf("failed to read jslibs directory: %v", err)
 	}
 
-	// Filter and sort JavaScript library files
 	var jsFiles []string
 	for _, entry := range entries {
 		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".js") {
@@ -275,42 +357,53 @@ func loadJSLibs(runtime *goja.Runtime) error {
 	sort.Strings(jsFiles)
 
 	if len(jsFiles) == 0 {
-		fmt.Printf("[WARN] No JS library files found in: %s\n", jslibsDir)
+		emitRuntimeLog(sink, "warn", fmt.Sprintf("No JS library files found in: %s", jslibsDir), nil)
 	}
 
-	// Load each JavaScript library file
 	for _, file := range jsFiles {
 		filePath := filepath.Join(jslibsDir, file)
 		content, err := os.ReadFile(filePath)
 		if err != nil {
 			return fmt.Errorf("failed to read JS library file %s: %v", file, err)
 		}
-
-		// Execute JavaScript library code
 		_, err = runtime.RunString(string(content))
 		if err != nil {
 			return fmt.Errorf("failed to execute JS library %s: %v", file, err)
 		}
-
-		fmt.Printf("Loaded JS library: %s\n", file)
+		emitRuntimeLog(sink, "debug", fmt.Sprintf("Loaded JS library: %s", file), nil)
 	}
 
 	return nil
 }
 
-// InitJS 初始化 JS 环境
+func loadJSLibs(runtime *goja.Runtime) error {
+	return loadJSLibsWithSink(runtime, nil)
+}
 
-func InitJS(runtime *goja.Runtime) error {
-	// 首先初始化 console 对象，因为我们需要它来记录日志
-	consoleMethods := AutoMapObject(runtime, NewConsole())
+type initEventSink struct {
+	base EventSink
+}
+
+func (s initEventSink) Emit(category, level, source, kind, message string, fields map[string]any) {
+	if s.base == nil {
+		return
+	}
+	if category == "script" {
+		category = "framework"
+	}
+	s.base.Emit(category, level, source, kind, message, fields)
+}
+
+// InitJSWithOptions 初始化 JS 环境并支持事件接收器。
+func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
+	initSink := initEventSink{base: opts.EventSink}
+	consoleMethods := AutoMapObject(runtime, NewConsoleWithSink(initSink))
 	runtime.Set("console", consoleMethods)
 
-	// Initialize HTTPClient
 	httpClient := NewHTTPClient(runtime)
 	httpMethods := AutoMapObject(runtime, httpClient)
 	runtime.Set("http", httpMethods)
 
-	// Initialize System
 	system := NewSystem()
 	systemMethods := AutoMapObject(runtime, system)
 	runtime.Set("System", systemMethods)
@@ -319,22 +412,20 @@ func InitJS(runtime *goja.Runtime) error {
 	windowMethods := AutoMapObject(runtime, windowManager)
 	runtime.Set("window", windowMethods)
 
-	// 初始化剪贴板
 	clipboard := NewClipboard()
 	clipboardMethods := AutoMapObject(runtime, clipboard)
 	runtime.Set("clipboard", clipboardMethods)
 
-	// Initialize FloatingWindow
-	floatingWindow := NewFloatingWindow()
-	floatingWindowMethods := AutoMapObject(runtime, floatingWindow)
-	runtime.Set("FloatingWindow", floatingWindowMethods)
+	if os.Getenv("SKIP_FYNE_INIT") == "" {
+		floatingWindow := NewFloatingWindow()
+		floatingWindowMethods := AutoMapObject(runtime, floatingWindow)
+		runtime.Set("FloatingWindow", floatingWindowMethods)
+	}
 
-	// 初始化剪贴板
 	fileSystem := NewFileSystem()
 	fileSystemMethods := AutoMapObject(runtime, fileSystem)
 	runtime.Set("File", fileSystemMethods)
 
-	// 初始化 AppStorage
 	appStorage := NewAppStorage("testMonkey")
 	appStorageMethods := AutoMapObject(runtime, appStorage)
 	runtime.Set("AppStorage", appStorageMethods)
@@ -347,30 +438,18 @@ func InitJS(runtime *goja.Runtime) error {
 	imageColorMethods := AutoMapObject(runtime, imageColor)
 	runtime.Set("ImageColor", imageColorMethods)
 
-	// 初始化计时器系统
+	ocr := NewOCR()
+	ocrMethods := AutoMapObject(runtime, ocr)
+	runtime.Set("OCR", ocrMethods)
+
+	vision := NewVision()
+	visionMethods := AutoMapObject(runtime, vision)
+	runtime.Set("Vision", visionMethods)
+
 	timer := NewTimer(runtime)
 	timer.RegisterInRuntime()
 
-	// 创建全局对象
-	// global := runtime.GlobalObject()
-	// if err := global.Set("globalThis", global); err != nil {
-	// 	return fmt.Errorf("failed to set globalThis: %v", err)
-	// }
-
-	// 然后加载 polyfills
-	if err := loadPolyfills(runtime); err != nil {
-		return fmt.Errorf("failed to load polyfills: %v", err)
-	}
-
-	// 加载 jslibs
-	if err := loadJSLibs(runtime); err != nil {
-		return fmt.Errorf("failed to load JS libraries: %v", err)
-	}
-
-	// 创建新的 page 实例
 	page := NewPage()
-
-	// 映射组件到全局对象
 	mouseMethods := AutoMapObject(runtime, page.Mouse)
 	keyboardMethods := AutoMapObject(runtime, page.Keyboard)
 	touchscreenMethods := AutoMapObject(runtime, page.Touchscreen)
@@ -379,47 +458,52 @@ func InitJS(runtime *goja.Runtime) error {
 	runtime.Set("keyboard", keyboardMethods)
 	runtime.Set("touchscreen", touchscreenMethods)
 
-	// 创建 page 对象的方法映射
 	pageMethods := AutoMapObject(runtime, page)
 	pageObj := make(map[string]interface{})
-
-	// 添加 page 的方法
 	for name, method := range pageMethods {
 		pageObj[name] = method
 	}
-
-	// 添加组件作为 page 的属性
 	pageObj["mouse"] = mouseMethods
 	pageObj["keyboard"] = keyboardMethods
 	pageObj["touchscreen"] = touchscreenMethods
 
-	// 设置 page 对象到 JS 运行时
+	// Provide explicit raw inject surfaces before polyfills load so compatibility
+	// wrappers can decorate the legacy object model instead of failing on missing
+	// globals.
+	runtime.Set("page____Inject", pageObj)
 	runtime.Set("page", pageObj)
 
-	// 初始化屏幕
+	browser := NewBrowser()
+	browser.DefaultContext().AdoptPage(page)
+	browserMethods := AutoMapObject(runtime, browser)
+	runtime.Set("browser____Inject", browserMethods)
+	runtime.Set("browser", browserMethods)
+
+	defaultContext := browser.DefaultContext()
+	contextMethods := AutoMapObject(runtime, defaultContext)
+	runtime.Set("context____Inject", contextMethods)
+	runtime.Set("context", contextMethods)
+
+	if err := loadPolyfillsWithSink(runtime, opts.EventSink); err != nil {
+		return fmt.Errorf("failed to load polyfills: %v", err)
+	}
+	if err := loadJSLibsWithSink(runtime, opts.EventSink); err != nil {
+		return fmt.Errorf("failed to load JS libraries: %v", err)
+	}
+
+	// 初始化完成后切换到真实脚本日志接收器，避免把运行期脚本日志继续记为 framework。
+	runtime.Set("console", AutoMapObject(runtime, NewConsoleWithSink(opts.EventSink)))
+
 	screen := NewScreen()
 	screenMethods := AutoMapObject(runtime, screen)
 	runtime.Set("Screen", screenMethods)
-	// 直接在 runtime 中设置别名或引用
-	runtime.RunString(`Screen.screenshot = page.screenshot;`)
-
-	// 初始化并注册 axios , 已经被http.go 和axios.js替代
-	// axios := NewAxios(runtime)
-	// axios.RegisterInRuntime()
-
-	// 验证初始化
-	// _, err := runtime.RunString(`
-	//     console.log('JavaScript runtime initialized successfully');
-	//     console.log('Timer functions available:', {
-	//         setTimeout: typeof setTimeout === 'function',
-	//         setInterval: typeof setInterval === 'function',
-	//         clearTimeout: typeof clearTimeout === 'function',
-	//         clearInterval: typeof clearInterval === 'function'
-	//     });
-	// `)
-	// if err != nil {
-	// 	return fmt.Errorf("failed to verify initialization: %v", err)
-	// }
-
+	if _, err := runtime.RunString(`Screen.screenshot = page.screenshot;`); err != nil {
+		return fmt.Errorf("failed to bind Screen.screenshot: %v", err)
+	}
 	return nil
+}
+
+// InitJS 保持原有初始化入口。
+func InitJS(runtime *goja.Runtime) error {
+	return InitJSWithOptions(runtime, InitJSOptions{})
 }

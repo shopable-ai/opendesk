@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
-	"testMonkey-go/automation"
+	"clawdesk/automation"
 	"time"
 )
 

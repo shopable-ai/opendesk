@@ -166,6 +166,42 @@ func (ic *ImageColor) LoadBase64(imagePath string) (string, error) {
 	return "data:image/png;base64," + base64Str, nil
 }
 
+// Resize rescales an image to the requested width and height and returns a PNG data URL.
+func (ic *ImageColor) Resize(imageStr string, width, height int) (string, error) {
+	if width <= 0 || height <= 0 {
+		return "", fmt.Errorf("invalid resize dimensions: %dx%d", width, height)
+	}
+
+	img, err := ic.loadImage(imageStr)
+	if err != nil {
+		return "", fmt.Errorf("failed to load image for resize: %v", err)
+	}
+
+	srcMat, err := gocv.ImageToMatRGB(img)
+	if err != nil {
+		return "", fmt.Errorf("failed to convert image to Mat: %v", err)
+	}
+	defer srcMat.Close()
+
+	dstMat := gocv.NewMat()
+	defer dstMat.Close()
+
+	gocv.Resize(srcMat, &dstMat, image.Pt(width, height), 0, 0, gocv.InterpolationArea)
+
+	resizedImg, err := dstMat.ToImage()
+	if err != nil {
+		return "", fmt.Errorf("failed to convert resized Mat to image: %v", err)
+	}
+
+	var buf bytes.Buffer
+	encoder := png.Encoder{CompressionLevel: png.BestCompression}
+	if err := encoder.Encode(&buf, resizedImg); err != nil {
+		return "", fmt.Errorf("failed to encode resized image: %v", err)
+	}
+
+	return "data:image/png;base64," + base64.StdEncoding.EncodeToString(buf.Bytes()), nil
+}
+
 // decodeBitmap converts a base64 image string to an image.Image
 func (ic *ImageColor) decodeBitmap(imageStr string) (image.Image, error) {
 	// 处理空输入

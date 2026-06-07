@@ -157,10 +157,10 @@ func executeLine(page *Page, line string) error {
 			clipStr := clip[1]
 			clipOptions := &ClipOptions{}
 
-			if x := regexp.MustCompile(`x:\s*(\d+)`).FindStringSubmatch(clipStr); x != nil {
+			if x := regexp.MustCompile(`x:\s*(-?\d+)`).FindStringSubmatch(clipStr); x != nil {
 				clipOptions.X, _ = strconv.Atoi(x[1])
 			}
-			if y := regexp.MustCompile(`y:\s*(\d+)`).FindStringSubmatch(clipStr); y != nil {
+			if y := regexp.MustCompile(`y:\s*(-?\d+)`).FindStringSubmatch(clipStr); y != nil {
 				clipOptions.Y, _ = strconv.Atoi(y[1])
 			}
 			if width := regexp.MustCompile(`width:\s*(\d+)`).FindStringSubmatch(clipStr); width != nil {
