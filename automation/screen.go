@@ -5,12 +5,36 @@ import (
 	"encoding/base64"
 	"fmt"
 	"image/png"
+	"sort"
 
 	"github.com/go-vgo/robotgo"
 )
 
 // Screen provides methods for screen-related operations
 type Screen struct{}
+
+// DisplayInfo describes one physical display.
+// Index is 1-based and aligned with macOS screencapture -D index semantics.
+type DisplayInfo struct {
+	Index       int     `json:"index"`
+	ID          string  `json:"id"`
+	IsPrimary   bool    `json:"isPrimary"`
+	X           int     `json:"x"`
+	Y           int     `json:"y"`
+	Width       int     `json:"width"`
+	Height      int     `json:"height"`
+	PixelWidth  int     `json:"pixelWidth"`
+	PixelHeight int     `json:"pixelHeight"`
+	Scale       float64 `json:"scale"`
+}
+
+// BoundsInfo represents a rectangle in virtual desktop coordinates.
+type BoundsInfo struct {
+	X      int `json:"x"`
+	Y      int `json:"y"`
+	Width  int `json:"width"`
+	Height int `json:"height"`
+}
 
 // NewScreen creates a new Screen instance
 func NewScreen() *Screen {
@@ -19,14 +43,70 @@ func NewScreen() *Screen {
 
 // GetWidth returns the width of the primary screen
 func (s *Screen) GetWidth() int {
+	if primary := getPrimaryDisplayInfo(resolveDisplays()); primary != nil {
+		return primary.Width
+	}
 	width, _ := robotgo.GetScreenSize()
 	return width
 }
 
 // GetHeight returns the height of the primary screen
 func (s *Screen) GetHeight() int {
+	if primary := getPrimaryDisplayInfo(resolveDisplays()); primary != nil {
+		return primary.Height
+	}
 	_, height := robotgo.GetScreenSize()
 	return height
+}
+
+// GetDisplays returns all currently available displays.
+// The ordering is stable by index (1..N) and intended to match screenshot displayIndex.
+func (s *Screen) GetDisplays() []map[string]interface{} {
+	displays := resolveDisplays()
+	sort.Slice(displays, func(i, j int) bool {
+		return displays[i].Index < displays[j].Index
+	})
+	result := make([]map[string]interface{}, 0, len(displays))
+	for _, d := range displays {
+		result = append(result, displayInfoToMap(d))
+	}
+	return result
+}
+
+// GetPrimaryDisplay returns the primary display metadata.
+func (s *Screen) GetPrimaryDisplay() map[string]interface{} {
+	displays := resolveDisplays()
+	primary := getPrimaryDisplayInfo(displays)
+	if primary == nil {
+		return nil
+	}
+	return displayInfoToMap(*primary)
+}
+
+// GetDisplay returns display metadata by 1-based index.
+func (s *Screen) GetDisplay(index int) map[string]interface{} {
+	if index <= 0 {
+		return nil
+	}
+	displays := resolveDisplays()
+	for _, d := range displays {
+		if d.Index == index {
+			return displayInfoToMap(d)
+		}
+	}
+	return nil
+}
+
+// GetVirtualBounds returns union bounds of all displays in virtual desktop coordinates.
+func (s *Screen) GetVirtualBounds() map[string]interface{} {
+	displays := resolveDisplays()
+	bounds := computeVirtualBounds(displays)
+	return map[string]interface{}{
+		"x":      bounds.X,
+		"y":      bounds.Y,
+		"width":  bounds.Width,
+		"height": bounds.Height,
+	}
 }
 
 // Pixel returns the color of a specific pixel at (x, y) coordinates
@@ -78,6 +158,92 @@ func (s *Screen) Pixels(points []interface{}, scaled bool) []string {
 	}
 
 	return colors
+}
+
+func resolveDisplays() []DisplayInfo {
+	displays, err := listDisplaysPlatform()
+	if err == nil && len(displays) > 0 {
+		return displays
+	}
+	return []DisplayInfo{primaryDisplayFallback()}
+}
+
+func getPrimaryDisplayInfo(displays []DisplayInfo) *DisplayInfo {
+	for _, d := range displays {
+		if d.IsPrimary {
+			dd := d
+			return &dd
+		}
+	}
+	if len(displays) == 0 {
+		return nil
+	}
+	dd := displays[0]
+	return &dd
+}
+
+func displayInfoToMap(d DisplayInfo) map[string]interface{} {
+	return map[string]interface{}{
+		"index":       d.Index,
+		"id":          d.ID,
+		"isPrimary":   d.IsPrimary,
+		"x":           d.X,
+		"y":           d.Y,
+		"width":       d.Width,
+		"height":      d.Height,
+		"pixelWidth":  d.PixelWidth,
+		"pixelHeight": d.PixelHeight,
+		"scale":       d.Scale,
+	}
+}
+
+func primaryDisplayFallback() DisplayInfo {
+	width, height := robotgo.GetScreenSize()
+	return DisplayInfo{
+		Index:       1,
+		ID:          "primary",
+		IsPrimary:   true,
+		X:           0,
+		Y:           0,
+		Width:       width,
+		Height:      height,
+		PixelWidth:  width,
+		PixelHeight: height,
+		Scale:       1,
+	}
+}
+
+func computeVirtualBounds(displays []DisplayInfo) BoundsInfo {
+	if len(displays) == 0 {
+		return BoundsInfo{}
+	}
+
+	minX := displays[0].X
+	minY := displays[0].Y
+	maxX := displays[0].X + displays[0].Width
+	maxY := displays[0].Y + displays[0].Height
+
+	for _, d := range displays[1:] {
+		if d.X < minX {
+			minX = d.X
+		}
+		if d.Y < minY {
+			minY = d.Y
+		}
+		if d.X+d.Width > maxX {
+			maxX = d.X + d.Width
+		}
+		if d.Y+d.Height > maxY {
+			maxY = d.Y + d.Height
+		}
+	}
+
+	return BoundsInfo{
+		X:      minX,
+		Y:      minY,
+		Width:  maxX - minX,
+		Height: maxY - minY,
+	}
 }
 
 func (p *Page) CaptureScreen(options *ScreenshotOptions) (string, error) {

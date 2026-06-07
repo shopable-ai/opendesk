@@ -27,6 +27,286 @@ pageWrapper.screenshot = async function(options = {}) {
 };
 
 /**
+ * Permission facade: provide cross-platform JS API while keeping native Go APIs platform-specific.
+ */
+const DEFAULT_PERMISSION_CAPABILITIES = ['screenCapture', 'accessibility'];
+
+function getOsName() {
+  const os = String((globalThis.System && System.getSystemInfo && System.getSystemInfo().os) || '');
+  return os;
+}
+
+function isMacOS() {
+  const os = getOsName().toLowerCase();
+  return os.includes('darwin') || os.includes('mac');
+}
+
+function normalizeCapabilities(raw) {
+  if (Array.isArray(raw)) {
+    const list = raw.map((item) => String(item || '').trim()).filter(Boolean);
+    return list.length ? Array.from(new Set(list)) : [...DEFAULT_PERMISSION_CAPABILITIES];
+  }
+  if (typeof raw === 'string' && raw.trim()) {
+    return [raw.trim()];
+  }
+  return [...DEFAULT_PERMISSION_CAPABILITIES];
+}
+
+function sectionToCapabilities(section) {
+  const sec = String(section || '').trim();
+  if (!sec || sec === 'all') return ['screenCapture', 'accessibility', 'inputMonitoring', 'automation'];
+  if (sec === 'baseline' || sec === 'browserBaseline' || sec === 'browser') return ['screenCapture', 'accessibility', 'automation'];
+  if (sec === 'screenCapture' || sec === 'screen') return ['screenCapture', 'accessibility'];
+  if (sec === 'accessibility') return ['accessibility'];
+  if (sec === 'inputMonitoring') return ['inputMonitoring'];
+  if (sec === 'automation') return ['automation'];
+  return [...DEFAULT_PERMISSION_CAPABILITIES];
+}
+
+function capabilitiesToMacSection(capabilities) {
+  const caps = normalizeCapabilities(capabilities);
+  const has = (name) => caps.includes(name);
+  if (has('automation') && (has('screenCapture') || has('accessibility') || has('inputMonitoring'))) return 'all';
+  if (has('automation')) return 'automation';
+  if (has('inputMonitoring')) return 'inputMonitoring';
+  if (has('screenCapture')) return 'screenCapture';
+  if (has('accessibility')) return 'accessibility';
+  return 'screenCapture';
+}
+
+function buildPermissionSnapshot(capabilities, macCheckReport, flowReport) {
+  const caps = normalizeCapabilities(capabilities);
+  const result = {};
+  const check = macCheckReport || {};
+  const flow = flowReport || {};
+  const automationProbe = flow.probes && flow.probes.automationProbe ? flow.probes.automationProbe : null;
+
+  for (const cap of caps) {
+    if (cap === 'screenCapture') {
+      const granted = !!check.screenCapture;
+      result[cap] = { state: granted ? 'granted' : 'denied', granted };
+      continue;
+    }
+    if (cap === 'accessibility') {
+      const granted = !!check.accessibility;
+      result[cap] = { state: granted ? 'granted' : 'denied', granted };
+      continue;
+    }
+    if (cap === 'automation') {
+      if (automationProbe && automationProbe.ok === true) {
+        result[cap] = { state: 'granted', granted: true };
+      } else if (automationProbe && automationProbe.skipped) {
+        result[cap] = { state: 'unknown', granted: false, reason: automationProbe.reason || 'automation probe skipped' };
+      } else if (automationProbe) {
+        result[cap] = { state: 'denied', granted: false };
+      } else {
+        result[cap] = {
+          state: 'unknown',
+          granted: false,
+          reason: 'automation permission can only be confirmed after AppleEvents prompt',
+        };
+      }
+      continue;
+    }
+    if (cap === 'inputMonitoring') {
+      result[cap] = {
+        state: 'unknown',
+        granted: false,
+        reason: 'inputMonitoring status check is not available in current runtime',
+      };
+      continue;
+    }
+    result[cap] = { state: 'unsupported', granted: false, reason: 'unsupported capability' };
+  }
+
+  const ok = Object.values(result).every((item) => item.state === 'granted' || item.state === 'unsupported');
+  return { ok, capabilities: result };
+}
+
+function buildUnsupportedPermissionSnapshot(capabilities, reason) {
+  const caps = normalizeCapabilities(capabilities);
+  const result = {};
+  for (const cap of caps) {
+    result[cap] = { state: 'unsupported', granted: false, reason: reason || 'unsupported on current OS' };
+  }
+  return finalizePermissionSnapshot({ ok: true, capabilities: result });
+}
+
+function capabilityNeedsHardGrant(name) {
+  return name !== 'inputMonitoring';
+}
+
+function isCapabilitySatisfied(entry) {
+  if (!entry || typeof entry !== 'object') return false;
+  if (entry.state === 'granted' || entry.state === 'unsupported') return true;
+  if (entry.state === 'unknown' && entry.capabilityOptional === true) return true;
+  return false;
+}
+
+function finalizePermissionSnapshot(snapshot) {
+  const map = snapshot && snapshot.capabilities ? snapshot.capabilities : {};
+  const normalized = {};
+  for (const [name, rawEntry] of Object.entries(map)) {
+    const entry = rawEntry && typeof rawEntry === 'object' ? { ...rawEntry } : { state: 'denied', granted: false };
+    if (entry.state === 'unknown' && !capabilityNeedsHardGrant(name)) {
+      entry.capabilityOptional = true;
+      entry.granted = true;
+      if (!entry.reason) entry.reason = 'capability status is not introspectable in current runtime but is not required for baseline automation';
+    }
+    normalized[name] = entry;
+  }
+  const ok = Object.values(normalized).every((entry) => isCapabilitySatisfied(entry));
+  return { ...(snapshot || {}), ok, capabilities: normalized };
+}
+
+/**
+ * Cross-platform permission preflight.
+ * @param {object} options
+ * @param {string[]} options.capabilities
+ * @returns {Promise<object>}
+ */
+pageWrapper.checkPermissions = async function(options = {}) {
+  const cfg = options || {};
+  const hasCapabilities = Object.prototype.hasOwnProperty.call(cfg, 'capabilities');
+  const capabilities = normalizeCapabilities(hasCapabilities ? cfg.capabilities : sectionToCapabilities(cfg.section));
+  const os = getOsName();
+  const isMac = isMacOS();
+
+  if (!isMac) {
+    return {
+      ok: true,
+      os,
+      skipped: true,
+      capabilities,
+      permissions: buildUnsupportedPermissionSnapshot(capabilities, 'permission preflight is handled by OS defaults'),
+      message: 'No platform-specific permission preflight is required on current OS.',
+    };
+  }
+
+  const canCheck = typeof globalThis.page____Inject.checkScreenshotPermissions === 'function';
+  if (!canCheck) {
+    return { ok: false, os, capabilities, reason: 'missing_check_api' };
+  }
+
+  const check = await globalThis.page____Inject.checkScreenshotPermissions();
+  const permissions = finalizePermissionSnapshot(buildPermissionSnapshot(capabilities, check, null));
+  return {
+    ok: permissions.ok,
+    os,
+    capabilities,
+    permissions,
+    raw: check,
+  };
+};
+
+/**
+ * Cross-platform permission request entry.
+ * @param {object} options
+ * @param {string[]} options.capabilities
+ * @param {boolean} options.openSettings
+ * @param {boolean} options.strict
+ * @returns {Promise<object>}
+ */
+pageWrapper.requestPermissions = async function(options = {}) {
+  const defaults = {
+    openSettings: true,
+    strict: false,
+    section: 'screenCapture',
+  };
+  const cfg = { ...defaults, ...(options || {}) };
+  const hasCapabilities = Object.prototype.hasOwnProperty.call(cfg, 'capabilities');
+  const capabilities = normalizeCapabilities(hasCapabilities ? cfg.capabilities : sectionToCapabilities(cfg.section));
+  const os = getOsName();
+
+  if (!isMacOS()) {
+    return {
+      ok: true,
+      os,
+      skipped: true,
+      capabilities,
+      permissions: buildUnsupportedPermissionSnapshot(capabilities, 'permission request is not required on current OS'),
+      message: 'No platform-specific permission request is required on current OS.',
+    };
+  }
+
+  const canRequest = typeof globalThis.page____Inject.requestMacPermissions === 'function';
+  const canOpenSettings = typeof globalThis.page____Inject.openMacOSPrivacySettings === 'function';
+  const canCheck = typeof globalThis.page____Inject.checkScreenshotPermissions === 'function';
+
+  if (!canRequest && !canCheck) {
+    if (cfg.strict) {
+      throw new Error('Permission APIs not found. Please update binary.');
+    }
+    return { ok: false, os, capabilities, reason: 'missing_permission_api' };
+  }
+
+  const section = capabilitiesToMacSection(capabilities);
+  let flow = null;
+  if (canRequest) {
+    flow = await globalThis.page____Inject.requestMacPermissions({
+      openSettings: !!cfg.openSettings,
+      section,
+    });
+  } else {
+    if (cfg.openSettings && canOpenSettings) {
+      await globalThis.page____Inject.openMacOSPrivacySettings(section);
+    }
+    const check = canCheck ? await globalThis.page____Inject.checkScreenshotPermissions() : null;
+    flow = { ok: !!(check && check.ok), before: check, after: check, section };
+  }
+
+  const latestCheck = canCheck ? await globalThis.page____Inject.checkScreenshotPermissions() : (flow.after || flow.before || null);
+  const permissions = finalizePermissionSnapshot(buildPermissionSnapshot(capabilities, latestCheck, flow));
+  const finalOK = !!(flow && flow.ok) && permissions.ok;
+  const result = {
+    ok: finalOK,
+    os,
+    capabilities,
+    section,
+    permissions,
+    flow,
+    raw: latestCheck,
+  };
+
+  if (!finalOK && cfg.strict) {
+    throw new Error('Permissions are not ready. Details: ' + JSON.stringify(result));
+  }
+
+  return result;
+};
+
+/**
+ * Strict permission guard.
+ * @param {object} options
+ * @returns {Promise<object>}
+ */
+pageWrapper.ensurePermissions = async function(options = {}) {
+  const cfg = { strict: true, ...(options || {}) };
+  return await pageWrapper.requestPermissions(cfg);
+};
+
+/**
+ * Backward-compatible macOS-only alias.
+ * @deprecated Use ensurePermissions / requestPermissions instead.
+ */
+pageWrapper.ensureMacPermissions = async function(options = {}) {
+  const defaults = {
+    openSettingsOnFail: true,
+    section: 'screenCapture',
+    strict: true,
+  };
+  const cfg = { ...defaults, ...(options || {}) };
+  const capabilities = normalizeCapabilities(
+    cfg.capabilities && cfg.capabilities.length ? cfg.capabilities : sectionToCapabilities(cfg.section)
+  );
+  return await pageWrapper.ensurePermissions({
+    capabilities,
+    openSettings: !!cfg.openSettingsOnFail,
+    strict: !!cfg.strict,
+  });
+};
+
+/**
  * Get the title of the current page
  * @returns {string} - The title of the page
  */

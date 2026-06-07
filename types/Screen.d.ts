@@ -25,6 +25,58 @@ interface ClipRegion {
     height: number;
 }
 
+interface DisplayInfo {
+    /**
+     * 1-based display index, aligned with macOS screencapture -D.
+     */
+    index: number;
+
+    /**
+     * Platform display identifier string.
+     */
+    id: string;
+
+    /**
+     * Whether this is the primary display.
+     */
+    isPrimary: boolean;
+
+    /**
+     * Display origin in virtual desktop coordinates.
+     */
+    x: number;
+
+    /**
+     * Display origin in virtual desktop coordinates.
+     */
+    y: number;
+
+    /**
+     * Display logical width.
+     */
+    width: number;
+
+    /**
+     * Display logical height.
+     */
+    height: number;
+
+    /**
+     * Physical pixel width.
+     */
+    pixelWidth: number;
+
+    /**
+     * Physical pixel height.
+     */
+    pixelHeight: number;
+
+    /**
+     * Pixel ratio (pixelWidth / width).
+     */
+    scale: number;
+}
+
 interface ScreenshotOptions {
     /**
      * Path to save the screenshot
@@ -44,9 +96,45 @@ interface ScreenshotOptions {
 
     /**
      * Encoding type for the screenshot
-     * @default "base64"
+     * @default "binary"
      */
-    encoding?: "base64";
+    encoding?: "binary" | "base64";
+
+    /**
+     * Controls what the API returns.
+     * - "base64": return a data URL string (legacy default)
+     * - "bytes": return an ArrayBuffer
+     * - "path": return the saved file path
+     * - "object": return structured screenshot metadata
+     * - "none": do not return screenshot content
+     */
+    returnType?: "base64" | "bytes" | "path" | "object" | "none";
+
+    /**
+     * Screenshot target when clip is not provided.
+     * - "activeWindow": capture current active window bounds (default)
+     * - "screen": capture current screen/display
+     * @default "activeWindow"
+     */
+    target?: "activeWindow" | "screen";
+
+    /**
+     * macOS display index used by native screencapture (`-D`).
+     * - 0: default behavior
+     * - 1..N: explicit display index
+     * @default 0
+     */
+    displayIndex?: number;
+}
+
+interface ScreenshotResult {
+    path: string;
+    mimeType: string;
+    width: number;
+    height: number;
+    sizeBytes: number;
+    source: string;
+    backend: string;
 }
 
 declare class Screen {
@@ -64,6 +152,26 @@ declare class Screen {
      * Returns the height of the primary screen
      */
     getHeight(): number;
+
+    /**
+     * Returns all currently available displays.
+     */
+    getDisplays(): DisplayInfo[];
+
+    /**
+     * Returns metadata of the primary display.
+     */
+    getPrimaryDisplay(): DisplayInfo | null;
+
+    /**
+     * Returns metadata by 1-based display index.
+     */
+    getDisplay(index: number): DisplayInfo | null;
+
+    /**
+     * Returns the union bounds of all displays in virtual coordinates.
+     */
+    getVirtualBounds(): ClipRegion;
 
     /**
      * Returns the color of a specific pixel
@@ -84,10 +192,10 @@ declare class Screen {
     /**
      * Captures a screenshot of the screen
      * @param options Screenshot options
-     * @returns Base64 encoded image string or empty string if saved to file
+     * @returns Base64 data URL string, ArrayBuffer, saved path, structured metadata, or null when returnType is "none"
      * @throws Error if screenshot fails
      */
-    screenshot(options?: ScreenshotOptions): Promise<string>;
+    screenshot(options?: ScreenshotOptions): Promise<string | ArrayBuffer | ScreenshotResult | null>;
 }
 
 declare global {

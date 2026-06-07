@@ -1,3 +1,6 @@
+//go:build floatmenu_legacy
+// +build floatmenu_legacy
+
 package main
 
 import (

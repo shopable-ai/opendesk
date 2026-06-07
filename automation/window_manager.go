@@ -1,3 +1,6 @@
+//go:build windows
+// +build windows
+
 package automation
 
 import (
@@ -10,32 +13,13 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// WindowInfo represents information about a window
-// WindowInfo 结构体增加新字段
-type WindowInfo struct {
-	Title        string  `json:"title"`
-	ProcessID    uint32  `json:"pid"`
-	X            int32   `json:"x"`
-	Y            int32   `json:"y"`
-	Width        int32   `json:"width"`
-	Height       int32   `json:"height"`
-	ExeName      string  `json:"exeName"`
-	ExePath      string  `json:"exePath"`
-	IsForeground bool    `json:"isForeground"`
-	HasFocus     bool    `json:"hasFocus"`
-	Handle       uintptr `json:"handle"`
-	IsPopup      bool    `json:"isPopup"`
-	Index        int     `json:"index"`
-}
-
-// WindowManager handles window-related operations
-type WindowManager struct {
+// windowsWindowManager handles window-related operations on Windows.
+type windowsWindowManager struct {
 	user32 *windows.LazyDLL
 }
 
-// NewWindowManager creates a new WindowManager instance
-func NewWindowManager() *WindowManager {
-	return &WindowManager{
+func newPlatformWindowManager() windowManagerPlatform {
+	return &windowsWindowManager{
 		user32: windows.NewLazySystemDLL("user32.dll"),
 	}
 }
@@ -194,7 +178,7 @@ func getSystemMetrics(nIndex int) int32 {
 }
 
 // GetActiveWindow 获取当前活动窗口信息
-func (w *WindowManager) GetActiveWindow() (*WindowInfo, error) {
+func (w *windowsWindowManager) GetActiveWindow() (*WindowInfo, error) {
 	hwnd, _, _ := procGetForegroundWindow.Call()
 
 	// fmt.Printf("GetForegroundWindow返回句柄: 0x%x\n", hwnd)
@@ -292,7 +276,7 @@ func (w *WindowManager) GetActiveWindow() (*WindowInfo, error) {
 }
 
 // getTopWindow 获取Z顺序中的顶层可见窗口
-func (w *WindowManager) getTopWindow() uintptr {
+func (w *windowsWindowManager) getTopWindow() uintptr {
 	var result uintptr = 0
 
 	// 枚举所有顶级窗口的函数
@@ -353,7 +337,7 @@ func (w *WindowManager) getTopWindow() uintptr {
 }
 
 // 修改 GetWindowByTitle 方法
-func (w *WindowManager) GetWindowByTitle(title string) (*WindowInfo, error) {
+func (w *windowsWindowManager) GetWindowByTitle(title string) (*WindowInfo, error) {
 	titlePtr, err := windows.UTF16PtrFromString(title)
 	if err != nil {
 		return nil, fmt.Errorf("invalid title: %v", err)
@@ -424,7 +408,7 @@ func getProcessExecutableInfo(processId uint32) (exeName, exePath string, err er
 }
 
 // Focus activates and brings the specified window to the front
-func (w *WindowManager) Focus(title string) error {
+func (w *windowsWindowManager) Focus(title string) error {
 	titlePtr, _ := windows.UTF16PtrFromString(title)
 	hwnd, _, _ := procFindWindowW.Call(
 		0,
@@ -440,7 +424,7 @@ func (w *WindowManager) Focus(title string) error {
 }
 
 // SetWindowBounds sets the position and size of a window
-func (w *WindowManager) SetWindowBounds(title string, x, y, width, height int) error {
+func (w *windowsWindowManager) SetWindowBounds(title string, x, y, width, height int) error {
 	titlePtr, _ := windows.UTF16PtrFromString(title)
 	hwnd, _, _ := procFindWindowW.Call(
 		0,
@@ -463,7 +447,7 @@ func (w *WindowManager) SetWindowBounds(title string, x, y, width, height int) e
 }
 
 // SetWidth sets only the width of a window while maintaining its current position and height
-func (w *WindowManager) SetWidth(title string, width int) error {
+func (w *windowsWindowManager) SetWidth(title string, width int) error {
 	titlePtr, _ := windows.UTF16PtrFromString(title)
 
 	// Find the window
@@ -497,7 +481,7 @@ func (w *WindowManager) SetWidth(title string, width int) error {
 }
 
 // SetHeight sets only the height of a window while maintaining its current position and width
-func (w *WindowManager) SetHeight(title string, height int) error {
+func (w *windowsWindowManager) SetHeight(title string, height int) error {
 	titlePtr, _ := windows.UTF16PtrFromString(title)
 
 	// Find the window
@@ -531,7 +515,7 @@ func (w *WindowManager) SetHeight(title string, height int) error {
 }
 
 // Maximize maximizes the specified window
-func (w *WindowManager) Maximize(title string) error {
+func (w *windowsWindowManager) Maximize(title string) error {
 	titlePtr, _ := windows.UTF16PtrFromString(title)
 	hwnd, _, _ := procFindWindowW.Call(
 		0,
@@ -547,7 +531,7 @@ func (w *WindowManager) Maximize(title string) error {
 }
 
 // Minimize minimizes the specified window
-func (w *WindowManager) Minimize(title string) error {
+func (w *windowsWindowManager) Minimize(title string) error {
 	titlePtr, _ := windows.UTF16PtrFromString(title)
 	hwnd, _, _ := procFindWindowW.Call(
 		0,
@@ -563,7 +547,7 @@ func (w *WindowManager) Minimize(title string) error {
 }
 
 // Restore restores a minimized or maximized window to its normal state
-func (w *WindowManager) Restore(title string) error {
+func (w *windowsWindowManager) Restore(title string) error {
 	titlePtr, _ := windows.UTF16PtrFromString(title)
 	hwnd, _, _ := procFindWindowW.Call(
 		0,
@@ -578,7 +562,7 @@ func (w *WindowManager) Restore(title string) error {
 	return nil
 }
 
-func (w *WindowManager) RestoreByPID(pid uint32) error {
+func (w *windowsWindowManager) RestoreByPID(pid uint32) error {
 	var targetHwnd uintptr
 	var foundWindow bool
 
@@ -702,7 +686,7 @@ func (w *WindowManager) RestoreByPID(pid uint32) error {
 }
 
 // MinimizeByPID 通过进程ID最小化窗口
-func (w *WindowManager) MinimizeByPID(pid uint32) error {
+func (w *windowsWindowManager) MinimizeByPID(pid uint32) error {
 	var targetHwnd uintptr
 	var foundWindow bool
 
@@ -763,7 +747,7 @@ func (w *WindowManager) MinimizeByPID(pid uint32) error {
 }
 
 // MaximizeByPID 通过进程ID最大化对应的窗口
-func (w *WindowManager) MaximizeByPID(pid uint32) error {
+func (w *windowsWindowManager) MaximizeByPID(pid uint32) error {
 	var targetHwnd uintptr
 	var foundWindow bool
 
@@ -863,7 +847,7 @@ func (w *WindowManager) MaximizeByPID(pid uint32) error {
 }
 
 // CloseWindow 关闭指定标题的窗口
-func (w *WindowManager) CloseWindow(title string) error {
+func (w *windowsWindowManager) CloseWindow(title string) error {
 	fmt.Printf("尝试关闭窗口: %s\n", title)
 
 	titlePtr, _ := windows.UTF16PtrFromString(title)
@@ -925,7 +909,7 @@ func (w *WindowManager) CloseWindow(title string) error {
 }
 
 // CloseActiveWindow 关闭当前活动窗口
-func (w *WindowManager) CloseActiveWindow() error {
+func (w *windowsWindowManager) CloseActiveWindow() error {
 	hwnd, _, _ := procGetForegroundWindow.Call()
 	if hwnd == 0 {
 		return fmt.Errorf("no active window found")
@@ -942,7 +926,7 @@ func (w *WindowManager) CloseActiveWindow() error {
 }
 
 // Kill 终止指定的进程
-func (w *WindowManager) Kill(processId uint32) error {
+func (w *windowsWindowManager) Kill(processId uint32) error {
 	const PROCESS_TERMINATE = 0x0001
 
 	handle, _, _ := procOpenProcess.Call(
@@ -967,7 +951,7 @@ func (w *WindowManager) Kill(processId uint32) error {
 }
 
 // Title 获取当前活动窗口的标题
-func (w *WindowManager) Title() string {
+func (w *windowsWindowManager) Title() string {
 	hwnd, _, _ := procGetForegroundWindow.Call()
 	if hwnd == 0 {
 		return ""
@@ -976,7 +960,7 @@ func (w *WindowManager) Title() string {
 }
 
 // GetTitle 获取指定窗口的标题
-func (w *WindowManager) GetTitle(selector string) (string, error) {
+func (w *windowsWindowManager) GetTitle(selector string) (string, error) {
 	titlePtr, err := windows.UTF16PtrFromString(selector)
 	if err != nil {
 		return "", fmt.Errorf("invalid selector: %v", err)
@@ -995,7 +979,7 @@ func (w *WindowManager) GetTitle(selector string) (string, error) {
 }
 
 // Content 获取当前活动窗口的内容
-func (w *WindowManager) Content() string {
+func (w *windowsWindowManager) Content() string {
 	hwnd, _, _ := procGetForegroundWindow.Call()
 	if hwnd == 0 {
 		return ""
@@ -1004,7 +988,7 @@ func (w *WindowManager) Content() string {
 }
 
 // GetContent 获取指定窗口的内容
-func (w *WindowManager) GetContent(selector string) (string, error) {
+func (w *windowsWindowManager) GetContent(selector string) (string, error) {
 	titlePtr, err := windows.UTF16PtrFromString(selector)
 	if err != nil {
 		return "", fmt.Errorf("invalid selector: %v", err)
@@ -1023,7 +1007,7 @@ func (w *WindowManager) GetContent(selector string) (string, error) {
 }
 
 // getWindowContent 增强版获取窗口的完整内容
-func (w *WindowManager) getWindowContent(hwnd windows.Handle) string {
+func (w *windowsWindowManager) getWindowContent(hwnd windows.Handle) string {
 	var content strings.Builder
 
 	// 1. 获取主窗口基本内容
@@ -1138,7 +1122,7 @@ func getWindowText(hwnd windows.Handle) string {
 }
 
 // List returns window information in a format suitable for JavaScript
-func (w *WindowManager) List() ([]map[string]interface{}, error) {
+func (w *windowsWindowManager) List() ([]map[string]interface{}, error) {
 	// 首先获取所有窗口
 	var allWindows []syscall.Handle
 	enumWindows := func(hwnd syscall.Handle, lparam uintptr) uintptr {
@@ -1322,7 +1306,7 @@ func getFocusWindowHandle(hwnd windows.Handle) uintptr {
 // Add this to your automation/window.go file
 
 // GetFocusWindow returns information about the currently focused window
-func (w *WindowManager) GetFocusWindow() (*WindowInfo, error) {
+func (w *windowsWindowManager) GetFocusWindow() (*WindowInfo, error) {
 	// Get the foreground window first
 	hwnd, _, _ := procGetForegroundWindow.Call()
 	if hwnd == 0 {
@@ -1401,7 +1385,7 @@ var (
 )
 
 // SetAlwaysOnTop 设置窗口始终置顶
-func (w *WindowManager) SetAlwaysOnTop(title string, alwaysOnTop bool) error {
+func (w *windowsWindowManager) SetAlwaysOnTop(title string, alwaysOnTop bool) error {
 	if title == "" {
 		return fmt.Errorf("window title cannot be empty")
 	}
@@ -1489,7 +1473,7 @@ func (w *WindowManager) SetAlwaysOnTop(title string, alwaysOnTop bool) error {
 }
 
 // UnsetTopMost 取消窗口的置顶状态
-func (w *WindowManager) UnsetTopMost(title string) error {
+func (w *windowsWindowManager) UnsetTopMost(title string) error {
 	if title == "" {
 		return fmt.Errorf("window title cannot be empty")
 	}
@@ -1497,7 +1481,7 @@ func (w *WindowManager) UnsetTopMost(title string) error {
 }
 
 // WindowManager 的方法之一
-func (w *WindowManager) attachThreadInput(idAttach, idAttachTo uint32, attach bool) error {
+func (w *windowsWindowManager) attachThreadInput(idAttach, idAttachTo uint32, attach bool) error {
 	var attachVal uintptr
 	if attach {
 		attachVal = 1
@@ -1515,7 +1499,7 @@ func (w *WindowManager) attachThreadInput(idAttach, idAttachTo uint32, attach bo
 	return nil
 }
 
-func (w *WindowManager) BringToTop(title string, pid interface{}) error {
+func (w *windowsWindowManager) BringToTop(title string, pid interface{}) error {
 	if title == "" {
 		return fmt.Errorf("window title cannot be empty")
 	}

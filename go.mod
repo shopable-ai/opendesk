@@ -1,6 +1,6 @@
-module testMonkey-go
+module clawdesk
 
-go 1.23.5
+go 1.25.0
 
 require (
 	fyne.io/fyne/v2 v2.5.4
@@ -77,9 +77,9 @@ require (
 	gocv.io/x/gocv v0.40.0 // indirect
 	golang.org/x/exp v0.0.0-20241004190924-225e2abe05e6 // indirect
 	golang.org/x/exp/shiny v0.0.0-20230817173708-d852ddb80c63 // indirect
-	golang.org/x/image v0.21.0 // indirect
+	golang.org/x/image v0.37.0 // indirect
 	golang.org/x/mobile v0.0.0-20231127183840-76ac6878050a // indirect
 	golang.org/x/net v0.25.0 // indirect
-	golang.org/x/text v0.21.0 // indirect
+	golang.org/x/text v0.35.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

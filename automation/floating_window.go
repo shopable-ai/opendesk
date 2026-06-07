@@ -11,6 +11,9 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
+// Global mutex to protect Fyne app initialization (not thread-safe)
+var fyneInitMutex sync.Mutex
+
 // FloatingWindow represents the floating window manager
 type FloatingWindow struct {
 	window    fyne.Window
@@ -65,8 +68,12 @@ func NewFloatingWindow() *FloatingWindow {
 		position:  Position{X: 100, Y: 100},
 	}
 
+	// Protect Fyne app initialization with mutex (not thread-safe)
+	fyneInitMutex.Lock()
 	fw.app = app.New()
 	fw.window = fw.app.NewWindow("Control Panel")
+	fyneInitMutex.Unlock()
+
 	fw.setupDefaultButtons()
 
 	return fw

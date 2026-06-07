@@ -44,6 +44,21 @@ func (c *Clipboard) Copy(text string) error {
 		}
 	}
 
+	log.Printf("Clipboard copy fallback: native implementation")
+	if fallbackErr := platformClipboardWriteFallback(text); fallbackErr == nil {
+		time.Sleep(80 * time.Millisecond)
+		readText, readErr := platformClipboardReadFallback()
+		if readErr == nil && readText == text {
+			return nil
+		}
+		if readErr != nil {
+			return fmt.Errorf("clipboard fallback write succeeded but read verification failed: %v", readErr)
+		}
+		return fmt.Errorf("clipboard fallback verification mismatch: want=%q got=%q", text, readText)
+	} else if err == nil {
+		err = fallbackErr
+	}
+
 	return fmt.Errorf("failed to copy to clipboard after %d attempts: %v", maxRetries, err)
 }
 
@@ -64,6 +79,13 @@ func (c *Clipboard) Paste() (string, error) {
 		if attempt < maxRetries {
 			time.Sleep(200 * time.Millisecond * time.Duration(attempt))
 		}
+	}
+
+	log.Printf("Clipboard paste fallback: native implementation")
+	if fallbackText, fallbackErr := platformClipboardReadFallback(); fallbackErr == nil {
+		return fallbackText, nil
+	} else if err == nil {
+		err = fallbackErr
 	}
 
 	return "", fmt.Errorf("failed to read clipboard after %d attempts: %v", maxRetries, err)
