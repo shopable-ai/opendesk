@@ -1,0 +1,94 @@
+{
+  "version": 1,
+  "generatedFor": "browser-automation dual-stack capability-to-evidence bootstrap",
+  "proofLevels": [
+    "facade proof",
+    "shim support",
+    "runtime proof",
+    "real-environment proof",
+    "private/raw-path only"
+  ],
+  "claims": [
+    {
+      "id": "stack-selection-routing",
+      "claim": "Runtime stack selection routes legacy, upgraded, and playwright compatibility surfaces without implying a runtime semantic upgrade by itself.",
+      "proofLevels": ["facade proof", "runtime proof", "real-environment proof"],
+      "boundaries": "This proves aliasing and execution-path routing, not full Playwright/browser runtime semantics.",
+      "evidence": [
+        {"kind": "go_test_name", "path": "automation/browser_compat_test.go", "name": "TestApplyRuntimeStackModeLegacyKeepsPageDefault"},
+        {"kind": "go_test_name", "path": "automation/browser_compat_test.go", "name": "TestApplyRuntimeStackModeUpgradedAliasesPageFacade"},
+        {"kind": "go_test_name", "path": "automation/browser_compat_test.go", "name": "TestApplyRuntimeStackModePlaywrightAliasesAllFacades"},
+        {"kind": "go_test_name", "path": "pkg/execution/runner_test.go", "name": "TestRunJavaScriptAppliesRequestedStackMode"},
+        {"kind": "go_test_name", "path": "pkg/http/handler_test.go", "name": "TestHandleExecutionsAcceptsPlaywrightStack"},
+        {"kind": "example", "path": "examples/browser_stack_http_e2e_smoke.py"},
+        {"kind": "doc", "path": "docs/browser-automation-stacks.md"}
+      ]
+    },
+    {
+      "id": "selector-wait-routing-only",
+      "claim": "Selector-shaped waits are supported only as explicit compatibility routing surfaces; missing runtime selector support must fail loudly instead of degrading to timeout-only behavior.",
+      "proofLevels": ["facade proof", "shim support"],
+      "boundaries": "No DOM selector engine is claimed; evidence covers owner-aware routing and unsupported-error behavior only.",
+      "evidence": [
+        {"kind": "go_test_name", "path": "automation/browser_compat_test.go", "name": "TestUpgradedPageWaitForSupportsNumberAndSelectorRouting"},
+        {"kind": "go_test_name", "path": "automation/browser_compat_test.go", "name": "TestLocatorRoutesActionsToOwningPage"},
+        {"kind": "code", "path": "polyfills/010-browser-automation-upgraded.js", "contains": "page.waitFor selector routing is not supported by current runtime"},
+        {"kind": "doc", "path": "docs/browser-automation-capability-boundaries.md"},
+        {"kind": "doc", "path": "docs/browser-automation-test-matrix.md"}
+      ]
+    },
+    {
+      "id": "evaluate-local-compatibility-boundary",
+      "claim": "Evaluate fallback is explicitly marked as local compatibility evaluation when no runtime-backed page evaluate exists.",
+      "proofLevels": ["facade proof"],
+      "boundaries": "This does not prove page-context DOM execution or Playwright-style evaluate semantics.",
+      "evidence": [
+        {"kind": "go_test_name", "path": "automation/browser_compat_test.go", "name": "TestUpgradedPageEvaluateReturnsExplicitLocalCompatibilityResultWhenNoRuntimeEvaluateExists"},
+        {"kind": "code", "path": "polyfills/010-browser-automation-upgraded.js", "contains": "local-compatibility-evaluate"},
+        {"kind": "doc", "path": "docs/browser-automation-capability-boundaries.md"},
+        {"kind": "doc", "path": "docs/browser-automation-test-matrix.md"}
+      ]
+    },
+    {
+      "id": "closed-state-introspection-conservative",
+      "claim": "Browser and context expose limited closed-state introspection, while page still does not claim an independent Playwright-style lifecycle contract.",
+      "proofLevels": ["facade proof", "runtime proof"],
+      "boundaries": "isClosed() reflects backing compatibility/container state only; it is not full lifecycle invalidation proof for every getter/action.",
+      "evidence": [
+        {"kind": "go_test_name", "path": "automation/browser_compat_test.go", "name": "TestUpgradedBrowserAndContextExposeClosedStateIntrospection"},
+        {"kind": "go_test_name", "path": "automation/browser_compat_test.go", "name": "TestUpgradedBrowserNewContextRejectsClosedBrowserAtFacadeBoundary"},
+        {"kind": "go_test_name", "path": "automation/browser_compat_test.go", "name": "TestFacadeCloseMethodsRemainCallableAfterFirstClose"},
+        {"kind": "code", "path": "polyfills/010-browser-automation-upgraded.js", "contains": "function readClosedState(obj)"},
+        {"kind": "doc", "path": "docs/browser-automation-stacks.md"},
+        {"kind": "doc", "path": "docs/browser-automation-capability-boundaries.md"}
+      ]
+    },
+    {
+      "id": "http-execution-routing",
+      "claim": "The HTTP execution path accepts explicit stack selection and returns execution/status/summary/stream evidence handles.",
+      "proofLevels": ["runtime proof", "real-environment proof"],
+      "boundaries": "This proves execution transport and stack routing, not full browser semantics.",
+      "evidence": [
+        {"kind": "go_test_name", "path": "pkg/http/handler_test.go", "name": "TestHandleExecutionsAcceptsUpgradedStack"},
+        {"kind": "go_test_name", "path": "pkg/http/handler_test.go", "name": "TestHandleExecutionsAcceptsPlaywrightStack"},
+        {"kind": "code", "path": "pkg/http/handler.go", "contains": "\"summaryUrl\""},
+        {"kind": "example", "path": "examples/browser_stack_http_e2e_smoke.py"},
+        {"kind": "script", "path": "scripts/test_browser_stack_http_smoke.sh"},
+        {"kind": "code", "path": "pkg/execution/runner.go", "contains": "return rt.Set(\"Execution\", context)"},
+        {"kind": "doc", "path": "docs/browser-automation-http-smoke-guide.md"}
+      ]
+    },
+    {
+      "id": "macos-real-app-smoke",
+      "claim": "The repository contains a real-environment macOS default-app smoke path that validates an open/wait/title/screenshot chain with availability fallback.",
+      "proofLevels": ["runtime proof", "real-environment proof"],
+      "boundaries": "This is desktop automation evidence, not DOM/browser-tab proof.",
+      "evidence": [
+        {"kind": "example", "path": "examples/browser_stack_macos_app_smoke.js"},
+        {"kind": "code", "path": "automation/page.go"},
+        {"kind": "doc", "path": "docs/browser-automation-test-matrix.md"},
+        {"kind": "doc", "path": "docs/browser-automation-capability-boundaries.md"}
+      ]
+    }
+  ]
+}
