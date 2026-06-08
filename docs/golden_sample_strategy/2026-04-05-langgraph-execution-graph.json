@@ -1,0 +1,422 @@
+{
+  "graphVersion": "2026-04-05.gs.wechatweb.proxy.v1",
+  "graphName": "GoldenSampleWechatWebProxy",
+  "description": "Collect online demo through local proxy, build reproducible golden sample, then run structure-first artifacts and guarded validation.",
+  "nodes": [
+    {
+      "id": "CollectInputs",
+      "inputs": [
+        "origin demo url",
+        "proxy selection",
+        "viewport spec",
+        "run-id"
+      ],
+      "outputs": [
+        "requirement.json",
+        "source_site/source_manifest.json"
+      ],
+      "gates": [
+        "origin url reachable via local proxy",
+        "new run-id not colliding"
+      ],
+      "repair": [
+        "reselect proxy",
+        "rename run-id",
+        "retry fetch with bounded timeout"
+      ],
+      "autoRetry": {
+        "allowed": true,
+        "maxAttempts": 2
+      },
+      "humanGateRequired": false
+    },
+    {
+      "id": "BuildGoldenSample",
+      "inputs": [
+        "source manifest",
+        "mirrored site root"
+      ],
+      "outputs": [
+        "capture/source.png",
+        "capture/rendered_dom.html",
+        "capture/network_requests.json",
+        "capture/console.log"
+      ],
+      "gates": [
+        "local mirror renders with expected viewport",
+        "core avatars/font loaded"
+      ],
+      "repair": [
+        "fix resource rewrite",
+        "capture again at locked viewport"
+      ],
+      "autoRetry": {
+        "allowed": true,
+        "maxAttempts": 2
+      },
+      "humanGateRequired": false
+    },
+    {
+      "id": "GenerateStructureJSON",
+      "inputs": [
+        "capture/source.png"
+      ],
+      "outputs": [
+        "detect/regions.json",
+        "detect/layout_model.json",
+        "infer/app_classification.json",
+        "infer/zones.json",
+        "infer/action_targets.json",
+        "infer/chat_candidates.json",
+        "infer/semantic_model.json"
+      ],
+      "gates": [
+        "required zones present",
+        "target intents present",
+        "selected row unique or explicitly blocked"
+      ],
+      "repair": [
+        "tune layout params",
+        "repair zones inference",
+        "rerun OCR probes"
+      ],
+      "autoRetry": {
+        "allowed": true,
+        "maxAttempts": 2
+      },
+      "humanGateRequired": false
+    },
+    {
+      "id": "GenerateLayoutHTML",
+      "inputs": [
+        "detect/regions.json",
+        "infer/zones.json",
+        "infer/chat_candidates.json"
+      ],
+      "outputs": [
+        "mirror/layout.html"
+      ],
+      "gates": [
+        "generated from JSON contract",
+        "layout zones present"
+      ],
+      "repair": [
+        "repair mirror generator",
+        "rerun with same semantic contract"
+      ],
+      "autoRetry": {
+        "allowed": true,
+        "maxAttempts": 1
+      },
+      "humanGateRequired": false
+    },
+    {
+      "id": "GenerateSemanticHTML",
+      "inputs": [
+        "infer/semantic_model.json",
+        "infer/action_targets.json",
+        "evidence/ocr/ocr_probe_results.json"
+      ],
+      "outputs": [
+        "mirror/semantic.html",
+        "mirror/dom_validation_report.json"
+      ],
+      "gates": [
+        "semantic nodes complete",
+        "selected candidate unique",
+        "ocr probes mapped"
+      ],
+      "repair": [
+        "repair semantic model",
+        "repair DOM validator"
+      ],
+      "autoRetry": {
+        "allowed": true,
+        "maxAttempts": 1
+      },
+      "humanGateRequired": false
+    },
+    {
+      "id": "RunDOMValidation",
+      "inputs": [
+        "mirror/semantic.html",
+        "infer/semantic_model.json"
+      ],
+      "outputs": [
+        "mirror/dom_validation_report.json"
+      ],
+      "gates": [
+        "required zones and targets complete"
+      ],
+      "repair": [
+        "fix semantic model fields",
+        "dedupe candidates"
+      ],
+      "autoRetry": {
+        "allowed": true,
+        "maxAttempts": 1
+      },
+      "humanGateRequired": false
+    },
+    {
+      "id": "RunCompareValidation",
+      "inputs": [
+        "capture/source.png",
+        "mirror/mirror.png"
+      ],
+      "outputs": [
+        "compare/report.json",
+        "compare/diff.png"
+      ],
+      "gates": [
+        "same dimensions",
+        "compare report emitted"
+      ],
+      "repair": [
+        "rerender mirror.png",
+        "normalize viewport"
+      ],
+      "autoRetry": {
+        "allowed": true,
+        "maxAttempts": 2
+      },
+      "humanGateRequired": false
+    },
+    {
+      "id": "ScoreAndJudge",
+      "inputs": [
+        "dom validation",
+        "compare report",
+        "actionability report",
+        "send safety report"
+      ],
+      "outputs": [
+        "decision.json",
+        "golden_sample_manifest.json"
+      ],
+      "gates": [
+        "score >= threshold for phase",
+        "send remains blocked unless explicitly approved"
+      ],
+      "repair": [
+        "route to Diagnose"
+      ],
+      "autoRetry": {
+        "allowed": false,
+        "maxAttempts": 0
+      },
+      "humanGateRequired": false
+    },
+    {
+      "id": "Diagnose",
+      "inputs": [
+        "all prior artifacts",
+        "failure taxonomy"
+      ],
+      "outputs": [
+        "repair plan",
+        "failure taxonomy update"
+      ],
+      "gates": [
+        "failure mode identified"
+      ],
+      "repair": [
+        "route to Repair"
+      ],
+      "autoRetry": {
+        "allowed": false,
+        "maxAttempts": 0
+      },
+      "humanGateRequired": false
+    },
+    {
+      "id": "Repair",
+      "inputs": [
+        "repair plan"
+      ],
+      "outputs": [
+        "patched configs/code/prompts"
+      ],
+      "gates": [
+        "repair scope explicit",
+        "no overwrite conflict"
+      ],
+      "repair": [
+        "re-run affected nodes only"
+      ],
+      "autoRetry": {
+        "allowed": false,
+        "maxAttempts": 0
+      },
+      "humanGateRequired": true
+    },
+    {
+      "id": "ReRun",
+      "inputs": [
+        "repaired artifacts"
+      ],
+      "outputs": [
+        "refreshed reports"
+      ],
+      "gates": [
+        "same sample id",
+        "fresh audit trail"
+      ],
+      "repair": [
+        "return to Diagnose if still failing"
+      ],
+      "autoRetry": {
+        "allowed": true,
+        "maxAttempts": 1
+      },
+      "humanGateRequired": false
+    },
+    {
+      "id": "BuildExecutionArtifacts",
+      "inputs": [
+        "validated structure artifacts"
+      ],
+      "outputs": [
+        "verify/actionability_report.json",
+        "verify/send_safety_report.json",
+        "checkpoints/current_state.json",
+        "replay/replay_result.json",
+        "replay/state_transition_log.json"
+      ],
+      "gates": [
+        "probe path complete",
+        "send blocked by default for demo sample"
+      ],
+      "repair": [
+        "refresh OCR/actionability/send safety"
+      ],
+      "autoRetry": {
+        "allowed": true,
+        "maxAttempts": 1
+      },
+      "humanGateRequired": false
+    },
+    {
+      "id": "RunWechatExecution",
+      "inputs": [
+        "real WeChat window",
+        "validated targets",
+        "human approval"
+      ],
+      "outputs": [
+        "action logs",
+        "before/after evidence"
+      ],
+      "gates": [
+        "real app classification confirmed",
+        "header identity confirmed",
+        "send safety allowed"
+      ],
+      "repair": [
+        "stop",
+        "retry from checkpoint",
+        "escalate to human"
+      ],
+      "autoRetry": {
+        "allowed": false,
+        "maxAttempts": 0
+      },
+      "humanGateRequired": true
+    },
+    {
+      "id": "VerifyPostSend",
+      "inputs": [
+        "post-send screenshot",
+        "draft state",
+        "message list delta"
+      ],
+      "outputs": [
+        "post_send_verify report"
+      ],
+      "gates": [
+        "draft cleared",
+        "new message present"
+      ],
+      "repair": [
+        "retry verify probe",
+        "escalate if ambiguous"
+      ],
+      "autoRetry": {
+        "allowed": true,
+        "maxAttempts": 1
+      },
+      "humanGateRequired": true
+    },
+    {
+      "id": "ReadReply",
+      "inputs": [
+        "message_list local probe",
+        "reply OCR evidence"
+      ],
+      "outputs": [
+        "reply readback report"
+      ],
+      "gates": [
+        "reply probe local to message list",
+        "not from chat list summary"
+      ],
+      "repair": [
+        "rerun local OCR",
+        "adjust probe bbox"
+      ],
+      "autoRetry": {
+        "allowed": true,
+        "maxAttempts": 1
+      },
+      "humanGateRequired": true
+    },
+    {
+      "id": "RecordReplayAndMemory",
+      "inputs": [
+        "all execution artifacts"
+      ],
+      "outputs": [
+        "golden manifest refresh",
+        "memory summary",
+        "failure taxonomy refresh"
+      ],
+      "gates": [
+        "all critical artifact paths present"
+      ],
+      "repair": [
+        "backfill manifest fields"
+      ],
+      "autoRetry": {
+        "allowed": false,
+        "maxAttempts": 0
+      },
+      "humanGateRequired": false
+    },
+    {
+      "id": "HumanGate",
+      "inputs": [
+        "decision summary",
+        "diff",
+        "replay state",
+        "risk notes"
+      ],
+      "outputs": [
+        "approved|blocked|needs-more-evidence"
+      ],
+      "gates": [
+        "required for migration from demo to real WeChat",
+        "required for any actual send"
+      ],
+      "repair": [
+        "collect more evidence",
+        "broaden golden set",
+        "tighten send policy"
+      ],
+      "autoRetry": {
+        "allowed": false,
+        "maxAttempts": 0
+      },
+      "humanGateRequired": true
+    }
+  ]
+}
