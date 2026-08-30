@@ -787,7 +787,7 @@ func prepareRunArtifacts(config *Config, sourceLabel, ext string, content []byte
 
 	logDir := strings.TrimSpace(config.LogDir)
 	if logDir == "" && (config.ScriptText != "" || config.ScriptStdin) {
-		logDir = filepath.Join("artifacts", "runs", "direct-"+startedAt.Format("20060102-150405"))
+		logDir = filepath.Join(".runtime", "runs", "direct-"+startedAt.Format("20060102-150405"))
 	}
 	if logDir == "" {
 		return nil, nil

@@ -301,7 +301,7 @@ async function getOrderBlock(win) {
     await sleep(500);
 
     screenshot = await page.screenshot({
-        path: 'temp/orderStatusEnd.png',
+        path: '.runtime/temp/orderStatusEnd.png',
         clip: {x: win.x + orderAreaX,y: win.y,width: WINDOW_ORDER_WIDTH,height: win.height}
     });    
     // 通过色块的相对坐标，找到待发货选项卡，坐标位置不固定，
@@ -309,7 +309,7 @@ async function getOrderBlock(win) {
     // for-each orderBlocks , 区域截图保持，方便调试
     // orderBlocks.forEach(block => {
     //     page.screenshot({
-    //         path: 'temp/orderStatus_' + block.x + '_' + block.y + '_' + block.width + '_' + block.height + '.png',
+    //         path: '.runtime/temp/orderStatus_' + block.x + '_' + block.y + '_' + block.width + '_' + block.height + '.png',
     //         clip: {x: win.x + orderAreaX + block.x,y: win.y + orderAreaY + block.y,width: 20,height: 20}
     //     });
     // })
@@ -319,7 +319,7 @@ async function getOrderBlock(win) {
     if (!orderBlock) orderBlock = { x:30, y:730, width: 430, height: 180 };
     // 截图保持区域orderBlock，方便调试
     // screenshot = await page.screenshot({
-    //     path: 'temp/orderBlock.png',
+    //     path: '.runtime/temp/orderBlock.png',
     //     clip: {
     //         x: win.x + orderAreaX + orderBlock.x,
     //         y: win.y + orderAreaY + orderBlock.y,
@@ -332,7 +332,7 @@ async function getOrderBlock(win) {
     
     // 订单区域，右侧整个部分，包括header
     screenshot = await page.screenshot({
-        path: 'temp/orderStatus.png',
+        path: '.runtime/temp/orderStatus.png',
         clip: {
             x: win.x + orderAreaX,
             y: win.y,
@@ -381,7 +381,7 @@ async function getOrderBlock(win) {
     await sleep(500);
 
     screenshot = await page.screenshot({
-        path: 'temp/orderStatusEnd.png',
+        path: '.runtime/temp/orderStatusEnd.png',
         clip: {x: win.x + orderAreaX,y: win.y,width: WINDOW_ORDER_WIDTH,height: win.height}
     });
     // await sleep(100);

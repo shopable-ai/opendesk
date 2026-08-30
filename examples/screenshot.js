@@ -7,14 +7,14 @@
 // Test 2: 保存到指定路径
 console.log("\nTest 2: Save to Path");
 let testImageBase = await page.screenshot({
-    path: "temp/screenshot.png"
+    path: ".runtime/temp/screenshot.png"
 });
-console.log("Screenshot saved to temp/screenshot.png", testImageBase.substring(0, 100) + "...");
+console.log("Screenshot saved to .runtime/temp/screenshot.png", testImageBase.substring(0, 100) + "...");
 
 // Test 3: 指定区域截图
 console.log("\nTest 3: Clipped Screenshot");
 await page.screenshot({
-    path: 'temp/screenshot_cut.png',
+    path: '.runtime/temp/screenshot_cut.png',
     clip: {
         x: 100,
         y: 100,
@@ -22,15 +22,15 @@ await page.screenshot({
         height: 300
     }
 });
-console.log("Clipped screenshot saved to temp/screenshot_cut.png");
+console.log("Clipped screenshot saved to .runtime/temp/screenshot_cut.png");
 
 // Test 4: 全页面截图
 console.log("\nTest 4: Full Page Screenshot");
 await page.screenshot({
-    path: 'temp/fullpage.png',
+    path: '.runtime/temp/fullpage.png',
     // fullPage: true
 });
-console.log("Full page screenshot saved to temp/fullpage.png");
+console.log("Full page screenshot saved to .runtime/temp/fullpage.png");
 
 // // Test 5: Base64 with clip
 console.log("\nTest 5: Base64 with Clip");

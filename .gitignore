@@ -12,10 +12,26 @@ __debug*
 
 # runtime and build output
 .runtime/
+.staging-sync/
 dist/
 coverage.out
 visualize
 annotate
+
+# generated artifact subtrees
+artifacts/runs/
+artifacts/preflight/
+artifacts/mcp-smoke/
+artifacts/browser-automation-evidence-audit/
+artifacts/browser-stack-cli-smoke/
+artifacts/browser-stack-http-smoke/
+artifacts/browser-stack-macos-smoke/
+artifacts/browser_stack_finish/
+artifacts/tests/
+artifacts/playwright/
+artifacts/bootstrap-round-*/
+artifacts/macos_v1/
+artifacts/macos-permission-bootstrap/
 
 # Python cache
 __pycache__/
@@ -27,3 +43,8 @@ test_images_output/
 drawing_demo.png
 wechat_quick_test.png
 wechat_analysis_output.txt
+
+# generated test workspaces; reusable baselines inside remain local-only
+test/locateanything/output/
+test/test/locateanything/output/
+test/wechat/output/

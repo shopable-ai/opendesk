@@ -140,7 +140,7 @@
 ### 5.1 最常用的简单形态
 
 ```js
-await Vision.runOCR("temp/current.png", { provider: "paddle", lang: "ch" });
+await Vision.runOCR(".runtime/temp/current.png", { provider: "paddle", lang: "ch" });
 await Vision.runOCR("media_01HXYZ...", { provider: "paddle", lang: "ch" });
 ```
 
@@ -155,7 +155,7 @@ await Vision.runOCR("media_01HXYZ...", { provider: "paddle", lang: "ch" });
 ```js
 await Vision.runOCR({
   image: {
-    path: "temp/current.png",
+    path: ".runtime/temp/current.png",
     // 或 mediaId: "media_01HXYZ..."
     // 或 base64: "data:image/png;base64,..."
     // 或 url: "https://..."
@@ -190,7 +190,7 @@ await Vision.runOCR({
 
 ```js
 const shot = await page.screenshot({
-  path: "temp/current.png",
+  path: ".runtime/temp/current.png",
   returnType: "object" // base64 | path | ref | object | none
 });
 ```
@@ -200,7 +200,7 @@ const shot = await page.screenshot({
 ```js
 {
   mediaId: "media_01HXYZ...",
-  path: "/abs/path/temp/current.png",
+  path: "/abs/path/.runtime/temp/current.png",
   mimeType: "image/png",
   width: 1440,
   height: 900,
@@ -248,7 +248,7 @@ const shot = await page.screenshot({
 
 默认建议：
 
-- 先写到 `temp/*.png`
+- 先写到 `.runtime/temp/*.png`
 - 下游传 `path`
 - 如果需要跨多个接口复用，再升格成 `mediaId`
 
@@ -256,7 +256,7 @@ const shot = await page.screenshot({
 
 默认建议：
 
-- 文件落盘，例如 `temp/session.mp4`
+- 文件落盘，例如 `.runtime/temp/session.mp4`
 - 后续处理接口只传 `path/mediaId`
 - 如需远程处理，先上传再提交 job
 
@@ -264,14 +264,14 @@ const shot = await page.screenshot({
 
 ```js
 const rec = await Media.startScreenCapture({
-  outputPath: "temp/session.mp4",
+  outputPath: ".runtime/temp/session.mp4",
   fps: 15
 });
 
 await Media.stop(rec.streamId);
 
 await Video.analyze({
-  video: "temp/session.mp4"
+  video: ".runtime/temp/session.mp4"
 });
 ```
 
@@ -286,7 +286,7 @@ await Video.analyze({
 
 ```js
 const mic = await Media.startAudioCapture({
-  outputPath: "temp/session.wav",
+  outputPath: ".runtime/temp/session.wav",
   sampleRate: 16000,
   channels: 1
 });
@@ -294,7 +294,7 @@ const mic = await Media.startAudioCapture({
 await Media.stop(mic.streamId);
 
 await Audio.transcribe({
-  audio: "temp/session.wav"
+  audio: ".runtime/temp/session.wav"
 });
 ```
 

@@ -25,6 +25,6 @@ const clip = {
   height: active.height,
 };
 
-const out = `temp/mac/screenshot_active_window_${Date.now()}.png`;
+const out = `.runtime/temp/mac/screenshot_active_window_${Date.now()}.png`;
 await page.screenshot({ path: out, clip, target: 'activeWindow' });
 console.log('active window screenshot:', out);

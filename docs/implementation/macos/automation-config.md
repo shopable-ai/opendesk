@@ -223,14 +223,14 @@ open dist/Clawdesk.app --args -script examples/mac/automation-permission-wizard.
 
 ```bash
 ./scripts/build_permission_bootstrap_app.sh
-open -n "$(pwd)/artifacts/macos-permission-bootstrap/Clawdesk.app" --args -mode all -keepalive 90s
+open -n "$(pwd)/.runtime/bootstrap/macos-permission-bootstrap/Clawdesk.app" --args -mode all -keepalive 90s
 ```
 
 如果还需要稳定触发 `System Events` 的 Automation 授权弹窗, 再启动 AppleScript applet fallback:
 
 ```bash
 ./scripts/build_automation_bootstrap_app.sh
-open -n "$(pwd)/artifacts/macos-permission-bootstrap/Clawdesk Automation.app" --args "System Events"
+open -n "$(pwd)/.runtime/bootstrap/macos-permission-bootstrap/Clawdesk Automation.app" --args "System Events"
 ```
 
 也可以直接一条命令同时启动两者:

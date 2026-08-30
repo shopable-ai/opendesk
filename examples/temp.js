@@ -11,7 +11,7 @@ console.log("Screenshot captured, checking for colors...");
 
 // Get order status area screenshot
 let screenshot = await page.screenshot({
-    path: 'temp/opencv_cut.png',
+    path: '.runtime/temp/opencv_cut.png',
     clip: {
         x: 55,
         y: 66,

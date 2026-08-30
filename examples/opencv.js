@@ -1,12 +1,12 @@
 // Capture full screenshot and save to path
 let bigImage = await page.screenshot({
-    path: 'temp/screenshot.png'
+    path: '.runtime/temp/screenshot.png'
 });
-console.log("Screenshot captured and saved to temp/screenshot.png", bigImage.substring(0, 100) + "...");
+console.log("Screenshot captured and saved to .runtime/temp/screenshot.png", bigImage.substring(0, 100) + "...");
 
 // Get order status area screenshot with specific region
 let cut = await page.screenshot({
-    path: 'temp/screenshot_cut.png',
+    path: '.runtime/temp/screenshot_cut.png',
     clip: {
         x: 55,
         y: 66,
@@ -14,12 +14,12 @@ let cut = await page.screenshot({
         height: 200
     }
 });
-console.log("Clipped screenshot saved to temp/screenshot_cut.png");
+console.log("Clipped screenshot saved to .runtime/temp/screenshot_cut.png");
 
 let info = await ImageColor.findPos(bigImage, cut);
 console.log("ImageColor findImage in opencv:", info);
 
-let opencvImg = 'temp/opencv.jpg';
+let opencvImg = '.runtime/temp/opencv.jpg';
 // Get the size of the big image
 let [bigWidth, bigHeight] = ImageColor.getSize(opencvImg);
 let openCvBase64 = ImageColor.loadBase64(opencvImg);
@@ -33,11 +33,11 @@ for (let i = 0; i < 5; i++) {
     // let randomCut = await ImageColor.clip(bigImage, { x: randomX, y: randomY, width: 100, height: 200 } );   // test fail
     // Generate random clipped screenshot directly instead of using ImageColor.clip
     let randomCut = await page.screenshot({
-        path: `temp/random_cut_${i}.png`,
+        path: `.runtime/temp/random_cut_${i}.png`,
         clip: { x: randomX, y: randomY, width: 100, height: 200 }
     });
 
-    let randomInfo = await ImageColor.findPos(bigImage, `temp/random_cut_${i}.png`);   // test ok
+    let randomInfo = await ImageColor.findPos(bigImage, `.runtime/temp/random_cut_${i}.png`);   // test ok
     // let randomInfo = await ImageColor.findPos(bigImage, randomCut);  //  test ok
     console.log(`Result for test ${i + 1}:`, randomInfo);
 

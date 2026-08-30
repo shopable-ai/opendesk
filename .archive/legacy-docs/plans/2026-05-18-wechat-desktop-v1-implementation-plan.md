@@ -6,7 +6,7 @@ Goal: Make the macOS WeChat desktop flow reliable for the first guarded real-use
 
 Architecture: Keep the existing hybrid runtime direction already present in `examples/mac/wechat_steps/`: native macOS window/input primitives for act/focus, OCR/template relocation for observe/locate, and evidence-heavy guarded steps for verify/audit. Do not replace the current system. Tighten it into a stable V1 by upgrading config validation, step-level evidence, structured send safety, and search/input reliability.
 
-Tech Stack: JS runtime inside `testMonkey-go`, macOS window/mouse/keyboard/clipboard/page/Vision/ImageColor primitives, artifact bundles under `artifacts/runs`, JSON/JSONL evidence in `temp/mac`.
+Tech Stack: JS runtime inside `testMonkey-go`, macOS window/mouse/keyboard/clipboard/page/Vision/ImageColor primitives, artifact bundles under `.runtime/runs`, JSON/JSONL evidence in `.runtime/temp/mac`.
 
 ---
 
@@ -330,7 +330,7 @@ Do not wrap the entire program in a blanket catcher. Add local catch blocks only
 ### Step 4: Verify output file shape manually
 
 Run an example execution path after implementation and inspect:
-- `temp/mac/wechat_structured_send_v2_audit.jsonl`
+- `.runtime/temp/mac/wechat_structured_send_v2_audit.jsonl`
 
 Expected:
 - both `kind: "step"` and send phase entries exist
@@ -623,7 +623,7 @@ Suggested content:
   "sendRetryDelayMinMs": 600,
   "sendRetryDelayMaxMs": 1400,
   "sendDedupWindowMs": 60000,
-  "sendAuditPath": "temp/mac/wechat_structured_send_v2_audit.jsonl"
+  "sendAuditPath": ".runtime/temp/mac/wechat_structured_send_v2_audit.jsonl"
 }
 ```
 
@@ -695,8 +695,8 @@ Expected:
 
 ### Verification C: audit artifact quality
 Inspect:
-- `temp/mac/wechat_structured_send_v2_audit.jsonl`
-- latest `temp/mac/wechat_structured_send_v2_*.json`
+- `.runtime/temp/mac/wechat_structured_send_v2_audit.jsonl`
+- latest `.runtime/temp/mac/wechat_structured_send_v2_*.json`
 
 Expected:
 - step evidence exists for search/open/header/focus
