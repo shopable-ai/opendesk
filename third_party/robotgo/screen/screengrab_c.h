@@ -5,6 +5,16 @@
 	#include <OpenGL/OpenGL.h>
 	#include <OpenGL/gl.h>
 	#include <ApplicationServices/ApplicationServices.h>
+	#include <dlfcn.h>
+
+	typedef CGImageRef (*CGDisplayCreateImageForRectFn)(CGDirectDisplayID, CGRect);
+
+	static CGImageRef robotgoCaptureDisplayRect(CGDirectDisplayID displayID, CGRect rect) {
+		CGDisplayCreateImageForRectFn createImage =
+			(CGDisplayCreateImageForRectFn)dlsym(RTLD_DEFAULT, "CGDisplayCreateImageForRect");
+		if (!createImage) { return NULL; }
+		return createImage(displayID, rect);
+	}
 #elif defined(USE_X11)
 	#include <X11/Xlib.h>
 	#include <X11/Xutil.h>
@@ -26,7 +36,7 @@ MMBitmapRef copyMMBitmapFromDisplayInRect(MMRectInt32 rect, int32_t display_id, 
 	}
 
 	MMPointInt32 o = rect.origin; MMSizeInt32 s = rect.size;
-	CGImageRef image = CGDisplayCreateImageForRect(displayID, CGRectMake(o.x, o.y, s.w, s.h));
+	CGImageRef image = robotgoCaptureDisplayRect(displayID, CGRectMake(o.x, o.y, s.w, s.h));
 	if (!image) { return NULL; }
 	
 	CFDataRef imageData = CGDataProviderCopyData(CGImageGetDataProvider(image));

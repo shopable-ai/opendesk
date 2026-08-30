@@ -5,16 +5,28 @@ package screenshot
 /*
 #cgo LDFLAGS: -framework CoreGraphics -framework CoreFoundation
 #include <CoreGraphics/CoreGraphics.h>
+#include <dlfcn.h>
+
+typedef CGImageRef (*CGDisplayCreateImageForRectFn)(CGDirectDisplayID, CGRect);
+
+static CGImageRef captureDisplayRect(CGDirectDisplayID id, CGRect rect) {
+    CGDisplayCreateImageForRectFn createImage =
+        (CGDisplayCreateImageForRectFn)dlsym(RTLD_DEFAULT, "CGDisplayCreateImageForRect");
+    if (!createImage) {
+        return NULL;
+    }
+    return createImage(id, rect);
+}
 
 static CGImageRef capture(CGDirectDisplayID id, CGRect diIntersectDisplayLocal, CGColorSpaceRef colorSpace) {
-    CGImageRef img = CGDisplayCreateImageForRect(id, diIntersectDisplayLocal);
+    CGImageRef img = captureDisplayRect(id, diIntersectDisplayLocal);
     if (!img) {
-        return nil;
+        return NULL;
     }
     CGImageRef copy = CGImageCreateCopyWithColorSpace(img, colorSpace);
     CGImageRelease(img);
     if (!copy) {
-        return nil;
+        return NULL;
     }
     return copy;
 }
