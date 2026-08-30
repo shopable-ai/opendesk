@@ -1,294 +1,239 @@
-# wechat_frozen_desktop_golden_template
+# WeChat Golden Sample Template
 
-## 1. 用途
+本文件定义未来 WeChat desktop golden fixture 的最小格式与 promotion 条件。
 
-本文件提供 frozen desktop golden 的最小可执行模板。
+## 当前状态
 
-用途只有三个：
+截至 2026-08-31，当前仓库树中**没有已验证并冻结的 WeChat desktop golden fixture**。
 
-1. 指导 run-scoped baseline 如何 promote
-2. 统一 frozen desktop golden 的目录与文件名
-3. 给后续脚本/审查提供最小 JSON 样例
+因此：
 
----
+- 本文件是模板/spec；
+- 历史 candidate / run-scoped 产物只能作为研究或历史 evidence；
+- 不得因为本模板存在，就声称 frozen golden 已存在。
 
-## 2. 目标目录实例
+## 生命周期
+
+推荐状态：
 
 ```text
-artifacts/golden-samples/wechat/
-  wechat-desktop-chat-main-1097x880-frozen-20260408/
-    manifest.json
-    source/
-      provenance.json
-    capture/
-      source.png
-    detect/
-      regions.json
-      layout_model.json
-    infer/
-      app_classification.json
-      zones.json
-      action_targets.json
-      chat_candidates.json
-      ocr_map.json
-      semantic_model.json
-    baseline/
-      golden_layout_baseline.json
-      golden_semantic_baseline.json
-    verify/
-      capture_contract.json
-      actionability_report.json
-      send_safety_report.json
-    compare/
-      structural_report.json
-      semantic_report.json
-      summary_report.json
-    replay/
-      replay_case.json
-      replay_result.json
-      recovery_result.json
-    failure/
-      failure_taxonomy.json
-    evidence/
-      index.json
-      human_review_summary.json
+candidate
+-> reviewed
+-> frozen
+-> deprecated
 ```
 
----
+### Candidate
 
-## 3. manifest.json 最小样例
+- 来自真实或受控环境采集；
+- schema / provenance 可以仍不完整；
+- 只能用于开发和验证。
+
+### Frozen
+
+只有满足 promotion gate 后才能作为稳定回归 reference。
+
+### Deprecated
+
+UI、版本、来源或 contract 已失效，不再用于当前 regression/action support。
+
+## 推荐目录
+
+```text
+artifacts/fixtures/wechat/<sample-id>/
+├── manifest.json
+├── source/
+│   └── provenance.json
+├── capture/
+│   └── source.png
+├── detect/
+│   ├── regions.json
+│   └── layout-model.json
+├── infer/
+│   ├── app-classification.json
+│   ├── zones.json
+│   ├── action-targets.json
+│   └── ocr-map.json
+├── baseline/
+│   ├── layout.json
+│   └── semantic.json
+├── verify/
+│   ├── capture-contract.json
+│   ├── actionability-report.json
+│   └── send-safety-report.json
+├── replay/
+│   ├── replay-case.json
+│   └── replay-result.json
+├── evidence/
+│   ├── index.json
+│   └── human-review-summary.json
+└── failure/
+    └── taxonomy.json
+```
+
+当前仓库生命周期规则使用 `artifacts/fixtures/` 存放可复用 baseline，不恢复历史 `artifacts/golden-samples/` 作为新的平行根。
+
+## `manifest.json`
+
+最少建议：
 
 ```json
 {
   "schemaVersion": "0.2.0",
-  "sampleId": "wechat-desktop-chat-main-1097x880-frozen-20260408",
-  "status": "frozen",
-  "baselineTier": "desktop_reference",
+  "sampleId": "",
+  "scenario": "wechat-desktop-chat",
+  "status": "candidate",
   "sourceKind": "desktop_reference",
-  "createdAt": "2026-04-08T00:00:00+08:00",
-  "reviewer": "codex",
-  "reviewedAt": "2026-04-08T00:00:00+08:00",
-  "promotionDecision": "approved",
-  "phaseGate": {
-    "phase1": "pass",
-    "phase2": "pass",
-    "phase3": "send_frozen"
-  },
-  "artifactsComplete": true
+  "createdAt": "",
+  "reviewedAt": null,
+  "reviewer": null,
+  "promotionDecision": null,
+  "artifactsComplete": false
 }
 ```
 
----
+不要预填假的 reviewer、reviewedAt 或 approved 状态。
 
-## 4. golden_layout_baseline.json 最小样例
+## Provenance
+
+必须能回答：
+
+- 来自哪个 Clawdesk commit；
+- macOS / WeChat 版本；
+- window geometry / scale factor；
+- capture 时间；
+- theme / display 等影响结构的环境信息；
+- 是否包含真实用户数据，是否已经脱敏；
+- 采集方式和工具版本。
+
+缺 provenance 的样本不能升级为 frozen。
+
+## Layout Baseline
+
+推荐至少包含：
 
 ```json
 {
   "schemaVersion": "0.2.0",
-  "baselineId": "wechat-desktop-chat-main-1097x880-frozen-20260408-layout",
-  "baselineTier": "desktop_reference",
-  "sourceKind": "desktop_reference",
-  "status": "frozen",
-  "screen": { "width": 1097, "height": 880 },
+  "baselineId": "",
+  "status": "candidate",
+  "screen": {"width": 0, "height": 0},
   "window": {
-    "width": 1097,
-    "height": 880,
-    "geometryHash": "wechat-main-1097x880-v1",
-    "scaleFactor": 2
+    "width": 0,
+    "height": 0,
+    "scaleFactor": 1,
+    "geometryHash": ""
   },
-  "criticalZones": [
-    "search_area",
-    "conversation_list",
-    "chat_header",
-    "message_list",
-    "input_area",
-    "send_action_zone"
-  ],
-  "topology": {
-    "columns": ["left_nav", "conversation_list", "main_panel"],
-    "mainPanelRows": ["chat_header", "message_list", "input_area"]
-  },
-  "zones": [],
-  "captureRefs": [],
-  "compareHints": {
-    "actionCriticalZones": ["search_area", "conversation_list", "chat_header", "input_area"]
-  }
+  "criticalZones": [],
+  "topology": {},
+  "zones": []
 }
 ```
 
----
+不要把某一次 `1097x880` 或 scale factor 2 写成所有 WeChat 环境的固定真相。
 
-## 5. golden_semantic_baseline.json 最小样例
+## Semantic Baseline
+
+推荐至少包含：
 
 ```json
 {
   "schemaVersion": "0.2.0",
-  "baselineId": "wechat-desktop-chat-main-1097x880-frozen-20260408-semantic",
-  "baselineTier": "desktop_reference",
-  "sourceKind": "desktop_reference",
-  "status": "frozen",
-  "pageType": "chat_page",
+  "baselineId": "",
+  "status": "candidate",
   "appClass": "wechat_desktop",
-  "stateFlags": {
-    "headerVisible": true,
-    "inputVisible": true,
-    "sendVisible": true,
-    "blockingOverlay": false
-  },
+  "pageType": "chat_page",
+  "stateFlags": {},
   "actionTargets": [],
   "guards": {
-    "headerMustMatchBeforeInput": true,
-    "focusMustBeVerifiedBeforeDraft": true,
+    "chatIdentityRequired": true,
+    "focusVerificationRequired": true,
+    "draftVerificationRequired": true,
     "sendDisabledByDefault": true,
     "sendNeedsDedicatedGate": true
-  },
-  "captureRefs": [
-    "search_capture",
-    "conversation_capture",
-    "header_capture",
-    "input_capture",
-    "send_capture"
-  ]
-}
-```
-
----
-
-## 6. capture_contract.json 最小样例
-
-```json
-{
-  "schemaVersion": "0.2.0",
-  "runId": "wechat-desktop-chat-main-1097x880-frozen-20260408",
-  "capturedAt": "2026-04-08T00:00:00+08:00",
-  "sameWindow": true,
-  "geometryHash": "wechat-main-1097x880-v1",
-  "maxAgeMs": 1500,
-  "captures": [
-    {
-      "id": "search_capture",
-      "zoneId": "search_area",
-      "precision": "high",
-      "referenceImagePath": "verify/capture_refs/search_capture.png",
-      "searchWindow": { "x": 72, "y": 0, "width": 220, "height": 60 },
-      "templateMatch": {
-        "minScore": 0.72,
-        "softMinScore": 0.68,
-        "escapeCheck": true
-      }
-    }
-  ]
-}
-```
-
----
-
-## 7. compare/summary_report.json 最小样例
-
-```json
-{
-  "schemaVersion": "0.2.0",
-  "baselineDir": "artifacts/golden-samples/wechat/wechat-desktop-chat-main-1097x880-frozen-20260408/baseline",
-  "runtimeDir": "artifacts/runs/codex-audit-send8/snapshot",
-  "summary": {
-    "comparePurpose": "action_gate",
-    "decisionKind": "pass",
-    "status": "pass",
-    "allowActions": true,
-    "allowProbes": true,
-    "allowedActionStage": "focus_input",
-    "sourceKindMismatch": false,
-    "gateStatus": {
-      "goldenPassed": true,
-      "realScreenshotValidationPassed": true,
-      "actionStageAllowed": true,
-      "sendAllowed": false
-    },
-    "scoreBreakdown": {
-      "structural": 1,
-      "semantic": 1,
-      "capture": 1,
-      "guard": 1
-    },
-    "hardGates": [
-      {
-        "id": "HG6_same_window_and_freshness",
-        "status": "pass",
-        "evidenceStrength": "strong",
-        "reason": ""
-      }
-    ],
-    "blockingReasons": [
-      "send safety gate not passed; send remains frozen"
-    ],
-    "repairHints": []
   }
 }
 ```
 
----
+## Send Safety Report
 
-## 8. promotion 时必须拒绝的情况
+Golden promotion 不能省略 send 状态。
 
-任一命中即拒绝 promote：
+即使样本只用于非发送动作，也应明确：
 
-1. baseline 关键字段为空
-2. `sameWindow / geometryHash / maxAgeMs` 未落盘
-3. `capture_contract.json` 缺失
-4. `summary_report.json` 缺 `hardGates` 或 `repairHints`
-5. `send_safety_report.json` 缺失
-6. 仍停留在 `artifacts/runs/.../desktop-baseline/` 没有独立冻结目录
-
----
-
-## 9. 当前最合理的使用方式
-
-当前仓库最合理的下一步不是恢复 send，也不是增加真实 GUI 长链试错，而是：
-
-1. 选一个已有 run-scoped `desktop_reference`
-2. 按本模板补齐目录与文件
-3. promote 成 frozen desktop golden
-4. 再用它去约束 `open_chat -> verify_chat_header -> focus_input -> read_reply`
-
----
-
-## 10. 注册表与自动校验
-
-当前推荐同时维护：
-
-- `artifacts/golden-samples/wechat/registry.json`
-- `scripts/validate_wechat_frozen_samples.py`
-- `scripts/promote_wechat_run_to_frozen.py`
-- `scripts/select_wechat_golden_sample.py`
-
-用途：
-
-1. `registry.json` 提供样本总览
-   - `sampleId`
-   - `status`
-   - `baselineTier`
-   - `comparePurpose`
-   - `decisionKind`
-   - `allowedActionStage`
-   - `sendAllowed`
-2. `validate_wechat_frozen_samples.py` 用于自动检查 frozen 样本是否满足最小要求
-
-推荐主命令：
-
-```bash
-python3 scripts/validate_wechat_frozen_samples.py
+```json
+{
+  "sendAllowed": false,
+  "reason": "send was not validated for this fixture"
+}
 ```
 
-生成 frozen 样本主命令：
+Frozen reference **不能自动解冻发送能力**。
 
-```bash
-python3 scripts/promote_wechat_run_to_frozen.py --run-id codex-audit-send8 --tier desktop_action
-python3 scripts/promote_wechat_run_to_frozen.py --run-id codex-audit-send8-real --tier desktop_reference --reference-only
+## Promotion Gate
+
+至少满足：
+
+1. provenance 完整；
+2. source image / derived evidence 可追溯；
+3. schema 关键字段非空；
+4. critical zones / action targets 可解释；
+5. capture/freshness contract 明确；
+6. failure taxonomy / known limits 已记录；
+7. replay 或等价 regression 验证可重复；
+8. human review 已完成；
+9. promotion decision 显式批准；
+10. 没有 false-success / unresolved high-risk ambiguity。
+
+质量总规则见：
+
+```text
+docs/quality/gates-and-evidence.md
 ```
 
-选择样本主命令：
+## 拒绝 Promotion 的情况
 
-```bash
-python3 scripts/select_wechat_golden_sample.py --tier desktop_action --min-stage focus_input
-python3 scripts/select_wechat_golden_sample.py --tier desktop_reference --min-stage none
+任一满足即保持 candidate：
+
+- 只有截图，没有结构化 evidence；
+- 只有 HTML mirror / visual diff；
+- 来源环境不明；
+- baseline 关键字段为空；
+- candidate 来自 web/dev reference，却想用于 desktop action geometry；
+- send safety 未明确；
+- human review 缺失；
+- 样本中含无法合理保存的敏感数据；
+- 当前 WeChat UI 已明显漂移。
+
+## 使用边界
+
+Frozen sample 可以支持：
+
+- regression；
+- layout / semantic compare；
+- target discovery 调试；
+- drift detection；
+- replay fixture。
+
+Frozen sample 不等于：
+
+- 当前窗口身份；
+- 当前联系人身份；
+- 当前 click target；
+- 当前 send authorization。
+
+真实动作仍需 fresh runtime evidence。
+
+## 首个新 Fixture 的正确顺序
+
+```text
+fresh macOS capture
+-> candidate fixture
+-> validate structure/semantic fields
+-> run non-send scenario replay/smoke
+-> review known limits
+-> explicit promotion decision
+-> frozen fixture
 ```
+
+在完成这条链路前，不应在文档中写一个看似真实存在的 frozen sample ID。

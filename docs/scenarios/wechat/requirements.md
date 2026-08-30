@@ -1,206 +1,216 @@
-# wechat_desktop_requirements
+# WeChat Desktop Automation Requirements
 
-## 1. 目标
+本文件定义 Clawdesk 面向微信桌面版自动化的**场景需求与验收边界**。
 
-本需求文档定义当前微信桌面应用 agent 的开发范围、主链、门禁和非目标。
+## 当前状态
 
-系统目标不是“一次性自动发消息”，而是建立一套可验证、可回放、可渐进放开的桌面 GUI agent 执行框架。
+截至 2026-08-31，仓库具备可复用的 Clawdesk 桌面能力、Vision/OCR、MCP `inspect -> find -> act` 工具和历史 WeChat 研究/报告，但**当前仓库没有独立维护的 WeChat production adapter / workflow 实现**。
 
-主链固定为：
+当前不存在的旧路径包括：
 
 ```text
-golden baseline
--> runtime snapshot
--> compare gate
--> single-step validation
--> progressive guarded actions
--> evidence / replay / taxonomy
+examples/mac/wechat_steps/
+examples/mac/wechat_structured_send_v2.js
+config/wechat_structured_send_v2.config.json
 ```
 
-## 2. 一级需求
+因此本目录描述的是场景 contract、质量要求和未来实现约束，不应被引用为“当前已经跑通 WeChat V1”的证据。
 
-### R1. 黄金样本基准化
+## 场景目标
 
-系统必须能够从已有黄金样本产物中提取：
+目标链路：
 
-- `golden_layout_baseline.json`
-- `golden_semantic_baseline.json`
+```text
+识别当前微信窗口
+-> 找到目标会话
+-> 打开并验证目标会话
+-> 读取必要上下文
+-> 聚焦输入区
+-> 写入草稿
+-> 独立评估发送安全
+-> 可选发送
+-> 回读并验证结果
+```
 
-来源至少包括：
+其中 `send` 是高风险动作，必须与 open/focus/type 分离。
 
-- `mirror/layout.html`
-- `mirror/semantic.html`
-- `infer/zones.json`
-- `infer/action_targets.json`
+## 功能需求
 
-### R2. 运行时归一化
+### R1 当前窗口与应用身份
 
-系统必须能够把真实截图识别结果归一化为：
+系统必须能判断：
 
-- `runtime_layout_snapshot.json`
-- `runtime_semantic_snapshot.json`
+- 当前目标窗口是否属于预期微信桌面应用；
+- 窗口是否仍是同一个运行上下文；
+- 截图/候选是否足够新鲜；
+- 是否存在 blocking overlay、弹窗或异常页面。
 
-### R3. compare gate
+无法确认时不得进入高风险动作。
 
-系统必须先完成结构和语义 compare，再决定是否允许进入动作阶段。
+### R2 会话发现
 
-至少比较：
+系统需要从 fresh evidence 中找到目标会话候选，而不是依赖历史固定坐标。
 
-- zone completeness
-- bbox ratio delta
-- background color delta
-- target-zone binding
-- capture relocation availability
-- search/header/input/message plausibility
+候选至少应携带：
 
-### R4. 单步验证
+- bounds / click point；
+- 来源证据；
+- confidence / match score；
+- freshness；
+- ambiguity 信息。
 
-系统必须支持以下单步能力独立运行：
+目标名称相同或相似时必须显式消歧。
 
-- `locate_search_area`
-- `focus_search_input`
-- `type_search_query`
-- `locate_conversation_list`
-- `open_chat`
-- `verify_chat_header`
-- `focus_input`
-- `read_reply`
-- `scroll_message_list`
+### R3 会话身份验证
 
-### R5. 渐进动作放开
+打开会话后必须重新验证 header / identity。
 
-系统只允许按顺序放开动作：
+原则：
 
-1. `open_chat`
-2. `open_chat + verify_chat_header`
-3. `open_chat + verify_chat_header + focus_input`
-4. `read_reply`
-5. `send_message` 单独冻结
+```text
+点击了某一行
+!= 已证明进入正确会话
+```
 
-### R6. 失败分类
+header 无法验证时必须 stop / recovery。
 
-每次失败必须输出：
+### R4 输入焦点
 
-- 当前失败阶段
-- 根因
-- 分类：`structure / recognition / validation / action / runtime`
-- 下一步修什么
-- `stop / retry / escalate`
+输入前必须确认：
 
-## 3. 二级需求
+- 输入区存在；
+- 当前焦点位于目标输入区；
+- 没有输入法/浮窗等阻挡当前动作；
+- 当前窗口仍匹配预期上下文。
 
-### R7. fresh screenshot 原则
+### R5 Draft 验证
 
-真实动作前必须重新截图，不允许仅依赖历史 bbox 或旧 region_map。
+写入内容后、发送前，需要重新读取或以其他可验证方式确认 draft 与预期一致。
 
-### R8. fail-fast 守卫
+至少验证：
 
-发现以下情况必须立即停止：
+- 内容非空；
+- 内容未被截断/污染；
+- 当前会话仍正确；
+- 本轮发送 payload 与用户意图一致。
 
-- 当前活动窗口不是微信
-- 窗口位置或尺寸漂移
-- template match 逃逸搜索窗
-- header 未匹配目标会话
-- send safety 未通过
+### R6 Send Safety
 
-### R9. 工件落盘
+真实发送必须独立通过场景级 Gate。
 
-每轮运行至少应落盘：
+至少要求：
 
-- screenshot
-- runtime snapshot
-- compare report
-- step evidence
-- decision
-- audit
+```text
+fresh window identity
++ target chat identity
++ input focus
++ draft verification
++ send target evidence
++ no blocking overlay
++ action freshness
++ post-send verification plan
+```
 
-### R10. 可人工审查
+任何关键项不确定时：
 
-关键中间结果必须支持人工可视化审查：
+```text
+sendAllowed=false
+```
 
-- 原图
-- 标注图
-- 小区域裁剪图
-- baseline JSON
-- runtime JSON
-- compare report
+### R7 Postcondition / Readback
 
-## 4. 架构约束
+如果执行发送，必须验证至少一种真实 postcondition，例如：
 
-### C1. 文档与脚本分离
+- draft 清空或进入预期状态；
+- 消息列表出现本轮发送内容；
+- UI 状态明确改变；
+- 可读取的新消息/回复符合预期上下文。
 
-- 文档放 `docs/`
-- 执行原型放 `examples/`
-- 样本和运行结果放 `artifacts/`
-- schema 放 `schemas/`
+只收到 click/type 调用成功不能视为业务成功。
 
-### C2. worker 分层
+### R8 Failure / Recovery
 
-worker 必须拆分，不允许长期堆在单文件。
+失败应分类到稳定 taxonomy，并优先局部恢复：
 
-当前正确拆分方向：
+```text
+environment / permission
+perception / OCR
+layout / semantic identity
+target ambiguity / stale evidence
+focus / action
+send safety
+postcondition / verification
+recovery
+```
 
-- `examples/mac/wechat_steps/00_window_guard.js`
-- `examples/mac/wechat_steps/10_capture_helpers.js`
-- `examples/mac/wechat_steps/20_template_relocate.js`
-- `examples/mac/wechat_steps/30_search_flow.js`
-- `examples/mac/wechat_steps/40_open_chat.js`
-- `examples/mac/wechat_steps/50_focus_input.js`
-- `examples/mac/wechat_steps/60_send_guard.js`
-- `examples/mac/wechat_steps/70_read_reply.js`
-- `examples/mac/wechat_steps/main.js`
+连续重试但没有新增 evidence 时必须停止。
 
-### C3. 调试逻辑不得污染主链
+## 非功能需求
 
-调试便利可以存在于 worker 原型层，但不能直接固化进 Go 主链和正式 contract。
+### 可审计
 
-## 5. 非目标
+每个关键动作应保留：
 
-当前明确不做：
+- before / after evidence；
+- target candidate trace；
+- guard decision；
+- failure classification；
+- final decision。
 
-- 不先放开发送
-- 不把 whole-window visual similarity 当唯一真相
-- 不沉迷消息内容语义
-- 不在真实 GUI 上长链盲执行
-- 不把专家讨论直接塞进实时动作链
+### 可回放
 
-## 6. 验收标准
+关键 scenario 应可转化为 fixture / replay case，至少能复核：
 
-### A1. 黄金样本完成
+```text
+输入状态
+-> 候选
+-> decision
+-> action plan
+-> verifier
+```
 
-满足以下条件即视为黄金样本阶段通过：
+### 跨环境鲁棒性
 
-- baseline JSON 可从黄金样本稳定提取
-- zones / action targets / capture refs 可被人工核对
-- compare 输入字段稳定
+不能把单一窗口尺寸、主题、Retina scale 或某次截图坐标写成场景长期事实。
 
-### A2. 结构 compare 完成
+## 当前可复用基础
 
-满足以下条件即视为 compare 主链通过：
+当前实现可从以下通用能力起步：
 
-- runtime snapshot 可生成
-- compare report 可生成
-- pass / warn / fail 有明确标准
+```text
+automation/                     # 窗口、截图、输入、OCR/Vision 等
+pkg/mcpserver/                  # inspect/find/act 主链
+docs/architecture/desktop-automation/
+docs/quality/gates-and-evidence.md
+docs/integrations/mcp/
+```
 
-### A3. 动作阶段完成
+WeChat-specific 适配应建立在这些通用能力之上，而不是复制一套独立 runtime。
 
-满足以下条件才允许进入动作阶段：
+## 当前不应宣称的能力
 
-- compare gate 为 `pass`
-- 小区域单步 fresh screenshot 验证通过
-- header identity 验证通过
-- send 仍需单独审查
+在新的 WeChat-specific implementation、fixtures 和真机 evidence 落地前，不应宣称：
 
-## 7. 当前优先级
+- 已有稳定的 WeChat 会话搜索实现；
+- 已有可直接使用的 WeChat send workflow；
+- 已存在当前版本 frozen desktop golden；
+- 已通过当前版本真实 macOS 端到端发送验证；
+- 历史坐标/region map 可以作为当前动作真相。
 
-1. baseline extractor
-2. runtime snapshot schema
-3. structural / semantic compare
-4. search result row 识别
-5. open_chat + verify_chat_header
-6. focus_input
-7. read_reply
+## 验收路径
 
-## 8. 一句话总结
+推荐逐级验收：
 
-当前桌面应用需求的本质是：先把黄金样本和真实截图统一成可比较的数据层，再用这层去约束和放开真实 GUI 动作，而不是直接在真实微信里长时间试错。
+```text
+A. inspect / window identity
+B. find target chat without action
+C. open_chat + verify header
+D. focus_input + verify focus
+E. type draft + verify draft
+F. send preview / safety gate
+G. controlled real send
+H. postcondition / readback
+I. replay / regression fixture
+```
+
+必须允许在 F 阶段长期保持 `sendAllowed=false`，而不把非发送能力判定为整体失败。
