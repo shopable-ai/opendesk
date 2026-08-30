@@ -1,6 +1,6 @@
 # Browser Automation Test Matrix
 
-本矩阵只列当前仓库中存在的测试与本轮实际可验证入口。历史 smoke 文件已从当前测试清单移除。
+本矩阵只列当前仓库中存在的测试与可验证入口。历史 smoke 文件已从当前测试清单移除。
 
 ## Test levels
 
@@ -18,6 +18,26 @@
 | execution stack field | T2 | `pkg/execution/runner_test.go::TestRunJavaScriptAcceptsRequestedStackMode` | requested stack metadata is preserved and current base globals remain usable | upgraded/playwright facade behavior |
 | execution context | T2 | `pkg/execution/runner_test.go::TestRunJavaScriptInjectsExecutionContext` | `Execution` metadata injection | browser semantics |
 | HTTP stack acceptance | T2 | `pkg/http/handler_test.go::TestHandleExecutionsAcceptsLegacyStack`; `...UpgradedStack`; `...PlaywrightStack` | HTTP handler accepts and forwards stack values | real HTTP server smoke or browser semantics |
+
+## Evidence reference validator
+
+Run:
+
+```bash
+python3 scripts/validate_browser_automation_evidence.py
+```
+
+It checks only deterministic reference integrity for `capability-evidence-manifest.json`:
+
+- manifest basic shape;
+- evidence path exists;
+- referenced Go test name exists;
+- `contains` string exists;
+- duplicate claim id;
+- unknown E0-E5 proof level;
+- empty evidence.
+
+Passing the validator means **references are internally consistent**, not that the capability works, matches Playwright semantics, or is production-ready.
 
 ## Current gaps
 
@@ -45,4 +65,4 @@ Tests and docs must not treat these paths as current Evidence.
 
 ## Reporting rule
 
-A passing T1/T2 routing test may be reported as routing/integration proof only. T3 is required before claiming current real-environment proof, and even a T3 smoke cannot establish full Playwright parity.
+A passing reference validator is F7 Evidence/Artifact drift protection only. A passing T1/T2 routing test may be reported as routing/integration proof only. T3 is required before claiming current real-environment proof, and even a T3 smoke cannot establish full Playwright parity.
