@@ -1,283 +1,353 @@
-# Quick Start Guide - New Architecture
+# Clawdesk Quick Start
 
-## For Developers
+本页只保留当前可验证的启动和调试主路径。完整 API 说明见 `docs-user-api/`，项目设计与质量规范见 `docs/`。
 
-### Using the Runtime Pool
-
-```go
-import (
-    "context"
-    "clawdesk/pkg/runtime"
-    "github.com/dop251/goja"
-)
-
-// Create pool
-pool := runtime.NewRuntimePool(10, func() *goja.Runtime {
-    return goja.New()
-})
-defer pool.Close()
-
-// Get runtime
-ctx := context.Background()
-rt, err := pool.Get(ctx)
-if err != nil {
-    // Handle error
-}
-defer pool.Put(rt)
-
-// Use runtime
-result, _ := rt.RunString("1 + 1")
-```
-
-### Using the Container
-
-```go
-import (
-    "clawdesk/pkg/container"
-)
-
-// Create container
-cfg := &container.Config{
-    RuntimePoolSize: 10,
-}
-c, err := container.NewContainer(cfg)
-if err != nil {
-    // Handle error
-}
-defer c.Close()
-
-// Get runtime
-rt, _ := c.GetRuntime(ctx)
-defer c.PutRuntime(rt)
-
-// Access services
-vision := c.Vision()
-```
-
-### Creating HTTP Server
-
-```go
-import (
-    pkgHttp "clawdesk/pkg/http"
-    "clawdesk/pkg/container"
-)
-
-// Create container
-container, _ := container.NewContainer(&container.Config{
-    RuntimePoolSize: 10,
-})
-defer container.Close()
-
-// Create server
-server := pkgHttp.NewServer(container, "8080")
-
-// Start server
-server.Start()
-```
-
-## For Users
-
-### Running the Application
+## 1. 构建
 
 ```bash
-# Default mode (container-based)
-./clawdesk -http -port 60844
-
-# Legacy mode
-export USE_DI_CONTAINER=0
-./clawdesk -http -port 60844
+go build -o clawdesk .
 ```
 
-### Agent-Driven CLI Execution
-
-CLI now supports an agent-friendly output layer for direct execution without requiring a pre-written `.js` file.
+也可以直接：
 
 ```bash
-# Execute inline JavaScript directly
-./clawdesk -script-text "console.log('inline run')" -timeout 4
-
-# Execute JavaScript streamed from stdin
-printf "console.log('stdin run')\n" | ./clawdesk -script-stdin -timeout 4
-
-# Save the exact stdin payload for replay/promotion
-printf "console.log('stdin run')\n" | \
-  ./clawdesk \
-  -script-stdin \
-  -save-last-script artifacts/last-agent-script.js \
-  -timeout 4
+go run . <flags>
 ```
 
-For macOS permission-stable runs, use the fixed binary wrapper:
+## 2. 执行 JavaScript
+
+### 文件
 
 ```bash
-printf "console.log('stable stdin run')\n" | \
-  REBUILD=1 ./scripts/run_macos_stable.sh \
-  -script-stdin \
-  -save-last-script artifacts/last-agent-script.js \
-  -timeout 4
+go run . -script examples/notify.js
 ```
 
-Rules:
-
-- choose exactly one of `-script`, `-script-text`, `-script-stdin`
-- `run_macos_stable.sh` is a stable-binary wrapper; when new CLI flags are added, first run with `REBUILD=1`
-- direct runs now default to `.runtime/runs/<executionId>/`
-- each run emits `script_snapshot.js`, `stdout.log`, `stderr.log`, `summary.json`, `agent_summary.json`, `events.ndjson`
-
-Recommended output views:
+### Inline source
 
 ```bash
-# Human-friendly terminal output
-./clawdesk -script-text "console.log('hello')" -console-mode script -timeout 1
-
-# Minimal summary-only terminal output
-./clawdesk -script-text "console.log('hello')" -console-mode summary -timeout 1
-
-# Agent-friendly structured output
-./clawdesk -script-text "console.log('hello')" -output-format json -timeout 1
-
-# Agent mode also returns the structured JSON summary
-./clawdesk -script-text "console.log('hello')" -console-mode agent -timeout 1
+go run . -script-text "console.log('inline run')"
 ```
 
-Behavior summary:
-
-- `-console-mode script`: show script logs, summary, and errors
-- `-console-mode summary`: show summary and errors only
-- `-console-mode agent`: emit the compact structured summary instead of noisy terminal logs
-- `-output-format json`: emit the compact agent summary as JSON on stdout
-- full raw stdout/stderr are still preserved in the run artifact directory
-
-Verified commands:
+### stdin
 
 ```bash
-REBUILD=1 ./scripts/run_macos_stable.sh -script-text "console.log('hello')" -console-mode script -timeout 1
-
-printf "console.log('hello from stdin')\n" | \
-  REBUILD=1 ./scripts/run_macos_stable.sh \
-    -script-stdin \
-    -save-last-script /tmp/clawdesk-last.js \
-    -console-mode summary \
-    -timeout 1
-
-REBUILD=1 ./scripts/run_macos_stable.sh -script-text "console.log('json')" -output-format json -timeout 1
+printf "console.log('stdin run')\n" | go run . -script-stdin
 ```
 
-Repeatable smoke test:
+规则：`-script`、`-script-text`、`-script-stdin` 一次只能选择一个。
+
+## 3. 输出与执行证据
+
+低噪音 Agent 模式：
 
 ```bash
-# Maintainer-mode validation
-./scripts/test_agent_direct_execution.sh
-
-# User-mode validation without relying on Go tests
-./scripts/test_agent_direct_execution_user_mode.sh
+go run . \
+  -script-text "console.log('agent run')" \
+  -console-mode agent
 ```
 
-### API Examples
+JSON 输出：
 
-#### Create Execution
 ```bash
-curl -X POST http://localhost:60844/executions \
-  -H "Content-Type: application/json" \
+go run . \
+  -script-text "console.log('agent run')" \
+  -output-format json
+```
+
+主要 console mode：
+
+```text
+full
+script
+meta
+summary
+quiet
+agent
+```
+
+默认产物目录：
+
+```text
+.runtime/runs/<executionId>/
+```
+
+默认包含：
+
+```text
+script_snapshot.js
+stdout.log
+stderr.log
+summary.json
+agent_summary.json
+events.ndjson
+```
+
+指定自定义产物目录：
+
+```bash
+go run . \
+  -script-text "console.log('custom logs')" \
+  -log-dir .runtime/debug/my-run
+```
+
+保存本次执行脚本：
+
+```bash
+go run . \
+  -script-text "console.log('snapshot')" \
+  -save-last-script .runtime/debug/last-script.js
+```
+
+## 4. Browser compatibility stack
+
+默认：
+
+```text
+legacy
+```
+
+可选：
+
+```text
+legacy
+upgraded
+playwright
+```
+
+示例：
+
+```bash
+go run . -script examples/browser_stack_legacy_smoke.js -stack legacy
+go run . -script examples/browser_stack_upgraded_smoke.js -stack upgraded
+go run . -script examples/browser_stack_playwright_smoke.js -stack playwright
+```
+
+注意：`upgraded` / `playwright` 是兼容 facade，不代表完整 Playwright 浏览器运行时。
+
+阅读：
+
+```text
+docs-user-api/runtime.md
+docs/architecture/browser-automation/capabilities.md
+docs/architecture/browser-automation/stack.md
+```
+
+## 5. HTTP 模式
+
+启动：
+
+```bash
+go run . -http -port 60844
+```
+
+DI/container 模式默认开启。
+
+创建 execution：
+
+```bash
+curl -X POST http://127.0.0.1:60844/executions \
+  -H 'Content-Type: application/json' \
   -d '{
-    "script": "for (let i = 0; i < 3; i++) { console.log(\"tick-\" + i); await page.waitFor(120); }",
-    "timeout": 120
-  }'
-```
-
-#### Read Execution Status
-```bash
-curl http://localhost:60844/executions/<executionId>
-```
-
-#### Stream Execution Events (SSE)
-```bash
-curl -N http://localhost:60844/executions/<executionId>/events
-```
-
-#### Read Final Agent Summary
-```bash
-curl http://localhost:60844/executions/<executionId>/summary
-```
-
-#### Legacy Compatibility Endpoints
-```bash
-curl -X POST http://localhost:60844/SCRIPT_RUN \
-  -H "Content-Type: application/json" \
-  -d '{
-    "script": "console.log(\"Hello\")",
+    "script": "console.log(page.title())",
+    "stack": "legacy",
     "timeout": 30
   }'
-
-curl http://localhost:60844/status
 ```
 
-#### OCR
+响应会返回：
+
+```text
+executionId
+statusUrl
+summaryUrl
+streamUrl
+artifacts
+```
+
+查询状态：
+
 ```bash
-curl -X POST http://localhost:60844/vision/ocr \
-  -F "image=@screenshot.png" \
-  -F "provider=paddle" \
-  -F "lang=ch"
+curl http://127.0.0.1:60844/executions/<executionId>
 ```
 
-## Testing
+查询摘要：
 
-### Run All Tests
 ```bash
-go test ./pkg/... -v -cover
+curl http://127.0.0.1:60844/executions/<executionId>/summary
 ```
 
-### Run with Race Detector
+读取 SSE：
+
 ```bash
-go test ./pkg/... -race
+curl -N http://127.0.0.1:60844/executions/<executionId>/events
 ```
 
-### Run Benchmarks
+健康状态：
+
 ```bash
-go test ./pkg/runtime/... -bench=. -benchmem
+curl http://127.0.0.1:60844/status
 ```
 
-## Troubleshooting
+完整 HTTP API：
 
-### Issue: Race condition detected
-**Solution**: Make sure SKIP_FYNE_INIT is set in test environment
-
-### Issue: Pool exhausted
-**Solution**: Increase RuntimePoolSize in container config
-
-### Issue: Tests fail with Fyne errors
-**Solution**: Run tests with `SKIP_FYNE_INIT=1 go test ./...`
-
-## Performance Tips
-
-1. **Pool Size**: Set to 2x expected concurrent requests
-2. **Timeout**: Set appropriate timeout for long-running scripts
-3. **Context**: Always use context for cancellation support
-4. **Cleanup**: Always defer Put() after Get()
-
-## Migration from Legacy
-
-### Before (Legacy)
-```go
-var jsRuntime *goja.Runtime
-
-func handler(w http.ResponseWriter, r *http.Request) {
-    result, _ := jsRuntime.RunString(script)
-}
+```text
+docs-user-api/http-server.md
 ```
 
-### After (Container)
-```go
-func handler(w http.ResponseWriter, r *http.Request) {
-    rt, _ := container.GetRuntime(r.Context())
-    defer container.PutRuntime(rt)
-    result, _ := rt.RunString(script)
-}
+### Legacy HTTP
+
+只有需要验证历史兼容行为时才使用：
+
+```bash
+USE_DI_CONTAINER=0 go run . -http -port 60844
 ```
 
-## Resources
+Legacy 模式和默认 container 模式存在路由/行为差异，新开发应以默认模式和 `docs-user-api/http-server.md` 为准。
 
-- [Implementation Guide](docs/architecture/implementation.md)
-- [Package Documentation](pkg/README.md)
-- [Round 3 Discussion](docs/optimization/round-03-architecture-refactoring.md)
-- [Status Report](.archive/reports/2026-03-status-report.md)
+## 6. Vision CLI
+
+OCR：
+
+```bash
+go run . \
+  -vision-ocr-image test.png \
+  -vision-provider paddle \
+  -vision-lang ch
+```
+
+检测目标文字：
+
+```bash
+go run . \
+  -vision-detect-ui-image test.png \
+  -vision-target-text 发送 \
+  -vision-provider paddle \
+  -vision-lang ch
+```
+
+可调：
+
+```text
+-vision-min-confidence
+-vision-include-raw
+```
+
+阅读：
+
+```text
+docs-user-api/vision.md
+docs/implementation/ocr/provider-integration.md
+```
+
+## 7. macOS App 与权限
+
+构建固定 App：
+
+```bash
+./scripts/build_macos_app.sh
+```
+
+默认输出：
+
+```text
+dist/clawdesk
+dist/Clawdesk.app
+```
+
+启动 App：
+
+```bash
+open dist/Clawdesk.app
+```
+
+带参数启动：
+
+```bash
+./scripts/open_macos_app.sh \
+  -script examples/mac/request-macos-permissions.js \
+  -timeout 2
+```
+
+需要重新处理权限时可查看：
+
+```text
+scripts/reset_macos_permissions.sh
+scripts/run_permission_bootstrap.sh
+docs/implementation/macos/screenshot-troubleshooting.md
+docs/implementation/macos/automation-config.md
+```
+
+## 8. 测试
+
+Go 回归：
+
+```bash
+go test ./...
+```
+
+项目 smoke：
+
+```bash
+./scripts/e2e_smoke.sh
+```
+
+浏览器自动化测试规范：
+
+```text
+docs/quality/browser-automation/test-matrix.md
+docs/quality/browser-automation/http-smoke.md
+```
+
+整体质量门禁：
+
+```text
+docs/quality/gates-and-evidence.md
+docs/quality/testing-guide.md
+```
+
+## 9. 下一步阅读
+
+脚本/API 使用：
+
+```text
+docs-user-api/index.md
+docs-user-api/cookbook.md
+docs-user-api/runtime-api.ai.json
+```
+
+项目工程文档：
+
+```text
+docs/README.md
+```
+
+桌面自动化架构：
+
+```text
+docs/architecture/desktop-automation/
+```
+
+WeChat 场景：
+
+```text
+docs/scenarios/wechat/
+```
+
+MCP：
+
+```text
+docs/integrations/mcp/
+```
+
+## 10. 文档事实规则
+
+遇到冲突时按以下顺序判断：
+
+```text
+当前源码 / 测试 / 运行证据
+-> 当前 canonical docs
+-> Research / Plans / Reports
+-> Archive / Git history
+```
+
+不要从历史 TestMonkey 文档、已归档报告或旧 Prompt 反推当前 API 行为。
