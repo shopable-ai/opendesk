@@ -16,6 +16,9 @@ require (
 	golang.org/x/sys v0.27.0
 )
 
+replace github.com/go-vgo/robotgo => ./third_party/robotgo
+replace github.com/kbinani/screenshot => ./third_party/kbinani-screenshot
+
 require (
 	fyne.io/systray v1.11.0 // indirect
 	github.com/BurntSushi/toml v1.4.0 // indirect
