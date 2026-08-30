@@ -1,6 +1,6 @@
 ---
 title: docs-user-api regen prompt
-description: 给 Hermes / Codex / 其他 agent 的精简版重生成提示词与检查清单，用于在版本升级后重建 editme-cli 友好的 docs-user-api 文档结构。
+description: 给 Codex / Hermes / 其他 Agent 的 Clawdesk 用户 API 文档重生成与一致性检查清单。
 order: 20
 ---
 
@@ -8,106 +8,98 @@ order: 20
 
 ## 用途
 
-这是一份短版可复用 prompt/checklist。
+用于 Clawdesk 版本升级后更新或重建 `docs-user-api/`。
 
-适合在以下场景直接丢给 agent：
-- testMonkey-go 升级后，`docs-user-api/` 需要跟随源码更新
-- 现有页面结构已经漂移，需要重新整理 TOC
-- 需要从头重生成一套新的 `docs-user-api/`
+完整 TOC/写作规则见：
 
-完整维护说明请看：
 - `docs/maintenance/docs-user-api-editme-toc-maintenance.md`
+- `docs/maintenance/repository-documentation-map.md`
 
 ## 可直接复用的 prompt
 
-你现在在项目：
-`/Users/a0000/Documents/workspace/testMonkey-go`
+你正在维护 Clawdesk 仓库的唯一用户 API 文档：
+
+`docs-user-api/`
 
 目标：
-重建或更新 `docs-user-api/`，并确保这些 Markdown 页面在 editme-cli 中渲染时，右侧 TOC 保持自然、克制、可导航。
+
+基于当前源码和运行时行为更新 `docs-user-api/`，让人类脚本作者与 AI Agent 都能可靠使用，同时保持 editme-cli 友好的 TOC。
 
 必须遵守：
 
-1. 先以当前源码为准，重建真实 API 面
-- 区分 native API / polyfill API / legacy API
-- 不要沿用旧文档里已经失真的 page / DOM 风格假设
+1. **源码优先**
+   - 先从 `automation/`、`polyfills/`、`main.go`、`pkg/http/` 等当前实现确认事实。
+   - 文档与源码冲突时修文档，不复制历史错误。
 
-2. 页面结构要为 editme-cli 的右侧 TOC 优化
-- TOC 应主要体现：
-  - 页面级 section
-  - 对象级 section
-  - 方法级 section
-- 不要让方法内部的小节主导 TOC
+2. **只维护一个用户 API 文档根**
+   - 不创建 `docs-api/`
+   - 不创建 `docs-api-user/`
+   - 不创建 `docs/api/`
+   - 历史内容只通过 Git 历史查阅。
 
-3. 方法内部以下内容通常不要继续用深层标题
-- 参数
-- 返回值
-- 行为规则
-- 错误条件
-- 示例
-- 注意事项
-- 类似 `returnType 行为`、`displayIndex 规则` 这样的内部规则块
+3. **区分 API 来源/状态**
+   - Native
+   - Polyfill
+   - Compatibility facade
+   - Stable / Secondary / Experimental / Conditional
 
-4. 方法内部优先使用轻量结构表达
-- 粗体标签
-- 表格
-- 紧凑列表
-- 引导句
-- blockquote
+4. **同时维护机器可读索引**
+   - 新增/删除/改名全局对象或主要方法时更新 `docs-user-api/runtime-api.ai.json`。
+   - JSON 是 Agent 索引，不高于当前源码。
 
-5. 页面整体应更像用户可读的 SDK/reference 文档
-- 不是源码分析提纲
-- 不是调研笔记树
-- 不能为了 TOC 简洁而删空内容覆盖
+5. **TOC 克制**
+   - 页面级 / 对象级 / 方法级可以做 heading。
+   - 参数 / 返回值 / 行为规则 / 错误 / 示例通常使用粗体标签、表格和紧凑列表。
 
-6. cookbook / 示例页特殊处理
-- 不要让每个例子都成为 heading
-- 先按场景分组，再把具体例子写成粗体示例块
-- 例如：
-  - `## 截图与窗口`
-  - `**示例 1：截图当前活动窗口**`
+6. **示例必须贴近真实运行时**
+   - 不推断不存在的 DOM / Playwright 能力。
+   - upgraded / playwright 只按兼容 facade 解释。
+   - 高风险系统动作应明确副作用。
 
-7. 完成后做一次 TOC 审核
-- 检查页面是否被“参数 / 返回值 / 示例 / 错误”刷屏
-- 必要时再做一次 heading 降级整理
+7. **禁止环境污染**
+   - 不写 `/Users/...`、`C:\Users\...` 等开发者本机绝对路径。
+   - 不把旧 TestMonkey 名称重新写成当前产品名或默认存储路径。
 
 ## 推荐页面生成顺序
 
-如果需要从头重生成，建议顺序：
-1. `index.md`
-2. `page.md`
-3. `input.md`
-4. `window.md`
-5. `screen.md`
-6. `system.md`
-7. `file.md`
-8. `clipboard-console.md`
-9. `http.md`
-10. `vision.md`
-11. `runtime.md`
-12. `polyfills.md`
-13. `libs.md`
-14. `http-server.md`
-15. `cookbook.md`
+1. `README.md`
+2. `index.md`
+3. `runtime-api.ai.json`
+4. `page.md`
+5. `input.md`
+6. `window.md`
+7. `screen.md`
+8. `vision.md`
+9. `image-color.md`
+10. `system.md`
+11. `file.md`
+12. `storage.md`
+13. `clipboard-console.md`
+14. `http.md`
+15. `http-server.md`
+16. `runtime.md`
+17. `polyfills.md`
+18. `libs.md`
+19. `runtime-utilities.md`
+20. `cookbook.md`
 
-## 快速检查清单
+## 内容检查
 
-### 结构检查
-- [ ] TOC 主要显示页面级 / 对象级 / 方法级
-- [ ] 方法内部说明块大多已降级为轻量结构
-- [ ] cookbook 页面没有把每个例子都做成 heading
+- [ ] 当前所有主要全局对象在 `index.md` 有归属
+- [ ] `runtime-api.ai.json` 与当前对象地图一致
+- [ ] native / polyfill / compatibility 没混写
+- [ ] 默认值与源码一致
+- [ ] 页面没有本机绝对路径
+- [ ] 没有重新引入退役 API 文档目录
+- [ ] 旧 DOM 风格 API 没有误写为稳定桌面 API
+- [ ] 重要示例能从当前运行时语义解释
 
-### 内容检查
-- [ ] 文档仍覆盖真实可用 API
-- [ ] native / polyfill / legacy 没有混写
-- [ ] 页面仍像正式 reference，而不是笔记提纲
+## TOC 检查
 
-### 上游约束检查
-- [ ] editme-cli 的约束入口仍存在
-- [ ] 如有需要，同步检查：
-  - `packages/editme-cli/src/ai-rules-sidecar.js`
-  - `packages/editme-cli/src/init-docs-site.js`
+- [ ] TOC 主要展示页面 / 对象 / 方法
+- [ ] 参数、返回值、错误、示例没有大量挤进 TOC
+- [ ] cookbook 仍按场景分组，而不是每个例子一个 heading
 
 ## 一句话判断法
 
-如果一个标题不是帮助读者导航到另一个页面 section / 对象 / 方法，而只是解释某个方法的内部细节，那么它大概率不该继续作为高权重 Markdown 标题存在。
+**API 事实看源码，用户解释看 `docs-user-api/`，Agent 索引看 `runtime-api.ai.json`；不要再维护平行旧文档树。**

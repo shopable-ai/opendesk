@@ -1,336 +1,192 @@
 ---
 title: Runtime Stacks
-description: legacy、upgraded、playwright 三种运行时栈，以及 pageUpgraded / browserUpgraded / contextUpgraded 的用户视角说明。
+description: Clawdesk JS 运行时注入顺序、全局对象形成过程，以及 legacy / upgraded / playwright 三种运行时栈。
 order: 14
 ---
 
 # runtime stacks
 
-当前项目支持三种运行时栈模式：
-- legacy
-- upgraded
-- playwright
+本页解释两个问题：
 
-它们控制的是：脚本里默认暴露给你的 `page` / `browser` / `context` 指向哪一层对象。
+1. Clawdesk 的 JavaScript 全局 API 是怎样形成的。
+2. `legacy` / `upgraded` / `playwright` 如何改变 `page` / `browser` / `context`。
 
-源码依据
-- `main.go` 中 `-stack` 参数
-- `automation/runtime_stack.go`
-- `polyfills/010-browser-automation-upgraded.js`
+## 运行时 API 形成过程
 
-## 一句话理解
+当前 `automation.InitJSWithOptions()` 的主顺序是：
 
-- legacy：保留旧默认对象，不主动切换全局 page
-- upgraded：把全局 `page` 指向 `pageUpgraded`
-- playwright：把全局 `page`、`browser`、`context` 都切到升级 facade
+1. 注入基础原生对象
+   - `console`
+   - `http`
+   - `System`
+   - `window`
+   - `clipboard`
+   - `FloatingWindow`（仅当未设置 `SKIP_FYNE_INIT`）
+   - `File`
+   - `AppStorage`
+   - `Sound`
+   - `ImageColor`
+   - `OCR`
+   - `Vision`
+2. 注册 timer 能力
+3. 创建输入与 page 对象
+   - `mouse`
+   - `keyboard`
+   - `touchscreen`
+   - `page`
+   - `page____Inject`
+4. 创建 browser/context 原始对象
+   - `browser`
+   - `browser____Inject`
+   - `context`
+   - `context____Inject`
+5. 按文件名排序加载 `polyfills/*.js`
+6. 按文件名排序加载 `jslibs/*.js`
+7. 将 `console` 切换到真正的运行期事件 sink
+8. 注入 `Screen`
+9. 绑定 `Screen.screenshot = page.screenshot`
 
-## 什么时候该关心 stack
+这意味着用户最终看到的 API 不是单纯的 Go 方法集合，而是：
 
-如果你只是写：
-- page.screenshot()
-- page.openURL()
-- mouse.click()
-- Vision.runOCR()
+**Native 对象 + Polyfill 覆盖/增强 + JS Libraries + Stack 选择**
 
-通常直接用 legacy 也能工作。
+## 为什么要区分 Native 与 Polyfill
 
-如果你开始写这些风格：
-- page.locator(...)
-- page.query(...)
-- page.cookies(...)
-- browser.newContext()
-- context.newPage()
-- playwright.chromium.launch()
+例如 `page.screenshot()` 来自原生 Page；而：
 
-那你就需要理解 upgraded / playwright。
+- `page.waitForTimeout()`
+- `page.waitForFunction()`
+- `page.checkPermissions()`
+- `page.requestPermissions()`
+- `page.ensurePermissions()`
 
-## 1. legacy
+来自 polyfill。
 
-含义
-- 默认模式
-- 不修改 polyfill 已经暴露的旧式 page 对象
+对用户来说它们都可调用，但维护文档和排查问题时必须知道来源不同。
 
-全局对象表现
-- `page`：保持 legacy 默认对象
-- `browser`：legacy browser
-- `context`：legacy default context
+`axios` 也是典型例子：正式脚本中的全局 `axios` 由 `polyfills/004-axios.js` 构造，并最终调用底层 `http.request()`。
 
-适合场景
-- 已有老脚本
-- 主要使用 page.screenshot / page.openURL / mouse / keyboard / Vision
-- 不需要新 facade 的 locator / context / browser 风格封装
+## 核心全局对象
 
-启动示例
+完整导航见 `index.md`。运行时核心可以按职责理解：
+
+- **动作与观察**：`page`、`mouse`、`keyboard`、`touchscreen`、`window`、`Screen`
+- **视觉**：`Vision`、`OCR`、`ImageColor`
+- **数据与系统**：`File`、`AppStorage`、`System`、`clipboard`
+- **网络**：`http`、`axios`
+- **运行时辅助**：`console`、Promise、timers、sleep、`notify()`、`Sound`
+- **条件能力**：`FloatingWindow`
+- **兼容 facade**：`browser`、`context`、upgraded/playwright 相关对象
+
+## 三种 stack
+
+### legacy
+
+默认模式。
+
+- `page` 保持 legacy 用户对象
+- `browser` / `context` 保持基础兼容对象
+- 最适合已有桌面自动化脚本
 
 ```bash
 go run main.go -script script.js -stack legacy
 ```
 
-## 2. upgraded
+如果主要使用下面这些能力，优先从 legacy 开始：
 
-含义
-- 把全局 `page` 切换为 `pageUpgraded`
-- 但 `browser` 仍保持 legacy browser
+- `page.screenshot()`
+- `page.openURL()`
+- `window`
+- `mouse` / `keyboard`
+- `Vision`
+- `ImageColor`
 
-源码行为
-- `ApplyRuntimeStackMode(..., "upgraded")`
-- 等价于把 `pageUpgraded` 赋给全局 `page`
+### upgraded
 
-全局对象表现
-- `page === pageUpgraded`
-- `browser !== browserUpgraded`
-- `context` 仍不是 playwright 风格默认入口
-
-适合场景
-- 想保留大部分旧脚本结构
-- 但希望在 page 上使用新 facade 能力
-
-启动示例
+将全局 `page` 切换到 `pageUpgraded` facade，同时尽量保留旧脚本结构。
 
 ```bash
 go run main.go -script script.js -stack upgraded
 ```
 
-## 3. playwright
+常见增强形态包括：
 
-含义
-- 把全局 `page`、`browser`、`context` 都切换到升级 facade
+- `page.open(...)`
+- `page.locator(...)`
+- `page.query(...)`
+- 兼容式 click/type/press
+- cookies/storage/session facade
 
-源码行为
-- `page = pageUpgraded`
-- `browser = browserUpgraded`
-- `context = contextUpgraded`
+这些能力的主要目的，是降低迁移成本。
 
-适合场景
-- 你想按更现代的 page / browser / context 思路写脚本
-- 想使用 `browser.newContext()`、`context.newPage()` 一类 API
-- 想做兼容 Playwright 风格的迁移脚本
+### playwright
 
-启动示例
+把全局 `page`、`browser`、`context` 切换到 upgraded facade 的 Playwright 风格组合。
 
 ```bash
 go run main.go -script script.js -stack playwright
 ```
 
-## 注入对象总览
+适合需要：
 
-运行时里会先准备这些对象：
-- page____Inject
-- browser____Inject
-- context____Inject
-- pageLegacy
-- browserLegacy
-- contextLegacy
-- pageUpgraded
-- browserUpgraded
-- contextUpgraded
-- Automation
+- `browser.newContext()`
+- `context.newPage()`
+- Playwright 风格对象关系
 
-对普通用户最重要的是这几个：
-- pageLegacy
-- pageUpgraded
-- browserUpgraded
-- contextUpgraded
-- Automation.getLegacy()
-- Automation.getUpgraded()
-- Automation.getPlaywrightFacade()
+的迁移代码。
 
-## pageUpgraded 是什么
+## 重要边界：不是完整 Playwright
 
-`pageUpgraded` 是建立在 legacy page 之上的升级 facade。
+Clawdesk 的 upgraded/playwright 层是**兼容 facade**，不是完整浏览器 DOM 引擎。
 
-它不是全新的底层引擎，而是兼容层。
+因此不要因为方法名相似就推断：
 
-**常见增强方法**
+- 完整 CSS/XPath DOM 查询
+- 完整 browser lifecycle
+- 与官方 Playwright 等价的 locator 语义
+- 所有 cookie/storage/session 行为均等价
 
-| 方法 | 说明 |
+需要浏览器风格能力时，应以当前 facade 实际实现和测试为准。
+
+## 原始注入对象
+
+运行时内部还会保留：
+
+- `page____Inject`
+- `browser____Inject`
+- `context____Inject`
+
+它们主要用于 polyfill/facade 构造，不建议普通脚本直接依赖。
+
+新脚本应使用公开入口，而不是内部注入名。
+
+## 资源加载位置
+
+`polyfills/` 与 `jslibs/` 会从可执行文件目录和当前工作目录的向上路径中寻找。
+
+如果运行时日志出现：
+
+- 找不到 polyfills
+- 找不到 jslibs
+- 加载某个 JS 文件失败
+
+应优先排查资源目录是否随二进制正确发布，而不是把问题误判为业务脚本错误。
+
+## 选择建议
+
+| 场景 | 推荐 |
 | --- | --- |
-| pageUpgraded.open(target, options) | 统一打开 URL / 指定 app 打开 |
-| pageUpgraded.locator(selector) | 返回 locator 兼容对象 |
-| pageUpgraded.query(selector) | locator 别名风格入口 |
-| pageUpgraded.waitFor(...) | 更灵活的等待分发 |
-| pageUpgraded.waitForSelector(selector, options) | 若底层有则透传，否则 fallback |
-| pageUpgraded.click(...) | 兼容式 click |
-| pageUpgraded.type(...) | 兼容式 type |
-| pageUpgraded.press(...) | 兼容式按键 |
-| pageUpgraded.cookies(...) | 路由到 context cookies |
-| pageUpgraded.storage(...) | 路由到 context storage |
-| pageUpgraded.session(...) | 路由到 context session |
-| pageUpgraded.getBrowser() | 取 browser |
-| pageUpgraded.getContext() | 取 context |
-| pageUpgraded.getPage() | 取当前 page |
+| 常规桌面自动化 | `legacy` |
+| 需要 page 新 facade，但想保持旧结构 | `upgraded` |
+| 明确需要 Playwright 风格对象关系 | `playwright` |
+| 新功能是否稳定不确定 | 先在 `legacy` 验证底层能力，再考虑 facade |
 
-**重要提醒**
+## 机器可读索引
 
-- 这里的 selector / locator 不是完整浏览器 DOM 引擎能力
-- 它更像“兼容式 API 形状”
-- 对当前项目最稳定的能力仍是：
-  - 截图
-  - 打开 URL / app
-  - 权限
-  - mouse / keyboard / touchscreen
-  - Vision
-  - window
+Agent 不需要从多套旧文档猜接口。
 
-## browserUpgraded 是什么
+优先读取：
 
-`browserUpgraded` 是升级版 browser facade。
+`docs-user-api/runtime-api.ai.json`
 
-常见方法
-
-| 方法 | 说明 |
-| --- | --- |
-| browserUpgraded.open(options) | 打开上下文并可带 url |
-| browserUpgraded.newContext(options) | 创建新 context facade |
-| browserUpgraded.getContext() | 取默认 context |
-| browserUpgraded.getPage() | 取 page |
-| browserUpgraded.pages() | 返回 pages |
-| browserUpgraded.close() | 关闭 facade |
-
-## contextUpgraded 是什么
-
-`contextUpgraded` 是升级版 context facade。
-
-常见方法
-
-| 方法 | 说明 |
-| --- | --- |
-| contextUpgraded.newPage() | 新建 page facade |
-| contextUpgraded.getBrowser() | 取 browser |
-| contextUpgraded.getPage() | 取最近 page |
-| contextUpgraded.cookies(...) | cookies 容器接口 |
-| contextUpgraded.storage(...) | storage 容器接口 |
-| contextUpgraded.session(...) | session 容器接口 |
-| contextUpgraded.close() | 关闭 context |
-
-## Automation 命名空间
-
-当前运行时还会提供：
-
-```js
-Automation.getLegacy()
-Automation.getUpgraded()
-Automation.getPlaywrightFacade()
-```
-
-**示例**
-
-```js
-const legacy = Automation.getLegacy();
-const upgraded = Automation.getUpgraded();
-const pw = Automation.getPlaywrightFacade();
-
-console.log(legacy.page === pageLegacy);
-console.log(upgraded.page === pageUpgraded);
-console.log(pw.browser === browserUpgraded);
-```
-
-## page.open() 的兼容语义
-
-在 upgraded facade 中：
-
-```js
-await page.open('https://example.com');
-await page.open('https://example.com', { appName: 'Safari' });
-```
-
-行为
-- 若有 `openURLInApp` 且传了 appName，就走它
-- 否则优先 `openURL`
-- 再 fallback 到 `goto`
-
-这比 legacy 直接调用 `goto()` 更适合用户脚本表达意图。
-
-## locator / query 的兼容语义
-
-```js
-const locator = page.locator('#app');
-await locator.click();
-await locator.type('hello');
-await locator.press('Enter');
-```
-
-注意
-- 这是 facade 兼容对象
-- 它依赖当前 page 是否提供相应底层方法
-- 对本项目而言，这一层更适合迁移脚本，不应误认为完整 DOM 自动化引擎
-
-## cookies / storage / session 的容器接口
-
-在 upgraded facade 中：
-
-```js
-page.cookies()
-page.cookies([{ name: 'sid', value: '1' }])
-page.storage('token')
-page.storage('token', 'abc')
-page.storage({ token: 'abc', lang: 'zh' })
-page.session('room', 'wechat')
-```
-
-这些调用会被路由到 context 层。
-
-## 推荐用法
-
-**推荐 1：用户脚本默认仍以 legacy 思维写核心能力**
-
-如果你的目标是稳定桌面自动化：
-- page.screenshot
-- page.openApp / page.openURL
-- window
-- mouse / keyboard
-- Vision
-
-这套最稳。
-
-**推荐 2：做 API 迁移或新语义包装时再用 upgraded**
-
-如果你要写：
-- 更像现代自动化 API 的脚本
-- 兼容历史脚本但想逐步迁移
-
-可以用 upgraded。
-
-**推荐 3：需要 page / browser / context 三层语义统一时用 playwright**
-
-如果你希望脚本组织方式接近：
-- browser -> context -> page
-
-再用 playwright。
-
-## 示例
-
-**legacy**
-
-```js
-console.log(page === pageUpgraded); // 通常不是
-await page.openURL('https://example.com');
-await page.screenshot({ path: './artifacts/legacy.png' });
-```
-
-**upgraded**
-
-```js
-console.log(page === pageUpgraded); // true
-await page.open('https://example.com');
-```
-
-**playwright**
-
-```js
-console.log(page === pageUpgraded);
-console.log(browser === browserUpgraded);
-console.log(context === contextUpgraded);
-
-const ctx = browser.newContext();
-const p = ctx.newPage();
-await p.open('https://example.com');
-```
-
-## 最后建议
-
-如果你是在写“给最终用户看的脚本示例”，默认优先展示：
-- legacy 可跑的核心能力
-- 在必要时补充 upgraded / playwright 版写法
-
-这样最符合当前项目的真实能力边界，也最不容易误导用户把 facade 当成完整浏览器引擎。
+其中只记录当前文档体系认可的对象、状态、来源和推荐入口；最终事实仍以当前源码为准。

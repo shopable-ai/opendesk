@@ -1,0 +1,340 @@
+{
+  "docType": "clawdesk-runtime-api-index",
+  "project": "clawdesk",
+  "preferredForAI": true,
+  "authority": {
+    "sourceOfTruth": [
+      "automation/*.go",
+      "polyfills/*.js",
+      "main.go",
+      "pkg/http/*.go"
+    ],
+    "canonicalUserDocs": "docs-user-api/",
+    "retiredDocTrees": [
+      "docs-api/",
+      "docs-api-user/",
+      "docs/api/"
+    ],
+    "rule": "When documentation conflicts with current source/runtime behavior, current source wins."
+  },
+  "entrypoints": {
+    "cli": {
+      "file": "go run main.go -script <file.js>",
+      "inline": "go run main.go -script-text \"...\"",
+      "stdin": "go run main.go -script-stdin",
+      "stack": [
+        "legacy",
+        "upgraded",
+        "playwright"
+      ]
+    },
+    "httpServer": {
+      "command": "go run main.go -http",
+      "defaultPort": 60844
+    },
+    "mcp": {
+      "command": "go run ./cmd/clawdesk-mcp",
+      "docs": "docs/mcp/README.md"
+    }
+  },
+  "runtimeRules": [
+    "Prefer stable documented APIs for new scripts.",
+    "Prefer page.ensurePermissions for permission-gated desktop workflows.",
+    "Prefer Vision.runOCR or Vision.detectUI for structured OCR/UI text work; use OCR.extractText for simple local text extraction.",
+    "Use ImageColor as a secondary pixel/template/color primitive, not as a replacement for semantic verification.",
+    "Prefer axios for normal script HTTP requests; axios is a polyfill backed by http.request.",
+    "Treat upgraded/playwright surfaces as compatibility facades, not a complete Playwright browser engine.",
+    "Do not use retired TestMonkey documentation as a current API authority."
+  ],
+  "globals": [
+    {
+      "name": "page",
+      "source": "native+polyfill",
+      "status": "stable",
+      "doc": "page.md",
+      "summary": "Desktop page entry: screenshot, open URL/App, waits and permissions.",
+      "keyMethods": [
+        "screenshot",
+        "goto",
+        "openURL",
+        "openApp",
+        "openURLInApp",
+        "title",
+        "url",
+        "waitFor",
+        "waitForTimeout",
+        "waitForFunction",
+        "checkPermissions",
+        "requestPermissions",
+        "ensurePermissions",
+        "checkScreenshotPermissions",
+        "openMacOSPrivacySettings",
+        "requestMacPermissions",
+        "requestMacAutomationPermission"
+      ]
+    },
+    {
+      "name": "mouse",
+      "source": "native",
+      "status": "stable",
+      "doc": "input.md"
+    },
+    {
+      "name": "keyboard",
+      "source": "native",
+      "status": "stable",
+      "doc": "input.md"
+    },
+    {
+      "name": "touchscreen",
+      "source": "native",
+      "status": "stable",
+      "doc": "input.md"
+    },
+    {
+      "name": "window",
+      "source": "native+polyfill",
+      "status": "stable",
+      "doc": "window.md"
+    },
+    {
+      "name": "Screen",
+      "source": "native",
+      "status": "stable",
+      "doc": "screen.md"
+    },
+    {
+      "name": "Vision",
+      "source": "native",
+      "status": "stable",
+      "doc": "vision.md",
+      "keyMethods": [
+        "runOCR",
+        "detectUI",
+        "getCapabilities"
+      ]
+    },
+    {
+      "name": "OCR",
+      "source": "native",
+      "status": "secondary",
+      "doc": "vision.md",
+      "keyMethods": [
+        "extractText"
+      ]
+    },
+    {
+      "name": "ImageColor",
+      "source": "native",
+      "status": "secondary",
+      "doc": "image-color.md",
+      "keyMethods": [
+        "findPos",
+        "loadBase64",
+        "resize",
+        "clip",
+        "pixel",
+        "findColor",
+        "findColorBlocks",
+        "hasColor",
+        "isGray",
+        "getSize",
+        "save",
+        "findRedChannel",
+        "findGreenChannel",
+        "findBlueChannel",
+        "toRGB",
+        "toRGBA",
+        "toHSL",
+        "toHSLA",
+        "isColorSimilar"
+      ]
+    },
+    {
+      "name": "System",
+      "source": "native",
+      "status": "stable",
+      "doc": "system.md"
+    },
+    {
+      "name": "File",
+      "source": "native",
+      "status": "stable",
+      "doc": "file.md"
+    },
+    {
+      "name": "AppStorage",
+      "source": "native",
+      "status": "secondary",
+      "doc": "storage.md",
+      "keyMethods": [
+        "getItem",
+        "setItem",
+        "removeItem",
+        "clear",
+        "getLength",
+        "key"
+      ],
+      "storage": {
+        "canonical": "~/.clawdesk/clawdesk/storage.json",
+        "legacyMigrationFrom": "~/.testmonkey/testMonkey/storage.json"
+      }
+    },
+    {
+      "name": "clipboard",
+      "source": "native",
+      "status": "stable",
+      "doc": "clipboard-console.md"
+    },
+    {
+      "name": "console",
+      "source": "native runtime wrapper",
+      "status": "stable",
+      "doc": "clipboard-console.md"
+    },
+    {
+      "name": "http",
+      "source": "native",
+      "status": "stable",
+      "doc": "http.md",
+      "keyMethods": [
+        "request",
+        "get",
+        "post"
+      ]
+    },
+    {
+      "name": "axios",
+      "source": "polyfill",
+      "status": "stable",
+      "doc": "http.md",
+      "backedBy": "http.request",
+      "keyMethods": [
+        "request",
+        "get",
+        "post",
+        "put",
+        "delete",
+        "patch"
+      ]
+    },
+    {
+      "name": "notify",
+      "source": "polyfill+native bridge",
+      "status": "secondary",
+      "doc": "polyfills.md",
+      "callShape": "notify(string|options)"
+    },
+    {
+      "name": "Sound",
+      "source": "native",
+      "status": "secondary",
+      "doc": "runtime-utilities.md",
+      "keyMethods": [
+        "playSuccess",
+        "playFail",
+        "playWarning",
+        "playError",
+        "playCaptcha",
+        "playSound",
+        "play"
+      ]
+    },
+    {
+      "name": "FloatingWindow",
+      "source": "native",
+      "status": "conditional-experimental",
+      "doc": "runtime-utilities.md",
+      "condition": "not injected when SKIP_FYNE_INIT is set",
+      "keyMethods": [
+        "addButton",
+        "removeButton",
+        "show",
+        "hide",
+        "setPosition",
+        "onButtonClick",
+        "setAlwaysOnTop",
+        "run"
+      ]
+    },
+    {
+      "name": "Promise/timers/sleep",
+      "source": "native+polyfill",
+      "status": "stable",
+      "doc": "polyfills.md"
+    },
+    {
+      "name": "browser/context/upgraded facades",
+      "source": "native+compatibility polyfill",
+      "status": "compatibility",
+      "doc": "runtime.md"
+    }
+  ],
+  "httpServerRoutes": [
+    {
+      "method": "POST",
+      "path": "/SCRIPT_RUN",
+      "status": "legacy-compatible"
+    },
+    {
+      "method": "POST",
+      "path": "/executions",
+      "status": "recommended"
+    },
+    {
+      "method": "GET",
+      "path": "/executions/{id}"
+    },
+    {
+      "method": "GET",
+      "path": "/executions/{id}/summary"
+    },
+    {
+      "method": "GET",
+      "path": "/executions/{id}/events",
+      "protocol": "SSE"
+    },
+    {
+      "method": "GET",
+      "path": "/status"
+    },
+    {
+      "method": "POST",
+      "path": "/vision/ocr"
+    },
+    {
+      "method": "POST",
+      "path": "/vision/detect-ui"
+    }
+  ],
+  "documentation": {
+    "index": "index.md",
+    "core": [
+      "page.md",
+      "input.md",
+      "window.md",
+      "screen.md"
+    ],
+    "vision": [
+      "vision.md",
+      "image-color.md"
+    ],
+    "systemData": [
+      "system.md",
+      "file.md",
+      "storage.md",
+      "clipboard-console.md"
+    ],
+    "network": [
+      "http.md",
+      "http-server.md"
+    ],
+    "runtime": [
+      "runtime.md",
+      "polyfills.md",
+      "libs.md",
+      "runtime-utilities.md"
+    ],
+    "examples": "cookbook.md"
+  }
+}
