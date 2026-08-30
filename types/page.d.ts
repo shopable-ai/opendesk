@@ -68,8 +68,6 @@ declare global {
     mouse: ClawdeskMouse;
     keyboard: ClawdeskKeyboard;
     touchscreen: ClawdeskTouchscreen;
-    pid: number;
-    executable: string;
 
     screenshot(options?: ClawdeskPageScreenshotOptions): Promise<string | ArrayBuffer | ClawdeskScreenshotResult | null>;
 

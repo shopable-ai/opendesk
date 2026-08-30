@@ -9,6 +9,8 @@ declare global {
     [key: string]: unknown;
   }
 
+  type ClawdeskTimerId = number;
+
   function copyToClipboard(text: string): void;
   function getClipboard(): string;
   function notify(options: string | ClawdeskNotifyOptions): void;
@@ -16,12 +18,12 @@ declare global {
   function sleep(ms: number): Promise<void>;
   function sleepSeconds(seconds: number): Promise<void>;
 
-  function setTimeout(callback: (...args: any[]) => void, delay?: number, ...args: any[]): unknown;
-  function clearTimeout(id: unknown): void;
-  function setInterval(callback: (...args: any[]) => void, delay?: number, ...args: any[]): unknown;
-  function clearInterval(id: unknown): void;
-  function requestAnimationFrame(callback: (timestamp: number) => void): unknown;
-  function cancelAnimationFrame(id: unknown): void;
+  function setTimeout(callback: () => void, delay?: number): ClawdeskTimerId;
+  function clearTimeout(id: ClawdeskTimerId): void;
+  function setInterval(callback: () => void, delay?: number): ClawdeskTimerId;
+  function clearInterval(id: ClawdeskTimerId): void;
+  function requestAnimationFrame(callback: (timestamp: number) => void): ClawdeskTimerId;
+  function cancelAnimationFrame(id: ClawdeskTimerId): void;
 
   interface URLSearchParams {
     append(name: string, value: unknown): void;
