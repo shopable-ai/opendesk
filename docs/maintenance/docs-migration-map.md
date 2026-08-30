@@ -1,36 +1,47 @@
-# Docs Migration Map
+# Docs Migration Completion Record
 
-## Purpose
+## Status
 
-This file is the execution map for cleaning the current `docs/` root.
+**Completed.**
 
-Current baseline on `master`:
+This document records the 2026-08 cleanup of the Clawdesk project documentation surface.
 
-- `docs/` root contains **61 direct files** before this P0 governance batch.
-- long-lived documentation, research, reports, prompts, versioned drafts and scenario-specific material are mixed together.
-- this file assigns every one of those 61 files a target lifecycle and destination.
+Before cleanup, `docs/` contained **61 direct files** plus overlapping topic/process directories. Those files mixed:
 
-P0 only establishes the map. **Do not infer that a MOVE/MERGE/ARCHIVE below has already happened.** Physical moves begin in P1 after reference checks.
+- current architecture and implementation docs;
+- research and option analysis;
+- plans and roadmaps;
+- test/review reports;
+- reusable and one-off prompts;
+- `V2`, `FINAL`, completion summaries and raw workpads.
 
-## Action meanings
+The migration is now complete at the structural/lifecycle level.
 
-| Action | Meaning |
-|---|---|
-| `MOVE` | content is still useful and should move/rename into a canonical docs category |
-| `MERGE` | useful content must be merged into one canonical document; duplicate source is removed afterwards |
-| `REPORT` | preserved evidence/report; move out of `docs/` into `artifacts/reports/` |
-| `PROMPT` | reusable AI prompt; move out of `docs/` into `prompts/` if still maintained |
-| `ARCHIVE` | superseded but worth preserving for history |
-| `DELETE_AFTER_MERGE` | extract any unique value, then delete; Git history is sufficient |
+## Result
 
-Priority:
+Current top-level `docs/` shape:
 
-- `P1`: mostly structural move/rename; lower semantic risk.
-- `P2`: requires content comparison, deduplication, staleness judgment or lifecycle verification before removal.
+```text
+docs/
+├── README.md
+├── project/
+├── architecture/
+├── implementation/
+├── quality/
+├── integrations/
+├── scenarios/
+├── research/
+├── plans/
+└── maintenance/
+```
 
-## Summary
+There are no longer topic documents directly scattered in `docs/` root.
 
-| Action | Count |
+## Original 61-file plan
+
+The original P0 inventory classified the 61 root files as:
+
+| Planned action | Count |
 |---|---:|
 | MOVE | 41 |
 | REPORT | 9 |
@@ -40,107 +51,196 @@ Priority:
 | DELETE_AFTER_MERGE | 1 |
 | **Total** | **61** |
 
-Priority split:
+The complete original per-file planning table remains available in Git history before this completion rewrite.
 
-- P1: 45
-- P2: 16
+During P2, several destinations were deliberately refined after reading the contents and current source. The original migration map was therefore treated as a plan, not as immutable truth.
 
-## 61 root files
+## Completed migration groups
 
-| # | Current file | Action | Target | Priority | Notes |
-|---:|---|---|---|---|---|
-| 1 | `ACTION_TARGET_MODEL.md` | MOVE | `docs/architecture/desktop-automation/action-target-model.md` | P1 | desktop action-target model |
-| 2 | `ACTIVE_CONTEXT.md` | MOVE | `docs/project/current-context.md` | P1 | active project context; keep current-only content |
-| 3 | `AGENT_TEXT_DRIVEN_DEVELOPMENT.md` | MOVE | `docs/architecture/execution/agent-text-driven-development.md` | P1 | execution/development model |
-| 4 | `ALGORITHM_VALIDATION_REPORT.md` | REPORT | `artifacts/reports/layout/algorithm-validation-report.md` | P1 | validation evidence, not canonical docs |
-| 5 | `APP_CLASSIFICATION_POLICY.md` | MOVE | `docs/architecture/desktop-automation/app-classification-policy.md` | P1 | active classification policy |
-| 6 | `BLINDSPOT_AUDIT.md` | REPORT | `artifacts/reports/reviews/blindspot-audit.md` | P2 | verify whether any reusable checklist must first be extracted to `docs/quality/review/` |
-| 7 | `DESKTOP_AUTOMATION_FRAMEWORK_EXPERIENCE.md` | MOVE | `docs/research/desktop-automation/framework-experience.md` | P1 | research/experience input, not final architecture |
-| 8 | `DESKTOP_AUTOMATION_SOLUTION_OPTIONS.md` | MOVE | `docs/research/desktop-automation/solution-options.md` | P1 | option exploration |
-| 9 | `DRAWING_SYSTEM.md` | MOVE | `docs/implementation/runtime/drawing-system.md` | P1 | implementation reference |
-| 10 | `EXECUTION_FAILURE_CASES.md` | MOVE | `docs/quality/failure-cases.md` | P1 | reusable quality knowledge |
-| 11 | `EXECUTION_RUNTIME_NOTES.md` | MOVE | `docs/implementation/runtime/execution-runtime-notes.md` | P1 | runtime implementation notes |
-| 12 | `EXPERT_ATTACK_DEFENSE_REVIEW.md` | REPORT | `artifacts/reports/reviews/expert-attack-defense-review.md` | P2 | one-time review result; extract reusable rules first |
-| 13 | `EXPERT_REVIEW_RUBRIC.md` | MOVE | `docs/quality/review/expert-review-rubric.md` | P1 | reusable review rubric |
-| 14 | `FAILURE_TAXONOMY.md` | MOVE | `docs/quality/failure-taxonomy.md` | P1 | canonical quality taxonomy |
-| 15 | `FINAL_STATUS_REPORT.md` | MERGE | `.archive/reports/2026-layout-improvement-summary.md` | P2 | duplicate layout-project completion material |
-| 16 | `FINAL_SUMMARY.md` | MERGE | `.archive/reports/2026-layout-improvement-summary.md` | P2 | merge with other layout completion summaries |
-| 17 | `GATES_AND_EVIDENCE.md` | ARCHIVE | `.archive/legacy-docs/gates-and-evidence-bootstrap.md` | P1 | file is explicitly superseded by V2 |
-| 18 | `GATES_AND_EVIDENCE_V2.md` | MOVE | `docs/quality/gates-and-evidence.md` | P1 | becomes the unversioned current Source of Truth |
-| 19 | `GOLDEN_GATES.md` | MERGE | `docs/quality/gates-and-evidence.md` | P2 | compare overlaps and retain only unique gate rules |
-| 20 | `GOLDEN_SAMPLE_STRATEGY.md` | MOVE | `docs/quality/golden-sample-strategy.md` | P1 | reusable quality strategy |
-| 21 | `GOLDEN_SAMPLE_STRATEGY_REVIEW_20260405.md` | REPORT | `artifacts/reports/reviews/2026-04-05-golden-sample-strategy-review.md` | P2 | historical review evidence |
-| 22 | `IMPROVEMENT_PLAN.md` | MOVE | `docs/plans/layout/layout-improvement-plan.md` | P2 | verify whether still active; archive instead if completed |
-| 23 | `LANGGRAPH_EXECUTION_GRAPH.md` | MOVE | `docs/architecture/execution/langgraph-execution-graph.md` | P1 | execution architecture |
-| 24 | `LANGGRAPH_GOLDEN_SAMPLE_GRAPH_20260405.md` | ARCHIVE | `.archive/legacy-docs/golden-sample-strategy/2026-04-05-langgraph-golden-sample-graph.md` | P2 | compare with `docs/golden_sample_strategy/` before archiving |
-| 25 | `LAYOUT_IMPROVEMENTS.md` | MOVE | `docs/implementation/layout/layout-recognition.md` | P1 | canonical base for current layout implementation |
-| 26 | `OCR_PROVIDER_INTEGRATION.md` | MOVE | `docs/implementation/ocr/provider-integration.md` | P1 | implementation/integration reference |
-| 27 | `PROGRESSIVE_TEST_RESULTS.md` | REPORT | `artifacts/reports/layout/progressive-test-results.md` | P1 | test evidence |
-| 28 | `PROJECT_CAPABILITY_BRIEF.md` | MOVE | `docs/project/overview.md` | P1 | canonical project capability overview candidate |
-| 29 | `PROJECT_COMPLETE_SUMMARY.md` | MERGE | `.archive/reports/2026-layout-improvement-summary.md` | P2 | merge with layout final summaries |
-| 30 | `REAL_APP_TEST_RESULTS.md` | REPORT | `artifacts/reports/layout/real-app-test-results.md` | P1 | test evidence |
-| 31 | `RED_TEAM_ATTACKS.md` | MOVE | `docs/quality/review/red-team.md` | P1 | reusable red-team cases/rules |
-| 32 | `RUNBOOK.md` | MOVE | `docs/project/runbook.md` | P1 | active operator entrypoint; verify references |
-| 33 | `SOLUTION_OPTIONS.md` | MOVE | `docs/research/execution/bootstrap-solution-options.md` | P2 | option history; confirm scope before rename |
-| 34 | `STRUCTURE_FIRST_EXECUTION.md` | MOVE | `docs/architecture/execution/structure-first-execution.md` | P1 | execution architecture/principles |
-| 35 | `TASK_PROMPT_FOR_NEW_SESSION.md` | PROMPT | `prompts/handoffs/new-session.md` | P2 | keep only if actively reusable |
-| 36 | `TESTING_GUIDE.md` | MOVE | `docs/quality/testing-guide.md` | P1 | canonical test guidance |
-| 37 | `WECHAT_COMPLETE_SOLUTION_FRAMEWORK.md` | MOVE | `docs/scenarios/wechat/architecture.md` | P1 | WeChat scenario architecture basis |
-| 38 | `WECHAT_EXECUTION_MASTER_PROMPT.md` | PROMPT | `prompts/wechat/execution-master.md` | P2 | prompt is not project documentation |
-| 39 | `WECHAT_STRUCTURED_SEND_V2.md` | MOVE | `docs/scenarios/wechat/structured-send.md` | P1 | remove version suffix; Git owns history |
-| 40 | `WECHAT_WX4PY_BORROWING_GUIDE.md` | MOVE | `docs/research/wechat/wx4py-borrowing-analysis.md` | P1 | external-solution research input |
-| 41 | `browser-automation-capability-boundaries.md` | MOVE | `docs/architecture/browser-automation/capabilities.md` | P1 | canonical capability boundary candidate |
-| 42 | `browser-automation-capability-evidence-manifest.json` | REPORT | `artifacts/reports/browser-automation/capability-evidence-manifest.json` | P2 | if generated evidence; if hand-maintained contract, reassess before move |
-| 43 | `browser-automation-http-smoke-guide.md` | MOVE | `docs/quality/browser-automation/http-smoke.md` | P1 | verification guide |
-| 44 | `browser-automation-legacy-escape-hatches.md` | MOVE | `docs/architecture/browser-automation/legacy-compatibility.md` | P1 | compatibility architecture |
-| 45 | `browser-automation-next-phase-roadmap.md` | MOVE | `docs/plans/browser-automation/roadmap.md` | P1 | active plan/roadmap |
-| 46 | `browser-automation-stacks.md` | MOVE | `docs/architecture/browser-automation/stack.md` | P1 | architecture stack |
-| 47 | `browser-automation-test-matrix.md` | MOVE | `docs/quality/browser-automation/test-matrix.md` | P1 | quality/test matrix |
-| 48 | `desktop-automation-solution-research.md` | MOVE | `docs/research/desktop-automation/solution-research.md` | P1 | solution research |
-| 49 | `layout_improvement_analysis.md` | MOVE | `docs/research/layout/layout-improvement-analysis.md` | P1 | research analysis |
-| 50 | `layout_improvement_implementation.md` | MERGE | `docs/implementation/layout/layout-recognition.md` | P2 | merge current facts into canonical layout doc |
-| 51 | `layout_improvement_prompt.md` | PROMPT | `prompts/layout/layout-improvement.md` | P2 | keep only if reusable; otherwise delete after extraction |
-| 52 | `layout_improvement_results.md` | REPORT | `artifacts/reports/layout/layout-improvement-results.md` | P1 | experiment/test results |
-| 53 | `macos-gocv-build-guide.md` | MOVE | `docs/implementation/macos/gocv-build-guide.md` | P1 | macOS implementation guide |
-| 54 | `macos-screenshot-troubleshooting.md` | MOVE | `docs/implementation/macos/screenshot-troubleshooting.md` | P1 | troubleshooting guide |
-| 55 | `macos_automation_config.md` | MOVE | `docs/implementation/macos/automation-config.md` | P1 | normalize underscore naming |
-| 56 | `param_tuning_analysis.md` | MOVE | `docs/research/layout/parameter-tuning-analysis.md` | P1 | parameter research |
-| 57 | `test_results_wechat.md` | REPORT | `artifacts/reports/wechat/test-results.md` | P1 | test evidence, not scenario documentation |
-| 58 | `think.md` | DELETE_AFTER_MERGE | Git history only | P2 | raw thought/workpad should not remain canonical |
-| 59 | `wechat_baseline_compare_spec.md` | MOVE | `docs/scenarios/wechat/baseline-compare-spec.md` | P1 | scenario verification spec |
-| 60 | `wechat_desktop_requirements.md` | MOVE | `docs/scenarios/wechat/requirements.md` | P1 | scenario requirements |
-| 61 | `wechat_frozen_desktop_golden_template.md` | MOVE | `docs/scenarios/wechat/golden-template.md` | P1 | scenario golden template |
+### Project
 
-## Existing `docs/` directories
+Moved current project-level material into:
 
-The root-file cleanup also needs directory normalization. These directory actions are separate from the 61-file count.
+```text
+docs/project/
+```
 
-| Current directory | Direction | Notes |
-|---|---|---|
-| `docs/architecture/` | KEEP + EXPAND | canonical architecture root |
-| `docs/desktop-automation/` | MERGE | converge into `docs/architecture/desktop-automation/` plus research/quality where appropriate |
-| `docs/discuz/` | SPLIT | scenario-owned material to `docs/scenarios/discuz/`; research/roadmaps to their lifecycle roots |
-| `docs/golden_sample_strategy/` | SPLIT / ARCHIVE | reusable rules to quality; dated experiments/reviews to reports/archive |
-| `docs/implementation/` | KEEP + EXPAND | canonical implementation root |
-| `docs/maintenance/` | KEEP | repository/documentation governance |
-| `docs/mcp/` | MERGE | converge into `docs/integrations/mcp/`; prompts/reports move out separately |
-| `docs/optimization/` | EXTRACT + ARCHIVE | process history; extract surviving decisions then archive/remove the round-by-round worklog |
-| `docs/plans/` | KEEP + ORGANIZE | active plans only |
-| `docs/research/` | KEEP + ORGANIZE | research inputs, preferably topic subdirectories |
-| `docs/strategy/` | SPLIT | decisions to architecture/decisions, active roadmaps to plans, one-time work to research/archive |
+including project overview, current context and runbook.
 
-## API documentation exception
+### Architecture
 
-Do **not** apply the general directory-normalization idea by moving `docs-user-api/` under `docs/`.
+Current reusable architecture material now lives under:
 
-Current canonical rule:
+```text
+docs/architecture/desktop-automation/
+docs/architecture/browser-automation/
+docs/architecture/execution/
+```
+
+Desktop App Adapter Contract was promoted into the canonical desktop-automation architecture area.
+
+The old runtime-pool / DI “implementation” report was not retained as current architecture and was archived instead.
+
+### Implementation
+
+Current implementation material now lives under:
+
+```text
+docs/implementation/layout/
+docs/implementation/macos/
+docs/implementation/ocr/
+docs/implementation/runtime/
+```
+
+Notable semantic cleanup:
+
+- `layout-recognition.md` was recalibrated against current `automation/image_layout.go`;
+- current `cellColorMode` default is documented as `median`;
+- current boundary score weights are documented as `0.40 / 0.25 / 0.35`;
+- `trimmed` / `dominant` are no longer presented as distinct implemented algorithms when the current runtime falls back to mean for non-median modes.
+
+### Quality
+
+Quality material was consolidated under:
+
+```text
+docs/quality/
+```
+
+Key outcomes:
+
+- bootstrap gate archived;
+- V2 and Golden Gate rules merged into one canonical `gates-and-evidence.md`;
+- failure taxonomy and failure cases moved under quality;
+- reusable expert review / red-team material moved under `quality/review/`;
+- one-time review output moved to `artifacts/reports/reviews/`;
+- a reusable `blindspot-checklist.md` was extracted from the one-time blindspot audit;
+- browser automation test/evidence material moved under `quality/browser-automation/`.
+
+### Browser automation
+
+Flat browser automation files were split by lifecycle:
+
+```text
+docs/architecture/browser-automation/
+docs/quality/browser-automation/
+docs/plans/browser-automation/
+```
+
+The capability evidence manifest was reassessed as a maintained quality/evidence index rather than a disposable generated report.
+
+### WeChat
+
+Scenario-owned material now lives under:
+
+```text
+docs/scenarios/wechat/
+```
+
+Research moved to:
+
+```text
+docs/research/wechat/
+```
+
+Historical test output moved to:
+
+```text
+artifacts/reports/wechat/
+```
+
+The reusable execution master prompt was reduced to a thin orchestration entrypoint and moved to:
+
+```text
+prompts/wechat/execution-master.md
+```
+
+It now references canonical docs instead of copying the whole architecture into a prompt.
+
+### Layout project history
+
+The following duplicate project-summary style files were removed from the current docs surface:
+
+```text
+FINAL_STATUS_REPORT.md
+FINAL_SUMMARY.md
+PROJECT_COMPLETE_SUMMARY.md
+```
+
+Their useful historical result was consolidated into:
+
+```text
+.archive/reports/2026-layout-improvement-summary.md
+```
+
+Detailed test evidence lives under:
+
+```text
+artifacts/reports/layout/
+```
+
+### MCP
+
+The former:
+
+```text
+docs/mcp/
+```
+
+was moved to:
+
+```text
+docs/integrations/mcp/
+```
+
+This makes MCP an integration instead of a parallel top-level documentation taxonomy.
+
+### Legacy topic/process directories
+
+The following old working-area directories were removed from the current `docs/` surface:
+
+```text
+docs/desktop-automation/
+docs/discuz/
+docs/golden_sample_strategy/
+docs/optimization/
+docs/strategy/
+```
+
+Their contents were classified into current docs, research/plans, reports or `.archive/` according to lifecycle.
+
+Examples:
+
+- old round-by-round optimization history -> `.archive/legacy-docs/optimization-2026/`;
+- old golden-sample dated work -> `.archive/legacy-docs/golden-sample-strategy/`;
+- old TestMonkey v2 upgrade discussion/task list -> `.archive/legacy-docs/`;
+- Peekaboo runtime/MCP design draft -> `docs/research/desktop-automation/`;
+- media transport design/current implementation note -> `docs/implementation/runtime/media-transport.md`.
+
+## Deleted low-value work products
+
+The cleanup intentionally did **not** archive every historical AI artifact.
+
+Deleted after extracting or superseding their useful content:
+
+- old completed Layout new-session prompt;
+- old Layout implementation prompt;
+- raw `think.md` workpad.
+
+Git history remains sufficient for these artifacts.
+
+## API documentation boundary
+
+This migration did not merge user API docs into project docs.
+
+Canonical rule remains:
 
 ```text
 docs/          -> project and engineering docs
 docs-user-api/ -> sole maintained user API docs
 ```
 
-Retired and must not be recreated as parallel authorities:
+Retired and must not be recreated:
 
 ```text
 docs-api/
@@ -148,75 +248,36 @@ docs-api-user/
 docs/api/
 ```
 
-## P1 execution order
+## Ongoing rules
 
-To reduce link breakage, execute structural migration in topic batches rather than alphabetically:
+The migration is complete, but documentation hygiene is continuous.
 
-1. Quality core
-   - `GATES_AND_EVIDENCE*`
-   - `FAILURE_TAXONOMY.md`
-   - `EXECUTION_FAILURE_CASES.md`
-   - `TESTING_GUIDE.md`
-   - review/rubric files
-2. Browser automation
-3. macOS implementation
-4. Desktop automation architecture/research
-5. WeChat scenario
-6. Layout implementation/research/reports
-7. MCP integration directory
-8. remaining project/execution docs
-9. historical summaries, prompts and raw notes
-
-For every batch:
+For new work:
 
 ```text
-search references
--> create target path
--> update links
--> verify target content
--> remove old path
--> search old path again
+canonical project knowledge -> docs/<category>/
+user API                     -> docs-user-api/
+research                     -> docs/research/
+active plan                  -> docs/plans/
+reusable report/evidence     -> artifacts/reports/
+runtime output               -> .runtime/
+historical material          -> .archive/
+reusable prompt              -> prompts/
 ```
 
-## P2 semantic cleanup rules
+Do not recreate:
 
-P2 is not a blind move operation.
+- flat topic files in `docs/` root;
+- `_V2`, `_V3`, `FINAL`, `FINAL_FINAL`, `COMPLETE_SUMMARY` naming for current docs;
+- parallel API documentation roots;
+- process-history directories that compete with current architecture or implementation docs.
 
-Before MERGE / ARCHIVE / DELETE:
+## Validation completed
 
-- compare overlapping documents;
-- identify unique facts and decisions;
-- validate facts against current source/tests where relevant;
-- merge only still-valid content into the canonical file;
-- preserve important historical evidence in `artifacts/reports/` or `.archive/`;
-- remove low-value duplicate AI work products instead of creating an archive dump.
+- `docs/` root contains `README.md` plus classified directories only;
+- the former 61 root files are no longer present there;
+- the major legacy second-level working directories have been removed;
+- current Gate and Layout documents have one canonical path;
+- reports, prompts and historical material no longer compete with current docs.
 
-Especially review these clusters as one unit:
-
-```text
-GATES_AND_EVIDENCE.md
-GATES_AND_EVIDENCE_V2.md
-GOLDEN_GATES.md
-
-FINAL_SUMMARY.md
-FINAL_STATUS_REPORT.md
-PROJECT_COMPLETE_SUMMARY.md
-LAYOUT_IMPROVEMENTS.md
-layout_improvement_implementation.md
-
-GOLDEN_SAMPLE_STRATEGY.md
-GOLDEN_SAMPLE_STRATEGY_REVIEW_20260405.md
-LANGGRAPH_GOLDEN_SAMPLE_GRAPH_20260405.md
-docs/golden_sample_strategy/
-```
-
-## Completion criteria
-
-The docs-root migration is complete when:
-
-- `docs/` root contains only `README.md` plus classified directories;
-- no current canonical document uses `_V2`, `_V3`, `FINAL`, `COMPLETE_SUMMARY` style version-history naming;
-- current architecture, implementation and quality docs have one clear Source of Truth per topic;
-- prompts, generated evidence and historical reports no longer compete with canonical docs;
-- `docs-user-api/` remains the sole maintained user API documentation root;
-- repository search finds no live references to removed documentation paths.
+A broader link audit should continue whenever older Research or archive material is promoted back into current documentation; historical files may intentionally preserve historical path/context references.

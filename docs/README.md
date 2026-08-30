@@ -1,223 +1,225 @@
 # Clawdesk 项目文档
 
-本目录是 Clawdesk 的**项目与工程文档根目录**。
-
-本文件定义 `docs/` 的文档角色、权威关系、目标结构和新增文档规则。整理迁移期间，旧文件可能仍暂时位于 `docs/` 根目录；其目标位置以 `maintenance/docs-migration-map.md` 为准。
+`docs/` 是 Clawdesk 的**项目与工程文档根目录**。本目录已经完成 2026-08 文档结构收敛：根目录不再平铺专题、阶段报告、Prompt 或版本化草稿。
 
 ## 文档权威边界
 
-Clawdesk 当前只保留两类正式文档根：
+Clawdesk 当前保留两类正式文档根：
 
-- `docs/`：项目、架构、实现、质量、集成、场景、研究、计划和仓库治理文档。
-- `docs-user-api/`：**唯一用户 API 文档根目录**，包括用户可见的脚本/runtime API、HTTP API、示例和机器可读 API 索引。
+- `docs/`：项目、架构、实现、质量、集成、场景、研究、计划和仓库治理。
+- `docs-user-api/`：**唯一用户 API 文档根目录**，包括脚本/runtime API、HTTP API、示例、编辑器类型说明和机器可读 API 索引。
 
-以下历史 API 文档树已经退役，不得重新作为并行 Source of Truth：
-
-- `docs-api/`
-- `docs-api-user/`
-- `docs/api/`
-
-API 事实优先级：
-
-1. 当前源代码 / runtime 行为
-2. `docs-user-api/runtime-api.ai.json`
-3. `docs-user-api/*.md`
-4. Git 历史
-
-项目工程文档事实优先级：
-
-1. 当前维护的 `docs/` 正式文档
-2. 当前源代码、测试和运行证据
-3. `docs/research/`、`docs/plans/` 等过程输入
-4. `.archive/` 和 Git 历史
-
-## 文档类型
-
-`docs/` 内长期只保留以下文档类型。
-
-### 1. Canonical / Source of Truth
-
-当前仍有效、未来开发需要维护的正式文档，例如：
-
-- 项目概览
-- 当前架构
-- 当前实现说明
-- 当前运行手册
-- 当前质量门禁和测试规范
-
-同一主题只允许一个当前有效的正式文档。
-
-### 2. Decision
-
-已经做出的关键技术决策，优先进入：
+以下历史 API 文档树已经退役，不得重新创建为并行 Source of Truth：
 
 ```text
-docs/architecture/decisions/
+docs-api/
+docs-api-user/
+docs/api/
 ```
 
-长期建议使用 ADR 命名，例如：
+`types/*.d.ts` 是编辑器/TypeScript 的派生契约面，不是第三套文档权威。
 
-```text
-ADR-001-desktop-automation-stack.md
-```
-
-### 3. Research
-
-调研、竞品、候选方案、探索性分析进入：
-
-```text
-docs/research/
-```
-
-Research 是决策输入，不应与正式架构文档竞争权威。
-
-### 4. Plan / Quality
-
-仍在执行的计划进入 `docs/plans/`；稳定测试标准、Gate、Failure Taxonomy、Review Rubric 等进入 `docs/quality/`。
-
-### 5. Historical
-
-阶段总结、旧版本、一次性分析、已失效方案等，不应继续留在正式文档面：
-
-- 有长期追溯价值：`.archive/`
-- 只是 Git 已保存的低价值中间产物：合并有效信息后删除
-
-## 目标目录结构
-
-文档整理后的目标结构：
+## 当前目录
 
 ```text
 docs/
 ├── README.md
 ├── project/
-│   ├── overview.md
-│   └── current-context.md
 ├── architecture/
-│   ├── README.md
-│   ├── execution/
-│   ├── desktop-automation/
-│   ├── browser-automation/
-│   └── decisions/
 ├── implementation/
-│   ├── README.md
-│   ├── macos/
-│   ├── layout/
-│   ├── ocr/
-│   └── runtime/
 ├── quality/
-│   ├── gates-and-evidence.md
-│   ├── testing-guide.md
-│   ├── failure-taxonomy.md
-│   └── review/
 ├── integrations/
-│   └── mcp/
 ├── scenarios/
-│   ├── wechat/
-│   └── discuz/
 ├── research/
 ├── plans/
 └── maintenance/
 ```
 
-说明：目录只在有实际正式文件时创建，不为了“看起来完整”制造空目录。
+### `project/`
 
-## 非 `docs/` 内容
+项目级入口和当前运行上下文。
 
-以下内容默认不进入 `docs/`：
+主要内容：
 
-| 内容 | 目标位置 |
+- `overview.md`：项目能力概览。
+- `current-context.md`：当前上下文。
+- `runbook.md`：运行/操作入口。
+
+### `architecture/`
+
+当前长期有效的系统结构、执行模型与契约。
+
+主要分区：
+
+- `desktop-automation/`
+- `browser-automation/`
+- `execution/`
+- `decisions/`：未来 ADR 的标准位置。
+
+Research 中的方案比较、评审或竞品材料不能替代本目录中的正式架构。
+
+### `implementation/`
+
+当前实现机制、平台实现说明和排障资料。
+
+主要分区：
+
+- `layout/`
+- `macos/`
+- `ocr/`
+- `runtime/`
+
+实现事实发生冲突时，以**当前源码和测试**优先，并同步修正文档。
+
+### `quality/`
+
+质量门禁、测试、失败分类、评审规则和可维护证据索引。
+
+关键入口：
+
+- `gates-and-evidence.md`
+- `testing-guide.md`
+- `failure-taxonomy.md`
+- `failure-cases.md`
+- `golden-sample-strategy.md`
+- `review/`
+- `browser-automation/`
+
+### `integrations/`
+
+外部协议、服务或工具集成。目前 MCP 文档统一位于：
+
+```text
+docs/integrations/mcp/
+```
+
+### `scenarios/`
+
+面向具体应用/业务场景的需求、场景架构、baseline 与动作规范。
+
+当前主要场景：
+
+```text
+docs/scenarios/wechat/
+```
+
+通用框架能力不能反向埋进单一场景目录；可复用能力应上收至 architecture / implementation / quality。
+
+### `research/`
+
+调研、竞品、候选方案、评审和探索性分析。
+
+Research 是**决策输入**，不是当前能力声明。日期型研究可使用：
+
+```text
+YYYY-MM-DD-topic.md
+```
+
+### `plans/`
+
+尚未完成、仍值得推进的路线图和实现计划。
+
+已完成或失效的计划应更新、关闭或归档，不能长期以“待做”状态污染当前事实。
+
+### `maintenance/`
+
+仓库与文档治理规则，包括：
+
+- `repository-documentation-map.md`
+- `repo-file-lifecycle-policy.md`
+- `docs-migration-map.md`
+- `repo-layout-refactor-plan.md`
+- `repo-migration-map-and-p0-batch.md`
+
+## Source of Truth 优先级
+
+### 用户 API
+
+```text
+当前源码 / runtime 行为
+-> docs-user-api/runtime-api.ai.json
+-> docs-user-api/*.md
+-> types/*.d.ts
+-> Git 历史
+```
+
+### 项目 / 架构 / 实现
+
+```text
+当前源码、测试和运行证据
+-> docs/ 当前正式文档
+-> docs/research/ 与 docs/plans/ 过程输入
+-> artifacts/reports/ 历史证据
+-> .archive/ 与 Git 历史
+```
+
+文档不应为了维护旧结论而覆盖已经变化的源码事实。
+
+## 文档生命周期
+
+| 内容类型 | 目标位置 |
 |---|---|
-| 用户 API 文档 | `docs-user-api/` |
+| 当前项目/架构/实现/质量文档 | `docs/` 对应分类 |
+| 用户 API | `docs-user-api/` |
 | 可复用 golden sample / fixture | `artifacts/fixtures/` |
-| 需要长期保存的测试/评审报告 | `artifacts/reports/` |
+| 长期保留的测试/评审报告 | `artifacts/reports/` |
 | 运行日志、截图、probe、smoke 输出 | `.runtime/` |
-| 本机环境和工具状态 | `.dev/` |
-| 历史报告、旧文档 | `.archive/` |
-| 可复用 AI Prompt | `prompts/`（若项目确认继续维护） |
-
-Prompt 不应因为曾用于开发某个功能就永久留在 `docs/`。
-
-## 根目录规则
-
-迁移完成后，`docs/` 根目录原则上只保留：
-
-```text
-README.md
-```
-
-以及分类目录。
-
-新增专题文档不得继续直接平铺到 `docs/` 根目录。
-
-迁移期间的 61 个现有根目录文件，统一按照：
-
-```text
-docs/maintenance/docs-migration-map.md
-```
-
-处理。
+| 本机环境/工具状态 | `.dev/` |
+| 已失效但值得追溯的历史材料 | `.archive/` |
+| 仍可复用的 AI Prompt | `prompts/` |
+| 低价值中间 Prompt / raw workpad | 合并有效信息后删除，依赖 Git 历史 |
 
 ## 命名规则
 
-正式文档优先使用：
+正式文档优先：
 
 ```text
 lower-kebab-case.md
 ```
 
-例如：
-
-```text
-action-target-model.md
-failure-taxonomy.md
-testing-guide.md
-```
-
-禁止通过文件名维护版本历史：
+禁止通过文件名保存版本历史：
 
 ```text
 xxx_V2.md
 xxx_V3.md
 xxx_FINAL.md
-xxx_FINAL_FINAL.md
+xxx_COMPLETE_SUMMARY.md
 ```
 
-正式文档直接更新当前文件，历史由 Git 保存。
+当前正式文档直接更新；历史由 Git 保存。
 
-时间型材料可使用日期：
-
-```text
-research/YYYY-MM-DD-topic.md
-plans/YYYY-MM-DD-topic.md
-artifacts/reports/YYYY-MM-DD-topic-report.md
-```
+Research / Report 等时间型材料可使用日期前缀。
 
 ## 新建文档前检查
 
-新建任何文件前必须回答：
+新建文件前必须回答：
 
-1. 这是什么文档类型？
-2. 当前是否已经有同主题 Source of Truth？
-3. 它属于 `docs/`、`docs-user-api/`、`artifacts/`、`.runtime/`、`.archive/` 还是 `prompts/`？
-4. 它是长期正式知识，还是研究/计划/一次性过程产物？
-5. 如果任务结束，这个文件是否还应该继续存在？
+1. 这是 Canonical、Decision、Research、Plan、Report、Prompt 还是 Runtime Output？
+2. 当前是否已经存在同主题 Source of Truth？
+3. 新内容应该更新现有文件，还是确实需要创建新文件？
+4. 它属于 `docs/`、`docs-user-api/`、`artifacts/`、`.runtime/`、`.archive/` 还是 `prompts/`？
+5. 任务结束后它是否仍有长期维护价值？
 
-如果无法回答，默认不要把新文件直接写入 `docs/` 根目录。
+默认规则：**不要向 `docs/` 根目录新增专题文件。**
 
-## 当前迁移状态
+## 2026-08 文档整理结果
 
-当前处于文档治理 P0：
+整理前 `docs/` 根目录有 61 个直接文件，混合了正式文档、Research、测试报告、Prompt、FINAL/V2 草稿和一次性工作记录。
 
-- 已确定文档权威边界。
-- 已确认 `docs-user-api/` 是唯一用户 API 文档根。
-- 已建立 `docs/` 目标信息架构。
-- 已建立 61 个根目录文件的迁移矩阵。
-- P0 不进行高风险批量移动；P1 开始按专题迁移并修复链接；P2 再做内容合并、删除和归档。
+当前已完成：
 
-相关治理文档：
+- 61 个根目录旧文件全部分类、迁移、合并、归档或删除；
+- `docs/` 根目录只保留 `README.md` 和分类目录；
+- `docs/mcp/` 已收敛到 `docs/integrations/mcp/`；
+- `docs/desktop-automation/`、`docs/discuz/`、`docs/golden_sample_strategy/`、`docs/optimization/`、`docs/strategy/` 等旧工作区已拆分或归档；
+- Layout 文档已按当前源码修正默认值和评分事实；
+- Gate V1/V2/Golden Gate 已收敛为单一 `docs/quality/gates-and-evidence.md`；
+- 重复 FINAL/COMPLETE SUMMARY 已合并为历史报告；
+- 可复用 WeChat 执行 Prompt 已移出 `docs/`，过时 Prompt/workpad 已删除；
+- `docs-user-api/` 继续保持唯一用户 API 文档根。
 
-- `maintenance/repository-documentation-map.md`
-- `maintenance/repo-file-lifecycle-policy.md`
-- `maintenance/docs-migration-map.md`
-- `maintenance/repo-layout-refactor-plan.md`
-- `maintenance/repo-migration-map-and-p0-batch.md`
+迁移审计记录见：
+
+```text
+docs/maintenance/docs-migration-map.md
+```
