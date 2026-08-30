@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": false,
+    "target": "ES2020",
+    "lib": ["ES2020"]
+  },
+  "include": [
+    "*.js",
+    "examples/**/*.js",
+    "polyfills/**/*.js",
+    "types/**/*.d.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "third_party",
+    "dist",
+    "temp"
+  ]
+}

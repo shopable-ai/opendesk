@@ -1,68 +1,42 @@
-declare namespace AppHttp {
-    interface Config {
-        headers?: Record<string, string>;
-        timeout?: number;
-        params?: Record<string, any>;
-        [key: string]: any;
-    }
-
-    interface Response<T = any> {
-        data: T;
-        status: number;
-        statusText: string;
-        headers: Record<string, string>;
-        config: Config;
-        request?: any;
-    }
-
-    interface AppHttpInstance {
-        /**
-         * 发起 GET 请求
-         * @param url 请求的 URL
-         * @param config 请求配置选项 (可选)
-         * @returns 返回包含请求结果的 Promise 对象
-         */
-        get<T = any>(url: string, config?: Config): Promise<Response<T>>;
-
-        /**
-         * 发起 POST 请求
-         * @param url 请求的 URL
-         * @param data 需要发送的数据
-         * @param config 请求配置选项 (可选)
-         * @returns 返回包含请求结果的 Promise 对象
-         */
-        post<T = any>(url: string, data?: any, config?: Config): Promise<Response<T>>;
-
-        /**
-         * 发起 PUT 请求
-         * @param url 请求的 URL
-         * @param data 需要发送的数据
-         * @param config 请求配置选项 (可选)
-         * @returns 返回包含请求结果的 Promise 对象
-         */
-        put<T = any>(url: string, data?: any, config?: Config): Promise<Response<T>>;
-
-        /**
-         * 发起 DELETE 请求
-         * @param url 请求的 URL
-         * @param config 请求配置选项 (可选)
-         * @returns 返回包含请求结果的 Promise 对象
-         */
-        delete<T = any>(url: string, config?: Config): Promise<Response<T>>;
-
-        /**
-         * 发起 PATCH 请求
-         * @param url 请求的 URL
-         * @param data 需要发送的数据
-         * @param config 请求配置选项 (可选)
-         * @returns 返回包含请求结果的 Promise 对象
-         */
-        patch<T = any>(url: string, data?: any, config?: Config): Promise<Response<T>>;
-    }
-}
+export {};
 
 declare global {
-    var axios: AppHttp.AppHttpInstance;
-}
+  interface ClawdeskAxiosConfig {
+    method?: string;
+    url?: string;
+    headers?: Record<string, unknown>;
+    timeout?: number;
+    params?: Record<string, unknown>;
+    data?: unknown;
+    responseType?: string;
+    validateStatus?: (status: number) => boolean;
+    [key: string]: unknown;
+  }
 
-export {};
+  interface ClawdeskAxiosResponse<T = unknown> {
+    data: T;
+    status: number;
+    statusText: string;
+    headers: Record<string, unknown>;
+  }
+
+  interface ClawdeskAxiosInterceptorManager<T> {
+    use(fulfilled: (value: T) => T | Promise<T>): number;
+  }
+
+  interface ClawdeskAxiosInstance {
+    defaults: ClawdeskAxiosConfig;
+    interceptors: {
+      request: ClawdeskAxiosInterceptorManager<ClawdeskAxiosConfig>;
+      response: ClawdeskAxiosInterceptorManager<ClawdeskAxiosResponse>;
+    };
+    request<T = unknown>(config: ClawdeskAxiosConfig): Promise<ClawdeskAxiosResponse<T>>;
+    get<T = unknown>(url: string, config?: ClawdeskAxiosConfig): Promise<ClawdeskAxiosResponse<T>>;
+    post<T = unknown>(url: string, data?: unknown, config?: ClawdeskAxiosConfig): Promise<ClawdeskAxiosResponse<T>>;
+    put<T = unknown>(url: string, data?: unknown, config?: ClawdeskAxiosConfig): Promise<ClawdeskAxiosResponse<T>>;
+    delete<T = unknown>(url: string, config?: ClawdeskAxiosConfig): Promise<ClawdeskAxiosResponse<T>>;
+    patch<T = unknown>(url: string, data?: unknown, config?: ClawdeskAxiosConfig): Promise<ClawdeskAxiosResponse<T>>;
+  }
+
+  var axios: ClawdeskAxiosInstance;
+}

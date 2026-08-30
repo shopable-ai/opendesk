@@ -21,6 +21,7 @@ Clawdesk 在 JavaScript 运行时中注入桌面自动化、窗口、视觉、�
 - 做网络调用：`http.md`
 - 从外部服务触发：`http-server.md`
 - 理解 legacy / upgraded / playwright：`runtime.md`
+- 配置 VS Code 自动补全：`types.md`
 - 直接拿范例：`cookbook.md`
 - 给 Agent / 工具读取：`runtime-api.ai.json`
 
@@ -72,6 +73,20 @@ Clawdesk 在 JavaScript 运行时中注入桌面自动化、窗口、视觉、�
 
 这些 facade 主要提供迁移友好的 API 形状，**不等于完整 Playwright 浏览器引擎**。
 
+## 文档、Agent 索引与编辑器类型
+
+同一用户 API 面有三种消费形式：
+
+| 消费者 | 入口 | 作用 |
+| --- | --- | --- |
+| 人类 | `docs-user-api/*.md` | 直接渲染的正式说明、行为边界和示例 |
+| Agent | `runtime-api.ai.json` | 机器可读对象地图、状态和文档路由 |
+| VS Code / TypeScript | `types/*.d.ts` + `jsconfig.json` | 全局对象自动补全、参数与返回值提示 |
+
+详细说明见 `types.md`。
+
+`types/*.d.ts` 是从当前 Runtime 派生出来的编辑器声明，不是第四套 API 文档。它与 Markdown 或源码冲突时必须修正类型声明，而不是反过来修改真实 API 去迎合旧类型。
+
 ## HTTP 服务接口
 
 `http-server.md` 记录 Clawdesk 自身服务端接口，包括：
@@ -92,3 +107,4 @@ Clawdesk 在 JavaScript 运行时中注入桌面自动化、窗口、视觉、�
 - `page.$`、`page.$$`、旧 DOM 风格 `page.click(selector)` / `page.type(selector, text)` 不属于当前稳定桌面 API。
 - upgraded / playwright facade 只按 `runtime.md` 描述理解，不推断不存在的浏览器能力。
 - 历史 TestMonkey 文档仅保留在 Git 历史中，不再参与当前文档解析。
+- `dev/api.md` 与仓库根旧 `types.md` 属于已被正式文档/类型体系取代的历史草稿，不应重新恢复。
