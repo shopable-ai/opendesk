@@ -24,40 +24,28 @@ plans/
 maintenance/
 ```
 
-Roles:
-
-- `project/` — project overview, current context, operator/runbook entrypoints.
-- `architecture/` — current system structures, boundaries, contracts and ADRs.
-- `implementation/` — current implementation mechanisms, platform notes and troubleshooting.
-- `quality/` — gates, testing, failure taxonomy, review rules and maintained evidence indexes.
-- `integrations/` — external protocols/services/tool integrations such as MCP.
-- `scenarios/` — application/business-specific requirements, scenario architecture and action/baseline rules.
-- `research/` — option analysis, comparisons, exploratory studies and architecture reviews.
-- `plans/` — active roadmaps and not-yet-completed work.
-- `maintenance/` — repository/documentation governance.
-
 `docs/README.md` is the canonical navigation entrypoint.
 
 ### `docs-user-api/` — sole maintained user API documentation
 
-Use for:
+Use for directly rendered, user-facing material:
 
 - script/runtime API reference;
 - HTTP API reference;
 - user examples and cookbook;
-- editor/type usage guidance;
-- machine-readable API index (`runtime-api.ai.json`).
+- concise navigation to supporting machine/editor assets.
 
-Do not create another user-facing API root under `docs/`.
+Do not create another user-facing API root under `docs/`, and do not create a dedicated rendered page merely to explain internal `.d.ts` maintenance.
 
-## Derived editor contract surface
+## Derived API assets
 
-`types/` is maintained but is **not a third documentation root**.
+These are maintained but are **not additional documentation roots**:
 
-- `types/*.d.ts` provides VS Code / TypeScript autocomplete and signatures.
-- `jsconfig.json` wires declarations into the JavaScript editing experience.
-- explanatory API prose belongs in `docs-user-api/`.
-- type declarations must follow current source/runtime and canonical user API docs.
+- `docs-user-api/runtime-api.ai.json` — Agent-facing machine index and document routing.
+- `types/*.d.ts` — VS Code / TypeScript autocomplete and callable signatures.
+- `jsconfig.json` — connects repository JavaScript with the declaration files.
+
+Long-form explanation belongs in the relevant user API Markdown or in `docs/maintenance/`, depending on whether it is user-facing behavior or maintenance policy.
 
 ## Retired documentation/API surfaces
 
@@ -69,20 +57,10 @@ docs-api-user/
 docs/api/
 dev/api.md
 repository-root types.md
+docs-user-api/types.md
 ```
 
-The following former project-doc working areas were also removed from the maintained `docs/` surface during the 2026-08 cleanup:
-
-```text
-docs/desktop-automation/
-docs/discuz/
-docs/golden_sample_strategy/
-docs/optimization/
-docs/strategy/
-docs/mcp/
-```
-
-Their useful content has been moved into lifecycle-based categories; historical process material lives in `.archive/`.
+The former project-doc working areas removed during the 2026-08 cleanup remain historical only and must not be recreated as parallel current roots.
 
 ## Source priority
 
@@ -90,13 +68,13 @@ Their useful content has been moved into lifecycle-based categories; historical 
 
 ```text
 1. current source/runtime behavior
-2. docs-user-api/runtime-api.ai.json
-3. docs-user-api/*.md
+2. docs-user-api/*.md
+3. docs-user-api/runtime-api.ai.json
 4. types/*.d.ts
 5. Git history
 ```
 
-`types/*.d.ts` is intentionally below rendered user documentation because it is an editor aid rather than the explanatory product documentation surface.
+The Markdown layer is the canonical rendered user documentation. JSON and `.d.ts` are derived consumption formats and must be corrected when they drift.
 
 ### Project / architecture / implementation facts
 
@@ -107,8 +85,6 @@ Their useful content has been moved into lifecycle-based categories; historical 
 4. .archive/ and Git history
 ```
 
-If current source and a current docs file disagree, investigate the source/test behavior and correct the canonical document rather than preserving a stale statement for consistency with history.
-
 ## Lifecycle routing
 
 | Material | Canonical destination |
@@ -117,6 +93,7 @@ If current source and a current docs file disagree, investigate the source/test 
 | User-facing API prose | `docs-user-api/` |
 | Machine-readable user API map | `docs-user-api/runtime-api.ai.json` |
 | Editor signatures | `types/*.d.ts` |
+| Editor project wiring | `jsconfig.json` |
 | Active research | `docs/research/` |
 | Active plans | `docs/plans/` |
 | Application-specific scenario docs | `docs/scenarios/<scenario>/` |
@@ -133,15 +110,13 @@ If current source and a current docs file disagree, investigate the source/test 
 
 A topic should normally have one current canonical document.
 
-Supporting material can exist, but its role must be obvious:
-
 ```text
 Research -> Decision -> Canonical Architecture / Implementation
 Plan     -> Implementation -> Verification -> update canonical docs
 Run      -> Runtime evidence -> promote reusable evidence only when justified
 ```
 
-Do not let a Research file, phase report or Prompt silently become the effective specification just because it is longer or newer-looking.
+Do not let a Research file, phase report, Prompt, JSON index or `.d.ts` silently become the effective specification just because it is longer or easier for a tool to consume.
 
 ## Naming rules
 
@@ -151,28 +126,21 @@ Current maintained docs should normally use semantic, unversioned names:
 lower-kebab-case.md
 ```
 
-Avoid current-document names such as:
-
-```text
-*_V2.md
-*_V3.md
-*_FINAL.md
-*_COMPLETE_SUMMARY.md
-```
-
-Use Git for version history. Dates are appropriate for research, reports and other intentionally temporal material.
+Avoid current-document names such as `*_V2.md`, `*_V3.md`, `*_FINAL.md`, `*_COMPLETE_SUMMARY.md`. Use Git for version history. Dates are appropriate for intentionally temporal research and reports.
 
 ## Authoring rules
 
 When adding or changing a user-visible API:
 
-1. verify source/runtime behavior;
-2. update `docs-user-api/` prose;
-3. update `docs-user-api/index.md` where needed;
-4. update `runtime-api.ai.json` when public object/method routing changes;
-5. update `types/*.d.ts` when callable signatures/return shapes change;
+1. verify current source/runtime behavior;
+2. update the corresponding rendered Markdown;
+3. update `docs-user-api/index.md` if navigation or object ownership changed;
+4. update `runtime-api.ai.json` when public object/method routing changed;
+5. update `types/*.d.ts` whenever callable signatures, return shapes, optionality or sync/Promise behavior changed;
 6. run the declaration checks;
 7. verify examples.
+
+Do not create a new API explanation file merely because a new type declaration was added.
 
 When adding or changing project/engineering documentation:
 
@@ -186,10 +154,4 @@ When adding or changing project/engineering documentation:
 
 The 2026-08 `docs/` cleanup is structurally complete.
 
-See:
-
-```text
-docs/maintenance/docs-migration-map.md
-```
-
-for the completion record and migration rationale.
+See `docs/maintenance/docs-migration-map.md` for the completion record and migration rationale.

@@ -21,16 +21,6 @@ declare global {
     height: number;
   }
 
-  interface ClawdeskScreenScreenshotOptions {
-    path?: string;
-    fullPage?: boolean;
-    clip?: ClawdeskScreenClip;
-    encoding?: "binary" | "base64";
-    returnType?: "base64" | "bytes" | "path" | "object" | "none";
-    target?: "activeWindow" | "screen";
-    displayIndex?: number;
-  }
-
   interface ClawdeskScreenshotResult {
     path: string;
     mimeType: string;
@@ -50,7 +40,7 @@ declare global {
     getVirtualBounds(): ClawdeskScreenClip;
     pixel(x: number, y: number): string;
     pixels(points: (ClawdeskPoint | [number, number])[], scaled?: boolean): string[];
-    screenshot(options?: ClawdeskScreenScreenshotOptions): Promise<string | ArrayBuffer | ClawdeskScreenshotResult | null>;
+    screenshot(options?: ClawdeskPageScreenshotOptions): Promise<string | ArrayBuffer | ClawdeskScreenshotResult | null>;
   }
 
   var Screen: ClawdeskScreen;
