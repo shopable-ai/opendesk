@@ -1,254 +1,326 @@
 # Repository Migration Map and P0 Batch
 
+## Status
+
+This document covers repository-level file lifecycle migration.
+
+For the dedicated `docs/` cleanup, the authoritative per-file map is now:
+
+```text
+docs/maintenance/docs-migration-map.md
+```
+
+Important correction to earlier versions of this document:
+
+```text
+docs-user-api/ = sole maintained user API documentation root
+```
+
+The following historical trees have already been retired and must not be recreated:
+
+```text
+docs-api/
+docs-api-user/
+docs/api/
+```
+
 ## Purpose
 
-This document turns the layout policy into an execution-facing migration map for the current repository.
+Turn repository layout policy into controlled migration batches while avoiding path breakage.
 
-It focuses on:
-- current path -> target path mapping
-- path dependency hotspots
-- a lowest-risk P0 migration batch
-- what should wait until later because of code/docs coupling
+The migration separates:
 
-This is not the full move execution yet. It is the controlled pre-migration layer.
+- generated runtime output;
+- reusable preserved artifacts;
+- local development state;
+- historical material;
+- project engineering docs;
+- user API docs;
+- reusable prompts.
 
-## Current clutter concentrations
+## Current documentation P0
 
-Observed high-noise areas:
+The documentation-governance tranche establishes:
 
-- `artifacts/runs/` is the largest churn-heavy artifact subtree.
-- `artifacts/external/` is already a meaningful preserved subtree and should stay under `artifacts/`.
-- both `artifacts/golden-samples/` and `artifacts/golden_samples/` exist and should be unified.
-- `temp/WeChatWeb/` is by far the largest temp subtree and behaves more like a disposable local workspace/cache than a canonical project directory.
-- `temp/mac/` contains many screenshots, probes, and audit files that are runtime output, not source.
-- root markdown status/report files are still part of the main project surface.
+- `docs/README.md` as the project-doc entrypoint;
+- `docs/maintenance/docs-migration-map.md` as the 61-file root cleanup map;
+- `docs-user-api/` as the only maintained user API root;
+- no bulk document moves until path references are checked.
 
-## Current -> target path mapping
+This is intentionally lower risk than immediately renaming dozens of files.
 
-### A. Runtime outputs
+## Runtime outputs
 
-These are strong candidates for early migration.
-
-| Current path | Target path | Reason | Priority |
-|---|---|---|---|
-| `artifacts/runs/` | `.runtime/runs/` | execution logs, summaries, snapshots, event streams | P0 |
-| `artifacts/mcp-smoke/` | `.runtime/smoke/mcp/` | smoke output, screenshots, report residue | P0 |
-| `artifacts/preflight/` | `.runtime/preflight/` | generated preflight results | P0 |
-| `artifacts/browser_stack_finish/` | `.runtime/debug/browser_stack_finish/` | debug/test-result residue, not canonical fixtures | P0 |
-| `artifacts/browser-stack-http-smoke/` | `.runtime/smoke/browser-stack-http/` | smoke-run output | P0 |
-| `temp/mac/` | `.runtime/temp/mac/` | screenshots, probes, jsonl audit residue | P0 |
-| `temp/e2e/` | `.runtime/temp/e2e/` | disposable e2e residue | P0 |
-| `temp/qianniuShip/` | `.runtime/temp/qianniuShip/` | disposable test/debug residue | P0 |
-| `temp/file/` | `.runtime/temp/file/` | temporary output | P0 |
-| `temp/file-demo/` | `.runtime/temp/file-demo/` | temporary output | P0 |
-
-### B. Reusable preserved artifacts
-
-These should remain under `artifacts/`, but be normalized.
+Strong migration candidates:
 
 | Current path | Target path | Reason | Priority |
 |---|---|---|---|
-| `artifacts/external/` | keep | curated external references already match intended role | keep |
-| `artifacts/golden-samples/` | `artifacts/fixtures/golden-samples/` | canonical reusable baseline assets | P0/P1 |
-| `artifacts/golden_samples/` | merge into `artifacts/fixtures/golden-samples/` | duplicate naming style | P0/P1 |
-| `artifacts/macos_v1/` | `artifacts/reports/macos_v1/` | preserved stage reports/audits, not runtime trash | P1 |
-| `artifacts/dev-html-samples/` | `artifacts/fixtures/dev-html-samples/` or `docs/assets/dev-html-samples/` | preserved sample assets, not runtime logs | P1 |
-| `artifacts/tests/` | review: `artifacts/fixtures/tests/` or `tests/fixtures/` | depends on whether these are reusable baselines or test-owned fixtures | P1 |
-| `artifacts/playwright/` | review: `artifacts/reports/playwright/` or `.runtime/debug/playwright/` | role needs confirmation | P1 |
+| `artifacts/runs/` | `.runtime/runs/` | execution logs, summaries, snapshots, event streams | later coupled batch |
+| `artifacts/mcp-smoke/` | `.runtime/smoke/mcp/` | smoke output, screenshots, report residue | P1 |
+| `artifacts/preflight/` | `.runtime/preflight/` | generated preflight results | P1 |
+| `artifacts/browser_stack_finish/` | `.runtime/debug/browser_stack_finish/` | debug/test-result residue | P1 |
+| `artifacts/browser-stack-http-smoke/` | `.runtime/smoke/browser-stack-http/` | smoke-run output | P1 |
+| `temp/mac/` | `.runtime/temp/mac/` | screenshots, probes, audit residue | P1 |
+| `temp/e2e/` | `.runtime/temp/e2e/` | disposable e2e residue | P1 |
+| `temp/qianniuShip/` | `.runtime/temp/qianniuShip/` | disposable test/debug residue | P1 |
+| `temp/file/` | `.runtime/temp/file/` | temporary output | P1 |
+| `temp/file-demo/` | `.runtime/temp/file-demo/` | temporary output | P1 |
 
-### C. Local development state
+`artifacts/runs/` remains a special case because runtime code, docs, configs and replay files may reference it. Patch producers and consumers before moving it.
 
-| Current path | Target path | Reason | Priority |
-|---|---|---|---|
-| `.venv-paddle-ocr/` | `.dev/venv/paddle-ocr/` | local environment state | P1 |
-| `.playwright-cli/` | `.dev/playwright/cli/` | helper tool cache/state | P1 |
-| `.playwright-mcp/` | `.dev/playwright/mcp/` | helper tool state | P1 |
-
-### D. Historical/project-note markdown at root
+## Reusable preserved artifacts
 
 | Current path | Target path | Reason | Priority |
 |---|---|---|---|
-| `STATUS_REPORT.md` | `.archive/reports/2026-03-status-report.md` | historical status report | P0 |
-| `WEEK5_SUMMARY.md` | `.archive/reports/2026-03-week5-summary.md` | historical summary | P0 |
-| `WEEK5_COMPLETION_REPORT.md` | `.archive/reports/2026-03-week5-completion-report.md` | historical summary | P0 |
-| `IMPLEMENTATION_SUMMARY.md` | `.archive/reports/implementation-summary.md` | historical summary | P0 |
-| `todo.md` | `.archive/notes/todo.md` or `docs/notes/todo.md` | depends on whether still active | P0 |
+| `artifacts/external/` | keep | already matches curated external-reference role | keep |
+| `artifacts/golden-samples/` | `artifacts/fixtures/golden-samples/` | reusable baselines | P1 |
+| `artifacts/golden_samples/` | merge into `artifacts/fixtures/golden-samples/` | duplicate naming style | P1 |
+| `artifacts/macos_v1/` | review for `artifacts/reports/macos-v1/` | preserved stage reports/audits | P2 |
+| `artifacts/dev-html-samples/` | review for `artifacts/fixtures/dev-html-samples/` | preserved sample assets | P2 |
+| `artifacts/tests/` | review for `tests/fixtures/` or `artifacts/fixtures/tests/` | ownership unclear | P2 |
+| `artifacts/playwright/` | review for report vs runtime debug | lifecycle unclear | P2 |
 
-### E. Larger structural normalization candidates
-
-These should not be moved in the first risky batch without dependency review.
+## Local development state
 
 | Current path | Target path | Reason | Priority |
 |---|---|---|---|
-| `docs-user-api/` | `docs/api/user/` | reduce naming ambiguity | P2 |
-| `docs-api-user/` | merge into `docs/api/user/` or source-specific variant | likely overlap | P2 |
-| `docs-api/` | `docs/api/internal/` or `docs/api/runtime/` | role clarification needed | P2 |
-| `test/` | partial convergence toward `tests/` | requires dependency review | P2 |
-| `temp/WeChatWeb/` | likely `.runtime/temp/WeChatWeb/` or separate external workspace path | very large subtree, likely special handling | P2 |
+| `.venv-paddle-ocr/` | `.dev/venv/paddle-ocr/` | local environment state | P2 |
+| `.playwright-cli/` | `.dev/playwright/cli/` | helper tool cache/state | P2 |
+| `.playwright-mcp/` | `.dev/playwright/mcp/` | helper tool state | P2 |
 
-## Path dependency hotspots
+Move these only after checking local script assumptions.
 
-The following live code/docs currently reference old runtime paths and must be checked before any move.
+## Documentation structure
 
-### High-confidence dependency points
+### Project / engineering docs
 
-1. `pkg/execution/artifacts.go`
-- default runtime output root is currently `artifacts/runs/<executionId>`
-- this is the primary implementation source that should eventually switch to `.runtime/runs/<executionId>`
+Canonical root:
 
-2. `README.md`
-- explicitly documents the default output path as `artifacts/runs/<executionId>/`
+```text
+docs/
+```
 
-3. `QUICKSTART.md`
-- references `artifacts/runs/<executionId>/`
-- links to `STATUS_REPORT.md`
+Target internal categories:
 
-4. `config/wechat_structured_send_v2.config.example.json`
-- contains:
-  - `artifactRunRoot: artifacts/runs/...`
-  - `sendAuditPath: temp/mac/...`
-  - `regionReportPath: temp/mac/...`
+```text
+project/
+architecture/
+implementation/
+quality/
+integrations/
+scenarios/
+research/
+plans/
+maintenance/
+```
 
-5. `docs-api/testmonkey-http-api.md`
-- example `logDir` points to `artifacts/runs/custom`
+The current 61 direct files under `docs/` are individually classified in `docs/maintenance/docs-migration-map.md`.
 
-6. `docs-api-user/testmonkey-user-http-server-api.md`
-- example `logDir` points to `artifacts/runs/custom`
+### User API docs
 
-7. `replays/round-01-minimal-loop.json`
-- explicitly references:
-  - `artifacts/preflight/latest.json`
-  - `artifacts/runs/<run-id>/...`
+Canonical root:
 
-### Generated artifacts that embed old paths
+```text
+docs-user-api/
+```
 
-These do not block migration policy, but they mean old snapshots will continue to mention historical paths:
-- old `summary.json`
-- old `agent_summary.json`
-- saved smoke output under `artifacts/browser_stack_finish/`
-- `pkg/http/artifacts/runs/...` generated files
+Keep it independent from `docs/`.
 
-These should be treated as historical output, not as blockers.
+Retired:
 
-## P0 low-risk migration batch
+```text
+docs-api/
+docs-api-user/
+docs/api/
+```
 
-This is the recommended first real migration tranche after approval.
+Do not use old Git-history copies as current API authority.
 
-### P0-A: Add destination directories
-Create only:
-- `.runtime/runs/`
-- `.runtime/temp/`
-- `.runtime/smoke/`
-- `.runtime/preflight/`
-- `.runtime/debug/`
-- `.archive/reports/`
-- `.archive/notes/`
-- `artifacts/fixtures/`
+## Historical/project-note Markdown at repository root
 
-Low risk because it adds structure without moving behavior yet.
+Older audits identified root status/summary files as cleanup candidates.
 
-### P0-B: Archive root historical markdown
-Move:
-- `STATUS_REPORT.md`
-- `WEEK5_SUMMARY.md`
-- `WEEK5_COMPLETION_REPORT.md`
-- `IMPLEMENTATION_SUMMARY.md`
-- `todo.md` if confirmed non-active
+Because repository state has changed since those audits, do not blindly execute old move tables. For each candidate:
 
-Before move:
-- update any links, especially `QUICKSTART.md`
+1. confirm the file still exists;
+2. search live references;
+3. determine whether it is still active;
+4. archive only if historical value exists;
+5. otherwise extract unique value and delete.
 
-Why low risk:
-- mostly documentation/reference impact
-- no runtime code behavior changes
+General rule after cleanup:
 
-### P0-C: Normalize preserved golden sample naming
-Action:
-- create canonical target: `artifacts/fixtures/golden-samples/`
-- merge `artifacts/golden_samples/` into it
-- migrate `artifacts/golden-samples/` into the same canonical location
+- no new one-off phase-summary Markdown at repository root.
 
-Before move:
-- search/patch references to both spellings
+## Current path dependency hotspots
 
-Why relatively low risk:
-- narrower scope than runtime-root migration
-- strong clarity gain
+Before runtime-output migrations, inspect current references in at least:
 
-### P0-D: Move clearly disposable smoke/debug subtrees
-Recommended first subtrees:
-- `artifacts/mcp-smoke/` -> `.runtime/smoke/mcp/`
-- `artifacts/preflight/` -> `.runtime/preflight/`
-- `artifacts/browser-stack-http-smoke/` -> `.runtime/smoke/browser-stack-http/`
-- `artifacts/browser_stack_finish/` -> `.runtime/debug/browser_stack_finish/`
+- `pkg/execution/artifacts.go`
+- `README.md`
+- `QUICKSTART.md`
+- active config examples
+- replay specifications
+- scripts that generate screenshots/logs/reports
+- `docs/maintenance/`
+- browser automation and MCP docs
+- `docs-user-api/` examples where output paths are user-visible
 
-Before move:
-- patch docs/scripts/config references if any
+Historical references inside old generated reports do not necessarily block migration; classify them as historical evidence rather than active consumers.
 
-Why still acceptable in P0:
-- these are obviously generated/debug-oriented
-- smaller dependency surface than `artifacts/runs/`
+## P0: governance first
 
-## What should NOT be in the first migration batch
+P0 is intentionally non-destructive.
 
-### 1. `artifacts/runs/`
-Do not move first until implementation and doc references are patched together.
+### Documentation governance
 
-Reason:
-- runtime code defaults point here
-- docs, configs, and replay specs point here
-- moving without changing generators will create immediate drift
+Implemented/maintained surface:
 
-### 2. `temp/WeChatWeb/`
-Do not move first.
+```text
+docs/README.md
+docs/maintenance/docs-migration-map.md
+docs/maintenance/repository-documentation-map.md
+docs/maintenance/repo-file-lifecycle-policy.md
+docs/maintenance/repo-layout-refactor-plan.md
+```
 
-Reason:
-- huge subtree
-- likely contains a quasi-workspace, local npm state, and browser assets
-- deserves classification first: disposable temp clone vs active experiment workspace
+### Why no bulk move in P0
 
-### 3. docs tree convergence
-Do not merge `docs-user-api`, `docs-api`, `docs-api-user` in P0.
+A file move through GitHub is effectively create + reference patch + delete. Doing dozens of those without dependency checks risks:
 
-Reason:
-- possible external publishing/render pipeline dependencies
-- needs slower normalization
+- broken relative links;
+- stale README/quickstart references;
+- duplicated Source-of-Truth files during partial migration;
+- publishing regressions;
+- loss of clarity over which version is current.
 
-### 4. `.venv-paddle-ocr` and Playwright tool directories
-Do not move in the same batch as runtime path rewrites.
+## P1: structural cleanup
 
-Reason:
-- local tool path assumptions may exist
-- better as a separate environment-cleanup tranche
+Recommended order:
 
-## Recommended implementation order after this map
+### P1-A: docs topic batches
 
-### Step 1
-Create `.runtime/`, `.archive/`, and `artifacts/fixtures/` destination scaffolding.
+Use `docs-migration-map.md` and migrate:
 
-### Step 2
-Patch docs that reference root reports and historical markdown.
+1. quality core;
+2. browser automation;
+3. macOS implementation;
+4. desktop automation;
+5. WeChat scenario;
+6. layout research/reports;
+7. MCP integration;
+8. remaining project/execution docs.
 
-### Step 3
-Move root historical markdown files into `.archive/`.
+Per batch:
 
-### Step 4
-Patch references to `golden_samples` and `golden-samples`, then unify them under `artifacts/fixtures/golden-samples/`.
+```text
+search old references
+-> create target paths
+-> patch links
+-> verify target content
+-> delete old paths
+-> search old paths again
+```
 
-### Step 5
-Patch references to smoke/preflight/debug subtrees, then move the P0 generated-output directories.
+### P1-B: obvious runtime smoke/debug output
 
-### Step 6
-Only after that, tackle the larger runtime root migration:
-- patch `pkg/execution/artifacts.go`
-- patch docs/examples/configs/replays
-- then move `artifacts/runs/` -> `.runtime/runs/`
+Candidates:
 
-## Success criteria for the first real migration batch
+```text
+artifacts/mcp-smoke/              -> .runtime/smoke/mcp/
+artifacts/preflight/              -> .runtime/preflight/
+artifacts/browser-stack-http-smoke/ -> .runtime/smoke/browser-stack-http/
+artifacts/browser_stack_finish/   -> .runtime/debug/browser_stack_finish/
+```
 
-P0 is successful when:
-- root historical markdown is out of the top-level surface
-- duplicate golden-sample naming is resolved
-- obvious smoke/debug/preflight outputs are removed from `artifacts/`
-- the repository gains `.runtime/` and `.archive/` as visible lifecycle buckets
-- no core runtime behavior is broken because `artifacts/runs/` was not moved prematurely
+Patch references first.
+
+### P1-C: golden sample naming
+
+Converge:
+
+```text
+artifacts/golden-samples/
+artifacts/golden_samples/
+```
+
+to:
+
+```text
+artifacts/fixtures/golden-samples/
+```
+
+Search both spellings before and after migration.
+
+## P2: semantic and high-coupling cleanup
+
+### `artifacts/runs/`
+
+Do not move until producer code and consumers are patched together.
+
+### `temp/WeChatWeb/`
+
+Classify first: disposable temp clone, external reference, or active workspace. Its size and mixed role make blind migration unsafe.
+
+### Docs merges/deletions
+
+P2 handles clusters such as:
+
+- `GATES_AND_EVIDENCE*` / `GOLDEN_GATES`;
+- layout `FINAL_*` / `PROJECT_COMPLETE_SUMMARY`;
+- layout implementation/research duplicates;
+- golden-sample strategy duplicate histories;
+- raw prompts and `think.md`.
+
+Do not archive all of these mechanically. Extract current facts first; preserve history only when useful.
+
+### Local environments
+
+Move `.venv-*` and `.playwright-*` only after local tooling assumptions are patched.
+
+## What must not happen
+
+Do not:
+
+- recreate `docs-api/`, `docs-api-user/` or `docs/api/`;
+- move `docs-user-api/` to `docs/api/user/`;
+- move `artifacts/runs/` without changing its producers/consumers;
+- convert `.archive/` into a dump of every old AI-generated Markdown file;
+- leave both old and new canonical documentation paths indefinitely;
+- create new `*_V2.md`, `FINAL_*.md` or `*_COMPLETE_SUMMARY.md` as a substitute for Git history.
+
+## Validation
+
+### Documentation migration
+
+- repository search for old path before move;
+- patch incoming links;
+- verify content/relative links at target;
+- delete source only after target is verified;
+- repository search for old path after move.
+
+### Runtime/artifact migration
+
+- identify producer code/config;
+- patch default paths;
+- migrate one subtree at a time;
+- run targeted test/smoke workflows.
+
+### API documentation
+
+- verify user-visible API changes against current source/runtime;
+- update `docs-user-api/*.md` and `runtime-api.ai.json` together where required;
+- ensure retired API trees do not reappear.
+
+## Success criteria
+
+The repository migration succeeds when:
+
+- project root primarily exposes source and real entrypoints;
+- `docs/` root converges to `README.md` plus classified directories;
+- `docs-user-api/` remains the sole maintained user API root;
+- generated output defaults to `.runtime/`;
+- `artifacts/` means reusable/preserved assets and evidence;
+- prompts and historical notes no longer pollute canonical docs;
+- one current Source of Truth exists per engineering topic;
+- repository search finds no live references to removed paths.
