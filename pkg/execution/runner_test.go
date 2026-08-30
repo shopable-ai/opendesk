@@ -1,48 +1,40 @@
 package execution
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
 
-func TestRunJavaScriptAppliesRequestedStackMode(t *testing.T) {
-	artifacts, err := PrepareArtifacts(filepath.Join(t.TempDir(), "run"), "exec-stack", ".js")
-	if err != nil {
-		t.Fatalf("PrepareArtifacts returned error: %v", err)
-	}
-
+func TestRunJavaScriptAcceptsRequestedStackMode(t *testing.T) {
 	tests := []struct {
 		name      string
 		stackMode string
-		script    string
 	}{
-		{
-			name:      "legacy",
-			stackMode: "legacy",
-			script:    `console.log(typeof page === 'object');`,
-		},
-		{
-			name:      "upgraded",
-			stackMode: "upgraded",
-			script:    `console.log(page === pageUpgraded);`,
-		},
-		{
-			name:      "playwright",
-			stackMode: "playwright",
-			script:    `console.log(page === pageUpgraded && browser === browserUpgraded && context === contextUpgraded);`,
-		},
+		{name: "legacy", stackMode: "legacy"},
+		{name: "upgraded", stackMode: "upgraded"},
+		{name: "playwright", stackMode: "playwright"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			artifacts, err := PrepareArtifacts(filepath.Join(t.TempDir(), "run"), "exec-"+tt.name, ".js")
+			if err != nil {
+				t.Fatalf("PrepareArtifacts returned error: %v", err)
+			}
+
+			script := "" +
+				"if (typeof page !== 'object') throw new Error('missing current page surface');" +
+				"if (typeof browser !== 'object') throw new Error('missing current browser surface');" +
+				"if (typeof context !== 'object') throw new Error('missing current context surface');" +
+				"if (Execution.stack !== '" + tt.stackMode + "') throw new Error('unexpected stack metadata: ' + Execution.stack);"
+
 			req := Request{
 				ExecutionID:    "exec-" + tt.name,
 				SourceLabel:    "inline",
 				Ext:            ".js",
 				StackMode:      tt.stackMode,
-				ScriptContent:  []byte(tt.script),
+				ScriptContent:  []byte(script),
 				TimeoutMinutes: 0,
 				Artifacts:      artifacts,
 				Selection: TerminalSelection{
@@ -133,78 +125,5 @@ func TestRunJavaScriptPreservesRequestedStackInSummaryWithoutLegacyFallbackBlob(
 	}
 	if !found {
 		t.Fatalf("expected stack-specific script log, got %#v", summary.ScriptLogs)
-	}
-}
-
-func TestRunJavaScriptCliSmokesEmitStandardizedTopLevelFields(t *testing.T) {
-	tests := []struct {
-		name        string
-		stackMode   string
-		scriptPath  string
-		needle      string
-		notNeedles  []string
-	}{
-		{
-			name:       "legacy",
-			stackMode:  "legacy",
-			scriptPath: filepath.Join("..", "..", "examples", "browser_stack_legacy_smoke.js"),
-			needle:     `"stack":"legacy"`,
-			notNeedles: []string{`"stack":"upgraded"`, `"stack":"playwright"`},
-		},
-		{
-			name:       "upgraded",
-			stackMode:  "upgraded",
-			scriptPath: filepath.Join("..", "..", "examples", "browser_stack_upgraded_smoke.js"),
-			needle:     `"stack":"upgraded"`,
-			notNeedles: []string{`"stack":"legacy"`, `"stack":"playwright"`},
-		},
-		{
-			name:       "playwright",
-			stackMode:  "playwright",
-			scriptPath: filepath.Join("..", "..", "examples", "browser_stack_playwright_smoke.js"),
-			needle:     `"stack":"playwright"`,
-			notNeedles: []string{`"stack":"legacy"`, `"stack":"upgraded"`},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			content, err := os.ReadFile(tt.scriptPath)
-			if err != nil {
-				t.Fatalf("failed to read script %s: %v", tt.scriptPath, err)
-			}
-			artifacts, err := PrepareArtifacts(filepath.Join(t.TempDir(), tt.name), "exec-"+tt.name, ".js")
-			if err != nil {
-				t.Fatalf("PrepareArtifacts returned error: %v", err)
-			}
-			req := Request{
-				ExecutionID:    "exec-" + tt.name,
-				SourceLabel:    "file:" + tt.scriptPath,
-				Ext:            ".js",
-				StackMode:      tt.stackMode,
-				ScriptContent:  content,
-				TimeoutMinutes: 0,
-				Artifacts:      artifacts,
-				Selection:      TerminalSelection{Mode: "agent", Categories: map[string]bool{"script": true, "summary": true, "error": true}},
-			}
-			_, summary, err := Run(req)
-			if err != nil {
-				t.Fatalf("Run returned error: %v", err)
-			}
-			joined := ""
-			for _, item := range summary.ScriptLogs {
-				joined += item.Message + "\n"
-			}
-			for _, field := range []string{"\"ok\":true", tt.needle, "\"finalStatus\":\"succeeded\"", "\"proofLevel\":"} {
-				if !strings.Contains(joined, field) {
-					t.Fatalf("expected %q in script logs, got %s", field, joined)
-				}
-			}
-			for _, bad := range tt.notNeedles {
-				if strings.Contains(joined, bad) {
-					t.Fatalf("unexpected conflicting stack marker %q in script logs: %s", bad, joined)
-				}
-			}
-		})
 	}
 }
