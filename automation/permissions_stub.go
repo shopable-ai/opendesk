@@ -23,3 +23,8 @@ func darwinTriggerAppleEventsPrompt(targetApp string) bool {
 	_ = targetApp
 	return false
 }
+
+func TriggerMacAutomationPermissionHelper(targetApp string) bool {
+	_ = targetApp
+	return false
+}

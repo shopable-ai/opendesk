@@ -294,7 +294,8 @@ declare class Page {
 
     /**
      * Runs screenshot permission preflight checks.
-     * On macOS this validates screen capture + accessibility/automation access.
+     * On macOS this validates screen capture + accessibility access.
+     * Automation requires a separate AppleEvents trigger.
      */
     checkScreenshotPermissions(): ScreenshotPermissionReport;
 
@@ -325,7 +326,11 @@ declare class Page {
         targetApp: string;
         ok: boolean;
         canAutoAdd: false;
+        triggered: boolean;
+        pendingUserConsent: boolean;
         message: string;
+        hostHint?: string;
+        pid?: number;
         next?: string;
         error?: string;
     };

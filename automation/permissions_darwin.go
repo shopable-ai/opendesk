@@ -85,3 +85,7 @@ func darwinTriggerAppleEventsPrompt(targetApp string) bool {
 	defer C.free(unsafe.Pointer(cTarget))
 	return bool(C.tm_trigger_appleevents_prompt(cTarget))
 }
+
+func TriggerMacAutomationPermissionHelper(targetApp string) bool {
+	return darwinTriggerAppleEventsPrompt(targetApp)
+}
