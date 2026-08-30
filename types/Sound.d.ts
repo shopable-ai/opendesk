@@ -1,15 +1,15 @@
-declare class AppSound {
-	playSuccess: () => Promise<void>;
-	playFail: () => Promise<void>;
-	playWarning: () => Promise<void>;
-	playError: () => Promise<void>;
-	playSound: (sound: any) => Promise<void>;
-	play: (sound: any) => Promise<void>;
-}
+export {};
 
 declare global {
-    // @ts-ignore
-	var Sound: AppSound;
-}
+  interface ClawdeskSound {
+    playSuccess(): void;
+    playFail(): void;
+    playWarning(): void;
+    playError(): void;
+    playCaptcha(): void;
+    playSound(soundPath: string): void;
+    play(soundPath: string): void;
+  }
 
-export {};
+  var Sound: ClawdeskSound;
+}
