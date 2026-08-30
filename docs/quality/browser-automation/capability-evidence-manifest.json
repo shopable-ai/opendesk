@@ -21,7 +21,7 @@
         {"kind": "go_test_name", "path": "pkg/execution/runner_test.go", "name": "TestRunJavaScriptAppliesRequestedStackMode"},
         {"kind": "go_test_name", "path": "pkg/http/handler_test.go", "name": "TestHandleExecutionsAcceptsPlaywrightStack"},
         {"kind": "example", "path": "examples/browser_stack_http_e2e_smoke.py"},
-        {"kind": "doc", "path": "docs/browser-automation-stacks.md"}
+        {"kind": "doc", "path": "docs/architecture/browser-automation/stack.md"}
       ]
     },
     {
@@ -33,8 +33,8 @@
         {"kind": "go_test_name", "path": "automation/browser_compat_test.go", "name": "TestUpgradedPageWaitForSupportsNumberAndSelectorRouting"},
         {"kind": "go_test_name", "path": "automation/browser_compat_test.go", "name": "TestLocatorRoutesActionsToOwningPage"},
         {"kind": "code", "path": "polyfills/010-browser-automation-upgraded.js", "contains": "page.waitFor selector routing is not supported by current runtime"},
-        {"kind": "doc", "path": "docs/browser-automation-capability-boundaries.md"},
-        {"kind": "doc", "path": "docs/browser-automation-test-matrix.md"}
+        {"kind": "doc", "path": "docs/architecture/browser-automation/capabilities.md"},
+        {"kind": "doc", "path": "docs/quality/browser-automation/test-matrix.md"}
       ]
     },
     {
@@ -45,8 +45,8 @@
       "evidence": [
         {"kind": "go_test_name", "path": "automation/browser_compat_test.go", "name": "TestUpgradedPageEvaluateReturnsExplicitLocalCompatibilityResultWhenNoRuntimeEvaluateExists"},
         {"kind": "code", "path": "polyfills/010-browser-automation-upgraded.js", "contains": "local-compatibility-evaluate"},
-        {"kind": "doc", "path": "docs/browser-automation-capability-boundaries.md"},
-        {"kind": "doc", "path": "docs/browser-automation-test-matrix.md"}
+        {"kind": "doc", "path": "docs/architecture/browser-automation/capabilities.md"},
+        {"kind": "doc", "path": "docs/quality/browser-automation/test-matrix.md"}
       ]
     },
     {
@@ -59,8 +59,8 @@
         {"kind": "go_test_name", "path": "automation/browser_compat_test.go", "name": "TestUpgradedBrowserNewContextRejectsClosedBrowserAtFacadeBoundary"},
         {"kind": "go_test_name", "path": "automation/browser_compat_test.go", "name": "TestFacadeCloseMethodsRemainCallableAfterFirstClose"},
         {"kind": "code", "path": "polyfills/010-browser-automation-upgraded.js", "contains": "function readClosedState(obj)"},
-        {"kind": "doc", "path": "docs/browser-automation-stacks.md"},
-        {"kind": "doc", "path": "docs/browser-automation-capability-boundaries.md"}
+        {"kind": "doc", "path": "docs/architecture/browser-automation/stack.md"},
+        {"kind": "doc", "path": "docs/architecture/browser-automation/capabilities.md"}
       ]
     },
     {
@@ -75,7 +75,7 @@
         {"kind": "example", "path": "examples/browser_stack_http_e2e_smoke.py"},
         {"kind": "script", "path": "scripts/test_browser_stack_http_smoke.sh"},
         {"kind": "code", "path": "pkg/execution/runner.go", "contains": "return rt.Set(\"Execution\", context)"},
-        {"kind": "doc", "path": "docs/browser-automation-http-smoke-guide.md"}
+        {"kind": "doc", "path": "docs/quality/browser-automation/http-smoke.md"}
       ]
     },
     {
@@ -86,8 +86,8 @@
       "evidence": [
         {"kind": "example", "path": "examples/browser_stack_macos_app_smoke.js"},
         {"kind": "code", "path": "automation/page.go"},
-        {"kind": "doc", "path": "docs/browser-automation-test-matrix.md"},
-        {"kind": "doc", "path": "docs/browser-automation-capability-boundaries.md"}
+        {"kind": "doc", "path": "docs/quality/browser-automation/test-matrix.md"},
+        {"kind": "doc", "path": "docs/architecture/browser-automation/capabilities.md"}
       ]
     }
   ]
