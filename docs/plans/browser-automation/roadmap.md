@@ -2,6 +2,8 @@
 
 本文件只保存当前未完成工作。历史 “completed in this pass / implemented outcome / previous pass” 不再作为 Active Plan。
 
+Evidence 引用漂移由 `python3 scripts/validate_browser_automation_evidence.py` 做确定性检查；该脚本只验证引用完整性，不是 capability/semantics 认证器。
+
 ## P0
 
 ### B01 — Browser/Context lifecycle regression coverage
@@ -56,35 +58,6 @@ Risk: 为名称一致性恢复历史 facade，会重新制造无语义的兼容�
 Stop condition: 没有真实 consumer 时不实现。
 
 Out of scope: full Playwright compatibility.
-
-### B03 — Evidence drift guard
-
-Status: open until validator lands and is exercised
-
-Problem: Browser capability manifest 曾长期引用已不存在的 test/script 路径。
-
-Current evidence: manifest has been reduced to current positive claims.
-
-Target: 一个小型 deterministic reference validator。
-
-Acceptance:
-
-- 检查 JSON basic shape；
-- evidence path exists；
-- Go test name exists；
-- contains string exists；
-- duplicate claim id；
-- unknown evidence level；
-- empty evidence；
-- 不判断 capability correctness。
-
-Dependencies: none.
-
-Risk: validator 被误解为语义认证器。
-
-Stop condition: 若维护成本大于 drift 风险，则只保留人工 review；禁止扩展成语义评分器。
-
-Out of scope: automatic production-ready verdicts.
 
 ## P1
 

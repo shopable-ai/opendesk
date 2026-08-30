@@ -2,7 +2,9 @@
 
 `docs/quality/` 只保存质量 contract、可复核 Evidence 规则、失败分类/案例与专项测试策略；不把施工日志或项目完成状态混入质量规范。
 
-## Directory roles
+## Audited core
+
+本轮实际校准的核心入口是：
 
 ```text
 quality/
@@ -13,9 +15,10 @@ quality/
 ├── golden-sample-strategy.md
 ├── browser-automation/
 ├── layout/
-├── wechat/
-└── review/
+└── wechat/
 ```
+
+仓库可以存在其他平台/领域专项目录；它们不因为出现在 `quality/` 下就自动成为全局规范。上面的树只表示本轮已审计的核心角色，不虚构不存在的 `review/` 等目录。
 
 ## Document types
 
@@ -27,7 +30,7 @@ quality/
 | Failure Case | 实际发生过什么？ | 必须记录环境、触发、期望/观测、Evidence、根因、修复、回归测试、状态 |
 | Test Matrix | 当前测到哪一层？ | 区分 T1 unit / T2 integration / T3 real smoke |
 | Golden Sample | 什么可以成为稳定回归基线？ | candidate 不等于 frozen；必须有 provenance/review/replay |
-| Review | 如何人工/自动复核？ | 不负责宣告项目整体完成 |
+| Review | 如何人工/自动复核？ | 是文档角色，不要求存在独立 `review/` 目录；不负责宣告项目整体完成 |
 | Benchmark | 如何比较版本/算法？ | 固定输入、断言、variance budget 与环境 |
 
 ## Source-of-truth order
