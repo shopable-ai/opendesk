@@ -1,78 +1,94 @@
-# EXECUTION_FAILURE_CASES
+# Failure Cases
 
-## 目的
+本文件记录可复用的实际失败案例，不承担 taxonomy 定义。没有当前 Evidence 的历史案例只能标记为 historical / not revalidated，不能写成当前仍然存在的问题。
 
-记录真实执行中具有复用价值的失败案例。
-
-这里只保留：
-
-- 可复现的问题
-- 已定位的根因
-- 修复策略
-- 后续 guard / contract 变化
-
-这里不保存普通运行日志，不保存无结论的重复尝试。
-
-## 记录模板
+## Required record
 
 ```text
-### [日期] 标题
-
-- 阶段：
-- 现象：
-- 根因：
-- 分类：structure / recognition / validation / action / runtime
-- 修复：
-- 后续 guard：
-- 是否已验证：
+ID:
+Date:
+Scope:
+Environment:
+Trigger:
+Expected:
+Observed:
+Evidence:
+Global Failure Class:
+Domain Failure Code:
+Root Cause:
+Fix:
+Regression Test:
+Status:
 ```
 
----
+Status 建议值：`open` / `fixed-not-revalidated` / `verified` / `historical-not-revalidated` / `invalidated`。
 
-### [2026-04-07] activeWindow 截图主体漂移到浏览器
+## Historical records migrated from the previous quality file
 
-- 阶段：真实微信非发送探测
-- 现象：header OCR 读到的是浏览器标题，不是微信聊天头部
-- 根因：`activeWindow` 在执行过程中被其他窗口抢走，导致局部截图主体错误
-- 分类：runtime
-- 修复：局部截图前增加窗口稳定性守卫；不把该问题误判为结构识别失败
-- 后续 guard：
-  - 截图前检查当前活动窗口是否仍是微信
-  - 检查窗口 bounds 是否发生漂移
-- 是否已验证：部分验证，仍需在无人干预条件下完整回归
+### FC-20260407-01 — activeWindow screenshot target drift
 
-### [2026-04-07] 副屏/负坐标窗口导致 screen clip 失真
+- Date: 2026-04-07
+- Scope: WeChat desktop observation
+- Environment: historical desktop run; exact current environment not preserved in this file
+- Trigger: local screenshot taken after another window became active
+- Expected: capture target remained WeChat
+- Observed: OCR read browser title/content instead
+- Evidence: historical narrative only; no current replay artifact located during the 2026-08-31 audit
+- Global Failure Class: primary `F1 Acquisition / Observation`; secondary `F4 Target Resolution`
+- Domain Failure Code: `WECHAT_ACTIVE_WINDOW_DRIFT`
+- Root Cause: active-window identity was not guarded at capture time
+- Fix: historical fix proposed/added a window stability guard
+- Regression Test: no current dedicated regression test located
+- Status: `historical-not-revalidated`
 
-- 阶段：真实微信模板重定位
-- 现象：局部截图宽高异常放大，模板匹配结果失真
-- 根因：微信窗口位于副屏或负坐标区域时，整屏 clip 的坐标换算不稳定
-- 分类：runtime
-- 修复：优先使用统一 fresh screenshot 做结构验证；worker 侧在截图策略上继续收敛
-- 后续 guard：
-  - 记录窗口是否位于负坐标区域
-  - 对异常截图结果做 fail-fast
-- 是否已验证：问题已稳定复现，最终截图策略仍在收敛
+### FC-20260407-02 — secondary-display / negative-coordinate capture drift
 
-### [2026-04-07] targetChatName 明确时仍可能误点非目标候选行
+- Date: 2026-04-07
+- Scope: desktop screenshot geometry
+- Environment: historical multi-display run
+- Trigger: target window located on secondary display / negative coordinates
+- Expected: local clip matched requested window bounds
+- Observed: clip dimensions/position drifted and template matching became unreliable
+- Evidence: historical narrative only; no current replay artifact located during this audit
+- Global Failure Class: primary `F1 Acquisition / Observation`; secondary `F0 Environment / Precondition`
+- Domain Failure Code: `DESKTOP_NEGATIVE_COORDINATE_CAPTURE_DRIFT`
+- Root Cause: coordinate conversion across displays was unstable in the historical path
+- Fix: prefer one fresh screenshot and fail fast on abnormal geometry
+- Regression Test: no current dedicated regression test located
+- Status: `historical-not-revalidated`
 
-- 阶段：open_chat
-- 现象：候选行模板命中后，header 验证失败
-- 根因：候选行列表里未先按目标名做强约束过滤
-- 分类：action
-- 修复：当 `targetChatName` 存在时，只允许点击匹配目标名的 candidate；否则进入 search flow
-- 后续 guard：
-  - open_chat 前强制 target match
-  - header 不通过立即 stop
-- 是否已验证：代码已修复，真实环境仍需稳定窗口条件下复验
+### FC-20260407-03 — targetChatName did not strongly constrain candidate row
 
-### [2026-04-07] region_map 旧脚本对窗口变化过于脆弱
+- Date: 2026-04-07
+- Scope: historical WeChat `open_chat`
+- Environment: historical desktop run
+- Trigger: multiple candidate rows matched a weak template path
+- Expected: explicit target chat name constrained the selected row before click
+- Observed: a non-target candidate could be clicked before header verification rejected it
+- Evidence: historical narrative only; no current runtime artifact/test located during this audit
+- Global Failure Class: primary `F4 Target Resolution`; secondary `F6 Verification / Postcondition`
+- Domain Failure Code: `WECHAT_CHAT_CANDIDATE_MISMATCH`
+- Root Cause: target identity was not a hard precondition for candidate selection
+- Fix: historical rule changed toward target-name filtering + post-click header verification
+- Regression Test: no current dedicated regression test located
+- Status: `historical-not-revalidated`
 
-- 阶段：region mapping
-- 现象：`wechat_region_map.js` 在新窗口状态下报 “通用 layout 结果不足以映射微信语义区域”
-- 根因：旧 worker 对 header separator 等启发式要求过硬，缺少更强的 fallback
-- 分类：recognition
-- 修复：使用 unified `visionrun validate` 接 fresh screenshot 做真实验证，不再把旧 region_map 当唯一真相源
-- 后续 guard：
-  - 保留 region_map 作为辅助 worker，而非唯一 gate
-  - 真实 gate 以 unified visionrun 为准
-- 是否已验证：已验证，fresh screenshot 可被 unified validate 通过
+### FC-20260407-04 — old region-map heuristic became brittle after UI/window change
+
+- Date: 2026-04-07
+- Scope: historical WeChat region mapping
+- Environment: historical desktop run
+- Trigger: changed window/layout state
+- Expected: semantic regions could still be mapped
+- Observed: heuristic rejected the layout because required separator assumptions no longer held
+- Evidence: historical narrative only; referenced fresh-screenshot validation artifacts are not part of the current repository evidence set
+- Global Failure Class: primary `F3 Semantic Inference`; secondary `F2 Perception / Detection`
+- Domain Failure Code: `WECHAT_REGION_MAP_HEURISTIC_DRIFT`
+- Root Cause: app-specific semantic inference depended on rigid separator assumptions
+- Fix: historical workflow moved toward a unified validation path and treated region-map as auxiliary
+- Regression Test: no current dedicated regression test located
+- Status: `historical-not-revalidated`
+
+## Adding a new case
+
+A new case should not be added until there is enough information to reproduce or audit it. If Evidence cannot be retained for privacy/environment reasons, record that limitation explicitly and do not upgrade the case to `verified`.

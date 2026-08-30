@@ -1,168 +1,144 @@
 # Gates and Evidence
 
-本文件是 Clawdesk 当前桌面自动化与黄金样本验证的统一质量门禁（Source of Truth）。历史 bootstrap gate 已归档到 `.archive/legacy-docs/gates-and-evidence-bootstrap.md`。
+本文件定义 Clawdesk framework-level 质量门禁。Scenario 可以增加字段与 Gate，但不能把领域专有 artifact 写成全局 runtime 必然产物。
 
-## 核心原则
+## Core principles
 
-- 没有证据，不算通过；没有可复核工件，不算完成。
-- 结构先于语义，语义先于动作；高风险动作必须独立放行。
-- compare / mirror 是诊断与验证层，不单独决定业务主链路是否可继续。
-- `pass` 才允许进入下一阶段；`warn` 只允许 probe；`fail` 必须 stop / recovery / escalate。
+- 没有 Evidence 不算完成；没有可复核工件不算通过。
+- 结构先于语义，语义先于动作。
+- 高风险动作必须有独立 Gate，不能由低风险 smoke 成功自动放行。
+- `pass` 才能进入依赖该 Gate 的下一阶段；`warn` 只能继续 probe/diagnosis；`fail` 必须 stop、recovery 或 escalate。
+- Golden candidate != frozen baseline。
 
-## 默认证据包
+## Current generic runtime evidence baseline
 
-当前运行产物仍按运行时实现约定保存，至少应包含：
+`pkg/execution/artifacts.go` 当前通用 execution runtime 明确准备：
 
 ```text
-requirement.json
-preflight.json
-preflight_runtime.json
+stdout.log
+stderr.log
+script_snapshot.<ext>
+summary.json
+agent_summary.json
+events.ndjson
+```
+
+这些是当前 framework-level artifact baseline。
+
+以下工件只在对应 scenario/runtime 明确生成时才可要求，不能写成全局默认：
+
+```text
 capture/source.png
-detect/regions.json
+dom_snapshot.json
+a11y_snapshot.json
 detect/layout_model.json
-infer/app_classification.json
 infer/zones.json
-infer/action_targets.json
 infer/ocr_map.json
 verify/actionability_report.json
-evidence/actions/
-evidence/anchors/
-evidence/ocr/
 checkpoints/
-replay/replay_result.json
-replay/state_transition_log.json
-audit.ndjson
+replay/
 decision.json
 ```
 
-黄金样本可以额外包含 layout / semantic baseline、compare、send-safety、provenance、variance budget 与人工 review 证据。
+## Framework-level gates
 
-## G0 Runtime / Acquisition Preflight
+### G0 Environment / Precondition
 
-通过条件：
+检查当前任务真正依赖的环境：输入、权限、目标进程/窗口、依赖版本、可写 artifact 目录等。
 
-- 目标应用/窗口可访问；
-- 截图、键鼠与所需系统权限可用；
-- OCR provider 可用（需要 OCR 的流程）；
-- 浏览器参考样本需要 DOM snapshot 时可获取；
-- viewport / window geometry 等关键环境信息被记录。
+失败：不得执行依赖该条件的动作。
 
-失败：不得继续真实动作。
+### G1 Acquisition / Observation
 
-## G1 Layout Model
+要求：
 
-通过条件：
+- 当前状态可观察；
+- 目标身份/窗口/页面/坐标没有明显漂移；
+- 关键 raw evidence 可追溯到本次 run。
 
-- `layout_model.json` 存在；
-- column / row topology 合理；
-- major zones 覆盖主要工作区；
-- 关键结构不存在明显重叠、缺失或异常漂移。
+如果任务不需要 screenshot/OCR/DOM，不得强制制造这些 artifact。
 
-## G2 App / Page / Semantic Inference
+### G2 Perception / Structure
 
-通过条件：
+适用于需要视觉/OCR/结构检测的场景。
 
-- `appClass` / `pageType` 达到可解释的可信度；
-- 有 supporting signals，必要时记录 counter-signals；
-- blocking page / overlay 被优先识别；
-- 关键语义对象和候选集可解释。
+要求：结构输出完整、关键异常可解释、明显漂移不被静默吞掉。
 
-若 `pageType` 无法确定，`canProceed=false`。
+### G3 Semantic / Target Resolution
 
-## G3 Zone / Structural Completeness
+要求：
 
-通过条件：
+- semantic interpretation 有 supporting evidence；
+- target candidate 可解释；
+- blocking/ambiguous state 优先暴露；
+- 不能把低置信度单点 OCR/视觉结果直接升级为动作目标。
 
-- 当前场景所需关键 zones 齐全；
-- zone 间关系与 topology 一致；
-- 动作所依赖的区域没有明显漂移或缺失。
+### G4 Actionability
 
-微信聊天场景至少关注：`conversation_list`、`chat_header`、`message_list`、`input_area`。
+每个将被执行的 intent 至少需要：
 
-## G4 Actionability
+- target；
+- precondition；
+- expected postcondition；
+- failure/stop strategy；
+- 足以回溯目标选择的 evidence。
 
-通过条件：
+### G5 Action Verification
 
-- 每个关键 intent 至少有一个可执行 target；
-- target 有明确 preconditions / postconditions；
-- 关键 target 有 fallback 或明确失败策略；
-- target evidence 可追溯到结构、视觉、OCR 或运行时状态。
+动作完成不等于任务完成。必须根据场景验证 postcondition；不能只以 API 返回 nil/error 作为业务成功证明。
 
-微信核心 intent 至少包括：`open_chat`、`focus_input`、`send`、`read_reply`。
+### G6 High-Risk Safety
 
-## G5 Evidence / OCR / Compare Quality
+对于 send / submit / delete / purchase / payment 等高风险动作：
 
-通过条件：
+- 必须独立判断 target identity、current state、user intent/authorization 与 postcondition；
+- 必须允许 stop / human confirmation；
+- 普通 click/open/screenshot smoke 不能自动放行高风险动作。
 
-- OCR 使用局部、zone-aware 证据，不依赖 whole-window OCR 单点裁决；
-- 动作级 before / after、target candidate trace、OCR raw / normalized 等证据可用；
-- compare 输出能够解释失败位置，而不是只有总分；
-- mirror / compare 缺失时若影响诊断能力，应至少为 `warn`。
+### G7 Evidence / Recovery
 
-## G6 High-Risk Action Safety
+要求：
 
-对于发送、提交、删除、支付等不可轻易撤销动作，必须单独通过安全 gate。
+- 最终 Claim 能追到当前 code/test/runtime artifact；
+- 失败原因能映射到 failure taxonomy/case；
+- 需要 retry/replay 的场景有足够 checkpoint/state evidence；
+- 缺失关键 evidence 时 verdict 不能是 pass。
 
-以消息发送为例，至少要求：
+## Scenario-specific gates
 
-- 当前身份 / header 可信；
-- 输入区域与 draft 验证成立；
-- send target 可信；
-- 无 blocking overlay；
-- runtime 与 actionability 均允许执行；
-- 执行后有 readback / postcondition 验证。
+Scenario 文档可以增加 Gate，例如：
 
-不能由前置低风险动作成功自动推导高风险动作可执行。
+- layout separator quality；
+- browser stack routing；
+- WeChat chat identity/send safety；
+- OCR provider quality；
+- MCP transport contract。
 
-## G7 Replay / Recovery
+但必须明确：
 
-通过条件：
+- 适用 scope；
+- 依赖哪些 current artifacts；
+- 哪些是 mandatory，哪些是 optional；
+- pass/warn/fail 语义；
+- 失败对应 F0-F10 哪一类。
 
-- 重复运行时 zone / target 漂移受控；
-- checkpoint 可用；
-- replay 结果和 state transition 有记录；
-- 失败可进入 retry / recovery / escalate，而不是重新盲试完整链路。
+## Golden promotion
 
-## G8 Golden Promotion
+Golden sample 的 promotion 不属于普通 run 的默认 G0-G7。Candidate 只有在 provenance、assertions、variance budget、review 和 replay evidence 足够时，才能进入 `Frozen` 状态。详细规则见 `golden-sample-strategy.md`。
 
-黄金样本从 `candidate` 升级为 `frozen` 前必须满足：
+## Reporting language
 
-- provenance 完整；
-- assertion profile / compare contract 完整；
-- variance budget 明确；
-- failure taxonomy 可映射；
-- layout / semantic / actionability 等关键证据齐全；
-- replay / recovery 可验证；
-- 完成人工 review，并记录 promotion decision。
+允许：
 
-G8 未通过时，只能作为 candidate 或 algorithm-validation 输入，不能作为正式回归基线或动作真相源。
+- `T1 unit test passed for X contract`
+- `T2 routing integration passed`
+- `T3 smoke passed on <environment> for <bounded scenario>`
 
-## decision.json 语义
+不允许把上述任一项直接扩写为：
 
-- `canProceed` 由 G0-G7 的当前场景要求共同决定；
-- compare fail 本身不自动阻止主链路，但若暴露结构、语义、actionability 或安全 gate 失败，则必须阻止；
-- 高风险动作需要额外通过 G6；
-- 黄金样本 promotion 由 G8 独立决定。
+- all scenarios passed
+- production ready
+- full Playwright support
+- fully safe send flow
 
-## audit.ndjson 最低动作粒度
-
-至少记录：
-
-- `open_chat.attempt` / `open_chat.verify`
-- `focus_input.attempt` / `draft.verify`
-- `send.attempt` / `send.verify`
-- `reply.readback`
-- `recovery.attempt`
-
-其他场景应按相同原则记录 `intent.attempt` 与 `intent.verify`。
-
-## Stop / Escalation
-
-满足任一情况应停止或升级人工判断：
-
-- runtime preflight fail；
-- 关键工件缺失导致不可回放；
-- page / target 身份不确定；
-- 连续多轮没有新增有效证据；
-- 高风险动作缺少独立安全验证；
-- UI/环境变化导致现有 topology、baseline 或规则系统性失效。
+除非存在与该范围匹配的当前 Evidence。
