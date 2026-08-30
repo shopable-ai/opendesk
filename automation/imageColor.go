@@ -16,7 +16,7 @@ import (
 	"strconv"
 	"strings"
 
-	"gocv.io/x/gocv"
+	xdraw "golang.org/x/image/draw"
 )
 
 // ImageColor provides image analysis and color manipulation functionality
@@ -44,54 +44,34 @@ func (ic *ImageColor) FindPos(sourceImgStr, templateImgStr string, args ...float
 		return nil, fmt.Errorf("failed to load template image: %v", err)
 	}
 
-	// Convert to gocv.Mat
-	sourceMat, err := gocv.ImageToMatRGB(sourceImg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert source image to Mat: %v", err)
-	}
-	defer sourceMat.Close()
-
-	templateMat, err := gocv.ImageToMatRGB(templateImg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert template image to Mat: %v", err)
-	}
-	defer templateMat.Close()
+	sourceNRGBA := imageToNRGBA(sourceImg)
+	templateNRGBA := imageToNRGBA(templateImg)
 
 	// Ensure template is smaller than source
-	if templateMat.Cols() > sourceMat.Cols() || templateMat.Rows() > sourceMat.Rows() {
+	if templateNRGBA.Bounds().Dx() > sourceNRGBA.Bounds().Dx() || templateNRGBA.Bounds().Dy() > sourceNRGBA.Bounds().Dy() {
 		return nil, fmt.Errorf("template (%dx%d) larger than source (%dx%d)",
-			templateMat.Cols(), templateMat.Rows(), sourceMat.Cols(), sourceMat.Rows())
+			templateNRGBA.Bounds().Dx(), templateNRGBA.Bounds().Dy(), sourceNRGBA.Bounds().Dx(), sourceNRGBA.Bounds().Dy())
 	}
 
-	// Create result matrix
-	resultWidth := sourceMat.Cols() - templateMat.Cols() + 1
-	resultHeight := sourceMat.Rows() - templateMat.Rows() + 1
-	result := gocv.NewMatWithSize(resultHeight, resultWidth, gocv.MatTypeCV32F)
-	defer result.Close()
-
-	// Perform template matching
-	gocv.MatchTemplate(sourceMat, templateMat, &result, gocv.TmCcoeffNormed, gocv.NewMat())
-
-	// Find best match
-	_, maxVal, _, maxLoc := gocv.MinMaxLoc(result)
-
 	// Get template dimensions
-	templateWidth := templateMat.Cols()
-	templateHeight := templateMat.Rows()
+	templateWidth := templateNRGBA.Bounds().Dx()
+	templateHeight := templateNRGBA.Bounds().Dy()
+
+	bestX, bestY, bestScore := findTemplateMatch(sourceNRGBA, templateNRGBA)
 
 	// Prepare result
 	res := make(map[string]interface{})
-	res["confidence"] = float64(maxVal)
+	res["confidence"] = bestScore
 	res["width"] = templateWidth
 	res["height"] = templateHeight
 
-	if maxVal < threshold {
+	if bestScore < float64(threshold) {
 		res["x"] = -1
 		res["y"] = -1
 		res["found"] = false
 	} else {
-		res["x"] = maxLoc.X
-		res["y"] = maxLoc.Y
+		res["x"] = bestX
+		res["y"] = bestY
 		res["found"] = true
 	}
 
@@ -177,29 +157,89 @@ func (ic *ImageColor) Resize(imageStr string, width, height int) (string, error)
 		return "", fmt.Errorf("failed to load image for resize: %v", err)
 	}
 
-	srcMat, err := gocv.ImageToMatRGB(img)
-	if err != nil {
-		return "", fmt.Errorf("failed to convert image to Mat: %v", err)
-	}
-	defer srcMat.Close()
-
-	dstMat := gocv.NewMat()
-	defer dstMat.Close()
-
-	gocv.Resize(srcMat, &dstMat, image.Pt(width, height), 0, 0, gocv.InterpolationArea)
-
-	resizedImg, err := dstMat.ToImage()
-	if err != nil {
-		return "", fmt.Errorf("failed to convert resized Mat to image: %v", err)
-	}
+	src := imageToNRGBA(img)
+	dst := image.NewNRGBA(image.Rect(0, 0, width, height))
+	xdraw.CatmullRom.Scale(dst, dst.Bounds(), src, src.Bounds(), xdraw.Over, nil)
 
 	var buf bytes.Buffer
 	encoder := png.Encoder{CompressionLevel: png.BestCompression}
-	if err := encoder.Encode(&buf, resizedImg); err != nil {
+	if err := encoder.Encode(&buf, dst); err != nil {
 		return "", fmt.Errorf("failed to encode resized image: %v", err)
 	}
 
 	return "data:image/png;base64," + base64.StdEncoding.EncodeToString(buf.Bytes()), nil
+}
+
+func imageToNRGBA(img image.Image) *image.NRGBA {
+	bounds := img.Bounds()
+	dst := image.NewNRGBA(image.Rect(0, 0, bounds.Dx(), bounds.Dy()))
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			dst.Set(x-bounds.Min.X, y-bounds.Min.Y, img.At(x, y))
+		}
+	}
+	return dst
+}
+
+func findTemplateMatch(source, template *image.NRGBA) (bestX, bestY int, bestScore float64) {
+	sw := source.Bounds().Dx()
+	sh := source.Bounds().Dy()
+	tw := template.Bounds().Dx()
+	th := template.Bounds().Dy()
+
+	if tw == 0 || th == 0 || tw > sw || th > sh {
+		return -1, -1, 0
+	}
+
+	bestDiff := ^uint64(0)
+	maxDiff := uint64(tw * th * 3 * 255)
+
+	for y := 0; y <= sh-th; y++ {
+		for x := 0; x <= sw-tw; x++ {
+			var diff uint64
+			exceeded := false
+			for ty := 0; ty < th && !exceeded; ty++ {
+				srcRow := (y+ty)*source.Stride + x*4
+				tplRow := ty * template.Stride
+				for tx := 0; tx < tw; tx++ {
+					si := srcRow + tx*4
+					ti := tplRow + tx*4
+					diff += channelDiff(source.Pix[si+0], template.Pix[ti+0])
+					diff += channelDiff(source.Pix[si+1], template.Pix[ti+1])
+					diff += channelDiff(source.Pix[si+2], template.Pix[ti+2])
+					if diff >= bestDiff {
+						exceeded = true
+						break
+					}
+				}
+			}
+			if diff < bestDiff {
+				bestDiff = diff
+				bestX = x
+				bestY = y
+			}
+		}
+	}
+
+	if bestDiff == ^uint64(0) {
+		return -1, -1, 0
+	}
+
+	if maxDiff == 0 {
+		return bestX, bestY, 1
+	}
+	bestScore = 1 - float64(bestDiff)/float64(maxDiff)
+	if bestScore < 0 {
+		bestScore = 0
+	}
+	return bestX, bestY, bestScore
+}
+
+func channelDiff(a, b uint8) uint64 {
+	if a > b {
+		return uint64(a - b)
+	}
+	return uint64(b - a)
 }
 
 // decodeBitmap converts a base64 image string to an image.Image
