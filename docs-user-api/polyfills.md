@@ -1,156 +1,174 @@
 ---
 title: Polyfills
-description: 运行时 polyfills 提供的增强层、兼容层与全局能力。
+description: Clawdesk 运行时 polyfill、全局辅助函数、axios 与兼容 facade。
 order: 12
 ---
 
 # polyfills
 
-polyfills 目录中的脚本会在原生对象注入后、用户脚本执行前加载。
+`polyfills/*.js` 在原生对象注入后、用户脚本执行前按文件名排序加载。
 
-作用
+它们负责：
+
 - 包装原生 API
-- 补全 Promise / timer / console / clipboard 等基础能力
-- 提供 page 兼容 API
-- 提供升级 facade 与 Playwright 风格兼容层
-
-加载顺序以文件名排序为主，当前重点文件如下。
+- 补 Promise / timer / sleep 等运行时能力
+- 增强 `page`
+- 提供 `axios`
+- 提供 `notify()` 等全局便捷函数
+- 提供 upgraded / playwright 风格兼容 facade
 
 ## 000-console.js
 
-作用
-- 替换全局 console
-- 把 JS 侧 `console.*` 调到 Go Console 对象上
+将全局 `console` 映射到 Clawdesk 日志对象。
 
-用户可见效果
-- `console.log/info/warn/error/debug/table/group/...` 可用
+常用：
+
+- `console.log`
+- `console.info`
+- `console.warn`
+- `console.error`
+- `console.debug`
+- `console.table`
+- `console.group` / `groupEnd`
+- `console.time` / `timeEnd`
+
+初始化结束后，运行时会再次把 `console` 切换到真正的执行事件 sink，因此脚本日志可以进入执行工件和事件流。
 
 ## 000-global.js
 
-作用
-- 提供全局剪贴板辅助函数
+提供全局剪贴板便捷函数：
 
-新增全局函数
-- `copyToClipboard(text)`
-- `getClipboard()`
+```js
+copyToClipboard('hello');
+const text = getClipboard();
+```
+
+底层仍由 `clipboard` 对象完成实际工作。
 
 ## 000-page.js
 
-这是最重要的 page polyfill。
+这是最重要的 page 增强层之一。
 
-作用
-- 从 `page____Inject` 复制原生 page 能力
-- 把 `mouse / keyboard / touchscreen` 挂到 page 上
-- 新增权限 facade
-- 新增等待方法
-- 最终把 `globalThis.page` 指向增强后的 wrapper
+主要提供：
 
-重要新增方法
+| 方法 | 用途 |
+| --- | --- |
+| `page.waitFor(number|function, options)` | 数字等待或函数条件等待 |
+| `page.waitForTimeout(ms)` | Promise 风格延时 |
+| `page.waitForNavigation(options)` | 兼容式导航等待 |
+| `page.waitForFunction(fn, options, ...args)` | 条件轮询 |
+| `page.waitForAll(...)` | Promise.all + timeout |
+| `page.checkPermissions(options)` | 权限快照 |
+| `page.requestPermissions(options)` | 权限请求 |
+| `page.ensurePermissions(options)` | 严格权限守卫 |
+| `page.ensureMacPermissions(options)` | macOS 兼容入口 |
 
-| 方法 | 类型 | 说明 |
-| --- | --- | --- |
-| page.checkPermissions() | polyfill | 跨平台权限快照 |
-| page.requestPermissions() | polyfill | 跨平台权限请求 |
-| page.ensurePermissions() | polyfill | 严格权限守卫 |
-| page.ensureMacPermissions() | polyfill alias | 旧入口兼容别名 |
-| page.waitFor() | polyfill | 兼容式等待 |
-| page.waitForTimeout() | polyfill | Promise 延时 |
-| page.waitForNavigation() | polyfill | 基于 page.url() 的导航等待 |
-| page.waitForFunction() | polyfill | 轮询函数直到 truthy |
-| page.waitForAll() | polyfill | Promise.all + timeout |
+新脚本优先使用 `page.ensurePermissions()`；`ensureMacPermissions()` 主要用于 macOS 明确场景和历史兼容。
 
-注意
-- 这些都属于“用户可用 API”
-- 但它们不是 Go 原生 page 方法
+## 000-systemBase.js：notify()
 
-## 000-systemBase.js
+`notify()` 是用户可调用的全局通知函数。
 
-作用
-- 提供系统相关的基础 JS 层能力
-- 具体是否作为正式 API 暴露，仍以最终全局对象为准
+字符串形式：
+
+```js
+notify('任务完成');
+```
+
+等价于默认：
+
+```js
+notify({
+  title: '任务完成',
+  message: '',
+  sound: true,
+  timeout: 5000
+});
+```
+
+对象形式：
+
+```js
+notify({
+  title: 'Clawdesk',
+  message: '自动化已经完成',
+  sound: true,
+  timeout: 5000
+});
+```
+
+底层通过 `notify____Inject` 调到 Go 通知实现。
+
+**状态：Secondary**
+
+它适合脚本完成提示，不应当被用作关键业务状态的唯一证据。
 
 ## 001-promise.js
 
-作用
-- 提供 Promise polyfill
-- 让运行时支持 Promise 风格 API
+提供 Promise 兼容能力，使运行时能支持 `async/await` 风格脚本。
 
 ## 001-timers.js / 002-sleep.js
 
-作用
-- 补全 timer 与 sleep 相关能力
-- 与原生 timer 注入一起构成可用的异步等待环境
+补全 timer 与 sleep：
+
+- `setTimeout`
+- `setInterval`
+- `clearTimeout`
+- `clearInterval`
+- `sleep(ms)`
+- `sleepSeconds(seconds)`
+
+等待 UI 状态时，优先使用条件等待而不是堆叠长时间 sleep。
 
 ## 003-window.js
 
-作用
-- 包装 `window.getActiveWindow()` 与 `window.getWindowByTitle()`
-- 把返回对象字段名统一为 lowerCamelCase
+对部分窗口返回结构做用户层规范化，例如把字段统一为 lowerCamelCase。
 
-用户影响
-- 读取窗口对象时优先用 `title`、`pid`、`x`、`y`、`width`、`height`
+所以文档中的窗口对象优先使用：
+
+- `title`
+- `pid`
+- `x`
+- `y`
+- `width`
+- `height`
 
 ## 004-axios.js
 
-作用
-- 覆盖全局 axios
-- 在原生 http.request 之上提供更完整的 axios 风格接口
+正式脚本中的全局 `axios` 由这个 polyfill 构造。
 
-新增/增强内容
+它**直接建立在 `http.request()` 上**，提供：
+
 - `axios.defaults`
-- `axios.interceptors.request.use()`
-- `axios.interceptors.response.use()`
 - `axios.request()`
-- 统一 params 处理与 validateStatus
+- `axios.get/post/put/delete/patch`
+- request interceptors
+- response interceptors
+- params 处理
+- `validateStatus`
 
-结论
-- 用户最终应把全局 axios 视为增强版 axios
+默认配置包括：
 
-## 010-browser-automation-upgraded.js
+- `timeout: 30000`
+- `responseType: 'json'`
+- 默认 2xx 为成功
 
-作用
-- 提供新的浏览器自动化兼容层
-- 暴露：
-  - `pageUpgraded`
-  - `contextUpgraded`
-  - `browserUpgraded`
-  - `Automation.getLegacy()`
-  - `Automation.getUpgraded()`
-  - `Automation.getPlaywrightFacade()`
+完整使用方式见 `http.md`。
 
-核心价值
-- 在不破坏 legacy 的前提下，引入 upgraded / playwright 风格 facade
+## url-search-params.js
 
-升级 facade 的典型能力
-- `pageUpgraded.open()`
-- `pageUpgraded.locator()`
-- `pageUpgraded.query()`
-- `pageUpgraded.cookies()`
-- `pageUpgraded.storage()`
-- `pageUpgraded.session()`
-- `contextUpgraded.newPage()`
-- `browserUpgraded.newContext()`
-- `playwright.chromium.launch()` 风格兼容入口
+提供 `URLSearchParams` 兼容实现。
 
-注意
-- 这些是兼容层，不是底层真正浏览器引擎
-- 更适合做 API 迁移与脚本适配
+## Browser automation upgraded facade
 
-## stack 模式与 polyfill 的关系
+若仓库中的 browser automation polyfill/facade 被当前构建加载，会提供 upgraded / playwright 风格对象。
 
-运行时支持：
-- legacy
-- upgraded
-- playwright
+这类能力属于 **Compatibility**，详细边界见 `runtime.md`。
 
-含义
-- legacy：保留原 page
-- upgraded：把全局 page 指向 `pageUpgraded`
-- playwright：把 page / browser / context 指向 upgraded facade
+不要因为 API 形状类似 Playwright 就把它解释为完整 Playwright 引擎。
 
-## 文档使用建议
+## 维护规则
 
-正式用户 API 文档中：
-- 原生能力与 polyfill 能力应明确区分
-- 但对于脚本作者，只要最终可用，就应该写进文档
-- 本套 docs 中已把这些能力标注为“原生”或“polyfill”
+- 用户文档描述“最终可调用 API”，但必须注明 Native / Polyfill / Compatibility。
+- 任何 polyfill 新增、删除或改名，都应同步更新 `runtime-api.ai.json`。
+- 不把只存在于历史文档、当前运行时没有加载的接口重新写回正式文档。

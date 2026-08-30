@@ -2,93 +2,91 @@
 
 ## Purpose
 
-This file defines the current documentation directory roles for `clawdesk` so local cleanup, sync, and future refactors do not treat several historical doc trees as equal sources of truth.
+This file defines the maintained documentation roots in Clawdesk and prevents historical API trees from being treated as equal sources of truth.
 
 ## Current canonical stance
 
-Primary documentation tree:
-- `docs/`
+There are two maintained documentation roles:
 
-Supporting but transitional trees:
-- `docs-user-api/`
+- `docs/`：项目级文档根目录
+  - architecture
+  - implementation
+  - maintenance
+  - plans
+  - research
+  - strategy
+  - MCP / internal engineering notes
+- `docs-user-api/`：**唯一用户 API 文档根目录**
+  - script/runtime API reference
+  - HTTP API reference
+  - user examples
+  - machine-readable API index
+
+These two roots are complementary rather than competing.
+
+## Retired API documentation trees
+
+The following historical API trees have been deliberately retired:
+
 - `docs-api/`
 - `docs-api-user/`
+- `docs/api/`
 
-Rule:
-- New maintained project documentation should default to `docs/` unless there is a strong toolchain reason to keep a document in one of the transitional trees.
+They existed during different TestMonkey → Clawdesk documentation reorganizations and created duplicate or conflicting API facts.
 
-## Directory roles
+Rules:
 
-### `docs/`
-Canonical project documentation root.
+- Do not recreate them as parallel API documentation roots.
+- Do not use Git history copies as current API authority.
+- If historical wording contains useful information, migrate the verified fact into `docs-user-api/`.
+- Current source/runtime behavior remains the final API fact source.
+
+## `docs-user-api/` role
 
 Use for:
-- architecture
-- maintenance rules
-- plans
-- research
-- MCP notes
-- runtime and browser automation docs
-- future normalized API docs under stable subpaths
 
-Preferred subtrees already present:
-- `docs/api/`
-- `docs/architecture/`
-- `docs/implementation/`
-- `docs/maintenance/`
-- `docs/plans/`
-- `docs/research/`
-- `docs/strategy/`
+- `page`, input, window, screen
+- Vision / OCR / ImageColor
+- system / file / storage / clipboard
+- http / HTTP server
+- runtime / polyfills / JS libraries
+- secondary runtime utilities
+- cookbook
+- `runtime-api.ai.json`
 
-### `docs-user-api/`
-Current user-facing API writing set.
+When adding a user-visible API:
 
-Status:
-- usable
-- closer to current source than older `testmonkey`-named API docs
-- still a transitional top-level tree, not the final normalized home
+1. update its Markdown page or create one if needed;
+2. update `index.md`;
+3. update `runtime-api.ai.json`;
+4. verify examples against current source/runtime;
+5. avoid local absolute paths and historical project names.
 
-Interpretation:
-- keep using it only when an existing doc flow depends on it
-- when normalizing structure, the likely long-term destination is under `docs/api/user/`
+## Source priority
 
-### `docs-api/`
-Older runtime/API documentation set with `testmonkey` naming.
+For API facts:
 
-Status:
-- legacy but still useful as reference
-- not the preferred destination for new docs
+1. current source/runtime behavior
+2. `docs-user-api/runtime-api.ai.json`
+3. `docs-user-api/*.md`
+4. Git history
 
-Interpretation:
-- preserve for compatibility/reference until a deliberate migration retires it
-- do not treat it as equal to `docs/` for new authoring
+For project architecture/history/research:
 
-### `docs-api-user/`
-Older user API document set.
+1. current maintained files under `docs/`
+2. current source and test evidence
+3. Git history as historical context
 
-Status:
-- legacy reference surface
-- superseded in practice by `docs-user-api/`
+## Cleanup implications
 
-Interpretation:
-- avoid adding new files here
-- keep only until specific consumers are migrated or retired
+When comparing machines or repositories:
 
-## Sync and cleanup implications
-
-When comparing machines or deciding what to sync:
-- treat `docs/` as the primary repo-level document source
-- treat `docs-user-api/`, `docs-api/`, and `docs-api-user/` as historical or transitional side trees
-- do not infer independent project evolution merely because these trees differ in file count or naming style
-
-When deciding whether a remote copy has meaningful new work:
-- prioritize git-tracked code changes first
-- then check whether `docs/` has unique maintained content
-- only after that inspect transitional doc trees
+- do not infer independent project evolution from deleted historical API trees;
+- treat reappearance of `docs-api/`, `docs-api-user/`, or `docs/api/` as a migration/regression issue unless explicitly re-approved;
+- API work should normally land in `docs-user-api/`, not under a new parallel docs root.
 
 ## Default authoring rule
 
-If no stronger constraint exists:
-1. put new project docs in `docs/`
-2. keep old doc trees stable rather than expanding them
-3. normalize into `docs/api/...` during deliberate migration work, not opportunistically during unrelated code sync
+- Project/engineering documentation → `docs/`
+- User-facing API documentation → `docs-user-api/`
+- Machine-readable user API map → `docs-user-api/runtime-api.ai.json`

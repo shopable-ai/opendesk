@@ -1,99 +1,94 @@
 ---
 title: Clawdesk API 文档
-description: 面向脚本作者的用户可读 API 文档，依据当前源码与旧文档风格重新整理。
+description: Clawdesk 用户 API 总览、全局对象地图与阅读导航。
 order: 1
 ---
 
 # Clawdesk API 文档
 
-这是一套全新整理的用户 API 文档。
+这套文档面向脚本作者、自动化使用者和直接生成 Clawdesk 脚本的 Agent。
 
-文档目标：
-- 面向脚本作者与自动化使用者
-- 以当前源码为准
-- 吸收旧文档中“概述 / 方法表 / 参数 / 返回值 / 示例”的用户视角写法
-- 不混入已过时、仅在旧文档中出现但当前源码并不存在的接口
+## 一句话理解
 
-阅读建议：
-1. 先读 page.md
-2. 再读 input.md、window.md、vision.md
-3. 再读 runtime.md 了解 stack 与 facade
-4. 再读 cookbook.md 直接拿范例改
-5. 最后按需查专题页
+Clawdesk 在 JavaScript 运行时中注入桌面自动化、窗口、视觉、文件、网络和系统对象，再加载 polyfill 与内置 JS 库；外部程序还可以通过 HTTP 与 MCP 使用更高层能力。
 
-目录导航
-- README.md：CLI 目录入口页
-- page.md：核心入口，截图 / 打开 / 权限 / 等待
-- input.md：mouse / keyboard / touchscreen
-- window.md：窗口信息与窗口控制
-- screen.md：显示器、边界、取色
-- system.md：系统信息、进程、网络、目录
-- file.md：文件读写与路径处理
-- clipboard-console.md：剪贴板与日志输出
-- http.md：http 与 axios
-- vision.md：OCR、DetectUI、provider capabilities
-- http-server.md：内置 HTTP 服务 API
-- polyfills.md：运行时增强层
-- libs.md：自动加载的 JS 库
-- runtime.md：legacy / upgraded / playwright 运行时栈说明
-- cookbook.md：高频用户脚本范例
+## 先读哪些
 
-API 分层说明：
+- 写桌面脚本：`page.md` → `input.md` → `window.md`
+- 做 OCR / 找按钮：`vision.md`
+- 做模板匹配 / 颜色判断：`image-color.md`
+- 做系统与文件操作：`system.md`、`file.md`、`storage.md`
+- 做网络调用：`http.md`
+- 从外部服务触发：`http-server.md`
+- 理解 legacy / upgraded / playwright：`runtime.md`
+- 直接拿范例：`cookbook.md`
+- 给 Agent / 工具读取：`runtime-api.ai.json`
 
-1. 原生对象（源码真实存在）
-- 由 Go 运行时直接注入，例如 page、mouse、keyboard、touchscreen、window、Screen、System、File、Vision、clipboard、console、http
+## 当前用户可见 API 地图
 
-2. Polyfill 增强（用户实际可用）
-- 由 polyfills/*.js 在运行时增强，例如：
-  - page.waitForTimeout()
-  - page.waitForNavigation()
-  - page.checkPermissions()
-  - page.requestPermissions()
-  - page.ensurePermissions()
-  - page.ensureMacPermissions()
-- 这些方法对用户来说是可用 API，但并不是 Go 原生方法
+| 对象 / 能力 | 类型 | 状态 | 主要用途 | 文档 |
+| --- | --- | --- | --- | --- |
+| `page` | Native + Polyfill | Stable | 截图、打开 URL/App、等待、权限 | `page.md` |
+| `mouse` / `keyboard` / `touchscreen` | Native | Stable | 输入控制 | `input.md` |
+| `window` | Native + Polyfill | Stable | 窗口读取与控制 | `window.md` |
+| `Screen` | Native | Stable | 显示器、像素、截图别名 | `screen.md` |
+| `Vision` | Native | Stable | OCR、UI 文本检测、provider 能力 | `vision.md` |
+| `OCR` | Native | Secondary | 本地 Tesseract 纯文本 OCR | `vision.md` |
+| `ImageColor` | Native | Secondary | 模板匹配、颜色、图像辅助分析 | `image-color.md` |
+| `System` | Native | Stable | 系统、进程、网络、指标 | `system.md` |
+| `File` | Native | Stable | 文件与目录操作 | `file.md` |
+| `AppStorage` | Native | Secondary | 持久化键值存储 | `storage.md` |
+| `clipboard` | Native | Stable | 系统剪贴板 | `clipboard-console.md` |
+| `console` | Native/Runtime wrapper | Stable | 日志与事件输出 | `clipboard-console.md` |
+| `http` | Native | Stable | 底层 HTTP 请求 | `http.md` |
+| `axios` | Polyfill | Stable | 日常 HTTP 请求 | `http.md` |
+| `notify()` | Polyfill + Native bridge | Secondary | 系统通知 | `polyfills.md` |
+| `Sound` | Native | Secondary | 播放提示音 / 音频文件 | `runtime-utilities.md` |
+| `FloatingWindow` | Native | Conditional / Experimental | Fyne 浮动控制窗 | `runtime-utilities.md` |
+| Promise / timers / sleep | Native + Polyfill | Stable | 异步与等待 | `polyfills.md` |
+| lodash / moment / query-string / cheerio / beautify | JS Libraries | Secondary | 脚本辅助库 | `libs.md` |
+| `browser` / `context` / upgraded facade | Native + Compatibility facade | Compatibility | 浏览器风格迁移接口 | `runtime.md` |
 
-3. 兼容层 / 历史写法
-- 旧文档里曾出现的部分接口，在当前源码中已经不存在，或只在旧平台模型里成立
-- 本套文档不会把它们混入正式 API
-- 若某接口只存在于兼容层，文档会明确标注“polyfill”或“兼容层”
+## 三层接口来源
 
-运行时栈模式
-- legacy：保留默认旧式 page 对象
-- upgraded：将全局 page 指向升级后的 facade
-- playwright：将 page / browser / context 指向升级 facade
+### 1. 原生对象
 
-重点页面
-- page.md：重点完善，尤其是 screenshot / 权限 / 打开 URL / 等待能力
-- window.md：重点完善，覆盖窗口信息与控制
-- vision.md：重点完善，覆盖 OCR、DetectUI、provider capabilities
-- runtime.md：补清三种 stack 的用户语义
-- cookbook.md：提供可直接拿来改的高频脚本模板
+由 Go 运行时注入，例如：
 
-文档目录
-- README.md
-- index.md
-- page.md
-- input.md
-- window.md
-- screen.md
-- system.md
-- file.md
-- clipboard-console.md
-- http.md
-- vision.md
-- http-server.md
-- polyfills.md
-- libs.md
-- runtime.md
-- cookbook.md
+`page`、`mouse`、`keyboard`、`window`、`Screen`、`System`、`File`、`AppStorage`、`Vision`、`ImageColor`、`Sound`、`http`。
 
-不纳入正式 API 的典型旧接口示例
-- 旧文档中的 page.$ / page.$$ / page.click(selector) / page.type(selector, text)
-- 这些写法在当前项目源码中不是稳定正式 API，不应继续作为用户主文档入口
+### 2. Polyfill / Runtime wrapper
 
-SDK 风格阅读建议
-- 先确定对象职责，再看方法细节
-- 优先使用文档中标为“原生”的能力
-- 使用 polyfill 能力时，注意它们是“最终可用 API”，但不是底层原生实现
-- 遇到与旧文档冲突的地方，一律以当前 docs-user-api/ 和当前源码为准
+运行时会加载 `polyfills/*.js`，用于：
+
+- 包装原生对象
+- 提供 `page.waitForTimeout()`、`page.ensurePermissions()` 等最终用户 API
+- 提供 `axios`
+- 提供 `notify()`、Promise、timers、sleep、URLSearchParams 等
+
+### 3. Compatibility facade
+
+`legacy` / `upgraded` / `playwright` stack 会改变 `page` / `browser` / `context` 的默认指向。
+
+这些 facade 主要提供迁移友好的 API 形状，**不等于完整 Playwright 浏览器引擎**。
+
+## HTTP 服务接口
+
+`http-server.md` 记录 Clawdesk 自身服务端接口，包括：
+
+- `POST /SCRIPT_RUN`
+- `POST /executions`
+- `GET /executions/{id}`
+- `GET /executions/{id}/summary`
+- `GET /executions/{id}/events`
+- `GET /status`
+- `POST /vision/ocr`
+- `POST /vision/detect-ui`
+
+## 事实与兼容原则
+
+- 当前源码优先。
+- 新脚本优先采用标记为 Stable 的接口。
+- `page.$`、`page.$$`、旧 DOM 风格 `page.click(selector)` / `page.type(selector, text)` 不属于当前稳定桌面 API。
+- upgraded / playwright facade 只按 `runtime.md` 描述理解，不推断不存在的浏览器能力。
+- 历史 TestMonkey 文档仅保留在 Git 历史中，不再参与当前文档解析。
