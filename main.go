@@ -2,6 +2,11 @@ package main
 
 import (
 	"bufio"
+	"clawdesk/automation"
+	pkgContainer "clawdesk/pkg/container"
+	pkgExecution "clawdesk/pkg/execution"
+	"clawdesk/pkg/feature"
+	pkgHttp "clawdesk/pkg/http"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -15,11 +20,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"clawdesk/automation"
-	pkgContainer "clawdesk/pkg/container"
-	pkgExecution "clawdesk/pkg/execution"
-	"clawdesk/pkg/feature"
-	pkgHttp "clawdesk/pkg/http"
 	"time"
 
 	"github.com/dop251/goja"
@@ -54,6 +54,8 @@ type Config struct {
 	VisionLang            string
 	VisionMinConfidence   float64
 	VisionIncludeRaw      bool
+	MacPermissionHelper   string
+	MacPermissionTarget   string
 }
 
 func parseFlags() *Config {
@@ -79,6 +81,8 @@ func parseFlags() *Config {
 	flag.StringVar(&config.VisionLang, "vision-lang", "ch", "OCR language")
 	flag.Float64Var(&config.VisionMinConfidence, "vision-min-confidence", 0.5, "Minimum confidence for detect-ui")
 	flag.BoolVar(&config.VisionIncludeRaw, "vision-include-raw", false, "Include raw provider response in OCR output")
+	flag.StringVar(&config.MacPermissionHelper, "mac-permission-helper", "", "Internal macOS permission helper mode")
+	flag.StringVar(&config.MacPermissionTarget, "mac-permission-target", "", "Internal macOS permission helper target app")
 
 	flag.Parse()
 	return config
@@ -160,6 +164,9 @@ func main() {
 	}()
 
 	config := parseFlags()
+	if handled, code := handleInternalMacPermissionHelper(config); handled {
+		os.Exit(code)
+	}
 	selection := buildExecutionConsoleSelection(config)
 
 	if shouldEchoStartupCategory("framework", selection) {
@@ -272,6 +279,28 @@ func main() {
 	if isAutoRunJs {
 		fmt.Println("\nPress 'Enter' to exit...")
 		fmt.Scanln()
+	}
+}
+
+func handleInternalMacPermissionHelper(config *Config) (bool, int) {
+	if config == nil {
+		return false, 0
+	}
+	switch strings.TrimSpace(config.MacPermissionHelper) {
+	case "":
+		return false, 0
+	case "automation-prompt":
+		target := strings.TrimSpace(config.MacPermissionTarget)
+		if target == "" {
+			target = "System Events"
+		}
+		if automation.TriggerMacAutomationPermissionHelper(target) {
+			return true, 0
+		}
+		return true, 1
+	default:
+		fmt.Fprintf(os.Stderr, "unknown mac permission helper: %s\n", config.MacPermissionHelper)
+		return true, 2
 	}
 }
 

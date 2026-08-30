@@ -327,6 +327,24 @@ const r = await page.requestMacAutomationPermission("System Events");
 console.log(r);
 ```
 
+如果你想用最小脚本直接判断当前 app 身份下的 Automation 状态：
+
+```bash
+open dist/Clawdesk.app --args -script examples/mac/automation_permission_check.js -timeout 2
+```
+
+返回重点：
+
+- `state=granted`：当前身份已具备 Automation 权限
+- `state=pending_user_consent`：系统弹窗已触发，等你点“允许”
+- `state=denied_or_failed`：当前未通过，通常需要重置 TCC 或换成稳定 app 身份重试
+
+如果系统弹窗显示的是 `Terminal`、`iTerm` 或 `sshd-keygen-wrapper`，说明这次授权绑到了脚本宿主，不是 `Clawdesk.app`。这种情况下请改用固定 App 身份重新触发：
+
+```bash
+open dist/Clawdesk.app --args -script examples/mac/request-macos-automation-popup.js -timeout 2
+```
+
 如果窗口一闪而过，使用“向导脚本”（会保持进程并循环触发请求）：
 
 ```bash

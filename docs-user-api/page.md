@@ -682,7 +682,8 @@ const report = page.checkScreenshotPermissions()
 | automation | 当前固定为提示文本，不是布尔值 |
 | ok | screenCapture 与 accessibility 是否都 OK |
 | guideScript | 示例脚本路径 |
-| stableRunner | 建议使用的稳定运行脚本 |
+| stableRunner | 建议使用的稳定运行入口 |
+| permissionHostHint | 说明为什么可能会看到 Terminal / iTerm / sshd-keygen-wrapper 这类宿主名 |
 | screenCaptureError | 截图探测失败原因 |
 | accessibilityError | 辅助功能探测失败原因 |
 
@@ -729,6 +730,7 @@ await page.requestMacPermissions(options)
 作用
 - 触发权限探针，可选打开设置页
 - 适合在脚本启动时做用户引导
+- `section: "automation"` 会主动派发一次 AppleEvents 权限请求，但最终是否授权仍取决于用户是否确认弹窗
 
 参数
 
@@ -776,6 +778,8 @@ const report = page.requestMacAutomationPermission(targetApp)
 注意
 - 这不是“自动加入白名单”
 - macOS 仍需要用户在弹窗里确认
+- 若当前是终端或工具宿主拉起脚本，系统弹窗可能显示 Terminal、iTerm 或 `sshd-keygen-wrapper`
+- 若想把权限明确绑定到产品身份，请直接启动 `dist/Clawdesk.app`
 
 示例
 
@@ -783,6 +787,11 @@ const report = page.requestMacAutomationPermission(targetApp)
 const report = page.requestMacAutomationPermission('Finder');
 console.log(JSON.stringify(report, null, 2));
 ```
+
+常见返回字段
+- `triggered`: 是否已经成功派发触发动作
+- `pendingUserConsent`: 是否仍在等待用户处理系统弹窗
+- `hostHint`: 当前应如何避免把权限绑定到宿主进程
 
 ## 实战示例
 

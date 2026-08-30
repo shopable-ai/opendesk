@@ -2,6 +2,7 @@ package automation
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -40,12 +41,14 @@ var macPermissionPromptState = struct {
 	requested: map[string]bool{},
 }
 
+const defaultCommandProbeTimeout = 3 * time.Second
+
 type Page struct {
-	Mouse       *Mouse // 公开字段
-	Keyboard    *Keyboard
-	Touchscreen *Touchscreen
-	Pid         int32
-	Executable  string
+	Mouse        *Mouse // 公开字段
+	Keyboard     *Keyboard
+	Touchscreen  *Touchscreen
+	Pid          int32
+	Executable   string
 	ownerBrowser *Browser
 	ownerContext *BrowserContext
 }
@@ -701,7 +704,7 @@ func (p *Page) wrapScreenshotCaptureError(cause error, x, y, width, height int, 
 		"%s; macOS permission check failed (screenCapture=%t accessibility=%t). "+
 			"screenCaptureError=%q accessibilityError=%q. "+
 			"Run `go run main.go -script examples/mac/open-permission-settings.js`, "+
-			"then use `./scripts/run_macos_stable.sh ...` or `dist/TestMonkey.app`",
+			"then retry from `dist/Clawdesk.app` or `dist/clawdesk` with a stable app identity",
 		baseMessage, screenCapture, accessibility, screenErr, axErr,
 	)
 }
@@ -734,23 +737,18 @@ func (p *Page) CheckScreenshotPermissions() map[string]interface{} {
 	}
 
 	okAX := darwinAccessibilityStatus()
-	msgAX := ""
-	if !okAX {
-		jxaProbe := `function run(){var se=Application("System Events"); var p=se.applicationProcesses.whose({frontmost:true})(); return String(p.length);}`
-		okAX, msgAX = runCommandProbe("osascript", "-l", "JavaScript", "-e", jxaProbe)
-	}
-
 	report["screenCapture"] = okScreen
 	report["accessibility"] = okAX
 	report["automation"] = "requires runtime AppleEvents trigger"
 	report["ok"] = okScreen && okAX
 	report["guideScript"] = "examples/mac/open-permission-settings.js"
-	report["stableRunner"] = "scripts/run_macos_stable.sh"
+	report["stableRunner"] = "dist/Clawdesk.app"
+	report["permissionHostHint"] = "For stable macOS TCC identity, launch Clawdesk.app directly. Shell-hosted runs may appear as Terminal, iTerm, or sshd-keygen-wrapper."
 	if !okScreen && msgScreen != "" {
 		report["screenCaptureError"] = msgScreen
 	}
-	if !okAX && msgAX != "" {
-		report["accessibilityError"] = msgAX
+	if !okAX {
+		report["accessibilityError"] = "AXIsProcessTrusted returned false; approve the app in System Settings > Privacy & Security > Accessibility."
 	}
 
 	return report
@@ -967,10 +965,12 @@ func (p *Page) EnsureMacPermissions(options interface{}) (map[string]interface{}
 // targetApp examples: "System Events", "Finder", "Safari", "WeChat".
 func (p *Page) RequestMacAutomationPermission(targetApp string) map[string]interface{} {
 	report := map[string]interface{}{
-		"os":         runtime.GOOS,
-		"targetApp":  targetApp,
-		"canAutoAdd": false,
-		"message":    "Automation has no add button in Settings. Permission is granted from popup after first AppleEvents request.",
+		"os":                 runtime.GOOS,
+		"targetApp":          targetApp,
+		"canAutoAdd":         false,
+		"pendingUserConsent": false,
+		"triggered":          false,
+		"message":            "Automation has no add button in Settings. Permission is granted from popup after first AppleEvents request.",
 	}
 
 	if runtime.GOOS != "darwin" {
@@ -984,13 +984,43 @@ func (p *Page) RequestMacAutomationPermission(targetApp string) map[string]inter
 		target = "System Events"
 	}
 
-	ok := darwinTriggerAppleEventsPrompt(target)
 	report["targetApp"] = target
-	report["ok"] = ok
-	if !ok {
+	report["hostHint"] = "Launch Clawdesk.app directly if the popup shows a host identity such as Terminal, iTerm, or sshd-keygen-wrapper."
+
+	launch, err := launchMacAutomationPromptHelper(target)
+	if err != nil {
+		report["ok"] = false
+		report["error"] = err.Error()
 		report["next"] = "Reset AppleEvents permission and rerun using fixed app identity."
+		return report
 	}
+
+	report["triggered"] = true
+	if launch.PID > 0 {
+		report["pid"] = launch.PID
+	}
+	if launch.Completed {
+		report["ok"] = launch.Success
+		if launch.Success {
+			report["message"] = "Automation request returned immediately. Permission may already be granted for this app identity."
+		} else {
+			report["error"] = launch.Error
+			report["next"] = "Reset AppleEvents permission and rerun using fixed app identity."
+		}
+		return report
+	}
+
+	report["ok"] = false
+	report["pendingUserConsent"] = true
+	report["next"] = "Confirm the macOS Automation popup, then rerun the same script to verify the final state."
 	return report
+}
+
+type macAutomationPromptLaunch struct {
+	PID       int
+	Completed bool
+	Success   bool
+	Error     string
 }
 
 func mustJSON(v interface{}) string {
@@ -1060,7 +1090,6 @@ func (p *Page) triggerMacPermissionPrompts(sections []string) map[string]interfa
 	if requestAccessibility {
 		accessibilityProbe["ok"] = false
 		axOK := darwinAccessibilityStatus()
-		axMsg := ""
 		axPromptSkipped := false
 		if !axOK {
 			if markMacPermissionPromptRequested("accessibility") {
@@ -1070,17 +1099,14 @@ func (p *Page) triggerMacPermissionPrompts(sections []string) map[string]interfa
 				axPromptSkipped = true
 			}
 		}
-		if !axOK && !axPromptSkipped {
-			jxaProbe := `function run(){var se=Application("System Events"); var p=se.applicationProcesses.whose({frontmost:true})(); return String(p.length);}`
-			axOK, axMsg = runCommandProbe("osascript", "-l", "JavaScript", "-e", jxaProbe)
-		}
 		if axOK {
 			accessibilityProbe["ok"] = true
 		} else if axPromptSkipped {
 			accessibilityProbe["skipped"] = true
 			accessibilityProbe["reason"] = "accessibility prompt was already triggered in this process"
-		} else if axMsg != "" {
-			accessibilityProbe["error"] = axMsg
+		} else {
+			accessibilityProbe["pendingUserConsent"] = true
+			accessibilityProbe["error"] = "Accessibility permission is still denied; approve the app in System Settings > Privacy & Security > Accessibility."
 		}
 	} else {
 		accessibilityProbe["skipped"] = true
@@ -1094,15 +1120,27 @@ func (p *Page) triggerMacPermissionPrompts(sections []string) map[string]interfa
 	}
 	if requestAutomation {
 		automationProbe["ok"] = false
-		automationOK := false
 		if markMacPermissionPromptRequested("automation") {
-			automationOK = darwinTriggerAppleEventsPrompt("System Events")
+			launch, err := launchMacAutomationPromptHelper("System Events")
+			if err != nil {
+				automationProbe["error"] = err.Error()
+			} else {
+				automationProbe["triggered"] = true
+				if launch.PID > 0 {
+					automationProbe["pid"] = launch.PID
+				}
+				if launch.Completed {
+					automationProbe["ok"] = launch.Success
+					if !launch.Success && launch.Error != "" {
+						automationProbe["error"] = launch.Error
+					}
+				} else {
+					automationProbe["pendingUserConsent"] = true
+				}
+			}
 		} else {
 			automationProbe["skipped"] = true
 			automationProbe["reason"] = "automation prompt was already triggered in this process"
-		}
-		if automationOK {
-			automationProbe["ok"] = true
 		}
 	} else {
 		automationProbe["skipped"] = true
@@ -1176,8 +1214,18 @@ func normalizeMacPrivacySections(section string) ([]string, error) {
 }
 
 func runCommandProbe(name string, args ...string) (bool, string) {
-	cmd := exec.Command(name, args...)
+	return runCommandProbeWithTimeout(defaultCommandProbeTimeout, name, args...)
+}
+
+func runCommandProbeWithTimeout(timeout time.Duration, name string, args ...string) (bool, string) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, name, args...)
 	out, err := cmd.CombinedOutput()
+	if ctx.Err() == context.DeadlineExceeded {
+		return false, fmt.Sprintf("%s timed out after %s", name, timeout)
+	}
 	if err != nil {
 		return false, simplifyProbeOutput(string(out), err.Error())
 	}
@@ -1211,6 +1259,9 @@ func (p *Page) Goto(url string) error {
 		cmd = exec.Command("xdg-open", url)
 	}
 
+	if runtime.GOOS == "darwin" {
+		return startDetachedCommand(cmd)
+	}
 	return cmd.Run()
 }
 
@@ -1235,6 +1286,9 @@ func (p *Page) OpenApp(appName string) error {
 		cmd = exec.Command(appName)
 	}
 
+	if runtime.GOOS == "darwin" {
+		return startDetachedCommand(cmd)
+	}
 	return cmd.Run()
 }
 
@@ -1267,7 +1321,62 @@ func (p *Page) OpenURLInApp(appName, url string) error {
 		}
 	}
 
+	if runtime.GOOS == "darwin" {
+		return startDetachedCommand(cmd)
+	}
 	return cmd.Run()
+}
+
+func startDetachedCommand(cmd *exec.Cmd) error {
+	if cmd == nil {
+		return fmt.Errorf("command cannot be nil")
+	}
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	if cmd.Process != nil {
+		return cmd.Process.Release()
+	}
+	return nil
+}
+
+func launchMacAutomationPromptHelper(targetApp string) (macAutomationPromptLaunch, error) {
+	result := macAutomationPromptLaunch{}
+
+	exePath, err := os.Executable()
+	if err != nil {
+		return result, fmt.Errorf("resolve current executable: %w", err)
+	}
+
+	cmd := exec.Command(
+		exePath,
+		"-mac-permission-helper", "automation-prompt",
+		"-mac-permission-target", targetApp,
+	)
+	if err := cmd.Start(); err != nil {
+		return result, fmt.Errorf("start automation prompt helper: %w", err)
+	}
+
+	if cmd.Process != nil {
+		result.PID = cmd.Process.Pid
+	}
+
+	waitCh := make(chan error, 1)
+	go func() {
+		waitCh <- cmd.Wait()
+	}()
+
+	select {
+	case err := <-waitCh:
+		result.Completed = true
+		result.Success = err == nil
+		if err != nil {
+			result.Error = err.Error()
+		}
+		return result, nil
+	case <-time.After(1200 * time.Millisecond):
+		return result, nil
+	}
 }
 
 func (p *Page) Title() string {
