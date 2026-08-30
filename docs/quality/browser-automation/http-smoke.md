@@ -1,102 +1,53 @@
-# Browser automation HTTP smoke guide
+# Browser Automation HTTP Verification
 
-Purpose
-- make the real `/executions` verification path easy to discover from higher-level docs
-- separate payload-example proof from real HTTP execution proof
-- keep capability language honest: upgraded/playwright over HTTP are still facade/shim verification unless a deeper runtime proof is provided
+当前仓库有 `/executions` stack routing 的 Go tests，但没有当前 Browser HTTP E2E smoke 脚本。
 
-Related entrypoints
-- overview and boundaries: `docs/browser-automation-stacks.md`
-- test inventory: `docs/browser-automation-test-matrix.md`
-- legacy/private-path boundaries: `docs/browser-automation-legacy-escape-hatches.md`
-- payload templates:
-  - `examples/browser_stack_http_upgraded_smoke.js`
-  - `examples/browser_stack_http_playwright_smoke.js`
-- macOS minimal real desktop smoke:
-  - `examples/browser_stack_macos_app_smoke.js`
+## What is currently proved
 
-## 1. What each HTTP artifact proves
+`pkg/http/handler_test.go` 当前覆盖：
 
-Payload templates only
-- `examples/browser_stack_http_upgraded_smoke.js`
-- `examples/browser_stack_http_playwright_smoke.js`
-- prove: canonical request-body shape for selecting stack via `/executions`
-- do not prove: server is running, request succeeds, summary endpoint is reachable
+- legacy stack request accepted
+- upgraded stack request accepted
+- playwright stack request accepted
+- missing stack defaults to legacy
 
-Real E2E smoke
-- `examples/browser_stack_http_e2e_smoke.py`
-- proves:
-  - `POST /executions` accepts the request
-  - response returns `executionId`, `statusUrl`, `summaryUrl`, `streamUrl`
-  - polling `/executions/{id}` reaches a terminal state
-  - `/summary` is readable
-- does not prove:
-  - full Playwright runtime semantics
-  - full DOM/tab/session behavior
+这属于 `T2` handler/runtime integration evidence。
 
-## 2. Start server
+它不证明：
 
-From repo root:
+- 独立 upgraded facade 存在；
+- Playwright namespace/runtime 存在；
+- server 在真实环境已启动并完成 E2E；
+- browser/tab/DOM/session semantics。
 
-```bash
-go run . -http -port 60844
+## Current artifact baseline
+
+通用 execution runtime 由 `pkg/execution/artifacts.go` 准备：
+
+```text
+stdout.log
+stderr.log
+script_snapshot.<ext>
+summary.json
+agent_summary.json
+events.ndjson
 ```
 
-Optional: use another port, then pass it into the smoke script URL.
+其他 DOM/layout/OCR/replay artifact 必须由具体 scenario/runtime 显式生成，不能视为 HTTP execution 的默认产物。
 
-## 3. Run upgraded smoke
+## If a T3/T2 HTTP smoke is reintroduced
 
-```bash
-python3 examples/browser_stack_http_e2e_smoke.py http://127.0.0.1:60844 upgraded
-```
+只有当存在真实消费场景时，再增加一个最小 smoke fixture。它至少应记录：
 
-Expected evidence fields in stdout JSON
-- `executionId`
-- `statusUrl`
-- `summaryUrl`
-- `streamUrl`
-- `finalStatus`
-- `statusPayload`
-- `summaryPayload`
+- commit SHA
+- platform/runtime version
+- requested stack
+- request payload
+- execution id
+- terminal status
+- artifact directory
+- explicit boundary note
 
-## 4. Run playwright smoke
+对于 `upgraded` / `playwright`，如果 runtime 仍只是条件 alias，则结果必须写成 routing proof，而不是 Playwright support。
 
-```bash
-python3 examples/browser_stack_http_e2e_smoke.py http://127.0.0.1:60844 playwright
-```
-
-Interpretation rule
-- report this as playwright-shaped facade/shim execution over HTTP
-- do not report it as complete Playwright runtime support
-
-## 5. Optional direct POST using payload templates
-
-Inspect templates:
-- `examples/browser_stack_http_upgraded_smoke.js`
-- `examples/browser_stack_http_playwright_smoke.js`
-
-Then send your own request body to `/executions`.
-
-## 6. Optional artifact persistence
-
-If request JSON includes `logDir`, verify generated artifacts there:
-- `stdout.log`
-- `stderr.log`
-- `summary.json`
-- `agent_summary.json`
-- `events.ndjson`
-
-These artifacts are useful when turning one smoke run into reviewable evidence.
-
-## 7. Reporting language checklist
-
-Allowed
-- upgraded HTTP stack selection passed
-- playwright-shaped HTTP shim passed
-- `/executions` end-to-end route verified
-- summary/status endpoints verified
-
-Not allowed without extra evidence
-- full Playwright support passed
-- real browser-process lifecycle fully verified
-- DOM selector semantics fully verified
+当前不恢复已消失的历史 smoke scripts，只为了维持旧文档 Claim。

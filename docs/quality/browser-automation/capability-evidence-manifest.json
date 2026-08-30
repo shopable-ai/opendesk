@@ -1,93 +1,182 @@
 {
-  "version": 1,
-  "generatedFor": "browser-automation dual-stack capability-to-evidence bootstrap",
-  "proofLevels": [
-    "facade proof",
-    "shim support",
-    "runtime proof",
-    "real-environment proof",
-    "private/raw-path only"
-  ],
+  "version": 2,
+  "purpose": "Reference manifest for current browser-automation claims. It checks that cited evidence still exists; it does not certify runtime semantics.",
+  "evidenceLevels": {
+    "E0": "claim or requirement exists but no current implementation evidence was found",
+    "E1": "API or facade shape exists",
+    "E2": "shim, alias, or routing exists",
+    "E3": "Go/runtime implementation exists",
+    "E4": "current automated test exists for the stated boundary",
+    "E5": "current real-environment smoke was actually executed with reviewable evidence"
+  },
   "claims": [
     {
-      "id": "stack-selection-routing",
-      "claim": "Runtime stack selection routes legacy, upgraded, and playwright compatibility surfaces without implying a runtime semantic upgrade by itself.",
-      "proofLevels": ["facade proof", "runtime proof", "real-environment proof"],
-      "boundaries": "This proves aliasing and execution-path routing, not full Playwright/browser runtime semantics.",
+      "id": "runtime-stack-conditional-routing",
+      "claim": "legacy/upgraded/playwright stack names are normalized and upgraded aliases are applied only when upgraded globals already exist.",
+      "proofLevels": ["E2", "E3", "E4"],
+      "boundary": "This proves conditional alias routing only. Current initialization does not create upgraded facade globals and this is not Playwright runtime semantics.",
       "evidence": [
-        {"kind": "go_test_name", "path": "automation/browser_compat_test.go", "name": "TestApplyRuntimeStackModeLegacyKeepsPageDefault"},
-        {"kind": "go_test_name", "path": "automation/browser_compat_test.go", "name": "TestApplyRuntimeStackModeUpgradedAliasesPageFacade"},
-        {"kind": "go_test_name", "path": "automation/browser_compat_test.go", "name": "TestApplyRuntimeStackModePlaywrightAliasesAllFacades"},
-        {"kind": "go_test_name", "path": "pkg/execution/runner_test.go", "name": "TestRunJavaScriptAppliesRequestedStackMode"},
-        {"kind": "go_test_name", "path": "pkg/http/handler_test.go", "name": "TestHandleExecutionsAcceptsPlaywrightStack"},
-        {"kind": "example", "path": "examples/browser_stack_http_e2e_smoke.py"},
-        {"kind": "doc", "path": "docs/architecture/browser-automation/stack.md"}
+        {
+          "kind": "contains",
+          "path": "automation/runtime_stack.go",
+          "contains": "func ApplyRuntimeStackMode"
+        },
+        {
+          "kind": "go_test_name",
+          "path": "automation/runtime_stack_test.go",
+          "go_test_name": "TestApplyRuntimeStackModeUsesUpgradedAliasOnlyWhenPresent"
+        },
+        {
+          "kind": "go_test_name",
+          "path": "automation/runtime_stack_test.go",
+          "go_test_name": "TestApplyRuntimeStackModePlaywrightAliasesAvailableUpgradedGlobals"
+        }
       ]
     },
     {
-      "id": "selector-wait-routing-only",
-      "claim": "Selector-shaped waits are supported only as explicit compatibility routing surfaces; missing runtime selector support must fail loudly instead of degrading to timeout-only behavior.",
-      "proofLevels": ["facade proof", "shim support"],
-      "boundaries": "No DOM selector engine is claimed; evidence covers owner-aware routing and unsupported-error behavior only.",
+      "id": "execution-stack-request",
+      "claim": "JavaScript execution accepts the requested stack name while preserving the current page/browser/context surface.",
+      "proofLevels": ["E3", "E4"],
+      "boundary": "The test verifies stack metadata and current surface availability, not upgraded facade or browser semantics.",
       "evidence": [
-        {"kind": "go_test_name", "path": "automation/browser_compat_test.go", "name": "TestUpgradedPageWaitForSupportsNumberAndSelectorRouting"},
-        {"kind": "go_test_name", "path": "automation/browser_compat_test.go", "name": "TestLocatorRoutesActionsToOwningPage"},
-        {"kind": "code", "path": "polyfills/010-browser-automation-upgraded.js", "contains": "page.waitFor selector routing is not supported by current runtime"},
-        {"kind": "doc", "path": "docs/architecture/browser-automation/capabilities.md"},
-        {"kind": "doc", "path": "docs/quality/browser-automation/test-matrix.md"}
+        {
+          "kind": "contains",
+          "path": "pkg/execution/runner.go",
+          "contains": "automation.ApplyRuntimeStackMode"
+        },
+        {
+          "kind": "go_test_name",
+          "path": "pkg/execution/runner_test.go",
+          "go_test_name": "TestRunJavaScriptAcceptsRequestedStackMode"
+        }
       ]
     },
     {
-      "id": "evaluate-local-compatibility-boundary",
-      "claim": "Evaluate fallback is explicitly marked as local compatibility evaluation when no runtime-backed page evaluate exists.",
-      "proofLevels": ["facade proof"],
-      "boundaries": "This does not prove page-context DOM execution or Playwright-style evaluate semantics.",
+      "id": "http-stack-request",
+      "claim": "The HTTP execution handler accepts legacy, upgraded, and playwright stack values.",
+      "proofLevels": ["E3", "E4"],
+      "boundary": "HTTP request routing does not prove any browser facade or Playwright semantics.",
       "evidence": [
-        {"kind": "go_test_name", "path": "automation/browser_compat_test.go", "name": "TestUpgradedPageEvaluateReturnsExplicitLocalCompatibilityResultWhenNoRuntimeEvaluateExists"},
-        {"kind": "code", "path": "polyfills/010-browser-automation-upgraded.js", "contains": "local-compatibility-evaluate"},
-        {"kind": "doc", "path": "docs/architecture/browser-automation/capabilities.md"},
-        {"kind": "doc", "path": "docs/quality/browser-automation/test-matrix.md"}
+        {
+          "kind": "go_test_name",
+          "path": "pkg/http/handler_test.go",
+          "go_test_name": "TestHandleExecutionsAcceptsLegacyStack"
+        },
+        {
+          "kind": "go_test_name",
+          "path": "pkg/http/handler_test.go",
+          "go_test_name": "TestHandleExecutionsAcceptsUpgradedStack"
+        },
+        {
+          "kind": "go_test_name",
+          "path": "pkg/http/handler_test.go",
+          "go_test_name": "TestHandleExecutionsAcceptsPlaywrightStack"
+        }
       ]
     },
     {
-      "id": "closed-state-introspection-conservative",
-      "claim": "Browser and context expose limited closed-state introspection, while page still does not claim an independent Playwright-style lifecycle contract.",
-      "proofLevels": ["facade proof", "runtime proof"],
-      "boundaries": "isClosed() reflects backing compatibility/container state only; it is not full lifecycle invalidation proof for every getter/action.",
+      "id": "current-js-browser-surfaces",
+      "claim": "Runtime initialization injects current page/browser/context objects plus raw compatibility handles.",
+      "proofLevels": ["E1", "E3"],
+      "boundary": "Raw inject handles are compatibility internals. No upgraded facade globals are claimed.",
       "evidence": [
-        {"kind": "go_test_name", "path": "automation/browser_compat_test.go", "name": "TestUpgradedBrowserAndContextExposeClosedStateIntrospection"},
-        {"kind": "go_test_name", "path": "automation/browser_compat_test.go", "name": "TestUpgradedBrowserNewContextRejectsClosedBrowserAtFacadeBoundary"},
-        {"kind": "go_test_name", "path": "automation/browser_compat_test.go", "name": "TestFacadeCloseMethodsRemainCallableAfterFirstClose"},
-        {"kind": "code", "path": "polyfills/010-browser-automation-upgraded.js", "contains": "function readClosedState(obj)"},
-        {"kind": "doc", "path": "docs/architecture/browser-automation/stack.md"},
-        {"kind": "doc", "path": "docs/architecture/browser-automation/capabilities.md"}
+        {
+          "kind": "contains",
+          "path": "automation/utils.go",
+          "contains": "runtime.Set(\"page____Inject\", pageObj)"
+        },
+        {
+          "kind": "contains",
+          "path": "automation/utils.go",
+          "contains": "runtime.Set(\"browser____Inject\", browserMethods)"
+        },
+        {
+          "kind": "contains",
+          "path": "automation/utils.go",
+          "contains": "runtime.Set(\"context____Inject\", contextMethods)"
+        },
+        {
+          "kind": "contains",
+          "path": "types/browser.d.ts",
+          "contains": "interface ClawdeskBrowserContext"
+        }
       ]
     },
     {
-      "id": "http-execution-routing",
-      "claim": "The HTTP execution path accepts explicit stack selection and returns execution/status/summary/stream evidence handles.",
-      "proofLevels": ["runtime proof", "real-environment proof"],
-      "boundaries": "This proves execution transport and stack routing, not full browser semantics.",
+      "id": "desktop-url-launch",
+      "claim": "page.goto/open URL behavior is implemented as an operating-system URL/application launch path.",
+      "proofLevels": ["E1", "E3"],
+      "boundary": "This is not browser-driver navigation and does not prove DOM, tab, or network lifecycle semantics.",
       "evidence": [
-        {"kind": "go_test_name", "path": "pkg/http/handler_test.go", "name": "TestHandleExecutionsAcceptsUpgradedStack"},
-        {"kind": "go_test_name", "path": "pkg/http/handler_test.go", "name": "TestHandleExecutionsAcceptsPlaywrightStack"},
-        {"kind": "code", "path": "pkg/http/handler.go", "contains": "\"summaryUrl\""},
-        {"kind": "example", "path": "examples/browser_stack_http_e2e_smoke.py"},
-        {"kind": "script", "path": "scripts/test_browser_stack_http_smoke.sh"},
-        {"kind": "code", "path": "pkg/execution/runner.go", "contains": "return rt.Set(\"Execution\", context)"},
-        {"kind": "doc", "path": "docs/quality/browser-automation/http-smoke.md"}
+        {
+          "kind": "contains",
+          "path": "automation/page.go",
+          "contains": "func (p *Page) Goto"
+        },
+        {
+          "kind": "contains",
+          "path": "types/page.d.ts",
+          "contains": "goto(url: string)"
+        }
       ]
     },
     {
-      "id": "macos-real-app-smoke",
-      "claim": "The repository contains a real-environment macOS default-app smoke path that validates an open/wait/title/screenshot chain with availability fallback.",
-      "proofLevels": ["runtime proof", "real-environment proof"],
-      "boundaries": "This is desktop automation evidence, not DOM/browser-tab proof.",
+      "id": "desktop-screenshot",
+      "claim": "The current page surface has a desktop/window/screen screenshot implementation.",
+      "proofLevels": ["E1", "E3"],
+      "boundary": "No current E5 browser smoke is claimed, and this is not a browser page screenshot contract.",
       "evidence": [
-        {"kind": "example", "path": "examples/browser_stack_macos_app_smoke.js"},
-        {"kind": "code", "path": "automation/page.go"},
-        {"kind": "doc", "path": "docs/quality/browser-automation/test-matrix.md"},
-        {"kind": "doc", "path": "docs/architecture/browser-automation/capabilities.md"}
+        {
+          "kind": "contains",
+          "path": "automation/page.go",
+          "contains": "func (p *Page) Screenshot"
+        },
+        {
+          "kind": "contains",
+          "path": "types/page.d.ts",
+          "contains": "screenshot(options?: ClawdeskScreenshotOptions)"
+        }
+      ]
+    },
+    {
+      "id": "browser-context-containers",
+      "claim": "Go Browser and BrowserContext containers maintain page ownership, lifecycle state, and in-memory cookies/storage/session data.",
+      "proofLevels": ["E1", "E3"],
+      "boundary": "These are Clawdesk in-memory containers, not a browser process, browser context protocol, cookie jar, localStorage, or network session.",
+      "evidence": [
+        {
+          "kind": "contains",
+          "path": "automation/browser.go",
+          "contains": "type BrowserContext struct"
+        },
+        {
+          "kind": "contains",
+          "path": "automation/browser.go",
+          "contains": "func (b *Browser) NewContext"
+        },
+        {
+          "kind": "contains",
+          "path": "types/browser.d.ts",
+          "contains": "newContext(): ClawdeskBrowserContext"
+        }
+      ]
+    },
+    {
+      "id": "execution-artifact-baseline",
+      "claim": "The generic execution runtime currently prepares stdout, stderr, script snapshot, summary, agent summary, and event-log artifacts.",
+      "proofLevels": ["E3"],
+      "boundary": "Scenario documents must not imply that DOM snapshots, layout models, OCR maps, checkpoints, replay files, or decision.json are always generated by the generic runtime.",
+      "evidence": [
+        {
+          "kind": "contains",
+          "path": "pkg/execution/artifacts.go",
+          "contains": "EventLogPath:"
+        },
+        {
+          "kind": "contains",
+          "path": "pkg/execution/artifacts.go",
+          "contains": "AgentSummaryPath:"
+        }
       ]
     }
   ]
