@@ -7,7 +7,7 @@
     tier: 'unit',
     covers: ['AppStorage.getItem', 'AppStorage.setItem', 'AppStorage.removeItem', 'AppStorage.getLength', 'AppStorage.key'],
   }, async () => {
-    const key = `__clawdesk_runtime_api_${Date.now()}__`;
+    const key = `__opendesk_runtime_api_${Date.now()}__`;
     const before = AppStorage.getLength();
     try {
       AppStorage.setItem(key, 'fixture-value');

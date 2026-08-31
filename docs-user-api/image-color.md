@@ -6,7 +6,7 @@ order: 10
 
 # ImageColor
 
-`ImageColor` 是 Clawdesk 的辅助视觉对象。
+`ImageColor` 是 OpenDesk 的辅助视觉对象。
 
 **状态：Secondary / Native**
 

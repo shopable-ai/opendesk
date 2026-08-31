@@ -2,7 +2,7 @@
 
 ## 状态
 
-本文件记录 Clawdesk Runtime 扩展体系的候选演进路线。
+本文件记录 OpenDesk Runtime 扩展体系的候选演进路线。
 
 它是 Plan，不代表当前能力已经实现。
 
@@ -19,7 +19,7 @@
 
 ## 一、为什么现在只做计划，不立即实现所有扩展机制
 
-Clawdesk 当前还处于核心能力、可靠性、Recorder、Layout、MCP / HTTP 等基础能力持续建设阶段。
+OpenDesk 当前还处于核心能力、可靠性、Recorder、Layout、MCP / HTTP 等基础能力持续建设阶段。
 
 目前还没有足够真实用户证明以下功能已经成为高频阻塞：
 
@@ -52,7 +52,7 @@ Clawdesk 当前还处于核心能力、可靠性、Recorder、Layout、MCP / HTT
 ```text
 谁维护这段 JS？
 它影响一个项目还是所有项目？
-升级 Clawdesk 时是否会被覆盖？
+升级 OpenDesk 时是否会被覆盖？
 用户是否需要修改官方 Runtime 资源目录？
 如何避免命名 / global 冲突？
 如何知道 Runtime 最终加载了哪些扩展？
@@ -146,14 +146,14 @@ User Polyfills
 Project Polyfills
 ```
 
-因为 `polyfill` 应保留为 Clawdesk Runtime 官方实现概念；用户自己的 JavaScript 更适合称为 Extension。
+因为 `polyfill` 应保留为 OpenDesk Runtime 官方实现概念；用户自己的 JavaScript 更适合称为 Extension。
 
 ## 4.1 Core Polyfills
 
 ```text
-维护者：Clawdesk
+维护者：OpenDesk
 作用域：所有 Runtime
-生命周期：跟随 Clawdesk 版本
+生命周期：跟随 OpenDesk 版本
 用途：公开 API facade、兼容、默认值、Runtime 基础能力
 ```
 
@@ -162,10 +162,10 @@ Project Polyfills
 未来候选位置：
 
 ```text
-~/.clawdesk/extensions/*.js
+~/.opendesk/extensions/*.js
 ```
 
-作用于当前用户的所有 Clawdesk 使用场景。
+作用于当前用户的所有 OpenDesk 使用场景。
 
 适合：
 
@@ -179,7 +179,7 @@ Project Polyfills
 未来候选位置：
 
 ```text
-<project>/.clawdesk/extensions/*.js
+<project>/.opendesk/extensions/*.js
 ```
 
 只作用于一个项目。
@@ -356,13 +356,13 @@ Remote Proprietary Service
 
 ---
 
-# 七、更重要的长期问题：用户没有 Clawdesk 源码，怎样开发高性能底层扩展
+# 七、更重要的长期问题：用户没有 OpenDesk 源码，怎样开发高性能底层扩展
 
 这比单纯增加 Lua Runtime 更值得设计。
 
 目标应该是：
 
-> 用户只获得稳定的 Extension SDK / ABI，不需要 Clawdesk 核心源码，也可以使用 Go、Rust、C/C++ 或其他语言开发扩展。
+> 用户只获得稳定的 Extension SDK / ABI，不需要 OpenDesk 核心源码，也可以使用 Go、Rust、C/C++ 或其他语言开发扩展。
 
 长期建议把扩展能力分成五档：
 
@@ -419,7 +419,7 @@ Java
 
 编译 / 打包成独立可执行程序。
 
-Clawdesk：
+OpenDesk：
 
 ```text
 启动 Extension Process
@@ -428,13 +428,13 @@ Clawdesk：
 → Structured Result
 ```
 
-用户不需要得到 Clawdesk 核心源码。
+用户不需要得到 OpenDesk 核心源码。
 
 ## 9.1 为什么推荐优先做这个
 
 进程边界天然解决：
 
-- Clawdesk 与 Extension 编译器版本解耦。
+- OpenDesk 与 Extension 编译器版本解耦。
 - Extension 崩溃不一定直接破坏主 Runtime。
 - 多语言支持。
 - Windows / macOS / Linux 更容易统一。
@@ -453,8 +453,8 @@ stdio
 例如：
 
 ```text
-clawdesk → extension stdin
-extension → clawdesk stdout
+opendesk → extension stdin
+extension → opendesk stdout
 ```
 
 适合控制型调用。
@@ -491,7 +491,7 @@ examples
 conformance tests
 ```
 
-而不是公开 Clawdesk 核心源码。
+而不是公开 OpenDesk 核心源码。
 
 这是最适合作为第三方高级扩展 V1 的方向。
 
@@ -514,11 +514,11 @@ C/C++
 extension.wasm
 ```
 
-Clawdesk 内嵌 Wasm Runtime，加载执行。
+OpenDesk 内嵌 Wasm Runtime，加载执行。
 
 优点：
 
-- 不要求 Clawdesk 源码。
+- 不要求 OpenDesk 源码。
 - 跨平台。
 - 内存隔离。
 - 可以通过 Host Functions 精确开放能力。
@@ -535,7 +535,7 @@ Clawdesk 内嵌 Wasm Runtime，加载执行。
 限制：
 
 - Wasm 默认不能任意访问宿主 OS。
-- 新 Native OS API 仍然需要 Clawdesk Host Function 或 WASI 能力支持。
+- 新 Native OS API 仍然需要 OpenDesk Host Function 或 WASI 能力支持。
 - Host/Guest ABI、内存和数据传输需要额外设计。
 
 因此 Wasm 很适合作为中期“安全高性能扩展”，但不是当前第一优先级。
@@ -564,17 +564,17 @@ Linux  .so
 Windows .dll
 ```
 
-Clawdesk 动态加载。
+OpenDesk 动态加载。
 
 ## 11.1 不要暴露 Go struct ABI
 
 推荐只设计稳定 C ABI，例如概念上：
 
 ```text
-clawdesk_extension_abi_version()
-clawdesk_extension_init(host_v1, extension_v1)
-clawdesk_extension_invoke(method, input_bytes, output_bytes)
-clawdesk_extension_shutdown()
+opendesk_extension_abi_version()
+opendesk_extension_init(host_v1, extension_v1)
+opendesk_extension_invoke(method, input_bytes, output_bytes)
+opendesk_extension_shutdown()
 ```
 
 数据边界优先：
@@ -585,23 +585,23 @@ byte buffer
 JSON / MessagePack / Protobuf
 ```
 
-不要让第三方 Extension 直接依赖 Clawdesk 内部 Go struct、interface 或 package layout。
+不要让第三方 Extension 直接依赖 OpenDesk 内部 Go struct、interface 或 package layout。
 
 这样用户只需要：
 
 ```text
-clawdesk_extension.h
+opendesk_extension.h
 ABI spec
 sample SDK
 ```
 
-不需要 Clawdesk 核心源码。
+不需要 OpenDesk 核心源码。
 
 ## 11.2 风险
 
 进程内共享库：
 
-- crash 可以直接带崩 Clawdesk；
+- crash 可以直接带崩 OpenDesk；
 - 内存安全问题更严重；
 - 平台 ABI / codesign / notarization 更复杂；
 - 动态库生命周期复杂；
@@ -621,7 +621,7 @@ Trusted / Advanced Native Extension
 
 Go 标准 `plugin` 的优点是同进程、调用直接、性能高。
 
-但它不适合成为 Clawdesk 的主要第三方插件 ABI：
+但它不适合成为 OpenDesk 的主要第三方插件 ABI：
 
 - 平台支持不完整，尤其不适合作为 Windows / macOS / Linux 统一方案。
 - 主程序与插件需要高度一致的 Go toolchain / package 构建环境。
@@ -655,7 +655,7 @@ Go -buildmode=c-shared
 
 目前不建议因为“可扩展”而单独嵌入 Lua Runtime。
 
-Clawdesk 已经有 JavaScript Runtime，因此 Lua 只能在出现以下真实需求时再考虑：
+OpenDesk 已经有 JavaScript Runtime，因此 Lua 只能在出现以下真实需求时再考虑：
 
 - 大量目标用户已经拥有 Lua 脚本资产。
 - 某个游戏 / 应用 / 自动化生态以 Lua 为核心。
@@ -691,7 +691,7 @@ Not Planned / Demand-driven
 
 # 十四、E：Source-level Core Extension
 
-如果用户或合作方确实拥有 Clawdesk 核心源码和构建权限：
+如果用户或合作方确实拥有 OpenDesk 核心源码和构建权限：
 
 ```text
 直接 Go package 开发
@@ -868,9 +868,9 @@ Extension Marketplace
 3. 是作用域问题、升级问题、安全问题还是性能问题？
 4. 数据量和调用频率是多少？
 5. Extension 是否可信？
-6. Extension 崩溃能否接受带崩 Clawdesk？
+6. Extension 崩溃能否接受带崩 OpenDesk？
 7. 是否必须跨 Windows / macOS / Linux？
-8. 是否需要访问 Clawdesk 内部能力？
+8. 是否需要访问 OpenDesk 内部能力？
 9. 是否需要访问任意 OS Native API？
 10. 是否真的需要进程内性能？
 11. API / ABI 的兼容周期是多少？
@@ -908,4 +908,4 @@ Go plugin
 → 不作为跨平台正式插件主路线
 ```
 
-这能保持当前 Clawdesk 简单，同时为未来用户、自定义开发和商业集成保留足够大的扩展空间。
+这能保持当前 OpenDesk 简单，同时为未来用户、自定义开发和商业集成保留足够大的扩展空间。

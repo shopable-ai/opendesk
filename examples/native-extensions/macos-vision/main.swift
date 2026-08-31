@@ -2,7 +2,7 @@ import Foundation
 import ImageIO
 import Vision
 
-let protocolName = "clawdesk-native-extension"
+let protocolName = "opendesk-native-extension"
 let protocolVersion = 1
 
 struct ExtensionFailure: Error {

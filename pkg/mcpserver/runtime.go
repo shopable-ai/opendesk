@@ -3,9 +3,9 @@ package mcpserver
 import (
 	"encoding/base64"
 	"fmt"
+	"opendesk/automation"
+	pkgContainer "opendesk/pkg/container"
 	"strings"
-	"clawdesk/automation"
-	pkgContainer "clawdesk/pkg/container"
 )
 
 type AutomationRuntime struct {
@@ -143,6 +143,15 @@ func (r *AutomationRuntime) PressKey(key string) error {
 	return wrapRuntimeError("press_key", automation.NewKeyboard().Press(key))
 }
 
+func (r *AutomationRuntime) Move(args map[string]any) error {
+	x, okX := numberArg(args, "x")
+	y, okY := numberArg(args, "y")
+	if !okX || !okY {
+		return fmt.Errorf("x and y are required")
+	}
+	return wrapRuntimeError("move", automation.NewMouse().Move(int(x), int(y), nil))
+}
+
 func (r *AutomationRuntime) Scroll(args map[string]any) error {
 	deltaX, _ := numberArg(args, "deltaX")
 	deltaY, _ := numberArg(args, "deltaY")
@@ -201,6 +210,9 @@ func normalizeVisionArgs(args map[string]any) map[string]any {
 	}
 	if imageBytes, ok := args["imageBytes"].([]byte); ok && len(imageBytes) > 0 {
 		out["image"] = base64.StdEncoding.EncodeToString(imageBytes)
+	}
+	if targetText := stringArg(args, "target_text"); strings.TrimSpace(targetText) != "" && strings.TrimSpace(stringArg(args, "targetText")) == "" {
+		out["targetText"] = targetText
 	}
 	return out
 }

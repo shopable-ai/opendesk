@@ -1,10 +1,10 @@
 # WeChat Desktop Automation Requirements
 
-本文件定义 Clawdesk 面向微信桌面版自动化的**场景需求与验收边界**。
+本文件定义 OpenDesk 面向微信桌面版自动化的**场景需求与验收边界**。
 
 ## 当前状态
 
-截至 2026-08-31，仓库具备可复用的 Clawdesk 桌面能力、Vision/OCR、MCP `inspect -> find -> act` 工具和历史 WeChat 研究/报告，但**当前仓库没有独立维护的 WeChat production adapter / workflow 实现**。
+截至 2026-08-31，仓库具备可复用的 OpenDesk 桌面能力、Vision/OCR、MCP `inspect -> find -> act` 工具和历史 WeChat 研究/报告，但**当前仓库没有独立维护的 WeChat production adapter / workflow 实现**。
 
 当前不存在的旧路径包括：
 

@@ -31,7 +31,7 @@ run_step() {
 }
 
 {
-  printf '# clawdesk e2e smoke report\n\n'
+  printf '# opendesk e2e smoke report\n\n'
   printf -- '- time: `%s`\n' "$(date '+%Y-%m-%dT%H:%M:%S%z')"
   printf -- '- root: `%s`\n\n' "$ROOT_DIR"
 } >"$REPORT_FILE"
@@ -39,19 +39,19 @@ run_step() {
 run_step "go test ./automation" go test ./automation
 run_step "go test ./..." go test ./...
 
-SMOKE_SCRIPT="/tmp/clawdesk_script_smoke_${STAMP}.js"
+SMOKE_SCRIPT="/tmp/opendesk_script_smoke_${STAMP}.js"
 cat >"$SMOKE_SCRIPT" <<'EOF'
 console.log('script-smoke-start');
 await page.waitFor(100);
 console.log('script-smoke-end');
 EOF
-run_step "go run ./cmd/clawdesk -script smoke.js" go run ./cmd/clawdesk -script "$SMOKE_SCRIPT"
+run_step "go run ./cmd/opendesk -script smoke.js" go run ./cmd/opendesk -script "$SMOKE_SCRIPT"
 
 if [[ "$(uname -s)" == "Darwin" && "$RUN_MAC_UI" == "1" ]]; then
-  run_step "go run ./cmd/clawdesk -script examples/mac/safari_url_input_flow.js" \
-    go run ./cmd/clawdesk -script examples/mac/safari_url_input_flow.js
-  run_step "go run ./cmd/clawdesk -script examples/mac/wechat_probe_chatlist_scan.js" \
-    go run ./cmd/clawdesk -script examples/mac/wechat_probe_chatlist_scan.js
+  run_step "go run ./cmd/opendesk -script examples/mac/safari_url_input_flow.js" \
+    go run ./cmd/opendesk -script examples/mac/safari_url_input_flow.js
+  run_step "go run ./cmd/opendesk -script examples/mac/wechat_probe_chatlist_scan.js" \
+    go run ./cmd/opendesk -script examples/mac/wechat_probe_chatlist_scan.js
 elif [[ "$(uname -s)" == "Darwin" ]]; then
   printf -- "- [SKIP] mac UI scripts disabled by RUN_MAC_UI=%s\n" "$RUN_MAC_UI" >>"$REPORT_FILE"
 else

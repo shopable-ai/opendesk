@@ -6,53 +6,53 @@ MODE="$*"
 [[ -n "$MODE" ]] || MODE=smoke
 WATCHDOG="$ROOT_DIR/tests/runtime-api/run_with_timeout.py"
 
-if ! printenv CLAWDESK_RUNTIME_API_LIVE_FILTER >/dev/null 2>&1 && printenv HOST_API_LIVE_FILTER >/dev/null 2>&1; then
-  export CLAWDESK_RUNTIME_API_LIVE_FILTER="$(printenv HOST_API_LIVE_FILTER)"
+if ! printenv OPENDESK_RUNTIME_API_LIVE_FILTER >/dev/null 2>&1 && printenv HOST_API_LIVE_FILTER >/dev/null 2>&1; then
+  export OPENDESK_RUNTIME_API_LIVE_FILTER="$(printenv HOST_API_LIVE_FILTER)"
   echo "[RUNTIME-API] mapped deprecated HOST_API_LIVE_FILTER"
 fi
-if ! printenv CLAWDESK_RUNTIME_API_BROWSER_APP >/dev/null 2>&1 && printenv HOST_API_BROWSER_APP >/dev/null 2>&1; then
-  export CLAWDESK_RUNTIME_API_BROWSER_APP="$(printenv HOST_API_BROWSER_APP)"
+if ! printenv OPENDESK_RUNTIME_API_BROWSER_APP >/dev/null 2>&1 && printenv HOST_API_BROWSER_APP >/dev/null 2>&1; then
+  export OPENDESK_RUNTIME_API_BROWSER_APP="$(printenv HOST_API_BROWSER_APP)"
   echo "[RUNTIME-API] mapped deprecated HOST_API_BROWSER_APP"
 fi
 
 cd "$ROOT_DIR"
 RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)-$$"
-if printenv CLAWDESK_RUNTIME_API_RUN_ID >/dev/null 2>&1 && [[ -n "$CLAWDESK_RUNTIME_API_RUN_ID" ]]; then RUN_ID="$CLAWDESK_RUNTIME_API_RUN_ID"; fi
+if printenv OPENDESK_RUNTIME_API_RUN_ID >/dev/null 2>&1 && [[ -n "$OPENDESK_RUNTIME_API_RUN_ID" ]]; then RUN_ID="$OPENDESK_RUNTIME_API_RUN_ID"; fi
 RUN_DIR="$ROOT_DIR/.runtime/tests/runtime-api/$RUN_ID"
 mkdir -p "$RUN_DIR/results" "$RUN_DIR/generated" "$RUN_DIR/processes"
 CONTEXT="$RUN_DIR/context.json"
 PROCESSES="$RUN_DIR/processes.json"
 
-if printenv CLAWDESK_BINARY >/dev/null 2>&1 && [[ -n "$CLAWDESK_BINARY" ]]; then
-  BINARY="$(cd "$(dirname "$CLAWDESK_BINARY")" && pwd)/$(basename "$CLAWDESK_BINARY")"
-  BUILD_SOURCE=CLAWDESK_BINARY
+if printenv OPENDESK_BINARY >/dev/null 2>&1 && [[ -n "$OPENDESK_BINARY" ]]; then
+  BINARY="$(cd "$(dirname "$OPENDESK_BINARY")" && pwd)/$(basename "$OPENDESK_BINARY")"
+  BUILD_SOURCE=OPENDESK_BINARY
 else
-  BINARY="$RUN_DIR/bin/clawdesk"
+  BINARY="$RUN_DIR/bin/opendesk"
   mkdir -p "$(dirname "$BINARY")"
-  go build -o "$BINARY" ./cmd/clawdesk
-  BUILD_SOURCE="go build ./cmd/clawdesk"
+  go build -o "$BINARY" ./cmd/opendesk
+  BUILD_SOURCE="go build ./cmd/opendesk"
 fi
-[[ -x "$BINARY" ]] || { echo "CLAWDESK_BINARY is not executable: $BINARY" >&2; exit 1; }
+[[ -x "$BINARY" ]] || { echo "OPENDESK_BINARY is not executable: $BINARY" >&2; exit 1; }
 
-export CLAWDESK_RUNTIME_API_RUN_ID="$RUN_ID"
-export CLAWDESK_RUNTIME_API_RUN_DIR="$RUN_DIR"
-export CLAWDESK_RUNTIME_API_BINARY="$BINARY"
-export CLAWDESK_RUNTIME_API_BINARY_SHA256="$(shasum -a 256 "$BINARY" | awk '{print $1}')"
-export CLAWDESK_RUNTIME_API_BUILD_SOURCE="$BUILD_SOURCE"
-export CLAWDESK_RUNTIME_API_STARTED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-export CLAWDESK_RUNTIME_API_GIT_COMMIT="$(git rev-parse HEAD)"
-export CLAWDESK_RUNTIME_API_GIT_DIRTY=false
-[[ -z "$(git status --porcelain)" ]] || export CLAWDESK_RUNTIME_API_GIT_DIRTY=true
-if [[ "$(printenv CLAWDESK_RUNTIME_API_BROWSER_APP 2>/dev/null || true)" == "" ]]; then export CLAWDESK_RUNTIME_API_BROWSER_APP=Safari; fi
+export OPENDESK_RUNTIME_API_RUN_ID="$RUN_ID"
+export OPENDESK_RUNTIME_API_RUN_DIR="$RUN_DIR"
+export OPENDESK_RUNTIME_API_BINARY="$BINARY"
+export OPENDESK_RUNTIME_API_BINARY_SHA256="$(shasum -a 256 "$BINARY" | awk '{print $1}')"
+export OPENDESK_RUNTIME_API_BUILD_SOURCE="$BUILD_SOURCE"
+export OPENDESK_RUNTIME_API_STARTED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+export OPENDESK_RUNTIME_API_GIT_COMMIT="$(git rev-parse HEAD)"
+export OPENDESK_RUNTIME_API_GIT_DIRTY=false
+[[ -z "$(git status --porcelain)" ]] || export OPENDESK_RUNTIME_API_GIT_DIRTY=true
+if [[ "$(printenv OPENDESK_RUNTIME_API_BROWSER_APP 2>/dev/null || true)" == "" ]]; then export OPENDESK_RUNTIME_API_BROWSER_APP=Safari; fi
 
 python3 - "$CONTEXT" "$PROCESSES" <<'PY'
 import json, os, platform, sys
 context = {
-  "schemaVersion": "1.0.0", "runId": os.environ["CLAWDESK_RUNTIME_API_RUN_ID"],
-  "runDir": os.environ["CLAWDESK_RUNTIME_API_RUN_DIR"], "startedAt": os.environ["CLAWDESK_RUNTIME_API_STARTED_AT"],
-  "git": {"commit": os.environ["CLAWDESK_RUNTIME_API_GIT_COMMIT"], "dirty": os.environ["CLAWDESK_RUNTIME_API_GIT_DIRTY"] == "true"},
-  "environment": {"os": platform.system(), "arch": platform.machine(), "browser": os.environ["CLAWDESK_RUNTIME_API_BROWSER_APP"]},
-  "binary": {"path": os.environ["CLAWDESK_RUNTIME_API_BINARY"], "sha256": os.environ["CLAWDESK_RUNTIME_API_BINARY_SHA256"], "buildSource": os.environ["CLAWDESK_RUNTIME_API_BUILD_SOURCE"]},
+  "schemaVersion": "1.0.0", "runId": os.environ["OPENDESK_RUNTIME_API_RUN_ID"],
+  "runDir": os.environ["OPENDESK_RUNTIME_API_RUN_DIR"], "startedAt": os.environ["OPENDESK_RUNTIME_API_STARTED_AT"],
+  "git": {"commit": os.environ["OPENDESK_RUNTIME_API_GIT_COMMIT"], "dirty": os.environ["OPENDESK_RUNTIME_API_GIT_DIRTY"] == "true"},
+  "environment": {"os": platform.system(), "arch": platform.machine(), "browser": os.environ["OPENDESK_RUNTIME_API_BROWSER_APP"]},
+  "binary": {"path": os.environ["OPENDESK_RUNTIME_API_BINARY"], "sha256": os.environ["OPENDESK_RUNTIME_API_BINARY_SHA256"], "buildSource": os.environ["OPENDESK_RUNTIME_API_BUILD_SOURCE"]},
 }
 json.dump(context, open(sys.argv[1], "w", encoding="utf-8"), indent=2)
 json.dump({"schemaVersion": "1.0.0", "runId": context["runId"], "records": []}, open(sys.argv[2], "w", encoding="utf-8"), indent=2)
@@ -86,7 +86,7 @@ generate() {
   python3 - "$CONTEXT" "$source" "$output" "$extra" <<'PY'
 import json, pathlib, sys
 context, source, output, extra = sys.argv[1:]
-prefix = "globalThis.CLAWDESK_RUNTIME_API_CONTEXT = " + json.dumps(json.load(open(context, encoding="utf-8")), ensure_ascii=False) + ";\n"
+prefix = "globalThis.OPENDESK_RUNTIME_API_CONTEXT = " + json.dumps(json.load(open(context, encoding="utf-8")), ensure_ascii=False) + ";\n"
 if extra:
   data = json.load(open(extra, encoding="utf-8"))
   prefix += "globalThis.RUNTIME_API_EXTRA = " + json.dumps(data, ensure_ascii=False) + ";\n"
@@ -134,7 +134,7 @@ live() {
   local ready="$RUN_DIR/fixture-ready.json" extra="$RUN_DIR/fixture-extra.json" server="" status=0
   cleanup_fixture() { [[ -z "$server" ]] || { kill "$server" >/dev/null 2>&1 || true; wait "$server" 2>/dev/null || true; }; }
   trap cleanup_fixture RETURN
-  python3 "$ROOT_DIR/tests/runtime-api/fixture/server.py" --ready "$ready" --browser-app "$CLAWDESK_RUNTIME_API_BROWSER_APP" >"$RUN_DIR/fixture.stdout" 2>"$RUN_DIR/fixture.stderr" &
+  python3 "$ROOT_DIR/tests/runtime-api/fixture/server.py" --ready "$ready" --browser-app "$OPENDESK_RUNTIME_API_BROWSER_APP" >"$RUN_DIR/fixture.stdout" 2>"$RUN_DIR/fixture.stderr" &
   server=$!
   record fixture-server "$server" loopback-fixture
   for _ in $(seq 1 100); do
@@ -146,7 +146,7 @@ live() {
   python3 - "$ready" "$extra" <<'PY'
 import json, os, sys
 fixture = json.load(open(sys.argv[1], encoding="utf-8"))
-fixture["liveFilter"] = [item.strip() for item in os.environ.get("CLAWDESK_RUNTIME_API_LIVE_FILTER", "").split(",") if item.strip()]
+fixture["liveFilter"] = [item.strip() for item in os.environ.get("OPENDESK_RUNTIME_API_LIVE_FILTER", "").split(",") if item.strip()]
 json.dump({"fixture": fixture}, open(sys.argv[2], "w", encoding="utf-8"))
 PY
   if runjs live "$ROOT_DIR/tests/runtime-api/macos_live.js" 10 720 "$extra"; then status=0; else status=$?; fi

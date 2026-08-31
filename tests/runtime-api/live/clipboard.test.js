@@ -5,7 +5,7 @@
     covers: ['clipboard.copy', 'clipboard.paste', 'clipboard.clear', 'global.copyToClipboard', 'global.getClipboard'],
   }, async () => {
     const original = await clipboard.paste();
-    const first = `clawdesk-剪贴板-${Date.now()}`;
+    const first = `opendesk-剪贴板-${Date.now()}`;
     const second = `polyfill-✓-${Date.now()}`;
     try {
       await clipboard.copy(first);

@@ -340,7 +340,7 @@ func tapKeyCode(code C.MMKeyCode, flags C.MMKeyFlags, pid C.uintptr) {
 var keyErr = errors.New("Invalid key flag specified.")
 
 // Avoid lazy CoreFoundation keyboard-layout initialization from arbitrary cgo
-// callback threads. Clawdesk's async JavaScript runtime can resume keyboard
+// callback threads. OpenDesk's async JavaScript runtime can resume keyboard
 // calls on such a thread, while ANSI virtual key codes are stable for the
 // documented ASCII input and shortcut surface.
 var darwinANSIKeyCodes = map[byte]C.MMKeyCode{

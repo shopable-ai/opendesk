@@ -1,10 +1,10 @@
 # macOS 截图排障手册（App/CLI/Agent）
 
-本文整理 Clawdesk 在 macOS 下截图能力的稳定调用经验，以及常见失败模式和处理方式。
+本文整理 OpenDesk 在 macOS 下截图能力的稳定调用经验，以及常见失败模式和处理方式。
 
 适用场景：
-- 通过 `Clawdesk.app` 调用脚本
-- 通过 `dist/clawdesk` 调用脚本
+- 通过 `OpenDesk.app` 调用脚本
+- 通过 `dist/opendesk` 调用脚本
 - 通过 Agent/Codex CLI 间接调用脚本
 
 ## 1. 成功路径（推荐）
@@ -64,7 +64,7 @@ Screenshot result: backend=... source=... displayIndex=... output=(width=... hei
 
 说明：
 - 权限绑定到“调用主体身份”，不是绑定到脚本。
-- 若权限授予给 `Clawdesk.app`，就应该由 `Clawdesk.app` 运行。
+- 若权限授予给 `OpenDesk.app`，就应该由 `OpenDesk.app` 运行。
 
 ### B. 截图成功，但识别失败（最常见）
 
@@ -122,9 +122,9 @@ CODESIGN_IDENTITY="Apple Development: Your Name (TEAMID)" ./scripts/build_macos_
 并记录实际输出尺寸；不要把它们放入源码或 fixture 目录。
 
 不要在同一条业务链路里混用：
-- `go run ./cmd/clawdesk ...`
-- `./dist/clawdesk ...`
-- `open dist/Clawdesk.app ...`
+- `go run ./cmd/opendesk ...`
+- `./dist/opendesk ...`
+- `open dist/OpenDesk.app ...`
 
 混用会增加权限主体变化和时序不一致风险。
 
@@ -138,7 +138,7 @@ CODESIGN_IDENTITY="Apple Development: Your Name (TEAMID)" ./scripts/build_macos_
 常用重置命令示例：
 
 ```bash
-tccutil reset AppleEvents com.clawdesk.cli
+tccutil reset AppleEvents com.opendesk.cli
 tccutil reset AppleEvents com.apple.Terminal
 tccutil reset AppleEvents com.googlecode.iterm2
 ```
@@ -146,5 +146,5 @@ tccutil reset AppleEvents com.googlecode.iterm2
 重置后再走一次权限触发脚本：
 
 ```bash
-open dist/Clawdesk.app --args -script examples/mac/request-macos-permissions.js -timeout 2
+open dist/OpenDesk.app --args -script examples/mac/request-macos-permissions.js -timeout 2
 ```

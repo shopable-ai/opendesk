@@ -1,4 +1,4 @@
-# Clawdesk 自动化平台能力补全计划
+# OpenDesk 自动化平台能力补全计划
 
 ## 文档状态
 
@@ -6,7 +6,7 @@
 - 状态：`Active planning baseline`
 - 保存日期：2026-08-31
 - 保存时审计基线：`master@0f66ffb252202aeb1a5c19859130cf5ef6b7d1e3`
-- 适用范围：Clawdesk 桌面自动化平台的跨模块能力补全、优先级、依赖关系和验收边界
+- 适用范围：OpenDesk 桌面自动化平台的跨模块能力补全、优先级、依赖关系和验收边界
 
 保存时 HEAD 只用于说明本次判断基于哪个代码快照，后续执行不得把该 SHA 当成最新事实。每一阶段开始前仍需重新读取当前 `master`、源码、测试和运行 Evidence。
 
@@ -62,7 +62,7 @@ Quality
 - [`../../architecture/desktop-automation/action-target-model.md`](../../architecture/desktop-automation/action-target-model.md)：动作目标、候选、前置条件、后置条件和回退原则。
 - [`../../architecture/desktop-automation/app-adapter-contract.md`](../../architecture/desktop-automation/app-adapter-contract.md)：Surface、Layout、Semantic Adapter、Action 和 Verification 契约。
 - [`../../architecture/desktop-automation/agent-first-recorder.md`](../../architecture/desktop-automation/agent-first-recorder.md)：Recorder 的长期架构边界。
-- [`../../research/desktop-automation/2026-08-31-clawdesk-vs-peekaboo.md`](../../research/desktop-automation/2026-08-31-clawdesk-vs-peekaboo.md)：macOS Native Driver 重叠审计、Peekaboo Integrate-first 决策输入。
+- [`../../research/desktop-automation/2026-08-31-opendesk-vs-peekaboo.md`](../../research/desktop-automation/2026-08-31-opendesk-vs-peekaboo.md)：macOS Native Driver 重叠审计、Peekaboo Integrate-first 决策输入。
 - [`agent-first-recorder-macos-mvp.md`](agent-first-recorder-macos-mvp.md)：Recorder 首个 macOS 有界实施计划。
 - [`app-target-priority-matrix.md`](app-target-priority-matrix.md)：真实应用候选及其 Evidence 条件。
 - [`../runtime/runtime-extension-roadmap.md`](../runtime/runtime-extension-roadmap.md)：Runtime 扩展、资源加载和第三方 Extension 的候选演进路线。
@@ -79,7 +79,7 @@ Quality
 
 ## 三、当前总体判断
 
-Clawdesk 已经建立较完整的顶层方法：
+OpenDesk 已经建立较完整的顶层方法：
 
 ```text
 Observe
@@ -135,7 +135,7 @@ Driver
 
 ### 3.1 2026-08-31 Peekaboo 审计后的执行校准
 
-`2026-08-31-clawdesk-vs-peekaboo.md` 对当前 macOS primitive 做源码级重叠审计后，确认：
+`2026-08-31-opendesk-vs-peekaboo.md` 对当前 macOS primitive 做源码级重叠审计后，确认：
 
 ```text
 继续补完整 macOS Native Driver
@@ -148,10 +148,10 @@ Driver
 macOS 15+ 主路径
 → 优先验证 PeekabooProvider
 
-Clawdesk Native macOS
+OpenDesk Native macOS
 → compatibility / fallback / benchmark / special case
 
-Clawdesk 核心研发
+OpenDesk 核心研发
 → Observation Normalization
 → Locator / Target
 → Verified Action
@@ -166,7 +166,7 @@ Clawdesk 核心研发
 约束：
 
 - 这不是直接删除 `automation/`；
-- 这不是把 Peekaboo tool 名称暴露成 Clawdesk 公共 API；
+- 这不是把 Peekaboo tool 名称暴露成 OpenDesk 公共 API；
 - 这不是用竞品 Research 直接改写 Architecture；
 - Provider benchmark 之前，不把 NativeProvider 或 PeekabooProvider 任一方宣称为稳定默认；
 - `P1-14 Provider Registry` 仍保留，但其职责升级为跨类型 Provider 的注册、健康、质量、成本和 fallback 治理，不再承担首次引入 DesktopProvider abstraction 的任务。
@@ -301,7 +301,7 @@ CLI --json
 
 完成标志：
 
-- 同一 Clawdesk action contract 可以在 PeekabooProvider 与 NativeProvider 间切换；
+- 同一 OpenDesk action contract 可以在 PeekabooProvider 与 NativeProvider 间切换；
 - Provider-specific receipt / element ID 可以保留 extension，同时能投影为统一 Action / Evidence 结果；
 - public JS/HTTP/MCP 不出现 `peekaboo_*` 作为主要稳定 API；
 - capability 缺失在 dispatch 前返回 structured blocker；
@@ -375,7 +375,7 @@ warnings / blockers
 - CLI、HTTP、MCP、Recorder 不再各自发明不兼容的桌面快照；
 - 屏幕、窗口、截图、区域和元素坐标能够显式转换；
 - 每个语义判断可回溯到本次 Observation 和 Provider；
-- 对 PeekabooProvider，Clawdesk Snapshot 引用 provider-native snapshot/receipt，不重新复制一套 macOS producer authority。
+- 对 PeekabooProvider，OpenDesk Snapshot 引用 provider-native snapshot/receipt，不重新复制一套 macOS producer authority。
 
 ### P0-03 正式 Locator Engine
 
@@ -454,7 +454,7 @@ artifacts
 - `executed=true` 与 `verified=true` 明确分离；
 - `inconclusive` 不能被静默转成成功；
 - 中高风险动作强制执行 Postcondition；
-- Provider 的 native effect verification 可以作为证据输入，但不能自动替代 Clawdesk business Postcondition。
+- Provider 的 native effect verification 可以作为证据输入，但不能自动替代 OpenDesk business Postcondition。
 
 ### P0-05 Verification 与 Evidence Engine
 
@@ -1103,7 +1103,7 @@ closed
 
 ## 十五、最终目标
 
-本计划完成后，Clawdesk 应从：
+本计划完成后，OpenDesk 应从：
 
 ```text
 拥有较多桌面自动化接口和执行入口的 Runtime

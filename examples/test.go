@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
-	"clawdesk/automation"
+	"opendesk/automation"
 	"time"
 )
 

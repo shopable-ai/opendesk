@@ -10,7 +10,7 @@ if (result.pendingUserConsent) {
 }
 
 if (!result.ok) {
-  console.log('If popup is still missing: run scripts/reset_macos_permissions.sh then rerun from Clawdesk.app');
+  console.log('If popup is still missing: run scripts/reset_macos_permissions.sh then rerun from OpenDesk.app');
 }
 
 console.log('Keep alive 12s to avoid window flashing...');

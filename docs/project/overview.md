@@ -1,8 +1,8 @@
-# Clawdesk 项目概览
+# OpenDesk 项目概览
 
 ## 定位
 
-Clawdesk 是一个面向本地桌面自动化与 AI Agent 的执行运行时。核心不是某一个业务脚本，而是把桌面感知、窗口与输入控制、视觉/OCR、脚本运行、HTTP 调用、MCP 工具和执行证据统一到同一个工程中。
+OpenDesk 是一个面向本地桌面自动化与 AI Agent 的执行运行时。核心不是某一个业务脚本，而是把桌面感知、窗口与输入控制、视觉/OCR、脚本运行、HTTP 调用、MCP 工具和执行证据统一到同一个工程中。
 
 ## 核心使用面
 
@@ -49,7 +49,7 @@ docs-user-api/http-server.md
 独立入口：
 
 ```text
-cmd/clawdesk-mcp/
+cmd/opendesk-mcp/
 ```
 
 当前推荐 Agent 主链路：

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://clawdesk.dev/schemas/automation/replay-case.schema.json",
+  "$id": "https://opendesk.dev/schemas/automation/replay-case.schema.json",
   "title": "ReplayCase",
   "type": "object",
   "required": [

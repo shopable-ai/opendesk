@@ -1,7 +1,7 @@
 执行：
 
 ```bash
-cd /Users/mac/Documents/workspace/clawdesk
+cd /Users/mac/Documents/workspace/opendesk
 python3 tests/locateanything/scripts/run_stage_01_env.py
 ```
 
@@ -12,7 +12,7 @@ python3 tests/locateanything/scripts/run_stage_01_env.py
 1. 当前控制机：
    - `x86_64/arm64`
    - Python
-   - `dist/clawdesk`
+   - `dist/opendesk`
    - venv
    - `torch/transformers/mlx/mlx_vlm/PIL`
    - `models/LocateAnything-3B-8bit`

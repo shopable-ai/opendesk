@@ -227,10 +227,10 @@ def main() -> int:
             },
             "config": config,
             "artifacts": {
-                "distClawdesk": {
-                    "path": str(REPO_ROOT / "dist" / "clawdesk"),
-                    "exists": (REPO_ROOT / "dist" / "clawdesk").exists(),
-                    "executable": os.access(REPO_ROOT / "dist" / "clawdesk", os.X_OK),
+                "distOpenDesk": {
+                    "path": str(REPO_ROOT / "dist" / "opendesk"),
+                    "exists": (REPO_ROOT / "dist" / "opendesk").exists(),
+                    "executable": os.access(REPO_ROOT / "dist" / "opendesk", os.X_OK),
                 },
                 "models": {
                     "8bit": {
@@ -283,7 +283,7 @@ def main() -> int:
             "",
             "## Current Controller Reality",
             "",
-            f"- `dist/clawdesk`: {'ok' if summary['artifacts']['distClawdesk']['exists'] and summary['artifacts']['distClawdesk']['executable'] else 'missing'}",
+            f"- `dist/opendesk`: {'ok' if summary['artifacts']['distOpenDesk']['exists'] and summary['artifacts']['distOpenDesk']['executable'] else 'missing'}",
             f"- `models/LocateAnything-3B-8bit`: {'present' if summary['artifacts']['models']['8bit']['exists'] else 'missing'}",
             f"- `models/LocateAnything-3B-bf16`: {'present' if summary['artifacts']['models']['bf16']['exists'] else 'missing'}",
             f"- `mlx`: {'ok' if summary['venv']['imports']['mlx']['ok'] else 'missing'}",
@@ -320,13 +320,13 @@ def main() -> int:
                 "## Replay Commands",
                 "",
                 "```bash",
-                "cd /Users/mac/Documents/workspace/clawdesk",
+                "cd /Users/mac/Documents/workspace/opendesk",
                 "python3 tests/locateanything/scripts/run_stage_01_env.py",
                 "```",
                 "",
                 "```bash",
-                "cd /Users/mac/Documents/workspace/clawdesk",
-                "./dist/clawdesk -script tests/locateanything/scripts/run_stage_02_model_only.js -timeout 5",
+                "cd /Users/mac/Documents/workspace/opendesk",
+                "./dist/opendesk -script tests/locateanything/scripts/run_stage_02_model_only.js -timeout 5",
                 "```",
             ]
         )

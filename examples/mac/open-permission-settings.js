@@ -20,7 +20,7 @@ const pages = [
 ];
 
 console.log('权限设置引导开始');
-console.log('请在每个页面中手动勾选当前运行主体的权限。优先给 Clawdesk.app 授权；只有命令行调试时才检查 Terminal/iTerm/Codex 一类宿主。');
+console.log('请在每个页面中手动勾选当前运行主体的权限。优先给 OpenDesk.app 授权；只有命令行调试时才检查 Terminal/iTerm/Codex 一类宿主。');
 
 for (const item of pages) {
   console.log(`打开设置页: ${item.name}`);

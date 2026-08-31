@@ -205,7 +205,7 @@ File.append('./.runtime/examples/run.log', 'script started\n');
 ```js
 const resp = await axios.get('https://httpbin.org/get', {
   params: {
-    q: 'clawdesk'
+    q: 'opendesk'
   }
 });
 

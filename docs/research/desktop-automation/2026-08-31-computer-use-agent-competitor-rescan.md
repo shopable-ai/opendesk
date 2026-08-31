@@ -2,7 +2,7 @@
 
 日期：2026-08-31
 
-> 文档性质：Research / 竞争与产品决策输入。本文基于 2026-08-31 可访问的公开仓库、官方产品文档与当前 `shopable-ai/clawdesk` 事实，对桌面自动化、Computer Use、Recorder、Agent OS、RPA 与相关商品重新分类。本文不是当前能力声明，也不因为竞品存在就自动改变 Roadmap。
+> 文档性质：Research / 竞争与产品决策输入。本文基于 2026-08-31 可访问的公开仓库、官方产品文档与当前 `shopable-ai/opendesk` 事实，对桌面自动化、Computer Use、Recorder、Agent OS、RPA 与相关商品重新分类。本文不是当前能力声明，也不因为竞品存在就自动改变 Roadmap。
 
 ## 1. 为什么需要重新扫描
 
@@ -31,15 +31,15 @@ Desktop Driver / Computer-Use Runtime
 → Business Outcome
 ```
 
-因此只比较 AutoHotkey、PyAutoGUI、传统 Recorder 或老式 RPA 已经不足以判断 Clawdesk 的竞争位置。
+因此只比较 AutoHotkey、PyAutoGUI、传统 Recorder 或老式 RPA 已经不足以判断 OpenDesk 的竞争位置。
 
 本次重扫重点回答：
 
 1. `https://github.com/clawdesk/clawdesk` 与本项目到底有多少产品和技术重叠？
-2. 当前真正直接竞争 Clawdesk 的项目有哪些？
+2. 当前真正直接竞争 OpenDesk 的项目有哪些？
 3. Recorder、Computer Use、Agent OS、Enterprise RPA 是否已经出现新的商品形态？
 4. 哪些竞品值得 Build / Buy / Integrate，而不是重复开发？
-5. 这些变化是否影响 Clawdesk 当前能力补全优先级？
+5. 这些变化是否影响 OpenDesk 当前能力补全优先级？
 
 ## 2. `clawdesk/clawdesk`：必须纳入一级竞品与名称冲突跟踪
 
@@ -83,7 +83,7 @@ latest observed commit: 4bd4b1d7763ce2b008eefd102b48275b9f22e945
 
 Star / Fork 只是活跃度辅助信号，不能用来替代产品能力判断。
 
-### 2.2 与 `shopable-ai/clawdesk` 的重叠程度
+### 2.2 与 `shopable-ai/opendesk` 的重叠程度
 
 这里的百分比是**战略 / 功能重叠估计**，不是源代码相似度。
 
@@ -97,7 +97,7 @@ Star / Fork 只是活跃度辅助信号，不能用来替代产品能力判断�
 两者是不同代码路线：
 
 ```text
-shopable-ai/clawdesk
+shopable-ai/opendesk
 → Go + goja JavaScript Runtime
 → Desktop automation execution substrate
 
@@ -108,7 +108,7 @@ clawdesk/clawdesk
 
 ### 2.3 功能对比
 
-| 维度 | `shopable-ai/clawdesk` 当前方向 | `clawdesk/clawdesk` 当前方向 | 重叠判断 |
+| 维度 | `shopable-ai/opendesk` 当前方向 | `clawdesk/clawdesk` 当前方向 | 重叠判断 |
 |---|---|---|---|
 | 核心定位 | Desktop / Cross-App Automation Runtime | Personal Agent2OS / AI Workspace | 中高 |
 | 原生桌面执行 | Mouse / Keyboard / Window / Screenshot / OCR / Layout / Target 等是核心 | 有 Desktop/App Action，但 macOS 深度执行可经 Peekaboo Skill | 中高，但责任边界不同 |
@@ -137,7 +137,7 @@ clawdesk/clawdesk
 clawdesk/clawdesk
 更像：Agent OS / AI Workspace / Orchestration Product
 
-shopable-ai/clawdesk
+shopable-ai/opendesk
 更像：Desktop Computer-Use / Cross-App Execution Infrastructure
 ```
 
@@ -222,7 +222,7 @@ SEO / 域名混淆
 + Verification / Evidence
 ```
 
-这是与 Clawdesk **技术距离最近**的一类。
+这是与 OpenDesk **技术距离最近**的一类。
 
 ### B. Computer-Use Model / Tool Contract
 
@@ -234,9 +234,9 @@ SEO / 域名混淆
 
 它们不一定自己拥有桌面 Driver，但正在定义模型消费的标准动作面、截图语义、批量工具调用和安全边界。
 
-对 Clawdesk 的意义：
+对 OpenDesk 的意义：
 
-> Clawdesk 可以成为这些模型 / Agent Harness 的执行 Driver，而不是重复建设模型层。
+> OpenDesk 可以成为这些模型 / Agent Harness 的执行 Driver，而不是重复建设模型层。
 
 ### C. AI Recorder / Demonstration-to-Skill
 
@@ -271,7 +271,7 @@ observe demonstration
 
 - Agent Desktop Harness + Robot Framework
 - Robot Framework / RPA Framework
-- 未来 Clawdesk Flow IR / Generated JS / App Package
+- 未来 OpenDesk Flow IR / Generated JS / App Package
 
 核心卖点不是“录一遍”，而是：
 
@@ -285,7 +285,7 @@ Agent 探索
 → repair
 ```
 
-ADH 尤其值得长期跟踪，因为它与 Clawdesk 的 Evidence-first、语义 Locator、可重复 Workflow 方向高度相似，只是目前强聚焦 Windows。
+ADH 尤其值得长期跟踪，因为它与 OpenDesk 的 Evidence-first、语义 Locator、可重复 Workflow 方向高度相似，只是目前强聚焦 Windows。
 
 ### E. Personal Agent OS / AI Workspace
 
@@ -309,7 +309,7 @@ Chat / Agent UI
 + Local / Remote Runtime
 ```
 
-这类并非 Clawdesk 必须复制的能力面。它们更可能成为**上游 Agent Harness / Distribution Surface**。
+这类并非 OpenDesk 必须复制的能力面。它们更可能成为**上游 Agent Harness / Distribution Surface**。
 
 ### F. Enterprise Agentic RPA / Computer-Use Platform
 
@@ -333,7 +333,7 @@ Business connectors
 Enterprise support
 ```
 
-Clawdesk 当前不应完整复制企业平台，但需要提前兼容其中真正不可缺的 execution contract：
+OpenDesk 当前不应完整复制企业平台，但需要提前兼容其中真正不可缺的 execution contract：
 
 ```text
 approval
@@ -353,23 +353,23 @@ audit evidence
 - E2B / Open Computer Use
 - Playwright / CDP Agent tooling
 
-对 Clawdesk 的意义主要是边界：
+对 OpenDesk 的意义主要是边界：
 
 ```text
 网页 DOM/API 能完成
 → 优先 Browser/API
 
 必须操作真实 Native App / 系统 UI / 跨应用
-→ Clawdesk Desktop Execution
+→ OpenDesk Desktop Execution
 ```
 
 ## 4. 一级竞品重新排序
 
-本轮不按 GitHub Star 排序，而按“用户任务是否可替代 Clawdesk + 技术路线是否直接重叠 + 是否已经形成商品入口”排序。
+本轮不按 GitHub Star 排序，而按“用户任务是否可替代 OpenDesk + 技术路线是否直接重叠 + 是否已经形成商品入口”排序。
 
 ### Tier 0：必须持续跟踪
 
-| 对象 | 为什么进入 Tier 0 | Clawdesk 应学习 / 防守 |
+| 对象 | 为什么进入 Tier 0 | OpenDesk 应学习 / 防守 |
 |---|---|---|
 | `clawdesk/clawdesk` | 同名、Agent OS 产品面相邻、MCP/Browser/Durable/Skill 重叠 | 避免向 Agent OS 无边界扩张；评估 Naming 风险；学习 durable runtime / plugin / gateway |
 | Cua Driver | MCP / CLI / SDK + 跨平台 Desktop Driver + Accessibility + Screenshot + Background input + Verification | Driver contract、effect result、permission ownership、后台执行、多 Agent cursor |
@@ -382,13 +382,13 @@ audit evidence
 
 | 对象 | 关注点 |
 |---|---|
-| Anthropic Computer Use | 17-tool client toolset、批量 action、安全模型；Clawdesk 可实现其环境执行端 |
+| Anthropic Computer Use | 17-tool client toolset、批量 action、安全模型；OpenDesk 可实现其环境执行端 |
 | agent-computer-use | Accessibility-first、0 vision-token、deterministic refs 的极简 Driver 思路 |
 | agent-ctrl | 跨平台 AX/UIA/AT-SPI 统一 schema、compact agent output |
 | ClawBridge | Local-first 多引擎、workflow recording/replay、confidence-tiered adaptive replay |
 | Microsoft Copilot Studio / Power Automate | AI Recorder 被弃用后的路线变化：自然语言 + 普通 Recorder + Computer Use Agent |
 | Automation Anywhere EnterpriseClaw | 本地 Agent Fleet、files/apps/browser/terminal、企业治理 |
-| Browser Use | Browser-only agent automation 与 Clawdesk 边界 |
+| Browser Use | Browser-only agent automation 与 OpenDesk 边界 |
 
 ### Tier 2：传统参考，不再作为主要战略对手
 
@@ -426,7 +426,7 @@ describe / say / demonstrate
 → trigger / schedule
 ```
 
-这验证了 Clawdesk Recorder 采用：
+这验证了 OpenDesk Recorder 采用：
 
 ```text
 Raw Trace
@@ -464,7 +464,7 @@ Vision / multimodal-first
 → OpenAI / Anthropic Computer Use 等
 ```
 
-Clawdesk 不应该押注单一路线。
+OpenDesk 不应该押注单一路线。
 
 更合理的层次仍然是：
 
@@ -491,7 +491,7 @@ refused
 
 ADH 强调 assertion 和 failure-time evidence。
 
-这与 Clawdesk 当前 Verified Action / Evidence 方向一致，说明 P0 不应退回：
+这与 OpenDesk 当前 Verified Action / Evidence 方向一致，说明 P0 不应退回：
 
 ```text
 click() == nil
@@ -514,7 +514,7 @@ Recovery
 
 企业平台则继续增加 human escalation、fleet、policy 与 audit。
 
-因此 Clawdesk 当前 Plan 中：
+因此 OpenDesk 当前 Plan 中：
 
 ```text
 cancel
@@ -526,7 +526,7 @@ recovery
 
 应继续保持 P0 / P1 高优先级，而不是等自主 Agent 完成后再补。
 
-## 6. 对 Clawdesk 产品边界的更新判断
+## 6. 对 OpenDesk 产品边界的更新判断
 
 ### 应继续做深
 
@@ -565,13 +565,13 @@ Codex / Claude / 其他 Agent Harness
 企业 Agent 平台
 ```
 
-通过 MCP / HTTP / Skill 作为 Clawdesk 的上层调用方。
+通过 MCP / HTTP / Skill 作为 OpenDesk 的上层调用方。
 
-### Clawdesk 更清晰的差异化表述
+### OpenDesk 更清晰的差异化表述
 
 候选定位：
 
-> **Clawdesk 是面向 AI Agent 与可重复业务自动化的 Desktop / Cross-App Execution Runtime：把真实桌面状态转换成可验证 Target，把 Agent 或 Recorder 的意图转换成可重复执行、可恢复、可审计的动作与 Workflow。**
+> **OpenDesk 是面向 AI Agent 与可重复业务自动化的 Desktop / Cross-App Execution Runtime：把真实桌面状态转换成可验证 Target，把 Agent 或 Recorder 的意图转换成可重复执行、可恢复、可审计的动作与 Workflow。**
 
 这比：
 
@@ -591,7 +591,7 @@ Codex / Claude / 其他 Agent Harness
 - Verified Action；
 - Recorder Raw Trace / Flow IR / Compiler；
 - App Adapter / Skill / Workflow contract；
-- 与 Clawdesk Runtime 紧耦合的 checkpoint / replay / evidence；
+- 与 OpenDesk Runtime 紧耦合的 checkpoint / replay / evidence；
 - HTML Benchmark 与真实 App reliability benchmark。
 
 ### 值得研究复用 / 接入
@@ -599,7 +599,7 @@ Codex / Claude / 其他 Agent Harness
 - macOS：Peekaboo 能否作为 Provider / Driver Adapter，而不是所有 AX 能力自己重复实现；
 - Windows：Cua Driver / ADH / agent-ctrl 的 contract 与 backend 是否能作为参考或可选 Provider；
 - Browser：完整 Playwright / CDP / Browser Use 是否优于继续扩大 compatibility facade；
-- Agent layer：Codex、Claude、OpenClaw、Agent2OS 通过 MCP 调用 Clawdesk，而不是在 Clawdesk 内复制完整 Agent OS。
+- Agent layer：Codex、Claude、OpenClaw、Agent2OS 通过 MCP 调用 OpenDesk，而不是在 OpenDesk 内复制完整 Agent OS。
 
 ### 暂不建议复制
 
@@ -632,15 +632,15 @@ Evidence
 跨平台策略
 商业模式 / Packaging
 真实 benchmark
-对 Clawdesk：Build / Buy / Integrate / Ignore
+对 OpenDesk：Build / Buy / Integrate / Ignore
 ```
 
 建议下一轮专项比较：
 
-1. Clawdesk vs Cua Driver vs Peekaboo vs ADH：Driver / Target / Effect / Evidence Contract；
-2. Clawdesk Recorder vs Codex Record & Replay vs UiPath Delegate vs ClawBridge；
-3. Clawdesk Execution vs `clawdesk/clawdesk` Durable Runtime：Journal / Checkpoint / Lease / Cancellation / Recovery；
-4. Clawdesk Browser compatibility vs `clawdesk-browser` / Playwright / Browser Use；
+1. OpenDesk vs Cua Driver vs Peekaboo vs ADH：Driver / Target / Effect / Evidence Contract；
+2. OpenDesk Recorder vs Codex Record & Replay vs UiPath Delegate vs ClawBridge；
+3. OpenDesk Execution vs `clawdesk/clawdesk` Durable Runtime：Journal / Checkpoint / Lease / Cancellation / Recovery；
+4. OpenDesk Browser compatibility vs `clawdesk-browser` / Playwright / Browser Use；
 5. Naming / Trademark / Domain / Package namespace 独立审计。
 
 ## 9. 主要来源
@@ -683,4 +683,4 @@ Evidence
 1. **`clawdesk/clawdesk` 必须进入一级竞品列表。** 它与本项目不是代码同源，但在名字、Agent Runtime、MCP、Browser、Skill、Workflow、Durable Execution 和桌面自动化上存在中高产品重叠。
 2. **当前最直接的技术竞争已经从传统 RPA 转向 Cua Driver / Peekaboo / ADH / accessibility-first Computer Use Runtime。**
 3. **Recorder 的竞争标准已经升级为 Demonstration → Skill / Routine → Replay / Recovery，而不是坐标录制。**
-4. **Clawdesk 应进一步收窄到“可靠 Desktop / Cross-App Execution Infrastructure”，并把 Agent OS、模型聚合、Channels、Memory 等更多视为上层生态，而不是全部内建。**
+4. **OpenDesk 应进一步收窄到“可靠 Desktop / Cross-App Execution Infrastructure”，并把 Agent OS、模型聚合、Channels、Memory 等更多视为上层生态，而不是全部内建。**

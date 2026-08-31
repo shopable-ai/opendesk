@@ -1,10 +1,10 @@
 ---
-title: Clawdesk 用户 API 文档
-description: Clawdesk 面向脚本作者、自动化使用者与 Agent 的唯一用户 API 文档入口。
+title: OpenDesk 用户 API 文档
+description: OpenDesk 面向脚本作者、自动化使用者与 Agent 的唯一用户 API 文档入口。
 order: 1
 ---
 
-# Clawdesk 用户 API 文档
+# OpenDesk 用户 API 文档
 
 `docs-user-api/` 是当前仓库唯一维护、并直接用于渲染的用户 API 文档目录。
 

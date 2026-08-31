@@ -1,7 +1,7 @@
 export {};
 
 declare global {
-  interface ClawdeskNotifyOptions {
+  interface OpenDeskNotifyOptions {
     title?: string;
     message?: string;
     sound?: boolean;
@@ -9,7 +9,7 @@ declare global {
     [key: string]: unknown;
   }
 
-  type ClawdeskTimerId = number;
+  type OpenDeskTimerId = number;
 
   interface AbortSignal {
     readonly aborted: boolean;
@@ -29,17 +29,17 @@ declare global {
 
   function copyToClipboard(text: string): void;
   function getClipboard(): string;
-  function notify(options: string | ClawdeskNotifyOptions): void;
+  function notify(options: string | OpenDeskNotifyOptions): void;
 
   function sleep(ms: number): Promise<void>;
   function sleepSeconds(seconds: number): Promise<void>;
 
-  function setTimeout(callback: () => void, delay?: number): ClawdeskTimerId;
-  function clearTimeout(id: ClawdeskTimerId): void;
-  function setInterval(callback: () => void, delay?: number): ClawdeskTimerId;
-  function clearInterval(id: ClawdeskTimerId): void;
-  function requestAnimationFrame(callback: (timestamp: number) => void): ClawdeskTimerId;
-  function cancelAnimationFrame(id: ClawdeskTimerId): void;
+  function setTimeout(callback: () => void, delay?: number): OpenDeskTimerId;
+  function clearTimeout(id: OpenDeskTimerId): void;
+  function setInterval(callback: () => void, delay?: number): OpenDeskTimerId;
+  function clearInterval(id: OpenDeskTimerId): void;
+  function requestAnimationFrame(callback: (timestamp: number) => void): OpenDeskTimerId;
+  function cancelAnimationFrame(id: OpenDeskTimerId): void;
 
   interface URLSearchParams {
     append(name: string, value: unknown): void;

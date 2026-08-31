@@ -10,7 +10,7 @@ if (!report.ok) {
   await page.openURL('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture');
   await page.waitFor(1200);
   await page.openURL('x-apple.systempreferences:com.apple.preference.security?Privacy_Automation');
-  console.log('please grant permissions for Clawdesk.app, or for the current shell host if you are debugging from the command line, then rerun.');
+  console.log('please grant permissions for OpenDesk.app, or for the current shell host if you are debugging from the command line, then rerun.');
 }
 
 const active = await window.getActiveWindow();

@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -46,6 +48,7 @@ type fakeRuntime struct {
 	lastClickArgs         map[string]any
 	lastTypeArgs          map[string]any
 	lastPressKey          string
+	lastMoveArgs          map[string]any
 	lastScrollArgs        map[string]any
 	lastFocusWindow       string
 	lastPermissionArgs    map[string]any
@@ -54,6 +57,7 @@ type fakeRuntime struct {
 	ocrCalls              int
 	detectUICalls         int
 	analyzeLayoutCalls    int
+	events                []string
 }
 
 func (f *fakeRuntime) Status() (map[string]any, error) { return f.statusResult, f.statusErr }
@@ -72,6 +76,7 @@ func (f *fakeRuntime) ListWindows() ([]map[string]any, error) {
 	return f.windowsResult, f.windowsErr
 }
 func (f *fakeRuntime) GetActiveWindow() (map[string]any, error) {
+	f.events = append(f.events, "get_active_window")
 	f.getActiveWindowCalls++
 	if len(f.activeWindowResults) > 0 {
 		idx := f.getActiveWindowCalls - 1
@@ -83,6 +88,7 @@ func (f *fakeRuntime) GetActiveWindow() (map[string]any, error) {
 	return f.activeWindowResult, f.activeWindowErr
 }
 func (f *fakeRuntime) FocusWindow(title string) error {
+	f.events = append(f.events, "focus_window")
 	f.lastFocusWindow = title
 	return f.focusWindowErr
 }
@@ -130,10 +136,27 @@ func (f *fakeRuntime) AnnotateRegions(args map[string]any) (map[string]any, erro
 	f.lastAnnotateArgs = args
 	return f.annotateRegionsResult, f.annotateRegionsErr
 }
-func (f *fakeRuntime) Click(args map[string]any) error  { f.lastClickArgs = args; return f.clickErr }
-func (f *fakeRuntime) Type(args map[string]any) error   { f.lastTypeArgs = args; return f.typeErr }
-func (f *fakeRuntime) PressKey(key string) error        { f.lastPressKey = key; return f.pressKeyErr }
-func (f *fakeRuntime) Scroll(args map[string]any) error { f.lastScrollArgs = args; return f.scrollErr }
+func (f *fakeRuntime) Click(args map[string]any) error { f.lastClickArgs = args; return f.clickErr }
+func (f *fakeRuntime) Type(args map[string]any) error {
+	f.events = append(f.events, "type")
+	f.lastTypeArgs = args
+	return f.typeErr
+}
+func (f *fakeRuntime) PressKey(key string) error {
+	f.events = append(f.events, "press_key")
+	f.lastPressKey = key
+	return f.pressKeyErr
+}
+func (f *fakeRuntime) Move(args map[string]any) error {
+	f.events = append(f.events, "move")
+	f.lastMoveArgs = args
+	return nil
+}
+func (f *fakeRuntime) Scroll(args map[string]any) error {
+	f.events = append(f.events, "scroll")
+	f.lastScrollArgs = args
+	return f.scrollErr
+}
 
 func TestInitializeReturnsServerInfoAndCapabilities(t *testing.T) {
 	srv := NewServer(&fakeRuntime{})
@@ -180,6 +203,46 @@ func TestToolsListIncludesCorePeekabooStyleCapabilities(t *testing.T) {
 	assertToolPresent(t, tools, "tm_act_on_target")
 	assertToolPresent(t, tools, "tm_click_region")
 	assertToolPresent(t, tools, "tm_click_text")
+}
+
+func TestToolsListDoesNotExposeNativeExtensionRegistryOrExecution(t *testing.T) {
+	srv := NewServer(&fakeRuntime{})
+	resp := srv.Handle(Request{JSONRPC: "2.0", ID: json.RawMessage(`20`), Method: "tools/list"})
+	if resp.Error != nil {
+		t.Fatalf("expected no error, got %#v", resp.Error)
+	}
+	encoded, err := json.Marshal(resp.Result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lower := strings.ToLower(string(encoded))
+	for _, forbidden := range []string{"nativeextensions", "nativeextension", "native_extension", "executable"} {
+		if strings.Contains(lower, forbidden) {
+			t.Fatalf("MCP tool list exposed Native Extension capability %q: %s", forbidden, encoded)
+		}
+	}
+}
+
+func TestToolsCallCannotEnableNativeExtensionExecution(t *testing.T) {
+	marker := filepath.Join(t.TempDir(), "must-not-start")
+	srv := NewServer(&fakeRuntime{})
+	resp := srv.Handle(Request{
+		JSONRPC: "2.0", ID: json.RawMessage(`23`), Method: "tools/call",
+		Params: mustRawMap(t, map[string]any{
+			"name": "NativeExtensions.goBasic.hello",
+			"arguments": map[string]any{
+				"enableNativeExtensions": true,
+				"nativeExtensionRoots":   []string{filepath.Dir(marker)},
+				"executable":             marker,
+			},
+		}),
+	})
+	if resp.Error == nil || resp.Error.Message != "tool not found" {
+		t.Fatalf("MCP accepted Native Extension execution: %#v", resp)
+	}
+	if _, err := os.Stat(marker); !os.IsNotExist(err) {
+		t.Fatalf("MCP created or started the malicious executable marker: %v", err)
+	}
 }
 
 func TestToolsListSchemasExposeRequiredFieldsAndEnums(t *testing.T) {
@@ -231,6 +294,10 @@ func TestToolsListSchemasExposeRequiredFieldsAndEnums(t *testing.T) {
 	if _, ok := aotProps["allowAmbiguous"]; !ok {
 		t.Fatalf("expected tm_act_on_target allowAmbiguous schema, got %#v", aotProps)
 	}
+	focusExpected := mustMapField(t, aotProps, "focusExpectedWindow")
+	if focusExpected["type"] != "boolean" {
+		t.Fatalf("expected tm_act_on_target focusExpectedWindow boolean schema, got %#v", focusExpected)
+	}
 	target := mustMapField(t, aotProps, "target")
 	targetProps := mustMapField(t, target, "properties")
 	if _, ok := targetProps["clickPoint"]; !ok {
@@ -254,6 +321,21 @@ func TestToolsListSchemasExposeRequiredFieldsAndEnums(t *testing.T) {
 	crProps = mustMapField(t, clickRegion["inputSchema"], "properties")
 	if _, ok := crProps["previewOnly"]; !ok {
 		t.Fatalf("expected tm_click_region previewOnly schema, got %#v", crProps)
+	}
+	for _, name := range []string{"tm_type", "tm_press_key", "tm_scroll"} {
+		tool := mustToolByName(t, tools, name)
+		properties := mustMapField(t, tool["inputSchema"], "properties")
+		if mustMapField(t, properties, "expectedWindowTitle")["type"] != "string" {
+			t.Fatalf("expected %s expectedWindowTitle string schema, got %#v", name, properties)
+		}
+		if mustMapField(t, properties, "focusExpectedWindow")["type"] != "boolean" {
+			t.Fatalf("expected %s focusExpectedWindow boolean schema, got %#v", name, properties)
+		}
+	}
+	scroll := mustToolByName(t, tools, "tm_scroll")
+	scrollProps := mustMapField(t, scroll["inputSchema"], "properties")
+	if mustMapField(t, scrollProps, "x")["type"] != "number" || mustMapField(t, scrollProps, "y")["type"] != "number" {
+		t.Fatalf("expected tm_scroll numeric x/y schemas, got %#v", scrollProps)
 	}
 }
 
@@ -960,7 +1042,7 @@ func TestToolsCallDetectUIReturnsStructuredExternalBlockerForProviderFailure(t *
 		Method:  "tools/call",
 		Params: mustRawMap(t, map[string]any{
 			"name":      "tm_detect_ui",
-			"arguments": map[string]any{"imagePath": "/tmp/inspect.png"},
+			"arguments": map[string]any{"imagePath": "/tmp/inspect.png", "target_text": "ready"},
 		}),
 	})
 	if resp.Error != nil {
@@ -1150,6 +1232,89 @@ func TestToolsCallActOnTargetDryRunReturnsPlanWithoutExecuting(t *testing.T) {
 	}
 }
 
+func TestToolsCallActOnTargetCanAtomicallyFocusExpectedWindowBeforePreview(t *testing.T) {
+	fake := &fakeRuntime{activeWindowResult: map[string]any{"title": "Calculator"}}
+	srv := NewServer(fake)
+	target := map[string]any{
+		"source":     "codex-visual-confirmed",
+		"text":       "7",
+		"clickPoint": map[string]any{"x": float64(1549), "y": float64(238)},
+	}
+	resp := srv.Handle(Request{
+		JSONRPC: "2.0",
+		ID:      json.RawMessage(`40310`),
+		Method:  "tools/call",
+		Params: mustRawMap(t, map[string]any{
+			"name": "tm_act_on_target",
+			"arguments": map[string]any{
+				"target":              target,
+				"action":              "click",
+				"expectedWindowTitle": "Calculator",
+				"expectedTargetText":  "7",
+				"focusExpectedWindow": true,
+				"previewOnly":         true,
+			},
+		}),
+	})
+	if resp.Error != nil {
+		t.Fatalf("expected no transport error, got %#v", resp.Error)
+	}
+	payload := mustJSONTextPayload(t, mustCallContent(t, mustMapResult(t, resp.Result)))
+	if payload["ok"] != true || payload["executed"] != false || payload["previewOnly"] != true || payload["focusedExpectedWindow"] != true {
+		t.Fatalf("unexpected atomic focus preview payload: %#v", payload)
+	}
+	if fake.lastFocusWindow != "Calculator" || fake.getActiveWindowCalls != 1 {
+		t.Fatalf("expected focus then active-window guard, focus=%q activeCalls=%d", fake.lastFocusWindow, fake.getActiveWindowCalls)
+	}
+	if fake.lastClickArgs != nil {
+		t.Fatalf("preview must not click, got %#v", fake.lastClickArgs)
+	}
+}
+
+func TestToolsCallActOnTargetFocusExpectedWindowFailureReturnsGuardWithoutExecuting(t *testing.T) {
+	fake := &fakeRuntime{focusWindowErr: errors.New("focus_window timed out")}
+	srv := NewServer(fake)
+	target := map[string]any{
+		"source":     "codex-visual-confirmed",
+		"text":       "7",
+		"clickPoint": map[string]any{"x": float64(1549), "y": float64(238)},
+	}
+	resp := srv.Handle(Request{
+		JSONRPC: "2.0",
+		ID:      json.RawMessage(`40311`),
+		Method:  "tools/call",
+		Params: mustRawMap(t, map[string]any{
+			"name": "tm_act_on_target",
+			"arguments": map[string]any{
+				"target":              target,
+				"action":              "click",
+				"expectedWindowTitle": "Missing Calculator",
+				"expectedTargetText":  "7",
+				"focusExpectedWindow": true,
+			},
+		}),
+	})
+	if resp.Error != nil {
+		t.Fatalf("expected focus failure to be a guard result, got tool error %#v", resp.Error)
+	}
+	payload := mustJSONTextPayload(t, mustCallContent(t, mustMapResult(t, resp.Result)))
+	if payload["ok"] != false || payload["executed"] != false || payload["guard"] != "expectedWindowTitle" {
+		t.Fatalf("unexpected focus failure guard payload: %#v", payload)
+	}
+	if payload["expectedWindowTitle"] != "Missing Calculator" || payload["focusedExpectedWindow"] != false {
+		t.Fatalf("expected failed focus identity in guard payload, got %#v", payload)
+	}
+	if payload["focusError"] != "focus_window timed out" {
+		t.Fatalf("expected structured focus error evidence, got %#v", payload)
+	}
+	if fake.lastFocusWindow != "Missing Calculator" || fake.getActiveWindowCalls != 0 {
+		t.Fatalf("expected one failed focus and no remaining guards, focus=%q activeCalls=%d", fake.lastFocusWindow, fake.getActiveWindowCalls)
+	}
+	if fake.lastClickArgs != nil {
+		t.Fatalf("focus guard failure must not click, got %#v", fake.lastClickArgs)
+	}
+}
+
 func TestToolsCallActOnTargetReturnsOkFalseWhenExpectedWindowTitleDoesNotMatch(t *testing.T) {
 	fake := &fakeRuntime{activeWindowResult: map[string]any{"title": "Slack"}}
 	srv := NewServer(fake)
@@ -1276,8 +1441,70 @@ func TestUnknownToolReturnsJSONRPCError(t *testing.T) {
 	if resp.Error == nil {
 		t.Fatal("expected error for unknown tool")
 	}
-	if resp.Error.Code != ErrCodeMethodNotFound {
+	if resp.Error.Code != ErrCodeInvalidParams {
 		t.Fatalf("unexpected error code: %#v", resp.Error)
+	}
+}
+
+func TestHandleRejectsMissingJSONRPCVersion(t *testing.T) {
+	srv := NewServer(&fakeRuntime{})
+	resp := srv.Handle(Request{ID: json.RawMessage(`"missing-version"`), Method: "ping"})
+	if resp.Error == nil || resp.Error.Code != ErrCodeInvalidRequest {
+		t.Fatalf("expected invalid request error, got %#v", resp)
+	}
+	if string(resp.ID) != `"missing-version"` {
+		t.Fatalf("expected request id to be preserved, got %s", resp.ID)
+	}
+}
+
+func TestHandleRejectsInitializedNotificationWithID(t *testing.T) {
+	srv := NewServer(&fakeRuntime{})
+	resp := srv.Handle(Request{JSONRPC: "2.0", ID: json.RawMessage(`72`), Method: "notifications/initialized"})
+	if resp.Error == nil || resp.Error.Code != ErrCodeInvalidRequest {
+		t.Fatalf("expected invalid request error, got %#v", resp)
+	}
+	if string(resp.ID) != "72" {
+		t.Fatalf("expected request id to be preserved, got %s", resp.ID)
+	}
+}
+
+func TestToolsCallValidatesArgumentsAgainstAdvertisedSchema(t *testing.T) {
+	tests := []struct {
+		name       string
+		tool       string
+		arguments  map[string]any
+		wantReason string
+	}{
+		{name: "missing required", tool: "tm_focus_window", arguments: map[string]any{}, wantReason: "arguments.title is required"},
+		{name: "invalid enum", tool: "tm_click", arguments: map[string]any{"x": 1, "y": 2, "button": "invalid"}, wantReason: "arguments.button must be one of"},
+		{name: "wrong type", tool: "tm_click", arguments: map[string]any{"x": "1", "y": 2}, wantReason: "arguments.x must be number"},
+		{name: "non integer", tool: "tm_wait_for_window", arguments: map[string]any{"title": "Calculator", "timeoutMs": 1.5}, wantReason: "arguments.timeoutMs must be integer"},
+		{name: "nested object type", tool: "tm_act_on_target", arguments: map[string]any{"target": "Calculator", "action": "focus"}, wantReason: "arguments.target must be object"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fake := &fakeRuntime{}
+			srv := NewServer(fake)
+			resp := srv.Handle(Request{
+				JSONRPC: "2.0",
+				ID:      json.RawMessage(`71`),
+				Method:  "tools/call",
+				Params: mustRawMap(t, map[string]any{
+					"name":      tt.tool,
+					"arguments": tt.arguments,
+				}),
+			})
+			if resp.Error == nil || resp.Error.Code != ErrCodeInvalidParams {
+				t.Fatalf("expected invalid params error, got %#v", resp)
+			}
+			if !strings.Contains(resp.Error.Message, tt.wantReason) {
+				t.Fatalf("expected error containing %q, got %#v", tt.wantReason, resp.Error)
+			}
+			if fake.lastClickArgs != nil || fake.lastFocusWindow != "" {
+				t.Fatalf("expected invalid arguments to be rejected before runtime dispatch: %#v", fake)
+			}
+		})
 	}
 }
 
@@ -1301,10 +1528,64 @@ func TestServeStreamProcessesJSONRPCLines(t *testing.T) {
 	}
 }
 
+func TestServeStreamDoesNotRespondToNotifications(t *testing.T) {
+	srv := NewServer(&fakeRuntime{})
+	input := strings.NewReader(strings.Join([]string{
+		`{"jsonrpc":"2.0","method":"notifications/initialized"}`,
+		`{"jsonrpc":"2.0","method":"notifications/unknown"}`,
+	}, "\n") + "\n")
+	var output bytes.Buffer
+	if err := srv.ServeStream(input, &output); err != nil {
+		t.Fatalf("ServeStream returned error: %v", err)
+	}
+	if output.Len() != 0 {
+		t.Fatalf("expected notifications to produce no stdout, got %q", output.String())
+	}
+}
+
+func TestServeStreamParseErrorIncludesNullID(t *testing.T) {
+	srv := NewServer(&fakeRuntime{})
+	var output bytes.Buffer
+	if err := srv.ServeStream(strings.NewReader("not-json\n"), &output); err != nil {
+		t.Fatalf("ServeStream returned error: %v", err)
+	}
+	var response map[string]any
+	if err := json.Unmarshal(bytes.TrimSpace(output.Bytes()), &response); err != nil {
+		t.Fatalf("unmarshal parse error response: %v; output=%s", err, output.String())
+	}
+	id, exists := response["id"]
+	if !exists || id != nil {
+		t.Fatalf("expected explicit id:null, got %#v", response)
+	}
+	errorValue, ok := response["error"].(map[string]any)
+	if !ok || errorValue["code"] != float64(ErrCodeParseError) {
+		t.Fatalf("expected parse error response, got %#v", response)
+	}
+}
+
+func TestServeStreamRejectsMissingJSONRPCVersion(t *testing.T) {
+	srv := NewServer(&fakeRuntime{})
+	var output bytes.Buffer
+	if err := srv.ServeStream(strings.NewReader(`{"id":"missing-version","method":"ping"}`+"\n"), &output); err != nil {
+		t.Fatalf("ServeStream returned error: %v", err)
+	}
+	var response Response
+	if err := json.Unmarshal(bytes.TrimSpace(output.Bytes()), &response); err != nil {
+		t.Fatalf("unmarshal invalid request response: %v; output=%s", err, output.String())
+	}
+	if response.Error == nil || response.Error.Code != ErrCodeInvalidRequest {
+		t.Fatalf("expected invalid request response, got %#v", response)
+	}
+	if string(response.ID) != `"missing-version"` {
+		t.Fatalf("expected request id to be preserved, got %s", response.ID)
+	}
+}
+
 func TestServeStreamSmokeInitializeListAndCall(t *testing.T) {
 	srv := NewServer(&fakeRuntime{statusResult: map[string]any{"status": "ok"}, ocrResult: map[string]any{"text": "ready", "lines": []any{map[string]any{"text": "ready"}}}})
 	input := strings.NewReader(strings.Join([]string{
 		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05"}}`,
+		`{"jsonrpc":"2.0","method":"notifications/initialized"}`,
 		`{"jsonrpc":"2.0","id":2,"method":"tools/list"}`,
 		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"tm_status","arguments":{}}}`,
 		`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"tm_wait_for_text","arguments":{"target_text":"ready","timeoutMs":1}}}`,
@@ -1406,8 +1687,8 @@ func TestToolsCallFindTargetStrategyLayoutSkipsOCRAndDetectUI(t *testing.T) {
 
 func TestToolsCallFindTargetStrategyLayoutAcceptsTypedRegionSlices(t *testing.T) {
 	fake := &fakeRuntime{analyzeLayoutResult: map[string]any{"regions": []map[string]any{{
-		"id":    "r1",
-		"label": "Region 17",
+		"id":     "r1",
+		"label":  "Region 17",
 		"bounds": map[string]any{"x": float64(10), "y": float64(20), "width": float64(80), "height": float64(40)},
 	}}}}
 	srv := NewServer(fake)

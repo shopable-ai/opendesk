@@ -237,7 +237,7 @@ Canonical action request shape:
     "bbox": { "x": 380, "y": 724, "width": 860, "height": 112 }
   },
   "payload": {
-    "text": "hello from clawdesk"
+    "text": "hello from opendesk"
   },
   "preconditions": [
     "window_frontmost",
@@ -277,7 +277,7 @@ Verification request:
   "verificationId": "verify_draft",
   "scope": "input_panel",
   "expected": {
-    "containsText": "hello from clawdesk"
+    "containsText": "hello from opendesk"
   },
   "strategy": {
     "kind": "ocr",
@@ -295,7 +295,7 @@ Verification result:
   "ok": true,
   "source": "ocr",
   "matchType": "contains",
-  "observedText": "hello from clawdesk",
+  "observedText": "hello from opendesk",
   "confidence": 0.93,
   "artifacts": {
     "shotPath": ".runtime/temp/mac/verify/draft-shot.png"

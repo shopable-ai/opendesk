@@ -30,7 +30,7 @@ func main() {
 	targetApp := flag.String("target-app", "System Events", "Automation target app name")
 	openSettings := flag.Bool("open-settings", true, "Open System Settings privacy pages before triggering prompts")
 	keepAlive := flag.Duration("keepalive", 90*time.Second, "Keep the helper app alive after triggering prompts")
-	logPath := flag.String("log-file", filepath.Join(os.TempDir(), "clawdesk-permission-bootstrap.log"), "File to append helper logs")
+	logPath := flag.String("log-file", filepath.Join(os.TempDir(), "opendesk-permission-bootstrap.log"), "File to append helper logs")
 	flag.Parse()
 
 	logger, closeLogger, err := newLogger(*logPath)
@@ -120,7 +120,7 @@ func openPrivacySettings(section string, logger *logWriter) error {
 }
 
 func launchScreenCaptureProbe(logger *logWriter) launchResult {
-	output := filepath.Join(os.TempDir(), fmt.Sprintf("clawdesk-permission-probe-%d.png", time.Now().UnixNano()))
+	output := filepath.Join(os.TempDir(), fmt.Sprintf("opendesk-permission-probe-%d.png", time.Now().UnixNano()))
 	cmd := exec.Command("/usr/sbin/screencapture", "-x", output)
 	return startAndWatch("screenCapture", cmd, logger, func() {
 		_ = os.Remove(output)

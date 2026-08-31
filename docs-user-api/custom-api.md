@@ -1,6 +1,6 @@
 ---
 title: 自定义 JavaScript API
-description: 使用 Clawdesk 已有公开 JavaScript API 组合自己的辅助接口、业务封装和 Polyfill。
+description: 使用 OpenDesk 已有公开 JavaScript API 组合自己的辅助接口、业务封装和 Polyfill。
 order: 15
 ---
 
@@ -8,7 +8,7 @@ order: 15
 
 本页只讨论一种最安全、最容易维护的扩展方式：
 
-> **不修改 Go Runtime，只使用 Clawdesk 已有公开 JavaScript API，组合出自己的接口。**
+> **不修改 Go Runtime，只使用 OpenDesk 已有公开 JavaScript API，组合出自己的接口。**
 
 适合脚本作者、自动化使用者和 Agent 开发者。
 
@@ -85,9 +85,9 @@ const exists = workspace.exists('./data.json');
 polyfills/900-workspace.js
 ```
 
-但这只是当前实现下的兼容方式，不代表 Clawdesk 已经具有正式的 User Extension / Project Extension 插件系统。
+但这只是当前实现下的兼容方式，不代表 OpenDesk 已经具有正式的 User Extension / Project Extension 插件系统。
 
-**重要：当前 Clawdesk 还没有独立的 User / Project Extension 合并加载机制。**
+**重要：当前 OpenDesk 还没有独立的 User / Project Extension 合并加载机制。**
 
 运行时会从可执行文件目录和当前工作目录向上寻找一个可用的 `polyfills/` 目录，并使用找到的目录。因此不要随意创建一个只包含单个自定义文件的不完整 `polyfills/` 目录，否则可能遮蔽完整的 Runtime Polyfill 资源。
 
@@ -218,7 +218,7 @@ url-search-params.js
 ```js
 (function (global) {
   if (!global.window || !global.page) {
-    throw new Error('[desktopHelper] required Clawdesk APIs are unavailable');
+    throw new Error('[desktopHelper] required OpenDesk APIs are unavailable');
   }
 
   const desktopHelper = {
@@ -250,7 +250,7 @@ browser____Inject
 context____Inject
 ```
 
-这类名称属于运行时内部桥接面，主要用于 Clawdesk 自己的 Polyfill / facade 构造。
+这类名称属于运行时内部桥接面，主要用于 OpenDesk 自己的 Polyfill / facade 构造。
 
 用户扩展应优先依赖已经公开的：
 
@@ -338,7 +338,7 @@ const custom = {
 
 不要因为外层函数写成 `async`，就假设一个同步、阻塞的底层原生调用自动变成后台任务。
 
-长时间任务应优先使用 Clawdesk 已有执行、HTTP 或 MCP 能力，而不是在一个 helper 中无限阻塞。
+长时间任务应优先使用 OpenDesk 已有执行、HTTP 或 MCP 能力，而不是在一个 helper 中无限阻塞。
 
 ## 编辑器类型提示
 
@@ -385,7 +385,7 @@ declare const workspace: WorkspaceAPI;
 - 对性能、实时性或内存复制有原生级要求。
 - 需要修改 goja Runtime 的注入和生命周期。
 - 需要新的权限模型或安全边界。
-- 需要把能力正式加入 Clawdesk 核心并跨 CLI / HTTP / MCP 保持一致。
+- 需要把能力正式加入 OpenDesk 核心并跨 CLI / HTTP / MCP 保持一致。
 
 这时属于 **Native / Runtime Extension**，而不是普通用户 JavaScript 自定义。
 
@@ -400,7 +400,7 @@ declare const workspace: WorkspaceAPI;
 已有能力可以通过独立服务提供？
 → 可以：优先通过 HTTP / MCP 外置扩展
 
-必须修改 Clawdesk Go Runtime？
+必须修改 OpenDesk Go Runtime？
 → 当前需要源码权限、重新构建和运行时级测试
 
 只有二进制发行版或没有源码权限？
@@ -410,12 +410,12 @@ declare const workspace: WorkspaceAPI;
 
 ### HTTP / MCP 外置扩展
 
-如果能力已经存在于 Python、Node.js、模型服务、数据库服务或公司内部系统中，通常没必要编译进 Clawdesk。
+如果能力已经存在于 Python、Node.js、模型服务、数据库服务或公司内部系统中，通常没必要编译进 OpenDesk。
 
 可以采用：
 
 ```text
-Clawdesk JavaScript
+OpenDesk JavaScript
 → http / axios 或 MCP
 → 外部服务
 → 返回结构化结果
@@ -425,19 +425,19 @@ Clawdesk JavaScript
 
 ### 源码级 Go 扩展
 
-如果你拥有对应源码和构建权限，可以由 Clawdesk 维护者按项目的 Runtime API 扩展框架增加原生能力。
+如果你拥有对应源码和构建权限，可以由 OpenDesk 维护者按项目的 Runtime API 扩展框架增加原生能力。
 
 源码级扩展不是本页的普通用户 API 范围，也不建议业务脚本直接依赖内部 Go bridge 名称。
 
 ### 无核心源码的 Native 扩展
 
-当前 Clawdesk 尚未提供稳定的第三方 Native Extension ABI。
+当前 OpenDesk 尚未提供稳定的第三方 Native Extension ABI。
 
-长期计划会评估让用户只拿到 Extension SDK / ABI，而不需要获得 Clawdesk 核心源码，即可使用 Go、Rust、C/C++ 等语言开发编译后的扩展。具体候选包括独立进程扩展协议、WebAssembly 以及受信任的共享库 C ABI；这些方案需要先稳定版本、生命周期、错误、安全和兼容契约，因此当前不能当作已经存在的产品能力。
+长期计划会评估让用户只拿到 Extension SDK / ABI，而不需要获得 OpenDesk 核心源码，即可使用 Go、Rust、C/C++ 等语言开发编译后的扩展。具体候选包括独立进程扩展协议、WebAssembly 以及受信任的共享库 C ABI；这些方案需要先稳定版本、生命周期、错误、安全和兼容契约，因此当前不能当作已经存在的产品能力。
 
 ### 联系作者 / 维护者定制
 
-如果你拿到的是二进制版本、没有源码权限，或者希望得到正式支持的原生能力，可以联系 Clawdesk 项目作者 / 维护者提出定制需求。
+如果你拿到的是二进制版本、没有源码权限，或者希望得到正式支持的原生能力，可以联系 OpenDesk 项目作者 / 维护者提出定制需求。
 
 适合定制的典型需求包括：
 
@@ -478,7 +478,7 @@ SUPPORT.md
 - `runtime.md`：Runtime 注入与 stack。
 - `polyfills.md`：当前 Polyfill 加载和已有增强能力。
 - `http.md`：脚本内 HTTP 调用。
-- `http-server.md`：从外部触发 Clawdesk。
+- `http-server.md`：从外部触发 OpenDesk。
 - `cookbook.md`：脚本组合示例。
 - `../docs/plans/runtime/runtime-extension-roadmap.md`：未来 User / Project Extension、Embedded JS 与 Native Extension SDK 路线计划。
 - `../SUPPORT.md`：统一支持与商业定制入口。

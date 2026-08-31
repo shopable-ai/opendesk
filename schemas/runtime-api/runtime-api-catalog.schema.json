@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://clawdesk.dev/schemas/runtime-api/runtime-api-catalog.schema.json",
-  "title": "Clawdesk JavaScript Runtime API Catalog",
+  "$id": "https://opendesk.dev/schemas/runtime-api/runtime-api-catalog.schema.json",
+  "title": "OpenDesk JavaScript Runtime API Catalog",
   "type": "object",
   "required": ["schemaVersion", "catalogVersion", "entries"],
   "properties": {

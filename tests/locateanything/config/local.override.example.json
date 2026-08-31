@@ -2,7 +2,7 @@
   "serviceUrl": "http://teaderMac.local:18777",
   "workflowLane": "L50",
   "targetChatName": "哔哩会员",
-  "replyMessage": "LocateAnything staged send check from clawdesk controller.",
+  "replyMessage": "LocateAnything staged send check from opendesk controller.",
   "enableSend": true,
   "sendGuardMode": "strict",
   "requestTimeoutMs": 20000,

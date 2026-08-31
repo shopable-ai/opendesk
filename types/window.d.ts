@@ -1,7 +1,7 @@
 export {};
 
 declare global {
-  interface ClawdeskWindowInfo {
+  interface OpenDeskWindowInfo {
     title: string;
     pid?: number;
     processID?: number;
@@ -18,10 +18,10 @@ declare global {
     index: number;
   }
 
-  interface ClawdeskWindowManager {
-    getActiveWindow(): Promise<ClawdeskWindowInfo>;
-    getWindowByTitle(title: string): Promise<ClawdeskWindowInfo>;
-    getFocusWindow(): ClawdeskWindowInfo | null;
+  interface OpenDeskWindowManager {
+    getActiveWindow(): Promise<OpenDeskWindowInfo>;
+    getWindowByTitle(title: string): Promise<OpenDeskWindowInfo>;
+    getFocusWindow(): OpenDeskWindowInfo | null;
     focus(title: string): void;
     setWindowBounds(title: string, x: number, y: number, width: number, height: number): void;
     setWidth(title: string, width: number): void;
@@ -46,5 +46,5 @@ declare global {
     js_beautify(source: string, options?: Record<string, unknown>): string;
   }
 
-  var window: ClawdeskWindowManager;
+  var window: OpenDeskWindowManager;
 }

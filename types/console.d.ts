@@ -1,7 +1,7 @@
 export {};
 
 declare global {
-  interface ClawdeskConsole {
+  interface OpenDeskConsole {
     log(...args: unknown[]): void;
     info(...args: unknown[]): void;
     warn(...args: unknown[]): void;
@@ -15,5 +15,5 @@ declare global {
     clear(): void;
   }
 
-  var console: ClawdeskConsole;
+  var console: OpenDeskConsole;
 }

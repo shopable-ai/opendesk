@@ -1,10 +1,10 @@
-# Clawdesk 项目文档
+# OpenDesk 项目文档
 
-`docs/` 是 Clawdesk 的**项目与工程文档根目录**。本目录已经完成 2026-08 文档结构收敛：根目录不再平铺专题、阶段报告、Prompt 或版本化草稿。
+`docs/` 是 OpenDesk 的**项目与工程文档根目录**。本目录已经完成 2026-08 文档结构收敛：根目录不再平铺专题、阶段报告、Prompt 或版本化草稿。
 
 ## 文档权威边界
 
-Clawdesk 当前保留两类正式文档根：
+OpenDesk 当前保留两类正式文档根：
 
 - `docs/`：项目、核心框架、架构、实现、质量、集成、场景、研究、计划和仓库治理。
 - `docs-user-api/`：**唯一用户 API 文档根目录**，包括脚本/runtime API、HTTP API、示例、编辑器类型说明和机器可读 API 索引。
@@ -24,14 +24,14 @@ docs/api/
 桌面自动化相关开发优先阅读：
 
 1. [`frameworks/automation-framework.md`](frameworks/automation-framework.md)：**自动化总体框架**，定义从底层驱动、感知识别、目标定位、可验证动作到 Skill、Workflow、Agent / Supervisor 的总体分层与执行闭环。
-2. [`frameworks/capability-development.md`](frameworks/capability-development.md)：**能力开发与成熟度路径**，定义 Clawdesk 从底层动作、HTML Benchmark、系统应用到复杂应用和自主 Agent 的逐级开发顺序。
+2. [`frameworks/capability-development.md`](frameworks/capability-development.md)：**能力开发与成熟度路径**，定义 OpenDesk 从底层动作、HTML Benchmark、系统应用到复杂应用和自主 Agent 的逐级开发顺序。
 3. [`frameworks/app-development-framework.md`](frameworks/app-development-framework.md)：**应用自动化开发框架**，定义新增微信、千牛、计算器等具体应用时，从窗口、状态、区域、Locator 到 Skill、Workflow 和测试 Evidence 的标准方法。
 
 三者分别回答：
 
 ```text
 自动化系统整体怎么设计？
-Clawdesk 自身怎么从简单做到复杂？
+OpenDesk 自身怎么从简单做到复杂？
 一个具体应用应该怎么分析和开发？
 ```
 
@@ -66,7 +66,7 @@ docs/
 
 ### `frameworks/`
 
-Clawdesk 长期使用的核心开发框架，是桌面自动化开发的重要入口。
+OpenDesk 长期使用的核心开发框架，是桌面自动化开发的重要入口。
 
 当前核心文件：
 

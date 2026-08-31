@@ -1,7 +1,7 @@
 export {};
 
 declare global {
-  interface ClawdeskDisplayInfo {
+  interface OpenDeskDisplayInfo {
     index: number;
     id: string;
     isPrimary: boolean;
@@ -14,14 +14,14 @@ declare global {
     scale: number;
   }
 
-  interface ClawdeskScreenClip {
+  interface OpenDeskScreenClip {
     x: number;
     y: number;
     width: number;
     height: number;
   }
 
-  interface ClawdeskScreenshotResult {
+  interface OpenDeskScreenshotResult {
     path: string;
     mimeType: string;
     width: number;
@@ -31,17 +31,17 @@ declare global {
     backend: string;
   }
 
-  interface ClawdeskScreen {
+  interface OpenDeskScreen {
     getWidth(): number;
     getHeight(): number;
-    getDisplays(): ClawdeskDisplayInfo[];
-    getPrimaryDisplay(): ClawdeskDisplayInfo | null;
-    getDisplay(index: number): ClawdeskDisplayInfo | null;
-    getVirtualBounds(): ClawdeskScreenClip;
+    getDisplays(): OpenDeskDisplayInfo[];
+    getPrimaryDisplay(): OpenDeskDisplayInfo | null;
+    getDisplay(index: number): OpenDeskDisplayInfo | null;
+    getVirtualBounds(): OpenDeskScreenClip;
     pixel(x: number, y: number): string;
-    pixels(points: (ClawdeskPoint | [number, number])[], scaled?: boolean): string[];
-    screenshot(options?: ClawdeskPageScreenshotOptions): Promise<string | ArrayBuffer | ClawdeskScreenshotResult | null>;
+    pixels(points: (OpenDeskPoint | [number, number])[], scaled?: boolean): string[];
+    screenshot(options?: OpenDeskPageScreenshotOptions): Promise<string | ArrayBuffer | OpenDeskScreenshotResult | null>;
   }
 
-  var Screen: ClawdeskScreen;
+  var Screen: OpenDeskScreen;
 }

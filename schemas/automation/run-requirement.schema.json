@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://clawdesk.dev/schemas/automation/run-requirement.schema.json",
+  "$id": "https://opendesk.dev/schemas/automation/run-requirement.schema.json",
   "title": "RunRequirement",
   "type": "object",
   "required": [

@@ -25,10 +25,10 @@ for generated_file in new.txt screenshot_cut.png test.png test.txt testMonkey.ex
 done
 
 if [[ -e main.go ]]; then
-  fail "primary command entrypoint must live at cmd/clawdesk/main.go"
+  fail "primary command entrypoint must live at cmd/opendesk/main.go"
 fi
-if [[ ! -f cmd/clawdesk/main.go ]]; then
-  fail "missing primary command entrypoint: cmd/clawdesk/main.go"
+if [[ ! -f cmd/opendesk/main.go ]]; then
+  fail "missing primary command entrypoint: cmd/opendesk/main.go"
 fi
 while IFS= read -r file; do
   [[ -n "${file}" ]] && fail "root Go test must move with its package: ${file}"

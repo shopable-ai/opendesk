@@ -1,7 +1,7 @@
 export {};
 
 declare global {
-  interface ClawdeskKeyboard {
+  interface OpenDeskKeyboard {
     type(text: string): void;
     press(key: string): void;
     down(key: string): void;
@@ -9,5 +9,5 @@ declare global {
     combination(...keys: string[]): void;
   }
 
-  var keyboard: ClawdeskKeyboard;
+  var keyboard: OpenDeskKeyboard;
 }

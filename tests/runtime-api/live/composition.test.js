@@ -133,7 +133,7 @@
       const evidence = {
         schemaVersion: '1.0.0',
         manifest: {
-          kind: 'Clawdesk JavaScript Runtime API Conformance Lab composition',
+          kind: 'OpenDesk JavaScript Runtime API Conformance Lab composition',
           flow: ['open fixture', 'read geometry', 'move/getPos', 'name input', 'command input', 'primary success', 'purple swatch', 'counter=2', 'Screen.pixel', 'region screenshot'],
           window: originalWindow,
           viewport: finalState.telemetry.viewport,

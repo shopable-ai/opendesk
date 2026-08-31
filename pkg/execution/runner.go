@@ -1,7 +1,7 @@
 package execution
 
 import (
-	"clawdesk/automation"
+	"opendesk/automation"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -228,7 +228,7 @@ func runJavaScript(req Request, emitter *Emitter) error {
 				// ending the execution; the execution context still bounds the wait.
 				loop.SetTimeout(func(*goja.Runtime) { checkDone() }, time.Millisecond)
 			}
-			if err := rt.Set("__clawdeskComplete", func(call goja.FunctionCall) goja.Value {
+			if err := rt.Set("__opendeskComplete", func(call goja.FunctionCall) goja.Value {
 				scriptErr = toScriptError(call.Argument(0))
 				scriptDone = true
 				checkDone()
@@ -329,7 +329,7 @@ func wrapJavaScript(source []byte) string {
 		globalThis.__scriptError = "";
 		Promise.resolve().then(async function () {
 			try {
-				await (async function __clawdeskUserScript() {
+				await (async function __opendeskUserScript() {
 %s
 				})();
 				console.log("script execution completed successfully");
@@ -337,7 +337,7 @@ func wrapJavaScript(source []byte) string {
 				console.error(err && err.message ? err.message : err);
 				globalThis.__scriptError = String(err && (err.stack || err.message) || err);
 			} finally {
-				globalThis.__clawdeskComplete(globalThis.__scriptError);
+				globalThis.__opendeskComplete(globalThis.__scriptError);
 			}
 		});
 	`, string(source))

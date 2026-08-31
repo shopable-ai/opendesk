@@ -73,7 +73,7 @@ func writeVisionTempImage(imageBase64 string) (string, func(), error) {
 		return "", nil, fmt.Errorf("failed to decode image base64: %w", err)
 	}
 
-	tmp, err := os.CreateTemp("", "clawdesk-vision-*.png")
+	tmp, err := os.CreateTemp("", "opendesk-vision-*.png")
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to create temp image: %w", err)
 	}

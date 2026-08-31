@@ -7,12 +7,12 @@ set -e
 
 ROOT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT_DIR"
-CLAWDESK_BINARY="${CLAWDESK_BINARY:-$ROOT_DIR/dist/clawdesk}"
+OPENDESK_BINARY="${OPENDESK_BINARY:-$ROOT_DIR/dist/opendesk}"
 
-if [[ ! -x "$CLAWDESK_BINARY" ]]; then
-    echo "构建 Clawdesk -> $CLAWDESK_BINARY"
-    mkdir -p "$(dirname "$CLAWDESK_BINARY")"
-    go build -o "$CLAWDESK_BINARY" ./cmd/clawdesk
+if [[ ! -x "$OPENDESK_BINARY" ]]; then
+    echo "构建 OpenDesk -> $OPENDESK_BINARY"
+    mkdir -p "$(dirname "$OPENDESK_BINARY")"
+    go build -o "$OPENDESK_BINARY" ./cmd/opendesk
 fi
 
 mkdir -p .runtime/tests/wechat
@@ -36,11 +36,11 @@ echo "步骤 2: 运行检测并生成可视化..."
 
 # 2.1 简化图片测试
 echo "  2.1 测试简化图片"
-"$CLAWDESK_BINARY" -script tests/wechat/run_and_visualize.js simple
+"$OPENDESK_BINARY" -script tests/wechat/run_and_visualize.js simple
 
 # 2.2 复杂图片测试
 echo "  2.2 测试复杂图片"
-"$CLAWDESK_BINARY" -script tests/wechat/run_and_visualize.js complex
+"$OPENDESK_BINARY" -script tests/wechat/run_and_visualize.js complex
 
 # 步骤 3: 显示结果
 echo ""

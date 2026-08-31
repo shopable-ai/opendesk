@@ -703,8 +703,8 @@ func (p *Page) wrapScreenshotCaptureError(cause error, x, y, width, height int, 
 	return fmt.Errorf(
 		"%s; macOS permission check failed (screenCapture=%t accessibility=%t). "+
 			"screenCaptureError=%q accessibilityError=%q. "+
-			"Run `go run ./cmd/clawdesk -script examples/mac/open-permission-settings.js`, "+
-			"then retry from `dist/Clawdesk.app` or `dist/clawdesk` with a stable app identity",
+			"Run `go run ./cmd/opendesk -script examples/mac/open-permission-settings.js`, "+
+			"then retry from `dist/OpenDesk.app` or `dist/opendesk` with a stable app identity",
 		baseMessage, screenCapture, accessibility, screenErr, axErr,
 	)
 }
@@ -742,8 +742,8 @@ func (p *Page) CheckScreenshotPermissions() map[string]interface{} {
 	report["automation"] = "requires runtime AppleEvents trigger"
 	report["ok"] = okScreen && okAX
 	report["guideScript"] = "examples/mac/open-permission-settings.js"
-	report["stableRunner"] = "dist/Clawdesk.app"
-	report["permissionHostHint"] = "For stable macOS TCC identity, launch Clawdesk.app directly. Shell-hosted runs may appear as Terminal, iTerm, or sshd-keygen-wrapper."
+	report["stableRunner"] = "dist/OpenDesk.app"
+	report["permissionHostHint"] = "For stable macOS TCC identity, launch OpenDesk.app directly. Shell-hosted runs may appear as Terminal, iTerm, or sshd-keygen-wrapper."
 	if !okScreen && msgScreen != "" {
 		report["screenCaptureError"] = msgScreen
 	}
@@ -985,7 +985,7 @@ func (p *Page) RequestMacAutomationPermission(targetApp string) map[string]inter
 	}
 
 	report["targetApp"] = target
-	report["hostHint"] = "Launch Clawdesk.app directly if the popup shows a host identity such as Terminal, iTerm, or sshd-keygen-wrapper."
+	report["hostHint"] = "Launch OpenDesk.app directly if the popup shows a host identity such as Terminal, iTerm, or sshd-keygen-wrapper."
 
 	launch, err := launchMacAutomationPromptHelper(target)
 	if err != nil {

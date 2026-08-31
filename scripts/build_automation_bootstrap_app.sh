@@ -4,7 +4,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BOOTSTRAP_ROOT="${ROOT_DIR}/.runtime/bootstrap/macos-permission-bootstrap"
-APP_ROOT="${BOOTSTRAP_ROOT}/Clawdesk Automation.app"
+APP_ROOT="${BOOTSTRAP_ROOT}/OpenDesk Automation.app"
 SCRIPT_FILE="${BOOTSTRAP_ROOT}/automation-bootstrap.applescript"
 PLIST_PATH="${APP_ROOT}/Contents/Info.plist"
 
@@ -31,9 +31,9 @@ end run
 EOF
 
 osacompile -o "${APP_ROOT}" "${SCRIPT_FILE}"
-/usr/libexec/PlistBuddy -c 'Add :CFBundleIdentifier string com.clawdesk.cli' "${PLIST_PATH}" || /usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier com.clawdesk.cli' "${PLIST_PATH}"
-/usr/libexec/PlistBuddy -c 'Add :CFBundleDisplayName string Clawdesk' "${PLIST_PATH}" || /usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName Clawdesk' "${PLIST_PATH}"
-/usr/libexec/PlistBuddy -c 'Set :CFBundleName Clawdesk' "${PLIST_PATH}" || true
+/usr/libexec/PlistBuddy -c 'Add :CFBundleIdentifier string com.opendesk.cli' "${PLIST_PATH}" || /usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier com.opendesk.cli' "${PLIST_PATH}"
+/usr/libexec/PlistBuddy -c 'Add :CFBundleDisplayName string OpenDesk' "${PLIST_PATH}" || /usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName OpenDesk' "${PLIST_PATH}"
+/usr/libexec/PlistBuddy -c 'Set :CFBundleName OpenDesk' "${PLIST_PATH}" || true
 codesign --force --deep --sign - "${APP_ROOT}" >/dev/null
 
 printf 'Built automation helper app: %s\n' "${APP_ROOT}"

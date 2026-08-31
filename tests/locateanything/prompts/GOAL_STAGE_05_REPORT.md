@@ -1,7 +1,7 @@
 执行：
 
 ```bash
-cd /Users/mac/Documents/workspace/clawdesk
+cd /Users/mac/Documents/workspace/opendesk
 python3 tests/locateanything/scripts/run_stage_05_report.py
 ```
 

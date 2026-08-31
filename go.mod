@@ -1,4 +1,4 @@
-module clawdesk
+module opendesk
 
 go 1.25.0
 

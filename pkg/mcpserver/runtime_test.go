@@ -13,6 +13,20 @@ func TestNormalizeVisionArgsPrefersImageBytesAsBase64(t *testing.T) {
 	}
 }
 
+func TestNormalizeVisionArgsMapsMCPExternalTargetTextToRuntimeOption(t *testing.T) {
+	args := normalizeVisionArgs(map[string]any{"target_text": "发送"})
+	if got := args["targetText"]; got != "发送" {
+		t.Fatalf("expected target_text to map to runtime targetText, got %#v", args)
+	}
+}
+
+func TestNormalizeVisionArgsPreservesExplicitRuntimeTargetText(t *testing.T) {
+	args := normalizeVisionArgs(map[string]any{"target_text": "external", "targetText": "runtime"})
+	if got := args["targetText"]; got != "runtime" {
+		t.Fatalf("expected explicit targetText to win, got %#v", args)
+	}
+}
+
 func TestSplitKeyChordSupportsCommaAndPlus(t *testing.T) {
 	parts := splitKeyChord("cmd,shift+p")
 	if len(parts) != 3 || parts[0] != "cmd" || parts[1] != "shift" || parts[2] != "p" {

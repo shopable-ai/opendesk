@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://clawdesk.dev/schemas/automation/semantic-model.schema.json",
+  "$id": "https://opendesk.dev/schemas/automation/semantic-model.schema.json",
   "title": "SemanticModel",
   "type": "object",
   "required": [

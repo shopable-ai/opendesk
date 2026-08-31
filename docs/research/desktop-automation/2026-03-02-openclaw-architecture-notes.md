@@ -79,7 +79,7 @@
 ## 3. 对 testMonkey-go 的可复用映射
 
 ### 3.1 当前问题（摘录）
-- 入口层耦合：`cmd/clawdesk/main.go` 同时处理运行时初始化、HTTP、脚本执行和状态。
+- 入口层耦合：`cmd/opendesk/main.go` 同时处理运行时初始化、HTTP、脚本执行和状态。
 - 全局状态：`jsRuntime` 与 `scriptStatus` 共享，天然不利于并发。
 - 重复实现：timer 与 HTTP 模块存在双轨实现。
 - 缺少契约：tool schema 与 d.ts/Go 实现缺少自动同步机制。

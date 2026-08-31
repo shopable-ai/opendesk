@@ -1,6 +1,6 @@
-# Clawdesk Blogs
+# OpenDesk Blogs
 
-`blogs/` 用于保存面向外部传播的文章草稿与已发布内容，不作为 Clawdesk 当前能力、架构或实现的 Source of Truth。
+`blogs/` 用于保存面向外部传播的文章草稿与已发布内容，不作为 OpenDesk 当前能力、架构或实现的 Source of Truth。
 
 正式工程事实仍以当前源码、测试、Evidence 与 `docs/` / `docs-user-api/` 对应正式文档为准。
 
@@ -36,7 +36,7 @@ blogs/
 
 ## “否定型 Blog”
 
-Clawdesk 很适合保留一类“为什么现在不做 X”的文章。
+OpenDesk 很适合保留一类“为什么现在不做 X”的文章。
 
 它们不是为了否定技术本身，而是说明：
 
@@ -59,7 +59,7 @@ Clawdesk 很适合保留一类“为什么现在不做 X”的文章。
 当前示例：
 
 ```text
-drafts/why-clawdesk-does-not-add-lua-yet.md
+drafts/why-opendesk-does-not-add-lua-yet.md
 ```
 
 ## 与工程文档的边界

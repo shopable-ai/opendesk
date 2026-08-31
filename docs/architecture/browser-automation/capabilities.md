@@ -32,7 +32,7 @@
 | Browser / Context containers | `browser`, `context`; `newPage/newContext/pages/contexts` | Go 中维护 in-memory Browser/Context/Page ownership | E3 | `automation/browser.go`; `types/browser.d.ts`; `automation/utils.go` | 不代表 browser process、incognito context 或 tab protocol | 为 ownership/lifecycle 补 focused unit tests |
 | cookies | `context.cookies/setCookies/clearCookies` | in-memory map slice | E3 | `automation/browser.go`; `types/browser.d.ts` | 不连接真实浏览器 cookie jar | 若要真实 session，需要 runtime adapter |
 | storage | `context.storage/...` | in-memory key/value store | E3 | `automation/browser.go`; `types/browser.d.ts` | 不等于 localStorage/sessionStorage | 保持命名边界或未来重命名避免歧义 |
-| session | `context.session/...` | in-memory key/value store | E3 | `automation/browser.go`; `types/browser.d.ts` | 不等于浏览器 network/session protocol | 仅作为 Clawdesk context state 使用 |
+| session | `context.session/...` | in-memory key/value store | E3 | `automation/browser.go`; `types/browser.d.ts` | 不等于浏览器 network/session protocol | 仅作为 OpenDesk context state 使用 |
 | lifecycle | `newPage/newContext/close/isClosed` on Browser/Context | Go container 有 closed state；closed 后拒绝创建 page/context | E3 | `automation/browser.go`; `types/browser.d.ts` | `Page` 没有独立 close/isClosed contract | 补 Browser/Context lifecycle unit tests |
 | HTTP stack request | `/executions` stack field | HTTP handler 接受 stack 并传给 execution request | E4 | `pkg/http/handler_test.go`; `pkg/execution/runner.go` | 证明 request routing，不证明 upgraded/playwright semantics | 保留 handler tests；以后 T2/T3 要另建 fixture |
 | Playwright namespace / launch | none | 当前 tree 未找到 `playwright.chromium.launch()` 实现 | E0 | — | 不存在 Playwright runtime shim 的当前证据 | 删除/降级历史 Claim；有真实需求再设计 |
@@ -42,7 +42,7 @@
 
 当前 Browser Automation 更准确的描述是：
 
-> Clawdesk 拥有桌面级 `page`、输入与截图能力，以及内存中的 Browser/Context/Page 容器；execution/HTTP 接受 `legacy/upgraded/playwright` stack 名称，但 upgraded/playwright 当前没有独立 facade/runtime 实现。
+> OpenDesk 拥有桌面级 `page`、输入与截图能力，以及内存中的 Browser/Context/Page 容器；execution/HTTP 接受 `legacy/upgraded/playwright` stack 名称，但 upgraded/playwright 当前没有独立 facade/runtime 实现。
 
 因此当前禁止使用以下完成性措辞：
 

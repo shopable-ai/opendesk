@@ -10,10 +10,12 @@ import (
 )
 
 const (
-	appStorageRootDir         = ".clawdesk"
-	appStorageDefaultName     = "clawdesk"
-	legacyAppStorageRootDir   = ".testmonkey"
-	legacyAppStorageDefaultID = "testMonkey"
+	appStorageRootDir             = ".opendesk"
+	appStorageDefaultName         = "opendesk"
+	previousAppStorageRootDir     = ".clawdesk"
+	previousAppStorageDefaultName = "clawdesk"
+	legacyAppStorageRootDir       = ".testmonkey"
+	legacyAppStorageDefaultName   = "testMonkey"
 )
 
 // AppStorage provides localStorage-like persistent storage.
@@ -25,7 +27,9 @@ type AppStorage struct {
 
 func normalizeAppStorageName(appName string) string {
 	name := strings.TrimSpace(appName)
-	if name == "" || strings.EqualFold(name, legacyAppStorageDefaultID) {
+	if name == "" ||
+		strings.EqualFold(name, previousAppStorageDefaultName) ||
+		strings.EqualFold(name, legacyAppStorageDefaultName) {
 		return appStorageDefaultName
 	}
 	return name
@@ -33,9 +37,10 @@ func normalizeAppStorageName(appName string) string {
 
 // NewAppStorage creates a new AppStorage instance.
 //
-// New data is stored under ~/.clawdesk/<app>/storage.json.
-// If the canonical file does not exist yet, Clawdesk performs a best-effort,
-// non-destructive migration from the historical ~/.testmonkey location.
+// New data is stored under ~/.opendesk/<app>/storage.json.
+// If the canonical file does not exist yet, OpenDesk performs a best-effort,
+// non-destructive migration from the previous ~/.clawdesk and historical
+// ~/.testmonkey locations.
 func NewAppStorage(appName string) *AppStorage {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -62,40 +67,45 @@ func (s *AppStorage) migrateLegacyStorage(homeDir, requestedName string) {
 		return
 	}
 
-	names := make([]string, 0, 2)
-	if name := strings.TrimSpace(requestedName); name != "" {
-		names = append(names, name)
+	type migrationSource struct {
+		rootDir     string
+		defaultName string
 	}
-	if len(names) == 0 || !strings.EqualFold(names[0], legacyAppStorageDefaultID) {
-		names = append(names, legacyAppStorageDefaultID)
+	sources := []migrationSource{
+		{rootDir: previousAppStorageRootDir, defaultName: previousAppStorageDefaultName},
+		{rootDir: legacyAppStorageRootDir, defaultName: legacyAppStorageDefaultName},
 	}
+	requestedName = strings.TrimSpace(requestedName)
+	for _, source := range sources {
+		names := make([]string, 0, 2)
+		if requestedName != "" {
+			names = append(names, requestedName)
+		}
+		if requestedName == "" || !strings.EqualFold(requestedName, source.defaultName) {
+			names = append(names, source.defaultName)
+		}
 
-	seen := make(map[string]struct{}, len(names))
-	for _, name := range names {
-		if _, ok := seen[name]; ok {
-			continue
-		}
-		seen[name] = struct{}{}
-
-		legacyPath := filepath.Join(homeDir, legacyAppStorageRootDir, name, "storage.json")
-		content, err := os.ReadFile(legacyPath)
-		if os.IsNotExist(err) {
-			continue
-		}
-		if err != nil {
-			fmt.Printf("Failed to read legacy AppStorage file %s: %v\n", legacyPath, err)
-			continue
-		}
-		if !json.Valid(content) {
-			fmt.Printf("Skipped invalid legacy AppStorage JSON: %s\n", legacyPath)
-			continue
-		}
-		if err := os.WriteFile(s.filePath, content, 0644); err != nil {
-			fmt.Printf("Failed to migrate AppStorage from %s to %s: %v\n", legacyPath, s.filePath, err)
+		for _, name := range names {
+			legacyPath := filepath.Join(homeDir, source.rootDir, name, "storage.json")
+			content, err := os.ReadFile(legacyPath)
+			if os.IsNotExist(err) {
+				continue
+			}
+			if err != nil {
+				fmt.Printf("Failed to read legacy AppStorage file %s: %v\n", legacyPath, err)
+				continue
+			}
+			if !json.Valid(content) {
+				fmt.Printf("Skipped invalid legacy AppStorage JSON: %s\n", legacyPath)
+				continue
+			}
+			if err := os.WriteFile(s.filePath, content, 0644); err != nil {
+				fmt.Printf("Failed to migrate AppStorage from %s to %s: %v\n", legacyPath, s.filePath, err)
+				return
+			}
+			fmt.Printf("Migrated AppStorage from %s to %s\n", legacyPath, s.filePath)
 			return
 		}
-		fmt.Printf("Migrated AppStorage from %s to %s\n", legacyPath, s.filePath)
-		return
 	}
 }
 

@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-APP_BUNDLE_ID="${1:-com.clawdesk.cli}"
+APP_BUNDLE_ID="${1:-com.opendesk.cli}"
 
 reset_service() {
   local service="$1"
@@ -33,7 +33,7 @@ cat <<EOF
 Done.
 
 Notes:
-- If a permission prompt showed a host such as Terminal, iTerm, or sshd-keygen-wrapper, relaunch via dist/Clawdesk.app after reset.
-- For Finder launch: open dist/Clawdesk.app --args -script examples/mac/request-macos-automation-popup.js -timeout 2
-- For direct binary launch: ./dist/clawdesk -script examples/mac/request-macos-automation-popup.js -timeout 2
+- If a permission prompt showed a host such as Terminal, iTerm, or sshd-keygen-wrapper, relaunch via dist/OpenDesk.app after reset.
+- For Finder launch: open dist/OpenDesk.app --args -script examples/mac/request-macos-automation-popup.js -timeout 2
+- For direct binary launch: ./dist/opendesk -script examples/mac/request-macos-automation-popup.js -timeout 2
 EOF

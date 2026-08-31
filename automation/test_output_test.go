@@ -15,7 +15,7 @@ func testOutputDir(t *testing.T, parts ...string) string {
 		t.Fatal("resolve automation test directory")
 	}
 	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(file), ".."))
-	base := os.Getenv("CLAWDESK_TEST_OUTPUT_DIR")
+	base := os.Getenv("OPENDESK_TEST_OUTPUT_DIR")
 	if base == "" {
 		base = filepath.Join(repoRoot, ".runtime", "tests", "automation")
 	} else if !filepath.IsAbs(base) {

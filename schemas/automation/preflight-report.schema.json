@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://clawdesk.dev/schemas/automation/preflight-report.schema.json",
+  "$id": "https://opendesk.dev/schemas/automation/preflight-report.schema.json",
   "title": "PreflightReport",
   "type": "object",
   "required": [

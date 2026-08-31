@@ -1,6 +1,6 @@
 # OpenCV ImageColor 固定夹具
 
-本目录用于验证 Clawdesk JavaScript `ImageColor` 接口在 `opencv` 构建标签下的模板匹配行为。
+本目录用于验证 OpenDesk JavaScript `ImageColor` 接口在 `opencv` 构建标签下的模板匹配行为。
 
 ## 文件关系
 
@@ -23,11 +23,11 @@ go run ./cmd/generate-opencv-fixtures
 ## 执行 JavaScript 验收
 
 ```bash
-go run -tags opencv ./cmd/clawdesk \
+go run -tags opencv ./cmd/opendesk \
   -script tests/opencv/image_color_opencv_test.js \
   -timeout 1 \
   -console-mode script \
-  -log-dir /tmp/clawdesk-opencv-js-test
+  -log-dir /tmp/opendesk-opencv-js-test
 ```
 
 也可以运行总入口：

@@ -1,6 +1,6 @@
 # WeChat Desktop Scenario
 
-本目录定义 Clawdesk 对微信桌面版自动化的场景需求、架构边界、baseline/golden 规范和发送安全规则。
+本目录定义 OpenDesk 对微信桌面版自动化的场景需求、架构边界、baseline/golden 规范和发送安全规则。
 
 ## 当前状态
 
@@ -9,7 +9,7 @@
 因此：
 
 - 本目录是 scenario contract；
-- 当前可执行基础来自 Clawdesk 通用 runtime / Vision / MCP；
+- 当前可执行基础来自 OpenDesk 通用 runtime / Vision / MCP；
 - 历史 WeChat 研究和报告只作为输入；
 - 是否“已实现/已验证”必须由当前源码、测试和真机 evidence 证明。
 
@@ -29,7 +29,7 @@ requirements.md
 
 ### `architecture.md`
 
-定义通用 Clawdesk 层和 WeChat-specific 场景层如何组合。
+定义通用 OpenDesk 层和 WeChat-specific 场景层如何组合。
 
 ### `structured-send.md`
 

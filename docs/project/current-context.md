@@ -1,13 +1,13 @@
-# Clawdesk 当前上下文
+# OpenDesk 当前上下文
 
 - 更新时间：2026-08-31
-- 项目：Clawdesk
+- 项目：OpenDesk
 - 分支：`master`
 - 本文件只记录当前仍影响后续开发的高层事实，不保存逐轮开发日志。
 
 ## 当前定位
 
-Clawdesk 已形成三种主要使用面：
+OpenDesk 已形成三种主要使用面：
 
 ```text
 CLI / JavaScript Runtime
@@ -80,7 +80,7 @@ POST /vision/detect-ui
 当前 MCP server：
 
 ```text
-cmd/clawdesk-mcp/
+cmd/opendesk-mcp/
 ```
 
 推荐 Agent 主链路：

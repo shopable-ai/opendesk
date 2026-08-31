@@ -1,4 +1,4 @@
-# Clawdesk package library
+# OpenDesk package library
 
 `pkg/execution` owns JavaScript execution. Every request receives a fresh
 event-loop Runtime whose Goja access stays on that loop's owner goroutine;

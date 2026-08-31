@@ -112,7 +112,7 @@ func generateFixtures(outputDir string) error {
 
 	manifest := fixtureManifest{
 		SchemaVersion:   1,
-		Description:     "Deterministic color-block fixtures for Clawdesk ImageColor OpenCV template matching tests.",
+		Description:     "Deterministic color-block fixtures for OpenDesk ImageColor OpenCV template matching tests.",
 		GeneratedBy:     "go run ./cmd/generate-opencv-fixtures",
 		RequiredBackend: "opencv",
 		Source: sourceSpec{

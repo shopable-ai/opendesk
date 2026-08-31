@@ -13,11 +13,11 @@
 
 传统 Recorder 直接记录鼠标坐标、按键和固定等待，容易生成只能在原窗口位置、原尺寸和原文案下运行的脆弱宏。
 
-Clawdesk 第一阶段不先建设完整的人工全局输入录制器，而是优先处理已经经过 Clawdesk 执行的 Agent 行为：
+OpenDesk 第一阶段不先建设完整的人工全局输入录制器，而是优先处理已经经过 OpenDesk 执行的 Agent 行为：
 
 ```text
 Agent 目标与结构化意图
-→ Clawdesk Tool / Runtime API 调用
+→ OpenDesk Tool / Runtime API 调用
 → 动作前观察
 → 动作执行
 → 动作后观察与验证
@@ -48,7 +48,7 @@ Agent 目标与结构化意图
 
 ### D1. Agent-first，人工 Recorder 后置
 
-MVP 只记录通过 Clawdesk JS、HTTP 或 MCP 执行的行为，不先监听用户在整个系统中的全部鼠标键盘事件。
+MVP 只记录通过 OpenDesk JS、HTTP 或 MCP 执行的行为，不先监听用户在整个系统中的全部鼠标键盘事件。
 
 收益：
 
@@ -198,7 +198,7 @@ Flow IR + Locator Bundle + Variables
         ↓
 Compiler
         ↓
-Clawdesk JavaScript
+OpenDesk JavaScript
         ↓
 Deterministic / Hybrid / Agent Replay
         ↓
@@ -348,7 +348,7 @@ AXIsProcessTrustedWithOptions
 
 密码、令牌和疑似敏感字段不读取明文 value。
 
-首轮继续复用 Clawdesk 当前截图实现，不为了 Recorder MVP 强制迁移 ScreenCaptureKit。ScreenCaptureKit 可以在后续需要高频窗口流、低延迟视频或内容选择器时单独评估。
+首轮继续复用 OpenDesk 当前截图实现，不为了 Recorder MVP 强制迁移 ScreenCaptureKit。ScreenCaptureKit 可以在后续需要高频窗口流、低延迟视频或内容选择器时单独评估。
 
 未来人工 Recorder 才评估 `CGEventTapCreate` 的 passive listen-only Event Tap，并单独处理 Input Monitoring、输入法、密码输入和隐私告知。
 

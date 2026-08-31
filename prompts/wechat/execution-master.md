@@ -1,6 +1,6 @@
 # WeChat Execution Master Prompt
 
-用于启动或继续 Clawdesk 微信桌面自动化任务。
+用于启动或继续 OpenDesk 微信桌面自动化任务。
 
 本提示词只负责**执行编排**，不复制架构、需求、Gate、Golden Sample 等正式知识。正式事实必须从当前仓库文档和源码读取。
 

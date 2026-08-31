@@ -1,9 +1,9 @@
 export {};
 
 declare global {
-  type ClawdeskByteInput = ArrayBuffer | Uint8Array | number[];
+  type OpenDeskByteInput = ArrayBuffer | Uint8Array | number[];
 
-  interface ClawdeskFileSystem {
+  interface OpenDeskFileSystem {
     path(relativePath: string): string;
     cwd(): string;
     create(path: string): void;
@@ -15,8 +15,8 @@ declare global {
     readBytes(path: string): ArrayBuffer;
     write(path: string, text: string, encoding?: string): void;
     append(path: string, text: string, encoding?: string): void;
-    writeBytes(path: string, bytes: ClawdeskByteInput): void;
-    appendBytes(path: string, bytes: ClawdeskByteInput): void;
+    writeBytes(path: string, bytes: OpenDeskByteInput): void;
+    appendBytes(path: string, bytes: OpenDeskByteInput): void;
     copy(pathFrom: string, pathTo: string): void;
     renameWithoutExtension(path: string, newName: string): void;
     rename(path: string, newName: string): void;
@@ -36,5 +36,5 @@ declare global {
     open(path: string, mode: "r" | "w" | "a"): unknown;
   }
 
-  var File: ClawdeskFileSystem;
+  var File: OpenDeskFileSystem;
 }

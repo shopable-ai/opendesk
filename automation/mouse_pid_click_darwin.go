@@ -13,13 +13,13 @@ package automation
 #include <signal.h>
 #include <unistd.h>
 
-static int clawdesk_copy_sint64(CFDictionaryRef dictionary, CFStringRef key, int64_t *value) {
+static int opendesk_copy_sint64(CFDictionaryRef dictionary, CFStringRef key, int64_t *value) {
 	CFNumberRef number = (CFNumberRef)CFDictionaryGetValue(dictionary, key);
 	if (number == NULL) return 0;
 	return CFNumberGetValue(number, kCFNumberSInt64Type, value) ? 1 : 0;
 }
 
-static int clawdesk_window_for_pid_at_point(pid_t pid, CGPoint point, int64_t *window_number) {
+static int opendesk_window_for_pid_at_point(pid_t pid, CGPoint point, int64_t *window_number) {
 	CFArrayRef windows = CGWindowListCopyWindowInfo(
 		kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements,
 		kCGNullWindowID
@@ -33,9 +33,9 @@ static int clawdesk_window_for_pid_at_point(pid_t pid, CGPoint point, int64_t *w
 		int64_t owner_pid = 0;
 		int64_t layer = -1;
 		int64_t number = 0;
-		if (!clawdesk_copy_sint64(window, kCGWindowOwnerPID, &owner_pid) || owner_pid != pid) continue;
-		if (!clawdesk_copy_sint64(window, kCGWindowLayer, &layer) || layer != 0) continue;
-		if (!clawdesk_copy_sint64(window, kCGWindowNumber, &number) || number <= 0) continue;
+		if (!opendesk_copy_sint64(window, kCGWindowOwnerPID, &owner_pid) || owner_pid != pid) continue;
+		if (!opendesk_copy_sint64(window, kCGWindowLayer, &layer) || layer != 0) continue;
+		if (!opendesk_copy_sint64(window, kCGWindowNumber, &number) || number <= 0) continue;
 
 		CFDictionaryRef bounds_value = (CFDictionaryRef)CFDictionaryGetValue(window, kCGWindowBounds);
 		CGRect bounds = CGRectZero;
@@ -58,7 +58,7 @@ static int clawdesk_window_for_pid_at_point(pid_t pid, CGPoint point, int64_t *w
 // caller-supplied PID and global point, verify that it supports AXPress, and
 // perform that single target-process action instead. This never chooses a
 // receiver from whichever application happens to be frontmost.
-static int clawdesk_post_left_click_to_pid(pid_t pid, double x, double y) {
+static int opendesk_post_left_click_to_pid(pid_t pid, double x, double y) {
 	if (!CGPreflightPostEventAccess()) return 1;
 	if (kill(pid, 0) != 0 && errno != EPERM) return 2;
 
@@ -69,7 +69,7 @@ static int clawdesk_post_left_click_to_pid(pid_t pid, double x, double y) {
 	if (display_count == 0) return 4;
 
 	int64_t window_number = 0;
-	int window_status = clawdesk_window_for_pid_at_point(pid, point, &window_number);
+	int window_status = opendesk_window_for_pid_at_point(pid, point, &window_number);
 	if (window_status < 0) return 5;
 	if (window_status == 0) return 6;
 	(void)window_number;
@@ -125,7 +125,7 @@ import "C"
 import "fmt"
 
 func clickForPIDPlatform(processID int32, x, y float64) error {
-	status := int(C.clawdesk_post_left_click_to_pid(C.pid_t(processID), C.double(x), C.double(y)))
+	status := int(C.opendesk_post_left_click_to_pid(C.pid_t(processID), C.double(x), C.double(y)))
 	switch status {
 	case 0:
 		return nil

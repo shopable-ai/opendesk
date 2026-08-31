@@ -1,8 +1,8 @@
 执行：
 
 ```bash
-cd /Users/mac/Documents/workspace/clawdesk
-./dist/clawdesk -script tests/locateanything/scripts/run_stage_03_script_assisted.js -timeout 8
+cd /Users/mac/Documents/workspace/opendesk
+./dist/opendesk -script tests/locateanything/scripts/run_stage_03_script_assisted.js -timeout 8
 ```
 
 本阶段是 wrapper 模式：

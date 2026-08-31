@@ -1,14 +1,14 @@
 export {};
 
 declare global {
-  interface ClawdeskPageClip {
+  interface OpenDeskPageClip {
     x: number;
     y: number;
     width: number;
     height: number;
   }
 
-  interface ClawdeskPageScreenshotOptions {
+  interface OpenDeskPageScreenshotOptions {
     path?: string;
     type?: string;
     quality?: number;
@@ -18,40 +18,40 @@ declare global {
     returnType?: "base64" | "bytes" | "path" | "object" | "none";
     target?: "activeWindow" | "screen";
     displayIndex?: number;
-    clip?: ClawdeskPageClip;
+    clip?: OpenDeskPageClip;
   }
 
-  type ClawdeskPermissionCapability =
+  type OpenDeskPermissionCapability =
     | "screenCapture"
     | "accessibility"
     | "inputMonitoring"
     | "automation";
 
-  interface ClawdeskPermissionCapabilityState {
+  interface OpenDeskPermissionCapabilityState {
     state: "granted" | "denied" | "unknown" | "unsupported";
     granted: boolean;
     reason?: string;
     capabilityOptional?: boolean;
   }
 
-  interface ClawdeskPermissionSnapshot {
+  interface OpenDeskPermissionSnapshot {
     ok: boolean;
-    capabilities: Record<string, ClawdeskPermissionCapabilityState>;
+    capabilities: Record<string, OpenDeskPermissionCapabilityState>;
   }
 
-  interface ClawdeskPermissionOptions {
-    capabilities?: ClawdeskPermissionCapability[];
+  interface OpenDeskPermissionOptions {
+    capabilities?: OpenDeskPermissionCapability[];
     section?: "all" | "baseline" | "browserBaseline" | "browser" | "accessibility" | "inputMonitoring" | "screenCapture" | "screen" | "automation";
     openSettings?: boolean;
     strict?: boolean;
   }
 
-  interface ClawdeskPermissionReport {
+  interface OpenDeskPermissionReport {
     os: string;
     ok: boolean;
     skipped?: boolean;
-    capabilities: ClawdeskPermissionCapability[];
-    permissions: ClawdeskPermissionSnapshot;
+    capabilities: OpenDeskPermissionCapability[];
+    permissions: OpenDeskPermissionSnapshot;
     section?: string;
     raw?: Record<string, unknown> | null;
     flow?: Record<string, unknown> | null;
@@ -59,18 +59,18 @@ declare global {
     reason?: string;
   }
 
-  interface ClawdeskPageWaitOptions {
+  interface OpenDeskPageWaitOptions {
     timeout?: number;
     polling?: number;
   }
 
-  interface ClawdeskPage {
-    mouse: ClawdeskMouse;
-    keyboard: ClawdeskKeyboard;
-    touchscreen: ClawdeskTouchscreen;
+  interface OpenDeskPage {
+    mouse: OpenDeskMouse;
+    keyboard: OpenDeskKeyboard;
+    touchscreen: OpenDeskTouchscreen;
 
-    screenshot(options?: ClawdeskPageScreenshotOptions): Promise<string | ArrayBuffer | ClawdeskScreenshotResult | null>;
-    captureScreen(options?: ClawdeskPageScreenshotOptions): Promise<string | ArrayBuffer | ClawdeskScreenshotResult | null>;
+    screenshot(options?: OpenDeskPageScreenshotOptions): Promise<string | ArrayBuffer | OpenDeskScreenshotResult | null>;
+    captureScreen(options?: OpenDeskPageScreenshotOptions): Promise<string | ArrayBuffer | OpenDeskScreenshotResult | null>;
 
     goto(url: string): Promise<void>;
     openURL(url: string): void;
@@ -81,25 +81,25 @@ declare global {
     url(): string;
 
     waitFor(milliseconds: number): Promise<void>;
-    waitFor<T>(predicate: (...args: any[]) => T | Promise<T>, options?: ClawdeskPageWaitOptions): Promise<T>;
+    waitFor<T>(predicate: (...args: any[]) => T | Promise<T>, options?: OpenDeskPageWaitOptions): Promise<T>;
     waitForTimeout(milliseconds: number): Promise<void>;
     waitForNavigation(options?: { timeout?: number }): Promise<void>;
-    waitForFunction<T>(predicate: (...args: any[]) => T | Promise<T>, options?: ClawdeskPageWaitOptions, ...args: any[]): Promise<T>;
+    waitForFunction<T>(predicate: (...args: any[]) => T | Promise<T>, options?: OpenDeskPageWaitOptions, ...args: any[]): Promise<T>;
     waitForAll<T>(promises: Array<Promise<T> | T>, options?: { timeout?: number }): Promise<T[]>;
 
-    checkPermissions(options?: ClawdeskPermissionOptions): Promise<ClawdeskPermissionReport>;
-    requestPermissions(options?: ClawdeskPermissionOptions): Promise<ClawdeskPermissionReport>;
-    ensurePermissions(options?: ClawdeskPermissionOptions): Promise<ClawdeskPermissionReport>;
+    checkPermissions(options?: OpenDeskPermissionOptions): Promise<OpenDeskPermissionReport>;
+    requestPermissions(options?: OpenDeskPermissionOptions): Promise<OpenDeskPermissionReport>;
+    ensurePermissions(options?: OpenDeskPermissionOptions): Promise<OpenDeskPermissionReport>;
 
     checkScreenshotPermissions(): Record<string, unknown>;
     openMacOSPrivacySettings(section?: string): Record<string, unknown>;
     requestMacPermissions(options?: Record<string, unknown>): Record<string, unknown>;
-    ensureMacPermissions(options?: Record<string, unknown>): Promise<ClawdeskPermissionReport>;
+    ensureMacPermissions(options?: Record<string, unknown>): Promise<OpenDeskPermissionReport>;
     requestMacAutomationPermission(targetApp?: string): Record<string, unknown>;
 
-    browser(): ClawdeskBrowser;
-    context(): ClawdeskBrowserContext;
+    browser(): OpenDeskBrowser;
+    context(): OpenDeskBrowserContext;
   }
 
-  var page: ClawdeskPage;
+  var page: OpenDeskPage;
 }

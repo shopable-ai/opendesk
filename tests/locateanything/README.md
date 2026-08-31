@@ -2,7 +2,7 @@
 
 This directory now treats `LocateAnything` as a LAN-served model layer:
 
-- current machine: runs `clawdesk`, WeChat automation, stage orchestration
+- current machine: runs `opendesk`, WeChat automation, stage orchestration
 - model machine: runs `locateanything_bridge.py` with `mock` or `mlx`
 - current default real-model target: `mac24` over LAN, using `teaderMac.local:18777`
 - note: `mac24` is an SSH alias; HTTP calls should use `teaderMac.local` or the current resolved LAN IP, not the SSH alias itself
@@ -82,35 +82,35 @@ Transport note:
 Environment and controller checks:
 
 ```bash
-cd /Users/mac/Documents/workspace/clawdesk
+cd /Users/mac/Documents/workspace/opendesk
 python3 tests/locateanything/scripts/run_stage_01_env.py
 ```
 
 Model-only static cases:
 
 ```bash
-cd /Users/mac/Documents/workspace/clawdesk
-./dist/clawdesk -script tests/locateanything/scripts/run_stage_02_model_only.js -timeout 5
+cd /Users/mac/Documents/workspace/opendesk
+./dist/opendesk -script tests/locateanything/scripts/run_stage_02_model_only.js -timeout 5
 ```
 
 Script-assisted WeChat workflow:
 
 ```bash
-cd /Users/mac/Documents/workspace/clawdesk
-./dist/Clawdesk.app/Contents/MacOS/Clawdesk -script tests/locateanything/scripts/run_stage_03_script_assisted.js -timeout 8
+cd /Users/mac/Documents/workspace/opendesk
+./dist/OpenDesk.app/Contents/MacOS/OpenDesk -script tests/locateanything/scripts/run_stage_03_script_assisted.js -timeout 8
 ```
 
 Boundary matrix:
 
 ```bash
-cd /Users/mac/Documents/workspace/clawdesk
-./dist/clawdesk -script tests/locateanything/scripts/run_stage_04_boundary_stress.js -timeout 5
+cd /Users/mac/Documents/workspace/opendesk
+./dist/opendesk -script tests/locateanything/scripts/run_stage_04_boundary_stress.js -timeout 5
 ```
 
 Final report aggregation:
 
 ```bash
-cd /Users/mac/Documents/workspace/clawdesk
+cd /Users/mac/Documents/workspace/opendesk
 python3 tests/locateanything/scripts/run_stage_05_report.py
 ```
 

@@ -1,6 +1,6 @@
 # Global Failure Taxonomy
 
-本文件只定义 Clawdesk 跨领域通用 Failure Class。具体应用、算法或协议的 failure code 应放在对应 `docs/quality/<domain>/`，并映射到这里。
+本文件只定义 OpenDesk 跨领域通用 Failure Class。具体应用、算法或协议的 failure code 应放在对应 `docs/quality/<domain>/`，并映射到这里。
 
 | ID | Global class | Definition | Typical evidence |
 | --- | --- | --- | --- |

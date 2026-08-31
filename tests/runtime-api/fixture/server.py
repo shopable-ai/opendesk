@@ -9,7 +9,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 
-TITLE = "Clawdesk Runtime API Test Lab"
+TITLE = "OpenDesk Runtime API Test Lab"
 INDEX_PATH = Path(__file__).with_name("index.html")
 
 
@@ -65,7 +65,7 @@ STATE = EventState()
 
 
 class FixtureHandler(BaseHTTPRequestHandler):
-    server_version = "ClawdeskRuntimeAPIFixture/1.0"
+    server_version = "OpenDeskRuntimeAPIFixture/1.0"
 
     def log_message(self, fmt, *args):
         return

@@ -1,7 +1,7 @@
 export {};
 
 declare global {
-  interface ClawdeskAxiosConfig {
+  interface OpenDeskAxiosConfig {
     method?: string;
     url?: string;
     headers?: Record<string, unknown>;
@@ -14,30 +14,30 @@ declare global {
     [key: string]: unknown;
   }
 
-  interface ClawdeskAxiosResponse<T = unknown> {
+  interface OpenDeskAxiosResponse<T = unknown> {
     data: T;
     status: number;
     statusText: string;
     headers: Record<string, unknown>;
   }
 
-  interface ClawdeskAxiosInterceptorManager<T> {
+  interface OpenDeskAxiosInterceptorManager<T> {
     use(fulfilled: (value: T) => T | Promise<T>): number;
   }
 
-  interface ClawdeskAxiosInstance {
-    defaults: ClawdeskAxiosConfig;
+  interface OpenDeskAxiosInstance {
+    defaults: OpenDeskAxiosConfig;
     interceptors: {
-      request: ClawdeskAxiosInterceptorManager<ClawdeskAxiosConfig>;
-      response: ClawdeskAxiosInterceptorManager<ClawdeskAxiosResponse>;
+      request: OpenDeskAxiosInterceptorManager<OpenDeskAxiosConfig>;
+      response: OpenDeskAxiosInterceptorManager<OpenDeskAxiosResponse>;
     };
-    request<T = unknown>(config: ClawdeskAxiosConfig): Promise<ClawdeskAxiosResponse<T>>;
-    get<T = unknown>(url: string, config?: ClawdeskAxiosConfig): Promise<ClawdeskAxiosResponse<T>>;
-    post<T = unknown>(url: string, data?: unknown, config?: ClawdeskAxiosConfig): Promise<ClawdeskAxiosResponse<T>>;
-    put<T = unknown>(url: string, data?: unknown, config?: ClawdeskAxiosConfig): Promise<ClawdeskAxiosResponse<T>>;
-    delete<T = unknown>(url: string, config?: ClawdeskAxiosConfig): Promise<ClawdeskAxiosResponse<T>>;
-    patch<T = unknown>(url: string, data?: unknown, config?: ClawdeskAxiosConfig): Promise<ClawdeskAxiosResponse<T>>;
+    request<T = unknown>(config: OpenDeskAxiosConfig): Promise<OpenDeskAxiosResponse<T>>;
+    get<T = unknown>(url: string, config?: OpenDeskAxiosConfig): Promise<OpenDeskAxiosResponse<T>>;
+    post<T = unknown>(url: string, data?: unknown, config?: OpenDeskAxiosConfig): Promise<OpenDeskAxiosResponse<T>>;
+    put<T = unknown>(url: string, data?: unknown, config?: OpenDeskAxiosConfig): Promise<OpenDeskAxiosResponse<T>>;
+    delete<T = unknown>(url: string, config?: OpenDeskAxiosConfig): Promise<OpenDeskAxiosResponse<T>>;
+    patch<T = unknown>(url: string, data?: unknown, config?: OpenDeskAxiosConfig): Promise<OpenDeskAxiosResponse<T>>;
   }
 
-  var axios: ClawdeskAxiosInstance;
+  var axios: OpenDeskAxiosInstance;
 }

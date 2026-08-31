@@ -6,11 +6,11 @@
 
 - 主机名：`min-Mac4g.local`
 - 局域网 IP：`192.168.30.15`
-- 项目目录：`/Users/mac/Documents/workspace/clawdesk`
+- 项目目录：`/Users/mac/Documents/workspace/opendesk`
 
 默认拓扑：
 
-- 当前机器：`clawdesk` + 微信自动化 + stage runner
+- 当前机器：`opendesk` + 微信自动化 + stage runner
 - 局域网另一台机器：LocateAnything bridge + 真模型
 
 推荐顺序：

@@ -1,6 +1,6 @@
 /**
  * 运行检测并生成可视化的统一脚本
- * 用法: ./dist/clawdesk -script tests/wechat/run_and_visualize.js <simple|complex>
+ * 用法: ./dist/opendesk -script tests/wechat/run_and_visualize.js <simple|complex>
  */
 
 const mode = typeof arguments !== 'undefined' && arguments.length > 0 ? arguments[0] : 'simple';

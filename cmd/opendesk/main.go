@@ -2,11 +2,11 @@ package main
 
 import (
 	"bufio"
-	"clawdesk/automation"
-	pkgContainer "clawdesk/pkg/container"
-	pkgExecution "clawdesk/pkg/execution"
-	"clawdesk/pkg/feature"
-	pkgHttp "clawdesk/pkg/http"
+	"opendesk/automation"
+	pkgContainer "opendesk/pkg/container"
+	pkgExecution "opendesk/pkg/execution"
+	"opendesk/pkg/feature"
+	pkgHttp "opendesk/pkg/http"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -1411,7 +1411,7 @@ func parseVisionFormPayload(r *http.Request) (map[string]interface{}, func(), er
 	defer src.Close()
 
 	ext := filepath.Ext(fileHeader.Filename)
-	tmpFile, err := os.CreateTemp("", "clawdesk-vision-*"+ext)
+	tmpFile, err := os.CreateTemp("", "opendesk-vision-*"+ext)
 	if err != nil {
 		return nil, nil, err
 	}

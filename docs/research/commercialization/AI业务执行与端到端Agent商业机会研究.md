@@ -4,18 +4,18 @@
 
 > 文档性质：Research / 商业化决策输入。
 >
-> 本文研究的不是“AI 能不能控制鼠标键盘”，而是更高一层的问题：**当大模型具备推理能力，再配合 Browser Automation、API / MCP、Desktop Automation、Clawdesk、Memory、Verification 和人工审批后，是否能够从“给建议”升级为“跨多个软件完成一件真实业务事情”，并进一步形成可收费的业务结果。**
+> 本文研究的不是“AI 能不能控制鼠标键盘”，而是更高一层的问题：**当大模型具备推理能力，再配合 Browser Automation、API / MCP、Desktop Automation、OpenDesk、Memory、Verification 和人工审批后，是否能够从“给建议”升级为“跨多个软件完成一件真实业务事情”，并进一步形成可收费的业务结果。**
 >
-> 本文不把所有端到端 Agent 都视为 Clawdesk 应立即开发的产品。重点是识别：哪些业务闭环对跨软件执行有真实需求、哪些结果可以验证和收费、哪些环节应该由 API / Browser 完成、哪些环节才真正需要 Clawdesk。
+> 本文不把所有端到端 Agent 都视为 OpenDesk 应立即开发的产品。重点是识别：哪些业务闭环对跨软件执行有真实需求、哪些结果可以验证和收费、哪些环节应该由 API / Browser 完成、哪些环节才真正需要 OpenDesk。
 
 ## 1. 核心结论
 
 1. **AI 的商业价值正在从“生成内容”向“完成动作”和“完成结果”迁移。** 单纯推理、写文档、生成代码已经能解决大量知识工作，但仍经常停在“告诉用户怎么做”。当 AI 可以通过 API、浏览器和桌面软件实际执行后，它才可能完成更完整的业务闭环。
-2. **Clawdesk 更适合被定义为 Agent 的执行基础设施之一，而不是整个 Agent。** 最合理的组合是：LLM / Planner 负责目标理解和决策；API / MCP 处理结构化系统；Browser Automation 处理 Web；Clawdesk 处理没有完整 API、需要桌面 GUI、跨应用、Legacy 或最后一公里人工操作的部分。
+2. **OpenDesk 更适合被定义为 Agent 的执行基础设施之一，而不是整个 Agent。** 最合理的组合是：LLM / Planner 负责目标理解和决策；API / MCP 处理结构化系统；Browser Automation 处理 Web；OpenDesk 处理没有完整 API、需要桌面 GUI、跨应用、Legacy 或最后一公里人工操作的部分。
 3. **真正靠近收入的产品不是“Computer Use Runtime”，而是“Business Execution Agent”。** 用户更容易为“找到供应商”“完成客服问题”“处理异常订单”“找到客户并完成跟进”“完成招聘筛选”等结果付钱，而不是为 `mouse.click()` 或一个通用执行框架单独付高价。
 4. **采购 / 外包 Sourcing Agent 是值得重点研究的新机会域。** 它可以从需求定义开始，搜索商品/服务/供应商，筛选候选，沟通询价，比较报价，进入人工审批，再完成下单、交付跟踪和验收。闲鱼、淘宝、1688、Upwork、Fiverr、行业网站、邮箱、微信、Excel、ERP 等都可能成为其中的执行节点。
 5. **销售 Agent 是采购 Agent 的反向镜像。** 从寻找潜在客户、研究客户、个性化联系、多轮沟通、跟进、安排会议、报价、更新 CRM 到成交，商业价值更高，但也伴随更严格的平台规则、反垃圾信息、隐私和品牌风险。
-6. **Computer Use 本身正在快速商品化。** OpenAI、Anthropic、Google、Microsoft 等都在强化计算机操作能力，因此 Clawdesk 长期不能只靠“让 AI 会点电脑”形成护城河。更可能留下来的资产是：App Profile、可靠 Workflow、业务后置验证、失败恢复、执行 Evidence、Business Memory、真实失败数据和垂直业务知识。
+6. **Computer Use 本身正在快速商品化。** OpenAI、Anthropic、Google、Microsoft 等都在强化计算机操作能力，因此 OpenDesk 长期不能只靠“让 AI 会点电脑”形成护城河。更可能留下来的资产是：App Profile、可靠 Workflow、业务后置验证、失败恢复、执行 Evidence、Business Memory、真实失败数据和垂直业务知识。
 7. **商业研究应重点判断“流量 × 业务价值 × 跨软件执行必要性 × 可验证结果 × 付费预算”，而不是 GitHub Star 或底层框架调用量。**
 
 ## 2. 从“AI 回答”到“AI 完成事情”
@@ -72,11 +72,11 @@ Goal
 → Business Outcome
 ```
 
-其中 Clawdesk 主要参与 `Act / Verify / Recover / Evidence`，而不是替代整个 Agent。
+其中 OpenDesk 主要参与 `Act / Verify / Recover / Evidence`，而不是替代整个 Agent。
 
 ## 3. 端到端 Agent 的执行栈
 
-建议将未来业务 Agent 拆成 7 层，而不是把所有能力都塞进 Clawdesk Runtime。
+建议将未来业务 Agent 拆成 7 层，而不是把所有能力都塞进 OpenDesk Runtime。
 
 ### 3.1 Goal / Planner
 
@@ -130,7 +130,7 @@ Goal
 
 ### 3.5 Desktop / Cross-App Action
 
-这是 Clawdesk 最相关的区域：
+这是 OpenDesk 最相关的区域：
 
 - 千牛等桌面客户端；
 - Windows Legacy 软件；
@@ -300,11 +300,11 @@ Goal
 - 报价材料准备；
 - 销售漏斗状态更新。
 
-### 5.2 Clawdesk 的价值
+### 5.2 OpenDesk 的价值
 
-如果所有系统都有 API，Clawdesk 价值有限。
+如果所有系统都有 API，OpenDesk 价值有限。
 
-Clawdesk 更适用于：
+OpenDesk 更适用于：
 
 - 国内 IM / 客户端；
 - Legacy CRM；
@@ -333,7 +333,7 @@ Clawdesk 更适用于：
 
 ## 6. 电商运营 Agent
 
-电商仍然是 Clawdesk 当前最高优先级商业研究域，但应从“自动点千牛”升级为完整业务 Agent 思考。
+电商仍然是 OpenDesk 当前最高优先级商业研究域，但应从“自动点千牛”升级为完整业务 Agent 思考。
 
 示例：
 
@@ -366,7 +366,7 @@ Clawdesk 更适用于：
 → 记录结果
 ```
 
-这里 Clawdesk 的角色是执行和验证，而不是自己复制 Helium 10、飞瓜、ERP 等完整数据产品。
+这里 OpenDesk 的角色是执行和验证，而不是自己复制 Helium 10、飞瓜、ERP 等完整数据产品。
 
 ## 7. 客服 Agent
 
@@ -396,7 +396,7 @@ Clawdesk 更适用于：
 - 按店铺 / 账号；
 - 基础订阅 + AI usage。
 
-客服是 Clawdesk 值得优先验证的原因：
+客服是 OpenDesk 值得优先验证的原因：
 
 - 高频；
 - 明确人工成本；
@@ -421,7 +421,7 @@ Clawdesk 更适用于：
 → Offer 流程
 ```
 
-Clawdesk 相关部分主要是：
+OpenDesk 相关部分主要是：
 
 - 招聘网站 GUI；
 - 国内招聘客户端 / IM；
@@ -577,16 +577,16 @@ AI 自动研究 + 自动执行
 | Computer Use Agent | 通用 GUI 动作 | 是 | 是 |
 | Business Execution Agent | 完整业务 Outcome | 是 | **是，并验证** |
 
-Clawdesk 真正的商业机会更可能位于最后两层之间：
+OpenDesk 真正的商业机会更可能位于最后两层之间：
 
 > 用可靠自动化能力，把通用 Agent 推到真实业务 Outcome。
 
-## 14. Clawdesk 在整个系统中的正确位置
+## 14. OpenDesk 在整个系统中的正确位置
 
 不建议：
 
 ```text
-Clawdesk
+OpenDesk
 = LLM + Browser + Search + CRM + Email + Desktop + Payment + Memory + 全部业务知识
 ```
 
@@ -603,7 +603,7 @@ Clawdesk
       ↓                ↓                ↓
  API / MCP         Browser         Desktop / GUI
       ↓                ↓                ↓
-Structured Tool     Playwright        Clawdesk
+Structured Tool     Playwright        OpenDesk
       └────────────────┼────────────────┘
                        ↓
                 Verification
@@ -613,7 +613,7 @@ Structured Tool     Playwright        Clawdesk
                Business Outcome
 ```
 
-Clawdesk 应重点做好：
+OpenDesk 应重点做好：
 
 - Desktop Observe；
 - Semantic Locate；
@@ -723,7 +723,7 @@ Clawdesk 应重点做好：
 
 ### M5：Marketplace 抽成
 
-第三方作者生产 Automation Package，Clawdesk 提供：
+第三方作者生产 Automation Package，OpenDesk 提供：
 
 - Runtime；
 - Distribution；
@@ -760,7 +760,7 @@ Marketplace 是后期结果，不是当前先决条件。
 | AI 可完成比例 | 10 | 是否能从建议升级为执行 |
 | 跨软件执行必要性 | 10 | 是否天然需要 Browser / Desktop / API 混合 |
 | API 替代程度 | 5 | 官方 API 是否已经完全解决 |
-| Clawdesk 结构性优势 | 10 | 是否特别需要 Desktop / Cross-App / Verify |
+| OpenDesk 结构性优势 | 10 | 是否特别需要 Desktop / Cross-App / Verify |
 | 结果可验证性 | 5 | 是否能客观判断成功 |
 | 获客难度 | 5 | 是否容易找到目标用户 |
 | 平台 / 合规风险 | 5 | 是否受平台自动化、Spam、隐私限制 |
@@ -822,11 +822,11 @@ Marketplace 是后期结果，不是当前先决条件。
 
 当前钱已经存在，但多少步骤仍然需要人工？
 
-这是 Clawdesk 最应该寻找的空间。
+这是 OpenDesk 最应该寻找的空间。
 
 ### T5：可触达流量
 
-Clawdesk 自己能否低成本获得这些用户？
+OpenDesk 自己能否低成本获得这些用户？
 
 例如：
 
@@ -874,7 +874,7 @@ B 级不是技术价值低，而是早期较难直接证明业务付费。
 ```text
 真实用户问题
 → 人工梳理 Workflow
-→ 用现有 API / Browser / Clawdesk 拼出最小闭环
+→ 用现有 API / Browser / OpenDesk 拼出最小闭环
 → 保留高风险人工审批
 → 跑真实任务
 → 记录成功率和人工节省
@@ -948,7 +948,7 @@ B 级不是技术价值低，而是早期较难直接证明业务付费。
 
 > 批量私信 / 风控绕过工具。
 
-## 23. 与现有 Clawdesk 商业 Research 的关系
+## 23. 与现有 OpenDesk 商业 Research 的关系
 
 本文处于已有研究的更上层：
 
@@ -959,11 +959,11 @@ B 级不是技术价值低，而是早期较难直接证明业务付费。
 《电商软件市场自动化与商业机会研究》
 → 电商用户愿意为什么业务结果付钱？
 
-《电商软件与 Clawdesk 相关性分层》
-→ 哪些对象离 Clawdesk 最近？
+《电商软件与 OpenDesk 相关性分层》
+→ 哪些对象离 OpenDesk 最近？
 
 《AI 业务执行与端到端 Agent 商业机会研究》
-→ Clawdesk 如何与 LLM / Browser / API 组合，真正完成一个业务 Outcome？
+→ OpenDesk 如何与 LLM / Browser / API 组合，真正完成一个业务 Outcome？
 ```
 
 本文不替代以上文件，而是增加“业务闭环”维度。
@@ -999,7 +999,7 @@ B 级不是技术价值低，而是早期较难直接证明业务付费。
 ### 技术
 
 15. API / Browser / Desktop 路由如何统一？
-16. Clawdesk 是否应成为“Universal Fallback”而非所有动作首选？
+16. OpenDesk 是否应成为“Universal Fallback”而非所有动作首选？
 17. Recorder 如何从人类演示生成可验证 Workflow？
 18. Business Verification 如何标准化？
 19. Agent Memory 与 Script Asset 如何连接？
@@ -1009,11 +1009,11 @@ B 级不是技术价值低，而是早期较难直接证明业务付费。
 
 当前最值得验证的战略不是：
 
-> 把 Clawdesk 做成世界上最完整的桌面自动化 Framework。
+> 把 OpenDesk 做成世界上最完整的桌面自动化 Framework。
 
 而是：
 
-> **把 Clawdesk 做成 AI Agent 跨软件执行的重要基础设施，并通过少数高价值垂直 Business Agent 验证其商业价值。**
+> **把 OpenDesk 做成 AI Agent 跨软件执行的重要基础设施，并通过少数高价值垂直 Business Agent 验证其商业价值。**
 
 当前推荐推进链：
 
@@ -1052,4 +1052,4 @@ B 级不是技术价值低，而是早期较难直接证明业务付费。
 - Shopify Flow：`https://help.shopify.com/en/manual/shopify-flow`
 - UiPath Marketplace：`https://docs.uipath.com/marketplace/`
 
-> 说明：本文中的产品趋势用于商业机会判断，不代表 Clawdesk 当前已具备对应功能。后续任何正式产品决策应重新核验最新官方价格、能力、协议和平台政策。
+> 说明：本文中的产品趋势用于商业机会判断，不代表 OpenDesk 当前已具备对应功能。后续任何正式产品决策应重新核验最新官方价格、能力、协议和平台政策。

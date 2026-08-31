@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://clawdesk.dev/schemas/runtime-api/runtime-api-evidence-manifest.schema.json",
-  "title": "Clawdesk Runtime API Evidence Manifest",
+  "$id": "https://opendesk.dev/schemas/runtime-api/runtime-api-evidence-manifest.schema.json",
+  "title": "OpenDesk Runtime API Evidence Manifest",
   "type": "object",
   "required": ["schemaVersion", "runId", "kind", "window", "viewport", "screenshots", "eventArtifacts", "statePath"],
   "properties": {

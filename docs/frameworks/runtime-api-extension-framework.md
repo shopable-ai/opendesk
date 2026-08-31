@@ -2,7 +2,7 @@
 
 ## 定位
 
-本文件定义 Clawdesk 在新增、封装和交付 Runtime API 时的长期扩展框架。
+本文件定义 OpenDesk 在新增、封装和交付 Runtime API 时的长期扩展框架。
 
 它回答：
 
@@ -12,7 +12,7 @@
 
 ## 一、扩展能力四级模型
 
-Clawdesk 不应把所有“自定义”混成一种方式。
+OpenDesk 不应把所有“自定义”混成一种方式。
 
 推荐分成四级：
 
@@ -59,13 +59,13 @@ L1 JavaScript 自助扩展
 推荐结构：
 
 ```text
-Clawdesk
+OpenDesk
 → HTTP / MCP
 → External Capability Service
 → Structured Result
 ```
 
-这一级不需要为了“能调用”而强行把第三方能力编译进 Clawdesk。
+这一级不需要为了“能调用”而强行把第三方能力编译进 OpenDesk。
 
 ### L3 Native / Go Runtime 扩展
 
@@ -96,7 +96,7 @@ Clawdesk
 - 权限、部署、长期运行和可靠性方案。
 - 企业技术支持与维护。
 
-这一层既解决“用户无法自己修改源码”的现实问题，也可以成为 Clawdesk 的商业服务入口。
+这一层既解决“用户无法自己修改源码”的现实问题，也可以成为 OpenDesk 的商业服务入口。
 
 ## 二、默认决策顺序
 
@@ -306,8 +306,8 @@ RuntimeRegistry
 
 ```text
 polyfills/                     # 官方核心
-~/.clawdesk/polyfills/         # 当前用户
-.clawdesk/polyfills/           # 当前项目
+~/.opendesk/polyfills/         # 当前用户
+.opendesk/polyfills/           # 当前项目
 ```
 
 加载方式应该是 **merge / append**，不是“找到第一个目录就完全替代其他目录”。
@@ -504,7 +504,7 @@ OCR / Vision provider 集成
 
 用户文档可以明确写：
 
-> 需要原生能力、企业集成或定制构建时，请联系 Clawdesk 项目作者 / 维护者。
+> 需要原生能力、企业集成或定制构建时，请联系 OpenDesk 项目作者 / 维护者。
 
 但不建议在多个 API 页面分别写私人邮箱、微信号等硬编码联系方式。
 

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://clawdesk.dev/schemas/automation/layout-model.schema.json",
+  "$id": "https://opendesk.dev/schemas/automation/layout-model.schema.json",
   "type": "object",
   "required": ["schemaVersion", "runId", "structure", "appInference"],
   "properties": {

@@ -1,17 +1,17 @@
-# Clawdesk MCP
+# OpenDesk MCP
 
-Clawdesk MCP 是本仓库面向 MCP Host 的本地 stdio 工具服务。它复用 Clawdesk 现有 desktop automation / vision 能力，为 Agent 提供可组合的感知、目标发现和安全动作接口。
+OpenDesk MCP 是本仓库面向 MCP Host 的本地 stdio 工具服务。它复用 OpenDesk 现有 desktop automation / vision 能力，为 Agent 提供可组合的感知、目标发现和安全动作接口。
 
 ## 构建
 
 ```bash
-go build -o dist/clawdesk-mcp ./cmd/clawdesk-mcp
+go build -o dist/opendesk-mcp ./cmd/opendesk-mcp
 ```
 
 本地直接启动：
 
 ```bash
-./dist/clawdesk-mcp
+./dist/opendesk-mcp
 ```
 
 它是 stdio MCP server，通常由 Hermes、Claude Desktop 或其他 Host 拉起，而不是人工在终端中交互。
@@ -156,7 +156,7 @@ prompts/mcp/continuation.md
 至少检查：
 
 ```bash
-go test ./pkg/mcpserver ./cmd/clawdesk-mcp
+go test ./pkg/mcpserver ./cmd/opendesk-mcp
 ```
 
 涉及真实桌面行为时再按 manual smoke 做真机验证。

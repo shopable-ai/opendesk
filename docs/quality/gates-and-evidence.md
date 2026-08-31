@@ -1,6 +1,6 @@
 # Gates and Evidence
 
-本文件定义 Clawdesk framework-level 质量门禁。Scenario 可以增加字段与 Gate，但不能把领域专有 artifact 写成全局 runtime 必然产物。
+本文件定义 OpenDesk framework-level 质量门禁。Scenario 可以增加字段与 Gate，但不能把领域专有 artifact 写成全局 runtime 必然产物。
 
 ## Core principles
 

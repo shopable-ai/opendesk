@@ -1,7 +1,7 @@
 export {};
 
 declare global {
-  interface ClawdeskSound {
+  interface OpenDeskSound {
     playSuccess(): void;
     playFail(): void;
     playWarning(): void;
@@ -11,5 +11,5 @@ declare global {
     play(soundPath: string): void;
   }
 
-  var Sound: ClawdeskSound;
+  var Sound: OpenDeskSound;
 }

@@ -1,8 +1,8 @@
 package container
 
 import (
-	"clawdesk/automation"
-	"clawdesk/pkg/runtime"
+	"opendesk/automation"
+	"opendesk/pkg/runtime"
 	"os"
 )
 

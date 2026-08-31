@@ -1,8 +1,8 @@
-# Clawdesk 商业化研究
+# OpenDesk 商业化研究
 
 更新时间：2026-08-31
 
-本目录保存 Clawdesk 的**市场、竞品、收费方式、行业机会和商业模式研究**。
+本目录保存 OpenDesk 的**市场、竞品、收费方式、行业机会和商业模式研究**。
 
 它属于 `docs/research/`，是产品与商业决策的输入，不是当前产品能力、架构事实或正式路线图。
 
@@ -19,17 +19,17 @@
    - 当前最高优先级商业研究；
    - 同时覆盖中国、跨境和海外电商；
    - 研究选品、竞品、流量、内容、广告、客服、订单、发货、售后、库存、财务等真实付费问题；
-   - 该文件是**宽市场样本池**，其中的软件与 Clawdesk 的直接相关程度并不相同，必须结合下一份“相关性分层”阅读。
+   - 该文件是**宽市场样本池**，其中的软件与 OpenDesk 的直接相关程度并不相同，必须结合下一份“相关性分层”阅读。
 
-3. [`电商软件与Clawdesk相关性分层.md`](电商软件与Clawdesk相关性分层.md)
-   - 给所有电商研究对象增加 `C0—C4` Clawdesk 关联等级；
-   - 同时增加 `B0—B3` 商业模式参考等级，避免把“很赚钱但离 Clawdesk 很远”的 SaaS误判为直接竞品或开发方向；
+3. [`电商软件与OpenDesk相关性分层.md`](电商软件与OpenDesk相关性分层.md)
+   - 给所有电商研究对象增加 `C0—C4` OpenDesk 关联等级；
+   - 同时增加 `B0—B3` 商业模式参考等级，避免把“很赚钱但离 OpenDesk 很远”的 SaaS误判为直接竞品或开发方向；
    - C1 的商家工作台、Desktop/Web 后台、ERP、客服/订单等实际人工操作，是当前最值得验证的电商商业化场景；
-   - C3/C4 的数据、营销和远端 SaaS 主要作为 Trigger、数据源或商业模式参考，不应自动进入 Clawdesk 开发范围。
+   - C3/C4 的数据、营销和远端 SaaS 主要作为 Trigger、数据源或商业模式参考，不应自动进入 OpenDesk 开发范围。
 
 4. [`AI业务执行与端到端Agent商业机会研究.md`](AI业务执行与端到端Agent商业机会研究.md)
    - 研究 AI 如何从“回答 / 写文件”升级为“跨 API、浏览器、桌面软件完成真实业务 Outcome”；
-   - 将 Clawdesk 定位为 Business Agent 的 Desktop / Cross-App Execution Infrastructure，而不是整个 Agent；
+   - 将 OpenDesk 定位为 Business Agent 的 Desktop / Cross-App Execution Infrastructure，而不是整个 Agent；
    - 重点研究外包采购 / Sourcing、销售、电商运营、客服、招聘、内容、财务、供应链等端到端 Agent；
    - 建立“流量 × 业务价值 × 付费预算 × 跨软件必要性 × 可验证结果 × 合规风险”的商业机会评分；
    - 强调交易、高金额、批量消息等风险动作需要人工审批和平台规则约束。
@@ -50,8 +50,8 @@
 后续新增任何软件，不能只记录“它是否赚钱”。必须同时回答：
 
 ```text
-Clawdesk 关联等级 C0—C4
-→ 它与 Clawdesk 技术 / 产品 / Workflow 有多近？
+OpenDesk 关联等级 C0—C4
+→ 它与 OpenDesk 技术 / 产品 / Workflow 有多近？
 
 商业参考等级 B0—B3
 → 它的收费、Packaging、Marketplace、Outcome Pricing 等有多值得借鉴？
@@ -69,7 +69,7 @@ Gorgias
 → C2 + B3：不是底层竞品，但业务自动化和按结果收费很值得研究
 
 Helium 10
-→ C3 + B3：主要是上游数据 / 经营工具，商业模式价值高，但不意味着 Clawdesk 应复制数据平台
+→ C3 + B3：主要是上游数据 / 经营工具，商业模式价值高，但不意味着 OpenDesk 应复制数据平台
 
 Klaviyo 部分产品
 → C4 + B3：技术距离较远，主要研究其商业包装和收费模式
@@ -88,13 +88,13 @@ Klaviyo 部分产品
 → Business Execution Agent / Transactional Agent
 ```
 
-第三层不能反向要求 Clawdesk 自己重建所有能力。默认路线应是：
+第三层不能反向要求 OpenDesk 自己重建所有能力。默认路线应是：
 
 ```text
 LLM / Planner
 → API / MCP 优先
 → Browser Automation
-→ Clawdesk Desktop / Cross-App
+→ OpenDesk Desktop / Cross-App
 → Verification / Recovery / Evidence
 → Business Outcome
 ```
@@ -114,7 +114,7 @@ LLM / Planner
 → 谁能做什么、怎么实现、Build/Buy/Integrate
 
 商业化 Research
-→ 谁愿意付钱、为什么付钱、怎么收费、Clawdesk 应该卖什么
+→ 谁愿意付钱、为什么付钱、怎么收费、OpenDesk 应该卖什么
 ```
 
 不新建平行 `reference/` 目录。外部软件与市场信息如果只是事实来源，直接在 Research 文档中记录来源；需要机器可复用的外部参考 manifest 时，遵循仓库规则放到 `docs/research/external/`。
@@ -130,9 +130,9 @@ LLM / Planner
    - 用户通过框架节省成本产生的间接价值。
 5. 所有价格都带研究日期，后续可能变化。
 6. 商业机会进入正式 Roadmap 前，必须再经过真实用户、付费或 ROI 验证。
-7. 不因为某个市场很大就自动进入开发计划；优先研究 Clawdesk 是否具有结构性优势。
-8. 不因为某个软件商业化成功就把它视为 Clawdesk 直接竞品；先通过 `C0—C4` 相关性分层。
-9. 对 C3/C4 对象默认限制研究投入，除非其商业模式为 B3 或能直接成为 Clawdesk 的数据源 / Trigger。
+7. 不因为某个市场很大就自动进入开发计划；优先研究 OpenDesk 是否具有结构性优势。
+8. 不因为某个软件商业化成功就把它视为 OpenDesk 直接竞品；先通过 `C0—C4` 相关性分层。
+9. 对 C3/C4 对象默认限制研究投入，除非其商业模式为 B3 或能直接成为 OpenDesk 的数据源 / Trigger。
 10. 端到端 Agent 研究必须区分低风险自动执行与高风险人工审批，不把批量骚扰、绕过平台风控或违反平台规则作为商业机会。
 11. 评价 Agent 商业价值优先使用“业务 Outcome、真实预算、人工成本、执行缺口、结果可验证性”，而不是 GitHub Star 或底层 API 使用量。
 12. 2026-08 起，技术竞品扫描必须同时覆盖 Driver、Computer Use、Recorder、Agent OS、Agent-authored RPA、Enterprise Agentic Automation 与 Browser/Sandbox，不再只扫描传统 RPA。
@@ -150,7 +150,7 @@ LLM / Planner
 → C2 现有 SaaS 未覆盖缺口
 → 端到端 Business Agent 闭环
 → 选择 1—3 个可收费 Workflow
-→ API / Browser / Clawdesk 最小组合验证
+→ API / Browser / OpenDesk 最小组合验证
 → Verify + Evidence
 → 真实用户 / 真实付费验证
 → 再决定是否扩大 Creator / Marketplace / Platform

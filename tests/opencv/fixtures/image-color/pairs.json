@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "description": "Deterministic color-block fixtures for Clawdesk ImageColor OpenCV template matching tests.",
+  "description": "Deterministic color-block fixtures for OpenDesk ImageColor OpenCV template matching tests.",
   "generatedBy": "go run ./cmd/generate-opencv-fixtures",
   "requiredBackend": "opencv",
   "source": {

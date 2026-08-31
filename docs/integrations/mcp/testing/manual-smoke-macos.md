@@ -1,11 +1,11 @@
 # MCP Manual Smoke on macOS
 
-本手册验证 Clawdesk MCP 在真实 macOS 环境中的最小可用链路。它不保存某次运行日志；原始结果进入 `.runtime/runs/<run-id>/`，确认后的长期结论进入 `docs/quality/mcp/`。
+本手册验证 OpenDesk MCP 在真实 macOS 环境中的最小可用链路。它不保存某次运行日志；原始结果进入 `.runtime/runs/<run-id>/`，确认后的长期结论进入 `docs/quality/mcp/`。
 
 ## 1. 构建
 
 ```bash
-go build -o dist/clawdesk-mcp ./cmd/clawdesk-mcp
+go build -o dist/opendesk-mcp ./cmd/opendesk-mcp
 ```
 
 ## 2. Host 接入
@@ -14,8 +14,8 @@ go build -o dist/clawdesk-mcp ./cmd/clawdesk-mcp
 
 ```yaml
 mcp_servers:
-  clawdesk:
-    command: /absolute/path/to/clawdesk/dist/clawdesk-mcp
+  opendesk:
+    command: /absolute/path/to/opendesk/dist/opendesk-mcp
     timeout: 120
     connect_timeout: 30
 ```
@@ -85,7 +85,7 @@ docs/integrations/mcp/hermes-integration.md
 
 ```json
 {
-  "path": "/tmp/clawdesk-mcp-smoke.png",
+  "path": "/tmp/opendesk-mcp-smoke.png",
   "target": "screen"
 }
 ```
@@ -106,7 +106,7 @@ docs/integrations/mcp/hermes-integration.md
 ```json
 {
   "captureScreenshot": true,
-  "path": "/tmp/clawdesk-mcp-inspect.png"
+  "path": "/tmp/opendesk-mcp-inspect.png"
 }
 ```
 

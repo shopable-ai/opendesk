@@ -28,7 +28,7 @@ const flow = await page.requestMacPermissions({
 console.log('final flow:', JSON.stringify(flow, null, 2));
 
 if (!granted && !flow.ok) {
-  console.log('Automation permission still missing. Run scripts/reset_macos_permissions.sh and retry via Clawdesk.app.');
+  console.log('Automation permission still missing. Run scripts/reset_macos_permissions.sh and retry via OpenDesk.app.');
 }
 
 console.log('automation permission wizard done');

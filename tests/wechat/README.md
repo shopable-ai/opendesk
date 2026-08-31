@@ -9,7 +9,7 @@ Run commands from the repository root:
 
 ```bash
 make build
-./dist/clawdesk -script tests/wechat/wechat_visualization.js
+./dist/opendesk -script tests/wechat/wechat_visualization.js
 ./tests/wechat/run_e2e_test.sh
 ```
 

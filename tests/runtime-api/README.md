@@ -1,6 +1,6 @@
-# Clawdesk JavaScript Runtime API Conformance Lab
+# OpenDesk JavaScript Runtime API Conformance Lab
 
-页面产品名为 **Clawdesk Runtime API Test Lab**。`tests/runtime-api/` 是稳定、可维护的
+页面产品名为 **OpenDesk Runtime API Test Lab**。`tests/runtime-api/` 是稳定、可维护的
 JavaScript Runtime API 测试源码；任何一次性日志、截图、生成脚本、状态和运行证据只写入
 `.runtime/tests/runtime-api/<runId>/`，不得纳入版本控制。
 
@@ -29,10 +29,10 @@ tier，以及没有风险理由的 contract-only 接口。
 ## 运行
 
 ```bash
-CLAWDESK_BINARY=/absolute/path/to/audited/clawdesk ./scripts/test_runtime_apis.sh contract
-CLAWDESK_BINARY=/absolute/path/to/audited/clawdesk ./scripts/test_runtime_apis.sh unit
-CLAWDESK_BINARY=/absolute/path/to/audited/clawdesk ./scripts/test_runtime_apis.sh smoke
-CLAWDESK_BINARY=/absolute/path/to/audited/clawdesk ./scripts/test_runtime_apis.sh live
+OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./scripts/test_runtime_apis.sh contract
+OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./scripts/test_runtime_apis.sh unit
+OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./scripts/test_runtime_apis.sh smoke
+OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./scripts/test_runtime_apis.sh live
 ```
 
 `live` 从头执行全部 gate，最后才运行 quality/acceptance。它要求 macOS Accessibility 和
@@ -42,8 +42,8 @@ SHA 不一致、缺重放或清理失败都会非零退出。
 新变量：
 
 ```bash
-CLAWDESK_RUNTIME_API_LIVE_FILTER=page.test.js,composition.test.js
-CLAWDESK_RUNTIME_API_BROWSER_APP=Safari
+OPENDESK_RUNTIME_API_LIVE_FILTER=page.test.js,composition.test.js
+OPENDESK_RUNTIME_API_BROWSER_APP=Safari
 ```
 
 旧 `HOST_API_LIVE_FILTER` 和 `HOST_API_BROWSER_APP` 可由兼容入口映射，但新文档只推荐上列

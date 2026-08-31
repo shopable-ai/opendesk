@@ -5,7 +5,7 @@
 工作目录：
 
 ```bash
-cd /Users/mac/Documents/workspace/clawdesk
+cd /Users/mac/Documents/workspace/opendesk
 ```
 
 ## 这台电脑的信息
@@ -13,11 +13,11 @@ cd /Users/mac/Documents/workspace/clawdesk
 - 主机名：`min-Mac4g.local`
 - LocalHostName：`min-Mac4g`
 - 当前局域网 IP：`192.168.30.15`
-- 项目目录：`/Users/mac/Documents/workspace/clawdesk`
+- 项目目录：`/Users/mac/Documents/workspace/opendesk`
 
 ## 你应该直接在哪执行
 
-是，直接在目标电脑里的 `workspace/clawdesk` 执行。
+是，直接在目标电脑里的 `workspace/opendesk` 执行。
 
 ## 相关文件
 
@@ -30,15 +30,15 @@ cd /Users/mac/Documents/workspace/clawdesk
 启动 bridge：
 
 ```bash
-cd /Users/mac/Documents/workspace/clawdesk
+cd /Users/mac/Documents/workspace/opendesk
 ~/Documents/workspace/local-ai-rag/.venv/bin/python tests/locateanything/locateanything_bridge.py --backend mock --host 127.0.0.1 --port 18777
 ```
 
-运行 clawdesk demo：
+运行 opendesk demo：
 
 ```bash
-cd /Users/mac/Documents/workspace/clawdesk
-./dist/clawdesk -script tests/locateanything/demo_grounding.js -timeout 2
+cd /Users/mac/Documents/workspace/opendesk
+./dist/opendesk -script tests/locateanything/demo_grounding.js -timeout 2
 ```
 
 输出文件：
@@ -52,7 +52,7 @@ cd /Users/mac/Documents/workspace/clawdesk
 如果需要让同一局域网的其他机器访问这个 bridge，不要绑定 `127.0.0.1`，改成：
 
 ```bash
-cd /Users/mac/Documents/workspace/clawdesk
+cd /Users/mac/Documents/workspace/opendesk
 ~/Documents/workspace/local-ai-rag/.venv/bin/python tests/locateanything/locateanything_bridge.py --backend mock --host 0.0.0.0 --port 18777
 ```
 
@@ -101,13 +101,13 @@ curl -X POST http://192.168.30.15:18777/v1/ground \
 所以现在能直接跑通的是：
 
 - `mock` backend
-- clawdesk 到 bridge 的联调流程
+- opendesk 到 bridge 的联调流程
 
 如果要跑真实 MLX 模型，应该换到 Apple Silicon 机器，并把模型目录放到：
 
 ```text
-/Users/mac/Documents/workspace/clawdesk/models/LocateAnything-3B-8bit
-/Users/mac/Documents/workspace/clawdesk/models/LocateAnything-3B-bf16
+/Users/mac/Documents/workspace/opendesk/models/LocateAnything-3B-8bit
+/Users/mac/Documents/workspace/opendesk/models/LocateAnything-3B-bf16
 ```
 
 再运行：

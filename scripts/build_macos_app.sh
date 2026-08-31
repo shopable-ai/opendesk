@@ -3,25 +3,29 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DIST_DIR="${ROOT_DIR}/dist"
-APP_ROOT="${DIST_DIR}/Clawdesk.app"
+DIST_DIR="${DIST_DIR:-${ROOT_DIR}/dist}"
+APP_ROOT="${DIST_DIR}/OpenDesk.app"
 CONTENTS_DIR="${APP_ROOT}/Contents"
 MACOS_DIR="${CONTENTS_DIR}/MacOS"
-EXECUTABLE_PATH="${MACOS_DIR}/clawdesk"
+HELPERS_DIR="${CONTENTS_DIR}/Helpers"
+EXECUTABLE_PATH="${MACOS_DIR}/opendesk"
+UI_HOST_PATH="${HELPERS_DIR}/opendesk-ui-host"
 PLIST_PATH="${CONTENTS_DIR}/Info.plist"
-BUNDLE_ID="${BUNDLE_ID:-com.clawdesk.cli}"
-APP_NAME="${APP_NAME:-Clawdesk}"
+BUNDLE_ID="${BUNDLE_ID:-com.opendesk.cli}"
+APP_NAME="${APP_NAME:-OpenDesk}"
 VERSION="${VERSION:-0.1.0}"
 CODESIGN_IDENTITY="${CODESIGN_IDENTITY:--}"
 
 mkdir -p "${DIST_DIR}"
 
-go build -o "${DIST_DIR}/clawdesk" ./cmd/clawdesk
+go build -o "${DIST_DIR}/opendesk" ./cmd/opendesk
+go build -o "${DIST_DIR}/opendesk-ui-host" ./cmd/opendesk-ui-host
 
 rm -rf "${APP_ROOT}"
-mkdir -p "${MACOS_DIR}"
+mkdir -p "${MACOS_DIR}" "${HELPERS_DIR}"
 
-cp "${DIST_DIR}/clawdesk" "${EXECUTABLE_PATH}"
+cp "${DIST_DIR}/opendesk" "${EXECUTABLE_PATH}"
+cp "${DIST_DIR}/opendesk-ui-host" "${UI_HOST_PATH}"
 rsync -a --delete "${ROOT_DIR}/polyfills/" "${MACOS_DIR}/polyfills/"
 rsync -a --delete "${ROOT_DIR}/jslibs/" "${MACOS_DIR}/jslibs/"
 
@@ -35,7 +39,7 @@ cat > "${PLIST_PATH}" <<EOF
   <key>CFBundleDisplayName</key>
   <string>${APP_NAME}</string>
   <key>CFBundleExecutable</key>
-  <string>clawdesk</string>
+  <string>opendesk</string>
   <key>CFBundleIdentifier</key>
   <string>${BUNDLE_ID}</string>
   <key>CFBundleInfoDictionaryVersion</key>
@@ -51,7 +55,7 @@ cat > "${PLIST_PATH}" <<EOF
   <key>LSMinimumSystemVersion</key>
   <string>12.0</string>
   <key>NSAppleEventsUsageDescription</key>
-  <string>Clawdesk needs Automation permission to control System Events and target applications for desktop automation workflows.</string>
+  <string>OpenDesk needs Automation permission to control System Events and target applications for desktop automation workflows.</string>
 </dict>
 </plist>
 EOF
@@ -62,7 +66,8 @@ else
   codesign --force --deep --sign "${CODESIGN_IDENTITY}" "${APP_ROOT}" >/dev/null
 fi
 
-printf 'Built binary: %s\n' "${DIST_DIR}/clawdesk"
+printf 'Built binary: %s\n' "${DIST_DIR}/opendesk"
+printf 'Built custom UI host: %s\n' "${UI_HOST_PATH}"
 printf 'Built app: %s\n' "${APP_ROOT}"
 printf 'Bundle id: %s\n' "${BUNDLE_ID}"
 if [[ "${SKIP_CODESIGN:-0}" == "1" ]]; then

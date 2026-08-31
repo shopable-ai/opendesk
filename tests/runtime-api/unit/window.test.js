@@ -15,7 +15,7 @@
     tier: 'unit',
     covers: ['window.setAlwaysOnTop', 'window.unsetTopMost'],
   }, async () => {
-    await expectThrow(() => window.setAlwaysOnTop('__clawdesk_fixture__', true), 'not supported');
-    await expectThrow(() => window.unsetTopMost('__clawdesk_fixture__'), 'not supported');
+    await expectThrow(() => window.setAlwaysOnTop('__opendesk_fixture__', true), 'not supported');
+    await expectThrow(() => window.unsetTopMost('__opendesk_fixture__'), 'not supported');
   });
 })();

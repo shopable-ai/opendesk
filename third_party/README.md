@@ -1,7 +1,7 @@
 # Third-party source policy
 
 `third_party/` is an intentional exception, not a general dependency or output
-directory. Clawdesk uses local module replacements because a small set of
+directory. OpenDesk uses local module replacements because a small set of
 macOS compatibility fixes is not available in the pinned upstream releases.
 
 ## Pinned upstreams

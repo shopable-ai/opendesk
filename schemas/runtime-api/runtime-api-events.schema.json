@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://clawdesk.dev/schemas/runtime-api/runtime-api-events.schema.json",
-  "title": "Clawdesk Runtime API NDJSON Event",
+  "$id": "https://opendesk.dev/schemas/runtime-api/runtime-api-events.schema.json",
+  "title": "OpenDesk Runtime API NDJSON Event",
   "type": "object",
   "required": ["schemaVersion", "runId", "sequence", "timestamp", "type", "targetId"],
   "properties": {

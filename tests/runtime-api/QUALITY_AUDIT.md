@@ -1,4 +1,4 @@
-# Clawdesk JavaScript Runtime API Conformance Lab acceptance audit
+# OpenDesk JavaScript Runtime API Conformance Lab acceptance audit
 
 `quality_gate.js` 不搜索源码关键词，也不从注释推导分数。它只读取本次 `runId` 的 contract、
 unit、coverage、smoke、failure-exit、live、composition 与 cleanup 结果，并核验：

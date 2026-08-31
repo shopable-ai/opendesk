@@ -1,6 +1,6 @@
-# Clawdesk Runbook
+# OpenDesk Runbook
 
-本 Runbook 面向维护者、Agent 和本地操作者，定义当前 Clawdesk 的安全执行、验证与故障定位主路径。
+本 Runbook 面向维护者、Agent 和本地操作者，定义当前 OpenDesk 的安全执行、验证与故障定位主路径。
 
 ## 1. 先选择使用面
 
@@ -16,9 +16,9 @@
 入口：
 
 ```bash
-go run ./cmd/clawdesk -script examples/notify.js
-go run ./cmd/clawdesk -script-text "console.log('hello')"
-printf "console.log('stdin')\n" | go run ./cmd/clawdesk -script-stdin
+go run ./cmd/opendesk -script examples/notify.js
+go run ./cmd/opendesk -script-text "console.log('hello')"
+printf "console.log('stdin')\n" | go run ./cmd/opendesk -script-stdin
 ```
 
 ### HTTP
@@ -33,7 +33,7 @@ printf "console.log('stdin')\n" | go run ./cmd/clawdesk -script-stdin
 入口：
 
 ```bash
-go run ./cmd/clawdesk -http -port 60844
+go run ./cmd/opendesk -http -port 60844
 ```
 
 详细 API：
@@ -53,7 +53,7 @@ docs-user-api/http-server.md
 构建：
 
 ```bash
-go build -o dist/clawdesk-mcp ./cmd/clawdesk-mcp
+go build -o dist/opendesk-mcp ./cmd/opendesk-mcp
 ```
 
 详细说明：
@@ -94,7 +94,7 @@ scripts/reset_macos_permissions.sh
 docs/implementation/macos/
 ```
 
-不要假设旧 Terminal、SSH 或旧构建产物获得的权限会自动转移到当前 Clawdesk App 身份。
+不要假设旧 Terminal、SSH 或旧构建产物获得的权限会自动转移到当前 OpenDesk App 身份。
 
 ### OCR
 
@@ -136,7 +136,7 @@ PADDLE_OCR_ENDPOINT
 Agent 低噪音：
 
 ```bash
-go run ./cmd/clawdesk \
+go run ./cmd/opendesk \
   -script-text "console.log('agent run')" \
   -console-mode agent
 ```
@@ -144,7 +144,7 @@ go run ./cmd/clawdesk \
 JSON 输出：
 
 ```bash
-go run ./cmd/clawdesk \
+go run ./cmd/opendesk \
   -script-text "console.log('agent run')" \
   -output-format json
 ```
@@ -164,7 +164,7 @@ go run ./cmd/clawdesk \
 自定义调试输出仍优先放 `.runtime/`：
 
 ```bash
-go run ./cmd/clawdesk -script-text "..." -log-dir .runtime/debug/<name>
+go run ./cmd/opendesk -script-text "..." -log-dir .runtime/debug/<name>
 ```
 
 ## 5. HTTP 执行
@@ -306,7 +306,7 @@ docs/architecture/browser-automation/capabilities.md
 启动：
 
 ```bash
-open dist/Clawdesk.app
+open dist/OpenDesk.app
 ```
 
 带参数：

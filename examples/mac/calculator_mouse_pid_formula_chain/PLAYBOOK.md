@@ -91,7 +91,7 @@ live config 指向由只读 AX watcher 原子更新的 `current-state.json`。�
 默认无配置或配置未明确 `execute: true` 时，下面命令只验证 contract、公式与 API 存在性，并将 `actions_executed=0` 的报告写到 `.runtime/runs/`：
 
 ```sh
-.runtime/bin/clawdesk-js-runtime -script examples/mac/calculator_mouse_pid_formula_chain/run.js
+.runtime/bin/opendesk-js-runtime -script examples/mac/calculator_mouse_pid_formula_chain/run.js
 ```
 
 只可在操作者另行创建的新鲜、短时、一次性 armed live config，并启动只读 watcher 后执行相同命令。不得把真实 Calculator 算术点击作为静态检查或模拟回归的一部分。

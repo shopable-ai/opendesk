@@ -1,7 +1,7 @@
 export {};
 
 declare global {
-  interface ClawdeskFloatingWindow {
+  interface OpenDeskFloatingWindow {
     addButton(id: string, label: string, iconName: string): void;
     removeButton(id: string): void;
     show(): void;
@@ -12,5 +12,5 @@ declare global {
     run(): void;
   }
 
-  var FloatingWindow: ClawdeskFloatingWindow | undefined;
+  var FloatingWindow: OpenDeskFloatingWindow | undefined;
 }

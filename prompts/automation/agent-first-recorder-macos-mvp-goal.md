@@ -6,12 +6,12 @@
 
 ---
 
-# Clawdesk Agent-first Recorder macOS MVP：轨迹采集、有效路径蒸馏、脚本生成与无 AI 回放执行任务
+# OpenDesk Agent-first Recorder macOS MVP：轨迹采集、有效路径蒸馏、脚本生成与无 AI 回放执行任务
 
 请直接继续开发 GitHub 仓库：
 
 ```text
-https://github.com/shopable-ai/clawdesk
+https://github.com/shopable-ai/opendesk
 ```
 
 默认分支：
@@ -49,7 +49,7 @@ pkg/execution/
 automation/
 pkg/http/
 pkg/mcpserver/
-cmd/clawdesk/
+cmd/opendesk/
 polyfills/
 types/
 schemas/
@@ -68,7 +68,7 @@ Agent 通过 JavaScript / HTTP / MCP 执行少量桌面操作
 → Recorder 采集动作、结构化意图、窗口、截图、结果和验证证据
 → Raw Trace 落盘
 → 删除探索、失败和重复行为，生成 Flow IR
-→ 编译为 Clawdesk JavaScript
+→ 编译为 OpenDesk JavaScript
 → 在不调用 AI 的情况下确定性回放
 → 验证后置条件
 → 输出完整 Evidence 和 bounded verdict
@@ -80,7 +80,7 @@ Agent 通过 JavaScript / HTTP / MCP 执行少量桌面操作
 
 ### 3.1 Agent-first
 
-MVP 只记录经过 Clawdesk JS、HTTP 或 MCP 执行的 Agent 行为，不实现系统级人工鼠标键盘全局监听。
+MVP 只记录经过 OpenDesk JS、HTTP 或 MCP 执行的 Agent 行为，不实现系统级人工鼠标键盘全局监听。
 
 ### 3.2 三层权威工件
 
@@ -319,7 +319,7 @@ Automation：只有 AppleEvents 场景才要求
 
 本轮不得把 Input Monitoring 设为硬依赖，因为没有实现人工全局事件录制。
 
-所有真实桌面测试优先由固定路径的 `dist/Clawdesk.app` 身份发起，避免权限绑定到 Terminal、Codex 或其他宿主。
+所有真实桌面测试优先由固定路径的 `dist/OpenDesk.app` 身份发起，避免权限绑定到 Terminal、Codex 或其他宿主。
 
 ### 5.2 环境 preflight
 
@@ -338,7 +338,7 @@ uname -m
 go version
 locale
 显示器与 scale
-Clawdesk.app bundle id / codesign identity
+OpenDesk.app bundle id / codesign identity
 权限状态
 目标应用存在性
 关键应用语言
@@ -378,7 +378,7 @@ size
 
 目标应尽量通过点击点反查 AX 元素。Accessibility 不可用时允许降级，但必须记录 F0/F1 与降级原因。
 
-首轮继续复用当前 Clawdesk screenshot 实现，不为了 Recorder MVP 强制迁移 ScreenCaptureKit。
+首轮继续复用当前 OpenDesk screenshot 实现，不为了 Recorder MVP 强制迁移 ScreenCaptureKit。
 
 ## 六、运行工件
 
@@ -439,7 +439,7 @@ risk
 
 ### 8.1 Compiler
 
-由 Flow IR 生成可读、可维护的 Clawdesk JavaScript。
+由 Flow IR 生成可读、可维护的 OpenDesk JavaScript。
 
 生成脚本不应复制复杂定位算法；应调用可复用 replay / locator runtime。
 

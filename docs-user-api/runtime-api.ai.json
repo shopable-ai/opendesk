@@ -1,12 +1,12 @@
 {
-  "docType": "clawdesk-runtime-api-index",
-  "project": "clawdesk",
+  "docType": "opendesk-runtime-api-index",
+  "project": "opendesk",
   "preferredForAI": true,
   "authority": {
     "sourceOfTruth": [
       "automation/*.go",
       "polyfills/*.js",
-      "cmd/clawdesk/main.go",
+      "cmd/opendesk/main.go",
       "pkg/http/*.go"
     ],
     "canonicalUserDocs": "docs-user-api/",
@@ -19,9 +19,9 @@
   },
   "entrypoints": {
     "cli": {
-      "file": "go run ./cmd/clawdesk -script <file.js>",
-      "inline": "go run ./cmd/clawdesk -script-text \"...\"",
-      "stdin": "go run ./cmd/clawdesk -script-stdin",
+      "file": "go run ./cmd/opendesk -script <file.js>",
+      "inline": "go run ./cmd/opendesk -script-text \"...\"",
+      "stdin": "go run ./cmd/opendesk -script-stdin",
       "stack": [
         "legacy",
         "upgraded",
@@ -29,11 +29,11 @@
       ]
     },
     "httpServer": {
-      "command": "go run ./cmd/clawdesk -http",
+      "command": "go run ./cmd/opendesk -http",
       "defaultPort": 60844
     },
     "mcp": {
-      "command": "go run ./cmd/clawdesk-mcp",
+      "command": "go run ./cmd/opendesk-mcp",
       "docs": "docs/mcp/README.md"
     }
   },
@@ -182,7 +182,7 @@
         "key"
       ],
       "storage": {
-        "canonical": "~/.clawdesk/clawdesk/storage.json",
+        "canonical": "~/.opendesk/opendesk/storage.json",
         "legacyMigrationFrom": "~/.testmonkey/testMonkey/storage.json"
       }
     },

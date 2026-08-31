@@ -1,8 +1,8 @@
 执行：
 
 ```bash
-cd /Users/mac/Documents/workspace/clawdesk
-./dist/clawdesk -script tests/locateanything/scripts/run_stage_04_boundary_stress.js -timeout 5
+cd /Users/mac/Documents/workspace/opendesk
+./dist/opendesk -script tests/locateanything/scripts/run_stage_04_boundary_stress.js -timeout 5
 ```
 
 本阶段的矩阵以：

@@ -1,12 +1,12 @@
 ---
 title: Page API
-description: page 是 Clawdesk 脚本最常用的桌面入口，负责截图、打开 URL/App、等待与权限处理。
+description: page 是 OpenDesk 脚本最常用的桌面入口，负责截图、打开 URL/App、等待与权限处理。
 order: 2
 ---
 
 # page
 
-`page` 是 Clawdesk 脚本层最常用的入口。
+`page` 是 OpenDesk 脚本层最常用的入口。
 
 它更接近“桌面自动化 Page”，**不是浏览器 DOM Page**。
 

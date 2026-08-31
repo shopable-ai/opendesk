@@ -1,6 +1,6 @@
 # MCP OCR Provider Recovery
 
-用于 Clawdesk MCP 的 OCR / detect-ui / OCR-dependent target discovery 因 provider 配置缺失或不可达而被阻塞时恢复。
+用于 OpenDesk MCP 的 OCR / detect-ui / OCR-dependent target discovery 因 provider 配置缺失或不可达而被阻塞时恢复。
 
 ## 识别 external blocker
 

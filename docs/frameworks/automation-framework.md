@@ -2,11 +2,11 @@
 
 ## 定位
 
-本文件定义 Clawdesk 自动化能力的最高层长期框架。
+本文件定义 OpenDesk 自动化能力的最高层长期框架。
 
 它回答：
 
-> Clawdesk 应该怎样把底层输入、界面感知、目标定位、动作验证、业务技能、工作流与 Agent 组织成一个可靠自动化系统？
+> OpenDesk 应该怎样把底层输入、界面感知、目标定位、动作验证、业务技能、工作流与 Agent 组织成一个可靠自动化系统？
 
 具体实现细节、单一应用规则和阶段计划不应替代本文件。
 
@@ -139,7 +139,7 @@
 
 ## 五、配套框架
 
-- [能力开发与成熟度路径](./capability-development.md)：Clawdesk 自身如何从简单能力逐级发展到复杂桌面 Agent。
+- [能力开发与成熟度路径](./capability-development.md)：OpenDesk 自身如何从简单能力逐级发展到复杂桌面 Agent。
 - [应用自动化开发框架](./app-development-framework.md)：新增一个具体桌面应用时应如何分析、开发、验证和封装。
 - [Playbook 驱动自动化](./playbook-driven-automation.md)：把一个可审查的应用流程收敛成文档定义、受限数据读取和可验证运行脚本。
 - `../architecture/desktop-automation/`：目标模型、Adapter Contract、应用分类等专项技术架构。

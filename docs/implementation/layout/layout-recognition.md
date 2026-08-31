@@ -1,6 +1,6 @@
 # Layout Recognition
 
-本文件描述 Clawdesk 当前桌面窗口布局识别实现。实现事实以 `automation/image_layout.go` 和当前测试为最终依据；正式质量报告保存在 `docs/quality/layout/`，研究过程保存在 `docs/research/layout/`。
+本文件描述 OpenDesk 当前桌面窗口布局识别实现。实现事实以 `automation/image_layout.go` 和当前测试为最终依据；正式质量报告保存在 `docs/quality/layout/`，研究过程保存在 `docs/research/layout/`。
 
 ## 当前实现
 

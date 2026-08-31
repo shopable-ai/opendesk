@@ -1,9 +1,9 @@
 export {};
 
 declare global {
-  interface ClawdeskTouchscreen {
+  interface OpenDeskTouchscreen {
     tap(x: number, y: number): void;
   }
 
-  var touchscreen: ClawdeskTouchscreen;
+  var touchscreen: OpenDeskTouchscreen;
 }

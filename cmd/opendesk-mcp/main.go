@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	pkgContainer "clawdesk/pkg/container"
-	"clawdesk/pkg/mcpserver"
+	pkgContainer "opendesk/pkg/container"
+	"opendesk/pkg/mcpserver"
 )
 
 func main() {

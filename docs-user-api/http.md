@@ -1,6 +1,6 @@
 ---
 title: HTTP and Axios
-description: Clawdesk 原生 http 对象与构建在其上的 axios polyfill。
+description: OpenDesk 原生 http 对象与构建在其上的 axios polyfill。
 order: 9
 ---
 
@@ -119,7 +119,7 @@ console.log(resp.data);
 ```js
 const resp = await axios.get('https://httpbin.org/get', {
   params: {
-    q: 'clawdesk',
+    q: 'opendesk',
     page: 1
   }
 });

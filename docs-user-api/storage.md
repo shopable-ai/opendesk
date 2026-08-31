@@ -1,6 +1,6 @@
 ---
 title: AppStorage
-description: Clawdesk 脚本内置的轻量持久化键值存储。
+description: OpenDesk 脚本内置的轻量持久化键值存储。
 order: 8
 ---
 
@@ -74,15 +74,16 @@ for (let i = 0; i < count; i++) {
 
 ## 存储位置与旧数据迁移
 
-当前 Clawdesk 使用：
+当前 OpenDesk 使用：
+
+```text
+~/.opendesk/opendesk/storage.json
+```
+
+运行时会按顺序对改名前的默认存储和更早的 TestMonkey 默认存储做一次 best-effort 兼容迁移：
 
 ```text
 ~/.clawdesk/clawdesk/storage.json
-```
-
-运行时会对历史 TestMonkey 默认存储做一次 best-effort 兼容迁移：
-
-```text
 ~/.testmonkey/testMonkey/storage.json
 ```
 

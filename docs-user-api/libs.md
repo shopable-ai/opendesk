@@ -145,7 +145,7 @@ console.log(start);
 
 ```js
 const url = 'https://example.com/search?' + queryString.stringify({
-  q: 'clawdesk',
+  q: 'opendesk',
   page: 1
 });
 console.log(url);

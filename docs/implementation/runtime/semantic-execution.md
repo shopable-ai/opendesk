@@ -1,6 +1,6 @@
 # Semantic Execution
 
-本文件描述 Clawdesk 当前 `pkg/semanticexec/` 的真实实现边界。它取代旧的 `semanticexec-core-skeleton.md` 施工 Spec；实现事实以当前源码与测试为最终依据。
+本文件描述 OpenDesk 当前 `pkg/semanticexec/` 的真实实现边界。它取代旧的 `semanticexec-core-skeleton.md` 施工 Spec；实现事实以当前源码与测试为最终依据。
 
 ## 当前定位
 

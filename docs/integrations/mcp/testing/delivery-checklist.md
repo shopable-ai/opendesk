@@ -1,6 +1,6 @@
 # MCP Delivery Checklist
 
-本清单定义 Clawdesk MCP 当前 `inspect -> find -> act` 阶段的交付判定。它不是版本完成报告；每次行为变化后都应重新核对。
+本清单定义 OpenDesk MCP 当前 `inspect -> find -> act` 阶段的交付判定。它不是版本完成报告；每次行为变化后都应重新核对。
 
 ## 主链路
 
@@ -44,7 +44,7 @@ docs/integrations/mcp/operations/ocr-provider-recovery.md
 MCP 改动至少执行：
 
 ```bash
-go test ./pkg/mcpserver ./cmd/clawdesk-mcp
+go test ./pkg/mcpserver ./cmd/opendesk-mcp
 ```
 
 应覆盖的核心类别见：

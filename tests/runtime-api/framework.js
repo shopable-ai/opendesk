@@ -1,10 +1,10 @@
-// Dependency-free conformance framework for the embedded Clawdesk JavaScript runtime.
+// Dependency-free conformance framework for the embedded OpenDesk JavaScript runtime.
 // Every machine result is scoped to one shell-created runId and persisted below
 // .runtime/tests/runtime-api/<runId>/ by the JavaScript runtime itself.
 
 globalThis.RuntimeAPITest = (() => {
   const tests = [];
-  const context = globalThis.CLAWDESK_RUNTIME_API_CONTEXT || {
+  const context = globalThis.OPENDESK_RUNTIME_API_CONTEXT || {
     schemaVersion: '1.0.0',
     runId: 'direct-' + Date.now(),
     runDir: File.join(File.cwd(), '.runtime', 'runtime-api', 'direct-' + Date.now()),

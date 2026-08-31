@@ -1,4 +1,4 @@
-# Clawdesk MCP macOS 独立验证与修复 GOAL
+# OpenDesk MCP macOS 独立验证与修复 GOAL
 
 ## 使用方式
 
@@ -6,18 +6,18 @@
 
 本任务只负责回答并证明一件事：
 
-> 当前 Clawdesk MCP 是否真的能够被 MCP Host 正确启动、完成协议握手、列出工具、调用工具，并在当前 macOS 主机上完成受控桌面观察与低风险真实动作？
+> 当前 OpenDesk MCP 是否真的能够被 MCP Host 正确启动、完成协议握手、列出工具、调用工具，并在当前 macOS 主机上完成受控桌面观察与低风险真实动作？
 
 如果不能，必须在本轮定位并修复 MCP 自身问题，直到达到本文件定义的 Gate；不要提前进入 Recorder 开发或复杂 Agent 场景。
 
 ---
 
-# Clawdesk MCP：从协议、stdio、工具契约到 macOS 真机动作的独立验证与修复任务
+# OpenDesk MCP：从协议、stdio、工具契约到 macOS 真机动作的独立验证与修复任务
 
 请直接在当前本地仓库执行：
 
 ```text
-https://github.com/shopable-ai/clawdesk
+https://github.com/shopable-ai/opendesk
 ```
 
 默认分支：
@@ -67,7 +67,7 @@ docs/implementation/macos/automation-config.md
 并审计真实实现：
 
 ```text
-cmd/clawdesk-mcp/
+cmd/opendesk-mcp/
 pkg/mcpserver/
 pkg/container/
 automation/
@@ -120,11 +120,11 @@ M4 macOS Low-risk Action
 执行：
 
 ```bash
-go test ./pkg/mcpserver ./cmd/clawdesk-mcp
-go build -o dist/clawdesk-mcp ./cmd/clawdesk-mcp
+go test ./pkg/mcpserver ./cmd/opendesk-mcp
+go build -o dist/opendesk-mcp ./cmd/opendesk-mcp
 ```
 
-如果 `go test ./cmd/clawdesk-mcp` 没有测试文件，不视为错误；但 `pkg/mcpserver` 必须有实际测试结果。
+如果 `go test ./cmd/opendesk-mcp` 没有测试文件，不视为错误；但 `pkg/mcpserver` 必须有实际测试结果。
 
 同时执行受影响范围的必要测试；如果修复了 `automation/` primitive，要补跑相应 automation tests。
 
@@ -133,9 +133,9 @@ go build -o dist/clawdesk-mcp ./cmd/clawdesk-mcp
 记录：
 
 ```bash
-ls -lh dist/clawdesk-mcp
-file dist/clawdesk-mcp
-shasum -a 256 dist/clawdesk-mcp
+ls -lh dist/opendesk-mcp
+file dist/opendesk-mcp
+shasum -a 256 dist/opendesk-mcp
 ```
 
 确认：
@@ -166,7 +166,7 @@ tests/mcp/tools/stdio-smoke/
 该客户端必须真实启动：
 
 ```text
-dist/clawdesk-mcp
+dist/opendesk-mcp
 ```
 
 通过 stdin/stdout 发送 JSON-RPC，不得直接调用 `Server.Handle()` 代替真实 stdio transport。
@@ -180,7 +180,7 @@ dist/clawdesk-mcp
 ```text
 jsonrpc = 2.0
 protocolVersion 有值且与 server 当前声明一致
-serverInfo.name = clawdesk-mcp
+serverInfo.name = opendesk-mcp
 capabilities.tools 存在
 request id 正确回传
 ```
@@ -326,7 +326,7 @@ docs/implementation/macos/automation-config.md
 
 判断实际权限主体。
 
-如果 MCP 是被本地 Codex 从 shell 启动，必须明确记录 TCC 权限可能绑定在 Codex / Terminal / shell host，而不一定是 `Clawdesk.app`。
+如果 MCP 是被本地 Codex 从 shell 启动，必须明确记录 TCC 权限可能绑定在 Codex / Terminal / shell host，而不一定是 `OpenDesk.app`。
 
 这类结果只能声明：
 
@@ -337,7 +337,7 @@ shell-hosted MCP development path passed
 不能扩写为：
 
 ```text
-Clawdesk.app product identity fully validated
+OpenDesk.app product identity fully validated
 ```
 
 ### 7.3 Read-only smoke 顺序
@@ -581,7 +581,7 @@ tm_press_key
 目标：
 
 ```text
-Codex 能启动 dist/clawdesk-mcp
+Codex 能启动 dist/opendesk-mcp
 → 完成 initialize
 → 发现 tools
 → 调用 tm_status
@@ -782,7 +782,7 @@ prompts/automation/agent-first-recorder-macos-mvp-goal.md
 ```bash
 git status --short
 git diff --check
-go test ./pkg/mcpserver ./cmd/clawdesk-mcp
+go test ./pkg/mcpserver ./cmd/opendesk-mcp
 ```
 
 并执行本任务新增的 stdio smoke 和真机 smoke。
@@ -840,9 +840,9 @@ MCP_READY_FOR_RECORDER=true|false
 允许：
 
 ```text
-Clawdesk MCP stdio/protocol passed on this macOS host.
-Clawdesk MCP read-only desktop tools passed on this environment.
-Clawdesk MCP low-risk Calculator action passed under current permission identity.
+OpenDesk MCP stdio/protocol passed on this macOS host.
+OpenDesk MCP read-only desktop tools passed on this environment.
+OpenDesk MCP low-risk Calculator action passed under current permission identity.
 ```
 
 禁止在没有匹配 Evidence 时声称：

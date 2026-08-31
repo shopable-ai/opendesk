@@ -2,11 +2,11 @@
 
 ## Purpose
 
-This file defines the maintained documentation surfaces in Clawdesk and prevents historical docs, editor artifacts, reports or prompts from becoming competing sources of truth.
+This file defines the maintained documentation surfaces in OpenDesk and prevents historical docs, editor artifacts, reports or prompts from becoming competing sources of truth.
 
 ## Maintained documentation roots
 
-Clawdesk has two maintained documentation roots with different responsibilities.
+OpenDesk has two maintained documentation roots with different responsibilities.
 
 ### `docs/` — project and engineering documentation
 

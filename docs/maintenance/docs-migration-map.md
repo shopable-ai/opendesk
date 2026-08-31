@@ -4,7 +4,7 @@
 
 **Completed.**
 
-This document records the 2026-08 cleanup of the Clawdesk project documentation surface.
+This document records the 2026-08 cleanup of the OpenDesk project documentation surface.
 
 Before cleanup, `docs/` contained **61 direct files** plus overlapping topic/process directories. Those files mixed:
 

@@ -1,6 +1,6 @@
 ---
 title: docs-user-api editme-cli TOC maintenance
-description: 维护 Clawdesk docs-user-api 的 TOC、用户可读性与长期重生成边界。
+description: 维护 OpenDesk docs-user-api 的 TOC、用户可读性与长期重生成边界。
 order: 10
 ---
 
@@ -8,7 +8,7 @@ order: 10
 
 ## 背景
 
-`docs-user-api/` 是 Clawdesk 当前唯一维护、并直接用于渲染的用户 API 文档目录。
+`docs-user-api/` 是 OpenDesk 当前唯一维护、并直接用于渲染的用户 API 文档目录。
 
 目标：
 

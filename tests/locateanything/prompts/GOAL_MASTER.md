@@ -1,14 +1,14 @@
 你现在在控制机 `min-Mac4g.local` 上工作，项目目录是：
 
 ```bash
-cd /Users/mac/Documents/workspace/clawdesk
+cd /Users/mac/Documents/workspace/opendesk
 ```
 
 本任务不是只跑一个 `demo`，而是把 `tests/locateanything/` 这套分阶段测试真正跑起来并持续补齐。
 
 ## 固定拓扑
 
-- 当前机器：运行 `clawdesk`、微信自动化脚本、stage runner
+- 当前机器：运行 `opendesk`、微信自动化脚本、stage runner
 - 局域网另一台机器：运行 `LocateAnything` bridge + 真模型
 - 如果远端模型机不可达，当前机器允许退回本地 `mock` bridge
 

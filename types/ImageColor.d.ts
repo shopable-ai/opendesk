@@ -1,7 +1,7 @@
 export {};
 
 declare global {
-  interface ClawdeskColorBlock {
+  interface OpenDeskColorBlock {
     x: number;
     y: number;
     width: number;
@@ -11,7 +11,7 @@ declare global {
     match: number;
   }
 
-  interface ClawdeskFindColorOptions {
+  interface OpenDeskFindColorOptions {
     x?: number;
     y?: number;
     width?: number;
@@ -19,14 +19,14 @@ declare global {
     threshold?: number;
   }
 
-  interface ClawdeskImageCropOptions {
+  interface OpenDeskImageCropOptions {
     x?: number;
     y?: number;
     width?: number;
     height?: number;
   }
 
-  interface ClawdeskTemplateMatchResult {
+  interface OpenDeskTemplateMatchResult {
     confidence: number;
     found: boolean;
     x: number;
@@ -35,14 +35,14 @@ declare global {
     height: number;
   }
 
-  interface ClawdeskColorSimilarityResult {
+  interface OpenDeskColorSimilarityResult {
     data: boolean;
     similarity: number;
     details?: Record<string, unknown>;
     [key: string]: unknown;
   }
 
-  interface ClawdeskLayoutAnalyzeOptions {
+  interface OpenDeskLayoutAnalyzeOptions {
     cellSize?: number;
     quantize?: number;
     tolerance?: number;
@@ -61,17 +61,17 @@ declare global {
     };
   }
 
-  interface ClawdeskImageColor {
-    findPos(sourceImage: string, templateImage: string, threshold?: number): ClawdeskTemplateMatchResult;
+  interface OpenDeskImageColor {
+    findPos(sourceImage: string, templateImage: string, threshold?: number): OpenDeskTemplateMatchResult;
     loadBase64(path: string): string;
     resize(image: string, width: number, height: number): string;
     pixel(image: string, x: number, y: number): string;
-    findColor(image: string, color: string, options?: ClawdeskFindColorOptions): string;
-    findColorBlocks(image: string, color: string, options?: ClawdeskFindColorOptions): ClawdeskColorBlock[];
+    findColor(image: string, color: string, options?: OpenDeskFindColorOptions): string;
+    findColorBlocks(image: string, color: string, options?: OpenDeskFindColorOptions): OpenDeskColorBlock[];
     hasColor(image: string, color: string, x: number, y: number, width?: number, height?: number, threshold?: number): boolean;
     isGray(imageOrColor: string, x?: number, y?: number, width?: number, height?: number, threshold?: number): boolean;
     getSize(image: string): [number, number] | null;
-    clip(image: string, options?: ClawdeskImageCropOptions): string;
+    clip(image: string, options?: OpenDeskImageCropOptions): string;
     save(image: string, path: string, format?: "png" | "jpeg" | "jpg" | string, quality?: number): boolean;
     findRedChannel(image: string, x: number, y: number, width?: number, height?: number): string;
     findGreenChannel(image: string, x: number, y: number, width?: number, height?: number): string;
@@ -80,9 +80,9 @@ declare global {
     toRGBA(color: string): string;
     toHSL(color: string): string;
     toHSLA(color: string): string;
-    isColorSimilar(targetColor: string, compareColor: string, tolerance?: number): ClawdeskColorSimilarityResult;
-    analyzeLayout(image: string, options?: ClawdeskLayoutAnalyzeOptions): Record<string, unknown>;
+    isColorSimilar(targetColor: string, compareColor: string, tolerance?: number): OpenDeskColorSimilarityResult;
+    analyzeLayout(image: string, options?: OpenDeskLayoutAnalyzeOptions): Record<string, unknown>;
   }
 
-  var ImageColor: ClawdeskImageColor;
+  var ImageColor: OpenDeskImageColor;
 }

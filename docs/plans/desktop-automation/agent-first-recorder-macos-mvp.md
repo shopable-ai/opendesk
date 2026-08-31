@@ -11,13 +11,13 @@
 
 ## 一、MVP Goal
 
-在 macOS 上实现一个面向 Clawdesk Agent 的操作轨迹记录与脚本蒸馏闭环：
+在 macOS 上实现一个面向 OpenDesk Agent 的操作轨迹记录与脚本蒸馏闭环：
 
 ```text
 Agent 通过 JavaScript / HTTP / MCP 执行少量受控任务
 → Recorder 记录动作、目标提示、窗口、截图、结果与验证证据
 → 将 Raw Trace 蒸馏为 Flow IR
-→ 生成 Clawdesk JavaScript
+→ 生成 OpenDesk JavaScript
 → 在不调用 AI 的情况下重复回放
 → 输出可追溯 Evidence 和失败分类
 ```
@@ -43,7 +43,7 @@ CPU 架构
 Go 版本
 当前 locale / 输入法
 显示器数量、主显示器、分辨率、scale 与虚拟桌面 bounds
-Clawdesk.app bundle id、签名和实际启动路径
+OpenDesk.app bundle id、签名和实际启动路径
 Accessibility、Screen Recording、Automation 权限状态
 Calculator、TextEdit、Safari/Chrome 等目标应用是否存在
 当前应用语言以及关键控件 Accessibility 暴露情况
@@ -58,11 +58,11 @@ uname -m
 go version
 locale
 system_profiler SPDisplaysDataType
-plutil -p dist/Clawdesk.app/Contents/Info.plist
-codesign -dv --verbose=4 dist/Clawdesk.app
+plutil -p dist/OpenDesk.app/Contents/Info.plist
+codesign -dv --verbose=4 dist/OpenDesk.app
 ```
 
-权限和运行主体必须按 [`automation-config.md`](../../implementation/macos/automation-config.md) 验证。桌面 T3 测试优先由固定的 `dist/Clawdesk.app` 身份发起，避免权限只绑定到 Terminal、Codex 或其他 shell host。
+权限和运行主体必须按 [`automation-config.md`](../../implementation/macos/automation-config.md) 验证。桌面 T3 测试优先由固定的 `dist/OpenDesk.app` 身份发起，避免权限只绑定到 Terminal、Codex 或其他 shell host。
 
 ## 三、已经锁定的决策
 
@@ -416,7 +416,7 @@ Input Monitoring
 1. 权限全部满足；
 2. Screen Recording 被拒绝；
 3. Accessibility 被拒绝；
-4. 由 Terminal 与固定 `Clawdesk.app` 启动时主体差异；
+4. 由 Terminal 与固定 `OpenDesk.app` 启动时主体差异；
 5. 权限恢复后重新运行。
 
 权限异常必须返回可诊断的 F0，不得出现无限等待或假 pass。

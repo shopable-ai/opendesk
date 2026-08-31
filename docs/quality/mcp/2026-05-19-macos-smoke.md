@@ -1,4 +1,4 @@
-# 2026-05-19 Clawdesk MCP macOS Smoke Report
+# 2026-05-19 OpenDesk MCP macOS Smoke Report
 
 > 历史真机验证报告。记录当时环境与证据，不代表 2026-08 当前版本已经重新执行相同 smoke。
 

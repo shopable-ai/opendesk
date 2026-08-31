@@ -1,16 +1,16 @@
 ---
-title: Clawdesk API 文档
-description: Clawdesk 用户 API 总览、全局对象地图与阅读导航。
+title: OpenDesk API 文档
+description: OpenDesk 用户 API 总览、全局对象地图与阅读导航。
 order: 1
 ---
 
-# Clawdesk API 文档
+# OpenDesk API 文档
 
-这套文档面向脚本作者、自动化使用者和直接生成 Clawdesk 脚本的 Agent。
+这套文档面向脚本作者、自动化使用者和直接生成 OpenDesk 脚本的 Agent。
 
 ## 一句话理解
 
-Clawdesk 在 JavaScript 运行时中注入桌面自动化、窗口、视觉、文件、网络和系统对象，再加载 polyfill 与内置 JS 库；外部程序还可以通过 HTTP 与 MCP 使用更高层能力。
+OpenDesk 在 JavaScript 运行时中注入桌面自动化、窗口、视觉、文件、网络和系统对象，再加载 polyfill 与内置 JS 库；外部程序还可以通过 HTTP 与 MCP 使用更高层能力。
 
 ## 先读哪些
 
@@ -86,7 +86,7 @@ Clawdesk 在 JavaScript 运行时中注入桌面自动化、窗口、视觉、�
 
 ## HTTP 服务接口
 
-`http-server.md` 记录 Clawdesk 自身服务端接口，包括：
+`http-server.md` 记录 OpenDesk 自身服务端接口，包括：
 
 - `POST /SCRIPT_RUN`
 - `POST /executions`

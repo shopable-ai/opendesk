@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	pkgExecution "clawdesk/pkg/execution"
+	pkgExecution "opendesk/pkg/execution"
 )
 
 func TestResolveScriptSourceFromText(t *testing.T) {

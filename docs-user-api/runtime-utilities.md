@@ -6,7 +6,7 @@ order: 13
 
 # runtime utilities
 
-本页收录当前源码真实存在、但不属于 Clawdesk 核心桌面主链路的运行时对象。
+本页收录当前源码真实存在、但不属于 OpenDesk 核心桌面主链路的运行时对象。
 
 ## Sound
 

@@ -10,7 +10,7 @@ Run the JavaScript workflow from the repository root:
 
 ```bash
 make build
-./dist/clawdesk -script tests/wechat/wechat_visualization.js
+./dist/opendesk -script tests/wechat/wechat_visualization.js
 ```
 
 Generate deterministic mock inputs and visualizations with the isolated Go

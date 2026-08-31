@@ -3,10 +3,10 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-APP_PATH="${ROOT_DIR}/dist/Clawdesk.app"
+APP_PATH="${ROOT_DIR}/dist/OpenDesk.app"
 
 if [[ ! -d "${APP_PATH}" ]]; then
-  echo "Clawdesk.app not found at ${APP_PATH}" >&2
+  echo "OpenDesk.app not found at ${APP_PATH}" >&2
   exit 1
 fi
 

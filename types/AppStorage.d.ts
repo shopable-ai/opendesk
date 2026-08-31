@@ -1,7 +1,7 @@
 export {};
 
 declare global {
-  interface ClawdeskAppStorage {
+  interface OpenDeskAppStorage {
     getItem(key: string): string;
     setItem(key: string, value: unknown): void;
     removeItem(key: string): void;
@@ -10,5 +10,5 @@ declare global {
     key(index: number): string;
   }
 
-  var AppStorage: ClawdeskAppStorage;
+  var AppStorage: OpenDeskAppStorage;
 }

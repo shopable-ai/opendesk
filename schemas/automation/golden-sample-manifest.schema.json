@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://clawdesk.dev/schemas/automation/golden-sample-manifest.schema.json",
+  "$id": "https://opendesk.dev/schemas/automation/golden-sample-manifest.schema.json",
   "title": "GoldenSampleManifest",
   "type": "object",
   "required": [

@@ -8,7 +8,7 @@
 
 ### 1. 选择当前实现入口
 
-基于现有 Clawdesk 能力决定 WeChat scenario 首个可维护入口：
+基于现有 OpenDesk 能力决定 WeChat scenario 首个可维护入口：
 
 - MCP orchestration；
 - 可执行 example；
@@ -24,7 +24,7 @@
 
 ### 2. 建立 fresh macOS candidate fixture
 
-从当前版本 Clawdesk + 当前微信桌面版重新采集：
+从当前版本 OpenDesk + 当前微信桌面版重新采集：
 
 ```text
 window/provenance

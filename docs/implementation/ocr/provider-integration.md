@@ -1,6 +1,6 @@
 # OCR Provider Integration
 
-`clawdesk` Vision/OCR uses a provider abstraction instead of baking one heavy OCR engine into the main binary.
+`opendesk` Vision/OCR uses a provider abstraction instead of baking one heavy OCR engine into the main binary.
 
 Current provider status:
 

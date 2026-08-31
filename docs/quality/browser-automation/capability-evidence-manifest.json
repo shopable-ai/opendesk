@@ -98,7 +98,7 @@
         {
           "kind": "contains",
           "path": "types/browser.d.ts",
-          "contains": "interface ClawdeskBrowserContext"
+          "contains": "interface OpenDeskBrowserContext"
         }
       ]
     },
@@ -134,7 +134,7 @@
         {
           "kind": "contains",
           "path": "types/page.d.ts",
-          "contains": "screenshot(options?: ClawdeskScreenshotOptions)"
+          "contains": "screenshot(options?: OpenDeskScreenshotOptions)"
         }
       ]
     },
@@ -142,7 +142,7 @@
       "id": "browser-context-containers",
       "claim": "Go Browser and BrowserContext containers maintain page ownership, lifecycle state, and in-memory cookies/storage/session data.",
       "proofLevels": ["E1", "E3"],
-      "boundary": "These are Clawdesk in-memory containers, not a browser process, browser context protocol, cookie jar, localStorage, or network session.",
+      "boundary": "These are OpenDesk in-memory containers, not a browser process, browser context protocol, cookie jar, localStorage, or network session.",
       "evidence": [
         {
           "kind": "contains",
@@ -157,7 +157,7 @@
         {
           "kind": "contains",
           "path": "types/browser.d.ts",
-          "contains": "newContext(): ClawdeskBrowserContext"
+          "contains": "newContext(): OpenDeskBrowserContext"
         }
       ]
     },

@@ -2,8 +2,8 @@ package http
 
 import (
 	"bytes"
-	"clawdesk/pkg/container"
-	pkgExecution "clawdesk/pkg/execution"
+	"opendesk/pkg/container"
+	pkgExecution "opendesk/pkg/execution"
 	"context"
 	"encoding/json"
 	"fmt"

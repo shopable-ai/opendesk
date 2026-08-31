@@ -7,7 +7,7 @@ export PATH := $(GOBIN):$(PATH)
 .PHONY: help doctor setup deps fmt vet test test-core test-runtime-api test-runtime-api-live test-host-api test-host-api-live build build-macos smoke
 
 help:
-	@echo "clawdesk development targets:"
+	@echo "opendesk development targets:"
 	@echo "  make doctor      Check required toolchain and native capabilities"
 	@echo "  make setup       Download Go modules and install Go developer tools"
 	@echo "  make deps        Download Go modules only"
@@ -19,7 +19,7 @@ help:
 	@echo "  make test-runtime-api-live Run Runtime API tests against the Safari Test Lab"
 	@echo "  make test-host-api Deprecated alias for test-runtime-api"
 	@echo "  make test-host-api-live Deprecated alias for test-runtime-api-live"
-	@echo "  make build       Build the clawdesk binary"
+	@echo "  make build       Build the opendesk binary"
 	@echo "  make build-macos Build the macOS app bundle"
 	@echo "  make smoke       Run the non-UI smoke path"
 
@@ -55,7 +55,7 @@ test:
 # Executable examples and the visual runner have independent environment/native
 # requirements; this target validates the application and reusable packages.
 test-core:
-	$(GO) test $$(go list ./... | grep -v -E '/(examples|cmd/clawdesk-visual-runner)$$')
+	$(GO) test $$(go list ./... | grep -v -E '/(examples|cmd/opendesk-visual-runner)$$')
 
 test-runtime-api:
 	./scripts/test_runtime_apis.sh smoke
@@ -68,7 +68,8 @@ test-host-api: test-runtime-api
 test-host-api-live: test-runtime-api-live
 
 build:
-	$(GO) build -o dist/clawdesk ./cmd/clawdesk
+	$(GO) build -o dist/opendesk ./cmd/opendesk
+	$(GO) build -o dist/opendesk-ui-host ./cmd/opendesk-ui-host
 
 build-macos:
 	SKIP_CODESIGN=1 ./scripts/build_macos_app.sh

@@ -1,31 +1,31 @@
 export {};
 
 declare global {
-  interface ClawdeskVisionBBox {
+  interface OpenDeskVisionBBox {
     x: number;
     y: number;
     width: number;
     height: number;
   }
 
-  interface ClawdeskVisionLine {
+  interface OpenDeskVisionLine {
     text: string;
     confidence: number;
-    bbox: ClawdeskVisionBBox;
+    bbox: OpenDeskVisionBBox;
   }
 
-  interface ClawdeskVisionImageSource {
+  interface OpenDeskVisionImageSource {
     path?: string;
     imagePath?: string;
     base64?: string;
     imageBase64?: string;
-    bytes?: ClawdeskByteInput;
-    imageBytes?: ClawdeskByteInput;
-    dataBytes?: ClawdeskByteInput;
-    byteArray?: ClawdeskByteInput;
+    bytes?: OpenDeskByteInput;
+    imageBytes?: OpenDeskByteInput;
+    dataBytes?: OpenDeskByteInput;
+    byteArray?: OpenDeskByteInput;
   }
 
-  interface ClawdeskVisionOptions {
+  interface OpenDeskVisionOptions {
     provider?: string;
     providerName?: string;
     providerChain?: string[];
@@ -35,8 +35,8 @@ declare global {
     detectOrientation?: boolean;
     recognizeDirection?: boolean;
     includeRaw?: boolean;
-    image?: string | ClawdeskByteInput | ClawdeskVisionImageSource;
-    imageBytes?: ClawdeskByteInput;
+    image?: string | OpenDeskByteInput | OpenDeskVisionImageSource;
+    imageBytes?: OpenDeskByteInput;
     imageBase64?: string;
     imagePath?: string;
     targetText?: string;
@@ -46,32 +46,32 @@ declare global {
     [key: string]: unknown;
   }
 
-  interface ClawdeskVisionOCRResult {
+  interface OpenDeskVisionOCRResult {
     provider: string;
     lang: string;
     text: string;
-    lines: ClawdeskVisionLine[];
+    lines: OpenDeskVisionLine[];
     lineCount: number;
     raw?: unknown;
   }
 
-  interface ClawdeskVisionElement {
+  interface OpenDeskVisionElement {
     role: string;
     text: string;
-    bbox: ClawdeskVisionBBox;
+    bbox: OpenDeskVisionBBox;
     score: number;
-    clickPoint: ClawdeskPoint;
+    clickPoint: OpenDeskPoint;
   }
 
-  interface ClawdeskVisionDetectUIResult {
+  interface OpenDeskVisionDetectUIResult {
     provider: string;
     lang: string;
     text: string;
     count: number;
-    elements: ClawdeskVisionElement[];
+    elements: OpenDeskVisionElement[];
   }
 
-  interface ClawdeskVisionProviderCapability {
+  interface OpenDeskVisionProviderCapability {
     provider: string;
     alias?: string;
     aliases?: string[];
@@ -85,25 +85,25 @@ declare global {
     [key: string]: unknown;
   }
 
-  interface ClawdeskVisionCapabilities {
+  interface OpenDeskVisionCapabilities {
     defaultProvider: string;
     defaultLang: string;
-    providers: ClawdeskVisionProviderCapability[];
+    providers: OpenDeskVisionProviderCapability[];
     providerCount: number;
   }
 
-  interface ClawdeskVision {
-    runOCR(options: ClawdeskVisionOptions): ClawdeskVisionOCRResult;
-    detectUI(options: ClawdeskVisionOptions): ClawdeskVisionDetectUIResult;
-    getCapabilities(options?: Pick<ClawdeskVisionOptions, "provider" | "providerName">): ClawdeskVisionCapabilities;
-    analyzeLayout(options: ClawdeskVisionOptions & { image: string | ClawdeskByteInput | ClawdeskVisionImageSource }): Record<string, unknown>;
-    annotateRegions(options: ClawdeskVisionOptions & { image: string | ClawdeskByteInput | ClawdeskVisionImageSource; regions?: unknown[]; separators?: unknown[] }): Record<string, unknown>;
+  interface OpenDeskVision {
+    runOCR(options: OpenDeskVisionOptions): OpenDeskVisionOCRResult;
+    detectUI(options: OpenDeskVisionOptions): OpenDeskVisionDetectUIResult;
+    getCapabilities(options?: Pick<OpenDeskVisionOptions, "provider" | "providerName">): OpenDeskVisionCapabilities;
+    analyzeLayout(options: OpenDeskVisionOptions & { image: string | OpenDeskByteInput | OpenDeskVisionImageSource }): Record<string, unknown>;
+    annotateRegions(options: OpenDeskVisionOptions & { image: string | OpenDeskByteInput | OpenDeskVisionImageSource; regions?: unknown[]; separators?: unknown[] }): Record<string, unknown>;
   }
 
-  interface ClawdeskOCR {
+  interface OpenDeskOCR {
     extractText(image: string, lang?: string): string;
   }
 
-  var Vision: ClawdeskVision;
-  var OCR: ClawdeskOCR;
+  var Vision: OpenDeskVision;
+  var OCR: OpenDeskOCR;
 }

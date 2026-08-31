@@ -1,6 +1,6 @@
 ---
 title: Polyfills
-description: Clawdesk 运行时 polyfill、全局辅助函数、axios 与兼容 facade。
+description: OpenDesk 运行时 polyfill、全局辅助函数、axios 与兼容 facade。
 order: 12
 ---
 
@@ -19,7 +19,7 @@ order: 12
 
 ## 000-console.js
 
-将全局 `console` 映射到 Clawdesk 日志对象。
+将全局 `console` 映射到 OpenDesk 日志对象。
 
 常用：
 
@@ -90,7 +90,7 @@ notify({
 
 ```js
 notify({
-  title: 'Clawdesk',
+  title: 'OpenDesk',
   message: '自动化已经完成',
   sound: true,
   timeout: 5000

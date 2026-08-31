@@ -10,7 +10,7 @@ This policy defines the canonical destination for each file class and the author
 
 ## Canonical documentation roots
 
-Clawdesk currently has two maintained documentation roles:
+OpenDesk currently has two maintained documentation roles:
 
 - `docs/` — project and engineering documentation.
 - `docs-user-api/` — **sole maintained user API documentation root**.

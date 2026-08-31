@@ -13,7 +13,7 @@ manual macOS smoke
 MCP 核心修改至少执行：
 
 ```bash
-go test ./pkg/mcpserver ./cmd/clawdesk-mcp
+go test ./pkg/mcpserver ./cmd/opendesk-mcp
 ```
 
 测试是否“当前通过”必须来自本轮实际执行结果，不从历史报告继承。
@@ -128,7 +128,7 @@ docs/integrations/mcp/testing/manual-smoke-macos.md
 至少执行：
 
 ```bash
-go test ./pkg/mcpserver ./cmd/clawdesk-mcp
+go test ./pkg/mcpserver ./cmd/opendesk-mcp
 ```
 
 ### 修改 runtime adapter / automation primitive

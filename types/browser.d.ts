@@ -1,12 +1,12 @@
 export {};
 
 declare global {
-  interface ClawdeskBrowserContext {
-    browser(): ClawdeskBrowser;
-    newPage(): ClawdeskPage;
-    adoptPage(page: ClawdeskPage): void;
-    pages(): ClawdeskPage[];
-    lastPage(): ClawdeskPage | null;
+  interface OpenDeskBrowserContext {
+    browser(): OpenDeskBrowser;
+    newPage(): OpenDeskPage;
+    adoptPage(page: OpenDeskPage): void;
+    pages(): OpenDeskPage[];
+    lastPage(): OpenDeskPage | null;
     close(): void;
     isClosed(): boolean;
     cookies(): Array<Record<string, unknown>>;
@@ -22,17 +22,17 @@ declare global {
     clearSession(): void;
   }
 
-  interface ClawdeskBrowser {
-    newPage(): ClawdeskPage;
-    newContext(): ClawdeskBrowserContext;
-    defaultContext(): ClawdeskBrowserContext;
-    contexts(): ClawdeskBrowserContext[];
-    pages(): ClawdeskPage[];
-    lastPage(): ClawdeskPage | null;
+  interface OpenDeskBrowser {
+    newPage(): OpenDeskPage;
+    newContext(): OpenDeskBrowserContext;
+    defaultContext(): OpenDeskBrowserContext;
+    contexts(): OpenDeskBrowserContext[];
+    pages(): OpenDeskPage[];
+    lastPage(): OpenDeskPage | null;
     close(): void;
     isClosed(): boolean;
   }
 
-  var browser: ClawdeskBrowser;
-  var context: ClawdeskBrowserContext;
+  var browser: OpenDeskBrowser;
+  var context: OpenDeskBrowserContext;
 }

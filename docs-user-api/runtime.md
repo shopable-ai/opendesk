@@ -1,6 +1,6 @@
 ---
 title: Runtime Stacks
-description: Clawdesk JS 运行时注入顺序、全局对象形成过程，以及 legacy / upgraded / playwright 三种运行时栈。
+description: OpenDesk JS 运行时注入顺序、全局对象形成过程，以及 legacy / upgraded / playwright 三种运行时栈。
 order: 14
 ---
 
@@ -8,7 +8,7 @@ order: 14
 
 本页解释两个问题：
 
-1. Clawdesk 的 JavaScript 全局 API 是怎样形成的。
+1. OpenDesk 的 JavaScript 全局 API 是怎样形成的。
 2. `legacy` / `upgraded` / `playwright` 如何改变 `page` / `browser` / `context`。
 
 ## 运行时 API 形成过程
@@ -89,7 +89,7 @@ order: 14
 - 最适合已有桌面自动化脚本
 
 ```bash
-go run ./cmd/clawdesk -script script.js -stack legacy
+go run ./cmd/opendesk -script script.js -stack legacy
 ```
 
 如果主要使用下面这些能力，优先从 legacy 开始：
@@ -106,7 +106,7 @@ go run ./cmd/clawdesk -script script.js -stack legacy
 将全局 `page` 切换到 `pageUpgraded` facade，同时尽量保留旧脚本结构。
 
 ```bash
-go run ./cmd/clawdesk -script script.js -stack upgraded
+go run ./cmd/opendesk -script script.js -stack upgraded
 ```
 
 常见增强形态包括：
@@ -124,7 +124,7 @@ go run ./cmd/clawdesk -script script.js -stack upgraded
 把全局 `page`、`browser`、`context` 切换到 upgraded facade 的 Playwright 风格组合。
 
 ```bash
-go run ./cmd/clawdesk -script script.js -stack playwright
+go run ./cmd/opendesk -script script.js -stack playwright
 ```
 
 适合需要：
@@ -137,7 +137,7 @@ go run ./cmd/clawdesk -script script.js -stack playwright
 
 ## 重要边界：不是完整 Playwright
 
-Clawdesk 的 upgraded/playwright 层是**兼容 facade**，不是完整浏览器 DOM 引擎。
+OpenDesk 的 upgraded/playwright 层是**兼容 facade**，不是完整浏览器 DOM 引擎。
 
 因此不要因为方法名相似就推断：
 

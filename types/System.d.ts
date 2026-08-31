@@ -1,7 +1,7 @@
 export {};
 
 declare global {
-  interface ClawdeskSystemInfo {
+  interface OpenDeskSystemInfo {
     hostname?: string;
     os?: string;
     platform?: string;
@@ -17,7 +17,7 @@ declare global {
     memoryUsage?: number;
   }
 
-  interface ClawdeskProcessInfo {
+  interface OpenDeskProcessInfo {
     pid: number;
     name: string;
     cmdline: string;
@@ -26,7 +26,7 @@ declare global {
     memPercent: number;
   }
 
-  interface ClawdeskNetworkInterfaceInfo {
+  interface OpenDeskNetworkInterfaceInfo {
     name: string;
     bytesSent: number;
     bytesRecv: number;
@@ -36,7 +36,7 @@ declare global {
     drops: number;
   }
 
-  interface ClawdeskNetworkConnectionInfo {
+  interface OpenDeskNetworkConnectionInfo {
     fd: number;
     family: number;
     type: number;
@@ -46,12 +46,12 @@ declare global {
     pid: number;
   }
 
-  interface ClawdeskSystem {
-    getSystemInfo(): ClawdeskSystemInfo;
-    getProcessList(): ClawdeskProcessInfo[];
+  interface OpenDeskSystem {
+    getSystemInfo(): OpenDeskSystemInfo;
+    getProcessList(): OpenDeskProcessInfo[];
     killProcess(pid: number): void;
-    getNetworkInterfaces(): ClawdeskNetworkInterfaceInfo[];
-    getNetworkConnections(): ClawdeskNetworkConnectionInfo[];
+    getNetworkInterfaces(): OpenDeskNetworkInterfaceInfo[];
+    getNetworkConnections(): OpenDeskNetworkConnectionInfo[];
     getPowerInfo(): Record<string, unknown>;
     shutdown(delay: number): void;
     restart(delay: number): void;
@@ -66,5 +66,5 @@ declare global {
     toJSON(data: unknown): string;
   }
 
-  var System: ClawdeskSystem;
+  var System: OpenDeskSystem;
 }

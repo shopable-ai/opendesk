@@ -1,8 +1,8 @@
 执行：
 
 ```bash
-cd /Users/mac/Documents/workspace/clawdesk
-./dist/clawdesk -script tests/locateanything/scripts/run_stage_02_model_only.js -timeout 5
+cd /Users/mac/Documents/workspace/opendesk
+./dist/opendesk -script tests/locateanything/scripts/run_stage_02_model_only.js -timeout 5
 ```
 
 本阶段以 `tests/locateanything/manifests/stage_02_model_cases.json` 为准，不再手写散 case。

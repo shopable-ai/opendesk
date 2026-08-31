@@ -13,6 +13,6 @@
 
 1. 使用 JSON Schema Draft 2020-12；
 2. 文件名采用 `<artifact>.schema.json`；
-3. `$id` 使用 `https://clawdesk.dev/schemas/<domain>/<file>`；
+3. `$id` 使用 `https://opendesk.dev/schemas/<domain>/<file>`；
 4. 被生产代码或测试引用，并随消费者变更一起验证；
 5. 不在根目录继续堆放未分类 Schema。

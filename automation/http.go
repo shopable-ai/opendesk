@@ -152,7 +152,7 @@ func (h *HTTPClient) requestFromOptions(options *goja.Object) (httpRequest, func
 	if request.url == "" {
 		return httpRequest{}, nil, fmt.Errorf("url is required")
 	}
-	request.headers.Set("User-Agent", "Mozilla/5.0 (Clawdesk Runtime HTTP)")
+	request.headers.Set("User-Agent", "Mozilla/5.0 (OpenDesk Runtime HTTP)")
 
 	if data := options.Get("data"); data != nil && !goja.IsUndefined(data) && !goja.IsNull(data) {
 		switch value := data.Export().(type) {

@@ -1,19 +1,19 @@
-# Hermes + Clawdesk MCP 集成
+# Hermes + OpenDesk MCP 集成
 
-本文档说明如何把当前仓库构建出的 `clawdesk-mcp` 作为本地 stdio MCP server 接入 Hermes。
+本文档说明如何把当前仓库构建出的 `opendesk-mcp` 作为本地 stdio MCP server 接入 Hermes。
 
 ## 构建
 
 在仓库根目录：
 
 ```bash
-go build -o dist/clawdesk-mcp ./cmd/clawdesk-mcp
+go build -o dist/opendesk-mcp ./cmd/opendesk-mcp
 ```
 
 确认 binary：
 
 ```bash
-./dist/clawdesk-mcp
+./dist/opendesk-mcp
 ```
 
 这是 stdio server；人工直接启动后等待 stdin 属于正常行为。
@@ -24,8 +24,8 @@ go build -o dist/clawdesk-mcp ./cmd/clawdesk-mcp
 
 ```yaml
 mcp_servers:
-  clawdesk:
-    command: /absolute/path/to/clawdesk/dist/clawdesk-mcp
+  opendesk:
+    command: /absolute/path/to/opendesk/dist/opendesk-mcp
     timeout: 120
     connect_timeout: 30
 ```
@@ -51,7 +51,7 @@ tm_status
 验证：
 
 - MCP protocol 初始化正常；
-- tools/list 可见 Clawdesk 工具；
+- tools/list 可见 OpenDesk 工具；
 - macOS 权限状态可读取；
 - 窗口枚举正常；
 - screenshot 能产生真实文件/结果。
@@ -134,7 +134,7 @@ docs/integrations/mcp/operations/ocr-provider-recovery.md
 
 1. 先调用 `tm_permissions`；
 2. 检查 Screen Recording / Accessibility / Automation；
-3. 确认权限绑定的是当前 Clawdesk/Host 执行身份；
+3. 确认权限绑定的是当前 OpenDesk/Host 执行身份；
 4. 再进行真机 smoke。
 
 相关项目文档：
@@ -174,7 +174,7 @@ structured guards
 自动化：
 
 ```bash
-go test ./pkg/mcpserver ./cmd/clawdesk-mcp
+go test ./pkg/mcpserver ./cmd/opendesk-mcp
 ```
 
 测试边界：
@@ -191,7 +191,7 @@ docs/integrations/mcp/testing/manual-smoke-macos.md
 
 ## 故障排查顺序
 
-### Hermes 看不到 Clawdesk
+### Hermes 看不到 OpenDesk
 
 检查：
 

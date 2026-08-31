@@ -98,7 +98,7 @@ tests/wechat/fixtures/golden-samples/<sample-id>/
 
 必须能回答：
 
-- 来自哪个 Clawdesk commit；
+- 来自哪个 OpenDesk commit；
 - macOS / WeChat 版本；
 - window geometry / scale factor；
 - capture 时间；

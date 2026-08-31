@@ -1,6 +1,6 @@
-# Clawdesk MCP Continuation Prompt
+# OpenDesk MCP Continuation Prompt
 
-继续开发 Clawdesk MCP 时，先读取当前代码和以下正式文档：
+继续开发 OpenDesk MCP 时，先读取当前代码和以下正式文档：
 
 ```text
 docs/integrations/mcp/README.md
@@ -13,7 +13,7 @@ pkg/mcpserver/server.go
 pkg/mcpserver/runtime.go
 pkg/mcpserver/server_test.go
 pkg/mcpserver/runtime_test.go
-cmd/clawdesk-mcp/main.go
+cmd/opendesk-mcp/main.go
 ```
 
 不要从历史 TestMonkey 文档、旧 Prompt 或 `.archive/` 推断当前实现。
@@ -44,7 +44,7 @@ tm_inspect_desktop
 3. MCP contract 修改至少运行：
 
 ```bash
-go test ./pkg/mcpserver ./cmd/clawdesk-mcp
+go test ./pkg/mcpserver ./cmd/opendesk-mcp
 ```
 
 4. 涉及截图、焦点、点击、输入、OCR/provider 等真实环境行为时，按 manual smoke 验证。

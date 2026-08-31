@@ -1,6 +1,6 @@
 ---
 title: docs-user-api regen prompt
-description: 给 Codex / Hermes / 其他 Agent 的 Clawdesk 用户 API 文档、Agent 索引与编辑器类型声明一致性检查清单。
+description: 给 Codex / Hermes / 其他 Agent 的 OpenDesk 用户 API 文档、Agent 索引与编辑器类型声明一致性检查清单。
 order: 20
 ---
 
@@ -8,7 +8,7 @@ order: 20
 
 ## 用途
 
-用于 Clawdesk 版本升级后同步维护：
+用于 OpenDesk 版本升级后同步维护：
 
 - `docs-user-api/*.md`：直接渲染的正式用户文档
 - `docs-user-api/runtime-api.ai.json`：Agent 机器索引
@@ -21,7 +21,7 @@ order: 20
 
 ## 可直接复用的 prompt
 
-你正在维护 Clawdesk 的用户 API 表达层。
+你正在维护 OpenDesk 的用户 API 表达层。
 
 目标：基于当前源码和实际 Runtime 行为，让以下三种消费形式保持一致，但职责不混写：
 
@@ -34,7 +34,7 @@ types/*.d.ts
 必须遵守：
 
 1. **源码 / Runtime 优先**
-   - 先从 `automation/`、`polyfills/`、`cmd/clawdesk/main.go`、`pkg/http/` 等当前实现确认事实。
+   - 先从 `automation/`、`polyfills/`、`cmd/opendesk/main.go`、`pkg/http/` 等当前实现确认事实。
    - 不能为了迁就旧文档或旧 `.d.ts` 修改真实 API 定义。
 
 2. **Markdown 是正式可渲染用户文档**

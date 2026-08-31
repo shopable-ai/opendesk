@@ -1,17 +1,17 @@
 # WeChat Desktop Automation Architecture
 
-本文件定义 WeChat 场景在 Clawdesk 中应采用的**架构边界与组合方式**。它不是当前 production implementation 清单。
+本文件定义 WeChat 场景在 OpenDesk 中应采用的**架构边界与组合方式**。它不是当前 production implementation 清单。
 
 ## 当前事实
 
 截至 2026-08-31：
 
-- Clawdesk 已有通用窗口、截图、输入、Vision/OCR、layout 与 MCP 工具；
+- OpenDesk 已有通用窗口、截图、输入、Vision/OCR、layout 与 MCP 工具；
 - `pkg/mcpserver/` 已提供 `tm_inspect_desktop -> tm_find_target -> tm_act_on_target`；
 - 当前仓库没有独立维护的 `wechat_steps`、`wechat_structured_send_v2.js` 或 WeChat-specific Go adapter；
 - 历史 WeChat 报告和研究存在，但不能证明当前版本端到端链路已实现。
 
-因此当前架构目标是：**用通用 Clawdesk primitive + 薄 WeChat scenario adapter/workflow**，而不是再建立一套平行 runtime。
+因此当前架构目标是：**用通用 OpenDesk primitive + 薄 WeChat scenario adapter/workflow**，而不是再建立一套平行 runtime。
 
 ## 分层
 
@@ -32,7 +32,7 @@ Semantic Target / Guard Layer
   - expected window / text
         |
         v
-Clawdesk Runtime Primitives
+OpenDesk Runtime Primitives
   - window / screen
   - mouse / keyboard
   - OCR / Vision / layout

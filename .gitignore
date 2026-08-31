@@ -15,7 +15,7 @@ __debug*
 # Includes Runtime API Conformance Lab logs, screenshots, generated scripts, and evidence.
 .staging-sync/
 dist/
-/clawdesk
+/opendesk
 coverage.out
 visualize
 annotate
