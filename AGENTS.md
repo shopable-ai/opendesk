@@ -9,6 +9,10 @@
   `scripts/test_runtime_apis.sh`，运行证据目录是 `.runtime/tests/runtime-api/`。旧
   `scripts/test_host_apis.sh` 只能作为打印 deprecated 提示的兼容包装器；不得复制测试实现。
 
+## Git 分支
+
+- 未经用户明确说明，不得创建、切换或推送新的 Git 分支；提交和推送默认使用用户指定的现有分支。
+
 ## 文件生命周期与工程产物
 
 - 可维护的源码、正式文档和稳定测试资产才进入版本控制。
