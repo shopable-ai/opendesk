@@ -61,7 +61,7 @@ order: 11
   "stack": "legacy",
   "consoleMode": "agent",
   "outputFormat": "json",
-  "logDir": "./artifacts/http-run"
+  "logDir": "./.runtime/examples/http-run"
 }
 ```
 
@@ -209,7 +209,7 @@ curl http://127.0.0.1:60844/status
 
 ```bash
 curl -X POST http://127.0.0.1:60844/vision/ocr \
-  -F image=@./artifacts/input.png \
+  -F image=@./.runtime/examples/input.png \
   -F provider=local \
   -F lang=chi_sim+eng
 ```
@@ -230,7 +230,7 @@ curl -X POST http://127.0.0.1:60844/vision/ocr \
 
 ```bash
 curl -X POST http://127.0.0.1:60844/vision/detect-ui \
-  -F image=@./artifacts/dialog.png \
+  -F image=@./.runtime/examples/dialog.png \
   -F target_text=确定
 ```
 

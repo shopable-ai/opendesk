@@ -152,9 +152,39 @@ func jsValueForResult(runtime *goja.Runtime, result interface{}) goja.Value {
 	switch v := result.(type) {
 	case []byte:
 		return runtime.ToValue(runtime.NewArrayBuffer(v))
+	case *Browser:
+		if v == nil {
+			return goja.Null()
+		}
+		return runtime.ToValue(AutoMapObject(runtime, v))
+	case *BrowserContext:
+		if v == nil {
+			return goja.Null()
+		}
+		return runtime.ToValue(AutoMapObject(runtime, v))
+	case *Page:
+		if v == nil {
+			return goja.Null()
+		}
+		return runtime.ToValue(autoMapPageResult(runtime, v))
 	default:
 		return runtime.ToValue(result)
 	}
+}
+
+// autoMapPageResult preserves the public page shape when a browser or context
+// method returns a native Page. Raw Go pointers expose fields but not the
+// JavaScript method names required by the compatibility surface.
+func autoMapPageResult(runtime *goja.Runtime, page *Page) map[string]interface{} {
+	pageMethods := AutoMapObject(runtime, page)
+	pageObj := make(map[string]interface{}, len(pageMethods)+3)
+	for name, method := range pageMethods {
+		pageObj[name] = method
+	}
+	pageObj["mouse"] = AutoMapObject(runtime, page.Mouse)
+	pageObj["keyboard"] = AutoMapObject(runtime, page.Keyboard)
+	pageObj["touchscreen"] = AutoMapObject(runtime, page.Touchscreen)
+	return pageObj
 }
 
 // AutoMapObject 创建一个新的映射对象

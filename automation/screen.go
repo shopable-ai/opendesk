@@ -1,10 +1,7 @@
 package automation
 
 import (
-	"bytes"
-	"encoding/base64"
 	"fmt"
-	"image/png"
 	"sort"
 
 	"github.com/go-vgo/robotgo"
@@ -246,51 +243,12 @@ func computeVirtualBounds(displays []DisplayInfo) BoundsInfo {
 	}
 }
 
-func (p *Page) CaptureScreen(options *ScreenshotOptions) (string, error) {
-	options = mergeWithDefaultOptions(options)
-
-	var x, y, width, height int
-
-	// Set screenshot area
-	if options.FullPage {
-		width, height = robotgo.GetScreenSize()
-	} else if options.Clip != nil {
-		x = options.Clip.X
-		y = options.Clip.Y
-		width = options.Clip.Width
-		height = options.Clip.Height
-	} else {
-		width, height = robotgo.GetScreenSize()
-	}
-
-	// 使用robotgo的正确API进行截图
-	bit := robotgo.CaptureScreen(x, y, width, height)
-	defer robotgo.FreeBitmap(bit)
-
-	// 如果指定了路径，保存文件
-	if options.Path != "" {
-		err := robotgo.SaveCapture(options.Path, x, y, width, height)
-		if err != nil {
-			return "", fmt.Errorf("failed to save image: %v", err)
-		}
-	}
-
-	// 如果需要返回base64或没有指定路径
-	if options.Path == "" || options.Encoding == "base64" {
-		// 转换为标准image
-		img := robotgo.ToImage(bit)
-
-		// 转换为base64
-		var buf bytes.Buffer
-		if err := png.Encode(&buf, img); err != nil {
-			return "", fmt.Errorf("failed to encode image: %v", err)
-		}
-
-		base64Str := base64.StdEncoding.EncodeToString(buf.Bytes())
-		return fmt.Sprintf("data:image/png;base64,%s", base64Str), nil
-	}
-
-	return "", nil
+// CaptureScreen is the compatibility name for Screenshot.  Keeping a separate
+// robotgo-only implementation here caused JavaScript options such as clip,
+// path, and returnType to be silently ignored.  Route both names through the
+// single option parser and response builder so their public contracts agree.
+func (p *Page) CaptureScreen(options interface{}) (interface{}, error) {
+	return p.Screenshot(options)
 }
 
 // Helper function to merge options

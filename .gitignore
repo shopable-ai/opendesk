@@ -12,6 +12,7 @@ __debug*
 
 # runtime and build output
 .runtime/
+# Includes Runtime API Conformance Lab logs, screenshots, generated scripts, and evidence.
 .staging-sync/
 dist/
 coverage.out

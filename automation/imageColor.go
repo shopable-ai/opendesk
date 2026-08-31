@@ -898,17 +898,17 @@ func (ic *ImageColor) Clip(imageStr string, options interface{}) (string, error)
 	// Use provided options if available
 	if options != nil {
 		if optMap, ok := options.(map[string]interface{}); ok {
-			if val, ok := optMap["x"].(float64); ok {
-				x = int(val)
+			if val, ok := optMap["x"]; ok {
+				x = jsToInt(val)
 			}
-			if val, ok := optMap["y"].(float64); ok {
-				y = int(val)
+			if val, ok := optMap["y"]; ok {
+				y = jsToInt(val)
 			}
-			if val, ok := optMap["width"].(float64); ok {
-				width = int(val)
+			if val, ok := optMap["width"]; ok {
+				width = jsToInt(val)
 			}
-			if val, ok := optMap["height"].(float64); ok {
-				height = int(val)
+			if val, ok := optMap["height"]; ok {
+				height = jsToInt(val)
 			}
 		}
 	}

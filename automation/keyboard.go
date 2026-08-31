@@ -75,23 +75,25 @@ func (k *Keyboard) Combination(keys ...string) error {
 	// Convert all keys
 	normalizedKeys := make([]string, len(keys))
 	for i, key := range keys {
+		if strings.TrimSpace(key) == "" {
+			return fmt.Errorf("key cannot be empty")
+		}
 		normalizedKeys[i] = normalizeKeyName(key)
 	}
 
-	// Hold down all keys in order
-	for _, key := range normalizedKeys {
-		if err := k.Down(key); err != nil {
-			return err
-		}
+	if len(normalizedKeys) == 1 {
+		return k.Press(normalizedKeys[0])
 	}
 
-	// Release all keys in reverse order
-	for i := len(normalizedKeys) - 1; i >= 0; i-- {
-		if err := k.Up(normalizedKeys[i]); err != nil {
-			return err
-		}
+	// Send the final key with the preceding modifiers as one paired shortcut.
+	// Toggling printable characters independently can crash macOS keyboard
+	// layout discovery when JavaScript resumes on a background timer thread.
+	primary := normalizedKeys[len(normalizedKeys)-1]
+	modifiers := normalizedKeys[:len(normalizedKeys)-1]
+	if err := robotgo.KeyTap(primary, modifiers); err != nil {
+		return fmt.Errorf("failed to press key combination: %v", err)
 	}
-
+	time.Sleep(50 * time.Millisecond)
 	return nil
 }
 

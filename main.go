@@ -158,8 +158,11 @@ func main() {
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Printf("Recovered from panic: %v\n", r)
-			fmt.Println("\nPress 'Enter' to exit...")
-			fmt.Scanln()
+			if len(os.Args) == 1 {
+				fmt.Println("\nPress 'Enter' to exit...")
+				fmt.Scanln()
+			}
+			os.Exit(1)
 		}
 	}()
 
@@ -251,8 +254,6 @@ func main() {
 
 		if err := executeScript(config); err != nil {
 			fmt.Printf("[ERROR] Script execution failed: %v\n", err)
-			fmt.Println("\nPress 'Enter' to exit...")
-			fmt.Scanln()
 			os.Exit(1)
 		}
 
@@ -342,6 +343,7 @@ func executeJavaScript(jsRuntime *goja.Runtime, script string, timeoutMinutes in
 	// 添加Promise完成处理和全局完成标记（保持不变）...
 	completeScript := fmt.Sprintf(`
         globalThis.__scriptComplete = false;
+        globalThis.__scriptError = "";
         globalThis.__activeTimers = globalThis.__activeTimers || 0;
 
         (async () => {
@@ -364,7 +366,8 @@ func executeJavaScript(jsRuntime *goja.Runtime, script string, timeoutMinutes in
                 console.log("[%s] Script execution completed successfully");
             } catch (err) {
                 console.error("[%s] Error in script execution:", err.message || err);
-                throw err;
+                globalThis.__scriptError = String(err && (err.stack || err.message) || err);
+                globalThis.__scriptComplete = true;
             }
         })();
     `, script, time.Now().Format("15:04:05.000"), time.Now().Format("15:04:05.000"))
@@ -384,6 +387,11 @@ func executeJavaScript(jsRuntime *goja.Runtime, script string, timeoutMinutes in
 			if completeValue != nil && completeValue.ToBoolean() {
 				break
 			}
+		}
+
+		if scriptError := jsRuntime.Get("__scriptError"); scriptError != nil && scriptError.String() != "" {
+			done <- fmt.Errorf("script execution failed: %s", scriptError.String())
+			return
 		}
 
 		done <- nil

@@ -132,7 +132,7 @@ func (h *HTTPClient) Post(url string, data interface{}, options *goja.Object) (g
 
 // 辅助函数
 func toStringHttp(v goja.Value, def string) string {
-	if goja.IsUndefined(v) || goja.IsNull(v) {
+	if v == nil || goja.IsUndefined(v) || goja.IsNull(v) {
 		return def
 	}
 	return v.String()

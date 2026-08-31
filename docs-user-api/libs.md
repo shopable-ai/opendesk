@@ -31,7 +31,7 @@ jslibs 目录中的 .js 文件会在 polyfills 之后自动加载到运行时。
 | lodash.min.js | _ | 工具函数集合 |
 | moment.min.js | moment | 日期时间处理 |
 | cheerio.js | cheerio | 类 jQuery 的 HTML 解析 |
-| beautify1.14.9.js | js_beautify 等 | 格式化 JS 文本 |
+| beautify1.14.9.js | `window.js_beautify` | 格式化 JS 文本 |
 
 ## queryString
 
@@ -121,7 +121,7 @@ console.log($('a').attr('href'));
 
 ```js
 const ugly = 'function x(){console.log(1)}';
-console.log(js_beautify(ugly));
+console.log(window.js_beautify(ugly));
 ```
 
 ## 使用建议
@@ -162,5 +162,5 @@ console.log(typeof queryString);
 console.log(typeof _);
 console.log(typeof moment);
 console.log(typeof cheerio);
-console.log(typeof js_beautify);
+console.log(typeof window.js_beautify);
 ```

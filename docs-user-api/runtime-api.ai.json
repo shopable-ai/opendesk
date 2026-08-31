@@ -55,6 +55,7 @@
       "summary": "Desktop page entry: screenshot, open URL/App, waits and permissions.",
       "keyMethods": [
         "screenshot",
+        "captureScreen",
         "goto",
         "openURL",
         "openApp",
@@ -70,7 +71,9 @@
         "checkScreenshotPermissions",
         "openMacOSPrivacySettings",
         "requestMacPermissions",
-        "requestMacAutomationPermission"
+        "requestMacAutomationPermission",
+        "browser",
+        "context"
       ]
     },
     {
@@ -111,7 +114,9 @@
       "keyMethods": [
         "runOCR",
         "detectUI",
-        "getCapabilities"
+        "getCapabilities",
+        "analyzeLayout",
+        "annotateRegions"
       ]
     },
     {
@@ -147,7 +152,8 @@
         "toRGBA",
         "toHSL",
         "toHSLA",
-        "isColorSimilar"
+        "isColorSimilar",
+        "analyzeLayout"
       ]
     },
     {
