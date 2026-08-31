@@ -154,9 +154,11 @@ YYYY-MM-DD-topic.md
 
 尚未完成、仍值得推进的路线图和实现计划。
 
-当前桌面自动化实施入口：
+当前跨模块与专项实施入口：
 
+- `desktop-automation/automation-platform-capability-completion-plan.md`：桌面自动化平台当前能力缺口、P0—P2 补全清单、依赖顺序、App / Recorder 边界和验收标准。
 - `desktop-automation/agent-first-recorder-macos-mvp.md`：在 macOS 上实现 Agent-first Trace → Flow IR → JavaScript → 无 AI Replay 的有界 MVP、测试矩阵和验收门槛。
+- `runtime/runtime-extension-roadmap.md`：Runtime 扩展、资源加载与第三方 Native Extension 的候选演进路线。
 
 已完成或失效的计划应更新、关闭或归档，不能长期以“待做”状态污染当前事实。
 
