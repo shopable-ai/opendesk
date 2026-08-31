@@ -34,7 +34,7 @@
     },
     "mcp": {
       "command": "go run ./cmd/clawdesk-mcp",
-      "docs": "docs/mcp/README.md"
+      "docs": "docs/integrations/mcp/README.md"
     }
   },
   "runtimeRules": [
@@ -44,8 +44,41 @@
     "Use ImageColor as a secondary pixel/template/color primitive, not as a replacement for semantic verification.",
     "Prefer axios for normal script HTTP requests; axios is a polyfill backed by http.request.",
     "Treat upgraded/playwright surfaces as compatibility facades, not a complete Playwright browser engine.",
+    "For user customization, prefer composing documented public JavaScript APIs and do not depend on internal ____Inject bridge globals.",
+    "If JavaScript composition is insufficient, prefer HTTP/MCP external extension before modifying the Go runtime.",
+    "Native/Go runtime extension requires source/build access; binary-only users should use external extension or contact the project author/maintainer for supported customization.",
     "Do not use retired TestMonkey documentation as a current API authority."
   ],
+  "customization": {
+    "userGuide": "custom-api.md",
+    "framework": "docs/frameworks/runtime-api-extension-framework.md",
+    "levels": [
+      {
+        "level": "javascript",
+        "recommended": true,
+        "requiresGoChanges": false,
+        "summary": "Compose existing public APIs, add validation/defaults, helpers and stable polyfills."
+      },
+      {
+        "level": "http-mcp-external",
+        "recommendedWhen": "the capability already exists in another process, service or language ecosystem",
+        "requiresGoChanges": false
+      },
+      {
+        "level": "native-go",
+        "recommendedWhen": "a new OS/native/runtime capability is required",
+        "requiresSourceAccess": true,
+        "requiresRebuild": true
+      },
+      {
+        "level": "maintainer-customization",
+        "recommendedWhen": "the user lacks source access or needs a supported native/enterprise/custom build",
+        "contact": "project author or maintainer through the project's official support/contact channel"
+      }
+    ],
+    "internalBridgeRule": "Raw globals such as page____Inject/browser____Inject/context____Inject are runtime implementation surfaces, not recommended user APIs.",
+    "polyfillLimitation": "The current runtime resolves one usable polyfills directory rather than merging independent user/core polyfill directories; do not create an incomplete shadow polyfills directory."
+  },
   "globals": [
     {
       "name": "page",
@@ -335,6 +368,7 @@
       "libs.md",
       "runtime-utilities.md"
     ],
+    "customization": "custom-api.md",
     "examples": "cookbook.md"
   }
 }
