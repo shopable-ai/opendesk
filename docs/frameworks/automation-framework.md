@@ -141,5 +141,6 @@
 
 - [能力开发与成熟度路径](./capability-development.md)：Clawdesk 自身如何从简单能力逐级发展到复杂桌面 Agent。
 - [应用自动化开发框架](./app-development-framework.md)：新增一个具体桌面应用时应如何分析、开发、验证和封装。
+- [Playbook 驱动自动化](./playbook-driven-automation.md)：把一个可审查的应用流程收敛成文档定义、受限数据读取和可验证运行脚本。
 - `../architecture/desktop-automation/`：目标模型、Adapter Contract、应用分类等专项技术架构。
 - `../quality/`：测试、Failure Taxonomy、Gate 与 Evidence 规则。

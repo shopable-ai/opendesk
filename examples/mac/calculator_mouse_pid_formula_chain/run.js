@@ -1,59 +1,20 @@
 /**
- * Calculator 多步骤公式示例（macOS）
+ * Calculator 多步骤公式 Playbook runner（macOS）。
  *
- * 正常操作步骤：
- *   1. 确认 Calculator 当前显示为 0。
- *   2. 点击 1、2，输入 12。
- *   3. 点击 +，再点击 7 和 =，得到 19。
- *   4. 点击 ×，再点击 3 和 =，得到 57。
- *   5. 点击 −，再点击 5 和 =，得到 52。
- *
- * 实际按钮顺序：1 → 2 → + → 7 → = → × → 3 → = → − → 5 → =
- * 公式：((12 + 7) × 3) − 5 = 52
- *
- * 默认直接运行只做安全自检，不移动鼠标、不点击：
- *   .runtime/bin/clawdesk-js-runtime \
- *     -script examples/mac/calculator_mouse_pid_formula_chain.js
- *
- * 只有 `.runtime/config/macos-calculator-formula-chain-live.json` 存在、
- * execute=true、armed token 正确且配置仍在短时有效期内，才进入 live 模式。
- * live 模式还要求只读 AX watcher 持续原子更新 current-state.json。
+ * 唯一动作计划位于同目录 PLAYBOOK.md 的严格 JSON contract；本文件只用
+ * JSON.parse 读取它，绝不执行 Markdown。默认运行只做无点击自检。
  */
 
+const PLAYBOOK_PATH = 'examples/mac/calculator_mouse_pid_formula_chain/PLAYBOOK.md';
 const CONFIG_PATH = '.runtime/config/macos-calculator-formula-chain-live.json';
 const ARM_TOKEN = 'RUN_CALCULATOR_FORMULA_CHAIN_ONCE';
 const RUN_ROOT = '.runtime/runs/macos-calculator-formula-chain';
-const WINDOW_SIZE = { width: 232, height: 321 };
 
-// 坐标都是相对于当前 Calculator 窗口左上角的已审查坐标。
-const BUTTONS = {
-  one:      { label: '1', relative: { x: 28,  y: 249 }, axLabels: ['1'] },
-  two:      { label: '2', relative: { x: 86,  y: 249 }, axLabels: ['2'] },
-  add:      { label: '+', relative: { x: 202, y: 249 }, axLabels: ['+', 'Add', '加'] },
-  seven:    { label: '7', relative: { x: 28,  y: 153 }, axLabels: ['7'] },
-  equals:   { label: '=', relative: { x: 202, y: 297 }, axLabels: ['=', 'Equals', '等于'] },
-  multiply: { label: '×', relative: { x: 202, y: 153 }, axLabels: ['*', 'x', 'X', '×', 'Multiply', '乘'] },
-  three:    { label: '3', relative: { x: 144, y: 249 }, axLabels: ['3'] },
-  subtract: { label: '−', relative: { x: 202, y: 201 }, axLabels: ['-', '−', 'Subtract', '减'] },
-  five:     { label: '5', relative: { x: 86,  y: 201 }, axLabels: ['5'] },
-};
-
-// 这一张表就是脚本会执行的正常操作流程。
-const STEPS = [
-  { number: 1,  action: '输入 1', target: 'one',      before: '0',  after: '1' },
-  { number: 2,  action: '输入 2，组成 12', target: 'two', before: '1', after: '12' },
-  { number: 3,  action: '选择加法', target: 'add',     before: '12', after: '12', verifyAt: 4 },
-  { number: 4,  action: '输入第二个加数 7', target: 'seven', before: '12', after: '7', verifies: 3 },
-  { number: 5,  action: '计算 12 + 7', target: 'equals', before: '7', after: '19' },
-  { number: 6,  action: '选择乘法', target: 'multiply', before: '19', after: '19', verifyAt: 7 },
-  { number: 7,  action: '输入乘数 3', target: 'three',   before: '19', after: '3', verifies: 6 },
-  { number: 8,  action: '计算 19 × 3', target: 'equals', before: '3', after: '57' },
-  { number: 9,  action: '选择减法', target: 'subtract', before: '57', after: '57', verifyAt: 10 },
-  { number: 10, action: '输入减数 5', target: 'five',    before: '57', after: '5', verifies: 9 },
-  { number: 11, action: '计算 57 − 5', target: 'equals', before: '5', after: '52' },
-];
-
-const EXPECTED_SEQUENCE = ['0', ...STEPS.map((step) => step.after)];
+// 正常 STEPS 与主循环优先可见；按钮、状态与坐标均由 Playbook contract 提供。
+const PLAYBOOK = readPlaybookContract();
+const BUTTONS = PLAYBOOK.buttons;
+const STEPS = PLAYBOOK.steps;
+const EXPECTED_SEQUENCE = [PLAYBOOK.initialDisplay, ...STEPS.map((step) => step.after)];
 
 async function main() {
   validatePlanAndAPIs();
@@ -74,7 +35,9 @@ async function runSelfTest(config) {
   const report = {
     ok: true,
     mode: 'self-test-no-click',
-    formula: '((12 + 7) × 3) − 5 = 52',
+    playbookPath: PLAYBOOK_PATH,
+    playbookSchemaVersion: PLAYBOOK.schemaVersion,
+    formula: PLAYBOOK.formula,
     normalSteps: STEPS.map((step) => ({
       step: step.number,
       operation: step.action,
@@ -96,7 +59,7 @@ async function runSelfTest(config) {
 
   const reportPath = `${runDir}/selftest.json`;
   await writeJSON(reportPath, report);
-  console.log('[calculator] self-test passed; no mouse action was performed');
+  console.log('[calculator] Playbook self-test passed; no mouse action was performed');
   console.log(JSON.stringify({ reportPath, normalSteps: report.normalSteps }));
 }
 
@@ -106,15 +69,19 @@ async function runFormula(config) {
   refuseToOverwriteEvidence(config.runDir);
 
   const reportPath = `${config.runDir}/runtime-report.json`;
+  const trace = [];
   const report = {
     ok: false,
     mode: 'live-formula-chain',
-    formula: '((12 + 7) × 3) − 5 = 52',
+    playbookPath: PLAYBOOK_PATH,
+    playbookSchemaVersion: PLAYBOOK.schemaVersion,
+    formula: PLAYBOOK.formula,
     startedAt: new Date().toISOString(),
     expected: config.expected,
-    stateSequence: ['0'],
+    stateSequence: [PLAYBOOK.initialDisplay],
     steps: [],
     screenshots: {},
+    tracePath: `${config.runDir}/trace.ndjson`,
     actions_executed: 0,
     misclicks: 0,
     automatic_retries: 0,
@@ -123,17 +90,20 @@ async function runFormula(config) {
   };
 
   try {
-    console.log('[calculator] live formula start: 1 → 2 → + → 7 → = → × → 3 → = → − → 5 → =');
+    console.log(`[calculator] live Playbook start: ${STEPS.map((step) => BUTTONS[step.target].label).join(' → ')}`);
+    await recordTrace(config.runDir, trace, { type: 'live-start', expectedSequence: EXPECTED_SEQUENCE });
     await validateRuntimePreflight(config);
+    await recordTrace(config.runDir, trace, { type: 'runtime-preflight-passed' });
 
     let lastSequence = 0;
-    const initial = await waitForDisplay(config, '0', lastSequence, true);
+    const initial = await waitForDisplay(config, PLAYBOOK.initialDisplay, lastSequence, true);
     lastSequence = initial.sequence;
-    report.initialState = compactState(initial, 'one');
+    report.initialState = compactState(initial, STEPS[0].target);
     report.screenshots.pre = await takeCalculatorScreenshot(config, 'pre.png');
+    await recordTrace(config.runDir, trace, { type: 'initial-state-verified', state: report.initialState });
     await writeJSON(reportPath, report);
 
-    // 一个 JS runtime、一个循环；每个动作都只调用一次并且必须 await。
+    // 一个 JS runtime、一个主循环。每一 Step 只有下面这一处、一次 await AXPress 调用。
     for (const step of STEPS) {
       console.log(`[calculator] step ${step.number}/${STEPS.length}: ${step.action}`);
       const point = screenPoint(config.expected.window.bounds, step.target);
@@ -160,14 +130,23 @@ async function runFormula(config) {
       report.steps.push(stepReport);
 
       try {
+        // 每步动作前先读到一个新鲜、经完整 AX hit 校验的状态。
         const before = await waitForDisplay(config, step.before, lastSequence, false, step.target);
         lastSequence = before.sequence;
         stepReport.beforeState = compactState(before, step.target);
         stepReport.actionStartedAtEpochMs = Date.now();
+        await recordTrace(config.runDir, trace, {
+          type: 'action-started',
+          step: step.number,
+          target: step.target,
+          point,
+          actionStartedAtEpochMs: stepReport.actionStartedAtEpochMs,
+        });
 
         await mouse.clickForPID(config.expected.processID, point.x, point.y);
         report.actions_executed += 1;
 
+        // 动作后只接受 timestamp 严格晚于 action start 的 watcher 状态。
         const after = await waitForActionResult(
           config,
           step,
@@ -178,9 +157,14 @@ async function runFormula(config) {
         lastSequence = after.sequence;
         stepReport.afterState = compactState(after, step.target);
         stepReport.ok = true;
-
         report.stateSequence.push(after.mainDisplayValue);
         report.screenshots[filePrefix] = await takeCalculatorScreenshot(config, `${filePrefix}.png`);
+        await recordTrace(config.runDir, trace, {
+          type: 'action-verified',
+          step: step.number,
+          target: step.target,
+          afterState: stepReport.afterState,
+        });
         await writeJSON(`${config.runDir}/${filePrefix}.json`, stepReport);
         await writeJSON(reportPath, report);
 
@@ -190,6 +174,12 @@ async function runFormula(config) {
         console.log(`[calculator] display: ${before.mainDisplayValue} → ${after.mainDisplayValue}`);
       } catch (error) {
         stepReport.error = errorText(error);
+        await recordTrace(config.runDir, trace, {
+          type: 'step-failed',
+          step: step.number,
+          target: step.target,
+          error: stepReport.error,
+        });
         await writeJSON(`${config.runDir}/${filePrefix}.json`, stepReport);
         await writeJSON(reportPath, report);
         throw error;
@@ -209,15 +199,17 @@ async function runFormula(config) {
       report.finalDisplay === '52';
 
     if (!report.ok) fail('final acceptance check failed', report);
+    await recordTrace(config.runDir, trace, { type: 'acceptance-passed', finalDisplay: report.finalDisplay });
   } catch (error) {
     report.error = errorText(error);
     report.completedAt = new Date().toISOString();
+    await recordTrace(config.runDir, trace, { type: 'run-failed', error: report.error });
     await writeJSON(reportPath, report);
     throw error;
   }
 
   await writeJSON(reportPath, report);
-  console.log('[calculator] formula completed: ((12 + 7) × 3) − 5 = 52');
+  console.log(`[calculator] formula completed: ${PLAYBOOK.formula}`);
   console.log(JSON.stringify({
     ok: report.ok,
     stateSequence: report.stateSequence,
@@ -227,6 +219,26 @@ async function runFormula(config) {
     supplemental_clicks: report.supplemental_clicks,
     reportPath,
   }));
+}
+
+// All helpers and guards follow the normal flow above.
+function readPlaybookContract() {
+  if (typeof File !== 'object' || typeof File.read !== 'function') {
+    fail('File.read is required to load the Playbook contract');
+  }
+
+  const markdown = File.read(PLAYBOOK_PATH);
+  const match = String(markdown).match(/<!-- PLAYBOOK_CONTRACT\r?\n([\s\S]*?)\r?\n-->/);
+  if (!match) fail('PLAYBOOK_CONTRACT marker is missing', PLAYBOOK_PATH);
+
+  let playbook;
+  try {
+    playbook = JSON.parse(match[1]);
+  } catch (error) {
+    fail('PLAYBOOK_CONTRACT is not valid JSON', errorText(error));
+  }
+  validateStaticPlaybook(playbook);
+  return playbook;
 }
 
 function validatePlanAndAPIs() {
@@ -243,14 +255,33 @@ function validatePlanAndAPIs() {
   if ((12 + 7) * 3 - 5 !== 52 || EXPECTED_SEQUENCE[EXPECTED_SEQUENCE.length - 1] !== '52') {
     fail('formula plan is invalid');
   }
+}
 
-  for (let index = 0; index < STEPS.length; index += 1) {
-    const step = STEPS[index];
-    const previous = index === 0 ? '0' : STEPS[index - 1].after;
-    if (step.number !== index + 1 || step.before !== previous || !BUTTONS[step.target]) {
-      fail('step plan is not continuous', step);
+function validateStaticPlaybook(playbook) {
+  const app = playbook && playbook.app;
+  if (!playbook || playbook.schemaVersion !== 1 ||
+      playbook.formula !== '((12 + 7) × 3) − 5 = 52' ||
+      playbook.initialDisplay !== '0' || !app ||
+      app.bundleID !== 'com.apple.calculator' ||
+      app.bundlePath !== '/System/Applications/Calculator.app' ||
+      !app.window || app.window.width !== 232 || app.window.height !== 321 ||
+      !playbook.buttons || !Array.isArray(playbook.steps) || playbook.steps.length !== 11) {
+    fail('Playbook contract has an unexpected Calculator shape', playbook);
+  }
+
+  for (let index = 0; index < playbook.steps.length; index += 1) {
+    const step = playbook.steps[index];
+    const button = playbook.buttons[step && step.target];
+    const previous = index === 0 ? playbook.initialDisplay : playbook.steps[index - 1].after;
+    if (!step || step.number !== index + 1 || typeof step.action !== 'string' ||
+        step.before !== previous || typeof step.after !== 'string' || !button ||
+        typeof button.label !== 'string' || !button.relative ||
+        !Number.isFinite(button.relative.x) || !Number.isFinite(button.relative.y) ||
+        !Array.isArray(button.axLabels) || button.axLabels.length === 0) {
+      fail('Playbook steps or buttons are invalid', step);
     }
-    if (step.verifyAt && STEPS[step.verifyAt - 1].verifies !== step.number) {
+    if (step.verifyAt && (!Number.isInteger(step.verifyAt) || step.verifyAt <= step.number ||
+        !playbook.steps[step.verifyAt - 1] || playbook.steps[step.verifyAt - 1].verifies !== step.number)) {
       fail('operator verification pair is invalid', step);
     }
   }
@@ -274,12 +305,11 @@ function validateLiveConfig(config) {
   const expected = config.expected;
   const bounds = expected && expected.window && expected.window.bounds;
   if (!expected || !Number.isInteger(expected.processID) || expected.processID <= 0 ||
-      expected.bundleID !== 'com.apple.calculator' ||
-      expected.bundlePath !== '/System/Applications/Calculator.app' ||
+      expected.bundleID !== PLAYBOOK.app.bundleID || expected.bundlePath !== PLAYBOOK.app.bundlePath ||
       !expected.window || !Number.isInteger(expected.window.windowID) || expected.window.windowID <= 0 ||
       !bounds || !Number.isFinite(bounds.x) || !Number.isFinite(bounds.y) ||
-      bounds.width !== WINDOW_SIZE.width || bounds.height !== WINDOW_SIZE.height) {
-    fail('Calculator identity or reviewed 232x321 window is invalid');
+      bounds.width !== PLAYBOOK.app.window.width || bounds.height !== PLAYBOOK.app.window.height) {
+    fail('Calculator identity or reviewed window is invalid');
   }
 }
 
@@ -342,8 +372,6 @@ async function waitForActionResult(config, step, afterSequence, actionStartedAtE
     validateState(state, config, false);
     const display = state.mainDisplayValue;
     if (display === step.after) return state;
-
-    // 对应该有可见变化的动作，短暂保留 before 值时继续只读等待。
     if (display === step.before && step.after !== step.before) {
       await page.waitForTimeout(25);
       continue;
@@ -432,18 +460,18 @@ function makeSafeConfigExample() {
     statePath: `${runDir}/current-state.json`,
     expected: {
       processID: 'fresh Calculator PID',
-      bundleID: 'com.apple.calculator',
-      bundlePath: '/System/Applications/Calculator.app',
+      bundleID: PLAYBOOK.app.bundleID,
+      bundlePath: PLAYBOOK.app.bundlePath,
       window: {
         windowID: 'fresh Calculator window ID',
-        bounds: { x: 'fresh x', y: 'fresh y', width: 232, height: 321 },
+        bounds: { x: 'fresh x', y: 'fresh y', width: PLAYBOOK.app.window.width, height: PLAYBOOK.app.window.height },
       },
     },
   };
 }
 
 function refuseToOverwriteEvidence(runDir) {
-  const paths = [`${runDir}/runtime-report.json`, `${runDir}/pre.png`, `${runDir}/final.png`];
+  const paths = [`${runDir}/runtime-report.json`, `${runDir}/trace.ndjson`, `${runDir}/pre.png`, `${runDir}/final.png`];
   for (const step of STEPS) {
     const prefix = `step-${String(step.number).padStart(2, '0')}-${step.target}`;
     paths.push(`${runDir}/${prefix}.json`, `${runDir}/${prefix}.png`);
@@ -502,6 +530,11 @@ async function takeCalculatorScreenshot(config, fileName) {
     path: `${config.runDir}/${fileName}`,
     returnType: 'object',
   });
+}
+
+async function recordTrace(runDir, trace, event) {
+  trace.push({ timestamp: new Date().toISOString(), ...event });
+  await File.write(`${runDir}/trace.ndjson`, `${trace.map((entry) => JSON.stringify(entry)).join('\n')}\n`);
 }
 
 async function writeJSON(path, value) {

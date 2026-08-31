@@ -121,4 +121,5 @@ HTML Benchmark 用于快速复现基础问题；真实应用用于证明能力�
 
 - [自动化总体框架](./automation-framework.md)：定义所有 Level 共用的系统分层与执行闭环。
 - [应用自动化开发框架](./app-development-framework.md)：进入真实应用后，具体应用应该如何拆解和开发。
+- [Playbook 驱动自动化](./playbook-driven-automation.md)：为已进入具体应用的单次 Workflow 规定可审查计划、fail-closed 执行与 Evidence 的落地方式。
 - `../quality/`：各 Level 的测试、质量门禁和 Evidence 规则。
