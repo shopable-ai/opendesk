@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://clawdesk.dev/schemas/automation/dom-validation-report.schema.json",
+  "title": "DOMValidationReport",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "runId",
+    "zoneCount",
+    "targetCount",
+    "chatCandidateCount",
+    "selectedCandidateCount",
+    "candidateUniquenessOK",
+    "singleTargetMatchOK",
+    "requiredZonesPresent",
+    "textCoverage",
+    "layoutHtmlValidation",
+    "semanticHtmlValidation",
+    "semanticScore",
+    "summary"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string"
+    },
+    "runId": {
+      "type": "string"
+    },
+    "zoneCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "targetCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "chatCandidateCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "selectedCandidateCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "duplicateCandidateCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "candidateUniquenessOK": {
+      "type": "boolean"
+    },
+    "singleTargetMatchOK": {
+      "type": "boolean"
+    },
+    "requiredZonesPresent": {
+      "type": "object"
+    },
+    "targetIntentsPresent": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "textCoverage": {
+      "type": "object"
+    },
+    "layoutHtmlValidation": {
+      "type": "object"
+    },
+    "semanticHtmlValidation": {
+      "type": "object"
+    },
+    "semanticBlocks": {
+      "type": "object"
+    },
+    "semanticScore": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "summary": {
+      "type": "string"
+    }
+  }
+}

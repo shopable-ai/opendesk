@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://clawdesk.dev/schemas/automation/zones.schema.json",
+  "type": "object",
+  "required": ["schemaVersion", "runId", "zones", "canProceed"],
+  "properties": {
+    "schemaVersion": {"type": "string"},
+    "runId": {"type": "string"},
+    "zones": {"type": "array"},
+    "missingRequiredZones": {"type": "array"},
+    "overlapsOrConflicts": {"type": "array"},
+    "canProceed": {"type": "boolean"}
+  }
+}

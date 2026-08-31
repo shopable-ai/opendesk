@@ -2,16 +2,24 @@ package http
 
 import (
 	"bytes"
+	"clawdesk/pkg/container"
 	"context"
 	"encoding/json"
+	"fmt"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
-	"clawdesk/pkg/container"
 	"time"
 )
+
+func withTestLogDir(t *testing.T, req ScriptRequest) ScriptRequest {
+	t.Helper()
+	req.LogDir = filepath.Join(t.TempDir(), "run")
+	return req
+}
 
 func setupTestHandler(t *testing.T) (*Handler, func()) {
 	cfg := &container.Config{
@@ -47,7 +55,7 @@ func TestHandleScriptExecution(t *testing.T) {
 		{
 			name:           "valid script",
 			method:         http.MethodPost,
-			body:           ScriptRequest{Script: "1 + 1"},
+			body:           withTestLogDir(t, ScriptRequest{Script: "1 + 1"}),
 			expectedStatus: http.StatusOK,
 			expectedCode:   0,
 			checkData:      true,
@@ -69,7 +77,7 @@ func TestHandleScriptExecution(t *testing.T) {
 		{
 			name:           "script with error",
 			method:         http.MethodPost,
-			body:           ScriptRequest{Script: "throw new Error('test error')"},
+			body:           withTestLogDir(t, ScriptRequest{Script: "throw new Error('test error')"}),
 			expectedStatus: http.StatusOK,
 			expectedCode:   0,
 			checkData:      true,
@@ -130,7 +138,7 @@ func TestHandleExecutionsDefaultsToLegacyWhenStackMissing(t *testing.T) {
 	handler, cleanup := setupTestHandler(t)
 	defer cleanup()
 
-	body, _ := json.Marshal(ScriptRequest{Script: "console.log('ok')"})
+	body, _ := json.Marshal(withTestLogDir(t, ScriptRequest{Script: "console.log('ok')"}))
 	req := httptest.NewRequest(http.MethodPost, "/executions", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -158,7 +166,7 @@ func testHandleExecutionsStack(t *testing.T, stack string) {
 	handler, cleanup := setupTestHandler(t)
 	defer cleanup()
 
-	body, _ := json.Marshal(ScriptRequest{Script: "console.log('ok')", Stack: stack})
+	body, _ := json.Marshal(withTestLogDir(t, ScriptRequest{Script: "console.log('ok')", Stack: stack}))
 	req := httptest.NewRequest(http.MethodPost, "/executions", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -189,7 +197,7 @@ func TestHandleExecutionsReturnsArtifactPaths(t *testing.T) {
 	handler, cleanup := setupTestHandler(t)
 	defer cleanup()
 
-	body, _ := json.Marshal(ScriptRequest{Script: "console.log('ok')", Stack: "upgraded"})
+	body, _ := json.Marshal(withTestLogDir(t, ScriptRequest{Script: "console.log('ok')", Stack: "upgraded"}))
 	req := httptest.NewRequest(http.MethodPost, "/executions", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -310,10 +318,14 @@ func TestHandleScriptExecutionConcurrency(t *testing.T) {
 
 	done := make(chan bool)
 	concurrency := 10
+	runtimeDir := t.TempDir()
 
 	for i := 0; i < concurrency; i++ {
 		go func(id int) {
-			body, _ := json.Marshal(ScriptRequest{Script: "1 + 1"})
+			body, _ := json.Marshal(ScriptRequest{
+				Script: "1 + 1",
+				LogDir: filepath.Join(runtimeDir, fmt.Sprintf("run-%d", id)),
+			})
 			req := httptest.NewRequest(http.MethodPost, "/SCRIPT_RUN", bytes.NewReader(body))
 			req.Header.Set("Content-Type", "application/json")
 
@@ -337,10 +349,10 @@ func TestHandleScriptExecutionWithTimeout(t *testing.T) {
 	handler, cleanup := setupTestHandler(t)
 	defer cleanup()
 
-	body, _ := json.Marshal(ScriptRequest{
+	body, _ := json.Marshal(withTestLogDir(t, ScriptRequest{
 		Script:  "1 + 1",
 		Timeout: 5,
-	})
+	}))
 
 	req := httptest.NewRequest(http.MethodPost, "/SCRIPT_RUN", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")

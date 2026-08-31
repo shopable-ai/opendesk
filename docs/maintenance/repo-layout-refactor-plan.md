@@ -74,13 +74,11 @@ Preferred steady-state shape:
   schemas/
   polyfills/
   types/
-  config/
   tests/
   dist/
-  artifacts/
-    fixtures/
-    external/
-    reports/
+  tests/<domain>/fixtures/
+  docs/quality/<domain>/
+  docs/research/external/
   prompts/
   .runtime/
     runs/
@@ -100,7 +98,7 @@ Preferred steady-state shape:
 
 Notes:
 
-- `artifacts/` is for reusable or intentionally preserved assets/evidence.
+- Reusable assets belong to the test domain that owns them; durable conclusions belong in `docs/quality/`.
 - `.runtime/` is for disposable execution output.
 - `.dev/` is for local environment/tooling state.
 - `.archive/` is for historically valuable superseded material, not a generic dump zone.
@@ -155,13 +153,13 @@ Examples:
 - classified subtrees under `docs/`
 - `docs-user-api/` for user API facts
 
-### 2. Reusable asset or evidence
+### 2. Domain-owned test asset or evidence
 
 Examples:
 
-- `artifacts/fixtures/`
-- `artifacts/external/`
-- `artifacts/reports/`
+- `tests/<domain>/fixtures/`
+- `docs/quality/<domain>/`
+- `docs/research/external/`
 
 ### 3. Runtime output
 
@@ -290,20 +288,20 @@ temp/mac/                         -> .runtime/temp/mac/
 temp/e2e/                         -> .runtime/temp/e2e/
 ```
 
-Do not move `artifacts/runs/` until implementation, docs, configs and replay references are patched together.
+Do not move `.runtime/runs/` until implementation, docs, configs and replay references are patched together.
 
 ### Phase 4: Reusable-artifact normalization
 
 Objective:
 
-- make `artifacts/` mean reusable/preserved assets only.
+- move reusable material out of the generic `artifacts/` namespace and into its owning domain.
 
 Preferred normalization:
 
 ```text
 artifacts/golden-samples/
 artifacts/golden_samples/
-    -> artifacts/fixtures/golden-samples/
+    -> tests/<domain>/fixtures/golden-samples/
 ```
 
 Review other artifact subtrees individually before moving them.
@@ -426,6 +424,6 @@ The refactor is successful when:
 - `docs-user-api/` remains the sole user API documentation root;
 - there is one current Source of Truth per engineering topic;
 - prompts, reports and runtime output no longer compete with canonical docs;
-- `artifacts/` contains reusable/preserved assets rather than generic run residue;
+- no generic top-level `artifacts/` directory remains;
 - new files have an obvious lifecycle destination;
 - repository searches find no live references to removed paths.

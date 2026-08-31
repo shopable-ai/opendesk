@@ -1,0 +1,66 @@
+{
+  "id": "round-01-minimal-loop",
+  "version": "0.1.0",
+  "createdAt": "2026-04-03T00:00:00+08:00",
+  "goal": "用最小可验证方式定义微信视觉恢复闭环：capture -> detect -> mirror -> compare",
+  "inputs": {
+    "targetApp": "WeChat Desktop",
+    "windowHint": "微信 / WeChat",
+    "captureMode": "single-window screenshot",
+    "ocrProvider": "paddle|local",
+    "layoutEngine": "automation/image_layout.go"
+  },
+  "steps": [
+    {
+      "id": "preflight",
+      "type": "check",
+      "artifact": ".runtime/preflight/current/latest.json"
+    },
+    {
+      "id": "capture",
+      "type": "generate",
+      "artifact": ".runtime/runs/<run-id>/capture/source.png"
+    },
+    {
+      "id": "detect",
+      "type": "generate",
+      "artifact": ".runtime/runs/<run-id>/detect/regions.json"
+    },
+    {
+      "id": "mirror",
+      "type": "generate",
+      "artifact": ".runtime/runs/<run-id>/mirror/index.html"
+    },
+    {
+      "id": "compare",
+      "type": "generate",
+      "artifact": ".runtime/runs/<run-id>/compare/report.json"
+    },
+    {
+      "id": "decision",
+      "type": "generate",
+      "artifact": ".runtime/runs/<run-id>/decision.json"
+    }
+  ],
+  "expectedArtifacts": [
+    ".runtime/preflight/current/latest.json",
+    ".runtime/runs/<run-id>/capture/source.png",
+    ".runtime/runs/<run-id>/detect/regions.json",
+    ".runtime/runs/<run-id>/mirror/index.html",
+    ".runtime/runs/<run-id>/mirror/mirror.png",
+    ".runtime/runs/<run-id>/compare/report.json",
+    ".runtime/runs/<run-id>/compare/diff.png",
+    ".runtime/runs/<run-id>/decision.json"
+  ],
+  "stopConditions": [
+    "preflight status = fail",
+    "regions.json missing required fields",
+    "no mirror output generated",
+    "compare report missing actionable diff"
+  ],
+  "escalationConditions": [
+    "macOS permissions cannot be restored automatically",
+    "WeChat window cannot be located consistently",
+    "two consecutive iterations show no measurable diff improvement"
+  ]
+}

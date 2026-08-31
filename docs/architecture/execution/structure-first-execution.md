@@ -35,7 +35,7 @@ structure-first
 ## 3. 阶段与工件
 ### Phase 0: Runtime preflight
 输入：运行环境
-输出：`artifacts/runs/<run-id>/preflight_runtime.json`
+输出：`.runtime/runs/<run-id>/preflight_runtime.json`
 必须验证：
 - macOS 权限/TCC
 - 微信窗口存在且可激活

@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "0.1.0",
+  "scenarioId": "canvas_partial_success",
+  "scenarioType": "semi_structured_canvas",
+  "description": "半结构化自绘界面局部任务完成但主目标未闭环",
+  "routePolicy": {
+    "preferredOrder": ["region", "anchor"],
+    "allowFallback": false,
+    "maxAttemptsPerStep": 1
+  },
+  "recoveryBudget": 0,
+  "steps": [
+    {
+      "stepId": "draw-node",
+      "action": "draw_partial_region",
+      "target": "canvas.node.partial",
+      "expectedVerifiers": ["ui_observable", "state_observable", "business_observable"],
+      "mockOutcome": "partial",
+      "metadata": {
+        "partialProgress": true
+      }
+    }
+  ]
+}

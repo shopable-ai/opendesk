@@ -4,7 +4,7 @@ GO ?= go
 GOBIN ?= $(HOME)/go/bin
 export PATH := $(GOBIN):$(PATH)
 
-.PHONY: help doctor setup deps fmt vet test test-core test-runtime-api test-runtime-api-live test-host-api test-host-api-live build build-macos smoke
+.PHONY: help doctor setup deps fmt vet test test-core test-runtime-api test-runtime-api-live test-host-api test-host-api-live audit-layout build build-macos smoke
 
 help:
 	@echo "clawdesk development targets:"
@@ -19,6 +19,7 @@ help:
 	@echo "  make test-runtime-api-live Run Runtime API tests against the Safari Test Lab"
 	@echo "  make test-host-api Deprecated alias for test-runtime-api"
 	@echo "  make test-host-api-live Deprecated alias for test-runtime-api-live"
+	@echo "  make audit-layout Verify repository lifecycle and root-directory rules"
 	@echo "  make build       Build the clawdesk binary"
 	@echo "  make build-macos Build the macOS app bundle"
 	@echo "  make smoke       Run the non-UI smoke path"
@@ -52,10 +53,10 @@ vet:
 test:
 	$(GO) test ./...
 
-# The repository currently contains intentionally separate demo/fixture packages
-# in these directories; this target validates the application and library code.
+# Executable examples and the visual runner have independent environment/native
+# requirements; this target validates the application and reusable packages.
 test-core:
-	$(GO) test $$(go list ./... | grep -v -E '/(examples|test/wechat|cmd/clawdesk-visual-runner)$$')
+	$(GO) test $$(go list ./... | grep -v -E '/(examples|cmd/clawdesk-visual-runner)$$')
 
 test-runtime-api:
 	./scripts/test_runtime_apis.sh smoke
@@ -66,6 +67,9 @@ test-runtime-api-live:
 test-host-api: test-runtime-api
 
 test-host-api-live: test-runtime-api-live
+
+audit-layout:
+	./scripts/audit_repo_layout.sh
 
 build:
 	$(GO) build -o dist/clawdesk .

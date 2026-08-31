@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://clawdesk.dev/schemas/automation/run-requirement.schema.json",
+  "title": "RunRequirement",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "createdAt",
+    "runId",
+    "goal",
+    "targetApp",
+    "windowHint",
+    "captureMode",
+    "ocrProvider",
+    "layoutEngine",
+    "source"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string"
+    },
+    "createdAt": {
+      "type": "string"
+    },
+    "runId": {
+      "type": "string"
+    },
+    "goal": {
+      "type": "string"
+    },
+    "targetApp": {
+      "type": "string"
+    },
+    "targetChatName": {
+      "type": "string"
+    },
+    "windowHint": {
+      "type": "string"
+    },
+    "captureMode": {
+      "type": "string"
+    },
+    "ocrProvider": {
+      "type": "string"
+    },
+    "layoutEngine": {
+      "type": "string"
+    },
+    "source": {
+      "type": "string"
+    }
+  }
+}

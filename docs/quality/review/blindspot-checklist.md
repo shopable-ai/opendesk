@@ -74,4 +74,4 @@ blindspot
 -> replay evidence
 ```
 
-一次性审计结果应进入 `artifacts/reports/reviews/`，不要继续堆到本文件。
+一次性审计结果应进入 `docs/quality/review/`，不要继续堆到本文件。

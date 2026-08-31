@@ -25,8 +25,8 @@ docs/quality/review/red-team.md
 
 ```text
 docs/research/wechat/
-artifacts/reports/wechat/
-artifacts/reports/reviews/
+docs/quality/wechat/
+docs/quality/review/
 ```
 
 不要把历史报告或 Research 当成当前 Source of Truth。

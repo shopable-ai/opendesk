@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://clawdesk.dev/schemas/automation/compare-diff-report.schema.json",
+  "title": "CompareDiffReport",
+  "type": "object",
+  "required": [
+    "runId",
+    "status",
+    "pixelDiffRatio",
+    "summary"
+  ],
+  "properties": {
+    "runId": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pass",
+        "warn",
+        "fail"
+      ]
+    },
+    "pixelDiffRatio": {
+      "type": "number",
+      "minimum": 0
+    },
+    "summary": {
+      "type": "string"
+    },
+    "diffImagePath": {
+      "type": "string"
+    },
+    "majorDeviationRegions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "x",
+          "y",
+          "width",
+          "height"
+        ],
+        "properties": {
+          "x": {
+            "type": "integer"
+          },
+          "y": {
+            "type": "integer"
+          },
+          "width": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "height": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      }
+    },
+    "regionIoU": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "textSimilarity": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "recommendations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "createdAt": {
+      "type": "string"
+    }
+  }
+}

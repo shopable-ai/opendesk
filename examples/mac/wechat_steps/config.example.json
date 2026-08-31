@@ -1,0 +1,24 @@
+{
+  "artifactRunRoot": ".runtime/runs/codex-audit-send8",
+  "targetChatName": "示例联系人",
+  "expectedIncomingText": "示例问题",
+  "replyMessage": "示例回复",
+  "stepMode": "open_chat_verify_header_focus_input",
+  "enableSend": false,
+  "allowUnsafeSendOverride": false,
+  "allowDraftInputWithoutSend": true,
+  "useClipboardForInput": true,
+  "sendRetryCount": 2,
+  "sendRetryDelayMinMs": 600,
+  "sendRetryDelayMaxMs": 1400,
+  "sendDedupWindowMs": 60000,
+  "sendAuditPath": ".runtime/temp/mac/wechat_structured_send_v2_audit.jsonl",
+  "regionReportPath": ".runtime/temp/mac/wechat_region_map_latest.json",
+  "replyReadbackWaitMs": 1200,
+  "visionProfile": {
+    "provider": "local",
+    "language": "ch",
+    "minConfidence": 0.0,
+    "timeoutMs": 15000
+  }
+}

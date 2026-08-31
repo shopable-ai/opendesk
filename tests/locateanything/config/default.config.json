@@ -1,0 +1,28 @@
+{
+  "serviceUrl": "http://teaderMac.local:18777",
+  "workflowLane": "L50",
+  "targetChatName": "",
+  "replyMessage": "",
+  "enableSend": false,
+  "sendGuardMode": "strict",
+  "requestTimeoutMs": 20000,
+  "profilePolicy": {
+    "guiPointDefault": "daily",
+    "guiBoxDefault": "daily",
+    "textDefault": "quality",
+    "multiDefault": "quality",
+    "verifyDefault": "verify"
+  },
+  "localMockServiceUrl": "http://127.0.0.1:18777",
+  "remoteModelServiceUrl": "http://teaderMac.local:18777",
+  "localMockPortFallbacks": [
+    18777,
+    18778,
+    18877
+  ],
+  "controllerHost": "min-Mac4g.local",
+  "controllerIp": "192.168.30.15",
+  "artifactRoot": ".runtime/tests/locateanything",
+  "stageReportRoot": ".runtime/tests/locateanything/reports",
+  "defaultImagePath": "tests/locateanything/fixtures/wechat/mock_wechat.png"
+}

@@ -55,7 +55,7 @@ Strong migration candidates:
 
 | Current path | Target path | Reason | Priority |
 |---|---|---|---|
-| `artifacts/runs/` | `.runtime/runs/` | execution logs, summaries, snapshots, event streams | later coupled batch |
+| `.runtime/runs/` | `.runtime/runs/` | execution logs, summaries, snapshots, event streams | later coupled batch |
 | `artifacts/mcp-smoke/` | `.runtime/smoke/mcp/` | smoke output, screenshots, report residue | P1 |
 | `artifacts/preflight/` | `.runtime/preflight/` | generated preflight results | P1 |
 | `artifacts/browser_stack_finish/` | `.runtime/debug/browser_stack_finish/` | debug/test-result residue | P1 |
@@ -66,7 +66,7 @@ Strong migration candidates:
 | `temp/file/` | `.runtime/temp/file/` | temporary output | P1 |
 | `temp/file-demo/` | `.runtime/temp/file-demo/` | temporary output | P1 |
 
-`artifacts/runs/` remains a special case because runtime code, docs, configs and replay files may reference it. Patch producers and consumers before moving it.
+`.runtime/runs/` remains a special case because runtime code, docs, configs and replay files may reference it. Patch producers and consumers before moving it.
 
 ## Reusable preserved artifacts
 
@@ -254,7 +254,7 @@ Search both spellings before and after migration.
 
 ## P2: semantic and high-coupling cleanup
 
-### `artifacts/runs/`
+### `.runtime/runs/`
 
 Do not move until producer code and consumers are patched together.
 
@@ -284,7 +284,7 @@ Do not:
 
 - recreate `docs-api/`, `docs-api-user/` or `docs/api/`;
 - move `docs-user-api/` to `docs/api/user/`;
-- move `artifacts/runs/` without changing its producers/consumers;
+- move `.runtime/runs/` without changing its producers/consumers;
 - convert `.archive/` into a dump of every old AI-generated Markdown file;
 - leave both old and new canonical documentation paths indefinitely;
 - create new `*_V2.md`, `FINAL_*.md` or `*_COMPLETE_SUMMARY.md` as a substitute for Git history.
@@ -320,7 +320,7 @@ The repository migration succeeds when:
 - `docs/` root converges to `README.md` plus classified directories;
 - `docs-user-api/` remains the sole maintained user API root;
 - generated output defaults to `.runtime/`;
-- `artifacts/` means reusable/preserved assets and evidence;
+- no generic root `artifacts/` namespace remains; reusable assets are domain-owned;
 - prompts and historical notes no longer pollute canonical docs;
 - one current Source of Truth exists per engineering topic;
 - repository search finds no live references to removed paths.

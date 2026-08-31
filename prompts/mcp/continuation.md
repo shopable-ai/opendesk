@@ -52,7 +52,7 @@ go test ./pkg/mcpserver ./cmd/clawdesk-mcp
 6. 发现文档与源码冲突，以当前源码、测试和实际运行证据为准，并同步修正 canonical docs。
 7. 新的阶段日志、执行结果和一次性分析不要堆进 `docs/integrations/mcp/`：
    - 运行输出 -> `.runtime/`
-   - 长期报告 -> `artifacts/reports/mcp/`
+   - 长期报告 -> `docs/quality/mcp/`
    - 历史材料 -> `.archive/`
    - 可复用 Prompt -> `prompts/mcp/`
 

@@ -3,8 +3,8 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-APP_ROOT="${ROOT_DIR}/artifacts/macos-permission-bootstrap/Clawdesk Automation.app"
-SCRIPT_FILE="${ROOT_DIR}/artifacts/macos-permission-bootstrap/automation-bootstrap.applescript"
+APP_ROOT="${ROOT_DIR}/.runtime/build/macos-permission-bootstrap/Clawdesk Automation.app"
+SCRIPT_FILE="${ROOT_DIR}/.runtime/build/macos-permission-bootstrap/automation-bootstrap.applescript"
 PLIST_PATH="${APP_ROOT}/Contents/Info.plist"
 
 mkdir -p "$(dirname "${SCRIPT_FILE}")"

@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "0.1.0",
+  "scenarioId": "ambiguous_human_gate",
+  "expectedStatus": "blocked",
+  "expectedFailureClass": "ambiguous",
+  "expectedHumanGate": true,
+  "expectedFalseSuccess": false,
+  "expectedSuiteDisposition": "pass"
+}

@@ -199,7 +199,7 @@ postcondition result
 failure taxonomy / final decision
 ```
 
-运行时原始 evidence 应进入 `.runtime/`，长期有价值的报告再提升到 `artifacts/reports/`。
+运行时原始 evidence 应进入 `.runtime/`，长期有价值的结论再提升到 `docs/quality/wechat/`。
 
 ## 与 MCP 的关系
 

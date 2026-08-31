@@ -210,7 +210,7 @@ OCR：
 
 ```bash
 go run . \
-  -vision-ocr-image test.png \
+  -vision-ocr-image tests/desktopvision/fixtures/legacy-testmonkey-desktop.png \
   -vision-provider paddle \
   -vision-lang ch
 ```
@@ -219,7 +219,7 @@ go run . \
 
 ```bash
 go run . \
-  -vision-detect-ui-image test.png \
+  -vision-detect-ui-image tests/desktopvision/fixtures/legacy-testmonkey-desktop.png \
   -vision-target-text 发送 \
   -vision-provider paddle \
   -vision-lang ch

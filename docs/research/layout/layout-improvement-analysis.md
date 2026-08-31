@@ -146,7 +146,7 @@ regionVariance := computeColorVariance(region)
 #### 5.2 人工验证方法
 
 **A. Annotated Image 检查**
-- 生成 `temp/mac/wechat_region_map_annotated.png`
+- 生成 `.runtime/temp/mac/wechat_region_map_annotated.png`
 - 目视检查 separator 线是否贴合背景块边界
 - **验收标准**: 4 条主要 separator 中至少 3 条准确
 
@@ -293,10 +293,10 @@ regionVariance := computeColorVariance(region)
 - [ ] `examples/mac/wechat_region_map.js` (验证兼容)
 
 ### 测试产物
-- [ ] `temp/mac/wechat_region_map_source.png`
-- [ ] `temp/mac/wechat_region_map_annotated.png`
-- [ ] `temp/mac/wechat_region_map_latest.json`
-- [ ] `temp/mac/wechat_region_map_before.png` (对比基准)
+- [ ] `.runtime/temp/mac/wechat_region_map_source.png`
+- [ ] `.runtime/temp/mac/wechat_region_map_annotated.png`
+- [ ] `.runtime/temp/mac/wechat_region_map_latest.json`
+- [ ] `.runtime/temp/mac/wechat_region_map_before.png` (对比基准)
 
 ### 文档
 - [x] `docs/layout_improvement_analysis.md` (本文档)

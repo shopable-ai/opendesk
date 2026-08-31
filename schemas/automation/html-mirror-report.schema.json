@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://clawdesk.dev/schemas/automation/html-mirror-report.schema.json",
+  "title": "HTMLMirrorReport",
+  "type": "object",
+  "required": [
+    "runId",
+    "htmlPath",
+    "cssPath",
+    "renderedImagePath"
+  ],
+  "properties": {
+    "runId": {
+      "type": "string"
+    },
+    "htmlPath": {
+      "type": "string"
+    },
+    "cssPath": {
+      "type": "string"
+    },
+    "renderedImagePath": {
+      "type": "string"
+    },
+    "regionBindings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "regionId",
+          "selector"
+        ],
+        "properties": {
+          "regionId": {
+            "type": "string"
+          },
+          "selector": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

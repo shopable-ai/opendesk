@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "0.1.0",
+  "scenarioId": "verification_failed_without_false_success",
+  "scenarioType": "semi_structured_verification_failure",
+  "description": "动作未达成预期验证，属于普通 verification_failed，不应误算为 false success",
+  "routePolicy": {
+    "preferredOrder": ["region"],
+    "allowFallback": false,
+    "maxAttemptsPerStep": 1
+  },
+  "recoveryBudget": 0,
+  "steps": [
+    {
+      "stepId": "validate-render-output",
+      "action": "validate_render_output",
+      "target": "canvas.validation_region",
+      "expectedVerifiers": ["ui_observable", "state_observable"],
+      "mockOutcome": "failed",
+      "mockFailureClass": "verification_failed"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "schemaVersion": "0.1.0",
+  "scenarioId": "false_success_save_without_persist",
+  "expectedStatus": "false_success_suspected",
+  "expectedHumanGate": false,
+  "expectedFalseSuccess": true,
+  "expectedSuiteDisposition": "fail_expected"
+}

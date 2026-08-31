@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "0.1.0",
+  "scenarioId": "timeout_recovery_exhausted",
+  "expectedStatus": "failed",
+  "expectedFailureClass": "timeout",
+  "expectedHumanGate": false,
+  "expectedFalseSuccess": false,
+  "expectedSuiteDisposition": "pass"
+}

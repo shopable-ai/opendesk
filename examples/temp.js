@@ -1,3 +1,6 @@
+const tempExampleDir = '.runtime/temp/examples/temp';
+File.ensureDir(tempExampleDir);
+
 let position = await page.mouse.getPos();
 console.log("mouse position: ", position);
 
@@ -11,7 +14,7 @@ console.log("Screenshot captured, checking for colors...");
 
 // Get order status area screenshot
 let screenshot = await page.screenshot({
-    path: 'temp/opencv_cut.png',
+    path: `${tempExampleDir}/opencv_cut.png`,
     clip: {
         x: 55,
         y: 66,

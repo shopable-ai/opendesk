@@ -6,7 +6,7 @@ keyboard.type("Hello World")
 keyboard.press("enter")
 keyboard.type("test monkey");
 
-screenshot("temp/test_txt.png")
+screenshot(".runtime/temp/examples/test_txt.png")
 waitFor(1000)
 title()
 url()

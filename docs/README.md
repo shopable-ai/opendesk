@@ -183,7 +183,7 @@ YYYY-MM-DD-topic.md
 当前源码、测试和运行证据
 -> docs/ 当前正式文档
 -> docs/research/ 与 docs/plans/ 过程输入
--> artifacts/reports/ 历史证据
+-> docs/quality/ 中维护的质量证据
 -> .archive/ 与 Git 历史
 ```
 
@@ -195,8 +195,8 @@ YYYY-MM-DD-topic.md
 |---|---|
 | 当前项目/核心框架/架构/实现/质量文档 | `docs/` 对应分类 |
 | 用户 API | `docs-user-api/` |
-| 可复用 golden sample / fixture | `artifacts/fixtures/` |
-| 长期保留的测试/评审报告 | `artifacts/reports/` |
+| 可复用 golden sample / fixture | 所属 `tests/<domain>/fixtures/` |
+| 长期保留的测试/评审报告 | `docs/quality/` 对应领域 |
 | 运行日志、截图、probe、smoke 输出 | `.runtime/` |
 | 本机环境/工具状态 | `.dev/` |
 | 已失效但值得追溯的历史材料 | `.archive/` |
@@ -231,7 +231,7 @@ Research / Report 等时间型材料可使用日期前缀。
 1. 这是 Canonical、Decision、Research、Plan、Report、Prompt 还是 Runtime Output？
 2. 当前是否已经存在同主题 Source of Truth？
 3. 新内容应该更新现有文件，还是确实需要创建新文件？
-4. 它属于 `docs/`、`docs-user-api/`、`artifacts/`、`.runtime/`、`.archive/` 还是 `prompts/`？
+4. 它属于 `docs/`、`docs-user-api/`、所属测试目录、`.runtime/`、`.archive/` 还是 `prompts/`？
 5. 任务结束后它是否仍有长期维护价值？
 
 默认规则：**不要向 `docs/` 根目录新增专题文件。**

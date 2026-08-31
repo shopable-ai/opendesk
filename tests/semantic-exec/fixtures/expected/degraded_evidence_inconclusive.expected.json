@@ -1,0 +1,8 @@
+{
+  "schemaVersion": "0.1.0",
+  "scenarioId": "degraded_evidence_inconclusive",
+  "expectedStatus": "degraded",
+  "expectedHumanGate": false,
+  "expectedFalseSuccess": false,
+  "expectedSuiteDisposition": "pass"
+}

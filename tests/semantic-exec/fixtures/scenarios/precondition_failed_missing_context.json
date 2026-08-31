@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "0.1.0",
+  "scenarioId": "precondition_failed_missing_context",
+  "scenarioType": "browser_backoffice_precondition",
+  "description": "前置状态不满足，必须 blocked，而不是继续盲点执行",
+  "routePolicy": {
+    "preferredOrder": ["dom"],
+    "allowFallback": false,
+    "maxAttemptsPerStep": 1
+  },
+  "recoveryBudget": 0,
+  "steps": [
+    {
+      "stepId": "check-login-context",
+      "action": "open_restricted_page",
+      "target": "admin.restricted_page",
+      "expectedVerifiers": ["state_observable"],
+      "mockOutcome": "blocked",
+      "mockFailureClass": "precondition_failed"
+    }
+  ]
+}

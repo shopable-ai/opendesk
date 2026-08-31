@@ -1,4 +1,6 @@
 console.log('tm.config.js loaded，可以在这里放不同项目的业务逻辑代码.')
+const qianniuRuntimeDir = '.runtime/temp/examples/qianniu';
+File.ensureDir(qianniuRuntimeDir);
 // Constants
 const COLORS = {
     YELLOW_BUTTON: '#FEEBA6',
@@ -301,7 +303,7 @@ async function getOrderBlock(win) {
     await sleep(500);
 
     screenshot = await page.screenshot({
-        path: 'temp/orderStatusEnd.png',
+        path: `${qianniuRuntimeDir}/orderStatusEnd.png`,
         clip: {x: win.x + orderAreaX,y: win.y,width: WINDOW_ORDER_WIDTH,height: win.height}
     });    
     // 通过色块的相对坐标，找到待发货选项卡，坐标位置不固定，
@@ -309,7 +311,7 @@ async function getOrderBlock(win) {
     // for-each orderBlocks , 区域截图保持，方便调试
     // orderBlocks.forEach(block => {
     //     page.screenshot({
-    //         path: 'temp/orderStatus_' + block.x + '_' + block.y + '_' + block.width + '_' + block.height + '.png',
+    //         path: `${qianniuRuntimeDir}/orderStatus_${block.x}_${block.y}_${block.width}_${block.height}.png`,
     //         clip: {x: win.x + orderAreaX + block.x,y: win.y + orderAreaY + block.y,width: 20,height: 20}
     //     });
     // })
@@ -319,7 +321,7 @@ async function getOrderBlock(win) {
     if (!orderBlock) orderBlock = { x:30, y:730, width: 430, height: 180 };
     // 截图保持区域orderBlock，方便调试
     // screenshot = await page.screenshot({
-    //     path: 'temp/orderBlock.png',
+    //     path: `${qianniuRuntimeDir}/orderBlock.png`,
     //     clip: {
     //         x: win.x + orderAreaX + orderBlock.x,
     //         y: win.y + orderAreaY + orderBlock.y,
@@ -332,7 +334,7 @@ async function getOrderBlock(win) {
     
     // 订单区域，右侧整个部分，包括header
     screenshot = await page.screenshot({
-        path: 'temp/orderStatus.png',
+        path: `${qianniuRuntimeDir}/orderStatus.png`,
         clip: {
             x: win.x + orderAreaX,
             y: win.y,
@@ -381,7 +383,7 @@ async function getOrderBlock(win) {
     await sleep(500);
 
     screenshot = await page.screenshot({
-        path: 'temp/orderStatusEnd.png',
+        path: `${qianniuRuntimeDir}/orderStatusEnd.png`,
         clip: {x: win.x + orderAreaX,y: win.y,width: WINDOW_ORDER_WIDTH,height: win.height}
     });
     // await sleep(100);
@@ -696,12 +698,13 @@ class APIResponse {
 async function loadConfig() {
     try {
         // Check if config file exists
-        if (!File.exists('config.ini')) {
-            console.error('配置文件 config.ini 不存在');
-            throw new Error('Configuration file config.ini does not exist');
+        const configPath = 'examples/app/qianniu.config.example.ini';
+        if (!File.exists(configPath)) {
+            console.error(`配置文件 ${configPath} 不存在`);
+            throw new Error(`Configuration file ${configPath} does not exist`);
         }
-        
-        const configContent = File.read('config.ini');
+
+        const configContent = File.read(configPath);
         const config = new Config();
         
         // Parse INI content

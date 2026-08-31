@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://clawdesk.dev/schemas/automation/region-detect-report.schema.json",
+  "title": "RegionDetectReport",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "createdAt",
+    "runId",
+    "sourceImage",
+    "regions"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string"
+    },
+    "createdAt": {
+      "type": "string"
+    },
+    "runId": {
+      "type": "string"
+    },
+    "sourceImage": {
+      "type": "string"
+    },
+    "window": {
+      "type": "object"
+    },
+    "regions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "role",
+          "bbox",
+          "avgColor",
+          "ocrText",
+          "confidence"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "bbox": {
+            "type": "object",
+            "required": [
+              "x",
+              "y",
+              "width",
+              "height"
+            ],
+            "properties": {
+              "x": {
+                "type": "integer"
+              },
+              "y": {
+                "type": "integer"
+              },
+              "width": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "height": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          },
+          "avgColor": {
+            "type": "string"
+          },
+          "ocrText": {
+            "type": "string"
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        }
+      }
+    }
+  }
+}

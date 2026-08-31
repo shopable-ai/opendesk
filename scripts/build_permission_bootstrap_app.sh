@@ -3,7 +3,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-APP_ROOT="${ROOT_DIR}/artifacts/macos-permission-bootstrap/Clawdesk.app"
+APP_ROOT="${ROOT_DIR}/.runtime/build/macos-permission-bootstrap/Clawdesk.app"
 CONTENTS_DIR="${APP_ROOT}/Contents"
 MACOS_DIR="${CONTENTS_DIR}/MacOS"
 EXECUTABLE_PATH="${MACOS_DIR}/clawdesk"

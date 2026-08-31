@@ -1,0 +1,46 @@
+{
+  "imageHeight": 800,
+  "imageWidth": 1200,
+  "regions": [
+    {
+      "name": "sidebar",
+      "x": 0,
+      "y": 0,
+      "width": 60,
+      "height": 800,
+      "color": "#2E2E2E"
+    },
+    {
+      "name": "chatList",
+      "x": 60,
+      "y": 0,
+      "width": 280,
+      "height": 800,
+      "color": "#E0E0E0"
+    },
+    {
+      "name": "chatHeader",
+      "x": 340,
+      "y": 0,
+      "width": 860,
+      "height": 60,
+      "color": "#F5F5F5"
+    },
+    {
+      "name": "chatMessages",
+      "x": 340,
+      "y": 60,
+      "width": 860,
+      "height": 640,
+      "color": "#FFFFFF"
+    },
+    {
+      "name": "chatInput",
+      "x": 340,
+      "y": 700,
+      "width": 860,
+      "height": 100,
+      "color": "#F0F0F0"
+    }
+  ]
+}

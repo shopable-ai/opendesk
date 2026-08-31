@@ -299,14 +299,13 @@ examples/        # 可执行示例
 scripts/         # 构建、权限和 smoke 脚本
 docs/            # 项目/工程文档
 docs-user-api/   # 用户 API 文档
-artifacts/       # 可复用 fixture / 长期报告
+schemas/         # 分领域维护的 JSON Schema 数据契约
 tests/**/fixtures # 按测试领域归属的可复用 fixture
 docs/quality/    # 正式质量报告与评审结论
 docs/research/external/ # 外部参考 manifest
-artifacts/       # 可复用 fixture / 长期报告
 .runtime/        # 运行期输出
 .archive/        # 历史材料
-prompts/         # 仍维护的 AI orchestration prompts
+prompts/         # 分领域维护的 AI orchestration prompts
 ```
 
 ## 文档与事实规则

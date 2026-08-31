@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://clawdesk.dev/schemas/automation/replay-case.schema.json",
+  "title": "ReplayCase",
+  "type": "object",
+  "required": [
+    "id",
+    "version",
+    "goal",
+    "steps",
+    "expectedArtifacts"
+  ],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    },
+    "createdAt": {
+      "type": "string"
+    },
+    "goal": {
+      "type": "string"
+    },
+    "inputs": {
+      "type": "object"
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "type",
+          "artifact"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "artifact": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "expectedArtifacts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "stopConditions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "escalationConditions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

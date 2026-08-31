@@ -1,0 +1,167 @@
+[
+  {
+    "id": "stage02-gui-box-conversation-list",
+    "stage": "stage_02_model_only",
+    "lane": "L10",
+    "scene": "large-region-conversation-list",
+    "task": "gui_box",
+    "phrase": "the conversation list",
+    "profile": "auto",
+    "imagePath": "tests/locateanything/fixtures/wechat/mock_wechat.png",
+    "requiresLiveWechat": false,
+    "sendAllowed": false,
+    "expectedKind": "box",
+    "expectedTarget": {
+      "referenceNormalizedBox": {
+        "x1": 0.07,
+        "y1": 0.08,
+        "x2": 0.28,
+        "y2": 0.9
+      },
+      "centerTolerance": 0.18
+    }
+  },
+  {
+    "id": "stage02-gui-point-send-button",
+    "stage": "stage_02_model_only",
+    "lane": "L10",
+    "scene": "clear-button-point",
+    "task": "gui_point",
+    "phrase": "the send button",
+    "profile": "auto",
+    "imagePath": "tests/locateanything/fixtures/wechat/mock_wechat.png",
+    "requiresLiveWechat": false,
+    "sendAllowed": false,
+    "expectedKind": "point",
+    "expectedTarget": {
+      "referenceNormalizedPoint": {
+        "x": 0.94,
+        "y": 0.94
+      },
+      "distanceTolerance": 0.12
+    }
+  },
+  {
+    "id": "stage02-text-search-box",
+    "stage": "stage_02_model_only",
+    "lane": "L30",
+    "scene": "text-region-search-box",
+    "task": "text",
+    "phrase": "search",
+    "profile": "quality",
+    "imagePath": "tests/locateanything/fixtures/wechat/mock_wechat.png",
+    "requiresLiveWechat": false,
+    "sendAllowed": false,
+    "expectedKind": "box",
+    "expectedTarget": {
+      "referenceNormalizedBox": {
+        "x1": 0.08,
+        "y1": 0.02,
+        "x2": 0.28,
+        "y2": 0.1
+      },
+      "centerTolerance": 0.18
+    }
+  },
+  {
+    "id": "stage02-gui-box-input-area",
+    "stage": "stage_02_model_only",
+    "lane": "L30",
+    "scene": "input-area-region",
+    "task": "gui_box",
+    "phrase": "the input area",
+    "profile": "auto",
+    "imagePath": "tests/locateanything/fixtures/wechat/mock_wechat.png",
+    "requiresLiveWechat": false,
+    "sendAllowed": false,
+    "expectedKind": "box",
+    "expectedTarget": {
+      "referenceNormalizedBox": {
+        "x1": 0.29,
+        "y1": 0.85,
+        "x2": 0.97,
+        "y2": 0.98
+      },
+      "centerTolerance": 0.2
+    }
+  },
+  {
+    "id": "stage02-ground-multi-chat-rows",
+    "stage": "stage_02_model_only",
+    "lane": "L50",
+    "scene": "multi-instance-chat-rows",
+    "task": "ground_multi",
+    "phrase": "chat rows",
+    "profile": "quality",
+    "imagePath": "tests/locateanything/fixtures/wechat/mock_wechat.png",
+    "requiresLiveWechat": false,
+    "sendAllowed": false,
+    "expectedKind": "multi_box",
+    "expectedTarget": {
+      "minCount": 2
+    }
+  },
+  {
+    "id": "stage02-point-unread-badge",
+    "stage": "stage_02_model_only",
+    "lane": "L50",
+    "scene": "tiny-unread-badge",
+    "task": "gui_point",
+    "phrase": "the tiny unread badge",
+    "profile": "auto",
+    "imagePath": "tests/locateanything/fixtures/wechat/mock_wechat.png",
+    "requiresLiveWechat": false,
+    "sendAllowed": false,
+    "expectedKind": "point",
+    "expectedTarget": {
+      "referenceNormalizedPoint": {
+        "x": 0.09,
+        "y": 0.17
+      },
+      "distanceTolerance": 0.12,
+      "expectedProfileUsed": "quality"
+    }
+  },
+  {
+    "id": "stage02-text-simple-search-box",
+    "stage": "stage_02_model_only",
+    "lane": "L70",
+    "scene": "text-search-box-simple-layout",
+    "task": "text",
+    "phrase": "search",
+    "profile": "quality",
+    "imagePath": "tests/locateanything/fixtures/wechat/simple_wechat.png",
+    "requiresLiveWechat": false,
+    "sendAllowed": false,
+    "expectedKind": "box",
+    "expectedTarget": {
+      "referenceNormalizedBox": {
+        "x1": 0.08,
+        "y1": 0.02,
+        "x2": 0.28,
+        "y2": 0.1
+      },
+      "centerTolerance": 0.22
+    }
+  },
+  {
+    "id": "stage02-gui-point-send-simple-layout",
+    "stage": "stage_02_model_only",
+    "lane": "L90",
+    "scene": "send-button-simple-layout",
+    "task": "gui_point",
+    "phrase": "the send button",
+    "profile": "auto",
+    "imagePath": "tests/locateanything/fixtures/wechat/simple_wechat.png",
+    "requiresLiveWechat": false,
+    "sendAllowed": false,
+    "expectedKind": "point",
+    "expectedTarget": {
+      "referenceNormalizedPoint": {
+        "x": 0.94,
+        "y": 0.94
+      },
+      "distanceTolerance": 0.14
+    }
+  }
+]

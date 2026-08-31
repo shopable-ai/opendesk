@@ -40,7 +40,7 @@ UI、版本、来源或 contract 已失效，不再用于当前 regression/actio
 ## 推荐目录
 
 ```text
-artifacts/fixtures/wechat/<sample-id>/
+tests/wechat/fixtures/<sample-id>/
 ├── manifest.json
 ├── source/
 │   └── provenance.json
@@ -71,7 +71,7 @@ artifacts/fixtures/wechat/<sample-id>/
     └── taxonomy.json
 ```
 
-当前仓库生命周期规则使用 `artifacts/fixtures/` 存放可复用 baseline，不恢复历史 `artifacts/golden-samples/` 作为新的平行根。
+当前仓库生命周期规则使用 `tests/wechat/fixtures/` 存放可复用 baseline，不恢复历史 `artifacts/golden-samples/` 作为新的平行根。
 
 ## `manifest.json`
 

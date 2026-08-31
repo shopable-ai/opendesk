@@ -1,0 +1,8 @@
+{
+  "schemaVersion": "0.1.0",
+  "scenarioId": "browser_backoffice_happy_path",
+  "expectedStatus": "succeeded",
+  "expectedHumanGate": false,
+  "expectedFalseSuccess": false,
+  "expectedSuiteDisposition": "pass"
+}

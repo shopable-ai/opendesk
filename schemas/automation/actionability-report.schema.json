@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://clawdesk.dev/schemas/automation/actionability-report.schema.json",
+  "type": "object",
+  "required": ["schemaVersion", "status", "canProceed", "canSend", "reports"],
+  "properties": {
+    "schemaVersion": {"type": "string"},
+    "status": {"type": "string", "enum": ["pass", "warn", "fail"]},
+    "canProceed": {"type": "boolean"},
+    "canSend": {"type": "boolean"},
+    "currentPage": {"type": "string"},
+    "reports": {"type": "array"},
+    "allowedActions": {"type": "array"},
+    "blockedActions": {"type": "array"},
+    "summary": {"type": "string"}
+  }
+}
