@@ -16,7 +16,8 @@ if [[ "${REBUILD:-0}" == "1" ]]; then
     exit 1
   fi
   echo "[build] compiling stable binary -> ${BIN_PATH}"
-  CGO_ENABLED=1 go build -o "${BIN_PATH}" "${ROOT_DIR}"
+  mkdir -p "$(dirname "${BIN_PATH}")"
+  CGO_ENABLED=1 go build -o "${BIN_PATH}" "${ROOT_DIR}/cmd/clawdesk"
   chmod +x "${BIN_PATH}"
 fi
 

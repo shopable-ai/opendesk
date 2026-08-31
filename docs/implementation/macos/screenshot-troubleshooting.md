@@ -133,7 +133,7 @@ CODESIGN_IDENTITY="Apple Development: Your Name (TEAMID)" ./scripts/build_macos_
 ```
 
 不要在同一条业务链路里混用：
-- `go run main.go ...`
+- `go run ./cmd/clawdesk ...`
 - `./dist/testmonkey-mac ...`
 - `open dist/TestMonkey.app ...`
 
@@ -159,4 +159,3 @@ tccutil reset AppleEvents com.googlecode.iterm2
 ```bash
 open dist/TestMonkey.app --args -script examples/mac/request-macos-permissions.js -timeout 2
 ```
-

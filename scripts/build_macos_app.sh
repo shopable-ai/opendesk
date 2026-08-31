@@ -16,7 +16,7 @@ CODESIGN_IDENTITY="${CODESIGN_IDENTITY:--}"
 
 mkdir -p "${DIST_DIR}"
 
-go build -o "${DIST_DIR}/clawdesk" .
+go build -o "${DIST_DIR}/clawdesk" ./cmd/clawdesk
 
 rm -rf "${APP_ROOT}"
 mkdir -p "${MACOS_DIR}"

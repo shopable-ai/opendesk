@@ -65,6 +65,7 @@ Preferred steady-state shape:
   README.md
   QUICKSTART.md
   cmd/
+    clawdesk/          # primary executable and command-local tests
   pkg/
   automation/
   scripts/

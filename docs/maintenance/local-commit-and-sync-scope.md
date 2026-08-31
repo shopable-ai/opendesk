@@ -19,7 +19,7 @@ Conclusion:
 ### A. Tracked modified code already in progress
 
 Key tracked modified files:
-- `main.go`
+- `cmd/clawdesk/main.go`
 - `automation/browser.go`
 - `automation/clipboard.go`
 - `automation/console.go`
@@ -134,7 +134,7 @@ Interpretation:
 ### Batch 1: foundational runtime and service layer
 
 Highest-confidence slice:
-- tracked modifications in `main.go`, selected `automation/*.go`, `go.mod`, `go.sum`, `polyfills/000-page.js`, `types/*.d.ts`
+- tracked modifications in `cmd/clawdesk/main.go`, selected `automation/*.go`, `go.mod`, `go.sum`, `polyfills/000-page.js`, `types/*.d.ts`
 - untracked packages that already pass targeted tests:
   - `pkg/http/`
   - `pkg/mcpserver/`

@@ -24,6 +24,16 @@ for generated_file in new.txt screenshot_cut.png test.png test.txt testMonkey.ex
   fi
 done
 
+if [[ -e main.go ]]; then
+  fail "primary command entrypoint must live at cmd/clawdesk/main.go"
+fi
+if [[ ! -f cmd/clawdesk/main.go ]]; then
+  fail "missing primary command entrypoint: cmd/clawdesk/main.go"
+fi
+while IFS= read -r file; do
+  [[ -n "${file}" ]] && fail "root Go test must move with its package: ${file}"
+done < <(find . -maxdepth 1 -type f -name '*_test.go' -print)
+
 while IFS= read -r file; do
   [[ -n "${file}" ]] && fail "tracked macOS metadata: ${file}"
 done < <(git ls-files | grep -E '(^|/)\.DS_Store$' || true)
@@ -36,7 +46,11 @@ while IFS= read -r file; do
   [[ -n "${file}" ]] && fail "unclassified schema at schemas root: ${file}"
 done < <(find schemas -maxdepth 1 -type f ! -name README.md -print 2>/dev/null)
 
-if grep -RInE "['\"= (]temp/|artifacts/macos-permission-bootstrap|\$ROOT_DIR/temp/" \
+while IFS= read -r file; do
+  [[ -n "${file}" ]] && fail "tracked shell entrypoint is not executable: ${file}"
+done < <(git ls-files -s 'scripts/*.sh' | awk '$1 != "100755" { print $4 }')
+
+if grep -RInE "['\"= (]temp/|artifacts/macos-permission-bootstrap|\$ROOT_DIR/temp/|filepath\.Join\(\"artifacts\"|filepath\.Join\(\"tmp\"" \
   Makefile scripts examples automation cmd pkg --include='*.go' --include='*.js' --include='*.sh' \
   --exclude='audit_repo_layout.sh' 2>/dev/null; then
   fail "an active producer still writes to a retired root output path"

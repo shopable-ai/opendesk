@@ -795,7 +795,7 @@ func prepareRunArtifacts(config *Config, sourceLabel, ext string, content []byte
 
 	logDir := strings.TrimSpace(config.LogDir)
 	if logDir == "" && (config.ScriptText != "" || config.ScriptStdin) {
-		logDir = filepath.Join("artifacts", "runs", "direct-"+startedAt.Format("20060102-150405"))
+		logDir = filepath.Join(".runtime", "runs", "direct-"+startedAt.Format("20060102-150405"))
 	}
 	if logDir == "" {
 		return nil, nil
@@ -1851,10 +1851,9 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(html))
 }
 
-// createLocalTempDir creates a temporary directory in the current working directory
+// createLocalTempDir creates a disposable HTTP workspace under .runtime.
 func createLocalTempDir() (string, error) {
-	// Create a 'tmp' directory in the current working directory
-	tmpDir := filepath.Join(".", "tmp")
+	tmpDir := filepath.Join(".runtime", "temp", "http")
 	err := os.MkdirAll(tmpDir, 0755)
 	if err != nil {
 		return "", fmt.Errorf("failed to create local temp directory: %v", err)

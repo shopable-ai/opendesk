@@ -17,19 +17,13 @@ contract、unit、safe smoke 和 opt-in macOS Safari 真实事件测试：
 `.runtime/tests/runtime-api/`。旧
 `scripts/test_host_apis.sh` 仅为会打印 deprecated 提示的兼容入口。
 
-## OpenCV ImageColor 夹具
-
-OpenCV ImageColor 的确定性输入和期望配对清单位于
-`tests/opencv/fixtures/image-color/`，不放入通用输出目录。生成器默认写入
-`.runtime/generated/opencv/image-color/`；确认后才使用显式 `--output` 更新测试夹具。
-
 ## Round 1 基线
 
 优先复用仓库现有 Go 测试：
 
 ```bash
-go test ./automation -run 'Test(ParseScreenshotOptions|BuildScreenshotResponse|ImageColorAnalyzeLayoutReturnsCoarseGenericSegmentation|LayoutWithTextNoise|VisionAnalyzeLayoutWithGenericHints)'
-go test ./pkg/visionrun
+go test ./cmd/clawdesk
+go test ./pkg/http ./pkg/semanticexec
 ```
 
 ## 后续要补的测试层

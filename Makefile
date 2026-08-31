@@ -72,7 +72,8 @@ audit-layout:
 	./scripts/audit_repo_layout.sh
 
 build:
-	$(GO) build -o dist/clawdesk .
+	mkdir -p dist
+	$(GO) build -o dist/clawdesk ./cmd/clawdesk
 
 build-macos:
 	SKIP_CODESIGN=1 ./scripts/build_macos_app.sh
