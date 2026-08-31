@@ -21,6 +21,7 @@ Clawdesk 在 JavaScript 运行时中注入桌面自动化、窗口、视觉、�
 - 做网络调用：`http.md`
 - 从外部服务触发：`http-server.md`
 - 理解 legacy / upgraded / playwright：`runtime.md`
+- 用 JavaScript 组合自己的 API：`custom-api.md`
 - 直接拿范例：`cookbook.md`
 - 给 Agent / 工具读取：`runtime-api.ai.json`
 
@@ -72,6 +73,23 @@ Clawdesk 在 JavaScript 运行时中注入桌面自动化、窗口、视觉、�
 
 这些 facade 主要提供迁移友好的 API 形状，**不等于完整 Playwright 浏览器引擎**。
 
+## 自定义与扩展
+
+如果只是想组合现有能力，不需要修改 Go Runtime，优先阅读：
+
+`custom-api.md`
+
+它只讨论 JavaScript 自助扩展，例如：
+
+- 组合已有 API。
+- 增加默认参数和校验。
+- 建立 helper / adapter。
+- 做成共享 Polyfill。
+
+如果现有 JavaScript API 无法完成需求，优先判断能否通过 HTTP / MCP 外置服务实现；只有必须增加新的系统原生能力时才需要源码级 Native / Go 扩展。
+
+如果使用的是二进制发行版、没有源码权限，又确实需要 Native / Go 能力，可联系 Clawdesk 项目作者 / 维护者进行原生能力定制、企业集成或定制构建。
+
 ## 文档与配套接口资产
 
 正式用户说明就是本目录的 Markdown 页面。
@@ -102,6 +120,7 @@ Clawdesk 在 JavaScript 运行时中注入桌面自动化、窗口、视觉、�
 - 当前源码 / Runtime 行为优先。
 - 正式可渲染 Markdown 是用户文档主表达。
 - 新脚本优先采用标记为 Stable 的接口。
+- JavaScript 自定义优先依赖公开 API，不直接依赖 `____Inject` 内部桥对象。
 - `page.$`、`page.$$`、旧 DOM 风格 `page.click(selector)` / `page.type(selector, text)` 不属于当前稳定桌面 API。
 - upgraded / playwright facade 只按 `runtime.md` 描述理解，不推断不存在的浏览器能力。
 - 历史 TestMonkey 文档仅保留在 Git 历史中，不再参与当前文档解析。
