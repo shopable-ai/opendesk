@@ -2,6 +2,8 @@
 
 Date: 2026-04-07
 
+> **2026-08-31 status note:** 本文件继续保留为 2026-04 的历史 Landscape 基线，不再作为当前完整竞品池。Computer Use、Agent-first Recorder、Agent OS、RPA-as-Code、Enterprise Agentic Automation 等 2026-08 新变化统一见 [`desktop-automation/2026-08-31-computer-use-agent-competitor-rescan.md`](desktop-automation/2026-08-31-computer-use-agent-competitor-rescan.md)。尤其是 `clawdesk/clawdesk` Agent2OS、Cua Driver、Peekaboo、Agent Desktop Harness、Codex Record & Replay、UiPath Delegate 已进入当前一级跟踪对象。
+
 ## Purpose
 
 This note captures background research related to:
