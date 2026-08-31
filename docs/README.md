@@ -6,7 +6,7 @@
 
 Clawdesk 当前保留两类正式文档根：
 
-- `docs/`：项目、架构、实现、质量、集成、场景、研究、计划和仓库治理。
+- `docs/`：项目、核心框架、架构、实现、质量、集成、场景、研究、计划和仓库治理。
 - `docs-user-api/`：**唯一用户 API 文档根目录**，包括脚本/runtime API、HTTP API、示例、编辑器类型说明和机器可读 API 索引。
 
 以下历史 API 文档树已经退役，不得重新创建为并行 Source of Truth：
@@ -19,12 +19,31 @@ docs/api/
 
 `types/*.d.ts` 是编辑器/TypeScript 的派生契约面，不是第三套文档权威。
 
+## 核心开发框架
+
+桌面自动化相关开发优先阅读：
+
+1. [`frameworks/automation-framework.md`](frameworks/automation-framework.md)：**自动化总体框架**，定义从底层驱动、感知识别、目标定位、可验证动作到 Skill、Workflow、Agent / Supervisor 的总体分层与执行闭环。
+2. [`frameworks/capability-development.md`](frameworks/capability-development.md)：**能力开发与成熟度路径**，定义 Clawdesk 从底层动作、HTML Benchmark、系统应用到复杂应用和自主 Agent 的逐级开发顺序。
+3. [`frameworks/app-development-framework.md`](frameworks/app-development-framework.md)：**应用自动化开发框架**，定义新增微信、千牛、计算器等具体应用时，从窗口、状态、区域、Locator 到 Skill、Workflow 和测试 Evidence 的标准方法。
+
+三者分别回答：
+
+```text
+自动化系统整体怎么设计？
+Clawdesk 自身怎么从简单做到复杂？
+一个具体应用应该怎么分析和开发？
+```
+
+`frameworks/` 保存长期稳定的核心开发方法；更细的系统结构进入 `architecture/`，具体实现进入 `implementation/`，质量与 Evidence 进入 `quality/`，单一应用场景进入 `scenarios/`。
+
 ## 当前目录
 
 ```text
 docs/
 ├── README.md
 ├── project/
+├── frameworks/
 ├── architecture/
 ├── implementation/
 ├── quality/
@@ -44,6 +63,18 @@ docs/
 - `overview.md`：项目能力概览。
 - `current-context.md`：当前上下文。
 - `runbook.md`：运行/操作入口。
+
+### `frameworks/`
+
+Clawdesk 长期使用的核心开发框架，是桌面自动化开发的重要入口。
+
+当前核心文件：
+
+- `automation-framework.md`：自动化总体框架。
+- `capability-development.md`：能力开发与成熟度路径。
+- `app-development-framework.md`：应用自动化开发框架。
+
+本目录强调稳定的开发思路、分层、顺序和边界，不保存一次性实现计划、测试报告或单一应用细节。
 
 ### `architecture/`
 
@@ -103,7 +134,7 @@ docs/integrations/mcp/
 docs/scenarios/wechat/
 ```
 
-通用框架能力不能反向埋进单一场景目录；可复用能力应上收至 architecture / implementation / quality。
+通用框架能力不能反向埋进单一场景目录；可复用能力应上收至 frameworks / architecture / implementation / quality。
 
 ### `research/`
 
@@ -143,7 +174,7 @@ YYYY-MM-DD-topic.md
 -> Git 历史
 ```
 
-### 项目 / 架构 / 实现
+### 项目 / 核心框架 / 架构 / 实现
 
 ```text
 当前源码、测试和运行证据
@@ -159,7 +190,7 @@ YYYY-MM-DD-topic.md
 
 | 内容类型 | 目标位置 |
 |---|---|
-| 当前项目/架构/实现/质量文档 | `docs/` 对应分类 |
+| 当前项目/核心框架/架构/实现/质量文档 | `docs/` 对应分类 |
 | 用户 API | `docs-user-api/` |
 | 可复用 golden sample / fixture | `artifacts/fixtures/` |
 | 长期保留的测试/评审报告 | `artifacts/reports/` |
