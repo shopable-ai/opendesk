@@ -73,11 +73,11 @@ const exists = workspace.exists('./data.json');
 - 还在实验接口命名和参数。
 - 不需要多个脚本共享。
 
-推荐先在业务脚本中验证 API 设计，再决定是否做成自动加载的 Polyfill。
+推荐先在业务脚本中验证 API 设计，再决定是否做成自动加载的共享 JavaScript 文件。
 
-### 方式二：做成 Polyfill
+### 方式二：当前兼容方式——放入完整的 `polyfills/` 目录
 
-如果一个 JavaScript 扩展已经稳定并需要多个脚本共享，可以放入运行时实际加载的 `polyfills/` 目录。
+如果一个 JavaScript 扩展已经稳定并需要多个脚本共享，当前源码可以把它放入 Runtime 实际选中的完整 `polyfills/` 目录。
 
 例如：
 
@@ -85,15 +85,120 @@ const exists = workspace.exists('./data.json');
 polyfills/900-workspace.js
 ```
 
-文件名建议使用较大的数字前缀，让它在基础 Polyfill 之后加载。
+但这只是当前实现下的兼容方式，不代表 Clawdesk 已经具有正式的 User Extension / Project Extension 插件系统。
 
-当前运行时会按文件名排序执行 `polyfills/*.js`。
+**重要：当前 Clawdesk 还没有独立的 User / Project Extension 合并加载机制。**
 
-**重要：当前 Clawdesk 还没有独立的 `user-polyfills/` 合并加载机制。**
+运行时会从可执行文件目录和当前工作目录向上寻找一个可用的 `polyfills/` 目录，并使用找到的目录。因此不要随意创建一个只包含单个自定义文件的不完整 `polyfills/` 目录，否则可能遮蔽完整的 Runtime Polyfill 资源。
 
-运行时会从可执行文件目录和当前工作目录向上寻找一个可用的 `polyfills/` 目录，并使用找到的目录。因此不要随意创建一个只包含单个自定义文件的不完整 `polyfills/` 目录，否则可能遮蔽完整的运行时 Polyfill 资源。
+开发环境中应把自定义文件放进当前完整的 `polyfills/` 目录；二进制发行环境中，如果 Runtime 资源目录不可写或不可见，优先继续在业务脚本内封装，或由项目作者 / 维护者提供对应扩展或定制构建。
 
-开发环境中应把自定义文件放进当前完整的 `polyfills/` 目录；二进制发行环境中，如果运行时资源目录不可写或不可见，优先继续在业务脚本内封装，或由项目作者/维护者提供包含该 Polyfill 的定制发行包。
+## 当前文件加载规则与顺序
+
+这一规则会直接影响多个 JavaScript 文件之间的依赖关系，必须明确理解。
+
+当前 Runtime 的行为是：
+
+```text
+1. 选中一个 polyfills/ 目录
+2. 只读取该目录第一层的 *.js 文件
+3. 对文件名执行 Go sort.Strings() 字符串排序
+4. 按排序结果逐个 RunString()
+```
+
+也就是说，**加载顺序由完整文件名的字符串顺序决定，不是把数字前缀解析成整数后排序。**
+
+因此推荐文件名始终使用固定宽度前缀，例如：
+
+```text
+900-workspace.js
+910-company-tools.js
+920-wechat-helper.js
+```
+
+不要混用：
+
+```text
+9-a.js
+10-b.js
+100-c.js
+```
+
+因为字符串排序可能与人脑理解的数值顺序不同。
+
+### 当前 Core Polyfill 的真实顺序
+
+以当前仓库文件名为准，现阶段排序大致为：
+
+```text
+000-console.js
+000-demo.js
+000-global.js
+000-page.js
+000-systemBase.js
+001-promise.js
+001-timers.js
+002-sleep.js
+003-window.js
+004-axios.js
+url-search-params.js
+```
+
+这里有一个特别容易误判的地方：
+
+```text
+900-workspace.js
+```
+
+虽然数字看起来很大，但在纯字符串排序下仍然会排在：
+
+```text
+url-search-params.js
+```
+
+之前加载。
+
+因此：
+
+- `900-`、`910-`、`920-` 只是当前推荐的自定义文件命名风格，不是 Runtime 强制保留的正式编号区间。
+- 不要因为数字更大就假设它一定在所有 Core Polyfill 后执行。
+- 如果一个文件依赖另一个文件，必须根据**实际文件名排序**验证依赖顺序。
+- 当前 Core 中仍存在没有数字前缀的文件，因此暂时不能把“数字越大 = 越晚加载”当成稳定契约。
+
+后续计划会把 Core / User / Project 分层、Core 文件命名统一以及 Embedded Core JS 作为独立 Runtime 演进事项；在正式机制实现前，本页只记录当前真实行为。
+
+## 多文件自定义时的推荐做法
+
+如果确实需要多个自定义文件，优先按依赖关系留出明确间隔：
+
+```text
+900-workspace-base.js
+910-workspace-file.js
+920-workspace-vision.js
+930-workspace-actions.js
+```
+
+其中：
+
+```text
+900
+→ 定义基础对象和共享工具
+
+910 / 920
+→ 增加独立能力
+
+930
+→ 组合前面的能力
+```
+
+不要让两个文件循环依赖，例如：
+
+```text
+900-a.js 依赖 910-b.js
+910-b.js 又依赖 900-a.js
+```
+
+如果一个业务封装只有几十行，并且只被一个脚本使用，继续放在业务脚本中通常比拆成多个自动加载文件更简单。
 
 ## 自定义 API 的推荐结构
 
@@ -185,6 +290,8 @@ globalThis.workspace = ...
 920-wechat-helper.js    → globalThis.wechatHelper
 ```
 
+这里的数字主要用于同一批自定义文件之间保持清晰顺序；是否位于所有 Core 文件之后仍以“当前文件加载规则与顺序”为准。
+
 不同能力需要协作时，通过调用彼此公开对象完成，而不是重复覆盖同一个全局对象。
 
 ## 参数和返回值规则
@@ -265,7 +372,8 @@ declare const workspace: WorkspaceAPI;
 3. 底层 API 失败时错误不会被吞掉。
 4. 相同脚本重复运行不会污染全局状态。
 5. 如果依赖平台或权限，需要验证对应失败路径。
-6. 重要业务动作有动作后验证，而不是只检查函数返回。
+6. 多文件扩展必须验证实际加载顺序和依赖关系。
+7. 重要业务动作有动作后验证，而不是只检查函数返回。
 
 ## 什么情况下不要继续用 JavaScript 包装
 
@@ -293,10 +401,11 @@ declare const workspace: WorkspaceAPI;
 → 可以：优先通过 HTTP / MCP 外置扩展
 
 必须修改 Clawdesk Go Runtime？
-→ 需要源码权限、重新构建和运行时级测试
+→ 当前需要源码权限、重新构建和运行时级测试
 
 只有二进制发行版或没有源码权限？
-→ 联系项目作者 / 维护者进行原生能力定制或定制构建
+→ 当前优先使用外置扩展或联系项目作者 / 维护者定制
+→ 后续计划评估无需核心源码的 Native Extension SDK / ABI
 ```
 
 ### HTTP / MCP 外置扩展
@@ -319,6 +428,12 @@ Clawdesk JavaScript
 如果你拥有对应源码和构建权限，可以由 Clawdesk 维护者按项目的 Runtime API 扩展框架增加原生能力。
 
 源码级扩展不是本页的普通用户 API 范围，也不建议业务脚本直接依赖内部 Go bridge 名称。
+
+### 无核心源码的 Native 扩展
+
+当前 Clawdesk 尚未提供稳定的第三方 Native Extension ABI。
+
+长期计划会评估让用户只拿到 Extension SDK / ABI，而不需要获得 Clawdesk 核心源码，即可使用 Go、Rust、C/C++ 等语言开发编译后的扩展。具体候选包括独立进程扩展协议、WebAssembly 以及受信任的共享库 C ABI；这些方案需要先稳定版本、生命周期、错误、安全和兼容契约，因此当前不能当作已经存在的产品能力。
 
 ### 联系作者 / 维护者定制
 
@@ -365,4 +480,5 @@ SUPPORT.md
 - `http.md`：脚本内 HTTP 调用。
 - `http-server.md`：从外部触发 Clawdesk。
 - `cookbook.md`：脚本组合示例。
+- `../docs/plans/runtime/runtime-extension-roadmap.md`：未来 User / Project Extension、Embedded JS 与 Native Extension SDK 路线计划。
 - `../SUPPORT.md`：统一支持与商业定制入口。
