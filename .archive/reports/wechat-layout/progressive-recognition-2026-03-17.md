@@ -143,7 +143,8 @@ const result = await Vision.analyzeLayout({
 ### 1. 运行渐进式测试
 
 ```bash
-./testMonkey-go -script tests/wechat/test_progressive.js
+make build
+./dist/clawdesk -script tests/wechat/test_progressive.js
 ```
 
 ### 2. 查看可视化结果

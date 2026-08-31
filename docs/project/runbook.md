@@ -16,9 +16,9 @@
 入口：
 
 ```bash
-go run . -script examples/notify.js
-go run . -script-text "console.log('hello')"
-printf "console.log('stdin')\n" | go run . -script-stdin
+go run ./cmd/clawdesk -script examples/notify.js
+go run ./cmd/clawdesk -script-text "console.log('hello')"
+printf "console.log('stdin')\n" | go run ./cmd/clawdesk -script-stdin
 ```
 
 ### HTTP
@@ -33,7 +33,7 @@ printf "console.log('stdin')\n" | go run . -script-stdin
 入口：
 
 ```bash
-go run . -http -port 60844
+go run ./cmd/clawdesk -http -port 60844
 ```
 
 详细 API：
@@ -136,7 +136,7 @@ PADDLE_OCR_ENDPOINT
 Agent 低噪音：
 
 ```bash
-go run . \
+go run ./cmd/clawdesk \
   -script-text "console.log('agent run')" \
   -console-mode agent
 ```
@@ -144,7 +144,7 @@ go run . \
 JSON 输出：
 
 ```bash
-go run . \
+go run ./cmd/clawdesk \
   -script-text "console.log('agent run')" \
   -output-format json
 ```
@@ -164,7 +164,7 @@ go run . \
 自定义调试输出仍优先放 `.runtime/`：
 
 ```bash
-go run . -script-text "..." -log-dir .runtime/debug/<name>
+go run ./cmd/clawdesk -script-text "..." -log-dir .runtime/debug/<name>
 ```
 
 ## 5. HTTP 执行

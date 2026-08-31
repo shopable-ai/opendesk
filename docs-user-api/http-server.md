@@ -7,7 +7,7 @@ order: 11
 # HTTP server API
 
 当前项目支持 HTTP 服务模式：
-- `go run main.go -http`
+- `go run ./cmd/clawdesk -http`
 - 默认端口：60844
 
 路由以 `pkg/http/handler.go` 为准。

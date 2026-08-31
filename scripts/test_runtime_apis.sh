@@ -29,8 +29,8 @@ if printenv CLAWDESK_BINARY >/dev/null 2>&1 && [[ -n "$CLAWDESK_BINARY" ]]; then
 else
   BINARY="$RUN_DIR/bin/clawdesk"
   mkdir -p "$(dirname "$BINARY")"
-  go build -o "$BINARY" .
-  BUILD_SOURCE="go build current working tree"
+  go build -o "$BINARY" ./cmd/clawdesk
+  BUILD_SOURCE="go build ./cmd/clawdesk"
 fi
 [[ -x "$BINARY" ]] || { echo "CLAWDESK_BINARY is not executable: $BINARY" >&2; exit 1; }
 

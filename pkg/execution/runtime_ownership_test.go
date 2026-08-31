@@ -16,7 +16,7 @@ import (
 // cross-goroutine method is Interrupt, used by the execution context watcher.
 func TestRuntimeOwnershipStaticContract(t *testing.T) {
 	root := repositoryRoot(t)
-	for _, relative := range []string{"pkg/container", "pkg/runtime", "main.go"} {
+	for _, relative := range []string{"pkg/container", "pkg/runtime", "cmd/clawdesk"} {
 		paths, err := goFilesUnder(filepath.Join(root, relative))
 		if err != nil {
 			t.Fatal(err)

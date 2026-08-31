@@ -7,19 +7,19 @@ Clawdesk 是一个以 Go 为核心、向 JavaScript 注入桌面自动化能力�
 ### 运行脚本
 
 ```bash
-go run . -script examples/notify.js
+go run ./cmd/clawdesk -script examples/notify.js
 ```
 
 直接执行 JavaScript：
 
 ```bash
-go run . -script-text "console.log('hello from clawdesk')"
+go run ./cmd/clawdesk -script-text "console.log('hello from clawdesk')"
 ```
 
 从 stdin 执行：
 
 ```bash
-printf "console.log('hello from stdin')\n" | go run . -script-stdin
+printf "console.log('hello from stdin')\n" | go run ./cmd/clawdesk -script-stdin
 ```
 
 三种脚本入口一次只使用一个：
@@ -33,7 +33,7 @@ printf "console.log('hello from stdin')\n" | go run . -script-stdin
 ### Agent 友好输出
 
 ```bash
-go run . \
+go run ./cmd/clawdesk \
   -script-text "console.log('agent run')" \
   -console-mode agent
 ```
@@ -41,7 +41,7 @@ go run . \
 或：
 
 ```bash
-go run . \
+go run ./cmd/clawdesk \
   -script-text "console.log('agent run')" \
   -output-format json
 ```
@@ -66,9 +66,9 @@ events.ndjson
 ### Browser compatibility stack
 
 ```bash
-go run . -script examples/browser_stack_legacy_smoke.js -stack legacy
-go run . -script examples/browser_stack_upgraded_smoke.js -stack upgraded
-go run . -script examples/browser_stack_playwright_smoke.js -stack playwright
+go run ./cmd/clawdesk -script examples/browser_stack_legacy_smoke.js -stack legacy
+go run ./cmd/clawdesk -script examples/browser_stack_upgraded_smoke.js -stack upgraded
+go run ./cmd/clawdesk -script examples/browser_stack_playwright_smoke.js -stack playwright
 ```
 
 `upgraded` / `playwright` 是 compatibility facade，不应理解为完整 Playwright 浏览器引擎。详细边界见：
@@ -83,7 +83,7 @@ docs/architecture/browser-automation/
 启动：
 
 ```bash
-go run . -http -port 60844
+go run ./cmd/clawdesk -http -port 60844
 ```
 
 当前默认 container 模式提供：
@@ -124,7 +124,7 @@ docs-user-api/http-server.md
 OCR：
 
 ```bash
-go run . \
+go run ./cmd/clawdesk \
   -vision-ocr-image tests/desktopvision/fixtures/legacy-testmonkey-desktop.png \
   -vision-provider paddle \
   -vision-lang ch
@@ -133,7 +133,7 @@ go run . \
 UI 文本检测：
 
 ```bash
-go run . \
+go run ./cmd/clawdesk \
   -vision-detect-ui-image tests/desktopvision/fixtures/legacy-testmonkey-desktop.png \
   -vision-target-text 发送 \
   -vision-provider paddle \

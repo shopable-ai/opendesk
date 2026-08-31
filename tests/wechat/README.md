@@ -8,7 +8,8 @@ small standalone Go generators for WeChat layout recognition.
 Run commands from the repository root:
 
 ```bash
-./testMonkey-go -script tests/wechat/wechat_visualization.js
+make build
+./dist/clawdesk -script tests/wechat/wechat_visualization.js
 ./tests/wechat/run_e2e_test.sh
 ```
 
@@ -50,6 +51,6 @@ go run ./tests/wechat/tools/generate-mock-image
 go run ./tests/wechat/tools/visualize-result .runtime/tests/wechat/viz_config_simple.json
 ```
 
-See `docs/visualization.md` and `docs/progressive-recognition.md` for maintained
-guidance. Superseded completion reports and one-time handoff material are kept
-under `.archive/` and are not current test instructions.
+See `docs/visualization.md` for maintained guidance. The 2026-03 progressive
+recognition experiment report is preserved under `.archive/`; it is historical
+evidence, not a current test contract.

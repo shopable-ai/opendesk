@@ -68,7 +68,7 @@ test-host-api: test-runtime-api
 test-host-api-live: test-runtime-api-live
 
 build:
-	$(GO) build -o dist/clawdesk .
+	$(GO) build -o dist/clawdesk ./cmd/clawdesk
 
 build-macos:
 	SKIP_CODESIGN=1 ./scripts/build_macos_app.sh

@@ -23,7 +23,7 @@ go run ./cmd/generate-opencv-fixtures
 ## 执行 JavaScript 验收
 
 ```bash
-go run -tags opencv . \
+go run -tags opencv ./cmd/clawdesk \
   -script tests/opencv/image_color_opencv_test.js \
   -timeout 1 \
   -console-mode script \

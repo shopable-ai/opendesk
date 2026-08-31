@@ -703,7 +703,7 @@ func (p *Page) wrapScreenshotCaptureError(cause error, x, y, width, height int, 
 	return fmt.Errorf(
 		"%s; macOS permission check failed (screenCapture=%t accessibility=%t). "+
 			"screenCaptureError=%q accessibilityError=%q. "+
-			"Run `go run main.go -script examples/mac/open-permission-settings.js`, "+
+			"Run `go run ./cmd/clawdesk -script examples/mac/open-permission-settings.js`, "+
 			"then retry from `dist/Clawdesk.app` or `dist/clawdesk` with a stable app identity",
 		baseMessage, screenCapture, accessibility, screenErr, axErr,
 	)

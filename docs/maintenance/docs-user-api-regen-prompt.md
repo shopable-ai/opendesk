@@ -34,7 +34,7 @@ types/*.d.ts
 必须遵守：
 
 1. **源码 / Runtime 优先**
-   - 先从 `automation/`、`polyfills/`、`main.go`、`pkg/http/` 等当前实现确认事实。
+   - 先从 `automation/`、`polyfills/`、`cmd/clawdesk/main.go`、`pkg/http/` 等当前实现确认事实。
    - 不能为了迁就旧文档或旧 `.d.ts` 修改真实 API 定义。
 
 2. **Markdown 是正式可渲染用户文档**

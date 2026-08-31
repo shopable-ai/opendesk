@@ -155,3 +155,5 @@ When adding or changing project/engineering documentation:
 The 2026-08 `docs/` cleanup is structurally complete.
 
 See `docs/maintenance/docs-migration-map.md` for the completion record and migration rationale.
+See `docs/maintenance/repository-root-layout.md` for the current top-level
+directory decisions, root-output routing, and path-move validation rules.

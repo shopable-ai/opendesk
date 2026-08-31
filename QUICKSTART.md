@@ -12,13 +12,13 @@ make build
 
 ```bash
 mkdir -p dist
-go build -o dist/clawdesk .
+go build -o dist/clawdesk ./cmd/clawdesk
 ```
 
 也可以直接运行而不保留构建产物：
 
 ```bash
-go run . <flags>
+go run ./cmd/clawdesk <flags>
 ```
 
 ## 2. 执行 JavaScript
@@ -26,19 +26,19 @@ go run . <flags>
 ### 文件
 
 ```bash
-go run . -script examples/notify.js
+go run ./cmd/clawdesk -script examples/notify.js
 ```
 
 ### Inline source
 
 ```bash
-go run . -script-text "console.log('inline run')"
+go run ./cmd/clawdesk -script-text "console.log('inline run')"
 ```
 
 ### stdin
 
 ```bash
-printf "console.log('stdin run')\n" | go run . -script-stdin
+printf "console.log('stdin run')\n" | go run ./cmd/clawdesk -script-stdin
 ```
 
 规则：`-script`、`-script-text`、`-script-stdin` 一次只能选择一个。
@@ -48,7 +48,7 @@ printf "console.log('stdin run')\n" | go run . -script-stdin
 低噪音 Agent 模式：
 
 ```bash
-go run . \
+go run ./cmd/clawdesk \
   -script-text "console.log('agent run')" \
   -console-mode agent
 ```
@@ -56,7 +56,7 @@ go run . \
 JSON 输出：
 
 ```bash
-go run . \
+go run ./cmd/clawdesk \
   -script-text "console.log('agent run')" \
   -output-format json
 ```
@@ -92,7 +92,7 @@ events.ndjson
 指定自定义产物目录：
 
 ```bash
-go run . \
+go run ./cmd/clawdesk \
   -script-text "console.log('custom logs')" \
   -log-dir .runtime/debug/my-run
 ```
@@ -100,7 +100,7 @@ go run . \
 保存本次执行脚本：
 
 ```bash
-go run . \
+go run ./cmd/clawdesk \
   -script-text "console.log('snapshot')" \
   -save-last-script .runtime/debug/last-script.js
 ```
@@ -124,9 +124,9 @@ playwright
 示例：
 
 ```bash
-go run . -script examples/browser_stack_legacy_smoke.js -stack legacy
-go run . -script examples/browser_stack_upgraded_smoke.js -stack upgraded
-go run . -script examples/browser_stack_playwright_smoke.js -stack playwright
+go run ./cmd/clawdesk -script examples/browser_stack_legacy_smoke.js -stack legacy
+go run ./cmd/clawdesk -script examples/browser_stack_upgraded_smoke.js -stack upgraded
+go run ./cmd/clawdesk -script examples/browser_stack_playwright_smoke.js -stack playwright
 ```
 
 注意：`upgraded` / `playwright` 是兼容 facade，不代表完整 Playwright 浏览器运行时。
@@ -144,7 +144,7 @@ docs/architecture/browser-automation/stack.md
 启动：
 
 ```bash
-go run . -http -port 60844
+go run ./cmd/clawdesk -http -port 60844
 ```
 
 DI/container 模式默认开启。
@@ -206,7 +206,7 @@ docs-user-api/http-server.md
 只有需要验证历史兼容行为时才使用：
 
 ```bash
-USE_DI_CONTAINER=0 go run . -http -port 60844
+USE_DI_CONTAINER=0 go run ./cmd/clawdesk -http -port 60844
 ```
 
 Legacy 模式和默认 container 模式存在路由/行为差异，新开发应以默认模式和 `docs-user-api/http-server.md` 为准。
@@ -216,7 +216,7 @@ Legacy 模式和默认 container 模式存在路由/行为差异，新开发应�
 OCR：
 
 ```bash
-go run . \
+go run ./cmd/clawdesk \
   -vision-ocr-image tests/desktopvision/fixtures/legacy-testmonkey-desktop.png \
   -vision-provider paddle \
   -vision-lang ch
@@ -225,7 +225,7 @@ go run . \
 检测目标文字：
 
 ```bash
-go run . \
+go run ./cmd/clawdesk \
   -vision-detect-ui-image tests/desktopvision/fixtures/legacy-testmonkey-desktop.png \
   -vision-target-text 发送 \
   -vision-provider paddle \

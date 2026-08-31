@@ -139,6 +139,17 @@ Rule:
 
 - these files should not dominate the repository root or masquerade as project source.
 
+### D.1 Synchronization staging
+
+Use only for an in-progress, local synchronization transaction:
+
+- `.staging-sync/`
+
+This is neither a source tree nor an archive. It must stay ignored, must not
+receive ordinary runtime output, and must not be used as a test fixture or a
+long-lived recovery location. Complete or abandon the synchronization before
+removing its staging data; do not commit it.
+
 ### E. Historical and archival material
 
 Use for superseded material that remains worth preserving.

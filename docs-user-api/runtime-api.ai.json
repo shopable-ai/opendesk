@@ -6,7 +6,7 @@
     "sourceOfTruth": [
       "automation/*.go",
       "polyfills/*.js",
-      "main.go",
+      "cmd/clawdesk/main.go",
       "pkg/http/*.go"
     ],
     "canonicalUserDocs": "docs-user-api/",
@@ -19,9 +19,9 @@
   },
   "entrypoints": {
     "cli": {
-      "file": "go run main.go -script <file.js>",
-      "inline": "go run main.go -script-text \"...\"",
-      "stdin": "go run main.go -script-stdin",
+      "file": "go run ./cmd/clawdesk -script <file.js>",
+      "inline": "go run ./cmd/clawdesk -script-text \"...\"",
+      "stdin": "go run ./cmd/clawdesk -script-stdin",
       "stack": [
         "legacy",
         "upgraded",
@@ -29,7 +29,7 @@
       ]
     },
     "httpServer": {
-      "command": "go run main.go -http",
+      "command": "go run ./cmd/clawdesk -http",
       "defaultPort": 60844
     },
     "mcp": {

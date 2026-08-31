@@ -89,7 +89,7 @@ order: 14
 - 最适合已有桌面自动化脚本
 
 ```bash
-go run main.go -script script.js -stack legacy
+go run ./cmd/clawdesk -script script.js -stack legacy
 ```
 
 如果主要使用下面这些能力，优先从 legacy 开始：
@@ -106,7 +106,7 @@ go run main.go -script script.js -stack legacy
 将全局 `page` 切换到 `pageUpgraded` facade，同时尽量保留旧脚本结构。
 
 ```bash
-go run main.go -script script.js -stack upgraded
+go run ./cmd/clawdesk -script script.js -stack upgraded
 ```
 
 常见增强形态包括：
@@ -124,7 +124,7 @@ go run main.go -script script.js -stack upgraded
 把全局 `page`、`browser`、`context` 切换到 upgraded facade 的 Playwright 风格组合。
 
 ```bash
-go run main.go -script script.js -stack playwright
+go run ./cmd/clawdesk -script script.js -stack playwright
 ```
 
 适合需要：

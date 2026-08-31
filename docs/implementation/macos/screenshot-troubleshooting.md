@@ -1,10 +1,10 @@
 # macOS 截图排障手册（App/CLI/Agent）
 
-本文整理了 `testMonkey-go` 在 macOS 下截图能力的稳定调用经验，以及常见失败模式和处理方式。
+本文整理 Clawdesk 在 macOS 下截图能力的稳定调用经验，以及常见失败模式和处理方式。
 
 适用场景：
-- 通过 `TestMonkey.app` 调用脚本
-- 通过 `dist/testmonkey-mac` 调用脚本
+- 通过 `Clawdesk.app` 调用脚本
+- 通过 `dist/clawdesk` 调用脚本
 - 通过 Agent/Codex CLI 间接调用脚本
 
 ## 1. 成功路径（推荐）
@@ -18,20 +18,12 @@
 
 ```bash
 ./scripts/build_macos_app.sh
-./scripts/open_macos_app.sh -script /Users/a0000/Documents/workspace/testMonkey-go/examples/mac/screenshot_multi_display_test.js -timeout 20
+./scripts/open_macos_app.sh -script examples/mac/screenshot_multi_display_test.js -timeout 20
 ```
 
-推荐命令（一键编译 + 运行 + 分析）：
-
-```bash
-./scripts/test_multi_display_app.sh
-```
-
-该脚本会自动输出：
-- 新生成文件列表
-- 每张图实际像素尺寸
-- 尺寸规则校验（right-top 裁剪尺寸匹配）
-- md5 摘要（排除重复写同一图）
+该示例会把时间戳命名的截图写入 `.runtime/temp/mac/`，并在终端列出
+每一个输出路径。它不替代当前场景的真实验收；需要时应单独保存截图、
+日志和验证结论。
 
 ## 2. 日志怎么看
 
@@ -72,7 +64,7 @@ Screenshot result: backend=... source=... displayIndex=... output=(width=... hei
 
 说明：
 - 权限绑定到“调用主体身份”，不是绑定到脚本。
-- 若权限授予给 `TestMonkey.app`，就应该由 `TestMonkey.app` 运行。
+- 若权限授予给 `Clawdesk.app`，就应该由 `Clawdesk.app` 运行。
 
 ### B. 截图成功，但识别失败（最常见）
 
@@ -126,16 +118,13 @@ CODESIGN_IDENTITY="Apple Development: Your Name (TEAMID)" ./scripts/build_macos_
 ./scripts/open_macos_app.sh -script /absolute/path/to/your_script.js -timeout 20
 ```
 
-3. 验证阶段（排障时）：
-
-```bash
-./scripts/test_multi_display_app.sh
-```
+3. 验证阶段（排障时）：检查本次生成的 `.runtime/temp/mac/` 截图及运行日志，
+并记录实际输出尺寸；不要把它们放入源码或 fixture 目录。
 
 不要在同一条业务链路里混用：
-- `go run main.go ...`
-- `./dist/testmonkey-mac ...`
-- `open dist/TestMonkey.app ...`
+- `go run ./cmd/clawdesk ...`
+- `./dist/clawdesk ...`
+- `open dist/Clawdesk.app ...`
 
 混用会增加权限主体变化和时序不一致风险。
 
@@ -149,7 +138,7 @@ CODESIGN_IDENTITY="Apple Development: Your Name (TEAMID)" ./scripts/build_macos_
 常用重置命令示例：
 
 ```bash
-tccutil reset AppleEvents com.testmonkey.cli
+tccutil reset AppleEvents com.clawdesk.cli
 tccutil reset AppleEvents com.apple.Terminal
 tccutil reset AppleEvents com.googlecode.iterm2
 ```
@@ -157,6 +146,5 @@ tccutil reset AppleEvents com.googlecode.iterm2
 重置后再走一次权限触发脚本：
 
 ```bash
-open dist/TestMonkey.app --args -script examples/mac/request-macos-permissions.js -timeout 2
+open dist/Clawdesk.app --args -script examples/mac/request-macos-permissions.js -timeout 2
 ```
-

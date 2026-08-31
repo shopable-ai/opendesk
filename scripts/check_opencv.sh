@@ -46,7 +46,7 @@ echo "pkg-config version: $(pkg-config --version)"
 echo "opencv4 pkg-config version: $opencv_version"
 go run -tags opencv ./cmd/opencv-healthcheck
 go test -tags opencv ./automation -run '^TestImageColorFindPosUsesOpenCVBackend$' -count=1
-go run -tags opencv . \
+go run -tags opencv ./cmd/clawdesk \
 	-script tests/opencv/image_color_opencv_test.js \
 	-timeout 1 \
 	-console-mode script \

@@ -45,13 +45,13 @@ console.log('script-smoke-start');
 await page.waitFor(100);
 console.log('script-smoke-end');
 EOF
-run_step "go run main.go -script smoke.js" go run main.go -script "$SMOKE_SCRIPT"
+run_step "go run ./cmd/clawdesk -script smoke.js" go run ./cmd/clawdesk -script "$SMOKE_SCRIPT"
 
 if [[ "$(uname -s)" == "Darwin" && "$RUN_MAC_UI" == "1" ]]; then
-  run_step "go run main.go -script examples/mac/safari_url_input_flow.js" \
-    go run main.go -script examples/mac/safari_url_input_flow.js
-  run_step "go run main.go -script examples/mac/wechat_probe_chatlist_scan.js" \
-    go run main.go -script examples/mac/wechat_probe_chatlist_scan.js
+  run_step "go run ./cmd/clawdesk -script examples/mac/safari_url_input_flow.js" \
+    go run ./cmd/clawdesk -script examples/mac/safari_url_input_flow.js
+  run_step "go run ./cmd/clawdesk -script examples/mac/wechat_probe_chatlist_scan.js" \
+    go run ./cmd/clawdesk -script examples/mac/wechat_probe_chatlist_scan.js
 elif [[ "$(uname -s)" == "Darwin" ]]; then
   printf -- "- [SKIP] mac UI scripts disabled by RUN_MAC_UI=%s\n" "$RUN_MAC_UI" >>"$REPORT_FILE"
 else
