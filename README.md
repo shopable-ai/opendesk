@@ -221,6 +221,7 @@ docs/README.md
 ```text
 docs/
 ├── project/
+├── frameworks/
 ├── architecture/
 ├── implementation/
 ├── quality/
@@ -243,6 +244,7 @@ docs-user-api/
 
 ```text
 docs-user-api/index.md
+docs-user-api/custom-api.md
 docs-user-api/cookbook.md
 docs-user-api/runtime-api.ai.json
 ```
@@ -252,6 +254,33 @@ docs-user-api/runtime-api.ai.json
 ```text
 types/*.d.ts
 jsconfig.json
+```
+
+## 自定义与支持
+
+如果只是想组合 Clawdesk 已有能力，优先使用 JavaScript 自助扩展，不需要修改 Go Runtime：
+
+```text
+docs-user-api/custom-api.md
+```
+
+如果已有能力位于 Python、Node.js、模型服务、数据库或企业内部服务中，优先考虑 HTTP / MCP 外置集成。
+
+如果必须增加新的 OS / Native / Go Runtime 能力：
+
+- 有源码和构建权限：按 Runtime API 扩展框架开发并测试。
+- 只有二进制发行版、没有源码权限，或需要正式支持的企业集成 / 定制构建：联系 Clawdesk 项目作者 / 维护者进行定制。
+
+统一支持与定制入口：
+
+```text
+SUPPORT.md
+```
+
+Runtime API 扩展框架：
+
+```text
+docs/frameworks/runtime-api-extension-framework.md
 ```
 
 ## 仓库主要目录
