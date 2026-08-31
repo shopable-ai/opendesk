@@ -86,6 +86,7 @@ Clawdesk 长期使用的核心开发框架，是桌面自动化开发的重要�
 主要分区：
 
 - `desktop-automation/`
+  - `agent-first-recorder.md`：定义 Agent 操作 Trace、有效路径蒸馏、Flow IR、脚本生成、无 AI 回放、macOS 观测与未来人工 Recorder 的边界。
 - `browser-automation/`
 - `execution/`
 - `decisions/`：未来 ADR 的标准位置。
@@ -152,6 +153,10 @@ YYYY-MM-DD-topic.md
 ### `plans/`
 
 尚未完成、仍值得推进的路线图和实现计划。
+
+当前桌面自动化实施入口：
+
+- `desktop-automation/agent-first-recorder-macos-mvp.md`：在 macOS 上实现 Agent-first Trace → Flow IR → JavaScript → 无 AI Replay 的有界 MVP、测试矩阵和验收门槛。
 
 已完成或失效的计划应更新、关闭或归档，不能长期以“待做”状态污染当前事实。
 
