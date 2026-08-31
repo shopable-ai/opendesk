@@ -1,0 +1,3 @@
+(() => {
+  RuntimeAPITest.contractObject('FloatingWindow');
+})();

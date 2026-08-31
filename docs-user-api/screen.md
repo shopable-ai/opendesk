@@ -181,7 +181,7 @@ console.log(colors);
 ```js
 await Screen.screenshot({
   target: 'screen',
-  path: './artifacts/screen.png'
+  path: './.runtime/examples/screen.png'
 });
 ```
 
@@ -196,7 +196,7 @@ console.log(JSON.stringify(displays, null, 2));
 await page.screenshot({
   target: 'screen',
   displayIndex: 2,
-  path: './artifacts/display-2.png'
+  path: './.runtime/examples/display-2.png'
 });
 ```
 

@@ -335,7 +335,7 @@ await keyboard.press('Enter');
 ```js
 await mouse.wheel({ deltaY: 600, steps: 8, delay: 10 });
 await page.waitForTimeout(500);
-await page.screenshot({ path: './artifacts/after-scroll.png' });
+await page.screenshot({ path: './.runtime/examples/after-scroll.png' });
 ```
 
 ## 与旧文档的差异

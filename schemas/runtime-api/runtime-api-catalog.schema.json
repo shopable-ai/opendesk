@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://clawdesk.dev/schemas/runtime-api/runtime-api-catalog.schema.json",
+  "title": "Clawdesk JavaScript Runtime API Catalog",
+  "type": "object",
+  "required": ["schemaVersion", "catalogVersion", "entries"],
+  "properties": {
+    "schemaVersion": { "type": "string" },
+    "catalogVersion": { "type": "string" },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "family", "source", "status", "platforms", "requiredVerificationTiers", "riskClassification", "evidenceRequirements"],
+        "properties": {
+          "id": { "type": "string" },
+          "family": { "type": "string" },
+          "source": {
+            "type": "object",
+            "required": ["runtime", "docs", "types"],
+            "properties": {
+              "runtime": { "type": "string" },
+              "docs": { "type": "string" },
+              "types": { "type": "string" }
+            }
+          },
+          "status": { "type": "string" },
+          "platforms": { "type": "array", "items": { "type": "string" } },
+          "requiredVerificationTiers": { "type": "array", "items": { "type": "string" } },
+          "riskClassification": { "type": "string" },
+          "contractOnlyReason": { "type": ["string", "null"] },
+          "evidenceRequirements": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    }
+  }
+}

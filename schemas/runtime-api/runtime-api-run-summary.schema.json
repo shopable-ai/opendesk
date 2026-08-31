@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://clawdesk.dev/schemas/runtime-api/runtime-api-run-summary.schema.json",
+  "title": "Clawdesk Runtime API Conformance Run Summary",
+  "type": "object",
+  "required": ["schemaVersion", "runId", "startedAt", "finishedAt", "durationMs", "git", "environment", "runtime", "catalogFingerprint", "gates", "cleanup", "status"],
+  "properties": {
+    "schemaVersion": { "type": "string" },
+    "runId": { "type": "string", "minLength": 1 },
+    "startedAt": { "type": "string" },
+    "finishedAt": { "type": "string" },
+    "durationMs": { "type": "number", "minimum": 0 },
+    "git": { "type": "object", "required": ["commit", "dirty"] },
+    "environment": { "type": "object", "required": ["os", "arch", "browser"] },
+    "runtime": { "type": "object", "required": ["path", "sha256", "buildSource"] },
+    "catalogFingerprint": { "type": "string" },
+    "gates": { "type": "object" },
+    "cleanup": { "type": "object" },
+    "status": { "enum": ["passed", "failed"] }
+  }
+}

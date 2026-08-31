@@ -25,7 +25,7 @@ await page.ensurePermissions({
 
 const out = await page.screenshot({
   target: 'activeWindow',
-  path: './artifacts/active-window.png',
+  path: './.runtime/examples/active-window.png',
   returnType: 'path'
 });
 
@@ -37,7 +37,7 @@ console.log(out);
 ```js
 const result = await page.screenshot({
   clip: { x: 120, y: 180, width: 640, height: 360 },
-  path: './artifacts/clip.png',
+  path: './.runtime/examples/clip.png',
   returnType: 'object'
 });
 
@@ -53,7 +53,7 @@ console.log(JSON.stringify(displays, null, 2));
 await page.screenshot({
   target: 'screen',
   displayIndex: 2,
-  path: './artifacts/display-2.png'
+  path: './.runtime/examples/display-2.png'
 });
 ```
 
@@ -93,7 +93,7 @@ await window.setWindowBounds('Safari', 80, 80, 1440, 920);
 ```js
 const imagePath = await page.screenshot({
   target: 'activeWindow',
-  path: './artifacts/ocr-input.png',
+  path: './.runtime/examples/ocr-input.png',
   returnType: 'path'
 });
 
@@ -111,7 +111,7 @@ console.log(result.text);
 ```js
 const imagePath = await page.screenshot({
   target: 'activeWindow',
-  path: './artifacts/dialog.png',
+  path: './.runtime/examples/dialog.png',
   returnType: 'path'
 });
 
@@ -136,7 +136,7 @@ await mouse.click(p.x, p.y);
 
 ```js
 const ui = await Vision.detectUI({
-  imagePath: './artifacts/login.png',
+  imagePath: './.runtime/examples/login.png',
   provider: 'local',
   targetText: '账号',
   matchMode: 'contains',
@@ -187,7 +187,7 @@ console.log(colors);
 ```js
 File.ensureDir('./artifacts');
 const bytes = await page.screenshot({ returnType: 'bytes' });
-File.writeBytes('./artifacts/raw-shot.png', bytes);
+File.writeBytes('./.runtime/examples/raw-shot.png', bytes);
 ```
 
 **14. 读取文件并追加日志**
@@ -197,7 +197,7 @@ const text = File.read('./README.md');
 console.log(text.slice(0, 200));
 
 File.ensureDir('./artifacts');
-File.append('./artifacts/run.log', 'script started\n');
+File.append('./.runtime/examples/run.log', 'script started\n');
 ```
 
 **15. 发送 HTTP GET 请求**
@@ -249,7 +249,7 @@ if (provider.endpointRequired && !provider.endpointConfigured) {
 **19. 用旧 OCR 对象快速提文本**
 
 ```js
-const text = await OCR.extractText('./artifacts/ocr-input.png', 'chi_sim+eng');
+const text = await OCR.extractText('./.runtime/examples/ocr-input.png', 'chi_sim+eng');
 console.log(text);
 ```
 
@@ -313,7 +313,7 @@ const snapshot = {
   time: moment().format('YYYY-MM-DD HH:mm:ss')
 };
 
-File.write('./artifacts/system-snapshot.json', JSON.stringify(snapshot, null, 2));
+File.write('./.runtime/examples/system-snapshot.json', JSON.stringify(snapshot, null, 2));
 ```
 
 **25. 一个更完整的“找字并点击”模板**
@@ -326,7 +326,7 @@ await page.ensurePermissions({
 
 const imagePath = await page.screenshot({
   target: 'activeWindow',
-  path: './artifacts/current.png',
+  path: './.runtime/examples/current.png',
   returnType: 'path'
 });
 

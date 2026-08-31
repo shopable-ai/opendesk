@@ -43,6 +43,7 @@ declare global {
     setAlwaysOnTop(title: string, alwaysOnTop: boolean): void;
     unsetTopMost(title: string): void;
     bringToTop(title: string, pid?: number): void;
+    js_beautify(source: string, options?: Record<string, unknown>): string;
   }
 
   var window: ClawdeskWindowManager;

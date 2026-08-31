@@ -126,8 +126,8 @@ func (m *Mouse) Move(x, y int, options interface{}) error {
 
 	if options != nil {
 		if optMap, ok := options.(map[string]interface{}); ok {
-			if steps, ok := optMap["steps"].(int); ok {
-				opts.Steps = steps
+			if steps, ok := optMap["steps"]; ok {
+				opts.Steps = jsToInt(steps)
 			}
 		}
 	}
@@ -230,25 +230,17 @@ func (m *Mouse) Wheel(options interface{}) error {
 	// 解析选项
 	if options != nil {
 		if optMap, ok := options.(map[string]interface{}); ok {
-			if dy, ok := optMap["deltaY"].(int); ok {
-				opts.DeltaY = dy
-			} else if dy, ok := optMap["deltaY"].(float64); ok {
-				opts.DeltaY = int(dy)
+			if dy, ok := optMap["deltaY"]; ok {
+				opts.DeltaY = jsToInt(dy)
 			}
-			if dx, ok := optMap["deltaX"].(int); ok {
-				opts.DeltaX = dx
-			} else if dx, ok := optMap["deltaX"].(float64); ok {
-				opts.DeltaX = int(dx)
+			if dx, ok := optMap["deltaX"]; ok {
+				opts.DeltaX = jsToInt(dx)
 			}
-			if steps, ok := optMap["steps"].(int); ok {
-				opts.Steps = steps
-			} else if steps, ok := optMap["steps"].(float64); ok {
-				opts.Steps = int(steps)
+			if steps, ok := optMap["steps"]; ok {
+				opts.Steps = jsToInt(steps)
 			}
-			if delay, ok := optMap["delay"].(int); ok {
-				opts.Delay = delay
-			} else if delay, ok := optMap["delay"].(float64); ok {
-				opts.Delay = int(delay)
+			if delay, ok := optMap["delay"]; ok {
+				opts.Delay = jsToInt(delay)
 			}
 		}
 	}
@@ -270,7 +262,9 @@ func (m *Mouse) Wheel(options interface{}) error {
 			dy += remainY
 		}
 		if dx != 0 || dy != 0 {
-			robotgo.ScrollRelative(dx, dy)
+			// Scroll expects deltas. ScrollRelative first adds the current mouse
+			// coordinates and is intended for pointer movement, not wheel input.
+			robotgo.Scroll(dx, dy)
 		}
 		if opts.Delay > 0 {
 			time.Sleep(time.Duration(opts.Delay) * time.Millisecond)

@@ -1,12 +1,12 @@
 package execution
 
 import (
+	"clawdesk/automation"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
-	"clawdesk/automation"
 
 	"github.com/dop251/goja"
 )
@@ -135,6 +135,7 @@ func runJavaScript(req Request, emitter *Emitter) error {
 	}
 	completeScript := fmt.Sprintf(`
         globalThis.__scriptComplete = false;
+        globalThis.__scriptError = "";
         globalThis.__activeTimers = globalThis.__activeTimers || 0;
 
         (async () => {
@@ -157,7 +158,8 @@ func runJavaScript(req Request, emitter *Emitter) error {
                 console.log("script execution completed successfully");
             } catch (err) {
                 console.error(err && err.message ? err.message : err);
-                throw err;
+                globalThis.__scriptError = String(err && (err.stack || err.message) || err);
+                globalThis.__scriptComplete = true;
             }
         })();
     `, script)
@@ -174,6 +176,10 @@ func runJavaScript(req Request, emitter *Emitter) error {
 			if completeValue != nil && completeValue.ToBoolean() {
 				break
 			}
+		}
+		if scriptError := rt.Get("__scriptError"); scriptError != nil && scriptError.String() != "" {
+			done <- fmt.Errorf("script execution failed: %s", scriptError.String())
+			return
 		}
 		done <- nil
 	}()

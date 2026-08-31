@@ -70,6 +70,7 @@ declare global {
     touchscreen: ClawdeskTouchscreen;
 
     screenshot(options?: ClawdeskPageScreenshotOptions): Promise<string | ArrayBuffer | ClawdeskScreenshotResult | null>;
+    captureScreen(options?: ClawdeskPageScreenshotOptions): Promise<string | ArrayBuffer | ClawdeskScreenshotResult | null>;
 
     goto(url: string): Promise<void>;
     openURL(url: string): void;
@@ -84,6 +85,7 @@ declare global {
     waitForTimeout(milliseconds: number): Promise<void>;
     waitForNavigation(options?: { timeout?: number }): Promise<void>;
     waitForFunction<T>(predicate: (...args: any[]) => T | Promise<T>, options?: ClawdeskPageWaitOptions, ...args: any[]): Promise<T>;
+    waitForAll<T>(promises: Array<Promise<T> | T>, options?: { timeout?: number }): Promise<T[]>;
 
     checkPermissions(options?: ClawdeskPermissionOptions): Promise<ClawdeskPermissionReport>;
     requestPermissions(options?: ClawdeskPermissionOptions): Promise<ClawdeskPermissionReport>;
@@ -94,6 +96,9 @@ declare global {
     requestMacPermissions(options?: Record<string, unknown>): Record<string, unknown>;
     ensureMacPermissions(options?: Record<string, unknown>): Promise<ClawdeskPermissionReport>;
     requestMacAutomationPermission(targetApp?: string): Record<string, unknown>;
+
+    browser(): ClawdeskBrowser;
+    context(): ClawdeskBrowserContext;
   }
 
   var page: ClawdeskPage;

@@ -24,6 +24,17 @@ func (c *Clipboard) Copy(text string) error {
 		text = " " // 使用单个空格代替空字符串
 	}
 
+	// Prefer the platform implementation when available. On macOS the generic
+	// pbcopy/pbpaste helper can report success while decoding non-ASCII text with
+	// replacement characters under a non-UTF-8 process locale.
+	if fallbackErr := platformClipboardWriteFallback(text); fallbackErr == nil {
+		time.Sleep(80 * time.Millisecond)
+		readText, readErr := platformClipboardReadFallback()
+		if readErr == nil && readText == text {
+			return nil
+		}
+	}
+
 	var err error
 	maxRetries := 5
 	for attempt := 1; attempt <= maxRetries; attempt++ {
@@ -64,6 +75,10 @@ func (c *Clipboard) Copy(text string) error {
 
 // Paste gets the current content from the system clipboard with retry mechanism
 func (c *Clipboard) Paste() (string, error) {
+	if fallbackText, fallbackErr := platformClipboardReadFallback(); fallbackErr == nil {
+		return fallbackText, nil
+	}
+
 	var text string
 	var err error
 	maxRetries := 5

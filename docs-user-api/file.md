@@ -64,7 +64,7 @@ console.log(File.cwd());
 ## File.path(relativePath)
 
 ```js
-const abs = File.path('./artifacts/out.txt');
+const abs = File.path('./.runtime/examples/out.txt');
 console.log(abs);
 ```
 
@@ -78,7 +78,7 @@ console.log(text.slice(0, 200));
 ## File.write(path, text)
 
 ```js
-File.write('./artifacts/result.txt', 'hello world');
+File.write('./.runtime/examples/result.txt', 'hello world');
 ```
 
 **注意**
@@ -88,14 +88,14 @@ File.write('./artifacts/result.txt', 'hello world');
 ## File.append(path, text)
 
 ```js
-File.append('./artifacts/log.txt', 'line 1\n');
-File.append('./artifacts/log.txt', 'line 2\n');
+File.append('./.runtime/examples/log.txt', 'line 1\n');
+File.append('./.runtime/examples/log.txt', 'line 2\n');
 ```
 
 ## File.readBytes(path)
 
 ```js
-const bytes = File.readBytes('./artifacts/image.png');
+const bytes = File.readBytes('./.runtime/examples/image.png');
 console.log(bytes.length);
 ```
 
@@ -103,19 +103,19 @@ console.log(bytes.length);
 
 ```js
 const shot = await page.screenshot({ returnType: 'bytes' });
-File.writeBytes('./artifacts/shot.png', shot);
+File.writeBytes('./.runtime/examples/shot.png', shot);
 ```
 
 ## File.ensureDir(path)
 
 ```js
-File.ensureDir('./artifacts/reports');
+File.ensureDir('./.runtime/examples/reports');
 ```
 
 ## File.exists(path)
 
 ```js
-if (!File.exists('./artifacts/result.json')) {
+if (!File.exists('./.runtime/examples/result.json')) {
   console.log('missing');
 }
 ```
@@ -123,13 +123,13 @@ if (!File.exists('./artifacts/result.json')) {
 ## File.copy(pathFrom, pathTo)
 
 ```js
-File.copy('./artifacts/a.txt', './artifacts/b.txt');
+File.copy('./.runtime/examples/a.txt', './.runtime/examples/b.txt');
 ```
 
 ## File.move(path, newPath)
 
 ```js
-File.move('./artifacts/tmp.txt', './artifacts/archive/tmp.txt');
+File.move('./.runtime/examples/tmp.txt', './.runtime/examples/archive/tmp.txt');
 ```
 
 ## File.listDir(path)
@@ -148,7 +148,7 @@ console.log(File.isDir('./artifacts'));
 ## File.isEmptyDir(path)
 
 ```js
-console.log(File.isEmptyDir('./artifacts/empty-dir'));
+console.log(File.isEmptyDir('./.runtime/examples/empty-dir'));
 ```
 
 ## File.join(parent, ...children)
@@ -180,12 +180,12 @@ const file = File.open(path, mode)
 
 ```js
 const result = Vision.runOCR({
-  imagePath: './artifacts/screen.png',
+  imagePath: './.runtime/examples/screen.png',
   provider: 'local'
 });
 
-File.ensureDir('./artifacts/ocr');
-File.write('./artifacts/ocr/result.json', JSON.stringify(result, null, 2));
+File.ensureDir('./.runtime/examples/ocr');
+File.write('./.runtime/examples/ocr/result.json', JSON.stringify(result, null, 2));
 ```
 
 **示例 2：保存截图字节**
@@ -193,7 +193,7 @@ File.write('./artifacts/ocr/result.json', JSON.stringify(result, null, 2));
 ```js
 File.ensureDir('./artifacts');
 const bytes = await page.screenshot({ returnType: 'bytes' });
-File.writeBytes('./artifacts/capture.png', bytes);
+File.writeBytes('./.runtime/examples/capture.png', bytes);
 ```
 
 **示例 3：安全生成输出目录**
