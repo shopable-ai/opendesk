@@ -62,30 +62,21 @@ Rule:
 - if a file must be versioned, maintained, reviewed and understood by future developers, it may belong here;
 - being Markdown does **not** automatically make a file canonical documentation.
 
-### B. Reusable preserved artifacts
+### B. Domain-owned test assets and reports
 
-Use for durable sample assets and intentionally preserved evidence.
+Reusable material belongs to the domain that consumes it. The repository does
+not use a generic top-level `artifacts/` bucket.
 
 Canonical paths:
 
-- `artifacts/fixtures/`
-- `artifacts/external/`
-- `artifacts/reports/`
+- `test/<domain>/fixtures/` or `tests/<domain>/fixtures/` — stable test inputs, golden samples and expected baselines
+- `test/<domain>/reports/` — test-specific maintained reports when they are part of the test package
+- `docs/quality/<domain>/` — formal quality, validation and review conclusions
+- `docs/research/external/` — external source manifests and provenance
 
-Use this for:
-
-- golden samples
-- stable baselines
-- curated external references
-- test/validation reports intentionally preserved for future comparison
-- one-time review reports whose evidence matters historically
-
-Do not use this for:
-
-- every debug run
-- ad hoc screenshots
-- smoke logs
-- transient execution output
+Use these locations only for material that is stable, reviewable and owned by
+the corresponding domain. A test fixture must not depend on a disposable run
+directory.
 
 ### C. Runtime output
 
@@ -123,7 +114,8 @@ Default rule:
 
 Promotion rule:
 
-- only move runtime output into `artifacts/` or canonical docs after review establishes durable value.
+- only promote runtime output into an owning test fixture or canonical quality
+  document after review establishes durable value.
 
 ### D. Local development environment state
 
@@ -243,8 +235,8 @@ When creating or touching a file, decide using this order:
    - source areas or `docs/`
 2. Is it maintained user-facing API documentation?
    - `docs-user-api/`
-3. Is it a stable reusable fixture/reference/report?
-   - `artifacts/`
+3. Is it a stable reusable fixture or report?
+   - owning `test/**/fixtures/`, `tests/**/fixtures/`, `test/**/reports/` or `docs/quality/`
 4. Is it generated during execution, debugging, probing or smoke testing?
    - `.runtime/`
 5. Is it local environment/tool state?
@@ -346,7 +338,7 @@ Destination:
 
 Destination:
 
-- `artifacts/fixtures/...`
+- owning test package, for example `tests/opencv/fixtures/...`
 
 ### Example 3: temporary experiment script
 
@@ -362,7 +354,7 @@ If promoted to a maintained example:
 
 If evidence matters historically:
 
-- `.archive/reports/...` or `artifacts/reports/...` depending on whether it is a narrative history or verification evidence.
+- `.archive/reports/...` or `docs/quality/<domain>/...` depending on whether it is a narrative history or a maintained quality conclusion.
 
 If it contains no unique durable value:
 
@@ -397,7 +389,7 @@ Lifecycle should generally be:
 ```text
 .runtime output
   -> reviewed
-  -> promoted to artifacts/fixtures or artifacts/reports if reusable
+  -> promoted to an owning test fixture or docs/quality report if reusable
   -> otherwise disposable
 
 research/options
@@ -430,7 +422,8 @@ When in doubt:
 - canonical project knowledge -> classified subtree under `docs/`
 - research -> `docs/research/`
 - active plan -> `docs/plans/`
-- reusable report/evidence -> `artifacts/reports/`
+- reusable test asset -> owning `test/**/fixtures/` or `tests/**/fixtures/`
+- durable quality conclusion -> `docs/quality/<domain>/`
 - runtime/debugging output -> `.runtime/`
 - reusable prompt -> `prompts/`
 - local tool state -> `.dev/`

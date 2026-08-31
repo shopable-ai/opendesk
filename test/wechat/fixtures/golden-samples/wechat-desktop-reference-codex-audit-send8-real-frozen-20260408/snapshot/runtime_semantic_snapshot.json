@@ -1,0 +1,207 @@
+{
+  "schemaVersion": "0.1.0",
+  "snapshotType": "runtime_semantic",
+  "snapshotTier": "desktop_runtime",
+  "runDir": ".runtime/runs/codex-audit-send8-real",
+  "runId": "codex-audit-send8-real",
+  "screen": {
+    "width": 1097,
+    "height": 880
+  },
+  "canProceed": true,
+  "actionTargets": [
+    {
+      "id": "target_open_chat_primary",
+      "intent": "open_chat",
+      "zoneId": "conversation_list",
+      "targetType": "row_candidate_set",
+      "bbox": {
+        "height": 880,
+        "width": 220,
+        "x": 72,
+        "y": 0
+      },
+      "bboxRatio": {
+        "x": 0.0656,
+        "y": 0,
+        "width": 0.2005,
+        "height": 1
+      },
+      "point": {
+        "x": 127,
+        "y": 168
+      },
+      "confidence": 0.7392,
+      "riskLevel": "medium",
+      "fallbacks": [
+        {
+          "kind": "refine-ocr-row-match"
+        },
+        {
+          "kind": "search-flow"
+        }
+      ],
+      "preconditions": [
+        "conversation_list zone present",
+        "target name can be disambiguated"
+      ],
+      "postconditions": [
+        "chat_header switched to target identity",
+        "message_list refreshed"
+      ],
+      "selectorLogic": {
+        "kind": "hybrid",
+        "signals": [
+          "chat-list zone",
+          "row clustering",
+          "OCR target-name matching",
+          "candidate rows"
+        ]
+      },
+      "candidateCount": 6
+    },
+    {
+      "id": "target_focus_input_primary",
+      "intent": "focus_input",
+      "zoneId": "input_area",
+      "targetType": "textbox",
+      "bbox": {
+        "height": 251,
+        "width": 805,
+        "x": 292,
+        "y": 629
+      },
+      "bboxRatio": {
+        "x": 0.2662,
+        "y": 0.7148,
+        "width": 0.7338,
+        "height": 0.2852
+      },
+      "point": {
+        "x": 775,
+        "y": 804
+      },
+      "confidence": 0.603,
+      "riskLevel": "medium",
+      "fallbacks": [
+        {
+          "kind": "zone-center-retry"
+        },
+        {
+          "kind": "keyboard-focus-shortcut"
+        }
+      ],
+      "preconditions": [
+        "pageType is wechat_chat_page",
+        "input_area zone present"
+      ],
+      "postconditions": [
+        "draft text becomes visible in input area"
+      ],
+      "selectorLogic": {
+        "kind": "zone-center-hotspot",
+        "signals": [
+          "input area zone",
+          "bottom content band"
+        ]
+      },
+      "candidateCount": 0
+    },
+    {
+      "id": "target_send_message_primary",
+      "intent": "send_message",
+      "zoneId": "send_action_zone",
+      "targetType": "button",
+      "bbox": {
+        "height": 60,
+        "width": 805,
+        "x": 292,
+        "y": 629
+      },
+      "bboxRatio": {
+        "x": 0.2662,
+        "y": 0.7148,
+        "width": 0.7338,
+        "height": 0.0682
+      },
+      "point": {
+        "x": 936,
+        "y": 659
+      },
+      "confidence": 0.5184,
+      "riskLevel": "high",
+      "fallbacks": [
+        {
+          "kind": "press-enter-if-enabled"
+        }
+      ],
+      "preconditions": [
+        "target chat verified",
+        "draft verified",
+        "send safety gate passed"
+      ],
+      "postconditions": [
+        "draft cleared",
+        "self message appears in message list"
+      ],
+      "selectorLogic": {
+        "kind": "zone-right-action",
+        "signals": [
+          "send action zone",
+          "right side of input area"
+        ]
+      },
+      "candidateCount": 0
+    },
+    {
+      "id": "target_read_reply_primary",
+      "intent": "read_reply",
+      "zoneId": "message_list",
+      "targetType": "text_anchor",
+      "bbox": {
+        "height": 577,
+        "width": 805,
+        "x": 292,
+        "y": 52
+      },
+      "bboxRatio": {
+        "x": 0.2662,
+        "y": 0.0591,
+        "width": 0.7338,
+        "height": 0.6557
+      },
+      "point": {
+        "x": 694,
+        "y": 340
+      },
+      "confidence": 0.6336,
+      "riskLevel": "low",
+      "fallbacks": [
+        {
+          "kind": "crop-latest-message-region"
+        }
+      ],
+      "preconditions": [
+        "message_list zone present",
+        "local OCR available"
+      ],
+      "postconditions": [
+        "reply text extracted from message list only"
+      ],
+      "selectorLogic": {
+        "kind": "zone-local-ocr",
+        "signals": [
+          "message list zone",
+          "local OCR only"
+        ]
+      },
+      "candidateCount": 0
+    }
+  ],
+  "captures": [],
+  "criticalGuards": {
+    "sendDisabledByDefault": true,
+    "headerMustMatchBeforeInput": true,
+    "focusMustBeVerifiedBeforeDraft": true
+  }
+}

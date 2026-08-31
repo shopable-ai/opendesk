@@ -1,0 +1,35 @@
+=== RUN   TestImageColorAnalyzeLayoutReturnsCoarseGenericSegmentation
+--- PASS: TestImageColorAnalyzeLayoutReturnsCoarseGenericSegmentation (0.02s)
+=== RUN   TestLayoutWithTextNoise
+--- PASS: TestLayoutWithTextNoise (0.03s)
+=== RUN   TestParseScreenshotOptionsFromStructPointer
+--- PASS: TestParseScreenshotOptionsFromStructPointer (0.00s)
+=== RUN   TestParseScreenshotOptionsRejectsInvalidClip
+--- PASS: TestParseScreenshotOptionsRejectsInvalidClip (0.00s)
+=== RUN   TestParseScreenshotOptionsDefaultTarget
+--- PASS: TestParseScreenshotOptionsDefaultTarget (0.00s)
+=== RUN   TestParseScreenshotOptionsDisplayIndex
+--- PASS: TestParseScreenshotOptionsDisplayIndex (0.00s)
+=== RUN   TestParseScreenshotOptionsDisplayIndexPascalCase
+--- PASS: TestParseScreenshotOptionsDisplayIndexPascalCase (0.00s)
+=== RUN   TestParseScreenshotOptionsReturnType
+--- PASS: TestParseScreenshotOptionsReturnType (0.00s)
+=== RUN   TestParseScreenshotOptionsRejectsNegativeDisplayIndex
+--- PASS: TestParseScreenshotOptionsRejectsNegativeDisplayIndex (0.00s)
+=== RUN   TestParseScreenshotOptionsRejectsInvalidReturnType
+--- PASS: TestParseScreenshotOptionsRejectsInvalidReturnType (0.00s)
+=== RUN   TestBuildScreenshotResponsePathAndObject
+2026/04/03 18:28:32 Saving screenshot to: /var/folders/mc/_33qrtwj55g7lfxy66vltx6w0000gn/T/TestBuildScreenshotResponsePathAndObject312602538/001/shot.png
+2026/04/03 18:28:32 Saving screenshot to: /var/folders/mc/_33qrtwj55g7lfxy66vltx6w0000gn/T/TestBuildScreenshotResponsePathAndObject312602538/001/shot-object.png
+--- PASS: TestBuildScreenshotResponsePathAndObject (0.00s)
+=== RUN   TestBuildScreenshotResponseGeneratesTempPathForObject
+2026/04/03 18:28:32 Saving screenshot to: /var/folders/mc/_33qrtwj55g7lfxy66vltx6w0000gn/T/testmonkey-screenshot-3364520031.png
+--- PASS: TestBuildScreenshotResponseGeneratesTempPathForObject (0.00s)
+=== RUN   TestBuildScreenshotResponseNone
+--- PASS: TestBuildScreenshotResponseNone (0.00s)
+=== RUN   TestBuildScreenshotResponseBytes
+--- PASS: TestBuildScreenshotResponseBytes (0.00s)
+=== RUN   TestVisionAnalyzeLayoutWithGenericHints
+--- PASS: TestVisionAnalyzeLayoutWithGenericHints (0.01s)
+PASS
+ok  	testMonkey-go/automation	(cached)

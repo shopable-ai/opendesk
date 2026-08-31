@@ -1,0 +1,92 @@
+{
+  "id": "bootstrap-round-01-solution-scorecard",
+  "createdAt": "2026-04-03T00:00:00+08:00",
+  "scale": "1-5, higher is better; complexity is reverse-scored",
+  "weights": {
+    "feasibility": 0.2,
+    "stability": 0.15,
+    "implementationComplexity": 0.1,
+    "maintainability": 0.2,
+    "visualization": 0.15,
+    "autoCorrection": 0.1,
+    "regressionFriendliness": 0.1
+  },
+  "options": [
+    {
+      "id": "A",
+      "name": "OpenCV / OCR / 区域模板匹配",
+      "scores": {
+        "feasibility": 4,
+        "stability": 3,
+        "implementationComplexity": 3,
+        "maintainability": 3,
+        "visualization": 2,
+        "autoCorrection": 2,
+        "regressionFriendliness": 3
+      },
+      "weightedTotal": 2.95,
+      "notes": [
+        "与现有仓库贴合度高",
+        "但单独作为主线时，验证与纠偏层偏弱"
+      ]
+    },
+    {
+      "id": "B",
+      "name": "截图 -> 结构化区域 -> HTML 镜像 -> 差异对比",
+      "scores": {
+        "feasibility": 4,
+        "stability": 4,
+        "implementationComplexity": 4,
+        "maintainability": 5,
+        "visualization": 5,
+        "autoCorrection": 4,
+        "regressionFriendliness": 5
+      },
+      "weightedTotal": 4.35,
+      "notes": [
+        "非常适合作为验证与恢复主框架",
+        "但仍需检测引擎支撑"
+      ]
+    },
+    {
+      "id": "C",
+      "name": "Accessibility/UI tree 优先 + CV 补充",
+      "scores": {
+        "feasibility": 3,
+        "stability": 2,
+        "implementationComplexity": 2,
+        "maintainability": 4,
+        "visualization": 3,
+        "autoCorrection": 2,
+        "regressionFriendliness": 3
+      },
+      "weightedTotal": 2.85,
+      "notes": [
+        "若可用，语义质量高",
+        "但不适合作为微信桌面自动化唯一主线"
+      ]
+    },
+    {
+      "id": "D",
+      "name": "Layout-first Hybrid",
+      "scores": {
+        "feasibility": 5,
+        "stability": 4,
+        "implementationComplexity": 3,
+        "maintainability": 5,
+        "visualization": 5,
+        "autoCorrection": 5,
+        "regressionFriendliness": 5
+      },
+      "weightedTotal": 4.65,
+      "notes": [
+        "把 A 的感知能力与 B 的验证能力合并成闭环",
+        "最符合项目“持续化”目标"
+      ]
+    }
+  ],
+  "winner": {
+    "id": "D",
+    "name": "Layout-first Hybrid"
+  }
+}

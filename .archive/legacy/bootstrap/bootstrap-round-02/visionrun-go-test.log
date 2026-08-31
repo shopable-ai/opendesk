@@ -1,0 +1,12 @@
+# testMonkey-go/pkg/visionrun.test
+ld: warning: ignoring duplicate libraries: '-lobjc'
+=== RUN   TestInitBundleCreatesRunArtifactSkeleton
+--- PASS: TestInitBundleCreatesRunArtifactSkeleton (0.00s)
+=== RUN   TestInitBundleBlocksWhenPreflightFails
+--- PASS: TestInitBundleBlocksWhenPreflightFails (0.00s)
+=== RUN   TestRunDetectWritesRegionsContract
+--- PASS: TestRunDetectWritesRegionsContract (0.01s)
+=== RUN   TestArtifactPathUsesForwardSlashes
+--- PASS: TestArtifactPathUsesForwardSlashes (0.00s)
+PASS
+ok  	testMonkey-go/pkg/visionrun	(cached)

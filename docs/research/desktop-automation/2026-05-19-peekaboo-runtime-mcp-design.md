@@ -339,7 +339,7 @@ type UIExecutionResult struct {
   "includeLayout": true,
   "includeSemantic": true,
   "saveArtifacts": true,
-  "artifactRoot": "artifacts/runs/<run-id>"
+  "artifactRoot": ".runtime/runs/<run-id>"
 }
 ```
 

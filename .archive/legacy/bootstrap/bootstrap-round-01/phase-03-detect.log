@@ -1,0 +1,18 @@
+# testMonkey-go/pkg/visionrun.test
+ld: warning: ignoring duplicate libraries: '-lobjc'
+ok  	testMonkey-go/pkg/visionrun	0.809s
+# testMonkey-go/cmd/visionrun
+ld: warning: ignoring duplicate libraries: '-lobjc'
+{
+  "annotatedImage": "artifacts/runs/round-01-detect-smoke/detect/annotated.png",
+  "auditLog": "/Users/a0000/Documents/workspace/testMonkey-go/artifacts/runs/round-01-detect-smoke/audit.ndjson",
+  "baseDir": "/Users/a0000/Documents/workspace/testMonkey-go/artifacts/runs/round-01-detect-smoke",
+  "decision": "/Users/a0000/Documents/workspace/testMonkey-go/artifacts/runs/round-01-detect-smoke/decision.json",
+  "preflight": "/Users/a0000/Documents/workspace/testMonkey-go/artifacts/runs/round-01-detect-smoke/preflight.json",
+  "preflightState": "warn",
+  "regionCount": 23,
+  "regions": "artifacts/runs/round-01-detect-smoke/detect/regions.json",
+  "requirement": "/Users/a0000/Documents/workspace/testMonkey-go/artifacts/runs/round-01-detect-smoke/requirement.json",
+  "runId": "round-01-detect-smoke",
+  "sourceImage": "artifacts/runs/round-01-detect-smoke/capture/source.png"
+}

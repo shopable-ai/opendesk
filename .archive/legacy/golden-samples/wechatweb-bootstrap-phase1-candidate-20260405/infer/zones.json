@@ -1,0 +1,164 @@
+{
+  "canProceed": true,
+  "createdAt": "2026-04-05T21:01:28+08:00",
+  "missingRequiredZones": [],
+  "overlapsOrConflicts": [],
+  "runId": "gs-20260405-codex-phase1-wechatweb-ref",
+  "schemaVersion": "0.1.0",
+  "zones": [
+    {
+      "bbox": {
+        "height": 960,
+        "width": 64,
+        "x": 0,
+        "y": 0
+      },
+      "confidence": 0.82,
+      "evidence": [
+        "narrow left rail detected"
+      ],
+      "height": 960,
+      "id": "left_nav",
+      "requiredForAction": [
+        "open_chat"
+      ],
+      "role": "nav_strip",
+      "source": "layout_rule",
+      "width": 64,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "bbox": {
+        "height": 960,
+        "width": 856,
+        "x": 64,
+        "y": 0
+      },
+      "confidence": 0.84,
+      "evidence": [
+        "conversation column inferred from major vertical split"
+      ],
+      "height": 960,
+      "id": "conversation_list",
+      "requiredForAction": [
+        "open_chat"
+      ],
+      "role": "chat_list",
+      "source": "layout_rule",
+      "width": 856,
+      "x": 64,
+      "y": 0
+    },
+    {
+      "bbox": {
+        "height": 208,
+        "width": 480,
+        "x": 920,
+        "y": 0
+      },
+      "confidence": 0.79,
+      "evidence": [
+        "top row of main column inferred as header"
+      ],
+      "height": 208,
+      "id": "chat_header",
+      "requiredForAction": [
+        "verify_header"
+      ],
+      "role": "chat_header",
+      "source": "layout_rule",
+      "width": 480,
+      "x": 920,
+      "y": 0
+    },
+    {
+      "bbox": {
+        "height": 264,
+        "width": 480,
+        "x": 920,
+        "y": 208
+      },
+      "confidence": 0.83,
+      "evidence": [
+        "middle area of main column inferred as message list"
+      ],
+      "height": 264,
+      "id": "message_list",
+      "requiredForAction": [
+        "read_reply"
+      ],
+      "role": "message_list",
+      "source": "layout_rule",
+      "width": 480,
+      "x": 920,
+      "y": 208
+    },
+    {
+      "bbox": {
+        "height": 488,
+        "width": 480,
+        "x": 920,
+        "y": 472
+      },
+      "confidence": 0.65,
+      "evidence": [
+        "fallback bottom row promoted to input area"
+      ],
+      "height": 488,
+      "id": "input_area",
+      "requiredForAction": [
+        "focus_input",
+        "input_message",
+        "send_message"
+      ],
+      "role": "input_area",
+      "source": "layout_rule",
+      "width": 480,
+      "x": 920,
+      "y": 472
+    },
+    {
+      "bbox": {
+        "height": 488,
+        "width": 96,
+        "x": 1304,
+        "y": 472
+      },
+      "confidence": 0.63,
+      "evidence": [
+        "derived from right side of input area"
+      ],
+      "height": 488,
+      "id": "send_action_zone",
+      "requiredForAction": [
+        "send_message"
+      ],
+      "role": "send_action_zone",
+      "source": "layout_rule",
+      "width": 96,
+      "x": 1304,
+      "y": 472
+    },
+    {
+      "bbox": {
+        "height": 960,
+        "width": 40,
+        "x": 1400,
+        "y": 0
+      },
+      "confidence": 0.58,
+      "evidence": [
+        "trailing columns merged as auxiliary panel"
+      ],
+      "height": 960,
+      "id": "detail_panel",
+      "requiredForAction": [],
+      "role": "aux_panel",
+      "source": "layout_rule",
+      "width": 40,
+      "x": 1400,
+      "y": 0
+    }
+  ]
+}

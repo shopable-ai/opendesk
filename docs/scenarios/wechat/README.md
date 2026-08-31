@@ -70,7 +70,7 @@ docs/research/wechat/
 历史报告：
 
 ```text
-artifacts/reports/wechat/
+docs/quality/wechat/
 ```
 
 旧计划与旧实现叙事应在 `.archive/` / Git 历史中读取，不要反向覆盖本目录当前状态。

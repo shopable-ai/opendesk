@@ -1,0 +1,124 @@
+{
+  "bestCandidate": {
+    "bbox": {
+      "height": 97,
+      "width": 220,
+      "x": 72,
+      "y": 120
+    },
+    "id": "conversation_row_01",
+    "matchScore": 0,
+    "matchesTarget": false,
+    "normalizedText": "Lag 巴 宅 罗 那 呈 图 学 生 ，2241 MBE (16 %) VerbeSpace: - 民 .",
+    "path": ".runtime/runs/codex-audit-send8/evidence/ocr/anchor_conversation_row_01.png",
+    "point": {
+      "x": 127,
+      "y": 168
+    },
+    "status": "pass",
+    "text": "Lag 巴 宅 罗 那 呈 图 学 生 ，2241\nMBE (16 %) VerbeSpace: - 民 ."
+  },
+  "candidateCount": 5,
+  "candidates": [
+    {
+      "bbox": {
+        "height": 97,
+        "width": 220,
+        "x": 72,
+        "y": 120
+      },
+      "id": "conversation_row_01",
+      "matchScore": 0,
+      "matchesTarget": false,
+      "normalizedText": "Lag 巴 宅 罗 那 呈 图 学 生 ，2241 MBE (16 %) VerbeSpace: - 民 .",
+      "path": ".runtime/runs/codex-audit-send8/evidence/ocr/anchor_conversation_row_01.png",
+      "point": {
+        "x": 127,
+        "y": 168
+      },
+      "status": "pass",
+      "text": "Lag 巴 宅 罗 那 呈 图 学 生 ，2241\nMBE (16 %) VerbeSpace: - 民 ."
+    },
+    {
+      "bbox": {
+        "height": 97,
+        "width": 220,
+        "x": 72,
+        "y": 217
+      },
+      "id": "conversation_row_03",
+      "matchScore": 0,
+      "matchesTarget": false,
+      "normalizedText": "ee OpenClaw | 技术 … 22:27 Mil LUANZHENHUA: # wl 公众 号 2227",
+      "path": ".runtime/runs/codex-audit-send8/evidence/ocr/anchor_conversation_row_03.png",
+      "point": {
+        "x": 127,
+        "y": 265
+      },
+      "status": "pass",
+      "text": "ee OpenClaw | 技术 … 22:27\nMil LUANZHENHUA: #\nwl 公众 号 2227"
+    },
+    {
+      "bbox": {
+        "height": 97,
+        "width": 220,
+        "x": 72,
+        "y": 314
+      },
+      "id": "conversation_row_04",
+      "matchScore": 0,
+      "matchesTarget": false,
+      "normalizedText": "BBN? 知 于 小 V 抢 单 群 2 a [12 条 ] FR RARER.",
+      "path": ".runtime/runs/codex-audit-send8/evidence/ocr/anchor_conversation_row_04.png",
+      "point": {
+        "x": 127,
+        "y": 362
+      },
+      "status": "pass",
+      "text": "BBN? 知 于 小 V 抢 单 群 2\na [12 条 ] FR RARER."
+    },
+    {
+      "bbox": {
+        "height": 97,
+        "width": 220,
+        "x": 72,
+        "y": 411
+      },
+      "id": "conversation_row_05",
+      "matchScore": 0,
+      "matchesTarget": false,
+      "normalizedText": "MBs? 表 临 疾 29 林 租 -， Q 2200 2B (332%) 言 生 : 有 的 联系 我 coe? AMER B.. 20",
+      "path": ".runtime/runs/codex-audit-send8/evidence/ocr/anchor_conversation_row_05.png",
+      "point": {
+        "x": 127,
+        "y": 459
+      },
+      "status": "pass",
+      "text": "MBs? 表 临 疾 29 林 租 -， Q 2200\n2B (332%) 言 生 : 有 的 联系 我\ncoe? AMER B.. 20"
+    },
+    {
+      "bbox": {
+        "height": 97,
+        "width": 220,
+        "x": 72,
+        "y": 508
+      },
+      "id": "conversation_row_06",
+      "matchScore": 0,
+      "matchesTarget": false,
+      "normalizedText": "SER (138%) \"中 粮 青云 府 邱 SOM? 知 于 小 V 养 号 赚钱 .。 2059 S84) (150s) 硬 志 考 个 好 初中",
+      "path": ".runtime/runs/codex-audit-send8/evidence/ocr/anchor_conversation_row_06.png",
+      "point": {
+        "x": 127,
+        "y": 556
+      },
+      "status": "pass",
+      "text": "SER (138%) \"中 粮 青云 府 邱\nSOM? 知 于 小 V 养 号 赚钱 .。 2059\nS84) (150s) 硬 志 考 个 好 初中"
+    }
+  ],
+  "createdAt": "2026-04-07T04:46:17+08:00",
+  "runId": "codex-audit-send8",
+  "schemaVersion": "0.1.0",
+  "targetChatName": "",
+  "targetId": "target_open_chat_primary"
+}

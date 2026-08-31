@@ -1,0 +1,159 @@
+{
+  "candidateUniquenessOK": true,
+  "chatCandidateCount": 6,
+  "createdAt": "2026-04-05T21:01:28+08:00",
+  "duplicateCandidateCount": 0,
+  "htmlFilesPresent": {
+    "layout": true,
+    "semantic": true
+  },
+  "layoutHtmlValidation": {
+    "counts": {
+      "layout-band": 17,
+      "layout-band--band": 17,
+      "layout-bubble": 3,
+      "layout-bubble--left": 2,
+      "layout-bubble--right": 1,
+      "layout-bubble--short": 1,
+      "layout-detail-card": 2,
+      "layout-detail-card--short": 1,
+      "layout-header-bar": 1,
+      "layout-header-meta": 1,
+      "layout-header-title": 1,
+      "layout-input-field": 1,
+      "layout-input-shell": 1,
+      "layout-label": 13,
+      "layout-list": 1,
+      "layout-message-stack": 1,
+      "layout-send-button": 1,
+      "layout-zone": 7,
+      "layout-zone--aux-panel": 1,
+      "layout-zone--chat-header": 1,
+      "layout-zone--chat-list": 1,
+      "layout-zone--input-area": 1,
+      "layout-zone--message-list": 1,
+      "layout-zone--nav-strip": 1,
+      "layout-zone--send-action-zone": 1,
+      "layout-zone__label": 7,
+      "main-root": 1,
+      "mirror-root": 1,
+      "region-anchor": 26
+    },
+    "expectedRegionAnchors": 7,
+    "expectedZoneLabels": 7,
+    "expectedZones": 7,
+    "layoutScaffoldComplete": true,
+    "layoutScaffoldMissing": [],
+    "score": 0.8
+  },
+  "ocrProbeCount": 0,
+  "phase1Gate": {
+    "blockingIssues": [],
+    "passed": true
+  },
+  "phase2Readiness": {
+    "blockingIssues": [
+      "selected row is not unique",
+      "header probe text missing",
+      "draft probe text missing"
+    ],
+    "passed": false
+  },
+  "requiredZonesPresent": {
+    "chat_header": true,
+    "conversation_list": true,
+    "input_area": true,
+    "message_list": true
+  },
+  "runId": "gs-20260405-codex-phase1-wechatweb-ref",
+  "schemaVersion": "0.1.0",
+  "selectedCandidateCount": 0,
+  "semanticBlocks": {
+    "conversationRows": 6,
+    "draftText": "",
+    "headerText": "",
+    "messageText": ""
+  },
+  "semanticHtmlValidation": {
+    "candidateUniquenessOK": true,
+    "counts": {
+      "main-root": 1,
+      "mirror-root": 1,
+      "semantic-bubble": 2,
+      "semantic-bubble--left": 1,
+      "semantic-bubble--right": 1,
+      "semantic-candidate": 6,
+      "semantic-chat-candidate": 6,
+      "semantic-header": 1,
+      "semantic-header__meta": 1,
+      "semantic-header__title": 1,
+      "semantic-inputbar": 1,
+      "semantic-inputbar__field": 1,
+      "semantic-inputbar__send": 1,
+      "semantic-list": 1,
+      "semantic-list__avatar": 6,
+      "semantic-list__content": 6,
+      "semantic-list__item": 6,
+      "semantic-list__meta": 6,
+      "semantic-list__snippet": 6,
+      "semantic-list__title": 6,
+      "semantic-messages": 1,
+      "semantic-root": 1,
+      "semantic-summary": 1,
+      "semantic-target": 4,
+      "semantic-target__label": 4,
+      "semantic-zone": 7,
+      "semantic-zone--aux-panel": 1,
+      "semantic-zone--chat-header": 1,
+      "semantic-zone--chat-list": 1,
+      "semantic-zone--input-area": 1,
+      "semantic-zone--message-list": 1,
+      "semantic-zone--nav-strip": 1,
+      "semantic-zone--send-action-zone": 1
+    },
+    "expectedCandidates": 6,
+    "expectedSelected": 0,
+    "expectedTargets": 4,
+    "expectedZones": 7,
+    "missingRequiredZones": [],
+    "missingTargetIntents": [],
+    "presentTargetIntents": [
+      "focus_input",
+      "open_chat",
+      "read_reply",
+      "send_message"
+    ],
+    "requiredTargetIntents": [
+      "open_chat",
+      "focus_input",
+      "send_message",
+      "read_reply"
+    ],
+    "requiredZonesPresent": {
+      "chat_header": true,
+      "conversation_list": true,
+      "input_area": true,
+      "message_list": true
+    },
+    "selectedCandidateCount": 0,
+    "selectedUniquenessOK": false,
+    "semanticScaffoldComplete": true,
+    "semanticScaffoldMissing": []
+  },
+  "semanticScore": 0.48,
+  "singleTargetMatchOK": false,
+  "summary": "DOM-first semantic mirror report generated from semantic_model.json",
+  "targetCount": 4,
+  "targetIntentsPresent": [
+    "focus_input",
+    "open_chat",
+    "read_reply",
+    "send_message"
+  ],
+  "textCoverage": {
+    "draft": false,
+    "header": false,
+    "message": false
+  },
+  "zoneCount": 7
+}

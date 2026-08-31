@@ -1,0 +1,247 @@
+{
+  "createdAt": "2026-04-05T21:01:28+08:00",
+  "runId": "gs-20260405-codex-phase1-wechatweb-ref",
+  "schemaVersion": "0.1.0",
+  "targetCount": 4,
+  "targets": [
+    {
+      "bbox": {
+        "height": 960,
+        "width": 856,
+        "x": 64,
+        "y": 0
+      },
+      "candidates": [
+        {
+          "bbox": {
+            "height": 106,
+            "width": 856,
+            "x": 64,
+            "y": 120
+          },
+          "id": "conversation_row_01",
+          "point": {
+            "x": 144,
+            "y": 173
+          }
+        },
+        {
+          "bbox": {
+            "height": 106,
+            "width": 856,
+            "x": 64,
+            "y": 312
+          },
+          "id": "conversation_row_02",
+          "point": {
+            "x": 144,
+            "y": 365
+          }
+        },
+        {
+          "bbox": {
+            "height": 106,
+            "width": 856,
+            "x": 64,
+            "y": 472
+          },
+          "id": "conversation_row_03",
+          "point": {
+            "x": 144,
+            "y": 525
+          }
+        },
+        {
+          "bbox": {
+            "height": 106,
+            "width": 856,
+            "x": 64,
+            "y": 120
+          },
+          "id": "conversation_row_04",
+          "point": {
+            "x": 144,
+            "y": 173
+          }
+        },
+        {
+          "bbox": {
+            "height": 106,
+            "width": 856,
+            "x": 64,
+            "y": 226
+          },
+          "id": "conversation_row_05",
+          "point": {
+            "x": 144,
+            "y": 279
+          }
+        },
+        {
+          "bbox": {
+            "height": 106,
+            "width": 856,
+            "x": 64,
+            "y": 332
+          },
+          "id": "conversation_row_06",
+          "point": {
+            "x": 144,
+            "y": 385
+          }
+        }
+      ],
+      "confidence": 0.7392,
+      "fallbacks": [
+        {
+          "kind": "refine-ocr-row-match"
+        },
+        {
+          "kind": "search-flow"
+        }
+      ],
+      "id": "target_open_chat_primary",
+      "intent": "open_chat",
+      "point": {
+        "x": 144,
+        "y": 173
+      },
+      "postconditions": [
+        "chat_header switched to target identity",
+        "message_list refreshed"
+      ],
+      "preconditions": [
+        "conversation_list zone present",
+        "target name can be disambiguated"
+      ],
+      "riskLevel": "medium",
+      "selectorLogic": {
+        "kind": "hybrid",
+        "signals": [
+          "chat-list zone",
+          "row clustering",
+          "OCR target-name matching",
+          "candidate rows"
+        ]
+      },
+      "targetType": "row_candidate_set",
+      "zoneId": "conversation_list"
+    },
+    {
+      "bbox": {
+        "height": 488,
+        "width": 480,
+        "x": 920,
+        "y": 472
+      },
+      "confidence": 0.585,
+      "fallbacks": [
+        {
+          "kind": "zone-center-retry"
+        },
+        {
+          "kind": "keyboard-focus-shortcut"
+        }
+      ],
+      "id": "target_focus_input_primary",
+      "intent": "focus_input",
+      "point": {
+        "x": 1208,
+        "y": 813
+      },
+      "postconditions": [
+        "draft text becomes visible in input area"
+      ],
+      "preconditions": [
+        "pageType is wechat_chat_page",
+        "input_area zone present"
+      ],
+      "riskLevel": "medium",
+      "selectorLogic": {
+        "kind": "zone-center-hotspot",
+        "signals": [
+          "input area zone",
+          "bottom content band"
+        ]
+      },
+      "targetType": "textbox",
+      "zoneId": "input_area"
+    },
+    {
+      "bbox": {
+        "height": 488,
+        "width": 96,
+        "x": 1304,
+        "y": 472
+      },
+      "confidence": 0.4536,
+      "fallbacks": [
+        {
+          "kind": "press-enter-if-enabled"
+        }
+      ],
+      "id": "target_send_message_primary",
+      "intent": "send_message",
+      "point": {
+        "x": 1381,
+        "y": 716
+      },
+      "postconditions": [
+        "draft cleared",
+        "self message appears in message list"
+      ],
+      "preconditions": [
+        "target chat verified",
+        "draft verified",
+        "send safety gate passed"
+      ],
+      "riskLevel": "high",
+      "selectorLogic": {
+        "kind": "zone-right-action",
+        "signals": [
+          "send action zone",
+          "right side of input area"
+        ]
+      },
+      "targetType": "button",
+      "zoneId": "send_action_zone"
+    },
+    {
+      "bbox": {
+        "height": 264,
+        "width": 480,
+        "x": 920,
+        "y": 208
+      },
+      "confidence": 0.7304,
+      "fallbacks": [
+        {
+          "kind": "crop-latest-message-region"
+        }
+      ],
+      "id": "target_read_reply_primary",
+      "intent": "read_reply",
+      "point": {
+        "x": 1160,
+        "y": 340
+      },
+      "postconditions": [
+        "reply text extracted from message list only"
+      ],
+      "preconditions": [
+        "message_list zone present",
+        "local OCR available"
+      ],
+      "riskLevel": "low",
+      "selectorLogic": {
+        "kind": "zone-local-ocr",
+        "signals": [
+          "message list zone",
+          "local OCR only"
+        ]
+      },
+      "targetType": "text_anchor",
+      "zoneId": "message_list"
+    }
+  ]
+}

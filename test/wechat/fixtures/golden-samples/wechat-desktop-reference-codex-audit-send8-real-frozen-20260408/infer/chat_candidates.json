@@ -1,0 +1,7 @@
+{
+  "schemaVersion": "0.2.0",
+  "sampleId": "wechat-desktop-reference-codex-audit-send8-real-frozen-20260408",
+  "status": "not_captured",
+  "candidates": [],
+  "note": "desktop_reference frozen from run without persisted chat_candidates; action remains disallowed until fresh runtime evidence exists"
+}

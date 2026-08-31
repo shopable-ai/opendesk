@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "0.2.0",
+  "sampleId": "wechat-desktop-reference-codex-audit-send8-real-frozen-20260408",
+  "knownFailures": [
+    {
+      "id": "send_gate_blocked",
+      "category": "validation",
+      "stage": "send_message",
+      "disposition": "stop",
+      "reason": "send explicitly frozen"
+    }
+  ]
+}

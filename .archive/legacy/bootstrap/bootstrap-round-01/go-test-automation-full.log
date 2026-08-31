@@ -1,0 +1,13 @@
+# testMonkey-go/automation.test
+ld: warning: ignoring duplicate libraries: '-lobjc'
+--- FAIL: TestLevel7_MixedContent (0.08s)
+    image_layout_progressive_test.go:387: Level 7 (Mixed Content):
+    image_layout_progressive_test.go:388:   Median: 5 vertical, 5 horizontal
+    image_layout_progressive_test.go:389:   Mean: 5 vertical, 5 horizontal
+    image_layout_progressive_test.go:393: missing separator near 60 within tolerance 20: [{Orientation:horizontal Position:90 Thickness:2 Score:0.6162222222222223 Source:grid-boundary Confidence:0.8358888888888889 Meta:map[childContrast:67.54998149518622 contrast:192.08058555759385 depth:2 gridPosition:9 gridRect:map[maxX:100 maxY:23 minX:25 minY:0] normalizedPos:0.391304347826087 pixelTotal:700 span:map[end:1000 start:250] supportRatio:0.9155555555555556]} {Orientation:horizontal Position:230 Thickness:2 Score:0.8013160913919725 Source:grid-boundary Confidence:0.8359948274175917 Meta:map[childContrast:36.373066958946424 contrast:150.0648819677676 depth:0 gridPosition:23 gridRect:map[maxX:100 maxY:70 minX:0 minY:0] normalizedPos:0.32857142857142857 pixelTotal:700 span:map[end:1000 start:0] supportRatio:0.82]} {Orientation:horizontal Position:400 Thickness:2 Score:0.8001226552005333 Source:grid-boundary Confidence:0.82983679656016 Meta:map[childContrast:20.784609690826528 contrast:162.81277591147455 depth:1 gridPosition:40 gridRect:map[maxX:100 maxY:70 minX:0 minY:23] normalizedPos:0.3617021276595745 pixelTotal:700 span:map[end:1000 start:0] supportRatio:0.8099999999999999]} {Orientation:horizontal Position:490 Thickness:2 Score:0.759233211365005 Source:grid-boundary Confidence:0.8175699634095014 Meta:map[childContrast:12.12435565298214 contrast:171.12661978780514 depth:3 gridPosition:49 gridRect:map[maxX:100 maxY:59 minX:0 minY:40] normalizedPos:0.47368421052631576 pixelTotal:700 span:map[end:1000 start:0] supportRatio:0.8099999999999999]} {Orientation:horizontal Position:590 Thickness:2 Score:0.7632332113650048 Source:grid-boundary Confidence:0.8245699634095013 Meta:map[childContrast:8.660254037844387 contrast:156.25407685348037 depth:2 gridPosition:59 gridRect:map[maxX:100 maxY:70 minX:0 minY:40] normalizedPos:0.6333333333333333 pixelTotal:700 span:map[end:1000 start:0] supportRatio:0.82]}]
+2026/04/03 18:31:20 Saving screenshot to: /var/folders/mc/_33qrtwj55g7lfxy66vltx6w0000gn/T/TestBuildScreenshotResponsePathAndObject2343758779/001/shot.png
+2026/04/03 18:31:20 Saving screenshot to: /var/folders/mc/_33qrtwj55g7lfxy66vltx6w0000gn/T/TestBuildScreenshotResponsePathAndObject2343758779/001/shot-object.png
+2026/04/03 18:31:20 Saving screenshot to: /var/folders/mc/_33qrtwj55g7lfxy66vltx6w0000gn/T/testmonkey-screenshot-787394114.png
+FAIL
+FAIL	testMonkey-go/automation	1.169s
+FAIL

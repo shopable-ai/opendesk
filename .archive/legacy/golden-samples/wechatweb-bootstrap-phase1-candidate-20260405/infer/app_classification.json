@@ -1,0 +1,23 @@
+{
+  "appClass": "wechat-desktop",
+  "canProceed": true,
+  "confidence": 0.93,
+  "counterSignals": [],
+  "createdAt": "2026-04-05T21:01:28+08:00",
+  "decisionTrace": [
+    "layout_model.columns",
+    "semantic_zones",
+    "chat-page heuristics"
+  ],
+  "isBlockingPage": false,
+  "pageType": "wechat_chat_page",
+  "schemaVersion": "0.1.0",
+  "signals": [
+    "conversation_list detected",
+    "chat_header detected",
+    "message_list detected",
+    "input_area detected",
+    "narrow left navigation rail detected"
+  ],
+  "uncertainties": []
+}

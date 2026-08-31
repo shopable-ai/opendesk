@@ -113,7 +113,7 @@ Key outcomes:
 - V2 and Golden Gate rules merged into one canonical `gates-and-evidence.md`;
 - failure taxonomy and failure cases moved under quality;
 - reusable expert review / red-team material moved under `quality/review/`;
-- one-time review output moved to `artifacts/reports/reviews/`;
+- one-time review output moved to `docs/quality/review/`;
 - a reusable `blindspot-checklist.md` was extracted from the one-time blindspot audit;
 - browser automation test/evidence material moved under `quality/browser-automation/`.
 
@@ -146,7 +146,7 @@ docs/research/wechat/
 Historical test output moved to:
 
 ```text
-artifacts/reports/wechat/
+docs/quality/wechat/
 ```
 
 The reusable execution master prompt was reduced to a thin orchestration entrypoint and moved to:
@@ -176,7 +176,7 @@ Their useful historical result was consolidated into:
 Detailed test evidence lives under:
 
 ```text
-artifacts/reports/layout/
+docs/quality/layout/
 ```
 
 ### MCP
@@ -259,7 +259,8 @@ canonical project knowledge -> docs/<category>/
 user API                     -> docs-user-api/
 research                     -> docs/research/
 active plan                  -> docs/plans/
-reusable report/evidence     -> artifacts/reports/
+reusable test asset          -> owning test/**/fixtures/
+durable quality conclusion   -> docs/quality/<domain>/
 runtime output               -> .runtime/
 historical material          -> .archive/
 reusable prompt              -> prompts/

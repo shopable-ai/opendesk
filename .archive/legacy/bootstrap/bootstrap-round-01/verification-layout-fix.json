@@ -1,0 +1,26 @@
+{
+  "id": "bootstrap-round-01-layout-fix-verification",
+  "createdAt": "2026-04-03T18:32:25.233517+08:00",
+  "verifierType": "unit",
+  "command": "go test ./automation -run 'Test(ParseScreenshotOptions|BuildScreenshotResponse|ImageColorAnalyzeLayoutReturnsCoarseGenericSegmentation|LayoutWithTextNoise|VisionAnalyzeLayoutWithGenericHints)' -count=1",
+  "status": "pass",
+  "checks": [
+    {
+      "id": "automation-targeted-go-tests",
+      "result": "pass",
+      "severity": "high",
+      "detail": "Targeted automation baseline tests for screenshot/layout pipeline after F2 fix",
+      "evidence": "artifacts/bootstrap-round-01/go-test-layout-fix.log"
+    }
+  ],
+  "findings": [
+    {
+      "id": "layout-text-noise-regression-fixed",
+      "severity": "high",
+      "detail": "TestLayoutWithTextNoise now detects separators near x=80 and x=280 after clustered boundary candidate selection.",
+      "taxonomyId": "F2_LAYOUT_UNDERSEGMENTATION",
+      "disposition": "resolved-for-targeted-baseline"
+    }
+  ],
+  "summary": "Targeted baseline verification passed; primary text-noise undersegmentation blocker is cleared for Phase 2."
+}

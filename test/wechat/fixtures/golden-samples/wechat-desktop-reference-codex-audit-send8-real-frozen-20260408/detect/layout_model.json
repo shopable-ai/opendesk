@@ -1,0 +1,347 @@
+{
+  "appInference": {
+    "appClass": "wechat-desktop",
+    "canProceed": true,
+    "confidence": 0.93,
+    "counterSignals": [],
+    "createdAt": "2026-04-07T04:46:13+08:00",
+    "decisionTrace": [
+      "layout_model.columns",
+      "semantic_zones",
+      "chat-page heuristics"
+    ],
+    "isBlockingPage": false,
+    "pageType": "wechat_chat_page",
+    "schemaVersion": "0.1.0",
+    "signals": [
+      "conversation_list detected",
+      "chat_header detected",
+      "message_list detected",
+      "input_area detected",
+      "narrow left navigation rail detected"
+    ],
+    "uncertainties": []
+  },
+  "coarseActionability": {
+    "allowedActions": [
+      "open_chat",
+      "focus_input",
+      "read_reply"
+    ],
+    "blockedActions": [
+      "send_message"
+    ],
+    "canProceed": true,
+    "canSend": false
+  },
+  "createdAt": "2026-04-07T04:46:13+08:00",
+  "evidence": {
+    "regionCount": 4,
+    "separatorCounts": {
+      "horizontal": 1,
+      "vertical": 1
+    }
+  },
+  "notes": [
+    "structure-first inference generated from detect/regions.json",
+    "mirror/compare is auxiliary and not required for actionability gating"
+  ],
+  "runId": "codex-audit-send8-real",
+  "schemaVersion": "0.1.0",
+  "sourceImage": ".runtime/runs/codex-audit-send8-real/capture/source.png",
+  "structure": {
+    "boundaries": {
+      "horizontal": [
+        {
+          "confidence": 0.5402415126949992,
+          "meta": {
+            "childContrast": 6.4031242374328485,
+            "contrast": 49.73673031867185,
+            "depth": 1,
+            "gridPosition": 8,
+            "gridRect": {
+              "maxX": 8,
+              "maxY": 110,
+              "minX": 0,
+              "minY": 0
+            },
+            "normalizedPos": 0.07272727272727272,
+            "pixelTotal": 880,
+            "span": {
+              "end": 64,
+              "start": 0
+            },
+            "supportRatio": 0.5
+          },
+          "orientation": "horizontal",
+          "position": 64,
+          "score": 0.5578232072129317,
+          "source": "grid-boundary",
+          "thickness": 2
+        }
+      ],
+      "vertical": [
+        {
+          "confidence": 0.4507142925650536,
+          "meta": {
+            "childContrast": 8.246211251235321,
+            "contrast": 31.31755981059438,
+            "depth": 0,
+            "gridPosition": 8,
+            "gridRect": {
+              "maxX": 138,
+              "maxY": 110,
+              "minX": 0,
+              "minY": 0
+            },
+            "normalizedPos": 0.057971014492753624,
+            "pixelTotal": 1097,
+            "span": {
+              "end": 880,
+              "start": 0
+            },
+            "supportRatio": 0.4666666666666666
+          },
+          "orientation": "vertical",
+          "position": 64,
+          "score": 0.4261723096024322,
+          "source": "grid-boundary",
+          "thickness": 2
+        }
+      ]
+    },
+    "columnCount": 3,
+    "columnRatios": [
+      0.0656,
+      0.2005,
+      0.7338
+    ],
+    "columns": [
+      {
+        "id": "col_01",
+        "ratio": 0.0656,
+        "rows": [
+          {
+            "height": 64,
+            "id": "col_01_row_01",
+            "ratio": 0.0727,
+            "y": 0
+          },
+          {
+            "height": 56,
+            "id": "col_01_row_02",
+            "ratio": 0.0636,
+            "y": 64
+          },
+          {
+            "height": 760,
+            "id": "col_01_row_03",
+            "ratio": 0.8636,
+            "y": 120
+          }
+        ],
+        "width": 72,
+        "x": 0
+      },
+      {
+        "id": "col_02",
+        "ratio": 0.2005,
+        "rows": [
+          {
+            "height": 880,
+            "id": "col_02_row_01",
+            "ratio": 1,
+            "y": 0
+          }
+        ],
+        "width": 220,
+        "x": 72
+      },
+      {
+        "id": "col_03",
+        "ratio": 0.7338,
+        "rows": [
+          {
+            "height": 880,
+            "id": "col_03_row_01",
+            "ratio": 1,
+            "y": 0
+          }
+        ],
+        "width": 805,
+        "x": 292
+      }
+    ],
+    "majorZones": [
+      {
+        "backgroundColor": "#343434",
+        "bbox": {
+          "height": 880,
+          "width": 72,
+          "x": 0,
+          "y": 0
+        },
+        "confidence": 0.82,
+        "evidence": [
+          "narrow left rail detected"
+        ],
+        "height": 880,
+        "id": "left_nav",
+        "requiredForAction": [
+          "open_chat"
+        ],
+        "role": "nav_strip",
+        "source": "layout_rule",
+        "width": 72,
+        "x": 0,
+        "y": 0
+      },
+      {
+        "backgroundColor": "#ededed",
+        "bbox": {
+          "height": 880,
+          "width": 220,
+          "x": 72,
+          "y": 0
+        },
+        "confidence": 0.84,
+        "evidence": [
+          "conversation column inferred from major vertical split"
+        ],
+        "height": 880,
+        "id": "conversation_list",
+        "requiredForAction": [
+          "open_chat"
+        ],
+        "role": "chat_list",
+        "source": "layout_rule",
+        "width": 220,
+        "x": 72,
+        "y": 0
+      },
+      {
+        "backgroundColor": "#f5f5f5",
+        "bbox": {
+          "height": 60,
+          "width": 220,
+          "x": 72,
+          "y": 0
+        },
+        "confidence": 0.71,
+        "evidence": [
+          "top band of conversation list reserved for search"
+        ],
+        "height": 60,
+        "id": "search_area",
+        "requiredForAction": [
+          "open_chat"
+        ],
+        "role": "search_area",
+        "source": "layout_rule",
+        "width": 220,
+        "x": 72,
+        "y": 0
+      },
+      {
+        "backgroundColor": "#f9f9f9",
+        "bbox": {
+          "height": 52,
+          "width": 805,
+          "x": 292,
+          "y": 0
+        },
+        "confidence": 0.64,
+        "evidence": [
+          "single main row fallback split for header"
+        ],
+        "height": 52,
+        "id": "chat_header",
+        "requiredForAction": [
+          "verify_header"
+        ],
+        "role": "chat_header",
+        "source": "layout_rule",
+        "width": 805,
+        "x": 292,
+        "y": 0
+      },
+      {
+        "backgroundColor": "#ffffff",
+        "bbox": {
+          "height": 577,
+          "width": 805,
+          "x": 292,
+          "y": 52
+        },
+        "confidence": 0.72,
+        "evidence": [
+          "single main row fallback split for message list"
+        ],
+        "height": 577,
+        "id": "message_list",
+        "requiredForAction": [
+          "read_reply"
+        ],
+        "role": "message_list",
+        "source": "layout_rule",
+        "width": 805,
+        "x": 292,
+        "y": 52
+      },
+      {
+        "backgroundColor": "#f6f6f6",
+        "bbox": {
+          "height": 251,
+          "width": 805,
+          "x": 292,
+          "y": 629
+        },
+        "confidence": 0.67,
+        "evidence": [
+          "single main row fallback split for input area"
+        ],
+        "height": 251,
+        "id": "input_area",
+        "requiredForAction": [
+          "focus_input",
+          "input_message",
+          "send_message"
+        ],
+        "role": "input_area",
+        "source": "layout_rule",
+        "width": 805,
+        "x": 292,
+        "y": 629
+      },
+      {
+        "backgroundColor": "#f0f0f0",
+        "bbox": {
+          "height": 60,
+          "width": 805,
+          "x": 292,
+          "y": 629
+        },
+        "confidence": 0.72,
+        "evidence": [
+          "derived from top action band of input area"
+        ],
+        "height": 60,
+        "id": "send_action_zone",
+        "requiredForAction": [
+          "send_message"
+        ],
+        "role": "send_action_zone",
+        "source": "layout_rule",
+        "width": 805,
+        "x": 292,
+        "y": 629
+      }
+    ]
+  },
+  "window": {
+    "height": 880,
+    "width": 1097,
+    "x": 0,
+    "y": 0
+  }
+}

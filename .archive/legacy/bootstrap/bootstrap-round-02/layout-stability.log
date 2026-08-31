@@ -1,0 +1,3 @@
+# testMonkey-go/automation.test
+ld: warning: ignoring duplicate libraries: '-lobjc'
+ok  	testMonkey-go/automation	1.693s

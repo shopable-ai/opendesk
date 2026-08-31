@@ -37,7 +37,7 @@ known limitations
 目标位置：
 
 ```text
-artifacts/fixtures/wechat/<sample-id>/
+test/wechat/fixtures/golden-samples/<sample-id>/
 ```
 
 最初状态必须是 `candidate`。

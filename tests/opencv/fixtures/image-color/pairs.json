@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "description": "Deterministic color-block fixtures for Clawdesk ImageColor OpenCV template matching tests.",
+  "generatedBy": "go run ./cmd/generate-opencv-fixtures",
+  "requiredBackend": "opencv",
+  "source": {
+    "path": "tests/opencv/fixtures/image-color/scene_color_blocks.png",
+    "width": 320,
+    "height": 240
+  },
+  "colorSamples": [
+    {
+      "id": "red-panel-base",
+      "x": 29,
+      "y": 37,
+      "expected": "#e6283c"
+    },
+    {
+      "id": "green-panel-base",
+      "x": 133,
+      "y": 33,
+      "expected": "#23b95a"
+    },
+    {
+      "id": "blue-panel-base",
+      "x": 207,
+      "y": 137,
+      "expected": "#2d5fe1"
+    }
+  ],
+  "pairs": [
+    {
+      "id": "red-panel",
+      "description": "red block with yellow bar and white marker",
+      "templatePath": "tests/opencv/fixtures/image-color/template_red-panel.png",
+      "threshold": 0.995,
+      "expected": {
+        "found": true,
+        "x": 24,
+        "y": 32,
+        "width": 64,
+        "height": 48,
+        "minConfidence": 0.999
+      }
+    },
+    {
+      "id": "green-panel",
+      "description": "green block with cyan header and yellow marker",
+      "templatePath": "tests/opencv/fixtures/image-color/template_green-panel.png",
+      "threshold": 0.995,
+      "expected": {
+        "found": true,
+        "x": 128,
+        "y": 28,
+        "width": 72,
+        "height": 56,
+        "minConfidence": 0.999
+      }
+    },
+    {
+      "id": "blue-panel",
+      "description": "blue block with magenta rail and cyan marker",
+      "templatePath": "tests/opencv/fixtures/image-color/template_blue-panel.png",
+      "threshold": 0.995,
+      "expected": {
+        "found": true,
+        "x": 202,
+        "y": 132,
+        "width": 88,
+        "height": 64,
+        "minConfidence": 0.999
+      }
+    },
+    {
+      "id": "absent-pattern",
+      "description": "orange checker pattern that does not occur in the source image",
+      "templatePath": "tests/opencv/fixtures/image-color/template_absent.png",
+      "threshold": 0.995,
+      "expected": {
+        "found": false,
+        "x": -1,
+        "y": -1,
+        "width": 52,
+        "height": 44
+      }
+    }
+  ]
+}

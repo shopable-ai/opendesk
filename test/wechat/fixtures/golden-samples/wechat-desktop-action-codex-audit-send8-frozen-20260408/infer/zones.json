@@ -1,0 +1,419 @@
+{
+  "canProceed": true,
+  "createdAt": "2026-04-07T04:46:13+08:00",
+  "layoutSummary": {
+    "chat_header": {
+      "backgroundColor": "#f9f9f9",
+      "bbox": {
+        "height": 52,
+        "width": 805,
+        "x": 292,
+        "y": 0
+      },
+      "heightRatio": 0.0591,
+      "widthRatio": 0.7338
+    },
+    "conversation_list": {
+      "backgroundColor": "#ededed",
+      "bbox": {
+        "height": 880,
+        "width": 220,
+        "x": 72,
+        "y": 0
+      },
+      "heightRatio": 1,
+      "widthRatio": 0.2005
+    },
+    "input_area": {
+      "backgroundColor": "#f6f6f6",
+      "bbox": {
+        "height": 251,
+        "width": 805,
+        "x": 292,
+        "y": 629
+      },
+      "heightRatio": 0.2852,
+      "widthRatio": 0.7338
+    },
+    "left_nav": {
+      "backgroundColor": "#343434",
+      "bbox": {
+        "height": 880,
+        "width": 72,
+        "x": 0,
+        "y": 0
+      },
+      "heightRatio": 1,
+      "widthRatio": 0.0656
+    },
+    "message_list": {
+      "backgroundColor": "#ffffff",
+      "bbox": {
+        "height": 577,
+        "width": 805,
+        "x": 292,
+        "y": 52
+      },
+      "heightRatio": 0.6557,
+      "widthRatio": 0.7338
+    },
+    "search_area": {
+      "backgroundColor": "#f5f5f5",
+      "bbox": {
+        "height": 60,
+        "width": 220,
+        "x": 72,
+        "y": 0
+      },
+      "heightRatio": 0.0682,
+      "widthRatio": 0.2005
+    },
+    "send_action_zone": {
+      "backgroundColor": "#f0f0f0",
+      "bbox": {
+        "height": 60,
+        "width": 805,
+        "x": 292,
+        "y": 629
+      },
+      "heightRatio": 0.0682,
+      "widthRatio": 0.7338
+    },
+    "windowHeight": 880,
+    "windowWidth": 1097
+  },
+  "missingRequiredZones": [],
+  "overlapsOrConflicts": [],
+  "runId": "codex-audit-send8-real",
+  "schemaVersion": "0.1.0",
+  "zoneByID": {
+    "chat_header": {
+      "backgroundColor": "#f9f9f9",
+      "bbox": {
+        "height": 52,
+        "width": 805,
+        "x": 292,
+        "y": 0
+      },
+      "confidence": 0.64,
+      "evidence": [
+        "single main row fallback split for header"
+      ],
+      "height": 52,
+      "id": "chat_header",
+      "requiredForAction": [
+        "verify_header"
+      ],
+      "role": "chat_header",
+      "source": "layout_rule",
+      "width": 805,
+      "x": 292,
+      "y": 0
+    },
+    "conversation_list": {
+      "backgroundColor": "#ededed",
+      "bbox": {
+        "height": 880,
+        "width": 220,
+        "x": 72,
+        "y": 0
+      },
+      "confidence": 0.84,
+      "evidence": [
+        "conversation column inferred from major vertical split"
+      ],
+      "height": 880,
+      "id": "conversation_list",
+      "requiredForAction": [
+        "open_chat"
+      ],
+      "role": "chat_list",
+      "source": "layout_rule",
+      "width": 220,
+      "x": 72,
+      "y": 0
+    },
+    "input_area": {
+      "backgroundColor": "#f6f6f6",
+      "bbox": {
+        "height": 251,
+        "width": 805,
+        "x": 292,
+        "y": 629
+      },
+      "confidence": 0.67,
+      "evidence": [
+        "single main row fallback split for input area"
+      ],
+      "height": 251,
+      "id": "input_area",
+      "requiredForAction": [
+        "focus_input",
+        "input_message",
+        "send_message"
+      ],
+      "role": "input_area",
+      "source": "layout_rule",
+      "width": 805,
+      "x": 292,
+      "y": 629
+    },
+    "left_nav": {
+      "backgroundColor": "#343434",
+      "bbox": {
+        "height": 880,
+        "width": 72,
+        "x": 0,
+        "y": 0
+      },
+      "confidence": 0.82,
+      "evidence": [
+        "narrow left rail detected"
+      ],
+      "height": 880,
+      "id": "left_nav",
+      "requiredForAction": [
+        "open_chat"
+      ],
+      "role": "nav_strip",
+      "source": "layout_rule",
+      "width": 72,
+      "x": 0,
+      "y": 0
+    },
+    "message_list": {
+      "backgroundColor": "#ffffff",
+      "bbox": {
+        "height": 577,
+        "width": 805,
+        "x": 292,
+        "y": 52
+      },
+      "confidence": 0.72,
+      "evidence": [
+        "single main row fallback split for message list"
+      ],
+      "height": 577,
+      "id": "message_list",
+      "requiredForAction": [
+        "read_reply"
+      ],
+      "role": "message_list",
+      "source": "layout_rule",
+      "width": 805,
+      "x": 292,
+      "y": 52
+    },
+    "search_area": {
+      "backgroundColor": "#f5f5f5",
+      "bbox": {
+        "height": 60,
+        "width": 220,
+        "x": 72,
+        "y": 0
+      },
+      "confidence": 0.71,
+      "evidence": [
+        "top band of conversation list reserved for search"
+      ],
+      "height": 60,
+      "id": "search_area",
+      "requiredForAction": [
+        "open_chat"
+      ],
+      "role": "search_area",
+      "source": "layout_rule",
+      "width": 220,
+      "x": 72,
+      "y": 0
+    },
+    "send_action_zone": {
+      "backgroundColor": "#f0f0f0",
+      "bbox": {
+        "height": 60,
+        "width": 805,
+        "x": 292,
+        "y": 629
+      },
+      "confidence": 0.72,
+      "evidence": [
+        "derived from top action band of input area"
+      ],
+      "height": 60,
+      "id": "send_action_zone",
+      "requiredForAction": [
+        "send_message"
+      ],
+      "role": "send_action_zone",
+      "source": "layout_rule",
+      "width": 805,
+      "x": 292,
+      "y": 629
+    }
+  },
+  "zones": [
+    {
+      "backgroundColor": "#343434",
+      "bbox": {
+        "height": 880,
+        "width": 72,
+        "x": 0,
+        "y": 0
+      },
+      "confidence": 0.82,
+      "evidence": [
+        "narrow left rail detected"
+      ],
+      "height": 880,
+      "id": "left_nav",
+      "requiredForAction": [
+        "open_chat"
+      ],
+      "role": "nav_strip",
+      "source": "layout_rule",
+      "width": 72,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "backgroundColor": "#ededed",
+      "bbox": {
+        "height": 880,
+        "width": 220,
+        "x": 72,
+        "y": 0
+      },
+      "confidence": 0.84,
+      "evidence": [
+        "conversation column inferred from major vertical split"
+      ],
+      "height": 880,
+      "id": "conversation_list",
+      "requiredForAction": [
+        "open_chat"
+      ],
+      "role": "chat_list",
+      "source": "layout_rule",
+      "width": 220,
+      "x": 72,
+      "y": 0
+    },
+    {
+      "backgroundColor": "#f5f5f5",
+      "bbox": {
+        "height": 60,
+        "width": 220,
+        "x": 72,
+        "y": 0
+      },
+      "confidence": 0.71,
+      "evidence": [
+        "top band of conversation list reserved for search"
+      ],
+      "height": 60,
+      "id": "search_area",
+      "requiredForAction": [
+        "open_chat"
+      ],
+      "role": "search_area",
+      "source": "layout_rule",
+      "width": 220,
+      "x": 72,
+      "y": 0
+    },
+    {
+      "backgroundColor": "#f9f9f9",
+      "bbox": {
+        "height": 52,
+        "width": 805,
+        "x": 292,
+        "y": 0
+      },
+      "confidence": 0.64,
+      "evidence": [
+        "single main row fallback split for header"
+      ],
+      "height": 52,
+      "id": "chat_header",
+      "requiredForAction": [
+        "verify_header"
+      ],
+      "role": "chat_header",
+      "source": "layout_rule",
+      "width": 805,
+      "x": 292,
+      "y": 0
+    },
+    {
+      "backgroundColor": "#ffffff",
+      "bbox": {
+        "height": 577,
+        "width": 805,
+        "x": 292,
+        "y": 52
+      },
+      "confidence": 0.72,
+      "evidence": [
+        "single main row fallback split for message list"
+      ],
+      "height": 577,
+      "id": "message_list",
+      "requiredForAction": [
+        "read_reply"
+      ],
+      "role": "message_list",
+      "source": "layout_rule",
+      "width": 805,
+      "x": 292,
+      "y": 52
+    },
+    {
+      "backgroundColor": "#f6f6f6",
+      "bbox": {
+        "height": 251,
+        "width": 805,
+        "x": 292,
+        "y": 629
+      },
+      "confidence": 0.67,
+      "evidence": [
+        "single main row fallback split for input area"
+      ],
+      "height": 251,
+      "id": "input_area",
+      "requiredForAction": [
+        "focus_input",
+        "input_message",
+        "send_message"
+      ],
+      "role": "input_area",
+      "source": "layout_rule",
+      "width": 805,
+      "x": 292,
+      "y": 629
+    },
+    {
+      "backgroundColor": "#f0f0f0",
+      "bbox": {
+        "height": 60,
+        "width": 805,
+        "x": 292,
+        "y": 629
+      },
+      "confidence": 0.72,
+      "evidence": [
+        "derived from top action band of input area"
+      ],
+      "height": 60,
+      "id": "send_action_zone",
+      "requiredForAction": [
+        "send_message"
+      ],
+      "role": "send_action_zone",
+      "source": "layout_rule",
+      "width": 805,
+      "x": 292,
+      "y": 629
+    }
+  ]
+}

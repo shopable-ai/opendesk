@@ -1,0 +1,97 @@
+{
+  "schemaVersion": "0.1.0",
+  "baselineDir": ".runtime/runs/codex-audit-send8/desktop-baseline",
+  "runtimeDir": ".runtime/runs/codex-audit-send8/snapshot",
+  "summary": {
+    "comparePurpose": "action_gate",
+    "decisionKind": "pass",
+    "status": "pass",
+    "gateStatus": {
+      "goldenPassed": true,
+      "realScreenshotValidationPassed": true,
+      "actionStageAllowed": true,
+      "allowedActionStage": "focus_input",
+      "sendAllowed": false
+    },
+    "allowActions": true,
+    "allowProbes": true,
+    "sourceKindMismatch": false,
+    "blockingReasons": [
+      "send safety gate not passed; send remains frozen"
+    ],
+    "allowedActionStage": "focus_input",
+    "scoreBreakdown": {
+      "structural": 1,
+      "semantic": 1,
+      "capture": 1,
+      "guard": 1
+    },
+    "hardGates": [
+      {
+        "id": "HG0_runtime_preflight",
+        "status": "pass",
+        "evidenceStrength": "strong",
+        "reason": ""
+      },
+      {
+        "id": "HG1_source_kind_compatible",
+        "status": "pass",
+        "evidenceStrength": "strong",
+        "reason": ""
+      },
+      {
+        "id": "HG2_required_zones_present",
+        "status": "pass",
+        "evidenceStrength": "strong",
+        "reason": ""
+      },
+      {
+        "id": "HG3_required_intents_present",
+        "status": "pass",
+        "evidenceStrength": "strong",
+        "reason": ""
+      },
+      {
+        "id": "HG4_required_capture_refs_present",
+        "status": "pass",
+        "evidenceStrength": "medium",
+        "reason": "capture refs available"
+      },
+      {
+        "id": "HG5_critical_guards_present",
+        "status": "pass",
+        "evidenceStrength": "strong",
+        "reason": ""
+      },
+      {
+        "id": "HG6_same_window_and_freshness",
+        "status": "pass",
+        "evidenceStrength": "strong",
+        "reason": ""
+      },
+      {
+        "id": "HG7_send_still_frozen_or_explicitly_allowed",
+        "status": "pass",
+        "evidenceStrength": "strong",
+        "reason": "send explicitly frozen"
+      }
+    ],
+    "repairHints": [
+      {
+        "problem": "send remains frozen",
+        "repairLayer": "send_safety",
+        "nextAction": "do not promote send; require dedicated send gate",
+        "disposition": "stop"
+      }
+    ]
+  },
+  "gateStatus": {
+    "goldenPassed": true,
+    "realScreenshotValidationPassed": true,
+    "actionStageAllowed": true,
+    "allowedActionStage": "focus_input",
+    "sendAllowed": false
+  },
+  "structuralReport": ".runtime/runs/codex-audit-send8/action-gate-compare/structural_report.json",
+  "semanticReport": ".runtime/runs/codex-audit-send8/action-gate-compare/semantic_report.json"
+}

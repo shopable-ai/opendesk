@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "0.2.0",
+  "sampleId": "wechat-desktop-action-codex-audit-send8-frozen-20260408",
+  "reviewer": "codex",
+  "reviewedAt": "2026-04-08T00:30:00+08:00",
+  "decision": "approved_for_frozen_desktop_action",
+  "notes": [
+    "desktop_action frozen sample generated from codex-audit-send8",
+    "allowActions=True",
+    "sendAllowed=false"
+  ]
+}

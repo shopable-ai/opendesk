@@ -1,0 +1,11 @@
+{
+  "status": "open",
+  "items": [
+    {
+      "id": "F3_GOLDEN_SAMPLE_REGISTRY_SKIPPED",
+      "severity": "high",
+      "summary": "Execution summary moved forward before candidate golden sample was registered under artifacts/golden-samples.",
+      "repair": "Register candidate sample first; do not claim later-phase progress until registry exists."
+    }
+  ]
+}

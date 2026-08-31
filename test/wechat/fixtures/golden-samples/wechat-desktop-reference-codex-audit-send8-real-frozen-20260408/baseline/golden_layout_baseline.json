@@ -1,0 +1,339 @@
+{
+  "schemaVersion": "0.2.0",
+  "baselineType": "golden_layout",
+  "baselineTier": "desktop_reference",
+  "baselineId": "codex-audit-send8-real-desktop-reference",
+  "sourceKind": "desktop_reference",
+  "sourceRunDir": ".runtime/runs/codex-audit-send8-real",
+  "sourceRunId": "codex-audit-send8-real",
+  "screen": {
+    "width": 1097,
+    "height": 880
+  },
+  "zones": [
+    {
+      "id": "left_nav",
+      "role": "nav_strip",
+      "bbox": {
+        "height": 880,
+        "width": 72,
+        "x": 0,
+        "y": 0
+      },
+      "bboxRatio": {
+        "x": 0,
+        "y": 0,
+        "width": 0.0656,
+        "height": 1
+      },
+      "backgroundColor": "#343434",
+      "confidence": 0.82,
+      "requiredForAction": [
+        "open_chat"
+      ],
+      "evidence": [
+        "narrow left rail detected"
+      ]
+    },
+    {
+      "id": "conversation_list",
+      "role": "chat_list",
+      "bbox": {
+        "height": 880,
+        "width": 220,
+        "x": 72,
+        "y": 0
+      },
+      "bboxRatio": {
+        "x": 0.0656,
+        "y": 0,
+        "width": 0.2005,
+        "height": 1
+      },
+      "backgroundColor": "#ededed",
+      "confidence": 0.84,
+      "requiredForAction": [
+        "open_chat"
+      ],
+      "evidence": [
+        "conversation column inferred from major vertical split"
+      ]
+    },
+    {
+      "id": "search_area",
+      "role": "search_area",
+      "bbox": {
+        "height": 60,
+        "width": 220,
+        "x": 72,
+        "y": 0
+      },
+      "bboxRatio": {
+        "x": 0.0656,
+        "y": 0,
+        "width": 0.2005,
+        "height": 0.0682
+      },
+      "backgroundColor": "#f5f5f5",
+      "confidence": 0.71,
+      "requiredForAction": [
+        "open_chat"
+      ],
+      "evidence": [
+        "top band of conversation list reserved for search"
+      ]
+    },
+    {
+      "id": "chat_header",
+      "role": "chat_header",
+      "bbox": {
+        "height": 52,
+        "width": 805,
+        "x": 292,
+        "y": 0
+      },
+      "bboxRatio": {
+        "x": 0.2662,
+        "y": 0,
+        "width": 0.7338,
+        "height": 0.0591
+      },
+      "backgroundColor": "#f9f9f9",
+      "confidence": 0.64,
+      "requiredForAction": [
+        "verify_header"
+      ],
+      "evidence": [
+        "single main row fallback split for header"
+      ]
+    },
+    {
+      "id": "message_list",
+      "role": "message_list",
+      "bbox": {
+        "height": 577,
+        "width": 805,
+        "x": 292,
+        "y": 52
+      },
+      "bboxRatio": {
+        "x": 0.2662,
+        "y": 0.0591,
+        "width": 0.7338,
+        "height": 0.6557
+      },
+      "backgroundColor": "#ffffff",
+      "confidence": 0.72,
+      "requiredForAction": [
+        "read_reply"
+      ],
+      "evidence": [
+        "single main row fallback split for message list"
+      ]
+    },
+    {
+      "id": "input_area",
+      "role": "input_area",
+      "bbox": {
+        "height": 251,
+        "width": 805,
+        "x": 292,
+        "y": 629
+      },
+      "bboxRatio": {
+        "x": 0.2662,
+        "y": 0.7148,
+        "width": 0.7338,
+        "height": 0.2852
+      },
+      "backgroundColor": "#f6f6f6",
+      "confidence": 0.67,
+      "requiredForAction": [
+        "focus_input",
+        "input_message",
+        "send_message"
+      ],
+      "evidence": [
+        "single main row fallback split for input area"
+      ]
+    },
+    {
+      "id": "send_action_zone",
+      "role": "send_action_zone",
+      "bbox": {
+        "height": 60,
+        "width": 805,
+        "x": 292,
+        "y": 629
+      },
+      "bboxRatio": {
+        "x": 0.2662,
+        "y": 0.7148,
+        "width": 0.7338,
+        "height": 0.0682
+      },
+      "backgroundColor": "#f0f0f0",
+      "confidence": 0.72,
+      "requiredForAction": [
+        "send_message"
+      ],
+      "evidence": [
+        "derived from top action band of input area"
+      ]
+    }
+  ],
+  "sampleId": "wechat-desktop-reference-codex-audit-send8-real-frozen-20260408",
+  "status": "frozen",
+  "window": {
+    "width": 1097,
+    "height": 880,
+    "titleHint": "WeChat",
+    "geometryHash": "wechat-main-1097x880-v1",
+    "scaleFactor": 2
+  },
+  "criticalZones": [
+    "search_area",
+    "conversation_list",
+    "chat_header",
+    "message_list",
+    "input_area",
+    "send_action_zone"
+  ],
+  "topology": {
+    "columns": [
+      "left_nav",
+      "conversation_list",
+      "main_panel"
+    ],
+    "mainPanelRows": [
+      "chat_header",
+      "message_list",
+      "input_area"
+    ]
+  },
+  "compareHints": {
+    "decorativeZones": [],
+    "actionCriticalZones": [
+      "search_area",
+      "conversation_list",
+      "chat_header",
+      "input_area",
+      "send_action_zone"
+    ],
+    "referenceOnly": true
+  },
+  "captureRefs": [
+    {
+      "id": "search_capture",
+      "zoneId": "search_area",
+      "precision": "high",
+      "bboxRatio": {
+        "x": 0.0656,
+        "y": 0,
+        "width": 0.2005,
+        "height": 0.0682
+      },
+      "searchWindowRatio": {
+        "x": 0.0656,
+        "y": 0,
+        "width": 0.2005,
+        "height": 0.0682
+      },
+      "referenceImagePath": "",
+      "visualFingerprint": {
+        "avgColor": "#f5f5f5",
+        "iconHints": [
+          "search-icon"
+        ]
+      }
+    },
+    {
+      "id": "conversation_capture",
+      "zoneId": "conversation_list",
+      "precision": "high",
+      "bboxRatio": {
+        "x": 0.0656,
+        "y": 0,
+        "width": 0.2005,
+        "height": 1
+      },
+      "searchWindowRatio": {
+        "x": 0.0656,
+        "y": 0,
+        "width": 0.2005,
+        "height": 1
+      },
+      "referenceImagePath": "",
+      "visualFingerprint": {
+        "avgColor": "#ededed",
+        "iconHints": []
+      }
+    },
+    {
+      "id": "header_capture",
+      "zoneId": "chat_header",
+      "precision": "high",
+      "bboxRatio": {
+        "x": 0.2662,
+        "y": 0,
+        "width": 0.7338,
+        "height": 0.0591
+      },
+      "searchWindowRatio": {
+        "x": 0.2662,
+        "y": 0,
+        "width": 0.7338,
+        "height": 0.0591
+      },
+      "referenceImagePath": "",
+      "visualFingerprint": {
+        "avgColor": "#f9f9f9",
+        "iconHints": []
+      }
+    },
+    {
+      "id": "input_capture",
+      "zoneId": "input_area",
+      "precision": "high",
+      "bboxRatio": {
+        "x": 0.2662,
+        "y": 0.7148,
+        "width": 0.7338,
+        "height": 0.2852
+      },
+      "searchWindowRatio": {
+        "x": 0.2662,
+        "y": 0.7148,
+        "width": 0.7338,
+        "height": 0.2852
+      },
+      "referenceImagePath": "",
+      "visualFingerprint": {
+        "avgColor": "#f6f6f6",
+        "iconHints": []
+      }
+    },
+    {
+      "id": "send_capture",
+      "zoneId": "send_action_zone",
+      "precision": "high",
+      "bboxRatio": {
+        "x": 0.2662,
+        "y": 0.7148,
+        "width": 0.7338,
+        "height": 0.0682
+      },
+      "searchWindowRatio": {
+        "x": 0.2662,
+        "y": 0.7148,
+        "width": 0.7338,
+        "height": 0.0682
+      },
+      "referenceImagePath": "",
+      "visualFingerprint": {
+        "avgColor": "#f0f0f0",
+        "iconHints": []
+      }
+    }
+  ]
+}

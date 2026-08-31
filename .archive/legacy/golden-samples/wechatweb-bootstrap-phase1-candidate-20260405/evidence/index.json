@@ -1,0 +1,33 @@
+{
+  "status": "candidate",
+  "available": [
+    "capture/source.png",
+    "detect/regions.json",
+    "detect/layout_model.json",
+    "infer/app_classification.json",
+    "infer/zones.json",
+    "infer/action_targets.json",
+    "infer/ocr_map.json",
+    "infer/semantic_model.json",
+    "mirror/layout.html",
+    "mirror/semantic.html",
+    "mirror/dom_validation_report.json",
+    "verify/actionability_report.json",
+    "evidence/decision.from_run.json",
+    "evidence/audit.from_run.ndjson"
+  ],
+  "missingRequiredForFullGoldenSample": [
+    "infer/chat_candidates.json",
+    "compare/report.json",
+    "compare/diff.png",
+    "verify/send_safety_report.json",
+    "checkpoints/current_state.json",
+    "replay/replay_case.json",
+    "replay/replay_result.json",
+    "replay/state_transition_log.json"
+  ],
+  "notes": [
+    "This is a repaired registry copy after user reported that golden sample had not been saved to the designated directory first.",
+    "Do not treat this sample as frozen or phase2-ready."
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "id": "bootstrap-round-01-next-step-plan",
+  "createdAt": "2026-04-03T18:33:50.013407+08:00",
+  "steps": [
+    {
+      "priority": 0,
+      "title": "修复 detect/mirror fidelity，降低 compare diff ratio",
+      "why": "当前 compare gate 失败（pixelDiffRatio=0.3521），未通过 gate 前不得进入消息发送/回复链路"
+    },
+    {
+      "priority": 1,
+      "title": "把 ocrText 从空串基线升级为 best-effort OCR 回填",
+      "why": "后续找对话与回复链路需要文本辅助，不能长期停留在纯 layout baseline"
+    },
+    {
+      "priority": 2,
+      "title": "收敛 majorDeviationRegions",
+      "why": "compare 报告已给出主要偏差区域，下一步应围绕这些区域做修正迭代"
+    },
+    {
+      "priority": 3,
+      "title": "补 golden/replay 样本",
+      "why": "回归门禁与后续纠偏依赖稳定样本"
+    },
+    {
+      "priority": 4,
+      "title": "轻量 dashboard bootstrap",
+      "why": "需要查看 run evidence / failures / compare 结果，为人工调节提供入口"
+    },
+    {
+      "priority": 5,
+      "title": "在 gate 通过后再进入发送/恢复链路",
+      "why": "避免未验证识别结果直接驱动高风险动作"
+    }
+  ]
+}

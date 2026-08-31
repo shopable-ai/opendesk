@@ -1,0 +1,20 @@
+{
+  "id": "bootstrap-round-01-round-decision-update",
+  "createdAt": "2026-04-03T18:32:25.233517+08:00",
+  "decision": "continue",
+  "rationale": [
+    "Primary blocker TestLayoutWithTextNoise is fixed and targeted baseline gate now passes.",
+    "Phase 2 run-id artifact bundle generator is implemented and smoke-verified.",
+    "Broader mixed-content undersegmentation is recorded as an open non-hard-gate issue for the next iteration."
+  ],
+  "stopConditions": [
+    "preflight fail for a concrete run",
+    "detect contract cannot emit regions.json with required fields",
+    "same mixed-content blocker persists for two more iterations without new evidence"
+  ],
+  "escalationConditions": [
+    "toolbar/header undersegmentation spreads to real WeChat screenshots",
+    "run bundle cannot be replayed due to missing preflight or decision artifacts"
+  ],
+  "nextStep": "Phase 3: implement capture -> detect -> regions.json on top of the new run bundle skeleton"
+}

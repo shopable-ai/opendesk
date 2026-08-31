@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-04-05",
+  "sourceUrls": {
+    "repo": "https://github.com/RookieMasterrr/WeChatWeb",
+    "demo": "https://rookiemasterrr.github.io/WeChatWeb/"
+  },
+  "license": {
+    "status": "unconfirmed"
+  },
+  "storage": {
+    "repoCache": ".runtime/cache/external/wechatweb/20260405/repo",
+    "demoCache": ".runtime/cache/external/wechatweb/20260405/demo",
+    "includedInRepository": false
+  },
+  "viewport": {
+    "width": 1440,
+    "height": 960
+  },
+  "role": "bootstrap reference only"
+}

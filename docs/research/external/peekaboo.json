@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "peekaboo",
+  "capturedAt": "2026-05-19",
+  "sourceKind": "repo_reference",
+  "source": {
+    "url": "https://github.com/openclaw/Peekaboo.git",
+    "commit": "96a165d7f2ec776784d4fa3fb5db1f6f17256733"
+  },
+  "license": {
+    "status": "confirmed",
+    "spdx": "MIT",
+    "evidence": "docs/research/external/peekaboo-LICENSE"
+  },
+  "storage": {
+    "policy": "local-cache-only",
+    "localCache": ".runtime/cache/external/peekaboo/96a165d7f2ec776784d4fa3fb5db1f6f17256733/source",
+    "includedInRepository": false
+  },
+  "role": "reference project for macOS automation, MCP tool surface, and action-first UI interaction design"
+}

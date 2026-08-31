@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "0.2.0",
+  "sampleId": "wechat-desktop-action-codex-audit-send8-frozen-20260408",
+  "sourceRunId": "codex-audit-send8",
+  "paths": {
+    "sourceProvenance": "source/provenance.json",
+    "layoutBaseline": "baseline/golden_layout_baseline.json",
+    "semanticBaseline": "baseline/golden_semantic_baseline.json",
+    "captureContract": "verify/capture_contract.json",
+    "actionability": "verify/actionability_report.json",
+    "sendSafety": "verify/send_safety_report.json",
+    "compareSummary": "compare/summary_report.json",
+    "humanReview": "evidence/human_review_summary.json"
+  }
+}

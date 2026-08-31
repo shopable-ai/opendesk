@@ -77,10 +77,9 @@ Preferred steady-state shape:
   config/
   tests/
   dist/
-  artifacts/
-    fixtures/
-    external/
-    reports/
+  test/<domain>/fixtures/
+  docs/quality/<domain>/
+  docs/research/external/
   prompts/
   .runtime/
     runs/
@@ -100,7 +99,9 @@ Preferred steady-state shape:
 
 Notes:
 
-- `artifacts/` is for reusable or intentionally preserved assets/evidence.
+- Reusable assets live under the owning `test/<domain>/fixtures/` directory.
+- Durable quality conclusions live under `docs/quality/<domain>/`.
+- External provenance manifests live under `docs/research/external/`.
 - `.runtime/` is for disposable execution output.
 - `.dev/` is for local environment/tooling state.
 - `.archive/` is for historically valuable superseded material, not a generic dump zone.
@@ -155,13 +156,13 @@ Examples:
 - classified subtrees under `docs/`
 - `docs-user-api/` for user API facts
 
-### 2. Reusable asset or evidence
+### 2. Domain-owned test asset or evidence
 
 Examples:
 
-- `artifacts/fixtures/`
-- `artifacts/external/`
-- `artifacts/reports/`
+- `tests/<domain>/fixtures/`
+- `test/<domain>/fixtures/`
+- `docs/quality/<domain>/`
 
 ### 3. Runtime output
 
@@ -282,28 +283,28 @@ Objective:
 Strong candidates:
 
 ```text
-artifacts/mcp-smoke/              -> .runtime/smoke/mcp/
-artifacts/preflight/              -> .runtime/preflight/
-artifacts/browser-stack-http-smoke/ -> .runtime/smoke/browser-stack-http/
-artifacts/browser_stack_finish/   -> .runtime/debug/browser_stack_finish/
+legacy generated paths           -> .runtime/smoke/ or .runtime/debug/
 temp/mac/                         -> .runtime/temp/mac/
 temp/e2e/                         -> .runtime/temp/e2e/
 ```
 
-Do not move `artifacts/runs/` until implementation, docs, configs and replay references are patched together.
+Do not move `.runtime/runs/` until implementation, docs, configs and replay references are patched together.
 
-### Phase 4: Reusable-artifact normalization
+### Phase 4: Domain ownership normalization
 
 Objective:
 
-- make `artifacts/` mean reusable/preserved assets only.
+- remove the generic `artifacts/` namespace and place every maintained asset with its owner.
 
 Preferred normalization:
 
 ```text
-artifacts/golden-samples/
-artifacts/golden_samples/
-    -> artifacts/fixtures/golden-samples/
+tests/opencv/fixtures/image-color/
+    -> tests/opencv/fixtures/image-color/
+test/wechat/fixtures/golden-samples/
+    -> test/wechat/fixtures/golden-samples/
+docs/quality/<domain>/
+    -> docs/quality/<domain>/
 ```
 
 Review other artifact subtrees individually before moving them.
@@ -426,6 +427,7 @@ The refactor is successful when:
 - `docs-user-api/` remains the sole user API documentation root;
 - there is one current Source of Truth per engineering topic;
 - prompts, reports and runtime output no longer compete with canonical docs;
-- `artifacts/` contains reusable/preserved assets rather than generic run residue;
+- no generic `artifacts/` directory remains;
+- every maintained test asset has an owning test directory;
 - new files have an obvious lifecycle destination;
 - repository searches find no live references to removed paths.

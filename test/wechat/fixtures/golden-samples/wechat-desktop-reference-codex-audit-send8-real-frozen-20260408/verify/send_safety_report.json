@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "0.2.0",
+  "runId": "codex-audit-send8-real",
+  "allowed": false,
+  "mustStop": true,
+  "score": 0.0,
+  "summary": "send remains explicitly frozen",
+  "blockingRisks": [
+    "missing dedicated runtime send evidence"
+  ],
+  "requiredExtraEvidence": [
+    "target chat verified",
+    "draft verified",
+    "send path verified",
+    "post-send verifier ready"
+  ]
+}

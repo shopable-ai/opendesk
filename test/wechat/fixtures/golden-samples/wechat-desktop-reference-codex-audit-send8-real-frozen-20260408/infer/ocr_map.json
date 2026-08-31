@@ -1,0 +1,129 @@
+{
+  "createdAt": "2026-04-07T04:46:13+08:00",
+  "notSafeFor": [
+    "whole-window reply verification"
+  ],
+  "ocrConflicts": [],
+  "schemaVersion": "0.1.0",
+  "summary": "zone-aware OCR plan generated for header, conversation candidates, draft input, and reply readback",
+  "textAnchors": [
+    {
+      "bbox": {
+        "height": 192,
+        "width": 805,
+        "x": 292,
+        "y": 437
+      },
+      "expectedUse": "latest_reply_readback",
+      "id": "latest_reply_probe",
+      "intent": "read_reply"
+    },
+    {
+      "bbox": {
+        "height": 97,
+        "width": 220,
+        "x": 72,
+        "y": 120
+      },
+      "expectedUse": "target_name_disambiguation",
+      "id": "conversation_row_01",
+      "intent": "open_chat"
+    },
+    {
+      "bbox": {
+        "height": 97,
+        "width": 220,
+        "x": 72,
+        "y": 120
+      },
+      "expectedUse": "target_name_disambiguation",
+      "id": "conversation_row_02",
+      "intent": "open_chat"
+    },
+    {
+      "bbox": {
+        "height": 97,
+        "width": 220,
+        "x": 72,
+        "y": 217
+      },
+      "expectedUse": "target_name_disambiguation",
+      "id": "conversation_row_03",
+      "intent": "open_chat"
+    },
+    {
+      "bbox": {
+        "height": 97,
+        "width": 220,
+        "x": 72,
+        "y": 314
+      },
+      "expectedUse": "target_name_disambiguation",
+      "id": "conversation_row_04",
+      "intent": "open_chat"
+    },
+    {
+      "bbox": {
+        "height": 97,
+        "width": 220,
+        "x": 72,
+        "y": 411
+      },
+      "expectedUse": "target_name_disambiguation",
+      "id": "conversation_row_05",
+      "intent": "open_chat"
+    },
+    {
+      "bbox": {
+        "height": 97,
+        "width": 220,
+        "x": 72,
+        "y": 508
+      },
+      "expectedUse": "target_name_disambiguation",
+      "id": "conversation_row_06",
+      "intent": "open_chat"
+    }
+  ],
+  "usableFor": [
+    "open_chat",
+    "verify_header",
+    "verify_draft",
+    "read_reply"
+  ],
+  "zoneBindings": [
+    {
+      "bbox": {
+        "height": 52,
+        "width": 805,
+        "x": 292,
+        "y": 0
+      },
+      "id": "header_identity",
+      "intent": "verify_header",
+      "zoneId": "chat_header"
+    },
+    {
+      "bbox": {
+        "height": 251,
+        "width": 805,
+        "x": 292,
+        "y": 629
+      },
+      "id": "draft_input",
+      "intent": "verify_draft",
+      "zoneId": "input_area"
+    },
+    {
+      "bbox": {
+        "height": 577,
+        "width": 805,
+        "x": 292,
+        "y": 52
+      },
+      "id": "message_list_local",
+      "intent": "read_reply",
+      "zoneId": "message_list"
+    }
+  ]
+}

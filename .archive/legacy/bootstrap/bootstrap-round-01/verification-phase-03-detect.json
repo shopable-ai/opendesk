@@ -1,0 +1,33 @@
+{
+  "id": "bootstrap-round-01-phase-03-detect-verification",
+  "createdAt": "2026-04-03T18:39:37.945679+08:00",
+  "verifierType": "smoke",
+  "command": "go test ./pkg/visionrun -count=1 && go run ./cmd/visionrun --run-id round-01-detect-smoke --source-image wechat_quick_test.png --goal 'capture -> detect -> mirror -> compare'",
+  "status": "pass",
+  "checks": [
+    {
+      "id": "pkg-visionrun-detect-tests",
+      "result": "pass",
+      "severity": "high",
+      "detail": "pkg/visionrun tests cover run bundle + detect contract smoke",
+      "evidence": "artifacts/bootstrap-round-01/phase-03-detect.log"
+    },
+    {
+      "id": "detect-contract-smoke",
+      "result": "pass",
+      "severity": "high",
+      "detail": "round-01-detect-smoke generated capture/source.png, detect/regions.json, detect/annotated.png, and updated decision.json",
+      "evidence": "artifacts/runs/round-01-detect-smoke/"
+    }
+  ],
+  "findings": [
+    {
+      "id": "minimal-detect-contract-ready",
+      "severity": "high",
+      "detail": "regions.json includes id, role, bbox, avgColor, ocrText placeholder, confidence, separators, and detector metadata.",
+      "taxonomyId": "F3_SCHEMA_INCOMPLETE",
+      "disposition": "prevented"
+    }
+  ],
+  "summary": "Phase 3 minimal detect contract is operational on top of the run bundle skeleton."
+}

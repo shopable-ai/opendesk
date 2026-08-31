@@ -1,0 +1,724 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WeChat UI Static Sample</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%2395ec69'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="./assets/icon/iconfont.css">
+  <style>
+    :root {
+      --sidebar-bg: #dddddd;
+      --friendbar-bg: #f6f6f6;
+      --panel-bg: #f1f1f1;
+      --border: #dedede;
+      --text-main: #181818;
+      --text-subtle: #9b9b9b;
+      --search-bg: #eaeaea;
+      --bubble-me: #95ec69;
+      --bubble-other: #ffffff;
+      --icon: #7d7d7d;
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: var(--font);
+      color: var(--text-main);
+      background: #ffffff;
+    }
+
+    button,
+    input,
+    textarea {
+      font: inherit;
+    }
+
+    .app {
+      display: flex;
+      width: 100%;
+      height: 100vh;
+      min-height: 720px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .sidebar {
+      width: 60px;
+      background: var(--sidebar-bg);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0 28px;
+      flex: 0 0 60px;
+    }
+
+    .sidebar-top,
+    .sidebar-bottom {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .sidebar-top {
+      gap: 0;
+      flex: 1;
+    }
+
+    .sidebar-bottom {
+      gap: 20px;
+    }
+
+    .window-controls {
+      display: flex;
+      gap: 5px;
+      margin-bottom: 26px;
+      padding-top: 3px;
+    }
+
+    .window-controls span {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      display: block;
+    }
+
+    .window-controls .red { background: #ed695e; }
+    .window-controls .yellow { background: #f4bf4e; }
+    .window-controls .green { background: #61c454; }
+
+    .profile-avatar,
+    .avatar {
+      display: grid;
+      place-items: center;
+      color: #fff;
+      font-weight: 600;
+      user-select: none;
+    }
+
+    .profile-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 6px;
+      margin-top: 45px;
+      overflow: hidden;
+    }
+
+    .profile-avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 5px;
+      display: block;
+    }
+
+    .nav-up,
+    .nav-down {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .nav-up {
+      margin-top: 25px;
+    }
+
+    .side-icon {
+      width: 30px;
+      height: 30px;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--icon);
+      display: grid;
+      place-items: center;
+      font-size: 19px;
+      line-height: 1;
+      cursor: default;
+      padding: 0;
+      transition: transform 0.2s ease;
+    }
+
+    .side-icon:hover {
+      transform: scale(1.12);
+    }
+
+    .side-icon .iconfont {
+      font-size: 28px;
+      color: gray;
+      line-height: 1;
+    }
+
+    .side-icon.active .iconfont {
+      color: #4a4a4a;
+    }
+
+    .side-icon.icon-image img {
+      width: 100%;
+      height: 85%;
+      object-fit: contain;
+      display: block;
+    }
+
+    .friendbar {
+      width: 288px;
+      background: var(--friendbar-bg);
+      border-right: 1px solid #e5e5e5;
+      display: flex;
+      flex-direction: column;
+      flex: 0 0 288px;
+      min-width: 0;
+    }
+
+    .friendbar-header {
+      height: 60px;
+      padding: 0 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 0 0 60px;
+    }
+
+    .search-wrap {
+      position: relative;
+      flex: 1;
+    }
+
+    .search-wrap input {
+      width: 100%;
+      height: 28px;
+      border: 0;
+      border-radius: 4px;
+      outline: none;
+      padding: 0 10px 0 22px;
+      background: var(--search-bg);
+      background-image: url("./assets/search.svg");
+      background-size: 12px 12px;
+      background-position: 6px 8px;
+      background-repeat: no-repeat;
+      color: #575757;
+      font-size: 12px;
+    }
+
+    .search-icon {
+      display: none;
+    }
+
+    .plus-btn {
+      width: 28px;
+      height: 28px;
+      border: 0;
+      border-radius: 4px;
+      background: var(--search-bg);
+      color: #888;
+      font-size: 20px;
+      line-height: 1;
+      cursor: default;
+      padding: 0;
+    }
+
+    .plus-btn .iconfont {
+      color: gray;
+      font-size: 20px;
+      line-height: 1;
+    }
+
+    .record-list,
+    .chat-history,
+    .composer textarea {
+      overflow: auto;
+      scrollbar-width: none;
+    }
+
+    .record-list::-webkit-scrollbar,
+    .chat-history::-webkit-scrollbar,
+    .composer textarea::-webkit-scrollbar {
+      display: none;
+    }
+
+    .record-list {
+      flex: 1;
+      padding-bottom: 12px;
+    }
+
+    .record {
+      min-height: 66px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 14px 0 12px;
+      background: var(--friendbar-bg);
+    }
+
+    .record.selected {
+      background: #eaeaea;
+    }
+
+    .record-avatar {
+      width: 38px;
+      height: 38px;
+      border-radius: 8px;
+      font-size: 12px;
+      flex: 0 0 38px;
+    }
+
+    .avatar-a { background: linear-gradient(135deg, #6394ff, #7ac7ff); }
+    .avatar-b { background: linear-gradient(135deg, #60b36d, #87d46c); }
+    .avatar-c { background: linear-gradient(135deg, #ff9b60, #ffbc66); }
+    .avatar-d { background: linear-gradient(135deg, #a97cff, #d58dff); }
+    .avatar-e { background: linear-gradient(135deg, #f56b8a, #ff9b92); }
+    .avatar-f { background: linear-gradient(135deg, #4eb3b3, #7ad7d7); }
+
+    .record-body {
+      min-width: 0;
+      flex: 1;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-rows: auto auto;
+      column-gap: 8px;
+      align-items: center;
+    }
+
+    .record-title,
+    .record-message {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .record-title {
+      font-size: 13px;
+      color: var(--text-main);
+    }
+
+    .record-time {
+      font-size: 10px;
+      color: var(--text-subtle);
+    }
+
+    .record-message {
+      grid-column: 1 / 3;
+      margin-top: 4px;
+      font-size: 11px;
+      color: var(--text-subtle);
+    }
+
+    .chat-panel {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      background: var(--panel-bg);
+      border-left: 1px solid var(--border);
+    }
+
+    .chat-header {
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px 0 20px;
+      border-bottom: 1px solid var(--border);
+      flex: 0 0 60px;
+    }
+
+    .chat-name {
+      font-size: 15px;
+      font-weight: 600;
+    }
+
+    .more-btn {
+      border: 0;
+      background: transparent;
+      color: #555;
+      line-height: 1;
+      padding: 0;
+      cursor: default;
+    }
+
+    .more-btn .iconfont {
+      font-size: 22px;
+      color: #555;
+      line-height: 1;
+    }
+
+    .chat-history {
+      flex: 1;
+      padding: 10px 14px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .time-divider {
+      text-align: center;
+      color: var(--text-subtle);
+      font-size: 12px;
+      margin: 2px 0 14px;
+    }
+
+    .message-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin: 13px 0;
+    }
+
+    .message-row.outgoing {
+      justify-content: flex-end;
+    }
+
+    .message-row.outgoing .message-avatar {
+      order: 2;
+    }
+
+    .message-row.outgoing .bubble-wrap {
+      order: 1;
+    }
+
+    .message-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 4px;
+      font-size: 11px;
+      flex: 0 0 32px;
+    }
+
+    .bubble-wrap {
+      max-width: min(56%, 520px);
+    }
+
+    .bubble-name {
+      font-size: 12px;
+      color: var(--text-subtle);
+      margin-bottom: 6px;
+    }
+
+    .bubble {
+      position: relative;
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-size: 14px;
+      line-height: 1.55;
+      word-break: break-word;
+    }
+
+    .incoming .bubble {
+      background: var(--bubble-other);
+    }
+
+    .incoming .bubble::before {
+      content: "";
+      position: absolute;
+      left: -12px;
+      top: 12px;
+      border: 6px solid transparent;
+      border-right-color: var(--bubble-other);
+    }
+
+    .outgoing .bubble {
+      background: var(--bubble-me);
+    }
+
+    .outgoing .bubble::after {
+      content: "";
+      position: absolute;
+      right: -12px;
+      top: 12px;
+      border: 6px solid transparent;
+      border-left-color: var(--bubble-me);
+    }
+
+    .composer {
+      height: 286px;
+      display: flex;
+      flex-direction: column;
+      flex: 0 0 286px;
+    }
+
+    .tools {
+      height: 60px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 0 14px;
+      color: var(--icon);
+      flex: 0 0 60px;
+    }
+
+    .tool {
+      font-size: 20px;
+      line-height: 1;
+      user-select: none;
+    }
+
+    .tool.spacer {
+      margin-left: auto;
+      font-size: 24px;
+    }
+
+    .tool .iconfont {
+      color: gray;
+      line-height: 1;
+    }
+
+    .tool.small .iconfont {
+      font-size: 10px;
+      font-weight: bolder;
+    }
+
+    .tool.big .iconfont {
+      font-size: 30px;
+    }
+
+    .composer textarea {
+      flex: 1;
+      width: 100%;
+      border: 0;
+      outline: none;
+      resize: none;
+      background: var(--panel-bg);
+      color: #333;
+      padding: 0 18px 18px;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    @media (max-width: 960px) {
+      .friendbar {
+        width: 260px;
+        flex-basis: 260px;
+      }
+
+      .bubble-wrap {
+        max-width: 70%;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .app {
+        flex-wrap: wrap;
+        min-height: 100vh;
+      }
+
+      .friendbar {
+        flex: 1 0 300px;
+        height: 45vh;
+      }
+
+      .chat-panel {
+        flex: 1 0 100%;
+        height: 55vh;
+      }
+
+      .composer {
+        height: 220px;
+        flex-basis: 220px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="sidebar-top">
+        <div class="window-controls" aria-hidden="true">
+          <span class="red"></span>
+          <span class="yellow"></span>
+          <span class="green"></span>
+        </div>
+        <div class="profile-avatar"><img src="./assets/dog.jpg" alt="头像"></div>
+        <div class="nav-up">
+          <button class="side-icon icon-image active" aria-label="聊天"><img src="./assets/pop2.svg" alt=""></button>
+          <button class="side-icon" aria-label="联系人"><span class="iconfont">&#xf0226;</span></button>
+          <button class="side-icon" aria-label="收藏"><span class="iconfont">&#xe609;</span></button>
+          <button class="side-icon" aria-label="文件"><span class="iconfont">&#xe7e0;</span></button>
+          <button class="side-icon" aria-label="朋友圈"><span class="iconfont">&#xe635;</span></button>
+          <button class="side-icon" aria-label="视频号"><span class="iconfont">&#xe6dd;</span></button>
+          <button class="side-icon" aria-label="看一看"><span class="iconfont">&#xe6a2;</span></button>
+          <button class="side-icon" aria-label="搜一搜"><span class="iconfont">&#xe516;</span></button>
+        </div>
+      </div>
+      <div class="sidebar-bottom">
+        <div class="nav-down">
+          <button class="side-icon" aria-label="小程序"><span class="iconfont">&#xe619;</span></button>
+          <button class="side-icon" aria-label="手机"><span class="iconfont">&#xeb4d;</span></button>
+          <button class="side-icon" aria-label="菜单"><span class="iconfont">&#xe60c;</span></button>
+        </div>
+      </div>
+    </aside>
+
+    <section class="friendbar">
+      <header class="friendbar-header">
+        <label class="search-wrap">
+          <span class="search-icon">⌕</span>
+          <input type="text" placeholder="搜索" value="">
+        </label>
+        <button class="plus-btn" aria-label="添加"><span class="iconfont">&#xe8fe;</span></button>
+      </header>
+
+      <div class="record-list">
+        <article class="record">
+          <div class="avatar record-avatar avatar-a">练</div>
+          <div class="record-body">
+            <div class="record-title">前端布局练习群</div>
+            <div class="record-time">15:57</div>
+            <div class="record-message">静态样本已整理完成，后续可直接复用。</div>
+          </div>
+        </article>
+        <article class="record">
+          <div class="avatar record-avatar avatar-b">设</div>
+          <div class="record-body">
+            <div class="record-title">产品设计同步</div>
+            <div class="record-time">15:42</div>
+            <div class="record-message">先确认界面层级，再看局部组件细节。</div>
+          </div>
+        </article>
+        <article class="record">
+          <div class="avatar record-avatar avatar-c">项</div>
+          <div class="record-body">
+            <div class="record-title">项目样本库</div>
+            <div class="record-time">14:30</div>
+            <div class="record-message">建议优先保留单文件 HTML 版本。</div>
+          </div>
+        </article>
+        <article class="record selected">
+          <div class="avatar record-avatar avatar-d">U</div>
+          <div class="record-body">
+            <div class="record-title">uu</div>
+            <div class="record-time">13:21</div>
+            <div class="record-message">当前聊天窗口展示的是桌面端微信样式。</div>
+          </div>
+        </article>
+        <article class="record">
+          <div class="avatar record-avatar avatar-e">A</div>
+          <div class="record-body">
+            <div class="record-title">视觉参考 A</div>
+            <div class="record-time">12:48</div>
+            <div class="record-message">保留结构关系，去掉不必要的业务信息。</div>
+          </div>
+        </article>
+        <article class="record">
+          <div class="avatar record-avatar avatar-f">B</div>
+          <div class="record-body">
+            <div class="record-title">视觉参考 B</div>
+            <div class="record-time">11:05</div>
+            <div class="record-message">头像与图标已替换为轻量占位内容。</div>
+          </div>
+        </article>
+        <article class="record">
+          <div class="avatar record-avatar avatar-a">组</div>
+          <div class="record-body">
+            <div class="record-title">通用组件讨论组</div>
+            <div class="record-time">昨天</div>
+            <div class="record-message">如果只是样本，不必读取整个 Vue 工程。</div>
+          </div>
+        </article>
+        <article class="record">
+          <div class="avatar record-avatar avatar-b">样</div>
+          <div class="record-body">
+            <div class="record-title">样本清洗</div>
+            <div class="record-time">昨天</div>
+            <div class="record-message">应尽量减少与任务无关的上下文噪音。</div>
+          </div>
+        </article>
+        <article class="record">
+          <div class="avatar record-avatar avatar-c">代</div>
+          <div class="record-body">
+            <div class="record-title">代码抽取记录</div>
+            <div class="record-time">周五</div>
+            <div class="record-message">入口、骨架、主区域通常足够说明 UI。</div>
+          </div>
+        </article>
+        <article class="record">
+          <div class="avatar record-avatar avatar-d">静</div>
+          <div class="record-body">
+            <div class="record-title">静态归档</div>
+            <div class="record-time">周四</div>
+            <div class="record-message">单文件样本适合浏览、喂给 Agent、快速复刻。</div>
+          </div>
+        </article>
+        <article class="record">
+          <div class="avatar record-avatar avatar-e">版</div>
+          <div class="record-body">
+            <div class="record-title">版本记录</div>
+            <div class="record-time">周三</div>
+            <div class="record-message">这个列表只保留布局意义，不保留业务依赖。</div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <main class="chat-panel">
+      <header class="chat-header">
+        <div class="chat-name">uu</div>
+        <button class="more-btn" aria-label="更多"><span class="iconfont">&#xf0170;</span></button>
+      </header>
+
+      <section class="chat-history">
+        <div class="time-divider">16:40</div>
+
+        <article class="message-row incoming">
+          <div class="avatar message-avatar avatar-a">F</div>
+          <div class="bubble-wrap">
+            <div class="bubble-name">+F</div>
+            <div class="bubble">你好，这个版本已经从 Vue 结构里提取成静态样本了，后面只需要看这个 HTML 文件就能理解整体布局。</div>
+          </div>
+        </article>
+
+        <article class="message-row outgoing">
+          <div class="avatar message-avatar avatar-d">U</div>
+          <div class="bubble-wrap">
+            <div class="bubble">明白，目标是保留微信桌面端的三栏布局、聊天气泡和输入区，同时尽量减少构建依赖和无关信息。</div>
+          </div>
+        </article>
+
+        <article class="message-row outgoing">
+          <div class="avatar message-avatar avatar-d">U</div>
+          <div class="bubble-wrap">
+            <div class="bubble">这样后续无论是交给 Agent 做视觉参考，还是人工快速查看，都比继续带着整套 Vue 工程更轻量。</div>
+          </div>
+        </article>
+
+        <div class="time-divider">16:42</div>
+
+        <article class="message-row outgoing">
+          <div class="avatar message-avatar avatar-d">U</div>
+          <div class="bubble-wrap">
+            <div class="bubble">图标和头像已经换成轻量占位内容，避免外链资源和字体依赖影响展示稳定性。</div>
+          </div>
+        </article>
+
+        <article class="message-row incoming">
+          <div class="avatar message-avatar avatar-a">F</div>
+          <div class="bubble-wrap">
+            <div class="bubble-name">+F</div>
+            <div class="bubble">如果之后你要把它再接入某个真实项目，可以基于这个静态样本继续拆组件，而不是反过来恢复整套原始依赖。</div>
+          </div>
+        </article>
+
+        <article class="message-row outgoing">
+          <div class="avatar message-avatar avatar-d">U</div>
+          <div class="bubble-wrap">
+            <div class="bubble">好的，这样更适合做样本、归档和上下文输入。</div>
+          </div>
+        </article>
+      </section>
+
+      <section class="composer">
+        <div class="tools" aria-hidden="true">
+          <span class="tool"><span class="iconfont">&#xe625;</span></span>
+          <span class="tool"><span class="iconfont">&#xe7e0;</span></span>
+          <span class="tool"><span class="iconfont">&#xe675;</span></span>
+          <span class="tool small"><span class="iconfont">&#xe65e;</span></span>
+          <span class="tool spacer big"><span class="iconfont">&#xe93e;</span></span>
+          <span class="tool"><span class="iconfont">&#xe8da;</span></span>
+        </div>
+        <textarea placeholder="输入消息内容（静态样本，无交互逻辑）"></textarea>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

@@ -1,0 +1,76 @@
+{
+  "sampleId": "wechatweb-demo-20260405",
+  "externalEvidence": [
+    {
+      "kind": "remote_html",
+      "path": "artifacts/external/wechatweb-ref-20260405/demo/index.remote.html"
+    },
+    {
+      "kind": "runtime_dom",
+      "path": "artifacts/external/wechatweb-ref-20260405/demo/runtime-desktop-1440x960.html"
+    },
+    {
+      "kind": "screenshot",
+      "path": "artifacts/external/wechatweb-ref-20260405/demo/demo-desktop-1440x960.png"
+    },
+    {
+      "kind": "avatar_urls",
+      "path": "artifacts/external/wechatweb-ref-20260405/demo/avatar_urls.json"
+    },
+    {
+      "kind": "repo_clone",
+      "path": "artifacts/external/wechatweb-ref-20260405/repo"
+    }
+  ],
+  "notes": "Promoted run bundle paths will be appended after execution.",
+  "proxyVerification": {
+    "selectedProxy": "http://127.0.0.1:1087",
+    "verifiedOn": "2026-04-05"
+  },
+  "runEvidence": [
+    {
+      "kind": "run_bundle",
+      "path": "artifacts/runs/gs-wechatweb-demo-20260405-phase1"
+    },
+    {
+      "kind": "phase1_output",
+      "path": "artifacts/golden_samples/wechatweb-demo-20260405/gs-wechatweb-demo-20260405-phase1.phase1.output.json"
+    },
+    {
+      "kind": "compare_output",
+      "path": "artifacts/golden_samples/wechatweb-demo-20260405/gs-wechatweb-demo-20260405-phase1.compare.output.json"
+    },
+    {
+      "kind": "semantic_model",
+      "path": "artifacts/runs/gs-wechatweb-demo-20260405-phase1/infer/semantic_model.json"
+    },
+    {
+      "kind": "layout_html",
+      "path": "artifacts/runs/gs-wechatweb-demo-20260405-phase1/mirror/layout.html"
+    },
+    {
+      "kind": "semantic_html",
+      "path": "artifacts/runs/gs-wechatweb-demo-20260405-phase1/mirror/semantic.html"
+    },
+    {
+      "kind": "dom_validation",
+      "path": "artifacts/runs/gs-wechatweb-demo-20260405-phase1/mirror/dom_validation_report.json"
+    },
+    {
+      "kind": "compare_report",
+      "path": "artifacts/runs/gs-wechatweb-demo-20260405-phase1/compare/report.json"
+    },
+    {
+      "kind": "compare_diff",
+      "path": "artifacts/runs/gs-wechatweb-demo-20260405-phase1/compare/diff.png"
+    },
+    {
+      "kind": "checkpoint",
+      "path": "artifacts/runs/gs-wechatweb-demo-20260405-phase1/checkpoints/current_state.json"
+    },
+    {
+      "kind": "replay_result",
+      "path": "artifacts/runs/gs-wechatweb-demo-20260405-phase1/replay/replay_result.json"
+    }
+  ]
+}

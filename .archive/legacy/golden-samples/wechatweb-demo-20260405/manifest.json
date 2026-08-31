@@ -1,0 +1,38 @@
+{
+  "sampleId": "wechatweb-demo-20260405",
+  "sampleClass": "web-demo",
+  "status": "executed-repair-needed",
+  "reviewStatus": "phase1-complete-awaiting-phase2-repair",
+  "sourceKind": "proxied-remote-html+runtime-dom+repo-clone",
+  "sourcePaths": [
+    "artifacts/external/wechatweb-ref-20260405/demo/index.remote.html",
+    "artifacts/external/wechatweb-ref-20260405/demo/runtime-desktop-1440x960.html",
+    "artifacts/external/wechatweb-ref-20260405/demo/demo-desktop-1440x960.png",
+    "artifacts/external/wechatweb-ref-20260405/repo"
+  ],
+  "promotedFromRunId": null,
+  "requiredArtifacts": [
+    "capture/source.png",
+    "detect/regions.json",
+    "detect/layout_model.json",
+    "infer/app_classification.json",
+    "infer/zones.json",
+    "infer/action_targets.json",
+    "infer/chat_candidates.json",
+    "infer/semantic_model.json",
+    "mirror/layout.html",
+    "mirror/semantic.html",
+    "mirror/dom_validation_report.json",
+    "compare/report.json",
+    "compare/diff.png",
+    "verify/actionability_report.json",
+    "verify/send_safety_report.json",
+    "checkpoints/current_state.json",
+    "replay/replay_result.json",
+    "replay/state_transition_log.json"
+  ],
+  "decisionReason": "Phase 1 and compare completed; sample is not promoted because selected row/header/draft evidence is incomplete and send safety remains blocked.",
+  "supersedes": [],
+  "latestRunId": "gs-wechatweb-demo-20260405-phase1",
+  "latestRunBaseDir": "artifacts/runs/gs-wechatweb-demo-20260405-phase1"
+}

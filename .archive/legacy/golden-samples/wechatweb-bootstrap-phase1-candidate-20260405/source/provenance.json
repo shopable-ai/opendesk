@@ -1,0 +1,10 @@
+{
+  "kind": "web_reference",
+  "sourceUrls": {
+    "repo": "https://github.com/RookieMasterrr/WeChatWeb",
+    "demo": "https://rookiemasterrr.github.io/WeChatWeb/"
+  },
+  "proxy": "http://127.0.0.1:1087",
+  "capturedFromRun": "gs-20260405-codex-phase1-wechatweb-ref",
+  "note": "Bootstrap reference only; not a real WeChat frozen golden sample."
+}

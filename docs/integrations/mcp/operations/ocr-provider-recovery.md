@@ -148,7 +148,7 @@ tm_inspect_desktop
 若形成可复用验证结论：
 
 ```text
-artifacts/reports/mcp/
+docs/quality/mcp/
 ```
 
 更新当前行为说明时再修改 integration / testing docs，不把一次性恢复日志写回本 Runbook。

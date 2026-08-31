@@ -1,0 +1,12 @@
+{
+  "sourceLabel": "WeChatWeb demo via local proxy",
+  "selectedProxy": "http://127.0.0.1:1087",
+  "storageRecommendation": "artifacts/external/wechatweb-ref-20260405/",
+  "immutableSourcePaths": [
+    "artifacts/external/wechatweb-ref-20260405/demo/index.remote.html",
+    "artifacts/external/wechatweb-ref-20260405/demo/runtime-desktop-1440x960.html",
+    "artifacts/external/wechatweb-ref-20260405/demo/demo-desktop-1440x960.png",
+    "artifacts/external/wechatweb-ref-20260405/repo"
+  ],
+  "notes": "External source remains immutable; all derived artifacts live under artifacts/runs/<run-id>/."
+}

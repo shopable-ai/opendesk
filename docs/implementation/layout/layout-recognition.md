@@ -1,6 +1,6 @@
 # Layout Recognition
 
-本文件描述 Clawdesk 当前桌面窗口布局识别实现。实现事实以 `automation/image_layout.go` 和当前测试为最终依据；历史实验数据保存在 `artifacts/reports/layout/`，研究过程保存在 `docs/research/layout/`。
+本文件描述 Clawdesk 当前桌面窗口布局识别实现。实现事实以 `automation/image_layout.go` 和当前测试为最终依据；正式质量报告保存在 `docs/quality/layout/`，研究过程保存在 `docs/research/layout/`。
 
 ## 当前实现
 
@@ -148,10 +148,10 @@ go test ./automation
 历史验证与实验结果：
 
 ```text
-artifacts/reports/layout/algorithm-validation-report.md
-artifacts/reports/layout/progressive-test-results.md
-artifacts/reports/layout/real-app-test-results.md
-artifacts/reports/layout/layout-improvement-results.md
+docs/quality/layout/algorithm-validation-report.md
+docs/quality/layout/progressive-test-results.md
+docs/quality/layout/real-app-test-results.md
+docs/quality/layout/layout-improvement-results.md
 ```
 
 历史结果是实验快照，不覆盖当前源码事实。

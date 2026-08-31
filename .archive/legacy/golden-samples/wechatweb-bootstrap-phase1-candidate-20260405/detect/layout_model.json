@@ -1,0 +1,341 @@
+{
+  "appInference": {
+    "appClass": "wechat-desktop",
+    "canProceed": true,
+    "confidence": 0.93,
+    "counterSignals": [],
+    "createdAt": "2026-04-05T21:01:28+08:00",
+    "decisionTrace": [
+      "layout_model.columns",
+      "semantic_zones",
+      "chat-page heuristics"
+    ],
+    "isBlockingPage": false,
+    "pageType": "wechat_chat_page",
+    "schemaVersion": "0.1.0",
+    "signals": [
+      "conversation_list detected",
+      "chat_header detected",
+      "message_list detected",
+      "input_area detected",
+      "narrow left navigation rail detected"
+    ],
+    "uncertainties": []
+  },
+  "createdAt": "2026-04-05T21:01:28+08:00",
+  "evidence": {
+    "regionCount": 13,
+    "separatorCounts": {
+      "horizontal": 4,
+      "vertical": 3
+    }
+  },
+  "notes": [
+    "structure-first inference generated from detect/regions.json",
+    "mirror/compare is auxiliary and not required for actionability gating"
+  ],
+  "runId": "gs-20260405-codex-phase1-wechatweb-ref",
+  "schemaVersion": "0.1.0",
+  "sourceImage": "artifacts/runs/gs-20260405-codex-phase1-wechatweb-ref/capture/source.png",
+  "structure": {
+    "columnCount": 4,
+    "columns": [
+      {
+        "id": "col_01",
+        "ratio": 0.0444,
+        "rows": [
+          {
+            "height": 72,
+            "id": "col_01_row_01",
+            "ratio": 0.075,
+            "y": 0
+          },
+          {
+            "height": 136,
+            "id": "col_01_row_02",
+            "ratio": 0.1417,
+            "y": 72
+          },
+          {
+            "height": 104,
+            "id": "col_01_row_03",
+            "ratio": 0.1083,
+            "y": 208
+          },
+          {
+            "height": 32,
+            "id": "col_01_row_04",
+            "ratio": 0.0333,
+            "y": 312
+          },
+          {
+            "height": 616,
+            "id": "col_01_row_05",
+            "ratio": 0.6417,
+            "y": 344
+          }
+        ],
+        "width": 64,
+        "x": 0
+      },
+      {
+        "id": "col_02",
+        "ratio": 0.5944,
+        "rows": [
+          {
+            "height": 208,
+            "id": "col_02_row_01",
+            "ratio": 0.2167,
+            "y": 0
+          },
+          {
+            "height": 104,
+            "id": "col_02_row_02",
+            "ratio": 0.1083,
+            "y": 208
+          },
+          {
+            "height": 160,
+            "id": "col_02_row_03",
+            "ratio": 0.1667,
+            "y": 312
+          },
+          {
+            "height": 488,
+            "id": "col_02_row_04",
+            "ratio": 0.5083,
+            "y": 472
+          }
+        ],
+        "width": 856,
+        "x": 64
+      },
+      {
+        "id": "col_03",
+        "ratio": 0.3333,
+        "rows": [
+          {
+            "height": 208,
+            "id": "col_03_row_01",
+            "ratio": 0.2167,
+            "y": 0
+          },
+          {
+            "height": 104,
+            "id": "col_03_row_02",
+            "ratio": 0.1083,
+            "y": 208
+          },
+          {
+            "height": 160,
+            "id": "col_03_row_03",
+            "ratio": 0.1667,
+            "y": 312
+          },
+          {
+            "height": 488,
+            "id": "col_03_row_04",
+            "ratio": 0.5083,
+            "y": 472
+          }
+        ],
+        "width": 480,
+        "x": 920
+      },
+      {
+        "id": "col_04",
+        "ratio": 0.0278,
+        "rows": [
+          {
+            "height": 208,
+            "id": "col_04_row_01",
+            "ratio": 0.2167,
+            "y": 0
+          },
+          {
+            "height": 104,
+            "id": "col_04_row_02",
+            "ratio": 0.1083,
+            "y": 208
+          },
+          {
+            "height": 160,
+            "id": "col_04_row_03",
+            "ratio": 0.1667,
+            "y": 312
+          },
+          {
+            "height": 488,
+            "id": "col_04_row_04",
+            "ratio": 0.5083,
+            "y": 472
+          }
+        ],
+        "width": 40,
+        "x": 1400
+      }
+    ],
+    "majorZones": [
+      {
+        "bbox": {
+          "height": 960,
+          "width": 64,
+          "x": 0,
+          "y": 0
+        },
+        "confidence": 0.82,
+        "evidence": [
+          "narrow left rail detected"
+        ],
+        "height": 960,
+        "id": "left_nav",
+        "requiredForAction": [
+          "open_chat"
+        ],
+        "role": "nav_strip",
+        "source": "layout_rule",
+        "width": 64,
+        "x": 0,
+        "y": 0
+      },
+      {
+        "bbox": {
+          "height": 960,
+          "width": 856,
+          "x": 64,
+          "y": 0
+        },
+        "confidence": 0.84,
+        "evidence": [
+          "conversation column inferred from major vertical split"
+        ],
+        "height": 960,
+        "id": "conversation_list",
+        "requiredForAction": [
+          "open_chat"
+        ],
+        "role": "chat_list",
+        "source": "layout_rule",
+        "width": 856,
+        "x": 64,
+        "y": 0
+      },
+      {
+        "bbox": {
+          "height": 208,
+          "width": 480,
+          "x": 920,
+          "y": 0
+        },
+        "confidence": 0.79,
+        "evidence": [
+          "top row of main column inferred as header"
+        ],
+        "height": 208,
+        "id": "chat_header",
+        "requiredForAction": [
+          "verify_header"
+        ],
+        "role": "chat_header",
+        "source": "layout_rule",
+        "width": 480,
+        "x": 920,
+        "y": 0
+      },
+      {
+        "bbox": {
+          "height": 264,
+          "width": 480,
+          "x": 920,
+          "y": 208
+        },
+        "confidence": 0.83,
+        "evidence": [
+          "middle area of main column inferred as message list"
+        ],
+        "height": 264,
+        "id": "message_list",
+        "requiredForAction": [
+          "read_reply"
+        ],
+        "role": "message_list",
+        "source": "layout_rule",
+        "width": 480,
+        "x": 920,
+        "y": 208
+      },
+      {
+        "bbox": {
+          "height": 488,
+          "width": 480,
+          "x": 920,
+          "y": 472
+        },
+        "confidence": 0.65,
+        "evidence": [
+          "fallback bottom row promoted to input area"
+        ],
+        "height": 488,
+        "id": "input_area",
+        "requiredForAction": [
+          "focus_input",
+          "input_message",
+          "send_message"
+        ],
+        "role": "input_area",
+        "source": "layout_rule",
+        "width": 480,
+        "x": 920,
+        "y": 472
+      },
+      {
+        "bbox": {
+          "height": 488,
+          "width": 96,
+          "x": 1304,
+          "y": 472
+        },
+        "confidence": 0.63,
+        "evidence": [
+          "derived from right side of input area"
+        ],
+        "height": 488,
+        "id": "send_action_zone",
+        "requiredForAction": [
+          "send_message"
+        ],
+        "role": "send_action_zone",
+        "source": "layout_rule",
+        "width": 96,
+        "x": 1304,
+        "y": 472
+      },
+      {
+        "bbox": {
+          "height": 960,
+          "width": 40,
+          "x": 1400,
+          "y": 0
+        },
+        "confidence": 0.58,
+        "evidence": [
+          "trailing columns merged as auxiliary panel"
+        ],
+        "height": 960,
+        "id": "detail_panel",
+        "requiredForAction": [],
+        "role": "aux_panel",
+        "source": "layout_rule",
+        "width": 40,
+        "x": 1400,
+        "y": 0
+      }
+    ]
+  },
+  "window": {
+    "height": 960,
+    "width": 1440,
+    "x": 0,
+    "y": 0
+  }
+}

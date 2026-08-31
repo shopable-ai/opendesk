@@ -1,0 +1,121 @@
+{
+  "allowedActions": [
+    "open_chat",
+    "focus_input",
+    "read_reply"
+  ],
+  "blockedActions": [
+    "send_message"
+  ],
+  "canProceed": true,
+  "canSend": false,
+  "createdAt": "2026-04-07T04:46:13+08:00",
+  "currentPage": "wechat_chat_page",
+  "reports": [
+    {
+      "action": "open_chat",
+      "allowed": true,
+      "evidence": [
+        "chat_candidates.json",
+        "ocr_probe_results.json"
+      ],
+      "postconditionsExpected": [
+        "header switches to target identity"
+      ],
+      "preconditionsFailed": [],
+      "preconditionsPassed": [
+        "conversation_list zone present"
+      ],
+      "reason": "conversation list has 5 OCR-ranked row candidates",
+      "recommendedFallback": "refine OCR row candidates",
+      "requiredExtraEvidence": [
+        "target chat name matching against desired target"
+      ],
+      "riskLevel": "medium",
+      "score": 0.91
+    },
+    {
+      "action": "focus_input",
+      "allowed": true,
+      "evidence": [
+        "evidence/ocr/ocr_probe_results.json"
+      ],
+      "postconditionsExpected": [
+        "draft text visible in input area"
+      ],
+      "preconditionsFailed": [],
+      "preconditionsPassed": [
+        "pageType is wechat_chat_page",
+        "input_area present",
+        "draft_input OCR probe available"
+      ],
+      "reason": "input area OCR probe executed",
+      "recommendedFallback": "retry center-of-input hotspot",
+      "requiredExtraEvidence": [
+        "focus confirmation evidence"
+      ],
+      "riskLevel": "medium",
+      "score": 0.9
+    },
+    {
+      "action": "read_reply",
+      "allowed": true,
+      "evidence": [
+        "evidence/ocr/ocr_probe_results.json"
+      ],
+      "postconditionsExpected": [
+        "reply text extracted from local message list OCR"
+      ],
+      "preconditionsFailed": [],
+      "preconditionsPassed": [
+        "message_list present",
+        "latest_reply_probe OCR available"
+      ],
+      "reason": "latest reply OCR probe executed",
+      "recommendedFallback": "crop latest message region",
+      "requiredExtraEvidence": [
+        "latest message crop evidence"
+      ],
+      "riskLevel": "low",
+      "score": 0.84
+    },
+    {
+      "action": "send_message",
+      "allowed": false,
+      "evidence": [
+        "evidence/ocr/ocr_probe_results.json",
+        "infer/chat_candidates.json",
+        "verify/post_send_probe_plan.json",
+        "verify/pre_send_baseline.json"
+      ],
+      "postconditionsExpected": [
+        "draft clears",
+        "self message appears in message list"
+      ],
+      "preconditionsFailed": [
+        "target-specific identity match is still missing",
+        "send remains blocked until post-send verification is actually executed"
+      ],
+      "preconditionsPassed": [
+        "send target zone inferred",
+        "header identity OCR available",
+        "draft text OCR available",
+        "post-send verification plan exists",
+        "pre-send baseline exists"
+      ],
+      "reason": "send gate now has OCR evidence, pre-send baseline, and post-send plan, but execution stays blocked until post-send verification runs on a real send",
+      "recommendedFallback": "stop before send and gather more evidence",
+      "requiredExtraEvidence": [
+        "post-send self-bubble verification execution"
+      ],
+      "riskLevel": "high",
+      "score": 0.66
+    }
+  ],
+  "schemaVersion": "0.1.0",
+  "status": "warn",
+  "summary": "actionability refreshed with OCR probes and chat candidates; send remains blocked",
+  "targetCount": 4,
+  "updatedAt": "2026-04-07T04:46:19+08:00",
+  "zoneCount": 7
+}

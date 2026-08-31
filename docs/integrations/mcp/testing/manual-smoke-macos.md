@@ -1,6 +1,6 @@
 # MCP Manual Smoke on macOS
 
-本手册验证 Clawdesk MCP 在真实 macOS 环境中的最小可用链路。它不保存某次运行日志；具体历史结果应进入 `artifacts/reports/mcp/`。
+本手册验证 Clawdesk MCP 在真实 macOS 环境中的最小可用链路。它不保存某次运行日志；原始结果进入 `.runtime/runs/<run-id>/`，确认后的长期结论进入 `docs/quality/mcp/`。
 
 ## 1. 构建
 
@@ -254,7 +254,7 @@ artifacts / screenshots / logs
 长期有价值的结果存入：
 
 ```text
-artifacts/reports/mcp/<date>-<topic>.md
+docs/quality/mcp/<date>-<topic>.md
 ```
 
 运行期原始输出进入：

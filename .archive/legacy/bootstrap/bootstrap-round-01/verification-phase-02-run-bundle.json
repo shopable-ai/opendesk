@@ -1,0 +1,24 @@
+{
+  "id": "bootstrap-round-01-phase-02-run-bundle-verification",
+  "createdAt": "2026-04-03T18:32:25.233517+08:00",
+  "verifierType": "smoke",
+  "command": "go test ./pkg/visionrun -count=1 && go run ./cmd/visionrun --run-id round-01-bundle-smoke --goal 'capture -> detect -> mirror -> compare'",
+  "status": "pass",
+  "checks": [
+    {
+      "id": "pkg-visionrun-tests",
+      "result": "pass",
+      "severity": "medium",
+      "detail": "Run bundle package tests passed",
+      "evidence": "artifacts/bootstrap-round-01/phase-02-run-bundle.log"
+    },
+    {
+      "id": "visionrun-cli-smoke",
+      "result": "pass",
+      "severity": "medium",
+      "detail": "CLI generated artifacts/runs/round-01-bundle-smoke with requirement/preflight/audit/decision skeleton",
+      "evidence": "artifacts/runs/round-01-bundle-smoke/"
+    }
+  ],
+  "summary": "Phase 2 minimal run-id artifact bundle generator is working and produces the required directory skeleton plus key evidence files."
+}

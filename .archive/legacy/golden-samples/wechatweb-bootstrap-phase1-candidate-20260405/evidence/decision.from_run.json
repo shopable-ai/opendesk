@@ -1,0 +1,50 @@
+{
+  "canProceed": true,
+  "createdAt": "2026-04-05T21:01:28+08:00",
+  "detect": {
+    "regionCount": 13,
+    "regionsPath": "artifacts/runs/gs-20260405-codex-phase1-wechatweb-ref/detect/regions.json"
+  },
+  "infer": {
+    "actionTargetsPath": "artifacts/runs/gs-20260405-codex-phase1-wechatweb-ref/infer/action_targets.json",
+    "appClassificationPath": "artifacts/runs/gs-20260405-codex-phase1-wechatweb-ref/infer/app_classification.json",
+    "layoutModelPath": "artifacts/runs/gs-20260405-codex-phase1-wechatweb-ref/detect/layout_model.json",
+    "ocrMapPath": "artifacts/runs/gs-20260405-codex-phase1-wechatweb-ref/infer/ocr_map.json",
+    "zonesPath": "artifacts/runs/gs-20260405-codex-phase1-wechatweb-ref/infer/zones.json"
+  },
+  "mirror": {
+    "auxiliary": true,
+    "cssPath": "artifacts/runs/gs-20260405-codex-phase1-wechatweb-ref/mirror/styles.css",
+    "domReportPath": "artifacts/runs/gs-20260405-codex-phase1-wechatweb-ref/mirror/dom_validation_report.json",
+    "htmlPath": "artifacts/runs/gs-20260405-codex-phase1-wechatweb-ref/mirror/index.html",
+    "inferSemanticModelPath": "artifacts/runs/gs-20260405-codex-phase1-wechatweb-ref/infer/semantic_model.json",
+    "layoutHtmlPath": "artifacts/runs/gs-20260405-codex-phase1-wechatweb-ref/mirror/layout.html",
+    "metaPath": "artifacts/runs/gs-20260405-codex-phase1-wechatweb-ref/mirror/meta.json",
+    "renderedImagePath": "artifacts/runs/gs-20260405-codex-phase1-wechatweb-ref/mirror/mirror.png",
+    "semanticHtmlPath": "artifacts/runs/gs-20260405-codex-phase1-wechatweb-ref/mirror/semantic.html",
+    "semanticModelPath": "artifacts/runs/gs-20260405-codex-phase1-wechatweb-ref/mirror/semantic_model.json"
+  },
+  "nextStep": "probe-open-chat",
+  "preflightState": "warn",
+  "runId": "gs-20260405-codex-phase1-wechatweb-ref",
+  "schemaVersion": "0.1.0",
+  "status": "warn",
+  "stopCondition": "",
+  "summary": "structure-first artifacts ready; probe-level actions may continue while send remains gated",
+  "updatedAt": "2026-04-05T21:01:28+08:00",
+  "verify": {
+    "actionabilityReportPath": "artifacts/runs/gs-20260405-codex-phase1-wechatweb-ref/verify/actionability_report.json",
+    "allowedActions": [
+      "open_chat",
+      "focus_input",
+      "read_reply"
+    ],
+    "blockedActions": [
+      "send_message"
+    ],
+    "canSend": false,
+    "domValidationReportPath": "artifacts/runs/gs-20260405-codex-phase1-wechatweb-ref/mirror/dom_validation_report.json",
+    "phase1BlockingIssues": [],
+    "phase1GatePassed": true
+  }
+}

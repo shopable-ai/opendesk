@@ -1,0 +1,101 @@
+{
+  "allowedActions": [
+    "open_chat",
+    "focus_input",
+    "read_reply"
+  ],
+  "blockedActions": [
+    "send_message"
+  ],
+  "canProceed": true,
+  "canSend": false,
+  "createdAt": "2026-04-07T04:46:13+08:00",
+  "currentPage": "wechat_chat_page",
+  "reports": [
+    {
+      "action": "open_chat",
+      "allowed": true,
+      "postconditionsExpected": [
+        "header switches to target identity"
+      ],
+      "preconditionsFailed": [],
+      "preconditionsPassed": [
+        "conversation_list zone present"
+      ],
+      "reason": "conversation list is structurally available",
+      "recommendedFallback": "refine OCR row candidates",
+      "requiredExtraEvidence": [
+        "target chat disambiguation evidence"
+      ],
+      "riskLevel": "medium",
+      "score": 0.86
+    },
+    {
+      "action": "focus_input",
+      "allowed": true,
+      "postconditionsExpected": [
+        "draft text visible in input area"
+      ],
+      "preconditionsFailed": [],
+      "preconditionsPassed": [
+        "pageType is wechat_chat_page",
+        "input_area present"
+      ],
+      "reason": "input zone is structurally available",
+      "recommendedFallback": "retry center-of-input hotspot",
+      "requiredExtraEvidence": [
+        "focus confirmation evidence"
+      ],
+      "riskLevel": "medium",
+      "score": 0.82
+    },
+    {
+      "action": "read_reply",
+      "allowed": true,
+      "postconditionsExpected": [
+        "reply text extracted from local message list OCR"
+      ],
+      "preconditionsFailed": [],
+      "preconditionsPassed": [
+        "message_list present"
+      ],
+      "reason": "message list zone can support local OCR probe",
+      "recommendedFallback": "crop latest message region",
+      "requiredExtraEvidence": [
+        "latest message crop evidence"
+      ],
+      "riskLevel": "low",
+      "score": 0.79
+    },
+    {
+      "action": "send_message",
+      "allowed": false,
+      "postconditionsExpected": [
+        "draft clears",
+        "self message appears in message list"
+      ],
+      "preconditionsFailed": [
+        "target chat identity not yet verified",
+        "draft text verification not yet available in this round",
+        "send safety gate is intentionally hard-blocked until runtime evidence exists"
+      ],
+      "preconditionsPassed": [
+        "send target zone inferred"
+      ],
+      "reason": "send remains hard-gated in execution round 1",
+      "recommendedFallback": "stop before send and gather more evidence",
+      "requiredExtraEvidence": [
+        "target chat verified",
+        "draft verified",
+        "send path verified"
+      ],
+      "riskLevel": "high",
+      "score": 0.34
+    }
+  ],
+  "schemaVersion": "0.1.0",
+  "status": "warn",
+  "summary": "structure-first actionability established for probe-level actions; send remains blocked pending runtime evidence",
+  "targetCount": 4,
+  "zoneCount": 7
+}

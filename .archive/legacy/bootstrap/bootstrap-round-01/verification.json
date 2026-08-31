@@ -1,0 +1,25 @@
+{
+  "id": "bootstrap-round-01-verification",
+  "createdAt": "2026-04-03T18:01:07+08:00",
+  "verifierType": "unit",
+  "command": "go test ./automation -run 'Test(ParseScreenshotOptions|BuildScreenshotResponse|ImageColorAnalyzeLayoutReturnsCoarseGenericSegmentation|LayoutWithTextNoise|VisionAnalyzeLayoutWithGenericHints)'",
+  "status": "fail",
+  "checks": [
+    {
+      "id": "automation-targeted-go-tests",
+      "result": "fail",
+      "severity": "high",
+      "detail": "Targeted automation baseline tests for screenshot/layout pipeline",
+      "evidence": "artifacts/bootstrap-round-01/go-test.log"
+    }
+  ],
+  "findings": [
+    {
+      "id": "layout-text-noise-regression",
+      "severity": "high",
+      "detail": "TestLayoutWithTextNoise failed: expected a second vertical separator near x=280 but only detected x=80.",
+      "taxonomyId": "F2_LAYOUT_UNDERSEGMENTATION"
+    }
+  ],
+  "summary": "Targeted baseline verification failed due to layout separator regression under text noise."
+}

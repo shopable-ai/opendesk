@@ -55,30 +55,28 @@ Strong migration candidates:
 
 | Current path | Target path | Reason | Priority |
 |---|---|---|---|
-| `artifacts/runs/` | `.runtime/runs/` | execution logs, summaries, snapshots, event streams | later coupled batch |
-| `artifacts/mcp-smoke/` | `.runtime/smoke/mcp/` | smoke output, screenshots, report residue | P1 |
-| `artifacts/preflight/` | `.runtime/preflight/` | generated preflight results | P1 |
-| `artifacts/browser_stack_finish/` | `.runtime/debug/browser_stack_finish/` | debug/test-result residue | P1 |
-| `artifacts/browser-stack-http-smoke/` | `.runtime/smoke/browser-stack-http/` | smoke-run output | P1 |
+| `.runtime/runs/` | `.runtime/runs/` | execution logs, summaries, snapshots, event streams | later coupled batch |
+| legacy `artifacts/mcp-smoke/` | `.runtime/smoke/mcp/` | historical mapping; no new output | completed |
+| legacy `artifacts/preflight/` | `.runtime/preflight/` | historical mapping; no new output | completed |
+| legacy `artifacts/browser_stack_finish/` | `.runtime/debug/browser_stack_finish/` | historical mapping; no new output | completed |
+| legacy `artifacts/browser-stack-http-smoke/` | `.runtime/smoke/browser-stack-http/` | historical mapping; no new output | completed |
 | `temp/mac/` | `.runtime/temp/mac/` | screenshots, probes, audit residue | P1 |
 | `temp/e2e/` | `.runtime/temp/e2e/` | disposable e2e residue | P1 |
 | `temp/qianniuShip/` | `.runtime/temp/qianniuShip/` | disposable test/debug residue | P1 |
 | `temp/file/` | `.runtime/temp/file/` | temporary output | P1 |
 | `temp/file-demo/` | `.runtime/temp/file-demo/` | temporary output | P1 |
 
-`artifacts/runs/` remains a special case because runtime code, docs, configs and replay files may reference it. Patch producers and consumers before moving it.
+`.runtime/runs/` remains a special case because runtime code, docs, configs and replay files may reference it. Patch producers and consumers before moving it.
 
-## Reusable preserved artifacts
+## Domain-owned assets after migration
 
 | Current path | Target path | Reason | Priority |
 |---|---|---|---|
-| `artifacts/external/` | keep | already matches curated external-reference role | keep |
-| `artifacts/golden-samples/` | `artifacts/fixtures/golden-samples/` | reusable baselines | P1 |
-| `artifacts/golden_samples/` | merge into `artifacts/fixtures/golden-samples/` | duplicate naming style | P1 |
-| `artifacts/macos_v1/` | review for `artifacts/reports/macos-v1/` | preserved stage reports/audits | P2 |
-| `artifacts/dev-html-samples/` | review for `artifacts/fixtures/dev-html-samples/` | preserved sample assets | P2 |
-| `artifacts/tests/` | review for `tests/fixtures/` or `artifacts/fixtures/tests/` | ownership unclear | P2 |
-| `artifacts/playwright/` | review for report vs runtime debug | lifecycle unclear | P2 |
+| `artifacts/external/` | `.runtime/cache/external/` + `docs/research/external/` | external cache plus provenance manifest | completed |
+| `artifacts/fixtures/opencv/` | `tests/opencv/fixtures/` | OpenCV test assets | completed |
+| `test/wechat/fixtures/golden-samples/` | `test/wechat/fixtures/golden-samples/` | WeChat test baselines | completed |
+| `artifacts/dev-html-samples/` | `test/wechat/fixtures/wechatweb/` + `.runtime/runs/` | source fixture plus derived run output | completed |
+| `artifacts/reports/<domain>/` | `docs/quality/<domain>/` | maintained quality conclusions | completed |
 
 ## Local development state
 
@@ -227,10 +225,7 @@ search old references
 Candidates:
 
 ```text
-artifacts/mcp-smoke/              -> .runtime/smoke/mcp/
-artifacts/preflight/              -> .runtime/preflight/
-artifacts/browser-stack-http-smoke/ -> .runtime/smoke/browser-stack-http/
-artifacts/browser_stack_finish/   -> .runtime/debug/browser_stack_finish/
+legacy generated output -> .runtime/smoke/ or .runtime/debug/
 ```
 
 Patch references first.
@@ -240,21 +235,16 @@ Patch references first.
 Converge:
 
 ```text
-artifacts/golden-samples/
-artifacts/golden_samples/
-```
-
-to:
-
-```text
-artifacts/fixtures/golden-samples/
+tests/opencv/fixtures/image-color/ -> tests/opencv/fixtures/image-color/
+test/wechat/fixtures/golden-samples/ -> test/wechat/fixtures/golden-samples/
+artifacts/reports/<domain>/ -> docs/quality/<domain>/
 ```
 
 Search both spellings before and after migration.
 
 ## P2: semantic and high-coupling cleanup
 
-### `artifacts/runs/`
+### `.runtime/runs/`
 
 Do not move until producer code and consumers are patched together.
 
@@ -284,7 +274,7 @@ Do not:
 
 - recreate `docs-api/`, `docs-api-user/` or `docs/api/`;
 - move `docs-user-api/` to `docs/api/user/`;
-- move `artifacts/runs/` without changing its producers/consumers;
+- move `.runtime/runs/` without changing its producers/consumers;
 - convert `.archive/` into a dump of every old AI-generated Markdown file;
 - leave both old and new canonical documentation paths indefinitely;
 - create new `*_V2.md`, `FINAL_*.md` or `*_COMPLETE_SUMMARY.md` as a substitute for Git history.
@@ -320,7 +310,7 @@ The repository migration succeeds when:
 - `docs/` root converges to `README.md` plus classified directories;
 - `docs-user-api/` remains the sole maintained user API root;
 - generated output defaults to `.runtime/`;
-- `artifacts/` means reusable/preserved assets and evidence;
+- the generic `artifacts/` namespace is retired;
 - prompts and historical notes no longer pollute canonical docs;
 - one current Source of Truth exists per engineering topic;
 - repository search finds no live references to removed paths.

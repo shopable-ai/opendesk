@@ -1,0 +1,8 @@
+{
+  "schemaVersion": "0.2.0",
+  "sampleId": "wechat-desktop-reference-codex-audit-send8-real-frozen-20260408",
+  "baselineTier": "desktop_reference",
+  "entryStage": "locate_search_area",
+  "maxAllowedStage": "none",
+  "sendFrozen": true
+}

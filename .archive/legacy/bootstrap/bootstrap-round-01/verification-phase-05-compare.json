@@ -1,0 +1,50 @@
+{
+  "id": "bootstrap-round-01-phase-05-compare-verification",
+  "createdAt": "2026-04-03T19:03:03.617054+08:00",
+  "verifierType": "contract+diff-smoke",
+  "command": [
+    "go test ./pkg/visionrun -count=1",
+    "go run ./cmd/visionrun --run-id round-01-mirror-smoke --source-image wechat_quick_test.png --with-compare --goal 'capture -> detect -> mirror -> compare'"
+  ],
+  "status": "fail",
+  "checks": [
+    {
+      "id": "pkg-visionrun-compare-tests",
+      "result": "pass",
+      "severity": "high",
+      "detail": "Go tests for compare generation passed",
+      "evidence": "go test ./pkg/visionrun -count=1"
+    },
+    {
+      "id": "compare-contract-generated",
+      "result": "pass",
+      "severity": "high",
+      "detail": "compare/report.json and compare/diff.png were generated for round-01-mirror-smoke",
+      "evidence": "artifacts/runs/round-01-mirror-smoke/compare/"
+    },
+    {
+      "id": "compare-gate-evaluation",
+      "result": "fail",
+      "severity": "high",
+      "detail": "pixelDiffRatio=0.352070730090329 exceeded fail threshold 0.30; canProceed=false",
+      "evidence": "artifacts/runs/round-01-mirror-smoke/decision.json"
+    }
+  ],
+  "findings": [
+    {
+      "id": "mirror-layout-drift-detected",
+      "severity": "high",
+      "detail": "Compare gate failed with pixelDiffRatio 0.3521 and full-canvas dominant deviation region.",
+      "taxonomyId": "F4_HTML_MIRROR_LAYOUT_DRIFT",
+      "disposition": "open"
+    },
+    {
+      "id": "compare-report-actionable",
+      "severity": "medium",
+      "detail": "Report includes majorDeviationRegions and repair recommendations, so compare is actionable rather than opaque.",
+      "taxonomyId": "F5_NO_ACTIONABLE_DIFF",
+      "disposition": "mitigated"
+    }
+  ],
+  "summary": "Phase 5 compare is implemented, but the current mirror baseline fails the gate and blocks progression to messaging/reply flows."
+}

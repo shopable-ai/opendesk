@@ -80,7 +80,7 @@ docs/integrations/mcp/testing/manual-smoke-macos.md
 - [ ] `README.md` 只描述当前能力，不写逐轮 changelog。
 - [ ] Host-specific 配置位于独立 integration guide。
 - [ ] 测试规范和 manual smoke 分开。
-- [ ] 一次性真机结果进入 `artifacts/reports/mcp/`，不追加到 runbook。
+- [ ] 一次性真机结果进入 `.runtime/runs/<run-id>/`；确认后的长期结论进入 `docs/quality/mcp/`，不追加到 runbook。
 - [ ] Prompt 位于 `prompts/mcp/`，不放 integration docs。
 - [ ] 已完成/失效计划进入 `.archive/`。
 

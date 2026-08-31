@@ -1,0 +1,184 @@
+{
+  "schemaVersion": "0.2.0",
+  "runId": "codex-audit-send8-real",
+  "capturedAt": "2026-04-08T00:00:00+08:00",
+  "sameWindow": true,
+  "geometryHash": "wechat-main-1097x880-v1",
+  "maxAgeMs": 1500,
+  "window": {
+    "x": 0,
+    "y": 0,
+    "width": 1097,
+    "height": 880,
+    "scaleFactor": 2
+  },
+  "captures": [
+    {
+      "id": "search_capture",
+      "zoneId": "search_area",
+      "precision": "high",
+      "bbox": {
+        "height": 60,
+        "width": 220,
+        "x": 72,
+        "y": 0
+      },
+      "bboxRatio": {
+        "x": 0.0656,
+        "y": 0,
+        "width": 0.2005,
+        "height": 0.0682
+      },
+      "referenceImagePath": "",
+      "searchWindow": {
+        "height": 60,
+        "width": 220,
+        "x": 72,
+        "y": 0
+      },
+      "templateMatch": {
+        "minScore": 0.72,
+        "softMinScore": 0.7,
+        "escapeCheck": true
+      },
+      "visualFingerprint": {
+        "avgColor": "#f5f5f5",
+        "iconHints": [
+          "search-icon"
+        ]
+      }
+    },
+    {
+      "id": "conversation_capture",
+      "zoneId": "conversation_list",
+      "precision": "high",
+      "bbox": {
+        "height": 880,
+        "width": 220,
+        "x": 72,
+        "y": 0
+      },
+      "bboxRatio": {
+        "x": 0.0656,
+        "y": 0,
+        "width": 0.2005,
+        "height": 1
+      },
+      "referenceImagePath": "",
+      "searchWindow": {
+        "height": 880,
+        "width": 220,
+        "x": 72,
+        "y": 0
+      },
+      "templateMatch": {
+        "minScore": 0.72,
+        "softMinScore": 0.7,
+        "escapeCheck": true
+      },
+      "visualFingerprint": {
+        "avgColor": "#ededed",
+        "iconHints": []
+      }
+    },
+    {
+      "id": "header_capture",
+      "zoneId": "chat_header",
+      "precision": "high",
+      "bbox": {
+        "height": 52,
+        "width": 805,
+        "x": 292,
+        "y": 0
+      },
+      "bboxRatio": {
+        "x": 0.2662,
+        "y": 0,
+        "width": 0.7338,
+        "height": 0.0591
+      },
+      "referenceImagePath": "",
+      "searchWindow": {
+        "height": 52,
+        "width": 805,
+        "x": 292,
+        "y": 0
+      },
+      "templateMatch": {
+        "minScore": 0.72,
+        "softMinScore": 0.7,
+        "escapeCheck": true
+      },
+      "visualFingerprint": {
+        "avgColor": "#f9f9f9",
+        "iconHints": []
+      }
+    },
+    {
+      "id": "input_capture",
+      "zoneId": "input_area",
+      "precision": "high",
+      "bbox": {
+        "height": 251,
+        "width": 805,
+        "x": 292,
+        "y": 629
+      },
+      "bboxRatio": {
+        "x": 0.2662,
+        "y": 0.7148,
+        "width": 0.7338,
+        "height": 0.2852
+      },
+      "referenceImagePath": "",
+      "searchWindow": {
+        "height": 251,
+        "width": 805,
+        "x": 292,
+        "y": 629
+      },
+      "templateMatch": {
+        "minScore": 0.72,
+        "softMinScore": 0.7,
+        "escapeCheck": true
+      },
+      "visualFingerprint": {
+        "avgColor": "#f6f6f6",
+        "iconHints": []
+      }
+    },
+    {
+      "id": "send_capture",
+      "zoneId": "send_action_zone",
+      "precision": "high",
+      "bbox": {
+        "height": 60,
+        "width": 805,
+        "x": 292,
+        "y": 629
+      },
+      "bboxRatio": {
+        "x": 0.2662,
+        "y": 0.7148,
+        "width": 0.7338,
+        "height": 0.0682
+      },
+      "referenceImagePath": "",
+      "searchWindow": {
+        "height": 60,
+        "width": 805,
+        "x": 292,
+        "y": 629
+      },
+      "templateMatch": {
+        "minScore": 0.72,
+        "softMinScore": 0.7,
+        "escapeCheck": true
+      },
+      "visualFingerprint": {
+        "avgColor": "#f0f0f0",
+        "iconHints": []
+      }
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "sampleId": "wechatweb-bootstrap-phase1-candidate-20260405",
+  "status": "candidate",
+  "stage": "phase1_only",
+  "createdAt": "2026-04-05",
+  "sourceKind": "web_reference",
+  "copiedFromRun": "gs-20260405-codex-phase1-wechatweb-ref",
+  "sampleDir": "/Users/a0000/Documents/workspace/testMonkey-go/artifacts/golden-samples/wechat/wechatweb-bootstrap-phase1-candidate-20260405",
+  "copiedArtifacts": [
+    "capture/source.png",
+    "detect/regions.json",
+    "detect/layout_model.json",
+    "infer/app_classification.json",
+    "infer/zones.json",
+    "infer/action_targets.json",
+    "infer/ocr_map.json",
+    "infer/semantic_model.json",
+    "mirror/layout.html",
+    "mirror/semantic.html",
+    "mirror/dom_validation_report.json",
+    "verify/actionability_report.json",
+    "evidence/decision.from_run.json",
+    "evidence/audit.from_run.ndjson"
+  ],
+  "missingFromRunCopy": [],
+  "missingRequiredForFullGoldenSample": [
+    "infer/chat_candidates.json",
+    "compare/report.json",
+    "compare/diff.png",
+    "verify/send_safety_report.json",
+    "checkpoints/current_state.json",
+    "replay/replay_case.json",
+    "replay/replay_result.json",
+    "replay/state_transition_log.json"
+  ],
+  "phaseGate": {
+    "phase1": "pass",
+    "phase2": "not_ready",
+    "phase3": "forbidden"
+  },
+  "canProceedToNextPhase": false,
+  "whyBlocked": [
+    "golden sample registry was not created before later summary",
+    "Phase 2 and full compare artifacts are not yet registered into golden-samples directory",
+    "sample is candidate only, not frozen"
+  ]
+}

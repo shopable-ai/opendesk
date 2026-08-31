@@ -1,0 +1,28 @@
+{
+  "actionabilityCanSend": false,
+  "allowed": false,
+  "blockingRisks": [
+    "actionability gate does not allow send"
+  ],
+  "chatCandidateCount": 5,
+  "createdAt": "2026-04-07T04:46:19+08:00",
+  "draftProbeText": "SRE, ?Kao 洁\n©@bx-Yg\n1",
+  "draftVerified": true,
+  "headerProbeText": "知 乎 运营 自己\n加 vv @u",
+  "inputReadyVerified": true,
+  "mustStop": true,
+  "preSendBaselineReady": true,
+  "requiredExtraEvidence": [
+    "header identity verification",
+    "draft text verification in input area",
+    "send postcondition verification"
+  ],
+  "runId": "codex-audit-send8",
+  "runtimeCanSend": true,
+  "schemaVersion": "0.2.0",
+  "score": 0.18,
+  "sendTargetVerified": true,
+  "summary": "send safety gate blocked; more runtime and conversation evidence required",
+  "targetChatName": "",
+  "targetChatVerified": true
+}

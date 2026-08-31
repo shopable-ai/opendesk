@@ -1,0 +1,30 @@
+{
+  "id": "bootstrap-round-01-selection-decision",
+  "createdAt": "2026-04-03T00:00:00+08:00",
+  "selectedOption": "D",
+  "selectedName": "Layout-first Hybrid",
+  "decision": "adopt",
+  "rationale": [
+    "最契合当前仓库已存在的 screenshot / OCR / layout primitives",
+    "天然支持 HTML mirror 与 visual diff，适合作为纠偏与回归层",
+    "把‘可识别’与‘可验证’放在同一条主线上",
+    "避免过度依赖 Accessibility 或单纯模板匹配"
+  ],
+  "round1NonGoals": [
+    "完整自动发送链路",
+    "多账号/多窗口调度",
+    "重型控制面平台化"
+  ],
+  "stopConditions": [
+    "preflight fail",
+    "无法生成稳定截图",
+    "regions.json 无法形成最小 schema",
+    "两轮迭代无新增证据且无显著改进"
+  ],
+  "escalationConditions": [
+    "macOS 权限无法修复",
+    "OCR provider 长期不可用",
+    "微信 UI 结构大改导致 role rules 普遍失效",
+    "Accessibility tree 在目标环境上突然稳定可用，需要重评方案"
+  ]
+}

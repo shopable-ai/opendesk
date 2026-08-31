@@ -1,0 +1,10 @@
+# testMonkey-go/automation.test
+ld: warning: ignoring duplicate libraries: '-lobjc'
+--- FAIL: TestLayoutWithTextNoise (0.08s)
+    image_layout_test.go:88: missing separator near 280 within tolerance 10: [{Orientation:vertical Position:80 Thickness:2 Score:0.6641500299099584 Source:grid-boundary Confidence:0.5609116756396542 Meta:map[childContrast:206.11404610069638 contrast:124.70765814495915 depth:4 gridPosition:10 gridRect:map[maxX:80 maxY:25 minX:0 minY:13] normalizedPos:0.125 pixelTotal:640 span:map[end:200 start:104] supportRatio:0.4166666666666667]}]
+2026/04/03 18:01:07 Saving screenshot to: /var/folders/mc/_33qrtwj55g7lfxy66vltx6w0000gn/T/TestBuildScreenshotResponsePathAndObject3945903072/001/shot.png
+2026/04/03 18:01:07 Saving screenshot to: /var/folders/mc/_33qrtwj55g7lfxy66vltx6w0000gn/T/TestBuildScreenshotResponsePathAndObject3945903072/001/shot-object.png
+2026/04/03 18:01:07 Saving screenshot to: /var/folders/mc/_33qrtwj55g7lfxy66vltx6w0000gn/T/testmonkey-screenshot-4097938201.png
+FAIL
+FAIL	testMonkey-go/automation	11.369s
+FAIL

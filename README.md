@@ -125,7 +125,7 @@ OCR：
 
 ```bash
 go run . \
-  -vision-ocr-image test.png \
+  -vision-ocr-image fixtures/desktopvision/legacy-testmonkey-desktop.png \
   -vision-provider paddle \
   -vision-lang ch
 ```
@@ -134,7 +134,7 @@ UI 文本检测：
 
 ```bash
 go run . \
-  -vision-detect-ui-image test.png \
+  -vision-detect-ui-image fixtures/desktopvision/legacy-testmonkey-desktop.png \
   -vision-target-text 发送 \
   -vision-provider paddle \
   -vision-lang ch
@@ -266,7 +266,9 @@ examples/        # 可执行示例
 scripts/         # 构建、权限和 smoke 脚本
 docs/            # 项目/工程文档
 docs-user-api/   # 用户 API 文档
-artifacts/       # 可复用 fixture / 长期报告
+test/**/fixtures # 按测试领域归属的可复用 fixture
+docs/quality/    # 正式质量报告与评审结论
+docs/research/external/ # 外部参考 manifest
 .runtime/        # 运行期输出
 .archive/        # 历史材料
 prompts/         # 仍维护的 AI orchestration prompts
@@ -276,7 +278,7 @@ prompts/         # 仍维护的 AI orchestration prompts
 
 - 当前源码和可复现测试/运行证据优先于历史文档。
 - 用户 API 只维护在 `docs-user-api/`，不要恢复 `docs-api/`、`docs-api-user/` 或 `docs/api/`。
-- 报告、Prompt、运行日志和历史总结不要直接堆进 `docs/` 根目录。
+- 报告、Prompt、运行日志和历史总结不要直接堆进 `docs/` 根目录；正式质量报告归入 `docs/quality/` 对应领域，运行报告归入 `.runtime/`。
 - 当前文档不要使用 `_V2`、`FINAL`、`COMPLETE_SUMMARY` 等文件名保存版本历史；版本历史由 Git 负责。
 
 仓库文档治理规则见：

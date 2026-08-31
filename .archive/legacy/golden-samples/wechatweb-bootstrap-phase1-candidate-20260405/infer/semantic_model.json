@@ -1,0 +1,435 @@
+{
+  "bestCandidate": {},
+  "canvas": {
+    "height": 960,
+    "width": 1440
+  },
+  "chatCandidates": [
+    {
+      "bbox": {
+        "height": 106,
+        "width": 856,
+        "x": 64,
+        "y": 120
+      },
+      "id": "conversation_row_01",
+      "matchScore": 0,
+      "matchesTarget": false,
+      "normalizedText": "candidate-01",
+      "point": {
+        "x": 144,
+        "y": 173
+      },
+      "status": "fallback",
+      "text": ""
+    },
+    {
+      "bbox": {
+        "height": 106,
+        "width": 856,
+        "x": 64,
+        "y": 312
+      },
+      "id": "conversation_row_02",
+      "matchScore": 0,
+      "matchesTarget": false,
+      "normalizedText": "candidate-02",
+      "point": {
+        "x": 144,
+        "y": 365
+      },
+      "status": "fallback",
+      "text": ""
+    },
+    {
+      "bbox": {
+        "height": 106,
+        "width": 856,
+        "x": 64,
+        "y": 472
+      },
+      "id": "conversation_row_03",
+      "matchScore": 0,
+      "matchesTarget": false,
+      "normalizedText": "candidate-03",
+      "point": {
+        "x": 144,
+        "y": 525
+      },
+      "status": "fallback",
+      "text": ""
+    },
+    {
+      "bbox": {
+        "height": 106,
+        "width": 856,
+        "x": 64,
+        "y": 120
+      },
+      "id": "conversation_row_04",
+      "matchScore": 0,
+      "matchesTarget": false,
+      "normalizedText": "candidate-04",
+      "point": {
+        "x": 144,
+        "y": 173
+      },
+      "status": "fallback",
+      "text": ""
+    },
+    {
+      "bbox": {
+        "height": 106,
+        "width": 856,
+        "x": 64,
+        "y": 226
+      },
+      "id": "conversation_row_05",
+      "matchScore": 0,
+      "matchesTarget": false,
+      "normalizedText": "candidate-05",
+      "point": {
+        "x": 144,
+        "y": 279
+      },
+      "status": "fallback",
+      "text": ""
+    },
+    {
+      "bbox": {
+        "height": 106,
+        "width": 856,
+        "x": 64,
+        "y": 332
+      },
+      "id": "conversation_row_06",
+      "matchScore": 0,
+      "matchesTarget": false,
+      "normalizedText": "candidate-06",
+      "point": {
+        "x": 144,
+        "y": 385
+      },
+      "status": "fallback",
+      "text": ""
+    }
+  ],
+  "createdAt": "2026-04-05T21:01:28+08:00",
+  "duplicateCandidates": 0,
+  "probes": {
+    "draft": {},
+    "header": {},
+    "latest_reply": {},
+    "message": {}
+  },
+  "runId": "gs-20260405-codex-phase1-wechatweb-ref",
+  "schemaVersion": "0.1.0",
+  "targets": [
+    {
+      "bbox": {
+        "height": 960,
+        "width": 856,
+        "x": 64,
+        "y": 0
+      },
+      "candidates": [
+        {
+          "bbox": {
+            "height": 106,
+            "width": 856,
+            "x": 64,
+            "y": 120
+          },
+          "id": "conversation_row_01",
+          "point": {
+            "x": 144,
+            "y": 173
+          }
+        },
+        {
+          "bbox": {
+            "height": 106,
+            "width": 856,
+            "x": 64,
+            "y": 312
+          },
+          "id": "conversation_row_02",
+          "point": {
+            "x": 144,
+            "y": 365
+          }
+        },
+        {
+          "bbox": {
+            "height": 106,
+            "width": 856,
+            "x": 64,
+            "y": 472
+          },
+          "id": "conversation_row_03",
+          "point": {
+            "x": 144,
+            "y": 525
+          }
+        },
+        {
+          "bbox": {
+            "height": 106,
+            "width": 856,
+            "x": 64,
+            "y": 120
+          },
+          "id": "conversation_row_04",
+          "point": {
+            "x": 144,
+            "y": 173
+          }
+        },
+        {
+          "bbox": {
+            "height": 106,
+            "width": 856,
+            "x": 64,
+            "y": 226
+          },
+          "id": "conversation_row_05",
+          "point": {
+            "x": 144,
+            "y": 279
+          }
+        },
+        {
+          "bbox": {
+            "height": 106,
+            "width": 856,
+            "x": 64,
+            "y": 332
+          },
+          "id": "conversation_row_06",
+          "point": {
+            "x": 144,
+            "y": 385
+          }
+        }
+      ],
+      "id": "target_open_chat_primary",
+      "intent": "open_chat",
+      "point": {
+        "x": 144,
+        "y": 173
+      },
+      "zoneId": "conversation_list"
+    },
+    {
+      "bbox": {
+        "height": 488,
+        "width": 480,
+        "x": 920,
+        "y": 472
+      },
+      "candidates": null,
+      "id": "target_focus_input_primary",
+      "intent": "focus_input",
+      "point": {
+        "x": 1208,
+        "y": 813
+      },
+      "zoneId": "input_area"
+    },
+    {
+      "bbox": {
+        "height": 488,
+        "width": 96,
+        "x": 1304,
+        "y": 472
+      },
+      "candidates": null,
+      "id": "target_send_message_primary",
+      "intent": "send_message",
+      "point": {
+        "x": 1381,
+        "y": 716
+      },
+      "zoneId": "send_action_zone"
+    },
+    {
+      "bbox": {
+        "height": 264,
+        "width": 480,
+        "x": 920,
+        "y": 208
+      },
+      "candidates": null,
+      "id": "target_read_reply_primary",
+      "intent": "read_reply",
+      "point": {
+        "x": 1160,
+        "y": 340
+      },
+      "zoneId": "message_list"
+    }
+  ],
+  "views": {
+    "conversationList": [
+      {
+        "displayTime": "13:36",
+        "height": 112,
+        "id": "conversation_row_01",
+        "matchScore": 0,
+        "selected": false,
+        "snippet": "candidate-01",
+        "title": "candidate-01"
+      },
+      {
+        "displayTime": "13:43",
+        "height": 112,
+        "id": "conversation_row_02",
+        "matchScore": 0,
+        "selected": false,
+        "snippet": "candidate-02",
+        "title": "candidate-02"
+      },
+      {
+        "displayTime": "13:50",
+        "height": 112,
+        "id": "conversation_row_03",
+        "matchScore": 0,
+        "selected": false,
+        "snippet": "candidate-03",
+        "title": "candidate-03"
+      },
+      {
+        "displayTime": "13:37",
+        "height": 112,
+        "id": "conversation_row_04",
+        "matchScore": 0,
+        "selected": false,
+        "snippet": "candidate-04",
+        "title": "candidate-04"
+      },
+      {
+        "displayTime": "13:44",
+        "height": 112,
+        "id": "conversation_row_05",
+        "matchScore": 0,
+        "selected": false,
+        "snippet": "candidate-05",
+        "title": "candidate-05"
+      },
+      {
+        "displayTime": "13:51",
+        "height": 112,
+        "id": "conversation_row_06",
+        "matchScore": 0,
+        "selected": false,
+        "snippet": "candidate-06",
+        "title": "candidate-06"
+      }
+    ],
+    "header": {
+      "meta": "在线 · 最近沟通窗口",
+      "title": ""
+    },
+    "inputBar": {
+      "hasSend": true,
+      "sendLabel": "发送",
+      "text": "输入框草稿区域"
+    },
+    "messages": [
+      {
+        "side": "left",
+        "text": "历史消息区域"
+      },
+      {
+        "side": "right",
+        "text": "最新回复读取区域"
+      }
+    ]
+  },
+  "zones": [
+    {
+      "bbox": {
+        "height": 960,
+        "width": 64,
+        "x": 0,
+        "y": 0
+      },
+      "color": "#d7d8d6",
+      "confidence": 0.82,
+      "id": "left_nav",
+      "role": "nav_strip"
+    },
+    {
+      "bbox": {
+        "height": 960,
+        "width": 856,
+        "x": 64,
+        "y": 0
+      },
+      "color": "#eaeee7",
+      "confidence": 0.84,
+      "id": "conversation_list",
+      "role": "chat_list"
+    },
+    {
+      "bbox": {
+        "height": 208,
+        "width": 480,
+        "x": 920,
+        "y": 0
+      },
+      "color": "#eeeeee",
+      "confidence": 0.79,
+      "id": "chat_header",
+      "role": "chat_header"
+    },
+    {
+      "bbox": {
+        "height": 264,
+        "width": 480,
+        "x": 920,
+        "y": 208
+      },
+      "color": "#a3e684",
+      "confidence": 0.83,
+      "id": "message_list",
+      "role": "message_list"
+    },
+    {
+      "bbox": {
+        "height": 488,
+        "width": 480,
+        "x": 920,
+        "y": 472
+      },
+      "color": "#e4ecdf",
+      "confidence": 0.65,
+      "id": "input_area",
+      "role": "input_area"
+    },
+    {
+      "bbox": {
+        "height": 488,
+        "width": 96,
+        "x": 1304,
+        "y": 472
+      },
+      "color": "#e4ecdf",
+      "confidence": 0.63,
+      "id": "send_action_zone",
+      "role": "send_action_zone"
+    },
+    {
+      "bbox": {
+        "height": 960,
+        "width": 40,
+        "x": 1400,
+        "y": 0
+      },
+      "color": "#e3e8e0",
+      "confidence": 0.58,
+      "id": "detail_panel",
+      "role": "aux_panel"
+    }
+  ]
+}

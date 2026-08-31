@@ -1,0 +1,51 @@
+{
+  "id": "bootstrap-round-01-phase-04-mirror-verification",
+  "createdAt": "2026-04-03T18:53:56.138638+08:00",
+  "verifierType": "contract+render-smoke",
+  "command": [
+    "go test ./pkg/visionrun -count=1",
+    "go run ./cmd/visionrun --run-id round-01-mirror-smoke --source-image wechat_quick_test.png --with-mirror --goal 'capture -> detect -> mirror -> compare'",
+    "playwright-cli open http://127.0.0.1:8765/index.html && screenshot --filename artifacts/runs/round-01-mirror-smoke/mirror/mirror.png"
+  ],
+  "status": "pass",
+  "checks": [
+    {
+      "id": "pkg-visionrun-tests",
+      "result": "pass",
+      "severity": "high",
+      "detail": "Go contract tests for bundle/detect/mirror passed",
+      "evidence": "go test ./pkg/visionrun -count=1"
+    },
+    {
+      "id": "mirror-contract-generated",
+      "result": "pass",
+      "severity": "high",
+      "detail": "round-01-mirror-smoke generated index.html, styles.css, meta.json and updated decision nextStep=compare",
+      "evidence": "artifacts/runs/round-01-mirror-smoke/mirror/"
+    },
+    {
+      "id": "mirror-rendered-by-playwright",
+      "result": "pass",
+      "severity": "high",
+      "detail": "mirror.png rendered via browser automation over local HTTP server; screenshot size 1097x880",
+      "evidence": "artifacts/runs/round-01-mirror-smoke/mirror/mirror.png"
+    }
+  ],
+  "findings": [
+    {
+      "id": "mirror-rendering-moved-out-of-go-tests",
+      "severity": "medium",
+      "detail": "Visual rendering validation is now executed through Playwright/browser automation instead of being embedded into Go unit tests.",
+      "taxonomyId": "F4_HTML_MIRROR_LAYOUT_DRIFT",
+      "disposition": "mitigated"
+    },
+    {
+      "id": "favicon-404-nonblocking",
+      "severity": "low",
+      "detail": "Playwright console reported favicon.ico 404 during local HTTP render; does not affect mirror.png output.",
+      "taxonomyId": "F5_NO_ACTIONABLE_DIFF",
+      "disposition": "non_blocking_observation"
+    }
+  ],
+  "summary": "Phase 4 minimal HTML mirror is complete: Go generates deterministic mirror contract, Playwright renders mirror.png, and decision advances to compare."
+}

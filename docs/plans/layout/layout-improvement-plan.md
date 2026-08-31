@@ -11,7 +11,7 @@ docs/implementation/layout/layout-recognition.md
 历史实验报告见：
 
 ```text
-artifacts/reports/layout/
+docs/quality/layout/
 ```
 
 ## 当前问题

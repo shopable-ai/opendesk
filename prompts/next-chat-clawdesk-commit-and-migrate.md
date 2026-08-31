@@ -47,7 +47,7 @@
    - `prompts/*`
    - 其他明显属于当前用户入口/运行入口的文件
 3. 不要把这些内容纳入本次提交：
-   - `artifacts/`
+   - 所属测试目录、`docs/quality/`、`.runtime/` 或 `.archive/`
    - `.runtime/`
    - `.hermes/`
    - `.omx/`

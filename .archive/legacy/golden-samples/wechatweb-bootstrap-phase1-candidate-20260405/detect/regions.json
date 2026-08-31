@@ -1,0 +1,406 @@
+{
+  "annotatedImage": "artifacts/runs/gs-20260405-codex-phase1-wechatweb-ref/detect/annotated.png",
+  "createdAt": "2026-04-05T21:01:28+08:00",
+  "detector": {
+    "layoutEngine": "automation/image_layout.go",
+    "layoutOptions": {
+      "boundarySpanWidth": 3,
+      "cellColorMode": "median",
+      "cellSize": 8,
+      "minRegionArea": 4,
+      "minSeparatorScore": 0.08,
+      "quantize": 16,
+      "tolerance": 32
+    },
+    "type": "layout-first-hybrid"
+  },
+  "regions": [
+    {
+      "avgColor": "#dad9d2",
+      "bbox": {
+        "height": 72,
+        "width": 56,
+        "x": 0,
+        "y": 0
+      },
+      "confidence": 0.47176438077411637,
+      "id": "region_01",
+      "label": "Region 01",
+      "ocrText": "",
+      "role": "layout_region"
+    },
+    {
+      "avgColor": "#cfd1ca",
+      "bbox": {
+        "height": 136,
+        "width": 56,
+        "x": 0,
+        "y": 72
+      },
+      "confidence": 0.47176438077411637,
+      "id": "region_02",
+      "label": "Region 02",
+      "ocrText": "",
+      "role": "layout_region"
+    },
+    {
+      "avgColor": "#d6d6d6",
+      "bbox": {
+        "height": 104,
+        "width": 64,
+        "x": 0,
+        "y": 208
+      },
+      "confidence": 0.43465678374617145,
+      "id": "region_03",
+      "label": "Region 03",
+      "ocrText": "",
+      "role": "layout_region"
+    },
+    {
+      "avgColor": "#dbdbdb",
+      "bbox": {
+        "height": 32,
+        "width": 64,
+        "x": 0,
+        "y": 312
+      },
+      "confidence": 0.32417270901841794,
+      "id": "region_04",
+      "label": "Region 04",
+      "ocrText": "",
+      "role": "layout_region"
+    },
+    {
+      "avgColor": "#d8d8d8",
+      "bbox": {
+        "height": 616,
+        "width": 64,
+        "x": 0,
+        "y": 344
+      },
+      "confidence": 0.32417270901841794,
+      "id": "region_05",
+      "label": "Region 05",
+      "ocrText": "",
+      "role": "layout_region"
+    },
+    {
+      "avgColor": "#eeeeee",
+      "bbox": {
+        "height": 208,
+        "width": 1384,
+        "x": 56,
+        "y": 0
+      },
+      "confidence": 0.4157807445837438,
+      "id": "region_06",
+      "label": "Region 06",
+      "ocrText": "",
+      "role": "layout_region"
+    },
+    {
+      "avgColor": "#f1f1f1",
+      "bbox": {
+        "height": 104,
+        "width": 856,
+        "x": 64,
+        "y": 208
+      },
+      "confidence": 0.43465678374617145,
+      "id": "region_07",
+      "label": "Region 07",
+      "ocrText": "",
+      "role": "layout_region"
+    },
+    {
+      "avgColor": "#f0f0f0",
+      "bbox": {
+        "height": 160,
+        "width": 856,
+        "x": 64,
+        "y": 312
+      },
+      "confidence": 0.37490351457136634,
+      "id": "region_08",
+      "label": "Region 08",
+      "ocrText": "",
+      "role": "layout_region"
+    },
+    {
+      "avgColor": "#e4ecdf",
+      "bbox": {
+        "height": 488,
+        "width": 1376,
+        "x": 64,
+        "y": 472
+      },
+      "confidence": 0.3362325436329506,
+      "id": "region_09",
+      "label": "Region 09",
+      "ocrText": "",
+      "role": "layout_region"
+    },
+    {
+      "avgColor": "#8fdc6b",
+      "bbox": {
+        "height": 104,
+        "width": 480,
+        "x": 920,
+        "y": 208
+      },
+      "confidence": 0.46381813647909476,
+      "id": "region_10",
+      "label": "Region 10",
+      "ocrText": "",
+      "role": "layout_region"
+    },
+    {
+      "avgColor": "#b0ec95",
+      "bbox": {
+        "height": 160,
+        "width": 480,
+        "x": 920,
+        "y": 312
+      },
+      "confidence": 0.37490351457136634,
+      "id": "region_11",
+      "label": "Region 11",
+      "ocrText": "",
+      "role": "layout_region"
+    },
+    {
+      "avgColor": "#d7dad5",
+      "bbox": {
+        "height": 104,
+        "width": 40,
+        "x": 1400,
+        "y": 208
+      },
+      "confidence": 0.4314712678919507,
+      "id": "region_12",
+      "label": "Region 12",
+      "ocrText": "",
+      "role": "layout_region"
+    },
+    {
+      "avgColor": "#dbddd5",
+      "bbox": {
+        "height": 160,
+        "width": 40,
+        "x": 1400,
+        "y": 312
+      },
+      "confidence": 0.3664204082624921,
+      "id": "region_13",
+      "label": "Region 13",
+      "ocrText": "",
+      "role": "layout_region"
+    }
+  ],
+  "runId": "gs-20260405-codex-phase1-wechatweb-ref",
+  "schemaVersion": "0.1.0",
+  "separators": {
+    "horizontal": [
+      {
+        "confidence": 0.5837316531548615,
+        "meta": {
+          "childContrast": 4.358898943540674,
+          "contrast": 80.50849647369937,
+          "depth": 2,
+          "gridPosition": 9,
+          "gridRect": {
+            "maxX": 7,
+            "maxY": 26,
+            "minX": 0,
+            "minY": 0
+          },
+          "normalizedPos": 0.34615384615384615,
+          "pixelTotal": 960,
+          "span": {
+            "end": 56,
+            "start": 0
+          },
+          "supportRatio": 0.5714285714285714
+        },
+        "orientation": "horizontal",
+        "position": 72,
+        "score": 0.44101027242096685,
+        "source": "grid-boundary",
+        "thickness": 2
+      },
+      {
+        "confidence": 0.3713350845030263,
+        "meta": {
+          "childContrast": 25.317977802344327,
+          "contrast": 30.850289698858134,
+          "depth": 0,
+          "gridPosition": 26,
+          "gridRect": {
+            "maxX": 180,
+            "maxY": 120,
+            "minX": 0,
+            "minY": 0
+          },
+          "normalizedPos": 0.21666666666666667,
+          "pixelTotal": 960,
+          "span": {
+            "end": 1440,
+            "start": 0
+          },
+          "supportRatio": 0.2962962962962963
+        },
+        "orientation": "horizontal",
+        "position": 208,
+        "score": 0.49355361051025864,
+        "source": "grid-boundary",
+        "thickness": 2
+      },
+      {
+        "confidence": 0.3246957099295533,
+        "meta": {
+          "childContrast": 44.68780594300866,
+          "contrast": 42.54510937400003,
+          "depth": 1,
+          "gridPosition": 39,
+          "gridRect": {
+            "maxX": 180,
+            "maxY": 120,
+            "minX": 0,
+            "minY": 26
+          },
+          "normalizedPos": 0.13829787234042554,
+          "pixelTotal": 960,
+          "span": {
+            "end": 1440,
+            "start": 0
+          },
+          "supportRatio": 0.2518518518518518
+        },
+        "orientation": "horizontal",
+        "position": 312,
+        "score": 0.359043734107153,
+        "source": "grid-boundary",
+        "thickness": 2
+      },
+      {
+        "confidence": 0.3300460381421761,
+        "meta": {
+          "childContrast": 34.46737587922817,
+          "contrast": 30.44899151875252,
+          "depth": 3,
+          "gridPosition": 59,
+          "gridRect": {
+            "maxX": 180,
+            "maxY": 120,
+            "minX": 8,
+            "minY": 39
+          },
+          "normalizedPos": 0.24691358024691357,
+          "pixelTotal": 960,
+          "span": {
+            "end": 1440,
+            "start": 64
+          },
+          "supportRatio": 0.25193798449612403
+        },
+        "orientation": "horizontal",
+        "position": 472,
+        "score": 0.4439122931216776,
+        "source": "grid-boundary",
+        "thickness": 2
+      }
+    ],
+    "vertical": [
+      {
+        "confidence": 0.46022640466446135,
+        "meta": {
+          "childContrast": 64.82283548256741,
+          "contrast": 32.858917212430214,
+          "depth": 1,
+          "gridPosition": 7,
+          "gridRect": {
+            "maxX": 180,
+            "maxY": 26,
+            "minX": 0,
+            "minY": 0
+          },
+          "normalizedPos": 0.03888888888888889,
+          "pixelTotal": 1440,
+          "span": {
+            "end": 208,
+            "start": 0
+          },
+          "supportRatio": 0.4102564102564103
+        },
+        "orientation": "vertical",
+        "position": 56,
+        "score": 0.5583760823167546,
+        "source": "grid-boundary",
+        "thickness": 2
+      },
+      {
+        "confidence": 0.5608587422405268,
+        "meta": {
+          "childContrast": 179.32372960654146,
+          "contrast": 70.41428806060678,
+          "depth": 3,
+          "gridPosition": 115,
+          "gridRect": {
+            "maxX": 175,
+            "maxY": 39,
+            "minX": 0,
+            "minY": 26
+          },
+          "normalizedPos": 0.6571428571428571,
+          "pixelTotal": 1440,
+          "span": {
+            "end": 312,
+            "start": 208
+          },
+          "supportRatio": 0.4358974358974359
+        },
+        "orientation": "vertical",
+        "position": 920,
+        "score": 0.6356036088411199,
+        "source": "grid-boundary",
+        "thickness": 2
+      },
+      {
+        "confidence": 0.5983830092432725,
+        "meta": {
+          "childContrast": 27.313000567495326,
+          "contrast": 85.43560197750294,
+          "depth": 2,
+          "gridPosition": 175,
+          "gridRect": {
+            "maxX": 180,
+            "maxY": 39,
+            "minX": 0,
+            "minY": 26
+          },
+          "normalizedPos": 0.9722222222222222,
+          "pixelTotal": 1440,
+          "span": {
+            "end": 312,
+            "start": 208
+          },
+          "supportRatio": 0.48717948717948717
+        },
+        "orientation": "vertical",
+        "position": 1400,
+        "score": 0.6527296889305664,
+        "source": "grid-boundary",
+        "thickness": 2
+      }
+    ]
+  },
+  "sourceImage": "artifacts/runs/gs-20260405-codex-phase1-wechatweb-ref/capture/source.png",
+  "warnings": null,
+  "window": {
+    "height": 960,
+    "width": 1440,
+    "x": 0,
+    "y": 0
+  }
+}

@@ -1,0 +1,10 @@
+ok  	testMonkey-go/pkg/visionrun	0.192s
+{
+  "auditLog": "/Users/a0000/Documents/workspace/testMonkey-go/artifacts/runs/round-01-bundle-smoke/audit.ndjson",
+  "baseDir": "/Users/a0000/Documents/workspace/testMonkey-go/artifacts/runs/round-01-bundle-smoke",
+  "decision": "/Users/a0000/Documents/workspace/testMonkey-go/artifacts/runs/round-01-bundle-smoke/decision.json",
+  "preflight": "/Users/a0000/Documents/workspace/testMonkey-go/artifacts/runs/round-01-bundle-smoke/preflight.json",
+  "preflightState": "warn",
+  "requirement": "/Users/a0000/Documents/workspace/testMonkey-go/artifacts/runs/round-01-bundle-smoke/requirement.json",
+  "runId": "round-01-bundle-smoke"
+}

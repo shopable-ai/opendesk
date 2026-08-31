@@ -1,0 +1,190 @@
+{
+  "schemaVersion": "0.1.0",
+  "baselineType": "golden_layout",
+  "baselineTier": "dev_reference",
+  "baselineId": "wechatweb-bootstrap-phase1-candidate-20260405",
+  "sourceKind": "web_reference",
+  "sourceSampleDir": "/Users/a0000/Documents/workspace/testMonkey-go/artifacts/golden-samples/wechat/wechatweb-bootstrap-phase1-candidate-20260405",
+  "sourceRunId": "gs-20260405-codex-phase1-wechatweb-ref",
+  "screen": {
+    "width": 1440,
+    "height": 960
+  },
+  "sampleStatus": "candidate",
+  "phaseGate": {
+    "phase1": "pass",
+    "phase2": "not_ready",
+    "phase3": "forbidden"
+  },
+  "captures": [],
+  "zones": [
+    {
+      "id": "left_nav",
+      "role": "nav_strip",
+      "bbox": {
+        "height": 960,
+        "width": 64,
+        "x": 0,
+        "y": 0
+      },
+      "bboxRatio": {
+        "x": 0,
+        "y": 0,
+        "width": 0.0444,
+        "height": 1
+      },
+      "backgroundColor": "#d7d8d6",
+      "confidence": 0.82,
+      "requiredForAction": [
+        "open_chat"
+      ],
+      "evidence": [
+        "narrow left rail detected"
+      ]
+    },
+    {
+      "id": "conversation_list",
+      "role": "chat_list",
+      "bbox": {
+        "height": 960,
+        "width": 856,
+        "x": 64,
+        "y": 0
+      },
+      "bboxRatio": {
+        "x": 0.0444,
+        "y": 0,
+        "width": 0.5944,
+        "height": 1
+      },
+      "backgroundColor": "#eaeee7",
+      "confidence": 0.84,
+      "requiredForAction": [
+        "open_chat"
+      ],
+      "evidence": [
+        "conversation column inferred from major vertical split"
+      ]
+    },
+    {
+      "id": "chat_header",
+      "role": "chat_header",
+      "bbox": {
+        "height": 208,
+        "width": 480,
+        "x": 920,
+        "y": 0
+      },
+      "bboxRatio": {
+        "x": 0.6389,
+        "y": 0,
+        "width": 0.3333,
+        "height": 0.2167
+      },
+      "backgroundColor": "#eeeeee",
+      "confidence": 0.79,
+      "requiredForAction": [
+        "verify_header"
+      ],
+      "evidence": [
+        "top row of main column inferred as header"
+      ]
+    },
+    {
+      "id": "message_list",
+      "role": "message_list",
+      "bbox": {
+        "height": 264,
+        "width": 480,
+        "x": 920,
+        "y": 208
+      },
+      "bboxRatio": {
+        "x": 0.6389,
+        "y": 0.2167,
+        "width": 0.3333,
+        "height": 0.275
+      },
+      "backgroundColor": "#a3e684",
+      "confidence": 0.83,
+      "requiredForAction": [
+        "read_reply"
+      ],
+      "evidence": [
+        "middle area of main column inferred as message list"
+      ]
+    },
+    {
+      "id": "input_area",
+      "role": "input_area",
+      "bbox": {
+        "height": 488,
+        "width": 480,
+        "x": 920,
+        "y": 472
+      },
+      "bboxRatio": {
+        "x": 0.6389,
+        "y": 0.4917,
+        "width": 0.3333,
+        "height": 0.5083
+      },
+      "backgroundColor": "#e4ecdf",
+      "confidence": 0.65,
+      "requiredForAction": [
+        "focus_input",
+        "input_message",
+        "send_message"
+      ],
+      "evidence": [
+        "fallback bottom row promoted to input area"
+      ]
+    },
+    {
+      "id": "send_action_zone",
+      "role": "send_action_zone",
+      "bbox": {
+        "height": 488,
+        "width": 96,
+        "x": 1304,
+        "y": 472
+      },
+      "bboxRatio": {
+        "x": 0.9056,
+        "y": 0.4917,
+        "width": 0.0667,
+        "height": 0.5083
+      },
+      "backgroundColor": "#e4ecdf",
+      "confidence": 0.63,
+      "requiredForAction": [
+        "send_message"
+      ],
+      "evidence": [
+        "derived from right side of input area"
+      ]
+    },
+    {
+      "id": "detail_panel",
+      "role": "aux_panel",
+      "bbox": {
+        "height": 960,
+        "width": 40,
+        "x": 1400,
+        "y": 0
+      },
+      "bboxRatio": {
+        "x": 0.9722,
+        "y": 0,
+        "width": 0.0278,
+        "height": 1
+      },
+      "backgroundColor": "#e3e8e0",
+      "confidence": 0.58,
+      "requiredForAction": [],
+      "evidence": [
+        "trailing columns merged as auxiliary panel"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "annotatedImage": "artifacts/runs/round-02-detect-contract/detect/annotated.png",
+  "auditLog": "/Users/a0000/Documents/workspace/testMonkey-go/artifacts/runs/round-02-detect-contract/audit.ndjson",
+  "baseDir": "/Users/a0000/Documents/workspace/testMonkey-go/artifacts/runs/round-02-detect-contract",
+  "decision": "/Users/a0000/Documents/workspace/testMonkey-go/artifacts/runs/round-02-detect-contract/decision.json",
+  "preflight": "/Users/a0000/Documents/workspace/testMonkey-go/artifacts/runs/round-02-detect-contract/preflight.json",
+  "preflightState": "warn",
+  "regionCount": 23,
+  "regions": "artifacts/runs/round-02-detect-contract/detect/regions.json",
+  "requirement": "/Users/a0000/Documents/workspace/testMonkey-go/artifacts/runs/round-02-detect-contract/requirement.json",
+  "runId": "round-02-detect-contract",
+  "sourceImage": "artifacts/runs/round-02-detect-contract/capture/source.png"
+}

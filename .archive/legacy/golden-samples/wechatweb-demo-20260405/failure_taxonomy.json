@@ -1,0 +1,53 @@
+{
+  "sampleId": "wechatweb-demo-20260405",
+  "taxonomy": [
+    {
+      "id": "GS01_SOURCE_PROVENANCE_WEAK",
+      "desc": "external source paths missing or mutable"
+    },
+    {
+      "id": "GS02_PAGE_TYPE_UNCERTAIN",
+      "desc": "cannot confidently classify desktop chat page"
+    },
+    {
+      "id": "GS03_REQUIRED_ZONE_MISSING",
+      "desc": "conversation/header/message/input/send zone missing"
+    },
+    {
+      "id": "GS04_SELECTED_ROW_AMBIGUOUS",
+      "desc": "selected row count != 1"
+    },
+    {
+      "id": "GS05_TARGET_MODEL_INCOMPLETE",
+      "desc": "open/focus/send/read target missing evidence or fallbacks"
+    },
+    {
+      "id": "GS06_OCR_PROBE_WEAK",
+      "desc": "header/draft/reply text evidence missing"
+    },
+    {
+      "id": "GS07_LAYOUT_HTML_DRIFT",
+      "desc": "layout skeleton diverges materially from source"
+    },
+    {
+      "id": "GS08_SEMANTIC_HTML_DRIFT",
+      "desc": "semantic structure mismatches source intent"
+    },
+    {
+      "id": "GS09_COMPARE_UNINFORMATIVE",
+      "desc": "compare exists but cannot localize major deviation"
+    },
+    {
+      "id": "GS10_REPLAY_NOT_RECOVERABLE",
+      "desc": "checkpoint/replay artifacts incomplete"
+    },
+    {
+      "id": "GS11_STALE_EVIDENCE",
+      "desc": "fresh evidence not guaranteed for live action"
+    },
+    {
+      "id": "GS12_WRONG_CHAT_SEND_RISK",
+      "desc": "target identity cannot be proven before send"
+    }
+  ]
+}

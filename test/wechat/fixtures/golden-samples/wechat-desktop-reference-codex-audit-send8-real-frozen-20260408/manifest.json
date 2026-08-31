@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "0.2.0",
+  "sampleId": "wechat-desktop-reference-codex-audit-send8-real-frozen-20260408",
+  "status": "frozen",
+  "baselineTier": "desktop_reference",
+  "sourceKind": "desktop_reference",
+  "createdAt": "2026-04-08T00:30:00+08:00",
+  "reviewer": "codex",
+  "reviewedAt": "2026-04-08T00:30:00+08:00",
+  "promotionDecision": "approved_reference_only",
+  "copiedFromRun": "codex-audit-send8-real",
+  "phaseGate": {
+    "phase1": "pass",
+    "phase2": "reference_only",
+    "phase3": "send_frozen"
+  },
+  "artifactsComplete": true
+}

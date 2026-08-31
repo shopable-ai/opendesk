@@ -1,0 +1,189 @@
+{
+  "status": "pass",
+  "weightedScore": 1,
+  "missingRequiredZones": [],
+  "zoneResults": [
+    {
+      "zoneId": "left_nav",
+      "status": "pass",
+      "score": 1,
+      "baselineRole": "nav_strip",
+      "runtimeRole": "nav_strip",
+      "backgroundScore": 1,
+      "bboxDiff": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      },
+      "baselineBBoxRatio": {
+        "x": 0,
+        "y": 0,
+        "width": 0.0656,
+        "height": 1
+      },
+      "runtimeBBoxRatio": {
+        "x": 0,
+        "y": 0,
+        "width": 0.0656,
+        "height": 1
+      }
+    },
+    {
+      "zoneId": "conversation_list",
+      "status": "pass",
+      "score": 1,
+      "baselineRole": "chat_list",
+      "runtimeRole": "chat_list",
+      "backgroundScore": 1,
+      "bboxDiff": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      },
+      "baselineBBoxRatio": {
+        "x": 0.0656,
+        "y": 0,
+        "width": 0.2005,
+        "height": 1
+      },
+      "runtimeBBoxRatio": {
+        "x": 0.0656,
+        "y": 0,
+        "width": 0.2005,
+        "height": 1
+      }
+    },
+    {
+      "zoneId": "search_area",
+      "status": "pass",
+      "score": 1,
+      "baselineRole": "search_area",
+      "runtimeRole": "search_area",
+      "backgroundScore": 1,
+      "bboxDiff": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      },
+      "baselineBBoxRatio": {
+        "x": 0.0656,
+        "y": 0,
+        "width": 0.2005,
+        "height": 0.0682
+      },
+      "runtimeBBoxRatio": {
+        "x": 0.0656,
+        "y": 0,
+        "width": 0.2005,
+        "height": 0.0682
+      }
+    },
+    {
+      "zoneId": "chat_header",
+      "status": "pass",
+      "score": 1,
+      "baselineRole": "chat_header",
+      "runtimeRole": "chat_header",
+      "backgroundScore": 1,
+      "bboxDiff": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      },
+      "baselineBBoxRatio": {
+        "x": 0.2662,
+        "y": 0,
+        "width": 0.7338,
+        "height": 0.0591
+      },
+      "runtimeBBoxRatio": {
+        "x": 0.2662,
+        "y": 0,
+        "width": 0.7338,
+        "height": 0.0591
+      }
+    },
+    {
+      "zoneId": "message_list",
+      "status": "pass",
+      "score": 1,
+      "baselineRole": "message_list",
+      "runtimeRole": "message_list",
+      "backgroundScore": 1,
+      "bboxDiff": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      },
+      "baselineBBoxRatio": {
+        "x": 0.2662,
+        "y": 0.0591,
+        "width": 0.7338,
+        "height": 0.6557
+      },
+      "runtimeBBoxRatio": {
+        "x": 0.2662,
+        "y": 0.0591,
+        "width": 0.7338,
+        "height": 0.6557
+      }
+    },
+    {
+      "zoneId": "input_area",
+      "status": "pass",
+      "score": 1,
+      "baselineRole": "input_area",
+      "runtimeRole": "input_area",
+      "backgroundScore": 1,
+      "bboxDiff": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      },
+      "baselineBBoxRatio": {
+        "x": 0.2662,
+        "y": 0.7148,
+        "width": 0.7338,
+        "height": 0.2852
+      },
+      "runtimeBBoxRatio": {
+        "x": 0.2662,
+        "y": 0.7148,
+        "width": 0.7338,
+        "height": 0.2852
+      }
+    },
+    {
+      "zoneId": "send_action_zone",
+      "status": "pass",
+      "score": 1,
+      "baselineRole": "send_action_zone",
+      "runtimeRole": "send_action_zone",
+      "backgroundScore": 1,
+      "bboxDiff": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      },
+      "baselineBBoxRatio": {
+        "x": 0.2662,
+        "y": 0.7148,
+        "width": 0.7338,
+        "height": 0.0682
+      },
+      "runtimeBBoxRatio": {
+        "x": 0.2662,
+        "y": 0.7148,
+        "width": 0.7338,
+        "height": 0.0682
+      }
+    }
+  ]
+}

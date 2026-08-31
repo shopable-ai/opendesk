@@ -1,0 +1,379 @@
+{
+  "schemaVersion": "0.1.0",
+  "snapshotType": "runtime_layout",
+  "snapshotTier": "desktop_runtime",
+  "runDir": ".runtime/runs/codex-audit-send8",
+  "runId": "codex-audit-send8-real",
+  "screen": {
+    "width": 1097,
+    "height": 880
+  },
+  "canProceed": true,
+  "captures": [
+    {
+      "id": "search_capture",
+      "zoneId": "search_area",
+      "precision": "high",
+      "purpose": "Precise crop for search and text entry.",
+      "anchorPoint": {
+        "x": 182,
+        "y": 30
+      },
+      "bbox": {
+        "height": 60,
+        "width": 220,
+        "x": 72,
+        "y": 0
+      },
+      "bboxRatio": {
+        "height": 0.0682,
+        "width": 0.2005,
+        "x": 0.0656,
+        "y": 0
+      },
+      "backgroundColor": "#f5f5f5",
+      "referenceImagePath": "test/wechat/fixtures/golden-samples/wechat-desktop-action-codex-audit-send8-frozen-20260408/verify/capture_refs/search_capture.png",
+      "matchHints": [
+        "bbox-first",
+        "template-match",
+        "color-check",
+        "text-field-shape",
+        "ocr-verify"
+      ],
+      "zoneConfidence": 0.71
+    },
+    {
+      "id": "conversation_capture",
+      "zoneId": "conversation_list",
+      "precision": "high",
+      "purpose": "Precise crop for conversation scan/open.",
+      "anchorPoint": {
+        "x": 182,
+        "y": 440
+      },
+      "bbox": {
+        "height": 880,
+        "width": 220,
+        "x": 72,
+        "y": 0
+      },
+      "bboxRatio": {
+        "height": 1,
+        "width": 0.2005,
+        "x": 0.0656,
+        "y": 0
+      },
+      "backgroundColor": "#ededed",
+      "referenceImagePath": "test/wechat/fixtures/golden-samples/wechat-desktop-action-codex-audit-send8-frozen-20260408/verify/capture_refs/conversation_capture.png",
+      "matchHints": [
+        "bbox-first",
+        "template-match",
+        "color-check",
+        "row-cluster-scan",
+        "ocr-disambiguation"
+      ],
+      "zoneConfidence": 0.84
+    },
+    {
+      "id": "header_capture",
+      "zoneId": "chat_header",
+      "precision": "high",
+      "purpose": "Precise crop for target chat identity verification.",
+      "anchorPoint": {
+        "x": 694,
+        "y": 26
+      },
+      "bbox": {
+        "height": 52,
+        "width": 805,
+        "x": 292,
+        "y": 0
+      },
+      "bboxRatio": {
+        "height": 0.0591,
+        "width": 0.7338,
+        "x": 0.2662,
+        "y": 0
+      },
+      "backgroundColor": "#f9f9f9",
+      "referenceImagePath": "test/wechat/fixtures/golden-samples/wechat-desktop-action-codex-audit-send8-frozen-20260408/verify/capture_refs/header_capture.png",
+      "matchHints": [
+        "bbox-first",
+        "template-match",
+        "color-check",
+        "identity-strip",
+        "ocr-verify"
+      ],
+      "zoneConfidence": 0.64
+    },
+    {
+      "id": "input_capture",
+      "zoneId": "input_area",
+      "precision": "high",
+      "purpose": "Precise crop for input focus/draft verification.",
+      "anchorPoint": {
+        "x": 694,
+        "y": 754
+      },
+      "bbox": {
+        "height": 251,
+        "width": 805,
+        "x": 292,
+        "y": 629
+      },
+      "bboxRatio": {
+        "height": 0.2852,
+        "width": 0.7338,
+        "x": 0.2662,
+        "y": 0.7148
+      },
+      "backgroundColor": "#f6f6f6",
+      "referenceImagePath": "test/wechat/fixtures/golden-samples/wechat-desktop-action-codex-audit-send8-frozen-20260408/verify/capture_refs/input_capture.png",
+      "matchHints": [
+        "bbox-first",
+        "template-match",
+        "color-check",
+        "draft-verify",
+        "focus-hotspot"
+      ],
+      "zoneConfidence": 0.67
+    },
+    {
+      "id": "send_capture",
+      "zoneId": "send_action_zone",
+      "precision": "high",
+      "purpose": "Precise crop for send affordance/post-send clear checks.",
+      "anchorPoint": {
+        "x": 694,
+        "y": 659
+      },
+      "bbox": {
+        "height": 60,
+        "width": 805,
+        "x": 292,
+        "y": 629
+      },
+      "bboxRatio": {
+        "height": 0.0682,
+        "width": 0.7338,
+        "x": 0.2662,
+        "y": 0.7148
+      },
+      "backgroundColor": "#f0f0f0",
+      "referenceImagePath": "test/wechat/fixtures/golden-samples/wechat-desktop-action-codex-audit-send8-frozen-20260408/verify/capture_refs/send_capture.png",
+      "matchHints": [
+        "bbox-first",
+        "template-match",
+        "color-check",
+        "top-action-band",
+        "button-affordance"
+      ],
+      "zoneConfidence": 0.72
+    },
+    {
+      "id": "reply_capture",
+      "zoneId": "message_list",
+      "precision": "coarse",
+      "purpose": "Coarse crop for latest reply/local readback.",
+      "anchorPoint": {
+        "x": 694,
+        "y": 340
+      },
+      "bbox": {
+        "height": 577,
+        "width": 805,
+        "x": 292,
+        "y": 52
+      },
+      "bboxRatio": {
+        "height": 0.6557,
+        "width": 0.7338,
+        "x": 0.2662,
+        "y": 0.0591
+      },
+      "backgroundColor": "#ffffff",
+      "referenceImagePath": "test/wechat/fixtures/golden-samples/wechat-desktop-action-codex-audit-send8-frozen-20260408/verify/capture_refs/reply_capture.png",
+      "matchHints": [
+        "bbox-first",
+        "template-match",
+        "color-check",
+        "latest-band-crop",
+        "local-ocr",
+        "coarse-crop"
+      ],
+      "zoneConfidence": 0.72
+    }
+  ],
+  "zones": [
+    {
+      "id": "left_nav",
+      "role": "nav_strip",
+      "bbox": {
+        "height": 880,
+        "width": 72,
+        "x": 0,
+        "y": 0
+      },
+      "bboxRatio": {
+        "x": 0,
+        "y": 0,
+        "width": 0.0656,
+        "height": 1
+      },
+      "backgroundColor": "#343434",
+      "confidence": 0.82,
+      "requiredForAction": [
+        "open_chat"
+      ],
+      "evidence": [
+        "narrow left rail detected"
+      ]
+    },
+    {
+      "id": "conversation_list",
+      "role": "chat_list",
+      "bbox": {
+        "height": 880,
+        "width": 220,
+        "x": 72,
+        "y": 0
+      },
+      "bboxRatio": {
+        "x": 0.0656,
+        "y": 0,
+        "width": 0.2005,
+        "height": 1
+      },
+      "backgroundColor": "#ededed",
+      "confidence": 0.84,
+      "requiredForAction": [
+        "open_chat"
+      ],
+      "evidence": [
+        "conversation column inferred from major vertical split"
+      ]
+    },
+    {
+      "id": "search_area",
+      "role": "search_area",
+      "bbox": {
+        "height": 60,
+        "width": 220,
+        "x": 72,
+        "y": 0
+      },
+      "bboxRatio": {
+        "x": 0.0656,
+        "y": 0,
+        "width": 0.2005,
+        "height": 0.0682
+      },
+      "backgroundColor": "#f5f5f5",
+      "confidence": 0.71,
+      "requiredForAction": [
+        "open_chat"
+      ],
+      "evidence": [
+        "top band of conversation list reserved for search"
+      ]
+    },
+    {
+      "id": "chat_header",
+      "role": "chat_header",
+      "bbox": {
+        "height": 52,
+        "width": 805,
+        "x": 292,
+        "y": 0
+      },
+      "bboxRatio": {
+        "x": 0.2662,
+        "y": 0,
+        "width": 0.7338,
+        "height": 0.0591
+      },
+      "backgroundColor": "#f9f9f9",
+      "confidence": 0.64,
+      "requiredForAction": [
+        "verify_header"
+      ],
+      "evidence": [
+        "single main row fallback split for header"
+      ]
+    },
+    {
+      "id": "message_list",
+      "role": "message_list",
+      "bbox": {
+        "height": 577,
+        "width": 805,
+        "x": 292,
+        "y": 52
+      },
+      "bboxRatio": {
+        "x": 0.2662,
+        "y": 0.0591,
+        "width": 0.7338,
+        "height": 0.6557
+      },
+      "backgroundColor": "#ffffff",
+      "confidence": 0.72,
+      "requiredForAction": [
+        "read_reply"
+      ],
+      "evidence": [
+        "single main row fallback split for message list"
+      ]
+    },
+    {
+      "id": "input_area",
+      "role": "input_area",
+      "bbox": {
+        "height": 251,
+        "width": 805,
+        "x": 292,
+        "y": 629
+      },
+      "bboxRatio": {
+        "x": 0.2662,
+        "y": 0.7148,
+        "width": 0.7338,
+        "height": 0.2852
+      },
+      "backgroundColor": "#f6f6f6",
+      "confidence": 0.67,
+      "requiredForAction": [
+        "focus_input",
+        "input_message",
+        "send_message"
+      ],
+      "evidence": [
+        "single main row fallback split for input area"
+      ]
+    },
+    {
+      "id": "send_action_zone",
+      "role": "send_action_zone",
+      "bbox": {
+        "height": 60,
+        "width": 805,
+        "x": 292,
+        "y": 629
+      },
+      "bboxRatio": {
+        "x": 0.2662,
+        "y": 0.7148,
+        "width": 0.7338,
+        "height": 0.0682
+      },
+      "backgroundColor": "#f0f0f0",
+      "confidence": 0.72,
+      "requiredForAction": [
+        "send_message"
+      ],
+      "evidence": [
+        "derived from top action band of input area"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "id": "bootstrap-round-01-failure-cases",
+  "createdAt": "2026-04-03T00:00:00+08:00",
+  "cases": [
+    {
+      "id": "F0_OCR_PROVIDER_UNAVAILABLE",
+      "severity": "high",
+      "action": "degrade-or-stop"
+    },
+    {
+      "id": "F1_WINDOW_DRIFT",
+      "severity": "medium",
+      "action": "re-capture"
+    },
+    {
+      "id": "F2_LAYOUT_UNDERSEGMENTATION",
+      "severity": "high",
+      "action": "retune-layout"
+    },
+    {
+      "id": "F3_ROLE_MISCLASSIFIED",
+      "severity": "high",
+      "action": "refine-role-rules"
+    },
+    {
+      "id": "F4_HTML_MIRROR_LAYOUT_DRIFT",
+      "severity": "medium",
+      "action": "fix-mirror-contract"
+    },
+    {
+      "id": "F5_DIFF_FALSE_POSITIVE_THEME_SCALE",
+      "severity": "medium",
+      "action": "normalize-diff"
+    }
+  ]
+}

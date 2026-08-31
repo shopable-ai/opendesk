@@ -98,8 +98,8 @@ The Markdown layer is the canonical rendered user documentation. JSON and `.d.ts
 | Active plans | `docs/plans/` |
 | Application-specific scenario docs | `docs/scenarios/<scenario>/` |
 | External/tool integration docs | `docs/integrations/<integration>/` |
-| Durable test/review evidence | `artifacts/reports/` |
-| Reusable fixtures / golden baselines | `artifacts/fixtures/` |
+| Durable test/review evidence | `docs/quality/<domain>/` or `test/<domain>/reports/` |
+| Reusable fixtures / golden baselines | Owning `test/<domain>/fixtures/` or `tests/<domain>/fixtures/` |
 | Generated runtime/debug/smoke output | `.runtime/` |
 | Local development state | `.dev/` |
 | Superseded but valuable historical material | `.archive/` |

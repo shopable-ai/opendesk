@@ -1,0 +1,58 @@
+{
+  "id": "wechatweb-demo-20260405-phase1",
+  "version": "0.1.0",
+  "goal": "Generate phase-1 dual-HTML golden sample artifacts from frozen WeChatWeb demo screenshot",
+  "inputs": {
+    "sourceImage": "artifacts/external/wechatweb-ref-20260405/demo/demo-desktop-1440x960.png",
+    "sourceRuntimeDOM": "artifacts/external/wechatweb-ref-20260405/demo/runtime-desktop-1440x960.html"
+  },
+  "steps": [
+    {
+      "id": "collect-inputs",
+      "type": "read",
+      "artifact": "artifacts/external/wechatweb-ref-20260405/demo/demo-desktop-1440x960.png"
+    },
+    {
+      "id": "generate-structure",
+      "type": "run",
+      "artifact": "artifacts/runs/<run-id>/detect/regions.json"
+    },
+    {
+      "id": "generate-layout-html",
+      "type": "run",
+      "artifact": "artifacts/runs/<run-id>/mirror/layout.html"
+    },
+    {
+      "id": "generate-semantic-html",
+      "type": "run",
+      "artifact": "artifacts/runs/<run-id>/mirror/semantic.html"
+    },
+    {
+      "id": "validate-dom",
+      "type": "run",
+      "artifact": "artifacts/runs/<run-id>/mirror/dom_validation_report.json"
+    },
+    {
+      "id": "render-compare",
+      "type": "run",
+      "artifact": "artifacts/runs/<run-id>/compare/report.json"
+    }
+  ],
+  "expectedArtifacts": [
+    "artifacts/runs/<run-id>/infer/semantic_model.json",
+    "artifacts/runs/<run-id>/mirror/layout.html",
+    "artifacts/runs/<run-id>/mirror/semantic.html",
+    "artifacts/runs/<run-id>/mirror/dom_validation_report.json"
+  ],
+  "stopConditions": [
+    "pageType not credible",
+    "required zones missing",
+    "selected row ambiguous",
+    "send safety allowed unexpectedly without fresh evidence"
+  ],
+  "escalationConditions": [
+    "compare repeatedly worsens",
+    "runtime DOM and screenshot semantics diverge significantly",
+    "multiple promoted samples compete without human decision"
+  ]
+}

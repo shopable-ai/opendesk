@@ -1,0 +1,26 @@
+{
+  "id": "bootstrap-round-01-broader-suite-observation",
+  "createdAt": "2026-04-03T18:32:25.233517+08:00",
+  "verifierType": "suite",
+  "command": "go test ./automation -count=1",
+  "status": "fail",
+  "checks": [
+    {
+      "id": "automation-full-suite",
+      "result": "fail",
+      "severity": "medium",
+      "detail": "Broader automation suite still reports mixed-content horizontal separator drift in TestLevel7_MixedContent",
+      "evidence": "artifacts/bootstrap-round-01/go-test-automation-full.log"
+    }
+  ],
+  "findings": [
+    {
+      "id": "mixed-content-toolbar-boundary-drift",
+      "severity": "medium",
+      "detail": "Expected horizontal separator near y=60 but observed y=90 in TestLevel7_MixedContent.",
+      "taxonomyId": "F2_LAYOUT_UNDERSEGMENTATION",
+      "disposition": "open"
+    }
+  ],
+  "summary": "Primary blocker is fixed, but a broader mixed-content layout case remains open and should be tracked during Phase 3 detect work."
+}

@@ -1,0 +1,170 @@
+{
+  "status": "pass",
+  "weightedScore": 1,
+  "missingRequiredIntents": [],
+  "missingCriticalGuards": [],
+  "guardScore": 1,
+  "captureReport": {
+    "status": "pass",
+    "weightedScore": 1,
+    "missingRequiredCaptureZones": [],
+    "captureResults": [
+      {
+        "zoneId": "search_area",
+        "status": "pass",
+        "score": 1,
+        "baselineExists": true,
+        "runtimeExists": true,
+        "bboxDiff": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "baselinePrecision": "high",
+        "runtimePrecision": "high"
+      },
+      {
+        "zoneId": "conversation_list",
+        "status": "pass",
+        "score": 1,
+        "baselineExists": true,
+        "runtimeExists": true,
+        "bboxDiff": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "baselinePrecision": "high",
+        "runtimePrecision": "high"
+      },
+      {
+        "zoneId": "chat_header",
+        "status": "pass",
+        "score": 1,
+        "baselineExists": true,
+        "runtimeExists": true,
+        "bboxDiff": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "baselinePrecision": "high",
+        "runtimePrecision": "high"
+      },
+      {
+        "zoneId": "input_area",
+        "status": "pass",
+        "score": 1,
+        "baselineExists": true,
+        "runtimeExists": true,
+        "bboxDiff": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "baselinePrecision": "high",
+        "runtimePrecision": "high"
+      },
+      {
+        "zoneId": "message_list",
+        "status": "pass",
+        "score": 1,
+        "baselineExists": true,
+        "runtimeExists": true,
+        "bboxDiff": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "baselinePrecision": "coarse",
+        "runtimePrecision": "coarse"
+      },
+      {
+        "zoneId": "send_action_zone",
+        "status": "pass",
+        "score": 1,
+        "baselineExists": true,
+        "runtimeExists": true,
+        "bboxDiff": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "baselinePrecision": "high",
+        "runtimePrecision": "high"
+      }
+    ]
+  },
+  "targetResults": [
+    {
+      "targetId": "target_open_chat_primary",
+      "intent": "open_chat",
+      "status": "pass",
+      "score": 1,
+      "baselineZoneId": "conversation_list",
+      "runtimeZoneId": "conversation_list",
+      "bboxDiff": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      },
+      "baselineCandidateCount": 6,
+      "runtimeCandidateCount": 6
+    },
+    {
+      "targetId": "target_focus_input_primary",
+      "intent": "focus_input",
+      "status": "pass",
+      "score": 1,
+      "baselineZoneId": "input_area",
+      "runtimeZoneId": "input_area",
+      "bboxDiff": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      },
+      "baselineCandidateCount": 0,
+      "runtimeCandidateCount": 0
+    },
+    {
+      "targetId": "target_send_message_primary",
+      "intent": "send_message",
+      "status": "pass",
+      "score": 1,
+      "baselineZoneId": "send_action_zone",
+      "runtimeZoneId": "send_action_zone",
+      "bboxDiff": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      },
+      "baselineCandidateCount": 0,
+      "runtimeCandidateCount": 0
+    },
+    {
+      "targetId": "target_read_reply_primary",
+      "intent": "read_reply",
+      "status": "pass",
+      "score": 1,
+      "baselineZoneId": "message_list",
+      "runtimeZoneId": "message_list",
+      "bboxDiff": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      },
+      "baselineCandidateCount": 0,
+      "runtimeCandidateCount": 0
+    }
+  ]
+}

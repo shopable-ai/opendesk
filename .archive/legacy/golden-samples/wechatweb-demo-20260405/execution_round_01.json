@@ -1,0 +1,66 @@
+{
+  "roundId": "execution-round-01",
+  "runId": "gs-wechatweb-demo-20260405-phase1",
+  "currentGoal": "Use frozen WeChatWeb demo screenshot to generate Phase 1 dual-HTML artifacts, then render mirror.png and produce compare/report.json for diagnosis.",
+  "inputArtifacts": [
+    "artifacts/external/wechatweb-ref-20260405/demo/demo-desktop-1440x960.png",
+    "artifacts/external/wechatweb-ref-20260405/demo/runtime-desktop-1440x960.html",
+    "docs/GOLDEN_SAMPLE_STRATEGY_REVIEW_20260405.md",
+    "docs/LANGGRAPH_GOLDEN_SAMPLE_GRAPH_20260405.md"
+  ],
+  "outputArtifacts": [
+    "artifacts/runs/gs-wechatweb-demo-20260405-phase1/detect/regions.json",
+    "artifacts/runs/gs-wechatweb-demo-20260405-phase1/detect/layout_model.json",
+    "artifacts/runs/gs-wechatweb-demo-20260405-phase1/infer/app_classification.json",
+    "artifacts/runs/gs-wechatweb-demo-20260405-phase1/infer/zones.json",
+    "artifacts/runs/gs-wechatweb-demo-20260405-phase1/infer/action_targets.json",
+    "artifacts/runs/gs-wechatweb-demo-20260405-phase1/infer/chat_candidates.json",
+    "artifacts/runs/gs-wechatweb-demo-20260405-phase1/infer/semantic_model.json",
+    "artifacts/runs/gs-wechatweb-demo-20260405-phase1/mirror/layout.html",
+    "artifacts/runs/gs-wechatweb-demo-20260405-phase1/mirror/semantic.html",
+    "artifacts/runs/gs-wechatweb-demo-20260405-phase1/mirror/dom_validation_report.json",
+    "artifacts/runs/gs-wechatweb-demo-20260405-phase1/mirror/mirror.png",
+    "artifacts/runs/gs-wechatweb-demo-20260405-phase1/compare/report.json",
+    "artifacts/runs/gs-wechatweb-demo-20260405-phase1/compare/diff.png",
+    "artifacts/runs/gs-wechatweb-demo-20260405-phase1/verify/actionability_report.json",
+    "artifacts/runs/gs-wechatweb-demo-20260405-phase1/verify/send_safety_report.json",
+    "artifacts/runs/gs-wechatweb-demo-20260405-phase1/checkpoints/current_state.json",
+    "artifacts/runs/gs-wechatweb-demo-20260405-phase1/replay/replay_result.json",
+    "artifacts/runs/gs-wechatweb-demo-20260405-phase1/replay/state_transition_log.json"
+  ],
+  "doneCriteria": [
+    "semantic_model.json exists in infer/",
+    "layout.html and semantic.html exist in mirror/",
+    "dom_validation_report.json exists and is parseable",
+    "mirror.png and compare/report.json exist for diagnosis"
+  ],
+  "newlyAdded": [
+    "WeChatWeb demo-specific independent run bundle",
+    "mirror render screenshot via localhost static server",
+    "compare report with pixelDiffRatio and deviation boxes",
+    "golden sample manifest/evidence index updated with latest run"
+  ],
+  "currentBlockers": [
+    "selectedCandidateCount=0",
+    "header OCR empty",
+    "draft OCR empty",
+    "semanticScore=0.64",
+    "canProceed=false",
+    "sendSafety.allowed=false"
+  ],
+  "resolvedIssues": [
+    "Phase 1 required artifacts now exist",
+    "layout/semantic HTML path contract aligned",
+    "compare report and diff image now generated",
+    "checkpoint/replay artifacts available"
+  ],
+  "enteredFailureTaxonomy": [
+    "GS04_SELECTED_ROW_AMBIGUOUS",
+    "GS06_OCR_PROBE_WEAK",
+    "GS07_LAYOUT_HTML_DRIFT",
+    "GS09_COMPARE_UNINFORMATIVE",
+    "GS12_WRONG_CHAT_SEND_RISK"
+  ],
+  "gatePassed": false,
+  "continuing": "Proceed to Phase 2 repair on chat_candidates/header OCR/draft OCR and consider a better-selected demo state before any live action chain."
+}
