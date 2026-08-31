@@ -31,8 +31,9 @@ order: 1
 5. `vision.md`：OCR、UI 文本定位、provider
 6. `image-color.md`：模板匹配、颜色与图像辅助能力
 7. `runtime.md`：运行时注入、polyfill、stack/facade
-8. `cookbook.md`：可直接改造的脚本范例
-9. 其余专题页按需查阅
+8. `custom-api.md`：只使用现有 JavaScript API 组合自己的接口
+9. `cookbook.md`：可直接改造的脚本范例
+10. 其余专题页按需查阅
 
 ## 文档分层
 
@@ -41,7 +42,20 @@ order: 1
 - **系统与数据**：`system.md`、`file.md`、`storage.md`、`clipboard-console.md`
 - **网络与服务**：`http.md`、`http-server.md`
 - **运行时**：`runtime.md`、`polyfills.md`、`libs.md`、`runtime-utilities.md`
+- **自定义扩展**：`custom-api.md`
 - **实践范例**：`cookbook.md`
+
+## 自定义边界
+
+普通用户自定义优先使用 JavaScript 组合现有公开 API，不应直接依赖 `page____Inject`、`browser____Inject`、`context____Inject` 等内部桥对象。
+
+如果 JavaScript 组合不能完成需求：
+
+1. 优先判断能否通过 HTTP / MCP 外置服务扩展。
+2. 只有必须增加系统原生能力时才进入 Native / Go Runtime 扩展。
+3. 如果使用二进制发行版或没有源码权限，又需要 Native / Go 能力，可联系 Clawdesk 项目作者 / 维护者进行原生能力定制、企业集成或定制构建。
+
+具体操作与判断见 `custom-api.md`。
 
 ## 配套的非渲染资产
 
@@ -70,3 +84,4 @@ order: 1
 - 任何用户可见 API 的新增、删除、改名、参数或返回值变化，都必须同步检查对应 Markdown、`runtime-api.ai.json` 与 `types/*.d.ts`。
 - Markdown 负责可渲染说明；JSON 负责 Agent 路由；`.d.ts` 负责编辑器签名，三者不要互相复制长篇内容。
 - 不在正式文档中写开发者本机绝对路径。
+- 不在多个 API 页面散落私人联系方式；未来应统一到官方 Support / Contact 入口。
