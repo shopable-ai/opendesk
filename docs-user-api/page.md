@@ -33,6 +33,7 @@ order: 2
 | 方法 | 用途 |
 | --- | --- |
 | `page.screenshot(options?)` | 截图 |
+| `page.captureScreen(options?)` | 直接抓取屏幕或裁剪区域；返回值兼容 `page.screenshot` |
 | `page.goto(url)` | 用系统默认方式打开 URL |
 | `page.openURL(url)` | `goto` 的语义别名 |
 | `page.openApp(appName)` | 打开应用 |
@@ -57,6 +58,7 @@ order: 2
 | `page.checkPermissions(options?)` | 跨平台权限快照 |
 | `page.requestPermissions(options?)` | 跨平台权限请求 |
 | `page.ensurePermissions(options?)` | 严格权限守卫 |
+| `page.browser()` / `page.context()` | compatibility facade 的当前 Browser / Context |
 
 ## page.screenshot(options)
 
@@ -107,7 +109,7 @@ const result = await page.screenshot(options);
 ```js
 const out = await page.screenshot({
   target: 'activeWindow',
-  path: './artifacts/current.png',
+  path: './.runtime/examples/current.png',
   returnType: 'path'
 });
 console.log(out);
@@ -121,7 +123,7 @@ console.log(Screen.getDisplays());
 await page.screenshot({
   target: 'screen',
   displayIndex: 2,
-  path: './artifacts/display-2.png',
+  path: './.runtime/examples/display-2.png',
   returnType: 'path'
 });
 ```
@@ -131,7 +133,7 @@ await page.screenshot({
 ```js
 const shot = await page.screenshot({
   clip: { x: 100, y: 120, width: 480, height: 320 },
-  path: './artifacts/clip.png',
+  path: './.runtime/examples/clip.png',
   returnType: 'object'
 });
 console.log(shot);

@@ -3,9 +3,7 @@ package feature
 import "os"
 
 var (
-	// UseRuntimePool enables the runtime pool for concurrent script execution
-	UseRuntimePool = os.Getenv("USE_RUNTIME_POOL") != "0" // Enabled by default
-
-	// UseDIContainer enables the dependency injection container
+	// UseDIContainer remains a route-compatibility switch. Both values use the
+	// same pkg/http and pkg/execution implementation; no legacy Runtime exists.
 	UseDIContainer = os.Getenv("USE_DI_CONTAINER") != "0" // Enabled by default
 )

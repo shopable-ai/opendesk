@@ -2,6 +2,7 @@ package automation
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/dop251/goja"
 )
@@ -12,13 +13,13 @@ import (
 type RuntimeStackMode string
 
 const (
-	RuntimeStackLegacy     RuntimeStackMode = "legacy"
-	RuntimeStackUpgraded   RuntimeStackMode = "upgraded"
-	RuntimeStackPlaywright RuntimeStackMode = "playwright"
+	RuntimeStackLegacy     = "legacy"
+	RuntimeStackUpgraded   = "upgraded"
+	RuntimeStackPlaywright = "playwright"
 )
 
 func normalizeRuntimeStackMode(mode string) RuntimeStackMode {
-	switch RuntimeStackMode(mode) {
+	switch RuntimeStackMode(strings.ToLower(strings.TrimSpace(mode))) {
 	case RuntimeStackUpgraded:
 		return RuntimeStackUpgraded
 	case RuntimeStackPlaywright:
@@ -26,6 +27,12 @@ func normalizeRuntimeStackMode(mode string) RuntimeStackMode {
 	default:
 		return RuntimeStackLegacy
 	}
+}
+
+// NormalizeRuntimeStack returns the supported stack name, falling back to the
+// legacy surface for an empty or unknown value.
+func NormalizeRuntimeStack(mode string) string {
+	return string(normalizeRuntimeStackMode(mode))
 }
 
 func ApplyRuntimeStackMode(runtime *goja.Runtime, mode string) error {
@@ -58,8 +65,10 @@ func ApplyRuntimeStackMode(runtime *goja.Runtime, mode string) error {
 
 func aliasGlobalObject(runtime *goja.Runtime, sourceName, targetName, label string) error {
 	source := runtime.Get(sourceName)
-	if goja.IsUndefined(source) || goja.IsNull(source) {
-		return fmt.Errorf("%s is unavailable: missing global %s", label, sourceName)
+	if source == nil || goja.IsUndefined(source) || goja.IsNull(source) {
+		// Compatibility layers can be selectively unavailable. Preserve the
+		// current global rather than making mode selection itself fail.
+		return nil
 	}
 	return runtime.Set(targetName, source)
 }

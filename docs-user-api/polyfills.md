@@ -137,6 +137,11 @@ notify({
 
 正式脚本中的全局 `axios` 由这个 polyfill 构造。
 
+同一文件也提供最小的 `AbortController` / `AbortSignal` 兼容层，用于
+`http.request()` 与 axios 的 `signal` 取消参数。它支持 `abort()`、`signal`、
+`addEventListener('abort', fn)` 和 `removeEventListener('abort', fn)`；完整网络错误
+与 deadline 语义见 `http.md`。
+
 它**直接建立在 `http.request()` 上**，提供：
 
 - `axios.defaults`

@@ -1,14 +1,14 @@
 package http
 
 import (
+	"clawdesk/pkg/container"
+	pkgExecution "clawdesk/pkg/execution"
 	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"strings"
-	"clawdesk/pkg/container"
-	pkgExecution "clawdesk/pkg/execution"
 	"time"
 )
 
@@ -105,16 +105,20 @@ func (h *Handler) HandleExecutionRoutes(w http.ResponseWriter, r *http.Request) 
 		h.handleExecutionEvents(w, r, strings.TrimSuffix(path, "/events"))
 		return
 	}
+	if r.Method == http.MethodDelete {
+		h.handleExecutionCancel(w, r, path)
+		return
+	}
 	h.handleExecutionStatus(w, r, path)
 }
 
 // HandleStatus 返回服务健康状态和最近一次执行快照。
 func (h *Handler) HandleStatus(w http.ResponseWriter, r *http.Request) {
 	status := map[string]interface{}{
-		"status":         "ok",
-		"runtime_pool":   h.container.RuntimePool().Size(),
-		"vision_enabled": h.container.Vision() != nil,
-		"timestamp":      time.Now().Unix(),
+		"status":             "ok",
+		"execution_capacity": h.container.ExecutionCapacity(),
+		"vision_enabled":     h.container.Vision() != nil,
+		"timestamp":          time.Now().Unix(),
 	}
 	if latest, ok := h.manager.Latest(); ok {
 		status["latestExecution"] = h.currentResult(latest)
@@ -322,22 +326,30 @@ func (h *Handler) startExecution(req ScriptRequest) (map[string]any, error) {
 		return nil, err
 	}
 	h.manager.Register(executionID, emitter)
+	executionContext, cancel := context.WithCancel(context.Background())
+	if !h.manager.SetCancel(executionID, cancel) {
+		cancel()
+		_ = emitter.Close()
+		return nil, fmt.Errorf("register execution cancellation")
+	}
 	emitter.SetStatus(pkgExecution.ExecutionStatusRunning)
 	h.manager.UpdateResult(emitter.Result())
 
 	request := pkgExecution.Request{
-		ExecutionID:    executionID,
-		SourceLabel:    "http:inline",
-		Ext:            ".js",
-		StackMode:      req.Stack,
-		ScriptHash:     pkgExecution.ComputeScriptHash([]byte(script)),
-		ScriptContent:  []byte(script),
-		TimeoutMinutes: timeoutMinutesFromSeconds(req.Timeout),
-		Artifacts:      artifacts,
-		Selection:      selection,
+		Context:       executionContext,
+		ExecutionID:   executionID,
+		SourceLabel:   "http:inline",
+		Ext:           ".js",
+		StackMode:     req.Stack,
+		ScriptHash:    pkgExecution.ComputeScriptHash([]byte(script)),
+		ScriptContent: []byte(script),
+		Timeout:       time.Duration(req.Timeout) * time.Second,
+		Artifacts:     artifacts,
+		Selection:     selection,
 	}
 
 	go func() {
+		defer cancel()
 		defer emitter.Close()
 		result, summary, _ := pkgExecution.RunWithEmitter(request, emitter)
 		h.manager.Complete(result, summary)
@@ -349,8 +361,26 @@ func (h *Handler) startExecution(req ScriptRequest) (map[string]any, error) {
 		"statusUrl":   "/executions/" + executionID,
 		"summaryUrl":  "/executions/" + executionID + "/summary",
 		"streamUrl":   "/executions/" + executionID + "/events",
+		"cancelUrl":   "/executions/" + executionID,
 		"artifacts":   artifacts,
 	}, nil
+}
+
+func (h *Handler) handleExecutionCancel(w http.ResponseWriter, r *http.Request, executionID string) {
+	if r.Method != http.MethodDelete {
+		h.sendError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	if h.manager.Cancel(executionID) {
+		h.sendSuccess(w, map[string]any{"executionId": executionID, "status": "canceling"})
+		return
+	}
+	record, exists := h.manager.Get(executionID)
+	if !exists {
+		h.sendError(w, http.StatusNotFound, "execution not found")
+		return
+	}
+	h.sendSuccess(w, h.currentResult(record))
 }
 
 func (h *Handler) handleExecutionStatus(w http.ResponseWriter, r *http.Request, executionID string) {
@@ -463,23 +493,6 @@ func (h *Handler) currentResult(record *pkgExecution.Record) pkgExecution.Execut
 		}
 	}
 	return record.Result
-}
-
-func timeoutMinutesFromSeconds(seconds int) int {
-	if seconds <= 0 {
-		return 0
-	}
-	if seconds <= 60 {
-		return 1
-	}
-	minutes := seconds / 60
-	if seconds%60 != 0 {
-		minutes++
-	}
-	if minutes <= 0 {
-		minutes = 1
-	}
-	return minutes
 }
 
 func writeSSE(w http.ResponseWriter, event string, payload any) error {

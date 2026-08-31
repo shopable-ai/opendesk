@@ -194,8 +194,8 @@ await mouse.wheel(options)
 
 | 参数 | 类型 | 默认值 | 说明 |
 | --- | --- | --- | --- |
-| options.deltaX | number | 0 | 水平滚动量 |
-| options.deltaY | number | 0 | 垂直滚动量 |
+| options.deltaX | number | 0 | 水平滚动量；正值向右，负值向左 |
+| options.deltaY | number | 0 | 垂直滚动量；正值向下，负值向上 |
 | options.steps | number | 1 | 分几步滚动 |
 | options.delay | number | 0 | 每步间延迟毫秒 |
 
@@ -370,7 +370,7 @@ await keyboard.press('Enter');
 ```js
 await mouse.wheel({ deltaY: 600, steps: 8, delay: 10 });
 await page.waitForTimeout(500);
-await page.screenshot({ path: './artifacts/after-scroll.png' });
+await page.screenshot({ path: './.runtime/examples/after-scroll.png' });
 ```
 
 ## 与旧文档的差异

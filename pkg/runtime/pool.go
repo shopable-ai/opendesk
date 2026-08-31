@@ -1,155 +1,75 @@
+// Package runtime contains execution-capacity primitives. It deliberately does
+// not own, pool, or return JavaScript runtime values: a runtime is mutable
+// and is owned for its whole lifetime by one event-loop goroutine.
 package runtime
 
 import (
 	"context"
 	"sync"
-	"time"
-
-	"github.com/dop251/goja"
 )
 
-// RuntimePool manages a pool of goja.Runtime instances for concurrent script execution
-type RuntimePool struct {
-	pool        chan *goja.Runtime
-	factory     func() *goja.Runtime
-	mu          sync.Mutex
-	closed      bool
-	maxIdleTime time.Duration
-	lastUsed    map[*goja.Runtime]time.Time
-	stopCleanup chan struct{}
+// ExecutionGate limits concurrent executions without lending a mutable
+// JavaScript runtime to the caller. A caller that acquired the gate must call
+// Release exactly once.
+type ExecutionGate struct {
+	permits chan struct{}
+	closed  chan struct{}
+	once    sync.Once
 }
 
-// NewRuntimePool creates a new runtime pool with the specified size and factory function
-func NewRuntimePool(size int, factory func() *goja.Runtime) *RuntimePool {
+// NewExecutionGate creates a bounded, cancellation-aware concurrency gate.
+func NewExecutionGate(size int) *ExecutionGate {
 	if size <= 0 {
-		size = 10 // default pool size
+		size = 10
 	}
-
-	p := &RuntimePool{
-		pool:        make(chan *goja.Runtime, size),
-		factory:     factory,
-		maxIdleTime: 10 * time.Minute,
-		lastUsed:    make(map[*goja.Runtime]time.Time),
-		stopCleanup: make(chan struct{}),
+	return &ExecutionGate{
+		permits: make(chan struct{}, size),
+		closed:  make(chan struct{}),
 	}
-
-	// Pre-create runtime instances
-	for i := 0; i < size; i++ {
-		rt := factory()
-		p.pool <- rt
-		p.lastUsed[rt] = time.Now()
-	}
-
-	// Start cleanup goroutine
-	go p.cleanup()
-
-	return p
 }
 
-// Get retrieves a runtime from the pool or creates a new one if pool is empty
-func (p *RuntimePool) Get(ctx context.Context) (*goja.Runtime, error) {
-	p.mu.Lock()
-	if p.closed {
-		p.mu.Unlock()
-		return nil, ErrPoolClosed
+// Acquire reserves one execution slot. It never exposes a runtime object.
+func (g *ExecutionGate) Acquire(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
 	}
-	p.mu.Unlock()
-
 	select {
-	case rt := <-p.pool:
-		p.mu.Lock()
-		p.lastUsed[rt] = time.Now()
-		p.mu.Unlock()
-		return rt, nil
-	case <-ctx.Done():
-		return nil, ctx.Err()
+	case <-g.closed:
+		return ErrPoolClosed
 	default:
-		// Pool is empty, create new runtime
-		rt := p.factory()
-		p.mu.Lock()
-		p.lastUsed[rt] = time.Now()
-		p.mu.Unlock()
-		return rt, nil
 	}
-}
-
-// Put returns a runtime to the pool
-func (p *RuntimePool) Put(rt *goja.Runtime) {
-	if rt == nil {
-		return
-	}
-
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	if p.closed {
-		return
-	}
-
-	p.lastUsed[rt] = time.Now()
-
 	select {
-	case p.pool <- rt:
-		// Successfully returned to pool
-	default:
-		// Pool is full, discard the runtime
-		delete(p.lastUsed, rt)
-	}
-}
-
-// Close shuts down the pool and releases all resources
-func (p *RuntimePool) Close() error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	if p.closed {
+	case g.permits <- struct{}{}:
 		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-g.closed:
+		return ErrPoolClosed
 	}
+}
 
-	p.closed = true
-	close(p.stopCleanup)
-	close(p.pool)
+// Release returns an execution slot. Extra releases are ignored so deferred
+// cleanup remains safe when admission failed before a slot was acquired.
+func (g *ExecutionGate) Release() {
+	select {
+	case <-g.permits:
+	default:
+	}
+}
 
-	// Clear tracking map
-	p.lastUsed = make(map[*goja.Runtime]time.Time)
-
+// Close rejects new acquisitions. Existing executions remain responsible for
+// their own contexts and teardown.
+func (g *ExecutionGate) Close() error {
+	g.once.Do(func() { close(g.closed) })
 	return nil
 }
 
-// cleanup periodically removes idle runtimes from the pool
-func (p *RuntimePool) cleanup() {
-	ticker := time.NewTicker(time.Minute)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			p.mu.Lock()
-			now := time.Now()
-			for rt, lastUsed := range p.lastUsed {
-				if now.Sub(lastUsed) > p.maxIdleTime {
-					// Remove from tracking
-					delete(p.lastUsed, rt)
-					// Try to drain from pool and replace with fresh runtime
-					select {
-					case old := <-p.pool:
-						if old == rt {
-							p.pool <- p.factory()
-						} else {
-							p.pool <- old
-						}
-					default:
-					}
-				}
-			}
-			p.mu.Unlock()
-		case <-p.stopCleanup:
-			return
-		}
-	}
+// Capacity is the configured maximum number of concurrent executions.
+func (g *ExecutionGate) Capacity() int {
+	return cap(g.permits)
 }
 
-// Size returns the current number of runtimes in the pool
-func (p *RuntimePool) Size() int {
-	return len(p.pool)
+// InUse is a diagnostic metric only; it is not an ownership handle.
+func (g *ExecutionGate) InUse() int {
+	return len(g.permits)
 }

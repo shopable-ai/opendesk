@@ -6,6 +6,10 @@ declare global {
     method?: string;
     headers?: Record<string, string>;
     data?: unknown;
+    /** Request deadline in milliseconds. 0 disables the request-local deadline. */
+    timeout?: number;
+    /** Optional standard AbortSignal-compatible cancellation signal. */
+    signal?: AbortSignal;
     [key: string]: unknown;
   }
 
@@ -17,9 +21,9 @@ declare global {
   }
 
   interface ClawdeskHttpClient {
-    request<T = unknown>(options: ClawdeskHttpRequestOptions): ClawdeskHttpResponse<T>;
-    get<T = unknown>(url: string, options?: Omit<ClawdeskHttpRequestOptions, "url" | "method">): ClawdeskHttpResponse<T>;
-    post<T = unknown>(url: string, data?: unknown, options?: Omit<ClawdeskHttpRequestOptions, "url" | "method" | "data">): ClawdeskHttpResponse<T>;
+    request<T = unknown>(options: ClawdeskHttpRequestOptions): Promise<ClawdeskHttpResponse<T>>;
+    get<T = unknown>(url: string, options?: Omit<ClawdeskHttpRequestOptions, "url" | "method">): Promise<ClawdeskHttpResponse<T>>;
+    post<T = unknown>(url: string, data?: unknown, options?: Omit<ClawdeskHttpRequestOptions, "url" | "method" | "data">): Promise<ClawdeskHttpResponse<T>>;
   }
 
   var http: ClawdeskHttpClient;

@@ -22,7 +22,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dop251/goja"
 	"github.com/go-vgo/robotgo"
 )
 
@@ -88,68 +87,6 @@ func parseFlags() *Config {
 	return config
 }
 
-func initRuntime() *goja.Runtime {
-	jsRuntime := goja.New()
-
-	// 初始化 JS 环境
-	if err := automation.InitJS(jsRuntime); err != nil {
-		panic(err)
-	}
-
-	// 初始化并注册 axios
-	axios := automation.NewAxios(jsRuntime)
-	axios.RegisterInRuntime()
-
-	// 可以添加这行来调试环境设置
-	printJSEnvironment(jsRuntime)
-
-	// 或者只调试特定对象
-	// debugPageObject(jsRuntime, "page")
-	// debugPageObject(jsRuntime, "mouse")
-	// debugPageObject(jsRuntime, "axios")
-
-	// notify 函数仍然保持原样，因为它是特殊情况
-
-	// 实现 notify 函数
-	jsRuntime.Set("notify____Inject", func(call goja.FunctionCall) goja.Value {
-		fmt.Println("Notify function called") // 调试日志
-
-		if len(call.Arguments) < 1 {
-			fmt.Println("No arguments provided to notify")
-			return goja.Undefined()
-		}
-
-		// 解析参数
-		options := call.Argument(0).ToObject(jsRuntime)
-		if options == nil {
-			fmt.Println("Failed to parse notify options")
-			return goja.Undefined()
-		}
-
-		// 转换为 NotifyOptions
-		notifyOpts := &automation.NotifyOptions{
-			Title:   toString(options.Get("title")),
-			Message: toString(options.Get("message")),
-			Sound:   toBool(options.Get("sound")),
-			Timeout: time.Duration(toInt(options.Get("timeout"))) * time.Millisecond,
-		}
-
-		fmt.Printf("Sending notification: %+v\n", notifyOpts) // 调试日志
-
-		// 调用通知
-		err := automation.Notify(notifyOpts)
-		if err != nil {
-			fmt.Printf("Notification error: %v\n", err) // 调试日志
-			panic(jsRuntime.NewGoError(err))
-		}
-
-		fmt.Println("Notification sent successfully") // 调试日志
-		return goja.Undefined()
-	})
-
-	return jsRuntime
-}
-
 var isAutoRunJs bool = false
 
 func main() {
@@ -158,8 +95,11 @@ func main() {
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Printf("Recovered from panic: %v\n", r)
-			fmt.Println("\nPress 'Enter' to exit...")
-			fmt.Scanln()
+			if len(os.Args) == 1 {
+				fmt.Println("\nPress 'Enter' to exit...")
+				fmt.Scanln()
+			}
+			os.Exit(1)
 		}
 	}()
 
@@ -251,8 +191,6 @@ func main() {
 
 		if err := executeScript(config); err != nil {
 			fmt.Printf("[ERROR] Script execution failed: %v\n", err)
-			fmt.Println("\nPress 'Enter' to exit...")
-			fmt.Scanln()
 			os.Exit(1)
 		}
 
@@ -317,101 +255,24 @@ func findScriptFile() (string, error) {
 	return "", fmt.Errorf("tm.config.js not found")
 }
 
-func executeJavaScript(jsRuntime *goja.Runtime, script string, timeoutMinutes int) error {
-	startTime := time.Now()
-	fmt.Printf("[%s] 开始执行 JavaScript...\n", startTime.Format("15:04:05.000"))
-
-	// 创建一个channel来等待脚本完成
-	done := make(chan error)
-
-	// 处理脚本包装逻辑（保持不变）...
-	script = strings.TrimSpace(script)
-	if !strings.HasPrefix(script, "(async") && !strings.HasPrefix(script, "async") {
-		script = fmt.Sprintf(`
-            (async () => {
-                try {
-                    %s
-                } catch (err) {
-                    console.error("[%s] Script execution error:", err.message || err);
-                    throw err;
-                }
-            })();
-        `, script, time.Now().Format("15:04:05.000"))
+// applyWorkingDirectory changes the process directory only after confirming
+// that the requested path exists and is a directory. It is intentionally kept
+// separate from flag parsing so command entrypoints can opt into it explicitly.
+func applyWorkingDirectory(path string) error {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return fmt.Errorf("working directory is empty")
 	}
-
-	// 添加Promise完成处理和全局完成标记（保持不变）...
-	completeScript := fmt.Sprintf(`
-        globalThis.__scriptComplete = false;
-        globalThis.__activeTimers = globalThis.__activeTimers || 0;
-
-        (async () => {
-            try {
-                await %s;
-
-                await new Promise(resolve => {
-                    const checkTimers = () => {
-                        const activeTimers = globalThis.__activeTimers || 0;
-                        if (activeTimers === 0) {
-                            globalThis.__scriptComplete = true;
-                            resolve();
-                        } else {
-                            setTimeout(checkTimers, 100);
-                        }
-                    };
-                    checkTimers();
-                });
-
-                console.log("[%s] Script execution completed successfully");
-            } catch (err) {
-                console.error("[%s] Error in script execution:", err.message || err);
-                throw err;
-            }
-        })();
-    `, script, time.Now().Format("15:04:05.000"), time.Now().Format("15:04:05.000"))
-
-	// 在goroutine中执行脚本
-	go func() {
-		_, err := jsRuntime.RunString(completeScript)
-		if err != nil {
-			done <- fmt.Errorf("script execution failed: %v", err)
-			return
-		}
-
-		// 等待脚本实际完成
-		for {
-			time.Sleep(100 * time.Millisecond)
-			completeValue := jsRuntime.Get("__scriptComplete")
-			if completeValue != nil && completeValue.ToBoolean() {
-				break
-			}
-		}
-
-		done <- nil
-	}()
-
-	// 根据 timeout 参数决定执行模式
-	var err error
-	if timeoutMinutes == 0 {
-		// 无超时模式
-		err = <-done
-	} else {
-		// 有超时限制的模式
-		select {
-		case err = <-done:
-			// 正常完成
-		case <-time.After(time.Duration(timeoutMinutes) * time.Minute):
-			err = fmt.Errorf("script execution timed out after %d minutes", timeoutMinutes)
-		}
-	}
-
-	// 检查执行结果
+	info, err := os.Stat(path)
 	if err != nil {
-		return fmt.Errorf("[%s] 执行失败: %v", time.Now().Format("15:04:05.000"), err)
+		return fmt.Errorf("stat working directory %q: %w", path, err)
 	}
-
-	// 计算并显示执行时间
-	executionTime := time.Since(startTime)
-	fmt.Printf("[%s] JavaScript 执行完成，耗时: %v\n", time.Now().Format("15:04:05.000"), executionTime)
+	if !info.IsDir() {
+		return fmt.Errorf("working directory %q is not a directory", path)
+	}
+	if err := os.Chdir(path); err != nil {
+		return fmt.Errorf("change working directory to %q: %w", path, err)
+	}
 	return nil
 }
 
@@ -695,18 +556,19 @@ func printAgentSummaryJSON(summary pkgExecution.AgentSummary) error {
 }
 
 func executeScriptContent(content []byte, sourceLabel, ext string, timeoutMinutes int) error {
-	scriptHash := computeScriptHash(content)
-	fmt.Printf("[%s] Detected file extension: %s\n", time.Now().Format("15:04:05.000"), ext)
-	fmt.Printf("[%s] Script source: %s\n", time.Now().Format("15:04:05.000"), sourceLabel)
-	fmt.Printf("[%s] Script hash: %s\n", time.Now().Format("15:04:05.000"), scriptHash)
-
-	if ext == ".js" {
-		jsRuntime := initRuntime()
-		return executeJavaScript(jsRuntime, string(content), timeoutMinutes)
+	executionID := pkgExecution.NewExecutionID("legacy-http")
+	artifacts, err := pkgExecution.PrepareArtifacts("", executionID, ext)
+	if err != nil {
+		return err
 	}
-
-	page := automation.NewPage()
-	return automation.RunScript(page, string(content))
+	request := pkgExecution.Request{
+		ExecutionID: executionID, SourceLabel: sourceLabel, Ext: ext,
+		ScriptHash: pkgExecution.ComputeScriptHash(content), ScriptContent: content,
+		TimeoutMinutes: timeoutMinutes, Artifacts: artifacts,
+		Selection: pkgExecution.TerminalSelection{Mode: "agent", Categories: map[string]bool{"error": true}},
+	}
+	_, _, err = pkgExecution.Run(request)
+	return err
 }
 
 func hasScriptSource(config *Config) bool {
@@ -1284,100 +1146,6 @@ func printPrettyJSON(v interface{}) error {
 	return nil
 }
 
-// printJSEnvironment 用于调试输出当前设置的所有全局变量和方法
-func printJSEnvironment(runtime *goja.Runtime) {
-	fmt.Println("\nJS environment:")
-
-	// 打印全局对象
-	// fmt.Println("\nGlobal objects:")
-	// fmt.Println("- mouse:", runtime.Get("mouse"))
-	// fmt.Println("- keyboard:", runtime.Get("keyboard"))
-	// fmt.Println("- touchscreen:", runtime.Get("touchscreen"))
-	// fmt.Println("- console:", runtime.Get("console"))
-
-	// 打印 page 对象及其属性
-	// fmt.Println("\nPage object and properties:")
-	// page := runtime.Get("page")
-	// fmt.Println("- page:", page)
-
-	// if pageObj := page.ToObject(runtime); pageObj != nil {
-	// 	fmt.Println("\nPage methods:")
-	// 	for _, key := range pageObj.Keys() {
-	// 		value := pageObj.Get(key)
-	// 		fmt.Printf("  - page.%s: %v\n", key, value)
-
-	// 		// 如果是对象类型的属性，进一步打印其方法
-	// 		if obj := value.ToObject(runtime); obj != nil {
-	// 			fmt.Printf("    Methods of page.%s:\n", key)
-	// 			for _, methodKey := range obj.Keys() {
-	// 				methodValue := obj.Get(methodKey)
-	// 				fmt.Printf("      - %s: %v\n", methodKey, methodValue)
-	// 			}
-	// 		}
-	// 	}
-	// }
-
-	// fmt.Println("\nExample property access:")
-	// fmt.Println("- page.mouse:", runtime.Get("page").ToObject(runtime).Get("mouse"))
-	// fmt.Println("- page.keyboard:", runtime.Get("page").ToObject(runtime).Get("keyboard"))
-	// fmt.Println("- page.touchscreen:", runtime.Get("page").ToObject(runtime).Get("touchscreen"))
-
-	// 尝试执行一个简单的方法来验证可用性
-	// fmt.Println("\nTrying to get page title:")
-	// if fn := runtime.Get("page").ToObject(runtime).Get("title"); fn != nil {
-	// 	result, err := runtime.RunString("page.title()")
-	// 	if err == nil {
-	// 		fmt.Printf("  Title result: %v\n", result)
-	// 	} else {
-	// 		fmt.Printf("  Error calling title: %v\n", err)
-	// 	}
-	// }
-
-	// fmt.Println("\nEnd of JS environment debug info")
-	// fmt.Println("----------------------------------------")
-}
-
-// 可选：添加更具体的调试帮助函数
-func debugPageObject(runtime *goja.Runtime, objName string) {
-	fmt.Printf("\nDebugging %s object:\n", objName)
-	obj := runtime.Get(objName)
-	if obj == nil {
-		fmt.Printf("%s object not found\n", objName)
-		return
-	}
-
-	if jsObj := obj.ToObject(runtime); jsObj != nil {
-		fmt.Printf("%s methods:\n", objName)
-		for _, key := range jsObj.Keys() {
-			value := jsObj.Get(key)
-			fmt.Printf("- %s.%s: %v\n", objName, key, value)
-		}
-	}
-}
-
-// 辅助函数用于类型转换
-func toString(v goja.Value) string {
-	if v == nil || goja.IsUndefined(v) {
-		return ""
-	}
-	return v.String()
-}
-
-func toBool(v goja.Value) bool {
-	if v == nil || goja.IsUndefined(v) {
-		return false
-	}
-	return v.ToBoolean()
-}
-
-func toInt(v goja.Value) int {
-	if v == nil || goja.IsUndefined(v) {
-		return 0
-	}
-	num := v.ToInteger()
-	return int(num)
-}
-
 // 获取本机IP地址
 func getLocalIPs() []string {
 	var ips []string
@@ -1425,37 +1193,10 @@ func startHttpServer(port string) {
 		port = "60844"
 	}
 
-	// Check if we should use the new container-based architecture
-	if feature.UseDIContainer {
-		startContainerBasedServer(port)
-		return
+	if !feature.UseDIContainer {
+		fmt.Println("[WARN] USE_DI_CONTAINER=0 is a route-compatible alias; it now uses the unified execution server.")
 	}
-
-	// Legacy implementation
-	// 获取并打印本机IP地址
-	ips := getLocalIPs()
-	fmt.Println("\n可用的服务地址:")
-	for _, ip := range ips {
-		fmt.Printf("http://%s:%s\n", ip, port)
-	}
-	fmt.Printf("http://localhost:%s\n", port)
-	fmt.Println("----------------------------------------")
-	fmt.Println("服务器已启动，按 Ctrl+C 关闭")
-
-	// Wrap handlers with CORS middleware
-	http.HandleFunc("/SCRIPT_RUN", corsMiddleware(handleScriptExecution))
-	http.HandleFunc("/status", corsMiddleware(handleStatus))
-	http.HandleFunc("/v1/vision/ocr", corsMiddleware(handleVisionOCR))
-	http.HandleFunc("/v1/vision/detect-ui", corsMiddleware(handleVisionDetectUI))
-	http.HandleFunc("/v1/vision/capabilities", corsMiddleware(handleVisionCapabilities))
-	http.HandleFunc("/", corsMiddleware(handleRoot))
-
-	// 直接使用 ListenAndServe，这将阻塞主线程
-	serverAddr := ":" + port
-	if err := http.ListenAndServe(serverAddr, nil); err != nil {
-		fmt.Printf("Server failed to start: %v\n", err)
-		os.Exit(1)
-	}
+	startContainerBasedServer(port)
 }
 
 // startContainerBasedServer starts the HTTP server using the new container architecture

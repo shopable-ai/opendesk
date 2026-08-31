@@ -117,7 +117,7 @@ curl -X POST http://127.0.0.1:60844/executions \
 docs-user-api/http-server.md
 ```
 
-`USE_DI_CONTAINER=0` 会切换到历史兼容 HTTP 实现；新开发不要依赖 legacy-only 路由差异。
+`USE_DI_CONTAINER=0` 保留为 HTTP 路由兼容别名；它与默认模式共享同一执行、超时、事件、产物和错误语义。
 
 ## Vision / OCR CLI
 
@@ -246,6 +246,10 @@ docs-user-api/index.md
 docs-user-api/cookbook.md
 docs-user-api/runtime-api.ai.json
 ```
+
+JavaScript Runtime API contract、unit、safe smoke、Safari live 与 acceptance 测试位于
+`tests/runtime-api/`，入口为 `scripts/test_runtime_apis.sh`；一次性证据只写入
+`.runtime/tests/runtime-api/`。旧 `scripts/test_host_apis.sh` 仅保留为 deprecated 兼容包装器。
 
 编辑器声明位于：
 

@@ -20,6 +20,7 @@ order: 11
 | GET | /status | 服务状态与最近执行概览 |
 | POST | /executions | 创建新的脚本执行 |
 | GET | /executions/{id} | 查询执行状态 |
+| DELETE | /executions/{id} | 取消运行中的执行 |
 | GET | /executions/{id}/summary | 查询执行摘要 |
 | GET | /executions/{id}/events | SSE 事件流 |
 | POST | /vision/ocr | OCR HTTP 接口 |
@@ -61,7 +62,7 @@ order: 11
   "stack": "legacy",
   "consoleMode": "agent",
   "outputFormat": "json",
-  "logDir": "./artifacts/http-run"
+  "logDir": "./.runtime/examples/http-run"
 }
 ```
 
@@ -82,6 +83,7 @@ order: 11
 - statusUrl
 - summaryUrl
 - streamUrl
+- cancelUrl
 - artifacts
 
 ## 2. POST /executions
@@ -114,6 +116,7 @@ curl -X POST http://127.0.0.1:60844/executions \
     "statusUrl": "/executions/http-xxxx",
     "summaryUrl": "/executions/http-xxxx/summary",
     "streamUrl": "/executions/http-xxxx/events",
+    "cancelUrl": "/executions/http-xxxx",
     "artifacts": {
       "scriptSnapshotPath": "..."
     }
@@ -132,7 +135,16 @@ curl -X POST http://127.0.0.1:60844/executions \
 curl http://127.0.0.1:60844/executions/http-xxxx
 ```
 
-## 4. GET /executions/{id}/summary
+## 4. DELETE /executions/{id}
+
+取消运行中的执行。取消会同时中止执行 context、在途 HTTP、timer 和尚未执行的
+Promise callback；最终状态、摘要和 artifacts 仍通过现有查询接口获得。
+
+```bash
+curl -X DELETE http://127.0.0.1:60844/executions/http-xxxx
+```
+
+## 5. GET /executions/{id}/summary
 
 作用
 - 获取执行摘要
@@ -143,7 +155,7 @@ curl http://127.0.0.1:60844/executions/http-xxxx
 curl http://127.0.0.1:60844/executions/http-xxxx/summary
 ```
 
-## 5. GET /executions/{id}/events
+## 6. GET /executions/{id}/events
 
 作用
 - SSE 实时事件流
@@ -173,7 +185,7 @@ curl -N 'http://127.0.0.1:60844/executions/http-xxxx/events?categories=script,er
 说明
 - 即使 categories 过滤了日志，done/status/summary 事件仍会发送
 
-## 6. GET /status
+## 7. GET /status
 
 作用
 - 查看服务当前状态
@@ -181,7 +193,7 @@ curl -N 'http://127.0.0.1:60844/executions/http-xxxx/events?categories=script,er
 
 返回结构通常包含
 - status
-- runtime_pool
+- execution_capacity
 - vision_enabled
 - timestamp
 - latestExecution
@@ -192,7 +204,7 @@ curl -N 'http://127.0.0.1:60844/executions/http-xxxx/events?categories=script,er
 curl http://127.0.0.1:60844/status
 ```
 
-## 7. POST /vision/ocr
+## 8. POST /vision/ocr
 
 作用
 - 通过 multipart/form-data 调 Vision OCR
@@ -209,12 +221,12 @@ curl http://127.0.0.1:60844/status
 
 ```bash
 curl -X POST http://127.0.0.1:60844/vision/ocr \
-  -F image=@./artifacts/input.png \
+  -F image=@./.runtime/examples/input.png \
   -F provider=local \
   -F lang=chi_sim+eng
 ```
 
-## 8. POST /vision/detect-ui
+## 9. POST /vision/detect-ui
 
 作用
 - 通过 multipart/form-data 调 Vision.detectUI
@@ -230,7 +242,7 @@ curl -X POST http://127.0.0.1:60844/vision/ocr \
 
 ```bash
 curl -X POST http://127.0.0.1:60844/vision/detect-ui \
-  -F image=@./artifacts/dialog.png \
+  -F image=@./.runtime/examples/dialog.png \
   -F target_text=确定
 ```
 
@@ -245,6 +257,9 @@ HTTP 执行接口支持：
 - legacy：默认旧栈
 - upgraded：page 指向升级 facade
 - playwright：page / browser / context 指向升级 facade
+
+`USE_DI_CONTAINER=0` 不再启用一套独立 Runtime 实现；它保留为路由兼容别名，
+与默认模式共享本页的执行、超时、事件、产物和错误语义。
 
 ## 错误条件
 

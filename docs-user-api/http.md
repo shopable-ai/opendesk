@@ -51,6 +51,8 @@ console.log(resp.data);
 | `url` | string | 必填 |
 | `headers` | object | 请求头 |
 | `data` | string / object | 请求体 |
+| `timeout` | number | 请求级 deadline（毫秒）；`0` 仅关闭该请求的本地 deadline，执行级 deadline 仍生效 |
+| `signal` | AbortSignal | 可选取消信号；`AbortController.abort()` 会取消在途请求 |
 
 常见返回：
 
@@ -161,6 +163,8 @@ axios.interceptors.response.use((response) => {
 ## 错误行为
 
 - 网络错误：向上抛出。
+- timeout：抛出以 `HTTP request timed out` 开头的错误。
+- cancel / `AbortSignal`：抛出以 `HTTP request canceled` 开头的错误。
 - `validateStatus` 不通过：抛出 `Request failed with status code ...`。
 - interceptor 抛错：继续向上抛出。
 
@@ -173,8 +177,21 @@ axios.interceptors.response.use((response) => {
 
 ## 关于 automation/axios.go
 
-仓库仍保留 Go 侧 Axios 兼容实现，部分 legacy 初始化路径可能注册它。
+Go 侧旧 Axios bridge 已移除。所有 stack 都使用这里描述的 axios polyfill，
+它通过 `http.request()` 返回 Promise；网络 I/O 完成后才由 Runtime event loop 回调
+resolve/reject。脚本应继续以 `await axios...` 处理结果与错误。
 
-但正式用户文档不应把“两层 axios”写成稳定依赖关系；用户最终应以当前全局 `axios` 的 polyfill 行为为准。
+## 取消慢请求
 
-如果未来运行时移除或重构 legacy Axios，`http.md` 不需要因此改变用户主入口。
+```js
+const controller = new AbortController();
+setTimeout(() => controller.abort('operator cancelled'), 500);
+try {
+  await axios.get('https://example.com/slow', { signal: controller.signal });
+} catch (error) {
+  console.log(String(error.message || error));
+}
+```
+
+`AbortController` 是运行时提供的最小标准兼容实现；它支持本页 HTTP/axios
+取消所需的 `signal`、`abort()`、`addEventListener()` 和 `removeEventListener()`。

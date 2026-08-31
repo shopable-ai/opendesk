@@ -1,9 +1,12 @@
 package execution
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestRunJavaScriptAcceptsRequestedStackMode(t *testing.T) {
@@ -125,5 +128,90 @@ func TestRunJavaScriptPreservesRequestedStackInSummaryWithoutLegacyFallbackBlob(
 	}
 	if !found {
 		t.Fatalf("expected stack-specific script log, got %#v", summary.ScriptLogs)
+	}
+}
+
+func TestRunJavaScriptAsyncLifecycleAcrossStacks(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer server.Close()
+
+	for _, stack := range []string{"legacy", "upgraded", "playwright"} {
+		t.Run(stack, func(t *testing.T) {
+			artifacts, err := PrepareArtifacts(filepath.Join(t.TempDir(), stack), "async-"+stack, ".js")
+			if err != nil {
+				t.Fatal(err)
+			}
+			script := `
+                const ticks = [];
+                const interval = setInterval(() => ticks.push("tick"), 2);
+                const response = await axios.get("` + server.URL + `");
+                await new Promise((resolve, reject) => {
+                    const observer = setInterval(() => {
+                        if (ticks.length > 0) {
+                            clearInterval(observer);
+                            clearTimeout(deadline);
+                            resolve();
+                        }
+                    }, 1);
+                    const deadline = setTimeout(() => {
+                        clearInterval(observer);
+                        reject(new Error("timer did not tick before lifecycle deadline"));
+                    }, 250);
+                });
+                clearInterval(interval);
+                if (!response.data.ok || ticks.length === 0) {
+                    throw new Error("async timer/axios lifecycle failed");
+                }
+            `
+			result, _, err := Run(Request{
+				ExecutionID: "async-" + stack, SourceLabel: "test", Ext: ".js", StackMode: stack,
+				ScriptContent: []byte(script), Timeout: 2 * time.Second, Artifacts: artifacts,
+				Selection: TerminalSelection{Mode: "quiet", Categories: map[string]bool{}},
+			})
+			if err != nil {
+				t.Fatalf("Run returned error: %v", err)
+			}
+			if result.Status != ExecutionStatusSucceeded {
+				t.Fatalf("expected succeeded status, got %s", result.Status)
+			}
+		})
+	}
+}
+
+func TestRunJavaScriptReportsTimerCallbackFailure(t *testing.T) {
+	artifacts, err := PrepareArtifacts(filepath.Join(t.TempDir(), "timer-error"), "timer-error", ".js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, err = Run(Request{
+		ExecutionID: "timer-error", SourceLabel: "test", Ext: ".js",
+		ScriptContent: []byte(`setTimeout(() => { throw new Error("timer exploded"); }, 2);`),
+		Timeout:       2 * time.Second, Artifacts: artifacts,
+		Selection: TerminalSelection{Mode: "quiet", Categories: map[string]bool{}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "timer exploded") {
+		t.Fatalf("expected timer callback failure, got %v", err)
+	}
+}
+
+func TestRunJavaScriptInterruptsBusyLoopAtDeadline(t *testing.T) {
+	artifacts, err := PrepareArtifacts(filepath.Join(t.TempDir(), "interrupt"), "interrupt", ".js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	started := time.Now()
+	_, _, err = Run(Request{
+		ExecutionID: "interrupt", SourceLabel: "test", Ext: ".js",
+		ScriptContent: []byte(`for (;;) {}`), Timeout: 50 * time.Millisecond, Artifacts: artifacts,
+		Selection: TerminalSelection{Mode: "quiet", Categories: map[string]bool{}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "timed out") {
+		t.Fatalf("expected deadline failure, got %v", err)
+	}
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("interrupt took too long: %s", elapsed)
 	}
 }

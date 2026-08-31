@@ -46,7 +46,7 @@ order: 10
 
 ```js
 const result = ImageColor.findPos(
-  './artifacts/screen.png',
+  './.runtime/examples/screen.png',
   './templates/send-button.png',
   0.85
 );
@@ -82,7 +82,7 @@ console.log(result);
 ## loadBase64(path)
 
 ```js
-const dataUrl = ImageColor.loadBase64('./artifacts/screen.png');
+const dataUrl = ImageColor.loadBase64('./.runtime/examples/screen.png');
 ```
 
 返回 PNG data URL：
@@ -189,7 +189,7 @@ threshold 控制 RGB 通道允许差异。
 ## getSize(image)
 
 ```js
-const [width, height] = ImageColor.getSize('./artifacts/screen.png');
+const [width, height] = ImageColor.getSize('./.runtime/examples/screen.png');
 ```
 
 读取失败时当前实现可能返回 `null`/空值，应做防御判断。
@@ -199,7 +199,7 @@ const [width, height] = ImageColor.getSize('./artifacts/screen.png');
 支持当前实现里的 PNG / JPEG 保存。
 
 ```js
-ImageColor.save(image, './artifacts/out.jpg', 'jpg', 90);
+ImageColor.save(image, './.runtime/examples/out.jpg', 'jpg', 90);
 ```
 
 ## 颜色通道与格式转换

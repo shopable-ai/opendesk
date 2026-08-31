@@ -6,6 +6,7 @@ declare global {
     url?: string;
     headers?: Record<string, unknown>;
     timeout?: number;
+    signal?: AbortSignal;
     params?: Record<string, unknown>;
     data?: unknown;
     responseType?: string;

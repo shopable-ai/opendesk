@@ -96,6 +96,8 @@ declare global {
     runOCR(options: ClawdeskVisionOptions): ClawdeskVisionOCRResult;
     detectUI(options: ClawdeskVisionOptions): ClawdeskVisionDetectUIResult;
     getCapabilities(options?: Pick<ClawdeskVisionOptions, "provider" | "providerName">): ClawdeskVisionCapabilities;
+    analyzeLayout(options: ClawdeskVisionOptions & { image: string | ClawdeskByteInput | ClawdeskVisionImageSource }): Record<string, unknown>;
+    annotateRegions(options: ClawdeskVisionOptions & { image: string | ClawdeskByteInput | ClawdeskVisionImageSource; regions?: unknown[]; separators?: unknown[] }): Record<string, unknown>;
   }
 
   interface ClawdeskOCR {

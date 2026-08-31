@@ -5,10 +5,17 @@
 ## 1. 构建
 
 ```bash
-go build -o clawdesk .
+make build
 ```
 
-也可以直接：
+等价的 Go 命令会把本地可执行文件写入可重建的 `dist/`，而不是项目根目录：
+
+```bash
+mkdir -p dist
+go build -o dist/clawdesk .
+```
+
+也可以直接运行而不保留构建产物：
 
 ```bash
 go run . <flags>

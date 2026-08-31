@@ -1,18 +1,24 @@
 package execution
 
 import (
+	"clawdesk/automation"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
-	"clawdesk/automation"
 
 	"github.com/dop251/goja"
+	"github.com/dop251/goja_nodejs/eventloop"
 )
 
 // Request 描述一次脚本执行请求。
 type Request struct {
+	// Context cancels the complete execution lifecycle: JavaScript evaluation,
+	// timers, HTTP workers, and queued Promise callbacks.
+	Context        context.Context
 	ExecutionID    string
 	SourceLabel    string
 	Ext            string
@@ -20,8 +26,11 @@ type Request struct {
 	ScriptHash     string
 	ScriptContent  []byte
 	TimeoutMinutes int
-	Artifacts      ExecutionArtifacts
-	Selection      TerminalSelection
+	// Timeout is the exact execution deadline used by transports that accept
+	// sub-minute timeouts. TimeoutMinutes remains for CLI compatibility.
+	Timeout   time.Duration
+	Artifacts ExecutionArtifacts
+	Selection TerminalSelection
 }
 
 // Run 执行脚本并返回结果与摘要。
@@ -103,98 +112,242 @@ func runScript(req Request, emitter *Emitter) error {
 }
 
 func runJavaScript(req Request, emitter *Emitter) error {
-	rt := goja.New()
-	sink := &automationSink{emitter: emitter}
-	if err := automation.InitJSWithOptions(rt, automation.InitJSOptions{EventSink: sink}); err != nil {
-		return err
-	}
-	if err := automation.ApplyRuntimeStackMode(rt, req.StackMode); err != nil {
-		return err
-	}
-	if err := registerExecutionContext(rt, req); err != nil {
-		return err
-	}
-	axios := automation.NewAxios(rt)
-	axios.RegisterInRuntime()
-
 	startTime := time.Now()
 	emitter.Emit(EventCategoryMeta, EventLevelInfo, EventSourceRuntime, "status", "starting JavaScript execution", nil)
-	done := make(chan error, 1)
-	script := strings.TrimSpace(string(req.ScriptContent))
-	if !strings.HasPrefix(script, "(async") && !strings.HasPrefix(script, "async") {
-		script = fmt.Sprintf(`
-            (async () => {
-                try {
-                    %s
-                } catch (err) {
-                    console.error(err && err.message ? err.message : err);
-                    throw err;
-                }
-            })();
-        `, script)
+	parentContext := req.Context
+	if parentContext == nil {
+		parentContext = context.Background()
 	}
-	completeScript := fmt.Sprintf(`
-        globalThis.__scriptComplete = false;
-        globalThis.__activeTimers = globalThis.__activeTimers || 0;
+	deadline := executionTimeout(req)
+	var (
+		ctx    context.Context
+		cancel context.CancelFunc
+	)
+	if deadline > 0 {
+		ctx, cancel = context.WithTimeout(parentContext, deadline)
+	} else {
+		ctx, cancel = context.WithCancel(parentContext)
+	}
+	defer cancel()
 
-        (async () => {
-            try {
-                await %s;
-
-                await new Promise(resolve => {
-                    const checkTimers = () => {
-                        const activeTimers = globalThis.__activeTimers || 0;
-                        if (activeTimers === 0) {
-                            globalThis.__scriptComplete = true;
-                            resolve();
-                        } else {
-                            setTimeout(checkTimers, 100);
-                        }
-                    };
-                    checkTimers();
-                });
-
-                console.log("script execution completed successfully");
-            } catch (err) {
-                console.error(err && err.message ? err.message : err);
-                throw err;
-            }
-        })();
-    `, script)
+	loop := eventloop.NewEventLoop(eventloop.EnableConsole(false))
+	done := make(chan error, 1)
 
 	go func() {
-		_, err := rt.RunString(completeScript)
-		if err != nil {
-			done <- fmt.Errorf("script execution failed: %w", err)
+		var (
+			runtimeErr   error
+			asyncErr     error
+			scriptErr    string
+			lifecycle    *automation.RuntimeLifecycle
+			stopWatchdog func() bool
+			watchdogDone chan struct{}
+			keepAlive    *eventloop.Interval
+			scriptDone   bool
+			checkDone    func()
+			unhandled    = map[*goja.Promise]string{}
+		)
+
+		loop.Run(func(rt *goja.Runtime) {
+			// A runtime may be touched only by this event-loop owner. Interrupt is
+			// the one documented Goja exception: this context watcher may call it
+			// from another goroutine to break a CPU-bound JavaScript loop.
+			watchdogDone = make(chan struct{})
+			stopWatchdog = context.AfterFunc(ctx, func() {
+				defer close(watchdogDone)
+				reason := "script execution canceled"
+				if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+					reason = fmt.Sprintf("script execution timed out after %s", deadline)
+				}
+				rt.Interrupt(reason)
+				loop.StopNoWait()
+			})
+			// Keep the loop alive until the wrapper's finally block reports that
+			// all awaited work has settled. This prevents a Promise-only script
+			// from racing loop shutdown before an HTTP callback is queued.
+			keepAlive = loop.SetInterval(func(*goja.Runtime) {}, 24*time.Hour)
+			rt.SetPromiseRejectionTracker(func(promise *goja.Promise, operation goja.PromiseRejectionOperation) {
+				switch operation {
+				case goja.PromiseRejectionHandle:
+					delete(unhandled, promise)
+				case goja.PromiseRejectionReject:
+					if asyncErr != nil {
+						return
+					}
+					unhandled[promise] = promise.Result().String()
+					// Goja reports Reject before a same-turn .catch() is attached.
+					// Check on the next event-loop turn so PromiseRejectionHandle can
+					// remove a properly handled rejection first.
+					loop.SetTimeout(func(*goja.Runtime) {
+						message, stillUnhandled := unhandled[promise]
+						if !stillUnhandled || asyncErr != nil {
+							return
+						}
+						delete(unhandled, promise)
+						asyncErr = fmt.Errorf("unhandled Promise rejection: %s", message)
+						loop.StopNoWait()
+					}, 0)
+				}
+			})
+
+			onAsyncError := func(err error) {
+				if err != nil && asyncErr == nil {
+					asyncErr = err
+					loop.StopNoWait()
+				}
+			}
+			sink := &automationSink{emitter: emitter}
+			if err := automation.InitJSWithOptions(rt, automation.InitJSOptions{
+				EventSink: sink, Context: ctx, EventLoop: loop, OnAsyncError: onAsyncError,
+				OnReady: func(resources *automation.RuntimeLifecycle) { lifecycle = resources },
+			}); err != nil {
+				runtimeErr = err
+				loop.StopNoWait()
+				return
+			}
+			if err := automation.ApplyRuntimeStackMode(rt, req.StackMode); err != nil {
+				runtimeErr = err
+				loop.StopNoWait()
+				return
+			}
+			if err := registerExecutionContext(rt, req); err != nil {
+				runtimeErr = err
+				loop.StopNoWait()
+				return
+			}
+			checkDone = func() {
+				if !scriptDone || lifecycle == nil {
+					return
+				}
+				timers, workers, callbacks := lifecycle.AsyncCounts()
+				if timers == 0 && workers == 0 && callbacks == 0 && len(unhandled) == 0 {
+					loop.StopNoWait()
+					return
+				}
+				// A script may leave a timeout or an HTTP request unawaited. Match
+				// JavaScript event-loop semantics by draining those resources before
+				// ending the execution; the execution context still bounds the wait.
+				loop.SetTimeout(func(*goja.Runtime) { checkDone() }, time.Millisecond)
+			}
+			if err := rt.Set("__clawdeskComplete", func(call goja.FunctionCall) goja.Value {
+				scriptErr = toScriptError(call.Argument(0))
+				scriptDone = true
+				checkDone()
+				return goja.Undefined()
+			}); err != nil {
+				runtimeErr = fmt.Errorf("register script completion callback: %w", err)
+				loop.StopNoWait()
+				return
+			}
+			if _, err := rt.RunString(wrapJavaScript(req.ScriptContent)); err != nil {
+				runtimeErr = fmt.Errorf("script execution failed: %w", err)
+				loop.StopNoWait()
+			}
+		})
+
+		if stopWatchdog != nil {
+			// If cancellation has already started, wait for the only permitted
+			// cross-goroutine Runtime call (Interrupt) before ClearInterrupt below.
+			// This is the synchronization boundary required by Goja's API.
+			if !stopWatchdog() {
+				<-watchdogDone
+			}
+		}
+		if keepAlive != nil {
+			loop.ClearInterval(keepAlive)
+		}
+
+		// The following teardown remains on the runtime-owner goroutine. Workers
+		// only see context cancellation and send Go data through RunOnLoop.
+		cancel()
+		if lifecycle != nil && lifecycle.Timers != nil {
+			lifecycle.Timers.Cleanup()
+		}
+		if lifecycle != nil {
+			lifecycle.CancelAsync()
+		}
+		loop.Terminate()
+		if lifecycle != nil {
+			lifecycle.Wait()
+		}
+		if lifecycle != nil {
+			timers, workers, callbacks := lifecycle.AsyncCounts()
+			emitter.Emit(EventCategoryMeta, EventLevelInfo, EventSourceRuntime, "cleanup", "runtime async resources drained", map[string]any{
+				"timers": timers, "httpWorkers": workers, "promiseCallbacks": callbacks,
+			})
+			if (timers != 0 || workers != 0 || callbacks != 0) && runtimeErr == nil {
+				runtimeErr = fmt.Errorf("runtime cleanup left timers=%d httpWorkers=%d promiseCallbacks=%d", timers, workers, callbacks)
+			}
+		}
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			if deadline <= 0 {
+				done <- fmt.Errorf("script execution timed out: %w", ctx.Err())
+				return
+			}
+			done <- fmt.Errorf("script execution timed out after %s", deadline)
 			return
 		}
-		for {
-			time.Sleep(100 * time.Millisecond)
-			completeValue := rt.Get("__scriptComplete")
-			if completeValue != nil && completeValue.ToBoolean() {
-				break
-			}
+		if errors.Is(ctx.Err(), context.Canceled) && parentContext.Err() != nil {
+			done <- fmt.Errorf("script execution canceled: %w", parentContext.Err())
+			return
+		}
+		if runtimeErr != nil {
+			done <- runtimeErr
+			return
+		}
+		if asyncErr != nil {
+			done <- fmt.Errorf("script asynchronous callback failed: %w", asyncErr)
+			return
+		}
+		if scriptErr != "" {
+			done <- fmt.Errorf("script execution failed: %s", scriptErr)
+			return
 		}
 		done <- nil
 	}()
 
-	var err error
-	if req.TimeoutMinutes == 0 {
-		err = <-done
-	} else {
-		select {
-		case err = <-done:
-		case <-time.After(time.Duration(req.TimeoutMinutes) * time.Minute):
-			err = fmt.Errorf("script execution timed out after %d minutes", req.TimeoutMinutes)
-		}
-	}
-	if err != nil {
+	if err := <-done; err != nil {
 		return err
 	}
 	emitter.Emit(EventCategoryMeta, EventLevelInfo, EventSourceRuntime, "status", "JavaScript execution finished", map[string]any{
 		"durationMs": time.Since(startTime).Milliseconds(),
 	})
 	return nil
+}
+
+func executionTimeout(req Request) time.Duration {
+	if req.Timeout > 0 {
+		return req.Timeout
+	}
+	if req.TimeoutMinutes > 0 {
+		return time.Duration(req.TimeoutMinutes) * time.Minute
+	}
+	return 0
+}
+
+func wrapJavaScript(source []byte) string {
+	return fmt.Sprintf(`
+		globalThis.__scriptError = "";
+		Promise.resolve().then(async function () {
+			try {
+				await (async function __clawdeskUserScript() {
+%s
+				})();
+				console.log("script execution completed successfully");
+			} catch (err) {
+				console.error(err && err.message ? err.message : err);
+				globalThis.__scriptError = String(err && (err.stack || err.message) || err);
+			} finally {
+				globalThis.__clawdeskComplete(globalThis.__scriptError);
+			}
+		});
+	`, string(source))
+}
+
+func toScriptError(value goja.Value) string {
+	if value == nil || goja.IsUndefined(value) || goja.IsNull(value) {
+		return ""
+	}
+	return strings.TrimSpace(value.String())
 }
 
 type automationSink struct {

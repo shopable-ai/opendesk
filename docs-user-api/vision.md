@@ -18,6 +18,12 @@ Vision 是当前项目里最值得优先使用的视觉对象之一。
 - 常与 `File` 联用保存图片或结果
 - 常与 `window` 联用定位当前窗口后截图
 
+## 布局分析与标注
+
+`Vision.analyzeLayout({ image, ...options })` 对 Runtime 截图或 base64 图像生成通用区域与分隔线结构；
+`Vision.annotateRegions({ image, regions?, separators?, outputPath? })` 返回带标记 PNG。二者不依赖 OCR
+provider，适合用于可解释的视觉结构验证。
+
 当前实现重点
 - `Vision.runOCR(options)`
 - `Vision.detectUI(options)`
@@ -107,7 +113,7 @@ const result = await Vision.runOCR(options)
 ```js
 const imagePath = await page.screenshot({
   target: 'activeWindow',
-  path: './artifacts/vision-input.png',
+  path: './.runtime/examples/vision-input.png',
   returnType: 'path'
 });
 
@@ -124,7 +130,7 @@ console.log(JSON.stringify(result, null, 2));
 
 ```js
 const result = await Vision.runOCR({
-  imagePath: './artifacts/vision-input.png',
+  imagePath: './.runtime/examples/vision-input.png',
   provider: 'paddle',
   lang: 'ch',
   includeRaw: true
@@ -189,7 +195,7 @@ const result = await Vision.detectUI(options)
 ```js
 const shot = await page.screenshot({
   target: 'activeWindow',
-  path: './artifacts/login-page.png',
+  path: './.runtime/examples/login-page.png',
   returnType: 'path'
 });
 
@@ -214,7 +220,7 @@ if (result.count > 0) {
 
 ```js
 const result = await Vision.detectUI({
-  imagePath: './artifacts/dialog.png',
+  imagePath: './.runtime/examples/dialog.png',
   provider: 'local',
   targetText: 'Continue',
   matchMode: 'contains',
@@ -297,7 +303,7 @@ const text = await OCR.extractText(image, lang)
 示例
 
 ```js
-const text = await OCR.extractText('./artifacts/vision-input.png', 'chi_sim+eng');
+const text = await OCR.extractText('./.runtime/examples/vision-input.png', 'chi_sim+eng');
 console.log(text);
 ```
 
@@ -337,7 +343,7 @@ unsupported ocr provider: xxx
 ```js
 const imagePath = await page.screenshot({
   target: 'activeWindow',
-  path: './artifacts/current.png',
+  path: './.runtime/examples/current.png',
   returnType: 'path'
 });
 

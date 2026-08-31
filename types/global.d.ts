@@ -11,6 +11,22 @@ declare global {
 
   type ClawdeskTimerId = number;
 
+  interface AbortSignal {
+    readonly aborted: boolean;
+    readonly reason?: unknown;
+    addEventListener(type: "abort", listener: (event: { type: "abort"; target: AbortSignal }) => void): void;
+    removeEventListener(type: "abort", listener: (event: { type: "abort"; target: AbortSignal }) => void): void;
+  }
+
+  interface AbortController {
+    readonly signal: AbortSignal;
+    abort(reason?: unknown): void;
+  }
+
+  var AbortController: {
+    new (): AbortController;
+  };
+
   function copyToClipboard(text: string): void;
   function getClipboard(): string;
   function notify(options: string | ClawdeskNotifyOptions): void;

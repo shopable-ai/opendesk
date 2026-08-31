@@ -3,6 +3,7 @@ package http
 import (
 	"bytes"
 	"clawdesk/pkg/container"
+	pkgExecution "clawdesk/pkg/execution"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -225,6 +226,57 @@ func TestHandleExecutionsReturnsArtifactPaths(t *testing.T) {
 	}
 }
 
+func TestHandleExecutionCancelUsesSharedExecutionContext(t *testing.T) {
+	handler, cleanup := setupTestHandler(t)
+	defer cleanup()
+
+	body, _ := json.Marshal(withTestLogDir(t, ScriptRequest{
+		Script:  `await new Promise((resolve) => setTimeout(resolve, 1000));`,
+		Timeout: 2,
+	}))
+	request := httptest.NewRequest(http.MethodPost, "/executions", bytes.NewReader(body))
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	handler.HandleExecutions(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("create status = %d", response.Code)
+	}
+	var created ScriptResponse
+	if err := json.NewDecoder(response.Body).Decode(&created); err != nil {
+		t.Fatal(err)
+	}
+	data, ok := created.Data.(map[string]interface{})
+	if !ok {
+		t.Fatalf("create data = %#v", created.Data)
+	}
+	executionID, _ := data["executionId"].(string)
+	if executionID == "" || data["cancelUrl"] == nil {
+		t.Fatalf("missing cancellation metadata: %#v", data)
+	}
+
+	cancelRequest := httptest.NewRequest(http.MethodDelete, "/executions/"+executionID, nil)
+	cancelResponse := httptest.NewRecorder()
+	handler.HandleExecutionRoutes(cancelResponse, cancelRequest)
+	if cancelResponse.Code != http.StatusOK {
+		t.Fatalf("cancel status = %d body=%s", cancelResponse.Code, cancelResponse.Body.String())
+	}
+	// The request must reach a finalized status, not merely acknowledge the
+	// DELETE. Keep the window generous enough for an instrumented race build on
+	// a loaded developer machine while preserving an observable upper bound.
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		record, exists := handler.manager.Get(executionID)
+		if exists && record.Result.Status != pkgExecution.ExecutionStatusPending && record.Result.Status != pkgExecution.ExecutionStatusRunning {
+			if record.Result.Status != pkgExecution.ExecutionStatusFailed {
+				t.Fatalf("cancelled execution status = %s", record.Result.Status)
+			}
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("cancelled execution did not finish")
+}
+
 func TestHandleStatus(t *testing.T) {
 	handler, cleanup := setupTestHandler(t)
 	defer cleanup()
@@ -247,8 +299,8 @@ func TestHandleStatus(t *testing.T) {
 		t.Errorf("expected status ok, got %v", status["status"])
 	}
 
-	if _, ok := status["runtime_pool"]; !ok {
-		t.Error("expected runtime_pool in status")
+	if _, ok := status["execution_capacity"]; !ok {
+		t.Error("expected execution_capacity in status")
 	}
 
 	if _, ok := status["vision_enabled"]; !ok {

@@ -1,20 +1,66 @@
 package automation
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
+	"sync"
 	"unicode"
 
 	"github.com/dop251/goja"
+	"github.com/dop251/goja_nodejs/eventloop"
 )
 
 // InitJSOptions 控制 JS 运行时初始化行为。
 type InitJSOptions struct {
-	EventSink EventSink
+	EventSink    EventSink
+	Context      context.Context
+	EventLoop    *eventloop.EventLoop
+	OnAsyncError func(error)
+	OnReady      func(*RuntimeLifecycle)
+}
+
+// RuntimeLifecycle exposes only teardown-safe resources to the runtime owner.
+// It is supplied during InitJSWithOptions and must not be used to access Goja
+// from another goroutine.
+type RuntimeLifecycle struct {
+	Timers *Timer
+	HTTP   *HTTPClient
+}
+
+// Wait joins host workers after their execution context has been cancelled.
+// RuntimeLifecycle is never exposed to JavaScript.
+func (l *RuntimeLifecycle) Wait() {
+	if l != nil && l.HTTP != nil {
+		l.HTTP.Wait()
+	}
+}
+
+// CancelAsync discards pending host callbacks after the execution context is
+// cancelled. It is called by the runtime owner before EventLoop.Terminate.
+func (l *RuntimeLifecycle) CancelAsync() {
+	if l != nil && l.HTTP != nil {
+		l.HTTP.CancelPending()
+	}
+}
+
+// AsyncCounts is a teardown diagnostic owned by the execution runtime.
+func (l *RuntimeLifecycle) AsyncCounts() (timers int, workers int64, callbacks int) {
+	if l == nil {
+		return 0, 0, 0
+	}
+	if l.Timers != nil {
+		timers = l.Timers.Count()
+	}
+	if l.HTTP != nil {
+		workers = l.HTTP.ActiveWorkers()
+		callbacks = l.HTTP.PendingCallbacks()
+	}
+	return timers, workers, callbacks
 }
 
 func emitRuntimeLog(sink EventSink, level, message string, fields map[string]any) {
@@ -35,24 +81,7 @@ func emitRuntimeLog(sink EventSink, level, message string, fields map[string]any
 }
 
 func AutoMapMethods(runtime *goja.Runtime, goObj interface{}, jsObjName string) map[string]interface{} {
-	val := reflect.ValueOf(goObj)
-	typ := val.Type()
-
-	jsObj := make(map[string]interface{})
-
-	for i := 0; i < typ.NumMethod(); i++ {
-		method := typ.Method(i)
-
-		if method.PkgPath != "" {
-			continue
-		}
-
-		jsMethodName := toLowerFirst(method.Name)
-		wrapper := createJSMethodWrapper(runtime, val, method)
-		jsObj[jsMethodName] = wrapper
-	}
-
-	fmt.Println("js:", jsObjName, jsObj)
+	jsObj := AutoMapObject(runtime, goObj)
 	runtime.Set(jsObjName, jsObj)
 	return jsObj
 }
@@ -152,30 +181,83 @@ func jsValueForResult(runtime *goja.Runtime, result interface{}) goja.Value {
 	switch v := result.(type) {
 	case []byte:
 		return runtime.ToValue(runtime.NewArrayBuffer(v))
+	case *Browser:
+		if v == nil {
+			return goja.Null()
+		}
+		return runtime.ToValue(AutoMapObject(runtime, v))
+	case *BrowserContext:
+		if v == nil {
+			return goja.Null()
+		}
+		return runtime.ToValue(AutoMapObject(runtime, v))
+	case *Page:
+		if v == nil {
+			return goja.Null()
+		}
+		return runtime.ToValue(autoMapPageResult(runtime, v))
 	default:
 		return runtime.ToValue(result)
 	}
 }
 
-// AutoMapObject 创建一个新的映射对象
+// autoMapPageResult preserves the public page shape when a browser or context
+// method returns a native Page. Raw Go pointers expose fields but not the
+// JavaScript method names required by the compatibility surface.
+func autoMapPageResult(runtime *goja.Runtime, page *Page) map[string]interface{} {
+	pageMethods := AutoMapObject(runtime, page)
+	pageObj := make(map[string]interface{}, len(pageMethods)+3)
+	for name, method := range pageMethods {
+		pageObj[name] = method
+	}
+	pageObj["mouse"] = AutoMapObject(runtime, page.Mouse)
+	pageObj["keyboard"] = AutoMapObject(runtime, page.Keyboard)
+	pageObj["touchscreen"] = AutoMapObject(runtime, page.Touchscreen)
+	return pageObj
+}
+
+// jsMethodAllowlist is the native half of the documented JavaScript API. It
+// is intentionally explicit: adding an exported Go method cannot publish a
+// new JavaScript capability by accident. Polyfill-only methods are catalogued
+// in tests/runtime-api/manifest.js and never belong here.
+var jsMethodAllowlist = map[reflect.Type][]string{
+	reflect.TypeOf((*Console)(nil)):        {"Log", "Info", "Warn", "Error", "Debug", "Table", "Group", "GroupEnd", "Time", "TimeEnd", "Clear"},
+	reflect.TypeOf((*HTTPClient)(nil)):     {"Request", "Get", "Post"},
+	reflect.TypeOf((*System)(nil)):         {"GetSystemInfo", "GetProcessList", "KillProcess", "GetNetworkInterfaces", "GetNetworkConnections", "GetPowerInfo", "Shutdown", "Restart", "Sleep", "GetDirectoryContents", "GetExecutablePath", "GetWorkingDirectory", "GetUserInfo", "IsAdministrator", "GetSystemMetrics", "GetFingerprint", "ToJSON"},
+	reflect.TypeOf((*WindowManager)(nil)):  {"GetActiveWindow", "GetWindowByTitle", "GetFocusWindow", "Focus", "SetWindowBounds", "SetWidth", "SetHeight", "Maximize", "Minimize", "Restore", "RestoreByPID", "MinimizeByPID", "MaximizeByPID", "CloseWindow", "CloseActiveWindow", "Kill", "Title", "GetTitle", "Content", "GetContent", "List", "SetAlwaysOnTop", "UnsetTopMost", "BringToTop"},
+	reflect.TypeOf((*Clipboard)(nil)):      {"Copy", "Paste", "Clear"},
+	reflect.TypeOf((*FloatingWindow)(nil)): {"AddButton", "RemoveButton", "Show", "Hide", "SetPosition", "OnButtonClick", "SetAlwaysOnTop", "Run"},
+	reflect.TypeOf((*FileSystem)(nil)):     {"Path", "Cwd", "Create", "CreateIfNotExists", "CreateWithDirs", "Exists", "EnsureDir", "Read", "ReadBytes", "Write", "Append", "WriteBytes", "AppendBytes", "Copy", "RenameWithoutExtension", "Rename", "Move", "GetExtension", "GetName", "GetNameWithoutExtension", "Remove", "RemoveDir", "ListDir", "IsFile", "IsDir", "IsEmptyDir", "GetHumanReadableSize", "GetSimplifiedPath", "Join", "Open"},
+	reflect.TypeOf((*AppStorage)(nil)):     {"GetItem", "SetItem", "RemoveItem", "Clear", "GetLength", "Key"},
+	reflect.TypeOf((*Sound)(nil)):          {"PlaySuccess", "PlayFail", "PlayWarning", "PlayError", "PlayCaptcha", "PlaySound", "Play"},
+	reflect.TypeOf((*ImageColor)(nil)):     {"FindPos", "LoadBase64", "Resize", "Clip", "Pixel", "FindColor", "FindColorBlocks", "HasColor", "IsGray", "GetSize", "Save", "FindRedChannel", "FindGreenChannel", "FindBlueChannel", "ToRGB", "ToRGBA", "ToHSL", "ToHSLA", "IsColorSimilar", "AnalyzeLayout"},
+	reflect.TypeOf((*OCR)(nil)):            {"ExtractText"},
+	reflect.TypeOf((*Vision)(nil)):         {"RunOCR", "DetectUI", "GetCapabilities", "AnalyzeLayout", "AnnotateRegions"},
+	reflect.TypeOf((*Page)(nil)):           {"Browser", "Context", "Screenshot", "CaptureScreen", "CheckScreenshotPermissions", "OpenMacOSPrivacySettings", "RequestMacPermissions", "EnsureMacPermissions", "RequestMacAutomationPermission", "Goto", "OpenURL", "OpenApp", "OpenURLInApp", "Title", "WaitFor", "Url"},
+	reflect.TypeOf((*Mouse)(nil)):          {"Click", "ClickForPID", "Move", "Down", "Up", "GetPos", "Wheel"},
+	reflect.TypeOf((*Keyboard)(nil)):       {"Type", "Press", "Down", "Up", "Combination"},
+	reflect.TypeOf((*Touchscreen)(nil)):    {"Tap"},
+	reflect.TypeOf((*Browser)(nil)):        {"NewPage", "NewContext", "DefaultContext", "Contexts", "Pages", "LastPage", "Close", "IsClosed"},
+	reflect.TypeOf((*BrowserContext)(nil)): {"Browser", "NewPage", "AdoptPage", "Pages", "LastPage", "Close", "IsClosed", "Cookies", "SetCookies", "ClearCookies", "Storage", "SetStorage", "GetStorage", "ClearStorage", "Session", "SetSessionValue", "GetSessionValue", "ClearSession"},
+	reflect.TypeOf((*Screen)(nil)):         {"GetWidth", "GetHeight", "GetDisplays", "GetPrimaryDisplay", "GetDisplay", "GetVirtualBounds", "Pixel", "Pixels"},
+}
+
+// AutoMapObject creates the explicit JavaScript method mapping for a known
+// native API object. Unknown Go types receive no reflected methods.
 func AutoMapObject(runtime *goja.Runtime, goObj interface{}) map[string]interface{} {
 	val := reflect.ValueOf(goObj)
-	typ := val.Type()
-
 	jsObj := make(map[string]interface{})
-
-	for i := 0; i < typ.NumMethod(); i++ {
-		method := typ.Method(i)
-
-		if method.PkgPath != "" {
+	if !val.IsValid() || (val.Kind() == reflect.Ptr && val.IsNil()) {
+		return jsObj
+	}
+	typ := val.Type()
+	for _, goMethodName := range jsMethodAllowlist[typ] {
+		method, found := typ.MethodByName(goMethodName)
+		if !found || method.PkgPath != "" {
 			continue
 		}
-
-		jsMethodName := toLowerFirst(method.Name)
-		wrapper := createJSMethodWrapper(runtime, val, method)
-		jsObj[jsMethodName] = wrapper
+		jsObj[toLowerFirst(goMethodName)] = createJSMethodWrapper(runtime, val, method)
 	}
-
 	return jsObj
 }
 
@@ -292,44 +374,92 @@ func resolveResourceDir(name string) (string, error) {
 	return resolveResourceDirWithSink(name, nil)
 }
 
-func loadPolyfillsWithSink(runtime *goja.Runtime, sink EventSink) error {
-	polyfillsDir, err := resolveResourceDirWithSink("polyfills", sink)
-	if err != nil {
-		return fmt.Errorf("failed to resolve polyfills directory: %v", err)
-	}
-	emitRuntimeLog(sink, "debug", fmt.Sprintf("Looking for polyfills in: %s", polyfillsDir), nil)
+type compiledJavaScriptAsset struct {
+	name    string
+	program *goja.Program
+}
 
-	entries, err := os.ReadDir(polyfillsDir)
-	if err != nil {
-		return fmt.Errorf("failed to read polyfills directory: %v", err)
+type compiledJavaScriptBundle struct {
+	dir    string
+	assets []compiledJavaScriptAsset
+	err    error
+}
+
+var staticJavaScriptBundles = struct {
+	sync.Mutex
+	byName map[string]compiledJavaScriptBundle
+}{byName: make(map[string]compiledJavaScriptBundle)}
+
+// staticJavaScriptReadFile is a narrow seam for cache verification. Production
+// always uses os.ReadFile; tests replace it only while exercising a reset cache.
+var staticJavaScriptReadFile = os.ReadFile
+
+// loadStaticJavaScriptAssets resolves, reads, and compiles each static asset at
+// most once per process. goja.Program is immutable and safe to run in multiple
+// runtimes, which removes per-runtime filesystem I/O and parse costs.
+func loadStaticJavaScriptAssets(runtime *goja.Runtime, name, label string, sink EventSink) error {
+	staticJavaScriptBundles.Lock()
+	bundle, exists := staticJavaScriptBundles.byName[name]
+	if !exists {
+		bundle = compileStaticJavaScriptAssets(name, label, sink)
+		staticJavaScriptBundles.byName[name] = bundle
+	}
+	staticJavaScriptBundles.Unlock()
+	if bundle.err != nil {
+		return bundle.err
 	}
 
-	files := make([]string, 0)
+	for _, asset := range bundle.assets {
+		if _, err := runtime.RunProgram(asset.program); err != nil {
+			return fmt.Errorf("failed to execute %s %s: %w", label, asset.name, err)
+		}
+		emitRuntimeLog(sink, "debug", fmt.Sprintf("Loaded %s: %s", label, asset.name), nil)
+	}
+	return nil
+}
+
+func compileStaticJavaScriptAssets(name, label string, sink EventSink) compiledJavaScriptBundle {
+	dir, err := resolveResourceDirWithSink(name, sink)
+	if err != nil {
+		return compiledJavaScriptBundle{err: fmt.Errorf("failed to resolve %s directory: %w", label, err)}
+	}
+	emitRuntimeLog(sink, "debug", fmt.Sprintf("Compiling %s from: %s", label, dir), nil)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return compiledJavaScriptBundle{dir: dir, err: fmt.Errorf("failed to read %s directory: %w", label, err)}
+	}
+
+	files := make([]string, 0, len(entries))
 	for _, entry := range entries {
 		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".js") {
 			files = append(files, entry.Name())
 		}
 	}
 	sort.Strings(files)
-
 	if len(files) == 0 {
-		emitRuntimeLog(sink, "warn", fmt.Sprintf("No polyfill files found in: %s", polyfillsDir), nil)
+		emitRuntimeLog(sink, "warn", fmt.Sprintf("No %s files found in: %s", label, dir), nil)
 	}
 
+	bundle := compiledJavaScriptBundle{dir: dir, assets: make([]compiledJavaScriptAsset, 0, len(files))}
 	for _, file := range files {
-		filePath := filepath.Join(polyfillsDir, file)
-		content, err := os.ReadFile(filePath)
+		path := filepath.Join(dir, file)
+		content, err := staticJavaScriptReadFile(path)
 		if err != nil {
-			return fmt.Errorf("failed to read polyfill file %s: %v", file, err)
+			bundle.err = fmt.Errorf("failed to read %s %s: %w", label, file, err)
+			return bundle
 		}
-		_, err = runtime.RunString(string(content))
+		program, err := goja.Compile(path, string(content), false)
 		if err != nil {
-			return fmt.Errorf("failed to execute polyfill %s: %v", file, err)
+			bundle.err = fmt.Errorf("failed to compile %s %s: %w", label, file, err)
+			return bundle
 		}
-		emitRuntimeLog(sink, "debug", fmt.Sprintf("Loaded polyfill: %s", file), nil)
+		bundle.assets = append(bundle.assets, compiledJavaScriptAsset{name: file, program: program})
 	}
+	return bundle
+}
 
-	return nil
+func loadPolyfillsWithSink(runtime *goja.Runtime, sink EventSink) error {
+	return loadStaticJavaScriptAssets(runtime, "polyfills", "polyfill", sink)
 }
 
 func loadPolyfills(runtime *goja.Runtime) error {
@@ -337,43 +467,7 @@ func loadPolyfills(runtime *goja.Runtime) error {
 }
 
 func loadJSLibsWithSink(runtime *goja.Runtime, sink EventSink) error {
-	jslibsDir, err := resolveResourceDirWithSink("jslibs", sink)
-	if err != nil {
-		return fmt.Errorf("failed to resolve jslibs directory: %v", err)
-	}
-	emitRuntimeLog(sink, "debug", fmt.Sprintf("Looking for JS libraries in: %s", jslibsDir), nil)
-
-	entries, err := os.ReadDir(jslibsDir)
-	if err != nil {
-		return fmt.Errorf("failed to read jslibs directory: %v", err)
-	}
-
-	var jsFiles []string
-	for _, entry := range entries {
-		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".js") {
-			jsFiles = append(jsFiles, entry.Name())
-		}
-	}
-	sort.Strings(jsFiles)
-
-	if len(jsFiles) == 0 {
-		emitRuntimeLog(sink, "warn", fmt.Sprintf("No JS library files found in: %s", jslibsDir), nil)
-	}
-
-	for _, file := range jsFiles {
-		filePath := filepath.Join(jslibsDir, file)
-		content, err := os.ReadFile(filePath)
-		if err != nil {
-			return fmt.Errorf("failed to read JS library file %s: %v", file, err)
-		}
-		_, err = runtime.RunString(string(content))
-		if err != nil {
-			return fmt.Errorf("failed to execute JS library %s: %v", file, err)
-		}
-		emitRuntimeLog(sink, "debug", fmt.Sprintf("Loaded JS library: %s", file), nil)
-	}
-
-	return nil
+	return loadStaticJavaScriptAssets(runtime, "jslibs", "JS library", sink)
 }
 
 func loadJSLibs(runtime *goja.Runtime) error {
@@ -400,7 +494,7 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 	consoleMethods := AutoMapObject(runtime, NewConsoleWithSink(initSink))
 	runtime.Set("console", consoleMethods)
 
-	httpClient := NewHTTPClient(runtime)
+	httpClient := NewHTTPClientWithOptions(runtime, opts.Context, opts.EventLoop, opts.OnAsyncError)
 	httpMethods := AutoMapObject(runtime, httpClient)
 	runtime.Set("http", httpMethods)
 
@@ -446,7 +540,7 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 	visionMethods := AutoMapObject(runtime, vision)
 	runtime.Set("Vision", visionMethods)
 
-	timer := NewTimer(runtime)
+	timer := NewTimer(runtime, opts.EventLoop, opts.OnAsyncError)
 	timer.RegisterInRuntime()
 
 	page := NewPage()
@@ -499,6 +593,9 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 	runtime.Set("Screen", screenMethods)
 	if _, err := runtime.RunString(`Screen.screenshot = page.screenshot;`); err != nil {
 		return fmt.Errorf("failed to bind Screen.screenshot: %v", err)
+	}
+	if opts.OnReady != nil {
+		opts.OnReady(&RuntimeLifecycle{Timers: timer, HTTP: httpClient})
 	}
 	return nil
 }

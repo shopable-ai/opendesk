@@ -32,6 +32,28 @@ type macWindow struct {
 	ExePath      string `json:"-"`
 }
 
+// enrichMacWindow adds best-effort process metadata without making window
+// discovery fail when process inspection is unavailable.
+func enrichMacWindow(item *macWindow) {
+	if item == nil {
+		return
+	}
+	item.ExeName = item.AppName
+	if item.PID == 0 {
+		return
+	}
+	proc, err := process.NewProcess(int32(item.PID))
+	if err != nil {
+		return
+	}
+	if name, err := proc.Name(); err == nil && name != "" {
+		item.ExeName = name
+	}
+	if exePath, err := proc.Exe(); err == nil && exePath != "" {
+		item.ExePath = exePath
+	}
+}
+
 func (m macWindow) toWindowInfo() *WindowInfo {
 	return &WindowInfo{
 		Title:        m.Title,
@@ -58,6 +80,9 @@ func newPlatformWindowManager() windowManagerPlatform {
 }
 
 func (w *darwinWindowManager) GetActiveWindow() (*WindowInfo, error) {
+	if active, err := getFrontMacWindow(); err == nil && active != nil {
+		return active.toWindowInfo(), nil
+	}
 	windows, err := listMacWindows()
 	if err != nil {
 		return nil, err
@@ -123,20 +148,16 @@ func (w *darwinWindowManager) SetHeight(title string, height int) error {
 }
 
 func (w *darwinWindowManager) Maximize(title string) error {
-	action := `
-		var finder = Application("Finder");
-		var b = finder.desktop.window().bounds();
-		var left = Number(b[0]) || 0;
-		var top = Number(b[1]) || 0;
-		var width = Math.max(1, (Number(b[2]) || 0) - left);
-		var height = Math.max(1, (Number(b[3]) || 0) - top);
-		try { w.attributes.byName("AXMinimized").value = false; } catch (e) {}
-		try { w.position = [left, top]; } catch (e) {}
-		try { w.size = [width, height]; } catch (e) {}
-		try { p.frontmost = true; } catch (e) {}
-		try { w.actions.byName("AXRaise").perform(); } catch (e) {}
-	`
-	return runActionByTitle(title, action)
+	target := getPrimaryDisplayInfo(resolveDisplays())
+	if target == nil || target.Width <= 0 || target.Height <= 0 {
+		return fmt.Errorf("unable to resolve display bounds for window: %s", title)
+	}
+
+	// Avoid Finder desktop Apple Events here. They can trigger a separate
+	// Automation consent flow and leave an otherwise safe maximize call blocked.
+	// Finder's former desktop bounds represented the primary display, so use the
+	// same display semantics without an extra all-window enumeration.
+	return w.SetWindowBounds(title, target.X, target.Y, target.Width, target.Height)
 }
 
 func (w *darwinWindowManager) Minimize(title string) error {
@@ -297,6 +318,9 @@ func (w *darwinWindowManager) List() ([]map[string]interface{}, error) {
 }
 
 func (w *darwinWindowManager) GetFocusWindow() (*WindowInfo, error) {
+	if active, err := getFrontMacWindow(); err == nil && active != nil {
+		return active.toWindowInfo(), nil
+	}
 	windows, err := listMacWindows()
 	if err != nil {
 		return nil, err
@@ -381,6 +405,40 @@ func findWindowByPID(pid uint32) (*macWindow, error) {
 }
 
 func runActionByTitle(title, action string, args ...string) error {
+	// The normal live route targets the verified foreground Safari fixture.  Do
+	// that lookup first: enumerating every application window through System
+	// Events can block indefinitely on an unrelated application.
+	frontScript := fmt.Sprintf(`
+function run(argv) {
+	var target = String(argv[0] || "");
+	if (!target) throw new Error("window title cannot be empty");
+	var se = Application("System Events");
+	var fronts = se.applicationProcesses.whose({frontmost: true})();
+	if (fronts.length === 0) throw new Error("no frontmost process");
+	var p = fronts[0];
+	var ws = [];
+	try { ws = p.windows(); } catch (e) { ws = []; }
+	for (var i = 0; i < ws.length; i++) {
+		var w = ws[i];
+		var name = "";
+		try { name = String(w.name()); } catch (e) { name = ""; }
+		if (name === target) {
+			%s
+			return "ok";
+		}
+	}
+	throw new Error("frontmost window does not match: " + target);
+}`, action)
+
+	jxaArgs := append([]string{title}, args...)
+	if _, err := runJXA(frontScript, jxaArgs...); err == nil {
+		return nil
+	}
+
+	return runActionByTitleFallback(title, action, args...)
+}
+
+func runActionByTitleFallback(title, action string, args ...string) error {
 	script := fmt.Sprintf(`
 function run(argv) {
 	var target = String(argv[0] || "");
@@ -409,6 +467,48 @@ function run(argv) {
 	jxaArgs := append([]string{title}, args...)
 	_, err := runJXA(script, jxaArgs...)
 	return err
+}
+
+// getFrontMacWindow reads only the known foreground process. It deliberately
+// avoids the all-process JXA enumeration used by List/GetWindowByTitle, so a
+// blocked third-party accessibility tree cannot stall guarded live actions.
+func getFrontMacWindow() (*macWindow, error) {
+	script := `
+function run() {
+	var se = Application("System Events");
+	var fronts = se.applicationProcesses.whose({frontmost: true})();
+	if (fronts.length === 0) return "";
+	var p = fronts[0];
+	var ws = [];
+	try { ws = p.windows(); } catch (e) { ws = []; }
+	if (ws.length === 0) return "";
+	var w = ws[0];
+	var pos = [0, 0], size = [0, 0], title = "", name = "", pid = 0;
+	try { pos = w.position(); } catch (e) {}
+	try { size = w.size(); } catch (e) {}
+	try { title = String(w.name()); } catch (e) {}
+	try { name = String(p.name()); } catch (e) {}
+	try { pid = Number(p.unixId()); } catch (e) {}
+	return JSON.stringify({ title: title, pid: pid, x: Number(pos[0]) || 0, y: Number(pos[1]) || 0,
+		width: Number(size[0]) || 0, height: Number(size[1]) || 0, appName: name,
+		isForeground: true, hasFocus: true, handle: 0, isPopup: false, index: 0 });
+}`
+	out, err := runJXA(script)
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(out) == "" {
+		return nil, fmt.Errorf("no active window found")
+	}
+	var item macWindow
+	if err := json.Unmarshal([]byte(out), &item); err != nil {
+		return nil, fmt.Errorf("failed to parse active macOS window: %w", err)
+	}
+	if item.Title == "" || item.PID == 0 {
+		return nil, fmt.Errorf("frontmost process has no identifiable window")
+	}
+	enrichMacWindow(&item)
+	return &item, nil
 }
 
 func listMacWindows() ([]macWindow, error) {
@@ -486,20 +586,7 @@ function run() {
 	}
 
 	for i := range items {
-		items[i].ExeName = items[i].AppName
-		if items[i].PID == 0 {
-			continue
-		}
-		proc, err := process.NewProcess(int32(items[i].PID))
-		if err != nil {
-			continue
-		}
-		if name, err := proc.Name(); err == nil && name != "" {
-			items[i].ExeName = name
-		}
-		if exePath, err := proc.Exe(); err == nil && exePath != "" {
-			items[i].ExePath = exePath
-		}
+		enrichMacWindow(&items[i])
 	}
 
 	return items, nil

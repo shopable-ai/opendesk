@@ -1,20 +1,16 @@
 package container
 
 import (
-	"context"
-	"fmt"
-	"os"
 	"clawdesk/automation"
 	"clawdesk/pkg/runtime"
-
-	"github.com/dop251/goja"
+	"os"
 )
 
 // Container manages application dependencies and their lifecycle
 type Container struct {
-	runtimePool *runtime.RuntimePool
-	vision      *automation.Vision
-	config      *Config
+	executionGate *runtime.ExecutionGate
+	vision        *automation.Vision
+	config        *Config
 }
 
 // Config holds container configuration
@@ -37,33 +33,27 @@ func NewContainer(cfg *Config) (*Container, error) {
 	// Skip Fyne initialization in tests to avoid race conditions
 	os.Setenv("SKIP_FYNE_INIT", "1")
 
-	// Initialize runtime pool with factory
-	pool := runtime.NewRuntimePool(cfg.RuntimePoolSize, func() *goja.Runtime {
-		rt := goja.New()
-		if err := automation.InitJS(rt); err != nil {
-			panic(fmt.Sprintf("failed to initialize JS runtime: %v", err))
-		}
-
-		// Initialize axios
-		axios := automation.NewAxios(rt)
-		axios.RegisterInRuntime()
-
-		return rt
-	})
+	// This is capacity control only. Runtime creation, ownership, and teardown
+	// live in pkg/execution on one event-loop goroutine per execution.
+	gate := runtime.NewExecutionGate(cfg.RuntimePoolSize)
 
 	// Initialize vision service
 	vision := automation.NewVision()
 
 	return &Container{
-		runtimePool: pool,
-		vision:      vision,
-		config:      cfg,
+		executionGate: gate,
+		vision:        vision,
+		config:        cfg,
 	}, nil
 }
 
-// RuntimePool returns the runtime pool
-func (c *Container) RuntimePool() *runtime.RuntimePool {
-	return c.runtimePool
+// ExecutionCapacity is a diagnostic configuration value. Container never
+// returns a mutable runtime handle that can bypass its event loop.
+func (c *Container) ExecutionCapacity() int {
+	if c == nil || c.executionGate == nil {
+		return 0
+	}
+	return c.executionGate.Capacity()
 }
 
 // Vision returns the vision service
@@ -76,20 +66,10 @@ func (c *Container) Config() *Config {
 	return c.config
 }
 
-// GetRuntime is a convenience method to get a runtime from the pool
-func (c *Container) GetRuntime(ctx context.Context) (*goja.Runtime, error) {
-	return c.runtimePool.Get(ctx)
-}
-
-// PutRuntime is a convenience method to return a runtime to the pool
-func (c *Container) PutRuntime(rt *goja.Runtime) {
-	c.runtimePool.Put(rt)
-}
-
 // Close releases all resources held by the container
 func (c *Container) Close() error {
-	if c.runtimePool != nil {
-		return c.runtimePool.Close()
+	if c.executionGate != nil {
+		return c.executionGate.Close()
 	}
 	return nil
 }

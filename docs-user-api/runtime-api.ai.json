@@ -55,6 +55,7 @@
       "summary": "Desktop page entry: screenshot, open URL/App, waits and permissions.",
       "keyMethods": [
         "screenshot",
+        "captureScreen",
         "goto",
         "openURL",
         "openApp",
@@ -70,7 +71,9 @@
         "checkScreenshotPermissions",
         "openMacOSPrivacySettings",
         "requestMacPermissions",
-        "requestMacAutomationPermission"
+        "requestMacAutomationPermission",
+        "browser",
+        "context"
       ]
     },
     {
@@ -111,7 +114,9 @@
       "keyMethods": [
         "runOCR",
         "detectUI",
-        "getCapabilities"
+        "getCapabilities",
+        "analyzeLayout",
+        "annotateRegions"
       ]
     },
     {
@@ -147,7 +152,8 @@
         "toRGBA",
         "toHSL",
         "toHSLA",
-        "isColorSimilar"
+        "isColorSimilar",
+        "analyzeLayout"
       ]
     },
     {
@@ -261,7 +267,10 @@
       "name": "Promise/timers/sleep",
       "source": "native+polyfill",
       "status": "stable",
-      "doc": "polyfills.md"
+      "doc": "polyfills.md",
+      "keyMethods": [
+        "AbortController"
+      ]
     },
     {
       "name": "browser/context/upgraded facades",
@@ -284,6 +293,11 @@
     {
       "method": "GET",
       "path": "/executions/{id}"
+    },
+    {
+      "method": "DELETE",
+      "path": "/executions/{id}",
+      "description": "cancel an in-flight execution"
     },
     {
       "method": "GET",

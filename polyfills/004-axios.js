@@ -1,3 +1,47 @@
+// Minimal AbortController/AbortSignal compatibility. The native http bridge
+// observes this signal and cancels only Go request context state; Promise
+// settlement remains on the runtime event-loop owner.
+if (typeof globalThis.AbortController !== 'function') {
+    function AbortSignal() {
+        this.aborted = false;
+        this.reason = undefined;
+        this.onabort = null;
+        this._abortListeners = [];
+    }
+
+    AbortSignal.prototype.addEventListener = function(type, listener) {
+        if (type !== 'abort' || typeof listener !== 'function') return;
+        if (this.aborted) {
+            listener.call(this, { type: 'abort', target: this });
+            return;
+        }
+        this._abortListeners.push(listener);
+    };
+
+    AbortSignal.prototype.removeEventListener = function(type, listener) {
+        if (type !== 'abort') return;
+        this._abortListeners = this._abortListeners.filter((candidate) => candidate !== listener);
+    };
+
+    function AbortController() {
+        this.signal = new AbortSignal();
+    }
+
+    AbortController.prototype.abort = function(reason) {
+        const signal = this.signal;
+        if (signal.aborted) return;
+        signal.aborted = true;
+        signal.reason = reason;
+        const event = { type: 'abort', target: signal };
+        if (typeof signal.onabort === 'function') signal.onabort.call(signal, event);
+        const listeners = signal._abortListeners.slice();
+        signal._abortListeners.length = 0;
+        for (const listener of listeners) listener.call(signal, event);
+    };
+
+    globalThis.AbortController = AbortController;
+}
+
 // 增强版 Axios 实现
 const axios = (function() {
     // 默认配置
@@ -40,7 +84,7 @@ const axios = (function() {
                 if (obj) {
                     Object.keys(obj).forEach(key => {
                         const value = obj[key];
-                        if (typeof value === 'object' && !Array.isArray(value)) {
+                        if (this.isPlainObject(value)) {
                             result[key] = this.deepMerge(result[key] || {}, value);
                         } else {
                             result[key] = value;
@@ -82,6 +126,12 @@ const axios = (function() {
 
         isObject(val) {
             return val !== null && typeof val === 'object';
+        },
+
+        isPlainObject(val) {
+            if (val === null || typeof val !== 'object' || Array.isArray(val)) return false;
+            const prototype = Object.getPrototypeOf(val);
+            return prototype === Object.prototype || prototype === null;
         },
 
         isString(val) {

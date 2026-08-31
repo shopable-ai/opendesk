@@ -385,7 +385,7 @@ console.log(info.title, info.width, info.height);
 
 await page.screenshot({
   target: 'activeWindow',
-  path: './artifacts/active-window.png'
+  path: './.runtime/examples/active-window.png'
 });
 ```
 

@@ -1,10 +1,6 @@
 package container
 
-import (
-	"context"
-	"testing"
-	"time"
-)
+import "testing"
 
 func TestNewContainer(t *testing.T) {
 	cfg := &Config{
@@ -21,8 +17,8 @@ func TestNewContainer(t *testing.T) {
 		t.Fatal("expected container to be created")
 	}
 
-	if container.RuntimePool() == nil {
-		t.Error("expected runtime pool to be initialized")
+	if container.ExecutionCapacity() != 5 {
+		t.Errorf("expected execution capacity 5, got %d", container.ExecutionCapacity())
 	}
 
 	if container.Vision() == nil {
@@ -46,46 +42,16 @@ func TestNewContainerWithNilConfig(t *testing.T) {
 	}
 }
 
-func TestContainerGetPutRuntime(t *testing.T) {
+func TestContainerDoesNotExposeRuntimeBorrowing(t *testing.T) {
 	container, err := NewContainer(&Config{RuntimePoolSize: 2})
 	if err != nil {
 		t.Fatalf("failed to create container: %v", err)
 	}
 	defer container.Close()
 
-	ctx := context.Background()
-
-	// Get runtime
-	rt, err := container.GetRuntime(ctx)
-	if err != nil {
-		t.Fatalf("failed to get runtime: %v", err)
+	if got := container.ExecutionCapacity(); got != 2 {
+		t.Fatalf("ExecutionCapacity = %d, want 2", got)
 	}
-	if rt == nil {
-		t.Fatal("expected runtime, got nil")
-	}
-
-	// Test that runtime is properly initialized
-	val, err := rt.RunString("typeof page")
-	if err != nil {
-		t.Fatalf("failed to run script: %v", err)
-	}
-	if val.String() != "object" {
-		t.Errorf("expected page to be object, got %s", val.String())
-	}
-
-	// Return runtime
-	container.PutRuntime(rt)
-
-	// Get again should work
-	rt2, err := container.GetRuntime(ctx)
-	if err != nil {
-		t.Fatalf("failed to get runtime second time: %v", err)
-	}
-	if rt2 == nil {
-		t.Fatal("expected runtime, got nil")
-	}
-
-	container.PutRuntime(rt2)
 }
 
 func TestContainerClose(t *testing.T) {
@@ -103,44 +69,6 @@ func TestContainerClose(t *testing.T) {
 	err = container.Close()
 	if err != nil {
 		t.Errorf("closing container twice should not error: %v", err)
-	}
-}
-
-func TestContainerConcurrentAccess(t *testing.T) {
-	container, err := NewContainer(&Config{RuntimePoolSize: 5})
-	if err != nil {
-		t.Fatalf("failed to create container: %v", err)
-	}
-	defer container.Close()
-
-	ctx := context.Background()
-	done := make(chan bool)
-
-	// Spawn multiple goroutines accessing the container
-	for i := 0; i < 10; i++ {
-		go func(id int) {
-			rt, err := container.GetRuntime(ctx)
-			if err != nil {
-				t.Errorf("goroutine %d: failed to get runtime: %v", id, err)
-				done <- false
-				return
-			}
-
-			// Simulate work
-			_, err = rt.RunString("1 + 1")
-			if err != nil {
-				t.Errorf("goroutine %d: failed to run script: %v", id, err)
-			}
-
-			time.Sleep(10 * time.Millisecond)
-			container.PutRuntime(rt)
-			done <- true
-		}(i)
-	}
-
-	// Wait for all goroutines
-	for i := 0; i < 10; i++ {
-		<-done
 	}
 }
 
