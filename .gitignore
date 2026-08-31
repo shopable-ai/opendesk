@@ -18,20 +18,8 @@ coverage.out
 visualize
 annotate
 
-# generated artifact subtrees
-artifacts/runs/
-artifacts/preflight/
-artifacts/mcp-smoke/
-artifacts/browser-automation-evidence-audit/
-artifacts/browser-stack-cli-smoke/
-artifacts/browser-stack-http-smoke/
-artifacts/browser-stack-macos-smoke/
-artifacts/browser_stack_finish/
-artifacts/tests/
-artifacts/playwright/
-artifacts/bootstrap-round-*/
-artifacts/macos_v1/
-artifacts/macos-permission-bootstrap/
+# retired generic output namespace; use the owning test/docs directory or .runtime/
+artifacts/
 
 # Python cache
 __pycache__/
@@ -43,8 +31,14 @@ test_images_output/
 drawing_demo.png
 wechat_quick_test.png
 wechat_analysis_output.txt
+new.txt
+test.txt
+screenshot_cut.png
 
 # generated test workspaces; reusable baselines inside remain local-only
 test/locateanything/output/
+
+# build/release payloads; keep source and release metadata, not binaries/archives
+/testMonkey.exe
 test/test/locateanything/output/
 test/wechat/output/
