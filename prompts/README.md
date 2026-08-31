@@ -16,7 +16,7 @@
 
 ## 目录边界
 
-- `automation/`：结构规划、页面判断、动作安全、回放和失败分类。
+- `automation/`：结构规划、页面判断、动作安全、回放、失败分类与自动化能力实现 GOAL。
 - `golden-sample/`：golden sample 的生成、晋级、修复和验收。
 - `golden-sample/legacy/`：仍可能复用、但已退出主流程的 mirror/DOM 辅助模板。
 - `wechat/`：微信领域推理与执行编排。
@@ -24,6 +24,10 @@
 
 日期型评审、阶段性策略和一次性交接材料不放在这里，统一进入
 `.archive/notes/`；执行时生成或改写的 prompt snapshot 进入 `.runtime/`。
+
+## 工程实现 GOAL
+
+- `automation/agent-first-recorder-macos-mvp-goal.md`：在执行时最新 `master` 上实现 Agent-first Recorder 的 macOS 有界 MVP，包括 Trace、Flow IR、脚本生成、无 AI 回放、macOS Evidence 和兼容性测试。该 Prompt 是实现契约，不是实现完成证明。
 
 ## 推荐使用顺序
 1. `automation/runtime_preflight_reviewer.md`
@@ -41,6 +45,7 @@
 ## 与代码的映射关系
 | Prompt | 目标工件 |
 |---|---|
+| agent-first-recorder-macos-mvp-goal | `apps/recorder/`、`pkg/recorder/`、Recorder schemas、tests 与 `.runtime/tests/recorder/` Evidence |
 | structure_first_planner | `detect/layout_model.json` 的上层规划上下文 |
 | app_classification_reviewer | `infer/app_classification.json` |
 | wechat_chat_page_inference | `infer/app_classification.json` / `infer/zones.json` 的微信专项判定 |
