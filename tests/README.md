@@ -39,7 +39,7 @@ go test ./pkg/http ./pkg/semanticexec
 - 固定 source.png vs mirror.png -> 固定 diff report
 
 ### 3. Replay
-- 按所属领域的 `tests/<domain>/replays/*.json` 重放步骤
+- 按所属领域的 `tests/<domain>/replays/*.json` 重放步骤（兼容旧的 `replays/*.json`）
 - 检查关键工件是否齐备
 
 ### 4. Regression Gate
