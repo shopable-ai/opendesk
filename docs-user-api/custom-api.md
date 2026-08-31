@@ -349,7 +349,13 @@ Clawdesk JavaScript
 
 项目维护者可以据此判断应采用 JavaScript、HTTP/MCP 外置服务、原生 Go 扩展，还是独立应用 Adapter，而不是默认把所有需求都写进核心 Runtime。
 
-如果未来项目建立统一商务邮箱、Issue 模板或其他官方支持入口，应在这里链接官方入口；不要把私人联系方式硬编码进 API 文档。
+统一支持、定制类型、需求模板和交付流程见仓库根目录：
+
+```text
+SUPPORT.md
+```
+
+所有用户文档统一指向这一处；未来增加官网、商务邮箱、Issue 模板、GitHub Discussions 或工单系统时，只更新 `SUPPORT.md`，不要把私人联系方式散落到各个 API 页面。
 
 ## 相关文档
 
@@ -359,3 +365,4 @@ Clawdesk JavaScript
 - `http.md`：脚本内 HTTP 调用。
 - `http-server.md`：从外部触发 Clawdesk。
 - `cookbook.md`：脚本组合示例。
+- `../SUPPORT.md`：统一支持与商业定制入口。
