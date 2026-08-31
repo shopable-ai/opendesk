@@ -40,5 +40,6 @@ test/locateanything/output/
 
 # build/release payloads; keep source and release metadata, not binaries/archives
 /testMonkey.exe
+/*.7z
 test/test/locateanything/output/
 test/wechat/output/
