@@ -4,10 +4,10 @@
 
 This register is the single decision record for top-level layout. It was
 re-checked against the working tree and `origin/master` on 2026-08-31. The
-working tree is shared and dirty; its current branch and `origin/master` have
-no merge base. Therefore the remote tree is the formal architecture target,
-but not a safe source for an automatic rebase, reset, checkout, or bulk
-migration.
+histories had no merge base, so they were merged without a reset, rebase, or
+bulk overwrite: overlapping paths retain the local version and remote-only
+paths are added after review. This keeps the formal architecture target while
+protecting shared work in progress.
 
 This work changes paths only where a live producer/consumer proves the change
 is safe. The primary command files are moved as a unit using their current
@@ -19,7 +19,7 @@ automation implementation.
 
 ```text
 .
-├── AGENTS.md  README.md  QUICKSTART.md       # repository/operator entry docs
+├── AGENTS.md  README.md  QUICKSTART.md  SUPPORT.md # repository/operator/support docs
 ├── Makefile  .gitignore                      # supported commands and lifecycle exclusions
 ├── go.mod  go.sum  jsconfig.json  tm.config.js # build and runtime configuration
 ├── automation/  pkg/  cmd/                  # Go implementation and command entrypoints
@@ -28,6 +28,7 @@ automation implementation.
 ├── schemas/  prompts/                       # versioned shared contracts and prompt packs
 ├── examples/  scripts/  tests/               # maintained examples, tooling, and tests
 ├── docs/  docs-user-api/                    # engineering docs and sole user-API docs
+├── blogs/                                   # external-facing drafts; never an engineering authority
 ├── third_party/                             # pinned locally patched Go modules
 ├── .archive/                                # selected historical material only
 ├── .runtime/                                # ignored disposable run evidence and temporary output
@@ -36,20 +37,19 @@ automation implementation.
 └── dist/                                    # ignored, rebuildable local release cache
 ```
 
-`SUPPORT.md` exists in the current `origin/master` root but not in this
-disconnected working tree. Keep it as a root project-support document when the
-two histories are reconciled; do not copy it into this dirty tree as part of a
-layout-only change.
+`SUPPORT.md` is the root project-support and customization entry. It links to
+the maintained user-API documentation instead of duplicating runtime contracts.
 
 ## Decisions and migration register
 
 | Current item | Current use and observed issue | Target and action | Path consumers affected |
 | --- | --- | --- | --- |
-| `AGENTS.md`, `README.md`, `QUICKSTART.md` | Repository rules and human entrypoints. `QUICKSTART.md` was the one live mismatch: its build example left a binary at root. | Keep at root. Change the build example to `make build` / `dist/clawdesk`. | New users, `Makefile`, release scripts; no runtime code. |
+| `AGENTS.md`, `README.md`, `QUICKSTART.md`, `SUPPORT.md` | Repository rules, human entrypoints, and support/customization guidance. `QUICKSTART.md` was the one live mismatch: its build example left a binary at root. `SUPPORT.md` directs users to maintained API docs. | Keep at root. Change the build example to `make build` / `dist/clawdesk`; do not duplicate API contracts in support material. | New users, support requests, `Makefile`, release scripts; no runtime code. |
 | `Makefile`, `.gitignore` | The Makefile is the supported build/test command surface; `.gitignore` enforces the lifecycle boundary for `.runtime/`, `dist/`, `.staging-sync/`, local assistant state, and the accidental root `clawdesk` binary. | Keep both at root. Build the primary command as `./cmd/clawdesk`; keep local artifacts ignored rather than relocating them into source. | README/quickstart commands, build/package scripts, Git status and release output. |
 | `go.mod`, `go.sum`, `jsconfig.json`, `tm.config.js` | Module pins, editor wiring, and root-discovered runtime config. The primary command resolves `tm.config.js` from its working directory. | Keep at root. | Go module resolution, TypeScript declarations, CLI runtime config lookup. |
 | `automation/`, `pkg/`, `cmd/` | Application primitives, reusable packages, and command entrypoints. The formal baseline owns the primary executable in `cmd/clawdesk/`; auxiliary commands remain separate siblings. | Keep these boundaries. Move the current primary command and its same-package tests together to `cmd/clawdesk/`, retaining their local content; do not merge implementation from the disconnected remote history. | Go imports, `go build ./cmd/clawdesk`, command-specific tests and scripts. |
 | `docs/`, `docs-user-api/` | Engineering docs and the sole maintained user API root. `docs/` already has only `README.md` at its direct root; API documents have their own canonical root. The stale 2026-06 local-sync scope record had no incoming links and contradicted the current remote baseline. | Keep the two roots separate; archive that record under `.archive/reports/`; do not recreate `docs-api/`, `docs-api-user/`, or `docs/api/`. | README links, user API publication, Runtime API checks. |
+| `blogs/` | External-facing drafts and published-copy candidates. Its README explicitly says it is not the source of engineering truth and no runtime, test, or documentation tooling imports it. | Keep as a separate communication root, with `drafts/` now and `published/` only when real released content needs repository retention. Do not merge it into `docs/` or treat it as an API contract. | External content workflow only; no build, runtime, or test consumer. |
 | `prompts/` | 26 reusable, domain-grouped prompt templates with stable artifact mappings; active docs link to them. They are not dated handoffs or runtime snapshots. | Keep as a dedicated shared prompt-pack root. Put one-off handoffs in `.archive/notes/` and generated snapshots in `.runtime/`. | Prompt-linked docs, automation/golden-sample/WeChat/MCP workflows. |
 | `schemas/` | Nineteen valid Draft 2020-12 JSON Schemas under `automation/` and `runtime-api/`; they describe cross-domain, versioned artifact contracts rather than instances. | Keep as source-adjacent shared data contracts. Do not move to API prose, `tests/`, or `docs/`; instances belong in domain fixtures or `.runtime/`. | Runtime API catalog validation, contract reviews, future schema consumers. |
 | `third_party/` | Two complete local Go modules, not anonymous copies. `go.mod` has active `replace` directives for RobotGo and kbinani/screenshot; source imports RobotGo. | Keep. Do not delete or flatten. Review local patches only against the exact pinned module versions. | `go mod`, automation input/screen code, macOS build and focused compatibility tests. |
