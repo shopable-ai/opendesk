@@ -11,6 +11,8 @@
 1. [`自动化软件竞品与商业模式研究.md`](自动化软件竞品与商业模式研究.md)
    - 研究 AutoHotkey、PyAutoGUI、RobotGo、pywinauto、Windows API 等底层能力为什么通常免费；
    - 研究 nut.js、Macro Recorder、Ui.Vision、Power Automate、UiPath 等如何向上层收费；
+   - 2026-08-31 已补入 Computer-Use Driver、AI Recorder、Agent OS、Agent-authored RPA、Enterprise Agentic Automation 等新竞争层；
+   - 将 `clawdesk/clawdesk`、Cua Driver、Peekaboo、ADH、Codex Record & Replay、UiPath Delegate 等提升为当前一级跟踪对象；
    - 归纳 Open Source、Recorder、Bot、Enterprise、Marketplace、Services、Vertical SaaS、Outcome-based 等商业模式。
 
 2. [`电商软件市场自动化与商业机会研究.md`](电商软件市场自动化与商业机会研究.md)
@@ -36,6 +38,12 @@
    - 电商保持 P0；
    - 罗列客服、销售、财务、办公、内容、物流、IT、QA、HR、制造业、房产等后续商业研究领域；
    - 只建立优先级和问题池，不代表项目立即扩张到这些行业。
+
+6. [`../desktop-automation/2026-08-31-computer-use-agent-competitor-rescan.md`](../desktop-automation/2026-08-31-computer-use-agent-competitor-rescan.md)
+   - 重新扫描 Desktop Driver、Computer Use、Recorder、Agent OS、RPA-as-Code、Enterprise Agentic Automation 与 Browser/Sandbox 产品；
+   - 对 `clawdesk/clawdesk` Agent2OS 与本项目做产品、技术和边界对比；
+   - 给出 Tier 0 / Tier 1 竞品池、Build / Buy / Integrate 判断和 Naming 风险；
+   - 该文件是当前技术竞品扫描的新入口，2026-04 的 Landscape 只作为历史研究基线继续保留。
 
 ## 商业 Research 的两条过滤轴
 
@@ -95,8 +103,9 @@ LLM / Planner
 
 已有技术竞品和方案研究继续保留在：
 
-- `docs/research/2026-04-07-desktop-automation-landscape.md`
-- `docs/research/desktop-automation/`
+- `docs/research/2026-04-07-desktop-automation-landscape.md`：历史 Landscape 基线；
+- `docs/research/desktop-automation/2026-08-31-computer-use-agent-competitor-rescan.md`：当前竞品重扫入口；
+- `docs/research/desktop-automation/`：专项技术研究。
 
 两类 Research 的区别：
 
@@ -126,11 +135,14 @@ LLM / Planner
 9. 对 C3/C4 对象默认限制研究投入，除非其商业模式为 B3 或能直接成为 Clawdesk 的数据源 / Trigger。
 10. 端到端 Agent 研究必须区分低风险自动执行与高风险人工审批，不把批量骚扰、绕过平台风控或违反平台规则作为商业机会。
 11. 评价 Agent 商业价值优先使用“业务 Outcome、真实预算、人工成本、执行缺口、结果可验证性”，而不是 GitHub Star 或底层 API 使用量。
+12. 2026-08 起，技术竞品扫描必须同时覆盖 Driver、Computer Use、Recorder、Agent OS、Agent-authored RPA、Enterprise Agentic Automation 与 Browser/Sandbox，不再只扫描传统 RPA。
+13. 同名或近似命名项目需要独立记录 GitHub / SEO / Domain / Package namespace 风险；正式商业发行前另做 Naming / Trademark Clearance，不把搜索结果直接当成法律结论。
 
 ## 当前商业研究主线
 
 ```text
 自动化底层商业模式
+→ Computer Use / Agent Runtime 新竞品扫描
 → Recorder / Creator / Marketplace 商业模式
 → 电商宽市场扫描
 → C0—C4 相关性过滤
