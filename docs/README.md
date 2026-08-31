@@ -26,13 +26,15 @@ docs/api/
 1. [`frameworks/automation-framework.md`](frameworks/automation-framework.md)：**自动化总体框架**，定义从底层驱动、感知识别、目标定位、可验证动作到 Skill、Workflow、Agent / Supervisor 的总体分层与执行闭环。
 2. [`frameworks/capability-development.md`](frameworks/capability-development.md)：**能力开发与成熟度路径**，定义 Clawdesk 从底层动作、HTML Benchmark、系统应用到复杂应用和自主 Agent 的逐级开发顺序。
 3. [`frameworks/app-development-framework.md`](frameworks/app-development-framework.md)：**应用自动化开发框架**，定义新增微信、千牛、计算器等具体应用时，从窗口、状态、区域、Locator 到 Skill、Workflow 和测试 Evidence 的标准方法。
+4. [`frameworks/runtime-api-extension-framework.md`](frameworks/runtime-api-extension-framework.md)：**Runtime API 扩展与定制框架**，定义 JavaScript 自助扩展、HTTP/MCP 外置扩展、Native/Go Runtime 扩展与作者/维护者商业定制的边界和升级路径。
 
-三者分别回答：
+四者分别回答：
 
 ```text
 自动化系统整体怎么设计？
 Clawdesk 自身怎么从简单做到复杂？
 一个具体应用应该怎么分析和开发？
+用户和维护者应该在哪一层扩展 API？
 ```
 
 `frameworks/` 保存长期稳定的核心开发方法；更细的系统结构进入 `architecture/`，具体实现进入 `implementation/`，质量与 Evidence 进入 `quality/`，单一应用场景进入 `scenarios/`。
@@ -73,6 +75,7 @@ Clawdesk 长期使用的核心开发框架，是桌面自动化开发的重要�
 - `automation-framework.md`：自动化总体框架。
 - `capability-development.md`：能力开发与成熟度路径。
 - `app-development-framework.md`：应用自动化开发框架。
+- `runtime-api-extension-framework.md`：Runtime API 扩展、源码权限、外置集成和商业定制边界。
 
 本目录强调稳定的开发思路、分层、顺序和边界，不保存一次性实现计划、测试报告或单一应用细节。
 
