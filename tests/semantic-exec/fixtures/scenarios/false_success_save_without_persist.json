@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "0.1.0",
+  "scenarioId": "false_success_save_without_persist",
+  "scenarioType": "browser_backoffice_false_success",
+  "description": "UI 动作成功但业务状态未持久化，属于假成功",
+  "routePolicy": {
+    "preferredOrder": ["dom"],
+    "allowFallback": false,
+    "maxAttemptsPerStep": 1
+  },
+  "recoveryBudget": 0,
+  "steps": [
+    {
+      "stepId": "save-form",
+      "action": "save_form",
+      "target": "settings.save_button",
+      "expectedVerifiers": ["ui_observable", "business_observable"],
+      "mockOutcome": "false_success_suspected"
+    }
+  ]
+}

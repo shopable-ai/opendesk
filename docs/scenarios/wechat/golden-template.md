@@ -40,7 +40,7 @@ UI、版本、来源或 contract 已失效，不再用于当前 regression/actio
 ## 推荐目录
 
 ```text
-test/wechat/fixtures/golden-samples/<sample-id>/
+tests/wechat/fixtures/golden-samples/<sample-id>/
 ├── manifest.json
 ├── source/
 │   └── provenance.json

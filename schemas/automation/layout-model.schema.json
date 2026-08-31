@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://clawdesk.dev/schemas/automation/layout-model.schema.json",
+  "type": "object",
+  "required": ["schemaVersion", "runId", "structure", "appInference"],
+  "properties": {
+    "schemaVersion": {"type": "string"},
+    "runId": {"type": "string"},
+    "sourceImage": {"type": ["string", "null"]},
+    "window": {"type": "object"},
+    "appInference": {"type": "object"},
+    "structure": {
+      "type": "object",
+      "required": ["columnCount", "columns", "majorZones"],
+      "properties": {
+        "columnCount": {"type": "integer"},
+        "columns": {"type": "array"},
+        "majorZones": {"type": "array"}
+      }
+    },
+    "evidence": {"type": "object"}
+  }
+}

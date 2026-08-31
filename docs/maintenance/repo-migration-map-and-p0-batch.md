@@ -74,8 +74,8 @@ Strong migration candidates:
 |---|---|---|---|
 | `artifacts/external/` | `.runtime/cache/external/` + `docs/research/external/` | external cache plus provenance manifest | completed |
 | `artifacts/fixtures/opencv/` | `tests/opencv/fixtures/` | OpenCV test assets | completed |
-| `test/wechat/fixtures/golden-samples/` | `test/wechat/fixtures/golden-samples/` | WeChat test baselines | completed |
-| `artifacts/dev-html-samples/` | `test/wechat/fixtures/wechatweb/` + `.runtime/runs/` | source fixture plus derived run output | completed |
+| `test/wechat/fixtures/golden-samples/` | `tests/wechat/fixtures/golden-samples/` | WeChat test baselines | completed |
+| `artifacts/dev-html-samples/` | `tests/wechat/fixtures/wechatweb/` + `.runtime/runs/` | source fixture plus derived run output | completed |
 | `artifacts/reports/<domain>/` | `docs/quality/<domain>/` | maintained quality conclusions | completed |
 
 ## Local development state
@@ -236,7 +236,7 @@ Converge:
 
 ```text
 tests/opencv/fixtures/image-color/ -> tests/opencv/fixtures/image-color/
-test/wechat/fixtures/golden-samples/ -> test/wechat/fixtures/golden-samples/
+test/wechat/fixtures/golden-samples/ -> tests/wechat/fixtures/golden-samples/
 artifacts/reports/<domain>/ -> docs/quality/<domain>/
 ```
 

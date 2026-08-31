@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "0.1.0",
+  "scenarioId": "precondition_failed_missing_context",
+  "expectedStatus": "blocked",
+  "expectedFailureClass": "precondition_failed",
+  "expectedHumanGate": false,
+  "expectedFalseSuccess": false,
+  "expectedSuiteDisposition": "pass"
+}

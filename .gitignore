@@ -12,6 +12,7 @@ __debug*
 
 # runtime and build output
 .runtime/
+# Includes Runtime API Conformance Lab logs, screenshots, generated scripts, and evidence.
 .staging-sync/
 dist/
 coverage.out
@@ -25,9 +26,7 @@ artifacts/
 __pycache__/
 *.pyc
 
-# generated test output
-automation/test_images_output/
-test_images_output/
+# legacy root-level output names; producers must write under .runtime/
 drawing_demo.png
 wechat_quick_test.png
 wechat_analysis_output.txt
@@ -35,11 +34,5 @@ new.txt
 test.txt
 screenshot_cut.png
 
-# generated test workspaces; reusable baselines inside remain local-only
-test/locateanything/output/
-
 # build/release payloads; keep source and release metadata, not binaries/archives
 /testMonkey.exe
-/*.7z
-test/test/locateanything/output/
-test/wechat/output/

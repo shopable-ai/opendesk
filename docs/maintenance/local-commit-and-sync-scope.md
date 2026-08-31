@@ -72,7 +72,7 @@ Examples:
 - `.omx/`
 - `.playwright-cli/`
 - `.playwright-mcp/`
-- `automation/test_images_output/`
+- `.runtime/tests/automation/image-layout/`
 - `test_images_output/`
 - `coverage.out`
 - png output files and ad hoc result dumps
@@ -157,7 +157,7 @@ Scope:
 - `docs-api/`
 - `docs-api-user/`
 - `QUICKSTART.md`
-- `prompts/PROJECT_HANDOFF_PROMPT.md`
+- `.archive/notes/handoffs/project-handoff-prompt.md`
 - selected operator docs and maintenance docs
 
 Goal:

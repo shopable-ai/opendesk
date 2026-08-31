@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "0.1.0",
+  "scenarioId": "browser_backoffice_happy_path",
+  "scenarioType": "browser_backoffice",
+  "description": "浏览器/Electron 后台运营 happy path",
+  "routePolicy": {
+    "preferredOrder": ["dom", "devtools"],
+    "allowFallback": true,
+    "maxAttemptsPerStep": 2
+  },
+  "recoveryBudget": 1,
+  "steps": [
+    {
+      "stepId": "save-settings",
+      "action": "save_settings",
+      "target": "settings.save_button",
+      "expectedVerifiers": ["ui_observable", "state_observable", "business_observable"],
+      "mockOutcome": "succeeded"
+    }
+  ]
+}

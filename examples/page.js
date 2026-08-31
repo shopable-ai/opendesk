@@ -28,11 +28,11 @@ console.log("Screenshot (base64):", base64Image.substring(0, 100));
   
 // 指定 path 保存文件
 await page.screenshot({
-    path: "test.png"
+    path: ".runtime/temp/examples/page-script-screenshot.png"
 });
 
 await page.screenshot({
-    path: 'screenshot_cut.png',
+    path: '.runtime/temp/screenshot_cut.png',
     clip: {
       x: 100,       // 截图区域的x坐标
       y: 100,       // 截图区域的y坐标  

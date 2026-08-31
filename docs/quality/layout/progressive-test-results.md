@@ -125,7 +125,7 @@ Created a comprehensive progressive test suite with 7 levels of complexity to va
 
 ## Test Images
 
-All test images are saved in `automation/test_images_output/`:
+All test images are saved in `.runtime/tests/automation/image-layout/`:
 - level1_simple.png (1.6K)
 - level2_borders.png (1.6K)
 - level3_sparse_text.png (1.8K)

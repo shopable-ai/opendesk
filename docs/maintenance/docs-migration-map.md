@@ -259,7 +259,7 @@ canonical project knowledge -> docs/<category>/
 user API                     -> docs-user-api/
 research                     -> docs/research/
 active plan                  -> docs/plans/
-reusable test asset          -> owning test/**/fixtures/
+reusable test asset          -> owning tests/**/fixtures/
 durable quality conclusion   -> docs/quality/<domain>/
 runtime output               -> .runtime/
 historical material          -> .archive/

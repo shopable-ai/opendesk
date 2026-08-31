@@ -15,7 +15,7 @@
 2. **派生运行包**：`.runtime/runs/<run-id>/`
    - 每次 execution 使用唯一 run-id。
    - 所有 detect / infer / mirror / compare / verify / replay 工件都写这里。
-3. **黄金样本提升层**：`test/wechat/fixtures/golden-samplesweb-demo-20260405/`
+3. **黄金样本提升层**：`tests/wechat/fixtures/golden-samplesweb-demo-20260405/`
    - 不复制大文件，只保留 manifest / replay case / failure taxonomy / evidence index / review decision。
    - 通过 `promotedFromRunId` 引用具体 run bundle。
 

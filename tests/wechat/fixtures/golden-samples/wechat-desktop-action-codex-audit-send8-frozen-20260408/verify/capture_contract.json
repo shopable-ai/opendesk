@@ -1,0 +1,366 @@
+{
+  "captures": [
+    {
+      "anchorPoint": {
+        "x": 182,
+        "y": 30
+      },
+      "backgroundColor": "#f5f5f5",
+      "bbox": {
+        "height": 60,
+        "width": 220,
+        "x": 72,
+        "y": 0
+      },
+      "id": "search_capture",
+      "matchHints": [
+        "bbox-first",
+        "template-match",
+        "color-check",
+        "text-field-shape",
+        "ocr-verify"
+      ],
+      "precision": "high",
+      "purpose": "Precise crop for search and text entry.",
+      "referenceImagePath": "tests/wechat/fixtures/golden-samples/wechat-desktop-action-codex-audit-send8-frozen-20260408/verify/capture_refs/search_capture.png",
+      "size": {
+        "aspectRatio": 3.6667,
+        "height": 60,
+        "width": 220
+      },
+      "visualFingerprint": {
+        "avgColor": "#f5f5f5",
+        "backgroundColor": "#f5f5f5",
+        "bboxRatio": {
+          "height": 0.0682,
+          "width": 0.2005,
+          "x": 0.0656,
+          "y": 0
+        }
+      },
+      "zoneConfidence": 0.71,
+      "zoneId": "search_area",
+      "bboxRatio": {
+        "height": 0.0682,
+        "width": 0.2005,
+        "x": 0.0656,
+        "y": 0
+      },
+      "searchWindow": {
+        "height": 60,
+        "width": 220,
+        "x": 72,
+        "y": 0
+      },
+      "templateMatch": {
+        "minScore": 0.72,
+        "softMinScore": 0.7,
+        "escapeCheck": true
+      }
+    },
+    {
+      "anchorPoint": {
+        "x": 182,
+        "y": 440
+      },
+      "backgroundColor": "#ededed",
+      "bbox": {
+        "height": 880,
+        "width": 220,
+        "x": 72,
+        "y": 0
+      },
+      "id": "conversation_capture",
+      "matchHints": [
+        "bbox-first",
+        "template-match",
+        "color-check",
+        "row-cluster-scan",
+        "ocr-disambiguation"
+      ],
+      "precision": "high",
+      "purpose": "Precise crop for conversation scan/open.",
+      "referenceImagePath": "tests/wechat/fixtures/golden-samples/wechat-desktop-action-codex-audit-send8-frozen-20260408/verify/capture_refs/conversation_capture.png",
+      "size": {
+        "aspectRatio": 0.25,
+        "height": 880,
+        "width": 220
+      },
+      "visualFingerprint": {
+        "avgColor": "#ededed",
+        "backgroundColor": "#ededed",
+        "bboxRatio": {
+          "height": 1,
+          "width": 0.2005,
+          "x": 0.0656,
+          "y": 0
+        }
+      },
+      "zoneConfidence": 0.84,
+      "zoneId": "conversation_list",
+      "bboxRatio": {
+        "height": 1,
+        "width": 0.2005,
+        "x": 0.0656,
+        "y": 0
+      },
+      "searchWindow": {
+        "height": 880,
+        "width": 220,
+        "x": 72,
+        "y": 0
+      },
+      "templateMatch": {
+        "minScore": 0.72,
+        "softMinScore": 0.7,
+        "escapeCheck": true
+      }
+    },
+    {
+      "anchorPoint": {
+        "x": 694,
+        "y": 26
+      },
+      "backgroundColor": "#f9f9f9",
+      "bbox": {
+        "height": 52,
+        "width": 805,
+        "x": 292,
+        "y": 0
+      },
+      "id": "header_capture",
+      "matchHints": [
+        "bbox-first",
+        "template-match",
+        "color-check",
+        "identity-strip",
+        "ocr-verify"
+      ],
+      "precision": "high",
+      "purpose": "Precise crop for target chat identity verification.",
+      "referenceImagePath": "tests/wechat/fixtures/golden-samples/wechat-desktop-action-codex-audit-send8-frozen-20260408/verify/capture_refs/header_capture.png",
+      "size": {
+        "aspectRatio": 15.4808,
+        "height": 52,
+        "width": 805
+      },
+      "visualFingerprint": {
+        "avgColor": "#f9f9f9",
+        "backgroundColor": "#f9f9f9",
+        "bboxRatio": {
+          "height": 0.0591,
+          "width": 0.7338,
+          "x": 0.2662,
+          "y": 0
+        }
+      },
+      "zoneConfidence": 0.64,
+      "zoneId": "chat_header",
+      "bboxRatio": {
+        "height": 0.0591,
+        "width": 0.7338,
+        "x": 0.2662,
+        "y": 0
+      },
+      "searchWindow": {
+        "height": 52,
+        "width": 805,
+        "x": 292,
+        "y": 0
+      },
+      "templateMatch": {
+        "minScore": 0.72,
+        "softMinScore": 0.7,
+        "escapeCheck": true
+      }
+    },
+    {
+      "anchorPoint": {
+        "x": 694,
+        "y": 754
+      },
+      "backgroundColor": "#f6f6f6",
+      "bbox": {
+        "height": 251,
+        "width": 805,
+        "x": 292,
+        "y": 629
+      },
+      "id": "input_capture",
+      "matchHints": [
+        "bbox-first",
+        "template-match",
+        "color-check",
+        "draft-verify",
+        "focus-hotspot"
+      ],
+      "precision": "high",
+      "purpose": "Precise crop for input focus/draft verification.",
+      "referenceImagePath": "tests/wechat/fixtures/golden-samples/wechat-desktop-action-codex-audit-send8-frozen-20260408/verify/capture_refs/input_capture.png",
+      "size": {
+        "aspectRatio": 3.2072,
+        "height": 251,
+        "width": 805
+      },
+      "visualFingerprint": {
+        "avgColor": "#f6f6f6",
+        "backgroundColor": "#f6f6f6",
+        "bboxRatio": {
+          "height": 0.2852,
+          "width": 0.7338,
+          "x": 0.2662,
+          "y": 0.7148
+        }
+      },
+      "zoneConfidence": 0.67,
+      "zoneId": "input_area",
+      "bboxRatio": {
+        "height": 0.2852,
+        "width": 0.7338,
+        "x": 0.2662,
+        "y": 0.7148
+      },
+      "searchWindow": {
+        "height": 251,
+        "width": 805,
+        "x": 292,
+        "y": 629
+      },
+      "templateMatch": {
+        "minScore": 0.72,
+        "softMinScore": 0.7,
+        "escapeCheck": true
+      }
+    },
+    {
+      "anchorPoint": {
+        "x": 694,
+        "y": 659
+      },
+      "backgroundColor": "#f0f0f0",
+      "bbox": {
+        "height": 60,
+        "width": 805,
+        "x": 292,
+        "y": 629
+      },
+      "id": "send_capture",
+      "matchHints": [
+        "bbox-first",
+        "template-match",
+        "color-check",
+        "top-action-band",
+        "button-affordance"
+      ],
+      "precision": "high",
+      "purpose": "Precise crop for send affordance/post-send clear checks.",
+      "referenceImagePath": "tests/wechat/fixtures/golden-samples/wechat-desktop-action-codex-audit-send8-frozen-20260408/verify/capture_refs/send_capture.png",
+      "size": {
+        "aspectRatio": 13.4167,
+        "height": 60,
+        "width": 805
+      },
+      "visualFingerprint": {
+        "avgColor": "#f0f0f0",
+        "backgroundColor": "#f0f0f0",
+        "bboxRatio": {
+          "height": 0.0682,
+          "width": 0.7338,
+          "x": 0.2662,
+          "y": 0.7148
+        }
+      },
+      "zoneConfidence": 0.72,
+      "zoneId": "send_action_zone",
+      "bboxRatio": {
+        "height": 0.0682,
+        "width": 0.7338,
+        "x": 0.2662,
+        "y": 0.7148
+      },
+      "searchWindow": {
+        "height": 60,
+        "width": 805,
+        "x": 292,
+        "y": 629
+      },
+      "templateMatch": {
+        "minScore": 0.72,
+        "softMinScore": 0.7,
+        "escapeCheck": true
+      }
+    },
+    {
+      "anchorPoint": {
+        "x": 694,
+        "y": 340
+      },
+      "backgroundColor": "#ffffff",
+      "bbox": {
+        "height": 577,
+        "width": 805,
+        "x": 292,
+        "y": 52
+      },
+      "id": "reply_capture",
+      "matchHints": [
+        "bbox-first",
+        "template-match",
+        "color-check",
+        "latest-band-crop",
+        "local-ocr",
+        "coarse-crop"
+      ],
+      "precision": "coarse",
+      "purpose": "Coarse crop for latest reply/local readback.",
+      "referenceImagePath": "tests/wechat/fixtures/golden-samples/wechat-desktop-action-codex-audit-send8-frozen-20260408/verify/capture_refs/reply_capture.png",
+      "size": {
+        "aspectRatio": 1.3951,
+        "height": 577,
+        "width": 805
+      },
+      "visualFingerprint": {
+        "avgColor": "#ffffff",
+        "backgroundColor": "#ffffff",
+        "bboxRatio": {
+          "height": 0.6557,
+          "width": 0.7338,
+          "x": 0.2662,
+          "y": 0.0591
+        }
+      },
+      "zoneConfidence": 0.72,
+      "zoneId": "message_list",
+      "bboxRatio": {
+        "height": 0.6557,
+        "width": 0.7338,
+        "x": 0.2662,
+        "y": 0.0591
+      },
+      "searchWindow": {
+        "height": 577,
+        "width": 805,
+        "x": 292,
+        "y": 52
+      },
+      "templateMatch": {
+        "minScore": 0.72,
+        "softMinScore": 0.7,
+        "escapeCheck": true
+      }
+    }
+  ],
+  "runId": "codex-audit-send8",
+  "schemaVersion": "0.2.0",
+  "capturedAt": "2026-04-07T04:46:19+08:00",
+  "sameWindow": true,
+  "geometryHash": "wechat-main-1097x880-v1",
+  "maxAgeMs": 1500,
+  "window": {
+    "x": 0,
+    "y": 0,
+    "width": 1097,
+    "height": 880,
+    "scaleFactor": 2
+  }
+}

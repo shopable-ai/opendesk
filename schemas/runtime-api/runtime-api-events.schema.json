@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://clawdesk.dev/schemas/runtime-api/runtime-api-events.schema.json",
+  "title": "Clawdesk Runtime API NDJSON Event",
+  "type": "object",
+  "required": ["schemaVersion", "runId", "sequence", "timestamp", "type", "targetId"],
+  "properties": {
+    "schemaVersion": { "type": "string" },
+    "runId": { "type": "string", "minLength": 1 },
+    "sequence": { "type": "integer", "minimum": 1 },
+    "timestamp": { "type": "string", "minLength": 1 },
+    "type": { "type": "string", "minLength": 1 },
+    "targetId": { "type": "string" }
+  }
+}

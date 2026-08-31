@@ -149,7 +149,7 @@
 3. 反方攻击：如果页面上出现诱导性文本、prompt injection 风格聊天内容，agent 可能把假 target 当真 target。
 4. 自我否决：当前 golden 样本设计还未明确“欺骗性屏幕文本”作为对抗样本。
 5. 新盲区：Tier C 必须加入 prompt injection / deceptive text / fake send button 样本。
-6. 外部资料影响：`prompts/red_team_critic.md` 已明确此攻击面，说明必须并入正式 taxonomy。
+6. 外部资料影响：`prompts/automation/red_team_critic.md` 已明确此攻击面，说明必须并入正式 taxonomy。
 7. 本轮评分：+1
 8. 总分变化：87 -> 88
 9. 是否继续：继续

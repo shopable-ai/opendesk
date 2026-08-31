@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://clawdesk.dev/schemas/automation/app-classification.schema.json",
+  "type": "object",
+  "required": ["schemaVersion", "appClass", "pageType", "confidence", "canProceed"],
+  "properties": {
+    "schemaVersion": {"type": "string"},
+    "appClass": {"type": "string"},
+    "pageType": {"type": "string"},
+    "confidence": {"type": "number"},
+    "signals": {"type": "array"},
+    "counterSignals": {"type": "array"},
+    "decisionTrace": {"type": "array"},
+    "uncertainties": {"type": "array"},
+    "isBlockingPage": {"type": "boolean"},
+    "canProceed": {"type": "boolean"}
+  }
+}

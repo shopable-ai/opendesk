@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "0.1.0",
+  "scenarioId": "timeout_recovery_exhausted",
+  "scenarioType": "native_timeout_recovery",
+  "description": "恢复预算耗尽后仍超时，必须明确 failed，而不是模糊归因",
+  "routePolicy": {
+    "preferredOrder": ["accessibility", "ai_recovery"],
+    "allowFallback": true,
+    "maxAttemptsPerStep": 2
+  },
+  "recoveryBudget": 0,
+  "steps": [
+    {
+      "stepId": "wait-timeout",
+      "action": "wait_until_visible",
+      "target": "system.modal.target",
+      "expectedVerifiers": ["ui_observable"],
+      "mockOutcome": "failed",
+      "mockFailureClass": "timeout"
+    }
+  ]
+}

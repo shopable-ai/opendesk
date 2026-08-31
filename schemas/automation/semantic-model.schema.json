@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://clawdesk.dev/schemas/automation/semantic-model.schema.json",
+  "title": "SemanticModel",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "runId",
+    "canvas",
+    "zones",
+    "targets",
+    "chatCandidates",
+    "probes",
+    "views"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string"
+    },
+    "runId": {
+      "type": "string"
+    },
+    "canvas": {
+      "type": "object",
+      "required": [
+        "width",
+        "height"
+      ],
+      "properties": {
+        "width": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "zones": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "targets": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "chatCandidates": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "duplicateCandidates": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "bestCandidate": {
+      "type": "object"
+    },
+    "probes": {
+      "type": "object"
+    },
+    "views": {
+      "type": "object"
+    }
+  }
+}

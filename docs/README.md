@@ -192,7 +192,7 @@ YYYY-MM-DD-topic.md
 |---|---|
 | 当前项目/核心框架/架构/实现/质量文档 | `docs/` 对应分类 |
 | 用户 API | `docs-user-api/` |
-| 可复用 golden sample / fixture | 所属 `test/**/fixtures/` 或 `tests/**/fixtures/` |
+| 可复用 golden sample / fixture | 所属 `tests/**/fixtures/` |
 | 长期保留的测试/评审报告 | `docs/quality/` 对应领域 |
 | 运行日志、截图、probe、smoke 输出 | `.runtime/` |
 | 本机环境/工具状态 | `.dev/` |

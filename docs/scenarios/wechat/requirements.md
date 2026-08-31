@@ -11,7 +11,7 @@
 ```text
 examples/mac/wechat_steps/
 examples/mac/wechat_structured_send_v2.js
-config/wechat_structured_send_v2.config.json
+examples/mac/wechat_steps/config.example.json
 ```
 
 因此本目录描述的是场景 contract、质量要求和未来实现约束，不应被引用为“当前已经跑通 WeChat V1”的证据。

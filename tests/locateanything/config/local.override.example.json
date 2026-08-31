@@ -1,0 +1,16 @@
+{
+  "serviceUrl": "http://teaderMac.local:18777",
+  "workflowLane": "L50",
+  "targetChatName": "哔哩会员",
+  "replyMessage": "LocateAnything staged send check from clawdesk controller.",
+  "enableSend": true,
+  "sendGuardMode": "strict",
+  "requestTimeoutMs": 20000,
+  "profilePolicy": {
+    "guiPointDefault": "daily",
+    "guiBoxDefault": "daily",
+    "textDefault": "quality",
+    "multiDefault": "quality",
+    "verifyDefault": "verify"
+  }
+}

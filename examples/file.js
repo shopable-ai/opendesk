@@ -1,27 +1,31 @@
+const fileDemoDir = ".runtime/temp/file-demo";
+const fileDemoInput = `${fileDemoDir}/test.txt`;
+const fileDemoOutput = `${fileDemoDir}/new.txt`;
+
 // Create a file
-File.create("test.txt");
+File.ensureDir(fileDemoDir);
+File.create(fileDemoInput);
 
 // Write some content
-File.write("test.txt", "Hello World!");
+File.write(fileDemoInput, "Hello World!");
 
 // Read the content
-const content = File.read("test.txt");
+const content = File.read(fileDemoInput);
 
-console.log("test.txt file:", content);
+console.log("file demo input:", content);
 
 // List directory contents
 const entries = File.listDir(".");
 console.log("entries:", entries.slice(0, 10));
 
 // Ensure a directory exists
-File.ensureDir(".runtime/temp/file-demo");
 File.write(".runtime/temp/file-demo/demo.json", JSON.stringify({ ok: true }, null, 2));
 
 // Check if path is a file or directory
-const isFile = File.isFile("test.txt");
+const isFile = File.isFile(fileDemoInput);
 const isDir = File.isDir(".runtime/temp/file-demo");
 console.log("isFile:", isFile, "isDir:", isDir);
 
 // Copy and move files
-File.copy("test.txt", "dest.txt");
-File.move("dest.txt", "new.txt");
+File.copy(fileDemoInput, `${fileDemoDir}/dest.txt`);
+File.move(`${fileDemoDir}/dest.txt`, fileDemoOutput);

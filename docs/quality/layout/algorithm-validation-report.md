@@ -113,7 +113,7 @@ With text-heavy content:
 
 ## Visualization Analysis
 
-Visualized images are in `automation/test_images_output/visualized/`:
+Visualized images are in `.runtime/tests/automation/image-layout/visualized/`:
 - Green dashed lines = Ground truth (expected separators)
 - Red solid lines = Detected separators
 - Legend included in each image
@@ -191,6 +191,6 @@ Visualized images are in `automation/test_images_output/visualized/`:
 ---
 
 **Files Generated**:
-- `automation/test_images_output/ground_truth.json` - Ground truth data
-- `automation/test_images_output/visualized/*.png` - 8 annotated images
-- `automation/test_images_output/*.png` - 4 original test images
+- `.runtime/tests/automation/image-layout/ground_truth.json` - Ground truth data
+- `.runtime/tests/automation/image-layout/visualized/*.png` - 8 annotated images
+- `.runtime/tests/automation/image-layout/*.png` - 4 original test images

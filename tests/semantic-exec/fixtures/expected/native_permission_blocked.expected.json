@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "0.1.0",
+  "scenarioId": "native_permission_blocked",
+  "expectedStatus": "blocked",
+  "expectedFailureClass": "permission_blocked",
+  "expectedHumanGate": true,
+  "expectedFalseSuccess": false,
+  "expectedSuiteDisposition": "pass"
+}

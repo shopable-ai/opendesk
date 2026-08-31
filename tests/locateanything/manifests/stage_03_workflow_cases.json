@@ -1,0 +1,66 @@
+[
+  {
+    "id": "stage03-wechat-baseline-open-chat",
+    "stage": "stage_03_script_assisted",
+    "lane": "BASELINE",
+    "scene": "wechat-open-chat-baseline",
+    "task": "workflow",
+    "phrase": "open target chat without LocateAnything assistance",
+    "profile": "baseline",
+    "imagePath": "",
+    "requiresLiveWechat": true,
+    "sendAllowed": false,
+    "expectedKind": "workflow_report",
+    "expectedTarget": {
+      "headerVerified": true,
+      "inputFocused": true
+    },
+    "workflowConfig": {
+      "stepMode": "open_chat_verify_header_focus_input",
+      "enableSend": false
+    }
+  },
+  {
+    "id": "stage03-wechat-assisted-open-chat",
+    "stage": "stage_03_script_assisted",
+    "lane": "L50",
+    "scene": "wechat-open-chat-assisted",
+    "task": "workflow",
+    "phrase": "open target chat with hybrid LocateAnything assistance",
+    "profile": "auto",
+    "imagePath": "",
+    "requiresLiveWechat": true,
+    "sendAllowed": false,
+    "expectedKind": "workflow_report",
+    "expectedTarget": {
+      "headerVerified": true,
+      "inputFocused": true
+    },
+    "workflowConfig": {
+      "stepMode": "open_chat_verify_header_focus_input",
+      "enableSend": false
+    }
+  },
+  {
+    "id": "stage03-wechat-send-guarded",
+    "stage": "stage_03_script_assisted",
+    "lane": "L70",
+    "scene": "wechat-send-guarded",
+    "task": "workflow",
+    "phrase": "send a guarded message to the configured self-owned WeChat target chat",
+    "profile": "auto",
+    "imagePath": "",
+    "requiresLiveWechat": true,
+    "sendAllowed": true,
+    "expectedKind": "workflow_report",
+    "expectedTarget": {
+      "sendAttempted": true,
+      "draftCleared": true,
+      "selfMessageObserved": true
+    },
+    "workflowConfig": {
+      "stepMode": "full_send_guarded",
+      "enableSend": true
+    }
+  }
+]

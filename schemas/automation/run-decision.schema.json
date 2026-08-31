@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://clawdesk.dev/schemas/automation/run-decision.schema.json",
+  "title": "RunDecision",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "createdAt",
+    "runId",
+    "status",
+    "canProceed",
+    "nextStep",
+    "summary",
+    "preflightState"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string"
+    },
+    "createdAt": {
+      "type": "string"
+    },
+    "runId": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "blocked",
+        "pass",
+        "warn",
+        "fail"
+      ]
+    },
+    "canProceed": {
+      "type": "boolean"
+    },
+    "nextStep": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "preflightState": {
+      "type": "string",
+      "enum": [
+        "pass",
+        "warn",
+        "fail"
+      ]
+    },
+    "stopCondition": {
+      "type": "string"
+    }
+  }
+}

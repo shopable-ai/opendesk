@@ -1,0 +1,16 @@
+{
+  "sampleId": "wechatweb",
+  "schemaVersion": 1,
+  "kind": "test-fixture-source",
+  "status": "stable-source",
+  "role": "development-phase html test fixture",
+  "entry": "tests/wechat/fixtures/wechatweb/index.html",
+  "context": "tests/wechat/fixtures/wechatweb/AGENT_MIN_CONTEXT.md",
+  "assetsDir": "tests/wechat/fixtures/wechatweb/assets",
+  "provenance": {
+    "repoClone": ".runtime/cache/external/wechatweb/20260405/repo",
+    "demoCapture": ".runtime/cache/external/wechatweb/20260405/demo",
+    "externalManifest": "docs/research/external/wechatweb.json"
+  },
+  "derivedRun": ".runtime/runs/wechatweb-dev-sample-20260405"
+}

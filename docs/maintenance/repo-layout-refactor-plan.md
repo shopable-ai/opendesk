@@ -74,10 +74,9 @@ Preferred steady-state shape:
   schemas/
   polyfills/
   types/
-  config/
   tests/
   dist/
-  test/<domain>/fixtures/
+  tests/<domain>/fixtures/
   docs/quality/<domain>/
   docs/research/external/
   prompts/
@@ -99,7 +98,7 @@ Preferred steady-state shape:
 
 Notes:
 
-- Reusable assets live under the owning `test/<domain>/fixtures/` directory.
+- Reusable assets live under the owning `tests/<domain>/fixtures/` directory.
 - Durable quality conclusions live under `docs/quality/<domain>/`.
 - External provenance manifests live under `docs/research/external/`.
 - `.runtime/` is for disposable execution output.
@@ -161,7 +160,6 @@ Examples:
 Examples:
 
 - `tests/<domain>/fixtures/`
-- `test/<domain>/fixtures/`
 - `docs/quality/<domain>/`
 
 ### 3. Runtime output
@@ -299,10 +297,10 @@ Objective:
 Preferred normalization:
 
 ```text
-tests/opencv/fixtures/image-color/
+artifacts/opencv/image-color/
     -> tests/opencv/fixtures/image-color/
 test/wechat/fixtures/golden-samples/
-    -> test/wechat/fixtures/golden-samples/
+    -> tests/wechat/fixtures/golden-samples/
 docs/quality/<domain>/
     -> docs/quality/<domain>/
 ```

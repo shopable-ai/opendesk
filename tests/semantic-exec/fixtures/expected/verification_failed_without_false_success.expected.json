@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "0.1.0",
+  "scenarioId": "verification_failed_without_false_success",
+  "expectedStatus": "failed",
+  "expectedFailureClass": "verification_failed",
+  "expectedHumanGate": false,
+  "expectedFalseSuccess": false,
+  "expectedSuiteDisposition": "pass"
+}

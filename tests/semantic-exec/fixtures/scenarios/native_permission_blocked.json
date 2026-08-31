@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "0.1.0",
+  "scenarioId": "native_permission_blocked",
+  "scenarioType": "native_settings_permission",
+  "description": "原生桌面权限配置流程被系统权限 gate 阻塞",
+  "routePolicy": {
+    "preferredOrder": ["accessibility", "ocr"],
+    "allowFallback": true,
+    "maxAttemptsPerStep": 2
+  },
+  "recoveryBudget": 1,
+  "steps": [
+    {
+      "stepId": "grant-accessibility",
+      "action": "grant_accessibility",
+      "target": "system.permissions.accessibility",
+      "expectedVerifiers": ["ui_observable"],
+      "mockOutcome": "blocked",
+      "mockFailureClass": "permission_blocked"
+    }
+  ]
+}

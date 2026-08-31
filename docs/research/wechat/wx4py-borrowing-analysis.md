@@ -19,7 +19,7 @@
 文件落位建议：
 - 借鉴文档放 `docs/`
 - 工作流提示词放 `prompts/`
-- 配置模板放 `config/`
+- 配置模板放在所属的 `examples/<domain>/` 场景旁
 - `.runtime/temp/` 只放运行产物与临时覆盖
 
 ## 借鉴结论

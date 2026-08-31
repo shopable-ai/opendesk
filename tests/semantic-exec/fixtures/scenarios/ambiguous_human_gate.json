@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "0.1.0",
+  "scenarioId": "ambiguous_human_gate",
+  "scenarioType": "native_settings_ambiguity",
+  "description": "目标存在歧义，必须进入 human gate，不允许默认自动选最高分",
+  "routePolicy": {
+    "preferredOrder": ["accessibility", "ocr"],
+    "allowFallback": true,
+    "maxAttemptsPerStep": 2
+  },
+  "recoveryBudget": 1,
+  "steps": [
+    {
+      "stepId": "pick-target",
+      "action": "resolve_target",
+      "target": "system.settings.ambiguous_row",
+      "expectedVerifiers": ["ui_observable"],
+      "mockOutcome": "blocked",
+      "mockFailureClass": "ambiguous",
+      "requiresHumanGate": true
+    }
+  ]
+}

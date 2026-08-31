@@ -55,7 +55,6 @@ Examples:
 - `schemas/`
 - `polyfills/`
 - `types/`
-- `config/`
 
 Rule:
 
@@ -69,8 +68,8 @@ not use a generic top-level `artifacts/` bucket.
 
 Canonical paths:
 
-- `test/<domain>/fixtures/` or `tests/<domain>/fixtures/` — stable test inputs, golden samples and expected baselines
-- `test/<domain>/reports/` — test-specific maintained reports when they are part of the test package
+- `tests/<domain>/fixtures/` — stable test inputs, golden samples and expected baselines
+- `tests/<domain>/reports/` — test-specific maintained reports when they are part of the test package
 - `docs/quality/<domain>/` — formal quality, validation and review conclusions
 - `docs/research/external/` — external source manifests and provenance
 
@@ -173,14 +172,15 @@ Preferred root when the repository intentionally maintains prompts:
 
 Examples:
 
-- handoff prompts
 - reusable execution prompts
-- task-generation prompts
+- domain inference/review prompts
+- task-generation prompts with stable input/output contracts
 
 Rules:
 
 - prompts should not live in `docs/` merely because they were used during development;
 - one-time prompts can be deleted after the task if they provide no reusable value;
+- historically useful handoff and dated strategy prompts belong under `.archive/notes/`, not `prompts/`;
 - prompts that encode an actual engineering rule should have that rule separately represented in canonical documentation.
 
 ## Internal `docs/` information architecture
@@ -236,7 +236,7 @@ When creating or touching a file, decide using this order:
 2. Is it maintained user-facing API documentation?
    - `docs-user-api/`
 3. Is it a stable reusable fixture or report?
-   - owning `test/**/fixtures/`, `tests/**/fixtures/`, `test/**/reports/` or `docs/quality/`
+   - owning `tests/**/fixtures/`, `tests/**/reports/` or `docs/quality/`
 4. Is it generated during execution, debugging, probing or smoke testing?
    - `.runtime/`
 5. Is it local environment/tool state?
@@ -422,7 +422,7 @@ When in doubt:
 - canonical project knowledge -> classified subtree under `docs/`
 - research -> `docs/research/`
 - active plan -> `docs/plans/`
-- reusable test asset -> owning `test/**/fixtures/` or `tests/**/fixtures/`
+- reusable test asset -> owning `tests/**/fixtures/`
 - durable quality conclusion -> `docs/quality/<domain>/`
 - runtime/debugging output -> `.runtime/`
 - reusable prompt -> `prompts/`

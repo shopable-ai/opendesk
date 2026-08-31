@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "0.1.0",
+  "scenarioId": "degraded_evidence_inconclusive",
+  "scenarioType": "browser_backoffice_degraded",
+  "description": "主目标大体达成，但证据不足，只能降级通过",
+  "routePolicy": {
+    "preferredOrder": ["dom", "devtools"],
+    "allowFallback": false,
+    "maxAttemptsPerStep": 1
+  },
+  "recoveryBudget": 0,
+  "steps": [
+    {
+      "stepId": "save-settings-degraded",
+      "action": "save_settings",
+      "target": "settings.save_button",
+      "expectedVerifiers": ["ui_observable", "evidence_observable"],
+      "mockOutcome": "degraded",
+      "allowDegraded": true
+    }
+  ]
+}

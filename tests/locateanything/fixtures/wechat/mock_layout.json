@@ -1,0 +1,51 @@
+{
+  "width": 1200,
+  "height": 800,
+  "regions": [
+    {
+      "name": "sidebar",
+      "label": "侧边栏",
+      "x": 0,
+      "y": 0,
+      "width": 60,
+      "height": 800,
+      "color": "#2E2E2E"
+    },
+    {
+      "name": "chatList",
+      "label": "聊天列表",
+      "x": 60,
+      "y": 0,
+      "width": 280,
+      "height": 800,
+      "color": "#F5F5F5"
+    },
+    {
+      "name": "chatHeader",
+      "label": "聊天头部",
+      "x": 340,
+      "y": 0,
+      "width": 860,
+      "height": 60,
+      "color": "#F5F5F5"
+    },
+    {
+      "name": "chatMessages",
+      "label": "消息区域",
+      "x": 340,
+      "y": 60,
+      "width": 860,
+      "height": 640,
+      "color": "#F9F9F9"
+    },
+    {
+      "name": "chatInput",
+      "label": "输入区域",
+      "x": 340,
+      "y": 700,
+      "width": 860,
+      "height": 100,
+      "color": "#F5F5F5"
+    }
+  ]
+}

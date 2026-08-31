@@ -696,12 +696,13 @@ class APIResponse {
 async function loadConfig() {
     try {
         // Check if config file exists
-        if (!File.exists('config.ini')) {
-            console.error('配置文件 config.ini 不存在');
-            throw new Error('Configuration file config.ini does not exist');
+        const configPath = 'examples/app/qianniu.config.example.ini';
+        if (!File.exists(configPath)) {
+            console.error(`配置文件 ${configPath} 不存在`);
+            throw new Error(`Configuration file ${configPath} does not exist`);
         }
-        
-        const configContent = File.read('config.ini');
+
+        const configContent = File.read(configPath);
         const config = new Config();
         
         // Parse INI content

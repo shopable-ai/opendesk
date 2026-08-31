@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://clawdesk.dev/schemas/automation/action-targets.schema.json",
+  "type": "object",
+  "required": ["schemaVersion", "runId", "targets", "targetCount"],
+  "properties": {
+    "schemaVersion": {"type": "string"},
+    "runId": {"type": "string"},
+    "targets": {"type": "array"},
+    "targetCount": {"type": "integer"}
+  }
+}

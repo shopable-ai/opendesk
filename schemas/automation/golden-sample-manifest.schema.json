@@ -1,0 +1,200 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://clawdesk.dev/schemas/automation/golden-sample-manifest.schema.json",
+  "title": "GoldenSampleManifest",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "id",
+    "createdAt",
+    "sampleType",
+    "source",
+    "capture",
+    "structure",
+    "mirror",
+    "validation",
+    "replay",
+    "failureTaxonomy",
+    "evidence"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string"
+    },
+    "id": {
+      "type": "string"
+    },
+    "createdAt": {
+      "type": "string"
+    },
+    "sampleType": {
+      "type": "string",
+      "const": "golden-sample"
+    },
+    "runId": {
+      "type": "string"
+    },
+    "source": {
+      "type": "object",
+      "required": [
+        "originUrl",
+        "siteMirrorRoot",
+        "manifestPath"
+      ],
+      "properties": {
+        "originUrl": {
+          "type": "string"
+        },
+        "siteMirrorRoot": {
+          "type": "string"
+        },
+        "manifestPath": {
+          "type": "string"
+        },
+        "proxy": {
+          "type": "string"
+        }
+      }
+    },
+    "capture": {
+      "type": "object",
+      "required": [
+        "sourcePng"
+      ],
+      "properties": {
+        "sourcePng": {
+          "type": "string"
+        },
+        "renderedDomHtml": {
+          "type": "string"
+        },
+        "networkLog": {
+          "type": "string"
+        },
+        "consoleLog": {
+          "type": "string"
+        }
+      }
+    },
+    "structure": {
+      "type": "object",
+      "required": [
+        "regionsJson",
+        "layoutModelJson",
+        "semanticModelJson"
+      ],
+      "properties": {
+        "regionsJson": {
+          "type": "string"
+        },
+        "layoutModelJson": {
+          "type": "string"
+        },
+        "appClassificationJson": {
+          "type": "string"
+        },
+        "zonesJson": {
+          "type": "string"
+        },
+        "actionTargetsJson": {
+          "type": "string"
+        },
+        "chatCandidatesJson": {
+          "type": "string"
+        },
+        "semanticModelJson": {
+          "type": "string"
+        }
+      }
+    },
+    "mirror": {
+      "type": "object",
+      "required": [
+        "layoutHtml",
+        "semanticHtml",
+        "domValidationReport"
+      ],
+      "properties": {
+        "layoutHtml": {
+          "type": "string"
+        },
+        "semanticHtml": {
+          "type": "string"
+        },
+        "domValidationReport": {
+          "type": "string"
+        },
+        "mirrorPng": {
+          "type": "string"
+        }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "required": [
+        "compareReport",
+        "actionabilityReport",
+        "sendSafetyReport"
+      ],
+      "properties": {
+        "compareReport": {
+          "type": "string"
+        },
+        "compareDiffPng": {
+          "type": "string"
+        },
+        "actionabilityReport": {
+          "type": "string"
+        },
+        "sendSafetyReport": {
+          "type": "string"
+        }
+      }
+    },
+    "replay": {
+      "type": "object",
+      "required": [
+        "replayCase",
+        "currentState",
+        "replayResult",
+        "stateTransitionLog"
+      ],
+      "properties": {
+        "replayCase": {
+          "type": "string"
+        },
+        "currentState": {
+          "type": "string"
+        },
+        "replayResult": {
+          "type": "string"
+        },
+        "stateTransitionLog": {
+          "type": "string"
+        }
+      }
+    },
+    "failureTaxonomy": {
+      "type": "object",
+      "required": [
+        "path"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "required": [
+        "path"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

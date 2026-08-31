@@ -66,7 +66,7 @@ try {
   
 // 指定 path 保存文件
 await page.screenshot({
-    path: "test.png"
+    path: ".runtime/temp/examples/test-script-screenshot.png"
 });
 
 // 同时保存文件并获取 base64
