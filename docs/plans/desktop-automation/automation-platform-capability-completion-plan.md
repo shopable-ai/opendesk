@@ -62,6 +62,7 @@ Quality
 - [`../../architecture/desktop-automation/action-target-model.md`](../../architecture/desktop-automation/action-target-model.md)：动作目标、候选、前置条件、后置条件和回退原则。
 - [`../../architecture/desktop-automation/app-adapter-contract.md`](../../architecture/desktop-automation/app-adapter-contract.md)：Surface、Layout、Semantic Adapter、Action 和 Verification 契约。
 - [`../../architecture/desktop-automation/agent-first-recorder.md`](../../architecture/desktop-automation/agent-first-recorder.md)：Recorder 的长期架构边界。
+- [`../../research/desktop-automation/2026-08-31-clawdesk-vs-peekaboo.md`](../../research/desktop-automation/2026-08-31-clawdesk-vs-peekaboo.md)：macOS Native Driver 重叠审计、Peekaboo Integrate-first 决策输入。
 - [`agent-first-recorder-macos-mvp.md`](agent-first-recorder-macos-mvp.md)：Recorder 首个 macOS 有界实施计划。
 - [`app-target-priority-matrix.md`](app-target-priority-matrix.md)：真实应用候选及其 Evidence 条件。
 - [`../runtime/runtime-extension-roadmap.md`](../runtime/runtime-extension-roadmap.md)：Runtime 扩展、资源加载和第三方 Extension 的候选演进路线。
@@ -131,6 +132,44 @@ Driver
 - Recorder 从 Trace 到 Flow IR、生成脚本和无 AI Replay 的实现闭环；
 - 贯穿所有入口的风险、权限、隐私和 Human Gate；
 - L0—L12 与可重复测试、指标和 Evidence 的完整映射。
+
+### 3.1 2026-08-31 Peekaboo 审计后的执行校准
+
+`2026-08-31-clawdesk-vs-peekaboo.md` 对当前 macOS primitive 做源码级重叠审计后，确认：
+
+```text
+继续补完整 macOS Native Driver
+!= 当前最优开发顺序
+```
+
+当前执行原则调整为：
+
+```text
+macOS 15+ 主路径
+→ 优先验证 PeekabooProvider
+
+Clawdesk Native macOS
+→ compatibility / fallback / benchmark / special case
+
+Clawdesk 核心研发
+→ Observation Normalization
+→ Locator / Target
+→ Verified Action
+→ Verification / Evidence
+→ Recorder
+→ App Adapter
+→ Workflow / Recovery
+```
+
+因此需要把 **Desktop Execution Provider 边界**从后续平台化工作前移到 P0，在 P0-02 Observation、P0-03 Locator 和 P0-04 Verified Action 大规模实现之前完成最小 Provider spike。
+
+约束：
+
+- 这不是直接删除 `automation/`；
+- 这不是把 Peekaboo tool 名称暴露成 Clawdesk 公共 API；
+- 这不是用竞品 Research 直接改写 Architecture；
+- Provider benchmark 之前，不把 NativeProvider 或 PeekabooProvider 任一方宣称为稳定默认；
+- `P1-14 Provider Registry` 仍保留，但其职责升级为跨类型 Provider 的注册、健康、质量、成本和 fallback 治理，不再承担首次引入 DesktopProvider abstraction 的任务。
 
 ## 四、当前最缺的四条闭环
 
@@ -222,6 +261,53 @@ Execution 不能只停留在“启动一次 JavaScript 并在内存中保存状�
 
 ## 五、P0：必须先完成的核心能力
 
+### P0-00 DesktopProvider Boundary + PeekabooProvider Spike
+
+目标：在继续扩张 macOS primitive 之前，先证明桌面底层能力可以通过 Provider contract 替换，而 JavaScript、HTTP、MCP、Recorder 和 Workflow 不绑定具体 Provider。
+
+最小 contract：
+
+```text
+capabilities()
+observe()
+listWindows()
+snapshot()
+findTarget()
+act()
+verify()
+captureEvidence()
+```
+
+首个 Provider：
+
+```text
+PeekabooProvider
+NativeProvider
+```
+
+后续候选：
+
+```text
+CuaProvider
+```
+
+第一阶段 Peekaboo transport 优先使用：
+
+```text
+CLI --json
+```
+
+在性能、snapshot locality 或长会话证明需要后，再评估 persistent stdio MCP；当前不依赖 Peekaboo 尚未实现的 HTTP/SSE server transport。
+
+完成标志：
+
+- 同一 Clawdesk action contract 可以在 PeekabooProvider 与 NativeProvider 间切换；
+- Provider-specific receipt / element ID 可以保留 extension，同时能投影为统一 Action / Evidence 结果；
+- public JS/HTTP/MCP 不出现 `peekaboo_*` 作为主要稳定 API；
+- capability 缺失在 dispatch 前返回 structured blocker；
+- 至少用 HTML Benchmark、一个系统 App 和一个真实动态 App 比较成功率、假成功率、background、stale refusal、latency 与 Evidence；
+- Benchmark 前不删除现有 native fallback。
+
 ### P0-01 能力事实注册表
 
 目标：建立项目能力的机器可读事实层，区分：
@@ -288,7 +374,8 @@ warnings / blockers
 
 - CLI、HTTP、MCP、Recorder 不再各自发明不兼容的桌面快照；
 - 屏幕、窗口、截图、区域和元素坐标能够显式转换；
-- 每个语义判断可回溯到本次 Observation 和 Provider。
+- 每个语义判断可回溯到本次 Observation 和 Provider；
+- 对 PeekabooProvider，Clawdesk Snapshot 引用 provider-native snapshot/receipt，不重新复制一套 macOS producer authority。
 
 ### P0-03 正式 Locator Engine
 
@@ -318,7 +405,8 @@ absolute coordinate as final fallback
 - revalidation；
 - Locator Bundle 与 fallback；
 - selector drift 诊断；
-- 高风险动作禁止单一低置信度 OCR 点直接升级为最终目标。
+- 高风险动作禁止单一低置信度 OCR 点直接升级为最终目标；
+- macOS structured selector / Accessibility 优先消费 Provider-native candidate，不以“重造一套 AX tree”作为 Locator V1 前提。
 
 完成标志：
 
@@ -365,7 +453,8 @@ artifacts
 - JavaScript、HTTP、MCP 与 Semantic Executor 复用同一核心动作结果；
 - `executed=true` 与 `verified=true` 明确分离；
 - `inconclusive` 不能被静默转成成功；
-- 中高风险动作强制执行 Postcondition。
+- 中高风险动作强制执行 Postcondition；
+- Provider 的 native effect verification 可以作为证据输入，但不能自动替代 Clawdesk business Postcondition。
 
 ### P0-05 Verification 与 Evidence Engine
 
@@ -618,9 +707,12 @@ resume policy
 
 ### P1-14 Provider Registry
 
+P0-00 已先建立 Desktop Execution Provider 最小边界；本项负责把 Provider 治理扩展为统一 Registry。
+
 统一管理：
 
 ```text
+Desktop execution: Peekaboo / Cua / Native
 Accessibility
 DOM / DevTools
 OCR
@@ -631,7 +723,7 @@ Template
 Model service
 ```
 
-每个 Provider 需要声明平台、语言、权限、健康状态、超时、成本、fallback 与质量指标。
+每个 Provider 需要声明平台、语言、权限、健康状态、超时、成本、fallback、版本/capability 和质量指标。
 
 ### P1-15 Capability Benchmark
 
@@ -778,7 +870,7 @@ apps/
 
 ```text
 automation/
-底层桌面 Driver 与原生能力
+底层桌面 Driver 与原生能力；在 Provider 化后主要承担 NativeProvider / compatibility，不再默认等同 macOS 主后端
 
 pkg/
 跨应用可复用执行内核
@@ -799,26 +891,28 @@ docs/
 
 ```text
 1. 能力事实注册表
-2. Observation Snapshot
-3. Coordinate Space 与 Locator Engine
-4. Verification / Evidence Engine
-5. Verified Action Engine
-6. Semantic Executor 接入真实 Runtime
-7. Cancel / Checkpoint / Replay / Persistence
-8. App Package / Registry 最小实现
-9. Recorder Trace / Flow / Compiler / Replay
-10. Skill Framework
-11. Workflow / Supervisor
-12. Benchmark、漂移测试与长期指标
-13. 普通真实应用
-14. 复杂应用
-15. 自主桌面 Agent
+2. DesktopProvider Boundary + PeekabooProvider / NativeProvider Spike
+3. Observation Snapshot
+4. Coordinate Space 与 Locator Engine
+5. Verification / Evidence Engine
+6. Verified Action Engine
+7. Semantic Executor 接入真实 Runtime
+8. Cancel / Checkpoint / Replay / Persistence
+9. App Package / Registry 最小实现
+10. Recorder Trace / Flow / Compiler / Replay
+11. Skill Framework
+12. Workflow / Supervisor
+13. Benchmark、漂移测试与长期指标
+14. 普通真实应用
+15. 复杂应用
+16. 自主桌面 Agent
 ```
 
 关键依赖：
 
 ```text
-Observation
+DesktopProvider
+→ Observation
 → Locator
 → Verified Action
 → Semantic Executor / Recorder Replay
@@ -835,13 +929,14 @@ Safety / Evidence
 
 允许并行的工作：
 
-- P0-01 能力事实注册表与 P0-02 Observation 契约；
+- P0-00 Provider Spike、P0-01 能力事实注册表与 P0-02 Observation 契约；
 - P0-07 Execution Lifecycle 的存储/取消设计与 P0-03 Locator；
 - Recorder 数据模型测试与 Verified Action 契约；
 - HTML Benchmark 与核心 Runtime 实现。
 
 不允许的跳跃：
 
+- 未完成 Provider Benchmark 就大规模扩展 macOS-only primitive parity；
 - 未建立 Postcondition 就进入高风险自动发送；
 - 未有真实 Semantic Executor 就直接宣称自主 Agent 可用；
 - 未有 Fixture 和 Evidence 就批量开发多个 App Adapter；
@@ -906,6 +1001,7 @@ P0 阶段结束前必须同时满足：
 10. 高风险动作缺少授权、目标身份或 Postcondition 时必须停止或进入 Human Gate。
 11. Provider 缺失、权限缺失和环境漂移返回结构化 blocker，不进行无限重试。
 12. 所有运行工件遵守隐私、Secrets、retention 和清理策略。
+13. macOS 同一 Golden Path 至少通过 PeekabooProvider 与 NativeProvider 的对照测试，并明确默认路由、fallback 条件、false-success 差异和 Evidence 完整度。
 
 ## 十二、核心质量指标
 
