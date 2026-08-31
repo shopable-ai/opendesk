@@ -3,6 +3,7 @@ package automation
 import (
 	"encoding/json"
 	"fmt"
+	"runtime"
 	"time"
 
 	"github.com/go-vgo/robotgo"
@@ -90,17 +91,25 @@ func (m *Mouse) Click(x, y int, options interface{}) error {
 		return fmt.Errorf("invalid button type: %s", opts.Button)
 	}
 
-	// Move to position
+	// Handle single click case
+	fmt.Printf("Performing click with button: %s\n", opts.Button)
+
+	// On macOS, keep movement and the paired down/up in robotgo's native
+	// MoveClick path. It includes the library's short pointer-settle interval
+	// without leaving a long gap in which another application can take focus.
+	if runtime.GOOS == "darwin" && opts.Delay == 0 && opts.ClickCount > 0 {
+		for i := 0; i < opts.ClickCount; i++ {
+			robotgo.MoveClick(x, y, opts.Button)
+		}
+		return nil
+	}
+
+	// Preserve the existing explicit down/wait/up semantics when a custom
+	// delay is requested, and preserve the existing behavior on other systems.
 	if err := m.Move(x, y, nil); err != nil {
 		return fmt.Errorf("failed to move mouse: %v", err)
 	}
 
-	// Handle single click case
-	fmt.Printf("Performing click with button: %s\n", opts.Button)
-
-	// Execute click
-
-	// 点击指定次数
 	for i := 0; i < opts.ClickCount; i++ {
 		if err := m.Down(map[string]interface{}{"button": opts.Button}); err != nil {
 			return err

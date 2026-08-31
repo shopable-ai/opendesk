@@ -29,6 +29,11 @@ declare global {
 
   interface ClawdeskMouse {
     click(x: number, y: number, options?: ClawdeskMouseClickOptions): void;
+    /**
+     * Performs one macOS Accessibility press on the press-capable element
+     * owned by processID at the supplied global virtual-desktop coordinates.
+     */
+    clickForPID(processID: number, x: number, y: number): void;
     move(x: number, y: number, options?: ClawdeskMouseMoveOptions): void;
     down(options?: ClawdeskMouseButtonOptions): void;
     up(options?: ClawdeskMouseButtonOptions): void;

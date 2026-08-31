@@ -28,6 +28,7 @@ order: 3
 | 方法 | 用途 |
 | --- | --- |
 | mouse.click(x, y, options) | 在指定坐标点击 |
+| mouse.clickForPID(processID, x, y) | macOS 向指定 PID 的可见窗口定向投递左键点击 |
 | mouse.move(x, y, options) | 移动鼠标，可分步平滑移动 |
 | mouse.down(options) | 按下鼠标键 |
 | mouse.up(options) | 释放鼠标键 |
@@ -53,9 +54,10 @@ await mouse.click(x, y, options)
 | options.delay | number | 0 | 按下与抬起间延迟，毫秒 |
 
 **行为规则**
-- 先执行 `mouse.move(x, y)`
-- 然后按 clickCount 次数循环执行 down/up
-- button 非法会直接报错
+
+- 默认情况下，macOS 使用 robotgo 的原生 `MoveClick` 完成移动和成对按下/抬起；`await` 在宿主调用返回后继续。
+- 显式设置 `options.delay > 0` 时，保留 `mouse.move` 后按 `clickCount` 次数执行 down / 等待 / up 的语义，`delay` 是每次按下与抬起之间的毫秒数。
+- 这是全局鼠标操作，接收者由点击时桌面的命中测试决定，不绑定进程；button 非法会直接报错。
 
 **错误条件**
 - `invalid button type: ...`
@@ -66,6 +68,39 @@ await mouse.click(x, y, options)
 await mouse.click(400, 300);
 await mouse.click(400, 300, { button: 'right' });
 await mouse.click(600, 420, { clickCount: 2, delay: 80 });
+```
+
+## mouse.clickForPID(processID, x, y)
+
+**签名**
+
+```js
+await mouse.clickForPID(processID, x, y)
+```
+
+**行为规则**
+
+- 仅支持启用 cgo 的 macOS 构建，且只激活支持 Accessibility `AXPress` 的控件。
+- `processID` 必须是正的 32 位整数；`x` / `y` 必须是有限的全局虚拟桌面坐标。目标点可以位于负坐标显示器，但必须落在当前活动显示器和该 PID 的当前可见窗口内。
+- 宿主在指定 PID 的 Accessibility 树中按全局点命中控件，复核命中元素仍属于该 PID 且支持 `AXPress`，移动可见指针后只执行一次 `AXPress`。接收者不由动作期间的前台应用决定。
+- `await` 会等待 Accessibility 接受这次 press 调用，但没有业务状态回执；调用方仍应短暂等待并读取应用状态或截图验证结果。
+- 该方法不会投递 CoreGraphics down/up 原始鼠标事件，因此不适用于画布、拖拽或只监听原始鼠标事件的区域。此时它会返回“控件不支持 press”，不会退回全局点击。
+- 该方法不自动重试或补点。参数、权限、进程、显示器、窗口、命中元素、指针移动或 press 失败都会直接返回错误。
+- `mouse.click()` 保持全局鼠标语义，**不绑定 PID**；两者不可互换。
+
+**权限**
+
+- 实际运行 runtime 的宿主需要 macOS“辅助功能”权限；权限绑定宿主身份。屏幕截图验证还需要“屏幕录制”权限。
+- 安全脚本应在动作前后重新读取 PID、应用身份、窗口边界和显示器，并从当前窗口原点加已审查的相对坐标计算目标点。
+
+**示例**
+
+```js
+const active = await window.getActiveWindow();
+if (!active || active.exeName !== 'Calculator' || active.pid <= 0) {
+  throw new Error('Calculator is not active');
+}
+await mouse.clickForPID(active.pid, clickPoint.x, clickPoint.y);
 ```
 
 ## mouse.move(x, y, options)
