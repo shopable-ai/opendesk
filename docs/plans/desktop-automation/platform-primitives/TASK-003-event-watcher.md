@@ -2,11 +2,17 @@
 
 Status: TODO
 Priority: P0
-Depends on: TASK-002 recommended
+Depends on: none
 
 ## Goal
 
-建立统一的桌面事件订阅原语，减少大量固定轮询，为 Window/App/Clipboard/Display/Input 等能力提供可组合的 watcher。
+建立统一的桌面事件订阅原语，减少大量固定轮询，为 Window/App/Clipboard/Display 等能力提供可组合的 watcher。
+
+## Existing capability guardrail
+
+`GlobalShortcut` 已经是现有能力，本任务禁止重新实现 `GlobalHotkey` / `GlobalShortcut`，也不得为了 Event 系统再造第二套快捷键注册 API。
+
+如 `GlobalShortcut` 已经有可复用的 callback lifecycle、native run loop、execution teardown 或 subscription registry，可以复用这些基础设施；但事件 API 与快捷键 API 的职责必须保持独立。
 
 ## MVP 范围
 
@@ -52,6 +58,7 @@ const event = await Events.once('window.created', { timeout: 5000 });
 - Watcher 不自动点击、不自动恢复。
 - 不允许因为某平台没有原生事件就 silent polling；若使用轮询 fallback 必须显式标记 backend。
 - Scheduler 是时间触发，Events 是状态变化触发，两者不要合并。
+- GlobalShortcut 是明确用户快捷键触发，Events 是通用桌面状态变化；不要把两者合并成同一个公共 API。
 
 ## 测试
 
@@ -72,4 +79,5 @@ const event = await Events.once('window.created', { timeout: 5000 });
 - 有统一 event abstraction。
 - 至少 macOS 核心事件有真实 smoke evidence。
 - 与 execution events 日志区别清楚：一个是桌面外部事件，一个是 OpenDesk 执行事件。
+- 未新增任何重复的 GlobalShortcut / GlobalHotkey 实现。
 - 文档、类型、机器索引同步。
