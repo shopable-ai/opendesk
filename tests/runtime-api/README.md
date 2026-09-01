@@ -32,8 +32,21 @@ tier，以及没有风险理由的 contract-only 接口。
 OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./scripts/test_runtime_apis.sh contract
 OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./scripts/test_runtime_apis.sh unit
 OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./scripts/test_runtime_apis.sh smoke
+OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./scripts/test_runtime_apis.sh dialog
 OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./scripts/test_runtime_apis.sh live
 ```
+
+`dialog` 在 macOS 构建 run-local native host，并实际运行公开 JavaScript 的 disabled、严格
+参数、non-blocking、single-flight、`.then/.catch/.finally`、prompt 真实键盘输入、输入值第二个
+alert、prompt 取消 `null` 第二个 alert、exactly-once settlement 与 unobserved Promise teardown
+测试。它的正式 run record 位于 `.runtime/tests/runtime-api/`；截图、WindowServer state 和 AX
+layout/lifecycle probe 作为单独的本地实机证据保存在 `.runtime/tests/dialog/`。gate 会在首个
+alert 仍可见且尚未 AXPress 时核对 owner EventLoop tick，并从 execution cleanup event 强制核对
+worker、callback、timer、window、listener、driver sink 与 native host process 全部归零。
+每个原生动作先由 test tool 读取当前 WindowServer/AX 状态，再由
+`dialog-ax-controller.js` 按需调用公开 `keyboard.type()` 输入固定非秘密 fixture，再调用
+`mouse.clickForPID()` 作一次 PID-scoped `AXPress`；
+它不以 HTML mock、全局坐标 click 或脚本内 callback 冒充原生交互。
 
 `live` 从头执行全部 gate，最后才运行 quality/acceptance。它要求 macOS Accessibility 和
 Screen Recording；Safari 必须处于可控状态。权限不足、窗口或控件身份不匹配、缺截图、证据

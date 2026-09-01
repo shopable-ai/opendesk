@@ -300,6 +300,8 @@
         "confirm",
         "prompt"
       ],
+      "asyncControlFlow": "Promise-only: no onConfirm/onCancel options callbacks and no synchronous EventLoop blocking. await pauses only its async flow; then/catch/finally run on the owner EventLoop. An unobserved Dialog Promise is closed during execution teardown rather than retaining the execution indefinitely; all competing terminal paths settle exactly once.",
+      "promptResult": "prompt resolves a string on confirm and null on user cancellation. Public examples display a non-sensitive result in a following Dialog.alert; secure or otherwise sensitive input must not be echoed to logs, notifications, or another Dialog.",
       "privacy": "secure prompt uses a password input; Dialog never writes message, defaultValue, or prompt input to ordinary logs, errors, summaries, events, or HTTP responses"
     },
     {

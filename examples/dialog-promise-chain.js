@@ -1,6 +1,6 @@
 // Native Dialog Promise-chain example.
-// From the repository's built `dist/` directory, run one command:
-// `./opendesk -ui -script ../examples/dialog-promise-chain.js -console-mode script`.
+// From the repository root, run one command:
+// `./opendesk -ui -script examples/dialog-promise-chain.js -console-mode script`.
 // Dialog methods return Promises and never accept onConfirm/onCancel callbacks.
 
 const confirmOptions = {
