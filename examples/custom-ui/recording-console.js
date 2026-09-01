@@ -48,6 +48,7 @@ async function main() {
   const model = {
     mode: "full",
     recordingState: "idle",
+    quickTool: "",
     snapshots: 0,
     options: { systemAudio: true, microphone: true, camera: false, mousePointer: true },
     frameRate: "60",
@@ -65,6 +66,19 @@ async function main() {
     camera: "摄像头",
     mousePointer: "显示鼠标"
   };
+  // The expanded lower panel follows the utility deck in the reference. These
+  // are UI intents only: each command is handed off to the product workbench
+  // or a future MCP-backed flow rather than invoking Recorder here.
+  const quickToolLabels = {
+    traySourceFull: "截图",
+    traySourceRegion: "聚光灯",
+    traySourceWindow: "涂鸦",
+    trayOptionSystemAudio: "排除窗口",
+    trayOptionMicrophone: "添加水印",
+    trayOptionCamera: "提词器",
+    trayOptionMousePointer: "按键显示",
+    trayQuickSchedule: "定时录制"
+  };
 
   async function setText(id, text) {
     await settings.control(id).update({ text });
@@ -75,9 +89,6 @@ async function main() {
       await settings.control("mode" + mode[0].toUpperCase() + mode.slice(1)).update({
         classes: ["mode-button", ...(model.mode === mode ? ["is-selected"] : [])]
       });
-      await tray.control("traySource" + mode[0].toUpperCase() + mode.slice(1)).update({
-        classes: ["expanded-source", ...(model.mode === mode ? ["is-selected"] : [])]
-      });
     }
     await setText("captureTarget", modeLabels[model.mode] + "录制");
     await tray.control("trayMode").update({ text: modeLabels[model.mode] });
@@ -87,13 +98,8 @@ async function main() {
     const updates = [];
     for (const option of Object.keys(model.options)) {
       const enabled = model.options[option];
-      const controlSuffix = option[0].toUpperCase() + option.slice(1);
       updates.push(
-        settings.control(option).update({ checked: enabled }),
-        tray.control("trayOption" + controlSuffix).update({
-          text: optionLabels[option] + "：" + (enabled ? "开" : "关"),
-          classes: ["expanded-option", ...(enabled ? ["is-enabled"] : [])]
-        })
+        settings.control(option).update({ checked: enabled })
       );
     }
     updates.push(
@@ -101,6 +107,12 @@ async function main() {
       tray.control("trayCamera").update({ text: model.options.camera ? "摄像头开" : "摄像头关" })
     );
     await Promise.all(updates);
+  }
+
+  async function renderQuickTool() {
+    await Promise.all(Object.keys(quickToolLabels).map(id => tray.control(id).update({
+      classes: ["expanded-quick-tool", ...(model.quickTool === id ? ["is-active"] : [])]
+    })));
   }
 
   async function renderState() {
@@ -135,6 +147,7 @@ async function main() {
       mode: model.mode,
       frameRate: model.frameRate,
       quality: model.quality,
+      quickTool: model.quickTool,
       options: model.options
     };
     console.log("RECORDER_UI_INTENT=" + JSON.stringify(value));
@@ -151,6 +164,7 @@ async function main() {
       systemAudio: model.options.systemAudio,
       trayExpanded,
       settingsVisible,
+      quickTool: model.quickTool,
       snapshots: model.snapshots
     }));
   }
@@ -230,6 +244,9 @@ async function main() {
     settingsVisible = visible;
     if (visible) await settings.show();
     else await settings.hide();
+    await tray.control("trayWorkspace").update({
+      classes: ["tray-footer-button", ...(visible ? ["is-active"] : [])]
+    });
   }
 
   // Expand in place by default: keep the tray's current origin so a dragged
@@ -266,14 +283,20 @@ async function main() {
     trayAction("select-region");
   });
 
-  for (const mode of modes) {
-    tray.control("traySource" + mode[0].toUpperCase() + mode.slice(1)).on("click", async () => {
-      model.mode = mode;
-      await renderMode();
-      await setText("recordingDetail", "已在展开面板选择" + modeLabels[mode] + "来源。");
-      intent("select-mode");
-      trayAction("select-expanded-mode");
-    });
+  async function activateQuickTool(id) {
+    model.quickTool = id;
+    await renderQuickTool();
+    if (id === "traySourceFull") {
+      await captureSnapshot();
+    } else {
+      await setText("recordingDetail", quickToolLabels[id] + "已就绪；请在独立工作台中完成设置，录制会话仍只由 MCP 创建。");
+    }
+    intent("open-quick-tool");
+    trayAction("open-quick-tool");
+  }
+
+  for (const id of Object.keys(quickToolLabels)) {
+    tray.control(id).on("click", async () => activateQuickTool(id));
   }
 
   tray.control("trayAudio").on("click", async () => {
@@ -292,17 +315,6 @@ async function main() {
     intent("toggle-camera");
     trayAction("toggle-camera");
   });
-
-  for (const option of Object.keys(model.options)) {
-    const controlID = "trayOption" + option[0].toUpperCase() + option.slice(1);
-    tray.control(controlID).on("click", async () => {
-      model.options[option] = !model.options[option];
-      await renderOptions();
-      await setText("recordingDetail", "已在展开面板更新" + optionLabels[option] + "设置。");
-      intent("update-option");
-      trayAction("toggle-expanded-option");
-    });
-  }
 
   tray.control("trayFrameRate").on("change", async event => {
     model.frameRate = String(event.value);
@@ -372,6 +384,7 @@ async function main() {
 
   await renderMode();
   await renderOptions();
+  await renderQuickTool();
   await renderState();
   await tray.show();
   await tray.waitUntilClosed();

@@ -327,6 +327,11 @@ footer {
   color: #fff;
 }
 
+.tray-footer-button.is-active {
+  background: #33484a;
+  color: #c7fbff;
+}
+
 .tray-expanded {
   height: 178px;
   box-sizing: border-box;
