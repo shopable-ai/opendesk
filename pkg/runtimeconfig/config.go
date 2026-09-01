@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	FileName               = "opendesk.runtime.json"
-	LegacyFileName         = "clawdesk.runtime.json"
+	FileName               = "clawdesk.runtime.json"
+	LegacyFileName         = "opendesk.runtime.json"
 	CodeConfigInvalid      = "RUNTIME_CONFIG_INVALID"
 	CodeConfigNotFound     = "RUNTIME_CONFIG_NOT_FOUND"
 	CodeConfigUnsupported  = "RUNTIME_CONFIG_UNSUPPORTED"
@@ -53,6 +53,15 @@ type Runtime struct {
 	Capabilities []string `json:"capabilities"`
 }
 
+type fileWire struct {
+	SchemaVersion *int         `json:"schemaVersion"`
+	Runtime       *runtimeWire `json:"runtime"`
+}
+
+type runtimeWire struct {
+	Capabilities *[]string `json:"capabilities"`
+}
+
 type UIResolveOptions struct {
 	ForceDisable        bool
 	ForceEnable         bool
@@ -87,20 +96,30 @@ func Load(path string) (File, error) {
 		}
 		return File{}, configError(code, absPath, "", message, err)
 	}
-	var config File
+	var wire fileWire
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&config); err != nil {
+	if err := decoder.Decode(&wire); err != nil {
 		return File{}, configError(CodeConfigInvalid, absPath, "", "decode strict runtime configuration: "+err.Error(), err)
 	}
 	if err := requireJSONEOF(decoder); err != nil {
 		return File{}, configError(CodeConfigInvalid, absPath, "", "runtime configuration must contain one JSON object", err)
 	}
+	if wire.SchemaVersion == nil {
+		return File{}, configError(CodeConfigInvalid, absPath, "schemaVersion", "schemaVersion is required and must be an integer", nil)
+	}
+	if wire.Runtime == nil {
+		return File{}, configError(CodeConfigInvalid, absPath, "runtime", "runtime is required and must be an object", nil)
+	}
+	if wire.Runtime.Capabilities == nil {
+		return File{}, configError(CodeConfigInvalid, absPath, "runtime.capabilities", "runtime.capabilities must be an array", nil)
+	}
+	config := File{
+		SchemaVersion: *wire.SchemaVersion,
+		Runtime:       Runtime{Capabilities: *wire.Runtime.Capabilities},
+	}
 	if config.SchemaVersion != SupportedSchemaVersion {
 		return File{}, configError(CodeConfigUnsupported, absPath, "schemaVersion", fmt.Sprintf("schemaVersion must be %d", SupportedSchemaVersion), nil)
-	}
-	if config.Runtime.Capabilities == nil {
-		return File{}, configError(CodeConfigInvalid, absPath, "runtime.capabilities", "runtime.capabilities must be an array", nil)
 	}
 	seen := make(map[string]struct{}, len(config.Runtime.Capabilities))
 	for index, capability := range config.Runtime.Capabilities {
@@ -176,9 +195,10 @@ func discoveredConfigPath(options UIResolveOptions) (string, bool, error) {
 	} else {
 		return "", false, nil
 	}
-	// OpenDesk is canonical. The previous filename remains a discovery-only
-	// fallback so existing projects keep working while they migrate; when both
-	// files exist, the canonical OpenDesk configuration always wins.
+	// clawdesk.runtime.json is the fixed product configuration requested by the
+	// Runtime contract. The renamed OpenDesk filename is accepted only as a
+	// discovery fallback for worktrees already in the middle of that migration;
+	// when both files exist, the Clawdesk configuration always wins.
 	for _, name := range []string{FileName, LegacyFileName} {
 		path := filepath.Join(directory, name)
 		info, err := os.Stat(path)
