@@ -2,6 +2,7 @@ package automation
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -325,7 +326,7 @@ func createJSMethodWrapper(runtime *goja.Runtime, receiver reflect.Value, method
 			lastResult := results[len(results)-1]
 			if lastResult.Type().Implements(reflect.TypeOf((*error)(nil)).Elem()) {
 				if !lastResult.IsNil() {
-					panic(runtime.NewGoError(lastResult.Interface().(error)))
+					panic(structuredGoError(runtime, lastResult.Interface().(error)))
 				}
 				results = results[:len(results)-1]
 			}
@@ -339,6 +340,24 @@ func createJSMethodWrapper(runtime *goja.Runtime, receiver reflect.Value, method
 		// 转换返回值为 JavaScript 值
 		return jsValueForResult(runtime, results[0].Interface())
 	}
+}
+
+// jsErrorProperties is deliberately package-private: native Runtime APIs may
+// opt into structured JavaScript errors without teaching this generic
+// reflection bridge about every public error type.
+type jsErrorProperties interface {
+	JSProperties() map[string]interface{}
+}
+
+func structuredGoError(runtime *goja.Runtime, err error) *goja.Object {
+	object := runtime.NewGoError(err)
+	var structured jsErrorProperties
+	if errors.As(err, &structured) {
+		for key, value := range structured.JSProperties() {
+			_ = object.Set(key, value)
+		}
+	}
+	return object
 }
 
 func jsValueForResult(runtime *goja.Runtime, result interface{}) goja.Value {
@@ -388,7 +407,7 @@ var jsMethodAllowlist = map[reflect.Type][]string{
 	reflect.TypeOf((*Console)(nil)):        {"Log", "Info", "Warn", "Error", "Debug", "Table", "Group", "GroupEnd", "Time", "TimeEnd", "Clear"},
 	reflect.TypeOf((*HTTPClient)(nil)):     {"Request", "Get", "Post"},
 	reflect.TypeOf((*System)(nil)):         {"Delay", "GetPlatformInfo", "GetSystemInfo", "GetProcessList", "KillProcess", "GetNetworkInterfaces", "GetNetworkConnections", "GetPowerInfo", "Shutdown", "Restart", "Sleep", "GetDirectoryContents", "GetExecutablePath", "GetWorkingDirectory", "GetUserInfo", "IsAdministrator", "GetSystemMetrics", "GetFingerprint", "ToJSON"},
-	reflect.TypeOf((*WindowManager)(nil)):  {"GetActiveWindow", "GetWindowByTitle", "GetFocusWindow", "Focus", "SetWindowBounds", "SetWidth", "SetHeight", "Maximize", "Minimize", "Restore", "RestoreByPID", "MinimizeByPID", "MaximizeByPID", "CloseWindow", "CloseActiveWindow", "Kill", "Title", "GetTitle", "Content", "GetContent", "List", "SetAlwaysOnTop", "UnsetTopMost", "BringToTop"},
+	reflect.TypeOf((*WindowManager)(nil)):  {"GetCapabilities", "GetActiveWindow", "GetWindowByTitle", "GetFocusWindow", "Focus", "SetWindowBounds", "SetWidth", "SetHeight", "Maximize", "Minimize", "Restore", "RestoreByPID", "MinimizeByPID", "MaximizeByPID", "CloseWindow", "CloseActiveWindow", "Kill", "Title", "GetTitle", "Content", "GetContent", "List", "SetAlwaysOnTop", "UnsetTopMost", "BringToTop"},
 	reflect.TypeOf((*FileSystem)(nil)):     {"Path", "Cwd", "Create", "CreateIfNotExists", "CreateWithDirs", "Exists", "EnsureDir", "Read", "ReadBytes", "Write", "Append", "WriteBytes", "AppendBytes", "Copy", "RenameWithoutExtension", "Rename", "Move", "GetExtension", "GetName", "GetNameWithoutExtension", "Remove", "RemoveDir", "ListDir", "IsFile", "IsDir", "IsEmptyDir", "GetHumanReadableSize", "GetSimplifiedPath", "Join", "Open"},
 	reflect.TypeOf((*AppStorage)(nil)):     {"GetItem", "SetItem", "RemoveItem", "Clear", "GetLength", "Key"},
 	reflect.TypeOf((*Sound)(nil)):          {"PlaySuccess", "PlayFail", "PlayWarning", "PlayError", "PlayCaptcha", "PlaySound", "Play"},

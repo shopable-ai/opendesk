@@ -264,14 +264,17 @@ func (w *windowsWindowManager) GetActiveWindow() (*WindowInfo, error) {
 	}
 
 	return &WindowInfo{
-		Title:     title,
-		ProcessID: processId,
-		X:         x,
-		Y:         y,
-		Width:     width,
-		Height:    height,
-		ExeName:   exeName,
-		ExePath:   exePath,
+		Title:        title,
+		ProcessID:    processId,
+		X:            x,
+		Y:            y,
+		Width:        width,
+		Height:       height,
+		ExeName:      exeName,
+		ExePath:      exePath,
+		IsForeground: true,
+		HasFocus:     true,
+		Handle:       uint64(hwnd),
 	}, nil
 }
 
@@ -338,19 +341,24 @@ func (w *windowsWindowManager) getTopWindow() uintptr {
 
 // 修改 GetWindowByTitle 方法
 func (w *windowsWindowManager) GetWindowByTitle(title string) (*WindowInfo, error) {
-	titlePtr, err := windows.UTF16PtrFromString(title)
-	if err != nil {
-		return nil, fmt.Errorf("invalid title: %v", err)
+	if strings.TrimSpace(title) == "" {
+		return nil, fmt.Errorf("window title cannot be empty")
 	}
-
-	hwnd, _, _ := procFindWindowW.Call(
-		0,
-		uintptr(unsafe.Pointer(titlePtr)),
-	)
-
-	if hwnd == 0 {
+	var matches []uintptr
+	callback := syscall.NewCallback(func(hwnd uintptr, _ uintptr) uintptr {
+		if getWindowTitle(windows.Handle(hwnd)) == title {
+			matches = append(matches, hwnd)
+		}
+		return 1
+	})
+	procEnumWindows.Call(callback, 0)
+	if len(matches) == 0 {
 		return nil, fmt.Errorf("window with title '%s' not found", title)
 	}
+	if len(matches) > 1 {
+		return nil, &WindowError{Code: WindowAmbiguousTarget, Message: "multiple windows have the requested title"}
+	}
+	hwnd := matches[0]
 
 	x, y, width, height := getWindowRect(windows.Handle(hwnd))
 	processId := getWindowProcessId(windows.Handle(hwnd))
@@ -359,15 +367,23 @@ func (w *windowsWindowManager) GetWindowByTitle(title string) (*WindowInfo, erro
 	exeName, exePath, _ := getProcessExecutableInfo(processId)
 
 	return &WindowInfo{
-		Title:     title,
-		ProcessID: processId,
-		X:         x,
-		Y:         y,
-		Width:     width,
-		Height:    height,
-		ExeName:   exeName,
-		ExePath:   exePath,
+		Title:        title,
+		ProcessID:    processId,
+		X:            x,
+		Y:            y,
+		Width:        width,
+		Height:       height,
+		ExeName:      exeName,
+		ExePath:      exePath,
+		IsForeground: hwnd == foregroundWindowHandle(),
+		HasFocus:     hwnd == foregroundWindowHandle(),
+		Handle:       uint64(hwnd),
 	}, nil
+}
+
+func foregroundWindowHandle() uintptr {
+	hwnd, _, _ := procGetForegroundWindow.Call()
+	return hwnd
 }
 
 // 获取进程可执行文件信息的函数
@@ -419,7 +435,9 @@ func (w *windowsWindowManager) Focus(title string) error {
 		return fmt.Errorf("window not found")
 	}
 
-	procSetForegroundWindow.Call(hwnd)
+	if result, _, _ := procSetForegroundWindow.Call(hwnd); result == 0 {
+		return fmt.Errorf("SetForegroundWindow rejected the focus request")
+	}
 	return nil
 }
 
@@ -435,14 +453,16 @@ func (w *windowsWindowManager) SetWindowBounds(title string, x, y, width, height
 		return fmt.Errorf("window not found")
 	}
 
-	procMoveWindow.Call(
+	if result, _, err := procMoveWindow.Call(
 		hwnd,
 		uintptr(x),
 		uintptr(y),
 		uintptr(width),
 		uintptr(height),
 		1, // repaint
-	)
+	); result == 0 {
+		return fmt.Errorf("MoveWindow failed: %v", err)
+	}
 	return nil
 }
 
@@ -462,20 +482,24 @@ func (w *windowsWindowManager) SetWidth(title string, width int) error {
 
 	// Get the current window position and size
 	var rect RECT
-	_, _, _ = procGetWindowRect.Call(
+	if result, _, err := procGetWindowRect.Call(
 		hwnd,
 		uintptr(unsafe.Pointer(&rect)),
-	)
+	); result == 0 {
+		return fmt.Errorf("GetWindowRect failed: %v", err)
+	}
 
 	// Set the window width while maintaining its position and height
-	procMoveWindow.Call(
+	if result, _, err := procMoveWindow.Call(
 		hwnd,
 		uintptr(rect.Left),
 		uintptr(rect.Top),
 		uintptr(width),
 		uintptr(rect.Bottom-rect.Top),
 		1, // repaint
-	)
+	); result == 0 {
+		return fmt.Errorf("MoveWindow failed: %v", err)
+	}
 
 	return nil
 }
@@ -496,20 +520,24 @@ func (w *windowsWindowManager) SetHeight(title string, height int) error {
 
 	// Get the current window position and size
 	var rect RECT
-	_, _, _ = procGetWindowRect.Call(
+	if result, _, err := procGetWindowRect.Call(
 		hwnd,
 		uintptr(unsafe.Pointer(&rect)),
-	)
+	); result == 0 {
+		return fmt.Errorf("GetWindowRect failed: %v", err)
+	}
 
 	// Set the window height while maintaining its position and width
-	procMoveWindow.Call(
+	if result, _, err := procMoveWindow.Call(
 		hwnd,
 		uintptr(rect.Left),
 		uintptr(rect.Top),
 		uintptr(rect.Right-rect.Left),
 		uintptr(height),
 		1, // repaint
-	)
+	); result == 0 {
+		return fmt.Errorf("MoveWindow failed: %v", err)
+	}
 
 	return nil
 }
@@ -951,12 +979,12 @@ func (w *windowsWindowManager) Kill(processId uint32) error {
 }
 
 // Title 获取当前活动窗口的标题
-func (w *windowsWindowManager) Title() string {
+func (w *windowsWindowManager) Title() (string, error) {
 	hwnd, _, _ := procGetForegroundWindow.Call()
 	if hwnd == 0 {
-		return ""
+		return "", fmt.Errorf("no active window found")
 	}
-	return getWindowTitle(windows.Handle(hwnd))
+	return getWindowTitle(windows.Handle(hwnd)), nil
 }
 
 // GetTitle 获取指定窗口的标题
@@ -979,12 +1007,12 @@ func (w *windowsWindowManager) GetTitle(selector string) (string, error) {
 }
 
 // Content 获取当前活动窗口的内容
-func (w *windowsWindowManager) Content() string {
+func (w *windowsWindowManager) Content() (string, error) {
 	hwnd, _, _ := procGetForegroundWindow.Call()
 	if hwnd == 0 {
-		return ""
+		return "", fmt.Errorf("no active window found")
 	}
-	return w.getWindowContent(windows.Handle(hwnd))
+	return w.getWindowContent(windows.Handle(hwnd)), nil
 }
 
 // GetContent 获取指定窗口的内容
@@ -1209,6 +1237,7 @@ func (w *windowsWindowManager) List() ([]map[string]interface{}, error) {
 
 		windowInfo := map[string]interface{}{
 			"title":        title,
+			"pid":          processId,
 			"processId":    processId,
 			"x":            x,
 			"y":            y,
@@ -1348,7 +1377,7 @@ func (w *windowsWindowManager) GetFocusWindow() (*WindowInfo, error) {
 		ExePath:      exePath,
 		IsForeground: isForeground,
 		HasFocus:     focusHwnd == hwnd,
-		Handle:       uintptr(focusHwnd),
+		Handle:       uint64(focusHwnd),
 		IsPopup:      isPopup,
 	}, nil
 }

@@ -69,13 +69,17 @@ func (w *stubWindowManager) Kill(processId uint32) error {
 	return fmt.Errorf("window automation is not implemented on this platform")
 }
 
-func (w *stubWindowManager) Title() string { return "" }
+func (w *stubWindowManager) Title() (string, error) {
+	return "", fmt.Errorf("window automation is not implemented on this platform")
+}
 
 func (w *stubWindowManager) GetTitle(selector string) (string, error) {
 	return "", fmt.Errorf("window automation is not implemented on this platform")
 }
 
-func (w *stubWindowManager) Content() string { return "" }
+func (w *stubWindowManager) Content() (string, error) {
+	return "", fmt.Errorf("window automation is not implemented on this platform")
+}
 
 func (w *stubWindowManager) GetContent(selector string) (string, error) {
 	return "", fmt.Errorf("window automation is not implemented on this platform")

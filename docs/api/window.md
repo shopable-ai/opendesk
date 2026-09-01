@@ -6,7 +6,8 @@ order: 4
 
 # window
 
-window 是桌面窗口控制对象。
+`window` 是现有的跨平台桌面窗口 facade。先用 `window.getCapabilities()` 判断当前平台，
+再调用控制方法；不支持的能力会抛出结构化错误，不会静默成功。
 
 适用场景
 - 获取当前活动窗口信息
@@ -15,15 +16,83 @@ window 是桌面窗口控制对象。
 - 获取窗口列表
 - 设置窗口置顶
 
-平台说明
-- Windows：实现最完整
-- macOS：已实现活动窗口、查找、聚焦、部分控制
-- 其他平台：可能返回 `window automation is not implemented on this platform`
+## 可直接运行的能力检查
+
+工作目录：OpenDesk 仓库根目录。
+
+```bash
+./opendesk -script examples/window-capabilities.js -console-mode script
+```
+
+运行结果只记录 capability、窗口数量与活动窗口是否可读，不保存窗口标题或其他私密文本。
+
+## 平台 Capability Matrix
+
+机器可读版本由 `window.getCapabilities()` 返回；下表与源码中的同一矩阵同步。
+
+| Capability | macOS | Windows | Linux / other |
+| --- | --- | --- | --- |
+| `window.list` | Partial | Stable | Unsupported |
+| `window.active` | Stable | Stable | Unsupported |
+| `window.findByTitle` | Partial | Partial | Unsupported |
+| `window.focus` | Partial | Partial | Unsupported |
+| `window.getBounds` | Stable | Stable | Unsupported |
+| `window.setBounds` | Partial | Stable | Unsupported |
+| `window.minimize` | Partial | Stable | Unsupported |
+| `window.maximize` | Partial | Stable | Unsupported |
+| `window.restore` | Partial | Stable | Unsupported |
+| `window.close` | Partial | Partial | Unsupported |
+| `window.alwaysOnTop` | Unsupported | Stable | Unsupported |
+| `window.bringToTop` | Partial | Partial | Unsupported |
+
+macOS 的 Partial 动作依赖 Accessibility / System Events、目标应用是否接受 AX 修改，以及目标
+是否位于其他 Space。Windows 的 focus / bring-to-top 受系统 foreground-lock policy 约束。
+Windows backend 已做目标交叉编译；本轮真实 smoke 来自 macOS，不能把交叉编译表述为 Windows
+真机验证。
+
+```js
+const matrix = window.getCapabilities();
+console.log(matrix.platform, matrix.backend);
+console.log(matrix.capabilities['window.alwaysOnTop']);
+```
+
+## Identity、重复标题与 stale target
+
+- `getActiveWindow()`、`getWindowByTitle()`、`getFocusWindow()` 和 `list()` 的每个结果都有
+  `id`。可由 WindowServer 唯一解析时格式为 `platform:pid:native:nativeHandle`；跨 Space、
+  不可见或元数据不足的行会明确标成 `platform:pid:unresolved`，不得把它当成稳定 native identity。
+  ID 只表示当前窗口生命周期；窗口关闭并重建后必须重新读取，不能缓存为永久 ID。
+- 兼容 API 仍以标题作为动作参数。执行动作前 facade 会解析一个当前唯一标题；多个精确或模糊
+  匹配会抛出 `AMBIGUOUS_TARGET`，不会任意选择一个同名窗口。
+- 初次解析不到目标时抛出 `NOT_FOUND`；解析后窗口关闭、重建或改名导致动作失败时抛出
+  `STALE_TARGET`。调用方应重新 `list()` / `getWindowByTitle()`，而不是重试旧引用。
+- macOS 坐标是全局 display point，主显示器左上角为原点，副显示器可出现负坐标；Windows 是
+  virtual-screen logical coordinate，DPI awareness 可能影响缩放。两者都不是可跨机器缓存的像素坐标。
+- 本 API 不选择或管理 Space / virtual desktop；位于其他桌面的窗口行为按 capability 的 Partial
+  约束处理。Menu、Dock 和 Spaces integration 不属于本 API。
+
+## 结构化错误
+
+Window 方法失败时抛出的 Error 至少包含 `code`、`operation`、`platform`，并在适用时包含
+`capability`。稳定 code 为：
+
+```text
+INVALID_ARGUMENT
+NOT_SUPPORTED
+NOT_FOUND
+AMBIGUOUS_TARGET
+STALE_TARGET
+PERMISSION_DENIED
+VERIFICATION_FAILED
+TIMEOUT
+BACKEND_FAILED
+```
 
 ## window：方法总表
 
 | 方法 | 用途 |
 | --- | --- |
+| window.getCapabilities() | 返回当前平台的机器可读能力矩阵 |
 | window.getActiveWindow() | 获取当前活动窗口信息 |
 | window.getWindowByTitle(title) | 通过标题查找窗口 |
 | window.focus(title) | 聚焦指定窗口 |
@@ -57,6 +126,7 @@ window 是桌面窗口控制对象。
 
 ```js
 {
+  id: string,
   title: string,
   pid: number,
   x: number,
@@ -76,6 +146,7 @@ window 是桌面窗口控制对象。
 注意
 - 不同平台、不同接口返回字段完整度可能不同
 - 但 title / pid / x / y / width / height 是最常用字段
+- `id` 是当前 native window 的观察身份；它不是永久 ID，也不是标题动作的参数
 
 ## window.getActiveWindow()
 

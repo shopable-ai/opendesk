@@ -177,9 +177,33 @@
     },
     {
       "name": "window",
-      "source": "native+polyfill",
-      "status": "stable",
-      "doc": "window.md"
+      "source": "native facade + CoreGraphics/System Events or Win32 backend + normalization polyfill",
+      "status": "stable-with-platform-partial-actions",
+      "platforms": [
+        "darwin",
+        "windows",
+        "linux"
+      ],
+      "doc": "window.md",
+      "keyMethods": [
+        "getCapabilities",
+        "list",
+        "getActiveWindow",
+        "getWindowByTitle",
+        "focus",
+        "setWindowBounds",
+        "minimize",
+        "maximize",
+        "restore",
+        "closeWindow",
+        "setAlwaysOnTop",
+        "bringToTop"
+      ],
+      "identity": "Every observed row has an id. A uniquely resolved row uses platform:pid:native:nativeHandle; metadata-poor or cross-Space rows use platform:pid:unresolved and must not be treated as stable. Title actions resolve a unique current title first and reject duplicate titles.",
+      "coordinateSpace": "macOS uses global display points with a primary-display top-left origin and possible negative secondary coordinates; Windows uses virtual-screen logical coordinates subject to DPI awareness.",
+      "staleTarget": "A title action that resolves successfully but loses or renames its target before the backend action reports STALE_TARGET. Initial absence reports NOT_FOUND.",
+      "platformBehavior": "macOS core paths are live fixture-verified but arbitrary actions remain permission/app/Space dependent; Windows source is target-compiled but not live verified in this macOS evidence run; Linux is explicit Unsupported.",
+      "surface": "The existing JavaScript window facade was extended; no second backend, HTTP route, MCP tool, Accessibility tree, or Spaces manager was added."
     },
     {
       "name": "Screen",

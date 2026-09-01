@@ -19,7 +19,7 @@ globalThis.RuntimeAPIObjects = {
   ] },
   touchscreen: { docs: 'docs/api/input.md', types: 'types/touchscreen.d.ts', source: 'automation/touchscreen.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: ['tap'] },
   window: { docs: 'docs/api/window.md', types: 'types/window.d.ts', source: 'automation/window_manager.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: [
-    'getActiveWindow', 'getWindowByTitle', 'getFocusWindow', 'focus', 'setWindowBounds',
+    'getCapabilities', 'getActiveWindow', 'getWindowByTitle', 'getFocusWindow', 'focus', 'setWindowBounds',
     'setWidth', 'setHeight', 'maximize', 'minimize', 'restore', 'restoreByPID',
     'minimizeByPID', 'maximizeByPID', 'closeWindow', 'closeActiveWindow', 'kill',
     'title', 'getTitle', 'content', 'getContent', 'list', 'setAlwaysOnTop',
@@ -91,7 +91,7 @@ const unitBehavior = new Set([
   ...RuntimeAPIObjects.keyboard.methods.map((method) => 'keyboard.' + method),
   ...RuntimeAPIObjects.Events.methods.map((method) => 'Events.' + method),
   ...RuntimeAPIObjects.App.methods.map((method) => 'App.' + method),
-  'window.list', 'window.setAlwaysOnTop', 'window.unsetTopMost', 'window.js_beautify',
+  'window.getCapabilities', 'window.list', 'window.setAlwaysOnTop', 'window.unsetTopMost', 'window.js_beautify',
   ...RuntimeAPIObjects.Screen.methods.filter((method) => method !== 'screenshot').map((method) => 'Screen.' + method),
   ...RuntimeAPIObjects.System.methods.filter((method) => !['killProcess', 'shutdown', 'restart', 'sleep'].includes(method)).map((method) => 'System.' + method),
   ...RuntimeAPIObjects.File.methods.map((method) => 'File.' + method),
@@ -167,7 +167,7 @@ for (const method of ['launch', 'terminate', 'restart']) restricted['App.' + met
 for (const method of RuntimeAPIObjects.FloatingWindow.methods) restricted['FloatingWindow.' + method] = 'button-first facade is exposed only when Custom UI is explicitly authorized';
 for (const method of RuntimeAPIObjects.window.methods) {
   const id = 'window.' + method;
-  const hasSafeBehavior = ['getActiveWindow', 'setWindowBounds', 'list', 'setAlwaysOnTop', 'unsetTopMost', 'js_beautify'].includes(method);
+  const hasSafeBehavior = ['getCapabilities', 'getActiveWindow', 'setWindowBounds', 'list', 'setAlwaysOnTop', 'unsetTopMost', 'js_beautify'].includes(method);
   if (!hasSafeBehavior && !restricted[id]) {
     restricted[id] = 'generic macOS Accessibility enumeration or third-party window action is high-latency and only the verified foreground fixture route is live-tested';
   }
@@ -269,6 +269,7 @@ globalThis.RuntimeAPITestFiles = {
     'tests/runtime-api/live/keyboard.test.js',
     'tests/runtime-api/live/touchscreen.test.js',
     'tests/runtime-api/live/screen.test.js',
+    'tests/runtime-api/live/window.test.js',
     'tests/runtime-api/live/clipboard.test.js',
     'tests/runtime-api/live/http-axios.test.js',
     'tests/runtime-api/live/composition.test.js',

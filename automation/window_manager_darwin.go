@@ -95,7 +95,7 @@ func (m macWindow) toWindowInfo() *WindowInfo {
 		ExePath:      m.ExePath,
 		IsForeground: m.IsForeground,
 		HasFocus:     m.HasFocus,
-		Handle:       uintptr(m.Handle),
+		Handle:       uint64(m.Handle),
 		IsPopup:      m.IsPopup,
 		Index:        m.Index,
 	}
@@ -303,12 +303,12 @@ func (w *darwinWindowManager) Kill(processId uint32) error {
 	return nil
 }
 
-func (w *darwinWindowManager) Title() string {
+func (w *darwinWindowManager) Title() (string, error) {
 	info, err := w.GetActiveWindow()
 	if err != nil || info == nil {
-		return ""
+		return "", err
 	}
-	return info.Title
+	return info.Title, nil
 }
 
 func (w *darwinWindowManager) GetTitle(selector string) (string, error) {
@@ -319,7 +319,7 @@ func (w *darwinWindowManager) GetTitle(selector string) (string, error) {
 	return info.Title, nil
 }
 
-func (w *darwinWindowManager) Content() string {
+func (w *darwinWindowManager) Content() (string, error) {
 	// macOS generic automation cannot reliably scrape full window text for all apps.
 	// Returning active window title keeps compatibility without false data.
 	return w.Title()
@@ -415,18 +415,27 @@ func findWindowByTitle(title string) (*macWindow, error) {
 		return nil, err
 	}
 
-	var fuzzy *macWindow
+	var exact []*macWindow
+	var fuzzy []*macWindow
 	for i := range windows {
 		if windows[i].Title == title {
-			return &windows[i], nil
+			exact = append(exact, &windows[i])
 		}
-		if fuzzy == nil && strings.Contains(windows[i].Title, title) {
-			fuzzy = &windows[i]
+		if strings.Contains(windows[i].Title, title) {
+			fuzzy = append(fuzzy, &windows[i])
 		}
 	}
-
-	if fuzzy != nil {
-		return fuzzy, nil
+	if len(exact) > 1 {
+		return nil, &WindowError{Code: WindowAmbiguousTarget, Message: "multiple windows have the requested title"}
+	}
+	if len(exact) == 1 {
+		return exact[0], nil
+	}
+	if len(fuzzy) > 1 {
+		return nil, &WindowError{Code: WindowAmbiguousTarget, Message: "multiple windows partially match the requested title"}
+	}
+	if len(fuzzy) == 1 {
+		return fuzzy[0], nil
 	}
 	return nil, fmt.Errorf("window not found: %s", title)
 }
@@ -650,6 +659,9 @@ function run() {
 		return nil, fmt.Errorf("failed to parse active macOS window: %w", err)
 	}
 	enrichMacWindow(&item)
+	if item.Handle == 0 {
+		item.Handle, _ = getMacWindowIDForPIDAndBounds(item.PID, item.X, item.Y, item.Width, item.Height)
+	}
 	if !normalizeMacWindowTitle(&item) || item.PID == 0 {
 		return nil, fmt.Errorf("frontmost process has no identifiable window")
 	}
@@ -735,6 +747,9 @@ function run() {
 	normalized := make([]macWindow, 0, len(items))
 	for i := range items {
 		enrichMacWindow(&items[i])
+		if items[i].Handle == 0 {
+			items[i].Handle, _ = getMacWindowIDForPIDAndBounds(items[i].PID, items[i].X, items[i].Y, items[i].Width, items[i].Height)
+		}
 		if normalizeMacWindowTitle(&items[i]) {
 			normalized = append(normalized, items[i])
 		}

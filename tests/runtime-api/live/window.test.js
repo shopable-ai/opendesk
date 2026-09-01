@@ -1,5 +1,8 @@
 (() => {
   const { assert, test } = RuntimeAPITest;
+  const evidenceDirectory = '.runtime/tests/platform-primitives/task-008-window-parity';
+  const screenshotPath = `${evidenceDirectory}/window.png`;
+  const evidencePath = `${evidenceDirectory}/evidence.json`;
 
   async function step(name, fn) {
     const started = Date.now();
@@ -11,6 +14,9 @@
 
   async function activeFixture() {
     const info = await RuntimeLive.waitForBrowserWindow();
+    assert(typeof info.id === 'string' && info.id.startsWith('darwin:') && info.id.includes(':native:'), JSON.stringify(info));
+    assert(typeof info.pid === 'number' && info.pid > 0, JSON.stringify(info));
+    assert(typeof info.handle === 'number' && info.handle > 0, JSON.stringify(info));
     RuntimeLive.updateTarget(info);
     return info;
   }
@@ -20,6 +26,7 @@
     tier: 'live',
     covers: [
       'window.getActiveWindow', 'window.getWindowByTitle', 'window.focus',
+      'window.getFocusWindow',
       'window.setWindowBounds', 'window.setWidth', 'window.setHeight',
       'window.maximize', 'window.minimize', 'window.restore', 'window.bringToTop',
     ],
@@ -35,6 +42,8 @@
     };
     try {
       await step('focus', () => window.focus(title));
+      const focused = await step('getFocusWindow', () => window.getFocusWindow());
+      assert(focused && focused.id.includes(':native:') && focused.pid === pid && focused.handle > 0, JSON.stringify(focused));
       await step('bringToTop', () => window.bringToTop(title, pid));
       await step('setWindowBounds', () => window.setWindowBounds(title, adjusted.x, adjusted.y, adjusted.width, adjusted.height));
       await page.waitFor(200);
@@ -42,6 +51,27 @@
       assert(Math.abs(current.width - adjusted.width) <= 4, JSON.stringify({ adjusted, current }));
       await step('setWidth', () => window.setWidth(title, adjusted.width - 20));
       await step('setHeight', () => window.setHeight(title, adjusted.height - 20));
+      current = await step('getWindowByTitle-after-resize', () => window.getWindowByTitle(title));
+      File.ensureDir(evidenceDirectory);
+      const screenshot = await page.screenshot({
+        clip: { x: current.x, y: current.y, width: current.width, height: current.height },
+        path: screenshotPath,
+        returnType: 'object',
+      });
+      assert(screenshot && screenshot.sizeBytes > 500, JSON.stringify(screenshot));
+      const capabilities = window.getCapabilities();
+      File.write(evidencePath, JSON.stringify({
+        schemaVersion: 1,
+        platform: capabilities.platform,
+        backend: capabilities.backend,
+        target: { app: RuntimeLive.fixture.browserApp || 'Safari', identity: current.id, pid: current.pid },
+        operations: ['focus', 'bringToTop', 'setWindowBounds', 'setWidth', 'setHeight'],
+        before: { x: original.x, y: original.y, width: original.width, height: original.height },
+        readback: { x: current.x, y: current.y, width: current.width, height: current.height },
+        coordinateSpace: capabilities.coordinateSpace,
+        screenshot: { path: screenshotPath, width: screenshot.width, height: screenshot.height, sizeBytes: screenshot.sizeBytes },
+        postcondition: { fixtureMatched: String(current.title).includes(RuntimeLive.fixture.title) },
+      }, null, 2));
       await step('maximize', () => window.maximize(title));
       await page.waitFor(200);
       await step('restore-after-maximize', () => window.restore(title));

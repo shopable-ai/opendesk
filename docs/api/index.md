@@ -58,7 +58,7 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先找窗口，
 | `Events` | JavaScript Runtime | Experimental | 外部桌面状态 watcher；当前明确使用 polling backend | [Desktop Events API](events.md) |
 | `App` | JavaScript Runtime | Experimental | 按稳定 identity 启动、等待、终止与重启应用 | [App Lifecycle API](app.md) |
 | `Audio` | JavaScript Runtime | Experimental（macOS） | 默认输出音量、mute 与音频设备发现 | [Audio API](audio.md) |
-| `window` | JavaScript Runtime | Stable | 窗口读取与控制 | [Window API](window.md) |
+| `window` | JavaScript Runtime | Stable reads / platform-partial actions | 窗口读取、能力矩阵与控制 | [Window API](window.md) |
 | `Screen` | JavaScript Runtime | Stable；录屏为 Experimental（macOS） | 显示器、像素、截图别名、区域选择与录屏 | [Screen API](screen.md) |
 | `Vision` | JavaScript Runtime | Stable | OCR、UI 文本检测、provider 能力 | [Vision API](vision.md) |
 | `OCR` | JavaScript Runtime | Secondary | 本地 Tesseract 纯文本 OCR | [Vision API](vision.md) |

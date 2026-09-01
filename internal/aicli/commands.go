@@ -308,7 +308,11 @@ func windowContentCommand(ctx *Context) (any, *Error) {
 	}
 	manager := automation.NewWindowManager()
 	if strings.TrimSpace(*title) == "" {
-		return map[string]any{"text": manager.Content()}, nil
+		value, err := manager.Content()
+		if err != nil {
+			return nil, automationError(err, "window content")
+		}
+		return map[string]any{"text": value}, nil
 	}
 	value, err := manager.GetContent(*title)
 	if err != nil {

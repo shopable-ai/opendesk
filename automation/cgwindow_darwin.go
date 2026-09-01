@@ -6,6 +6,7 @@ package automation
 #cgo LDFLAGS: -framework CoreGraphics -framework CoreFoundation
 #include <CoreGraphics/CoreGraphics.h>
 #include <CoreFoundation/CoreFoundation.h>
+#include <math.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -64,6 +65,44 @@ static int window_for_pid(
 		copy_cf_string((CFStringRef)CFDictionaryGetValue(row, kCGWindowName), title, title_size);
 		found = 1;
 		break;
+	}
+	CFRelease(rows);
+	return found;
+}
+
+static int window_id_for_pid_bounds(
+	int pid,
+	double expected_x,
+	double expected_y,
+	double expected_width,
+	double expected_height,
+	int64_t *window_id
+) {
+	CFArrayRef rows = CGWindowListCopyWindowInfo(kCGWindowListOptionAll, kCGNullWindowID);
+	if (rows == NULL) return 0;
+	CFIndex count = CFArrayGetCount(rows);
+	int found = 0;
+	for (CFIndex i = 0; i < count; i++) {
+		CFDictionaryRef row = (CFDictionaryRef)CFArrayGetValueAtIndex(rows, i);
+		int64_t owner_pid = 0;
+		int64_t layer = -1;
+		if (!copy_number(row, kCGWindowOwnerPID, &owner_pid) || owner_pid != pid) continue;
+		if (!copy_number(row, kCGWindowLayer, &layer) || layer != 0) continue;
+
+		CFDictionaryRef bounds = (CFDictionaryRef)CFDictionaryGetValue(row, kCGWindowBounds);
+		CGRect rect = CGRectZero;
+		if (bounds == NULL || !CGRectMakeWithDictionaryRepresentation(bounds, &rect)) continue;
+		if (fabs(rect.origin.x - expected_x) > 2.0 || fabs(rect.origin.y - expected_y) > 2.0 ||
+			fabs(rect.size.width - expected_width) > 2.0 || fabs(rect.size.height - expected_height) > 2.0) continue;
+
+		int64_t number = 0;
+		if (!copy_number(row, kCGWindowNumber, &number) || number <= 0) continue;
+		if (found != 0) {
+			CFRelease(rows);
+			return 0;
+		}
+		*window_id = number;
+		found = 1;
 	}
 	CFRelease(rows);
 	return found;
@@ -131,6 +170,25 @@ func getMacWindowForPIDCoreGraphics(pid int) (*macWindow, error) {
 		return nil, fmt.Errorf("frontmost application pid %d has no identifiable window", pid)
 	}
 	return item, nil
+}
+
+func getMacWindowIDForPIDAndBounds(pid uint32, x, y, width, height int32) (int64, error) {
+	if pid == 0 || width <= 0 || height <= 0 {
+		return 0, fmt.Errorf("invalid macOS window identity input")
+	}
+	var windowID C.int64_t
+	found := C.window_id_for_pid_bounds(
+		C.int(pid),
+		C.double(x),
+		C.double(y),
+		C.double(width),
+		C.double(height),
+		&windowID,
+	)
+	if found == 0 || windowID <= 0 {
+		return 0, fmt.Errorf("no unique CoreGraphics window matches pid and bounds")
+	}
+	return int64(windowID), nil
 }
 
 func frontmostApplicationPID() (int, error) {

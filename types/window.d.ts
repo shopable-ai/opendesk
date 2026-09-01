@@ -2,8 +2,11 @@ export {};
 
 declare global {
   interface OpenDeskWindowInfo {
+    /** Current observation identity; values ending in :unresolved are not stable native identities. */
+    id: string;
     title: string;
-    pid?: number;
+    pid: number;
+    processId?: number;
     processID?: number;
     x: number;
     y: number;
@@ -18,7 +21,33 @@ declare global {
     index: number;
   }
 
+  type OpenDeskWindowCapabilityStatus = 'Stable' | 'Partial' | 'Unsupported' | 'Experimental';
+
+  interface OpenDeskWindowCapability {
+    status: OpenDeskWindowCapabilityStatus;
+    supported: boolean;
+    notes?: string;
+  }
+
+  interface OpenDeskWindowCapabilities {
+    platform: string;
+    backend: string;
+    identity: string;
+    coordinateSpace: string;
+    spaceBehavior: string;
+    capabilities: Record<string, OpenDeskWindowCapability>;
+  }
+
+  interface OpenDeskWindowError extends Error {
+    code: 'INVALID_ARGUMENT' | 'NOT_SUPPORTED' | 'NOT_FOUND' | 'AMBIGUOUS_TARGET' |
+      'STALE_TARGET' | 'PERMISSION_DENIED' | 'VERIFICATION_FAILED' | 'TIMEOUT' | 'BACKEND_FAILED';
+    operation: string;
+    platform: string;
+    capability?: string;
+  }
+
   interface OpenDeskWindowManager {
+    getCapabilities(): OpenDeskWindowCapabilities;
     getActiveWindow(): Promise<OpenDeskWindowInfo>;
     getWindowByTitle(title: string): Promise<OpenDeskWindowInfo>;
     getFocusWindow(): OpenDeskWindowInfo | null;
