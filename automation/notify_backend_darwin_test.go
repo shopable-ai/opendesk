@@ -3,18 +3,29 @@
 package automation
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestDarwinNativeBackendRequiresAppBundle(t *testing.T) {
 	err := notifyDarwinNative("OpenDesk", "test process has no app bundle", false)
 	if !errors.Is(err, errDarwinNativeNotificationUnavailable) {
 		t.Fatalf("notifyDarwinNative error = %v, want native-unavailable sentinel", err)
+	}
+}
+
+func TestDarwinNativeNotificationInteractionRequiresAppBundle(t *testing.T) {
+	if _, err := notificationInteractionDarwinListNative(); !errors.Is(err, errDarwinNativeNotificationUnavailable) {
+		t.Fatalf("notificationInteractionDarwinListNative error = %v, want native-unavailable sentinel", err)
+	}
+	if _, err := notificationInteractionDarwinDismissNative("missing"); !errors.Is(err, errDarwinNativeNotificationUnavailable) {
+		t.Fatalf("notificationInteractionDarwinDismissNative error = %v, want native-unavailable sentinel", err)
 	}
 }
 
@@ -28,15 +39,60 @@ func TestDecodeMacOSNotificationHelperRequestValidatesShapeAndText(t *testing.T)
 	}
 
 	for name, raw := range map[string]string{
-		"unknown field":   `{"title":"OpenDesk","message":"done","unknown":true}`,
-		"multiple values": `{"title":"OpenDesk","message":"done"} {}`,
-		"NUL title":       "{\"title\":\"bad\\u0000title\",\"message\":\"done\"}",
+		"unknown field":      `{"title":"OpenDesk","message":"done","unknown":true}`,
+		"multiple values":    `{"title":"OpenDesk","message":"done"} {}`,
+		"NUL title":          "{\"title\":\"bad\\u0000title\",\"message\":\"done\"}",
+		"list with content":  `{"operation":"list","message":"not allowed"}`,
+		"dismiss without id": `{"operation":"dismiss"}`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			if _, err := decodeMacOSNotificationHelperRequest(strings.NewReader(raw)); err == nil {
 				t.Fatalf("request %q unexpectedly passed", raw)
 			}
 		})
+	}
+}
+
+func TestDarwinAppHelperInteractionProtocol(t *testing.T) {
+	dir := t.TempDir()
+	helper := filepath.Join(dir, "opendesk")
+	captureRequest := filepath.Join(dir, "request.json")
+	script := "#!/bin/sh\ncat > \"$CAPTURE_REQUEST\"\nprintf '{\"ok\":true,\"notifications\":[{\"id\":\"fixture\",\"appId\":\"com.opendesk.cli\",\"deliveredAt\":\"2026-09-02T00:00:00.000Z\",\"title\":\"title\",\"message\":\"body\"}]}\\n'\n"
+	if err := os.WriteFile(helper, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("CAPTURE_REQUEST", captureRequest)
+	response, err := runMacOSNotificationHelperAtPath(context.Background(), helper, macOSNotificationHelperRequest{Operation: "list"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(response.Notifications) != 1 || response.Notifications[0].ID != "fixture" {
+		t.Fatalf("unexpected interaction response: %+v", response)
+	}
+	raw, err := os.ReadFile(captureRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var request macOSNotificationHelperRequest
+	if err := json.Unmarshal(raw, &request); err != nil {
+		t.Fatal(err)
+	}
+	if request.Operation != "list" || request.ID != "" {
+		t.Fatalf("unexpected interaction request: %+v", request)
+	}
+}
+
+func TestDarwinAppHelperPreservesDeadlineCause(t *testing.T) {
+	dir := t.TempDir()
+	helper := filepath.Join(dir, "opendesk")
+	if err := os.WriteFile(helper, []byte("#!/bin/sh\nsleep 1\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+	_, err := runMacOSNotificationHelperAtPath(ctx, helper, macOSNotificationHelperRequest{Operation: "list"})
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("helper deadline error=%v", err)
 	}
 }
 

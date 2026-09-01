@@ -23,6 +23,16 @@ static BOOL OpenDeskWaitForSemaphore(dispatch_semaphore_t semaphore, NSTimeInter
 	return dispatch_semaphore_wait(semaphore, deadline) == 0;
 }
 
+static NSBundle *OpenDeskNotificationBundle(void) {
+	NSBundle *bundle = [NSBundle mainBundle];
+	if (bundle.bundleIdentifier.length == 0 ||
+		!bundle.bundleURL.isFileURL ||
+		![bundle.bundleURL.pathExtension isEqualToString:@"app"]) {
+		return nil;
+	}
+	return bundle;
+}
+
 // UserNotifications is the native macOS 12-compatible notification path. It
 // reports authorization and request-submission failures instead of treating an
 // XPC send as success. A real .app identity is required; plain CLI/Scheduler
@@ -32,10 +42,8 @@ int OpenDeskDarwinDeliverNotification(const char *title, const char *message, in
 		if (error_message != NULL) {
 			*error_message = NULL;
 		}
-		NSBundle *bundle = [NSBundle mainBundle];
-		if (bundle.bundleIdentifier.length == 0 ||
-			!bundle.bundleURL.isFileURL ||
-			![bundle.bundleURL.pathExtension isEqualToString:@"app"]) {
+		NSBundle *bundle = OpenDeskNotificationBundle();
+		if (bundle == nil) {
 			return 1;
 		}
 
@@ -113,6 +121,79 @@ int OpenDeskDarwinDeliverNotification(const char *title, const char *message, in
 			return OpenDeskNotificationError(error_message,
 				[NSString stringWithFormat:@"submitting macOS notification failed: %@", submissionError.localizedDescription]);
 		}
+	}
+	return 0;
+}
+
+// UserNotifications intentionally exposes only the owning application's
+// delivered notifications. This is a model query, not an Accessibility crawl
+// of Notification Center UI.
+int OpenDeskDarwinListNotifications(char **json_output, char **error_message) {
+	@autoreleasepool {
+		if (json_output != NULL) {
+			*json_output = NULL;
+		}
+		if (error_message != NULL) {
+			*error_message = NULL;
+		}
+		NSBundle *bundle = OpenDeskNotificationBundle();
+		if (bundle == nil) {
+			return 1;
+		}
+
+		UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
+		dispatch_semaphore_t deliveredDone = dispatch_semaphore_create(0);
+		__block NSArray<UNNotification *> *delivered = nil;
+		[center getDeliveredNotificationsWithCompletionHandler:^(NSArray<UNNotification *> *notifications) {
+			delivered = notifications;
+			dispatch_semaphore_signal(deliveredDone);
+		}];
+		if (!OpenDeskWaitForSemaphore(deliveredDone, 5.0)) {
+			return OpenDeskNotificationError(error_message, @"reading delivered macOS notifications timed out");
+		}
+
+		NSISO8601DateFormatter *formatter = [NSISO8601DateFormatter new];
+		formatter.formatOptions = NSISO8601DateFormatWithInternetDateTime | NSISO8601DateFormatWithFractionalSeconds;
+		NSMutableArray<NSDictionary *> *rows = [NSMutableArray arrayWithCapacity:delivered.count];
+		for (UNNotification *notification in delivered ?: @[]) {
+			UNNotificationContent *content = notification.request.content;
+			[rows addObject:@{
+				@"id": notification.request.identifier ?: @"",
+				@"appId": bundle.bundleIdentifier ?: @"",
+				@"deliveredAt": [formatter stringFromDate:notification.date] ?: @"",
+				@"title": content.title ?: @"",
+				@"message": content.body ?: @""
+			}];
+		}
+
+		NSError *serializationError = nil;
+		NSData *data = [NSJSONSerialization dataWithJSONObject:rows options:0 error:&serializationError];
+		if (data == nil || serializationError != nil) {
+			return OpenDeskNotificationError(error_message,
+				[NSString stringWithFormat:@"serializing delivered macOS notifications failed: %@", serializationError.localizedDescription]);
+		}
+		if (json_output != NULL) {
+			NSString *json = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+			*json_output = strdup(json.UTF8String ?: "[]");
+		}
+	}
+	return 0;
+}
+
+int OpenDeskDarwinRemoveNotification(const char *identifier, char **error_message) {
+	@autoreleasepool {
+		if (error_message != NULL) {
+			*error_message = NULL;
+		}
+		if (OpenDeskNotificationBundle() == nil) {
+			return 1;
+		}
+		NSString *identifierString = identifier ? [NSString stringWithUTF8String:identifier] : nil;
+		if (identifierString.length == 0) {
+			return OpenDeskNotificationError(error_message, @"notification identifier must be a non-empty UTF-8 string");
+		}
+		[[UNUserNotificationCenter currentNotificationCenter]
+			removeDeliveredNotificationsWithIdentifiers:@[identifierString]];
 	}
 	return 0;
 }

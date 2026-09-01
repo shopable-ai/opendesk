@@ -176,6 +176,29 @@
       "surface": "JavaScript Runtime only in this phase; no HTTP or MCP method was added"
     },
     {
+      "name": "Notifications",
+      "source": "execution-owned Runtime wrapper + macOS UserNotifications own-app model",
+      "status": "experimental",
+      "platforms": [
+        "darwin"
+      ],
+      "doc": "notifications.md",
+      "types": "types/Notifications.d.ts",
+      "keyMethods": [
+        "list",
+        "waitFor",
+        "dismiss",
+        "getCapabilities"
+      ],
+      "scope": "macOS lists and removes only notifications delivered by the OpenDesk app identity; arbitrary application notifications are not exposed",
+      "privacy": "title and message are redacted by default and require includeContent=true; metadata stays scoped to OpenDesk",
+      "identity": "opaque UserNotifications request identifier plus OpenDesk app identity and delivery timestamp; duplicate content is not treated as identity",
+      "lifecycle": "waitFor uses a bounded own-app poll, prefers new notifications by default, runs under the execution context, and is canceled and joined during teardown",
+      "unsupported": "activate is not exposed because public UserNotifications APIs report user actions but cannot simulate them; Events does not claim notification.changed",
+      "platformBehavior": "Windows UserNotificationListener requires manifest capability, package/app identity, and user consent not present in the current OpenDesk host; Linux has no equivalent stable unified backend. Both fail closed.",
+      "surface": "JavaScript Runtime only; outbound sending remains the existing notify() global"
+    },
+    {
       "name": "window",
       "source": "native facade + CoreGraphics/System Events or Win32 backend + normalization polyfill",
       "status": "stable-with-platform-partial-actions",

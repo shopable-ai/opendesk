@@ -54,7 +54,10 @@ type InitJSOptions struct {
 	// snapshot plus the existing normalized Window facade.
 	AppBackendFactory AppBackendFactory
 	AppWindowProbe    func(int64) (bool, error)
-	OnReady           func(*RuntimeLifecycle)
+	// NotificationInteractionBackendFactory is an internal dependency seam for
+	// own-app list/wait/dismiss lifecycle and privacy tests.
+	NotificationInteractionBackendFactory NotificationInteractionBackendFactory
+	OnReady                               func(*RuntimeLifecycle)
 }
 
 // RuntimeLifecycle exposes only teardown-safe resources to the runtime owner.
@@ -68,6 +71,7 @@ type RuntimeLifecycle struct {
 	Events         *DesktopEventsRuntime
 	ScreenCapture  *ScreenCaptureRuntime
 	App            *AppRuntime
+	Notifications  *NotificationsRuntime
 }
 
 // Wait joins host workers after their execution context has been cancelled.
@@ -87,6 +91,9 @@ func (l *RuntimeLifecycle) Wait() {
 	}
 	if l != nil && l.App != nil {
 		l.App.Wait()
+	}
+	if l != nil && l.Notifications != nil {
+		l.Notifications.Wait()
 	}
 }
 
@@ -110,6 +117,9 @@ func (l *RuntimeLifecycle) CancelAsync() {
 	}
 	if l != nil && l.App != nil {
 		l.App.Close()
+	}
+	if l != nil && l.Notifications != nil {
+		l.Notifications.Close()
 	}
 }
 
@@ -147,6 +157,11 @@ func (l *RuntimeLifecycle) AsyncCounts() (timers int, workers int64, callbacks i
 		appWorkers, appPending := l.App.ResourceCounts()
 		workers += appWorkers
 		callbacks += appPending
+	}
+	if l.Notifications != nil {
+		notificationWorkers, notificationPending := l.Notifications.ResourceCounts()
+		workers += notificationWorkers
+		callbacks += notificationPending
 	}
 	return timers, workers, callbacks
 }
@@ -698,6 +713,7 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 
 	registerClipboard(runtime, opts)
 	appRuntime := registerApp(runtime, opts)
+	notificationsRuntime := registerNotifications(runtime, opts)
 
 	globalShortcut := registerGlobalShortcut(runtime, opts)
 	events := registerDesktopEvents(runtime, opts)
@@ -810,7 +826,7 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 		return fmt.Errorf("failed to bind Screen.screenshot: %v", err)
 	}
 	if opts.OnReady != nil {
-		opts.OnReady(&RuntimeLifecycle{Timers: timer, HTTP: httpClient, UI: uiRuntime, GlobalShortcut: globalShortcut, Events: events, ScreenCapture: screenCapture, App: appRuntime})
+		opts.OnReady(&RuntimeLifecycle{Timers: timer, HTTP: httpClient, UI: uiRuntime, GlobalShortcut: globalShortcut, Events: events, ScreenCapture: screenCapture, App: appRuntime, Notifications: notificationsRuntime})
 	}
 	return nil
 }

@@ -35,6 +35,7 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先找窗口，
 - 读取显示器 mode、交互选择区域并录制本地 QuickTime 文件：[Screen API](screen.md)（mode mutation 与录屏为 macOS Experimental）
 - 做网络调用：[HTTP and Axios](http.md)
 - 发送系统通知：[notify](notify.md)
+- 等待、脱敏读取并移除 OpenDesk 自身通知：[Notifications API](notifications.md)（macOS Experimental）
 - 显示需用户确认的异步原生窗口：[Dialog API](dialog.md)
 - 使用 console、计时器、等待、剪贴板快捷函数等全局能力：[Global APIs](global-apis.md)
 - 调用、安装或编写 manifest 插件：[Native Extension Plugin V1.0.1](native-extension.md)（Experimental；本机 CLI 默认从程序相对目录发现，低层 Native Process V0 仅用于诊断）；作者步骤见 [native-extensions/README.md](../../examples/native-extensions/README.md) 和 [quickstart.js](../../examples/native-extensions/quickstart.js)
@@ -72,6 +73,7 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先找窗口，
 | `axios` | JavaScript Runtime | Stable | 日常 HTTP 请求 | [HTTP and Axios](http.md) |
 | `NativeExtensions` | 本机 CLI 默认 | Experimental | 从程序相对目录发现并调用本地 manifest plugin | [Native Extension Plugin V1.0.1](native-extension.md) |
 | `notify()` | JavaScript Runtime | Secondary | 系统通知 | [notify](notify.md) |
+| `Notifications` | JavaScript Runtime | Experimental（macOS own-app） | 等待、脱敏读取和移除 OpenDesk 自身通知 | [Notifications API](notifications.md) |
 | `Dialog` / `alert()` / `confirm()` / `prompt()` | JavaScript Runtime | Conditional | 异步原生模态提示与短文本输入 | [Dialog API](dialog.md) |
 | `Sound` | JavaScript Runtime | Secondary | 播放提示音 / 音频文件 | [Sound API](sound.md) |
 | `ui` | JavaScript Runtime | Conditional | 受限 HTML/CSS + JavaScript controller 的原生窗口 | [Native UI](native-ui.md) |

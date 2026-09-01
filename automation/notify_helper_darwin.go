@@ -20,17 +20,27 @@ const macOSNotificationHelperRequestLimit = 1 << 20
 
 func RunMacOSNotificationHelper(stdin io.Reader, stdout, stderr io.Writer) int {
 	request, err := decodeMacOSNotificationHelperRequest(stdin)
+	response := macOSNotificationHelperResponse{}
 	if err == nil {
-		if request.Title == "" {
-			request.Title = "OpenDesk Notification"
+		switch request.Operation {
+		case "send":
+			if request.Title == "" {
+				request.Title = "OpenDesk Notification"
+			}
+			err = notifyDarwinNative(request.Title, request.Message, request.Sound)
+		case "list":
+			response.Notifications, err = notificationInteractionDarwinListNative()
+		case "dismiss":
+			response.Dismissed, err = notificationInteractionDarwinDismissNative(request.ID)
+		default:
+			err = fmt.Errorf("unsupported notification helper operation %q", request.Operation)
 		}
-		err = notifyDarwinNative(request.Title, request.Message, request.Sound)
 		if errors.Is(err, errDarwinNativeNotificationUnavailable) {
 			err = fmt.Errorf("notification helper must run from a real OpenDesk.app bundle")
 		}
 	}
 
-	response := macOSNotificationHelperResponse{OK: err == nil}
+	response.OK = err == nil
 	if err != nil {
 		response.Error = err.Error()
 		if stderr != nil {
@@ -66,11 +76,30 @@ func decodeMacOSNotificationHelperRequest(reader io.Reader) (macOSNotificationHe
 	if err := decoder.Decode(&struct{}{}); err != io.EOF {
 		return request, fmt.Errorf("notification helper request must contain one JSON object")
 	}
-	if err := validateNotificationText("title", request.Title); err != nil {
-		return request, err
+	if request.Operation == "" {
+		request.Operation = "send"
 	}
-	if err := validateNotificationText("message", request.Message); err != nil {
-		return request, err
+	switch request.Operation {
+	case "send":
+		if err := validateNotificationText("title", request.Title); err != nil {
+			return request, err
+		}
+		if err := validateNotificationText("message", request.Message); err != nil {
+			return request, err
+		}
+	case "list":
+		if request.Title != "" || request.Message != "" || request.Sound || request.ID != "" {
+			return request, fmt.Errorf("notification list helper request contains send/dismiss fields")
+		}
+	case "dismiss":
+		if strings.TrimSpace(request.ID) == "" || strings.ContainsRune(request.ID, '\x00') {
+			return request, fmt.Errorf("notification dismiss helper id must be a non-empty string without NUL")
+		}
+		if request.Title != "" || request.Message != "" || request.Sound {
+			return request, fmt.Errorf("notification dismiss helper request contains send fields")
+		}
+	default:
+		return request, fmt.Errorf("unsupported notification helper operation %q", request.Operation)
 	}
 	return request, nil
 }
@@ -112,12 +141,56 @@ func locateOpenDeskAppNotificationHelper() (string, error) {
 }
 
 func notifyDarwinViaAppHelperAtPath(helper, title, message string, sound bool) error {
-	request, err := json.Marshal(macOSNotificationHelperRequest{Title: title, Message: message, Sound: sound})
+	response, err := runMacOSNotificationHelperAtPath(context.Background(), helper, macOSNotificationHelperRequest{
+		Operation: "send", Title: title, Message: message, Sound: sound,
+	})
 	if err != nil {
-		return fmt.Errorf("encode notification helper request: %w", err)
+		return err
+	}
+	if !response.OK {
+		return fmt.Errorf("notification helper returned an unsuccessful response")
+	}
+	return nil
+}
+
+func listDarwinNotificationsViaAppHelper(ctx context.Context) ([]NotificationRecord, error) {
+	helper, err := locateOpenDeskAppNotificationHelper()
+	if err != nil {
+		return nil, err
+	}
+	response, err := runMacOSNotificationHelperAtPath(ctx, helper, macOSNotificationHelperRequest{Operation: "list"})
+	if err != nil {
+		return nil, fmt.Errorf("OpenDesk.app notification helper: %w", err)
+	}
+	if response.Notifications == nil {
+		response.Notifications = []NotificationRecord{}
+	}
+	return response.Notifications, nil
+}
+
+func dismissDarwinNotificationViaAppHelper(ctx context.Context, id string) (bool, error) {
+	helper, err := locateOpenDeskAppNotificationHelper()
+	if err != nil {
+		return false, err
+	}
+	response, err := runMacOSNotificationHelperAtPath(ctx, helper, macOSNotificationHelperRequest{Operation: "dismiss", ID: id})
+	if err != nil {
+		return false, fmt.Errorf("OpenDesk.app notification helper: %w", err)
+	}
+	return response.Dismissed, nil
+}
+
+func runMacOSNotificationHelperAtPath(parent context.Context, helper string, payload macOSNotificationHelperRequest) (macOSNotificationHelperResponse, error) {
+	var response macOSNotificationHelperResponse
+	request, err := json.Marshal(payload)
+	if err != nil {
+		return response, fmt.Errorf("encode notification helper request: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	if parent == nil {
+		parent = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(parent, 45*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, helper, internalMacOSNotificationHelperArgument)
 	cmd.Stdin = bytes.NewReader(request)
@@ -126,10 +199,12 @@ func notifyDarwinViaAppHelperAtPath(helper, title, message string, sound bool) e
 	cmd.Stderr = &stderr
 	runErr := cmd.Run()
 	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-		return fmt.Errorf("notification helper timed out")
+		return response, fmt.Errorf("notification helper timed out: %w", context.DeadlineExceeded)
+	}
+	if errors.Is(ctx.Err(), context.Canceled) {
+		return response, ctx.Err()
 	}
 
-	var response macOSNotificationHelperResponse
 	decodeErr := json.Unmarshal(stdout.Bytes(), &response)
 	stderrText := strings.TrimSpace(stderr.String())
 	if runErr != nil {
@@ -143,19 +218,19 @@ func notifyDarwinViaAppHelperAtPath(helper, title, message string, sound bool) e
 		if details == "" {
 			details = runErr.Error()
 		}
-		return fmt.Errorf("notification helper process failed: %s", details)
+		return response, fmt.Errorf("notification helper process failed: %s", details)
 	}
 	if decodeErr != nil {
-		return fmt.Errorf("decode notification helper response: %w", decodeErr)
+		return response, fmt.Errorf("decode notification helper response: %w", decodeErr)
 	}
 	if stderrText != "" {
-		return fmt.Errorf("notification helper wrote stderr: %s", stderrText)
+		return response, fmt.Errorf("notification helper wrote stderr: %s", stderrText)
 	}
 	if !response.OK || response.Error != "" {
 		if response.Error == "" {
 			response.Error = "helper returned an unsuccessful response"
 		}
-		return fmt.Errorf("%s", response.Error)
+		return response, fmt.Errorf("%s", response.Error)
 	}
-	return nil
+	return response, nil
 }

@@ -62,18 +62,19 @@ order: 1
 11. `vision.md`：OCR、UI 文本定位、provider
 12. `image-color.md`：模板匹配、颜色与图像辅助能力
 13. `notify.md`：系统通知调用契约、平台限制与可见性边界
-14. `dialog.md`：异步 alert / confirm / prompt、UI capability 与隐私边界
-15. `clipboard.md`：系统剪贴板对象与文本读写
-16. `global-apis.md`：无需 import 即可调用的全局接口、console、等待、计时器和参数工具
-17. `runtime.md`：stack 选择、兼容边界与 recipe 的 `Execution` 上下文
-18. `sound.md`：播放内置提示音或本地音频文件
-19. `native-ui.md`：Dialog、FloatingWindow 和受限 HTML/CSS 原生窗口的选择与调用
-20. [native-extension.md](native-extension.md)：本机 CLI 默认提供、仅程序相对目录 discovery 的 Native Extension Plugin V1；底层复用 one-shot Native Process Protocol V0
-21. [examples/native-extensions/README.md](../../examples/native-extensions/README.md)：插件作者 build/package、source-free bundle 与程序相对安装；业务调用脚本为 [quickstart.js](../../examples/native-extensions/quickstart.js)
-22. `cookbook.md`：可直接改造的脚本范例
-23. `scheduler.md`：file/inline JavaScript 定时任务、SQLite 持久化与本地管理页
-24. `scheduler-api.md`：Scheduler 本地 HTTP API 的字段、响应与完整调用示例
-25. 其余专题页按需查阅
+14. `notifications.md`：macOS/OpenDesk 自身通知的观察、等待、脱敏和移除边界
+15. `dialog.md`：异步 alert / confirm / prompt、UI capability 与隐私边界
+16. `clipboard.md`：系统剪贴板对象与文本读写
+17. `global-apis.md`：无需 import 即可调用的全局接口、console、等待、计时器和参数工具
+18. `runtime.md`：stack 选择、兼容边界与 recipe 的 `Execution` 上下文
+19. `sound.md`：播放内置提示音或本地音频文件
+20. `native-ui.md`：Dialog、FloatingWindow 和受限 HTML/CSS 原生窗口的选择与调用
+21. [native-extension.md](native-extension.md)：本机 CLI 默认提供、仅程序相对目录 discovery 的 Native Extension Plugin V1；底层复用 one-shot Native Process Protocol V0
+22. [examples/native-extensions/README.md](../../examples/native-extensions/README.md)：插件作者 build/package、source-free bundle 与程序相对安装；业务调用脚本为 [quickstart.js](../../examples/native-extensions/quickstart.js)
+23. `cookbook.md`：可直接改造的脚本范例
+24. `scheduler.md`：file/inline JavaScript 定时任务、SQLite 持久化与本地管理页
+25. `scheduler-api.md`：Scheduler 本地 HTTP API 的字段、响应与完整调用示例
+26. 其余专题页按需查阅
 
 ## 文档分层
 
@@ -81,7 +82,7 @@ order: 1
 - **视觉能力**：`vision.md`、`image-color.md`
 - **系统与数据**：`system.md`、`file.md`、`storage.md`、`clipboard.md`、`audio.md`
 - **网络与服务**：`http.md`、`http-server.md`、`scheduler.md`、`scheduler-api.md`
-- **运行时**：`runtime.md`、`notify.md`、`dialog.md`、`sound.md`、`native-ui.md`、`global-apis.md`、`libs.md`、[native-extension.md](native-extension.md)
+- **运行时**：`runtime.md`、`notify.md`、`notifications.md`、`dialog.md`、`sound.md`、`native-ui.md`、`global-apis.md`、`libs.md`、[native-extension.md](native-extension.md)
 - **实践范例**：`cookbook.md`
 
 ## 这个目录的边界

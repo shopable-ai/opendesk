@@ -17,6 +17,9 @@ globalThis.RuntimeAPIObjects = {
   App: { docs: 'docs/api/app.md', types: 'types/App.d.ts', source: 'automation/app.go + automation/app_backend*.go', status: 'experimental', platforms: ['darwin', 'linux', 'windows'], methods: [
     'launch', 'get', 'list', 'isRunning', 'waitForLaunch', 'waitForExit', 'terminate', 'restart', 'getCapabilities',
   ] },
+  Notifications: { docs: 'docs/api/notifications.md', types: 'types/Notifications.d.ts', source: 'automation/notifications.go + automation/notifications_backend*.go', status: 'experimental', platforms: ['darwin'], methods: [
+    'list', 'waitFor', 'dismiss', 'getCapabilities',
+  ] },
   touchscreen: { docs: 'docs/api/input.md', types: 'types/touchscreen.d.ts', source: 'automation/touchscreen.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: ['tap'] },
   window: { docs: 'docs/api/window.md', types: 'types/window.d.ts', source: 'automation/window_manager.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: [
     'getCapabilities', 'getActiveWindow', 'getWindowByTitle', 'getFocusWindow', 'focus', 'setWindowBounds',
@@ -92,6 +95,7 @@ const unitBehavior = new Set([
   ...RuntimeAPIObjects.keyboard.methods.map((method) => 'keyboard.' + method),
   ...RuntimeAPIObjects.Events.methods.map((method) => 'Events.' + method),
   ...RuntimeAPIObjects.App.methods.map((method) => 'App.' + method),
+  ...RuntimeAPIObjects.Notifications.methods.map((method) => 'Notifications.' + method),
   'window.getCapabilities', 'window.list', 'window.setAlwaysOnTop', 'window.unsetTopMost', 'window.js_beautify',
   ...RuntimeAPIObjects.Screen.methods.filter((method) => method !== 'screenshot').map((method) => 'Screen.' + method),
   ...RuntimeAPIObjects.System.methods.filter((method) => !['killProcess', 'shutdown', 'restart', 'sleep'].includes(method)).map((method) => 'System.' + method),
@@ -165,6 +169,9 @@ for (const method of RuntimeAPIObjects.Audio.methods.filter((method) => method !
   restricted['Audio.' + method] = 'depends on or changes host audio device state; dedicated macOS smoke must restore control state and redact device names and UIDs';
 }
 for (const method of ['launch', 'terminate', 'restart']) restricted['App.' + method] = 'starts or terminates a real desktop application; dedicated fixture smoke owns the target lifecycle';
+restricted['Notifications.list'] = 'may reveal own-app notification metadata or explicitly requested content; the formal unit gate validates arguments without reading host notifications';
+restricted['Notifications.waitFor'] = 'waits on the own-app notification model and may explicitly return content; the formal unit gate validates arguments without reading host notifications';
+restricted['Notifications.dismiss'] = 'removes an own-app notification; the formal unit gate validates arguments without changing host notification state';
 for (const method of RuntimeAPIObjects.FloatingWindow.methods) restricted['FloatingWindow.' + method] = 'button-first facade is exposed only when Custom UI is explicitly authorized';
 for (const method of RuntimeAPIObjects.window.methods) {
   const id = 'window.' + method;
@@ -233,6 +240,7 @@ globalThis.RuntimeAPITestFiles = {
     'tests/runtime-api/unit/global-shortcut.test.js',
     'tests/runtime-api/unit/events.test.js',
     'tests/runtime-api/unit/app.test.js',
+    'tests/runtime-api/unit/notifications.test.js',
     'tests/runtime-api/unit/touchscreen.test.js',
     'tests/runtime-api/unit/window.test.js',
     'tests/runtime-api/unit/screen.test.js',

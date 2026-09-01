@@ -97,3 +97,6 @@ notify() polyfill -> notify____Inject -> automation.Notify -> macOS UserNotifica
 ```
 
 CLI、HTTP 执行以及其他复用 JavaScript Execution 的入口都经过同一 Runtime 初始化链。`notify____Inject` 是宿主内部 bridge，不是用户脚本的稳定接口。
+
+需要观察、等待或移除 OpenDesk 自身已投递通知时，使用受限的 macOS Experimental
+[Notifications API](notifications.md)。它不会读取任意应用通知，也不提供程序化 activate。
