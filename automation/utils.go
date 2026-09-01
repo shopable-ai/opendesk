@@ -590,7 +590,7 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 	timer := NewTimer(runtime, opts.EventLoop, opts.OnAsyncError)
 	timer.RegisterInRuntime()
 
-	system := NewSystem()
+	system := NewSystem(runtime, timer)
 	systemMethods := AutoMapObject(runtime, system)
 	runtime.Set("System", systemMethods)
 

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/denisbrodbeck/machineid"
+	"github.com/dop251/goja"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/disk"
 	"github.com/shirou/gopsutil/v3/host"
@@ -17,12 +18,35 @@ import (
 	"github.com/shirou/gopsutil/v3/process"
 )
 
-// System provides methods for accessing system information and hardware details
-type System struct{}
+// System provides methods for accessing system information and hardware details.
+// Runtime-owned asynchronous helpers delegate to the same Timer lifecycle as
+// the global setTimeout/sleep APIs.
+type System struct {
+	runtime *goja.Runtime
+	timer   *Timer
+}
 
 // NewSystem creates a new System instance
-func NewSystem() *System {
-	return &System{}
+func NewSystem(jsRuntime *goja.Runtime, timer *Timer) *System {
+	return &System{runtime: jsRuntime, timer: timer}
+}
+
+// Delay waits without blocking the JavaScript event loop or suspending the host.
+func (s *System) Delay(milliseconds float64) goja.Value {
+	if s == nil || s.runtime == nil || s.timer == nil {
+		panic("System.delay requires an initialized JavaScript runtime")
+	}
+	return s.timer.Delay(milliseconds)
+}
+
+// GetPlatformInfo returns stable runtime identity for cross-platform workflows.
+func (s *System) GetPlatformInfo() map[string]interface{} {
+	return map[string]interface{}{
+		"os":             runtime.GOOS,
+		"arch":           runtime.GOARCH,
+		"processId":      os.Getpid(),
+		"runtimeVersion": runtime.Version(),
+	}
 }
 
 // Process Management

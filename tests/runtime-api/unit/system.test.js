@@ -3,6 +3,42 @@
   RuntimeAPITest.contractObject('System');
 
   test({
+    name: 'System delay is event-loop-owned and platform info is normalized',
+    tier: 'unit',
+    covers: ['System.delay', 'System.getPlatformInfo'],
+  }, async () => {
+    const platform = System.getPlatformInfo();
+    assert(platform && typeof platform.os === 'string' && platform.os.length > 0, JSON.stringify(platform));
+    assert(typeof platform.arch === 'string' && platform.arch.length > 0, JSON.stringify(platform));
+    assert(Number.isInteger(platform.processId) && platform.processId > 0, JSON.stringify(platform));
+    assert(typeof platform.runtimeVersion === 'string' && platform.runtimeVersion.length > 0, JSON.stringify(platform));
+
+    let timerFired = false;
+    setTimeout(() => { timerFired = true; }, 0);
+    const startedAt = Date.now();
+    const pending = System.delay(10);
+    assert(pending && typeof pending.then === 'function', 'System.delay must return a Promise');
+    await pending;
+    assert(timerFired, 'System.delay blocked the Runtime event loop');
+    assert(Date.now() - startedAt >= 5, 'System.delay resolved too early');
+
+    for (const [milliseconds, expectedMessage] of [
+      [-1, 'greater than or equal to 0'],
+      [NaN, 'finite'],
+      [Infinity, 'finite'],
+      [86400001, 'must not exceed'],
+    ]) {
+      let rejected = false;
+      try {
+        await System.delay(milliseconds);
+      } catch (error) {
+        rejected = String(error && error.message || error).includes(expectedMessage);
+      }
+      assert(rejected, `System.delay must reject invalid milliseconds: ${milliseconds}`);
+    }
+  });
+
+  test({
     name: 'System read-only APIs return documented value families',
     tier: 'unit',
     covers: [

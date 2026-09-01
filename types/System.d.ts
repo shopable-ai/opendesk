@@ -46,7 +46,17 @@ declare global {
     pid: number;
   }
 
+  interface OpenDeskPlatformInfo {
+    os: "darwin" | "linux" | "windows" | string;
+    arch: string;
+    processId: number;
+    runtimeVersion: string;
+  }
+
   interface OpenDeskSystem {
+    /** Non-blocking workflow delay. This does not suspend the host operating system. */
+    delay(milliseconds?: number): Promise<void>;
+    getPlatformInfo(): OpenDeskPlatformInfo;
     getSystemInfo(): OpenDeskSystemInfo;
     getProcessList(): OpenDeskProcessInfo[];
     killProcess(pid: number): void;
@@ -55,6 +65,7 @@ declare global {
     getPowerInfo(): Record<string, unknown>;
     shutdown(delay: number): void;
     restart(delay: number): void;
+    /** Suspends the host operating system; use delay() to pause only the script. */
     sleep(): void;
     getDirectoryContents(path: string): Array<Record<string, unknown>>;
     getExecutablePath(): string;

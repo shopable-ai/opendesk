@@ -2,6 +2,7 @@ package automation
 
 import (
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/dop251/goja"
@@ -90,6 +91,34 @@ func (t *Timer) SetInterval(call goja.FunctionCall) goja.Value {
 	return t.runtime.ToValue(id)
 }
 
+// Delay returns an event-loop-owned Promise that resolves after the requested
+// number of milliseconds. Unlike System.sleep(), this pauses only the calling
+// JavaScript workflow and never suspends the host operating system.
+func (t *Timer) Delay(milliseconds float64) goja.Value {
+	if t.loop == nil {
+		panic(t.runtime.NewTypeError("System.delay requires an event-loop-owned runtime"))
+	}
+	duration, err := strictTimerDelay(milliseconds)
+	if err != nil {
+		panic(t.runtime.NewTypeError("System.delay: %s", err.Error()))
+	}
+	promise, resolve, _ := t.runtime.NewPromise()
+	id := t.newID()
+	entry := &timerEntry{}
+	t.entries[id] = entry
+	entry.timeout = t.loop.SetTimeout(func(rt *goja.Runtime) {
+		delete(t.entries, id)
+		if err := resolve(goja.Undefined()); err != nil && t.onAsyncError != nil {
+			t.onAsyncError(err)
+		}
+	}, duration)
+	if entry.timeout == nil {
+		delete(t.entries, id)
+		panic(t.runtime.NewGoError(fmt.Errorf("runtime event loop has terminated")))
+	}
+	return t.runtime.ToValue(promise)
+}
+
 func (t *Timer) ClearTimeout(call goja.FunctionCall) goja.Value {
 	t.clear(int(call.Argument(0).ToInteger()))
 	return goja.Undefined()
@@ -158,4 +187,18 @@ func timerDelay(value goja.Value) time.Duration {
 		milliseconds = maxMilliseconds
 	}
 	return time.Duration(milliseconds) * time.Millisecond
+}
+
+func strictTimerDelay(milliseconds float64) (time.Duration, error) {
+	if math.IsNaN(milliseconds) || math.IsInf(milliseconds, 0) {
+		return 0, fmt.Errorf("milliseconds must be finite")
+	}
+	if milliseconds < 0 {
+		return 0, fmt.Errorf("milliseconds must be greater than or equal to 0")
+	}
+	const maxMilliseconds = float64((24 * time.Hour) / time.Millisecond)
+	if milliseconds > maxMilliseconds {
+		return 0, fmt.Errorf("milliseconds must not exceed %g", maxMilliseconds)
+	}
+	return time.Duration(milliseconds * float64(time.Millisecond)), nil
 }
