@@ -11,6 +11,8 @@ RESOURCES_DIR="${CONTENTS_DIR}/Resources"
 HELPERS_DIR="${CONTENTS_DIR}/Helpers"
 EXECUTABLE_PATH="${MACOS_DIR}/opendesk"
 UI_HOST_PATH="${HELPERS_DIR}/opendesk-ui-host"
+CLAWDESK_UI_HOST_PATH="${HELPERS_DIR}/clawdesk-ui-host"
+STATUS_HELPER_PATH="${HELPERS_DIR}/opendesk-status"
 PLIST_PATH="${CONTENTS_DIR}/Info.plist"
 APP_ICON_SOURCE="${ROOT_DIR}/public/icons/opendesk.icns"
 APP_ICON_NAME="OpenDesk.icns"
@@ -18,12 +20,30 @@ BUNDLE_ID="${BUNDLE_ID:-com.opendesk.cli}"
 APP_NAME="${APP_NAME:-OpenDesk}"
 VERSION="${VERSION:-0.1.0}"
 CODESIGN_IDENTITY="${CODESIGN_IDENTITY:--}"
-
-mkdir -p "${DIST_DIR}"
 NATIVE_EXTENSIONS_SOURCE="${NATIVE_EXTENSIONS_SOURCE:-}"
 
-go build -o "${DIST_DIR}/opendesk" ./cmd/opendesk
-go build -o "${DIST_DIR}/opendesk-ui-host" ./cmd/opendesk-ui-host
+mkdir -p "${DIST_DIR}"
+
+GO_BIN="${GO_BIN:-$(command -v go || true)}"
+if [[ -z "${GO_BIN}" ]]; then
+  for candidate in \
+    "${HOME}/.local/opt/go/bin/go" \
+    "/opt/homebrew/bin/go" \
+    "/usr/local/go/bin/go"; do
+    if [[ -x "${candidate}" ]]; then
+      GO_BIN="${candidate}"
+      break
+    fi
+  done
+fi
+if [[ -z "${GO_BIN}" ]]; then
+  echo "Go compiler not found; set GO_BIN or add Go to PATH" >&2
+  exit 1
+fi
+
+"${GO_BIN}" build -o "${DIST_DIR}/opendesk" ./cmd/opendesk
+"${GO_BIN}" build -o "${DIST_DIR}/opendesk-ui-host" ./cmd/opendesk-ui-host
+"${GO_BIN}" build -o "${DIST_DIR}/opendesk-status" ./cmd/opendesk-status
 
 if [[ ! -f "${APP_ICON_SOURCE}" ]]; then
   printf 'App icon is missing: %s\nRun scripts/generate_app_icons.sh first.\n' "${APP_ICON_SOURCE}" >&2
@@ -35,6 +55,8 @@ mkdir -p "${MACOS_DIR}" "${HELPERS_DIR}" "${RESOURCES_DIR}"
 
 cp "${DIST_DIR}/opendesk" "${EXECUTABLE_PATH}"
 cp "${DIST_DIR}/opendesk-ui-host" "${UI_HOST_PATH}"
+cp "${DIST_DIR}/opendesk-ui-host" "${CLAWDESK_UI_HOST_PATH}"
+cp "${DIST_DIR}/opendesk-status" "${STATUS_HELPER_PATH}"
 cp "${APP_ICON_SOURCE}" "${RESOURCES_DIR}/${APP_ICON_NAME}"
 rsync -a --delete "${ROOT_DIR}/polyfills/" "${MACOS_DIR}/polyfills/"
 rsync -a --delete "${ROOT_DIR}/jslibs/" "${MACOS_DIR}/jslibs/"
@@ -97,6 +119,10 @@ cat > "${PLIST_PATH}" <<EOF
   <string>1</string>
   <key>LSMinimumSystemVersion</key>
   <string>12.0</string>
+  <key>LSUIElement</key>
+  <true/>
+  <key>LSMultipleInstancesProhibited</key>
+  <true/>
   <key>NSAppleEventsUsageDescription</key>
   <string>OpenDesk needs Automation permission to control System Events and target applications for desktop automation workflows.</string>
   <key>NSUserNotificationAlertStyle</key>
@@ -114,6 +140,8 @@ fi
 
 printf 'Built binary: %s\n' "${DIST_DIR}/opendesk"
 printf 'Built custom UI host: %s\n' "${UI_HOST_PATH}"
+printf 'Built Clawdesk compatibility host: %s\n' "${CLAWDESK_UI_HOST_PATH}"
+printf 'Built macOS status helper: %s\n' "${STATUS_HELPER_PATH}"
 printf 'Built app: %s\n' "${APP_ROOT}"
 printf 'Bundle id: %s\n' "${BUNDLE_ID}"
 if [[ "${SKIP_CODESIGN:-0}" == "1" ]]; then

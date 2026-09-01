@@ -7,6 +7,17 @@ repository root with:
 go run ./cmd/opendesk <flags>
 ```
 
+For coding-agent desktop execution, keep the legacy flags intact and use the
+separate first-argument router:
+
+```bash
+go run ./cmd/opendesk ai schema
+```
+
+`opendesk ai` emits a single JSON envelope on stdout and writes action evidence
+below `.runtime/ai/`. Its command registry drives routing and schema output;
+see [`docs/api/ai-cli.md`](../../docs/api/ai-cli.md).
+
 Go white-box tests for command-only parsing and orchestration helpers stay next
 to `cmd/opendesk/main.go`. Cross-package and end-to-end suites belong under the top-level
 `tests/` tree. If command orchestration is later extracted into an importable
@@ -35,3 +46,11 @@ configuration filename. Discovery accepts `clawdesk.runtime.json` only as a
 legacy fallback when no canonical file exists in the same directory; projects
 should rename the legacy file. A built CLI locates `opendesk-ui-host` beside the
 runtime binary, while the macOS app locates it in `Contents/Helpers/`.
+
+HTTP mode also owns the persistent local Scheduler lifecycle. Start it with
+`-http -port 60844`, then use `http://127.0.0.1:60844/scheduler` to create file
+or inline JavaScript tasks. The command wires Scheduler directly to the shared
+Execution and JavaScript Runtime; it does not execute tasks through an HTTP
+self-call. See [`scheduler.md`](../../docs/api/scheduler.md) and
+[`scheduler-api.md`](../../docs/api/scheduler-api.md) for the user and
+local-control-plane contracts.

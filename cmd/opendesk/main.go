@@ -22,6 +22,7 @@ import (
 	pkgHttp "opendesk/pkg/http"
 	"opendesk/pkg/nativeextension"
 	"opendesk/pkg/runtimeconfig"
+	pkgScheduler "opendesk/pkg/scheduler"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -65,6 +66,7 @@ type Config struct {
 	CustomUIHostPath                      string
 	HttpMode                              bool
 	Port                                  string
+	SchedulerDBPath                       string
 	VisionOCRImagePath                    string
 	VisionDetectImagePath                 string
 	VisionTargetText                      string
@@ -104,6 +106,7 @@ func parseFlags() *Config {
 	flag.StringVar(&config.CustomUIHostPath, "ui-host", "", "Custom UI native host path (internal/development override)")
 	flag.BoolVar(&config.HttpMode, "http", false, "Start in HTTP server mode")
 	flag.StringVar(&config.Port, "port", "60844", "HTTP server port")
+	flag.StringVar(&config.SchedulerDBPath, "scheduler-db", "", "Scheduler SQLite database path (default: ~/.opendesk/opendesk/scheduler.db)")
 	flag.StringVar(&config.VisionOCRImagePath, "vision-ocr-image", "", "Run OCR in CLI mode using image path")
 	flag.StringVar(&config.VisionDetectImagePath, "vision-detect-ui-image", "", "Run UI detection in CLI mode using image path")
 	flag.StringVar(&config.VisionTargetText, "vision-target-text", "", "Target text for UI detection")
@@ -216,26 +219,19 @@ func main() {
 			}
 			config.ScriptPath = scriptFile
 
-			// 在新的 goroutine 中执行脚本
-			go func() {
-				if shouldEchoStartupCategory("framework", selection) {
-					fmt.Println("[INFO] Starting script execution...")
-				}
-				if err := executeScript(config); err != nil {
-					fmt.Printf("[ERROR] Script execution failed: %v\n", err)
-				} else {
-					if shouldEchoStartupCategory("framework", selection) {
-						fmt.Println("[INFO] Script execution completed successfully")
-					}
-				}
-			}()
+			// The script starts only after the App has reserved its HTTP socket
+			// and completed service startup. That prevents a duplicate Finder
+			// launch from running tm.config.js before it discovers the existing
+			// OpenDesk service.
 		}
 
 		// 启动 HTTP 服务器（默认行为）
 		if shouldEchoStartupCategory("framework", selection) {
 			fmt.Println("[INFO] Starting HTTP server...")
 		}
-		startHttpServer(config.Port, config) // 这会阻塞主线程
+		if err := startHttpServer(config.Port, config); err != nil {
+			exitHTTPStartupFailure(err, config.Port)
+		}
 		return
 	}
 
@@ -247,7 +243,9 @@ func main() {
 		}
 
 		if config.HttpMode {
-			startHttpServer(config.Port, config)
+			if err := startHttpServer(config.Port, config); err != nil {
+				exitHTTPStartupFailure(err, config.Port)
+			}
 		}
 		return
 	}
@@ -283,7 +281,9 @@ func main() {
 
 		// 如果指定了 HTTP 模式，继续运行 HTTP 服务器
 		if config.HttpMode {
-			startHttpServer(config.Port, config)
+			if err := startHttpServer(config.Port, config); err != nil {
+				exitHTTPStartupFailure(err, config.Port)
+			}
 		}
 		return
 	}
@@ -293,7 +293,9 @@ func main() {
 
 	// 如果是 HTTP 模式，启动服务器
 	if config.HttpMode {
-		startHttpServer(config.Port, config)
+		if err := startHttpServer(config.Port, config); err != nil {
+			exitHTTPStartupFailure(err, config.Port)
+		}
 		return
 	}
 
@@ -1424,7 +1426,7 @@ func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
 }
 
 // Modified startHttpServer function
-func startHttpServer(port string, configs ...*Config) {
+func startHttpServer(port string, configs ...*Config) error {
 	if strings.TrimSpace(port) == "" {
 		port = "60844"
 	}
@@ -1436,16 +1438,42 @@ func startHttpServer(port string, configs ...*Config) {
 	if len(configs) > 0 {
 		config = configs[0]
 	}
-	startContainerBasedServer(port, config)
+	return startContainerBasedServer(port, config)
+}
+
+func exitHTTPStartupFailure(err error, port string) {
+	if err == nil {
+		return
+	}
+	if reuseRunningOpenDesk(err, port) {
+		fmt.Printf("[INFO] OpenDesk is already running at http://127.0.0.1:%s; reusing the existing desktop service.\n", port)
+		return
+	}
+	fmt.Fprintf(os.Stderr, "[ERROR] OpenDesk did not start: %v\n", err)
+	reportMacOSAppStartupFailure(err)
+	os.Exit(1)
 }
 
 // startContainerBasedServer starts the HTTP server using the new container architecture
-func startContainerBasedServer(port string, appConfig *Config) {
+func startContainerBasedServer(port string, appConfig *Config) error {
 	fmt.Println("[INFO] Starting server with container-based architecture")
 	if err := resolveCustomUIActivation(appConfig); err != nil {
-		fmt.Printf("[ERROR] Custom UI configuration failed: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("custom UI configuration failed: %w", err)
 	}
+
+	// Reserve the socket before starting the Scheduler. A duplicate Finder
+	// launch must fail at the ownership boundary, rather than briefly creating
+	// a second Scheduler against the same persisted task database.
+	listener, err := net.Listen("tcp", ":"+port)
+	if err != nil {
+		return fmt.Errorf("listen on port %s: %w", port, err)
+	}
+	listenerOwned := true
+	defer func() {
+		if listenerOwned {
+			_ = listener.Close()
+		}
+	}()
 
 	// Create container
 	cfg := &pkgContainer.Config{
@@ -1459,11 +1487,44 @@ func startContainerBasedServer(port string, appConfig *Config) {
 
 	container, err := pkgContainer.NewContainer(cfg)
 	if err != nil {
-		fmt.Printf("[ERROR] Failed to create container: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("create execution container: %w", err)
 	}
 	defer container.Close()
 
+	schedulerDBPath := ""
+	if appConfig != nil {
+		schedulerDBPath = appConfig.SchedulerDBPath
+	}
+	schedulerStore, err := pkgScheduler.OpenStore(schedulerDBPath)
+	if err != nil {
+		return fmt.Errorf("open Scheduler database: %w", err)
+	}
+	defer schedulerStore.Close()
+	scriptRoot, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("locate Scheduler script root: %w", err)
+	}
+	schedulerExecutor, err := pkgScheduler.NewScriptExecutor(scriptRoot, 30*time.Minute)
+	if err != nil {
+		return fmt.Errorf("initialize Scheduler executor: %w", err)
+	}
+	schedulerService, err := pkgScheduler.NewService(schedulerStore, schedulerExecutor, pkgScheduler.Options{ScriptRoot: scriptRoot})
+	if err != nil {
+		return fmt.Errorf("initialize Scheduler: %w", err)
+	}
+	if err := schedulerService.Start(context.Background()); err != nil {
+		return fmt.Errorf("start Scheduler: %w", err)
+	}
+	defer func() {
+		shutdownContext, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = schedulerService.Close(shutdownContext)
+	}()
+
+	server := pkgHttp.NewServerWithScheduler(container, port, schedulerService)
+
+	// Only advertise readiness after the scheduler is running and the socket is
+	// reserved. This is the startup boundary used by the macOS status item.
 	// 获取并打印本机IP地址
 	ips := getLocalIPs()
 	fmt.Println("\n可用的服务地址:")
@@ -1471,22 +1532,40 @@ func startContainerBasedServer(port string, appConfig *Config) {
 		fmt.Printf("http://%s:%s\n", ip, port)
 	}
 	fmt.Printf("http://localhost:%s\n", port)
+	fmt.Printf("Scheduler: http://127.0.0.1:%s/scheduler\n", port)
+	fmt.Printf("Scheduler database: %s\n", schedulerStore.Path())
 	fmt.Println("----------------------------------------")
+	fmt.Printf("OpenDesk ready: http://127.0.0.1:%s/status (pid %d)\n", port, os.Getpid())
 	fmt.Println("服务器已启动 (Container Mode)，按 Ctrl+C 关闭")
-
+	if isAutoRunJs {
+		startMacOSAppStatusItem(port)
+	}
 	// Run the server behind an explicit shutdown boundary so SIGINT/SIGTERM
 	// cancel active JavaScript and drain native UI hosts before the process exits.
-	server := pkgHttp.NewServer(container, port)
 	serverDone := make(chan error, 1)
-	go func() { serverDone <- server.Start() }()
+	listenerOwned = false
+	go func() { serverDone <- server.Serve(listener) }()
+	if isAutoRunJs && appConfig != nil && appConfig.ScriptPath != "" {
+		go func() {
+			fmt.Println("[INFO] Starting script execution...")
+			if err := executeScript(appConfig); err != nil {
+				if errors.Is(err, errScriptInstanceReplaced) {
+					fmt.Println("[INFO] Script execution was replaced by a newer invocation")
+					return
+				}
+				fmt.Printf("[ERROR] Script execution failed: %v\n", err)
+				return
+			}
+			fmt.Println("[INFO] Script execution completed successfully")
+		}()
+	}
 	shutdownSignals := make(chan os.Signal, 1)
 	signal.Notify(shutdownSignals, os.Interrupt, syscall.SIGTERM)
 	defer signal.Stop(shutdownSignals)
 	select {
 	case err := <-serverDone:
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			fmt.Printf("[ERROR] Server failed: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("HTTP server failed: %w", err)
 		}
 	case received := <-shutdownSignals:
 		fmt.Printf("[INFO] Received %s; draining HTTP executions\n", received)
@@ -1494,14 +1573,13 @@ func startContainerBasedServer(port string, appConfig *Config) {
 		err := server.Shutdown(shutdownContext)
 		cancel()
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			fmt.Printf("[ERROR] Server shutdown failed: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("HTTP server shutdown failed: %w", err)
 		}
 		if err := <-serverDone; err != nil && !errors.Is(err, http.ErrServerClosed) {
-			fmt.Printf("[ERROR] Server stopped unexpectedly: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("HTTP server stopped unexpectedly: %w", err)
 		}
 	}
+	return nil
 }
 
 // Modified handleStatus function

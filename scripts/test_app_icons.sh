@@ -8,6 +8,7 @@ LOGO="${ROOT_DIR}/public/logo.png"
 MACOS_ICON="${ROOT_DIR}/public/icons/opendesk.icns"
 WINDOWS_ICON="${ROOT_DIR}/public/icons/opendesk.ico"
 NOTIFICATION_ICON="${ROOT_DIR}/public/icons/opendesk-notification.png"
+APP_BUNDLE="${APP_BUNDLE:-}"
 
 if command -v magick >/dev/null 2>&1; then
   USE_MAGICK=1
@@ -49,7 +50,7 @@ asset_hashes() {
 }
 
 before="$(asset_hashes)"
-RUNTIME_DIR="${RUNTIME_DIR}/generator" "${ROOT_DIR}/scripts/generate_app_icons.sh" \
+RUNTIME_DIR="${RUNTIME_DIR}/generator" /bin/bash "${ROOT_DIR}/scripts/generate_app_icons.sh" \
   >"${RUNTIME_DIR}/generator.log"
 after="$(asset_hashes)"
 if [[ "${before}" != "${after}" ]]; then
@@ -168,6 +169,7 @@ PACKAGE_DIST="${RUNTIME_DIR}/package-dist"
 mkdir -p "${PACKAGE_DIST}"
 cp /usr/bin/true "${PACKAGE_DIST}/opendesk"
 cp /usr/bin/true "${PACKAGE_DIST}/opendesk-ui-host"
+cp /usr/bin/true "${PACKAGE_DIST}/opendesk-status"
 GO_BIN=/usr/bin/true SKIP_CODESIGN=1 DIST_DIR="${PACKAGE_DIST}" \
   "${ROOT_DIR}/scripts/build_macos_app.sh" >"${RUNTIME_DIR}/package.log"
 
@@ -178,5 +180,45 @@ if [[ "${bundle_icon_name}" != "OpenDesk.icns" ]]; then
 fi
 cmp "${MACOS_ICON}" "${PACKAGE_DIST}/OpenDesk.app/Contents/Resources/${bundle_icon_name}"
 
+assert_app_bundle() {
+  local app_path="$1"
+  local plist="${app_path}/Contents/Info.plist"
+  local executable="${app_path}/Contents/MacOS/opendesk"
+  local resource_icon="${app_path}/Contents/Resources/OpenDesk.icns"
+  local icon_name bundle_id app_name executable_name
+
+  [[ -d "${app_path}" ]] || {
+    printf 'App bundle does not exist: %s\n' "${app_path}" >&2
+    exit 1
+  }
+  plutil -lint "${plist}" >/dev/null
+  icon_name="$(plutil -extract CFBundleIconFile raw "${plist}")"
+  bundle_id="$(plutil -extract CFBundleIdentifier raw "${plist}")"
+  app_name="$(plutil -extract CFBundleName raw "${plist}")"
+  executable_name="$(plutil -extract CFBundleExecutable raw "${plist}")"
+  [[ "${icon_name}" == "OpenDesk.icns" ]] || {
+    printf 'Unexpected bundle icon name for %s: %s\n' "${app_path}" "${icon_name}" >&2
+    exit 1
+  }
+  [[ "${bundle_id}" == "com.opendesk.cli" ]] || {
+    printf 'Unexpected bundle identifier for %s: %s\n' "${app_path}" "${bundle_id}" >&2
+    exit 1
+  }
+  [[ "${app_name}" == "OpenDesk" && "${executable_name}" == "opendesk" && -x "${executable}" ]] || {
+    printf 'Unexpected app name or executable contract for %s\n' "${app_path}" >&2
+    exit 1
+  }
+  cmp "${MACOS_ICON}" "${resource_icon}"
+  iconutil -c iconset "${resource_icon}" -o "${RUNTIME_DIR}/$(basename "${app_path}").iconset"
+  codesign --verify --deep --strict "${app_path}"
+}
+
+if [[ -n "${APP_BUNDLE}" ]]; then
+  assert_app_bundle "${APP_BUNDLE}"
+fi
+
 printf 'App icon assets passed deterministic generation, format, resolver, and bundle tests.\n'
+if [[ -n "${APP_BUNDLE}" ]]; then
+  printf 'Installed app bundle contract passed: %s\n' "${APP_BUNDLE}"
+fi
 printf 'Evidence: %s\n' "${RUNTIME_DIR}"

@@ -7,7 +7,7 @@ order: 11
 # HTTP server API
 
 当前项目支持 HTTP 服务模式：
-- `go run ./cmd/opendesk -http`
+- `opendesk -http`
 - 默认端口：60844
 
 路由以 `pkg/http/handler.go` 为准。
@@ -193,11 +193,26 @@ curl -N 'http://127.0.0.1:60844/executions/http-xxxx/events?categories=script,er
 
 作用
 - 查看服务当前状态
+- `service` 固定为 `"opendesk"`；桌面 App 仅用它与其他健康字段识别可复用的本机 OpenDesk
+
+示例响应：
+
+```json
+{
+  "service": "opendesk",
+  "status": "ok",
+  "execution_capacity": 10,
+  "scheduler": true,
+  "vision_enabled": true
+}
+```
 - 可能附带最近一次执行快照
 
 返回结构通常包含
+- service
 - status
 - execution_capacity
+- scheduler
 - vision_enabled
 - timestamp
 - latestExecution
@@ -283,7 +298,7 @@ HTTP 执行接口支持：
 - 请求声明 `capabilities: ["ui"]`，但服务器没有通过 `-ui` 或可信本地配置启用 UI
 - UI 请求不是来自 `127.0.0.1` / `::1` loopback socket
 
-Custom UI 与 [Dialog API](dialog.md) 的 HTTP 授权为三重门槛：服务器启用、单次请求声明、loopback 来源。只启用服务器但请求不声明时，该 execution 中的 `ui` 与 `Dialog` 仍为 dormant；来源成功时 `ui.getCapabilities().activationSource`、`Dialog.getCapabilities().activationSource` 与 `Execution.activationSource` 都是 `httpRequest`。`X-Forwarded-For`、任意 Host/Origin header 和 CORS 都不会绕过 socket loopback 检查；服务不会设置 `Access-Control-Allow-Origin: *`。完整窗口 API 见 [Custom UI v1](custom-ui.md)，Dialog 行为见 [Dialog API](dialog.md)。
+Native UI 与 [Dialog API](dialog.md) 的 HTTP 授权为三重门槛：服务器启用、单次请求声明、loopback 来源。只启用服务器但请求不声明时，该 execution 中的 `ui` 与 `Dialog` 仍为 dormant；来源成功时 `ui.getCapabilities().activationSource`、`Dialog.getCapabilities().activationSource` 与 `Execution.activationSource` 都是 `httpRequest`。`X-Forwarded-For`、任意 Host/Origin header 和 CORS 都不会绕过 socket loopback 检查；服务不会设置 `Access-Control-Allow-Origin: *`。完整窗口 API 见 [Native UI](native-ui.md)，Dialog 行为见 [Dialog API](dialog.md)。
 
 常见 404
 - execution id 不存在
