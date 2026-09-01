@@ -3,6 +3,7 @@
 Status: TODO
 Priority: P1
 Depends on: none; audio capture must reuse TASK-004 if present
+Plan: `PLAN-screen-capture-region-selector.md`
 
 ## Goal
 
