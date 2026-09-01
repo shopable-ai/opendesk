@@ -214,6 +214,35 @@ ImageColor.save(image, './.runtime/examples/out.jpg', 'jpg', 90);
 
 默认 tolerance 在未正确传值时会采用当前实现的默认值。
 
+## ImageColor.analyzeLayout(image, options?)
+
+对本地图像或 base64 图像做纯图像布局分析，返回区域、分隔线和层级信息。它不调用 OCR，也不操作桌面；需要文本语义时与 `Vision.runOCR()` 或 `Vision.detectUI()` 组合。
+
+```js
+const layout = ImageColor.analyzeLayout('./.runtime/examples/screen.png', {
+  cellSize: 16,
+  minRegionArea: 400,
+  maxRegions: 24,
+  cellColorMode: 'median',
+});
+console.log(layout);
+```
+
+| 参数 | 类型 | 说明 |
+| --- | --- | --- |
+| `image` | string | 必填；本地图像路径或支持的图像字符串。 |
+| `options.cellSize` | number | 可选；用于初步量化的网格边长。 |
+| `options.quantize` / `tolerance` | number | 可选；颜色量化和相似度阈值。 |
+| `options.minRegionArea` / `maxRegions` | number | 可选；最小区域面积与最多返回区域数。 |
+| `options.maxDepth` / `minSplitSpan` | number | 可选；区域递归深度与最小切分跨度。 |
+| `options.minSeparatorScore` / `maxSeparatorCandidates` | number | 可选；分隔线筛选阈值与候选数。 |
+| `options.profile` | string | 可选；分析预设名称。 |
+| `options.cellColorMode` | `mean` / `median` / `trimmed` / `dominant` | 可选；网格颜色统计方式。 |
+| `options.boundarySpanWidth` | number | 可选；边界判断宽度。 |
+| `options.separatorHints` | object | 可选；`vertical` / `horizontal` 各为 `{label?,from,to}[]`，用于提供分隔线提示。 |
+
+返回 `Record<string, unknown>`；结果形状会随图像内容变化，调用方应检查字段存在性，不应把它当作稳定的 DOM 结构。
+
 ## ImageColor / Vision：推荐组合
 
 ```text
