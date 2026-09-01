@@ -8,19 +8,21 @@ order: 15
 
 > 状态：**Experimental**。V1 是自动发现与不可变 Binding Prototype，不是 Stable ABI、Stable SDK、插件商店或安全沙箱。
 
-## NativeExtensions：拿到预编译 bundle 后，五分钟安装并调用
+> **平台含义**：Native Extension V1 的 manifest、discovery 和 Host 是跨平台实现候选；当前源码
+> 包含 Darwin、Linux 与 Windows 的 root/path/process 分支。页面中出现的“macOS”有三种更窄的
+> 含义：macOS 的安装命令和安全规则、仅 macOS 可用的 `macos-vision` 示例插件，或当前 macOS
+> Runtime Evidence。它们都不表示 V1 整体只支持 macOS。相反，`go-basic` 是纯 Go 示例，能够为
+> 各目标系统分别构建；每个目标系统仍必须使用自己的 executable，并以目标机 Evidence 确认其
+> 实际支持状态。未在目标机验证应写为 **Not Evaluated**，而不是 **Unsupported**。
 
-普通使用者安装**与当前 OS/CPU 匹配的预编译 bundle**，不编译扩展，也不需要 OpenDesk
-源码。插件作者或其 CI 才负责编译和发布每个平台的 archive。
+## NativeExtensions：插件作者的本机开发闭环
 
-> Public publisher asset status: **Not Published / Not Verified**. This
-> repository currently supplies maintainable example source, not a public
-> download. The five-minute flow starts only after a trusted publisher has
-> supplied a matching precompiled archive and its checksum/signature. A local
-> `.runtime/` archive is acceptance handoff evidence only; it is never a public
-> Release Asset.
+V1 的第一条用户路径是插件作者在自己的 macOS 机器上开发并直接运行：编写插件源码 →
+编译 executable → 把完整、source-free bundle 放进 OpenDesk 程序相对目录 → 正常运行本机
+CLI JavaScript。开发者不注册插件，不传 executable、plugin id、protocol 或 wire method，
+也不传 `-experimental-native-extension`。
 
-解压后的完整 bundle 至少包含：
+完整 bundle 至少包含：
 
 ```text
 com.example.go-basic/
@@ -29,67 +31,20 @@ com.example.go-basic/
     native-ext-go-basic        # Windows target 通常是 .exe
 ```
 
-目录名必须等于 manifest `id`。把整个 `com.example.go-basic/` 安装到当前用户的固定目录：
+目录名必须等于 manifest `id`。默认 discovery 只读下面一个程序相对位置；不会扫描 `$HOME`、
+machine-wide root、cwd、`PATH`、源码祖先或脚本所在目录。
 
-普通使用者只安装上面的 compiled bundle。`main.go`、`go.mod` 和
-[`quickstart.js`](https://github.com/shopable-ai/opendesk/blob/master/examples/native-extensions/quickstart.js) 不是插件目录内容；完整的
-source-to-bundle mapping 和作者教程见
-[`examples/native-extensions/README.md`](https://github.com/shopable-ai/opendesk/blob/master/examples/native-extensions/README.md)。
-
-| 平台 | 唯一推荐的 current-user root |
+| 发行形态 | bundle 位置 |
 | --- | --- |
-| macOS | `$HOME/Library/Application Support/OpenDesk/NativeExtensions/` |
-| Linux | `${XDG_DATA_HOME:-$HOME/.local/share}/OpenDesk/NativeExtensions/`；非空 `XDG_DATA_HOME` 必须是绝对路径 |
-| Windows | `%LOCALAPPDATA%\OpenDesk\NativeExtensions\`，Runtime 使用 LocalAppData Known Folder，不使用 roaming `%APPDATA%` |
+| CLI / portable | `<program-directory>/native-extensions/<plugin-id>/` |
+| macOS `.app` | `OpenDesk.app/Contents/Resources/NativeExtensions/<plugin-id>/` |
 
-macOS 安装一个已解压 bundle：
+`main.go`、`go.mod`、构建脚本和第三方 JavaScript 不属于安装目录。`types/index.d.ts` 是可选
+编辑器声明；discovery 不读取或执行它。完整 build/wire/schema/digest/bundle inventory 命令见
+[`examples/native-extensions/README.md`](../../examples/native-extensions/README.md)，业务脚本源文件是
+[`quickstart.js`](../../examples/native-extensions/quickstart.js)。
 
-```bash
-SOURCE="/absolute/path/com.example.go-basic"
-case "$HOME" in /*) ;; *) echo "HOME must be absolute" >&2; exit 1;; esac
-INSTALL_ROOT="$HOME/Library/Application Support/OpenDesk/NativeExtensions"
-test -f "$SOURCE/extension.json"
-test -x "$SOURCE/bin/native-ext-go-basic"
-test ! -e "$INSTALL_ROOT/com.example.go-basic"
-install -d -m 700 "$INSTALL_ROOT"
-cp -R "$SOURCE" "$INSTALL_ROOT/com.example.go-basic"
-chmod -R go-w "$INSTALL_ROOT/com.example.go-basic"
-```
-
-Linux 安装使用 XDG data，而不是 XDG config：
-
-```bash
-SOURCE="/absolute/path/com.example.go-basic"
-case "${XDG_DATA_HOME:-}" in
-  /*) DATA_HOME="$XDG_DATA_HOME" ;;
-  "") case "$HOME" in /*) DATA_HOME="$HOME/.local/share" ;; *) echo "HOME must be absolute" >&2; exit 1;; esac ;;
-  *) echo "XDG_DATA_HOME must be absolute when set" >&2; exit 1 ;;
-esac
-INSTALL_ROOT="$DATA_HOME/OpenDesk/NativeExtensions"
-test -f "$SOURCE/extension.json"
-test -x "$SOURCE/bin/native-ext-go-basic"
-test ! -e "$INSTALL_ROOT/com.example.go-basic"
-install -d -m 700 "$INSTALL_ROOT"
-cp -R "$SOURCE" "$INSTALL_ROOT/com.example.go-basic"
-chmod -R go-w "$INSTALL_ROOT/com.example.go-basic"
-```
-
-Windows PowerShell 使用 LocalAppData Known Folder 的对应位置：
-
-```powershell
-$source = 'C:\absolute\path\com.example.go-basic'
-$dataHome = [Environment]::GetFolderPath('LocalApplicationData')
-if (-not [IO.Path]::IsPathFullyQualified($dataHome)) { throw 'LocalAppData must be absolute' }
-$installRoot = Join-Path $dataHome 'OpenDesk\NativeExtensions'
-$target = Join-Path $installRoot 'com.example.go-basic'
-if (-not (Test-Path -LiteralPath (Join-Path $source 'extension.json') -PathType Leaf)) { throw 'extension.json is missing' }
-if (-not (Test-Path -LiteralPath (Join-Path $source 'bin\native-ext-go-basic.exe') -PathType Leaf)) { throw 'target executable is missing' }
-if (Test-Path $target) { throw "target already exists: $target" }
-New-Item -ItemType Directory -Force -Path $installRoot | Out-Null
-Copy-Item -Recurse -LiteralPath $source -Destination $target
-```
-
-保存 `/absolute/path/hello.js`：
+将下面业务脚本保存为 `<program-directory>/quickstart.js`：
 
 ```js
 function main() {
@@ -101,20 +56,61 @@ function main() {
 main();
 ```
 
-从任意工作目录运行；下例明确使用与仓库无关的目录：
+文档声明的工作目录是 `<program-directory>`（其中有 `opendesk` 和 `native-extensions/`）。
+从该目录原样执行这条公开命令：
 
 ```bash
-cd /private/tmp
-opendesk \
-  -experimental-native-extension \
-  -script /absolute/path/hello.js \
-  -console-mode script
+cd /absolute/path/to/program-directory && ./opendesk -script ./quickstart.js -console-mode script
 ```
 
 示例扩展的预期业务结果是：
 
 ```json
 {"hello":{"message":"Hello OpenDesk"},"sum":{"value":42}}
+```
+
+### macOS Vision OCR：可复现图片输入
+
+`macos-vision` 是 **macOS-only** 示例；它必须与 `go-basic` 一样编译为 source-free
+bundle 并放到相同程序相对 root。OCR 图片是调用者业务输入，**不**属于 extension bundle，
+也不会被 Native Extension persistent Evidence 保存。本仓库提供了 project-created、无用户数据的
+fixture [`opendesk-ocr-123.png`](../../tests/extensions/native-process/fixtures/ocr/opendesk-ocr-123.png)，
+其预期文字是 `OPENDESK OCR 123\n你好 456`。业务脚本是
+[`ocr-quickstart.js`](../../examples/native-extensions/ocr-quickstart.js)。
+
+从 OpenDesk 仓库根目录执行下面安装命令；`PROGRAM_DIR` 是已有 `opendesk` 的目录。此命令会将
+fixture 与业务脚本保存到程序目录，而不是 plugin bundle：
+
+```bash
+ROOT="$(pwd -P)"
+PROGRAM_DIR="/absolute/path/to/program-directory"
+PLUGIN_SRC="$ROOT/examples/native-extensions/macos-vision"
+BUNDLE="$PROGRAM_DIR/native-extensions/com.example.macos-vision"
+test -x "$PROGRAM_DIR/opendesk"
+test ! -e "$BUNDLE"
+ARCH="$(uname -m)"
+SDK_PATH="$(xcrun --sdk macosx --show-sdk-path)"
+install -d -m 700 "$BUNDLE/bin" "$BUNDLE/types"
+xcrun swiftc -O -target "${ARCH}-apple-macosx12.0" -sdk "$SDK_PATH" \
+  "$PLUGIN_SRC/main.swift" -framework Vision -framework ImageIO \
+  -o "$BUNDLE/bin/native-ext-macos-vision"
+cp "$PLUGIN_SRC/extension.json" "$BUNDLE/extension.json"
+cp "$PLUGIN_SRC/types/index.d.ts" "$BUNDLE/types/index.d.ts"
+chmod -R go-w "$BUNDLE"
+cp "$ROOT/tests/extensions/native-process/fixtures/ocr/opendesk-ocr-123.png" "$PROGRAM_DIR/ocr-test.png"
+cp "$ROOT/examples/native-extensions/ocr-quickstart.js" "$PROGRAM_DIR/ocr-quickstart.js"
+```
+
+声明的 OCR 工作目录仍是 `<program-directory>`。从其中原样执行：
+
+```bash
+cd /absolute/path/to/program-directory && ./opendesk -script ./ocr-quickstart.js -console-mode script
+```
+
+预期 console 输出为：
+
+```json
+{"text":"OPENDESK OCR 123\n你好 456"}
 ```
 
 若 namespace 不存在，先运行一个只读诊断脚本：
@@ -134,13 +130,11 @@ main();
 `root_unavailable`、`invalid_manifest`、`unsafe_bundle`、`digest_mismatch`、
 `duplicate_plugin_id` 和 `duplicate_namespace`。
 
-将上面的诊断脚本保存后，也使用同一条 `opendesk
--experimental-native-extension -script /absolute/path/diagnostics.js
--console-mode script` 命令运行。`root_unavailable` 表示该 root 尚不存在；
-`user_root_unavailable` 表示 current-user base 缺失或不是绝对路径；`invalid_manifest`
-表示 manifest 不符合严格契约；`unsafe_bundle` 表示目录类型、owner/mode 或安全检查失败；
-`digest_mismatch` 表示 executable 与 manifest 摘要不同；两个 `duplicate_*` 表示所有冲突
-bundle 均已 quarantine，必须移除冲突后启动新的 execution。
+将上面的诊断脚本保存为 `<program-directory>/diagnostics.js` 后，从相同工作目录执行
+`./opendesk -script ./diagnostics.js -console-mode script`。`root_unavailable` 表示程序
+相对目录还不存在；`invalid_manifest` 表示 manifest 不符合严格契约；`unsafe_bundle` 表示目录
+类型、owner/mode 或 ACL 安全检查失败；`digest_mismatch` 表示 executable 与 manifest 摘要不同；
+两个 `duplicate_*` 表示所有冲突 bundle 均已 quarantine，必须移除冲突后启动新的 execution。
 
 ## NativeExtensions：日常 JavaScript API
 
@@ -182,18 +176,7 @@ executable、wire method、protocol、version 和默认 timeout 固定在 closur
 
 ## NativeExtensions：启用和启动语义
 
-Registry 默认关闭。只有受信任的本机 CLI JavaScript execution 显式启用：
-
-```bash
-opendesk \
-  -experimental-native-extension \
-  -script /absolute/path/to/script.js \
-  -console-mode script
-```
-
-未传 flag 时，`NativeExtensions` 和低层 `NativeExtension` 都不存在，也不扫描 discovery roots。
-
-传入 registry flag 后，初始化只执行：
+本机 CLI JavaScript execution 默认提供 `NativeExtensions`。初始化只执行：
 
 ```text
 枚举受控 roots
@@ -204,44 +187,26 @@ opendesk \
 
 Discovery、`list()`、`get()` 和 `diagnostics()` 不启动 native process，也不执行 bundle 中的任何第三方 JavaScript。只有第一次调用生成的方法时才启动一个 one-shot process；以后每次调用仍启动一个新的 one-shot process。
 
-HTTP 的 `/SCRIPT_RUN`、`/executions` 和 MCP tool list/call 均不能用请求字段启用 registry 或低层 process execution。
+HTTP 的 `/SCRIPT_RUN`、`/executions`、MCP tool list/call 和其他远程执行通道均不注入
+`NativeExtensions`，也不能用请求字段开启、重定向或调用 Native Extension。低层
+`NativeExtension.call` 仍只属于单独的本机 unsafe diagnostic gate，绝不是日常 JavaScript API。
 
 ## NativeExtensions：Discovery roots 和优先顺序
 
-三类术语必须分开：publisher root 由 OpenDesk/portable package 发布者组装；canonical
-current-user root 是普通使用者唯一推荐的第三方 bundle 安装位置；machine-wide root 是只有
-管理员权限门禁完备后才可发现的候选。本版本默认只使用前两类，顺序固定：
+默认只有一个 root：portable CLI 的 `<opendesk executable dir>/native-extensions/`，或
+macOS app 的 `OpenDesk.app/Contents/Resources/NativeExtensions/`。程序路径必须是绝对路径；
+无法安全确定时 discovery fail closed。machine-wide、current-user、cwd、`PATH`、源码祖先、
+脚本路径、`polyfills/` 和 `jslibs/` 都不在默认链中，也不会自动迁移、复制、合并或删除。
 
-1. 与发行形态对应的只读/portable root；
-2. current-user OS-standard root。
-
-| Root kind | 公式 | 组装者 |
-| --- | --- | --- |
-| publisher / portable | `<opendesk executable dir>/native-extensions/` | portable package publisher |
-| publisher / app-bundled | `OpenDesk.app/Contents/Resources/NativeExtensions/` | app publisher，必须在 codesign 前 |
-| canonical current-user / macOS | `$HOME/Library/Application Support/OpenDesk/NativeExtensions/` | 普通使用者 |
-| canonical current-user / Linux | `${XDG_DATA_HOME:-$HOME/.local/share}/OpenDesk/NativeExtensions/` | 普通使用者；相对 XDG 值拒绝 |
-| canonical current-user / Windows | LocalAppData Known Folder 下 `OpenDesk\NativeExtensions\` | 普通使用者；不是 roaming AppData |
-
-**Machine-wide root：Not Implemented。** 候选仅记录为 macOS
-`/Library/Application Support/OpenDesk/NativeExtensions/`、Linux installer/distro 的
-`${libexecdir}/opendesk/native-extensions/`（source-install 候选
-`/usr/local/libexec/opendesk/native-extensions/`）、Windows LocalAppData 之外的
-`%ProgramFiles%\OpenDesk\NativeExtensions\` Known Folder。本版本不独立扫描它们：Unix
-尚无完整 admin-only root policy；Windows 尚无 owner/DACL、ACL inheritance 与
-reparse-point/junction trust gate。机器级插件继续由 publisher 放进 deployment package。
-
-V1 不扫描 cwd、源码祖先、`PATH` 或 `polyfills/jslibs`。优先顺序只决定确定性枚举顺序，不允许覆盖：跨 root 的重复 plugin id 或重复 namespace 会把所有冲突项 quarantine；其他唯一且健康的插件仍可用。
+该 root 中的重复 plugin id 或重复 namespace 会把所有冲突项 quarantine；其他唯一且健康的
+plugin 仍可用。
 
 ### NativeExtensions：Experimental prototype 目录迁移
 
-当前已维护 release tag `v0.2.2` 早于 Native Extension V1；首次提交的 discovery 仍是
-Experimental，且已采用本页的 canonical data roots。因此没有已发布的旧 config/roaming
-兼容承诺。旧 prototype 目录不扫描，也不会被自动复制、移动、合并或删除。
-若曾使用外部分发的 Experimental build，先停止所有 execution，核验 publisher 与 bundle，
-把一个完整 bundle 安装到 canonical root，再以 `list()`/`diagnostics()` 验证；不得 merge-copy
-到已有目标。若支持渠道发现不能人工确认的真实旧用户数据，应停止批量迁移并建立独立
-migration Goal，设计有期限的 legacy root kind、冲突 quarantine、deprecation 和移除版本。
+当前已维护 release tag `v0.2.2` 早于 Native Extension V1。旧 prototype 目录不扫描，也不
+会被自动复制、移动、合并或删除。若曾使用外部分发的 Experimental build，先停止所有
+execution，核验 bundle 后把一个完整 bundle 放到当前程序相对 root，再用
+`list()`/`diagnostics()` 验证。
 
 ## NativeExtensions：Bundle layout
 
@@ -360,7 +325,8 @@ try {
 
 ## NativeExtensions：谁负责编译
 
-普通使用者**不需要**编译扩展，也不需要 OpenDesk 源码。采用主流的预编译发行模型：
+第一条支持路径中的插件作者使用自己语言的工具链编译扩展；不需要重新编译 OpenDesk。已有
+source-free bundle 的使用者也可以直接将其放进同一个程序相对目录。
 
 | 角色 | 职责 |
 | --- | --- |
@@ -465,9 +431,7 @@ cp examples/native-extensions/go-basic/extension.json \
 cp -R polyfills jslibs "$PACKAGE/"
 cp examples/native-extensions/quickstart.js "$PACKAGE/quickstart.js"
 
-cd /private/tmp
-"$PACKAGE/opendesk" -experimental-native-extension \
-  -script "$PACKAGE/quickstart.js" -console-mode script
+cd "$PACKAGE" && ./opendesk -script ./quickstart.js -console-mode script
 ```
 
 macOS `.app` 必须在 codesign 之前把完整 bundle 放入 Resources。项目 build 脚本提供明确 staging hook，并在 staging 后签名：
@@ -484,10 +448,10 @@ codesign --verify --deep --strict "$DIST/OpenDesk.app"
 
 `NATIVE_EXTENSIONS_SOURCE` 必须是绝对、非 symlink 的目录，且 direct children 只能是包含 `extension.json` 的 bundle。签名后的 `.app` 不应再修改 Resources。V1 自身不实现独立插件签名或 notarization 信任判断。
 
-current-user bundle 的安装/升级应在 Runtime execution 之间完成；V1 没有 hot reload。
-先停止活动 execution，再替换完整 bundle，并启动新的 execution。不要只覆盖 executable，
-也不要由最终用户修改已经签名的 `.app/Contents/Resources`；App 内 staging 是应用发布者
-在 codesign 前完成的工作。
+程序相对 bundle 的安装/升级应在 Runtime execution 之间完成；V1 没有 hot reload。先停止
+活动 execution，再替换完整 bundle，并启动新的 execution。不要只覆盖 executable，也不要在
+codesign 后修改 `.app/Contents/Resources`；App 内 staging 是应用发布者在 codesign 前完成的
+工作。
 
 ## NativeExtensions：可选 `.d.ts`
 
@@ -515,7 +479,7 @@ NativeExtensions.goBasic.hello({ name: "OpenDesk" });
 低层 JavaScript `NativeExtension.call({ executable/extension, method, ... })` 也保留，但 registry flag 不会暴露它。只有明确的本机 unsafe 诊断 gate 才注入：
 
 ```bash
-opendesk \
+./opendesk \
   -experimental-unsafe-native-extension-call \
   -script /absolute/path/to/v0-diagnostic.js
 ```
@@ -530,6 +494,6 @@ opendesk \
 ./scripts/test_native_extension_plugins.sh
 ```
 
-最后一个命令会从当前源码构建 Host/Go/Swift，创建 `/private/tmp/opendesk-native-plugin-proof-<runId>/`，从另一个空 cwd 验证 portable、current-user 和 `.app` roots、zero-child discovery、不可变 descriptors、`hello/add`、`.app` 内 manifest-bound 调用、真实 Apple Vision OCR、one-shot child count、失败产物全量隐私扫描、resource provenance、命令 transcript 和构建输入前后 hash 不变。
+最后一个命令会从当前源码构建 Host/Go/Swift，创建 `/private/tmp/opendesk-native-plugin-proof-<runId>/`，从文档声明的程序目录执行正式 one-line quickstart，验证 portable 和 `.app` roots、zero-child discovery、不可变 descriptors、`hello/add`、`.app` 内 manifest-bound 调用、真实 Apple Vision OCR、one-shot child count、失败产物全量隐私扫描、resource provenance、命令 transcript 和构建输入前后 hash 不变。Linux/Windows 只做 matching-source cross-compile/package，并明确记录为 Not Evaluated target Runtime。
 
 V1 不包含 hot reload、persistent process、startup activation、daemon lifecycle、Marketplace、下载/更新、依赖解析、权限 broker、通用 module loader、Stable ABI 或 Stable SDK。

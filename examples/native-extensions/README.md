@@ -1,14 +1,21 @@
 # Native Extension Plugin V1.0.1 examples
 
-Status: **Experimental**. Normal users install a publisher-built bundle; they do
-not compile OpenDesk or the extension. V1.0.1 is not a Stable SDK, publisher
-authentication system, or sandbox.
+Status: **Experimental**. The first supported user path is a plugin author on
+their own macOS machine: compile an executable, place a source-free bundle
+beside OpenDesk, then run normal local CLI JavaScript. V1.0.1 is not a Stable
+SDK, publisher authentication system, or sandbox.
 
-## Five-minute consumer quickstart
+Public publisher asset status: **Not Published / Not Verified**. These
+repository files are maintainable source and documentation, not a public
+download. A five-minute consumer must already have a matching precompiled
+archive from a trusted publisher. Archives under `.runtime/` are local
+acceptance handoff evidence only, never a public Release Asset.
 
-Prerequisites: an installed `opendesk` CLI and a precompiled
-`com.example.go-basic` archive that exactly matches the current OS and CPU. After
-verifying the publisher's checksum/signature, unpack it. The complete bundle is:
+## Local plugin-author quickstart
+
+Prerequisites: an installed local `opendesk` CLI and a complete compiled
+`com.example.go-basic` bundle. The author compiles the executable; OpenDesk only
+strictly validates the finished manifest and executable. The complete bundle is:
 
 ```text
 com.example.go-basic/
@@ -18,64 +25,39 @@ com.example.go-basic/
 ```
 
 The directory name must equal the manifest `id`. Install the whole directory in
-the single recommended current-user root:
+the program-relative root of the executable that will run it:
 
-| Platform | Canonical current-user root |
+| Distribution form | Program-relative root |
 | --- | --- |
-| macOS | `$HOME/Library/Application Support/OpenDesk/NativeExtensions/` |
-| Linux | `${XDG_DATA_HOME:-$HOME/.local/share}/OpenDesk/NativeExtensions/` |
-| Windows | `%LOCALAPPDATA%\OpenDesk\NativeExtensions\` via the LocalAppData Known Folder |
+| CLI / portable | `<program-directory>/native-extensions/` |
+| macOS `.app` | `OpenDesk.app/Contents/Resources/NativeExtensions/` |
 
-macOS first install (an absolute `HOME` is required):
-
-```bash
-SOURCE="/absolute/path/com.example.go-basic"
-case "$HOME" in /*) ;; *) echo "HOME must be absolute" >&2; exit 1;; esac
-INSTALL_ROOT="$HOME/Library/Application Support/OpenDesk/NativeExtensions"
-TARGET="$INSTALL_ROOT/com.example.go-basic"
-test -f "$SOURCE/extension.json"
-test -x "$SOURCE/bin/native-ext-go-basic"
-test ! -e "$TARGET"
-install -d -m 700 "$INSTALL_ROOT"
-cp -R "$SOURCE" "$TARGET"
-chmod -R go-w "$TARGET"
-```
-
-Linux first install. A non-empty relative `XDG_DATA_HOME` is an error; it is
-never interpreted relative to the current working directory:
+Build/install a source-free macOS `go-basic` bundle. Run this from the OpenDesk
+repository root; `PROGRAM_DIR` must contain the local `opendesk` to run:
 
 ```bash
-SOURCE="/absolute/path/com.example.go-basic"
-case "${XDG_DATA_HOME-}" in
-  /*) DATA_HOME="$XDG_DATA_HOME" ;;
-  "") case "$HOME" in /*) DATA_HOME="$HOME/.local/share" ;; *) echo "HOME must be absolute" >&2; exit 1;; esac ;;
-  *) echo "XDG_DATA_HOME must be absolute when set" >&2; exit 1 ;;
-esac
-INSTALL_ROOT="$DATA_HOME/OpenDesk/NativeExtensions"
-TARGET="$INSTALL_ROOT/com.example.go-basic"
-test -f "$SOURCE/extension.json"
-test -x "$SOURCE/bin/native-ext-go-basic"
-test ! -e "$TARGET"
-install -d -m 700 "$INSTALL_ROOT"
-cp -R "$SOURCE" "$TARGET"
-chmod -R go-w "$TARGET"
+ROOT="$(pwd -P)"
+PLUGIN_SRC="$ROOT/examples/native-extensions/go-basic"
+PROGRAM_DIR="/absolute/path/to/program-directory"
+BUNDLE="$PROGRAM_DIR/native-extensions/com.example.go-basic"
+test -x "$PROGRAM_DIR/opendesk"
+test ! -e "$BUNDLE"
+install -d -m 700 "$BUNDLE/bin" "$BUNDLE/types"
+go -C "$PLUGIN_SRC" build -trimpath -buildvcs=false -o "$BUNDLE/bin/native-ext-go-basic" .
+cp "$PLUGIN_SRC/extension.json" "$BUNDLE/extension.json"
+cp "$PLUGIN_SRC/types/index.d.ts" "$BUNDLE/types/index.d.ts"
+chmod -R go-w "$BUNDLE"
+test -x "$BUNDLE/bin/native-ext-go-basic"
 ```
 
-Windows PowerShell first install uses the LocalAppData Known Folder, not roaming
-`APPDATA`:
+`go-basic` is a Darwin/Linux/Windows implementation candidate. `macos-vision`
+uses Apple Vision and is macOS-only. This repository's runtime/security evidence
+is macOS-only. Linux and Windows are **Not Evaluated** for target-machine Runtime
+and have only matching-source cross-compile/package checks; they are not
+Unsupported.
 
-```powershell
-$source = 'C:\absolute\path\com.example.go-basic'
-$dataHome = [Environment]::GetFolderPath('LocalApplicationData')
-if (-not [IO.Path]::IsPathFullyQualified($dataHome)) { throw 'LocalAppData must be absolute' }
-$installRoot = Join-Path $dataHome 'OpenDesk\NativeExtensions'
-$target = Join-Path $installRoot 'com.example.go-basic'
-if (Test-Path $target) { throw "target already exists: $target" }
-New-Item -ItemType Directory -Force -Path $installRoot | Out-Null
-Copy-Item -Recurse -LiteralPath $source -Destination $target
-```
-
-Save this complete file as `/absolute/path/hello.js`:
+Save the complete [`quickstart.js`](quickstart.js) business script as
+`<program-directory>/quickstart.js`:
 
 ```js
 function main() {
@@ -87,13 +69,12 @@ function main() {
 main();
 ```
 
-Run it from any working directory. The flag is required because the registry is
-Experimental and disabled by default:
+The declared working directory for this public example is
+`<program-directory>`. From it, run the exact one-line command below. Local CLI
+JavaScript provides `NativeExtensions` by default; no experimental flag is used:
 
 ```bash
-opendesk -experimental-native-extension \
-  -script /absolute/path/hello.js \
-  -console-mode script
+cd /absolute/path/to/program-directory && ./opendesk -script ./quickstart.js -console-mode script
 ```
 
 Expected business output:
@@ -102,7 +83,53 @@ Expected business output:
 {"hello":{"message":"Hello OpenDesk"},"sum":{"value":42}}
 ```
 
-If the namespace is missing, save `/absolute/path/native-extension-diagnostics.js`:
+### Reproducible macOS Vision OCR input
+
+`macos-vision` is a **macOS-only** example. It is compiled and installed as a
+second source-free bundle in the same program-relative root. Its PNG input is
+caller-owned business data, so it is saved beside the user script rather than
+inside either extension bundle or Native Extension persistent Evidence. The
+repository supplies a project-created, synthetic fixture with no user data:
+[`opendesk-ocr-123.png`](../../tests/extensions/native-process/fixtures/ocr/opendesk-ocr-123.png).
+It is expected to read as `OPENDESK OCR 123\n你好 456`.
+
+Run this setup from the OpenDesk repository root. `PROGRAM_DIR` must contain
+the `opendesk` executable used for the call:
+
+```bash
+ROOT="$(pwd -P)"
+PROGRAM_DIR="/absolute/path/to/program-directory"
+PLUGIN_SRC="$ROOT/examples/native-extensions/macos-vision"
+BUNDLE="$PROGRAM_DIR/native-extensions/com.example.macos-vision"
+test -x "$PROGRAM_DIR/opendesk"
+test ! -e "$BUNDLE"
+ARCH="$(uname -m)"
+SDK_PATH="$(xcrun --sdk macosx --show-sdk-path)"
+install -d -m 700 "$BUNDLE/bin" "$BUNDLE/types"
+xcrun swiftc -O -target "${ARCH}-apple-macosx12.0" -sdk "$SDK_PATH" \
+  "$PLUGIN_SRC/main.swift" -framework Vision -framework ImageIO \
+  -o "$BUNDLE/bin/native-ext-macos-vision"
+cp "$PLUGIN_SRC/extension.json" "$BUNDLE/extension.json"
+cp "$PLUGIN_SRC/types/index.d.ts" "$BUNDLE/types/index.d.ts"
+chmod -R go-w "$BUNDLE"
+cp "$ROOT/tests/extensions/native-process/fixtures/ocr/opendesk-ocr-123.png" "$PROGRAM_DIR/ocr-test.png"
+cp "$ROOT/examples/native-extensions/ocr-quickstart.js" "$PROGRAM_DIR/ocr-quickstart.js"
+```
+
+The declared working directory remains `<program-directory>`. Run this exact
+public one-line command from it:
+
+```bash
+cd /absolute/path/to/program-directory && ./opendesk -script ./ocr-quickstart.js -console-mode script
+```
+
+Expected console output:
+
+```json
+{"text":"OPENDESK OCR 123\n你好 456"}
+```
+
+If the namespace is missing, save `<program-directory>/native-extension-diagnostics.js`:
 
 ```js
 function main() {
@@ -115,10 +142,10 @@ function main() {
 main();
 ```
 
-Run it with the same `-experimental-native-extension` command. `list()`,
-`get()` and `diagnostics()` are read-only and start zero children. Typical
-codes are `root_unavailable` (root absent), `user_root_unavailable` (canonical
-base invalid), `invalid_manifest`, `unsafe_bundle`, `digest_mismatch`,
+Run it with `cd /absolute/path/to/program-directory && ./opendesk -script
+./native-extension-diagnostics.js -console-mode script`. `list()`, `get()` and
+`diagnostics()` are read-only and start zero children. Typical codes are
+`root_unavailable` (program-relative root absent), `invalid_manifest`, `unsafe_bundle`, `digest_mismatch`,
 `duplicate_plugin_id`, and `duplicate_namespace`.
 
 Normal calls are
@@ -127,7 +154,8 @@ second `{ timeoutMs }` argument. `NativeExtensions.get(pluginId)` performs one
 canonical lookup. The Host binds plugin id, executable, wire method, protocol,
 version and default timeout; ordinary scripts never supply those routing fields.
 Discovery does not execute bundle JavaScript, and V1.1 custom facades remain a
-separate future Goal.
+separate future Goal. HTTP, MCP, and all other remote execution transports never
+inject, enable, redirect, or call Native Extensions.
 
 ## Example bundles and responsibilities
 
@@ -140,15 +168,34 @@ release toolchain; OpenDesk only validates the finished bundle and invokes its
 executable. Optional `.d.ts` files are editor-only and are never discovered or
 executed.
 
+| Repository file | Role | Install into `NativeExtensions/`? |
+| --- | --- | --- |
+| `go-basic/main.go` | Go author's Protocol V0 source | No |
+| `go-basic/go.mod` | Go author's module metadata | No |
+| `go-basic/extension.json` | Copied to the compiled bundle root | Yes |
+| `go-basic/types/index.d.ts` | Optional editor declarations | Optional: `types/index.d.ts` |
+| [`quickstart.js`](quickstart.js) | Consumer business script using `NativeExtensions.goBasic.*` | No; any user script directory |
+
+The compiled target result is a source-free
+`com.example.go-basic/extension.json + bin/native-ext-go-basic + optional
+types/index.d.ts` bundle. Do not install only the executable, and do not put
+`main.go`, `go.mod` or `quickstart.js` in the plugin root.
+
 ## Plugin author workflow
 
-Use the language's standard release tool in the plugin's own repository. A Go
-authoring workspace needs only the plugin sources and manifest, not OpenDesk Core:
+Use the language's standard release tool in the plugin's own repository. The
+defaults below build the maintained `go-basic` example from this OpenDesk
+checkout. This is an example-specific recipe: a third-party author must replace
+the bundle id, executable name, manifest contract and paths as well as
+`PLUGIN_SRC`, `STAGE`, and `SCHEMA`. The build consumes only plugin sources and
+the manifest, never OpenDesk Core packages:
 
 ```bash
-PLUGIN_SRC="/absolute/path/to/go-basic-plugin"
-STAGE="/absolute/path/to/plugin-output"
+ROOT="$(git rev-parse --show-toplevel)"
+PLUGIN_SRC="${PLUGIN_SRC:-$ROOT/examples/native-extensions/go-basic}"
+STAGE="${STAGE:-$ROOT/.runtime/build/native-extension-author}"
 GO_BUNDLE="$STAGE/com.example.go-basic"
+test ! -e "$GO_BUNDLE" || { echo "remove or archive the prior local output: $GO_BUNDLE" >&2; exit 1; }
 mkdir -p "$GO_BUNDLE/bin" "$GO_BUNDLE/types"
 go -C "$PLUGIN_SRC" build \
   -trimpath -buildvcs=false \
@@ -176,25 +223,35 @@ release command below; production multi-file plugins should normally use SwiftPM
 or Xcode:
 
 ```bash
-PLUGIN_SRC="/absolute/path/to/macos-vision-plugin"
-BUNDLE="/absolute/path/to/plugin-output/com.example.macos-vision"
+ROOT="$(git rev-parse --show-toplevel)"
+PLUGIN_SRC="${PLUGIN_SRC:-$ROOT/examples/native-extensions/macos-vision}"
+STAGE="${STAGE:-$ROOT/.runtime/build/native-extension-author}"
+BUNDLE="$STAGE/com.example.macos-vision"
+test ! -e "$BUNDLE" || { echo "remove or archive the prior local output: $BUNDLE" >&2; exit 1; }
 ARCH="$(uname -m)"
 SDK_PATH="$(xcrun --sdk macosx --show-sdk-path)"
-mkdir -p "$BUNDLE/bin"
+mkdir -p "$BUNDLE/bin" "$BUNDLE/types"
 xcrun swiftc -O -target "${ARCH}-apple-macosx12.0" -sdk "$SDK_PATH" \
   "$PLUGIN_SRC/main.swift" -framework Vision -framework ImageIO \
   -o "$BUNDLE/bin/native-ext-macos-vision"
+cp "$PLUGIN_SRC/extension.json" "$BUNDLE/extension.json"
+cp "$PLUGIN_SRC/types/index.d.ts" "$BUNDLE/types/index.d.ts"
+test -x "$BUNDLE/bin/native-ext-macos-vision"
 ```
 
 Test the wire executable before packaging:
 
 ```bash
-GO_BUNDLE="/absolute/path/to/plugin-output/com.example.go-basic"
+ROOT="$(git rev-parse --show-toplevel)"
+STAGE="${STAGE:-$ROOT/.runtime/build/native-extension-author}"
+GO_BUNDLE="$STAGE/com.example.go-basic"
+WIRE_DIR="$STAGE/wire-proof"
+mkdir -p "$WIRE_DIR"
 printf '%s\n' '{"protocol":"opendesk-native-extension","version":1,"id":"smoke-1","method":"hello","params":{"name":"OpenDesk"}}' \
   | "$GO_BUNDLE/bin/native-ext-go-basic" \
-  >"$GO_BUNDLE/wire.stdout" 2>"$GO_BUNDLE/wire.stderr"
-test "$(wc -l < "$GO_BUNDLE/wire.stdout" | tr -d ' ')" = 1
-python3 - "$GO_BUNDLE/wire.stdout" <<'PY'
+  >"$WIRE_DIR/wire.stdout" 2>"$WIRE_DIR/wire.stderr"
+test "$(wc -l < "$WIRE_DIR/wire.stdout" | tr -d ' ')" = 1
+python3 - "$WIRE_DIR/wire.stdout" <<'PY'
 import json, pathlib, sys
 response = json.loads(pathlib.Path(sys.argv[1]).read_text())
 assert response == {"protocol":"opendesk-native-extension","version":1,"id":"smoke-1","ok":True,"result":{"message":"Hello OpenDesk"}}, response
@@ -210,8 +267,10 @@ This example assumes `jsonschema==4.23.0` is installed in the CI Python
 environment:
 
 ```bash
-GO_BUNDLE="/absolute/path/to/plugin-output/com.example.go-basic"
-SCHEMA="/absolute/path/to/extension-manifest-v1.schema.json"
+ROOT="$(git rev-parse --show-toplevel)"
+STAGE="${STAGE:-$ROOT/.runtime/build/native-extension-author}"
+GO_BUNDLE="$STAGE/com.example.go-basic"
+SCHEMA="${SCHEMA:-$ROOT/schemas/native-extension/extension-manifest-v1.schema.json}"
 python3 - "$GO_BUNDLE/extension.json" "$GO_BUNDLE/bin/native-ext-go-basic" <<'PY'
 import hashlib, json, pathlib, sys
 manifest_path, executable_path = map(pathlib.Path, sys.argv[1:])
@@ -256,29 +315,43 @@ keep all runtime assets non-writable by other users, and sign/checksum the whole
 archive. An invoked extension inherits the OpenDesk user's environment, cwd,
 filesystem and network access; V1.0.1 is not a sandbox.
 
-For the current macOS example stage, create and verify archives with:
+For the current macOS `go-basic` stage, create the archive, write a checksum
+file, and verify it with:
 
 ```bash
-ROOT="$(pwd -P)"
+ROOT="$(git rev-parse --show-toplevel)"
 STAGE="$ROOT/.runtime/build/native-extension-author"
 DIST="$ROOT/.runtime/dist/native-extension-author"
 mkdir -p "$DIST"
-tar -czf "$DIST/com.example.go-basic_0.1.0_darwin-$(uname -m).tar.gz" \
+GO_ARCHIVE="com.example.go-basic_0.1.0_darwin-$(uname -m).tar.gz"
+tar -czf "$DIST/$GO_ARCHIVE" \
   -C "$STAGE" com.example.go-basic
-tar -czf "$DIST/com.example.macos-vision_0.1.0_darwin-$(uname -m).tar.gz" \
-  -C "$STAGE" com.example.macos-vision
-shasum -a 256 "$DIST"/*.tar.gz
+(cd "$DIST" && shasum -a 256 "$GO_ARCHIVE" > checksums.txt)
+(cd "$DIST" && shasum -a 256 -c checksums.txt)
 ```
 
-Install the verified archive as one complete bundle using the consumer command
-at the top of this page. Then start a new execution from an unrelated cwd with
-the same complete `hello.js`:
+If the complete Vision bundle was assembled by the preceding Swift recipe,
+package it separately and add it to the verified checksum file:
 
 ```bash
-cd /private/tmp
-opendesk -experimental-native-extension \
-  -script /absolute/path/hello.js \
-  -console-mode script
+ROOT="$(git rev-parse --show-toplevel)"
+STAGE="$ROOT/.runtime/build/native-extension-author"
+DIST="$ROOT/.runtime/dist/native-extension-author"
+VISION_ARCHIVE="com.example.macos-vision_0.1.0_darwin-$(uname -m).tar.gz"
+test -f "$STAGE/com.example.macos-vision/extension.json"
+test -x "$STAGE/com.example.macos-vision/bin/native-ext-macos-vision"
+tar -czf "$DIST/$VISION_ARCHIVE" \
+  -C "$STAGE" com.example.macos-vision
+(cd "$DIST" && shasum -a 256 "$VISION_ARCHIVE" >> checksums.txt)
+(cd "$DIST" && shasum -a 256 -c checksums.txt)
+```
+
+If an author chooses to archive the source-free bundle, unpack the whole bundle
+into `<program-directory>/native-extensions/`; never copy only its executable.
+Then start a new local CLI execution from the declared program directory:
+
+```bash
+cd /absolute/path/to/program-directory && ./opendesk -script ./quickstart.js -console-mode script
 ```
 
 The installed Host smoke must produce
@@ -286,10 +359,10 @@ The installed Host smoke must produce
 neither the direct wire test nor archive checksum verification.
 
 Use the target platform's normal archiver in release CI; Windows conventionally
-publishes a `.zip`. The formal proof also assembles source-free Linux amd64 and
+publishes a `.zip`. The formal proof assembles source-free Linux amd64 and
 Windows amd64 Go bundles, sets the Windows target manifest to the exact `.exe`
-path, and records archive/binary SHA-256 values. They remain compile/package
-evidence, not target-OS Runtime evidence.
+path, and records archive/binary SHA-256 values. These recipes and cross-build
+artifacts are compile/package evidence only, not target-OS Runtime evidence.
 
 ## Build the repository proof package
 
@@ -336,32 +409,28 @@ cp examples/native-extensions/quickstart.js "$PACKAGE/quickstart.js"
 `polyfills/` and `jslibs/` are copied next to `opendesk` as required core
 Runtime assets. They are not plugin facade code.
 
-Run this block from the repository root; the Runtime process itself switches to
-an unrelated empty cwd before loading the packaged script:
+The declared working directory for this package example is `$PACKAGE`; run the
+same public one-line form from it:
 
 ```bash
 ROOT="$(pwd -P)"
 PACKAGE="$ROOT/.runtime/build/native-plugin-example"
-cd /private/tmp
-"$PACKAGE/opendesk" \
-  -experimental-native-extension \
-  -script "$PACKAGE/quickstart.js" \
-  -console-mode script
+cd "$PACKAGE" && ./opendesk -script ./quickstart.js -console-mode script
 ```
 
-`quickstart.js` proves list/get, immutability, hello, add, and diagnostics. The
-formal proof harness separately runs real Apple Vision OCR against a maintained
-fixture so the copy-paste quickstart needs no hidden JavaScript global.
+`quickstart.js` proves the ordinary business-only `hello` and `add` call shape
+and their result. The formal `.js` Runtime suite separately verifies discovery,
+`list/get/diagnostics`, immutable bindings, option errors and privacy. The proof
+harness also runs real Apple Vision OCR against a maintained fixture so the
+copy-paste quickstart needs no hidden JavaScript global.
 
 ## Install and upgrade semantics
 
-Use only the canonical current-user formula and first-install commands at the
-top of this page. Install or replace a bundle only between Runtime executions;
-the registry is frozen and V1 has no hot reload. If a target already exists,
-stop active executions and perform an explicit staged replacement. Never
-merge-copy a new version over a live bundle, copy only the executable, or let a
-current-user duplicate override a publisher bundle: duplicate id/namespace
-candidates are all quarantined.
+Use only the program-relative root at the top of this page. Install or replace a
+bundle only between Runtime executions; the registry is frozen and V1 has no hot
+reload. If a target already exists, stop active executions and perform an
+explicit staged replacement. Never merge-copy a new version over a live bundle
+or copy only the executable. Duplicate id/namespace candidates are quarantined.
 
 ## `.app` staging before codesign
 
@@ -437,8 +506,8 @@ use it as the normal plugin interface; HTTP/MCP cannot enable it.
 ```
 
 The plugin proof builds current Host/Go/Swift sources, creates a source-free
-package under `/private/tmp`, starts it from another empty cwd, verifies
-portable/current-user/`.app` discovery, zero-child initialization and
+package under `/private/tmp`, runs the documented program-directory quickstart,
+and verifies portable/`.app` discovery, zero-child initialization and
 list/get/diagnostics, immutable descriptors, hello/add, real Apple Vision OCR,
 fresh one-shot children, resource provenance, and privacy-minimized Evidence.
 

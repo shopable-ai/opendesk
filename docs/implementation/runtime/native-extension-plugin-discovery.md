@@ -7,12 +7,11 @@ V1.0.1 path-policy sources.
 ## Architecture and ownership
 
 ```text
-trusted local CLI -experimental-native-extension
-  -> execution-scoped registry opt-in
+trusted local CLI JavaScript
+  -> default execution-scoped registry
   -> pkg/nativeextension deterministic discovery
-       1. one publisher/deployment root
-       2. one canonical current-user root
-       3. no independent machine-wide root
+       1. exactly one program-relative root
+       2. no user-home or machine-wide fallback
   -> strict manifest/path/permission/digest validation
   -> all-candidate id/namespace collision quarantine
   -> frozen Host-generated NativeExtensions closures
@@ -21,9 +20,9 @@ trusted local CLI -experimental-native-extension
 ```
 
 `pkg/nativeextension/discovery_roots.go` is the single pure target-OS path
-policy. Platform glue only obtains the OS-standard base. JavaScript, HTTP and MCP
-have no discovery-root parameter. `DiscoveryOptions.UserDataDir` is internal Go
-test/proof injection, not a product transport field.
+policy. JavaScript, HTTP and MCP have no discovery-root parameter.
+`DiscoveryOptions.UserDataDir` remains an internal historical test seam and is
+not consulted by product default discovery.
 
 The registry gate remains separate from the low-level unsafe V0 compatibility
 gate. HTTP and MCP cannot enable either registry discovery or arbitrary process
@@ -32,53 +31,34 @@ custom JavaScript facade work remains a separate V1.1 Goal.
 
 ## Root terminology and formulas
 
-Publisher/deployment root:
+The sole product default root is owned by the program distribution:
 
 - portable: `<opendesk executable dir>/native-extensions/`;
 - macOS app: `OpenDesk.app/Contents/Resources/NativeExtensions/`, staged by the
   publisher before codesign.
 
-Canonical current-user root:
-
-- macOS: `$HOME/Library/Application Support/OpenDesk/NativeExtensions/`;
-- Linux: `${XDG_DATA_HOME:-$HOME/.local/share}/OpenDesk/NativeExtensions/`;
-  a non-empty `XDG_DATA_HOME` must be absolute;
-- Windows: the LocalAppData Known Folder plus
-  `OpenDesk\NativeExtensions\` (`%LOCALAPPDATA%\OpenDesk\NativeExtensions\` as
-  the user-facing formula), never roaming AppData.
-
-Explicit executable/base inputs must be absolute. Hostile relative inputs never
-fall back to cwd. A missing canonical root is harmless and produces a
-privacy-minimized diagnostic after the publisher-root diagnostic. Root order is
-for deterministic enumeration only; duplicate id or case-fold namespace across
-roots quarantines every conflicting candidate and never establishes precedence.
+The executable path must be absolute. Hostile relative inputs never fall back to
+cwd. A missing root is harmless and produces a privacy-minimized diagnostic.
+User-home, machine-wide, cwd, PATH, source-ancestor, script-path, polyfills and
+jslibs locations are absent from the default chain. Duplicate id or case-fold
+namespace candidates inside the root quarantine every conflicting bundle.
 
 ## Machine-wide decision
 
-**Machine-wide root: Not Implemented.** Candidates are documented but not added
-to default discovery:
-
-- macOS `/Library/Application Support/OpenDesk/NativeExtensions/`;
-- Linux installer `${libexecdir}/opendesk/native-extensions/`, with
-  `/usr/local/libexec/opendesk/native-extensions/` only a source-install
-  candidate;
-- Windows `%ProgramFiles%\OpenDesk\NativeExtensions\` Known Folder.
-
-Unix does not yet have a complete root/admin-only policy for a separately
-managed system root. Windows lacks owner/DACL, ACL inheritance and reparse-point/
-junction trust gates. Machine-level plugins therefore continue to ship inside a
-publisher/deployment package. No `%ProgramData%` fallback exists.
+No independent machine-wide or current-user root is implemented. A publisher who
+ships an app bundle stages the bundle in Resources before codesign; a portable
+developer package stages it beside the executable. No `%ProgramData%`, `$HOME`,
+or OS-standard data-directory fallback exists.
 
 ## Experimental prototype migration
 
 The maintained release tag `v0.2.2` predates Native Extension V1. The first
-committed discovery change remains Experimental and already uses these
-canonical data roots, so there is no released config/roaming compatibility
-contract. Legacy prototype roots are not scanned and files are not automatically
+committed discovery change remains Experimental. Legacy prototype roots are not
+scanned and files are not automatically
 moved, copied, merge-copied, deleted or selected last-wins.
 
 An external Experimental user must stop executions, verify one complete bundle,
-install it into the canonical root and start a new execution. If support evidence
+place it into the program-relative root and start a new execution. If support evidence
 reveals unknown real legacy data that cannot be manually confirmed, rollout must
 stop and an independent migration Goal must define a legacy root kind, time
 limit, collision quarantine, deprecation diagnostic and removal version.
@@ -117,7 +97,7 @@ Residual Experimental risks remain explicit:
 
 - validation-to-exec TOCTOU is reduced but not eliminated without fd-based
   execution/platform equivalents;
-- Windows current-user discovery is not Unix-equivalent ACL trust validation;
+- Windows ACL/reparse validation remains a cross-platform implementation gap;
 - an extension inherits the OpenDesk user identity, environment, cwd, filesystem
   and network access; V1.0.1 is not a sandbox or permission broker;
 - only the manifest and selected executable are Runtime-hashed. Dynamic libraries
@@ -129,16 +109,16 @@ These limits are why independent machine-wide discovery is not implemented.
 
 ## Verification gates
 
-- path/discovery unit tests: all three canonical formulas, publisher portable/
-  app formulas, hostile relative values, cwd independence, missing roots,
+- path/discovery unit tests: portable/app formulas, hostile relative values,
+  cwd independence, missing roots,
   collisions, symlink/mode/ancestor and replacement failures;
 - remote boundary tests: JavaScript options, HTTP and MCP cannot inject root or
   transport route;
-- documentation acceptance: consumer flow first, code/document path equality,
-  migration and role separation;
+- documentation acceptance: plugin-author flow first, code/document path
+  equality, migration and role separation;
 - formal JavaScript Runtime API acceptance under `tests/runtime-api/`;
-- macOS source-free canonical install from an archive, unrelated-cwd packaged
-  Runtime, zero-child diagnostics, hello/add, real Apple Vision OCR, app-bundled
+- macOS source-free program-relative install, documented CLI quickstart,
+  zero-child diagnostics, hello/add, real Apple Vision OCR, app-bundled
   call, privacy scan and current-input freshness;
 - Linux/Windows cross-compile and source-free archives are compile/package
   evidence only, never target-machine Runtime evidence.

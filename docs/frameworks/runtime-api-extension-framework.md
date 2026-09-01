@@ -8,7 +8,7 @@
 
 > 用户、集成开发者、源码维护者和商业定制分别应该在哪一层扩展能力？什么时候只写 JavaScript，什么时候使用 HTTP / MCP，什么时候必须修改 Go Runtime？
 
-本文件是长期框架，不承担单个接口的用户教程。普通用户只想用 JavaScript 组合现有接口时，阅读 `../../docs/api/custom-api.md`。
+本文件是长期框架，不承担单个接口的用户教程。项目作者只想用 JavaScript 组合现有接口时，阅读 [Custom JavaScript API authoring](../implementation/runtime/custom-javascript-api.md)。
 
 ## 一、扩展能力四级模型
 
@@ -533,7 +533,7 @@ GitHub Discussions
 - `automation-framework.md`：自动化总体分层与执行闭环。
 - `capability-development.md`：能力从简单到复杂的成熟度路径。
 - `app-development-framework.md`：具体应用 Adapter / Skill / Workflow 的开发方式。
-- `../../docs/api/custom-api.md`：普通用户 JavaScript 自定义指南。
+- `../implementation/runtime/custom-javascript-api.md`：项目作者的 JavaScript 自定义指南。
 - `../architecture/`：长期系统结构和契约。
 - `../implementation/runtime/`：当前 Runtime 实现细节。
 - `../quality/`：测试、Gate 和 Evidence。

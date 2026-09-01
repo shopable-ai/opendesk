@@ -21,6 +21,7 @@
 - `golden-sample/legacy/`：仍可能复用、但已退出主流程的 mirror/DOM 辅助模板。
 - `wechat/`：微信领域推理与执行编排。
 - `mcp/`：MCP 集成的可复用提示模板。
+- `runtime/`：Runtime extension 等跨进程能力的实现、验证与 Evidence goal contract。
 
 日期型评审、阶段性策略和一次性交接材料不放在这里，统一进入
 `.archive/notes/`；执行时生成或改写的 prompt snapshot 进入 `.runtime/`。
@@ -51,9 +52,9 @@
 | replay_verifier | `replay/replay_result.json` / `replay/state_transition_log.json` |
 | failure_taxonomy_classifier | `failures/*.json` 或 `decision.json` 扩展字段 |
 | red_team_critic | 风险审查、红队回归 |
-
 | runtime/native-process-extension-prototype-goal | Native Process Extension V0 的代码、测试、源码隔离与 Runtime Evidence |
 | runtime/native-extension-plugin-autodiscovery-goal | 默认目录插件 bundle 自动发现、JS facade 注册与源码隔离 Evidence |
+
 ## 结论
 这些 prompt 文件的作用是：
 - 固化判断结构

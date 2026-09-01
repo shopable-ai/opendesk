@@ -894,7 +894,8 @@ def assert_current_user_root(
         "callCountEvidence": "Runtime EventSink native_extension_call records",
         "resultMatched": True,
         "documentedOCR": {
-            "status": "passed", "fixture": "ocr-test.png", "result": expected_ocr,
+            "status": "passed", "fixture": "ocr-test.png", "resultMatched": True,
+            "fixtureSha256": sha256(CONSUMER_DIR / "ocr-test.png"),
             "executableSha256": sha256(vision_executable),
         },
         "diagnosticsDurationMs": diagnostics_case["durationMs"],

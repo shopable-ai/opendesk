@@ -103,7 +103,7 @@ url-search-params.js
 这一事实已经同步到：
 
 ```text
-docs/api/custom-api.md
+docs/implementation/runtime/custom-javascript-api.md
 ```
 
 ### 后续低成本治理项
