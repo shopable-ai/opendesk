@@ -360,6 +360,8 @@ func runJavaScript(req Request, emitter *Emitter) error {
 				"uiHostProcesses":  resources.UIHostProcesses,
 				"shortcutBindings": resources.ShortcutBindings, "shortcutPending": resources.ShortcutPending,
 				"eventSubscriptions": resources.EventSubscriptions, "eventPending": resources.EventPending,
+				"captureWorkers": resources.CaptureWorkers, "capturePending": resources.CapturePending,
+				"captureSessions": resources.CaptureSessions,
 			})
 			if !resources.IsZero() && runtimeErr == nil {
 				runtimeErr = fmt.Errorf("runtime cleanup left resources: %s", resources.String())

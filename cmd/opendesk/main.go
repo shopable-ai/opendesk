@@ -26,6 +26,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"syscall"
@@ -35,7 +36,13 @@ import (
 )
 
 func init() {
-	if aicli.IsCommand(os.Args[1:]) || nativeExtensionCLIRequested(os.Args[1:]) || automation.MacOSNotificationHelperRequested(os.Args[1:]) {
+	if automation.MacOSRegionSelectorHelperRequested(os.Args[1:]) {
+		// Pin the primordial process thread before Go can schedule main
+		// elsewhere. AppKit must own that thread for the selector lifetime.
+		runtime.LockOSThread()
+		return
+	}
+	if aicli.IsCommand(os.Args[1:]) || nativeExtensionCLIRequested(os.Args[1:]) || automation.MacOSNotificationHelperRequested(os.Args[1:]) || automation.MacOSRegionSelectorHelperRequested(os.Args[1:]) {
 		return
 	}
 	if shouldEchoFrameworkStartup() {
@@ -159,6 +166,9 @@ func main() {
 	}
 	if automation.MacOSNotificationHelperRequested(os.Args[1:]) {
 		os.Exit(automation.RunMacOSNotificationHelper(os.Stdin, os.Stdout, os.Stderr))
+	}
+	if automation.MacOSRegionSelectorHelperRequested(os.Args[1:]) {
+		os.Exit(automation.RunMacOSRegionSelectorHelper(os.Stdin, os.Stdout, os.Stderr))
 	}
 	nativeMode := nativeExtensionCLIRequested(os.Args[1:])
 

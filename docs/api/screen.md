@@ -1,12 +1,14 @@
 ---
 title: Screen API
-description: 屏幕信息、显示器枚举、虚拟桌面边界与像素颜色读取。
+description: 屏幕信息、显示器枚举、像素读取、截图，以及实验性的 macOS 区域选择与录屏。
 order: 5
 ---
 
 # Screen
 
-Screen 用于读取显示器信息、虚拟桌面范围，以及按坐标取色。
+Screen 用于读取显示器信息、虚拟桌面范围，以及按坐标取色。现有显示器、像素和截图能力保持
+Stable；`selectRegion()`、`startRecording()` 是 macOS Experimental，不会替代现有截图 API、
+Recorder 或 Audio。
 
 运行时额外绑定
 - `Screen.screenshot = page.screenshot`
@@ -25,6 +27,9 @@ Screen 用于读取显示器信息、虚拟桌面范围，以及按坐标取色�
 | Screen.pixel(x, y) | 获取单个像素颜色 |
 | Screen.pixels(points, scaled) | 批量取色 |
 | Screen.screenshot(options) | 等同 page.screenshot |
+| Screen.selectRegion(options?) | 打开多显示器原生区域选择器（macOS Experimental） |
+| Screen.startRecording(options) | 录制显示器或区域到 `.mov`（macOS Experimental） |
+| Screen.getCaptureCapabilities() | 查询录屏、音频和帧流边界 |
 
 ## Screen.getWidth()
 
@@ -184,6 +189,114 @@ await Screen.screenshot({
   path: './.runtime/examples/screen.png'
 });
 ```
+
+## Screen.selectRegion(options?) — Experimental
+
+```js
+const region = await Screen.selectRegion({
+  dimOutside: true,
+  movable: true,
+  resizable: true,
+  minWidth: 24,
+  minHeight: 24,
+});
+```
+
+macOS 会打开真正的 AppKit 多显示器遮罩。拖动创建区域；已有区域可移动并通过 8 个手柄缩放；
+`Enter` 确认，`Esc` 取消。一次选择被限制在一个显示器内，避免把一个区域伪装成跨屏统一像素面。
+
+返回的是全局虚拟桌面的逻辑坐标和对应像素尺寸：
+
+```js
+{
+  x: 120,
+  y: 120,
+  width: 320,
+  height: 240,
+  displayId: '1104977161',
+  displayIndex: 1,
+  scaleFactor: 2,
+  pixelWidth: 640,
+  pixelHeight: 480
+}
+```
+
+`minWidth` / `minHeight` 必须是 `24..4096` 的整数。取消会以 `CANCELED` 拒绝 Promise；
+不会返回一个看似有效的空区域。
+
+## Screen.startRecording(options) — Experimental
+
+```js
+const recording = await Screen.startRecording({
+  target: {
+    type: 'region',
+    displayIndex: region.displayIndex,
+    displayId: region.displayId,
+    x: region.x,
+    y: region.y,
+    width: region.width,
+    height: region.height,
+  },
+  fps: 30,
+  output: '/absolute/path/to/capture.mov',
+  showCursor: true,
+});
+
+await sleep(1500);
+const result = await recording.stop();
+```
+
+当前 macOS backend 是对系统原生 video capture 命令的薄会话 adapter，输出 QuickTime/H.264；
+不把连续 PNG 截图拼成视频。当前契约：
+
+- `target.type` 支持 `display` 和 `region`，不宣称 window recording。
+- `fps` 只接受 `30`。
+- `output` 必须是干净的绝对 `.mov` 路径；父目录已存在且目标文件尚不存在。
+- `displayId` 可用于防止选择后显示器拓扑变化造成错录；不匹配时返回 `TARGET_UNAVAILABLE`。
+- `stop()` 可重复安全调用；成功结果含 `finalized: true`、时长、字节数和像素尺寸。
+- execution teardown 会停止并 finalize 尚未结束的录制，不留下后台录制进程。
+
+录制可能包含敏感屏幕内容。文件只写入调用者指定的本地路径；错误和 Runtime Evidence 不含捕获像素
+或系统 helper 输出。macOS 必须已有 Screen Recording 权限，可先使用
+`page.checkScreenshotPermissions()` 检查。
+
+## Screen.getCaptureCapabilities()
+
+```js
+const capabilities = Screen.getCaptureCapabilities();
+```
+
+该方法无 UI 和录制副作用。必须以返回值判断当前平台；不支持时不会 silent no-op。当前明确边界：
+
+- 录屏音频为 `false`。它不复制 `Audio`，也不把未实现的 microphone/system audio 说成可用。
+- `frameStream.supported` 为 `false`，状态为 `notImplemented`。低频帧流要等可复用的有界帧 backend，
+  不使用截图轮询冒充 streaming。
+- Windows/Linux 当前 selector/recording 为 unsupported；原有 Screen 信息、像素和截图契约不变。
+
+## 直接运行区域录屏示例
+
+工作目录必须是仓库根目录。先用当前源码构建根程序，然后运行公开示例：
+
+```bash
+go build -o ./opendesk ./cmd/opendesk
+./opendesk -script examples/screen-record-region.js -console-mode script
+```
+
+普通体验保持为一条启动命令：第二行启动后，用户只需在真实遮罩中拖动区域并按 `Enter`。示例录制
+约 1.5 秒，文件写入 `.runtime/tests/platform-primitives/task-006-screen-capture/`，终端仅打印媒体元数据。
+
+## 录屏错误代码
+
+| code | 含义 |
+| --- | --- |
+| `INVALID_ARGUMENT` | options、区域、fps 或路径不符合契约 |
+| `NOT_SUPPORTED` | 当前平台/backend 不支持 |
+| `PERMISSION_DENIED` | macOS 拒绝 Screen Recording 权限 |
+| `CANCELED` | 用户取消选择或 execution teardown 取消待处理操作 |
+| `TARGET_UNAVAILABLE` | 显示器不存在或 identity 已变化 |
+| `OUTPUT_FAILED` | 输出存在、父目录无效或媒体文件没有完成 |
+| `BACKEND_FAILED` | 原生 helper 或录制进程失败 |
+| `TIMEOUT` | 录制未在 teardown/stop 时限内 finalize |
 
 ## Screen：实战示例
 

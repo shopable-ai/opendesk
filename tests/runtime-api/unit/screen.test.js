@@ -1,5 +1,5 @@
 (() => {
-  const { assert, equal, test } = RuntimeAPITest;
+  const { assert, equal, expectThrow, test } = RuntimeAPITest;
   RuntimeAPITest.contractObject('Screen');
 
   test({
@@ -27,5 +27,25 @@
     assert(typeof color === 'string' && color.length > 0, JSON.stringify(color));
     assert(Array.isArray(colors) && colors.length === 2, JSON.stringify(colors));
     equal(colors[0], colors[1], 'same screen coordinate returned different colors');
+  });
+
+  test({
+    name: 'Screen capture reports explicit experimental boundaries and validates before native UI',
+    tier: 'unit',
+    covers: ['Screen.getCaptureCapabilities', 'Screen.selectRegion', 'Screen.startRecording'],
+  }, async () => {
+    const capabilities = Screen.getCaptureCapabilities();
+    equal(capabilities.schemaVersion, 1, 'capability schema version');
+    assert(typeof capabilities.backend === 'string' && capabilities.backend.length > 0, 'backend must be explicit');
+    equal(capabilities.audio.system, false, 'system audio must not be implied');
+    equal(capabilities.audio.microphone, false, 'microphone audio must not be implied');
+    equal(capabilities.audio.namespace, 'Audio', 'audio ownership');
+    equal(capabilities.frameStream.supported, false, 'frame stream must not be implied');
+    equal(capabilities.frameStream.status, 'notImplemented', 'frame stream status');
+    await expectThrow(() => Screen.selectRegion({ minWidth: 1 }), 'INVALID_ARGUMENT');
+    await expectThrow(() => Screen.startRecording({
+      target: { type: 'display', displayIndex: 1 },
+      output: 'relative.mov',
+    }), 'INVALID_ARGUMENT');
   });
 })();

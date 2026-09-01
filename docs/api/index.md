@@ -31,6 +31,7 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先找窗口，
 - 读写系统剪贴板：[Clipboard API](clipboard.md)
 - 订阅窗口、应用、剪贴板和显示器变化：[Desktop Events API](events.md)
 - 控制音量、mute 并发现音频设备：[Audio API](audio.md)
+- 交互选择区域并录制本地 QuickTime 文件：[Screen API](screen.md)（录屏为 macOS Experimental）
 - 做网络调用：[HTTP and Axios](http.md)
 - 发送系统通知：[notify](notify.md)
 - 显示需用户确认的异步原生窗口：[Dialog API](dialog.md)
@@ -56,7 +57,7 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先找窗口，
 | `Events` | JavaScript Runtime | Experimental | 外部桌面状态 watcher；当前明确使用 polling backend | [Desktop Events API](events.md) |
 | `Audio` | JavaScript Runtime | Experimental（macOS） | 默认输出音量、mute 与音频设备发现 | [Audio API](audio.md) |
 | `window` | JavaScript Runtime | Stable | 窗口读取与控制 | [Window API](window.md) |
-| `Screen` | JavaScript Runtime | Stable | 显示器、像素、截图别名 | [Screen API](screen.md) |
+| `Screen` | JavaScript Runtime | Stable；录屏为 Experimental（macOS） | 显示器、像素、截图别名、区域选择与录屏 | [Screen API](screen.md) |
 | `Vision` | JavaScript Runtime | Stable | OCR、UI 文本检测、provider 能力 | [Vision API](vision.md) |
 | `OCR` | JavaScript Runtime | Secondary | 本地 Tesseract 纯文本 OCR | [Vision API](vision.md) |
 | `ImageColor` | JavaScript Runtime | Secondary | 模板匹配、颜色、图像辅助分析 | [ImageColor API](image-color.md) |

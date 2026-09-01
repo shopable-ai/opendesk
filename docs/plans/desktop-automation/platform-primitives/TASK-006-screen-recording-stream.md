@@ -1,6 +1,6 @@
 # TASK-006 — Minimal Screen Recording / Region Selector / Frame Stream
 
-Status: TODO
+Status: DONE
 Priority: P1
 Depends on: none; audio capture must reuse TASK-004 if present
 Plan: `PLAN-screen-capture-region-selector.md`
@@ -261,3 +261,85 @@ playback/readback success
 - macOS 有真实 Evidence；
 - 不成熟部分明确标记 Experimental；
 - 公共 API 变化时同步 docs、types、`runtime-api.ai.json` 和必要 example。
+
+## Execution record — 2026-09-02
+
+Decision: EXTEND
+
+Base HEAD: `7e757fe748392ab6fc794f7e61a5a86e31632765`
+
+Final Commit: this task-closing commit
+
+### Audit
+
+- 现有 `Screen` / `page.screenshot` 已有显示器枚举、logical/pixel 坐标、clip 截图与权限入口；
+  Recorder 只录制 action/screenshot Evidence，没有视频 session。没有修改或复制这些能力。
+- FloatingWindow 和当前 Custom UI 没有稳定的多显示器全屏透明 overlay、pointer capture 与 8 向 resize
+  契约，因此 selector 使用独立的最薄 AppKit helper，而不是扩展 Drawing/Canvas 或第二套 UI runtime。
+- TASK-004 只有 CoreAudio volume/mute/device discovery，capture 明确 `notImplemented`；本任务没有创建第二套
+  Audio API。MCP、HTTP、Native Extensions、integrations 与 `third_party` 没有现成 recording backend。
+- 集成审计：Aperture 当前要求 macOS 13 / Xcode 15，`pmarais/screenrecorder` 当前要求 macOS 14，
+  QuickRecorder 为 AGPL-3.0；它们不能作为 macOS 12.7.6 / Xcode CLT 13.1 当前宿主的薄依赖。
+  系统 `/usr/sbin/screencapture` 已在本机提供 video/display/region/stop/finalize，因此录制采用该原生
+  能力的 session adapter；没有高频 PNG → ffmpeg，也没有复制第三方源码。
+
+### Implementation
+
+- 在既有 `Screen` 对象上新增 Experimental `selectRegion()`、`startRecording()`、
+  `getCaptureCapabilities()`；没有新增 Screen/Recorder/Audio 同义公共对象，也没有 MCP/HTTP surface。
+- `selectRegion()` 由当前 executable 的隐藏 AppKit helper 承载；main package 在 `init` 阶段锁定
+  primordial thread。每个显示器一个 borderless screen-saver-level window，支持 dim outside、创建、
+  移动、最小尺寸、8 向 handles、尺寸标签、Enter/Esc 与 logical/pixel/display identity 回传。
+- 实窗测试发现完全透明选区会被 WindowServer click-through；选区现绘制不可察觉的 `alpha=0.01`
+  hit surface，修复 move/resize 实际落到下层窗口的问题。
+- 录制 backend 支持 display/region、30 FPS、cursor option、QuickTime/H.264、显式 output、重复安全 stop、
+  header/file metadata 校验与 execution teardown finalize。公共返回值显式 lowerCamel 投影，避免 Go struct
+  字段名泄露到 JavaScript。
+- EventLoop worker 只传 Go data；Promise settle、session 注册/移除和 state 更新在 Goja loop。Runtime cleanup
+  新增 capture worker/pending/session 计数并要求全部归零。
+- 输入在触碰 native backend 前严格验证：显示器 identity、单屏 region、绝对 clean non-existing `.mov`、
+  已存在父目录、固定 FPS 与结构化错误。错误不包含像素或 helper 输出。
+
+### Tests
+
+- `go test ./automation ./cmd/opendesk ./pkg/execution -run 'ScreenCapture|RegionSelector|RuntimeResourceCounts' -count=1`
+  -> PASS；覆盖 options、lowerCamel JS projection、Promise stop、teardown、资源归零、稳定 error code、helper
+  路由与 bounded helper output。
+- `./scripts/test_runtime_apis.sh unit` -> PASS，387/387；证据：
+  `.runtime/tests/runtime-api/20260901T194433Z-97360/`。
+- 从仓库根目录按文档构建并原样执行：
+  `./opendesk -script examples/screen-record-region.js -console-mode script` -> PASS；在专用 Runtime API Test
+  Lab 上选择 600×420 区域，系统 metadata 读回 QuickTime/H.264、600×420、1.7167 秒、106,763 bytes。
+- 原生 selector：create、move、bottom-right resize 与 8 个 handles 逐一 drag -> PASS；最终 readback
+  `(90,90,380,300)`。安全 fixture 视觉截图确认遮罩、清晰选区、8 handles、尺寸标签、无裁切；Esc ->
+  `CANCELED`。
+- region recording、display 1920×1080 recording、显式 stop、execution teardown 自动 finalize、12.345 秒
+  bounded run、旧 `Screen.screenshot` 64×48 clip 回归 -> PASS。bounded run 的 helper RSS 六次采样为
+  21,328..21,508 KiB，没有观察到持续无界增长。
+- 单独运行 `./scripts/test_runtime_apis.sh coverage` 会按设计因同一 run-id 缺 contract/live/custom-ui 前序产物
+  报全目录 missing；不作为验收结果。正式 unit 自身通过。
+- `go test ./...` -> TASK-006 相关 package PASS；`pkg/visionrun` 保持此前同样 4 个无关失败：两个缺 real
+  validation input、一个缺 `capture_contract.json`、一个缺当前 preflight report。
+
+### Evidence
+
+- 汇总：`.runtime/tests/platform-primitives/task-006-screen-capture/evidence.json`。
+- 安全视觉 fixture：`.runtime/tests/platform-primitives/task-006-screen-capture/selector-safe-fixture.png`。
+- 媒体、截图、Runtime logs 与 metadata 全部位于 `.runtime/`，不进入版本控制；汇总不包含捕获像素、
+  操作者文本或 helper output。
+
+### API and documentation
+
+- 用户契约：`docs/api/screen.md`；API 地图：`docs/api/index.md`。
+- 类型与机器索引：`types/Screen.d.ts`、`docs/api/runtime-api.ai.json`。
+- 正式 conformance：`tests/runtime-api/manifest.js`、`tests/runtime-api/unit/screen.test.js`。
+- 可复制示例：`examples/screen-record-region.js`。
+
+### Remaining
+
+- `frameStream` 保持 `supported=false / notImplemented`：当前稳定 adapter 不提供可复用 frame buffer；
+  使用截图轮询会违反本任务 backend 共享、ownership/backpressure 与禁止高频 PNG pipeline 的约束。
+- audio、window target、pause/resume 均不宣称支持；音频未来只能组合 TASK-004 的正式 capture session。
+- macOS 当前完成真实 installed-host Runtime Evidence；Windows/Linux selector/recording 明确 unsupported，
+  不 silent no-op。多显示器窗口与负坐标/Retina conversion 已在实现和 deterministic tests 覆盖，但当前
+  单显示器宿主没有伪装成多屏/Retina live evidence。

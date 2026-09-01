@@ -154,9 +154,22 @@
     },
     {
       "name": "Screen",
-      "source": "native",
+      "source": "native + experimental AppKit/system video adapter",
       "status": "stable",
-      "doc": "screen.md"
+      "platforms": [
+        "darwin",
+        "windows",
+        "linux"
+      ],
+      "doc": "screen.md",
+      "keyMethods": [
+        "getDisplays",
+        "screenshot",
+        "selectRegion",
+        "startRecording",
+        "getCaptureCapabilities"
+      ],
+      "notes": "Display, pixel, and screenshot methods remain stable. selectRegion/startRecording are Experimental on macOS; audio and frame streaming are explicitly unavailable."
     },
     {
       "name": "Vision",

@@ -44,7 +44,11 @@ type InitJSOptions struct {
 	// ClipboardBackendFactory is an internal dependency seam for rich-format,
 	// size-limit, format-negotiation, and privacy tests.
 	ClipboardBackendFactory ClipboardBackendFactory
-	OnReady                 func(*RuntimeLifecycle)
+	// ScreenCaptureBackendFactory is an internal dependency seam for selector,
+	// recording lifecycle, and structured-error tests.
+	ScreenCaptureBackendFactory  ScreenCaptureBackendFactory
+	ScreenCaptureDisplayResolver func() []DisplayInfo
+	OnReady                      func(*RuntimeLifecycle)
 }
 
 // RuntimeLifecycle exposes only teardown-safe resources to the runtime owner.
@@ -56,6 +60,7 @@ type RuntimeLifecycle struct {
 	UI             *CustomUIRuntime
 	GlobalShortcut *GlobalShortcutRuntime
 	Events         *DesktopEventsRuntime
+	ScreenCapture  *ScreenCaptureRuntime
 }
 
 // Wait joins host workers after their execution context has been cancelled.
@@ -69,6 +74,9 @@ func (l *RuntimeLifecycle) Wait() {
 	}
 	if l != nil && l.Events != nil {
 		l.Events.Wait()
+	}
+	if l != nil && l.ScreenCapture != nil {
+		l.ScreenCapture.Wait()
 	}
 }
 
@@ -86,6 +94,9 @@ func (l *RuntimeLifecycle) CancelAsync() {
 	}
 	if l != nil && l.Events != nil {
 		l.Events.Close()
+	}
+	if l != nil && l.ScreenCapture != nil {
+		l.ScreenCapture.Close()
 	}
 }
 
@@ -114,6 +125,11 @@ func (l *RuntimeLifecycle) AsyncCounts() (timers int, workers int64, callbacks i
 		subscriptions, pending := l.Events.ResourceCounts()
 		callbacks += subscriptions + pending
 	}
+	if l.ScreenCapture != nil {
+		captureWorkers, capturePending, _ := l.ScreenCapture.ResourceCounts()
+		workers += captureWorkers
+		callbacks += capturePending
+	}
 	return timers, workers, callbacks
 }
 
@@ -132,6 +148,9 @@ type RuntimeResourceCounts struct {
 	ShortcutPending    int
 	EventSubscriptions int
 	EventPending       int
+	CaptureWorkers     int64
+	CapturePending     int
+	CaptureSessions    int
 }
 
 func (l *RuntimeLifecycle) ResourceCounts() RuntimeResourceCounts {
@@ -162,6 +181,9 @@ func (l *RuntimeLifecycle) ResourceCounts() RuntimeResourceCounts {
 	if l.Events != nil {
 		counts.EventSubscriptions, counts.EventPending = l.Events.ResourceCounts()
 	}
+	if l.ScreenCapture != nil {
+		counts.CaptureWorkers, counts.CapturePending, counts.CaptureSessions = l.ScreenCapture.ResourceCounts()
+	}
 	return counts
 }
 
@@ -170,14 +192,15 @@ func (c RuntimeResourceCounts) IsZero() bool {
 		c.UIWorkers == 0 && c.UIPending == 0 && c.UIQueued == 0 && c.UIWindows == 0 &&
 		c.UIListeners == 0 && c.UIDriverSinks == 0 && c.UIHostProcesses == 0 &&
 		c.ShortcutBindings == 0 && c.ShortcutPending == 0 &&
-		c.EventSubscriptions == 0 && c.EventPending == 0
+		c.EventSubscriptions == 0 && c.EventPending == 0 &&
+		c.CaptureWorkers == 0 && c.CapturePending == 0 && c.CaptureSessions == 0
 }
 
 func (c RuntimeResourceCounts) String() string {
-	return fmt.Sprintf("timers=%d httpWorkers=%d httpCallbacks=%d uiWorkers=%d uiPending=%d uiQueued=%d uiWindows=%d uiListeners=%d uiDriverSinks=%d uiHostProcesses=%d shortcutBindings=%d shortcutPending=%d eventSubscriptions=%d eventPending=%d",
+	return fmt.Sprintf("timers=%d httpWorkers=%d httpCallbacks=%d uiWorkers=%d uiPending=%d uiQueued=%d uiWindows=%d uiListeners=%d uiDriverSinks=%d uiHostProcesses=%d shortcutBindings=%d shortcutPending=%d eventSubscriptions=%d eventPending=%d captureWorkers=%d capturePending=%d captureSessions=%d",
 		c.Timers, c.HTTPWorkers, c.HTTPCallbacks, c.UIWorkers, c.UIPending, c.UIQueued,
 		c.UIWindows, c.UIListeners, c.UIDriverSinks, c.UIHostProcesses, c.ShortcutBindings, c.ShortcutPending,
-		c.EventSubscriptions, c.EventPending)
+		c.EventSubscriptions, c.EventPending, c.CaptureWorkers, c.CapturePending, c.CaptureSessions)
 }
 
 func emitRuntimeLog(sink EventSink, level, message string, fields map[string]any) {
@@ -731,12 +754,13 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 
 	screen := NewScreen()
 	screenMethods := AutoMapObject(runtime, screen)
+	screenCapture := registerScreenCapture(runtime, screenMethods, opts)
 	runtime.Set("Screen", screenMethods)
 	if _, err := runtime.RunString(`Screen.screenshot = page.screenshot;`); err != nil {
 		return fmt.Errorf("failed to bind Screen.screenshot: %v", err)
 	}
 	if opts.OnReady != nil {
-		opts.OnReady(&RuntimeLifecycle{Timers: timer, HTTP: httpClient, UI: uiRuntime, GlobalShortcut: globalShortcut, Events: events})
+		opts.OnReady(&RuntimeLifecycle{Timers: timer, HTTP: httpClient, UI: uiRuntime, GlobalShortcut: globalShortcut, Events: events, ScreenCapture: screenCapture})
 	}
 	return nil
 }
