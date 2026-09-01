@@ -214,7 +214,7 @@ negative() { runjs negative "$ROOT_DIR/tests/runtime-api/negative.js" 5 120; }
 
 notify_icon_live() {
   [[ "$(uname -s)" == Darwin ]] || { echo "macOS notify icon live test requires Darwin" >&2; return 1; }
-  local installed="${OPENDESK_BINARY:-/Users/mac/Applications/OpenDesk.app/Contents/MacOS/opendesk}"
+  local installed="${OPENDESK_BINARY:-/Applications/OpenDesk.app/Contents/MacOS/opendesk}"
   [[ -f "${installed}" && -x "${installed}" ]] || { echo "installed OpenDesk.app executable is missing or not executable: ${installed}" >&2; return 1; }
   [[ "${installed}" == */OpenDesk.app/Contents/MacOS/opendesk ]] || { echo "notify-icon-live requires the executable inside OpenDesk.app: ${installed}" >&2; return 1; }
   local installed_sha generated log_dir pidfile watchdog status=0
