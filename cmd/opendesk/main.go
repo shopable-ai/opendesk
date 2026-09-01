@@ -14,6 +14,7 @@ import (
 	"net"
 	"net/http"
 	"opendesk/automation"
+	"opendesk/internal/aicli"
 	pkgContainer "opendesk/pkg/container"
 	"opendesk/pkg/customui"
 	pkgExecution "opendesk/pkg/execution"
@@ -33,7 +34,7 @@ import (
 )
 
 func init() {
-	if nativeExtensionCLIRequested(os.Args[1:]) || automation.MacOSNotificationHelperRequested(os.Args[1:]) {
+	if aicli.IsCommand(os.Args[1:]) || nativeExtensionCLIRequested(os.Args[1:]) || automation.MacOSNotificationHelperRequested(os.Args[1:]) {
 		return
 	}
 	if shouldEchoFrameworkStartup() {
@@ -150,6 +151,9 @@ var isAutoRunJs bool = false
 
 func main() {
 	os.Stdout.Sync()
+	if aicli.IsCommand(os.Args[1:]) {
+		os.Exit(aicli.Execute(os.Args[1:], os.Stdout, os.Stderr))
+	}
 	if automation.MacOSNotificationHelperRequested(os.Args[1:]) {
 		os.Exit(automation.RunMacOSNotificationHelper(os.Stdin, os.Stdout, os.Stderr))
 	}

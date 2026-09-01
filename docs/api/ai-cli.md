@@ -7,19 +7,34 @@ order: 3
 # OpenDesk AI CLI
 
 `opendesk ai` 是 Stable Desktop Runtime 的薄 CLI 适配层，面向 Codex、Claude Code 和其他
-shell Coding Agent。它不会重做截图、窗口、输入或 Vision backend。
+shell Coding Agent。它不会重做截图、窗口、输入或 Vision backend；你的使用顺序通常是
+发现能力 → 找窗口 → 截取最小区域 → 执行动作 → 验证 → 保存 recipe。
 
-从仓库根目录开始：
+## 最快开始
 
-```bash
-go run ./cmd/opendesk ai schema
-```
-
-已构建根目录二进制时，等价命令是：
+安装 OpenDesk 后，让 Agent 先读取当前机器实际可用的能力：
 
 ```bash
-./opendesk ai schema
+./opendesk ai capabilities
+./opendesk ai windows
+./opendesk ai screenshot --active-window
 ```
+
+当目标已知时，优先使用窗口和 ROI，而不是整屏截图：
+
+```bash
+./opendesk ai screenshot --window-title "TextEdit" --region-relative 0.05,0.10,0.90,0.70
+```
+
+复杂且已验证的流程保存为 recipe，再传 JSON 输入重复执行：
+
+```bash
+./opendesk ai run recipe.js --input '{"text":"Hello"}'
+```
+
+`schema` 是全部命令和参数的机器可读索引；下一节说明所有命令共用的输出与错误 contract。
+
+## JSON output contract
 
 所有 AI CLI 命令的 stdout 都只输出一个 JSON envelope；诊断写到 stderr，执行证据写到
 `.runtime/ai/<executionId>/`。成功形态为 `{"ok":true,"command":"...","result":...}`；失败
@@ -33,9 +48,9 @@ go run ./cmd/opendesk ai schema
 ## Discover first
 
 ```bash
-go run ./cmd/opendesk ai capabilities
-go run ./cmd/opendesk ai schema
-go run ./cmd/opendesk ai windows --title TextEdit
+./opendesk ai capabilities
+./opendesk ai schema
+./opendesk ai windows --title TextEdit
 ```
 
 `capabilities` 会结合当前平台和 macOS Screen Recording / Accessibility preflight 报告
@@ -45,7 +60,7 @@ registry 生成，是 Agent 应优先读取的紧凑参数索引。
 ## Command tree
 
 ```text
-opendesk ai
+./opendesk ai
   capabilities | schema
   windows
   window active|find|focus|bounds|move|resize|maximize|minimize|restore|close|content
@@ -80,17 +95,17 @@ and compatibility Browser facades are also intentionally not exposed through thi
 ## Targeted screenshots and coordinates
 
 ```bash
-go run ./cmd/opendesk ai screenshot --active-window
+./opendesk ai screenshot --active-window
 
-go run ./cmd/opendesk ai screenshot --window-title "TextEdit"
+./opendesk ai screenshot --window-title "TextEdit"
 
-go run ./cmd/opendesk ai screenshot --screen --display 0
+./opendesk ai screenshot --screen --display 0
 
-go run ./cmd/opendesk ai screenshot --screen --region 100,100,600,400
+./opendesk ai screenshot --screen --region 100,100,600,400
 
-go run ./cmd/opendesk ai screenshot --window-title "TextEdit" --region 20,80,800,500
+./opendesk ai screenshot --window-title "TextEdit" --region 20,80,800,500
 
-go run ./cmd/opendesk ai screenshot --window-title "TextEdit" --region-relative 0.05,0.10,0.90,0.70
+./opendesk ai screenshot --window-title "TextEdit" --region-relative 0.05,0.10,0.90,0.70
 ```
 
 AI CLI display indices are zero-based. A `--region` with `--active-window` or `--window-title` is window-local;
@@ -107,14 +122,14 @@ Default screenshot output is a compact artifact descriptor such as:
 ## Deterministic actions
 
 ```bash
-go run ./cmd/opendesk ai mouse click --window-title "TextEdit" --x 300 --y 200
-go run ./cmd/opendesk ai mouse click --window-title "TextEdit" --relative-x 0.5 --relative-y 0.8
-go run ./cmd/opendesk ai keyboard type --window-title "TextEdit" --text "Hello"
-go run ./cmd/opendesk ai keyboard hotkey --window-title "TextEdit" --keys "CMD,L"
-go run ./cmd/opendesk ai scroll --window-title "TextEdit" --dy -500
-go run ./cmd/opendesk ai clipboard set --text "hello"
-go run ./cmd/opendesk ai app open --name TextEdit
-go run ./cmd/opendesk ai app open-url --name Safari --url https://example.com
+./opendesk ai mouse click --window-title "TextEdit" --x 300 --y 200
+./opendesk ai mouse click --window-title "TextEdit" --relative-x 0.5 --relative-y 0.8
+./opendesk ai keyboard type --window-title "TextEdit" --text "Hello"
+./opendesk ai keyboard hotkey --window-title "TextEdit" --keys "CMD,L"
+./opendesk ai scroll --window-title "TextEdit" --dy -500
+./opendesk ai clipboard set --text "hello"
+./opendesk ai app open --name TextEdit
+./opendesk ai app open-url --name Safari --url https://example.com
 ```
 
 With `--window-title`, mouse `--x/--y` are window-local and the window is focused before the action. Without it,
@@ -125,10 +140,10 @@ does not claim background-app scrolling.
 ## Vision and image assistance
 
 ```bash
-go run ./cmd/opendesk ai vision ocr --image .runtime/ai/shot.png --provider local --lang eng
-go run ./cmd/opendesk ai vision detect-ui --image .runtime/ai/shot.png --text "Send" --provider local
-go run ./cmd/opendesk ai image match --image .runtime/ai/shot.png --template templates/send.png --threshold 0.85
-go run ./cmd/opendesk ai image color --image .runtime/ai/shot.png --color '#ff0000'
+./opendesk ai vision ocr --image .runtime/ai/shot.png --provider local --lang eng
+./opendesk ai vision detect-ui --image .runtime/ai/shot.png --text "Send" --provider local
+./opendesk ai image match --image .runtime/ai/shot.png --template templates/send.png --threshold 0.85
+./opendesk ai image color --image .runtime/ai/shot.png --color '#ff0000'
 ```
 
 Use Vision only when window metadata and deterministic coordinates cannot solve the task. `detect-ui` returns
@@ -139,17 +154,19 @@ compact matched elements; it does not automatically click them.
 Complex workflows belong in JavaScript recipes, not in a growing list of CLI flags:
 
 ```bash
-go run ./cmd/opendesk ai run examples/ai-cli/write-to-focused-app.js \
-  --input '{"text":"Hello from a reusable recipe"}'
+./opendesk ai run examples/ai-cli/write-to-focused-app.js --input '{"text":"Hello from a reusable recipe"}'
 ```
 
 The three JSON inputs are mutually exclusive:
 
 ```bash
-go run ./cmd/opendesk ai run recipe.js --input '{"message":"hello"}'
-go run ./cmd/opendesk ai run recipe.js --input-file input.json
-cat input.json | go run ./cmd/opendesk ai run recipe.js --input-stdin
+./opendesk ai run recipe.js --input '{"message":"hello"}'
+./opendesk ai run recipe.js --input-file input.json
+cat input.json | ./opendesk ai run recipe.js --input-stdin
 ```
+
+`--timeout` 接受 Go duration，例如 `--timeout 30s` 或 `--timeout 2m`；省略时沿用标准的
+30 分钟 Execution timeout。
 
 Recipes receive the existing execution metadata plus:
 
