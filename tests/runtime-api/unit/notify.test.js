@@ -19,6 +19,10 @@
       await expectThrow(() => notify(null), 'notify expects a string or an options object');
       await expectThrow(() => notify([]), 'notify expects a string or an options object');
       await expectThrow(() => notify(42), 'notify expects a string or an options object');
+      await expectThrow(() => notify({ title: 42 }), 'notify title must be a string');
+      await expectThrow(() => notify({ message: false }), 'notify message must be a string');
+      await expectThrow(() => notify({ sound: 'yes' }), 'notify sound must be a boolean');
+      await expectThrow(() => notify({ timeout: Infinity }), 'notify timeout must be a finite number');
     });
     assert(notify____Inject === originalInject, 'notify bridge was not restored');
     assert(calls.length === 2, JSON.stringify(calls));

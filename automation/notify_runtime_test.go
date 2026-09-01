@@ -61,6 +61,29 @@ func TestNotifyRejectsNilOptions(t *testing.T) {
 	}
 }
 
+func TestNotifyRejectsUnsafeNotificationTextBeforeBackend(t *testing.T) {
+	called := false
+	withNotifyBackend(t, func(string, string, bool) error {
+		called = true
+		return nil
+	})
+
+	for name, options := range map[string]*NotifyOptions{
+		"NUL title":     {Title: "bad\x00title", Message: "body"},
+		"NUL message":   {Title: "OpenDesk", Message: "bad\x00body"},
+		"invalid UTF-8": {Title: string([]byte{0xff}), Message: "body"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if err := Notify(options); err == nil {
+				t.Fatal("Notify unexpectedly returned nil")
+			}
+		})
+	}
+	if called {
+		t.Fatal("backend was called for invalid notification text")
+	}
+}
+
 func TestNotifyWrapsBackendFailure(t *testing.T) {
 	want := errors.New("backend unavailable")
 	withNotifyBackend(t, func(string, string, bool) error {
@@ -81,6 +104,52 @@ func TestInitJSRegistersNotifyBridgeBeforePolyfills(t *testing.T) {
 	for _, name := range []string{"notify", "notify____Inject"} {
 		if value := runtime.Get(name); value == nil || goja.IsUndefined(value) {
 			t.Fatalf("runtime global %s is not registered", name)
+		}
+	}
+}
+
+func TestRuntimeNotifyBridgePreservesDocumentedFields(t *testing.T) {
+	var gotTitle, gotMessage string
+	var gotSound bool
+	withNotifyBackend(t, func(title, message string, sound bool) error {
+		gotTitle, gotMessage, gotSound = title, message, sound
+		return nil
+	})
+
+	runtime := goja.New()
+	if err := InitJS(runtime); err != nil {
+		t.Fatal(err)
+	}
+	value, err := runtime.RunString(`notify({
+		title: 'OpenDesk bridge title',
+		message: 'custom bridge body',
+		sound: true,
+		timeout: 1500,
+	})`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !goja.IsUndefined(value) {
+		t.Fatalf("notify result = %v, want undefined", value)
+	}
+	if gotTitle != "OpenDesk bridge title" || gotMessage != "custom bridge body" || !gotSound {
+		t.Fatalf("bridge lost fields: title=%q message=%q sound=%v", gotTitle, gotMessage, gotSound)
+	}
+}
+
+func TestRuntimeNotifyBridgeRejectsInvalidFieldTypesWhenCalledDirectly(t *testing.T) {
+	runtime := goja.New()
+	if err := InitJS(runtime); err != nil {
+		t.Fatal(err)
+	}
+	for _, source := range []string{
+		`notify____Inject({title: 42})`,
+		`notify____Inject({message: false})`,
+		`notify____Inject({sound: 'yes'})`,
+		`notify____Inject({timeout: Infinity})`,
+	} {
+		if _, err := runtime.RunString(source); err == nil {
+			t.Fatalf("%s unexpectedly passed", source)
 		}
 	}
 }

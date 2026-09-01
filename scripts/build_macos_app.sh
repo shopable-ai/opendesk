@@ -39,10 +39,6 @@ cp "${APP_ICON_SOURCE}" "${RESOURCES_DIR}/${APP_ICON_NAME}"
 rsync -a --delete "${ROOT_DIR}/polyfills/" "${MACOS_DIR}/polyfills/"
 rsync -a --delete "${ROOT_DIR}/jslibs/" "${MACOS_DIR}/jslibs/"
 
-cat > "${PLIST_PATH}" <<EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
 if [[ -n "${NATIVE_EXTENSIONS_SOURCE}" ]]; then
   if [[ "${NATIVE_EXTENSIONS_SOURCE}" != /* ]]; then
     printf 'NATIVE_EXTENSIONS_SOURCE must be an absolute path: %s\n' "${NATIVE_EXTENSIONS_SOURCE}" >&2
@@ -74,6 +70,10 @@ if [[ -n "${NATIVE_EXTENSIONS_SOURCE}" ]]; then
   printf 'Staged Native Extensions before codesign: %s\n' "${RESOURCES_DIR}/NativeExtensions"
 fi
 
+cat > "${PLIST_PATH}" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
 <dict>
   <key>CFBundleDevelopmentRegion</key>
   <string>en</string>
@@ -109,6 +109,7 @@ if [[ "${SKIP_CODESIGN:-0}" == "1" ]]; then
   echo "Skipping codesign because SKIP_CODESIGN=1"
 else
   codesign --force --deep --sign "${CODESIGN_IDENTITY}" "${APP_ROOT}" >/dev/null
+  codesign --verify --deep --strict "${APP_ROOT}"
 fi
 
 printf 'Built binary: %s\n' "${DIST_DIR}/opendesk"

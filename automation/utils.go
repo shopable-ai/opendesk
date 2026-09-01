@@ -668,7 +668,9 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 	// notify() is supplied by 000-systemBase.js. Register its native bridge
 	// before loading polyfills so every execution transport gets the documented
 	// global helper through the same Runtime initialization path.
-	if err := runtime.Set("notify____Inject", Notify); err != nil {
+	if err := runtime.Set("notify____Inject", func(call goja.FunctionCall) goja.Value {
+		return notifyBridge(runtime, call)
+	}); err != nil {
 		return fmt.Errorf("failed to register notify bridge: %w", err)
 	}
 

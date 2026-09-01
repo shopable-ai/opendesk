@@ -4,10 +4,10 @@ package automation
 
 /*
 #cgo CFLAGS: -fobjc-arc
-#cgo LDFLAGS: -framework Cocoa -framework CoreServices
+#cgo LDFLAGS: -framework Cocoa -framework CoreServices -framework UserNotifications
 #include <stdlib.h>
 
-int OpenDeskDarwinDeliverNotification(const char *title, const char *message, int sound);
+int OpenDeskDarwinDeliverNotification(const char *title, const char *message, int sound, char **error_message);
 */
 import "C"
 
@@ -18,10 +18,8 @@ import (
 )
 
 func notifyDarwinNative(title, message string, sound bool) error {
-	// AppKit notification registration is main-thread-affine. The call is
-	// synchronous; keeping this goroutine on its OS thread also avoids a Go
-	// scheduler migration while NSApplication/NSUserNotificationCenter is
-	// initialized.
+	// Keep the synchronous Objective-C/UserNotifications bridge on one OS
+	// thread for the lifetime of its autorelease pool and XPC callbacks.
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
@@ -30,14 +28,23 @@ func notifyDarwinNative(title, message string, sound bool) error {
 	cMessage := C.CString(message)
 	defer C.free(unsafe.Pointer(cMessage))
 
-	result := C.OpenDeskDarwinDeliverNotification(cTitle, cMessage, C.int(boolToInt(sound)))
+	var cError *C.char
+	result := C.OpenDeskDarwinDeliverNotification(cTitle, cMessage, C.int(boolToInt(sound)), &cError)
+	errorMessage := ""
+	if cError != nil {
+		errorMessage = C.GoString(cError)
+		C.free(unsafe.Pointer(cError))
+	}
 	switch int(result) {
 	case 0:
 		return nil
 	case 1:
 		return errDarwinNativeNotificationUnavailable
 	default:
-		return fmt.Errorf("native notification delivery returned status %d", int(result))
+		if errorMessage == "" {
+			errorMessage = fmt.Sprintf("native notification delivery returned status %d", int(result))
+		}
+		return fmt.Errorf("%s", errorMessage)
 	}
 }
 

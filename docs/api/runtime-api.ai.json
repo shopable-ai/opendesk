@@ -278,7 +278,10 @@
       },
       "timeout": "accepted for compatibility but ignored by current platform notification backends",
       "result": "undefined on backend submission success; throws on invalid input or backend failure",
-      "visibility": "success means the host accepted the request; OS notification permissions and Focus/Do Not Disturb may suppress display",
+      "validation": "options fields use their documented primitive types; timeout must be finite; title and message must be valid UTF-8 without NUL",
+      "macOSBackend": "native UserNotifications with OpenDesk.app identity; plain CLI and Scheduler re-enter the sibling OpenDesk.app notification-only helper and never use ScriptEditor2/osascript; missing app identity, denied alerts, timeout, helper stderr/exit, and request submission failures throw",
+      "sound": "sound=true requests the platform default sound; actual sound remains subject to macOS and user settings",
+      "visibility": "success means NotificationCenter accepted the request after authorization checks; Focus/Do Not Disturb, display sharing/mirroring, and other OS policy may still suppress user-visible presentation",
       "bridge": "notify____Inject"
     },
     {
