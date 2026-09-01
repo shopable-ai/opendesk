@@ -181,6 +181,70 @@ func imageToNRGBA(img image.Image) *image.NRGBA {
 	return dst
 }
 
+// findTemplateMatchPureGo is the portable template-matching implementation.
+// The build-specific router selects it directly for normal builds and uses it
+// as the fallback when the OpenCV backend cannot produce a valid result.
+func findTemplateMatchPureGo(source, template *image.NRGBA) (bestX, bestY int, bestScore float64) {
+	sw := source.Bounds().Dx()
+	sh := source.Bounds().Dy()
+	tw := template.Bounds().Dx()
+	th := template.Bounds().Dy()
+
+	if tw == 0 || th == 0 || tw > sw || th > sh {
+		return -1, -1, 0
+	}
+
+	bestDiff := ^uint64(0)
+	maxDiff := uint64(tw * th * 3 * 255)
+
+	for y := 0; y <= sh-th; y++ {
+		for x := 0; x <= sw-tw; x++ {
+			var diff uint64
+			exceeded := false
+			for ty := 0; ty < th && !exceeded; ty++ {
+				srcRow := (y+ty)*source.Stride + x*4
+				tplRow := ty * template.Stride
+				for tx := 0; tx < tw; tx++ {
+					si := srcRow + tx*4
+					ti := tplRow + tx*4
+					diff += channelDiff(source.Pix[si+0], template.Pix[ti+0])
+					diff += channelDiff(source.Pix[si+1], template.Pix[ti+1])
+					diff += channelDiff(source.Pix[si+2], template.Pix[ti+2])
+					if diff >= bestDiff {
+						exceeded = true
+						break
+					}
+				}
+			}
+			if diff < bestDiff {
+				bestDiff = diff
+				bestX = x
+				bestY = y
+			}
+		}
+	}
+
+	if bestDiff == ^uint64(0) {
+		return -1, -1, 0
+	}
+
+	if maxDiff == 0 {
+		return bestX, bestY, 1
+	}
+	bestScore = 1 - float64(bestDiff)/float64(maxDiff)
+	if bestScore < 0 {
+		bestScore = 0
+	}
+	return bestX, bestY, bestScore
+}
+
+func channelDiff(a, b uint8) uint64 {
+	if a > b {
+		return uint64(a - b)
+	}
+	return uint64(b - a)
+}
+
 // decodeBitmap converts a base64 image string to an image.Image
 func (ic *ImageColor) decodeBitmap(imageStr string) (image.Image, error) {
 	// 处理空输入
