@@ -108,7 +108,7 @@ normal、hover、pressed、active、disabled、busy、error 都保持同一 40×
 
 每个按钮默认 single-flight：callback 未完成时进入 busy，同一按钮的重复真实点击不会再次启动，其他按钮仍可响应。callback 的同步返回值与 Promise 都会被等待；成功清除 busy。失败会先清除 busy、设置 error 视觉状态，再产生 `UI_CALLBACK_FAILED`，包含 `operation`、`windowId`、`targetId` 和 `capability`。用 `onError` 显式处理；用 `updateButton(id, { error: null })` 清除错误状态。
 
-show 后增删按钮仍返回 `INVALID_STATE`，但上述六种状态更新始终允许。label 更新只更新 tooltip/AX，不会改变 icon-only 按钮或窗口 bounds。约 20 行的最小示例见 `examples/custom-ui/minimal-five-button-toolbar.js`；结构化证据版本 `evidence-five-button-toolbar.js` 会在 `Execution.artifactDir/floating-toolbar/result.json`（无 artifactDir 时回退 `.runtime/examples/custom-ui/floating-toolbar/result.json`）记录 callback 名称、分支和最终 UI 状态。客服场景的纵向快捷回复见 `examples/custom-ui/customer-service-vertical-toolbar.js`。`examples/floatwindow.js` 展示旧静态入口的迁移方式。
+show 后增删按钮仍返回 `INVALID_STATE`，但上述六种状态更新始终允许。label 更新只更新 tooltip/AX，不会改变 icon-only 按钮或窗口 bounds。约 20 行的最小示例见 `examples/custom-ui/minimal-five-button-toolbar.js`；结构化证据版本 `evidence-five-button-toolbar.js` 会在 `Execution.artifactDir/floating-toolbar/result.json`（无 artifactDir 时回退 `.runtime/examples/custom-ui/floating-toolbar/result.json`）记录 callback 名称、分支和最终 UI 状态。客服场景的纵向快捷回复见 `examples/custom-ui/toolbar-vertical-quick-replies.js` 与它的 JSON 数据源 `toolbar-vertical-quick-replies.json`；复制成功后由 `updateButton(..., { active: true })` 保持唯一选中项，不能把短暂的 pressed/busy 反馈当作 active。`examples/floatwindow.js` 展示旧静态入口的迁移方式。
 
 ## notify / timers / sleep：基础运行时能力
 

@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "toolbar": {
+    "x": 100,
+    "y": 100,
+    "title": "客服快捷回复",
+    "orientation": "vertical"
+  },
+  "buttons": [
+    {
+      "id": "welcome",
+      "label": "欢迎问候",
+      "icon": "play.fill",
+      "reply": "您好，感谢您的咨询！我来帮您处理。"
+    },
+    {
+      "id": "order",
+      "label": "索取订单号",
+      "icon": "paperplane.fill",
+      "reply": "为了帮您查询订单，请提供订单号。"
+    },
+    {
+      "id": "checking",
+      "label": "查询中",
+      "icon": "timer",
+      "reply": "我正在为您查询，请稍候。"
+    },
+    {
+      "id": "pleaseWait",
+      "label": "请稍候",
+      "icon": "pause.fill",
+      "reply": "当前咨询量较大，请您耐心等待片刻。"
+    },
+    {
+      "id": "resolved",
+      "label": "问题已解决",
+      "icon": "stop.fill",
+      "reply": "问题已经为您处理好了，如有其他需要请继续告诉我。"
+    }
+  ]
+}
