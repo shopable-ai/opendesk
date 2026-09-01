@@ -68,6 +68,9 @@ type Request struct {
 	// GlobalShortcutBackendFactory is an internal test seam. Product executions
 	// use the platform backend selected by automation.InitJSWithOptions.
 	GlobalShortcutBackendFactory automation.GlobalShortcutBackendFactory
+	// DesktopEventBackendFactory is an internal test seam for deterministic
+	// watcher emission, backpressure, and teardown validation.
+	DesktopEventBackendFactory automation.DesktopEventBackendFactory
 	// Timeout is the exact execution deadline used by transports that accept
 	// sub-minute timeouts. TimeoutMinutes remains for CLI compatibility.
 	Timeout   time.Duration
@@ -271,6 +274,7 @@ func runJavaScript(req Request, emitter *Emitter) error {
 				CustomUISessionID:               req.ExecutionID,
 				CustomUIBaseDir:                 customUIBaseDir(req),
 				GlobalShortcutBackendFactory:    req.GlobalShortcutBackendFactory,
+				DesktopEventBackendFactory:      req.DesktopEventBackendFactory,
 				OnAsyncError:                    onAsyncError,
 				OnReady:                         func(resources *automation.RuntimeLifecycle) { lifecycle = resources },
 			}); err != nil {
@@ -355,6 +359,7 @@ func runJavaScript(req Request, emitter *Emitter) error {
 				"uiListeners": resources.UIListeners, "uiDriverSinks": resources.UIDriverSinks,
 				"uiHostProcesses":  resources.UIHostProcesses,
 				"shortcutBindings": resources.ShortcutBindings, "shortcutPending": resources.ShortcutPending,
+				"eventSubscriptions": resources.EventSubscriptions, "eventPending": resources.EventPending,
 			})
 			if !resources.IsZero() && runtimeErr == nil {
 				runtimeErr = fmt.Errorf("runtime cleanup left resources: %s", resources.String())

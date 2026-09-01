@@ -35,7 +35,10 @@ type InitJSOptions struct {
 	// GlobalShortcutBackendFactory is an internal dependency seam for runtime
 	// tests. Normal executions leave it nil and use the platform backend.
 	GlobalShortcutBackendFactory GlobalShortcutBackendFactory
-	OnReady                      func(*RuntimeLifecycle)
+	// DesktopEventBackendFactory is an internal dependency seam for lifecycle
+	// and event-storm tests. Product executions use the explicit polling backend.
+	DesktopEventBackendFactory DesktopEventBackendFactory
+	OnReady                    func(*RuntimeLifecycle)
 }
 
 // RuntimeLifecycle exposes only teardown-safe resources to the runtime owner.
@@ -46,6 +49,7 @@ type RuntimeLifecycle struct {
 	HTTP           *HTTPClient
 	UI             *CustomUIRuntime
 	GlobalShortcut *GlobalShortcutRuntime
+	Events         *DesktopEventsRuntime
 }
 
 // Wait joins host workers after their execution context has been cancelled.
@@ -56,6 +60,9 @@ func (l *RuntimeLifecycle) Wait() {
 	}
 	if l != nil && l.UI != nil {
 		l.UI.Wait()
+	}
+	if l != nil && l.Events != nil {
+		l.Events.Wait()
 	}
 }
 
@@ -70,6 +77,9 @@ func (l *RuntimeLifecycle) CancelAsync() {
 	}
 	if l != nil && l.GlobalShortcut != nil {
 		l.GlobalShortcut.Close()
+	}
+	if l != nil && l.Events != nil {
+		l.Events.Close()
 	}
 }
 
@@ -94,22 +104,28 @@ func (l *RuntimeLifecycle) AsyncCounts() (timers int, workers int64, callbacks i
 		bindings, pending := l.GlobalShortcut.ResourceCounts()
 		callbacks += bindings + pending
 	}
+	if l.Events != nil {
+		subscriptions, pending := l.Events.ResourceCounts()
+		callbacks += subscriptions + pending
+	}
 	return timers, workers, callbacks
 }
 
 type RuntimeResourceCounts struct {
-	Timers           int
-	HTTPWorkers      int64
-	HTTPCallbacks    int
-	UIWorkers        int64
-	UIPending        int
-	UIQueued         int
-	UIWindows        int
-	UIListeners      int
-	UIDriverSinks    int
-	UIHostProcesses  int
-	ShortcutBindings int
-	ShortcutPending  int
+	Timers             int
+	HTTPWorkers        int64
+	HTTPCallbacks      int
+	UIWorkers          int64
+	UIPending          int
+	UIQueued           int
+	UIWindows          int
+	UIListeners        int
+	UIDriverSinks      int
+	UIHostProcesses    int
+	ShortcutBindings   int
+	ShortcutPending    int
+	EventSubscriptions int
+	EventPending       int
 }
 
 func (l *RuntimeLifecycle) ResourceCounts() RuntimeResourceCounts {
@@ -137,6 +153,9 @@ func (l *RuntimeLifecycle) ResourceCounts() RuntimeResourceCounts {
 	if l.GlobalShortcut != nil {
 		counts.ShortcutBindings, counts.ShortcutPending = l.GlobalShortcut.ResourceCounts()
 	}
+	if l.Events != nil {
+		counts.EventSubscriptions, counts.EventPending = l.Events.ResourceCounts()
+	}
 	return counts
 }
 
@@ -144,13 +163,15 @@ func (c RuntimeResourceCounts) IsZero() bool {
 	return c.Timers == 0 && c.HTTPWorkers == 0 && c.HTTPCallbacks == 0 &&
 		c.UIWorkers == 0 && c.UIPending == 0 && c.UIQueued == 0 && c.UIWindows == 0 &&
 		c.UIListeners == 0 && c.UIDriverSinks == 0 && c.UIHostProcesses == 0 &&
-		c.ShortcutBindings == 0 && c.ShortcutPending == 0
+		c.ShortcutBindings == 0 && c.ShortcutPending == 0 &&
+		c.EventSubscriptions == 0 && c.EventPending == 0
 }
 
 func (c RuntimeResourceCounts) String() string {
-	return fmt.Sprintf("timers=%d httpWorkers=%d httpCallbacks=%d uiWorkers=%d uiPending=%d uiQueued=%d uiWindows=%d uiListeners=%d uiDriverSinks=%d uiHostProcesses=%d shortcutBindings=%d shortcutPending=%d",
+	return fmt.Sprintf("timers=%d httpWorkers=%d httpCallbacks=%d uiWorkers=%d uiPending=%d uiQueued=%d uiWindows=%d uiListeners=%d uiDriverSinks=%d uiHostProcesses=%d shortcutBindings=%d shortcutPending=%d eventSubscriptions=%d eventPending=%d",
 		c.Timers, c.HTTPWorkers, c.HTTPCallbacks, c.UIWorkers, c.UIPending, c.UIQueued,
-		c.UIWindows, c.UIListeners, c.UIDriverSinks, c.UIHostProcesses, c.ShortcutBindings, c.ShortcutPending)
+		c.UIWindows, c.UIListeners, c.UIDriverSinks, c.UIHostProcesses, c.ShortcutBindings, c.ShortcutPending,
+		c.EventSubscriptions, c.EventPending)
 }
 
 func emitRuntimeLog(sink EventSink, level, message string, fields map[string]any) {
@@ -603,6 +624,7 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 	runtime.Set("clipboard", clipboardMethods)
 
 	globalShortcut := registerGlobalShortcut(runtime, opts)
+	events := registerDesktopEvents(runtime, opts)
 
 	fileSystem := NewFileSystem()
 	fileSystemMethods := AutoMapObject(runtime, fileSystem)
@@ -710,7 +732,7 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 		return fmt.Errorf("failed to bind Screen.screenshot: %v", err)
 	}
 	if opts.OnReady != nil {
-		opts.OnReady(&RuntimeLifecycle{Timers: timer, HTTP: httpClient, UI: uiRuntime, GlobalShortcut: globalShortcut})
+		opts.OnReady(&RuntimeLifecycle{Timers: timer, HTTP: httpClient, UI: uiRuntime, GlobalShortcut: globalShortcut, Events: events})
 	}
 	return nil
 }

@@ -130,6 +130,23 @@
       "doc": "input.md"
     },
     {
+      "name": "Events",
+      "source": "native runtime wrapper + explicit polling backend",
+      "status": "experimental",
+      "platforms": [
+        "darwin",
+        "windows",
+        "linux"
+      ],
+      "doc": "events.md",
+      "keyMethods": [
+        "on",
+        "once",
+        "getCapabilities"
+      ],
+      "notes": "Polling is reported in capability and event payloads; no MCP/HTTP surface and no GlobalShortcut duplication. Window events are unsupported on platforms where the existing window facade is unavailable."
+    },
+    {
       "name": "window",
       "source": "native+polyfill",
       "status": "stable",
@@ -490,6 +507,7 @@
       "page.md",
       "mouse.md",
       "input.md",
+      "events.md",
       "window.md",
       "screen.md"
     ],

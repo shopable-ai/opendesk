@@ -1,6 +1,6 @@
 # TASK-003 — Desktop Event / Watcher
 
-Status: IN_PROGRESS
+Status: DONE
 Priority: P0
 Depends on: none
 
@@ -81,3 +81,76 @@ const event = await Events.once('window.created', { timeout: 5000 });
 - 与 execution events 日志区别清楚：一个是桌面外部事件，一个是 OpenDesk 执行事件。
 - 未新增任何重复的 GlobalShortcut / GlobalHotkey 实现。
 - 文档、类型、机器索引同步。
+
+## Execution record — 2026-09-02
+
+Decision: IMPLEMENT
+
+Base HEAD: `d78d492c538705b39e55777e1c048b7668b09ba4`
+
+Final Commit: this task-closing commit
+
+### Audit
+
+- 仓库此前没有公共 `Events` / watcher Runtime API、类型、`docs/api` 页面、MCP 或 HTTP surface。
+- `pkg/execution.Emitter` 是 OpenDesk 自身执行日志，Scheduler 是时间触发，Custom UI event queue
+  仅覆盖 OpenDesk 创建的 UI；它们都不是外部桌面状态 watcher。
+- 现有 `globalShortcut` 只作为 owner EventLoop、single-flight callback 和 execution teardown 的
+  生命周期参考；本任务没有新建、重命名或修改第二套快捷键公共系统。
+- 当前 window facade、`Screen.getDisplays()`、macOS `NSWorkspace` 与 `NSPasteboard.changeCount`
+  已能提供最小状态快照，因此无需再造一套 window/process/clipboard/display API。
+
+### Implementation
+
+- 新增实验性 JS Runtime 全局对象 `Events`：`on`、`once`、`getCapabilities`。
+- 支持本卡列出的 9 类 window/app/clipboard/display 事件；当前 backend 明确报告为
+  `polling`，不伪装成 native notification，unsupported 平台 fail closed。
+- worker 只传递 Go 数据，Goja callback/Promise 全部回到 owner EventLoop；同事件类型在队列侧
+  coalesce，每个 subscription callback 保持 single-flight，并仅保留最新 deferred event。
+- subscription 归当前 execution 所有；unsubscribe、once timeout、取消、异常与 execution teardown
+  均回收 backend handle、timer 和 pending callback。
+- 事件 schema 固定 `schemaVersion: 1`，并带 `backend`、UTC `timestamp`、`sequence`、
+  `coalesced` 与 `data`；错误使用稳定 code：`INVALID_EVENT`、`INVALID_ARGUMENT`、
+  `NOT_SUPPORTED`、`BACKEND_FAILED`、`CALLBACK_FAILED`、`TIMEOUT`。
+- 没有增加 MCP/HTTP surface；当前公共入口只限 JavaScript Runtime。
+
+### Tests
+
+- `go test ./automation -run TestDesktop -count=5` -> PASS。
+- `go test ./pkg/execution -run TestRunJavaScriptDesktopEvents -count=3` -> PASS。
+- `go test ./automation ./pkg/execution` -> PASS。
+- `./scripts/test_runtime_apis.sh unit` -> PASS；新增 Events contract/behavior 用例与完整
+  Runtime API unit catalog 全部通过，证据位于
+  `.runtime/tests/runtime-api/20260901T183234Z-83081/`。
+- `go test ./...` -> TASK-003 相关 package PASS；`pkg/visionrun` 仍有审计前已经存在的 4 个
+  非本任务失败：两个缺 real validation input、一个缺 `capture_contract.json`、一个缺当前
+  preflight report。本任务未修改 `pkg/visionrun`，也未新增全仓失败。
+
+### Evidence
+
+- 从仓库根目录原样执行文档命令：
+  `go run ./cmd/opendesk -script examples/events/clipboard-changed.js -console-mode script` -> PASS。
+- 实机：macOS 12.7.6 / amd64；真实 `NSPasteboard.changeCount` 变化由 polling backend 捕获，
+  event sequence 为 1，`contentIncluded=false`。
+- 无敏感内容 Evidence：
+  `.runtime/tests/platform-primitives/task-003-events/clipboard-changed.json`。
+- smoke 临时写入 marker 后恢复先前文本；旧 Clipboard API 无法保真恢复非文本 formats，此限制
+  已在示例和 API 文档中明确记录。
+
+### API and documentation
+
+- 公共类型：`types/Events.d.ts`。
+- 用户文档：`docs/api/events.md`，并同步 `docs/api/index.md`、`docs/api/README.md`。
+- 机器索引：`docs/api/runtime-api.ai.json` 与 `tests/runtime-api/manifest.js`。
+- 可复制示例：`examples/events/clipboard-changed.js`。
+
+### Remaining
+
+- 当前为 Experimental polling fallback；短间隔事件可能被合并，不能用于要求每个底层通知都
+  完整留痕的审计场景。
+- window created/closed/moved/resized 的完整性受现有 macOS window facade 能力和权限影响；
+  无权限或 JXA/AX 失败时明确返回 `BACKEND_FAILED`。
+- 本轮真实 smoke 只直接验证 `clipboard.changed`；其余事件完成状态 diff、schema、lifecycle 与
+  execution integration 测试，尚未声称各平台逐事件 live verified。
+- 后续可在不改变公共 API 的前提下替换为平台原生 backend；Runtime capability 中的
+  `verified` 不会把仓库一次 smoke 自动提升为每台宿主机的运行时证明。

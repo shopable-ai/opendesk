@@ -55,26 +55,27 @@ order: 1
 4. `mouse.md`：鼠标移动、点击、拖拽、位置与滚轮
 5. `input.md`：键盘和触屏
 6. `global-shortcut.md`：macOS / Windows 系统级快捷键与 Runtime callback
-7. `window.md`：窗口查询与控制
-8. `vision.md`：OCR、UI 文本定位、provider
-9. `image-color.md`：模板匹配、颜色与图像辅助能力
-10. `notify.md`：系统通知调用契约、平台限制与可见性边界
-11. `dialog.md`：异步 alert / confirm / prompt、UI capability 与隐私边界
-12. `clipboard.md`：系统剪贴板对象与文本读写
-13. `global-apis.md`：无需 import 即可调用的全局接口、console、等待、计时器和参数工具
-14. `runtime.md`：stack 选择、兼容边界与 recipe 的 `Execution` 上下文
-15. `sound.md`：播放内置提示音或本地音频文件
-16. `native-ui.md`：Dialog、FloatingWindow 和受限 HTML/CSS 原生窗口的选择与调用
-17. [native-extension.md](native-extension.md)：本机 CLI 默认提供、仅程序相对目录 discovery 的 Native Extension Plugin V1；底层复用 one-shot Native Process Protocol V0
-18. [examples/native-extensions/README.md](../../examples/native-extensions/README.md)：插件作者 build/package、source-free bundle 与程序相对安装；业务调用脚本为 [quickstart.js](../../examples/native-extensions/quickstart.js)
-19. `cookbook.md`：可直接改造的脚本范例
-20. `scheduler.md`：file/inline JavaScript 定时任务、SQLite 持久化与本地管理页
-21. `scheduler-api.md`：Scheduler 本地 HTTP API 的字段、响应与完整调用示例
-22. 其余专题页按需查阅
+7. `events.md`：外部窗口、应用、剪贴板与显示器状态变化 watcher
+8. `window.md`：窗口查询与控制
+9. `vision.md`：OCR、UI 文本定位、provider
+10. `image-color.md`：模板匹配、颜色与图像辅助能力
+11. `notify.md`：系统通知调用契约、平台限制与可见性边界
+12. `dialog.md`：异步 alert / confirm / prompt、UI capability 与隐私边界
+13. `clipboard.md`：系统剪贴板对象与文本读写
+14. `global-apis.md`：无需 import 即可调用的全局接口、console、等待、计时器和参数工具
+15. `runtime.md`：stack 选择、兼容边界与 recipe 的 `Execution` 上下文
+16. `sound.md`：播放内置提示音或本地音频文件
+17. `native-ui.md`：Dialog、FloatingWindow 和受限 HTML/CSS 原生窗口的选择与调用
+18. [native-extension.md](native-extension.md)：本机 CLI 默认提供、仅程序相对目录 discovery 的 Native Extension Plugin V1；底层复用 one-shot Native Process Protocol V0
+19. [examples/native-extensions/README.md](../../examples/native-extensions/README.md)：插件作者 build/package、source-free bundle 与程序相对安装；业务调用脚本为 [quickstart.js](../../examples/native-extensions/quickstart.js)
+20. `cookbook.md`：可直接改造的脚本范例
+21. `scheduler.md`：file/inline JavaScript 定时任务、SQLite 持久化与本地管理页
+22. `scheduler-api.md`：Scheduler 本地 HTTP API 的字段、响应与完整调用示例
+23. 其余专题页按需查阅
 
 ## 文档分层
 
-- **核心桌面自动化**：`page.md`、`mouse.md`、`input.md`、`global-shortcut.md`、`window.md`、`screen.md`
+- **核心桌面自动化**：`page.md`、`mouse.md`、`input.md`、`global-shortcut.md`、`events.md`、`window.md`、`screen.md`
 - **视觉能力**：`vision.md`、`image-color.md`
 - **系统与数据**：`system.md`、`file.md`、`storage.md`、`clipboard.md`
 - **网络与服务**：`http.md`、`http-server.md`、`scheduler.md`、`scheduler-api.md`

@@ -29,6 +29,7 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先找窗口，
 - 做模板匹配 / 颜色判断：[ImageColor API](image-color.md)
 - 做系统与文件操作：[System API](system.md)、[File API](file.md)、[AppStorage](storage.md)
 - 读写系统剪贴板：[Clipboard API](clipboard.md)
+- 订阅窗口、应用、剪贴板和显示器变化：[Desktop Events API](events.md)
 - 做网络调用：[HTTP and Axios](http.md)
 - 发送系统通知：[notify](notify.md)
 - 显示需用户确认的异步原生窗口：[Dialog API](dialog.md)
@@ -51,6 +52,7 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先找窗口，
 | `mouse` / `page.mouse` | JavaScript Runtime | Stable | 全局鼠标移动、点击、拖拽、位置与滚轮 | [Mouse API](mouse.md) |
 | `keyboard` / `touchscreen` | JavaScript Runtime | Stable | 键盘与触屏输入控制 | [Input APIs](input.md) |
 | `globalShortcut` | JavaScript Runtime | Stable（macOS / Windows） | 系统快捷键触发 JavaScript callback | [Global Shortcut API](global-shortcut.md) |
+| `Events` | JavaScript Runtime | Experimental | 外部桌面状态 watcher；当前明确使用 polling backend | [Desktop Events API](events.md) |
 | `window` | JavaScript Runtime | Stable | 窗口读取与控制 | [Window API](window.md) |
 | `Screen` | JavaScript Runtime | Stable | 显示器、像素、截图别名 | [Screen API](screen.md) |
 | `Vision` | JavaScript Runtime | Stable | OCR、UI 文本检测、provider 能力 | [Vision API](vision.md) |
