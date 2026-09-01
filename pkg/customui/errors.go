@@ -16,6 +16,7 @@ const (
 	CodeHostNotFound          = "UI_HOST_NOT_FOUND"
 	CodeBusy                  = "UI_BUSY"
 	CodeCanceled              = "UI_CANCELED"
+	CodeCallbackFailed        = "UI_CALLBACK_FAILED"
 )
 
 // Error is the structured failure shared by the core, drivers, and Runtime

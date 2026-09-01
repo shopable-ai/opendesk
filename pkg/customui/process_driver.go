@@ -7,11 +7,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"opendesk/pkg/customui/toolbar"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -25,6 +27,9 @@ type ProcessDriverOptions struct {
 	HostPath       string
 	Stderr         io.Writer
 	StartupTimeout time.Duration
+	// Platform is an internal cross-platform behavior test seam. Product
+	// callers leave it empty so runtime.GOOS remains authoritative.
+	Platform string
 	// Command is an internal test seam. Production callers leave it nil.
 	Command func(path string) *exec.Cmd
 }
@@ -40,6 +45,7 @@ type ProcessDriver struct {
 	pending       map[string]chan protocolFrame
 	sinks         map[string]func(Event)
 	controls      map[string]map[string]struct{}
+	sequences     map[string]uint64
 	ready         chan struct{}
 	readyOnce     sync.Once
 	exited        chan struct{}
@@ -63,19 +69,25 @@ func NewProcessDriver(opts ProcessDriverOptions) *ProcessDriver {
 	}
 	return &ProcessDriver{
 		opts: opts, pending: map[string]chan protocolFrame{}, sinks: map[string]func(Event){},
-		controls: map[string]map[string]struct{}{},
+		controls: map[string]map[string]struct{}{}, sequences: map[string]uint64{},
 	}
 }
 
 func (d *ProcessDriver) Capabilities(context.Context) Capabilities {
-	available := runtime.GOOS == "darwin"
+	platform := d.platform()
+	available := platform == "darwin"
 	reason := ""
 	if !available {
 		reason = "custom UI v1 requires the macOS AppKit/WebKit host"
+	} else if d.opts.Command == nil {
+		if _, err := resolveUIHostPath(d.opts.HostPath); err != nil {
+			available = false
+			reason = err.Error()
+		}
 	}
 	return Capabilities{
 		ProtocolVersion: ProtocolVersion, Enabled: true, Available: available,
-		Platform: runtime.GOOS, Driver: "native-process", MaxSessions: 1,
+		Platform: platform, Driver: "native-process", MaxSessions: 1,
 		Window: map[string]bool{
 			"position": available, "size": available, "alwaysOnTop": available,
 			"draggable": available, "nativeIdentity": available,
@@ -106,8 +118,9 @@ func (d *ProcessDriver) ResourceCounts() DriverResourceCounts {
 }
 
 func (d *ProcessDriver) Create(ctx context.Context, sessionID string, spec WindowSpec, sink func(Event)) (DriverWindow, error) {
-	if runtime.GOOS != "darwin" && d.opts.Command == nil {
-		return nil, &Error{Code: CodeUnsupportedPlatform, Operation: "createWindow", WindowID: spec.ID, Message: "custom UI v1 is not available on " + runtime.GOOS}
+	platform := d.platform()
+	if platform != "darwin" && d.opts.Command == nil {
+		return nil, &Error{Code: CodeUnsupportedPlatform, Operation: "createWindow", WindowID: spec.ID, Capability: "ui", Message: "custom UI v1 is not available on " + platform}
 	}
 	if err := d.ensureStarted(ctx); err != nil {
 		return nil, err
@@ -124,6 +137,7 @@ func (d *ProcessDriver) Create(ctx context.Context, sessionID string, spec Windo
 		controlIDs[control.ID] = struct{}{}
 	}
 	d.controls[key] = controlIDs
+	d.sequences[key] = 0
 	d.mu.Unlock()
 
 	var state WindowState
@@ -131,32 +145,47 @@ func (d *ProcessDriver) Create(ctx context.Context, sessionID string, spec Windo
 		d.mu.Lock()
 		delete(d.sinks, key)
 		delete(d.controls, key)
+		delete(d.sequences, key)
 		d.mu.Unlock()
 		return nil, err
 	}
 	return &processWindow{driver: d, sessionID: sessionID, id: spec.ID}, nil
 }
 
+func (d *ProcessDriver) platform() string {
+	if platform := strings.TrimSpace(d.opts.Platform); platform != "" {
+		return platform
+	}
+	return runtime.GOOS
+}
+
 func (d *ProcessDriver) CloseSession(ctx context.Context, sessionID string) error {
 	d.mu.RLock()
-	started := d.started
+	processStarted := d.cmd != nil && d.cmd.Process != nil
+	fatal := d.fatalErr
 	d.mu.RUnlock()
-	if !started {
+	if !processStarted || fatal != nil {
+		d.clearSessionResources(sessionID)
 		return nil
 	}
 	var states []WindowState
 	if err := d.call(ctx, sessionID, "", "closeSession", nil, &states); err != nil {
 		return err
 	}
+	d.clearSessionResources(sessionID)
+	return nil
+}
+
+func (d *ProcessDriver) clearSessionResources(sessionID string) {
 	d.mu.Lock()
 	for key := range d.sinks {
 		if len(key) > len(sessionID) && key[:len(sessionID)+1] == sessionID+"/" {
 			delete(d.sinks, key)
 			delete(d.controls, key)
+			delete(d.sequences, key)
 		}
 	}
 	d.mu.Unlock()
-	return nil
 }
 
 func (d *ProcessDriver) Close() error {
@@ -169,6 +198,7 @@ func (d *ProcessDriver) Close() error {
 	processStarted := d.cmd != nil && d.cmd.Process != nil
 	d.mu.Unlock()
 	if !processStarted {
+		d.clearAllWindowResources()
 		d.releaseLease()
 		return nil
 	}
@@ -191,8 +221,17 @@ func (d *ProcessDriver) Close() error {
 			<-exited
 		}
 	}
+	d.clearAllWindowResources()
 	d.releaseLease()
 	return nil
+}
+
+func (d *ProcessDriver) clearAllWindowResources() {
+	d.mu.Lock()
+	d.sinks = map[string]func(Event){}
+	d.controls = map[string]map[string]struct{}{}
+	d.sequences = map[string]uint64{}
+	d.mu.Unlock()
 }
 
 func (d *ProcessDriver) ensureStarted(ctx context.Context) error {
@@ -336,15 +375,19 @@ func (d *ProcessDriver) readFrames(reader io.Reader) {
 			key := windowKey(frame.Event.SessionID, frame.Event.WindowID)
 			sink := d.sinks[key]
 			controls := d.controls[key]
+			lastSequence := d.sequences[key]
 			d.mu.RUnlock()
 			if sink == nil {
 				d.failTransport(&Error{Code: CodeDriverFailure, Operation: "readHostEvent", WindowID: frame.Event.WindowID, TargetID: frame.Event.TargetID, Message: "native UI host emitted an event for an unknown window"})
 				return
 			}
-			if err := validateHostEvent(*frame.Event, controls); err != nil {
+			if err := validateHostEvent(*frame.Event, controls, lastSequence); err != nil {
 				d.failTransport(err)
 				return
 			}
+			d.mu.Lock()
+			d.sequences[key] = frame.Event.Sequence
+			d.mu.Unlock()
 			sink(*frame.Event)
 		default:
 			d.failTransport(&Error{Code: CodeDriverFailure, Operation: "readHost", Message: "native UI host emitted an unknown frame kind"})
@@ -386,6 +429,7 @@ func (d *ProcessDriver) failTransport(err error) {
 	cmd := d.cmd
 	d.sinks = map[string]func(Event){}
 	d.controls = map[string]map[string]struct{}{}
+	d.sequences = map[string]uint64{}
 	d.mu.Unlock()
 	if ready != nil {
 		d.readyOnce.Do(func() { close(ready) })
@@ -399,9 +443,12 @@ func (d *ProcessDriver) failTransport(err error) {
 	}
 }
 
-func validateHostEvent(event Event, controls map[string]struct{}) error {
+func validateHostEvent(event Event, controls map[string]struct{}, lastSequence uint64) error {
 	if event.Sequence == 0 {
 		return &Error{Code: CodeDriverFailure, Operation: "readHostEvent", WindowID: event.WindowID, TargetID: event.TargetID, Message: "native UI event sequence must be positive"}
+	}
+	if event.Sequence <= lastSequence {
+		return &Error{Code: CodeDriverFailure, Operation: "readHostEvent", WindowID: event.WindowID, TargetID: event.TargetID, Message: "native UI event sequence must be strictly increasing"}
 	}
 	switch event.Type {
 	case "click", "change", "input":
@@ -519,11 +566,11 @@ func resolveUIHostPath(configured string) (string, error) {
 				return path, nil
 			}
 		}
-		return "", &Error{Code: CodeHostNotFound, Operation: "startHost", Message: "configured custom UI host was not found: " + configured}
+		return "", &Error{Code: CodeHostNotFound, Operation: "startHost", Capability: "ui", Message: "configured custom UI host was not found: " + configured}
 	}
 	executable, err := os.Executable()
 	if err != nil {
-		return "", &Error{Code: CodeHostNotFound, Operation: "startHost", Message: "locate OpenDesk executable", Cause: err}
+		return "", &Error{Code: CodeHostNotFound, Operation: "startHost", Capability: "ui", Message: "locate OpenDesk executable", Cause: err}
 	}
 	candidates := uiHostCandidates(executable)
 	for _, candidate := range candidates {
@@ -531,12 +578,14 @@ func resolveUIHostPath(configured string) (string, error) {
 			return filepath.Clean(candidate), nil
 		}
 	}
-	return "", &Error{Code: CodeHostNotFound, Operation: "startHost", Message: "opendesk-ui-host was not found beside the runtime executable or in Contents/Helpers"}
+	return "", &Error{Code: CodeHostNotFound, Operation: "startHost", Capability: "ui", Message: "clawdesk-ui-host or opendesk-ui-host was not found beside the runtime executable or in Contents/Helpers"}
 }
 
 func uiHostCandidates(executable string) []string {
 	dir := filepath.Dir(executable)
 	return []string{
+		filepath.Join(dir, "clawdesk-ui-host"),
+		filepath.Join(dir, "..", "Helpers", "clawdesk-ui-host"),
 		filepath.Join(dir, "opendesk-ui-host"),
 		filepath.Join(dir, "..", "Helpers", "opendesk-ui-host"),
 	}
@@ -570,6 +619,7 @@ func (w *processWindow) Close(ctx context.Context) (WindowState, error) {
 		w.driver.mu.Lock()
 		delete(w.driver.sinks, windowKey(w.sessionID, w.id))
 		delete(w.driver.controls, windowKey(w.sessionID, w.id))
+		delete(w.driver.sequences, windowKey(w.sessionID, w.id))
 		w.driver.mu.Unlock()
 	}
 	return state, err
@@ -603,6 +653,18 @@ func (w *processWindow) UpdateControl(ctx context.Context, id string, patch Cont
 		ID    string       `json:"id"`
 		Patch ControlPatch `json:"patch"`
 	}{ID: id, Patch: patch}, &state)
+	return state, err
+}
+
+func (w *processWindow) ToolbarButtonState(ctx context.Context, id string) (toolbar.ButtonResult, error) {
+	var state toolbar.ButtonResult
+	err := w.driver.call(ctx, w.sessionID, w.id, "getToolbarButtonState", map[string]string{"id": id}, &state)
+	return state, err
+}
+
+func (w *processWindow) ApplyToolbarButton(ctx context.Context, button toolbar.ButtonSpec) (toolbar.ButtonResult, error) {
+	var state toolbar.ButtonResult
+	err := w.driver.call(ctx, w.sessionID, w.id, "applyToolbarButton", toolbar.ButtonUpdate{Button: button}, &state)
 	return state, err
 }
 

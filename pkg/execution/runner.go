@@ -1,19 +1,29 @@
 package execution
 
 import (
-	"opendesk/automation"
-	"opendesk/pkg/nativeextension"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"opendesk/automation"
+	"opendesk/pkg/customui"
+	"opendesk/pkg/nativeextension"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/dop251/goja"
 	"github.com/dop251/goja_nodejs/eventloop"
 )
+
+// interactiveCancellationGrace gives a capability-authorized native UI
+// operation a bounded chance to close its real window and reject its Promise
+// on the owner EventLoop before the generic watchdog interrupts that loop.
+// CPU-bound scripts and executions without UI keep the immediate interrupt
+// path below.
+const interactiveCancellationGrace = 750 * time.Millisecond
 
 // Request 描述一次脚本执行请求。
 type Request struct {
@@ -36,6 +46,14 @@ type Request struct {
 	// NativeExtensionRoots is an internal test seam. Product executions use the
 	// documented portable/app-bundled and current-user roots.
 	NativeExtensionRoots []nativeextension.DiscoveryRoot
+	// EnableCustomUI is a deliberate per-execution capability. The ui global is
+	// present but dormant unless the owning transport sets this field.
+	EnableCustomUI           bool
+	CustomUIActivationSource customui.ActivationSource
+	CustomUIHostPath         string
+	CustomUIBaseDir          string
+	// CustomUIDriver is an internal dependency seam used by Runtime API tests.
+	CustomUIDriver customui.Driver
 	// Timeout is the exact execution deadline used by transports that accept
 	// sub-minute timeouts. TimeoutMinutes remains for CLI compatibility.
 	Timeout   time.Duration
@@ -73,6 +91,7 @@ func RunWithEmitter(req Request, emitter *Emitter) (ExecutionResult, AgentSummar
 	emitter.SetSource(req.SourceLabel, req.ScriptHash)
 	emitter.SetMeta("ext", req.Ext)
 	emitter.SetMeta("timeoutMinutes", req.TimeoutMinutes)
+	emitter.SetMeta("customUIActivationSource", normalizeCustomUIActivationSource(req))
 	emitter.Emit(EventCategoryMeta, EventLevelInfo, EventSourceSystem, "status", "script execution started", map[string]any{
 		"source": req.SourceLabel,
 		"ext":    req.Ext,
@@ -83,7 +102,9 @@ func RunWithEmitter(req Request, emitter *Emitter) (ExecutionResult, AgentSummar
 	execErr := runScript(req, emitter)
 	status := ExecutionStatusSucceeded
 	if execErr != nil {
-		if strings.Contains(execErr.Error(), "timed out") {
+		if errors.Is(execErr, context.Canceled) {
+			status = ExecutionStatusCanceled
+		} else if strings.Contains(execErr.Error(), "timed out") {
 			status = ExecutionStatusTimedOut
 		} else {
 			status = ExecutionStatusFailed
@@ -145,16 +166,17 @@ func runJavaScript(req Request, emitter *Emitter) error {
 
 	go func() {
 		var (
-			runtimeErr   error
-			asyncErr     error
-			scriptErr    string
-			lifecycle    *automation.RuntimeLifecycle
-			stopWatchdog func() bool
-			watchdogDone chan struct{}
-			keepAlive    *eventloop.Interval
-			scriptDone   bool
-			checkDone    func()
-			unhandled    = map[*goja.Promise]string{}
+			runtimeErr      error
+			asyncErr        error
+			scriptErr       string
+			lifecycle       *automation.RuntimeLifecycle
+			stopWatchdog    func() bool
+			watchdogDone    chan struct{}
+			watchdogRelease chan struct{}
+			keepAlive       *eventloop.Interval
+			scriptDone      bool
+			checkDone       func()
+			unhandled       = map[*goja.Promise]string{}
 		)
 
 		loop.Run(func(rt *goja.Runtime) {
@@ -162,8 +184,20 @@ func runJavaScript(req Request, emitter *Emitter) error {
 			// the one documented Goja exception: this context watcher may call it
 			// from another goroutine to break a CPU-bound JavaScript loop.
 			watchdogDone = make(chan struct{})
+			watchdogRelease = make(chan struct{})
 			stopWatchdog = context.AfterFunc(ctx, func() {
 				defer close(watchdogDone)
+				if req.EnableCustomUI {
+					// Dialog and Custom UI workers observe ctx.Done(), close their
+					// native resources, and queue their Promise rejection through
+					// RunOnLoop. Let that owner-loop handoff run first, but bound it
+					// so a stuck host can never turn a deadline into an unbounded wait.
+					select {
+					case <-watchdogRelease:
+						return
+					case <-time.After(interactiveCancellationGrace):
+					}
+				}
 				reason := "script execution canceled"
 				if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 					reason = fmt.Sprintf("script execution timed out after %s", deadline)
@@ -207,11 +241,18 @@ func runJavaScript(req Request, emitter *Emitter) error {
 			}
 			sink := &automationSink{emitter: emitter}
 			if err := automation.InitJSWithOptions(rt, automation.InitJSOptions{
-				EventSink: sink, Context: ctx, EventLoop: loop, OnAsyncError: onAsyncError,
+				EventSink: sink, Context: ctx, EventLoop: loop,
 				EnableNativeExtensions:          req.EnableNativeExtensions,
 				EnableUnsafeNativeExtensionCall: req.EnableUnsafeNativeExtensionCall,
 				NativeExtensionRoots:            req.NativeExtensionRoots,
-				OnReady: func(resources *automation.RuntimeLifecycle) { lifecycle = resources },
+				EnableCustomUI:                  req.EnableCustomUI,
+				CustomUIActivationSource:        normalizeCustomUIActivationSource(req),
+				CustomUIDriver:                  req.CustomUIDriver,
+				CustomUIHostPath:                req.CustomUIHostPath,
+				CustomUISessionID:               req.ExecutionID,
+				CustomUIBaseDir:                 customUIBaseDir(req),
+				OnAsyncError:                    onAsyncError,
+				OnReady:                         func(resources *automation.RuntimeLifecycle) { lifecycle = resources },
 			}); err != nil {
 				runtimeErr = err
 				loop.StopNoWait()
@@ -258,6 +299,7 @@ func runJavaScript(req Request, emitter *Emitter) error {
 		})
 
 		if stopWatchdog != nil {
+			close(watchdogRelease)
 			// If cancellation has already started, wait for the only permitted
 			// cross-goroutine Runtime call (Interrupt) before ClearInterrupt below.
 			// This is the synchronization boundary required by Goja's API.
@@ -284,11 +326,17 @@ func runJavaScript(req Request, emitter *Emitter) error {
 		}
 		if lifecycle != nil {
 			timers, workers, callbacks := lifecycle.AsyncCounts()
+			resources := lifecycle.ResourceCounts()
 			emitter.Emit(EventCategoryMeta, EventLevelInfo, EventSourceRuntime, "cleanup", "runtime async resources drained", map[string]any{
-				"timers": timers, "httpWorkers": workers, "promiseCallbacks": callbacks,
+				"timers": timers, "workers": workers, "promiseCallbacks": callbacks,
+				"httpWorkers": resources.HTTPWorkers, "httpCallbacks": resources.HTTPCallbacks,
+				"uiWorkers": resources.UIWorkers, "uiPending": resources.UIPending,
+				"uiQueued": resources.UIQueued, "uiWindows": resources.UIWindows,
+				"uiListeners": resources.UIListeners, "uiDriverSinks": resources.UIDriverSinks,
+				"uiHostProcesses": resources.UIHostProcesses,
 			})
-			if (timers != 0 || workers != 0 || callbacks != 0) && runtimeErr == nil {
-				runtimeErr = fmt.Errorf("runtime cleanup left timers=%d httpWorkers=%d promiseCallbacks=%d", timers, workers, callbacks)
+			if !resources.IsZero() && runtimeErr == nil {
+				runtimeErr = fmt.Errorf("runtime cleanup left resources: %s", resources.String())
 			}
 		}
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
@@ -325,6 +373,22 @@ func runJavaScript(req Request, emitter *Emitter) error {
 		"durationMs": time.Since(startTime).Milliseconds(),
 	})
 	return nil
+}
+
+func customUIBaseDir(req Request) string {
+	if strings.TrimSpace(req.CustomUIBaseDir) != "" {
+		return req.CustomUIBaseDir
+	}
+	if strings.HasPrefix(req.SourceLabel, "file:") {
+		path := strings.TrimPrefix(req.SourceLabel, "file:")
+		if absolute, err := filepath.Abs(path); err == nil {
+			return filepath.Dir(absolute)
+		}
+	}
+	if cwd, err := os.Getwd(); err == nil {
+		return cwd
+	}
+	return "."
 }
 
 func executionTimeout(req Request) time.Duration {
@@ -426,14 +490,27 @@ func registerExecutionContext(rt *goja.Runtime, req Request) error {
 		artifactDir = req.Artifacts.RunDir
 	}
 	context := map[string]any{
-		"executionId": req.ExecutionID,
-		"stack":       normalizeStackModeForContext(req.StackMode),
-		"artifactDir": artifactDir,
-		"source":      req.SourceLabel,
-		"ext":         req.Ext,
-		"scriptHash":  req.ScriptHash,
+		"executionId":      req.ExecutionID,
+		"stack":            normalizeStackModeForContext(req.StackMode),
+		"artifactDir":      artifactDir,
+		"source":           req.SourceLabel,
+		"ext":              req.Ext,
+		"scriptHash":       req.ScriptHash,
+		"activationSource": string(normalizeCustomUIActivationSource(req)),
 	}
 	return rt.Set("Execution", context)
+}
+
+func normalizeCustomUIActivationSource(req Request) customui.ActivationSource {
+	if !req.EnableCustomUI {
+		return customui.ActivationDisabled
+	}
+	switch req.CustomUIActivationSource {
+	case customui.ActivationCLI, customui.ActivationProjectConfig, customui.ActivationHTTPRequest:
+		return req.CustomUIActivationSource
+	default:
+		return customui.ActivationCLI
+	}
 }
 
 func normalizeStackModeForContext(mode string) string {

@@ -3,6 +3,7 @@ package customui
 import (
 	"context"
 	"errors"
+	"math"
 	"testing"
 	"time"
 )
@@ -11,6 +12,23 @@ func testWindowSpec(id string) WindowSpec {
 	return WindowSpec{
 		ID: id, Bounds: Bounds{X: 10, Y: 20, Width: 320, Height: 180},
 		Content: ContentSpec{HTML: `<button id="save">Save</button><span id="status">Idle</span>`},
+	}
+}
+
+func TestWindowSetBoundsRejectsNonFiniteValuesBeforeDriver(t *testing.T) {
+	driver := NewMemoryDriver()
+	session, err := NewSession("finite-bounds", t.TempDir(), driver, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	window, err := session.Create(context.Background(), testWindowSpec("panel"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = window.SetBounds(context.Background(), Bounds{X: math.NaN(), Y: 20, Width: 320, Height: 180})
+	var uiErr *Error
+	if !errors.As(err, &uiErr) || uiErr.Code != CodeInvalidSpec || uiErr.Operation != "setBounds" || uiErr.WindowID != "panel" {
+		t.Fatalf("non-finite bounds error = %#v", err)
 	}
 }
 

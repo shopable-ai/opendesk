@@ -2,10 +2,11 @@ package customui
 
 import (
 	"context"
+	"opendesk/pkg/customui/toolbar"
 	"time"
 )
 
-const ProtocolVersion = "1.0.0"
+const ProtocolVersion = "1.1.0"
 
 type ActivationSource string
 
@@ -44,15 +45,20 @@ type ContentSpec struct {
 }
 
 type WindowSpec struct {
-	ID          string      `json:"id"`
-	Kind        string      `json:"kind,omitempty"`
-	Title       string      `json:"title,omitempty"`
-	Bounds      Bounds      `json:"bounds"`
-	AlwaysOnTop bool        `json:"alwaysOnTop,omitempty"`
-	Draggable   bool        `json:"draggable,omitempty"`
-	Theme       string      `json:"theme,omitempty"`
-	Content     ContentSpec `json:"content"`
-	Controls    []Control   `json:"controls,omitempty"`
+	ID          string `json:"id"`
+	Kind        string `json:"kind,omitempty"`
+	Title       string `json:"title,omitempty"`
+	Bounds      Bounds `json:"bounds"`
+	AlwaysOnTop bool   `json:"alwaysOnTop,omitempty"`
+	Draggable   bool   `json:"draggable,omitempty"`
+	// CenterOnActiveDisplay is reserved for host-owned surfaces such as Dialog.
+	// It is intentionally not present in the JavaScript Custom UI declaration.
+	// The native host resolves it from the current display at creation time.
+	CenterOnActiveDisplay bool                 `json:"centerOnActiveDisplay,omitempty"`
+	Theme                 string               `json:"theme,omitempty"`
+	Content               ContentSpec          `json:"content,omitempty"`
+	Toolbar               *toolbar.ToolbarSpec `json:"toolbar,omitempty"`
+	Controls              []Control            `json:"controls,omitempty"`
 }
 
 type Control struct {
@@ -101,28 +107,45 @@ type WindowState struct {
 }
 
 type ControlState struct {
-	ID           string         `json:"id"`
-	Type         string         `json:"type"`
-	Text         string         `json:"text,omitempty"`
-	Value        any            `json:"value,omitempty"`
-	Checked      *bool          `json:"checked,omitempty"`
-	Disabled     bool           `json:"disabled"`
-	Visible      bool           `json:"visible"`
-	Classes      []string       `json:"classes,omitempty"`
-	LocalBounds  Bounds         `json:"localBounds"`
-	ScreenBounds Bounds         `json:"screenBounds"`
-	Extra        map[string]any `json:"extra,omitempty"`
+	ID   string `json:"id"`
+	Type string `json:"type"`
+	Text string `json:"text,omitempty"`
+	Icon string `json:"icon,omitempty"`
+	// IconPresentation is present only for generated FloatingWindow buttons.
+	// It records the reviewed native visual recipe without opening a path or URL
+	// based icon API to JavaScript.
+	IconPresentation  *ToolbarIconPresentation `json:"iconPresentation,omitempty"`
+	AccessibilityName string                   `json:"accessibilityName,omitempty"`
+	Value             any                      `json:"value,omitempty"`
+	Checked           *bool                    `json:"checked,omitempty"`
+	Active            bool                     `json:"active"`
+	Disabled          bool                     `json:"disabled"`
+	Busy              bool                     `json:"busy"`
+	Error             string                   `json:"error,omitempty"`
+	Visible           bool                     `json:"visible"`
+	Classes           []string                 `json:"classes,omitempty"`
+	LocalBounds       Bounds                   `json:"localBounds"`
+	ScreenBounds      Bounds                   `json:"screenBounds"`
+	Extra             map[string]any           `json:"extra,omitempty"`
 }
 
 type ControlPatch struct {
-	Text     *string        `json:"text,omitempty"`
-	Value    any            `json:"value,omitempty"`
-	Checked  *bool          `json:"checked,omitempty"`
-	Disabled *bool          `json:"disabled,omitempty"`
-	Visible  *bool          `json:"visible,omitempty"`
-	Classes  []string       `json:"classes,omitempty"`
-	Source   *string        `json:"source,omitempty"`
-	Options  []SelectOption `json:"options,omitempty"`
+	Text *string `json:"text,omitempty"`
+	Icon *string `json:"icon,omitempty"`
+	// IconPresentation is an internal companion to Icon. Validation permits it
+	// only when it exactly matches an allowlisted Icon value, so the native host
+	// receives no caller-selected symbol or resource.
+	IconPresentation *ToolbarIconPresentation `json:"iconPresentation,omitempty"`
+	Value            any                      `json:"value,omitempty"`
+	Checked          *bool                    `json:"checked,omitempty"`
+	Active           *bool                    `json:"active,omitempty"`
+	Disabled         *bool                    `json:"disabled,omitempty"`
+	Busy             *bool                    `json:"busy,omitempty"`
+	Error            *string                  `json:"error,omitempty"`
+	Visible          *bool                    `json:"visible,omitempty"`
+	Classes          []string                 `json:"classes,omitempty"`
+	Source           *string                  `json:"source,omitempty"`
+	Options          []SelectOption           `json:"options,omitempty"`
 }
 
 type SelectOption struct {
@@ -172,4 +195,6 @@ type DriverWindow interface {
 	State(context.Context) (WindowState, error)
 	ControlState(context.Context, string) (ControlState, error)
 	UpdateControl(context.Context, string, ControlPatch) (ControlState, error)
+	ToolbarButtonState(context.Context, string) (toolbar.ButtonResult, error)
+	ApplyToolbarButton(context.Context, toolbar.ButtonSpec) (toolbar.ButtonResult, error)
 }

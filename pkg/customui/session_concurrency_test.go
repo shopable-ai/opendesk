@@ -174,3 +174,27 @@ func TestWindowCloseFailureIsStructuredAndRetryable(t *testing.T) {
 		t.Fatalf("retry close state=%#v err=%v", state, err)
 	}
 }
+
+func TestSessionCloseForcesTerminalWindowStateAfterHostFailure(t *testing.T) {
+	driver := &lifecycleDriver{base: NewMemoryDriver()}
+	driver.failClose.Store(true)
+	session, err := NewSession("terminal-close", t.TempDir(), driver, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	window, err := session.Create(context.Background(), testWindowSpec("panel"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := session.Close(context.Background()); err == nil {
+		t.Fatal("expected the injected native close failure")
+	}
+	if window.Status() != StatusClosed || session.WindowCount() != 0 {
+		t.Fatalf("terminal session retained a dead native window: status=%s count=%d", window.Status(), session.WindowCount())
+	}
+	select {
+	case <-window.WaitClosed():
+	default:
+		t.Fatal("terminal session did not close the window waiter")
+	}
+}

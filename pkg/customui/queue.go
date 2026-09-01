@@ -2,8 +2,8 @@ package customui
 
 import "sync"
 
-// EventQueue is bounded and deterministic. High-frequency input events may be
-// coalesced by target; click/change/close events are never silently discarded.
+// EventQueue is bounded and deterministic. High-frequency input/move/resize
+// events may be coalesced by target; click/change/close are never discarded.
 type EventQueue struct {
 	mu       sync.Mutex
 	capacity int
@@ -22,7 +22,7 @@ func (q *EventQueue) Push(event Event) error {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	if q.closed {
-		return &Error{Code: CodeCanceled, Operation: "queueEvent", WindowID: event.WindowID, Message: "custom UI event queue is closed"}
+		return &Error{Code: CodeCanceled, Operation: "queueEvent", WindowID: event.WindowID, Capability: "ui", Message: "custom UI event queue is closed"}
 	}
 	if isCoalescibleEvent(event.Type) {
 		for index := len(q.items) - 1; index >= 0; index-- {
@@ -31,13 +31,18 @@ func (q *EventQueue) Push(event Event) error {
 				break
 			}
 			if current.Type == event.Type && current.SessionID == event.SessionID && current.WindowID == event.WindowID && current.TargetID == event.TargetID {
-				q.items[index] = event
+				// The replacement is newer than every event currently queued
+				// after index. Remove the stale item and append the latest one so
+				// sequence order remains monotonic across mixed input/move/resize
+				// events while capacity stays unchanged.
+				copy(q.items[index:], q.items[index+1:])
+				q.items[len(q.items)-1] = event
 				return nil
 			}
 		}
 	}
 	if len(q.items) >= q.capacity {
-		return &Error{Code: CodeQueueOverflow, Operation: "queueEvent", WindowID: event.WindowID, TargetID: event.TargetID, Message: "custom UI event queue capacity exceeded"}
+		return &Error{Code: CodeQueueOverflow, Operation: "queueEvent", WindowID: event.WindowID, TargetID: event.TargetID, Capability: "ui", Message: "custom UI event queue capacity exceeded"}
 	}
 	q.items = append(q.items, event)
 	return nil

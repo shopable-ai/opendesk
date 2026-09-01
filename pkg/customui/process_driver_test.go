@@ -13,10 +13,12 @@ import (
 	"time"
 )
 
-func TestUIHostCandidatesUseBundledOpenDeskHostName(t *testing.T) {
+func TestUIHostCandidatesUseBundledClawdeskHostNameWithOpenDeskMigrationFallback(t *testing.T) {
 	executable := filepath.Join(string(filepath.Separator), "Applications", "OpenDesk.app", "Contents", "MacOS", "opendesk")
 	candidates := uiHostCandidates(executable)
 	want := []string{
+		filepath.Join(filepath.Dir(executable), "clawdesk-ui-host"),
+		filepath.Join(filepath.Dir(executable), "..", "Helpers", "clawdesk-ui-host"),
 		filepath.Join(filepath.Dir(executable), "opendesk-ui-host"),
 		filepath.Join(filepath.Dir(executable), "..", "Helpers", "opendesk-ui-host"),
 	}
@@ -122,6 +124,61 @@ func TestResolveUIHostPathRejectsMissingAndNonExecutableOverride(t *testing.T) {
 		var uiErr *Error
 		if !errors.As(err, &uiErr) || uiErr.Code != CodeHostNotFound {
 			t.Fatalf("path %q error = %#v", path, err)
+		}
+	}
+}
+
+func TestProcessDriverMissingHostCleanupIsIdempotent(t *testing.T) {
+	driver := NewProcessDriver(ProcessDriverOptions{HostPath: filepath.Join(t.TempDir(), "missing")})
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	err := driver.ensureStarted(ctx)
+	var uiErr *Error
+	if !errors.As(err, &uiErr) || uiErr.Code != CodeHostNotFound {
+		t.Fatalf("start error = %#v", err)
+	}
+	if err := driver.CloseSession(ctx, "missing-host"); err != nil {
+		t.Fatalf("CloseSession after missing host = %v", err)
+	}
+	if err := driver.Close(); err != nil {
+		t.Fatalf("Close after missing host = %v", err)
+	}
+}
+
+func TestProcessDriverUnsupportedPlatformsAreExplicit(t *testing.T) {
+	for _, platform := range []string{"linux", "windows"} {
+		t.Run(platform, func(t *testing.T) {
+			driver := NewProcessDriver(ProcessDriverOptions{Platform: platform})
+			capabilities := driver.Capabilities(context.Background())
+			if capabilities.Available || capabilities.Platform != platform || capabilities.Reason == "" {
+				t.Fatalf("capabilities = %#v", capabilities)
+			}
+			_, err := driver.Create(context.Background(), "cross-platform", testWindowSpec("panel"), nil)
+			var uiErr *Error
+			if !errors.As(err, &uiErr) || uiErr.Code != CodeUnsupportedPlatform || uiErr.Operation != "createWindow" || uiErr.WindowID != "panel" || uiErr.Capability != "ui" {
+				t.Fatalf("Create() error = %#v", err)
+			}
+			if counts := driver.ResourceCounts(); counts.HostProcesses != 0 || counts.Sinks != 0 {
+				t.Fatalf("unsupported platform created resources: %#v", counts)
+			}
+		})
+	}
+}
+
+func TestValidateHostEventRejectsReplayAndUnknownTargets(t *testing.T) {
+	controls := map[string]struct{}{"save": {}}
+	valid := Event{SessionID: "session", WindowID: "panel", TargetID: "save", Type: "click", Sequence: 2, Timestamp: time.Now().UTC()}
+	if err := validateHostEvent(valid, controls, 1); err != nil {
+		t.Fatalf("valid event rejected: %v", err)
+	}
+	for _, event := range []Event{
+		{SessionID: "session", WindowID: "panel", TargetID: "save", Type: "click", Sequence: 2},
+		{SessionID: "session", WindowID: "panel", TargetID: "missing", Type: "click", Sequence: 3},
+	} {
+		err := validateHostEvent(event, controls, 2)
+		var uiErr *Error
+		if !errors.As(err, &uiErr) || uiErr.Code != CodeDriverFailure || uiErr.Operation != "readHostEvent" {
+			t.Fatalf("event %#v error = %#v", event, err)
 		}
 	}
 }

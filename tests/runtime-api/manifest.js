@@ -63,11 +63,13 @@ globalThis.RuntimeAPIObjects = {
     'findBlueChannel', 'toRGB', 'toRGBA', 'toHSL', 'toHSLA', 'isColorSimilar', 'analyzeLayout',
   ] },
   Sound: { docs: 'docs-user-api/runtime-utilities.md', types: 'types/Sound.d.ts', source: 'automation/sound.go', status: 'secondary', platforms: ['darwin', 'linux', 'windows'], methods: ['playSuccess', 'playFail', 'playWarning', 'playError', 'playCaptcha', 'playSound', 'play'] },
-  FloatingWindow: { docs: 'docs-user-api/runtime-utilities.md', types: 'types/FloatingWindow.d.ts', source: 'automation/floating_window.go', status: 'conditional-experimental', platforms: ['darwin', 'linux', 'windows'], optional: true, methods: ['addButton', 'removeButton', 'show', 'hide', 'setPosition', 'onButtonClick', 'setAlwaysOnTop', 'run'] },
+  Dialog: { docs: 'docs-user-api/dialog.md', types: 'types/dialog.d.ts', source: 'automation/dialog.go', status: 'conditional', platforms: ['darwin', 'linux', 'windows'], methods: ['alert', 'confirm', 'prompt', 'getCapabilities'] },
+  ui: { docs: 'docs-user-api/custom-ui.md', types: 'types/custom-ui.d.ts', source: 'automation/custom_ui.go', status: 'conditional-v1', platforms: ['darwin', 'linux', 'windows'], methods: ['getCapabilities', 'createWindow', 'closeAll', 'on'] },
+  FloatingWindow: { docs: 'docs-user-api/runtime-utilities.md', types: 'types/FloatingWindow.d.ts', source: 'automation/floating_window.go', status: 'button-first-v1', platforms: ['darwin', 'linux', 'windows'], optional: true, methods: ['constructor', 'addButton', 'removeButton', 'updateButton', 'getButtonState', 'show', 'hide', 'close', 'setPosition', 'onButtonClick', 'onError', 'setAlwaysOnTop', 'waitUntilClosed', 'run'] },
   browser: { docs: 'docs-user-api/runtime.md', types: 'types/browser.d.ts', source: 'automation/browser.go', status: 'compatibility', platforms: ['darwin', 'linux', 'windows'], methods: ['newPage', 'newContext', 'defaultContext', 'contexts', 'pages', 'lastPage', 'close', 'isClosed'] },
   context: { docs: 'docs-user-api/runtime.md', types: 'types/browser.d.ts', source: 'automation/browser.go', status: 'compatibility', platforms: ['darwin', 'linux', 'windows'], methods: ['browser', 'newPage', 'adoptPage', 'pages', 'lastPage', 'close', 'isClosed', 'cookies', 'setCookies', 'clearCookies', 'storage', 'setStorage', 'getStorage', 'clearStorage', 'session', 'setSessionValue', 'getSessionValue', 'clearSession'] },
-  global: { docs: 'docs-user-api/polyfills.md', types: 'types/global.d.ts', source: 'polyfills', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: [
-    'notify', 'copyToClipboard', 'getClipboard', 'AbortController', 'setTimeout', 'clearTimeout',
+  global: { docs: 'docs-user-api/global-apis.md', types: 'types/global.d.ts', source: 'polyfills', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: [
+    'notify', 'alert', 'confirm', 'prompt', 'copyToClipboard', 'getClipboard', 'AbortController', 'setTimeout', 'clearTimeout',
     'setInterval', 'clearInterval', 'sleep', 'sleepSeconds', 'requestAnimationFrame',
     'cancelAnimationFrame',
   ] },
@@ -86,8 +88,11 @@ const unitBehavior = new Set([
   'http.request', 'NativeExtensions.list', 'NativeExtensions.get', 'NativeExtensions.diagnostics', 'OCR.extractText', 'Vision.getCapabilities', 'Vision.analyzeLayout', 'Vision.annotateRegions',
   ...RuntimeAPIObjects.ImageColor.methods.map((method) => 'ImageColor.' + method),
   'Sound.playSound', 'Sound.play',
+  ...RuntimeAPIObjects.Dialog.methods.map((method) => 'Dialog.' + method),
+  ...RuntimeAPIObjects.ui.methods.map((method) => 'ui.' + method),
   ...RuntimeAPIObjects.browser.methods.filter((method) => method !== 'close').map((method) => 'browser.' + method),
   ...RuntimeAPIObjects.context.methods.filter((method) => method !== 'close').map((method) => 'context.' + method),
+  'global.alert', 'global.confirm', 'global.prompt',
   ...['AbortController', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'sleep', 'sleepSeconds', 'requestAnimationFrame', 'cancelAnimationFrame'].map((method) => 'global.' + method),
 ]);
 
@@ -108,6 +113,10 @@ const compositionBehavior = new Set([
   // Safari fixture, not merely return successfully in an isolated live call.
   'window.getActiveWindow', 'window.setWindowBounds',
 ]);
+const customUIBehavior = new Set([
+  ...RuntimeAPIObjects.ui.methods.map((method) => 'ui.' + method),
+  ...RuntimeAPIObjects.FloatingWindow.methods.map((method) => 'FloatingWindow.' + method),
+]);
 
 const restricted = {
   'page.openMacOSPrivacySettings': 'opens System Settings',
@@ -126,6 +135,9 @@ const restricted = {
   'System.restart': 'restarts the host',
   'System.sleep': 'suspends the host',
   'AppStorage.clear': 'would delete the operator persistent store',
+  'NativeExtensions.goBasic.hello': 'starts one manifest-bound repository-owned Go extension process',
+  'NativeExtensions.goBasic.add': 'starts one manifest-bound repository-owned Go extension process',
+  'NativeExtensions.macosVision.ocr': 'starts one manifest-bound Apple Vision extension process and requires macOS plus a representative fixture',
   'Vision.runOCR': 'requires a configured external or local provider and representative fixture',
   'Vision.detectUI': 'requires a configured external or local provider and representative fixture',
   'global.notify': 'creates a real operating-system notification',
@@ -133,14 +145,11 @@ const restricted = {
   'context.close': 'would close the singleton compatibility context used by later tests',
 };
 for (const method of ['playSuccess', 'playFail', 'playWarning', 'playError', 'playCaptcha']) restricted['Sound.' + method] = 'plays audible system output';
-for (const method of RuntimeAPIObjects.FloatingWindow.methods) restricted['FloatingWindow.' + method] = 'conditional UI loop is absent with SKIP_FYNE_INIT=1';
+for (const method of RuntimeAPIObjects.FloatingWindow.methods) restricted['FloatingWindow.' + method] = 'button-first facade is exposed only when Custom UI is explicitly authorized';
 for (const method of RuntimeAPIObjects.window.methods) {
   const id = 'window.' + method;
   const hasSafeBehavior = ['getActiveWindow', 'setWindowBounds', 'list', 'setAlwaysOnTop', 'unsetTopMost', 'js_beautify'].includes(method);
   if (!hasSafeBehavior && !restricted[id]) {
-  'NativeExtensions.goBasic.hello': 'starts one manifest-bound repository-owned Go extension process',
-  'NativeExtensions.goBasic.add': 'starts one manifest-bound repository-owned Go extension process',
-  'NativeExtensions.macosVision.ocr': 'starts one manifest-bound Apple Vision extension process and requires macOS plus a representative fixture',
     restricted[id] = 'generic macOS Accessibility enumeration or third-party window action is high-latency and only the verified foreground fixture route is live-tested';
   }
 }
@@ -153,6 +162,7 @@ for (const [family, definition] of Object.entries(RuntimeAPIObjects)) {
       ...(unitBehavior.has(id) ? ['unit'] : []),
       ...(liveBehavior.has(id) ? ['live'] : []),
       ...(compositionBehavior.has(id) ? ['composition'] : []),
+      ...(customUIBehavior.has(id) ? ['custom-ui'] : []),
     ];
     const contractOnlyReason = behaviorTiers.length === 0 ? restricted[id] || null : null;
     RuntimeAPIManifest.push({
@@ -169,24 +179,8 @@ for (const [family, definition] of Object.entries(RuntimeAPIObjects)) {
   }
 }
 
-globalThis.RuntimeAPITestFiles = {
-  async: [
-    'tests/runtime-api/async-lifecycle.js',
-  ],
-  unit: [
-    'tests/runtime-api/unit/page.test.js',
-    'tests/runtime-api/unit/mouse.test.js',
-    'tests/runtime-api/unit/keyboard.test.js',
-    'tests/runtime-api/unit/touchscreen.test.js',
-    'tests/runtime-api/unit/window.test.js',
-    'tests/runtime-api/unit/screen.test.js',
-    'tests/runtime-api/unit/system.test.js',
-    'tests/runtime-api/unit/file.test.js',
-    'tests/runtime-api/unit/storage.test.js',
-    'tests/runtime-api/unit/clipboard.test.js',
 for (const entry of RuntimeAPIObjects.NativeExtensions.dynamicMethods) {
   RuntimeAPIManifest.push({
-    'tests/runtime-api/unit/native-extension.test.js',
     id: 'NativeExtensions.' + entry.path,
     family: 'NativeExtensions',
     source: { runtime: 'automation/native_extensions.go', docs: 'docs-user-api/native-extension.md', types: entry.types },
@@ -199,8 +193,34 @@ for (const entry of RuntimeAPIObjects.NativeExtensions.dynamicMethods) {
   });
 }
 
+globalThis.RuntimeAPITestFiles = {
+  async: [
+    'tests/runtime-api/async-lifecycle.js',
+  ],
+  dialog: [
+    'tests/runtime-api/dialog-no-ui.js',
+    'tests/runtime-api/dialog-validation.js',
+    'tests/runtime-api/dialog-lifecycle.js',
+    'tests/runtime-api/dialog-unobserved.js',
+    'tests/runtime-api/dialog-layout-probe.js',
+    'tests/runtime-api/dialog-adaptive-layout-probe.js',
+    'tests/runtime-api/dialog-ax-controller.js',
+  ],
+  unit: [
+    'tests/runtime-api/unit/page.test.js',
+    'tests/runtime-api/unit/mouse.test.js',
+    'tests/runtime-api/unit/keyboard.test.js',
+    'tests/runtime-api/unit/touchscreen.test.js',
+    'tests/runtime-api/unit/window.test.js',
+    'tests/runtime-api/unit/screen.test.js',
+    'tests/runtime-api/unit/system.test.js',
+    'tests/runtime-api/unit/file.test.js',
+    'tests/runtime-api/unit/storage.test.js',
+    'tests/runtime-api/unit/clipboard.test.js',
     'tests/runtime-api/unit/console.test.js',
     'tests/runtime-api/unit/http.test.js',
+    'tests/runtime-api/unit/notify.test.js',
+    'tests/runtime-api/unit/native-extension.test.js',
     'tests/runtime-api/unit/axios.test.js',
     'tests/runtime-api/unit/http-axios.test.js',
     'tests/runtime-api/unit/ocr.test.js',
@@ -208,6 +228,8 @@ for (const entry of RuntimeAPIObjects.NativeExtensions.dynamicMethods) {
     'tests/runtime-api/unit/vision-layout.test.js',
     'tests/runtime-api/unit/image-color.test.js',
     'tests/runtime-api/unit/sound.test.js',
+    'tests/runtime-api/unit/dialog.test.js',
+    'tests/runtime-api/unit/custom-ui.test.js',
     'tests/runtime-api/unit/floating-window.test.js',
     'tests/runtime-api/unit/browser.test.js',
     'tests/runtime-api/unit/context.test.js',

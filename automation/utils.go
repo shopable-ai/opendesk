@@ -13,19 +13,26 @@ import (
 
 	"github.com/dop251/goja"
 	"github.com/dop251/goja_nodejs/eventloop"
+	"opendesk/pkg/customui"
 	"opendesk/pkg/nativeextension"
 )
 
 // InitJSOptions 控制 JS 运行时初始化行为。
 type InitJSOptions struct {
-	EventSink    EventSink
-	Context      context.Context
-	EventLoop    *eventloop.EventLoop
+	EventSink                       EventSink
+	Context                         context.Context
+	EventLoop                       *eventloop.EventLoop
 	EnableNativeExtensions          bool
 	EnableUnsafeNativeExtensionCall bool
 	NativeExtensionRoots            []nativeextension.DiscoveryRoot
-	OnAsyncError func(error)
-	OnReady      func(*RuntimeLifecycle)
+	EnableCustomUI                  bool
+	CustomUIActivationSource        customui.ActivationSource
+	CustomUIDriver                  customui.Driver
+	CustomUIHostPath                string
+	CustomUISessionID               string
+	CustomUIBaseDir                 string
+	OnAsyncError                    func(error)
+	OnReady                         func(*RuntimeLifecycle)
 }
 
 // RuntimeLifecycle exposes only teardown-safe resources to the runtime owner.
@@ -34,6 +41,7 @@ type InitJSOptions struct {
 type RuntimeLifecycle struct {
 	Timers *Timer
 	HTTP   *HTTPClient
+	UI     *CustomUIRuntime
 }
 
 // Wait joins host workers after their execution context has been cancelled.
@@ -42,6 +50,9 @@ func (l *RuntimeLifecycle) Wait() {
 	if l != nil && l.HTTP != nil {
 		l.HTTP.Wait()
 	}
+	if l != nil && l.UI != nil {
+		l.UI.Wait()
+	}
 }
 
 // CancelAsync discards pending host callbacks after the execution context is
@@ -49,6 +60,9 @@ func (l *RuntimeLifecycle) Wait() {
 func (l *RuntimeLifecycle) CancelAsync() {
 	if l != nil && l.HTTP != nil {
 		l.HTTP.CancelPending()
+	}
+	if l != nil && l.UI != nil {
+		l.UI.CancelAsync()
 	}
 }
 
@@ -64,7 +78,62 @@ func (l *RuntimeLifecycle) AsyncCounts() (timers int, workers int64, callbacks i
 		workers = l.HTTP.ActiveWorkers()
 		callbacks = l.HTTP.PendingCallbacks()
 	}
+	if l.UI != nil {
+		uiWorkers, uiCallbacks := l.UI.AsyncCounts()
+		workers += uiWorkers
+		callbacks += uiCallbacks
+	}
 	return timers, workers, callbacks
+}
+
+type RuntimeResourceCounts struct {
+	Timers          int
+	HTTPWorkers     int64
+	HTTPCallbacks   int
+	UIWorkers       int64
+	UIPending       int
+	UIQueued        int
+	UIWindows       int
+	UIListeners     int
+	UIDriverSinks   int
+	UIHostProcesses int
+}
+
+func (l *RuntimeLifecycle) ResourceCounts() RuntimeResourceCounts {
+	counts := RuntimeResourceCounts{}
+	if l == nil {
+		return counts
+	}
+	if l.Timers != nil {
+		counts.Timers = l.Timers.Count()
+	}
+	if l.HTTP != nil {
+		counts.HTTPWorkers = l.HTTP.ActiveWorkers()
+		counts.HTTPCallbacks = l.HTTP.PendingCallbacks()
+	}
+	if l.UI != nil {
+		ui := l.UI.ResourceCounts()
+		counts.UIWorkers = ui.Workers
+		counts.UIPending = ui.Pending
+		counts.UIQueued = ui.Queued
+		counts.UIWindows = ui.Windows
+		counts.UIListeners = ui.Listeners
+		counts.UIDriverSinks = ui.DriverSinks
+		counts.UIHostProcesses = ui.HostProcesses
+	}
+	return counts
+}
+
+func (c RuntimeResourceCounts) IsZero() bool {
+	return c.Timers == 0 && c.HTTPWorkers == 0 && c.HTTPCallbacks == 0 &&
+		c.UIWorkers == 0 && c.UIPending == 0 && c.UIQueued == 0 && c.UIWindows == 0 &&
+		c.UIListeners == 0 && c.UIDriverSinks == 0 && c.UIHostProcesses == 0
+}
+
+func (c RuntimeResourceCounts) String() string {
+	return fmt.Sprintf("timers=%d httpWorkers=%d httpCallbacks=%d uiWorkers=%d uiPending=%d uiQueued=%d uiWindows=%d uiListeners=%d uiDriverSinks=%d uiHostProcesses=%d",
+		c.Timers, c.HTTPWorkers, c.HTTPCallbacks, c.UIWorkers, c.UIPending, c.UIQueued,
+		c.UIWindows, c.UIListeners, c.UIDriverSinks, c.UIHostProcesses)
 }
 
 func emitRuntimeLog(sink EventSink, level, message string, fields map[string]any) {
@@ -227,10 +296,9 @@ func autoMapPageResult(runtime *goja.Runtime, page *Page) map[string]interface{}
 var jsMethodAllowlist = map[reflect.Type][]string{
 	reflect.TypeOf((*Console)(nil)):        {"Log", "Info", "Warn", "Error", "Debug", "Table", "Group", "GroupEnd", "Time", "TimeEnd", "Clear"},
 	reflect.TypeOf((*HTTPClient)(nil)):     {"Request", "Get", "Post"},
-	reflect.TypeOf((*System)(nil)):         {"GetSystemInfo", "GetProcessList", "KillProcess", "GetNetworkInterfaces", "GetNetworkConnections", "GetPowerInfo", "Shutdown", "Restart", "Sleep", "GetDirectoryContents", "GetExecutablePath", "GetWorkingDirectory", "GetUserInfo", "IsAdministrator", "GetSystemMetrics", "GetFingerprint", "ToJSON"},
+	reflect.TypeOf((*System)(nil)):         {"Delay", "GetPlatformInfo", "GetSystemInfo", "GetProcessList", "KillProcess", "GetNetworkInterfaces", "GetNetworkConnections", "GetPowerInfo", "Shutdown", "Restart", "Sleep", "GetDirectoryContents", "GetExecutablePath", "GetWorkingDirectory", "GetUserInfo", "IsAdministrator", "GetSystemMetrics", "GetFingerprint", "ToJSON"},
 	reflect.TypeOf((*WindowManager)(nil)):  {"GetActiveWindow", "GetWindowByTitle", "GetFocusWindow", "Focus", "SetWindowBounds", "SetWidth", "SetHeight", "Maximize", "Minimize", "Restore", "RestoreByPID", "MinimizeByPID", "MaximizeByPID", "CloseWindow", "CloseActiveWindow", "Kill", "Title", "GetTitle", "Content", "GetContent", "List", "SetAlwaysOnTop", "UnsetTopMost", "BringToTop"},
 	reflect.TypeOf((*Clipboard)(nil)):      {"Copy", "Paste", "Clear"},
-	reflect.TypeOf((*FloatingWindow)(nil)): {"AddButton", "RemoveButton", "Show", "Hide", "SetPosition", "OnButtonClick", "SetAlwaysOnTop", "Run"},
 	reflect.TypeOf((*FileSystem)(nil)):     {"Path", "Cwd", "Create", "CreateIfNotExists", "CreateWithDirs", "Exists", "EnsureDir", "Read", "ReadBytes", "Write", "Append", "WriteBytes", "AppendBytes", "Copy", "RenameWithoutExtension", "Rename", "Move", "GetExtension", "GetName", "GetNameWithoutExtension", "Remove", "RemoveDir", "ListDir", "IsFile", "IsDir", "IsEmptyDir", "GetHumanReadableSize", "GetSimplifiedPath", "Join", "Open"},
 	reflect.TypeOf((*AppStorage)(nil)):     {"GetItem", "SetItem", "RemoveItem", "Clear", "GetLength", "Key"},
 	reflect.TypeOf((*Sound)(nil)):          {"PlaySuccess", "PlayFail", "PlayWarning", "PlayError", "PlayCaptcha", "PlaySound", "Play"},
@@ -502,6 +570,9 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 	httpMethods := AutoMapObject(runtime, httpClient)
 	runtime.Set("http", httpMethods)
 
+	timer := NewTimer(runtime, opts.EventLoop, opts.OnAsyncError)
+	timer.RegisterInRuntime()
+
 	system := NewSystem()
 	systemMethods := AutoMapObject(runtime, system)
 	runtime.Set("System", systemMethods)
@@ -513,12 +584,6 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 	clipboard := NewClipboard()
 	clipboardMethods := AutoMapObject(runtime, clipboard)
 	runtime.Set("clipboard", clipboardMethods)
-
-	if os.Getenv("SKIP_FYNE_INIT") == "" {
-		floatingWindow := NewFloatingWindow()
-		floatingWindowMethods := AutoMapObject(runtime, floatingWindow)
-		runtime.Set("FloatingWindow", floatingWindowMethods)
-	}
 
 	fileSystem := NewFileSystem()
 	fileSystemMethods := AutoMapObject(runtime, fileSystem)
@@ -554,8 +619,16 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 			return fmt.Errorf("failed to register NativeExtension: %w", err)
 		}
 	}
-	timer := NewTimer(runtime, opts.EventLoop, opts.OnAsyncError)
-	timer.RegisterInRuntime()
+	uiRuntime, err := registerCustomUI(runtime, opts)
+	if err != nil {
+		return fmt.Errorf("failed to register custom UI: %w", err)
+	}
+	// Dialog is always injected so untrusted transports get a stable,
+	// fail-closed DIALOG_DISABLED error rather than an absent global. Its native
+	// implementation is still owned by the explicitly authorized Custom UI host.
+	if err := registerDialog(runtime, uiRuntime, opts); err != nil {
+		return fmt.Errorf("failed to register Dialog: %w", err)
+	}
 
 	page := NewPage()
 	mouseMethods := AutoMapObject(runtime, page.Mouse)
@@ -616,7 +689,7 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 		return fmt.Errorf("failed to bind Screen.screenshot: %v", err)
 	}
 	if opts.OnReady != nil {
-		opts.OnReady(&RuntimeLifecycle{Timers: timer, HTTP: httpClient})
+		opts.OnReady(&RuntimeLifecycle{Timers: timer, HTTP: httpClient, UI: uiRuntime})
 	}
 	return nil
 }

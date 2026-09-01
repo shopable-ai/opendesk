@@ -20,7 +20,101 @@ const accepted = await Dialog.confirm({
 });
 ```
 
-`alert`、`confirm`、`prompt` 三个全局函数只是 `Dialog` 的薄 polyfill alias；参数校验、能力检查、窗口创建和清理由同一 host-owned `Dialog` binding 完成。
+`Dialog.alert()` / `Dialog.confirm()` / `Dialog.prompt()` 与全局 `alert()` / `confirm()` /
+`prompt()` 是等价入口，使用相同的参数、返回值和错误语义。
+
+## 异步控制流：只返回 Promise
+
+`Dialog.alert()`、`Dialog.confirm()` 和 `Dialog.prompt()` **只**接受本页列出的消息或
+options 参数，且**只**返回 Promise。没有 `onConfirm`、`onCancel` 或其他 options callback；
+不要把浏览器同步 dialog 的控制流习惯带到 OpenDesk。
+
+- 调用立即返回，不会同步阻塞 Runtime EventLoop；`await` 只暂停当前 `async` 函数。
+- 使用 `await` 接收结果，或使用 `.then()` / `.catch()` / `.finally()` 注册 continuation。
+  这些 continuation 和 Dialog settlement 都在该 execution 的 owner EventLoop 上运行。
+- 文件脚本把异步入口命名为 `main()` 时，应写顶层 `await main()`；单独的
+  `main().catch(...)` 不会让 Runtime 把该外层用户 Promise 当作 execution completion。
+- 一个 Dialog 只会 settle 一次：用户选择、Esc、标题栏关闭、execution cancel、deadline
+  和 native host failure 竞争时，以先到的终态为准；后续 native event 会被忽略。
+- 如果脚本调用 Dialog 后结束、但没有 `await`、`.then()`、`.catch()` 或 `.finally()` 观察
+  返回的 Promise，Runtime 会关闭原生窗口并结束 execution；它不会为了一个被遗忘的 Dialog
+  无限保持 execution 存活。
+
+仓库提供两个互不屏蔽、可分别直接运行的完整示例：
+
+- [`examples/dialog.js`](https://github.com/shopable-ai/opendesk/blob/master/examples/dialog.js)：`async` / `await` 写法；
+- [`examples/dialog-promise-chain.js`](https://github.com/shopable-ai/opendesk/blob/master/examples/dialog-promise-chain.js)：等价的
+  `.then()` / `.catch()` / `.finally()` 写法。
+
+```js
+async function main() {
+  console.log('alert 调用前');
+  const pending = Dialog.alert({
+    message: '这个原生窗口打开时，EventLoop 仍可继续运行',
+    okText: '继续'
+  });
+  console.log('alert 已立即返回 Promise', pending instanceof Promise);
+  await Promise.resolve();
+  console.log('alert settle 前的 EventLoop continuation 已运行');
+  await pending;
+  console.log('alert 已 settle');
+
+  const value = await Dialog.prompt({
+    message: '输入非敏感标签',
+    placeholder: '标签',
+    confirmText: '显示结果',
+    cancelText: '取消'
+  });
+  await Dialog.alert({
+    title: 'Prompt 结果',
+    message: value === null
+      ? 'Prompt 结果：null（用户取消）'
+      : `Prompt 结果：${value}`
+  });
+}
+
+try {
+  await main();
+} catch (error) {
+  console.error(error.code, error.message);
+  throw error;
+}
+```
+
+`await` 以外的等价写法是链式 Promise；仍需在文件顶层 `await flow`，让 Runtime
+观察整条用户 Promise：
+
+```js
+console.log('alert 调用前');
+const pending = Dialog.alert({ message: 'EventLoop 仍可继续运行', okText: '继续' });
+console.log('alert 已立即返回 Promise', pending instanceof Promise);
+
+const flow = Promise.resolve()
+  .then(() => console.log('alert settle 前的 EventLoop continuation 已运行'))
+  .then(() => pending)
+  .then(() => Dialog.prompt({
+    message: '输入非敏感标签',
+    placeholder: '标签',
+    confirmText: '显示结果',
+    cancelText: '取消'
+  }))
+  .then(value => Dialog.alert({
+    title: 'Prompt 结果',
+    message: value === null
+      ? 'Prompt 结果：null（用户取消）'
+      : `Prompt 结果：${value}`
+  }))
+  .catch(error => {
+    console.error(error.code, error.message);
+    throw error;
+  })
+  .finally(() => console.log('Dialog flow finished'));
+
+await flow;
+```
+
+上例为了演示结果窗口，只回显明确属于非敏感数据的标签。不要回显密码、token 或其他秘密；
+`secure: true` 的 prompt 返回值尤其不应写入日志、通知或后续 Dialog。
 
 ## Dialog：启用与能力
 
@@ -88,6 +182,10 @@ const proceed = await confirm({ title: "删除前确认", message: "是否继续
 
 ```js
 const name = await prompt({ title: "输入名称", message: "请输入任务名称", defaultValue: "", placeholder: "任务名称", confirmText: "确定", cancelText: "取消", secure: false });
+await Dialog.alert({
+  title: "输入结果",
+  message: name === null ? "输入结果：null（用户取消）" : `输入结果：${name}`
+});
 ```
 
 ## Dialog：严格输入边界
@@ -105,6 +203,10 @@ const name = await prompt({ title: "输入名称", message: "请输入任务名�
 
 execution cancel、timeout、HTTP server shutdown、native host crash 和 Runtime teardown 都会幂等地关闭窗口。非成功完成会 reject，并保留 `code`、`operation`、`dialogId`、`capability`、`message` 字段。错误绝不携带 prompt 输入值。
 
+用户取消不是异常：`confirm` resolve `false`，`prompt` resolve `null`，`alert` resolve
+`undefined`。只有 execution/native failure 才 reject。`catch` 可处理 reject；`finally`
+总会在该 Promise 已 settle 后执行。
+
 稳定 code：`DIALOG_DISABLED`、`DIALOG_INVALID_OPTIONS`、`DIALOG_BUSY`、`DIALOG_CANCELED`、`DIALOG_TIMEOUT`、`DIALOG_HOST_NOT_FOUND`、`DIALOG_HOST_FAILURE`、`DIALOG_UNSUPPORTED_PLATFORM`。
 
 ## Dialog / notify / ui：选择合适的提示能力
@@ -118,4 +220,11 @@ execution cancel、timeout、HTTP server shutdown、native host crash 和 Runtim
 | `ui.createWindow()` | 自定义持久面板和复杂表单。 |
 | `Sound` | 音频提示。 |
 
-Dialog 固定使用 host 根据结构化参数生成的布局；复杂、持续交互的界面请使用 [Custom UI](custom-ui.md)，不要把 Dialog 当 HTML container。
+Dialog 固定使用 host 根据结构化参数生成的布局；复杂、持续交互的界面请使用
+[Custom UI v1](custom-ui.md)，不要把 Dialog 当 HTML container。
+
+## Dialog：实现边界
+
+`alert`、`confirm`、`prompt` 三个全局函数由薄 polyfill alias 提供；参数校验、能力检查、
+窗口创建和清理由同一个 host-owned `Dialog` binding 完成。脚本只应依赖本页描述的公开
+调用契约，不应依赖内部 binding 或 polyfill 文件。

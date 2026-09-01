@@ -3,11 +3,29 @@ package customui
 import (
 	"context"
 	"errors"
+	"math"
 	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
 )
+
+func TestNormalizeRejectsNonFiniteBounds(t *testing.T) {
+	for name, bounds := range map[string]Bounds{
+		"nan x":          {X: math.NaN(), Width: 320, Height: 180},
+		"infinite y":     {Y: math.Inf(1), Width: 320, Height: 180},
+		"infinite width": {Width: math.Inf(1), Height: 180},
+		"nan height":     {Width: 320, Height: math.NaN()},
+	} {
+		t.Run(name, func(t *testing.T) {
+			spec := testWindowSpec("finiteBounds")
+			spec.Bounds = bounds
+			if _, err := Normalize(spec, t.TempDir()); err == nil {
+				t.Fatal("non-finite bounds unexpectedly passed validation")
+			}
+		})
+	}
+}
 
 func TestNormalizeBuildsStableControlOrder(t *testing.T) {
 	baseDir := t.TempDir()
@@ -89,8 +107,16 @@ func TestNormalizeRejectsUnsafeOrAmbiguousHTML(t *testing.T) {
 		{name: "srcset", html: `<img id="logo" srcset="https://example.com/a.png 1x">`, code: CodeInvalidSpec},
 		{name: "inline style url", html: `<div id="box" style="background: url( https://example.com/a.png )">A</div>`, code: CodeInvalidSpec},
 		{name: "style element url", html: `<style>.x{background:u/**/rl(https://example.com/a.png)}</style><div id="box">A</div>`, code: CodeInvalidSpec},
+		{name: "style element image set", html: `<style>.x{background:image-set("https://example.com/a.png" 1x)}</style><div id="box">A</div>`, code: CodeInvalidSpec},
+		{name: "style cannot become control", html: `<style id="theme">body{color:white}</style><button id="save">A</button>`, code: CodeInvalidSpec},
+		{name: "option cannot become control", html: `<select id="mode"><option id="unsafe" value="x">X</option></select>`, code: CodeInvalidSpec},
 		{name: "css escape", html: `<style>.x{background:u\72l(https://example.com/a.png)}</style><div id="box">A</div>`, code: CodeInvalidSpec},
 		{name: "svg data image", html: `<img id="logo" src="data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=">`, code: CodeInvalidSpec},
+		{name: "file input", html: `<input id="upload" type="file">`, code: CodeInvalidSpec},
+		{name: "multiple select", html: `<select id="mode" multiple><option value="a">A</option></select>`, code: CodeInvalidSpec},
+		{name: "drag region missing id", html: `<div data-clawdesk-drag>Drag</div>`, code: CodeInvalidSpec},
+		{name: "interactive drag region", html: `<button id="drag" data-clawdesk-drag>Drag</button>`, code: CodeInvalidSpec},
+		{name: "invalid drag value", html: `<header id="drag" data-clawdesk-drag="sometimes">Drag</header>`, code: CodeInvalidSpec},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -98,6 +124,31 @@ func TestNormalizeRejectsUnsafeOrAmbiguousHTML(t *testing.T) {
 			var uiErr *Error
 			if !errors.As(err, &uiErr) || uiErr.Code != test.code {
 				t.Fatalf("error = %#v, want code %s", err, test.code)
+			}
+		})
+	}
+}
+
+func TestNormalizeRejectsDeclaredDerivedOrUnsupportedFields(t *testing.T) {
+	base := WindowSpec{ID: "panel", Bounds: Bounds{Width: 300, Height: 200}, Content: ContentSpec{HTML: `<button id="save">Save</button>`}}
+	tests := []struct {
+		name       string
+		mutate     func(*WindowSpec)
+		code       string
+		capability string
+	}{
+		{name: "derived controls", mutate: func(spec *WindowSpec) { spec.Controls = []Control{} }, code: CodeInvalidSpec},
+		{name: "empty assets map", mutate: func(spec *WindowSpec) { spec.Content.Assets = map[string]string{} }, code: CodeInvalidSpec},
+		{name: "unimplemented theme", mutate: func(spec *WindowSpec) { spec.Theme = "contrast" }, code: CodeUnsupportedCapability, capability: "theme"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			spec := base
+			test.mutate(&spec)
+			_, err := Normalize(spec, t.TempDir())
+			var uiErr *Error
+			if !errors.As(err, &uiErr) || uiErr.Code != test.code || uiErr.Capability != test.capability {
+				t.Fatalf("error = %#v", err)
 			}
 		})
 	}
@@ -161,5 +212,38 @@ func TestNormalizeValidatesInitialAndUpdatedImageSources(t *testing.T) {
 	_, err = window.UpdateControl(context.Background(), "save", ControlPatch{})
 	if !errors.As(err, &uiErr) || uiErr.Code != CodeInvalidSpec {
 		t.Fatalf("empty patch error = %#v", err)
+	}
+}
+
+func TestButtonStatePatchUsesOnlyTrustedToolbarIcons(t *testing.T) {
+	driver := NewMemoryDriver()
+	session, err := NewSession("toolbar-state", t.TempDir(), driver, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	window, err := session.Create(context.Background(), WindowSpec{
+		ID: "toolbar", Theme: "dark", Bounds: Bounds{Width: 240, Height: 81},
+		Content: ContentSpec{HTML: `<button id="startPause">开始</button><span id="status">Idle</span>`},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	icon, text, errorState := "pause.fill", "暂停", "intentional"
+	active, busy := true, true
+	state, err := window.UpdateControl(context.Background(), "startPause", ControlPatch{
+		Text: &text, Icon: &icon, Active: &active, Busy: &busy, Error: &errorState,
+	})
+	if err != nil || state.Text != text || state.Icon != icon || !state.Active || !state.Busy || state.Error != errorState {
+		t.Fatalf("button state = %#v, err=%v", state, err)
+	}
+	unknown := "https://example.com/icon.svg"
+	_, err = window.UpdateControl(context.Background(), "startPause", ControlPatch{Icon: &unknown})
+	var uiErr *Error
+	if !errors.As(err, &uiErr) || uiErr.Code != CodeInvalidSpec || uiErr.Capability != "icon" || uiErr.TargetID != "startPause" {
+		t.Fatalf("unknown icon error = %#v", err)
+	}
+	_, err = window.UpdateControl(context.Background(), "status", ControlPatch{Icon: &icon})
+	if !errors.As(err, &uiErr) || uiErr.Code != CodeUnsupportedCapability || uiErr.Capability != "icon" {
+		t.Fatalf("non-button icon error = %#v", err)
 	}
 }

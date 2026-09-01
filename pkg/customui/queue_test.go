@@ -56,3 +56,21 @@ func TestEventQueueOnlyCoalescesPermittedConsecutiveEvents(t *testing.T) {
 		t.Fatalf("unexpected event order: %#v", got)
 	}
 }
+
+func TestEventQueueCoalescingPreservesSequenceAcrossMixedHighFrequencyEvents(t *testing.T) {
+	queue := NewEventQueue(4)
+	for _, event := range []Event{
+		{SessionID: "session", WindowID: "panel", TargetID: "name", Type: "input", Sequence: 1},
+		{SessionID: "session", WindowID: "panel", Type: "move", Sequence: 2},
+		{SessionID: "session", WindowID: "panel", Type: "resize", Sequence: 3},
+		{SessionID: "session", WindowID: "panel", TargetID: "name", Type: "input", Sequence: 4},
+	} {
+		if err := queue.Push(event); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got := queue.Drain()
+	if len(got) != 3 || got[0].Sequence != 2 || got[1].Sequence != 3 || got[2].Sequence != 4 {
+		t.Fatalf("coalescing reordered mixed events: %#v", got)
+	}
+}

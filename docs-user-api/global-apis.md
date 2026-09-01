@@ -19,24 +19,6 @@ async function main() {
 main();
 ```
 
-## 全局接口与 Polyfill 的关系
-
-- **全局接口（Global APIs）**：用户视角的称呼，强调“脚本可以直接使用什么”。
-- **Polyfill**：运行时内部的实现方式，用于补齐、包装或统一 JavaScript 能力。
-
-用户通常不需要关心接口由哪个 `polyfills/*.js` 文件加载；排查 Runtime 资源或维护源码时，
-才需要查看实现来源。一个接口可以同时具有 Native 与 Polyfill 两种来源，但用户只应依赖
-这里及各专题页列出的最终调用方式。
-
-本页只收录“直接挂在 JavaScript 全局作用域上的辅助能力”。`page`、`window`、`clipboard`、
-`console`、`axios` 等也可以直接访问，但它们有独立的用户文档：
-
-- [Page API](page.md)：页面入口、截图、打开 URL / App、等待和权限。
-- [Window API](window.md)：窗口读取与控制。
-- [Clipboard and Console](clipboard-console.md)：`clipboard` 对象和 `console`。
-- [HTTP and Axios](http.md)：`http` 与全局 `axios`。
-- [Runtime Stacks](runtime.md)：运行时装载顺序和 upgraded / playwright 兼容入口。
-
 ## 全局接口一览
 
 | 接口 | 主要用途 | 状态 | 备注 |
@@ -47,6 +29,7 @@ main();
 | `sleep` / `sleepSeconds` | Promise 风格等待 | Stable | 不阻塞 Runtime 事件循环 |
 | `copyToClipboard` / `getClipboard` | 剪贴板快捷读写 | Stable | `clipboard` 对象的全局快捷入口 |
 | `notify` | 系统通知 | Secondary | 成功提交不代表用户已看到 |
+| `alert` / `confirm` / `prompt` | 异步原生模态提示与短文本输入 | Conditional | 返回 Promise，不是浏览器同步 dialog |
 | `AbortController` / `AbortSignal` | 取消在途 HTTP 请求 | Stable / Compatibility | 与 `http`、`axios` 的 `signal` 配合 |
 | `URLSearchParams` | 生成查询参数或表单参数 | Stable / Compatibility | 当前为轻量兼容实现 |
 | `Promise` / `async` / `await` | 异步脚本基础 | Stable | Runtime 会提供 Promise 能力 |
@@ -156,7 +139,33 @@ notify({
 ```
 
 它的完整参数、同步返回、平台后端、权限和可见性边界见
-[notify API](notify.md)。通知显示不是业务成功或执行证据的替代品。
+[notify](notify.md)。通知显示不是业务成功或执行证据的替代品。
+
+## `alert` / `confirm` / `prompt`：异步原生 Dialog
+
+OpenDesk 的同名全局函数是 [Dialog API](dialog.md) 的 Promise alias，和浏览器的同步 API
+不同：它们不会阻塞 Runtime EventLoop，也没有 options callback。使用 `await` 或
+`.then()` / `.catch()` / `.finally()` 管理结果。
+
+```js
+async function main() {
+  await alert('任务已完成');
+  const shouldPublish = await confirm({ message: '发布结果？', defaultAction: 'cancel' });
+  if (!shouldPublish) return;
+  const label = await prompt({ message: '输入发布标签', placeholder: 'v1.0.0' });
+  if (label !== null) console.log('准备发布');
+}
+
+try {
+  await main();
+} catch (error) {
+  console.error(error.code, error.message);
+}
+```
+
+`alert` resolve `undefined`；`confirm` resolve `boolean`；`prompt` resolve `string | null`。
+用户取消不是 reject；execution 取消、deadline 和 native host failure 才 reject。完整 capability、
+参数、隐私、exactly-once settlement 与 teardown 契约见 [Dialog API](dialog.md)。
 
 ## `AbortController` / `AbortSignal`：取消 HTTP 请求
 
@@ -246,7 +255,8 @@ runTask();
 - `console` 和 `clipboard`：见 [Clipboard and Console](clipboard-console.md)。
 - `axios` 和 `AbortController` 的 HTTP 用法：见 [HTTP and Axios](http.md)。
 - `page` 的等待、截图和权限：见 [Page API](page.md)。
-- `notify()` 的详细通知契约：见 [notify API](notify.md)。
+- `notify()` 的详细通知契约：见 [notify](notify.md)。
+- `alert()`、`confirm()`、`prompt()`：见 [Dialog API](dialog.md)。
 - `Sound`、`FloatingWindow` 和 `ui`：见 [Runtime Utilities](runtime-utilities.md) 与 [Custom UI v1](custom-ui.md)。
 
 ## 全局接口的实现来源与维护边界
@@ -260,3 +270,21 @@ runTask();
 新增、删除或改名全局接口时，应同步检查本页、`runtime-api.ai.json`、`types/global.d.ts`
 和 `tests/runtime-api/` 中的 JavaScript 契约。Runtime 的加载顺序与资源目录说明见
 [Runtime Stacks](runtime.md)；不要把 `polyfills/*.js` 中的内部 bridge 名称当作用户 API。
+
+## 全局接口与 Polyfill 的关系
+
+- **全局接口（Global APIs）**：用户视角的称呼，强调“脚本可以直接使用什么”。
+- **Polyfill**：运行时内部的实现方式，用于补齐、包装或统一 JavaScript 能力。
+
+用户通常不需要关心接口由哪个 `polyfills/*.js` 文件加载；排查 Runtime 资源或维护源码时，
+才需要查看实现来源。一个接口可以同时具有 Native 与 Polyfill 两种来源，但用户只应依赖
+这里及各专题页列出的最终调用方式。
+
+本页只收录“直接挂在 JavaScript 全局作用域上的辅助能力”。`page`、`window`、`clipboard`、
+`console`、`axios` 等也可以直接访问，但它们有独立的用户文档：
+
+- [Page API](page.md)：页面入口、截图、打开 URL / App、等待和权限。
+- [Window API](window.md)：窗口读取与控制。
+- [Clipboard and Console](clipboard-console.md)：`clipboard` 对象和 `console`。
+- [HTTP and Axios](http.md)：`http` 与全局 `axios`。
+- [Runtime Stacks](runtime.md)：运行时装载顺序和 upgraded / playwright 兼容入口。

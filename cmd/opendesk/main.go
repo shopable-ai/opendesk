@@ -3,12 +3,6 @@ package main
 import (
 	"bufio"
 	"context"
-	"opendesk/automation"
-	pkgContainer "opendesk/pkg/container"
-	pkgExecution "opendesk/pkg/execution"
-	"opendesk/pkg/feature"
-	pkgHttp "opendesk/pkg/http"
-	"opendesk/pkg/nativeextension"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -19,55 +13,73 @@ import (
 	"mime/multipart"
 	"net"
 	"net/http"
+	"opendesk/automation"
+	pkgContainer "opendesk/pkg/container"
+	"opendesk/pkg/customui"
+	pkgExecution "opendesk/pkg/execution"
+	"opendesk/pkg/feature"
+	pkgHttp "opendesk/pkg/http"
+	"opendesk/pkg/nativeextension"
+	"opendesk/pkg/runtimeconfig"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/go-vgo/robotgo"
 )
 
 func init() {
+	if nativeExtensionCLIRequested(os.Args[1:]) || automation.MacOSNotificationHelperRequested(os.Args[1:]) {
+		return
+	}
 	if shouldEchoFrameworkStartup() {
 		fmt.Printf("robotgo version: %s\n", robotgo.Version)
 	}
 }
 
 // Config holds the application configuration
-	if nativeExtensionCLIRequested(os.Args[1:]) {
-		return
-	}
 type Config struct {
-	ScriptPath            string
-	ScriptText            string
-	ScriptStdin           bool
-	StackMode             string
-	SaveLastScript        string
-	LogDir                string
-	ConsoleMode           string
-	ConsoleCategories     string
+	ScriptPath                            string
+	ScriptText                            string
+	ScriptStdin                           bool
+	StackMode                             string
+	SaveLastScript                        string
+	LogDir                                string
+	ConsoleMode                           string
+	ConsoleCategories                     string
+	OutputFormat                          string
+	Delay                                 int
+	Timeout                               int // 修改为 timeout，单位为分钟
 	ExperimentalNativeExtension           bool
 	ExperimentalUnsafeNativeExtensionCall bool
-	OutputFormat          string
-	Delay                 int
-	Timeout               int // 修改为 timeout，单位为分钟
-	HttpMode              bool
-	Port                  string
-	VisionOCRImagePath    string
-	VisionDetectImagePath string
-	VisionTargetText      string
-	VisionProvider        string
-	VisionLang            string
-	VisionMinConfidence   float64
-	NativeExtension       string
-	NativeMethod          string
-	NativeParams          string
-	NativeTimeoutMS       int
-	NativeRequestID       string
-	VisionIncludeRaw      bool
-	MacPermissionHelper   string
-	MacPermissionTarget   string
+	CustomUI                              bool
+	CustomUIDisabled                      bool
+	RuntimeConfigPath                     string
+	CustomUIActivationSource              customui.ActivationSource
+	ResolvedRuntimeConfigPath             string
+	CustomUIHostPath                      string
+	HttpMode                              bool
+	Port                                  string
+	VisionOCRImagePath                    string
+	VisionDetectImagePath                 string
+	VisionTargetText                      string
+	VisionProvider                        string
+	VisionLang                            string
+	VisionMinConfidence                   float64
+	VisionIncludeRaw                      bool
+	MacPermissionHelper                   string
+	MacPermissionTarget                   string
+	NativeExtension                       string
+	NativeMethod                          string
+	NativeParams                          string
+	NativeTimeoutMS                       int
+	NativeRequestID                       string
+	customUIResolveOnce                   sync.Once
+	customUIResolveErr                    error
 }
 
 func parseFlags() *Config {
@@ -75,17 +87,20 @@ func parseFlags() *Config {
 
 	flag.StringVar(&config.ScriptPath, "script", "", "Script file path (.txt or .js)")
 	flag.StringVar(&config.ScriptText, "script-text", "", "Execute JavaScript source directly from the command line")
-	flag.BoolVar(&config.ScriptStdin, "script-stdin", false, "Read JavaScript source from stdin and execute it directly")
 	flag.StringVar(&config.StackMode, "stack", "legacy", "Browser automation surface: legacy | upgraded | playwright")
 	flag.StringVar(&config.SaveLastScript, "save-last-script", "", "Persist the executed script source to the given path")
 	flag.StringVar(&config.LogDir, "log-dir", "", "Persist run logs and summary to the given directory")
 	flag.StringVar(&config.ConsoleMode, "console-mode", "full", "Terminal output mode: full | script | summary | quiet | agent")
 	flag.StringVar(&config.ConsoleCategories, "console-categories", "", "Override terminal output categories: framework,meta,script,summary,error")
-	flag.BoolVar(&config.ExperimentalNativeExtension, "experimental-native-extension", false, "Enable Experimental manifest-discovered NativeExtensions for local CLI JavaScript execution")
-	flag.BoolVar(&config.ExperimentalUnsafeNativeExtensionCall, "experimental-unsafe-native-extension-call", false, "Enable unsafe low-level NativeExtension.call for explicit local diagnostics")
 	flag.StringVar(&config.OutputFormat, "output-format", "text", "Agent output format: text | json")
 	flag.IntVar(&config.Delay, "delay", 0, "Delay before start (seconds)")
 	flag.IntVar(&config.Timeout, "timeout", 30, "Execution timeout in minutes (0 for no timeout)") // 默认30分钟
+	flag.BoolVar(&config.ExperimentalNativeExtension, "experimental-native-extension", false, "Enable Experimental manifest-discovered NativeExtensions for local CLI JavaScript execution")
+	flag.BoolVar(&config.ExperimentalUnsafeNativeExtensionCall, "experimental-unsafe-native-extension-call", false, "Enable unsafe low-level NativeExtension.call for explicit local diagnostics")
+	flag.BoolVar(&config.CustomUI, "ui", false, "Explicitly enable custom UI for this CLI execution or HTTP server")
+	flag.BoolVar(&config.CustomUIDisabled, "no-ui", false, "Explicitly disable custom UI, overriding every other activation source")
+	flag.StringVar(&config.RuntimeConfigPath, "config", "", "Runtime project configuration path")
+	flag.StringVar(&config.CustomUIHostPath, "ui-host", "", "Custom UI native host path (internal/development override)")
 	flag.BoolVar(&config.HttpMode, "http", false, "Start in HTTP server mode")
 	flag.StringVar(&config.Port, "port", "60844", "HTTP server port")
 	flag.StringVar(&config.VisionOCRImagePath, "vision-ocr-image", "", "Run OCR in CLI mode using image path")
@@ -95,25 +110,61 @@ func parseFlags() *Config {
 	flag.StringVar(&config.VisionLang, "vision-lang", "ch", "OCR language")
 	flag.Float64Var(&config.VisionMinConfidence, "vision-min-confidence", 0.5, "Minimum confidence for detect-ui")
 	flag.BoolVar(&config.VisionIncludeRaw, "vision-include-raw", false, "Include raw provider response in OCR output")
+	flag.StringVar(&config.MacPermissionHelper, "mac-permission-helper", "", "Internal macOS permission helper mode")
+	flag.StringVar(&config.MacPermissionTarget, "mac-permission-target", "", "Internal macOS permission helper target app")
 	flag.StringVar(&config.NativeExtension, "native-extension", "", "Call a Native Process Extension executable directly")
 	flag.StringVar(&config.NativeMethod, "native-method", "", "Native Process Extension method")
 	flag.StringVar(&config.NativeParams, "native-params", "{}", "Native Process Extension params as a JSON object")
 	flag.IntVar(&config.NativeTimeoutMS, "native-timeout-ms", 3000, "Native Process Extension timeout in milliseconds")
 	flag.StringVar(&config.NativeRequestID, "native-request-id", "", "Optional Native Process Extension request id")
-	flag.StringVar(&config.MacPermissionHelper, "mac-permission-helper", "", "Internal macOS permission helper mode")
-	flag.StringVar(&config.MacPermissionTarget, "mac-permission-target", "", "Internal macOS permission helper target app")
 
 	flag.Parse()
 	return config
+}
+
+func resolveCustomUIActivation(config *Config) error {
+	if config == nil {
+		return nil
+	}
+	config.customUIResolveOnce.Do(func() {
+		useWorkingDirectory := isAutoRunJs || strings.EqualFold(filepath.Base(strings.TrimSpace(config.ScriptPath)), "tm.config.js")
+		activation, err := runtimeconfig.ResolveUI(runtimeconfig.UIResolveOptions{
+			ForceDisable:        config.CustomUIDisabled,
+			ForceEnable:         config.CustomUI,
+			ExplicitConfigPath:  config.RuntimeConfigPath,
+			ScriptPath:          config.ScriptPath,
+			UseWorkingDirectory: useWorkingDirectory,
+		})
+		if err != nil {
+			config.customUIResolveErr = err
+			return
+		}
+		config.CustomUI = activation.Enabled
+		config.CustomUIActivationSource = activation.Source
+		config.ResolvedRuntimeConfigPath = activation.ConfigPath
+	})
+	return config.customUIResolveErr
 }
 
 var isAutoRunJs bool = false
 
 func main() {
 	os.Stdout.Sync()
+	if automation.MacOSNotificationHelperRequested(os.Args[1:]) {
+		os.Exit(automation.RunMacOSNotificationHelper(os.Stdin, os.Stdout, os.Stderr))
+	}
+	nativeMode := nativeExtensionCLIRequested(os.Args[1:])
 
 	defer func() {
 		if r := recover(); r != nil {
+			if nativeMode {
+				_ = writeNativeExtensionCLIError(os.Stdout, nativeExtensionCLIError{
+					Code:    "internal_error",
+					Message: "native extension CLI failed unexpectedly",
+				}, map[string]any{})
+				fmt.Fprintf(os.Stderr, "native extension CLI panic: %v\n", r)
+				os.Exit(1)
+			}
 			fmt.Printf("Recovered from panic: %v\n", r)
 			if len(os.Args) == 1 {
 				fmt.Println("\nPress 'Enter' to exit...")
@@ -124,6 +175,10 @@ func main() {
 	}()
 
 	config := parseFlags()
+	if nativeMode {
+		host := nativeextension.NewHost()
+		os.Exit(executeNativeExtensionCLI(context.Background(), config, os.Stdout, os.Stderr, host))
+	}
 	if handled, code := handleInternalMacPermissionHelper(config); handled {
 		os.Exit(code)
 	}
@@ -171,21 +226,12 @@ func main() {
 				}
 			}()
 		}
-	nativeMode := nativeExtensionCLIRequested(os.Args[1:])
 
 		// 启动 HTTP 服务器（默认行为）
 		if shouldEchoStartupCategory("framework", selection) {
 			fmt.Println("[INFO] Starting HTTP server...")
-			if nativeMode {
-				_ = writeNativeExtensionCLIError(os.Stdout, nativeExtensionCLIError{
-					Code:    "internal_error",
-					Message: "native extension CLI failed unexpectedly",
-				}, map[string]any{})
-				fmt.Fprintf(os.Stderr, "native extension CLI panic: %v\n", r)
-				os.Exit(1)
-			}
 		}
-		startHttpServer(config.Port) // 这会阻塞主线程
+		startHttpServer(config.Port, config) // 这会阻塞主线程
 		return
 	}
 
@@ -197,15 +243,11 @@ func main() {
 		}
 
 		if config.HttpMode {
-			startHttpServer(config.Port)
+			startHttpServer(config.Port, config)
 		}
 		return
 	}
 
-	if nativeMode {
-		host := nativeextension.NewHost()
-		os.Exit(executeNativeExtensionCLI(context.Background(), config, os.Stdout, os.Stderr, host))
-	}
 	// 命令行模式的处理
 	if hasScriptSource(config) {
 		if config.ScriptPath != "" {
@@ -233,7 +275,7 @@ func main() {
 
 		// 如果指定了 HTTP 模式，继续运行 HTTP 服务器
 		if config.HttpMode {
-			startHttpServer(config.Port)
+			startHttpServer(config.Port, config)
 		}
 		return
 	}
@@ -243,7 +285,7 @@ func main() {
 
 	// 如果是 HTTP 模式，启动服务器
 	if config.HttpMode {
-		startHttpServer(config.Port)
+		startHttpServer(config.Port, config)
 		return
 	}
 
@@ -253,79 +295,6 @@ func main() {
 	}
 }
 
-func handleInternalMacPermissionHelper(config *Config) (bool, int) {
-	if config == nil {
-		return false, 0
-	}
-	switch strings.TrimSpace(config.MacPermissionHelper) {
-	case "":
-		return false, 0
-	case "automation-prompt":
-		target := strings.TrimSpace(config.MacPermissionTarget)
-		if target == "" {
-			target = "System Events"
-		}
-		if automation.TriggerMacAutomationPermissionHelper(target) {
-			return true, 0
-		}
-		return true, 1
-	default:
-		fmt.Fprintf(os.Stderr, "unknown mac permission helper: %s\n", config.MacPermissionHelper)
-		return true, 2
-	}
-}
-
-func findScriptFile() (string, error) {
-	fmt.Println("[DEBUG] Looking for tm.config.js...")
-
-	// 只查找 tm.config.js
-	if _, err := os.Stat("tm.config.js"); err == nil {
-		fmt.Println("[DEBUG] Found tm.config.js")
-		return "tm.config.js", nil
-	}
-
-	fmt.Println("[DEBUG] tm.config.js not found")
-	return "", fmt.Errorf("tm.config.js not found")
-}
-
-// applyWorkingDirectory changes the process directory only after confirming
-// that the requested path exists and is a directory. It is intentionally kept
-// separate from flag parsing so command entrypoints can opt into it explicitly.
-func applyWorkingDirectory(path string) error {
-	path = strings.TrimSpace(path)
-	if path == "" {
-		return fmt.Errorf("working directory is empty")
-	}
-	info, err := os.Stat(path)
-	if err != nil {
-		return fmt.Errorf("stat working directory %q: %w", path, err)
-	}
-	if !info.IsDir() {
-		return fmt.Errorf("working directory %q is not a directory", path)
-	}
-	if err := os.Chdir(path); err != nil {
-		return fmt.Errorf("change working directory to %q: %w", path, err)
-	}
-	return nil
-}
-
-// Helper function to create standardized API response
-type APIResponse struct {
-	Code    int         `json:"code"`
-	Message string      `json:"message"`
-	Data    interface{} `json:"data,omitempty"`
-}
-
-type RunArtifacts struct {
-	Dir                string    `json:"dir"`
-	Source             string    `json:"source"`
-	Ext                string    `json:"ext"`
-	ScriptHash         string    `json:"script_hash"`
-	StartedAt          time.Time `json:"started_at"`
-	StdoutPath         string    `json:"stdout_path"`
-	StderrPath         string    `json:"stderr_path"`
-	ScriptSnapshotPath string    `json:"script_snapshot_path"`
-	SummaryPath        string    `json:"summary_path"`
 type nativeExtensionCaller interface {
 	Call(context.Context, nativeextension.CallOptions) (nativeextension.CallResult, error)
 }
@@ -446,6 +415,79 @@ func writeNativeExtensionCLIError(stdout io.Writer, cliErr nativeExtensionCLIErr
 	})
 }
 
+func handleInternalMacPermissionHelper(config *Config) (bool, int) {
+	if config == nil {
+		return false, 0
+	}
+	switch strings.TrimSpace(config.MacPermissionHelper) {
+	case "":
+		return false, 0
+	case "automation-prompt":
+		target := strings.TrimSpace(config.MacPermissionTarget)
+		if target == "" {
+			target = "System Events"
+		}
+		if automation.TriggerMacAutomationPermissionHelper(target) {
+			return true, 0
+		}
+		return true, 1
+	default:
+		fmt.Fprintf(os.Stderr, "unknown mac permission helper: %s\n", config.MacPermissionHelper)
+		return true, 2
+	}
+}
+
+func findScriptFile() (string, error) {
+	fmt.Println("[DEBUG] Looking for tm.config.js...")
+
+	// 只查找 tm.config.js
+	if _, err := os.Stat("tm.config.js"); err == nil {
+		fmt.Println("[DEBUG] Found tm.config.js")
+		return "tm.config.js", nil
+	}
+
+	fmt.Println("[DEBUG] tm.config.js not found")
+	return "", fmt.Errorf("tm.config.js not found")
+}
+
+// applyWorkingDirectory changes the process directory only after confirming
+// that the requested path exists and is a directory. It is intentionally kept
+// separate from flag parsing so command entrypoints can opt into it explicitly.
+func applyWorkingDirectory(path string) error {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return fmt.Errorf("working directory is empty")
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("stat working directory %q: %w", path, err)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("working directory %q is not a directory", path)
+	}
+	if err := os.Chdir(path); err != nil {
+		return fmt.Errorf("change working directory to %q: %w", path, err)
+	}
+	return nil
+}
+
+// Helper function to create standardized API response
+type APIResponse struct {
+	Code    int         `json:"code"`
+	Message string      `json:"message"`
+	Data    interface{} `json:"data,omitempty"`
+}
+
+type RunArtifacts struct {
+	Dir                string    `json:"dir"`
+	Source             string    `json:"source"`
+	Ext                string    `json:"ext"`
+	ScriptHash         string    `json:"script_hash"`
+	StartedAt          time.Time `json:"started_at"`
+	StdoutPath         string    `json:"stdout_path"`
+	StderrPath         string    `json:"stderr_path"`
+	ScriptSnapshotPath string    `json:"script_snapshot_path"`
+	SummaryPath        string    `json:"summary_path"`
 }
 
 type RunSummary struct {
@@ -479,8 +521,6 @@ type teeCapture struct {
 	stderrFile *os.File
 	selection  ConsoleSelection
 	wg         sync.WaitGroup
-		EnableNativeExtensions:          config.ExperimentalNativeExtension,
-		EnableUnsafeNativeExtensionCall: config.ExperimentalUnsafeNativeExtensionCall,
 }
 
 func writeJSONResponse(w http.ResponseWriter, response APIResponse) {
@@ -594,6 +634,9 @@ func updateScriptStatus(status string, err error) {
 }
 
 func executeScript(config *Config) error {
+	if err := resolveCustomUIActivation(config); err != nil {
+		return err
+	}
 	content, sourceLabel, ext, err := resolveScriptSource(config)
 	if err != nil {
 		return err
@@ -610,14 +653,19 @@ func executeScript(config *Config) error {
 	}
 
 	request := pkgExecution.Request{
-		ExecutionID:    executionID,
-		SourceLabel:    sourceLabel,
-		Ext:            ext,
-		StackMode:      config.StackMode,
-		ScriptHash:     pkgExecution.ComputeScriptHash(content),
-		ScriptContent:  content,
-		TimeoutMinutes: config.Timeout,
-		Artifacts:      artifacts,
+		ExecutionID:                     executionID,
+		SourceLabel:                     sourceLabel,
+		Ext:                             ext,
+		StackMode:                       config.StackMode,
+		ScriptHash:                      pkgExecution.ComputeScriptHash(content),
+		ScriptContent:                   content,
+		TimeoutMinutes:                  config.Timeout,
+		EnableNativeExtensions:          config.ExperimentalNativeExtension,
+		EnableUnsafeNativeExtensionCall: config.ExperimentalUnsafeNativeExtensionCall,
+		EnableCustomUI:                  config.CustomUI,
+		CustomUIActivationSource:        config.CustomUIActivationSource,
+		CustomUIHostPath:                config.CustomUIHostPath,
+		Artifacts:                       artifacts,
 		Selection: pkgExecution.TerminalSelection{
 			Mode:       selection.Mode,
 			Categories: copyConsoleCategories(selection.Categories),
@@ -1343,7 +1391,7 @@ func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
 }
 
 // Modified startHttpServer function
-func startHttpServer(port string) {
+func startHttpServer(port string, configs ...*Config) {
 	if strings.TrimSpace(port) == "" {
 		port = "60844"
 	}
@@ -1351,16 +1399,29 @@ func startHttpServer(port string) {
 	if !feature.UseDIContainer {
 		fmt.Println("[WARN] USE_DI_CONTAINER=0 is a route-compatible alias; it now uses the unified execution server.")
 	}
-	startContainerBasedServer(port)
+	var config *Config
+	if len(configs) > 0 {
+		config = configs[0]
+	}
+	startContainerBasedServer(port, config)
 }
 
 // startContainerBasedServer starts the HTTP server using the new container architecture
-func startContainerBasedServer(port string) {
+func startContainerBasedServer(port string, appConfig *Config) {
 	fmt.Println("[INFO] Starting server with container-based architecture")
+	if err := resolveCustomUIActivation(appConfig); err != nil {
+		fmt.Printf("[ERROR] Custom UI configuration failed: %v\n", err)
+		os.Exit(1)
+	}
 
 	// Create container
 	cfg := &pkgContainer.Config{
 		RuntimePoolSize: 10,
+	}
+	if appConfig != nil {
+		cfg.EnableCustomUI = appConfig.CustomUI
+		cfg.CustomUIActivationSource = appConfig.CustomUIActivationSource
+		cfg.CustomUIHostPath = appConfig.CustomUIHostPath
 	}
 
 	container, err := pkgContainer.NewContainer(cfg)
@@ -1380,11 +1441,33 @@ func startContainerBasedServer(port string) {
 	fmt.Println("----------------------------------------")
 	fmt.Println("服务器已启动 (Container Mode)，按 Ctrl+C 关闭")
 
-	// Create and start server
+	// Run the server behind an explicit shutdown boundary so SIGINT/SIGTERM
+	// cancel active JavaScript and drain native UI hosts before the process exits.
 	server := pkgHttp.NewServer(container, port)
-	if err := server.Start(); err != nil {
-		fmt.Printf("[ERROR] Server failed to start: %v\n", err)
-		os.Exit(1)
+	serverDone := make(chan error, 1)
+	go func() { serverDone <- server.Start() }()
+	shutdownSignals := make(chan os.Signal, 1)
+	signal.Notify(shutdownSignals, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(shutdownSignals)
+	select {
+	case err := <-serverDone:
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			fmt.Printf("[ERROR] Server failed: %v\n", err)
+			os.Exit(1)
+		}
+	case received := <-shutdownSignals:
+		fmt.Printf("[INFO] Received %s; draining HTTP executions\n", received)
+		shutdownContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		err := server.Shutdown(shutdownContext)
+		cancel()
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			fmt.Printf("[ERROR] Server shutdown failed: %v\n", err)
+			os.Exit(1)
+		}
+		if err := <-serverDone; err != nil && !errors.Is(err, http.ErrServerClosed) {
+			fmt.Printf("[ERROR] Server stopped unexpectedly: %v\n", err)
+			os.Exit(1)
+		}
 	}
 }
 

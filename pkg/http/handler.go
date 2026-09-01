@@ -1,12 +1,15 @@
 package http
 
 import (
-	"opendesk/pkg/container"
-	pkgExecution "opendesk/pkg/execution"
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
+	"net/url"
+	"opendesk/pkg/container"
+	"opendesk/pkg/customui"
+	pkgExecution "opendesk/pkg/execution"
 	"os"
 	"strings"
 	"time"
@@ -25,12 +28,13 @@ func NewHandler(c *container.Container) *Handler {
 
 // ScriptRequest 描述脚本执行请求。
 type ScriptRequest struct {
-	Script       string `json:"script"`
-	Timeout      int    `json:"timeout,omitempty"`
-	Stack        string `json:"stack,omitempty"`
-	ConsoleMode  string `json:"consoleMode,omitempty"`
-	OutputFormat string `json:"outputFormat,omitempty"`
-	LogDir       string `json:"logDir,omitempty"`
+	Script       string   `json:"script"`
+	Timeout      int      `json:"timeout,omitempty"`
+	Stack        string   `json:"stack,omitempty"`
+	ConsoleMode  string   `json:"consoleMode,omitempty"`
+	OutputFormat string   `json:"outputFormat,omitempty"`
+	LogDir       string   `json:"logDir,omitempty"`
+	Capabilities []string `json:"capabilities,omitempty"`
 }
 
 // ScriptResponse 描述统一响应结构。
@@ -53,7 +57,12 @@ func (h *Handler) HandleScriptExecution(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	data, err := h.startExecution(req)
+	enableUI, err := h.authorizeCapabilities(r, req)
+	if err != nil {
+		h.sendError(w, http.StatusForbidden, err.Error())
+		return
+	}
+	data, err := h.startExecution(req, enableUI)
 	if err != nil {
 		h.sendError(w, http.StatusBadRequest, err.Error())
 		return
@@ -80,7 +89,12 @@ func (h *Handler) HandleExecutions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := h.startExecution(req)
+	enableUI, err := h.authorizeCapabilities(r, req)
+	if err != nil {
+		h.sendError(w, http.StatusForbidden, err.Error())
+		return
+	}
+	data, err := h.startExecution(req, enableUI)
 	if err != nil {
 		h.sendError(w, http.StatusBadRequest, err.Error())
 		return
@@ -257,8 +271,11 @@ func (h *Handler) sendError(w http.ResponseWriter, statusCode int, message strin
 
 // SetupRoutes 注册 HTTP 路由。
 func SetupRoutes(container *container.Container) *http.ServeMux {
+	return setupRoutes(NewHandler(container))
+}
+
+func setupRoutes(handler *Handler) *http.ServeMux {
 	mux := http.NewServeMux()
-	handler := NewHandler(container)
 
 	mux.HandleFunc("/SCRIPT_RUN", handler.HandleScriptExecution)
 	mux.HandleFunc("/status", handler.HandleStatus)
@@ -274,11 +291,13 @@ func SetupRoutes(container *container.Container) *http.ServeMux {
 type Server struct {
 	server    *http.Server
 	container *container.Container
+	handler   *Handler
 }
 
 // NewServer 创建 HTTP 服务。
 func NewServer(container *container.Container, port string) *Server {
-	mux := SetupRoutes(container)
+	handler := NewHandler(container)
+	mux := setupRoutes(handler)
 
 	return &Server{
 		server: &http.Server{
@@ -288,6 +307,7 @@ func NewServer(container *container.Container, port string) *Server {
 			WriteTimeout: 0,
 		},
 		container: container,
+		handler:   handler,
 	}
 }
 
@@ -299,10 +319,20 @@ func (s *Server) Start() error {
 
 // Shutdown 优雅关闭 HTTP 服务。
 func (s *Server) Shutdown(ctx context.Context) error {
-	return s.server.Shutdown(ctx)
+	if s.handler != nil {
+		s.handler.manager.BeginShutdown()
+	}
+	serverErr := s.server.Shutdown(ctx)
+	if s.handler != nil {
+		s.handler.manager.CancelAll()
+		if err := s.handler.manager.WaitAll(ctx); err != nil && serverErr == nil {
+			serverErr = err
+		}
+	}
+	return serverErr
 }
 
-func (h *Handler) startExecution(req ScriptRequest) (map[string]any, error) {
+func (h *Handler) startExecution(req ScriptRequest, enableUI bool) (map[string]any, error) {
 	script := strings.TrimSpace(req.Script)
 	if script == "" {
 		return nil, fmt.Errorf("script is required")
@@ -325,7 +355,10 @@ func (h *Handler) startExecution(req ScriptRequest) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	h.manager.Register(executionID, emitter)
+	if !h.manager.Register(executionID, emitter) {
+		_ = emitter.Close()
+		return nil, fmt.Errorf("execution server is shutting down")
+	}
 	executionContext, cancel := context.WithCancel(context.Background())
 	if !h.manager.SetCancel(executionID, cancel) {
 		cancel()
@@ -336,16 +369,20 @@ func (h *Handler) startExecution(req ScriptRequest) (map[string]any, error) {
 	h.manager.UpdateResult(emitter.Result())
 
 	request := pkgExecution.Request{
-		Context:       executionContext,
-		ExecutionID:   executionID,
-		SourceLabel:   "http:inline",
-		Ext:           ".js",
-		StackMode:     req.Stack,
-		ScriptHash:    pkgExecution.ComputeScriptHash([]byte(script)),
-		ScriptContent: []byte(script),
-		Timeout:       time.Duration(req.Timeout) * time.Second,
-		Artifacts:     artifacts,
-		Selection:     selection,
+		Context:                  executionContext,
+		ExecutionID:              executionID,
+		SourceLabel:              "http:inline",
+		Ext:                      ".js",
+		StackMode:                req.Stack,
+		ScriptHash:               pkgExecution.ComputeScriptHash([]byte(script)),
+		ScriptContent:            []byte(script),
+		Timeout:                  time.Duration(req.Timeout) * time.Second,
+		Artifacts:                artifacts,
+		Selection:                selection,
+		EnableCustomUI:           enableUI,
+		CustomUIActivationSource: customUIHTTPActivationSource(enableUI),
+		CustomUIHostPath:         h.container.Config().CustomUIHostPath,
+		CustomUIDriver:           h.container.Config().CustomUIDriver,
 	}
 
 	go func() {
@@ -364,6 +401,91 @@ func (h *Handler) startExecution(req ScriptRequest) (map[string]any, error) {
 		"cancelUrl":   "/executions/" + executionID,
 		"artifacts":   artifacts,
 	}, nil
+}
+
+func customUIHTTPActivationSource(enabled bool) customui.ActivationSource {
+	if enabled {
+		return customui.ActivationHTTPRequest
+	}
+	return customui.ActivationDisabled
+}
+
+func (h *Handler) authorizeCapabilities(r *http.Request, req ScriptRequest) (bool, error) {
+	wantsUI := false
+	seen := map[string]bool{}
+	for _, raw := range req.Capabilities {
+		capability := strings.TrimSpace(strings.ToLower(raw))
+		if capability == "" || seen[capability] {
+			continue
+		}
+		seen[capability] = true
+		if capability != "ui" {
+			return false, fmt.Errorf("unsupported execution capability %q", capability)
+		}
+		wantsUI = true
+	}
+	if !wantsUI {
+		return false, nil
+	}
+	config := h.container.Config()
+	if config == nil || !config.EnableCustomUI {
+		return false, fmt.Errorf("ui capability is disabled on this server; start it with -ui")
+	}
+	if !isLoopbackRequest(r) {
+		return false, fmt.Errorf("ui capability is restricted to loopback HTTP clients in custom UI v1")
+	}
+	if !loopbackHostAllowed(r.Host) {
+		return false, fmt.Errorf("ui capability requires a loopback Host header")
+	}
+	if err := validateDialogOrigin(r); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// validateDialogOrigin keeps capability-bearing dialog requests same-origin.
+// The HTTP API does not emit CORS headers, but Origin can still be sent by a
+// browser or a forged local client and must not become a capability bypass.
+func validateDialogOrigin(r *http.Request) error {
+	origin := strings.TrimSpace(r.Header.Get("Origin"))
+	if origin == "" {
+		return nil
+	}
+	parsed, err := url.Parse(origin)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.User != nil || parsed.Host == "" {
+		return fmt.Errorf("invalid dialog request origin")
+	}
+	if !loopbackHostAllowed(parsed.Host) || !strings.EqualFold(parsed.Host, r.Host) {
+		return fmt.Errorf("cross-origin dialog requests are not allowed")
+	}
+	return nil
+}
+
+func loopbackHostAllowed(value string) bool {
+	host := strings.TrimSpace(value)
+	if host == "" {
+		return false
+	}
+	if parsedHost, _, err := net.SplitHostPort(host); err == nil {
+		host = parsedHost
+	}
+	host = strings.Trim(host, "[]")
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.IsLoopback()
+	}
+	return strings.EqualFold(host, "localhost")
+}
+
+func isLoopbackRequest(request *http.Request) bool {
+	if request == nil {
+		return false
+	}
+	host, _, err := net.SplitHostPort(strings.TrimSpace(request.RemoteAddr))
+	if err != nil {
+		host = strings.TrimSpace(request.RemoteAddr)
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 func (h *Handler) handleExecutionCancel(w http.ResponseWriter, r *http.Request, executionID string) {

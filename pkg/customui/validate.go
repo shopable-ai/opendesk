@@ -2,11 +2,14 @@ package customui
 
 import (
 	"fmt"
+	"math"
 	"net/url"
+	"opendesk/pkg/customui/toolbar"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"golang.org/x/net/html"
 )
@@ -21,6 +24,7 @@ var allowedElements = map[string]bool{
 }
 
 var cssURLPattern = regexp.MustCompile(`(?i)url\s*\(`)
+var cssImageSetPattern = regexp.MustCompile(`(?i)(?:-webkit-)?image-set\s*\(`)
 var cssImportPattern = regexp.MustCompile(`(?i)@\s*import\b`)
 var cssCommentPattern = regexp.MustCompile(`(?s)/\*.*?\*/`)
 var safeDataImagePattern = regexp.MustCompile(`(?i)^data:image/(png|jpeg|jpg|gif|webp);base64,[a-z0-9+/=\r\n]+$`)
@@ -29,12 +33,28 @@ var interactiveElements = map[string]bool{
 	"button": true, "input": true, "select": true,
 }
 
+var publicControlTypes = map[string]bool{
+	"button": true, "text": true, "img": true, "switch": true,
+	"input": true, "select": true, "container": true,
+}
+
+var allowedInputTypes = map[string]bool{
+	"text": true, "checkbox": true, "number": true, "email": true,
+	"search": true, "password": true, "range": true,
+}
+
 // Normalize validates a public declaration, loads local HTML/CSS files, and
 // produces the stable control order consumed by every platform driver.
 func Normalize(spec WindowSpec, baseDir string) (WindowSpec, error) {
 	spec.ID = strings.TrimSpace(spec.ID)
 	if !publicIDPattern.MatchString(spec.ID) {
 		return WindowSpec{}, invalidSpec("window id must match ^[A-Za-z][A-Za-z0-9_-]{0,63}$")
+	}
+	if spec.Controls != nil {
+		return WindowSpec{}, invalidSpec("controls is derived and cannot be declared")
+	}
+	if spec.Toolbar != nil {
+		return normalizeToolbarWindow(spec)
 	}
 	if spec.Kind == "" {
 		spec.Kind = "normal"
@@ -45,13 +65,13 @@ func Normalize(spec WindowSpec, baseDir string) (WindowSpec, error) {
 	if spec.Theme == "" {
 		spec.Theme = "system"
 	}
-	if spec.Theme != "system" && spec.Theme != "light" && spec.Theme != "dark" {
-		return WindowSpec{}, invalidSpec("theme must be system, light, or dark")
+	if spec.Theme != "system" && spec.Theme != "dark" {
+		return WindowSpec{}, &Error{Code: CodeUnsupportedCapability, Operation: "createWindow", Capability: "theme", Message: "custom UI v1 supports system or dark themes"}
 	}
-	if spec.Bounds.Width <= 0 || spec.Bounds.Height <= 0 {
-		return WindowSpec{}, invalidSpec("window bounds width and height must be positive")
+	if !validBounds(spec.Bounds) {
+		return WindowSpec{}, invalidSpec("window bounds must contain finite coordinates and positive finite width and height")
 	}
-	if len(spec.Content.Assets) != 0 {
+	if spec.Content.Assets != nil {
 		return WindowSpec{}, invalidSpec("content.assets is not supported in custom UI v1; use relative img src paths under basePath")
 	}
 
@@ -111,6 +131,77 @@ func Normalize(spec WindowSpec, baseDir string) (WindowSpec, error) {
 	}
 	spec.Controls = controls
 	return spec, nil
+}
+
+func normalizeToolbarWindow(spec WindowSpec) (WindowSpec, error) {
+	if spec.Kind != "" && spec.Kind != "floating" {
+		return WindowSpec{}, invalidSpec("native toolbar window kind must be floating")
+	}
+	spec.Kind = "floating"
+	if spec.Theme != "" && spec.Theme != "dark" {
+		return WindowSpec{}, &Error{Code: CodeUnsupportedCapability, Operation: "createWindow", Capability: "theme", Message: "FloatingWindow v1 supports only the dark theme"}
+	}
+	spec.Theme = "dark"
+	if !finiteNumber(spec.Bounds.X) || !finiteNumber(spec.Bounds.Y) {
+		return WindowSpec{}, invalidSpec("native toolbar position must contain finite x and y")
+	}
+	if spec.Content.File != "" || spec.Content.HTML != "" || spec.Content.CSSFile != "" ||
+		spec.Content.CSS != "" || spec.Content.BasePath != "" || spec.Content.Assets != nil {
+		return WindowSpec{}, invalidSpec("native toolbar declarations cannot contain HTML, CSS, assets, URLs, or paths")
+	}
+	declaration := *spec.Toolbar
+	if declaration.SchemaVersion != toolbar.SchemaVersion {
+		return WindowSpec{}, invalidSpec("native toolbar schemaVersion is unsupported")
+	}
+	if len(declaration.Buttons) < toolbar.MinButtons || len(declaration.Buttons) > toolbar.MaxButtons {
+		return WindowSpec{}, invalidSpec("native toolbar requires between 1 and 32 buttons")
+	}
+	if declaration.Revision == 0 {
+		return WindowSpec{}, invalidSpec("native toolbar revision must be positive")
+	}
+	seen := make(map[string]struct{}, len(declaration.Buttons))
+	controls := make([]Control, 0, len(declaration.Buttons))
+	buttons := make([]toolbar.ButtonSpec, len(declaration.Buttons))
+	for index, button := range declaration.Buttons {
+		if !publicIDPattern.MatchString(button.ID) {
+			return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", TargetID: button.ID, Capability: "button", Message: "toolbar button id is invalid"}
+		}
+		if _, exists := seen[button.ID]; exists {
+			return WindowSpec{}, &Error{Code: CodeDuplicateID, Operation: "createWindow", TargetID: button.ID, Capability: "button", Message: "duplicate toolbar button id"}
+		}
+		seen[button.ID] = struct{}{}
+		if strings.TrimSpace(button.Label) == "" || utf8.RuneCountInString(button.Label) > 60 {
+			return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", TargetID: button.ID, Capability: "label", Message: "toolbar button label must contain 1 to 60 Unicode characters"}
+		}
+		if _, ok := toolbar.IconPresentationFor(button.Icon); !ok {
+			return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", TargetID: button.ID, Capability: "icon", Message: "unknown built-in toolbar icon " + button.Icon}
+		}
+		if button.State.Revision == 0 || button.State.Revision > declaration.Revision {
+			return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", TargetID: button.ID, Capability: "revision", Message: "toolbar button revision is invalid"}
+		}
+		if len(button.State.Error) > 2048 {
+			return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", TargetID: button.ID, Capability: "state", Message: "toolbar button error is too long"}
+		}
+		buttons[index] = button
+		controls = append(controls, Control{ID: button.ID, Type: "button", Order: index})
+	}
+	declaration.Buttons = buttons
+	spec.Toolbar = &declaration
+	spec.Controls = controls
+	// The native host owns the real outer dimensions. A positive placeholder
+	// keeps the generic window transport valid until native create readback.
+	spec.Bounds.Width, spec.Bounds.Height = 1, 1
+	return spec, nil
+}
+
+func validBounds(bounds Bounds) bool {
+	return finiteNumber(bounds.X) && finiteNumber(bounds.Y) &&
+		finiteNumber(bounds.Width) && finiteNumber(bounds.Height) &&
+		bounds.Width > 0 && bounds.Height > 0
+}
+
+func finiteNumber(value float64) bool {
+	return !math.IsNaN(value) && !math.IsInf(value, 0)
 }
 
 func canonicalDirectory(path string) (string, error) {
@@ -197,6 +288,8 @@ func inspectHTML(source, basePath string) ([]Control, error) {
 				return invalidSpec("HTML element <" + tag + "> is not supported in custom UI v1")
 			}
 			id := ""
+			dragRegion := false
+			publicDragRegion := false
 			if tag == "meta" {
 				if len(node.Attr) != 1 || strings.ToLower(node.Attr[0].Key) != "charset" || !strings.EqualFold(strings.TrimSpace(node.Attr[0].Val), "utf-8") {
 					return invalidSpec("only <meta charset=\"utf-8\"> is allowed")
@@ -214,8 +307,24 @@ func inspectHTML(source, basePath string) ([]Control, error) {
 				if name == "srcset" {
 					return invalidSpec("srcset is not supported; use one validated local img src")
 				}
+				if tag == "select" && name == "multiple" {
+					return invalidSpec("multiple select is not supported in custom UI v1")
+				}
+				if tag == "input" && name == "type" {
+					inputType := strings.ToLower(value)
+					if !allowedInputTypes[inputType] {
+						return invalidSpec("input type " + inputType + " is not supported in custom UI v1")
+					}
+				}
 				if name == "id" {
 					id = value
+				}
+				if name == "data-clawdesk-drag" || name == "data-opendesk-drag" {
+					if value != "" && !strings.EqualFold(value, "true") {
+						return invalidSpec("custom UI drag attributes accept only an empty value or true")
+					}
+					dragRegion = true
+					publicDragRegion = publicDragRegion || name == "data-clawdesk-drag"
 				}
 				if name == "style" {
 					if err := validateCSS(value); err != nil {
@@ -243,15 +352,25 @@ func inspectHTML(source, basePath string) ([]Control, error) {
 			if interactiveElements[tag] && id == "" {
 				return invalidSpec(fmt.Sprintf("interactive <%s> requires a stable id", tag))
 			}
+			if dragRegion && controlType(node) != "container" {
+				return invalidSpec("custom UI drag regions require a supported container element")
+			}
+			if publicDragRegion && id == "" {
+				return invalidSpec("data-clawdesk-drag regions require a stable id")
+			}
 			if id != "" {
 				if !publicIDPattern.MatchString(id) {
 					return invalidSpec("control id " + id + " is invalid")
+				}
+				controlType := controlType(node)
+				if !publicControlTypes[controlType] {
+					return invalidSpec(fmt.Sprintf("HTML element <%s> cannot declare a public control id in custom UI v1", tag))
 				}
 				if _, exists := ids[id]; exists {
 					return &Error{Code: CodeDuplicateID, Operation: "createWindow", TargetID: id, Message: "duplicate control id " + id}
 				}
 				ids[id] = struct{}{}
-				controls = append(controls, Control{ID: id, Type: controlType(node), Order: len(controls)})
+				controls = append(controls, Control{ID: id, Type: controlType, Order: len(controls)})
 			}
 		}
 		for child := node.FirstChild; child != nil; child = child.NextSibling {
@@ -302,8 +421,8 @@ func validateCSS(source string) error {
 	if strings.Contains(lower, "</style") || strings.Contains(source, `\`) {
 		return invalidSpec("CSS closing style tags and escape sequences are not allowed")
 	}
-	if cssImportPattern.MatchString(withoutComments) || cssURLPattern.MatchString(withoutComments) {
-		return invalidSpec("CSS imports and url() resources are not supported in custom UI v1")
+	if cssImportPattern.MatchString(withoutComments) || cssURLPattern.MatchString(withoutComments) || cssImageSetPattern.MatchString(withoutComments) {
+		return invalidSpec("CSS imports, url(), and image-set() resources are not supported in custom UI v1")
 	}
 	return nil
 }
@@ -336,10 +455,12 @@ func controlType(node *html.Node) string {
 }
 
 func validateControlPatch(control Control, patch ControlPatch, basePath string) error {
-	if patch.Text == nil && patch.Value == nil && patch.Checked == nil && patch.Disabled == nil && patch.Visible == nil && patch.Classes == nil && patch.Source == nil && patch.Options == nil {
+	if patch.Text == nil && patch.Icon == nil && patch.IconPresentation == nil && patch.Value == nil && patch.Checked == nil && patch.Active == nil &&
+		patch.Disabled == nil && patch.Busy == nil && patch.Error == nil && patch.Visible == nil &&
+		patch.Classes == nil && patch.Source == nil && patch.Options == nil {
 		return invalidSpec("control patch must change at least one supported property")
 	}
-	if patch.Text != nil && control.Type != "button" && control.Type != "text" && control.Type != "container" {
+	if patch.Text != nil && control.Type != "button" && control.Type != "text" {
 		return unsupportedControlPatch(control, "text")
 	}
 	if patch.Value != nil && control.Type != "input" && control.Type != "select" {
@@ -350,6 +471,37 @@ func validateControlPatch(control Control, patch ControlPatch, basePath string) 
 	}
 	if patch.Disabled != nil && control.Type != "button" && control.Type != "input" && control.Type != "select" && control.Type != "switch" {
 		return unsupportedControlPatch(control, "disabled")
+	}
+	if patch.Icon != nil {
+		if control.Type != "button" {
+			return unsupportedControlPatch(control, "icon")
+		}
+		if _, ok := ToolbarIconToken(*patch.Icon); !ok {
+			return &Error{Code: CodeInvalidSpec, Operation: "updateControl", TargetID: control.ID, Capability: "icon", Message: "unknown built-in toolbar icon " + *patch.Icon}
+		}
+	}
+	if patch.IconPresentation != nil {
+		if control.Type != "button" || patch.Icon == nil {
+			return &Error{Code: CodeInvalidSpec, Operation: "updateControl", TargetID: control.ID, Capability: "icon", Message: "icon presentation requires a trusted button icon update"}
+		}
+		expected, ok := ToolbarIconPresentationFor(*patch.Icon)
+		if !ok || expected != *patch.IconPresentation {
+			return &Error{Code: CodeInvalidSpec, Operation: "updateControl", TargetID: control.ID, Capability: "icon", Message: "icon presentation does not match the trusted toolbar registry"}
+		}
+	}
+	if patch.Active != nil && control.Type != "button" {
+		return unsupportedControlPatch(control, "active")
+	}
+	if patch.Busy != nil && control.Type != "button" {
+		return unsupportedControlPatch(control, "busy")
+	}
+	if patch.Error != nil {
+		if control.Type != "button" {
+			return unsupportedControlPatch(control, "error")
+		}
+		if len(*patch.Error) > 2048 {
+			return invalidSpec("button error state must contain at most 2048 bytes")
+		}
 	}
 	if patch.Source != nil {
 		if control.Type != "img" {

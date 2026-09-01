@@ -2,8 +2,8 @@ package container
 
 import (
 	"opendesk/automation"
+	"opendesk/pkg/customui"
 	"opendesk/pkg/runtime"
-	"os"
 )
 
 // Container manages application dependencies and their lifecycle
@@ -15,7 +15,11 @@ type Container struct {
 
 // Config holds container configuration
 type Config struct {
-	RuntimePoolSize int
+	RuntimePoolSize          int
+	EnableCustomUI           bool
+	CustomUIActivationSource customui.ActivationSource
+	CustomUIHostPath         string
+	CustomUIDriver           customui.Driver // internal test seam
 }
 
 // NewContainer creates a new dependency injection container
@@ -29,9 +33,6 @@ func NewContainer(cfg *Config) (*Container, error) {
 	if cfg.RuntimePoolSize <= 0 {
 		cfg.RuntimePoolSize = 10
 	}
-
-	// Skip Fyne initialization in tests to avoid race conditions
-	os.Setenv("SKIP_FYNE_INIT", "1")
 
 	// This is capacity control only. Runtime creation, ownership, and teardown
 	// live in pkg/execution on one event-loop goroutine per execution.

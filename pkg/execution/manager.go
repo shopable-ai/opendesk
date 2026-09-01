@@ -1,6 +1,9 @@
 package execution
 
-import "sync"
+import (
+	"context"
+	"sync"
+)
 
 // Record 保存单次执行的运行态信息。
 type Record struct {
@@ -8,6 +11,7 @@ type Record struct {
 	Result  ExecutionResult
 	Summary AgentSummary
 	Cancel  func()
+	Done    chan struct{}
 }
 
 // Manager 管理多执行实例。
@@ -15,6 +19,7 @@ type Manager struct {
 	mu          sync.RWMutex
 	executions  map[string]*Record
 	lastCreated string
+	closing     bool
 }
 
 // NewManager 创建执行管理器。
@@ -23,11 +28,15 @@ func NewManager() *Manager {
 }
 
 // Register 注册执行实例。
-func (m *Manager) Register(executionID string, emitter *Emitter) {
+func (m *Manager) Register(executionID string, emitter *Emitter) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.executions[executionID] = &Record{Emitter: emitter}
+	if m.closing {
+		return false
+	}
+	m.executions[executionID] = &Record{Emitter: emitter, Done: make(chan struct{})}
 	m.lastCreated = executionID
+	return true
 }
 
 // SetCancel associates a transport-level cancellation function with an
@@ -86,7 +95,69 @@ func (m *Manager) Complete(result ExecutionResult, summary AgentSummary) {
 	record.Result = result
 	record.Summary = summary
 	record.Cancel = nil
+	if record.Done != nil {
+		select {
+		case <-record.Done:
+		default:
+			close(record.Done)
+		}
+	}
 	m.lastCreated = result.ExecutionID
+}
+
+// CancelAll requests teardown for every in-flight execution without holding
+// the manager lock while calling transport cancellation functions.
+func (m *Manager) CancelAll() int {
+	m.mu.RLock()
+	cancels := make([]func(), 0, len(m.executions))
+	for _, record := range m.executions {
+		if record != nil && record.Cancel != nil {
+			cancels = append(cancels, record.Cancel)
+		}
+	}
+	m.mu.RUnlock()
+	for _, cancel := range cancels {
+		cancel()
+	}
+	return len(cancels)
+}
+
+// BeginShutdown closes registration before canceling the current snapshot.
+func (m *Manager) BeginShutdown() int {
+	m.mu.Lock()
+	m.closing = true
+	cancels := make([]func(), 0, len(m.executions))
+	for _, record := range m.executions {
+		if record != nil && record.Cancel != nil {
+			cancels = append(cancels, record.Cancel)
+		}
+	}
+	m.mu.Unlock()
+	for _, cancel := range cancels {
+		cancel()
+	}
+	return len(cancels)
+}
+
+// WaitAll waits for the executions that were in flight at call time to finish
+// their complete Runtime lifecycle, including custom UI host cleanup.
+func (m *Manager) WaitAll(ctx context.Context) error {
+	m.mu.RLock()
+	done := make([]<-chan struct{}, 0, len(m.executions))
+	for _, record := range m.executions {
+		if record != nil && record.Cancel != nil && record.Done != nil {
+			done = append(done, record.Done)
+		}
+	}
+	m.mu.RUnlock()
+	for _, channel := range done {
+		select {
+		case <-channel:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	return nil
 }
 
 // Get 获取执行记录。

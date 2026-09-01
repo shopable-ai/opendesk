@@ -1,50 +1,35 @@
-// Example JavaScript code for using the floating window
-async function initializeFloatingWindow() {
+// Static compatibility entry. New simple toolbars should construct their own
+// FloatingWindow instance; complex HTML/CSS belongs in ui.createWindow().
 
-    console.log("Initializing floating window...");
-    
-    // Show the floating window
-    FloatingWindow.show();
-    
-    // Set window position
-    FloatingWindow.setPosition(100, 100);
-    
-    // Set window to always be on top
-    FloatingWindow.setAlwaysOnTop(true);
-    
-    // Add custom button handlers
-    FloatingWindow.onButtonClick("start", async () => {
-        console.log("Start button clicked");
-        // Example automation sequence
-        await mouse.move(500, 500);
-        await mouse.click(500, 500);
-    });
-    
-    FloatingWindow.onButtonClick("pause", () => {
-        console.log("Pause button clicked");
-        // Add pause logic here
-    });
-    
-    FloatingWindow.onButtonClick("stop", () => {
-        console.log("Stop button clicked");
-        // Add stop logic here
-    });
-    
-    // Add a custom button with a predefined icon name
-    FloatingWindow.addButton("custom", "Custom", "search");  // Using "search" icon
-    
-    // Add another custom button with a different icon
-    FloatingWindow.addButton("info", "Info", "info");  // Using "info" icon
-    
-    // Add handler for custom button
-    FloatingWindow.onButtonClick("custom", async () => {
-        console.log("Custom button clicked");
-        await mouse.move(550, 300);
-        await mouse.click(550, 300);
-    });
+async function main() {
+  const capabilities = ui.getCapabilities();
+  if (!capabilities.enabled || !capabilities.available || typeof FloatingWindow === "undefined") {
+    throw new Error("FloatingWindow requires an enabled and available Custom UI capability");
+  }
 
-    await sleep(60 * 1000 * 5)
+  // The default static instance starts empty. Declaration order is visual order.
+  const actions = [
+    { id: "start", label: "Start", icon: "play.fill" },
+    { id: "pause", label: "Pause", icon: "pause.fill" },
+    { id: "stop", label: "Stop", icon: "stop.fill" },
+    { id: "settings", label: "Settings", icon: "gearshape.fill" },
+    { id: "send", label: "Send", icon: "paperplane.fill" },
+    { id: "timer", label: "Timer", icon: "timer" },
+  ];
+  for (const action of actions) {
+    FloatingWindow.addButton(action.id, action.label, action.icon);
+    FloatingWindow.onButtonClick(action.id, event => {
+      console.log(action.id, JSON.stringify({ event, system: System.getSystemInfo() }));
+    });
+  }
+
+  await FloatingWindow.setPosition(100, 100);
+  await FloatingWindow.setAlwaysOnTop(true);
+  const shown = await FloatingWindow.show();
+  console.log("AUTO_SIZED_BOUNDS=" + JSON.stringify(shown.bounds));
+
+  // Deprecated alias: run() returns the same close Promise as waitUntilClosed().
+  await FloatingWindow.run();
 }
 
-// Initialize the floating window when script starts
-await initializeFloatingWindow();
+await main();

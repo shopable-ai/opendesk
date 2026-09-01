@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"opendesk/pkg/customui/toolbar"
+	"sort"
 	"strings"
 	"sync"
 )
@@ -107,11 +109,21 @@ func (s *Session) Close(ctx context.Context) error {
 	for _, window := range s.windows {
 		windows = append(windows, window)
 	}
+	sort.Slice(windows, func(i, j int) bool { return windows[i].ID() < windows[j].ID() })
 	s.mu.Unlock()
 
 	first := closeWindows(ctx, windows)
 	if err := s.driver.CloseSession(ctx, s.id); err != nil && first == nil {
 		first = wrapDriver("closeSession", "", err)
+	}
+	// A session is terminal once Close begins. In particular, a crashed native
+	// host cannot acknowledge every per-window close request; retaining those
+	// dead Window records would leak lifecycle accounting and make teardown
+	// non-idempotent. The driver is closed by the runtime immediately after this
+	// session close, so force the local terminal state even when transport close
+	// reports the host failure to the caller.
+	for _, window := range windows {
+		window.markClosed()
 	}
 	return first
 }
@@ -129,6 +141,7 @@ func (s *Session) CloseWindows(ctx context.Context) error {
 		windows = append(windows, window)
 	}
 	s.mu.RUnlock()
+	sort.Slice(windows, func(i, j int) bool { return windows[i].ID() < windows[j].ID() })
 	return closeWindows(ctx, windows)
 }
 
@@ -240,8 +253,8 @@ func (w *Window) Close(ctx context.Context) (WindowState, error) {
 func (w *Window) SetBounds(ctx context.Context, bounds Bounds) (WindowState, error) {
 	w.operation.Lock()
 	defer w.operation.Unlock()
-	if bounds.Width <= 0 || bounds.Height <= 0 {
-		return WindowState{}, &Error{Code: CodeInvalidSpec, Operation: "setBounds", WindowID: w.ID(), Message: "width and height must be positive"}
+	if !validBounds(bounds) {
+		return WindowState{}, &Error{Code: CodeInvalidSpec, Operation: "setBounds", WindowID: w.ID(), Message: "bounds must contain finite coordinates and positive finite width and height"}
 	}
 	if err := w.requireOpen("setBounds"); err != nil {
 		return WindowState{}, err
@@ -325,6 +338,29 @@ func (w *Window) UpdateControl(ctx context.Context, id string, patch ControlPatc
 	}
 	state, err := w.driver.UpdateControl(ctx, id, patch)
 	return state, wrapDriver("updateControl", w.ID(), err)
+}
+
+func (w *Window) ToolbarButtonState(ctx context.Context, id string) (toolbar.ButtonResult, error) {
+	w.operation.Lock()
+	defer w.operation.Unlock()
+	if w.spec.Toolbar == nil || !w.hasControl(id) {
+		return toolbar.ButtonResult{}, &Error{Code: CodeNotFound, Operation: "getToolbarButtonState", WindowID: w.ID(), TargetID: id, Capability: "button", Message: "toolbar button not found"}
+	}
+	state, err := w.driver.ToolbarButtonState(ctx, id)
+	return state, wrapDriver("getToolbarButtonState", w.ID(), err)
+}
+
+func (w *Window) ApplyToolbarButton(ctx context.Context, button toolbar.ButtonSpec) (toolbar.ButtonResult, error) {
+	w.operation.Lock()
+	defer w.operation.Unlock()
+	if err := w.requireOpen("applyToolbarButton"); err != nil {
+		return toolbar.ButtonResult{}, err
+	}
+	if w.spec.Toolbar == nil || !w.hasControl(button.ID) {
+		return toolbar.ButtonResult{}, &Error{Code: CodeNotFound, Operation: "applyToolbarButton", WindowID: w.ID(), TargetID: button.ID, Capability: "button", Message: "toolbar button not found"}
+	}
+	state, err := w.driver.ApplyToolbarButton(ctx, button)
+	return state, wrapDriver("applyToolbarButton", w.ID(), err)
 }
 
 func (w *Window) WaitClosed() <-chan struct{} { return w.closed }

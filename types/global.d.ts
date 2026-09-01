@@ -31,6 +31,11 @@ declare global {
   function getClipboard(): string;
   function notify(options: string | OpenDeskNotifyOptions): void;
 
+  /** Promise aliases for the host-owned Dialog API; unlike browser dialogs these do not block or accept option callbacks. */
+  function alert(message: string | OpenDeskAlertOptions): Promise<void>;
+  function confirm(message: string | OpenDeskConfirmOptions): Promise<boolean>;
+  function prompt(message: string | OpenDeskPromptOptions): Promise<string | null>;
+
   function sleep(ms: number): Promise<void>;
   function sleepSeconds(seconds: number): Promise<void>;
 

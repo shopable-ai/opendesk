@@ -69,7 +69,7 @@ order: 14
 
 `axios` 也是典型例子：正式脚本中的全局 `axios` 由 `polyfills/004-axios.js` 构造，并最终调用底层 `http.request()`。
 
-`Dialog` 在同一初始化链中于 polyfill 前注册。即使 UI capability 未授权，`Dialog` 也存在但会 fail closed 为 `DIALOG_DISABLED`；`polyfills/000-dialog.js` 仅提供全局 Promise aliases，未建立第二套实现。Dialog 使用 Custom UI 的独立 native host、事件队列、WindowServer 读取与 Runtime EventLoop ownership，但调用者不能提交 HTML/CSS。完整 capability、HTTP、取消与 prompt 隐私规则见 [`dialog.md`](dialog.md)。
+`Dialog` 在同一初始化链中于 polyfill 前注册。即使 UI capability 未授权，`Dialog` 也存在但会 fail closed 为 `DIALOG_DISABLED`；`polyfills/000-dialog.js` 仅提供全局 Promise aliases，未建立第二套实现。Dialog 使用 Custom UI 的独立 native host、事件队列、WindowServer 读取与 Runtime EventLoop ownership，但调用者不能提交 HTML/CSS。完整 capability、HTTP、取消与 prompt 隐私规则见 [Dialog API](dialog.md)。
 
 ## page / window / System / File：核心全局对象
 
@@ -79,7 +79,7 @@ order: 14
 - **视觉**：`Vision`、`OCR`、`ImageColor`
 - **数据与系统**：`File`、`AppStorage`、`System`、`clipboard`
 - **网络**：`http`、`axios`
-- **运行时辅助**：`console`、Promise、timers、sleep、[`notify()`](notify.md)、[`Dialog`](dialog.md) / `alert()` / `confirm()` / `prompt()`、`Sound`
+- **运行时辅助**：`console`、Promise、timers、sleep、[notify](notify.md)、[Dialog API](dialog.md) / `alert()` / `confirm()` / `prompt()`、`Sound`
 - **Experimental Native Plugin**：`NativeExtensions`（默认不注入；manifest-generated immutable binding）
 - **条件能力**：`ui`（默认 dormant；CLI / 固定项目配置 / HTTP 请求显式授权）
 - **兼容入口**：`FloatingWindow`（底层走 Custom UI driver，不初始化 Fyne）
@@ -181,7 +181,7 @@ portable/app-bundled 与 current-user OS-standard roots 读取严格 manifest。
 diagnostics 不启动 child，也不执行 bundle JavaScript。每次真正 method 调用启动一个
 one-shot process。低层 `NativeExtension.call` 只能由单独的
 `-experimental-unsafe-native-extension-call` 本机诊断 gate 开启，registry gate 不会
-顺带暴露绝对路径执行。详见 [Native Extension Plugin V1](native-extension.md)。
+顺带暴露绝对路径执行。详见 [Native Extension Plugin V1.0.1](native-extension.md)。
 
 如果运行时日志出现：
 

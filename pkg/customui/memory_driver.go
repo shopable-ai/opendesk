@@ -3,6 +3,7 @@ package customui
 import (
 	"context"
 	"fmt"
+	"opendesk/pkg/customui/toolbar"
 	"runtime"
 	"sort"
 	"sync"
@@ -58,10 +59,19 @@ func (d *MemoryDriver) Create(_ context.Context, sessionID string, spec WindowSp
 	window := &memoryWindow{
 		driver: d, sessionID: sessionID, spec: spec, sink: sink,
 		state:    WindowState{ID: spec.ID, SessionID: sessionID, Status: StatusHidden, Bounds: spec.Bounds, AlwaysOnTop: spec.AlwaysOnTop, Draggable: spec.Draggable, HostPID: d.pid, NativeWindowID: int64(len(d.windows) + 1), Layer: 0, Alpha: 1, Revision: 1},
-		controls: map[string]ControlState{},
+		controls: map[string]ControlState{}, toolbarButtons: map[string]toolbar.ButtonResult{},
 	}
 	for _, control := range spec.Controls {
 		window.controls[control.ID] = ControlState{ID: control.ID, Type: control.Type, Visible: true}
+	}
+	if spec.Toolbar != nil {
+		for _, button := range spec.Toolbar.Buttons {
+			presentation, _ := toolbar.IconPresentationFor(button.Icon)
+			window.toolbarButtons[button.ID] = toolbar.ButtonResult{
+				ButtonSpec: button, IconPresentation: presentation,
+				AccessibilityName: button.Label,
+			}
+		}
 	}
 	d.windows[key] = window
 	return window, nil
@@ -110,6 +120,19 @@ func (d *MemoryDriver) ControlSnapshot(sessionID, windowID, controlID string) (C
 	return state, err == nil
 }
 
+func (d *MemoryDriver) ControlOrder(sessionID, windowID string) ([]Control, bool) {
+	d.mu.RLock()
+	window := d.windows[sessionID+"/"+windowID]
+	d.mu.RUnlock()
+	if window == nil {
+		return nil, false
+	}
+	window.mu.RLock()
+	controls := append([]Control(nil), window.spec.Controls...)
+	window.mu.RUnlock()
+	return controls, true
+}
+
 func (d *MemoryDriver) Emit(sessionID, windowID, targetID, eventType string, value any) error {
 	d.mu.RLock()
 	window := d.windows[sessionID+"/"+windowID]
@@ -131,10 +154,11 @@ type memoryWindow struct {
 	spec      WindowSpec
 	sink      func(Event)
 
-	mu       sync.RWMutex
-	state    WindowState
-	controls map[string]ControlState
-	sequence uint64
+	mu             sync.RWMutex
+	state          WindowState
+	controls       map[string]ControlState
+	toolbarButtons map[string]toolbar.ButtonResult
+	sequence       uint64
 }
 
 func (w *memoryWindow) mutate(fn func(*WindowState)) WindowState {
@@ -209,14 +233,30 @@ func (w *memoryWindow) UpdateControl(_ context.Context, id string, patch Control
 	if patch.Text != nil {
 		state.Text = *patch.Text
 	}
+	if patch.Icon != nil {
+		state.Icon = *patch.Icon
+	}
+	if patch.IconPresentation != nil {
+		presentation := *patch.IconPresentation
+		state.IconPresentation = &presentation
+	}
 	if patch.Value != nil {
 		state.Value = patch.Value
 	}
 	if patch.Checked != nil {
 		state.Checked = patch.Checked
 	}
+	if patch.Active != nil {
+		state.Active = *patch.Active
+	}
 	if patch.Disabled != nil {
 		state.Disabled = *patch.Disabled
+	}
+	if patch.Busy != nil {
+		state.Busy = *patch.Busy
+	}
+	if patch.Error != nil {
+		state.Error = *patch.Error
 	}
 	if patch.Visible != nil {
 		state.Visible = *patch.Visible
@@ -226,5 +266,36 @@ func (w *memoryWindow) UpdateControl(_ context.Context, id string, patch Control
 		sort.Strings(state.Classes)
 	}
 	w.controls[id] = state
+	return state, nil
+}
+
+func (w *memoryWindow) ToolbarButtonState(_ context.Context, id string) (toolbar.ButtonResult, error) {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	state, ok := w.toolbarButtons[id]
+	if !ok {
+		return toolbar.ButtonResult{}, fmt.Errorf("toolbar button not found")
+	}
+	return state, nil
+}
+
+func (w *memoryWindow) ApplyToolbarButton(_ context.Context, button toolbar.ButtonSpec) (toolbar.ButtonResult, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	state, ok := w.toolbarButtons[button.ID]
+	if !ok {
+		return toolbar.ButtonResult{}, fmt.Errorf("toolbar button not found")
+	}
+	if button.State.Revision > state.State.Revision {
+		presentation, ok := toolbar.IconPresentationFor(button.Icon)
+		if !ok {
+			return toolbar.ButtonResult{}, fmt.Errorf("toolbar icon is not allowlisted")
+		}
+		state.ButtonSpec = button
+		state.IconPresentation = presentation
+		state.AccessibilityName = button.Label
+		state.RenderedText = ""
+		w.toolbarButtons[button.ID] = state
+	}
 	return state, nil
 }
