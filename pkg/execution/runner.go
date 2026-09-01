@@ -29,13 +29,24 @@ const interactiveCancellationGrace = 750 * time.Millisecond
 type Request struct {
 	// Context cancels the complete execution lifecycle: JavaScript evaluation,
 	// timers, HTTP workers, and queued Promise callbacks.
-	Context        context.Context
-	ExecutionID    string
-	SourceLabel    string
-	Ext            string
-	StackMode      string
-	ScriptHash     string
-	ScriptContent  []byte
+	Context context.Context
+	// ExpectedCancellation is an internal transport hook for a cancellation
+	// that is an intentional lifecycle transition (for example, a newer direct
+	// invocation replacing the same script). It does not change the result
+	// status, but prevents the transition from being emitted as a runtime error.
+	ExpectedCancellation func() bool
+	ExecutionID          string
+	SourceLabel          string
+	Ext                  string
+	StackMode            string
+	ScriptHash           string
+	ScriptContent        []byte
+	// Input is the structured, JSON-compatible data supplied by a caller such
+	// as `opendesk ai run`. It is exposed to JavaScript as Execution.input.
+	Input any
+	// WorkDir is the caller's execution working directory. It is metadata only;
+	// the execution runtime does not mutate the process working directory.
+	WorkDir        string
 	TimeoutMinutes int
 	// EnableNativeExtensions opts a trusted local execution into the
 	// manifest-generated registry. It never enables arbitrary executable paths.
@@ -105,6 +116,7 @@ func RunWithEmitter(req Request, emitter *Emitter) (ExecutionResult, AgentSummar
 	execErr := runScript(req, emitter)
 	status := ExecutionStatusSucceeded
 	if execErr != nil {
+		expectedCancellation := errors.Is(execErr, context.Canceled) && req.ExpectedCancellation != nil && req.ExpectedCancellation()
 		if errors.Is(execErr, context.Canceled) {
 			status = ExecutionStatusCanceled
 		} else if strings.Contains(execErr.Error(), "timed out") {
@@ -112,7 +124,11 @@ func RunWithEmitter(req Request, emitter *Emitter) (ExecutionResult, AgentSummar
 		} else {
 			status = ExecutionStatusFailed
 		}
-		emitter.Emit(EventCategoryError, EventLevelError, EventSourceRuntime, "error", execErr.Error(), nil)
+		if expectedCancellation {
+			emitter.Emit(EventCategoryMeta, EventLevelInfo, EventSourceRuntime, "status", "script execution was replaced by a newer invocation", nil)
+		} else {
+			emitter.Emit(EventCategoryError, EventLevelError, EventSourceRuntime, "error", execErr.Error(), nil)
+		}
 	} else {
 		emitter.Emit(EventCategorySummary, EventLevelInfo, EventSourceSystem, "summary", "script execution completed", nil)
 	}
@@ -495,7 +511,10 @@ func registerExecutionContext(rt *goja.Runtime, req Request) error {
 		artifactDir = req.Artifacts.RunDir
 	}
 	context := map[string]any{
+		"id":               req.ExecutionID,
 		"executionId":      req.ExecutionID,
+		"input":            executionInput(req.Input),
+		"workdir":          executionWorkDir(req.WorkDir),
 		"stack":            normalizeStackModeForContext(req.StackMode),
 		"artifactDir":      artifactDir,
 		"source":           req.SourceLabel,
@@ -504,6 +523,23 @@ func registerExecutionContext(rt *goja.Runtime, req Request) error {
 		"activationSource": string(normalizeCustomUIActivationSource(req)),
 	}
 	return rt.Set("Execution", context)
+}
+
+func executionInput(input any) any {
+	if input == nil {
+		return map[string]any{}
+	}
+	return input
+}
+
+func executionWorkDir(workDir string) string {
+	if strings.TrimSpace(workDir) != "" {
+		return workDir
+	}
+	if cwd, err := os.Getwd(); err == nil {
+		return cwd
+	}
+	return "."
 }
 
 func normalizeCustomUIActivationSource(req Request) customui.ActivationSource {

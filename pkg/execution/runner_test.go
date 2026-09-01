@@ -36,6 +36,29 @@ func TestRunJavaScriptCustomUIDisabledByDefault(t *testing.T) {
 	}
 }
 
+func TestRunJavaScriptExposesStructuredExecutionInput(t *testing.T) {
+	artifacts, err := PrepareArtifacts(filepath.Join(t.TempDir(), "execution-input"), "execution-input", ".js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, _, err := Run(Request{
+		ExecutionID: "execution-input",
+		SourceLabel: "test",
+		Ext:         ".js",
+		ScriptContent: []byte(`
+			if (Execution.id !== "execution-input" || Execution.executionId !== "execution-input") throw new Error("execution id missing");
+			if (Execution.input.message !== "hello" || !Execution.input.nested.ok) throw new Error("structured input missing");
+			if (typeof Execution.workdir !== "string" || Execution.workdir.length === 0) throw new Error("workdir missing");
+		`),
+		Input:     map[string]any{"message": "hello", "nested": map[string]any{"ok": true}},
+		Artifacts: artifacts,
+		Selection: TerminalSelection{Mode: "quiet", Categories: map[string]bool{}},
+	})
+	if err != nil || result.Status != ExecutionStatusSucceeded {
+		t.Fatalf("execution input contract failed: status=%s err=%v", result.Status, err)
+	}
+}
+
 func TestRunJavaScriptCustomUIEventsAndWaitUntilClosed(t *testing.T) {
 	driver := customui.NewMemoryDriver()
 	artifacts, err := PrepareArtifacts(filepath.Join(t.TempDir(), "ui-events"), "ui-events", ".js")
