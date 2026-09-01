@@ -85,7 +85,7 @@ func TestParseManifestUsesStrictSemverAndSchemaBounds(t *testing.T) {
 }
 
 func TestParseManifestRejectsCoreGlobalsAndReservedNames(t *testing.T) {
-	for _, namespace := range []string{"File", "System", "page", "NativeExtension", "window", "mouse", "keyboard", "clipboard", "AppStorage", "Sound", "ImageColor", "OCR", "Vision", "Screen", "ui"} {
+	for _, namespace := range []string{"File", "System", "page", "NativeExtension", "window", "mouse", "keyboard", "clipboard", "AppStorage", "Sound", "Audio", "ImageColor", "OCR", "Vision", "Screen", "ui"} {
 		manifest := testManifest("com.example.test", namespace, "bin/ext", map[string]ManifestMethod{"hello": {WireMethod: "hello", TimeoutMS: 1000}})
 		raw, _ := json.Marshal(manifest)
 		if _, err := ParseManifest(raw); err == nil {

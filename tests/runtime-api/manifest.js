@@ -65,6 +65,10 @@ globalThis.RuntimeAPIObjects = {
     'findBlueChannel', 'toRGB', 'toRGBA', 'toHSL', 'toHSLA', 'isColorSimilar', 'analyzeLayout',
   ] },
   Sound: { docs: 'docs/api/sound.md', types: 'types/Sound.d.ts', source: 'automation/sound.go', status: 'secondary', platforms: ['darwin', 'linux', 'windows'], methods: ['playSuccess', 'playFail', 'playWarning', 'playError', 'playCaptcha', 'playSound', 'play'] },
+  Audio: { docs: 'docs/api/audio.md', types: 'types/Audio.d.ts', source: 'automation/audio.go', status: 'experimental', platforms: ['darwin'], methods: [
+    'getVolume', 'setVolume', 'isMuted', 'mute', 'unmute', 'toggleMute', 'getOutputDevices',
+    'getInputDevices', 'getDefaultOutput', 'getDefaultInput', 'getCapabilities',
+  ] },
   Dialog: { docs: 'docs/api/dialog.md', types: 'types/dialog.d.ts', source: 'automation/dialog.go', status: 'conditional', platforms: ['darwin', 'linux', 'windows'], methods: ['alert', 'confirm', 'prompt', 'getCapabilities'] },
   ui: { docs: 'docs/api/native-ui.md', types: 'types/custom-ui.d.ts', source: 'automation/custom_ui.go', status: 'conditional', platforms: ['darwin', 'linux', 'windows'], methods: ['getCapabilities', 'createWindow', 'closeAll', 'on'] },
   FloatingWindow: { docs: 'docs/api/native-ui.md', types: 'types/FloatingWindow.d.ts', source: 'automation/floating_window.go', status: 'conditional', platforms: ['darwin', 'linux', 'windows'], optional: true, methods: ['constructor', 'addButton', 'removeButton', 'updateButton', 'getButtonState', 'show', 'hide', 'close', 'setPosition', 'onButtonClick', 'onError', 'setAlwaysOnTop', 'waitUntilClosed', 'run'] },
@@ -91,6 +95,7 @@ const unitBehavior = new Set([
   'http.request', 'NativeExtensions.list', 'NativeExtensions.get', 'NativeExtensions.diagnostics', 'OCR.extractText', 'Vision.getCapabilities', 'Vision.analyzeLayout', 'Vision.annotateRegions',
   ...RuntimeAPIObjects.ImageColor.methods.map((method) => 'ImageColor.' + method),
   'Sound.playSound', 'Sound.play',
+  'Audio.setVolume', 'Audio.getCapabilities',
   ...RuntimeAPIObjects.Dialog.methods.map((method) => 'Dialog.' + method),
   ...RuntimeAPIObjects.ui.methods.map((method) => 'ui.' + method),
   ...RuntimeAPIObjects.browser.methods.filter((method) => method !== 'close').map((method) => 'browser.' + method),
@@ -149,6 +154,9 @@ const restricted = {
   'context.close': 'would close the singleton compatibility context used by later tests',
 };
 for (const method of ['playSuccess', 'playFail', 'playWarning', 'playError', 'playCaptcha']) restricted['Sound.' + method] = 'plays audible system output';
+for (const method of RuntimeAPIObjects.Audio.methods.filter((method) => method !== 'getCapabilities')) {
+  restricted['Audio.' + method] = 'depends on or changes host audio device state; dedicated macOS smoke must restore control state and redact device names and UIDs';
+}
 for (const method of RuntimeAPIObjects.FloatingWindow.methods) restricted['FloatingWindow.' + method] = 'button-first facade is exposed only when Custom UI is explicitly authorized';
 for (const method of RuntimeAPIObjects.window.methods) {
   const id = 'window.' + method;
@@ -234,6 +242,7 @@ globalThis.RuntimeAPITestFiles = {
     'tests/runtime-api/unit/vision-layout.test.js',
     'tests/runtime-api/unit/image-color.test.js',
     'tests/runtime-api/unit/sound.test.js',
+    'tests/runtime-api/unit/audio.test.js',
     'tests/runtime-api/unit/dialog.test.js',
     'tests/runtime-api/unit/custom-ui.test.js',
     'tests/runtime-api/unit/floating-window.test.js',

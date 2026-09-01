@@ -375,6 +375,32 @@
       "privacy": "secure prompt uses a password input; Dialog never writes message, defaultValue, or prompt input to ordinary logs, errors, summaries, events, or HTTP responses"
     },
     {
+      "name": "Audio",
+      "source": "native runtime wrapper + macOS CoreAudio HAL",
+      "status": "experimental",
+      "doc": "audio.md",
+      "platforms": [
+        "darwin"
+      ],
+      "keyMethods": [
+        "getVolume",
+        "setVolume",
+        "isMuted",
+        "mute",
+        "unmute",
+        "toggleMute",
+        "getOutputDevices",
+        "getInputDevices",
+        "getDefaultOutput",
+        "getDefaultInput",
+        "getCapabilities"
+      ],
+      "volumeUnit": "inclusive scalar 0..1 with hardware readback",
+      "capture": "not implemented; microphone and systemAudio are explicitly false in capability discovery",
+      "soundCompatibility": "Sound remains the blocking MP3/WAV playback namespace",
+      "platformBehavior": "darwin+cgo uses CoreAudio; non-CGO macOS and other platforms report unavailable and reject instead of silent no-op"
+    },
+    {
       "name": "Sound",
       "source": "native",
       "status": "secondary",
@@ -508,6 +534,7 @@
       "mouse.md",
       "input.md",
       "events.md",
+      "audio.md",
       "window.md",
       "screen.md"
     ],
@@ -528,6 +555,7 @@
     "runtime": [
       "runtime.md",
       "notify.md",
+      "audio.md",
       "sound.md",
       "native-ui.md",
       "native-extension.md",

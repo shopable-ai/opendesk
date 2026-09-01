@@ -24,6 +24,7 @@ const requiredFamilyFiles = {
   Vision: 'vision.test.js',
   ImageColor: 'image-color.test.js',
   Sound: 'sound.test.js',
+  Audio: 'audio.test.js',
   FloatingWindow: 'floating-window.test.js',
   browser: 'browser.test.js',
   context: 'context.test.js',

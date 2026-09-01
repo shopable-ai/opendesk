@@ -38,7 +38,10 @@ type InitJSOptions struct {
 	// DesktopEventBackendFactory is an internal dependency seam for lifecycle
 	// and event-storm tests. Product executions use the explicit polling backend.
 	DesktopEventBackendFactory DesktopEventBackendFactory
-	OnReady                    func(*RuntimeLifecycle)
+	// AudioBackendFactory is an internal dependency seam for Audio unit tests.
+	// Normal executions use the platform-selected backend.
+	AudioBackendFactory AudioBackendFactory
+	OnReady             func(*RuntimeLifecycle)
 }
 
 // RuntimeLifecycle exposes only teardown-safe resources to the runtime owner.
@@ -637,6 +640,7 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 	sound := NewSound()
 	soundMethods := AutoMapObject(runtime, sound)
 	runtime.Set("Sound", soundMethods)
+	registerAudio(runtime, opts)
 
 	imageColor := NewImageColor()
 	imageColorMethods := AutoMapObject(runtime, imageColor)

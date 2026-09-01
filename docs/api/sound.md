@@ -10,6 +10,9 @@ order: 14
 
 `Sound` 用于播放内置提示音或本地 MP3/WAV 文件。
 
+系统默认输出音量、mute 与设备发现请使用 [Audio API](audio.md)。`Audio` 不替代或复制本页的
+播放器；两个 namespace 保持职责分离。
+
 | 方法 | 参数 | 返回 | 用途 |
 | --- | --- | --- |
 | `Sound.playSuccess()` | 无 | `void` | 成功提示音。 |
