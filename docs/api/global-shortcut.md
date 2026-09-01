@@ -147,7 +147,8 @@ make build
 `globalShortcut` 不定义 `requestPermission()`，并且 `register()` 不会隐式显示权限提示或打开
 系统设置。请只在首次配置或用户主动点击“配置快捷键权限”时调用通用的
 `page.requestPermissions({ section: 'globalShortcut', openSettings: true, strict: false })`；正常注册
-快捷键不需要 Screen Recording 或 Automation。
+快捷键不需要 Screen Recording 或 Automation。该调用会先检查授权；两项都已授权时返回
+`skipped: true`，不会再次拉起系统设置。
 
 1. 从仓库根目录执行一次 `make build`，随后始终用 `./dist/opendesk ...` 运行。macOS 的
    授权与该可执行文件/应用身份关联；不要在 `go run`、不同副本或频繁变更路径之间混用。
@@ -156,8 +157,8 @@ make build
    退出并重新启动 OpenDesk。
 3. 也在 **Input Monitoring** 为同一宿主开启权限，然后重启 OpenDesk。当前 backend 为支持
    `F21`–`F24` 会使用系统 HID 监听；不同 macOS 版本可能在 listener 启动或特定键盘上要求
-   此授权。macOS 没有供第三方可靠读取 Input Monitoring 授权状态的公开预检；OpenDesk 会如实
-   报告 `unknown`，而非把它伪报为已授权。
+   此授权。macOS 10.15+ 的 `IOHIDCheckAccess(kIOHIDRequestTypeListenEvent)` 可返回该进程的
+   `granted` / `denied` / `unknown` 状态；OpenDesk 仅把 `granted` 视为通过。
 
 不需要为普通 `globalShortcut` 注册授予 **Screen Recording** 或 **Automation**：前者只供截图
 能力使用；后者只在脚本主动通过 AppleEvents 控制其他 App 时需要。维护者的 macOS smoke 会
@@ -165,8 +166,8 @@ make build
 用户运行示例所需的权限。
 
 脚本可以复用已有的通用权限 API。把下列调用放在首次配置或用户点击“配置快捷键权限”时；它会
-主动打开这两个系统设置页，并请求 macOS 显示 Accessibility 授权提示（是否显示由 macOS 已有
-的授权决定）。不需要增加 `globalShortcut.requestPermission()` 这样的重复 API：
+先检查两个权限，全部已授权时不执行请求或打开窗口，缺少权限时只打开对应设置页。同一进程
+默认只打开每个设置页一次。不需要增加 `globalShortcut.requestPermission()` 这样的重复 API：
 
 ```js
 const permissions = await page.requestPermissions({
@@ -175,15 +176,17 @@ const permissions = await page.requestPermissions({
   strict: false,
 });
 
-if (!permissions.permissions.capabilities.accessibility.granted) {
+if (!permissions.ok) {
   throw new Error('Allow OpenDesk in Accessibility and Input Monitoring, restart it, then run this script again.');
 }
 
 globalShortcut.register('CommandOrControl+Shift+9', copyText);
 ```
 
-`checkPermissions({ capabilities: ['inputMonitoring'] })` 可用于显示该权限的引导状态，但会
-返回 `unknown` 且 `granted: false`，使 aggregate `ok` 保持 `false`；它不能作为“已获授权”的证明。
+`checkPermissions({ capabilities: ['inputMonitoring'] })` 可用于显示该权限状态。只有
+`state: 'granted'` / `granted: true` 是授权证明；`denied` 和 `unknown` 都保持 fail-closed。
+如果产品提供明确的“重新打开系统设置”按钮，可传 `forceOpenSettings: true`；不要在普通启动
+或重试循环中使用该参数。
 注册因隐私设置或系统监听资源失败时，
 `globalShortcut.register()` 会抛出 `REGISTRATION_FAILED`，其中保留底层原因；不会静默降级为
 仅前台快捷键。
@@ -194,8 +197,8 @@ globalShortcut.register('CommandOrControl+Shift+9', copyText);
 ./dist/opendesk -script examples/global-shortcut-permission-setup.js -console-mode script
 ```
 
-它主动打开 Accessibility 与 Input Monitoring，并请求 macOS 显示 Accessibility 授权提示；
-Input Monitoring 始终需要用户亲自在系统设置中确认。
+它只为当前缺少的权限打开 Accessibility 或 Input Monitoring，并按需请求 macOS 显示授权提示；
+如果两项已授权，则只输出状态而不打开窗口。
 
 ## 维护者专用：macOS 非前台真实 smoke
 

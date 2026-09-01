@@ -5,12 +5,13 @@ package automation
 
 /*
 #cgo darwin CFLAGS: -x objective-c
-#cgo darwin LDFLAGS: -framework ApplicationServices -framework CoreGraphics -framework CoreFoundation -framework Foundation
+#cgo darwin LDFLAGS: -framework ApplicationServices -framework CoreGraphics -framework CoreFoundation -framework Foundation -framework IOKit
 #include <stdlib.h>
 #include <stdbool.h>
 #include <ApplicationServices/ApplicationServices.h>
 #include <CoreGraphics/CoreGraphics.h>
 #include <CoreFoundation/CoreFoundation.h>
+#include <IOKit/hidsystem/IOHIDLib.h>
 #import <Foundation/Foundation.h>
 
 bool tm_ax_is_trusted() {
@@ -41,6 +42,24 @@ bool tm_screen_preflight() {
 
 bool tm_screen_request() {
 	return CGRequestScreenCaptureAccess();
+}
+
+int tm_input_monitoring_status() {
+	if (@available(macOS 10.15, *)) {
+		switch (IOHIDCheckAccess(kIOHIDRequestTypeListenEvent)) {
+			case kIOHIDAccessTypeGranted: return 1;
+			case kIOHIDAccessTypeDenied: return 0;
+			default: return -1;
+		}
+	}
+	return -1;
+}
+
+bool tm_input_monitoring_request() {
+	if (@available(macOS 10.15, *)) {
+		return IOHIDRequestAccess(kIOHIDRequestTypeListenEvent);
+	}
+	return false;
 }
 
 bool tm_trigger_appleevents_prompt(const char *targetApp) {
@@ -78,6 +97,21 @@ func darwinScreenCaptureStatus() bool {
 
 func darwinRequestScreenCapturePrompt() bool {
 	return bool(C.tm_screen_request())
+}
+
+func darwinInputMonitoringStatus() string {
+	switch int(C.tm_input_monitoring_status()) {
+	case 1:
+		return "granted"
+	case 0:
+		return "denied"
+	default:
+		return "unknown"
+	}
+}
+
+func darwinRequestInputMonitoringPrompt() bool {
+	return bool(C.tm_input_monitoring_request())
 }
 
 func darwinTriggerAppleEventsPrompt(targetApp string) bool {

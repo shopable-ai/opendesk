@@ -29,8 +29,8 @@ declare global {
 
   interface OpenDeskPermissionCapabilityState {
     /**
-     * On macOS, `inputMonitoring` always remains `unknown` with
-     * `granted: false`: the OS has no reliable third-party status preflight.
+     * On macOS, Input Monitoring is read through IOHIDCheckAccess. `unknown`
+     * remains fail-closed and never implies `granted: true`.
      */
     state: "granted" | "denied" | "unknown" | "unsupported";
     granted: boolean;
@@ -45,9 +45,12 @@ declare global {
 
   interface OpenDeskPermissionOptions {
     capabilities?: OpenDeskPermissionCapability[];
-    /** `globalShortcut` opens the Accessibility and Input Monitoring guides together. */
+    /** `globalShortcut` checks Accessibility and Input Monitoring and opens only missing guides. */
     section?: "all" | "baseline" | "browserBaseline" | "browser" | "accessibility" | "inputMonitoring" | "globalShortcut" | "screenCapture" | "screen" | "automation";
+    /** Allow navigation to System Settings when a requested permission is not granted. Defaults to true. */
     openSettings?: boolean;
+    /** With openSettings=true, navigate even when already granted or already opened in this process. */
+    forceOpenSettings?: boolean;
     strict?: boolean;
   }
 
@@ -55,6 +58,7 @@ declare global {
     os: string;
     ok: boolean;
     skipped?: boolean;
+    settingsOpened?: boolean;
     capabilities: OpenDeskPermissionCapability[];
     permissions: OpenDeskPermissionSnapshot;
     section?: string;

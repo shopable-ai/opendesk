@@ -35,10 +35,12 @@ var macPrivacySettingsURLs = map[string]string{
 }
 
 var macPermissionPromptState = struct {
-	mu        sync.Mutex
-	requested map[string]bool
+	mu             sync.Mutex
+	requested      map[string]bool
+	settingsOpened map[string]bool
 }{
-	requested: map[string]bool{},
+	requested:      map[string]bool{},
+	settingsOpened: map[string]bool{},
 }
 
 const defaultCommandProbeTimeout = 3 * time.Second
@@ -711,11 +713,13 @@ func (p *Page) wrapScreenshotCaptureError(cause error, x, y, width, height int, 
 
 func (p *Page) CheckScreenshotPermissions() map[string]interface{} {
 	report := map[string]interface{}{
-		"os":            runtime.GOOS,
-		"screenCapture": true,
-		"accessibility": true,
-		"automation":    nil,
-		"ok":            true,
+		"os":                    runtime.GOOS,
+		"screenCapture":         true,
+		"accessibility":         true,
+		"inputMonitoring":       false,
+		"inputMonitoringStatus": "unsupported",
+		"automation":            nil,
+		"ok":                    true,
 	}
 
 	if runtime.GOOS != "darwin" {
@@ -737,8 +741,11 @@ func (p *Page) CheckScreenshotPermissions() map[string]interface{} {
 	}
 
 	okAX := darwinAccessibilityStatus()
+	inputMonitoringStatus := darwinInputMonitoringStatus()
 	report["screenCapture"] = okScreen
 	report["accessibility"] = okAX
+	report["inputMonitoring"] = inputMonitoringStatus == "granted"
+	report["inputMonitoringStatus"] = inputMonitoringStatus
 	report["automation"] = "requires runtime AppleEvents trigger"
 	report["ok"] = okScreen && okAX
 	report["guideScript"] = "examples/mac/open-permission-settings.js"
@@ -750,6 +757,9 @@ func (p *Page) CheckScreenshotPermissions() map[string]interface{} {
 	if !okAX {
 		report["accessibilityError"] = "AXIsProcessTrusted returned false; approve the app in System Settings > Privacy & Security > Accessibility."
 	}
+	if inputMonitoringStatus != "granted" {
+		report["inputMonitoringError"] = "IOHIDCheckAccess reports Input Monitoring as " + inputMonitoringStatus + "; approve the app in System Settings > Privacy & Security > Input Monitoring."
+	}
 
 	return report
 }
@@ -757,9 +767,22 @@ func (p *Page) CheckScreenshotPermissions() map[string]interface{} {
 // OpenMacOSPrivacySettings opens macOS privacy settings pages.
 // section supports: accessibility, inputMonitoring, globalShortcut, screenCapture, automation, all.
 func (p *Page) OpenMacOSPrivacySettings(section string) (map[string]interface{}, error) {
+	sections, err := normalizeMacPrivacySections(section)
+	if err != nil {
+		return map[string]interface{}{
+			"os":      runtime.GOOS,
+			"section": section,
+			"opened":  []string{},
+			"failed":  []string{},
+		}, err
+	}
+	return p.openMacOSPrivacySettingsSections(sections)
+}
+
+func (p *Page) openMacOSPrivacySettingsSections(sections []string) (map[string]interface{}, error) {
 	report := map[string]interface{}{
 		"os":         runtime.GOOS,
-		"section":    section,
+		"section":    strings.Join(sections, ","),
 		"opened":     []string{},
 		"failed":     []string{},
 		"canAutoAdd": false,
@@ -769,11 +792,6 @@ func (p *Page) OpenMacOSPrivacySettings(section string) (map[string]interface{},
 	if runtime.GOOS != "darwin" {
 		report["message"] = "OpenMacOSPrivacySettings is only supported on macOS."
 		return report, nil
-	}
-
-	sections, err := normalizeMacPrivacySections(section)
-	if err != nil {
-		return report, err
 	}
 
 	opened := make([]string, 0, len(sections))
@@ -796,7 +814,7 @@ func (p *Page) OpenMacOSPrivacySettings(section string) (map[string]interface{},
 }
 
 // RequestMacPermissions triggers permission prompt probes and optionally opens settings pages.
-// options example: { openSettings: true, section: "all" }
+// options example: { openSettings: true, forceOpenSettings: false, section: "all" }
 func (p *Page) RequestMacPermissions(options interface{}) (map[string]interface{}, error) {
 	report := map[string]interface{}{
 		"os":         runtime.GOOS,
@@ -810,11 +828,17 @@ func (p *Page) RequestMacPermissions(options interface{}) (map[string]interface{
 	}
 
 	openSettings := true
+	forceOpenSettings := false
 	section := "screenCapture"
 	if optMap, ok := options.(map[string]interface{}); ok {
 		if v, has := optMap["openSettings"]; has {
 			if b, ok := v.(bool); ok {
 				openSettings = b
+			}
+		}
+		if v, has := optMap["forceOpenSettings"]; has {
+			if b, ok := v.(bool); ok {
+				forceOpenSettings = b
 			}
 		}
 		if v, has := optMap["section"]; has {
@@ -829,6 +853,8 @@ func (p *Page) RequestMacPermissions(options interface{}) (map[string]interface{
 		return report, err
 	}
 	report["section"] = strings.Join(sections, ",")
+	report["openSettings"] = openSettings
+	report["forceOpenSettings"] = forceOpenSettings
 
 	before := p.CheckScreenshotPermissions()
 	report["before"] = before
@@ -839,31 +865,74 @@ func (p *Page) RequestMacPermissions(options interface{}) (map[string]interface{
 	requestInputMonitoring := containsMacPrivacySection(sections, "inputMonitoring")
 	screenCaptureBefore, _ := before["screenCapture"].(bool)
 	accessibilityBefore, _ := before["accessibility"].(bool)
-	requestedVerifiableReady := (!requestScreenCapture || screenCaptureBefore) && (!requestAccessibility || accessibilityBefore)
+	inputMonitoringBefore := macInputMonitoringStatus(before)
+	requestedReady := (!requestScreenCapture || screenCaptureBefore) &&
+		(!requestAccessibility || accessibilityBefore) &&
+		(!requestInputMonitoring || inputMonitoringBefore == "granted") &&
+		!containsMacPrivacySection(sections, "automation")
+	forceSettingsNavigation := openSettings && forceOpenSettings
 
-	// Avoid repeated prompts only when every requested, checkable capability is
-	// already ready. Input Monitoring is intentionally not introspectable, so
-	// an explicit request for it must still open its System Settings page.
-	// Automation has a dedicated API and should be requested explicitly.
-	requestAutomation := containsMacPrivacySection(sections, "automation")
-	if requestedVerifiableReady && !requestAutomation && !requestInputMonitoring {
+	// The normal path is idempotent: once all requested, checkable permissions
+	// are granted, do not invoke request probes or navigate System Settings.
+	// forceOpenSettings is intentionally limited to Settings navigation; it
+	// does not bypass macOS consent or force native prompts to repeat.
+	if requestedReady && !forceSettingsNavigation {
 		report["after"] = before
 		report["okAfter"] = okBefore
 		report["ok"] = true
+		report["skipped"] = true
+		report["reason"] = "already_granted"
+		report["settingsOpened"] = false
 		report["probes"] = map[string]interface{}{
 			"ok":      true,
 			"skipped": true,
-			"reason":  "screen capture and accessibility already granted",
+			"reason":  "all requested permissions are already granted",
+		}
+		if requestInputMonitoring {
+			report["inputMonitoring"] = macInputMonitoringReport(inputMonitoringBefore)
 		}
 		return report, nil
 	}
 
 	if openSettings {
-		settingsReport, err := p.OpenMacOSPrivacySettings(section)
-		if err != nil {
-			return report, err
+		settingsSections := macPermissionSectionsNeedingAction(sections, before)
+		if forceOpenSettings {
+			settingsSections = append([]string(nil), sections...)
 		}
-		report["settings"] = settingsReport
+		reserved, skipped := reserveMacPermissionSettingsSections(settingsSections, forceOpenSettings)
+		if len(reserved) > 0 {
+			settingsReport, err := p.openMacOSPrivacySettingsSections(reserved)
+			if err != nil {
+				return report, err
+			}
+			settingsReport["skippedSections"] = skipped
+			report["settings"] = settingsReport
+			opened, _ := settingsReport["opened"].([]string)
+			openedSet := make(map[string]bool, len(opened))
+			for _, openedSection := range opened {
+				openedSet[openedSection] = true
+			}
+			failedToOpen := make([]string, 0)
+			for _, reservedSection := range reserved {
+				if !openedSet[reservedSection] {
+					failedToOpen = append(failedToOpen, reservedSection)
+				}
+			}
+			releaseMacPermissionSettingsSections(failedToOpen)
+			report["settingsOpened"] = len(opened) > 0
+		} else {
+			report["settingsOpened"] = false
+			report["settings"] = map[string]interface{}{
+				"ok":              true,
+				"skipped":         true,
+				"reason":          "settings_already_opened_in_process",
+				"opened":          []string{},
+				"failed":          []string{},
+				"skippedSections": skipped,
+			}
+		}
+	} else {
+		report["settingsOpened"] = false
 	}
 
 	probes := p.triggerMacPermissionPrompts(sections)
@@ -875,15 +944,11 @@ func (p *Page) RequestMacPermissions(options interface{}) (map[string]interface{
 	okAfter, _ := after["ok"].(bool)
 	report["okAfter"] = okAfter
 	if requestInputMonitoring {
-		report["inputMonitoring"] = map[string]interface{}{
-			"state":   "unknown",
-			"granted": false,
-			"reason":  "macOS does not expose a reliable Input Monitoring status preflight; review the opened System Settings page.",
-		}
+		report["inputMonitoring"] = macInputMonitoringReport(macInputMonitoringStatus(after))
 	}
-	// Keep the aggregate result scoped to this request. In particular, an
-	// Input Monitoring request is deliberately fail-closed because macOS has no
-	// reliable third-party status preflight for that permission.
+	// Keep the aggregate result scoped to this request. Input Monitoring is
+	// fail-closed only while IOHID reports denied/unknown; opening Settings is
+	// never treated as proof of consent.
 	finalOK := macPermissionSectionsReady(sections, after, probes)
 	report["ok"] = finalOK
 	return report, nil
@@ -1036,9 +1101,10 @@ func mustJSON(v interface{}) string {
 
 func (p *Page) triggerMacPermissionPrompts(sections []string) map[string]interface{} {
 	report := map[string]interface{}{
-		"screenCaptureProbe": map[string]interface{}{},
-		"accessibilityProbe": map[string]interface{}{},
-		"automationProbe":    map[string]interface{}{},
+		"screenCaptureProbe":   map[string]interface{}{},
+		"accessibilityProbe":   map[string]interface{}{},
+		"inputMonitoringProbe": map[string]interface{}{},
+		"automationProbe":      map[string]interface{}{},
 	}
 
 	if runtime.GOOS != "darwin" {
@@ -1049,6 +1115,7 @@ func (p *Page) triggerMacPermissionPrompts(sections []string) map[string]interfa
 	requestScreen := containsMacPrivacySection(sections, "screenCapture")
 	// Active-window screenshot flow usually depends on both screen capture and accessibility.
 	requestAccessibility := containsMacPrivacySection(sections, "accessibility") || requestScreen
+	requestInputMonitoring := containsMacPrivacySection(sections, "inputMonitoring")
 	requestAutomation := containsMacPrivacySection(sections, "automation")
 
 	screenProbe := map[string]interface{}{"ok": true}
@@ -1116,6 +1183,33 @@ func (p *Page) triggerMacPermissionPrompts(sections []string) map[string]interfa
 		accessibilityProbe["reason"] = "not requested by section"
 	}
 
+	inputMonitoringProbe := map[string]interface{}{"ok": true}
+	if requestInputMonitoring {
+		inputMonitoringProbe["ok"] = false
+		status := darwinInputMonitoringStatus()
+		inputMonitoringProbe["stateBefore"] = status
+		if status != "granted" {
+			if markMacPermissionPromptRequested("inputMonitoring") {
+				inputMonitoringProbe["requested"] = true
+				_ = darwinRequestInputMonitoringPrompt()
+				status = darwinInputMonitoringStatus()
+			} else {
+				inputMonitoringProbe["skipped"] = true
+				inputMonitoringProbe["reason"] = "input monitoring prompt was already triggered in this process"
+			}
+		}
+		inputMonitoringProbe["state"] = status
+		if status == "granted" {
+			inputMonitoringProbe["ok"] = true
+		} else {
+			inputMonitoringProbe["pendingUserConsent"] = true
+			inputMonitoringProbe["error"] = "Input Monitoring permission is still " + status + "; approve the app in System Settings > Privacy & Security > Input Monitoring."
+		}
+	} else {
+		inputMonitoringProbe["skipped"] = true
+		inputMonitoringProbe["reason"] = "not requested by section"
+	}
+
 	automationProbe := map[string]interface{}{
 		"ok":      true,
 		"target":  "System Events",
@@ -1152,11 +1246,13 @@ func (p *Page) triggerMacPermissionPrompts(sections []string) map[string]interfa
 
 	report["screenCaptureProbe"] = screenProbe
 	report["accessibilityProbe"] = accessibilityProbe
+	report["inputMonitoringProbe"] = inputMonitoringProbe
 	report["automationProbe"] = automationProbe
 	screenOKVal, _ := screenProbe["ok"].(bool)
 	axOKVal, _ := accessibilityProbe["ok"].(bool)
+	inputMonitoringOKVal, _ := inputMonitoringProbe["ok"].(bool)
 	automationOKVal, _ := automationProbe["ok"].(bool)
-	report["ok"] = screenOKVal && axOKVal && automationOKVal
+	report["ok"] = screenOKVal && axOKVal && inputMonitoringOKVal && automationOKVal
 	return report
 }
 
@@ -1178,6 +1274,32 @@ func markMacPermissionPromptRequested(permission string) bool {
 	return true
 }
 
+func reserveMacPermissionSettingsSections(sections []string, force bool) ([]string, []string) {
+	reserved := make([]string, 0, len(sections))
+	skipped := make([]string, 0)
+
+	macPermissionPromptState.mu.Lock()
+	defer macPermissionPromptState.mu.Unlock()
+
+	for _, section := range sections {
+		if !force && macPermissionPromptState.settingsOpened[section] {
+			skipped = append(skipped, section)
+			continue
+		}
+		macPermissionPromptState.settingsOpened[section] = true
+		reserved = append(reserved, section)
+	}
+	return reserved, skipped
+}
+
+func releaseMacPermissionSettingsSections(sections []string) {
+	macPermissionPromptState.mu.Lock()
+	defer macPermissionPromptState.mu.Unlock()
+	for _, section := range sections {
+		delete(macPermissionPromptState.settingsOpened, section)
+	}
+}
+
 func isTruthyEnv(v string) bool {
 	switch strings.ToLower(strings.TrimSpace(v)) {
 	case "1", "true", "yes", "y", "on":
@@ -1196,10 +1318,61 @@ func containsMacPrivacySection(sections []string, target string) bool {
 	return false
 }
 
+func macInputMonitoringStatus(snapshot map[string]interface{}) string {
+	if snapshot == nil {
+		return "unknown"
+	}
+	if status, ok := snapshot["inputMonitoringStatus"].(string); ok {
+		switch strings.ToLower(strings.TrimSpace(status)) {
+		case "granted", "denied", "unknown", "unsupported":
+			return strings.ToLower(strings.TrimSpace(status))
+		}
+	}
+	if granted, ok := snapshot["inputMonitoring"].(bool); ok {
+		if granted {
+			return "granted"
+		}
+		return "denied"
+	}
+	return "unknown"
+}
+
+func macInputMonitoringReport(status string) map[string]interface{} {
+	granted := status == "granted"
+	report := map[string]interface{}{
+		"state":   status,
+		"granted": granted,
+	}
+	if !granted {
+		report["reason"] = "IOHIDCheckAccess reports Input Monitoring as " + status
+	}
+	return report
+}
+
+func macPermissionSectionsNeedingAction(sections []string, snapshot map[string]interface{}) []string {
+	pending := make([]string, 0, len(sections))
+	for _, section := range sections {
+		ready := false
+		switch section {
+		case "screenCapture", "accessibility":
+			ready, _ = snapshot[section].(bool)
+		case "inputMonitoring":
+			ready = macInputMonitoringStatus(snapshot) == "granted"
+		case "automation":
+			// Automation state is target-app-specific and can only be confirmed by
+			// sending the AppleEvent probe below.
+			ready = false
+		}
+		if !ready {
+			pending = append(pending, section)
+		}
+	}
+	return pending
+}
+
 // macPermissionSectionsReady evaluates only the capabilities named by a
-// normalized macOS privacy section. Input Monitoring is purposefully never
-// reported as ready: macOS does not offer a reliable status preflight to a
-// third-party process, so callers must not treat opening Settings as consent.
+// normalized macOS privacy section. Opening Settings is never treated as
+// consent; Input Monitoring must be reported granted by IOHIDCheckAccess.
 func macPermissionSectionsReady(sections []string, snapshot, probes map[string]interface{}) bool {
 	if containsMacPrivacySection(sections, "screenCapture") {
 		granted, _ := snapshot["screenCapture"].(bool)
@@ -1214,7 +1387,9 @@ func macPermissionSectionsReady(sections []string, snapshot, probes map[string]i
 		}
 	}
 	if containsMacPrivacySection(sections, "inputMonitoring") {
-		return false
+		if macInputMonitoringStatus(snapshot) != "granted" {
+			return false
+		}
 	}
 	if containsMacPrivacySection(sections, "automation") {
 		probe, _ := probes["automationProbe"].(map[string]interface{})

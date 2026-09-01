@@ -55,6 +55,7 @@ order: 2
 | `page.waitForTimeout(ms)` | Promise 风格等待 |
 | `page.waitForNavigation(options?)` | 基于 `page.url()` 的兼容等待 |
 | `page.waitForFunction(fn, options?, ...args)` | 条件轮询 |
+| `page.waitForAll(promises, options?)` | 等待一组值或 Promise 全部完成 |
 | `page.checkPermissions(options?)` | 跨平台权限快照 |
 | `page.requestPermissions(options?)` | 跨平台权限请求 |
 | `page.ensurePermissions(options?)` | 严格权限守卫 |
@@ -250,6 +251,24 @@ await page.waitForFunction(() => {
 - `timeout`：默认 30000ms
 - `polling`：默认 100ms
 
+## page.waitForAll(promises, options?)
+
+等待数组中所有值或 Promise 完成，并保持输入顺序返回结果数组：
+
+```js
+const [title, active] = await page.waitForAll([
+  page.title(),
+  window.getActiveWindow(),
+], { timeout: 5000 });
+```
+
+| 参数 | 类型 | 说明 |
+| --- | --- | --- |
+| `promises` | `Array<Promise<T> \| T>` | 必填；需要一起等待的值或 Promise。 |
+| `options.timeout` | number | 可选；超时毫秒数。 |
+
+返回 `Promise<T[]>`。任一项目拒绝或超时会使整体 Promise 拒绝。
+
 ## page.waitForNavigation(options)
 
 兼容式方法，会轮询 `page.url()` 是否变化。
@@ -271,14 +290,15 @@ console.log(result);
 
 - `screenCapture`
 - `accessibility`
-- `inputMonitoring`：macOS 允许打开对应设置页，但系统没有供第三方可靠读取的授权状态；结果会
-  是 `unknown`、`granted: false`，不应当把它当作 `granted`。只要请求中包含它，聚合
-  `permissions.ok` / 顶层 `ok` 都会是 `false`，`strict: true` 会拒绝。
+- `inputMonitoring`：macOS 10.15+ 使用公开的 `IOHIDCheckAccess` 读取监听事件权限，返回
+  `granted`、`denied` 或 `unknown`。只有 `granted` 会使该 capability 通过；`unknown` 仍保持
+  fail-closed，不会被当作已经授权。
 - `automation`
 
 `section` 还支持 `globalShortcut`。`checkPermissions()` 将它展开为 `accessibility` 和
-`inputMonitoring`；`requestPermissions()` 则会一次打开 macOS 的 Accessibility 和 Input Monitoring
-两个页面。通常优先传 `capabilities`，由 Runtime 自动选择该组合。
+`inputMonitoring`。`requestPermissions()` 会先检查二者：都已授权时直接返回，不执行权限请求，
+也不打开系统设置；仅缺少一项时只导航对应的设置页。通常优先传 `capabilities`，由 Runtime
+自动选择组合。
 
 ## page.requestPermissions(options)
 
@@ -291,10 +311,25 @@ const result = await page.requestPermissions({
 
 常用参数：
 
-- `capabilities`
-- `openSettings`
-- `strict`
-- `section`
+- `capabilities`：要检查/请求的 capability 列表。
+- `section`：预定义组合；`globalShortcut` 表示 `accessibility + inputMonitoring`。
+- `openSettings`：未授权时是否打开相关系统设置，默认 `true`。
+- `forceOpenSettings`：默认 `false`。仅在 `openSettings: true` 时生效；即使已经授权或本进程
+  已打开过，也再次导航设置页。它不会强制 macOS 重复 consent，也不会改变权限判断结果。
+- `strict`：结果未满足时是否抛错，默认 `false`。
+
+正常调用具有幂等行为：全部已授权时返回 `skipped: true`、`reason: 'already_granted'`、
+`settingsOpened: false`；仍未授权时，同一进程对每个设置页默认只打开一次，避免循环调用持续
+拉起窗口。只有明确的“重新打开权限设置”按钮才应使用：
+
+```js
+await page.requestPermissions({
+  section: 'globalShortcut',
+  openSettings: true,
+  forceOpenSettings: true,
+  strict: false,
+});
+```
 
 ## page.ensurePermissions(options)
 
@@ -324,15 +359,15 @@ const permissions = await page.requestPermissions({
   strict: false,
 });
 
-if (!permissions.permissions.capabilities.accessibility.granted) {
+if (!permissions.ok) {
   throw new Error('Enable Accessibility and Input Monitoring for OpenDesk, restart it, then retry.');
 }
 ```
 
-上面的 `requestPermissions()` 会主动打开两个设置页，并请求 macOS 显示 Accessibility 系统
-授权提示；是否显示由 macOS 对该宿主已有的授权决定。Input Monitoring 必须由用户在设置页手动
-确认。`inputMonitoring` 当前不能验证成 `granted`，所以这段引导使用 `strict: false`；如需严格
-检查可验证能力，应单独严格检查 `accessibility`。
+上面的 `requestPermissions()` 先检查两个权限；已经授权时不再打开窗口。未授权时只打开缺失
+权限对应的设置页，并按需请求 macOS 显示系统授权提示；是否显示由 macOS 对该宿主已有的授权
+决定。Input Monitoring 通过 `IOHIDCheckAccess` 校验，`denied` / `unknown` 都不会被误报为成功。
+如果流程要求未授权时立即停止，可改用 `strict: true` 或 `page.ensurePermissions()`。
 普通 `globalShortcut` 不需要 `screenCapture` 或 `automation`；后两者分别属于截图和 AppleEvents
 控制其他应用的独立能力。`globalShortcut.register()` 本身不会隐式弹出权限提示或打开设置页。
 详见 [Global Shortcut](global-shortcut.md)。

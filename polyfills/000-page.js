@@ -69,9 +69,9 @@ function capabilitiesToMacSection(capabilities) {
   const has = (name) => caps.includes(name);
   if (has('automation') && (has('screenCapture') || has('accessibility') || has('inputMonitoring'))) return 'all';
   if (has('automation')) return 'automation';
-  // A system-wide listener needs both user-facing privacy pages. Keep this a
-  // distinct native section so requestPermissions opens both instead of
-  // silently choosing Input Monitoring and skipping the Accessibility prompt.
+  // A system-wide listener needs both privacy capabilities. Keep this a
+  // distinct native section so the native request can preflight both and
+  // navigate only the missing settings pages.
   if (has('accessibility') && has('inputMonitoring') && !has('screenCapture')) return 'globalShortcut';
   if (has('inputMonitoring')) return 'inputMonitoring';
   if (has('screenCapture')) return 'screenCapture';
@@ -114,11 +114,23 @@ function buildPermissionSnapshot(capabilities, macCheckReport, flowReport) {
       continue;
     }
     if (cap === 'inputMonitoring') {
+      const flowInputMonitoring = flow.inputMonitoring && typeof flow.inputMonitoring === 'object'
+        ? flow.inputMonitoring
+        : null;
+      let state = String(check.inputMonitoringStatus || (flowInputMonitoring && flowInputMonitoring.state) || '').toLowerCase();
+      if (!['granted', 'denied', 'unknown'].includes(state)) {
+        state = check.inputMonitoring === true ? 'granted' : 'unknown';
+      }
+      const granted = state === 'granted';
       result[cap] = {
-        state: 'unknown',
-        granted: false,
-        reason: 'inputMonitoring status check is not available in current runtime',
+        state,
+        granted,
       };
+      if (!granted) {
+        result[cap].reason = state === 'denied'
+          ? 'inputMonitoring permission is denied'
+          : 'inputMonitoring status is unavailable or not determined';
+      }
       continue;
     }
     result[cap] = { state: 'unsupported', granted: false, reason: 'unsupported capability' };
@@ -147,8 +159,7 @@ function finalizePermissionSnapshot(snapshot) {
   const normalized = {};
   for (const [name, rawEntry] of Object.entries(map)) {
     const entry = rawEntry && typeof rawEntry === 'object' ? { ...rawEntry } : { state: 'denied', granted: false };
-    // macOS does not expose a reliable Input Monitoring preflight. Keep the
-    // unknown state fail-closed: callers may guide the user to Settings, but
+    // Keep unknown states fail-closed: callers may guide the user to Settings, but
     // neither `granted` nor an aggregate `ok` may imply an authorization we
     // cannot verify.
     if (entry.state === 'unknown') {
@@ -205,6 +216,7 @@ pageWrapper.checkPermissions = async function(options = {}) {
  * @param {object} options
  * @param {string[]} options.capabilities
  * @param {boolean} options.openSettings
+ * @param {boolean} options.forceOpenSettings open Settings even when already granted
  * @param {boolean} options.strict
  * @returns {Promise<object>}
  */
@@ -242,21 +254,45 @@ pageWrapper.requestPermissions = async function(options = {}) {
   }
 
   const section = capabilitiesToMacSection(capabilities);
+  const forceSettingsNavigation = !!cfg.openSettings && !!cfg.forceOpenSettings;
+  let initialCheck = null;
+  if (canCheck) {
+    initialCheck = await globalThis.page____Inject.checkScreenshotPermissions();
+    const initialPermissions = finalizePermissionSnapshot(buildPermissionSnapshot(capabilities, initialCheck, null));
+    if (initialPermissions.ok && !forceSettingsNavigation) {
+      return {
+        ok: true,
+        os,
+        skipped: true,
+        reason: 'already_granted',
+        settingsOpened: false,
+        capabilities,
+        section,
+        permissions: initialPermissions,
+        flow: null,
+        raw: initialCheck,
+      };
+    }
+  }
+
   let flow = null;
   if (canRequest) {
     flow = await globalThis.page____Inject.requestMacPermissions({
       openSettings: !!cfg.openSettings,
+      forceOpenSettings: !!cfg.forceOpenSettings,
       section,
     });
   } else {
+    let settingsOpened = false;
     if (cfg.openSettings && canOpenSettings) {
       await globalThis.page____Inject.openMacOSPrivacySettings(section);
+      settingsOpened = true;
     }
     const check = canCheck ? await globalThis.page____Inject.checkScreenshotPermissions() : null;
-    flow = { ok: !!(check && check.ok), before: check, after: check, section };
+    flow = { ok: !!(check && check.ok), before: check, after: check, section, settingsOpened };
   }
 
-  const latestCheck = canCheck ? await globalThis.page____Inject.checkScreenshotPermissions() : (flow.after || flow.before || null);
+  const latestCheck = canCheck ? await globalThis.page____Inject.checkScreenshotPermissions() : (flow.after || flow.before || initialCheck || null);
   const permissions = finalizePermissionSnapshot(buildPermissionSnapshot(capabilities, latestCheck, flow));
   // `flow.ok` is a legacy aggregate emitted by the macOS helper. It can be
   // false when an unrelated capability (for example Screen Recording) is
@@ -272,6 +308,9 @@ pageWrapper.requestPermissions = async function(options = {}) {
     permissions,
     flow,
     raw: latestCheck,
+    skipped: !!(flow && flow.skipped),
+    reason: flow && flow.reason ? flow.reason : undefined,
+    settingsOpened: !!(flow && flow.settingsOpened),
   };
 
   if (!finalOK && cfg.strict) {
@@ -308,6 +347,7 @@ pageWrapper.ensureMacPermissions = async function(options = {}) {
   return await pageWrapper.ensurePermissions({
     capabilities,
     openSettings: !!cfg.openSettingsOnFail,
+    forceOpenSettings: !!cfg.forceOpenSettings,
     strict: !!cfg.strict,
   });
 };

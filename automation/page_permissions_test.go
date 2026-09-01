@@ -37,10 +37,12 @@ func TestNormalizeMacPrivacySectionsGlobalShortcut(t *testing.T) {
 	}
 }
 
-func TestMacPermissionSectionsReadyScopesGlobalShortcutAndFailsClosedForInputMonitoring(t *testing.T) {
+func TestMacPermissionSectionsReadyScopesGlobalShortcutToReportedInputMonitoringState(t *testing.T) {
 	snapshot := map[string]interface{}{
-		"screenCapture": false,
-		"accessibility": true,
+		"screenCapture":         false,
+		"accessibility":         true,
+		"inputMonitoring":       false,
+		"inputMonitoringStatus": "unknown",
 	}
 	probes := map[string]interface{}{
 		"automationProbe": map[string]interface{}{"ok": true},
@@ -52,6 +54,68 @@ func TestMacPermissionSectionsReadyScopesGlobalShortcutAndFailsClosedForInputMon
 		t.Fatal("globalShortcut request must not claim unknown Input Monitoring is authorized")
 	}
 	if macPermissionSectionsReady([]string{"inputMonitoring"}, snapshot, probes) {
-		t.Fatal("Input Monitoring must remain fail-closed")
+		t.Fatal("unknown Input Monitoring must remain fail-closed")
+	}
+
+	snapshot["inputMonitoring"] = true
+	snapshot["inputMonitoringStatus"] = "granted"
+	if !macPermissionSectionsReady([]string{"accessibility", "inputMonitoring"}, snapshot, probes) {
+		t.Fatal("globalShortcut should be ready after both permissions are reported granted")
+	}
+}
+
+func TestMacPermissionSectionsNeedingActionOnlyReturnsMissingSections(t *testing.T) {
+	snapshot := map[string]interface{}{
+		"screenCapture":         false,
+		"accessibility":         true,
+		"inputMonitoring":       false,
+		"inputMonitoringStatus": "denied",
+	}
+	got := macPermissionSectionsNeedingAction(
+		[]string{"accessibility", "inputMonitoring", "screenCapture"},
+		snapshot,
+	)
+	want := []string{"inputMonitoring", "screenCapture"}
+	if len(got) != len(want) {
+		t.Fatalf("pending=%v, want=%v", got, want)
+	}
+	for index := range want {
+		if got[index] != want[index] {
+			t.Fatalf("pending=%v, want=%v", got, want)
+		}
+	}
+}
+
+func TestReserveMacPermissionSettingsSectionsDeduplicatesUnlessForced(t *testing.T) {
+	sections := []string{"testAccessibility", "testInputMonitoring"}
+	macPermissionPromptState.mu.Lock()
+	for _, section := range sections {
+		delete(macPermissionPromptState.settingsOpened, section)
+	}
+	macPermissionPromptState.mu.Unlock()
+	t.Cleanup(func() {
+		macPermissionPromptState.mu.Lock()
+		defer macPermissionPromptState.mu.Unlock()
+		for _, section := range sections {
+			delete(macPermissionPromptState.settingsOpened, section)
+		}
+	})
+
+	reserved, skipped := reserveMacPermissionSettingsSections(sections, false)
+	if len(reserved) != 2 || len(skipped) != 0 {
+		t.Fatalf("first reservation reserved=%v skipped=%v", reserved, skipped)
+	}
+	reserved, skipped = reserveMacPermissionSettingsSections(sections, false)
+	if len(reserved) != 0 || len(skipped) != 2 {
+		t.Fatalf("repeated reservation reserved=%v skipped=%v", reserved, skipped)
+	}
+	releaseMacPermissionSettingsSections(sections[:1])
+	reserved, skipped = reserveMacPermissionSettingsSections(sections, false)
+	if len(reserved) != 1 || reserved[0] != sections[0] || len(skipped) != 1 || skipped[0] != sections[1] {
+		t.Fatalf("released reservation reserved=%v skipped=%v", reserved, skipped)
+	}
+	reserved, skipped = reserveMacPermissionSettingsSections(sections, true)
+	if len(reserved) != 2 || len(skipped) != 0 {
+		t.Fatalf("forced reservation reserved=%v skipped=%v", reserved, skipped)
 	}
 }

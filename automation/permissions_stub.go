@@ -19,6 +19,14 @@ func darwinRequestScreenCapturePrompt() bool {
 	return false
 }
 
+func darwinInputMonitoringStatus() string {
+	return "unsupported"
+}
+
+func darwinRequestInputMonitoringPrompt() bool {
+	return false
+}
+
 func darwinTriggerAppleEventsPrompt(targetApp string) bool {
 	_ = targetApp
 	return false

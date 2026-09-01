@@ -87,32 +87,41 @@
 
   test({ name: 'page.requestPermissions uses a non-opening native flow', tier: 'unit', covers: ['page.requestPermissions'] }, async () => {
     let options = null;
+    let checks = 0;
     await withNative({
       requestMacPermissions: async (actual) => { options = actual; return { ok: true, after: { screenCapture: true, accessibility: true, ok: true } }; },
-      checkScreenshotPermissions: async () => ({ screenCapture: true, accessibility: true, ok: true }),
+      checkScreenshotPermissions: async () => (++checks === 1
+        ? { screenCapture: false, accessibility: false, ok: false }
+        : { screenCapture: true, accessibility: true, ok: true }),
     }, async () => {
       const report = await page.requestPermissions({ capabilities: ['screenCapture', 'accessibility'], openSettings: false });
       assert(report.ok, JSON.stringify(report));
       equal(options.openSettings, false);
+      equal(options.forceOpenSettings, false);
     });
   });
 
-  test({ name: 'page.requestPermissions keeps an accessibility-only preflight independent from Screen Recording', tier: 'unit', covers: ['page.requestPermissions'] }, async () => {
+  test({ name: 'page.requestPermissions short-circuits an already-granted scoped preflight', tier: 'unit', covers: ['page.requestPermissions'] }, async () => {
+    let requestCalls = 0;
     await withNative({
       // The native compatibility report is intentionally aggregate, but the
       // public facade must evaluate only the requested capability.
-      requestMacPermissions: async () => ({ ok: false, after: { screenCapture: false, accessibility: true, ok: false } }),
+      requestMacPermissions: async () => { requestCalls += 1; return { ok: false }; },
       checkScreenshotPermissions: async () => ({ screenCapture: false, accessibility: true, ok: false }),
     }, async () => {
       const report = await page.requestPermissions({ capabilities: ['accessibility'], openSettings: false, strict: true });
       assert(report.ok, JSON.stringify(report));
       assert(report.permissions.capabilities.accessibility.granted, JSON.stringify(report));
+      assert(report.skipped, JSON.stringify(report));
+      equal(report.reason, 'already_granted');
+      equal(report.settingsOpened, false);
     });
+    equal(requestCalls, 0, 'native request flow must not run after a granted preflight');
   });
 
   test({ name: 'page.checkPermissions preserves Input Monitoring as unknown', tier: 'unit', covers: ['page.checkPermissions'] }, async () => {
     await withNative({
-      checkScreenshotPermissions: async () => ({ screenCapture: false, accessibility: true, ok: false }),
+      checkScreenshotPermissions: async () => ({ screenCapture: false, accessibility: true, inputMonitoringStatus: 'unknown', ok: false }),
     }, async () => {
       const report = await page.checkPermissions({ capabilities: ['accessibility', 'inputMonitoring'] });
       assert(!report.ok, JSON.stringify(report));
@@ -124,7 +133,7 @@
 
   test({ name: 'page.checkPermissions expands the globalShortcut section without treating Input Monitoring as granted', tier: 'unit', covers: ['page.checkPermissions'] }, async () => {
     await withNative({
-      checkScreenshotPermissions: async () => ({ screenCapture: false, accessibility: true, ok: false }),
+      checkScreenshotPermissions: async () => ({ screenCapture: false, accessibility: true, inputMonitoringStatus: 'unknown', ok: false }),
     }, async () => {
       const report = await page.checkPermissions({ section: 'globalShortcut' });
       assert(!report.ok, JSON.stringify(report));
@@ -135,7 +144,95 @@
     });
   });
 
-  test({ name: 'page.requestPermissions opens the combined globalShortcut privacy flow without claiming Input Monitoring approval', tier: 'unit', covers: ['page.requestPermissions'] }, async () => {
+  test({ name: 'page.checkPermissions accepts granted Input Monitoring from IOHID preflight', tier: 'unit', covers: ['page.checkPermissions'] }, async () => {
+    await withNative({
+      checkScreenshotPermissions: async () => ({
+        screenCapture: false,
+        accessibility: true,
+        inputMonitoring: true,
+        inputMonitoringStatus: 'granted',
+        ok: false,
+      }),
+    }, async () => {
+      const report = await page.checkPermissions({ section: 'globalShortcut' });
+      assert(report.ok, JSON.stringify(report));
+      equal(report.permissions.capabilities.inputMonitoring.state, 'granted');
+      equal(report.permissions.capabilities.inputMonitoring.granted, true);
+    });
+  });
+
+  test({ name: 'page.requestPermissions skips an already-granted globalShortcut request', tier: 'unit', covers: ['page.requestPermissions'] }, async () => {
+    let requestCalls = 0;
+    await withNative({
+      requestMacPermissions: async () => { requestCalls += 1; return { ok: true }; },
+      checkScreenshotPermissions: async () => ({
+        screenCapture: false,
+        accessibility: true,
+        inputMonitoring: true,
+        inputMonitoringStatus: 'granted',
+        ok: false,
+      }),
+    }, async () => {
+      const report = await page.requestPermissions({ section: 'globalShortcut', openSettings: true, strict: true });
+      assert(report.ok && report.skipped, JSON.stringify(report));
+      equal(report.reason, 'already_granted');
+      equal(report.settingsOpened, false);
+    });
+    equal(requestCalls, 0, 'already-granted request must not invoke native permission request');
+  });
+
+  test({ name: 'page.requestPermissions forceOpenSettings bypasses the granted short-circuit', tier: 'unit', covers: ['page.requestPermissions'] }, async () => {
+    let options = null;
+    const granted = {
+      screenCapture: false,
+      accessibility: true,
+      inputMonitoring: true,
+      inputMonitoringStatus: 'granted',
+      ok: false,
+    };
+    await withNative({
+      requestMacPermissions: async (actual) => {
+        options = actual;
+        return { ok: true, settingsOpened: true, after: granted };
+      },
+      checkScreenshotPermissions: async () => granted,
+    }, async () => {
+      const report = await page.requestPermissions({
+        section: 'globalShortcut',
+        openSettings: true,
+        forceOpenSettings: true,
+        strict: true,
+      });
+      assert(report.ok && report.settingsOpened, JSON.stringify(report));
+    });
+    equal(options.forceOpenSettings, true);
+    equal(options.section, 'globalShortcut');
+  });
+
+  test({ name: 'page.requestPermissions ignores forceOpenSettings when settings navigation is disabled', tier: 'unit', covers: ['page.requestPermissions'] }, async () => {
+    let requestCalls = 0;
+    await withNative({
+      requestMacPermissions: async () => { requestCalls += 1; return { ok: true }; },
+      checkScreenshotPermissions: async () => ({
+        screenCapture: false,
+        accessibility: true,
+        inputMonitoring: true,
+        inputMonitoringStatus: 'granted',
+        ok: false,
+      }),
+    }, async () => {
+      const report = await page.requestPermissions({
+        section: 'globalShortcut',
+        openSettings: false,
+        forceOpenSettings: true,
+        strict: true,
+      });
+      assert(report.ok && report.skipped && !report.settingsOpened, JSON.stringify(report));
+    });
+    equal(requestCalls, 0, 'forceOpenSettings must not override openSettings=false');
+  });
+
+  test({ name: 'page.requestPermissions keeps a pending globalShortcut flow fail-closed', tier: 'unit', covers: ['page.requestPermissions'] }, async () => {
     let options = null;
     await withNative({
       requestMacPermissions: async (actual) => {
@@ -160,6 +257,7 @@
     });
     equal(options.section, 'globalShortcut');
     equal(options.openSettings, true);
+    equal(options.forceOpenSettings, false);
   });
 
   test({ name: 'page.ensurePermissions rejects an unverifiable Input Monitoring request', tier: 'unit', covers: ['page.ensurePermissions'] }, async () => {
