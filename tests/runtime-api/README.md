@@ -4,8 +4,8 @@
 JavaScript Runtime API 测试源码；任何一次性日志、截图、生成脚本、状态和运行证据只写入
 `.runtime/tests/runtime-api/<runId>/`，不得纳入版本控制。
 
-API 事实源按优先级为：当前源码和实际 Runtime 行为、`docs-user-api/*.md`、
-`docs-user-api/runtime-api.ai.json`、`types/*.d.ts`。只有这些正式来源可以作为测试输入；
+API 事实源按优先级为：当前源码和实际 Runtime 行为、`docs/api/*.md`、
+`docs/api/runtime-api.ai.json`、`types/*.d.ts`。只有这些正式来源可以作为测试输入；
 不得恢复或使用任何退役接口文档。
 
 ## 分层和机器结果
@@ -78,4 +78,4 @@ OPENDESK_RUNTIME_API_BROWSER_APP=Safari
 
 建议纳入版本控制的正式资产：`tests/runtime-api/`、`scripts/test_runtime_apis.sh`、
 `scripts/test_host_apis.sh`、`schemas/runtime-api/*.schema.json`、相关 Makefile/README/AGENTS、
-以及 `docs-user-api/`、`types/` 修订。`.runtime/tests/runtime-api/` 中的任何文件都是本地运行产物。
+以及 `docs/api/`、`types/` 修订。`.runtime/tests/runtime-api/` 中的任何文件都是本地运行产物。

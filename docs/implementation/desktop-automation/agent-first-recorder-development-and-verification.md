@@ -10,7 +10,7 @@ MVP 计划或某次运行的质量报告，而是定义新增应用场景时必�
 
 - [架构决策与核心模型](../../architecture/desktop-automation/agent-first-recorder.md)
 - [macOS MVP 执行计划](../../plans/desktop-automation/agent-first-recorder-macos-mvp.md)
-- [Recorder MCP API](../../../docs-user-api/recorder.md)
+- [Recorder MCP API](../../../docs/api/recorder.md)
 - [Calculator 首次垂直闭环质量报告](../../quality/recorder/2026-09-01-agent-first-recorder-calculator-vertical-slice.md)
 
 ## 一、准确性结论必须拆开

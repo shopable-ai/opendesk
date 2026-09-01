@@ -1,5 +1,5 @@
 // JavaScript-only catalog and source-of-truth validation. It compares the
-// active Runtime surface with the maintained catalog, docs-user-api index and
+// active Runtime surface with the maintained catalog, docs/api index and
 // TypeScript declarations before coverage can be reported as passing.
 
 globalThis.RuntimeAPICatalogValidation = (() => {
@@ -51,7 +51,7 @@ globalThis.RuntimeAPICatalogValidation = (() => {
   }
 
   function documentedFamilies() {
-    const index = JSON.parse(File.read(File.join(root, 'docs-user-api', 'runtime-api.ai.json')));
+    const index = JSON.parse(File.read(File.join(root, 'docs/api', 'runtime-api.ai.json')));
     const families = new Set();
     for (const item of index.globals || []) {
       const name = String(item.name || '');
@@ -133,7 +133,7 @@ globalThis.RuntimeAPICatalogValidation = (() => {
 
     const documented = documentedFamilies();
     for (const family of Object.keys(RuntimeAPIObjects)) {
-      if (!documented.families.has(family)) errors.push('docs-user-api object drift: missing ' + family);
+      if (!documented.families.has(family)) errors.push('docs/api object drift: missing ' + family);
     }
     for (const entry of catalog) {
       if (!File.exists(File.join(root, entry.source.docs))) errors.push('catalog docs route missing: ' + entry.source.docs);

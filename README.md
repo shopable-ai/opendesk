@@ -74,7 +74,7 @@ go run ./cmd/opendesk -script examples/browser_stack_playwright_smoke.js -stack 
 `upgraded` / `playwright` 是 compatibility facade，不应理解为完整 Playwright 浏览器引擎。详细边界见：
 
 ```text
-docs-user-api/runtime.md
+docs/api/runtime.md
 docs/architecture/browser-automation/
 ```
 
@@ -114,7 +114,7 @@ curl -X POST http://127.0.0.1:60844/executions \
 完整接口说明：
 
 ```text
-docs-user-api/http-server.md
+docs/api/http-server.md
 ```
 
 `USE_DI_CONTAINER=0` 保留为 HTTP 路由兼容别名；它与默认模式共享同一执行、超时、事件、产物和错误语义。
@@ -143,8 +143,8 @@ go run ./cmd/opendesk \
 用户 API：
 
 ```text
-docs-user-api/vision.md
-docs-user-api/image-color.md
+docs/api/vision.md
+docs/api/image-color.md
 ```
 
 ## macOS
@@ -236,15 +236,15 @@ docs/
 唯一正式用户 API 文档根：
 
 ```text
-docs-user-api/
+docs/api/
 ```
 
 推荐入口：
 
 ```text
-docs-user-api/index.md
-docs-user-api/cookbook.md
-docs-user-api/runtime-api.ai.json
+docs/api/index.md
+docs/api/cookbook.md
+docs/api/runtime-api.ai.json
 ```
 
 JavaScript Runtime API contract、unit、safe smoke、Safari live 与 acceptance 测试位于
@@ -269,7 +269,7 @@ types/           # VS Code / TypeScript 声明
 examples/        # 可执行示例
 scripts/         # 构建、权限和 smoke 脚本
 docs/            # 项目/工程文档
-docs-user-api/   # 用户 API 文档
+docs/api/   # 用户 API 文档
 schemas/         # 分领域维护的 JSON Schema 数据契约
 tests/**/fixtures # 按测试领域归属的可复用 fixture
 docs/quality/    # 正式质量报告与评审结论
@@ -282,7 +282,7 @@ prompts/         # 分领域维护的 AI orchestration prompts
 ## 文档与事实规则
 
 - 当前源码和可复现测试/运行证据优先于历史文档。
-- 用户 API 只维护在 `docs-user-api/`；任何退役接口文档均不得恢复或作为事实源。
+- 用户 API 只维护在 `docs/api/`；任何退役接口文档均不得恢复或作为事实源。
 - 报告、Prompt、运行日志和历史总结不要直接堆进 `docs/` 根目录；正式质量报告归入 `docs/quality/` 对应领域，运行报告归入 `.runtime/`。
 - 当前文档不要使用 `_V2`、`FINAL`、`COMPLETE_SUMMARY` 等文件名保存版本历史；版本历史由 Git 负责。
 

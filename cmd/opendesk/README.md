@@ -26,7 +26,7 @@ are not the daily plugin API:
   V0 `NativeExtension.call()` compatibility surface for explicit local
   diagnostics.
 
-See `docs-user-api/native-extension.md` for the Runtime contract and
+See `docs/api/native-extension.md` for the Runtime contract and
 `examples/native-extensions/README.md` for build and copy-paste usage. The
 feature is default-closed and is not enabled for HTTP or MCP execution.
 

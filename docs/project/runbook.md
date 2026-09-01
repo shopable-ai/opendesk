@@ -39,7 +39,7 @@ go run ./cmd/opendesk -http -port 60844
 详细 API：
 
 ```text
-docs-user-api/http-server.md
+docs/api/http-server.md
 ```
 
 ### MCP
@@ -289,7 +289,7 @@ playwright
 使用 `upgraded` / `playwright` 前先读：
 
 ```text
-docs-user-api/runtime.md
+docs/api/runtime.md
 docs/architecture/browser-automation/capabilities.md
 ```
 
@@ -330,8 +330,8 @@ docs/implementation/macos/screenshot-troubleshooting.md
 更新：
 
 ```text
-docs-user-api/*.md
-docs-user-api/index.md
+docs/api/*.md
+docs/api/index.md
 runtime-api.ai.json（如对象/路由变化）
 types/*.d.ts（如签名变化）
 ```

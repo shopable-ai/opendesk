@@ -10,7 +10,7 @@
       "cmd/opendesk/main.go",
       "pkg/http/*.go"
     ],
-    "canonicalUserDocs": "docs-user-api/",
+    "canonicalUserDocs": "docs/api/",
     "retiredDocTrees": [
       "docs-api/",
       "docs-api-user/",

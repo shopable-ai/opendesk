@@ -1,6 +1,6 @@
 # OpenDesk Quick Start
 
-本页只保留当前可验证的启动和调试主路径。完整 API 说明见 `docs-user-api/`，项目设计与质量规范见 `docs/`。
+本页只保留当前可验证的启动和调试主路径。完整 API 说明见 `docs/api/`，项目设计与质量规范见 `docs/`。
 
 ## 1. 构建
 
@@ -134,7 +134,7 @@ go run ./cmd/opendesk -script examples/browser_stack_playwright_smoke.js -stack 
 阅读：
 
 ```text
-docs-user-api/runtime.md
+docs/api/runtime.md
 docs/architecture/browser-automation/capabilities.md
 docs/architecture/browser-automation/stack.md
 ```
@@ -198,7 +198,7 @@ curl http://127.0.0.1:60844/status
 完整 HTTP API：
 
 ```text
-docs-user-api/http-server.md
+docs/api/http-server.md
 ```
 
 ### Legacy HTTP
@@ -209,7 +209,7 @@ docs-user-api/http-server.md
 USE_DI_CONTAINER=0 go run ./cmd/opendesk -http -port 60844
 ```
 
-Legacy 模式和默认 container 模式存在路由/行为差异，新开发应以默认模式和 `docs-user-api/http-server.md` 为准。
+Legacy 模式和默认 container 模式存在路由/行为差异，新开发应以默认模式和 `docs/api/http-server.md` 为准。
 
 ## 6. Vision CLI
 
@@ -242,7 +242,7 @@ go run ./cmd/opendesk \
 阅读：
 
 ```text
-docs-user-api/vision.md
+docs/api/vision.md
 docs/implementation/ocr/provider-integration.md
 ```
 
@@ -317,9 +317,9 @@ docs/quality/testing-guide.md
 脚本/API 使用：
 
 ```text
-docs-user-api/index.md
-docs-user-api/cookbook.md
-docs-user-api/runtime-api.ai.json
+docs/api/index.md
+docs/api/cookbook.md
+docs/api/runtime-api.ai.json
 ```
 
 项目工程文档：

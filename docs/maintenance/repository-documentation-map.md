@@ -26,7 +26,7 @@ maintenance/
 
 `docs/README.md` is the canonical navigation entrypoint.
 
-### `docs-user-api/` — sole maintained user API documentation
+### `docs/api/` — sole maintained user API documentation
 
 Use for directly rendered, user-facing material:
 
@@ -41,7 +41,7 @@ Do not create another user-facing API root under `docs/`, and do not create a de
 
 These are maintained but are **not additional documentation roots**:
 
-- `docs-user-api/runtime-api.ai.json` — Agent-facing machine index and document routing.
+- `docs/api/runtime-api.ai.json` — Agent-facing machine index and document routing.
 - `types/*.d.ts` — VS Code / TypeScript autocomplete and callable signatures.
 - `jsconfig.json` — connects repository JavaScript with the declaration files.
 
@@ -57,7 +57,7 @@ docs-api-user/
 docs/api/
 dev/api.md
 repository-root types.md
-docs-user-api/types.md
+docs/api/types.md
 ```
 
 The former project-doc working areas removed during the 2026-08 cleanup remain historical only and must not be recreated as parallel current roots.
@@ -68,8 +68,8 @@ The former project-doc working areas removed during the 2026-08 cleanup remain h
 
 ```text
 1. current source/runtime behavior
-2. docs-user-api/*.md
-3. docs-user-api/runtime-api.ai.json
+2. docs/api/*.md
+3. docs/api/runtime-api.ai.json
 4. types/*.d.ts
 5. Git history
 ```
@@ -90,8 +90,8 @@ The Markdown layer is the canonical rendered user documentation. JSON and `.d.ts
 | Material | Canonical destination |
 |---|---|
 | Current project/architecture/implementation/quality knowledge | `docs/<category>/` |
-| User-facing API prose | `docs-user-api/` |
-| Machine-readable user API map | `docs-user-api/runtime-api.ai.json` |
+| User-facing API prose | `docs/api/` |
+| Machine-readable user API map | `docs/api/runtime-api.ai.json` |
 | Editor signatures | `types/*.d.ts` |
 | Editor project wiring | `jsconfig.json` |
 | Active research | `docs/research/` |
@@ -134,7 +134,7 @@ When adding or changing a user-visible API:
 
 1. verify current source/runtime behavior;
 2. update the corresponding rendered Markdown;
-3. update `docs-user-api/index.md` if navigation or object ownership changed;
+3. update `docs/api/index.md` if navigation or object ownership changed;
 4. update `runtime-api.ai.json` when public object/method routing changed;
 5. update `types/*.d.ts` whenever callable signatures, return shapes, optionality or sync/Promise behavior changed;
 6. run the declaration checks;

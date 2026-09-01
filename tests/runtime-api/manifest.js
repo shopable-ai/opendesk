@@ -3,49 +3,49 @@
 // it; no fixed method count is used as a pass condition.
 
 globalThis.RuntimeAPIObjects = {
-  page: { docs: 'docs-user-api/page.md', types: 'types/page.d.ts', source: 'automation/page.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: [
+  page: { docs: 'docs/api/page.md', types: 'types/page.d.ts', source: 'automation/page.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: [
     'screenshot', 'captureScreen', 'goto', 'openURL', 'openApp', 'openURLInApp', 'title', 'url',
     'waitFor', 'waitForTimeout', 'waitForNavigation', 'waitForFunction', 'waitForAll',
     'checkPermissions', 'requestPermissions', 'ensurePermissions', 'ensureMacPermissions',
     'checkScreenshotPermissions', 'openMacOSPrivacySettings', 'requestMacPermissions',
     'requestMacAutomationPermission', 'browser', 'context',
   ] },
-  mouse: { docs: 'docs-user-api/input.md', types: 'types/mouse.d.ts', source: 'automation/mouse.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: ['click', 'clickForPID', 'move', 'down', 'up', 'getPos', 'wheel'] },
-  keyboard: { docs: 'docs-user-api/input.md', types: 'types/keyboard.d.ts', source: 'automation/keyboard.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: ['type', 'press', 'down', 'up', 'combination'] },
-  touchscreen: { docs: 'docs-user-api/input.md', types: 'types/touchscreen.d.ts', source: 'automation/touchscreen.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: ['tap'] },
-  window: { docs: 'docs-user-api/window.md', types: 'types/window.d.ts', source: 'automation/window_manager.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: [
+  mouse: { docs: 'docs/api/input.md', types: 'types/mouse.d.ts', source: 'automation/mouse.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: ['click', 'clickForPID', 'move', 'down', 'up', 'getPos', 'wheel'] },
+  keyboard: { docs: 'docs/api/input.md', types: 'types/keyboard.d.ts', source: 'automation/keyboard.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: ['type', 'press', 'down', 'up', 'combination'] },
+  touchscreen: { docs: 'docs/api/input.md', types: 'types/touchscreen.d.ts', source: 'automation/touchscreen.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: ['tap'] },
+  window: { docs: 'docs/api/window.md', types: 'types/window.d.ts', source: 'automation/window_manager.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: [
     'getActiveWindow', 'getWindowByTitle', 'getFocusWindow', 'focus', 'setWindowBounds',
     'setWidth', 'setHeight', 'maximize', 'minimize', 'restore', 'restoreByPID',
     'minimizeByPID', 'maximizeByPID', 'closeWindow', 'closeActiveWindow', 'kill',
     'title', 'getTitle', 'content', 'getContent', 'list', 'setAlwaysOnTop',
     'unsetTopMost', 'bringToTop', 'js_beautify',
   ] },
-  Screen: { docs: 'docs-user-api/screen.md', types: 'types/Screen.d.ts', source: 'automation/screen.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: [
+  Screen: { docs: 'docs/api/screen.md', types: 'types/Screen.d.ts', source: 'automation/screen.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: [
     'getWidth', 'getHeight', 'getDisplays', 'getPrimaryDisplay', 'getDisplay',
     'getVirtualBounds', 'pixel', 'pixels', 'screenshot',
   ] },
-  System: { docs: 'docs-user-api/system.md', types: 'types/System.d.ts', source: 'automation/system.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: [
+  System: { docs: 'docs/api/system.md', types: 'types/System.d.ts', source: 'automation/system.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: [
     'getSystemInfo', 'getProcessList', 'killProcess', 'getNetworkInterfaces',
     'getNetworkConnections', 'getPowerInfo', 'shutdown', 'restart', 'sleep',
     'getDirectoryContents', 'getExecutablePath', 'getWorkingDirectory', 'getUserInfo',
     'isAdministrator', 'getSystemMetrics', 'getFingerprint', 'toJSON',
   ] },
-  File: { docs: 'docs-user-api/file.md', types: 'types/File.d.ts', source: 'automation/file.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: [
+  File: { docs: 'docs/api/file.md', types: 'types/File.d.ts', source: 'automation/file.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: [
     'path', 'cwd', 'create', 'createIfNotExists', 'createWithDirs', 'exists', 'ensureDir',
     'read', 'readBytes', 'write', 'append', 'writeBytes', 'appendBytes', 'copy',
     'renameWithoutExtension', 'rename', 'move', 'getExtension', 'getName',
     'getNameWithoutExtension', 'remove', 'removeDir', 'listDir', 'isFile', 'isDir',
     'isEmptyDir', 'getHumanReadableSize', 'getSimplifiedPath', 'join', 'open',
   ] },
-  AppStorage: { docs: 'docs-user-api/storage.md', types: 'types/AppStorage.d.ts', source: 'automation/storage.go', status: 'secondary', platforms: ['darwin', 'linux', 'windows'], methods: ['getItem', 'setItem', 'removeItem', 'clear', 'getLength', 'key'] },
-  clipboard: { docs: 'docs-user-api/clipboard-console.md', types: 'types/clipboard.d.ts', source: 'automation/clipboard.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: ['copy', 'paste', 'clear'] },
-  console: { docs: 'docs-user-api/clipboard-console.md', types: 'types/console.d.ts', source: 'automation/console.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: [
+  AppStorage: { docs: 'docs/api/storage.md', types: 'types/AppStorage.d.ts', source: 'automation/storage.go', status: 'secondary', platforms: ['darwin', 'linux', 'windows'], methods: ['getItem', 'setItem', 'removeItem', 'clear', 'getLength', 'key'] },
+  clipboard: { docs: 'docs/api/clipboard-console.md', types: 'types/clipboard.d.ts', source: 'automation/clipboard.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: ['copy', 'paste', 'clear'] },
+  console: { docs: 'docs/api/clipboard-console.md', types: 'types/console.d.ts', source: 'automation/console.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: [
     'log', 'info', 'warn', 'error', 'debug', 'table', 'group', 'groupEnd', 'time',
     'timeEnd', 'clear',
   ] },
-  http: { docs: 'docs-user-api/http.md', types: 'types/http.d.ts', source: 'automation/http.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: ['request', 'get', 'post'] },
+  http: { docs: 'docs/api/http.md', types: 'types/http.d.ts', source: 'automation/http.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: ['request', 'get', 'post'] },
   NativeExtensions: {
-    docs: 'docs-user-api/native-extension.md', types: 'types/NativeExtension.d.ts', source: 'automation/native_extensions.go',
+    docs: 'docs/api/native-extension.md', types: 'types/NativeExtension.d.ts', source: 'automation/native_extensions.go',
     status: 'experimental', platforms: ['darwin', 'linux', 'windows'], optional: true,
     methods: ['list', 'get', 'diagnostics'],
     dynamicMethods: [
@@ -54,21 +54,21 @@ globalThis.RuntimeAPIObjects = {
       { path: 'macosVision.ocr', types: 'examples/native-extensions/macos-vision/types/index.d.ts', platforms: ['darwin'], tiers: [] },
     ],
   },
-  axios: { docs: 'docs-user-api/http.md', types: 'types/axios.d.ts', source: 'polyfills/004-axios.js', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: ['request', 'get', 'post', 'put', 'delete', 'patch'] },
-  OCR: { docs: 'docs-user-api/vision.md', types: 'types/Vision.d.ts', source: 'automation/ocr.go', status: 'secondary', platforms: ['darwin', 'linux', 'windows'], methods: ['extractText'] },
-  Vision: { docs: 'docs-user-api/vision.md', types: 'types/Vision.d.ts', source: 'automation/vision.go', status: 'secondary', platforms: ['darwin', 'linux', 'windows'], methods: ['runOCR', 'detectUI', 'getCapabilities', 'analyzeLayout', 'annotateRegions'] },
-  ImageColor: { docs: 'docs-user-api/image-color.md', types: 'types/ImageColor.d.ts', source: 'automation/imageColor.go', status: 'secondary', platforms: ['darwin', 'linux', 'windows'], methods: [
+  axios: { docs: 'docs/api/http.md', types: 'types/axios.d.ts', source: 'polyfills/004-axios.js', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: ['request', 'get', 'post', 'put', 'delete', 'patch'] },
+  OCR: { docs: 'docs/api/vision.md', types: 'types/Vision.d.ts', source: 'automation/ocr.go', status: 'secondary', platforms: ['darwin', 'linux', 'windows'], methods: ['extractText'] },
+  Vision: { docs: 'docs/api/vision.md', types: 'types/Vision.d.ts', source: 'automation/vision.go', status: 'secondary', platforms: ['darwin', 'linux', 'windows'], methods: ['runOCR', 'detectUI', 'getCapabilities', 'analyzeLayout', 'annotateRegions'] },
+  ImageColor: { docs: 'docs/api/image-color.md', types: 'types/ImageColor.d.ts', source: 'automation/imageColor.go', status: 'secondary', platforms: ['darwin', 'linux', 'windows'], methods: [
     'findPos', 'loadBase64', 'resize', 'clip', 'pixel', 'findColor', 'findColorBlocks',
     'hasColor', 'isGray', 'getSize', 'save', 'findRedChannel', 'findGreenChannel',
     'findBlueChannel', 'toRGB', 'toRGBA', 'toHSL', 'toHSLA', 'isColorSimilar', 'analyzeLayout',
   ] },
-  Sound: { docs: 'docs-user-api/runtime-utilities.md', types: 'types/Sound.d.ts', source: 'automation/sound.go', status: 'secondary', platforms: ['darwin', 'linux', 'windows'], methods: ['playSuccess', 'playFail', 'playWarning', 'playError', 'playCaptcha', 'playSound', 'play'] },
-  Dialog: { docs: 'docs-user-api/dialog.md', types: 'types/dialog.d.ts', source: 'automation/dialog.go', status: 'conditional', platforms: ['darwin', 'linux', 'windows'], methods: ['alert', 'confirm', 'prompt', 'getCapabilities'] },
-  ui: { docs: 'docs-user-api/custom-ui.md', types: 'types/custom-ui.d.ts', source: 'automation/custom_ui.go', status: 'conditional-v1', platforms: ['darwin', 'linux', 'windows'], methods: ['getCapabilities', 'createWindow', 'closeAll', 'on'] },
-  FloatingWindow: { docs: 'docs-user-api/runtime-utilities.md', types: 'types/FloatingWindow.d.ts', source: 'automation/floating_window.go', status: 'button-first-v1', platforms: ['darwin', 'linux', 'windows'], optional: true, methods: ['constructor', 'addButton', 'removeButton', 'updateButton', 'getButtonState', 'show', 'hide', 'close', 'setPosition', 'onButtonClick', 'onError', 'setAlwaysOnTop', 'waitUntilClosed', 'run'] },
-  browser: { docs: 'docs-user-api/runtime.md', types: 'types/browser.d.ts', source: 'automation/browser.go', status: 'compatibility', platforms: ['darwin', 'linux', 'windows'], methods: ['newPage', 'newContext', 'defaultContext', 'contexts', 'pages', 'lastPage', 'close', 'isClosed'] },
-  context: { docs: 'docs-user-api/runtime.md', types: 'types/browser.d.ts', source: 'automation/browser.go', status: 'compatibility', platforms: ['darwin', 'linux', 'windows'], methods: ['browser', 'newPage', 'adoptPage', 'pages', 'lastPage', 'close', 'isClosed', 'cookies', 'setCookies', 'clearCookies', 'storage', 'setStorage', 'getStorage', 'clearStorage', 'session', 'setSessionValue', 'getSessionValue', 'clearSession'] },
-  global: { docs: 'docs-user-api/global-apis.md', types: 'types/global.d.ts', source: 'polyfills', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: [
+  Sound: { docs: 'docs/api/runtime-utilities.md', types: 'types/Sound.d.ts', source: 'automation/sound.go', status: 'secondary', platforms: ['darwin', 'linux', 'windows'], methods: ['playSuccess', 'playFail', 'playWarning', 'playError', 'playCaptcha', 'playSound', 'play'] },
+  Dialog: { docs: 'docs/api/dialog.md', types: 'types/dialog.d.ts', source: 'automation/dialog.go', status: 'conditional', platforms: ['darwin', 'linux', 'windows'], methods: ['alert', 'confirm', 'prompt', 'getCapabilities'] },
+  ui: { docs: 'docs/api/custom-ui.md', types: 'types/custom-ui.d.ts', source: 'automation/custom_ui.go', status: 'conditional-v1', platforms: ['darwin', 'linux', 'windows'], methods: ['getCapabilities', 'createWindow', 'closeAll', 'on'] },
+  FloatingWindow: { docs: 'docs/api/runtime-utilities.md', types: 'types/FloatingWindow.d.ts', source: 'automation/floating_window.go', status: 'button-first-v1', platforms: ['darwin', 'linux', 'windows'], optional: true, methods: ['constructor', 'addButton', 'removeButton', 'updateButton', 'getButtonState', 'show', 'hide', 'close', 'setPosition', 'onButtonClick', 'onError', 'setAlwaysOnTop', 'waitUntilClosed', 'run'] },
+  browser: { docs: 'docs/api/runtime.md', types: 'types/browser.d.ts', source: 'automation/browser.go', status: 'compatibility', platforms: ['darwin', 'linux', 'windows'], methods: ['newPage', 'newContext', 'defaultContext', 'contexts', 'pages', 'lastPage', 'close', 'isClosed'] },
+  context: { docs: 'docs/api/runtime.md', types: 'types/browser.d.ts', source: 'automation/browser.go', status: 'compatibility', platforms: ['darwin', 'linux', 'windows'], methods: ['browser', 'newPage', 'adoptPage', 'pages', 'lastPage', 'close', 'isClosed', 'cookies', 'setCookies', 'clearCookies', 'storage', 'setStorage', 'getStorage', 'clearStorage', 'session', 'setSessionValue', 'getSessionValue', 'clearSession'] },
+  global: { docs: 'docs/api/global-apis.md', types: 'types/global.d.ts', source: 'polyfills', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: [
     'notify', 'alert', 'confirm', 'prompt', 'copyToClipboard', 'getClipboard', 'AbortController', 'setTimeout', 'clearTimeout',
     'setInterval', 'clearInterval', 'sleep', 'sleepSeconds', 'requestAnimationFrame',
     'cancelAnimationFrame',
@@ -183,7 +183,7 @@ for (const entry of RuntimeAPIObjects.NativeExtensions.dynamicMethods) {
   RuntimeAPIManifest.push({
     id: 'NativeExtensions.' + entry.path,
     family: 'NativeExtensions',
-    source: { runtime: 'automation/native_extensions.go', docs: 'docs-user-api/native-extension.md', types: entry.types },
+    source: { runtime: 'automation/native_extensions.go', docs: 'docs/api/native-extension.md', types: entry.types },
     status: 'experimental',
     platforms: entry.platforms,
     requiredVerificationTiers: ['contract', ...entry.tiers],

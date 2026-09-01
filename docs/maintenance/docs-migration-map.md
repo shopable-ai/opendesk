@@ -237,7 +237,7 @@ Canonical rule remains:
 
 ```text
 docs/          -> project and engineering docs
-docs-user-api/ -> sole maintained user API docs
+docs/api/ -> sole maintained user API docs
 ```
 
 Retired and must not be recreated:
@@ -256,7 +256,7 @@ For new work:
 
 ```text
 canonical project knowledge -> docs/<category>/
-user API                     -> docs-user-api/
+user API                     -> docs/api/
 research                     -> docs/research/
 active plan                  -> docs/plans/
 reusable test asset          -> owning tests/**/fixtures/

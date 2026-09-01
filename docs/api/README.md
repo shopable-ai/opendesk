@@ -6,7 +6,7 @@ order: 1
 
 # OpenDesk 用户 API 文档
 
-`docs-user-api/` 是当前仓库唯一维护、并直接用于渲染的用户 API 文档目录。
+`docs/api/` 是当前仓库唯一维护、并直接用于渲染的用户 API 文档目录。
 
 这里的 Markdown 面向最终使用者；机器索引和编辑器类型只是同一 API 面的派生辅助，不应再各自形成一套说明文档。
 
@@ -15,8 +15,8 @@ order: 1
 发生冲突时按以下顺序判断：
 
 1. 当前源码与实际 Runtime 行为
-2. `docs-user-api/*.md` 正式可渲染用户文档
-3. `docs-user-api/runtime-api.ai.json` Agent 机器索引
+2. `docs/api/*.md` 正式可渲染用户文档
+3. `docs/api/runtime-api.ai.json` Agent 机器索引
 4. `types/*.d.ts` 编辑器类型声明
 5. Git 历史
 
@@ -67,7 +67,7 @@ ABI。低层 `NativeExtension.call` 只在独立 unsafe 本机诊断 gate 中保
 
 | 位置 | 用途 |
 | --- | --- |
-| `docs-user-api/runtime-api.ai.json` | Agent 的机器可读对象地图与文档路由 |
+| `docs/api/runtime-api.ai.json` | Agent 的机器可读对象地图与文档路由 |
 | `types/*.d.ts` + `jsconfig.json` | VS Code / TypeScript 自动补全、参数和返回值提示 |
 
 `types/*.d.ts` 不承担教程、平台行为、架构解释和历史迁移说明；这些内容应写进对应 API Markdown。

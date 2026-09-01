@@ -1,22 +1,22 @@
 ---
-title: docs-user-api regen prompt
+title: docs/api regen prompt
 description: 给 Codex / Hermes / 其他 Agent 的 OpenDesk 用户 API 文档、Agent 索引与编辑器类型声明一致性检查清单。
 order: 20
 ---
 
-# docs-user-api regen prompt
+# docs/api regen prompt
 
 ## 用途
 
 用于 OpenDesk 版本升级后同步维护：
 
-- `docs-user-api/*.md`：直接渲染的正式用户文档
-- `docs-user-api/runtime-api.ai.json`：Agent 机器索引
+- `docs/api/*.md`：直接渲染的正式用户文档
+- `docs/api/runtime-api.ai.json`：Agent 机器索引
 - `types/*.d.ts`：VS Code / TypeScript 类型声明
 
 完整 TOC/写作规则见：
 
-- `docs/maintenance/docs-user-api-editme-toc-maintenance.md`
+- `docs/maintenance/docs/api-editme-toc-maintenance.md`
 - `docs/maintenance/repository-documentation-map.md`
 
 ## 可直接复用的 prompt
@@ -26,8 +26,8 @@ order: 20
 目标：基于当前源码和实际 Runtime 行为，让以下三种消费形式保持一致，但职责不混写：
 
 ```text
-docs-user-api/*.md
-docs-user-api/runtime-api.ai.json
+docs/api/*.md
+docs/api/runtime-api.ai.json
 types/*.d.ts
 ```
 
@@ -40,7 +40,7 @@ types/*.d.ts
 2. **Markdown 是正式可渲染用户文档**
    - 用户用途、方法说明、参数、返回、错误、示例、平台行为写入对应 Markdown。
    - 不为内部维护概念额外创建用户文档页。
-   - 不创建专门用于解释 `.d.ts` 维护机制的 `docs-user-api/types.md`；类型维护规则属于 `docs/maintenance/`。
+   - 不创建专门用于解释 `.d.ts` 维护机制的 `docs/api/types.md`；类型维护规则属于 `docs/maintenance/`。
 
 3. **只维护一个用户 API 文档根**
    - 不创建 `docs-api/`
@@ -55,7 +55,7 @@ types/*.d.ts
    - Stable / Secondary / Experimental / Conditional
 
 5. **同步维护 Agent 索引**
-   - 新增、删除、改名全局对象或主要方法时更新 `docs-user-api/runtime-api.ai.json`。
+   - 新增、删除、改名全局对象或主要方法时更新 `docs/api/runtime-api.ai.json`。
    - JSON 负责机器索引和路由，不复制 Markdown 的完整教程。
    - JSON 与 Markdown 冲突时回到源码校准，并同步修正两者。
 
@@ -79,7 +79,7 @@ types/*.d.ts
 
 ```text
 源码 / Runtime API 面
-→ 对应 docs-user-api Markdown
+→ 对应 docs/api Markdown
 → index.md（导航或对象归属变化时）
 → runtime-api.ai.json（机器路由变化时）
 → 对应 types/*.d.ts

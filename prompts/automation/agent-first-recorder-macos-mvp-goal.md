@@ -619,7 +619,7 @@ Evidence 完整
 
 - Recorder 关闭时原有 JS / HTTP / MCP 基础行为不回归；
 - 现有测试继续通过；
-- `docs-user-api/`、`types/recorder.d.ts` 与真实 runtime 行为一致。
+- `docs/api/`、`types/recorder.d.ts` 与真实 runtime 行为一致。
 
 ## 十一、实现顺序
 

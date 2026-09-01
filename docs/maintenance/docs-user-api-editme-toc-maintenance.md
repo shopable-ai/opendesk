@@ -1,14 +1,14 @@
 ---
-title: docs-user-api editme-cli TOC maintenance
-description: 维护 OpenDesk docs-user-api 的 TOC、用户可读性与长期重生成边界。
+title: docs/api editme-cli TOC maintenance
+description: 维护 OpenDesk docs/api 的 TOC、用户可读性与长期重生成边界。
 order: 10
 ---
 
-# docs-user-api editme-cli TOC maintenance
+# docs/api editme-cli TOC maintenance
 
 ## 背景
 
-`docs-user-api/` 是 OpenDesk 当前唯一维护、并直接用于渲染的用户 API 文档目录。
+`docs/api/` 是 OpenDesk 当前唯一维护、并直接用于渲染的用户 API 文档目录。
 
 目标：
 
@@ -49,7 +49,7 @@ TOC 应表现“用户导航骨架”，不是内部维护机制清单。
 
 应像用户 reference / SDK 手册 / 可复制的接口说明，不应像源码分析笔记、迁移记录或编辑器配置说明。
 
-`types/*.d.ts`、`jsconfig.json` 的维护机制不需要单独占一个 `docs-user-api` 页面；只在 README/index 保留必要入口说明，详细治理规则留在 `docs/maintenance/`。
+`types/*.d.ts`、`jsconfig.json` 的维护机制不需要单独占一个 `docs/api` 页面；只在 README/index 保留必要入口说明，详细治理规则留在 `docs/maintenance/`。
 
 ## 当前页面分组
 

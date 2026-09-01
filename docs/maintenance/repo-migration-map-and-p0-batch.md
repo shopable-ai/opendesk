@@ -13,7 +13,7 @@ docs/maintenance/docs-migration-map.md
 Important correction to earlier versions of this document:
 
 ```text
-docs-user-api/ = sole maintained user API documentation root
+docs/api/ = sole maintained user API documentation root
 ```
 
 The following historical trees have already been retired and must not be recreated:
@@ -44,7 +44,7 @@ The documentation-governance tranche establishes:
 
 - `docs/README.md` as the project-doc entrypoint;
 - `docs/maintenance/docs-migration-map.md` as the 61-file root cleanup map;
-- `docs-user-api/` as the only maintained user API root;
+- `docs/api/` as the only maintained user API root;
 - no bulk document moves until path references are checked.
 
 This is intentionally lower risk than immediately renaming dozens of files.
@@ -119,7 +119,7 @@ The current 61 direct files under `docs/` are individually classified in `docs/m
 Canonical root:
 
 ```text
-docs-user-api/
+docs/api/
 ```
 
 Keep it independent from `docs/`.
@@ -162,7 +162,7 @@ Before runtime-output migrations, inspect current references in at least:
 - scripts that generate screenshots/logs/reports
 - `docs/maintenance/`
 - browser automation and MCP docs
-- `docs-user-api/` examples where output paths are user-visible
+- `docs/api/` examples where output paths are user-visible
 
 Historical references inside old generated reports do not necessarily block migration; classify them as historical evidence rather than active consumers.
 
@@ -273,7 +273,7 @@ Move `.venv-*` and `.playwright-*` only after local tooling assumptions are patc
 Do not:
 
 - recreate `docs-api/`, `docs-api-user/` or `docs/api/`;
-- move `docs-user-api/` to `docs/api/user/`;
+- move `docs/api/` to `docs/api/user/`;
 - move `.runtime/runs/` without changing its producers/consumers;
 - convert `.archive/` into a dump of every old AI-generated Markdown file;
 - leave both old and new canonical documentation paths indefinitely;
@@ -299,7 +299,7 @@ Do not:
 ### API documentation
 
 - verify user-visible API changes against current source/runtime;
-- update `docs-user-api/*.md` and `runtime-api.ai.json` together where required;
+- update `docs/api/*.md` and `runtime-api.ai.json` together where required;
 - ensure retired API trees do not reappear.
 
 ## Success criteria
@@ -308,7 +308,7 @@ The repository migration succeeds when:
 
 - project root primarily exposes source and real entrypoints;
 - `docs/` root converges to `README.md` plus classified directories;
-- `docs-user-api/` remains the sole maintained user API root;
+- `docs/api/` remains the sole maintained user API root;
 - generated output defaults to `.runtime/`;
 - the generic `artifacts/` namespace is retired;
 - prompts and historical notes no longer pollute canonical docs;

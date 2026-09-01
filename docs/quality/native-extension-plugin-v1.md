@@ -41,8 +41,8 @@ fresh one-shot process.
    functions are frozen, properties are non-writable/non-configurable, and
    root/namespace prototypes are null.
 6. Types/docs/index: `types/NativeExtension.d.ts`, plugin declarations under
-   `examples/native-extensions/*/types`, `docs-user-api/native-extension.md`,
-   and `docs-user-api/runtime-api.ai.json`. Core types do not pretend optional
+   `examples/native-extensions/*/types`, `docs/api/native-extension.md`,
+   and `docs/api/runtime-api.ai.json`. Core types do not pretend optional
    plugins are installed; params are mandatory and canonical `get(id)` is typed.
 7. Deployment: `scripts/build_macos_app.sh` accepts an absolute, non-symlink
    bundle source, rejects non-bundle direct children, stages before codesign,

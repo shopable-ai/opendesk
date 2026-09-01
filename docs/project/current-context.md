@@ -33,7 +33,7 @@ inspect / capture
 2026-08 文档结构整理已经完成：
 
 - `docs/` 是项目/工程文档；
-- `docs-user-api/` 是唯一用户 API 文档；
+- `docs/api/` 是唯一用户 API 文档；
 - `docs/` 根目录只保留 `README.md` 和分类目录；
 - 历史阶段报告、Prompt、测试报告已经按生命周期迁移；
 - `docs-api/`、`docs-api-user/`、`docs/api/` 已退役，不能恢复为并行文档源。

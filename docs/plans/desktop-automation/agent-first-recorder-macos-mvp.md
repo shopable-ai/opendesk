@@ -364,7 +364,7 @@ Gate P7：
 
 任务：
 
-- 根据真实实现更新 `docs-user-api/`；
+- 根据真实实现更新 `docs/api/`；
 - 更新 `types/recorder.d.ts`；
 - 增加 apps README、运行与权限说明；
 - 更新质量报告和 bounded Claim；

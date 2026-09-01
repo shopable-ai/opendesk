@@ -11,7 +11,7 @@
 ```text
 源码
 → 可重复测试 / Runtime Evidence
-→ docs-user-api/
+→ docs/api/
 → 本计划
 ```
 
@@ -103,7 +103,7 @@ url-search-params.js
 这一事实已经同步到：
 
 ```text
-docs-user-api/custom-api.md
+docs/api/custom-api.md
 ```
 
 ### 后续低成本治理项

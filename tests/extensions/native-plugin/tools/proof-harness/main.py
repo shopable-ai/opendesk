@@ -91,10 +91,10 @@ def source_snapshot() -> dict[str, dict[str, object]]:
         ROOT / "scripts" / "build_macos_app.sh",
         ROOT / "schemas" / "native-extension" / "extension-manifest-v1.schema.json",
         ROOT / "types" / "NativeExtension.d.ts",
-        ROOT / "docs-user-api" / "native-extension.md",
-        ROOT / "docs-user-api" / "README.md",
-        ROOT / "docs-user-api" / "index.md",
-        ROOT / "docs-user-api" / "runtime-api.ai.json",
+        ROOT / "docs/api" / "native-extension.md",
+        ROOT / "docs/api" / "README.md",
+        ROOT / "docs/api" / "index.md",
+        ROOT / "docs/api" / "runtime-api.ai.json",
         ROOT / "docs" / "implementation" / "runtime" / "native-extension-plugin-discovery.md",
         ROOT / "tests" / "runtime-api" / "unit" / "native-extension.test.js",
         ROOT / "tests" / "runtime-api" / "manifest.js",
@@ -962,7 +962,7 @@ def inventory() -> dict[str, object]:
 
 
 def validate_documentation() -> dict[str, object]:
-    user_doc = (ROOT / "docs-user-api" / "native-extension.md").read_text(encoding="utf-8")
+    user_doc = (ROOT / "docs/api" / "native-extension.md").read_text(encoding="utf-8")
     examples_doc = (ROOT / "examples" / "native-extensions" / "README.md").read_text(encoding="utf-8")
     implementation_doc = (
         ROOT / "docs" / "implementation" / "runtime" / "native-extension-plugin-discovery.md"
@@ -1029,7 +1029,7 @@ def validate_documentation() -> dict[str, object]:
         "migrationIsExplicitAndNonDestructive": True,
         "authorConsumerMaintainerSeparated": True,
         "checkedFiles": {
-            "docs-user-api/native-extension.md": sha256(ROOT / "docs-user-api" / "native-extension.md"),
+            "docs/api/native-extension.md": sha256(ROOT / "docs/api" / "native-extension.md"),
             "examples/native-extensions/README.md": sha256(ROOT / "examples" / "native-extensions" / "README.md"),
             "examples/native-extensions/quickstart.js": sha256(ROOT / "examples" / "native-extensions" / "quickstart.js"),
             "docs/implementation/runtime/native-extension-plugin-discovery.md": sha256(

@@ -7,7 +7,7 @@
 OpenDesk 当前保留两类正式文档根：
 
 - `docs/`：项目、核心框架、架构、实现、质量、集成、场景、研究、计划和仓库治理。
-- `docs-user-api/`：**唯一用户 API 文档根目录**，包括脚本/runtime API、HTTP API、示例、编辑器类型说明和机器可读 API 索引。
+- `docs/api/`：**唯一用户 API 文档根目录**，包括脚本/runtime API、HTTP API、示例、编辑器类型说明和机器可读 API 索引。
 
 以下历史 API 文档树已经退役，不得重新创建为并行 Source of Truth：
 
@@ -168,8 +168,8 @@ YYYY-MM-DD-topic.md
 
 ```text
 当前源码 / runtime 行为
--> docs-user-api/runtime-api.ai.json
--> docs-user-api/*.md
+-> docs/api/runtime-api.ai.json
+-> docs/api/*.md
 -> types/*.d.ts
 -> Git 历史
 ```
@@ -191,7 +191,7 @@ YYYY-MM-DD-topic.md
 | 内容类型 | 目标位置 |
 |---|---|
 | 当前项目/核心框架/架构/实现/质量文档 | `docs/` 对应分类 |
-| 用户 API | `docs-user-api/` |
+| 用户 API | `docs/api/` |
 | 可复用 golden sample / fixture | 所属 `tests/**/fixtures/` |
 | 长期保留的测试/评审报告 | `docs/quality/` 对应领域 |
 | 运行日志、截图、probe、smoke 输出 | `.runtime/` |
@@ -228,7 +228,7 @@ Research / Report 等时间型材料可使用日期前缀。
 1. 这是 Canonical、Decision、Research、Plan、Report、Prompt 还是 Runtime Output？
 2. 当前是否已经存在同主题 Source of Truth？
 3. 新内容应该更新现有文件，还是确实需要创建新文件？
-4. 它属于 `docs/`、`docs-user-api/`、所属测试目录、`.runtime/`、`.archive/` 还是 `prompts/`？
+4. 它属于 `docs/`、`docs/api/`、所属测试目录、`.runtime/`、`.archive/` 还是 `prompts/`？
 5. 任务结束后它是否仍有长期维护价值？
 
 默认规则：**不要向 `docs/` 根目录新增专题文件。**
@@ -247,7 +247,7 @@ Research / Report 等时间型材料可使用日期前缀。
 - Gate V1/V2/Golden Gate 已收敛为单一 `docs/quality/gates-and-evidence.md`；
 - 重复 FINAL/COMPLETE SUMMARY 已合并为历史报告；
 - 可复用 WeChat 执行 Prompt 已移出 `docs/`，过时 Prompt/workpad 已删除；
-- `docs-user-api/` 继续保持唯一用户 API 文档根。
+- `docs/api/` 继续保持唯一用户 API 文档根。
 
 迁移审计记录见：
 

@@ -206,6 +206,6 @@ Agent 不需要从多套旧文档猜接口。
 
 优先读取：
 
-`docs-user-api/runtime-api.ai.json`
+`docs/api/runtime-api.ai.json`
 
 其中只记录当前文档体系认可的对象、状态、来源和推荐入口；最终事实仍以当前源码为准。

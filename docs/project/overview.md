@@ -21,7 +21,7 @@ JavaScript 运行时由 Go 注入桌面、窗口、输入、视觉、文件、�
 用户 API 的唯一正式说明位于：
 
 ```text
-docs-user-api/
+docs/api/
 ```
 
 ### HTTP
@@ -41,7 +41,7 @@ POST /vision/detect-ui
 详细契约见：
 
 ```text
-docs-user-api/http-server.md
+docs/api/http-server.md
 ```
 
 ### MCP
@@ -211,8 +211,8 @@ docs/quality/gates-and-evidence.md
 
 ```text
 当前源码/runtime
--> docs-user-api/runtime-api.ai.json
--> docs-user-api/*.md
+-> docs/api/runtime-api.ai.json
+-> docs/api/*.md
 -> types/*.d.ts
 -> Git history
 ```
@@ -225,7 +225,7 @@ docs/quality/gates-and-evidence.md
 README.md
 QUICKSTART.md
 docs/README.md
-docs-user-api/index.md
+docs/api/index.md
 docs/project/current-context.md
 docs/project/runbook.md
 docs/quality/gates-and-evidence.md

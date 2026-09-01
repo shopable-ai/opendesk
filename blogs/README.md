@@ -2,7 +2,7 @@
 
 `blogs/` 用于保存面向外部传播的文章草稿与已发布内容，不作为 OpenDesk 当前能力、架构或实现的 Source of Truth。
 
-正式工程事实仍以当前源码、测试、Evidence 与 `docs/` / `docs-user-api/` 对应正式文档为准。
+正式工程事实仍以当前源码、测试、Evidence 与 `docs/` / `docs/api/` 对应正式文档为准。
 
 ## 推荐结构
 

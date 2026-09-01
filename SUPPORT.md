@@ -4,8 +4,8 @@
 
 如果只是想组合已有能力，请先阅读：
 
-- `docs-user-api/custom-api.md`：只使用现有 JavaScript API 自助扩展。
-- `docs-user-api/index.md`：当前公开 API 地图。
+- `docs/api/custom-api.md`：只使用现有 JavaScript API 自助扩展。
+- `docs/api/index.md`：当前公开 API 地图。
 
 ## 先判断你的需求属于哪一类
 
@@ -40,7 +40,7 @@
 
 详见：
 
-`docs-user-api/custom-api.md`
+`docs/api/custom-api.md`
 
 ## HTTP / MCP 集成
 

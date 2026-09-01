@@ -13,7 +13,7 @@ This policy defines the canonical destination for each file class and the author
 OpenDesk currently has two maintained documentation roles:
 
 - `docs/` — project and engineering documentation.
-- `docs-user-api/` — **sole maintained user API documentation root**.
+- `docs/api/` — **sole maintained user API documentation root**.
 
 Retired API documentation trees:
 
@@ -26,8 +26,8 @@ Do not recreate the retired trees as parallel sources of truth.
 For API facts, use this priority:
 
 1. current source/runtime behavior
-2. `docs-user-api/runtime-api.ai.json`
-3. `docs-user-api/*.md`
+2. `docs/api/runtime-api.ai.json`
+3. `docs/api/*.md`
 4. Git history
 
 For project architecture, implementation and quality facts:
@@ -51,7 +51,7 @@ Examples:
 - `scripts/`
 - `examples/` for real maintained examples
 - `docs/`
-- `docs-user-api/`
+- `docs/api/`
 - `schemas/`
 - `polyfills/`
 - `types/`
@@ -245,7 +245,7 @@ When creating or touching a file, decide using this order:
 1. Is it maintained project code or canonical project documentation?
    - source areas or `docs/`
 2. Is it maintained user-facing API documentation?
-   - `docs-user-api/`
+   - `docs/api/`
 3. Is it a stable reusable fixture or report?
    - owning `tests/**/fixtures/`, `tests/**/reports/` or `docs/quality/`
 4. Is it generated during execution, debugging, probing or smoke testing?
@@ -285,7 +285,7 @@ Avoid placing at root:
 Use the two established roots:
 
 - `docs/`
-- `docs-user-api/`
+- `docs/api/`
 
 Do not recreate:
 
@@ -375,7 +375,7 @@ If it contains no unique durable value:
 
 Destination:
 
-- `docs-user-api/`
+- `docs/api/`
 
 Not:
 
@@ -429,7 +429,7 @@ Recommended checks:
 
 When in doubt:
 
-- user API -> `docs-user-api/`
+- user API -> `docs/api/`
 - canonical project knowledge -> classified subtree under `docs/`
 - research -> `docs/research/`
 - active plan -> `docs/plans/`

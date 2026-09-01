@@ -5,7 +5,7 @@
 ## JavaScript Runtime API 一致性
 
 OpenDesk JavaScript Runtime API Conformance Lab 位于 `tests/runtime-api/`，按当前 Runtime、
-`docs-user-api/`、`docs-user-api/runtime-api.ai.json` 与 `types/*.d.ts` 维护 JavaScript
+`docs/api/`、`docs/api/runtime-api.ai.json` 与 `types/*.d.ts` 维护 JavaScript
 contract、unit、safe smoke 和 opt-in macOS Safari 真实事件测试：
 
 ```bash

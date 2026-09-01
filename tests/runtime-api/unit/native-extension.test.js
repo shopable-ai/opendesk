@@ -33,7 +33,7 @@
     covers: ['NativeExtensions.list'],
   }, async () => {
     equal(RuntimeAPIObjects.NativeExtensions.status, 'experimental');
-    const index = JSON.parse(File.read(File.join(File.cwd(), 'docs-user-api', 'runtime-api.ai.json')));
+    const index = JSON.parse(File.read(File.join(File.cwd(), 'docs/api', 'runtime-api.ai.json')));
     const documented = (index.globals || []).find((item) => item.name === 'NativeExtensions');
     assert(documented, 'runtime-api.ai.json is missing NativeExtensions');
     equal(documented.status, 'experimental');

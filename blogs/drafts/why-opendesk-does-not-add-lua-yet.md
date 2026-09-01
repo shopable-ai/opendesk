@@ -213,7 +213,7 @@ LuaJIT
 ```text
 docs/plans/runtime/runtime-extension-roadmap.md
 docs/frameworks/runtime-api-extension-framework.md
-docs-user-api/custom-api.md
+docs/api/custom-api.md
 ```
 
 如果这些正式工程文档发生变化，本 Blog 草稿应重新校准后再发布。

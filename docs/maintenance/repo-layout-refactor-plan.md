@@ -8,10 +8,10 @@ Most importantly:
 
 ```text
 docs/          = project and engineering documentation
-docs-user-api/ = sole maintained user API documentation root
+docs/api/ = sole maintained user API documentation root
 ```
 
-The historical API trees `docs-api/`, `docs-api-user/` and `docs/api/` have been retired. **Do not recreate them and do not move `docs-user-api/` into `docs/api/user/`.**
+The historical API trees `docs-api/`, `docs-api-user/` and `docs/api/` have been retired. **Do not recreate them and do not move `docs/api/` into `docs/api/user/`.**
 
 For the current docs cleanup, also use:
 
@@ -70,7 +70,7 @@ Preferred steady-state shape:
   scripts/
   examples/
   docs/
-  docs-user-api/
+  docs/api/
   schemas/
   polyfills/
   types/
@@ -105,7 +105,7 @@ Notes:
 - `.dev/` is for local environment/tooling state.
 - `.archive/` is for historically valuable superseded material, not a generic dump zone.
 - `prompts/` is only for reusable prompts that the repository intentionally maintains.
-- `docs-user-api/` remains independent from project engineering docs.
+- `docs/api/` remains independent from project engineering docs.
 
 ## Target `docs/` layout
 
@@ -153,7 +153,7 @@ Examples:
 - `automation/`
 - `cmd/`
 - classified subtrees under `docs/`
-- `docs-user-api/` for user API facts
+- `docs/api/` for user API facts
 
 ### 2. Domain-owned test asset or evidence
 
@@ -218,7 +218,7 @@ Implemented governance surface:
 - `docs/README.md`
 - `docs/maintenance/docs-migration-map.md`
 - updated `repo-file-lifecycle-policy.md`
-- updated repository layout/migration guidance to preserve `docs-user-api/` as canonical API root
+- updated repository layout/migration guidance to preserve `docs/api/` as canonical API root
 
 P0 intentionally avoids bulk file moves.
 
@@ -347,7 +347,7 @@ Earlier drafts proposed converging API docs to `docs/api/user/`. That direction 
 Current rule:
 
 ```text
-docs-user-api/ = keep and maintain
+docs/api/ = keep and maintain
 ```
 
 Retired:
@@ -358,7 +358,7 @@ docs-api-user/
 docs/api/
 ```
 
-If historical wording from retired trees is useful, verify it against current source/runtime and migrate the fact into `docs-user-api/`; do not restore the old tree.
+If historical wording from retired trees is useful, verify it against current source/runtime and migrate the fact into `docs/api/`; do not restore the old tree.
 
 ## Validation approach
 
@@ -413,7 +413,7 @@ Mitigation:
 
 Mitigation:
 
-- keep `docs-user-api/` as the sole maintained user API root;
+- keep `docs/api/` as the sole maintained user API root;
 - reject reintroduction of `docs-api/`, `docs-api-user/` or `docs/api/`.
 
 ## Success criteria
@@ -422,7 +422,7 @@ The refactor is successful when:
 
 - repository root is mostly source and real entrypoints;
 - `docs/` root contains only `README.md` plus classified directories;
-- `docs-user-api/` remains the sole user API documentation root;
+- `docs/api/` remains the sole user API documentation root;
 - there is one current Source of Truth per engineering topic;
 - prompts, reports and runtime output no longer compete with canonical docs;
 - no generic `artifacts/` directory remains;
