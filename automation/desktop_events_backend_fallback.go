@@ -16,7 +16,11 @@ func listProcessApplicationsFallback() ([]desktopApplicationState, error) {
 	for _, item := range processes {
 		name, _ := item.Name()
 		path, _ := item.Exe()
-		result = append(result, desktopApplicationState{PID: int64(item.Pid), Name: name, Path: path})
+		createdMS, _ := item.CreateTime()
+		result = append(result, desktopApplicationState{
+			PID: int64(item.Pid), Name: name, Path: path, ExecutablePath: path,
+			LaunchTimeMS: createdMS,
+		})
 	}
 	return result, nil
 }

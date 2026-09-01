@@ -1485,21 +1485,7 @@ func (p *Page) OpenApp(appName string) error {
 	if appName == "" {
 		return fmt.Errorf("appName cannot be empty")
 	}
-
-	var cmd *exec.Cmd
-	switch runtime.GOOS {
-	case "darwin":
-		cmd = exec.Command("open", "-a", appName)
-	case "windows":
-		cmd = exec.Command("cmd", "/c", "start", "", appName)
-	default:
-		cmd = exec.Command(appName)
-	}
-
-	if runtime.GOOS == "darwin" {
-		return startDetachedCommand(cmd)
-	}
-	return cmd.Run()
+	return launchApplicationByName(appName)
 }
 
 // OpenURLInApp opens a URL with a specific application when supported.

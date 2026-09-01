@@ -56,27 +56,28 @@ order: 1
 5. `input.md`：键盘和触屏
 6. `global-shortcut.md`：macOS / Windows 系统级快捷键与 Runtime callback
 7. `events.md`：外部窗口、应用、剪贴板与显示器状态变化 watcher
-8. `audio.md`：默认输出音量、mute 与输入/输出设备发现
-9. `window.md`：窗口查询与控制
-10. `vision.md`：OCR、UI 文本定位、provider
-11. `image-color.md`：模板匹配、颜色与图像辅助能力
-12. `notify.md`：系统通知调用契约、平台限制与可见性边界
-13. `dialog.md`：异步 alert / confirm / prompt、UI capability 与隐私边界
-14. `clipboard.md`：系统剪贴板对象与文本读写
-15. `global-apis.md`：无需 import 即可调用的全局接口、console、等待、计时器和参数工具
-16. `runtime.md`：stack 选择、兼容边界与 recipe 的 `Execution` 上下文
-17. `sound.md`：播放内置提示音或本地音频文件
-18. `native-ui.md`：Dialog、FloatingWindow 和受限 HTML/CSS 原生窗口的选择与调用
-19. [native-extension.md](native-extension.md)：本机 CLI 默认提供、仅程序相对目录 discovery 的 Native Extension Plugin V1；底层复用 one-shot Native Process Protocol V0
-20. [examples/native-extensions/README.md](../../examples/native-extensions/README.md)：插件作者 build/package、source-free bundle 与程序相对安装；业务调用脚本为 [quickstart.js](../../examples/native-extensions/quickstart.js)
-21. `cookbook.md`：可直接改造的脚本范例
-22. `scheduler.md`：file/inline JavaScript 定时任务、SQLite 持久化与本地管理页
-23. `scheduler-api.md`：Scheduler 本地 HTTP API 的字段、响应与完整调用示例
-24. 其余专题页按需查阅
+8. `app.md`：按 stable identity 启动、等待、终止与重启桌面应用
+9. `audio.md`：默认输出音量、mute 与输入/输出设备发现
+10. `window.md`：窗口查询与控制
+11. `vision.md`：OCR、UI 文本定位、provider
+12. `image-color.md`：模板匹配、颜色与图像辅助能力
+13. `notify.md`：系统通知调用契约、平台限制与可见性边界
+14. `dialog.md`：异步 alert / confirm / prompt、UI capability 与隐私边界
+15. `clipboard.md`：系统剪贴板对象与文本读写
+16. `global-apis.md`：无需 import 即可调用的全局接口、console、等待、计时器和参数工具
+17. `runtime.md`：stack 选择、兼容边界与 recipe 的 `Execution` 上下文
+18. `sound.md`：播放内置提示音或本地音频文件
+19. `native-ui.md`：Dialog、FloatingWindow 和受限 HTML/CSS 原生窗口的选择与调用
+20. [native-extension.md](native-extension.md)：本机 CLI 默认提供、仅程序相对目录 discovery 的 Native Extension Plugin V1；底层复用 one-shot Native Process Protocol V0
+21. [examples/native-extensions/README.md](../../examples/native-extensions/README.md)：插件作者 build/package、source-free bundle 与程序相对安装；业务调用脚本为 [quickstart.js](../../examples/native-extensions/quickstart.js)
+22. `cookbook.md`：可直接改造的脚本范例
+23. `scheduler.md`：file/inline JavaScript 定时任务、SQLite 持久化与本地管理页
+24. `scheduler-api.md`：Scheduler 本地 HTTP API 的字段、响应与完整调用示例
+25. 其余专题页按需查阅
 
 ## 文档分层
 
-- **核心桌面自动化**：`page.md`、`mouse.md`、`input.md`、`global-shortcut.md`、`events.md`、`audio.md`、`window.md`、`screen.md`
+- **核心桌面自动化**：`page.md`、`mouse.md`、`input.md`、`global-shortcut.md`、`events.md`、`app.md`、`audio.md`、`window.md`、`screen.md`
 - **视觉能力**：`vision.md`、`image-color.md`
 - **系统与数据**：`system.md`、`file.md`、`storage.md`、`clipboard.md`、`audio.md`
 - **网络与服务**：`http.md`、`http-server.md`、`scheduler.md`、`scheduler-api.md`

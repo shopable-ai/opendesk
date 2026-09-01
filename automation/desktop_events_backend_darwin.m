@@ -8,16 +8,28 @@ char *opendesk_desktop_events_running_applications_json(void) {
     @autoreleasepool {
         NSMutableArray *items = [NSMutableArray array];
         for (NSRunningApplication *application in [[NSWorkspace sharedWorkspace] runningApplications]) {
+            if (application.terminated) continue;
             if (application.activationPolicy == NSApplicationActivationPolicyProhibited) continue;
             NSString *name = application.localizedName ?: @"";
             NSString *bundleIdentifier = application.bundleIdentifier ?: @"";
             NSString *path = application.bundleURL.path ?: @"";
+            NSString *executablePath = application.executableURL.path ?: @"";
+            NSNumber *launchTimeMs = @0;
+            NSDate *launchDate = application.launchDate;
+            if (launchDate != nil) {
+                launchTimeMs = @((int64_t)(launchDate.timeIntervalSince1970 * 1000.0));
+            }
             [items addObject:@{
                 @"pid": @(application.processIdentifier),
                 @"name": name,
                 @"bundleIdentifier": bundleIdentifier,
                 @"path": path,
-                @"activationPolicy": @(application.activationPolicy)
+                @"executablePath": executablePath,
+                @"activationPolicy": @(application.activationPolicy),
+                @"active": @(application.active),
+                @"hidden": @(application.hidden),
+                @"terminated": @(application.terminated),
+                @"launchTimeMs": launchTimeMs
             }];
         }
         NSError *error = nil;

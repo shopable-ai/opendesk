@@ -48,7 +48,12 @@ type InitJSOptions struct {
 	// recording lifecycle, and structured-error tests.
 	ScreenCaptureBackendFactory  ScreenCaptureBackendFactory
 	ScreenCaptureDisplayResolver func() []DisplayInfo
-	OnReady                      func(*RuntimeLifecycle)
+	// AppBackendFactory and AppWindowProbe are internal dependency seams for
+	// lifecycle and readiness tests. Product executions reuse the native app
+	// snapshot plus the existing normalized Window facade.
+	AppBackendFactory AppBackendFactory
+	AppWindowProbe    func(int64) (bool, error)
+	OnReady           func(*RuntimeLifecycle)
 }
 
 // RuntimeLifecycle exposes only teardown-safe resources to the runtime owner.
@@ -61,6 +66,7 @@ type RuntimeLifecycle struct {
 	GlobalShortcut *GlobalShortcutRuntime
 	Events         *DesktopEventsRuntime
 	ScreenCapture  *ScreenCaptureRuntime
+	App            *AppRuntime
 }
 
 // Wait joins host workers after their execution context has been cancelled.
@@ -77,6 +83,9 @@ func (l *RuntimeLifecycle) Wait() {
 	}
 	if l != nil && l.ScreenCapture != nil {
 		l.ScreenCapture.Wait()
+	}
+	if l != nil && l.App != nil {
+		l.App.Wait()
 	}
 }
 
@@ -97,6 +106,9 @@ func (l *RuntimeLifecycle) CancelAsync() {
 	}
 	if l != nil && l.ScreenCapture != nil {
 		l.ScreenCapture.Close()
+	}
+	if l != nil && l.App != nil {
+		l.App.Close()
 	}
 }
 
@@ -130,6 +142,11 @@ func (l *RuntimeLifecycle) AsyncCounts() (timers int, workers int64, callbacks i
 		workers += captureWorkers
 		callbacks += capturePending
 	}
+	if l.App != nil {
+		appWorkers, appPending := l.App.ResourceCounts()
+		workers += appWorkers
+		callbacks += appPending
+	}
 	return timers, workers, callbacks
 }
 
@@ -151,6 +168,8 @@ type RuntimeResourceCounts struct {
 	CaptureWorkers     int64
 	CapturePending     int
 	CaptureSessions    int
+	AppWorkers         int64
+	AppPending         int
 }
 
 func (l *RuntimeLifecycle) ResourceCounts() RuntimeResourceCounts {
@@ -184,6 +203,9 @@ func (l *RuntimeLifecycle) ResourceCounts() RuntimeResourceCounts {
 	if l.ScreenCapture != nil {
 		counts.CaptureWorkers, counts.CapturePending, counts.CaptureSessions = l.ScreenCapture.ResourceCounts()
 	}
+	if l.App != nil {
+		counts.AppWorkers, counts.AppPending = l.App.ResourceCounts()
+	}
 	return counts
 }
 
@@ -193,14 +215,16 @@ func (c RuntimeResourceCounts) IsZero() bool {
 		c.UIListeners == 0 && c.UIDriverSinks == 0 && c.UIHostProcesses == 0 &&
 		c.ShortcutBindings == 0 && c.ShortcutPending == 0 &&
 		c.EventSubscriptions == 0 && c.EventPending == 0 &&
-		c.CaptureWorkers == 0 && c.CapturePending == 0 && c.CaptureSessions == 0
+		c.CaptureWorkers == 0 && c.CapturePending == 0 && c.CaptureSessions == 0 &&
+		c.AppWorkers == 0 && c.AppPending == 0
 }
 
 func (c RuntimeResourceCounts) String() string {
-	return fmt.Sprintf("timers=%d httpWorkers=%d httpCallbacks=%d uiWorkers=%d uiPending=%d uiQueued=%d uiWindows=%d uiListeners=%d uiDriverSinks=%d uiHostProcesses=%d shortcutBindings=%d shortcutPending=%d eventSubscriptions=%d eventPending=%d captureWorkers=%d capturePending=%d captureSessions=%d",
+	return fmt.Sprintf("timers=%d httpWorkers=%d httpCallbacks=%d uiWorkers=%d uiPending=%d uiQueued=%d uiWindows=%d uiListeners=%d uiDriverSinks=%d uiHostProcesses=%d shortcutBindings=%d shortcutPending=%d eventSubscriptions=%d eventPending=%d captureWorkers=%d capturePending=%d captureSessions=%d appWorkers=%d appPending=%d",
 		c.Timers, c.HTTPWorkers, c.HTTPCallbacks, c.UIWorkers, c.UIPending, c.UIQueued,
 		c.UIWindows, c.UIListeners, c.UIDriverSinks, c.UIHostProcesses, c.ShortcutBindings, c.ShortcutPending,
-		c.EventSubscriptions, c.EventPending, c.CaptureWorkers, c.CapturePending, c.CaptureSessions)
+		c.EventSubscriptions, c.EventPending, c.CaptureWorkers, c.CapturePending, c.CaptureSessions,
+		c.AppWorkers, c.AppPending)
 }
 
 func emitRuntimeLog(sink EventSink, level, message string, fields map[string]any) {
@@ -648,6 +672,7 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 	runtime.Set("window", windowMethods)
 
 	registerClipboard(runtime, opts)
+	appRuntime := registerApp(runtime, opts)
 
 	globalShortcut := registerGlobalShortcut(runtime, opts)
 	events := registerDesktopEvents(runtime, opts)
@@ -760,7 +785,7 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 		return fmt.Errorf("failed to bind Screen.screenshot: %v", err)
 	}
 	if opts.OnReady != nil {
-		opts.OnReady(&RuntimeLifecycle{Timers: timer, HTTP: httpClient, UI: uiRuntime, GlobalShortcut: globalShortcut, Events: events, ScreenCapture: screenCapture})
+		opts.OnReady(&RuntimeLifecycle{Timers: timer, HTTP: httpClient, UI: uiRuntime, GlobalShortcut: globalShortcut, Events: events, ScreenCapture: screenCapture, App: appRuntime})
 	}
 	return nil
 }

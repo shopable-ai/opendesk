@@ -39,7 +39,7 @@ var reservedNamespaceIdentifiers = map[string]struct{}{
 	"list": {}, "get": {}, "diagnostics": {},
 	"file": {}, "system": {}, "page": {}, "nativeextension": {},
 	"nativeextensions": {}, "globalthis": {}, "object": {}, "function": {},
-	"appstorage": {}, "audio": {}, "axios": {}, "browser": {}, "clipboard": {},
+	"app": {}, "appstorage": {}, "audio": {}, "axios": {}, "browser": {}, "clipboard": {},
 	"console": {}, "context": {}, "floatingwindow": {}, "http": {},
 	"imagecolor": {}, "keyboard": {}, "mouse": {}, "ocr": {}, "screen": {},
 	"sound": {}, "touchscreen": {}, "ui": {}, "vision": {}, "window": {},

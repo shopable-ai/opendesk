@@ -362,6 +362,7 @@ func runJavaScript(req Request, emitter *Emitter) error {
 				"eventSubscriptions": resources.EventSubscriptions, "eventPending": resources.EventPending,
 				"captureWorkers": resources.CaptureWorkers, "capturePending": resources.CapturePending,
 				"captureSessions": resources.CaptureSessions,
+				"appWorkers":      resources.AppWorkers, "appPending": resources.AppPending,
 			})
 			if !resources.IsZero() && runtimeErr == nil {
 				runtimeErr = fmt.Errorf("runtime cleanup left resources: %s", resources.String())

@@ -147,6 +147,35 @@
       "notes": "Polling is reported in capability and event payloads; no MCP/HTTP surface and no GlobalShortcut duplication. Window events are unsupported on platforms where the existing window facade is unavailable."
     },
     {
+      "name": "App",
+      "source": "native Runtime wrapper + existing NSWorkspace/process/window backends",
+      "status": "experimental",
+      "platforms": [
+        "darwin",
+        "windows",
+        "linux"
+      ],
+      "doc": "app.md",
+      "types": "types/App.d.ts",
+      "keyMethods": [
+        "launch",
+        "get",
+        "list",
+        "isRunning",
+        "waitForLaunch",
+        "waitForExit",
+        "terminate",
+        "restart",
+        "getCapabilities"
+      ],
+      "identity": "PID, name, bundleId, or path; stable bundle/path identity is preferred and one identity may group multiple process instances",
+      "readiness": "process or an existing Window-facade row owned by a matching PID; custom predicates are explicitly unsupported",
+      "lifecycle": "Promise workers are execution-scoped, context-cancelable, timeout-bounded, and joined during Runtime teardown",
+      "compatibility": "page.openApp and AI CLI app.open retain their public contract while sharing the same launch bridge; System process and Window APIs remain independent",
+      "platformBehavior": "macOS+cgo uses NSWorkspace/Open/NSRunningApplication and is fixture-verified; Windows/Linux use explicit partial process fallbacks and are not live verified",
+      "surface": "JavaScript Runtime only in this phase; no HTTP or MCP method was added"
+    },
+    {
       "name": "window",
       "source": "native+polyfill",
       "status": "stable",
@@ -552,6 +581,7 @@
       "mouse.md",
       "input.md",
       "events.md",
+      "app.md",
       "audio.md",
       "window.md",
       "screen.md"

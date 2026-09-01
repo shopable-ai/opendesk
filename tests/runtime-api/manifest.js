@@ -14,6 +14,9 @@ globalThis.RuntimeAPIObjects = {
   keyboard: { docs: 'docs/api/input.md', types: 'types/keyboard.d.ts', source: 'automation/keyboard.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: ['type', 'press', 'down', 'up', 'combination'] },
   globalShortcut: { docs: 'docs/api/global-shortcut.md', types: 'types/globalShortcut.d.ts', source: 'automation/global_shortcut.go', status: 'stable', platforms: ['darwin', 'windows'], methods: ['register', 'unregister', 'isRegistered', 'unregisterAll'] },
   Events: { docs: 'docs/api/events.md', types: 'types/Events.d.ts', source: 'automation/desktop_events.go', status: 'experimental', platforms: ['darwin', 'linux', 'windows'], methods: ['on', 'once', 'getCapabilities'] },
+  App: { docs: 'docs/api/app.md', types: 'types/App.d.ts', source: 'automation/app.go + automation/app_backend*.go', status: 'experimental', platforms: ['darwin', 'linux', 'windows'], methods: [
+    'launch', 'get', 'list', 'isRunning', 'waitForLaunch', 'waitForExit', 'terminate', 'restart', 'getCapabilities',
+  ] },
   touchscreen: { docs: 'docs/api/input.md', types: 'types/touchscreen.d.ts', source: 'automation/touchscreen.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: ['tap'] },
   window: { docs: 'docs/api/window.md', types: 'types/window.d.ts', source: 'automation/window_manager.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: [
     'getActiveWindow', 'getWindowByTitle', 'getFocusWindow', 'focus', 'setWindowBounds',
@@ -87,6 +90,7 @@ const unitBehavior = new Set([
   ...RuntimeAPIObjects.mouse.methods.map((method) => 'mouse.' + method),
   ...RuntimeAPIObjects.keyboard.methods.map((method) => 'keyboard.' + method),
   ...RuntimeAPIObjects.Events.methods.map((method) => 'Events.' + method),
+  ...RuntimeAPIObjects.App.methods.map((method) => 'App.' + method),
   'window.list', 'window.setAlwaysOnTop', 'window.unsetTopMost', 'window.js_beautify',
   ...RuntimeAPIObjects.Screen.methods.filter((method) => method !== 'screenshot').map((method) => 'Screen.' + method),
   ...RuntimeAPIObjects.System.methods.filter((method) => !['killProcess', 'shutdown', 'restart', 'sleep'].includes(method)).map((method) => 'System.' + method),
@@ -159,6 +163,7 @@ for (const method of ['playSuccess', 'playFail', 'playWarning', 'playError', 'pl
 for (const method of RuntimeAPIObjects.Audio.methods.filter((method) => method !== 'getCapabilities')) {
   restricted['Audio.' + method] = 'depends on or changes host audio device state; dedicated macOS smoke must restore control state and redact device names and UIDs';
 }
+for (const method of ['launch', 'terminate', 'restart']) restricted['App.' + method] = 'starts or terminates a real desktop application; dedicated fixture smoke owns the target lifecycle';
 for (const method of RuntimeAPIObjects.FloatingWindow.methods) restricted['FloatingWindow.' + method] = 'button-first facade is exposed only when Custom UI is explicitly authorized';
 for (const method of RuntimeAPIObjects.window.methods) {
   const id = 'window.' + method;
@@ -226,6 +231,7 @@ globalThis.RuntimeAPITestFiles = {
     'tests/runtime-api/unit/keyboard.test.js',
     'tests/runtime-api/unit/global-shortcut.test.js',
     'tests/runtime-api/unit/events.test.js',
+    'tests/runtime-api/unit/app.test.js',
     'tests/runtime-api/unit/touchscreen.test.js',
     'tests/runtime-api/unit/window.test.js',
     'tests/runtime-api/unit/screen.test.js',

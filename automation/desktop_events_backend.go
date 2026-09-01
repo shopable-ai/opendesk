@@ -311,7 +311,12 @@ type desktopApplicationState struct {
 	Name             string `json:"name"`
 	BundleIdentifier string `json:"bundleIdentifier,omitempty"`
 	Path             string `json:"path,omitempty"`
+	ExecutablePath   string `json:"executablePath,omitempty"`
 	ActivationPolicy int64  `json:"activationPolicy,omitempty"`
+	Active           bool   `json:"active,omitempty"`
+	Hidden           bool   `json:"hidden,omitempty"`
+	Terminated       bool   `json:"terminated,omitempty"`
+	LaunchTimeMS     int64  `json:"launchTimeMs,omitempty"`
 }
 
 type desktopClipboardRevision struct {
@@ -483,7 +488,9 @@ func sortedApplicationPIDs(apps map[int64]desktopApplicationState) []int64 {
 func desktopApplicationData(app desktopApplicationState) map[string]interface{} {
 	return map[string]interface{}{
 		"pid": app.PID, "name": app.Name, "bundleIdentifier": app.BundleIdentifier,
-		"path": app.Path, "activationPolicy": app.ActivationPolicy,
+		"path": app.Path, "executablePath": app.ExecutablePath,
+		"activationPolicy": app.ActivationPolicy, "active": app.Active,
+		"hidden": app.Hidden, "terminated": app.Terminated,
 	}
 }
 
