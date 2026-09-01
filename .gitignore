@@ -37,3 +37,6 @@ screenshot_cut.png
 
 # build/release payloads; keep source and release metadata, not binaries/archives
 /testMonkey.exe
+
+# ShopMe local generated state
+.shopme/
