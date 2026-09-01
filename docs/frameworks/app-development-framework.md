@@ -186,7 +186,6 @@ Evidence
 
 - [自动化总体框架](./automation-framework.md)：定义所有应用共用的执行闭环和系统分层。
 - [能力开发与成熟度路径](./capability-development.md)：定义应该在什么成熟度阶段进入何种真实应用。
-- [Playbook 驱动自动化](./playbook-driven-automation.md)：定义单个可审查流程怎样把业务、状态、定位、验证和 Evidence 固化为不漂移的运行契约。
 - `../architecture/desktop-automation/app-adapter-contract.md`：具体 App Adapter 的详细结构契约。
 - `../architecture/desktop-automation/action-target-model.md`：目标、区域、候选和坐标的专项模型。
 - `../quality/`：失败分类、测试、质量门禁和 Evidence。

@@ -1,80 +1,78 @@
-# Native Extension Plugin V1 adversarial audit
+# Native Extension V1 current macOS adversarial audit
 
-Date: 2026-09-01 (Asia/Shanghai)  
-Branch: `master` (no branch created or switched)  
-Base HEAD: `51e6000b615b4dc67eef49655a2951e9b38d12df`  
-Final disposition: **Accepted, 97/100, Experimental**
+Date: 2026-09-01 (Asia/Shanghai)
+Disposition: **Accepted for the current macOS working-tree snapshot; 99/100**
+Branch/HEAD: `master` / `d5878a0f6d8ac134be1d35250645c926da21ffe6`
 
-This record captures the multi-expert review and dissent process. Reviewers did
-not accept an earlier 98/100 claim. They treated evidence freshness, a real
-public JavaScript call, packaging self-containment, privacy, and strict parsing
-as hard gates and repeatedly invalidated proof runs after shared-worktree source
-changes. Acceptance applies to the dirty working-tree implementation recorded
-by the final source snapshots, not to the base commit by itself.
+This is a macOS-only audit. Linux and Windows are **Out of Scope / Not
+Evaluated**; no cross compilation, package assembly, runtime test, or score for
+either target is included.
 
-## Review panel
+## Evidence freshness challenge
 
-Six independent review roles covered:
+Historical `.runtime` runs were treated only as diagnostics. The accepted run
+is `20260901T082728Z-99420`, launched with
+`./scripts/test_native_extension_plugins.sh --host-only` and outer exit code 0.
+It hashed 194 current working-tree source inputs before and after construction,
+with zero changes. Its source snapshot SHA-256 is
+`67bd8124734fae1f8b1465b3466cb50723316b174f63a17f11319096cfd18ab4`; the
+final summary SHA-256 is
+`bc4d960fd5cc1950d4878974c100e6c0f6b664bd7d7bb0302348c537fcb78b99`.
 
-- architecture and source-input closure;
-- security red-team and privacy attacks;
-- Runtime-evidence integrity and stale-proof detection;
-- cross-platform compile/runtime claim boundaries;
-- JavaScript DX, documentation, schema and TypeScript declarations;
-- explicit dissent, hard-failure search and score challenge.
+The audit rejects attempts to substitute an index or HEAD conclusion for this
+working-tree proof. The baseline found staged Native Extension gate removals in
+the index while the accepted implementation is in the working tree, so no
+claim is made that those three trees are equivalent.
 
-The final verdict from all six roles was 97/100 after the last stale references
-were removed. No P0/P1 remained. The accepted rubric is the 97/100 rubric in
-`native-extension-plugin-v1.md`.
+## Challenge results
 
-## Findings that blocked earlier acceptance
+| Attack or false-green attempt | Result |
+| --- | --- |
+| Normal script supplies executable, extension, wire method, protocol/version, or discovery root | Rejected as a route option; immutable closure keeps the manifest route. |
+| Unknown option key/value reaches persistent execution evidence | Rejected; error text is constant and formal `.js` checks ensure key/value are absent from error Evidence. |
+| HTTP/MCP request enables registry or arbitrary native process | Rejected by the focused Go matrices; only the local CLI experimental flag reaches the registry. |
+| Discovery/list/get/diagnostics starts child or `facade.js` | Rejected: disabled default and independent metadata phases are zero-child; third-party facade remains inert. |
+| Publisher/current-user duplicate overrides another bundle | Rejected: all id/namespace collision contenders quarantine. |
+| Symlink, unsafe parent, writable mode, foreign owner, set-id, or artifact replacement | Rejected during discovery or pre-call artifact revalidation. |
+| macOS extended ACL allow ACE is missed | Rejected; deny-only ACL is separately accepted; `darwin && !cgo` fails closed. |
+| Timeout leaves extension descendants | Process-group termination test passes. stdout/stderr/JSON response remain bounded. |
+| Shell wrapper is called a source-free consumer release | Rejected: canonical archive inventory is exactly manifest, direct Mach-O executable, and optional types; author, manifest, and installed executable SHA-256 all match. |
+| Old evidence, mutable proof input, or hidden other-OS work | Rejected: zero source drift, proof transcript rehash, and no `GOOS`/`GOARCH` command in the 36-command macOS-only transcript. |
+| Raw business/error data, HOME, or executable path persists in Native Extension evidence | Rejected by event/summary/log privacy scans; only user-requested console output contains business results. |
 
-| Adversarial finding | Resolution | Final evidence |
-| --- | --- | --- |
-| Manifest keys could be accepted with wrong casing or semantic duplicates. | Exact-case allowlists and duplicate-free strict JSON were applied at every level; invalid UTF-8 is rejected before JSON decoding. | Manifest unit/adversarial tests and schema validation. |
-| Executable safety did not cover every intermediate directory. | Discovery and pre-call revalidation now validate every parent, reject symlinks and unsafe Unix modes/ownership/setuid/setgid, and fail closed on change. | Discovery/path-security tests and V1 proof. |
-| Raw extension error messages, and later attacker-controlled error codes, could reach evidence. | Public messages are generic; only bounded length/hash metadata remains. Codes must match `[a-z][a-z0-9_]{0,31}` or the response becomes `invalid_response`. | Real re-exec privacy test, red-team replay and 50-artifact scan. |
-| Error paths could omit the public manifest method. | Option and artifact failures retain the immutable manifest-bound public method without accepting a caller-supplied wire method. | Automation tests and failure artifacts. |
-| An app proof could accidentally invoke an external implementation. | App bundles are staged before signing. The wrapper resolves its sibling `.real`; external proof implementations are withheld during the app call; strict codesign verification runs before and after. | Final signed-app call and command transcript. |
-| Core TypeScript declarations pretended optional plugins were installed. | Core types expose the registry contract only. Per-plugin declaration merging supplies namespace and canonical-id types; params are mandatory. | Two independent TypeScript 5.9.3 strict/noEmit acceptances. |
-| A documented quickstart was not necessarily runnable from an unrelated cwd. | The packaged quickstart is executed from an empty unrelated cwd and performs real immutable/list/get/hello/add/diagnostics checks. | V1 packaged-quickstart artifacts. |
-| Third-party bundle JavaScript might become a hidden polyfill/module path. | Discovery never evaluates or compiles `facade.js`; the hostile marker remains false. Custom facade work is explicitly deferred to a separate V1.1 Goal. | Inertness case and zero-child metadata checks. |
-| Proof snapshots originally omitted app-host dependencies or scanned privacy too early. | Both `cmd/opendesk` and `cmd/opendesk-ui-host` dependency closures are included. Commands and source snapshots are included in the 50-artifact scan; final summary serialization is checked before write. | Final 164-input snapshot and summary flags. |
-| Multiple otherwise-passing runs became stale after concurrent CustomUI/proof-harness edits. | Those runs were rejected. The final V1/V0/Runtime trio was rebuilt after the shared inputs stabilized, then independently rehashed against the current workspace. | Fresh runs below; final V1 current drift is zero. |
+## Independent evidence checks
 
-## Final aligned Runtime evidence
+- The canonical user root was installed under an isolated absolute HOME, while
+  real `/Users/mac/Library/Application Support/OpenDesk/NativeExtensions/` was
+  read-only checked and remains absent.
+- `install -d`, `cp -R`, `chmod -R go-w`, `tar`, `shasum`, `cmp`, formal
+  schema validation, and app codesign verification executed successfully.
+- The direct installed archive is
+  `com.example.go-basic_0.1.0_darwin-x86_64.tar.gz` SHA-256
+  `8b665f24adb539410b3e4a9ebd254fa6a7350e419ddfa6ab15010da252a78c53`.
+  Its direct author/installed executable SHA-256 is
+  `d63b6f8d6d55957c87824e47c065e5be0d47dbe9682100f2cc93b99cb56221f5`.
+- The Host SHA-256 is
+  `dbdbfef8f3af572b8633b84ac65699f02ba59f4db40bf027b9691f77645422af`.
+- Canonical diagnostics had zero call events; ordinary `hello` and `add`
+  produced two successful `current_user` calls and
+  `{"hello":{"message":"Hello OpenDesk"},"sum":{"value":42}}`.
+- Real Apple Vision OCR passed. Portable and app-bundled publisher roots passed,
+  and `codesign --verify --deep --strict` succeeded before and after the app
+  call.
+- Formal Runtime JavaScript unit run `20260901T082552Z-95706` passed 339/339;
+  NativeExtensions is 10/10. Native Extension Go security tests and the
+  automation/execution/HTTP/MCP focused matrix passed.
 
-The three final acceptance paths use the same current-source `opendesk` SHA-256,
-`745957f4d1dbf0f0d8ff3112de9beb961b264d901aef3feb6914d9c4ce083888`:
+## Dissent and residual risk
 
-- V1: `.runtime/tests/extensions/native-plugin/20260831T205247Z-8374/summary.json`
-  passed with 165 inputs, zero run-time and post-run drift, 27 recorded commands,
-  repository-external author builds, Linux/Windows target bundle assembly,
-  seven Go children, one real Vision child, signed-app and privacy proof.
-- V0: `.runtime/tests/extensions/native-process/20260831T204954Z-2584/summary.json`
-  passed 23/23 with real Vision OCR.
-- Formal public JavaScript acceptance:
-  `.runtime/tests/runtime-api/20260831T205017Z-3255/results/unit.json` passed all
-  10 NativeExtensions cases. The current full Runtime suite was 305/306 because
-  an unrelated `window.list` case hit a macOS enumeration timeout with no
-  on-screen frontmost window, and is not called green.
+No P0/P1 finding remains for the accepted snapshot. P2 concerns are real but
+disclosed: validation-to-exec has a TOCTOU interval, a digest does not
+authenticate a publisher or transitive dependencies, and an invoked extension
+has the user's OS authority because V1 is not a sandbox. Machine-wide discovery,
+custom JS facades, Manager/download/build hooks, hot reload, and persistent
+processes remain unimplemented.
 
-Supporting checks passed: the full six-package Go regression, focused execution
-privacy/opt-in tests, focused race tests, TypeScript 5.9.3 strict/noEmit for
-installed-plugin and core-only declarations, and Draft 2020-12 schema validation
-with jsonschema 4.23.0 for both example manifests.
-
-## Residual P2 risks and follow-up
-
-The reviewers intentionally retained three points of score deduction:
-
-- Linux and Windows have cross-compile evidence, not target-machine Runtime
-  evidence; Windows also lacks Unix-equivalent ACL trust checks and Job Object
-  descendant containment.
-- The final validation-to-exec TOCTOU interval remains, and an executable runs
-  with the current user's privileges; SHA-256 is not publisher authentication.
-- The macOS app proof is ad-hoc signed, not Developer ID signed/notarized.
-
-These are accurately disclosed Experimental limitations. A follow-on thread may
-add target-OS CI/runtime evidence and release-signing evidence. Custom JavaScript
-facades remain a separate V1.1 design and must not be added to this V1 proof.
+The conclusion applies only to this Mac and this working-tree snapshot. It is
+not evidence of Linux/Windows behavior, a public release asset, a Stable ABI,
+or a cross-platform acceptance result.

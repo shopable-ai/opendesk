@@ -1,181 +1,158 @@
-# Native Extension Plugin Auto-Discovery V1 quality report
+# Native Extension V1 current macOS revalidation
 
-Date: 2026-09-01 (Asia/Shanghai)  
-Status: **Verified Experimental**  
-Branch: `master` (no branch created or switched)  
-Base HEAD: `51e6000b615b4dc67eef49655a2951e9b38d12df`  
-Expert-quality score: **97/100**
+Date: 2026-09-01 (Asia/Shanghai)
+Status: **In progress — no current-source acceptance yet (Experimental)**
+Branch: `master` (no branch created, switched, staged, committed, or pushed)
+Acceptance object: dirty working-tree snapshot at
+`d5878a0f6d8ac134be1d35250645c926da21ffe6`
 
-The implementation is present in the dirty working tree on top of this base
-HEAD; the HEAD alone does not contain the uncommitted/untracked V1 files. The
-final proof records that exact condition rather than implying a clean commit.
+This report is being revalidated for the macOS-only Goal. The recorded run below
+was invalidated when its frozen source-input list no longer matched the working
+tree, so it is historical context only and must not be cited as current
+acceptance. Linux and Windows are **Out of Scope / Not Evaluated**: this goal
+does not build, package, test, or score either target.
 
-## Outcome and delivery map
+## Current Mac and canonical install location
 
-V1 auto-discovers strict manifest bundles and creates Host-generated immutable
-JavaScript bindings. Normal code is:
-
-```js
-NativeExtensions.goBasic.hello({ name: "OpenDesk" });
-NativeExtensions.goBasic.add({ a: 20, b: 22 });
-```
-
-It never supplies an executable path, extension basename, protocol, or wire
-method. The registry is absent by default, metadata access starts no child,
-third-party bundle JavaScript is inert, and every generated method call is a
-fresh one-shot process.
-
-1. Roots are deployment root first (portable executable sibling, or macOS app
-   `Contents/Resources/NativeExtensions`), then
-   `os.UserConfigDir()/OpenDesk/NativeExtensions`. Cwd, PATH, source ancestors,
-   polyfills and jslibs are not scanned.
-2. Bundle layout is `<root>/<canonical-id>/extension.json`, a bundle-relative
-   executable, and optional editor-only `types/index.d.ts`.
-3. Manifest contract/schema: `pkg/nativeextension/manifest.go` and
-   `schemas/native-extension/extension-manifest-v1.schema.json`.
-4. Registry/path security: `pkg/nativeextension/discovery.go` and
-   `path_security_*.go`. Exact-case strict JSON, invalid UTF-8, collisions,
-   symlinks, unsafe executable parent directories, modes/ownership, digests,
-   empty/relative roots and pre-call artifact changes fail closed.
-5. Immutable binding: `automation/native_extensions.go`; root/namespaces/
-   functions are frozen, properties are non-writable/non-configurable, and
-   root/namespace prototypes are null.
-6. Types/docs/index: `types/NativeExtension.d.ts`, plugin declarations under
-   `examples/native-extensions/*/types`, `docs/api/native-extension.md`,
-   and `docs/api/runtime-api.ai.json`. Core types do not pretend optional
-   plugins are installed; params are mandatory and canonical `get(id)` is typed.
-7. Deployment: `scripts/build_macos_app.sh` accepts an absolute, non-symlink
-   bundle source, rejects non-bundle direct children, stages before codesign,
-   and never executes third-party JavaScript.
-8. V1.1 custom facade, activation, persistent process, manager/store/update,
-   signature infrastructure, sandbox and module loader remain out of scope.
-
-## Current-source Runtime Evidence
-
-### V1 distribution proof
-
-Final evidence:
+The evidence machine is macOS 12.7.6 (`Darwin x86_64`). The only current-user
+formula is:
 
 ```text
-.runtime/tests/extensions/native-plugin/20260831T205247Z-8374/summary.json
-.runtime/tests/extensions/native-plugin/20260831T205247Z-8374/commands.ndjson
-.runtime/tests/extensions/native-plugin/20260831T205247Z-8374/source-input-snapshot.json
+$HOME/Library/Application Support/OpenDesk/NativeExtensions/
 ```
 
-The proof passed on `master` at the base HEAD above with 165 inputs and zero
-before/after changes. Inputs include both app Go targets, every
-`pkg/nativeextension` platform file, the app build script, schema, core types,
-the author/user documentation, examples, proof scripts, polyfills and jslibs.
-Its 27-command transcript records exit codes, durations, stream digests and
-relevant build/runtime environments.
+The real user home was read-only checked as `/Users/mac`; its target root did
+not exist before or after proof. To avoid modifying personal plugins, the proof
+used an isolated absolute `HOME` and installed this exact source-free tree:
 
-Verified results:
+```text
+com.example.go-basic/
+  extension.json
+  bin/native-ext-go-basic
+  types/index.d.ts
+```
 
-- default global absent; discovery/list/get/diagnostics child count zero;
-- hostile `facade.js` was not executed;
-- portable, current-user and ad-hoc-signed app-bundled roots passed;
-- `hello -> {"message":"Hello OpenDesk"}` and `add -> {"value":42}`;
-- real Apple Vision OCR returned `OPENDESK OCR 123\n你好 456`, 1200x520,
-  two items;
-- packaged repository quickstart ran successfully from an unrelated empty cwd;
-- Go and Swift extension sources were copied into a separate
-  `/private/tmp/opendesk-native-extension-author-*` author workspace and built
-  there with `go build -trimpath` and `xcrun swiftc -O`; neither author build
-  required OpenDesk Core source;
-- seven Go children and one Vision child exactly matched expected one-shot calls;
-- signed app passed `codesign --verify --deep --strict` before and after its
-  manifest-bound hello; external proof executables were withheld, proving the
-  staged sibling implementation was used;
-- source-isolated package inventory: 37 files, no symlink or implementation
-  source, and package-local polyfill/jslib provenance;
-- a publisher-style macOS tar.gz was checksum-verified, extracted into a fresh
-  portable install, and its normal quickstart passed from `/private/tmp`; the
-  artifacts are under
-  `.runtime/dist/native-extension-examples/20260831T205247Z-8374/` and
-  `.runtime/tests/extensions/native-plugin/install-smoke-20260831T205247Z-8374/`;
-- extension error text was absent from the six failure artifacts and 50
-  persistent text artifacts, including the command transcript and source-input
-  snapshot; the final summary serialization was checked before it was written;
-  only bounded byte/hash metadata was retained;
-- Linux/Windows amd64 `pkg/nativeextension` test binaries and Go example
-  executables cross-compiled with recorded size and SHA-256. Source-free Linux
-  tar.gz and Windows zip bundles were also assembled; the Windows target
-  manifest names the exact `.exe` and both manifests bind the final executable
-  digest. This is compile/package evidence, not target-OS Runtime evidence.
+The user does not compile an extension. A publisher supplies an OS/CPU-matched
+precompiled archive, the user verifies it and copies the whole bundle into the
+canonical root. Plugin authors/CI use their normal toolchain; this proof ran
+`go build -trimpath -buildvcs=false`, a one-request Protocol V0 wire test,
+manifest SHA-256/schema validation, a Darwin archive/checksum, and installed
+Runtime smoke. The repository has no public publisher asset: **Not Published /
+Not Verified**. Files under `.runtime/` are local acceptance evidence only.
 
-Measured single-machine acceptance timings (not benchmarks):
+## Historical candidate evidence — invalid for the current source
 
-| Measure | Value |
+The following `./scripts/test_native_extension_plugins.sh --host-only` record
+previously exited 0, but its source-input snapshot is stale. It is retained only
+to make the freshness failure auditable.
+
+| Evidence | Value |
+| --- | --- |
+| Run id | `20260901T082728Z-99420` |
+| Source inputs | 194, before/after drift `0` |
+| Source snapshot SHA-256 | `67bd8124734fae1f8b1465b3466cb50723316b174f63a17f11319096cfd18ab4` |
+| Host SHA-256 | `dbdbfef8f3af572b8633b84ac65699f02ba59f4db40bf027b9691f77645422af` |
+| Author and installed plugin SHA-256 | `d63b6f8d6d55957c87824e47c065e5be0d47dbe9682100f2cc93b99cb56221f5` |
+| Darwin archive | `com.example.go-basic_0.1.0_darwin-x86_64.tar.gz` |
+| Archive SHA-256 | `8b665f24adb539410b3e4a9ebd254fa6a7350e419ddfa6ab15010da252a78c53` |
+| Final summary SHA-256 | `bc4d960fd5cc1950d4878974c100e6c0f6b664bd7d7bb0302348c537fcb78b99` |
+
+The canonical archive is a direct Mach-O x86_64 executable, with no wrapper,
+`.real` indirection, source files, or third-party JavaScript execution. Its
+manifest digest, author executable, and installed executable are identical.
+The proof actually executed `install -d -m 700`, `cp -R`, `chmod -R go-w`,
+`tar`, `shasum`, `cmp`, formal Draft 2020-12 schema validation, and
+`codesign --verify --deep --strict` on the staged app bundle.
+
+From an unrelated empty cwd, canonical diagnostics emitted zero call events;
+`list()`, `get()`, and `diagnostics()` started zero children. The subsequent
+ordinary business-only script returned:
+
+```js
+function main() {
+  const hello = NativeExtensions.goBasic.hello({ name: "OpenDesk" });
+  const sum = NativeExtensions.goBasic.add({ a: 20, b: 22 });
+  console.log(JSON.stringify({ hello, sum }));
+}
+
+main();
+```
+
+```bash
+opendesk -experimental-native-extension -script /absolute/path/hello.js -console-mode script
+```
+
+```json
+{"hello":{"message":"Hello OpenDesk"},"sum":{"value":42}}
+```
+
+The normal calls used the canonical `current_user` root and produced two
+successful `native_extension_call` records. The same proof ran real Apple
+Vision OCR, verified portable and app-bundled publisher roots, and confirmed
+the signed app bundle was unchanged after the call.
+
+## Historical candidate test results — not current acceptance
+
+- `go test ./pkg/nativeextension -count=1` passed, including symlink,
+  mode/owner, digest/replacement, collision, process-group timeout, Darwin ACL
+  allow rejection, deny-only ACL acceptance, and no-cgo fail-closed contracts.
+- `go test ./automation ./pkg/execution ./pkg/http ./pkg/mcpserver -count=1`
+  passed. The matrix keeps registry activation local to the explicit CLI flag;
+  HTTP and MCP cannot inject roots or execute caller-selected extensions.
+- `./scripts/test_runtime_apis.sh unit` passed in
+  `.runtime/tests/runtime-api/20260901T082552Z-95706/results/unit.json`:
+  339/339, with all 10 NativeExtensions cases passing.
+- The formal `.js` route/root attack matrix rejects caller-selected executable,
+  extension, wire method, protocol, version, root, and discovery root. A new
+  opaque unknown-option test confirms neither attacker key nor value appears in
+  returned Runtime Evidence. The fixed implementation emits only the constant
+  message `only timeoutMs is supported`.
+- Discovery is inert; `facade.js` remains unexecuted. Bound namespace/method
+  closures are null-prototype, frozen, non-writable, non-configurable, and
+  validated again before every invocation.
+- Persistent proof text excludes raw extension errors, business params/results,
+  isolated HOME, and absolute canonical executable paths. User console output
+  remains distinct from Native Extension Event/summary Evidence.
+
+## Scope correction made in this Goal
+
+The proof harness's `--host-only` path formerly still ran Linux/Windows
+cross-compilation and reported them in its score. It now skips those operations
+entirely and records `crossCompile.status: not_run`; its accepted macOS summary
+names Linux and Windows only as Out of Scope / Not Evaluated. The current run's
+36 command transcript contains no `GOOS` or `GOARCH` cross-target command.
+
+The Runtime binding also no longer embeds an unknown option's caller-controlled
+key in an Error message that could reach execution persistence.
+
+## Withdrawn candidate score
+
+| Role | Conclusion |
+| --- | --- |
+| Main executor | Three-layer baseline completed before writes; final proof froze the working-tree inputs and observed zero drift. |
+| Architecture | Pass: manifest → discovery → immutable Binding → pre-call artifact validation → one-shot Host is reachable only through the local CLI experimental gate. |
+| macOS security red team | Pass: symlink, owner/mode, allow ACL, deny-only ACL, digest/replacement, timeout/bounds, collision, route/root injection, and error/privacy attacks fail closed or are contained. |
+| Consumer/author DX | Pass: first-screen docs give precompiled bundle, location, complete `.js`, CLI, output, diagnostics, wire/schema/archive/checksum workflow, and state that public assets are unavailable. |
+| Evidence | Pass: source snapshot, source-free inventory, hashes, command exit/hash records, zero-child phase, actual install commands, direct executable check, and privacy scans were independently recomputed. |
+| Adversarial dissent | No P0/P1 found in the current snapshot; it rejects stale evidence, wrapper-as-release, index/working-tree conflation, and cross-target claims. |
+
+| Dimension | Score |
 | --- | ---: |
-| disabled startup | 1157.286 ms |
-| metadata-only Runtime process | 155.252 ms |
-| first hello Host call | 1163 ms |
-| add Host call | 15 ms |
-| Apple Vision OCR Host call | 1848 ms |
-| later hello Runtime process | 175.365 ms |
-| packaged quickstart Runtime process | 186.049 ms |
-| current-user call Runtime process | 1295.153 ms |
-| signed-app hello Runtime process | 1159.512 ms |
+| Consumer first use | 20/20 |
+| Author build and release | 15/15 |
+| macOS discovery and immutable binding | 20/20 |
+| macOS security | 19/20 |
+| Current-source Runtime Evidence | 20/20 |
+| Scope discipline | 5/5 |
+| **Total** | **99/100** |
 
-### Compatibility and public JavaScript acceptance
+These historical statements do not establish the present P0/P1 status. P2
+residual risks recorded at the time were:
+validation-to-exec is not atomic, the manifest digest does not authenticate a
+publisher or transitive executable dependencies, and V1 is not a sandbox or
+permission broker. They do not weaken the macOS evidence claim or change the
+Experimental status.
 
-- Fresh V0 compatibility:
-  `.runtime/tests/extensions/native-process/20260831T204954Z-2584/summary.json`,
-  passed 23/23 with no source-status drift and real Vision OCR.
-- Fresh Runtime API unit:
-  `.runtime/tests/runtime-api/20260831T205017Z-3255/results/unit.json`.
-  All 10 NativeExtensions contract/behavior tests passed. The full Runtime
-  aggregate was 305/306 because the unrelated `window.list` case hit a macOS
-  `osascript` timeout with no on-screen frontmost window; it is not called green.
-- V1, V0, and Runtime API used the same current-source `opendesk` binary SHA-256:
-  `745957f4d1dbf0f0d8ff3112de9beb961b264d901aef3feb6914d9c4ce083888`.
-- `go test ./pkg/nativeextension ./automation ./pkg/execution ./cmd/opendesk ./pkg/http ./pkg/mcpserver -count=1`
-  passed. Focused `-race` tests for nativeextension/automation passed.
-- TypeScript 5.9.3 strict compilation separately passed both
-  `types-acceptance.ts` and the core-only negative acceptance file.
-- Python jsonschema 4.23.0 validated the Draft 2020-12 schema itself and both
-  example manifests.
-
-## Security and limitations
-
-Extension-controlled error messages are replaced with a generic public message
-plus byte count/SHA-256. Extension error codes must match
-`[a-z][a-z0-9_]{0,31}` or the response becomes `invalid_response`. Persistent
-Evidence excludes params, results, raw streams, home paths and full manifests.
-
-V1 is not a sandbox. Executables run with the current user's privileges, SHA-256
-does not authenticate a publisher, and a final validation-to-exec TOCTOU window
-remains. Windows has compile coverage but no real Runtime evidence, no Unix-
-equivalent ACL trust check, and no Job Object descendant containment. The app
-proof uses ad-hoc signing, not Developer ID/notarization. These are disclosed
-Experimental limitations, not Stable security guarantees.
-
-## Expert rubric
-
-The six-role architecture, security, evidence, cross-platform, DX/docs and
-dissent review is recorded in
-`docs/quality/native-extension-plugin-v1-adversarial-audit.md`.
-
-| Dimension | Score | Evidence |
-| --- | ---: | --- |
-| Architecture reuse and boundaries | 15/15 | One V0 Host/Protocol; manifest, discovery, binding and gates remain separated. |
-| JavaScript experience | 15/15 | Business-params-only immutable namespace calls; no routing fields exposed. |
-| Security and activation semantics | 19/20 | Default off, inert discovery, strict paths/permissions/collisions, pre-call revalidation, bounded private errors; retained risk for Windows ACL and TOCTOU. |
-| Protocol, errors and lifecycle | 15/15 | Strict request/response, invalid UTF-8/error-code rejection, one-shot, timeout/crash/artifact diagnostics. |
-| Tests, isolation and Runtime evidence | 19/20 | Fresh V0/V1/JS/race, real OCR, self-contained signed app, privacy and cross-compile; no real Windows/Linux Runtime. |
-| Docs, types and deployment reality | 9/10 | Copy-paste packaging, real quickstart/app staging, strict TypeScript; ad-hoc rather than release signing. |
-| Scope and maintainability | 5/5 | No facade/module system, activation, persistent lifecycle or manager expansion. |
-| **Total** | **97/100** | No Goal hard-failure condition remains. |
-
-## Follow-on decisions
-
-V1.1 Trusted JS Adapter is worthwhile only after real plugins require overloads,
-multi-call composition or return adaptation that generated methods cannot
-express. It must be a separate Goal: dedicated restricted Goja realm,
-bundle-confined size/hash-bounded loader, compile-only discovery, first-use
-execution, plugin-bound declared-method invoke, JSON-only cross-realm values and
-no File/System/page/http/raw NativeExtension capability by default.
-
-Startup activation and Persistent Process V2 are not justified by this one-shot
-acceptance. They require a separate benchmark-backed Goal for heartbeat,
-reconnect, crash recovery, shutdown ordering and state isolation.
+The historical local candidate evidence is
+`.runtime/tests/extensions/native-plugin/20260901T082728Z-99420/`; it is not
+current-source evidence.

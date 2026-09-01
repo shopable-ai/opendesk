@@ -413,7 +413,7 @@ Mitigation:
 Mitigation:
 
 - keep `docs/api/` as the sole maintained user API root;
-- reject reintroduction of `docs-api/` or `docs-api-user`.
+- reject reintroduction of `docs-api/` or `docs-api-user/`.
 
 ## Success criteria
 

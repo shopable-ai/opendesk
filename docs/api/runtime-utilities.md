@@ -56,7 +56,7 @@ Sound.play('./public/done.mp3');
 const toolbar = new FloatingWindow({ x: 100, y: 100, theme: "dark" });
 ```
 
-旧的 `FloatingWindow.addButton(...)` 静态调用仍代理到一个空的默认实例，但新代码应使用构造器。v1 要求第一次 `show()` 时有 1–32 个按钮，保持声明顺序。默认按钮是纯图标：每个点击盒固定为 40×40pt，间隔为 8pt，窗口宽度只由按钮数量决定、达到 960pt 安全上限后由 native host 换行，位置不因布局改变。label 最多 60 个 Unicode 字符，**不显示在按钮正文**，但完整保留为 AppKit tooltip、macOS Accessibility name 和 callback/debug evidence。
+旧的 `FloatingWindow.addButton(...)` 静态调用仍代理到一个空的默认实例，但新代码应使用构造器。v1 要求第一次 `show()` 时有 1–32 个按钮，保持声明顺序。默认 `orientation` 是 `"horizontal"`：纯图标点击盒固定为 40×40pt，间隔为 8pt，窗口宽度只由按钮数量决定、达到 960pt 安全上限后由 native host 换行，位置不因布局改变。`orientation: "vertical"` 使用同一个原生 `NSStackView` 从上到下排列声明的 1–5 个按钮，固定宽 60pt；5 个按钮时外框高 273pt（含原生标题栏 25pt），这是为常见 1080p 显示器选定的安全上限，避免纵向 6–32 个按钮把窗口撑到屏幕外。vertical 超过 5 个按钮在 `addButton()` 或 `show()` 以 `INVALID_SPEC` 失败；不会自动换列或偷偷裁切。两种方向的位置 `x/y` 都保持调用方声明值。label 最多 60 个 Unicode 字符，**不显示在按钮正文**，但完整保留为 AppKit tooltip、macOS Accessibility name 和 callback/debug evidence。
 
 主要方法：
 
@@ -108,7 +108,7 @@ normal、hover、pressed、active、disabled、busy、error 都保持同一 40×
 
 每个按钮默认 single-flight：callback 未完成时进入 busy，同一按钮的重复真实点击不会再次启动，其他按钮仍可响应。callback 的同步返回值与 Promise 都会被等待；成功清除 busy。失败会先清除 busy、设置 error 视觉状态，再产生 `UI_CALLBACK_FAILED`，包含 `operation`、`windowId`、`targetId` 和 `capability`。用 `onError` 显式处理；用 `updateButton(id, { error: null })` 清除错误状态。
 
-show 后增删按钮仍返回 `INVALID_STATE`，但上述六种状态更新始终允许。label 更新只更新 tooltip/AX，不会改变 icon-only 按钮或窗口 bounds。约 20 行的最小示例见 `examples/custom-ui/minimal-five-button-toolbar.js`；结构化证据版本 `evidence-five-button-toolbar.js` 会在 `Execution.artifactDir/floating-toolbar/result.json`（无 artifactDir 时回退 `.runtime/examples/custom-ui/floating-toolbar/result.json`）记录 callback 名称、分支和最终 UI 状态。`examples/floatwindow.js` 展示旧静态入口的迁移方式。
+show 后增删按钮仍返回 `INVALID_STATE`，但上述六种状态更新始终允许。label 更新只更新 tooltip/AX，不会改变 icon-only 按钮或窗口 bounds。约 20 行的最小示例见 `examples/custom-ui/minimal-five-button-toolbar.js`；结构化证据版本 `evidence-five-button-toolbar.js` 会在 `Execution.artifactDir/floating-toolbar/result.json`（无 artifactDir 时回退 `.runtime/examples/custom-ui/floating-toolbar/result.json`）记录 callback 名称、分支和最终 UI 状态。客服场景的纵向快捷回复见 `examples/custom-ui/customer-service-vertical-toolbar.js`。`examples/floatwindow.js` 展示旧静态入口的迁移方式。
 
 ## notify / timers / sleep：基础运行时能力
 

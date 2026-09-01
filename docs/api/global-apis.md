@@ -6,7 +6,7 @@ order: 12
 
 # 全局接口（Global APIs）
 
-本页说明 OpenDesk JavaScript Runtime 直接提供的全局函数、构造器和异步基础能力。
+本页说明 OpenDesk JavaScript Runtime 直接提供的全局函数、全局对象、构造器和异步基础能力。
 脚本无需 `import`，即可直接调用：
 
 ```js
@@ -27,6 +27,7 @@ main();
 | `setInterval` / `clearInterval` | 周期执行与取消 | Stable | 回调必须主动清理 |
 | `requestAnimationFrame` / `cancelAnimationFrame` | 约 60 FPS 的延迟回调 | Stable / Compatibility | 基于 timer，不是浏览器绘制循环 |
 | `sleep` / `sleepSeconds` | Promise 风格等待 | Stable | 不阻塞 Runtime 事件循环 |
+| `console` | 日志与执行事件输出 | Stable | 全局日志对象；方法同步返回 |
 | `copyToClipboard` / `getClipboard` | 剪贴板快捷读写 | Stable | `clipboard` 对象的全局快捷入口 |
 | `notify` | 系统通知 | Secondary | 成功提交不代表用户已看到 |
 | `alert` / `confirm` / `prompt` | 异步原生模态提示与短文本输入 | Conditional | 返回 Promise，不是浏览器同步 dialog |
@@ -122,7 +123,65 @@ console.log(text);
 | `getClipboard` | `getClipboard()` | `string` | 读取当前剪贴板文本 |
 
 需要清空剪贴板、处理平台重试或使用完整对象接口时，请阅读
-[Clipboard and Console](clipboard-console.md) 的 `clipboard` 部分。
+[Clipboard API](clipboard.md)。
+
+## `console`：日志与执行事件输出
+
+`console` 是 Runtime 提供的全局日志对象。它不需要导入或实例化；所有方法都是同步
+调用并返回 `undefined`。
+
+**方法总表**
+
+| 方法 | 用途 |
+| --- | --- |
+| `console.log(...args)` | 普通日志 |
+| `console.info(...args)` | 信息日志 |
+| `console.warn(...args)` | 警告日志 |
+| `console.error(...args)` | 错误日志 |
+| `console.debug(...args)` | 调试日志 |
+| `console.table(data)` | 打印 JSON 风格表格 |
+| `console.group(label)` | 分组开始标记 |
+| `console.groupEnd(label)` | 分组结束标记 |
+| `console.time(label)` | 计时开始标记 |
+| `console.timeEnd(label)` | 计时结束标记 |
+| `console.clear()` | 清理终端显示 |
+
+```js
+console.log('hello', { ok: true });
+console.info('starting');
+console.warn('be careful');
+console.error('something failed');
+console.debug('debug info');
+```
+
+结构化执行入口可以把日志作为执行事件流输出；直接终端运行时，日志会写入终端。
+`null` 和 `undefined` 会被显式标记，复杂对象会被转换为 JSON 风格文本。
+
+### `console.table(data)`
+
+```js
+console.table([
+  { name: 'A', score: 90 },
+  { name: 'B', score: 95 },
+]);
+```
+
+### `console.group(label)` / `console.groupEnd(label)`
+
+```js
+console.group('OCR Run');
+console.log('step 1');
+console.log('step 2');
+console.groupEnd('OCR Run');
+```
+
+### `console.time(label)` / `console.timeEnd(label)`
+
+```js
+console.time('capture');
+await page.waitForTimeout(500);
+console.timeEnd('capture');
+```
 
 ## `notify`：系统通知
 
@@ -252,7 +311,7 @@ runTask();
 
 “全局接口”是用户导航用语，不意味着所有全局对象都集中在本页。按用途继续阅读：
 
-- `console` 和 `clipboard`：见 [Clipboard and Console](clipboard-console.md)。
+- `clipboard` 对象：见 [Clipboard API](clipboard.md)。
 - `axios` 和 `AbortController` 的 HTTP 用法：见 [HTTP and Axios](http.md)。
 - `page` 的等待、截图和权限：见 [Page API](page.md)。
 - `notify()` 的详细通知契约：见 [notify](notify.md)。
@@ -280,11 +339,11 @@ runTask();
 才需要查看实现来源。一个接口可以同时具有 Native 与 Polyfill 两种来源，但用户只应依赖
 这里及各专题页列出的最终调用方式。
 
-本页只收录“直接挂在 JavaScript 全局作用域上的辅助能力”。`page`、`window`、`clipboard`、
-`console`、`axios` 等也可以直接访问，但它们有独立的用户文档：
+本页收录直接挂在 JavaScript 全局作用域上的辅助能力，包括 `console`。`page`、`window`、
+`clipboard`、`axios` 等虽然也可以直接访问，但有独立的专题文档：
 
 - [Page API](page.md)：页面入口、截图、打开 URL / App、等待和权限。
 - [Window API](window.md)：窗口读取与控制。
-- [Clipboard and Console](clipboard-console.md)：`clipboard` 对象和 `console`。
+- [Clipboard API](clipboard.md)：完整的 `clipboard` 对象方法。
 - [HTTP and Axios](http.md)：`http` 与全局 `axios`。
 - [Runtime Stacks](runtime.md)：运行时装载顺序和 upgraded / playwright 兼容入口。

@@ -8,10 +8,17 @@ order: 15
 
 > 状态：**Experimental**。V1 是自动发现与不可变 Binding Prototype，不是 Stable ABI、Stable SDK、插件商店或安全沙箱。
 
-## NativeExtensions：五分钟安装并调用第一个扩展
+## NativeExtensions：拿到预编译 bundle 后，五分钟安装并调用
 
 普通使用者安装**与当前 OS/CPU 匹配的预编译 bundle**，不编译扩展，也不需要 OpenDesk
 源码。插件作者或其 CI 才负责编译和发布每个平台的 archive。
+
+> Public publisher asset status: **Not Published / Not Verified**. This
+> repository currently supplies maintainable example source, not a public
+> download. The five-minute flow starts only after a trusted publisher has
+> supplied a matching precompiled archive and its checksum/signature. A local
+> `.runtime/` archive is acceptance handoff evidence only; it is never a public
+> Release Asset.
 
 解压后的完整 bundle 至少包含：
 
@@ -23,6 +30,11 @@ com.example.go-basic/
 ```
 
 目录名必须等于 manifest `id`。把整个 `com.example.go-basic/` 安装到当前用户的固定目录：
+
+普通使用者只安装上面的 compiled bundle。`main.go`、`go.mod` 和
+[`quickstart.js`](https://github.com/shopable-ai/opendesk/blob/master/examples/native-extensions/quickstart.js) 不是插件目录内容；完整的
+source-to-bundle mapping 和作者教程见
+[`examples/native-extensions/README.md`](https://github.com/shopable-ai/opendesk/blob/master/examples/native-extensions/README.md)。
 
 | 平台 | 唯一推荐的 current-user root |
 | --- | --- |
@@ -70,6 +82,8 @@ $dataHome = [Environment]::GetFolderPath('LocalApplicationData')
 if (-not [IO.Path]::IsPathFullyQualified($dataHome)) { throw 'LocalAppData must be absolute' }
 $installRoot = Join-Path $dataHome 'OpenDesk\NativeExtensions'
 $target = Join-Path $installRoot 'com.example.go-basic'
+if (-not (Test-Path -LiteralPath (Join-Path $source 'extension.json') -PathType Leaf)) { throw 'extension.json is missing' }
+if (-not (Test-Path -LiteralPath (Join-Path $source 'bin\native-ext-go-basic.exe') -PathType Leaf)) { throw 'target executable is missing' }
 if (Test-Path $target) { throw "target already exists: $target" }
 New-Item -ItemType Directory -Force -Path $installRoot | Out-Null
 Copy-Item -Recurse -LiteralPath $source -Destination $target
@@ -87,9 +101,10 @@ function main() {
 main();
 ```
 
-从任意工作目录运行：
+从任意工作目录运行；下例明确使用与仓库无关的目录：
 
 ```bash
+cd /private/tmp
 opendesk \
   -experimental-native-extension \
   -script /absolute/path/hello.js \
@@ -220,9 +235,9 @@ V1 不扫描 cwd、源码祖先、`PATH` 或 `polyfills/jslibs`。优先顺序�
 
 ### NativeExtensions：Experimental prototype 目录迁移
 
-仓库当前 HEAD/历史没有已提交的 Native Extension V1 path contract；V1.0.1 在首次正式纳入
-前把 Linux prototype 从 config 改为 XDG data，把 Windows prototype 从 roaming 改为
-LocalAppData。旧 config/roaming 目录不再扫描，也不会被自动复制、移动、合并或删除。
+当前已维护 release tag `v0.2.2` 早于 Native Extension V1；首次提交的 discovery 仍是
+Experimental，且已采用本页的 canonical data roots。因此没有已发布的旧 config/roaming
+兼容承诺。旧 prototype 目录不扫描，也不会被自动复制、移动、合并或删除。
 若曾使用外部分发的 Experimental build，先停止所有 execution，核验 publisher 与 bundle，
 把一个完整 bundle 安装到 canonical root，再以 `list()`/`diagnostics()` 验证；不得 merge-copy
 到已有目标。若支持渠道发现不能人工确认的真实旧用户数据，应停止批量迁移并建立独立
@@ -359,6 +374,36 @@ OpenDesk V1 不拉取源码、不安装编译器、不解析构建依赖，也�
 script、包管理依赖或下载矩阵。未来若需要自动下载/更新，应使用独立 Distribution/Manager
 manifest，不污染当前 Runtime manifest。
 
+### 示例文件、成品 bundle 与业务脚本的精确映射
+
+仓库保存的是可维护 example source；它不是已经发布的 archive。`go-basic` 的每个文件有
+唯一归属：
+
+| Repository file | Purpose | Goes in canonical plugin root? |
+| --- | --- | --- |
+| `examples/native-extensions/go-basic/main.go` | Plugin author's Protocol V0 implementation source | No |
+| `examples/native-extensions/go-basic/go.mod` | Plugin author's Go module metadata | No |
+| `examples/native-extensions/go-basic/extension.json` | Manifest template, copied to the compiled bundle root | Yes |
+| `examples/native-extensions/go-basic/types/index.d.ts` | Optional editor declarations | Optional: `types/index.d.ts` |
+| [`examples/native-extensions/quickstart.js`](https://github.com/shopable-ai/opendesk/blob/master/examples/native-extensions/quickstart.js) | Consumer business script calling `NativeExtensions.goBasic.*` | No; keep it in any script directory |
+
+The author build transforms those source inputs into one source-free target
+bundle such as `com.example.go-basic/extension.json +
+bin/native-ext-go-basic + optional types/index.d.ts`. Install that complete
+directory, never only its executable and never the Go source or quickstart.
+
+### Distribution layers
+
+| Layer | Current status | What it means |
+| --- | --- | --- |
+| Repository source | Maintained | The files above are source/templates, not a precompiled download. |
+| Local acceptance archive | Local only | Build/package output under `.runtime/`, with target, SHA-256, inventory and installed-smoke evidence; it is not publishable by implication. |
+| Public publisher asset | **Not Published / Not Verified** | No official URL, checksum or signature is available from this repository. Do not represent a local archive as a Release Asset. |
+
+The consumer and author walkthrough, including the canonical example build
+output and formal JavaScript smoke, is
+[`examples/native-extensions/README.md`](https://github.com/shopable-ai/opendesk/blob/master/examples/native-extensions/README.md).
+
 只有插件作者或没有预编译产物的 source builder 才需要编译器，并且只需要插件自己的
 工具链，不需要重新编译 `opendesk`：
 
@@ -382,13 +427,14 @@ checksums.txt
 及 SHA-256 可以不同。Windows archive 通常包含 `bin/native-ext-foo.exe`，该 target 的
 manifest 必须写这个精确路径。使用者只安装与当前 OS/arch 匹配的一份 bundle。
 
-作者的标准流程是 `build → wire test → package → installed Host smoke`：
+作者的标准流程是 `build → wire test → schema/digest → package → installed Host smoke`：
 
 1. 用语言原生 release 工具编译 executable。
 2. 直接向 stdin 写入一条 Protocol V0 JSON，验证 stdout 只有一条响应，诊断只写 stderr。
-3. 组装 `<id>/extension.json + bin/executable + optional types/README/LICENSE`。
+3. 组装 `<id>/extension.json + bin/executable + optional types/README/LICENSE`，并用正式
+   Draft 2020-12 schema 校验 manifest。
 4. 如填写 `executableSha256`，必须在最终 binary 生成后计算；之后不得再修改 binary。
-5. 使用已安装的 `opendesk -native-extension ...` 做作者级低层诊断。
+5. 按 OS/arch 打包 source-free archive，并生成/验证 archive checksum。
 6. 安装完整 bundle 后，从无关 cwd 运行正式 JavaScript
    `NativeExtensions.foo.hello({...})`；业务脚本仍不能传 path/executable/wire method。
 

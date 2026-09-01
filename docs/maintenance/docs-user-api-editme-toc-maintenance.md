@@ -31,6 +31,21 @@ order: 10
 
 TOC 应表现“用户导航骨架”，不是内部维护机制清单。
 
+### 1.1 接口章节标题格式
+
+接口专属章节的标题必须包含可检索的接口名，并把用户语义放在后面：
+
+```text
+## notify：系统通知
+## clipboard.copy(text)：写入剪贴板
+## setTimeout / clearTimeout：一次性计时器
+```
+
+方法标题使用完整调用名；多个接口共同承担一个语义时并列列出接口名。只有术语解释、
+目录导航、实现边界和维护规则等非接口章节可以使用概念型标题，例如“接口一览”或
+“Native / Polyfill：接口来源”。避免只使用“快速用法”“说明”“错误行为”“实战示例”
+等无法从 TOC 识别归属的标题。
+
 ### 2. 方法内部什么内容要降级
 
 通常不要继续使用深层 heading：
@@ -70,7 +85,7 @@ TOC 应表现“用户导航骨架”，不是内部维护机制清单。
 - `system.md`
 - `file.md`
 - `storage.md`
-- `clipboard-console.md`
+- `clipboard.md`
 
 ### 网络与服务
 
@@ -80,7 +95,7 @@ TOC 应表现“用户导航骨架”，不是内部维护机制清单。
 ### Runtime
 
 - `runtime.md`
-- `polyfills.md`
+- `global-apis.md`
 - `libs.md`
 - `runtime-utilities.md`
 

@@ -1,0 +1,181 @@
+---
+title: AI CLI
+description: 面向 Codex、Claude Code 与 shell Coding Agent 的低 Token OpenDesk 桌面工具接口。
+order: 3
+---
+
+# OpenDesk AI CLI
+
+`opendesk ai` 是 Stable Desktop Runtime 的薄 CLI 适配层，面向 Codex、Claude Code 和其他
+shell Coding Agent。它不会重做截图、窗口、输入或 Vision backend。
+
+从仓库根目录开始：
+
+```bash
+go run ./cmd/opendesk ai schema
+```
+
+已构建根目录二进制时，等价命令是：
+
+```bash
+./opendesk ai schema
+```
+
+所有 AI CLI 命令的 stdout 都只输出一个 JSON envelope；诊断写到 stderr，执行证据写到
+`.runtime/ai/<executionId>/`。成功形态为 `{"ok":true,"command":"...","result":...}`；失败
+形态为 `{"ok":false,"command":"...","error":{"code":"...","message":"..."}}`。
+
+错误 code 包括：`invalid_command`、`invalid_argument`、`invalid_json`、`window_not_found`、
+`permission_required`、`unsupported_platform`、`capability_unavailable`、`capture_failed`、
+`vision_failed`、`execution_failed`、`timeout`、`internal_error`。退出码为 0（成功）、2（输入/命令
+错误）、3（平台/能力不可用）、4（权限）、5（执行目标失败）或 1（内部错误）。
+
+## Discover first
+
+```bash
+go run ./cmd/opendesk ai capabilities
+go run ./cmd/opendesk ai schema
+go run ./cmd/opendesk ai windows --title TextEdit
+```
+
+`capabilities` 会结合当前平台和 macOS Screen Recording / Accessibility preflight 报告
+`supported`、`conditional` 或 `unsupported`，不把所有能力硬编码成 true。`schema` 由 CLI
+registry 生成，是 Agent 应优先读取的紧凑参数索引。
+
+## Command tree
+
+```text
+opendesk ai
+  capabilities | schema
+  windows
+  window active|find|focus|bounds|move|resize|maximize|minimize|restore|close|content
+  screen list|info|pixel
+  screenshot
+  mouse position|move|click|double-click|down|up|drag
+  keyboard type|press|hotkey
+  scroll
+  clipboard get|set|clear
+  app open|open-url
+  vision ocr|detect-ui
+  image match|color|pixel|size
+  system info|processes|metrics
+  run
+```
+
+| Stable Runtime API | AI CLI | Notes |
+| --- | --- | --- |
+| `window` | `windows`, `window ...` | Uses the existing platform window manager; platform capability is reported first. |
+| `page.screenshot`, `Screen` | `screenshot`, `screen ...` | PNG path artifact by default; never base64 on stdout. |
+| `mouse`, `keyboard` | `mouse ...`, `keyboard ...`, `scroll` | Uses global desktop semantics after an optional target-window focus. |
+| `clipboard`, `page.openApp/openURL` | `clipboard ...`, `app ...` | Does not imply browser DOM automation. |
+| `Vision` | `vision ocr`, `vision detect-ui` | Raw provider output is opt-in with `--include-raw`. |
+| `ImageColor` | `image match|color|pixel|size` | Secondary pixel/template primitive, not semantic verification. |
+| `System` read APIs | `system info|processes|metrics` | Bounded process listing; no power or process-kill CLI facade. |
+| JavaScript Execution Runtime | `run` | Reuses Execution, artifacts, timeout, events, and `Execution.input`. |
+
+`File` is intentionally not a generic agent file-system facade: Coding Agents already have a shell and should
+keep file authority explicit. Experimental `NativeExtensions`, unsafe diagnostics, destructive System controls,
+and compatibility Browser facades are also intentionally not exposed through this default tool surface.
+
+## Targeted screenshots and coordinates
+
+```bash
+go run ./cmd/opendesk ai screenshot --active-window
+
+go run ./cmd/opendesk ai screenshot --window-title "TextEdit"
+
+go run ./cmd/opendesk ai screenshot --screen --display 0
+
+go run ./cmd/opendesk ai screenshot --screen --region 100,100,600,400
+
+go run ./cmd/opendesk ai screenshot --window-title "TextEdit" --region 20,80,800,500
+
+go run ./cmd/opendesk ai screenshot --window-title "TextEdit" --region-relative 0.05,0.10,0.90,0.70
+```
+
+AI CLI display indices are zero-based. A `--region` with `--active-window` or `--window-title` is window-local;
+OpenDesk resolves it against freshly read current window bounds. `--region-relative` is always relative to a target
+window and accepts `xRatio,yRatio,widthRatio,heightRatio` in `[0,1]`. A named screenshot focuses the matching
+window first, then obtains fresh bounds, because the stable backend only promises reliable active-window capture.
+
+Default screenshot output is a compact artifact descriptor such as:
+
+```json
+{"ok":true,"command":"screenshot","result":{"path":"/workspace/.runtime/ai/ai-.../screenshot.png","mimeType":"image/png","width":800,"height":500,"sizeBytes":48321}}
+```
+
+## Deterministic actions
+
+```bash
+go run ./cmd/opendesk ai mouse click --window-title "TextEdit" --x 300 --y 200
+go run ./cmd/opendesk ai mouse click --window-title "TextEdit" --relative-x 0.5 --relative-y 0.8
+go run ./cmd/opendesk ai keyboard type --window-title "TextEdit" --text "Hello"
+go run ./cmd/opendesk ai keyboard hotkey --window-title "TextEdit" --keys "CMD,L"
+go run ./cmd/opendesk ai scroll --window-title "TextEdit" --dy -500
+go run ./cmd/opendesk ai clipboard set --text "hello"
+go run ./cmd/opendesk ai app open --name TextEdit
+go run ./cmd/opendesk ai app open-url --name Safari --url https://example.com
+```
+
+With `--window-title`, mouse `--x/--y` are window-local and the window is focused before the action. Without it,
+they are desktop coordinates. `relative-x/relative-y` require a target window. Keyboard actions and `scroll` also
+accept `--window-title` and focus it immediately before input. A `scroll` action acts on the focused target; it
+does not claim background-app scrolling.
+
+## Vision and image assistance
+
+```bash
+go run ./cmd/opendesk ai vision ocr --image .runtime/ai/shot.png --provider local --lang eng
+go run ./cmd/opendesk ai vision detect-ui --image .runtime/ai/shot.png --text "Send" --provider local
+go run ./cmd/opendesk ai image match --image .runtime/ai/shot.png --template templates/send.png --threshold 0.85
+go run ./cmd/opendesk ai image color --image .runtime/ai/shot.png --color '#ff0000'
+```
+
+Use Vision only when window metadata and deterministic coordinates cannot solve the task. `detect-ui` returns
+compact matched elements; it does not automatically click them.
+
+## Recipes: explore once, automate repeatedly
+
+Complex workflows belong in JavaScript recipes, not in a growing list of CLI flags:
+
+```bash
+go run ./cmd/opendesk ai run examples/ai-cli/write-to-focused-app.js \
+  --input '{"text":"Hello from a reusable recipe"}'
+```
+
+The three JSON inputs are mutually exclusive:
+
+```bash
+go run ./cmd/opendesk ai run recipe.js --input '{"message":"hello"}'
+go run ./cmd/opendesk ai run recipe.js --input-file input.json
+cat input.json | go run ./cmd/opendesk ai run recipe.js --input-stdin
+```
+
+Recipes receive the existing execution metadata plus:
+
+```js
+Execution.id;       // execution ID
+Execution.input;    // parsed JSON input (defaults to {})
+Execution.workdir;  // caller working directory
+Execution.artifactDir;
+```
+
+For the conventional recipe ending `async function main() { ... }` followed by `main();`, `ai run` awaits that
+terminal `main()` Promise before it completes the execution. Other async recipe entrypoints should use top-level
+`await` so their completion is explicit.
+
+`run` retains the normal execution artifact set (`script_snapshot.js`, `stdout.log`, `stderr.log`,
+`summary.json`, `agent_summary.json`, `events.ndjson`) under `.runtime/ai/`.
+
+## Progressive Desktop Context policy
+
+1. Reuse an existing recipe when one exists.
+2. Otherwise check `capabilities`, then locate a target window before looking at pixels.
+3. Prefer target-window screenshots; use a known ROI or relative ROI before a full-window capture.
+4. Use deterministic window/mouse/keyboard/clipboard primitives when target state is known.
+5. Escalate to OCR, `detect-ui`, template or color matching only when metadata is insufficient.
+6. Verify the result with the smallest relevant observation, then save a parameterized recipe.
+7. Use a full-screen screenshot only as a fallback.
+
+This contract is platform-neutral. macOS adds Screen Recording and Accessibility consent; unsupported platform
+operations fail with `unsupported_platform` instead of pretending to work.

@@ -46,6 +46,24 @@ options 参数，且**只**返回 Promise。没有 `onConfirm`、`onCancel` 或�
 - [`examples/dialog-promise-chain.js`](https://github.com/shopable-ai/opendesk/blob/master/examples/dialog-promise-chain.js)：等价的
   `.then()` / `.catch()` / `.finally()` 写法。
 
+### 从仓库根目录运行公开示例
+
+在已具备当前版本 `./opendesk` 和同级 `./opendesk-ui-host` 的仓库根目录中，任选一条命令：
+
+```bash
+./opendesk -ui -script examples/dialog.js -console-mode script
+./opendesk -ui -script examples/dialog-promise-chain.js -console-mode script
+```
+
+普通手动运行只有这一条启动命令，后续直接操作真实 Dialog。不要切换到 `dist/` 后再使用
+`../examples/...`，也不需要手工运行 AX controller。若源码已经更新但根目录构建物较旧，应由
+维护者先同时刷新主程序与 UI host；正式自动化、构建新鲜度规则和预期打印见
+[`examples/README.md`](../../examples/README.md)。
+
+手动验收不仅要确认 Promise 返回值：还应观察 alert 打开期间终端已打印
+`returned-promise` 与 `event-loop-continuation`，确认第二个结果窗口显示输入值或明确的 `null`
+取消路径，并确认窗口紧凑适配内容、没有异常拉宽、大面积空白、裁切或控件错位。
+
 ```js
 async function main() {
   console.log('alert 调用前');

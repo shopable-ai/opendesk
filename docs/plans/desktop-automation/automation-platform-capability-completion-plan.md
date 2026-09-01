@@ -62,7 +62,7 @@ Quality
 - [`../../architecture/desktop-automation/action-target-model.md`](../../architecture/desktop-automation/action-target-model.md)：动作目标、候选、前置条件、后置条件和回退原则。
 - [`../../architecture/desktop-automation/app-adapter-contract.md`](../../architecture/desktop-automation/app-adapter-contract.md)：Surface、Layout、Semantic Adapter、Action 和 Verification 契约。
 - [`../../architecture/desktop-automation/agent-first-recorder.md`](../../architecture/desktop-automation/agent-first-recorder.md)：Recorder 的长期架构边界。
-- [`../../research/desktop-automation/2026-08-31-opendesk-vs-peekaboo.md`](../../research/desktop-automation/2026-08-31-opendesk-vs-peekaboo.md)：macOS Native Driver 重叠审计、Peekaboo Integrate-first 决策输入。
+- [`../../research/desktop-automation/2026-08-31-clawdesk-vs-peekaboo.md`](../../research/desktop-automation/2026-08-31-clawdesk-vs-peekaboo.md)：macOS Native Driver 重叠审计、Peekaboo Integrate-first 决策输入。
 - [`agent-first-recorder-macos-mvp.md`](agent-first-recorder-macos-mvp.md)：Recorder 首个 macOS 有界实施计划。
 - [`app-target-priority-matrix.md`](app-target-priority-matrix.md)：真实应用候选及其 Evidence 条件。
 - [`../runtime/runtime-extension-roadmap.md`](../runtime/runtime-extension-roadmap.md)：Runtime 扩展、资源加载和第三方 Extension 的候选演进路线。
@@ -135,7 +135,7 @@ Driver
 
 ### 3.1 2026-08-31 Peekaboo 审计后的执行校准
 
-`2026-08-31-opendesk-vs-peekaboo.md` 对当前 macOS primitive 做源码级重叠审计后，确认：
+`2026-08-31-clawdesk-vs-peekaboo.md` 对当前 macOS primitive 做源码级重叠审计后，确认：
 
 ```text
 继续补完整 macOS Native Driver

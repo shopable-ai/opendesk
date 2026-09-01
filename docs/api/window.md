@@ -20,10 +20,6 @@ window 是桌面窗口控制对象。
 - macOS：已实现活动窗口、查找、聚焦、部分控制
 - 其他平台：可能返回 `window automation is not implemented on this platform`
 
-polyfill 说明
-- `polyfills/003-window.js` 会把 `getActiveWindow()` 与 `getWindowByTitle()` 的返回对象属性转换为 lowerCamelCase
-- 所以用户侧读取时应优先使用 `title`、`pid`、`x`、`y`、`width`、`height`
-
 ## window：方法总表
 
 | 方法 | 用途 |
@@ -55,7 +51,8 @@ polyfill 说明
 
 ## window：WindowInfo 返回结构
 
-当前源码定义的标准窗口结构：
+脚本侧窗口字段统一使用 lowerCamelCase；读取窗口信息时优先使用 `title`、`pid`、`x`、
+`y`、`width`、`height`。标准结构如下：
 
 ```js
 {
@@ -411,6 +408,10 @@ console.log(JSON.stringify(browsers, null, 2));
 ## window：兼容说明
 
 旧文档对窗口能力描述较少，更多围绕移动端 page 模型。
+
+`getActiveWindow()` 与 `getWindowByTitle()` 的返回字段目前由
+`polyfills/003-window.js` 统一为 lowerCamelCase。该文件是 Runtime 实现来源；脚本应依赖
+本页记录的最终字段结构，不应依赖具体 polyfill 文件名。
 
 当前项目中，window 是桌面自动化核心对象之一，应优先与这些 API 配合使用：
 - page.screenshot({ target: 'activeWindow' })

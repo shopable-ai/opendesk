@@ -1,6 +1,6 @@
 ---
 title: HTTP and Axios
-description: OpenDesk 原生 http 对象与构建在其上的 axios polyfill。
+description: 使用全局 axios 或底层 http 发起 HTTP 请求，并处理参数、响应、错误与取消。
 order: 9
 ---
 
@@ -8,13 +8,8 @@ order: 9
 
 当前脚本层有两个 HTTP 入口：
 
-1. `http`
-   - Go 原生对象
-   - 最接近底层请求实现
-2. `axios`
-   - 用户常用 polyfill
-   - 由 `polyfills/004-axios.js` 构造
-   - 最终调用 `http.request(config)`
+1. `axios`：适合日常请求，提供 params、defaults 和 interceptors 等便捷能力。
+2. `http`：更接近底层请求，适合需要最小封装或排查请求行为的场景。
 
 因此新脚本通常优先使用 `axios`；需要最小封装或排查底层行为时使用 `http`。
 
@@ -177,7 +172,7 @@ axios.interceptors.response.use((response) => {
 
 ## axios：实现边界
 
-Go 侧旧 Axios bridge 已移除。所有 stack 都使用这里描述的 axios polyfill，
+Go 侧旧 Axios bridge 已移除。所有 stack 都使用 `polyfills/004-axios.js` 构造的 axios，
 它通过 `http.request()` 返回 Promise；网络 I/O 完成后才由 Runtime event loop 回调
 resolve/reject。脚本应继续以 `await axios...` 处理结果与错误。
 
@@ -195,4 +190,4 @@ try {
 
 `AbortController` 是运行时提供的最小标准兼容实现；它支持本页 HTTP/axios
 取消所需的 `signal`、`abort()`、`addEventListener()` 和 `removeEventListener()`。
-全局接口的完整说明见 [`global-apis.md`](global-apis.md)。
+全局接口的完整说明见 [Global APIs](global-apis.md)。

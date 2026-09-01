@@ -71,11 +71,11 @@ publisher/deployment package. No `%ProgramData%` fallback exists.
 
 ## Experimental prototype migration
 
-The repository HEAD/history contains no committed Native Extension V1 path
-contract. V1.0.1 corrects the uncommitted Experimental prototype before formal
-delivery: Linux uses XDG data instead of config and Windows uses LocalAppData
-instead of roaming AppData. Legacy prototype roots are not scanned and files are
-not automatically moved, copied, merge-copied, deleted or selected last-wins.
+The maintained release tag `v0.2.2` predates Native Extension V1. The first
+committed discovery change remains Experimental and already uses these
+canonical data roots, so there is no released config/roaming compatibility
+contract. Legacy prototype roots are not scanned and files are not automatically
+moved, copied, merge-copied, deleted or selected last-wins.
 
 An external Experimental user must stop executions, verify one complete bundle,
 install it into the canonical root and start a new execution. If support evidence

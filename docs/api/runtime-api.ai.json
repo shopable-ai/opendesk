@@ -28,6 +28,13 @@
         "playwright"
       ]
     },
+    "aiCli": {
+      "command": "go run ./cmd/opendesk ai schema",
+      "builtCommand": "./opendesk ai schema",
+      "docs": "docs/api/ai-cli.md",
+      "stdout": "single JSON envelope only",
+      "purpose": "Low-token desktop tool surface for coding agents; reuses Stable Runtime services and Execution evidence."
+    },
     "httpServer": {
       "command": "go run ./cmd/opendesk -http",
       "defaultPort": 60844
@@ -38,6 +45,7 @@
     }
   },
   "runtimeRules": [
+    "For coding-agent desktop interaction, inspect `opendesk ai schema` and `opendesk ai capabilities`; prefer its window metadata, targeted screenshots, deterministic primitives, and reusable recipes before full-screen visual reasoning.",
     "Prefer stable documented APIs for new scripts.",
     "Prefer page.ensurePermissions for permission-gated desktop workflows.",
     "Prefer Vision.runOCR or Vision.detectUI for structured OCR/UI text work; use OCR.extractText for simple local text extraction.",
@@ -163,7 +171,11 @@
       "name": "System",
       "source": "native",
       "status": "stable",
-      "doc": "system.md"
+      "doc": "system.md",
+      "keyMethods": [
+        "delay",
+        "getPlatformInfo"
+      ]
     },
     {
       "name": "File",
@@ -196,13 +208,31 @@
       "name": "clipboard",
       "source": "native",
       "status": "stable",
-      "doc": "clipboard-console.md"
+      "doc": "clipboard.md",
+      "keyMethods": [
+        "copy",
+        "paste",
+        "clear"
+      ]
     },
     {
       "name": "console",
       "source": "native runtime wrapper",
       "status": "stable",
-      "doc": "clipboard-console.md"
+      "doc": "global-apis.md",
+      "keyMethods": [
+        "log",
+        "info",
+        "warn",
+        "error",
+        "debug",
+        "table",
+        "group",
+        "groupEnd",
+        "time",
+        "timeEnd",
+        "clear"
+      ]
     },
     {
       "name": "http",
@@ -346,7 +376,7 @@
       "source": "Button-first facade over the Custom UI driver",
       "status": "button-first-v1",
       "doc": "runtime-utilities.md",
-      "condition": "injected only when Custom UI is explicitly authorized; constructible instances accept 1-32 ordered pre-show buttons, trusted built-in icons, synchronous or Promise callbacks, post-show state updates, button-level single-flight, automatic bounded wrapping, and structured callback errors; run alone is deprecated",
+      "condition": "injected only when Custom UI is explicitly authorized; constructible instances accept orientation horizontal (default, 1-32 ordered buttons with bounded wrapping) or vertical (1-5 ordered buttons in one native column), trusted built-in icons, synchronous or Promise callbacks, post-show state updates, button-level single-flight, and structured callback errors; unknown orientation and vertical overflow are INVALID_SPEC; run alone is deprecated",
       "keyMethods": [
         "addButton",
         "removeButton",
@@ -368,7 +398,7 @@
       "source": "native+polyfill",
       "status": "stable",
       "doc": "global-apis.md",
-      "summary": "无需 import 即可直接调用的计时器、等待、剪贴板快捷函数、取消控制、通知与 URL 参数接口。",
+      "summary": "无需 import 即可直接调用的计时器、等待、console 日志、剪贴板快捷函数、取消控制、通知与 URL 参数接口。",
       "keyMethods": [
         "notify",
         "copyToClipboard",
@@ -449,7 +479,7 @@
       "system.md",
       "file.md",
       "storage.md",
-      "clipboard-console.md"
+      "clipboard.md"
     ],
     "network": [
       "http.md",

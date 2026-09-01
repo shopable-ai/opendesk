@@ -21,6 +21,8 @@ System 提供系统信息与基础系统操作能力。
 
 | 方法 | 用途 |
 | --- | --- |
+| System.delay(milliseconds) | 非阻塞等待，不休眠主机 |
+| System.getPlatformInfo() | 获取 Runtime OS、架构和进程信息 |
 | System.getProcessList() | 列出运行中进程 |
 | System.killProcess(pid) | 结束指定 PID |
 | System.getNetworkInterfaces() | 获取网络接口统计 |
@@ -40,6 +42,43 @@ System 提供系统信息与基础系统操作能力。
 | System.toJSON(data) | 美化 JSON 字符串 |
 
 ## System：常用方法
+
+## System.delay(milliseconds)
+
+```js
+await System.delay(250);
+```
+
+返回 `Promise<void>`，单位为毫秒。等待由 Runtime 事件循环托管，不阻塞 timer、HTTP
+Promise 或其他异步回调，也不会让操作系统进入睡眠。省略参数等同于 `0`；负数、
+`NaN`、无穷大和超过 24 小时的值会失败。
+
+`System.delay()` 与全局 `sleep()` 使用同一类事件循环等待语义。需要让整台电脑休眠的
+高风险操作仍是 `System.sleep()`，二者不可混用。
+
+固定等待只适合短暂节流。等待窗口、文本或业务状态时，应优先使用带 timeout 和
+postcondition 的条件等待。
+
+## System.getPlatformInfo()
+
+```js
+const platform = System.getPlatformInfo();
+console.log(platform.os, platform.arch, platform.processId);
+```
+
+返回：
+
+```json
+{
+  "os": "darwin",
+  "arch": "arm64",
+  "processId": 12345,
+  "runtimeVersion": "go1.x"
+}
+```
+
+其中 `os` 使用 Go Runtime 的稳定值：`darwin`、`linux` 或 `windows`。不要使用该方法
+绕过能力检测；平台信息只适合选择明确支持的平台实现。
 
 ## System.getSystemInfo()
 

@@ -436,7 +436,7 @@ OpenDesk JavaScript
 当前 OpenDesk 尚未提供稳定的第三方 Native Extension ABI。
 
 但“没有核心源码的 Native 扩展”已经不再只是未来计划：当前存在
-[Experimental Native Extension Plugin V1](native-extension.md)。第三方可以用 Go、
+[Native Extension Plugin V1.0.1](native-extension.md)。第三方可以用 Go、
 Swift、Rust、C/C++ 等语言实现独立 executable 和公开 one-shot JSON 协议，不需要
 import OpenDesk 内部 Go package，也不需要获得 OpenDesk Core 源码；完整 bundle 通过
 严格 `extension.json` 被 Host 自动发现。
@@ -496,7 +496,7 @@ SUPPORT.md
 
 - `index.md`：当前公开 API 地图。
 - `runtime.md`：Runtime 注入与 stack。
-- [native-extension.md](native-extension.md)：Experimental Native Extension Plugin V1、底层 one-shot Native Process Protocol V0、默认目录与安全边界。
+- [Native Extension Plugin V1.0.1](native-extension.md)：Experimental Native Extension Plugin、底层 one-shot Native Process Protocol V0、默认目录与安全边界。
 - `global-apis.md`：当前全局接口、运行时辅助能力和已有增强能力。
 - `http.md`：脚本内 HTTP 调用。
 - `http-server.md`：从外部触发 OpenDesk。

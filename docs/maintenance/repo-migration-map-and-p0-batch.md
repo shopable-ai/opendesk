@@ -270,7 +270,7 @@ Move `.venv-*` and `.playwright-*` only after local tooling assumptions are patc
 
 Do not:
 
-- recreate `docs-api/` or `docs-api-user`;
+- recreate `docs-api/` or `docs-api-user/`;
 - move `docs/api/` to `docs/api/user/`;
 - move `.runtime/runs/` without changing its producers/consumers;
 - convert `.archive/` into a dump of every old AI-generated Markdown file;

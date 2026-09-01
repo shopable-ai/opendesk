@@ -25,27 +25,30 @@ order: 1
 ## 推荐阅读顺序
 
 1. `index.md`：完整 API 地图与文档导航
-2. `page.md`：截图、打开 URL / App、等待、权限
-3. `input.md`：鼠标、键盘、触屏
-4. `window.md`：窗口查询与控制
-5. `vision.md`：OCR、UI 文本定位、provider
-6. `image-color.md`：模板匹配、颜色与图像辅助能力
-7. `notify.md`：系统通知调用契约、平台限制与可见性边界
-8. `dialog.md`：异步 alert / confirm / prompt、UI capability 与隐私边界
-9. `global-apis.md`：无需 import 即可调用的全局接口、等待、计时器和参数工具
-10. `runtime.md`：运行时注入、polyfill、stack/facade
-11. `custom-ui.md`：受限 HTML/CSS 视图与 JavaScript controller 原生窗口
-11. [native-extension.md](native-extension.md)：默认关闭、仅本机 CLI 显式 opt-in 的 Native Extension Plugin V1；底层复用 one-shot Native Process Protocol V0
-12. `cookbook.md`：可直接改造的脚本范例
-13. `scheduler.md`：file/inline JavaScript 定时任务、SQLite 持久化与本地管理页
-14. `scheduler-api.md`：Scheduler 本地 HTTP API 的字段、响应与完整调用示例
-15. 其余专题页按需查阅
+2. `ai-cli.md`：Codex、Claude Code 和 shell Agent 的 JSON desktop-tool surface
+3. `page.md`：截图、打开 URL / App、等待、权限
+4. `input.md`：鼠标、键盘、触屏
+5. `window.md`：窗口查询与控制
+6. `vision.md`：OCR、UI 文本定位、provider
+7. `image-color.md`：模板匹配、颜色与图像辅助能力
+8. `notify.md`：系统通知调用契约、平台限制与可见性边界
+9. `dialog.md`：异步 alert / confirm / prompt、UI capability 与隐私边界
+10. `clipboard.md`：系统剪贴板对象与文本读写
+11. `global-apis.md`：无需 import 即可调用的全局接口、console、等待、计时器和参数工具
+12. `runtime.md`：运行时注入、polyfill、stack/facade
+13. `custom-ui.md`：受限 HTML/CSS 视图与 JavaScript controller 原生窗口
+14. [native-extension.md](native-extension.md)：默认关闭、仅本机 CLI 显式 opt-in 的 Native Extension Plugin V1；底层复用 one-shot Native Process Protocol V0
+15. [examples/native-extensions/README.md](../../examples/native-extensions/README.md)：预编译 bundle 安装、作者 build/package 与逐文件映射；业务调用脚本为 [quickstart.js](../../examples/native-extensions/quickstart.js)
+16. `cookbook.md`：可直接改造的脚本范例
+17. `scheduler.md`：file/inline JavaScript 定时任务、SQLite 持久化与本地管理页
+18. `scheduler-api.md`：Scheduler 本地 HTTP API 的字段、响应与完整调用示例
+19. 其余专题页按需查阅
 
 ## 文档分层
 
 - **核心桌面自动化**：`page.md`、`input.md`、`window.md`、`screen.md`
 - **视觉能力**：`vision.md`、`image-color.md`
-- **系统与数据**：`system.md`、`file.md`、`storage.md`、`clipboard-console.md`
+- **系统与数据**：`system.md`、`file.md`、`storage.md`、`clipboard.md`
 - **网络与服务**：`http.md`、`http-server.md`、`scheduler.md`、`scheduler-api.md`
 - **运行时**：`runtime.md`、`notify.md`、`dialog.md`、`global-apis.md`、`custom-ui.md`、`libs.md`、`runtime-utilities.md`、[native-extension.md](native-extension.md)
 - **实践范例**：`cookbook.md`
@@ -60,6 +63,9 @@ Linux XDG data、Windows LocalAppData Known Folder；独立 machine-wide discove
 为 **Not Implemented**。
 该能力仍是 Experimental，也不是 Extension Manager、Marketplace、sandbox 或 Stable
 ABI。低层 `NativeExtension.call` 只在独立 unsafe 本机诊断 gate 中保留。
+安装 archive 而不是 example source；完整文件归属、作者步骤和可保存的
+[quickstart.js](../../examples/native-extensions/quickstart.js) 见
+[examples/native-extensions/README.md](../../examples/native-extensions/README.md)。
 
 ## 配套的非渲染资产
 

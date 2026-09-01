@@ -7,7 +7,7 @@ order: 13
 # Scheduler HTTP API
 
 本文是 OpenDesk Scheduler 的 HTTP API 契约。面向普通用户的启动、页面操作、时间
-语义、SQLite 位置与重启恢复说明见 [Scheduler 用户指南](scheduler.md)。
+语义、SQLite 位置与重启恢复说明见 [Scheduler](scheduler.md)。
 
 ## Scheduler API：服务地址与边界
 

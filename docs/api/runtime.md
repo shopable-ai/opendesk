@@ -88,6 +88,21 @@ order: 14
 计时器、等待、剪贴板快捷函数、取消控制和 `URLSearchParams` 的用户层入口见
 [Global APIs](global-apis.md)。
 
+## Execution：执行上下文
+
+每次由 OpenDesk Execution Runtime 运行的脚本都会得到 `Execution` 元数据对象，包括
+`executionId`、`artifactDir`、`source` 和 `stack`。`opendesk ai run recipe.js` 还提供面向
+可复用 recipe 的稳定字段：
+
+```js
+Execution.id;       // executionId 的短别名
+Execution.input;    // --input / --input-file / --input-stdin 解析后的 JSON；默认 {}
+Execution.workdir;  // 启动命令所在的工作目录
+```
+
+`Execution.input` 是复杂参数化 workflow 的正式输入通道，不应以不受约束的 argv 位置参数
+替代。Execution artifact 和 recipe JSON contract 见 [AI CLI](ai-cli.md)。
+
 ## legacy / upgraded / playwright：运行时栈
 
 ### legacy

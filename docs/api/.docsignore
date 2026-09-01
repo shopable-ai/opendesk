@@ -39,3 +39,6 @@ scratch/
 **/*.draft.md
 **/*.bak.md
 **/*.tmp.md
+
+# Repository maintainer entrypoint; the public landing page is index.md.
+README.md

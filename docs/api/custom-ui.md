@@ -6,16 +6,8 @@ order: 13
 
 # Custom UI v1
 
-Custom UI 用受限 HTML/CSS 声明视图，用当前 JavaScript Runtime 作为 controller。HTML 不能直接取得 `mouse`、`File`、`http` 等全局能力；用户事件经过原生宿主、Go 事件队列和 Runtime EventLoop 后，才调用 JavaScript listener。
-
-```text
-DOM / WKWebView event
-  -> native host
-  -> bounded Go event queue
-  -> EventLoop.RunOnLoop
-  -> Goja listener
-  -> Clawdesk Runtime API
-```
+Custom UI 用受限 HTML/CSS 声明视图，用当前 JavaScript Runtime 作为 controller。HTML
+不能直接取得 `mouse`、`File`、`http` 等全局能力；业务接口仍由 JavaScript listener 调用。
 
 v1 在 macOS 使用 AppKit + WKWebView。Windows 与 Linux 会报告 `available: false`；创建窗口明确抛出 `UNSUPPORTED_PLATFORM`，不会静默成功。需要固定的一次性确认/输入窗口时使用 [Dialog API](dialog.md)：Dialog 由 host 根据结构化参数生成，不能提交 HTML/CSS，也不会成为 Custom UI 的第二套 controller。
 
@@ -105,7 +97,7 @@ await main();
 
 必须等待 `show()`。需要窗口继续存活时，再等待 `waitUntilClosed()`；不要用长时间 timer 或 sleep 维持示例。
 
-简单的 1–32 按钮图标工具栏优先使用 `new FloatingWindow(...)`，它负责可信图标、自动布局、Accessibility、按钮级 single-flight 和 callback Promise。任意表单、受限 HTML/CSS 或运行时控件树则使用 `ui.createWindow()`。完整五按钮示例见 `examples/custom-ui/five-button-toolbar.js`。
+简单的 1–32 按钮图标工具栏优先使用 `new FloatingWindow(...)`，它通过结构化协议直接创建 AppKit `NSButton`，不生成 HTML/CSS，也不创建 WKWebView。它负责可信图标、native host 自动布局、Accessibility、按钮级 single-flight 和 callback Promise。默认 `orientation` 为 `"horizontal"`；客服快捷回复可使用 `orientation: "vertical"`，但最多 5 个按钮，固定 60×273pt（5 个按钮时）外框以避免超高窗口。任意表单、受限 HTML/CSS 或运行时控件树仍使用 `ui.createWindow()`。最小五按钮示例见 `examples/custom-ui/minimal-five-button-toolbar.js`。
 
 ## ui.createWindow：窗口声明
 
@@ -254,14 +246,33 @@ try {
 
 ## ui：HTTP 模式
 
-HTTP UI 必须同时满足：服务器用 `-ui` 或可信本地配置启用、单次请求包含 `"capabilities":["ui"]`、请求来自 loopback。任一条件失败都会返回明确 403；`X-Forwarded-For` 不会绕过 socket 来源检查。详见 [HTTP server API](http-server.md)。
+HTTP UI 必须同时满足：服务器用 `-ui` 或可信本地配置启用、单次请求包含 `"capabilities":["ui"]`、请求来自 loopback。任一条件失败都会返回明确 403；`X-Forwarded-For` 不会绕过 socket 来源检查。详见 [HTTP Server API](http-server.md)。
 
 ## ui：示例与兼容入口
 
 - `examples/custom-ui/panel.js`
 - `examples/custom-ui/form.js`
 - `examples/custom-ui/floating-recording-toolbar.js`
-- `examples/custom-ui/five-button-toolbar.js`：推荐的 Button-first 五按钮示例
+- `examples/custom-ui/minimal-five-button-toolbar.js`：约 20 行的推荐 Button-first 五按钮示例
+- `examples/custom-ui/evidence-five-button-toolbar.js`：记录 callback/state/error 的结构化证据示例
 - `examples/floatwindow.js`：旧静态 FloatingWindow 入口的迁移示例
 
-`FloatingWindow` 不再初始化 Fyne。推荐构造独立实例，首次 `show()` 前配置 1–32 个稳定有序按钮；show 后禁止结构变更，但允许 icon、label、active、disabled、busy、error 更新。窗口按按钮和完整标签自动调整宽高，超宽时换行且保持 x/y。仅 `run()` 已 deprecated，它是 `waitUntilClosed()` 的兼容别名。
+`FloatingWindow` 不再初始化 Fyne，也不进入 WebKit。推荐构造独立实例，首次 `show()` 前配置 1–32 个稳定有序按钮；show 后禁止结构变更，但允许 icon、label、active、disabled、busy、error 更新。默认 `orientation: "horizontal"` 为纯图标：固定 40×40pt 点击盒、8pt 间隔，label 仅用于 AppKit tooltip、macOS Accessibility name 和 callback evidence，因此长 label 不会改变按钮或窗口宽度；达到 960pt 安全上限后由 native host 换行且始终保持 x/y。`orientation: "vertical"` 改用同一个原生 `NSStackView` 的单列，从上到下保持声明顺序，最多 5 个按钮；窗口宽 60pt，5 个按钮时外框高 273pt。这个上限是纵向超高安全边界，超过 5 个会以 `INVALID_SPEC` 失败，不多列换行、不裁切，且 x/y 不因布局改变。六个内置 icon 由 `pkg/customui/assets/toolbar-icons-v1.json` 统一生成 Go 与 Objective-C 映射。`busy` indicator 由同一原生按钮管理且不参与布局。仅 `run()` 已 deprecated，它是 `waitUntilClosed()` 的兼容别名。
+
+复现五按钮 callback 证据时运行 `examples/custom-ui/evidence-five-button-toolbar.js`；客服纵向快捷回复见 `examples/custom-ui/customer-service-vertical-toolbar.js`。普通用户从仓库根目录执行 `./opendesk -ui -script examples/custom-ui/customer-service-vertical-toolbar.js -console-mode script`，窗口不会自动关闭，用户可真实点击按钮后关闭。证据脚本的最终 JSON 位于 `Execution.artifactDir/floating-toolbar/result.json`（无 artifactDir 时在 `.runtime/examples/custom-ui/floating-toolbar/result.json`）。如果 callback 未执行，先检查该文件的 `callbacks`、按钮的 `busy/error` 状态和 `UI_CALLBACK_FAILED` 的 `operation/windowId/targetId/capability`；重复条目表示路由或 single-flight 回归。
+
+## ui：实现边界
+
+用户事件按以下内部链路回到所属 JavaScript Runtime：
+
+```text
+DOM / WKWebView event
+  -> native host
+  -> bounded Go event queue
+  -> EventLoop.RunOnLoop
+  -> Goja listener
+  -> OpenDesk Runtime API
+```
+
+该链路用于说明事件所有权和故障排查；普通脚本只应依赖本页列出的 `ui`、
+`WindowHandle` 与 `ControlHandle` 契约。
