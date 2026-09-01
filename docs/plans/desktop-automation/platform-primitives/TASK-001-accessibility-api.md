@@ -1,6 +1,6 @@
 # TASK-001 — Accessibility API
 
-Status: TODO
+Status: IN_PROGRESS
 Priority: P0
 Depends on: none
 

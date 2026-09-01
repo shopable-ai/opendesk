@@ -28,7 +28,7 @@
   });
 
   test({
-    name: 'NativeExtensions is Experimental and registry gate does not expose unsafe NativeExtension.call',
+    name: 'Local CLI NativeExtensions is Experimental and does not expose unsafe NativeExtension.call',
     tier: 'unit',
     covers: ['NativeExtensions.list'],
   }, async () => {
@@ -131,6 +131,19 @@
       }
       equal(invalid && invalid.code, 'invalid_params', `${key} route option was accepted`);
     }
+
+    const attackerKey = 'unrecognized_option_credential_7f3b';
+    const attackerValue = 'do-not-persist-2d4a';
+    let privateOption = null;
+    try {
+      NativeExtensions.goBasic.add({}, { [attackerKey]: attackerValue });
+    } catch (error) {
+      privateOption = error;
+    }
+    equal(privateOption && privateOption.code, 'invalid_params');
+    assert(!String(privateOption && privateOption.message).includes(attackerKey), 'option key leaked through the error message');
+    const encodedEvidence = JSON.stringify((privateOption && privateOption.evidence) || {});
+    assert(!encodedEvidence.includes(attackerKey) && !encodedEvidence.includes(attackerValue), 'option data leaked into Runtime Evidence');
   });
 
   test({

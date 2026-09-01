@@ -1,7 +1,7 @@
 // Results-driven acceptance validation. It intentionally scores no source text:
 // only current-run result files, evidence bytes and cleanup observations count.
 globalThis.RuntimeAPIAcceptance = (() => {
-  const requiredGates = ['contract', 'unit', 'coverage', 'smoke', 'failure-exit', 'live', 'composition', 'cleanup'];
+  const requiredGates = ['contract', 'unit', 'coverage', 'smoke', 'failure-exit', 'live', 'composition', 'custom-ui', 'cleanup'];
 
   function errorList() {
     const errors = [];
@@ -28,6 +28,18 @@ globalThis.RuntimeAPIAcceptance = (() => {
     }
     const cleanup = gates.cleanup;
     if (cleanup) result.require(cleanup.confirmed === true, 'cleanup was not confirmed');
+    const customUI = gates['custom-ui'];
+    if (customUI) {
+      result.require(customUI.behaviorStatus === 'passed', 'custom-ui behavior result was not passed');
+      result.require(customUI.postSuite && customUI.postSuite.status === 'passed', 'custom-ui post-suite was not passed');
+      result.require(customUI.postSuite && customUI.postSuite.finalized === true, 'custom-ui gate was not finalized');
+      result.require(customUI.postSuite && customUI.postSuite.noResidualProcesses === 'passed', 'custom-ui no-residual result was not passed');
+      result.require(typeof customUI.behaviorFinishedAt === 'string'
+        && Date.parse(customUI.finishedAt) >= Date.parse(customUI.behaviorFinishedAt), 'custom-ui final timestamp precedes behavior completion');
+      for (const probe of ['scriptException', 'timeout', 'unresolvedPromise', 'httpCancel', 'serverShutdown', 'resourceCleanup', 'noResidualProcesses']) {
+        result.require(customUI.lifecycleProbes && customUI.lifecycleProbes[probe] === 'passed', 'custom-ui lifecycle probe failed: ' + probe);
+      }
+    }
     const live = gates.live;
     if (live) {
       result.require(live.liveSession && live.liveSession.permissions && live.liveSession.permissions.ok === true, 'live permission result missing or not granted');

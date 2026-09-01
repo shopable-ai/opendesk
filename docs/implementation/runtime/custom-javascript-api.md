@@ -1,10 +1,14 @@
 ---
-title: 自定义 JavaScript API
-description: 使用 OpenDesk 已有公开 JavaScript API 组合自己的辅助接口、业务封装和 Polyfill。
+title: Custom JavaScript API authoring
+description: 使用公开 OpenDesk JavaScript API 编写业务 helper、共享 polyfill 与 Runtime 扩展的作者指南。
 order: 15
 ---
 
-# 自定义 JavaScript API
+# Custom JavaScript API authoring
+
+本文面向项目作者与 OpenDesk 维护者，说明如何在不新增 Go Runtime API 的前提下组合已有
+公开 API，以及何时应升级为 Runtime / Native 扩展。它不是现有用户 API 的调用参考；现有 API
+的参数、返回值和可复制调用请从 [用户 API 索引](../../api/index.md) 开始。
 
 本页只讨论一种最安全、最容易维护的扩展方式：
 
@@ -436,7 +440,7 @@ OpenDesk JavaScript
 当前 OpenDesk 尚未提供稳定的第三方 Native Extension ABI。
 
 但“没有核心源码的 Native 扩展”已经不再只是未来计划：当前存在
-[Native Extension Plugin V1.0.1](native-extension.md)。第三方可以用 Go、
+[Native Extension Plugin V1.0.1](../../api/native-extension.md)。第三方可以用 Go、
 Swift、Rust、C/C++ 等语言实现独立 executable 和公开 one-shot JSON 协议，不需要
 import OpenDesk 内部 Go package，也不需要获得 OpenDesk Core 源码；完整 bundle 通过
 严格 `extension.json` 被 Host 自动发现。
@@ -494,12 +498,12 @@ SUPPORT.md
 
 ## 自定义 JavaScript API：相关文档
 
-- `index.md`：当前公开 API 地图。
-- `runtime.md`：Runtime 注入与 stack。
-- [Native Extension Plugin V1.0.1](native-extension.md)：Experimental Native Extension Plugin、底层 one-shot Native Process Protocol V0、默认目录与安全边界。
-- `global-apis.md`：当前全局接口、运行时辅助能力和已有增强能力。
-- `http.md`：脚本内 HTTP 调用。
-- `http-server.md`：从外部触发 OpenDesk。
-- `cookbook.md`：脚本组合示例。
-- `../docs/plans/runtime/runtime-extension-roadmap.md`：未来 User / Project Extension、Embedded JS 与 Native Extension SDK 路线计划。
-- `../SUPPORT.md`：统一支持与商业定制入口。
+- [用户 API 索引](../../api/index.md)：当前公开 API 地图。
+- [Runtime Stacks](../../api/runtime.md)：用户可见的 stack 选择与兼容边界。
+- [Native Extension Plugin V1.0.1](../../api/native-extension.md)：Experimental Native Extension Plugin、底层 one-shot Native Process Protocol V0、默认目录与安全边界。
+- [Global APIs](../../api/global-apis.md)：当前全局接口、运行时辅助能力和已有增强能力。
+- [HTTP and Axios](../../api/http.md)：脚本内 HTTP 调用。
+- [HTTP Server API](../../api/http-server.md)：从外部触发 OpenDesk。
+- [Cookbook](../../api/cookbook.md)：脚本组合示例。
+- [Runtime extension roadmap](../../plans/runtime/runtime-extension-roadmap.md)：未来 User / Project Extension、Embedded JS 与 Native Extension SDK 路线计划。
+- [Support](../../../SUPPORT.md)：统一支持与商业定制入口。

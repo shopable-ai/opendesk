@@ -48,6 +48,7 @@ window 是桌面窗口控制对象。
 | window.setAlwaysOnTop(title, alwaysOnTop) | 设置或取消置顶 |
 | window.unsetTopMost(title) | 取消置顶 |
 | window.bringToTop(title, pid) | 将窗口提升到顶层 |
+| window.js_beautify(source, options?) | 格式化 JavaScript 文本 |
 
 ## window：WindowInfo 返回结构
 
@@ -371,6 +372,24 @@ await window.bringToTop(title, pid)
 | --- | --- | --- |
 | title | string | 标题，可为空 |
 | pid | any | 可传 pid 作为辅助选择 |
+
+## window.js_beautify(source, options?)
+
+格式化 JavaScript 源码文本；它不会读取文件、执行源码或改变窗口状态。
+
+```js
+const formatted = window.js_beautify('function hello(){return 1;}', {
+  indent_size: 2,
+});
+console.log(formatted);
+```
+
+| 参数 | 类型 | 说明 |
+| --- | --- | --- |
+| `source` | string | 必填；要格式化的 JavaScript 文本。 |
+| `options` | object | 可选；传递给内置 beautify 的格式化选项，例如 `indent_size`。 |
+
+返回格式化后的 string。完整库用法见 [JS Libraries](libs.md)。
 
 ## window：实战示例
 

@@ -1,6 +1,7 @@
 (0, eval)(File.read(File.join(File.cwd(), 'tests/runtime-api/framework.js')));
 RuntimeAPITest.load('tests/runtime-api/manifest.js');
 RuntimeAPITest.load('tests/runtime-api/catalog_validation.js');
+RuntimeAPITest.load('tests/runtime-api/coverage_validation.js');
 for (const file of [...RuntimeAPITestFiles.unit, ...RuntimeAPITestFiles.live]) RuntimeAPITest.load(file);
 
 const catalogCheck = RuntimeAPICatalogValidation.validateCatalog();
@@ -34,21 +35,25 @@ const missingFamilyFiles = Object.entries(requiredFamilyFiles)
   .filter(([, expected]) => !allFiles.some((file) => file.endsWith('/' + expected)))
   .map(([family, expected]) => family + ':' + expected);
 const executedGateResults = {};
-const passedTestRecords = [];
-for (const gate of ['contract', 'unit', 'live']) {
+const executedGates = {};
+for (const gate of ['contract', 'unit', 'live', 'composition', 'custom-ui']) {
   const resultFile = RuntimeAPITest.resultPath(gate);
   if (!RuntimeAPITest.exists(resultFile)) continue;
   const gateResult = RuntimeAPITest.readJSON(resultFile);
   if (gateResult.runId !== RuntimeAPITest.context.runId) continue;
-  executedGateResults[gate] = gateResult.status;
-  for (const test of gateResult.tests || []) {
-    if (test.status === 'passed') passedTestRecords.push(test);
-  }
+  executedGateResults[gate] = RuntimeAPICoverageValidation.gatePassed(gate, gateResult)
+    ? 'passed'
+    : (gateResult.status === 'passed' ? 'unfinalized' : gateResult.status);
+  // Composition records are already part of the live result; its dedicated
+  // envelope is still required as an independently successful gate.
+  if (gate !== 'composition') executedGates[gate] = gateResult;
 }
+const passedTestRecords = RuntimeAPICoverageValidation.passedTestRecords(executedGates);
+const failedRequiredGates = RuntimeAPICoverageValidation.failedRequiredGates(RuntimeAPIManifest, executedGateResults);
 const ids = RuntimeAPIManifest.map((entry) => entry.id);
 const registeredIds = new Set(ids);
 const duplicates = ids.filter((id, index) => ids.indexOf(id) !== index);
-const unknown = RuntimeAPITest.tests.flatMap((test) => test.covers).filter((id) => !registeredIds.has(id));
+const unknown = [...RuntimeAPITest.tests, ...passedTestRecords].flatMap((test) => test.covers || []).filter((id) => !registeredIds.has(id));
 const rows = [];
 let failed = 0;
 
@@ -85,7 +90,8 @@ for (const entry of RuntimeAPIManifest) {
 }
 
 const result = {
-  status: failed === 0 && duplicates.length === 0 && unknown.length === 0 && missingFamilyFiles.length === 0 && catalogCheck.ok ? 'passed' : 'failed',
+  status: failed === 0 && duplicates.length === 0 && unknown.length === 0 && missingFamilyFiles.length === 0
+    && failedRequiredGates.length === 0 && catalogCheck.ok ? 'passed' : 'failed',
   documentedMethods: RuntimeAPIManifest.length,
   covered: RuntimeAPIManifest.length - failed,
   failed,
@@ -95,6 +101,7 @@ const result = {
   unknownTestIds: Array.from(new Set(unknown)),
   missingFamilyFiles,
   executedGateResults,
+  failedRequiredGates,
   coverage: rows,
 };
 RuntimeAPITest.writeGate('coverage', result);
@@ -104,5 +111,6 @@ if (result.status !== 'passed') {
     + ' unknown=' + result.unknownTestIds.length
     + ' duplicate=' + result.duplicateIds.length
     + ' familyFiles=' + result.missingFamilyFiles.length
+    + ' gates=' + result.failedRequiredGates.map((item) => item.gate + ':' + item.status).join(',')
     + ' catalog=' + result.catalogErrors.length);
 }

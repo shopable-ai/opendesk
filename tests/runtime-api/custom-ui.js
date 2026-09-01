@@ -28,7 +28,10 @@ globalThis.FloatingToolbarTest = (() => {
   }
 
   function toolbar(count, options = {}) {
-    const value = new FloatingWindow({ x: options.x ?? 180, y: options.y ?? 120, theme: 'dark', alwaysOnTop: true });
+    const value = new FloatingWindow({
+      x: options.x ?? 180, y: options.y ?? 120, theme: 'dark', alwaysOnTop: true,
+      ...(options.toolbar ? { toolbar: options.toolbar } : {}),
+    });
     const icons = ['play.fill', 'pause.fill', 'stop.fill', 'gearshape.fill', 'paperplane.fill', 'timer'];
     for (let index = 0; index < count; index += 1) {
       const label = options.labelFor ? options.labelFor(index) : 'Button ' + index;

@@ -21,6 +21,13 @@
     const values = Object.fromEntries(RuntimeAPIAcceptance.requiredGates.map((name) => [name, gate(name)]));
     values['failure-exit'] = gate('failure-exit', { exitStatus: 1, assertionObserved: true });
     values.live = gate('live', { liveSession: { permissions: { ok: true }, window: { isForeground: true } } });
+    values['custom-ui'] = gate('custom-ui', {
+      behaviorStatus: 'passed', behaviorFinishedAt: new Date().toISOString(),
+      postSuite: { status: 'passed', finalized: true, noResidualProcesses: 'passed' },
+      lifecycleProbes: Object.fromEntries([
+        'scriptException', 'timeout', 'unresolvedPromise', 'httpCancel', 'serverShutdown', 'resourceCleanup', 'noResidualProcesses',
+      ].map((name) => [name, 'passed'])),
+    });
     values.cleanup = gate('cleanup', { confirmed: true });
     return { ...values, ...extra };
   }
@@ -84,6 +91,40 @@
   test({ name: 'acceptance rejects an unconfirmed cleanup result', tier: 'quality', covers: ['System.getProcessList'] }, async () => {
     const result = RuntimeAPIAcceptance.validateGateSet(gates({ cleanup: gate('cleanup', { confirmed: false }) }), baseContext);
     assert(!result.ok && result.errors.some((error) => error.includes('cleanup was not confirmed')), JSON.stringify(result));
+  });
+
+  test({ name: 'acceptance rejects a missing or failed custom-ui gate', tier: 'quality', covers: ['FloatingWindow.show'] }, async () => {
+    const missing = gates();
+    delete missing['custom-ui'];
+    const missingResult = RuntimeAPIAcceptance.validateGateSet(missing, baseContext);
+    const failedResult = RuntimeAPIAcceptance.validateGateSet(gates({ 'custom-ui': gate('custom-ui', { status: 'failed' }) }), baseContext);
+    assert(!missingResult.ok && missingResult.errors.some((error) => error.includes('missing gate result: custom-ui')), JSON.stringify(missingResult));
+    assert(!failedResult.ok && failedResult.errors.some((error) => error.includes('failed gate: custom-ui')), JSON.stringify(failedResult));
+  });
+
+  test({ name: 'coverage rejects passed records inside a failed custom-ui gate', tier: 'quality', covers: ['FloatingWindow.show'] }, async () => {
+    const customUI = gate('custom-ui', {
+      status: 'failed',
+      tests: [{ name: 'misleading passed method', status: 'passed', verification: 'behavior', tier: 'custom-ui', covers: ['FloatingWindow.show'] }],
+    });
+    const records = RuntimeAPICoverageValidation.passedTestRecords({ 'custom-ui': customUI });
+    const required = RuntimeAPICoverageValidation.failedRequiredGates(
+      RuntimeAPIManifest.filter((entry) => entry.id === 'FloatingWindow.show'),
+      { 'custom-ui': 'failed', contract: 'passed' },
+    );
+    assert(records.length === 0, 'failed custom-ui gate leaked passed test records into coverage');
+    assert(required.some((item) => item.gate === 'custom-ui' && item.status === 'failed'), JSON.stringify(required));
+  });
+
+  test({ name: 'coverage and acceptance reject an unfinalized passed custom-ui gate', tier: 'quality', covers: ['FloatingWindow.show'] }, async () => {
+    const unfinalized = gate('custom-ui', {
+      status: 'passed', behaviorStatus: 'passed', behaviorFinishedAt: new Date().toISOString(),
+      tests: [{ name: 'premature method pass', status: 'passed', verification: 'behavior', tier: 'custom-ui', covers: ['FloatingWindow.show'] }],
+    });
+    const records = RuntimeAPICoverageValidation.passedTestRecords({ 'custom-ui': unfinalized });
+    const acceptance = RuntimeAPIAcceptance.validateGateSet(gates({ 'custom-ui': unfinalized }), baseContext);
+    assert(records.length === 0, 'unfinalized custom-ui gate leaked records into coverage');
+    assert(!acceptance.ok && acceptance.errors.some((error) => error.includes('custom-ui gate was not finalized')), JSON.stringify(acceptance));
   });
 
   test({ name: 'acceptance rejects results produced by a different binary SHA', tier: 'quality', covers: ['System.getFingerprint'] }, async () => {

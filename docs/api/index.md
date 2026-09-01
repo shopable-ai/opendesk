@@ -10,11 +10,21 @@ order: 1
 
 ## 一句话理解
 
-OpenDesk 在 JavaScript 运行时中注入桌面自动化、窗口、视觉、文件、网络和系统对象，再加载运行时增强与内置 JS 库；外部程序还可以通过 HTTP 与 MCP 使用更高层能力。
+OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先找窗口，再截取最小必要区域，执行输入，最后验证结果。外部程序也可通过 HTTP 与 MCP 调用同一 Runtime。
+
+## 先选使用入口
+
+| 你想做什么 | 从这里开始 |
+| --- | --- |
+| 让 Codex、Claude Code 或 shell Agent 操作桌面 | [AI CLI](ai-cli.md)：先运行 `opendesk ai capabilities` 和 `opendesk ai schema`。 |
+| 写或维护 JavaScript 自动化脚本 | [Page API](page.md) → [Mouse API](mouse.md) → [Input APIs](input.md) → [Window API](window.md)。 |
+| 识别屏幕上的文本、按钮或颜色 | [Vision API](vision.md) 或 [ImageColor API](image-color.md)。 |
+| 从服务或外部程序触发任务 | [HTTP Server API](http-server.md) 或 MCP。 |
+| 把已探索流程重复执行 | 保存 recipe，然后使用 [AI CLI](ai-cli.md) 的 `run`。 |
 
 ## 先读哪些
 
-- 写桌面脚本：[Page API](page.md) → [Input APIs](input.md) → [Window API](window.md)
+- 写桌面脚本：[Page API](page.md) → [Mouse API](mouse.md) → [Input APIs](input.md) → [Window API](window.md)
 - 做 OCR / 找按钮：[Vision API](vision.md)
 - 做模板匹配 / 颜色判断：[ImageColor API](image-color.md)
 - 做系统与文件操作：[System API](system.md)、[File API](file.md)、[AppStorage](storage.md)
@@ -23,9 +33,9 @@ OpenDesk 在 JavaScript 运行时中注入桌面自动化、窗口、视觉、�
 - 发送系统通知：[notify](notify.md)
 - 显示需用户确认的异步原生窗口：[Dialog API](dialog.md)
 - 使用 console、计时器、等待、剪贴板快捷函数等全局能力：[Global APIs](global-apis.md)
-- 调用、安装或编写 manifest 插件：[Native Extension Plugin V1.0.1](native-extension.md)（Experimental；低层 Native Process V0 仅用于诊断）
+- 调用、安装或编写 manifest 插件：[Native Extension Plugin V1.0.1](native-extension.md)（Experimental；本机 CLI 默认从程序相对目录发现，低层 Native Process V0 仅用于诊断）；作者步骤见 [native-extensions/README.md](../../examples/native-extensions/README.md) 和 [quickstart.js](../../examples/native-extensions/quickstart.js)
 - 从外部服务触发：[HTTP Server API](http-server.md)
-- 创建受控原生面板：[Custom UI v1](custom-ui.md)
+- 显示原生对话框、图标工具栏或受控面板：[Native UI](native-ui.md)
 - 定时执行文件或内联 JavaScript：[Scheduler](scheduler.md)；程序化管理接口：[Scheduler HTTP API](scheduler-api.md)
 - 录制并生成可确定性回放的流程：[OpenDesk Agent-first Recorder MCP API](recorder.md)
 - 理解 legacy / upgraded / playwright：[Runtime Stacks](runtime.md)
@@ -35,103 +45,42 @@ OpenDesk 在 JavaScript 运行时中注入桌面自动化、窗口、视觉、�
 
 ## 当前用户可见 API 地图
 
-| 对象 / 能力 | 类型 | 状态 | 主要用途 | 文档 |
+| 对象 / 能力 | 可用位置 | 状态 | 主要用途 | 文档 |
 | --- | --- | --- | --- | --- |
-| `page` | Native + Polyfill | Stable | 截图、打开 URL/App、等待、权限 | [Page API](page.md) |
-| `mouse` / `keyboard` / `touchscreen` | Native | Stable | 输入控制 | [Input APIs](input.md) |
-| `window` | Native + Polyfill | Stable | 窗口读取与控制 | [Window API](window.md) |
-| `Screen` | Native | Stable | 显示器、像素、截图别名 | [Screen API](screen.md) |
-| `Vision` | Native | Stable | OCR、UI 文本检测、provider 能力 | [Vision API](vision.md) |
-| `OCR` | Native | Secondary | 本地 Tesseract 纯文本 OCR | [Vision API](vision.md) |
-| `ImageColor` | Native | Secondary | 模板匹配、颜色、图像辅助分析 | [ImageColor API](image-color.md) |
-| `System` | Native | Stable | 系统、进程、网络、指标 | [System API](system.md) |
-| `File` | Native | Stable | 文件与目录操作 | [File API](file.md) |
-| `AppStorage` | Native | Secondary | 持久化键值存储 | [AppStorage](storage.md) |
-| `clipboard` | Native | Stable | 系统剪贴板 | [Clipboard API](clipboard.md) |
-| `console` | Native/Runtime wrapper | Stable | 日志与事件输出 | [Global APIs](global-apis.md) |
-| `http` | Native | Stable | 底层 HTTP 请求 | [HTTP and Axios](http.md) |
-| `axios` | Polyfill | Stable | 日常 HTTP 请求 | [HTTP and Axios](http.md) |
-| `NativeExtensions` | Manifest registry + immutable binding | Experimental | CLI opt-in；自动发现严格 bundle，日常调用不传 executable/extension/wire method | [Native Extension Plugin V1.0.1](native-extension.md) |
-| `notify()` | Polyfill + Native bridge | Secondary | 系统通知 | [notify](notify.md) |
-| `Dialog` / `alert()` / `confirm()` / `prompt()` | Native binding + Polyfill aliases | Conditional | 异步原生模态提示与短文本输入 | [Dialog API](dialog.md) |
-| `Sound` | Native | Secondary | 播放提示音 / 音频文件 | [Runtime Utilities](runtime-utilities.md) |
-| `ui` | Native bridge | Conditional / v1 | 受限 HTML/CSS + JavaScript controller 的原生窗口 | [Custom UI v1](custom-ui.md) |
-| `FloatingWindow` | Button-first facade | Conditional v1 | 简单图标工具栏；仅 `run()` deprecated | [Runtime Utilities](runtime-utilities.md) |
-| Global APIs | Native + Polyfill | Stable | 计时器、等待、console 日志、剪贴板快捷函数、取消控制与 URL 参数 | [Global APIs](global-apis.md) |
-| lodash / moment / query-string / cheerio / beautify | JS Libraries | Secondary | 脚本辅助库 | [JS Libraries](libs.md) |
-| `browser` / `context` / upgraded facade | Native + Compatibility facade | Compatibility | 浏览器风格迁移接口 | [Runtime Stacks](runtime.md) |
+| `page` | JavaScript Runtime | Stable | 截图、打开 URL/App、等待、权限 | [Page API](page.md) |
+| `mouse` / `page.mouse` | JavaScript Runtime | Stable | 全局鼠标移动、点击、拖拽、位置与滚轮 | [Mouse API](mouse.md) |
+| `keyboard` / `touchscreen` | JavaScript Runtime | Stable | 键盘与触屏输入控制 | [Input APIs](input.md) |
+| `globalShortcut` | JavaScript Runtime | Stable（macOS / Windows） | 系统快捷键触发 JavaScript callback | [Global Shortcut API](global-shortcut.md) |
+| `window` | JavaScript Runtime | Stable | 窗口读取与控制 | [Window API](window.md) |
+| `Screen` | JavaScript Runtime | Stable | 显示器、像素、截图别名 | [Screen API](screen.md) |
+| `Vision` | JavaScript Runtime | Stable | OCR、UI 文本检测、provider 能力 | [Vision API](vision.md) |
+| `OCR` | JavaScript Runtime | Secondary | 本地 Tesseract 纯文本 OCR | [Vision API](vision.md) |
+| `ImageColor` | JavaScript Runtime | Secondary | 模板匹配、颜色、图像辅助分析 | [ImageColor API](image-color.md) |
+| `System` | JavaScript Runtime | Stable | 系统、进程、网络、指标 | [System API](system.md) |
+| `File` | JavaScript Runtime | Stable | 文件与目录操作 | [File API](file.md) |
+| `AppStorage` | JavaScript Runtime | Secondary | 持久化键值存储 | [AppStorage](storage.md) |
+| `clipboard` | JavaScript Runtime | Stable | 系统剪贴板 | [Clipboard API](clipboard.md) |
+| `console` | JavaScript Runtime | Stable | 日志与事件输出 | [Global APIs](global-apis.md) |
+| `http` | JavaScript Runtime | Stable | 底层 HTTP 请求 | [HTTP and Axios](http.md) |
+| `axios` | JavaScript Runtime | Stable | 日常 HTTP 请求 | [HTTP and Axios](http.md) |
+| `NativeExtensions` | 本机 CLI 默认 | Experimental | 从程序相对目录发现并调用本地 manifest plugin | [Native Extension Plugin V1.0.1](native-extension.md) |
+| `notify()` | JavaScript Runtime | Secondary | 系统通知 | [notify](notify.md) |
+| `Dialog` / `alert()` / `confirm()` / `prompt()` | JavaScript Runtime | Conditional | 异步原生模态提示与短文本输入 | [Dialog API](dialog.md) |
+| `Sound` | JavaScript Runtime | Secondary | 播放提示音 / 音频文件 | [Sound API](sound.md) |
+| `ui` | JavaScript Runtime | Conditional | 受限 HTML/CSS + JavaScript controller 的原生窗口 | [Native UI](native-ui.md) |
+| `FloatingWindow` | JavaScript Runtime | Conditional | 简单图标工具栏 | [Native UI](native-ui.md) |
+| Global APIs | JavaScript Runtime | Stable | 计时器、等待、console 日志、剪贴板快捷函数、取消控制与 URL 参数 | [Global APIs](global-apis.md) |
+| lodash / moment / query-string / cheerio / beautify | JavaScript Runtime | Secondary | 脚本辅助库 | [JS Libraries](libs.md) |
+| `browser` / `context` / upgraded facade | Compatibility stack | Compatibility | 浏览器风格迁移接口 | [Runtime Stacks](runtime.md) |
+| `opendesk ai` | CLI | Stable | 给 Coding Agent 的 JSON desktop-tool surface 与 recipe 入口 | [AI CLI](ai-cli.md) |
 
-## 三层接口来源
+## 使用边界
 
-### 1. 原生对象
+- 新脚本优先使用标记为 **Stable** 的 API；**Conditional** API 必须先满足页面写明的前置条件。
+- `legacy`、`upgraded`、`playwright` 是迁移兼容栈，不是完整浏览器或 DOM 自动化引擎；选择规则和边界见 [Runtime Stacks](runtime.md)。
+- `page.$`、`page.$$` 与旧 DOM 风格的 `page.click(selector)` / `page.type(selector, text)` 不属于当前稳定桌面 API。
+- HTTP 的路由、请求和响应见 [HTTP Server API](http-server.md)；Scheduler 的专用 HTTP 契约见 [Scheduler HTTP API](scheduler-api.md)。
 
-由 Go 运行时注入，例如：
-
-`page`、`mouse`、`keyboard`、`window`、`Screen`、`System`、`File`、`AppStorage`、`clipboard`、`Vision`、`ImageColor`、`Sound`、`http`，以及 Experimental `NativeExtensions`。
-
-`NativeExtensions` 默认不注入；只有受信任的本机 CLI JavaScript execution 显式传入
-`-experimental-native-extension` 才会从 portable/app-bundled 与 current-user roots
-发现严格 `extension.json` bundle，并生成冻结的 namespace/method closure。正常调用是
-`NativeExtensions.goBasic.hello({name: "OpenDesk"})`，不传 path、extension 或 wire
-method。Discovery/list/get/diagnostics 不启动 child，也不执行第三方 JS。完整契约见
-[Native Extension Plugin V1.0.1](native-extension.md)。低层 `NativeExtension.call` 仅保留在
-独立 `-experimental-unsafe-native-extension-call` 本机诊断 gate 中。
-current-user root 分别采用 macOS Application Support、Linux XDG data 和 Windows
-LocalAppData Known Folder；独立 machine-wide discovery 当前为 **Not Implemented**。
-消费者安装预编译 bundle、作者 build/package 和业务脚本的逐文件对应关系也收录在
-[Native Extension Plugin V1.0.1](native-extension.md)。
-
-### 2. Runtime 增强与全局接口
-
-运行时会加载 `polyfills/*.js`，用于：
-
-- 包装原生对象
-- 提供 `page.waitForTimeout()`、`page.ensurePermissions()` 等最终用户 API
-- 提供 `axios`
-- 提供 `console` 的统一日志包装、`notify()`、Promise、timers、sleep、URLSearchParams 等；用户层导航见
-  [Global APIs](global-apis.md)，`notify()` 的完整契约见 [notify](notify.md)
-
-### 3. Compatibility facade
-
-`legacy` / `upgraded` / `playwright` stack 会改变 `page` / `browser` / `context` 的默认指向。
-
-这些 facade 主要提供迁移友好的 API 形状，**不等于完整 Playwright 浏览器引擎**。
-
-## HTTP 服务接口
-
-[HTTP Server API](http-server.md) 记录 OpenDesk 自身服务端接口，包括：
-
-- `POST /SCRIPT_RUN`
-- `POST /executions`
-- `GET /executions/{id}`
-- `GET /executions/{id}/summary`
-- `GET /executions/{id}/events`
-- `GET /status`
-- `POST /vision/ocr`
-- `POST /vision/detect-ui`
-- `GET /scheduler`
-- `/api/scheduler/jobs` 创建 file/inline 任务、查看、暂停、恢复、立即运行、删除与运行历史
-
-Scheduler 的完整 HTTP 契约见 [Scheduler HTTP API](scheduler-api.md)。
-
-## 事实与兼容原则
-
-- 当前源码 / Runtime 行为优先。
-- 正式可渲染 Markdown 是用户文档主表达。
-- 新脚本优先采用标记为 Stable 的接口。
-- `page.$`、`page.$$`、旧 DOM 风格 `page.click(selector)` / `page.type(selector, text)` 不属于当前稳定桌面 API。
-- upgraded / playwright facade 只按 [Runtime Stacks](runtime.md) 描述理解，不推断不存在的浏览器能力。
-- 历史 TestMonkey 文档仅保留在 Git 历史中，不再参与当前文档解析。
-- `dev/api.md` 与仓库根旧 `types.md` 属于已经退役的历史草稿，不应恢复。
-
-## 文档与配套接口资产
-
-正式用户说明就是本目录的 Markdown 页面。
-
-另外维护：
-
-- `runtime-api.ai.json`：Agent 使用的机器索引。
-- 仓库根 `types/*.d.ts`：VS Code / TypeScript 使用的类型声明。
-- `jsconfig.json`：让 JavaScript 编辑器加载上述声明。
-
-这些都是当前 Runtime 的派生表达。新增、删除、改名或改变主要 API 签名时，应在同一变更中同步校准，而不是新增另一份接口说明页。
+`runtime-api.ai.json` 是给 Agent 的紧凑机器索引；它不替代本目录各页面的用户调用契约。Runtime
+内部注入、polyfill 和 facade 组成见 [Runtime API composition](../implementation/runtime/runtime-api-composition.md)，
+文档与类型的同步规则见 [API documentation maintenance](../maintenance/docs-user-api-editme-toc-maintenance.md)。

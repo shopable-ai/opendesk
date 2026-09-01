@@ -9,7 +9,7 @@ globalThis.RuntimeAPICatalogValidation = (() => {
     'page____Inject', 'browser____Inject', 'context____Inject', 'Execution',
     'global', 'globalThis', 'module', 'exports', 'require',
     '_', 'moment', 'cheerio', 'queryString', 'querystring',
-    'Automation', 'RuntimeAPITest', 'RuntimeAPICatalogValidation', 'RuntimeAPICrypto',
+    'Automation', 'RuntimeAPITest', 'RuntimeAPICatalogValidation', 'RuntimeAPICoverageValidation', 'RuntimeAPICrypto',
     'browserLegacy', 'browserUpgraded', 'contextLegacy', 'contextUpgraded',
     'pageLegacy', 'pageUpgraded',
   ]);
@@ -35,7 +35,10 @@ globalThis.RuntimeAPICatalogValidation = (() => {
       }
       objects[name] = {
         optionalAbsent: false,
-        methods: Object.keys(value || {}).filter((key) => typeof value[key] === 'function').sort(),
+        methods: [
+          ...Object.keys(value || {}).filter((key) => typeof value[key] === 'function'),
+          ...(definition.methods.includes('constructor') && typeof value === 'function' ? ['constructor'] : []),
+        ].sort(),
       };
     }
     const globals = RuntimeAPIObjects.global.methods.filter((method) => typeof globalThis[method] === 'function').sort();
@@ -74,6 +77,9 @@ globalThis.RuntimeAPICatalogValidation = (() => {
       const [namespace, pluginMethod] = method.split('.');
       return new RegExp('\\b' + namespace + '\\s*:').test(source)
         && new RegExp('\\b' + pluginMethod + '\\s*:').test(source);
+    }
+    if (method === 'constructor') {
+      return source.includes('var ' + entry.family) && /\bnew\s*\(/.test(source);
     }
     return source.includes('var ' + entry.family)
       && new RegExp('\\b' + method + '\\s*(?:<[^>]*>)?\\s*\\(').test(source);

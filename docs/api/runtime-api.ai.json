@@ -19,9 +19,9 @@
   },
   "entrypoints": {
     "cli": {
-      "file": "go run ./cmd/opendesk -script <file.js>",
-      "inline": "go run ./cmd/opendesk -script-text \"...\"",
-      "stdin": "go run ./cmd/opendesk -script-stdin",
+      "file": "opendesk -script <file.js>",
+      "inline": "opendesk -script-text \"...\"",
+      "stdin": "opendesk -script-stdin",
       "stack": [
         "legacy",
         "upgraded",
@@ -29,18 +29,17 @@
       ]
     },
     "aiCli": {
-      "command": "go run ./cmd/opendesk ai schema",
-      "builtCommand": "./opendesk ai schema",
+      "command": "opendesk ai schema",
       "docs": "docs/api/ai-cli.md",
       "stdout": "single JSON envelope only",
       "purpose": "Low-token desktop tool surface for coding agents; reuses Stable Runtime services and Execution evidence."
     },
     "httpServer": {
-      "command": "go run ./cmd/opendesk -http",
+      "command": "opendesk -http",
       "defaultPort": 60844
     },
     "mcp": {
-      "command": "go run ./cmd/opendesk-mcp",
+      "command": "opendesk-mcp",
       "docs": "docs/mcp/README.md"
     }
   },
@@ -51,7 +50,7 @@
     "Prefer Vision.runOCR or Vision.detectUI for structured OCR/UI text work; use OCR.extractText for simple local text extraction.",
     "Use ImageColor as a secondary pixel/template/color primitive, not as a replacement for semantic verification.",
     "Prefer axios for normal script HTTP requests; axios is a polyfill backed by http.request.",
-    "NativeExtensions is an Experimental manifest-discovered immutable binding. Normal calls use NativeExtensions.<namespace>.<method>(businessParams) with routes fixed by the Host; it is absent by default and enabled only for a trusted local CLI script with -experimental-native-extension. HTTP and MCP cannot enable it. The low-level NativeExtension.call compatibility surface requires the separate -experimental-unsafe-native-extension-call local diagnostic gate.",
+    "NativeExtensions is an Experimental manifest-discovered immutable binding. Normal local CLI calls use NativeExtensions.<namespace>.<method>(businessParams) with routes fixed by the Host; it discovers only the program-relative bundle directory by default. HTTP and MCP cannot enable or call it. The low-level NativeExtension.call compatibility surface requires the separate -experimental-unsafe-native-extension-call local diagnostic gate.",
     "The ui global is always present but dormant by default. Enable it with -ui or strict clawdesk.runtime.json; HTML/CSS declares the view and all business API calls stay in the JavaScript controller.",
     "Dialog is always present but fail-closed without the ui capability. Its alert, confirm, and prompt methods are asynchronous native modal dialogs; global alert/confirm/prompt are thin polyfill aliases, never browser-style blocking calls.",
     "Treat upgraded/playwright surfaces as compatibility facades, not a complete Playwright browser engine.",
@@ -91,7 +90,16 @@
       "name": "mouse",
       "source": "native",
       "status": "stable",
-      "doc": "input.md"
+      "doc": "mouse.md",
+      "keyMethods": [
+        "click",
+        "clickForPID",
+        "move",
+        "down",
+        "up",
+        "getPos",
+        "wheel"
+      ]
     },
     {
       "name": "keyboard",
@@ -266,15 +274,12 @@
       "source": "strict manifest registry plus host-generated immutable binding",
       "status": "experimental",
       "doc": "native-extension.md",
-      "condition": "absent by default; trusted local CLI script execution requires -experimental-native-extension; HTTP and MCP cannot enable it",
-      "summary": "Discovers strict extension.json bundles from portable/app-bundled and current-user roots, generates frozen namespaces and method closures, and starts one validated executable only when a generated method is called.",
-      "canonicalCurrentUserRoots": {
-        "darwin": "$HOME/Library/Application Support/OpenDesk/NativeExtensions/",
-        "linux": "${XDG_DATA_HOME:-$HOME/.local/share}/OpenDesk/NativeExtensions/; non-empty XDG_DATA_HOME must be absolute",
-        "windows": "%LOCALAPPDATA%\\OpenDesk\\NativeExtensions\\ via the LocalAppData Known Folder"
-      },
-      "machineWideRoot": "not implemented; machine-level bundles remain publisher/deployment package content until Unix admin policy and Windows owner/DACL/reparse trust gates exist",
-      "migration": "legacy Linux config and Windows roaming prototype roots are not scanned or auto-moved/copied/merged/deleted",
+      "condition": "available to local CLI JavaScript by default; HTTP, MCP, and other remote execution transports never inject, enable, redirect, or call it",
+      "summary": "Discovers strict extension.json bundles from exactly one portable/app-bundled program-relative root, generates frozen namespaces and method closures, and starts one validated executable only when a generated method is called.",
+      "platformStatus": "V1 has Darwin/Linux/Windows implementation candidates; macOS-only examples or Runtime Evidence do not mean the whole API is macOS-only. go-basic is target-buildable Go; macos-vision is macOS-only. A target without target-machine Runtime Evidence is Not Evaluated, not Unsupported.",
+      "programRelativeRoot": "<program-directory>/native-extensions/<plugin-id>/; macOS .app uses OpenDesk.app/Contents/Resources/NativeExtensions/<plugin-id>/",
+      "excludedDefaultRoots": ["HOME", "machine-wide", "cwd", "PATH", "source ancestors", "script path"],
+      "migration": "legacy prototype roots are not scanned or auto-moved/copied/merged/deleted",
       "lifecycle": "registry frozen per execution; start a new execution after install or upgrade; no hot reload",
       "callOptions": [
         "timeoutMs"
@@ -356,7 +361,7 @@
       "name": "Sound",
       "source": "native",
       "status": "secondary",
-      "doc": "runtime-utilities.md",
+      "doc": "sound.md",
       "keyMethods": [
         "playSuccess",
         "playFail",
@@ -370,8 +375,8 @@
     {
       "name": "ui",
       "source": "native process driver plus EventLoop bridge",
-      "status": "conditional-v1",
-      "doc": "custom-ui.md",
+      "status": "conditional",
+      "doc": "native-ui.md",
       "condition": "always present but dormant by default; local CLI or strict project config authorization is required, while HTTP additionally requires server opt-in, per-request capability declaration, and a loopback peer",
       "platformBehavior": "macOS AppKit/WebKit host; Windows and Linux report available=false and createWindow rejects UNSUPPORTED_PLATFORM",
       "keyMethods": [
@@ -390,9 +395,9 @@
     {
       "name": "FloatingWindow",
       "source": "Button-first facade over the Custom UI driver",
-      "status": "button-first-v1",
-      "doc": "runtime-utilities.md",
-      "condition": "injected only when Custom UI is explicitly authorized; constructible instances accept orientation horizontal (default, 1-32 ordered buttons with bounded wrapping) or vertical (1-5 ordered buttons in one native column), trusted built-in icons, synchronous or Promise callbacks, post-show state updates, button-level single-flight, and structured callback errors; unknown orientation and vertical overflow are INVALID_SPEC; run alone is deprecated",
+      "status": "conditional",
+      "doc": "native-ui.md",
+      "condition": "injected only when Native UI is explicitly authorized; constructible instances accept orientation horizontal (default, 1-32 ordered buttons with toolbar.maxWidth 60-960pt, maxColumns 1-19 and optional maxRows 1-32 automatic-wrap constraints) or vertical (1-5 ordered buttons in one native column; no toolbar wrapping constraints), 150 reviewed built-in SF Symbols, synchronous or Promise callbacks, post-show state updates, button-level single-flight, and structured callback errors; invalid layout constraints, unknown orientation and overflow are INVALID_SPEC",
       "keyMethods": [
         "addButton",
         "removeButton",
@@ -483,6 +488,7 @@
     "index": "index.md",
     "core": [
       "page.md",
+      "mouse.md",
       "input.md",
       "window.md",
       "screen.md"
@@ -504,11 +510,11 @@
     "runtime": [
       "runtime.md",
       "notify.md",
-      "custom-ui.md",
+      "sound.md",
+      "native-ui.md",
       "native-extension.md",
       "global-apis.md",
-      "libs.md",
-      "runtime-utilities.md"
+      "libs.md"
     ],
     "examples": "cookbook.md"
   }

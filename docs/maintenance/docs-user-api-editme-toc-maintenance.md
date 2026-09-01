@@ -19,6 +19,19 @@ order: 10
 
 历史上的 `docs-api/`、`docs-api-user/`、`dev/api.md` 已经退役，不再作为平行 API 文档来源。
 
+## 如何判断文档归属
+
+| 要回答的问题 | 应放位置 | 典型内容 |
+| --- | --- | --- |
+| “我怎样调用它？” | `docs/api/` | 参数、返回、错误、平台限制、权限、可复制命令与脚本。 |
+| “OpenDesk 怎样实现它？” | `docs/implementation/` | Go 注入、polyfill、内部对象、资源加载、架构与排障。 |
+| “这些文档怎样保持一致？” | `docs/maintenance/` | Markdown / JSON / `.d.ts` 同步、生成、检查清单与事实优先级。 |
+| “未来可能怎样演进？” | `docs/plans/` | 尚未承诺的路线、提案和迁移计划。 |
+
+判断时以读者是否能只靠正文完成一次调用为准：能，则写用户接口文档；若正文要求修改
+OpenDesk 源码、运行时资源或内部构造，则属于实现文档。不要仅因为内容涉及 JavaScript 就把
+扩展作者指南放进 `docs/api/`。
+
 ## 核心结构规则
 
 ### 1. TOC 应突出什么
@@ -71,6 +84,7 @@ TOC 应表现“用户导航骨架”，不是内部维护机制清单。
 ### 核心桌面
 
 - `page.md`
+- `mouse.md`
 - `input.md`
 - `window.md`
 - `screen.md`
@@ -97,7 +111,8 @@ TOC 应表现“用户导航骨架”，不是内部维护机制清单。
 - `runtime.md`
 - `global-apis.md`
 - `libs.md`
-- `runtime-utilities.md`
+- `sound.md`
+- `native-ui.md`
 
 ### 索引与示例
 
@@ -106,11 +121,29 @@ TOC 应表现“用户导航骨架”，不是内部维护机制清单。
 - `runtime-api.ai.json`
 - `cookbook.md`
 
-## Runtime 文档特殊规则
+## 文档分层与 Runtime 归属
 
-`runtime.md` 需要清楚区分原生对象注入、polyfill、JS libraries、runtime console、Screen 绑定和 runtime stack，但不要把每个内部变量都做成用户 API。
+`docs/api/` 只保留用户最终能调用的 API、参数、返回值、错误、平台限制和可复制示例。它不应
+解释 Go 注入顺序、polyfill 构造、资源查找或内部 `*____Inject` 对象。
 
-`page____Inject`、`browser____Inject`、`context____Inject` 只作为内部构造机制解释，不建议用户直接依赖。
+- `docs/api/runtime.md` 只说明 stack 选择、兼容边界和 `Execution` 的用户可见字段。
+- [Runtime API composition](../implementation/runtime/runtime-api-composition.md) 记录 native
+  注入、polyfill / facade 组成、内部对象和运行时资源排障。
+- `page____Inject`、`browser____Inject`、`context____Inject` 不得被标记为用户 API，也不应
+  出现在用户脚本示例、`runtime-api.ai.json` 或类型声明中。
+
+## 事实优先级
+
+接口事实冲突时按以下顺序判断：
+
+1. 当前源码与实际 Runtime 行为
+2. `docs/api/*.md` 的正式用户调用契约
+3. `docs/api/runtime-api.ai.json` 的机器索引
+4. `types/*.d.ts` 的编辑器类型声明
+5. Git 历史
+
+已退役的 `docs-api/`、`docs-api-user/`、`dev/api.md` 和根目录旧 `types.md` 不能恢复为平行
+接口事实源。
 
 ## 机器可读索引与类型同步
 

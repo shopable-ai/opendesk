@@ -8,6 +8,24 @@ API 事实源按优先级为：当前源码和实际 Runtime 行为、`docs/api/
 `docs/api/runtime-api.ai.json`、`types/*.d.ts`。只有这些正式来源可以作为测试输入；
 不得恢复或使用任何退役接口文档。
 
+## 普通示例运行与正式 gate 的边界
+
+公开 Dialog 示例的普通体验从仓库根目录只运行一条命令，例如：
+
+```bash
+./opendesk -ui -script examples/dialog.js -console-mode script
+```
+
+这条命令必须先由维护者使用当前的一对 `opendesk` / `opendesk-ui-host` 原样验证，并人工观察
+关键窗口的排版。下面的 conformance gate 会构建隔离的 run-local binary，并使用
+WindowServer、AX controller、watchdog 和结构化证据验证行为；它是更严格的附加验收，但不能
+证明根目录已有二进制是最新的，也不能替代公开命令和视觉质量检查。
+
+Dialog 的视觉验收与行为验收分别判定：即使返回值、Promise 分支、exactly-once 和资源清理
+全部正确，只要真实窗口出现异常拉宽、过高、大面积空白、裁切或控件错位，仍应报告视觉失败。
+普通运行说明见 [`examples/README.md`](../../examples/README.md)，公开契约见
+[`docs/api/dialog.md`](../../docs/api/dialog.md)。
+
 ## 分层和机器结果
 
 | Gate | JavaScript 证明 | 机器结果 |
@@ -20,6 +38,8 @@ API 事实源按优先级为：当前源码和实际 Runtime 行为、`docs/api/
 | live | Safari、权限、窗口身份、输入、剪贴板、HTTP 和截图 | `results/live.json` |
 | notify-icon-live | 已安装 macOS Runtime 提交通知并保活 15 秒供图标取证 | `results/runtime-api-notify-icon-live.json` + 截图 |
 | composition | 多控件、DOM/像素、截图、state/events 和移动窗口重放 | `results/composition.json` |
+| custom-ui-config | 脚本旁/工作目录发现、显式配置、`-ui`/`-no-ui` 优先级及严格配置错误 | `custom-ui-config-cli/*.stdout.log`、`*.stderr.log` 与 `processes.json` |
+| custom-ui | 随包 host、nonactivating show、状态/控件 round-trip、兼容 facade、缺 host 明确失败，并包含 custom-ui-config | `results/custom-ui.json`、`results/custom-ui-missing-host.json` 与 CLI 日志 |
 | cleanup | 已记录 runtime/PGID/watchdog/fixture PID 均已退出 | `results/cleanup.json` |
 | quality | 同 runId、同二进制 SHA 和真实证据驱动的 100/100 acceptance | `results/quality.json` 与 `summary.json` |
 
@@ -33,6 +53,8 @@ tier，以及没有风险理由的 contract-only 接口。
 OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./scripts/test_runtime_apis.sh contract
 OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./scripts/test_runtime_apis.sh unit
 OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./scripts/test_runtime_apis.sh smoke
+OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./scripts/test_runtime_apis.sh custom-ui-config
+OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./scripts/test_runtime_apis.sh custom-ui
 OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./scripts/test_runtime_apis.sh dialog
 OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./scripts/test_runtime_apis.sh live
 OPENDESK_BINARY=/absolute/path/to/OpenDesk.app/Contents/MacOS/opendesk ./scripts/test_runtime_apis.sh notify-icon-live
@@ -49,6 +71,14 @@ worker、callback、timer、window、listener、driver sink 与 native host proc
 `dialog-ax-controller.js` 按需调用公开 `keyboard.type()` 输入固定非秘密 fixture，再调用
 `mouse.clickForPID()` 作一次 PID-scoped `AXPress`；
 它不以 HTML mock、全局坐标 click 或脚本内 callback 冒充原生交互。
+
+即使设置了 `OPENDESK_BINARY`，runner 也不会直接从原目录执行它：先验证其为可执行普通
+文件，记录原始绝对路径和 SHA-256，再复制到本次
+`.runtime/tests/runtime-api/<runId>/bin/opendesk`，核对副本 SHA 后只执行该 run-local 副本。
+这样通过名称调用的 Experimental Native Extension 会稳定解析到同级
+`bin/native-extensions/`。`context.json` 的 `binary` 同时记录实际执行路径、SHA、
+`provenance`、`originalPath` 和 `originalSha256`；默认源码构建也始终输出到同一个
+run-local binary 路径，且 provenance 为 `source_build`。
 
 `live` 从头执行全部 gate，最后才运行 quality/acceptance。它要求 macOS Accessibility 和
 Screen Recording；Safari 必须处于可控状态。权限不足、窗口或控件身份不匹配、缺截图、证据
@@ -76,13 +106,16 @@ OPENDESK_RUNTIME_API_BROWSER_APP=Safari
 1. **普通手动体验（macOS）**：先运行一次 `make build`，再运行
    `./dist/opendesk -script examples/global-shortcut.js -console-mode script`。让另一个 App
    处于前台，按 `Command+Shift+9`，执行 `pbpaste` 确认剪贴板文本；按 `Ctrl-C` 正常结束以
-   清理注册。
+   清理注册。该宿主须在 **System Settings → Privacy & Security → Accessibility** 与
+   **Input Monitoring** 中允许后重启；后者支持 backend 的 HID listener（特别是 `F21`–`F24`）。
+   普通快捷键测试不需要 Screen Recording 或 Automation。
 2. **macOS 自动化原生 gate（维护者）**：运行
    `OPENDESK_BINARY=./dist/opendesk ./tests/runtime-api/global-shortcut-smoke-darwin.sh`。
    预期 shell log 在 `.runtime/tests/runtime-api/global-shortcut/global-shortcut-smoke.log`，
    Runtime evidence 在 `.runtime/runs/direct-*/global-shortcut-smoke.json`。运行宿主必须在
    System Settings 获得 Accessibility；若 macOS 提示，还要允许发起 System Events 的
-   Automation。该 gate 会切换 TextEdit 前台，不是普通使用步骤。
+   Automation。该 Automation 提示属于测试注入链路，不属于 `globalShortcut` API 本身。该 gate
+   会切换 TextEdit 前台，不是普通使用步骤。
 3. **确定性 Go / API 测试**：运行：
 
    ```bash
@@ -102,9 +135,16 @@ OPENDESK_RUNTIME_API_BROWSER_APP=Safari
 ## 安全边界与版本控制
 
 关机、重启、睡眠、杀进程、关闭窗口、`AppStorage.clear`、通知、内置声音、未配置 provider
-的 OCR/UI 识别、FloatingWindow loop 和 `mouse.clickForPID` 成功路径，默认只能做 contract 或
+的 OCR/UI 识别和 `mouse.clickForPID` 成功路径，默认只能做 contract 或
 安全错误路径。`clickForPID` 不能以 HTML 元素冒充 AXPress 成功；真实成功路径需要已审核的
 原生 AX 控件、PID、窗口、AX capability 和业务结果。
+
+Custom UI 的默认 unit gate 只验证 dormant `ui` 与 `UI_DISABLED`。显式 `custom-ui` gate 在
+macOS 构建 run-local `clawdesk-ui-host`，运行真实原生 JavaScript 测试，包括 Button-first
+五按钮顺序/自动布局、PID 定向真实点击、自定义同步/异步 callback、single-flight、状态切换、
+结构化错误和非法参数；并另用无 host 的 run-local binary 证明 `UI_HOST_NOT_FOUND`。
+`custom-ui-config` 使用独立 JavaScript 文件对 CLI 发现和优先级做黑盒验证；完整 `custom-ui`
+gate 会同时运行它。全部仍由唯一正式入口启动。
 
 建议纳入版本控制的正式资产：`tests/runtime-api/`、`scripts/test_runtime_apis.sh`、
 `scripts/test_host_apis.sh`、`schemas/runtime-api/*.schema.json`、相关 Makefile/README/AGENTS、

@@ -6,91 +6,85 @@ order: 1
 
 # OpenDesk 用户 API 文档
 
-`docs/api/` 是当前仓库唯一维护、并直接用于渲染的用户 API 文档目录。
+`docs/api/` 是 OpenDesk 的用户使用入口。先按你要完成的任务选择入口；不需要先了解 Go
+源码、polyfill 或历史迁移细节。
 
-这里的 Markdown 面向最终使用者；机器索引和编辑器类型只是同一 API 面的派生辅助，不应再各自形成一套说明文档。
+## 从用户任务开始
 
-## 事实优先级
+所有示例均从仓库根目录运行。
 
-发生冲突时按以下顺序判断：
+### 让 Coding Agent 操作桌面
 
-1. 当前源码与实际 Runtime 行为
-2. `docs/api/*.md` 正式可渲染用户文档
-3. `docs/api/runtime-api.ai.json` Agent 机器索引
-4. `types/*.d.ts` 编辑器类型声明
-5. Git 历史
+先让 Agent 从 CLI 自己发现当前机器可用的桌面能力，再逐步缩小目标窗口和截图范围：
 
-已退役的 `docs-api/`、`docs-api-user/`、`dev/api.md` 不再作为当前接口事实源，也不应重新创建为并行 API 文档目录。
+```bash
+./opendesk ai capabilities
+./opendesk ai windows
+./opendesk ai screenshot --active-window
+```
+
+稳定流程应保存为 parameterized JavaScript recipe：
+
+```bash
+./opendesk ai run recipe.js --input '{"message":"hello"}'
+```
+
+完整坐标规则、JSON 输出、截图 artifact、错误码与 recipe 输入见 [AI CLI](ai-cli.md)。
+
+### 写一次性或可维护的桌面脚本
+
+从 `page`、输入和窗口 API 开始：
+
+```bash
+./opendesk -script examples/api-quickstart.js
+```
+
+按 [Page API](page.md) → [Mouse API](mouse.md) → [Input APIs](input.md) → [Window API](window.md) 阅读；需要识别
+文本或图像时再使用 [Vision API](vision.md) 或 [ImageColor API](image-color.md)。
+
+### 从其他程序触发 OpenDesk
+
+使用 [HTTP Server API](http-server.md) 或 [MCP 文档](../integrations/mcp/README.md)。它们是外部调用入口，
+不等于浏览器 DOM 自动化。
 
 ## 推荐阅读顺序
 
 1. `index.md`：完整 API 地图与文档导航
 2. `ai-cli.md`：Codex、Claude Code 和 shell Agent 的 JSON desktop-tool surface
 3. `page.md`：截图、打开 URL / App、等待、权限
-4. `input.md`：鼠标、键盘、触屏
-5. `window.md`：窗口查询与控制
-6. `vision.md`：OCR、UI 文本定位、provider
-7. `image-color.md`：模板匹配、颜色与图像辅助能力
-8. `notify.md`：系统通知调用契约、平台限制与可见性边界
-9. `dialog.md`：异步 alert / confirm / prompt、UI capability 与隐私边界
-10. `clipboard.md`：系统剪贴板对象与文本读写
-11. `global-apis.md`：无需 import 即可调用的全局接口、console、等待、计时器和参数工具
-12. `runtime.md`：运行时注入、polyfill、stack/facade
-13. `custom-ui.md`：受限 HTML/CSS 视图与 JavaScript controller 原生窗口
-14. [native-extension.md](native-extension.md)：默认关闭、仅本机 CLI 显式 opt-in 的 Native Extension Plugin V1；底层复用 one-shot Native Process Protocol V0
-15. [examples/native-extensions/README.md](../../examples/native-extensions/README.md)：预编译 bundle 安装、作者 build/package 与逐文件映射；业务调用脚本为 [quickstart.js](../../examples/native-extensions/quickstart.js)
-16. `cookbook.md`：可直接改造的脚本范例
-17. `scheduler.md`：file/inline JavaScript 定时任务、SQLite 持久化与本地管理页
-18. `scheduler-api.md`：Scheduler 本地 HTTP API 的字段、响应与完整调用示例
-19. 其余专题页按需查阅
+4. `mouse.md`：鼠标移动、点击、拖拽、位置与滚轮
+5. `input.md`：键盘和触屏
+6. `global-shortcut.md`：macOS / Windows 系统级快捷键与 Runtime callback
+7. `window.md`：窗口查询与控制
+8. `vision.md`：OCR、UI 文本定位、provider
+9. `image-color.md`：模板匹配、颜色与图像辅助能力
+10. `notify.md`：系统通知调用契约、平台限制与可见性边界
+11. `dialog.md`：异步 alert / confirm / prompt、UI capability 与隐私边界
+12. `clipboard.md`：系统剪贴板对象与文本读写
+13. `global-apis.md`：无需 import 即可调用的全局接口、console、等待、计时器和参数工具
+14. `runtime.md`：stack 选择、兼容边界与 recipe 的 `Execution` 上下文
+15. `sound.md`：播放内置提示音或本地音频文件
+16. `native-ui.md`：Dialog、FloatingWindow 和受限 HTML/CSS 原生窗口的选择与调用
+17. [native-extension.md](native-extension.md)：本机 CLI 默认提供、仅程序相对目录 discovery 的 Native Extension Plugin V1；底层复用 one-shot Native Process Protocol V0
+18. [examples/native-extensions/README.md](../../examples/native-extensions/README.md)：插件作者 build/package、source-free bundle 与程序相对安装；业务调用脚本为 [quickstart.js](../../examples/native-extensions/quickstart.js)
+19. `cookbook.md`：可直接改造的脚本范例
+20. `scheduler.md`：file/inline JavaScript 定时任务、SQLite 持久化与本地管理页
+21. `scheduler-api.md`：Scheduler 本地 HTTP API 的字段、响应与完整调用示例
+22. 其余专题页按需查阅
 
 ## 文档分层
 
-- **核心桌面自动化**：`page.md`、`input.md`、`window.md`、`screen.md`
+- **核心桌面自动化**：`page.md`、`mouse.md`、`input.md`、`global-shortcut.md`、`window.md`、`screen.md`
 - **视觉能力**：`vision.md`、`image-color.md`
 - **系统与数据**：`system.md`、`file.md`、`storage.md`、`clipboard.md`
 - **网络与服务**：`http.md`、`http-server.md`、`scheduler.md`、`scheduler-api.md`
-- **运行时**：`runtime.md`、`notify.md`、`dialog.md`、`global-apis.md`、`custom-ui.md`、`libs.md`、`runtime-utilities.md`、[native-extension.md](native-extension.md)
+- **运行时**：`runtime.md`、`notify.md`、`dialog.md`、`sound.md`、`native-ui.md`、`global-apis.md`、`libs.md`、[native-extension.md](native-extension.md)
 - **实践范例**：`cookbook.md`
 
-[Native Extension Plugin V1](native-extension.md) 在唯一 Native Process Protocol V0
-Host 上增加严格 manifest discovery 和 Host-generated immutable binding。受信任的本机
-CLI execution 传 `-experimental-native-extension` 后，日常脚本使用
-`NativeExtensions.<namespace>.<method>(businessParams)`；不再传 executable、extension
-或 wire method。Discovery/list/get/diagnostics 不启动 child，不执行第三方 bundle JS。
-第三方预编译 bundle 的 canonical current-user root 使用 macOS Application Support、
-Linux XDG data、Windows LocalAppData Known Folder；独立 machine-wide discovery 在 V1.0.1
-为 **Not Implemented**。
-该能力仍是 Experimental，也不是 Extension Manager、Marketplace、sandbox 或 Stable
-ABI。低层 `NativeExtension.call` 只在独立 unsafe 本机诊断 gate 中保留。
-安装 archive 而不是 example source；完整文件归属、作者步骤和可保存的
-[quickstart.js](../../examples/native-extensions/quickstart.js) 见
-[examples/native-extensions/README.md](../../examples/native-extensions/README.md)。
+## 这个目录的边界
 
-## 配套的非渲染资产
+这里仅说明用户能调用的 API、参数、返回值、平台限制、错误行为和可复制示例；不解释
+Go 注入顺序、polyfill 构造、内部构造对象或文档生成流程。
 
-用户文档之外还维护两类辅助资产：
-
-| 位置 | 用途 |
-| --- | --- |
-| `docs/api/runtime-api.ai.json` | Agent 的机器可读对象地图与文档路由 |
-| `types/*.d.ts` + `jsconfig.json` | VS Code / TypeScript 自动补全、参数和返回值提示 |
-
-`types/*.d.ts` 不承担教程、平台行为、架构解释和历史迁移说明；这些内容应写进对应 API Markdown。
-
-## API 状态约定
-
-- **Stable**：当前主要用户入口，优先用于新脚本。
-- **Secondary**：当前真实可用，但不是主链路能力。
-- **Compatibility**：为历史调用或迁移保留，不代表完整第三方 API 兼容。
-- **Experimental**：存在实现，但依赖、平台行为或长期稳定性尚未完全收口。
-- **Conditional**：只有满足运行时条件时才注入。
-
-## 维护原则
-
-- 以“用户最终能调用什么”为主，不把源码内部对象全部暴露成推荐 API。
-- 原生 Go API、polyfill、facade 必须明确区分。
-- 示例优先采用当前稳定入口。
-- 任何用户可见 API 的新增、删除、改名、参数或返回值变化，都必须同步检查对应 Markdown、`runtime-api.ai.json` 与 `types/*.d.ts`。
-- Markdown 负责可渲染说明；JSON 负责 Agent 路由；`.d.ts` 负责编辑器签名，三者不要互相复制长篇内容。
-- 不在正式文档中写开发者本机绝对路径。
+- Runtime 内部组成见 [Runtime API composition](../implementation/runtime/runtime-api-composition.md)。
+- 文档同步、机器索引、类型与事实优先级见 [API documentation maintenance](../maintenance/docs-user-api-editme-toc-maintenance.md)。

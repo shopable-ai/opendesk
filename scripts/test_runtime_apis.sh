@@ -149,17 +149,15 @@ PY
 }
 
 runjs() {
-  local gate="$1" source="$2" timeout="$3" deadline="$4" extra="" track=true stack="legacy" enable_ui=false enable_native_extensions=false
+  local gate="$1" source="$2" timeout="$3" deadline="$4" extra="" track=true stack="legacy" enable_ui=false
   [[ $# -lt 5 ]] || extra="$5"
   [[ $# -lt 6 ]] || track="$6"
   [[ $# -lt 7 ]] || stack="$7"
   [[ $# -lt 8 ]] || enable_ui="$8"
-  [[ $# -lt 9 ]] || enable_native_extensions="$9"
   local generated="$RUN_DIR/generated/$gate.generated.js" pidfile="$RUN_DIR/processes/$gate.json"
   generate "$source" "$generated" "$extra"
   set +e
   local runtime_args=(-script "$generated" -stack "$stack" -console-mode script -timeout "$timeout" -log-dir "$RUN_DIR/runtime-logs/$gate")
-  [[ "$enable_native_extensions" != true ]] || runtime_args=(-experimental-native-extension "${runtime_args[@]}")
   [[ "$enable_ui" != true ]] || runtime_args=(-ui "${runtime_args[@]}")
   python3 "$WATCHDOG" --seconds "$deadline" --pid-file "$pidfile" -- "$BINARY" "${runtime_args[@]}" &
   local watchdog=$!
@@ -177,16 +175,14 @@ runjs() {
 STARTED_WATCHDOG=""
 STARTED_GATE=""
 startjs() {
-  local gate="$1" source="$2" timeout="$3" deadline="$4" extra="" track=true stack="legacy" enable_ui=false enable_native_extensions=false
+  local gate="$1" source="$2" timeout="$3" deadline="$4" extra="" track=true stack="legacy" enable_ui=false
   [[ $# -lt 5 ]] || extra="$5"
   [[ $# -lt 6 ]] || track="$6"
   [[ $# -lt 7 ]] || stack="$7"
   [[ $# -lt 8 ]] || enable_ui="$8"
-  [[ $# -lt 9 ]] || enable_native_extensions="$9"
   local generated="$RUN_DIR/generated/$gate.generated.js" pidfile="$RUN_DIR/processes/$gate.json"
   generate "$source" "$generated" "$extra"
   local runtime_args=(-script "$generated" -stack "$stack" -console-mode script -timeout "$timeout" -log-dir "$RUN_DIR/runtime-logs/$gate")
-  [[ "$enable_native_extensions" != true ]] || runtime_args=(-experimental-native-extension "${runtime_args[@]}")
   [[ "$enable_ui" != true ]] || runtime_args=(-ui "${runtime_args[@]}")
   python3 "$WATCHDOG" --seconds "$deadline" --pid-file "$pidfile" -- "$BINARY" "${runtime_args[@]}" >"$RUN_DIR/results/$gate.stdout.log" 2>"$RUN_DIR/results/$gate.stderr.log" &
   STARTED_WATCHDOG=$!
@@ -207,7 +203,7 @@ finish_startedjs() {
 }
 
 contract() { runjs contract "$ROOT_DIR/tests/runtime-api/contract.js" 3 120; }
-unit() { prepare_native_extension; runjs unit "$ROOT_DIR/tests/runtime-api/unit.js" 5 180 "" true legacy false true; }
+unit() { prepare_native_extension; runjs unit "$ROOT_DIR/tests/runtime-api/unit.js" 5 180 "" true legacy false; }
 coverage() { runjs coverage "$ROOT_DIR/tests/runtime-api/coverage.js" 5 180; }
 smoke() { runjs smoke "$ROOT_DIR/tests/runtime-api/smoke.js" 3 120; }
 negative() { runjs negative "$ROOT_DIR/tests/runtime-api/negative.js" 5 120; }
@@ -334,7 +330,7 @@ PY
   }
   trap cleanup_custom_ui_http_server RETURN
   "$BINARY" -http -ui -ui-host "$ui_host" -port "$port" \
-    -console-mode agent \
+    -scheduler-db "$RUN_DIR/custom-ui-http/scheduler.db" -console-mode agent \
     >"$server_root/stdout.log" 2>"$server_root/stderr.log" &
   server=$!
   record runtime "$server" custom-ui-http-server

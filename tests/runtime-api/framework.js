@@ -77,7 +77,7 @@ globalThis.RuntimeAPITest = (() => {
   function test(spec, fn) {
     assert(spec && typeof spec.name === 'string' && spec.name, 'test name is required');
     assert(Array.isArray(spec.covers) && spec.covers.length > 0, 'test ' + spec.name + ' must declare covers');
-    assert(['unit', 'live', 'composition', 'quality'].includes(spec.tier), 'test ' + spec.name + ' has invalid tier');
+    assert(['unit', 'live', 'composition', 'custom-ui', 'quality'].includes(spec.tier), 'test ' + spec.name + ' has invalid tier');
     assert(spec.verification === undefined || ['behavior', 'contract'].includes(spec.verification), 'test ' + spec.name + ' has invalid verification');
     assert(typeof fn === 'function', 'test ' + spec.name + ' requires a function');
     tests.push({ ...spec, verification: spec.verification || 'behavior', fn });
@@ -95,6 +95,10 @@ globalThis.RuntimeAPITest = (() => {
       }, async () => {
         const object = globalThis[objectName];
         if (definition.optional && (object === undefined || object === null)) return;
+        if (method === 'constructor') {
+          assert(typeof object === 'function', 'missing runtime constructor ' + objectName);
+          return;
+        }
         assert(object && (typeof object === 'object' || typeof object === 'function'), 'missing runtime object ' + objectName);
         assert(typeof object[method] === 'function', 'missing runtime function ' + objectName + '.' + method);
       });
@@ -134,6 +138,8 @@ globalThis.RuntimeAPITest = (() => {
     if (label === 'RUNTIME-API-UNIT') return 'unit';
     if (label === 'RUNTIME-API-SMOKE') return 'smoke';
     if (label === 'RUNTIME-API-LIVE') return 'live';
+    if (label === 'RUNTIME-API-CUSTOM-UI') return 'custom-ui';
+    if (label === 'RUNTIME-API-CUSTOM-UI-BEHAVIOR') return 'custom-ui-behavior';
     if (label === 'RUNTIME-API-QUALITY') return 'quality';
     return String(label).toLowerCase().replace(/[^a-z0-9]+/g, '-');
   }

@@ -1,210 +1,29 @@
 ---
 title: Input APIs
-description: mouse、keyboard、touchscreen 的用户文档。
+description: OpenDesk JavaScript Runtime 的键盘和触屏输入接口；鼠标见独立 Mouse API。
 order: 3
 ---
 
-# mouse / keyboard / touchscreen
+# keyboard / touchscreen
 
-这三个对象默认都会注入：
-- mouse
+这两个对象默认都会注入：
 - keyboard
 - touchscreen
 
 同时也会挂在 page 上：
-- page.mouse
 - page.keyboard
 - page.touchscreen
 
 适用场景
-- 鼠标移动、点击、滚轮
 - 键盘输入、按键、组合键
 - 简单触屏 tap
 
-## mouse
+`keyboard` 只负责 OpenDesk 向操作系统发送输入；需要由系统级按键反向触发当前
+JavaScript Runtime 时，使用独立的 [globalShortcut](global-shortcut.md)，不要把注册能力加到
+`keyboard`。
 
-**方法总表**
-
-| 方法 | 用途 |
-| --- | --- |
-| mouse.click(x, y, options) | 在指定坐标点击 |
-| mouse.clickForPID(processID, x, y) | macOS 向指定 PID 的可见窗口定向投递左键点击 |
-| mouse.move(x, y, options) | 移动鼠标，可分步平滑移动 |
-| mouse.down(options) | 按下鼠标键 |
-| mouse.up(options) | 释放鼠标键 |
-| mouse.getPos() | 获取当前鼠标坐标 |
-| mouse.wheel(options) | 滚轮滚动 |
-
-## mouse.click(x, y, options)
-
-**签名**
-
-```js
-await mouse.click(x, y, options)
-```
-
-**参数**
-
-| 参数 | 类型 | 默认值 | 说明 |
-| --- | --- | --- | --- |
-| x | number | - | 屏幕 x 坐标 |
-| y | number | - | 屏幕 y 坐标 |
-| options.button | string | left | left / right / middle |
-| options.clickCount | number | 1 | 点击次数 |
-| options.delay | number | 0 | 按下与抬起间延迟，毫秒 |
-
-**行为规则**
-
-- 默认情况下，macOS 使用 robotgo 的原生 `MoveClick` 完成移动和成对按下/抬起；`await` 在宿主调用返回后继续。
-- 显式设置 `options.delay > 0` 时，保留 `mouse.move` 后按 `clickCount` 次数执行 down / 等待 / up 的语义，`delay` 是每次按下与抬起之间的毫秒数。
-- 这是全局鼠标操作，接收者由点击时桌面的命中测试决定，不绑定进程；button 非法会直接报错。
-
-**错误条件**
-- `invalid button type: ...`
-
-**示例**
-
-```js
-await mouse.click(400, 300);
-await mouse.click(400, 300, { button: 'right' });
-await mouse.click(600, 420, { clickCount: 2, delay: 80 });
-```
-
-## mouse.clickForPID(processID, x, y)
-
-**签名**
-
-```js
-await mouse.clickForPID(processID, x, y)
-```
-
-**行为规则**
-
-- 仅支持启用 cgo 的 macOS 构建，且只激活支持 Accessibility `AXPress` 的控件。
-- `processID` 必须是正的 32 位整数；`x` / `y` 必须是有限的全局虚拟桌面坐标。目标点可以位于负坐标显示器，但必须落在当前活动显示器和该 PID 的当前可见窗口内。
-- 宿主在指定 PID 的 Accessibility 树中按全局点命中控件，复核命中元素仍属于该 PID 且支持 `AXPress`，移动可见指针后只执行一次 `AXPress`。接收者不由动作期间的前台应用决定。
-- `await` 会等待 Accessibility 接受这次 press 调用，但没有业务状态回执；调用方仍应短暂等待并读取应用状态或截图验证结果。
-- 该方法不会投递 CoreGraphics down/up 原始鼠标事件，因此不适用于画布、拖拽或只监听原始鼠标事件的区域。此时它会返回“控件不支持 press”，不会退回全局点击。
-- 该方法不自动重试或补点。参数、权限、进程、显示器、窗口、命中元素、指针移动或 press 失败都会直接返回错误。
-- `mouse.click()` 保持全局鼠标语义，**不绑定 PID**；两者不可互换。
-
-**权限**
-
-- 实际运行 runtime 的宿主需要 macOS“辅助功能”权限；权限绑定宿主身份。屏幕截图验证还需要“屏幕录制”权限。
-- 安全脚本应在动作前后重新读取 PID、应用身份、窗口边界和显示器，并从当前窗口原点加已审查的相对坐标计算目标点。
-
-**示例**
-
-```js
-const active = await window.getActiveWindow();
-if (!active || active.exeName !== 'Calculator' || active.pid <= 0) {
-  throw new Error('Calculator is not active');
-}
-await mouse.clickForPID(active.pid, clickPoint.x, clickPoint.y);
-```
-
-## mouse.move(x, y, options)
-
-**签名**
-
-```js
-await mouse.move(x, y, options)
-```
-
-**参数**
-
-| 参数 | 类型 | 默认值 | 说明 |
-| --- | --- | --- | --- |
-| x | number | - | 目标 x |
-| y | number | - | 目标 y |
-| options.steps | number | 1 | 大于 1 时分步平滑移动 |
-
-**示例**
-
-```js
-await mouse.move(300, 200);
-await mouse.move(900, 500, { steps: 20 });
-```
-
-## mouse.down(options)
-
-**签名**
-
-```js
-await mouse.down(options)
-```
-
-**参数**
-
-| 参数 | 类型 | 默认值 |
-| --- | --- | --- |
-| options.button | string | left |
-
-**示例**
-
-```js
-await mouse.down({ button: 'left' });
-await mouse.move(800, 500, { steps: 10 });
-await mouse.up({ button: 'left' });
-```
-
-## mouse.up(options)
-
-**签名**
-
-```js
-await mouse.up(options)
-```
-
-**参数**
-
-| 参数 | 类型 | 默认值 |
-| --- | --- | --- |
-| options.button | string | left |
-
-## mouse.getPos()
-
-**签名**
-
-```js
-const pos = mouse.getPos()
-```
-
-**返回值**
-
-```js
-{ x: number, y: number }
-```
-
-**示例**
-
-```js
-console.log(mouse.getPos());
-```
-
-## mouse.wheel(options)
-
-**签名**
-
-```js
-await mouse.wheel(options)
-```
-
-**参数**
-
-| 参数 | 类型 | 默认值 | 说明 |
-| --- | --- | --- | --- |
-| options.deltaX | number | 0 | 水平滚动量；正值向右，负值向左 |
-| options.deltaY | number | 0 | 垂直滚动量；正值向下，负值向上 |
-| options.steps | number | 1 | 分几步滚动 |
-| options.delay | number | 0 | 每步间延迟毫秒 |
-
-**示例**
-
-```js
-await mouse.wheel({ deltaY: -300 });
-await mouse.wheel({ deltaY: 500, steps: 10, delay: 20 });
-```
+鼠标移动、点击、拖拽、位置读取与滚轮请查看独立的 [Mouse API](mouse.md)。`mouse` 和
+`page.mouse` 均可使用，坐标、平台限制与安全边界均以该页面为准。
 
 ## keyboard
 
