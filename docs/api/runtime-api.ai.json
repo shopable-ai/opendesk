@@ -253,8 +253,13 @@
       "keyMethods": [
         "copy",
         "paste",
-        "clear"
-      ]
+        "clear",
+        "read",
+        "write",
+        "getFormats",
+        "getCapabilities"
+      ],
+      "capability": "Stable text compatibility API on all supported desktops; experimental rich text, PNG, and file representations currently use NSPasteboard on macOS. Binary values are canonical base64, files are absolute paths, and Events clipboard.changed reports metadata only."
     },
     {
       "name": "console",

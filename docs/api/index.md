@@ -63,7 +63,7 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先找窗口，
 | `System` | JavaScript Runtime | Stable | 系统、进程、网络、指标 | [System API](system.md) |
 | `File` | JavaScript Runtime | Stable | 文件与目录操作 | [File API](file.md) |
 | `AppStorage` | JavaScript Runtime | Secondary | 持久化键值存储 | [AppStorage](storage.md) |
-| `clipboard` | JavaScript Runtime | Stable | 系统剪贴板 | [Clipboard API](clipboard.md) |
+| `clipboard` | JavaScript Runtime | Stable text / Experimental rich (macOS) | 文本及富格式系统剪贴板 | [Clipboard API](clipboard.md) |
 | `console` | JavaScript Runtime | Stable | 日志与事件输出 | [Global APIs](global-apis.md) |
 | `http` | JavaScript Runtime | Stable | 底层 HTTP 请求 | [HTTP and Axios](http.md) |
 | `axios` | JavaScript Runtime | Stable | 日常 HTTP 请求 | [HTTP and Axios](http.md) |

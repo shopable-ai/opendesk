@@ -41,7 +41,10 @@ type InitJSOptions struct {
 	// AudioBackendFactory is an internal dependency seam for Audio unit tests.
 	// Normal executions use the platform-selected backend.
 	AudioBackendFactory AudioBackendFactory
-	OnReady             func(*RuntimeLifecycle)
+	// ClipboardBackendFactory is an internal dependency seam for rich-format,
+	// size-limit, format-negotiation, and privacy tests.
+	ClipboardBackendFactory ClipboardBackendFactory
+	OnReady                 func(*RuntimeLifecycle)
 }
 
 // RuntimeLifecycle exposes only teardown-safe resources to the runtime owner.
@@ -339,7 +342,6 @@ var jsMethodAllowlist = map[reflect.Type][]string{
 	reflect.TypeOf((*HTTPClient)(nil)):     {"Request", "Get", "Post"},
 	reflect.TypeOf((*System)(nil)):         {"Delay", "GetPlatformInfo", "GetSystemInfo", "GetProcessList", "KillProcess", "GetNetworkInterfaces", "GetNetworkConnections", "GetPowerInfo", "Shutdown", "Restart", "Sleep", "GetDirectoryContents", "GetExecutablePath", "GetWorkingDirectory", "GetUserInfo", "IsAdministrator", "GetSystemMetrics", "GetFingerprint", "ToJSON"},
 	reflect.TypeOf((*WindowManager)(nil)):  {"GetActiveWindow", "GetWindowByTitle", "GetFocusWindow", "Focus", "SetWindowBounds", "SetWidth", "SetHeight", "Maximize", "Minimize", "Restore", "RestoreByPID", "MinimizeByPID", "MaximizeByPID", "CloseWindow", "CloseActiveWindow", "Kill", "Title", "GetTitle", "Content", "GetContent", "List", "SetAlwaysOnTop", "UnsetTopMost", "BringToTop"},
-	reflect.TypeOf((*Clipboard)(nil)):      {"Copy", "Paste", "Clear"},
 	reflect.TypeOf((*FileSystem)(nil)):     {"Path", "Cwd", "Create", "CreateIfNotExists", "CreateWithDirs", "Exists", "EnsureDir", "Read", "ReadBytes", "Write", "Append", "WriteBytes", "AppendBytes", "Copy", "RenameWithoutExtension", "Rename", "Move", "GetExtension", "GetName", "GetNameWithoutExtension", "Remove", "RemoveDir", "ListDir", "IsFile", "IsDir", "IsEmptyDir", "GetHumanReadableSize", "GetSimplifiedPath", "Join", "Open"},
 	reflect.TypeOf((*AppStorage)(nil)):     {"GetItem", "SetItem", "RemoveItem", "Clear", "GetLength", "Key"},
 	reflect.TypeOf((*Sound)(nil)):          {"PlaySuccess", "PlayFail", "PlayWarning", "PlayError", "PlayCaptcha", "PlaySound", "Play"},
@@ -622,9 +624,7 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 	windowMethods := AutoMapObject(runtime, windowManager)
 	runtime.Set("window", windowMethods)
 
-	clipboard := NewClipboard()
-	clipboardMethods := AutoMapObject(runtime, clipboard)
-	runtime.Set("clipboard", clipboardMethods)
+	registerClipboard(runtime, opts)
 
 	globalShortcut := registerGlobalShortcut(runtime, opts)
 	events := registerDesktopEvents(runtime, opts)

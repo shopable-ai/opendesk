@@ -9,19 +9,26 @@ import (
 )
 
 // Clipboard provides methods to interact with the system clipboard
-type Clipboard struct{}
+type Clipboard struct {
+	backend ClipboardBackend
+}
 
 // NewClipboard creates a new Clipboard instance
 func NewClipboard() *Clipboard {
-	return &Clipboard{}
+	return newClipboardWithBackend(newDefaultClipboardBackend())
 }
 
 // Copy writes the given text to the system clipboard with retry mechanism
 func (c *Clipboard) Copy(text string) error {
-	// 检查是否为空字符串
-	if text == "" {
-		log.Printf("警告: 尝试复制空字符串到剪贴板，将使用单个空格代替")
-		text = " " // 使用单个空格代替空字符串
+	if c != nil && c.backend != nil && c.backend.Supported() {
+		if _, err := c.Write(ClipboardPayload{Text: &text}); err != nil {
+			return err
+		}
+		readback, err := c.backend.ReadData(ClipboardFormatText)
+		if err != nil || string(readback) != text {
+			return clipboardOperationError("clipboard.copy", ClipboardVerificationFailed, "text clipboard readback did not match the requested byte length", err)
+		}
+		return nil
 	}
 
 	// Prefer the platform implementation when available. On macOS the generic
@@ -65,7 +72,7 @@ func (c *Clipboard) Copy(text string) error {
 		if readErr != nil {
 			return fmt.Errorf("clipboard fallback write succeeded but read verification failed: %v", readErr)
 		}
-		return fmt.Errorf("clipboard fallback verification mismatch: want=%q got=%q", text, readText)
+		return fmt.Errorf("clipboard fallback verification mismatch: requestedBytes=%d readBytes=%d", len(text), len(readText))
 	} else if err == nil {
 		err = fallbackErr
 	}
@@ -75,6 +82,20 @@ func (c *Clipboard) Copy(text string) error {
 
 // Paste gets the current content from the system clipboard with retry mechanism
 func (c *Clipboard) Paste() (string, error) {
+	if c != nil && c.backend != nil && c.backend.Supported() {
+		formats, err := c.GetFormats()
+		if err != nil {
+			return "", err
+		}
+		if !containsString(formats, ClipboardFormatText) {
+			return "", nil
+		}
+		data, err := c.backend.ReadData(ClipboardFormatText)
+		if err != nil {
+			return "", err
+		}
+		return string(data), nil
+	}
 	if fallbackText, fallbackErr := platformClipboardReadFallback(); fallbackErr == nil {
 		return fallbackText, nil
 	}
@@ -108,6 +129,21 @@ func (c *Clipboard) Paste() (string, error) {
 
 // Clear empties the clipboard with retry mechanism
 func (c *Clipboard) Clear() error {
-	// 使用一个空格而不是空字符串
-	return c.Copy(" ")
+	if c != nil && c.backend != nil && c.backend.Supported() {
+		if _, err := c.backend.Clear(); err != nil {
+			return err
+		}
+		formats, err := c.GetFormats()
+		if err != nil {
+			return err
+		}
+		if len(formats) != 0 {
+			return clipboardOperationError("clipboard.clear", ClipboardVerificationFailed, "clipboard still advertises supported formats after clear", nil)
+		}
+		return nil
+	}
+	if err := clipboard.WriteAll(""); err != nil {
+		return fmt.Errorf("failed to clear clipboard: %v", err)
+	}
+	return nil
 }

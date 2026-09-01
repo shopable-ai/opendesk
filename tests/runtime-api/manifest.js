@@ -40,7 +40,7 @@ globalThis.RuntimeAPIObjects = {
     'isEmptyDir', 'getHumanReadableSize', 'getSimplifiedPath', 'join', 'open',
   ] },
   AppStorage: { docs: 'docs/api/storage.md', types: 'types/AppStorage.d.ts', source: 'automation/storage.go', status: 'secondary', platforms: ['darwin', 'linux', 'windows'], methods: ['getItem', 'setItem', 'removeItem', 'clear', 'getLength', 'key'] },
-  clipboard: { docs: 'docs/api/clipboard.md', types: 'types/clipboard.d.ts', source: 'automation/clipboard.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: ['copy', 'paste', 'clear'] },
+  clipboard: { docs: 'docs/api/clipboard.md', types: 'types/clipboard.d.ts', source: 'automation/clipboard.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: ['copy', 'paste', 'clear', 'read', 'write', 'getFormats', 'getCapabilities'] },
   console: { docs: 'docs/api/global-apis.md', types: 'types/console.d.ts', source: 'automation/console.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: [
     'log', 'info', 'warn', 'error', 'debug', 'table', 'group', 'groupEnd', 'time',
     'timeEnd', 'clear',
@@ -91,6 +91,7 @@ const unitBehavior = new Set([
   ...RuntimeAPIObjects.System.methods.filter((method) => !['killProcess', 'shutdown', 'restart', 'sleep'].includes(method)).map((method) => 'System.' + method),
   ...RuntimeAPIObjects.File.methods.map((method) => 'File.' + method),
   ...RuntimeAPIObjects.AppStorage.methods.filter((method) => method !== 'clear').map((method) => 'AppStorage.' + method),
+  ...['read', 'write', 'getFormats', 'getCapabilities'].map((method) => 'clipboard.' + method),
   ...RuntimeAPIObjects.console.methods.map((method) => 'console.' + method),
   'http.request', 'NativeExtensions.list', 'NativeExtensions.get', 'NativeExtensions.diagnostics', 'OCR.extractText', 'Vision.getCapabilities', 'Vision.analyzeLayout', 'Vision.annotateRegions',
   ...RuntimeAPIObjects.ImageColor.methods.map((method) => 'ImageColor.' + method),
