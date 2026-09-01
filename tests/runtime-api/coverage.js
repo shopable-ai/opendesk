@@ -8,6 +8,7 @@ const requiredFamilyFiles = {
   page: 'page.test.js',
   mouse: 'mouse.test.js',
   keyboard: 'keyboard.test.js',
+  globalShortcut: 'global-shortcut.test.js',
   touchscreen: 'touchscreen.test.js',
   window: 'window.test.js',
   Screen: 'screen.test.js',

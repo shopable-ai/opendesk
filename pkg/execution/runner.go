@@ -54,6 +54,9 @@ type Request struct {
 	CustomUIBaseDir          string
 	// CustomUIDriver is an internal dependency seam used by Runtime API tests.
 	CustomUIDriver customui.Driver
+	// GlobalShortcutBackendFactory is an internal test seam. Product executions
+	// use the platform backend selected by automation.InitJSWithOptions.
+	GlobalShortcutBackendFactory automation.GlobalShortcutBackendFactory
 	// Timeout is the exact execution deadline used by transports that accept
 	// sub-minute timeouts. TimeoutMinutes remains for CLI compatibility.
 	Timeout   time.Duration
@@ -251,6 +254,7 @@ func runJavaScript(req Request, emitter *Emitter) error {
 				CustomUIHostPath:                req.CustomUIHostPath,
 				CustomUISessionID:               req.ExecutionID,
 				CustomUIBaseDir:                 customUIBaseDir(req),
+				GlobalShortcutBackendFactory:    req.GlobalShortcutBackendFactory,
 				OnAsyncError:                    onAsyncError,
 				OnReady:                         func(resources *automation.RuntimeLifecycle) { lifecycle = resources },
 			}); err != nil {
@@ -333,7 +337,8 @@ func runJavaScript(req Request, emitter *Emitter) error {
 				"uiWorkers": resources.UIWorkers, "uiPending": resources.UIPending,
 				"uiQueued": resources.UIQueued, "uiWindows": resources.UIWindows,
 				"uiListeners": resources.UIListeners, "uiDriverSinks": resources.UIDriverSinks,
-				"uiHostProcesses": resources.UIHostProcesses,
+				"uiHostProcesses":  resources.UIHostProcesses,
+				"shortcutBindings": resources.ShortcutBindings, "shortcutPending": resources.ShortcutPending,
 			})
 			if !resources.IsZero() && runtimeErr == nil {
 				runtimeErr = fmt.Errorf("runtime cleanup left resources: %s", resources.String())

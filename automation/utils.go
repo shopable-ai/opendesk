@@ -32,16 +32,20 @@ type InitJSOptions struct {
 	CustomUISessionID               string
 	CustomUIBaseDir                 string
 	OnAsyncError                    func(error)
-	OnReady                         func(*RuntimeLifecycle)
+	// GlobalShortcutBackendFactory is an internal dependency seam for runtime
+	// tests. Normal executions leave it nil and use the platform backend.
+	GlobalShortcutBackendFactory GlobalShortcutBackendFactory
+	OnReady                      func(*RuntimeLifecycle)
 }
 
 // RuntimeLifecycle exposes only teardown-safe resources to the runtime owner.
 // It is supplied during InitJSWithOptions and must not be used to access Goja
 // from another goroutine.
 type RuntimeLifecycle struct {
-	Timers *Timer
-	HTTP   *HTTPClient
-	UI     *CustomUIRuntime
+	Timers         *Timer
+	HTTP           *HTTPClient
+	UI             *CustomUIRuntime
+	GlobalShortcut *GlobalShortcutRuntime
 }
 
 // Wait joins host workers after their execution context has been cancelled.
@@ -64,6 +68,9 @@ func (l *RuntimeLifecycle) CancelAsync() {
 	if l != nil && l.UI != nil {
 		l.UI.CancelAsync()
 	}
+	if l != nil && l.GlobalShortcut != nil {
+		l.GlobalShortcut.Close()
+	}
 }
 
 // AsyncCounts is a teardown diagnostic owned by the execution runtime.
@@ -83,20 +90,26 @@ func (l *RuntimeLifecycle) AsyncCounts() (timers int, workers int64, callbacks i
 		workers += uiWorkers
 		callbacks += uiCallbacks
 	}
+	if l.GlobalShortcut != nil {
+		bindings, pending := l.GlobalShortcut.ResourceCounts()
+		callbacks += bindings + pending
+	}
 	return timers, workers, callbacks
 }
 
 type RuntimeResourceCounts struct {
-	Timers          int
-	HTTPWorkers     int64
-	HTTPCallbacks   int
-	UIWorkers       int64
-	UIPending       int
-	UIQueued        int
-	UIWindows       int
-	UIListeners     int
-	UIDriverSinks   int
-	UIHostProcesses int
+	Timers           int
+	HTTPWorkers      int64
+	HTTPCallbacks    int
+	UIWorkers        int64
+	UIPending        int
+	UIQueued         int
+	UIWindows        int
+	UIListeners      int
+	UIDriverSinks    int
+	UIHostProcesses  int
+	ShortcutBindings int
+	ShortcutPending  int
 }
 
 func (l *RuntimeLifecycle) ResourceCounts() RuntimeResourceCounts {
@@ -121,19 +134,23 @@ func (l *RuntimeLifecycle) ResourceCounts() RuntimeResourceCounts {
 		counts.UIDriverSinks = ui.DriverSinks
 		counts.UIHostProcesses = ui.HostProcesses
 	}
+	if l.GlobalShortcut != nil {
+		counts.ShortcutBindings, counts.ShortcutPending = l.GlobalShortcut.ResourceCounts()
+	}
 	return counts
 }
 
 func (c RuntimeResourceCounts) IsZero() bool {
 	return c.Timers == 0 && c.HTTPWorkers == 0 && c.HTTPCallbacks == 0 &&
 		c.UIWorkers == 0 && c.UIPending == 0 && c.UIQueued == 0 && c.UIWindows == 0 &&
-		c.UIListeners == 0 && c.UIDriverSinks == 0 && c.UIHostProcesses == 0
+		c.UIListeners == 0 && c.UIDriverSinks == 0 && c.UIHostProcesses == 0 &&
+		c.ShortcutBindings == 0 && c.ShortcutPending == 0
 }
 
 func (c RuntimeResourceCounts) String() string {
-	return fmt.Sprintf("timers=%d httpWorkers=%d httpCallbacks=%d uiWorkers=%d uiPending=%d uiQueued=%d uiWindows=%d uiListeners=%d uiDriverSinks=%d uiHostProcesses=%d",
+	return fmt.Sprintf("timers=%d httpWorkers=%d httpCallbacks=%d uiWorkers=%d uiPending=%d uiQueued=%d uiWindows=%d uiListeners=%d uiDriverSinks=%d uiHostProcesses=%d shortcutBindings=%d shortcutPending=%d",
 		c.Timers, c.HTTPWorkers, c.HTTPCallbacks, c.UIWorkers, c.UIPending, c.UIQueued,
-		c.UIWindows, c.UIListeners, c.UIDriverSinks, c.UIHostProcesses)
+		c.UIWindows, c.UIListeners, c.UIDriverSinks, c.UIHostProcesses, c.ShortcutBindings, c.ShortcutPending)
 }
 
 func emitRuntimeLog(sink EventSink, level, message string, fields map[string]any) {
@@ -585,6 +602,8 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 	clipboardMethods := AutoMapObject(runtime, clipboard)
 	runtime.Set("clipboard", clipboardMethods)
 
+	globalShortcut := registerGlobalShortcut(runtime, opts)
+
 	fileSystem := NewFileSystem()
 	fileSystemMethods := AutoMapObject(runtime, fileSystem)
 	runtime.Set("File", fileSystemMethods)
@@ -691,7 +710,7 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 		return fmt.Errorf("failed to bind Screen.screenshot: %v", err)
 	}
 	if opts.OnReady != nil {
-		opts.OnReady(&RuntimeLifecycle{Timers: timer, HTTP: httpClient, UI: uiRuntime})
+		opts.OnReady(&RuntimeLifecycle{Timers: timer, HTTP: httpClient, UI: uiRuntime, GlobalShortcut: globalShortcut})
 	}
 	return nil
 }

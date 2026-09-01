@@ -30,6 +30,24 @@ printf "console.log('hello from stdin')\n" | go run ./cmd/opendesk -script-stdin
 -script-stdin
 ```
 
+### 全局快捷键示例
+
+从仓库根目录先刷新一次可执行文件：
+
+```bash
+make build
+```
+
+随后运行这一条命令：
+
+```bash
+./dist/opendesk -script examples/global-shortcut.js -console-mode script
+```
+
+在 macOS 按 `Command+Shift+9`，终端会显示 `copied`，并把示例文本写入剪贴板；按
+`Ctrl-C` 正常停止脚本会自动注销快捷键。这个普通体验不需要运行测试控制器、WindowServer
+工具或 System Events 脚本。完整 API 契约见 [`docs/api/global-shortcut.md`](docs/api/global-shortcut.md)。
+
 ### Agent 友好输出
 
 ```bash

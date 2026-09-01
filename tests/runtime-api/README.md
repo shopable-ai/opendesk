@@ -69,6 +69,36 @@ OPENDESK_RUNTIME_API_BROWSER_APP=Safari
 变量。`scripts/test_host_apis.sh` 只打印 deprecated 提示后 `exec` 新脚本，绝不维护第二套
 测试实现。
 
+## globalShortcut focused verification
+
+从仓库根目录执行，并把普通体验、原生 gate 与确定性测试分开记录。
+
+1. **普通手动体验（macOS）**：先运行一次 `make build`，再运行
+   `./dist/opendesk -script examples/global-shortcut.js -console-mode script`。让另一个 App
+   处于前台，按 `Command+Shift+9`，执行 `pbpaste` 确认剪贴板文本；按 `Ctrl-C` 正常结束以
+   清理注册。
+2. **macOS 自动化原生 gate（维护者）**：运行
+   `OPENDESK_BINARY=./dist/opendesk ./tests/runtime-api/global-shortcut-smoke-darwin.sh`。
+   预期 shell log 在 `.runtime/tests/runtime-api/global-shortcut/global-shortcut-smoke.log`，
+   Runtime evidence 在 `.runtime/runs/direct-*/global-shortcut-smoke.json`。运行宿主必须在
+   System Settings 获得 Accessibility；若 macOS 提示，还要允许发起 System Events 的
+   Automation。该 gate 会切换 TextEdit 前台，不是普通使用步骤。
+3. **确定性 Go / API 测试**：运行：
+
+   ```bash
+   go test ./automation -run '^(TestGlobalShortcut|TestDarwinGlobalShortcut)' -count=1
+   go test ./pkg/execution -run '^TestRunJavaScriptGlobalShortcut' -count=1
+   go test -race ./automation -run '^(TestGlobalShortcut|TestDarwinGlobalShortcut)' -count=1
+   go test -race ./pkg/execution -run '^TestRunJavaScriptGlobalShortcut' -count=1
+   ./scripts/test_runtime_apis.sh contract
+   ./scripts/test_runtime_apis.sh unit
+   ```
+
+   Windows host 上可运行
+   `go test ./automation -run '^TestWindowsGlobalShortcutPlatformMapping$' -count=1` 与 execution
+   测试；Windows 系统级按键尚未 live verified。不要把 `go test ./...` 记录为通过：现有
+   `pkg/visionrun` 仍依赖缺失的 `.runtime` preflight / real-validation artifacts。
+
 ## 安全边界与版本控制
 
 关机、重启、睡眠、杀进程、关闭窗口、`AppStorage.clear`、通知、内置声音、未配置 provider

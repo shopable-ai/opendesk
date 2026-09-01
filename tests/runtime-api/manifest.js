@@ -12,6 +12,7 @@ globalThis.RuntimeAPIObjects = {
   ] },
   mouse: { docs: 'docs/api/input.md', types: 'types/mouse.d.ts', source: 'automation/mouse.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: ['click', 'clickForPID', 'move', 'down', 'up', 'getPos', 'wheel'] },
   keyboard: { docs: 'docs/api/input.md', types: 'types/keyboard.d.ts', source: 'automation/keyboard.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: ['type', 'press', 'down', 'up', 'combination'] },
+  globalShortcut: { docs: 'docs/api/global-shortcut.md', types: 'types/globalShortcut.d.ts', source: 'automation/global_shortcut.go', status: 'stable', platforms: ['darwin', 'windows'], methods: ['register', 'unregister', 'isRegistered', 'unregisterAll'] },
   touchscreen: { docs: 'docs/api/input.md', types: 'types/touchscreen.d.ts', source: 'automation/touchscreen.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: ['tap'] },
   window: { docs: 'docs/api/window.md', types: 'types/window.d.ts', source: 'automation/window_manager.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: [
     'getActiveWindow', 'getWindowByTitle', 'getFocusWindow', 'focus', 'setWindowBounds',
@@ -106,6 +107,7 @@ const liveBehavior = new Set([
   ...RuntimeAPIObjects.clipboard.methods.map((method) => 'clipboard.' + method),
   ...RuntimeAPIObjects.http.methods.map((method) => 'http.' + method),
   ...RuntimeAPIObjects.axios.methods.map((method) => 'axios.' + method),
+  ...RuntimeAPIObjects.globalShortcut.methods.map((method) => 'globalShortcut.' + method),
   'global.copyToClipboard', 'global.getClipboard',
 ]);
 const compositionBehavior = new Set([
@@ -210,6 +212,7 @@ globalThis.RuntimeAPITestFiles = {
     'tests/runtime-api/unit/page.test.js',
     'tests/runtime-api/unit/mouse.test.js',
     'tests/runtime-api/unit/keyboard.test.js',
+    'tests/runtime-api/unit/global-shortcut.test.js',
     'tests/runtime-api/unit/touchscreen.test.js',
     'tests/runtime-api/unit/window.test.js',
     'tests/runtime-api/unit/screen.test.js',

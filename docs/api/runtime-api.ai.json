@@ -100,6 +100,22 @@
       "doc": "input.md"
     },
     {
+      "name": "globalShortcut",
+      "source": "native",
+      "status": "stable",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "doc": "global-shortcut.md",
+      "keyMethods": [
+        "register",
+        "unregister",
+        "isRegistered",
+        "unregisterAll"
+      ]
+    },
+    {
       "name": "touchscreen",
       "source": "native",
       "status": "stable",
