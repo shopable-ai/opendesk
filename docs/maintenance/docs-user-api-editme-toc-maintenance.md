@@ -17,7 +17,7 @@ order: 10
 - API 覆盖完整但不把内部说明碎片全部变成标题
 - 人类与 Agent 都能快速定位接口
 
-历史上的 `docs-api/`、`docs-api-user/`、`docs/api/`、`dev/api.md` 已经退役，不再作为平行 API 文档来源。
+历史上的 `docs-api/`、`docs-api-user/`、`dev/api.md` 已经退役，不再作为平行 API 文档来源。
 
 ## 核心结构规则
 

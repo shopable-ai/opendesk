@@ -54,7 +54,6 @@ The following must not be recreated as current authorities:
 ```text
 docs-api/
 docs-api-user/
-docs/api/
 dev/api.md
 repository-root types.md
 docs/api/types.md

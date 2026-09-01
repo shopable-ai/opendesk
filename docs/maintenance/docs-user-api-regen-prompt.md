@@ -16,7 +16,7 @@ order: 20
 
 完整 TOC/写作规则见：
 
-- `docs/maintenance/docs/api-editme-toc-maintenance.md`
+- `docs/maintenance/docs-user-api-editme-toc-maintenance.md`
 - `docs/maintenance/repository-documentation-map.md`
 
 ## 可直接复用的 prompt
@@ -45,7 +45,6 @@ types/*.d.ts
 3. **只维护一个用户 API 文档根**
    - 不创建 `docs-api/`
    - 不创建 `docs-api-user/`
-   - 不创建 `docs/api/`
    - 不恢复 `dev/api.md`
    - 不恢复仓库根旧 `types.md`
    - 历史内容只通过 Git 历史查阅。

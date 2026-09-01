@@ -19,7 +19,6 @@ Retired API documentation trees:
 
 - `docs-api/`
 - `docs-api-user/`
-- `docs/api/`
 
 Do not recreate the retired trees as parallel sources of truth.
 
@@ -291,7 +290,6 @@ Do not recreate:
 
 - `docs-api/`
 - `docs-api-user/`
-- `docs/api/`
 
 ### Canonical document filenames
 
@@ -379,7 +377,6 @@ Destination:
 
 Not:
 
-- `docs/api/`
 - `docs-api/`
 - `docs-api-user/`
 

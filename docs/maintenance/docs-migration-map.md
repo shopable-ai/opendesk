@@ -245,7 +245,6 @@ Retired and must not be recreated:
 ```text
 docs-api/
 docs-api-user/
-docs/api/
 ```
 
 ## Ongoing rules

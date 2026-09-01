@@ -36,7 +36,7 @@ inspect / capture
 - `docs/api/` 是唯一用户 API 文档；
 - `docs/` 根目录只保留 `README.md` 和分类目录；
 - 历史阶段报告、Prompt、测试报告已经按生命周期迁移；
-- `docs-api/`、`docs-api-user/`、`docs/api/` 已退役，不能恢复为并行文档源。
+- `docs-api/`、`docs-api-user/` 已退役，不能恢复为并行文档源。
 
 ### Execution
 

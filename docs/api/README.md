@@ -20,7 +20,7 @@ order: 1
 4. `types/*.d.ts` 编辑器类型声明
 5. Git 历史
 
-已退役的 `docs-api/`、`docs-api-user/`、`docs/api/`、`dev/api.md` 不再作为当前接口事实源，也不应重新创建为并行 API 文档目录。
+已退役的 `docs-api/`、`docs-api-user/`、`dev/api.md` 不再作为当前接口事实源，也不应重新创建为并行 API 文档目录。
 
 ## 推荐阅读顺序
 

@@ -11,7 +11,7 @@ docs/          = project and engineering documentation
 docs/api/ = sole maintained user API documentation root
 ```
 
-The historical API trees `docs-api/`, `docs-api-user/` and `docs/api/` have been retired. **Do not recreate them and do not move `docs/api/` into `docs/api/user/`.**
+The historical API trees `docs-api/` and `docs-api-user/` have been retired. Keep `docs/api/` as the sole maintained user API root; do not move it into `docs/api/user/`.
 
 For the current docs cleanup, also use:
 
@@ -355,7 +355,6 @@ Retired:
 ```text
 docs-api/
 docs-api-user/
-docs/api/
 ```
 
 If historical wording from retired trees is useful, verify it against current source/runtime and migrate the fact into `docs/api/`; do not restore the old tree.
@@ -414,7 +413,7 @@ Mitigation:
 Mitigation:
 
 - keep `docs/api/` as the sole maintained user API root;
-- reject reintroduction of `docs-api/`, `docs-api-user/` or `docs/api/`.
+- reject reintroduction of `docs-api/` or `docs-api-user`.
 
 ## Success criteria
 

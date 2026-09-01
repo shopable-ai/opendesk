@@ -21,7 +21,6 @@ The following historical trees have already been retired and must not be recreat
 ```text
 docs-api/
 docs-api-user/
-docs/api/
 ```
 
 ## Purpose
@@ -129,7 +128,6 @@ Retired:
 ```text
 docs-api/
 docs-api-user/
-docs/api/
 ```
 
 Do not use old Git-history copies as current API authority.
@@ -272,7 +270,7 @@ Move `.venv-*` and `.playwright-*` only after local tooling assumptions are patc
 
 Do not:
 
-- recreate `docs-api/`, `docs-api-user/` or `docs/api/`;
+- recreate `docs-api/` or `docs-api-user`;
 - move `docs/api/` to `docs/api/user/`;
 - move `.runtime/runs/` without changing its producers/consumers;
 - convert `.archive/` into a dump of every old AI-generated Markdown file;

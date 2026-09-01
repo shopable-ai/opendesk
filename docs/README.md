@@ -14,7 +14,6 @@ OpenDesk 当前保留两类正式文档根：
 ```text
 docs-api/
 docs-api-user/
-docs/api/
 ```
 
 `types/*.d.ts` 是编辑器/TypeScript 的派生契约面，不是第三套文档权威。
