@@ -40,6 +40,47 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def sha256_text(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def worktree_snapshot() -> dict[str, object]:
+    """Record every version-controlled delta and untracked file without writing it."""
+    branch = run(["git", "branch", "--show-current"]).stdout.strip()
+    head = run(["git", "rev-parse", "HEAD"]).stdout.strip()
+    index_tree = run(["git", "write-tree"]).stdout.strip()
+    status = run(["git", "status", "--porcelain=v1", "--untracked-files=all"]).stdout
+    unstaged = run(["git", "diff", "--no-ext-diff", "--binary"]).stdout
+    staged = run(["git", "diff", "--cached", "--no-ext-diff", "--binary"]).stdout
+    untracked_paths = [
+        value for value in run(["git", "ls-files", "--others", "--exclude-standard", "-z"]).stdout.split("\0")
+        if value
+    ]
+    untracked: dict[str, dict[str, object]] = {}
+    for relative in sorted(untracked_paths):
+        path = ROOT / relative
+        if path.is_symlink():
+            untracked[relative] = {
+                "type": "symlink", "target": os.readlink(path), "mode": oct(path.lstat().st_mode & 0o777),
+            }
+        elif path.is_file():
+            untracked[relative] = {
+                "type": "file", "sha256": sha256(path), "sizeBytes": path.stat().st_size,
+                "mode": oct(path.stat().st_mode & 0o777),
+            }
+        else:
+            untracked[relative] = {"type": "other"}
+    return {
+        "branch": branch,
+        "head": head,
+        "indexTree": index_tree,
+        "statusSha256": sha256_text(status),
+        "unstagedDiffSha256": sha256_text(unstaged),
+        "stagedDiffSha256": sha256_text(staged),
+        "untracked": untracked,
+    }
+
+
 def go_build_inputs() -> set[Path]:
     completed = run([
         "go", "list", "-deps", "-json",
@@ -81,12 +122,14 @@ def source_snapshot() -> dict[str, dict[str, object]]:
         ROOT / "examples" / "native-extensions" / "go-basic" / "extension.json",
         ROOT / "examples" / "native-extensions" / "go-basic" / "types" / "index.d.ts",
         ROOT / "examples" / "native-extensions" / "README.md",
+        ROOT / "examples" / "README.md",
         ROOT / "examples" / "native-extensions" / "macos-vision" / "main.swift",
         ROOT / "examples" / "native-extensions" / "macos-vision" / "extension.json",
         ROOT / "examples" / "native-extensions" / "macos-vision" / "types" / "index.d.ts",
         ROOT / "tests" / "extensions" / "native-process" / "fixtures" / "ocr" / "opendesk-ocr-123.png",
         ROOT / "tests" / "extensions" / "native-process" / "fixtures" / "ocr" / "manifest.json",
         ROOT / "examples" / "native-extensions" / "quickstart.js",
+        ROOT / "examples" / "native-extensions" / "ocr-quickstart.js",
         ROOT / "scripts" / "test_native_extension_plugins.sh",
         ROOT / "scripts" / "build_macos_app.sh",
         ROOT / "schemas" / "native-extension" / "extension-manifest-v1.schema.json",
@@ -99,7 +142,7 @@ def source_snapshot() -> dict[str, dict[str, object]]:
         ROOT / "tests" / "runtime-api" / "unit" / "native-extension.test.js",
         ROOT / "tests" / "runtime-api" / "manifest.js",
         ROOT / "scripts" / "test_runtime_apis.sh",
-        ROOT / "prompts" / "runtime" / "native-extension-canonical-install-root-and-authoring-goal.md",
+        ROOT / "prompts" / "runtime" / "native-extension-current-macos-revalidation-goal.md",
         ROOT / "cmd" / "opendesk" / "README.md",
         Path(__file__).resolve(),
     ):
@@ -197,7 +240,9 @@ def build_artifacts() -> tuple[Path, Path, Path]:
     go_extension = BUILD_DIR / "native-ext-go-basic"
     vision_extension = BUILD_DIR / "native-ext-macos-vision"
     run(["go", "build", "-o", str(opendesk), "./cmd/opendesk"])
-    run(["go", "build", "-trimpath", "-buildvcs=false", "-o", str(go_extension), "."], cwd=go_author)
+    # Match the documented plugin-author invocation, including the isolated
+    # plugin working directory and reproducible build flags.
+    run(["go", "-C", str(go_author), "build", "-trimpath", "-buildvcs=false", "-o", str(go_extension), "."])
     arch = run(["uname", "-m"]).stdout.strip()
     sdk = run(["xcrun", "--sdk", "macosx", "--show-sdk-path"]).stdout.strip()
     run([
@@ -254,7 +299,7 @@ def assert_author_wire_test(go_extension: Path) -> dict[str, object]:
         "requestCount": 1,
         "stdoutResponseCount": 1,
         "stderrOnlyDiagnostics": True,
-        "result": response["result"],
+        "resultMatched": True,
         "stdoutSha256": hashlib.sha256(completed.stdout.encode("utf-8")).hexdigest(),
         "stderrBytes": len(completed.stderr.encode("utf-8")),
         "stderrSha256": hashlib.sha256(completed.stderr.encode("utf-8")).hexdigest(),
@@ -498,6 +543,12 @@ def prepare_consumer_package(opendesk: Path) -> None:
     scripts = CONSUMER_DIR / "scripts"
     scripts.mkdir(mode=0o700)
     shutil.copy2(ROOT / "examples" / "native-extensions" / "quickstart.js", scripts / "quickstart.js")
+    shutil.copy2(ROOT / "examples" / "native-extensions" / "quickstart.js", CONSUMER_DIR / "quickstart.js")
+    shutil.copy2(ROOT / "examples" / "native-extensions" / "ocr-quickstart.js", CONSUMER_DIR / "ocr-quickstart.js")
+    shutil.copy2(
+        ROOT / "tests" / "extensions" / "native-process" / "fixtures" / "ocr" / "opendesk-ocr-123.png",
+        CONSUMER_DIR / "ocr-test.png",
+    )
     shutil.copy2(DOMAIN / "canonical-diagnostics.js", scripts / "canonical-diagnostics.js")
 
 
@@ -511,24 +562,31 @@ def controlled_env(home: Path) -> dict[str, str]:
 
 def execute_case(
     name: str, binary: Path, script: Path, *, gate: bool, env: dict[str, str],
-    expect_success: bool = True,
+    expect_success: bool = True, cwd: Path | None = None, public_program_command: bool = False,
 ) -> dict[str, object]:
     log_dir = RUN_DIR / "cases" / name
-    command = [
-        str(binary), "-script", str(script), "-console-mode", "script",
-        "-timeout", "2", "-log-dir", str(log_dir),
-    ]
-    if gate:
-        command.insert(1, "-experimental-native-extension")
+    run_cwd = cwd or EMPTY_CWD
+    if public_program_command:
+        if binary != run_cwd / "opendesk" or script.parent != run_cwd or script.name not in {"quickstart.js", "ocr-quickstart.js"}:
+            raise ProofFailure("public program command must use ./opendesk and a documented script in the program directory")
+        command = ["./opendesk", "-script", f"./{script.name}", "-console-mode", "script", "-timeout", "2", "-log-dir", str(log_dir)]
+    else:
+        command = [
+            str(binary), "-script", str(script), "-console-mode", "script",
+            "-timeout", "2", "-log-dir", str(log_dir),
+        ]
+    # Local CLI discovery is the default product path. The argument is retained
+    # only to keep older proof call sites mechanically readable; it has no
+    # capability effect and is never added to a user-facing command.
     started = time.perf_counter()
-    completed = run(command, cwd=EMPTY_CWD, env=env, timeout=120, check=expect_success)
+    completed = run(command, cwd=run_cwd, env=env, timeout=120, check=expect_success)
     if not expect_success and completed.returncode == 0:
         raise ProofFailure(f"{name} unexpectedly succeeded")
     duration_ms = round((time.perf_counter() - started) * 1000, 3)
     return {
         "name": name,
         "command": command,
-        "cwd": str(EMPTY_CWD),
+        "cwd": str(run_cwd),
         "durationMs": duration_ms,
         "stdout": completed.stdout,
         "stderr": completed.stderr,
@@ -562,14 +620,14 @@ def native_call_events(case: dict[str, object]) -> list[dict[str, object]]:
 
 
 def assert_inert_cases(paths: dict[str, Path], environment: dict[str, str]) -> tuple[dict[str, object], dict[str, object]]:
-    disabled = execute_case("disabled-default", PROOF_DIR / "opendesk", PROOF_DIR / "scripts" / "disabled.js", gate=False, env=environment)
-    payload = marker_payload(disabled, "PLUGIN_DISABLED_RESULT")
-    if payload != {"globalsAbsent": True}:
-        raise ProofFailure(f"unexpected disabled result: {payload}")
+    disabled = execute_case("default-discovery", PROOF_DIR / "opendesk", PROOF_DIR / "scripts" / "disabled.js", gate=False, env=environment)
+    payload = marker_payload(disabled, "PLUGIN_DEFAULT_RESULT")
+    if payload.get("globalPresent") is not True or sorted(payload.get("plugins", [])) != ["com.example.go-basic", "com.example.macos-vision"]:
+        raise ProofFailure(f"unexpected default discovery result: {payload}")
     if child_count(paths["goMarker"]) or child_count(paths["visionMarker"]):
-        raise ProofFailure("default CLI without registry gate started an extension child")
+        raise ProofFailure("default CLI discovery started an extension child")
 
-    list_only = execute_case("list-only", PROOF_DIR / "opendesk", PROOF_DIR / "scripts" / "list-only.js", gate=True, env=environment)
+    list_only = execute_case("list-only", PROOF_DIR / "opendesk", PROOF_DIR / "scripts" / "list-only.js", gate=False, env=environment)
     listed = marker_payload(list_only, "PLUGIN_LIST_RESULT")
     if not listed.get("immutable"):
         raise ProofFailure(f"list-only binding was not immutable: {listed}")
@@ -622,7 +680,9 @@ def assert_packaged_quickstart(paths: dict[str, Path], environment: dict[str, st
     return case
 
 
-def assert_current_user_root(opendesk: Path, go_extension: Path, environment_home: Path) -> dict[str, object]:
+def assert_current_user_root(
+    opendesk: Path, go_extension: Path, vision_extension: Path, environment_home: Path, author_wire: dict[str, object],
+) -> dict[str, object]:
     prepare_consumer_package(opendesk)
     release_root = RUN_DIR / "publisher-release"
     release_root.mkdir(mode=0o700)
@@ -647,6 +707,9 @@ def assert_current_user_root(opendesk: Path, go_extension: Path, environment_hom
     if release_manifest.get("executableSha256") != sha256(go_extension):
         raise ProofFailure("consumer release manifest digest does not bind the author-built executable")
     release_schema = validate_manifest_schema([release_bundle / "extension.json"])
+    author_digest = run(["shasum", "-a", "256", str(release_executable)]).stdout.split()[0]
+    if author_digest != release_manifest.get("executableSha256"):
+        raise ProofFailure("documented author digest does not match the staged manifest")
     archive_dir = RUN_DIR / "publisher-archives"
     archive_dir.mkdir(mode=0o700)
     target_arch = run(["uname", "-m"]).stdout.strip()
@@ -654,7 +717,15 @@ def assert_current_user_root(opendesk: Path, go_extension: Path, environment_hom
         raise ProofFailure(f"unexpected Darwin architecture name: {target_arch!r}")
     archive = archive_dir / f"com.example.go-basic_0.1.0_darwin-{target_arch}.tar.gz"
     run(["tar", "-czf", str(archive), "-C", str(release_root), release_bundle.name])
-    checksum = run(["shasum", "-a", "256", str(archive)]).stdout.split()[0]
+    checksum_file = archive_dir / "checksums.txt"
+    run(
+        ["sh", "-c", "shasum -a 256 \"$1\" > checksums.txt", "sh", archive.name],
+        cwd=archive_dir,
+    )
+    checksum_validation = run(["shasum", "-a", "256", "-c", checksum_file.name], cwd=archive_dir)
+    if f"{archive.name}: OK" not in checksum_validation.stdout:
+        raise ProofFailure(f"publisher checksum verification did not report success: {checksum_validation.stdout}")
+    checksum = checksum_file.read_text(encoding="utf-8").split()[0]
     if checksum != sha256(archive):
         raise ProofFailure("publisher archive checksum command disagreed with proof hash")
 
@@ -662,13 +733,13 @@ def assert_current_user_root(opendesk: Path, go_extension: Path, environment_hom
     unpack_root.mkdir(mode=0o700)
     run(["tar", "-xzf", str(archive), "-C", str(unpack_root)])
     unpacked_bundle = unpack_root / release_bundle.name
-    user_root = environment_home / "Library" / "Application Support" / "OpenDesk" / "NativeExtensions"
-    installed_bundle = user_root / release_bundle.name
+    program_root = CONSUMER_DIR / "native-extensions"
+    installed_bundle = program_root / release_bundle.name
     if installed_bundle.exists():
-        raise ProofFailure("canonical install target unexpectedly exists")
-    # Execute the documented macOS/Linux installation primitives, rather than
-    # using an in-process copy that could drift from the consumer quickstart.
-    run(["install", "-d", "-m", "700", str(user_root)])
+        raise ProofFailure("program-relative install target unexpectedly exists")
+    # Execute the documented program-relative installation primitives, rather
+    # than using an in-process copy that could drift from the public quickstart.
+    run(["install", "-d", "-m", "700", str(program_root)])
     run(["cp", "-R", str(unpacked_bundle), str(installed_bundle)])
     run(["chmod", "-R", "go-w", str(installed_bundle)])
     installed_manifest = json.loads((installed_bundle / "extension.json").read_text(encoding="utf-8"))
@@ -681,81 +752,118 @@ def assert_current_user_root(opendesk: Path, go_extension: Path, environment_hom
         raise ProofFailure("installed manifest digest does not match its direct executable")
     environment = controlled_env(environment_home)
     diagnostics_case = execute_case(
-        "canonical-current-user-diagnostics",
+        "program-relative-diagnostics",
         CONSUMER_DIR / "opendesk",
         CONSUMER_DIR / "scripts" / "canonical-diagnostics.js",
-        gate=True,
+        gate=False,
         env=environment,
     )
     diagnostics = marker_payload(diagnostics_case, "PLUGIN_CANONICAL_DIAGNOSTICS")
     if native_call_events(diagnostics_case):
-        raise ProofFailure("canonical list/get/diagnostics started a child")
+        raise ProofFailure("program-relative list/get/diagnostics started a child")
     current_plugins = [
         item for item in diagnostics.get("plugins", [])
         if item.get("id") == "com.example.go-basic"
     ]
-    if len(current_plugins) != 1 or current_plugins[0].get("rootKind") != "current_user":
-        raise ProofFailure(f"current-user root kind mismatch: {current_plugins}")
-    if not any(
-        item.get("rootKind") == "portable" and item.get("status") == "skipped" and
-        item.get("errorCode") == "root_unavailable"
-        for item in diagnostics.get("diagnostics", [])
-    ):
-        raise ProofFailure(f"missing publisher root was not harmless/diagnostic: {diagnostics}")
+    if len(current_plugins) != 1 or current_plugins[0].get("rootKind") != "portable":
+        raise ProofFailure(f"program-relative root kind mismatch: {current_plugins}")
 
     case = execute_case(
-        "canonical-current-user-quickstart",
+        "program-relative-quickstart",
         CONSUMER_DIR / "opendesk",
-        CONSUMER_DIR / "scripts" / "quickstart.js",
-        gate=True,
+        CONSUMER_DIR / "quickstart.js",
+        gate=False,
         env=environment,
+        cwd=CONSUMER_DIR,
+        public_program_command=True,
     )
     expected = {"hello": {"message": "Hello OpenDesk"}, "sum": {"value": 42}}
     expected_json = json.dumps(expected, separators=(",", ":"), ensure_ascii=False)
     calls = native_call_events(case)
     call_fields = [event.get("fields", {}) for event in calls]
     if expected_json not in str(case["stdout"]) or [fields.get("method") for fields in call_fields] != ["hello", "add"]:
-        raise ProofFailure(f"canonical current-user quickstart failed: {case['stdout']}")
+        raise ProofFailure(f"program-relative quickstart failed: {case['stdout']}")
     expected_executable_sha = sha256(go_extension)
     if any(
         fields.get("status") != "succeeded" or
-        fields.get("rootKind") != "current_user" or
+        fields.get("rootKind") != "portable" or
         fields.get("pluginId") != "com.example.go-basic" or
         fields.get("executableSha256") != expected_executable_sha
         for fields in call_fields
     ):
-        raise ProofFailure(f"canonical quickstart call evidence is not bound to the direct release executable: {call_fields}")
+        raise ProofFailure(f"program-relative quickstart call evidence is not bound to the direct release executable: {call_fields}")
 
-    forbidden = [str(environment_home), str(installed_executable)]
+    # The OCR fixture is caller input, not bundle content. Install the second
+    # manifest-bound executable beside the ordinary Go bundle, then run the
+    # exact public OCR command from the documented program directory.
+    vision_bundle = install_bundle(
+        program_root,
+        source_manifest=ROOT / "examples" / "native-extensions" / "macos-vision" / "extension.json",
+        real_executable=vision_extension,
+        marker=None,
+    )
+    run(["chmod", "-R", "go-w", str(vision_bundle)])
+    vision_manifest = json.loads((vision_bundle / "extension.json").read_text(encoding="utf-8"))
+    vision_executable = vision_bundle / vision_manifest["executable"]
+    if vision_manifest.get("executableSha256") != sha256(vision_extension):
+        raise ProofFailure("OCR manifest digest does not bind the author-built executable")
+    if sha256(vision_executable) != sha256(vision_extension):
+        raise ProofFailure("program-relative OCR executable differs from the author-built executable")
+    ocr_case = execute_case(
+        "program-relative-ocr-quickstart",
+        CONSUMER_DIR / "opendesk",
+        CONSUMER_DIR / "ocr-quickstart.js",
+        gate=False,
+        env=environment,
+        cwd=CONSUMER_DIR,
+        public_program_command=True,
+    )
+    expected_ocr = {"text": "OPENDESK OCR 123\n你好 456"}
+    ocr_fields = [event.get("fields", {}) for event in native_call_events(ocr_case)]
+    ocr_agent_summary = json.loads((Path(ocr_case["logDir"]) / "agent_summary.json").read_text(encoding="utf-8"))
+    ocr_console_messages = [entry.get("message") for entry in ocr_agent_summary.get("scriptLogs", [])]
+    if json.dumps(expected_ocr, separators=(",", ":"), ensure_ascii=False) not in ocr_console_messages or [fields.get("method") for fields in ocr_fields] != ["ocr"]:
+        raise ProofFailure(f"program-relative OCR quickstart failed: {ocr_case['stdout']}")
+    if any(
+        fields.get("status") != "succeeded" or
+        fields.get("rootKind") != "portable" or
+        fields.get("pluginId") != "com.example.macos-vision" or
+        fields.get("executableSha256") != sha256(vision_extension)
+        for fields in ocr_fields
+    ):
+        raise ProofFailure(f"program-relative OCR quickstart evidence is not manifest-bound: {ocr_fields}")
+
+    forbidden = [str(environment_home), str(installed_executable), str(vision_executable), str(CONSUMER_DIR / "ocr-test.png")]
     privacy_artifacts: list[dict[str, object]] = []
-    for checked_case in (diagnostics_case, case):
+    for checked_case in (diagnostics_case, case, ocr_case):
         combined = (str(checked_case["stdout"]) + str(checked_case["stderr"])).encode("utf-8")
         for value in forbidden:
             if value.encode("utf-8") in combined:
-                raise ProofFailure(f"canonical Runtime output leaked private path {value!r}")
+                raise ProofFailure(f"program-relative Runtime output leaked private path {value!r}")
         for artifact in sorted(Path(checked_case["logDir"]).rglob("*")):
             if not artifact.is_file():
                 continue
             content = artifact.read_bytes()
             for value in forbidden:
                 if value.encode("utf-8") in content:
-                    raise ProofFailure(f"canonical persistent Runtime Evidence leaked private path in {artifact}")
+                    raise ProofFailure(f"program-relative persistent Runtime Evidence leaked private path in {artifact}")
             privacy_artifacts.append({"name": artifact.name, "sha256": hashlib.sha256(content).hexdigest()})
 
     forbidden_sources = [
-        str(path.relative_to(installed_bundle))
-        for path in installed_bundle.rglob("*")
+        str(path.relative_to(bundle))
+        for bundle in (installed_bundle, vision_bundle)
+        for path in bundle.rglob("*")
         if path.is_file() and path.suffix.lower() in {
             ".go", ".swift", ".rs", ".c", ".cc", ".cpp", ".h", ".py",
             ".sh", ".command", ".bat", ".cmd", ".ps1",
         }
     ]
     if forbidden_sources:
-        raise ProofFailure(f"canonical installed archive contains source: {forbidden_sources}")
+        raise ProofFailure(f"program-relative installed archive contains source: {forbidden_sources}")
     return {
         "status": "passed",
-        "canonicalFormula": "$HOME/Library/Application Support/OpenDesk/NativeExtensions/",
-        "rootKind": "current_user",
+        "canonicalFormula": "<program-directory>/native-extensions/",
+        "rootKind": "portable",
         "targetOS": "darwin",
         "targetArch": target_arch,
         "archiveName": archive.name,
@@ -770,12 +878,28 @@ def assert_current_user_root(opendesk: Path, go_extension: Path, environment_hom
         "inventory": release_inventory,
         "sourceIncluded": False,
         "schemaValidation": release_schema,
+        "authorWorkflow": {
+            "goReleaseBuild": AUTHOR_BUILD_EVIDENCE["go"],
+            "wireTest": author_wire,
+            "manifestDigest": {"status": "passed", "sha256": author_digest},
+            "schemaValidation": release_schema,
+            "archiveChecksum": {
+                "status": "passed", "file": checksum_file.name,
+                "sha256": checksum, "verifiedBy": "shasum -a 256 -c checksums.txt",
+            },
+            "installedSmoke": {"status": "passed", "workingDirectory": "program-directory"},
+        },
         "diagnosticsChildCount": 0,
         "callChildCount": len(calls),
         "callCountEvidence": "Runtime EventSink native_extension_call records",
-        "result": expected,
+        "resultMatched": True,
+        "documentedOCR": {
+            "status": "passed", "fixture": "ocr-test.png", "result": expected_ocr,
+            "executableSha256": sha256(vision_executable),
+        },
         "diagnosticsDurationMs": diagnostics_case["durationMs"],
         "quickstartDurationMs": case["durationMs"],
+        "ocrQuickstartDurationMs": ocr_case["durationMs"],
         "privacy": {
             "status": "passed",
             "isolatedHomeAbsent": True,
@@ -967,18 +1091,28 @@ def validate_documentation() -> dict[str, object]:
     implementation_doc = (
         ROOT / "docs" / "implementation" / "runtime" / "native-extension-plugin-discovery.md"
     ).read_text(encoding="utf-8")
-    user_first = user_doc.split("## 日常 JavaScript API", 1)[0]
-    examples_first = examples_doc.split("## Example bundles and responsibilities", 1)[0]
+    user_boundary = re.search(
+        r"^## (?:NativeExtensions：)?日常 JavaScript API\s*$", user_doc, re.MULTILINE
+    )
+    if user_boundary is None:
+        raise ProofFailure("user documentation is missing the daily JavaScript API section boundary")
+    examples_boundary = re.search(
+        r"^## Example bundles and responsibilities\s*$", examples_doc, re.MULTILINE
+    )
+    if examples_boundary is None:
+        raise ProofFailure("examples documentation is missing the responsibility section boundary")
+    user_first = user_doc[:user_boundary.start()]
+    examples_first = examples_doc[:examples_boundary.start()]
     requirements = {
         "user": [
-            "预编译 bundle", "extension.json", "Application Support/OpenDesk/NativeExtensions",
-            "function main()", "-experimental-native-extension",
+            "插件作者", "程序相对目录", "extension.json",
+            "function main()", "./opendesk -script ./quickstart.js",
             '{"hello":{"message":"Hello OpenDesk"},"sum":{"value":42}}',
             "NativeExtensions.diagnostics()",
         ],
         "examples": [
-            "precompiled", "extension.json", "Application Support/OpenDesk/NativeExtensions",
-            "function main()", "-experimental-native-extension",
+            "plugin author", "extension.json", "program-relative",
+            "quickstart.js", "./opendesk -script ./quickstart.js",
             '{"hello":{"message":"Hello OpenDesk"},"sum":{"value":42}}',
             "NativeExtensions.diagnostics()",
         ],
@@ -987,33 +1121,62 @@ def validate_documentation() -> dict[str, object]:
         positions = [first.find(token) for token in requirements[label]]
         if any(position < 0 for position in positions) or positions != sorted(positions):
             raise ProofFailure(f"{label} consumer workflow is incomplete or out of order: {positions}")
-        for forbidden in ("go build", "swiftc -O", '"wireMethod"'):
-            if forbidden in first:
-                raise ProofFailure(f"{label} consumer workflow leaked author/transport step {forbidden!r}")
-        if re.search(r"(^|\s)-native-extension(?:\s|$)", first):
-            raise ProofFailure(f"{label} consumer workflow leaked the low-level direct Host flag")
+        if re.search(r"(^|\s)-experimental-native-extension(?:\s|$)", first):
+            raise ProofFailure(f"{label} default CLI workflow still requires the experimental flag")
 
     combined = "\n".join((user_doc, examples_doc, implementation_doc))
     for stale in (
-        "os.UserConfigDir()/OpenDesk/NativeExtensions",
-        "Linux/Windows 的 current-user root 以 Go `os.UserConfigDir()`",
+        "$HOME/Library/Application Support/OpenDesk/NativeExtensions",
+        "${XDG_DATA_HOME:-$HOME/.local/share}/OpenDesk/NativeExtensions",
+        "%LOCALAPPDATA%\\OpenDesk\\NativeExtensions",
     ):
         if stale in combined:
             raise ProofFailure(f"documentation retains stale config-root contract: {stale}")
     required_contracts = (
-        "${XDG_DATA_HOME:-$HOME/.local/share}/OpenDesk/NativeExtensions/",
-        "%LOCALAPPDATA%\\OpenDesk\\NativeExtensions\\",
-        "Machine-wide root：Not Implemented",
-        "不会被自动复制、移动、合并或删除",
+        "<program-directory>/native-extensions/",
+        "OpenDesk.app/Contents/Resources/NativeExtensions/",
+        "HTTP, MCP",
+        "也不会自动迁移、复制、合并或删除",
         "go build -trimpath -buildvcs=false",
         "cargo build --release",
         "cmake --build",
         "validator_for",
-        "unrelated cwd",
+        "Not Evaluated",
+        "Not Published / Not Verified",
+        "examples/native-extensions/go-basic/main.go",
+        "examples/native-extensions/go-basic/go.mod",
+        "examples/native-extensions/quickstart.js",
+        "examples/native-extensions/ocr-quickstart.js",
+        "opendesk-ocr-123.png",
     )
     missing = [token for token in required_contracts if token not in combined]
     if missing:
         raise ProofFailure(f"documentation contract is incomplete: {missing}")
+    required_links = {
+        ROOT / "docs/api" / "native-extension.md": (
+            "../../examples/native-extensions/README.md",
+            "../../examples/native-extensions/quickstart.js",
+            "../../examples/native-extensions/ocr-quickstart.js",
+            "../../tests/extensions/native-process/fixtures/ocr/opendesk-ocr-123.png",
+        ),
+        ROOT / "docs/api" / "index.md": (
+            "../../examples/native-extensions/README.md",
+            "../../examples/native-extensions/quickstart.js",
+        ),
+        ROOT / "docs/api" / "README.md": (
+            "../../examples/native-extensions/README.md",
+            "../../examples/native-extensions/quickstart.js",
+        ),
+        ROOT / "examples" / "README.md": (
+            "native-extensions/README.md",
+            "native-extensions/quickstart.js",
+        ),
+    }
+    for path, links in required_links.items():
+        content = path.read_text(encoding="utf-8")
+        missing_links = [link for link in links if link not in content]
+        if missing_links:
+            raise ProofFailure(f"required Native Extension example links are missing from {path}: {missing_links}")
     quickstart = (ROOT / "examples" / "native-extensions" / "quickstart.js").read_text(encoding="utf-8")
     for token in (
         "function main()", "NativeExtensions.goBasic.hello", "NativeExtensions.goBasic.add",
@@ -1021,17 +1184,29 @@ def validate_documentation() -> dict[str, object]:
     ):
         if token not in quickstart:
             raise ProofFailure(f"maintained quickstart is missing {token!r}")
+    ocr_quickstart = (ROOT / "examples" / "native-extensions" / "ocr-quickstart.js").read_text(encoding="utf-8")
+    for token in (
+        "function main()", "NativeExtensions.macosVision.ocr", "File.path(\"./ocr-test.png\")",
+        "JSON.stringify({ text: ocr.text })", "main();",
+    ):
+        if token not in ocr_quickstart:
+            raise ProofFailure(f"maintained OCR quickstart is missing {token!r}")
     return {
         "status": "passed",
-        "consumerFirst": True,
+        "consumerFirst": False,
+        "pluginAuthorFirst": True,
         "pathContractsMatch": True,
-        "machineWideStatus": "Not Implemented",
+        "defaultRoot": "program_relative_only",
         "migrationIsExplicitAndNonDestructive": True,
         "authorConsumerMaintainerSeparated": True,
         "checkedFiles": {
             "docs/api/native-extension.md": sha256(ROOT / "docs/api" / "native-extension.md"),
+            "docs/api/index.md": sha256(ROOT / "docs/api" / "index.md"),
+            "docs/api/README.md": sha256(ROOT / "docs/api" / "README.md"),
+            "examples/README.md": sha256(ROOT / "examples" / "README.md"),
             "examples/native-extensions/README.md": sha256(ROOT / "examples" / "native-extensions" / "README.md"),
             "examples/native-extensions/quickstart.js": sha256(ROOT / "examples" / "native-extensions" / "quickstart.js"),
+            "examples/native-extensions/ocr-quickstart.js": sha256(ROOT / "examples" / "native-extensions" / "ocr-quickstart.js"),
             "docs/implementation/runtime/native-extension-plugin-discovery.md": sha256(
                 ROOT / "docs" / "implementation" / "runtime" / "native-extension-plugin-discovery.md"
             ),
@@ -1040,9 +1215,14 @@ def validate_documentation() -> dict[str, object]:
 
 
 def main() -> int:
+    arguments = sys.argv[1:]
+    if arguments not in ([], ["--host-only"]):
+        raise ProofFailure("usage: test_native_extension_plugins.sh [--host-only]")
+    host_only = arguments == ["--host-only"]
     RUN_DIR.mkdir(parents=True, mode=0o700)
     branch_before = run(["git", "branch", "--show-current"]).stdout.strip()
     head_before = run(["git", "rev-parse", "HEAD"]).stdout.strip()
+    worktree_before = worktree_snapshot()
     source_before = source_snapshot()
     opendesk, go_extension, vision_extension = build_artifacts()
     documentation = validate_documentation()
@@ -1051,14 +1231,17 @@ def main() -> int:
         ROOT / "examples" / "native-extensions" / "macos-vision" / "extension.json",
     ])
     author_wire = assert_author_wire_test(go_extension)
-    cross_compile = cross_compile_artifacts()
+    # The macOS revalidation entry point must not build, package, or score
+    # other operating systems. Keep the broader cross-target audit available
+    # only to an explicitly non-host-only invocation.
+    cross_compile = None if host_only else cross_compile_artifacts()
     paths = prepare_proof(opendesk, go_extension, vision_extension)
     empty_home = RUN_DIR / "home-empty"
     environment = controlled_env(empty_home)
     disabled, list_only = assert_inert_cases(paths, environment)
     smoke, again, result = assert_smoke(paths, environment)
     packaged_quickstart = assert_packaged_quickstart(paths, environment)
-    current_user = assert_current_user_root(opendesk, go_extension, RUN_DIR / "home-user")
+    current_user = assert_current_user_root(opendesk, go_extension, vision_extension, RUN_DIR / "home-user", author_wire)
     error_privacy = assert_error_privacy(paths, environment)
     app_bundled = assert_app_bundled_root(paths, environment)
     evidence = validate_evidence(smoke, paths, empty_home)
@@ -1066,6 +1249,7 @@ def main() -> int:
     source_after = source_snapshot()
     branch_after = run(["git", "branch", "--show-current"]).stdout.strip()
     head_after = run(["git", "rev-parse", "HEAD"]).stdout.strip()
+    worktree_after = worktree_snapshot()
     changes = snapshot_changes(source_before, source_after)
     source_record = {
         "branchBefore": branch_before, "branchAfter": branch_after,
@@ -1073,17 +1257,29 @@ def main() -> int:
         "inputCount": len(source_before), "changes": changes,
         "before": source_before, "after": source_after,
     }
-    (RUN_DIR / "source-input-snapshot.json").write_text(
-        json.dumps(source_record, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    source_snapshot_path = RUN_DIR / "source-input-snapshot.json"
+    source_snapshot_path.write_text(
+        json.dumps(source_record, indent=2, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8"
     )
-    if branch_before != branch_after or head_before != head_after or changes:
+    source_snapshot_digest = sha256(source_snapshot_path)
+    worktree_record = {
+        "before": worktree_before,
+        "after": worktree_after,
+        "changed": worktree_before != worktree_after,
+    }
+    worktree_snapshot_path = RUN_DIR / "working-tree-snapshot.json"
+    worktree_snapshot_path.write_text(
+        json.dumps(worktree_record, indent=2, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    worktree_snapshot_digest = sha256(worktree_snapshot_path)
+    if branch_before != branch_after or head_before != head_after or changes or worktree_record["changed"]:
         raise ProofFailure(
-            "source inputs changed during proof: " +
+            "source or working-tree inputs changed during proof: " +
             json.dumps({"branchBefore": branch_before, "branchAfter": branch_after,
                         "headBefore": head_before, "headAfter": head_after,
-                        "changes": changes}, ensure_ascii=False)
+                        "sourceChanges": changes, "workingTreeChanged": worktree_record["changed"]}, ensure_ascii=False)
         )
-    git_dirty = bool(run(["git", "status", "--porcelain"]).stdout.strip())
+    git_dirty = bool(worktree_after["statusSha256"] != sha256_text(""))
     commands_path = RUN_DIR / "commands.ndjson"
     commands_path.write_text(
         "".join(json.dumps(command, ensure_ascii=False) + "\n" for command in COMMANDS), encoding="utf-8"
@@ -1091,12 +1287,36 @@ def main() -> int:
     run_text_privacy = assert_run_text_privacy()
     run_text_privacy["finalSummaryCheckedBeforeWrite"] = True
     private_path_privacy = assert_persistent_private_path_absence([
-        str(RUN_DIR / "home-user"),
-        str(
-            RUN_DIR / "home-user" / "Library" / "Application Support" / "OpenDesk" /
-            "NativeExtensions" / "com.example.go-basic" / "bin" / "native-ext-go-basic"
-        ),
+        str(CONSUMER_DIR / "native-extensions" / "com.example.go-basic" / "bin" / "native-ext-go-basic"),
+        str(CONSUMER_DIR / "native-extensions" / "com.example.macos-vision" / "bin" / "native-ext-macos-vision"),
+        str(CONSUMER_DIR / "ocr-test.png"),
     ])
+    platform_verification = {
+        "darwin": {
+            "runtimeVerified": True, "packageVerified": True,
+            "assetSource": "local acceptance archive", "checksumVerification": "passed",
+            "signatureVerification": "Not Provided",
+            "evidenceBinding": {"head": head_after, "sourceInputSnapshotSha256": source_snapshot_digest, "workingTreeSnapshotSha256": worktree_snapshot_digest, "buildPackageRunId": RUN_ID},
+        },
+    }
+    out_of_scope_platforms = {}
+    if not host_only:
+        platform_verification.update({
+            "linux": {
+                "runtimeVerified": False, "packageVerified": True, "status": "compile/package only",
+                "assetSource": "local acceptance archive", "checksumVerification": "passed", "signatureVerification": "Not Provided",
+                "evidenceBinding": {"head": head_after, "sourceInputSnapshotSha256": source_snapshot_digest, "workingTreeSnapshotSha256": worktree_snapshot_digest, "buildPackageRunId": RUN_ID},
+            },
+            "windows": {
+                "runtimeVerified": False, "packageVerified": True, "status": "compile/package only",
+                "assetSource": "local acceptance archive", "checksumVerification": "passed", "signatureVerification": "Not Provided",
+                "evidenceBinding": {"head": head_after, "sourceInputSnapshotSha256": source_snapshot_digest, "workingTreeSnapshotSha256": worktree_snapshot_digest, "buildPackageRunId": RUN_ID},
+            },
+        })
+    missing_platforms = [
+        platform for platform, verification in platform_verification.items()
+        if not verification["runtimeVerified"]
+    ]
     summary = {
         "schemaVersion": "1.0.1",
         "status": "passed",
@@ -1105,6 +1325,28 @@ def main() -> int:
         "branch": branch_after,
         "head": head_after,
         "gitDirty": git_dirty,
+        "hostProof": {
+            "status": "passed", "platform": "darwin", "mode": "host-only" if host_only else "full-goal-gate",
+        },
+        "goalAcceptance": {
+            "status": "accepted_macos_runtime_with_cross_compile_package" if not host_only else "accepted_macos_runtime_only",
+            "requiredPlatforms": ["darwin"],
+            "missingPlatforms": missing_platforms,
+            "exitCode": 0,
+            "reason": "macOS Runtime verified; Linux/Windows are compile/package only and Not Evaluated for target Runtime",
+            "outOfScopeNotEvaluated": out_of_scope_platforms,
+        },
+        "evidenceBinding": {
+            "head": head_after,
+            "sourceInputSnapshotSha256": source_snapshot_digest,
+            "workingTreeSnapshotSha256": worktree_snapshot_digest,
+            "buildPackageRunId": RUN_ID,
+        },
+        "distribution": {
+            "repositorySource": {"status": "maintained source; not a precompiled asset"},
+            "localAcceptanceArchive": {"status": "local only; checksum verified during proof"},
+            "publicPublisherAsset": {"status": "Not Published / Not Verified"},
+        },
         "proof": {
             "path": str(PROOF_DIR), "workingDirectory": str(EMPTY_CWD),
             "runtimeSourceAudit": package_inventory,
@@ -1121,11 +1363,8 @@ def main() -> int:
         "roots": {
             "publisherPortable": "passed",
             "publisherAppBundled": "passed",
-            "canonicalCurrentUser": current_user,
-            "machineWide": {
-                "status": "Not Implemented",
-                "reason": "Unix admin-only policy and Windows owner/DACL/reparse trust gates are incomplete",
-            },
+            "programRelativeBundle": current_user,
+            "excludedDefaultRoots": ["HOME", "machine-wide", "cwd", "PATH", "source ancestors", "script path"],
             "legacyMigration": {
                 "linuxConfigScanned": False,
                 "windowsRoamingScanned": False,
@@ -1133,11 +1372,16 @@ def main() -> int:
             },
         },
         "inert": {
-            "defaultGlobalAbsent": True, "defaultChildCount": 0,
+            "defaultGlobalPresent": True, "defaultChildCount": 0,
             "listGetDiagnosticsChildCount": 0, "thirdPartyFacadeExecuted": False,
             "disabledDurationMs": disabled["durationMs"], "listDurationMs": list_only["durationMs"],
         },
-        "results": result,
+        "resultAssertions": {
+            "helloMatched": result.get("hello") == {"message": "Hello OpenDesk"},
+            "addMatched": result.get("add") == {"value": 42},
+            "ocrMatched": True,
+            "rawBusinessResultPersistedInSummary": False,
+        },
         "children": {
             "goTotal": child_count(paths["goMarker"]),
             "goExpectedBreakdown": {"smoke": 2, "laterHello": 1, "packagedQuickstart": 2, "privacyFailure": 1, "appBundledHello": 1},
@@ -1152,41 +1396,41 @@ def main() -> int:
             "buildOutput": app_bundled["buildStdout"], "manifestBoundCall": "passed",
             "externalProofExecutablesWithheld": app_bundled["externalProofExecutablesWithheld"],
         },
-        "crossCompile": cross_compile,
+        "crossCompile": cross_compile if cross_compile is not None else {"status": "not_run", "reason": "macOS-only host proof"},
         "authorBuild": AUTHOR_BUILD_EVIDENCE,
         "authorWireTest": author_wire,
         "schemaValidation": source_schema,
         "documentationAcceptance": documentation,
-        "platformVerification": {
-            "darwin": {"runtimeVerified": True, "packageVerified": True},
-            "linux": {"runtimeVerified": False, "packageVerified": True, "status": "compile/package only"},
-            "windows": {"runtimeVerified": False, "packageVerified": True, "status": "compile/package only"},
-        },
+        "platformVerification": platform_verification,
         "performance": {
             "smokeTotalMs": smoke["durationMs"], "laterHelloTotalMs": again["durationMs"],
             "packagedQuickstartMs": packaged_quickstart["durationMs"],
-            "currentUserDiagnosticsMs": current_user["diagnosticsDurationMs"],
-            "currentUserQuickstartMs": current_user["quickstartDurationMs"],
+            "programRelativeDiagnosticsMs": current_user["diagnosticsDurationMs"],
+            "programRelativeQuickstartMs": current_user["quickstartDurationMs"],
+            "programRelativeOCRQuickstartMs": current_user["ocrQuickstartDurationMs"],
             "appBundledCallMs": app_bundled["durationMs"],
             "callEvidence": evidence["calls"], "discoveryDurationMs": evidence["discoveryDurationMs"],
         },
         "evidence": evidence,
         "sourceInputSnapshot": {
-            "path": str(RUN_DIR / "source-input-snapshot.json"),
+            "path": str(source_snapshot_path), "sha256": source_snapshot_digest,
             "inputCount": len(source_before), "changes": [], "status": "passed",
+        },
+        "workingTreeSnapshot": {
+            "path": str(worktree_snapshot_path), "sha256": worktree_snapshot_digest,
+            "status": "passed", "changed": False,
+            "branch": worktree_after["branch"], "head": worktree_after["head"],
+            "indexTree": worktree_after["indexTree"],
         },
         "commandTranscript": {"path": str(commands_path), "count": len(COMMANDS)},
     }
     summary_path = RUN_DIR / "summary.json"
     summary_text = json.dumps(summary, indent=2, ensure_ascii=False) + "\n"
-    if "a and b are required" in summary_text:
-        raise ProofFailure("extension-controlled error text leaked into final proof summary")
+    for forbidden_result in ("a and b are required", "Hello OpenDesk", "OPENDESK OCR 123"):
+        if forbidden_result in summary_text:
+            raise ProofFailure("extension-controlled result text leaked into final proof summary")
     for forbidden in (
-        str(RUN_DIR / "home-user"),
-        str(
-            RUN_DIR / "home-user" / "Library" / "Application Support" / "OpenDesk" /
-            "NativeExtensions" / "com.example.go-basic" / "bin" / "native-ext-go-basic"
-        ),
+        str(CONSUMER_DIR / "native-extensions" / "com.example.go-basic" / "bin" / "native-ext-go-basic"),
     ):
         if forbidden in summary_text:
             raise ProofFailure("final proof summary leaked a private Runtime path")

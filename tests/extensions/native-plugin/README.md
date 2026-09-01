@@ -14,11 +14,10 @@ Apple Vision extension. It creates a source-free package at
 `/private/tmp/opendesk-native-plugin-proof-<runId>/`, then starts it from a
 different empty cwd and verifies:
 
-- default CLI has no `NativeExtensions` global, performs no discovery, and
-  starts zero children;
-- opt-in discovery/list/get/diagnostics starts zero children and does not
+- default local CLI discovery exposes `NativeExtensions`, while discovery,
+  list/get/diagnostics start zero children and do not
   execute a deliberately hostile `facade.js`;
-- portable, macOS current-user OS-standard, and `.app` Resources roots;
+- source-free program-relative portable and macOS `.app` Resources roots;
 - `NativeExtensions.goBasic.hello({ ... })`, `.add({ ... })`, and real
   `NativeExtensions.macosVision.ocr({ ... })` without routing fields;
 - frozen/null-prototype root and namespace bindings;

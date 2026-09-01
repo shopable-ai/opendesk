@@ -31,9 +31,10 @@ type DiscoveryRoot struct {
 type DiscoveryOptions struct {
 	Roots          []DiscoveryRoot
 	ExecutablePath string
-	// UserDataDir overrides only the current-user data-directory base. It is
-	// intended for Host tests and isolated proof profiles; normal JavaScript,
-	// HTTP, and MCP callers cannot set discovery roots.
+	// UserDataDir remains an internal test seam for the historical platform-path
+	// helpers. It is deliberately not part of the product discovery policy:
+	// normal JavaScript discovers only the directory relative to the running
+	// OpenDesk program, and HTTP/MCP callers cannot set discovery roots.
 	UserDataDir string
 }
 
@@ -95,6 +96,11 @@ func (e *RegistryError) Error() string {
 	return e.Code + ": " + e.Message
 }
 
+// DefaultDiscoveryRoots resolves exactly one root relative to the running
+// OpenDesk program. A portable executable uses <program-dir>/native-extensions;
+// a macOS app executable uses Contents/Resources/NativeExtensions. Deliberately
+// do not add HOME, OS-wide locations, cwd, PATH, source ancestors, or script
+// paths to this default chain.
 func DefaultDiscoveryRoots(options DiscoveryOptions) ([]DiscoveryRoot, error) {
 	executable := strings.TrimSpace(options.ExecutablePath)
 	if executable == "" {
@@ -108,43 +114,22 @@ func DefaultDiscoveryRoots(options DiscoveryOptions) ([]DiscoveryRoot, error) {
 	if err != nil {
 		return nil, err
 	}
-	roots := make([]DiscoveryRoot, 0, 2)
-	roots = append(roots, publisherRoot)
-
-	userRoot, err := currentUserDiscoveryRoot(strings.TrimSpace(options.UserDataDir))
-	if err != nil {
-		// Keep the already resolved publisher root usable. Discover records a
-		// privacy-minimized diagnostic for the unavailable user root.
-		return roots, fmt.Errorf("resolve current-user native extension directory: %w", err)
-	}
-	roots = append(roots, DiscoveryRoot{Kind: RootCurrentUser, Path: userRoot})
-	return roots, nil
+	return []DiscoveryRoot{publisherRoot}, nil
 }
 
 func Discover(options DiscoveryOptions) (*Registry, error) {
 	registry := &Registry{plugins: make(map[string]Plugin), namespaces: make(map[string]string)}
 	roots := append([]DiscoveryRoot(nil), options.Roots...)
-	userRootUnavailable := false
 	if len(roots) == 0 {
 		var err error
 		roots, err = DefaultDiscoveryRoots(options)
 		if err != nil {
-			if len(roots) == 0 {
-				return nil, err
-			}
-			userRootUnavailable = true
+			return nil, err
 		}
 	}
 	candidates := make([]discoveryCandidate, 0)
 	for _, root := range roots {
 		candidates = append(candidates, registry.discoverRoot(root)...)
-	}
-	if userRootUnavailable {
-		registry.diagnostics = append(registry.diagnostics, DiscoveryDiagnostic{
-			RootKind:  RootCurrentUser,
-			Status:    "rejected",
-			ErrorCode: "user_root_unavailable",
-		})
 	}
 	registry.resolveCandidates(candidates)
 	return registry, nil
@@ -389,22 +374,34 @@ func (r *Registry) ValidateArtifact(pluginID string) (Plugin, error) {
 		return Plugin{}, artifactChanged(err)
 	}
 	rootInfo, err := os.Lstat(plugin.RootPath)
-	if err != nil || validateSecureDirectory(plugin.RootPath, rootInfo) != nil {
+	if err != nil {
+		return Plugin{}, artifactChanged(err)
+	}
+	if err := validateSecureDirectory(plugin.RootPath, rootInfo); err != nil {
 		return Plugin{}, artifactChanged(err)
 	}
 	if err := validateTrustedAncestorDirectories(plugin.RootPath); err != nil {
 		return Plugin{}, artifactChanged(err)
 	}
 	bundleInfo, err := os.Lstat(plugin.BundlePath)
-	if err != nil || validateSecureDirectory(plugin.BundlePath, bundleInfo) != nil {
+	if err != nil {
+		return Plugin{}, artifactChanged(err)
+	}
+	if err := validateSecureDirectory(plugin.BundlePath, bundleInfo); err != nil {
 		return Plugin{}, artifactChanged(err)
 	}
 	manifestInfo, err := os.Lstat(plugin.ManifestPath)
-	if err != nil || validateSecureRegularFile(plugin.ManifestPath, manifestInfo, false) != nil {
+	if err != nil {
+		return Plugin{}, artifactChanged(err)
+	}
+	if err := validateSecureRegularFile(plugin.ManifestPath, manifestInfo, false); err != nil {
 		return Plugin{}, artifactChanged(err)
 	}
 	executableInfo, err := os.Lstat(plugin.ExecutablePath)
-	if err != nil || validateSecureRegularFile(plugin.ExecutablePath, executableInfo, true) != nil {
+	if err != nil {
+		return Plugin{}, artifactChanged(err)
+	}
+	if err := validateSecureRegularFile(plugin.ExecutablePath, executableInfo, true); err != nil {
 		return Plugin{}, artifactChanged(err)
 	}
 	if err := validateContainedPath(plugin.BundlePath, plugin.ExecutablePath); err != nil {

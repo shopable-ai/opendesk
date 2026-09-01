@@ -1,4 +1,10 @@
-if (typeof NativeExtensions !== "undefined" || typeof NativeExtension !== "undefined") {
-  throw new Error("Native Extension globals must be absent without an explicit local gate");
+if (typeof NativeExtensions === "undefined" || typeof NativeExtensions.list !== "function") {
+  throw new Error("local CLI must provide NativeExtensions by default");
 }
-console.log("PLUGIN_DISABLED_RESULT " + JSON.stringify({ globalsAbsent: true }));
+if (typeof NativeExtension !== "undefined") {
+  throw new Error("default NativeExtensions exposed unsafe NativeExtension.call");
+}
+console.log("PLUGIN_DEFAULT_RESULT " + JSON.stringify({
+  globalPresent: true,
+  plugins: NativeExtensions.list().map((plugin) => plugin.id),
+}));

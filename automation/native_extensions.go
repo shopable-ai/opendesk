@@ -251,7 +251,10 @@ func (n *nativeExtensionsRuntime) boundCallOptions(call goja.FunctionCall, defau
 		}
 		for key := range options {
 			if key != "timeoutMs" {
-				return nil, 0, &boundCallOptionError{code: "invalid_params", message: "unknown call option " + key}
+				// Do not echo an attacker-controlled option name. JavaScript errors
+				// can become execution errors, so their text must stay safe for
+				// persistent Runtime summaries and Evidence.
+				return nil, 0, &boundCallOptionError{code: "invalid_params", message: "only timeoutMs is supported"}
 			}
 		}
 		if value, exists := options["timeoutMs"]; exists {

@@ -32,6 +32,9 @@ func validateTrustedAncestorDirectories(path string) error {
 				return fmt.Errorf("%s ancestor is group/world writable without root-owned sticky protection", current)
 			}
 		}
+		if err := validatePlatformACL(current); err != nil {
+			return err
+		}
 		parent := filepath.Dir(current)
 		if parent == current {
 			break
@@ -74,6 +77,9 @@ func validateSecureOwnershipAndMode(path string, info os.FileInfo, executable bo
 	}
 	if info.Mode()&(os.ModeSetuid|os.ModeSetgid) != 0 {
 		return fmt.Errorf("%s has setuid/setgid bits", path)
+	}
+	if err := validatePlatformACL(path); err != nil {
+		return err
 	}
 	return nil
 }

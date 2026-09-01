@@ -1,7 +1,9 @@
 package automation
 
 import (
+	"fmt"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/dop251/goja"
@@ -81,6 +83,32 @@ func TestNativeExtensionOptionsRejectUnsafeExtensionNames(t *testing.T) {
 				t.Fatalf("evidence method = %q, want hello", evidence.Method)
 			}
 		})
+	}
+}
+
+func TestNativeExtensionEvidenceMapRedactsUnsafeRouteAndExtensionText(t *testing.T) {
+	evidence := nativeextension.Evidence{
+		Executable:         "/private/tmp/untrusted-extension",
+		Method:             "untrusted-method",
+		RequestID:          "untrusted-request",
+		ExtensionErrorCode: "untrusted_extension_error",
+		StderrSummary:      "UNTRUSTED_EXTENSION_STDERR",
+		Protocol:           nativeextension.ProtocolName,
+		ProtocolVersion:    nativeextension.ProtocolVersion,
+		Status:             nativeextension.StatusFailed,
+		ErrorCode:          nativeextension.CodeExtensionError,
+	}
+	mapped := nativeExtensionEvidenceMap(evidence)
+	for _, key := range []string{"executable", "method", "requestId", "extensionErrorCode", "stderrSummary"} {
+		if _, found := mapped[key]; found {
+			t.Fatalf("unsafe native extension evidence retained %s: %#v", key, mapped)
+		}
+	}
+	encoded := fmt.Sprint(mapped)
+	for _, secret := range []string{evidence.Executable, evidence.Method, evidence.RequestID, evidence.ExtensionErrorCode, evidence.StderrSummary} {
+		if strings.Contains(encoded, secret) {
+			t.Fatalf("unsafe native extension evidence leaked %q: %s", secret, encoded)
+		}
 	}
 }
 

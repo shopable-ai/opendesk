@@ -84,7 +84,9 @@ func (n *nativeExtensionRuntime) call(call goja.FunctionCall) goja.Value {
 			extensionCode = callErr.ExtensionError.Code
 		}
 		n.emitEvidence(callErr.Evidence)
-		n.throwError(callErr.Code, extensionCode, callErr.Message, callErr.Evidence)
+		// An unsafe V0 call may target an arbitrary local program. Its raw
+		// failure text is not safe to propagate into a Runtime summary.
+		n.throwError(callErr.Code, extensionCode, "native extension call failed", callErr.Evidence)
 	}
 
 	// Host.Call currently normalizes every failure to CallError. Keep this
@@ -92,7 +94,7 @@ func (n *nativeExtensionRuntime) call(call goja.FunctionCall) goja.Value {
 	evidence.Status = nativeextension.StatusFailed
 	evidence.ErrorCode = nativeextension.CodeProcessFailed
 	n.emitEvidence(evidence)
-	n.throwError(nativeextension.CodeProcessFailed, "", err.Error(), evidence)
+	n.throwError(nativeextension.CodeProcessFailed, "", "native extension call failed", evidence)
 	return goja.Undefined()
 }
 
@@ -143,7 +145,7 @@ func (n *nativeExtensionRuntime) optionsFromCall(call goja.FunctionCall) (native
 		var err error
 		executable, err = nativeextension.ResolveDefaultExecutable(extension)
 		if err != nil {
-			return invalidParams(err.Error())
+			return invalidParams("extension must be a safe filename")
 		}
 	} else {
 		var ok bool
@@ -245,18 +247,13 @@ func nativeExtensionEvidenceMap(evidence nativeextension.Evidence) map[string]an
 		exitCode = *evidence.ExitCode
 	}
 	return map[string]any{
-		"executable":         evidence.Executable,
-		"method":             evidence.Method,
-		"protocol":           evidence.Protocol,
-		"protocolVersion":    evidence.ProtocolVersion,
-		"requestId":          evidence.RequestID,
-		"startupDurationMs":  evidence.StartupDurationMS,
-		"durationMs":         evidence.DurationMS,
-		"exitCode":           exitCode,
-		"status":             evidence.Status,
-		"errorCode":          string(evidence.ErrorCode),
-		"extensionErrorCode": evidence.ExtensionErrorCode,
-		"stderrSummary":      evidence.StderrSummary,
-		"stderrTruncated":    evidence.StderrTruncated,
+		"protocol":          evidence.Protocol,
+		"protocolVersion":   evidence.ProtocolVersion,
+		"startupDurationMs": evidence.StartupDurationMS,
+		"durationMs":        evidence.DurationMS,
+		"exitCode":          exitCode,
+		"status":            evidence.Status,
+		"errorCode":         string(evidence.ErrorCode),
+		"stderrTruncated":   evidence.StderrTruncated,
 	}
 }

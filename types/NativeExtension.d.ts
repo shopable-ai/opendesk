@@ -25,13 +25,13 @@ declare global {
     readonly id: string;
     readonly version: string;
     readonly namespace: string;
-    readonly rootKind: "portable" | "app_bundled" | "current_user";
+    readonly rootKind: "portable" | "app_bundled";
     readonly methods: readonly string[];
     readonly executableSha256: string;
   }
 
   interface OpenDeskNativeExtensionDiscoveryDiagnostic {
-    readonly rootKind: "portable" | "app_bundled" | "current_user" | "test";
+    readonly rootKind: "portable" | "app_bundled" | "test";
     readonly pluginId: string;
     readonly namespace: string;
     readonly schemaVersion: number;
@@ -45,7 +45,7 @@ declare global {
   interface OpenDeskNativeExtensionEvidence {
     readonly pluginId: string;
     readonly namespace: string;
-    readonly rootKind: "portable" | "app_bundled" | "current_user" | "test";
+    readonly rootKind: "portable" | "app_bundled" | "test";
     readonly executable: string;
     readonly executableSha256: string;
     readonly method: string;
@@ -82,9 +82,10 @@ declare global {
   }
 
   /**
-   * @experimental Absent unless a trusted local CLI execution explicitly uses
-   * -experimental-native-extension. The root, namespaces and method properties
-   * are frozen, non-writable and non-configurable.
+   * @experimental Available to local CLI JavaScript from the strict
+   * program-relative discovery root. The root, namespaces and method
+   * properties are frozen, non-writable and non-configurable. HTTP/MCP never
+   * inject it.
    */
   var NativeExtensions: OpenDeskNativeExtensionsRegistry;
 

@@ -463,14 +463,11 @@ func TestDefaultDiscoveryRootsAreIndependentOfCWD(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(roots) != 2 {
-		t.Fatalf("root count = %d, want 2", len(roots))
+	if len(roots) != 1 {
+		t.Fatalf("root count = %d, want 1", len(roots))
 	}
 	if roots[0].Kind != RootPortable || roots[0].Path != filepath.Join(filepath.Dir(executable), "native-extensions") {
 		t.Fatalf("unexpected portable root: %#v", roots[0])
-	}
-	if roots[1].Kind != RootCurrentUser || roots[1].Path != filepath.Join(userData, "OpenDesk", "NativeExtensions") {
-		t.Fatalf("unexpected current-user root: %#v", roots[1])
 	}
 }
 
@@ -604,7 +601,7 @@ func TestCurrentUserRootRejectsRelativeRequiredInputs(t *testing.T) {
 	}
 }
 
-func TestDiscoverKeepsPublisherRootWhenUserRootIsUnavailable(t *testing.T) {
+func TestDefaultDiscoveryNeverConsultsCurrentUserPath(t *testing.T) {
 	packageDir := filepath.Join(secureTestBase(t), "package")
 	if err := os.Mkdir(packageDir, 0o700); err != nil {
 		t.Fatal(err)
@@ -626,13 +623,12 @@ func TestDiscoverKeepsPublisherRootWhenUserRootIsUnavailable(t *testing.T) {
 		t.Fatal("valid publisher plugin disappeared when the user root was unavailable")
 	}
 	diagnostics := registry.Diagnostics()
-	if len(diagnostics) != 2 || diagnostics[0].RootKind != RootPortable || diagnostics[0].Status != "discovered" ||
-		diagnostics[1].RootKind != RootCurrentUser || diagnostics[1].ErrorCode != "user_root_unavailable" {
-		t.Fatalf("missing privacy-safe user-root diagnostic: %#v", diagnostics)
+	if len(diagnostics) != 1 || diagnostics[0].RootKind != RootPortable || diagnostics[0].Status != "discovered" {
+		t.Fatalf("default discovery consulted current-user input: %#v", diagnostics)
 	}
 }
 
-func TestDiscoverMissingCanonicalRootIsHarmlessAndOrdered(t *testing.T) {
+func TestDiscoverDefaultRootDoesNotScanAbsentCurrentUserDirectory(t *testing.T) {
 	packageDir := filepath.Join(secureTestBase(t), "package")
 	if err := os.Mkdir(packageDir, 0o700); err != nil {
 		t.Fatal(err)
@@ -654,9 +650,8 @@ func TestDiscoverMissingCanonicalRootIsHarmlessAndOrdered(t *testing.T) {
 		t.Fatal("publisher plugin disappeared when canonical current-user root was absent")
 	}
 	diagnostics := registry.Diagnostics()
-	if len(diagnostics) != 2 || diagnostics[0].RootKind != RootPortable || diagnostics[0].Status != "discovered" ||
-		diagnostics[1].RootKind != RootCurrentUser || diagnostics[1].Status != "skipped" || diagnostics[1].ErrorCode != "root_unavailable" {
-		t.Fatalf("missing root diagnostic was not stable/privacy-safe: %#v", diagnostics)
+	if len(diagnostics) != 1 || diagnostics[0].RootKind != RootPortable || diagnostics[0].Status != "discovered" {
+		t.Fatalf("default discovery unexpectedly scanned current-user input: %#v", diagnostics)
 	}
 }
 
