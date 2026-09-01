@@ -1,0 +1,52 @@
+const entry = File.read('examples/mac/wechat_steps/main.js');
+if (!entry) throw new Error('缺少入口脚本: examples/mac/wechat_steps/main.js');
+const patchedEntry = entry.replace('await shared.main();', '');
+
+const probeCode = [
+  "shared.runtimeConfig.sendAuditPath = '.runtime/temp/mac/stage_c_search_focus_sweep_audit.jsonl';",
+  "shared.runtimeConfig.permissionSection = 'baseline';",
+  "shared.runtimeConfig.stepMode = 'bundle_search_chat';",
+  "shared.ensureDirForFile = function ensureDirForFile(path) { return String(path || ''); };",
+  "shared.writeJsonWithEnsure = async function writeJsonWithEnsure(path, payload) { await File.write(path, JSON.stringify(payload, null, 2)); };",
+  "shared.searchFocusSweepMain = async function searchFocusSweepMain() {",
+  "  const context = await shared.buildInitialContext();",
+  "  await shared.locate_search_area(context);",
+  "  const box = context.searchResolved?.box;",
+  "  if (!box) throw new Error('search area missing');",
+  "  const ratios = [0.22, 0.30, 0.38, 0.46, 0.58];",
+  "  const attempts = [];",
+  "  for (const ratio of ratios) {",
+  "    const point = { x: box.x + Math.round(box.width * ratio), y: box.y + Math.round(box.height * 0.56) };",
+  "    await shared.refreshWechatForeground(context.win, `search_focus_sweep_${ratio}`);",
+  "    await mouse.click(context.win.x + point.x, context.win.y + point.y);",
+  "    await shared.wait(220);",
+  "    await keyboard.combination('Meta', 'a');",
+  "    await shared.wait(90);",
+  "    await keyboard.press('Backspace');",
+  "    await shared.wait(120);",
+  "    const inputMode = await shared.inputMessage(shared.runtimeConfig.targetChatName);",
+  "    await shared.wait(380);",
+  "    const shot = await shared.captureExpandedSearchBox(context, `wechat_v2_search_focus_sweep_${String(ratio).replace('.', '_')}`, { marginLeft: 50, marginRight: 180, marginTop: 8, marginBottom: 22 });",
+  "    const check = await shared.verifyContainsText(shot.image, shared.runtimeConfig.targetChatName);",
+  "    const fuzzy = shared.matchSearchQueryVisible(check.text, shared.runtimeConfig.targetChatName);",
+  "    attempts.push({ ratio, point, inputMode, ok: Boolean(check.ok || fuzzy.ok), matchType: check.ok ? check.matchType : fuzzy.matchType, text: check.text, capturePath: shot.path, tokenChecks: fuzzy.tokenChecks || [] });",
+  "    await shared.wait(120);",
+  "  }",
+  "  const out = {",
+  "    timestamp: new Date().toISOString(),",
+  "    stage: 'C-search-focus-sweep',",
+  "    scenario: 'wechat_search_focus_sweep_probe',",
+  "    reportPath: '.runtime/temp/mac/stage_c_search_focus_sweep_report.json',",
+  "    auditPath: shared.runtimeConfig.sendAuditPath,",
+  "    targetChatName: shared.runtimeConfig.targetChatName,",
+  "    searchResolved: context.searchResolved || null,",
+  "    attempts,",
+  "    successCount: attempts.filter((item) => item.ok).length,",
+  "  };",
+  "  await shared.writeJsonWithEnsure(out.reportPath, out);",
+  "  console.log(JSON.stringify(out, null, 2));",
+  "};",
+  "await shared.searchFocusSweepMain();"
+].join('\n');
+
+await eval('(async () => {\n' + patchedEntry + '\n' + probeCode + '\n})()');
