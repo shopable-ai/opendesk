@@ -1,7 +1,7 @@
 export {};
 
 declare global {
-  /** See ../docs-user-api/global-apis.md and notify.md for defaults, platform behavior, and visibility limits. */
+  /** See ../docs/api/global-apis.md and notify.md for defaults, platform behavior, and visibility limits. */
   interface OpenDeskNotifyOptions {
     /** Notification title; empty uses "OpenDesk Notification". NUL is rejected. */
     title?: string;
