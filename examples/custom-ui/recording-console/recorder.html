@@ -1,0 +1,64 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>OpenDesk 录制工作台</title>
+  </head>
+  <body>
+    <header>
+      <div id="dragbar" class="brand" data-clawdesk-drag>
+        <span class="brand-mark">REC</span>
+        <strong>OpenDesk 录制工作台</strong>
+        <span class="brand-copy">配置、截图与会话意图</span>
+      </div>
+      <div class="header-actions">
+        <button id="collapse" class="ghost-button">收起</button>
+        <button id="library" class="ghost-button">录制库</button>
+        <button id="close" class="close-button">关闭</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="preview-card">
+        <div class="preview-grid">
+          <div class="preview-topline"><span class="live-dot"></span><span id="captureTarget">全屏录制</span></div>
+          <div class="preview-center"><strong>屏幕采集预览</strong><span>选择来源与声音后，再由 MCP 创建 Recorder 会话。</span></div>
+          <div class="preview-footer"><span id="snapshotCount">0 张截图</span><span>H.264 · MP4</span></div>
+        </div>
+      </section>
+
+      <section class="settings-card">
+        <div class="section-heading"><strong>录制来源</strong><span>选择一个视频来源</span></div>
+        <div class="mode-grid">
+          <button id="modeFull" class="mode-button is-selected"><strong>全屏</strong><span>录制当前显示器</span></button>
+          <button id="modeRegion" class="mode-button"><strong>区域</strong><span>选择矩形区域</span></button>
+          <button id="modeWindow" class="mode-button"><strong>窗口</strong><span>锁定单个窗口</span></button>
+        </div>
+
+        <div class="section-heading spacing"><strong>声音与画面</strong><span>录制前可随时调整</span></div>
+        <div class="option-grid">
+          <label class="option-row"><input id="systemAudio" type="checkbox" checked><span>系统声音</span><em>桌面音频</em></label>
+          <label class="option-row"><input id="microphone" type="checkbox" checked><span>麦克风</span><em>旁白解说</em></label>
+          <label class="option-row"><input id="camera" type="checkbox"><span>摄像头</span><em>画中画</em></label>
+          <label class="option-row"><input id="mousePointer" type="checkbox" checked><span>显示鼠标</span><em>教程演示</em></label>
+        </div>
+
+        <div class="select-grid">
+          <label><span>帧率</span><select id="frameRate"><option value="30">30 FPS</option><option value="60" selected>60 FPS</option></select></label>
+          <label><span>画质</span><select id="quality"><option value="standard">标准</option><option value="high" selected>高清</option><option value="lossless">无损</option></select></label>
+        </div>
+      </section>
+
+      <section class="action-card">
+        <div class="state-line"><span id="recordingState" class="recording-state">待命</span><span id="recordingDetail">选择来源后，通过 MCP 开始受验证的录制会话。</span></div>
+        <div class="action-row">
+          <button id="start" class="record-button">开始录制</button>
+          <button id="pause" class="secondary-button" disabled>暂停</button>
+          <button id="capture" class="secondary-button">截图</button>
+          <button id="stop" class="stop-button" disabled>停止</button>
+        </div>
+        <footer><span>Recorder 只接受 MCP 会话；此界面不会绕过目标校验、Raw Trace 或 Flow IR。</span></footer>
+      </section>
+    </main>
+  </body>
+</html>

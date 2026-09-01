@@ -16,8 +16,16 @@ declare global {
   }
 
   interface ClawdeskUIContentSpec {
-    /** Exactly one of file or html is required. Paths are confined to the script directory. */
+    /**
+     * Explicit local HTML file. Exactly one of file or html is required.
+     * Paths are confined to the script directory.
+     */
     file?: string;
+    /**
+     * Restricted inline HTML, or a relative .html/.htm file path resolved from
+     * the script directory. Use markup (for example, <p>panel.html</p>) for
+     * literal inline text ending in .html or .htm.
+     */
     html?: string;
     cssFile?: string;
     css?: string;
@@ -178,7 +186,13 @@ declare global {
   var ui: ClawdeskUI;
 
   interface ClawdeskExecutionMetadata {
+    /** Stable short alias for executionId. */
+    id: string;
     executionId: string;
+    /** JSON-compatible input supplied by `opendesk ai run`. */
+    input: unknown;
+    /** Working directory selected by the execution caller. */
+    workdir: string;
     stack: string;
     artifactDir: string;
     source: string;

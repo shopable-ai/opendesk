@@ -3,6 +3,9 @@ package customui
 import "testing"
 
 func TestToolbarIconRegistryUsesReviewedSFSymbolPresentations(t *testing.T) {
+	if got := len(ToolbarIconNames()); got != 150 {
+		t.Fatalf("ToolbarIconNames() count = %d, want 150", got)
+	}
 	want := map[string]ToolbarIconPresentation{
 		"play.fill":       {SystemSymbol: "play.fill", Scale: 1.00, OffsetX: 0.5, OffsetY: 0},
 		"pause.fill":      {SystemSymbol: "pause.fill", Scale: 1.00, OffsetX: 0, OffsetY: 0},

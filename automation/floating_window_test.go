@@ -43,6 +43,35 @@ func TestFloatingWindowPreservesVerticalToolbarOrientationAndLimit(t *testing.T)
 	}
 }
 
+func TestFloatingWindowDerivesCompactHorizontalColumnsFromWrapConstraints(t *testing.T) {
+	value := &floatingWindow{
+		orientation: toolbar.OrientationHorizontal,
+		layout:      floatingToolbarLayout{configured: true, maxColumns: 5, maxRows: 2},
+		revision:    7,
+	}
+	for index := 0; index < 7; index++ {
+		value.buttons = append(value.buttons, floatingButton{spec: toolbar.ButtonSpec{
+			ID: "button" + string(rune('A'+index)), Label: "Button", Icon: "timer",
+			State: toolbar.ButtonState{Revision: uint64(index + 1)},
+		}})
+	}
+	spec := value.toolbarSpec()
+	if spec.Columns != 4 {
+		t.Fatalf("maxRows layout columns = %d, want 4", spec.Columns)
+	}
+	if value.maxButtons() != 10 {
+		t.Fatalf("maxRows layout capacity = %d, want 10", value.maxButtons())
+	}
+	widthLayout := floatingToolbarLayoutFromDeclaration(floatingToolbarOptionsDeclaration{MaxWidth: testFloat64(252)})
+	value.layout = widthLayout
+	value.buttons = value.buttons[:6]
+	if spec := value.toolbarSpec(); spec.Columns != 5 || spec.MaxWidth != 252 {
+		t.Fatalf("maxWidth layout = %#v, want 5 columns and maxWidth 252", spec)
+	}
+}
+
+func testFloat64(value float64) *float64 { return &value }
+
 func TestNewFloatingButtonRejectsInvalidInputs(t *testing.T) {
 	tests := []struct {
 		id, label, icon string

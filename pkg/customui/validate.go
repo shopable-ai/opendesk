@@ -76,8 +76,17 @@ func Normalize(spec WindowSpec, baseDir string) (WindowSpec, error) {
 	}
 
 	fileSet := strings.TrimSpace(spec.Content.File) != ""
-	htmlSet := strings.TrimSpace(spec.Content.HTML) != ""
-	if fileSet == htmlSet {
+	htmlValue := strings.TrimSpace(spec.Content.HTML)
+	if fileSet && htmlValue != "" {
+		return WindowSpec{}, invalidSpec("content requires exactly one of file or html")
+	}
+	// Keep the explicit file field for callers that need an absolute contained
+	// path, while making the common JavaScript form concise:
+	// content: { html: "./views/panel.html" }.
+	// Only relative .html/.htm values opt into file loading so inline markup
+	// remains unambiguous.
+	htmlFileSet := !fileSet && isRelativeHTMLFileReference(htmlValue)
+	if !fileSet && htmlValue == "" {
 		return WindowSpec{}, invalidSpec("content requires exactly one of file or html")
 	}
 	if baseDir == "" {
@@ -87,10 +96,18 @@ func Normalize(spec WindowSpec, baseDir string) (WindowSpec, error) {
 	if err != nil {
 		return WindowSpec{}, invalidSpec("script base directory is invalid: " + err.Error())
 	}
-	if fileSet {
-		path, err := resolveContainedPath(rootDir, spec.Content.File, false)
+	if fileSet || htmlFileSet {
+		file := spec.Content.File
+		if htmlFileSet {
+			file = htmlValue
+		}
+		path, err := resolveContainedPath(rootDir, file, false)
 		if err != nil {
-			return WindowSpec{}, invalidSpec("content.file must stay within the script directory: " + err.Error())
+			field := "content.file"
+			if htmlFileSet {
+				field = "content.html"
+			}
+			return WindowSpec{}, invalidSpec(field + " must stay within the script directory: " + err.Error())
 		}
 		data, err := os.ReadFile(path)
 		if err != nil {
@@ -121,16 +138,84 @@ func Normalize(spec WindowSpec, baseDir string) (WindowSpec, error) {
 		return WindowSpec{}, invalidSpec("content.basePath must stay within the script directory: " + err.Error())
 	}
 	spec.Content.BasePath = basePath
-	if err := validateCSS(spec.Content.CSS); err != nil {
-		return WindowSpec{}, err
-	}
-
+	// Validate the source document before removing its style elements. This keeps
+	// the public HTML policy (including forbidden attributes on <style>) and the
+	// derived control order identical to an unsplit declaration.
 	controls, err := inspectHTML(spec.Content.HTML, basePath)
 	if err != nil {
 		return WindowSpec{}, err
 	}
+	strippedHTML, inlineCSS, foundStyles, err := extractInlineStyles(spec.Content.HTML)
+	if err != nil {
+		return WindowSpec{}, err
+	}
+	if foundStyles {
+		spec.Content.HTML = strippedHTML
+		if inlineCSS != "" {
+			spec.Content.CSS = inlineCSS + "\n" + spec.Content.CSS
+		}
+	}
+	if err := validateCSS(spec.Content.CSS); err != nil {
+		return WindowSpec{}, err
+	}
 	spec.Controls = controls
 	return spec, nil
+}
+
+// extractInlineStyles moves every <style> text block out of a source document.
+// The returned markup contains no style elements; the caller passes the CSS to
+// the host's constrained style channel after the original document has been
+// validated. Rendering is avoided when no style elements were found so callers
+// without inline CSS keep their source HTML byte-for-byte intact.
+func extractInlineStyles(source string) (string, string, bool, error) {
+	doc, err := html.Parse(strings.NewReader(source))
+	if err != nil {
+		return "", "", false, invalidSpec("HTML could not be parsed: " + err.Error())
+	}
+	styles := make([]string, 0)
+	found := false
+	var visit func(*html.Node)
+	visit = func(parent *html.Node) {
+		for child := parent.FirstChild; child != nil; {
+			next := child.NextSibling
+			if child.Type == html.ElementNode && strings.EqualFold(child.Data, "style") {
+				found = true
+				var css strings.Builder
+				for node := child.FirstChild; node != nil; node = node.NextSibling {
+					if node.Type == html.TextNode {
+						css.WriteString(node.Data)
+					}
+				}
+				styles = append(styles, css.String())
+				parent.RemoveChild(child)
+			} else {
+				visit(child)
+			}
+			child = next
+		}
+	}
+	visit(doc)
+	if !found {
+		return source, "", false, nil
+	}
+	var rendered strings.Builder
+	if err := html.Render(&rendered, doc); err != nil {
+		return "", "", false, invalidSpec("render HTML after extracting inline styles: " + err.Error())
+	}
+	return rendered.String(), strings.Join(styles, "\n"), true, nil
+}
+
+func isRelativeHTMLFileReference(value string) bool {
+	path := strings.TrimSpace(value)
+	if path == "" || filepath.IsAbs(path) || strings.ContainsAny(path, "<>\r\n") {
+		return false
+	}
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".html", ".htm":
+		return true
+	default:
+		return false
+	}
 }
 
 func normalizeToolbarWindow(spec WindowSpec) (WindowSpec, error) {
@@ -158,6 +243,22 @@ func normalizeToolbarWindow(spec WindowSpec) (WindowSpec, error) {
 	}
 	if !toolbar.IsValidOrientation(declaration.Orientation) {
 		return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", Capability: "orientation", Message: "native toolbar orientation must be horizontal or vertical"}
+	}
+	if declaration.Orientation == toolbar.OrientationVertical {
+		if (declaration.Columns != 0 && declaration.Columns != 1) || declaration.MaxWidth != 0 {
+			return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", Capability: "toolbar", Message: "vertical native toolbar must have one column"}
+		}
+		declaration.Columns = 1
+	} else {
+		if declaration.Columns == 0 {
+			declaration.Columns = toolbar.MaxColumns
+		}
+		if declaration.Columns < 1 || declaration.Columns > toolbar.MaxColumns {
+			return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", Capability: "toolbar", Message: fmt.Sprintf("native horizontal toolbar columns must be between 1 and %d", toolbar.MaxColumns)}
+		}
+		if declaration.MaxWidth != 0 && (declaration.MaxWidth < toolbar.MinOuterWidth || declaration.MaxWidth > toolbar.MaxOuterWidth) {
+			return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", Capability: "toolbar", Message: fmt.Sprintf("native horizontal toolbar maxWidth must be between %d and %d", toolbar.MinOuterWidth, toolbar.MaxOuterWidth)}
+		}
 	}
 	maxButtons := toolbar.MaxButtonsForOrientation(declaration.Orientation)
 	if len(declaration.Buttons) < toolbar.MinButtons || len(declaration.Buttons) > maxButtons {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"opendesk/pkg/customui"
 	"opendesk/pkg/customui/toolbar"
 	"regexp"
@@ -24,13 +25,37 @@ type floatingButton struct {
 }
 
 type floatingWindowOptionsDeclaration struct {
-	X           *float64 `json:"x,omitempty"`
-	Y           *float64 `json:"y,omitempty"`
-	Theme       string   `json:"theme,omitempty"`
-	Title       string   `json:"title,omitempty"`
-	AlwaysOnTop *bool    `json:"alwaysOnTop,omitempty"`
-	Draggable   *bool    `json:"draggable,omitempty"`
-	Orientation string   `json:"orientation,omitempty"`
+	X           *float64                           `json:"x,omitempty"`
+	Y           *float64                           `json:"y,omitempty"`
+	Theme       string                             `json:"theme,omitempty"`
+	Title       string                             `json:"title,omitempty"`
+	AlwaysOnTop *bool                              `json:"alwaysOnTop,omitempty"`
+	Draggable   *bool                              `json:"draggable,omitempty"`
+	Orientation string                             `json:"orientation,omitempty"`
+	Toolbar     *floatingToolbarOptionsDeclaration `json:"toolbar,omitempty"`
+}
+
+// floatingToolbarOptionsDeclaration is deliberately a small, declarative
+// layout contract. It describes wrapping constraints, never native frames or
+// caller-provided views.
+type floatingToolbarOptionsDeclaration struct {
+	MaxWidth   *float64 `json:"maxWidth,omitempty"`
+	MaxColumns *float64 `json:"maxColumns,omitempty"`
+	MaxRows    *float64 `json:"maxRows,omitempty"`
+}
+
+type floatingToolbarLayout struct {
+	configured bool
+	maxColumns int
+	maxRows    int
+	maxWidth   float64
+}
+
+func (layout floatingToolbarLayout) columns() int {
+	if layout.maxColumns == 0 {
+		return toolbar.MaxColumns
+	}
+	return layout.maxColumns
 }
 
 // floatingWindow is owned exclusively by the Goja EventLoop. Its logical
@@ -49,6 +74,7 @@ type floatingWindow struct {
 	alwaysOnTop  bool
 	draggable    bool
 	orientation  string
+	layout       floatingToolbarLayout
 	revision     uint64
 	errorHandler goja.Callable
 }
@@ -83,6 +109,9 @@ func newFloatingToolbar(ui *CustomUIRuntime, windowID string, options floatingWi
 	}
 	if options.Orientation != "" {
 		value.orientation = options.Orientation
+	}
+	if options.Toolbar != nil {
+		value.layout = floatingToolbarLayoutFromDeclaration(*options.Toolbar)
 	}
 	return value
 }
@@ -128,10 +157,57 @@ func (u *CustomUIRuntime) parseFloatingWindowOptions(value goja.Value) (floating
 	if !toolbar.IsValidOrientation(options.Orientation) {
 		return options, &customui.Error{Code: customui.CodeInvalidSpec, Operation: "FloatingWindow.constructor", Capability: "orientation", Message: `orientation must be "horizontal" or "vertical"`}
 	}
+	if options.Toolbar != nil {
+		if options.Orientation == toolbar.OrientationVertical && (options.Toolbar.MaxWidth != nil || options.Toolbar.MaxColumns != nil || options.Toolbar.MaxRows != nil) {
+			return options, &customui.Error{Code: customui.CodeInvalidSpec, Operation: "FloatingWindow.constructor", Capability: "toolbar", Message: "toolbar wrapping options are supported only for horizontal toolbars"}
+		}
+		if options.Toolbar.MaxWidth != nil {
+			width := *options.Toolbar.MaxWidth
+			if !finiteCustomUINumber(width) || width < toolbar.MinOuterWidth || width > toolbar.MaxOuterWidth {
+				return options, &customui.Error{Code: customui.CodeInvalidSpec, Operation: "FloatingWindow.constructor", Capability: "toolbar", Message: fmt.Sprintf("toolbar.maxWidth must be a finite number between %d and %d", toolbar.MinOuterWidth, toolbar.MaxOuterWidth)}
+			}
+		}
+		for _, constraint := range []struct {
+			name       string
+			value      *float64
+			upperBound int
+		}{
+			{name: "maxColumns", value: options.Toolbar.MaxColumns, upperBound: toolbar.MaxColumns},
+			{name: "maxRows", value: options.Toolbar.MaxRows, upperBound: toolbar.MaxButtons},
+		} {
+			if constraint.value == nil {
+				continue
+			}
+			if !finiteCustomUINumber(*constraint.value) || math.Trunc(*constraint.value) != *constraint.value || *constraint.value < 1 || *constraint.value > float64(constraint.upperBound) {
+				return options, &customui.Error{Code: customui.CodeInvalidSpec, Operation: "FloatingWindow.constructor", Capability: "toolbar", Message: fmt.Sprintf("toolbar.%s must be an integer between 1 and %d", constraint.name, constraint.upperBound)}
+			}
+		}
+	}
 	if utf8.RuneCountInString(options.Title) > 128 {
 		return options, &customui.Error{Code: customui.CodeInvalidSpec, Operation: "FloatingWindow.constructor", Capability: "title", Message: "title must contain at most 128 Unicode characters"}
 	}
 	return options, nil
+}
+
+func floatingToolbarLayoutFromDeclaration(declaration floatingToolbarOptionsDeclaration) floatingToolbarLayout {
+	layout := floatingToolbarLayout{}
+	if declaration.MaxWidth != nil {
+		layout.configured = true
+		layout.maxWidth = *declaration.MaxWidth
+		layout.maxColumns = toolbar.MaxColumnsForWidth(*declaration.MaxWidth)
+	}
+	if declaration.MaxColumns != nil {
+		layout.configured = true
+		columns := int(*declaration.MaxColumns)
+		if layout.maxColumns == 0 || columns < layout.maxColumns {
+			layout.maxColumns = columns
+		}
+	}
+	if declaration.MaxRows != nil {
+		layout.configured = true
+		layout.maxRows = int(*declaration.MaxRows)
+	}
+	return layout
 }
 
 func (f *floatingWindow) jsObject() *goja.Object {
@@ -352,11 +428,15 @@ func (f *floatingWindow) toolbarSpec() toolbar.ToolbarSpec {
 	if orientation == "" {
 		orientation = toolbar.OrientationHorizontal
 	}
-	return toolbar.ToolbarSpec{SchemaVersion: toolbar.SchemaVersion, Revision: f.revision, Orientation: orientation, Buttons: buttons}
+	columns := 0
+	if orientation == toolbar.OrientationHorizontal && f.layout.configured {
+		columns, _ = toolbar.ColumnsForButtonCount(len(buttons), f.layout.columns(), f.layout.maxRows)
+	}
+	return toolbar.ToolbarSpec{SchemaVersion: toolbar.SchemaVersion, Revision: f.revision, Orientation: orientation, Columns: columns, MaxWidth: f.layout.maxWidth, Buttons: buttons}
 }
 
 func (f *floatingWindow) maxButtons() int {
-	return toolbar.MaxButtonsForOrientation(f.orientation)
+	return toolbar.MaxButtonsForLayout(f.orientation, f.layout.columns(), f.layout.maxRows)
 }
 
 type floatingButtonPublicState struct {

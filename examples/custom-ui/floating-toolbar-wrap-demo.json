@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "layouts": [
+    {
+      "id": "maxWidth",
+      "title": "maxWidth: 252pt（5 + 1）",
+      "x": 120,
+      "y": 100,
+      "toolbar": { "maxWidth": 252 },
+      "buttonCount": 6
+    },
+    {
+      "id": "maxColumns",
+      "title": "两列",
+      "x": 120,
+      "y": 260,
+      "toolbar": { "maxColumns": 2 },
+      "buttonCount": 5
+    },
+    {
+      "id": "maxRows",
+      "title": "最多两行（4 + 3）",
+      "x": 120,
+      "y": 470,
+      "toolbar": { "maxRows": 2 },
+      "buttonCount": 7
+    }
+  ]
+}

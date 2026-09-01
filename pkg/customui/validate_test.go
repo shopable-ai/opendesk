@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -127,6 +128,65 @@ func TestNormalizeLoadsFilesRelativeToScript(t *testing.T) {
 	}
 }
 
+func TestNormalizeLoadsRelativeHTMLPathFromHTMLField(t *testing.T) {
+	dir := t.TempDir()
+	views := filepath.Join(dir, "views")
+	if err := os.MkdirAll(views, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(views, "panel.html"), []byte(`<header id="drag" data-clawdesk-drag>Panel</header><button id="save">Save</button>`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	spec, err := Normalize(WindowSpec{
+		ID: "panel", Bounds: Bounds{Width: 300, Height: 200},
+		Content: ContentSpec{HTML: "./views/panel.html"},
+	}, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	realDir, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Content.File != filepath.Join(realDir, "views", "panel.html") || spec.Content.BasePath != filepath.Join(realDir, "views") {
+		t.Fatalf("relative html path was not normalized: %#v", spec.Content)
+	}
+	if got := spec.Controls; !reflect.DeepEqual(got, []Control{{ID: "drag", Type: "container", Order: 0}, {ID: "save", Type: "button", Order: 1}}) {
+		t.Fatalf("controls = %#v", got)
+	}
+}
+
+func TestNormalizeExtractsInlineStylesFromHTMLFile(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "panel.html"), []byte(`<!doctype html><html><head><style>.panel{color:blue}</style><style>button{padding:8px}</style></head><body><div id="panel" class="panel">Panel</div><button id="save">Save</button></body></html>`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	spec, err := Normalize(WindowSpec{
+		ID: "panel", Bounds: Bounds{Width: 300, Height: 200},
+		Content: ContentSpec{HTML: "./panel.html", CSS: `button{color:white}`},
+	}, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(strings.ToLower(spec.Content.HTML), "<style") {
+		t.Fatalf("normalized HTML still contains style elements: %q", spec.Content.HTML)
+	}
+	for _, css := range []string{".panel{color:blue}", "button{padding:8px}", "button{color:white}"} {
+		if !strings.Contains(spec.Content.CSS, css) {
+			t.Fatalf("normalized CSS missing %q: %q", css, spec.Content.CSS)
+		}
+	}
+	if strings.Index(spec.Content.CSS, ".panel{color:blue}") > strings.Index(spec.Content.CSS, "button{color:white}") {
+		t.Fatalf("inline CSS must precede caller CSS: %q", spec.Content.CSS)
+	}
+	want := []Control{{ID: "panel", Type: "container", Order: 0}, {ID: "save", Type: "button", Order: 1}}
+	if !reflect.DeepEqual(spec.Controls, want) {
+		t.Fatalf("controls = %#v, want %#v", spec.Controls, want)
+	}
+}
+
 func TestNormalizeRejectsUnsafeOrAmbiguousHTML(t *testing.T) {
 	tests := []struct {
 		name string
@@ -201,12 +261,24 @@ func TestNormalizeRejectsPathsOutsideScriptRoot(t *testing.T) {
 	if err := os.Symlink(outsideHTML, link); err != nil {
 		t.Fatal(err)
 	}
-	for _, file := range []string{outsideHTML, filepath.Join("..", filepath.Base(outside), "outside.html"), link} {
-		_, err := Normalize(WindowSpec{ID: "panel", Bounds: Bounds{Width: 300, Height: 200}, Content: ContentSpec{File: file}}, root)
-		var uiErr *Error
-		if !errors.As(err, &uiErr) || uiErr.Code != CodeInvalidSpec {
-			t.Fatalf("file %q error = %#v", file, err)
-		}
+	tests := []struct {
+		name    string
+		content ContentSpec
+	}{
+		{name: "explicit absolute path", content: ContentSpec{File: outsideHTML}},
+		{name: "explicit parent path", content: ContentSpec{File: filepath.Join("..", filepath.Base(outside), "outside.html")}},
+		{name: "explicit symlink", content: ContentSpec{File: link}},
+		{name: "html parent path", content: ContentSpec{HTML: filepath.Join("..", filepath.Base(outside), "outside.html")}},
+		{name: "html symlink", content: ContentSpec{HTML: "escape.html"}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := Normalize(WindowSpec{ID: "panel", Bounds: Bounds{Width: 300, Height: 200}, Content: test.content}, root)
+			var uiErr *Error
+			if !errors.As(err, &uiErr) || uiErr.Code != CodeInvalidSpec {
+				t.Fatalf("content %#v error = %#v", test.content, err)
+			}
+		})
 	}
 }
 

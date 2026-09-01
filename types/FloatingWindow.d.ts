@@ -1,9 +1,28 @@
+/// <reference path="./FloatingWindow-icons.generated.d.ts" />
+
 export {};
 
 declare global {
-  type ClawdeskFloatingIcon = "play.fill" | "pause.fill" | "stop.fill" |
-    "gearshape.fill" | "paperplane.fill" | "timer";
   type ClawdeskFloatingWindowOrientation = "horizontal" | "vertical";
+
+  /**
+   * Declarative wrapping constraints for a horizontal native icon toolbar.
+   * The host derives its own compact outer bounds; callers never set a frame.
+   */
+  interface ClawdeskFloatingToolbarOptions {
+    /**
+     * Maximum outer width in points (60–960). Buttons wrap automatically
+     * before exceeding it, while a shorter last row keeps its compact width.
+     */
+    maxWidth?: number;
+    /** Maximum buttons in one row (1–19). The narrower of this and maxWidth wins. */
+    maxColumns?: number;
+    /**
+     * Maximum rows (1–32). The compact layout chooses only as many columns as
+     * needed; adding a button beyond the combined row/column capacity fails.
+     */
+    maxRows?: number;
+  }
 
   interface ClawdeskFloatingWindowOptions {
     x?: number;
@@ -14,6 +33,11 @@ declare global {
     draggable?: boolean;
     /** Defaults to horizontal. Vertical toolbars accept at most five buttons. */
     orientation?: ClawdeskFloatingWindowOrientation;
+    /**
+     * Horizontal automatic-wrap constraints. Not supported with orientation:
+     * "vertical", which remains a one-column toolbar for compatibility.
+     */
+    toolbar?: ClawdeskFloatingToolbarOptions;
   }
 
   interface ClawdeskFloatingButtonPatch {
@@ -57,14 +81,14 @@ declare global {
 
   interface ClawdeskFloatingWindow {
     readonly id: string;
-    /** Adds ordered icon-only buttons before first show and recomputes automatic bounds. Horizontal accepts 1-32; vertical accepts 1-5. */
+    /** Adds ordered icon-only buttons before first show and recomputes automatic bounds. Horizontal accepts 1-32 unless toolbar.maxRows imposes a smaller capacity; vertical accepts 1-5. */
     addButton(id: string, label: string, iconName: ClawdeskFloatingIcon, callback?: ClawdeskFloatingButtonCallback): void;
     /** Removes a pre-show button and recomputes automatic bounds. */
     removeButton(id: string): void;
     /** Non-structural state updates are allowed before and after show. */
     updateButton(id: string, patch: ClawdeskFloatingButtonPatch): Promise<ClawdeskFloatingButtonState>;
     getButtonState(id: string): Promise<ClawdeskFloatingButtonState>;
-    /** Shows with fixed 40x40 icon boxes; horizontal rows wrap at the safe width, while vertical stays a single top-to-bottom column of at most five buttons. */
+    /** Shows fixed 40x40 icon boxes. Horizontal rows use toolbar.maxWidth/maxColumns/maxRows when present; vertical stays a single top-to-bottom column of at most five buttons. */
     show(): Promise<ClawdeskUIWindowState>;
     hide(): Promise<ClawdeskUIWindowState | null>;
     close(): Promise<ClawdeskUIWindowState | null>;

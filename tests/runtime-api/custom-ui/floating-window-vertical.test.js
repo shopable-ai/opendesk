@@ -20,7 +20,12 @@
     const ids = quickReplyConfig.buttons.map(button => button.id);
     equal(ids.join(','), 'welcome,order,checking,pleaseWait,resolved', 'quick-reply declaration order changed');
     const labels = Object.fromEntries(quickReplyConfig.buttons.map(button => [button.id, button.label]));
+    const icons = Object.fromEntries(quickReplyConfig.buttons.map(button => [button.id, button.icon]));
     const replies = Object.fromEntries(quickReplyConfig.buttons.map(button => [button.id, button.reply]));
+    equal(JSON.stringify(icons), JSON.stringify({
+      welcome: 'message.fill', order: 'doc.text.fill', checking: 'magnifyingglass',
+      pleaseWait: 'clock.fill', resolved: 'checkmark',
+    }), 'quick replies no longer use their semantic default icons');
     const contents = Object.values(replies);
     equal(new Set(contents).size, 5, 'quick replies must be different');
 
@@ -71,6 +76,7 @@
     for (let index = 0; index < ids.length; index += 1) {
       const state = await helper.state(toolbar, ids[index]);
       equal(state.id, ids[index], 'declaration order changed');
+      equal(state.icon, icons[ids[index]], 'quick-reply icon changed');
       equal(state.accessibilityName, labels[ids[index]], 'Accessibility name changed');
       equal(state.localBounds.x, 10, 'vertical button x padding changed');
       equal(state.localBounds.y, 8 + index * 48, 'vertical button order or gap changed');

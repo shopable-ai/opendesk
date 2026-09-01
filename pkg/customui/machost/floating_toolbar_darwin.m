@@ -201,10 +201,20 @@ static NSDictionary *CDToolbarScreenBounds(NSWindow *window, NSRect local) {
 		CGFloat height = CDToolbarChromeHeight + CDToolbarVerticalPadding * 2 + count * CDToolbarButtonSize + (count ? (count - 1) * CDToolbarButtonGap : 0);
 		return @{@"x": position[@"x"] ?: @0, @"y": position[@"y"] ?: @0, @"width": @(width), @"height": @(height)};
 	}
-	NSUInteger columns = MIN(CDToolbarMaxColumns, MAX((NSUInteger)1, count));
-	NSUInteger rows = count ? (count + CDToolbarMaxColumns - 1) / CDToolbarMaxColumns : 1;
+	NSUInteger requestedColumns = [spec[@"columns"] unsignedIntegerValue];
+	NSUInteger maxColumns = requestedColumns ? MIN(CDToolbarMaxColumns, requestedColumns) : CDToolbarMaxColumns;
+	NSUInteger columns = MIN(maxColumns, MAX((NSUInteger)1, count));
+	NSUInteger rows = count ? (count + maxColumns - 1) / maxColumns : 1;
 	CGFloat preferred = CDToolbarHorizontalPadding * 2 + columns * CDToolbarButtonSize + (columns - 1) * CDToolbarButtonGap;
-	CGFloat width = count > CDToolbarMaxColumns ? CDToolbarMaxOuterWidth : MAX(CDToolbarMinOuterWidth, preferred);
+	CGFloat requestedMaxWidth = [spec[@"maxWidth"] doubleValue];
+	CGFloat width = MAX(CDToolbarMinOuterWidth, preferred);
+	if (requestedMaxWidth >= CDToolbarMinOuterWidth && requestedMaxWidth <= CDToolbarMaxOuterWidth) {
+		width = MIN(width, requestedMaxWidth);
+	} else if (count > maxColumns && maxColumns == CDToolbarMaxColumns) {
+		// Keep the historical default 19-column wrapping width when no public
+		// maxWidth constraint is supplied.
+		width = CDToolbarMaxOuterWidth;
+	}
 	CGFloat height = CDToolbarChromeHeight + CDToolbarVerticalPadding * 2 + rows * CDToolbarButtonSize + (rows - 1) * CDToolbarButtonGap;
 	return @{@"x": position[@"x"] ?: @0, @"y": position[@"y"] ?: @0, @"width": @(width), @"height": @(height)};
 }
@@ -224,6 +234,17 @@ static NSDictionary *CDToolbarScreenBounds(NSWindow *window, NSRect local) {
 	}
 	if ([spec[@"schemaVersion"] integerValue] != 1 || toolbarRevision == 0 || buttons.count < 1 || buttons.count > (vertical ? CDToolbarMaxVerticalButtons : (NSUInteger)32)) {
 		if (error) *error = [NSError errorWithDomain:@"OpenDeskToolbar" code:1 userInfo:@{NSLocalizedDescriptionKey: @"invalid toolbar schema or button count"}];
+		return nil;
+	}
+	NSUInteger requestedColumns = [spec[@"columns"] unsignedIntegerValue];
+	NSUInteger columns = requestedColumns ? requestedColumns : CDToolbarMaxColumns;
+	if ((!vertical && (columns < 1 || columns > CDToolbarMaxColumns)) || (vertical && columns != 1)) {
+		if (error) *error = [NSError errorWithDomain:@"OpenDeskToolbar" code:1 userInfo:@{NSLocalizedDescriptionKey: @"invalid toolbar column layout"}];
+		return nil;
+	}
+	CGFloat maxWidth = [spec[@"maxWidth"] doubleValue];
+	if ((!vertical && maxWidth != 0 && (maxWidth < CDToolbarMinOuterWidth || maxWidth > CDToolbarMaxOuterWidth)) || (vertical && maxWidth != 0)) {
+		if (error) *error = [NSError errorWithDomain:@"OpenDeskToolbar" code:1 userInfo:@{NSLocalizedDescriptionKey: @"invalid toolbar maximum width"}];
 		return nil;
 	}
 	_buttonsByID = [NSMutableDictionary dictionaryWithCapacity:buttons.count];
@@ -256,7 +277,7 @@ static NSDictionary *CDToolbarScreenBounds(NSWindow *window, NSRect local) {
 			if (error) *error = [NSError errorWithDomain:@"OpenDeskToolbar" code:2 userInfo:@{NSLocalizedDescriptionKey: @"invalid, duplicate, or untrusted toolbar button"}];
 			return nil;
 		}
-		NSUInteger rowIndex = index / CDToolbarMaxColumns;
+		NSUInteger rowIndex = index / columns;
 		if (!vertical && rowIndex == rows.count) {
 			NSStackView *row = [[NSStackView alloc] initWithFrame:NSZeroRect];
 			row.orientation = NSUserInterfaceLayoutOrientationHorizontal;

@@ -12,9 +12,10 @@ tree is `NSPanel -> CDToolbarView -> NSStackView rows -> CDToolbarButton :
 NSButton`. The native-toolbar branch returns before generic WKWebView overlays
 or Accessibility proxy controls are allocated.
 
-The only accepted icons are `play.fill`, `pause.fill`, `stop.fill`,
-`gearshape.fill`, `paperplane.fill`, and `timer`. Go and Objective-C maps are
-generated from `pkg/customui/assets/toolbar-icons-v1.json`.
+This historical acceptance run exercised `play.fill`, `pause.fill`, `stop.fill`,
+`gearshape.fill`, `paperplane.fill`, and `timer`. The current curated registry
+contains 150 entries; Go, Objective-C, and TypeScript maps are generated from
+`pkg/customui/assets/toolbar-icons-v1.json`.
 
 ## Formal JavaScript evidence
 

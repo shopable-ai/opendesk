@@ -40,6 +40,8 @@
     });
     toolbar.addButton('stop', '停止', 'stop.fill', async event => {
       calls.stop += 1; callbackLog.push({ targetId: event.targetId, label: '停止', branch: 'stop', count: calls.stop, route: pendingRoute });
+      running = false;
+      await toolbar.updateButton('startPause', { icon: 'play.fill', label: '开始', active: false });
     });
     toolbar.addButton('settings', '设置', 'gearshape.fill', event => {
       calls.settings += 1; callbackLog.push({ targetId: event.targetId, label: '设置', branch: 'settings', count: calls.settings, route: pendingRoute });
@@ -102,14 +104,11 @@
     pendingRoute = 'axpress';
     await helper.axPress(toolbar, shown, 'timer');
     await helper.waitFor(() => calls.timer === 1, 'timer AXPress callback did not run');
-    pendingRoute = 'pointer';
-    await helper.pointer(toolbar, 'stop');
-    await helper.waitFor(() => calls.stop === 1, 'stop pointer callback did not run');
     equal(calls.startPause, 1, 'same-button click was not single-flight');
     equal(calls.settings, 1, 'other AX button was blocked by busy button');
     equal(calls.send, 1, 'send callback count changed');
     equal(calls.timer, 1, 'timer callback count changed');
-    equal(calls.stop, 1, 'stop callback count changed');
+    equal(calls.stop, 0, 'stop callback was unexpectedly invoked while start was busy');
     releaseStart();
     await helper.waitFor(async () => !(await toolbar.getButtonState('startPause')).busy, 'start callback did not settle');
     const active = await helper.screenshot('active', shown.bounds);
@@ -117,6 +116,14 @@
     await helper.axPress(toolbar, shown, 'startPause');
     await helper.waitFor(() => calls.startPause === 2, 'pause branch did not run');
     equal(branches.join(','), 'start,pause');
+    pendingRoute = 'pointer';
+    await helper.pointer(toolbar, 'stop');
+    await helper.waitFor(() => calls.stop === 1, 'stop pointer callback did not run');
+    const reset = await helper.state(toolbar, 'startPause');
+    equal(reset.icon, 'play.fill', 'stop did not reset the startPause icon');
+    equal(reset.label, '开始', 'stop did not reset the startPause label');
+    equal(reset.active, false, 'stop did not reset the startPause active state');
+    const resetScreenshot = await helper.screenshot('reset', shown.bounds);
     await toolbar.updateButton('timer', { disabled: true });
     const disabledState = await helper.state(toolbar, 'timer');
     for (const key of ['x', 'y', 'width', 'height']) equal(disabledState.localBounds[key], timerInitial.localBounds[key], 'disabled changed ' + key);
@@ -153,10 +160,12 @@
     await helper.waitFor(() => recovered === 1, 'callback did not recover after error');
     equal((await failing.getButtonState('failure')).error, '');
     await failing.close();
-    const callbackEvidence = { calls, branches, callbackLog, callbackError: {
+    const callbackEvidence = { calls, branches, callbackLog, stopReset: {
+      id: reset.id, icon: reset.icon, label: reset.label, active: reset.active, revision: reset.revision,
+    }, callbackError: {
       code: callbackError.code, operation: callbackError.operation, windowId: callbackError.windowId,
       targetId: callbackError.targetId, capability: callbackError.capability,
-    }, disabled: { pointerEmitted: false, axPressEmitted: false, axAPIRejected: disabledAXRejected }, visuals: { normal, hover, pressed, busy, active, disabled, error } };
+    }, disabled: { pointerEmitted: false, axPressEmitted: false, axAPIRejected: disabledAXRejected }, visuals: { normal, hover, pressed, busy, active, reset: resetScreenshot, disabled, error } };
     helper.evidence.callbacks = { ...helper.evidence.callbacks, ...callbackEvidence };
     helper.evidence.routes = {
       staticRouteEvidence: {

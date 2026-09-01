@@ -36,7 +36,10 @@ type Bounds struct {
 }
 
 type ContentSpec struct {
-	File     string            `json:"file,omitempty"`
+	File string `json:"file,omitempty"`
+	// HTML accepts restricted inline markup. During Normalize, a relative
+	// .html or .htm value is resolved as a script-relative file and replaced
+	// with its contents before it reaches a driver.
 	HTML     string            `json:"html,omitempty"`
 	CSSFile  string            `json:"cssFile,omitempty"`
 	CSS      string            `json:"css,omitempty"`

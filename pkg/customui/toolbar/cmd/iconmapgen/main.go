@@ -6,7 +6,9 @@ import (
 	"flag"
 	"fmt"
 	"go/format"
+	"math"
 	"os"
+	"regexp"
 	"sort"
 )
 
@@ -20,24 +22,38 @@ type icon struct {
 	Scale, OffsetX, OffsetY   float64
 }
 
+const (
+	minimumIconCount = 100
+	maximumIconCount = 256
+)
+
+var (
+	iconNamePattern  = regexp.MustCompile(`^[a-z0-9]+([.-][a-z0-9]+)*$`)
+	iconTokenPattern = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
+)
+
 func main() {
 	source := flag.String("source", "", "registry JSON")
 	goOut := flag.String("go-out", "", "generated Go file")
 	objcOut := flag.String("objc-out", "", "generated Objective-C include")
+	tsOut := flag.String("ts-out", "", "generated TypeScript icon declarations")
 	flag.Parse()
 	data, err := os.ReadFile(*source)
 	must(err)
 	var value registry
 	must(json.Unmarshal(data, &value))
-	if value.SchemaVersion != 1 || len(value.Icons) != 6 {
-		must(fmt.Errorf("toolbar icon registry must be schema v1 with exactly six entries"))
+	if value.SchemaVersion != 1 || len(value.Icons) < minimumIconCount || len(value.Icons) > maximumIconCount {
+		must(fmt.Errorf("toolbar icon registry must be schema v1 with %d-%d entries", minimumIconCount, maximumIconCount))
 	}
-	seen := map[string]bool{}
+	seenNames, seenTokens, seenSymbols := map[string]bool{}, map[string]bool{}, map[string]bool{}
 	for _, item := range value.Icons {
-		if item.Name == "" || item.Token == "" || item.SystemSymbol == "" || seen[item.Name] {
+		if !iconNamePattern.MatchString(item.Name) || !iconTokenPattern.MatchString(item.Token) ||
+			!iconNamePattern.MatchString(item.SystemSymbol) || seenNames[item.Name] || seenTokens[item.Token] || seenSymbols[item.SystemSymbol] ||
+			!finite(item.Scale) || item.Scale < 0.5 || item.Scale > 1.25 || !finite(item.OffsetX) || !finite(item.OffsetY) ||
+			math.Abs(item.OffsetX) > 4 || math.Abs(item.OffsetY) > 4 {
 			must(fmt.Errorf("invalid or duplicate toolbar icon %q", item.Name))
 		}
-		seen[item.Name] = true
+		seenNames[item.Name], seenTokens[item.Token], seenSymbols[item.SystemSymbol] = true, true, true
 	}
 
 	var goSource bytes.Buffer
@@ -74,7 +90,21 @@ func main() {
 	}
 	fmt.Fprintln(&objc, "  }; }); return icons;\n}")
 	must(os.WriteFile(*objcOut, objc.Bytes(), 0o644))
+
+	var ts bytes.Buffer
+	fmt.Fprintln(&ts, "// Code generated from pkg/customui/assets/toolbar-icons-v1.json; DO NOT EDIT.")
+	fmt.Fprintln(&ts, "export {};")
+	fmt.Fprintln(&ts, "\ndeclare global {")
+	fmt.Fprintln(&ts, "  /** Curated, host-reviewed SF Symbols accepted by FloatingWindow. */")
+	fmt.Fprintln(&ts, "  type ClawdeskFloatingIcon =")
+	for _, name := range names {
+		fmt.Fprintf(&ts, "    | %q\n", name)
+	}
+	fmt.Fprintln(&ts, "}")
+	must(os.WriteFile(*tsOut, ts.Bytes(), 0o644))
 }
+
+func finite(value float64) bool { return !math.IsInf(value, 0) && !math.IsNaN(value) }
 
 func must(err error) {
 	if err != nil {
