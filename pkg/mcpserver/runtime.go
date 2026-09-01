@@ -3,6 +3,7 @@ package mcpserver
 import (
 	"encoding/base64"
 	"fmt"
+	"math"
 	"opendesk/automation"
 	pkgContainer "opendesk/pkg/container"
 	"strings"
@@ -120,13 +121,32 @@ func (r *AutomationRuntime) Click(args map[string]any) error {
 	return wrapRuntimeError("click", automation.NewMouse().Click(int(x), int(y), map[string]any{"button": stringOrDefault(args, "button", "left")}))
 }
 
+func (r *AutomationRuntime) ClickForPID(args map[string]any) error {
+	processID, okPID := numberArg(args, "processId")
+	x, okX := numberArg(args, "x")
+	y, okY := numberArg(args, "y")
+	if !okPID || !okX || !okY {
+		return fmt.Errorf("processId, x and y are required")
+	}
+	return wrapRuntimeError("click_for_pid", automation.NewMouse().ClickForPID(processID, x, y))
+}
+
 func (r *AutomationRuntime) Type(args map[string]any) error {
 	text := stringArg(args, "text")
-	if strings.TrimSpace(text) == "" {
+	if text == "" {
 		return fmt.Errorf("text is required")
 	}
 	keyboard := automation.NewKeyboard()
-	if err := keyboard.Type(text); err != nil {
+	var err error
+	if processID, ok := numberArg(args, "processId"); ok {
+		if processID <= 0 || math.Trunc(processID) != processID {
+			return fmt.Errorf("processId must be a positive integer")
+		}
+		err = keyboard.TypeForPID(int(processID), text)
+	} else {
+		err = keyboard.Type(text)
+	}
+	if err != nil {
 		return wrapRuntimeError("type", err)
 	}
 	if boolArg(args, "pressEnter") || boolArg(args, "press_return") {

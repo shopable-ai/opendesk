@@ -509,6 +509,7 @@ Phase 7：复杂应用、多窗口和跨应用工作流
 - [Gates and Evidence](../../quality/gates-and-evidence.md)
 - [Global Failure Taxonomy](../../quality/failure-taxonomy.md)
 - [macOS 自动化授权配置](../../implementation/macos/automation-config.md)
+- [Recorder 文档驱动开发与准确性验证](../../implementation/desktop-automation/agent-first-recorder-development-and-verification.md)
 - [Agent-first Recorder macOS MVP 执行计划](../../plans/desktop-automation/agent-first-recorder-macos-mvp.md)
 
 ## 十五、Apple 官方依据

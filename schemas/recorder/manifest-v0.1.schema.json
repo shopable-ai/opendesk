@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://opendesk.local/schemas/recorder/manifest-v0.1.schema.json",
+  "title": "OpenDesk Recorder manifest v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "sessionId", "goal", "source", "observationPolicy", "state", "startedAt", "eventCount", "actionCount", "internalObservationCount", "internalObservationRecursionCount", "secretPlaintextLeakCount", "paths"],
+  "properties": {
+    "schemaVersion": {"const": "0.1.0"},
+    "sessionId": {"type": "string", "minLength": 1},
+    "executionId": {"type": "string"},
+    "goal": {"type": "string", "minLength": 1},
+    "source": {"type": "string", "minLength": 1},
+    "observationPolicy": {"enum": ["minimal", "standard", "enriched"]},
+    "state": {"enum": ["active", "stopped"]},
+    "startedAt": {"type": "string", "format": "date-time"},
+    "stoppedAt": {"type": "string", "format": "date-time"},
+    "eventCount": {"type": "integer", "minimum": 0},
+    "actionCount": {"type": "integer", "minimum": 0},
+    "internalObservationCount": {"type": "integer", "minimum": 0},
+    "internalObservationRecursionCount": {"type": "integer", "minimum": 0},
+    "secretPlaintextLeakCount": {"type": "integer", "minimum": 0},
+    "paths": {
+      "type": "object",
+      "required": ["root", "rawTrace", "flow", "variables", "report", "generatedJS"],
+      "additionalProperties": {"type": "string", "minLength": 1}
+    }
+  }
+}

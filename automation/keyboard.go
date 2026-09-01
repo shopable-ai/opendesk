@@ -19,7 +19,25 @@ func (k *Keyboard) Type(text string) error {
 	if text == "" {
 		return fmt.Errorf("input text cannot be empty")
 	}
-	robotgo.TypeStr(text)
+	if err := typeText(text); err != nil {
+		return err
+	}
+	time.Sleep(100 * time.Millisecond)
+	return nil
+}
+
+// TypeForPID types text only into the requested process when the platform can
+// provide a PID-scoped event primitive.
+func (k *Keyboard) TypeForPID(processID int, text string) error {
+	if processID <= 0 {
+		return fmt.Errorf("processID must be positive")
+	}
+	if text == "" {
+		return fmt.Errorf("input text cannot be empty")
+	}
+	if err := typeTextForPID(processID, text); err != nil {
+		return err
+	}
 	time.Sleep(100 * time.Millisecond)
 	return nil
 }

@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"opendesk/pkg/recorder"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -68,8 +70,11 @@ type Runtime interface {
 }
 
 type Server struct {
-	runtime Runtime
-	tools   map[string]Tool
+	runtime      Runtime
+	tools        map[string]Tool
+	recorder     *recorder.Manager
+	recorderOnce sync.Once
+	recorderErr  error
 }
 
 func NewServer(runtime Runtime) *Server {
@@ -78,6 +83,12 @@ func NewServer(runtime Runtime) *Server {
 	for _, tool := range builtinTools() {
 		s.tools[tool.Name] = tool
 	}
+	return s
+}
+
+func NewServerWithRecorder(runtime Runtime, manager *recorder.Manager) *Server {
+	s := NewServer(runtime)
+	s.recorder = manager
 	return s
 }
 
@@ -207,6 +218,16 @@ func (s *Server) handleToolsCall(req Request) Response {
 }
 
 func (s *Server) callTool(name string, args map[string]any) (map[string]any, error) {
+	if strings.HasPrefix(name, "tm_recorder_") {
+		return s.callRecorderTool(name, args)
+	}
+	if sessionID := serverStringArg(args, "recordingSessionId"); sessionID != "" && recordableTool(name) {
+		return s.callRecordedTool(name, args, sessionID)
+	}
+	return s.callToolCore(name, args)
+}
+
+func (s *Server) callToolCore(name string, args map[string]any) (map[string]any, error) {
 	switch name {
 	case "tm_status":
 		return s.runtime.Status()
@@ -345,7 +366,18 @@ func (s *Server) callTool(name string, args map[string]any) (map[string]any, err
 		} else if guarded && mismatch != nil {
 			return mismatch, nil
 		}
-		if err := s.runtime.Click(args); err != nil {
+		if processID, hasProcessID := serverNumberArg(args, "processId"); hasProcessID {
+			pidRuntime, ok := s.runtime.(interface{ ClickForPID(map[string]any) error })
+			if !ok {
+				return nil, fmt.Errorf("PID-scoped click is unavailable")
+			}
+			if processID <= 0 || math.Trunc(processID) != processID {
+				return nil, fmt.Errorf("processId must be a positive integer")
+			}
+			if err := pidRuntime.ClickForPID(args); err != nil {
+				return nil, err
+			}
+		} else if err := s.runtime.Click(args); err != nil {
 			return nil, err
 		}
 		return ack("click", args), nil
@@ -1554,6 +1586,13 @@ func centerPoint(bounds map[string]any) (float64, float64, error) {
 func toolOrder() []string {
 	return []string{
 		"tm_status",
+		"tm_recorder_start",
+		"tm_recorder_annotate",
+		"tm_recorder_status",
+		"tm_recorder_verify",
+		"tm_recorder_stop",
+		"tm_recorder_distill",
+		"tm_recorder_compile",
 		"tm_permissions",
 		"tm_request_permissions",
 		"tm_list_windows",
@@ -1589,8 +1628,15 @@ func builtinTools() []Tool {
 		}
 		return schema
 	}
-	return []Tool{
+	tools := []Tool{
 		{Name: "tm_status", Description: "Runtime health/status snapshot", InputSchema: obj(map[string]any{})},
+		{Name: "tm_recorder_start", Description: "Start an explicit Agent-first Recorder session", InputSchema: obj(map[string]any{"goal": map[string]any{"type": "string", "description": "Business goal for this recording"}, "executionId": map[string]any{"type": "string", "description": "Optional host execution identity"}, "recordingSessionId": map[string]any{"type": "string", "description": "Optional caller-provided unique session id"}, "observationPolicy": map[string]any{"type": "string", "enum": []string{"minimal", "standard", "enriched"}, "description": "Observation policy; standard by default"}}, "goal")},
+		{Name: "tm_recorder_annotate", Description: "Attach a structured Agent hint to an active Recorder session", InputSchema: obj(map[string]any{"recordingSessionId": map[string]any{"type": "string"}, "executionId": map[string]any{"type": "string"}, "hint": recorderHintSchema(), "fields": map[string]any{"type": "object"}}, "recordingSessionId", "hint")},
+		{Name: "tm_recorder_status", Description: "Return Recorder session status and artifact paths", InputSchema: obj(map[string]any{"recordingSessionId": map[string]any{"type": "string"}}, "recordingSessionId")},
+		{Name: "tm_recorder_verify", Description: "Attach evidence-backed verification to a recorded action", InputSchema: obj(map[string]any{"recordingSessionId": map[string]any{"type": "string"}, "executionId": map[string]any{"type": "string"}, "actionId": map[string]any{"type": "string"}, "verification": map[string]any{"type": "object", "properties": map[string]any{"status": map[string]any{"type": "string", "enum": []string{"pass", "warn", "fail", "unknown"}}, "postconditions": map[string]any{"type": "array"}, "actual": map[string]any{"type": "object"}, "evidenceRefs": map[string]any{"type": "array"}, "failureClass": map[string]any{"type": "string"}, "message": map[string]any{"type": "string"}}, "required": []string{"status"}}}, "recordingSessionId", "actionId", "verification")},
+		{Name: "tm_recorder_stop", Description: "Stop an active Recorder session without rewriting its raw trace", InputSchema: obj(map[string]any{"recordingSessionId": map[string]any{"type": "string"}}, "recordingSessionId")},
+		{Name: "tm_recorder_distill", Description: "Distill a stopped immutable raw trace into deterministic Flow IR", InputSchema: obj(map[string]any{"recordingSessionId": map[string]any{"type": "string"}}, "recordingSessionId")},
+		{Name: "tm_recorder_compile", Description: "Compile a distilled Flow IR into deterministic OpenDesk JavaScript", InputSchema: obj(map[string]any{"recordingSessionId": map[string]any{"type": "string"}, "replayConfigPath": map[string]any{"type": "string"}}, "recordingSessionId")},
 		{Name: "tm_permissions", Description: "macOS automation/screenshot permission snapshot", InputSchema: obj(map[string]any{})},
 		{Name: "tm_request_permissions", Description: "Open macOS privacy settings and trigger permission probes", InputSchema: obj(map[string]any{"openSettings": map[string]any{"type": "boolean", "description": "Open System Settings if supported"}, "section": map[string]any{"type": "string", "description": "Optional macOS privacy section hint"}})},
 		{Name: "tm_list_windows", Description: "List visible windows; low-level fields in each row are best-effort metadata, not a stable cross-platform contract", InputSchema: obj(map[string]any{})},
@@ -1611,9 +1657,31 @@ func builtinTools() []Tool {
 		{Name: "tm_analyze_layout", Description: "Analyze layout regions/separators from screenshot", InputSchema: obj(map[string]any{"imagePath": map[string]any{"type": "string", "description": "Path to source image"}, "image": map[string]any{"type": "string", "description": "Base64 image payload"}, "title": map[string]any{"type": "string", "description": "Optional analysis title"}})},
 		{Name: "tm_annotate_regions", Description: "Annotate layout regions and export png/base64", InputSchema: obj(map[string]any{"imagePath": map[string]any{"type": "string", "description": "Path to source image"}, "image": map[string]any{"type": "string", "description": "Base64 image payload"}, "regions": map[string]any{"type": "array", "description": "Layout regions to annotate"}, "outputPath": map[string]any{"type": "string", "description": "Annotated image output path"}})},
 		{Name: "tm_click_region", Description: "Find a layout region by id or filters and click its center point", InputSchema: obj(map[string]any{"imagePath": map[string]any{"type": "string", "description": "Path to source image"}, "image": map[string]any{"type": "string", "description": "Base64 image payload"}, "regionId": map[string]any{"type": "string", "description": "Exact region id from analyze_layout"}, "role": map[string]any{"type": "string", "description": "Optional region role filter"}, "label": map[string]any{"type": "string", "description": "Optional region label contains filter"}, "button": map[string]any{"type": "string", "enum": []string{"left", "right", "middle"}, "description": "Mouse button to click"}, "expectedTargetText": map[string]any{"type": "string", "description": "Optional region label/text guard before clicking"}, "dryRun": map[string]any{"type": "boolean", "description": "Return the planned click without executing"}, "previewOnly": map[string]any{"type": "boolean", "description": "Preview the planned click without executing"}})},
-		{Name: "tm_click", Description: "Click screen coordinates", InputSchema: obj(map[string]any{"x": map[string]any{"type": "number", "description": "Screen X coordinate"}, "y": map[string]any{"type": "number", "description": "Screen Y coordinate"}, "button": map[string]any{"type": "string", "enum": []string{"left", "right", "middle"}, "description": "Mouse button to click"}, "expectedWindowTitle": map[string]any{"type": "string", "description": "Optional active-window guard; click only if the active window title matches exactly"}}, "x", "y")},
-		{Name: "tm_type", Description: "Type text and optional Enter", InputSchema: obj(map[string]any{"text": map[string]any{"type": "string", "description": "Text to type"}, "pressEnter": map[string]any{"type": "boolean", "description": "Press Enter after typing"}, "expectedWindowTitle": map[string]any{"type": "string", "description": "Optional exact active-window guard before typing"}, "focusExpectedWindow": map[string]any{"type": "boolean", "description": "Atomically focus and verify expectedWindowTitle before typing"}}, "text")},
+		{Name: "tm_click", Description: "Click screen coordinates", InputSchema: obj(map[string]any{"x": map[string]any{"type": "number", "description": "Screen X coordinate"}, "y": map[string]any{"type": "number", "description": "Screen Y coordinate"}, "processId": map[string]any{"type": "integer", "description": "Optional PID for fail-closed macOS AXPress instead of a global click"}, "button": map[string]any{"type": "string", "enum": []string{"left", "right", "middle"}, "description": "Mouse button to click"}, "expectedWindowTitle": map[string]any{"type": "string", "description": "Optional active-window guard; click only if the active window title matches exactly"}, "targetKey": map[string]any{"type": "string", "description": "Stable target key used by deterministic replay state"}, "targetLabel": map[string]any{"type": "string", "description": "Human-readable target label"}, "targetRole": map[string]any{"type": "string", "description": "Expected accessibility role"}, "windowRelative": map[string]any{"type": "object", "description": "Window-relative geometry projection"}, "acceptedLabels": map[string]any{"type": "array", "description": "Allowed accessibility labels"}, "expectedBundleID": map[string]any{"type": "string"}, "expectedAppPath": map[string]any{"type": "string"}}, "x", "y")},
+		{Name: "tm_type", Description: "Type text and optional Enter", InputSchema: obj(map[string]any{"text": map[string]any{"type": "string", "description": "Text to type"}, "processId": map[string]any{"type": "integer", "description": "Optional target PID for fail-closed macOS typing"}, "pressEnter": map[string]any{"type": "boolean", "description": "Press Enter after typing"}, "expectedWindowTitle": map[string]any{"type": "string", "description": "Optional exact active-window guard before typing"}, "focusExpectedWindow": map[string]any{"type": "boolean", "description": "Atomically focus and verify expectedWindowTitle before typing"}}, "text")},
 		{Name: "tm_press_key", Description: "Press a single key or chord", InputSchema: obj(map[string]any{"key": map[string]any{"type": "string", "description": "Key or chord such as cmd+shift+p"}, "expectedWindowTitle": map[string]any{"type": "string", "description": "Optional exact active-window guard before pressing the key"}, "focusExpectedWindow": map[string]any{"type": "boolean", "description": "Atomically focus and verify expectedWindowTitle before pressing the key"}}, "key")},
 		{Name: "tm_scroll", Description: "Scroll mouse wheel", InputSchema: obj(map[string]any{"deltaX": map[string]any{"type": "number", "description": "Horizontal scroll delta"}, "deltaY": map[string]any{"type": "number", "description": "Vertical scroll delta"}, "steps": map[string]any{"type": "integer", "description": "Optional wheel step count"}, "x": map[string]any{"type": "number", "description": "Optional screen X coordinate; must be provided with y to move before scrolling"}, "y": map[string]any{"type": "number", "description": "Optional screen Y coordinate; must be provided with x to move before scrolling"}, "expectedWindowTitle": map[string]any{"type": "string", "description": "Optional exact active-window guard before scrolling"}, "focusExpectedWindow": map[string]any{"type": "boolean", "description": "Atomically focus and verify expectedWindowTitle before scrolling"}})},
+	}
+	for index := range tools {
+		if recordableTool(tools[index].Name) {
+			properties, _ := tools[index].InputSchema["properties"].(map[string]any)
+			properties["recordingSessionId"] = map[string]any{"type": "string", "description": "Explicit Recorder session returned by tm_recorder_start"}
+			properties["executionId"] = map[string]any{"type": "string", "description": "Optional host execution identity"}
+			properties["recorderHint"] = recorderHintSchema()
+		}
+	}
+	return tools
+}
+
+func recorderHintSchema() map[string]any {
+	return map[string]any{
+		"type":        "object",
+		"description": "Structured Agent semantics; evidence remains authoritative",
+		"properties": map[string]any{
+			"goal": map[string]any{"type": "string"}, "subgoal": map[string]any{"type": "string"},
+			"intent": map[string]any{"type": "string"}, "targetDescription": map[string]any{"type": "string"},
+			"expectedPostconditions": map[string]any{"type": "array"}, "risk": map[string]any{"type": "string", "enum": []string{"low", "medium", "high"}},
+			"variableHints": map[string]any{"type": "array"}, "recoveryReason": map[string]any{"type": "string"},
+		},
 	}
 }

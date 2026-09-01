@@ -88,6 +88,13 @@ func getActiveMacWindowCoreGraphics() (*macWindow, error) {
 	if err != nil {
 		return nil, err
 	}
+	return getMacWindowForPIDCoreGraphics(pid)
+}
+
+func getMacWindowForPIDCoreGraphics(pid int) (*macWindow, error) {
+	if pid <= 0 {
+		return nil, fmt.Errorf("invalid application pid %d", pid)
+	}
 	var windowID C.int64_t
 	var x, y, width, height C.double
 	owner := make([]byte, 512)
@@ -120,6 +127,9 @@ func getActiveMacWindowCoreGraphics() (*macWindow, error) {
 		Handle:       int64(windowID),
 	}
 	enrichMacWindow(item)
+	if !normalizeMacWindowTitle(item) {
+		return nil, fmt.Errorf("frontmost application pid %d has no identifiable window", pid)
+	}
 	return item, nil
 }
 

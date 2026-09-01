@@ -5,15 +5,25 @@ package automation
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os/exec"
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/shirou/gopsutil/v3/process"
 )
+
+const defaultJXATimeout = 3 * time.Second
+const defaultFocusVerificationTimeout = time.Second
+const titlelessWindowMatchJXA = `name === target || (!name && appName === target)`
+const resolvedWindowMatchJXA = `name === target || (!name && pid === targetPid)`
+
+type jxaCommandFactory func(context.Context, string, ...string) *exec.Cmd
 
 type macWindow struct {
 	Title        string `json:"title"`
@@ -30,6 +40,25 @@ type macWindow struct {
 	Index        int    `json:"index"`
 	ExeName      string `json:"-"`
 	ExePath      string `json:"-"`
+}
+
+// normalizeMacWindowTitle preserves real, visible windows whose platform
+// metadata omits kCGWindowName/AXTitle. Calculator is one such app on macOS
+// 12: the window exists and has valid bounds, but its window title is empty.
+// The executable name is the most stable selector because System Events uses
+// the same process name when matching a titleless window for an action.
+func normalizeMacWindowTitle(item *macWindow) bool {
+	if item == nil {
+		return false
+	}
+	item.Title = strings.TrimSpace(item.Title)
+	if item.Title == "" {
+		item.Title = strings.TrimSpace(item.ExeName)
+	}
+	if item.Title == "" {
+		item.Title = strings.TrimSpace(item.AppName)
+	}
+	return item.Title != ""
 }
 
 // enrichMacWindow adds best-effort process metadata without making window
@@ -111,7 +140,19 @@ func (w *darwinWindowManager) Focus(title string) error {
 		try { p.frontmost = true; } catch (e) {}
 		try { w.actions.byName("AXRaise").perform(); } catch (e) {}
 	`
-	return runActionByTitle(title, action)
+	// Resolve the target once, then access only that process. The former global
+	// System Events fallback could block on an unrelated application's
+	// accessibility tree. It also could not focus titleless windows such as
+	// Calculator, whose stable title is synthesized from its process identity.
+	if target, err := findWindowByTitle(title); err == nil && target != nil && target.PID != 0 {
+		if err := runActionByPIDAndTitle(target.PID, title, action); err == nil {
+			return waitForFocusedMacWindow(title, target.PID, defaultFocusVerificationTimeout)
+		}
+	}
+	if err := runActionByTitle(title, action); err != nil {
+		return err
+	}
+	return waitForFocusedMacWindow(title, 0, defaultFocusVerificationTimeout)
 }
 
 func (w *darwinWindowManager) SetWindowBounds(title string, x, y, width, height int) error {
@@ -404,6 +445,97 @@ func findWindowByPID(pid uint32) (*macWindow, error) {
 	return nil, fmt.Errorf("window not found for process id %d", pid)
 }
 
+func runActionByPIDAndTitle(pid uint32, title, action string, args ...string) error {
+	if pid == 0 {
+		return fmt.Errorf("process id is required")
+	}
+	if strings.TrimSpace(title) == "" {
+		return fmt.Errorf("window title cannot be empty")
+	}
+
+	script := fmt.Sprintf(`
+function run(argv) {
+	var targetPid = Number(argv[0]);
+	var target = String(argv[1] || "");
+	if (!targetPid || !target) throw new Error("invalid resolved window identity");
+	var se = Application("System Events");
+	var matches = se.applicationProcesses.whose({unixId: targetPid})();
+	if (matches.length !== 1) throw new Error("resolved process not found: " + targetPid);
+	var p = matches[0];
+	var pid = 0;
+	try { pid = Number(p.unixId()); } catch (e) { pid = 0; }
+	var ws = [];
+	try { ws = p.windows(); } catch (e) { ws = []; }
+	for (var i = 0; i < ws.length; i++) {
+		var w = ws[i];
+		var name = "";
+		try { name = String(w.name()); } catch (e) { name = ""; }
+		if (%s) {
+			%s
+			return "ok";
+		}
+	}
+	throw new Error("resolved process window does not match: " + target);
+}`, resolvedWindowMatchJXA, action)
+
+	jxaArgs := []string{strconv.FormatUint(uint64(pid), 10), title}
+	jxaArgs = append(jxaArgs, args...)
+	_, err := runJXA(script, jxaArgs...)
+	return err
+}
+
+func waitForFocusedMacWindow(title string, pid uint32, timeout time.Duration) error {
+	return waitForFocusedMacWindowWithResolver(title, pid, timeout, getFrontMacWindow)
+}
+
+func waitForFocusedMacWindowWithResolver(
+	title string,
+	pid uint32,
+	timeout time.Duration,
+	resolve func() (*macWindow, error),
+) error {
+	if strings.TrimSpace(title) == "" {
+		return fmt.Errorf("window title cannot be empty")
+	}
+	if timeout <= 0 {
+		return fmt.Errorf("focus verification timeout must be positive")
+	}
+	if resolve == nil {
+		return fmt.Errorf("focus verification resolver is unavailable")
+	}
+
+	deadline := time.Now().Add(timeout)
+	var lastTitle string
+	var lastPID uint32
+	var lastErr error
+	for {
+		active, err := resolve()
+		if err == nil && active != nil {
+			lastTitle = active.Title
+			lastPID = active.PID
+			if active.Title == title && (pid == 0 || active.PID == pid) {
+				return nil
+			}
+		} else if err != nil {
+			lastErr = err
+		}
+		if !time.Now().Before(deadline) {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if lastErr != nil && lastTitle == "" && lastPID == 0 {
+		return fmt.Errorf("focus verification failed for %q: %w", title, lastErr)
+	}
+	return fmt.Errorf(
+		"focus verification failed for %q pid=%d: active title=%q pid=%d",
+		title,
+		pid,
+		lastTitle,
+		lastPID,
+	)
+}
+
 func runActionByTitle(title, action string, args ...string) error {
 	// The normal live route targets the verified foreground Safari fixture.  Do
 	// that lookup first: enumerating every application window through System
@@ -416,19 +548,21 @@ function run(argv) {
 	var fronts = se.applicationProcesses.whose({frontmost: true})();
 	if (fronts.length === 0) throw new Error("no frontmost process");
 	var p = fronts[0];
+	var appName = "";
+	try { appName = String(p.name()); } catch (e) { appName = ""; }
 	var ws = [];
 	try { ws = p.windows(); } catch (e) { ws = []; }
 	for (var i = 0; i < ws.length; i++) {
 		var w = ws[i];
 		var name = "";
 		try { name = String(w.name()); } catch (e) { name = ""; }
-		if (name === target) {
+		if (%s) {
 			%s
 			return "ok";
 		}
 	}
 	throw new Error("frontmost window does not match: " + target);
-}`, action)
+}`, titlelessWindowMatchJXA, action)
 
 	jxaArgs := append([]string{title}, args...)
 	if _, err := runJXA(frontScript, jxaArgs...); err == nil {
@@ -449,20 +583,22 @@ function run(argv) {
 	var procs = se.applicationProcesses();
 	for (var i = 0; i < procs.length; i++) {
 		var p = procs[i];
+		var appName = "";
+		try { appName = String(p.name()); } catch (e) { appName = ""; }
 		var ws = [];
 		try { ws = p.windows(); } catch (e) { ws = []; }
 		for (var j = 0; j < ws.length; j++) {
 			var w = ws[j];
 			var name = "";
 			try { name = String(w.name()); } catch (e) { name = ""; }
-			if (name === target) {
+			if (%s) {
 				%s
 				return "ok";
 			}
 		}
 	}
 	throw new Error("window not found: " + target);
-}`, action)
+}`, titlelessWindowMatchJXA, action)
 
 	jxaArgs := append([]string{title}, args...)
 	_, err := runJXA(script, jxaArgs...)
@@ -473,6 +609,15 @@ function run(argv) {
 // avoids the all-process JXA enumeration used by List/GetWindowByTitle, so a
 // blocked third-party accessibility tree cannot stall guarded live actions.
 func getFrontMacWindow() (*macWindow, error) {
+	// Prefer the bounded native foreground lookup. Besides avoiding an
+	// AppleEvents round-trip, it cannot be stalled by an unrelated app's
+	// accessibility tree. Keep JXA as a compatibility fallback for apps whose
+	// CoreGraphics window metadata does not expose an identifiable title.
+	if active, err := getActiveMacWindowCoreGraphics(); err == nil && active != nil &&
+		strings.TrimSpace(active.Title) != "" && active.PID != 0 {
+		return active, nil
+	}
+
 	script := `
 function run() {
 	var se = Application("System Events");
@@ -504,10 +649,10 @@ function run() {
 	if err := json.Unmarshal([]byte(out), &item); err != nil {
 		return nil, fmt.Errorf("failed to parse active macOS window: %w", err)
 	}
-	if item.Title == "" || item.PID == 0 {
+	enrichMacWindow(&item)
+	if !normalizeMacWindowTitle(&item) || item.PID == 0 {
 		return nil, fmt.Errorf("frontmost process has no identifiable window")
 	}
-	enrichMacWindow(&item)
 	return &item, nil
 }
 
@@ -525,7 +670,7 @@ function run() {
 	} catch (e) {}
 
 	var procs = [];
-	try { procs = se.applicationProcesses(); } catch (e) { return "[]"; }
+	try { procs = se.applicationProcesses.whose({visible: true})(); } catch (e) { return "[]"; }
 
 	for (var i = 0; i < procs.length; i++) {
 		var p = procs[i];
@@ -540,7 +685,6 @@ function run() {
 			var w = ws[j];
 			var title = "";
 			try { title = String(w.name()); } catch (e) { title = ""; }
-			if (!title) continue;
 
 			var pos = [0, 0];
 			var size = [0, 0];
@@ -573,43 +717,113 @@ function run() {
 
 	out, err := runJXA(script)
 	if err != nil {
-		return nil, err
+		return fallbackMacWindowList(err)
 	}
 
 	if strings.TrimSpace(out) == "" {
-		return []macWindow{}, nil
+		return fallbackMacWindowList(fmt.Errorf("JXA returned an empty window list"))
 	}
 
 	var items []macWindow
 	if err := json.Unmarshal([]byte(out), &items); err != nil {
-		return nil, fmt.Errorf("failed to parse macOS window list: %w", err)
+		return fallbackMacWindowList(fmt.Errorf("failed to parse macOS window list: %w", err))
+	}
+	if len(items) == 0 {
+		return fallbackMacWindowList(fmt.Errorf("JXA returned no visible windows"))
 	}
 
+	normalized := make([]macWindow, 0, len(items))
 	for i := range items {
 		enrichMacWindow(&items[i])
+		if normalizeMacWindowTitle(&items[i]) {
+			normalized = append(normalized, items[i])
+		}
+	}
+	if len(normalized) == 0 {
+		return fallbackMacWindowList(fmt.Errorf("JXA returned no identifiable visible windows"))
 	}
 
-	return items, nil
+	return normalized, nil
+}
+
+func fallbackMacWindowList(cause error) ([]macWindow, error) {
+	items, err := fallbackMacWindowListWithResolver(cause, getActiveMacWindowCoreGraphics)
+	if err == nil {
+		log.Printf("macOS window enumeration degraded to active-window CoreGraphics fallback: %v", cause)
+	}
+	return items, err
+}
+
+func fallbackMacWindowListWithResolver(
+	cause error,
+	resolveActive func() (*macWindow, error),
+) ([]macWindow, error) {
+	if resolveActive == nil {
+		return nil, fmt.Errorf("macOS window enumeration failed: %v; active-window fallback is unavailable", cause)
+	}
+	active, fallbackErr := resolveActive()
+	if fallbackErr != nil {
+		return nil, fmt.Errorf(
+			"macOS window enumeration failed: %v; active-window fallback failed: %w",
+			cause,
+			fallbackErr,
+		)
+	}
+	if active == nil || strings.TrimSpace(active.Title) == "" || active.PID == 0 {
+		return nil, fmt.Errorf(
+			"macOS window enumeration failed: %v; active-window fallback returned no identifiable window",
+			cause,
+		)
+	}
+	active.IsForeground = true
+	active.HasFocus = true
+	active.Index = 0
+	return []macWindow{*active}, nil
 }
 
 func runJXA(script string, args ...string) (string, error) {
+	return runJXAWithOptions(defaultJXATimeout, exec.CommandContext, script, args...)
+}
+
+func runJXAWithOptions(
+	timeout time.Duration,
+	commandFactory jxaCommandFactory,
+	script string,
+	args ...string,
+) (string, error) {
+	if timeout <= 0 {
+		return "", fmt.Errorf("osascript timeout must be positive")
+	}
+	if commandFactory == nil {
+		return "", fmt.Errorf("osascript command factory is unavailable")
+	}
 	cmdArgs := []string{"-l", "JavaScript", "-e", script}
 	cmdArgs = append(cmdArgs, args...)
 
-	cmd := exec.Command("osascript", cmdArgs...)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	cmd := commandFactory(ctx, "osascript", cmdArgs...)
+	if cmd == nil {
+		return "", fmt.Errorf("osascript command factory returned nil")
+	}
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			return "", fmt.Errorf("osascript timed out after %s", timeout)
+		}
 		errMsg := strings.TrimSpace(stderr.String())
 		if errMsg == "" {
 			errMsg = err.Error()
 		}
-		if strings.Contains(errMsg, "不允许辅助访问") ||
-			strings.Contains(strings.ToLower(errMsg), "not allowed assistive access") ||
-			strings.Contains(strings.ToLower(errMsg), "not authorized to send apple events") {
+		lowerErr := strings.ToLower(errMsg)
+		if strings.Contains(lowerErr, "not authorized to send apple events") {
+			errMsg += " | 请在 macOS“系统设置 -> 隐私与安全性 -> 自动化”中允许当前终端/应用控制 System Events。"
+		} else if strings.Contains(errMsg, "不允许辅助访问") ||
+			strings.Contains(lowerErr, "not allowed assistive access") {
 			errMsg += " | 请在 macOS“系统设置 -> 隐私与安全性 -> 辅助功能”中允许当前终端/应用访问。"
 		}
 		return "", fmt.Errorf("osascript failed: %s", errMsg)

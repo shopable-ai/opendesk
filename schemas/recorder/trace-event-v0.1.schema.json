@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://opendesk.local/schemas/recorder/trace-event-v0.1.schema.json",
+  "title": "OpenDesk Recorder Raw Trace event v0.1",
+  "type": "object",
+  "required": ["schemaVersion", "eventId", "eventType", "sessionId", "sequence", "timestamp"],
+  "properties": {
+    "schemaVersion": {"const": "0.1.0"},
+    "eventId": {"type": "string", "minLength": 1},
+    "eventType": {"enum": ["session.started", "session.stopped", "annotation", "action.before", "action.after", "action.verification", "observation.internal"]},
+    "sessionId": {"type": "string", "minLength": 1},
+    "executionId": {"type": "string"},
+    "actionId": {"type": "string"},
+    "parentActionId": {"type": "string"},
+    "sequence": {"type": "integer", "minimum": 1},
+    "timestamp": {"type": "string", "format": "date-time"},
+    "source": {"type": "string"},
+    "classification": {"type": "string"},
+    "origin": {"enum": ["agent", "recorder"]},
+    "internal": {"type": "boolean"},
+    "hint": {"type": "object"},
+    "request": {"type": "object"},
+    "before": {"type": "object"},
+    "after": {"type": "object"},
+    "result": {"type": "object"},
+    "verification": {"type": "object"},
+    "fields": {"type": "object"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"internal": {"const": true}}, "required": ["internal"]},
+      "then": {"required": ["parentActionId"], "properties": {"origin": {"const": "recorder"}}}
+    }
+  ]
+}

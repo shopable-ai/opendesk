@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>OpenDesk Recorder Benchmark</title>
+  <style>
+    :root { color-scheme: light; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    body { margin: 0; background: #eef2f8; color: #172033; }
+    main { width: min(860px, calc(100vw - 48px)); margin: 28px auto; }
+    .card { background: white; border: 1px solid #d8dfeb; border-radius: 16px; box-shadow: 0 12px 34px #19345b18; padding: 22px; }
+    h1 { margin: 0 0 6px; font-size: 25px; }
+    p { color: #5d6b82; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+    label { display: block; font-size: 13px; font-weight: 700; }
+    input, select, button { width: 100%; box-sizing: border-box; margin-top: 7px; border: 1px solid #aebbd0; border-radius: 9px; padding: 11px 12px; font: inherit; }
+    button { cursor: pointer; background: #eef3fb; font-weight: 700; }
+    #commit-target { background: #1768e5; color: white; border-color: #1768e5; }
+    .check { display: flex; align-items: center; gap: 9px; margin: 18px 0; }
+    .check input { width: auto; margin: 0; }
+    #scroll-region { height: 105px; overflow: auto; border: 1px solid #d8dfeb; border-radius: 10px; padding: 9px; margin: 15px 0; }
+    #scroll-content { height: 360px; background: linear-gradient(#f9fbff, #dbe8fb); padding: 8px; }
+    .buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    #status { margin-top: 18px; border-radius: 10px; background: #121a29; color: #d8e5ff; padding: 14px; font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; }
+    #delayed { display: none; margin-top: 12px; color: #08653b; font-weight: 800; }
+    #log { max-height: 120px; overflow: auto; white-space: pre-wrap; font: 12px ui-monospace, monospace; color: #41506a; }
+    dialog { border: 0; border-radius: 14px; padding: 22px; box-shadow: 0 20px 60px #0004; }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="card">
+      <h1>OpenDesk Recorder Benchmark</h1>
+      <p>Controlled truth surface for Agent → immutable trace → Flow IR → generated JavaScript → deterministic replay.</p>
+      <div class="grid">
+        <label>Unique token<input id="token" autocomplete="off" placeholder="recorder token"><button id="fill-token" type="button">Fill benchmark token</button></label>
+        <label>Route<select id="route"><option value="alpha">Alpha</option><option value="beta">Beta</option><option value="gamma">Gamma</option></select><button id="choose-beta" type="button">Choose Beta in select</button></label>
+      </div>
+      <label class="check"><input id="confirm" type="checkbox"> Confirm controlled operation</label>
+      <button id="confirm-button" type="button">Confirm checkbox</button>
+      <div id="scroll-region" tabindex="0" aria-label="Controlled scroll region"><div id="scroll-content">Scroll region with stable identity.<br><br><br><br><br><br><br><br><strong>Bottom anchor</strong></div></div>
+      <button id="scroll-button" type="button">Scroll controlled region</button>
+      <div class="buttons">
+        <button id="commit-alternate" type="button">Commit alternate action</button>
+        <button id="commit-target" type="button">Commit controlled action</button>
+      </div>
+      <button id="open-modal" type="button">Open diagnostic modal</button>
+      <div id="status" role="status">idle</div>
+      <div id="delayed">Delayed element ready</div>
+      <h2>Operation log</h2><div id="log"></div>
+    </section>
+  </main>
+  <dialog id="modal"><strong>Recorder modal</strong><p>Stable modal content.</p><button id="close-modal" type="button">Close modal</button></dialog>
+  <script>
+    const runLabel = new URLSearchParams(location.search).get('run');
+    if (runLabel) document.title = `OpenDesk Recorder Benchmark — ${runLabel}`;
+    const $ = (selector) => document.querySelector(selector);
+    const state = () => ({
+      token: $('#token').value,
+      route: $('#route').value,
+      confirmed: $('#confirm').checked,
+      scrollTop: $('#scroll-region').scrollTop,
+      status: $('#status').textContent.trim(),
+      delayedVisible: getComputedStyle($('#delayed')).display !== 'none',
+      modalOpen: $('#modal').open,
+    });
+    const post = async (path, payload) => fetch(path, {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify(payload)});
+    const appendLog = (message) => { $('#log').textContent += `${new Date().toISOString()} ${message}\n`; };
+    const expected = (kind, selector, value) => [{kind, value: {selector, expected: value}}];
+    async function record(name, selector, args, hint, before, settleMs = 0) {
+      if (settleMs) await new Promise((resolve) => setTimeout(resolve, settleMs));
+      const after = state();
+      await post('/api/action', {name, selector, arguments: args, hint, before, after});
+    }
+    $('#token').addEventListener('input', async (event) => {
+      const before = {...state(), token: event.target.dataset.before || ''};
+      event.target.dataset.before = event.target.value;
+      appendLog(`token=${event.target.value}`);
+      await record('dom.fill', '#token', {selector: '#token', value: event.target.value}, {intent: 'fill unique token', targetDescription: 'Unique token input', risk: 'low', expectedPostconditions: expected('dom.valueEquals', '#token', event.target.value)}, before);
+    });
+    $('#fill-token').addEventListener('click', () => {
+      const token = $('#token');
+      token.dataset.before = token.value;
+      token.value = 'recorder-56088';
+      token.dispatchEvent(new Event('input', {bubbles: true}));
+    });
+    $('#route').addEventListener('change', async (event) => {
+      const before = {...state(), route: event.target.dataset.before || 'alpha'};
+      event.target.dataset.before = event.target.value;
+      appendLog(`route=${event.target.value}`);
+      await record('dom.select', '#route', {selector: '#route', value: event.target.value}, {intent: 'select route', targetDescription: 'Route select', risk: 'low', expectedPostconditions: expected('dom.valueEquals', '#route', event.target.value)}, before);
+    });
+    $('#choose-beta').addEventListener('click', () => {
+      const route = $('#route');
+      route.dataset.before = route.value;
+      route.value = 'beta';
+      route.dispatchEvent(new Event('change', {bubbles: true}));
+    });
+    $('#confirm').addEventListener('change', async (event) => {
+      const before = {...state(), confirmed: !event.target.checked};
+      appendLog(`confirmed=${event.target.checked}`);
+      await record('dom.check', '#confirm', {selector: '#confirm'}, {intent: 'confirm controlled operation', targetDescription: 'Confirmation checkbox', risk: 'low', expectedPostconditions: expected('dom.checkedEquals', '#confirm', event.target.checked)}, before);
+    });
+    $('#confirm-button').addEventListener('click', () => {
+      const checkbox = $('#confirm');
+      if (!checkbox.checked) {
+        checkbox.checked = true;
+        checkbox.dispatchEvent(new Event('change', {bubbles: true}));
+      }
+    });
+    let scrollTimer;
+    $('#scroll-region').addEventListener('scroll', () => {
+      clearTimeout(scrollTimer);
+      scrollTimer = setTimeout(async () => {
+        const before = {...state(), scrollTop: 0};
+        appendLog(`scrollTop=${$('#scroll-region').scrollTop}`);
+        await record('dom.scroll', '#scroll-region', {selector: '#scroll-region', scrollTop: $('#scroll-region').scrollTop}, {intent: 'scroll controlled region', targetDescription: 'Controlled scroll region', risk: 'low', expectedPostconditions: []}, before);
+      }, 80);
+    });
+    $('#scroll-button').addEventListener('click', () => {
+      $('#scroll-region').scrollTop = 240;
+      $('#scroll-region').dispatchEvent(new Event('scroll', {bubbles: true}));
+    });
+    $('#commit-alternate').addEventListener('click', async () => { $('#status').textContent = 'wrong-target'; appendLog('alternate clicked'); });
+    $('#commit-target').addEventListener('click', async () => {
+      const before = state();
+      const valid = before.token === 'recorder-56088' && before.route === 'beta' && before.confirmed;
+      $('#status').textContent = valid ? 'pending' : 'invalid';
+      appendLog(`target clicked valid=${valid}`);
+      if (valid) setTimeout(() => { $('#status').textContent = 'complete:recorder-56088:beta'; $('#delayed').style.display = 'block'; document.body.dataset.complete = 'true'; }, 220);
+      await record('dom.click', '#commit-target', {selector: '#commit-target'}, {intent: 'commit controlled action', targetDescription: 'Commit controlled action button', risk: 'low', expectedPostconditions: expected('dom.textEquals', '#status', 'complete:recorder-56088:beta')}, before, 300);
+    });
+    $('#open-modal').addEventListener('click', () => $('#modal').showModal());
+    $('#close-modal').addEventListener('click', () => $('#modal').close());
+    window.__benchmark = {
+      state,
+      reset() { $('#token').value = ''; $('#token').dataset.before = ''; $('#route').value = 'alpha'; $('#confirm').checked = false; $('#scroll-region').scrollTop = 0; $('#status').textContent = 'idle'; $('#delayed').style.display = 'none'; $('#log').textContent = ''; document.body.dataset.complete = 'false'; },
+    };
+    post('/api/observe', {kind: 'page-ready', state: state()});
+    if (new URLSearchParams(location.search).get('mode') === 'replay') {
+      import('/generated/flow.js')
+        .then(() => post('/api/replay-complete', {ok: true, state: state()}))
+        .catch((error) => post('/api/replay-complete', {ok: false, error: String(error && error.stack || error), state: state()}));
+    }
+  </script>
+</body>
+</html>
