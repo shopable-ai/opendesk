@@ -3,8 +3,16 @@ export {};
 declare global {
   interface OpenDeskDisplayInfo {
     index: number;
+    /** Current CoreGraphics display id; normally stable until restart/topology change. */
     id: string;
+    /** Vendor/model/serial/unit hardware hint; serial can be zero. */
+    hardwareId: string;
     isPrimary: boolean;
+    isBuiltin: boolean;
+    vendor: number;
+    model: number;
+    serial: number;
+    unit: number;
     x: number;
     y: number;
     width: number;
@@ -110,6 +118,55 @@ declare global {
     audio: { system: false; microphone: false; namespace: 'Audio'; reason: string };
   }
 
+  interface OpenDeskDisplayMode {
+    id: string;
+    ioModeId: number;
+    width: number;
+    height: number;
+    pixelWidth: number;
+    pixelHeight: number;
+    refreshRate: number;
+    usableForDesktopGUI: boolean;
+    isCurrent: boolean;
+  }
+
+  interface OpenDeskDisplayModeChangeResult {
+    displayId: string;
+    previous: OpenDeskDisplayMode;
+    current: OpenDeskDisplayMode;
+    verified: true;
+  }
+
+  interface OpenDeskDisplayControlCapabilities {
+    schemaVersion: 1;
+    platform: string;
+    backend: string;
+    identity: {
+      sessionId: string;
+      hardwareId: string;
+      index: string;
+    };
+    inventory: {
+      supported: true;
+      status: 'Stable';
+      namespace: 'Screen';
+    };
+    brightness: {
+      read: false;
+      write: false;
+      status: 'Unsupported';
+      reason: string;
+    };
+    modes: {
+      read: boolean;
+      list: boolean;
+      set: boolean;
+      status: 'Experimental' | 'Unsupported';
+      restore: string;
+      readback: boolean;
+    };
+  }
+
   interface OpenDeskScreen {
     getWidth(): number;
     getHeight(): number;
@@ -117,6 +174,10 @@ declare global {
     getPrimaryDisplay(): OpenDeskDisplayInfo | null;
     getDisplay(index: number): OpenDeskDisplayInfo | null;
     getVirtualBounds(): OpenDeskScreenClip;
+    getDisplayCapabilities(): OpenDeskDisplayControlCapabilities;
+    getDisplayMode(displayId: string): OpenDeskDisplayMode;
+    listDisplayModes(displayId: string): OpenDeskDisplayMode[];
+    setDisplayMode(displayId: string, modeId: string): OpenDeskDisplayModeChangeResult;
     pixel(x: number, y: number): string;
     pixels(points: (OpenDeskPoint | [number, number])[], scaled?: boolean): string[];
     screenshot(options?: OpenDeskPageScreenshotOptions): Promise<string | ArrayBuffer | OpenDeskScreenshotResult | null>;

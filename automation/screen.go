@@ -7,15 +7,25 @@ import (
 	"github.com/go-vgo/robotgo"
 )
 
-// Screen provides methods for screen-related operations
-type Screen struct{}
+// Screen provides methods for screen-related operations.
+// Display control extends this existing facade instead of creating a parallel
+// Display namespace with duplicate list/primary methods.
+type Screen struct {
+	displayControl displayControlBackend
+}
 
 // DisplayInfo describes one physical display.
 // Index is 1-based and aligned with macOS screencapture -D index semantics.
 type DisplayInfo struct {
 	Index       int     `json:"index"`
 	ID          string  `json:"id"`
+	HardwareID  string  `json:"hardwareId"`
 	IsPrimary   bool    `json:"isPrimary"`
+	IsBuiltin   bool    `json:"isBuiltin"`
+	Vendor      uint32  `json:"vendor"`
+	Model       uint32  `json:"model"`
+	Serial      uint32  `json:"serial"`
+	Unit        uint32  `json:"unit"`
 	X           int     `json:"x"`
 	Y           int     `json:"y"`
 	Width       int     `json:"width"`
@@ -35,7 +45,7 @@ type BoundsInfo struct {
 
 // NewScreen creates a new Screen instance
 func NewScreen() *Screen {
-	return &Screen{}
+	return &Screen{displayControl: newDefaultDisplayControlBackend()}
 }
 
 // GetWidth returns the width of the primary screen
@@ -183,7 +193,13 @@ func displayInfoToMap(d DisplayInfo) map[string]interface{} {
 	return map[string]interface{}{
 		"index":       d.Index,
 		"id":          d.ID,
+		"hardwareId":  d.HardwareID,
 		"isPrimary":   d.IsPrimary,
+		"isBuiltin":   d.IsBuiltin,
+		"vendor":      d.Vendor,
+		"model":       d.Model,
+		"serial":      d.Serial,
+		"unit":        d.Unit,
 		"x":           d.X,
 		"y":           d.Y,
 		"width":       d.Width,
@@ -199,6 +215,7 @@ func primaryDisplayFallback() DisplayInfo {
 	return DisplayInfo{
 		Index:       1,
 		ID:          "primary",
+		HardwareID:  "unknown:primary",
 		IsPrimary:   true,
 		X:           0,
 		Y:           0,

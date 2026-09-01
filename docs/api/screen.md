@@ -7,8 +7,12 @@ order: 5
 # Screen
 
 Screen 用于读取显示器信息、虚拟桌面范围，以及按坐标取色。现有显示器、像素和截图能力保持
-Stable；`selectRegion()`、`startRecording()` 是 macOS Experimental，不会替代现有截图 API、
-Recorder 或 Audio。
+Stable；display mode 读取使用 macOS CoreGraphics，mode mutation、`selectRegion()`、
+`startRecording()` 是 macOS Experimental，不会替代现有截图 API、Recorder 或 Audio。
+
+没有另建 `Display` global：`Display.list()` / `Display.getPrimary()` 会与现有 Screen API 重复。
+亮度没有同时覆盖 macOS 内置屏和外接屏的统一硬件契约，因此明确为 Unsupported；DDC/CI 或特定
+硬件控制应使用 Native Extension。
 
 运行时额外绑定
 - `Screen.screenshot = page.screenshot`
@@ -24,6 +28,10 @@ Recorder 或 Audio。
 | Screen.getPrimaryDisplay() | 获取主显示器 |
 | Screen.getDisplay(index) | 获取指定 index 的显示器 |
 | Screen.getVirtualBounds() | 获取整个虚拟桌面边界 |
+| Screen.getDisplayCapabilities() | 查询 identity、brightness 和 mode capability |
+| Screen.getDisplayMode(displayId) | 读取当前 display mode（macOS） |
+| Screen.listDisplayModes(displayId) | 枚举 desktop-usable 标记和 mode metadata（macOS） |
+| Screen.setDisplayMode(displayId, modeId) | 同步设置并 readback 验证 mode（macOS Experimental） |
 | Screen.pixel(x, y) | 获取单个像素颜色 |
 | Screen.pixels(points, scaled) | 批量取色 |
 | Screen.screenshot(options) | 等同 page.screenshot |
@@ -67,8 +75,14 @@ const displays = Screen.getDisplays()
 ```js
 {
   index: 1,
-  id: 'primary',
+  id: '1104977161',
+  hardwareId: 'darwin:1970170734:1986622068:0:9',
   isPrimary: true,
+  isBuiltin: true,
+  vendor: 1970170734,
+  model: 1986622068,
+  serial: 0,
+  unit: 9,
   x: 0,
   y: 0,
   width: 1512,
@@ -78,6 +92,10 @@ const displays = Screen.getDisplays()
   scale: 2
 }
 ```
+
+`id` 是当前 WindowServer session 的 `CGDirectDisplayID`；Apple 说明它通常维持到重启。
+`hardwareId` 组合公开的 vendor/model/serial/unit，其中显示器没有编码 serial 时可能为 `0`，所以它
+是比数组 index 更好的硬件线索，但不是跨机器全局 UUID。`index` 仅表示当前 1-based 顺序。
 
 示例
 
@@ -174,6 +192,62 @@ const colors = Screen.pixels([
 
 console.log(colors);
 ```
+
+## Display control 与 mode
+
+```js
+const capabilities = Screen.getDisplayCapabilities();
+const display = Screen.getPrimaryDisplay();
+
+if (capabilities.modes.read) {
+  const current = Screen.getDisplayMode(display.id);
+  const modes = Screen.listDisplayModes(display.id);
+  console.log({ current, modes });
+}
+```
+
+`getDisplayMode()` / `listDisplayModes()` 返回：
+
+```js
+{
+  id: '0:1920x1080:1920x1080:60.000',
+  ioModeId: 0,
+  width: 1920,
+  height: 1080,
+  pixelWidth: 1920,
+  pixelHeight: 1080,
+  refreshRate: 60,
+  usableForDesktopGUI: true,
+  isCurrent: true
+}
+```
+
+设置只能使用刚由同一 display 的 `listDisplayModes()` 返回的 `mode.id`。CoreGraphics 调用是同步的，
+OpenDesk 随后重新读取 mode；readback 不一致会失败，不返回伪成功。调用方仍必须保存并恢复原 mode：
+
+```js
+const display = Screen.getPrimaryDisplay();
+const original = Screen.getDisplayMode(display.id);
+const alternative = Screen.listDisplayModes(display.id)
+  .find((mode) => mode.usableForDesktopGUI && mode.id !== original.id);
+
+if (alternative) {
+  try {
+    const receipt = Screen.setDisplayMode(display.id, alternative.id);
+    console.log(receipt.current);
+  } finally {
+    Screen.setDisplayMode(display.id, original.id);
+  }
+}
+```
+
+Apple 的公开 [CGDisplaySetDisplayMode](https://developer.apple.com/documentation/coregraphics/cgdisplaysetdisplaymode%28_%3A_%3A_%3A%29)
+契约说明进程退出会恢复 Displays 设置中的永久 mode；这不是跳过 `finally` restore 的理由。mirroring
+set 可能连带改变其他显示器，自动化必须先检查拓扑并保留原状态。本轮不实现 rotation、sleep、
+color profile 或 brightness。
+
+非 macOS 上 mode capability 为 Unsupported；不会执行 shell fallback 或 silent no-op。结构化错误：
+`INVALID_ARGUMENT`、`NOT_SUPPORTED`、`NOT_FOUND`、`BACKEND_FAILED`、`READBACK_FAILED`。
 
 ## Screen.screenshot(options)
 
@@ -284,6 +358,17 @@ go build -o ./opendesk ./cmd/opendesk
 
 普通体验保持为一条启动命令：第二行启动后，用户只需在真实遮罩中拖动区域并按 `Enter`。示例录制
 约 1.5 秒，文件写入 `.runtime/tests/platform-primitives/task-006-screen-capture/`，终端仅打印媒体元数据。
+
+## 直接运行 display mode 只读示例
+
+工作目录必须是仓库根目录；先用当前源码构建根程序，然后原样运行：
+
+```bash
+go build -o ./opendesk ./cmd/opendesk
+./opendesk -script examples/display-modes.js -console-mode script
+```
+
+示例只读取 capability、identity、current mode 和 mode count，不改变显示器配置。
 
 ## 录屏错误代码
 

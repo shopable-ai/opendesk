@@ -379,6 +379,12 @@ func jsValueForResult(runtime *goja.Runtime, result interface{}) goja.Value {
 			return goja.Null()
 		}
 		return runtime.ToValue(autoMapPageResult(runtime, v))
+	case DisplayModeInfo:
+		return runtime.ToValue(displayModeToMap(v))
+	case []DisplayModeInfo:
+		return runtime.ToValue(displayModesToMaps(v))
+	case DisplayModeChangeResult:
+		return runtime.ToValue(displayModeChangeToMap(v))
 	default:
 		return runtime.ToValue(result)
 	}
@@ -420,7 +426,7 @@ var jsMethodAllowlist = map[reflect.Type][]string{
 	reflect.TypeOf((*Touchscreen)(nil)):    {"Tap"},
 	reflect.TypeOf((*Browser)(nil)):        {"NewPage", "NewContext", "DefaultContext", "Contexts", "Pages", "LastPage", "Close", "IsClosed"},
 	reflect.TypeOf((*BrowserContext)(nil)): {"Browser", "NewPage", "AdoptPage", "Pages", "LastPage", "Close", "IsClosed", "Cookies", "SetCookies", "ClearCookies", "Storage", "SetStorage", "GetStorage", "ClearStorage", "Session", "SetSessionValue", "GetSessionValue", "ClearSession"},
-	reflect.TypeOf((*Screen)(nil)):         {"GetWidth", "GetHeight", "GetDisplays", "GetPrimaryDisplay", "GetDisplay", "GetVirtualBounds", "Pixel", "Pixels"},
+	reflect.TypeOf((*Screen)(nil)):         {"GetWidth", "GetHeight", "GetDisplays", "GetPrimaryDisplay", "GetDisplay", "GetVirtualBounds", "Pixel", "Pixels", "GetDisplayCapabilities", "GetDisplayMode", "ListDisplayModes", "SetDisplayMode"},
 }
 
 // AutoMapObject creates the explicit JavaScript method mapping for a known

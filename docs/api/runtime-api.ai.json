@@ -217,12 +217,16 @@
       "doc": "screen.md",
       "keyMethods": [
         "getDisplays",
+        "getDisplayCapabilities",
+        "getDisplayMode",
+        "listDisplayModes",
+        "setDisplayMode",
         "screenshot",
         "selectRegion",
         "startRecording",
         "getCaptureCapabilities"
       ],
-      "notes": "Display, pixel, and screenshot methods remain stable. selectRegion/startRecording are Experimental on macOS; audio and frame streaming are explicitly unavailable."
+      "notes": "Display inventory, pixel, and screenshot methods remain stable. Existing Screen owns display inventory; no duplicate Display global was added. macOS CoreGraphics mode read/list are available and setDisplayMode is Experimental with synchronous readback and caller restore. Brightness is explicitly Unsupported and delegated to hardware-specific Native Extensions. selectRegion/startRecording are Experimental on macOS; audio and frame streaming are explicitly unavailable."
     },
     {
       "name": "Vision",

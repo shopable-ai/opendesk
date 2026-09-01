@@ -27,6 +27,7 @@ globalThis.RuntimeAPIObjects = {
   ] },
   Screen: { docs: 'docs/api/screen.md', types: 'types/Screen.d.ts', source: 'automation/screen.go + automation/screen_capture.go', status: 'stable-with-experimental-capture', platforms: ['darwin', 'linux', 'windows'], methods: [
     'getWidth', 'getHeight', 'getDisplays', 'getPrimaryDisplay', 'getDisplay',
+    'getDisplayCapabilities', 'getDisplayMode', 'listDisplayModes', 'setDisplayMode',
     'getVirtualBounds', 'pixel', 'pixels', 'screenshot', 'selectRegion', 'startRecording',
     'getCaptureCapabilities',
   ] },
