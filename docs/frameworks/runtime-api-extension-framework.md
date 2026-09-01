@@ -67,19 +67,81 @@ OpenDesk
 
 这一级不需要为了“能调用”而强行把第三方能力编译进 OpenDesk。
 
-### L3 Native / Go Runtime 扩展
+### L3 Native Extension / Go Runtime 扩展
 
-只有在以下情况才进入原生扩展：
+这一层必须先区分两条路线：
 
-- Runtime 当前根本没有所需 OS 能力。
-- 需要新的系统原生 API。
-- 需要设备、驱动或底层 SDK。
-- 需要原生性能或资源控制。
-- 需要新的权限模型。
-- 需要改变 goja Runtime 的注册、生命周期或数据桥。
-- 能力必须成为 CLI / HTTP / MCP 共用的核心能力。
+```text
+L3a Manifest Native Extension
+→ 插件作者编译 source-free bundle
+→ OpenDesk 不需要重新构建
+→ 仅受信任的本机 CLI JavaScript 使用
 
-这一层需要源码权限、重新构建、Runtime 级测试和文档同步。
+L3b First-party Go Runtime primitive
+→ 修改 OpenDesk Core
+→ 统一 Runtime lifecycle / permission / error / evidence
+→ 按真实需求决定是否暴露 CLI、HTTP 或 MCP
+```
+
+下列情况优先选择 L3a：能力依赖设备、驱动、vendor SDK 或平台专用库；能力只服务少数设备/部署；
+一次调用可以在 60 秒内有界完成；调用方能够接受 Native Extension V1 的本机信任边界。完整
+manifest、discovery、one-shot process 和错误契约见
+[Native Extension Plugin V1.0.1](../api/native-extension.md)。
+
+只有同时满足“桌面自动化高频、跨应用通用、OS primitive 稳定、可以形成一致 capability/error
+model、维护成本可控”时，才选择 L3b。需要改变 goja Runtime 注册、execution teardown、权限框架，
+或确实必须成为多个正式 transport 共用能力时，也属于 L3b；此路线需要源码权限、重新构建、
+Runtime 级测试和文档同步。
+
+#### 外围能力 placement matrix
+
+下表是默认放置，不是功能已实现声明。具体插件或 integration 仍需独立 Goal、权限审计和目标设备
+Evidence。
+
+| Capability | Core | Native Extension | Integration | Defer |
+| --- | --- | --- | --- | --- |
+| Camera | 否 | 有界单帧采集、vendor control | FFmpeg / OS capture SDK | 通用 Camera global、长时 stream |
+| Bluetooth | 否 | 特定 service/device protocol | Core Bluetooth、Windows WinRT、BlueZ | 通用 pairing/admin API |
+| USB | 否 | 指定 VID/PID 和设备协议 | libusb / vendor SDK | 通用设备管理与任意 transfer API |
+| Serial | 否 | 有界 request/response 协议 | serial library / vendor CLI | 通用端口 global、长驻 byte stream |
+| Printer | 否 | 特定打印工作流/设备 SDK | CUPS/IPP、平台或 vendor print API | 打印机管理 Core API |
+| Wi-Fi | 否 | 仅经审计的部署专用 adapter | NetworkManager、平台配置工具 | 通用扫描、凭据与网络管理 API |
+| VPN | 否 | vendor SDK 的有界 control adapter | vendor client/CLI 或外部 service | 隧道 daemon、凭据与策略管理 Core API |
+| Hardware sensors | 否 | 设备专用采样 adapter | vendor SDK / external service | 单型号传感器 Core API |
+
+判断理由：这些能力的平台模型和权限差异大，常依赖硬件、驱动或 vendor SDK；Camera/Bluetooth/Wi-Fi
+还可能触发隐私权限，Printer/Wi-Fi/VPN 管理可能需要管理员权限，USB/Serial 又高度依赖具体协议。
+把它们加入 Core 会引入大体积依赖和长期设备兼容维护，而当前没有证明其属于跨应用高频原语。
+
+可优先研究的成熟 integration 包括：
+[FFmpeg devices](https://ffmpeg.org/ffmpeg-devices.html)、
+[Apple Core Bluetooth](https://developer.apple.com/documentation/corebluetooth)、
+[Windows devices and sensors](https://learn.microsoft.com/en-us/windows/apps/develop/devices-and-sensors)、
+[BlueZ Adapter API](https://bluez.readthedocs.io/en/latest/adapter-api/)、
+[libusb](https://libusb.sourceforge.io/api-1.0/)、
+[go.bug.st/serial](https://pkg.go.dev/go.bug.st/serial)、
+[CUPS](https://openprinting.github.io/cups/) 和
+[NetworkManager nmcli](https://networkmanager.pages.freedesktop.org/NetworkManager/NetworkManager/nmcli.html)。
+本计划没有选定、vendoring 或授权其中任何依赖；实际接入前必须单独复核 license、发布体积、
+目标平台支持和维护状态。
+
+#### Native Extension V1 的外围能力约束
+
+- V1 manifest 只声明 plugin/version/protocol/executable/namespace/method/timeout/digest；它没有
+  host-enforced permission 或 capability schema。高权限插件在进入支持范围前，至少应提供业务方法
+  `getCapabilities()`，显式返回 `supported`、`verified`、permission requirement、destructive flag
+  与 lifecycle 限制；这只是插件 contract，不得声称 Host 已代为授权。
+- destructive method 的业务参数必须要求显式 `confirm: true` 并绑定明确设备/网络/队列目标；Host
+  目前只保证调用 route 与 deadline，不会自动理解业务副作用。
+- V1 每次调用启动一个 one-shot process，单次 timeout 上限为 60 秒。Camera stream、Bluetooth
+  watcher、Serial 长驻流和 VPN tunnel lifecycle 应放在 L2 external service / MCP，而不是伪装成
+  一次 V1 调用。
+- manifest method 只生成本机 `NativeExtensions.<namespace>`；不会自动注册 MCP tool 或 HTTP route。
+  需要远程暴露时必须独立设计带认证、权限和审计的 integration，不得把已安装插件自动 export。
+- Native Extension 不是 sandbox 或 permission broker。进程继承 OpenDesk 当前 OS 用户的环境、
+  文件系统与网络权限；digest 只绑定 artifact，不认证 publisher。安装者必须信任并核验完整 bundle。
+- 业务 params/result、设备标识、网络凭据和原始 stderr 不得进入持久 Evidence；只记录现有的最小
+  plugin/method/status/duration/digest/error metadata。插件需要更丰富审计时，应先设计脱敏 schema。
 
 ### L4 作者 / 维护者商业定制
 
@@ -120,9 +182,9 @@ OpenDesk
 | 统一默认值 / 校验 | JavaScript |
 | Python/Node 已有能力 | HTTP / MCP |
 | 模型或数据库服务 | HTTP / MCP |
-| 新 OS API | Native / Go |
-| 新驱动 / SDK | Native / Go |
-| 无源码但需要 Native | 联系作者 / 维护者定制 |
+| 有界设备 / vendor SDK | Manifest Native Extension |
+| 跨应用高频且需统一生命周期的新 OS primitive | First-party Go Runtime |
+| 无源码且需要修改 Core | 联系作者 / 维护者定制 |
 | 企业专有应用自动化 | Adapter + Workflow；必要时商业定制 |
 
 ## 三、Runtime API 的标准分层
@@ -428,8 +490,9 @@ Experimental
 
 如果只有二进制发行版
 → 无法自行修改已编译 Go Runtime
-→ 优先 JavaScript / HTTP / MCP
-→ 必须增加 Native 时联系作者 / 维护者定制
+→ 本机 CLI 的有界 native 能力可安装受信任的预编译 Native Extension bundle
+→ 长驻或外部能力优先 JavaScript / HTTP / MCP
+→ 需要修改 Core、统一 transport 或正式支持时联系作者 / 维护者定制
 ```
 
 这样既保持技术事实准确，也为不同发行模式保留空间。

@@ -15,6 +15,10 @@ order: 15
 > 各目标系统分别构建；每个目标系统仍必须使用自己的 executable，并以目标机 Evidence 确认其
 > 实际支持状态。未在目标机验证应写为 **Not Evaluated**，而不是 **Unsupported**。
 
+Camera、Bluetooth、USB、Serial、Printer、Wi-Fi/VPN 等外围能力默认不进入 Core；选择
+Native Extension、external integration 或 Core 的 placement gate 见
+[Runtime API 扩展与定制框架](../frameworks/runtime-api-extension-framework.md#外围能力-placement-matrix)。
+
 ## NativeExtensions：插件作者的本机开发闭环
 
 V1 的第一条用户路径是插件作者在自己的 macOS 机器上开发并直接运行：编写插件源码 →
