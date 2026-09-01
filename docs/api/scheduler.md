@@ -14,7 +14,7 @@ JavaScript 文件或用户直接提交的内联 JavaScript。它不是普通的�
 ## Scheduler：启动和打开页面
 
 ```bash
-go run ./cmd/opendesk -http -port 60844
+./opendesk -http -port 60844
 ```
 
 浏览器打开：
@@ -163,7 +163,7 @@ Scheduler A 执行中 → Scheduler B 排队 → A 完成 → B 开始
 测试或隔离运行时可以覆盖路径：
 
 ```bash
-go run ./cmd/opendesk -http -scheduler-db ./.runtime/tests/scheduler/scheduler.db
+./opendesk -http -scheduler-db ./.runtime/tests/scheduler/scheduler.db
 ```
 
 ## Scheduler：HTTP API

@@ -14,7 +14,7 @@ order: 13
 先在需要执行 JavaScript 的项目目录启动 OpenDesk：
 
 ```bash
-go run ./cmd/opendesk -http -port 60844
+./opendesk -http -port 60844
 ```
 
 API 基地址：

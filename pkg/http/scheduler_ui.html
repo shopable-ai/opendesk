@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>OpenDesk Scheduler</title>
+  <style>
+    :root { color-scheme: light; --ink:#17201b; --muted:#68736d; --line:#dfe6e1; --paper:#fff; --wash:#f3f7f4; --green:#1f7a4d; --red:#a83c36; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--wash); color:var(--ink); font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    main { width:min(1120px,calc(100% - 32px)); margin:38px auto 60px; }
+    header { display:flex; align-items:end; justify-content:space-between; gap:24px; margin-bottom:22px; }
+    h1 { margin:0; font-size:28px; letter-spacing:-.02em; }
+    h2 { margin:0 0 18px; font-size:17px; }
+    p { margin:4px 0 0; color:var(--muted); }
+    .card { background:var(--paper); border:1px solid var(--line); border-radius:14px; padding:22px; box-shadow:0 8px 24px rgba(24,44,32,.04); margin-bottom:18px; }
+    form { display:grid; grid-template-columns:1fr 1.35fr 1fr 1.35fr auto; gap:12px; align-items:end; }
+    label { display:grid; gap:6px; color:#405047; font-size:12px; font-weight:650; }
+    input,select,textarea,button { min-height:40px; border-radius:9px; border:1px solid #cbd6ce; background:#fff; color:var(--ink); font:inherit; }
+    input,select,textarea { width:100%; padding:8px 10px; }
+    textarea { min-height:170px; resize:vertical; font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace; tab-size:2; }
+    input:focus,select:focus,textarea:focus,button:focus { outline:3px solid rgba(31,122,77,.16); border-color:var(--green); }
+    button { padding:8px 13px; cursor:pointer; font-weight:650; white-space:nowrap; }
+    button:hover { border-color:#8ba497; }
+    button.primary { color:#fff; border-color:var(--green); background:var(--green); }
+    button.danger { color:var(--red); }
+    button:disabled { cursor:wait; opacity:.55; }
+    .schedule-fields { display:contents; }
+    .source-fields { display:contents; }
+    .wide { grid-column:1 / -1; }
+    [hidden] { display:none !important; }
+    .every-wrap { display:flex; gap:7px; }
+    .every-wrap input { width:56%; }
+    .hint { margin-top:12px; font-size:12px; }
+    .toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px; }
+    table { width:100%; border-collapse:collapse; }
+    th { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.055em; text-align:left; font-weight:700; padding:0 10px 10px; }
+    td { border-top:1px solid var(--line); padding:13px 10px; vertical-align:middle; }
+    td.actions { display:flex; flex-wrap:wrap; gap:6px; }
+    td.actions button { min-height:32px; padding:5px 9px; font-size:12px; }
+    .badge { display:inline-flex; align-items:center; gap:6px; padding:3px 8px; border-radius:999px; background:#e9f4ed; color:#1b6943; font-size:12px; font-weight:700; }
+    .badge.paused { background:#f0f1f0; color:#68736d; }
+    .dot { width:7px; height:7px; border-radius:50%; background:currentColor; }
+    .name { font-weight:700; }
+    .subtle { color:var(--muted); font-size:12px; }
+    .empty { padding:28px 10px; text-align:center; color:var(--muted); border-top:1px solid var(--line); }
+    #notice { display:none; margin-bottom:18px; border-radius:10px; padding:10px 13px; background:#e9f4ed; color:#1b6943; }
+    #notice.error { background:#faecea; color:var(--red); }
+    .run-list { display:grid; gap:0; }
+    .run { display:grid; grid-template-columns:110px 1fr 180px 1fr; gap:12px; border-top:1px solid var(--line); padding:11px 8px; align-items:center; }
+    .run:first-child { border-top:0; }
+    code { font:12px ui-monospace,SFMono-Regular,Menlo,monospace; color:#405047; }
+    @media (max-width:900px) {
+      form { grid-template-columns:1fr 1fr; }
+      form button.primary { width:100%; }
+      .table-wrap { overflow:auto; }
+      table { min-width:850px; }
+    }
+    @media (max-width:620px) {
+      main { width:min(100% - 20px,1120px); margin-top:22px; }
+      header { align-items:start; flex-direction:column; }
+      .card { padding:16px; }
+      form { grid-template-columns:1fr; }
+      .run { grid-template-columns:90px 1fr; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1>OpenDesk Scheduler</h1>
+      <p>持久化执行本地 JavaScript，所有定时桌面任务默认串行。</p>
+    </div>
+    <div class="subtle" id="timezone-label"></div>
+  </header>
+
+  <div id="notice" role="status" aria-live="polite"></div>
+
+  <section class="card" aria-labelledby="create-heading">
+    <h2 id="create-heading">创建任务</h2>
+    <form id="create-form">
+      <label>任务名称
+        <input id="job-name" name="name" required maxlength="200" placeholder="每日整理报表">
+      </label>
+      <label>脚本来源
+        <select id="source-type" name="sourceType">
+          <option value="file">脚本文件</option>
+          <option value="inline">内联代码</option>
+        </select>
+      </label>
+      <div class="source-fields" id="file-source-fields">
+        <label>脚本路径
+          <input id="script-path" name="scriptPath" required placeholder="examples/report.js">
+        </label>
+      </div>
+      <label>时间类型
+        <select id="schedule-type" name="scheduleType">
+          <option value="at">一次</option>
+          <option value="every">每隔</option>
+          <option value="cron">Cron（高级）</option>
+        </select>
+      </label>
+      <div class="schedule-fields" id="at-fields">
+        <label>执行时间
+          <input id="at-time" type="datetime-local" step="60">
+        </label>
+      </div>
+      <div class="schedule-fields" id="every-fields" hidden>
+        <label>执行间隔
+          <span class="every-wrap">
+            <input id="every-value" type="number" min="1" value="5">
+            <select id="every-unit" aria-label="间隔单位">
+              <option value="m">分钟</option>
+              <option value="h">小时</option>
+            </select>
+          </span>
+        </label>
+      </div>
+      <div class="schedule-fields" id="cron-fields" hidden>
+        <label>Cron 表达式
+          <input id="cron-value" value="0 9 * * *" placeholder="0 9 * * *">
+        </label>
+      </div>
+      <button class="primary" id="create-button" type="submit">创建</button>
+      <div class="source-fields wide" id="inline-source-fields" hidden>
+        <label class="wide">JavaScript 代码
+          <textarea id="inline-script" name="inlineScript" maxlength="262144" spellcheck="false" placeholder="console.log('scheduled inline task');"></textarea>
+        </label>
+      </div>
+    </form>
+    <p class="hint">文件模式仅执行当前 OpenDesk 工作目录内的 <code>.js</code>；内联模式最多 256 KiB。错过的时间默认恢复后最多补执行一次。</p>
+  </section>
+
+  <section class="card" aria-labelledby="jobs-heading">
+    <div class="toolbar">
+      <h2 id="jobs-heading">当前任务</h2>
+      <button id="refresh-button" type="button">刷新</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>状态</th><th>任务名称</th><th>时间</th><th>下一次执行</th><th>上一次结果</th><th>操作</th></tr></thead>
+        <tbody id="jobs-body"></tbody>
+      </table>
+      <div class="empty" id="jobs-empty">还没有定时任务。</div>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="runs-heading">
+    <div class="toolbar">
+      <h2 id="runs-heading">最近执行记录</h2>
+      <span class="subtle">最多显示 20 条</span>
+    </div>
+    <div class="run-list" id="runs-list"></div>
+    <div class="empty" id="runs-empty">还没有执行记录。</div>
+  </section>
+</main>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Local';
+  $('timezone-label').textContent = `时区：${timezone}`;
+
+  const localDateTimeValue = (date) => {
+    const offset = date.getTimezoneOffset();
+    return new Date(date.getTime() - offset * 60000).toISOString().slice(0, 16);
+  };
+  $('at-time').value = localDateTimeValue(new Date(Date.now() + 60 * 60 * 1000));
+
+  const showNotice = (message, error = false) => {
+    const node = $('notice');
+    node.textContent = message;
+    node.className = error ? 'error' : '';
+    node.style.display = 'block';
+    window.clearTimeout(showNotice.timer);
+    showNotice.timer = window.setTimeout(() => { node.style.display = 'none'; }, 5000);
+  };
+
+  const request = async (path, options = {}) => {
+    const response = await fetch(path, {
+      headers: options.body ? {'Content-Type': 'application/json'} : {},
+      ...options,
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || payload.code !== 0) {
+      throw new Error(payload.message || `HTTP ${response.status}`);
+    }
+    return payload.data;
+  };
+
+  const formatTime = (value) => value ? new Intl.DateTimeFormat(undefined, {
+    year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit'
+  }).format(new Date(value)) : '—';
+
+  const scheduleLabel = (job) => {
+    if (job.scheduleType === 'at') return `一次 · ${job.scheduleExpression}`;
+    if (job.scheduleType === 'every') return `每隔 ${job.scheduleExpression}`;
+    return `Cron · ${job.scheduleExpression}`;
+  };
+
+  const statusLabel = (status) => ({queued:'排队中', running:'执行中', succeeded:'成功', failed:'失败', canceled:'已取消', skipped:'已跳过'}[status] || status || '—');
+
+  const makeButton = (text, className, action) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = text;
+    if (className) button.className = className;
+    button.addEventListener('click', async () => {
+      button.disabled = true;
+      try { await action(); } catch (error) { showNotice(error.message, true); }
+      finally { button.disabled = false; }
+    });
+    return button;
+  };
+
+  const appendCell = (row, value, className = '') => {
+    const cell = document.createElement('td');
+    if (className) cell.className = className;
+    if (value instanceof Node) cell.appendChild(value); else cell.textContent = value;
+    row.appendChild(cell);
+    return cell;
+  };
+
+  const renderJobs = (jobs) => {
+    const body = $('jobs-body');
+    body.replaceChildren();
+    $('jobs-empty').style.display = jobs.length ? 'none' : 'block';
+    jobs.forEach((job) => {
+      const row = document.createElement('tr');
+      const badge = document.createElement('span');
+      badge.className = `badge${job.enabled ? '' : ' paused'}`;
+      const dot = document.createElement('span');
+      dot.className = 'dot';
+      badge.append(dot, document.createTextNode(job.enabled ? '启用' : '已暂停'));
+      appendCell(row, badge);
+
+      const nameWrap = document.createElement('div');
+      const name = document.createElement('div');
+      name.className = 'name'; name.textContent = job.name;
+      const path = document.createElement('div');
+      path.className = 'subtle';
+      path.textContent = job.sourceType === 'inline' ? '内联代码' : `脚本文件 · ${job.scriptPath}`;
+      nameWrap.append(name, path);
+      appendCell(row, nameWrap);
+      appendCell(row, scheduleLabel(job));
+      appendCell(row, formatTime(job.nextRunAt));
+      appendCell(row, job.lastRun ? statusLabel(job.lastRun.status) : '—');
+
+      const actions = appendCell(row, '', 'actions');
+      actions.appendChild(makeButton('立即运行', '', async () => {
+        await request(`/api/scheduler/jobs/${job.id}/run`, {method:'POST'});
+        showNotice(`“${job.name}”已进入串行执行队列`);
+        await load();
+      }));
+      actions.appendChild(makeButton(job.enabled ? '暂停' : '恢复', '', async () => {
+        await request(`/api/scheduler/jobs/${job.id}/${job.enabled ? 'pause' : 'resume'}`, {method:'POST'});
+        showNotice(`“${job.name}”已${job.enabled ? '暂停' : '恢复'}`);
+        await load();
+      }));
+      actions.appendChild(makeButton('删除', 'danger', async () => {
+        if (!window.confirm(`删除任务“${job.name}”？运行 Evidence 不会被删除。`)) return;
+        await request(`/api/scheduler/jobs/${job.id}`, {method:'DELETE'});
+        showNotice(`“${job.name}”已删除`);
+        await load();
+      }));
+      body.appendChild(row);
+    });
+  };
+
+  const renderRuns = (runs, names) => {
+    const list = $('runs-list');
+    list.replaceChildren();
+    $('runs-empty').style.display = runs.length ? 'none' : 'block';
+    runs.slice(0, 20).forEach((run) => {
+      const row = document.createElement('div');
+      row.className = 'run';
+      const status = document.createElement('strong');
+      status.textContent = statusLabel(run.status);
+      const name = document.createElement('span');
+      name.textContent = names.get(run.jobId) || run.jobId;
+      const time = document.createElement('span');
+      time.className = 'subtle'; time.textContent = formatTime(run.startedAt || run.scheduledAt);
+      const detail = document.createElement('span');
+      detail.className = 'subtle'; detail.textContent = run.error || run.executionId || '—';
+      row.append(status, name, time, detail);
+      list.appendChild(row);
+    });
+  };
+
+  const load = async () => {
+    const jobs = await request('/api/scheduler/jobs');
+    renderJobs(jobs);
+    const runGroups = await Promise.all(jobs.map((job) => request(`/api/scheduler/jobs/${job.id}/runs?limit=20`)));
+    const runs = runGroups.flat().sort((a, b) => new Date(b.scheduledAt) - new Date(a.scheduledAt));
+    renderRuns(runs, new Map(jobs.map((job) => [job.id, job.name])));
+  };
+
+  const updateScheduleFields = () => {
+    const type = $('schedule-type').value;
+    $('at-fields').hidden = type !== 'at';
+    $('every-fields').hidden = type !== 'every';
+    $('cron-fields').hidden = type !== 'cron';
+  };
+  $('schedule-type').addEventListener('change', updateScheduleFields);
+
+  const updateSourceFields = () => {
+    const inline = $('source-type').value === 'inline';
+    $('file-source-fields').hidden = inline;
+    $('inline-source-fields').hidden = !inline;
+    $('script-path').required = !inline;
+    $('inline-script').required = inline;
+  };
+  $('source-type').addEventListener('change', updateSourceFields);
+
+  $('create-form').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const button = $('create-button');
+    button.disabled = true;
+    try {
+      const type = $('schedule-type').value;
+      let expression = $('at-time').value;
+      if (type === 'every') expression = `${$('every-value').value}${$('every-unit').value}`;
+      if (type === 'cron') expression = $('cron-value').value.trim();
+      const sourceType = $('source-type').value;
+      await request('/api/scheduler/jobs', {method:'POST', body:JSON.stringify({
+        name: $('job-name').value.trim(),
+        sourceType,
+        scriptPath: sourceType === 'file' ? $('script-path').value.trim() : undefined,
+        inlineScript: sourceType === 'inline' ? $('inline-script').value : undefined,
+        scheduleType: type,
+        scheduleExpression: expression,
+        timezone,
+        misfirePolicy: 'run_once',
+        taskType: 'script'
+      })});
+      showNotice('任务已创建');
+      $('job-name').value = '';
+      if (sourceType === 'inline') $('inline-script').value = '';
+      await load();
+    } catch (error) { showNotice(error.message, true); }
+    finally { button.disabled = false; }
+  });
+
+  $('refresh-button').addEventListener('click', () => load().catch((error) => showNotice(error.message, true)));
+  updateScheduleFields();
+  updateSourceFields();
+  load().catch((error) => showNotice(error.message, true));
+})();
+</script>
+</body>
+</html>

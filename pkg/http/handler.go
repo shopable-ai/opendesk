@@ -10,6 +10,7 @@ import (
 	"opendesk/pkg/container"
 	"opendesk/pkg/customui"
 	pkgExecution "opendesk/pkg/execution"
+	pkgScheduler "opendesk/pkg/scheduler"
 	"os"
 	"strings"
 	"time"
@@ -19,11 +20,16 @@ import (
 type Handler struct {
 	container *container.Container
 	manager   *pkgExecution.Manager
+	scheduler *pkgScheduler.Service
 }
 
 // NewHandler 创建 HTTP 处理器。
 func NewHandler(c *container.Container) *Handler {
 	return &Handler{container: c, manager: pkgExecution.NewManager()}
+}
+
+func NewHandlerWithScheduler(c *container.Container, scheduler *pkgScheduler.Service) *Handler {
+	return &Handler{container: c, manager: pkgExecution.NewManager(), scheduler: scheduler}
 }
 
 // ScriptRequest 描述脚本执行请求。
@@ -129,9 +135,11 @@ func (h *Handler) HandleExecutionRoutes(w http.ResponseWriter, r *http.Request) 
 // HandleStatus 返回服务健康状态和最近一次执行快照。
 func (h *Handler) HandleStatus(w http.ResponseWriter, r *http.Request) {
 	status := map[string]interface{}{
+		"service":            "opendesk",
 		"status":             "ok",
 		"execution_capacity": h.container.ExecutionCapacity(),
 		"vision_enabled":     h.container.Vision() != nil,
+		"scheduler":          h.scheduler != nil,
 		"timestamp":          time.Now().Unix(),
 	}
 	if latest, ok := h.manager.Latest(); ok {
@@ -274,6 +282,10 @@ func SetupRoutes(container *container.Container) *http.ServeMux {
 	return setupRoutes(NewHandler(container))
 }
 
+func SetupRoutesWithScheduler(container *container.Container, scheduler *pkgScheduler.Service) *http.ServeMux {
+	return setupRoutes(NewHandlerWithScheduler(container, scheduler))
+}
+
 func setupRoutes(handler *Handler) *http.ServeMux {
 	mux := http.NewServeMux()
 
@@ -283,6 +295,12 @@ func setupRoutes(handler *Handler) *http.ServeMux {
 	mux.HandleFunc("/executions/", handler.HandleExecutionRoutes)
 	mux.HandleFunc("/vision/ocr", handler.HandleVisionOCR)
 	mux.HandleFunc("/vision/detect-ui", handler.HandleVisionDetectUI)
+	if handler.scheduler != nil {
+		mux.HandleFunc("/scheduler", handler.schedulerLocalOnly(handler.HandleSchedulerPage))
+		mux.HandleFunc("/scheduler/", handler.schedulerLocalOnly(handler.HandleSchedulerPage))
+		mux.HandleFunc("/api/scheduler/jobs", handler.schedulerLocalOnly(handler.HandleSchedulerJobs))
+		mux.HandleFunc("/api/scheduler/jobs/", handler.schedulerLocalOnly(handler.HandleSchedulerJobRoutes))
+	}
 
 	return mux
 }
@@ -292,11 +310,16 @@ type Server struct {
 	server    *http.Server
 	container *container.Container
 	handler   *Handler
+	scheduler *pkgScheduler.Service
 }
 
 // NewServer 创建 HTTP 服务。
 func NewServer(container *container.Container, port string) *Server {
-	handler := NewHandler(container)
+	return NewServerWithScheduler(container, port, nil)
+}
+
+func NewServerWithScheduler(container *container.Container, port string, scheduler *pkgScheduler.Service) *Server {
+	handler := NewHandlerWithScheduler(container, scheduler)
 	mux := setupRoutes(handler)
 
 	return &Server{
@@ -308,13 +331,34 @@ func NewServer(container *container.Container, port string) *Server {
 		},
 		container: container,
 		handler:   handler,
+		scheduler: scheduler,
 	}
 }
 
-// Start 启动 HTTP 服务。
+// Listen reserves the HTTP port before the caller reports the service as
+// ready. It prevents a Finder-launched App from claiming success and then
+// immediately exiting because another process already owns the port.
+func (s *Server) Listen() (net.Listener, error) {
+	return net.Listen("tcp", s.server.Addr)
+}
+
+// Serve accepts requests using a listener reserved by Listen.
+func (s *Server) Serve(listener net.Listener) error {
+	if listener == nil {
+		return fmt.Errorf("HTTP listener is required")
+	}
+	fmt.Printf("Starting HTTP server on %s\n", listener.Addr())
+	return s.server.Serve(listener)
+}
+
+// Start starts the server for callers that do not need an explicit readiness
+// boundary. App startup uses Listen and Serve separately.
 func (s *Server) Start() error {
-	fmt.Printf("Starting HTTP server on %s\n", s.server.Addr)
-	return s.server.ListenAndServe()
+	listener, err := s.Listen()
+	if err != nil {
+		return err
+	}
+	return s.Serve(listener)
 }
 
 // Shutdown 优雅关闭 HTTP 服务。
@@ -326,6 +370,11 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	if s.handler != nil {
 		s.handler.manager.CancelAll()
 		if err := s.handler.manager.WaitAll(ctx); err != nil && serverErr == nil {
+			serverErr = err
+		}
+	}
+	if s.scheduler != nil {
+		if err := s.scheduler.Close(ctx); err != nil && serverErr == nil {
 			serverErr = err
 		}
 	}
@@ -434,7 +483,7 @@ func (h *Handler) authorizeCapabilities(r *http.Request, req ScriptRequest) (boo
 	if !isLoopbackRequest(r) {
 		return false, fmt.Errorf("ui capability is restricted to loopback HTTP clients in custom UI v1")
 	}
-	if !loopbackHostAllowed(r.Host) {
+	if !schedulerHostAllowed(r.Host) {
 		return false, fmt.Errorf("ui capability requires a loopback Host header")
 	}
 	if err := validateDialogOrigin(r); err != nil {
@@ -455,25 +504,10 @@ func validateDialogOrigin(r *http.Request) error {
 	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.User != nil || parsed.Host == "" {
 		return fmt.Errorf("invalid dialog request origin")
 	}
-	if !loopbackHostAllowed(parsed.Host) || !strings.EqualFold(parsed.Host, r.Host) {
+	if !schedulerHostAllowed(parsed.Host) || !strings.EqualFold(parsed.Host, r.Host) {
 		return fmt.Errorf("cross-origin dialog requests are not allowed")
 	}
 	return nil
-}
-
-func loopbackHostAllowed(value string) bool {
-	host := strings.TrimSpace(value)
-	if host == "" {
-		return false
-	}
-	if parsedHost, _, err := net.SplitHostPort(host); err == nil {
-		host = parsedHost
-	}
-	host = strings.Trim(host, "[]")
-	if ip := net.ParseIP(host); ip != nil {
-		return ip.IsLoopback()
-	}
-	return strings.EqualFold(host, "localhost")
 }
 
 func isLoopbackRequest(request *http.Request) bool {

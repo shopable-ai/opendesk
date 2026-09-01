@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"mime/multipart"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"opendesk/pkg/container"
@@ -14,10 +15,31 @@ import (
 	pkgExecution "opendesk/pkg/execution"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 )
+
+func TestServerListenReservesPortBeforeServe(t *testing.T) {
+	server := NewServer(nil, "0")
+	listener, err := server.Listen()
+	if err != nil {
+		t.Fatalf("Listen() = %v", err)
+	}
+	defer listener.Close()
+
+	address, ok := listener.Addr().(*net.TCPAddr)
+	if !ok {
+		t.Fatalf("listener address type = %T, want *net.TCPAddr", listener.Addr())
+	}
+	conflicting := NewServer(nil, strconv.Itoa(address.Port))
+	secondListener, err := conflicting.Listen()
+	if err == nil {
+		secondListener.Close()
+		t.Fatal("second Listen() unexpectedly succeeded on a reserved port")
+	}
+}
 
 func TestCustomUICapabilityRequiresServerOptInAndLoopbackClient(t *testing.T) {
 	tests := []struct {
