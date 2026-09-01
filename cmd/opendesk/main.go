@@ -96,7 +96,7 @@ func parseFlags() *Config {
 	flag.StringVar(&config.OutputFormat, "output-format", "text", "Agent output format: text | json")
 	flag.IntVar(&config.Delay, "delay", 0, "Delay before start (seconds)")
 	flag.IntVar(&config.Timeout, "timeout", 30, "Execution timeout in minutes (0 for no timeout)") // 默认30分钟
-	flag.BoolVar(&config.ExperimentalNativeExtension, "experimental-native-extension", false, "Enable Experimental manifest-discovered NativeExtensions for local CLI JavaScript execution")
+	flag.BoolVar(&config.ExperimentalNativeExtension, "experimental-native-extension", false, "Deprecated compatibility flag; local CLI JavaScript already enables manifest-discovered NativeExtensions")
 	flag.BoolVar(&config.ExperimentalUnsafeNativeExtensionCall, "experimental-unsafe-native-extension-call", false, "Enable unsafe low-level NativeExtension.call for explicit local diagnostics")
 	flag.BoolVar(&config.CustomUI, "ui", false, "Explicitly enable custom UI for this CLI execution or HTTP server")
 	flag.BoolVar(&config.CustomUIDisabled, "no-ui", false, "Explicitly disable custom UI, overriding every other activation source")
@@ -269,6 +269,10 @@ func main() {
 		}
 
 		if err := executeScript(config); err != nil {
+			if errors.Is(err, errScriptInstanceReplaced) {
+				fmt.Println("[INFO] Script execution was replaced by a newer invocation")
+				return
+			}
 			fmt.Printf("[ERROR] Script execution failed: %v\n", err)
 			os.Exit(1)
 		}
@@ -646,6 +650,22 @@ func executeScript(config *Config) error {
 		return err
 	}
 
+	// A direct file invocation is replaceable by the next invocation of that
+	// same file. The old execution receives a local takeover request, cancels
+	// through its Runtime context, and releases global shortcuts before the new
+	// execution can start. Inline/stdin sources have no stable file identity and
+	// deliberately keep their existing independent-execution behavior.
+	executionContext, stopExecution := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stopExecution()
+	var instanceLease *scriptInstanceLease
+	if config.ScriptPath != "" {
+		instanceLease, err = acquireReplacingScriptInstance(config.ScriptPath, stopExecution)
+		if err != nil {
+			return err
+		}
+		defer instanceLease.Close()
+	}
+
 	selection := buildExecutionConsoleSelection(config)
 	executionID := pkgExecution.NewExecutionID("direct")
 	artifacts, err := pkgExecution.PrepareArtifacts(config.LogDir, executionID, ext)
@@ -657,14 +677,20 @@ func executeScript(config *Config) error {
 	}
 
 	request := pkgExecution.Request{
-		ExecutionID:                     executionID,
-		SourceLabel:                     sourceLabel,
-		Ext:                             ext,
-		StackMode:                       config.StackMode,
-		ScriptHash:                      pkgExecution.ComputeScriptHash(content),
-		ScriptContent:                   content,
-		TimeoutMinutes:                  config.Timeout,
-		EnableNativeExtensions:          config.ExperimentalNativeExtension,
+		Context:              executionContext,
+		ExpectedCancellation: func() bool { return instanceLease != nil && instanceLease.WasReplaced() },
+		ExecutionID:          executionID,
+		SourceLabel:          sourceLabel,
+		Ext:                  ext,
+		StackMode:            config.StackMode,
+		ScriptHash:           pkgExecution.ComputeScriptHash(content),
+		ScriptContent:        content,
+		TimeoutMinutes:       config.Timeout,
+		// NativeExtensions is available to every local CLI JavaScript
+		// execution. The remote HTTP/MCP paths construct their own Requests and
+		// leave this capability false; the unsafe V0 surface remains separately
+		// gated below.
+		EnableNativeExtensions:          true,
 		EnableUnsafeNativeExtensionCall: config.ExperimentalUnsafeNativeExtensionCall,
 		EnableCustomUI:                  config.CustomUI,
 		CustomUIActivationSource:        config.CustomUIActivationSource,
@@ -685,6 +711,9 @@ func executeScript(config *Config) error {
 		printExecutionSummary(selection, result)
 	}
 	if execErr != nil {
+		if instanceLease != nil && instanceLease.WasReplaced() && errors.Is(execErr, context.Canceled) {
+			return errScriptInstanceReplaced
+		}
 		return fmt.Errorf("script execution failed: %v", execErr)
 	}
 	return nil
