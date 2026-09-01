@@ -755,7 +755,7 @@ func (p *Page) CheckScreenshotPermissions() map[string]interface{} {
 }
 
 // OpenMacOSPrivacySettings opens macOS privacy settings pages.
-// section supports: accessibility, inputMonitoring, screenCapture, automation, all.
+// section supports: accessibility, inputMonitoring, globalShortcut, screenCapture, automation, all.
 func (p *Page) OpenMacOSPrivacySettings(section string) (map[string]interface{}, error) {
 	report := map[string]interface{}{
 		"os":         runtime.GOOS,
@@ -834,13 +834,21 @@ func (p *Page) RequestMacPermissions(options interface{}) (map[string]interface{
 	report["before"] = before
 	okBefore, _ := before["ok"].(bool)
 	report["okBefore"] = okBefore
+	requestScreenCapture := containsMacPrivacySection(sections, "screenCapture")
+	requestAccessibility := containsMacPrivacySection(sections, "accessibility")
+	requestInputMonitoring := containsMacPrivacySection(sections, "inputMonitoring")
+	screenCaptureBefore, _ := before["screenCapture"].(bool)
+	accessibilityBefore, _ := before["accessibility"].(bool)
+	requestedVerifiableReady := (!requestScreenCapture || screenCaptureBefore) && (!requestAccessibility || accessibilityBefore)
 
-	// For screenshot-oriented flow, avoid repeated permission popups when already ready.
+	// Avoid repeated prompts only when every requested, checkable capability is
+	// already ready. Input Monitoring is intentionally not introspectable, so
+	// an explicit request for it must still open its System Settings page.
 	// Automation has a dedicated API and should be requested explicitly.
 	requestAutomation := containsMacPrivacySection(sections, "automation")
-	if okBefore && !requestAutomation {
+	if requestedVerifiableReady && !requestAutomation && !requestInputMonitoring {
 		report["after"] = before
-		report["okAfter"] = true
+		report["okAfter"] = okBefore
 		report["ok"] = true
 		report["probes"] = map[string]interface{}{
 			"ok":      true,
@@ -866,17 +874,17 @@ func (p *Page) RequestMacPermissions(options interface{}) (map[string]interface{
 
 	okAfter, _ := after["ok"].(bool)
 	report["okAfter"] = okAfter
-	finalOK := true
-	if containsMacPrivacySection(sections, "screenCapture") || containsMacPrivacySection(sections, "accessibility") {
-		finalOK = finalOK && okAfter
-	}
-	if requestAutomation {
-		automationOK := false
-		if probeMap, ok := probes["automationProbe"].(map[string]interface{}); ok {
-			automationOK, _ = probeMap["ok"].(bool)
+	if requestInputMonitoring {
+		report["inputMonitoring"] = map[string]interface{}{
+			"state":   "unknown",
+			"granted": false,
+			"reason":  "macOS does not expose a reliable Input Monitoring status preflight; review the opened System Settings page.",
 		}
-		finalOK = finalOK && automationOK
 	}
+	// Keep the aggregate result scoped to this request. In particular, an
+	// Input Monitoring request is deliberately fail-closed because macOS has no
+	// reliable third-party status preflight for that permission.
+	finalOK := macPermissionSectionsReady(sections, after, probes)
 	report["ok"] = finalOK
 	return report, nil
 }
@@ -926,12 +934,6 @@ func (p *Page) EnsureMacPermissions(options interface{}) (map[string]interface{}
 
 	before := p.CheckScreenshotPermissions()
 	report["before"] = before
-	okBefore, _ := before["ok"].(bool)
-	if okBefore {
-		report["ok"] = true
-		report["after"] = before
-		return report, nil
-	}
 
 	flow, err := p.RequestMacPermissions(map[string]interface{}{
 		"openSettings": openSettingsOnFail,
@@ -951,9 +953,10 @@ func (p *Page) EnsureMacPermissions(options interface{}) (map[string]interface{}
 	if hasAfter {
 		report["after"] = after
 	}
-	okAfter, _ := flow["okAfter"].(bool)
-	okFlow, _ := flow["ok"].(bool)
-	finalOK := okAfter || okFlow
+	// RequestMacPermissions computes a result for the requested section. Do
+	// not fall back to its whole-desktop `okAfter`: that baseline does not and
+	// cannot authorize Input Monitoring.
+	finalOK, _ := flow["ok"].(bool)
 	report["ok"] = finalOK
 	if !finalOK && strict {
 		return report, fmt.Errorf("macOS permissions not ready, report=%s", mustJSON(report))
@@ -1193,6 +1196,36 @@ func containsMacPrivacySection(sections []string, target string) bool {
 	return false
 }
 
+// macPermissionSectionsReady evaluates only the capabilities named by a
+// normalized macOS privacy section. Input Monitoring is purposefully never
+// reported as ready: macOS does not offer a reliable status preflight to a
+// third-party process, so callers must not treat opening Settings as consent.
+func macPermissionSectionsReady(sections []string, snapshot, probes map[string]interface{}) bool {
+	if containsMacPrivacySection(sections, "screenCapture") {
+		granted, _ := snapshot["screenCapture"].(bool)
+		if !granted {
+			return false
+		}
+	}
+	if containsMacPrivacySection(sections, "accessibility") {
+		granted, _ := snapshot["accessibility"].(bool)
+		if !granted {
+			return false
+		}
+	}
+	if containsMacPrivacySection(sections, "inputMonitoring") {
+		return false
+	}
+	if containsMacPrivacySection(sections, "automation") {
+		probe, _ := probes["automationProbe"].(map[string]interface{})
+		granted, _ := probe["ok"].(bool)
+		if !granted {
+			return false
+		}
+	}
+	return true
+}
+
 func normalizeMacPrivacySections(section string) ([]string, error) {
 	s := strings.ToLower(strings.TrimSpace(section))
 	if s == "" || s == "all" {
@@ -1204,6 +1237,8 @@ func normalizeMacPrivacySections(section string) ([]string, error) {
 		return []string{"accessibility"}, nil
 	case "inputmonitoring", "input_monitoring", "input-monitoring", "listenevent":
 		return []string{"inputMonitoring"}, nil
+	case "globalshortcut", "global_shortcut", "global-shortcut":
+		return []string{"accessibility", "inputMonitoring"}, nil
 	case "screencapture", "screen_capture", "screen-capture", "screen":
 		return []string{"screenCapture"}, nil
 	case "automation":

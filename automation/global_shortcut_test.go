@@ -57,6 +57,23 @@ func TestGlobalShortcutJSBindingRequiresAnEventLoop(t *testing.T) {
 	}
 }
 
+func TestGlobalShortcutAlreadyRegisteredErrorDescribesAnExternalConflict(t *testing.T) {
+	err := globalShortcutRegistrationError("globalShortcut.register", "Command+Shift+9", errShortcutBackendAlreadyRegistered)
+	var shortcutErr *GlobalShortcutError
+	if !errors.As(err, &shortcutErr) {
+		t.Fatalf("error type = %T, want *GlobalShortcutError", err)
+	}
+	if shortcutErr.Code != GlobalShortcutAlreadyRegistered {
+		t.Fatalf("error code = %q, want %q", shortcutErr.Code, GlobalShortcutAlreadyRegistered)
+	}
+	if shortcutErr.Accelerator != "Command+Shift+9" {
+		t.Fatalf("accelerator = %q", shortcutErr.Accelerator)
+	}
+	if !strings.Contains(shortcutErr.Error(), "another OpenDesk runtime or macOS") {
+		t.Fatalf("error = %q, want ownership-neutral conflict guidance", shortcutErr)
+	}
+}
+
 func TestGlobalShortcutRegistryDispatchSingleFlightAndCleanup(t *testing.T) {
 	backend := newMemoryGlobalShortcutBackend()
 	loop := eventloop.NewEventLoop(eventloop.EnableConsole(false))

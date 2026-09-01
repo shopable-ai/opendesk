@@ -28,6 +28,10 @@ declare global {
     | "automation";
 
   interface OpenDeskPermissionCapabilityState {
+    /**
+     * On macOS, `inputMonitoring` always remains `unknown` with
+     * `granted: false`: the OS has no reliable third-party status preflight.
+     */
     state: "granted" | "denied" | "unknown" | "unsupported";
     granted: boolean;
     reason?: string;
@@ -41,7 +45,8 @@ declare global {
 
   interface OpenDeskPermissionOptions {
     capabilities?: OpenDeskPermissionCapability[];
-    section?: "all" | "baseline" | "browserBaseline" | "browser" | "accessibility" | "inputMonitoring" | "screenCapture" | "screen" | "automation";
+    /** `globalShortcut` opens the Accessibility and Input Monitoring guides together. */
+    section?: "all" | "baseline" | "browserBaseline" | "browser" | "accessibility" | "inputMonitoring" | "globalShortcut" | "screenCapture" | "screen" | "automation";
     openSettings?: boolean;
     strict?: boolean;
   }

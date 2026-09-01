@@ -1,5 +1,5 @@
 (() => {
-  const { assert, equal, test, withGlobal } = RuntimeAPITest;
+  const { assert, equal, expectThrow, test, withGlobal } = RuntimeAPITest;
   RuntimeAPITest.contractObject('page');
 
   async function withNative(overrides, fn) {
@@ -94,6 +94,83 @@
       const report = await page.requestPermissions({ capabilities: ['screenCapture', 'accessibility'], openSettings: false });
       assert(report.ok, JSON.stringify(report));
       equal(options.openSettings, false);
+    });
+  });
+
+  test({ name: 'page.requestPermissions keeps an accessibility-only preflight independent from Screen Recording', tier: 'unit', covers: ['page.requestPermissions'] }, async () => {
+    await withNative({
+      // The native compatibility report is intentionally aggregate, but the
+      // public facade must evaluate only the requested capability.
+      requestMacPermissions: async () => ({ ok: false, after: { screenCapture: false, accessibility: true, ok: false } }),
+      checkScreenshotPermissions: async () => ({ screenCapture: false, accessibility: true, ok: false }),
+    }, async () => {
+      const report = await page.requestPermissions({ capabilities: ['accessibility'], openSettings: false, strict: true });
+      assert(report.ok, JSON.stringify(report));
+      assert(report.permissions.capabilities.accessibility.granted, JSON.stringify(report));
+    });
+  });
+
+  test({ name: 'page.checkPermissions preserves Input Monitoring as unknown', tier: 'unit', covers: ['page.checkPermissions'] }, async () => {
+    await withNative({
+      checkScreenshotPermissions: async () => ({ screenCapture: false, accessibility: true, ok: false }),
+    }, async () => {
+      const report = await page.checkPermissions({ capabilities: ['accessibility', 'inputMonitoring'] });
+      assert(!report.ok, JSON.stringify(report));
+      equal(report.permissions.capabilities.accessibility.state, 'granted');
+      equal(report.permissions.capabilities.inputMonitoring.state, 'unknown');
+      equal(report.permissions.capabilities.inputMonitoring.granted, false);
+    });
+  });
+
+  test({ name: 'page.checkPermissions expands the globalShortcut section without treating Input Monitoring as granted', tier: 'unit', covers: ['page.checkPermissions'] }, async () => {
+    await withNative({
+      checkScreenshotPermissions: async () => ({ screenCapture: false, accessibility: true, ok: false }),
+    }, async () => {
+      const report = await page.checkPermissions({ section: 'globalShortcut' });
+      assert(!report.ok, JSON.stringify(report));
+      equal(JSON.stringify(report.capabilities), JSON.stringify(['accessibility', 'inputMonitoring']));
+      equal(report.permissions.capabilities.accessibility.granted, true);
+      equal(report.permissions.capabilities.inputMonitoring.state, 'unknown');
+      equal(report.permissions.capabilities.inputMonitoring.granted, false);
+    });
+  });
+
+  test({ name: 'page.requestPermissions opens the combined globalShortcut privacy flow without claiming Input Monitoring approval', tier: 'unit', covers: ['page.requestPermissions'] }, async () => {
+    let options = null;
+    await withNative({
+      requestMacPermissions: async (actual) => {
+        options = actual;
+        return {
+          ok: false,
+          after: { screenCapture: false, accessibility: true, ok: false },
+          inputMonitoring: { state: 'unknown', granted: false },
+        };
+      },
+      checkScreenshotPermissions: async () => ({ screenCapture: false, accessibility: true, ok: false }),
+    }, async () => {
+      const report = await page.requestPermissions({
+        section: 'globalShortcut',
+        openSettings: true,
+        strict: false,
+      });
+      assert(!report.ok, JSON.stringify(report));
+      equal(report.permissions.capabilities.accessibility.state, 'granted');
+      equal(report.permissions.capabilities.inputMonitoring.state, 'unknown');
+      equal(report.permissions.capabilities.inputMonitoring.granted, false);
+    });
+    equal(options.section, 'globalShortcut');
+    equal(options.openSettings, true);
+  });
+
+  test({ name: 'page.ensurePermissions rejects an unverifiable Input Monitoring request', tier: 'unit', covers: ['page.ensurePermissions'] }, async () => {
+    await withNative({
+      requestMacPermissions: async () => ({ ok: false, after: { screenCapture: false, accessibility: true, ok: false } }),
+      checkScreenshotPermissions: async () => ({ screenCapture: false, accessibility: true, ok: false }),
+    }, async () => {
+      await expectThrow(
+        () => page.ensurePermissions({ section: 'globalShortcut', openSettings: false }),
+        'Permissions are not ready',
+      );
     });
   });
 

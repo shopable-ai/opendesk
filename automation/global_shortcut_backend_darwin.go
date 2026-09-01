@@ -160,7 +160,7 @@ func (darwinGlobalShortcutBackend) Register(accelerator GlobalShortcutPlatformAc
 	if status := int(C.opendesk_global_shortcut_tap_start()); status != 0 {
 		delete(darwinShortcutHub.callbacks, key)
 		_ = C.opendesk_global_shortcut_unregister(native)
-		return nil, fmt.Errorf("global key event tap could not start (Accessibility permission may be required): status=%d", status)
+		return nil, fmt.Errorf("global key event listener could not start (allow Accessibility and Input Monitoring for this OpenDesk host): status=%d", status)
 	}
 	return &darwinGlobalShortcutHandle{key: key, native: uintptr(native)}, nil
 }

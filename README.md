@@ -46,7 +46,15 @@ make build
 
 在 macOS 按 `Command+Shift+9`，终端会显示 `copied`，并把示例文本写入剪贴板；按
 `Ctrl-C` 正常停止脚本会自动注销快捷键。这个普通体验不需要运行测试控制器、WindowServer
-工具或 System Events 脚本。完整 API 契约见 [`docs/api/global-shortcut.md`](docs/api/global-shortcut.md)。
+工具或 System Events 脚本。首次配置时，运行下列单独的引导（它调用
+`page.requestPermissions({ section: 'globalShortcut', openSettings: true, strict: false })`）：
+
+```bash
+./dist/opendesk -script examples/global-shortcut-permission-setup.js -console-mode script
+```
+
+它会打开 Accessibility 与 Input Monitoring；普通 `globalShortcut.register()` 不会隐式弹权限，
+也不需要 Screen Recording 或 Automation。完整 API 契约见 [`docs/api/global-shortcut.md`](docs/api/global-shortcut.md)。
 
 ### Agent 友好输出
 

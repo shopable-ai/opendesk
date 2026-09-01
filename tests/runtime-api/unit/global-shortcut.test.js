@@ -2,6 +2,10 @@
   const { assert, equal, expectThrow, test } = RuntimeAPITest;
   RuntimeAPITest.contractObject('globalShortcut');
 
+  test({ name: 'globalShortcut keeps permission guidance in page.requestPermissions', tier: 'unit', covers: ['globalShortcut.register'] }, async () => {
+    assert(typeof globalShortcut.requestPermission === 'undefined', 'globalShortcut must not grow a duplicate permission API');
+  });
+
   test({ name: 'globalShortcut normalizes aliases and reports invalid accelerators', tier: 'unit', covers: ['globalShortcut.register'] }, async () => {
     let error = null;
     try {

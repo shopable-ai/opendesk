@@ -271,7 +271,14 @@ console.log(result);
 
 - `screenCapture`
 - `accessibility`
+- `inputMonitoring`：macOS 允许打开对应设置页，但系统没有供第三方可靠读取的授权状态；结果会
+  是 `unknown`、`granted: false`，不应当把它当作 `granted`。只要请求中包含它，聚合
+  `permissions.ok` / 顶层 `ok` 都会是 `false`，`strict: true` 会拒绝。
 - `automation`
+
+`section` 还支持 `globalShortcut`。`checkPermissions()` 将它展开为 `accessibility` 和
+`inputMonitoring`；`requestPermissions()` 则会一次打开 macOS 的 Accessibility 和 Input Monitoring
+两个页面。通常优先传 `capabilities`，由 Runtime 自动选择该组合。
 
 ## page.requestPermissions(options)
 
@@ -301,6 +308,34 @@ await page.ensurePermissions({
 ```
 
 权限不满足时应尽早失败，而不是继续执行不可验证的点击链路。
+
+### globalShortcut 的窄范围预检
+
+`globalShortcut` 与通用 `page` 权限 API 是独立的；不要新增或调用
+`globalShortcut.requestPermission()`。系统级快捷键的首次配置应由显式的设置/首次运行 UI 调用
+通用 API，而不是在每次注册或 callback 时请求。该 section 是 `accessibility` 与
+`inputMonitoring` 的组合；不要为了快捷键而请求 Screen Recording：
+
+```js
+// Call from explicit first-run / settings UI, not from every shortcut callback.
+const permissions = await page.requestPermissions({
+  section: 'globalShortcut',
+  openSettings: true,
+  strict: false,
+});
+
+if (!permissions.permissions.capabilities.accessibility.granted) {
+  throw new Error('Enable Accessibility and Input Monitoring for OpenDesk, restart it, then retry.');
+}
+```
+
+上面的 `requestPermissions()` 会主动打开两个设置页，并请求 macOS 显示 Accessibility 系统
+授权提示；是否显示由 macOS 对该宿主已有的授权决定。Input Monitoring 必须由用户在设置页手动
+确认。`inputMonitoring` 当前不能验证成 `granted`，所以这段引导使用 `strict: false`；如需严格
+检查可验证能力，应单独严格检查 `accessibility`。
+普通 `globalShortcut` 不需要 `screenCapture` 或 `automation`；后两者分别属于截图和 AppleEvents
+控制其他应用的独立能力。`globalShortcut.register()` 本身不会隐式弹出权限提示或打开设置页。
+详见 [Global Shortcut](global-shortcut.md)。
 
 ## page.ensureMacPermissions(options)
 

@@ -222,7 +222,10 @@ type GlobalShortcutBackendHandle interface {
 
 type GlobalShortcutBackendFactory func() GlobalShortcutBackend
 
-var errShortcutBackendAlreadyRegistered = errors.New("shortcut already registered by this process")
+// The native backend cannot identify the owning process for a conflicting
+// system hotkey. Do not claim that the conflict belongs to this Runtime: it
+// can be another OpenDesk Runtime or a shortcut registered by macOS/app.
+var errShortcutBackendAlreadyRegistered = errors.New("shortcut is already in use by another OpenDesk runtime or macOS")
 
 type globalShortcutBinding struct {
 	id          uint64

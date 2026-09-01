@@ -73,13 +73,25 @@ Runtime 的 Goja EventLoop 中执行，因此可以直接组合 `clipboard`、`w
 | `error.code` | 含义 |
 | --- | --- |
 | `INVALID_ACCELERATOR` | 字符串、主键或 modifier 无效。 |
-| `ALREADY_REGISTERED` | 当前 Runtime 或系统中已有冲突注册。 |
+| `ALREADY_REGISTERED` | 当前 Runtime 或 macOS / 其他应用已有冲突注册。 |
 | `REGISTRATION_FAILED` | 原生系统注册、权限或底层资源启动失败。 |
 | `NOT_SUPPORTED` | 当前平台或构建没有 global shortcut backend。 |
 | `CALLBACK_FAILED` | callback throw 或 Promise rejection；进入 Runtime 的既有异步错误路径。 |
 
 同一 shortcut callback 是 single-flight：上一次返回的 Promise 尚未 settle 时，新的按键
 触发会被忽略，避免重复执行剪贴板、窗口或自动化动作。
+
+`isRegistered()` 只检查当前 Runtime，不能查询或注销其他 OpenDesk 进程、macOS 或另一应用
+拥有的 shortcut。遇到 `ALREADY_REGISTERED` 时，先正常退出仍在运行的同一脚本；若当前
+Runtime 并未注册该组合键，就在脚本中换用一个未被占用的 accelerator。不要用
+`unregister()` 试图释放其他进程拥有的 shortcut。
+
+从命令行以 `-script path/to/file.js` 直接运行时，OpenDesk 会按该文件的真实路径实行单实例
+接管。再次启动同一个文件会通过仅本机、带随机令牌的控制通道请求上一次执行取消；旧 Runtime
+完成 `unregisterAll()` 等清理并释放原生快捷键后，新执行才会开始注册。这只影响同一脚本文件，
+不会终止其他脚本、OpenDesk HTTP 服务或其他应用，也不会强占它们持有的快捷键。`-script-text`
+和 `-script-stdin` 没有稳定的文件身份，仍作为独立执行处理。被新调用接管的旧命令会在完成
+清理后显示 informational replacement 消息并正常退出；用户手动 `Ctrl-C` 仍按取消处理。
 
 ## 生命周期与清理
 
@@ -124,7 +136,66 @@ make build
 剪贴板；在 Windows，相同 accelerator 对应 `Control+Shift+9`。按 `Ctrl-C` 正常结束进程会
 自动注销已注册快捷键。完整示例见 [examples/global-shortcut.js](../../examples/global-shortcut.js)。
 普通体验只需这条启动命令和一次真实系统按键；不要把 AX、WindowServer 或截图探针当成手动
-使用步骤。macOS 要接收系统级键盘事件，实际运行的宿主需要在系统设置中被授予辅助功能权限。
+使用步骤。
+
+## macOS 安全与隐私授权
+
+`globalShortcut` 监听的是系统范围的按键事件；它不会向其他应用发送按键，也不会读取屏幕或
+控制其他应用。当前 macOS backend 使用只读的系统键盘事件监听，因此运行它的 **实际宿主**
+必须由用户在系统设置中明确允许：
+
+`globalShortcut` 不定义 `requestPermission()`，并且 `register()` 不会隐式显示权限提示或打开
+系统设置。请只在首次配置或用户主动点击“配置快捷键权限”时调用通用的
+`page.requestPermissions({ section: 'globalShortcut', openSettings: true, strict: false })`；正常注册
+快捷键不需要 Screen Recording 或 Automation。
+
+1. 从仓库根目录执行一次 `make build`，随后始终用 `./dist/opendesk ...` 运行。macOS 的
+   授权与该可执行文件/应用身份关联；不要在 `go run`、不同副本或频繁变更路径之间混用。
+2. 打开 **System Settings → Privacy & Security → Accessibility**，开启 `opendesk`（或列表中
+   与 `./dist/opendesk` 对应的宿主）。未出现时用列表底部的 `+` 选择该可执行文件；修改后
+   退出并重新启动 OpenDesk。
+3. 也在 **Input Monitoring** 为同一宿主开启权限，然后重启 OpenDesk。当前 backend 为支持
+   `F21`–`F24` 会使用系统 HID 监听；不同 macOS 版本可能在 listener 启动或特定键盘上要求
+   此授权。macOS 没有供第三方可靠读取 Input Monitoring 授权状态的公开预检；OpenDesk 会如实
+   报告 `unknown`，而非把它伪报为已授权。
+
+不需要为普通 `globalShortcut` 注册授予 **Screen Recording** 或 **Automation**：前者只供截图
+能力使用；后者只在脚本主动通过 AppleEvents 控制其他 App 时需要。维护者的 macOS smoke 会
+通过 `System Events` 从另一个进程发出按键，因此它额外可能显示 Automation 提示；这不是普通
+用户运行示例所需的权限。
+
+脚本可以复用已有的通用权限 API。把下列调用放在首次配置或用户点击“配置快捷键权限”时；它会
+主动打开这两个系统设置页，并请求 macOS 显示 Accessibility 授权提示（是否显示由 macOS 已有
+的授权决定）。不需要增加 `globalShortcut.requestPermission()` 这样的重复 API：
+
+```js
+const permissions = await page.requestPermissions({
+  section: 'globalShortcut',
+  openSettings: true,
+  strict: false,
+});
+
+if (!permissions.permissions.capabilities.accessibility.granted) {
+  throw new Error('Allow OpenDesk in Accessibility and Input Monitoring, restart it, then run this script again.');
+}
+
+globalShortcut.register('CommandOrControl+Shift+9', copyText);
+```
+
+`checkPermissions({ capabilities: ['inputMonitoring'] })` 可用于显示该权限的引导状态，但会
+返回 `unknown` 且 `granted: false`，使 aggregate `ok` 保持 `false`；它不能作为“已获授权”的证明。
+注册因隐私设置或系统监听资源失败时，
+`globalShortcut.register()` 会抛出 `REGISTRATION_FAILED`，其中保留底层原因；不会静默降级为
+仅前台快捷键。
+
+仓库还提供单独的首次配置脚本，避免把系统设置页混进正常示例：
+
+```bash
+./dist/opendesk -script examples/global-shortcut-permission-setup.js -console-mode script
+```
+
+它主动打开 Accessibility 与 Input Monitoring，并请求 macOS 显示 Accessibility 授权提示；
+Input Monitoring 始终需要用户亲自在系统设置中确认。
 
 ## 维护者专用：macOS 非前台真实 smoke
 

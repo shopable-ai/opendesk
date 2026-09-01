@@ -59,6 +59,7 @@ function sectionToCapabilities(section) {
   if (sec === 'screenCapture' || sec === 'screen') return ['screenCapture', 'accessibility'];
   if (sec === 'accessibility') return ['accessibility'];
   if (sec === 'inputMonitoring') return ['inputMonitoring'];
+  if (sec === 'globalShortcut') return ['accessibility', 'inputMonitoring'];
   if (sec === 'automation') return ['automation'];
   return [...DEFAULT_PERMISSION_CAPABILITIES];
 }
@@ -68,6 +69,10 @@ function capabilitiesToMacSection(capabilities) {
   const has = (name) => caps.includes(name);
   if (has('automation') && (has('screenCapture') || has('accessibility') || has('inputMonitoring'))) return 'all';
   if (has('automation')) return 'automation';
+  // A system-wide listener needs both user-facing privacy pages. Keep this a
+  // distinct native section so requestPermissions opens both instead of
+  // silently choosing Input Monitoring and skipping the Accessibility prompt.
+  if (has('accessibility') && has('inputMonitoring') && !has('screenCapture')) return 'globalShortcut';
   if (has('inputMonitoring')) return 'inputMonitoring';
   if (has('screenCapture')) return 'screenCapture';
   if (has('accessibility')) return 'accessibility';
@@ -132,15 +137,9 @@ function buildUnsupportedPermissionSnapshot(capabilities, reason) {
   return finalizePermissionSnapshot({ ok: true, capabilities: result });
 }
 
-function capabilityNeedsHardGrant(name) {
-  return name !== 'inputMonitoring';
-}
-
 function isCapabilitySatisfied(entry) {
   if (!entry || typeof entry !== 'object') return false;
-  if (entry.state === 'granted' || entry.state === 'unsupported') return true;
-  if (entry.state === 'unknown' && entry.capabilityOptional === true) return true;
-  return false;
+  return entry.state === 'granted' || entry.state === 'unsupported';
 }
 
 function finalizePermissionSnapshot(snapshot) {
@@ -148,10 +147,12 @@ function finalizePermissionSnapshot(snapshot) {
   const normalized = {};
   for (const [name, rawEntry] of Object.entries(map)) {
     const entry = rawEntry && typeof rawEntry === 'object' ? { ...rawEntry } : { state: 'denied', granted: false };
-    if (entry.state === 'unknown' && !capabilityNeedsHardGrant(name)) {
-      entry.capabilityOptional = true;
-      entry.granted = true;
-      if (!entry.reason) entry.reason = 'capability status is not introspectable in current runtime but is not required for baseline automation';
+    // macOS does not expose a reliable Input Monitoring preflight. Keep the
+    // unknown state fail-closed: callers may guide the user to Settings, but
+    // neither `granted` nor an aggregate `ok` may imply an authorization we
+    // cannot verify.
+    if (entry.state === 'unknown') {
+      entry.granted = false;
     }
     normalized[name] = entry;
   }
@@ -257,7 +258,12 @@ pageWrapper.requestPermissions = async function(options = {}) {
 
   const latestCheck = canCheck ? await globalThis.page____Inject.checkScreenshotPermissions() : (flow.after || flow.before || null);
   const permissions = finalizePermissionSnapshot(buildPermissionSnapshot(capabilities, latestCheck, flow));
-  const finalOK = !!(flow && flow.ok) && permissions.ok;
+  // `flow.ok` is a legacy aggregate emitted by the macOS helper. It can be
+  // false when an unrelated capability (for example Screen Recording) is
+  // denied, even when this caller requested and received only Accessibility.
+  // The public, capability-scoped API must judge the requested snapshot, not
+  // accidentally turn a narrow preflight into the full desktop baseline.
+  const finalOK = permissions.ok;
   const result = {
     ok: finalOK,
     os,
