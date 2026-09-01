@@ -13,6 +13,7 @@ System 提供系统信息与基础系统操作能力。
 - 列出进程与网络连接
 - 读取当前工作目录、可执行文件路径
 - 获取用户信息与指纹
+- 查询当前 GUI/login session 的 capability 与最小状态
 
 注意
 - 其中某些系统控制方法（如关机、重启、睡眠）副作用很强，应谨慎使用。
@@ -23,6 +24,11 @@ System 提供系统信息与基础系统操作能力。
 | --- | --- |
 | System.delay(milliseconds) | 非阻塞等待，不休眠主机 |
 | System.getPlatformInfo() | 获取 Runtime OS、架构和进程信息 |
+| System.getSessionCapabilities() | 查询 session backend 和逐操作能力 |
+| System.getSessionState() | 查询当前 session identity/state；不推测未知 lock state |
+| System.lock({confirm: true}) | 请求锁定当前 session（Experimental，平台受限） |
+| System.logout({confirm: true}) | 请求注销当前 session（Experimental，破坏性） |
+| System.startScreenSaver({confirm: true}) | 启动系统屏幕保护（Experimental，平台受限） |
 | System.getProcessList() | 列出运行中进程 |
 | System.killProcess(pid) | 结束指定 PID |
 | System.getNetworkInterfaces() | 获取网络接口统计 |
@@ -79,6 +85,121 @@ console.log(platform.os, platform.arch, platform.processId);
 
 其中 `os` 使用 Go Runtime 的稳定值：`darwin`、`linux` 或 `windows`。不要使用该方法
 绕过能力检测；平台信息只适合选择明确支持的平台实现。
+
+## System session：先查询能力
+
+从仓库根目录运行只读示例：
+
+```bash
+./opendesk -script examples/system-session-state.js -console-mode script
+```
+
+```js
+const capabilities = System.getSessionCapabilities();
+if (capabilities.state.supported) {
+  console.log(System.getSessionState());
+}
+```
+
+capability 按 `state`、`lock`、`logout`、`startScreenSaver`、`wake`、`switchUser` 分开报告：
+
+```json
+{
+  "schemaVersion": 1,
+  "platform": "darwin",
+  "backend": "coregraphics-session",
+  "state": { "supported": true, "verified": false, "destructive": false, "requiresConfirmation": false },
+  "lock": { "supported": false, "verified": false, "destructive": true, "requiresConfirmation": true },
+  "logout": { "supported": false, "verified": false, "destructive": true, "requiresConfirmation": true },
+  "startScreenSaver": { "supported": true, "verified": false, "destructive": true, "requiresConfirmation": true }
+}
+```
+
+`verified: false` 是刻意的：仓库曾在某台机器运行过 smoke，不代表当前 session 具备相同权限、桌面
+状态或恢复条件。
+
+## System.getSessionState()
+
+```js
+const session = System.getSessionState();
+```
+
+返回字段：
+
+```text
+schemaVersion
+platform
+backend
+state
+userId
+sessionId
+active
+onConsole
+loginDone
+remote
+locked
+observedAt
+```
+
+无法可靠判断的字段必须是 `null`。尤其不能因为当前进程仍能截图或收到事件就推断
+`locked: false`；Windows 的 `LockWorkStation` 也是异步请求，官方文档明确说明 request success
+不证明锁定 postcondition。
+
+## Session mutation confirmation
+
+所有新增 session-changing action 都必须显式传入 `confirm: true`：
+
+```js
+System.lock({ confirm: true });
+System.startScreenSaver({ confirm: true });
+System.logout({ confirm: true, force: false });
+```
+
+省略确认时在进入 native/backend 前抛出 `CONFIRMATION_REQUIRED`。成功返回：
+
+```json
+{
+  "initiated": true,
+  "verified": false,
+  "operation": "System.lock",
+  "platform": "windows",
+  "backend": "win32-session"
+}
+```
+
+`initiated` 只说明平台接受/启动请求。lock、logout、screen saver 都可能让当前 automation execution
+无法继续；它们的真实 postcondition 必须由外部 observer 或恢复后的独立 execution 验证。
+
+### System.lock(options)
+
+- **Windows**：public `LockWorkStation`；仅 interactive desktop 可调用。异步返回不证明已锁定。
+- **Linux**：仅在 `loginctl` 与 `XDG_SESSION_ID` 可用时调用当前 session 的 `lock-session`；desktop
+  session manager 仍可能不响应。
+- **macOS**：`NOT_SUPPORTED`。当前没有采用 undocumented `CGSession -suspend`、合成
+  Control-Command-Q 或 Accessibility 点击来冒充 public stable API。
+
+### System.logout(options)
+
+- **Windows**：public `ExitWindowsEx(EWX_LOGOFF)`；`force: true` 可能丢失未保存数据。
+- **Linux**：`loginctl terminate-session`；会终止当前 session 的全部进程，不支持 `force: true`。
+- **macOS**：`NOT_SUPPORTED`。没有把 AppleScript/System Events 或 private loginwindow route 标为 Stable。
+
+### System.startScreenSaver(options)
+
+- **macOS**：Experimental，启动系统 `ScreenSaverEngine.app`。主机策略可能立即要求密码，因此正式
+  live smoke 必须在一次性 interactive session 中执行并预先证明可恢复。
+- **Windows / Linux**：当前 `NOT_SUPPORTED`；不制造外观一致但语义不同的 no-op。
+
+`wake`、unlock、用户切换均不暴露；OpenDesk 不绕过密码或 lock screen。
+
+## Session error codes
+
+| code | 含义 |
+| --- | --- |
+| `INVALID_ARGUMENT` | option 类型、未知字段或平台不接受的 `force`。 |
+| `CONFIRMATION_REQUIRED` | 缺少显式 `confirm: true`。 |
+| `NOT_SUPPORTED` | 当前 backend/platform 没有该能力。 |
+| `BACKEND_FAILED` | 平台 API 或 helper/command 请求失败。 |
 
 ## System.getSystemInfo()
 
@@ -197,6 +318,9 @@ console.log(text);
 
 ## System：高副作用方法
 
+下面三个 power 方法是既有 compatibility surface，与新增 session action 分层。它们目前保持原调用
+形状，避免在本卡制造 breaking change；调用方不得把它们的命令返回当作最终关机/重启/睡眠证明。
+
 ## System.shutdown(delay)
 
 ```js
@@ -230,3 +354,14 @@ await System.sleep();
 - page.openMacOSPrivacySettings()
 
 System 更适合承担“系统信息与状态查询”角色。
+
+## 平台依据
+
+- Apple `CGSessionCopyCurrentDictionary`：
+  <https://developer.apple.com/documentation/coregraphics/cgsessioncopycurrentdictionary()>
+- Microsoft `LockWorkStation`：
+  <https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-lockworkstation>
+- Microsoft `ExitWindowsEx`：
+  <https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-exitwindowsex>
+- systemd `loginctl`：
+  <https://www.freedesktop.org/software/systemd/man/latest/loginctl.html>

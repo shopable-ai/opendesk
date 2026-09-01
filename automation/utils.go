@@ -57,7 +57,11 @@ type InitJSOptions struct {
 	// NotificationInteractionBackendFactory is an internal dependency seam for
 	// own-app list/wait/dismiss lifecycle and privacy tests.
 	NotificationInteractionBackendFactory NotificationInteractionBackendFactory
-	OnReady                               func(*RuntimeLifecycle)
+	// SystemSessionBackendFactory is an internal seam for confirmation,
+	// capability, and destructive-action tests. Product executions use the
+	// platform backend.
+	SystemSessionBackendFactory SystemSessionBackendFactory
+	OnReady                     func(*RuntimeLifecycle)
 }
 
 // RuntimeLifecycle exposes only teardown-safe resources to the runtime owner.
@@ -703,8 +707,13 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 	timer := NewTimer(runtime, opts.EventLoop, opts.OnAsyncError)
 	timer.RegisterInRuntime()
 
-	system := NewSystem(runtime, timer)
+	var sessionBackend SystemSessionBackend
+	if opts.SystemSessionBackendFactory != nil {
+		sessionBackend = opts.SystemSessionBackendFactory()
+	}
+	system := NewSystemWithSessionBackend(runtime, timer, sessionBackend)
 	systemMethods := AutoMapObject(runtime, system)
+	registerSystemSession(runtime, system, systemMethods)
 	runtime.Set("System", systemMethods)
 
 	windowManager := NewWindowManager()

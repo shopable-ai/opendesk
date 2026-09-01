@@ -303,13 +303,28 @@
     },
     {
       "name": "System",
-      "source": "native",
-      "status": "stable",
+      "source": "native + platform session backend",
+      "status": "stable reads with experimental session actions",
       "doc": "system.md",
+      "types": "types/System.d.ts",
       "keyMethods": [
         "delay",
-        "getPlatformInfo"
-      ]
+        "getPlatformInfo",
+        "getSessionCapabilities",
+        "getSessionState",
+        "lock",
+        "logout",
+        "startScreenSaver"
+      ],
+      "sessionSafety": "lock, logout, and startScreenSaver require confirm=true before backend access; success returns initiated=true and verified=false because request acceptance is not a postcondition",
+      "sessionIdentity": "getSessionState returns only normalized user/session identity and state; unavailable booleans including locked are null rather than inferred",
+      "platformBehavior": "macOS public CGSessionCopyCurrentDictionary supports read-only WindowServer session state and leaves locked unknown; ScreenSaverEngine launch is Experimental while lock/logout are unsupported. Windows uses public LockWorkStation/ExitWindowsEx candidates but remains target-runtime unverified. Linux requires loginctl plus XDG_SESSION_ID and remains target-runtime unverified.",
+      "notExposed": [
+        "wake",
+        "unlock",
+        "switchUser"
+      ],
+      "compatibility": "existing shutdown, restart, and sleep remain the separate legacy power-control surface; this task does not create a second System or Power namespace"
     },
     {
       "name": "File",

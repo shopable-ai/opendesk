@@ -53,10 +53,64 @@ declare global {
     runtimeVersion: string;
   }
 
+  interface OpenDeskSystemSessionOperationCapability {
+    supported: boolean;
+    /** Repository evidence is not promoted into a per-host attestation. */
+    verified: boolean;
+    destructive: boolean;
+    requiresConfirmation: boolean;
+    notes?: string;
+  }
+
+  interface OpenDeskSystemSessionCapabilities {
+    schemaVersion: 1;
+    platform: string;
+    backend: string;
+    state: OpenDeskSystemSessionOperationCapability;
+    lock: OpenDeskSystemSessionOperationCapability;
+    logout: OpenDeskSystemSessionOperationCapability;
+    startScreenSaver: OpenDeskSystemSessionOperationCapability;
+    wake: OpenDeskSystemSessionOperationCapability;
+    switchUser: OpenDeskSystemSessionOperationCapability;
+  }
+
+  interface OpenDeskSystemSessionState {
+    schemaVersion: 1;
+    platform: string;
+    backend: string;
+    state: "active" | "background" | "starting" | "closing" | "online" | "unknown" | string;
+    userId: number | string | null;
+    sessionId: number | string | null;
+    active: boolean | null;
+    onConsole: boolean | null;
+    loginDone: boolean | null;
+    remote: boolean | null;
+    /** null means the backend cannot determine current lock state reliably. */
+    locked: boolean | null;
+    observedAt: string;
+  }
+
+  interface OpenDeskSystemSessionActionResult {
+    initiated: true;
+    /** false because request acceptance is not a lock/logout postcondition. */
+    verified: false;
+    operation: "System.lock" | "System.logout" | "System.startScreenSaver";
+    platform: string;
+    backend: string;
+  }
+
   interface OpenDeskSystem {
     /** Non-blocking workflow delay. This does not suspend the host operating system. */
     delay(milliseconds?: number): Promise<void>;
     getPlatformInfo(): OpenDeskPlatformInfo;
+    getSessionCapabilities(): OpenDeskSystemSessionCapabilities;
+    getSessionState(): OpenDeskSystemSessionState;
+    /** Experimental. Always requires explicit confirmation and may end desktop automation. */
+    lock(options: { confirm: true }): OpenDeskSystemSessionActionResult;
+    /** Experimental and destructive. force=true may discard unsaved work. */
+    logout(options: { confirm: true; force?: boolean }): OpenDeskSystemSessionActionResult;
+    /** Experimental. Host policy may immediately require a password to resume. */
+    startScreenSaver(options: { confirm: true }): OpenDeskSystemSessionActionResult;
     getSystemInfo(): OpenDeskSystemInfo;
     getProcessList(): OpenDeskProcessInfo[];
     killProcess(pid: number): void;

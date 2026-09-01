@@ -64,4 +64,41 @@
     const encoded = await System.toJSON({ hostApi: true });
     assert(typeof encoded === 'string' && encoded.includes('hostApi'), encoded);
   });
+
+  test({
+    name: 'System session capability and state are explicit without claiming lock state',
+    tier: 'unit',
+    covers: ['System.getSessionCapabilities', 'System.getSessionState'],
+  }, async () => {
+    const capabilities = System.getSessionCapabilities();
+    assert(capabilities && capabilities.schemaVersion === 1, JSON.stringify(capabilities));
+    assert(typeof capabilities.backend === 'string' && capabilities.backend.length > 0, JSON.stringify(capabilities));
+    assert(capabilities.lock.requiresConfirmation === true, JSON.stringify(capabilities.lock));
+    assert(capabilities.logout.requiresConfirmation === true, JSON.stringify(capabilities.logout));
+    assert(capabilities.wake.supported === false && capabilities.switchUser.supported === false, JSON.stringify(capabilities));
+
+    if (capabilities.state.supported) {
+      const state = System.getSessionState();
+      assert(state.schemaVersion === 1 && state.platform === capabilities.platform, JSON.stringify(state));
+      assert(typeof state.state === 'string' && state.state.length > 0, JSON.stringify(state));
+      assert(state.locked === null || typeof state.locked === 'boolean', JSON.stringify(state));
+      assert(typeof state.observedAt === 'string' && state.observedAt.length > 0, JSON.stringify(state));
+    }
+  });
+
+  test({
+    name: 'System session mutations require confirmation before platform access',
+    tier: 'unit',
+    covers: ['System.lock', 'System.logout', 'System.startScreenSaver'],
+  }, async () => {
+    for (const operation of ['lock', 'logout', 'startScreenSaver']) {
+      let code = '';
+      try {
+        System[operation]();
+      } catch (error) {
+        code = error && error.code;
+      }
+      assert(code === 'CONFIRMATION_REQUIRED', `${operation} code=${code}`);
+    }
+  });
 })();

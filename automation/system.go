@@ -24,11 +24,19 @@ import (
 type System struct {
 	runtime *goja.Runtime
 	timer   *Timer
+	session SystemSessionBackend
 }
 
 // NewSystem creates a new System instance
 func NewSystem(jsRuntime *goja.Runtime, timer *Timer) *System {
-	return &System{runtime: jsRuntime, timer: timer}
+	return NewSystemWithSessionBackend(jsRuntime, timer, nil)
+}
+
+func NewSystemWithSessionBackend(jsRuntime *goja.Runtime, timer *Timer, backend SystemSessionBackend) *System {
+	if backend == nil {
+		backend = newDefaultSystemSessionBackend()
+	}
+	return &System{runtime: jsRuntime, timer: timer, session: backend}
 }
 
 // Delay waits without blocking the JavaScript event loop or suspending the host.
