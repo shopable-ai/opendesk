@@ -31,3 +31,18 @@ func TestGeneratedIconRegistryFailsClosed(t *testing.T) {
 		}
 	}
 }
+
+func TestToolbarOrientationPolicy(t *testing.T) {
+	if !IsValidOrientation(OrientationHorizontal) || !IsValidOrientation(OrientationVertical) {
+		t.Fatal("supported toolbar orientations were rejected")
+	}
+	if IsValidOrientation("diagonal") {
+		t.Fatal("unknown toolbar orientation was accepted")
+	}
+	if MaxButtonsForOrientation(OrientationHorizontal) != MaxButtons {
+		t.Fatalf("horizontal max changed: %d", MaxButtonsForOrientation(OrientationHorizontal))
+	}
+	if MaxButtonsForOrientation(OrientationVertical) != MaxVerticalButtons {
+		t.Fatalf("vertical max = %d, want %d", MaxButtonsForOrientation(OrientationVertical), MaxVerticalButtons)
+	}
+}

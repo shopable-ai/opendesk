@@ -3,7 +3,9 @@ package customui
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
+	"opendesk/pkg/customui/toolbar"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -24,6 +26,40 @@ func TestNormalizeRejectsNonFiniteBounds(t *testing.T) {
 				t.Fatal("non-finite bounds unexpectedly passed validation")
 			}
 		})
+	}
+}
+
+func TestNormalizeToolbarOrientationPolicy(t *testing.T) {
+	button := func(id string) toolbar.ButtonSpec {
+		return toolbar.ButtonSpec{ID: id, Label: id, Icon: "timer", State: toolbar.ButtonState{Revision: 1}}
+	}
+	base := func(orientation string, buttons []toolbar.ButtonSpec) WindowSpec {
+		return WindowSpec{
+			ID: "nativeToolbar", Bounds: Bounds{X: 10, Y: 20},
+			Toolbar: &toolbar.ToolbarSpec{SchemaVersion: toolbar.SchemaVersion, Revision: 1, Orientation: orientation, Buttons: buttons},
+		}
+	}
+	for _, orientation := range []string{toolbar.OrientationHorizontal, toolbar.OrientationVertical} {
+		spec, err := Normalize(base(orientation, []toolbar.ButtonSpec{button("one")}), t.TempDir())
+		if err != nil || spec.Toolbar.Orientation != orientation {
+			t.Fatalf("Normalize(%q) = %#v, err=%v", orientation, spec.Toolbar, err)
+		}
+	}
+	defaulted, err := Normalize(base("", []toolbar.ButtonSpec{button("default")}), t.TempDir())
+	if err != nil || defaulted.Toolbar.Orientation != toolbar.OrientationHorizontal {
+		t.Fatalf("empty orientation = %#v, err=%v", defaulted.Toolbar, err)
+	}
+	_, err = Normalize(base("diagonal", []toolbar.ButtonSpec{button("bad")}), t.TempDir())
+	var uiErr *Error
+	if err == nil || !errors.As(err, &uiErr) || uiErr.Code != CodeInvalidSpec || uiErr.Capability != "orientation" {
+		t.Fatalf("invalid orientation error = %#v", err)
+	}
+	tooMany := make([]toolbar.ButtonSpec, 0, toolbar.MaxVerticalButtons+1)
+	for index := 0; index < toolbar.MaxVerticalButtons+1; index++ {
+		tooMany = append(tooMany, button(fmt.Sprintf("button%d", index)))
+	}
+	if _, err := Normalize(base(toolbar.OrientationVertical, tooMany), t.TempDir()); err == nil {
+		t.Fatal("six-button vertical toolbar unexpectedly passed")
 	}
 }
 

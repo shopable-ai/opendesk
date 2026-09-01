@@ -1,10 +1,24 @@
 package toolbar
 
 const (
-	SchemaVersion = 1
-	MinButtons    = 1
-	MaxButtons    = 32
+	SchemaVersion         = 1
+	MinButtons            = 1
+	MaxButtons            = 32
+	MaxVerticalButtons    = 5
+	OrientationHorizontal = "horizontal"
+	OrientationVertical   = "vertical"
 )
+
+func IsValidOrientation(value string) bool {
+	return value == OrientationHorizontal || value == OrientationVertical
+}
+
+func MaxButtonsForOrientation(orientation string) int {
+	if orientation == OrientationVertical {
+		return MaxVerticalButtons
+	}
+	return MaxButtons
+}
 
 // Bounds uses the Runtime's global top-left desktop coordinate space.
 type Bounds struct {
@@ -45,6 +59,7 @@ type ButtonSpec struct {
 type ToolbarSpec struct {
 	SchemaVersion int          `json:"schemaVersion"`
 	Revision      uint64       `json:"revision"`
+	Orientation   string       `json:"orientation"`
 	Buttons       []ButtonSpec `json:"buttons"`
 }
 

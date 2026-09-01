@@ -30,6 +30,7 @@ type floatingWindowOptionsDeclaration struct {
 	Title       string   `json:"title,omitempty"`
 	AlwaysOnTop *bool    `json:"alwaysOnTop,omitempty"`
 	Draggable   *bool    `json:"draggable,omitempty"`
+	Orientation string   `json:"orientation,omitempty"`
 }
 
 // floatingWindow is owned exclusively by the Goja EventLoop. Its logical
@@ -47,6 +48,7 @@ type floatingWindow struct {
 	title        string
 	alwaysOnTop  bool
 	draggable    bool
+	orientation  string
 	revision     uint64
 	errorHandler goja.Callable
 }
@@ -59,6 +61,7 @@ func newFloatingToolbar(ui *CustomUIRuntime, windowID string, options floatingWi
 	value := &floatingWindow{
 		ui: ui, windowID: windowID, bounds: customui.Bounds{X: 100, Y: 100},
 		theme: "dark", title: "Toolbar", alwaysOnTop: true, draggable: true,
+		orientation: toolbar.OrientationHorizontal,
 	}
 	if options.X != nil {
 		value.bounds.X = *options.X
@@ -77,6 +80,9 @@ func newFloatingToolbar(ui *CustomUIRuntime, windowID string, options floatingWi
 	}
 	if options.Draggable != nil {
 		value.draggable = *options.Draggable
+	}
+	if options.Orientation != "" {
+		value.orientation = options.Orientation
 	}
 	return value
 }
@@ -116,6 +122,12 @@ func (u *CustomUIRuntime) parseFloatingWindowOptions(value goja.Value) (floating
 	if options.Theme != "" && options.Theme != "dark" {
 		return options, &customui.Error{Code: customui.CodeInvalidSpec, Operation: "FloatingWindow.constructor", Capability: "theme", Message: "FloatingWindow v1 supports only the dark theme"}
 	}
+	if options.Orientation == "" {
+		options.Orientation = toolbar.OrientationHorizontal
+	}
+	if !toolbar.IsValidOrientation(options.Orientation) {
+		return options, &customui.Error{Code: customui.CodeInvalidSpec, Operation: "FloatingWindow.constructor", Capability: "orientation", Message: `orientation must be "horizontal" or "vertical"`}
+	}
 	if utf8.RuneCountInString(options.Title) > 128 {
 		return options, &customui.Error{Code: customui.CodeInvalidSpec, Operation: "FloatingWindow.constructor", Capability: "title", Message: "title must contain at most 128 Unicode characters"}
 	}
@@ -137,8 +149,8 @@ func (f *floatingWindow) jsObject() *goja.Object {
 			if f.button(id) != nil {
 				panic(customUIJSError(f.ui.runtime, &customui.Error{Code: customui.CodeDuplicateID, Operation: "FloatingWindow.addButton", WindowID: f.windowID, TargetID: id, Capability: "button", Message: "button id already exists"}))
 			}
-			if len(f.buttons) >= toolbar.MaxButtons {
-				panic(customUIJSError(f.ui.runtime, &customui.Error{Code: customui.CodeInvalidSpec, Operation: "FloatingWindow.addButton", WindowID: f.windowID, TargetID: id, Capability: "button", Message: fmt.Sprintf("floating window supports at most %d buttons", toolbar.MaxButtons)}))
+			if len(f.buttons) >= f.maxButtons() {
+				panic(customUIJSError(f.ui.runtime, &customui.Error{Code: customui.CodeInvalidSpec, Operation: "FloatingWindow.addButton", WindowID: f.windowID, TargetID: id, Capability: "button", Message: fmt.Sprintf("%s floating toolbar supports at most %d buttons", f.orientation, f.maxButtons())}))
 			}
 			if callbackValue := call.Argument(3); callbackValue != nil && !goja.IsUndefined(callbackValue) && !goja.IsNull(callbackValue) {
 				callback, ok := goja.AssertFunction(callbackValue)
@@ -296,8 +308,8 @@ func (f *floatingWindow) show() goja.Value {
 	if f.starting {
 		panic(customUIJSError(f.ui.runtime, &customui.Error{Code: customui.CodeBusy, Operation: "FloatingWindow.show", WindowID: f.windowID, Capability: "lifecycle", Message: "floating toolbar is being created"}))
 	}
-	if len(f.buttons) < toolbar.MinButtons || len(f.buttons) > toolbar.MaxButtons {
-		panic(customUIJSError(f.ui.runtime, &customui.Error{Code: customui.CodeInvalidSpec, Operation: "FloatingWindow.show", WindowID: f.windowID, Capability: "button", Message: "floating toolbar requires between 1 and 32 buttons"}))
+	if len(f.buttons) < toolbar.MinButtons || len(f.buttons) > f.maxButtons() {
+		panic(customUIJSError(f.ui.runtime, &customui.Error{Code: customui.CodeInvalidSpec, Operation: "FloatingWindow.show", WindowID: f.windowID, Capability: "button", Message: fmt.Sprintf("%s floating toolbar requires between 1 and %d buttons", f.orientation, f.maxButtons())}))
 	}
 	f.starting = true
 	declaration := f.toolbarSpec()
@@ -336,7 +348,15 @@ func (f *floatingWindow) toolbarSpec() toolbar.ToolbarSpec {
 	for index := range f.buttons {
 		buttons[index] = f.buttons[index].spec
 	}
-	return toolbar.ToolbarSpec{SchemaVersion: toolbar.SchemaVersion, Revision: f.revision, Buttons: buttons}
+	orientation := f.orientation
+	if orientation == "" {
+		orientation = toolbar.OrientationHorizontal
+	}
+	return toolbar.ToolbarSpec{SchemaVersion: toolbar.SchemaVersion, Revision: f.revision, Orientation: orientation, Buttons: buttons}
+}
+
+func (f *floatingWindow) maxButtons() int {
+	return toolbar.MaxButtonsForOrientation(f.orientation)
 }
 
 type floatingButtonPublicState struct {

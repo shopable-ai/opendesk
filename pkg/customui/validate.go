@@ -153,8 +153,15 @@ func normalizeToolbarWindow(spec WindowSpec) (WindowSpec, error) {
 	if declaration.SchemaVersion != toolbar.SchemaVersion {
 		return WindowSpec{}, invalidSpec("native toolbar schemaVersion is unsupported")
 	}
-	if len(declaration.Buttons) < toolbar.MinButtons || len(declaration.Buttons) > toolbar.MaxButtons {
-		return WindowSpec{}, invalidSpec("native toolbar requires between 1 and 32 buttons")
+	if declaration.Orientation == "" {
+		declaration.Orientation = toolbar.OrientationHorizontal
+	}
+	if !toolbar.IsValidOrientation(declaration.Orientation) {
+		return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", Capability: "orientation", Message: "native toolbar orientation must be horizontal or vertical"}
+	}
+	maxButtons := toolbar.MaxButtonsForOrientation(declaration.Orientation)
+	if len(declaration.Buttons) < toolbar.MinButtons || len(declaration.Buttons) > maxButtons {
+		return WindowSpec{}, invalidSpec(fmt.Sprintf("native %s toolbar requires between 1 and %d buttons", declaration.Orientation, maxButtons))
 	}
 	if declaration.Revision == 0 {
 		return WindowSpec{}, invalidSpec("native toolbar revision must be positive")

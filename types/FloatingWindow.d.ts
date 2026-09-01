@@ -3,6 +3,7 @@ export {};
 declare global {
   type ClawdeskFloatingIcon = "play.fill" | "pause.fill" | "stop.fill" |
     "gearshape.fill" | "paperplane.fill" | "timer";
+  type ClawdeskFloatingWindowOrientation = "horizontal" | "vertical";
 
   interface ClawdeskFloatingWindowOptions {
     x?: number;
@@ -11,6 +12,8 @@ declare global {
     title?: string;
     alwaysOnTop?: boolean;
     draggable?: boolean;
+    /** Defaults to horizontal. Vertical toolbars accept at most five buttons. */
+    orientation?: ClawdeskFloatingWindowOrientation;
   }
 
   interface ClawdeskFloatingButtonPatch {
@@ -54,14 +57,14 @@ declare global {
 
   interface ClawdeskFloatingWindow {
     readonly id: string;
-    /** Adds one of 1-32 ordered icon-only buttons before first show and recomputes automatic bounds. */
+    /** Adds ordered icon-only buttons before first show and recomputes automatic bounds. Horizontal accepts 1-32; vertical accepts 1-5. */
     addButton(id: string, label: string, iconName: ClawdeskFloatingIcon, callback?: ClawdeskFloatingButtonCallback): void;
     /** Removes a pre-show button and recomputes automatic bounds. */
     removeButton(id: string): void;
     /** Non-structural state updates are allowed before and after show. */
     updateButton(id: string, patch: ClawdeskFloatingButtonPatch): Promise<ClawdeskFloatingButtonState>;
     getButtonState(id: string): Promise<ClawdeskFloatingButtonState>;
-    /** Shows with fixed 40x40 icon boxes; rows wrap at the documented safe width. */
+    /** Shows with fixed 40x40 icon boxes; horizontal rows wrap at the safe width, while vertical stays a single top-to-bottom column of at most five buttons. */
     show(): Promise<ClawdeskUIWindowState>;
     hide(): Promise<ClawdeskUIWindowState | null>;
     close(): Promise<ClawdeskUIWindowState | null>;

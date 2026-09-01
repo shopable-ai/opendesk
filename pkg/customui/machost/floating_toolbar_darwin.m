@@ -13,6 +13,7 @@ static const CGFloat CDToolbarMinOuterWidth = 60.0;
 static const CGFloat CDToolbarMaxOuterWidth = 960.0;
 static const CGFloat CDToolbarChromeHeight = 25.0;
 static const NSUInteger CDToolbarMaxColumns = 19;
+static const NSUInteger CDToolbarMaxVerticalButtons = 5;
 
 BOOL CDIsTrustedToolbarSymbol(NSString *symbol) {
 	return [symbol isKindOfClass:NSString.class] && CDGeneratedToolbarIcons()[symbol] != nil;
@@ -193,7 +194,13 @@ static NSDictionary *CDToolbarScreenBounds(NSWindow *window, NSRect local) {
 
 + (NSDictionary *)outerBoundsForSpec:(NSDictionary *)spec position:(NSDictionary *)position {
 	NSArray *buttons = [spec[@"buttons"] isKindOfClass:NSArray.class] ? spec[@"buttons"] : @[];
-	NSUInteger count = MIN((NSUInteger)32, buttons.count);
+	BOOL vertical = [spec[@"orientation"] isEqualToString:@"vertical"];
+	NSUInteger count = MIN(vertical ? CDToolbarMaxVerticalButtons : (NSUInteger)32, buttons.count);
+	if (vertical) {
+		CGFloat width = CDToolbarHorizontalPadding * 2 + CDToolbarButtonSize;
+		CGFloat height = CDToolbarChromeHeight + CDToolbarVerticalPadding * 2 + count * CDToolbarButtonSize + (count ? (count - 1) * CDToolbarButtonGap : 0);
+		return @{@"x": position[@"x"] ?: @0, @"y": position[@"y"] ?: @0, @"width": @(width), @"height": @(height)};
+	}
 	NSUInteger columns = MIN(CDToolbarMaxColumns, MAX((NSUInteger)1, count));
 	NSUInteger rows = count ? (count + CDToolbarMaxColumns - 1) / CDToolbarMaxColumns : 1;
 	CGFloat preferred = CDToolbarHorizontalPadding * 2 + columns * CDToolbarButtonSize + (columns - 1) * CDToolbarButtonGap;
@@ -209,7 +216,13 @@ static NSDictionary *CDToolbarScreenBounds(NSWindow *window, NSRect local) {
 	if (!self) return nil;
 	NSArray *buttons = [spec[@"buttons"] isKindOfClass:NSArray.class] ? spec[@"buttons"] : nil;
 	uint64_t toolbarRevision = [spec[@"revision"] unsignedLongLongValue];
-	if ([spec[@"schemaVersion"] integerValue] != 1 || toolbarRevision == 0 || buttons.count < 1 || buttons.count > 32) {
+	NSString *orientation = [spec[@"orientation"] isKindOfClass:NSString.class] ? spec[@"orientation"] : @"";
+	BOOL vertical = [orientation isEqualToString:@"vertical"];
+	if (![orientation isEqualToString:@"horizontal"] && !vertical) {
+		if (error) *error = [NSError errorWithDomain:@"OpenDeskToolbar" code:1 userInfo:@{NSLocalizedDescriptionKey: @"unsupported toolbar orientation"}];
+		return nil;
+	}
+	if ([spec[@"schemaVersion"] integerValue] != 1 || toolbarRevision == 0 || buttons.count < 1 || buttons.count > (vertical ? CDToolbarMaxVerticalButtons : (NSUInteger)32)) {
 		if (error) *error = [NSError errorWithDomain:@"OpenDeskToolbar" code:1 userInfo:@{NSLocalizedDescriptionKey: @"invalid toolbar schema or button count"}];
 		return nil;
 	}
@@ -244,7 +257,7 @@ static NSDictionary *CDToolbarScreenBounds(NSWindow *window, NSRect local) {
 			return nil;
 		}
 		NSUInteger rowIndex = index / CDToolbarMaxColumns;
-		if (rowIndex == rows.count) {
+		if (!vertical && rowIndex == rows.count) {
 			NSStackView *row = [[NSStackView alloc] initWithFrame:NSZeroRect];
 			row.orientation = NSUserInterfaceLayoutOrientationHorizontal;
 			row.alignment = NSLayoutAttributeCenterY;
@@ -262,7 +275,8 @@ static NSDictionary *CDToolbarScreenBounds(NSWindow *window, NSRect local) {
 		button.target = self;
 		button.action = @selector(buttonActivated:);
 		[button applySpec:buttonSpec presentation:presentation];
-		[rows[rowIndex] addArrangedSubview:button];
+		if (vertical) [_columnStack addArrangedSubview:button];
+		else [rows[rowIndex] addArrangedSubview:button];
 		_buttonsByID[identifier] = button;
 		[ordered addObject:button];
 	}
@@ -319,6 +333,10 @@ static NSDictionary *CDToolbarScreenBounds(NSWindow *window, NSRect local) {
 	for (CDToolbarButton *button in self.orderedButtons) {
 		button.target = nil; button.action = nil;
 		[button.busyIndicator stopAnimation:nil];
+		if (button.superview == self.columnStack) {
+			[self.columnStack removeArrangedSubview:button];
+		}
+		[button removeFromSuperview];
 	}
 	for (NSStackView *row in self.rowStacks) {
 		for (NSView *view in row.arrangedSubviews.copy) {

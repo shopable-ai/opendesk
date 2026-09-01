@@ -20,11 +20,26 @@ func TestFloatingWindowBuildsOrderedStructuredToolbarSpec(t *testing.T) {
 	if spec.SchemaVersion != toolbar.SchemaVersion || spec.Revision != 3 {
 		t.Fatalf("toolbar header = %#v", spec)
 	}
+	if spec.Orientation != toolbar.OrientationHorizontal {
+		t.Fatalf("default toolbar orientation = %q, want %q", spec.Orientation, toolbar.OrientationHorizontal)
+	}
 	if len(spec.Buttons) != 2 || spec.Buttons[0].ID != "start" || spec.Buttons[1].ID != "stop" {
 		t.Fatalf("declaration order changed: %#v", spec.Buttons)
 	}
 	if !spec.Buttons[1].State.Disabled || spec.Buttons[1].State.Revision != 3 {
 		t.Fatalf("button state changed: %#v", spec.Buttons[1])
+	}
+}
+
+func TestFloatingWindowPreservesVerticalToolbarOrientationAndLimit(t *testing.T) {
+	value := &floatingWindow{orientation: toolbar.OrientationVertical, revision: 1}
+	value.buttons = []floatingButton{{spec: toolbar.ButtonSpec{ID: "one", Label: "One", Icon: "timer", State: toolbar.ButtonState{Revision: 1}}}}
+	spec := value.toolbarSpec()
+	if spec.Orientation != toolbar.OrientationVertical {
+		t.Fatalf("vertical toolbar orientation = %q", spec.Orientation)
+	}
+	if value.maxButtons() != toolbar.MaxVerticalButtons {
+		t.Fatalf("vertical toolbar max = %d, want %d", value.maxButtons(), toolbar.MaxVerticalButtons)
 	}
 }
 
