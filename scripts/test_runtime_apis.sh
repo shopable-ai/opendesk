@@ -212,6 +212,42 @@ coverage() { runjs coverage "$ROOT_DIR/tests/runtime-api/coverage.js" 5 180; }
 smoke() { runjs smoke "$ROOT_DIR/tests/runtime-api/smoke.js" 3 120; }
 negative() { runjs negative "$ROOT_DIR/tests/runtime-api/negative.js" 5 120; }
 
+notify_icon_live() {
+  [[ "$(uname -s)" == Darwin ]] || { echo "macOS notify icon live test requires Darwin" >&2; return 1; }
+  local installed="${OPENDESK_BINARY:-/Users/mac/Applications/OpenDesk.app/Contents/MacOS/opendesk}"
+  [[ -f "${installed}" && -x "${installed}" ]] || { echo "installed OpenDesk.app executable is missing or not executable: ${installed}" >&2; return 1; }
+  [[ "${installed}" == */OpenDesk.app/Contents/MacOS/opendesk ]] || { echo "notify-icon-live requires the executable inside OpenDesk.app: ${installed}" >&2; return 1; }
+  local installed_sha generated log_dir pidfile watchdog status=0
+  installed_sha="$(shasum -a 256 "${installed}" | awk '{print $1}')"
+  python3 - "${CONTEXT}" "${installed}" "${installed_sha}" <<'PY'
+import json, sys
+path, binary, sha256 = sys.argv[1:]
+value = json.load(open(path, encoding="utf-8"))
+value["binary"].update({
+    "path": binary,
+    "sha256": sha256,
+    "buildSource": "installed OpenDesk.app executable",
+    "provenance": "installed_app",
+    "originalPath": binary,
+    "originalSha256": sha256,
+})
+json.dump(value, open(path, "w", encoding="utf-8"), indent=2)
+PY
+  generated="$RUN_DIR/generated/notify-icon-live.generated.js"
+  log_dir="$RUN_DIR/runtime-logs/notify-icon-live"
+  pidfile="$RUN_DIR/processes/notify-icon-live.json"
+  generate "$ROOT_DIR/tests/runtime-api/live/notify-icon.test.js" "$generated"
+  set +e
+  python3 "$WATCHDOG" --seconds 60 --pid-file "$pidfile" -- "$installed" \
+    -script "$generated" -console-mode script -timeout 1 -log-dir "$log_dir" &
+  watchdog=$!
+  wait "$watchdog"
+  status=$?
+  set -e
+  record_watchdog notify-icon-live "$watchdog"
+  return "$status"
+}
+
 failure_exit() {
   local status=0 extra="$RUN_DIR/failure-exit.json"
   if runjs failure-exit-probe "$ROOT_DIR/tests/runtime-api/failure_exit.js" 2 15 ""; then status=0; else status=$?; fi
@@ -983,6 +1019,7 @@ case "$MODE" in
   live-only) live_only_with_cleanup ;;
   coverage) coverage ;;
   negative) negative ;;
+  notify-icon-live) notify_icon_live ;;
   custom-ui) custom_ui ;;
   custom-ui-config) custom_ui_config ;;
   dialog) dialog ;;

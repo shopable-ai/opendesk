@@ -58,22 +58,33 @@ notify(options: OpenDeskNotifyOptions): void;
 | `timeout` | `number` | 无 | 为兼容旧脚本而接受；当前平台后端不支持由脚本控制展示时长，因此不会产生行为 |
 
 `notify()`、`notify(null)`、数组以及其他非字符串/对象参数会同步抛出
-`TypeError`。通知后端无法提交时会抛出包含 `notification failed` 的 `Error`。
+`TypeError`。对象字段也按上表严格校验：`title` / `message` 必须是字符串，`sound`
+必须是布尔值，`timeout` 必须是有限数字。标题和正文不能包含 NUL，且必须是有效
+UTF-8。通知后端无法提交时会抛出包含 `notification failed` 的 `Error`。
 
 ### notify：结果与错误
 
 - 成功提交到平台通知后端：返回 `undefined`。
 - 参数类型不正确：同步抛出 `TypeError`。
-- `osascript`、D-Bus、Windows toast 或其他平台通知后端不可用：同步抛出 `Error`。
+- macOS App 身份/通知权限、D-Bus、Windows toast 或其他平台通知后端不可用：同步抛出 `Error`。
 - 返回成功只代表宿主已接受该请求，不代表用户已经看到通知。
 
 ## notify：平台与权限边界
 
-- **macOS**：如果 Runtime 运行在 `OpenDesk.app` 内，会通过 AppKit 的 macOS 12 兼容本地通知后端提交，发送者是 OpenDesk bundle；独立 CLI（包括没有 `.app` 身份的 Scheduler 进程）使用 Apple 提供的 `osascript display notification` fallback。`sound: true` 使用对应后端的默认系统音效；没有可由脚本指定的显示时长。
-- **Linux**：依赖 `beeep` 的桌面通知后端（通常是 D-Bus，必要时使用可用的命令行后端）。音效能力取决于后端；不是所有桌面环境都支持一致的声音行为。
-- **Windows**：依赖 `beeep` 的 Windows toast/系统后端；显示时长和声音由 Windows 通知设置与后端决定。
+- **macOS**：使用 macOS 12 支持的原生 UserNotifications backend。`OpenDesk.app` 内的 Runtime 直接以 OpenDesk bundle 提交；plain CLI 和 Scheduler 通过同一构建产物旁的 `OpenDesk.app` 进入私有、仅通知 helper 模式，因此发送者仍是 OpenDesk，不使用 `osascript` / `com.apple.ScriptEditor2`，也不创建第二套 JavaScript executor。若 plain binary 旁缺少 `scripts/build_macos_app.sh` 生成的 `OpenDesk.app`，`notify()` 会明确抛错。backend 会等待授权结果并检查 alert 权限，再等待系统接受本次 request；拒绝、超时和提交错误都会返回给 JavaScript。`sound: true` 会为 request 设置平台默认系统音效，但系统静音、Focus、共享显示和用户的声音设置仍可抑制实际声音。没有可由脚本指定的显示时长。
+- **Linux**：依赖 `beeep` 的桌面通知后端（通常是 D-Bus，必要时使用可用的命令行后端）。从源码目录运行时会复用 `public/icons/opendesk-notification.png`；找不到图标不会阻止通知提交。音效能力取决于后端；不是所有桌面环境都支持一致的声音行为。
+- **Windows**：依赖 `beeep` 的 Windows toast/系统后端。安装包应把通知图标放在可执行文件旁的 `resources/opendesk-notification.png`；源码运行会回退到 `public/icons/opendesk-notification.png`。找不到图标时仍提交无自定义图片的通知；显示时长和声音由 Windows 通知设置与后端决定。
 
 通知不需要 `page.ensurePermissions()` 的屏幕截图或辅助功能权限。但操作系统的通知权限、应用通知开关、Focus/勿扰模式、屏幕共享/镜像的静默策略、静音设置以及桌面会话状态都可能使通知不显示或不发声。backend 的成功返回只证明宿主已把请求交给 OS；它不能作肉眼可见性证明，也不会绕过系统策略。
+
+首次由 `OpenDesk.app` 提交本地通知时，macOS 可能先显示系统管理的授权提示，例如：
+
+```text
+“OpenDesk”通知
+“通知”可能包括提醒、声音和图标标记。
+```
+
+这不是脚本传入的 `title` 或 `message`，而是 macOS 对通知能力的说明；其含义是该应用的通知可能包含提醒、声音和图标标记，文案由系统本地化控制。用户需要按系统提示允许通知，OpenDesk 不能通过 `notify()` 修改这段文字或绕过系统的静默策略。
 
 如果通知是工作流的一部分，请同时写入结构化日志、状态文件或其他可检查的执行证据；如果需要确认用户确实看到了提示，应另行做桌面截图或人工观察验证。
 
@@ -82,7 +93,7 @@ notify(options: OpenDeskNotifyOptions): void;
 用户调用链是：
 
 ```text
-notify() polyfill -> notify____Inject -> automation.Notify -> macOS AppKit / osascript fallback (or beeep on other platforms)
+notify() polyfill -> notify____Inject -> automation.Notify -> macOS UserNotifications via OpenDesk.app (or beeep on other platforms)
 ```
 
 CLI、HTTP 执行以及其他复用 JavaScript Execution 的入口都经过同一 Runtime 初始化链。`notify____Inject` 是宿主内部 bridge，不是用户脚本的稳定接口。

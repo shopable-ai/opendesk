@@ -4,7 +4,7 @@ GO ?= go
 GOBIN ?= $(HOME)/go/bin
 export PATH := $(GOBIN):$(PATH)
 
-.PHONY: help doctor setup deps fmt vet test test-core test-runtime-api test-runtime-api-live test-host-api test-host-api-live build build-macos smoke
+.PHONY: help doctor setup deps fmt vet test test-core test-icons test-runtime-api test-runtime-api-live test-host-api test-host-api-live build build-macos smoke
 
 help:
 	@echo "opendesk development targets:"
@@ -15,6 +15,7 @@ help:
 	@echo "  make vet         Run go vet"
 	@echo "  make test        Run the complete Go test suite"
 	@echo "  make test-core   Run core packages (skips known fixture/demo package conflicts)"
+	@echo "  make test-icons  Validate deterministic app icons and macOS bundle injection"
 	@echo "  make test-runtime-api Run JavaScript Runtime API contract, unit, smoke, and acceptance gates"
 	@echo "  make test-runtime-api-live Run Runtime API tests against the Safari Test Lab"
 	@echo "  make test-host-api Deprecated alias for test-runtime-api"
@@ -56,6 +57,9 @@ test:
 # requirements; this target validates the application and reusable packages.
 test-core:
 	$(GO) test $$(go list ./... | grep -v -E '/(examples|cmd/opendesk-visual-runner)$$')
+
+test-icons:
+	./scripts/test_app_icons.sh
 
 test-runtime-api:
 	./scripts/test_runtime_apis.sh smoke

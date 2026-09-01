@@ -18,6 +18,7 @@ API 事实源按优先级为：当前源码和实际 Runtime 行为、`docs-user
 | smoke | 安全公共路径与错误路径 | `results/smoke.json` |
 | failure-exit | 普通 JS throw 快速非零、且不是 watchdog 124 | `results/failure-exit.json` |
 | live | Safari、权限、窗口身份、输入、剪贴板、HTTP 和截图 | `results/live.json` |
+| notify-icon-live | 已安装 macOS Runtime 提交通知并保活 15 秒供图标取证 | `results/runtime-api-notify-icon-live.json` + 截图 |
 | composition | 多控件、DOM/像素、截图、state/events 和移动窗口重放 | `results/composition.json` |
 | cleanup | 已记录 runtime/PGID/watchdog/fixture PID 均已退出 | `results/cleanup.json` |
 | quality | 同 runId、同二进制 SHA 和真实证据驱动的 100/100 acceptance | `results/quality.json` 与 `summary.json` |
@@ -34,6 +35,7 @@ OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./scripts/test_runtime_apis.s
 OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./scripts/test_runtime_apis.sh smoke
 OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./scripts/test_runtime_apis.sh dialog
 OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./scripts/test_runtime_apis.sh live
+OPENDESK_BINARY=/absolute/path/to/OpenDesk.app/Contents/MacOS/opendesk ./scripts/test_runtime_apis.sh notify-icon-live
 ```
 
 `dialog` 在 macOS 构建 run-local native host，并实际运行公开 JavaScript 的 disabled、严格
@@ -51,6 +53,10 @@ worker、callback、timer、window、listener、driver sink 与 native host proc
 `live` 从头执行全部 gate，最后才运行 quality/acceptance。它要求 macOS Accessibility 和
 Screen Recording；Safari 必须处于可控状态。权限不足、窗口或控件身份不匹配、缺截图、证据
 SHA 不一致、缺重放或清理失败都会非零退出。
+
+`notify-icon-live` 是显式启用的 macOS 视觉检查：它必须指向已安装 `.app` 内的可执行文件，
+提交带唯一 runId 的系统通知并保活 15 秒，以便捕获通知横幅。该 gate 证明通知已由 Runtime
+成功提交；通知横幅中的实际图标仍需截图证据确认。
 
 新变量：
 

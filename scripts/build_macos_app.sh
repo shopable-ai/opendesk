@@ -12,6 +12,8 @@ HELPERS_DIR="${CONTENTS_DIR}/Helpers"
 EXECUTABLE_PATH="${MACOS_DIR}/opendesk"
 UI_HOST_PATH="${HELPERS_DIR}/opendesk-ui-host"
 PLIST_PATH="${CONTENTS_DIR}/Info.plist"
+APP_ICON_SOURCE="${ROOT_DIR}/public/icons/opendesk.icns"
+APP_ICON_NAME="OpenDesk.icns"
 BUNDLE_ID="${BUNDLE_ID:-com.opendesk.cli}"
 APP_NAME="${APP_NAME:-OpenDesk}"
 VERSION="${VERSION:-0.1.0}"
@@ -23,11 +25,17 @@ NATIVE_EXTENSIONS_SOURCE="${NATIVE_EXTENSIONS_SOURCE:-}"
 go build -o "${DIST_DIR}/opendesk" ./cmd/opendesk
 go build -o "${DIST_DIR}/opendesk-ui-host" ./cmd/opendesk-ui-host
 
+if [[ ! -f "${APP_ICON_SOURCE}" ]]; then
+  printf 'App icon is missing: %s\nRun scripts/generate_app_icons.sh first.\n' "${APP_ICON_SOURCE}" >&2
+  exit 1
+fi
+
 rm -rf "${APP_ROOT}"
-mkdir -p "${MACOS_DIR}" "${HELPERS_DIR}"
+mkdir -p "${MACOS_DIR}" "${HELPERS_DIR}" "${RESOURCES_DIR}"
 
 cp "${DIST_DIR}/opendesk" "${EXECUTABLE_PATH}"
 cp "${DIST_DIR}/opendesk-ui-host" "${UI_HOST_PATH}"
+cp "${APP_ICON_SOURCE}" "${RESOURCES_DIR}/${APP_ICON_NAME}"
 rsync -a --delete "${ROOT_DIR}/polyfills/" "${MACOS_DIR}/polyfills/"
 rsync -a --delete "${ROOT_DIR}/jslibs/" "${MACOS_DIR}/jslibs/"
 
@@ -75,6 +83,8 @@ fi
   <string>opendesk</string>
   <key>CFBundleIdentifier</key>
   <string>${BUNDLE_ID}</string>
+  <key>CFBundleIconFile</key>
+  <string>${APP_ICON_NAME}</string>
   <key>CFBundleInfoDictionaryVersion</key>
   <string>6.0</string>
   <key>CFBundleName</key>
@@ -89,6 +99,8 @@ fi
   <string>12.0</string>
   <key>NSAppleEventsUsageDescription</key>
   <string>OpenDesk needs Automation permission to control System Events and target applications for desktop automation workflows.</string>
+  <key>NSUserNotificationAlertStyle</key>
+  <string>alert</string>
 </dict>
 </plist>
 EOF
