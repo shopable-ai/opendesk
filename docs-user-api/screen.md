@@ -12,7 +12,7 @@ Screen 用于读取显示器信息、虚拟桌面范围，以及按坐标取色�
 - `Screen.screenshot = page.screenshot`
 - 所以截图能力请优先查看 page.md 中的 `page.screenshot()`
 
-## 方法总表
+## Screen：方法总表
 
 | 方法 | 用途 |
 | --- | --- |
@@ -185,7 +185,7 @@ await Screen.screenshot({
 });
 ```
 
-## 实战示例
+## Screen：实战示例
 
 **示例 1：打印所有显示器并截图第二屏**
 

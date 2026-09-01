@@ -23,7 +23,7 @@ jslibs 目录中的 .js 文件会在 polyfills 之后自动加载到运行时。
 - cheerio.js
 - beautify1.14.9.js
 
-## 库总表
+## jslibs：库总表
 
 | 文件 | 常见全局名 | 用途 |
 | --- | --- | --- |
@@ -124,7 +124,7 @@ const ugly = 'function x(){console.log(1)}';
 console.log(window.js_beautify(ugly));
 ```
 
-## 使用建议
+## jslibs：使用建议
 
 **示例 1：抓网页并解析 HTML**
 
@@ -151,7 +151,7 @@ const url = 'https://example.com/search?' + queryString.stringify({
 console.log(url);
 ```
 
-## 注意事项
+## jslibs：注意事项
 
 - 这些库的准确全局名取决于库文件自身导出方式
 - 当前文档列的是按源码可合理确认的最常见全局入口

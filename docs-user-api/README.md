@@ -30,25 +30,26 @@ order: 1
 4. `window.md`：窗口查询与控制
 5. `vision.md`：OCR、UI 文本定位、provider
 6. `image-color.md`：模板匹配、颜色与图像辅助能力
-7. `runtime.md`：运行时注入、polyfill、stack/facade
-8. `cookbook.md`：可直接改造的脚本范例
-9. 其余专题页按需查阅
+7. `notify.md`：系统通知调用契约、平台限制与可见性边界
+8. `dialog.md`：异步 alert / confirm / prompt、UI capability 与隐私边界
+9. `global-apis.md`：无需 import 即可调用的全局接口、等待、计时器和参数工具
+10. `runtime.md`：运行时注入、polyfill、stack/facade
+11. `custom-ui.md`：受限 HTML/CSS 视图与 JavaScript controller 原生窗口
+11. [native-extension.md](native-extension.md)：默认关闭、仅本机 CLI 显式 opt-in 的 Native Extension Plugin V1；底层复用 one-shot Native Process Protocol V0
+12. `cookbook.md`：可直接改造的脚本范例
+13. `scheduler.md`：file/inline JavaScript 定时任务、SQLite 持久化与本地管理页
+14. `scheduler-api.md`：Scheduler 本地 HTTP API 的字段、响应与完整调用示例
+15. 其余专题页按需查阅
 
 ## 文档分层
 
 - **核心桌面自动化**：`page.md`、`input.md`、`window.md`、`screen.md`
 - **视觉能力**：`vision.md`、`image-color.md`
 - **系统与数据**：`system.md`、`file.md`、`storage.md`、`clipboard-console.md`
-- **网络与服务**：`http.md`、`http-server.md`
-- **运行时**：`runtime.md`、`polyfills.md`、`libs.md`、`runtime-utilities.md`
+- **网络与服务**：`http.md`、`http-server.md`、`scheduler.md`、`scheduler-api.md`
+- **运行时**：`runtime.md`、`notify.md`、`dialog.md`、`global-apis.md`、`custom-ui.md`、`libs.md`、`runtime-utilities.md`、[native-extension.md](native-extension.md)
 - **实践范例**：`cookbook.md`
 
-## 配套的非渲染资产
-
-用户文档之外还维护两类辅助资产：
-
-| 位置 | 用途 |
-| --- | --- |
 [Native Extension Plugin V1](native-extension.md) 在唯一 Native Process Protocol V0
 Host 上增加严格 manifest discovery 和 Host-generated immutable binding。受信任的本机
 CLI execution 传 `-experimental-native-extension` 后，日常脚本使用
@@ -60,6 +61,12 @@ Linux XDG data、Windows LocalAppData Known Folder；独立 machine-wide discove
 该能力仍是 Experimental，也不是 Extension Manager、Marketplace、sandbox 或 Stable
 ABI。低层 `NativeExtension.call` 只在独立 unsafe 本机诊断 gate 中保留。
 
+## 配套的非渲染资产
+
+用户文档之外还维护两类辅助资产：
+
+| 位置 | 用途 |
+| --- | --- |
 | `docs-user-api/runtime-api.ai.json` | Agent 的机器可读对象地图与文档路由 |
 | `types/*.d.ts` + `jsconfig.json` | VS Code / TypeScript 自动补全、参数和返回值提示 |
 

@@ -10,7 +10,7 @@ order: 2
 
 它更接近“桌面自动化 Page”，**不是浏览器 DOM Page**。
 
-## 适用场景
+## page：适用场景
 
 - 截图当前窗口、整屏或指定区域
 - 打开 URL
@@ -19,16 +19,16 @@ order: 2
 - 等待条件
 - macOS 截图 / 辅助功能 / Automation 权限预检与引导
 
-## 关系
+## page：与其他全局对象的关系
 
 - `page.mouse` = 全局 `mouse`
 - `page.keyboard` = 全局 `keyboard`
 - `page.touchscreen` = 全局 `touchscreen`
 - `Screen.screenshot` 在运行时绑定到 `page.screenshot`
 
-## 方法总表
+## page：方法总表
 
-### Native
+### page：Native 接口
 
 | 方法 | 用途 |
 | --- | --- |
@@ -47,7 +47,7 @@ order: 2
 | `page.ensureMacPermissions(options)` | 严格确保 macOS 权限 |
 | `page.requestMacAutomationPermission(targetApp)` | 触发 AppleEvents 权限请求 |
 
-### Polyfill
+### page：Polyfill 增强
 
 | 方法 | 用途 |
 | --- | --- |
@@ -364,7 +364,7 @@ console.log(report);
 
 它只负责触发 AppleEvents 权限请求，**不能绕过 macOS 用户确认**。
 
-## 当前不属于稳定 page API 的旧写法
+## page：当前不属于稳定 API 的旧写法
 
 不要从历史 TestMonkey 文档重新引入：
 

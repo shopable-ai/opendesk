@@ -12,7 +12,7 @@ order: 11
 
 路由以 `pkg/http/handler.go` 为准。
 
-## 接口总表
+## HTTP Server API：接口总表
 
 | 方法 | 路径 | 用途 |
 | --- | --- | --- |
@@ -25,6 +25,8 @@ order: 11
 | GET | /executions/{id}/events | SSE 事件流 |
 | POST | /vision/ocr | OCR HTTP 接口 |
 | POST | /vision/detect-ui | UI 文本检测 HTTP 接口 |
+| GET | /scheduler | 本机 Scheduler 管理页 |
+| GET/POST | /api/scheduler/jobs | 列出或创建定时任务 |
 
 统一响应包装
 
@@ -62,7 +64,8 @@ order: 11
   "stack": "legacy",
   "consoleMode": "agent",
   "outputFormat": "json",
-  "logDir": "./.runtime/examples/http-run"
+  "logDir": "./.runtime/examples/http-run",
+  "capabilities": ["ui"]
 }
 ```
 
@@ -76,6 +79,7 @@ order: 11
 | consoleMode | string | 可选 |
 | outputFormat | string | 可选 |
 | logDir | string | 可选，产物目录 |
+| capabilities | string[] | 可选；v1 仅支持 `ui`，且需服务器和 loopback 双重授权 |
 
 返回值重点
 - executionId
@@ -246,7 +250,7 @@ curl -X POST http://127.0.0.1:60844/vision/detect-ui \
   -F target_text=确定
 ```
 
-## stack 参数说明
+## HTTP Server API：stack 参数
 
 HTTP 执行接口支持：
 - legacy
@@ -261,13 +265,25 @@ HTTP 执行接口支持：
 `USE_DI_CONTAINER=0` 不再启用一套独立 Runtime 实现；它保留为路由兼容别名，
 与默认模式共享本页的执行、超时、事件、产物和错误语义。
 
-## 错误条件
+内置 file/inline JavaScript 定时任务、SQLite 位置与页面使用见
+[Scheduler](scheduler.md)；Scheduler 的来源互斥、大小上限、源码不回显策略、响应模型
+和全部 action API 见 [Scheduler HTTP API](scheduler-api.md)。
+
+## HTTP Server API：错误条件
 
 常见 400
 - script 为空
 - JSON 不合法
 - vision 接口未上传 image
 - detect-ui 未传 `target_text`
+- 请求了未知 execution capability
+
+常见 403
+
+- 请求声明 `capabilities: ["ui"]`，但服务器没有通过 `-ui` 或可信本地配置启用 UI
+- UI 请求不是来自 `127.0.0.1` / `::1` loopback socket
+
+Custom UI 与 [Dialog](dialog.md) 的 HTTP 授权为三重门槛：服务器启用、单次请求声明、loopback 来源。只启用服务器但请求不声明时，该 execution 中的 `ui` 与 `Dialog` 仍为 dormant；来源成功时 `ui.getCapabilities().activationSource`、`Dialog.getCapabilities().activationSource` 与 `Execution.activationSource` 都是 `httpRequest`。`X-Forwarded-For`、任意 Host/Origin header 和 CORS 都不会绕过 socket loopback 检查；服务不会设置 `Access-Control-Allow-Origin: *`。完整窗口 API 见 [Custom UI v1](custom-ui.md)，Dialog 行为见 [Dialog API](dialog.md)。
 
 常见 404
 - execution id 不存在
@@ -275,7 +291,7 @@ HTTP 执行接口支持：
 常见 405
 - 方法不匹配
 
-## 用户建议
+## HTTP Server API：使用建议
 
 - 新项目优先用 `/executions`
 - 需要实时输出时用 `/events`

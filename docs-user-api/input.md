@@ -345,7 +345,7 @@ await touchscreen.tap(x, y)
 await touchscreen.tap(500, 600);
 ```
 
-## 实战示例
+## mouse / keyboard / touchscreen：实战示例
 
 **示例 1：拖拽窗口中的元素**
 
@@ -373,7 +373,7 @@ await page.waitForTimeout(500);
 await page.screenshot({ path: './.runtime/examples/after-scroll.png' });
 ```
 
-## 与旧文档的差异
+## mouse / keyboard / touchscreen：兼容说明
 
 旧文档倾向把交互动作写到 page.click(selector) / page.type(selector, text) 下面。
 

@@ -9,7 +9,7 @@ Recorder is currently MCP-first. Every session is explicit; there is no
 package-global active recorder. Session artifacts are stored under
 `.runtime/recordings/<session-id>/` and must not be committed.
 
-## Lifecycle tools
+## Recorder：Lifecycle tools
 
 | Tool | Purpose |
 | --- | --- |
@@ -29,7 +29,7 @@ Recordable action tools accept `recordingSessionId`, `executionId`, and a
 `processId` for PID-scoped macOS text-control insertion. Both retain the exact
 active-window guard when `expectedWindowTitle` is provided.
 
-## Deterministic replay contract
+## Recorder：Deterministic replay contract
 
 Generated JavaScript requires fresh external desktop state for native desktop
 clicks. It verifies permission, application bundle/path, unique window,

@@ -10,7 +10,7 @@ order: 1
 
 ## 一句话理解
 
-OpenDesk 在 JavaScript 运行时中注入桌面自动化、窗口、视觉、文件、网络和系统对象，再加载 polyfill 与内置 JS 库；外部程序还可以通过 HTTP 与 MCP 使用更高层能力。
+OpenDesk 在 JavaScript 运行时中注入桌面自动化、窗口、视觉、文件、网络和系统对象，再加载运行时增强与内置 JS 库；外部程序还可以通过 HTTP 与 MCP 使用更高层能力。
 
 ## 先读哪些
 
@@ -19,9 +19,14 @@ OpenDesk 在 JavaScript 运行时中注入桌面自动化、窗口、视觉、�
 - 做模板匹配 / 颜色判断：`image-color.md`
 - 做系统与文件操作：`system.md`、`file.md`、`storage.md`
 - 做网络调用：`http.md`
-- 从外部服务触发：`http-server.md`
-- 理解 legacy / upgraded / playwright：`runtime.md`
+- 发送系统通知：[`notify.md`](notify.md)
+- 显示需用户确认的异步原生窗口：[`dialog.md`](dialog.md)
+- 使用计时器、等待、剪贴板快捷函数等全局能力：[`global-apis.md`](global-apis.md)
 - 调用 manifest 插件：[Native Extension Plugin V1](native-extension.md)（Experimental；低层 Native Process V0 仅用于诊断）
+- 从外部服务触发：`http-server.md`
+- 创建受控原生面板：`custom-ui.md`
+- 定时执行文件或内联 JavaScript：`scheduler.md`；程序化管理接口：`scheduler-api.md`
+- 理解 legacy / upgraded / playwright：`runtime.md`
 - 直接拿范例：`cookbook.md`
 - 给 Agent / 工具读取：`runtime-api.ai.json`
 
@@ -44,10 +49,12 @@ OpenDesk 在 JavaScript 运行时中注入桌面自动化、窗口、视觉、�
 | `http` | Native | Stable | 底层 HTTP 请求 | `http.md` |
 | `axios` | Polyfill | Stable | 日常 HTTP 请求 | `http.md` |
 | `NativeExtensions` | Manifest registry + immutable binding | Experimental | CLI opt-in；自动发现严格 bundle，日常调用不传 executable/extension/wire method | [native-extension.md](native-extension.md) |
-| `notify()` | Polyfill + Native bridge | Secondary | 系统通知 | `polyfills.md` |
+| `notify()` | Polyfill + Native bridge | Secondary | 系统通知 | [`notify.md`](notify.md) |
+| `Dialog` / `alert()` / `confirm()` / `prompt()` | Native binding + Polyfill aliases | Conditional | 异步原生模态提示与短文本输入 | [`dialog.md`](dialog.md) |
 | `Sound` | Native | Secondary | 播放提示音 / 音频文件 | `runtime-utilities.md` |
-| `FloatingWindow` | Native | Conditional / Experimental | Fyne 浮动控制窗 | `runtime-utilities.md` |
-| Promise / timers / sleep | Native + Polyfill | Stable | 异步与等待 | `polyfills.md` |
+| `ui` | Native bridge | Conditional / v1 | 受限 HTML/CSS + JavaScript controller 的原生窗口 | `custom-ui.md` |
+| `FloatingWindow` | Button-first facade | Conditional v1 | 简单图标工具栏；仅 `run()` deprecated | `runtime-utilities.md` |
+| Global APIs | Native + Polyfill | Stable | 计时器、等待、剪贴板快捷函数、取消控制与 URL 参数 | [`global-apis.md`](global-apis.md) |
 | lodash / moment / query-string / cheerio / beautify | JS Libraries | Secondary | 脚本辅助库 | `libs.md` |
 | `browser` / `context` / upgraded facade | Native + Compatibility facade | Compatibility | 浏览器风格迁移接口 | `runtime.md` |
 
@@ -59,14 +66,24 @@ OpenDesk 在 JavaScript 运行时中注入桌面自动化、窗口、视觉、�
 
 `page`、`mouse`、`keyboard`、`window`、`Screen`、`System`、`File`、`AppStorage`、`Vision`、`ImageColor`、`Sound`、`http`，以及 Experimental `NativeExtensions`。
 
-### 2. Polyfill / Runtime wrapper
+`NativeExtensions` 默认不注入；只有受信任的本机 CLI JavaScript execution 显式传入
+`-experimental-native-extension` 才会从 portable/app-bundled 与 current-user roots
+发现严格 `extension.json` bundle，并生成冻结的 namespace/method closure。正常调用是
+`NativeExtensions.goBasic.hello({name: "OpenDesk"})`，不传 path、extension 或 wire
+method。Discovery/list/get/diagnostics 不启动 child，也不执行第三方 JS。完整契约见
+[Native Extension Plugin V1](native-extension.md)。低层 `NativeExtension.call` 仅保留在
+独立 `-experimental-unsafe-native-extension-call` 本机诊断 gate 中。
+current-user root 分别采用 macOS Application Support、Linux XDG data 和 Windows
+LocalAppData Known Folder；独立 machine-wide discovery 当前为 **Not Implemented**。
+
+### 2. Runtime 增强与全局接口
 
 运行时会加载 `polyfills/*.js`，用于：
 
 - 包装原生对象
 - 提供 `page.waitForTimeout()`、`page.ensurePermissions()` 等最终用户 API
 - 提供 `axios`
-- 提供 `notify()`、Promise、timers、sleep、URLSearchParams 等
+- 提供 `notify()`、Promise、timers、sleep、URLSearchParams 等；用户层导航见 [`global-apis.md`](global-apis.md)，`notify()` 的完整契约见 [`notify.md`](notify.md)
 
 ### 3. Compatibility facade
 
@@ -98,6 +115,10 @@ OpenDesk 在 JavaScript 运行时中注入桌面自动化、窗口、视觉、�
 - `GET /status`
 - `POST /vision/ocr`
 - `POST /vision/detect-ui`
+- `GET /scheduler`
+- `/api/scheduler/jobs` 创建 file/inline 任务、查看、暂停、恢复、立即运行、删除与运行历史
+
+Scheduler 的完整 HTTP 契约见 [Scheduler HTTP API](scheduler-api.md)。
 
 ## 事实与兼容原则
 

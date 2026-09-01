@@ -1,0 +1,262 @@
+---
+title: Global APIs
+description: OpenDesk JavaScript Runtime 中无需 import 即可直接使用的全局接口。
+order: 12
+---
+
+# 全局接口（Global APIs）
+
+本页说明 OpenDesk JavaScript Runtime 直接提供的全局函数、构造器和异步基础能力。
+脚本无需 `import`，即可直接调用：
+
+```js
+async function main() {
+  await sleep(100);
+  const params = new URLSearchParams({ task: 'daily-report' });
+  console.log(params.toString());
+}
+
+main();
+```
+
+## 全局接口与 Polyfill 的关系
+
+- **全局接口（Global APIs）**：用户视角的称呼，强调“脚本可以直接使用什么”。
+- **Polyfill**：运行时内部的实现方式，用于补齐、包装或统一 JavaScript 能力。
+
+用户通常不需要关心接口由哪个 `polyfills/*.js` 文件加载；排查 Runtime 资源或维护源码时，
+才需要查看实现来源。一个接口可以同时具有 Native 与 Polyfill 两种来源，但用户只应依赖
+这里及各专题页列出的最终调用方式。
+
+本页只收录“直接挂在 JavaScript 全局作用域上的辅助能力”。`page`、`window`、`clipboard`、
+`console`、`axios` 等也可以直接访问，但它们有独立的用户文档：
+
+- [Page API](page.md)：页面入口、截图、打开 URL / App、等待和权限。
+- [Window API](window.md)：窗口读取与控制。
+- [Clipboard and Console](clipboard-console.md)：`clipboard` 对象和 `console`。
+- [HTTP and Axios](http.md)：`http` 与全局 `axios`。
+- [Runtime Stacks](runtime.md)：运行时装载顺序和 upgraded / playwright 兼容入口。
+
+## 全局接口一览
+
+| 接口 | 主要用途 | 状态 | 备注 |
+| --- | --- | --- | --- |
+| `setTimeout` / `clearTimeout` | 延迟执行与取消一次性任务 | Stable | 返回数字 ID |
+| `setInterval` / `clearInterval` | 周期执行与取消 | Stable | 回调必须主动清理 |
+| `requestAnimationFrame` / `cancelAnimationFrame` | 约 60 FPS 的延迟回调 | Stable / Compatibility | 基于 timer，不是浏览器绘制循环 |
+| `sleep` / `sleepSeconds` | Promise 风格等待 | Stable | 不阻塞 Runtime 事件循环 |
+| `copyToClipboard` / `getClipboard` | 剪贴板快捷读写 | Stable | `clipboard` 对象的全局快捷入口 |
+| `notify` | 系统通知 | Secondary | 成功提交不代表用户已看到 |
+| `AbortController` / `AbortSignal` | 取消在途 HTTP 请求 | Stable / Compatibility | 与 `http`、`axios` 的 `signal` 配合 |
+| `URLSearchParams` | 生成查询参数或表单参数 | Stable / Compatibility | 当前为轻量兼容实现 |
+| `Promise` / `async` / `await` | 异步脚本基础 | Stable | Runtime 会提供 Promise 能力 |
+
+## `setTimeout` / `setInterval` / `requestAnimationFrame` / `sleep`：计时器与等待
+
+### `setTimeout` / `clearTimeout`：一次性计时器
+
+```js
+const timeoutID = setTimeout(() => {
+  console.log('稍后执行');
+}, 500);
+
+clearTimeout(timeoutID); // 不再需要时取消
+```
+
+| 接口 | 签名 | 返回值 |
+| --- | --- | --- |
+| `setTimeout` | `setTimeout(callback, delay?)` | `number` |
+| `clearTimeout` | `clearTimeout(id)` | `void` |
+
+`delay` 使用毫秒；省略时由 Runtime 使用默认延迟。取消后回调不会执行。
+
+### `setInterval` / `clearInterval`：周期计时器
+
+```js
+let count = 0;
+const intervalID = setInterval(() => {
+  count += 1;
+  console.log('第', count, '次');
+
+  if (count >= 3) clearInterval(intervalID);
+}, 1000);
+```
+
+| 接口 | 签名 | 返回值 |
+| --- | --- | --- |
+| `setInterval` | `setInterval(callback, delay?)` | `number` |
+| `clearInterval` | `clearInterval(id)` | `void` |
+
+周期任务必须在完成条件满足后调用 `clearInterval()`。不要用无限周期任务维持脚本生命周期；
+需要等待窗口关闭或 UI 事件时，请使用对应的页面或 Custom UI 生命周期接口。
+
+### `requestAnimationFrame` / `cancelAnimationFrame`：帧回调
+
+```js
+const frameID = requestAnimationFrame((timestamp) => {
+  console.log('回调时间：', timestamp);
+});
+
+// 如不再需要：cancelAnimationFrame(frameID);
+```
+
+`requestAnimationFrame()` 当前由约 60 FPS 的 timer 兼容实现提供，回调会收到毫秒时间戳。
+它不会等待浏览器 DOM 绘制，也不代表屏幕像素已经刷新；桌面自动化中的 UI 状态应优先使用
+`page.waitForFunction()` 或其他可验证条件等待。
+
+### `sleep` / `sleepSeconds`：固定等待
+
+```js
+await sleep(250);        // 250 毫秒
+await sleepSeconds(0.5); // 0.5 秒
+```
+
+两者都返回 `Promise<void>`，等待期间不会阻塞 Runtime 事件循环。它们适合固定的短暂间隔；
+等待窗口、文本、权限或网络状态时，应优先使用带条件的接口：
+
+```js
+await page.waitForFunction(() => window.title() === '完成', {
+  timeout: 5000,
+  interval: 100,
+});
+```
+
+更多页面状态等待方式见 [Page API](page.md)。
+
+## `copyToClipboard` / `getClipboard`：剪贴板快捷函数
+
+当脚本只需要读写文本时，可以直接使用全局函数：
+
+```js
+copyToClipboard('OpenDesk');
+const text = getClipboard();
+console.log(text);
+```
+
+| 接口 | 签名 | 返回值 | 说明 |
+| --- | --- | --- | --- |
+| `copyToClipboard` | `copyToClipboard(text: string)` | `void` | `text` 必须是字符串 |
+| `getClipboard` | `getClipboard()` | `string` | 读取当前剪贴板文本 |
+
+需要清空剪贴板、处理平台重试或使用完整对象接口时，请阅读
+[Clipboard and Console](clipboard-console.md) 的 `clipboard` 部分。
+
+## `notify`：系统通知
+
+`notify()` 是全局系统通知函数：
+
+```js
+notify('任务完成');
+
+notify({
+  title: 'OpenDesk',
+  message: '自动化已经完成',
+  sound: false,
+});
+```
+
+它的完整参数、同步返回、平台后端、权限和可见性边界见
+[notify API](notify.md)。通知显示不是业务成功或执行证据的替代品。
+
+## `AbortController` / `AbortSignal`：取消 HTTP 请求
+
+`AbortController` 与 `AbortSignal` 是运行时提供的轻量兼容接口，主要用于取消在途的
+`http.request()` 或 `axios` 请求：
+
+```js
+const controller = new AbortController();
+
+setTimeout(() => controller.abort('operator cancelled'), 500);
+
+try {
+  await axios.get('https://example.com/slow', {
+    signal: controller.signal,
+  });
+} catch (error) {
+  console.log(String(error.message || error));
+}
+```
+
+| 接口 | 签名 | 说明 |
+| --- | --- | --- |
+| `new AbortController()` | `AbortController` | 创建一次取消控制器 |
+| `controller.signal` | `AbortSignal` | 传给 `http` / `axios` 的请求配置 |
+| `controller.abort(reason?)` | `void` | 发出一次 `abort` 事件 |
+| `signal.aborted` | `boolean` | 是否已经取消 |
+| `signal.reason` | `unknown` | 调用 `abort()` 时传入的原因 |
+| `signal.addEventListener('abort', fn)` | `void` | 注册取消监听 |
+| `signal.removeEventListener('abort', fn)` | `void` | 移除取消监听 |
+
+取消只影响关联的 HTTP 请求，不会自动终止任意 JavaScript 函数。HTTP 错误和 deadline
+语义见 [HTTP and Axios](http.md)。
+
+## `URLSearchParams`：查询参数
+
+使用 `URLSearchParams` 生成查询字符串：
+
+```js
+const params = new URLSearchParams({
+  q: 'OpenDesk',
+  page: 1,
+});
+
+params.append('tag', 'runtime');
+console.log(params.toString());
+// q=OpenDesk&page=1&tag=runtime
+```
+
+支持的接口：
+
+| 接口 | 返回值 | 说明 |
+| --- | --- | --- |
+| `append(name, value)` | `void` | 追加同名参数 |
+| `delete(name)` | `void` | 删除参数 |
+| `get(name)` | `string \| null` | 读取第一个值 |
+| `getAll(name)` | `string[]` | 读取全部值 |
+| `has(name)` | `boolean` | 判断参数是否存在 |
+| `set(name, value)` | `void` | 覆盖为单个值 |
+| `toString()` | `string` | 序列化为查询字符串 |
+| `entries()` | `Array<[string, string]>` | 返回键值数组 |
+| `keys()` | `string[]` | 返回键名数组 |
+| `values()` | `string[]` | 返回值数组 |
+
+当前实现覆盖 OpenDesk 脚本常用的查询参数场景；它不是完整浏览器 URL 或 DOM API，
+`entries()`、`keys()`、`values()` 返回数组而不是浏览器中的迭代器。
+
+## `Promise` / `async` / `await`：异步脚本
+
+Runtime 会确保脚本可以使用 `Promise` 以及 `async` / `await`：
+
+```js
+async function runTask() {
+  const result = await Promise.resolve({ ok: true });
+  console.log(result.ok);
+}
+
+runTask();
+```
+
+异步回调、timer、sleep 和 HTTP 请求都由 Runtime 事件循环驱动。脚本应使用 `await`、
+`Promise.all()` 或显式错误处理来管理结果，不要通过阻塞式循环等待。
+
+## 相关接口文档
+
+“全局接口”是用户导航用语，不意味着所有全局对象都集中在本页。按用途继续阅读：
+
+- `console` 和 `clipboard`：见 [Clipboard and Console](clipboard-console.md)。
+- `axios` 和 `AbortController` 的 HTTP 用法：见 [HTTP and Axios](http.md)。
+- `page` 的等待、截图和权限：见 [Page API](page.md)。
+- `notify()` 的详细通知契约：见 [notify API](notify.md)。
+- `Sound`、`FloatingWindow` 和 `ui`：见 [Runtime Utilities](runtime-utilities.md) 与 [Custom UI v1](custom-ui.md)。
+
+## 全局接口的实现来源与维护边界
+
+本页描述的是最终用户可调用的接口，不要求用户了解内部文件名。维护者仍需区分：
+
+- **Native**：由 Runtime 直接注入的能力。
+- **Polyfill**：补齐或包装 JavaScript 行为的内置脚本。
+- **Compatibility**：为迁移保留的兼容形状，不代表完整第三方运行时。
+
+新增、删除或改名全局接口时，应同步检查本页、`runtime-api.ai.json`、`types/global.d.ts`
+和 `tests/runtime-api/` 中的 JavaScript 契约。Runtime 的加载顺序与资源目录说明见
+[Runtime Stacks](runtime.md)；不要把 `polyfills/*.js` 中的内部 bridge 名称当作用户 API。

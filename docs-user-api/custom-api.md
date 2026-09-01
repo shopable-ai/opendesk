@@ -14,7 +14,7 @@ order: 15
 
 如果你的需求必须新增原生系统能力、Go 代码、特殊设备驱动或运行时内部接口，请直接阅读本文末尾的“超出 JavaScript 自定义范围时怎么办”。
 
-## 适合用 JavaScript 自定义的场景
+## 自定义 JavaScript API：适用场景
 
 优先使用 JavaScript 组合已有能力：
 
@@ -61,9 +61,9 @@ const info = workspace.systemInfo();
 const exists = workspace.exists('./data.json');
 ```
 
-## 两种使用方式
+## 自定义 JavaScript API：两种使用方式
 
-### 方式一：直接写在业务脚本中
+### 自定义 JavaScript API：方式一，直接写在业务脚本中
 
 这是最简单、兼容性最高的方法。
 
@@ -75,7 +75,7 @@ const exists = workspace.exists('./data.json');
 
 推荐先在业务脚本中验证 API 设计，再决定是否做成自动加载的共享 JavaScript 文件。
 
-### 方式二：当前兼容方式——放入完整的 `polyfills/` 目录
+### 自定义 JavaScript API：方式二，放入完整的 `polyfills/` 目录
 
 如果一个 JavaScript 扩展已经稳定并需要多个脚本共享，当前源码可以把它放入 Runtime 实际选中的完整 `polyfills/` 目录。
 
@@ -93,7 +93,7 @@ polyfills/900-workspace.js
 
 开发环境中应把自定义文件放进当前完整的 `polyfills/` 目录；二进制发行环境中，如果 Runtime 资源目录不可写或不可见，优先继续在业务脚本内封装，或由项目作者 / 维护者提供对应扩展或定制构建。
 
-## 当前文件加载规则与顺序
+## 自定义 JavaScript API：文件加载规则与顺序
 
 这一规则会直接影响多个 JavaScript 文件之间的依赖关系，必须明确理解。
 
@@ -126,7 +126,7 @@ polyfills/900-workspace.js
 
 因为字符串排序可能与人脑理解的数值顺序不同。
 
-### 当前 Core Polyfill 的真实顺序
+### 自定义 JavaScript API：当前 Core Polyfill 的真实顺序
 
 以当前仓库文件名为准，现阶段排序大致为：
 
@@ -167,7 +167,7 @@ url-search-params.js
 
 后续计划会把 Core / User / Project 分层、Core 文件命名统一以及 Embedded Core JS 作为独立 Runtime 演进事项；在正式机制实现前，本页只记录当前真实行为。
 
-## 多文件自定义时的推荐做法
+## 自定义 JavaScript API：多文件组织
 
 如果确实需要多个自定义文件，优先按依赖关系留出明确间隔：
 
@@ -200,7 +200,7 @@ url-search-params.js
 
 如果一个业务封装只有几十行，并且只被一个脚本使用，继续放在业务脚本中通常比拆成多个自动加载文件更简单。
 
-## 自定义 API 的推荐结构
+## 自定义 JavaScript API：推荐结构
 
 一个稳定的 JavaScript 自定义接口建议包含：
 
@@ -240,7 +240,7 @@ url-search-params.js
 })(globalThis);
 ```
 
-## 不要直接依赖 `____Inject`
+## 自定义 JavaScript API：不要直接依赖 `____Inject`
 
 普通自定义脚本不要使用：
 
@@ -272,7 +272,7 @@ axios
 
 原因是公开 API 可以保留兼容层，而内部桥对象可能随 Runtime 重构发生变化。
 
-## 一个对象只定义一次公开 owner
+## 自定义 JavaScript API：公开 owner 只能定义一次
 
 自定义全局对象时，避免多个文件重复执行：
 
@@ -294,7 +294,7 @@ globalThis.workspace = ...
 
 不同能力需要协作时，通过调用彼此公开对象完成，而不是重复覆盖同一个全局对象。
 
-## 参数和返回值规则
+## 自定义 JavaScript API：参数和返回值
 
 建议自定义 API 遵循以下约定：
 
@@ -323,7 +323,7 @@ async function locateAndClick(options = {}) {
 }
 ```
 
-## 同步和异步
+## 自定义 JavaScript API：同步和异步
 
 如果底层公开 API 返回 Promise，自定义接口应继续使用 `async/await`：
 
@@ -340,7 +340,7 @@ const custom = {
 
 长时间任务应优先使用 OpenDesk 已有执行、HTTP 或 MCP 能力，而不是在一个 helper 中无限阻塞。
 
-## 编辑器类型提示
+## 自定义 JavaScript API：编辑器类型提示
 
 当自定义 API 已经稳定，可以增加对应 `.d.ts`：
 
@@ -363,7 +363,7 @@ declare const workspace: WorkspaceAPI;
 
 如果只是个人临时脚本，不必为了一个实验 helper 立即增加类型文件。
 
-## 自定义 API 的最小测试
+## 自定义 JavaScript API：最小测试
 
 至少验证：
 
@@ -375,7 +375,7 @@ declare const workspace: WorkspaceAPI;
 6. 多文件扩展必须验证实际加载顺序和依赖关系。
 7. 重要业务动作有动作后验证，而不是只检查函数返回。
 
-## 什么情况下不要继续用 JavaScript 包装
+## 自定义 JavaScript API：何时停止 JavaScript 包装
 
 出现以下情况时，继续增加 JavaScript wrapper 通常已经不能真正解决问题：
 
@@ -389,7 +389,7 @@ declare const workspace: WorkspaceAPI;
 
 这时属于 **Native / Runtime Extension**，而不是普通用户 JavaScript 自定义。
 
-## 超出 JavaScript 自定义范围时怎么办
+## 自定义 JavaScript API：超出范围后的方案
 
 按以下顺序判断：
 
@@ -410,7 +410,7 @@ declare const workspace: WorkspaceAPI;
 → 当前尚未提供；使用外置扩展，或联系项目作者 / 维护者定制
 ```
 
-### HTTP / MCP 外置扩展
+### 自定义 JavaScript API：HTTP / MCP 外置扩展
 
 如果能力已经存在于 Python、Node.js、模型服务、数据库服务或公司内部系统中，通常没必要编译进 OpenDesk。
 
@@ -425,13 +425,13 @@ OpenDesk JavaScript
 
 这种方式更容易独立升级，也不会修改核心 Runtime。
 
-### 源码级 Go 扩展
+### 自定义 JavaScript API：源码级 Go 扩展
 
 如果你拥有对应源码和构建权限，可以由 OpenDesk 维护者按项目的 Runtime API 扩展框架增加原生能力。
 
 源码级扩展不是本页的普通用户 API 范围，也不建议业务脚本直接依赖内部 Go bridge 名称。
 
-### 无核心源码的 Native 扩展
+### 自定义 JavaScript API：无核心源码的 Native 扩展
 
 当前 OpenDesk 尚未提供稳定的第三方 Native Extension ABI。
 
@@ -455,7 +455,7 @@ list/get/diagnostics 不启动 executable，也不执行第三方 bundle JS；�
 自定义 JS facade 或 Stable ABI。低层 V0 `NativeExtension.call` 仅保留在独立 unsafe
 本机诊断 gate 中，不是日常接口。
 
-### 联系作者 / 维护者定制
+### 自定义 JavaScript API：联系作者 / 维护者定制
 
 如果你拿到的是二进制版本、没有源码权限，或者希望得到正式支持的原生能力，可以联系 OpenDesk 项目作者 / 维护者提出定制需求。
 
@@ -492,7 +492,7 @@ SUPPORT.md
 
 所有用户文档统一指向这一处；未来增加官网、商务邮箱、Issue 模板、GitHub Discussions 或工单系统时，只更新 `SUPPORT.md`，不要把私人联系方式散落到各个 API 页面。
 
-## 相关文档
+## 自定义 JavaScript API：相关文档
 
 - `index.md`：当前公开 API 地图。
 - `runtime.md`：Runtime 注入与 stack。

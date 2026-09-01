@@ -17,7 +17,7 @@ System 提供系统信息与基础系统操作能力。
 注意
 - 其中某些系统控制方法（如关机、重启、睡眠）副作用很强，应谨慎使用。
 
-## 方法总表
+## System：方法总表
 
 | 方法 | 用途 |
 | --- | --- |
@@ -39,7 +39,7 @@ System 提供系统信息与基础系统操作能力。
 | System.getSystemInfo() | 获取系统概览 |
 | System.toJSON(data) | 美化 JSON 字符串 |
 
-## 常用方法
+## System：常用方法
 
 ## System.getSystemInfo()
 
@@ -156,7 +156,7 @@ const text = System.toJSON({ hello: 'world' });
 console.log(text);
 ```
 
-## 高副作用方法
+## System：高副作用方法
 
 ## System.shutdown(delay)
 
@@ -180,7 +180,7 @@ await System.restart(60);
 await System.sleep();
 ```
 
-## 与 page 权限 API 的关系
+## System / page：权限关系
 
 旧文档常把“权限”归到 system 范畴。
 

@@ -4,7 +4,7 @@ description: OpenDesk 原生 http 对象与构建在其上的 axios polyfill。
 order: 9
 ---
 
-# http / axios
+# http / axios：HTTP 请求
 
 当前脚本层有两个 HTTP 入口：
 
@@ -18,7 +18,7 @@ order: 9
 
 因此新脚本通常优先使用 `axios`；需要最小封装或排查底层行为时使用 `http`。
 
-## http
+## http：原生 HTTP 请求
 
 **方法总表**
 
@@ -88,7 +88,7 @@ const resp = await http.post('https://httpbin.org/post', {
 console.log(resp.data);
 ```
 
-## axios
+## axios：便捷 HTTP 请求
 
 **状态：Stable / Polyfill**
 
@@ -114,7 +114,7 @@ console.log(resp.data);
 - responseType: `json`
 - validateStatus: `200 <= status < 300`
 
-## axios.get + params
+## axios.get：使用 params
 
 ```js
 const resp = await axios.get('https://httpbin.org/get', {
@@ -127,7 +127,7 @@ const resp = await axios.get('https://httpbin.org/get', {
 console.log(resp.data);
 ```
 
-## axios.post
+## axios.post：提交数据
 
 ```js
 const resp = await axios.post('https://httpbin.org/post', {
@@ -137,7 +137,7 @@ const resp = await axios.post('https://httpbin.org/post', {
 console.log(resp.status);
 ```
 
-## axios.put / patch / delete
+## axios.put / axios.patch / axios.delete：修改与删除
 
 ```js
 await axios.put('https://httpbin.org/put', { enabled: true });
@@ -145,7 +145,7 @@ await axios.patch('https://httpbin.org/patch', { name: 'new' });
 await axios.delete('https://httpbin.org/delete');
 ```
 
-## 拦截器
+## axios.interceptors：请求与响应拦截器
 
 ```js
 axios.interceptors.request.use((config) => {
@@ -160,7 +160,7 @@ axios.interceptors.response.use((response) => {
 });
 ```
 
-## 错误行为
+## http / axios：错误行为
 
 - 网络错误：向上抛出。
 - timeout：抛出以 `HTTP request timed out` 开头的错误。
@@ -168,20 +168,20 @@ axios.interceptors.response.use((response) => {
 - `validateStatus` 不通过：抛出 `Request failed with status code ...`。
 - interceptor 抛错：继续向上抛出。
 
-## 何时选哪个
+## http / axios：选型建议
 
 - 日常脚本：`axios`
 - 最小底层依赖：`http`
 - params / interceptors / defaults：`axios`
 - 排查 HTTP bridge：先看 `http.request()`
 
-## 关于 automation/axios.go
+## axios：实现边界
 
 Go 侧旧 Axios bridge 已移除。所有 stack 都使用这里描述的 axios polyfill，
 它通过 `http.request()` 返回 Promise；网络 I/O 完成后才由 Runtime event loop 回调
 resolve/reject。脚本应继续以 `await axios...` 处理结果与错误。
 
-## 取消慢请求
+## AbortController：取消慢请求
 
 ```js
 const controller = new AbortController();
@@ -195,3 +195,4 @@ try {
 
 `AbortController` 是运行时提供的最小标准兼容实现；它支持本页 HTTP/axios
 取消所需的 `signal`、`abort()`、`addEventListener()` 和 `removeEventListener()`。
+全局接口的完整说明见 [`global-apis.md`](global-apis.md)。

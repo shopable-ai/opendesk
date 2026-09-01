@@ -44,6 +44,9 @@
     "Prefer Vision.runOCR or Vision.detectUI for structured OCR/UI text work; use OCR.extractText for simple local text extraction.",
     "Use ImageColor as a secondary pixel/template/color primitive, not as a replacement for semantic verification.",
     "Prefer axios for normal script HTTP requests; axios is a polyfill backed by http.request.",
+    "NativeExtensions is an Experimental manifest-discovered immutable binding. Normal calls use NativeExtensions.<namespace>.<method>(businessParams) with routes fixed by the Host; it is absent by default and enabled only for a trusted local CLI script with -experimental-native-extension. HTTP and MCP cannot enable it. The low-level NativeExtension.call compatibility surface requires the separate -experimental-unsafe-native-extension-call local diagnostic gate.",
+    "The ui global is always present but dormant by default. Enable it with -ui or strict clawdesk.runtime.json; HTML/CSS declares the view and all business API calls stay in the JavaScript controller.",
+    "Dialog is always present but fail-closed without the ui capability. Its alert, confirm, and prompt methods are asynchronous native modal dialogs; global alert/confirm/prompt are thin polyfill aliases, never browser-style blocking calls.",
     "Treat upgraded/playwright surfaces as compatibility facades, not a complete Playwright browser engine.",
     "Do not use retired TestMonkey documentation as a current API authority."
   ],
@@ -184,7 +187,10 @@
       ],
       "storage": {
         "canonical": "~/.opendesk/opendesk/storage.json",
-        "legacyMigrationFrom": "~/.testmonkey/testMonkey/storage.json"
+        "legacyMigrationFrom": [
+          "~/.clawdesk/clawdesk/storage.json",
+          "~/.testmonkey/testMonkey/storage.json"
+        ]
       }
     },
     {
@@ -210,12 +216,6 @@
         "post"
       ]
     },
-    {
-      "name": "axios",
-      "source": "polyfill",
-      "status": "stable",
-      "doc": "http.md",
-      "backedBy": "http.request",
     {
       "name": "NativeExtensions",
       "source": "strict manifest registry plus host-generated immutable binding",
@@ -250,6 +250,12 @@
         "native executable during discovery/list/get/diagnostics"
       ]
     },
+    {
+      "name": "axios",
+      "source": "polyfill",
+      "status": "stable",
+      "doc": "http.md",
+      "backedBy": "http.request",
       "keyMethods": [
         "request",
         "get",
@@ -263,8 +269,38 @@
       "name": "notify",
       "source": "polyfill+native bridge",
       "status": "secondary",
-      "doc": "polyfills.md",
-      "callShape": "notify(string|options)"
+      "doc": "notify.md",
+      "callShape": "notify(string)|notify(options)",
+      "signature": "notify(message: string): void; notify(options: OpenDeskNotifyOptions): void",
+      "defaults": {
+        "string": {"message": "", "sound": true},
+        "options": {"title": "OpenDesk Notification", "message": "", "sound": false}
+      },
+      "timeout": "accepted for compatibility but ignored by current platform notification backends",
+      "result": "undefined on backend submission success; throws on invalid input or backend failure",
+      "visibility": "success means the host accepted the request; OS notification permissions and Focus/Do Not Disturb may suppress display",
+      "bridge": "notify____Inject"
+    },
+    {
+      "name": "Dialog",
+      "source": "host-owned native binding plus thin polyfill aliases",
+      "status": "conditional",
+      "doc": "dialog.md",
+      "types": "types/dialog.d.ts",
+      "condition": "always injected but DIALOG_DISABLED without the ui capability; CLI needs -ui or trusted config, HTTP additionally needs server enablement, per-request ui and loopback source; Scheduler and MCP have no Dialog opt-in",
+      "platformBehavior": "macOS normal AppKit top-level window through the existing Custom UI native host; unsupported platforms reject DIALOG_UNSUPPORTED_PLATFORM",
+      "keyMethods": [
+        "alert",
+        "confirm",
+        "prompt",
+        "getCapabilities"
+      ],
+      "globalAliases": [
+        "alert",
+        "confirm",
+        "prompt"
+      ],
+      "privacy": "secure prompt uses a password input; Dialog never writes message, defaultValue, or prompt input to ordinary logs, errors, summaries, events, or HTTP responses"
     },
     {
       "name": "Sound",
@@ -282,29 +318,66 @@
       ]
     },
     {
+      "name": "ui",
+      "source": "native process driver plus EventLoop bridge",
+      "status": "conditional-v1",
+      "doc": "custom-ui.md",
+      "condition": "always present but dormant by default; local CLI or strict project config authorization is required, while HTTP additionally requires server opt-in, per-request capability declaration, and a loopback peer",
+      "platformBehavior": "macOS AppKit/WebKit host; Windows and Linux report available=false and createWindow rejects UNSUPPORTED_PLATFORM",
+      "keyMethods": [
+        "getCapabilities",
+        "createWindow",
+        "closeAll",
+        "on"
+      ],
+      "activationSources": [
+        "disabled",
+        "cli",
+        "projectConfig",
+        "httpRequest"
+      ]
+    },
+    {
       "name": "FloatingWindow",
-      "source": "native",
-      "status": "conditional-experimental",
+      "source": "Button-first facade over the Custom UI driver",
+      "status": "button-first-v1",
       "doc": "runtime-utilities.md",
-      "condition": "not injected when SKIP_FYNE_INIT is set",
+      "condition": "injected only when Custom UI is explicitly authorized; constructible instances accept 1-32 ordered pre-show buttons, trusted built-in icons, synchronous or Promise callbacks, post-show state updates, button-level single-flight, automatic bounded wrapping, and structured callback errors; run alone is deprecated",
       "keyMethods": [
         "addButton",
         "removeButton",
+        "updateButton",
+        "getButtonState",
         "show",
         "hide",
+        "close",
         "setPosition",
         "onButtonClick",
+        "onError",
         "setAlwaysOnTop",
+        "waitUntilClosed",
         "run"
       ]
     },
     {
-      "name": "Promise/timers/sleep",
+      "name": "Global APIs",
       "source": "native+polyfill",
       "status": "stable",
-      "doc": "polyfills.md",
+      "doc": "global-apis.md",
+      "summary": "无需 import 即可直接调用的计时器、等待、剪贴板快捷函数、取消控制、通知与 URL 参数接口。",
       "keyMethods": [
-        "AbortController"
+        "notify",
+        "copyToClipboard",
+        "getClipboard",
+        "AbortController",
+        "setTimeout",
+        "clearTimeout",
+        "setInterval",
+        "clearInterval",
+        "sleep",
+        "sleepSeconds",
+        "requestAnimationFrame",
+        "cancelAnimationFrame"
       ]
     },
     {
@@ -380,7 +453,10 @@
     ],
     "runtime": [
       "runtime.md",
-      "polyfills.md",
+      "notify.md",
+      "custom-ui.md",
+      "native-extension.md",
+      "global-apis.md",
       "libs.md",
       "runtime-utilities.md"
     ],

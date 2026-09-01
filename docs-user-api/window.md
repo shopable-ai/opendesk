@@ -24,7 +24,7 @@ polyfill 说明
 - `polyfills/003-window.js` 会把 `getActiveWindow()` 与 `getWindowByTitle()` 的返回对象属性转换为 lowerCamelCase
 - 所以用户侧读取时应优先使用 `title`、`pid`、`x`、`y`、`width`、`height`
 
-## 方法总表
+## window：方法总表
 
 | 方法 | 用途 |
 | --- | --- |
@@ -53,7 +53,7 @@ polyfill 说明
 | window.unsetTopMost(title) | 取消置顶 |
 | window.bringToTop(title, pid) | 将窗口提升到顶层 |
 
-## WindowInfo 返回结构
+## window：WindowInfo 返回结构
 
 当前源码定义的标准窗口结构：
 
@@ -375,7 +375,7 @@ await window.bringToTop(title, pid)
 | title | string | 标题，可为空 |
 | pid | any | 可传 pid 作为辅助选择 |
 
-## 实战示例
+## window：实战示例
 
 **示例 1：获取活动窗口并截图它**
 
@@ -408,7 +408,7 @@ const browsers = windows.filter(item =>
 console.log(JSON.stringify(browsers, null, 2));
 ```
 
-## 与旧文档的差异
+## window：兼容说明
 
 旧文档对窗口能力描述较少，更多围绕移动端 page 模型。
 

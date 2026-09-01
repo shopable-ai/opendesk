@@ -18,7 +18,7 @@ File 是运行时注入的文件系统对象。
 - 相对路径会解析到当前工作目录
 - 绝对路径会直接使用
 
-## 方法总表
+## File：方法总表
 
 | 方法 | 用途 |
 | --- | --- |
@@ -53,7 +53,7 @@ File 是运行时注入的文件系统对象。
 | File.join(parent, ...children) | 拼路径 |
 | File.open(path, mode) | 按模式打开文件 |
 
-## 常用方法
+## File：常用方法
 
 ## File.cwd()
 
@@ -174,7 +174,7 @@ const file = File.open(path, mode)
 **错误条件**
 - 非法模式会报：`invalid file mode`
 
-## 实战示例
+## File：实战示例
 
 **示例 1：保存 OCR 结果**
 
@@ -204,7 +204,7 @@ File.ensureDir(dir);
 File.write(File.join(dir, 'summary.txt'), 'done');
 ```
 
-## 注意事项
+## File：注意事项
 
 - `File.write()` 不会自动建父目录
 - `File.move()` 底层直接使用 rename，跨设备移动时可能失败

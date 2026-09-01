@@ -4,14 +4,14 @@ description: OpenDesk JS 运行时注入顺序、全局对象形成过程，以�
 order: 14
 ---
 
-# runtime stacks
+# Runtime Stacks：运行时栈
 
 本页解释两个问题：
 
 1. OpenDesk 的 JavaScript 全局 API 是怎样形成的。
 2. `legacy` / `upgraded` / `playwright` 如何改变 `page` / `browser` / `context`。
 
-## 运行时 API 形成过程
+## Runtime API：形成过程
 
 当前 `automation.InitJSWithOptions()` 的主顺序是：
 
@@ -21,16 +21,17 @@ order: 14
    - `System`
    - `window`
    - `clipboard`
-   - `FloatingWindow`（仅当未设置 `SKIP_FYNE_INIT`）
+   - `ui`（始终存在；未授权时 dormant）
+   - `FloatingWindow`（仅 UI 已授权时注入的 Button-first facade；仅 `run()` deprecated）
    - `File`
    - `AppStorage`
    - `Sound`
    - `ImageColor`
    - `OCR`
    - `Vision`
-2. 注册 timer 能力
    - `NativeExtensions`（仅受信任的本机 CLI JavaScript 显式启用 Experimental registry gate 时）
    - `NativeExtension`（仅独立 unsafe 本机诊断 gate；非日常入口）
+2. 注册 timer 能力
 3. 创建输入与 page 对象
    - `mouse`
    - `keyboard`
@@ -52,7 +53,7 @@ order: 14
 
 **Native 对象 + 可选的 Experimental `NativeExtensions` + Polyfill 覆盖/增强 + JS Libraries + Stack 选择**
 
-## 为什么要区分 Native 与 Polyfill
+## Native / Polyfill：接口来源
 
 例如 `page.screenshot()` 来自原生 Page；而：
 
@@ -68,7 +69,9 @@ order: 14
 
 `axios` 也是典型例子：正式脚本中的全局 `axios` 由 `polyfills/004-axios.js` 构造，并最终调用底层 `http.request()`。
 
-## 核心全局对象
+`Dialog` 在同一初始化链中于 polyfill 前注册。即使 UI capability 未授权，`Dialog` 也存在但会 fail closed 为 `DIALOG_DISABLED`；`polyfills/000-dialog.js` 仅提供全局 Promise aliases，未建立第二套实现。Dialog 使用 Custom UI 的独立 native host、事件队列、WindowServer 读取与 Runtime EventLoop ownership，但调用者不能提交 HTML/CSS。完整 capability、HTTP、取消与 prompt 隐私规则见 [`dialog.md`](dialog.md)。
+
+## page / window / System / File：核心全局对象
 
 完整导航见 `index.md`。运行时核心可以按职责理解：
 
@@ -76,11 +79,16 @@ order: 14
 - **视觉**：`Vision`、`OCR`、`ImageColor`
 - **数据与系统**：`File`、`AppStorage`、`System`、`clipboard`
 - **网络**：`http`、`axios`
-- **运行时辅助**：`console`、Promise、timers、sleep、`notify()`、`Sound`
-- **条件能力**：`FloatingWindow`
+- **运行时辅助**：`console`、Promise、timers、sleep、[`notify()`](notify.md)、[`Dialog`](dialog.md) / `alert()` / `confirm()` / `prompt()`、`Sound`
+- **Experimental Native Plugin**：`NativeExtensions`（默认不注入；manifest-generated immutable binding）
+- **条件能力**：`ui`（默认 dormant；CLI / 固定项目配置 / HTTP 请求显式授权）
+- **兼容入口**：`FloatingWindow`（底层走 Custom UI driver，不初始化 Fyne）
 - **兼容 facade**：`browser`、`context`、upgraded/playwright 相关对象
 
-## 三种 stack
+计时器、等待、剪贴板快捷函数、取消控制和 `URLSearchParams` 的用户层入口见
+[Global APIs](global-apis.md)。
+
+## legacy / upgraded / playwright：运行时栈
 
 ### legacy
 
@@ -137,7 +145,7 @@ go run ./cmd/opendesk -script script.js -stack playwright
 
 的迁移代码。
 
-## 重要边界：不是完整 Playwright
+## upgraded / playwright：兼容边界
 
 OpenDesk 的 upgraded/playwright 层是**兼容 facade**，不是完整浏览器 DOM 引擎。
 
@@ -150,7 +158,7 @@ OpenDesk 的 upgraded/playwright 层是**兼容 facade**，不是完整浏览器
 
 需要浏览器风格能力时，应以当前 facade 实际实现和测试为准。
 
-## 原始注入对象
+## page____Inject / browser____Inject / context____Inject：内部对象
 
 运行时内部还会保留：
 
@@ -162,17 +170,9 @@ OpenDesk 的 upgraded/playwright 层是**兼容 facade**，不是完整浏览器
 
 新脚本应使用公开入口，而不是内部注入名。
 
-## 资源加载位置
+## polyfills / jslibs：资源加载位置
 
 `polyfills/` 与 `jslibs/` 会从可执行文件目录和当前工作目录的向上路径中寻找。
-
-如果运行时日志出现：
-
-- 找不到 polyfills
-- 找不到 jslibs
-- 加载某个 JS 文件失败
-
-应优先排查资源目录是否随二进制正确发布，而不是把问题误判为业务脚本错误。
 
 Experimental `NativeExtensions` 不复用 polyfill/jslib 的 cwd/祖先查找规则。只有受信任
 的本机 CLI JavaScript execution 显式传入 `-experimental-native-extension` 时才会从
@@ -183,7 +183,15 @@ one-shot process。低层 `NativeExtension.call` 只能由单独的
 `-experimental-unsafe-native-extension-call` 本机诊断 gate 开启，registry gate 不会
 顺带暴露绝对路径执行。详见 [Native Extension Plugin V1](native-extension.md)。
 
-## 选择建议
+如果运行时日志出现：
+
+- 找不到 polyfills
+- 找不到 jslibs
+- 加载某个 JS 文件失败
+
+应优先排查资源目录是否随二进制正确发布，而不是把问题误判为业务脚本错误。
+
+## legacy / upgraded / playwright：选择建议
 
 | 场景 | 推荐 |
 | --- | --- |
@@ -192,7 +200,7 @@ one-shot process。低层 `NativeExtension.call` 只能由单独的
 | 明确需要 Playwright 风格对象关系 | `playwright` |
 | 新功能是否稳定不确定 | 先在 `legacy` 验证底层能力，再考虑 facade |
 
-## 机器可读索引
+## runtime-api.ai.json：机器可读索引
 
 Agent 不需要从多套旧文档猜接口。
 

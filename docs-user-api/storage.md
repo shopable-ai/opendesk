@@ -12,7 +12,7 @@ order: 8
 
 它不是数据库，也不适合存储大型二进制数据或高并发事务数据。
 
-## 方法总表
+## AppStorage：方法总表
 
 | 方法 | 用途 |
 | --- | --- |
@@ -23,7 +23,7 @@ order: 8
 | `AppStorage.getLength()` | 键数量 |
 | `AppStorage.key(index)` | 按索引取键名 |
 
-## 基本使用
+## AppStorage：基本使用
 
 ```js
 AppStorage.setItem('lastTask', 'wechat-send');
@@ -34,7 +34,7 @@ console.log(value);
 
 不存在的 key 返回空字符串。
 
-## setItem(key, value)
+## AppStorage.setItem(key, value)
 
 `value` 最终以字符串形式持久化。
 
@@ -45,13 +45,13 @@ AppStorage.setItem('enabled', true);
 
 读取时仍是字符串语义；需要数字/布尔值时由脚本显式转换。
 
-## removeItem(key)
+## AppStorage.removeItem(key)
 
 ```js
 AppStorage.removeItem('retryCount');
 ```
 
-## clear()
+## AppStorage.clear()
 
 ```js
 AppStorage.clear();
@@ -59,7 +59,7 @@ AppStorage.clear();
 
 会清空当前 AppStorage 命名空间。
 
-## getLength() / key(index)
+## AppStorage.getLength() / AppStorage.key(index)
 
 ```js
 const count = AppStorage.getLength();
@@ -72,7 +72,7 @@ for (let i = 0; i < count; i++) {
 
 注意：底层 map 的键顺序不应被视为稳定排序，因此不要把 `key(index)` 当成持久化顺序 API。
 
-## 存储位置与旧数据迁移
+## AppStorage：存储位置与旧数据迁移
 
 当前 OpenDesk 使用：
 
@@ -94,7 +94,7 @@ for (let i = 0; i < count; i++) {
 - 只有旧文件可读取且 JSON 有效时才复制到新位置。
 - 迁移失败不会删除历史数据。
 
-## 适合保存什么
+## AppStorage：适合保存什么
 
 推荐：
 

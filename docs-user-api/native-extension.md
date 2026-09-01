@@ -8,7 +8,7 @@ order: 15
 
 > 状态：**Experimental**。V1 是自动发现与不可变 Binding Prototype，不是 Stable ABI、Stable SDK、插件商店或安全沙箱。
 
-## 五分钟：安装并调用第一个扩展
+## NativeExtensions：五分钟安装并调用第一个扩展
 
 普通使用者安装**与当前 OS/CPU 匹配的预编译 bundle**，不编译扩展，也不需要 OpenDesk
 源码。插件作者或其 CI 才负责编译和发布每个平台的 archive。
@@ -127,7 +127,7 @@ main();
 `digest_mismatch` 表示 executable 与 manifest 摘要不同；两个 `duplicate_*` 表示所有冲突
 bundle 均已 quarantine，必须移除冲突后启动新的 execution。
 
-## 日常 JavaScript API
+## NativeExtensions：日常 JavaScript API
 
 公开调用模型是：
 
@@ -165,7 +165,7 @@ Host 在 Runtime 初始化时从严格 manifest 生成 closure，并把 plugin i
 executable、wire method、protocol、version 和默认 timeout 固定在 closure 内。因此普通
 脚本只提供业务 params，不需要也无权选择 transport route。
 
-## 启用和启动语义
+## NativeExtensions：启用和启动语义
 
 Registry 默认关闭。只有受信任的本机 CLI JavaScript execution 显式启用：
 
@@ -191,7 +191,7 @@ Discovery、`list()`、`get()` 和 `diagnostics()` 不启动 native process，�
 
 HTTP 的 `/SCRIPT_RUN`、`/executions` 和 MCP tool list/call 均不能用请求字段启用 registry 或低层 process execution。
 
-## Discovery roots 和优先顺序
+## NativeExtensions：Discovery roots 和优先顺序
 
 三类术语必须分开：publisher root 由 OpenDesk/portable package 发布者组装；canonical
 current-user root 是普通使用者唯一推荐的第三方 bundle 安装位置；machine-wide root 是只有
@@ -218,7 +218,7 @@ reparse-point/junction trust gate。机器级插件继续由 publisher 放进 de
 
 V1 不扫描 cwd、源码祖先、`PATH` 或 `polyfills/jslibs`。优先顺序只决定确定性枚举顺序，不允许覆盖：跨 root 的重复 plugin id 或重复 namespace 会把所有冲突项 quarantine；其他唯一且健康的插件仍可用。
 
-### Experimental prototype 目录迁移
+### NativeExtensions：Experimental prototype 目录迁移
 
 仓库当前 HEAD/历史没有已提交的 Native Extension V1 path contract；V1.0.1 在首次正式纳入
 前把 Linux prototype 从 config 改为 XDG data，把 Windows prototype 从 roaming 改为
@@ -228,7 +228,7 @@ LocalAppData。旧 config/roaming 目录不再扫描，也不会被自动复制�
 到已有目标。若支持渠道发现不能人工确认的真实旧用户数据，应停止批量迁移并建立独立
 migration Goal，设计有期限的 legacy root kind、冲突 quarantine、deprecation 和移除版本。
 
-## Bundle layout
+## NativeExtensions：Bundle layout
 
 每个 direct child 是一个独立 bundle，目录名必须等于 manifest `id`：
 
@@ -245,7 +245,7 @@ NativeExtensions/
 
 不要把裸 executable 直接散放在 root。`facade.js` 等第三方 JavaScript 即使存在也不会被 V1 加载。
 
-## Manifest V1
+## NativeExtensions：Manifest V1
 
 正式 JSON Schema：`schemas/native-extension/extension-manifest-v1.schema.json`。
 
@@ -298,7 +298,7 @@ cwd、文件系统和网络能力；V1 没有 sandbox 或 permission broker。
 
 平台限制：Windows V1 会验证文件类型、symlink、bundle containment 和内容 digest，但尚未读取 Windows ACL 来等价检查 owner/group/world write；timeout 会终止直接子进程，但尚未用 Job Object 保证清理插件自行派生的所有后代。Windows 上只应使用由当前用户或管理员控制的标准 roots；ACL 与完整 process-tree containment 属于后续独立安全工作。Unix 的绝对 root 父链同样不得经过 symlink；因此 macOS 临时测试包应使用真实路径 `/private/tmp/...`，不要使用指向它的 `/tmp/...` 别名。
 
-## Registry API
+## NativeExtensions：Registry API
 
 ```js
 const plugins = NativeExtensions.list();
@@ -322,7 +322,7 @@ NativeExtensions.macosVision.ocr(params, { timeoutMs: 10000 });
 
 未知 options（包括 `executable`、`extension` 或 `method`）会返回 `invalid_params`。
 
-## Errors 和 Evidence
+## NativeExtensions：Errors 和 Evidence
 
 失败抛真正的 `NativeExtensionsError`：
 
@@ -343,7 +343,7 @@ try {
 
 扩展返回的 `error.message` 不作为公共错误消息透传；JavaScript 只得到固定的 `native extension returned an error`，Evidence 只保存该消息的 byte length 与 SHA-256。扩展 `error.code` 必须匹配 `[a-z][a-z0-9_]{0,31}`；否则整个 response 归类为 `invalid_response`，原 code 不进入 Evidence。Evidence 不记录完整 params、result、raw stdout、stderr 文本、图片路径/内容、home path、环境变量、token 或完整 manifest。用户脚本若主动 `console.log()` 业务结果，那是用户自己的 console 输出，不属于 Native Extension Evidence 的隐私承诺。
 
-## 谁负责编译
+## NativeExtensions：谁负责编译
 
 普通使用者**不需要**编译扩展，也不需要 OpenDesk 源码。采用主流的预编译发行模型：
 
@@ -401,7 +401,7 @@ Publisher signature、notarization、SBOM 和 archive checksum 属于发布者/C
 与 Windows amd64 Go archive，Windows target manifest 精确指向 `.exe` 并记录 archive 与
 executable SHA-256；这些是 compile/package evidence，不冒充目标 OS Runtime Evidence。
 
-## 安装和发行 staging
+## NativeExtensions：安装和发行 staging
 
 普通使用者直接安装预编译 bundle，不执行下面的仓库构建。以下 portable build/copy
 形态仅供 OpenDesk 仓库维护者验收 examples；正式 proof harness 会实际执行。产物写入
@@ -443,7 +443,7 @@ current-user bundle 的安装/升级应在 Runtime execution 之间完成；V1 �
 也不要由最终用户修改已经签名的 `.app/Contents/Resources`；App 内 staging 是应用发布者
 在 codesign 前完成的工作。
 
-## 可选 `.d.ts`
+## NativeExtensions：可选 `.d.ts`
 
 `types/index.d.ts` 只服务编辑器，不参与 discovery、digest 信任或 process execution。V1 不自动合并插件类型。插件作者可发布声明，用户在项目中显式 include：
 
@@ -456,13 +456,13 @@ NativeExtensions.goBasic.hello({ name: "OpenDesk" });
 
 必须同时 include core 声明和实际安装插件的声明。core 不预声明示例 namespace；插件声明通过 declaration merging 增加 namespace 与 canonical plugin-id 的精确类型。仓库示例声明位于 `examples/native-extensions/*/types/index.d.ts`；仓库级通用声明位于 `types/NativeExtension.d.ts`。
 
-## 为什么不自动执行第三方 facade.js
+## NativeExtensions：为什么不自动执行第三方 facade.js
 
 当前 core polyfills/jslibs 会在共享 Goja global realm 中直接编译执行，并且通用 CommonJS `require` 能搜索 host filesystem。把 bundle JS 复用这条路径，会让“发现文件”直接变成拥有 `File`、`System`、`page`、network 和 raw process 能力的代码执行。
 
 因此 V1 明确不 `require()`、`eval()` 或自动加载第三方 facade；custom JS facade 延后到独立 V1.1。V1.1 的前置条件至少包括 dedicated restricted Goja realm、bundle-confined loader、source size/hash limit、compile-only discovery、first-use lazy execution、plugin-bound invoke、JSON-only cross-realm boundary，以及默认无 `File/System/page/http/raw NativeExtension` capability。
 
-## 低层 V0 兼容入口
+## NativeExtension.call：低层 V0 兼容入口
 
 现有 `pkg/nativeextension` Host 与 Protocol V0 仍是唯一 process/protocol 实现。Direct Host CLI `opendesk -native-extension ...` 保留用于调试。
 
@@ -476,7 +476,7 @@ opendesk \
 
 它不是日常插件 API，HTTP/MCP 永远不能开启。
 
-## 验收
+## NativeExtensions：验收
 
 ```bash
 ./scripts/test_runtime_apis.sh unit

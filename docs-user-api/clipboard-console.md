@@ -1,12 +1,12 @@
 ---
 title: Clipboard and Console
-description: clipboard、全局剪贴板 polyfill 与 console 输出能力。
+description: clipboard 对象、console 输出与全局快捷函数的使用说明。
 order: 8
 ---
 
-# clipboard / console
+# clipboard / console：剪贴板与日志
 
-## clipboard
+## clipboard：剪贴板对象
 
 clipboard 是系统剪贴板对象。
 
@@ -61,9 +61,10 @@ await clipboard.clear();
 **注意**
 - 当前实现不是严格“空内容”，而是写入一个空格
 
-## 全局剪贴板 polyfill
+## copyToClipboard / getClipboard：全局剪贴板快捷函数
 
-polyfills/000-global.js 额外提供了两个全局函数：
+如果只需要读写文本，也可以使用两个全局快捷函数。它们的归属和完整说明见
+[`global-apis.md`](global-apis.md)：
 
 | 全局函数 | 说明 |
 | --- | --- |
@@ -73,11 +74,11 @@ polyfills/000-global.js 额外提供了两个全局函数：
 **示例**
 
 ```js
-copyToClipboard('from polyfill');
+copyToClipboard('from global API');
 console.log(getClipboard());
 ```
 
-## console
+## console：日志与事件输出
 
 console 在运行时会被 polyfill 替换为统一接口，底层由 Go Console 对象处理。
 
@@ -133,7 +134,7 @@ await page.waitForTimeout(500);
 console.timeEnd('capture');
 ```
 
-## 说明
+## console：输出说明
 
 - console polyfill 会把 `null`、`undefined` 做显式转换
 - 复杂对象会在 Go 层被 JSON 美化输出

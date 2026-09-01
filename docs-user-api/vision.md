@@ -18,7 +18,7 @@ Vision 是当前项目里最值得优先使用的视觉对象之一。
 - 常与 `File` 联用保存图片或结果
 - 常与 `window` 联用定位当前窗口后截图
 
-## 布局分析与标注
+## Vision.analyzeLayout / Vision.annotateRegions：布局分析与标注
 
 `Vision.analyzeLayout({ image, ...options })` 对 Runtime 截图或 base64 图像生成通用区域与分隔线结构；
 `Vision.annotateRegions({ image, regions?, separators?, outputPath? })` 返回带标记 PNG。二者不依赖 OCR
@@ -35,7 +35,7 @@ provider，适合用于可解释的视觉结构验证。
 - 更适合简单本地 OCR
 - 新脚本优先推荐 Vision
 
-## 方法总表
+## Vision：方法总表
 
 | 方法 | 用途 |
 | --- | --- |
@@ -43,7 +43,7 @@ provider，适合用于可解释的视觉结构验证。
 | Vision.detectUI(options) | 基于 OCR 文本检测 UI 元素 |
 | Vision.getCapabilities(options) | 查看 provider 能力、默认语言、是否已配置 |
 
-## provider 现状
+## Vision：provider 现状
 
 当前源码内 provider 注册情况：
 
@@ -282,7 +282,7 @@ const caps = await Vision.getCapabilities({ provider: 'paddle' });
 console.log(JSON.stringify(caps, null, 2));
 ```
 
-## OCR 对象（旧但仍可用）
+## OCR：旧对象与当前可用范围
 
 除了 Vision，当前项目还注入了 `OCR`：
 
@@ -311,7 +311,7 @@ console.log(text);
 - 需要结构化 lines / bbox / provider 管理：用 Vision
 - 只想快速本地抽纯文本：可用 OCR.extractText
 
-## 常见错误
+## Vision / OCR：常见错误
 
 **paddle 未配置 endpoint**
 
@@ -336,7 +336,7 @@ unsupported ocr provider: xxx
 - base64 非法
 - image 字段格式不对
 
-## 实战建议
+## Vision / OCR：实战建议
 
 **推荐流程：截图 -> detectUI -> 点击**
 
@@ -379,7 +379,7 @@ if (provider.endpointRequired && !provider.endpointConfigured) {
 }
 ```
 
-## 与旧文档的差异
+## Vision / OCR：兼容说明
 
 旧文档对视觉能力覆盖较弱。
 

@@ -17,7 +17,7 @@ order: 10
 
 它适合作为 Vision 不够用时的补充，不建议单独承担复杂 GUI 语义识别。
 
-## 主要方法
+## ImageColor：主要方法
 
 | 方法 | 用途 |
 | --- | --- |
@@ -40,7 +40,7 @@ order: 10
 
 方法名是 Go 导出名映射到 JS 后的 lowerCamelCase 形式。
 
-## findPos(source, template, threshold)
+## ImageColor.findPos(source, template, threshold)
 
 最常用的模板匹配入口。
 
@@ -79,7 +79,7 @@ console.log(result);
 
 模板匹配对缩放、主题、字体、抗锯齿和分辨率变化敏感。重要动作应结合二次验证，不要只凭一次模板匹配直接执行高风险操作。
 
-## loadBase64(path)
+## ImageColor.loadBase64(path)
 
 ```js
 const dataUrl = ImageColor.loadBase64('./.runtime/examples/screen.png');
@@ -91,7 +91,7 @@ const dataUrl = ImageColor.loadBase64('./.runtime/examples/screen.png');
 data:image/png;base64,...
 ```
 
-## resize(image, width, height)
+## ImageColor.resize(image, width, height)
 
 ```js
 const resized = ImageColor.resize(image, 800, 600);
@@ -101,7 +101,7 @@ const resized = ImageColor.resize(image, 800, 600);
 
 `width`、`height` 必须 > 0。
 
-## clip(image, options)
+## ImageColor.clip(image, options)
 
 用于从 base64/data URL 图像中裁出区域。
 
@@ -116,7 +116,7 @@ const clipped = ImageColor.clip(image, {
 
 `options` 可省略；省略时默认取整张图。当前实现会把越界尺寸收敛到图像范围内，但起点完全越界或最终宽高无效会报错。
 
-## pixel(image, x, y)
+## ImageColor.pixel(image, x, y)
 
 ```js
 const color = ImageColor.pixel(base64Image, 20, 30);
@@ -125,7 +125,7 @@ console.log(color); // #rrggbb
 
 坐标越界会报错。
 
-## findColor(image, color, options)
+## ImageColor.findColor(image, color, options)
 
 ```js
 const raw = ImageColor.findColor(base64Image, '#ff0000', {
@@ -143,7 +143,7 @@ const result = JSON.parse(raw);
 
 这属于当前 API 的历史形态，调用时需要显式 `JSON.parse()`。
 
-## findColorBlocks(image, color, options)
+## ImageColor.findColorBlocks(image, color, options)
 
 ```js
 const blocks = ImageColor.findColorBlocks(base64Image, '#ffffff', {
@@ -171,13 +171,13 @@ const blocks = ImageColor.findColorBlocks(base64Image, '#ffffff', {
 ]
 ```
 
-## hasColor(...)
+## ImageColor.hasColor(...)
 
 用于快速判断某区域是否包含目标颜色。
 
 这是低级像素判断；如果你真正想判断“按钮是否存在”，优先考虑 `Vision.detectUI()` 或模板 + 验证组合。
 
-## isGray(...)
+## ImageColor.isGray(...)
 
 可用于：
 
@@ -186,7 +186,7 @@ const blocks = ImageColor.findColorBlocks(base64Image, '#ffffff', {
 
 threshold 控制 RGB 通道允许差异。
 
-## getSize(image)
+## ImageColor.getSize(image)
 
 ```js
 const [width, height] = ImageColor.getSize('./.runtime/examples/screen.png');
@@ -194,7 +194,7 @@ const [width, height] = ImageColor.getSize('./.runtime/examples/screen.png');
 
 读取失败时当前实现可能返回 `null`/空值，应做防御判断。
 
-## save(image, path, format, quality)
+## ImageColor.save(image, path, format, quality)
 
 支持当前实现里的 PNG / JPEG 保存。
 
@@ -202,19 +202,19 @@ const [width, height] = ImageColor.getSize('./.runtime/examples/screen.png');
 ImageColor.save(image, './.runtime/examples/out.jpg', 'jpg', 90);
 ```
 
-## 颜色通道与格式转换
+## ImageColor：颜色通道与格式转换
 
 `findRedChannel` / `findGreenChannel` / `findBlueChannel` 会在给定区域中寻找第一个明显的非灰度对应通道像素，适合做简单颜色信号判断。
 
 颜色格式转换方法用于 RGB / RGBA / HSL / HSLA 之间转换；具体参数形态以当前源码和 `types/ImageColor.d.ts` 为辅助参考。
 
-## isColorSimilar(target, gradient, tolerance)
+## ImageColor.isColorSimilar(target, gradient, tolerance)
 
 用于比较目标色是否与给定渐变/颜色集合相似。
 
 默认 tolerance 在未正确传值时会采用当前实现的默认值。
 
-## 与 Vision 的推荐组合
+## ImageColor / Vision：推荐组合
 
 ```text
 截图
