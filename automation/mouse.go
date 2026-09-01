@@ -4,15 +4,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/go-vgo/robotgo"
 )
 
-type Mouse struct{}
+type Mouse struct {
+	mu             sync.Mutex
+	pressedButtons map[string]bool
+}
 
 func NewMouse() *Mouse {
-	return &Mouse{}
+	return &Mouse{pressedButtons: make(map[string]bool)}
 }
 
 func (m *Mouse) Click(x, y int, options interface{}) error {
@@ -44,10 +48,6 @@ func (m *Mouse) Click(x, y int, options interface{}) error {
 				delay, hasDelay = optMap["Delay"]
 			}
 
-			// 更新选项之前先打印解析到的值
-			fmt.Printf("Parsing options: Button=%v, ClickCount=%v, Delay=%v\n",
-				button, clickCount, delay)
-
 			if hasButton {
 				if buttonStr, ok := button.(string); ok {
 					opts.Button = buttonStr
@@ -59,16 +59,12 @@ func (m *Mouse) Click(x, y int, options interface{}) error {
 					opts.ClickCount = v
 				case int64:
 					opts.ClickCount = int(v)
-					fmt.Printf("Converted from int64: %d\n", v)
 				case float64:
 					opts.ClickCount = int(v)
 				case json.Number:
 					if count, err := v.Int64(); err == nil {
 						opts.ClickCount = int(count)
-						fmt.Printf("Converted from json.Number: %d\n", count)
 					}
-				default:
-					fmt.Printf("Unexpected clickCount type: %T\n", v)
 				}
 			}
 			if hasDelay {
@@ -92,8 +88,6 @@ func (m *Mouse) Click(x, y int, options interface{}) error {
 	}
 
 	// Handle single click case
-	fmt.Printf("Performing click with button: %s\n", opts.Button)
-
 	// On macOS, keep movement and the paired down/up in robotgo's native
 	// MoveClick path. It includes the library's short pointer-settle interval
 	// without leaving a long gap in which another application can take focus.
@@ -141,16 +135,33 @@ func (m *Mouse) Move(x, y int, options interface{}) error {
 		}
 	}
 
+	pressedButton := m.dragButtonForMove()
+	moveStep := func(nextX, nextY int) {
+		if runtime.GOOS == "darwin" && pressedButton != "" {
+			// robotgo.Move emits kCGEventMouseMoved even while a button is
+			// down. AppKit and WebKit therefore never observe mouseDragged:.
+			// Emit the button-specific drag event promised by mouse.down →
+			// mouse.move → mouse.up on macOS.
+			robotgo.Drag(nextX, nextY, pressedButton)
+			return
+		}
+		robotgo.MoveMouse(nextX, nextY)
+	}
+
 	if opts.Steps > 1 {
 		currentX, currentY := robotgo.GetMousePos()
 		for step := 1; step <= opts.Steps; step++ {
 			nextX := currentX + ((x - currentX) * step / opts.Steps)
 			nextY := currentY + ((y - currentY) * step / opts.Steps)
-			robotgo.MoveMouse(nextX, nextY)
+			moveStep(nextX, nextY)
 			time.Sleep(time.Millisecond)
 		}
 	} else {
-		robotgo.Move(x, y)
+		if runtime.GOOS == "darwin" && pressedButton != "" {
+			robotgo.Drag(x, y, pressedButton)
+		} else {
+			robotgo.Move(x, y)
+		}
 	}
 
 	return nil
@@ -175,6 +186,7 @@ func (m *Mouse) Down(options interface{}) error {
 	}
 
 	robotgo.Toggle(opts.Button, "down")
+	m.setButtonPressed(opts.Button, true)
 	return nil
 }
 
@@ -197,7 +209,39 @@ func (m *Mouse) Up(options interface{}) error {
 	}
 
 	robotgo.Toggle(opts.Button, "up")
+	m.setButtonPressed(opts.Button, false)
 	return nil
+}
+
+func (m *Mouse) setButtonPressed(button string, pressed bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.pressedButtons == nil {
+		m.pressedButtons = make(map[string]bool)
+	}
+	if pressed {
+		m.pressedButtons[button] = true
+	} else {
+		delete(m.pressedButtons, button)
+	}
+}
+
+func (m *Mouse) pressedButton() string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, button := range []string{"left", "right", "middle"} {
+		if m.pressedButtons[button] {
+			return button
+		}
+	}
+	return ""
+}
+
+func (m *Mouse) dragButtonForMove() string {
+	if runtime.GOOS != "darwin" {
+		return ""
+	}
+	return m.pressedButton()
 }
 
 // GetPos returns the current mouse position with additional screen context

@@ -34,7 +34,11 @@ static int opendesk_window_for_pid_at_point(pid_t pid, CGPoint point, int64_t *w
 		int64_t layer = -1;
 		int64_t number = 0;
 		if (!opendesk_copy_sint64(window, kCGWindowOwnerPID, &owner_pid) || owner_pid != pid) continue;
-		if (!opendesk_copy_sint64(window, kCGWindowLayer, &layer) || layer != 0) continue;
+		// Floating AppKit panels intentionally use a positive window layer. Keep
+		// the PID, on-screen bounds, point hit, AX PID, and AXPress gates below;
+		// rejecting every non-zero layer would make safe PID-scoped interaction
+		// impossible for OpenDesk's own floating toolbar.
+		if (!opendesk_copy_sint64(window, kCGWindowLayer, &layer) || layer < 0) continue;
 		if (!opendesk_copy_sint64(window, kCGWindowNumber, &number) || number <= 0) continue;
 
 		CFDictionaryRef bounds_value = (CFDictionaryRef)CFDictionaryGetValue(window, kCGWindowBounds);
