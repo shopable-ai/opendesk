@@ -1,6 +1,6 @@
 # TASK-003 — Desktop Event / Watcher
 
-Status: TODO
+Status: IN_PROGRESS
 Priority: P0
 Depends on: none
 
