@@ -19,7 +19,15 @@ let icons = [
   Icon(symbol: "timer", file: "timer.png"),
   Icon(symbol: "camera.viewfinder", file: "snapshot.png"),
   Icon(symbol: "square.grid.2x2.fill", file: "tools.png"),
-  Icon(symbol: "list.bullet", file: "library.png")
+  Icon(symbol: "list.bullet", file: "library.png"),
+  Icon(symbol: "camera.viewfinder", file: "quick-screenshot.png"),
+  Icon(symbol: "viewfinder", file: "quick-spotlight.png"),
+  Icon(symbol: "pencil", file: "quick-doodle.png"),
+  Icon(symbol: "rectangle.on.rectangle", file: "quick-exclude-window.png"),
+  Icon(symbol: "drop", file: "quick-watermark.png"),
+  Icon(symbol: "text.alignleft", file: "quick-prompter.png"),
+  Icon(symbol: "keyboard", file: "quick-keyboard.png"),
+  Icon(symbol: "timer", file: "quick-schedule.png")
 ]
 
 guard CommandLine.arguments.count == 2 else {
