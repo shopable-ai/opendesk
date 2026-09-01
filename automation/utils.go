@@ -592,6 +592,13 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 	runtime.Set("context____Inject", contextMethods)
 	runtime.Set("context", contextMethods)
 
+	// notify() is supplied by 000-systemBase.js. Register its native bridge
+	// before loading polyfills so every execution transport gets the documented
+	// global helper through the same Runtime initialization path.
+	if err := runtime.Set("notify____Inject", Notify); err != nil {
+		return fmt.Errorf("failed to register notify bridge: %w", err)
+	}
+
 	if err := loadPolyfillsWithSink(runtime, opts.EventSink); err != nil {
 		return fmt.Errorf("failed to load polyfills: %v", err)
 	}
