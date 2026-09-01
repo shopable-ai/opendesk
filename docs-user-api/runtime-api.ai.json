@@ -5,6 +5,7 @@
   "authority": {
     "sourceOfTruth": [
       "automation/*.go",
+      "pkg/nativeextension/*.go",
       "polyfills/*.js",
       "cmd/opendesk/main.go",
       "pkg/http/*.go"
@@ -215,6 +216,40 @@
       "status": "stable",
       "doc": "http.md",
       "backedBy": "http.request",
+    {
+      "name": "NativeExtensions",
+      "source": "strict manifest registry plus host-generated immutable binding",
+      "status": "experimental",
+      "doc": "native-extension.md",
+      "condition": "absent by default; trusted local CLI script execution requires -experimental-native-extension; HTTP and MCP cannot enable it",
+      "summary": "Discovers strict extension.json bundles from portable/app-bundled and current-user roots, generates frozen namespaces and method closures, and starts one validated executable only when a generated method is called.",
+      "canonicalCurrentUserRoots": {
+        "darwin": "$HOME/Library/Application Support/OpenDesk/NativeExtensions/",
+        "linux": "${XDG_DATA_HOME:-$HOME/.local/share}/OpenDesk/NativeExtensions/; non-empty XDG_DATA_HOME must be absolute",
+        "windows": "%LOCALAPPDATA%\\OpenDesk\\NativeExtensions\\ via the LocalAppData Known Folder"
+      },
+      "machineWideRoot": "not implemented; machine-level bundles remain publisher/deployment package content until Unix admin policy and Windows owner/DACL/reparse trust gates exist",
+      "migration": "legacy Linux config and Windows roaming prototype roots are not scanned or auto-moved/copied/merged/deleted",
+      "lifecycle": "registry frozen per execution; start a new execution after install or upgrade; no hot reload",
+      "callOptions": [
+        "timeoutMs"
+      ],
+      "errorModel": "method failure throws NativeExtensionsError; successful calls return the extension result directly",
+      "keyMethods": [
+        "list",
+        "get",
+        "diagnostics"
+      ],
+      "manifestProvidedExamples": [
+        "NativeExtensions.goBasic.hello",
+        "NativeExtensions.goBasic.add",
+        "NativeExtensions.macosVision.ocr"
+      ],
+      "doesNotExecute": [
+        "third-party JavaScript facade files during discovery",
+        "native executable during discovery/list/get/diagnostics"
+      ]
+    },
       "keyMethods": [
         "request",
         "get",

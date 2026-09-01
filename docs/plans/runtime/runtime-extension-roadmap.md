@@ -909,3 +909,147 @@ Go plugin
 ```
 
 这能保持当前 OpenDesk 简单，同时为未来用户、自定义开发和商业集成保留足够大的扩展空间。
+
+---
+
+# 二十、Native Process Extension V0 Prototype 的当前收口
+
+## 20.1 状态边界
+
+Native Process Extension V0 进入 **Experimental Prototype** 实施阶段。这个状态只表示 OpenDesk 已选择并实现最小 one-shot 验证面，不改变本计划前文关于完整 Extension Platform 尚未建设的判断。
+
+V0 要证明的组合严格限定为：
+
+```text
+OpenDesk binary
++ independent Extension executable
++ public stdin/stdout JSON protocol
+```
+
+Extension 不 import OpenDesk 内部 package，也不需要 OpenDesk Core 源码。只有真实 build、Runtime 调用、Apple Vision OCR 和离开源码目录后的隔离运行全部通过，才能把该技术路线记为 Verified。不得把 Prototype 的实现或单元测试单独写成 Verified，更不得标记为 Stable。
+
+## 20.2 固定的 V0 process 与 wire contract
+
+```text
+start one child process
+→ write one UTF-8 JSON request to stdin
+→ close stdin
+→ read one UTF-8 JSON response from stdout
+→ capture diagnostics from stderr
+→ wait for process exit
+→ validate protocol/version/request id
+→ return result or structured error
+```
+
+固定 discriminator：
+
+```text
+protocol = opendesk-native-extension
+version = 1
+```
+
+固定 request 字段是 `protocol`、`version`、`id`、`method`、`params`；固定 response 字段是 `protocol`、`version`、`id`、`ok` 以及互斥的 `result` / `error`。stdout 只承载协议，Extension 日志只写 stderr。V0 response 对未知字段 fail closed，避免在没有 schema registry 的阶段默默接受协议漂移。
+
+## 20.3 当前接入边界
+
+- Host 位于 `pkg/nativeextension/`，负责 executable 校验、process 生命周期、timeout/cancellation、bounded stdout/stderr、strict response validation 和 Evidence。
+- JavaScript 入口是 `NativeExtension.call(options)`，状态必须保持 `Experimental`。成功直接返回 Extension `result`；失败抛出带 `code`、`extensionCode`、`evidence` 的 JavaScript `Error`。
+- CLI script 和 HTTP execution 共享 `pkg/execution` Runtime 初始化，但 process-launching global 默认 fail closed。V1 之后低层 `NativeExtension.call` 只有本机 CLI script 明确传 `-experimental-unsafe-native-extension-call` 才在该 Request 注入；`-experimental-native-extension` 专用于严格 registry。
+- HTTP execution 没有远程 opt-in 并保持关闭；MCP server 当前走独立 direct automation wrapper，也没有接入这个 API。V0 不为完成表面对齐而扩大远程执行面。
+- Go 示例只依赖 standard library，实现 `hello` / `add`；macOS Swift 示例只依赖 Foundation、ImageIO 和 Apple Vision，实现真实 `ocr`。
+
+## 20.4 Evidence 与资源上限
+
+每次调用记录：
+
+```text
+executable
+method
+protocol / protocolVersion
+requestId
+startupDurationMs / durationMs
+exitCode
+status / errorCode / extensionErrorCode
+stderrSummary / stderrTruncated
+```
+
+Evidence 明确排除 params、result、raw stdout、图片内容、账号和 token。V0 默认 child-process/protocol deadline 是 3 秒，stdout 上限 1 MiB，stderr capture 上限 64 KiB，stderr summary 上限 4 KiB；OCR 调用可显式提高 `timeoutMs`。executable/params 本地校验与 Request 编码先执行，不承诺被该 deadline 中断；Host 当前也没有独立 request-size cap，这两点都属于 V0 limitation。
+
+## 20.5 V0 验证门槛
+
+最终 Runtime Evidence 必须同时覆盖：
+
+```text
+hello
+add
+extension invalid_params
+unknown method
+missing / non-executable executable
+child crash / nonzero exit
+empty stdout / invalid JSON
+protocol mismatch / request id mismatch
+timeout
+OCR image not found / invalid image
+real Apple Vision OCR
+stderr does not corrupt stdout protocol
+source-isolated execution from /tmp
+startup / hello / add / OCR latency
+```
+
+正式 Runtime JS contract/unit 进入 `tests/runtime-api/`；跨 executable、Swift/Vision、故障注入与源码隔离 smoke 进入 `tests/extensions/native-process/`；所有运行产物进入 `.runtime/tests/`，不进入源码树。
+
+## 20.6 明确仍未实现
+
+```text
+Persistent Extension Process
+Process Pool / Heartbeat / Reconnect / Hot Reload
+Extension Manager / Store / Marketplace / online install
+signature and permission system
+complex sandbox
+Wasm / Lua / Go plugin
+dylib / so / dll ABI
+Protobuf / MessagePack / Shared Memory
+complete Extension SDK
+```
+
+## 20.7 Persistent Native Process V2 决策门槛
+
+Persistent V2 不是 V0 的自动后续。V1 先完成 manifest auto-discovery 与不可变 Binding，仍复用 one-shot Host。只有代表性调用频率与真实性能数据证明 process startup 已成为可观察瓶颈，并且收益足以覆盖 lifecycle、reconnect、state isolation 和 crash recovery 复杂度时，才进入 Persistent Process 设计。否则继续保留可诊断、隔离性强的 one-shot 模型。
+
+# 二十一、Native Extension Plugin Auto-Discovery V1
+
+V1 状态为 **Experimental**，在唯一 Native Process Host/Protocol V0 之上增加两层：
+
+```text
+strict extension.json + frozen registry
+→ host-generated immutable NativeExtensions namespace/method closures
+→ existing one-shot Native Process Host V0
+```
+
+日常 API 固定为 `NativeExtensions.<namespace>.<method>(businessParams,
+options?)`。route、wire method、protocol、canonical executable 和 manifest
+timeout 都由 Host closure 固定。`-experimental-native-extension` 只启用 registry，
+不再顺带暴露任意 absolute-path JavaScript process execution；低层 V0 JavaScript
+兼容入口使用独立 unsafe 本机诊断 gate，HTTP/MCP 永远关闭。
+
+正式 roots 是 portable CLI 或 `.app/Contents/Resources/NativeExtensions` 中的一种，
+再加 current-user OS-standard root。V1 不扫描 cwd/PATH，不做 last-wins；重复 id 或
+namespace 全部 quarantine。Discovery/list/get/diagnostics 不启动 child，不执行第三方
+JS。调用前重新校验 artifact digest，变化 fail closed 为 `artifact_changed`。
+
+实现、schema、验收和当前 Runtime Evidence 分别位于：
+
+```text
+pkg/nativeextension/manifest.go
+pkg/nativeextension/discovery.go
+automation/native_extensions.go
+schemas/native-extension/extension-manifest-v1.schema.json
+tests/extensions/native-plugin/
+docs/implementation/runtime/native-extension-plugin-discovery.md
+```
+
+自定义 JS facade 延后到独立 V1.1 Trusted Adapter Goal。只有 dedicated restricted
+Goja realm、bundle-confined loader、compile-only discovery、first-use execution、
+plugin-bound invoke、JSON-only boundary，以及默认无 File/System/page/http/raw process
+capability 后才允许进入实现。V1 不自动 `require/eval` bundle JS，也不扩张为通用 module
+system。

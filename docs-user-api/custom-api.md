@@ -400,12 +400,14 @@ declare const workspace: WorkspaceAPI;
 已有能力可以通过独立服务提供？
 → 可以：优先通过 HTTP / MCP 外置扩展
 
+能力适合由本机独立 executable 通过 one-shot JSON 调用？
+→ 可以：使用 Experimental Native Extension Plugin V1；底层复用 Native Process Protocol V0，不需要 OpenDesk Core 源码
+
 必须修改 OpenDesk Go Runtime？
 → 当前需要源码权限、重新构建和运行时级测试
 
-只有二进制发行版或没有源码权限？
-→ 当前优先使用外置扩展或联系项目作者 / 维护者定制
-→ 后续计划评估无需核心源码的 Native Extension SDK / ABI
+需要完整插件生命周期、自动安装或 Stable Native ABI？
+→ 当前尚未提供；使用外置扩展，或联系项目作者 / 维护者定制
 ```
 
 ### HTTP / MCP 外置扩展
@@ -433,7 +435,25 @@ OpenDesk JavaScript
 
 当前 OpenDesk 尚未提供稳定的第三方 Native Extension ABI。
 
-长期计划会评估让用户只拿到 Extension SDK / ABI，而不需要获得 OpenDesk 核心源码，即可使用 Go、Rust、C/C++ 等语言开发编译后的扩展。具体候选包括独立进程扩展协议、WebAssembly 以及受信任的共享库 C ABI；这些方案需要先稳定版本、生命周期、错误、安全和兼容契约，因此当前不能当作已经存在的产品能力。
+但“没有核心源码的 Native 扩展”已经不再只是未来计划：当前存在
+[Experimental Native Extension Plugin V1](native-extension.md)。第三方可以用 Go、
+Swift、Rust、C/C++ 等语言实现独立 executable 和公开 one-shot JSON 协议，不需要
+import OpenDesk 内部 Go package，也不需要获得 OpenDesk Core 源码；完整 bundle 通过
+严格 `extension.json` 被 Host 自动发现。
+
+JavaScript 日常调用不传 executable、extension basename 或 wire method。Host 从
+manifest 生成不可变 namespace/method closure：
+
+```js
+const result = NativeExtensions.goBasic.hello({ name: 'OpenDesk' });
+```
+
+这条能力仍是默认关闭的 Experimental V1：只有受信任的本机 CLI JavaScript execution
+显式传入 `-experimental-native-extension` 才注入 `NativeExtensions`。Discovery、
+list/get/diagnostics 不启动 executable，也不执行第三方 bundle JS；生成的方法真正调用
+时才启动一次 one-shot process。当前没有 Extension Manager、在线安装/更新、sandbox、
+自定义 JS facade 或 Stable ABI。低层 V0 `NativeExtension.call` 仅保留在独立 unsafe
+本机诊断 gate 中，不是日常接口。
 
 ### 联系作者 / 维护者定制
 
@@ -476,7 +496,8 @@ SUPPORT.md
 
 - `index.md`：当前公开 API 地图。
 - `runtime.md`：Runtime 注入与 stack。
-- `polyfills.md`：当前 Polyfill 加载和已有增强能力。
+- [native-extension.md](native-extension.md)：Experimental Native Extension Plugin V1、底层 one-shot Native Process Protocol V0、默认目录与安全边界。
+- `global-apis.md`：当前全局接口、运行时辅助能力和已有增强能力。
 - `http.md`：脚本内 HTTP 调用。
 - `http-server.md`：从外部触发 OpenDesk。
 - `cookbook.md`：脚本组合示例。

@@ -1,0 +1,32 @@
+{
+  "expected" : {
+    "contains" : [
+      "OPENDESK OCR 123",
+      "你好 456"
+    ],
+    "text" : "OPENDESK OCR 123\n你好 456"
+  },
+  "fixtureId" : "native-process-apple-vision-ocr-v0",
+  "height" : 520,
+  "image" : "opendesk-ocr-123.png",
+  "languages" : [
+    "zh-Hans",
+    "en-US"
+  ],
+  "license" : {
+    "note" : "No external image or font file is redistributed; macOS system fonts are rasterized into this synthetic PNG.",
+    "status" : "project-created-test-fixture"
+  },
+  "privacy" : "synthetic-no-user-data",
+  "provenance" : {
+    "chineseSystemFont" : "PingFangSC-Semibold",
+    "englishSystemFont" : "Helvetica-Bold",
+    "externalImageAssets" : false,
+    "fontFilesRedistributed" : false,
+    "generator" : "tests/extensions/native-process/tools/generate-ocr-fixture/main.swift",
+    "kind" : "project-generated"
+  },
+  "schemaVersion" : "1.0.0",
+  "sha256" : "1e3d35fbcbebf80575615b345e2d3df5938881a8101e5d2d3766e1b3e465e7fa",
+  "width" : 1200
+}

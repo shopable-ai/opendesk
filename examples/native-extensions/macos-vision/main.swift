@@ -21,6 +21,23 @@ struct ResponseContext {
     var method = ""
 }
 
+struct RecognizedOCRItem {
+    let text: String
+    let confidence: Double
+    let boundingBox: CGRect
+}
+
+struct OCRLine {
+    let anchorMaxY: CGFloat
+    let anchorMidY: CGFloat
+    var items: [RecognizedOCRItem]
+}
+
+// Vision can split one visual line into observations whose vertical bounds
+// differ slightly. Grouping with a normalized tolerance before sorting avoids
+// placing that framework-order drift into the public result.
+let normalizedSameLineTolerance: CGFloat = 0.02
+
 func parseRequest(_ data: Data, context: inout ResponseContext) throws -> Request {
     guard !data.isEmpty else {
         throw ExtensionFailure(
@@ -189,14 +206,22 @@ func callOCR(params: [String: Any]) throws -> [String: Any] {
         throw ExtensionFailure(code: "ocr_failed", message: "Vision text recognition failed")
     }
 
-    let items: [[String: Any]] = (visionRequest.results ?? []).compactMap { observation in
+    let recognizedItems: [RecognizedOCRItem] = (visionRequest.results ?? []).compactMap { observation in
         guard let candidate = observation.topCandidates(1).first else {
             return nil
         }
-        let box = observation.boundingBox
+        return RecognizedOCRItem(
+            text: candidate.string,
+            confidence: Double(candidate.confidence),
+            boundingBox: observation.boundingBox
+        )
+    }
+    let orderedItems = stableReadingOrder(recognizedItems)
+    let items: [[String: Any]] = orderedItems.map { item in
+        let box = item.boundingBox
         return [
-            "text": candidate.string,
-            "confidence": Double(candidate.confidence),
+            "text": item.text,
+            "confidence": item.confidence,
             "boundingBox": [
                 "x": Double(box.minX),
                 "y": Double(box.minY),
@@ -207,7 +232,7 @@ func callOCR(params: [String: Any]) throws -> [String: Any] {
     }
 
     return [
-        "text": items.compactMap { $0["text"] as? String }.joined(separator: "\n"),
+        "text": orderedItems.map(\.text).joined(separator: "\n"),
         "items": items,
         "image": [
             "width": dimensions.width,
@@ -244,6 +269,101 @@ func parseLanguages(_ value: Any?) throws -> [String]? {
         languages.append(language)
     }
     return languages
+}
+
+func stableReadingOrder(_ items: [RecognizedOCRItem]) -> [RecognizedOCRItem] {
+    // Do not put a tolerance directly in a sorted comparator: pairwise
+    // "approximately equal" comparisons are not transitive. Build explicit
+    // line groups from a deterministic vertical order, then sort within lines.
+    let verticalOrder = items.sorted(by: verticalPrecedes)
+    var lines: [OCRLine] = []
+
+    for item in verticalOrder {
+        var bestLineIndex: Int?
+        var bestDistance = CGFloat.greatestFiniteMagnitude
+
+        for index in lines.indices {
+            guard let distance = sameLineDistance(item, line: lines[index]) else {
+                continue
+            }
+            if distance < bestDistance {
+                bestDistance = distance
+                bestLineIndex = index
+            }
+        }
+
+        if let index = bestLineIndex {
+            lines[index].items.append(item)
+        } else {
+            lines.append(OCRLine(
+                anchorMaxY: item.boundingBox.maxY,
+                anchorMidY: item.boundingBox.midY,
+                items: [item]
+            ))
+        }
+    }
+
+    lines.sort(by: linePrecedes)
+    return lines.flatMap { line in
+        line.items.sorted(by: horizontalPrecedes)
+    }
+}
+
+func sameLineDistance(_ item: RecognizedOCRItem, line: OCRLine) -> CGFloat? {
+    let maxYDistance = abs(item.boundingBox.maxY - line.anchorMaxY)
+    let midYDistance = abs(item.boundingBox.midY - line.anchorMidY)
+    guard maxYDistance <= normalizedSameLineTolerance ||
+          midYDistance <= normalizedSameLineTolerance else {
+        return nil
+    }
+    return min(maxYDistance, midYDistance)
+}
+
+func verticalPrecedes(_ lhs: RecognizedOCRItem, _ rhs: RecognizedOCRItem) -> Bool {
+    let lhsBox = lhs.boundingBox
+    let rhsBox = rhs.boundingBox
+    if lhsBox.maxY != rhsBox.maxY {
+        return lhsBox.maxY > rhsBox.maxY
+    }
+    if lhsBox.midY != rhsBox.midY {
+        return lhsBox.midY > rhsBox.midY
+    }
+    return horizontalPrecedes(lhs, rhs)
+}
+
+func linePrecedes(_ lhs: OCRLine, _ rhs: OCRLine) -> Bool {
+    if lhs.anchorMaxY != rhs.anchorMaxY {
+        return lhs.anchorMaxY > rhs.anchorMaxY
+    }
+    if lhs.anchorMidY != rhs.anchorMidY {
+        return lhs.anchorMidY > rhs.anchorMidY
+    }
+    guard let lhsFirst = lhs.items.sorted(by: horizontalPrecedes).first,
+          let rhsFirst = rhs.items.sorted(by: horizontalPrecedes).first else {
+        return !lhs.items.isEmpty && rhs.items.isEmpty
+    }
+    return horizontalPrecedes(lhsFirst, rhsFirst)
+}
+
+func horizontalPrecedes(_ lhs: RecognizedOCRItem, _ rhs: RecognizedOCRItem) -> Bool {
+    let lhsBox = lhs.boundingBox
+    let rhsBox = rhs.boundingBox
+    if lhsBox.minX != rhsBox.minX {
+        return lhsBox.minX < rhsBox.minX
+    }
+    if lhsBox.maxX != rhsBox.maxX {
+        return lhsBox.maxX < rhsBox.maxX
+    }
+    if lhsBox.maxY != rhsBox.maxY {
+        return lhsBox.maxY > rhsBox.maxY
+    }
+    if lhsBox.minY != rhsBox.minY {
+        return lhsBox.minY > rhsBox.minY
+    }
+    if lhs.text != rhs.text {
+        return lhs.text < rhs.text
+    }
+    return lhs.confidence > rhs.confidence
 }
 
 func imageOrientation(_ source: CGImageSource) -> CGImagePropertyOrientation {

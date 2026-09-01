@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "com.example.go-basic",
+  "version": "0.1.0",
+  "protocol": {
+    "name": "opendesk-native-extension",
+    "version": 1
+  },
+  "executable": "bin/native-ext-go-basic",
+  "javascript": {
+    "namespace": "goBasic"
+  },
+  "methods": {
+    "hello": {
+      "wireMethod": "hello",
+      "timeoutMs": 5000
+    },
+    "add": {
+      "wireMethod": "add",
+      "timeoutMs": 5000
+    }
+  }
+}

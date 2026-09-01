@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "com.example.macos-vision",
+  "version": "0.1.0",
+  "protocol": {
+    "name": "opendesk-native-extension",
+    "version": 1
+  },
+  "executable": "bin/native-ext-macos-vision",
+  "javascript": {
+    "namespace": "macosVision"
+  },
+  "methods": {
+    "ocr": {
+      "wireMethod": "ocr",
+      "timeoutMs": 10000
+    }
+  }
+}

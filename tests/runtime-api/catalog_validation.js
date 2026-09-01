@@ -55,7 +55,7 @@ globalThis.RuntimeAPICatalogValidation = (() => {
     const families = new Set();
     for (const item of index.globals || []) {
       const name = String(item.name || '');
-      if (name === 'notify' || name === 'Promise/timers/sleep') families.add('global');
+      if (name === 'notify' || name === 'Promise/timers/sleep' || name === 'Global APIs') families.add('global');
       else if (name === 'browser/context/upgraded facades') {
         families.add('browser');
         families.add('context');
@@ -70,8 +70,20 @@ globalThis.RuntimeAPICatalogValidation = (() => {
     const source = File.read(File.join(root, entry.source.types));
     const method = entry.id.slice(entry.id.indexOf('.') + 1);
     if (entry.family === 'global') return source.includes('function ' + method + '(') || source.includes('var ' + method);
+    if (entry.family === 'NativeExtensions' && method.includes('.')) {
+      const [namespace, pluginMethod] = method.split('.');
+      return new RegExp('\\b' + namespace + '\\s*:').test(source)
+        && new RegExp('\\b' + pluginMethod + '\\s*:').test(source);
+    }
     return source.includes('var ' + entry.family)
       && new RegExp('\\b' + method + '\\s*(?:<[^>]*>)?\\s*\\(').test(source);
+  }
+
+  function declaredMethods(definition) {
+    return [
+      ...(definition && definition.methods || []),
+      ...((definition && definition.dynamicMethods || []).map((entry) => entry.path)),
+    ];
   }
 
   function validateCatalog(options = {}) {
@@ -98,7 +110,7 @@ globalThis.RuntimeAPICatalogValidation = (() => {
     }
     for (const entry of catalog) {
       const definition = RuntimeAPIObjects[entry.family];
-      if (!definition || !definition.methods.includes(entry.id.slice(entry.id.indexOf('.') + 1))) errors.push('catalog contains unknown ID: ' + entry.id);
+      if (!definition || !declaredMethods(definition).includes(entry.id.slice(entry.id.indexOf('.') + 1))) errors.push('catalog contains unknown ID: ' + entry.id);
     }
     for (const family of publicObjectNames()) {
       const actualFamily = actual.objects[family];
@@ -130,7 +142,7 @@ globalThis.RuntimeAPICatalogValidation = (() => {
     }
     for (const item of documented.index.globals || []) {
       for (const method of item.keyMethods || []) {
-        const family = item.name;
+        const family = ['Global APIs', 'Promise/timers/sleep', 'notify'].includes(item.name) ? 'global' : item.name;
         if (family && !family.includes('/') && !idSet.has(family + '.' + method)) errors.push('docs keyMethod missing from catalog: ' + family + '.' + method);
       }
     }

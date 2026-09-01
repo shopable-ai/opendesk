@@ -33,6 +33,13 @@ else
   BUILD_SOURCE="go build ./cmd/opendesk"
 fi
 [[ -x "$BINARY" ]] || { echo "OPENDESK_BINARY is not executable: $BINARY" >&2; exit 1; }
+GO_BASIC_BUNDLE="$RUN_DIR/bin/native-extensions/com.example.go-basic"
+GO_BASIC_EXTENSION="$GO_BASIC_BUNDLE/bin/native-ext-go-basic"
+mkdir -p "$(dirname "$GO_BASIC_EXTENSION")" "$GO_BASIC_BUNDLE/types"
+go -C "$ROOT_DIR/examples/native-extensions/go-basic" build -o "$GO_BASIC_EXTENSION" .
+cp "$ROOT_DIR/examples/native-extensions/go-basic/extension.json" "$GO_BASIC_BUNDLE/extension.json"
+cp "$ROOT_DIR/examples/native-extensions/go-basic/types/index.d.ts" "$GO_BASIC_BUNDLE/types/index.d.ts"
+[[ -x "$GO_BASIC_EXTENSION" ]] || { echo "Go basic Native Extension is not executable: $GO_BASIC_EXTENSION" >&2; exit 1; }
 
 export OPENDESK_RUNTIME_API_RUN_ID="$RUN_ID"
 export OPENDESK_RUNTIME_API_RUN_DIR="$RUN_DIR"
@@ -40,6 +47,10 @@ export OPENDESK_RUNTIME_API_BINARY="$BINARY"
 export OPENDESK_RUNTIME_API_BINARY_SHA256="$(shasum -a 256 "$BINARY" | awk '{print $1}')"
 export OPENDESK_RUNTIME_API_BUILD_SOURCE="$BUILD_SOURCE"
 export OPENDESK_RUNTIME_API_STARTED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+export OPENDESK_RUNTIME_API_GO_BASIC_EXTENSION="$GO_BASIC_EXTENSION"
+export OPENDESK_RUNTIME_API_GO_BASIC_BUNDLE="$GO_BASIC_BUNDLE"
+export OPENDESK_RUNTIME_API_GO_BASIC_EXTENSION_SHA256="$(shasum -a 256 "$GO_BASIC_EXTENSION" | awk '{print $1}')"
+export OPENDESK_RUNTIME_API_GO_BASIC_EXTENSION_BUILD_SOURCE="go -C $ROOT_DIR/examples/native-extensions/go-basic build -o $GO_BASIC_EXTENSION ."
 export OPENDESK_RUNTIME_API_GIT_COMMIT="$(git rev-parse HEAD)"
 export OPENDESK_RUNTIME_API_GIT_DIRTY=false
 [[ -z "$(git status --porcelain)" ]] || export OPENDESK_RUNTIME_API_GIT_DIRTY=true
@@ -53,6 +64,7 @@ context = {
   "git": {"commit": os.environ["OPENDESK_RUNTIME_API_GIT_COMMIT"], "dirty": os.environ["OPENDESK_RUNTIME_API_GIT_DIRTY"] == "true"},
   "environment": {"os": platform.system(), "arch": platform.machine(), "browser": os.environ["OPENDESK_RUNTIME_API_BROWSER_APP"]},
   "binary": {"path": os.environ["OPENDESK_RUNTIME_API_BINARY"], "sha256": os.environ["OPENDESK_RUNTIME_API_BINARY_SHA256"], "buildSource": os.environ["OPENDESK_RUNTIME_API_BUILD_SOURCE"]},
+  "nativeExtensions": {"goBasic": {"id": "com.example.go-basic", "namespace": "goBasic", "bundlePath": os.environ["OPENDESK_RUNTIME_API_GO_BASIC_BUNDLE"], "path": os.environ["OPENDESK_RUNTIME_API_GO_BASIC_EXTENSION"], "sha256": os.environ["OPENDESK_RUNTIME_API_GO_BASIC_EXTENSION_SHA256"], "buildSource": os.environ["OPENDESK_RUNTIME_API_GO_BASIC_EXTENSION_BUILD_SOURCE"]}},
 }
 json.dump(context, open(sys.argv[1], "w", encoding="utf-8"), indent=2)
 json.dump({"schemaVersion": "1.0.0", "runId": context["runId"], "records": []}, open(sys.argv[2], "w", encoding="utf-8"), indent=2)
@@ -104,7 +116,7 @@ runjs() {
   local generated="$RUN_DIR/generated/$gate.generated.js" pidfile="$RUN_DIR/processes/$gate.json"
   generate "$source" "$generated" "$extra"
   set +e
-  SKIP_FYNE_INIT=1 python3 "$WATCHDOG" --seconds "$deadline" --pid-file "$pidfile" -- "$BINARY" -script "$generated" -stack "$stack" -console-mode script -timeout "$timeout" &
+  SKIP_FYNE_INIT=1 python3 "$WATCHDOG" --seconds "$deadline" --pid-file "$pidfile" -- "$BINARY" -experimental-native-extension -script "$generated" -stack "$stack" -console-mode script -timeout "$timeout" &
   local watchdog=$!
   wait "$watchdog"
   local status=$?

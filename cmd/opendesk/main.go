@@ -2,14 +2,17 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"opendesk/automation"
 	pkgContainer "opendesk/pkg/container"
 	pkgExecution "opendesk/pkg/execution"
 	"opendesk/pkg/feature"
 	pkgHttp "opendesk/pkg/http"
+	"opendesk/pkg/nativeextension"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -32,6 +35,9 @@ func init() {
 }
 
 // Config holds the application configuration
+	if nativeExtensionCLIRequested(os.Args[1:]) {
+		return
+	}
 type Config struct {
 	ScriptPath            string
 	ScriptText            string
@@ -41,6 +47,8 @@ type Config struct {
 	LogDir                string
 	ConsoleMode           string
 	ConsoleCategories     string
+	ExperimentalNativeExtension           bool
+	ExperimentalUnsafeNativeExtensionCall bool
 	OutputFormat          string
 	Delay                 int
 	Timeout               int // 修改为 timeout，单位为分钟
@@ -52,6 +60,11 @@ type Config struct {
 	VisionProvider        string
 	VisionLang            string
 	VisionMinConfidence   float64
+	NativeExtension       string
+	NativeMethod          string
+	NativeParams          string
+	NativeTimeoutMS       int
+	NativeRequestID       string
 	VisionIncludeRaw      bool
 	MacPermissionHelper   string
 	MacPermissionTarget   string
@@ -68,6 +81,8 @@ func parseFlags() *Config {
 	flag.StringVar(&config.LogDir, "log-dir", "", "Persist run logs and summary to the given directory")
 	flag.StringVar(&config.ConsoleMode, "console-mode", "full", "Terminal output mode: full | script | summary | quiet | agent")
 	flag.StringVar(&config.ConsoleCategories, "console-categories", "", "Override terminal output categories: framework,meta,script,summary,error")
+	flag.BoolVar(&config.ExperimentalNativeExtension, "experimental-native-extension", false, "Enable Experimental manifest-discovered NativeExtensions for local CLI JavaScript execution")
+	flag.BoolVar(&config.ExperimentalUnsafeNativeExtensionCall, "experimental-unsafe-native-extension-call", false, "Enable unsafe low-level NativeExtension.call for explicit local diagnostics")
 	flag.StringVar(&config.OutputFormat, "output-format", "text", "Agent output format: text | json")
 	flag.IntVar(&config.Delay, "delay", 0, "Delay before start (seconds)")
 	flag.IntVar(&config.Timeout, "timeout", 30, "Execution timeout in minutes (0 for no timeout)") // 默认30分钟
@@ -80,6 +95,11 @@ func parseFlags() *Config {
 	flag.StringVar(&config.VisionLang, "vision-lang", "ch", "OCR language")
 	flag.Float64Var(&config.VisionMinConfidence, "vision-min-confidence", 0.5, "Minimum confidence for detect-ui")
 	flag.BoolVar(&config.VisionIncludeRaw, "vision-include-raw", false, "Include raw provider response in OCR output")
+	flag.StringVar(&config.NativeExtension, "native-extension", "", "Call a Native Process Extension executable directly")
+	flag.StringVar(&config.NativeMethod, "native-method", "", "Native Process Extension method")
+	flag.StringVar(&config.NativeParams, "native-params", "{}", "Native Process Extension params as a JSON object")
+	flag.IntVar(&config.NativeTimeoutMS, "native-timeout-ms", 3000, "Native Process Extension timeout in milliseconds")
+	flag.StringVar(&config.NativeRequestID, "native-request-id", "", "Optional Native Process Extension request id")
 	flag.StringVar(&config.MacPermissionHelper, "mac-permission-helper", "", "Internal macOS permission helper mode")
 	flag.StringVar(&config.MacPermissionTarget, "mac-permission-target", "", "Internal macOS permission helper target app")
 
@@ -151,10 +171,19 @@ func main() {
 				}
 			}()
 		}
+	nativeMode := nativeExtensionCLIRequested(os.Args[1:])
 
 		// 启动 HTTP 服务器（默认行为）
 		if shouldEchoStartupCategory("framework", selection) {
 			fmt.Println("[INFO] Starting HTTP server...")
+			if nativeMode {
+				_ = writeNativeExtensionCLIError(os.Stdout, nativeExtensionCLIError{
+					Code:    "internal_error",
+					Message: "native extension CLI failed unexpectedly",
+				}, map[string]any{})
+				fmt.Fprintf(os.Stderr, "native extension CLI panic: %v\n", r)
+				os.Exit(1)
+			}
 		}
 		startHttpServer(config.Port) // 这会阻塞主线程
 		return
@@ -173,6 +202,10 @@ func main() {
 		return
 	}
 
+	if nativeMode {
+		host := nativeextension.NewHost()
+		os.Exit(executeNativeExtensionCLI(context.Background(), config, os.Stdout, os.Stderr, host))
+	}
 	// 命令行模式的处理
 	if hasScriptSource(config) {
 		if config.ScriptPath != "" {
@@ -293,6 +326,126 @@ type RunArtifacts struct {
 	StderrPath         string    `json:"stderr_path"`
 	ScriptSnapshotPath string    `json:"script_snapshot_path"`
 	SummaryPath        string    `json:"summary_path"`
+type nativeExtensionCaller interface {
+	Call(context.Context, nativeextension.CallOptions) (nativeextension.CallResult, error)
+}
+
+type nativeExtensionCLIError struct {
+	Code          string `json:"code"`
+	Message       string `json:"message"`
+	ExtensionCode string `json:"extensionCode,omitempty"`
+}
+
+type nativeExtensionCLISuccessEnvelope struct {
+	OK       bool                     `json:"ok"`
+	Result   any                      `json:"result"`
+	Evidence nativeextension.Evidence `json:"evidence"`
+}
+
+type nativeExtensionCLIErrorEnvelope struct {
+	OK       bool                    `json:"ok"`
+	Error    nativeExtensionCLIError `json:"error"`
+	Evidence any                     `json:"evidence"`
+}
+
+func nativeExtensionCLIRequested(args []string) bool {
+	for _, arg := range args {
+		if arg == "--" {
+			return false
+		}
+		if arg == "-native-extension" || arg == "--native-extension" ||
+			strings.HasPrefix(arg, "-native-extension=") || strings.HasPrefix(arg, "--native-extension=") {
+			return true
+		}
+	}
+	return false
+}
+
+func executeNativeExtensionCLI(ctx context.Context, config *Config, stdout, stderr io.Writer, caller nativeExtensionCaller) int {
+	startedAt := time.Now()
+	params, err := decodeNativeExtensionParams(config.NativeParams)
+	if err != nil {
+		return writeNativeExtensionCLIResult(stdout, stderr, nativeExtensionCLIError{
+			Code:    "invalid_params",
+			Message: err.Error(),
+		}, nativeExtensionAttemptEvidence(config, nativeextension.CodeInvalidParams, startedAt))
+	}
+
+	result, err := caller.Call(ctx, nativeextension.CallOptions{
+		Executable: config.NativeExtension,
+		Method:     config.NativeMethod,
+		Params:     params,
+		Timeout:    time.Duration(config.NativeTimeoutMS) * time.Millisecond,
+		RequestID:  config.NativeRequestID,
+	})
+	if err != nil {
+		errorBody := nativeExtensionCLIError{Code: "native_extension_error", Message: err.Error()}
+		evidence := result.Evidence
+		var callErr *nativeextension.CallError
+		if errors.As(err, &callErr) {
+			errorBody.Code = fmt.Sprint(callErr.Code)
+			errorBody.Message = callErr.Message
+			evidence = callErr.Evidence
+			if callErr.ExtensionError != nil {
+				errorBody.ExtensionCode = fmt.Sprint(callErr.ExtensionError.Code)
+			}
+		}
+		return writeNativeExtensionCLIResult(stdout, stderr, errorBody, evidence)
+	}
+
+	if err := json.NewEncoder(stdout).Encode(nativeExtensionCLISuccessEnvelope{
+		OK:       true,
+		Result:   result.Result,
+		Evidence: result.Evidence,
+	}); err != nil {
+		fmt.Fprintf(stderr, "failed to encode native extension CLI response: %v\n", err)
+		return 1
+	}
+	return 0
+}
+
+func nativeExtensionAttemptEvidence(config *Config, errorCode nativeextension.ErrorCode, startedAt time.Time) nativeextension.Evidence {
+	evidence := nativeextension.Evidence{
+		Protocol:        nativeextension.ProtocolName,
+		ProtocolVersion: nativeextension.ProtocolVersion,
+		Status:          nativeextension.StatusFailed,
+		ErrorCode:       errorCode,
+	}
+	if config != nil {
+		evidence.Executable = strings.TrimSpace(config.NativeExtension)
+		evidence.Method = strings.TrimSpace(config.NativeMethod)
+		evidence.RequestID = strings.TrimSpace(config.NativeRequestID)
+	}
+	evidence.DurationMS = time.Since(startedAt).Milliseconds()
+	return evidence
+}
+
+func decodeNativeExtensionParams(raw string) (map[string]any, error) {
+	var params map[string]any
+	if err := json.Unmarshal([]byte(raw), &params); err != nil {
+		return nil, fmt.Errorf("native params must be a JSON object: %w", err)
+	}
+	if params == nil {
+		return nil, fmt.Errorf("native params must be a JSON object")
+	}
+	return params, nil
+}
+
+func writeNativeExtensionCLIResult(stdout, stderr io.Writer, cliErr nativeExtensionCLIError, evidence any) int {
+	if err := writeNativeExtensionCLIError(stdout, cliErr, evidence); err != nil {
+		fmt.Fprintf(stderr, "failed to encode native extension CLI error: %v\n", err)
+	}
+	return 1
+}
+
+func writeNativeExtensionCLIError(stdout io.Writer, cliErr nativeExtensionCLIError, evidence any) error {
+	return json.NewEncoder(stdout).Encode(nativeExtensionCLIErrorEnvelope{
+		OK:       false,
+		Error:    cliErr,
+		Evidence: evidence,
+	})
+}
+
 }
 
 type RunSummary struct {
@@ -326,6 +479,8 @@ type teeCapture struct {
 	stderrFile *os.File
 	selection  ConsoleSelection
 	wg         sync.WaitGroup
+		EnableNativeExtensions:          config.ExperimentalNativeExtension,
+		EnableUnsafeNativeExtensionCall: config.ExperimentalUnsafeNativeExtensionCall,
 }
 
 func writeJSONResponse(w http.ResponseWriter, response APIResponse) {

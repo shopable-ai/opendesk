@@ -21,6 +21,7 @@ OpenDesk 在 JavaScript 运行时中注入桌面自动化、窗口、视觉、�
 - 做网络调用：`http.md`
 - 从外部服务触发：`http-server.md`
 - 理解 legacy / upgraded / playwright：`runtime.md`
+- 调用 manifest 插件：[Native Extension Plugin V1](native-extension.md)（Experimental；低层 Native Process V0 仅用于诊断）
 - 直接拿范例：`cookbook.md`
 - 给 Agent / 工具读取：`runtime-api.ai.json`
 
@@ -42,6 +43,7 @@ OpenDesk 在 JavaScript 运行时中注入桌面自动化、窗口、视觉、�
 | `console` | Native/Runtime wrapper | Stable | 日志与事件输出 | `clipboard-console.md` |
 | `http` | Native | Stable | 底层 HTTP 请求 | `http.md` |
 | `axios` | Polyfill | Stable | 日常 HTTP 请求 | `http.md` |
+| `NativeExtensions` | Manifest registry + immutable binding | Experimental | CLI opt-in；自动发现严格 bundle，日常调用不传 executable/extension/wire method | [native-extension.md](native-extension.md) |
 | `notify()` | Polyfill + Native bridge | Secondary | 系统通知 | `polyfills.md` |
 | `Sound` | Native | Secondary | 播放提示音 / 音频文件 | `runtime-utilities.md` |
 | `FloatingWindow` | Native | Conditional / Experimental | Fyne 浮动控制窗 | `runtime-utilities.md` |
@@ -55,7 +57,7 @@ OpenDesk 在 JavaScript 运行时中注入桌面自动化、窗口、视觉、�
 
 由 Go 运行时注入，例如：
 
-`page`、`mouse`、`keyboard`、`window`、`Screen`、`System`、`File`、`AppStorage`、`Vision`、`ImageColor`、`Sound`、`http`。
+`page`、`mouse`、`keyboard`、`window`、`Screen`、`System`、`File`、`AppStorage`、`Vision`、`ImageColor`、`Sound`、`http`，以及 Experimental `NativeExtensions`。
 
 ### 2. Polyfill / Runtime wrapper
 

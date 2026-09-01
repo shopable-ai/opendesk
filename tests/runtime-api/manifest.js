@@ -44,6 +44,16 @@ globalThis.RuntimeAPIObjects = {
     'timeEnd', 'clear',
   ] },
   http: { docs: 'docs-user-api/http.md', types: 'types/http.d.ts', source: 'automation/http.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: ['request', 'get', 'post'] },
+  NativeExtensions: {
+    docs: 'docs-user-api/native-extension.md', types: 'types/NativeExtension.d.ts', source: 'automation/native_extensions.go',
+    status: 'experimental', platforms: ['darwin', 'linux', 'windows'], optional: true,
+    methods: ['list', 'get', 'diagnostics'],
+    dynamicMethods: [
+      { path: 'goBasic.hello', types: 'examples/native-extensions/go-basic/types/index.d.ts', platforms: ['darwin', 'linux', 'windows'], tiers: ['unit'] },
+      { path: 'goBasic.add', types: 'examples/native-extensions/go-basic/types/index.d.ts', platforms: ['darwin', 'linux', 'windows'], tiers: ['unit'] },
+      { path: 'macosVision.ocr', types: 'examples/native-extensions/macos-vision/types/index.d.ts', platforms: ['darwin'], tiers: [] },
+    ],
+  },
   axios: { docs: 'docs-user-api/http.md', types: 'types/axios.d.ts', source: 'polyfills/004-axios.js', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: ['request', 'get', 'post', 'put', 'delete', 'patch'] },
   OCR: { docs: 'docs-user-api/vision.md', types: 'types/Vision.d.ts', source: 'automation/ocr.go', status: 'secondary', platforms: ['darwin', 'linux', 'windows'], methods: ['extractText'] },
   Vision: { docs: 'docs-user-api/vision.md', types: 'types/Vision.d.ts', source: 'automation/vision.go', status: 'secondary', platforms: ['darwin', 'linux', 'windows'], methods: ['runOCR', 'detectUI', 'getCapabilities', 'analyzeLayout', 'annotateRegions'] },
@@ -73,7 +83,7 @@ const unitBehavior = new Set([
   ...RuntimeAPIObjects.File.methods.map((method) => 'File.' + method),
   ...RuntimeAPIObjects.AppStorage.methods.filter((method) => method !== 'clear').map((method) => 'AppStorage.' + method),
   ...RuntimeAPIObjects.console.methods.map((method) => 'console.' + method),
-  'http.request', 'OCR.extractText', 'Vision.getCapabilities', 'Vision.analyzeLayout', 'Vision.annotateRegions',
+  'http.request', 'NativeExtensions.list', 'NativeExtensions.get', 'NativeExtensions.diagnostics', 'OCR.extractText', 'Vision.getCapabilities', 'Vision.analyzeLayout', 'Vision.annotateRegions',
   ...RuntimeAPIObjects.ImageColor.methods.map((method) => 'ImageColor.' + method),
   'Sound.playSound', 'Sound.play',
   ...RuntimeAPIObjects.browser.methods.filter((method) => method !== 'close').map((method) => 'browser.' + method),
@@ -128,6 +138,9 @@ for (const method of RuntimeAPIObjects.window.methods) {
   const id = 'window.' + method;
   const hasSafeBehavior = ['getActiveWindow', 'setWindowBounds', 'list', 'setAlwaysOnTop', 'unsetTopMost', 'js_beautify'].includes(method);
   if (!hasSafeBehavior && !restricted[id]) {
+  'NativeExtensions.goBasic.hello': 'starts one manifest-bound repository-owned Go extension process',
+  'NativeExtensions.goBasic.add': 'starts one manifest-bound repository-owned Go extension process',
+  'NativeExtensions.macosVision.ocr': 'starts one manifest-bound Apple Vision extension process and requires macOS plus a representative fixture',
     restricted[id] = 'generic macOS Accessibility enumeration or third-party window action is high-latency and only the verified foreground fixture route is live-tested';
   }
 }
@@ -171,6 +184,21 @@ globalThis.RuntimeAPITestFiles = {
     'tests/runtime-api/unit/file.test.js',
     'tests/runtime-api/unit/storage.test.js',
     'tests/runtime-api/unit/clipboard.test.js',
+for (const entry of RuntimeAPIObjects.NativeExtensions.dynamicMethods) {
+  RuntimeAPIManifest.push({
+    'tests/runtime-api/unit/native-extension.test.js',
+    id: 'NativeExtensions.' + entry.path,
+    family: 'NativeExtensions',
+    source: { runtime: 'automation/native_extensions.go', docs: 'docs-user-api/native-extension.md', types: entry.types },
+    status: 'experimental',
+    platforms: entry.platforms,
+    requiredVerificationTiers: ['contract', ...entry.tiers],
+    riskClassification: 'restricted',
+    contractOnlyReason: entry.tiers.length === 0 ? restricted['NativeExtensions.' + entry.path] : null,
+    evidenceRequirements: entry.tiers.length > 0 ? ['contract-result', ...entry.tiers.map((tier) => tier + '-result')] : ['contract-result', 'risk-rationale'],
+  });
+}
+
     'tests/runtime-api/unit/console.test.js',
     'tests/runtime-api/unit/http.test.js',
     'tests/runtime-api/unit/axios.test.js',

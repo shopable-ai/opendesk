@@ -13,6 +13,7 @@ import (
 
 	"github.com/dop251/goja"
 	"github.com/dop251/goja_nodejs/eventloop"
+	"opendesk/pkg/nativeextension"
 )
 
 // InitJSOptions 控制 JS 运行时初始化行为。
@@ -20,6 +21,9 @@ type InitJSOptions struct {
 	EventSink    EventSink
 	Context      context.Context
 	EventLoop    *eventloop.EventLoop
+	EnableNativeExtensions          bool
+	EnableUnsafeNativeExtensionCall bool
+	NativeExtensionRoots            []nativeextension.DiscoveryRoot
 	OnAsyncError func(error)
 	OnReady      func(*RuntimeLifecycle)
 }
@@ -540,6 +544,16 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 	visionMethods := AutoMapObject(runtime, vision)
 	runtime.Set("Vision", visionMethods)
 
+	if opts.EnableNativeExtensions {
+		if err := registerNativeExtensions(runtime, opts.Context, opts.EventSink, opts.NativeExtensionRoots); err != nil {
+			return fmt.Errorf("failed to register NativeExtensions: %w", err)
+		}
+	}
+	if opts.EnableUnsafeNativeExtensionCall {
+		if err := registerNativeExtension(runtime, opts.Context, opts.EventSink); err != nil {
+			return fmt.Errorf("failed to register NativeExtension: %w", err)
+		}
+	}
 	timer := NewTimer(runtime, opts.EventLoop, opts.OnAsyncError)
 	timer.RegisterInRuntime()
 

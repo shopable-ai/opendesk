@@ -29,6 +29,8 @@ order: 14
    - `OCR`
    - `Vision`
 2. 注册 timer 能力
+   - `NativeExtensions`（仅受信任的本机 CLI JavaScript 显式启用 Experimental registry gate 时）
+   - `NativeExtension`（仅独立 unsafe 本机诊断 gate；非日常入口）
 3. 创建输入与 page 对象
    - `mouse`
    - `keyboard`
@@ -48,7 +50,7 @@ order: 14
 
 这意味着用户最终看到的 API 不是单纯的 Go 方法集合，而是：
 
-**Native 对象 + Polyfill 覆盖/增强 + JS Libraries + Stack 选择**
+**Native 对象 + 可选的 Experimental `NativeExtensions` + Polyfill 覆盖/增强 + JS Libraries + Stack 选择**
 
 ## 为什么要区分 Native 与 Polyfill
 
@@ -171,6 +173,15 @@ OpenDesk 的 upgraded/playwright 层是**兼容 facade**，不是完整浏览器
 - 加载某个 JS 文件失败
 
 应优先排查资源目录是否随二进制正确发布，而不是把问题误判为业务脚本错误。
+
+Experimental `NativeExtensions` 不复用 polyfill/jslib 的 cwd/祖先查找规则。只有受信任
+的本机 CLI JavaScript execution 显式传入 `-experimental-native-extension` 时才会从
+portable/app-bundled 与 current-user OS-standard roots 读取严格 manifest。Host 生成
+并冻结 `NativeExtensions.<namespace>.<method>` closure；discovery、list、get 和
+diagnostics 不启动 child，也不执行 bundle JavaScript。每次真正 method 调用启动一个
+one-shot process。低层 `NativeExtension.call` 只能由单独的
+`-experimental-unsafe-native-extension-call` 本机诊断 gate 开启，registry gate 不会
+顺带暴露绝对路径执行。详见 [Native Extension Plugin V1](native-extension.md)。
 
 ## 选择建议
 

@@ -23,6 +23,31 @@ OpenCV ImageColor 的确定性输入和期望配对清单位于
 `tests/opencv/fixtures/image-color/`，不放入通用输出目录。生成器默认写入
 `.runtime/generated/opencv/image-color/`；确认后才使用显式 `--output` 更新测试夹具。
 
+## Native Process Extension V0
+
+Experimental Native Process Extension 的 Go/Swift build、真实 Apple Vision OCR、
+失败矩阵、Evidence 与源码隔离 smoke 位于 `tests/extensions/native-process/`：
+
+```bash
+./scripts/test_native_process_extensions.sh
+```
+
+运行结果统一写入 `.runtime/tests/extensions/native-process/<runId>/`；该 Prototype
+不得标记为 Stable。
+
+## Native Extension Plugin V1
+
+严格 manifest 自动发现、不可变 `NativeExtensions.<namespace>.<method>` Binding、
+zero-child discovery、portable/current-user/`.app` roots、真实 Apple Vision OCR、
+源码隔离 package 和 Evidence 隐私验收位于 `tests/extensions/native-plugin/`：
+
+```bash
+./scripts/test_native_extension_plugins.sh
+```
+
+结果写入 `.runtime/tests/extensions/native-plugin/<runId>/`。V1 仍是 Experimental；
+第三方 JS facade、persistent process 和 startup activation 不属于该测试域。
+
 ## Round 1 基线
 
 优先复用仓库现有 Go 测试：

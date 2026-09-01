@@ -2,6 +2,7 @@ package execution
 
 import (
 	"opendesk/automation"
+	"opendesk/pkg/nativeextension"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -26,6 +27,15 @@ type Request struct {
 	ScriptHash     string
 	ScriptContent  []byte
 	TimeoutMinutes int
+	// EnableNativeExtensions opts a trusted local execution into the
+	// manifest-generated registry. It never enables arbitrary executable paths.
+	EnableNativeExtensions bool
+	// EnableUnsafeNativeExtensionCall separately enables the V0 low-level
+	// NativeExtension.call compatibility surface for explicit local diagnostics.
+	EnableUnsafeNativeExtensionCall bool
+	// NativeExtensionRoots is an internal test seam. Product executions use the
+	// documented portable/app-bundled and current-user roots.
+	NativeExtensionRoots []nativeextension.DiscoveryRoot
 	// Timeout is the exact execution deadline used by transports that accept
 	// sub-minute timeouts. TimeoutMinutes remains for CLI compatibility.
 	Timeout   time.Duration
@@ -198,6 +208,9 @@ func runJavaScript(req Request, emitter *Emitter) error {
 			sink := &automationSink{emitter: emitter}
 			if err := automation.InitJSWithOptions(rt, automation.InitJSOptions{
 				EventSink: sink, Context: ctx, EventLoop: loop, OnAsyncError: onAsyncError,
+				EnableNativeExtensions:          req.EnableNativeExtensions,
+				EnableUnsafeNativeExtensionCall: req.EnableUnsafeNativeExtensionCall,
+				NativeExtensionRoots:            req.NativeExtensionRoots,
 				OnReady: func(resources *automation.RuntimeLifecycle) { lifecycle = resources },
 			}); err != nil {
 				runtimeErr = err

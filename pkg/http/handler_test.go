@@ -262,6 +262,90 @@ func TestHandleExecutionCancelUsesSharedExecutionContext(t *testing.T) {
 	}
 	// The request must reach a finalized status, not merely acknowledge the
 	// DELETE. Keep the window generous enough for an instrumented race build on
+func TestHTTPExecutionCannotEnableNativeExtensions(t *testing.T) {
+	t.Setenv("SKIP_FYNE_INIT", "1")
+	tests := []struct {
+		name    string
+		path    string
+		handler func(http.ResponseWriter, *http.Request)
+	}{
+		{name: "legacy SCRIPT_RUN", path: "/SCRIPT_RUN"},
+		{name: "executions", path: "/executions"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			handler, cleanup := setupTestHandler(t)
+			defer cleanup()
+			if test.path == "/SCRIPT_RUN" {
+				test.handler = handler.HandleScriptExecution
+			} else {
+				test.handler = handler.HandleExecutions
+			}
+
+			marker := filepath.Join(t.TempDir(), "must-not-start")
+			payload := map[string]any{
+				"script":                 `if (typeof NativeExtensions !== "undefined" || typeof NativeExtension !== "undefined") throw new Error("HTTP exposed a Native Extension global");`,
+				"timeout":                2,
+				"logDir":                 filepath.Join(t.TempDir(), "run"),
+				"enableNativeExtensions": true,
+				"enableNativeExtension":  true,
+				"nativeExtensionRoots":   []string{filepath.Dir(marker)},
+				"executable":             marker,
+				"extension":              "com.attacker.plugin",
+				"wireMethod":             "attack",
+				"protocol":               "attacker-protocol",
+				"version":                999,
+				"discoveryRoot":          filepath.Dir(marker),
+			}
+			body, err := json.Marshal(payload)
+			if err != nil {
+				t.Fatal(err)
+			}
+			request := httptest.NewRequest(http.MethodPost, test.path, bytes.NewReader(body))
+			request.Header.Set("Content-Type", "application/json")
+			response := httptest.NewRecorder()
+			test.handler(response, request)
+			if response.Code != http.StatusOK {
+				t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+			}
+
+			var created ScriptResponse
+			if err := json.NewDecoder(response.Body).Decode(&created); err != nil {
+				t.Fatal(err)
+			}
+			data, ok := created.Data.(map[string]any)
+			if !ok {
+				t.Fatalf("execution data = %#v", created.Data)
+			}
+			executionID, _ := data["executionId"].(string)
+			if executionID == "" {
+				t.Fatalf("missing execution id: %#v", data)
+			}
+
+			deadline := time.Now().Add(3 * time.Second)
+			finished := false
+			for time.Now().Before(deadline) {
+				record, exists := handler.manager.Get(executionID)
+				if exists && record.Result.Status != pkgExecution.ExecutionStatusPending && record.Result.Status != pkgExecution.ExecutionStatusRunning {
+					if record.Result.Status != pkgExecution.ExecutionStatusSucceeded {
+						t.Fatalf("HTTP execution status = %s error=%s", record.Result.Status, record.Result.Error)
+					}
+					finished = true
+					break
+				}
+				time.Sleep(10 * time.Millisecond)
+			}
+			if !finished {
+				t.Fatal("HTTP execution did not finish")
+			}
+			if _, err := os.Stat(marker); !os.IsNotExist(err) {
+				t.Fatalf("HTTP request started or created the malicious executable marker: %v", err)
+			}
+		})
+	}
+}
+
 	// a loaded developer machine while preserving an observable upper bound.
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {

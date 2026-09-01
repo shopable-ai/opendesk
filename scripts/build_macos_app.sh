@@ -7,6 +7,7 @@ DIST_DIR="${DIST_DIR:-${ROOT_DIR}/dist}"
 APP_ROOT="${DIST_DIR}/OpenDesk.app"
 CONTENTS_DIR="${APP_ROOT}/Contents"
 MACOS_DIR="${CONTENTS_DIR}/MacOS"
+RESOURCES_DIR="${CONTENTS_DIR}/Resources"
 HELPERS_DIR="${CONTENTS_DIR}/Helpers"
 EXECUTABLE_PATH="${MACOS_DIR}/opendesk"
 UI_HOST_PATH="${HELPERS_DIR}/opendesk-ui-host"
@@ -17,6 +18,7 @@ VERSION="${VERSION:-0.1.0}"
 CODESIGN_IDENTITY="${CODESIGN_IDENTITY:--}"
 
 mkdir -p "${DIST_DIR}"
+NATIVE_EXTENSIONS_SOURCE="${NATIVE_EXTENSIONS_SOURCE:-}"
 
 go build -o "${DIST_DIR}/opendesk" ./cmd/opendesk
 go build -o "${DIST_DIR}/opendesk-ui-host" ./cmd/opendesk-ui-host
@@ -33,6 +35,37 @@ cat > "${PLIST_PATH}" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
+if [[ -n "${NATIVE_EXTENSIONS_SOURCE}" ]]; then
+  if [[ "${NATIVE_EXTENSIONS_SOURCE}" != /* ]]; then
+    printf 'NATIVE_EXTENSIONS_SOURCE must be an absolute path: %s\n' "${NATIVE_EXTENSIONS_SOURCE}" >&2
+    exit 1
+  fi
+  if [[ -L "${NATIVE_EXTENSIONS_SOURCE}" || ! -d "${NATIVE_EXTENSIONS_SOURCE}" ]]; then
+    printf 'NATIVE_EXTENSIONS_SOURCE must be a real directory, not a symlink: %s\n' "${NATIVE_EXTENSIONS_SOURCE}" >&2
+    exit 1
+  fi
+  if [[ -n "$(find "${NATIVE_EXTENSIONS_SOURCE}" -type l -print -quit)" ]]; then
+    printf 'Native Extension staging rejects symlinks: %s\n' "${NATIVE_EXTENSIONS_SOURCE}" >&2
+    exit 1
+  fi
+  bundle_count=0
+  while IFS= read -r -d '' bundle; do
+    if [[ ! -d "${bundle}" || ! -f "${bundle}/extension.json" ]]; then
+      printf 'Native Extension staging accepts only bundle directories containing extension.json: %s\n' "${bundle}" >&2
+      exit 1
+    fi
+    bundle_count=$((bundle_count + 1))
+  done < <(find "${NATIVE_EXTENSIONS_SOURCE}" -mindepth 1 -maxdepth 1 -print0)
+  if [[ "${bundle_count}" -eq 0 ]]; then
+    printf 'NATIVE_EXTENSIONS_SOURCE contains no extension bundles: %s\n' "${NATIVE_EXTENSIONS_SOURCE}" >&2
+    exit 1
+  fi
+  mkdir -p "${RESOURCES_DIR}/NativeExtensions"
+  rsync -a --delete "${NATIVE_EXTENSIONS_SOURCE}/" "${RESOURCES_DIR}/NativeExtensions/"
+  chmod -R go-w "${RESOURCES_DIR}/NativeExtensions"
+  printf 'Staged Native Extensions before codesign: %s\n' "${RESOURCES_DIR}/NativeExtensions"
+fi
+
 <dict>
   <key>CFBundleDevelopmentRegion</key>
   <string>en</string>

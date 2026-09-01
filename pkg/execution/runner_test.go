@@ -215,3 +215,48 @@ func TestRunJavaScriptInterruptsBusyLoopAtDeadline(t *testing.T) {
 		t.Fatalf("interrupt took too long: %s", elapsed)
 	}
 }
+func TestRunJavaScriptNativeExtensionsRequiresExplicitOptIn(t *testing.T) {
+	t.Setenv("SKIP_FYNE_INIT", "1")
+	tests := []struct {
+		name    string
+		enabled bool
+		script  string
+	}{
+		{
+			name:    "disabled by default",
+			enabled: false,
+			script:  `if (typeof NativeExtensions !== "undefined" || typeof NativeExtension !== "undefined") throw new Error("Native Extension globals must be absent by default");`,
+		},
+		{
+			name:    "available after explicit opt-in",
+			enabled: true,
+			script:  `if (!NativeExtensions || typeof NativeExtensions.list !== "function") throw new Error("NativeExtensions registry is missing"); if (typeof NativeExtension !== "undefined") throw new Error("registry gate exposed unsafe NativeExtension.call");`,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			artifacts, err := PrepareArtifacts(filepath.Join(t.TempDir(), "run"), "native-extension-gate", ".js")
+			if err != nil {
+				t.Fatalf("PrepareArtifacts returned error: %v", err)
+			}
+			result, _, err := Run(Request{
+				ExecutionID:            "native-extension-gate",
+				SourceLabel:            "test",
+				Ext:                    ".js",
+				ScriptContent:          []byte(test.script),
+				Timeout:                2 * time.Second,
+				EnableNativeExtensions: test.enabled,
+				Artifacts:              artifacts,
+				Selection:              TerminalSelection{Mode: "quiet", Categories: map[string]bool{}},
+			})
+			if err != nil {
+				t.Fatalf("Run returned error: %v", err)
+			}
+			if result.Status != ExecutionStatusSucceeded {
+				t.Fatalf("expected succeeded status, got %s", result.Status)
+			}
+		})
+	}
+}
+

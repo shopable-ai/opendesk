@@ -52,6 +52,8 @@
 | failure_taxonomy_classifier | `failures/*.json` 或 `decision.json` 扩展字段 |
 | red_team_critic | 风险审查、红队回归 |
 
+| runtime/native-process-extension-prototype-goal | Native Process Extension V0 的代码、测试、源码隔离与 Runtime Evidence |
+| runtime/native-extension-plugin-autodiscovery-goal | 默认目录插件 bundle 自动发现、JS facade 注册与源码隔离 Evidence |
 ## 结论
 这些 prompt 文件的作用是：
 - 固化判断结构

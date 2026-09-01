@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://opendesk.dev/schemas/native-extension/extension-manifest-v1.schema.json",
+  "title": "OpenDesk Native Extension Manifest V1",
+  "description": "Experimental manifest for host-generated immutable NativeExtensions bindings.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "id",
+    "version",
+    "protocol",
+    "executable",
+    "javascript",
+    "methods"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[a-z0-9](?:[a-z0-9.-]{0,126}[a-z0-9])?$"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-((?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\\+([0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*))?$"
+    },
+    "protocol": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": {
+          "const": "opendesk-native-extension"
+        },
+        "version": {
+          "const": 1
+        }
+      }
+    },
+    "executable": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^(?!/)(?!\\s)(?!.*\\s$)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*\\\\)(?!.*:)[^/\\u0000]+(?:/[^/\\u0000]+)*$"
+    },
+    "executableSha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "javascript": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["namespace"],
+      "properties": {
+        "namespace": {
+          "$ref": "#/$defs/publicIdentifier"
+        }
+      }
+    },
+    "methods": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 64,
+      "propertyNames": {
+        "$ref": "#/$defs/publicIdentifier"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["wireMethod", "timeoutMs"],
+        "properties": {
+          "wireMethod": {
+            "$ref": "#/$defs/publicIdentifier"
+          },
+          "timeoutMs": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 60000
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "publicIdentifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+      "description": "The Host additionally rejects reserved names and case-fold collisions."
+    }
+  }
+}

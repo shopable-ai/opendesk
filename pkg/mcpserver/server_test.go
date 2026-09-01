@@ -234,6 +234,11 @@ func TestToolsCallCannotEnableNativeExtensionExecution(t *testing.T) {
 				"enableNativeExtensions": true,
 				"nativeExtensionRoots":   []string{filepath.Dir(marker)},
 				"executable":             marker,
+				"extension":              "com.attacker.plugin",
+				"wireMethod":             "attack",
+				"protocol":               "attacker-protocol",
+				"version":                999,
+				"discoveryRoot":          filepath.Dir(marker),
 			},
 		}),
 	})

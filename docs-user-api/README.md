@@ -49,6 +49,17 @@ order: 1
 
 | 位置 | 用途 |
 | --- | --- |
+[Native Extension Plugin V1](native-extension.md) 在唯一 Native Process Protocol V0
+Host 上增加严格 manifest discovery 和 Host-generated immutable binding。受信任的本机
+CLI execution 传 `-experimental-native-extension` 后，日常脚本使用
+`NativeExtensions.<namespace>.<method>(businessParams)`；不再传 executable、extension
+或 wire method。Discovery/list/get/diagnostics 不启动 child，不执行第三方 bundle JS。
+第三方预编译 bundle 的 canonical current-user root 使用 macOS Application Support、
+Linux XDG data、Windows LocalAppData Known Folder；独立 machine-wide discovery 在 V1.0.1
+为 **Not Implemented**。
+该能力仍是 Experimental，也不是 Extension Manager、Marketplace、sandbox 或 Stable
+ABI。低层 `NativeExtension.call` 只在独立 unsafe 本机诊断 gate 中保留。
+
 | `docs-user-api/runtime-api.ai.json` | Agent 的机器可读对象地图与文档路由 |
 | `types/*.d.ts` + `jsconfig.json` | VS Code / TypeScript 自动补全、参数和返回值提示 |
 
