@@ -36,8 +36,7 @@ const panel = await ui.createWindow({
   id: 'customUIIconCatalog',
   kind: 'normal',
   title: 'Custom UI · 150 个内置图标',
-  // Start in the upper-left safe area while keeping the window draggable.
-  bounds: { x: 24, y: 24, width: 1240, height: 740 },
+  bounds: { x: 80, y: 60, width: 1240, height: 740 },
   alwaysOnTop: false,
   draggable: true,
   theme: 'dark',

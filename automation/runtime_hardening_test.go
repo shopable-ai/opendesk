@@ -7,6 +7,7 @@ import (
 	"os"
 	"reflect"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -113,6 +114,18 @@ func TestHTTPResponseBodyLimitIsNormalized(t *testing.T) {
 	_, err := performHTTPRequest(server.Client(), 4, request)
 	if err == nil || err.Error() != "HTTP response body exceeds configured limit of 4 bytes" {
 		t.Fatalf("response body limit error = %v", err)
+	}
+}
+
+func TestRuntimeResourceCountsIncludeNotificationWorkers(t *testing.T) {
+	counts := RuntimeResourceCounts{NotificationWorkers: 1, NotificationPending: 2}
+	if counts.IsZero() {
+		t.Fatal("notification resources were omitted from RuntimeResourceCounts.IsZero")
+	}
+	for _, field := range []string{"notificationWorkers=1", "notificationPending=2"} {
+		if !strings.Contains(counts.String(), field) {
+			t.Fatalf("RuntimeResourceCounts.String() omitted %q: %s", field, counts.String())
+		}
 	}
 }
 

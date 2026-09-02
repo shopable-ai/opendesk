@@ -70,8 +70,12 @@ declare global {
     revision: number;
     /** Always empty for the native icon-only toolbar; label remains semantic metadata. */
     renderedText: string;
+    /** Native tooltip readback. For icon-only buttons this always mirrors label. */
+    tooltip: string;
+    /** Whether the native tooltip panel is currently visible. */
+    tooltipVisible: boolean;
     iconPresentation: ClawdeskFloatingIconPresentation;
-    /** Mirrors the tooltip/ARIA/native Accessibility name. */
+    /** Native Accessibility name. For icon-only buttons this always mirrors label. */
     accessibilityName: string;
     localBounds: ClawdeskUIBounds;
     screenBounds: ClawdeskUIBounds;
@@ -81,7 +85,7 @@ declare global {
 
   interface ClawdeskFloatingWindow {
     readonly id: string;
-    /** Adds ordered icon-only buttons before first show and recomputes automatic bounds. Horizontal accepts 1-32 unless toolbar.maxRows imposes a smaller capacity; vertical accepts 1-5. */
+    /** Adds ordered icon-only buttons before first show. label supplies both the native tooltip and Accessibility name. Horizontal accepts 1-32 unless toolbar.maxRows imposes a smaller capacity; vertical accepts 1-5. */
     addButton(id: string, label: string, iconName: ClawdeskFloatingIcon, callback?: ClawdeskFloatingButtonCallback): void;
     /** Removes a pre-show button and recomputes automatic bounds. */
     removeButton(id: string): void;

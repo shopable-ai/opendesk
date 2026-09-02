@@ -69,7 +69,7 @@ func (d *MemoryDriver) Create(_ context.Context, sessionID string, spec WindowSp
 			presentation, _ := toolbar.IconPresentationFor(button.Icon)
 			window.toolbarButtons[button.ID] = toolbar.ButtonResult{
 				ButtonSpec: button, IconPresentation: presentation,
-				AccessibilityName: button.Label,
+				Tooltip: button.Label, AccessibilityName: button.Label,
 			}
 		}
 	}
@@ -293,6 +293,7 @@ func (w *memoryWindow) ApplyToolbarButton(_ context.Context, button toolbar.Butt
 		}
 		state.ButtonSpec = button
 		state.IconPresentation = presentation
+		state.Tooltip = button.Label
 		state.AccessibilityName = button.Label
 		state.RenderedText = ""
 		w.toolbarButtons[button.ID] = state

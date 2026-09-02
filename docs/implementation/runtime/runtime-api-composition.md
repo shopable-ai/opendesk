@@ -96,7 +96,7 @@ Go native method 到 Goja function 的反射、参数/返回/错误投影，以�
 
 内部组成变化如果改变用户可见能力、参数、返回、注入条件或默认行为，必须同步更新用户 API
 页面、`runtime-api.ai.json`、`types/*.d.ts` 和相应 JavaScript Runtime API 测试。具体治理流程
-见 [API documentation maintenance](../../maintenance/docs-user-api-editme-toc-maintenance.md)。
+见 [Runtime API development workflow](./runtime-api-development-workflow.md) 与 [API documentation maintenance](../../maintenance/docs-user-api-editme-toc-maintenance.md)。
 
 Sound / Audio 这类 native global 的同步闭环是：
 

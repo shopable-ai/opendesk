@@ -110,7 +110,7 @@ func TestNativeExtensionsBindingIsImmutableInertAndRouteBound(t *testing.T) {
 		JSON.stringify([
 			NativeExtensions.goBasic.hello({name:"OpenDesk", executable:"/tmp/evil", extension:"evil", wireMethod:"evil", method:"evil", protocol:"evil", version:999, discoveryRoot:"/tmp/evil"}),
 			NativeExtensions.other.hello({name:"Other"}),
-			NativeExtensions.goBasic.hello({name:"Again"}, {timeoutMs: 2000})
+			NativeExtensions.goBasic.hello({name:"Again"}, {timeoutMs: 30000})
 		])
 	`)
 	if err != nil {
@@ -263,7 +263,11 @@ func TestNativeExtensionsManifestTimeoutAndSafeOverride(t *testing.T) {
 			let timedOut;
 			try { NativeExtensions.goBasic.hello({delayMs:250}); }
 			catch (error) { timedOut = {code:error.code, method:error.method, status:error.evidence.status}; }
-			const succeeded = NativeExtensions.goBasic.hello({delayMs:20}, {timeoutMs:5000});
+			// A package-wide go test ./... can start many test binaries at once.
+			// Keep the override well below the manifest hard cap while allowing
+			// process startup contention; the 25 ms manifest timeout above remains
+			// the behavior under test.
+			const succeeded = NativeExtensions.goBasic.hello({delayMs:20}, {timeoutMs:30000});
 			return JSON.stringify({timedOut, succeeded});
 		})()
 	`)
@@ -344,7 +348,7 @@ func writeNativeExtensionsTestBundle(t *testing.T, root, id, namespace, pluginNa
 		"schemaVersion": 1, "id": id, "version": "0.1.0",
 		"protocol":   map[string]any{"name": nativeextension.ProtocolName, "version": nativeextension.ProtocolVersion},
 		"executable": "bin/native-ext", "javascript": map[string]any{"namespace": namespace},
-		"methods": map[string]any{"hello": map[string]any{"wireMethod": "hello", "timeoutMs": 10000}},
+		"methods": map[string]any{"hello": map[string]any{"wireMethod": "hello", "timeoutMs": 30000}},
 	}
 	raw, err := json.Marshal(manifest)
 	if err != nil {

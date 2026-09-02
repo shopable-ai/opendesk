@@ -28,9 +28,19 @@ tests/wechat/
   *.sh                       orchestration and verification entrypoints
 ```
 
-The Go white-box visualization test lives with its implementation at
-`automation/wechat_visualization_test.go`; placing it here would create a
-different Go package and prevent access to package internals.
+The public layout contract is tested by JavaScript Runtime scenarios. Offline
+pixel annotation is a standalone developer tool, not a package test:
+
+```bash
+go run ./tests/wechat/tools/visualize-layout \
+  --image .runtime/tests/wechat/wechat_validation/wechat_original.png \
+  --output .runtime/tests/wechat/wechat_validation
+```
+
+The tool calls the same exported `automation.ImageColor` implementation that
+the JavaScript `ImageColor.analyzeLayout` binding uses. It does not replace the
+JavaScript Runtime test and it does not access package-private implementation
+details.
 
 ## Generated output
 

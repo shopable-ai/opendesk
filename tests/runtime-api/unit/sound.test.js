@@ -1,6 +1,18 @@
 (() => {
-  const { expectThrow, test } = RuntimeAPITest;
+  const { assert, equal, expectThrow, test } = RuntimeAPITest;
   RuntimeAPITest.contractObject('Sound');
+
+  async function expectSoundError(fn, code, operation) {
+    let caught = null;
+    try {
+      await fn();
+    } catch (error) {
+      caught = error;
+    }
+    assert(caught, 'expected Sound error ' + code);
+    equal(caught.code, code, 'Sound error code');
+    equal(caught.operation, operation, 'Sound error operation');
+  }
 
   test({ name: 'Sound exposes the controllable playback lifecycle', tier: 'unit', covers: ['Sound.start', 'Sound.playAsync', 'Sound.stop', 'Sound.stopAll', 'Sound.getActive'] }, async () => {
     const active = Sound.getActive();
@@ -28,10 +40,10 @@
 
   test({ name: 'Sound.playSound rejects a missing path without audio output', tier: 'unit', covers: ['Sound.playSound'] }, async () => {
     const missing = File.join('.runtime', 'tests', 'runtime-api', Execution.executionId, 'missing.wav');
-    await expectThrow(() => Sound.playSound(missing), 'not found');
+    await expectSoundError(() => Sound.playSound(missing), 'NOT_FOUND', 'Sound.playSound');
   });
   test({ name: 'Sound.play alias rejects a missing path without audio output', tier: 'unit', covers: ['Sound.play'] }, async () => {
     const missing = File.join('.runtime', 'tests', 'runtime-api', Execution.executionId, 'missing.mp3');
-    await expectThrow(() => Sound.play(missing), 'not found');
+    await expectSoundError(() => Sound.play(missing), 'NOT_FOUND', 'Sound.play');
   });
 })();

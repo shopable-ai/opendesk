@@ -47,6 +47,7 @@ const (
 	ClipboardNotSupported       ClipboardErrorCode = "NOT_SUPPORTED"
 	ClipboardBackendFailed      ClipboardErrorCode = "BACKEND_FAILED"
 	ClipboardVerificationFailed ClipboardErrorCode = "VERIFICATION_FAILED"
+	ClipboardChanged            ClipboardErrorCode = "CLIPBOARD_CHANGED"
 )
 
 // ClipboardError never includes clipboard contents. Paths, HTML, RTF, PNG,
@@ -89,8 +90,9 @@ type ClipboardPayload struct {
 }
 
 type ClipboardReadRequest struct {
-	Formats  []string
-	MaxBytes int
+	Formats          []string
+	MaxBytes         int
+	formatsSpecified bool
 }
 
 type ClipboardBackend interface {
@@ -124,15 +126,9 @@ func (c *Clipboard) Write(payload ClipboardPayload) (map[string]interface{}, err
 	if err != nil {
 		return nil, wrapClipboardError("clipboard.write", err)
 	}
-	formats, err := c.GetFormats()
+	formats, err := c.verifyWrite(payload, changeCount)
 	if err != nil {
-		return nil, wrapClipboardError("clipboard.write", &ClipboardError{Code: ClipboardVerificationFailed, Message: "clipboard format readback failed", Cause: err})
-	}
-	wanted := clipboardPayloadFormats(payload)
-	for _, format := range wanted {
-		if !containsString(formats, format) {
-			return nil, clipboardOperationError("clipboard.write", ClipboardVerificationFailed, "clipboard write did not advertise every requested format", nil)
-		}
+		return nil, err
 	}
 	return map[string]interface{}{"changeCount": changeCount, "formats": formats}, nil
 }
@@ -152,17 +148,31 @@ func (c *Clipboard) Read(request ClipboardReadRequest) (map[string]interface{}, 
 	if err != nil {
 		return nil, wrapClipboardError("clipboard.read", err)
 	}
-	nativeFormats, err := c.backend.NativeFormats()
-	if err != nil {
-		return nil, wrapClipboardError("clipboard.read", err)
+	formatsSpecified := request.formatsSpecified || request.Formats != nil
+	for attempt := 0; attempt < 2; attempt++ {
+		result, changed, readErr := c.readSnapshot(requested, formatsSpecified, maxBytes)
+		if readErr != nil {
+			return nil, readErr
+		}
+		if !changed {
+			return result, nil
+		}
 	}
-	available := canonicalClipboardFormats(nativeFormats)
-	if len(requested) == 0 {
-		requested = available
-	}
+	return nil, clipboardOperationError("clipboard.read", ClipboardChanged, "clipboard changed while a consistent snapshot was being read; retry the operation", nil)
+}
+
+func (c *Clipboard) readSnapshot(requested []string, formatsSpecified bool, maxBytes int) (map[string]interface{}, bool, error) {
 	changeCount, err := c.backend.ChangeCount()
 	if err != nil {
-		return nil, wrapClipboardError("clipboard.read", err)
+		return nil, false, wrapClipboardError("clipboard.read", err)
+	}
+	nativeFormats, err := c.backend.NativeFormats()
+	if err != nil {
+		return nil, false, wrapClipboardError("clipboard.read", err)
+	}
+	available := canonicalClipboardFormats(nativeFormats)
+	if !formatsSpecified {
+		requested = available
 	}
 	result := map[string]interface{}{
 		"formats": available, "nativeFormats": nativeFormats,
@@ -178,24 +188,24 @@ func (c *Clipboard) Read(request ClipboardReadRequest) (map[string]interface{}, 
 		if format == ClipboardFormatFiles {
 			files, readErr := c.backend.ReadFiles()
 			if readErr != nil {
-				return nil, wrapClipboardError("clipboard.read", readErr)
+				return nil, false, wrapClipboardError("clipboard.read", readErr)
 			}
 			for _, path := range files {
 				total += len(path)
 			}
 			if total > maxBytes {
-				return nil, clipboardOperationError("clipboard.read", ClipboardPayloadTooLarge, "clipboard payload exceeds maxBytes", nil)
+				return nil, false, clipboardOperationError("clipboard.read", ClipboardPayloadTooLarge, "clipboard payload exceeds maxBytes", nil)
 			}
 			result["files"] = files
 			continue
 		}
 		data, readErr := c.backend.ReadData(format)
 		if readErr != nil {
-			return nil, wrapClipboardError("clipboard.read", readErr)
+			return nil, false, wrapClipboardError("clipboard.read", readErr)
 		}
 		total += len(data)
 		if total > maxBytes {
-			return nil, clipboardOperationError("clipboard.read", ClipboardPayloadTooLarge, "clipboard payload exceeds maxBytes", nil)
+			return nil, false, clipboardOperationError("clipboard.read", ClipboardPayloadTooLarge, "clipboard payload exceeds maxBytes", nil)
 		}
 		switch format {
 		case ClipboardFormatText:
@@ -208,7 +218,72 @@ func (c *Clipboard) Read(request ClipboardReadRequest) (map[string]interface{}, 
 			result["pngBase64"] = base64.StdEncoding.EncodeToString(data)
 		}
 	}
-	return result, nil
+	finalChangeCount, err := c.backend.ChangeCount()
+	if err != nil {
+		return nil, false, wrapClipboardError("clipboard.read", err)
+	}
+	if finalChangeCount != changeCount {
+		return nil, true, nil
+	}
+	return result, false, nil
+}
+
+func (c *Clipboard) verifyWrite(payload ClipboardPayload, expectedChangeCount int64) ([]string, error) {
+	changeCount, err := c.backend.ChangeCount()
+	if err != nil {
+		return nil, clipboardOperationError("clipboard.write", ClipboardVerificationFailed, "clipboard changeCount readback failed", err)
+	}
+	if changeCount != expectedChangeCount {
+		return nil, clipboardOperationError("clipboard.write", ClipboardChanged, "clipboard changed before the write could be verified", nil)
+	}
+	nativeFormats, err := c.backend.NativeFormats()
+	if err != nil {
+		return nil, clipboardOperationError("clipboard.write", ClipboardVerificationFailed, "clipboard format readback failed", err)
+	}
+	formats := canonicalClipboardFormats(nativeFormats)
+	for _, format := range clipboardPayloadFormats(payload) {
+		if !containsString(formats, format) {
+			return nil, clipboardOperationError("clipboard.write", ClipboardVerificationFailed, "clipboard write did not advertise every requested format", nil)
+		}
+	}
+	for _, format := range clipboardPayloadFormats(payload) {
+		if format == ClipboardFormatFiles {
+			files, readErr := c.backend.ReadFiles()
+			if readErr != nil {
+				return nil, clipboardOperationError("clipboard.write", ClipboardVerificationFailed, "clipboard file-list readback failed", readErr)
+			}
+			if !equalStrings(files, payload.Files) {
+				return nil, clipboardOperationError("clipboard.write", ClipboardVerificationFailed, "clipboard file-list readback did not match the requested paths", nil)
+			}
+			continue
+		}
+		actual, readErr := c.backend.ReadData(format)
+		if readErr != nil {
+			return nil, clipboardOperationError("clipboard.write", ClipboardVerificationFailed, "clipboard representation readback failed", readErr)
+		}
+		var expected []byte
+		switch format {
+		case ClipboardFormatText:
+			expected = []byte(*payload.Text)
+		case ClipboardFormatHTML:
+			expected = []byte(*payload.HTML)
+		case ClipboardFormatRTF:
+			expected = payload.RTF
+		case ClipboardFormatPNG:
+			expected = payload.PNG
+		}
+		if !bytes.Equal(actual, expected) {
+			return nil, clipboardOperationError("clipboard.write", ClipboardVerificationFailed, "clipboard representation readback did not match the requested bytes", nil)
+		}
+	}
+	finalChangeCount, err := c.backend.ChangeCount()
+	if err != nil {
+		return nil, clipboardOperationError("clipboard.write", ClipboardVerificationFailed, "clipboard changeCount verification failed", err)
+	}
+	if finalChangeCount != expectedChangeCount {
+		return nil, clipboardOperationError("clipboard.write", ClipboardChanged, "clipboard changed while the write was being verified", nil)
+	}
+	return formats, nil
 }
 
 func (c *Clipboard) GetFormats() ([]string, error) {
@@ -237,6 +312,12 @@ func (c *Clipboard) GetCapabilities() map[string]interface{} {
 			ClipboardFormatPNG: supported, ClipboardFormatFiles: supported,
 		},
 		"maxPayloadBytes": clipboardMaxPayloadBytes,
+		"limits": map[string]interface{}{
+			"maxPayloadBytes": clipboardMaxPayloadBytes,
+			"maxTextBytes":    clipboardMaxTextBytes,
+			"maxFiles":        clipboardMaxFiles,
+			"maxPathBytes":    clipboardMaxPathBytes,
+		},
 		"watcher": map[string]interface{}{
 			"api": "Events.on", "event": "clipboard.changed", "contentIncluded": false,
 		},
@@ -347,7 +428,7 @@ func parseClipboardPayload(value goja.Value) (ClipboardPayload, error) {
 			return ClipboardPayload{}, clipboardOperationError("clipboard.write", ClipboardInvalidArgument, "rtfBase64 must be a string", nil)
 		}
 		decoded, err := base64.StdEncoding.Strict().DecodeString(encoded)
-		if err != nil {
+		if err != nil || base64.StdEncoding.EncodeToString(decoded) != encoded {
 			return ClipboardPayload{}, clipboardOperationError("clipboard.write", ClipboardInvalidArgument, "rtfBase64 must be canonical base64", nil)
 		}
 		payload.RTF, payload.HasRTF = decoded, true
@@ -358,7 +439,10 @@ func parseClipboardPayload(value goja.Value) (ClipboardPayload, error) {
 			return ClipboardPayload{}, clipboardOperationError("clipboard.write", ClipboardInvalidArgument, "pngBase64 must be a string", nil)
 		}
 		decoded, err := base64.StdEncoding.Strict().DecodeString(encoded)
-		if err != nil || !bytes.HasPrefix(decoded, []byte("\x89PNG\r\n\x1a\n")) {
+		if err != nil || base64.StdEncoding.EncodeToString(decoded) != encoded {
+			return ClipboardPayload{}, clipboardOperationError("clipboard.write", ClipboardInvalidArgument, "pngBase64 must be canonical base64", nil)
+		}
+		if !bytes.HasPrefix(decoded, []byte("\x89PNG\r\n\x1a\n")) {
 			return ClipboardPayload{}, clipboardOperationError("clipboard.write", ClipboardInvalidArgument, "pngBase64 must decode to a PNG signature", nil)
 		}
 		payload.PNG, payload.HasPNG = decoded, true
@@ -398,6 +482,7 @@ func parseClipboardReadRequest(value goja.Value) (ClipboardReadRequest, error) {
 	}
 	request := ClipboardReadRequest{}
 	if raw, exists := object["formats"]; exists {
+		request.formatsSpecified = true
 		items, valid := raw.([]interface{})
 		if !valid {
 			return request, clipboardOperationError("clipboard.read", ClipboardInvalidArgument, "formats must be an array", nil)
@@ -538,7 +623,7 @@ func canonicalClipboardFormatForNative(value string) string {
 		return ClipboardFormatRTF
 	case "public.png", "NSPNGPboardType":
 		return ClipboardFormatPNG
-	case "public.file-url", "public.url", "public.url-name", "NSFilenamesPboardType":
+	case "public.file-url", "NSFilenamesPboardType":
 		return ClipboardFormatFiles
 	default:
 		return ""
@@ -548,7 +633,7 @@ func canonicalClipboardFormatForNative(value string) string {
 func unsupportedClipboardNativeFormats(native []string) []string {
 	result := []string{}
 	for _, value := range native {
-		if canonicalClipboardFormatForNative(value) == "" && !isDerivedClipboardNativeFormat(value) {
+		if canonicalClipboardFormatForNative(value) == "" && !isDerivedClipboardNativeFormat(value, native) {
 			result = append(result, value)
 		}
 	}
@@ -559,7 +644,7 @@ func unsupportedClipboardNativeFormats(native []string) []string {
 func derivedClipboardNativeFormats(native []string) []string {
 	result := []string{}
 	for _, value := range native {
-		if isDerivedClipboardNativeFormat(value) {
+		if isDerivedClipboardNativeFormat(value, native) {
 			result = append(result, value)
 		}
 	}
@@ -567,11 +652,17 @@ func derivedClipboardNativeFormats(native []string) []string {
 	return result
 }
 
-func isDerivedClipboardNativeFormat(value string) bool {
+func isDerivedClipboardNativeFormat(value string, native []string) bool {
 	// This dynamic UTI is the legacy Carbon 'styl' sidecar synthesized beside
 	// plain text by macOS clipboard compatibility bridges. It is metadata, not
 	// an independently readable user representation.
-	return value == "dyn.ah62d4rv4gk81g7d3ru" || value == "CorePasteboardFlavorType 0x7374796C"
+	if value == "dyn.ah62d4rv4gk81g7d3ru" || value == "CorePasteboardFlavorType 0x7374796C" {
+		return true
+	}
+	// NSPasteboard may advertise generic URL compatibility sidecars for a
+	// public.file-url representation. They are reproducible from the file URL,
+	// but a standalone web URL is not a file list and must remain unsupported.
+	return (value == "public.url" || value == "public.url-name") && containsString(native, "public.file-url")
 }
 
 func finiteInteger(value interface{}) (int, bool) {
@@ -626,6 +717,18 @@ func containsString(values []string, wanted string) bool {
 		}
 	}
 	return false
+}
+
+func equalStrings(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
 }
 
 type unsupportedClipboardBackend struct {

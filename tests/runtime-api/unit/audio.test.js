@@ -1,6 +1,18 @@
 (() => {
-  const { assert, equal, expectThrow, test } = RuntimeAPITest;
+  const { assert, equal, test } = RuntimeAPITest;
   RuntimeAPITest.contractObject('Audio');
+
+  async function expectAudioError(fn, code, operation) {
+    let caught = null;
+    try {
+      await fn();
+    } catch (error) {
+      caught = error;
+    }
+    assert(caught, 'expected Audio error ' + code);
+    equal(caught.code, code, 'Audio error code');
+    equal(caught.operation, operation, 'Audio error operation');
+  }
 
   test({ name: 'Audio reports explicit platform and capture capabilities', tier: 'unit', covers: ['Audio.getCapabilities'] }, async () => {
     const capabilities = Audio.getCapabilities();
@@ -21,7 +33,7 @@
 
   test({ name: 'Audio rejects invalid volume before touching the host', tier: 'unit', covers: ['Audio.setVolume'] }, async () => {
     for (const value of [-0.01, 1.01, NaN, Infinity, '50%', null]) {
-      await expectThrow(() => Audio.setVolume(value), 'INVALID_ARGUMENT');
+      await expectAudioError(() => Audio.setVolume(value), 'INVALID_ARGUMENT', 'Audio.setVolume');
     }
   });
 })();

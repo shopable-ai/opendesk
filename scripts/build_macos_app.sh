@@ -2,7 +2,13 @@
 
 set -euo pipefail
 
+[[ "$(uname -s)" == Darwin ]] || {
+  printf 'This script is for macOS only.\n' >&2
+  exit 1
+}
+
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "${ROOT_DIR}"
 DIST_DIR="${DIST_DIR:-${ROOT_DIR}/dist}"
 APP_ROOT="${DIST_DIR}/OpenDesk.app"
 CONTENTS_DIR="${APP_ROOT}/Contents"
@@ -58,6 +64,7 @@ cp "${DIST_DIR}/opendesk-ui-host" "${UI_HOST_PATH}"
 cp "${DIST_DIR}/opendesk-ui-host" "${CLAWDESK_UI_HOST_PATH}"
 cp "${DIST_DIR}/opendesk-status" "${STATUS_HELPER_PATH}"
 cp "${APP_ICON_SOURCE}" "${RESOURCES_DIR}/${APP_ICON_NAME}"
+shasum -a 256 "${EXECUTABLE_PATH}" >"${RESOURCES_DIR}/opendesk-payload.sha256"
 rsync -a --delete "${ROOT_DIR}/polyfills/" "${MACOS_DIR}/polyfills/"
 rsync -a --delete "${ROOT_DIR}/jslibs/" "${MACOS_DIR}/jslibs/"
 

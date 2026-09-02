@@ -83,6 +83,64 @@ func TestRichClipboardFormatNegotiationAndBinaryProjection(t *testing.T) {
 	}
 }
 
+func TestRichClipboardExplicitEmptyFormatsReadsMetadataOnly(t *testing.T) {
+	backend := newMemoryClipboardBackend()
+	text := "content-must-not-be-read"
+	backend.payload.Text = &text
+	backend.nativeFormats = []string{"public.utf8-plain-text"}
+	clipboard := newClipboardWithBackend(backend)
+
+	result, err := clipboard.Read(ClipboardReadRequest{Formats: []string{}, formatsSpecified: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result["text"] != nil || backend.readDataCalls != 0 {
+		t.Fatalf("metadata-only read accessed content: result=%#v calls=%d", result, backend.readDataCalls)
+	}
+	formats := result["formats"].([]string)
+	if len(formats) != 1 || formats[0] != ClipboardFormatText {
+		t.Fatalf("metadata-only formats=%#v", formats)
+	}
+}
+
+func TestRichClipboardRetriesChangedSnapshotAndRejectsPersistentChurn(t *testing.T) {
+	text := "stable-after-retry"
+	base := newMemoryClipboardBackend()
+	base.payload.Text = &text
+	base.nativeFormats = []string{"public.utf8-plain-text"}
+	backend := &sequencedChangeCountClipboardBackend{
+		memoryClipboardBackend: base,
+		values:                 []int64{1, 2, 2, 2},
+	}
+	clipboard := newClipboardWithBackend(backend)
+	result, err := clipboard.Read(ClipboardReadRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result["text"] != text || result["changeCount"] != int64(2) {
+		t.Fatalf("retried snapshot=%#v", result)
+	}
+
+	churning := &sequencedChangeCountClipboardBackend{
+		memoryClipboardBackend: base,
+		values:                 []int64{3, 4, 5, 6},
+	}
+	if _, err := newClipboardWithBackend(churning).Read(ClipboardReadRequest{}); clipboardErrorCode(err) != ClipboardChanged {
+		t.Fatalf("persistent churn error=%v code=%q", err, clipboardErrorCode(err))
+	}
+}
+
+func TestRichClipboardWriteVerifiesEveryRequestedRepresentation(t *testing.T) {
+	backend := &corruptingClipboardBackend{memoryClipboardBackend: newMemoryClipboardBackend()}
+	clipboard := newClipboardWithBackend(backend)
+	text := "requested-private-body"
+	if _, err := clipboard.Write(ClipboardPayload{Text: &text}); clipboardErrorCode(err) != ClipboardVerificationFailed {
+		t.Fatalf("corrupt write error=%v code=%q", err, clipboardErrorCode(err))
+	} else if strings.Contains(err.Error(), text) || strings.Contains(err.Error(), "corrupted-private-body") {
+		t.Fatalf("write verification error leaked clipboard content: %v", err)
+	}
+}
+
 func TestRichClipboardRejectsUnsupportedAndOversizePayloads(t *testing.T) {
 	backend := newMemoryClipboardBackend()
 	clipboard := newClipboardWithBackend(backend)
@@ -128,6 +186,23 @@ func TestRichClipboardClassifiesPlainTextAliasesAndDerivedMetadata(t *testing.T)
 	}
 }
 
+func TestRichClipboardDoesNotClassifyWebURLsAsFiles(t *testing.T) {
+	webURL := []string{"public.url", "public.url-name"}
+	if formats := canonicalClipboardFormats(webURL); len(formats) != 0 {
+		t.Fatalf("web URL canonical formats=%#v", formats)
+	}
+	if unsupported := unsupportedClipboardNativeFormats(webURL); strings.Join(unsupported, ",") != "public.url,public.url-name" {
+		t.Fatalf("web URL unsupported formats=%#v", unsupported)
+	}
+	fileURL := []string{"public.file-url", "public.url", "public.url-name"}
+	if formats := canonicalClipboardFormats(fileURL); len(formats) != 1 || formats[0] != ClipboardFormatFiles {
+		t.Fatalf("file URL canonical formats=%#v", formats)
+	}
+	if derived := derivedClipboardNativeFormats(fileURL); strings.Join(derived, ",") != "public.url,public.url-name" {
+		t.Fatalf("file URL derived formats=%#v", derived)
+	}
+}
+
 func TestRichClipboardJSBindingIsStructuredAndDoesNotDuplicateWatcher(t *testing.T) {
 	runtimeValue := goja.New()
 	backend := newMemoryClipboardBackend()
@@ -144,7 +219,9 @@ func TestRichClipboardJSBindingIsStructuredAndDoesNotDuplicateWatcher(t *testing
 			const readback = clipboard.read({formats: ['text/html']});
 			let invalid;
 			try { clipboard.read({formats: ['application/json']}); } catch (error) { invalid = {code: error.code, operation: error.operation}; }
-			return {result, readback, invalid, capabilities: clipboard.getCapabilities()};
+			let nonCanonical;
+			try { clipboard.write({rtfBase64: 'e1xydGYxXGFuc2kgdGVzdH0=\n'}); } catch (error) { nonCanonical = {code: error.code, operation: error.operation}; }
+			return {result, readback, invalid, nonCanonical, capabilities: clipboard.getCapabilities()};
 		})()
 	`)
 	if err != nil {
@@ -155,11 +232,21 @@ func TestRichClipboardJSBindingIsStructuredAndDoesNotDuplicateWatcher(t *testing
 	if invalid["code"] != string(ClipboardUnsupportedFormat) || invalid["operation"] != "clipboard.read" {
 		t.Fatalf("structured error=%#v", invalid)
 	}
+	nonCanonical := result["nonCanonical"].(map[string]interface{})
+	if nonCanonical["code"] != string(ClipboardInvalidArgument) || nonCanonical["operation"] != "clipboard.write" {
+		t.Fatalf("non-canonical base64 error=%#v", nonCanonical)
+	}
 	readback := result["readback"].(map[string]interface{})
 	if readback["html"] != "<b>plain</b>" || readback["text"] != nil {
 		t.Fatalf("readback=%#v", readback)
 	}
 	capabilities := result["capabilities"].(map[string]interface{})
+	limits := capabilities["limits"].(map[string]interface{})
+	maxTextBytes, validTextLimit := finiteInteger(limits["maxTextBytes"])
+	maxFiles, validFileLimit := finiteInteger(limits["maxFiles"])
+	if !validTextLimit || !validFileLimit || maxTextBytes != clipboardMaxTextBytes || maxFiles != clipboardMaxFiles {
+		t.Fatalf("clipboard limits=%#v", limits)
+	}
 	watcher := capabilities["watcher"].(map[string]interface{})
 	if watcher["api"] != "Events.on" || watcher["contentIncluded"] != false {
 		t.Fatalf("watcher capability=%#v", watcher)
@@ -179,6 +266,7 @@ type memoryClipboardBackend struct {
 	nativeFormats []string
 	changeCount   int64
 	err           error
+	readDataCalls int
 }
 
 func newMemoryClipboardBackend() *memoryClipboardBackend { return &memoryClipboardBackend{} }
@@ -197,6 +285,7 @@ func (b *memoryClipboardBackend) ChangeCount() (int64, error) {
 	return b.changeCount, nil
 }
 func (b *memoryClipboardBackend) ReadData(format string) ([]byte, error) {
+	b.readDataCalls++
 	if b.err != nil {
 		return nil, b.err
 	}
@@ -218,6 +307,40 @@ func (b *memoryClipboardBackend) ReadData(format string) ([]byte, error) {
 	default:
 		return nil, clipboardOperationError("", ClipboardUnsupportedFormat, "missing representation", nil)
 	}
+}
+
+type sequencedChangeCountClipboardBackend struct {
+	*memoryClipboardBackend
+	values []int64
+	index  int
+}
+
+func (b *sequencedChangeCountClipboardBackend) ChangeCount() (int64, error) {
+	if b.err != nil {
+		return 0, b.err
+	}
+	if len(b.values) == 0 {
+		return b.changeCount, nil
+	}
+	index := b.index
+	if index >= len(b.values) {
+		index = len(b.values) - 1
+	}
+	b.index++
+	return b.values[index], nil
+}
+
+type corruptingClipboardBackend struct {
+	*memoryClipboardBackend
+}
+
+func (b *corruptingClipboardBackend) Write(payload ClipboardPayload) (int64, error) {
+	changeCount, err := b.memoryClipboardBackend.Write(payload)
+	if err == nil && payload.Text != nil {
+		corrupted := "corrupted-private-body"
+		b.payload.Text = &corrupted
+	}
+	return changeCount, err
 }
 func (b *memoryClipboardBackend) ReadFiles() ([]string, error) {
 	if b.err != nil {

@@ -264,9 +264,9 @@ async function main() {
         meetingTarget: meetingTarget.length > 0 ? meetingTarget[0] : null,
     }, null, 2);
 
-    // 使用 System.writeFile 保存结果
+    // 使用文档化的 File API 保存结果
     try {
-        System.writeFile(outputPath, resultData);
+        File.write(outputPath, resultData);
         console.log(`\n结果已保存到: ${outputPath}`);
     } catch (error) {
         console.log(`\n无法保存结果文件: ${error.message}`);

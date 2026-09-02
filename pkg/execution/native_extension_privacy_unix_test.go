@@ -63,7 +63,9 @@ func TestRunNativeExtensionsRedactsExtensionErrorFromPersistentArtifacts(t *test
 		"protocol":      map[string]any{"name": nativeextension.ProtocolName, "version": nativeextension.ProtocolVersion},
 		"executable":    "bin/native-ext-secret-error",
 		"javascript":    map[string]any{"namespace": "secretError"},
-		"methods":       map[string]any{"fail": map[string]any{"wireMethod": "fail", "timeoutMs": 5000}},
+		// This test validates privacy redaction, not timeout behavior. Leave enough
+		// time for the helper test binary to start during a parallel root test run.
+		"methods": map[string]any{"fail": map[string]any{"wireMethod": "fail", "timeoutMs": 30000}},
 	}
 	raw, err := json.Marshal(manifest)
 	if err != nil {
@@ -79,7 +81,7 @@ func TestRunNativeExtensionsRedactsExtensionErrorFromPersistentArtifacts(t *test
 	result, summary, runErr := Run(Request{
 		ExecutionID: "native-extension-error-privacy", SourceLabel: "test", Ext: ".js",
 		ScriptContent: []byte(`NativeExtensions.secretError.fail({business:"safe"});`),
-		Timeout:       10 * time.Second, EnableNativeExtensions: true,
+		Timeout:       45 * time.Second, EnableNativeExtensions: true,
 		NativeExtensionRoots: []nativeextension.DiscoveryRoot{{Kind: nativeextension.RootTest, Path: root}},
 		Artifacts:            artifacts, Selection: TerminalSelection{Mode: "quiet", Categories: map[string]bool{}},
 	})

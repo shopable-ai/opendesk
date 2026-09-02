@@ -126,10 +126,12 @@ type ToolbarSpec struct {
 }
 
 // ButtonResult is native readback: the applied logical state plus actual AppKit
-// bounds, Accessibility name, and the generated reviewed symbol recipe.
+// bounds, tooltip, Accessibility name, and the generated reviewed symbol recipe.
 type ButtonResult struct {
 	ButtonSpec
 	RenderedText      string           `json:"renderedText"`
+	Tooltip           string           `json:"tooltip"`
+	TooltipVisible    bool             `json:"tooltipVisible"`
 	IconPresentation  IconPresentation `json:"iconPresentation"`
 	AccessibilityName string           `json:"accessibilityName"`
 	LocalBounds       Bounds           `json:"localBounds"`

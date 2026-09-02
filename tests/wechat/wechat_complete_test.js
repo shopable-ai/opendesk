@@ -118,19 +118,13 @@ async function generateAnnotatedImage(imagePath, result, mode) {
 
     const outputPath = `${CONFIG.outputDir}/wechat_annotated_${mode}.png`;
 
-    // Load original image
-    const imageBase64 = await ImageColor.loadBase64(imagePath);
-
-    // Generate annotated image with separators
-    const annotated = await ImageColor.drawSeparators(imageBase64, result.separators, {
-        verticalColor: '#FF0000',    // Red for vertical
-        horizontalColor: '#00FF00',  // Green for horizontal
-        lineWidth: 2,
-        showConfidence: true
+    await Vision.annotateRegions({
+        imagePath,
+        separators: result.separators,
+        regions: [],
+        outputPath,
+        title: `WeChat separators (${mode})`,
     });
-
-    // Save annotated image
-    await ImageColor.saveBase64(annotated, outputPath);
 
     console.log(`✅ 标注图片已保存: ${outputPath}`);
     return outputPath;
@@ -144,18 +138,13 @@ async function generateRegionVisualization(imagePath, result, mode) {
 
     const outputPath = `${CONFIG.outputDir}/wechat_regions_${mode}.png`;
 
-    // Load original image
-    const imageBase64 = await ImageColor.loadBase64(imagePath);
-
-    // Generate region visualization
-    const regions = await ImageColor.visualizeRegions(imageBase64, result.separators, {
-        showBoundaries: true,
-        showLabels: true,
-        colorScheme: 'rainbow'
+    await Vision.annotateRegions({
+        imagePath,
+        separators: result.separators,
+        regions: result.regions || [],
+        outputPath,
+        title: `WeChat regions (${mode})`,
     });
-
-    // Save visualization
-    await ImageColor.saveBase64(regions, outputPath);
 
     console.log(`✅ 区域可视化已保存: ${outputPath}`);
     return outputPath;

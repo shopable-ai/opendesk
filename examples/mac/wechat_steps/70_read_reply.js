@@ -42,7 +42,7 @@ shared.scroll_message_list = async function scroll_message_list(context) {
   await shared.refreshWechatForeground(context.win, 'scroll_message_list');
   await mouse.move(context.win.x + point.x, context.win.y + point.y);
   await shared.wait(120);
-  await mouse.scroll(-3);
+  await mouse.wheel({ deltaY: -3 });
   await shared.wait(400);
   context.messageScrollPoint = point;
   return { point, box: resolved.box };

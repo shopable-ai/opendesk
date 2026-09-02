@@ -15,6 +15,7 @@
     }
     assert(Math.abs(actual.x - target.point.x) <= 2 && Math.abs(actual.y - target.point.y) <= 2, JSON.stringify({ id, target, actual }));
     await mouse.click(target.point.x, target.point.y, { delay: 30 });
+    await RuntimeLive.waitForEvent('click', (event) => event.target === id);
     return target;
   }
 
@@ -34,9 +35,8 @@
     try {
       await window.setWindowBounds(original.title, moved.x, moved.y, moved.width, moved.height);
       await page.waitFor(350);
-      const relocated = await RuntimeLive.waitForBrowserWindow();
-      const telemetry = await RuntimeLive.waitForTelemetry();
-      RuntimeLive.updateTarget(relocated, telemetry);
+      const relocatedTarget = await RuntimeLive.refreshTarget();
+      const relocated = relocatedTarget.windowInfo;
       assert(Math.abs(relocated.x - original.x) >= 8 || Math.abs(relocated.y - original.y) >= 8, JSON.stringify({ original, relocated }));
 
       await RuntimeLive.resetUI();
@@ -59,6 +59,9 @@
       await clickTarget('button-counter');
       await clickTarget('button-counter');
       state = await RuntimeLive.waitForCount('counter-action', 2);
+      await RuntimeLive.waitForExactCount('pointerdown', 6);
+      await RuntimeLive.waitForExactCount('pointerup', 6);
+      state = await RuntimeLive.waitForExactCount('click', 6);
       equal(state.telemetry.uiState.primary, 'success', JSON.stringify(state));
       equal(state.telemetry.uiState.color, 'purple', JSON.stringify(state));
       equal(Number(state.telemetry.uiState.count), 2, JSON.stringify(state));

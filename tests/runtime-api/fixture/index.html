@@ -79,6 +79,9 @@
     .metric strong { display: block; margin-top: 4px; color: #0f172a; font-size: 21px; }
     @media (max-width: 820px) { .grid { grid-template-columns: 1fr; } .hero { display: block; } .status-pill { display: inline-block; margin-top: 14px; } }
     @media (max-width: 560px) { .lab-shell { width: calc(100vw - 24px); padding-top: 16px; } .controls { grid-template-columns: 1fr; } .control.full { grid-column: auto; } }
+    @media (max-height: 700px) and (min-width: 561px) { .lab-shell { padding-top: 12px; padding-bottom: 20px; } .hero { margin-bottom: 12px; } }
+    @media (max-height: 620px) and (min-width: 561px) { .lab-shell { padding-top: 4px; padding-bottom: 12px; } .hero { margin-bottom: 8px; } .panel { padding-top: 14px; padding-bottom: 14px; } .controls { gap: 8px; } .button-row { margin-top: 10px; } .swatch-wrap { margin-top: 10px; } .lab-output { margin-top: 10px; padding: 10px; } }
+    @media (max-height: 620px) and (min-width: 561px) { pre { max-height: 160px; } .metric-row { margin-top: 8px; } .panel-heading[style] { margin-top: 10px !important; } .event-list { min-height: 80px; max-height: 100px; } }
   </style>
 </head>
 <body id="fixture-body">

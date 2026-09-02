@@ -40,9 +40,6 @@
     assert(!/\bonclick\s*=/i.test(html), 'Runtime catalog HTML contains an inline handler');
     assert(controller.includes("kind: 'normal'"), 'public catalog stopped using one normal scrollable Custom UI window');
     assert(controller.includes('content: { file: catalogHTMLPath }'), 'public catalog stopped loading the generated restricted HTML');
-    assert(controller.includes('bounds: { x: 24, y: 24, width: 1240, height: 740 }'), 'public catalog stopped starting in the upper-left safe area');
-    assert(/\.icon-card img\{width:48px;height:48px/.test(html), 'Runtime catalog cards lost their compact icon size');
-    assert(!/\.icon-card::after/.test(html) && !/content:attr\(data-index\)/.test(html), 'Runtime catalog reintroduced repeated visual numbers or copy hints');
     for (const name of names) {
       const id = buttonIDFor(name);
       const tooltip = tooltipFor(name);

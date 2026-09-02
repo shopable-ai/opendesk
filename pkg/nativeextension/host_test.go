@@ -204,7 +204,7 @@ func TestHostCallSuccessAndInjectedRequestID(t *testing.T) {
 	result, err := callHelper(t, host, "success", CallOptions{
 		Method:    "add",
 		Params:    map[string]any{"a": 20, "b": 22},
-		Timeout:   5 * time.Second,
+		Timeout:   30 * time.Second,
 		RequestID: "req-fixed",
 	})
 	if err != nil {

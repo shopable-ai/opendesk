@@ -152,11 +152,11 @@ const toolbar = new FloatingWindow({
 ./dist/opendesk -ui -script examples/custom-ui/icon-catalog.js -console-mode script -log-dir .runtime/examples/custom-ui/icon-catalog
 ```
 
-示例直接读取唯一注册表 `pkg/customui/assets/toolbar-icons-v1.json`，不会维护第二份图标名称。它使用 `ui.createWindow()` 打开一个受限、可滚动的真实 Runtime 窗口，初始位于左上安全区域且仍可拖动；配套的 `examples/custom-ui/icon-catalog.html` 在同一个控件树中一次声明全部 150 个图标按钮，固定按每行 10 个、共 15 行排列，不存在翻页，也不再用 30/32 个 `FloatingWindow` 槽位冒充完整目录。controller 会在显示前检查 `panel.controls()` 中恰好存在 150 个、顺序与注册表一致的 button。
+示例直接读取唯一注册表 `pkg/customui/assets/toolbar-icons-v1.json`，不会维护第二份图标名称。它使用 `ui.createWindow()` 打开一个受限、可滚动的真实 Runtime 窗口；配套的 `examples/custom-ui/icon-catalog.html` 在同一个控件树中一次声明全部 150 个图标按钮，固定按每行 10 个、共 15 行排列，不存在翻页，也不再用 30/32 个 `FloatingWindow` 槽位冒充完整目录。controller 会在显示前检查 `panel.controls()` 中恰好存在 150 个、顺序与注册表一致的 button。
 
 这里使用 `ui.createWindow()` 是因为 `FloatingWindow` 的 32 按钮上限属于简单原生工具栏的安全契约，不应为了目录场景放宽。目录图片由当前 macOS 根据注册表中的同一 SF Symbol recipe 生成，并作为受限 base64 PNG 内嵌；HTML 不包含业务 `<script>`，150 个 click listener、剪贴板调用和可见状态更新仍全部由 `icon-catalog.js` 的 Runtime controller 持有。
 
-每个按钮都以紧凑卡片显示较小图标与名称；编号和“点击复制代码”不重复铺在每张卡片上，而是保留在 DOM 的稳定 id / index 与完整 `title` / `aria-label` 中。完整提示仍使用“`图标名 · 点击复制按钮代码`”，实际 host 还会为 WebView button 同步原生 AXButton peer。点击图标会直接把以下一行代码写入系统剪贴板，将当前卡片显示为绿色选中状态，并在固定状态栏显示“已复制”作为成功反馈：
+每个按钮都显示图标与名称，并使用“`图标名 · 点击复制按钮代码`”作为完整 `title` / `aria-label`；实际 host 还会为 WebView button 同步原生 AXButton peer。点击图标会直接把以下一行代码写入系统剪贴板，将当前卡片显示为绿色选中状态，并在固定状态栏显示“已复制”作为成功反馈：
 
 ```js
 toolbar.addButton("icon-camera-fill", "动作说明", "camera.fill", () => {});

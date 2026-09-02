@@ -2,6 +2,11 @@
 
 set -euo pipefail
 
+[[ "$(uname -s)" == Darwin ]] || {
+  printf 'This script is for macOS only.\n' >&2
+  exit 1
+}
+
 APP_BUNDLE_ID="${1:-com.opendesk.cli}"
 
 reset_service() {

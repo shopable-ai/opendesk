@@ -77,6 +77,7 @@
       const state = await helper.state(toolbar, ids[index]);
       equal(state.id, ids[index], 'declaration order changed');
       equal(state.icon, icons[ids[index]], 'quick-reply icon changed');
+      equal(state.tooltip, labels[ids[index]], 'native tooltip changed');
       equal(state.accessibilityName, labels[ids[index]], 'Accessibility name changed');
       equal(state.localBounds.x, 10, 'vertical button x padding changed');
       equal(state.localBounds.y, 8 + index * 48, 'vertical button order or gap changed');

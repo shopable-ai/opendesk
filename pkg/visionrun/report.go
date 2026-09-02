@@ -125,7 +125,7 @@ func buildRunReport(runID, preflightState string) map[string]any {
 		},
 		"blockers": []Blocker{},
 		"artifacts": map[string]any{
-			"decision": filepath.ToSlash(filepath.Join("artifacts", "runs", runID, "decision.json")),
+			"decision": filepath.ToSlash(filepath.Join(".runtime", "runs", runID, "decision.json")),
 		},
 		"summary": "run initialized; awaiting stage execution",
 		"gateAnswerSummary": map[string]any{

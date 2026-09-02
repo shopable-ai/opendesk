@@ -80,7 +80,7 @@ opendesk -experimental-native-extension \
 | `pkg/nativeextension/` | 自动发现、安全检查和进程调用 |
 | `automation/native_extensions.go` | 不可变 JavaScript Binding |
 | `tests/runtime-api/unit/native-extension.test.js` | 正式 JavaScript API 测试 |
-| `scripts/test_native_extension_plugins.sh` | 当前 macOS 专项验收入口 |
+| `python3 tests/extensions/native-plugin/tools/proof-harness/main.py` | 当前 macOS 专项验收入口 |
 | `docs/quality/native-extension-plugin-v1.md` | 最终证据和评分 |
 
 API 文档和 examples 索引必须直接链接到示例，用户不能靠搜索仓库猜文件位置。

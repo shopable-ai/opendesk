@@ -459,7 +459,7 @@ cmd/opendesk/
 tests/runtime-api/unit/native-extension.test.js
 tests/extensions/native-process/
 scripts/test_runtime_apis.sh
-scripts/test_native_process_extensions.sh
+python3 tests/extensions/native-process/tools/smoke-harness/main.py
 docs-user-api/native-extension.md
 types/NativeExtension.d.ts
 ```

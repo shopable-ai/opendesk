@@ -26,7 +26,7 @@
     equal(actual, 'http://127.0.0.1/open');
   });
 
-  test({ name: 'page.openApp delegates app name', tier: 'unit', covers: ['page.openApp'] }, async () => {
+  test({ name: 'page.openApp is forwarded by the generic native wrapper', tier: 'unit', covers: ['page.openApp'] }, async () => {
     let actual = null;
     await withNative({ openApp: async (name) => { actual = name; } }, async () => page.openApp('Safari'));
     equal(actual, 'Safari');

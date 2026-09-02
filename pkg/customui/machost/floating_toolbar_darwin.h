@@ -14,5 +14,6 @@ BOOL CDIsTrustedToolbarSymbol(NSString *symbol);
 - (instancetype)initWithFrame:(NSRect)frame spec:(NSDictionary *)spec error:(NSError **)error;
 - (NSDictionary *)stateForButtonID:(NSString *)targetID window:(NSWindow *)window;
 - (NSDictionary *)applyButtonSpec:(NSDictionary *)spec window:(NSWindow *)window error:(NSError **)error;
+- (void)invalidateTooltips;
 - (void)releaseResources;
 @end

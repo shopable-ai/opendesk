@@ -81,6 +81,7 @@
       if (item.count === 5) {
         for (let index = 0; index < 5; index += 1) {
           equal(states[index].accessibilityName, 'Button ' + index, 'Accessibility name changed');
+          equal(states[index].tooltip, 'Button ' + index, 'native tooltip changed');
           equal(states[index].renderedText, '', 'native icon-only button rendered text');
           assert(states[index].revision > 0, 'button revision missing');
         }
@@ -90,6 +91,7 @@
       }
       if (item.count === 1) {
         equal(states[0].label, longLabel, 'long semantic label changed');
+        equal(states[0].tooltip, longLabel, 'long native tooltip was truncated');
         equal(states[0].accessibilityName, longLabel, 'long Accessibility label was truncated');
       }
       const screenshotNames = { 1: 'one-button', 5: 'five-buttons' };

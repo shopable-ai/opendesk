@@ -13,7 +13,7 @@ func TestRunParseModeUsesDefaultGoldenSourceImage(t *testing.T) {
 		"schemaVersion": "0.1.0",
 		"status":        "warn",
 	})
-	defaultGolden := filepath.Join(repoRoot, "artifacts", "dev-html-samples", "wechatweb", "capture", "source.png")
+	defaultGolden := filepath.Join(repoRoot, "tests", "wechat", "fixtures", "golden-samples", "sample-a", "capture", "source.png")
 	mustWriteSyntheticLayoutPNG(t, defaultGolden)
 
 	oldWd, err := os.Getwd()

@@ -2,6 +2,11 @@
 
 set -euo pipefail
 
+[[ "$(uname -s)" == Darwin ]] || {
+  printf 'This script is for macOS only.\n' >&2
+  exit 1
+}
+
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RUNTIME_DIR="${ROOT_DIR}/.runtime/tests/app-icons"
 LOGO="${ROOT_DIR}/public/logo.png"
@@ -179,6 +184,12 @@ if [[ "${bundle_icon_name}" != "OpenDesk.icns" ]]; then
   exit 1
 fi
 cmp "${MACOS_ICON}" "${PACKAGE_DIST}/OpenDesk.app/Contents/Resources/${bundle_icon_name}"
+payload_digest="$(awk 'NR == 1 { print $1; exit }' "${PACKAGE_DIST}/OpenDesk.app/Contents/Resources/opendesk-payload.sha256")"
+binary_digest="$(shasum -a 256 "${PACKAGE_DIST}/opendesk" | awk '{print $1}')"
+if [[ "${payload_digest}" != "${binary_digest}" ]]; then
+  printf 'OpenDesk app payload provenance does not match packaged binary.\n' >&2
+  exit 1
+fi
 
 assert_app_bundle() {
   local app_path="$1"

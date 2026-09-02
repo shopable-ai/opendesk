@@ -21,10 +21,13 @@
     const pngBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
     const fixturePath = File.join(RuntimeAPITest.context.runDir, 'clipboard-live-fixture.txt');
     File.write(fixturePath, 'fixture');
+    let ownedChangeCount = null;
     try {
       await clipboard.copy(first);
+      ownedChangeCount = clipboard.read({ formats: [] }).changeCount;
       equal(await clipboard.paste(), first);
-      clipboard.write({ text: first, html, rtfBase64, pngBase64, files: [fixturePath] });
+      const writeResult = clipboard.write({ text: first, html, rtfBase64, pngBase64, files: [fixturePath] });
+      ownedChangeCount = writeResult.changeCount;
       const rich = clipboard.read();
       equal(rich.text, first);
       equal(rich.html, html);
@@ -35,13 +38,18 @@
       equal(clipboard.getFormats().length, 5);
       equal(clipboard.getCapabilities().watcher.api, 'Events.on');
       await clipboard.clear();
+      ownedChangeCount = clipboard.read({ formats: [] }).changeCount;
       equal(clipboard.getFormats().length, 0);
       equal(await clipboard.paste(), '');
       await copyToClipboard(second);
+      ownedChangeCount = clipboard.read({ formats: [] }).changeCount;
       equal(await getClipboard(), second);
     } finally {
-      if (Object.keys(originalPayload).length === 0) clipboard.clear();
-      else clipboard.write(originalPayload);
+      const current = clipboard.read({ formats: [] });
+      if (current.changeCount === ownedChangeCount) {
+        if (Object.keys(originalPayload).length === 0) clipboard.clear();
+        else clipboard.write(originalPayload);
+      }
       if (File.exists(fixturePath)) File.remove(fixturePath);
     }
   });

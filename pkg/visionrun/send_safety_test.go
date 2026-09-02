@@ -153,6 +153,9 @@ func TestRunSendSafetyRemainsBlockedWithoutDraftEvidence(t *testing.T) {
 		t.Fatalf("expected refreshed actionability canProceed=true, got %+v", actionabilityRefresh)
 	}
 
+	if _, err := RunCaptureContract(bundle); err != nil {
+		t.Fatalf("RunCaptureContract failed: %v", err)
+	}
 	probePlan, err := RunProbePlan(bundle, ProbePlanOptions{})
 	if err != nil {
 		t.Fatalf("RunProbePlan failed: %v", err)

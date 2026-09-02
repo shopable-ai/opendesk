@@ -2,6 +2,11 @@
 
 set -euo pipefail
 
+[[ "$(uname -s)" == Darwin ]] || {
+  printf 'This script is for macOS only.\n' >&2
+  exit 1
+}
+
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TARGET_APP="${1:-System Events}"
 KEEPALIVE="${KEEPALIVE:-90s}"

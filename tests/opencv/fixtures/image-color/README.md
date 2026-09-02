@@ -27,7 +27,7 @@ go run -tags opencv ./cmd/opendesk \
   -script tests/opencv/image_color_opencv_test.js \
   -timeout 1 \
   -console-mode script \
-  -log-dir /tmp/opendesk-opencv-js-test
+  -log-dir .runtime/tests/opencv/js
 ```
 
 也可以运行总入口：

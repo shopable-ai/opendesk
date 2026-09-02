@@ -2,9 +2,15 @@
 
 package automation
 
-import "testing"
+import (
+	"os"
+	"testing"
+)
 
 func TestDarwinAudioDeviceEnumerationMetadataDecodes(t *testing.T) {
+	if os.Getenv("OPENDESK_LIVE_AUDIO_TEST") != "1" {
+		t.Skip("set OPENDESK_LIVE_AUDIO_TEST=1 to enumerate real CoreAudio devices")
+	}
 	backend := &darwinAudioBackend{}
 	for _, direction := range []AudioDirection{AudioDirectionInput, AudioDirectionOutput} {
 		devices, err := backend.Devices(direction)

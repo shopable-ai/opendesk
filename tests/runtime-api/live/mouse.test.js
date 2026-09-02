@@ -17,7 +17,9 @@
     const { point } = RuntimeLive.target('button-primary');
     await RuntimeLive.reset();
     await mouse.click(point.x, point.y);
-    const snapshot = await RuntimeLive.waitForExactCount('click', 1);
+    await RuntimeLive.waitForExactCount('click', 1);
+    await RuntimeLive.waitForExactCount('pointerdown', 1);
+    const snapshot = await RuntimeLive.waitForExactCount('pointerup', 1);
     assert(snapshot.counts.pointerdown === 1 && snapshot.counts.pointerup === 1, JSON.stringify(snapshot));
   });
 

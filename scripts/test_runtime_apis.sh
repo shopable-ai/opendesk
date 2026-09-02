@@ -18,7 +18,14 @@ fi
 cd "$ROOT_DIR"
 RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)-$$"
 if printenv OPENDESK_RUNTIME_API_RUN_ID >/dev/null 2>&1 && [[ -n "$OPENDESK_RUNTIME_API_RUN_ID" ]]; then RUN_ID="$OPENDESK_RUNTIME_API_RUN_ID"; fi
+if [[ ! "$RUN_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+  echo "invalid Runtime API run id: $RUN_ID" >&2
+  exit 1
+fi
 RUN_DIR="$ROOT_DIR/.runtime/tests/runtime-api/$RUN_ID"
+if [[ -e "$RUN_DIR" ]]; then
+  rm -rf -- "$RUN_DIR"
+fi
 mkdir -p "$RUN_DIR/results" "$RUN_DIR/generated" "$RUN_DIR/processes" "$RUN_DIR/runtime-logs"
 CONTEXT="$RUN_DIR/context.json"
 PROCESSES="$RUN_DIR/processes.json"
@@ -89,11 +96,17 @@ json.dump({"schemaVersion": "1.0.0", "runId": context["runId"], "records": []}, 
 PY
 
 prepare_native_extension() {
-  [[ -x "$GO_BASIC_EXTENSION" ]] && return 0
+  local extension_stage manifest_stage types_stage
+  extension_stage="$GO_BASIC_EXTENSION.stage.$$"
+  manifest_stage="$GO_BASIC_BUNDLE/.extension.json.stage.$$"
+  types_stage="$GO_BASIC_BUNDLE/types/.index.d.ts.stage.$$"
   mkdir -p "$(dirname "$GO_BASIC_EXTENSION")" "$GO_BASIC_BUNDLE/types"
-  go -C "$ROOT_DIR/examples/native-extensions/go-basic" build -o "$GO_BASIC_EXTENSION" .
-  cp "$ROOT_DIR/examples/native-extensions/go-basic/extension.json" "$GO_BASIC_BUNDLE/extension.json"
-  cp "$ROOT_DIR/examples/native-extensions/go-basic/types/index.d.ts" "$GO_BASIC_BUNDLE/types/index.d.ts"
+  go -C "$ROOT_DIR/examples/native-extensions/go-basic" build -o "$extension_stage" .
+  cp "$ROOT_DIR/examples/native-extensions/go-basic/extension.json" "$manifest_stage"
+  cp "$ROOT_DIR/examples/native-extensions/go-basic/types/index.d.ts" "$types_stage"
+  mv "$extension_stage" "$GO_BASIC_EXTENSION"
+  mv "$manifest_stage" "$GO_BASIC_BUNDLE/extension.json"
+  mv "$types_stage" "$GO_BASIC_BUNDLE/types/index.d.ts"
   [[ -x "$GO_BASIC_EXTENSION" ]] || { echo "Go basic Native Extension is not executable: $GO_BASIC_EXTENSION" >&2; return 1; }
   local sha256 build_source
   sha256="$(shasum -a 256 "$GO_BASIC_EXTENSION" | awk '{print $1}')"
@@ -969,7 +982,17 @@ for line in path.read_text(encoding="utf-8").splitlines():
         cleanup = event.get("fields") or {}
 if cleanup is None:
     raise SystemExit("runtime cleanup event is missing")
-required = ["workers", "promiseCallbacks", "timers", "httpWorkers", "httpCallbacks", "uiWorkers", "uiPending", "uiQueued", "uiWindows", "uiListeners", "uiDriverSinks", "uiHostProcesses"]
+required = [
+    "workers", "promiseCallbacks", "timers",
+    "httpWorkers", "httpCallbacks",
+    "soundWorkers", "soundPending", "soundPlaybacks",
+    "notificationWorkers", "notificationPending",
+    "uiWorkers", "uiPending", "uiQueued", "uiWindows", "uiListeners", "uiDriverSinks", "uiHostProcesses",
+    "shortcutBindings", "shortcutPending",
+    "eventSubscriptions", "eventPending",
+    "captureWorkers", "capturePending", "captureSessions",
+    "appWorkers", "appPending",
+]
 bad = {key: cleanup.get(key) for key in required if cleanup.get(key) != 0}
 if bad:
     raise SystemExit("runtime cleanup is not zero: " + json.dumps(bad, sort_keys=True))

@@ -180,8 +180,9 @@ async function main() {
         console.log(`Mean 模式:   ${meanAnnotation.vertical.length}V + ${meanAnnotation.horizontal.length}H, ${meanAnnotation.regions.length}个区域`);
 
         console.log('\n✅ 分析完成');
-        console.log('\n下一步: 运行 Go 测试生成带标签的标注图片');
-        console.log('  cd tests/wechat && go test -v -run TestWeChatVisualization');
+        console.log('\n可选：对当前截图运行离线像素标注工具');
+        console.log('  go run ./tests/wechat/tools/visualize-layout --image ' +
+            `${OUTPUT_DIR}/wechat_original.png --output ${OUTPUT_DIR}`);
 
     } catch (error) {
         console.error('\n❌ 错误:', error.message);

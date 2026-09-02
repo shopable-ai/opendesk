@@ -140,3 +140,21 @@ Final Commit: this task-closing commit
 - Rich formats 当前仅 macOS 验证，其他平台保留显式 unsupported capability；Stable 文本接口不变。
 - 不实现 clipboard history、默认内容监控或第二套 watcher；未知私有 native formats 不能由当前
   canonical payload 无损恢复，自动化在覆盖操作者剪贴板前必须检查 `unsupportedNativeFormats`。
+
+## API optimization follow-up — 2026-09-02
+
+- 保留 `copy(string)` / `paste()` 的稳定文本契约，不用 object overload 模糊旧接口；复杂内容继续
+  统一使用 `write(payload)` / `read(options)`。
+- `read()` 读取全部表示；显式 `read({formats: []})` 改为 metadata-only，不读取正文。富内容读取在
+  前后核对 `changeCount`，变化时重试一次，持续变化则抛出 `CLIPBOARD_CHANGED`。
+- `write()` 不再只检查 format 是否出现，而是逐项核对 text、HTML、RTF、PNG bytes 和文件路径；
+  非 canonical base64 在写入前拒绝。普通 `public.url` 不再误判为 file list。
+- `getCapabilities()` 补齐聚合、文本、文件数和路径长度 limits；用户文档、类型、机器索引、公开示例
+  和 JavaScript unit/live tests 同步。
+- 当前源码验证：clipboard Go 聚焦测试 PASS；Runtime API contract 306/306 PASS；unit 431/431 PASS；
+  `OPENDESK_RUNTIME_API_LIVE_FILTER=clipboard.test.js ./scripts/test_runtime_apis.sh live-only` 为 1/1 PASS
+  且 cleanup PASS（覆盖 9 个 clipboard/global helper 方法）；仓库 `rich-smoke.js` 注释中的一行
+  当前源码命令原样 PASS，macOS
+  `nspasteboard` 实测五种格式、事件、真实 clear 和原剪贴板恢复。
+- `scripts/test_runtime_apis.sh live` 的 clipboard case 通过，但总入口的无关 Custom UI 后置 gate 为
+  11/14、3 个 FloatingWindow case 失败；cleanup PASS。该总入口不能表述为整体通过。

@@ -810,6 +810,7 @@ static void CDFinalizeClosedWindow(CDWindowController *controller, NSUInteger at
 
 - (void)windowDidMove:(NSNotification *)notification {
     if (!self.dragActive && !self.closed) {
+        [self.floatingToolbarView invalidateTooltips];
         self.revision += 1;
         [self emitType:@"move" target:nil body:@{} reason:nil];
     }
@@ -1300,6 +1301,7 @@ static void CDHandleRequest(NSDictionary *request) {
         controller.revision += 1;
 		CDRespondWhenVisible(controller, requestID, 0);
     } else if ([operation isEqualToString:@"hide"]) {
+        [controller.floatingToolbarView invalidateTooltips];
         [controller.window orderOut:nil];
         controller.revision += 1;
         CDRespond(requestID, controller.state);
@@ -1309,10 +1311,12 @@ static void CDHandleRequest(NSDictionary *request) {
 		CDRespondWhenClosed(controller, requestID, 0);
     } else if ([operation isEqualToString:@"setBounds"]) {
 		NSDictionary *expected = request[@"payload"];
+        [controller.floatingToolbarView invalidateTooltips];
 		[controller.window setFrame:CDNativeRect(expected) display:YES];
         controller.revision += 1;
 		CDRespondWhenBoundsMatch(controller, requestID, expected, 0);
     } else if ([operation isEqualToString:@"setAlwaysOnTop"]) {
+        [controller.floatingToolbarView invalidateTooltips];
         controller.alwaysOnTop = [request[@"payload"][@"enabled"] boolValue];
 		controller.window.level = controller.alwaysOnTop ? NSFloatingWindowLevel : NSNormalWindowLevel;
         controller.revision += 1;

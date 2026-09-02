@@ -165,9 +165,9 @@ async function saveResultsJSON(wxInfo, results) {
         }
     };
 
-    // Note: In goja runtime, we can't write files directly
-    // The Go test will handle saving the annotated images
-    console.log(`\n结果数据已准备，将由Go测试保存到: ${outputPath}`);
+    // The Runtime script owns API analysis. Optional raster annotations are
+    // produced by a standalone tool after this script finishes.
+    console.log(`\n结果数据已准备；可选标注输出目录: ${OUTPUT_DIR}`);
 
     return data;
 }
@@ -196,7 +196,8 @@ async function main() {
         console.log('✅ 测试完成');
         console.log('='.repeat(80));
         console.log('\n下一步:');
-        console.log('  1. 运行 Go 测试生成标注图片');
+        console.log('  1. 可选：go run ./tests/wechat/tools/visualize-layout ' +
+            `--image ${OUTPUT_DIR}/wechat_original.png --output ${OUTPUT_DIR}`);
         console.log(`  2. 查看 ${OUTPUT_DIR}/ 目录`);
         console.log('  3. 对比 median 和 mean 模式的可视化结果');
 

@@ -96,6 +96,8 @@
       await mouse.click(primaryTarget.point.x, primaryTarget.point.y, { delay: 30 });
       await RuntimeLive.waitForCount('primary-action', 1);
       await RuntimeLive.waitForExactCount('click', 3);
+      await RuntimeLive.waitForExactCount('pointerdown', 3);
+      await RuntimeLive.waitForExactCount('pointerup', 3);
       snapshot = await RuntimeLive.waitForCount('visual-settled', 1);
       assert(snapshot.telemetry.uiState.primary === 'success', JSON.stringify(snapshot));
       assert(snapshot.telemetry.uiState.name === 'Ada Lovelace' && snapshot.telemetry.uiState.command === 'run-check', JSON.stringify(snapshot));
@@ -113,6 +115,8 @@
       await clickAndWait('button-counter', 5);
       await clickAndWait('button-counter', 6);
       snapshot = await RuntimeLive.waitForCount('counter-action', 2);
+      await RuntimeLive.waitForExactCount('pointerdown', 6);
+      snapshot = await RuntimeLive.waitForExactCount('pointerup', 6);
       equal(Number(snapshot.telemetry.uiState.count), 2, JSON.stringify(snapshot));
       assert(snapshot.counts.pointerdown === 6 && snapshot.counts.pointerup === 6, JSON.stringify(snapshot));
 

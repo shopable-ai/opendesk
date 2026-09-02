@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/usr/bin/env bash
 
 set -euo pipefail
 
@@ -41,6 +41,9 @@ case "$opencv_version" in
 		;;
 esac
 
+runtime_log_dir="${PROJECT_ROOT}/.runtime/tests/opencv/js"
+mkdir -p "${runtime_log_dir}"
+
 echo "GoCV module version: $gocv_version"
 echo "pkg-config version: $(pkg-config --version)"
 echo "opencv4 pkg-config version: $opencv_version"
@@ -50,4 +53,4 @@ go run -tags opencv ./cmd/opendesk \
 	-script tests/opencv/image_color_opencv_test.js \
 	-timeout 1 \
 	-console-mode script \
-	-log-dir /tmp/opendesk-opencv-js-test
+	-log-dir "${runtime_log_dir}"

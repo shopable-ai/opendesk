@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+[[ "$(uname -s)" == Darwin ]] || {
+  printf 'This script is for macOS only.\n' >&2
+  exit 1
+}
+
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 

@@ -14,6 +14,7 @@ static const CGFloat CDToolbarMaxOuterWidth = 960.0;
 static const CGFloat CDToolbarChromeHeight = 25.0;
 static const NSUInteger CDToolbarMaxColumns = 19;
 static const NSUInteger CDToolbarMaxVerticalButtons = 5;
+static const NSTimeInterval CDToolbarTooltipDelay = 0.55;
 
 BOOL CDIsTrustedToolbarSymbol(NSString *symbol) {
 	return [symbol isKindOfClass:NSString.class] && CDGeneratedToolbarIcons()[symbol] != nil;
@@ -50,6 +51,10 @@ static NSDictionary *CDToolbarScreenBounds(NSWindow *window, NSRect local) {
 @property(nonatomic) BOOL toolbarPressed;
 @property(nonatomic) uint64_t revision;
 @property(nonatomic, strong) NSProgressIndicator *busyIndicator;
+@property(nonatomic, strong) NSTrackingArea *hoverTrackingArea;
+@property(nonatomic, strong) NSPanel *tooltipPanel;
+@property(nonatomic) NSUInteger tooltipGeneration;
+- (void)invalidateTooltip;
 @end
 
 @implementation CDToolbarButton
@@ -79,13 +84,106 @@ static NSDictionary *CDToolbarScreenBounds(NSWindow *window, NSRect local) {
 
 - (void)updateTrackingAreas {
 	[super updateTrackingAreas];
-	for (NSTrackingArea *area in self.trackingAreas.copy) [self removeTrackingArea:area];
+	// Only replace the area owned by our hover/tooltip rendering; AppKit and
+	// NSButton may own other tracking areas that must remain intact.
+	if (self.hoverTrackingArea && [self.trackingAreas containsObject:self.hoverTrackingArea]) {
+		[self removeTrackingArea:self.hoverTrackingArea];
+	}
 	NSTrackingAreaOptions options = NSTrackingMouseEnteredAndExited | NSTrackingActiveAlways | NSTrackingInVisibleRect;
-	[self addTrackingArea:[[NSTrackingArea alloc] initWithRect:self.bounds options:options owner:self userInfo:nil]];
+	self.hoverTrackingArea = [[NSTrackingArea alloc] initWithRect:self.bounds options:options owner:self userInfo:nil];
+	[self addTrackingArea:self.hoverTrackingArea];
 }
 
-- (void)mouseEntered:(NSEvent *)event { (void)event; self.pointerInside = YES; [self setNeedsDisplay:YES]; }
-- (void)mouseExited:(NSEvent *)event { (void)event; self.pointerInside = NO; [self setNeedsDisplay:YES]; }
+- (void)mouseEntered:(NSEvent *)event {
+	(void)event;
+	self.pointerInside = YES;
+	[self setNeedsDisplay:YES];
+	[self scheduleTooltip];
+}
+
+- (void)mouseExited:(NSEvent *)event {
+	(void)event;
+	self.pointerInside = NO;
+	[self setNeedsDisplay:YES];
+	[self invalidateTooltip];
+}
+
+- (void)scheduleTooltip {
+	[self invalidateTooltip];
+	if (!self.pointerInside || !self.semanticLabel.length || !self.window) return;
+	NSUInteger generation = ++self.tooltipGeneration;
+	__weak CDToolbarButton *weakSelf = self;
+	dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(CDToolbarTooltipDelay * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+		CDToolbarButton *button = weakSelf;
+		if (!button || !button.pointerInside || button.tooltipGeneration != generation || !button.window) return;
+		[button showTooltip];
+	});
+}
+
+- (void)showTooltip {
+	if (!self.pointerInside || !self.semanticLabel.length || !self.window) return;
+	[self.tooltipPanel close];
+
+	NSFont *font = [NSFont systemFontOfSize:12.0 weight:NSFontWeightRegular];
+	NSDictionary *attributes = @{NSFontAttributeName: font};
+	NSRect measured = [self.semanticLabel boundingRectWithSize:NSMakeSize(300.0, CGFLOAT_MAX)
+		options:NSStringDrawingUsesLineFragmentOrigin | NSStringDrawingUsesFontLeading attributes:attributes];
+	// NSTextField's cell keeps a small internal horizontal inset that is not
+	// included in NSString's glyph bounds. Reserve it so the final CJK glyph
+	// is not clipped at the right edge.
+	CGFloat textWidth = MIN(300.0, MAX(1.0, ceil(NSWidth(measured)) + 8.0));
+	CGFloat textHeight = MAX(15.0, ceil(NSHeight(measured)));
+	NSSize panelSize = NSMakeSize(textWidth + 20.0, textHeight + 12.0);
+
+	NSPanel *panel = [[NSPanel alloc] initWithContentRect:NSMakeRect(0, 0, panelSize.width, panelSize.height)
+		styleMask:NSWindowStyleMaskBorderless | NSWindowStyleMaskNonactivatingPanel
+		backing:NSBackingStoreBuffered defer:NO];
+	panel.opaque = NO;
+	panel.backgroundColor = NSColor.clearColor;
+	panel.hasShadow = YES;
+	panel.hidesOnDeactivate = NO;
+	panel.ignoresMouseEvents = YES;
+	panel.releasedWhenClosed = NO;
+	panel.becomesKeyOnlyIfNeeded = YES;
+	panel.level = self.window.level + 1;
+	panel.collectionBehavior = NSWindowCollectionBehaviorCanJoinAllSpaces | NSWindowCollectionBehaviorFullScreenAuxiliary;
+
+	NSView *background = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, panelSize.width, panelSize.height)];
+	background.wantsLayer = YES;
+	background.layer.backgroundColor = [NSColor colorWithCalibratedWhite:0.12 alpha:0.96].CGColor;
+	background.layer.cornerRadius = 5.0;
+	background.layer.borderWidth = 0.5;
+	background.layer.borderColor = [NSColor colorWithCalibratedWhite:0.55 alpha:0.75].CGColor;
+
+	NSTextField *label = [NSTextField labelWithString:self.semanticLabel];
+	label.frame = NSMakeRect(10.0, 6.0, textWidth, textHeight);
+	label.font = font;
+	label.textColor = NSColor.whiteColor;
+	label.lineBreakMode = NSLineBreakByWordWrapping;
+	label.maximumNumberOfLines = 0;
+	[background addSubview:label];
+	panel.contentView = background;
+
+	NSRect buttonInWindow = [self convertRect:self.bounds toView:nil];
+	NSRect buttonOnScreen = [self.window convertRectToScreen:buttonInWindow];
+	NSScreen *screen = self.window.screen ?: NSScreen.mainScreen ?: NSScreen.screens.firstObject;
+	NSRect visible = screen ? screen.visibleFrame : NSMakeRect(0, 0, 1440, 900);
+	CGFloat x = NSMidX(buttonOnScreen) - panelSize.width / 2.0;
+	CGFloat y = NSMinY(buttonOnScreen) - panelSize.height - 7.0;
+	if (y < NSMinY(visible)) y = NSMaxY(buttonOnScreen) + 7.0;
+	x = MIN(MAX(x, NSMinX(visible) + 4.0), NSMaxX(visible) - panelSize.width - 4.0);
+	y = MIN(MAX(y, NSMinY(visible) + 4.0), NSMaxY(visible) - panelSize.height - 4.0);
+	[panel setFrameOrigin:NSMakePoint(round(x), round(y))];
+	[panel orderFrontRegardless];
+	self.tooltipPanel = panel;
+}
+
+- (void)invalidateTooltip {
+	self.tooltipGeneration++;
+	[self.tooltipPanel orderOut:nil];
+	[self.tooltipPanel close];
+	self.tooltipPanel = nil;
+}
 
 - (void)setHighlighted:(BOOL)highlighted {
 	[super setHighlighted:highlighted];
@@ -94,6 +192,7 @@ static NSDictionary *CDToolbarScreenBounds(NSWindow *window, NSRect local) {
 
 - (void)mouseDown:(NSEvent *)event {
 	if (!self.enabled || self.toolbarBusy || self.toolbarDisabled) return;
+	[self invalidateTooltip];
 	self.toolbarPressed = YES;
 	[self setNeedsDisplay:YES];
 	[self displayIfNeeded];
@@ -120,7 +219,10 @@ static NSDictionary *CDToolbarScreenBounds(NSWindow *window, NSRect local) {
 	self.errorMessage = [state[@"error"] isKindOfClass:NSString.class] ? state[@"error"] : @"";
 	self.revision = [state[@"revision"] unsignedLongLongValue];
 	self.enabled = !self.toolbarDisabled && !self.toolbarBusy;
-	self.toolTip = self.semanticLabel;
+	// The toolbar is deliberately nonactivating. AppKit's standard NSView
+	// tooltip manager does not reliably present for such panels, so the label
+	// is rendered by our own nonactivating native tooltip panel instead.
+	self.toolTip = nil;
 	self.accessibilityLabel = self.semanticLabel;
 	self.accessibilityHelp = self.errorMessage.length ? self.errorMessage : nil;
 	self.accessibilityValue = @(self.toolbarActive);
@@ -133,6 +235,7 @@ static NSDictionary *CDToolbarScreenBounds(NSWindow *window, NSRect local) {
 	}
 	[self setNeedsDisplay:YES];
 	NSAccessibilityPostNotification(self, NSAccessibilityValueChangedNotification);
+	if (self.pointerInside) [self scheduleTooltip];
 }
 
 - (void)drawRect:(NSRect)dirtyRect {
@@ -327,7 +430,9 @@ static NSDictionary *CDToolbarScreenBounds(NSWindow *window, NSRect local) {
 	};
 	return @{
 		@"id": button.targetID, @"label": button.semanticLabel ?: @"", @"icon": button.iconName ?: @"",
-		@"state": state, @"renderedText": @"", @"iconPresentation": button.iconPresentation ?: @{},
+		@"state": state, @"renderedText": @"", @"tooltip": button.semanticLabel ?: @"",
+		@"tooltipVisible": @(button.tooltipPanel.visible),
+		@"iconPresentation": button.iconPresentation ?: @{},
 		@"accessibilityName": button.accessibilityLabel ?: @"",
 		@"localBounds": @{@"x": @(NSMinX(local)), @"y": @(NSMinY(local)), @"width": @(NSWidth(local)), @"height": @(NSHeight(local))},
 		@"screenBounds": CDToolbarScreenBounds(window, local),
@@ -349,11 +454,20 @@ static NSDictionary *CDToolbarScreenBounds(NSWindow *window, NSRect local) {
 	return [self stateForButtonID:targetID window:window];
 }
 
+- (void)invalidateTooltips {
+	for (CDToolbarButton *button in self.orderedButtons) [button invalidateTooltip];
+}
+
 - (void)releaseResources {
 	self.eventDelegate = nil;
+	[self invalidateTooltips];
 	for (CDToolbarButton *button in self.orderedButtons) {
 		button.target = nil; button.action = nil;
 		[button.busyIndicator stopAnimation:nil];
+		if (button.hoverTrackingArea && [button.trackingAreas containsObject:button.hoverTrackingArea]) {
+			[button removeTrackingArea:button.hoverTrackingArea];
+		}
+		button.hoverTrackingArea = nil;
 		if (button.superview == self.columnStack) {
 			[self.columnStack removeArrangedSubview:button];
 		}

@@ -1,4 +1,4 @@
-# Native Extension Canonical Install Root & Authoring UX V1.0.1 Goal
+# Native Extension Canonical Install Root & Authoring UX Goal
 
 ## 一、唯一任务目标（最高优先级）
 
@@ -60,7 +60,7 @@ const sum = NativeExtensions.goBasic.add({ a: 20, b: 22 });
 | `docs-user-api/native-extension.md` | 普通用户的权威 API/安装文档 | 否 |
 | `pkg/nativeextension/discovery.go` 与 `discovery_roots.go` | 默认目录、发现、冲突和 artifact 校验 | Runtime 源码 |
 | `automation/native_extensions.go` | Host 生成不可变 JavaScript Binding | Runtime 源码 |
-| `scripts/test_native_extension_plugins.sh` | 维护者完整 proof；不是消费者安装器 | 否 |
+| `python3 tests/extensions/native-plugin/tools/proof-harness/main.py` | 维护者完整 proof；不是消费者安装器 | 否 |
 
 普通用户文档首屏只展示与消费者直接相关的四项：预编译 bundle 内容、默认安装树、
 `quickstart.js`、运行命令/输出；不要把 Runtime 内部源码和 proof script 挤到消费者首屏。
@@ -395,7 +395,7 @@ docs-user-api/README.md
 docs-user-api/runtime-api.ai.json
 examples/native-extensions/README.md
 tests/extensions/native-plugin/
-scripts/test_native_extension_plugins.sh
+python3 tests/extensions/native-plugin/tools/proof-harness/main.py
 docs/implementation/runtime/native-extension-plugin-discovery.md
 docs/quality/native-extension-plugin-v1.md
 ```

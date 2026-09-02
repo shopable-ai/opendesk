@@ -5,7 +5,7 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT_DIR"
 
 STAMP="$(date +%Y%m%d_%H%M%S)"
-REPORT_DIR="$ROOT_DIR/.runtime/temp/e2e"
+REPORT_DIR="$ROOT_DIR/.runtime/tests/e2e"
 REPORT_FILE="$REPORT_DIR/smoke_${STAMP}.md"
 mkdir -p "$REPORT_DIR"
 RUN_MAC_UI="${RUN_MAC_UI:-1}"
@@ -39,7 +39,8 @@ run_step() {
 run_step "go test ./automation" go test ./automation
 run_step "go test ./..." go test ./...
 
-SMOKE_SCRIPT="/tmp/opendesk_script_smoke_${STAMP}.js"
+SMOKE_SCRIPT="$REPORT_DIR/smoke_${STAMP}.js"
+trap 'rm -f "$SMOKE_SCRIPT"' EXIT
 cat >"$SMOKE_SCRIPT" <<'EOF'
 console.log('script-smoke-start');
 await page.waitFor(100);

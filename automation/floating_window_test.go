@@ -96,3 +96,15 @@ func TestNewFloatingButtonRejectsInvalidInputs(t *testing.T) {
 		t.Fatalf("valid Unicode button = %#v, err=%v", button, err)
 	}
 }
+
+func TestPublicFloatingButtonStateUsesLabelForTooltipFallback(t *testing.T) {
+	spec := toolbar.ButtonSpec{ID: "save", Label: "保存当前任务", Icon: "tray.and.arrow.down.fill", State: toolbar.ButtonState{Revision: 1}}
+	declared := publicFloatingButtonState(spec, toolbar.ButtonResult{})
+	if declared.Tooltip != spec.Label || declared.AccessibilityName != spec.Label {
+		t.Fatalf("pre-show semantic fallback = %#v", declared)
+	}
+	native := publicFloatingButtonState(spec, toolbar.ButtonResult{Tooltip: spec.Label, AccessibilityName: spec.Label})
+	if native.Tooltip != spec.Label || native.AccessibilityName != spec.Label {
+		t.Fatalf("native semantic readback = %#v", native)
+	}
+}

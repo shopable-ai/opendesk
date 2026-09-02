@@ -182,28 +182,30 @@ func (l *RuntimeLifecycle) AsyncCounts() (timers int, workers int64, callbacks i
 }
 
 type RuntimeResourceCounts struct {
-	Timers             int
-	HTTPWorkers        int64
-	HTTPCallbacks      int
-	UIWorkers          int64
-	UIPending          int
-	UIQueued           int
-	UIWindows          int
-	UIListeners        int
-	UIDriverSinks      int
-	UIHostProcesses    int
-	ShortcutBindings   int
-	ShortcutPending    int
-	EventSubscriptions int
-	EventPending       int
-	CaptureWorkers     int64
-	CapturePending     int
-	CaptureSessions    int
-	AppWorkers         int64
-	AppPending         int
-	SoundWorkers       int64
-	SoundPending       int
-	SoundPlaybacks     int
+	Timers              int
+	HTTPWorkers         int64
+	HTTPCallbacks       int
+	UIWorkers           int64
+	UIPending           int
+	UIQueued            int
+	UIWindows           int
+	UIListeners         int
+	UIDriverSinks       int
+	UIHostProcesses     int
+	ShortcutBindings    int
+	ShortcutPending     int
+	EventSubscriptions  int
+	EventPending        int
+	CaptureWorkers      int64
+	CapturePending      int
+	CaptureSessions     int
+	AppWorkers          int64
+	AppPending          int
+	SoundWorkers        int64
+	SoundPending        int
+	SoundPlaybacks      int
+	NotificationWorkers int64
+	NotificationPending int
 }
 
 func (l *RuntimeLifecycle) ResourceCounts() RuntimeResourceCounts {
@@ -243,6 +245,9 @@ func (l *RuntimeLifecycle) ResourceCounts() RuntimeResourceCounts {
 	if l.Sound != nil {
 		counts.SoundWorkers, counts.SoundPending, counts.SoundPlaybacks = l.Sound.ResourceCounts()
 	}
+	if l.Notifications != nil {
+		counts.NotificationWorkers, counts.NotificationPending = l.Notifications.ResourceCounts()
+	}
 	return counts
 }
 
@@ -254,15 +259,17 @@ func (c RuntimeResourceCounts) IsZero() bool {
 		c.EventSubscriptions == 0 && c.EventPending == 0 &&
 		c.CaptureWorkers == 0 && c.CapturePending == 0 && c.CaptureSessions == 0 &&
 		c.AppWorkers == 0 && c.AppPending == 0 &&
-		c.SoundWorkers == 0 && c.SoundPending == 0 && c.SoundPlaybacks == 0
+		c.SoundWorkers == 0 && c.SoundPending == 0 && c.SoundPlaybacks == 0 &&
+		c.NotificationWorkers == 0 && c.NotificationPending == 0
 }
 
 func (c RuntimeResourceCounts) String() string {
-	return fmt.Sprintf("timers=%d httpWorkers=%d httpCallbacks=%d uiWorkers=%d uiPending=%d uiQueued=%d uiWindows=%d uiListeners=%d uiDriverSinks=%d uiHostProcesses=%d shortcutBindings=%d shortcutPending=%d eventSubscriptions=%d eventPending=%d captureWorkers=%d capturePending=%d captureSessions=%d appWorkers=%d appPending=%d soundWorkers=%d soundPending=%d soundPlaybacks=%d",
+	return fmt.Sprintf("timers=%d httpWorkers=%d httpCallbacks=%d uiWorkers=%d uiPending=%d uiQueued=%d uiWindows=%d uiListeners=%d uiDriverSinks=%d uiHostProcesses=%d shortcutBindings=%d shortcutPending=%d eventSubscriptions=%d eventPending=%d captureWorkers=%d capturePending=%d captureSessions=%d appWorkers=%d appPending=%d soundWorkers=%d soundPending=%d soundPlaybacks=%d notificationWorkers=%d notificationPending=%d",
 		c.Timers, c.HTTPWorkers, c.HTTPCallbacks, c.UIWorkers, c.UIPending, c.UIQueued,
 		c.UIWindows, c.UIListeners, c.UIDriverSinks, c.UIHostProcesses, c.ShortcutBindings, c.ShortcutPending,
 		c.EventSubscriptions, c.EventPending, c.CaptureWorkers, c.CapturePending, c.CaptureSessions,
-		c.AppWorkers, c.AppPending, c.SoundWorkers, c.SoundPending, c.SoundPlaybacks)
+		c.AppWorkers, c.AppPending, c.SoundWorkers, c.SoundPending, c.SoundPlaybacks,
+		c.NotificationWorkers, c.NotificationPending)
 }
 
 func emitRuntimeLog(sink EventSink, level, message string, fields map[string]any) {
@@ -753,8 +760,12 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 	appStorageMethods := AutoMapObject(runtime, appStorage)
 	runtime.Set("AppStorage", appStorageMethods)
 
+	// Sound is retained by RuntimeLifecycle because playback workers and handles
+	// must be stopped when the owning Runtime is torn down. Audio currently only
+	// exposes synchronous device/volume operations, so its registration result
+	// does not need lifecycle retention.
 	sound := registerSound(runtime, opts)
-	registerAudio(runtime, opts)
+	_ = registerAudio(runtime, opts)
 
 	imageColor := NewImageColor()
 	imageColorMethods := AutoMapObject(runtime, imageColor)

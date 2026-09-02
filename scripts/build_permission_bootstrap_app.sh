@@ -2,7 +2,13 @@
 
 set -euo pipefail
 
+[[ "$(uname -s)" == Darwin ]] || {
+  printf 'This script is for macOS only.\n' >&2
+  exit 1
+}
+
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "${ROOT_DIR}"
 BOOTSTRAP_ROOT="${ROOT_DIR}/.runtime/bootstrap/macos-permission-bootstrap"
 APP_ROOT="${BOOTSTRAP_ROOT}/OpenDesk.app"
 CONTENTS_DIR="${APP_ROOT}/Contents"

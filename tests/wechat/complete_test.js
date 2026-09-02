@@ -98,7 +98,7 @@ async function completeTest() {
 
     // 保存配置到临时文件
     const configPath = '.runtime/tests/wechat/viz_config.json';
-    System.writeFile(configPath, JSON.stringify(vizConfig, null, 2));
+    File.write(configPath, JSON.stringify(vizConfig, null, 2));
 
     console.log(`  配置已保存: ${configPath}`);
     console.log(`  请运行: go run ./tests/wechat/tools/visualize-result ${configPath}`);

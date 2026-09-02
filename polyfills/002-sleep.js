@@ -1,23 +1,22 @@
 // automation/polyfills/002-sleep.js
 
 (function(global) {
-    // delay is registered by the native Timer so it shares strict validation
-    // and EventLoop ownership with System.delay.
-    if (typeof delay !== 'function') {
-        global.delay = function(ms) {
+    // sleep is the original Promise-based wrapper around the existing timer API.
+    if (typeof global.sleep !== 'function') {
+        global.sleep = function(ms) {
             return new Promise(resolve => setTimeout(resolve, ms));
         };
     }
 
-    // sleep remains the backwards-compatible spelling for delay.
-    if (typeof sleep === 'undefined') {
-        global.sleep = global.delay;
+    // delay is the clearer modern spelling; keep sleep for compatibility.
+    if (typeof global.delay !== 'function') {
+        global.delay = global.sleep;
     }
 
     // Convenience method for sleeping in seconds
-    if (typeof sleepSeconds === 'undefined') {
+    if (typeof global.sleepSeconds !== 'function') {
         global.sleepSeconds = function(seconds) {
-            return sleep(seconds * 1000);
+            return global.sleep(seconds * 1000);
         };
     }
 })(typeof globalThis !== 'undefined' ? globalThis : this);

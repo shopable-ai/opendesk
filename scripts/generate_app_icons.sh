@@ -2,6 +2,11 @@
 
 set -euo pipefail
 
+[[ "$(uname -s)" == Darwin ]] || {
+  printf 'This script is for macOS only.\n' >&2
+  exit 1
+}
+
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SOURCE_ICON="${SOURCE_ICON:-${ROOT_DIR}/public/logo.png}"
 RUNTIME_DIR="${RUNTIME_DIR:-${ROOT_DIR}/.runtime/icon-build}"

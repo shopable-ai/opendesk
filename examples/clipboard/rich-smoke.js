@@ -40,6 +40,8 @@ File.ensureDir(evidenceDirectory);
 File.write(fixturePath, 'fixture');
 
 let mutated = false;
+let ownedChangeCount = null;
+const restoration = { completed: false, skippedBecauseClipboardChanged: false };
 let evidence;
 try {
   const pendingChange = Events.once('clipboard.changed', { timeout: 5000 });
@@ -52,6 +54,7 @@ try {
     pngBase64: expectedPNGBase64,
     files: [fixturePath],
   });
+  ownedChangeCount = writeResult.changeCount;
   const changeEvent = await pendingChange;
   const readback = clipboard.read();
 
@@ -68,6 +71,7 @@ try {
   clipboard.clear();
   assert(clipboard.getFormats().length === 0, 'clear left a supported representation');
   assert(clipboard.paste() === '', 'clear did not produce an empty text read');
+  ownedChangeCount = clipboard.read({ formats: [] }).changeCount;
 
   evidence = {
     schemaVersion: 1,
@@ -91,18 +95,24 @@ try {
       contentIncluded: changeEvent.data.contentIncluded,
     },
     clear: { formats: 0, pasteBytes: 0 },
-    restored: { formats: original.formats, representationCount: original.formats.length },
+    restoration,
     clipboardContentRecorded: false,
     filePathsRecorded: false,
   };
 } finally {
   if (mutated) {
-    const payload = restorationPayload(original);
-    if (Object.keys(payload).length === 0) clipboard.clear();
-    else clipboard.write(payload);
+    const current = clipboard.read({ formats: [] });
+    if (current.changeCount === ownedChangeCount) {
+      const payload = restorationPayload(original);
+      if (Object.keys(payload).length === 0) clipboard.clear();
+      else clipboard.write(payload);
+      restoration.completed = true;
+    } else {
+      restoration.skippedBecauseClipboardChanged = true;
+    }
   }
   if (File.exists(fixturePath)) File.remove(fixturePath);
 }
 
 File.write(evidencePath, JSON.stringify(evidence, null, 2));
-console.log(JSON.stringify({ ok: true, evidencePath, formats: evidence.formats, restored: evidence.restored }));
+console.log(JSON.stringify({ ok: true, evidencePath, formats: evidence.formats, restoration: evidence.restoration }));

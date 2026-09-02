@@ -135,8 +135,8 @@ async function main() {
       ? System.getSystemInfo()
       : {};
   const envDebug =
-    typeof System !== 'undefined' && typeof System.getenv === 'function'
-      ? System.getenv('TM_SCREENSHOT_DEBUG')
+    typeof Execution !== 'undefined' && Execution.input
+      ? Execution.input.tmScreenshotDebug
       : '';
   const screenSize = {
     width: Number(Screen.getWidth()),

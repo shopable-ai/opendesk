@@ -224,7 +224,10 @@ if ( !miniAppWindows) {
 
 if ( miniAppWindows ) {
     // await window.bringToTop(miniAppWindows.title);
-    await window.bringToTopByPID(miniAppWindows?.processId);
+    await window.bringToTop(
+        miniAppWindows?.title || '',
+        miniAppWindows?.processId || miniAppWindows?.processID || miniAppWindows?.pid || 0
+    );
     await page.waitFor(600);
         
     await window.maximizeByPID(miniAppWindows?.processId);

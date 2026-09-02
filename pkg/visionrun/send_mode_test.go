@@ -13,9 +13,9 @@ func TestRunSendModeRecordsExecuteSendStageWhenSendAllowedWouldBeReached(t *test
 		"schemaVersion": "0.1.0",
 		"status":        "warn",
 	})
-	golden := filepath.Join(repoRoot, "artifacts", "dev-html-samples", "wechatweb", "capture", "source.png")
-	real := filepath.Join(repoRoot, "temp", "mac", "wechat_region_map_source.png")
-	report := filepath.Join(repoRoot, "temp", "mac", "wechat_region_map_latest.json")
+	golden := filepath.Join(repoRoot, "tests", "wechat", "fixtures", "golden-samples", "sample-a", "capture", "source.png")
+	real := filepath.Join(repoRoot, ".runtime", "temp", "mac", "wechat_region_map_source.png")
+	report := filepath.Join(repoRoot, ".runtime", "temp", "mac", "wechat_region_map_latest.json")
 	mustWriteSyntheticLayoutPNG(t, golden)
 	mustWriteSyntheticLayoutPNG(t, real)
 	mustWriteJSON(t, report, map[string]any{

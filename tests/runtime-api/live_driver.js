@@ -127,15 +127,21 @@ globalThis.RuntimeLive = (() => {
     RuntimeAPITest.assert(viewportOrigin.width > 0 && viewportOrigin.height > 0, `invalid viewport origin=${JSON.stringify(viewportOrigin)}`);
   }
 
+  async function refreshTarget(timeoutMs = 8000) {
+    const windowInfo = await waitForBrowserWindow(timeoutMs);
+    const snapshot = await waitForTelemetry();
+    updateTarget(windowInfo, snapshot);
+    return { windowInfo, snapshot, viewportOrigin: { ...viewportOrigin } };
+  }
+
   async function openWith(method, suffix) {
     await reset();
     const url = `${fixture.baseURL}/?case=${encodeURIComponent(suffix)}&run=${Date.now()}`;
     if (method === 'openURLInApp') await page.openURLInApp(fixture.browserApp, url);
     else await page[method](url);
     await waitForCount('load', 1, 8000);
-    const windowInfo = await waitForBrowserWindow();
-    const snapshot = await waitForTelemetry();
-    updateTarget(windowInfo, snapshot);
+    const targetInfo = await refreshTarget();
+    const { windowInfo, snapshot } = targetInfo;
     console.log(`[RUNTIME-API-LIVE WINDOW] ${JSON.stringify({ method, url, window: windowInfo, viewport: snapshot.telemetry.viewport, viewportOrigin })}`);
     globalThis.RuntimeLiveSession = {
       ...(globalThis.RuntimeLiveSession || {}),
@@ -144,7 +150,7 @@ globalThis.RuntimeLive = (() => {
       viewport: snapshot.telemetry.viewport,
       viewportOrigin,
     };
-    return { url, windowInfo, snapshot, viewportOrigin };
+    return { url, ...targetInfo };
   }
 
   function target(id) {
@@ -205,9 +211,7 @@ globalThis.RuntimeLive = (() => {
     try { await window.setWindowBounds(windowInfo.title, windowInfo.x, windowInfo.y, windowInfo.width, windowInfo.height); } catch (_) {}
     try { await window.focus(windowInfo.title); } catch (_) {}
     await page.waitFor(250);
-    const restored = await waitForBrowserWindow();
-    const snapshot = await waitForTelemetry();
-    updateTarget(restored, snapshot);
+    await refreshTarget();
   }
 
   async function capture(path, rect) {
@@ -283,7 +287,7 @@ globalThis.RuntimeLive = (() => {
   }
 
   return {
-    fixture, state, reset, waitForCount, waitForExactCount, waitForEvent, waitForBrowserWindow, waitForTelemetry,
+    fixture, state, reset, waitForCount, waitForExactCount, waitForEvent, waitForBrowserWindow, waitForTelemetry, refreshTarget,
     updateTarget, openWith, target, requireTarget, moveToTarget, resetUI, restoreWindow, capture, region,
     writeEvidence, events,
   };

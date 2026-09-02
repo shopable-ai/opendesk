@@ -294,3 +294,11 @@ for (const key in globalThis.page____Inject) {
 6. 在 `tests/runtime-api/unit/<namespace>.test.js` 写 JS 公共契约；只把无法从 JS 观察的
    private/backend seam 留在同包 `_test.go`。
 7. 运行正式 JS gate，并把输出写入 `.runtime/tests/runtime-api/`。
+
+完整的七处同步闭环、生命周期对称性和证据等级见 [Runtime API development workflow](./runtime-api-development-workflow.md)。
+
+## execution teardown 的可观测闭环
+
+`RuntimeLifecycle.AsyncCounts()` 提供总 worker/callback 数；`ResourceCounts()` 提供分 owner 细目。两者必须同时覆盖 HTTP、Sound、Custom UI、Global Shortcut、Events、Screen Capture、App 和 Notifications。`pkg/execution/runner.go` 把分 owner 数写入 cleanup event，正式 Runtime gate 再逐项断言为零。
+
+因此新增异步 owner 时至少同步 `CancelAsync`、`Wait`、`AsyncCounts`、`ResourceCounts`、`IsZero`、`String`、cleanup event 和 shell gate 的 required fields。漏掉任何一项都会造成“实际残留但证据显示为零”的假阴性。

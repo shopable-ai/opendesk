@@ -185,7 +185,7 @@ console.log(colors);
 **13. 保存截图字节到文件**
 
 ```js
-File.ensureDir('./artifacts');
+File.ensureDir('./.runtime/examples');
 const bytes = await page.screenshot({ returnType: 'bytes' });
 File.writeBytes('./.runtime/examples/raw-shot.png', bytes);
 ```
@@ -196,7 +196,7 @@ File.writeBytes('./.runtime/examples/raw-shot.png', bytes);
 const text = File.read('./README.md');
 console.log(text.slice(0, 200));
 
-File.ensureDir('./artifacts');
+File.ensureDir('./.runtime/examples');
 File.append('./.runtime/examples/run.log', 'script started\n');
 ```
 

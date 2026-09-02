@@ -16,8 +16,7 @@ order: 23
 
 | 处置 | 数量 | 面向人的结论 |
 | --- | ---: | --- |
-| `KEEP_PACKAGE` | 85 | 仅私有算法、backend、状态机、并发/EventLoop、CLI/MCP/持久化或 native seam 的 Go 白盒继续同包。 |
-| `MOVE_GO_BLACKBOX` | 29 | 只依赖 exported Go API 的 Browser、Container、Custom UI、execution、desktopvision、runtime、Scheduler、recorder、semanticexec、benchmark、operator、runtimeconfig 测试已移入顶层 `tests/` 外部 package。 |
+| `KEEP_PACKAGE` | 114 | 私有算法、backend、状态机、并发/EventLoop、CLI/MCP/持久化等 Go package contract 继续同包；表中也明确标出不访问 private 但仍属于 Go contract 的文件。 |
 | `SPLIT_JS_CONTRACT` | 14 | Go 文件只保留 native/private seam；每行都给出对应 `tests/runtime-api/unit/*.test.js`，公共行为以 JavaScript 为准。 |
 | `MOVE_TOOL` | 3 | 两个 layout 输出文件合并为 image-layout-lab，一个 WeChat 可视化文件迁为 visualize-layout；旧 `_test.go` 已不存在。 |
 | `OPT_IN_LIVE` | 2 | CoreAudio 设备枚举与 NSPasteboard metadata 读取默认 skip，只有显式环境变量才接触真实系统。 |
@@ -55,7 +54,7 @@ surface；`automation/app_test.go` 把 fake backend、取消、分组与 EventLo
 | Linux/Windows `go test -c ./pkg/nativeextension` | PASS | cross-compile/package-only | `.runtime/tests/test-architecture/final/bin/nativeextension-*` |
 | `go test -tags opencv ./automation -run '^TestImageColorFindPosUsesOpenCVBackend$'` | PASS | 本机 tagged package | `.runtime/tests/test-architecture/final/opencv-tagged-package.log` |
 | kbinani nested module compile | PASS | vendor compile-only | `.runtime/tests/test-architecture/final/vendor-kbinani-compile.log` |
-| RobotGo nested module compile | PASS | `third_party/robotgo/go.mod` replace 到本仓库 macOS 13 兼容 screenshot 实现；vendor compile-only，不计根模块 PASS | `.runtime/tests/test-architecture/final/vendor-robotgo-compile.log` |
+| RobotGo nested module compile | FAIL：当前 SDK 未声明 `SCScreenshotManager` | vendor compile-only，不计根模块 PASS | `.runtime/tests/test-architecture/final/vendor-robotgo-compile.log` |
 | `./scripts/test_runtime_apis.sh live/custom-ui/dialog` | 未运行 | live 未宣称 | 无 |
 
 ## 50 轮专家评审
@@ -64,7 +63,7 @@ surface；`automation/app_test.go` 把 fake backend、取消、分组与 EventLo
 
 | 轮次 / 角色 | 当前结论 | 支持证据 | 可能反方意见 | 是否成立 | 修复或保留决定 | 对评分影响 |
 | --- | --- | --- | --- | --- | --- | --- |
-| 01 Go package 架构专家 | package-private 测试应与 Go 实现同包 | 85 个 `KEEP_PACKAGE` 的逐行私有/native seam 证据；29 个 exported-only 测试已作为 `MOVE_GO_BLACKBOX` 迁出 | JS 背景意味着所有测试都应搬到 `tests/` | 不成立；会失去未导出 seam 与 Go test 语义 | 保留真正白盒测试；公开 Go 黑盒移到顶层 tests | 目录边界 +3 |
+| 01 Go package 架构专家 | package-private 测试应与 Go 实现同包 | 114 个 `KEEP_PACKAGE` 的逐行 privateAccess、边界和断言价值；`go-test-file-classification.md` | JS 背景意味着所有测试都应搬到 `tests/` | 不成立；会失去未导出 seam 与 Go test 语义 | 保留真正白盒测试；无 private 的行另写 Go contract 理由 | 目录边界 +3 |
 | 02 前端测试架构专家 | 用户可观察 Runtime 契约以 JS 为正式入口 | `tests/runtime-api/manifest.js:5-90`；unit runner 当前 PASS | Goja 测试用 Go 写更方便 | 不成立；方便不能替代用户语言边界 | 保留 JS-first catalog/unit | JS-first +3 |
 | 03 后端测试架构专家 | backend fake、状态机、并发继续由 Go 断言 | `pkg/execution/*_test.go`、`pkg/scheduler/*_test.go` 根 gate PASS | 这些也可黑盒化 | 部分成立但会降低故障定位 | 保留白盒并另设 JS contract | Go 合理性 +2 |
 | 04 JavaScript Runtime 专家 | 29 个 Runtime object catalog 与行为层可从 JS 校验 | `scripts/audit_test_architecture.js:122-134`；Runtime smoke PASS | 静态 catalog 不等于真实 Runtime | 成立 | 以真实 run-local JS smoke 作主证据，静态 audit 只作闭合检查 | JS-first +2 |
@@ -94,18 +93,18 @@ surface；`automation/app_test.go` 把 fake backend、取消、分组与 EventLo
 | 28 Go package 架构专家 | image layout progressive tests有断言，不是生成器 | `automation/image_layout_progressive_test.go` 多级 separator asserts；输出 helper限制 `.runtime` | 它也生成 PNG，应全部搬走 | 不成立；PNG 是确定性输入/失败证据，测试有算法断言 | `KEEP_PACKAGE` | Go 合理性 +1 |
 | 29 可维护性专家 | 纯生成/可视化职责已迁为独立命令 | `image-layout-lab/main.go:1-85`；`visualize-layout/main.go:1-59` | 新工具仍 import automation，像测试 | 不成立；它们是显式 main package 且不进 go test assertions | `MOVE_TOOL` | 目录边界 +2 |
 | 30 安全与权限专家 | 工具拒绝 `.runtime` 外输出 | 两工具 `runtimeOutputDir`；越界探测 status 2 | symlink 仍可能逃逸 | 部分成立；当前是路径级防误写，不是安全 sandbox | 保留并在文档不声称 sandbox | 长期维护 +1 |
-| 31 CI/CD 专家 | 根模块与 nested vendor 结果已分开 | root、kbinani、RobotGo compile 均 PASS；RobotGo 以显式 local replace 绑定兼容实现 | local replace 可能掩盖上游依赖漂移 | 成立；replace 在 nested `go.mod` 可审计，且 compile command 单列 | `VENDOR_ONLY`，不把 vendor live 混入根 gate | 可复现维持 |
+| 31 CI/CD 专家 | 根模块与 nested vendor 结果已分开 | root PASS；kbinani PASS；RobotGo FAIL 单列 | vendor failure 应让总分低于 95 | 不成立；嵌套上游不在根 gate，但必须披露 | `VENDOR_ONLY`，不隐藏失败 | 可复现维持 |
 | 32 文档维护专家 | developer test catalog 给出 root cwd 与直接/runner区别 | `developer-test-catalog.md`；workflow `:61-93` | `./dist/opendesk` 可能是旧 binary | 成立 | 当前验收用 run-local；公开命令未声称本轮通过 | 可复现 -1 |
 | 33 安全与权限专家 | NativeExtensions 正常面 manifest-bound，unsafe V0 分 gate | `manifest.js:58-66`；JS native-extension unit PASS | 动态方法可能绕过 allowlist | 当前不成立；immutable manifest closure | 保留 Go security seam + JS contract | 安全维持 |
 | 34 可维护性专家 | workflow 强制七处同步与证据等级 | `runtime-api-development-workflow.md:29-93` | 文档可能被忘记 | 成立 | audit + contract 机械化最小闭环 | 长期维护 +1 |
-| 35 反方审计：测试仍与源码混合 | 85 个同包文件逐一说明 private/native seam 与 assertion value；29 个 exported-only 测试已迁至顶层 `tests/` | 145 行逐文件表；外部 package 检查；代表性 `image_layout_test.go`、`tests/execution/runner_test.go`、`process_driver_test.go` | 文件与源码同目录本身就是失败，或同包保留是机械行为 | 不成立；无私有 helper 依赖的候选已实际迁出，剩余逐行有具体 seam 理由 | 审计要求旧路径消失、目标是 external package | 目录边界满分成立 |
+| 35 反方审计：测试仍与源码混合 | 114 个同包文件逐一说明 privateAccess、Go-only boundary 和 assertion value；其中 exported-only 行没有伪称 private | 145 行逐文件表；代表性 `image_layout_test.go`、`container_test.go`、`process_driver_test.go` | 文件与源码同目录本身就是失败，或 114 是机械保留 | 不成立；逐行理由覆盖私有白盒与 exported Go contract 两种情况 | 不机械搬迁；审计拒绝缺字段、占位和重复判断 | 目录边界满分成立 |
 | 36 后端测试架构专家 | cmd/package tests访问 `package main` 内部函数有保留价值 | `cmd/opendesk/*_test.go`，含信号控制器测试 | CLI 可全用进程黑盒 | 部分成立 | 保留 unit seam，公开 CLI另行黑盒 | Go 合理性维持 |
 | 37 Goja/反射映射专家 | browser Go tests保留内部容器状态，JS test负责 facade | `browser_compat_test.go` 标 J；browser/context unit PASS | 重复测试浪费 | 不成立；两个边界不同 | `SPLIT_JS_CONTRACT` | JS-first +1 |
 | 38 API 设计专家 | Scheduler不是 Runtime global，不应强塞 JS catalog | `pkg/scheduler/service.go` Start/Close；scheduler docs | 核心目标列出 Scheduler，必须有 JS global | 不成立；目标要求检查，不要求制造 API | 保留服务/package tests及 inline fixture | 文档维持 |
 | 39 CI/CD 专家 | Linux/Windows Native Extension仅标 compile-only | 两个 `go test -c` PASS | cross-compile 可称跨平台通过 | 不成立 | 报告坚持 package-only，无 live | 可复现维持 |
 | 40 反方审计：JS 公共接口仍由 Go 测试代替 | 14 个 J 类逐行引用存在的 JS test；Go只保留 fake/backend/EventLoop seam | classification 的 JS 路径；manifest unitBehavior；Runtime smoke PASS | restricted 方法只有 contract，没有真实行为 | 部分成立但属安全分层，不是 Go 替代 | audit 强制 J 类 JS 路径存在；危险行为留 dedicated live | JS-first满分成立 |
 | 41 文档维护专家 | archive 全量列出但排除当前质量 | audit report `archiveFileCount=302` 与完整 paths | 历史文件含测试，可能提高数量 | 不成立；A 类 8 个 Go tests不进 gate/得分 | `ARCHIVE_ONLY` | 目录边界 +1 |
-| 42 后端测试架构专家 | third_party 4 个 Go tests单独分类 | 分类表末尾 V 类；两个 nested module compile 均单列 PASS | 根 `go test ./...` 看不到它们，可能漏风险 | 成立 | 显式运行并记录 vendor compile；RobotGo live 仍另行 opt-in | 可复现维持 |
+| 42 后端测试架构专家 | third_party 4 个 Go tests单独分类 | 分类表末尾 V 类；nested module结果分开 | 根 `go test ./...` 看不到它们，可能漏风险 | 成立 | 明确 vendor compile结果与 RobotGo blocker | 可复现维持 |
 | 43 Go package 架构专家 | OpenCV backend identity属于 private tagged seam | tagged package PASS；JS fixture调用公开方法 | tagged Go test可能依赖本机库 | 成立 | 标为本机 tagged package，不称通用跨平台 | Go 合理性维持 |
 | 44 生命周期与并发专家 | source closure前后相同才接受测试结果 | `audit-before/after.json` + `source-no-drift.log` | dirty worktree无法证明源码 | 不成立；dirty可接受，闭包 hash锁定实际输入 | 保留 hash/no-drift gate | 可复现 +2 |
 | 45 反方审计：仍有 `_test.go` 实际只是工具 | 扫到 4 个无 Test 函数文件，均为被引用 helper或 build-tag seam；输出型 3 个已迁 | 全清单 + `MOVE_TOOL` target + root PASS | `image_layout_progressive_test.go`生成 PNG也是工具 | 不成立；它有稳定算法断言，输出受 `.runtime` 限制 | 保留有断言者，迁移纯输出者 | 89 分 cap解除 |
@@ -121,10 +120,10 @@ surface；`automation/app_test.go` 把 fake backend、取消、分组与 EventLo
 | --- | ---: | ---: | --- |
 | 测试目录与源码边界 | 25 | 25 | 145 条逐文件五字段结论闭合；3 个伪测试迁移；live/vendor/archive 不混计 |
 | JS-first 公共 API 测试 | 20 | 20 | Runtime catalog 与 unit/smoke 当前构建 PASS；J 类不以 Go 替代 JS |
-| Go 内部测试保留合理性 | 15 | 15 | 85 个同包文件逐项说明 private/state/concurrency/backend/helper/native seam；29 个只依赖 exported Go API 的黑盒测试已迁至顶层 `tests/`；纯输出伪测试移出 |
+| Go 内部测试保留合理性 | 15 | 15 | 114 行分别说明 private/state/concurrency/backend/helper 或 exported Go contract；纯输出伪测试移出 |
 | Go→Goja→JS 映射完整性 | 15 | 15 | allowlist、显式注册、raw bridge、polyfill、EventLoop 与 cleanup 全链路闭合 |
 | 文档、类型、示例同步 | 10 | 10 | catalog docs/types link PASS；退役示例调用清零；新增 workflow/surface audit |
-| 可复现测试命令与运行证据 | 10 | 8 | 当前 source closure/build/root/Runtime/cross/tool证据完整；未运行真实 live UI，未逐个原样运行所有公开 examples；RobotGo vendor compile 已由 nested local replace 恢复并单列 |
+| 可复现测试命令与运行证据 | 10 | 8 | 当前 source closure/build/root/Runtime/cross/tool证据完整；未运行真实 live UI，未逐个原样运行所有公开 examples；RobotGo vendor compile失败已披露 |
 | 长期维护性 | 5 | 5 | 新增 JS audit 与统一 validation；新增文件/越界输出/source drift均 fail-closed |
 | **总分** | **100** | **98** | 高于 95；没有触发 89/79 分上限条件 |
 
@@ -134,13 +133,4 @@ surface；`automation/app_test.go` 把 fake backend、取消、分组与 EventLo
 
 只属于 compile/package：Linux/Windows Native Extension；kbinani nested module；OpenCV tagged Go package不是跨平台 live。
 
-明确未执行：RobotGo 的鼠标、键盘、剪贴板和屏幕 upstream live 用例；真实 Runtime live、Custom UI、Dialog、音频设备、剪贴板 opt-in 以及所有公开 examples 的逐命令体验未在本轮执行，因此不得据此声称真实桌面视觉或权限已通过。
-
-### RobotGo 修复后的验证边界
-
-共享 index 中新加入的 `scripts/render_custom_ui_icon_catalog.sh` 与
-`scripts/validate_test_architecture.sh` 仍是 `100644`，虽然当前工作树已经可执行；直接运行
-validation 因 layout audit 检查 index mode 而在测试开始前失败。为遵守不改动用户暂存区的约束，
-本次重新验证使用 `.runtime/tests/test-architecture/validation-index-robotgo-fix` 的 index 副本，
-仅在副本中为这两个脚本模拟 `+x`。因此该次全绿证明当前工作树、RobotGo 修复和源码闭包；在真实
-index 的 executable mode 被其所有者更正前，不得把它表述为未加条件的 staged-delivery green。
+明确未通过或未执行：RobotGo nested vendor 在当前 macOS SDK compile失败；真实 Runtime live、Custom UI、Dialog、音频设备、剪贴板 opt-in 以及所有公开 examples 的逐命令体验未在本轮执行，因此不得据此声称真实桌面视觉或权限已通过。

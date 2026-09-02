@@ -2,9 +2,15 @@
 
 package automation
 
-import "testing"
+import (
+	"os"
+	"testing"
+)
 
 func TestDarwinRichClipboardMetadataCanBeReadWithoutContent(t *testing.T) {
+	if os.Getenv("OPENDESK_LIVE_CLIPBOARD_TEST") != "1" {
+		t.Skip("set OPENDESK_LIVE_CLIPBOARD_TEST=1 to inspect the real macOS pasteboard")
+	}
 	backend := &darwinClipboardBackend{}
 	formats, err := backend.NativeFormats()
 	if err != nil {

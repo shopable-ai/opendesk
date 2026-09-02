@@ -230,7 +230,7 @@ async function main() {
   });
 
   // Create output directory
-  await File.mkdir(CONFIG.outputDir, { recursive: true });
+  File.ensureDir(CONFIG.outputDir);
 
   const allResults = [];
   let iteration = 1;

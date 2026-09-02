@@ -325,7 +325,7 @@ async function main() {
   });
 
   // Create output directory
-  await File.mkdir(CONFIG.outputDir, { recursive: true });
+  File.ensureDir(CONFIG.outputDir);
 
   // Get app name from command line or test all
   const args = process.argv.slice(2);

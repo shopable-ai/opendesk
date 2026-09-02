@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
@@ -61,13 +62,12 @@ func resolveRealInputs(opts *RunOptions) bool {
 }
 
 func defaultGoldenSourceImage() string {
-	candidate := filepath.Clean(filepath.Join("artifacts", "dev-html-samples", "wechatweb", "capture", "source.png"))
-	if fileExists(candidate) {
-		return candidate
-	}
-	fallback := filepath.Clean(filepath.Join("artifacts", "dev-html-samples", "wechatweb", "phase1_source.png"))
-	if fileExists(fallback) {
-		return fallback
+	candidates, _ := filepath.Glob(filepath.Join("tests", "wechat", "fixtures", "golden-samples", "*", "capture", "source.png"))
+	sort.Strings(candidates)
+	for _, candidate := range candidates {
+		if fileExists(candidate) {
+			return filepath.Clean(candidate)
+		}
 	}
 	return ""
 }

@@ -15,17 +15,20 @@ declare global {
   }
 
   interface OpenDeskClipboardReadOptions {
+    /** Omit to read all available representations; pass [] to read metadata only. */
     formats?: OpenDeskClipboardFormat[];
-    /** Aggregate returned payload limit. Range: 1..16777216 bytes. */
+    /** Aggregate decoded payload limit. Range: 1..16777216 bytes. */
     maxBytes?: number;
   }
 
   interface OpenDeskClipboardReadResult {
+    /** All canonical formats currently available, not only the requested subset. */
     formats: OpenDeskClipboardFormat[];
     nativeFormats: string[];
     /** Known compatibility sidecars which are regenerated, not byte-preserved. */
     derivedNativeFormats: string[];
     unsupportedNativeFormats: string[];
+    /** The change count shared by every representation in this consistent snapshot. */
     changeCount: number;
     text?: string;
     html?: string;
@@ -46,6 +49,12 @@ declare global {
     rich: boolean;
     formats: Record<OpenDeskClipboardFormat, boolean>;
     maxPayloadBytes: 16777216;
+    limits: {
+      maxPayloadBytes: 16777216;
+      maxTextBytes: 4194304;
+      maxFiles: 256;
+      maxPathBytes: 4096;
+    };
     watcher: {
       api: 'Events.on';
       event: 'clipboard.changed';

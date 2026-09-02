@@ -11,8 +11,7 @@
 
   test({ name: 'page.openApp activates fixture browser', tier: 'live', covers: ['page.openApp'] }, async () => {
     await page.openApp(RuntimeLive.fixture.browserApp);
-    const windowInfo = await RuntimeLive.waitForBrowserWindow();
-    RuntimeLive.updateTarget(windowInfo);
+    await RuntimeLive.refreshTarget();
     await page.waitFor(300);
   });
 

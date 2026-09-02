@@ -23,16 +23,30 @@ func TestGoldenEnvironmentSimilarityIsReportedWithZoneBreakdown(t *testing.T) {
 		t.Fatalf("Chdir failed: %v", err)
 	}
 
+	goldenImage := filepath.Join(repoRoot, "tests", "wechat", "fixtures", "golden-samples", "sample-a", "capture", "source.png")
+	preflightPath := filepath.Join(repoRoot, ".runtime", "preflight", "current", "latest.json")
+	if _, err := os.Stat(preflightPath); err != nil {
+		if os.IsNotExist(err) {
+			t.Skipf("current runtime preflight is unavailable: %s", preflightPath)
+		}
+		t.Fatalf("stat current runtime preflight: %v", err)
+	}
+	if _, err := os.Stat(goldenImage); err != nil {
+		if os.IsNotExist(err) {
+			t.Skipf("current golden screenshot is unavailable: %s", goldenImage)
+		}
+		t.Fatalf("stat current golden screenshot: %v", err)
+	}
+
 	bundle, err := InitBundle(InitOptions{
 		RepoRoot:      repoRoot,
 		RunID:         "golden-sim-audit",
-		PreflightPath: filepath.Join(repoRoot, ".runtime", "preflight", "current", "latest.json"),
+		PreflightPath: preflightPath,
 	})
 	if err != nil {
 		t.Fatalf("InitBundle failed: %v", err)
 	}
 
-	goldenImage := filepath.Join(repoRoot, "artifacts", "dev-html-samples", "wechatweb", "capture", "source.png")
 	if _, err := RunDetect(bundle, DetectOptions{SourceImagePath: goldenImage}); err != nil {
 		t.Fatalf("RunDetect failed: %v", err)
 	}

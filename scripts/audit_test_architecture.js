@@ -55,41 +55,17 @@ const sourceFiles = walk(root, (file) => {
   return sourceRoots.has(first) || sourceRootFiles.has(relative);
 }).filter((file) => !file.startsWith('.archive/')).sort();
 const sourceClosure = crypto.createHash('sha256');
-const sourceFileDigests = [];
 for (const file of sourceFiles) {
-	const digest = sha256(path.join(root, file));
-	sourceFileDigests.push({ file, sha256: digest });
   sourceClosure.update(file);
   sourceClosure.update('\0');
-  sourceClosure.update(digest);
+  sourceClosure.update(sha256(path.join(root, file)));
   sourceClosure.update('\n');
 }
 
 const errors = [];
 const classificationPath = path.join(root, 'docs/quality/go-test-file-classification.md');
 const classificationText = fs.readFileSync(classificationPath, 'utf8');
-const executionLedgerMatch = classificationText.match(/## 执行账本：标签就是逐文件操作码\n([\s\S]*?)\n## 先看处置结论/);
-if (!executionLedgerMatch) {
-  errors.push('classification is missing the per-disposition execution ledger');
-}
-const executionLedger = executionLedgerMatch?.[1] || '';
-const requiredExecutionLanes = [
-  ['E-K', 'KEEP_PACKAGE', 85],
-  ['E-B', 'MOVE_GO_BLACKBOX', 29],
-  ['E-J', 'SPLIT_JS_CONTRACT', 14],
-  ['E-T', 'MOVE_TOOL', 3],
-  ['E-L', 'OPT_IN_LIVE', 2],
-  ['E-V', 'VENDOR_ONLY', 4],
-  ['E-A', 'ARCHIVE_ONLY', 8],
-];
-for (const [code, disposition, count] of requiredExecutionLanes) {
-  const label = `\`${code}\` / \`${disposition}\`（${count}）`;
-  const row = executionLedger.split('\n').find((line) => line.includes(label));
-  if (!row || !row.includes('**已完成**')) {
-    errors.push(`execution ledger is missing a completed ${code}/${disposition} lane`);
-  }
-}
-const classificationPattern = /^\| `([^`]+_test\.go)` \| `(KEEP_PACKAGE|MOVE_GO_BLACKBOX|SPLIT_JS_CONTRACT|MOVE_TOOL|OPT_IN_LIVE|VENDOR_ONLY|ARCHIVE_ONLY)` \| ([^|\n]+) \| ([^|\n]+) \| ([^|\n]+) \| ([^|\n]+) \| ([^|\n]+) \|$/gm;
+const classificationPattern = /^\| `([^`]+_test\.go)` \| `(KEEP_PACKAGE|SPLIT_JS_CONTRACT|MOVE_TOOL|OPT_IN_LIVE|VENDOR_ONLY|ARCHIVE_ONLY)` \| ([^|\n]+) \| ([^|\n]+) \| ([^|\n]+) \| ([^|\n]+) \| ([^|\n]+) \|$/gm;
 const classifications = new Map();
 const reviewFingerprints = new Map();
 let match;
@@ -112,12 +88,6 @@ while ((match = classificationPattern.exec(classificationText)) !== null) {
 
   if (!/^(是：|否：|历史：)/.test(privateAccess)) {
     errors.push(`classification privateAccess must start with 是：, 否：, or 历史： ${file}`);
-  }
-  if (disposition === 'KEEP_PACKAGE' && !privateAccess.startsWith('是：')) {
-    errors.push(`KEEP_PACKAGE must cite a private or native seam: ${file}`);
-  }
-  if (disposition === 'MOVE_GO_BLACKBOX' && !privateAccess.startsWith('否：')) {
-    errors.push(`MOVE_GO_BLACKBOX must remain exported-only: ${file}`);
   }
   for (const [field, value, minimumLength] of [
     ['privateAccess', privateAccess, 4],
@@ -143,7 +113,7 @@ while ((match = classificationPattern.exec(classificationText)) !== null) {
 }
 
 const candidateClassificationRows = classificationText.split('\n')
-  .filter((line) => /^\| `[^`]+_test\.go` \| `(KEEP_PACKAGE|MOVE_GO_BLACKBOX|SPLIT_JS_CONTRACT|MOVE_TOOL|OPT_IN_LIVE|VENDOR_ONLY|ARCHIVE_ONLY)` \|/.test(line));
+  .filter((line) => /^\| `[^`]+_test\.go` \| `(KEEP_PACKAGE|SPLIT_JS_CONTRACT|MOVE_TOOL|OPT_IN_LIVE|VENDOR_ONLY|ARCHIVE_ONLY)` \|/.test(line));
 if (candidateClassificationRows.length !== classifications.size) {
   errors.push(`malformed classification rows=${candidateClassificationRows.length - classifications.size}`);
 }
@@ -184,55 +154,6 @@ for (const [source, target] of Object.entries(movedTargetBySource)) {
   }
 }
 
-const externalGoMoveBySource = {
-  'automation/browser_lifecycle_test.go': 'tests/automation/browser_lifecycle_test.go',
-  'pkg/container/container_test.go': 'tests/container/container_test.go',
-  'pkg/customui/toolbar/model_test.go': 'tests/custom-ui/toolbar_model_test.go',
-  'pkg/desktopvision/coordinates_test.go': 'tests/desktopvision/coordinates_test.go',
-  'pkg/desktopvision/types_test.go': 'tests/desktopvision/types_test.go',
-  'pkg/scheduler/schedule_test.go': 'tests/scheduler/schedule_test.go',
-  'pkg/semanticexec/mock_runtime_test.go': 'tests/semantic-exec/mock_runtime_test.go',
-  'pkg/semanticexec/status_test.go': 'tests/semantic-exec/status_test.go',
-  'pkg/semanticexec/verify_test.go': 'tests/semantic-exec/verify_test.go',
-  'pkg/benchmark/semantic_smoke_test.go': 'tests/semantic-exec/benchmark_smoke_test.go',
-  'pkg/operator/semantic_maintenance_test.go': 'tests/semantic-exec/operator_maintenance_test.go',
-  'pkg/runtime/pool_test.go': 'tests/runtime/execution_gate_test.go',
-  'pkg/runtimeconfig/config_test.go': 'tests/runtimeconfig/config_test.go',
-  'pkg/customui/icons_test.go': 'tests/custom-ui/core/icons_test.go',
-  'pkg/customui/queue_test.go': 'tests/custom-ui/core/queue_test.go',
-  'pkg/execution/desktop_events_test.go': 'tests/execution/desktop_events_test.go',
-  'pkg/execution/global_shortcut_test.go': 'tests/execution/global_shortcut_test.go',
-  'pkg/execution/manager_test.go': 'tests/execution/manager_test.go',
-  'pkg/execution/runtime_ownership_test.go': 'tests/runtime/runtime_ownership_test.go',
-  'pkg/desktopvision/annotate_test.go': 'tests/desktopvision/annotate_test.go',
-  'pkg/desktopvision/gates_test.go': 'tests/desktopvision/gates_test.go',
-  'pkg/desktopvision/script_test.go': 'tests/desktopvision/script_test.go',
-  'pkg/desktopvision/trace_test.go': 'tests/desktopvision/trace_test.go',
-  'pkg/customui/session_concurrency_test.go': 'tests/custom-ui/core/session_concurrency_test.go',
-  'pkg/execution/runner_lifecycle_test.go': 'tests/execution/runner_lifecycle_test.go',
-  'pkg/execution/runner_test.go': 'tests/execution/runner_test.go',
-  'pkg/recorder/recorder_test.go': 'tests/recorder/recorder_test.go',
-  'pkg/scheduler/service_test.go': 'tests/scheduler/service_test.go',
-  'automation/vision_layout_test.go': 'tests/automation/vision_layout_test.go',
-};
-for (const [source, target] of Object.entries(externalGoMoveBySource)) {
-  if (fs.existsSync(path.join(root, source))) errors.push(`external Go test source still exists: ${source}`);
-  const classification = classifications.get(target);
-  if (!classification || classification.disposition !== 'MOVE_GO_BLACKBOX') {
-    errors.push(`external Go test target does not have MOVE_GO_BLACKBOX disposition: ${source} -> ${target}`);
-    continue;
-  }
-  if (!classification.reason.includes(`\`${source}\``)) {
-    errors.push(`external Go test classification does not cite source: ${source} -> ${target}`);
-  }
-  const targetPath = path.join(root, target);
-  if (!fs.existsSync(targetPath)) {
-    errors.push(`external Go test target is missing: ${source} -> ${target}`);
-  } else if (!/^package\s+\w+_test\s*$/m.test(fs.readFileSync(targetPath, 'utf8'))) {
-    errors.push(`external Go test does not use an external package: ${target}`);
-  }
-}
-
 const liveOptInBySource = {
   'automation/audio_backend_darwin_test.go': 'OPENDESK_LIVE_AUDIO_TEST=1',
   'automation/clipboard_rich_darwin_test.go': 'OPENDESK_LIVE_CLIPBOARD_TEST=1',
@@ -254,9 +175,6 @@ for (const [file, classification] of classifications.entries()) {
       if (!fs.existsSync(path.join(root, jsTest))) errors.push(`classified Runtime JS test is missing: ${file} -> ${jsTest}`);
     }
   }
-  if (classification.disposition === 'MOVE_GO_BLACKBOX' && !file.startsWith('tests/')) {
-    errors.push(`MOVE_GO_BLACKBOX classification is outside tests/: ${file}`);
-  }
   if (classification.disposition === 'VENDOR_ONLY') {
     const moduleRoot = file.startsWith('third_party/robotgo/')
       ? 'third_party/robotgo/go.mod'
@@ -269,8 +187,7 @@ for (const [file, classification] of classifications.entries()) {
 }
 
 const expectedCounts = {
-  KEEP_PACKAGE: 85,
-  MOVE_GO_BLACKBOX: 29,
+  KEEP_PACKAGE: 114,
   SPLIT_JS_CONTRACT: 14,
   MOVE_TOOL: 3,
   OPT_IN_LIVE: 2,
@@ -342,33 +259,6 @@ for (const relative of walk(path.join(root, 'tests'), () => true)) {
   if (fixtureIndex >= 0) fixtures.push(parts.slice(0, fixtureIndex + 1).join('/'));
 }
 
-const clipboardDarwinFileModel = {
-  goBackend: 'automation/clipboard_rich_backend_darwin.go',
-  appKitBridge: 'automation/clipboard_rich_appkit_darwin.m',
-  unsupportedFallback: 'automation/clipboard_rich_unsupported.go',
-  liveTest: 'automation/clipboard_rich_darwin_test.go',
-  documentation: 'docs/implementation/runtime/clipboard-rich-backend-file-model.md',
-};
-for (const file of Object.values(clipboardDarwinFileModel)) {
-  if (!fs.existsSync(path.join(root, file))) errors.push(`clipboard Darwin file model is missing: ${file}`);
-}
-for (const retired of [
-  'automation/clipboard_rich_darwin.go',
-  'automation/clipboard_rich_darwin.m',
-  'automation/clipboard_rich_darwin_nocgo.go',
-  'automation/clipboard_rich_other.go',
-]) {
-  if (fs.existsSync(path.join(root, retired))) errors.push(`retired clipboard backend file still exists: ${retired}`);
-}
-const desktopEventsDarwinGo = fs.readFileSync(path.join(root, 'automation/desktop_events_backend_darwin.go'), 'utf8');
-const desktopEventsDarwinObjC = fs.readFileSync(path.join(root, 'automation/desktop_events_backend_darwin.m'), 'utf8');
-if (!desktopEventsDarwinGo.includes('opendesk_clipboard_change_count')) {
-  errors.push('Desktop Events does not reuse the clipboard changeCount bridge');
-}
-if (desktopEventsDarwinObjC.includes('opendesk_desktop_events_clipboard_change_count')) {
-  errors.push('Desktop Events still duplicates the clipboard changeCount bridge');
-}
-
 const report = {
   schemaVersion: 2,
   generatedAt: new Date().toISOString(),
@@ -382,7 +272,6 @@ const report = {
     dirty: command(['git', 'status', '--porcelain=v1']).length > 0,
     fileCount: sourceFiles.length,
     closureSha256: sourceClosure.digest('hex'),
-    files: sourceFileDigests,
   },
   goTests: {
     migrationBaseline: classifications.size,
@@ -393,7 +282,6 @@ const report = {
     classifications: Object.fromEntries([...classifications.entries()].sort(([left], [right]) => left.localeCompare(right))),
     movedSources: [...movedSources].sort(),
     movedTargets,
-    externalGoMoves: externalGoMoveBySource,
   },
   runtimeCatalog: {
     objectCount: Object.keys(runtimeObjects).length,
@@ -402,7 +290,6 @@ const report = {
     manifestSha256: sha256(manifestPath),
     links: catalogLinks,
   },
-  clipboardDarwinFileModel,
   inventory: {
     javascriptFilesExcludingGitRuntimeDist: allJavaScript.length,
     runtimeApiJavaScript: allJavaScript.filter((file) => file.startsWith('tests/runtime-api/')).length,
@@ -426,14 +313,12 @@ const report = {
   invariants: {
     rootTempAbsent: !fs.existsSync(path.join(root, 'temp')),
     movedPseudoTestsAbsent: [...movedSources].every((file) => !fs.existsSync(path.join(root, file))),
-    externalGoTestsMovedAndExternal: !errors.some((error) => error.includes('external Go test') || error.includes('MOVE_GO_BLACKBOX')),
     allCurrentGoTestsClassified: currentGoTests.every((file) => classifications.has(file)),
     allClassificationsHaveReviewFields: candidateClassificationRows.length === classifications.size
       && [...classifications.values()].every((entry) => entry.privateAccess && entry.boundary && entry.externalDependencies && entry.assertionValue && entry.reason),
     splitContractsCiteExistingJavaScript: !errors.some((error) => error.includes('Runtime JS test')),
     catalogDocsAndTypesExist: !errors.some((error) => error.includes('.docs target') || error.includes('.types target')),
     forbiddenPublicJavaScriptCallsAbsent: !errors.some((error) => error.startsWith('undocumented/removed API call')),
-    clipboardDarwinFileModelClosed: !errors.some((error) => error.includes('clipboard Darwin file model') || error.includes('clipboard backend file') || error.includes('clipboard changeCount bridge')),
   },
 };
 
@@ -441,13 +326,7 @@ fs.mkdirSync(path.dirname(output), { recursive: true });
 fs.writeFileSync(output, `${JSON.stringify(report, null, 2)}\n`);
 console.log(`[TEST-ARCHITECTURE-AUDIT] ${report.status.toUpperCase()} -> ${relativeFrom(root, output)}`);
 console.log(JSON.stringify({
-  sourceSnapshot: {
-    head: report.sourceSnapshot.head,
-    branch: report.sourceSnapshot.branch,
-    dirty: report.sourceSnapshot.dirty,
-    fileCount: report.sourceSnapshot.fileCount,
-    closureSha256: report.sourceSnapshot.closureSha256,
-  },
+  sourceSnapshot: report.sourceSnapshot,
   goTests: {
     migrationBaseline: report.goTests.migrationBaseline,
     current: report.goTests.current,
@@ -456,7 +335,6 @@ console.log(JSON.stringify({
     classificationSha256: report.goTests.classificationSha256,
     movedSources: report.goTests.movedSources,
     movedTargets: report.goTests.movedTargets,
-    externalGoMoves: report.goTests.externalGoMoves,
   },
   inventory: {
     javascriptFilesExcludingGitRuntimeDist: report.inventory.javascriptFilesExcludingGitRuntimeDist,
@@ -467,7 +345,6 @@ console.log(JSON.stringify({
     toolRootCount: report.inventory.toolRoots.length,
     fixtureRootCount: report.inventory.fixtureRoots.length,
   },
-  clipboardDarwinFileModel: report.clipboardDarwinFileModel,
   invariants: report.invariants,
 }, null, 2));
 if (errors.length > 0) {

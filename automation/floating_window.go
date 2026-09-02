@@ -449,6 +449,8 @@ type floatingButtonPublicState struct {
 	Error             string                   `json:"error"`
 	Revision          uint64                   `json:"revision"`
 	RenderedText      string                   `json:"renderedText"`
+	Tooltip           string                   `json:"tooltip"`
+	TooltipVisible    bool                     `json:"tooltipVisible"`
 	IconPresentation  toolbar.IconPresentation `json:"iconPresentation"`
 	AccessibilityName string                   `json:"accessibilityName"`
 	LocalBounds       toolbar.Bounds           `json:"localBounds"`
@@ -464,10 +466,15 @@ func publicFloatingButtonState(spec toolbar.ButtonSpec, native toolbar.ButtonRes
 	if accessibilityName == "" {
 		accessibilityName = spec.Label
 	}
+	tooltip := native.Tooltip
+	if tooltip == "" {
+		tooltip = spec.Label
+	}
 	return floatingButtonPublicState{
 		ID: spec.ID, Label: spec.Label, Icon: spec.Icon, Active: spec.State.Active,
 		Disabled: spec.State.Disabled, Busy: spec.State.Busy, Error: spec.State.Error,
 		Revision: spec.State.Revision, RenderedText: native.RenderedText,
+		Tooltip: tooltip, TooltipVisible: native.TooltipVisible,
 		IconPresentation: presentation, AccessibilityName: accessibilityName,
 		LocalBounds: native.LocalBounds, ScreenBounds: native.ScreenBounds,
 	}

@@ -1,5 +1,19 @@
 (() => {
-  const { assert, test } = RuntimeAPITest;
+  const runtimeAPITest = globalThis.RuntimeAPITest;
+  const live = globalThis.RuntimeLive;
+  if (!runtimeAPITest) throw new Error('RuntimeAPITest was not loaded; use tests/runtime-api/macos_live.js');
+  const { assert, test } = runtimeAPITest;
+  assert(
+    live
+      && live.fixture
+      && typeof live.fixture.title === 'string'
+      && live.fixture.title.length > 0
+      && typeof live.fixture.browserApp === 'string'
+      && live.fixture.browserApp.length > 0
+      && typeof live.refreshTarget === 'function',
+    'RuntimeLive fixture driver was not loaded; use tests/runtime-api/macos_live.js',
+  );
+  const fixture = live.fixture;
   const evidenceDirectory = '.runtime/tests/platform-primitives/task-008-window-parity';
   const screenshotPath = `${evidenceDirectory}/window.png`;
   const evidencePath = `${evidenceDirectory}/evidence.json`;
@@ -12,12 +26,35 @@
     return result;
   }
 
+  function assertFixtureWindow(info, expectedPid) {
+    assert(info && typeof info === 'object', JSON.stringify(info));
+    assert(String(info.title || '').includes(fixture.title), JSON.stringify(info));
+    assert(Number.isInteger(info.pid) && info.pid > 0, JSON.stringify(info));
+    assert(Number.isFinite(info.x) && Number.isFinite(info.y), JSON.stringify(info));
+    assert(Number.isFinite(info.width) && info.width > 0, JSON.stringify(info));
+    assert(Number.isFinite(info.height) && info.height > 0, JSON.stringify(info));
+
+    const identityPrefix = `darwin:${info.pid}:`;
+    const nativeIdentity = typeof info.id === 'string' && info.id.startsWith(`${identityPrefix}native:`);
+    const unresolvedIdentity = info.id === `${identityPrefix}unresolved`;
+    assert(nativeIdentity || unresolvedIdentity, JSON.stringify(info));
+    assert(typeof info.handle === 'number' && Number.isFinite(info.handle) && info.handle >= 0, JSON.stringify(info));
+    if (nativeIdentity) assert(info.handle > 0, JSON.stringify(info));
+    if (unresolvedIdentity) assert(info.handle === 0, JSON.stringify(info));
+    if (expectedPid !== undefined) assert(info.pid === expectedPid, JSON.stringify({ expectedPid, info }));
+    return info;
+  }
+
+  function assertBounds(info, expected) {
+    assertFixtureWindow(info, expected.pid);
+    assert(Math.abs(info.x - expected.x) <= 4, JSON.stringify({ expected, info }));
+    assert(Math.abs(info.y - expected.y) <= 4, JSON.stringify({ expected, info }));
+    assert(Math.abs(info.width - expected.width) <= 4, JSON.stringify({ expected, info }));
+    assert(Math.abs(info.height - expected.height) <= 4, JSON.stringify({ expected, info }));
+  }
+
   async function activeFixture() {
-    const info = await RuntimeLive.waitForBrowserWindow();
-    assert(typeof info.id === 'string' && info.id.startsWith('darwin:') && info.id.includes(':native:'), JSON.stringify(info));
-    assert(typeof info.pid === 'number' && info.pid > 0, JSON.stringify(info));
-    assert(typeof info.handle === 'number' && info.handle > 0, JSON.stringify(info));
-    RuntimeLive.updateTarget(info);
+    const info = assertFixtureWindow((await live.refreshTarget()).windowInfo);
     return info;
   }
 
@@ -33,25 +70,34 @@
   }, async () => {
     const original = await activeFixture();
     const title = original.title;
-    const pid = Number(original.pid || original.processID || 0);
+    const pid = Number(original.pid);
+    assert(Number.isInteger(pid) && pid > 0, JSON.stringify(original));
     const adjusted = {
-      x: original.x + 12,
-      y: original.y + 12,
-      width: Math.max(640, original.width - 24),
-      height: Math.max(480, original.height - 24),
+      pid,
+      x: Number(original.x) + 12,
+      y: Number(original.y) + 12,
+      width: Math.max(640, Number(original.width) - 24),
+      height: Math.max(480, Number(original.height) - 24),
+    };
+    const resized = {
+      ...adjusted,
+      width: adjusted.width - 20,
+      height: adjusted.height - 20,
     };
     try {
       await step('focus', () => window.focus(title));
       const focused = await step('getFocusWindow', () => window.getFocusWindow());
-      assert(focused && focused.id.includes(':native:') && focused.pid === pid && focused.handle > 0, JSON.stringify(focused));
+      assertFixtureWindow(focused, pid);
+      assert(focused.isForeground === true && focused.hasFocus === true, JSON.stringify(focused));
       await step('bringToTop', () => window.bringToTop(title, pid));
       await step('setWindowBounds', () => window.setWindowBounds(title, adjusted.x, adjusted.y, adjusted.width, adjusted.height));
       await page.waitFor(200);
       let current = await step('getWindowByTitle', () => window.getWindowByTitle(title));
-      assert(Math.abs(current.width - adjusted.width) <= 4, JSON.stringify({ adjusted, current }));
-      await step('setWidth', () => window.setWidth(title, adjusted.width - 20));
-      await step('setHeight', () => window.setHeight(title, adjusted.height - 20));
+      assertBounds(current, adjusted);
+      await step('setWidth', () => window.setWidth(title, resized.width));
+      await step('setHeight', () => window.setHeight(title, resized.height));
       current = await step('getWindowByTitle-after-resize', () => window.getWindowByTitle(title));
+      assertBounds(current, resized);
       File.ensureDir(evidenceDirectory);
       const screenshot = await page.screenshot({
         clip: { x: current.x, y: current.y, width: current.width, height: current.height },
@@ -60,17 +106,19 @@
       });
       assert(screenshot && screenshot.sizeBytes > 500, JSON.stringify(screenshot));
       const capabilities = window.getCapabilities();
+      const fixtureMatched = String(current.title).includes(fixture.title) && current.pid === pid;
+      assert(fixtureMatched, JSON.stringify({ fixture, current }));
       File.write(evidencePath, JSON.stringify({
         schemaVersion: 1,
         platform: capabilities.platform,
         backend: capabilities.backend,
-        target: { app: RuntimeLive.fixture.browserApp || 'Safari', identity: current.id, pid: current.pid },
-        operations: ['focus', 'bringToTop', 'setWindowBounds', 'setWidth', 'setHeight'],
+        target: { app: fixture.browserApp, identity: current.id, pid: current.pid },
+        operations: ['focus', 'getFocusWindow', 'bringToTop', 'setWindowBounds', 'setWidth', 'setHeight'],
         before: { x: original.x, y: original.y, width: original.width, height: original.height },
         readback: { x: current.x, y: current.y, width: current.width, height: current.height },
         coordinateSpace: capabilities.coordinateSpace,
         screenshot: { path: screenshotPath, width: screenshot.width, height: screenshot.height, sizeBytes: screenshot.sizeBytes },
-        postcondition: { fixtureMatched: String(current.title).includes(RuntimeLive.fixture.title) },
+        postcondition: { fixtureMatched },
       }, null, 2));
       await step('maximize', () => window.maximize(title));
       await page.waitFor(200);
@@ -81,14 +129,14 @@
       await step('restore-after-minimize', () => window.restore(title));
       await page.waitFor(300);
       current = await activeFixture();
-      assert(String(current.title).includes(RuntimeLive.fixture.title), JSON.stringify(current));
+      assertFixtureWindow(current, pid);
     } finally {
       try { await window.restore(title); } catch (_) {}
       try { await window.setWindowBounds(title, original.x, original.y, original.width, original.height); } catch (_) {}
       try { await window.focus(title); } catch (_) {}
       await page.waitFor(250);
       const restored = await activeFixture();
-      RuntimeLive.updateTarget(restored);
+      assertBounds(restored, original);
     }
   });
 
@@ -98,8 +146,8 @@
     covers: ['window.restoreByPID', 'window.minimizeByPID', 'window.maximizeByPID'],
   }, async () => {
     const original = await activeFixture();
-    const pid = Number(original.pid || original.processID || 0);
-    assert(pid > 0, JSON.stringify(original));
+    const pid = Number(original.pid);
+    assert(Number.isInteger(pid) && pid > 0, JSON.stringify(original));
     try {
       await step('maximizeByPID', () => window.maximizeByPID(pid));
       await page.waitFor(200);
@@ -110,13 +158,13 @@
       await step('restoreByPID-after-minimize', () => window.restoreByPID(pid));
       await page.waitFor(300);
       const restored = await activeFixture();
-      assert(String(restored.title).includes(RuntimeLive.fixture.title), JSON.stringify(restored));
+      assertFixtureWindow(restored, pid);
     } finally {
       try { await window.restoreByPID(pid); } catch (_) {}
       try { await window.setWindowBounds(original.title, original.x, original.y, original.width, original.height); } catch (_) {}
       try { await window.focus(original.title); } catch (_) {}
       await page.waitFor(250);
-      RuntimeLive.updateTarget(await activeFixture());
+      assertBounds(await activeFixture(), original);
     }
   });
 })();

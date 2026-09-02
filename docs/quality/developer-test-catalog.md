@@ -17,7 +17,6 @@ order: 10
 | --- | --- | --- |
 | JavaScript Runtime 公共契约、参数、返回值和用户可观察生命周期 | `tests/runtime-api/unit/<namespace>.test.js` | 正式入口是 `./scripts/test_runtime_apis.sh unit`；必须以 `docs/api/` 为契约来源。 |
 | 需要真实窗口、权限、音频设备或外部应用的 JS 场景 | `tests/runtime-api/live/` 或对应 `tests/<domain>/` | 运行输出写入 `.runtime/tests/<domain>/`，不写回源码目录。 |
-| 只依赖 exported Go API 的确定性领域、模型或服务黑盒 | `tests/<domain>/*.go`，使用 `package <owner>_test` | 与实现物理分离；编译器禁止它们重新依赖未导出实现。 |
 | native backend、纯 Go 算法、包内私有 lifecycle / EventLoop seam | 与实现同包的 `*_test.go` | 允许访问未导出实现；不能替代上面的 JS 公共契约测试。 |
 | 独立 Go 生成器或测试工具 | `tests/<domain>/tools/<tool>/` | 作为工具包运行，不与被测 Go package 的白盒测试混放。 |
 
@@ -26,11 +25,7 @@ order: 10
 `tests/runtime-api/*.test.js`。`automation/sound_test.go` 已按此规则移除；不要为了“移动到
 tests”而破坏 package-private 测试的访问边界。
 
-每个现有或已迁移的 Go 测试到底执行哪一种操作，见[逐文件分类清单的执行账本](go-test-file-classification.md#执行账本标签就是逐文件操作码)。它把每一行的处置标签解释为已完成动作和验收命令：`MOVE_TOOL`
-代表旧 `_test.go` 已从原路径消失，`SPLIT_JS_CONTRACT` 代表 Go seam 仍在原包而 JS 契约已拆出，
-`KEEP_PACKAGE`、`OPT_IN_LIVE` 和 `VENDOR_ONLY` 留在原路径则是有意的边界，不是待迁移遗漏。
-
-本轮完整逐文件结论见 [Go 测试逐文件分类清单](go-test-file-classification.md)：迁移前口径 145，迁移 3 个伪测试工具后当前仍为 142；其中 `KEEP_PACKAGE=85`、`MOVE_GO_BLACKBOX=29`、`SPLIT_JS_CONTRACT=14`、`OPT_IN_LIVE=2`、`VENDOR_ONLY=4`、`ARCHIVE_ONLY=8`。前 29 项已从 `automation/` 或 `pkg/` 移到顶层 `tests/`，不是仅改标签。机器可复现的闭合检查为：
+本轮完整逐文件结论见 [Go 测试逐文件分类清单](go-test-file-classification.md)：迁移前口径 145，迁移 3 个伪测试工具后当前 142；其中 `KEEP_PACKAGE=114`、`SPLIT_JS_CONTRACT=14`、`OPT_IN_LIVE=2`、`VENDOR_ONLY=4`、`ARCHIVE_ONLY=8`。机器可复现的闭合检查为：
 
 ```bash
 node scripts/audit_test_architecture.js
@@ -94,15 +89,6 @@ Runtime API negative：
 ```text
 ./dist/opendesk -script tests/runtime-api/negative.js -console-mode script
 ```
-
-Clipboard 富文本粘贴 fixture：
-
-```text
-./opendesk -script examples/clipboard/rich-paste-fixture.js -console-mode script
-```
-
-脚本写入 `text/plain` 和 `text/html`，不会自动粘贴、清空或恢复剪贴板；可手动粘贴到目标
-应用检查纯文本 fallback 和 HTML 样式。完整接口说明见 [`docs/api/clipboard.md`](../api/clipboard.md)。
 
 Runtime API 其他专用 JS：
 

@@ -197,7 +197,10 @@ func (s *Sound) resolveFilePath(soundPath string) (string, error) {
 		"success": "public/done.mp3",
 		"fail":    "public/fail.mp3",
 		"warning": "public/warn.mp3",
-		"error":   "public/error.mp3",
+		// The repository ships one generic negative-feedback asset. Keep the
+		// error convenience method usable as a compatibility alias instead of
+		// resolving an asset that is not packaged.
+		"error":   "public/fail.mp3",
 		"captcha": "public/captcha.mp3",
 	}
 	if predefinedName, ok := predefinedSounds[soundPath]; ok {
@@ -721,6 +724,10 @@ func soundIDArgument(value goja.Value, operation string) (string, error) {
 }
 
 func registerSound(runtimeValue *goja.Runtime, opts InitJSOptions) *Sound {
+	// Legacy exported Play* methods are supplied by AutoMapObject. Playback
+	// sessions intentionally use an explicit bridge: their handles and wait()
+	// Promise must remain owned by this Goja Runtime/EventLoop and by execution
+	// teardown, so the unexported native lifecycle methods are not allowlisted.
 	sound := newSound(runtimeValue, opts.EventLoop, opts.Context, opts.OnAsyncError)
 	methods := AutoMapObject(runtimeValue, sound)
 	start := func(operation string) func(goja.FunctionCall) goja.Value {
