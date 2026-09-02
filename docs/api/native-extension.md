@@ -1,10 +1,10 @@
 ---
-title: Native Extension Plugin V1.0.1
+title: Native Extension Plugin
 description: 严格 manifest 自动发现、Host 生成不可变 JavaScript Binding，并按调用启动 one-shot native process。
 order: 15
 ---
 
-# Native Extension Plugin V1.0.1
+# Native Extension Plugin
 
 > 状态：**Experimental**。V1 是自动发现与不可变 Binding Prototype，不是 Stable ABI、Stable SDK、插件商店或安全沙箱。
 
@@ -224,7 +224,7 @@ Extension 的 `result`，失败时抛
 
 若省略第一个参数，Host 会传递空 object `{}`；示例 `hello`/`add` 的插件业务契约会拒绝
 缺少必需字段的 `{}`。Registry 在一次 execution 内冻结；安装或升级后必须启动新的
-execution，V1.0.1 没有 hot reload。
+execution，当前实现没有 hot reload。
 
 例如：
 
@@ -558,8 +558,8 @@ NativeExtensions.goBasic.hello({ name: "OpenDesk" });
 
 ```bash
 ./scripts/test_runtime_apis.sh unit
-./scripts/test_native_process_extensions.sh
-./scripts/test_native_extension_plugins.sh
+python3 tests/extensions/native-process/tools/smoke-harness/main.py
+python3 tests/extensions/native-plugin/tools/proof-harness/main.py
 ```
 
 最后一个命令会从当前源码构建 Host/Go/Swift，创建 `/private/tmp/opendesk-native-plugin-proof-<runId>/`，从文档声明的程序目录执行正式 one-line quickstart，验证 portable 和 `.app` roots、zero-child discovery、不可变 descriptors、`hello/add`、`.app` 内 manifest-bound 调用、真实 Apple Vision OCR、one-shot child count、失败产物全量隐私扫描、resource provenance、命令 transcript 和构建输入前后 hash 不变。Linux/Windows 只做 matching-source cross-compile/package，并明确记录为 Not Evaluated target Runtime。

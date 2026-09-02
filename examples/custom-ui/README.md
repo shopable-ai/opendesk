@@ -32,7 +32,7 @@ For the file-backed recording console, run this one-line command from the reposi
 ./dist/opendesk -ui -script examples/custom-ui/recording-console.js -console-mode script -log-dir .runtime/examples/custom-ui/recording-console
 ```
 
-`recording-console.js` starts with the self-contained `recording-console/tray.html` control tray: its inline style block is automatically split into `content.html` and `content.css` before the Native UI window is created. `recording-console/recorder.html` / `recorder.css` is the expanded settings page opened with “展开”; both contain only constrained markup and stable control IDs, while the JavaScript controller owns shared state and listeners. The blank native title avoids duplicating the HTML header. Its start, pause and stop buttons emit explicit UI intents only—Recorder sessions must still be created and stopped through the MCP tools in [`docs/api/recorder.md`](../../docs/api/recorder.md). The Screenshot button is real and writes PNGs below the declared `.runtime` log directory.
+`recording-console.js` starts with the self-contained `recording-console/tray.html` control tray: its inline style block is automatically split into `content.html` and `content.css` before the Custom UI window is created. `recording-console/recorder.html` / `recorder.css` is the expanded settings page opened with “展开”; both contain only constrained markup and stable control IDs, while the JavaScript controller owns shared state and listeners. The blank native title avoids duplicating the HTML header. Its start, pause and stop buttons emit explicit UI intents only—Recorder sessions must still be created and stopped through the MCP tools in [`docs/api/recorder.md`](../../docs/api/recorder.md). The Screenshot button is real and writes PNGs below the declared `.runtime` log directory.
 
 For fast browser-only layout work on the tray, run this one-line command from the repository root, then open the printed `/tray.html` URL:
 
@@ -40,9 +40,9 @@ For fast browser-only layout work on the tray, run this one-line command from th
 node examples/custom-ui/recording-console/serve-tray-preview.js --host 127.0.0.1 --port 8000
 ```
 
-The preview serves the self-contained `tray.html`, so `http://127.0.0.1:8000/tray.html` renders the same markup and CSS as the Native UI tray. It is intentionally layout-only: buttons have no Recorder callbacks there. To use the current LAN address, explicitly pass `--host 192.168.30.104`; use another port such as `8001` if the current server already owns `8000`.
+The preview serves the self-contained `tray.html`, so `http://127.0.0.1:8000/tray.html` renders the same markup and CSS as the Custom UI tray. It is intentionally layout-only: buttons have no Recorder callbacks there. To use the current LAN address, explicitly pass `--host 192.168.30.104`; use another port such as `8001` if the current server already owns `8000`.
 
-Do not open `tray.html` or `recorder.html` with `file://` when testing the Native UI example: those files deliberately contain layout only. Run the command above so `recording-console.js` creates both native windows and binds their callbacks. Every small-tray operation writes a concise `RECORDER_TRAY_ACTION={...}` record to the terminal and `.runtime/examples/custom-ui/recording-console/stdout.log`; `RECORDER_UI_INTENT={...}` is the separate recorder-intent record.
+Do not open `tray.html` or `recorder.html` with `file://` when testing the Custom UI example: those files deliberately contain layout only. Run the command above so `recording-console.js` creates both native windows and binds their callbacks. Every small-tray operation writes a concise `RECORDER_TRAY_ACTION={...}` record to the terminal and `.runtime/examples/custom-ui/recording-console/stdout.log`; `RECORDER_UI_INTENT={...}` is the separate recorder-intent record.
 
 Click start/pause twice, stop once, and each remaining button once. The horizontal example emits `HORIZONTAL_TOOLBAR_ACTION` records for `start`, `pause`, `stop`, `settings`, `send`, and `timer`; stop restores startPause to `play.fill` / `开始` / inactive. The toolbar stays open until the user closes it.
 

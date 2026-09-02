@@ -3,11 +3,12 @@
   RuntimeAPITest.contractGlobals();
 
   test({
-    name: 'global timers, animation frame, sleep, and cancellation complete without leaks',
+    name: 'global timers, delay, URL, animation frame, sleep, and cancellation complete without leaks',
     tier: 'unit',
     covers: [
       'global.setTimeout', 'global.clearTimeout', 'global.setInterval', 'global.clearInterval',
-      'global.sleep', 'global.sleepSeconds', 'global.requestAnimationFrame', 'global.cancelAnimationFrame',
+      'global.delay', 'global.sleep', 'global.sleepSeconds', 'global.requestAnimationFrame', 'global.cancelAnimationFrame',
+      'global.URL', 'global.URLSearchParams',
     ],
   }, async () => {
     let cancelledTimeoutFired = false;
@@ -33,5 +34,23 @@
     assert(intervalCount === 2, `intervalCount=${intervalCount}`);
     assert(frameTimestamp !== null, 'requestAnimationFrame did not run');
     assert(!cancelledTimeoutFired && !cancelledFrameFired, JSON.stringify({ cancelledTimeoutFired, cancelledFrameFired }));
+
+    const delayed = delay(2);
+    assert(delayed && typeof delayed.then === 'function', 'delay must return a Promise');
+    await delayed;
+
+    const url = new URL('/search?q=hello%20world', 'https://example.com/base/index.html');
+    assert(url.origin === 'https://example.com', url.origin);
+    assert(url.pathname === '/search', url.pathname);
+    assert(url.searchParams.get('q') === 'hello world', url.searchParams.get('q'));
+    url.searchParams.set('page', 2);
+    url.hash = 'done';
+    assert(url.href === 'https://example.com/search?q=hello+world&page=2#done', url.href);
+    url.search = '?fresh=1';
+    assert(url.searchParams.get('fresh') === '1', url.searchParams.get('fresh'));
+
+    const params = new URLSearchParams('a=1&a=2&b=x%3Dy');
+    assert(JSON.stringify(params.getAll('a')) === JSON.stringify(['1', '2']), JSON.stringify(params.getAll('a')));
+    assert(params.get('b') === 'x=y', params.get('b'));
   });
 })();

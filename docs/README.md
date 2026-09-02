@@ -108,6 +108,7 @@ Research 中的方案比较、评审或竞品材料不能替代本目录中的�
 关键入口：
 
 - `gates-and-evidence.md`
+- `developer-test-catalog.md`：开发测试入口、脚本功能和已知 Markdown 失败记录。
 - `testing-guide.md`
 - `failure-taxonomy.md`
 - `failure-cases.md`

@@ -44,6 +44,8 @@ declare global {
 
   function sleep(ms: number): Promise<void>;
   function sleepSeconds(seconds: number): Promise<void>;
+  /** Promise-based, non-blocking workflow delay. Does not suspend the host OS. */
+  function delay(milliseconds?: number): Promise<void>;
 
   function setTimeout(callback: () => void, delay?: number): OpenDeskTimerId;
   function clearTimeout(id: OpenDeskTimerId): void;
@@ -66,6 +68,27 @@ declare global {
   }
 
   var URLSearchParams: {
-    new (init?: string | Record<string, unknown>): URLSearchParams;
+    new (init?: string | Record<string, unknown> | Array<[unknown, unknown]>): URLSearchParams;
+  };
+
+  interface URL {
+    href: string;
+    readonly origin: string;
+    protocol: string;
+    username: string;
+    password: string;
+    host: string;
+    hostname: string;
+    port: string;
+    pathname: string;
+    search: string;
+    readonly searchParams: URLSearchParams;
+    hash: string;
+    toString(): string;
+    toJSON(): string;
+  }
+
+  var URL: {
+    new (input: string | URL, base?: string | URL): URL;
   };
 }

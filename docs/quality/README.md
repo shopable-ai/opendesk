@@ -12,6 +12,7 @@ quality/
 ├── gates-and-evidence.md
 ├── failure-taxonomy.md
 ├── failure-cases.md
+├── developer-test-catalog.md
 ├── golden-sample-strategy.md
 ├── browser-automation/
 ├── layout/
@@ -32,6 +33,10 @@ quality/
 | Golden Sample | 什么可以成为稳定回归基线？ | candidate 不等于 frozen；必须有 provenance/review/replay |
 | Review | 如何人工/自动复核？ | 是文档角色，不要求存在独立 `review/` 目录；不负责宣告项目整体完成 |
 | Benchmark | 如何比较版本/算法？ | 固定输入、断言、variance budget 与环境 |
+
+开发测试脚本、测试域和 Markdown 失败记录的导航见
+[`developer-test-catalog.md`](developer-test-catalog.md)。它是索引，不替代各域
+的正式 gate、contract 或 Evidence 报告。
 
 ## Source-of-truth order
 

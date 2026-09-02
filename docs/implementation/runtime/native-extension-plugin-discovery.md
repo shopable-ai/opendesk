@@ -1,8 +1,8 @@
-# Native Extension Plugin V1.0.1 implementation record
+# Native Extension Plugin implementation record
 
 Status: **Experimental**. Current live verification is recorded in
 `docs/quality/native-extension-plugin-v1.md`; historical V1 runs do not prove
-V1.0.1 path-policy sources.
+Path-policy sources.
 
 ## Architecture and ownership
 
@@ -99,7 +99,7 @@ Residual Experimental risks remain explicit:
   execution/platform equivalents;
 - Windows ACL/reparse validation remains a cross-platform implementation gap;
 - an extension inherits the OpenDesk user identity, environment, cwd, filesystem
-  and network access; V1.0.1 is not a sandbox or permission broker;
+  and network access; the plugin is not a sandbox or permission broker;
 - only the manifest and selected executable are Runtime-hashed. Dynamic libraries
   or helper assets are not transitively authenticated, so publishers should make
   executables self-contained where possible and sign/checksum the complete
@@ -127,6 +127,6 @@ The supported entry points remain:
 
 ```bash
 ./scripts/test_runtime_apis.sh unit
-./scripts/test_native_process_extensions.sh
-./scripts/test_native_extension_plugins.sh
+python3 tests/extensions/native-process/tools/smoke-harness/main.py
+python3 tests/extensions/native-plugin/tools/proof-harness/main.py
 ```

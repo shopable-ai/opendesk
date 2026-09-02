@@ -1,9 +1,4 @@
-function main() {
-  // The public OCR example is run from <program-directory>. The input image is
-  // intentionally outside the extension bundle: it is caller-owned business
-  // data, not executable/plugin installation content.
-  // Prefer the repository's JPEG example. The deterministic PNG fixture used
-  // by the formal plugin gate remains a supported fallback.
+function copyOCRImageIfNeeded() {
   const copySources = [
     ["./dist/ocr-test.jpg", "./examples/native-extensions/ocr-test.jpg"],
     ["./ocr-test.jpg", "../examples/native-extensions/ocr-test.jpg"]
@@ -15,7 +10,11 @@ function main() {
       File.copy(source, destination);
     }
   }
+}
 
+function resolveOCRImagePath() {
+  // Prefer the repository's JPEG example. The deterministic PNG fixture used
+  // by the formal plugin gate remains a supported fallback.
   const imageNames = [
     "./dist/ocr-test.jpg",
     "./dist/ocr-test.png",
@@ -34,7 +33,13 @@ function main() {
   if (!imagePath) {
     throw new Error("OCR image is missing; expected ocr-test.jpg or ocr-test.png in <program-directory>");
   }
+  return imagePath;
+}
 
+function main() {
+  // The input image is caller-owned business data, not extension content.
+  copyOCRImageIfNeeded();
+  const imagePath = resolveOCRImagePath();
   const ocr = NativeExtensions.macosVision.ocr({
     imagePath,
     recognitionLevel: "accurate",

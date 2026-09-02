@@ -11,7 +11,7 @@ order: 12
 
 ```js
 async function main() {
-  await sleep(100);
+  await delay(100);
   const params = new URLSearchParams({ task: 'daily-report' });
   console.log(params.toString());
 }
@@ -26,6 +26,7 @@ main();
 | `setTimeout` / `clearTimeout` | 延迟执行与取消一次性任务 | Stable | 返回数字 ID |
 | `setInterval` / `clearInterval` | 周期执行与取消 | Stable | 回调必须主动清理 |
 | `requestAnimationFrame` / `cancelAnimationFrame` | 约 60 FPS 的延迟回调 | Stable / Compatibility | 基于 timer，不是浏览器绘制循环 |
+| `delay` | Promise 风格等待 | Stable | `await delay(3000)`；不阻塞 Runtime 事件循环 |
 | `sleep` / `sleepSeconds` | Promise 风格等待 | Stable | 不阻塞 Runtime 事件循环 |
 | `console` | 日志与执行事件输出 | Stable | 全局日志对象；方法同步返回 |
 | `copyToClipboard` / `getClipboard` | 剪贴板快捷读写 | Stable | `clipboard` 对象的全局快捷入口 |
@@ -33,9 +34,10 @@ main();
 | `alert` / `confirm` / `prompt` | 异步原生模态提示与短文本输入 | Conditional | 返回 Promise，不是浏览器同步 dialog |
 | `AbortController` / `AbortSignal` | 取消在途 HTTP 请求 | Stable / Compatibility | 与 `http`、`axios` 的 `signal` 配合 |
 | `URLSearchParams` | 生成查询参数或表单参数 | Stable / Compatibility | 当前为轻量兼容实现 |
+| `URL` | 解析和拼接 HTTP(S) / file URL | Stable / Compatibility | 支持相对 URL、`searchParams` 和常用字段 |
 | `Promise` / `async` / `await` | 异步脚本基础 | Stable | Runtime 会提供 Promise 能力 |
 
-## `setTimeout` / `setInterval` / `requestAnimationFrame` / `sleep`：计时器与等待
+## `setTimeout` / `setInterval` / `requestAnimationFrame` / `delay` / `sleep`：计时器与等待
 
 ### `setTimeout` / `clearTimeout`：一次性计时器
 
@@ -88,14 +90,16 @@ const frameID = requestAnimationFrame((timestamp) => {
 它不会等待浏览器 DOM 绘制，也不代表屏幕像素已经刷新；桌面自动化中的 UI 状态应优先使用
 `page.waitForFunction()` 或其他可验证条件等待。
 
-### `sleep` / `sleepSeconds`：固定等待
+### `delay` / `sleep` / `sleepSeconds`：固定等待
 
 ```js
+await delay(3000);         // 推荐的通用等待写法
 await sleep(250);        // 250 毫秒
 await sleepSeconds(0.5); // 0.5 秒
 ```
 
-两者都返回 `Promise<void>`，等待期间不会阻塞 Runtime 事件循环。它们适合固定的短暂间隔；
+三者都返回 `Promise<void>`，等待期间不会阻塞 Runtime 事件循环。`delay()` 是推荐的通用名称，
+`sleep()` 和 `sleepSeconds()` 保留用于兼容已有脚本。它们适合固定的短暂间隔；
 等待窗口、文本、权限或网络状态时，应优先使用带条件的接口：
 
 ```js
@@ -106,6 +110,9 @@ await page.waitForFunction(() => window.title() === '完成', {
 ```
 
 更多页面状态等待方式见 [Page API](page.md)。
+
+`delay()` 和 `System.delay()` 都是脚本等待；`System.sleep()` 则会尝试让整台电脑进入睡眠，
+三者不要混用。
 
 ## `copyToClipboard` / `getClipboard`：剪贴板快捷函数
 
@@ -290,6 +297,23 @@ console.log(params.toString());
 
 当前实现覆盖 OpenDesk 脚本常用的查询参数场景；它不是完整浏览器 URL 或 DOM API，
 `entries()`、`keys()`、`values()` 返回数组而不是浏览器中的迭代器。
+
+## `URL`：解析和拼接 URL
+
+```js
+const url = new URL('/search?q=OpenDesk', 'https://example.com/base/index.html');
+console.log(url.origin);                 // https://example.com
+console.log(url.pathname);               // /search
+console.log(url.searchParams.get('q'));  // OpenDesk
+
+url.searchParams.set('page', 2);
+url.hash = 'results';
+console.log(url.href);
+```
+
+常用字段包括 `href`、`origin`、`protocol`、`host`、`hostname`、`port`、`pathname`、
+`search`、`hash` 和 `searchParams`。当前实现覆盖 HTTP(S)、file URL 和常见相对 URL 解析，
+不承诺完整浏览器 WHATWG URL/DOM 行为。
 
 ## `Promise` / `async` / `await`：异步脚本
 

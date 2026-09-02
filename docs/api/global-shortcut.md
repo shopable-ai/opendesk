@@ -132,8 +132,8 @@ make build
 ./dist/opendesk -script examples/global-shortcut.js -console-mode script
 ```
 
-在 macOS 按 `Command+Shift+9`，终端应打印 `copied`，且 `Hello from OpenDesk` 会写入系统
-剪贴板；在 Windows，相同 accelerator 对应 `Control+Shift+9`。按 `Ctrl-C` 正常结束进程会
+在 macOS 按 `Command+Shift+e`，终端应打印 `copied`，且 `Hello from OpenDesk` 会写入系统
+剪贴板；在 Windows，相同 accelerator 对应 `Control+Shift+e`。按 `Ctrl-C` 正常结束进程会
 自动注销已注册快捷键。完整示例见 [examples/global-shortcut.js](../../examples/global-shortcut.js)。
 普通体验只需这条启动命令和一次真实系统按键；不要把 AX、WindowServer 或截图探针当成手动
 使用步骤。

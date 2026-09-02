@@ -12,7 +12,7 @@ either target is included.
 
 Historical `.runtime` runs were treated only as diagnostics. The accepted run
 is `20260901T082728Z-99420`, launched with
-`./scripts/test_native_extension_plugins.sh --host-only` and outer exit code 0.
+`python3 tests/extensions/native-plugin/tools/proof-harness/main.py --host-only` and outer exit code 0.
 It hashed 194 current working-tree source inputs before and after construction,
 with zero changes. Its source snapshot SHA-256 is
 `67bd8124734fae1f8b1465b3466cb50723316b174f63a17f11319096cfd18ab4`; the

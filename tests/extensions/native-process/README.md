@@ -22,13 +22,13 @@ extension, and the independent macOS Swift/Vision extension. It then verifies:
 Requirements: macOS, Go, Xcode Command Line Tools, and `python3`.
 
 ```bash
-./scripts/test_native_process_extensions.sh
+python3 tests/extensions/native-process/tools/smoke-harness/main.py
 ```
 
 Optional arguments:
 
 ```bash
-./scripts/test_native_process_extensions.sh \
+python3 tests/extensions/native-process/tools/smoke-harness/main.py \
   --run-id manual-v0 \
   --run-dir .runtime/tests/extensions/native-process/manual-v0 \
   --proof-dir /tmp/opendesk-native-extension-proof-manual-v0
@@ -42,13 +42,13 @@ extensions:
 
 ```bash
 OPENDESK_BINARY=/absolute/path/to/opendesk \
-  ./scripts/test_native_process_extensions.sh
+  python3 tests/extensions/native-process/tools/smoke-harness/main.py
 ```
 
 The equivalent explicit argument is:
 
 ```bash
-./scripts/test_native_process_extensions.sh \
+python3 tests/extensions/native-process/tools/smoke-harness/main.py \
   --opendesk-binary /absolute/path/to/opendesk
 ```
 
@@ -93,5 +93,5 @@ For the normal no-routing-field call shape, zero-child discovery, immutable
 descriptors, portable/current-user/`.app` roots, and real package Evidence, run:
 
 ```bash
-./scripts/test_native_extension_plugins.sh
+python3 tests/extensions/native-plugin/tools/proof-harness/main.py
 ```

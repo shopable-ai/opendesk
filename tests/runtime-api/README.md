@@ -105,7 +105,7 @@ OPENDESK_RUNTIME_API_BROWSER_APP=Safari
 
 1. **普通手动体验（macOS）**：先运行一次 `make build`，再运行
    `./dist/opendesk -script examples/global-shortcut.js -console-mode script`。让另一个 App
-   处于前台，按 `Command+Shift+9`，执行 `pbpaste` 确认剪贴板文本；按 `Ctrl-C` 正常结束以
+   处于前台，按 `Command+Shift+e`，执行 `pbpaste` 确认剪贴板文本；按 `Ctrl-C` 正常结束以
    清理注册。该宿主须在 **System Settings → Privacy & Security → Accessibility** 与
    **Input Monitoring** 中允许后重启；后者支持 backend 的 HID listener（特别是 `F21`–`F24`）。
    普通快捷键测试不需要 Screen Recording 或 Automation。

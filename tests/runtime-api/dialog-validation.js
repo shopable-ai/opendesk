@@ -1,4 +1,4 @@
-// Run with an explicitly enabled native UI host. Every call below is rejected
+// Run with an explicitly enabled Custom UI host. Every call below is rejected
 // before a native window is created, so this is deterministic and safe for CI.
 async function main() {
   const invalid = [

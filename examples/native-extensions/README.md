@@ -1,8 +1,8 @@
-# Native Extension Plugin V1.0.1 examples
+# Native Extension Plugin examples
 
 Status: **Experimental**. The first supported user path is a plugin author on
 their own macOS machine: compile an executable, place a source-free bundle
-beside OpenDesk, then run normal local CLI JavaScript. V1.0.1 is not a Stable
+beside OpenDesk, then run normal local CLI JavaScript. The plugin is not a Stable
 SDK, publisher authentication system, or sandbox.
 
 Public publisher asset status: **Not Published / Not Verified**. These
@@ -329,7 +329,7 @@ content mismatch but does not authenticate a publisher or transitive
 `.dylib/.so/.dll`/script-module dependencies. Prefer self-contained executables,
 keep all runtime assets non-writable by other users, and sign/checksum the whole
 archive. An invoked extension inherits the OpenDesk user's environment, cwd,
-filesystem and network access; V1.0.1 is not a sandbox.
+filesystem and network access; the plugin is not a sandbox.
 
 For the current macOS `go-basic` stage, create the archive, write a checksum
 file, and verify it with:
@@ -517,8 +517,8 @@ use it as the normal plugin interface; HTTP/MCP cannot enable it.
 ## Verified acceptance
 
 ```bash
-./scripts/test_native_process_extensions.sh
-./scripts/test_native_extension_plugins.sh
+python3 tests/extensions/native-process/tools/smoke-harness/main.py
+python3 tests/extensions/native-plugin/tools/proof-harness/main.py
 ```
 
 The plugin proof builds current Host/Go/Swift sources, creates a source-free

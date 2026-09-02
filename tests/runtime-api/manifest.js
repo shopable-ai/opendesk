@@ -79,14 +79,14 @@ globalThis.RuntimeAPIObjects = {
     'getInputDevices', 'getDefaultOutput', 'getDefaultInput', 'getCapabilities',
   ] },
   Dialog: { docs: 'docs/api/dialog.md', types: 'types/dialog.d.ts', source: 'automation/dialog.go', status: 'conditional', platforms: ['darwin', 'linux', 'windows'], methods: ['alert', 'confirm', 'prompt', 'getCapabilities'] },
-  ui: { docs: 'docs/api/native-ui.md', types: 'types/custom-ui.d.ts', source: 'automation/custom_ui.go', status: 'conditional', platforms: ['darwin', 'linux', 'windows'], methods: ['getCapabilities', 'createWindow', 'closeAll', 'on'] },
-  FloatingWindow: { docs: 'docs/api/native-ui.md', types: 'types/FloatingWindow.d.ts', source: 'automation/floating_window.go', status: 'conditional', platforms: ['darwin', 'linux', 'windows'], optional: true, methods: ['constructor', 'addButton', 'removeButton', 'updateButton', 'getButtonState', 'show', 'hide', 'close', 'setPosition', 'onButtonClick', 'onError', 'setAlwaysOnTop', 'waitUntilClosed', 'run'] },
+  ui: { docs: 'docs/api/custom-ui.md', types: 'types/custom-ui.d.ts', source: 'automation/custom_ui.go', status: 'conditional', platforms: ['darwin', 'linux', 'windows'], methods: ['getCapabilities', 'createWindow', 'closeAll', 'on'] },
+  FloatingWindow: { docs: 'docs/api/custom-ui.md', types: 'types/FloatingWindow.d.ts', source: 'automation/floating_window.go', status: 'conditional', platforms: ['darwin', 'linux', 'windows'], optional: true, methods: ['constructor', 'addButton', 'removeButton', 'updateButton', 'getButtonState', 'show', 'hide', 'close', 'setPosition', 'onButtonClick', 'onError', 'setAlwaysOnTop', 'waitUntilClosed', 'run'] },
   browser: { docs: 'docs/api/runtime.md', types: 'types/browser.d.ts', source: 'automation/browser.go', status: 'compatibility', platforms: ['darwin', 'linux', 'windows'], methods: ['newPage', 'newContext', 'defaultContext', 'contexts', 'pages', 'lastPage', 'close', 'isClosed'] },
   context: { docs: 'docs/api/runtime.md', types: 'types/browser.d.ts', source: 'automation/browser.go', status: 'compatibility', platforms: ['darwin', 'linux', 'windows'], methods: ['browser', 'newPage', 'adoptPage', 'pages', 'lastPage', 'close', 'isClosed', 'cookies', 'setCookies', 'clearCookies', 'storage', 'setStorage', 'getStorage', 'clearStorage', 'session', 'setSessionValue', 'getSessionValue', 'clearSession'] },
   global: { docs: 'docs/api/global-apis.md', types: 'types/global.d.ts', source: 'polyfills', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: [
     'notify', 'alert', 'confirm', 'prompt', 'copyToClipboard', 'getClipboard', 'AbortController', 'setTimeout', 'clearTimeout',
-    'setInterval', 'clearInterval', 'sleep', 'sleepSeconds', 'requestAnimationFrame',
-    'cancelAnimationFrame',
+    'setInterval', 'clearInterval', 'delay', 'sleep', 'sleepSeconds', 'requestAnimationFrame',
+    'cancelAnimationFrame', 'URL', 'URLSearchParams',
   ] },
 };
 
@@ -113,7 +113,7 @@ const unitBehavior = new Set([
   ...RuntimeAPIObjects.browser.methods.filter((method) => method !== 'close').map((method) => 'browser.' + method),
   ...RuntimeAPIObjects.context.methods.filter((method) => method !== 'close').map((method) => 'context.' + method),
   'global.notify', 'global.alert', 'global.confirm', 'global.prompt',
-  ...['AbortController', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'sleep', 'sleepSeconds', 'requestAnimationFrame', 'cancelAnimationFrame'].map((method) => 'global.' + method),
+  ...['AbortController', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'delay', 'sleep', 'sleepSeconds', 'requestAnimationFrame', 'cancelAnimationFrame', 'URL', 'URLSearchParams'].map((method) => 'global.' + method),
 ]);
 
 const liveBehavior = new Set([

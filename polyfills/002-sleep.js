@@ -1,11 +1,17 @@
 // automation/polyfills/002-sleep.js
 
 (function(global) {
-    // sleep function returns a promise that resolves after the specified delay
-    if (typeof sleep === 'undefined') {
-        global.sleep = function(ms) {
+    // delay is registered by the native Timer so it shares strict validation
+    // and EventLoop ownership with System.delay.
+    if (typeof delay !== 'function') {
+        global.delay = function(ms) {
             return new Promise(resolve => setTimeout(resolve, ms));
         };
+    }
+
+    // sleep remains the backwards-compatible spelling for delay.
+    if (typeof sleep === 'undefined') {
+        global.sleep = global.delay;
     }
 
     // Convenience method for sleeping in seconds

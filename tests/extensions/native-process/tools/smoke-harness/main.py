@@ -36,7 +36,6 @@ SOURCE_INPUT_SUPPLEMENTAL = (
     "examples/native-extensions/go-basic/go.mod",
     "examples/native-extensions/go-basic/main.go",
     "examples/native-extensions/macos-vision/main.swift",
-    "scripts/test_native_process_extensions.sh",
     "tests/extensions/native-process/smoke.js",
     "tests/extensions/native-process/fixtures/ocr/opendesk-ocr-123.png",
     "tests/extensions/native-process/fixtures/ocr/manifest.json",

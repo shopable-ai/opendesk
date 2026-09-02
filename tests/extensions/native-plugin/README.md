@@ -6,7 +6,7 @@ auto-discovery and host-generated immutable JavaScript binding.
 Run on macOS with Go, Python 3, and Xcode Command Line Tools:
 
 ```bash
-./scripts/test_native_extension_plugins.sh
+python3 tests/extensions/native-plugin/tools/proof-harness/main.py
 ```
 
 The harness builds the current `cmd/opendesk`, Go basic extension, and Swift

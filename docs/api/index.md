@@ -38,9 +38,9 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先找窗口，
 - 等待、脱敏读取并移除 OpenDesk 自身通知：[Notifications API](notifications.md)（macOS Experimental）
 - 显示需用户确认的异步原生窗口：[Dialog API](dialog.md)
 - 使用 console、计时器、等待、剪贴板快捷函数等全局能力：[Global APIs](global-apis.md)
-- 调用、安装或编写 manifest 插件：[Native Extension Plugin V1.0.1](native-extension.md)（Experimental；本机 CLI 默认从程序相对目录发现，但必须先安装与实际 CLI 配套的完整 source-free bundle，低层 Native Process V0 仅用于诊断）；作者步骤见 [native-extensions/README.md](../../examples/native-extensions/README.md) 和 [quickstart.js](../../examples/native-extensions/quickstart.js)
+- 调用、安装或编写 manifest 插件：[Native Extension Plugin](native-extension.md)（Experimental；本机 CLI 默认从程序相对目录发现，但必须先安装与实际 CLI 配套的完整 source-free bundle，低层 Native Process V0 仅用于诊断）；作者步骤见 [native-extensions/README.md](../../examples/native-extensions/README.md) 和 [quickstart.js](../../examples/native-extensions/quickstart.js)
 - 从外部服务触发：[HTTP Server API](http-server.md)
-- 显示原生对话框、图标工具栏或受控面板：[Native UI](native-ui.md)
+- 显示原生对话框、图标工具栏或受控面板：[Custom UI](custom-ui.md)
 - 定时执行文件或内联 JavaScript：[Scheduler](scheduler.md)；程序化管理接口：[Scheduler HTTP API](scheduler-api.md)
 - 录制并生成可确定性回放的流程：[OpenDesk Agent-first Recorder MCP API](recorder.md)
 - 理解 legacy / upgraded / playwright：[Runtime Stacks](runtime.md)
@@ -71,13 +71,13 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先找窗口，
 | `console` | JavaScript Runtime | Stable | 日志与事件输出 | [Global APIs](global-apis.md) |
 | `http` | JavaScript Runtime | Stable | 底层 HTTP 请求 | [HTTP and Axios](http.md) |
 | `axios` | JavaScript Runtime | Stable | 日常 HTTP 请求 | [HTTP and Axios](http.md) |
-| `NativeExtensions` | 本机 CLI 默认 | Experimental | 从程序相对目录发现并调用已安装的本地 manifest plugin | [Native Extension Plugin V1.0.1](native-extension.md) |
+| `NativeExtensions` | 本机 CLI 默认 | Experimental | 从程序相对目录发现并调用已安装的本地 manifest plugin | [Native Extension Plugin](native-extension.md) |
 | `notify()` | JavaScript Runtime | Secondary | 系统通知 | [notify](notify.md) |
 | `Notifications` | JavaScript Runtime | Experimental（macOS own-app） | 等待、脱敏读取和移除 OpenDesk 自身通知 | [Notifications API](notifications.md) |
 | `Dialog` / `alert()` / `confirm()` / `prompt()` | JavaScript Runtime | Conditional | 异步原生模态提示与短文本输入 | [Dialog API](dialog.md) |
 | `Sound` | JavaScript Runtime | Secondary | 播放提示音 / 音频文件 | [Sound API](sound.md) |
-| `ui` | JavaScript Runtime | Conditional | 受限 HTML/CSS + JavaScript controller 的原生窗口 | [Native UI](native-ui.md) |
-| `FloatingWindow` | JavaScript Runtime | Conditional | 简单图标工具栏 | [Native UI](native-ui.md) |
+| `ui` | JavaScript Runtime | Conditional | 受限 HTML/CSS + JavaScript controller 的原生窗口 | [Custom UI](custom-ui.md) |
+| `FloatingWindow` | JavaScript Runtime | Conditional | 简单图标工具栏 | [Custom UI](custom-ui.md) |
 | Global APIs | JavaScript Runtime | Stable | 计时器、等待、console 日志、剪贴板快捷函数、取消控制与 URL 参数 | [Global APIs](global-apis.md) |
 | lodash / moment / query-string / cheerio / beautify | JavaScript Runtime | Secondary | 脚本辅助库 | [JS Libraries](libs.md) |
 | `browser` / `context` / upgraded facade | Compatibility stack | Compatibility | 浏览器风格迁移接口 | [Runtime Stacks](runtime.md) |

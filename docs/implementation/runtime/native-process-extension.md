@@ -55,7 +55,7 @@ source inputs: 97 -> 97, changes 0
 - 可直接运行的用户示例：`examples/native-extensions/quickstart.js`
 - Runtime API test：`tests/runtime-api/unit/native-extension.test.js`
 - 跨进程 smoke：`tests/extensions/native-process/`
-- 正式 smoke 入口：`scripts/test_native_process_extensions.sh`
+- 正式 smoke 入口：`python3 tests/extensions/native-process/tools/smoke-harness/main.py`
 
 `NativeExtension.call` 默认不注入。V1 之后只有受信任的本机 CLI script 显式传
 `-experimental-unsafe-native-extension-call` 才启用这个低层兼容入口；
@@ -124,7 +124,7 @@ xcrun swiftc \
 可重复执行的正式入口会创建新的 run directory：
 
 ```bash
-./scripts/test_native_process_extensions.sh
+python3 tests/extensions/native-process/tools/smoke-harness/main.py
 ```
 
 ## 5. 已验证调用

@@ -88,6 +88,14 @@
         return this.then(null, onRejected);
     };
 
+    Promise.prototype.finally = function(onFinally) {
+        const callback = typeof onFinally === 'function' ? onFinally : function() {};
+        return this.then(
+            value => Promise.resolve(callback()).then(() => value),
+            reason => Promise.resolve(callback()).then(() => { throw reason; })
+        );
+    };
+
     Promise.resolve = function(value) {
         return new Promise(resolve => resolve(value));
     };

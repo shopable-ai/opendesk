@@ -86,7 +86,7 @@ L3b First-party Go Runtime primitive
 下列情况优先选择 L3a：能力依赖设备、驱动、vendor SDK 或平台专用库；能力只服务少数设备/部署；
 一次调用可以在 60 秒内有界完成；调用方能够接受 Native Extension V1 的本机信任边界。完整
 manifest、discovery、one-shot process 和错误契约见
-[Native Extension Plugin V1.0.1](../api/native-extension.md)。
+[Native Extension Plugin](../api/native-extension.md)。
 
 只有同时满足“桌面自动化高频、跨应用通用、OS primitive 稳定、可以形成一致 capability/error
 model、维护成本可控”时，才选择 L3b。需要改变 goja Runtime 注册、execution teardown、权限框架，

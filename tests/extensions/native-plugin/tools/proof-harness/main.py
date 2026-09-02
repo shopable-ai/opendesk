@@ -130,7 +130,7 @@ def source_snapshot() -> dict[str, dict[str, object]]:
         ROOT / "tests" / "extensions" / "native-process" / "fixtures" / "ocr" / "manifest.json",
         ROOT / "examples" / "native-extensions" / "quickstart.js",
         ROOT / "examples" / "native-extensions" / "ocr-quickstart.js",
-        ROOT / "scripts" / "test_native_extension_plugins.sh",
+        ROOT / "tests" / "extensions" / "native-plugin" / "tools" / "proof-harness" / "main.py",
         ROOT / "scripts" / "build_macos_app.sh",
         ROOT / "schemas" / "native-extension" / "extension-manifest-v1.schema.json",
         ROOT / "types" / "NativeExtension.d.ts",
@@ -1201,6 +1201,7 @@ def validate_documentation() -> dict[str, object]:
             raise ProofFailure(f"maintained quickstart is missing {token!r}")
     ocr_quickstart = (ROOT / "examples" / "native-extensions" / "ocr-quickstart.js").read_text(encoding="utf-8")
     for token in (
+        "function copyOCRImageIfNeeded()", "function resolveOCRImagePath()",
         "function main()", "NativeExtensions.macosVision.ocr", "File.path(destinationName)",
         "File.copy(source, destination)",
         "./ocr-test.jpg", "./ocr-test.png", "./dist/ocr-test.jpg", "./dist/ocr-test.png",
@@ -1236,7 +1237,7 @@ def validate_documentation() -> dict[str, object]:
 def main() -> int:
     arguments = sys.argv[1:]
     if arguments not in ([], ["--host-only"]):
-        raise ProofFailure("usage: test_native_extension_plugins.sh [--host-only]")
+        raise ProofFailure("usage: python3 tests/extensions/native-plugin/tools/proof-harness/main.py [--host-only]")
     host_only = arguments == ["--host-only"]
     RUN_DIR.mkdir(parents=True, mode=0o700)
     branch_before = run(["git", "branch", "--show-current"]).stdout.strip()

@@ -19,5 +19,5 @@ async function copyText() {
   console.log('copied');
 }
 
-globalShortcut.register('CommandOrControl+Shift+9', copyText);
-console.log('Global shortcut registered: CommandOrControl+Shift+9');
+globalShortcut.register('CommandOrControl+Shift+q', copyText);
+console.log('Global shortcut registered: CommandOrControl+Shift+q');

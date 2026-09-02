@@ -532,7 +532,7 @@
       "name": "ui",
       "source": "native process driver plus EventLoop bridge",
       "status": "conditional",
-      "doc": "native-ui.md",
+      "doc": "custom-ui.md",
       "condition": "always present but dormant by default; local CLI or strict project config authorization is required, while HTTP additionally requires server opt-in, per-request capability declaration, and a loopback peer",
       "platformBehavior": "macOS AppKit/WebKit host; Windows and Linux report available=false and createWindow rejects UNSUPPORTED_PLATFORM",
       "keyMethods": [
@@ -552,8 +552,8 @@
       "name": "FloatingWindow",
       "source": "Button-first facade over the Custom UI driver",
       "status": "conditional",
-      "doc": "native-ui.md",
-      "condition": "injected only when Native UI is explicitly authorized; constructible instances accept orientation horizontal (default, 1-32 ordered buttons with toolbar.maxWidth 60-960pt, maxColumns 1-19 and optional maxRows 1-32 automatic-wrap constraints) or vertical (1-5 ordered buttons in one native column; no toolbar wrapping constraints), 150 reviewed built-in SF Symbols, synchronous or Promise callbacks, post-show state updates, button-level single-flight, and structured callback errors; invalid layout constraints, unknown orientation and overflow are INVALID_SPEC",
+      "doc": "custom-ui.md",
+      "condition": "injected only when Custom UI is explicitly authorized; constructible instances accept orientation horizontal (default, 1-32 ordered buttons with toolbar.maxWidth 60-960pt, maxColumns 1-19 and optional maxRows 1-32 automatic-wrap constraints) or vertical (1-5 ordered buttons in one native column; no toolbar wrapping constraints), 150 reviewed built-in SF Symbols, synchronous or Promise callbacks, post-show state updates, button-level single-flight, and structured callback errors; invalid layout constraints, unknown orientation and overflow are INVALID_SPEC",
       "keyMethods": [
         "addButton",
         "removeButton",
@@ -585,10 +585,13 @@
         "clearTimeout",
         "setInterval",
         "clearInterval",
+        "delay",
         "sleep",
         "sleepSeconds",
         "requestAnimationFrame",
-        "cancelAnimationFrame"
+        "cancelAnimationFrame",
+        "URL",
+        "URLSearchParams"
       ]
     },
     {
@@ -671,7 +674,7 @@
       "notify.md",
       "audio.md",
       "sound.md",
-      "native-ui.md",
+      "custom-ui.md",
       "native-extension.md",
       "global-apis.md",
       "libs.md"

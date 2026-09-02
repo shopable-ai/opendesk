@@ -1,16 +1,17 @@
 ---
-title: Native UI
-description: 使用原生窗口、FloatingWindow 或受限 HTML/CSS 创建受控桌面界面。
+title: Custom UI
+description: 使用 FloatingWindow 或受限 HTML/CSS 创建受控桌面界面。
 order: 13
 ---
 
-# Native UI
+# Custom UI
 
-Native UI 由当前 JavaScript Runtime 控制原生窗口。`FloatingWindow` 直接声明
-简单图标工具栏；`ui.createWindow()` 用受限 HTML/CSS 声明视图。HTML 不能直接取得
+Custom UI 由当前 JavaScript Runtime 控制受控桌面窗口。`FloatingWindow` 直接声明
+简单图标工具栏；`ui.createWindow()` 用受限 HTML/CSS 声明视图。这里的 “Custom” 指脚本
+作者可以声明自己的工具栏或受限视图；“native” 是底层 AppKit / host 的实现方式。HTML 不能直接取得
 `mouse`、`File`、`http` 等全局能力；业务接口仍由 JavaScript listener 调用。
 
-在 macOS 上，Native UI 使用 AppKit；只有 `ui.createWindow()` 使用 WKWebView。Windows 与 Linux 会报告 `available: false`；创建窗口明确抛出 `UNSUPPORTED_PLATFORM`，不会静默成功。需要固定的一次性确认/输入窗口时使用 [Dialog API](dialog.md)：Dialog 由 host 根据结构化参数生成，不能提交 HTML/CSS，也不会成为 Native UI 的第二套 controller。
+在 macOS 上，Custom UI 使用 AppKit；只有 `ui.createWindow()` 使用 WKWebView。Windows 与 Linux 会报告 `available: false`；创建窗口明确抛出 `UNSUPPORTED_PLATFORM`，不会静默成功。需要固定的一次性确认/输入窗口时使用 [Dialog API](dialog.md)：Dialog 由 host 根据结构化参数生成，不能提交 HTML/CSS，也不会成为 Custom UI 的第二套 controller。
 
 ## 选择 UI API
 
@@ -20,7 +21,7 @@ Native UI 由当前 JavaScript Runtime 控制原生窗口。`FloatingWindow` 直
 | 1–32 个简单图标操作按钮 | `new FloatingWindow(options)` | 需要可见文本、表单、任意 HTML/CSS 或动态控件树 |
 | 表单、受限 HTML/CSS 或动态控件树 | `ui.createWindow(spec)` | 仅需图标工具栏 |
 
-## Native UI：启用方式
+## Custom UI：启用方式
 
 `ui` 全局始终存在，但默认 dormant。未授权的 `createWindow()`、`closeAll()` 或 `on()` 会抛出 `UI_DISABLED`。
 
@@ -303,7 +304,7 @@ const panel = await ui.createWindow({
 | `ui.getCapabilities()` | 无 | `Capabilities` | 同步读取当前 execution 的启用、平台、driver 和可用控件能力。 |
 | `ui.createWindow(spec)` | `spec: WindowSpec` | `Promise<WindowHandle>` | 校验窗口声明并创建隐藏窗口。`WindowSpec` 见上文。 |
 | `ui.closeAll()` | 无 | `Promise<void>` | 幂等关闭当前 execution 的所有窗口。 |
-| `ui.on(type, listener)` | `type: EventType \| "*"`、`listener: (event) => void \| Promise<void>` | `() => void` | 监听当前 execution 的所有 Native UI 事件；返回取消订阅函数。 |
+| `ui.on(type, listener)` | `type: EventType \| "*"`、`listener: (event) => void \| Promise<void>` | `() => void` | 监听当前 execution 的所有 Custom UI 事件；返回取消订阅函数。 |
 
 `Capabilities` 的关键字段为：
 
@@ -335,6 +336,14 @@ macOS 上 `available` 还要求随包的 `clawdesk-ui-host` 可发现；缺失�
 | `on(type, listener)` | `type: EventType \| "*"`、`listener` | `() => void` | 仅监听此窗口的事件；返回取消订阅函数。 |
 
 `floating` 窗口使用 nonactivating panel。`show()` 只有在 WindowServer 报告 `onScreen=true` 且 `alpha>0` 后 resolve，并且不会主动取得键盘焦点。`setBounds()` 只有在 WindowServer 的实际边界匹配后 resolve。
+
+`close()` 是终止操作：关闭后不得再通过原 `WindowHandle` 或其
+`ControlHandle` 调用 `show()`、`update()` 等方法；它们会返回 `NOT_FOUND` 或
+`INVALID_STATE`。需要在同一 execution 中再次打开独立工作台时，应在 `close`
+事件中清除保存的句柄，然后用新的 window id 调用 `ui.createWindow()` 创建新的
+窗口。window id 在同一 execution 内始终唯一，已经 `close()` 的 id 也不能复用；
+复用会返回 `DUPLICATE_ID`。`hide()` 不终止窗口，适用于稍后以相同句柄 `show()`
+的暂时收起场景。
 
 `WindowState` 包含 `id`、`sessionId`、`status`（`creating` / `hidden` / `visible` / `closing` / `closed` / `failed`）、`visible`、`bounds`、`alwaysOnTop`、`draggable`、可选的 `hostPid` / `nativeWindowId`、以及 `onScreen`、`layer`、`alpha`、`revision`、`lastSequence`。
 
@@ -380,9 +389,9 @@ unsubscribe();
 
 事件队列有界。只有 `input`、`move`、`resize` 可以在不跨越 click/change/close 屏障时合并；click/change/close 不会静默丢失。队列满时 execution 以 `UI_EVENT_QUEUE_OVERFLOW` 失败。
 
-## Native UI：错误
+## Custom UI：错误
 
-Native UI 错误保留下列字段：
+Custom UI 错误保留下列字段：
 
 ```js
 try {
@@ -404,7 +413,7 @@ try {
 | `UI_DISABLED` | execution 没有 UI 授权。 |
 | `UNSUPPORTED_PLATFORM` / `UNSUPPORTED_CAPABILITY` | 当前平台、host 或控件能力不支持请求。 |
 | `INVALID_SPEC` | `FloatingWindow.constructor`、`addButton`、`createWindow` 或 update 参数不合法。 |
-| `DUPLICATE_ID` / `NOT_FOUND` | 重复声明 id，或请求不存在的窗口/控件/按钮。 |
+| `DUPLICATE_ID` / `NOT_FOUND` | 重复声明 id（包括同一 execution 中已关闭窗口的 id），或请求不存在的窗口/控件/按钮。 |
 | `INVALID_STATE` / `UI_BUSY` / `UI_CANCELED` | 在错误生命周期阶段操作、创建进行中或 execution 被取消。 |
 | `UI_EVENT_QUEUE_OVERFLOW` / `UI_DRIVER_FAILURE` / `UI_HOST_NOT_FOUND` | 事件队列、native driver 或原生 host 失败。 |
 | `UI_CALLBACK_FAILED` | 按钮 callback 抛错或拒绝；注册 `toolbar.onError()` 可处理。 |

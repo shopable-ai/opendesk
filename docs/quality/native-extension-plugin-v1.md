@@ -42,7 +42,7 @@ Not Verified**. Files under `.runtime/` are local acceptance evidence only.
 
 ## Historical candidate evidence — invalid for the current source
 
-The following `./scripts/test_native_extension_plugins.sh --host-only` record
+The following `python3 tests/extensions/native-plugin/tools/proof-harness/main.py --host-only` record
 previously exited 0, but its source-input snapshot is stale. It is retained only
 to make the freshness failure auditable.
 

@@ -2,11 +2,27 @@
 
 本目录用于组织最小测试与回归方案说明。
 
+开发者需要按功能查找测试脚本、入口命令和已知失败时，先看
+[`docs/quality/developer-test-catalog.md`](../docs/quality/developer-test-catalog.md)。
+
 ## JavaScript Runtime API 一致性
 
 OpenDesk JavaScript Runtime API Conformance Lab 位于 `tests/runtime-api/`，按当前 Runtime、
 `docs/api/`、`docs/api/runtime-api.ai.json` 与 `types/*.d.ts` 维护 JavaScript
 contract、unit、safe smoke 和 opt-in macOS Safari 真实事件测试：
+
+优先直接运行 JavaScript：
+
+```bash
+./dist/opendesk -script tests/runtime-api/contract.js -console-mode script
+./dist/opendesk -script tests/runtime-api/unit.js -console-mode script
+./dist/opendesk -script tests/runtime-api/smoke.js -console-mode script
+```
+
+全部测试 JS、单文件命令和 runner 对应关系见
+[`docs/quality/developer-test-catalog.md`](../docs/quality/developer-test-catalog.md)。
+
+正式 gate 仍使用唯一的编排入口：
 
 ```bash
 ./scripts/test_runtime_apis.sh smoke
@@ -29,7 +45,7 @@ Experimental Native Process Extension 的 Go/Swift build、真实 Apple Vision O
 失败矩阵、Evidence 与源码隔离 smoke 位于 `tests/extensions/native-process/`：
 
 ```bash
-./scripts/test_native_process_extensions.sh
+python3 tests/extensions/native-process/tools/smoke-harness/main.py
 ```
 
 运行结果统一写入 `.runtime/tests/extensions/native-process/<runId>/`；该 Prototype
@@ -42,7 +58,7 @@ zero-child discovery、portable/current-user/`.app` roots、真实 Apple Vision 
 源码隔离 package 和 Evidence 隐私验收位于 `tests/extensions/native-plugin/`：
 
 ```bash
-./scripts/test_native_extension_plugins.sh
+python3 tests/extensions/native-plugin/tools/proof-harness/main.py
 ```
 
 结果写入 `.runtime/tests/extensions/native-plugin/<runId>/`。V1 仍是 Experimental；

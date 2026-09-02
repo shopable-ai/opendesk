@@ -237,7 +237,7 @@ execution cancel、timeout、HTTP server shutdown、native host crash 和 Runtim
 | `Sound` | 音频提示。 |
 
 Dialog 固定使用 host 根据结构化参数生成的布局；复杂、持续交互的界面请使用
-[Native UI](native-ui.md)，不要把 Dialog 当 HTML container。
+[Custom UI](custom-ui.md)，不要把 Dialog 当 HTML container。
 
 ## Dialog：实现边界
 
