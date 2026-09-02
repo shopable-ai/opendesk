@@ -260,7 +260,8 @@ func (a *Audio) GetCapabilities() map[string]interface{} {
 			},
 		},
 		"playback": map[string]interface{}{
-			"namespace": "Sound", "blocking": true, "formats": []string{"mp3", "wav"},
+			"namespace": "Sound", "blocking": true, "nonBlocking": true, "controllable": true,
+			"formats": []string{"mp3", "wav"},
 		},
 		"notes": capability.Notes,
 	}

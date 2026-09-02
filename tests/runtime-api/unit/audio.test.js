@@ -14,6 +14,9 @@
     equal(capabilities.capture.systemAudio.supported, false, 'system audio capture must remain unavailable');
     equal(capabilities.devices.setDefaultOutput, false, 'default-output mutation must not be advertised');
     equal(capabilities.playback.namespace, 'Sound', 'playback compatibility namespace');
+    equal(capabilities.playback.blocking, true, 'legacy playback must remain blocking');
+    equal(capabilities.playback.nonBlocking, true, 'playback sessions must be non-blocking');
+    equal(capabilities.playback.controllable, true, 'playback sessions must be controllable');
   });
 
   test({ name: 'Audio rejects invalid volume before touching the host', tier: 'unit', covers: ['Audio.setVolume'] }, async () => {

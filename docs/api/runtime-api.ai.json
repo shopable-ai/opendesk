@@ -510,7 +510,7 @@
       ],
       "volumeUnit": "inclusive scalar 0..1 with hardware readback",
       "capture": "not implemented; microphone and systemAudio are explicitly false in capability discovery",
-      "soundCompatibility": "Sound remains the blocking MP3/WAV playback namespace",
+      "soundCompatibility": "Sound keeps blocking MP3/WAV compatibility methods and adds execution-scoped controllable playback sessions",
       "platformBehavior": "darwin+cgo uses CoreAudio; non-CGO macOS and other platforms report unavailable and reject instead of silent no-op"
     },
     {
@@ -525,7 +525,12 @@
         "playError",
         "playCaptcha",
         "playSound",
-        "play"
+        "play",
+        "start",
+        "playAsync",
+        "stop",
+        "stopAll",
+        "getActive"
       ]
     },
     {

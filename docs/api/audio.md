@@ -64,7 +64,10 @@ macOS backend 使用 CoreAudio HAL 的默认输入/输出与 device-list 属性�
 
 `Sound.playSuccess()`、`Sound.playFail()`、`Sound.playWarning()`、`Sound.playError()`、
 `Sound.playCaptcha()`、`Sound.playSound(path)` 和 `Sound.play(path)` 原样保留。它们仍是同步、
-等待播放结束的 Secondary API；本轮不借 Audio control 任务改变旧执行时序，也不新增另一套播放器。
+等待播放结束的 Secondary API。长音频的非阻塞控制由 `Sound.start(path, options)` /
+`Sound.playAsync(path, options)` 及其 `SoundPlayback` 句柄提供；`Audio` 不复制这套播放器。
+因此 `Audio.getCapabilities().playback.blocking` 只描述旧兼容方法，`nonBlocking` 和
+`controllable` 描述新的 Sound 会话接口。
 
 ## Capture 与默认设备切换
 

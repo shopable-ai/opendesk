@@ -1,24 +1,14 @@
+// Run from the repository root:
+// go run ./cmd/opendesk -script examples/sound.js -console-mode script
 
-console.log("Playing captcha sound...")
+// Legacy methods are synchronous and return after the sound finishes.
 Sound.playCaptcha();
+Sound.play('public/done.mp3');
+Sound.playSuccess();
+Sound.playFail();
+Sound.playWarning();
+Sound.playError();
+Sound.playSound('public/ding.mp3');
 
-console.log("Playing done sound...")
-// Custom sounds will also have the 2-second delay
-Sound.play("public/done.mp3");
-await sleep(2000);
-
-console.log("playSuccess sound...")
-// These will now have a 2-second pause between sounds
-Sound.playSuccess(); // Plays done.mp3
-await sleep(2000);
-Sound.playFail();    // Plays fail.mp3
-await sleep(2000);
-Sound.playWarning(); // Plays ding.mp3
-await sleep(2000);
-
-// Custom sounds will also have the 2-second delay
-Sound.playSound("public/ding.mp3");
-
-await sleep(2000);
-Sound.play("public/fail.mp3");
-await sleep(2000);
+// For long-running or controllable playback, see:
+// go run ./cmd/opendesk -script examples/sound-playback.js -console-mode script

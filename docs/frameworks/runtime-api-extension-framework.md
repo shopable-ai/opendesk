@@ -231,6 +231,10 @@ Raw Bridge 不属于普通脚本的稳定 API。
 - 多个原生方法组合。
 - 公开对象所有权。
 
+Polyfill 不是 native API 的默认归属地。只有当能力主要是公开 API 的 JS 组合、默认值、兼容
+适配或参数包装时，才增加 `polyfills/*.js`；需要平台驱动、统一生命周期或真实资源清理的能力，
+应回到 native Runtime owner。
+
 ### Public API
 
 普通用户最终调用的对象，例如：
@@ -241,6 +245,21 @@ window
 Vision
 axios
 ```
+
+#### Sound / Audio 的当前放置
+
+`Sound` 和 `Audio` 是第一方 native Runtime primitive，直接由统一 Runtime Builder 注入为 JS
+全局；它们当前不由 `polyfills/` 提供，也不自动生成 HTTP/MCP 接口。其 owner 与同步资产为：
+
+| Public global | Native owner | Polyfill | JS contract | Runtime test |
+| --- | --- | --- | --- | --- |
+| `Sound` | `automation/sound.go` + `automation/utils.go` | 无 | `docs/api/sound.md`、`types/Sound.d.ts` | `tests/runtime-api/unit/sound.test.js` |
+| `Audio` | `automation/audio.go` + `automation/utils.go` | 无 | `docs/api/audio.md`、`types/Audio.d.ts` | `tests/runtime-api/unit/audio.test.js` |
+
+`Sound.start()` / `playAsync()` 的句柄、完成通知、停止和 execution teardown 都属于 native
+lifecycle；不得在 polyfill 中用计时器伪造这些状态，也不得再注册同名 `Sound`。如果未来增加
+纯 JavaScript 的便捷组合，应使用不同的 facade 名称或经过 owner 审查的增强层，并同步更新
+Runtime composition 文档。
 
 ## 四、公开对象只有一个 owner
 
@@ -331,6 +350,7 @@ RuntimeRegistry
 ├── file
 ├── storage
 ├── sound
+├── audio
 ├── imageColor
 ├── OCR
 ├── Vision

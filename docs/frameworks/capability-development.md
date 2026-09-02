@@ -122,3 +122,17 @@ HTML Benchmark 用于快速复现基础问题；真实应用用于证明能力�
 - [自动化总体框架](./automation-framework.md)：定义所有 Level 共用的系统分层与执行闭环。
 - [应用自动化开发框架](./app-development-framework.md)：进入真实应用后，具体应用应该如何拆解和开发。
 - `../quality/`：各 Level 的测试、质量门禁和 Evidence 规则。
+
+## Runtime primitive 的开发落点
+
+系统级能力要先判断它属于 native primitive 还是 JavaScript 组合层：
+
+| 能力形态 | 开发位置 | 正式验证 |
+| --- | --- | --- |
+| 平台驱动、真实资源、统一生命周期 | `automation/` native owner + Runtime 注册 | `tests/runtime-api/*.js`，必要时再加内部 seam 验证 |
+| 多个公开 API 的参数/默认值/兼容组合 | `polyfills/` 或用户 helper | JS unit / example |
+| 长时任务、可取消任务、完成通知 | native lifecycle 或明确的 Promise/task bridge | start/status/cancel/result 及 teardown |
+
+`Sound` 是第一类示例：`Sound.start()` / `playAsync()` 直接由 native Runtime 注入，负责播放
+句柄和清理；`polyfills/` 不应复制它。公开 Runtime 行为测试放在 `tests/runtime-api/`，不要把
+可由 JavaScript 验证的公共接口测试散落到 native owner 目录的常规 `test.go` 文件中。

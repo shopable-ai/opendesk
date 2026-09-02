@@ -75,7 +75,7 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先找窗口，
 | `notify()` | JavaScript Runtime | Secondary | 系统通知 | [notify](notify.md) |
 | `Notifications` | JavaScript Runtime | Experimental（macOS own-app） | 等待、脱敏读取和移除 OpenDesk 自身通知 | [Notifications API](notifications.md) |
 | `Dialog` / `alert()` / `confirm()` / `prompt()` | JavaScript Runtime | Conditional | 异步原生模态提示与短文本输入 | [Dialog API](dialog.md) |
-| `Sound` | JavaScript Runtime | Secondary | 播放提示音 / 音频文件 | [Sound API](sound.md) |
+| `Sound` | JavaScript Runtime | Secondary | 播放并控制提示音 / 音频文件 | [Sound API](sound.md) |
 | `ui` | JavaScript Runtime | Conditional | 受限 HTML/CSS + JavaScript controller 的原生窗口 | [Custom UI](custom-ui.md) |
 | `FloatingWindow` | JavaScript Runtime | Conditional | 简单图标工具栏 | [Custom UI](custom-ui.md) |
 | Global APIs | JavaScript Runtime | Stable | 计时器、等待、console 日志、剪贴板快捷函数、取消控制与 URL 参数 | [Global APIs](global-apis.md) |

@@ -57,7 +57,11 @@ declare global {
     };
     playback: {
       namespace: "Sound";
+      /** Legacy play* / playSound / play methods block until completion. */
       blocking: true;
+      /** start() and playAsync() return without blocking the Runtime event loop. */
+      nonBlocking: true;
+      controllable: true;
       formats: string[];
     };
     notes: string;

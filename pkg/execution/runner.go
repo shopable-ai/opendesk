@@ -354,7 +354,9 @@ func runJavaScript(req Request, emitter *Emitter) error {
 			emitter.Emit(EventCategoryMeta, EventLevelInfo, EventSourceRuntime, "cleanup", "runtime async resources drained", map[string]any{
 				"timers": timers, "workers": workers, "promiseCallbacks": callbacks,
 				"httpWorkers": resources.HTTPWorkers, "httpCallbacks": resources.HTTPCallbacks,
-				"uiWorkers": resources.UIWorkers, "uiPending": resources.UIPending,
+				"soundWorkers": resources.SoundWorkers, "soundPending": resources.SoundPending,
+				"soundPlaybacks": resources.SoundPlaybacks,
+				"uiWorkers":      resources.UIWorkers, "uiPending": resources.UIPending,
 				"uiQueued": resources.UIQueued, "uiWindows": resources.UIWindows,
 				"uiListeners": resources.UIListeners, "uiDriverSinks": resources.UIDriverSinks,
 				"uiHostProcesses":  resources.UIHostProcesses,

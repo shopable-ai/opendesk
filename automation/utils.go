@@ -70,6 +70,7 @@ type InitJSOptions struct {
 type RuntimeLifecycle struct {
 	Timers         *Timer
 	HTTP           *HTTPClient
+	Sound          *Sound
 	UI             *CustomUIRuntime
 	GlobalShortcut *GlobalShortcutRuntime
 	Events         *DesktopEventsRuntime
@@ -83,6 +84,9 @@ type RuntimeLifecycle struct {
 func (l *RuntimeLifecycle) Wait() {
 	if l != nil && l.HTTP != nil {
 		l.HTTP.Wait()
+	}
+	if l != nil && l.Sound != nil {
+		l.Sound.Wait()
 	}
 	if l != nil && l.UI != nil {
 		l.UI.Wait()
@@ -109,6 +113,9 @@ func (l *RuntimeLifecycle) CancelAsync() {
 	}
 	if l != nil && l.UI != nil {
 		l.UI.CancelAsync()
+	}
+	if l != nil && l.Sound != nil {
+		l.Sound.Close()
 	}
 	if l != nil && l.GlobalShortcut != nil {
 		l.GlobalShortcut.Close()
@@ -138,6 +145,10 @@ func (l *RuntimeLifecycle) AsyncCounts() (timers int, workers int64, callbacks i
 	if l.HTTP != nil {
 		workers = l.HTTP.ActiveWorkers()
 		callbacks = l.HTTP.PendingCallbacks()
+	}
+	if l.Sound != nil {
+		soundWorkers, _, _ := l.Sound.ResourceCounts()
+		workers += soundWorkers
 	}
 	if l.UI != nil {
 		uiWorkers, uiCallbacks := l.UI.AsyncCounts()
@@ -190,6 +201,9 @@ type RuntimeResourceCounts struct {
 	CaptureSessions    int
 	AppWorkers         int64
 	AppPending         int
+	SoundWorkers       int64
+	SoundPending       int
+	SoundPlaybacks     int
 }
 
 func (l *RuntimeLifecycle) ResourceCounts() RuntimeResourceCounts {
@@ -226,6 +240,9 @@ func (l *RuntimeLifecycle) ResourceCounts() RuntimeResourceCounts {
 	if l.App != nil {
 		counts.AppWorkers, counts.AppPending = l.App.ResourceCounts()
 	}
+	if l.Sound != nil {
+		counts.SoundWorkers, counts.SoundPending, counts.SoundPlaybacks = l.Sound.ResourceCounts()
+	}
 	return counts
 }
 
@@ -236,15 +253,16 @@ func (c RuntimeResourceCounts) IsZero() bool {
 		c.ShortcutBindings == 0 && c.ShortcutPending == 0 &&
 		c.EventSubscriptions == 0 && c.EventPending == 0 &&
 		c.CaptureWorkers == 0 && c.CapturePending == 0 && c.CaptureSessions == 0 &&
-		c.AppWorkers == 0 && c.AppPending == 0
+		c.AppWorkers == 0 && c.AppPending == 0 &&
+		c.SoundWorkers == 0 && c.SoundPending == 0 && c.SoundPlaybacks == 0
 }
 
 func (c RuntimeResourceCounts) String() string {
-	return fmt.Sprintf("timers=%d httpWorkers=%d httpCallbacks=%d uiWorkers=%d uiPending=%d uiQueued=%d uiWindows=%d uiListeners=%d uiDriverSinks=%d uiHostProcesses=%d shortcutBindings=%d shortcutPending=%d eventSubscriptions=%d eventPending=%d captureWorkers=%d capturePending=%d captureSessions=%d appWorkers=%d appPending=%d",
+	return fmt.Sprintf("timers=%d httpWorkers=%d httpCallbacks=%d uiWorkers=%d uiPending=%d uiQueued=%d uiWindows=%d uiListeners=%d uiDriverSinks=%d uiHostProcesses=%d shortcutBindings=%d shortcutPending=%d eventSubscriptions=%d eventPending=%d captureWorkers=%d capturePending=%d captureSessions=%d appWorkers=%d appPending=%d soundWorkers=%d soundPending=%d soundPlaybacks=%d",
 		c.Timers, c.HTTPWorkers, c.HTTPCallbacks, c.UIWorkers, c.UIPending, c.UIQueued,
 		c.UIWindows, c.UIListeners, c.UIDriverSinks, c.UIHostProcesses, c.ShortcutBindings, c.ShortcutPending,
 		c.EventSubscriptions, c.EventPending, c.CaptureWorkers, c.CapturePending, c.CaptureSessions,
-		c.AppWorkers, c.AppPending)
+		c.AppWorkers, c.AppPending, c.SoundWorkers, c.SoundPending, c.SoundPlaybacks)
 }
 
 func emitRuntimeLog(sink EventSink, level, message string, fields map[string]any) {
@@ -735,9 +753,7 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 	appStorageMethods := AutoMapObject(runtime, appStorage)
 	runtime.Set("AppStorage", appStorageMethods)
 
-	sound := NewSound()
-	soundMethods := AutoMapObject(runtime, sound)
-	runtime.Set("Sound", soundMethods)
+	sound := registerSound(runtime, opts)
 	registerAudio(runtime, opts)
 
 	imageColor := NewImageColor()
@@ -835,7 +851,7 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 		return fmt.Errorf("failed to bind Screen.screenshot: %v", err)
 	}
 	if opts.OnReady != nil {
-		opts.OnReady(&RuntimeLifecycle{Timers: timer, HTTP: httpClient, UI: uiRuntime, GlobalShortcut: globalShortcut, Events: events, ScreenCapture: screenCapture, App: appRuntime, Notifications: notificationsRuntime})
+		opts.OnReady(&RuntimeLifecycle{Timers: timer, HTTP: httpClient, Sound: sound, UI: uiRuntime, GlobalShortcut: globalShortcut, Events: events, ScreenCapture: screenCapture, App: appRuntime, Notifications: notificationsRuntime})
 	}
 	return nil
 }

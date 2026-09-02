@@ -67,7 +67,7 @@ order: 1
 16. `clipboard.md`：系统剪贴板对象与文本读写
 17. `global-apis.md`：无需 import 即可调用的全局接口、console、等待、计时器和参数工具
 18. `runtime.md`：stack 选择、兼容边界与 recipe 的 `Execution` 上下文
-19. `sound.md`：播放内置提示音或本地音频文件
+19. `sound.md`：播放并控制内置提示音或本地音频文件
 20. `custom-ui.md`：Dialog、FloatingWindow 和受限 HTML/CSS 原生窗口的选择与调用
 21. [native-extension.md](native-extension.md)：本机 CLI 默认提供、仅程序相对目录 discovery 的 Native Extension Plugin V1；必须先安装与实际 CLI 配套的完整 source-free bundle，底层复用 one-shot Native Process Protocol V0
 22. [examples/native-extensions/README.md](../../examples/native-extensions/README.md)：插件作者 build/package、source-free bundle 与程序相对安装；业务调用脚本为 [quickstart.js](../../examples/native-extensions/quickstart.js)

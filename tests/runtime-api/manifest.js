@@ -73,7 +73,7 @@ globalThis.RuntimeAPIObjects = {
     'hasColor', 'isGray', 'getSize', 'save', 'findRedChannel', 'findGreenChannel',
     'findBlueChannel', 'toRGB', 'toRGBA', 'toHSL', 'toHSLA', 'isColorSimilar', 'analyzeLayout',
   ] },
-  Sound: { docs: 'docs/api/sound.md', types: 'types/Sound.d.ts', source: 'automation/sound.go', status: 'secondary', platforms: ['darwin', 'linux', 'windows'], methods: ['playSuccess', 'playFail', 'playWarning', 'playError', 'playCaptcha', 'playSound', 'play'] },
+  Sound: { docs: 'docs/api/sound.md', types: 'types/Sound.d.ts', source: 'automation/sound.go', status: 'secondary', platforms: ['darwin', 'linux', 'windows'], methods: ['playSuccess', 'playFail', 'playWarning', 'playError', 'playCaptcha', 'playSound', 'play', 'start', 'playAsync', 'stop', 'stopAll', 'getActive'] },
   Audio: { docs: 'docs/api/audio.md', types: 'types/Audio.d.ts', source: 'automation/audio.go', status: 'experimental', platforms: ['darwin'], methods: [
     'getVolume', 'setVolume', 'isMuted', 'mute', 'unmute', 'toggleMute', 'getOutputDevices',
     'getInputDevices', 'getDefaultOutput', 'getDefaultInput', 'getCapabilities',
@@ -106,7 +106,7 @@ const unitBehavior = new Set([
   ...RuntimeAPIObjects.console.methods.map((method) => 'console.' + method),
   'http.request', 'NativeExtensions.list', 'NativeExtensions.get', 'NativeExtensions.diagnostics', 'OCR.extractText', 'Vision.getCapabilities', 'Vision.analyzeLayout', 'Vision.annotateRegions',
   ...RuntimeAPIObjects.ImageColor.methods.map((method) => 'ImageColor.' + method),
-  'Sound.playSound', 'Sound.play',
+  'Sound.playSound', 'Sound.play', 'Sound.start', 'Sound.playAsync', 'Sound.stop', 'Sound.stopAll', 'Sound.getActive',
   'Audio.setVolume', 'Audio.getCapabilities',
   ...RuntimeAPIObjects.Dialog.methods.map((method) => 'Dialog.' + method),
   ...RuntimeAPIObjects.ui.methods.map((method) => 'ui.' + method),
@@ -169,6 +169,7 @@ const restricted = {
   'context.close': 'would close the singleton compatibility context used by later tests',
 };
 for (const method of ['playSuccess', 'playFail', 'playWarning', 'playError', 'playCaptcha']) restricted['Sound.' + method] = 'plays audible system output';
+for (const method of ['start', 'playAsync', 'stop', 'stopAll']) restricted['Sound.' + method] = 'starts or changes audible system output; use a dedicated playback lifecycle smoke';
 for (const method of RuntimeAPIObjects.Audio.methods.filter((method) => method !== 'getCapabilities')) {
   restricted['Audio.' + method] = 'depends on or changes host audio device state; dedicated macOS smoke must restore control state and redact device names and UIDs';
 }

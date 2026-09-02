@@ -53,6 +53,7 @@ Camera、Bluetooth、USB、Serial、Printer、Wi-Fi/VPN 管理等外围系统能
 11. `TASK-012-notification-interaction.md` — P2
 12. `TASK-013-system-session-control.md` — P2
 13. `TASK-014-native-extension-boundaries.md` — P3 architecture/defer
+14. `TASK-015-sound-playback-lifecycle.md` — P1, extend existing Sound lifecycle
 
 `CODEX-EXECUTION-GOAL.md` 是 Codex 单任务执行入口，不是功能任务卡。
 
