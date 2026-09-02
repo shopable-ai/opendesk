@@ -17,6 +17,7 @@ order: 10
 | --- | --- | --- |
 | JavaScript Runtime 公共契约、参数、返回值和用户可观察生命周期 | `tests/runtime-api/unit/<namespace>.test.js` | 正式入口是 `./scripts/test_runtime_apis.sh unit`；必须以 `docs/api/` 为契约来源。 |
 | 需要真实窗口、权限、音频设备或外部应用的 JS 场景 | `tests/runtime-api/live/` 或对应 `tests/<domain>/` | 运行输出写入 `.runtime/tests/<domain>/`，不写回源码目录。 |
+| 只依赖 exported Go API 的确定性领域、模型或服务黑盒 | `tests/<domain>/*.go`，使用 `package <owner>_test` | 与实现物理分离；编译器禁止它们重新依赖未导出实现。 |
 | native backend、纯 Go 算法、包内私有 lifecycle / EventLoop seam | 与实现同包的 `*_test.go` | 允许访问未导出实现；不能替代上面的 JS 公共契约测试。 |
 | 独立 Go 生成器或测试工具 | `tests/<domain>/tools/<tool>/` | 作为工具包运行，不与被测 Go package 的白盒测试混放。 |
 
@@ -24,6 +25,22 @@ order: 10
 公共接口、又不需要私有 backend 或 lifecycle seam，应删除 Go 重复部分，并把行为写入对应的
 `tests/runtime-api/*.test.js`。`automation/sound_test.go` 已按此规则移除；不要为了“移动到
 tests”而破坏 package-private 测试的访问边界。
+
+每个现有或已迁移的 Go 测试到底执行哪一种操作，见[逐文件分类清单的执行账本](go-test-file-classification.md#执行账本标签就是逐文件操作码)。它把每一行的处置标签解释为已完成动作和验收命令：`MOVE_TOOL`
+代表旧 `_test.go` 已从原路径消失，`SPLIT_JS_CONTRACT` 代表 Go seam 仍在原包而 JS 契约已拆出，
+`KEEP_PACKAGE`、`OPT_IN_LIVE` 和 `VENDOR_ONLY` 留在原路径则是有意的边界，不是待迁移遗漏。
+
+本轮完整逐文件结论见 [Go 测试逐文件分类清单](go-test-file-classification.md)：迁移前口径 145，迁移 3 个伪测试工具后当前仍为 142；其中 `KEEP_PACKAGE=85`、`MOVE_GO_BLACKBOX=29`、`SPLIT_JS_CONTRACT=14`、`OPT_IN_LIVE=2`、`VENDOR_ONLY=4`、`ARCHIVE_ONLY=8`。前 29 项已从 `automation/` 或 `pkg/` 移到顶层 `tests/`，不是仅改标签。机器可复现的闭合检查为：
+
+```bash
+node scripts/audit_test_architecture.js
+```
+
+它核对每个当前 `_test.go` 均有唯一结论，并要求迁移前 145 行逐文件记录都含
+`privateAccess`、测试边界、外部依赖、断言价值和具体理由；14 个 `SPLIT_JS_CONTRACT` 必须引用
+实际存在的 Runtime JS 测试，MOVE/live/vendor/archive 的目标或隔离条件也必须闭合。审计同时
+检查伪测试旧路径已消失、工具目标存在、根目录没有 `temp/`、Runtime catalog 的 docs/types
+存在，并把报告写到 `.runtime/tests/test-architecture/audit.json`。
 
 命令分两层：直接命令用于复现用户实际运行路径，必须使用文档指定的 `./opendesk` 或
 `./dist/opendesk`；Shell gate 用于完整 catalog、run context、跨步骤编排和正式证据。两者不能
@@ -78,6 +95,15 @@ Runtime API negative：
 ./dist/opendesk -script tests/runtime-api/negative.js -console-mode script
 ```
 
+Clipboard 富文本粘贴 fixture：
+
+```text
+./opendesk -script examples/clipboard/rich-paste-fixture.js -console-mode script
+```
+
+脚本写入 `text/plain` 和 `text/html`，不会自动粘贴、清空或恢复剪贴板；可手动粘贴到目标
+应用检查纯文本 fallback 和 HTML 样式。完整接口说明见 [`docs/api/clipboard.md`](../api/clipboard.md)。
+
 Runtime API 其他专用 JS：
 
 ```text
@@ -127,11 +153,15 @@ go run -tags opencv ./cmd/opendesk -script tests/opencv/image_color_opencv_test.
 
 ### WeChat 布局识别
 
+Runtime 公共接口测试使用 JavaScript；下面的 Go 命令仅用于生成固定图片或对已有截图做离线
+像素标注，不是 `go test`，也不替代 `tests/runtime-api/`。
+
 先生成固定图片：
 
 ```text
 go run ./tests/wechat/tools/generate-simple-image
 go run ./tests/wechat/tools/generate-mock-image
+go run ./tests/automation/tools/image-layout-lab all
 ```
 
 简化图片：
@@ -175,6 +205,12 @@ go run ./tests/wechat/tools/generate-mock-image
 
 ```text
 ./dist/opendesk -script tests/wechat/wechat_visualization.js -console-mode script
+```
+
+对已捕获的 WeChat 截图运行可选的离线像素标注：
+
+```text
+go run ./tests/wechat/tools/visualize-layout --image .runtime/tests/wechat/wechat_validation/wechat_original.png --output .runtime/tests/wechat/wechat_validation
 ```
 
 ### LocateAnything
@@ -387,6 +423,8 @@ tests/extensions/native-process/smoke.js
 ./dist/opendesk -script tests/wechat/具体文件名.js -console-mode script
 ```
 
+这批历史/探索脚本不是统一 acceptance gate：部分脚本以 `catch(console.error)` 结束，只适合诊断和人工观察，不能因为进程退出码为 0 就记为测试通过。正式结论只来自有断言、失败退出、固定输入和 `.runtime` Evidence 的入口（例如 `run_e2e_test.sh` 或 Runtime API runner）。
+
 静态图片、算法和可视化：
 
 ```text
@@ -466,6 +504,7 @@ Runtime API 正式 gate（默认 mode 是 `smoke`）：
 ./scripts/test_runtime_apis.sh smoke
 ./scripts/test_runtime_apis.sh coverage
 ./scripts/test_runtime_apis.sh negative
+./scripts/test_runtime_apis.sh sound-cancel
 ./scripts/test_runtime_apis.sh live
 ./scripts/test_runtime_apis.sh custom-ui-config
 ./scripts/test_runtime_apis.sh custom-ui
@@ -479,6 +518,8 @@ run-local binary。只有要锁定已有二进制时才写，例如：
 OPENDESK_BINARY=./dist/opendesk ./scripts/test_runtime_apis.sh smoke
 ```
 
+`sound-cancel` 会生成静音 WAV、启动一次同步播放并向当前 run-local CLI 发送 SIGINT，用于证明阻塞 native 调用能取消且 Sound 资源归零。它会短暂初始化主机音频设备，属于显式运行的专用 lifecycle smoke，不包含在普通 `unit` 中。
+
 通知图标和全局快捷键必须指定实际 macOS binary，保留变量是为了避免测错程序：
 
 ```text
@@ -489,6 +530,7 @@ OPENDESK_BINARY=./dist/opendesk ./tests/runtime-api/global-shortcut-smoke-darwin
 其他正式测试或编排：
 
 ```text
+node scripts/audit_test_architecture.js
 ./scripts/test_app_lifecycle.sh
 ./scripts/test_app_icons.sh
 ./scripts/test_recorder.sh
@@ -504,6 +546,13 @@ node tests/mcp/tools/guard-smoke/main.js --binary ./dist/opendesk-mcp --evidence
 node tests/mcp/tools/macos-smoke/main.js --binary ./dist/opendesk-mcp --evidence .runtime/tests/mcp/macos-smoke
 python3 tests/locateanything/scripts/run_stage_01_env.py
 python3 tests/locateanything/scripts/run_stage_05_report.py
+```
+
+直接读取真实 CoreAudio 或 macOS pasteboard 的两个 Go case 不属于默认 package 通过结论，只有显式 opt-in 才运行：
+
+```text
+OPENDESK_LIVE_AUDIO_TEST=1 go test ./automation -run '^TestDarwinAudioDeviceEnumerationMetadataDecodes$' -count=1
+OPENDESK_LIVE_CLIPBOARD_TEST=1 go test ./automation -run '^TestDarwinRichClipboardMetadataCanBeReadWithoutContent$' -count=1
 ```
 
 旧兼容入口仍保留，但不维护第二套测试实现：

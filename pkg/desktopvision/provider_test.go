@@ -243,3 +243,12 @@ func writeFakeCodex(t *testing.T, dir string, cfg fakeCodexConfig) string {
 func shellQuote(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
 }
+
+func samplePerception(capturedAt time.Time) Perception {
+	return Perception{
+		App:     "Calculator",
+		Window:  Window{Title: "Calculator", BoundsScreen: ScreenBBox{100, 80, 500, 380}},
+		Image:   Image{Size: ImageSize{Width: 800, Height: 600}, Hash: "sha256:test", CapturedAt: capturedAt},
+		Display: Display{ID: "main", Scale: 2, Bounds: ScreenBBox{0, 0, 1440, 900}},
+	}
+}
