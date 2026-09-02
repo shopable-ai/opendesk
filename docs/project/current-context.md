@@ -1,6 +1,6 @@
 # OpenDesk 当前上下文
 
-- 更新时间：2026-08-31
+- 更新时间：2026-09-02
 - 项目：OpenDesk
 - 分支：`master`
 - 本文件只记录当前仍影响后续开发的高层事实，不保存逐轮开发日志。
@@ -107,7 +107,7 @@ playwright
 
 ### Layout
 
-当前 `ImageColor.analyzeLayout` 默认 `cellColorMode=median`，`boundarySpanWidth=3`。正式实现说明：
+当前 `ImageColor.analyzeLayout` 默认 `cellColorMode=median`、`boundarySpanWidth=3`、`minSeparatorSpanRatio=0.30`。连续支撑 span gate 会在 split-tree candidate 阶段过滤只覆盖局部目标轴的候选；设为 `0` 可做关闭过滤的基线对照。正式实现说明：
 
 ```text
 docs/implementation/layout/layout-recognition.md

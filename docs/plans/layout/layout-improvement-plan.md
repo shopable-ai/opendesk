@@ -29,6 +29,8 @@ docs/quality/layout/
 
 ## P1：Separator Span / Support 约束
 
+Status: done (2026-09-02)
+
 目标：进一步过滤只覆盖局部文本行、而非真实大区域边界的候选。
 
 候选方向：
@@ -42,6 +44,15 @@ docs/quality/layout/
 - complex/text-heavy case precision 明显改善；
 - 简单布局召回率不下降；
 - 规则可由通用几何/视觉证据解释。
+
+完成记录：
+
+- `minSeparatorSpanRatio` 已成为正式 `0..1` 参数，默认 `0.30`，`0` 可恢复无 span gate 的对照基线；
+- vertical/horizontal boundary 都计算最长连续支撑区间，并在 split-tree candidate filtering 前阻止局部短边界；
+- `supportSpanRatio` 与像素级 `supportSpan` 随 candidate meta 输出；
+- text-block synthetic precision 从 `1/5` 提升为 `1/1`，既有 7 级布局回归保留主要边界；
+- 带 ground truth 的 simple WeChat fixture 过滤前后均为 precision/recall `1.0/1.0`；真实 WeChat 截图 root candidates 从 `7` 收敛到 `2`，regions 从 `20` 收敛到 `14`，视觉上保留主区域边界并减少列表行碎片化；
+- 当前证据和限制见 `docs/quality/layout/separator-span-support-2026-09-02.md`。
 
 ## P2：Adaptive Thresholding
 

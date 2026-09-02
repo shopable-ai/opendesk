@@ -116,18 +116,144 @@ func TestLayoutBoundarySpanWidthChangesContrastWithoutOutOfBounds(t *testing.T) 
 	}
 }
 
+func TestLayoutBoundarySupportSpanTracksContinuousCoverage(t *testing.T) {
+	grid := make([][]layoutCell, 10)
+	labels := make([][]int, 10)
+	for y := range grid {
+		grid[y] = make([]layoutCell, 6)
+		labels[y] = make([]int, 6)
+		for x := range grid[y] {
+			grid[y][x] = layoutCell{R: 220, G: 220, B: 220}
+		}
+		if y >= 2 && y < 5 {
+			grid[y][3] = layoutCell{R: 20, G: 20, B: 20}
+			labels[y][3] = 1
+		}
+	}
+	rect := layoutGridRect{MinX: 0, MinY: 0, MaxX: 6, MaxY: 10}
+
+	scores := computeFloodVerticalBoundaryScores(labels, grid, rect, 1)
+	item, ok := boundaryScoreAt(scores, 3)
+	if !ok {
+		t.Fatal("missing synthetic text-line boundary")
+	}
+	if item.SupportRatio != 0.3 || item.SupportSpanRatio != 0.3 {
+		t.Fatalf("unexpected support ratios: density=%v span=%v", item.SupportRatio, item.SupportSpanRatio)
+	}
+	if item.SupportStart != 2 || item.SupportEnd != 5 {
+		t.Fatalf("unexpected support span: start=%d end=%d", item.SupportStart, item.SupportEnd)
+	}
+
+	horizontalGrid := make([][]layoutCell, 6)
+	horizontalLabels := make([][]int, 6)
+	for y := range horizontalGrid {
+		horizontalGrid[y] = make([]layoutCell, 10)
+		horizontalLabels[y] = make([]int, 10)
+		for x := range horizontalGrid[y] {
+			horizontalGrid[y][x] = layoutCell{R: 220, G: 220, B: 220}
+			if y == 3 && x >= 2 && x < 5 {
+				horizontalGrid[y][x] = layoutCell{R: 20, G: 20, B: 20}
+				horizontalLabels[y][x] = 1
+			}
+		}
+	}
+	horizontalRect := layoutGridRect{MinX: 0, MinY: 0, MaxX: 10, MaxY: 6}
+	horizontalScores := computeFloodHorizontalBoundaryScores(horizontalLabels, horizontalGrid, horizontalRect, 1)
+	horizontalItem, ok := boundaryScoreAt(horizontalScores, 3)
+	if !ok {
+		t.Fatal("missing synthetic horizontal text-line boundary")
+	}
+	if horizontalItem.SupportRatio != 0.3 || horizontalItem.SupportSpanRatio != 0.3 {
+		t.Fatalf("unexpected horizontal support ratios: density=%v span=%v", horizontalItem.SupportRatio, horizontalItem.SupportSpanRatio)
+	}
+	if horizontalItem.SupportStart != 2 || horizontalItem.SupportEnd != 5 {
+		t.Fatalf("unexpected horizontal support span: start=%d end=%d", horizontalItem.SupportStart, horizontalItem.SupportEnd)
+	}
+}
+
+func TestLayoutSeparatorSpanFilterRejectsLocalTextLineAndKeepsPanelBoundary(t *testing.T) {
+	items := make([]boundaryScore, 15)
+	for index := range items {
+		items[index] = boundaryScore{Pos: index + 1, Orientation: "vertical"}
+	}
+	for _, index := range []int{3, 4, 5} {
+		items[index] = boundaryScore{
+			Pos:              index + 1,
+			Score:            0.80,
+			SupportRatio:     0.40,
+			SupportSpanRatio: 0.20,
+			SupportStart:     2,
+			SupportEnd:       4,
+			Contrast:         60,
+			Orientation:      "vertical",
+		}
+	}
+	items[4].Score = 0.90
+	for _, index := range []int{9, 10, 11} {
+		items[index] = boundaryScore{
+			Pos:              index + 1,
+			Score:            0.70,
+			SupportRatio:     0.80,
+			SupportSpanRatio: 0.80,
+			SupportStart:     1,
+			SupportEnd:       9,
+			Contrast:         52,
+			Orientation:      "vertical",
+		}
+	}
+	items[10].Score = 0.75
+	rect := layoutGridRect{MinX: 0, MinY: 0, MaxX: 16, MaxY: 10}
+	opts := parseLayoutAnalyzeOptions(map[string]interface{}{
+		"minSplitSpan":           4,
+		"minSeparatorScore":      0.08,
+		"minSeparatorSpanRatio":  0.30,
+		"maxSeparatorCandidates": 8,
+	})
+
+	filtered := selectLayoutBoundaryCandidates(items, rect, opts, 160, 100, 0)
+	if len(filtered) != 1 || filtered[0].GridPos != 11 {
+		t.Fatalf("span filter should keep only the panel boundary, got %#v", filtered)
+	}
+	meta := filtered[0].Separator.Meta
+	if meta["supportSpanRatio"] != 0.80 {
+		t.Fatalf("candidate does not expose supportSpanRatio: %#v", meta)
+	}
+	if got := meta["supportSpan"]; !reflect.DeepEqual(got, map[string]interface{}{"start": 10, "end": 90}) {
+		t.Fatalf("candidate does not expose the effective support span: %#v", got)
+	}
+
+	opts.MinSeparatorSpanRatio = 0
+	baseline := selectLayoutBoundaryCandidates(items, rect, opts, 160, 100, 0)
+	if len(baseline) != 2 {
+		t.Fatalf("disabled span filter should preserve both baseline candidates, got %#v", baseline)
+	}
+}
+
 func TestLayoutAnalyzeOptionValidation(t *testing.T) {
-	invalid := parseLayoutAnalyzeOptions(map[string]interface{}{"cellColorMode": "not-a-mode", "boundarySpanWidth": 0})
+	invalid := parseLayoutAnalyzeOptions(map[string]interface{}{
+		"cellColorMode":         "not-a-mode",
+		"boundarySpanWidth":     0,
+		"minSeparatorSpanRatio": -1,
+	})
 	if invalid.CellColorMode != "median" {
 		t.Fatalf("invalid cellColorMode should keep the median default, got %q", invalid.CellColorMode)
 	}
 	if invalid.BoundarySpanWidth != 1 {
 		t.Fatalf("boundarySpanWidth <= 0 should clamp to 1, got %d", invalid.BoundarySpanWidth)
 	}
+	if invalid.MinSeparatorSpanRatio != 0 {
+		t.Fatalf("negative minSeparatorSpanRatio should clamp to 0, got %v", invalid.MinSeparatorSpanRatio)
+	}
 
-	tooLarge := parseLayoutAnalyzeOptions(map[string]interface{}{"boundarySpanWidth": 999})
+	tooLarge := parseLayoutAnalyzeOptions(map[string]interface{}{
+		"boundarySpanWidth":     999,
+		"minSeparatorSpanRatio": 2,
+	})
 	if tooLarge.BoundarySpanWidth != 8 {
 		t.Fatalf("large boundarySpanWidth should clamp to 8, got %d", tooLarge.BoundarySpanWidth)
+	}
+	if tooLarge.MinSeparatorSpanRatio != 1 {
+		t.Fatalf("large minSeparatorSpanRatio should clamp to 1, got %v", tooLarge.MinSeparatorSpanRatio)
 	}
 
 	for _, mode := range []string{"mean", "median", "trimmed", "dominant"} {

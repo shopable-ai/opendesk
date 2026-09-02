@@ -38,6 +38,7 @@ automation/image_layout.go
 | `maxDepth` | `6` | split tree 最大深度 |
 | `minSplitSpan` | `4` | 最小分割跨度 |
 | `minSeparatorScore` | `0.14` | separator 最低评分 |
+| `minSeparatorSpanRatio` | `0.30` | separator 在目标轴上的最小连续支撑覆盖率 |
 | `maxSeparatorCandidates` | `8` | 候选上限 |
 | `cellColorMode` | `median` | 默认使用中位数颜色 |
 | `boundarySpanWidth` | `3` | 边界两侧区域对比跨度 |
@@ -88,6 +89,22 @@ score = supportRatio * 0.40
 
 这比早期只依赖相邻 cell 的评分更能抑制文字边缘产生的伪 separator。
 
+## Continuous Support Span
+
+boundary score 除总支撑密度 `supportRatio` 外，还计算候选在目标轴上的最长连续有效支撑区间：
+
+```text
+supportSpanRatio = longestContinuousSupportedCells / targetAxisCells
+```
+
+vertical candidate 在 Y 轴上计算，horizontal candidate 在 X 轴上计算。为吸收边界一格内的量化偏移，候选平滑窗口采用邻近位置中最强的连续支撑区间；这不会把分散的多个短文字行合并成一条长边界。
+
+默认 `minSeparatorSpanRatio=0.30`，在 split-tree candidate filtering 阶段生效，因此不满足覆盖率的候选不会继续改变区域树。设为 `0` 可以关闭这一项，用于与旧基线对照。每个导出的 candidate/separator meta 包含：
+
+- `supportSpanRatio`：相对当前目标区域轴长的连续覆盖率；
+- `supportSpan.start/end`：对应原图像素区间；
+- `supportRatio`：原有总支撑密度，语义不变。
+
 ## 输出
 
 核心输出包括：
@@ -112,6 +129,7 @@ const layout = await ImageColor.analyzeLayout(imageBase64, {
   cellColorMode: "median",
   boundarySpanWidth: 3,
   minSeparatorScore: 0.14,
+  minSeparatorSpanRatio: 0.30,
 });
 ```
 
@@ -134,7 +152,7 @@ const layout = await ImageColor.analyzeLayout(imageBase64, {
 
 - `trimmed` / `dominant` 尚无独立计算实现；
 - median 计算当前使用排序，存在进一步优化空间；
-- text-heavy / 复杂真实应用仍可能出现 false positives；
+- 连续 span 过滤不会消除在局部递归区域内仍形成长边界的所有 false positives；
 - layout 输出需要和语义、OCR、actionability、replay evidence 联合使用。
 
 ## 验证

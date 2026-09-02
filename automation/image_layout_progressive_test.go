@@ -400,6 +400,74 @@ func TestLevel7_MixedContent(t *testing.T) {
 	}
 }
 
+func TestLayoutSeparatorSpanFilterImprovesLocalTextBlockPrecision(t *testing.T) {
+	img := image.NewRGBA(image.Rect(0, 0, 600, 400))
+	fillRect(img, image.Rect(0, 0, 300, 400), color.RGBA{210, 210, 210, 255})
+	fillRect(img, image.Rect(300, 0, 600, 400), color.RGBA{245, 245, 245, 255})
+
+	// A high-contrast, text-line-sized block has enough aggregate support to
+	// pass the historical density gate, but it is not a full layout boundary.
+	fillRect(img, image.Rect(80, 110, 210, 220), color.RGBA{30, 30, 30, 255})
+	fillRect(img, image.Rect(80, 110, 90, 220), color.RGBA{150, 150, 150, 255})
+	fillRect(img, image.Rect(90, 110, 100, 220), color.RGBA{90, 90, 90, 255})
+	fillRect(img, image.Rect(190, 110, 200, 220), color.RGBA{90, 90, 90, 255})
+	fillRect(img, image.Rect(200, 110, 210, 220), color.RGBA{150, 150, 150, 255})
+
+	analyze := func(minSpanRatio float64) map[string]interface{} {
+		result, err := analyzeLayoutImage(img, map[string]interface{}{
+			"cellSize":               10,
+			"minSeparatorScore":      0.08,
+			"minSeparatorSpanRatio":  minSpanRatio,
+			"maxSeparatorCandidates": 8,
+		})
+		if err != nil {
+			t.Fatalf("AnalyzeLayout failed: %v", err)
+		}
+		return result
+	}
+
+	baselineVertical, baselineHorizontal := mustTestSeparators(t, analyze(0)["separators"])
+	filteredVertical, filteredHorizontal := mustTestSeparators(t, analyze(0.30)["separators"])
+	assertSeparatorNear(t, baselineVertical, 300, 20)
+	assertSeparatorNear(t, filteredVertical, 300, 20)
+
+	baselineCount := len(baselineVertical) + len(baselineHorizontal)
+	filteredCount := len(filteredVertical) + len(filteredHorizontal)
+	if baselineCount <= filteredCount {
+		t.Fatalf("span filtering did not reduce local-block false positives: baseline=%v/%v filtered=%v/%v",
+			getSeparatorPositions(baselineVertical), getSeparatorPositions(baselineHorizontal),
+			getSeparatorPositions(filteredVertical), getSeparatorPositions(filteredHorizontal))
+	}
+	if len(filteredVertical) != 1 || len(filteredHorizontal) != 0 {
+		t.Fatalf("span filtering should leave only the true panel boundary: vertical=%v horizontal=%v",
+			getSeparatorPositions(filteredVertical), getSeparatorPositions(filteredHorizontal))
+	}
+
+	t.Logf("local text-block precision: baseline=1/%d filtered=1/%d", baselineCount, filteredCount)
+}
+
+func BenchmarkAnalyzeLayoutSeparatorSpanFilter(b *testing.B) {
+	img := image.NewRGBA(image.Rect(0, 0, 600, 400))
+	fillRect(img, image.Rect(0, 0, 300, 400), color.RGBA{210, 210, 210, 255})
+	fillRect(img, image.Rect(300, 0, 600, 400), color.RGBA{245, 245, 245, 255})
+	fillRect(img, image.Rect(80, 110, 210, 220), color.RGBA{30, 30, 30, 255})
+
+	for _, ratio := range []float64{0, 0.30} {
+		name := "disabled"
+		if ratio > 0 {
+			name = "default"
+		}
+		b.Run(name, func(b *testing.B) {
+			b.ReportAllocs()
+			for index := 0; index < b.N; index++ {
+				if _, err := analyzeLayoutImage(img, map[string]interface{}{"minSeparatorSpanRatio": ratio}); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+}
+
 // Helper functions
 
 func saveImage(t *testing.T, img image.Image, path string) {

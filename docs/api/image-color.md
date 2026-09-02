@@ -236,6 +236,7 @@ console.log(layout);
 | `options.minRegionArea` / `maxRegions` | number | 可选；最小区域面积与最多返回区域数。 |
 | `options.maxDepth` / `minSplitSpan` | number | 可选；区域递归深度与最小切分跨度。 |
 | `options.minSeparatorScore` / `maxSeparatorCandidates` | number | 可选；分隔线筛选阈值与候选数。 |
+| `options.minSeparatorSpanRatio` | number | 可选；候选在目标轴上的最小连续支撑覆盖率，范围 `0..1`，默认 `0.30`；设为 `0` 可关闭此过滤用于基线对照。 |
 | `options.profile` | string | 可选；分析预设名称。 |
 | `options.cellColorMode` | `mean` / `median` / `trimmed` / `dominant` | 可选；网格颜色统计方式。 |
 | `options.boundarySpanWidth` | number | 可选；边界判断宽度。 |

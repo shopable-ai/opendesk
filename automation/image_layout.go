@@ -69,6 +69,7 @@ type layoutAnalyzeOptions struct {
 	MaxDepth               int
 	MinSplitSpan           int
 	MinSeparatorScore      float64
+	MinSeparatorSpanRatio  float64
 	MaxSeparatorCandidates int
 	SeparatorHints         layoutHintSet
 	LegacyProfile          string
@@ -77,11 +78,14 @@ type layoutAnalyzeOptions struct {
 }
 
 type boundaryScore struct {
-	Pos          int
-	Score        float64
-	SupportRatio float64
-	Contrast     float64
-	Orientation  string
+	Pos              int
+	Score            float64
+	SupportRatio     float64
+	SupportSpanRatio float64
+	SupportStart     int
+	SupportEnd       int
+	Contrast         float64
+	Orientation      string
 }
 
 type layoutSplitNode struct {
@@ -185,6 +189,7 @@ func analyzeLayoutImage(img image.Image, options interface{}) (map[string]interf
 			"maxDepth":               opts.MaxDepth,
 			"minSplitSpan":           opts.MinSplitSpan,
 			"minSeparatorScore":      opts.MinSeparatorScore,
+			"minSeparatorSpanRatio":  opts.MinSeparatorSpanRatio,
 			"maxSeparatorCandidates": opts.MaxSeparatorCandidates,
 		},
 		"regions":      regionsOut,
@@ -209,6 +214,7 @@ func parseLayoutAnalyzeOptions(options interface{}) layoutAnalyzeOptions {
 		MaxDepth:               6,
 		MinSplitSpan:           4,
 		MinSeparatorScore:      0.14,
+		MinSeparatorSpanRatio:  0.30,
 		MaxSeparatorCandidates: 8,
 		CellColorMode:          "median", // default to median for better text noise resistance
 		BoundarySpanWidth:      3,        // default to 3 cells for region contrast
@@ -243,6 +249,9 @@ func parseLayoutAnalyzeOptions(options interface{}) layoutAnalyzeOptions {
 	}
 	if value, ok := optMap["minSeparatorScore"]; ok {
 		out.MinSeparatorScore = layoutClampFloat(layoutFloatValue(value), 0.02, 0.95)
+	}
+	if value, ok := optMap["minSeparatorSpanRatio"]; ok {
+		out.MinSeparatorSpanRatio = layoutClampFloat(layoutFloatValue(value), 0, 1)
 	}
 	if value, ok := optMap["maxSeparatorCandidates"]; ok {
 		out.MaxSeparatorCandidates = layoutClampInt(jsToInt(value), 1, 24)
@@ -647,7 +656,7 @@ func selectLayoutBoundaryCandidates(items []boundaryScore, rect layoutGridRect, 
 	clusterStart := -1
 	for i := range items {
 		item := items[i]
-		qualified := item.Score >= threshold && item.SupportRatio >= minSupport
+		qualified := item.Score >= threshold && item.SupportRatio >= minSupport && item.SupportSpanRatio >= opts.MinSeparatorSpanRatio
 		if qualified && clusterStart < 0 {
 			clusterStart = i
 		}
@@ -673,7 +682,7 @@ func selectLayoutBoundaryCandidates(items []boundaryScore, rect layoutGridRect, 
 				best = item
 			}
 		}
-		if best.Score >= threshold && best.SupportRatio >= minSupport {
+		if best.Score >= threshold && best.SupportRatio >= minSupport && best.SupportSpanRatio >= opts.MinSeparatorSpanRatio {
 			candidates = append(candidates, best)
 		}
 	}
@@ -742,14 +751,16 @@ func selectBestBoundaryClusterItem(items []boundaryScore) (boundaryScore, bool) 
 func buildLayoutSeparatorCandidate(item boundaryScore, rect layoutGridRect, depth, width, height, cellSize int) layoutSeparator {
 	position := gridBoundaryToPixels(item.Pos, cellSize, axisPixelLimit(width, height, item.Orientation))
 	meta := map[string]interface{}{
-		"gridPosition":  item.Pos,
-		"supportRatio":  item.SupportRatio,
-		"contrast":      item.Contrast,
-		"depth":         depth,
-		"gridRect":      exportLayoutGridRect(rect),
-		"pixelTotal":    axisPixelLimit(width, height, item.Orientation),
-		"span":          exportLayoutSeparatorSpan(item.Orientation, rect, cellSize, width, height),
-		"normalizedPos": layoutNormalizedPosition(item.Pos, rect, item.Orientation),
+		"gridPosition":     item.Pos,
+		"supportRatio":     item.SupportRatio,
+		"supportSpanRatio": item.SupportSpanRatio,
+		"supportSpan":      exportLayoutSupportSpan(item, cellSize, width, height),
+		"contrast":         item.Contrast,
+		"depth":            depth,
+		"gridRect":         exportLayoutGridRect(rect),
+		"pixelTotal":       axisPixelLimit(width, height, item.Orientation),
+		"span":             exportLayoutSeparatorSpan(item.Orientation, rect, cellSize, width, height),
+		"normalizedPos":    layoutNormalizedPosition(item.Pos, rect, item.Orientation),
 	}
 	return layoutSeparator{
 		Orientation: item.Orientation,
@@ -893,12 +904,25 @@ func computeFloodVerticalBoundaryScores(labels [][]int, grid [][]layoutCell, rec
 
 		// Compute local support (cell-level changes)
 		changeCount := 0
+		supportStart := rect.MinY
+		supportEnd := rect.MinY
+		runStart := -1
 		distSum := 0.0
 		sampleCount := 0
 		for y := rect.MinY; y < rect.MaxY; y++ {
 			dist := layoutCellDistance(grid[y][x], grid[y][x-1])
-			if labels[y][x] != labels[y][x-1] || dist >= 10 {
+			supported := labels[y][x] != labels[y][x-1] || dist >= 10
+			if supported {
 				changeCount++
+				if runStart < 0 {
+					runStart = y
+				}
+				if y+1-runStart > supportEnd-supportStart {
+					supportStart = runStart
+					supportEnd = y + 1
+				}
+			} else {
+				runStart = -1
 			}
 			distSum += dist
 			sampleCount++
@@ -907,6 +931,7 @@ func computeFloodVerticalBoundaryScores(labels [][]int, grid [][]layoutCell, rec
 			continue
 		}
 		ratio := float64(changeCount) / float64(sampleCount)
+		supportSpanRatio := float64(supportEnd-supportStart) / float64(sampleCount)
 		avgDist := distSum / float64(sampleCount)
 
 		// Scoring formula optimized for median mode
@@ -916,11 +941,14 @@ func computeFloodVerticalBoundaryScores(labels [][]int, grid [][]layoutCell, rec
 			layoutClampFloat(regionContrast/72.0, 0, 1)*0.35
 
 		out = append(out, boundaryScore{
-			Pos:          x,
-			Score:        score,
-			SupportRatio: ratio,
-			Contrast:     avgDist,
-			Orientation:  "vertical",
+			Pos:              x,
+			Score:            score,
+			SupportRatio:     ratio,
+			SupportSpanRatio: supportSpanRatio,
+			SupportStart:     supportStart,
+			SupportEnd:       supportEnd,
+			Contrast:         avgDist,
+			Orientation:      "vertical",
 		})
 	}
 	return out
@@ -936,12 +964,25 @@ func computeFloodHorizontalBoundaryScores(labels [][]int, grid [][]layoutCell, r
 
 		// Compute local support (cell-level changes)
 		changeCount := 0
+		supportStart := rect.MinX
+		supportEnd := rect.MinX
+		runStart := -1
 		distSum := 0.0
 		sampleCount := 0
 		for x := rect.MinX; x < rect.MaxX; x++ {
 			dist := layoutCellDistance(grid[y][x], grid[y-1][x])
-			if labels[y][x] != labels[y-1][x] || dist >= 10 {
+			supported := labels[y][x] != labels[y-1][x] || dist >= 10
+			if supported {
 				changeCount++
+				if runStart < 0 {
+					runStart = x
+				}
+				if x+1-runStart > supportEnd-supportStart {
+					supportStart = runStart
+					supportEnd = x + 1
+				}
+			} else {
+				runStart = -1
 			}
 			distSum += dist
 			sampleCount++
@@ -950,6 +991,7 @@ func computeFloodHorizontalBoundaryScores(labels [][]int, grid [][]layoutCell, r
 			continue
 		}
 		ratio := float64(changeCount) / float64(sampleCount)
+		supportSpanRatio := float64(supportEnd-supportStart) / float64(sampleCount)
 		avgDist := distSum / float64(sampleCount)
 
 		// Scoring formula optimized for median mode
@@ -959,16 +1001,18 @@ func computeFloodHorizontalBoundaryScores(labels [][]int, grid [][]layoutCell, r
 			layoutClampFloat(regionContrast/72.0, 0, 1)*0.35
 
 		out = append(out, boundaryScore{
-			Pos:          y,
-			Score:        score,
-			SupportRatio: ratio,
-			Contrast:     avgDist,
-			Orientation:  "horizontal",
+			Pos:              y,
+			Score:            score,
+			SupportRatio:     ratio,
+			SupportSpanRatio: supportSpanRatio,
+			SupportStart:     supportStart,
+			SupportEnd:       supportEnd,
+			Contrast:         avgDist,
+			Orientation:      "horizontal",
 		})
 	}
 	return out
 }
-
 func smoothBoundaryScores(items []boundaryScore, radius int) []boundaryScore {
 	if len(items) == 0 || radius <= 0 {
 		return items
@@ -979,6 +1023,7 @@ func smoothBoundaryScores(items []boundaryScore, radius int) []boundaryScore {
 		sumSupport := 0.0
 		sumContrast := 0.0
 		count := 0.0
+		bestSpan := items[i]
 		for j := i - radius; j <= i+radius; j++ {
 			if j < 0 || j >= len(items) {
 				continue
@@ -987,11 +1032,17 @@ func smoothBoundaryScores(items []boundaryScore, radius int) []boundaryScore {
 			sumSupport += items[j].SupportRatio
 			sumContrast += items[j].Contrast
 			count++
+			if items[j].SupportSpanRatio > bestSpan.SupportSpanRatio {
+				bestSpan = items[j]
+			}
 		}
 		out[i] = items[i]
 		out[i].Score = sumScore / layoutMaxFloat(1, count)
 		out[i].SupportRatio = sumSupport / layoutMaxFloat(1, count)
 		out[i].Contrast = sumContrast / layoutMaxFloat(1, count)
+		out[i].SupportSpanRatio = bestSpan.SupportSpanRatio
+		out[i].SupportStart = bestSpan.SupportStart
+		out[i].SupportEnd = bestSpan.SupportEnd
 	}
 	return out
 }
@@ -1388,6 +1439,17 @@ func exportLayoutSeparatorSpan(orientation string, rect layoutGridRect, cellSize
 	}
 }
 
+func exportLayoutSupportSpan(item boundaryScore, cellSize, width, height int) map[string]interface{} {
+	limit := height
+	if item.Orientation == "horizontal" {
+		limit = width
+	}
+	return map[string]interface{}{
+		"start": layoutClampInt(item.SupportStart*cellSize, 0, limit),
+		"end":   layoutClampInt(item.SupportEnd*cellSize, 0, limit),
+	}
+}
+
 func gridRectToPixels(rect layoutGridRect, cellSize, width, height int) image.Rectangle {
 	return image.Rect(
 		layoutClampInt(rect.MinX*cellSize, 0, width),
@@ -1627,11 +1689,11 @@ func layoutMaxFloat(a, b float64) float64 {
 	return b
 }
 
-// filterLayoutSeparators applies intelligent filtering to reduce false positives
-// It implements three strategies:
+// filterLayoutSeparators applies final ranking and spacing after candidate-level
+// score, support density, and continuous support-span filtering.
+// It implements two strategies:
 // 1. Confidence-based Top-N selection per orientation
 // 2. Minimum spacing filter to avoid clustered separators
-// 3. Optional span filtering (future enhancement)
 func filterLayoutSeparators(separators []layoutSeparator, width, height int) []layoutSeparator {
 	if len(separators) == 0 {
 		return separators
