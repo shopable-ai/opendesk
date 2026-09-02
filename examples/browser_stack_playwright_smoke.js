@@ -8,15 +8,18 @@ const facadeChecks = {
   browserType: typeof browser,
   contextType: typeof context,
   pageType: typeof pageHandle,
-  getContextMatches: browser.getContext() === contextUpgraded,
-  getPageMatches: browser.getPage() === pageUpgraded,
-  contextGetBrowserMatches: context.getBrowser() === browserUpgraded,
-  contextGetPageMatches: context.getPage() === pageUpgraded,
-  locatorSelector: locator.selector,
+  runtimeBrowserAliased: globalThis.browser === browserUpgraded,
+  runtimeContextAliased: globalThis.context === contextUpgraded,
+  runtimePageAliased: globalThis.page === pageUpgraded,
+  browserContextAvailable: browser.getContext() && typeof browser.getContext().newPage === 'function',
+  browserPageAvailable: browser.getPage() && typeof browser.getPage().locator === 'function',
+  contextBrowserAvailable: context.getBrowser() && typeof context.getBrowser().newContext === 'function',
+  contextPageAvailable: context.getPage() && typeof context.getPage().locator === 'function',
+  locatorSelectorMatches: locator.selector === 'body',
 };
 console.log(facadeChecks);
 
-const selectorCapablePage = {
+const selectorCapablePageBase = {
   waitFor(ms) {
     console.log('selectorCapablePage.waitFor', ms);
   },
@@ -27,12 +30,16 @@ const selectorCapablePage = {
     return fn(...args);
   },
 };
+const selectorCapablePage = Object.create(selectorCapablePageBase);
 selectorCapablePage.locator = pageUpgraded.locator;
 selectorCapablePage.evaluate = pageUpgraded.evaluate;
 
 await page.waitFor(10);
 await selectorCapablePage.locator('body').waitFor({ timeout: 10 });
 const evaluateResult = await selectorCapablePage.locator('body').evaluate((selector, suffix) => selector + suffix, '-shim');
+if (!Object.values(facadeChecks).every(Boolean) || evaluateResult !== 'body-shim') {
+  throw new Error('playwright facade smoke failed: ' + JSON.stringify({ facadeChecks, evaluateResult }));
+}
 console.log(JSON.stringify({
   ok: true,
   stack: 'playwright',

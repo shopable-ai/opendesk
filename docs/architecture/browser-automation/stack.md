@@ -10,17 +10,17 @@
 - `browser`, `context`
 - raw compatibility handles: `page____Inject`, `browser____Inject`, `context____Inject`
 
-随后加载 `polyfills/` 与 `jslibs/`。
-
-当前 `polyfills/` 中没有 upgraded-browser facade 文件，当前初始化路径也不会创建：
+随后加载 `polyfills/` 与 `jslibs/`。其中
+`polyfills/010-browser-automation-upgraded.js` 会基于 raw handles 创建：
 
 - `pageUpgraded`
 - `browserUpgraded`
 - `contextUpgraded`
-- `Automation.getUpgraded()`
+- `Automation.getLegacy/getUpgraded/getPlaywrightFacade()`
 - `playwright.chromium.launch()`
 
-因此这些名称不得作为当前能力写入完成性 Claim。
+这些对象是同一 OpenDesk Runtime 内的 compatibility facade；不是独立浏览器进程、DOM realm
+或 Playwright implementation。
 
 ## 2. Stack selection today
 
@@ -32,22 +32,26 @@ upgraded
 playwright
 ```
 
-`automation/runtime_stack.go` 的真实行为是：
+`automation/runtime_stack.go` 在 polyfill 加载后选择公开 alias：
 
-- `legacy`: 保持当前注入 surface。
-- `upgraded`: 只有当 runtime 已经存在 `pageUpgraded` 时，才把 `page` alias 到它；否则保持当前 `page`。
-- `playwright`: 只有当对应 `pageUpgraded/browserUpgraded/contextUpgraded` 已存在时，才逐个 alias `page/browser/context`；否则保持已有对象。
+- `legacy`: 保持 raw `page/browser/context` surface。
+- `upgraded`: 把 `page` alias 到 `pageUpgraded`；`browser/context` 保持 legacy，同时可显式访问 upgraded handles。
+- `playwright`: 把 `page/browser/context` 分别 alias 到对应 upgraded facade。
 
-这是一层 **conditional routing compatibility hook**，不是独立 upgraded runtime，也不是 Playwright runtime。
+alias helper 本身仍是 conditional/fail-closed：在不加载正常 polyfill 的隔离 Runtime 中，如果 upgraded
+global 不存在就保持原对象。正常 OpenDesk 初始化会加载该 polyfill，因此三个 upgraded global 和
+`playwright` shim 均存在。
 
 ## 3. What current tests prove
 
-当前 focused tests 应只证明：
+当前 focused tests 证明：
 
 - stack 名称 normalization；
-- alias 只在 upgraded globals 确实存在时发生；
+- isolated Runtime 中 alias 只在 upgraded globals 确实存在时发生；
+- 正常 Runtime 初始化会创建 upgraded globals、Automation getters 与 Playwright-shaped launch shim；
+- upgraded page/browser/context 的 owner routing、close/introspection、locator carrier 和显式失败边界；
 - execution/HTTP 接受 stack field；
-- 无 upgraded globals 时选择 upgraded/playwright 不会凭空制造 facade，也不会破坏当前 legacy surface。
+- 当前仓库根目录的 legacy/upgraded/playwright smoke recipe 能由真实 JavaScript Runtime 执行。
 
 它们不证明：
 
@@ -87,9 +91,10 @@ playwright
 
 ## 5. Compatibility policy
 
-- 保留 `legacy/upgraded/playwright` stack 值，是为了不立即破坏已有调用协议。
-- 文档不得因为名称存在就声称对应 runtime 已实现。
-- 如果没有明确消费方，不为了让旧文档成立而恢复历史 upgraded polyfill 或 smoke scripts。
+- 保留 `legacy/upgraded/playwright` stack 值和现有 facade，是为了兼容当前公开 recipe 与迁移代码。
+- 文档可以声明 compatibility facade 已实现，但不得把它升级为 browser process、DOM、selector engine
+  或 Playwright parity。
+- 当前维护目标是收紧已有 facade 的契约与 evidence，不再创建另一套 stack abstraction。
 - 如果未来确实需要 selector/locator/evaluate/browser-process 能力，应以最小真实场景、独立 contract、T1/T2 测试和可选 T3 smoke 重新立项。
 
 权威能力表见：`docs/architecture/browser-automation/capabilities.md`。

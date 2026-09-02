@@ -25,18 +25,20 @@
 
 它们用于 polyfill/compatibility wrapper，属于 raw/private compatibility surface。新业务脚本不应把它们当成稳定公共 API。
 
-## Historical names that are not current facts
+## Current compatibility facade names
 
-当前 tree 没有找到可生成下列 facade 的实现：
+`polyfills/010-browser-automation-upgraded.js` 当前生成：
 
 - `pageUpgraded`
 - `browserUpgraded`
 - `contextUpgraded`
 - `Automation.getLegacy/getUpgraded/getPlaywrightFacade`
 - `playwright.chromium.launch()`
-- 历史 `page____ChromePage____Object` browser-driver 路径的当前 contract
+- `Automation.getLegacy/getUpgraded/getPlaywrightFacade()`
 
-因此旧文档中围绕这些对象的 click/type/press/locator/evaluate/close 自动化证明已从当前 Claim 中移除。
+这些名称可以用于现有迁移 recipe，但只能按 compatibility facade 解释：locator 是 selector carrier，
+action/evaluate/wait 会路由到 owner 已提供的方法或显式报 unsupported；local Goja evaluate 不是浏览器
+页面 realm。历史 `page____ChromePage____Object` browser-driver 路径仍没有当前 contract。
 
 ## Migration rule
 
@@ -45,8 +47,8 @@
 1. 先在当前源码中定位真实实现；
 2. 能由 `page/browser/context/mouse/keyboard` 当前 surface 表达的，迁移到当前 surface；
 3. 只能证明 alias/routing 的，标记为 compatibility shim，不升级为 runtime semantics；
-4. 当前实现已不存在的，删除或降级 Claim；
-5. 只有存在真实用户场景、现有 abstraction 无法表达且可配套测试时，才新增最小 runtime capability。
+4. compatibility facade 能表达的迁移只补契约与测试，不再创建同义 facade；
+5. 只有真实 browser/DOM 场景无法由当前桌面原语表达且可配套测试时，才新增最小 runtime adapter。
 
 ## Evidence language
 

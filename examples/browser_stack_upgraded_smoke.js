@@ -5,14 +5,15 @@ const pageHandle = page.getPage();
 const locator = page.locator('body');
 
 const facadeChecks = {
-  browserMatchesFacade: browserHandle === browserUpgraded,
-  contextMatchesFacade: contextHandle === contextUpgraded,
+  pageFacadeSelected: page === pageUpgraded,
+  browserFacadeAvailable: browserHandle === browserUpgraded && typeof browserHandle.newContext === 'function',
+  contextOwnerAvailable: contextHandle && typeof contextHandle.newPage === 'function',
   pageMatchesFacade: pageHandle === pageUpgraded,
-  locatorSelector: locator.selector,
+  locatorSelectorMatches: locator.selector === 'body',
 };
 console.log(facadeChecks);
 
-const ownerPage = {
+const ownerPageBase = {
   openURL(url) {
     console.log('ownerPage.openURL', url);
   },
@@ -26,6 +27,7 @@ const ownerPage = {
     return fn(...args);
   },
 };
+const ownerPage = Object.create(ownerPageBase);
 ownerPage.open = pageUpgraded.open;
 ownerPage.waitFor = pageUpgraded.waitFor;
 ownerPage.locator = pageUpgraded.locator;
@@ -35,6 +37,9 @@ await ownerPage.open('https://example.com');
 await ownerPage.waitFor(10);
 await ownerPage.locator('body').waitFor({ timeout: 10 });
 const evaluateResult = await ownerPage.locator('body').evaluate((selector, suffix) => selector + suffix, '-checked');
+if (!Object.values(facadeChecks).every(Boolean) || evaluateResult !== 'body-checked') {
+  throw new Error('upgraded facade smoke failed: ' + JSON.stringify({ facadeChecks, evaluateResult }));
+}
 console.log(JSON.stringify({
   ok: true,
   stack: 'upgraded',

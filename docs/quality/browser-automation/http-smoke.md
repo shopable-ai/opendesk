@@ -1,6 +1,8 @@
 # Browser Automation HTTP Verification
 
-当前仓库有 `/executions` stack routing 的 Go tests，但没有当前 Browser HTTP E2E smoke 脚本。
+当前仓库有 `/executions` stack routing 的 Go tests，也有可对已启动 server 执行的
+`examples/browser_stack_http_e2e_smoke.py` client；当前没有负责启动/清理 server 的专用 browser
+smoke wrapper。
 
 ## What is currently proved
 
@@ -13,10 +15,9 @@
 
 这属于 `T2` handler/runtime integration evidence。
 
-它不证明：
+它们不证明：
 
-- 独立 upgraded facade 存在；
-- Playwright namespace/runtime 存在；
+- HTTP 请求实际执行了 upgraded/playwright facade 方法；
 - server 在真实环境已启动并完成 E2E；
 - browser/tab/DOM/session semantics。
 
@@ -35,9 +36,16 @@ events.ndjson
 
 其他 DOM/layout/OCR/replay artifact 必须由具体 scenario/runtime 显式生成，不能视为 HTTP execution 的默认产物。
 
-## If a T3/T2 HTTP smoke is reintroduced
+## Running the current client
 
-只有当存在真实消费场景时，再增加一个最小 smoke fixture。它至少应记录：
+在另一个终端启动当前 OpenDesk HTTP server 后，可从仓库根目录执行：
+
+```bash
+python3 examples/browser_stack_http_e2e_smoke.py http://127.0.0.1:60844 upgraded
+python3 examples/browser_stack_http_e2e_smoke.py http://127.0.0.1:60844 playwright
+```
+
+正式保存一次 T2/T3 HTTP smoke 时至少应记录：
 
 - commit SHA
 - platform/runtime version
@@ -48,6 +56,7 @@ events.ndjson
 - artifact directory
 - explicit boundary note
 
-对于 `upgraded` / `playwright`，如果 runtime 仍只是条件 alias，则结果必须写成 routing proof，而不是 Playwright support。
+对于 `upgraded` / `playwright`，结果必须写成 transport/stack/facade routing proof，而不是 Playwright support。
 
-当前不恢复已消失的历史 smoke scripts，只为了维持旧文档 Claim。
+这个 Python client 当前只检查 execution transport、terminal status 与 summary；它没有调用 locator/evaluate，
+因此不能替代 direct facade smoke 或 browser-driver test。

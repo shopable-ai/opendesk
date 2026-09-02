@@ -14,7 +14,7 @@
       "id": "runtime-stack-conditional-routing",
       "claim": "legacy/upgraded/playwright stack names are normalized and upgraded aliases are applied only when upgraded globals already exist.",
       "proofLevels": ["E2", "E3", "E4"],
-      "boundary": "This proves conditional alias routing only. Current initialization does not create upgraded facade globals and this is not Playwright runtime semantics.",
+      "boundary": "The alias helper stays conditional for isolated runtimes. Normal OpenDesk initialization creates upgraded globals through a compatibility polyfill; none of this is Playwright runtime semantics.",
       "evidence": [
         {
           "kind": "contains",
@@ -30,6 +30,44 @@
           "kind": "go_test_name",
           "path": "automation/runtime_stack_test.go",
           "go_test_name": "TestApplyRuntimeStackModePlaywrightAliasesAvailableUpgradedGlobals"
+        }
+      ]
+    },
+    {
+      "id": "runtime-compatibility-facades",
+      "claim": "Normal Runtime initialization creates upgraded page/browser/context facades, Automation accessors, and a Playwright-shaped launch shim.",
+      "proofLevels": ["E1", "E2", "E3", "E4"],
+      "boundary": "These are same-runtime compatibility wrappers and owner-method routes. They do not launch Chromium or provide DOM, selector-engine, tab, page-realm, or Playwright parity semantics.",
+      "evidence": [
+        {
+          "kind": "contains",
+          "path": "polyfills/010-browser-automation-upgraded.js",
+          "contains": "global.pageUpgraded = createUnifiedPage(global.pageLegacy)"
+        },
+        {
+          "kind": "contains",
+          "path": "polyfills/010-browser-automation-upgraded.js",
+          "contains": "global.playwright ="
+        },
+        {
+          "kind": "go_test_name",
+          "path": "automation/browser_compat_test.go",
+          "go_test_name": "TestAutomationNamespaceExposesLegacyAndUpgradedHandles"
+        },
+        {
+          "kind": "go_test_name",
+          "path": "automation/browser_compat_test.go",
+          "go_test_name": "TestUpgradedPageActionMethodsRouteToUnderlyingPageOrKeyboard"
+        },
+        {
+          "kind": "go_test_name",
+          "path": "automation/browser_compat_test.go",
+          "go_test_name": "TestPlaywrightStackAliasesStayConsistentWithLaunchHandle"
+        },
+        {
+          "kind": "contains",
+          "path": "examples/browser_stack_playwright_smoke.js",
+          "contains": "Playwright smoke proves a playwright-shaped shim"
         }
       ]
     },
@@ -76,9 +114,9 @@
     },
     {
       "id": "current-js-browser-surfaces",
-      "claim": "Runtime initialization injects current page/browser/context objects plus raw compatibility handles.",
+      "claim": "Runtime initialization injects current page/browser/context objects plus raw compatibility handles before loading compatibility polyfills.",
       "proofLevels": ["E1", "E3"],
-      "boundary": "Raw inject handles are compatibility internals. No upgraded facade globals are claimed.",
+      "boundary": "Raw inject handles are compatibility internals. Upgraded facade globals are covered by the separate runtime-compatibility-facades claim.",
       "evidence": [
         {
           "kind": "contains",
