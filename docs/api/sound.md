@@ -41,7 +41,9 @@ Sound.play('./public/done.mp3');
 ```
 
 这些方法会等待音频播放完成；在同一个 JavaScript execution 中等待期间无法调用另一个
-`Sound.stop()`。旧脚本应继续使用它们，长音频和需要控制的场景应改用 `start()`。
+`Sound.stop()`。它们仍会观察 execution cancellation：CLI 的 `Ctrl-C`、transport cancellation
+或 execution deadline 会停止当前播放并以 `CANCELED` 结束，而不会等待音频自然完成。旧脚本
+应继续使用它们，长音频和需要控制的场景应改用 `start()`。
 
 ### 非阻塞播放会话
 

@@ -208,6 +208,13 @@ coverage() { runjs coverage "$ROOT_DIR/tests/runtime-api/coverage.js" 5 180; }
 smoke() { runjs smoke "$ROOT_DIR/tests/runtime-api/smoke.js" 3 120; }
 negative() { runjs negative "$ROOT_DIR/tests/runtime-api/negative.js" 5 120; }
 
+sound_cancel() {
+  OPENDESK_BINARY="$BINARY" \
+    OPENDESK_SOUND_CANCEL_RUN_DIR="$RUN_DIR/sound-cancel" \
+    "$ROOT_DIR/tests/runtime-api/sound-cancel-smoke.sh"
+  no_residual
+}
+
 notify_icon_live() {
   [[ "$(uname -s)" == Darwin ]] || { echo "macOS notify icon live test requires Darwin" >&2; return 1; }
   local installed="${OPENDESK_BINARY:-/Applications/OpenDesk.app/Contents/MacOS/opendesk}"
@@ -1015,9 +1022,10 @@ case "$MODE" in
   live-only) live_only_with_cleanup ;;
   coverage) coverage ;;
   negative) negative ;;
+  sound-cancel) sound_cancel ;;
   notify-icon-live) notify_icon_live ;;
   custom-ui) custom_ui ;;
   custom-ui-config) custom_ui_config ;;
   dialog) dialog ;;
-  *) echo "usage: $0 [contract|unit|smoke|live|live-only|coverage|negative|custom-ui|custom-ui-config|dialog]" >&2; exit 2 ;;
+  *) echo "usage: $0 [contract|unit|smoke|live|live-only|coverage|negative|sound-cancel|custom-ui|custom-ui-config|dialog]" >&2; exit 2 ;;
 esac

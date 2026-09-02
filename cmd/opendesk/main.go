@@ -667,11 +667,12 @@ func executeScript(config *Config) error {
 	// through its Runtime context, and releases global shortcuts before the new
 	// execution can start. Inline/stdin sources have no stable file identity and
 	// deliberately keep their existing independent-execution behavior.
-	executionContext, stopExecution := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stopExecution()
+	executionSignals := newDirectExecutionSignalController(context.Background())
+	defer executionSignals.Stop()
+	executionContext := executionSignals.Context()
 	var instanceLease *scriptInstanceLease
 	if config.ScriptPath != "" {
-		instanceLease, err = acquireReplacingScriptInstance(config.ScriptPath, stopExecution)
+		instanceLease, err = acquireReplacingScriptInstance(config.ScriptPath, executionSignals.Cancel)
 		if err != nil {
 			return err
 		}

@@ -259,7 +259,17 @@ func (s *Sound) playSound(soundPath, operation string) error {
 	if err != nil {
 		return err
 	}
-	<-playback.done
+	select {
+	case <-playback.done:
+	case <-s.context.Done():
+		// Goja Interrupt can stop JavaScript bytecode, but it cannot interrupt a
+		// Go method blocked here. Stop the execution-owned playback directly so
+		// SIGINT, transport cancellation, and execution deadlines can release the
+		// Runtime even when the platform audio callback never reports completion.
+		_ = playback.stop()
+		<-playback.done
+		return soundOperationError(operation, SoundCanceled, "sound playback canceled", s.context.Err())
+	}
 	result := playback.resultSnapshot()
 	if result.Status == SoundPlaybackFailed {
 		return soundOperationError(operation, SoundBackendFailed, "sound playback failed", errors.New(result.Error))

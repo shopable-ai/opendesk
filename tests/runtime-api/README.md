@@ -35,6 +35,7 @@ Dialog 的视觉验收与行为验收分别判定：即使返回值、Promise �
 | coverage | 每方法 contract、已通过 tier、required tier、风险理由和用例 | `results/coverage.json` |
 | smoke | 安全公共路径与错误路径 | `results/smoke.json` |
 | failure-exit | 普通 JS throw 快速非零、且不是 watchdog 124 | `results/failure-exit.json` |
+| sound-cancel | 连续采样率播放后，同步 `Sound.play` 在真实 SIGINT 下快速取消并清空播放资源 | `sound-cancel/result.json` |
 | live | Safari、权限、窗口身份、输入、剪贴板、HTTP 和截图 | `results/live.json` |
 | notify-icon-live | 已安装 macOS Runtime 提交通知并保活 15 秒供图标取证 | `results/runtime-api-notify-icon-live.json` + 截图 |
 | composition | 多控件、DOM/像素、截图、state/events 和移动窗口重放 | `results/composition.json` |
@@ -53,6 +54,7 @@ tier，以及没有风险理由的 contract-only 接口。
 OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./scripts/test_runtime_apis.sh contract
 OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./scripts/test_runtime_apis.sh unit
 OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./scripts/test_runtime_apis.sh smoke
+OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./scripts/test_runtime_apis.sh sound-cancel
 OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./scripts/test_runtime_apis.sh custom-ui-config
 OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./scripts/test_runtime_apis.sh custom-ui
 OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./scripts/test_runtime_apis.sh dialog
@@ -71,6 +73,10 @@ worker、callback、timer、window、listener、driver sink 与 native host proc
 `dialog-ax-controller.js` 按需调用公开 `keyboard.type()` 输入固定非秘密 fixture，再调用
 `mouse.clickForPID()` 作一次 PID-scoped `AXPress`；
 它不以 HTML mock、全局坐标 click 或脚本内 callback 冒充原生交互。
+
+`sound-cancel` 运行正式 JavaScript 文件生成一段静音 WAV，先播放短提示音初始化共享 speaker，
+再进入较长的同步 `Sound.play()`。外层 gate 看到 READY 后发送一次真实 SIGINT，并要求 Runtime
+在 3 秒内以 `canceled` 结束，且 cleanup event 中的 sound worker、waiter 和 playback 全部归零。
 
 即使设置了 `OPENDESK_BINARY`，runner 也不会直接从原目录执行它：先验证其为可执行普通
 文件，记录原始绝对路径和 SHA-256，再复制到本次
