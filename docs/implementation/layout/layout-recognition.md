@@ -39,6 +39,7 @@ automation/image_layout.go
 | `minSplitSpan` | `4` | 最小分割跨度 |
 | `minSeparatorScore` | `0.14` | separator 最低评分 |
 | `minSeparatorSpanRatio` | `0.30` | separator 在目标轴上的最小连续支撑覆盖率 |
+| `separatorThresholdMode` | `adaptive` | 候选阈值策略；可设为 `fixed` |
 | `maxSeparatorCandidates` | `8` | 候选上限 |
 | `cellColorMode` | `median` | 默认使用中位数颜色 |
 | `boundarySpanWidth` | `3` | 边界两侧区域对比跨度 |
@@ -89,6 +90,29 @@ score = supportRatio * 0.40
 
 这比早期只依赖相邻 cell 的评分更能抑制文字边缘产生的伪 separator。
 
+## Adaptive Separator Threshold
+
+默认 `separatorThresholdMode=adaptive`。每个递归区域、每个方向独立从经过平滑的候选 score 分布计算：
+
+```text
+adaptiveThreshold = clamp(
+  max(minSeparatorScore, mean + stdDev * 0.3, percentile75 * 0.9),
+  minSeparatorScore,
+  0.9
+)
+```
+
+`fixed` 模式始终应用 `minSeparatorScore`，但仍计算并输出 adaptive 对照值。这样可以在相同输入上做确定性 baseline，而不是用另一套脚本复制阈值逻辑。
+
+`debug.thresholds[]` 对每个递归区域和方向输出：
+
+- `orientation` / `depth` / `gridRect`；
+- `sampleCount` / `minScore`；
+- `mean` / `stdDev` / `percentile75`；
+- `adaptiveThreshold` / `appliedThreshold` / `mode`。
+
+被导出的候选还会在 `meta.threshold` 保留同一份计算证据。
+
 ## Continuous Support Span
 
 boundary score 除总支撑密度 `supportRatio` 外，还计算候选在目标轴上的最长连续有效支撑区间：
@@ -130,6 +154,7 @@ const layout = await ImageColor.analyzeLayout(imageBase64, {
   boundarySpanWidth: 3,
   minSeparatorScore: 0.14,
   minSeparatorSpanRatio: 0.30,
+  separatorThresholdMode: "adaptive",
 });
 ```
 
@@ -153,6 +178,7 @@ const layout = await ImageColor.analyzeLayout(imageBase64, {
 - `trimmed` / `dominant` 尚无独立计算实现；
 - median 计算当前使用排序，存在进一步优化空间；
 - 连续 span 过滤不会消除在局部递归区域内仍形成长边界的所有 false positives；
+- adaptive threshold 只基于当前区域的候选 score 分布，不理解 OCR 文本或应用语义；
 - layout 输出需要和语义、OCR、actionability、replay evidence 联合使用。
 
 ## 验证

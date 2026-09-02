@@ -70,6 +70,7 @@ type layoutAnalyzeOptions struct {
 	MinSplitSpan           int
 	MinSeparatorScore      float64
 	MinSeparatorSpanRatio  float64
+	SeparatorThresholdMode string
 	MaxSeparatorCandidates int
 	SeparatorHints         layoutHintSet
 	LegacyProfile          string
@@ -86,6 +87,24 @@ type boundaryScore struct {
 	SupportEnd       int
 	Contrast         float64
 	Orientation      string
+}
+
+type layoutThresholdEvidence struct {
+	Mode              string
+	SampleCount       int
+	MinScore          float64
+	Mean              float64
+	StdDev            float64
+	Percentile75      float64
+	AdaptiveThreshold float64
+	AppliedThreshold  float64
+}
+
+type layoutThresholdTrace struct {
+	Orientation string
+	Depth       int
+	Rect        layoutGridRect
+	Evidence    layoutThresholdEvidence
 }
 
 type layoutSplitNode struct {
@@ -108,6 +127,7 @@ type layoutSegmentationState struct {
 	Warnings           []string
 	RootCandidates     map[string][]layoutSeparator
 	HintWarnings       map[string]bool
+	Thresholds         []layoutThresholdTrace
 }
 
 func (r layoutGridRect) Width() int {
@@ -190,6 +210,7 @@ func analyzeLayoutImage(img image.Image, options interface{}) (map[string]interf
 			"minSplitSpan":           opts.MinSplitSpan,
 			"minSeparatorScore":      opts.MinSeparatorScore,
 			"minSeparatorSpanRatio":  opts.MinSeparatorSpanRatio,
+			"separatorThresholdMode": opts.SeparatorThresholdMode,
 			"maxSeparatorCandidates": opts.MaxSeparatorCandidates,
 		},
 		"regions":      regionsOut,
@@ -199,6 +220,7 @@ func analyzeLayoutImage(img image.Image, options interface{}) (map[string]interf
 		"debug": map[string]interface{}{
 			"separatorHints": exportLayoutHints(opts.SeparatorHints),
 			"rootCandidates": exportLayoutSeparatorGroups(flattenLayoutSeparatorMap(state.RootCandidates)),
+			"thresholds":     exportLayoutThresholdTraces(state.Thresholds),
 			"tree":           exportLayoutSplitTree(root, opts.CellSize, width, height),
 		},
 	}, nil
@@ -215,6 +237,7 @@ func parseLayoutAnalyzeOptions(options interface{}) layoutAnalyzeOptions {
 		MinSplitSpan:           4,
 		MinSeparatorScore:      0.14,
 		MinSeparatorSpanRatio:  0.30,
+		SeparatorThresholdMode: "adaptive",
 		MaxSeparatorCandidates: 8,
 		CellColorMode:          "median", // default to median for better text noise resistance
 		BoundarySpanWidth:      3,        // default to 3 cells for region contrast
@@ -252,6 +275,12 @@ func parseLayoutAnalyzeOptions(options interface{}) layoutAnalyzeOptions {
 	}
 	if value, ok := optMap["minSeparatorSpanRatio"]; ok {
 		out.MinSeparatorSpanRatio = layoutClampFloat(layoutFloatValue(value), 0, 1)
+	}
+	if value, ok := optMap["separatorThresholdMode"]; ok {
+		mode := strings.ToLower(strings.TrimSpace(fmt.Sprintf("%v", value)))
+		if mode == "adaptive" || mode == "fixed" {
+			out.SeparatorThresholdMode = mode
+		}
 	}
 	if value, ok := optMap["maxSeparatorCandidates"]; ok {
 		out.MaxSeparatorCandidates = layoutClampInt(jsToInt(value), 1, 24)
@@ -613,8 +642,12 @@ func buildLayoutSplitTree(labels [][]int, grid [][]layoutCell, rect layoutGridRe
 }
 
 func chooseLayoutSplit(labels [][]int, grid [][]layoutCell, rect layoutGridRect, depth int, opts layoutAnalyzeOptions, width, height int, state *layoutSegmentationState) (*layoutSeparatorCandidate, []layoutSeparatorCandidate, []layoutSeparatorCandidate) {
-	verticalCandidates := selectLayoutBoundaryCandidates(computeFloodVerticalBoundaryScores(labels, grid, rect, opts.BoundarySpanWidth), rect, opts, width, height, depth)
-	horizontalCandidates := selectLayoutBoundaryCandidates(computeFloodHorizontalBoundaryScores(labels, grid, rect, opts.BoundarySpanWidth), rect, opts, width, height, depth)
+	verticalCandidates, verticalThreshold := selectLayoutBoundaryCandidates(computeFloodVerticalBoundaryScores(labels, grid, rect, opts.BoundarySpanWidth), rect, opts, width, height, depth)
+	horizontalCandidates, horizontalThreshold := selectLayoutBoundaryCandidates(computeFloodHorizontalBoundaryScores(labels, grid, rect, opts.BoundarySpanWidth), rect, opts, width, height, depth)
+	state.Thresholds = append(state.Thresholds,
+		layoutThresholdTrace{Orientation: "vertical", Depth: depth, Rect: rect, Evidence: verticalThreshold},
+		layoutThresholdTrace{Orientation: "horizontal", Depth: depth, Rect: rect, Evidence: horizontalThreshold},
+	)
 	verticalCandidates = applyLayoutChildContrast(verticalCandidates, grid, rect)
 	horizontalCandidates = applyLayoutChildContrast(horizontalCandidates, grid, rect)
 
@@ -643,12 +676,14 @@ func layoutHintsConfigured(hints layoutHintSet) bool {
 	return len(hints.Vertical) > 0 || len(hints.Horizontal) > 0
 }
 
-func selectLayoutBoundaryCandidates(items []boundaryScore, rect layoutGridRect, opts layoutAnalyzeOptions, width, height, depth int) []layoutSeparatorCandidate {
+func selectLayoutBoundaryCandidates(items []boundaryScore, rect layoutGridRect, opts layoutAnalyzeOptions, width, height, depth int) ([]layoutSeparatorCandidate, layoutThresholdEvidence) {
+	thresholdEvidence := computeLayoutBoundaryThresholdEvidence(items, opts.MinSeparatorScore, opts.SeparatorThresholdMode)
 	if len(items) == 0 {
-		return nil
+		return nil, thresholdEvidence
 	}
 	items = smoothBoundaryScores(items, 1)
-	threshold := layoutBoundaryThreshold(items, opts.MinSeparatorScore)
+	thresholdEvidence = computeLayoutBoundaryThresholdEvidence(items, opts.MinSeparatorScore, opts.SeparatorThresholdMode)
+	threshold := thresholdEvidence.AppliedThreshold
 	minSupport := 0.18
 	minSpacing := layoutMaxInt(2, axisSpanForOrientation(rect, items[0].Orientation)/10)
 	candidates := make([]boundaryScore, 0, len(items))
@@ -715,14 +750,14 @@ func selectLayoutBoundaryCandidates(items []boundaryScore, rect layoutGridRect, 
 			continue
 		}
 		filtered = append(filtered, layoutSeparatorCandidate{
-			Separator: buildLayoutSeparatorCandidate(item, rect, depth, width, height, opts.CellSize),
+			Separator: buildLayoutSeparatorCandidate(item, rect, depth, width, height, opts.CellSize, thresholdEvidence),
 			GridPos:   item.Pos,
 		})
 		if len(filtered) >= opts.MaxSeparatorCandidates {
 			break
 		}
 	}
-	return filtered
+	return filtered, thresholdEvidence
 }
 
 func selectBestBoundaryClusterItem(items []boundaryScore) (boundaryScore, bool) {
@@ -748,13 +783,14 @@ func selectBestBoundaryClusterItem(items []boundaryScore) (boundaryScore, bool) 
 	return best, true
 }
 
-func buildLayoutSeparatorCandidate(item boundaryScore, rect layoutGridRect, depth, width, height, cellSize int) layoutSeparator {
+func buildLayoutSeparatorCandidate(item boundaryScore, rect layoutGridRect, depth, width, height, cellSize int, threshold layoutThresholdEvidence) layoutSeparator {
 	position := gridBoundaryToPixels(item.Pos, cellSize, axisPixelLimit(width, height, item.Orientation))
 	meta := map[string]interface{}{
 		"gridPosition":     item.Pos,
 		"supportRatio":     item.SupportRatio,
 		"supportSpanRatio": item.SupportSpanRatio,
 		"supportSpan":      exportLayoutSupportSpan(item, cellSize, width, height),
+		"threshold":        exportLayoutThresholdEvidence(threshold),
 		"contrast":         item.Contrast,
 		"depth":            depth,
 		"gridRect":         exportLayoutGridRect(rect),
@@ -1417,6 +1453,32 @@ func exportLayoutGridRect(rect layoutGridRect) map[string]interface{} {
 	}
 }
 
+func exportLayoutThresholdEvidence(evidence layoutThresholdEvidence) map[string]interface{} {
+	return map[string]interface{}{
+		"mode":              evidence.Mode,
+		"sampleCount":       evidence.SampleCount,
+		"minScore":          evidence.MinScore,
+		"mean":              evidence.Mean,
+		"stdDev":            evidence.StdDev,
+		"percentile75":      evidence.Percentile75,
+		"adaptiveThreshold": evidence.AdaptiveThreshold,
+		"appliedThreshold":  evidence.AppliedThreshold,
+	}
+}
+
+func exportLayoutThresholdTraces(traces []layoutThresholdTrace) []map[string]interface{} {
+	out := make([]map[string]interface{}, 0, len(traces))
+	for _, trace := range traces {
+		out = append(out, map[string]interface{}{
+			"orientation": trace.Orientation,
+			"depth":       trace.Depth,
+			"gridRect":    exportLayoutGridRect(trace.Rect),
+			"evidence":    exportLayoutThresholdEvidence(trace.Evidence),
+		})
+	}
+	return out
+}
+
 func exportLayoutBBox(rect image.Rectangle) map[string]interface{} {
 	return map[string]interface{}{
 		"x":      rect.Min.X,
@@ -1490,19 +1552,33 @@ func layoutGridRectAverage(grid [][]layoutCell, rect layoutGridRect) layoutCell 
 	}
 }
 
-func layoutBoundaryThreshold(items []boundaryScore, minScore float64) float64 {
+func computeLayoutBoundaryThresholdEvidence(items []boundaryScore, minScore float64, mode string) layoutThresholdEvidence {
+	evidence := layoutThresholdEvidence{
+		Mode:             mode,
+		SampleCount:      len(items),
+		MinScore:         minScore,
+		AppliedThreshold: minScore,
+	}
+	if evidence.Mode != "fixed" {
+		evidence.Mode = "adaptive"
+	}
 	if len(items) == 0 {
-		return minScore
+		evidence.AdaptiveThreshold = minScore
+		return evidence
 	}
 	values := make([]float64, 0, len(items))
 	for _, item := range items {
 		values = append(values, item.Score)
 	}
-	mean := layoutMean(values)
-	std := layoutStd(values)
-	p75 := layoutPercentile(values, 0.75)
-	threshold := layoutMaxFloat(minScore, layoutMaxFloat(mean+std*0.3, p75*0.9))
-	return layoutClampFloat(threshold, minScore, 0.9)
+	evidence.Mean = layoutMean(values)
+	evidence.StdDev = layoutStd(values)
+	evidence.Percentile75 = layoutPercentile(values, 0.75)
+	threshold := layoutMaxFloat(minScore, layoutMaxFloat(evidence.Mean+evidence.StdDev*0.3, evidence.Percentile75*0.9))
+	evidence.AdaptiveThreshold = layoutClampFloat(threshold, minScore, 0.9)
+	if evidence.Mode == "adaptive" {
+		evidence.AppliedThreshold = evidence.AdaptiveThreshold
+	}
+	return evidence
 }
 
 func layoutBoundaryConfidence(item boundaryScore) float64 {

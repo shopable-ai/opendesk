@@ -52,6 +52,7 @@ declare global {
     minSplitSpan?: number;
     minSeparatorScore?: number;
     minSeparatorSpanRatio?: number;
+    separatorThresholdMode?: "adaptive" | "fixed";
     maxSeparatorCandidates?: number;
     profile?: string;
     cellColorMode?: "mean" | "median" | "trimmed" | "dominant";

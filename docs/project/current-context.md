@@ -107,7 +107,7 @@ playwright
 
 ### Layout
 
-当前 `ImageColor.analyzeLayout` 默认 `cellColorMode=median`、`boundarySpanWidth=3`、`minSeparatorSpanRatio=0.30`。连续支撑 span gate 会在 split-tree candidate 阶段过滤只覆盖局部目标轴的候选；设为 `0` 可做关闭过滤的基线对照。正式实现说明：
+当前 `ImageColor.analyzeLayout` 默认 `cellColorMode=median`、`boundarySpanWidth=3`、`minSeparatorSpanRatio=0.30`、`separatorThresholdMode=adaptive`。连续支撑 span gate 会在 split-tree candidate 阶段过滤只覆盖局部目标轴的候选；阈值策略可切换到 `fixed` 做确定性基线，且两种模式都输出逐区域阈值证据。正式实现说明：
 
 ```text
 docs/implementation/layout/layout-recognition.md

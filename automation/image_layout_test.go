@@ -210,7 +210,7 @@ func TestLayoutSeparatorSpanFilterRejectsLocalTextLineAndKeepsPanelBoundary(t *t
 		"maxSeparatorCandidates": 8,
 	})
 
-	filtered := selectLayoutBoundaryCandidates(items, rect, opts, 160, 100, 0)
+	filtered, _ := selectLayoutBoundaryCandidates(items, rect, opts, 160, 100, 0)
 	if len(filtered) != 1 || filtered[0].GridPos != 11 {
 		t.Fatalf("span filter should keep only the panel boundary, got %#v", filtered)
 	}
@@ -223,17 +223,115 @@ func TestLayoutSeparatorSpanFilterRejectsLocalTextLineAndKeepsPanelBoundary(t *t
 	}
 
 	opts.MinSeparatorSpanRatio = 0
-	baseline := selectLayoutBoundaryCandidates(items, rect, opts, 160, 100, 0)
+	baseline, _ := selectLayoutBoundaryCandidates(items, rect, opts, 160, 100, 0)
 	if len(baseline) != 2 {
 		t.Fatalf("disabled span filter should preserve both baseline candidates, got %#v", baseline)
 	}
 }
 
+func TestLayoutAdaptiveThresholdFiltersWeakCandidateAndExportsEvidence(t *testing.T) {
+	items := make([]boundaryScore, 15)
+	for index := range items {
+		items[index] = boundaryScore{
+			Pos:              index + 1,
+			Score:            0.30,
+			SupportRatio:     0.10,
+			SupportSpanRatio: 0.10,
+			Orientation:      "vertical",
+		}
+	}
+	items[4] = boundaryScore{
+		Pos:              5,
+		Score:            0.15,
+		SupportRatio:     0.40,
+		SupportSpanRatio: 0.40,
+		SupportStart:     2,
+		SupportEnd:       6,
+		Contrast:         32,
+		Orientation:      "vertical",
+	}
+	items[10] = boundaryScore{
+		Pos:              11,
+		Score:            0.80,
+		SupportRatio:     0.80,
+		SupportSpanRatio: 0.80,
+		SupportStart:     1,
+		SupportEnd:       9,
+		Contrast:         60,
+		Orientation:      "vertical",
+	}
+	rect := layoutGridRect{MinX: 0, MinY: 0, MaxX: 16, MaxY: 10}
+	adaptiveOptions := parseLayoutAnalyzeOptions(map[string]interface{}{
+		"minSeparatorScore":      0.08,
+		"minSeparatorSpanRatio":  0.30,
+		"separatorThresholdMode": "adaptive",
+	})
+
+	adaptive, adaptiveEvidence := selectLayoutBoundaryCandidates(items, rect, adaptiveOptions, 160, 100, 0)
+	if len(adaptive) != 1 || adaptive[0].GridPos != 11 {
+		t.Fatalf("adaptive threshold should keep only the strong candidate, got %#v", adaptive)
+	}
+	if adaptiveEvidence.Mode != "adaptive" || adaptiveEvidence.AppliedThreshold <= adaptiveEvidence.MinScore {
+		t.Fatalf("adaptive threshold evidence is incomplete: %#v", adaptiveEvidence)
+	}
+	thresholdMeta, ok := adaptive[0].Separator.Meta["threshold"].(map[string]interface{})
+	if !ok || thresholdMeta["appliedThreshold"] != adaptiveEvidence.AppliedThreshold {
+		t.Fatalf("candidate does not expose applied threshold evidence: %#v", adaptive[0].Separator.Meta)
+	}
+
+	fixedOptions := adaptiveOptions
+	fixedOptions.SeparatorThresholdMode = "fixed"
+	fixed, fixedEvidence := selectLayoutBoundaryCandidates(items, rect, fixedOptions, 160, 100, 0)
+	if len(fixed) != 2 {
+		t.Fatalf("fixed threshold baseline should keep the weak and strong candidates, got %#v", fixed)
+	}
+	if fixedEvidence.Mode != "fixed" || fixedEvidence.AppliedThreshold != fixedEvidence.MinScore {
+		t.Fatalf("fixed threshold evidence is incomplete: %#v", fixedEvidence)
+	}
+	if fixedEvidence.AdaptiveThreshold != adaptiveEvidence.AdaptiveThreshold {
+		t.Fatalf("fixed baseline should still report the adaptive comparison: fixed=%#v adaptive=%#v", fixedEvidence, adaptiveEvidence)
+	}
+}
+
+func TestLayoutThresholdDebugCoversBothOrientationsWithoutCandidates(t *testing.T) {
+	result, err := analyzeLayoutImage(newSolidLayoutImage(80, 80, color.RGBA{R: 120, G: 120, B: 120, A: 255}), map[string]interface{}{
+		"separatorThresholdMode": "fixed",
+	})
+	if err != nil {
+		t.Fatalf("uniform layout analysis failed: %v", err)
+	}
+	grid, ok := result["grid"].(map[string]interface{})
+	if !ok || grid["separatorThresholdMode"] != "fixed" {
+		t.Fatalf("grid does not expose fixed threshold mode: %#v", result["grid"])
+	}
+	debug, ok := result["debug"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("layout result has no debug object: %#v", result["debug"])
+	}
+	traces, ok := debug["thresholds"].([]map[string]interface{})
+	if !ok || len(traces) < 2 {
+		t.Fatalf("threshold debug does not cover both orientations: %#v", debug["thresholds"])
+	}
+	orientations := map[string]bool{}
+	for _, trace := range traces {
+		orientation, _ := trace["orientation"].(string)
+		orientations[orientation] = true
+		evidence, _ := trace["evidence"].(map[string]interface{})
+		if evidence["mode"] != "fixed" || evidence["appliedThreshold"] != evidence["minScore"] {
+			t.Fatalf("fixed threshold trace is incomplete: %#v", trace)
+		}
+	}
+	if !orientations["vertical"] || !orientations["horizontal"] {
+		t.Fatalf("threshold traces are missing an orientation: %#v", orientations)
+	}
+}
+
 func TestLayoutAnalyzeOptionValidation(t *testing.T) {
 	invalid := parseLayoutAnalyzeOptions(map[string]interface{}{
-		"cellColorMode":         "not-a-mode",
-		"boundarySpanWidth":     0,
-		"minSeparatorSpanRatio": -1,
+		"cellColorMode":          "not-a-mode",
+		"boundarySpanWidth":      0,
+		"minSeparatorSpanRatio":  -1,
+		"separatorThresholdMode": "not-a-mode",
 	})
 	if invalid.CellColorMode != "median" {
 		t.Fatalf("invalid cellColorMode should keep the median default, got %q", invalid.CellColorMode)
@@ -243,6 +341,9 @@ func TestLayoutAnalyzeOptionValidation(t *testing.T) {
 	}
 	if invalid.MinSeparatorSpanRatio != 0 {
 		t.Fatalf("negative minSeparatorSpanRatio should clamp to 0, got %v", invalid.MinSeparatorSpanRatio)
+	}
+	if invalid.SeparatorThresholdMode != "adaptive" {
+		t.Fatalf("invalid separatorThresholdMode should keep adaptive default, got %q", invalid.SeparatorThresholdMode)
 	}
 
 	tooLarge := parseLayoutAnalyzeOptions(map[string]interface{}{

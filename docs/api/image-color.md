@@ -237,12 +237,15 @@ console.log(layout);
 | `options.maxDepth` / `minSplitSpan` | number | 可选；区域递归深度与最小切分跨度。 |
 | `options.minSeparatorScore` / `maxSeparatorCandidates` | number | 可选；分隔线筛选阈值与候选数。 |
 | `options.minSeparatorSpanRatio` | number | 可选；候选在目标轴上的最小连续支撑覆盖率，范围 `0..1`，默认 `0.30`；设为 `0` 可关闭此过滤用于基线对照。 |
+| `options.separatorThresholdMode` | `adaptive` / `fixed` | 可选；默认 `adaptive`，根据当前区域候选 score 分布提高实际阈值；`fixed` 始终使用 `minSeparatorScore`，用于确定性基线或显式固定策略。 |
 | `options.profile` | string | 可选；分析预设名称。 |
 | `options.cellColorMode` | `mean` / `median` / `trimmed` / `dominant` | 可选；网格颜色统计方式。 |
 | `options.boundarySpanWidth` | number | 可选；边界判断宽度。 |
 | `options.separatorHints` | object | 可选；`vertical` / `horizontal` 各为 `{label?,from,to}[]`，用于提供分隔线提示。 |
 
 返回 `Record<string, unknown>`；结果形状会随图像内容变化，调用方应检查字段存在性，不应把它当作稳定的 DOM 结构。
+
+`debug.thresholds[]` 会按递归区域和方向记录 `mean`、`stdDev`、`percentile75`、`adaptiveThreshold` 与最终 `appliedThreshold`。即使选择 `fixed`，仍保留 adaptive 对照值，便于解释两种策略的差异。
 
 ## ImageColor / Vision：推荐组合
 

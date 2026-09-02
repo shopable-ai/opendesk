@@ -468,6 +468,24 @@ func BenchmarkAnalyzeLayoutSeparatorSpanFilter(b *testing.B) {
 	}
 }
 
+func BenchmarkAnalyzeLayoutSeparatorThresholdMode(b *testing.B) {
+	img := image.NewRGBA(image.Rect(0, 0, 600, 400))
+	fillRect(img, image.Rect(0, 0, 300, 400), color.RGBA{210, 210, 210, 255})
+	fillRect(img, image.Rect(300, 0, 600, 400), color.RGBA{245, 245, 245, 255})
+	fillRect(img, image.Rect(80, 110, 210, 220), color.RGBA{30, 30, 30, 255})
+
+	for _, mode := range []string{"fixed", "adaptive"} {
+		b.Run(mode, func(b *testing.B) {
+			b.ReportAllocs()
+			for index := 0; index < b.N; index++ {
+				if _, err := analyzeLayoutImage(img, map[string]interface{}{"separatorThresholdMode": mode}); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+}
+
 // Helper functions
 
 func saveImage(t *testing.T, img image.Image, path string) {

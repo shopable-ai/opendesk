@@ -15,9 +15,11 @@
 - `cellColorMode`: `mean | median | trimmed | dominant`
 - `boundarySpanWidth`: 输入会 clamp 到 `1..8`
 - `minSeparatorSpanRatio`: 输入会 clamp 到 `0..1`；`0` 用于关闭过滤做基线对照
+- `separatorThresholdMode`: `adaptive | fixed`；无效值保留 `adaptive` 默认值
 - 默认 `cellColorMode=median`
 - 默认 `boundarySpanWidth=3`
 - 默认 `minSeparatorSpanRatio=0.30`
+- 默认 `separatorThresholdMode=adaptive`
 
 重要边界：当前 `buildLayoutGrid` 只有 `median` 使用独立算法；`mean` 以及已接受的 `trimmed` / `dominant` 当前都走 mean 分支。文档和测试必须把 `trimmed` / `dominant` 当作当前 alias，而不是四种成熟算法。
 
@@ -32,6 +34,8 @@
 | `TestLayoutBoundarySpanWidthChangesContrastWithoutOutOfBounds` | T1 | span width 会影响 boundary score，超大 span 也不会产生越界 boundary |
 | `TestLayoutBoundarySupportSpanTracksContinuousCoverage` | T1 | vertical candidate 的最长连续支撑率和像素区间可解释且方向正确 |
 | `TestLayoutSeparatorSpanFilterRejectsLocalTextLineAndKeepsPanelBoundary` | T1 | 局部文字行候选被过滤，长面板边界保留，并输出 support span meta |
+| `TestLayoutAdaptiveThresholdFiltersWeakCandidateAndExportsEvidence` | T1 | adaptive 基于候选分布拒绝弱候选，fixed baseline 保留，并输出 applied/adaptive threshold |
+| `TestLayoutThresholdDebugCoversBothOrientationsWithoutCandidates` | T1 | 即使没有候选，vertical/horizontal threshold trace 仍完整可解释 |
 | `TestLayoutAnalyzeOptionValidation` | T1 | invalid mode 回到 median default；boundary span clamp `1..8`；separator span ratio clamp `0..1` |
 | `TestLayoutTrimmedAndDominantCurrentlyAliasMean` | T1 | 锁定当前 alias 事实，防止文档误报为独立算法 |
 | `TestAnalyzeLayoutSmallAndUniformImages` | T1 | empty/tiny fail safely；uniform single-region 返回 coarse region |
@@ -49,7 +53,9 @@ T1 synthetic tests 不证明：
 - performance budget；
 - T3 desktop smoke。
 
-当前 tracked screenshot 对照见 `docs/quality/layout/separator-span-support-2026-09-02.md`。其中带 ground truth 的 simple fixture 用于 precision/recall；未标注的真实应用截图只用于候选数与视觉碎片化观察，不冒充精确 ground truth。
+当前 tracked screenshot 对照见 `docs/quality/layout/separator-span-support-2026-09-02.md`。其中带 ground truth 的 simple fixture 用于 precision/recall；`wechat_original.png` 含第三方录音界面重叠，已明确排除出 visual acceptance。未标注或被遮挡的真实应用截图不能用于宣称视觉精度。
+
+Adaptive/fixed 阈值对照见 `docs/quality/layout/adaptive-threshold-2026-09-02.md`。
 
 ## Recommended commands
 

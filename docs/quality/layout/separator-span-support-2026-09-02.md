@@ -40,18 +40,18 @@ go run ./cmd/opendesk -script .runtime/tests/layout/separator-span-support-20260
 | --- | --- | --- | --- |
 | `simple_wechat.png` + ground truth | precision/recall `1.0/1.0`, 5 regions | precision/recall `1.0/1.0`, 5 regions | 简单布局无召回回归 |
 | `mock_wechat.png` + ground truth | precision/recall `0.5/0.5`, 5 regions | precision/recall `0.5/0.5`, 5 regions | 未改善，也未回归 |
-| `wechat_original.png` | 7 root candidates, 20 regions | 2 root candidates, 14 regions | 主侧栏/会话区边界保留，列表行和内容卡片碎片化减少 |
+| `wechat_original.png` | 7 root candidates, 20 regions | 2 root candidates, 14 regions | **不纳入验收**：图像中央含第三方录音界面重叠，数量只能作为诊断输出 |
 | Calculator screenshot | 3 root candidates, 4 regions | 3 root candidates, 4 regions | 无结构变化 |
 | legacy desktop screenshot | 4 root candidates, 24 regions | 4 root candidates, 23 regions | 仅减少一处递归碎片 |
 
-WeChat 对照图：
+以下对照图仅保留为 contaminated-input 诊断记录，不是视觉 Evidence：
 
 ```text
 .runtime/tests/layout/separator-span-support-20260902/wechat-original-baseline.png
 .runtime/tests/layout/separator-span-support-20260902/wechat-original-filtered.png
 ```
 
-这是当前源码对 tracked real-app screenshot 的 T2 fixture evidence，不是当日 live WeChat 窗口或桌面交互验收。`wechat_original.png` 没有逐 separator ground truth，因此只报告候选/区域数量和可视检查，不把数量下降直接冒充 precision 指标。
+`wechat_original.png` 不仅没有逐 separator ground truth，还被确认含第三方录音界面重叠，因此不得据此声称 WeChat 主边界保留、碎片化改善或 real-app precision。当前可接受证据只包括 deterministic synthetic、带 ground truth 的 simple/mock fixture，以及干净 Calculator/legacy screenshot 上的无崩溃与结构差异观察；P1 的 complex/text-heavy real-app acceptance 仍待干净 fixture。
 
 ## Runtime API gate
 

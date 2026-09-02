@@ -29,7 +29,7 @@ docs/quality/layout/
 
 ## P1：Separator Span / Support 约束
 
-Status: done (2026-09-02)
+Status: IN_PROGRESS (implementation complete; clean complex real-app acceptance pending)
 
 目标：进一步过滤只覆盖局部文本行、而非真实大区域边界的候选。
 
@@ -45,16 +45,19 @@ Status: done (2026-09-02)
 - 简单布局召回率不下降；
 - 规则可由通用几何/视觉证据解释。
 
-完成记录：
+实现记录：
 
 - `minSeparatorSpanRatio` 已成为正式 `0..1` 参数，默认 `0.30`，`0` 可恢复无 span gate 的对照基线；
 - vertical/horizontal boundary 都计算最长连续支撑区间，并在 split-tree candidate filtering 前阻止局部短边界；
 - `supportSpanRatio` 与像素级 `supportSpan` 随 candidate meta 输出；
 - text-block synthetic precision 从 `1/5` 提升为 `1/1`，既有 7 级布局回归保留主要边界；
-- 带 ground truth 的 simple WeChat fixture 过滤前后均为 precision/recall `1.0/1.0`；真实 WeChat 截图 root candidates 从 `7` 收敛到 `2`，regions 从 `20` 收敛到 `14`，视觉上保留主区域边界并减少列表行碎片化；
+- 带 ground truth 的 simple WeChat fixture 过滤前后均为 precision/recall `1.0/1.0`；
+- 原用于 real-app 对照的 `wechat_original.png` 被确认含第三方录音界面重叠，相关候选/区域数不得作为 WeChat 视觉精度或完成证据；P1 保持 `IN_PROGRESS`，等待无重叠、带明确期望边界的 complex/text-heavy fixture；
 - 当前证据和限制见 `docs/quality/layout/separator-span-support-2026-09-02.md`。
 
 ## P2：Adaptive Thresholding
+
+Status: IN_PROGRESS (implementation complete; clean real-app acceptance pending)
 
 目标：根据区域噪声、文本密度或候选分布调整阈值，而不是所有区域使用同一固定阈值。
 
@@ -63,6 +66,15 @@ Status: done (2026-09-02)
 - 阈值变化必须输出 debug evidence；
 - 不允许通过应用专用常量掩盖模型问题；
 - 必须和固定阈值 baseline 对照测试。
+
+实现记录：
+
+- 将既有候选分布公式正式收敛为 `separatorThresholdMode: adaptive | fixed`，默认 `adaptive`，没有引入第二套评分算法；
+- `fixed` 始终应用 `minSeparatorScore`，同时保留 adaptive 对照值；
+- 每个递归区域和方向均输出 `mean/stdDev/percentile75/adaptiveThreshold/appliedThreshold` debug trace，候选 meta 同步携带阈值证据；
+- deterministic weak-candidate case 中 adaptive 保留强边界并拒绝弱边界，fixed baseline 同时保留两者；
+- simple ground-truth fixture 在两种模式下 precision/recall 均为 `1.0/1.0`；clean Calculator fixture 可验证阈值 trace 与无结构回归；
+- 含第三方录音界面重叠的 `wechat_original.png` 已从视觉验收中排除，P2 等待干净 complex/text-heavy real-app fixture 后才能完成。
 
 ## P3：Multi-Scale Validation
 
