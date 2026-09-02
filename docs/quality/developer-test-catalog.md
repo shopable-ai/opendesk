@@ -1,7 +1,34 @@
+---
+title: 开发测试脚本
+description: OpenDesk JavaScript Runtime、Go 白盒和 live 验收测试的归属、入口与证据目录。
+order: 10
+---
+
 # 开发测试脚本
 
 所有命令从仓库根目录执行。优先复制下面的 JavaScript 命令；每项只写“测试什么”和“怎么运行”。
 `.sh` 只放在文末，用于多步骤编排、真实窗口控制、watchdog 或环境准备。
+
+## 测试文件归属
+
+测试文件按“被验证的边界”保存，不按实现语言机械搬家：
+
+| 被验证的边界 | 保存位置 | 说明 |
+| --- | --- | --- |
+| JavaScript Runtime 公共契约、参数、返回值和用户可观察生命周期 | `tests/runtime-api/unit/<namespace>.test.js` | 正式入口是 `./scripts/test_runtime_apis.sh unit`；必须以 `docs/api/` 为契约来源。 |
+| 需要真实窗口、权限、音频设备或外部应用的 JS 场景 | `tests/runtime-api/live/` 或对应 `tests/<domain>/` | 运行输出写入 `.runtime/tests/<domain>/`，不写回源码目录。 |
+| native backend、纯 Go 算法、包内私有 lifecycle / EventLoop seam | 与实现同包的 `*_test.go` | 允许访问未导出实现；不能替代上面的 JS 公共契约测试。 |
+| 独立 Go 生成器或测试工具 | `tests/<domain>/tools/<tool>/` | 作为工具包运行，不与被测 Go package 的白盒测试混放。 |
+
+当前 `automation/` 中已有的 `_test.go` 逐步按第三类审查；如果某个文件只重复验证 JS
+公共接口、又不需要私有 backend 或 lifecycle seam，应删除 Go 重复部分，并把行为写入对应的
+`tests/runtime-api/*.test.js`。`automation/sound_test.go` 已按此规则移除；不要为了“移动到
+tests”而破坏 package-private 测试的访问边界。
+
+命令分两层：直接命令用于复现用户实际运行路径，必须使用文档指定的 `./opendesk` 或
+`./dist/opendesk`；Shell gate 用于完整 catalog、run context、跨步骤编排和正式证据。两者不能
+互相替代：Shell gate 通过不等于公开示例的直接命令已通过，直接命令通过也不等于完整 catalog
+已通过。
 
 ## JavaScript：直接运行
 
@@ -241,6 +268,29 @@ tests/runtime-api/unit/window-library.test.js
 tests/runtime-api/unit/globals.test.js
 ```
 
+### Go → JS 映射与 Page polyfill 对照
+
+`polyfills/000-page.js` 没有独立的 standalone 命令；它在 Runtime 初始化时自动加载。对应的
+JavaScript 测试和正式入口如下：
+
+| 实现来源 | JavaScript 测试 | 覆盖内容 | 正式运行命令 |
+| --- | --- | --- | --- |
+| `automation/utils.go` 的 `AutoMapObject` / Page 注册 | `tests/runtime-api/unit/page.test.js` | native method 的 generic forwarding、显式 screenshot/goto/url wrapper、权限和等待 facade | `./scripts/test_runtime_apis.sh unit` |
+| `polyfills/000-page.js` 的 Page facade | `tests/runtime-api/unit/page.test.js` | `page____Inject` 替换、参数转发、权限组合、timer/predicate/navigation 组合 | `./scripts/test_runtime_apis.sh unit` |
+| `polyfills/010-browser-automation-upgraded.js` | `tests/runtime-api/unit/page-compat.test.js`、`browser.test.js`、`context.test.js` | upgraded/playwright-shaped compatibility surface | `./scripts/test_runtime_apis.sh unit` |
+| `automation/sound.go` 的 `registerSound` | `tests/runtime-api/unit/sound.test.js` | allowlist 旧同步方法 + 显式 `start`/`playAsync`/`stop`/`stopAll`/`getActive` bridge 的公共 JS surface | `./scripts/test_runtime_apis.sh unit` |
+
+从仓库根目录直接复现完整 unit 脚本：
+
+```bash
+./dist/opendesk -script tests/runtime-api/unit.js -console-mode script
+```
+
+这个命令会通过 `unit.js` 加载 `framework.js`、`manifest.js` 和所有 `unit/*.test.js`；不能把
+`tests/runtime-api/unit/page.test.js` 当成无需 Runtime 初始化的独立脚本。Go 侧
+`automation/runtime_hardening_test.go` 仅验证 allowlist 和反射 seam，不替代上述 JavaScript
+facade 测试。
+
 ### Runtime API live 子测试
 
 这些测试需要由 live runner 注入隔离浏览器 fixture，不能直接执行 `macos_live.js`。
@@ -259,11 +309,13 @@ tests/runtime-api/live/clipboard.test.js
 tests/runtime-api/live/http-axios.test.js
 tests/runtime-api/live/composition.test.js
 tests/runtime-api/live/composition-replay.test.js
-tests/runtime-api/live/app-lifecycle.test.js
-tests/runtime-api/live/notify-icon.test.js
 ```
 
 对应 runner：`tests/runtime-api/macos_live.js`；它由正式 live 入口准备 fixture。
+
+`tests/runtime-api/live/app-lifecycle.test.js` 和 `tests/runtime-api/live/notify-icon.test.js`
+不属于上述注入式 live 子测试：前者由 `./scripts/test_app_lifecycle.sh` 独立准备 App fixture，
+后者由 `./scripts/test_runtime_apis.sh notify-icon-live` 使用已安装 `.app` 独立运行。
 
 ### Runtime API Custom UI 子测试
 

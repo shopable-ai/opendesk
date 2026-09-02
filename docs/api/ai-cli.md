@@ -4,7 +4,7 @@ description: 面向 Codex、Claude Code 与 shell Coding Agent 的低 Token Open
 order: 3
 ---
 
-# OpenDesk AI CLI
+# AI CLI
 
 `opendesk ai` 是 Stable Desktop Runtime 的薄 CLI 适配层，面向 Codex、Claude Code 和其他
 shell Coding Agent。它不会重做截图、窗口、输入或 Vision backend；你的使用顺序通常是

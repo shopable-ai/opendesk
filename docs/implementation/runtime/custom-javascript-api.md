@@ -93,6 +93,11 @@ polyfills/900-workspace.js
 
 **重要：当前 OpenDesk 还没有独立的 User / Project Extension 合并加载机制。**
 
+放入 `polyfills/` 前先判断能力 owner：这里适合纯 JavaScript 的组合、默认值、参数适配和
+兼容 facade；平台驱动、真实外部资源、可取消长任务或 execution teardown 必须回到 native
+Runtime owner。`Sound` / `Audio` 已由 `automation/` 注册为 native global，不要在自定义
+polyfill 中创建同名对象、第二个播放器或用 timer 伪造播放生命周期。
+
 运行时会从可执行文件目录和当前工作目录向上寻找一个可用的 `polyfills/` 目录，并使用找到的目录。因此不要随意创建一个只包含单个自定义文件的不完整 `polyfills/` 目录，否则可能遮蔽完整的 Runtime Polyfill 资源。
 
 开发环境中应把自定义文件放进当前完整的 `polyfills/` 目录；二进制发行环境中，如果 Runtime 资源目录不可写或不可见，优先继续在业务脚本内封装，或由项目作者 / 维护者提供对应扩展或定制构建。

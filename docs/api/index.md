@@ -1,10 +1,10 @@
 ---
-title: OpenDesk API 文档
+title: API 文档
 description: OpenDesk 用户 API 总览、全局对象地图与阅读导航。
 order: 1
 ---
 
-# OpenDesk API 文档
+# API 文档
 
 这套文档面向脚本作者、自动化使用者和直接生成 OpenDesk 脚本的 Agent。
 

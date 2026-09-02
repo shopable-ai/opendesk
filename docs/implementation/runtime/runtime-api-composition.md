@@ -1,6 +1,7 @@
 ---
 title: Runtime API composition
 description: OpenDesk JavaScript Runtime 的内部注入、polyfill、compatibility facade 与资源组成说明。
+order: 13
 ---
 
 # Runtime API composition

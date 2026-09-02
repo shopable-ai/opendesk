@@ -1,10 +1,10 @@
 ---
-title: OpenDesk 用户 API 文档
+title: 用户 API 文档
 description: OpenDesk 面向脚本作者、自动化使用者与 Agent 的唯一用户 API 文档入口。
 order: 1
 ---
 
-# OpenDesk 用户 API 文档
+# 用户 API 文档
 
 `docs/api/` 是 OpenDesk 的用户使用入口。先按你要完成的任务选择入口；不需要先了解 Go
 源码、polyfill 或历史迁移细节。

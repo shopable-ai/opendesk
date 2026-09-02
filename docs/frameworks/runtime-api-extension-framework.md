@@ -1,3 +1,9 @@
+---
+title: Runtime API 扩展与定制框架
+description: OpenDesk 新增、封装、映射和交付 Runtime API 的长期扩展框架。
+order: 10
+---
+
 # Runtime API 扩展与定制框架（Runtime API Extension Framework）
 
 ## 定位
@@ -9,6 +15,10 @@
 > 用户、集成开发者、源码维护者和商业定制分别应该在哪一层扩展能力？什么时候只写 JavaScript，什么时候使用 HTTP / MCP，什么时候必须修改 Go Runtime？
 
 本文件是长期框架，不承担单个接口的用户教程。项目作者只想用 JavaScript 组合现有接口时，阅读 [Custom JavaScript API authoring](../implementation/runtime/custom-javascript-api.md)。
+
+Go native primitive 如何经由 allowlist、Goja wrapper、`runtime.Set`、raw bridge 和
+polyfill 变成 JavaScript API，见 [Go to JavaScript Runtime binding model](../implementation/runtime/goja-binding-model.md)。
+本文负责扩展决策与交付流程；映射原理文档负责解释具体实现链路。
 
 ## 一、扩展能力四级模型
 

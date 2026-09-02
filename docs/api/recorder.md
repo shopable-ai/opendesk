@@ -1,10 +1,10 @@
 ---
-title: OpenDesk Agent-first Recorder MCP API
+title: Agent-first Recorder MCP API
 description: 显式录制会话、动作关联、证据验证、确定性提炼与 JavaScript 编译。
 order: 16
 ---
 
-# OpenDesk Agent-first Recorder
+# Agent-first Recorder
 
 Recorder 当前以 MCP 为主要入口。每个会话都必须显式创建，不存在包级全局活动 Recorder。
 会话产物写入 `.runtime/recordings/<session-id>/`，不得提交到版本控制。

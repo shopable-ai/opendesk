@@ -4,7 +4,7 @@ description: 观察和移除 OpenDesk 自身已投递通知的 macOS Experimenta
 order: 44
 ---
 
-# Notifications：OpenDesk 自身通知交互
+# Notifications：自身通知交互
 
 `Notifications` 是 `notify()` 的受限 inbound companion。它不创建第二套发送 API，也不把
 Notification Center UI、OCR 结果或任意应用通知包装成稳定通知模型。

@@ -1,5 +1,5 @@
 ---
-title: OpenDesk Audio API
+title: Audio API
 description: Inspect and control the default audio device without replacing the existing Sound player.
 order: 14
 ---

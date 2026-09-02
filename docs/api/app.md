@@ -1,5 +1,5 @@
 ---
-title: OpenDesk App Lifecycle API
+title: App Lifecycle API
 description: Launch, find, wait for, terminate, and restart desktop applications by stable identity.
 order: 14
 ---

@@ -340,7 +340,7 @@ runTask();
 - `page` 的等待、截图和权限：见 [Page API](page.md)。
 - `notify()` 的详细通知契约：见 [notify](notify.md)。
 - `alert()`、`confirm()`、`prompt()`：见 [Dialog API](dialog.md)。
-- `Sound`：见 [Sound API](sound.md)；`FloatingWindow` 与 `ui`：见 [Native UI](native-ui.md)。
+- `Sound`：见 [Sound API](sound.md)；`FloatingWindow` 与 `ui`：见 [Custom UI](custom-ui.md)。
 
 ## 全局接口的实现来源与维护边界
 
