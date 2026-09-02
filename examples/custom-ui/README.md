@@ -26,6 +26,28 @@ For the minimal five-button toolbar, run `make build` once from the repository r
 ./dist/opendesk -script examples/custom-ui/minimal-five-button-toolbar.js
 ```
 
+To browse all 150 built-in icons in one real Runtime Custom UI window, run this one-line command from the repository root:
+
+```bash
+./dist/opendesk -ui -script examples/custom-ui/icon-catalog.js -console-mode script -log-dir .runtime/examples/custom-ui/icon-catalog
+```
+
+The catalog reads the canonical `pkg/customui/assets/toolbar-icons-v1.json` registry and loads the generated, Runtime-safe `icon-catalog.html`. The single scrollable control tree declares all 150 buttons at once in a 10-column by 15-row grid; it has no pagination and is not a 30/32-slot `FloatingWindow` pager. The window starts in the upper-left safe area and remains draggable. Cards use smaller icons and show only the icon name; repeated row numbers and “click to copy code” hints are kept out of the visual grid while remaining in the button tooltip/Accessibility name. Hover for the full icon name and copy hint. Click an icon to copy one ready-to-paste `FloatingWindow.addButton()` line to the system clipboard, mark the selected card, and update the visible status. Close the window only when finished. The HTML contains no business script or remote resource; the JavaScript controller owns all 150 listeners and Runtime calls.
+
+For a searchable, offline catalog with large/compact display modes, copy controls, and JSON export, open the committed, self-contained file:
+
+```text
+docs/custom-ui/icon-catalog.html
+```
+
+It is a durable documentation asset and does not depend on `.runtime/`. Maintainers can regenerate the HTML, contact sheet, and manifest under `.runtime/tests/custom-ui/icon-catalog/` with:
+
+```bash
+bash scripts/render_custom_ui_icon_catalog.sh
+```
+
+After checking that temporary output, publish the generated HTML with `bash scripts/render_custom_ui_icon_catalog.sh --publish`. This updates both the durable browser catalog at `docs/custom-ui/icon-catalog.html` and the restricted Runtime view at `examples/custom-ui/icon-catalog.html`. The browser catalog is only a selection aid; run `icon-catalog.js` above for the real Custom UI window, controller, clipboard, scroll and lifecycle path.
+
 For the file-backed recording console, run this one-line command from the repository root:
 
 ```bash
@@ -54,6 +76,7 @@ Each example uses a JavaScript controller, waits for the native window to become
 - `toolbar-vertical-quick-replies.json` is the customer-content and layout-intent source of truth: edit its `toolbar.orientation` and ordered `buttons[].id` / `label` / `icon` / `reply` fields. It is data consumed by the JavaScript controller, not a second native layout API; the existing `FloatingWindow` constructor and `addButton()` validation still reject unsupported orientation, icon, count and ID values.
 - `floating-toolbar-wrap-demo.js` plus `floating-toolbar-wrap-demo.json` opens three interactive native toolbars together: `maxWidth: 252` (five plus one), `maxColumns: 2` (two plus two plus one), and `maxRows: 2` (four plus three). Edit the adjacent JSON to try other limits. Click an icon to toggle its active state, then close all three windows to finish. Its `FLOATING_TOOLBAR_WRAP_DEMO` records show the selected layout and button.
 - `minimal-five-button-toolbar.js` is the short standalone Button-first example. It opens five native 40×40pt SF Symbol buttons in declaration order and never closes on a timer.
+- `icon-catalog.js` plus generated `icon-catalog.html` opens one scrollable Custom UI window whose control tree contains all 150 icon buttons; clicks copy a minimal `addButton()` line, mark the selected card, and log the icon plus usage.
 - `panel.js` and `form.js` show when to use lower-level `ui.createWindow()`.
 - `floating-recording-toolbar.js` is a lower-level custom HTML/CSS example, not the default simple-toolbar API.
 - `recording-console.js` plus self-contained `recording-console/tray.html` is the default small recording tray; `recording-console/recorder.html` and `recording-console/recorder.css` are its expanded settings page.

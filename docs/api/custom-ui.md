@@ -140,7 +140,90 @@ const toolbar = new FloatingWindow({
 
 按钮只能在首次 `show()` 前增加或删除。重复 id 返回 `DUPLICATE_ID`；无效 id、label、icon、callback 或超出按钮数返回 `INVALID_SPEC`。
 
+`FloatingWindow` 的按钮正文始终只有图标，因此 `label` 是按钮文字的单一来源：每个按钮都会把它显示为原生 tooltip，并同时用作 macOS Accessibility name。无需再传一份容易与 `label` 不一致的 tooltip 文案；需要修改提示时调用 `updateButton(id, { label })`，原生 tooltip 与 Accessibility name 会在同一次更新中同步变化。`ui.createWindow()` 中自行声明的 HTML 按钮不走这套映射，可按 HTML 标准分别使用可见文字、`title` tooltip 与 `aria-label`。
+
 内置图标注册表当前提供 **150** 个常用 SF Symbols，覆盖播放/导航、通信/人员、媒体/编辑、文件/数据和设备/状态等场景。直接传入名称，例如 `arrow.clockwise`、`envelope.fill`、`camera.fill`、`doc.text.fill`、`chart.line.uptrend.xyaxis` 或 `wifi`；编辑器会通过 `ClawdeskFloatingIcon` 提供完整补全。完整图标清单由同一注册表生成类型、Go 与 macOS host 映射；远程 URL、`javascript:`、项目文件路径及未注册名称一律以带 `capability: "icon"` 的 `INVALID_SPEC` 拒绝。
+
+### 查找和试用全部内置图标
+
+从仓库根目录运行图标目录示例：
+
+```bash
+./dist/opendesk -ui -script examples/custom-ui/icon-catalog.js -console-mode script -log-dir .runtime/examples/custom-ui/icon-catalog
+```
+
+示例直接读取唯一注册表 `pkg/customui/assets/toolbar-icons-v1.json`，不会维护第二份图标名称。它使用 `ui.createWindow()` 打开一个受限、可滚动的真实 Runtime 窗口，初始位于左上安全区域且仍可拖动；配套的 `examples/custom-ui/icon-catalog.html` 在同一个控件树中一次声明全部 150 个图标按钮，固定按每行 10 个、共 15 行排列，不存在翻页，也不再用 30/32 个 `FloatingWindow` 槽位冒充完整目录。controller 会在显示前检查 `panel.controls()` 中恰好存在 150 个、顺序与注册表一致的 button。
+
+这里使用 `ui.createWindow()` 是因为 `FloatingWindow` 的 32 按钮上限属于简单原生工具栏的安全契约，不应为了目录场景放宽。目录图片由当前 macOS 根据注册表中的同一 SF Symbol recipe 生成，并作为受限 base64 PNG 内嵌；HTML 不包含业务 `<script>`，150 个 click listener、剪贴板调用和可见状态更新仍全部由 `icon-catalog.js` 的 Runtime controller 持有。
+
+每个按钮都以紧凑卡片显示较小图标与名称；编号和“点击复制代码”不重复铺在每张卡片上，而是保留在 DOM 的稳定 id / index 与完整 `title` / `aria-label` 中。完整提示仍使用“`图标名 · 点击复制按钮代码`”，实际 host 还会为 WebView button 同步原生 AXButton peer。点击图标会直接把以下一行代码写入系统剪贴板，将当前卡片显示为绿色选中状态，并在固定状态栏显示“已复制”作为成功反馈：
+
+```js
+toolbar.addButton("icon-camera-fill", "动作说明", "camera.fill", () => {});
+```
+
+复制使用稳定的 [`clipboard.copy()`](clipboard.md#clipboardcopytext写入文本)。控制台还会输出 `CUSTOM_UI_ICON_COPIED`，分别保留唯一 `id`、`icon`、`usage`、注册表序号和总数，便于自动化或日志检查。剪贴板写入失败时，固定状态栏和 `CUSTOM_UI_ICON_CATALOG_ERROR` 会显示失败，不会打印虚假的成功记录。
+
+如果主要目的是查找、复制或保存图标名称，直接打开仓库内长期保存的自包含图鉴：
+
+[打开 `docs/custom-ui/icon-catalog.html`](../custom-ui/icon-catalog.html)。
+
+它默认以大图模式显示，支持切换紧凑模式、名称搜索、点击复制图标名、复制完整 `addButton()` 用法、复制全部名称以及保存 JSON。HTML 内的 150 个图像由 macOS 根据同一注册表生成并以内联 data image 保存，因此移动单个 HTML 文件也能离线使用，不依赖 `.runtime/` 或另外 150 张图片。
+
+维护者需要重新渲染和检查时，从仓库根目录运行：
+
+```bash
+bash scripts/render_custom_ui_icon_catalog.sh
+```
+
+临时结果位于 `.runtime/tests/custom-ui/icon-catalog/`：`index.html` 是浏览器图鉴，`runtime-window.html` 是无业务脚本的受限 Runtime 视图，`contact-sheet.png` 用于快速视觉检查，`manifest.json` 记录系统版本和实际渲染数量。确认 150 个图标都正确后，再显式发布正式 HTML：
+
+```bash
+bash scripts/render_custom_ui_icon_catalog.sh --publish
+```
+
+命令会同时更新 `docs/custom-ui/icon-catalog.html` 和 `examples/custom-ui/icon-catalog.html`；两者都是生成并提交的资产，名称仍来自唯一注册表，没有第二份手写清单。`.runtime/` 只是可随时删除和重新生成的维护证据。
+
+`docs/custom-ui/icon-catalog.html` 是浏览器选型工具；`examples/custom-ui/icon-catalog.html` 只有通过 `icon-catalog.js` 加载时才构成真实 Runtime Custom UI。浏览器 HTML 成功不能替代 Runtime callback、Accessibility、剪贴板、滚动和窗口生命周期验收。
+
+最小使用方式仍然是直接传入内置名称：
+
+```js
+const toolbar = new FloatingWindow({ x: 100, y: 100 });
+toolbar.addButton("save", "保存", "tray.and.arrow.down.fill", () => {
+  console.log("save");
+});
+await toolbar.show();
+await toolbar.waitUntilClosed();
+```
+
+### 用户自定义按钮图标
+
+`FloatingWindow` 当前只支持注册表内置图标，不接受自定义 PNG、SVG、URL 或文件路径。需要品牌或业务专用图标时，使用 `ui.createWindow()` 中受限制的 `img`；图片必须位于脚本目录 / `basePath` 内，或者是受限的 base64 raster data image。
+
+```js
+const panel = await ui.createWindow({
+  id: "customIconButton",
+  kind: "floating",
+  title: "自定义按钮图标",
+  bounds: { x: 160, y: 160, width: 220, height: 120 },
+  content: {
+    html: `<button id="save" class="icon-button" title="保存" aria-label="保存">
+      <img id="saveIcon" src="./icons/save.png" alt="">
+    </button>`,
+    css: `.icon-button{width:44px;height:44px;padding:10px}
+      .icon-button img{width:24px;height:24px;pointer-events:none}`
+  }
+});
+
+panel.control("save").on("click", () => console.log("save"));
+// 动态图标仍必须解析到同一个 basePath 内。
+await panel.control("saveIcon").update({ source: "./icons/save-active.png" });
+await panel.show();
+await panel.waitUntilClosed();
+```
+
+本地自定义图片可使用 PNG、JPEG、GIF、WebP、BMP 或 ICO；base64 data image 仅接受 PNG、JPEG、GIF 或 WebP。SVG、远程 URL、`file:` URL、CSS `url()` 和越出 `basePath` 的路径均不支持。`pointer-events:none` 让图片点击继续由外层稳定 button id 接收。
 
 ## `toolbar`：状态、事件与生命周期
 
@@ -169,7 +252,7 @@ const toolbar = new FloatingWindow({
 | `active` / `disabled` / `busy` | boolean | 更新对应视觉与交互状态。 |
 | `error` | string / `null` | 设置错误状态；`null` 清除，字符串最多 2048 bytes。 |
 
-`ButtonState` 包含 `id`、`label`、`icon`、`active`、`disabled`、`busy`、`error`、单调递增的 `revision`、`renderedText`、`iconPresentation`、`accessibilityName`、`localBounds` 与 `screenBounds`。工具栏始终是 icon-only，`renderedText` 为空字符串。
+`ButtonState` 包含 `id`、`label`、`icon`、`active`、`disabled`、`busy`、`error`、单调递增的 `revision`、`renderedText`、`tooltip`、`tooltipVisible`、`iconPresentation`、`accessibilityName`、`localBounds` 与 `screenBounds`。工具栏始终是 icon-only，`renderedText` 为空字符串；`tooltip` 是 native host 实际应用的读回值，并与 `label` 一致；`tooltipVisible` 表示原生提示面板当前是否可见。
 
 示例：
 
@@ -436,6 +519,9 @@ HTTP UI 必须同时满足：服务器用 `-ui` 或可信本地配置启用、�
 - `examples/custom-ui/form.js`
 - `examples/custom-ui/recording-console.js`：默认是小型 `recording-console/tray.html` 托盘；点“展开”才显示 `recording-console/recorder.html` 设置页。HTML 只声明受限结构和稳定 id，CSS 与 JavaScript controller 分离；它使用空的原生 `title`，因此 HTML header 是唯一可见标题。录制会话本身仍必须由 [Recorder MCP API](recorder.md) 创建，不能由 HTML 或 Runtime 直接绕过。
 - `examples/custom-ui/floating-recording-toolbar.js`
+- `examples/custom-ui/icon-catalog.js` 与 `icon-catalog.html`：在一个可滚动的真实 Runtime 窗口中声明全部 150 个图标按钮；悬停查看名称与复制提示，点击直接复制一行 `addButton()` 代码。
+- `docs/custom-ui/icon-catalog.html`：提交到仓库的自包含浏览器图鉴，可长期查找、复制和离线保存，不依赖 `.runtime/`。
+- `scripts/render_custom_ui_icon_catalog.sh`：从唯一注册表生成浏览器 HTML、受限 Runtime HTML、联系表与渲染 manifest；默认写入 `.runtime/tests/custom-ui/icon-catalog/` 供检查，只有 `--publish` 才更新两个正式图鉴。
 - `examples/custom-ui/floating-toolbar-wrap-demo.js` 及其 `floating-toolbar-wrap-demo.json`：同时显示 `maxWidth` 自动换行、两列与最多两行的可交互原生工具栏；从仓库根目录运行 `./dist/opendesk -ui -script examples/custom-ui/floating-toolbar-wrap-demo.js -console-mode script -log-dir .runtime/examples/custom-ui/floating-toolbar-wrap-demo`，可编辑 JSON 比较其他限制，点击图标可切换 active 状态，关闭三个窗口结束示例。
 - `examples/custom-ui/minimal-five-button-toolbar.js`：约 20 行的推荐 Button-first 五按钮示例
 - `examples/custom-ui/toolbar-example.js`：横向和纵向示例共用的 `FloatingWindow` controller
