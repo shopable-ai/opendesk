@@ -33,7 +33,11 @@ func (b *Browser) NewPage() (*Page, error) {
 }
 
 // NewContext creates an isolated context for upgraded/playwright-style code.
+// It returns nil after Close so a closed browser cannot regain mutable state.
 func (b *Browser) NewContext() *BrowserContext {
+	if b == nil || b.closed {
+		return nil
+	}
 	ctx := &BrowserContext{
 		browser: b,
 		pages:   make([]*Page, 0),

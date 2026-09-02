@@ -134,14 +134,14 @@
         {
           "kind": "contains",
           "path": "types/page.d.ts",
-          "contains": "screenshot(options?: OpenDeskScreenshotOptions)"
+          "contains": "screenshot(options?: OpenDeskPageScreenshotOptions)"
         }
       ]
     },
     {
       "id": "browser-context-containers",
       "claim": "Go Browser and BrowserContext containers maintain page ownership, lifecycle state, and in-memory cookies/storage/session data.",
-      "proofLevels": ["E1", "E3"],
+      "proofLevels": ["E1", "E3", "E4"],
       "boundary": "These are OpenDesk in-memory containers, not a browser process, browser context protocol, cookie jar, localStorage, or network session.",
       "evidence": [
         {
@@ -158,6 +158,31 @@
           "kind": "contains",
           "path": "types/browser.d.ts",
           "contains": "newContext(): OpenDeskBrowserContext"
+        },
+        {
+          "kind": "go_test_name",
+          "path": "automation/browser_lifecycle_test.go",
+          "go_test_name": "TestBrowserLifecycleDefaultContextOwnsLegacyPage"
+        },
+        {
+          "kind": "go_test_name",
+          "path": "automation/browser_lifecycle_test.go",
+          "go_test_name": "TestBrowserLifecycleClosedContainersRejectNewObjects"
+        },
+        {
+          "kind": "go_test_name",
+          "path": "automation/browser_lifecycle_test.go",
+          "go_test_name": "TestBrowserLifecycleCloseIsIdempotent"
+        },
+        {
+          "kind": "go_test_name",
+          "path": "automation/browser_compat_test.go",
+          "go_test_name": "TestBrowserNewContextCreatesIsolatedContainer"
+        },
+        {
+          "kind": "go_test_name",
+          "path": "automation/browser_compat_test.go",
+          "go_test_name": "TestContextCookiesStorageSessionCRUD"
         }
       ]
     },

@@ -8,7 +8,7 @@ Evidence 引用漂移由 `python3 scripts/validate_browser_automation_evidence.p
 
 ### B01 — Browser/Context lifecycle regression coverage
 
-Status: open
+Status: done
 
 Problem: `automation/browser.go` 已有 Browser/Context/Page ownership、close/isClosed、newPage/newContext，但当前缺 focused regression tests。
 
@@ -30,6 +30,19 @@ Risk: 测试可能暴露当前 API 对 closed state 返回 `nil` 而非 error �
 Stop condition: 如果这些容器没有实际调用方，应优先缩小公开 contract，而不是扩展 abstraction。
 
 Out of scope: real browser process lifecycle.
+
+Execution record (2026-09-02):
+
+- Decision: `EXTEND`; the existing container tests already covered most ownership and close behavior, so no second browser abstraction was added.
+- Added a closed-state guard to `Browser.NewContext()` so a closed browser cannot append another context; the existing Go signature deliberately reports that state as `nil` rather than introducing a breaking return-type change.
+- Added focused deterministic coverage for default context/page ownership, closed Browser/Context object creation, inventory stability, and repeated idempotent close.
+- Updated the browser test matrix and capability Evidence manifest from E3 to E4 for this bounded container claim.
+- Focused tests and the current-source JavaScript probe are recorded under `.runtime/tests/browser-automation/b01-browser-lifecycle-20260902/`; the successful Runtime run is `direct-20260902-154722-427000`.
+- `go test ./automation -count=1` passed; the lifecycle-focused selection passed 7/7. The canonical JavaScript Runtime `unit` gate passed 418/418 in `.runtime/tests/runtime-api/20260902T-b01-browser-lifecycle/`.
+- `python3 scripts/validate_browser_automation_evidence.py` passed with 8 claims / 26 references after calibrating one pre-existing screenshot type-name reference to the current `OpenDeskPageScreenshotOptions` declaration; the final manifest also cites the already-existing context-state tests rather than overextending the new lifecycle tests.
+- `go test ./... -count=1` passed every package except the four known `pkg/visionrun` real-input/fixture baseline failures; B01 added no full-suite failure.
+- The first JavaScript diagnostic used object identity across Goja exports and failed only those two invalid `===` assumptions. The retained passing probe instead verifies observable owner inventories; both logs remain in the B01 Evidence directory.
+- Validation is limited to the in-process compatibility container. It is not browser-process, DOM, navigation, or Playwright runtime evidence.
 
 ### B02 — Stack mode product decision
 

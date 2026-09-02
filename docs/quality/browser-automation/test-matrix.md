@@ -15,6 +15,8 @@
 | stack normalization | T1 | `automation/runtime_stack_test.go::TestNormalizeRuntimeStack` | stack name normalization/fallback | runtime semantics |
 | upgraded conditional alias | T1 | `automation/runtime_stack_test.go::TestApplyRuntimeStackModeUsesUpgradedAliasOnlyWhenPresent` | alias happens only when `pageUpgraded` exists | upgraded facade exists in normal initialization |
 | playwright conditional alias | T1 | `automation/runtime_stack_test.go::TestApplyRuntimeStackModePlaywrightAliasesAvailableUpgradedGlobals` | page/browser/context alias routing when globals are supplied | Playwright namespace, launch, DOM/tab/session semantics |
+| Browser/Context lifecycle | T1 | `automation/browser_lifecycle_test.go::TestBrowserLifecycleDefaultContextOwnsLegacyPage`; `...ClosedContainersRejectNewObjects`; `...CloseIsIdempotent` | default page ownership, closed-container creation rejection, stable inventory, idempotent close | browser-process, DOM, navigation, or Playwright runtime semantics |
+| BrowserContext in-memory state | T1 | `automation/browser_compat_test.go::TestBrowserNewContextCreatesIsolatedContainer`; `...TestContextCookiesStorageSessionCRUD` | per-context isolation and cookies/storage/session container operations | browser profiles, real cookie jars, localStorage, or network sessions |
 | execution stack field | T2 | `pkg/execution/runner_test.go::TestRunJavaScriptAcceptsRequestedStackMode` | requested stack metadata is preserved and current base globals remain usable | upgraded/playwright facade behavior |
 | execution context | T2 | `pkg/execution/runner_test.go::TestRunJavaScriptInjectsExecutionContext` | `Execution` metadata injection | browser semantics |
 | HTTP stack acceptance | T2 | `pkg/http/handler_test.go::TestHandleExecutionsAcceptsLegacyStack`; `...UpgradedStack`; `...PlaywrightStack` | HTTP handler accepts and forwards stack values | real HTTP server smoke or browser semantics |
@@ -43,8 +45,6 @@ Passing the validator means **references are internally consistent**, not that t
 
 | Gap | Highest current level | Required next evidence |
 | --- | --- | --- |
-| Browser/Context ownership and lifecycle | E3 implementation, no focused T1 listed | deterministic Go unit tests |
-| cookies/storage/session containers | E3 implementation, no focused T1 listed | deterministic Go unit tests if contract remains public |
 | `page.goto` OS-launch contract | E3 implementation | small testable abstraction or platform-safe integration test |
 | screenshot | E3 implementation | controlled fixture + platform-aware T2/T3 |
 | selector / locator / evaluate | no current implementation | do not test until a real contract is implemented |
