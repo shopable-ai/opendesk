@@ -19,6 +19,24 @@ Camera、Bluetooth、USB、Serial、Printer、Wi-Fi/VPN 等外围能力默认不
 Native Extension、external integration 或 Core 的 placement gate 见
 [Runtime API 扩展与定制框架](../frameworks/runtime-api-extension-framework.md#外围能力-placement-matrix)。
 
+## 先确认：Quickstart 的运行前置条件
+
+`quickstart.js` 不是自包含安装器。它只负责调用已经安装的插件；OpenDesk 不会编译
+`go-basic`，也不会因为脚本位于 `examples/native-extensions/` 就自动发现源码目录。运行前必须
+先把完整的 source-free bundle 放到**实际执行的 OpenDesk 可执行文件**旁边：
+
+| 命令部分 | 实际作用 |
+| --- | --- |
+| `-script examples/native-extensions/quickstart.js` | 只决定读取哪个 JavaScript 文件，不决定插件 discovery root |
+| `./dist/opendesk` | 决定 portable discovery root 为 `./dist/native-extensions/` |
+| `dist/native-extensions/com.example.go-basic/` | 必须包含 `extension.json` 和 `bin/native-ext-go-basic`，否则 `NativeExtensions.goBasic` 不存在 |
+
+因此，从仓库根目录执行下面这条命令的**运行形式是正确的**，但它要求前面的 bundle 已经存在：
+
+```bash
+./dist/opendesk -script examples/native-extensions/quickstart.js -console-mode script
+```
+
 ## NativeExtensions：插件作者的本机开发闭环
 
 V1 的第一条用户路径是插件作者在自己的 macOS 机器上开发并直接运行：编写插件源码 →
@@ -47,6 +65,30 @@ machine-wide root、cwd、`PATH`、源码祖先或脚本所在目录。
 编辑器声明；discovery 不读取或执行它。完整 build/wire/schema/digest/bundle inventory 命令见
 [`examples/native-extensions/README.md`](../../examples/native-extensions/README.md)，业务脚本源文件是
 [`quickstart.js`](../../examples/native-extensions/quickstart.js)。
+
+### 本仓库 `dist/opendesk` 的直接验证
+
+以下准备命令从仓库根目录执行，且只把本地验证产物放到 `dist/`。`PROGRAM_DIR` 必须与实际执行
+的 CLI 目录一致；不要把 bundle 放到仓库根目录的 `native-extensions/`、`examples/` 或脚本所在
+目录。若 `dist/opendesk` 已存在，下面的构建步骤会使用它；若不存在则先从当前源码生成它：
+
+```bash
+ROOT="$(pwd -P)"
+PROGRAM_DIR="$ROOT/dist"
+PLUGIN_SRC="$ROOT/examples/native-extensions/go-basic"
+BUNDLE="$PROGRAM_DIR/native-extensions/com.example.go-basic"
+install -d -m 755 "$PROGRAM_DIR"
+test -x "$PROGRAM_DIR/opendesk" || go build -trimpath -buildvcs=false -o "$PROGRAM_DIR/opendesk" "$ROOT/cmd/opendesk"
+install -d -m 700 "$BUNDLE/bin" "$BUNDLE/types"
+go -C "$PLUGIN_SRC" build -trimpath -buildvcs=false -o "$BUNDLE/bin/native-ext-go-basic" .
+cp "$PLUGIN_SRC/extension.json" "$BUNDLE/extension.json"
+cp "$PLUGIN_SRC/types/index.d.ts" "$BUNDLE/types/index.d.ts"
+chmod -R go-w "$BUNDLE"
+test -x "$BUNDLE/bin/native-ext-go-basic"
+```
+
+准备完成后，从同一个仓库根目录执行上面的 quickstart 命令即可。`-script` 可以继续指向
+仓库中的脚本；它不会改变插件的程序相对 discovery root。
 
 将下面业务脚本保存为 `<program-directory>/quickstart.js`：
 
@@ -82,6 +124,11 @@ fixture [`opendesk-ocr-123.png`](../../tests/extensions/native-process/fixtures/
 其预期文字是 `OPENDESK OCR 123\n你好 456`。业务脚本是
 [`ocr-quickstart.js`](../../examples/native-extensions/ocr-quickstart.js)。
 
+仓库还提供了一个可选的调用方 JPEG 输入
+[`ocr-test.jpg`](../../examples/native-extensions/ocr-test.jpg)。`ocr-quickstart.js`
+会优先使用程序目录中的 `ocr-test.jpg`，没有时回退到正式 gate 使用的
+`ocr-test.png`；两者都不属于 extension bundle。
+
 从 OpenDesk 仓库根目录执行下面安装命令；`PROGRAM_DIR` 是已有 `opendesk` 的目录。此命令会将
 fixture 与业务脚本保存到程序目录，而不是 plugin bundle：
 
@@ -104,6 +151,17 @@ chmod -R go-w "$BUNDLE"
 cp "$ROOT/tests/extensions/native-process/fixtures/ocr/opendesk-ocr-123.png" "$PROGRAM_DIR/ocr-test.png"
 cp "$ROOT/examples/native-extensions/ocr-quickstart.js" "$PROGRAM_DIR/ocr-quickstart.js"
 ```
+
+如果使用仓库中已经准备好的 `dist/` 产物，固定从仓库根目录执行下面这一条即可；
+脚本会读取 `dist/ocr-test.jpg`，若不存在则读取 `dist/ocr-test.png`：
+
+```bash
+./dist/opendesk -script ./dist/ocr-quickstart.js -console-mode script
+```
+
+如果仓库源文件 `examples/native-extensions/ocr-test.jpg` 存在而 `dist/ocr-test.jpg`
+尚不存在，脚本会在上述运行中通过 `File.exists`/`File.copy` 自动复制一次；不需要手动切换
+工作目录或预先复制图片。
 
 声明的 OCR 工作目录仍是 `<program-directory>`。从其中原样执行：
 
@@ -133,6 +191,12 @@ main();
 `list()` 和 `diagnostics()` 只读取冻结 registry，不启动扩展 process。常见失败包括
 `root_unavailable`、`invalid_manifest`、`unsafe_bundle`、`digest_mismatch`、
 `duplicate_plugin_id` 和 `duplicate_namespace`。
+
+如果 quickstart 报 `Cannot read property 'hello' of undefined or null`，通常表示
+`NativeExtensions` 根对象存在，但 `goBasic` namespace 没有注册；先检查 `list()` 和
+`diagnostics()`，不要修改 JavaScript 调用形式或添加实验 flag。对 `./dist/opendesk` 而言，
+最先检查 `dist/native-extensions/com.example.go-basic/extension.json` 和
+`dist/native-extensions/com.example.go-basic/bin/native-ext-go-basic` 是否同时存在且可执行。
 
 将上面的诊断脚本保存为 `<program-directory>/diagnostics.js` 后，从相同工作目录执行
 `./opendesk -script ./diagnostics.js -console-mode script`。`root_unavailable` 表示程序

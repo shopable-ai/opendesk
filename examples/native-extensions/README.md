@@ -93,6 +93,12 @@ repository supplies a project-created, synthetic fixture with no user data:
 [`opendesk-ocr-123.png`](../../tests/extensions/native-process/fixtures/ocr/opendesk-ocr-123.png).
 It is expected to read as `OPENDESK OCR 123\n你好 456`.
 
+The repository also includes an optional caller-owned JPEG input,
+[`ocr-test.jpg`](ocr-test.jpg). `ocr-quickstart.js` prefers `ocr-test.jpg` when
+it is present beside the script, and falls back to the deterministic
+`ocr-test.png` used by the formal plugin gate. Neither image is part of an
+extension bundle.
+
 Run this setup from the OpenDesk repository root. `PROGRAM_DIR` must contain
 the `opendesk` executable used for the call:
 
@@ -115,6 +121,16 @@ chmod -R go-w "$BUNDLE"
 cp "$ROOT/tests/extensions/native-process/fixtures/ocr/opendesk-ocr-123.png" "$PROGRAM_DIR/ocr-test.png"
 cp "$ROOT/examples/native-extensions/ocr-quickstart.js" "$PROGRAM_DIR/ocr-quickstart.js"
 ```
+
+如果使用仓库中已经准备好的 `dist/` 产物，固定从仓库根目录执行下面这一条即可；
+脚本会读取 `dist/ocr-test.jpg`，若不存在则读取 `dist/ocr-test.png`：
+
+```bash
+./dist/opendesk -script ./dist/ocr-quickstart.js -console-mode script
+```
+
+如果源文件 `examples/native-extensions/ocr-test.jpg` 存在而 `dist/ocr-test.jpg` 尚不存在，
+脚本会通过 `File.exists`/`File.copy` 自动复制一次；不需要手动切换工作目录或预先复制图片。
 
 The declared working directory remains `<program-directory>`. Run this exact
 public one-line command from it:

@@ -269,6 +269,20 @@ def build_artifacts() -> tuple[Path, Path, Path]:
     return opendesk, go_extension, vision_extension
 
 
+def run_macos_security_gates() -> dict[str, object]:
+    packages = [
+        "./pkg/nativeextension", "./automation", "./pkg/http",
+        "./pkg/mcpserver", "./pkg/execution", "./cmd/opendesk",
+    ]
+    completed = run(["go", "test", *packages, "-count=1"], timeout=300)
+    return {
+        "status": "passed",
+        "packages": packages,
+        "stdoutSha256": hashlib.sha256(completed.stdout.encode("utf-8")).hexdigest(),
+        "stderrSha256": hashlib.sha256(completed.stderr.encode("utf-8")).hexdigest(),
+    }
+
+
 def assert_author_wire_test(go_extension: Path) -> dict[str, object]:
     request = {
         "protocol": PROTOCOL,
@@ -1187,7 +1201,11 @@ def validate_documentation() -> dict[str, object]:
             raise ProofFailure(f"maintained quickstart is missing {token!r}")
     ocr_quickstart = (ROOT / "examples" / "native-extensions" / "ocr-quickstart.js").read_text(encoding="utf-8")
     for token in (
-        "function main()", "NativeExtensions.macosVision.ocr", "File.path(\"./ocr-test.png\")",
+        "function main()", "NativeExtensions.macosVision.ocr", "File.path(destinationName)",
+        "File.copy(source, destination)",
+        "./ocr-test.jpg", "./ocr-test.png", "./dist/ocr-test.jpg", "./dist/ocr-test.png",
+        "./examples/native-extensions/ocr-test.jpg",
+        "File.exists(candidate)",
         "JSON.stringify({ text: ocr.text })", "main();",
     ):
         if token not in ocr_quickstart:
@@ -1225,6 +1243,7 @@ def main() -> int:
     head_before = run(["git", "rev-parse", "HEAD"]).stdout.strip()
     worktree_before = worktree_snapshot()
     source_before = source_snapshot()
+    security_go_tests = run_macos_security_gates()
     opendesk, go_extension, vision_extension = build_artifacts()
     documentation = validate_documentation()
     source_schema = validate_manifest_schema([
@@ -1399,6 +1418,7 @@ def main() -> int:
         },
         "crossCompile": cross_compile if cross_compile is not None else {"status": "not_run", "reason": "macOS-only host proof"},
         "authorBuild": AUTHOR_BUILD_EVIDENCE,
+        "macOSSecurityGoTests": security_go_tests,
         "authorWireTest": author_wire,
         "schemaValidation": source_schema,
         "documentationAcceptance": documentation,

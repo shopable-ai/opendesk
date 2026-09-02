@@ -13,6 +13,12 @@
 
 - 未经用户明确说明，不得创建、切换或推送新的 Git 分支；提交和推送默认使用用户指定的现有分支。
 
+## Native Extension 跨平台验收
+
+- Native Extension 当前阶段的验收不要求 Linux 或 Windows 真机/VM Runtime Evidence；不得仅因缺少这两类证据把当前 Goal 判定为硬失败或阻塞。
+- Linux 和 Windows 当前只要求完成与当前源码对应的 cross-compile/package 验证，并在报告中明确标注尚未进行目标系统 live Runtime 验证；不得把编译或打包结果表述为真机验证。
+- Linux 和 Windows 的 installed/live Runtime 验证应在具备对应设备后作为独立后续 Goal 执行。未经用户明确要求，不得为补齐当前验收而自动启动 Docker、虚拟机、Wine 或模拟器，也不得下载系统镜像。
+
 ## 文件生命周期与工程产物
 
 - 可维护的源码、正式文档和稳定测试资产才进入版本控制。
