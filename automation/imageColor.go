@@ -80,15 +80,20 @@ func (ic *ImageColor) FindPos(sourceImgStr, templateImgStr string, args ...float
 
 // loadImage 加载图像，支持 base64 字符串或文件路径（绝对/相对）
 func (ic *ImageColor) loadImage(imgStr string) (image.Image, error) {
-	// 检查是否为 base64 字符串
-	if strings.Contains(imgStr, "base64,") || len(imgStr) > 100 { // 粗略判断是否可能是 base64
+	if strings.TrimSpace(imgStr) == "" {
+		return nil, fmt.Errorf("empty image string")
+	}
+
+	// Data URLs are unambiguous and should never be interpreted as paths.
+	trimmed := strings.TrimSpace(imgStr)
+	if strings.HasPrefix(trimmed, "data:") && strings.Contains(trimmed, ";base64,") {
 		return ic.decodeBitmap(imgStr)
 	}
 
-	// 视为文件路径，处理相对路径和绝对路径
+	// Prefer a readable path before trying the less precise bare-base64 shape.
+	// This keeps long absolute and relative paths from being misclassified.
 	path := imgStr
 	if !filepath.IsAbs(path) {
-		// 如果是相对路径，转换为绝对路径（基于当前工作目录）
 		absPath, err := filepath.Abs(path)
 		if err != nil {
 			return nil, fmt.Errorf("failed to resolve relative path: %v", err)
@@ -96,18 +101,20 @@ func (ic *ImageColor) loadImage(imgStr string) (image.Image, error) {
 		path = absPath
 	}
 
-	// 从文件读取图像
 	file, err := os.Open(path)
 	if err != nil {
+		if len(trimmed) > 64 && isBase64(imgStr) {
+			return ic.decodeBitmap(imgStr)
+		}
 		return nil, fmt.Errorf("failed to open image file: %v", err)
 	}
 	defer file.Close()
 
-	// 尝试解码为 PNG 或 JPEG
 	img, err := png.Decode(file)
 	if err != nil {
-		// 重置文件指针，尝试 JPEG
-		file.Seek(0, 0)
+		if _, seekErr := file.Seek(0, 0); seekErr != nil {
+			return nil, fmt.Errorf("failed to reset image file after PNG decode: %v", seekErr)
+		}
 		img, err = jpeg.Decode(file)
 		if err != nil {
 			return nil, fmt.Errorf("failed to decode image file as PNG or JPEG: %v", err)

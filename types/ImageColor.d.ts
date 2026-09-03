@@ -35,6 +35,41 @@ declare global {
     height: number;
   }
 
+  interface OpenDeskImageDiffRegion {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }
+
+  interface OpenDeskImageDiffOptions {
+    pixelThreshold?: number;
+    maxDiffPixels?: number;
+    maxDiffRatio?: number;
+    includeAlpha?: boolean;
+    ignoreRegions?: OpenDeskImageDiffRegion[];
+    outputPath?: string;
+    includeDiffImage?: boolean;
+  }
+
+  interface OpenDeskImageDiffResult {
+    matched: boolean;
+    width: number;
+    height: number;
+    totalPixels: number;
+    comparedPixels: number;
+    ignoredPixels: number;
+    diffPixels: number;
+    diffRatio: number;
+    meanAbsoluteError: number;
+    maxChannelDiff: number;
+    changedBounds: OpenDeskImageDiffRegion | null;
+    pixelThreshold: number;
+    includeAlpha: boolean;
+    diffPath?: string;
+    diffImage?: string;
+  }
+
   interface OpenDeskColorSimilarityResult {
     data: boolean;
     similarity: number;
@@ -65,6 +100,7 @@ declare global {
 
   interface OpenDeskImageColor {
     findPos(sourceImage: string, templateImage: string, threshold?: number): OpenDeskTemplateMatchResult;
+    diff(actualImage: string, expectedImage: string, options?: OpenDeskImageDiffOptions): OpenDeskImageDiffResult;
     loadBase64(path: string): string;
     resize(image: string, width: number, height: number): string;
     pixel(image: string, x: number, y: number): string;

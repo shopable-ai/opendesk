@@ -69,7 +69,7 @@ globalThis.RuntimeAPIObjects = {
   OCR: { docs: 'docs/api/vision.md', types: 'types/Vision.d.ts', source: 'automation/ocr.go', status: 'secondary', platforms: ['darwin', 'linux', 'windows'], methods: ['extractText'] },
   Vision: { docs: 'docs/api/vision.md', types: 'types/Vision.d.ts', source: 'automation/vision.go', status: 'secondary', platforms: ['darwin', 'linux', 'windows'], methods: ['runOCR', 'detectUI', 'getCapabilities', 'analyzeLayout', 'annotateRegions'] },
   ImageColor: { docs: 'docs/api/image-color.md', types: 'types/ImageColor.d.ts', source: 'automation/imageColor.go', status: 'secondary', platforms: ['darwin', 'linux', 'windows'], methods: [
-    'findPos', 'loadBase64', 'resize', 'clip', 'pixel', 'findColor', 'findColorBlocks',
+    'findPos', 'diff', 'loadBase64', 'resize', 'clip', 'pixel', 'findColor', 'findColorBlocks',
     'hasColor', 'isGray', 'getSize', 'save', 'findRedChannel', 'findGreenChannel',
     'findBlueChannel', 'toRGB', 'toRGBA', 'toHSL', 'toHSLA', 'isColorSimilar', 'analyzeLayout',
   ] },

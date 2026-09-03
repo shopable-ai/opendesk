@@ -26,7 +26,7 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先找窗口，
 
 - 写桌面脚本：[Page API](page.md) → [Mouse API](mouse.md) → [Input APIs](input.md) → [Window API](window.md)
 - 做 OCR / 找按钮：[Vision API](vision.md)
-- 做模板匹配 / 颜色判断：[ImageColor API](image-color.md)
+- 做同尺寸图像差异 / 模板匹配 / 颜色判断：[ImageColor API](image-color.md)
 - 做系统与文件操作：[System API](system.md)、[File API](file.md)、[AppStorage](storage.md)
 - 读写系统剪贴板：[Clipboard API](clipboard.md)
 - 订阅窗口、应用、剪贴板和显示器变化：[Desktop Events API](events.md)
@@ -63,7 +63,7 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先找窗口，
 | `Screen` | JavaScript Runtime | Stable；mode mutation 与录屏为 Experimental（macOS） | 显示器/mode、像素、截图别名、区域选择与录屏 | [Screen API](screen.md) |
 | `Vision` | JavaScript Runtime | Stable | OCR、UI 文本检测、provider 能力 | [Vision API](vision.md) |
 | `OCR` | JavaScript Runtime | Secondary | 本地 Tesseract 纯文本 OCR | [Vision API](vision.md) |
-| `ImageColor` | JavaScript Runtime | Secondary | 模板匹配、颜色、图像辅助分析 | [ImageColor API](image-color.md) |
+| `ImageColor` | JavaScript Runtime | Secondary | 同尺寸图像差异、模板匹配、颜色与图像辅助分析 | [ImageColor API](image-color.md) |
 | `System` | JavaScript Runtime | Stable reads / Experimental session actions | 系统、进程、网络、指标与 session capability | [System API](system.md) |
 | `File` | JavaScript Runtime | Stable | 文件与目录操作 | [File API](file.md) |
 | `AppStorage` | JavaScript Runtime | Secondary | 持久化键值存储 | [AppStorage](storage.md) |

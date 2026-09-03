@@ -1,6 +1,6 @@
 ---
 title: ImageColor API
-description: 模板匹配、颜色判断、裁剪、缩放与图像辅助分析。
+description: 同尺寸图像差异、模板匹配、颜色判断、裁剪、缩放与图像辅助分析。
 order: 10
 ---
 
@@ -13,7 +13,7 @@ order: 10
 推荐定位：
 
 - `Vision`：优先处理 OCR、文本定位、结构化 UI 候选
-- `ImageColor`：处理模板匹配、颜色、简单图像变换等像素级辅助任务
+- `ImageColor`：处理同尺寸图像差异、模板匹配、颜色、简单图像变换等像素级辅助任务
 
 它适合作为 Vision 不够用时的补充，不建议单独承担复杂 GUI 语义识别。
 
@@ -22,6 +22,7 @@ order: 10
 | 方法 | 用途 |
 | --- | --- |
 | `ImageColor.findPos(source, template, threshold?)` | 模板匹配 |
+| `ImageColor.diff(actual, expected, options?)` | 确定性比较两张同尺寸图像 |
 | `ImageColor.loadBase64(path)` | 图片文件转 PNG data URL |
 | `ImageColor.resize(image, width, height)` | 缩放图片 |
 | `ImageColor.clip(image, options?)` | 裁剪图片 |
@@ -39,6 +40,15 @@ order: 10
 | `ImageColor.isColorSimilar(target, gradient, tolerance?)` | 颜色相似判断 |
 
 方法名是 Go 导出名映射到 JS 后的 lowerCamelCase 形式。
+
+选择入口时先区分目标：
+
+| 目标 | 方法 |
+| --- | --- |
+| 在一张大图中寻找较小模板 | `findPos` |
+| 比较两张同尺寸图像的原始像素差异 | `diff` |
+| 比较两个颜色值 | `isColorSimilar` |
+| 分析一张图像的区域和分隔线 | `analyzeLayout` |
 
 ## ImageColor.findPos(source, template, threshold)
 
@@ -78,6 +88,147 @@ console.log(result);
 **建议**
 
 模板匹配对缩放、主题、字体、抗锯齿和分辨率变化敏感。重要动作应结合二次验证，不要只凭一次模板匹配直接执行高风险操作。
+
+## ImageColor.diff(actualImage, expectedImage, options?)
+
+对两张**同尺寸**图像逐像素比较。它是纯 Go、无 GUI、无网络、无 AI 模型依赖的确定性原语；不做缩放、裁剪、补边、对齐、几何配准、SSIM 或感知比较。
+
+```js
+const result = ImageColor.diff(
+  './actual.png',
+  './expected.png',
+  {
+    pixelThreshold: 8,
+    maxDiffPixels: 20,
+    maxDiffRatio: 0.001,
+    includeAlpha: false,
+    ignoreRegions: [
+      { x: 10, y: 10, width: 120, height: 40 }
+    ],
+    outputPath: './.runtime/diff.png',
+    includeDiffImage: false
+  }
+);
+```
+
+`actualImage` 和 `expectedImage` 使用与 `ImageColor.findPos` 相同的主要输入系统，支持：
+
+- 本地绝对路径
+- 相对于 OpenDesk 当前工作目录的本地路径
+- `data:image/...;base64,...` data URL
+- 不带 data URL 前缀的 base64 PNG/JPEG 字符串
+
+V1 要求宽高完全相同。尺寸不同时直接报错，错误中同时包含 `actual=<width>x<height>` 和 `expected=<width>x<height>`；不会静默 resize、crop、stretch、pad 或 align。
+
+### 最简用法
+
+精确比较不需要传 options：
+
+```js
+const exact = ImageColor.diff(actual, expected);
+if (!exact.matched) throw new Error(`changed pixels: ${exact.diffPixels}`);
+```
+
+对来自截图的输入，AI 通常只需先显式设置一个小的通道阈值，再根据业务需要决定是否增加允许差异量：
+
+```js
+const diff = ImageColor.diff(actual, expected, { pixelThreshold: 8 });
+```
+
+`pixelThreshold: 8` 是截图场景的起始建议，不是隐式默认值；默认仍是严格、可解释的 `0`。不要在没有基线数据时同时堆叠所有参数。
+
+### Options
+
+| 参数 | 类型与默认值 | 行为 |
+| --- | --- | --- |
+| `pixelThreshold` | `0..255` 整数，默认 `0` | RGB 中任一通道绝对差**大于**该值时记为差异像素；`includeAlpha: true` 时 Alpha 也参与。刚好等于阈值不计为差异。 |
+| `maxDiffPixels` | 可选非负整数 | 允许的最大差异像素数。 |
+| `maxDiffRatio` | 可选 `0..1` number | 允许的最大差异像素比例。 |
+| `includeAlpha` | boolean，默认 `false` | 是否把 Alpha 作为第四个比较通道。 |
+| `ignoreRegions` | 可选 `{x,y,width,height}[]` | 忽略的整数像素矩形。负 width/height 报错；零尺寸为空区域；部分越界会与图像求交；完全越界不影响结果。 |
+| `outputPath` | 可选 string | 把差异图以 PNG 内容写入该路径；父目录不存在时自动创建。相对路径基于当前工作目录。 |
+| `includeDiffImage` | boolean，默认 `false` | 为 `true` 时返回 PNG data URL。默认不返回，避免无意产生大体积 base64。 |
+
+多个 `ignoreRegions` 先按像素取并集，因此交叠像素只计入一次 `ignoredPixels`。忽略像素不参与 `diffPixels`、`diffRatio`、`meanAbsoluteError`、`maxChannelDiff` 或 `changedBounds`。options 和矩形中的未知字段会报错，避免 AI 参数拼写错误后静默使用默认值。
+
+### 返回结果
+
+```js
+{
+  matched: false,
+  width: 800,
+  height: 600,
+  totalPixels: 480000,
+  comparedPixels: 475200,
+  ignoredPixels: 4800,
+  diffPixels: 37,
+  diffRatio: 0.00007786195286195286,
+  meanAbsoluteError: 0.013,
+  maxChannelDiff: 64,
+  changedBounds: { x: 210, y: 118, width: 32, height: 9 },
+  pixelThreshold: 8,
+  includeAlpha: false,
+  diffPath: './.runtime/diff.png',
+  diffImage: 'data:image/png;base64,...'
+}
+```
+
+- `totalPixels = width * height`。
+- `comparedPixels = totalPixels - ignoredPixels`。
+- `diffRatio = diffPixels / comparedPixels`。
+- `meanAbsoluteError` 是所有参与比较像素、所有参与通道的绝对差之和，除以 `comparedPixels * channelCount`；`channelCount` 为 3，或在 `includeAlpha: true` 时为 4。结果范围是 `0..255`，并且阈值内的通道差也进入该平均值。
+- `maxChannelDiff` 是参与比较通道中的最大绝对差，范围 `0..255`。
+- `changedBounds` 是所有差异像素的最小外接整数矩形；没有差异时为 `null`。
+- `pixelThreshold` 和 `includeAlpha` 回显实际使用的关键比较设置，方便 AI 解释结果。
+- 只有提供 `outputPath` 时才有 `diffPath`；只有 `includeDiffImage: true` 时才有 `diffImage`。
+
+`matched` 的规则固定为：
+
+- 两个 limit 都未提供：仅当 `diffPixels === 0` 才为 `true`。
+- 只提供一个 limit：该条件满足时为 `true`。
+- 同时提供两个 limit：`diffPixels <= maxDiffPixels` **且** `diffRatio <= maxDiffRatio` 时才为 `true`。
+
+如果忽略区域覆盖整张图片，则 `comparedPixels=0`。此时 `diffPixels=0`、`diffRatio=0`、`meanAbsoluteError=0`、`maxChannelDiff=0`、`changedBounds=null`，且 `matched=true`。因此返回数值不会出现 `NaN` 或 `Infinity`。
+
+### 差异图规则
+
+差异图始终与输入同尺寸并编码为 PNG：
+
+- 差异像素输出为不透明红色 `#ff0000`。
+- 未变化像素输出为 actual 像素 RGB 三通道算术平均得到的不透明灰度。
+- 忽略像素按未变化像素渲染，不会标成红色。
+
+同一输入、options 和 Go 版本会按固定扫描与 PNG 编码规则生成相同结果；`outputPath` 与 `includeDiffImage` 同时使用时，两者来自同一份 PNG 字节。
+
+最小可运行示例是 [`examples/image-color-diff.js`](../../examples/image-color-diff.js)。从仓库根目录执行：
+
+```bash
+./opendesk -script examples/image-color-diff.js -console-mode script
+```
+
+示例会使用内嵌的小型确定性 PNG，并把差异图写入 `.runtime/examples/image-color-diff/diff.png`。
+
+### 操作前后比较
+
+`diff` 可以比较动作前后的局部截图，但它本身不等待变化：
+
+```js
+const before = await page.screenshot({ clip: region });
+
+// 执行动作
+
+const after = await page.screenshot({ clip: region });
+
+const diff = ImageColor.diff(before, after, {
+  pixelThreshold: 8
+});
+
+if (diff.diffRatio < 0.002) {
+  throw new Error('expected visual region to change');
+}
+```
+
+这不是 `waitForVisualChange`：调用方负责截图时机、重试和业务结果验证。
 
 ## ImageColor.loadBase64(path)
 

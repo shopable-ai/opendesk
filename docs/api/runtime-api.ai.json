@@ -280,6 +280,7 @@
       "doc": "image-color.md",
       "keyMethods": [
         "findPos",
+        "diff",
         "loadBase64",
         "resize",
         "clip",
