@@ -1,6 +1,10 @@
-package automation
+package automation_test
 
-import "testing"
+import (
+	"testing"
+
+	. "opendesk/automation"
+)
 
 func TestBrowserLifecycleDefaultContextOwnsLegacyPage(t *testing.T) {
 	browser := NewBrowser()

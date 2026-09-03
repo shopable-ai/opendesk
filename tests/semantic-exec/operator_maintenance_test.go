@@ -1,13 +1,14 @@
-package operator
+package semanticexec_test
 
 import (
 	"testing"
 
+	"opendesk/pkg/operator"
 	"opendesk/pkg/semanticexec"
 )
 
 func TestAuditSemanticFixtures(t *testing.T) {
-	report, err := AuditSemanticFixtures("../../tests/semantic-exec/fixtures")
+	report, err := operator.AuditSemanticFixtures("fixtures")
 	if err != nil {
 		t.Fatalf("AuditSemanticFixtures returned error: %v", err)
 	}

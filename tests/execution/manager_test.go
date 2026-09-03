@@ -1,14 +1,16 @@
-package execution
+package execution_test
 
 import (
 	"context"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"opendesk/pkg/execution"
 )
 
 func TestManagerCancelAllAndWaitAll(t *testing.T) {
-	manager := NewManager()
+	manager := execution.NewManager()
 	manager.Register("one", nil)
 	manager.Register("two", nil)
 	var canceled atomic.Int64
@@ -16,7 +18,7 @@ func TestManagerCancelAllAndWaitAll(t *testing.T) {
 		id := id
 		if !manager.SetCancel(id, func() {
 			canceled.Add(1)
-			go manager.Complete(ExecutionResult{ExecutionID: id}, AgentSummary{})
+			go manager.Complete(execution.ExecutionResult{ExecutionID: id}, execution.AgentSummary{})
 		}) {
 			t.Fatalf("failed to register cancel for %s", id)
 		}
@@ -35,14 +37,14 @@ func TestManagerCancelAllAndWaitAll(t *testing.T) {
 }
 
 func TestManagerBeginShutdownRejectsNewExecutions(t *testing.T) {
-	manager := NewManager()
+	manager := execution.NewManager()
 	if !manager.Register("before", nil) {
 		t.Fatal("initial registration failed")
 	}
 	var canceled atomic.Int64
 	if !manager.SetCancel("before", func() {
 		canceled.Add(1)
-		manager.Complete(ExecutionResult{ExecutionID: "before"}, AgentSummary{})
+		manager.Complete(execution.ExecutionResult{ExecutionID: "before"}, execution.AgentSummary{})
 	}) {
 		t.Fatal("set cancel failed")
 	}

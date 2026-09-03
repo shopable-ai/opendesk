@@ -1,4 +1,4 @@
-package customui
+package customui_test
 
 import (
 	"context"
@@ -7,6 +7,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	. "opendesk/pkg/customui"
 )
 
 type blockingCreateDriver struct {
@@ -114,9 +116,7 @@ func (w *lifecycleWindow) Close(ctx context.Context) (WindowState, error) {
 }
 
 func TestWindowCannotReviveAfterConcurrentClose(t *testing.T) {
-	driver := &lifecycleDriver{
-		base: NewMemoryDriver(), showStarted: make(chan struct{}), releaseShow: make(chan struct{}),
-	}
+	driver := &lifecycleDriver{base: NewMemoryDriver(), showStarted: make(chan struct{}), releaseShow: make(chan struct{})}
 	session, err := NewSession("concurrent-close", t.TempDir(), driver, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -136,10 +136,10 @@ func TestWindowCannotReviveAfterConcurrentClose(t *testing.T) {
 	go func() { _, closeErr := window.Close(context.Background()); closeDone <- closeErr }()
 	close(driver.releaseShow)
 	if err := <-showDone; err != nil {
-		t.Fatalf("show failed: %v", err)
+		t.Fatal(err)
 	}
 	if err := <-closeDone; err != nil {
-		t.Fatalf("close failed: %v", err)
+		t.Fatal(err)
 	}
 	state, err := window.State(context.Background())
 	if err != nil {
@@ -197,4 +197,8 @@ func TestSessionCloseForcesTerminalWindowStateAfterHostFailure(t *testing.T) {
 	default:
 		t.Fatal("terminal session did not close the window waiter")
 	}
+}
+
+func testWindowSpec(id string) WindowSpec {
+	return WindowSpec{ID: id, Bounds: Bounds{X: 10, Y: 20, Width: 320, Height: 180}, Content: ContentSpec{HTML: `<button id="save">Save</button><span id="status">Idle</span>`}}
 }

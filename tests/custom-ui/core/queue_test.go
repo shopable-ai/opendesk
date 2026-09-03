@@ -1,13 +1,15 @@
-package customui
+package customui_test
 
 import (
 	"errors"
 	"testing"
+
+	"opendesk/pkg/customui"
 )
 
 func TestEventQueuePreservesOrderAndCoalescesInput(t *testing.T) {
-	queue := NewEventQueue(3)
-	events := []Event{
+	queue := customui.NewEventQueue(3)
+	events := []customui.Event{
 		{WindowID: "panel", TargetID: "name", Type: "input", Sequence: 1, Value: "a"},
 		{WindowID: "panel", TargetID: "save", Type: "click", Sequence: 2},
 		{WindowID: "panel", TargetID: "name", Type: "input", Sequence: 3, Value: "abc"},
@@ -24,23 +26,23 @@ func TestEventQueuePreservesOrderAndCoalescesInput(t *testing.T) {
 }
 
 func TestEventQueueFailsClosedOnOverflowAndClose(t *testing.T) {
-	queue := NewEventQueue(1)
-	if err := queue.Push(Event{WindowID: "panel", Type: "click"}); err != nil {
+	queue := customui.NewEventQueue(1)
+	if err := queue.Push(customui.Event{WindowID: "panel", Type: "click"}); err != nil {
 		t.Fatal(err)
 	}
-	var uiErr *Error
-	if err := queue.Push(Event{WindowID: "panel", Type: "change"}); !errors.As(err, &uiErr) || uiErr.Code != CodeQueueOverflow {
+	var uiErr *customui.Error
+	if err := queue.Push(customui.Event{WindowID: "panel", Type: "change"}); !errors.As(err, &uiErr) || uiErr.Code != customui.CodeQueueOverflow {
 		t.Fatalf("overflow error = %#v", err)
 	}
 	queue.Close()
-	if err := queue.Push(Event{WindowID: "panel", Type: "close"}); !errors.As(err, &uiErr) || uiErr.Code != CodeCanceled {
+	if err := queue.Push(customui.Event{WindowID: "panel", Type: "close"}); !errors.As(err, &uiErr) || uiErr.Code != customui.CodeCanceled {
 		t.Fatalf("closed error = %#v", err)
 	}
 }
 
 func TestEventQueueOnlyCoalescesPermittedConsecutiveEvents(t *testing.T) {
-	queue := NewEventQueue(8)
-	for _, event := range []Event{
+	queue := customui.NewEventQueue(8)
+	for _, event := range []customui.Event{
 		{WindowID: "panel", TargetID: "name", Type: "input", Sequence: 1},
 		{WindowID: "panel", TargetID: "name", Type: "input", Sequence: 2},
 		{WindowID: "panel", TargetID: "name", Type: "change", Sequence: 3},
@@ -58,8 +60,8 @@ func TestEventQueueOnlyCoalescesPermittedConsecutiveEvents(t *testing.T) {
 }
 
 func TestEventQueueCoalescingPreservesSequenceAcrossMixedHighFrequencyEvents(t *testing.T) {
-	queue := NewEventQueue(4)
-	for _, event := range []Event{
+	queue := customui.NewEventQueue(4)
+	for _, event := range []customui.Event{
 		{SessionID: "session", WindowID: "panel", TargetID: "name", Type: "input", Sequence: 1},
 		{SessionID: "session", WindowID: "panel", Type: "move", Sequence: 2},
 		{SessionID: "session", WindowID: "panel", Type: "resize", Sequence: 3},

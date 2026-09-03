@@ -1,8 +1,10 @@
-package scheduler
+package scheduler_test
 
 import (
 	"testing"
 	"time"
+
+	. "opendesk/pkg/scheduler"
 )
 
 func TestNextRunAtEveryAndCron(t *testing.T) {

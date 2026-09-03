@@ -1,4 +1,4 @@
-package execution
+package execution_test
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"opendesk/automation"
+	"opendesk/pkg/execution"
 )
 
 func TestRunJavaScriptDesktopEventsLifecycle(t *testing.T) {
@@ -51,7 +52,7 @@ func TestRunJavaScriptDesktopEventsLifecycle(t *testing.T) {
 
 	t.Run("timeout cleanup", func(t *testing.T) {
 		backend := newExecutionDesktopEventBackend()
-		err := runExecutionDesktopEventScript(t, backend, `Events.on("window.focused", () => {});`, func(request *Request) {
+		err := runExecutionDesktopEventScript(t, backend, `Events.on("window.focused", () => {});`, func(request *execution.Request) {
 			request.Timeout = 60 * time.Millisecond
 		})
 		if err == nil {
@@ -85,23 +86,23 @@ func TestRunJavaScriptDesktopEventsLifecycle(t *testing.T) {
 	})
 }
 
-func runExecutionDesktopEventScript(t *testing.T, backend *executionDesktopEventBackend, script string, configure func(*Request)) error {
+func runExecutionDesktopEventScript(t *testing.T, backend *executionDesktopEventBackend, script string, configure func(*execution.Request)) error {
 	t.Helper()
-	artifacts, err := PrepareArtifacts(t.TempDir(), NewExecutionID("desktop-events"), ".js")
+	artifacts, err := execution.PrepareArtifacts(t.TempDir(), execution.NewExecutionID("desktop-events"), ".js")
 	if err != nil {
 		return err
 	}
-	request := Request{
+	request := execution.Request{
 		Context: context.Background(), ExecutionID: artifacts.ExecutionID,
 		SourceLabel: "desktop events lifecycle test", Ext: ".js", ScriptContent: []byte(script),
 		Timeout: time.Second, Artifacts: artifacts,
-		Selection:                  TerminalSelection{Mode: "quiet", Categories: map[string]bool{}},
+		Selection:                  execution.TerminalSelection{Mode: "quiet", Categories: map[string]bool{}},
 		DesktopEventBackendFactory: func() automation.DesktopEventBackend { return backend },
 	}
 	if configure != nil {
 		configure(&request)
 	}
-	_, _, err = Run(request)
+	_, _, err = execution.Run(request)
 	return err
 }
 

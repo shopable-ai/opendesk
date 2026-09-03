@@ -1,4 +1,4 @@
-package execution
+package execution_test
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"opendesk/automation"
+	"opendesk/pkg/execution"
 )
 
 func TestRunJavaScriptGlobalShortcutLifecycle(t *testing.T) {
@@ -31,7 +32,7 @@ func TestRunJavaScriptGlobalShortcutLifecycle(t *testing.T) {
 		backend := newExecutionShortcutBackend()
 		err := runExecutionShortcutScript(t, backend, `
             globalShortcut.register("CommandOrControl+Shift+9", () => {});
-        `, func(request *Request) { request.Timeout = 80 * time.Millisecond })
+        `, func(request *execution.Request) { request.Timeout = 80 * time.Millisecond })
 		if err == nil {
 			t.Fatal("registered shortcut execution unexpectedly completed without timeout")
 		}
@@ -48,7 +49,7 @@ func TestRunJavaScriptGlobalShortcutLifecycle(t *testing.T) {
 		go func() {
 			done <- runExecutionShortcutScript(t, backend, `
                 globalShortcut.register("CommandOrControl+Shift+9", () => {});
-            `, func(request *Request) { request.Context = ctx })
+            `, func(request *execution.Request) { request.Context = ctx })
 		}()
 		select {
 		case <-backend.Registered():
@@ -87,7 +88,7 @@ func TestRunJavaScriptGlobalShortcutCallbackFailureCleansUp(t *testing.T) {
             globalShortcut.register("CommandOrControl+Shift+9", async () => {
                 throw new Error("shortcut callback rejection");
             });
-        `, func(request *Request) { request.Timeout = time.Second })
+        `, func(request *execution.Request) { request.Timeout = time.Second })
 	}()
 	select {
 	case <-backend.Registered():
@@ -103,26 +104,26 @@ func TestRunJavaScriptGlobalShortcutCallbackFailureCleansUp(t *testing.T) {
 	}
 }
 
-func runExecutionShortcutScript(t *testing.T, backend *executionShortcutBackend, script string, configure func(*Request)) error {
+func runExecutionShortcutScript(t *testing.T, backend *executionShortcutBackend, script string, configure func(*execution.Request)) error {
 	t.Helper()
-	artifacts, err := PrepareArtifacts(t.TempDir(), NewExecutionID("global-shortcut"), ".js")
+	artifacts, err := execution.PrepareArtifacts(t.TempDir(), execution.NewExecutionID("global-shortcut"), ".js")
 	if err != nil {
 		return err
 	}
-	request := Request{
+	request := execution.Request{
 		ExecutionID:                  artifacts.ExecutionID,
 		SourceLabel:                  "global shortcut lifecycle test",
 		Ext:                          ".js",
 		ScriptContent:                []byte(script),
 		Timeout:                      time.Second,
 		Artifacts:                    artifacts,
-		Selection:                    TerminalSelection{Mode: "quiet", Categories: map[string]bool{}},
+		Selection:                    execution.TerminalSelection{Mode: "quiet", Categories: map[string]bool{}},
 		GlobalShortcutBackendFactory: func() automation.GlobalShortcutBackend { return backend },
 	}
 	if configure != nil {
 		configure(&request)
 	}
-	_, _, err = Run(request)
+	_, _, err = execution.Run(request)
 	return err
 }
 

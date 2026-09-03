@@ -1,4 +1,4 @@
-package recorder
+package recorder_test
 
 import (
 	"context"
@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	. "opendesk/pkg/recorder"
 )
 
 func TestConcurrentSessionsStayIsolatedAndStopRejectsWrites(t *testing.T) {

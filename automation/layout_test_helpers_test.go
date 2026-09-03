@@ -1,6 +1,10 @@
 package automation
 
-import "testing"
+import (
+	"image"
+	"image/color"
+	"testing"
+)
 
 // mustTestSeparators converts the public AnalyzeLayout separator shape back
 // into the internal form so tests exercise the same contract consumers see.
@@ -58,4 +62,12 @@ func absoluteInt(value int) int {
 		return -value
 	}
 	return value
+}
+
+func fillRect(img *image.RGBA, rect image.Rectangle, c color.RGBA) {
+	for y := rect.Min.Y; y < rect.Max.Y; y++ {
+		for x := rect.Min.X; x < rect.Max.X; x++ {
+			img.SetRGBA(x, y, c)
+		}
+	}
 }

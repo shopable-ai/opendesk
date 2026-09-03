@@ -1,6 +1,10 @@
-package container
+package container_test
 
-import "testing"
+import (
+	"testing"
+
+	. "opendesk/pkg/container"
+)
 
 func TestNewContainer(t *testing.T) {
 	cfg := &Config{

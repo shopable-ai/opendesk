@@ -33,9 +33,10 @@ find . -path './.git' -prune -o -path './.runtime' -prune -o \
 因此，“145 个都要移动到 `tests/`”不是正确方案。移动 package-private 测试会失去对
 未导出函数、内部状态机和 fake backend 的访问，还会改变 Go package 的测试语义。
 
-本轮已把 3 个只生成图片或可视化输出的文件迁移为独立工具。迁移后重新盘点为 `142`
-个 `*_test.go`：当前产品源码测试 `134` 个（根模块 `130` 个、嵌套 third_party 模块 `4` 个）
-加历史归档 `8` 个。新增工具不再计入 `*_test.go`，也不进入 `go test` 的测试集合。
+本轮已把 3 个只生成图片或可视化输出的文件迁移为独立工具，并把 29 个只依赖 exported Go API
+的黑盒测试从实现 package 迁到顶层 `tests/`。重新盘点仍为 `142` 个 `*_test.go`：根模块有
+`130` 个（实现 package 中 `100` 个，顶层 `tests/` 中 `30` 个），嵌套 third_party module 有
+`4` 个，另有历史归档 `8` 个。新增工具不再计入 `*_test.go`，也不进入 `go test` 的测试集合。
 
 ## 按目录的全量处置结论
 
@@ -43,28 +44,29 @@ find . -path './.git' -prune -o -path './.runtime' -prune -o \
 
 | 文件范围 | 数量 | 测试性质 | 处置方案 |
 | --- | ---: | --- | --- |
-| `automation/*_test.go` | 46 | Runtime native binding、backend、权限、生命周期、图像算法和私有 helper | 保留同包；JS 公共行为由 `tests/runtime-api/` 补充，不机械搬迁 |
+| `automation/*_test.go` | 44 | Runtime native binding、backend、权限、生命周期、图像算法和私有 helper | Browser lifecycle、Vision layout 黑盒已迁到 `tests/automation/`；其余保留同包，JS 公共行为由 `tests/runtime-api/` 补充 |
 | `pkg/visionrun/*_test.go` | 19 | 视觉执行 pipeline、artifact、preflight、证据和安全状态 | 保留同包；所有输出使用 `.runtime`；真实 fixture 缺失时显式 skip 或使用专用 live gate |
 | `pkg/nativeextension/*_test.go` | 11 | manifest、ACL、进程、跨平台路径和安全边界 | 保留同包；保留 Darwin/Linux/Windows build tags，目标平台验证单独记录 |
 | `cmd/opendesk/*_test.go` | 9 | CLI source、HTTP、配置、实例、信号和脚本生命周期 | 保留 `cmd/opendesk`，因为大量测试访问 `package main` 内部函数 |
-| `pkg/customui/*_test.go`、`pkg/customui/toolbar/*_test.go` | 7 | UI host、queue、session、toolbar 状态机和并发关闭 | 保留同包；真实窗口/AX 证据另放 live 工具或专门 gate |
-| `pkg/desktopvision/*_test.go` | 7 | 坐标、感知 schema、动作 gate、trace 和 replay script | 保留同包；模型/截图 provider 的真实调用单独 gate |
-| `pkg/execution/*_test.go` | 7 | Goja EventLoop、execution ownership、Promise、取消和资源清理 | 保留同包；不可用 JS 直接证明的 lifecycle seam 不迁移 |
+| `pkg/customui/*_test.go`、`pkg/customui/toolbar/*_test.go` | 3 | UI host、session、toolbar 状态机 | toolbar model、icon registry、event queue、session concurrency 黑盒已迁到 `tests/custom-ui/`；其余逐项证明 private/native seam 后才保留同包 |
+| `pkg/desktopvision/*_test.go` | 1 | provider schema、provenance、timeout seam | coordinates/types、annotation、action gate、trace、replay script 黑盒已迁到 `tests/desktopvision/`；仅私有 schema builder 留同包 |
+| `pkg/execution/*_test.go` | 1 | Goja EventLoop、取消和资源清理 | Manager、desktop events、global shortcut、runtime ownership、runner lifecycle、runner orchestration 黑盒已迁到 `tests/execution/` 或 `tests/runtime/`；其余逐项证明 private/native seam |
 | `pkg/mcpserver/*_test.go` | 4 | MCP schema、adapter、server 和 Recorder 保护逻辑 | 保留同包；MCP wire/stdio smoke 另在 `tests/mcp/` |
-| `pkg/scheduler/*_test.go` | 4 | scheduler store、恢复、inline source 和 executor | 保留同包；不改成 JS API 测试 |
-| `pkg/semanticexec/*_test.go` | 3 | outcome、verifier、false-success 和 human gate | 保留同包；属于领域状态机测试 |
+| `pkg/scheduler/*_test.go` | 2 | scheduler store、executor | schedule parser、service lifecycle 黑盒已迁到 `tests/scheduler/`；其余保留同包只因访问 private store seam |
+| `pkg/semanticexec/*_test.go` | 0 | — | 三个 exported domain 测试已迁到 `tests/semantic-exec/` 外部 package |
 | `pkg/http/*_test.go` | 2 | HTTP handler、scheduler route、loopback 和 capability gate | 保留同包；HTTP 公共契约可增加独立请求 smoke，但不搬白盒测试 |
-| `pkg/recorder/*_test.go` | 2 | Recorder store、privacy、schema 和 IR distill | 保留同包；MCP/真实 Agent replay 另行验收 |
+| `pkg/recorder/*_test.go` | 1 | Recorder schema private resolution | Recorder domain lifecycle/IR blackbox 已迁到 `tests/recorder/`；MCP/真实 Agent replay 另行验收 |
 | `third_party/robotgo/*_test.go` | 3 | 上游 RobotGo 平台/设备测试 | 不迁移、不混入根 gate；按上游模块和真实桌面条件 opt-in |
 | `internal/*_test.go` | 1 | 内部 aicli 命令和 envelope | 保留同包；只对外部 CLI 行为增加黑盒命令测试 |
-| `pkg/benchmark/*_test.go` | 1 | semantic smoke/report 质量 gate | 保留 package；性能/基准运行应单独命令化 |
-| `pkg/container/*_test.go` | 1 | container ownership 和 runtime borrowing | 保留同包；属于内部资源所有权测试 |
-| `pkg/operator/*_test.go` | 1 | semantic fixture audit | 保留同包；审计输出写 `.runtime` |
-| `pkg/runtime/*_test.go` | 1 | execution gate 并发与关闭 | 保留同包 |
-| `pkg/runtimeconfig/*_test.go` | 1 | strict config、UI discovery 和 fallback | 保留同包 |
+| `pkg/benchmark/*_test.go` | 0 | — | exported semantic smoke 黑盒已迁到 `tests/semantic-exec/` |
+| `pkg/container/*_test.go` | 0 | — | exported Container API 黑盒已迁到 `tests/container/` |
+| `pkg/operator/*_test.go` | 0 | — | exported fixture audit 黑盒已迁到 `tests/semantic-exec/` |
+| `pkg/runtime/*_test.go` | 0 | — | exported ExecutionGate 黑盒已迁到 `tests/runtime/` |
+| `pkg/runtimeconfig/*_test.go` | 0 | — | exported strict-config/UI discovery 黑盒已迁到 `tests/runtimeconfig/` |
 | `cmd/opendesk-visual-runner/main_test.go` | 1 | visual runner 的模型/replay 规则 | 保留命令 package |
 | `cmd/opencv-healthcheck/main_test.go` | 1 | OpenCV backend health check | 保留命令 package，保留 `opencv` build tag |
 | `tests/mcp/tools/stdio-smoke/main_test.go` | 1 | 独立 MCP stdio 工具协议 drain/污染检查 | 已在正确位置，保留 |
+| `tests/automation/`、`tests/container/`、`tests/custom-ui/`、`tests/desktopvision/`、`tests/execution/`、`tests/recorder/`、`tests/runtime/`、`tests/runtimeconfig/`、`tests/scheduler/`、`tests/semantic-exec/` | 29 | 仅调用 exported Go API 的黑盒 | 已从实现目录迁出；全部使用外部 `_test` package |
 | `third_party/kbinani-screenshot/*` | 1 | 上游截图库测试/benchmark | 不迁移；嵌套 module 单独处理 |
 | `.archive/...` | 8 | 历史同步中间产物副本 | 保持归档，不当作当前测试资产 |
 
@@ -129,7 +131,7 @@ macOS 12 SDK 上因依赖引用未声明的 `SCScreenshotManager` 编译失败�
 | `writes` | 是否写文件、图片、进程、剪贴板、系统设置或其他副作用？路径是否在 `.runtime/`？ |
 | `assertion` | 是否有稳定断言，还是仅生成日志/图片/报告？ |
 | `gate` | 应由 `go test`、Runtime JS gate、live gate、工具命令还是上游模块命令运行？ |
-| `disposition` | 使用以下固定标签之一：`KEEP_PACKAGE`、`SPLIT_JS_CONTRACT`、`MOVE_TOOL`、`OPT_IN_LIVE`、`VENDOR_ONLY`、`ARCHIVE_ONLY`。 |
+| `disposition` | 使用以下固定标签之一：`KEEP_PACKAGE`、`MOVE_GO_BLACKBOX`、`SPLIT_JS_CONTRACT`、`MOVE_TOOL`、`OPT_IN_LIVE`、`VENDOR_ONLY`、`ARCHIVE_ONLY`。 |
 
 这些字段不是只存在于方法说明中。[逐文件分类清单](go-test-file-classification.md) 已为迁移前
 145 个文件逐行填写 `privateAccess`、测试边界、外部依赖、断言价值和具体处理理由；14 个
@@ -142,7 +144,8 @@ macOS 12 SDK 上因依赖引用未声明的 `SCScreenshotManager` 编译失败�
 ```text
 ARCHIVE_ONLY / VENDOR_ONLY
 → 先排除当前 gate 的数量噪音
-→ KEEP_PACKAGE（保留私有访问边界）
+→ MOVE_GO_BLACKBOX（先迁出 exported-only 测试）
+→ KEEP_PACKAGE（仅保留已证明的私有/native seam）
 → SPLIT_JS_CONTRACT（公共 JS 行为补到 tests/runtime-api）
 → MOVE_TOOL（生成器/可视化/回放工具迁到 tests/<domain>/tools）
 → OPT_IN_LIVE（真实桌面或设备必须有独立前置条件和 Evidence）

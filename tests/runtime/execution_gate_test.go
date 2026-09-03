@@ -1,14 +1,16 @@
-package runtime
+package runtime_test
 
 import (
 	"context"
 	"errors"
 	"testing"
 	"time"
+
+	runtime "opendesk/pkg/runtime"
 )
 
 func TestExecutionGateLimitsAndReleasesCapacity(t *testing.T) {
-	gate := NewExecutionGate(1)
+	gate := runtime.NewExecutionGate(1)
 	if err := gate.Acquire(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -28,11 +30,11 @@ func TestExecutionGateLimitsAndReleasesCapacity(t *testing.T) {
 }
 
 func TestExecutionGateCloseRejectsNewWork(t *testing.T) {
-	gate := NewExecutionGate(2)
+	gate := runtime.NewExecutionGate(2)
 	if err := gate.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if err := gate.Acquire(context.Background()); !errors.Is(err, ErrPoolClosed) {
+	if err := gate.Acquire(context.Background()); !errors.Is(err, runtime.ErrPoolClosed) {
 		t.Fatalf("Acquire after Close = %v, want ErrPoolClosed", err)
 	}
 }

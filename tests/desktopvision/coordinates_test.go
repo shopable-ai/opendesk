@@ -1,6 +1,10 @@
-package desktopvision
+package desktopvision_test
 
-import "testing"
+import (
+	"testing"
+
+	. "opendesk/pkg/desktopvision"
+)
 
 func TestResolveElementCoordinates(t *testing.T) {
 	ctx := TransformContext{

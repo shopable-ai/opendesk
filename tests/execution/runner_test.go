@@ -1,4 +1,4 @@
-package execution
+package execution_test
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"opendesk/pkg/customui"
+	. "opendesk/pkg/execution"
 	"path/filepath"
 	"strings"
 	"testing"

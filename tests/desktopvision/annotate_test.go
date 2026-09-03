@@ -1,4 +1,4 @@
-package desktopvision
+package desktopvision_test
 
 import (
 	"image"
@@ -8,24 +8,21 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"opendesk/pkg/desktopvision"
 )
 
 func TestAnnotateImageDrawsBoundingBoxAndCenter(t *testing.T) {
 	src := image.NewRGBA(image.Rect(0, 0, 100, 100))
 	fillImage(src, color.RGBA{R: 255, G: 255, B: 255, A: 255})
 	perception := samplePerception(time.Date(2026, 8, 30, 12, 0, 0, 0, time.UTC))
-	perception.Image.Size = ImageSize{Width: 100, Height: 100}
-	perception.Window.BoundsScreen = ScreenBBox{100, 80, 200, 180}
-	perception.Elements = []Element{
-		{
-			ID:         "digit_7",
-			BBoxNorm:   NormalizedBBox{0.1, 0.2, 0.3, 0.4},
-			Confidence: 0.97,
-			Risk:       RiskLow,
-		},
+	perception.Image.Size = desktopvision.ImageSize{Width: 100, Height: 100}
+	perception.Window.BoundsScreen = desktopvision.ScreenBBox{100, 80, 200, 180}
+	perception.Elements = []desktopvision.Element{
+		{ID: "digit_7", BBoxNorm: desktopvision.NormalizedBBox{0.1, 0.2, 0.3, 0.4}, Confidence: 0.97, Risk: desktopvision.RiskLow},
 	}
 
-	annotated, err := AnnotateImage(src, perception)
+	annotated, err := desktopvision.AnnotateImage(src, perception)
 	if err != nil {
 		t.Fatalf("annotate failed: %v", err)
 	}
@@ -57,18 +54,13 @@ func TestWriteAnnotatedPNGWritesFile(t *testing.T) {
 	}
 
 	perception := samplePerception(time.Date(2026, 8, 30, 12, 0, 0, 0, time.UTC))
-	perception.Image.Size = ImageSize{Width: 40, Height: 40}
-	perception.Window.BoundsScreen = ScreenBBox{100, 80, 140, 120}
-	perception.Elements = []Element{
-		{
-			ID:         "digit_7",
-			BBoxNorm:   NormalizedBBox{0.25, 0.25, 0.5, 0.5},
-			Confidence: 0.97,
-			Risk:       RiskLow,
-		},
+	perception.Image.Size = desktopvision.ImageSize{Width: 40, Height: 40}
+	perception.Window.BoundsScreen = desktopvision.ScreenBBox{100, 80, 140, 120}
+	perception.Elements = []desktopvision.Element{
+		{ID: "digit_7", BBoxNorm: desktopvision.NormalizedBBox{0.25, 0.25, 0.5, 0.5}, Confidence: 0.97, Risk: desktopvision.RiskLow},
 	}
 
-	if err := WriteAnnotatedPNG(inputPath, perception, outputPath); err != nil {
+	if err := desktopvision.WriteAnnotatedPNG(inputPath, perception, outputPath); err != nil {
 		t.Fatalf("write annotated png: %v", err)
 	}
 	if _, err := os.Stat(outputPath); err != nil {

@@ -1,4 +1,4 @@
-package execution
+package execution_test
 
 import (
 	"context"
@@ -11,6 +11,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	. "opendesk/pkg/execution"
 )
 
 func runLifecycleScript(t *testing.T, stack, script string, options ...func(*Request)) error {
@@ -19,16 +21,7 @@ func runLifecycleScript(t *testing.T, stack, script string, options ...func(*Req
 	if err != nil {
 		t.Fatal(err)
 	}
-	req := Request{
-		ExecutionID:   artifacts.ExecutionID,
-		SourceLabel:   "runtime lifecycle test",
-		Ext:           ".js",
-		StackMode:     stack,
-		ScriptContent: []byte(script),
-		Timeout:       2 * time.Second,
-		Artifacts:     artifacts,
-		Selection:     TerminalSelection{Mode: "quiet", Categories: map[string]bool{}},
-	}
+	req := Request{ExecutionID: artifacts.ExecutionID, SourceLabel: "runtime lifecycle test", Ext: ".js", StackMode: stack, ScriptContent: []byte(script), Timeout: 2 * time.Second, Artifacts: artifacts, Selection: TerminalSelection{Mode: "quiet", Categories: map[string]bool{}}}
 	for _, option := range options {
 		option(&req)
 	}
@@ -57,7 +50,6 @@ func TestRuntimeAsyncHTTPAndAbortAcrossStacks(t *testing.T) {
 		}
 	}))
 	defer server.Close()
-
 	for _, stack := range []string{"legacy", "upgraded", "playwright"} {
 		t.Run(stack, func(t *testing.T) {
 			script := fmt.Sprintf(`
@@ -112,15 +104,9 @@ func TestRuntimeExecutionContextCancelsSlowHTTPAndDrainsWorkers(t *testing.T) {
 		}
 	}))
 	defer server.Close()
-
 	ctx, cancel := context.WithCancel(context.Background())
-	go func() {
-		<-started
-		cancel()
-	}()
-	err := runLifecycleScript(t, "legacy", fmt.Sprintf(`await axios.get(%q, { timeout: 1000 });`, server.URL), func(req *Request) {
-		req.Context = ctx
-	})
+	go func() { <-started; cancel() }()
+	err := runLifecycleScript(t, "legacy", fmt.Sprintf(`await axios.get(%q, { timeout: 1000 });`, server.URL), func(req *Request) { req.Context = ctx })
 	if err == nil || !strings.Contains(err.Error(), "canceled") {
 		t.Fatalf("context cancellation error = %v", err)
 	}

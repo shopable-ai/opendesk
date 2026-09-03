@@ -1,9 +1,11 @@
-package desktopvision
+package desktopvision_test
 
 import (
 	"encoding/json"
 	"testing"
 	"time"
+
+	. "opendesk/pkg/desktopvision"
 )
 
 func TestPerceptionJSONContract(t *testing.T) {

@@ -1,8 +1,10 @@
-package toolbar
+package toolbar_test
 
 import (
 	"sort"
 	"testing"
+
+	. "opendesk/pkg/customui/toolbar"
 )
 
 func TestGeneratedIconRegistryIsCompleteAndOrdered(t *testing.T) {

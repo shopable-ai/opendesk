@@ -1,4 +1,4 @@
-package scheduler
+package scheduler_test
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	"time"
 
 	pkgExecution "opendesk/pkg/execution"
+	. "opendesk/pkg/scheduler"
 )
 
 type recordingExecutor struct {
@@ -437,5 +438,24 @@ func closeService(t *testing.T, service *Service) {
 	defer cancel()
 	if err := service.Close(ctx); err != nil {
 		t.Errorf("close scheduler: %v", err)
+	}
+}
+
+func storedTestJob(id string, now time.Time) Job {
+	next := now.Add(5 * time.Minute)
+	return Job{
+		ID:                 id,
+		Name:               "test job",
+		Enabled:            true,
+		ScheduleType:       ScheduleEvery,
+		ScheduleExpression: "5m",
+		Timezone:           "UTC",
+		MisfirePolicy:      MisfireRunOnce,
+		TaskType:           "script",
+		SourceType:         SourceFile,
+		ScriptPath:         "test.js",
+		CreatedAt:          now,
+		UpdatedAt:          now,
+		NextRunAt:          &next,
 	}
 }

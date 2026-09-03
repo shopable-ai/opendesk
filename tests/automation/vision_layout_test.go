@@ -1,4 +1,4 @@
-package automation
+package automation_test
 
 import (
 	"image"
@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	. "opendesk/automation"
 )
 
 func TestVisionAnalyzeLayoutWithGenericHints(t *testing.T) {
@@ -34,16 +36,16 @@ func TestVisionAnalyzeLayoutWithGenericHints(t *testing.T) {
 		t.Fatalf("AnalyzeLayout failed: %v", err)
 	}
 
-	regions := mustTestRegions(t, result["regions"])
+	regions := mustRegions(t, result["regions"])
 	if len(regions) != 5 {
 		t.Fatalf("expected 5 coarse regions, got %d", len(regions))
 	}
 
-	vertical, horizontal := mustTestSeparators(t, result["separators"])
-	assertSeparatorNear(t, vertical, 24, 10)
-	assertSeparatorNear(t, vertical, 80, 12)
-	assertSeparatorNear(t, horizontal, 28, 10)
-	assertSeparatorNear(t, horizontal, 132, 14)
+	vertical, horizontal := mustSeparatorPositions(t, result["separators"])
+	assertPositionNear(t, vertical, 24, 10)
+	assertPositionNear(t, vertical, 80, 12)
+	assertPositionNear(t, horizontal, 28, 10)
+	assertPositionNear(t, horizontal, 132, 14)
 
 	annotatedPath := filepath.Join(tmpDir, "annotated.png")
 	annotated, err := vision.AnnotateRegions(map[string]interface{}{
@@ -95,4 +97,48 @@ func fillRect(img *image.RGBA, rect image.Rectangle, c color.RGBA) {
 			img.SetRGBA(x, y, c)
 		}
 	}
+}
+
+func mustRegions(t *testing.T, raw any) []map[string]any {
+	t.Helper()
+	regions, ok := raw.([]map[string]any)
+	if !ok || len(regions) == 0 {
+		t.Fatalf("regions have unexpected public shape: %T %#v", raw, raw)
+	}
+	return regions
+}
+
+func mustSeparatorPositions(t *testing.T, raw any) (vertical, horizontal []int) {
+	t.Helper()
+	groups, ok := raw.(map[string]any)
+	if !ok {
+		t.Fatalf("separators have unexpected public shape: %T", raw)
+	}
+	for _, group := range []struct {
+		name string
+		out  *[]int
+	}{{"vertical", &vertical}, {"horizontal", &horizontal}} {
+		items, ok := groups[group.name].([]map[string]any)
+		if !ok {
+			t.Fatalf("%s separators have unexpected public shape: %T", group.name, groups[group.name])
+		}
+		for _, item := range items {
+			position, ok := item["position"].(int)
+			if !ok {
+				t.Fatalf("%s separator position has unexpected type: %T", group.name, item["position"])
+			}
+			*group.out = append(*group.out, position)
+		}
+	}
+	return vertical, horizontal
+}
+
+func assertPositionNear(t *testing.T, positions []int, want, tolerance int) {
+	t.Helper()
+	for _, position := range positions {
+		if position-want <= tolerance && want-position <= tolerance {
+			return
+		}
+	}
+	t.Fatalf("no separator within %dpx of %d; got %v", tolerance, want, positions)
 }

@@ -1,11 +1,13 @@
-package benchmark
+package semanticexec_test
 
 import (
 	"testing"
+
+	"opendesk/pkg/benchmark"
 )
 
 func TestRunSemanticSmokeSuiteRequiresOutcomeCoverage(t *testing.T) {
-	report, err := RunSemanticSmokeSuite("../../tests/semantic-exec/fixtures")
+	report, err := benchmark.RunSemanticSmokeSuite("fixtures")
 	if err != nil {
 		t.Fatalf("RunSemanticSmokeSuite returned error: %v", err)
 	}
@@ -24,7 +26,7 @@ func TestRunSemanticSmokeSuiteRequiresOutcomeCoverage(t *testing.T) {
 }
 
 func TestRunSemanticSmokeSuiteGeneratesStableReport(t *testing.T) {
-	report, err := RunSemanticSmokeSuite("../../tests/semantic-exec/fixtures")
+	report, err := benchmark.RunSemanticSmokeSuite("fixtures")
 	if err != nil {
 		t.Fatalf("RunSemanticSmokeSuite returned error: %v", err)
 	}
@@ -37,7 +39,7 @@ func TestRunSemanticSmokeSuiteGeneratesStableReport(t *testing.T) {
 }
 
 func TestRunSemanticSmokeSuiteFailsOnFalseSuccessCase(t *testing.T) {
-	report, err := RunSemanticSmokeSuite("../../tests/semantic-exec/fixtures")
+	report, err := benchmark.RunSemanticSmokeSuite("fixtures")
 	if err != nil {
 		t.Fatalf("RunSemanticSmokeSuite returned error: %v", err)
 	}
