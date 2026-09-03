@@ -34,7 +34,14 @@
 - “生成一次可运行代码”不是终点；正式链路包含独立验证、扰动测试、晋级、漂移监控、修复和重新认证。
 - 本文描述目标方法与目标架构，不代表 `pkg/recorder` 已经实现全部能力。
 
-本轮事实基线为 2026-09-03，读取 OpenDesk `master` 提交 `fc0a999cb787eca0cb9e1eb74a1d40e48e1c8274`；`examples/app/qianniu.js` 在该版本仍然存在，历史提交只用于观察演进，不能代替当前源码。
+当前状态边界：
+
+- **Current**：`pkg/recorder` 已有会话、Trace、`ActionHint`、动作前后观察、Verification、最小 Distill 和确定性 Compiler 骨架。
+- **Gap**：当前 Distill 仍主要生成平面 `Flow.steps[]`，变量产物为空，未知 Verification 可进入 Flow；Compiler 对部分未知后置条件不会失败；Replay 仍缺完整资格验证、修复和晋级闭环。
+- **Target**：本文描述目标执行方法和工程链，不代表这些能力已经实现或验证完成。
+- **Evidence Case**：`examples/app/qianniu.js` 用于反向发现真实桌面业务中的知识和公共能力缺口，不用于证明当前 Recorder 已成熟。
+
+本文的当前实现判断基于 2026-09-03 对本地 `master` 源码的核验；`examples/app/qianniu.js` 仍然存在，历史提交只用于观察演进，不能代替当前源码或当前实现完成度。
 
 ## 1. 六个层级及其边界
 
@@ -72,6 +79,13 @@
 `Task Contract + 不可变 Raw Trace + Evidence` 形成 `Demonstration Dossier`；经人类可读的语义重建和批准形成 `Semantic Procedure`；经泛化形成 `Generalized Workflow / Skill Spec`；经目标、状态、Geometry、Verifier 和 Recovery 工程形成 `Automation IR`；再派生 JavaScript、Skill、Playbook 或其他运行产物。
 
 这一层不能省略，否则系统很容易退化成 `Trace → JavaScript`，并失去来源、置信度、审核状态和重新生成能力。
+
+事实源关系必须明确：
+
+- Raw Evidence 是不可变审计事实。
+- Agent 的 Intent / Hint 是很有价值的语义主张，但不能覆盖 Evidence。
+- IR 是人类审查与机器执行共享的自动化规格。
+- JavaScript、Skill 和 Playbook 是可重新生成的交付物，不是唯一事实源。
 
 ### D. 技术实现机制
 
