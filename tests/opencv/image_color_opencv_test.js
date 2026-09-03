@@ -27,7 +27,8 @@ async function main() {
   expect(Array.isArray(manifest.colorSamples) && manifest.colorSamples.length >= 3,
     'fixture manifest must contain color samples for all positive panels');
   // Backend identity is an internal Go build seam. The tagged Go package test
-  // proves it; this JavaScript test exercises only the documented public API.
+  // proves that the public API remains canonical Pure Go; this JavaScript test
+  // exercises only the documented public API in an opencv-tagged build.
   const backend = manifest.requiredBackend;
 
   expect(File.exists(manifest.source.path), `missing source image: ${manifest.source.path}`);

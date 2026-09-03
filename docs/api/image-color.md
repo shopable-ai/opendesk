@@ -21,7 +21,9 @@ order: 10
 
 | 方法 | 用途 |
 | --- | --- |
-| `ImageColor.findPos(source, template, threshold?)` | 模板匹配 |
+| `ImageColor.findImage(source, template, options?)` | 找到单个最高置信度模板目标 |
+| `ImageColor.findImages(source, template, options?)` | 找到多个去重后的同模板目标 |
+| `ImageColor.findPos(source, template, threshold?)` | 兼容的旧单目标模板匹配入口 |
 | `ImageColor.diff(actual, expected, options?)` | 确定性比较两张同尺寸图像 |
 | `ImageColor.loadBase64(path)` | 图片文件转 PNG data URL |
 | `ImageColor.resize(image, width, height)` | 缩放图片 |
@@ -45,10 +47,111 @@ order: 10
 
 | 目标 | 方法 |
 | --- | --- |
-| 在一张大图中寻找较小模板 | `findPos` |
+| 在一张大图中寻找最佳单个模板 | `findImage` |
+| 在一张大图中寻找多个相同模板 | `findImages` |
+| 保持旧脚本不变地寻找单个模板 | `findPos` |
 | 比较两张同尺寸图像的原始像素差异 | `diff` |
 | 比较两个颜色值 | `isColorSimilar` |
 | 分析一张图像的区域和分隔线 | `analyzeLayout` |
+
+## ImageColor.findImage(source, template, options?)
+
+在静态 source 图片中寻找一个最可信的 template。两者都支持：
+
+- 本地绝对路径或相对当前工作目录的文件路径
+- `data:image/...;base64,...` data URL
+- 不带 data URL 前缀的 raw base64 PNG/JPEG
+
+路径会先被尝试打开，之后才会尝试 raw base64；不再用字符串长度猜测输入类型，所以超过 100 字符的合法路径不会被误判成 base64。
+
+```js
+const result = ImageColor.findImage(
+  './.runtime/examples/screen.png',
+  './templates/send-button.png',
+  {
+    threshold: 0.88,
+    region: { x: 500, y: 300, width: 700, height: 500 },
+    scales: [0.9, 1, 1.1]
+  }
+);
+```
+
+### Options
+
+| 参数 | 类型与默认值 | 解决的需求 |
+| --- | --- | --- |
+| `threshold` | `0..1`，默认 `0.85` | 最低可信度。生产 matcher 的 `confidence` 固定为 `1 - RGB 三通道平均绝对误差 / 255`，取 template 中确定性分层选择的最多 64 个像素；`1` 为所有采样 RGB 像素完全相同。阈值比较包含边界。 |
+| `region` | 可选 `{x,y,width,height}` | 真正缩小参与模板匹配的 ROI，减少计算量和其他位置的误匹配。四个字段必填、整数、宽高大于 0，且必须完全位于 source 内。 |
+| `scales` | 可选 `number[]`，默认 `[1]` | 依次缩放 template 后匹配，用于 Retina、DPI 和 UI scale 差异。每项必须大于 0；不会默认扫描宽范围比例。 |
+
+内部只计算 `region` 内的候选位置，但返回的 `x` / `y` 始终相对于完整 source，不是 ROI 局部坐标。缩放后的 `width` / `height` 和实际命中的 `scale` 一起回显。
+
+### 返回值
+
+```js
+{
+  found: true,
+  x: 1124,
+  y: 738,
+  width: 82,
+  height: 34,
+  centerX: 1165,
+  centerY: 755,
+  confidence: 0.94,
+  scale: 1
+}
+```
+
+找不到阈值内的结果时，仍返回最佳候选的 `confidence`、`width`、`height`、`scale`，但 `found: false`，并且 `x`、`y`、`centerX`、`centerY` 都是 `-1`。
+
+## ImageColor.findImages(source, template, options?)
+
+参数继承 `findImage`，并增加 `maxResults`：
+
+| 参数 | 类型与默认值 | 作用 |
+| --- | --- | --- |
+| `maxResults` | 大于 0 的整数，默认 `20` | 限制最多返回的已去重目标数量。 |
+
+```js
+const matches = ImageColor.findImages(source, './templates/delete.png', {
+  threshold: 0.88,
+  region: { x: 300, y: 100, width: 1000, height: 800 },
+  scales: [0.9, 1, 1.1],
+  maxResults: 20
+});
+```
+
+返回 `OpenDeskFindImageResult[]`。内部顺序固定为：`confidence` 从高到低；同分时 `y` 从小到大、再 `x` 从小到大、最后 `scale` 从小到大。阈值候选会经过内部空间重叠去重（NMS）；该算法细节不是 V1 参数，因而同一真实控件附近不会暴露一组重叠候选。
+
+## 静态图片边界与 activeWindow 组合
+
+`findImage` / `findImages` 不接收 `window`、`windowTitle`、`windowId`、`pid` 或截图权限参数。ImageColor 只负责已有图片的像素分析，避免把窗口发现、窗口身份、截图、遮挡语义和跨显示器坐标耦合进模板匹配。
+
+要在活动窗口内容中找图，先由 `Screen` 产生静态截图，再交给 ImageColor：
+
+```js
+const screenshot = await Screen.screenshot({
+  target: 'activeWindow',
+  returnType: 'base64'
+});
+
+const match = ImageColor.findImage(screenshot, './templates/send-button.png', {
+  threshold: 0.88,
+  region: { x: 500, y: 300, width: 700, height: 500 }
+});
+```
+
+这只表示“捕获当前可见 activeWindow 后在该图片中匹配”；它不声明按 native window id 捕获被遮挡或最小化窗口内容。未来窗口能力仍应保持 `Window → Screen capture → ImageColor` 的分层。
+
+## Matcher backend contract
+
+Pure Go 是当前唯一生产 matcher，适用于正常构建和带 `opencv` build tag 的构建，保证上面的 confidence/threshold 语义相同。OpenCV 的历史 `TM_CCOEFF_NORMED` 实现保留为 tagged 的实验对照与 benchmark：它对亮度偏移的分数与纯 Go 不同，不能作为透明可替换 backend，也没有公开 `backend` / `opencvMethod` 参数。
+
+可运行的确定性生产自检位于 [`examples/image-color/template-match.js`](../../examples/image-color/template-match.js)。从仓库根目录执行：
+
+```bash
+./opendesk -script examples/image-color/template-match.js
+```
 
 ## ImageColor.findPos(source, template, threshold)
 
@@ -78,6 +181,8 @@ console.log(result);
 ```
 
 默认 threshold：`0.8`。
+
+`findPos` 保留旧签名和旧返回形状。新代码使用相同的 canonical Pure Go 核心，但它不支持 `region`、`scales` 或 `maxResults`；需要这些能力时迁移到 `findImage` / `findImages`。
 
 如果最佳匹配低于 threshold：
 
@@ -111,7 +216,7 @@ const result = ImageColor.diff(
 );
 ```
 
-`actualImage` 和 `expectedImage` 使用与 `ImageColor.findPos` 相同的主要输入系统，支持：
+`actualImage` 和 `expectedImage` 使用与 `ImageColor.findImage` / `findImages` / `findPos` 相同的主要输入系统，支持：
 
 - 本地绝对路径
 - 相对于 OpenDesk 当前工作目录的本地路径

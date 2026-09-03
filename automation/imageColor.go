@@ -78,49 +78,9 @@ func (ic *ImageColor) FindPos(sourceImgStr, templateImgStr string, args ...float
 	return res, nil
 }
 
-// loadImage 加载图像，支持 base64 字符串或文件路径（绝对/相对）
+// loadImage loads the shared ImageColor image-input contract.
 func (ic *ImageColor) loadImage(imgStr string) (image.Image, error) {
-	if strings.TrimSpace(imgStr) == "" {
-		return nil, fmt.Errorf("empty image string")
-	}
-
-	// Data URLs are unambiguous and should never be interpreted as paths.
-	trimmed := strings.TrimSpace(imgStr)
-	if strings.HasPrefix(trimmed, "data:") && strings.Contains(trimmed, ";base64,") {
-		return ic.decodeBitmap(imgStr)
-	}
-
-	// Prefer a readable path before trying the less precise bare-base64 shape.
-	// This keeps long absolute and relative paths from being misclassified.
-	path := imgStr
-	if !filepath.IsAbs(path) {
-		absPath, err := filepath.Abs(path)
-		if err != nil {
-			return nil, fmt.Errorf("failed to resolve relative path: %v", err)
-		}
-		path = absPath
-	}
-
-	file, err := os.Open(path)
-	if err != nil {
-		if len(trimmed) > 64 && isBase64(imgStr) {
-			return ic.decodeBitmap(imgStr)
-		}
-		return nil, fmt.Errorf("failed to open image file: %v", err)
-	}
-	defer file.Close()
-
-	img, err := png.Decode(file)
-	if err != nil {
-		if _, seekErr := file.Seek(0, 0); seekErr != nil {
-			return nil, fmt.Errorf("failed to reset image file after PNG decode: %v", seekErr)
-		}
-		img, err = jpeg.Decode(file)
-		if err != nil {
-			return nil, fmt.Errorf("failed to decode image file as PNG or JPEG: %v", err)
-		}
-	}
-	return img, nil
+	return loadImageSource(imgStr)
 }
 
 func (ic *ImageColor) LoadBase64(imagePath string) (string, error) {
@@ -188,104 +148,10 @@ func imageToNRGBA(img image.Image) *image.NRGBA {
 	return dst
 }
 
-// findTemplateMatchPureGo is the portable template-matching implementation.
-// The build-specific router selects it directly for normal builds and uses it
-// as the fallback when the OpenCV backend cannot produce a valid result.
-func findTemplateMatchPureGo(source, template *image.NRGBA) (bestX, bestY int, bestScore float64) {
-	sw := source.Bounds().Dx()
-	sh := source.Bounds().Dy()
-	tw := template.Bounds().Dx()
-	th := template.Bounds().Dy()
-
-	if tw == 0 || th == 0 || tw > sw || th > sh {
-		return -1, -1, 0
-	}
-
-	bestDiff := ^uint64(0)
-	maxDiff := uint64(tw * th * 3 * 255)
-
-	for y := 0; y <= sh-th; y++ {
-		for x := 0; x <= sw-tw; x++ {
-			var diff uint64
-			exceeded := false
-			for ty := 0; ty < th && !exceeded; ty++ {
-				srcRow := (y+ty)*source.Stride + x*4
-				tplRow := ty * template.Stride
-				for tx := 0; tx < tw; tx++ {
-					si := srcRow + tx*4
-					ti := tplRow + tx*4
-					diff += channelDiff(source.Pix[si+0], template.Pix[ti+0])
-					diff += channelDiff(source.Pix[si+1], template.Pix[ti+1])
-					diff += channelDiff(source.Pix[si+2], template.Pix[ti+2])
-					if diff >= bestDiff {
-						exceeded = true
-						break
-					}
-				}
-			}
-			if diff < bestDiff {
-				bestDiff = diff
-				bestX = x
-				bestY = y
-			}
-		}
-	}
-
-	if bestDiff == ^uint64(0) {
-		return -1, -1, 0
-	}
-
-	if maxDiff == 0 {
-		return bestX, bestY, 1
-	}
-	bestScore = 1 - float64(bestDiff)/float64(maxDiff)
-	if bestScore < 0 {
-		bestScore = 0
-	}
-	return bestX, bestY, bestScore
-}
-
-func channelDiff(a, b uint8) uint64 {
-	if a > b {
-		return uint64(a - b)
-	}
-	return uint64(b - a)
-}
-
-// decodeBitmap converts a base64 image string to an image.Image
+// decodeBitmap keeps the historical helper name while using the same input
+// decoder as template matching, including paths, data URLs, and raw base64.
 func (ic *ImageColor) decodeBitmap(imageStr string) (image.Image, error) {
-	// 处理空输入
-	if imageStr == "" {
-		return nil, fmt.Errorf("empty image string")
-	}
-
-	// 移除 data URL 前缀
-	base64Str := imageStr
-	if strings.Contains(imageStr, "base64,") {
-		base64Str = strings.Split(imageStr, "base64,")[1]
-	}
-
-	// 解码 base64
-	imageBytes, err := base64.StdEncoding.DecodeString(base64Str)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode base64: %v", err)
-	}
-
-	// 创建字节读取器
-	reader := bytes.NewReader(imageBytes)
-
-	// 尝试解码为 PNG
-	img, err := png.Decode(reader)
-	if err != nil {
-		// PNG 解码失败，重置读取器并尝试 JPEG
-		reader.Seek(0, 0)
-		img, err = jpeg.Decode(reader)
-		if err != nil {
-			return nil, fmt.Errorf("failed to decode image as PNG or JPEG: %v", err)
-		}
-	}
-
-	return img, nil
+	return loadImageSource(imageStr)
 }
 
 // colorsMatch checks if two colors match within a threshold

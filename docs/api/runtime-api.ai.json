@@ -94,6 +94,7 @@
       "keyMethods": [
         "click",
         "clickForPID",
+        "pressButtonForPID",
         "move",
         "down",
         "up",
@@ -280,6 +281,8 @@
       "doc": "image-color.md",
       "keyMethods": [
         "findPos",
+        "findImage",
+        "findImages",
         "diff",
         "loadBase64",
         "resize",
@@ -539,7 +542,7 @@
       "source": "native process driver plus EventLoop bridge",
       "status": "conditional",
       "doc": "custom-ui.md",
-      "condition": "always present but dormant by default; local CLI or strict project config authorization is required, while HTTP additionally requires server opt-in, per-request capability declaration, and a loopback peer",
+      "condition": "always present but dormant by default; local CLI or strict project config authorization is required, while HTTP additionally requires server opt-in, per-request capability declaration, and a loopback peer; new initial positioning is the discriminated position union {mode:absolute,bounds} or {mode:anchor,size,horizontal,vertical}; established absolute bounds remains a compatibility spelling, while the retired top-level size plus placement draft is rejected; WindowHandle placement composes left/center/right with top/center/bottom inside the selected display work area",
       "platformBehavior": "macOS AppKit/WebKit host; Windows and Linux report available=false and createWindow rejects UNSUPPORTED_PLATFORM",
       "keyMethods": [
         "getCapabilities",
@@ -556,22 +559,28 @@
     },
     {
       "name": "FloatingWindow",
-      "source": "Button-first facade over the Custom UI driver",
+      "source": "compact native action-toolbar facade over the Custom UI driver",
       "status": "conditional",
       "doc": "custom-ui.md",
-      "condition": "injected only when Custom UI is explicitly authorized; constructible instances accept orientation horizontal (default, 1-32 ordered buttons with toolbar.maxWidth 60-960pt, maxColumns 1-19 and optional maxRows 1-32 automatic-wrap constraints) or vertical (1-5 ordered buttons in one native column; no toolbar wrapping constraints), 150 reviewed built-in SF Symbols, synchronous or Promise callbacks, post-show state updates, button-level single-flight, and structured callback errors; invalid layout constraints, unknown orientation and overflow are INVALID_SPEC",
+      "condition": "injected only when Custom UI is explicitly authorized; new initial positioning is the discriminated position union {mode:absolute,x,y} or {mode:anchor,horizontal,vertical}; established paired x/y and the no-position 100/100 default remain compatible, while the retired top-level placement draft is rejected; anchor uses the selected display work area. The typed, versioned ToolbarSpec contains ordered Button, Separator, and fixed Spacer items: horizontal has 1-32 actionable buttons and at most 63 total items, while vertical has 1-5 actionable buttons and at most 9 total items. Button icons accept a reviewed built-in name or {path,renderingMode?} for a script-contained PNG/JPEG; the Runtime rejects URLs, traversal, symlink escape, invalid format/dimensions and resource overflow, then sends only bounded raster data to a host that validates it again. Structural items never receive callbacks, state, focus, or button Accessibility exposure; at a natural wrap boundary they are omitted instead of becoming row-edge artifacts. FloatingWindow remains icon-first: visible group titles, forms, arbitrary layout, flexible spacing and badges are not supported. It reuses shared WindowState, move/close lifecycle events and native draggable readback; conflicting or incomplete positioning, invalid icon declarations, invalid structure/layout constraints, unknown item type and overflow are INVALID_SPEC",
       "keyMethods": [
         "addButton",
+        "addSeparator",
+        "addSpacer",
         "removeButton",
         "updateButton",
         "getButtonState",
+        "getState",
         "show",
         "hide",
         "close",
         "setPosition",
+        "setPlacement",
         "onButtonClick",
         "onError",
         "setAlwaysOnTop",
+        "setDraggable",
+        "on",
         "waitUntilClosed",
         "run"
       ]
@@ -676,6 +685,7 @@
       "http-server.md"
     ],
     "runtime": [
+      "environment.md",
       "runtime.md",
       "notify.md",
       "audio.md",

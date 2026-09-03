@@ -98,4 +98,50 @@
       if (await File.exists(diffPath)) await File.remove(diffPath);
     }
   });
+
+  test({
+    name: 'ImageColor.findImage and findImages expose canonical template matching',
+    tier: 'unit',
+    covers: ['ImageColor.findImage', 'ImageColor.findImages', 'ImageColor.findPos'],
+  }, async () => {
+    const fixtureDir = File.join(File.cwd(), 'tests', 'opencv', 'fixtures', 'image-color');
+    const sourcePath = File.join(fixtureDir, 'scene_color_blocks.png');
+    const templatePath = File.join(fixtureDir, 'template_blue-panel.png');
+    const sourceDataURL = ImageColor.loadBase64(sourcePath);
+    const sourceRawBase64 = sourceDataURL.slice(sourceDataURL.indexOf('base64,') + 'base64,'.length);
+    const options = {
+      threshold: 0.99,
+      region: { x: 200, y: 120, width: 100, height: 90 },
+      scales: [0.9, 1, 1.1],
+    };
+
+    const match = ImageColor.findImage(sourceRawBase64, templatePath, options);
+    assert(match && match.found === true, JSON.stringify(match));
+    assert(match.x === 202 && match.y === 132 && match.width === 88 && match.height === 64, JSON.stringify(match));
+    assert(match.centerX === 246 && match.centerY === 164 && match.scale === 1, JSON.stringify(match));
+    assert(match.confidence === 1, JSON.stringify(match));
+
+    const matches = ImageColor.findImages(sourceDataURL, templatePath, { ...options, maxResults: 20 });
+    assert(Array.isArray(matches) && matches.length === 1, JSON.stringify(matches));
+    assert(matches[0].x === 202 && matches[0].y === 132 && matches[0].scale === 1, JSON.stringify(matches));
+
+    const outside = ImageColor.findImage(sourceDataURL, templatePath, {
+      threshold: 0.99,
+      region: { x: 0, y: 0, width: 100, height: 100 },
+    });
+    assert(outside.found === false && outside.x === -1 && outside.y === -1, JSON.stringify(outside));
+
+    const legacy = ImageColor.findPos(sourcePath, templatePath, 0.99);
+    assert(legacy.found === true && legacy.x === 202 && legacy.y === 132, JSON.stringify(legacy));
+    assert(!Object.prototype.hasOwnProperty.call(legacy, 'scale'), JSON.stringify(legacy));
+
+    await RuntimeAPITest.expectThrow(
+      () => ImageColor.findImage(sourceDataURL, templatePath, { threshold: 1.01 }),
+      'threshold must be between 0 and 1',
+    );
+    await RuntimeAPITest.expectThrow(
+      () => ImageColor.findImages(sourceDataURL, templatePath, { maxResults: 0 }),
+      'maxResults must be between 1',
+    );
+  });
 })();

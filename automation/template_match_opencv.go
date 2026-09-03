@@ -9,17 +9,20 @@ import (
 	"gocv.io/x/gocv"
 )
 
-const templateMatchBackend = "opencv"
+// The public ImageColor contract is intentionally pure Go even when this file
+// is compiled. TM_CCOEFF_NORMED has a different score model from the canonical
+// mean absolute RGB error score, so dispatching to it would make the same JS
+// threshold mean different things across builds.
+const templateMatchBackend = "purego"
 
 func findTemplateMatch(source, template *image.NRGBA) (bestX, bestY int, bestScore float64) {
-	bestX, bestY, bestScore, ok := findTemplateMatchOpenCV(source, template)
-	if !ok {
-		return findTemplateMatchPureGo(source, template)
-	}
-	return bestX, bestY, bestScore
+	return findTemplateMatchPureGo(source, template)
 }
 
-func findTemplateMatchOpenCV(source, template *image.NRGBA) (bestX, bestY int, bestScore float64, ok bool) {
+// findTemplateMatchOpenCVExperimental remains available only to tagged
+// conformance and benchmark tests. It is not an interchangeable backend for
+// ImageColor.findImage/findImages/findPos.
+func findTemplateMatchOpenCVExperimental(source, template *image.NRGBA) (bestX, bestY int, bestScore float64, ok bool) {
 	sw := source.Bounds().Dx()
 	sh := source.Bounds().Dy()
 	tw := template.Bounds().Dx()

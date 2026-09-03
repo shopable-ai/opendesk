@@ -1,6 +1,8 @@
-# OpenCV ImageColor 固定夹具
+# ImageColor 模板匹配固定夹具（OpenCV tagged 对照）
 
-本目录用于验证 OpenDesk JavaScript `ImageColor` 接口在 `opencv` 构建标签下的模板匹配行为。
+本目录提供稳定的 ImageColor 模板匹配输入，并保留历史 `opencv` tagged 命令的对照路径。
+当前公开 API 在普通和 `opencv` build tag 构建中都使用 canonical Pure Go matcher；OpenCV
+`TM_CCOEFF_NORMED` 只用于 Go 层实验性 conformance/benchmark，不是公开 API backend。
 
 ## 文件关系
 
@@ -9,7 +11,7 @@
 - `template_absent.png`：来源图中不存在的负模板，用于防止“总是命中”的假阳性。
 - `pairs.json`：机器可读的配对清单，记录颜色采样点、模板路径、阈值以及预期坐标、尺寸和最低置信度。
 
-模板刻意包含多种颜色和内部结构，而不是使用纯色块。`TM_CCOEFF_NORMED` 对零方差的纯色模板不适合作为稳定回归夹具。
+模板刻意包含多种颜色和内部结构，而不是使用纯色块。这既能稳定覆盖 canonical RGB 绝对误差 matcher，也可以避免历史 `TM_CCOEFF_NORMED` 对零方差纯色模板的退化情形。
 
 ## 重新生成
 

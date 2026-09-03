@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "description": "Deterministic color-block fixtures for OpenDesk ImageColor OpenCV template matching tests.",
+  "description": "Deterministic color-block fixtures for OpenDesk ImageColor template matching tests and tagged OpenCV comparison.",
   "generatedBy": "go run ./cmd/generate-opencv-fixtures",
-  "requiredBackend": "opencv",
+  "requiredBackend": "purego-canonical-with-opencv-comparison",
   "source": {
     "path": "tests/opencv/fixtures/image-color/scene_color_blocks.png",
     "width": 320,

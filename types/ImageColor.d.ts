@@ -35,6 +35,29 @@ declare global {
     height: number;
   }
 
+  interface OpenDeskImageRegion {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }
+
+  interface OpenDeskFindImageOptions {
+    threshold?: number;
+    region?: OpenDeskImageRegion;
+    scales?: number[];
+  }
+
+  interface OpenDeskFindImagesOptions extends OpenDeskFindImageOptions {
+    maxResults?: number;
+  }
+
+  interface OpenDeskFindImageResult extends OpenDeskTemplateMatchResult {
+    centerX: number;
+    centerY: number;
+    scale: number;
+  }
+
   interface OpenDeskImageDiffRegion {
     x: number;
     y: number;
@@ -100,6 +123,8 @@ declare global {
 
   interface OpenDeskImageColor {
     findPos(sourceImage: string, templateImage: string, threshold?: number): OpenDeskTemplateMatchResult;
+    findImage(sourceImage: string, templateImage: string, options?: OpenDeskFindImageOptions): OpenDeskFindImageResult;
+    findImages(sourceImage: string, templateImage: string, options?: OpenDeskFindImagesOptions): OpenDeskFindImageResult[];
     diff(actualImage: string, expectedImage: string, options?: OpenDeskImageDiffOptions): OpenDeskImageDiffResult;
     loadBase64(path: string): string;
     resize(image: string, width: number, height: number): string;
