@@ -305,13 +305,13 @@ const diff = ImageColor.diff(actual, expected, { pixelThreshold: 8 });
 
 同一输入、options 和 Go 版本会按固定扫描与 PNG 编码规则生成相同结果；`outputPath` 与 `includeDiffImage` 同时使用时，两者来自同一份 PNG 字节。
 
-最小可运行示例是 [`examples/image-color-diff.js`](../../examples/image-color-diff.js)。从仓库根目录执行：
+最小可运行示例是 [`examples/image-color/diff.js`](../../examples/image-color/diff.js)。从仓库根目录执行：
 
 ```bash
-./opendesk -script examples/image-color-diff.js -console-mode script
+./opendesk -script examples/image-color/diff.js
 ```
 
-示例会使用内嵌的小型确定性 PNG，并把差异图写入 `.runtime/examples/image-color-diff/diff.png`。
+示例读取 `examples/image-color/fixtures/actual-rgb.png` 和 `expected.png` 两张小型确定性 PNG，自检精确结果，并把差异图写入 `.runtime/examples/image-color/diff.png`。所有版本化测试输入都保存在 `examples/image-color/fixtures/`；`.runtime/` 只保存本次运行产生的输出和日志。
 
 ### 操作前后比较
 

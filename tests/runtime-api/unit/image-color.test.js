@@ -49,52 +49,77 @@
     tier: 'unit',
     covers: ['ImageColor.diff'],
   }, async () => {
-    const actual = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAGklEQVR42mPgEpH7r2Fk85/BLSDqf0pexX8AMtoHCQBDMTYAAAAASUVORK5CYII=';
-    const expected = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAGklEQVR42mPgEpH7r2Fk85/BLSDqf0VexX8AMyoHHchYPi8AAAAASUVORK5CYII=';
+    const fixtureDir = File.join(File.cwd(), 'examples', 'image-color', 'fixtures');
+    const expectedPath = File.join(fixtureDir, 'expected.png');
+    const identicalPath = File.join(fixtureDir, 'actual-identical.png');
+    const actualPath = File.join(fixtureDir, 'actual-rgb.png');
+    const alphaPath = File.join(fixtureDir, 'actual-alpha.png');
+    const ignoredPath = File.join(fixtureDir, 'actual-ignore.png');
+    const smallerPath = File.join(fixtureDir, 'different-size.png');
+    const expected = ImageColor.loadBase64(expectedPath);
     const bareExpected = expected.slice(expected.indexOf('base64,') + 'base64,'.length);
-    const actualPath = `${Execution.artifactDir}/image-diff-actual.png`;
     const diffPath = `${Execution.artifactDir}/image-diff-output/nested/diff.png`;
     try {
-      assert(await ImageColor.save(actual, actualPath, 'png', 100), 'failed to save deterministic actual image');
+      const identical = ImageColor.diff(identicalPath, expectedPath);
+      assert(identical.matched === true && identical.diffPixels === 0
+        && identical.changedBounds === null, JSON.stringify(identical));
+
       const result = ImageColor.diff(actualPath, bareExpected, {
         pixelThreshold: 8,
-        maxDiffPixels: 1,
-        maxDiffRatio: 0.25,
+        maxDiffPixels: 3,
+        maxDiffRatio: 0.015625,
         outputPath: diffPath,
         includeDiffImage: true,
       });
       assert(result && result.matched === true, JSON.stringify(result));
-      assert(result.width === 2 && result.height === 2 && result.totalPixels === 4, JSON.stringify(result));
-      assert(result.comparedPixels === 4 && result.ignoredPixels === 0, JSON.stringify(result));
-      assert(result.diffPixels === 1 && result.diffRatio === 0.25, JSON.stringify(result));
-      assert(Math.abs(result.meanAbsoluteError - (20 / 12)) < 1e-12, JSON.stringify(result));
+      assert(result.width === 16 && result.height === 12 && result.totalPixels === 192, JSON.stringify(result));
+      assert(result.comparedPixels === 192 && result.ignoredPixels === 0, JSON.stringify(result));
+      assert(result.diffPixels === 3 && result.diffRatio === 0.015625, JSON.stringify(result));
+      assert(Math.abs(result.meanAbsoluteError - (73 / 576)) < 1e-12, JSON.stringify(result));
       assert(result.maxChannelDiff === 20, JSON.stringify(result));
-      assert(result.changedBounds && result.changedBounds.x === 1 && result.changedBounds.y === 1
-        && result.changedBounds.width === 1 && result.changedBounds.height === 1, JSON.stringify(result));
+      assert(result.changedBounds && result.changedBounds.x === 4 && result.changedBounds.y === 2
+        && result.changedBounds.width === 9 && result.changedBounds.height === 8, JSON.stringify(result));
       assert(result.pixelThreshold === 8 && result.includeAlpha === false, JSON.stringify(result));
       assert(result.diffPath === diffPath && await File.exists(diffPath), JSON.stringify(result));
       assert(typeof result.diffImage === 'string' && result.diffImage.startsWith('data:image/png;base64,'), JSON.stringify(result));
       const diffSize = ImageColor.getSize(result.diffImage);
-      assert(Array.isArray(diffSize) && diffSize[0] === 2 && diffSize[1] === 2, JSON.stringify(diffSize));
+      assert(Array.isArray(diffSize) && diffSize[0] === 16 && diffSize[1] === 12, JSON.stringify(diffSize));
 
-      const allIgnored = ImageColor.diff(actual, expected, {
-        ignoreRegions: [{ x: -5, y: -5, width: 20, height: 20 }],
+      const alphaIgnored = ImageColor.diff(alphaPath, expectedPath);
+      assert(alphaIgnored.matched === true && alphaIgnored.diffPixels === 0, JSON.stringify(alphaIgnored));
+      const alphaCompared = ImageColor.diff(alphaPath, expectedPath, { includeAlpha: true });
+      assert(alphaCompared.matched === false && alphaCompared.diffPixels === 1
+        && alphaCompared.maxChannelDiff === 128
+        && alphaCompared.changedBounds.x === 7 && alphaCompared.changedBounds.y === 5,
+      JSON.stringify(alphaCompared));
+
+      const overlappingIgnore = ImageColor.diff(ignoredPath, expectedPath, {
+        ignoreRegions: [
+          { x: 0, y: 0, width: 4, height: 3 },
+          { x: 2, y: 1, width: 4, height: 3 },
+        ],
+      });
+      assert(overlappingIgnore.ignoredPixels === 20 && overlappingIgnore.comparedPixels === 172
+        && overlappingIgnore.diffPixels === 1
+        && overlappingIgnore.changedBounds.x === 14 && overlappingIgnore.changedBounds.y === 10,
+      JSON.stringify(overlappingIgnore));
+
+      const allIgnored = ImageColor.diff(actualPath, expectedPath, {
+        ignoreRegions: [{ x: -5, y: -5, width: 30, height: 30 }],
       });
       assert(allIgnored.matched === true && allIgnored.comparedPixels === 0
         && allIgnored.diffPixels === 0 && allIgnored.diffRatio === 0
         && allIgnored.meanAbsoluteError === 0 && allIgnored.changedBounds === null, JSON.stringify(allIgnored));
 
-      const smaller = ImageColor.resize(actual, 1, 1);
       await RuntimeAPITest.expectThrow(
-        () => ImageColor.diff(actual, smaller),
-        'actual=2x2 expected=1x1',
+        () => ImageColor.diff(smallerPath, expectedPath),
+        'actual=12x8 expected=16x12',
       );
       await RuntimeAPITest.expectThrow(
-        () => ImageColor.diff(actual, expected, { ignoreRegions: [{ x: 0, y: 0, width: -1, height: 1 }] }),
+        () => ImageColor.diff(actualPath, expectedPath, { ignoreRegions: [{ x: 0, y: 0, width: -1, height: 1 }] }),
         'ignoreRegions[0].width',
       );
     } finally {
-      if (await File.exists(actualPath)) await File.remove(actualPath);
       if (await File.exists(diffPath)) await File.remove(diffPath);
     }
   });
