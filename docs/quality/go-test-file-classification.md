@@ -50,7 +50,7 @@ order: 21
 | `E-J` / `SPLIT_JS_CONTRACT`（14） | 保留 Go native/private seam，同时把可由用户观察的 Runtime 行为拆到该行引用的 `tests/runtime-api/unit/*.test.js`。 | **已完成**。Go 文件不移动，JS 契约已在逐行证据列存在。 | `go test ./... -count=1` 加 `./scripts/test_runtime_apis.sh unit`；每行列出的 JS 文件是公共行为的直接来源。 |
 | `E-T` / `MOVE_TOOL`（3） | 删除旧的输出型 `*_test.go`，改为可执行工具；不再把生成图片或人工可视化计作 unit test。 | **已完成**。旧路径不存在；两个 layout 职责在 `tests/automation/tools/image-layout-lab/main.go`，WeChat 职责在 `tests/wechat/tools/visualize-layout/main.go`。 | `go run ./tests/automation/tools/image-layout-lab all .runtime/tests/test-architecture/tools/image-layout`；WeChat 工具仅在已有截图时以 `go run ./tests/wechat/tools/visualize-layout --image <input> --output .runtime/tests/wechat/visualize-layout` 运行。 |
 | `E-L` / `OPT_IN_LIVE`（2） | 不移动真实主机读取代码；默认 skip，并把读取权限收紧为显式 opt-in。 | **已完成**。仍在 `automation/`，因为 platform backend 的 private seam 不能搬出 package。 | 音频：`OPENDESK_LIVE_AUDIO_TEST=1 go test ./automation -run '^TestDarwinAudioDeviceEnumerationMetadataDecodes$' -count=1`；剪贴板：`OPENDESK_LIVE_CLIPBOARD_TEST=1 go test ./automation -run '^TestDarwinRichClipboardMetadataCanBeReadWithoutContent$' -count=1`。 |
-| `E-V` / `VENDOR_ONLY`（4） | 不移动或改写上游测试；从根模块成功率隔离，并为嵌套 module 建立单独 compile/live 边界。 | **已完成**。仍在 `third_party/kbinani-screenshot/` 与 `third_party/robotgo/`；RobotGo 的 compile 状态由 nested module gate 单独记录。 | compile-only：`(cd third_party/kbinani-screenshot && go test -run '^$' ./...)` 和 `(cd third_party/robotgo && go test -run '^$' ./...)`；不运行输入设备/剪贴板 live 用例。 |
+| `E-V` / `VENDOR_ONLY`（4） | 不移动或改写上游测试；从根模块成功率隔离，并为嵌套 module 建立单独 compile/live 边界。 | **已完成**。仍在 `third_party/kbinani-screenshot/` 与 `third_party/robotgo/`；RobotGo 的 compile 通过 nested `go.mod` local replace 使用兼容 screenshot 实现。 | compile-only：`(cd third_party/kbinani-screenshot && go test -run '^$' ./...)` 和 `(cd third_party/robotgo && go test -run '^$' ./...)`；不运行输入设备/剪贴板 live 用例。 |
 | `E-A` / `ARCHIVE_ONLY`（8） | 不恢复历史同步副本，也不删除考古资料。 | **已完成**。只留在 `.archive/batch1-sync-blockers-20260608-191116/`，不进入当前 gate 或文件数。 | `node scripts/audit_test_architecture.js` 必须确认它们仍在 archive，且当前同名事实源另有对应测试。 |
 
 执行顺序也固定为：先以 `E-A` / `E-V` 排除非根模块数量噪音，优先执行 `E-B` 外部黑盒迁移，
@@ -239,7 +239,7 @@ order: 21
 | `third_party/kbinani-screenshot/screenshot_test.go` | `VENDOR_ONLY` | 否：上游外部 package API | 第三方真实屏幕 capture 与 benchmark | 当前桌面和 Screen Recording | 上游 smoke 不证明 OpenDesk 根模块 | 留在嵌套 module；仅在 `third_party/kbinani-screenshot` 单独运行并标 compile/live 等级。 |
 | `third_party/robotgo/clipboard/clipboard_test.go` | `VENDOR_ONLY` | 否：`clipboard_test` 外部包 | 上游系统剪贴板 copy/paste 与 benchmark | 当前系统剪贴板 | 会改用户剪贴板，不能进根 gate | 留在 RobotGo 嵌套 module；仅显式 vendor/live 运行。 |
 | `third_party/robotgo/robot_info_test.go` | `VENDOR_ONLY` | 否：上游 RobotGo public API | version、screen size、scale、active title | 当前桌面；多处只打印无断言 | 断言价值弱且平台相关 | 不修改上游测试；单列 vendor 状态，不计根模块通过率。 |
-| `third_party/robotgo/robotgo_test.go` | `VENDOR_ONLY` | 是：上游同包 mouse/key/image helpers | RobotGo 鼠标键盘剪贴板图像/进程 live smoke | 真实桌面与输入设备；多处只打印 | 可能产生系统副作用，稳定断言不足 | 保持嵌套上游位置；当前 macOS SDK 的 `SCScreenshotManager` compile failure 必须披露。 |
+| `third_party/robotgo/robotgo_test.go` | `VENDOR_ONLY` | 是：上游同包 mouse/key/image helpers | RobotGo 鼠标键盘剪贴板图像/进程 live smoke | 真实桌面与输入设备；多处只打印 | 可能产生系统副作用，稳定断言不足 | 保持嵌套上游位置；其 module 显式 replace 到本仓库 macOS 13 兼容 screenshot 实现，`go test -run '^$' ./...` 当前通过；live 仍单列。 |
 
 ## 迁移与 live 入口
 

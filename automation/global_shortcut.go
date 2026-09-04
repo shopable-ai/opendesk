@@ -235,7 +235,10 @@ type globalShortcutBinding struct {
 	handle      GlobalShortcutBackendHandle
 	inFlight    bool // event-loop owner only
 	active      atomic.Bool
-	scheduled   atomic.Bool
+	// scheduled covers both a queued dispatch and an executing callback. Native
+	// callbacks can therefore coalesce while the JavaScript callback is still
+	// awaiting a Promise; only the EventLoop owner changes inFlight.
+	scheduled atomic.Bool
 }
 
 // GlobalShortcutRuntime is one execution-owned global shortcut registry.
@@ -447,8 +450,8 @@ func (g *GlobalShortcutRuntime) dispatch(runtime *goja.Runtime, binding *globalS
 	if binding == nil {
 		return
 	}
-	g.clearScheduled(binding)
 	if g.closing.Load() || !binding.active.Load() || g.byID[binding.id] != binding || binding.inFlight || binding.callback == nil {
+		g.clearScheduled(binding)
 		return
 	}
 	binding.inFlight = true
@@ -507,6 +510,7 @@ func (g *GlobalShortcutRuntime) finishCallback(binding *globalShortcutBinding, c
 		return
 	}
 	binding.inFlight = false
+	g.clearScheduled(binding)
 	if callbackErr != nil {
 		g.reportAsyncError(&GlobalShortcutError{Code: globalShortcutCallbackFailed, Operation: "globalShortcut.callback", Accelerator: binding.accelerator.Canonical, Message: "shortcut callback failed", Cause: callbackErr})
 	}
