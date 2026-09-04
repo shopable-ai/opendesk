@@ -95,6 +95,15 @@ Runtime API negative：
 ./dist/opendesk -script tests/runtime-api/negative.js -console-mode script
 ```
 
+Clipboard 富文本粘贴 fixture：
+
+```text
+./opendesk -script examples/clipboard/rich-paste-fixture.js -console-mode script
+```
+
+脚本写入 `text/plain` 和 `text/html`，不会自动粘贴、清空或恢复剪贴板；可手动粘贴到目标
+应用检查纯文本 fallback 和 HTML 样式。完整接口说明见 [`docs/api/clipboard.md`](../api/clipboard.md)。
+
 Runtime API 其他专用 JS：
 
 ```text

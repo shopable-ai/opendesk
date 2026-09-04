@@ -42,11 +42,3 @@ char *opendesk_desktop_events_running_applications_json(void) {
         return result;
     }
 }
-
-int64_t opendesk_desktop_events_clipboard_change_count(void) {
-    @autoreleasepool {
-        NSPasteboard *pasteboard = [NSPasteboard generalPasteboard];
-        if (pasteboard == nil) return -1;
-        return (int64_t)pasteboard.changeCount;
-    }
-}

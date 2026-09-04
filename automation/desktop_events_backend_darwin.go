@@ -8,7 +8,7 @@ package automation
 #include <stdlib.h>
 
 char *opendesk_desktop_events_running_applications_json(void);
-int64_t opendesk_desktop_events_clipboard_change_count(void);
+int64_t opendesk_clipboard_change_count(void);
 */
 import "C"
 
@@ -33,7 +33,7 @@ func listDesktopApplicationsPlatform() ([]desktopApplicationState, error) {
 }
 
 func desktopClipboardRevisionPlatform() (desktopClipboardRevision, error) {
-	changeCount := int64(C.opendesk_desktop_events_clipboard_change_count())
+	changeCount := int64(C.opendesk_clipboard_change_count())
 	if changeCount < 0 {
 		return desktopClipboardRevision{}, fmt.Errorf("NSPasteboard changeCount is unavailable")
 	}

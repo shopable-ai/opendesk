@@ -196,6 +196,15 @@ OpenDesk CLI：
 opendesk -script clipboard-rich.js -console-mode script
 ```
 
+需要手动验证目标应用消费时，可先只写入一个可识别的富格式 fixture：
+
+```bash
+./opendesk -script examples/clipboard/rich-paste-fixture.js -console-mode script
+```
+
+该 fixture 用 `clipboard.write({ text, html })` 写入唯一标识、粗体和斜体，但不会自动粘贴、清空或恢复
+剪贴板；运行者可粘贴到任意目标应用，分别判断文本 fallback 与 HTML 样式是否被消费。
+
 ## 全局快捷函数
 
 只需要读写文本时，可使用全局 `copyToClipboard(text)` 和 `getClipboard()`。完整契约
