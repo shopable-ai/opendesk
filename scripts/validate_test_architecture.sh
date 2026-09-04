@@ -74,7 +74,17 @@ run_required source-no-drift node -e '
   const before = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
   const after = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
   if (before.sourceSnapshot.closureSha256 !== after.sourceSnapshot.closureSha256) {
-    throw new Error(`source drift: ${before.sourceSnapshot.closureSha256} -> ${after.sourceSnapshot.closureSha256}`);
+    const beforeFiles = new Map((before.sourceSnapshot.files || []).map(({ file, sha256 }) => [file, sha256]));
+    const afterFiles = new Map((after.sourceSnapshot.files || []).map(({ file, sha256 }) => [file, sha256]));
+    const changes = [];
+    for (const file of new Set([...beforeFiles.keys(), ...afterFiles.keys()])) {
+      const beforeDigest = beforeFiles.get(file);
+      const afterDigest = afterFiles.get(file);
+      if (beforeDigest === afterDigest) continue;
+      changes.push(beforeDigest === undefined ? `added:${file}` : afterDigest === undefined ? `removed:${file}` : `changed:${file}`);
+    }
+    const detail = changes.length === 0 ? " (file manifest unavailable)" : ` (${changes.slice(0, 20).join(", ")}${changes.length > 20 ? ", ..." : ""})`;
+    throw new Error(`source drift: ${before.sourceSnapshot.closureSha256} -> ${after.sourceSnapshot.closureSha256}${detail}`);
   }
   process.stdout.write(`${after.sourceSnapshot.closureSha256}\n`);
 ' "$EVIDENCE_DIR/audit-before.json" "$EVIDENCE_DIR/audit-after.json"

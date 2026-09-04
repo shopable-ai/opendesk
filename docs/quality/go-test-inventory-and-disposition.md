@@ -110,12 +110,13 @@ go run ./tests/wechat/tools/visualize-layout \
 现在 `go test ./pkg/visionrun -count=1` 和完整 `go test ./... -count=1` 均通过。真实视觉、
 macOS 权限、第三方设备和外部应用仍需各自的 live/opt-in gate，不能由 package green 代替。
 
-嵌套模块的编译级检查结果也要单独记录：`third_party/kbinani-screenshot` 的
-`go test -run '^$' ./...` 通过；`third_party/robotgo` 的根 package 和 examples 在当前
-macOS 12 SDK 上因依赖引用未声明的 `SCScreenshotManager` 编译失败，而其 clipboard 子包
-可以编译。这是上游依赖/SDK 兼容问题，不是把测试移动到主仓库可以解决的问题。可选方案是
-单独升级或回退上游版本、维护一个兼容 macOS 12 的补丁，或在匹配的 macOS SDK CI 中运行；
-在此之前将 RobotGo 标记为 `VENDOR_ONLY`，不要把它混入根目录成功率。
+嵌套模块的编译级检查结果也要单独记录：`third_party/kbinani-screenshot` 与
+`third_party/robotgo` 的 `go test -run '^$' ./...` 均通过。RobotGo 的嵌套 module 通过
+`third_party/robotgo/go.mod` 中的本地 replace 使用仓库内 macOS 13 兼容的
+`third_party/kbinani-screenshot`，而不是会引用当前 SDK 未声明
+`SCScreenshotManager` 的 module-cache 副本。这个修复只恢复 vendor 的 compile/package
+基线；其鼠标、键盘、剪贴板和屏幕相关 upstream live 用例仍须显式运行，且 `VENDOR_ONLY`
+文件不混入根目录成功率。
 
 ## 逐文件审查表和决策标签
 
