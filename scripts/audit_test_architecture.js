@@ -55,13 +55,10 @@ const sourceFiles = walk(root, (file) => {
   return sourceRoots.has(first) || sourceRootFiles.has(relative);
 }).filter((file) => !file.startsWith('.archive/')).sort();
 const sourceClosure = crypto.createHash('sha256');
-const sourceFileDigests = [];
 for (const file of sourceFiles) {
-  const digest = sha256(path.join(root, file));
-  sourceFileDigests.push({ file, sha256: digest });
   sourceClosure.update(file);
   sourceClosure.update('\0');
-  sourceClosure.update(digest);
+  sourceClosure.update(sha256(path.join(root, file)));
   sourceClosure.update('\n');
 }
 
@@ -355,7 +352,6 @@ const report = {
     dirty: command(['git', 'status', '--porcelain=v1']).length > 0,
     fileCount: sourceFiles.length,
     closureSha256: sourceClosure.digest('hex'),
-    files: sourceFileDigests,
   },
   goTests: {
     migrationBaseline: classifications.size,
@@ -412,13 +408,7 @@ fs.mkdirSync(path.dirname(output), { recursive: true });
 fs.writeFileSync(output, `${JSON.stringify(report, null, 2)}\n`);
 console.log(`[TEST-ARCHITECTURE-AUDIT] ${report.status.toUpperCase()} -> ${relativeFrom(root, output)}`);
 console.log(JSON.stringify({
-  sourceSnapshot: {
-    head: report.sourceSnapshot.head,
-    branch: report.sourceSnapshot.branch,
-    dirty: report.sourceSnapshot.dirty,
-    fileCount: report.sourceSnapshot.fileCount,
-    closureSha256: report.sourceSnapshot.closureSha256,
-  },
+  sourceSnapshot: report.sourceSnapshot,
   goTests: {
     migrationBaseline: report.goTests.migrationBaseline,
     current: report.goTests.current,

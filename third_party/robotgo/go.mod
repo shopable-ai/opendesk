@@ -39,6 +39,3 @@ require (
 // replace golang.org/x/sys => github.com/golang/sys v0.0.0-20190109145017-48ac38b7c8cb
 
 // go 1.13
-
-// Keep the nested RobotGo module on the repository's macOS-13-compatible screenshot implementation.
-replace github.com/kbinani/screenshot => ../kbinani-screenshot
