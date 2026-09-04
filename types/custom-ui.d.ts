@@ -8,6 +8,62 @@ declare global {
   type ClawdeskUIEventType = "click" | "change" | "input" | "move" | "resize" | "close";
   type ClawdeskUIControlType = "button" | "text" | "img" | "switch" | "input" | "select" | "container";
 
+  type ClawdeskUIHorizontalPlacement = "left" | "center" | "right";
+  type ClawdeskUIVerticalPlacement = "top" | "center" | "bottom";
+  type ClawdeskUIPlacementDisplay = "active" | "current" | "primary";
+
+  type ClawdeskUIInitialPlacementDisplay = "active" | "primary";
+
+  interface ClawdeskUIWindowPlacement {
+    horizontal: ClawdeskUIHorizontalPlacement;
+    vertical: ClawdeskUIVerticalPlacement;
+    /** Non-negative distance in points from each selected work-area edge. */
+    margin?: number;
+    /** Defaults to the display containing the pointer. */
+    display?: ClawdeskUIPlacementDisplay;
+  }
+
+  interface ClawdeskUIInitialWindowPlacement {
+    horizontal: ClawdeskUIHorizontalPlacement;
+    vertical: ClawdeskUIVerticalPlacement;
+    /** Non-negative distance in points from each selected work-area edge. */
+    margin?: number;
+    /** Defaults to the display containing the pointer. */
+    display?: ClawdeskUIInitialPlacementDisplay;
+  }
+
+  /**
+   * An explicit initial frame. `bounds` is an outer-window frame in logical
+   * desktop points; it is not a CSS/content-box layout declaration.
+   */
+  interface ClawdeskUIAbsoluteWindowPosition {
+    mode: "absolute";
+    bounds: ClawdeskUIBounds;
+    size?: never;
+    horizontal?: never;
+    vertical?: never;
+    margin?: never;
+    display?: never;
+  }
+
+  /**
+   * A nine-way display work-area anchor. The initial form intentionally
+   * excludes `current`: a window has no current display until it exists.
+   */
+  interface ClawdeskUIAnchorWindowPosition {
+    mode: "anchor";
+    size: ClawdeskUISize;
+    horizontal: ClawdeskUIHorizontalPlacement;
+    vertical: ClawdeskUIVerticalPlacement;
+    margin?: number;
+    display?: ClawdeskUIInitialPlacementDisplay;
+    bounds?: never;
+  }
+
+  type ClawdeskUIInitialWindowPosition =
+    | ClawdeskUIAbsoluteWindowPosition
+    | ClawdeskUIAnchorWindowPosition;
+
   interface ClawdeskUIBounds {
     x: number;
     y: number;
@@ -15,33 +71,71 @@ declare global {
     height: number;
   }
 
+  interface ClawdeskUISize {
+    width: number;
+    height: number;
+  }
+
   interface ClawdeskUIContentSpec {
     /**
-     * Explicit local HTML file. Exactly one of file or html is required.
-     * Paths are confined to the script directory.
+     * Preferred explicit local HTML source. This is a path string, not a
+     * nested content object. The loaded file may contain restricted <style>
+     * rules, and sibling css and cssFile fields may be used with either source.
+     * Exactly one of file or html is required. Paths are confined to the script
+     * directory.
      */
     file?: string;
     /**
-     * Restricted inline HTML, or a relative .html/.htm file path resolved from
-     * the script directory. Use markup (for example, <p>panel.html</p>) for
-     * literal inline text ending in .html or .htm.
+     * Restricted inline HTML (normally paired with css), or a relative
+     * .html/.htm file path resolved from the script directory. Use markup
+     * (for example, <p>panel.html</p>) for literal inline text ending in .html
+     * or .htm.
      */
     html?: string;
-    cssFile?: string;
+    /**
+     * Restricted inline CSS. May be used with cssFile; HTML <style> rules run
+     * first, then css, then cssFile.
+     */
     css?: string;
+    /** Local CSS file confined to the script directory; applied after css. */
+    cssFile?: string;
+    /**
+     * Existing resource directory confined to the script directory. Defaults
+     * to the loaded HTML file's directory, or the script directory for inline
+     * HTML. It is the root for local img src and img source updates.
+     */
     basePath?: string;
   }
 
-  interface ClawdeskUIWindowSpec {
+  interface ClawdeskUIWindowBaseSpec {
     id: string;
     kind?: ClawdeskUIWindowKind;
     title?: string;
-    bounds: ClawdeskUIBounds;
     alwaysOnTop?: boolean;
     draggable?: boolean;
     theme?: ClawdeskUITheme;
     content: ClawdeskUIContentSpec;
   }
+
+  type ClawdeskUIWindowSpec = ClawdeskUIWindowBaseSpec & (
+    | {
+        /** Preferred explicit initial-position union. */
+        position: ClawdeskUIInitialWindowPosition;
+        bounds?: never;
+        size?: never;
+        placement?: never;
+      }
+    | {
+        /**
+         * Compatibility form for the established absolute-window API. Prefer
+         * `position: { mode: "absolute", bounds }` in new code.
+         */
+        bounds: ClawdeskUIBounds;
+        position?: never;
+        size?: never;
+        placement?: never;
+      }
+  );
 
   interface ClawdeskUIControlDescriptor {
     id: string;
@@ -70,7 +164,7 @@ declare global {
     id: string;
     type: ClawdeskUIControlType;
     text?: string;
-    icon?: ClawdeskFloatingIcon;
+    icon?: ClawdeskFloatingIconKey;
     value?: unknown;
     checked?: boolean;
     active: boolean;
@@ -92,7 +186,7 @@ declare global {
   interface ClawdeskUIControlPatch {
     text?: string;
     /** button controls only; restricted to the built-in toolbar icon registry. */
-    icon?: ClawdeskFloatingIcon;
+    icon?: ClawdeskFloatingIconKey;
     value?: unknown;
     checked?: boolean;
     /** button controls only. */
@@ -132,7 +226,7 @@ declare global {
     platform: string;
     driver: string;
     maxSessions: number;
-    window: Record<"position" | "size" | "alwaysOnTop" | "draggable" | "nativeIdentity", boolean>;
+    window: Record<"position" | "placement" | "size" | "alwaysOnTop" | "draggable" | "nativeIdentity", boolean>;
     controls: ClawdeskUIControlType[];
     reason?: string;
   }
@@ -167,6 +261,7 @@ declare global {
     getState(): Promise<ClawdeskUIWindowState>;
     setBounds(bounds: ClawdeskUIBounds): Promise<ClawdeskUIWindowState>;
     setPosition(x: number, y: number): Promise<ClawdeskUIWindowState>;
+    setPlacement(placement: ClawdeskUIWindowPlacement): Promise<ClawdeskUIWindowState>;
     setSize(width: number, height: number): Promise<ClawdeskUIWindowState>;
     setAlwaysOnTop(enabled: boolean): Promise<ClawdeskUIWindowState>;
     setDraggable(enabled: boolean): Promise<ClawdeskUIWindowState>;

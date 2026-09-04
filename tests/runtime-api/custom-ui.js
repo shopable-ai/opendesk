@@ -84,8 +84,10 @@ globalThis.FloatingToolbarTest = (() => {
 
 const floatingToolbarTestFiles = [
   'tests/runtime-api/custom-ui/window.test.js',
-  'tests/runtime-api/custom-ui/icon-catalog.test.js',
+  'tests/runtime-api/custom-ui/icon-list.test.js',
+  'tests/runtime-api/custom-ui/floating-window-custom-image.test.js',
   'tests/runtime-api/custom-ui/floating-window-layout.test.js',
+  'tests/runtime-api/custom-ui/floating-toolbar-primitives.test.js',
   'tests/runtime-api/custom-ui/floating-window-tooltip.test.js',
   'tests/runtime-api/custom-ui/floating-window-vertical.test.js',
   'tests/runtime-api/custom-ui/floating-window-callback.test.js',

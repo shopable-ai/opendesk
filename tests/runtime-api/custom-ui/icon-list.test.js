@@ -15,7 +15,7 @@
   }
 
   test({
-    name: 'icon catalog renders, scrolls and exposes all 150 real Custom UI buttons',
+    name: 'icon list renders, scrolls and exposes all default Custom UI buttons',
     tier: 'custom-ui',
     covers: [
       'ui.createWindow', 'WindowHandle.controls', 'WindowHandle.control', 'ControlHandle.on',
@@ -24,22 +24,44 @@
     ],
   }, async () => {
     const registryPath = File.join(File.cwd(), 'pkg/customui/assets/toolbar-icons-v1.json');
-    const sourceHTMLPath = File.join(File.cwd(), 'examples/custom-ui/icon-catalog.html');
-    const sourceControllerPath = File.join(File.cwd(), 'examples/custom-ui/icon-catalog.js');
+    const sourceHTMLPath = File.join(File.cwd(), 'examples/custom-ui/icon-list.html');
+    const sourceControllerPath = File.join(File.cwd(), 'examples/custom-ui/icon-list.js');
     const registry = JSON.parse(File.read(registryPath));
     equal(registry.schemaVersion, 1, 'icon registry schema changed');
-    equal(registry.icons.length, 150, 'icon registry count changed');
+    const iconCount = registry.icons.length;
+    equal(iconCount, 160, 'default icon registry count changed');
     const names = registry.icons.map(icon => icon.name);
     const ids = names.map(buttonIDFor);
-    equal(new Set(names).size, 150, 'icon names are not unique');
-    equal(new Set(ids).size, 150, 'icon button ids are not unique');
+    equal(new Set(names).size, iconCount, 'icon names are not unique');
+    equal(new Set(ids).size, iconCount, 'icon button ids are not unique');
+
+    const scenarioDefaults = {
+      'ai.assistant': 'brain',
+      'ai.generate': 'wand.and.rays',
+      'ai.analyze': 'doc.text.magnifyingglass',
+      'ai.search': 'text.magnifyingglass',
+      'automation.run': 'arrow.triangle.2.circlepath',
+      'automation.schedule': 'clock.arrow.circlepath',
+      'automation.trigger': 'bolt.circle.fill',
+      'automation.configure': 'gearshape.2.fill',
+      'automation.review': 'rectangle.and.hand.point.up.left.fill',
+      'automation.approve': 'hand.tap.fill',
+    };
+    for (const [name, systemSymbol] of Object.entries(scenarioDefaults)) {
+      const icon = registry.icons.find(item => item.name === name);
+      assert(icon, 'missing default icon for ' + name);
+      equal(icon.systemSymbol, systemSymbol, name + ' changed its reviewed SF Symbol');
+    }
 
     const html = File.read(sourceHTMLPath);
     const controller = File.read(sourceControllerPath);
     assert(!/<script\b/i.test(html), 'Runtime catalog HTML contains a business script');
     assert(!/\bonclick\s*=/i.test(html), 'Runtime catalog HTML contains an inline handler');
     assert(controller.includes("kind: 'normal'"), 'public catalog stopped using one normal scrollable Custom UI window');
-    assert(controller.includes('content: { file: catalogHTMLPath }'), 'public catalog stopped loading the generated restricted HTML');
+    assert(controller.includes('content: { file: iconListHTMLPath }'), 'public icon list stopped loading the generated restricted HTML');
+    assert(controller.includes('bounds: { x: 24, y: 24, width: 1240, height: 740 }'), 'public catalog stopped starting in the upper-left safe area');
+    assert(/\.icon-card img\{width:48px;height:48px/.test(html), 'Runtime catalog cards lost their compact icon size');
+    assert(!/\.icon-card::after/.test(html) && !/content:attr\(data-index\)/.test(html), 'Runtime catalog reintroduced repeated visual numbers or copy hints');
     for (const name of names) {
       const id = buttonIDFor(name);
       const tooltip = tooltipFor(name);
@@ -48,18 +70,18 @@
       assert(html.includes('aria-label="' + tooltip + '"'), id + ' lost its complete aria-label');
     }
 
-    const fixtureDir = File.join(RuntimeAPITest.context.runDir, 'generated', 'icon-catalog');
+    const fixtureDir = File.join(RuntimeAPITest.context.runDir, 'generated', 'icon-list');
     await File.ensureDir(fixtureDir);
-    const fixturePath = File.join(fixtureDir, 'icon-catalog.html');
+    const fixturePath = File.join(fixtureDir, 'icon-list.html');
     await File.write(fixturePath, html);
     const panel = await ui.createWindow({
-      id: 'runtimeAPIIconCatalog', kind: 'normal', title: 'Custom UI Icon Catalog Test',
+      id: 'runtimeAPIIconList', kind: 'normal', title: 'Custom UI Icon List Test',
       bounds: { x: 80, y: 60, width: 1240, height: 740 }, alwaysOnTop: false, draggable: true, theme: 'dark',
       content: { file: fixturePath },
     });
 
     const buttonControls = panel.controls().filter(control => control.type === 'button');
-    equal(buttonControls.length, 150, 'real WindowHandle did not expose 150 buttons');
+    equal(buttonControls.length, iconCount, 'real WindowHandle did not expose every default icon button');
     equal(buttonControls.map(control => control.id).join('\n'), ids.join('\n'), 'real button order differs from the registry');
 
     let selectedID = '';
@@ -82,7 +104,7 @@
 
     const shown = await panel.show();
     assert(shown.onScreen && shown.alpha > 0 && shown.hostPid > 0 && shown.nativeWindowId > 0, 'catalog window is not visibly hosted');
-    const evidenceDir = File.join(helper.root, 'icon-catalog');
+    const evidenceDir = File.join(helper.root, 'icon-list');
     await File.ensureDir(evidenceDir);
     async function screenshot(name) {
       const path = File.join(evidenceDir, name + '.png');

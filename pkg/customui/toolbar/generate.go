@@ -1,3 +1,3 @@
 package toolbar
 
-//go:generate go run ./cmd/iconmapgen -source ../assets/toolbar-icons-v1.json -go-out icons_generated.go -objc-out ../machost/toolbar_icons_generated.inc -ts-out ../../../types/FloatingWindow-icons.generated.d.ts
+//go:generate go run ./cmd/iconmapgen -source ../assets/toolbar-icons-v1.json -go-out icons_generated.go -objc-out ../machost/toolbar_icons_generated.inc -ts-out ../../../types/FloatingWindowIconKey.generated.d.ts

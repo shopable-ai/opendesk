@@ -53,6 +53,13 @@ func Normalize(spec WindowSpec, baseDir string) (WindowSpec, error) {
 	if spec.Controls != nil {
 		return WindowSpec{}, invalidSpec("controls is derived and cannot be declared")
 	}
+	if spec.Placement != nil {
+		placement, err := NormalizeInitialWindowPlacement(*spec.Placement)
+		if err != nil {
+			return WindowSpec{}, withUIErrorContext(err, "createWindow", spec.ID, "")
+		}
+		spec.Placement = &placement
+	}
 	if spec.Toolbar != nil {
 		return normalizeToolbarWindow(spec)
 	}
@@ -235,8 +242,25 @@ func normalizeToolbarWindow(spec WindowSpec) (WindowSpec, error) {
 		return WindowSpec{}, invalidSpec("native toolbar declarations cannot contain HTML, CSS, assets, URLs, or paths")
 	}
 	declaration := *spec.Toolbar
-	if declaration.SchemaVersion != toolbar.SchemaVersion {
+	// Schema v1 was button-only. Accept it at the core boundary so persisted
+	// internal declarations can be normalized safely, then send only the v2
+	// typed Items shape to the native host. Public JavaScript has always used
+	// addButton(), so callers do not need to migrate to a wire-object DSL.
+	if declaration.SchemaVersion == toolbar.LegacySchemaVersion {
+		if len(declaration.Items) != 0 {
+			return WindowSpec{}, invalidSpec("native toolbar schemaVersion 1 cannot contain items")
+		}
+		items := make([]toolbar.ToolbarItemSpec, 0, len(declaration.Buttons))
+		for _, button := range declaration.Buttons {
+			items = append(items, toolbar.ButtonItem(button))
+		}
+		declaration.Items = items
+		declaration.Buttons = nil
+		declaration.SchemaVersion = toolbar.SchemaVersion
+	} else if declaration.SchemaVersion != toolbar.SchemaVersion {
 		return WindowSpec{}, invalidSpec("native toolbar schemaVersion is unsupported")
+	} else if len(declaration.Buttons) != 0 {
+		return WindowSpec{}, invalidSpec("native toolbar schemaVersion 2 requires items instead of buttons")
 	}
 	if declaration.Orientation == "" {
 		declaration.Orientation = toolbar.OrientationHorizontal
@@ -245,44 +269,83 @@ func normalizeToolbarWindow(spec WindowSpec) (WindowSpec, error) {
 		return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", Capability: "orientation", Message: "native toolbar orientation must be horizontal or vertical"}
 	}
 	if declaration.Orientation == toolbar.OrientationVertical {
-		if (declaration.Columns != 0 && declaration.Columns != 1) || declaration.MaxWidth != 0 {
+		if (declaration.MaxColumns != 0 && declaration.MaxColumns != 1) || declaration.MaxRows != 0 || declaration.MaxWidth != 0 {
 			return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", Capability: "toolbar", Message: "vertical native toolbar must have one column"}
 		}
-		declaration.Columns = 1
+		declaration.MaxColumns = 1
 	} else {
-		if declaration.Columns == 0 {
-			declaration.Columns = toolbar.MaxColumns
+		if declaration.MaxColumns == 0 {
+			declaration.MaxColumns = toolbar.MaxColumns
 		}
-		if declaration.Columns < 1 || declaration.Columns > toolbar.MaxColumns {
+		if declaration.MaxColumns < 1 || declaration.MaxColumns > toolbar.MaxColumns {
 			return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", Capability: "toolbar", Message: fmt.Sprintf("native horizontal toolbar columns must be between 1 and %d", toolbar.MaxColumns)}
+		}
+		if declaration.MaxRows < 0 || declaration.MaxRows > toolbar.MaxButtons {
+			return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", Capability: "toolbar", Message: fmt.Sprintf("native horizontal toolbar maxRows must be between 1 and %d", toolbar.MaxButtons)}
 		}
 		if declaration.MaxWidth != 0 && (declaration.MaxWidth < toolbar.MinOuterWidth || declaration.MaxWidth > toolbar.MaxOuterWidth) {
 			return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", Capability: "toolbar", Message: fmt.Sprintf("native horizontal toolbar maxWidth must be between %d and %d", toolbar.MinOuterWidth, toolbar.MaxOuterWidth)}
 		}
 	}
+	maxItems := toolbar.MaxItemsForOrientation(declaration.Orientation)
+	if len(declaration.Items) == 0 || len(declaration.Items) > maxItems {
+		return WindowSpec{}, invalidSpec(fmt.Sprintf("native %s toolbar requires between 1 and %d items", declaration.Orientation, maxItems))
+	}
+	buttonCount := declaration.ButtonCount()
 	maxButtons := toolbar.MaxButtonsForOrientation(declaration.Orientation)
-	if len(declaration.Buttons) < toolbar.MinButtons || len(declaration.Buttons) > maxButtons {
+	if buttonCount < toolbar.MinButtons || buttonCount > maxButtons {
 		return WindowSpec{}, invalidSpec(fmt.Sprintf("native %s toolbar requires between 1 and %d buttons", declaration.Orientation, maxButtons))
 	}
 	if declaration.Revision == 0 {
 		return WindowSpec{}, invalidSpec("native toolbar revision must be positive")
 	}
-	seen := make(map[string]struct{}, len(declaration.Buttons))
-	controls := make([]Control, 0, len(declaration.Buttons))
-	buttons := make([]toolbar.ButtonSpec, len(declaration.Buttons))
-	for index, button := range declaration.Buttons {
-		if !publicIDPattern.MatchString(button.ID) {
-			return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", TargetID: button.ID, Capability: "button", Message: "toolbar button id is invalid"}
+	seen := make(map[string]struct{}, len(declaration.Items))
+	controls := make([]Control, 0, buttonCount)
+	items := make([]toolbar.ToolbarItemSpec, len(declaration.Items))
+	totalImageBytes := 0
+	for index, item := range declaration.Items {
+		if !toolbar.IsValidItemType(item.Type) {
+			return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", TargetID: item.ID, Capability: "item", Message: "toolbar item type is invalid"}
 		}
-		if _, exists := seen[button.ID]; exists {
-			return WindowSpec{}, &Error{Code: CodeDuplicateID, Operation: "createWindow", TargetID: button.ID, Capability: "button", Message: "duplicate toolbar button id"}
+		if !publicIDPattern.MatchString(item.ID) {
+			return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", TargetID: item.ID, Capability: "item", Message: "toolbar item id is invalid"}
 		}
-		seen[button.ID] = struct{}{}
+		if _, exists := seen[item.ID]; exists {
+			return WindowSpec{}, &Error{Code: CodeDuplicateID, Operation: "createWindow", TargetID: item.ID, Capability: "item", Message: "duplicate toolbar item id"}
+		}
+		seen[item.ID] = struct{}{}
+		if index == 0 && toolbar.IsStructuralItemType(item.Type) {
+			return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", TargetID: item.ID, Capability: "structure", Message: "toolbar cannot start with a separator or spacer"}
+		}
+		if index > 0 && toolbar.IsStructuralItemType(item.Type) && toolbar.IsStructuralItemType(declaration.Items[index-1].Type) {
+			return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", TargetID: item.ID, Capability: "structure", Message: "toolbar cannot contain consecutive structural items"}
+		}
+		if item.Type != toolbar.ItemButton {
+			if item.Button != nil {
+				return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", TargetID: item.ID, Capability: "structure", Message: "separator and spacer cannot carry a button payload"}
+			}
+			items[index] = item
+			continue
+		}
+		if item.Button == nil || item.Button.ID != item.ID {
+			return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", TargetID: item.ID, Capability: "button", Message: "toolbar button item must contain a matching button payload"}
+		}
+		button := *item.Button
 		if strings.TrimSpace(button.Label) == "" || utf8.RuneCountInString(button.Label) > 60 {
 			return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", TargetID: button.ID, Capability: "label", Message: "toolbar button label must contain 1 to 60 Unicode characters"}
 		}
-		if _, ok := toolbar.IconPresentationFor(button.Icon); !ok {
-			return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", TargetID: button.ID, Capability: "icon", Message: "unknown built-in toolbar icon " + button.Icon}
+		if _, ok := toolbar.IconPresentationForButton(button); !ok {
+			message := "unknown built-in toolbar icon " + button.Icon
+			if button.IconImage != nil {
+				message = "custom toolbar icon payload is invalid"
+			}
+			return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", TargetID: button.ID, Capability: "icon", Message: message}
+		}
+		if button.IconImage != nil {
+			totalImageBytes += button.IconImage.ByteLength
+			if totalImageBytes > toolbar.MaxToolbarImageBytes {
+				return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", TargetID: button.ID, Capability: "icon", Message: fmt.Sprintf("custom toolbar icon data exceeds the %d-byte window limit", toolbar.MaxToolbarImageBytes)}
+			}
 		}
 		if button.State.Revision == 0 || button.State.Revision > declaration.Revision {
 			return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", TargetID: button.ID, Capability: "revision", Message: "toolbar button revision is invalid"}
@@ -290,12 +353,19 @@ func normalizeToolbarWindow(spec WindowSpec) (WindowSpec, error) {
 		if len(button.State.Error) > 2048 {
 			return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", TargetID: button.ID, Capability: "state", Message: "toolbar button error is too long"}
 		}
-		buttons[index] = button
-		controls = append(controls, Control{ID: button.ID, Type: "button", Order: index})
+		item.Button = &button
+		items[index] = item
+		controls = append(controls, Control{ID: button.ID, Type: "button", Order: len(controls)})
 	}
-	declaration.Buttons = buttons
+	if toolbar.IsStructuralItemType(items[len(items)-1].Type) {
+		return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", TargetID: items[len(items)-1].ID, Capability: "structure", Message: "toolbar cannot end with a separator or spacer"}
+	}
+	declaration.Items = items
 	spec.Toolbar = &declaration
 	spec.Controls = controls
+	if _, err := toolbar.Plan(declaration); err != nil {
+		return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", Capability: "toolbar", Message: err.Error()}
+	}
 	// The native host owns the real outer dimensions. A positive placeholder
 	// keeps the generic window transport valid until native create readback.
 	spec.Bounds.Width, spec.Bounds.Height = 1, 1

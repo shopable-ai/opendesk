@@ -267,6 +267,24 @@ func (w *Window) SetBounds(ctx context.Context, bounds Bounds) (WindowState, err
 	return w.cachedState(), nil
 }
 
+func (w *Window) SetPlacement(ctx context.Context, placement WindowPlacement) (WindowState, error) {
+	w.operation.Lock()
+	defer w.operation.Unlock()
+	normalized, err := NormalizeWindowPlacement(placement)
+	if err != nil {
+		return WindowState{}, withUIErrorContext(err, "setPlacement", w.ID(), "")
+	}
+	if err := w.requireOpen("setPlacement"); err != nil {
+		return WindowState{}, err
+	}
+	state, err := w.driver.SetPlacement(ctx, normalized)
+	if err != nil {
+		return WindowState{}, wrapDriver("setPlacement", w.ID(), err)
+	}
+	w.setState(state)
+	return w.cachedState(), nil
+}
+
 func (w *Window) SetAlwaysOnTop(ctx context.Context, enabled bool) (WindowState, error) {
 	w.operation.Lock()
 	defer w.operation.Unlock()

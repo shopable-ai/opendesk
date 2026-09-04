@@ -1,4 +1,4 @@
-// Shared controller for the runnable toolbar examples in this directory.
+// Shared helper for the horizontal actions example in this directory.
 // It only maps JavaScript data to the documented FloatingWindow API; the
 // native host never reads these configuration objects directly.
 (() => {
@@ -13,17 +13,6 @@
     if (orientation === 'vertical' && config.buttons.length > 5) {
       throw new Error('vertical toolbars support at most five buttons');
     }
-  }
-
-  // `active` represents a durable business selection. Keep this separate from
-  // the native host's short-lived pressed and busy feedback states.
-  async function setExclusiveActive(toolbar, buttons, selectedID) {
-    if (!buttons.some(button => button.id === selectedID)) {
-      throw new Error('selected toolbar button is not declared: ' + selectedID);
-    }
-    await Promise.all(buttons.map(({ id }) =>
-      toolbar.updateButton(id, { active: id === selectedID })
-    ));
   }
 
   async function run({ config, logPrefix, onButtonClick, onShown, onClosed }) {
@@ -50,6 +39,8 @@
     if (onShown) await onShown(toolbar, shown);
     console.log(logPrefix + '_READY=' + JSON.stringify({
       orientation: config.toolbar.orientation || 'horizontal',
+      position: config.toolbar.position || null,
+      bounds: shown.bounds,
       buttonIds: config.buttons.map(button => button.id),
     }));
 
@@ -58,5 +49,5 @@
     return { toolbar, shown, closed };
   }
 
-  globalThis.ToolbarExample = Object.freeze({ run, validateConfig, setExclusiveActive });
+  globalThis.ToolbarExample = Object.freeze({ run, validateConfig });
 })();

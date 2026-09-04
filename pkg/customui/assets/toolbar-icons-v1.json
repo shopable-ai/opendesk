@@ -23,6 +23,18 @@
     {"name": "plus", "token": "plus", "systemSymbol": "plus", "scale": 1.00, "offsetX": 0.00, "offsetY": 0.00},
     {"name": "minus", "token": "minus", "systemSymbol": "minus", "scale": 1.00, "offsetX": 0.00, "offsetY": 0.00},
     {"name": "ellipsis", "token": "ellipsis", "systemSymbol": "ellipsis", "scale": 1.00, "offsetX": 0.00, "offsetY": 0.00},
+
+    {"name": "ai.assistant", "token": "ai-assistant", "systemSymbol": "brain", "scale": 1.00, "offsetX": 0.00, "offsetY": 0.00},
+    {"name": "ai.generate", "token": "ai-generate", "systemSymbol": "wand.and.rays", "scale": 1.00, "offsetX": 0.00, "offsetY": 0.00},
+    {"name": "ai.analyze", "token": "ai-analyze", "systemSymbol": "doc.text.magnifyingglass", "scale": 1.00, "offsetX": 0.00, "offsetY": 0.00},
+    {"name": "ai.search", "token": "ai-search", "systemSymbol": "text.magnifyingglass", "scale": 1.00, "offsetX": 0.00, "offsetY": 0.00},
+    {"name": "automation.run", "token": "automation-run", "systemSymbol": "arrow.triangle.2.circlepath", "scale": 1.00, "offsetX": 0.00, "offsetY": 0.00},
+    {"name": "automation.schedule", "token": "automation-schedule", "systemSymbol": "clock.arrow.circlepath", "scale": 1.00, "offsetX": 0.00, "offsetY": 0.00},
+    {"name": "automation.trigger", "token": "automation-trigger", "systemSymbol": "bolt.circle.fill", "scale": 1.00, "offsetX": 0.00, "offsetY": 0.00},
+    {"name": "automation.configure", "token": "automation-configure", "systemSymbol": "gearshape.2.fill", "scale": 1.00, "offsetX": 0.00, "offsetY": 0.00},
+    {"name": "automation.review", "token": "automation-review", "systemSymbol": "rectangle.and.hand.point.up.left.fill", "scale": 1.00, "offsetX": 0.00, "offsetY": 0.00},
+    {"name": "automation.approve", "token": "automation-approve", "systemSymbol": "hand.tap.fill", "scale": 1.00, "offsetX": 0.00, "offsetY": 0.00},
+
     {"name": "magnifyingglass", "token": "magnifyingglass", "systemSymbol": "magnifyingglass", "scale": 1.00, "offsetX": 0.00, "offsetY": 0.00},
     {"name": "slider.horizontal.3", "token": "slider-horizontal-3", "systemSymbol": "slider.horizontal.3", "scale": 1.00, "offsetX": 0.00, "offsetY": 0.00},
     {"name": "info.circle", "token": "info-circle", "systemSymbol": "info.circle", "scale": 1.00, "offsetX": 0.00, "offsetY": 0.00},

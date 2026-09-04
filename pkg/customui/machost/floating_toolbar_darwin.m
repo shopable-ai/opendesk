@@ -2,11 +2,17 @@
 
 #import <Cocoa/Cocoa.h>
 #import <math.h>
+#include <string.h>
 #import "floating_toolbar_darwin.h"
 #include "toolbar_icons_generated.inc"
 
 static const CGFloat CDToolbarButtonSize = 40.0;
 static const CGFloat CDToolbarButtonGap = 8.0;
+static const CGFloat CDToolbarSeparatorThickness = 1.0;
+// A spacer uses the preceding standard stack gap and suppresses the following
+// one, creating a fixed 8pt group boundary. Giving the view another intrinsic
+// track or leaving both stack gaps would create an unintended larger gap.
+static const CGFloat CDToolbarSpacerIntrinsicSize = 0.0;
 static const CGFloat CDToolbarHorizontalPadding = 10.0;
 static const CGFloat CDToolbarVerticalPadding = 8.0;
 static const CGFloat CDToolbarMinOuterWidth = 60.0;
@@ -14,6 +20,11 @@ static const CGFloat CDToolbarMaxOuterWidth = 960.0;
 static const CGFloat CDToolbarChromeHeight = 25.0;
 static const NSUInteger CDToolbarMaxColumns = 19;
 static const NSUInteger CDToolbarMaxVerticalButtons = 5;
+static const NSUInteger CDToolbarMaxItems = 63;
+static const NSUInteger CDToolbarMaxVerticalItems = 9;
+static const NSUInteger CDToolbarMaxImageBytes = 512 * 1024;
+static const NSUInteger CDToolbarMaxTotalImageBytes = 4 * 1024 * 1024;
+static const NSUInteger CDToolbarMaxImageDimension = 1024;
 static const NSTimeInterval CDToolbarTooltipDelay = 0.55;
 
 BOOL CDIsTrustedToolbarSymbol(NSString *symbol) {
@@ -38,11 +49,89 @@ static NSDictionary *CDToolbarScreenBounds(NSWindow *window, NSRect local) {
 	};
 }
 
+static BOOL CDToolbarUnsignedInteger(id value, NSUInteger minimum, NSUInteger maximum, NSUInteger *result) {
+	if (![value isKindOfClass:NSNumber.class] || CFGetTypeID((__bridge CFTypeRef)value) == CFBooleanGetTypeID()) return NO;
+	double number = [value doubleValue];
+	if (!isfinite(number) || floor(number) != number || number < minimum || number > maximum) return NO;
+	if (result) *result = (NSUInteger)number;
+	return YES;
+}
+
+// The Runtime resolves and validates caller paths. The native host accepts only
+// a bounded raster payload and independently revalidates it before AppKit sees
+// the bytes, so it never receives a caller-selected filesystem path or URL.
+static NSDictionary *CDToolbarIconForButtonSpec(NSDictionary *spec, NSImage **customImage,
+	NSUInteger *customImageBytes, NSString **message) {
+	if (customImage) *customImage = nil;
+	if (customImageBytes) *customImageBytes = 0;
+	id rawImage = spec[@"iconImage"];
+	if (rawImage && rawImage != NSNull.null) {
+		NSDictionary *imageSpec = [rawImage isKindOfClass:NSDictionary.class] ? rawImage : nil;
+		NSString *builtIn = [spec[@"icon"] isKindOfClass:NSString.class] ? spec[@"icon"] : @"";
+		NSSet *allowedKeys = [NSSet setWithArray:@[@"mediaType", @"dataBase64", @"byteLength", @"pixelWidth", @"pixelHeight", @"renderingMode"]];
+		for (id key in imageSpec.allKeys) {
+			if (![key isKindOfClass:NSString.class] || ![allowedKeys containsObject:key]) {
+				if (message) *message = @"custom toolbar icon contains an unsupported field";
+				return nil;
+			}
+		}
+		NSString *mediaType = [imageSpec[@"mediaType"] isKindOfClass:NSString.class] ? imageSpec[@"mediaType"] : @"";
+		NSString *encoded = [imageSpec[@"dataBase64"] isKindOfClass:NSString.class] ? imageSpec[@"dataBase64"] : @"";
+		NSString *renderingMode = [imageSpec[@"renderingMode"] isKindOfClass:NSString.class] ? imageSpec[@"renderingMode"] : @"";
+		NSUInteger declaredBytes = 0, declaredWidth = 0, declaredHeight = 0;
+		BOOL validMetadata = imageSpec && !builtIn.length &&
+			([mediaType isEqualToString:@"image/png"] || [mediaType isEqualToString:@"image/jpeg"]) &&
+			([renderingMode isEqualToString:@"original"] || [renderingMode isEqualToString:@"template"]) &&
+			CDToolbarUnsignedInteger(imageSpec[@"byteLength"], 1, CDToolbarMaxImageBytes, &declaredBytes) &&
+			CDToolbarUnsignedInteger(imageSpec[@"pixelWidth"], 1, CDToolbarMaxImageDimension, &declaredWidth) &&
+			CDToolbarUnsignedInteger(imageSpec[@"pixelHeight"], 1, CDToolbarMaxImageDimension, &declaredHeight);
+		if (!validMetadata || !encoded.length) {
+			if (message) *message = @"custom toolbar icon metadata is invalid";
+			return nil;
+		}
+		NSData *data = [[NSData alloc] initWithBase64EncodedString:encoded options:0];
+		if (!data || data.length != declaredBytes || ![[data base64EncodedStringWithOptions:0] isEqualToString:encoded]) {
+			if (message) *message = @"custom toolbar icon data is invalid";
+			return nil;
+		}
+		const unsigned char *bytes = data.bytes;
+		static const unsigned char pngSignature[] = {0x89, 'P', 'N', 'G', 0x0d, 0x0a, 0x1a, 0x0a};
+		BOOL isPNG = data.length >= sizeof(pngSignature) && memcmp(bytes, pngSignature, sizeof(pngSignature)) == 0;
+		BOOL isJPEG = data.length >= 3 && bytes[0] == 0xff && bytes[1] == 0xd8 && bytes[2] == 0xff;
+		if (([mediaType isEqualToString:@"image/png"] && !isPNG) || ([mediaType isEqualToString:@"image/jpeg"] && !isJPEG)) {
+			if (message) *message = @"custom toolbar icon media type does not match its data";
+			return nil;
+		}
+		NSBitmapImageRep *representation = [NSBitmapImageRep imageRepWithData:data];
+		NSImage *image = [[NSImage alloc] initWithData:data];
+		if (!representation || !image || representation.pixelsWide != declaredWidth || representation.pixelsHigh != declaredHeight) {
+			if (message) *message = @"custom toolbar icon dimensions or raster data are invalid";
+			return nil;
+		}
+		if (customImage) *customImage = image;
+		if (customImageBytes) *customImageBytes = declaredBytes;
+		return @{ @"kind": @"image", @"mediaType": mediaType, @"pixelWidth": @(declaredWidth),
+			@"pixelHeight": @(declaredHeight), @"renderingMode": renderingMode };
+	}
+	NSString *icon = [spec[@"icon"] isKindOfClass:NSString.class] ? spec[@"icon"] : @"";
+	NSDictionary *generated = CDGeneratedToolbarIcons()[icon];
+	if (!generated) {
+		if (message) *message = @"unknown built-in toolbar icon";
+		return nil;
+	}
+	NSMutableDictionary *presentation = generated.mutableCopy;
+	presentation[@"kind"] = @"builtIn";
+	return presentation.copy;
+}
+
 @interface CDToolbarButton : NSButton
 @property(nonatomic, copy) NSString *targetID;
 @property(nonatomic, copy) NSString *semanticLabel;
 @property(nonatomic, copy) NSString *iconName;
 @property(nonatomic, copy) NSDictionary *iconPresentation;
+@property(nonatomic, strong) NSImage *customIconImage;
+@property(nonatomic, copy) NSString *customIconRenderingMode;
+@property(nonatomic) NSUInteger customIconByteLength;
 @property(nonatomic, copy) NSString *errorMessage;
 @property(nonatomic) BOOL toolbarActive;
 @property(nonatomic) BOOL toolbarDisabled;
@@ -81,6 +170,10 @@ static NSDictionary *CDToolbarScreenBounds(NSWindow *window, NSRect local) {
 }
 
 - (BOOL)acceptsFirstMouse:(NSEvent *)event { (void)event; return YES; }
+
+- (BOOL)isAccessibilityElement { return YES; }
+
+- (NSString *)accessibilityRole { return NSAccessibilityButtonRole; }
 
 - (void)updateTrackingAreas {
 	[super updateTrackingAreas];
@@ -207,12 +300,15 @@ static NSDictionary *CDToolbarScreenBounds(NSWindow *window, NSRect local) {
 	return YES;
 }
 
-- (void)applySpec:(NSDictionary *)spec presentation:(NSDictionary *)presentation {
+- (void)applySpec:(NSDictionary *)spec presentation:(NSDictionary *)presentation customImage:(NSImage *)customImage customImageBytes:(NSUInteger)customImageBytes {
 	NSDictionary *state = [spec[@"state"] isKindOfClass:NSDictionary.class] ? spec[@"state"] : @{};
 	self.targetID = spec[@"id"];
 	self.semanticLabel = spec[@"label"];
-	self.iconName = spec[@"icon"];
+	self.iconName = [spec[@"icon"] isKindOfClass:NSString.class] ? spec[@"icon"] : @"";
 	self.iconPresentation = presentation;
+	self.customIconImage = customImage;
+	self.customIconRenderingMode = [presentation[@"renderingMode"] isKindOfClass:NSString.class] ? presentation[@"renderingMode"] : @"";
+	self.customIconByteLength = customImageBytes;
 	self.toolbarActive = [state[@"active"] boolValue];
 	self.toolbarDisabled = [state[@"disabled"] boolValue];
 	self.toolbarBusy = [state[@"busy"] boolValue];
@@ -260,6 +356,33 @@ static NSDictionary *CDToolbarScreenBounds(NSWindow *window, NSRect local) {
 	[background setFill]; [path fill];
 	[border setStroke]; path.lineWidth = 1.0; [path stroke];
 	if (self.toolbarBusy) return;
+	if (self.customIconImage) {
+		CGFloat pixelWidth = [self.iconPresentation[@"pixelWidth"] doubleValue];
+		CGFloat pixelHeight = [self.iconPresentation[@"pixelHeight"] doubleValue];
+		if (pixelWidth <= 0 || pixelHeight <= 0) return;
+		CGFloat maximum = 22.0;
+		CGFloat scale = MIN(maximum / pixelWidth, maximum / pixelHeight);
+		NSSize size = NSMakeSize(MAX(1.0, round(pixelWidth * scale)), MAX(1.0, round(pixelHeight * scale)));
+		NSRect iconRect = NSMakeRect(round((NSWidth(self.bounds) - size.width) / 2.0),
+			round((NSHeight(self.bounds) - size.height) / 2.0), size.width, size.height);
+		if ([self.customIconRenderingMode isEqualToString:@"original"]) {
+			CGFloat opacity = self.toolbarDisabled ? 0.42 : 1.0;
+			[self.customIconImage drawInRect:iconRect fromRect:NSZeroRect operation:NSCompositingOperationSourceOver
+				fraction:opacity respectFlipped:YES hints:nil];
+			return;
+		}
+		NSColor *color = self.toolbarDisabled ? CDToolbarColor(0.56, 0.60, 0.67) :
+			(self.errorMessage.length ? CDToolbarColor(1.0, 0.83, 0.85) : NSColor.whiteColor);
+		NSImage *tinted = [[NSImage alloc] initWithSize:size];
+		[tinted lockFocus];
+		[self.customIconImage drawInRect:NSMakeRect(0, 0, size.width, size.height) fromRect:NSZeroRect
+			operation:NSCompositingOperationSourceOver fraction:1.0 respectFlipped:NO hints:nil];
+		[color setFill];
+		NSRectFillUsingOperation(NSMakeRect(0, 0, size.width, size.height), NSCompositingOperationSourceIn);
+		[tinted unlockFocus];
+		[tinted drawInRect:iconRect fromRect:NSZeroRect operation:NSCompositingOperationSourceOver fraction:1.0 respectFlipped:YES hints:nil];
+		return;
+	}
 	NSString *symbolName = self.iconPresentation[@"systemSymbol"];
 	if (![symbolName isKindOfClass:NSString.class]) return;
 	CGFloat scale = [self.iconPresentation[@"scale"] doubleValue];
@@ -286,6 +409,215 @@ static NSDictionary *CDToolbarScreenBounds(NSWindow *window, NSRect local) {
 
 @end
 
+// Structural toolbar primitives intentionally do not inherit NSButton. They
+// have no target/action, focus ring, tooltip, callback state, or Accessibility
+// element, so they cannot be mistaken for actionable controls by AppKit/AX.
+@interface CDToolbarSeparator : NSView
+@property(nonatomic) BOOL vertical;
+@end
+
+@implementation CDToolbarSeparator
+
+- (instancetype)initWithVertical:(BOOL)vertical {
+	self = [super initWithFrame:NSZeroRect];
+	if (self) {
+		_vertical = vertical;
+		self.wantsLayer = YES;
+		self.accessibilityElement = NO;
+		self.accessibilityHidden = YES;
+	}
+	return self;
+}
+
+- (void)drawRect:(NSRect)dirtyRect {
+	(void)dirtyRect;
+	[[CDToolbarColor(0.48, 0.53, 0.61) colorWithAlphaComponent:0.72] setFill];
+	if (self.vertical) {
+		NSRectFill(NSMakeRect(floor((NSWidth(self.bounds) - CDToolbarSeparatorThickness) / 2.0), 0,
+			CDToolbarSeparatorThickness, NSHeight(self.bounds)));
+	} else {
+		NSRectFill(NSMakeRect(0, floor((NSHeight(self.bounds) - CDToolbarSeparatorThickness) / 2.0),
+			NSWidth(self.bounds), CDToolbarSeparatorThickness));
+	}
+}
+
+@end
+
+@interface CDToolbarSpacer : NSView
+@end
+
+@implementation CDToolbarSpacer
+
+- (instancetype)init {
+	self = [super initWithFrame:NSZeroRect];
+	if (self) {
+		self.accessibilityElement = NO;
+		self.accessibilityHidden = YES;
+	}
+	return self;
+}
+
+@end
+
+static BOOL CDToolbarIsStructuralItem(NSDictionary *item) {
+	NSString *type = [item[@"type"] isKindOfClass:NSString.class] ? item[@"type"] : @"";
+	return [type isEqualToString:@"separator"] || [type isEqualToString:@"spacer"];
+}
+
+static BOOL CDToolbarIsButtonItem(NSDictionary *item) {
+	NSString *type = [item[@"type"] isKindOfClass:NSString.class] ? item[@"type"] : @"";
+	return [type isEqualToString:@"button"];
+}
+
+static CGFloat CDToolbarItemWidth(NSDictionary *item) {
+	if (CDToolbarIsButtonItem(item)) return CDToolbarButtonSize;
+	NSString *type = item[@"type"];
+	if ([type isEqualToString:@"separator"]) return CDToolbarSeparatorThickness;
+	if ([type isEqualToString:@"spacer"]) return CDToolbarSpacerIntrinsicSize;
+	return 0;
+}
+
+static CGFloat CDToolbarItemHeight(NSDictionary *item, BOOL vertical) {
+	if (CDToolbarIsButtonItem(item)) return CDToolbarButtonSize;
+	NSString *type = item[@"type"];
+	if ([type isEqualToString:@"separator"]) return vertical ? CDToolbarSeparatorThickness : CDToolbarButtonSize;
+	if ([type isEqualToString:@"spacer"]) return vertical ? CDToolbarSpacerIntrinsicSize : CDToolbarButtonSize;
+	return 0;
+}
+
+static CGFloat CDToolbarRowWidth(NSArray<NSDictionary *> *row) {
+	CGFloat width = 0;
+	for (NSUInteger index = 0; index < row.count; index++) {
+		if (index && ![row[index - 1][@"type"] isEqualToString:@"spacer"]) width += CDToolbarButtonGap;
+		width += CDToolbarItemWidth(row[index]);
+	}
+	return width;
+}
+
+// CDToolbarLayoutForSpec independently mirrors the Go planner. A structural
+// boundary is retained only when both adjacent groups fit in the same row;
+// natural wrapping itself becomes the boundary otherwise.
+static NSDictionary *CDToolbarLayoutForSpec(NSDictionary *spec, NSString **message) {
+	NSArray *items = [spec[@"items"] isKindOfClass:NSArray.class] ? spec[@"items"] : nil;
+	NSString *orientation = [spec[@"orientation"] isKindOfClass:NSString.class] ? spec[@"orientation"] : @"";
+	BOOL vertical = [orientation isEqualToString:@"vertical"];
+	if (!items || (![orientation isEqualToString:@"horizontal"] && !vertical)) {
+		if (message) *message = @"unsupported toolbar orientation or items";
+		return nil;
+	}
+	NSUInteger requestedColumns = [spec[@"maxColumns"] unsignedIntegerValue];
+	NSUInteger columns = requestedColumns ? requestedColumns : CDToolbarMaxColumns;
+	NSUInteger maxRows = [spec[@"maxRows"] unsignedIntegerValue];
+	CGFloat requestedMaxWidth = [spec[@"maxWidth"] doubleValue];
+	NSUInteger maximumItems = vertical ? CDToolbarMaxVerticalItems : CDToolbarMaxItems;
+	NSUInteger maximumButtons = vertical ? CDToolbarMaxVerticalButtons : (NSUInteger)32;
+	if (items.count < 1 || items.count > maximumItems || columns < 1 || columns > CDToolbarMaxColumns ||
+		(vertical && (columns != 1 || maxRows != 0 || requestedMaxWidth != 0)) ||
+		(!vertical && maxRows > 32) || (!vertical && requestedMaxWidth != 0 &&
+		(requestedMaxWidth < CDToolbarMinOuterWidth || requestedMaxWidth > CDToolbarMaxOuterWidth))) {
+		if (message) *message = @"invalid toolbar item or layout limits";
+		return nil;
+	}
+	NSMutableSet<NSString *> *identifiers = [NSMutableSet setWithCapacity:items.count];
+	NSUInteger buttonCount = 0;
+	BOOL structural = NO;
+	for (NSUInteger index = 0; index < items.count; index++) {
+		NSDictionary *item = [items[index] isKindOfClass:NSDictionary.class] ? items[index] : nil;
+		NSString *type = [item[@"type"] isKindOfClass:NSString.class] ? item[@"type"] : @"";
+		NSString *identifier = [item[@"id"] isKindOfClass:NSString.class] ? item[@"id"] : @"";
+		if (!item || !identifier.length || [identifiers containsObject:identifier] ||
+			!([type isEqualToString:@"button"] || [type isEqualToString:@"separator"] || [type isEqualToString:@"spacer"])) {
+			if (message) *message = @"invalid or duplicate toolbar item";
+			return nil;
+		}
+		[identifiers addObject:identifier];
+		if (index == 0 && CDToolbarIsStructuralItem(item)) {
+			if (message) *message = @"toolbar cannot start with a structural item";
+			return nil;
+		}
+		if (index > 0 && CDToolbarIsStructuralItem(item) && CDToolbarIsStructuralItem(items[index - 1])) {
+			if (message) *message = @"toolbar cannot contain consecutive structural items";
+			return nil;
+		}
+		if (CDToolbarIsButtonItem(item)) {
+			NSDictionary *button = [item[@"button"] isKindOfClass:NSDictionary.class] ? item[@"button"] : nil;
+			if (!button || ![button[@"id"] isEqualToString:identifier]) {
+				if (message) *message = @"toolbar button item payload is invalid";
+				return nil;
+			}
+			buttonCount++;
+		} else {
+			if (item[@"button"] && item[@"button"] != NSNull.null) {
+				if (message) *message = @"structural toolbar item cannot contain a button";
+				return nil;
+			}
+			structural = YES;
+		}
+	}
+	if (CDToolbarIsStructuralItem(items.lastObject) || buttonCount < 1 || buttonCount > maximumButtons) {
+		if (message) *message = @"toolbar has an invalid action or terminal structure";
+		return nil;
+	}
+	if (vertical) {
+		CGFloat height = CDToolbarChromeHeight + CDToolbarVerticalPadding * 2;
+		for (NSUInteger index = 0; index < items.count; index++) {
+			if (index && ![items[index - 1][@"type"] isEqualToString:@"spacer"]) height += CDToolbarButtonGap;
+			height += CDToolbarItemHeight(items[index], YES);
+		}
+		return @{@"rows": @[items], @"width": @(CDToolbarMinOuterWidth), @"height": @(height), @"structural": @(structural)};
+	}
+	CGFloat outerCap = requestedMaxWidth ? requestedMaxWidth : CDToolbarMaxOuterWidth;
+	CGFloat contentCap = outerCap - CDToolbarHorizontalPadding * 2;
+	NSMutableArray<NSArray<NSDictionary *> *> *rows = [NSMutableArray array];
+	NSMutableArray<NSDictionary *> *row = [NSMutableArray array];
+	__block NSUInteger rowButtons = 0;
+	NSDictionary *pending = nil;
+	void (^flush)(void) = ^{
+		if (row.count) {
+			[rows addObject:row.copy];
+			[row removeAllObjects];
+			rowButtons = 0;
+		}
+	};
+	for (NSDictionary *item in items) {
+		if (CDToolbarIsStructuralItem(item)) {
+			pending = item;
+			continue;
+		}
+		if (pending) {
+			NSMutableArray *candidate = row.mutableCopy;
+			[candidate addObject:pending];
+			[candidate addObject:item];
+			if (rowButtons < columns && CDToolbarRowWidth(candidate) <= contentCap + 0.0001) {
+				[row addObjectsFromArray:@[pending, item]];
+				rowButtons++;
+			} else {
+				flush();
+				[row addObject:item];
+				rowButtons = 1;
+			}
+			pending = nil;
+			continue;
+		}
+		NSMutableArray *candidate = row.mutableCopy;
+		[candidate addObject:item];
+		if (rowButtons >= columns || CDToolbarRowWidth(candidate) > contentCap + 0.0001) flush();
+		[row addObject:item];
+		rowButtons++;
+	}
+	flush();
+	if (maxRows && rows.count > maxRows) {
+		if (message) *message = [NSString stringWithFormat:@"toolbar items require %lu rows but maxRows is %lu", (unsigned long)rows.count, (unsigned long)maxRows];
+		return nil;
+	}
+	CGFloat contentWidth = 0;
+	for (NSArray *plannedRow in rows) contentWidth = MAX(contentWidth, CDToolbarRowWidth(plannedRow));
+	CGFloat width = MAX(CDToolbarMinOuterWidth, contentWidth + CDToolbarHorizontalPadding * 2);
+	if (!requestedMaxWidth && !structural && buttonCount > CDToolbarMaxColumns) width = CDToolbarMaxOuterWidth;
+	CGFloat height = CDToolbarChromeHeight + CDToolbarVerticalPadding * 2 + rows.count * CDToolbarButtonSize + (rows.count > 1 ? (rows.count - 1) * CDToolbarButtonGap : 0);
+	return @{@"rows": rows.copy, @"width": @(width), @"height": @(height), @"structural": @(structural)};
+}
+
 @interface CDToolbarView ()
 @property(nonatomic, strong) NSMutableDictionary<NSString *, CDToolbarButton *> *buttonsByID;
 @property(nonatomic, copy) NSArray<CDToolbarButton *> *orderedButtons;
@@ -296,29 +628,16 @@ static NSDictionary *CDToolbarScreenBounds(NSWindow *window, NSRect local) {
 @implementation CDToolbarView
 
 + (NSDictionary *)outerBoundsForSpec:(NSDictionary *)spec position:(NSDictionary *)position {
-	NSArray *buttons = [spec[@"buttons"] isKindOfClass:NSArray.class] ? spec[@"buttons"] : @[];
-	BOOL vertical = [spec[@"orientation"] isEqualToString:@"vertical"];
-	NSUInteger count = MIN(vertical ? CDToolbarMaxVerticalButtons : (NSUInteger)32, buttons.count);
-	if (vertical) {
-		CGFloat width = CDToolbarHorizontalPadding * 2 + CDToolbarButtonSize;
-		CGFloat height = CDToolbarChromeHeight + CDToolbarVerticalPadding * 2 + count * CDToolbarButtonSize + (count ? (count - 1) * CDToolbarButtonGap : 0);
-		return @{@"x": position[@"x"] ?: @0, @"y": position[@"y"] ?: @0, @"width": @(width), @"height": @(height)};
+	NSString *message = nil;
+	NSDictionary *layout = CDToolbarLayoutForSpec(spec, &message);
+	CGFloat width = [layout[@"width"] doubleValue];
+	CGFloat height = [layout[@"height"] doubleValue];
+	if (!layout || width <= 0 || height <= 0) {
+		// Create will report the strict structural error from init below; this
+		// fallback only keeps AppKit construction safe long enough to do so.
+		width = CDToolbarMinOuterWidth;
+		height = CDToolbarChromeHeight + CDToolbarVerticalPadding * 2 + CDToolbarButtonSize;
 	}
-	NSUInteger requestedColumns = [spec[@"columns"] unsignedIntegerValue];
-	NSUInteger maxColumns = requestedColumns ? MIN(CDToolbarMaxColumns, requestedColumns) : CDToolbarMaxColumns;
-	NSUInteger columns = MIN(maxColumns, MAX((NSUInteger)1, count));
-	NSUInteger rows = count ? (count + maxColumns - 1) / maxColumns : 1;
-	CGFloat preferred = CDToolbarHorizontalPadding * 2 + columns * CDToolbarButtonSize + (columns - 1) * CDToolbarButtonGap;
-	CGFloat requestedMaxWidth = [spec[@"maxWidth"] doubleValue];
-	CGFloat width = MAX(CDToolbarMinOuterWidth, preferred);
-	if (requestedMaxWidth >= CDToolbarMinOuterWidth && requestedMaxWidth <= CDToolbarMaxOuterWidth) {
-		width = MIN(width, requestedMaxWidth);
-	} else if (count > maxColumns && maxColumns == CDToolbarMaxColumns) {
-		// Keep the historical default 19-column wrapping width when no public
-		// maxWidth constraint is supplied.
-		width = CDToolbarMaxOuterWidth;
-	}
-	CGFloat height = CDToolbarChromeHeight + CDToolbarVerticalPadding * 2 + rows * CDToolbarButtonSize + (rows - 1) * CDToolbarButtonGap;
 	return @{@"x": position[@"x"] ?: @0, @"y": position[@"y"] ?: @0, @"width": @(width), @"height": @(height)};
 }
 
@@ -327,7 +646,6 @@ static NSDictionary *CDToolbarScreenBounds(NSWindow *window, NSRect local) {
 - (instancetype)initWithFrame:(NSRect)frame spec:(NSDictionary *)spec error:(NSError **)error {
 	self = [super initWithFrame:frame];
 	if (!self) return nil;
-	NSArray *buttons = [spec[@"buttons"] isKindOfClass:NSArray.class] ? spec[@"buttons"] : nil;
 	uint64_t toolbarRevision = [spec[@"revision"] unsignedLongLongValue];
 	NSString *orientation = [spec[@"orientation"] isKindOfClass:NSString.class] ? spec[@"orientation"] : @"";
 	BOOL vertical = [orientation isEqualToString:@"vertical"];
@@ -335,27 +653,31 @@ static NSDictionary *CDToolbarScreenBounds(NSWindow *window, NSRect local) {
 		if (error) *error = [NSError errorWithDomain:@"OpenDeskToolbar" code:1 userInfo:@{NSLocalizedDescriptionKey: @"unsupported toolbar orientation"}];
 		return nil;
 	}
-	if ([spec[@"schemaVersion"] integerValue] != 1 || toolbarRevision == 0 || buttons.count < 1 || buttons.count > (vertical ? CDToolbarMaxVerticalButtons : (NSUInteger)32)) {
-		if (error) *error = [NSError errorWithDomain:@"OpenDeskToolbar" code:1 userInfo:@{NSLocalizedDescriptionKey: @"invalid toolbar schema or button count"}];
+	if ([spec[@"schemaVersion"] integerValue] != 2 || toolbarRevision == 0) {
+		if (error) *error = [NSError errorWithDomain:@"OpenDeskToolbar" code:1 userInfo:@{NSLocalizedDescriptionKey: @"invalid toolbar schema or revision"}];
 		return nil;
 	}
-	NSUInteger requestedColumns = [spec[@"columns"] unsignedIntegerValue];
-	NSUInteger columns = requestedColumns ? requestedColumns : CDToolbarMaxColumns;
-	if ((!vertical && (columns < 1 || columns > CDToolbarMaxColumns)) || (vertical && columns != 1)) {
-		if (error) *error = [NSError errorWithDomain:@"OpenDeskToolbar" code:1 userInfo:@{NSLocalizedDescriptionKey: @"invalid toolbar column layout"}];
+	NSString *layoutMessage = nil;
+	NSDictionary *layout = CDToolbarLayoutForSpec(spec, &layoutMessage);
+	if (!layout) {
+		if (error) *error = [NSError errorWithDomain:@"OpenDeskToolbar" code:1 userInfo:@{NSLocalizedDescriptionKey: layoutMessage ?: @"invalid toolbar item layout"}];
 		return nil;
 	}
-	CGFloat maxWidth = [spec[@"maxWidth"] doubleValue];
-	if ((!vertical && maxWidth != 0 && (maxWidth < CDToolbarMinOuterWidth || maxWidth > CDToolbarMaxOuterWidth)) || (vertical && maxWidth != 0)) {
-		if (error) *error = [NSError errorWithDomain:@"OpenDeskToolbar" code:1 userInfo:@{NSLocalizedDescriptionKey: @"invalid toolbar maximum width"}];
-		return nil;
-	}
-	_buttonsByID = [NSMutableDictionary dictionaryWithCapacity:buttons.count];
-	NSMutableArray *ordered = [NSMutableArray arrayWithCapacity:buttons.count];
+	NSArray<NSArray<NSDictionary *> *> *plannedRows = layout[@"rows"];
+	NSUInteger itemCount = 0;
+	for (NSArray *row in plannedRows) itemCount += row.count;
+	_buttonsByID = [NSMutableDictionary dictionaryWithCapacity:itemCount];
+	NSMutableArray *ordered = [NSMutableArray arrayWithCapacity:itemCount];
 	NSMutableArray<NSStackView *> *rows = [NSMutableArray array];
+	NSUInteger totalCustomImageBytes = 0;
 	self.wantsLayer = YES;
 	self.layer.backgroundColor = CDToolbarColor(0.11, 0.13, 0.16).CGColor;
-	self.accessibilityElement = NO;
+	// The toolbar itself is the native AX group. Its explicit child list below
+	// contains only action buttons; Separator and Spacer remain ignored views
+	// and therefore cannot leak into the assistive-control tree.
+	self.accessibilityElement = YES;
+	self.accessibilityRole = NSAccessibilityGroupRole;
+	self.accessibilityLabel = @"Floating action toolbar";
 	_columnStack = [[NSStackView alloc] initWithFrame:NSZeroRect];
 	_columnStack.orientation = NSUserInterfaceLayoutOrientationVertical;
 	_columnStack.alignment = NSLayoutAttributeLeading;
@@ -367,21 +689,10 @@ static NSDictionary *CDToolbarScreenBounds(NSWindow *window, NSRect local) {
 		[_columnStack.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:CDToolbarHorizontalPadding],
 		[_columnStack.topAnchor constraintEqualToAnchor:self.topAnchor constant:CDToolbarVerticalPadding],
 	]];
-	for (NSUInteger index = 0; index < buttons.count; index++) {
-		NSDictionary *buttonSpec = [buttons[index] isKindOfClass:NSDictionary.class] ? buttons[index] : nil;
-		NSString *identifier = buttonSpec[@"id"];
-		NSString *label = buttonSpec[@"label"];
-		NSString *icon = buttonSpec[@"icon"];
-		NSDictionary *state = [buttonSpec[@"state"] isKindOfClass:NSDictionary.class] ? buttonSpec[@"state"] : nil;
-		uint64_t buttonRevision = [state[@"revision"] unsignedLongLongValue];
-		NSDictionary *presentation = CDGeneratedToolbarIcons()[icon];
-		if (!identifier.length || !label.length || _buttonsByID[identifier] || !presentation ||
-			!state || buttonRevision == 0 || buttonRevision > toolbarRevision) {
-			if (error) *error = [NSError errorWithDomain:@"OpenDeskToolbar" code:2 userInfo:@{NSLocalizedDescriptionKey: @"invalid, duplicate, or untrusted toolbar button"}];
-			return nil;
-		}
-		NSUInteger rowIndex = index / columns;
-		if (!vertical && rowIndex == rows.count) {
+	for (NSUInteger rowIndex = 0; rowIndex < plannedRows.count; rowIndex++) {
+		NSArray<NSDictionary *> *plannedRow = plannedRows[rowIndex];
+		NSStackView *container = _columnStack;
+		if (!vertical) {
 			NSStackView *row = [[NSStackView alloc] initWithFrame:NSZeroRect];
 			row.orientation = NSUserInterfaceLayoutOrientationHorizontal;
 			row.alignment = NSLayoutAttributeCenterY;
@@ -389,20 +700,56 @@ static NSDictionary *CDToolbarScreenBounds(NSWindow *window, NSRect local) {
 			row.spacing = CDToolbarButtonGap;
 			[_columnStack addArrangedSubview:row];
 			[rows addObject:row];
+			container = row;
 		}
-		CDToolbarButton *button = [[CDToolbarButton alloc] initWithFrame:NSZeroRect];
-		button.translatesAutoresizingMaskIntoConstraints = NO;
-		[NSLayoutConstraint activateConstraints:@[
-			[button.widthAnchor constraintEqualToConstant:CDToolbarButtonSize],
-			[button.heightAnchor constraintEqualToConstant:CDToolbarButtonSize],
-		]];
-		button.target = self;
-		button.action = @selector(buttonActivated:);
-		[button applySpec:buttonSpec presentation:presentation];
-		if (vertical) [_columnStack addArrangedSubview:button];
-		else [rows[rowIndex] addArrangedSubview:button];
-		_buttonsByID[identifier] = button;
-		[ordered addObject:button];
+		for (NSDictionary *item in plannedRow) {
+			NSString *type = item[@"type"];
+			NSView *view = nil;
+			if ([type isEqualToString:@"button"]) {
+				NSDictionary *buttonSpec = item[@"button"];
+				NSString *identifier = buttonSpec[@"id"];
+				NSString *label = buttonSpec[@"label"];
+				NSDictionary *state = [buttonSpec[@"state"] isKindOfClass:NSDictionary.class] ? buttonSpec[@"state"] : nil;
+				uint64_t buttonRevision = [state[@"revision"] unsignedLongLongValue];
+				NSImage *customImage = nil;
+				NSUInteger customImageBytes = 0;
+				NSString *iconMessage = nil;
+				NSDictionary *presentation = CDToolbarIconForButtonSpec(buttonSpec, &customImage, &customImageBytes, &iconMessage);
+				totalCustomImageBytes += customImageBytes;
+				if (!identifier.length || !label.length || _buttonsByID[identifier] || !presentation || !state ||
+					buttonRevision == 0 || buttonRevision > toolbarRevision || totalCustomImageBytes > CDToolbarMaxTotalImageBytes) {
+					NSString *reason = iconMessage ?: (totalCustomImageBytes > CDToolbarMaxTotalImageBytes ? @"custom toolbar icon data exceeds the window limit" : @"invalid, duplicate, or untrusted toolbar button");
+					if (error) *error = [NSError errorWithDomain:@"OpenDeskToolbar" code:2 userInfo:@{NSLocalizedDescriptionKey: reason}];
+					return nil;
+				}
+				CDToolbarButton *button = [[CDToolbarButton alloc] initWithFrame:NSZeroRect];
+				button.target = self;
+				button.action = @selector(buttonActivated:);
+				[button applySpec:buttonSpec presentation:presentation customImage:customImage customImageBytes:customImageBytes];
+				_buttonsByID[identifier] = button;
+				[ordered addObject:button];
+				view = button;
+			} else if ([type isEqualToString:@"separator"]) {
+				view = [[CDToolbarSeparator alloc] initWithVertical:!vertical];
+			} else if ([type isEqualToString:@"spacer"]) {
+				view = [CDToolbarSpacer new];
+			}
+			if (!view) {
+				if (error) *error = [NSError errorWithDomain:@"OpenDeskToolbar" code:2 userInfo:@{NSLocalizedDescriptionKey: @"unsupported toolbar item"}];
+				return nil;
+			}
+			view.translatesAutoresizingMaskIntoConstraints = NO;
+			CGFloat width = CDToolbarItemWidth(item);
+			CGFloat height = CDToolbarItemHeight(item, vertical);
+			[NSLayoutConstraint activateConstraints:@[
+				[view.widthAnchor constraintEqualToConstant:width],
+				[view.heightAnchor constraintEqualToConstant:height],
+			]];
+			[container addArrangedSubview:view];
+			if ([type isEqualToString:@"spacer"]) {
+				[container setCustomSpacing:0 afterView:view];
+			}
+		}
 	}
 	_rowStacks = rows.copy;
 	_orderedButtons = ordered.copy;
@@ -442,15 +789,23 @@ static NSDictionary *CDToolbarScreenBounds(NSWindow *window, NSRect local) {
 - (NSDictionary *)applyButtonSpec:(NSDictionary *)spec window:(NSWindow *)window error:(NSError **)error {
 	NSString *targetID = [spec[@"id"] isKindOfClass:NSString.class] ? spec[@"id"] : @"";
 	CDToolbarButton *button = self.buttonsByID[targetID];
-	NSDictionary *presentation = CDGeneratedToolbarIcons()[spec[@"icon"]];
+	NSImage *customImage = nil;
+	NSUInteger customImageBytes = 0;
+	NSString *iconMessage = nil;
+	NSDictionary *presentation = CDToolbarIconForButtonSpec(spec, &customImage, &customImageBytes, &iconMessage);
 	NSDictionary *state = [spec[@"state"] isKindOfClass:NSDictionary.class] ? spec[@"state"] : nil;
 	NSString *label = [spec[@"label"] isKindOfClass:NSString.class] ? spec[@"label"] : @"";
 	uint64_t revision = [state[@"revision"] unsignedLongLongValue];
-	if (!button || !label.length || !presentation || !state || revision == 0) {
-		if (error) *error = [NSError errorWithDomain:@"OpenDeskToolbar" code:3 userInfo:@{NSLocalizedDescriptionKey: @"invalid toolbar button update"}];
+	NSUInteger totalCustomImageBytes = customImageBytes;
+	for (CDToolbarButton *existing in self.orderedButtons) {
+		if (existing != button) totalCustomImageBytes += existing.customIconByteLength;
+	}
+	if (!button || !label.length || !presentation || !state || revision == 0 || totalCustomImageBytes > CDToolbarMaxTotalImageBytes) {
+		NSString *reason = iconMessage ?: (totalCustomImageBytes > CDToolbarMaxTotalImageBytes ? @"custom toolbar icon data exceeds the window limit" : @"invalid toolbar button update");
+		if (error) *error = [NSError errorWithDomain:@"OpenDeskToolbar" code:3 userInfo:@{NSLocalizedDescriptionKey: reason}];
 		return nil;
 	}
-	if (revision > button.revision) [button applySpec:spec presentation:presentation];
+	if (revision > button.revision) [button applySpec:spec presentation:presentation customImage:customImage customImageBytes:customImageBytes];
 	return [self stateForButtonID:targetID window:window];
 }
 
@@ -468,18 +823,18 @@ static NSDictionary *CDToolbarScreenBounds(NSWindow *window, NSRect local) {
 			[button removeTrackingArea:button.hoverTrackingArea];
 		}
 		button.hoverTrackingArea = nil;
-		if (button.superview == self.columnStack) {
-			[self.columnStack removeArrangedSubview:button];
-		}
-		[button removeFromSuperview];
+		button.customIconImage = nil;
 	}
-	for (NSStackView *row in self.rowStacks) {
-		for (NSView *view in row.arrangedSubviews.copy) {
-			[row removeArrangedSubview:view];
-			[view removeFromSuperview];
+	for (NSView *view in self.columnStack.arrangedSubviews.copy) {
+		if ([view isKindOfClass:NSStackView.class]) {
+			NSStackView *row = (NSStackView *)view;
+			for (NSView *item in row.arrangedSubviews.copy) {
+				[row removeArrangedSubview:item];
+				[item removeFromSuperview];
+			}
 		}
-		[self.columnStack removeArrangedSubview:row];
-		[row removeFromSuperview];
+		[self.columnStack removeArrangedSubview:view];
+		[view removeFromSuperview];
 	}
 	[self.buttonsByID removeAllObjects];
 	self.orderedButtons = @[];

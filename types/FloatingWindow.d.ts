@@ -1,9 +1,26 @@
-/// <reference path="./FloatingWindow-icons.generated.d.ts" />
+/// <reference path="./FloatingWindowIconKey.generated.d.ts" />
 
 export {};
 
 declare global {
   type ClawdeskFloatingWindowOrientation = "horizontal" | "vertical";
+  type ClawdeskFloatingImageRenderingMode = "original" | "template";
+
+  /**
+   * A local PNG/JPEG resolved inside the executing script's directory.
+   * "original" preserves image colors; "template" applies native state tint.
+   * Use this object form instead of passing a path as a bare string; strings
+   * are always interpreted as built-in icon names.
+   */
+  interface ClawdeskFloatingImageIcon {
+    path: string;
+    renderingMode?: ClawdeskFloatingImageRenderingMode;
+  }
+
+  /** Built-in registry key or a validated script-local raster image. */
+  type ClawdeskFloatingIconSource = ClawdeskFloatingIconKey | ClawdeskFloatingImageIcon;
+  /** Native toolbar lifecycle notifications; button activation stays on addButton/onButtonClick. */
+  type ClawdeskFloatingLifecycleEventType = "move" | "close";
 
   /**
    * Declarative wrapping constraints for a horizontal native icon toolbar.
@@ -24,9 +41,7 @@ declare global {
     maxRows?: number;
   }
 
-  interface ClawdeskFloatingWindowOptions {
-    x?: number;
-    y?: number;
+  interface ClawdeskFloatingWindowBaseOptions {
     theme?: "dark";
     title?: string;
     alwaysOnTop?: boolean;
@@ -40,9 +55,58 @@ declare global {
     toolbar?: ClawdeskFloatingToolbarOptions;
   }
 
+  interface ClawdeskFloatingAbsolutePosition {
+    mode: "absolute";
+    x: number;
+    y: number;
+    horizontal?: never;
+    vertical?: never;
+    margin?: never;
+    display?: never;
+  }
+
+  interface ClawdeskFloatingAnchorPosition {
+    mode: "anchor";
+    horizontal: ClawdeskUIHorizontalPlacement;
+    vertical: ClawdeskUIVerticalPlacement;
+    margin?: number;
+    display?: ClawdeskUIInitialPlacementDisplay;
+    x?: never;
+    y?: never;
+  }
+
+  type ClawdeskFloatingInitialPosition =
+    | ClawdeskFloatingAbsolutePosition
+    | ClawdeskFloatingAnchorPosition;
+
+  type ClawdeskFloatingWindowOptions = ClawdeskFloatingWindowBaseOptions & (
+    | {
+        /** Preferred explicit initial-position union. */
+        position: ClawdeskFloatingInitialPosition;
+        x?: never;
+        y?: never;
+        placement?: never;
+      }
+    | {
+        /** Compatibility form for the established absolute toolbar API. */
+        position?: never;
+        x: number;
+        y: number;
+        placement?: never;
+      }
+    | {
+        /** Default absolute position (100, 100) for legacy no-position code. */
+        position?: never;
+        x?: never;
+        y?: never;
+        placement?: never;
+      }
+  );
+
   interface ClawdeskFloatingButtonPatch {
-    icon?: ClawdeskFloatingIcon;
+    icon?: ClawdeskFloatingIconSource;
     label?: string;
+    /** Opt-in durable business state; ordinary action buttons should leave this false. */
     active?: boolean;
     disabled?: boolean;
     busy?: boolean;
@@ -50,18 +114,32 @@ declare global {
     error?: string | null;
   }
 
-  /** Reviewed native SF Symbol recipe used only by the built-in icon registry. */
-  interface ClawdeskFloatingIconPresentation {
+  /** Reviewed native SF Symbol recipe used by the built-in icon registry. */
+  interface ClawdeskFloatingBuiltInIconPresentation {
+    kind: "builtIn";
     systemSymbol: string;
     scale: number;
     offsetX: number;
     offsetY: number;
   }
 
+  /** Path-free metadata for a raster image accepted by both Runtime and host. */
+  interface ClawdeskFloatingImageIconPresentation {
+    kind: "image";
+    mediaType: "image/png" | "image/jpeg";
+    pixelWidth: number;
+    pixelHeight: number;
+    renderingMode: ClawdeskFloatingImageRenderingMode;
+  }
+
+  type ClawdeskFloatingIconPresentation =
+    | ClawdeskFloatingBuiltInIconPresentation
+    | ClawdeskFloatingImageIconPresentation;
+
   interface ClawdeskFloatingButtonState {
     id: string;
     label: string;
-    icon: ClawdeskFloatingIcon;
+    icon: ClawdeskFloatingIconSource;
     active: boolean;
     disabled: boolean;
     busy: boolean;
@@ -86,8 +164,12 @@ declare global {
   interface ClawdeskFloatingWindow {
     readonly id: string;
     /** Adds ordered icon-only buttons before first show. label supplies both the native tooltip and Accessibility name. Horizontal accepts 1-32 unless toolbar.maxRows imposes a smaller capacity; vertical accepts 1-5. */
-    addButton(id: string, label: string, iconName: ClawdeskFloatingIcon, callback?: ClawdeskFloatingButtonCallback): void;
-    /** Removes a pre-show button and recomputes automatic bounds. */
+    addButton(id: string, label: string, icon: ClawdeskFloatingIconSource, callback?: ClawdeskFloatingButtonCallback): void;
+    /** Adds a noninteractive native divider between adjacent action groups before first show. */
+    addSeparator(id: string): void;
+    /** Adds one fixed standard native spacer between adjacent action groups before first show. */
+    addSpacer(id: string): void;
+    /** Removes a pre-show button, its adjacent structural boundaries, and recomputes automatic bounds. */
     removeButton(id: string): void;
     /** Non-structural state updates are allowed before and after show. */
     updateButton(id: string, patch: ClawdeskFloatingButtonPatch): Promise<ClawdeskFloatingButtonState>;
@@ -96,10 +178,17 @@ declare global {
     show(): Promise<ClawdeskUIWindowState>;
     hide(): Promise<ClawdeskUIWindowState | null>;
     close(): Promise<ClawdeskUIWindowState | null>;
+    /** Reads the shared Custom UI WindowState; before show this is the complete declared hidden state. */
+    getState(): Promise<ClawdeskUIWindowState>;
     setPosition(x: number, y: number): Promise<ClawdeskUIBounds | ClawdeskUIWindowState>;
+    setPlacement(placement: ClawdeskUIWindowPlacement): Promise<ClawdeskUIWindowPlacement | ClawdeskUIWindowState>;
     onButtonClick(buttonID: string, callback: ClawdeskFloatingButtonCallback): void;
     onError(callback: (error: ClawdeskUIError) => unknown | Promise<unknown>): void;
     setAlwaysOnTop(alwaysOnTop: boolean): Promise<boolean | ClawdeskUIWindowState>;
+    /** Dynamically changes native dragging and returns the host-readback WindowState. */
+    setDraggable(enabled: boolean): Promise<ClawdeskUIWindowState>;
+    /** Observes toolbar move/close lifecycle events. Returns an unsubscribe function. */
+    on(type: ClawdeskFloatingLifecycleEventType, listener: ClawdeskUIEventListener): ClawdeskUIUnsubscribe;
     waitUntilClosed(): Promise<ClawdeskUIWindowState>;
     /** @deprecated Use waitUntilClosed(). */
     run(): Promise<ClawdeskUIWindowState>;

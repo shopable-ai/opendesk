@@ -32,6 +32,9 @@ struct Manifest: Encodable {
   let files: [String]
 }
 
+let minimumIconCount = 100
+let maximumIconCount = 256
+
 enum CatalogError: Error, CustomStringConvertible {
   case invalidArguments
   case invalidRegistry(String)
@@ -126,8 +129,8 @@ func validate(_ registry: Registry) throws {
   guard registry.schemaVersion == 1 else {
     throw CatalogError.invalidRegistry("schemaVersion must be 1")
   }
-  guard registry.icons.count == 150 else {
-    throw CatalogError.invalidRegistry("expected exactly 150 icons")
+  guard (minimumIconCount ... maximumIconCount).contains(registry.icons.count) else {
+    throw CatalogError.invalidRegistry("expected \(minimumIconCount)-\(maximumIconCount) icons")
   }
   guard Set(registry.icons.map(\.name)).count == registry.icons.count else {
     throw CatalogError.invalidRegistry("icon names must be unique")
@@ -157,6 +160,7 @@ func validate(_ registry: Registry) throws {
 }
 
 func makeHTML(_ icons: [RenderedIcon]) -> String {
+  let count = icons.count
   let cards = icons.map { item -> String in
     let name = htmlText(item.definition.name)
     let nameAttribute = htmlAttribute(item.definition.name)
@@ -212,19 +216,19 @@ func makeHTML(_ icons: [RenderedIcon]) -> String {
             <h1>Custom UI 内置图标</h1>
             <p>点击图标复制名称，或复制完整的 <code>FloatingWindow.addButton()</code> 用法。页面自包含，可离线保存和打开。</p>
           </div>
-          <div class="summary">150 / 150 已渲染</div>
+          <div class="summary">\(count) / \(count) 已渲染</div>
         </header>
         <section class="controls" aria-label="图标目录工具">
           <input id="search" type="search" placeholder="搜索，例如 camera、doc、wifi" aria-label="搜索图标">
           <button id="toggleDensity" class="toolbar-button" type="button" aria-pressed="false">紧凑模式</button>
           <button id="copyAll" class="toolbar-button" type="button">复制全部名称</button>
           <button id="saveJSON" class="toolbar-button" type="button">保存 JSON</button>
-          <span id="status" class="status" aria-live="polite">150 个图标</span>
+          <span id="status" class="status" aria-live="polite">\(count) 个图标</span>
         </section>
         <section id="grid" class="grid" aria-label="内置图标列表">
           \(cards)
         </section>
-        <footer>由 <code>pkg/customui/assets/toolbar-icons-v1.json</code> 在当前 macOS 上生成。此 HTML 用于查找和复制；真实 Runtime 窗口由 <code>examples/custom-ui/icon-catalog.js</code> 加载同一批生成图像，并在一个可滚动界面中绑定全部 150 个按钮。</footer>
+        <footer>由 <code>pkg/customui/assets/toolbar-icons-v1.json</code> 在当前 macOS 上生成。此 HTML 用于查找和复制；真实 Runtime 窗口由 <code>examples/custom-ui/icon-list.js</code> 加载同一批生成图像，并在一个可滚动界面中绑定全部 \(count) 个按钮。</footer>
       </main>
       <script>
         const cards = [...document.querySelectorAll('.icon-card')];
@@ -281,6 +285,7 @@ func makeHTML(_ icons: [RenderedIcon]) -> String {
 }
 
 func makeRuntimeHTML(_ icons: [RenderedIcon]) -> String {
+  let count = icons.count
   let cards = icons.enumerated().map { index, item -> String in
     let name = htmlText(item.definition.name)
     let tooltip = htmlAttribute(item.definition.name + " · 点击复制按钮代码")
@@ -292,7 +297,7 @@ func makeRuntimeHTML(_ icons: [RenderedIcon]) -> String {
 
   return """
   <!doctype html>
-  <!-- Generated Runtime-safe view; business behavior stays in icon-catalog.js. -->
+  <!-- Generated Runtime-safe view; business behavior stays in icon-list.js. -->
   <html lang="zh-CN">
     <head>
       <meta charset="utf-8">
@@ -305,22 +310,21 @@ func makeRuntimeHTML(_ icons: [RenderedIcon]) -> String {
         header strong{font-size:22px}#catalogStatus{color:#aebbd1;text-align:right}
         main{flex:1;min-height:0;overflow-y:auto;padding:18px 20px 28px}
         .icon-grid{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:10px}
-        .icon-card{min-width:0;min-height:126px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 8px;border:1px solid #2b3850;border-radius:12px;background:#141d2b;color:#eef3ff;cursor:pointer}
+        .icon-card{min-width:0;min-height:104px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 6px;border:1px solid #2b3850;border-radius:12px;background:#141d2b;color:#eef3ff;cursor:pointer}
         .icon-card:hover{border-color:#6b87ba;background:#1b2940}.icon-card:focus-visible{outline:3px solid #74a2ff;outline-offset:2px}
         .icon-card.is-copied,.icon-card[aria-pressed="true"]{border-color:#58d68d;background:#17352f;box-shadow:0 0 0 2px #58d68d}
-        .icon-card img{width:72px;height:72px;pointer-events:none}
+        .icon-card img{width:48px;height:48px;pointer-events:none}
         .icon-card span{display:block;max-width:100%;pointer-events:none}
-        .icon-name{margin-top:5px;overflow:hidden;color:#d8e2f4;font:11px ui-monospace,SFMono-Regular,Menlo,monospace;text-overflow:ellipsis;white-space:nowrap}
-        .icon-card::after{display:block;margin-top:5px;color:#8998af;font-size:10px;content:attr(data-index) " · 点击复制代码"}.icon-card.is-copied::after{color:#8de5b4}
+        .icon-name{margin-top:4px;overflow:hidden;color:#d8e2f4;font:11px ui-monospace,SFMono-Regular,Menlo,monospace;text-overflow:ellipsis;white-space:nowrap}
         .sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;border:0;clip:rect(0,0,0,0);white-space:nowrap}
       </style>
     </head>
     <body>
       <header>
-        <strong>150 个内置图标</strong>
+        <strong>\(count) 个内置图标</strong>
         <span id="catalogStatus" aria-live="polite">向下滚动查看全部图标 · 悬停看名称 · 点击复制按钮代码</span>
       </header>
-      <main aria-label="全部 150 个内置图标，可滚动">
+      <main aria-label="全部 \(count) 个内置图标，可滚动">
         <section class="icon-grid" aria-label="内置图标列表">
   \(cards)
         </section>
@@ -333,8 +337,8 @@ func makeRuntimeHTML(_ icons: [RenderedIcon]) -> String {
 func makeContactSheet(_ icons: [RenderedIcon]) throws -> Data {
   let columns = 10
   let rows = (icons.count + columns - 1) / columns
-  let cellWidth: CGFloat = 150
-  let cellHeight: CGFloat = 92
+  let cellWidth: CGFloat = 170
+  let cellHeight: CGFloat = 104
   let headerHeight: CGFloat = 76
   let size = NSSize(width: cellWidth * CGFloat(columns), height: headerHeight + cellHeight * CGFloat(rows))
   guard let bitmap = NSBitmapImageRep(
@@ -362,14 +366,14 @@ func makeContactSheet(_ icons: [RenderedIcon]) throws -> Data {
     .font: NSFont.systemFont(ofSize: 24, weight: .bold),
     .foregroundColor: NSColor.white
   ]
-  ("OpenDesk Custom UI · 150 Built-in Icons" as NSString).draw(
+  ("OpenDesk Custom UI · \(icons.count) Built-in Icons" as NSString).draw(
     at: NSPoint(x: 16, y: size.height - 46),
     withAttributes: titleAttributes
   )
 
   let paragraph = NSMutableParagraphStyle()
   paragraph.alignment = .center
-  paragraph.lineBreakMode = .byTruncatingTail
+  paragraph.lineBreakMode = .byCharWrapping
   let labelAttributes: [NSAttributedString.Key: Any] = [
     .font: NSFont.monospacedSystemFont(ofSize: 9, weight: .regular),
     .foregroundColor: NSColor(calibratedRed: 0.78, green: 0.83, blue: 0.91, alpha: 1),
@@ -392,13 +396,13 @@ func makeContactSheet(_ icons: [RenderedIcon]) throws -> Data {
       throw CatalogError.renderFailed(item.definition.name)
     }
     image.draw(
-      in: NSRect(x: x + (cellWidth - 70) / 2, y: y + 23, width: 58, height: 58),
+      in: NSRect(x: x + (cellWidth - 70) / 2, y: y + 31, width: 58, height: 58),
       from: .zero,
       operation: .sourceOver,
       fraction: 1
     )
     (item.definition.name as NSString).draw(
-      in: NSRect(x: x + 5, y: y + 7, width: cellWidth - 22, height: 13),
+      in: NSRect(x: x + 5, y: y + 5, width: cellWidth - 22, height: 24),
       withAttributes: labelAttributes
     )
   }

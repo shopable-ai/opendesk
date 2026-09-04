@@ -9,7 +9,7 @@
 #import "native_darwin.h"
 #import "floating_toolbar_darwin.h"
 
-static NSString *const CDProtocolVersion = @"1.1.0";
+static NSString *const CDProtocolVersion = @"1.4.0";
 static NSMutableDictionary<NSString *, id> *CDWindows;
 
 static BOOL CDDragDebugEnabled(void) {
@@ -85,12 +85,21 @@ static NSString *CDTimestamp(void) {
     return [formatter stringFromDate:NSDate.date];
 }
 
+static NSScreen *CDPrimaryScreen(void) {
+	CGDirectDisplayID primaryDisplay = CGMainDisplayID();
+	for (NSScreen *screen in NSScreen.screens) {
+		NSNumber *screenNumber = screen.deviceDescription[@"NSScreenNumber"];
+		if ([screenNumber isKindOfClass:NSNumber.class] && screenNumber.unsignedIntValue == primaryDisplay) return screen;
+	}
+	return NSScreen.screens.firstObject ?: NSScreen.mainScreen;
+}
+
 static NSRect CDNativeRect(NSDictionary *bounds) {
 	// CoreGraphics desktop APIs use a global top-left coordinate system whose
 	// origin is the primary display. AppKit uses global bottom-left coordinates.
 	// Never subtract the current screen origin: doing so would turn a window on a
 	// secondary display into a false primary-display identity.
-	NSScreen *screen = NSScreen.screens.firstObject ?: NSScreen.mainScreen;
+	NSScreen *screen = CDPrimaryScreen();
     NSRect frame = screen ? screen.frame : NSMakeRect(0, 0, 1440, 900);
     CGFloat x = [bounds[@"x"] doubleValue];
     CGFloat y = [bounds[@"y"] doubleValue];
@@ -104,7 +113,53 @@ static NSScreen *CDActiveDialogScreen(void) {
 	for (NSScreen *screen in NSScreen.screens) {
 		if (NSMouseInRect(pointer, screen.frame, NO)) return screen;
 	}
-	return NSScreen.mainScreen ?: NSScreen.screens.firstObject;
+	return CDPrimaryScreen();
+}
+
+static NSScreen *CDPlacementScreen(NSWindow *window, NSDictionary *placement) {
+	NSString *display = [placement[@"display"] isKindOfClass:NSString.class] ? placement[@"display"] : @"active";
+	if ([display isEqualToString:@"primary"]) {
+		return CDPrimaryScreen();
+	}
+	if ([display isEqualToString:@"current"]) {
+		return window.screen ?: CDActiveDialogScreen();
+	}
+	return CDActiveDialogScreen();
+}
+
+static BOOL CDResolvePlacementRect(NSWindow *window, NSDictionary *placement, NSRect *resolved, NSString **message) {
+	if (![placement isKindOfClass:NSDictionary.class]) {
+		if (message) *message = @"window placement is required";
+		return NO;
+	}
+	NSString *horizontal = [placement[@"horizontal"] isKindOfClass:NSString.class] ? placement[@"horizontal"] : @"";
+	NSString *vertical = [placement[@"vertical"] isKindOfClass:NSString.class] ? placement[@"vertical"] : @"";
+	NSString *display = [placement[@"display"] isKindOfClass:NSString.class] ? placement[@"display"] : @"active";
+	double margin = [placement[@"margin"] doubleValue];
+	if (!([horizontal isEqualToString:@"left"] || [horizontal isEqualToString:@"center"] || [horizontal isEqualToString:@"right"]) ||
+		!([vertical isEqualToString:@"top"] || [vertical isEqualToString:@"center"] || [vertical isEqualToString:@"bottom"]) ||
+		!([display isEqualToString:@"active"] || [display isEqualToString:@"current"] || [display isEqualToString:@"primary"]) ||
+		!isfinite(margin) || margin < 0) {
+		if (message) *message = @"window placement contains an unsupported axis, display, or margin";
+		return NO;
+	}
+	NSScreen *screen = CDPlacementScreen(window, placement);
+	NSRect visible = screen ? screen.visibleFrame : NSMakeRect(0, 0, 1440, 900);
+	NSSize size = window.frame.size;
+	BOOL horizontalFits = [horizontal isEqualToString:@"center"] ? size.width <= NSWidth(visible) : size.width + margin <= NSWidth(visible);
+	BOOL verticalFits = [vertical isEqualToString:@"center"] ? size.height <= NSHeight(visible) : size.height + margin <= NSHeight(visible);
+	if (!horizontalFits || !verticalFits) {
+		if (message) *message = @"window and placement margin do not fit the selected display work area";
+		return NO;
+	}
+	CGFloat x = NSMidX(visible) - size.width / 2.0;
+	if ([horizontal isEqualToString:@"left"]) x = NSMinX(visible) + margin;
+	if ([horizontal isEqualToString:@"right"]) x = NSMaxX(visible) - margin - size.width;
+	CGFloat y = NSMidY(visible) - size.height / 2.0;
+	if ([vertical isEqualToString:@"top"]) y = NSMaxY(visible) - margin - size.height;
+	if ([vertical isEqualToString:@"bottom"]) y = NSMinY(visible) + margin;
+	if (resolved) *resolved = NSMakeRect(x, y, size.width, size.height);
+	return YES;
 }
 
 static NSRect CDCenteredDialogRect(NSRect requested) {
@@ -116,7 +171,7 @@ static NSRect CDCenteredDialogRect(NSRect requested) {
 }
 
 static NSDictionary *CDBoundsFromNativeRect(NSRect rect) {
-	NSScreen *screen = NSScreen.screens.firstObject ?: NSScreen.mainScreen;
+	NSScreen *screen = CDPrimaryScreen();
     NSRect frame = screen ? screen.frame : NSMakeRect(0, 0, 1440, 900);
     return @{
 		@"x": @(NSMinX(rect)),
@@ -951,12 +1006,12 @@ static BOOL CDBoundsMatch(NSDictionary *actual, NSDictionary *expected) {
 }
 
 static void CDRespondWhenBoundsMatch(CDWindowController *controller, NSString *requestID,
-									 NSDictionary *expected, NSUInteger attempt) {
-	NSDictionary *actual = CDWindowServerSnapshot(controller.nativeWindowID)[@"bounds"];
+										 NSString *operation, NSDictionary *expected, NSUInteger attempt) {
+	NSDictionary *actual = CDBoundsForWindow(controller.window);
 	if (actual.count && CDBoundsMatch(actual, expected)) {
 		[controller refreshDragRegionsWithCompletion:^(NSError *error) {
 			if (error) {
-				CDFail(requestID, @"UI_DRIVER_FAILURE", @"setBounds", controller.windowID, nil,
+					CDFail(requestID, @"UI_DRIVER_FAILURE", operation, controller.windowID, nil,
 					error.localizedDescription ?: @"failed to refresh custom UI drag regions");
 				return;
 			}
@@ -965,11 +1020,11 @@ static void CDRespondWhenBoundsMatch(CDWindowController *controller, NSString *r
 		return;
 	}
 	if (attempt >= 100) {
-		CDFail(requestID, @"UI_DRIVER_FAILURE", @"setBounds", controller.windowID, nil, @"WindowServer did not apply the requested custom UI bounds");
+		CDFail(requestID, @"UI_DRIVER_FAILURE", operation, controller.windowID, nil, @"WindowServer did not apply the requested custom UI bounds");
 		return;
 	}
 	dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 10 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
-		CDRespondWhenBoundsMatch(controller, requestID, expected, attempt + 1);
+		CDRespondWhenBoundsMatch(controller, requestID, operation, expected, attempt + 1);
 	});
 }
 
@@ -1074,6 +1129,18 @@ static void CDHandleCreate(NSDictionary *request, NSString *requestID) {
 	// Public bounds describe the outer native window. initWithContentRect treats
 	// the input as content size, so normalize the actual frame explicitly.
     [window setFrame:frame display:NO];
+	NSDictionary *placement = [spec[@"placement"] isKindOfClass:NSDictionary.class] ? spec[@"placement"] : nil;
+	if (placement) {
+		NSRect placedFrame = NSZeroRect;
+		NSString *placementError = nil;
+		if (!CDResolvePlacementRect(window, placement, &placedFrame, &placementError)) {
+			CDFail(requestID, @"INVALID_SPEC", @"create", windowID, nil, placementError);
+			[window close];
+			return;
+		}
+		[window setFrame:placedFrame display:NO];
+		frame = placedFrame;
+	}
 	if (isHostDialog || isNativeToolbar) {
 		[window setMinSize:frame.size];
 		[window setMaxSize:frame.size];
@@ -1309,12 +1376,24 @@ static void CDHandleRequest(NSDictionary *request) {
         controller.programmaticClose = YES;
         [controller.window close];
 		CDRespondWhenClosed(controller, requestID, 0);
-    } else if ([operation isEqualToString:@"setBounds"]) {
+	} else if ([operation isEqualToString:@"setBounds"]) {
 		NSDictionary *expected = request[@"payload"];
         [controller.floatingToolbarView invalidateTooltips];
 		[controller.window setFrame:CDNativeRect(expected) display:YES];
         controller.revision += 1;
-		CDRespondWhenBoundsMatch(controller, requestID, expected, 0);
+		CDRespondWhenBoundsMatch(controller, requestID, @"setBounds", expected, 0);
+	} else if ([operation isEqualToString:@"setPlacement"]) {
+		NSRect placedFrame = NSZeroRect;
+		NSString *placementError = nil;
+		if (!CDResolvePlacementRect(controller.window, request[@"payload"], &placedFrame, &placementError)) {
+			CDFail(requestID, @"INVALID_SPEC", @"setPlacement", controller.windowID, nil, placementError);
+			return;
+		}
+		[controller.floatingToolbarView invalidateTooltips];
+		[controller.window setFrame:placedFrame display:YES];
+		controller.revision += 1;
+		NSDictionary *expected = CDBoundsFromNativeRect(placedFrame);
+		CDRespondWhenBoundsMatch(controller, requestID, @"setPlacement", expected, 0);
     } else if ([operation isEqualToString:@"setAlwaysOnTop"]) {
         [controller.floatingToolbarView invalidateTooltips];
         controller.alwaysOnTop = [request[@"payload"][@"enabled"] boolValue];

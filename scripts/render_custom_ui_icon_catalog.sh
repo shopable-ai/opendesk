@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-OUTPUT_DIR="${ROOT_DIR}/.runtime/tests/custom-ui/icon-catalog"
+OUTPUT_DIR="${ROOT_DIR}/.runtime/tests/custom-ui/icon-list"
 PUBLISH=false
 if [[ $# -gt 1 ]]; then
   printf 'Usage: bash scripts/render_custom_ui_icon_catalog.sh [--publish|output-directory]\n' >&2
@@ -15,8 +15,8 @@ elif [[ -n "${1:-}" ]]; then
 fi
 REGISTRY="${ROOT_DIR}/pkg/customui/assets/toolbar-icons-v1.json"
 RENDERER="${ROOT_DIR}/tests/custom-ui/tools/icon-catalog/main.swift"
-PUBLISHED_HTML="${ROOT_DIR}/docs/custom-ui/icon-catalog.html"
-PUBLISHED_RUNTIME_HTML="${ROOT_DIR}/examples/custom-ui/icon-catalog.html"
+PUBLISHED_HTML="${ROOT_DIR}/docs/custom-ui/icon-list.html"
+PUBLISHED_RUNTIME_HTML="${ROOT_DIR}/examples/custom-ui/icon-list.html"
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
   printf 'Custom UI icon catalog rendering requires macOS and AppKit.\n' >&2

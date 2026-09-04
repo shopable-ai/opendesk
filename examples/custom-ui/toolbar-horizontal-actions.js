@@ -1,5 +1,5 @@
 // Run from the repository root with:
-// ./dist/opendesk -ui -script examples/custom-ui/toolbar-horizontal-actions.js -console-mode script -log-dir .runtime/examples/custom-ui/toolbar-horizontal-actions
+// ./opendesk -ui -script examples/custom-ui/toolbar-horizontal-actions.js -console-mode script -log-dir .runtime/examples/custom-ui/toolbar-horizontal-actions
 // Change this JavaScript object when callbacks need to use Runtime APIs.
 const toolbarConfig = {
   schemaVersion: 1,

@@ -6,7 +6,9 @@ import (
 	"time"
 )
 
-const ProtocolVersion = "1.1.0"
+// ProtocolVersion advances with bounded raster toolbar icons so an older host
+// cannot silently accept a newer FloatingWindow declaration.
+const ProtocolVersion = "1.4.0"
 
 type ActivationSource string
 
@@ -35,6 +37,13 @@ type Bounds struct {
 	Height float64 `json:"height"`
 }
 
+type WindowPlacement struct {
+	Horizontal string  `json:"horizontal"`
+	Vertical   string  `json:"vertical"`
+	Margin     float64 `json:"margin,omitempty"`
+	Display    string  `json:"display,omitempty"`
+}
+
 type ContentSpec struct {
 	File string `json:"file,omitempty"`
 	// HTML accepts restricted inline markup. During Normalize, a relative
@@ -48,12 +57,13 @@ type ContentSpec struct {
 }
 
 type WindowSpec struct {
-	ID          string `json:"id"`
-	Kind        string `json:"kind,omitempty"`
-	Title       string `json:"title,omitempty"`
-	Bounds      Bounds `json:"bounds"`
-	AlwaysOnTop bool   `json:"alwaysOnTop,omitempty"`
-	Draggable   bool   `json:"draggable,omitempty"`
+	ID          string           `json:"id"`
+	Kind        string           `json:"kind,omitempty"`
+	Title       string           `json:"title,omitempty"`
+	Bounds      Bounds           `json:"bounds"`
+	AlwaysOnTop bool             `json:"alwaysOnTop,omitempty"`
+	Draggable   bool             `json:"draggable,omitempty"`
+	Placement   *WindowPlacement `json:"placement,omitempty"`
 	// CenterOnActiveDisplay is reserved for host-owned surfaces such as Dialog.
 	// It is intentionally not present in the JavaScript Custom UI declaration.
 	// The native host resolves it from the current display at creation time.
@@ -114,9 +124,9 @@ type ControlState struct {
 	Type string `json:"type"`
 	Text string `json:"text,omitempty"`
 	Icon string `json:"icon,omitempty"`
-	// IconPresentation is present only for generated FloatingWindow buttons.
-	// It records the reviewed native visual recipe without opening a path or URL
-	// based icon API to JavaScript.
+	// IconPresentation is present only for FloatingWindow buttons. It records
+	// the reviewed built-in symbol recipe or validated raster metadata; caller
+	// paths and encoded bytes are never returned by the native host.
 	IconPresentation  *ToolbarIconPresentation `json:"iconPresentation,omitempty"`
 	AccessibilityName string                   `json:"accessibilityName,omitempty"`
 	Value             any                      `json:"value,omitempty"`
@@ -193,6 +203,7 @@ type DriverWindow interface {
 	Hide(context.Context) (WindowState, error)
 	Close(context.Context) (WindowState, error)
 	SetBounds(context.Context, Bounds) (WindowState, error)
+	SetPlacement(context.Context, WindowPlacement) (WindowState, error)
 	SetAlwaysOnTop(context.Context, bool) (WindowState, error)
 	SetDraggable(context.Context, bool) (WindowState, error)
 	State(context.Context) (WindowState, error)

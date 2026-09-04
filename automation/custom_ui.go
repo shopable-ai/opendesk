@@ -36,14 +36,53 @@ type customUIRuntimeOptions struct {
 // storage such as Assets; exposing that struct directly would let a JavaScript
 // declaration smuggle those fields through as explicit null values.
 type customUIWindowDeclaration struct {
-	ID          string                     `json:"id"`
-	Kind        string                     `json:"kind,omitempty"`
-	Title       string                     `json:"title,omitempty"`
-	Bounds      customui.Bounds            `json:"bounds"`
+	ID    string `json:"id"`
+	Kind  string `json:"kind,omitempty"`
+	Title string `json:"title,omitempty"`
+	// Position is the public discriminated initial-position declaration. Bounds
+	// remains only as the documented compatibility spelling for an absolute
+	// window; Size and Placement remain decoded solely so a retired draft can
+	// receive a precise INVALID_SPEC migration error instead of being ignored.
+	Position    *customUIWindowPosition    `json:"position,omitempty"`
+	Bounds      *customui.Bounds           `json:"bounds,omitempty"`
+	Size        *customUIWindowSize        `json:"size,omitempty"`
 	AlwaysOnTop bool                       `json:"alwaysOnTop,omitempty"`
 	Draggable   bool                       `json:"draggable,omitempty"`
+	Placement   *customui.WindowPlacement  `json:"placement,omitempty"`
 	Theme       string                     `json:"theme,omitempty"`
 	Content     customUIContentDeclaration `json:"content"`
+}
+
+type customUIWindowSize struct {
+	Width  float64 `json:"width"`
+	Height float64 `json:"height"`
+}
+
+type customUIWindowPosition struct {
+	Mode       string              `json:"mode"`
+	Bounds     *customui.Bounds    `json:"bounds,omitempty"`
+	Size       *customUIWindowSize `json:"size,omitempty"`
+	Horizontal *string             `json:"horizontal,omitempty"`
+	Vertical   *string             `json:"vertical,omitempty"`
+	Margin     *float64            `json:"margin,omitempty"`
+	Display    *string             `json:"display,omitempty"`
+}
+
+func (position customUIWindowPosition) placement() customui.WindowPlacement {
+	value := customui.WindowPlacement{}
+	if position.Horizontal != nil {
+		value.Horizontal = *position.Horizontal
+	}
+	if position.Vertical != nil {
+		value.Vertical = *position.Vertical
+	}
+	if position.Margin != nil {
+		value.Margin = *position.Margin
+	}
+	if position.Display != nil {
+		value.Display = *position.Display
+	}
+	return value
 }
 
 type customUIContentDeclaration struct {
@@ -54,17 +93,63 @@ type customUIContentDeclaration struct {
 	BasePath string `json:"basePath,omitempty"`
 }
 
-func (declaration customUIWindowDeclaration) windowSpec() customui.WindowSpec {
+func (declaration customUIWindowDeclaration) windowSpec() (customui.WindowSpec, error) {
+	var bounds customui.Bounds
+	var placement *customui.WindowPlacement
+	if declaration.Position != nil {
+		if declaration.Bounds != nil || declaration.Size != nil || declaration.Placement != nil {
+			return customui.WindowSpec{}, invalidInitialPosition("position cannot be combined with legacy bounds, size, or placement fields")
+		}
+		switch declaration.Position.Mode {
+		case "absolute":
+			if declaration.Position.Bounds == nil || declaration.Position.Size != nil || declaration.Position.Horizontal != nil || declaration.Position.Vertical != nil || declaration.Position.Margin != nil || declaration.Position.Display != nil {
+				return customui.WindowSpec{}, invalidInitialPosition(`position.mode "absolute" requires only position.bounds`)
+			}
+			bounds = *declaration.Position.Bounds
+		case "anchor":
+			if declaration.Position.Bounds != nil || declaration.Position.Size == nil {
+				return customui.WindowSpec{}, invalidInitialPosition(`position.mode "anchor" requires position.size and anchor fields, not position.bounds`)
+			}
+			if !finiteCustomUINumber(declaration.Position.Size.Width) || !finiteCustomUINumber(declaration.Position.Size.Height) || declaration.Position.Size.Width <= 0 || declaration.Position.Size.Height <= 0 {
+				return customui.WindowSpec{}, &customui.Error{Code: customui.CodeInvalidSpec, Operation: "createWindow", Capability: "position", Message: "position.size.width and position.size.height must be positive finite numbers"}
+			}
+			resolved, err := customui.NormalizeInitialWindowPlacement(declaration.Position.placement())
+			if err != nil {
+				return customui.WindowSpec{}, customUIOperationError(err, "createWindow", declaration.ID)
+			}
+			bounds = customui.Bounds{Width: declaration.Position.Size.Width, Height: declaration.Position.Size.Height}
+			placement = &resolved
+		default:
+			return customui.WindowSpec{}, invalidInitialPosition(`position.mode must be "absolute" or "anchor"`)
+		}
+	} else {
+		switch {
+		case declaration.Bounds != nil && declaration.Size == nil && declaration.Placement == nil:
+			// Absolute bounds was available before the explicit position union. Keep
+			// it as a compatibility spelling without giving it precedence over a new
+			// position declaration.
+			bounds = *declaration.Bounds
+		default:
+			return customui.WindowSpec{}, &customui.Error{
+				Code: customui.CodeInvalidSpec, Operation: "createWindow", WindowID: declaration.ID, Capability: "position",
+				Message: "declare exactly one initial position: position:{mode:'absolute',bounds} or position:{mode:'anchor',size,horizontal,vertical}; legacy bounds remains absolute-only",
+			}
+		}
+	}
 	return customui.WindowSpec{
 		ID: declaration.ID, Kind: declaration.Kind, Title: declaration.Title,
-		Bounds: declaration.Bounds, AlwaysOnTop: declaration.AlwaysOnTop,
-		Draggable: declaration.Draggable, Theme: declaration.Theme,
+		Bounds: bounds, AlwaysOnTop: declaration.AlwaysOnTop,
+		Draggable: declaration.Draggable, Placement: placement, Theme: declaration.Theme,
 		Content: customui.ContentSpec{
 			File: declaration.Content.File, HTML: declaration.Content.HTML,
 			CSSFile: declaration.Content.CSSFile, CSS: declaration.Content.CSS,
 			BasePath: declaration.Content.BasePath,
 		},
-	}
+	}, nil
+}
+
+func invalidInitialPosition(message string) error {
+	return &customui.Error{Code: customui.CodeInvalidSpec, Operation: "createWindow", Capability: "position", Message: message}
 }
 
 // CustomUIRuntime is the execution-scoped bridge between native UI Go values
@@ -75,6 +160,7 @@ type CustomUIRuntime struct {
 	loop             *eventloop.EventLoop
 	context          context.Context
 	driver           customui.Driver
+	baseDir          string
 	activationSource customui.ActivationSource
 	session          *customui.Session
 	queue            *customui.EventQueue
@@ -172,7 +258,7 @@ func newCustomUIRuntime(opts customUIRuntimeOptions) (*CustomUIRuntime, error) {
 		return nil, fmt.Errorf("custom UI requires a platform driver")
 	}
 	bridge := &CustomUIRuntime{
-		runtime: opts.runtime, loop: opts.loop, context: opts.context, driver: opts.driver,
+		runtime: opts.runtime, loop: opts.loop, context: opts.context, driver: opts.driver, baseDir: opts.baseDir,
 		activationSource: normalizeCustomUIActivationSource(opts.activationSource, true),
 		queue:            customui.NewEventQueue(customUIEventQueueCapacity), onAsyncError: opts.onAsyncError,
 		pending: map[uint64]pendingCustomUI{}, listeners: map[uint64]customUIListener{},
@@ -221,7 +307,7 @@ func registerDisabledCustomUI(runtime *goja.Runtime, source customui.ActivationS
 		ProtocolVersion: customui.ProtocolVersion, Enabled: false, Available: false,
 		ActivationSource: normalizeCustomUIActivationSource(source, false),
 		Platform:         "disabled", Driver: "none", MaxSessions: 0,
-		Window:   map[string]bool{"position": false, "size": false, "alwaysOnTop": false, "draggable": false, "nativeIdentity": false},
+		Window:   map[string]bool{"position": false, "placement": false, "size": false, "alwaysOnTop": false, "draggable": false, "nativeIdentity": false},
 		Controls: []string{"button", "text", "img", "switch", "input", "select", "container"},
 		Reason:   "custom UI was not explicitly enabled for this execution",
 	}
@@ -251,7 +337,10 @@ func (u *CustomUIRuntime) jsUIObject() map[string]any {
 			if err := exportCustomUIValue(call.Argument(0), &declaration); err != nil {
 				panic(customUIJSError(u.runtime, &customui.Error{Code: customui.CodeInvalidSpec, Operation: "createWindow", Message: "window declaration is invalid", Cause: err}))
 			}
-			spec := declaration.windowSpec()
+			spec, err := declaration.windowSpec()
+			if err != nil {
+				panic(customUIJSError(u.runtime, err))
+			}
 			return u.startAsync("createWindow", func(ctx context.Context) (any, error) {
 				return u.session.Create(ctx, spec)
 			}, func(value any) goja.Value {
@@ -316,6 +405,15 @@ func (u *CustomUIRuntime) jsWindowObject(window *customui.Window) map[string]any
 				state.Bounds.X, state.Bounds.Y = x, y
 				result, err := window.SetBounds(ctx, state.Bounds)
 				return result, customUIOperationError(err, "setPosition", window.ID())
+			}, nil)
+		},
+		"setPlacement": func(call goja.FunctionCall) goja.Value {
+			var placement customui.WindowPlacement
+			if err := exportCustomUIValue(call.Argument(0), &placement); err != nil {
+				panic(customUIJSError(u.runtime, &customui.Error{Code: customui.CodeInvalidSpec, Operation: "setPlacement", WindowID: window.ID(), Capability: "placement", Message: "placement is invalid", Cause: err}))
+			}
+			return u.startAsync("setPlacement", func(ctx context.Context) (any, error) {
+				return window.SetPlacement(ctx, placement)
 			}, nil)
 		},
 		"setSize": func(call goja.FunctionCall) goja.Value {
@@ -547,9 +645,12 @@ func (u *CustomUIRuntime) drainEvents(runtime *goja.Runtime) {
 			if listener.targetID != "" && listener.targetID != event.TargetID {
 				continue
 			}
-			if _, err := listener.callback(goja.Undefined(), argument); err != nil {
+			result, err := listener.callback(goja.Undefined(), argument)
+			if err != nil {
 				u.reportAsyncError(err)
+				continue
 			}
+			u.observeListenerResult(result)
 		}
 		if toolbar := u.floatingToolbars[event.WindowID]; toolbar != nil {
 			toolbar.dispatch(event, argument)
@@ -564,6 +665,33 @@ func (u *CustomUIRuntime) drainEvents(runtime *goja.Runtime) {
 func (u *CustomUIRuntime) reportAsyncError(err error) {
 	if err != nil && u.onAsyncError != nil {
 		u.onAsyncError(err)
+	}
+}
+
+func (u *CustomUIRuntime) observeListenerResult(value goja.Value) {
+	promiseConstructor := u.runtime.Get("Promise").ToObject(u.runtime)
+	resolve, ok := goja.AssertFunction(promiseConstructor.Get("resolve"))
+	if !ok {
+		u.reportAsyncError(fmt.Errorf("Promise.resolve is unavailable"))
+		return
+	}
+	promiseValue, err := resolve(promiseConstructor, value)
+	if err != nil {
+		u.reportAsyncError(err)
+		return
+	}
+	promiseObject := promiseValue.ToObject(u.runtime)
+	then, ok := goja.AssertFunction(promiseObject.Get("then"))
+	if !ok {
+		u.reportAsyncError(fmt.Errorf("listener result is not awaitable"))
+		return
+	}
+	onRejected := u.runtime.ToValue(func(call goja.FunctionCall) goja.Value {
+		u.reportAsyncError(fmt.Errorf("%s", call.Argument(0).String()))
+		return goja.Undefined()
+	})
+	if _, err := then(promiseObject, goja.Undefined(), onRejected); err != nil {
+		u.reportAsyncError(err)
 	}
 }
 

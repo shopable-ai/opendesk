@@ -1,5 +1,5 @@
 // Run from the repository root:
-// ./dist/opendesk -ui -script examples/custom-ui/recording-console.js -console-mode script -log-dir .runtime/examples/custom-ui/recording-console
+// ./opendesk -ui -script examples/custom-ui/recording-console.js -console-mode script -log-dir .runtime/examples/custom-ui/recording-console
 //
 // The browser preview serves the same file-backed HTML/CSS pair used by the
 // constrained Custom UI host. JavaScript owns all state, callbacks and Runtime

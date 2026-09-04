@@ -1,17 +1,18 @@
 // Run from the repository root with:
-// ./dist/opendesk -ui -script examples/custom-ui/icon-catalog.js -console-mode script -log-dir .runtime/examples/custom-ui/icon-catalog
+// ./opendesk -ui -script examples/custom-ui/icon-list.js -console-mode script -log-dir .runtime/examples/custom-ui/icon-list
 //
-// Scroll one real Custom UI window to browse all 150 built-in icons in a
-// 10-column grid. Hover an icon for its full name and copy hint; click it to
+// Scroll one real Custom UI window to browse every default icon in a 10-column
+// grid. The list includes semantic AI and automation IDs alongside common SF
+// Symbol names. Hover an icon for its full name and copy hint; click it to
 // copy one ready-to-paste FloatingWindow.addButton() line. Close the window to
 // finish.
 
 const exampleRoot = File.join(File.cwd(), 'examples/custom-ui');
 const registryPath = File.join(File.cwd(), 'pkg/customui/assets/toolbar-icons-v1.json');
-const catalogHTMLPath = File.join(exampleRoot, 'icon-catalog.html');
+const iconListHTMLPath = File.join(exampleRoot, 'icon-list.html');
 const registry = JSON.parse(File.read(registryPath));
-if (registry.schemaVersion !== 1 || !Array.isArray(registry.icons) || registry.icons.length !== 150) {
-  throw new Error('expected the Custom UI v1 registry to contain exactly 150 icons');
+if (registry.schemaVersion !== 1 || !Array.isArray(registry.icons) || registry.icons.length < 100 || registry.icons.length > 256) {
+  throw new Error('expected the Custom UI v1 registry to contain 100–256 icons');
 }
 
 const names = registry.icons.map(icon => icon.name);
@@ -33,20 +34,21 @@ if (new Set(buttonIDs).size !== buttonIDs.length || buttonIDs.some(id => !/^[A-Z
 }
 
 const panel = await ui.createWindow({
-  id: 'customUIIconCatalog',
+  id: 'customUIIconList',
   kind: 'normal',
-  title: 'Custom UI · 150 个内置图标',
-  bounds: { x: 80, y: 60, width: 1240, height: 740 },
+  title: 'Custom UI · ' + names.length + ' 个默认图标',
+  // Start in the upper-left safe area while keeping the window draggable.
+  bounds: { x: 24, y: 24, width: 1240, height: 740 },
   alwaysOnTop: false,
   draggable: true,
   theme: 'dark',
-  content: { file: catalogHTMLPath },
+  content: { file: iconListHTMLPath },
 });
 
 const controls = panel.controls();
 const iconControls = controls.filter(control => control.type === 'button');
-if (iconControls.length !== 150 || iconControls.map(control => control.id).join('\n') !== buttonIDs.join('\n')) {
-  throw new Error('the Runtime icon catalog must expose all 150 icon buttons in registry order');
+if (iconControls.length !== names.length || iconControls.map(control => control.id).join('\n') !== buttonIDs.join('\n')) {
+  throw new Error('the Runtime icon list must expose every registry button in registry order');
 }
 
 let selectedID = '';
@@ -75,7 +77,7 @@ for (let index = 0; index < names.length; index += 1) {
       }));
     } catch (error) {
       await panel.control('catalogStatus').update({ text: '复制失败：' + icon });
-      console.error('CUSTOM_UI_ICON_CATALOG_ERROR=' + JSON.stringify({
+      console.error('CUSTOM_UI_ICON_LIST_ERROR=' + JSON.stringify({
         id: buttonID,
         icon,
         code: error && error.code,
@@ -88,13 +90,13 @@ for (let index = 0; index < names.length; index += 1) {
 }
 
 const shown = await panel.show();
-console.log('CUSTOM_UI_ICON_CATALOG_READY=' + JSON.stringify({
+console.log('CUSTOM_UI_ICON_LIST_READY=' + JSON.stringify({
   registryPath,
-  catalogHTMLPath,
+  iconListHTMLPath,
   count: names.length,
   buttonCount: iconControls.length,
   columns: 10,
-  rows: 15,
+  rows: Math.ceil(names.length / 10),
   first: names[0],
   last: names[names.length - 1],
   window: shown,
@@ -102,7 +104,7 @@ console.log('CUSTOM_UI_ICON_CATALOG_READY=' + JSON.stringify({
 }));
 
 const closed = await panel.waitUntilClosed();
-console.log('CUSTOM_UI_ICON_CATALOG_COMPLETE=' + JSON.stringify({
+console.log('CUSTOM_UI_ICON_LIST_COMPLETE=' + JSON.stringify({
   count: names.length,
   status: closed.status,
   onScreen: closed.onScreen,

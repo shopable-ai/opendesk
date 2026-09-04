@@ -35,9 +35,13 @@ func TestNormalizeToolbarOrientationPolicy(t *testing.T) {
 		return toolbar.ButtonSpec{ID: id, Label: id, Icon: "timer", State: toolbar.ButtonState{Revision: 1}}
 	}
 	base := func(orientation string, buttons []toolbar.ButtonSpec) WindowSpec {
+		items := make([]toolbar.ToolbarItemSpec, 0, len(buttons))
+		for _, button := range buttons {
+			items = append(items, toolbar.ButtonItem(button))
+		}
 		return WindowSpec{
 			ID: "nativeToolbar", Bounds: Bounds{X: 10, Y: 20},
-			Toolbar: &toolbar.ToolbarSpec{SchemaVersion: toolbar.SchemaVersion, Revision: 1, Orientation: orientation, Buttons: buttons},
+			Toolbar: &toolbar.ToolbarSpec{SchemaVersion: toolbar.SchemaVersion, Revision: 1, Orientation: orientation, Items: items},
 		}
 	}
 	for _, orientation := range []string{toolbar.OrientationHorizontal, toolbar.OrientationVertical} {
@@ -61,6 +65,62 @@ func TestNormalizeToolbarOrientationPolicy(t *testing.T) {
 	}
 	if _, err := Normalize(base(toolbar.OrientationVertical, tooMany), t.TempDir()); err == nil {
 		t.Fatal("six-button vertical toolbar unexpectedly passed")
+	}
+}
+
+func TestNormalizeToolbarItemsIsStrictAndAdaptsLegacyButtons(t *testing.T) {
+	button := func(id string) toolbar.ToolbarItemSpec {
+		return toolbar.ButtonItem(toolbar.ButtonSpec{ID: id, Label: id, Icon: "timer", State: toolbar.ButtonState{Revision: 1}})
+	}
+	base := func(items []toolbar.ToolbarItemSpec) WindowSpec {
+		return WindowSpec{ID: "toolbarItems", Bounds: Bounds{X: 10, Y: 20}, Toolbar: &toolbar.ToolbarSpec{
+			SchemaVersion: toolbar.SchemaVersion, Revision: 1, Orientation: toolbar.OrientationHorizontal, Items: items,
+		}}
+	}
+	valid, err := Normalize(base([]toolbar.ToolbarItemSpec{
+		button("one"), {Type: toolbar.ItemSeparator, ID: "divider"}, button("two"),
+		{Type: toolbar.ItemSpacer, ID: "space"}, button("three"),
+	}), t.TempDir())
+	if err != nil || len(valid.Toolbar.Items) != 5 || len(valid.Controls) != 3 {
+		t.Fatalf("valid toolbar items = %#v, err=%v", valid.Toolbar, err)
+	}
+	legacy, err := Normalize(WindowSpec{ID: "legacyToolbar", Bounds: Bounds{X: 1, Y: 2}, Toolbar: &toolbar.ToolbarSpec{
+		SchemaVersion: toolbar.LegacySchemaVersion, Revision: 1, Orientation: toolbar.OrientationHorizontal,
+		Buttons: []toolbar.ButtonSpec{{ID: "legacy", Label: "legacy", Icon: "timer", State: toolbar.ButtonState{Revision: 1}}},
+	}}, t.TempDir())
+	if err != nil || legacy.Toolbar.SchemaVersion != toolbar.SchemaVersion || len(legacy.Toolbar.Items) != 1 || len(legacy.Toolbar.Buttons) != 0 {
+		t.Fatalf("legacy toolbar adaptation = %#v, err=%v", legacy.Toolbar, err)
+	}
+	for _, test := range []struct {
+		name  string
+		items []toolbar.ToolbarItemSpec
+		code  string
+	}{
+		{"leading separator", []toolbar.ToolbarItemSpec{{Type: toolbar.ItemSeparator, ID: "divider"}, button("one")}, CodeInvalidSpec},
+		{"trailing spacer", []toolbar.ToolbarItemSpec{button("one"), {Type: toolbar.ItemSpacer, ID: "space"}}, CodeInvalidSpec},
+		{"consecutive structural", []toolbar.ToolbarItemSpec{button("one"), {Type: toolbar.ItemSeparator, ID: "divider"}, {Type: toolbar.ItemSpacer, ID: "space"}, button("two")}, CodeInvalidSpec},
+		{"duplicate item id", []toolbar.ToolbarItemSpec{button("same"), {Type: toolbar.ItemSeparator, ID: "same"}, button("two")}, CodeDuplicateID},
+		{"unknown item", []toolbar.ToolbarItemSpec{button("one"), {Type: "group", ID: "unknown"}, button("two")}, CodeInvalidSpec},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := Normalize(base(test.items), t.TempDir())
+			var uiErr *Error
+			if !errors.As(err, &uiErr) || uiErr.Code != test.code {
+				t.Fatalf("Normalize(%s) error = %#v", test.name, err)
+			}
+		})
+	}
+	tooMany := make([]toolbar.ToolbarItemSpec, 0, toolbar.MaxItems+1)
+	for index := 0; index < toolbar.MaxItems+1; index++ {
+		if index%2 == 0 {
+			tooMany = append(tooMany, button(fmt.Sprintf("button%d", index)))
+		} else {
+			tooMany = append(tooMany, toolbar.ToolbarItemSpec{Type: toolbar.ItemSpacer, ID: fmt.Sprintf("space%d", index)})
+		}
+	}
+	tooMany[len(tooMany)-1] = button("terminal")
+	if _, err := Normalize(base(tooMany), t.TempDir()); err == nil {
+		t.Fatal("too many toolbar items unexpectedly passed")
 	}
 }
 

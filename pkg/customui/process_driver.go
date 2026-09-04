@@ -89,7 +89,7 @@ func (d *ProcessDriver) Capabilities(context.Context) Capabilities {
 		ProtocolVersion: ProtocolVersion, Enabled: true, Available: available,
 		Platform: platform, Driver: "native-process", MaxSessions: 1,
 		Window: map[string]bool{
-			"position": available, "size": available, "alwaysOnTop": available,
+			"position": available, "placement": available, "size": available, "alwaysOnTop": available,
 			"draggable": available, "nativeIdentity": available,
 		},
 		Controls: []string{"button", "text", "img", "switch", "input", "select", "container"},
@@ -627,6 +627,10 @@ func (w *processWindow) Close(ctx context.Context) (WindowState, error) {
 
 func (w *processWindow) SetBounds(ctx context.Context, bounds Bounds) (WindowState, error) {
 	return w.stateCall(ctx, "setBounds", bounds)
+}
+
+func (w *processWindow) SetPlacement(ctx context.Context, placement WindowPlacement) (WindowState, error) {
+	return w.stateCall(ctx, "setPlacement", placement)
 }
 
 func (w *processWindow) SetAlwaysOnTop(ctx context.Context, enabled bool) (WindowState, error) {

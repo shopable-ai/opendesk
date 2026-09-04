@@ -26,7 +26,7 @@ func (d *MemoryDriver) Capabilities(context.Context) Capabilities {
 	return Capabilities{
 		ProtocolVersion: ProtocolVersion, Enabled: true, Available: true,
 		Platform: runtime.GOOS, Driver: "memory", MaxSessions: 64,
-		Window:   map[string]bool{"position": true, "size": true, "alwaysOnTop": true, "draggable": true},
+		Window:   map[string]bool{"position": true, "placement": true, "size": true, "alwaysOnTop": true, "draggable": true},
 		Controls: []string{"button", "text", "img", "switch", "input", "select", "container"},
 	}
 }
@@ -61,12 +61,23 @@ func (d *MemoryDriver) Create(_ context.Context, sessionID string, spec WindowSp
 		state:    WindowState{ID: spec.ID, SessionID: sessionID, Status: StatusHidden, Bounds: spec.Bounds, AlwaysOnTop: spec.AlwaysOnTop, Draggable: spec.Draggable, HostPID: d.pid, NativeWindowID: int64(len(d.windows) + 1), Layer: 0, Alpha: 1, Revision: 1},
 		controls: map[string]ControlState{}, toolbarButtons: map[string]toolbar.ButtonResult{},
 	}
+	if spec.Placement != nil {
+		placed, err := ResolveWindowPlacement(window.state.Bounds, *spec.Placement, Bounds{Width: 1440, Height: 900})
+		if err != nil {
+			return nil, err
+		}
+		window.state.Bounds = placed
+	}
 	for _, control := range spec.Controls {
 		window.controls[control.ID] = ControlState{ID: control.ID, Type: control.Type, Visible: true}
 	}
 	if spec.Toolbar != nil {
-		for _, button := range spec.Toolbar.Buttons {
-			presentation, _ := toolbar.IconPresentationFor(button.Icon)
+		for _, item := range spec.Toolbar.Items {
+			if !item.IsButton() {
+				continue
+			}
+			button := *item.Button
+			presentation, _ := toolbar.IconPresentationForButton(button)
 			window.toolbarButtons[button.ID] = toolbar.ButtonResult{
 				ButtonSpec: button, IconPresentation: presentation,
 				Tooltip: button.Label, AccessibilityName: button.Label,
@@ -199,6 +210,16 @@ func (w *memoryWindow) SetBounds(_ context.Context, bounds Bounds) (WindowState,
 	return w.mutate(func(state *WindowState) { state.Bounds = bounds }), nil
 }
 
+func (w *memoryWindow) SetPlacement(_ context.Context, placement WindowPlacement) (WindowState, error) {
+	// The memory driver uses a stable 1440x900 work area so core and Runtime
+	// tests can exercise placement without pretending to be native UI proof.
+	placed, err := ResolveWindowPlacement(w.state.Bounds, placement, Bounds{Width: 1440, Height: 900})
+	if err != nil {
+		return WindowState{}, err
+	}
+	return w.mutate(func(state *WindowState) { state.Bounds = placed }), nil
+}
+
 func (w *memoryWindow) SetAlwaysOnTop(_ context.Context, enabled bool) (WindowState, error) {
 	return w.mutate(func(state *WindowState) { state.AlwaysOnTop = enabled }), nil
 }
@@ -287,9 +308,9 @@ func (w *memoryWindow) ApplyToolbarButton(_ context.Context, button toolbar.Butt
 		return toolbar.ButtonResult{}, fmt.Errorf("toolbar button not found")
 	}
 	if button.State.Revision > state.State.Revision {
-		presentation, ok := toolbar.IconPresentationFor(button.Icon)
+		presentation, ok := toolbar.IconPresentationForButton(button)
 		if !ok {
-			return toolbar.ButtonResult{}, fmt.Errorf("toolbar icon is not allowlisted")
+			return toolbar.ButtonResult{}, fmt.Errorf("toolbar icon is invalid")
 		}
 		state.ButtonSpec = button
 		state.IconPresentation = presentation

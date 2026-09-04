@@ -2,8 +2,12 @@
 export {};
 
 declare global {
-  /** Curated, host-reviewed SF Symbols accepted by FloatingWindow. */
-  type ClawdeskFloatingIcon =
+  /** Built-in registry keys accepted by FloatingWindow and Custom UI buttons. */
+  type ClawdeskFloatingIconKey =
+    | "ai.analyze"
+    | "ai.assistant"
+    | "ai.generate"
+    | "ai.search"
     | "airplane"
     | "alarm.fill"
     | "antenna.radiowaves.left.and.right"
@@ -12,6 +16,12 @@ declare global {
     | "arrow.clockwise"
     | "arrow.counterclockwise"
     | "at"
+    | "automation.approve"
+    | "automation.configure"
+    | "automation.review"
+    | "automation.run"
+    | "automation.schedule"
+    | "automation.trigger"
     | "backward.end.fill"
     | "backward.fill"
     | "bag.fill"
@@ -154,4 +164,7 @@ declare global {
     | "waveform"
     | "wifi"
     | "xmark"
+
+  /** @deprecated Use ClawdeskFloatingIconKey. */
+  type ClawdeskFloatingIcon = ClawdeskFloatingIconKey;
 }

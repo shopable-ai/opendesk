@@ -36,7 +36,7 @@ func main() {
 	source := flag.String("source", "", "registry JSON")
 	goOut := flag.String("go-out", "", "generated Go file")
 	objcOut := flag.String("objc-out", "", "generated Objective-C include")
-	tsOut := flag.String("ts-out", "", "generated TypeScript icon declarations")
+	tsOut := flag.String("ts-out", "", "generated TypeScript built-in icon key declarations")
 	flag.Parse()
 	data, err := os.ReadFile(*source)
 	must(err)
@@ -91,17 +91,23 @@ func main() {
 	fmt.Fprintln(&objc, "  }; }); return icons;\n}")
 	must(os.WriteFile(*objcOut, objc.Bytes(), 0o644))
 
+	must(os.WriteFile(*tsOut, renderTypeScript(names), 0o644))
+}
+
+func renderTypeScript(names []string) []byte {
 	var ts bytes.Buffer
 	fmt.Fprintln(&ts, "// Code generated from pkg/customui/assets/toolbar-icons-v1.json; DO NOT EDIT.")
 	fmt.Fprintln(&ts, "export {};")
 	fmt.Fprintln(&ts, "\ndeclare global {")
-	fmt.Fprintln(&ts, "  /** Curated, host-reviewed SF Symbols accepted by FloatingWindow. */")
-	fmt.Fprintln(&ts, "  type ClawdeskFloatingIcon =")
+	fmt.Fprintln(&ts, "  /** Built-in registry keys accepted by FloatingWindow and Custom UI buttons. */")
+	fmt.Fprintln(&ts, "  type ClawdeskFloatingIconKey =")
 	for _, name := range names {
 		fmt.Fprintf(&ts, "    | %q\n", name)
 	}
+	fmt.Fprintln(&ts, "\n  /** @deprecated Use ClawdeskFloatingIconKey. */")
+	fmt.Fprintln(&ts, "  type ClawdeskFloatingIcon = ClawdeskFloatingIconKey;")
 	fmt.Fprintln(&ts, "}")
-	must(os.WriteFile(*tsOut, ts.Bytes(), 0o644))
+	return ts.Bytes()
 }
 
 func finite(value float64) bool { return !math.IsInf(value, 0) && !math.IsNaN(value) }

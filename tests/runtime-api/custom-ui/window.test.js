@@ -4,17 +4,21 @@
   test({
     name: 'ui.createWindow retains the restricted WKWebView Custom UI path',
     tier: 'custom-ui',
-    covers: ['ui.getCapabilities', 'ui.createWindow', 'ui.on', 'ui.closeAll'],
+    covers: ['ui.getCapabilities', 'ui.createWindow', 'WindowHandle.setPlacement', 'ui.on', 'ui.closeAll'],
   }, async () => {
     const capabilities = ui.getCapabilities();
     equal(capabilities.enabled, true);
     equal(capabilities.available, true, capabilities.reason);
     equal(capabilities.activationSource, 'cli');
+    equal(capabilities.window.placement, true, 'framework placement capability is unavailable');
     let closeEvents = 0;
     const offClose = ui.on('close', event => { if (event.windowId === 'runtimeAPIPanel') closeEvents += 1; });
     const panel = await ui.createWindow({
       id: 'runtimeAPIPanel', kind: 'floating', title: 'Runtime API Custom UI',
-      bounds: { x: 140, y: 140, width: 460, height: 180 }, alwaysOnTop: true, draggable: true,
+      position: {
+        mode: 'anchor', size: { width: 460, height: 180 },
+        horizontal: 'left', vertical: 'top', margin: 24, display: 'primary',
+      },
       content: {
         html: '<!doctype html><html><head><meta charset="utf-8"></head><body><div id="drag" data-clawdesk-drag>Runtime API</div><button id="save">Save</button><span id="status">Idle</span></body></html>',
         css: 'body{margin:0;background:#111827;color:white;font:14px -apple-system,sans-serif}#drag{padding:18px}button{margin:12px;padding:8px}',
@@ -25,11 +29,51 @@
     equal((await panel.control('status').getState()).text, 'Ready');
     const shown = await panel.show();
     assert(shown.onScreen && shown.alpha > 0 && shown.hostPid > 0 && shown.nativeWindowId > 0);
+    const primary = Screen.getPrimaryDisplay();
+    assert(shown.bounds.x - primary.x >= 24 && shown.bounds.y - primary.y >= 24,
+      'initial generic window placement crossed the primary display margin');
+    const placed = await panel.setPlacement({ horizontal: 'right', vertical: 'bottom', margin: 24, display: 'primary' });
+    assert(primary.x + primary.width - (placed.bounds.x + placed.bounds.width) >= 24,
+      'dynamic generic window right placement crossed the primary display margin');
+    assert(primary.y + primary.height - (placed.bounds.y + placed.bounds.height) >= 24,
+      'dynamic generic window bottom placement crossed the primary display margin');
     equal((await panel.close()).status, 'closed');
     equal((await panel.waitUntilClosed()).onScreen, false);
     equal(closeEvents, 1);
     offClose();
     await ui.closeAll();
+  });
+
+  test({
+    name: 'ui.createWindow requires one unambiguous initial positioning mode',
+    tier: 'custom-ui',
+    covers: ['ui.createWindow'],
+  }, async () => {
+    const content = { html: '<!doctype html><html><body><span id="status">Position</span></body></html>' };
+    const bounds = { x: 100, y: 100, width: 320, height: 120 };
+    const size = { width: 320, height: 120 };
+    const placement = { horizontal: 'right', vertical: 'center', margin: 16, display: 'primary' };
+    let sequence = 0;
+    const expectPositioningError = async positioning => {
+      sequence += 1;
+      let error = null;
+      try {
+        await ui.createWindow({ id: 'invalidPositioning' + sequence, content, ...positioning });
+      } catch (caught) {
+        error = caught;
+      }
+      assert(error, 'ambiguous or incomplete positioning declaration was accepted');
+      equal(error.code, 'INVALID_SPEC');
+      equal(error.operation, 'createWindow');
+    };
+
+    await expectPositioningError({ bounds, position: { mode: 'absolute', bounds } });
+    await expectPositioningError({ position: { mode: 'absolute', bounds, margin: 0 } });
+    await expectPositioningError({ position: { mode: 'absolute', size } });
+    await expectPositioningError({ position: { mode: 'anchor', ...placement } });
+    await expectPositioningError({ position: { mode: 'anchor', size, ...placement, bounds } });
+    await expectPositioningError({ position: { mode: 'anchor', size, ...placement, display: 'current' } });
+    await expectPositioningError({ size, placement });
   });
 
   test({

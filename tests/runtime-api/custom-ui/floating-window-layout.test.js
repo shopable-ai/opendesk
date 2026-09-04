@@ -10,9 +10,9 @@
     const registryPath = File.join(File.cwd(), 'pkg/customui/assets/toolbar-icons-v1.json');
     const registry = JSON.parse(File.read(registryPath));
     equal(registry.schemaVersion, 1, 'toolbar icon registry schema changed');
-    equal(registry.icons.length, 150, 'toolbar icon registry must keep 150 reviewed entries');
+    equal(registry.icons.length, 160, 'toolbar icon registry must keep 160 reviewed entries');
     const names = registry.icons.map(icon => icon.name);
-    equal(new Set(names).size, 150, 'toolbar icon registry contains duplicate names');
+    equal(new Set(names).size, 160, 'toolbar icon registry contains duplicate names');
     const batches = [];
     for (let start = 0; start < registry.icons.length; start += 32) {
       const icons = registry.icons.slice(start, start + 32);

@@ -1,10 +1,15 @@
 {
   "schemaVersion": 1,
   "toolbar": {
-    "x": 100,
-    "y": 100,
     "title": "客服快捷回复",
-    "orientation": "vertical"
+    "orientation": "vertical",
+    "position": {
+      "mode": "anchor",
+      "horizontal": "right",
+      "vertical": "center",
+      "margin": 16,
+      "display": "active"
+    }
   },
   "buttons": [
     {

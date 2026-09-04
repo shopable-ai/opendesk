@@ -2,6 +2,75 @@
   const { assert, equal, test } = RuntimeAPITest;
   const helper = FloatingToolbarTest;
 
+  const FIVE_BUTTON_FIXTURE_BUTTONS = Object.freeze([
+    Object.freeze({ id: 'startPause', label: '开始', icon: 'play.fill' }),
+    Object.freeze({ id: 'stop', label: '停止', icon: 'stop.fill' }),
+    Object.freeze({ id: 'settings', label: '设置', icon: 'gearshape.fill' }),
+    Object.freeze({ id: 'send', label: '发送', icon: 'paperplane.fill' }),
+    Object.freeze({ id: 'timer', label: '定时', icon: 'timer' }),
+  ]);
+
+  function createFiveButtonFixture({ onAction, beforeAction, afterAction }) {
+    const toolbar = new FloatingWindow({ x: 180, y: 120, theme: 'dark', alwaysOnTop: true });
+    const calls = Object.fromEntries(FIVE_BUTTON_FIXTURE_BUTTONS.map(button => [button.id, 0]));
+    const records = [];
+    let running = false;
+
+    function report(button, event, action) {
+      calls[button.id] += 1;
+      const record = {
+        id: button.id,
+        targetId: event.targetId,
+        label: action === 'pause' ? '暂停' : button.label,
+        action,
+        count: calls[button.id],
+      };
+      records.push(record);
+      onAction(record);
+      return record;
+    }
+
+    const button = Object.fromEntries(FIVE_BUTTON_FIXTURE_BUTTONS.map(item => [item.id, item]));
+    toolbar.addButton(button.startPause.id, button.startPause.label, button.startPause.icon, async event => {
+      const action = running ? 'pause' : 'start';
+      const record = report(button.startPause, event, action);
+      await beforeAction(record);
+      const nextRunning = action === 'start';
+      await toolbar.updateButton('startPause', {
+        icon: nextRunning ? 'pause.fill' : 'play.fill',
+        label: nextRunning ? '暂停' : '开始',
+        active: nextRunning,
+      });
+      running = nextRunning;
+      await afterAction(record);
+    });
+    toolbar.addButton(button.stop.id, button.stop.label, button.stop.icon, async event => {
+      const record = report(button.stop, event, 'stop');
+      await toolbar.updateButton('startPause', { icon: 'play.fill', label: '开始', active: false });
+      running = false;
+      await afterAction(record);
+    });
+    toolbar.addButton(button.settings.id, button.settings.label, button.settings.icon, event => {
+      report(button.settings, event, 'settings');
+    });
+    toolbar.addButton(button.send.id, button.send.label, button.send.icon, async event => {
+      await Promise.resolve();
+      report(button.send, event, 'send');
+    });
+    toolbar.addButton(button.timer.id, button.timer.label, button.timer.icon, event => {
+      report(button.timer, event, 'timer');
+    });
+
+    return {
+      toolbar,
+      snapshot: () => ({
+        running,
+        calls: { ...calls },
+        records: records.map(record => ({ ...record })),
+      }),
+    };
+  }
+
   test({
     name: 'FloatingWindow pointer and AXPress share native action, callback single-flight and recoverable state',
     tier: 'custom-ui',
@@ -12,47 +81,31 @@
       'window.getActiveWindow', 'Screen.screenshot',
     ],
   }, async () => {
-    const toolbar = new FloatingWindow({ x: 180, y: 120, theme: 'dark', alwaysOnTop: true });
-    const calls = { startPause: 0, stop: 0, settings: 0, send: 0, timer: 0 };
-    const branches = [];
+    equal(
+      FIVE_BUTTON_FIXTURE_BUTTONS.map(button => button.id).join(','),
+      'startPause,stop,settings,send,timer',
+      'five-button test fixture order changed',
+    );
     const callbackLog = [];
     let pendingRoute = 'unknown';
-    let running = false;
     let releaseStart;
     const startGate = new Promise(resolve => { releaseStart = resolve; });
-    toolbar.addButton('startPause', '开始', 'play.fill', async event => {
-      calls.startPause += 1;
-      if (!running) {
-        branches.push('start');
-        callbackLog.push({ targetId: event.targetId, label: '开始', branch: 'start', count: calls.startPause, route: pendingRoute });
-        await startGate;
+    const fixture = createFiveButtonFixture({
+      onAction(record) {
+        callbackLog.push({ ...record, branch: record.action, route: pendingRoute });
+      },
+      async beforeAction(record) {
+        if (record.action === 'start') await startGate;
+      },
+      async afterAction(record) {
+        if (record.action !== 'start') return;
         const info = await System.getSystemInfo();
         assert(info && typeof info === 'object');
         helper.evidence.callbacks.runtimeAPI = { method: 'System.getSystemInfo', returnedObject: true };
-        running = true;
-        await toolbar.updateButton('startPause', { icon: 'pause.fill', label: '暂停', active: true });
-      } else {
-        branches.push('pause');
-        callbackLog.push({ targetId: event.targetId, label: '暂停', branch: 'pause', count: calls.startPause, route: pendingRoute });
-        running = false;
-        await toolbar.updateButton('startPause', { icon: 'play.fill', label: '开始', active: false });
-      }
+      },
     });
-    toolbar.addButton('stop', '停止', 'stop.fill', async event => {
-      calls.stop += 1; callbackLog.push({ targetId: event.targetId, label: '停止', branch: 'stop', count: calls.stop, route: pendingRoute });
-      running = false;
-      await toolbar.updateButton('startPause', { icon: 'play.fill', label: '开始', active: false });
-    });
-    toolbar.addButton('settings', '设置', 'gearshape.fill', event => {
-      calls.settings += 1; callbackLog.push({ targetId: event.targetId, label: '设置', branch: 'settings', count: calls.settings, route: pendingRoute });
-    });
-    toolbar.addButton('send', '发信', 'paperplane.fill', async event => {
-      await Promise.resolve(); calls.send += 1;
-      callbackLog.push({ targetId: event.targetId, label: '发信', branch: 'send', count: calls.send, route: pendingRoute });
-    });
-    toolbar.addButton('timer', '定时', 'timer', event => {
-      calls.timer += 1; callbackLog.push({ targetId: event.targetId, label: '定时', branch: 'timer', count: calls.timer, route: pendingRoute });
-    });
+    const toolbar = fixture.toolbar;
+    const callCount = id => fixture.snapshot().calls[id];
     const focusPID = value => value && (value.pid ?? value.processID);
     const focusBefore = await window.getActiveWindow();
     const shown = await toolbar.show();
@@ -63,7 +116,7 @@
     const start = await helper.state(toolbar, 'startPause');
     const timerInitial = await helper.state(toolbar, 'timer');
     const semanticFive = [];
-    for (const [id, name] of [['startPause', '开始'], ['stop', '停止'], ['settings', '设置'], ['send', '发信'], ['timer', '定时']]) {
+    for (const { id, label: name } of FIVE_BUTTON_FIXTURE_BUTTONS) {
       const value = await helper.state(toolbar, id);
       equal(value.accessibilityName, name, id + ' Accessibility name changed');
       semanticFive.push({ id, name: value.accessibilityName, localBounds: value.localBounds, screenBounds: value.screenBounds });
@@ -94,31 +147,31 @@
     assert(focusPID(focusAfterPointer) !== shown.hostPid, 'Pointer click focused the toolbar host');
     pendingRoute = 'axpress';
     await helper.axPress(toolbar, shown, 'settings');
-    await helper.waitFor(() => calls.settings === 1, 'settings AXPress callback did not run');
+    await helper.waitFor(() => callCount('settings') === 1, 'settings AXPress callback did not run');
     const focusAfterAXPress = await window.getActiveWindow();
     equal(focusPID(focusAfterAXPress), focusPID(focusBefore), 'AXPress activated the nonactivating panel');
     assert(focusPID(focusAfterAXPress) !== shown.hostPid, 'AXPress focused the toolbar host');
     pendingRoute = 'pointer';
     await helper.pointer(toolbar, 'send');
-    await helper.waitFor(() => calls.send === 1, 'send pointer callback did not run');
+    await helper.waitFor(() => callCount('send') === 1, 'send pointer callback did not run');
     pendingRoute = 'axpress';
     await helper.axPress(toolbar, shown, 'timer');
-    await helper.waitFor(() => calls.timer === 1, 'timer AXPress callback did not run');
-    equal(calls.startPause, 1, 'same-button click was not single-flight');
-    equal(calls.settings, 1, 'other AX button was blocked by busy button');
-    equal(calls.send, 1, 'send callback count changed');
-    equal(calls.timer, 1, 'timer callback count changed');
-    equal(calls.stop, 0, 'stop callback was unexpectedly invoked while start was busy');
+    await helper.waitFor(() => callCount('timer') === 1, 'timer AXPress callback did not run');
+    equal(callCount('startPause'), 1, 'same-button click was not single-flight');
+    equal(callCount('settings'), 1, 'other AX button was blocked by busy button');
+    equal(callCount('send'), 1, 'send callback count changed');
+    equal(callCount('timer'), 1, 'timer callback count changed');
+    equal(callCount('stop'), 0, 'stop callback was unexpectedly invoked while start was busy');
     releaseStart();
     await helper.waitFor(async () => !(await toolbar.getButtonState('startPause')).busy, 'start callback did not settle');
     const active = await helper.screenshot('active', shown.bounds);
     pendingRoute = 'axpress';
     await helper.axPress(toolbar, shown, 'startPause');
-    await helper.waitFor(() => calls.startPause === 2, 'pause branch did not run');
-    equal(branches.join(','), 'start,pause');
+    await helper.waitFor(() => callCount('startPause') === 2, 'pause branch did not run');
+    equal(fixture.snapshot().records.filter(record => record.id === 'startPause').map(record => record.action).join(','), 'start,pause');
     pendingRoute = 'pointer';
     await helper.pointer(toolbar, 'stop');
-    await helper.waitFor(() => calls.stop === 1, 'stop pointer callback did not run');
+    await helper.waitFor(() => callCount('stop') === 1, 'stop pointer callback did not run');
     const reset = await helper.state(toolbar, 'startPause');
     equal(reset.icon, 'play.fill', 'stop did not reset the startPause icon');
     equal(reset.label, '开始', 'stop did not reset the startPause label');
@@ -133,7 +186,10 @@
     let disabledAXRejected = false;
     try { pendingRoute = 'axpress'; await helper.axPress(toolbar, shown, 'timer'); } catch (_) { disabledAXRejected = true; }
     await new Promise(resolve => setTimeout(resolve, 100));
-    equal(calls.timer, 1, 'disabled native button emitted an action');
+    equal(callCount('timer'), 1, 'disabled native button emitted an action');
+    const fixtureState = fixture.snapshot();
+    const calls = fixtureState.calls;
+    const branches = fixtureState.records.filter(record => record.id === 'startPause').map(record => record.action);
     equal(JSON.stringify(calls), JSON.stringify({ startPause: 2, stop: 1, settings: 1, send: 1, timer: 1 }));
     await toolbar.close();
 
@@ -160,7 +216,7 @@
     await helper.waitFor(() => recovered === 1, 'callback did not recover after error');
     equal((await failing.getButtonState('failure')).error, '');
     await failing.close();
-    const callbackEvidence = { calls, branches, callbackLog, stopReset: {
+    const callbackEvidence = { fixtureScope: 'test-only', calls, branches, callbackLog, stopReset: {
       id: reset.id, icon: reset.icon, label: reset.label, active: reset.active, revision: reset.revision,
     }, callbackError: {
       code: callbackError.code, operation: callbackError.operation, windowId: callbackError.windowId,
