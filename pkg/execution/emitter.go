@@ -14,8 +14,9 @@ const schemaVersion = "0.1.0"
 
 // TerminalSelection 控制终端回显类别。
 type TerminalSelection struct {
-	Mode       string
-	Categories map[string]bool
+	Mode         string
+	Categories   map[string]bool
+	IncludeDebug bool
 }
 
 // Emitter 管理事件落盘、摘要聚合与订阅广播。
@@ -327,6 +328,9 @@ func (e *Emitter) writeRawLocked(event RunEvent) {
 
 func (e *Emitter) echoLocked(event RunEvent) {
 	if !e.selection.Categories[string(event.Category)] {
+		return
+	}
+	if event.Level == EventLevelDebug && !e.selection.IncludeDebug {
 		return
 	}
 	line := formatTerminalEvent(event)

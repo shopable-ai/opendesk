@@ -45,9 +45,6 @@ func init() {
 	if aicli.IsCommand(os.Args[1:]) || nativeExtensionCLIRequested(os.Args[1:]) || automation.MacOSNotificationHelperRequested(os.Args[1:]) || automation.MacOSRegionSelectorHelperRequested(os.Args[1:]) {
 		return
 	}
-	if shouldEchoFrameworkStartup() {
-		fmt.Printf("robotgo version: %s\n", robotgo.Version)
-	}
 }
 
 // Config holds the application configuration
@@ -60,6 +57,8 @@ type Config struct {
 	LogDir                                string
 	ConsoleMode                           string
 	ConsoleCategories                     string
+	Debug                                 bool
+	EnvironmentFile                       string
 	OutputFormat                          string
 	Delay                                 int
 	Timeout                               int // 修改为 timeout，单位为分钟
@@ -88,6 +87,7 @@ type Config struct {
 	NativeParams                          string
 	NativeTimeoutMS                       int
 	NativeRequestID                       string
+	consoleConfigErr                      error
 	customUIResolveOnce                   sync.Once
 	customUIResolveErr                    error
 }
@@ -100,8 +100,10 @@ func parseFlags() *Config {
 	flag.StringVar(&config.StackMode, "stack", "legacy", "Browser automation surface: legacy | upgraded | playwright")
 	flag.StringVar(&config.SaveLastScript, "save-last-script", "", "Persist the executed script source to the given path")
 	flag.StringVar(&config.LogDir, "log-dir", "", "Persist run logs and summary to the given directory")
-	flag.StringVar(&config.ConsoleMode, "console-mode", "full", "Terminal output mode: full | script | summary | quiet | agent")
+	flag.StringVar(&config.ConsoleMode, "console-mode", defaultConsoleMode, "Terminal output mode: normal | full | script | meta | summary | quiet | agent")
 	flag.StringVar(&config.ConsoleCategories, "console-categories", "", "Override terminal output categories: framework,meta,script,summary,error")
+	flag.BoolVar(&config.Debug, "debug", false, "Show complete diagnostic terminal output (unless console mode/categories is explicitly set)")
+	flag.StringVar(&config.EnvironmentFile, "env-file", "", "OpenDesk environment file (default: .env then .opendesk.env in the working directory)")
 	flag.StringVar(&config.OutputFormat, "output-format", "text", "Agent output format: text | json")
 	flag.IntVar(&config.Delay, "delay", 0, "Delay before start (seconds)")
 	flag.IntVar(&config.Timeout, "timeout", 30, "Execution timeout in minutes (0 for no timeout)") // 默认30分钟
@@ -130,6 +132,15 @@ func parseFlags() *Config {
 	flag.StringVar(&config.NativeRequestID, "native-request-id", "", "Optional Native Process Extension request id")
 
 	flag.Parse()
+	overrides := consoleOverridesFromVisitedFlags(flag.CommandLine, config)
+	consoleSettings, err := resolveConsoleSettingsFromProcess(overrides)
+	if err != nil {
+		config.consoleConfigErr = err
+		return config
+	}
+	config.ConsoleMode = consoleSettings.Mode
+	config.ConsoleCategories = consoleSettings.Categories
+	config.OutputFormat = consoleSettings.OutputFormat
 	return config
 }
 
@@ -199,9 +210,14 @@ func main() {
 	if handled, code := handleInternalMacPermissionHelper(config); handled {
 		os.Exit(code)
 	}
+	if config.consoleConfigErr != nil {
+		fmt.Fprintf(os.Stderr, "[ERROR] OpenDesk console configuration: %v\n", config.consoleConfigErr)
+		os.Exit(2)
+	}
 	selection := buildExecutionConsoleSelection(config)
 
 	if shouldEchoStartupCategory("framework", selection) {
+		fmt.Printf("robotgo version: %s\n", robotgo.Version)
 		fmt.Println("[DEBUG] Program starting...")
 	}
 	// Note: initRuntime is now only called in legacy mode when needed
@@ -526,8 +542,9 @@ type RunSummary struct {
 
 // ConsoleSelection 描述当前终端应回显哪些日志类别。
 type ConsoleSelection struct {
-	Mode       string
-	Categories map[string]bool
+	Mode         string
+	Categories   map[string]bool
+	IncludeDebug bool
 }
 
 type teeCapture struct {
@@ -710,8 +727,9 @@ func executeScript(config *Config) error {
 		CustomUIHostPath:                config.CustomUIHostPath,
 		Artifacts:                       artifacts,
 		Selection: pkgExecution.TerminalSelection{
-			Mode:       selection.Mode,
-			Categories: copyConsoleCategories(selection.Categories),
+			Mode:         selection.Mode,
+			Categories:   copyConsoleCategories(selection.Categories),
+			IncludeDebug: selection.IncludeDebug,
 		},
 	}
 
@@ -734,7 +752,7 @@ func executeScript(config *Config) error {
 
 func buildExecutionConsoleSelection(config *Config) ConsoleSelection {
 	if config == nil {
-		return buildConsoleSelection("full", "")
+		return buildConsoleSelection(defaultConsoleMode, "")
 	}
 	if shouldUseJSONOutput(config) {
 		return buildConsoleSelection("agent", "")
@@ -1061,7 +1079,9 @@ func (c *teeCapture) streamLines(reader *os.File, terminal *os.File, file *os.Fi
 // normalizeConsoleMode 统一模式名称，避免无效值导致行为漂移。
 func normalizeConsoleMode(mode string) string {
 	switch strings.ToLower(strings.TrimSpace(mode)) {
-	case "", "full":
+	case "", "normal":
+		return defaultConsoleMode
+	case "full":
 		return "full"
 	case "script":
 		return "script"
@@ -1074,7 +1094,7 @@ func normalizeConsoleMode(mode string) string {
 	case "agent":
 		return "agent"
 	default:
-		return "full"
+		return defaultConsoleMode
 	}
 }
 
@@ -1094,6 +1114,10 @@ func parseConsoleCategories(raw string) map[string]bool {
 // defaultConsoleCategories 按模式生成默认日志分类集合。
 func defaultConsoleCategories(mode string) map[string]bool {
 	switch normalizeConsoleMode(mode) {
+	case "normal":
+		// Normal mode is the end-user default: useful script output without
+		// framework chatter or JavaScript debug-level events.
+		return map[string]bool{"script": true, "summary": true, "error": true}
 	case "full":
 		return map[string]bool{"framework": true, "meta": true, "script": true, "summary": true, "error": true}
 	case "script":
@@ -1112,7 +1136,7 @@ func defaultConsoleCategories(mode string) map[string]bool {
 		// agent 模式默认不打印噪音，只保留错误到终端。
 		return map[string]bool{"error": true}
 	default:
-		return map[string]bool{"framework": true, "meta": true, "script": true, "summary": true, "error": true}
+		return map[string]bool{"script": true, "summary": true, "error": true}
 	}
 }
 
@@ -1120,8 +1144,9 @@ func defaultConsoleCategories(mode string) map[string]bool {
 func buildConsoleSelection(mode, categories string) ConsoleSelection {
 	normalizedMode := normalizeConsoleMode(mode)
 	selection := ConsoleSelection{
-		Mode:       normalizedMode,
-		Categories: defaultConsoleCategories(normalizedMode),
+		Mode:         normalizedMode,
+		Categories:   defaultConsoleCategories(normalizedMode),
+		IncludeDebug: normalizedMode == "full" || normalizedMode == "script" || normalizedMode == "meta",
 	}
 
 	override := parseConsoleCategories(categories)
@@ -1129,47 +1154,6 @@ func buildConsoleSelection(mode, categories string) ConsoleSelection {
 		selection.Categories = override
 	}
 	return selection
-}
-
-func desiredConsoleConfigFromArgs() ConsoleSelection {
-	args := os.Args[1:]
-	mode := "full"
-	categories := ""
-	outputFormat := "text"
-	for i := 0; i < len(args); i++ {
-		arg := args[i]
-		if arg == "-console-mode" && i+1 < len(args) {
-			mode = args[i+1]
-			continue
-		}
-		if strings.HasPrefix(arg, "-console-mode=") {
-			mode = strings.TrimPrefix(arg, "-console-mode=")
-			continue
-		}
-		if arg == "-console-categories" && i+1 < len(args) {
-			categories = args[i+1]
-			continue
-		}
-		if strings.HasPrefix(arg, "-console-categories=") {
-			categories = strings.TrimPrefix(arg, "-console-categories=")
-			continue
-		}
-		if arg == "-output-format" && i+1 < len(args) {
-			outputFormat = args[i+1]
-			continue
-		}
-		if strings.HasPrefix(arg, "-output-format=") {
-			outputFormat = strings.TrimPrefix(arg, "-output-format=")
-		}
-	}
-	if strings.EqualFold(strings.TrimSpace(outputFormat), "json") && mode == "full" && categories == "" {
-		mode = "agent"
-	}
-	return buildConsoleSelection(mode, categories)
-}
-
-func shouldEchoFrameworkStartup() bool {
-	return shouldEchoStartupCategory("framework", desiredConsoleConfigFromArgs())
 }
 
 func shouldEchoStartupCategory(category string, selection ConsoleSelection) bool {
@@ -1186,6 +1170,9 @@ func shouldEchoConsoleLine(selection ConsoleSelection, line string) bool {
 		return false
 	}
 	line = stripANSI(rawLine)
+	if !selection.IncludeDebug && strings.HasPrefix(line, "[DEBUG]") {
+		return false
+	}
 
 	category := classifyConsoleLine(line)
 	return selection.Categories[category]

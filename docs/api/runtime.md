@@ -33,6 +33,13 @@ OpenDesk 内部如何注入 Go 对象、加载 polyfill 或构造 compatibility 
 若任务只需截图、窗口、鼠标、键盘、OCR 或图像能力，先在 `legacy` 验证底层动作；只有
 确实依赖 facade 形状时再切换 stack。
 
+## 终端输出与项目环境
+
+直接运行脚本时，默认使用 `normal` 输出：保留非调试脚本日志、完成摘要和错误，隐藏
+framework 加载过程、执行元数据与 JavaScript debug 日志。输出档位、项目级 `.env` /
+`.opendesk.env`、`-env-file`、优先级和安全边界见
+[Environment Configuration](environment.md)。
+
 ## 各 stack 的用户可见差异
 
 ### legacy

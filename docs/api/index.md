@@ -21,6 +21,7 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先找窗口，
 | 识别屏幕上的文本、按钮或颜色 | [Vision API](vision.md) 或 [ImageColor API](image-color.md)。 |
 | 从服务或外部程序触发任务 | [HTTP Server API](http-server.md) 或 MCP。 |
 | 把已探索流程重复执行 | 保存 recipe，然后使用 [AI CLI](ai-cli.md) 的 `run`。 |
+| 为项目设置默认终端输出 | [Environment Configuration](environment.md)：`.env`、`.opendesk.env` 与 CLI 覆盖规则。 |
 
 ## 先读哪些
 
@@ -43,6 +44,7 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先找窗口，
 - 显示原生对话框、图标工具栏或受控面板：[Custom UI](custom-ui.md)
 - 定时执行文件或内联 JavaScript：[Scheduler](scheduler.md)；程序化管理接口：[Scheduler HTTP API](scheduler-api.md)
 - 录制并生成可确定性回放的流程：[OpenDesk Agent-first Recorder MCP API](recorder.md)
+- 设置项目级输出默认值、`.env` 和 `-env-file`：[Environment Configuration](environment.md)
 - 理解 legacy / upgraded / playwright：[Runtime Stacks](runtime.md)
 - 直接拿范例：[Cookbook](cookbook.md)
 - 用结构化、低 Token 的桌面 Agent CLI：[AI CLI](ai-cli.md)
@@ -82,6 +84,7 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先找窗口，
 | lodash / moment / query-string / cheerio / beautify | JavaScript Runtime | Secondary | 脚本辅助库 | [JS Libraries](libs.md) |
 | `browser` / `context` / upgraded facade | Compatibility stack | Compatibility | 浏览器风格迁移接口 | [Runtime Stacks](runtime.md) |
 | `opendesk ai` | CLI | Stable | 给 Coding Agent 的 JSON desktop-tool surface 与 recipe 入口 | [AI CLI](ai-cli.md) |
+| `.env` / `.opendesk.env` | CLI 配置 | Stable | 项目级终端输出默认值与 CLI 覆盖 | [Environment Configuration](environment.md) |
 
 ## 使用边界
 

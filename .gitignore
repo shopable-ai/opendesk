@@ -10,12 +10,17 @@ __debug*
 .playwright-cli/
 .playwright-mcp/
 
+# Local OpenDesk environment defaults. Track the example, never local values.
+.env
+.opendesk.env
+
 # runtime and build output
 .runtime/
 # Includes Runtime API Conformance Lab logs, screenshots, generated scripts, and evidence.
 .staging-sync/
 dist/
 /opendesk
+/opendesk-ui-host
 coverage.out
 visualize
 annotate
