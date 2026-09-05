@@ -15,6 +15,11 @@ order: 14
 系统默认输出音量、mute 与设备发现请使用 [Audio API](audio.md)。`Audio` 不替代或复制本页的
 播放器；两个 namespace 保持职责分离。
 
+`Sound` 是 output-only：它不会监听系统输出、麦克风或其他应用，也不会识别声音。需要把本地
+`.wav` / `.mp3` 当作参考模式监听时，使用 capability-gated 的
+`Audio.watchSound()` / `Audio.waitForSound()`；该能力只在内存中匹配，并不改变 Audio recording
+capture 仍为 `notImplemented` 的边界。
+
 ## 方法
 
 | 方法 | 参数 | 返回 | 用途 |
@@ -98,3 +103,7 @@ if (result.status !== 'stopped') throw new Error('unexpected playback result');
 播放器的 speaker 是进程级共享输出；不同采样率的会话会重采样到当前 speaker 采样率，互不
 因为另一次 `play` 而重置。会话只归创建它的 execution 管理，`stopAll()` 不会接管其他
 execution 的播放。
+
+当 `Audio.watchSound()` 监听 system source 时，`Sound.start()` 播放的内容可能重新进入系统混音。
+脚本应检查 `Audio.getCapabilities().patternWatch.selfPlaybackExclusion`，不要在 watcher callback 中
+播放与 reference 相同的音频。声音命中只是技术线索；订单等业务状态仍需另行确认。

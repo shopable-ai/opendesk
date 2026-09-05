@@ -18,6 +18,11 @@ Custom UI 事件和 `globalShortcut` 是不同的能力：
 当前 backend 是明确标注的 `polling` fallback，不会伪装成 native notification。订阅前可用
 `Events.getCapabilities()` 检查当前平台支持情况和轮询间隔。
 
+固定声音模式监听不属于本 API。声音 reference、source、threshold 和 cooldown 都是参数化的持续
+native 资源，应使用 [Audio API](audio.md) 的 `Audio.watchSound()` / `Audio.waitForSound()`。
+它们会投递形状相似但独立的 `audio.pattern.matched` match envelope；该类型不能传给
+`Events.on()` / `Events.once()`，也不会与桌面 polling 事件一起 coalesce。
+
 ## API
 
 ```js
