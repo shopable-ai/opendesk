@@ -1,66 +1,58 @@
 # OpenDesk Workflows
 
-本目录提供两种明确区分的入口：普通 JavaScript 业务 Workflow，以及供 Agent 读取的开发／验证 `WORKFLOW.md`。前者是可阅读、审阅、版本控制并直接运行的业务程序；后者把独立 Skill、输入输出和验收串成作业流程，不是新的 Runtime、DSL 或加载格式。
+## 先区分通用流程、Skill、阶段和目标应用
 
-## 从任务入口开始
+本目录的 Agent-to-Recipe 是 **一条应用无关的开发工作流**。它组织 **6 个独立专业 Skill、12 个通用阶段执行卡**。计算器只是该流程的一个目标测试应用，不是一个独立的开发工作流。
 
-| 你要做什么 | 直接入口 | 使用方式 |
+| 要找什么 | 入口 | 内容 |
 | --- | --- | --- |
-| 从真实任务到可复用脚本 | [Agent-to-Recipe 开发工作流](agent-to-recipe/WORKFLOW.md) | Agent 按主链组织六个独立 Skill，以确定版本的产物交接 |
-| 计算器基本测试，或完整开发链验证 | [Calculator 工作流](macos/calculator/WORKFLOW.md) | 按用户授权选择 BASIC／PIPELINE／LIVE-GATE，先计划再执行 |
-| 直接运行现有计算器业务脚本 | [calculate-and-reuse-result.js](macos/calculator/calculate-and-reuse-result.js) | 从仓库根目录使用下方普通 `ai run` 命令 |
+| 通用开发工作流 | [agent-to-recipe/WORKFLOW.md](agent-to-recipe/WORKFLOW.md) | 顺序、输入输出、产物流向、继续／回退、接续 |
+| 全部 12 个阶段 | [agent-to-recipe/stages/README.md](agent-to-recipe/stages/README.md) | 每阶段一个文件：输入、操作、输出、门禁与下游 |
+| 全部 6 个独立 Skill | [Skill 目录](../prompts/automation/agent-to-recipe/README.md) | 专业职责、调用条件、主产物与独立验收 |
+| 测试目标应用 | [macOS Calculator 目标资料](../docs/quality/agent-to-recipe/targets/macos-calculator.md) | 测什么应用与能力、场景与范围；不另定义工作流 |
+| 计算器测试命令与判据 | [验证规程](../docs/quality/agent-to-recipe/calculator-validation.md) | BASIC／LIVE-GATE／PIPELINE 范围与实际证据要求 |
+| 已有具体业务参考程序 | [calculate-and-reuse-result.js](macos/calculator/calculate-and-reuse-result.js) | 保留现有源码位置与正常运行命令 |
 
-`WORKFLOW.md` 规定当前任务怎么推进，`SKILL.md` 规定某个专业环节怎么完成，`docs/` 维护方法、共享合同和验收细则，`.js` 承载真实业务执行。不要把 Markdown 传给 `opendesk -script`，也不要假设它会被 Runtime 自动发现或调度。
+```text
+workflows/agent-to-recipe/WORKFLOW.md       通用路由（1）
+workflows/agent-to-recipe/stages/*.md      阶段卡（12，另有索引）
+prompts/automation/agent-to-recipe/*/SKILL.md  独立 Skill（6）
+docs/quality/agent-to-recipe/targets/      目标测试资料
+.runtime/automation-authoring/<task-id>/  每次任务计划、产物、进度
+```
 
-## 普通 JavaScript Workflow 的最小作者约定
+`WORKFLOW.md` 由 Agent 宿主读取，不是新 Runtime、DSL、自动调度或 OpenDesk 可执行格式。每个 Skill 不等于一个 Agent，十二阶段也不等于十二个业务动作。只加载当前需要的 Skill 与阶段卡，并按[共享合同](../docs/frameworks/agent-to-recipe-skill-contract.md)交接。
 
-每个业务 Workflow 都应在同一个 `.js` 文件中清楚表达：
+## 普通 JavaScript 的作者约定
 
-- `taskContract` / `goal`：要完成的业务任务、应用身份和边界；
-- `successCriteria`：什么可观察结果才算成功；
-- `application` / `surface`：bundle id、PID、窗口身份或其他目标上下文；
-- `verifiedLayout` / `configuration`：只在确有必要时声明，并在运行时重新验证；
-- 业务语义函数：例如 `calculateExpression()`、`createAutomationReport()`；
-- `verification` / `oracle`：动作后的 UI、OCR、剪贴板、文件或业务结果验证；
-- `qualificationAssumptions`：权限、应用版本、布局和安全前置条件；
-- `async function main()`：公开入口；`ai run` 会等待它的 Promise。
+现有 `.js` 是具体业务程序；通用开发流程最终仍交付普通 JS，不要求 IR／Compiler／Recorder。程序应清楚表达 taskContract／goal、successCriteria、应用与对象身份、必要配置、业务语义函数、verification／oracle、qualificationAssumptions、异步入口和失败处理。
 
-公开 Workflow 从仓库根目录直接运行：
+脚本内的合理默认业务数据仍是作者体验主路径；Execution.input 默认为 `{}`，需要部署或测试覆盖时才使用正式参数入口，不强制所有 Workflow 使用额外 JSON 外壳。实际 API 和入口语义以当前 `docs/api/` 为准。
+
+业务程序使用公开 Runtime 能力，确认当前应用／窗口、读取新 bounds、定位、操作、重新观察并验证。坐标只是当前投影；OCR／其他读取结果应来自真实业务观察，不能用示范答案或内部算术替代任务所要求的 UI 数据。
+
+目标歧义、身份变化、权限缺失、布局不匹配、读取不唯一或业务验证不通过时，保存当前 Evidence 并失败，不继续点击或返回未经证明的成功。
+
+Recipe／应用 helper 可先与业务逻辑放在同一个 JS 文件，是否分模块以实际加载能力为准，不凭空使用 import／require。开发分阶段与最终同文件交付并不矛盾。
+
+## 计算器参考 JS 的兼容位置
+
+原 `workflows/macos/calculator/WORKFLOW.md` 已撤下，不再把 Calculator 应用包装成专属开发流程。其测试范围由 docs/quality 的目标与验证规程说明，通用执行方法归入 agent-to-recipe 的十二阶段。
+
+既有 [calculate-and-reuse-result.js](macos/calculator/calculate-and-reuse-result.js) 暂不迁移或改写，以免改变公开命令、现有 runner 的路径和验证对象。它表达一个具体计算与结果复用任务，不代表每个应用都应建立一个 WORKFLOW.md。
+
+公开参考命令（工作目录：仓库根目录）：
 
 ```bash
 ./dist/opendesk ai run workflows/macos/calculator/calculate-and-reuse-result.js
 ```
 
-脚本内写清正常任务数据是作者体验的主路径。`Execution.input` 默认为 `{}`，只有确实需要由部署覆盖的业务数据或配置才作为可选覆盖；它不是每个 Workflow 的强制 JSON 外壳。底层 recipe 或测试 harness 可以继续使用 `--input`，但不应成为 Workflow 的主要使用方式。
+仅要求运行一次不自动扩大为 BASIC；BASIC 不自动扩大为完整开发链或全部测试。读取目标资料、Skill 或阶段卡都不构成桌面操作授权。正式判据只维护在验证规程，不在这里复制。
 
-## 分层边界
+## 产物、验证与方法来源
 
-- **业务 Workflow**：表达 Goal、Success Criteria、业务步骤、验证和失败语义。
-- **Agent 开发工作流**：通过 `WORKFLOW.md` 组织专业 Skill 的调用、成果交接、进度与回退，由实际 Agent 宿主推进，不是 OpenDesk 新执行引擎。
-- **Recipe / App-specific helpers**：实现窗口解析、局部截图、相对 Geometry、语义控件点击和应用局部观察。第一阶段可以与业务 Workflow 放在同一文件中，因为当前 Runtime 没有 module/import 加载支持。
-- **Qualification / live gate**：只负责真实场景、Fresh Run、移动/resize/旧状态等受控扰动，并把 executionId、`Execution.artifactDir` 和结果保存到 `.runtime/`。
-- **Recorder / IR / Compiler / Replay**：架构文档中的长期方向；本轮不把它们加入 Workflow 执行链，也不伪装成当前已经完整实现的能力。
+每个生产者逐节点保存关键业务值、来源、验证和证据，跨环节通过确定版本的产物交接，而不是隐含聊天。开发接续可复用有效知识与代码；独立 Fresh Run 必须重新完成业务并读取本次真实数据。
 
-## 运行语义
+运行日志、截图和临时结果进入 `.runtime/` 或 Execution.artifactDir，不写入稳定流程和 Skill。候选发布按实际授权与验收办理，不覆盖已有参考脚本冒充新版本测试。
 
-业务 Workflow 使用已有 Runtime 全局对象（`App`、`window`、`Geometry`、`page`、`mouse`、`keyboard`、`Vision`、`File` 和 `Execution`），不新增注册器、加载器、解释器或应用专用 Go API。
-
-稳定路径遵循：确认应用和窗口 → 每次读取当前 bounds → 用窗口相对 Geometry 投影动作点/ROI → 执行真实 UI 动作 → 以最小相关观察验证 → 失败即停。坐标只是本次运行的投影，不是 Workflow 的业务身份。OCR 只读取必要 ROI；OCR 结果进入后续业务动作时，必须来自真实 UI 观察，不能用 `eval`、`Function` 或预先计算替代。
-
-Workflow 应保持 fail closed：目标歧义、身份变化、权限缺失、布局不匹配、OCR 不唯一或业务 Oracle 不通过，都应写入当前 execution artifact 后抛错，而不是继续点击或返回未经证明的成功。
-
-## 当前参考 Workflow
-
-- [`macos/calculator/calculate-and-reuse-result.js`](macos/calculator/calculate-and-reuse-result.js)：macOS Calculator L1。默认执行 `125*8`，从 Display ROI OCR 得到 `firstResult`，再执行 `firstResult/4+37` 并验证 `287`。
-
-当前可运行参考脚本只收录 Calculator；TextEdit 不在本轮执行链中。
-
-## Agent 生成与后续验证
-
-开发任务从[通用 WORKFLOW](agent-to-recipe/WORKFLOW.md)开始，再按需调用[六个独立 Skill](../prompts/automation/agent-to-recipe/README.md)。每个生产者按[共享合同](../docs/frameworks/agent-to-recipe-skill-contract.md)交付确定版本的产物。示范必须保存关键业务值、来源与证据，供提炼和生成使用，不能依靠旧聊天记忆。
-
-分阶段开发与最终同文件 JS 并不矛盾。开发接续可以复用有效知识和代码；Fresh Run 必须重新取得真实业务数据。Skill 目录不会给 Runtime 增加 import、调度、暂停恢复或新的 execution 入口。
-
-后续计算器任务从[Calculator WORKFLOW](macos/calculator/WORKFLOW.md)进入，具体判据引用[计算器验证规程](../docs/quality/agent-to-recipe/calculator-validation.md)。其中分别定义 BASIC、现有 LIVE-GATE 与六 Skill PIPELINE；参考脚本成功不能替代新候选或跨 Agent 交接验收。入口文件已写入不代表计算器已重新运行或所有场景已通过。
-
-方法事实源是 [`docs/frameworks/demonstration-to-automation-pipeline.md`](../docs/frameworks/demonstration-to-automation-pipeline.md)。原架构路径仅为迁移入口。其中的 Flow 0.1、Distill、IR、Compiler 和 Replay 描述目标演进与当前有限基础之间的差距，不能被本目录的普通脚本冒充为已经完成的通用引擎。
+方法源：[docs/frameworks/demonstration-to-automation-pipeline.md](../docs/frameworks/demonstration-to-automation-pipeline.md)。原架构路径是迁移入口。本文及新增阶段文件只落实路线 A 的作业组织，不宣称所有目标架构已实现，也不声明本次完成了桌面测试。

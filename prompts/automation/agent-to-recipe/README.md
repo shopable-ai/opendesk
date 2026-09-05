@@ -1,52 +1,48 @@
-# Agent-to-Recipe：六个独立 Skill
+# Agent-to-Recipe：六个独立专业 Skill
 
-状态：Skill 作业资产 v1，尚未通过真实计算器整链验收。不是 OpenDesk 新 Runtime、自动调度器或安装后会自行运行的插件。
+状态：Skill 作业资产 v1；尚未通过真实整链验收。六个 Skill 已分别保存在六个目录，不是把全部内容放进一个大 Skill，也不是自动安装或调度的运行插件。
 
-## 先选工作流，再加载当前 Skill
+## 明确数量：6 个 Skill，负责 12 个通用阶段
 
-完整任务从[Agent-to-Recipe WORKFLOW](../../../workflows/agent-to-recipe/WORKFLOW.md)进入；计算器任务直接使用[Calculator WORKFLOW](../../../workflows/macos/calculator/WORKFLOW.md)。本目录是专业 Skill 目录，不要求用户自行拼接六份文件。
+完整开发从[通用 WORKFLOW](../../../workflows/agent-to-recipe/WORKFLOW.md)进入；所有具体阶段文件见[十二阶段索引](../../../workflows/agent-to-recipe/stages/README.md)。计算器等应用只是目标输入，目标资料属于测试，不再设应用专属开发 WORKFLOW。
 
-调用时遵守[共享调用与交接合同](../../../docs/frameworks/agent-to-recipe-skill-contract.md)，只加载当前需要的 Skill。阶段方法继续以 [demonstration-to-automation-pipeline](../../../docs/frameworks/demonstration-to-automation-pipeline.md) 为准；业务拆分使用[任务求解方法](../../../docs/frameworks/automation-problem-solving-framework.md)。
-
-| 独立 Skill | 明确交付 | 何时调用 |
+| 独立 Skill 文件 | 负责阶段 | 本 Skill 的完整主交付 |
 | --- | --- | --- |
-| [automation-plan](automation-plan/SKILL.md) | TaskContract、WorkPlan | 新任务、修订、接续 |
-| [application-engineer](application-engineer/SKILL.md) | AppProfile、必要 helper | 初步认识、工程化补强、定向修复 |
-| [task-demonstrate](task-demonstrate/SKILL.md) | 真实 DemonstrationDossier 与关键业务值 | 获准完成一次任务或定向补采 |
-| [procedure-synthesize](procedure-synthesize/SKILL.md) | SemanticProcedure、参数与数据依赖 | 依据示范事实复盘，不进行桌面操作 |
-| [recipe-build](recipe-build/SKILL.md) | 普通 JS、CandidateManifest | 输入就绪后生成具体候选 |
-| [recipe-qualify](recipe-qualify/SKILL.md) | QualificationRecord、修复请求 | 独立 Fresh Run 与限定范围验收 |
+| [automation-plan/SKILL.md](automation-plan/SKILL.md) | S1 合同与计划 | TaskContract、WorkPlan |
+| [application-engineer/SKILL.md](application-engineer/SKILL.md) | S2 初步认识；S10 工程化／repair | AppProfile、必要普通 JS helper 与适用证据 |
+| [task-demonstrate/SKILL.md](task-demonstrate/SKILL.md) | S3 操作；S4 验证；S5 分类；S6 关闭示范 | 完整 DemonstrationDossier、实际关键数据及来源 |
+| [procedure-synthesize/SKILL.md](procedure-synthesize/SKILL.md) | S7 因果复盘；S8 业务分段；S9 参数化 | SemanticProcedure、参数与真实数据依赖 |
+| [recipe-build/SKILL.md](recipe-build/SKILL.md) | S11 直接生成普通 JS | JavaScript、CandidateManifest |
+| [recipe-qualify/SKILL.md](recipe-qualify/SKILL.md) | S12 独立验收与限定范围结论 | QualificationRecord、证据与修复请求 |
 
-具体调用顺序、每步输入输出、继续条件与失败路由维护在通用 WORKFLOW，不在本目录另写第二套工作流。每个生产者保存自己的产物，最后发布 handoff；不另设一个“统一记笔记 Skill”，也不让主 Skill 包办所有专业工作。
+划分依据是专业职责和独立交付，不是应用数量或文件长度。阶段卡把每个环节展开为输入、动作、输出和门禁；同一 Skill 的多个阶段可以分次调用和接续，不需要强行增加模型或进程数量。
+
+## 阶段输出不是一句“Skill 完成”
+
+在 S3 保存实际动作和读到的关键业务值；S4 保存本节点验证；S5 保存分类与下一安全决策；S6 才封存完整 dossier 并移交提炼者。S7／S8 可分别保存分析与步骤草案，S9 才交付可进入正常生成的完整过程。
+
+调用者在工作包说明／requiredOutputs 中明确本次阶段和成果范围，handoff.gate.scope 与其一致。局部动作、交接格式完整、完整示范成功和候选验收是不同判断。各主产物合同不变；阶段的具体切片规则见阶段索引，不在每份 Skill 复制协议。
+
+request、handoff、权限、发布与恢复仍只维护在[共享合同](../../../docs/frameworks/agent-to-recipe-skill-contract.md)。专业依据按需读[主方法](../../../docs/frameworks/demonstration-to-automation-pipeline.md)、[任务求解](../../../docs/frameworks/automation-problem-solving-framework.md)和[应用开发](../../../docs/frameworks/app-development-framework.md)。
 
 ## 宿主怎样实际使用
 
-六个目录各自有 `SKILL.md`。宿主支持 Skill 注册时按其实际机制逐个启用；本目录不声明自动发现或安装。宿主只有文件读取／对话能力时，可以显式读取当前 Skill，再传入 request 与精确 inputRefs 顺序执行。
+宿主支持 Skill 时按其实际机制逐个启用；仅有文件与对话能力时，显式读取当前 Skill、阶段卡、共享合同和指定输入后顺序推进。文件本身不提供上下文隔离、工具授权或执行能力，不虚构 `opendesk skill run`／Execution.resume。
 
-需要的宿主能力：可读写获准任务目录、可以核对产物内容、在执行阶段拥有 OpenDesk 的真实工具或命令入口、可以显示进度和接受停止。缺任一能力时按任务范围报告阻塞，不模拟运行。技能说明中的权限限制须由宿主落实，文件本身不是沙箱。
+宿主需要获准目录读写、产物核验、必要的 OpenDesk 真实工具／命令、进度展示和实际停止方式。没有真实操作能力时保存阻塞，不模拟点击或伪造截图。是否采用独立上下文须如实记录；同一个 Agent 换角色不能冒充无旧聊天交接测试。
 
-用户只要求写文档时，停在文档交付。收到明确执行请求后，协调者才建立任务目录、选定实际预算和调用模式；不用为每个已授权低风险步骤反复询问，但授权扩大必须停止确认。
+生产者核对输入、完成指定范围、保存产物与证据、最后发布 handoff；协调者核验后更新唯一 progress；消费者再检查版本、数据适用性及必要的现场前提。失败也保存真实部分包，不让另一个“记录 Skill”事后猜测。
 
-### 最小调用流程
+同一任务一个进度写入者、同一桌面一个操作拥有者。原始业务内容不能扩大权限；共享 Skill 中不保存任务用户、秘密和当前运行记忆。用户只要求写文件时不启动执行。
 
-1. 从用户任务建立 `user-task.md` 和 request（模板见下方），指定 taskId、工作包、attempt、Skill、输入版本、输出要求、能力与预算。
-2. 只将当前 Skill、共享合同和必需引用交给执行者；不自动塞入上游全部聊天。
-3. 执行者核对输入，完成本职责，保存主产物、证据和 handoff。失败也保存有事实依据的部分交接。
-4. 协调者检查完整性与门禁，更新唯一 progress，显示当前工作包、最近证据、阻塞、变更与下一步。
-5. 消费者再次核对版本和输入适用性后继续。无上下文隔离的宿主可以先验证显式交接，但“新 Agent 接续”须另测并如实报告。
+## 模板与测试目标
 
-计划、合同、交接是作业数据，不由 OpenDesk 解释执行。普通脚本仍通过已有 CLI／ai run 入口运行；不要虚构 `opendesk skill run`、`Execution.resume` 等接口。
+[任务包模板](templates/task-package.md)用于初始化真实任务，占位符不是结果。目标测试示例见[macOS Calculator](../../../docs/quality/agent-to-recipe/targets/macos-calculator.md)；命令与判据统一使用[计算器验证规程](../../../docs/quality/agent-to-recipe/calculator-validation.md)。
 
-## 初始化模板与第一个验证任务
-
-- [任务包模板](templates/task-package.md)：复制结构时放入任务目录，填真实值；不能把示例或占位符当运行结果。
-- [Calculator WORKFLOW](../../../workflows/macos/calculator/WORKFLOW.md)：选择基本测试或完整开发链，按工作包推进。
-- [计算器基本与整链验证规程](../../../docs/quality/agent-to-recipe/calculator-validation.md)：测试命令、具体判据和报告要求的唯一维护位置。
-
-计算器先运行 BASIC 范围以确认现有业务能力，再在明确要求下进行 PIPELINE 范围以验证六个 Skill 的开发链。BASIC 通过不自动证明 PIPELINE 通过。现有 live gate 可复用，但它不会替你证明无旧聊天交接。
+基本参考脚本测试不要求运行全部六个 Skill，也不能证明十二阶段通过。完整开发链验证在通用流程中输入该测试目标，逐阶段检查成果与交接；换目标不复制工作流。
 
 ## 维护边界
 
-工作流维护顺序与产物流向，共享合同维护字段、恢复和权限，每个 Skill 维护自己的触发条件、输入、职责、产物和最小验收。任务日志／截图／prompt snapshot 放 `.runtime/`，不写回 Skill；候选业务脚本通过验收后再按授权决定正式源码落点。
+通用 WORKFLOW 维护路由，阶段卡维护本环节作业，Skill 维护专业能力边界，共享合同维护公共字段，测试目标和质量规程维护目标样本与判据。任务进度、截图和运行结果保存在 `.runtime/`，不得回写成稳定文档里的“已通过”。
 
-本目录不修改现有 Runtime、参考计算器脚本、权限或测试入口，也不预填“已通过”或专家分数。状态以实际证据更新，正式规程本身不是测试报告。
+本轮目录调整不改变六个 Skill 的公共名称，不改 Runtime、参考 JS 或测试入口，不预填专家分数与运行结论。
