@@ -2,9 +2,11 @@
 
 状态：Skill 作业资产 v1，尚未通过真实计算器整链验收。不是 OpenDesk 新 Runtime、自动调度器或安装后会自行运行的插件。
 
-## 从这里进入
+## 先选工作流，再加载当前 Skill
 
-先读[共享调用与交接合同](../../../docs/frameworks/agent-to-recipe-skill-contract.md)，随后只加载当前需要的 Skill。阶段方法继续以 [demonstration-to-automation-pipeline](../../../docs/frameworks/demonstration-to-automation-pipeline.md) 为准；业务拆分使用[任务求解方法](../../../docs/frameworks/automation-problem-solving-framework.md)。
+完整任务从[Agent-to-Recipe WORKFLOW](../../../workflows/agent-to-recipe/WORKFLOW.md)进入；计算器任务直接使用[Calculator WORKFLOW](../../../workflows/macos/calculator/WORKFLOW.md)。本目录是专业 Skill 目录，不要求用户自行拼接六份文件。
+
+调用时遵守[共享调用与交接合同](../../../docs/frameworks/agent-to-recipe-skill-contract.md)，只加载当前需要的 Skill。阶段方法继续以 [demonstration-to-automation-pipeline](../../../docs/frameworks/demonstration-to-automation-pipeline.md) 为准；业务拆分使用[任务求解方法](../../../docs/frameworks/automation-problem-solving-framework.md)。
 
 | 独立 Skill | 明确交付 | 何时调用 |
 | --- | --- | --- |
@@ -15,12 +17,7 @@
 | [recipe-build](recipe-build/SKILL.md) | 普通 JS、CandidateManifest | 输入就绪后生成具体候选 |
 | [recipe-qualify](recipe-qualify/SKILL.md) | QualificationRecord、修复请求 | 独立 Fresh Run 与限定范围验收 |
 
-```text
-plan → application(discover) → demonstrate → synthesize
-     → application(harden，仅有缺口时) → build → qualify
-```
-
-失败由协调者按共享合同返回责任 Skill；不反复运行整个链条。每个生产者保存自己的产物，最后发布 handoff；不另设一个“统一记笔记 Skill”，也不让主 Skill 包办所有专业工作。
+具体调用顺序、每步输入输出、继续条件与失败路由维护在通用 WORKFLOW，不在本目录另写第二套工作流。每个生产者保存自己的产物，最后发布 handoff；不另设一个“统一记笔记 Skill”，也不让主 Skill 包办所有专业工作。
 
 ## 宿主怎样实际使用
 
@@ -43,12 +40,13 @@ plan → application(discover) → demonstrate → synthesize
 ## 初始化模板与第一个验证任务
 
 - [任务包模板](templates/task-package.md)：复制结构时放入任务目录，填真实值；不能把示例或占位符当运行结果。
-- [计算器基本与整链验证规程](../../../docs/quality/agent-to-recipe/calculator-validation.md)：后续执行者的具体入口。
+- [Calculator WORKFLOW](../../../workflows/macos/calculator/WORKFLOW.md)：选择基本测试或完整开发链，按工作包推进。
+- [计算器基本与整链验证规程](../../../docs/quality/agent-to-recipe/calculator-validation.md)：测试命令、具体判据和报告要求的唯一维护位置。
 
 计算器先运行 BASIC 范围以确认现有业务能力，再在明确要求下进行 PIPELINE 范围以验证六个 Skill 的开发链。BASIC 通过不自动证明 PIPELINE 通过。现有 live gate 可复用，但它不会替你证明无旧聊天交接。
 
 ## 维护边界
 
-共享字段、恢复和权限只在共享合同维护。每个 Skill 维护自己的触发条件、输入、职责、产物和最小验收。任务日志／截图／prompt snapshot 放 `.runtime/`，不写回 Skill；候选业务脚本通过验收后再按授权决定正式源码落点。
+工作流维护顺序与产物流向，共享合同维护字段、恢复和权限，每个 Skill 维护自己的触发条件、输入、职责、产物和最小验收。任务日志／截图／prompt snapshot 放 `.runtime/`，不写回 Skill；候选业务脚本通过验收后再按授权决定正式源码落点。
 
 本目录不修改现有 Runtime、参考计算器脚本、权限或测试入口，也不预填“已通过”或专家分数。状态以实际证据更新，正式规程本身不是测试报告。
