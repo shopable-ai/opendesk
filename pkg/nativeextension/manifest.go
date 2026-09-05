@@ -42,7 +42,7 @@ var reservedNamespaceIdentifiers = map[string]struct{}{
 	"app": {}, "appstorage": {}, "audio": {}, "axios": {}, "browser": {}, "clipboard": {},
 	"console": {}, "context": {}, "floatingwindow": {}, "http": {},
 	"imagecolor": {}, "keyboard": {}, "mouse": {}, "ocr": {}, "screen": {},
-	"sound": {}, "touchscreen": {}, "ui": {}, "vision": {}, "window": {},
+	"sound": {}, "sqlite": {}, "touchscreen": {}, "ui": {}, "vision": {}, "window": {},
 }
 
 // Manifest is the strict, public Native Extension bundle contract. Unknown

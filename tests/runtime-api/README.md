@@ -32,6 +32,7 @@ Dialog 的视觉验收与行为验收分别判定：即使返回值、Promise �
 | --- | --- | --- |
 | contract | 实际 Runtime、catalog、文档和类型声明没有未允许漂移 | `results/contract.json` |
 | unit | 每个 API family 的独立 `.test.js` 安全行为 | `results/unit.json` |
+| sqlite | SQLite 专用 contract、复用公开 smoke cases 的 unit、SQLite scoped coverage，以及每个 child execution 的资源归零和进程 cleanup；不执行无关 desktop live 测试 | `results/contract.json`、`results/unit.json`、`results/coverage.json`、`runtime-logs/*/resources.json`、`results/cleanup.json` |
 | language | 选定的 ES2015–ES2023 作者语法与内建能力，以及 OpenDesk 脚本级 `await` | `results/language.json` |
 | coverage | 每方法 contract、已通过 tier、required tier、风险理由和用例 | `results/coverage.json` |
 | smoke | 安全公共路径与错误路径 | `results/smoke.json` |
@@ -57,6 +58,7 @@ tier，以及没有风险理由的 contract-only 接口。
 ```bash
 OPENDESK_RUNTIME_API_MODE=contract OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
 OPENDESK_RUNTIME_API_MODE=unit OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+OPENDESK_RUNTIME_API_MODE=sqlite OPENDESK_BINARY=./dist/opendesk ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
 OPENDESK_RUNTIME_API_MODE=language ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
 OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
 OPENDESK_RUNTIME_API_MODE=sound-cancel OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
@@ -68,6 +70,12 @@ OPENDESK_RUNTIME_API_MODE=dialog OPENDESK_BINARY=/absolute/path/to/audited/opend
 OPENDESK_RUNTIME_API_MODE=live OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
 OPENDESK_RUNTIME_API_MODE=notify-icon-live OPENDESK_BINARY=/absolute/path/to/OpenDesk.app/Contents/MacOS/opendesk ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
 ```
+
+`sqlite` 只覆盖 `SQLite.open` 和 `SQLiteDatabase.query/exec/batch/close`：它使用同一份
+`examples/sqlite/smoke-cases.js` 行为断言，记录 `SQLite` / `SQLiteDatabase` 的 scoped coverage，
+并在 contract、unit、coverage 每个独立 execution 后从 lifecycle event 核对
+`sqliteWorkers`、`sqliteCallbacks` 和 `sqliteHandles` 全部为零。它不是全 catalog quality gate，也不
+把未运行的 Safari、Custom UI 或其他 desktop live 验收标为通过。
 
 `dialog` 在 macOS 构建 run-local native host，并实际运行公开 JavaScript 的 disabled、严格
 参数、non-blocking、single-flight、`.then/.catch/.finally`、prompt 真实键盘输入、输入值第二个

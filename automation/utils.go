@@ -76,7 +76,16 @@ type InitJSOptions struct {
 	// EnableCommand is set by trusted local script entrypoints. Generic Runtime,
 	// HTTP, MCP, and Scheduler executions leave it false.
 	EnableCommand bool
-	OnReady       func(*RuntimeLifecycle)
+	// EnableSQLite is deliberately separate from File: it opts a trusted local
+	// execution into the first-party SQLite owner. Shared Runtime initialization
+	// leaves it false for HTTP, MCP, and Scheduler executions so this global
+	// cannot silently expand remote host filesystem access.
+	EnableSQLite bool
+	// SQLiteProtectedPaths is an additional deny-list supplied by a trusted
+	// host owner (for example a configured Scheduler store). Paths are resolved
+	// with the same WorkDir rules as SQLite.open before the global is injected.
+	SQLiteProtectedPaths []string
+	OnReady              func(*RuntimeLifecycle)
 }
 
 // RuntimeLifecycle exposes only teardown-safe resources to the runtime owner.
@@ -96,6 +105,7 @@ type RuntimeLifecycle struct {
 	AudioPatterns  *AudioPatternRuntime
 	FileJSON       *FileJSONRuntime
 	FileSystem     *FileSystem
+	SQLite         *SQLiteRuntime
 }
 
 // Wait joins host workers after their execution context has been cancelled.
@@ -130,6 +140,9 @@ func (l *RuntimeLifecycle) Wait() {
 	}
 	if l != nil && l.FileJSON != nil {
 		l.FileJSON.Wait()
+	}
+	if l != nil && l.SQLite != nil {
+		l.SQLite.Wait()
 	}
 }
 
@@ -171,6 +184,9 @@ func (l *RuntimeLifecycle) CancelAsync() {
 	}
 	if l != nil && l.FileSystem != nil {
 		l.FileSystem.Close()
+	}
+	if l != nil && l.SQLite != nil {
+		l.SQLite.CancelPending()
 	}
 }
 
@@ -233,6 +249,11 @@ func (l *RuntimeLifecycle) AsyncCounts() (timers int, workers int64, callbacks i
 		workers += fileWorkers
 		callbacks += fileCallbacks
 	}
+	if l.SQLite != nil {
+		sqliteWorkers, sqliteCallbacks, _ := l.SQLite.ResourceCounts()
+		workers += sqliteWorkers
+		callbacks += sqliteCallbacks
+	}
 	return timers, workers, callbacks
 }
 
@@ -272,6 +293,9 @@ type RuntimeResourceCounts struct {
 	FileJSONCallbacks    int
 	FileJSONTemps        int64
 	FileHandles          int
+	SQLiteWorkers        int64
+	SQLiteCallbacks      int
+	SQLiteHandles        int
 }
 
 func (l *RuntimeLifecycle) ResourceCounts() RuntimeResourceCounts {
@@ -326,6 +350,9 @@ func (l *RuntimeLifecycle) ResourceCounts() RuntimeResourceCounts {
 	if l.FileSystem != nil {
 		counts.FileHandles = l.FileSystem.OpenHandleCount()
 	}
+	if l.SQLite != nil {
+		counts.SQLiteWorkers, counts.SQLiteCallbacks, counts.SQLiteHandles = l.SQLite.ResourceCounts()
+	}
 	return counts
 }
 
@@ -342,18 +369,19 @@ func (c RuntimeResourceCounts) IsZero() bool {
 		c.CommandWorkers == 0 && c.CommandCallbacks == 0 && c.CommandProcesses == 0 &&
 		c.AudioPatternWorkers == 0 && c.AudioPatternPending == 0 && c.AudioPatternWatches == 0 && c.AudioPatternSessions == 0 &&
 		c.FileJSONWorkers == 0 && c.FileJSONCallbacks == 0 && c.FileJSONTemps == 0 &&
-		c.FileHandles == 0
+		c.FileHandles == 0 && c.SQLiteWorkers == 0 && c.SQLiteCallbacks == 0 && c.SQLiteHandles == 0
 }
 
 func (c RuntimeResourceCounts) String() string {
-	return fmt.Sprintf("timers=%d httpWorkers=%d httpCallbacks=%d uiWorkers=%d uiPending=%d uiQueued=%d uiWindows=%d uiListeners=%d uiDriverSinks=%d uiHostProcesses=%d shortcutBindings=%d shortcutPending=%d eventSubscriptions=%d eventPending=%d captureWorkers=%d capturePending=%d captureSessions=%d appWorkers=%d appPending=%d soundWorkers=%d soundPending=%d soundPlaybacks=%d notificationWorkers=%d notificationPending=%d commandWorkers=%d commandCallbacks=%d commandProcesses=%d audioPatternWorkers=%d audioPatternPending=%d audioPatternWatches=%d audioPatternSessions=%d fileJSONWorkers=%d fileJSONCallbacks=%d fileJSONTemps=%d fileHandles=%d",
+	return fmt.Sprintf("timers=%d httpWorkers=%d httpCallbacks=%d uiWorkers=%d uiPending=%d uiQueued=%d uiWindows=%d uiListeners=%d uiDriverSinks=%d uiHostProcesses=%d shortcutBindings=%d shortcutPending=%d eventSubscriptions=%d eventPending=%d captureWorkers=%d capturePending=%d captureSessions=%d appWorkers=%d appPending=%d soundWorkers=%d soundPending=%d soundPlaybacks=%d notificationWorkers=%d notificationPending=%d commandWorkers=%d commandCallbacks=%d commandProcesses=%d audioPatternWorkers=%d audioPatternPending=%d audioPatternWatches=%d audioPatternSessions=%d fileJSONWorkers=%d fileJSONCallbacks=%d fileJSONTemps=%d fileHandles=%d sqliteWorkers=%d sqliteCallbacks=%d sqliteHandles=%d",
 		c.Timers, c.HTTPWorkers, c.HTTPCallbacks, c.UIWorkers, c.UIPending, c.UIQueued,
 		c.UIWindows, c.UIListeners, c.UIDriverSinks, c.UIHostProcesses, c.ShortcutBindings, c.ShortcutPending,
 		c.EventSubscriptions, c.EventPending, c.CaptureWorkers, c.CapturePending, c.CaptureSessions,
 		c.AppWorkers, c.AppPending, c.SoundWorkers, c.SoundPending, c.SoundPlaybacks,
 		c.NotificationWorkers, c.NotificationPending, c.CommandWorkers, c.CommandCallbacks, c.CommandProcesses,
 		c.AudioPatternWorkers, c.AudioPatternPending, c.AudioPatternWatches, c.AudioPatternSessions,
-		c.FileJSONWorkers, c.FileJSONCallbacks, c.FileJSONTemps, c.FileHandles)
+		c.FileJSONWorkers, c.FileJSONCallbacks, c.FileJSONTemps, c.FileHandles,
+		c.SQLiteWorkers, c.SQLiteCallbacks, c.SQLiteHandles)
 }
 
 func emitRuntimeLog(sink EventSink, level, message string, fields map[string]any) {
@@ -870,6 +898,13 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 		return fmt.Errorf("failed to register File JSON methods: %w", err)
 	}
 	runtime.Set("File", fileObject)
+	var sqliteRuntime *SQLiteRuntime
+	if opts.EnableSQLite {
+		sqliteRuntime, err = registerSQLite(runtime, fileSystem, opts)
+		if err != nil {
+			return fmt.Errorf("failed to register SQLite: %w", err)
+		}
+	}
 	if err := registerPath(runtime, fileSystem.Cwd()); err != nil {
 		return fmt.Errorf("failed to register path: %w", err)
 	}
@@ -980,7 +1015,7 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 		return fmt.Errorf("failed to bind Screen.screenshot: %v", err)
 	}
 	if opts.OnReady != nil {
-		opts.OnReady(&RuntimeLifecycle{Timers: timer, HTTP: httpClient, Sound: sound, UI: uiRuntime, GlobalShortcut: globalShortcut, Events: events, ScreenCapture: screenCapture, App: appRuntime, Notifications: notificationsRuntime, Command: commandRuntime, AudioPatterns: audioPatterns, FileJSON: fileJSON, FileSystem: fileSystem})
+		opts.OnReady(&RuntimeLifecycle{Timers: timer, HTTP: httpClient, Sound: sound, UI: uiRuntime, GlobalShortcut: globalShortcut, Events: events, ScreenCapture: screenCapture, App: appRuntime, Notifications: notificationsRuntime, Command: commandRuntime, AudioPatterns: audioPatterns, FileJSON: fileJSON, FileSystem: fileSystem, SQLite: sqliteRuntime})
 	}
 	return nil
 }

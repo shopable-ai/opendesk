@@ -191,6 +191,24 @@ runtime.Set("Audio", object)
 `Close → Wait → ResourceCounts`。默认产品 capture backend 仍为 unsupported；注入 memory backend
 只用于 matcher 与 Runtime API seam，不能当作平台 live evidence。
 
+### SQLite 是 execution-owned 的异步 native owner
+
+`SQLite` 也不使用 `AutoMapObject` 或 polyfill。`automation/sqlite.go` 由
+`registerSQLite(runtime, opts)` 显式构造 `SQLite.open()`，并将每次打开得到的数据库句柄留在
+当前 execution 的 `SQLiteRuntime` 中。`open`、`query`、`exec`、`batch` 和 `close` 都返回 Promise：
+参数检查、Goja 对象构造和 Promise settlement 回到创建它们的 EventLoop；连接 I/O、锁等待、SQL
+执行和结果读取只在 owner 的 worker 中进行。一个句柄固定对应一个物理连接和有界 FIFO 队列，
+`batch` 在该连接上使用真实事务，因此其他同句柄操作不能插入事务中间。
+
+SQLite 连接、事务、Rows、Stmt、worker、队列和 AbortSignal listener 都是 execution 资源，不得
+转交给 polyfill、Native Extension 或进程全局连接池。`RuntimeLifecycle` 负责取消尚未完成的操作、
+关闭未显式关闭的句柄并等待 worker 退出；所有结果和错误仍只能在所属 EventLoop settlement。
+
+这是受明确准入 gate 保护的第一方 global：本地直接 `-script` / `-script-text` / stdin execution 与
+`ai run` 可启用它；HTTP、MCP 和 Scheduler execution 默认不注入 `SQLite`，也不会因注册该 global
+而获得数据库 HTTP route 或 MCP tool。该 gate 与文件路径权限边界一起由 transport/runner 决定，
+不能由脚本、polyfill 或扩展绕过。
+
 ## 第二层：Runtime 注册和 raw bridge
 
 `InitJSWithOptions` 先创建 native 对象，再通过 `runtime.Set` 注入 Goja global。Page 的当前
@@ -309,6 +327,6 @@ OPENDESK_RUNTIME_API_MODE=unit ./dist/opendesk -script scripts/test_runtime_apis
 
 ## execution teardown 的可观测闭环
 
-`RuntimeLifecycle.AsyncCounts()` 提供总 worker/callback 数；`ResourceCounts()` 提供分 owner 细目。两者必须同时覆盖 HTTP、Sound、Custom UI、Global Shortcut、Events、Screen Capture、App 和 Notifications。`pkg/execution/runner.go` 把分 owner 数写入 cleanup event，正式 Runtime gate 再逐项断言为零。
+`RuntimeLifecycle.AsyncCounts()` 提供总 worker/callback 数；`ResourceCounts()` 提供分 owner 细目。两者必须同时覆盖 HTTP、Sound、SQLite、Custom UI、Global Shortcut、Events、Screen Capture、App 和 Notifications。`pkg/execution/runner.go` 把分 owner 数写入 cleanup event，正式 Runtime gate 再逐项断言为零。
 
 因此新增异步 owner 时至少同步 `CancelAsync`、`Wait`、`AsyncCounts`、`ResourceCounts`、`IsZero`、`String`、cleanup event 和 shell gate 的 required fields。漏掉任何一项都会造成“实际残留但证据显示为零”的假阴性。

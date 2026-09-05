@@ -29,8 +29,8 @@ Go native method 到 Goja function 的反射、参数/返回/错误投影，以�
    `Command`、`globalShortcut`、`File`、`AppStorage`、`Sound`、`Audio`、`ImageColor`、`OCR` 和 `Vision`。
    `File` 先映射旧同步方法，再由 `automation/file_json.go` 显式增强同一个对象的 `readJSON` /
    `writeJSON`；它不是 polyfill，也不创建第二个 File global。
-2. 根据显式 gate 注册 `NativeExtensions` / `NativeExtension`，再注册 Custom UI 和始终
-   fail-closed 的 `Dialog`。
+2. 根据显式 gate 注册 `SQLite` 以及 `NativeExtensions` / `NativeExtension`，再注册 Custom UI 和
+   始终 fail-closed 的 `Dialog`。
 3. 创建 `mouse`、`keyboard`、`touchscreen`、`page`，以及原始 `browser` / `context` 对象，
    并在加载 polyfill 前提供 notify bridge。
 4. 按文件名顺序加载 `polyfills/*.js`，再加载 `jslibs/*.js`。
@@ -52,6 +52,12 @@ Go native method 到 Goja function 的反射、参数/返回/错误投影，以�
   `ai run` 默认启用，HTTP、MCP 与 Scheduler execution 关闭。命令进程、stdio、timeout 和 Promise
   都归当前 `RuntimeLifecycle`。Goja 的 CommonJS `require()` 不参与该能力，也不注册伪 Node
   `child_process`。
+- `SQLite` 是 first-party native Runtime global，不是 `NativeExtensions.sqlite`、polyfill 或第二套
+  SQLite 引擎。它由 `automation/sqlite.go` 注册，`SQLite.open()` 创建 execution-owned 数据库句柄；
+  句柄的单连接 worker、有界队列、事务和 Promise settlement 均属于同一个 `RuntimeLifecycle`。
+  只有本地直接 `-script` / `-script-text` / stdin execution 与 `ai run` 显式启用该 gate；HTTP、MCP 和
+  Scheduler execution 默认不注入 `SQLite`，不新增任意 SQL 的 HTTP route 或 MCP tool。这一点不能因
+  shared Runtime 初始化而放宽。
 - `legacy`、`upgraded`、`playwright` facade 主要服务迁移；它们不承诺完整第三方浏览器库语义。
 - `Dialog` 的公开行为、能力 gate 与隐私边界留在 [Dialog API](../../api/dialog.md)，实现时不要
   通过 facade 再造第二套 dialog 逻辑。
@@ -104,7 +110,7 @@ Go native method 到 Goja function 的反射、参数/返回/错误投影，以�
 页面、`runtime-api.ai.json`、`types/*.d.ts` 和相应 JavaScript Runtime API 测试。具体治理流程
 见 [Runtime API development workflow](./runtime-api-development-workflow.md) 与 [API documentation maintenance](../../maintenance/docs-user-api-editme-toc-maintenance.md)。
 
-Sound / Audio / Command 这类 native global 的同步闭环是：
+Sound / Audio / Command / SQLite 这类 native global 的同步闭环是：
 
 ```text
 automation/sound.go 或 automation/audio.go
@@ -120,6 +126,10 @@ automation/sound.go 或 automation/audio.go
 
 `Command` 的 native owner 使用 `automation/command.go` 与平台 `command_*.go`，公开契约位于
 `docs/api/command.md`、`types/Command.d.ts`，行为 gate 由 Runtime API 测试覆盖。
+
+`SQLite` 的 native owner 是 `automation/sqlite.go`；它复用 go.mod 锁定的 `modernc.org/sqlite`，
+不读取或暴露 Scheduler 的内部数据库。公开契约位于 `docs/api/sqlite.md`、`types/sqlite.d.ts`，
+目录与 lifecycle 证据由 Runtime API 测试覆盖。
 
 小写 `path` 的 native owner 是 `automation/path.go`。它只做目标平台路径字符串计算，没有资源
 生命周期；`automation/utils.go` 在创建 execution-owned `FileSystem` 后，用同一个 `File.cwd()`
@@ -140,3 +150,8 @@ null-prototype 的 `Execution.env`，同时经 `InitJSOptions` 交给 `Command` 
 与 AbortSignal listener 都在 Goja EventLoop owner；worker 只接收不可变 Go 请求。其 `CancelPending`、
 `Wait`、`AsyncCounts`、`ResourceCounts`、`IsZero` 和 runner cleanup event 均属于
 `RuntimeLifecycle`，因此未 await 的操作不能在脚本返回时脱离 execution。
+
+`SQLite` 使用同一套 owner 约束：worker 中进行连接 I/O，Goja EventLoop 中读取参数、构造行对象并
+settle Promise。取消、timeout、`close()` 和 execution teardown 都必须释放连接、事务、Rows、Stmt、
+worker、队列与 listener；cleanup event 中的 SQLite 资源计数必须归零，不能把未关闭句柄留给进程级
+状态。

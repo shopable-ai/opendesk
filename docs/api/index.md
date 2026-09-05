@@ -28,7 +28,7 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先找窗口，
 - 写桌面脚本：[Geometry API](geometry.md) → [Desktop UI API](desktop-ui.md) → [Mouse API](mouse.md) → [Input APIs](input.md) → [Window API](window.md)
 - 做 OCR / 找按钮：优先 [Desktop UI API](desktop-ui.md)；底层 OCR 见 [Vision API](vision.md)
 - 做同尺寸图像差异 / 模板匹配 / 颜色判断：[ImageColor API](image-color.md)
-- 做系统、路径与文件操作：[System API](system.md)、[Path API](path.md)、[File API](file.md)、[AppStorage](storage.md)
+- 做系统、路径与文件操作：[System API](system.md)、[Path API](path.md)、[File API](file.md)、[SQLite API](sqlite.md)、[AppStorage](storage.md)
 - 在本地 JavaScript execution 中运行命令行程序：[Command API](command.md)
 - 读写系统剪贴板：[Clipboard API](clipboard.md)
 - 订阅窗口、应用、剪贴板和显示器变化：[Desktop Events API](events.md)
@@ -76,6 +76,7 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先找窗口，
 | `Command` | 本地 JavaScript Runtime | Conditional | 运行命令行程序并读取退出码与输出 | [Command API](command.md) |
 | `path` | JavaScript Runtime | Stable | 按目标平台规则处理路径字符串；resolve/relative 使用 Execution WorkDir | [Path API](path.md) |
 | `File` | JavaScript Runtime | Stable | 文件与目录操作 | [File API](file.md) |
+| `SQLite` | 本地 JavaScript Runtime | Stable（仅可信本地 execution） | execution-owned 的异步 SQLite 句柄、参数绑定与事务 batch | [SQLite API](sqlite.md) |
 | `AppStorage` | JavaScript Runtime | Secondary | 持久化键值存储 | [AppStorage](storage.md) |
 | `clipboard` | JavaScript Runtime | Stable text / Experimental rich (macOS) | 文本及富格式系统剪贴板 | [Clipboard API](clipboard.md) |
 | `console` | JavaScript Runtime | Stable | 日志与事件输出 | [Global APIs](global-apis.md) |
@@ -98,6 +99,7 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先找窗口，
 - 新脚本优先使用标记为 **Stable** 的 API；**Conditional** API 必须先满足页面写明的前置条件。
 - 新脚本省略 `-stack`。早期 `upgraded` / `playwright` facade 不属于维护中的用户 API；边界见 [JavaScript Runtime](runtime.md)。
 - `page.$`、`page.$$` 与旧 DOM 风格的 `page.click(selector)` / `page.type(selector, text)` 不属于当前稳定桌面 API。
+- `SQLite` 仅供可信本地 execution 使用；HTTP、MCP 和 Scheduler 不注入该全局对象，也没有通用 SQL remote route/tool。
 - HTTP 的路由、请求和响应见 [HTTP Server API](http-server.md)；Scheduler 的专用 HTTP 契约见 [Scheduler HTTP API](scheduler-api.md)。
 
 `runtime-api.ai.json` 是给 Agent 的紧凑机器索引；它不替代本目录各页面的用户调用契约。Runtime

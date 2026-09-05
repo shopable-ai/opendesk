@@ -68,9 +68,29 @@ globalThis.RuntimeAPICatalogValidation = (() => {
     return { index, families };
   }
 
+  function escapeRegExp(value) {
+    return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  function handleDefinition(entry) {
+    if (!entry || entry.kind !== 'handle-method') return null;
+    const owner = RuntimeAPIObjects[entry.ownerFamily];
+    if (!owner || !owner.handle || owner.handle.family !== entry.family) return null;
+    return owner.handle;
+  }
+
   function typeContains(entry) {
     const source = File.read(File.join(root, entry.source.types));
     const method = entry.id.slice(entry.id.indexOf('.') + 1);
+    if (entry.kind === 'handle-method') {
+      const handle = handleDefinition(entry);
+      if (!handle || handle.typeName !== entry.handleType) return false;
+      const block = new RegExp(
+        'interface\\s+' + escapeRegExp(entry.handleType) + '\\s*\\{([\\s\\S]*?)\\n\\s*\\}',
+      ).exec(source);
+      return Boolean(block)
+        && new RegExp('\\b' + escapeRegExp(method) + '\\s*(?:<[^>]*>)?\\s*\\(').test(block[1]);
+    }
     if (entry.kind === 'property') {
       return source.includes('var ' + entry.family)
         && new RegExp('\\b' + method + '\\s*\\??\\s*:').test(source);
@@ -127,8 +147,25 @@ globalThis.RuntimeAPICatalogValidation = (() => {
         const id = family + '.' + property;
         if (!idSet.has(id)) errors.push('catalog missing Runtime property: ' + id);
       }
+      if (definition.handle) {
+        for (const method of definition.handle.methods) {
+          const id = definition.handle.family + '.' + method;
+          if (!idSet.has(id)) errors.push('catalog missing Runtime handle method: ' + id);
+        }
+      }
     }
     for (const entry of catalog) {
+      if (entry.kind === 'handle-method') {
+        const handle = handleDefinition(entry);
+        const member = entry.id.slice(entry.id.indexOf('.') + 1);
+        if (!entry.ownerFamily || !entry.handleType) {
+          errors.push('catalog handle entry lacks owner/type metadata: ' + entry.id);
+        }
+        if (!handle || handle.typeName !== entry.handleType || !handle.methods.includes(member)) {
+          errors.push('catalog contains unknown handle ID: ' + entry.id);
+        }
+        continue;
+      }
       const definition = RuntimeAPIObjects[entry.family];
       if (!definition || !declaredMembers(definition).includes(entry.id.slice(entry.id.indexOf('.') + 1))) errors.push('catalog contains unknown ID: ' + entry.id);
     }
@@ -164,6 +201,18 @@ globalThis.RuntimeAPICatalogValidation = (() => {
     }
     for (const family of Object.keys(RuntimeAPIObjects)) {
       if (!documented.families.has(family)) errors.push('docs/api object drift: missing ' + family);
+    }
+    for (const [family, definition] of Object.entries(RuntimeAPIObjects)) {
+      if (!definition.handle) continue;
+      const item = (documented.index.globals || []).find((candidate) => candidate && candidate.name === family);
+      const methods = item && Array.isArray(item.handleMethods) ? item.handleMethods.slice().sort() : [];
+      const expected = definition.handle.methods.slice().sort();
+      if (!item || item.handleType !== definition.handle.typeName) {
+        errors.push('docs/api handle type drift: ' + family + ' -> ' + definition.handle.typeName);
+      }
+      if (JSON.stringify(methods) !== JSON.stringify(expected)) {
+        errors.push('docs/api handle method drift: ' + family + ' -> ' + definition.handle.family);
+      }
     }
     for (const entry of catalog) {
       if (!File.exists(File.join(root, entry.source.docs))) errors.push('catalog docs route missing: ' + entry.source.docs);

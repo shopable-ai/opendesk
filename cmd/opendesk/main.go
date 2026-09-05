@@ -749,10 +749,15 @@ func executeScript(config *Config) error {
 		EnableNativeExtensions:          true,
 		EnableUnsafeNativeExtensionCall: config.ExperimentalUnsafeNativeExtensionCall,
 		EnableCommand:                   true,
-		EnableCustomUI:                  config.CustomUI,
-		CustomUIActivationSource:        config.CustomUIActivationSource,
-		CustomUIHostPath:                config.CustomUIHostPath,
-		Artifacts:                       artifacts,
+		// SQLite is a first-party local Runtime API. HTTP, MCP, and Scheduler
+		// requests construct their own execution.Request values and leave this
+		// capability false so they do not inherit host file database access.
+		EnableSQLite:             true,
+		SQLiteProtectedPaths:     sqliteProtectedPaths(config),
+		EnableCustomUI:           config.CustomUI,
+		CustomUIActivationSource: config.CustomUIActivationSource,
+		CustomUIHostPath:         config.CustomUIHostPath,
+		Artifacts:                artifacts,
 		Selection: pkgExecution.TerminalSelection{
 			Mode:         selection.Mode,
 			Categories:   copyConsoleCategories(selection.Categories),
@@ -776,6 +781,25 @@ func executeScript(config *Config) error {
 		return fmt.Errorf("script execution failed: %v", execErr)
 	}
 	return nil
+}
+
+func sqliteProtectedPaths(config *Config) []string {
+	paths := make([]string, 0, 2)
+	if defaultPath, err := pkgScheduler.DefaultDatabasePath(); err == nil && strings.TrimSpace(defaultPath) != "" {
+		paths = append(paths, defaultPath)
+	}
+	if config != nil && strings.TrimSpace(config.SchedulerDBPath) != "" {
+		// Scheduler.OpenStore resolves a configured relative store path against
+		// the process working directory. Pass that same absolute identity to the
+		// SQLite Runtime deny-list rather than accidentally re-resolving it
+		// against an individual script's Execution.workdir.
+		if resolved, err := filepath.Abs(config.SchedulerDBPath); err == nil {
+			paths = append(paths, resolved)
+		} else {
+			paths = append(paths, config.SchedulerDBPath)
+		}
+	}
+	return paths
 }
 
 func buildExecutionConsoleSelection(config *Config) ConsoleSelection {

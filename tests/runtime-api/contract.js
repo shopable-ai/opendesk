@@ -16,6 +16,10 @@ for (const objectName of Object.keys(RuntimeAPIObjects)) {
   else RuntimeAPITest.contractObject(objectName);
 }
 
+RuntimeAPITest.load('tests/runtime-api/sqlite-contract-cases.js');
+RuntimeAPISQLiteContractCases.registerHandleContracts();
+delete globalThis.RuntimeAPISQLiteContractCases;
+
 RuntimeAPITest.test({
   name: 'page input aliases preserve host object identity',
   tier: 'unit',

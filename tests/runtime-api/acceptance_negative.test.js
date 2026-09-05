@@ -68,6 +68,30 @@
     assert(!tests.ok && tests.unknown.includes('unknown.id'), JSON.stringify(tests));
   });
 
+  test({ name: 'catalog preserves SQLite handle methods without inventing SQLite globals', tier: 'quality', covers: ['SQLite.open', 'SQLiteDatabase.query'] }, async () => {
+    const withoutHandleQuery = RuntimeAPIManifest.filter((entry) => entry.id !== 'SQLiteDatabase.query');
+    const missingHandle = RuntimeAPICatalogValidation.validateCatalog({ catalog: withoutHandleQuery });
+    assert(
+      !missingHandle.ok && missingHandle.errors.some((error) => error.includes('catalog missing Runtime handle method: SQLiteDatabase.query')),
+      JSON.stringify(missingHandle),
+    );
+
+    const handleQuery = RuntimeAPIManifest.find((entry) => entry.id === 'SQLiteDatabase.query');
+    const inventedGlobal = {
+      ...handleQuery,
+      id: 'SQLite.query',
+      family: 'SQLite',
+      kind: undefined,
+      ownerFamily: undefined,
+      handleType: undefined,
+    };
+    const falseGlobal = RuntimeAPICatalogValidation.validateCatalog({ catalog: [...RuntimeAPIManifest, inventedGlobal] });
+    assert(
+      !falseGlobal.ok && falseGlobal.errors.some((error) => error.includes('catalog contains unknown ID: SQLite.query')),
+      JSON.stringify(falseGlobal),
+    );
+  });
+
   test({ name: 'acceptance rejects a passed live result without a post screenshot', tier: 'quality', covers: ['page.screenshot'] }, async () => {
     const evidence = RuntimeAPIAcceptance.validateEvidence(evidenceFixture('missing-screenshot'), baseContext);
     assert(!evidence.ok && evidence.errors.some((error) => error.includes('screenshot missing')), JSON.stringify(evidence));

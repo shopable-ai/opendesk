@@ -53,6 +53,7 @@
     "Omit -stack for new scripts. The old upgraded/playwright values and browser/context-shaped globals are implementation compatibility residue, not maintained user APIs or a browser engine.",
     "Use the frozen Execution.env snapshot for local project and inherited OS environment values. Local executions merge .env, .opendesk.env, then the environment supplied when the OpenDesk process started; they do not parse shell startup files. Windows names are uppercase. Remote and scheduled executions do not inherit host environment secrets.",
     "Command is an execution-owned native command runner, not Node.js child_process. Local -script and ai run executions enable it by default; HTTP, MCP, and Scheduler executions disable it. Use Command.run(executable,args,options) without shell command interpolation.",
+    "SQLite is a first-party, Promise-only local Runtime API, not a Native Extension. Use SQLite.open({path, mode}) and the returned handle's query/exec/batch/close methods with bound parameters; it is enabled only for trusted local script/AI executions and is absent from HTTP, MCP, and Scheduler to avoid granting remote filesystem database access.",
     "Use the native lowercase path global for platform path-string operations. path.resolve and path.relative use the immutable Execution.workdir, not the host process cwd; path never performs filesystem I/O or symlink resolution.",
     "Do not use retired TestMonkey documentation as a current API authority."
   ],
@@ -477,6 +478,30 @@
       "writeSafety": "writeJSON uses a supported same-directory replacement backend on macOS/Linux. Windows fails closed with ATOMIC_REPLACE_UNSUPPORTED; it never truncates as a fallback."
     },
     {
+      "name": "SQLite",
+      "source": "native execution-owned SQLite owner",
+      "status": "stable-local",
+      "doc": "sqlite.md",
+      "types": "types/sqlite.d.ts",
+      "keyMethods": [
+        "open"
+      ],
+      "handleType": "OpenDeskSQLiteDatabase",
+      "handleMethods": [
+        "query",
+        "exec",
+        "batch",
+        "close"
+      ],
+      "availability": "Injected only for trusted local -script, -script-text, -script-stdin, and ai run executions. HTTP, MCP, and Scheduler do not inject SQLite and no generic SQL route/tool is added.",
+      "signature": "SQLite.open({path, mode?:'rw'|'rwc'|'ro', timeoutMs?, signal?}) -> Promise<OpenDeskSQLiteDatabase>",
+      "pathResolution": "Relative paths use immutable Execution.workdir exactly like File.path. rw is the default and opens an existing file only; rwc permits file creation but never creates parent directories; ro is enforced at SQLite connection level. POSIX backslashes stay literal filename characters; Windows paths use Windows separator/drive/UNC rules. :memory: is isolated per handle and rejects ro. Protected Scheduler database paths (default and direct CLI -scheduler-db) reject PROTECTED_PATH, including resolvable symlink aliases.",
+      "values": "Parameters use real SQLite binding: sequential ? arrays or exact named parameter objects (names start with a Unicode letter and may then contain letters/digits/_), with null/boolean/string/finite number/SQLite-range BigInt/Uint8Array. BLOB input snapshots before enqueue; unsafe INTEGER output is exact decimal text and BLOB output is Uint8Array.",
+      "queryLimits": "query defaults to 10000 rows and 8 MiB, configurable up to 100000 rows and 64 MiB; it rejects RESULT_LIMIT instead of truncating. query is not a read-only guarantee: DML RETURNING may write, and a limit/cancel/read error there can report writeState unknown/committed null.",
+      "transaction": "batch({sql, params?}[]) runs at most 256 single top-level statements in one physical-connection transaction; all success commits, and failure/cancel before commit rolls back. A commit-race error reports writeState unknown/committed null and must not be automatically retried. Raw transaction and connection-changing SQL are rejected.",
+      "lifecycle": "Each handle has a bounded serialized queue, operation context/timeout/AbortSignal, and an execution-owned worker. close fences new work and waits prior accepted work; execution teardown cancels and releases forgotten handles. SQLiteError carries code, operation, committed, and writeState including unknown outcomes that must not be automatically retried."
+    },
+    {
       "name": "AppStorage",
       "source": "native",
       "status": "secondary",
@@ -818,6 +843,7 @@
       "execution.md",
       "command.md",
       "file.md",
+      "sqlite.md",
       "storage.md",
       "clipboard.md"
     ],

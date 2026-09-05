@@ -12,6 +12,9 @@ order: 8
 
 它不是数据库，也不适合存储大型二进制数据或高并发事务数据。
 
+需要参数化 SQL、行查询或原子 batch 时，可信本地脚本可使用独立的第一方
+[SQLite Runtime API](sqlite.md)；它不会把 AppStorage 的 JSON 文件变成 SQLite 数据库。
+
 ## AppStorage：方法总表
 
 | 方法 | 用途 |

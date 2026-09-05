@@ -83,7 +83,15 @@ type Request struct {
 	EnableCustomUI bool
 	// EnableCommand permits local command execution. Trusted local script
 	// entrypoints set it; remote and scheduled requests leave it false.
-	EnableCommand            bool
+	EnableCommand bool
+	// EnableSQLite permits local first-party SQLite database handles. It is a
+	// separate explicit capability because SQLite.open accepts filesystem paths;
+	// HTTP, MCP, and Scheduler requests leave it false by default.
+	EnableSQLite bool
+	// SQLiteProtectedPaths supplies additional internal database files that a
+	// local SQLite Runtime must not open (for example a configured Scheduler
+	// store). The automation owner also protects the default Scheduler path.
+	SQLiteProtectedPaths     []string
 	CustomUIActivationSource customui.ActivationSource
 	CustomUIHostPath         string
 	CustomUIBaseDir          string
@@ -319,6 +327,8 @@ func runJavaScript(req Request, emitter *Emitter) error {
 				NativeExtensionRoots:            req.NativeExtensionRoots,
 				EnableCustomUI:                  req.EnableCustomUI,
 				EnableCommand:                   req.EnableCommand,
+				EnableSQLite:                    req.EnableSQLite,
+				SQLiteProtectedPaths:            req.SQLiteProtectedPaths,
 				CustomUIActivationSource:        normalizeCustomUIActivationSource(req),
 				CustomUIDriver:                  req.CustomUIDriver,
 				CustomUIHostPath:                req.CustomUIHostPath,
@@ -419,7 +429,9 @@ func runJavaScript(req Request, emitter *Emitter) error {
 				"audioPatternWatches": resources.AudioPatternWatches, "audioPatternSessions": resources.AudioPatternSessions,
 				"fileJSONWorkers": resources.FileJSONWorkers, "fileJSONCallbacks": resources.FileJSONCallbacks,
 				"fileJSONTemps": resources.FileJSONTemps, "fileHandles": resources.FileHandles,
-				"uiWorkers": resources.UIWorkers, "uiPending": resources.UIPending,
+				"sqliteWorkers": resources.SQLiteWorkers, "sqliteCallbacks": resources.SQLiteCallbacks,
+				"sqliteHandles": resources.SQLiteHandles,
+				"uiWorkers":     resources.UIWorkers, "uiPending": resources.UIPending,
 				"uiQueued": resources.UIQueued, "uiWindows": resources.UIWindows,
 				"uiListeners": resources.UIListeners, "uiDriverSinks": resources.UIDriverSinks,
 				"uiHostProcesses":  resources.UIHostProcesses,

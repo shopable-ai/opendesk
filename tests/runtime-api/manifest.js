@@ -55,6 +55,17 @@ globalThis.RuntimeAPIObjects = {
     'getNameWithoutExtension', 'remove', 'removeDir', 'listDir', 'isFile', 'isDir',
     'isEmptyDir', 'getHumanReadableSize', 'getSimplifiedPath', 'join', 'open', 'readJSON', 'writeJSON',
   ] },
+  // SQLite itself exposes only open(). The database operations below are
+  // methods of the execution-owned handle returned by that Promise, not
+  // nonexistent SQLite.query()/exec()/batch()/close() globals.
+  SQLite: {
+    docs: 'docs/api/sqlite.md', types: 'types/sqlite.d.ts', source: 'automation/sqlite.go',
+    status: 'local', platforms: ['darwin', 'linux', 'windows'], methods: ['open'],
+    handle: {
+      family: 'SQLiteDatabase', typeName: 'OpenDeskSQLiteDatabase',
+      methods: ['query', 'exec', 'batch', 'close'],
+    },
+  },
   AppStorage: { docs: 'docs/api/storage.md', types: 'types/AppStorage.d.ts', source: 'automation/storage.go', status: 'secondary', platforms: ['darwin', 'linux', 'windows'], methods: ['getItem', 'setItem', 'removeItem', 'clear', 'getLength', 'key'] },
   clipboard: { docs: 'docs/api/clipboard.md', types: 'types/clipboard.d.ts', source: 'automation/clipboard.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: ['copy', 'paste', 'clear', 'read', 'write', 'getFormats', 'getCapabilities'] },
   console: { docs: 'docs/api/global-apis.md', types: 'types/console.d.ts', source: 'automation/console.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: [
@@ -113,6 +124,8 @@ const unitBehavior = new Set([
   ...RuntimeAPIObjects.path.properties.map((property) => 'path.' + property),
   ...RuntimeAPIObjects.File.methods.filter((method) => !['readJSON', 'writeJSON'].includes(method)).map((method) => 'File.' + method),
   'File.readJSON', 'File.writeJSON',
+  'SQLite.open',
+  ...RuntimeAPIObjects.SQLite.handle.methods.map((method) => 'SQLiteDatabase.' + method),
   ...RuntimeAPIObjects.AppStorage.methods.filter((method) => method !== 'clear').map((method) => 'AppStorage.' + method),
   ...['read', 'write', 'getFormats', 'getCapabilities'].map((method) => 'clipboard.' + method),
   ...RuntimeAPIObjects.console.methods.map((method) => 'console.' + method),
@@ -239,6 +252,32 @@ for (const [family, definition] of Object.entries(RuntimeAPIObjects)) {
   }
 }
 
+// A handle is not a second global object. Keep its methods in the same
+// catalog, with an explicit owner/type relationship, so contract, TypeScript
+// and coverage checks can validate them without claiming SQLite.query exists.
+for (const [ownerFamily, definition] of Object.entries(RuntimeAPIObjects)) {
+  if (!definition.handle) continue;
+  const handle = definition.handle;
+  for (const method of handle.methods) {
+    const id = handle.family + '.' + method;
+    const behaviorTiers = unitBehavior.has(id) ? ['unit'] : [];
+    RuntimeAPIManifest.push({
+      id,
+      family: handle.family,
+      kind: 'handle-method',
+      ownerFamily,
+      handleType: handle.typeName,
+      source: { runtime: definition.source, docs: definition.docs, types: definition.types },
+      status: definition.status,
+      platforms: definition.platforms,
+      requiredVerificationTiers: ['contract', ...behaviorTiers],
+      riskClassification: 'safe',
+      contractOnlyReason: null,
+      evidenceRequirements: ['contract-result', ...behaviorTiers.map((tier) => tier + '-result')],
+    });
+  }
+}
+
 for (const entry of RuntimeAPIObjects.NativeExtensions.dynamicMethods) {
   RuntimeAPIManifest.push({
     id: 'NativeExtensions.' + entry.path,
@@ -283,6 +322,7 @@ globalThis.RuntimeAPITestFiles = {
     'tests/runtime-api/unit/path.test.js',
     'tests/runtime-api/unit/file.test.js',
     'tests/runtime-api/unit/file-json.test.js',
+    'tests/runtime-api/unit/sqlite.test.js',
     'tests/runtime-api/unit/storage.test.js',
     'tests/runtime-api/unit/clipboard.test.js',
     'tests/runtime-api/unit/console.test.js',
@@ -326,6 +366,6 @@ globalThis.RuntimeAPITestFiles = {
 
 globalThis.RuntimeAPICatalog = {
   schemaVersion: '1.0.0',
-  catalogVersion: '2026-09-05',
+  catalogVersion: '2026-09-06',
   entries: RuntimeAPIManifest,
 };

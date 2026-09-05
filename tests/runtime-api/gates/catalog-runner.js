@@ -16,7 +16,7 @@ const MODE = String(Execution.env.OPENDESK_RUNTIME_API_MODE || 'smoke');
 const VALID_MODES = [
   'contract', 'unit', 'smoke', 'live', 'live-only', 'coverage', 'negative',
   'sound-cancel', 'notify-icon-live', 'custom-ui', 'custom-ui-config', 'dialog',
-  'command', 'environment', 'file-json', 'path', 'language',
+  'command', 'environment', 'file-json', 'path', 'language', 'sqlite',
 ];
 const CLEANUP_FIELDS = [
   'workers', 'promiseCallbacks', 'timers',
@@ -31,6 +31,7 @@ const CLEANUP_FIELDS = [
   'commandWorkers', 'commandCallbacks', 'commandProcesses',
   'audioPatternWorkers', 'audioPatternPending', 'audioPatternWatches', 'audioPatternSessions',
   'fileJSONWorkers', 'fileJSONCallbacks', 'fileJSONTemps', 'fileHandles',
+  'sqliteWorkers', 'sqliteCallbacks', 'sqliteHandles',
 ];
 
 let RUN_ID = '';
@@ -490,6 +491,27 @@ async function coverage() {
   await runJS('coverage', File.join(ROOT_DIR, 'tests', 'runtime-api', 'coverage.js'), 5, 180);
 }
 
+async function sqlite() {
+  let failure = null;
+  try {
+    await runJS('contract', File.join(ROOT_DIR, 'tests', 'runtime-api', 'sqlite-contract.js'), 5, 180);
+    await verifyZeroCleanup('contract');
+    await runJS('unit', File.join(ROOT_DIR, 'tests', 'runtime-api', 'sqlite-unit.js'), 15, 240);
+    await verifyZeroCleanup('unit');
+    await runJS('coverage', File.join(ROOT_DIR, 'tests', 'runtime-api', 'sqlite-coverage.js'), 10, 240);
+    await verifyZeroCleanup('coverage');
+  } catch (error) {
+    failure = error;
+  }
+  try {
+    await cleanup();
+    await noResidual();
+  } catch (error) {
+    failure = failure || error;
+  }
+  if (failure) throw failure;
+}
+
 async function smokeCase() {
   await runJS('smoke', File.join(ROOT_DIR, 'tests', 'runtime-api', 'smoke.js'), 3, 120);
 }
@@ -909,6 +931,7 @@ async function runMode() {
     unit,
     smoke: smokeSuite,
     coverage,
+    sqlite,
     negative,
     'sound-cancel': soundCancel,
     'notify-icon-live': notifyIconLive,

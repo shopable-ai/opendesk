@@ -160,6 +160,10 @@ Scheduler A 执行中 → Scheduler B 排队 → A 完成 → B 开始
 `modernc.org/sqlite` 的 CGo-free 嵌入式驱动；用户不需要安装 `sqlite3` CLI、SQLite
 动态库、SQLite Server 或任何数据库 daemon。
 
+此文件、`scheduled_jobs` / `job_runs` schema 和 Scheduler Store 都是 Scheduler owner 的内部实现；
+第一方 [SQLite Runtime API](sqlite.md) 不复用或返回它们的连接、业务表或 AppStorage 数据，并拒绝默认
+Scheduler 路径和直接 CLI 当前 `-scheduler-db` 配置路径（也包括可解析的 symlink 别名）。
+
 测试或隔离运行时可以覆盖路径：
 
 ```bash

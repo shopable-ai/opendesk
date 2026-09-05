@@ -32,7 +32,8 @@ main();
 | `copyToClipboard` / `getClipboard` | 剪贴板快捷读写 | Stable | `clipboard` 对象的全局快捷入口 |
 | `notify` | 系统通知 | Secondary | 成功提交不代表用户已看到 |
 | `alert` / `confirm` / `prompt` | 异步原生模态提示与短文本输入 | Conditional | 返回 Promise，不是浏览器同步 dialog |
-| `AbortController` / `AbortSignal` | 取消在途 HTTP 请求 | Stable / Compatibility | 与 `http`、`axios` 的 `signal` 配合 |
+| `AbortController` / `AbortSignal` | 取消在途异步操作 | Stable / Compatibility | 与 `http`、`axios`、`SQLite` 的 `signal` 配合 |
+| `SQLite` | 本地异步 SQLite 数据库句柄 | Stable / Local only | `SQLite.open()` 返回 `query` / `exec` / `batch` / `close` 句柄；HTTP、MCP、Scheduler 不注入 |
 | `URLSearchParams` | 生成查询参数或表单参数 | Stable / Compatibility | 当前为轻量兼容实现 |
 | `URL` | 解析和拼接 HTTP(S) / file URL | Stable / Compatibility | 支持相对 URL、`searchParams` 和常用字段 |
 | `Promise` | 异步结果与组合 | Stable | `async` / `await` 属于语言语法；见 [JavaScript Runtime](runtime.md#javascript-语言基线) |
@@ -274,8 +275,9 @@ try {
 | `signal.addEventListener('abort', fn)` | `void` | 注册取消监听 |
 | `signal.removeEventListener('abort', fn)` | `void` | 移除取消监听 |
 
-取消只影响关联的 HTTP 请求，不会自动终止任意 JavaScript 函数。HTTP 错误和 deadline
-语义见 [HTTP and Axios](http.md)。
+取消只影响显式接收该 `signal` 的 HTTP 请求或 SQLite 操作，不会自动终止任意 JavaScript 函数。
+HTTP 错误和 deadline 语义见 [HTTP and Axios](http.md)；SQLite 的超时、写入状态和清理语义见
+[SQLite API](sqlite.md)。
 
 ## `URLSearchParams`：查询参数
 
@@ -355,6 +357,7 @@ runTask();
 - `notify()` 的详细通知契约：见 [notify](notify.md)。
 - `alert()`、`confirm()`、`prompt()`：见 [Dialog API](dialog.md)。
 - 本地命令行执行对象 `Command`：见 [Command API](command.md)。
+- 第一方、本地 execution-owned 的 `SQLite`：见 [SQLite API](sqlite.md)。
 - `Sound`：见 [Sound API](sound.md)；`FloatingWindow` 与 `ui`：见 [Custom UI](custom-ui.md)。
 
 ## 全局接口的实现来源与维护边界
@@ -365,7 +368,7 @@ runTask();
 - **Polyfill**：补齐或包装 JavaScript 行为的内置脚本。
 - **Compatibility**：为迁移保留的兼容形状，不代表完整第三方运行时。
 
-新增、删除或改名全局接口时，应同步检查本页、`runtime-api.ai.json`、`types/global.d.ts`
+新增、删除或改名全局接口时，应同步检查本页、`runtime-api.ai.json`、对应的 `types/*.d.ts`
 和 `tests/runtime-api/` 中的 JavaScript 契约。Runtime 的加载顺序与资源目录说明见
 [JavaScript Runtime](runtime.md)；不要把 `polyfills/*.js` 中的内部 bridge 或历史兼容 facade 当作用户 API。
 
@@ -386,6 +389,7 @@ runTask();
 - [Clipboard API](clipboard.md)：完整的 `clipboard` 对象方法。
 - [HTTP and Axios](http.md)：`http` 与全局 `axios`。
 - [Command API](command.md)：本地 CLI 默认提供、execution-owned 的命令行执行；HTTP、MCP 与 Scheduler 关闭。
+- [SQLite API](sqlite.md)：本地可信 execution 的第一方异步数据库句柄；HTTP、MCP 与 Scheduler 不注入。
 - [System API](system.md)：包含 `System.getEnv()` / `System.hasEnv()` 等按键环境读取和系统信息能力。
 - [Execution Context](execution.md)：本次运行的 ID、输入、只读环境快照、工作目录和 artifact 路径。
 - [JavaScript Runtime](runtime.md)：异步完成、取消、输出和历史兼容边界。
