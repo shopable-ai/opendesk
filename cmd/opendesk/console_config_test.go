@@ -12,18 +12,19 @@ func TestResolveConsoleSettingsDefaultsToNormal(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveConsoleSettings returned error: %v", err)
 	}
-	if settings.Mode != "normal" || settings.Categories != "" || settings.OutputFormat != "text" {
+	if settings.Mode != "normal" || settings.Categories != "" || settings.ColorMode != "auto" || settings.OutputFormat != "text" {
 		t.Fatalf("unexpected built-in console defaults: %+v", settings)
 	}
 }
 
 func TestResolveConsoleSettingsEnvironmentPrecedence(t *testing.T) {
 	dir := t.TempDir()
-	writeConsoleEnvironment(t, filepath.Join(dir, ".env"), "OPENDESK_CONSOLE_MODE=script\nOPENDESK_CONSOLE_CATEGORIES=script,summary,error\nUNRELATED_KEY=kept-for-the-script\n")
+	writeConsoleEnvironment(t, filepath.Join(dir, ".env"), "OPENDESK_CONSOLE_MODE=script\nOPENDESK_CONSOLE_CATEGORIES=script,summary,error\nOPENDESK_CONSOLE_COLOR=always\nUNRELATED_KEY=kept-for-the-script\n")
 	writeConsoleEnvironment(t, filepath.Join(dir, ".opendesk.env"), "OPENDESK_CONSOLE_MODE=full\n")
 
 	settings, err := resolveConsoleSettings(nil, dir, environmentMap(map[string]string{
-		"OPENDESK_CONSOLE_MODE": "summary",
+		"OPENDESK_CONSOLE_MODE":  "summary",
+		"OPENDESK_CONSOLE_COLOR": "never",
 	}))
 	if err != nil {
 		t.Fatalf("resolveConsoleSettings returned error: %v", err)
@@ -34,6 +35,9 @@ func TestResolveConsoleSettingsEnvironmentPrecedence(t *testing.T) {
 	if settings.Categories != "script,summary,error" {
 		t.Fatalf("categories = %q, want .env value", settings.Categories)
 	}
+	if settings.ColorMode != "never" {
+		t.Fatalf("color mode = %q, want process environment to override files", settings.ColorMode)
+	}
 	if len(settings.EnvironmentAt) != 2 {
 		t.Fatalf("environment files = %v, want both default files", settings.EnvironmentAt)
 	}
@@ -41,13 +45,13 @@ func TestResolveConsoleSettingsEnvironmentPrecedence(t *testing.T) {
 
 func TestResolveConsoleSettingsCommandLineWinsOverEnvironment(t *testing.T) {
 	dir := t.TempDir()
-	writeConsoleEnvironment(t, filepath.Join(dir, ".opendesk.env"), "OPENDESK_CONSOLE_MODE=full\n")
+	writeConsoleEnvironment(t, filepath.Join(dir, ".opendesk.env"), "OPENDESK_CONSOLE_MODE=full\nOPENDESK_CONSOLE_COLOR=always\n")
 
-	settings, err := resolveConsoleSettings([]string{"-console-mode", "quiet", "-console-categories=error"}, dir, emptyEnvironment)
+	settings, err := resolveConsoleSettings([]string{"-console-mode", "quiet", "-console-categories=error", "-color=never"}, dir, emptyEnvironment)
 	if err != nil {
 		t.Fatalf("resolveConsoleSettings returned error: %v", err)
 	}
-	if settings.Mode != "quiet" || settings.Categories != "error" {
+	if settings.Mode != "quiet" || settings.Categories != "error" || settings.ColorMode != "never" {
 		t.Fatalf("unexpected command-line override: %+v", settings)
 	}
 }
@@ -56,11 +60,11 @@ func TestResolveConsoleSettingsAcceptsDoubleDashFlags(t *testing.T) {
 	dir := t.TempDir()
 	writeConsoleEnvironment(t, filepath.Join(dir, "ci.env"), "OPENDESK_CONSOLE_MODE=quiet\n")
 
-	settings, err := resolveConsoleSettings([]string{"--env-file", "ci.env", "--debug", "--console-mode=script", "--console-categories", "script,error"}, dir, emptyEnvironment)
+	settings, err := resolveConsoleSettings([]string{"--env-file", "ci.env", "--debug", "--console-mode=script", "--console-categories", "script,error", "--color", "always"}, dir, emptyEnvironment)
 	if err != nil {
 		t.Fatalf("resolveConsoleSettings returned error: %v", err)
 	}
-	if settings.Mode != "script" || settings.Categories != "script,error" {
+	if settings.Mode != "script" || settings.Categories != "script,error" || settings.ColorMode != "always" {
 		t.Fatalf("unexpected double-dash overrides: %+v", settings)
 	}
 	if len(settings.EnvironmentAt) != 1 || settings.EnvironmentAt[0] != filepath.Join(dir, "ci.env") {
@@ -73,6 +77,7 @@ func TestConsoleOverridesOnlyUsesVisitedFlags(t *testing.T) {
 	config := &Config{}
 	flags.StringVar(&config.ScriptText, "script-text", "", "")
 	flags.StringVar(&config.ConsoleMode, "console-mode", defaultConsoleMode, "")
+	flags.StringVar(&config.ConsoleColor, "color", defaultConsoleColor, "")
 	if err := flags.Parse([]string{"-script-text", "-console-mode=quiet"}); err != nil {
 		t.Fatalf("parse flags: %v", err)
 	}
@@ -80,6 +85,9 @@ func TestConsoleOverridesOnlyUsesVisitedFlags(t *testing.T) {
 	overrides := consoleOverridesFromVisitedFlags(flags, config)
 	if overrides.ModeSet {
 		t.Fatalf("script text was mistaken for a console override: %+v", overrides)
+	}
+	if overrides.ColorModeSet {
+		t.Fatalf("script text was mistaken for a color override: %+v", overrides)
 	}
 }
 
@@ -123,6 +131,20 @@ func TestResolveConsoleSettingsRejectsInvalidKnownValues(t *testing.T) {
 	}
 	if _, err := resolveConsoleSettings([]string{"-console-categories=script,verbose"}, dir, emptyEnvironment); err == nil {
 		t.Fatal("expected invalid category error")
+	}
+	if _, err := resolveConsoleSettings([]string{"-color=sometimes"}, dir, emptyEnvironment); err == nil {
+		t.Fatal("expected invalid color mode error")
+	}
+}
+
+func TestAgentOutputAlwaysDisablesTerminalColor(t *testing.T) {
+	selection := buildExecutionConsoleSelection(&Config{
+		ConsoleMode:  "full",
+		ConsoleColor: "always",
+		OutputFormat: "json",
+	})
+	if selection.Mode != "agent" || selection.ColorMode != "never" {
+		t.Fatalf("machine output selection = %+v, want agent mode without color", selection)
 	}
 }
 

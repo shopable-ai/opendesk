@@ -37,7 +37,8 @@ await mouse.wheel({ deltaY: 800, steps: 8, delay: 40 });
 await wait(700);
 await mouse.wheel({ deltaY: -400, steps: 4, delay: 40 });
 
-const shot = `.runtime/temp/mac/safari_url_input_flow_${Date.now()}.png`;
+const shot = `.runtime/tests/e2e/live/safari_url_input_flow_${Date.now()}.png`;
+File.ensureDir('.runtime/tests/e2e/live');
 await page.screenshot({ path: shot });
 console.log('Screenshot saved:', shot);
 console.log('safari_url_input_flow done');

@@ -1,4 +1,4 @@
-console.log('Polyfilling page functions, original page object exists:', !!globalThis.page____Inject);
+console.debug('Polyfilling page functions, original page object exists:', !!globalThis.page____Inject);
 
 // Create a new wrapper object to hold all methods
 const pageWrapper = {};
@@ -479,8 +479,8 @@ pageWrapper.waitForFunction = async function(pageFunction, options = {}, ...args
           return resolve(result);
         }
       } catch (error) {
-        // Ignore errors in the pageFunction, just try again
-        console.log('Error in function evaluation:', error.message);
+        // Predicate errors are transient while polling; retry without leaking
+        // framework implementation details into the user's business log.
       }
       
       // Use the specified polling interval

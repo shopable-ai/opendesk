@@ -105,4 +105,4 @@ Each example uses a JavaScript controller, waits for the native window to become
 
 The vertical toolbar has a documented five-button maximum. The sixth button is rejected with `INVALID_SPEC`; it does not wrap into a second column or create an over-height window.
 
-If a callback appears not to run, look for the matching `HORIZONTAL_TOOLBAR_ACTION` or `VERTICAL_QUICK_REPLY_COPIED` console record. `*_ERROR` records include the structured `UI_CALLBACK_FAILED` context. Native single-flight and visual acceptance are covered separately by `./scripts/test_runtime_apis.sh custom-ui`.
+If a callback appears not to run, look for the matching `HORIZONTAL_TOOLBAR_ACTION` or `VERTICAL_QUICK_REPLY_COPIED` console record. `*_ERROR` records include the structured `UI_CALLBACK_FAILED` context. Native single-flight and visual acceptance are covered separately by `OPENDESK_RUNTIME_API_MODE=custom-ui ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script`.

@@ -10,7 +10,7 @@ Run commands from the repository root:
 ```bash
 make build
 ./dist/opendesk -script tests/wechat/wechat_visualization.js
-./tests/wechat/run_e2e_test.sh
+./dist/opendesk -script tests/wechat/e2e.js -console-mode script
 ```
 
 Real-window scripts require a visible, logged-in WeChat window and the macOS
@@ -25,8 +25,11 @@ tests/wechat/
   tools/<tool>/main.go       one standalone Go tool per package
   docs/                      maintained domain guidance
   *.js                       JavaScript test and diagnostic scenarios
-  *.sh                       orchestration and verification entrypoints
 ```
+
+`tests/wechat/e2e.js` 使用 `Command.run()` 调用 fixture generator 与可视化工具，并为 simple/complex
+各启动一次 `opendesk -script` 子场景。阈值断言和 JSON summary 均在 JavaScript 中完成，
+不需要 `ai run` 或 shell 入口。
 
 The public layout contract is tested by JavaScript Runtime scenarios. Offline
 pixel annotation is a standalone developer tool, not a package test:

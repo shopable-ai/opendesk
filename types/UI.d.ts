@@ -27,6 +27,47 @@ declare global {
     intervalMs?: number;
   }
 
+  /** A fixed screen-space snapshot or a rule recomputed from the same identified window's latest snapshot. */
+  type OpenDeskUITextRegionRule =
+    | OpenDeskScreenRegion
+    | ((currentWin: OpenDeskWindowInfo) => OpenDeskScreenRegion);
+
+  interface OpenDeskUIRelativeTextDirection {
+    /** Non-empty exact-match anchor text. */
+    text: string;
+    direction: "right" | "left" | "above" | "below";
+    /** Inclusive maximum edge-to-edge gap in screen logical coordinate units. */
+    maxGap: number;
+    /** Inclusive minimum overlap ratio. Defaults to 0.5. */
+    minOverlap?: number;
+    region?: never;
+  }
+
+  interface OpenDeskUIRelativeTextRegion {
+    /** Non-empty exact-match anchor text. */
+    text: string;
+    /** Synchronously computes a screen-space candidate filter from the same-frame anchor. */
+    region: (anchor: OpenDeskUITextTarget) => OpenDeskScreenRegion;
+    direction?: never;
+    maxGap?: never;
+    minOverlap?: never;
+  }
+
+  type OpenDeskUIRelativeText = OpenDeskUIRelativeTextDirection | OpenDeskUIRelativeTextRegion;
+
+  /** New positioning rules require an explicit WindowInfo so window identity can be retained. */
+  type OpenDeskUIPositionedTextOptions = Omit<OpenDeskUITextOptions, "within"> & {
+    within: OpenDeskWindowInfo;
+  } & (
+    | { region: OpenDeskUITextRegionRule; relativeTo?: OpenDeskUIRelativeText }
+    | { region?: OpenDeskUITextRegionRule; relativeTo: OpenDeskUIRelativeText }
+  );
+
+  /** Options for text discovery/click methods; wait methods intentionally use OpenDeskUITextOptions. */
+  type OpenDeskUITextLocateOptions =
+    | (OpenDeskUITextOptions & { region?: never; relativeTo?: never })
+    | OpenDeskUIPositionedTextOptions;
+
   interface OpenDeskUIImageOptions extends OpenDeskUIBaseOptions {
     threshold?: number;
     scales?: number[];
@@ -100,16 +141,18 @@ declare global {
     failedIndex?: number;
     failedText?: string;
     completed?: Array<OpenDeskUITapResult<OpenDeskUITextTarget>>;
+    /** Identifies anchor resolution failures when relativeTo is enabled. */
+    stage?: "anchor";
     cause?: unknown;
   }
 
   interface OpenDeskUI {
     getCapabilities(): OpenDeskUICapabilities;
-    findTexts(text: string, options?: OpenDeskUITextOptions): Promise<OpenDeskUITextTarget[]>;
-    findText(text: string, options?: OpenDeskUITextOptions): Promise<OpenDeskUITextTarget | null>;
-    hasText(text: string, options?: OpenDeskUITextOptions): Promise<boolean>;
-    tapText(text: string, options?: OpenDeskUITextOptions): Promise<OpenDeskUITapResult<OpenDeskUITextTarget>>;
-    tapTexts(texts: string[], options?: OpenDeskUITextOptions): Promise<OpenDeskUITapTextsResult>;
+    findTexts(text: string, options?: OpenDeskUITextLocateOptions): Promise<OpenDeskUITextTarget[]>;
+    findText(text: string, options?: OpenDeskUITextLocateOptions): Promise<OpenDeskUITextTarget | null>;
+    hasText(text: string, options?: OpenDeskUITextLocateOptions): Promise<boolean>;
+    tapText(text: string, options?: OpenDeskUITextLocateOptions): Promise<OpenDeskUITapResult<OpenDeskUITextTarget>>;
+    tapTexts(texts: string[], options?: OpenDeskUITextLocateOptions): Promise<OpenDeskUITapTextsResult>;
     waitText(text: string, options?: OpenDeskUITextOptions): Promise<OpenDeskUITextTarget>;
     waitTextGone(text: string, options?: OpenDeskUITextOptions): Promise<true>;
     findImages(template: string, options?: OpenDeskUIImageOptions): Promise<OpenDeskUIImageTarget[]>;

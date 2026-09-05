@@ -65,6 +65,7 @@ async function readRowText(imagePath) {
 
 async function main() {
   console.log('wechat_probe_chatlist_scan start');
+  File.ensureDir('.runtime/tests/e2e/live');
   const win = await getWechat();
   const x = win.x || 0;
   const y = win.y || 0;
@@ -81,7 +82,7 @@ async function main() {
 
   const rows = [];
   for (let yy = topY; yy <= bottomY; yy += step) {
-    const clipPath = `.runtime/temp/mac/wechat_probe_chatlist_row_${runStamp}_${yy}.png`;
+    const clipPath = `.runtime/tests/e2e/live/wechat_probe_chatlist_row_${runStamp}_${yy}.png`;
     await page.screenshot({
       path: clipPath,
       clip: {
@@ -115,7 +116,7 @@ async function main() {
     });
   }
 
-  const out = `.runtime/temp/mac/wechat_probe_chatlist_scan_${Date.now()}.json`;
+  const out = `.runtime/tests/e2e/live/wechat_probe_chatlist_scan_${Date.now()}.json`;
   await File.write(
     out,
     JSON.stringify(

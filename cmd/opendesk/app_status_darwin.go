@@ -3,7 +3,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -50,7 +49,7 @@ func startMacOSAppStatusItem(port string) {
 	schedulerURL := "http://127.0.0.1:" + port + "/scheduler"
 	command := exec.Command(helper, strconv.Itoa(os.Getpid()), statusURL, schedulerURL, icon)
 	if err := command.Start(); err != nil {
-		fmt.Fprintf(os.Stderr, "[WARN] OpenDesk is ready, but the macOS status item could not start: %v\n", err)
+		terminalPrintf(os.Stderr, "[FRAMEWORK] [WARN] OpenDesk is ready, but the macOS status item could not start: %v\n", err)
 	}
 }
 
@@ -61,6 +60,6 @@ func reportMacOSAppStartupFailure(startupErr error) {
 	}
 	command := exec.Command(helper, "--startup-error", startupErr.Error())
 	if err := command.Start(); err != nil {
-		fmt.Fprintf(os.Stderr, "[WARN] OpenDesk could not display its startup error: %v\n", err)
+		terminalPrintf(os.Stderr, "[FRAMEWORK] [WARN] OpenDesk could not display its startup error: %v\n", err)
 	}
 }

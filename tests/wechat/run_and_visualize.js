@@ -1,9 +1,12 @@
 /**
  * 运行检测并生成可视化的统一脚本
- * 用法: ./dist/opendesk -script tests/wechat/run_and_visualize.js <simple|complex>
+ * 用法: OPENDESK_WECHAT_MODE=simple ./dist/opendesk -script tests/wechat/run_and_visualize.js -console-mode script
  */
 
-const mode = typeof arguments !== 'undefined' && arguments.length > 0 ? arguments[0] : 'simple';
+const mode = Execution.env.OPENDESK_WECHAT_MODE || 'simple';
+if (mode !== 'simple' && mode !== 'complex') {
+    throw new Error(`未知 OPENDESK_WECHAT_MODE "${mode}"；必须是 "simple" 或 "complex"`);
+}
 
 async function runAndVisualize() {
     console.log('='.repeat(80));
@@ -29,10 +32,6 @@ async function runAndVisualize() {
     };
 
     const config = configs[mode];
-    if (!config) {
-        console.log(`错误: 未知模式 "${mode}". 请使用 "simple" 或 "complex"`);
-        return;
-    }
 
     // 步骤 1: 运行检测
     console.log('\n步骤 1: 运行布局检测...');
@@ -117,13 +116,26 @@ async function runAndVisualize() {
         outputPath: config.outputPath
     };
 
-    // 输出配置供外部使用
+    // 输出配置供 Runtime JS gate 调用独立可视化工具。
+    await File.writeJSON(config.configPath, vizConfig);
     console.log(`\n可视化配置 (保存到 ${config.configPath}):`);
     console.log(JSON.stringify(vizConfig, null, 2));
 
+    const passed = precision >= 90 && recall === 100 && f1 >= 95;
+    const report = {
+        schemaVersion: 1,
+        mode,
+        passed,
+        metrics: { precision, recall, f1 },
+        detected: { vertical: detectedVertical, horizontal: detectedHorizontal },
+        expected: { vertical: config.expectedVertical, horizontal: config.expectedHorizontal },
+        visualization: vizConfig,
+    };
+    await File.writeJSON(`.runtime/tests/wechat/${mode}_analysis.json`, report);
+
     // 步骤 4: 显示结论
     console.log('\n' + '='.repeat(80));
-    if (precision >= 90 && recall === 100 && f1 >= 95) {
+    if (passed) {
         console.log('✓ 测试通过！算法达到目标。');
     } else {
         console.log('✗ 测试未通过。');
@@ -136,6 +148,7 @@ async function runAndVisualize() {
         if (f1 < 95) {
             console.log(`  - F1 分数不足: ${f1.toFixed(1)}% < 95%`);
         }
+        throw new Error(`布局识别未达到门槛: precision=${precision.toFixed(1)} recall=${recall.toFixed(1)} f1=${f1.toFixed(1)}`);
     }
     console.log('='.repeat(80));
 
@@ -143,7 +156,7 @@ async function runAndVisualize() {
     console.log(`  go run ./tests/wechat/tools/visualize-result ${config.configPath}`);
     console.log(`  open ${config.outputPath}`);
 
-    return vizConfig;
+    return report;
 }
 
-runAndVisualize().catch(console.error);
+await runAndVisualize();

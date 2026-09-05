@@ -280,22 +280,4 @@ declare global {
   /** Always injected; dormant calls reject with UI_DISABLED until explicitly authorized. */
   var ui: ClawdeskUI;
 
-  interface ClawdeskExecutionMetadata {
-    /** Stable short alias for executionId. */
-    id: string;
-    executionId: string;
-    /** JSON-compatible input supplied by `opendesk ai run`. */
-    input: unknown;
-    /** Working directory selected by the execution caller. */
-    workdir: string;
-    stack: string;
-    artifactDir: string;
-    source: string;
-    ext: string;
-    scriptHash: string;
-    /** Custom UI activation source for this execution. */
-    activationSource: ClawdeskUIActivationSource;
-  }
-
-  var Execution: ClawdeskExecutionMetadata;
 }

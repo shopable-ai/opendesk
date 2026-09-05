@@ -4,12 +4,14 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"opendesk/pkg/terminalstyle"
 	"os"
 	"path/filepath"
 	"strings"
 )
 
 const defaultConsoleMode = "normal"
+const defaultConsoleColor = "auto"
 
 var supportedConsoleModes = map[string]struct{}{
 	"normal":  {},
@@ -35,6 +37,7 @@ var supportedConsoleCategories = map[string]struct{}{
 type ConsoleSettings struct {
 	Mode          string
 	Categories    string
+	ColorMode     string
 	OutputFormat  string
 	Environment   string
 	EnvironmentAt []string
@@ -45,6 +48,8 @@ type consoleArgumentOverrides struct {
 	ModeSet         bool
 	Categories      string
 	CategoriesSet   bool
+	ColorMode       string
+	ColorModeSet    bool
 	OutputFormat    string
 	OutputFormatSet bool
 	Debug           bool
@@ -66,6 +71,9 @@ func consoleOverridesFromVisitedFlags(flags *flag.FlagSet, config *Config) conso
 		case "console-categories":
 			overrides.Categories = config.ConsoleCategories
 			overrides.CategoriesSet = true
+		case "color":
+			overrides.ColorMode = config.ConsoleColor
+			overrides.ColorModeSet = true
 		case "output-format":
 			overrides.OutputFormat = config.OutputFormat
 			overrides.OutputFormatSet = true
@@ -108,6 +116,7 @@ func resolveConsoleSettingsWithOverrides(overrides consoleArgumentOverrides, wor
 
 	settings := ConsoleSettings{
 		Mode:          defaultConsoleMode,
+		ColorMode:     defaultConsoleColor,
 		OutputFormat:  "text",
 		EnvironmentAt: usedPaths,
 	}
@@ -122,6 +131,9 @@ func resolveConsoleSettingsWithOverrides(overrides consoleArgumentOverrides, wor
 	}
 	if overrides.CategoriesSet {
 		settings.Categories = overrides.Categories
+	}
+	if overrides.ColorModeSet {
+		settings.ColorMode = overrides.ColorMode
 	}
 	if overrides.OutputFormatSet {
 		settings.OutputFormat = overrides.OutputFormat
@@ -166,6 +178,13 @@ func parseConsoleArgumentOverrides(args []string) consoleArgumentOverrides {
 				i++
 			}
 			continue
+		case "-color":
+			if i+1 < len(args) {
+				overrides.ColorMode = args[i+1]
+				overrides.ColorModeSet = true
+				i++
+			}
+			continue
 		case "-output-format":
 			if i+1 < len(args) {
 				overrides.OutputFormat = args[i+1]
@@ -193,6 +212,9 @@ func parseConsoleArgumentOverrides(args []string) consoleArgumentOverrides {
 		case strings.HasPrefix(arg, "-console-categories="):
 			overrides.Categories = strings.TrimPrefix(arg, "-console-categories=")
 			overrides.CategoriesSet = true
+		case strings.HasPrefix(arg, "-color="):
+			overrides.ColorMode = strings.TrimPrefix(arg, "-color=")
+			overrides.ColorModeSet = true
 		case strings.HasPrefix(arg, "-output-format="):
 			overrides.OutputFormat = strings.TrimPrefix(arg, "-output-format=")
 			overrides.OutputFormatSet = true
@@ -277,7 +299,7 @@ func parseConsoleEnvironment(file *os.File) (map[string]string, error) {
 			continue
 		}
 		key = strings.TrimSpace(key)
-		if key != "OPENDESK_CONSOLE_MODE" && key != "OPENDESK_CONSOLE_CATEGORIES" {
+		if key != "OPENDESK_CONSOLE_MODE" && key != "OPENDESK_CONSOLE_CATEGORIES" && key != "OPENDESK_CONSOLE_COLOR" {
 			continue
 		}
 		value = strings.TrimSpace(value)
@@ -297,7 +319,7 @@ func parseConsoleEnvironment(file *os.File) (map[string]string, error) {
 
 func processConsoleEnvironment(lookupEnv func(string) (string, bool)) map[string]string {
 	values := make(map[string]string)
-	for _, key := range []string{"OPENDESK_CONSOLE_MODE", "OPENDESK_CONSOLE_CATEGORIES"} {
+	for _, key := range []string{"OPENDESK_CONSOLE_MODE", "OPENDESK_CONSOLE_CATEGORIES", "OPENDESK_CONSOLE_COLOR"} {
 		if value, ok := lookupEnv(key); ok {
 			values[key] = value
 		}
@@ -315,6 +337,9 @@ func applyConsoleEnvironment(settings *ConsoleSettings, values map[string]string
 	if value, ok := values["OPENDESK_CONSOLE_CATEGORIES"]; ok {
 		settings.Categories = value
 	}
+	if value, ok := values["OPENDESK_CONSOLE_COLOR"]; ok && strings.TrimSpace(value) != "" {
+		settings.ColorMode = value
+	}
 }
 
 func validateConsoleSettings(settings ConsoleSettings) error {
@@ -326,6 +351,9 @@ func validateConsoleSettings(settings ConsoleSettings) error {
 		if _, ok := supportedConsoleCategories[category]; !ok {
 			return fmt.Errorf("invalid console category %q; expected framework, meta, script, summary, or error", category)
 		}
+	}
+	if _, err := terminalstyle.ParseMode(settings.ColorMode); err != nil {
+		return err
 	}
 	return nil
 }

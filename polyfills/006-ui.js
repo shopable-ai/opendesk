@@ -50,6 +50,17 @@
     return value;
   }
 
+  function hasOwn(value, key) {
+    return Object.prototype.hasOwnProperty.call(value, key);
+  }
+
+  function rejectUnknownFields(value, allowed, name, operation) {
+    const unknown = Object.keys(value).filter(function (key) { return allowed.indexOf(key) < 0; });
+    if (unknown.length > 0) {
+      fail('INVALID_ARGUMENT', operation, name + ' contains unknown field' + (unknown.length === 1 ? '' : 's') + ': ' + unknown.join(', '));
+    }
+  }
+
   function screenRegion(raw, operation) {
     requireObject(raw, 'region', operation);
     const region = {
@@ -60,6 +71,28 @@
       coordinateSpace: 'screen',
     };
     return region;
+  }
+
+  function taggedScreenRegion(raw, name, operation) {
+    requireObject(raw, name, operation);
+    rejectUnknownFields(raw, ['x', 'y', 'width', 'height', 'coordinateSpace'], name, operation);
+    if (raw.coordinateSpace !== 'screen') {
+      fail('INVALID_ARGUMENT', operation, name + '.coordinateSpace must be "screen"');
+    }
+    const x = requireFinite(raw.x, name + '.x', operation);
+    const y = requireFinite(raw.y, name + '.y', operation);
+    const width = requirePositive(raw.width, name + '.width', operation);
+    const height = requirePositive(raw.height, name + '.height', operation);
+    if (!isFiniteNumber(x + width) || !isFiniteNumber(y + height)) {
+      fail('INVALID_ARGUMENT', operation, name + ' boundaries must be finite');
+    }
+    return {
+      x: x,
+      y: y,
+      width: width,
+      height: height,
+      coordinateSpace: 'screen',
+    };
   }
 
   function isWindowInfo(value) {
@@ -103,8 +136,97 @@
     }
   }
 
-  function validateOptions(rawOptions, operation, kind) {
+  function validateRelativeTo(raw, operation) {
+    const relative = requireObject(raw, 'relativeTo', operation);
+    rejectUnknownFields(relative, ['text', 'direction', 'maxGap', 'minOverlap', 'region'], 'relativeTo', operation);
+    if (typeof relative.text !== 'string' || normalizeWhitespace(relative.text).length === 0) {
+      fail('INVALID_ARGUMENT', operation, 'relativeTo.text must be a non-empty string');
+    }
+
+    const hasDirection = hasOwn(relative, 'direction');
+    const hasRegion = hasOwn(relative, 'region');
+    if (hasDirection === hasRegion) {
+      fail('INVALID_ARGUMENT', operation, 'relativeTo must provide exactly one of direction or region');
+    }
+
+    if (hasDirection) {
+      if (['right', 'left', 'above', 'below'].indexOf(relative.direction) < 0) {
+        fail('INVALID_ARGUMENT', operation, 'relativeTo.direction must be "right", "left", "above", or "below"');
+      }
+      if (!hasOwn(relative, 'maxGap')) {
+        fail('INVALID_ARGUMENT', operation, 'relativeTo.maxGap is required in direction mode');
+      }
+      const maxGap = requireFinite(relative.maxGap, 'relativeTo.maxGap', operation);
+      if (maxGap < 0) {
+        fail('INVALID_ARGUMENT', operation, 'relativeTo.maxGap must be greater than or equal to 0');
+      }
+      const minOverlap = relative.minOverlap === undefined
+        ? 0.5
+        : requireFinite(relative.minOverlap, 'relativeTo.minOverlap', operation);
+      if (minOverlap <= 0 || minOverlap > 1) {
+        fail('INVALID_ARGUMENT', operation, 'relativeTo.minOverlap must be greater than 0 and at most 1');
+      }
+      return {
+        text: relative.text,
+        mode: 'direction',
+        direction: relative.direction,
+        maxGap: maxGap,
+        minOverlap: minOverlap,
+      };
+    }
+
+    if (hasOwn(relative, 'maxGap') || hasOwn(relative, 'minOverlap')) {
+      fail('INVALID_ARGUMENT', operation, 'relativeTo.maxGap and relativeTo.minOverlap are not allowed in region mode');
+    }
+    if (typeof relative.region !== 'function') {
+      fail('INVALID_ARGUMENT', operation, 'relativeTo.region must be a synchronous function');
+    }
+    return { text: relative.text, mode: 'region', region: relative.region };
+  }
+
+  function hasReliableWindowIdentity(win) {
+    return isWindowInfo(win) && win.id.length > 0 && !/:unresolved$/.test(win.id);
+  }
+
+  function validatePositioningOptions(raw, options, operation, supported) {
+    const hasRegion = hasOwn(raw, 'region');
+    const hasRelativeTo = hasOwn(raw, 'relativeTo');
+    if (!hasRegion && !hasRelativeTo) return;
+    if (!supported) {
+      fail('INVALID_ARGUMENT', operation, operation + ' does not support region or relativeTo');
+    }
+    if (!isWindowInfo(raw.within)) {
+      fail('INVALID_ARGUMENT', operation, 'region and relativeTo require an explicit within WindowInfo');
+    }
+    if (!hasReliableWindowIdentity(raw.within)) {
+      fail('STALE_TARGET', operation, 'within must have a resolved window identity for region or relativeTo');
+    }
+
+    let region = null;
+    let regionMode = 'window';
+    if (hasRegion) {
+      if (typeof raw.region === 'function') {
+        region = raw.region;
+        regionMode = 'dynamic';
+      } else {
+        region = taggedScreenRegion(raw.region, 'region', operation);
+        regionMode = 'static';
+      }
+    }
+
+    options.positioning = {
+      expectedWindow: identitySnapshot(raw.within),
+      region: region,
+      regionMode: regionMode,
+      relativeTo: hasRelativeTo ? validateRelativeTo(raw.relativeTo, operation) : null,
+    };
+  }
+
+  function validateOptions(rawOptions, operation, kind, positioningSupported) {
     const raw = rawOptions === undefined ? {} : requireObject(rawOptions, 'options', operation);
+    if ((hasOwn(raw, 'region') || hasOwn(raw, 'relativeTo')) && positioningSupported !== true) {
+      fail('INVALID_ARGUMENT', operation, operation + ' does not support region or relativeTo');
+    }
     const options = {
       within: raw.within,
       index: validateIndex(raw.index, operation),
@@ -158,6 +280,7 @@
         fail('INVALID_ARGUMENT', operation, 'maxResults must be a positive integer');
       }
     }
+    validatePositioningOptions(raw, options, operation, positioningSupported === true);
     return options;
   }
 
@@ -182,6 +305,40 @@
     return before.x === after.x && before.y === after.y && before.width === after.width && before.height === after.height;
   }
 
+  function frozenWindowCopy(win) {
+    const copy = {};
+    for (const key of Object.keys(win)) {
+      const value = win[key];
+      if (value === null || (typeof value !== 'object' && typeof value !== 'function')) copy[key] = value;
+    }
+    return Object.freeze(copy);
+  }
+
+  function frozenTextTargetCopy(target) {
+    return Object.freeze({
+      source: target.source,
+      text: target.text,
+      confidence: target.confidence,
+      provider: target.provider,
+      imageBounds: Object.freeze(Object.assign({}, target.imageBounds)),
+      bounds: Object.freeze(Object.assign({}, target.bounds)),
+      center: Object.freeze(Object.assign({}, target.center)),
+    });
+  }
+
+  function callbackScreenRegion(callback, argument, name, operation) {
+    let result;
+    try {
+      result = callback(argument);
+    } catch (error) {
+      fail('INVALID_ARGUMENT', operation, name + ' callback failed', { cause: errorSummary(error) });
+    }
+    if (result && (typeof result === 'object' || typeof result === 'function') && typeof result.then === 'function') {
+      fail('INVALID_ARGUMENT', operation, name + ' callback must return synchronously, not a Promise');
+    }
+    return taggedScreenRegion(result, name + ' result', operation);
+  }
+
   async function currentActiveWindow(operation) {
     try {
       const win = await global.window.getActiveWindow();
@@ -192,6 +349,17 @@
     } catch (error) {
       if (error && error.code) throw error;
       fail('STALE_TARGET', operation, 'could not read the active window', { cause: errorSummary(error) });
+    }
+  }
+
+  async function currentPositionedWindow(operation) {
+    try {
+      return await currentActiveWindow(operation);
+    } catch (error) {
+      if (error && error.code === 'STALE_TARGET' && error.operation === operation) throw error;
+      fail('STALE_TARGET', operation, 'could not confirm the current target window', {
+        cause: errorSummary(error),
+      });
     }
   }
 
@@ -233,14 +401,14 @@
     return intersecting;
   }
 
-  async function resolveScope(options, operation, targetOverride) {
+  async function resolveScope(options, operation, targetOverride, requestedOverride) {
     let target = targetOverride;
     if (target === undefined) {
       target = options.within === undefined ? await currentActiveWindow(operation) : options.within;
     }
     let requested;
     try {
-      requested = global.Geometry.rect(target);
+      requested = global.Geometry.rect(requestedOverride === undefined ? target : requestedOverride);
     } catch (error) {
       fail('INVALID_ARGUMENT', operation, 'within must be a window, display, or Geometry screen region', { cause: errorSummary(error) });
     }
@@ -251,22 +419,43 @@
       if (error && error.code) throw error;
       fail('UNSUPPORTED_COORDINATE_MAPPING', operation, 'could not read virtual desktop bounds', { cause: errorSummary(error) });
     }
-    const logicalScope = global.Geometry.intersect(requested, virtual);
-    if (!logicalScope) {
+    const searchScope = global.Geometry.intersect(requested, virtual);
+    if (!searchScope) {
       fail('TARGET_SCOPE_NOT_VISIBLE', operation, 'target scope is outside the visible virtual desktop');
+    }
+    let logicalScope = searchScope;
+    if (requestedOverride !== undefined) {
+      // Native screenshot clips are integer rectangles. Positioned searches keep
+      // the exact requested range separately, capture an outward-rounded clip,
+      // and project OCR with the actual clip dimensions.
+      const left = Math.floor(searchScope.x);
+      const top = Math.floor(searchScope.y);
+      const right = Math.ceil(searchScope.x + searchScope.width);
+      const bottom = Math.ceil(searchScope.y + searchScope.height);
+      logicalScope = global.Geometry.intersect({
+        x: left,
+        y: top,
+        width: right - left,
+        height: bottom - top,
+        coordinateSpace: 'screen',
+      }, virtual);
+      if (!logicalScope) {
+        fail('TARGET_SCOPE_NOT_VISIBLE', operation, 'target scope cannot be mapped to a visible screenshot clip');
+      }
     }
     const displays = displaysForScope(logicalScope, operation);
     return {
       target: target,
       requestedScope: requested,
+      searchScope: searchScope,
       logicalScope: logicalScope,
       displays: displays,
       windowSnapshot: isWindowInfo(target) ? identitySnapshot(target) : null,
     };
   }
 
-  async function captureScope(options, operation, targetOverride) {
-    const scope = await resolveScope(options, operation, targetOverride);
+  async function captureScope(options, operation, targetOverride, requestedOverride) {
+    const scope = await resolveScope(options, operation, targetOverride, requestedOverride);
     let image;
     try {
       image = await global.page.screenshot({
@@ -334,6 +523,25 @@
     };
   }
 
+  function projectSpatialEdges(imageBoundsValue, capture) {
+    const logical = capture.scope.logicalScope;
+    return {
+      left: logical.x + imageBoundsValue.x / capture.scaleX,
+      top: logical.y + imageBoundsValue.y / capture.scaleY,
+      right: logical.x + (imageBoundsValue.x + imageBoundsValue.width) / capture.scaleX,
+      bottom: logical.y + (imageBoundsValue.y + imageBoundsValue.height) / capture.scaleY,
+    };
+  }
+
+  function imageEdges(imageBoundsValue) {
+    return {
+      left: imageBoundsValue.x,
+      top: imageBoundsValue.y,
+      right: imageBoundsValue.x + imageBoundsValue.width,
+      bottom: imageBoundsValue.y + imageBoundsValue.height,
+    };
+  }
+
   function centerOf(bounds) {
     const minX = bounds.x;
     const minY = bounds.y;
@@ -361,10 +569,11 @@
     return image;
   }
 
-  function textMatches(lineText, query, options) {
+  function textMatches(lineText, query, options, matchOverride) {
     const actual = normalizeText(lineText, options);
     const wanted = normalizeText(query, options);
-    return options.match === 'exact' ? actual === wanted : actual.indexOf(wanted) >= 0;
+    const match = matchOverride || options.match;
+    return match === 'exact' ? actual === wanted : actual.indexOf(wanted) >= 0;
   }
 
   function sortReadingOrder(candidates) {
@@ -374,8 +583,15 @@
     });
   }
 
-  async function discoverTexts(text, options, operation, targetOverride) {
-    const capture = await captureScope(options, operation, targetOverride);
+  function sortCandidateRows(rows) {
+    return rows.sort(function (a, b) {
+      if (a.candidate.bounds.y !== b.candidate.bounds.y) return a.candidate.bounds.y - b.candidate.bounds.y;
+      return a.candidate.bounds.x - b.candidate.bounds.x;
+    });
+  }
+
+  async function runTextObservation(options, operation, targetOverride, requestedOverride) {
+    const capture = await captureScope(options, operation, targetOverride, requestedOverride);
     let result;
     try {
       const request = { image: capture.image };
@@ -389,31 +605,65 @@
     if (!result || !Array.isArray(result.lines)) {
       fail('OCR_FAILED', operation, 'OCR result did not contain line candidates');
     }
-    const candidates = [];
-    for (const line of result.lines) {
+    return { capture: capture, result: result };
+  }
+
+  function collectTextMatches(observation, text, options, operation) {
+    const targetRows = [];
+    const anchorRows = [];
+    const relative = options.positioning && options.positioning.relativeTo;
+    for (let lineIndex = 0; lineIndex < observation.result.lines.length; lineIndex += 1) {
+      const line = observation.result.lines[lineIndex];
       if (!line || typeof line.text !== 'string' || !line.bbox) continue;
       const confidence = isFiniteNumber(line.confidence) ? line.confidence : 0;
       if (options.minConfidence !== undefined && confidence < options.minConfidence) continue;
-      if (!textMatches(line.text, text, options)) continue;
+      const targetMatch = textMatches(line.text, text, options);
+      const anchorMatch = !!relative && textMatches(line.text, relative.text, options, 'exact');
+      if (!targetMatch && !anchorMatch) continue;
       let rawBounds;
       let bounds;
+      let spatialEdges;
       try {
-        rawBounds = imageBounds(line.bbox, capture, operation);
-        bounds = projectImageBounds(line.bbox, capture, operation);
+        rawBounds = imageBounds(line.bbox, observation.capture, operation);
+        bounds = projectImageBounds(line.bbox, observation.capture, operation);
+        spatialEdges = projectSpatialEdges(rawBounds, observation.capture);
       } catch (error) {
         fail('OCR_FAILED', operation, 'OCR returned an invalid image bounding box', { cause: errorSummary(error) });
       }
-      candidates.push({
+      const candidate = {
         source: 'ocr',
         text: line.text,
         confidence: confidence,
-        provider: typeof result.provider === 'string' ? result.provider : (options.provider || ''),
+        provider: typeof observation.result.provider === 'string' ? observation.result.provider : (options.provider || ''),
         imageBounds: rawBounds,
         bounds: bounds,
         center: centerOf(bounds),
-      });
+      };
+      if (options.positioning && !fullyContainedSpatial(spatialEdges, observation.capture.scope.searchScope)) {
+        continue;
+      }
+      const row = {
+        lineIndex: lineIndex,
+        candidate: candidate,
+        imageEdges: imageEdges(rawBounds),
+        spatialEdges: spatialEdges,
+      };
+      if (targetMatch) targetRows.push(row);
+      if (anchorMatch) anchorRows.push(row);
     }
-    return { capture: capture, candidates: sortReadingOrder(candidates) };
+    return {
+      targetRows: sortCandidateRows(targetRows),
+      anchorRows: sortCandidateRows(anchorRows),
+    };
+  }
+
+  async function discoverTexts(text, options, operation, targetOverride, requestedOverride) {
+    const observation = await runTextObservation(options, operation, targetOverride, requestedOverride);
+    const matches = collectTextMatches(observation, text, options, operation);
+    return {
+      capture: observation.capture,
+      candidates: matches.targetRows.map(function (row) { return row.candidate; }),
+    };
   }
 
   async function discoverImages(template, options, operation, targetOverride) {
@@ -459,7 +709,15 @@
   }
 
   function chooseCandidate(candidates, options, operation) {
-    if (candidates.length === 0) return null;
+    if (candidates.length === 0) {
+      if (options.index !== undefined) {
+        fail('TARGET_NOT_FOUND', operation, 'index is outside the matching candidate list', {
+          index: options.index,
+          candidateCount: 0,
+        });
+      }
+      return null;
+    }
     if (options.index !== undefined) {
       if (options.index >= candidates.length) {
         fail('TARGET_NOT_FOUND', operation, 'index is outside the matching candidate list', {
@@ -486,17 +744,208 @@
     await new Promise(function (resolve) { setTimeout(resolve, milliseconds); });
   }
 
-  async function checkActionScope(capture, operation) {
+  async function checkWindowScope(capture, operation, phase, positioned) {
     if (!capture.scope.windowSnapshot) return { retry: false };
-    const current = await currentActiveWindow(operation);
+    const current = positioned ? await currentPositionedWindow(operation) : await currentActiveWindow(operation);
     const currentSnapshot = identitySnapshot(current);
     if (!sameIdentity(capture.scope.windowSnapshot, currentSnapshot)) {
-      fail('STALE_TARGET', operation, 'active window identity changed before the input action', {
+      fail('STALE_TARGET', operation, 'active window identity changed ' + phase, {
         expected: capture.scope.windowSnapshot,
         actual: currentSnapshot,
       });
     }
     return { retry: !sameBounds(capture.scope.windowSnapshot.bounds, currentSnapshot.bounds), current: current };
+  }
+
+  async function checkActionScope(capture, operation) {
+    return checkWindowScope(capture, operation, 'before the input action');
+  }
+
+  function assertExpectedWindow(expected, current, operation) {
+    const actual = identitySnapshot(current);
+    if (!hasReliableWindowIdentity(current) || !sameIdentity(expected, actual)) {
+      fail('STALE_TARGET', operation, 'within no longer identifies the active window', {
+        expected: expected,
+        actual: actual,
+      });
+    }
+    return actual;
+  }
+
+  function positionedOuterScope(options, current, currentSnapshot, operation) {
+    const positioning = options.positioning;
+    if (positioning.regionMode === 'static' && !sameBounds(positioning.expectedWindow.bounds, currentSnapshot.bounds)) {
+      fail('STALE_TARGET', operation, 'window bounds changed after the static region snapshot was supplied', {
+        expected: positioning.expectedWindow,
+        actual: currentSnapshot,
+      });
+    }
+
+    const windowRegion = global.Geometry.rect(current);
+    let requested = windowRegion;
+    if (positioning.regionMode === 'static') {
+      requested = positioning.region;
+    } else if (positioning.regionMode === 'dynamic') {
+      requested = callbackScreenRegion(positioning.region, frozenWindowCopy(current), 'region', operation);
+    }
+    const effective = global.Geometry.intersect(windowRegion, requested);
+    if (!effective) {
+      fail('TARGET_SCOPE_NOT_VISIBLE', operation, 'region does not intersect the current target window');
+    }
+    return effective;
+  }
+
+  function overlapLength(firstStart, firstEnd, secondStart, secondEnd) {
+    return Math.max(0, Math.min(firstEnd, secondEnd) - Math.max(firstStart, secondStart));
+  }
+
+  function comparisonTolerance() {
+    let scale = 1;
+    for (let index = 0; index < arguments.length; index += 1) {
+      scale = Math.max(scale, Math.abs(arguments[index]));
+    }
+    return 16 * 2.220446049250313e-16 * scale;
+  }
+
+  function atLeast(actual, minimum) {
+    return actual + comparisonTolerance.apply(null, arguments) >= minimum;
+  }
+
+  function atMost(actual, maximum) {
+    return actual <= maximum + comparisonTolerance.apply(null, arguments);
+  }
+
+  function matchesDirection(targetEdges, anchorEdges, relative, capture) {
+    if (relative.direction === 'right' || relative.direction === 'left') {
+      const overlap = overlapLength(targetEdges.top, targetEdges.bottom, anchorEdges.top, anchorEdges.bottom);
+      const minimumOverlap = Math.min(
+        targetEdges.bottom - targetEdges.top,
+        anchorEdges.bottom - anchorEdges.top,
+      ) * relative.minOverlap;
+      if (!atLeast(
+        overlap,
+        minimumOverlap,
+        targetEdges.top,
+        targetEdges.bottom,
+        anchorEdges.top,
+        anchorEdges.bottom,
+      )) return false;
+      const maximumGap = relative.maxGap * capture.scaleX;
+      if (relative.direction === 'right') {
+        const gap = targetEdges.left - anchorEdges.right;
+        return atLeast(gap, 0, targetEdges.left, anchorEdges.right) &&
+          atMost(gap, maximumGap, targetEdges.left, anchorEdges.right);
+      }
+      const gap = anchorEdges.left - targetEdges.right;
+      return atLeast(gap, 0, anchorEdges.left, targetEdges.right) &&
+        atMost(gap, maximumGap, anchorEdges.left, targetEdges.right);
+    }
+
+    const overlap = overlapLength(targetEdges.left, targetEdges.right, anchorEdges.left, anchorEdges.right);
+    const minimumOverlap = Math.min(
+      targetEdges.right - targetEdges.left,
+      anchorEdges.right - anchorEdges.left,
+    ) * relative.minOverlap;
+    if (!atLeast(
+      overlap,
+      minimumOverlap,
+      targetEdges.left,
+      targetEdges.right,
+      anchorEdges.left,
+      anchorEdges.right,
+    )) return false;
+    const maximumGap = relative.maxGap * capture.scaleY;
+    if (relative.direction === 'below') {
+      const gap = targetEdges.top - anchorEdges.bottom;
+      return atLeast(gap, 0, targetEdges.top, anchorEdges.bottom) &&
+        atMost(gap, maximumGap, targetEdges.top, anchorEdges.bottom);
+    }
+    const gap = anchorEdges.top - targetEdges.bottom;
+    return atLeast(gap, 0, anchorEdges.top, targetEdges.bottom) &&
+      atMost(gap, maximumGap, anchorEdges.top, targetEdges.bottom);
+  }
+
+  function fullyContainedSpatial(edges, region) {
+    return atLeast(edges.left, region.x) && atLeast(edges.top, region.y) &&
+      atMost(edges.right, region.x + region.width) &&
+      atMost(edges.bottom, region.y + region.height);
+  }
+
+  function relativeTextCandidates(matches, observation, options, operation) {
+    const relative = options.positioning.relativeTo;
+    if (!relative || matches.anchorRows.length !== 1) {
+      return [];
+    }
+    const anchorRow = matches.anchorRows[0];
+    const targetRows = matches.targetRows.filter(function (row) { return row.lineIndex !== anchorRow.lineIndex; });
+    if (relative.mode === 'direction') {
+      return targetRows.filter(function (row) {
+        return matchesDirection(row.imageEdges, anchorRow.imageEdges, relative, observation.capture);
+      }).map(function (row) { return row.candidate; });
+    }
+
+    const relativeRegion = callbackScreenRegion(
+      relative.region,
+      frozenTextTargetCopy(anchorRow.candidate),
+      'relativeTo.region',
+      operation,
+    );
+    const effectiveRegion = global.Geometry.intersect(observation.capture.scope.searchScope, relativeRegion);
+    if (!effectiveRegion) return [];
+    return targetRows.filter(function (row) {
+      return fullyContainedSpatial(row.spatialEdges, effectiveRegion);
+    }).map(function (row) { return row.candidate; });
+  }
+
+  async function discoverPositionedTexts(text, options, operation, missingAnchorIsError) {
+    const positioning = options.positioning;
+    let retryWindow;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const current = retryWindow === undefined ? await currentPositionedWindow(operation) : retryWindow;
+      retryWindow = undefined;
+      const currentSnapshot = assertExpectedWindow(positioning.expectedWindow, current, operation);
+      const requestedScope = positionedOuterScope(options, current, currentSnapshot, operation);
+      const observation = await runTextObservation(options, operation, current, requestedScope);
+      const matches = collectTextMatches(observation, text, options, operation);
+      const candidates = positioning.relativeTo
+        ? relativeTextCandidates(matches, observation, options, operation)
+        : matches.targetRows.map(function (row) { return row.candidate; });
+
+      const check = await checkWindowScope(observation.capture, operation, 'before returning or sending input', true);
+      if (check.retry) {
+        if (positioning.regionMode === 'static') {
+          fail('STALE_TARGET', operation, 'window bounds changed while using a static region snapshot', {
+            expected: observation.capture.scope.windowSnapshot,
+            actual: identitySnapshot(check.current),
+          });
+        }
+        if (attempt === 0) {
+          retryWindow = check.current;
+          continue;
+        }
+        fail('STALE_TARGET', operation, 'window bounds changed repeatedly while resolving the target');
+      }
+
+      if (positioning.relativeTo) {
+        if (matches.anchorRows.length === 0) {
+          if (missingAnchorIsError) {
+            fail('TARGET_NOT_FOUND', operation, 'relative text anchor was not found in the visible scope', {
+              stage: 'anchor',
+            });
+          }
+          return { capture: observation.capture, candidates: [] };
+        }
+        if (matches.anchorRows.length > 1) {
+          fail('AMBIGUOUS_TARGET', operation, 'multiple visible text anchors match relativeTo.text', {
+            stage: 'anchor',
+            candidateCount: matches.anchorRows.length,
+            candidates: matches.anchorRows.map(function (row) { return row.candidate; }),
+          });
+        }
+      }
+      return { capture: observation.capture, candidates: candidates };
+    }
+    fail('STALE_TARGET', operation, 'window bounds changed while resolving the target');
   }
 
   async function tapWithDiscovery(discover, value, options, operation, action) {
@@ -526,6 +975,21 @@
     fail('STALE_TARGET', operation, 'window bounds changed while resolving the target');
   }
 
+  async function tapPositionedText(text, options, operation) {
+    const found = await discoverPositionedTexts(text, options, operation, true);
+    const target = chooseCandidate(found.candidates, options, operation);
+    if (!target) {
+      fail('TARGET_NOT_FOUND', operation, 'target was not found in the visible scope');
+    }
+    try {
+      await global.mouse.clickPoint(target.center, options.click);
+    } catch (error) {
+      if (error && error.code) throw error;
+      fail('STALE_TARGET', operation, 'mouse click could not be sent to the resolved screen point', { cause: errorSummary(error) });
+    }
+    return { ok: true, action: 'tapText', target: target, point: target.center };
+  }
+
   const UI = {
     getCapabilities: function () {
       return {
@@ -539,30 +1003,38 @@
     findTexts: async function (text, rawOptions) {
       const operation = 'UI.findTexts';
       validateText(text, operation);
-      const options = validateOptions(rawOptions, operation, 'text');
-      return (await discoverTexts(text, options, operation)).candidates;
+      const options = validateOptions(rawOptions, operation, 'text', true);
+      return (await (options.positioning
+        ? discoverPositionedTexts(text, options, operation, false)
+        : discoverTexts(text, options, operation))).candidates;
     },
 
     findText: async function (text, rawOptions) {
       const operation = 'UI.findText';
       validateText(text, operation);
-      const options = validateOptions(rawOptions, operation, 'text');
-      const found = await discoverTexts(text, options, operation);
+      const options = validateOptions(rawOptions, operation, 'text', true);
+      const found = options.positioning
+        ? await discoverPositionedTexts(text, options, operation, false)
+        : await discoverTexts(text, options, operation);
       return chooseCandidate(found.candidates, options, operation);
     },
 
     hasText: async function (text, rawOptions) {
       const operation = 'UI.hasText';
       validateText(text, operation);
-      const options = validateOptions(rawOptions, operation, 'text');
-      return (await discoverTexts(text, options, operation)).candidates.length > 0;
+      const options = validateOptions(rawOptions, operation, 'text', true);
+      return (await (options.positioning
+        ? discoverPositionedTexts(text, options, operation, false)
+        : discoverTexts(text, options, operation))).candidates.length > 0;
     },
 
     tapText: async function (text, rawOptions) {
       const operation = 'UI.tapText';
       validateText(text, operation);
-      const options = validateOptions(rawOptions, operation, 'text');
-      return tapWithDiscovery(discoverTexts, text, options, operation, 'tapText');
+      const options = validateOptions(rawOptions, operation, 'text', true);
+      return options.positioning
+        ? tapPositionedText(text, options, operation)
+        : tapWithDiscovery(discoverTexts, text, options, operation, 'tapText');
     },
 
     tapTexts: async function (texts, rawOptions) {
@@ -570,12 +1042,14 @@
       if (!Array.isArray(texts) || texts.length === 0 || texts.some(function (text) { return typeof text !== 'string' || text.length === 0; })) {
         fail('INVALID_ARGUMENT', operation, 'texts must be a non-empty string array');
       }
-      const options = validateOptions(rawOptions, operation, 'text');
+      const options = validateOptions(rawOptions, operation, 'text', true);
       const completed = [];
       for (let index = 0; index < texts.length; index += 1) {
         if (index > 0 && options.intervalMs > 0) await delay(options.intervalMs);
         try {
-          completed.push(await tapWithDiscovery(discoverTexts, texts[index], options, operation, 'tapText'));
+          completed.push(await (options.positioning
+            ? tapPositionedText(texts[index], options, operation)
+            : tapWithDiscovery(discoverTexts, texts[index], options, operation, 'tapText')));
         } catch (error) {
           const message = error && error.message ? error.message : 'text activation failed';
           const wrapped = new Error(message);
@@ -585,6 +1059,9 @@
           wrapped.failedText = texts[index];
           wrapped.completed = completed;
           wrapped.cause = error;
+          if (error && error.stage) wrapped.stage = error.stage;
+          if (error && Number.isInteger(error.candidateCount)) wrapped.candidateCount = error.candidateCount;
+          if (error && Array.isArray(error.candidates)) wrapped.candidates = error.candidates;
           throw wrapped;
         }
       }

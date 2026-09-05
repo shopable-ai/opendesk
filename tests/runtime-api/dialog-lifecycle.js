@@ -1,5 +1,6 @@
 // Native, public-JavaScript Dialog smoke. Run through the official
-// scripts/test_runtime_apis.sh dialog gate with -ui and the bundled host.
+// OPENDESK_RUNTIME_API_MODE=dialog scripts/test_runtime_apis.js gate with -ui
+// and the bundled host.
 // The gate acknowledges each real native button through the documented,
 // PID-scoped mouse.clickForPID API after independently proving its AXPress
 // capability. Do not add option callbacks: Dialog is Promise-only.

@@ -92,6 +92,17 @@ func TestFallbackMacWindowListPreservesPrimaryAndFallbackErrors(t *testing.T) {
 	}
 }
 
+func TestMacWindowIdentityKeyUsesNativeHandleWhenAvailable(t *testing.T) {
+	withHandle := macWindow{PID: 42, Handle: 99, X: 1, Y: 2, Width: 3, Height: 4}
+	if got := macWindowIdentityKey(withHandle); got != "42:99" {
+		t.Fatalf("expected handle identity key, got %q", got)
+	}
+	withoutHandle := macWindow{PID: 42, X: 1, Y: 2, Width: 3, Height: 4}
+	if got := macWindowIdentityKey(withoutHandle); got != "42:1:2:3:4" {
+		t.Fatalf("expected bounds identity key, got %q", got)
+	}
+}
+
 func TestNormalizeMacWindowTitleUsesExecutableName(t *testing.T) {
 	item := &macWindow{
 		Title:   "",

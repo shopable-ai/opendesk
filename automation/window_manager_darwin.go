@@ -758,10 +758,45 @@ function run() {
 		return fallbackMacWindowList(fmt.Errorf("JXA returned no identifiable visible windows"))
 	}
 
-	return normalized, nil
+	// AX/JXA can return only the active modal sheet while omitting the visible
+	// parent document.  Merge CoreGraphics rows even on an otherwise successful
+	// JXA response so callers that captured a document identity before a modal
+	// can still re-read that identity and derive safe relative geometry.
+	return mergeMacWindowCoreGraphics(normalized), nil
+}
+
+func mergeMacWindowCoreGraphics(items []macWindow) []macWindow {
+	coreGraphics, err := listMacWindowsCoreGraphics()
+	if err != nil {
+		return items
+	}
+	seen := make(map[string]struct{}, len(items))
+	for _, item := range items {
+		seen[macWindowIdentityKey(item)] = struct{}{}
+	}
+	for _, item := range coreGraphics {
+		key := macWindowIdentityKey(item)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		items = append(items, item)
+	}
+	return items
+}
+
+func macWindowIdentityKey(item macWindow) string {
+	if item.Handle != 0 {
+		return fmt.Sprintf("%d:%d", item.PID, item.Handle)
+	}
+	return fmt.Sprintf("%d:%d:%d:%d:%d", item.PID, item.X, item.Y, item.Width, item.Height)
 }
 
 func fallbackMacWindowList(cause error) ([]macWindow, error) {
+	if items, err := listMacWindowsCoreGraphics(); err == nil {
+		log.Printf("macOS window enumeration degraded to CoreGraphics list fallback: %v", cause)
+		return items, nil
+	}
 	items, err := fallbackMacWindowListWithResolver(cause, getActiveMacWindowCoreGraphics)
 	if err == nil {
 		log.Printf("macOS window enumeration degraded to active-window CoreGraphics fallback: %v", cause)
