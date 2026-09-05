@@ -58,6 +58,7 @@ type Config struct {
 	LogDir                                string
 	ConsoleMode                           string
 	ConsoleCategories                     string
+	ConsoleColor                          string
 	Debug                                 bool
 	EnvironmentFile                       string
 	OutputFormat                          string
@@ -98,11 +99,12 @@ func parseFlags() *Config {
 
 	flag.StringVar(&config.ScriptPath, "script", "", "Script file path (.txt or .js)")
 	flag.StringVar(&config.ScriptText, "script-text", "", "Execute JavaScript source directly from the command line")
-	flag.StringVar(&config.StackMode, "stack", "legacy", "Browser automation surface: legacy | upgraded | playwright")
+	flag.StringVar(&config.StackMode, "stack", "legacy", "Legacy compatibility selector; new scripts should omit this flag")
 	flag.StringVar(&config.SaveLastScript, "save-last-script", "", "Persist the executed script source to the given path")
 	flag.StringVar(&config.LogDir, "log-dir", "", "Persist run logs and summary to the given directory")
 	flag.StringVar(&config.ConsoleMode, "console-mode", defaultConsoleMode, "Terminal output mode: normal | full | script | meta | summary | quiet | agent")
 	flag.StringVar(&config.ConsoleCategories, "console-categories", "", "Override terminal output categories: framework,meta,script,summary,error")
+	flag.StringVar(&config.ConsoleColor, "color", defaultConsoleColor, "Terminal colors: auto | always | never")
 	flag.BoolVar(&config.Debug, "debug", false, "Show complete diagnostic terminal output (unless console mode/categories is explicitly set)")
 	flag.StringVar(&config.EnvironmentFile, "env-file", "", "Project environment file (default: .env then .opendesk.env in the working directory)")
 	flag.StringVar(&config.OutputFormat, "output-format", "text", "Agent output format: text | json")
@@ -141,6 +143,7 @@ func parseFlags() *Config {
 	}
 	config.ConsoleMode = consoleSettings.Mode
 	config.ConsoleCategories = consoleSettings.Categories
+	config.ConsoleColor = consoleSettings.ColorMode
 	config.OutputFormat = consoleSettings.OutputFormat
 	return config
 }
@@ -201,7 +204,7 @@ func main() {
 				fmt.Fprintf(os.Stderr, "native extension CLI panic: %v\n", r)
 				os.Exit(1)
 			}
-			fmt.Printf("Recovered from panic: %v\n", r)
+			terminalPrintf(os.Stderr, "[ERROR] Recovered from panic: %v\n", r)
 			if len(os.Args) == 1 {
 				fmt.Println("\nPress 'Enter' to exit...")
 				fmt.Scanln()
@@ -218,15 +221,16 @@ func main() {
 	if handled, code := handleInternalMacPermissionHelper(config); handled {
 		os.Exit(code)
 	}
+	configureTerminalOutput(config)
 	if config.consoleConfigErr != nil {
-		fmt.Fprintf(os.Stderr, "[ERROR] OpenDesk console configuration: %v\n", config.consoleConfigErr)
+		terminalPrintf(os.Stderr, "[ERROR] OpenDesk console configuration: %v\n", config.consoleConfigErr)
 		os.Exit(2)
 	}
 	selection := buildExecutionConsoleSelection(config)
 
 	if shouldEchoStartupCategory("framework", selection) {
-		fmt.Printf("robotgo version: %s\n", robotgo.Version)
-		fmt.Println("[DEBUG] Program starting...")
+		terminalPrintf(os.Stdout, "[FRAMEWORK] [DEBUG] robotgo version: %s\n", robotgo.Version)
+		terminalPrintln(os.Stdout, "[FRAMEWORK] [DEBUG] Program starting...")
 	}
 	// Note: initRuntime is now only called in legacy mode when needed
 
@@ -235,7 +239,7 @@ func main() {
 		isAutoRunJs = true
 		config.HttpMode = true // 双击启动时默认启用 HTTP 模式
 		if shouldEchoStartupCategory("framework", selection) {
-			fmt.Println("[DEBUG] Double-clicked detected. Setting default HTTP mode.")
+			terminalPrintln(os.Stdout, "[FRAMEWORK] [DEBUG] Double-clicked detected. Setting default HTTP mode.")
 		}
 	}
 
@@ -245,11 +249,11 @@ func main() {
 		scriptFile, err := findScriptFile()
 		if err != nil {
 			if shouldEchoStartupCategory("framework", selection) {
-				fmt.Printf("[INFO] No tm.config.js found: %v\n", err)
+				terminalPrintf(os.Stdout, "[FRAMEWORK] [INFO] No tm.config.js found: %v\n", err)
 			}
 		} else {
 			if shouldEchoStartupCategory("framework", selection) {
-				fmt.Printf("[INFO] Found script file: %s\n", scriptFile)
+				terminalPrintf(os.Stdout, "[FRAMEWORK] [INFO] Found script file: %s\n", scriptFile)
 			}
 			config.ScriptPath = scriptFile
 
@@ -261,7 +265,7 @@ func main() {
 
 		// 启动 HTTP 服务器（默认行为）
 		if shouldEchoStartupCategory("framework", selection) {
-			fmt.Println("[INFO] Starting HTTP server...")
+			terminalPrintln(os.Stdout, "[FRAMEWORK] [INFO] Starting HTTP server...")
 		}
 		if err := startHttpServer(config.Port, config); err != nil {
 			exitHTTPStartupFailure(err, config.Port)
@@ -272,7 +276,7 @@ func main() {
 	// 命令行视觉模式（不依赖 HTTP）
 	if config.VisionOCRImagePath != "" || config.VisionDetectImagePath != "" {
 		if err := executeVisionCLI(config); err != nil {
-			fmt.Printf("[ERROR] Vision CLI execution failed: %v\n", err)
+			terminalPrintf(os.Stderr, "[ERROR] Vision CLI execution failed: %v\n", err)
 			os.Exit(1)
 		}
 
@@ -288,29 +292,27 @@ func main() {
 	if hasScriptSource(config) {
 		if config.ScriptPath != "" {
 			if shouldEchoStartupCategory("framework", selection) {
-				fmt.Printf("[DEBUG] Executing script: %s\n", config.ScriptPath)
+				terminalPrintf(os.Stdout, "[FRAMEWORK] [DEBUG] Executing script: %s\n", config.ScriptPath)
 			}
 		} else if config.ScriptText != "" {
 			if shouldEchoStartupCategory("framework", selection) {
-				fmt.Println("[DEBUG] Executing inline script text")
+				terminalPrintln(os.Stdout, "[FRAMEWORK] [DEBUG] Executing inline script text")
 			}
 		} else if config.ScriptStdin {
 			if shouldEchoStartupCategory("framework", selection) {
-				fmt.Println("[DEBUG] Executing script from stdin")
+				terminalPrintln(os.Stdout, "[FRAMEWORK] [DEBUG] Executing script from stdin")
 			}
 		}
 
 		if err := executeScript(config); err != nil {
 			if errors.Is(err, errScriptInstanceReplaced) {
-				fmt.Println("[INFO] Script execution was replaced by a newer invocation")
+				if !shouldUseJSONOutput(config) {
+					terminalPrintln(os.Stdout, "[META] [INFO] Script execution was replaced by a newer invocation")
+				}
 				return
 			}
-			fmt.Printf("[ERROR] Script execution failed: %v\n", err)
+			terminalPrintf(os.Stderr, "[ERROR] Script execution failed: %v\n", err)
 			os.Exit(1)
-		}
-
-		if shouldEchoStartupCategory("framework", selection) {
-			fmt.Println("[DEBUG] Script execution completed")
 		}
 
 		// 如果指定了 HTTP 模式，继续运行 HTTP 服务器
@@ -323,7 +325,7 @@ func main() {
 	}
 
 	// 没有脚本的情况
-	fmt.Println("Please specify a script source: -script path/to/script.[txt|js], -script-text 'code', or -script-stdin")
+	fmt.Fprintln(os.Stderr, "Please specify a script source: -script path/to/script.[txt|js], -script-text 'code', or -script-stdin")
 
 	// 如果是 HTTP 模式，启动服务器
 	if config.HttpMode {
@@ -482,15 +484,15 @@ func handleInternalMacPermissionHelper(config *Config) (bool, int) {
 }
 
 func findScriptFile() (string, error) {
-	fmt.Println("[DEBUG] Looking for tm.config.js...")
+	terminalPrintln(os.Stdout, "[FRAMEWORK] [DEBUG] Looking for tm.config.js...")
 
 	// 只查找 tm.config.js
 	if _, err := os.Stat("tm.config.js"); err == nil {
-		fmt.Println("[DEBUG] Found tm.config.js")
+		terminalPrintln(os.Stdout, "[FRAMEWORK] [DEBUG] Found tm.config.js")
 		return "tm.config.js", nil
 	}
 
-	fmt.Println("[DEBUG] tm.config.js not found")
+	terminalPrintln(os.Stdout, "[FRAMEWORK] [DEBUG] tm.config.js not found")
 	return "", fmt.Errorf("tm.config.js not found")
 }
 
@@ -553,6 +555,7 @@ type ConsoleSelection struct {
 	Mode         string
 	Categories   map[string]bool
 	IncludeDebug bool
+	ColorMode    string
 }
 
 type teeCapture struct {
@@ -597,7 +600,7 @@ func handleScriptExecution(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 打印接收到的消息
-	fmt.Println("[DEBUG] Received script execution request")
+	terminalPrintln(os.Stdout, "[FRAMEWORK] [DEBUG] Received script execution request")
 
 	// Check for missing script parameter
 	if requestBody.Script == nil {
@@ -626,9 +629,9 @@ func handleScriptExecution(w http.ResponseWriter, r *http.Request) {
 	}
 	scriptPreview := scriptContent[:previewLength]
 	scriptHash := computeScriptHash([]byte(scriptContent))
-	fmt.Printf("[DEBUG] Script length: %d characters\n", scriptLength)
-	fmt.Printf("[DEBUG] Script hash: %s\n", scriptHash)
-	fmt.Printf("[DEBUG] Script preview: %s\n", scriptPreview)
+	terminalPrintf(os.Stdout, "[FRAMEWORK] [DEBUG] Script length: %d characters\n", scriptLength)
+	terminalPrintf(os.Stdout, "[FRAMEWORK] [DEBUG] Script hash: %s\n", scriptHash)
+	terminalPrintf(os.Stdout, "[FRAMEWORK] [DEBUG] Script preview: %s\n", scriptPreview)
 
 	// Set script status to running
 	updateScriptStatus("running", nil)
@@ -731,6 +734,7 @@ func executeScript(config *Config) error {
 		ExpectedCancellation: func() bool { return instanceLease != nil && instanceLease.WasReplaced() },
 		ExecutionID:          executionID,
 		SourceLabel:          sourceLabel,
+		ScriptPath:           config.ScriptPath,
 		Ext:                  ext,
 		StackMode:            config.StackMode,
 		ScriptHash:           pkgExecution.ComputeScriptHash(content),
@@ -753,6 +757,7 @@ func executeScript(config *Config) error {
 			Mode:         selection.Mode,
 			Categories:   copyConsoleCategories(selection.Categories),
 			IncludeDebug: selection.IncludeDebug,
+			ColorMode:    selection.ColorMode,
 		},
 	}
 
@@ -775,12 +780,18 @@ func executeScript(config *Config) error {
 
 func buildExecutionConsoleSelection(config *Config) ConsoleSelection {
 	if config == nil {
-		return buildConsoleSelection(defaultConsoleMode, "")
+		selection := buildConsoleSelection(defaultConsoleMode, "")
+		selection.ColorMode = defaultConsoleColor
+		return selection
 	}
 	if shouldUseJSONOutput(config) {
-		return buildConsoleSelection("agent", "")
+		selection := buildConsoleSelection("agent", "")
+		selection.ColorMode = "never"
+		return selection
 	}
-	return buildConsoleSelection(config.ConsoleMode, config.ConsoleCategories)
+	selection := buildConsoleSelection(config.ConsoleMode, config.ConsoleCategories)
+	selection.ColorMode = config.ConsoleColor
+	return selection
 }
 
 func shouldUseJSONOutput(config *Config) bool {
@@ -831,9 +842,9 @@ func printExecutionSummary(selection ConsoleSelection, result pkgExecution.Execu
 	if status == "" {
 		status = "unknown"
 	}
-	fmt.Printf("[SUMMARY] status=%s duration=%dms source=%s hash=%s\n", status, result.DurationMs, result.Source, result.ScriptHash)
-	fmt.Printf("[SUMMARY] logs=%s stdout=%s stderr=%s\n", result.Artifacts.RunDir, result.Artifacts.StdoutPath, result.Artifacts.StderrPath)
-	fmt.Printf("[SUMMARY] script_snapshot=%s summary=%s agent_summary=%s events=%s\n", result.Artifacts.ScriptSnapshotPath, result.Artifacts.SummaryPath, result.Artifacts.AgentSummaryPath, result.Artifacts.EventLogPath)
+	terminalPrintf(os.Stdout, "[SUMMARY] status=%s duration=%dms source=%s hash=%s\n", status, result.DurationMs, result.Source, result.ScriptHash)
+	terminalPrintf(os.Stdout, "[SUMMARY] logs=%s stdout=%s stderr=%s\n", result.Artifacts.RunDir, result.Artifacts.StdoutPath, result.Artifacts.StderrPath)
+	terminalPrintf(os.Stdout, "[SUMMARY] script_snapshot=%s summary=%s agent_summary=%s events=%s\n", result.Artifacts.ScriptSnapshotPath, result.Artifacts.SummaryPath, result.Artifacts.AgentSummaryPath, result.Artifacts.EventLogPath)
 }
 
 func printAgentSummaryJSON(summary pkgExecution.AgentSummary) error {
@@ -1170,6 +1181,7 @@ func buildConsoleSelection(mode, categories string) ConsoleSelection {
 		Mode:         normalizedMode,
 		Categories:   defaultConsoleCategories(normalizedMode),
 		IncludeDebug: normalizedMode == "full" || normalizedMode == "script" || normalizedMode == "meta",
+		ColorMode:    defaultConsoleColor,
 	}
 
 	override := parseConsoleCategories(categories)
@@ -1193,7 +1205,9 @@ func shouldEchoConsoleLine(selection ConsoleSelection, line string) bool {
 		return false
 	}
 	line = stripANSI(rawLine)
-	if !selection.IncludeDebug && strings.HasPrefix(line, "[DEBUG]") {
+	if !selection.IncludeDebug && (strings.HasPrefix(line, "[DEBUG]") ||
+		strings.HasPrefix(line, "[FRAMEWORK] [DEBUG]") ||
+		strings.HasPrefix(line, "[SCRIPT] [DEBUG]")) {
 		return false
 	}
 
@@ -1239,6 +1253,7 @@ func isFrameworkNoiseLine(line string) bool {
 	noisePrefixes := []string{
 		"robotgo version:",
 		"[DEBUG]",
+		"[FRAMEWORK]",
 		"Loaded polyfill:",
 		"Loaded JS library:",
 		"JS environment:",
@@ -1339,9 +1354,9 @@ func printRunSummary(selection ConsoleSelection, artifacts *RunArtifacts, durati
 		status = "failed"
 	}
 
-	fmt.Printf("[SUMMARY] status=%s duration=%v source=%s hash=%s\n", status, duration, artifacts.Source, artifacts.ScriptHash)
-	fmt.Printf("[SUMMARY] logs=%s stdout=%s stderr=%s\n", artifacts.Dir, artifacts.StdoutPath, artifacts.StderrPath)
-	fmt.Printf("[SUMMARY] script_snapshot=%s summary=%s\n", artifacts.ScriptSnapshotPath, artifacts.SummaryPath)
+	terminalPrintf(os.Stdout, "[SUMMARY] status=%s duration=%v source=%s hash=%s\n", status, duration, artifacts.Source, artifacts.ScriptHash)
+	terminalPrintf(os.Stdout, "[SUMMARY] logs=%s stdout=%s stderr=%s\n", artifacts.Dir, artifacts.StdoutPath, artifacts.StderrPath)
+	terminalPrintf(os.Stdout, "[SUMMARY] script_snapshot=%s summary=%s\n", artifacts.ScriptSnapshotPath, artifacts.SummaryPath)
 }
 
 func executeVisionCLI(config *Config) error {
@@ -1453,7 +1468,7 @@ func startHttpServer(port string, configs ...*Config) error {
 	}
 
 	if !feature.UseDIContainer {
-		fmt.Println("[WARN] USE_DI_CONTAINER=0 is a route-compatible alias; it now uses the unified execution server.")
+		terminalPrintln(os.Stdout, "[FRAMEWORK] [WARN] USE_DI_CONTAINER=0 is a route-compatible alias; it now uses the unified execution server.")
 	}
 	var config *Config
 	if len(configs) > 0 {
@@ -1467,17 +1482,17 @@ func exitHTTPStartupFailure(err error, port string) {
 		return
 	}
 	if reuseRunningOpenDesk(err, port) {
-		fmt.Printf("[INFO] OpenDesk is already running at http://127.0.0.1:%s; reusing the existing desktop service.\n", port)
+		terminalPrintf(os.Stdout, "[META] [INFO] OpenDesk is already running at http://127.0.0.1:%s; reusing the existing desktop service.\n", port)
 		return
 	}
-	fmt.Fprintf(os.Stderr, "[ERROR] OpenDesk did not start: %v\n", err)
+	terminalPrintf(os.Stderr, "[ERROR] OpenDesk did not start: %v\n", err)
 	reportMacOSAppStartupFailure(err)
 	os.Exit(1)
 }
 
 // startContainerBasedServer starts the HTTP server using the new container architecture
 func startContainerBasedServer(port string, appConfig *Config) error {
-	fmt.Println("[INFO] Starting server with container-based architecture")
+	terminalPrintln(os.Stdout, "[FRAMEWORK] [INFO] Starting server with container-based architecture")
 	if err := resolveCustomUIActivation(appConfig); err != nil {
 		return fmt.Errorf("custom UI configuration failed: %w", err)
 	}
@@ -1568,16 +1583,16 @@ func startContainerBasedServer(port string, appConfig *Config) error {
 	go func() { serverDone <- server.Serve(listener) }()
 	if isAutoRunJs && appConfig != nil && appConfig.ScriptPath != "" {
 		go func() {
-			fmt.Println("[INFO] Starting script execution...")
+			terminalPrintln(os.Stdout, "[META] [INFO] Starting script execution...")
 			if err := executeScript(appConfig); err != nil {
 				if errors.Is(err, errScriptInstanceReplaced) {
-					fmt.Println("[INFO] Script execution was replaced by a newer invocation")
+					terminalPrintln(os.Stdout, "[META] [INFO] Script execution was replaced by a newer invocation")
 					return
 				}
-				fmt.Printf("[ERROR] Script execution failed: %v\n", err)
+				terminalPrintf(os.Stderr, "[ERROR] Script execution failed: %v\n", err)
 				return
 			}
-			fmt.Println("[INFO] Script execution completed successfully")
+			terminalPrintln(os.Stdout, "[META] [INFO] Script execution completed successfully")
 		}()
 	}
 	shutdownSignals := make(chan os.Signal, 1)
@@ -1589,7 +1604,7 @@ func startContainerBasedServer(port string, appConfig *Config) error {
 			return fmt.Errorf("HTTP server failed: %w", err)
 		}
 	case received := <-shutdownSignals:
-		fmt.Printf("[INFO] Received %s; draining HTTP executions\n", received)
+		terminalPrintf(os.Stdout, "[META] [INFO] Received %s; draining HTTP executions\n", received)
 		shutdownContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		err := server.Shutdown(shutdownContext)
 		cancel()
