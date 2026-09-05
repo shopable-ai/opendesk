@@ -61,7 +61,10 @@ type InitJSOptions struct {
 	// capability, and destructive-action tests. Product executions use the
 	// platform backend.
 	SystemSessionBackendFactory SystemSessionBackendFactory
-	OnReady                     func(*RuntimeLifecycle)
+	// EnableCommand is set by trusted local script entrypoints. Generic Runtime,
+	// HTTP, MCP, and Scheduler executions leave it false.
+	EnableCommand bool
+	OnReady       func(*RuntimeLifecycle)
 }
 
 // RuntimeLifecycle exposes only teardown-safe resources to the runtime owner.
@@ -77,6 +80,7 @@ type RuntimeLifecycle struct {
 	ScreenCapture  *ScreenCaptureRuntime
 	App            *AppRuntime
 	Notifications  *NotificationsRuntime
+	Command        *CommandRuntime
 }
 
 // Wait joins host workers after their execution context has been cancelled.
@@ -102,6 +106,9 @@ func (l *RuntimeLifecycle) Wait() {
 	}
 	if l != nil && l.Notifications != nil {
 		l.Notifications.Wait()
+	}
+	if l != nil && l.Command != nil {
+		l.Command.Wait()
 	}
 }
 
@@ -131,6 +138,9 @@ func (l *RuntimeLifecycle) CancelAsync() {
 	}
 	if l != nil && l.Notifications != nil {
 		l.Notifications.Close()
+	}
+	if l != nil && l.Command != nil {
+		l.Command.Close()
 	}
 }
 
@@ -178,6 +188,11 @@ func (l *RuntimeLifecycle) AsyncCounts() (timers int, workers int64, callbacks i
 		workers += notificationWorkers
 		callbacks += notificationPending
 	}
+	if l.Command != nil {
+		commandWorkers, commandCallbacks, _ := l.Command.ResourceCounts()
+		workers += commandWorkers
+		callbacks += int(commandCallbacks)
+	}
 	return timers, workers, callbacks
 }
 
@@ -206,6 +221,9 @@ type RuntimeResourceCounts struct {
 	SoundPlaybacks      int
 	NotificationWorkers int64
 	NotificationPending int
+	CommandWorkers      int64
+	CommandCallbacks    int64
+	CommandProcesses    int
 }
 
 func (l *RuntimeLifecycle) ResourceCounts() RuntimeResourceCounts {
@@ -248,6 +266,9 @@ func (l *RuntimeLifecycle) ResourceCounts() RuntimeResourceCounts {
 	if l.Notifications != nil {
 		counts.NotificationWorkers, counts.NotificationPending = l.Notifications.ResourceCounts()
 	}
+	if l.Command != nil {
+		counts.CommandWorkers, counts.CommandCallbacks, counts.CommandProcesses = l.Command.ResourceCounts()
+	}
 	return counts
 }
 
@@ -260,16 +281,17 @@ func (c RuntimeResourceCounts) IsZero() bool {
 		c.CaptureWorkers == 0 && c.CapturePending == 0 && c.CaptureSessions == 0 &&
 		c.AppWorkers == 0 && c.AppPending == 0 &&
 		c.SoundWorkers == 0 && c.SoundPending == 0 && c.SoundPlaybacks == 0 &&
-		c.NotificationWorkers == 0 && c.NotificationPending == 0
+		c.NotificationWorkers == 0 && c.NotificationPending == 0 &&
+		c.CommandWorkers == 0 && c.CommandCallbacks == 0 && c.CommandProcesses == 0
 }
 
 func (c RuntimeResourceCounts) String() string {
-	return fmt.Sprintf("timers=%d httpWorkers=%d httpCallbacks=%d uiWorkers=%d uiPending=%d uiQueued=%d uiWindows=%d uiListeners=%d uiDriverSinks=%d uiHostProcesses=%d shortcutBindings=%d shortcutPending=%d eventSubscriptions=%d eventPending=%d captureWorkers=%d capturePending=%d captureSessions=%d appWorkers=%d appPending=%d soundWorkers=%d soundPending=%d soundPlaybacks=%d notificationWorkers=%d notificationPending=%d",
+	return fmt.Sprintf("timers=%d httpWorkers=%d httpCallbacks=%d uiWorkers=%d uiPending=%d uiQueued=%d uiWindows=%d uiListeners=%d uiDriverSinks=%d uiHostProcesses=%d shortcutBindings=%d shortcutPending=%d eventSubscriptions=%d eventPending=%d captureWorkers=%d capturePending=%d captureSessions=%d appWorkers=%d appPending=%d soundWorkers=%d soundPending=%d soundPlaybacks=%d notificationWorkers=%d notificationPending=%d commandWorkers=%d commandCallbacks=%d commandProcesses=%d",
 		c.Timers, c.HTTPWorkers, c.HTTPCallbacks, c.UIWorkers, c.UIPending, c.UIQueued,
 		c.UIWindows, c.UIListeners, c.UIDriverSinks, c.UIHostProcesses, c.ShortcutBindings, c.ShortcutPending,
 		c.EventSubscriptions, c.EventPending, c.CaptureWorkers, c.CapturePending, c.CaptureSessions,
 		c.AppWorkers, c.AppPending, c.SoundWorkers, c.SoundPending, c.SoundPlaybacks,
-		c.NotificationWorkers, c.NotificationPending)
+		c.NotificationWorkers, c.NotificationPending, c.CommandWorkers, c.CommandCallbacks, c.CommandProcesses)
 }
 
 func emitRuntimeLog(sink EventSink, level, message string, fields map[string]any) {
@@ -748,6 +770,7 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 	registerClipboard(runtime, opts)
 	appRuntime := registerApp(runtime, opts)
 	notificationsRuntime := registerNotifications(runtime, opts)
+	commandRuntime := registerCommand(runtime, opts)
 
 	globalShortcut := registerGlobalShortcut(runtime, opts)
 	events := registerDesktopEvents(runtime, opts)
@@ -862,7 +885,7 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 		return fmt.Errorf("failed to bind Screen.screenshot: %v", err)
 	}
 	if opts.OnReady != nil {
-		opts.OnReady(&RuntimeLifecycle{Timers: timer, HTTP: httpClient, Sound: sound, UI: uiRuntime, GlobalShortcut: globalShortcut, Events: events, ScreenCapture: screenCapture, App: appRuntime, Notifications: notificationsRuntime})
+		opts.OnReady(&RuntimeLifecycle{Timers: timer, HTTP: httpClient, Sound: sound, UI: uiRuntime, GlobalShortcut: globalShortcut, Events: events, ScreenCapture: screenCapture, App: appRuntime, Notifications: notificationsRuntime, Command: commandRuntime})
 	}
 	return nil
 }

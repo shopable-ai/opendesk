@@ -223,6 +223,14 @@ NewPage()
 默认值、参数包装、多个 API 组合和兼容 facade 可以放在这里；平台驱动、真实资源和统一
 execution lifecycle 必须留在 native owner。
 
+## Command 为什么不是 `require('child_process')` polyfill
+
+Goja EventLoop 会提供 CommonJS loader，但这不代表 Runtime 是 Node.js，也不自动拥有 libuv、Node
+Stream、Buffer 或 `child_process`。OpenDesk 的命令行能力因此由 `automation/command.go` 显式
+注册为 `Command`：Go `os/exec` 持有 process 和 stdio，`run()` 的 Promise settlement 经 EventLoop
+回到 Goja owner，`RuntimeLifecycle` 在 teardown 中终止并等待命令进程。这样不会与 `require()`
+resolver 或未来的 Node compatibility adapter 争夺模块名。
+
 ## `polyfills/000-page.js` 的具体机制
 
 文件开头的循环：

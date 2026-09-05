@@ -112,6 +112,14 @@ func TestNormalizeRecipeEntrypointAwaitsTerminalMainCall(t *testing.T) {
 	if !strings.HasSuffix(normalized, "return await main();\n") {
 		t.Fatalf("terminal main was not normalized: %q", normalized)
 	}
+	topLevelAwait := []byte("async function main() { await page.waitForTimeout(1); }\nawait main();\n")
+	if got := string(normalizeRecipeEntrypoint(topLevelAwait)); !strings.HasSuffix(got, "return await main();\n") || strings.Contains(got, "await return") {
+		t.Fatalf("terminal await main was not normalized: %q", got)
+	}
+	memberCall := []byte("async function main() { return 1; }\nworker.main();\n")
+	if got := string(normalizeRecipeEntrypoint(memberCall)); got != string(memberCall) {
+		t.Fatalf("terminal member call changed: %q", got)
+	}
 	unchanged := []byte("async function work() { return 1; }\nwork();\n")
 	if got := string(normalizeRecipeEntrypoint(unchanged)); got != string(unchanged) {
 		t.Fatalf("non-main recipe changed: %q", got)
@@ -132,17 +140,23 @@ func TestRegistryContainsAgentPrimitives(t *testing.T) {
 	}
 }
 
-func TestRunSchemaDocumentsTimeout(t *testing.T) {
+func TestRunSchemaDocumentsExecutionOptions(t *testing.T) {
 	command, found := findCommand("run")
 	if !found {
 		t.Fatal("run command missing")
 	}
+	foundTimeout := false
 	for _, argument := range command.Arguments {
 		if argument.Name == "--timeout" && argument.Type == "duration" {
-			return
+			foundTimeout = true
+		}
+		if argument.Name == "--subprocess" {
+			t.Fatal("run schema must not require a second command-execution authorization flag")
 		}
 	}
-	t.Fatal("run schema omitted --timeout")
+	if !foundTimeout {
+		t.Fatal("run schema omitted --timeout")
+	}
 }
 
 func TestEveryRegisteredCommandHasAHandler(t *testing.T) {

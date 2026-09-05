@@ -41,6 +41,7 @@ globalThis.RuntimeAPIObjects = {
     'getDirectoryContents', 'getExecutablePath', 'getWorkingDirectory', 'getUserInfo',
     'isAdministrator', 'getSystemMetrics', 'getFingerprint', 'toJSON',
   ] },
+  Command: { docs: 'docs/api/command.md', types: 'types/Command.d.ts', source: 'automation/command.go + automation/command_*.go', status: 'local', platforms: ['darwin', 'linux', 'windows'], methods: ['getCapabilities', 'run'] },
   File: { docs: 'docs/api/file.md', types: 'types/File.d.ts', source: 'automation/file.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: [
     'path', 'cwd', 'create', 'createIfNotExists', 'createWithDirs', 'exists', 'ensureDir',
     'read', 'readBytes', 'write', 'append', 'writeBytes', 'appendBytes', 'copy',
@@ -102,6 +103,7 @@ const unitBehavior = new Set([
   'window.getCapabilities', 'window.list', 'window.setAlwaysOnTop', 'window.unsetTopMost', 'window.js_beautify',
   ...RuntimeAPIObjects.Screen.methods.filter((method) => method !== 'screenshot').map((method) => 'Screen.' + method),
   ...RuntimeAPIObjects.System.methods.filter((method) => !['killProcess', 'shutdown', 'restart', 'sleep'].includes(method)).map((method) => 'System.' + method),
+  ...RuntimeAPIObjects.Command.methods.map((method) => 'Command.' + method),
   ...RuntimeAPIObjects.File.methods.map((method) => 'File.' + method),
   ...RuntimeAPIObjects.AppStorage.methods.filter((method) => method !== 'clear').map((method) => 'AppStorage.' + method),
   ...['read', 'write', 'getFormats', 'getCapabilities'].map((method) => 'clipboard.' + method),
@@ -172,6 +174,7 @@ const restricted = {
   'browser.close': 'would close the singleton compatibility facade used by later tests',
   'context.close': 'would close the singleton compatibility context used by later tests',
 };
+restricted['Command.run'] = 'runs a host command and is available only to a local script execution';
 for (const method of ['playSuccess', 'playFail', 'playWarning', 'playError', 'playCaptcha']) restricted['Sound.' + method] = 'plays audible system output';
 for (const method of ['start', 'playAsync', 'stop', 'stopAll']) restricted['Sound.' + method] = 'starts or changes audible system output; use a dedicated playback lifecycle smoke';
 for (const method of RuntimeAPIObjects.Audio.methods.filter((method) => method !== 'getCapabilities')) {
@@ -254,6 +257,7 @@ globalThis.RuntimeAPITestFiles = {
     'tests/runtime-api/unit/window.test.js',
     'tests/runtime-api/unit/screen.test.js',
     'tests/runtime-api/unit/system.test.js',
+    'tests/runtime-api/unit/command.test.js',
     'tests/runtime-api/unit/file.test.js',
     'tests/runtime-api/unit/storage.test.js',
     'tests/runtime-api/unit/clipboard.test.js',
@@ -300,6 +304,6 @@ globalThis.RuntimeAPITestFiles = {
 
 globalThis.RuntimeAPICatalog = {
   schemaVersion: '1.0.0',
-  catalogVersion: '2026-08-31',
+  catalogVersion: '2026-09-05',
   entries: RuntimeAPIManifest,
 };

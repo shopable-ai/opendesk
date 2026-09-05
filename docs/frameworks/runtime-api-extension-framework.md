@@ -256,20 +256,25 @@ Vision
 axios
 ```
 
-#### Sound / Audio 的当前放置
+#### Sound / Audio / Command 的当前放置
 
-`Sound` 和 `Audio` 是第一方 native Runtime primitive，直接由统一 Runtime Builder 注入为 JS
+`Sound`、`Audio` 和 `Command` 是第一方 native Runtime primitive，直接由统一 Runtime Builder 注入为 JS
 全局；它们当前不由 `polyfills/` 提供，也不自动生成 HTTP/MCP 接口。其 owner 与同步资产为：
 
 | Public global | Native owner | Polyfill | JS contract | Runtime test |
 | --- | --- | --- | --- | --- |
 | `Sound` | `automation/sound.go` + `automation/utils.go` | 无 | `docs/api/sound.md`、`types/Sound.d.ts` | `tests/runtime-api/unit/sound.test.js` |
 | `Audio` | `automation/audio.go` + `automation/utils.go` | 无 | `docs/api/audio.md`、`types/Audio.d.ts` | `tests/runtime-api/unit/audio.test.js` |
+| `Command` | `automation/command.go` + `automation/command_*.go` + `automation/utils.go` | 无 | `docs/api/command.md`、`types/Command.d.ts` | Runtime API command contract/behavior tests |
 
 `Sound.start()` / `playAsync()` 的句柄、完成通知、停止和 execution teardown 都属于 native
 lifecycle；不得在 polyfill 中用计时器伪造这些状态，也不得再注册同名 `Sound`。如果未来增加
 纯 JavaScript 的便捷组合，应使用不同的 facade 名称或经过 owner 审查的增强层，并同步更新
 Runtime composition 文档。
+
+`Command` 的 process、stdio、timeout、Promise settlement 和 teardown 同样属于 native lifecycle；
+`require('child_process')` 不参与该 owner，也不能在 polyfill 中注册第二套命令执行面。本地
+`-script` 与 `ai run` 默认启用，HTTP、MCP 与 Scheduler execution 关闭。
 
 ## 四、公开对象只有一个 owner
 

@@ -26,7 +26,7 @@ Go native method 到 Goja function 的反射、参数/返回/错误投影，以�
 `automation.InitJSWithOptions()` 的组装顺序应保持可追溯。当前主链路依次：
 
 1. 注册 `console`、`http` 与 timers，然后注册 `System`、`window`、`clipboard`、
-   `globalShortcut`、`File`、`AppStorage`、`Sound`、`Audio`、`ImageColor`、`OCR` 和 `Vision`。
+   `Command`、`globalShortcut`、`File`、`AppStorage`、`Sound`、`Audio`、`ImageColor`、`OCR` 和 `Vision`。
 2. 根据显式 gate 注册 `NativeExtensions` / `NativeExtension`，再注册 Custom UI 和始终
    fail-closed 的 `Dialog`。
 3. 创建 `mouse`、`keyboard`、`touchscreen`、`page`，以及原始 `browser` / `context` 对象，
@@ -46,6 +46,10 @@ Go native method 到 Goja function 的反射、参数/返回/错误投影，以�
   `automation/utils.go` 在统一 Runtime Builder 中分别调用 `registerSound` / `registerAudio`。
   `Sound` 因为包含 execution-scoped playback handle 和 EventLoop completion bridge，必须由 native
   owner 注册；不要在 `polyfills/` 中再创建同名 facade 或第二套播放器。
+- `Command` 同样是 first-party native owner。它始终注册一个可检测的 namespace；本地 `-script` 和
+  `ai run` 默认启用，HTTP、MCP 与 Scheduler execution 关闭。命令进程、stdio、timeout 和 Promise
+  都归当前 `RuntimeLifecycle`。Goja 的 CommonJS `require()` 不参与该能力，也不注册伪 Node
+  `child_process`。
 - `legacy`、`upgraded`、`playwright` facade 主要服务迁移；它们不承诺完整第三方浏览器库语义。
 - `Dialog` 的公开行为、能力 gate 与隐私边界留在 [Dialog API](../../api/dialog.md)，实现时不要
   通过 facade 再造第二套 dialog 逻辑。
@@ -98,7 +102,7 @@ Go native method 到 Goja function 的反射、参数/返回/错误投影，以�
 页面、`runtime-api.ai.json`、`types/*.d.ts` 和相应 JavaScript Runtime API 测试。具体治理流程
 见 [Runtime API development workflow](./runtime-api-development-workflow.md) 与 [API documentation maintenance](../../maintenance/docs-user-api-editme-toc-maintenance.md)。
 
-Sound / Audio 这类 native global 的同步闭环是：
+Sound / Audio / Command 这类 native global 的同步闭环是：
 
 ```text
 automation/sound.go 或 automation/audio.go
@@ -111,3 +115,6 @@ automation/sound.go 或 automation/audio.go
 
 只有增加纯 JS 组合、默认值或兼容 facade 时，才应增加对应 `polyfills/*.js` 并在文档中标明
 它的 owner；不能因为接口可由 JavaScript 调用，就把 native Runtime API 误归类为 polyfill。
+
+`Command` 的 native owner 使用 `automation/command.go` 与平台 `command_*.go`，公开契约位于
+`docs/api/command.md`、`types/Command.d.ts`，行为 gate 由 Runtime API 测试覆盖。

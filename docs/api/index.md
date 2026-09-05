@@ -29,6 +29,7 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先找窗口，
 - 做 OCR / 找按钮：优先 [Desktop UI API](desktop-ui.md)；底层 OCR 见 [Vision API](vision.md)
 - 做同尺寸图像差异 / 模板匹配 / 颜色判断：[ImageColor API](image-color.md)
 - 做系统与文件操作：[System API](system.md)、[File API](file.md)、[AppStorage](storage.md)
+- 在本地 JavaScript execution 中运行命令行程序：[Command API](command.md)
 - 读写系统剪贴板：[Clipboard API](clipboard.md)
 - 订阅窗口、应用、剪贴板和显示器变化：[Desktop Events API](events.md)
 - 启动、等待、终止与重启桌面应用：[App Lifecycle API](app.md)
@@ -69,6 +70,7 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先找窗口，
 | `OCR` | JavaScript Runtime | Secondary | 本地 Tesseract 纯文本 OCR | [Vision API](vision.md) |
 | `ImageColor` | JavaScript Runtime | Secondary | 同尺寸图像差异、模板匹配、颜色与图像辅助分析 | [ImageColor API](image-color.md) |
 | `System` | JavaScript Runtime | Stable reads / Experimental session actions | 系统、进程、网络、指标与 session capability | [System API](system.md) |
+| `Command` | 本地 JavaScript Runtime | Conditional | 运行命令行程序并读取退出码与输出 | [Command API](command.md) |
 | `File` | JavaScript Runtime | Stable | 文件与目录操作 | [File API](file.md) |
 | `AppStorage` | JavaScript Runtime | Secondary | 持久化键值存储 | [AppStorage](storage.md) |
 | `clipboard` | JavaScript Runtime | Stable text / Experimental rich (macOS) | 文本及富格式系统剪贴板 | [Clipboard API](clipboard.md) |

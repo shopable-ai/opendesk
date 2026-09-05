@@ -279,6 +279,7 @@ tests/runtime-api/unit/touchscreen.test.js
 tests/runtime-api/unit/window.test.js
 tests/runtime-api/unit/screen.test.js
 tests/runtime-api/unit/system.test.js
+tests/runtime-api/unit/command.test.js
 tests/runtime-api/unit/file.test.js
 tests/runtime-api/unit/storage.test.js
 tests/runtime-api/unit/clipboard.test.js

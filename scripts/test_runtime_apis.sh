@@ -181,6 +181,55 @@ runjs() {
   return "$status"
 }
 
+command() {
+  runjs command "$ROOT_DIR/tests/runtime-api/command.js" 2 90
+  verify_zero_cleanup command
+
+  if [[ "$(uname -s)" != MINGW* && "$(uname -s)" != MSYS* ]]; then
+    startjs command-cancel "$ROOT_DIR/tests/runtime-api/command-cancel.js" 2 90
+    local stdout="$RUN_DIR/results/command-cancel.stdout.log" pidfile="$RUN_DIR/processes/command-cancel.json"
+    local runtime_pid="" child_pid="" descendant_pid=""
+    for _ in $(seq 1 160); do
+      if [[ -f "$stdout" && -f "$pidfile" ]] && grep -q 'COMMAND_CANCEL_READY=' "$stdout"; then
+        runtime_pid="$(python3 - "$pidfile" <<'PY'
+import json, sys
+print(json.load(open(sys.argv[1], encoding="utf-8"))["runtimePid"])
+PY
+)"
+        child_pid="$(sed -n 's/.*COMMAND_CHILD_PID=\([0-9][0-9]*\).*/\1/p' "$stdout" | tail -n 1)"
+        descendant_pid="$(sed -n 's/.*COMMAND_DESCENDANT_PID=\([0-9][0-9]*\).*/\1/p' "$stdout" | tail -n 1)"
+        [[ -n "$runtime_pid" && -n "$child_pid" && -n "$descendant_pid" ]] && break
+      fi
+      sleep 0.05
+    done
+    [[ -n "$runtime_pid" && -n "$child_pid" && -n "$descendant_pid" ]] || {
+      echo "Command cancellation probe did not expose runtime/child/descendant PIDs" >&2
+      return 1
+    }
+    kill -0 "$child_pid" && kill -0 "$descendant_pid" || {
+      echo "Command cancellation fixture exited before SIGINT" >&2
+      return 1
+    }
+    kill -INT "$runtime_pid"
+    local cancel_status=0
+    if finish_startedjs; then cancel_status=0; else cancel_status=$?; fi
+    [[ "$cancel_status" -ne 0 && "$cancel_status" -ne 124 ]] || {
+      echo "Command cancellation did not produce a bounded canceled execution (status $cancel_status)" >&2
+      return 1
+    }
+    for _ in $(seq 1 60); do
+      if ! kill -0 "$child_pid" 2>/dev/null && ! kill -0 "$descendant_pid" 2>/dev/null; then break; fi
+      sleep 0.05
+    done
+    ! kill -0 "$child_pid" 2>/dev/null && ! kill -0 "$descendant_pid" 2>/dev/null || {
+      echo "Command teardown left child $child_pid or descendant $descendant_pid alive" >&2
+      return 1
+    }
+    verify_zero_cleanup command-cancel
+  fi
+  no_residual
+}
+
 # Start a public JavaScript Runtime API test without waiting for it. Dialog's
 # native Promise intentionally keeps an observed top-level await pending while
 # the same formal gate verifies the real AX control and starts a second public
@@ -992,6 +1041,7 @@ required = [
     "eventSubscriptions", "eventPending",
     "captureWorkers", "capturePending", "captureSessions",
     "appWorkers", "appPending",
+    "commandWorkers", "commandCallbacks", "commandProcesses",
 ]
 bad = {key: cleanup.get(key) for key in required if cleanup.get(key) != 0}
 if bad:
@@ -1050,5 +1100,6 @@ case "$MODE" in
   custom-ui) custom_ui ;;
   custom-ui-config) custom_ui_config ;;
   dialog) dialog ;;
-  *) echo "usage: $0 [contract|unit|smoke|live|live-only|coverage|negative|sound-cancel|custom-ui|custom-ui-config|dialog]" >&2; exit 2 ;;
+  command) command ;;
+  *) echo "usage: $0 [contract|unit|smoke|live|live-only|coverage|negative|sound-cancel|command|custom-ui|custom-ui-config|dialog]" >&2; exit 2 ;;
 esac

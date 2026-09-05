@@ -170,8 +170,12 @@ OCR。可选 `followUp.expression` 中的 `{result}` 会替换为第一步 OCR �
 Fresh Run 恢复并验证 Basic 布局；它需要显式 opt-in：
 
 ```bash
-OPENDESK_LIVE_CALCULATOR=1 ./scripts/test_ai_calculator_recipe.sh
+OPENDESK_LIVE_CALCULATOR=1 ./dist/opendesk ai run scripts/test_ai_calculator_recipe.js
 ```
+
+这个 JavaScript runner 自身也是 `opendesk ai run` 管理的标准 Execution；它通过本地
+[Command API](command.md) 启动多个独立子 Execution，并负责受控扰动和结果汇总。本地
+`ai run` 默认提供 `Command`，不需要附加能力开关；旧的 `.sh` 路径只作为兼容包装器。
 
 The three JSON inputs are mutually exclusive:
 
@@ -183,6 +187,8 @@ cat input.json | ./opendesk ai run recipe.js --input-stdin
 
 `--timeout` 接受 Go duration，例如 `--timeout 30s` 或 `--timeout 2m`；省略时沿用标准的
 30 分钟 Execution timeout。
+
+本地 recipe 的 `Command.run()` 使用当前 OS 用户权限；HTTP、MCP 与 Scheduler execution 不提供该能力。
 
 Recipes receive the existing execution metadata plus:
 

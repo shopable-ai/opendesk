@@ -340,6 +340,7 @@ runTask();
 - `page` 的等待、截图和权限：见 [Page API](page.md)。
 - `notify()` 的详细通知契约：见 [notify](notify.md)。
 - `alert()`、`confirm()`、`prompt()`：见 [Dialog API](dialog.md)。
+- 本地命令行执行对象 `Command`：见 [Command API](command.md)。
 - `Sound`：见 [Sound API](sound.md)；`FloatingWindow` 与 `ui`：见 [Custom UI](custom-ui.md)。
 
 ## 全局接口的实现来源与维护边界
@@ -370,4 +371,5 @@ runTask();
 - [Window API](window.md)：窗口读取与控制。
 - [Clipboard API](clipboard.md)：完整的 `clipboard` 对象方法。
 - [HTTP and Axios](http.md)：`http` 与全局 `axios`。
+- [Command API](command.md)：本地 CLI 默认提供、execution-owned 的命令行执行；HTTP、MCP 与 Scheduler 关闭。
 - [Runtime Stacks](runtime.md)：运行时装载顺序和 upgraded / playwright 兼容入口。

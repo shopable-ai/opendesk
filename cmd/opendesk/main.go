@@ -729,6 +729,7 @@ func executeScript(config *Config) error {
 		// gated below.
 		EnableNativeExtensions:          true,
 		EnableUnsafeNativeExtensionCall: config.ExperimentalUnsafeNativeExtensionCall,
+		EnableCommand:                   true,
 		EnableCustomUI:                  config.CustomUI,
 		CustomUIActivationSource:        config.CustomUIActivationSource,
 		CustomUIHostPath:                config.CustomUIHostPath,

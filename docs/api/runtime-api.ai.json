@@ -53,6 +53,7 @@
     "NativeExtensions is an Experimental manifest-discovered immutable binding. Normal local CLI calls use NativeExtensions.<namespace>.<method>(businessParams) with routes fixed by the Host; it discovers only the program-relative bundle directory by default. HTTP and MCP cannot enable or call it. The low-level NativeExtension.call compatibility surface requires the separate -experimental-unsafe-native-extension-call local diagnostic gate.",
     "Uppercase UI operates visible targets in external desktop apps. Lowercase ui is always present but dormant by default and creates OpenDesk Custom UI; enable it with -ui or strict clawdesk.runtime.json. They have no aliases.",
     "Dialog is always present but fail-closed without the ui capability. Its alert, confirm, and prompt methods are asynchronous native modal dialogs; global alert/confirm/prompt are thin polyfill aliases, never browser-style blocking calls.",
+    "Command is an execution-owned native command runner, not Node.js child_process. Local -script and ai run executions enable it by default; HTTP, MCP, and Scheduler executions disable it. Use Command.run(executable,args,options) without shell command interpolation.",
     "Treat upgraded/playwright surfaces as compatibility facades, not a complete Playwright browser engine.",
     "Do not use retired TestMonkey documentation as a current API authority."
   ],
@@ -368,6 +369,23 @@
         "switchUser"
       ],
       "compatibility": "existing shutdown, restart, and sleep remain the separate legacy power-control surface; this task does not create a second System or Power namespace"
+    },
+    {
+      "name": "Command",
+      "source": "native execution owner + platform process-group adapter",
+      "status": "conditional",
+      "doc": "command.md",
+      "types": "types/Command.d.ts",
+      "keyMethods": [
+        "getCapabilities",
+        "run"
+      ],
+      "availability": "Enabled by default for local -script and ai run executions. Disabled for HTTP, MCP, and Scheduler executions.",
+      "signature": "Command.run(command, args?, {cwd?, env?, input?, timeout?, maxOutputBytes?}) -> Promise<{exitCode,stdout,stderr}>",
+      "capabilities": "getCapabilities returns only schemaVersion=1, enabled, supported, and executionScoped=true.",
+      "errors": "CommandError exposes name, code, exitCode, stdout, and stderr.",
+      "safety": "run executes an executable directly with an optional argument array. Combined stdout/stderr is bounded; shell interpretation, streaming handles, detached/unref, IPC, and PTY are not exposed.",
+      "lifecycle": "The enclosing execution stays alive while a command runs, and teardown terminates remaining command processes."
     },
     {
       "name": "File",
@@ -715,6 +733,7 @@
     ],
     "systemData": [
       "system.md",
+      "command.md",
       "file.md",
       "storage.md",
       "clipboard.md"
@@ -726,6 +745,7 @@
     "runtime": [
       "environment.md",
       "runtime.md",
+      "command.md",
       "notify.md",
       "audio.md",
       "sound.md",

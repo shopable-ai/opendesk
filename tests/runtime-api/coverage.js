@@ -14,6 +14,7 @@ const requiredFamilyFiles = {
   window: 'window.test.js',
   Screen: 'screen.test.js',
   System: 'system.test.js',
+  Command: 'command.test.js',
   File: 'file.test.js',
   AppStorage: 'storage.test.js',
   clipboard: 'clipboard.test.js',

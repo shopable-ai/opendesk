@@ -36,6 +36,7 @@ Dialog 的视觉验收与行为验收分别判定：即使返回值、Promise �
 | smoke | 安全公共路径与错误路径 | `results/smoke.json` |
 | failure-exit | 普通 JS throw 快速非零、且不是 watchdog 124 | `results/failure-exit.json` |
 | sound-cancel | 连续采样率播放后，同步 `Sound.play` 在真实 SIGINT 下快速取消并清空播放资源 | `sound-cancel/result.json` |
+| command | 本地 execution 的直接程序执行、非零退出、输出上限、timeout，以及 SIGINT teardown 的进程树清理 | `results/command.json`、`runtime-logs/command*/resources.json` |
 | live | Safari、权限、窗口身份、输入、剪贴板、HTTP 和截图 | `results/live.json` |
 | notify-icon-live | 已安装 macOS Runtime 提交通知并保活 15 秒供图标取证 | `results/runtime-api-notify-icon-live.json` + 截图 |
 | composition | 多控件、DOM/像素、截图、state/events 和移动窗口重放 | `results/composition.json` |
@@ -55,6 +56,7 @@ OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./scripts/test_runtime_apis.s
 OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./scripts/test_runtime_apis.sh unit
 OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./scripts/test_runtime_apis.sh smoke
 OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./scripts/test_runtime_apis.sh sound-cancel
+OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./scripts/test_runtime_apis.sh command
 OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./scripts/test_runtime_apis.sh custom-ui-config
 OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./scripts/test_runtime_apis.sh custom-ui
 OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./scripts/test_runtime_apis.sh dialog
@@ -77,6 +79,11 @@ worker、callback、timer、window、listener、driver sink 与 native host proc
 `sound-cancel` 运行正式 JavaScript 文件生成一段静音 WAV，先播放短提示音初始化共享 speaker，
 再进入较长的同步 `Sound.play()`。外层 gate 看到 READY 后发送一次真实 SIGINT，并要求 Runtime
 在 3 秒内以 `canceled` 结束，且 cleanup event 中的 sound worker、waiter 和 playback 全部归零。
+
+`command` 使用本地 run-local CLI 的默认 `Command.run()` 能力。它覆盖直接执行、input/env、
+stdout/stderr、非零退出、输出上限和 timeout，再启动包含后代的长时 fixture，由外层 gate 向 Runtime
+发送 SIGINT，并要求 direct child、descendant、worker、Promise callback 和 process registry 全部
+归零。HTTP、MCP 和 Scheduler 入口仍不会启用 `Command`。
 
 即使设置了 `OPENDESK_BINARY`，runner 也不会直接从原目录执行它：先验证其为可执行普通
 文件，记录原始绝对路径和 SHA-256，再复制到本次

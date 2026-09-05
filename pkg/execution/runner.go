@@ -59,7 +59,10 @@ type Request struct {
 	NativeExtensionRoots []nativeextension.DiscoveryRoot
 	// EnableCustomUI is a deliberate per-execution capability. The ui global is
 	// present but dormant unless the owning transport sets this field.
-	EnableCustomUI           bool
+	EnableCustomUI bool
+	// EnableCommand permits local command execution. Trusted local script
+	// entrypoints set it; remote and scheduled requests leave it false.
+	EnableCommand            bool
 	CustomUIActivationSource customui.ActivationSource
 	CustomUIHostPath         string
 	CustomUIBaseDir          string
@@ -268,6 +271,7 @@ func runJavaScript(req Request, emitter *Emitter) error {
 				EnableUnsafeNativeExtensionCall: req.EnableUnsafeNativeExtensionCall,
 				NativeExtensionRoots:            req.NativeExtensionRoots,
 				EnableCustomUI:                  req.EnableCustomUI,
+				EnableCommand:                   req.EnableCommand,
 				CustomUIActivationSource:        normalizeCustomUIActivationSource(req),
 				CustomUIDriver:                  req.CustomUIDriver,
 				CustomUIHostPath:                req.CustomUIHostPath,
@@ -357,7 +361,9 @@ func runJavaScript(req Request, emitter *Emitter) error {
 				"soundWorkers": resources.SoundWorkers, "soundPending": resources.SoundPending,
 				"soundPlaybacks":      resources.SoundPlaybacks,
 				"notificationWorkers": resources.NotificationWorkers, "notificationPending": resources.NotificationPending,
-				"uiWorkers": resources.UIWorkers, "uiPending": resources.UIPending,
+				"commandWorkers": resources.CommandWorkers, "commandCallbacks": resources.CommandCallbacks,
+				"commandProcesses": resources.CommandProcesses,
+				"uiWorkers":        resources.UIWorkers, "uiPending": resources.UIPending,
 				"uiQueued": resources.UIQueued, "uiWindows": resources.UIWindows,
 				"uiListeners": resources.UIListeners, "uiDriverSinks": resources.UIDriverSinks,
 				"uiHostProcesses":  resources.UIHostProcesses,
