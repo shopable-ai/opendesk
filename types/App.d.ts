@@ -1,6 +1,11 @@
 export {};
 
 declare global {
+  /**
+   * On macOS native-identity builds only, the exact name values "计算器" and
+   * "Calculator" normalize to bundleId "com.apple.calculator". Explicit
+   * bundleId, path, and pid targets are never translated.
+   */
   type OpenDeskAppTarget =
     | number
     | string
@@ -24,6 +29,7 @@ declare global {
   }
 
   interface OpenDeskAppGroup {
+    /** A documented name alias returns its normalized bundleId identity. */
     identity: { kind: "pid" | "name" | "bundleId" | "path"; value: string | number };
     name: string;
     bundleId: string;

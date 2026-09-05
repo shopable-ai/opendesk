@@ -132,6 +132,7 @@ func appBundlePathFromExecutable(executable string) string {
 }
 
 func (b *defaultAppBackend) Launch(ctx context.Context, target appTarget, activate bool) error {
+	target = normalizeAppTarget(target)
 	if target.Kind == appTargetPID {
 		return appOperationError("", AppInvalidArgument, "a PID identifies a running process and cannot be launched", nil)
 	}
@@ -194,7 +195,8 @@ func (b *defaultAppBackend) Terminate(ctx context.Context, pid int64, force bool
 func launchApplicationByName(name string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	return newDefaultAppBackend().Launch(ctx, appTarget{Kind: appTargetName, Value: name}, true)
+	target := normalizeAppTarget(appTarget{Kind: appTargetName, Value: name})
+	return newDefaultAppBackend().Launch(ctx, target, true)
 }
 
 func terminateApplicationProcess(ctx context.Context, pid int64, force bool) error {

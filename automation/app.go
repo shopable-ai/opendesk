@@ -593,7 +593,7 @@ func parseAppTarget(value goja.Value, operation string, launch bool) (appTarget,
 						}
 					}
 				}
-				return appTarget{Kind: kind, Value: text}, nil
+				return normalizeAppTarget(appTarget{Kind: kind, Value: text}), nil
 			default:
 				return appTarget{}, appOperationError(operation, AppInvalidArgument, "target contains an unknown field", nil)
 			}
@@ -616,12 +616,12 @@ func classifyAppStringTarget(value, operation string, launch bool) (appTarget, e
 				return appTarget{}, err
 			}
 		}
-		return appTarget{Kind: appTargetPath, Value: value}, nil
+		return normalizeAppTarget(appTarget{Kind: appTargetPath, Value: value}), nil
 	}
 	if runtime.GOOS == "darwin" && strings.Contains(value, ".") && !strings.ContainsAny(value, `/\\`) {
-		return appTarget{Kind: appTargetBundleID, Value: value}, nil
+		return normalizeAppTarget(appTarget{Kind: appTargetBundleID, Value: value}), nil
 	}
-	return appTarget{Kind: appTargetName, Value: value}, nil
+	return normalizeAppTarget(appTarget{Kind: appTargetName, Value: value}), nil
 }
 
 func appPIDTarget(pid int64, operation string, launch bool) (appTarget, error) {
@@ -868,6 +868,7 @@ func appCapabilityFlag(backend AppBackend, section, key string) bool {
 }
 
 func appMatchesTarget(app desktopApplicationState, target appTarget) bool {
+	target = normalizeAppTarget(target)
 	if app.Terminated {
 		return false
 	}
@@ -931,6 +932,7 @@ func appInstanceProjection(app desktopApplicationState) map[string]interface{} {
 }
 
 func appGroupProjection(target appTarget, apps []desktopApplicationState) map[string]interface{} {
+	target = normalizeAppTarget(target)
 	instances := make([]map[string]interface{}, 0, len(apps))
 	for _, app := range apps {
 		instances = append(instances, appInstanceProjection(app))

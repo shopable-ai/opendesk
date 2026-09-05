@@ -56,6 +56,25 @@ fail closed，避免终止用户原有实例：
 `{ pid }` / `{ name }` / `{ bundleId }` / `{ path }`。字符串绝对路径视为 path；macOS 上含点且不含
 路径分隔符的字符串视为 bundle id，其他平台视为 name（例如 `notepad.exe`）；有歧义时使用显式对象。
 
+## macOS 系统应用别名
+
+当前 macOS + cgo 的 native-identity backend 只为下列系统应用名提供精确别名；它们不是通用名称
+翻译或模糊匹配：
+
+| 输入 `name`（字符串或 `{ name }`） | 规范化 identity |
+| --- | --- |
+| `计算器` | `com.apple.calculator` |
+| `Calculator` | `com.apple.calculator` |
+
+规范化发生在解析后、启动前，因此会持续用于 `launch`、`get`、`isRunning`、`waitForLaunch`、
+`waitForExit`、`terminate`、`restart`、进程匹配和窗口 readiness。它复用 macOS 的 bundle-ID launcher
+和平台身份查询，不硬编码系统应用安装目录，也不依赖 `App.list()` 里已有的运行实例，所以可用于冷启动。
+
+显式 `{ bundleId }`、`{ path }` 和 PID 从不翻译；未知 name 保留原有 name 行为，绝不会回退为
+Calculator。第三方同名应用应使用显式 `bundleId` 或 `path`。别名调用的 `group.identity` 返回规范化后的
+`{ kind: 'bundleId', value: 'com.apple.calculator' }`；`name`、`bundleId`、`pids` 和 `instances` 仍是
+实际 snapshot 观察值，不会伪造为输入的“计算器”。
+
 ## Readiness、timeout 与 cancellation
 
 - `waitUntilReady: 'process'`：snapshot 中至少出现一个匹配 PID；默认值。
@@ -77,8 +96,8 @@ Promise rejection 的 `error.code` 为：`INVALID_ARGUMENT`、`NOT_SUPPORTED`、
 
 | 平台 | list / identity | launch | terminate | window readiness | 本轮验证 |
 | --- | --- | --- | --- | --- | --- |
-| macOS + cgo | NSWorkspace；PID/name/bundle/path | `open -a/-b` 或 `.app` path | NSRunningApplication graceful/force | 复用现有 Window facade | real fixture verified |
-| macOS 无 cgo | process fallback | 同上 | gopsutil signal/kill | partial | not live verified |
+| macOS + cgo | NSWorkspace；PID/name/bundle/path；支持本文两个 Calculator 别名 | `open -a/-b` 或 `.app` path | NSRunningApplication graceful/force | 复用现有 Window facade | real fixture verified |
+| macOS 无 cgo | process fallback；不规范化本文别名 | 同上 | gopsutil signal/kill | partial | not live verified |
 | Windows | process fallback | name/path | gopsutil signal/kill | existing Window facade | not live verified |
 | Linux | process fallback | executable name/path | gopsutil signal/kill | capability false | not live verified |
 
@@ -96,8 +115,13 @@ Promise rejection 的 `error.code` 为：`INVALID_ARGUMENT`、`NOT_SUPPORTED`、
 window-ready → second launch → restart → graceful terminate → force terminate，并保存窗口截图和脱敏 JSON：
 
 ```bash
-./scripts/test_app_lifecycle.sh
+OPENDESK_LIVE_APP_LIFECYCLE=1 ./dist/opendesk -script scripts/test_app_lifecycle.js -console-mode script
 ```
+
+未设置 opt-in 时 runner 会安全 `[SKIP]`，不能记为 live pass。正式 runner 会先核对实际启动的
+`dist/opendesk` 与配套 `dist/opendesk-ui-host` 是否来自同一次当前构建，再编译 fixture。功能通过后
+仍需检查 `.runtime/tests/platform-primitives/task-007-app-lifecycle/window.png`；进程、Promise 和
+JSON evidence 通过不等于视觉通过。
 
 产物目录：
 

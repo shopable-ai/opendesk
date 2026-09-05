@@ -177,6 +177,9 @@ func TestAppWaitCancellationCleansResources(t *testing.T) {
 	})
 	manager := <-ready
 	closeAppRuntime(t, loop, manager)
+	if canceledCode := appStringValue(t, loop, "canceledCode"); canceledCode != string(AppCanceled) {
+		t.Fatalf("cancellation error code=%q, want %q", canceledCode, AppCanceled)
+	}
 	if workers, pending := manager.ResourceCounts(); workers != 0 || pending != 0 {
 		t.Fatalf("resources after close=%d/%d", workers, pending)
 	}
