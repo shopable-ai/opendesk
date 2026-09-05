@@ -109,46 +109,26 @@ console.log(result.text);
 **8. 找到“确定”按钮并点击**
 
 ```js
-const imagePath = await page.screenshot({
-  target: 'activeWindow',
-  path: './.runtime/examples/dialog.png',
-  returnType: 'path'
-});
-
-const ui = await Vision.detectUI({
-  imagePath,
+const win = await window.getActiveWindow();
+await UI.tapText('确定', {
+  within: win,
   provider: 'local',
-  targetText: '确定',
-  matchMode: 'contains',
+  match: 'contains',
   minConfidence: 0.4,
-  defaultRole: 'button'
 });
-
-if (ui.count === 0) {
-  throw new Error('未找到“确定”');
-}
-
-const p = ui.elements[0].clickPoint;
-await mouse.click(p.x, p.y);
 ```
 
 **9. 找到“登录”后输入账号**
 
 ```js
-const ui = await Vision.detectUI({
-  imagePath: './.runtime/examples/login.png',
+const win = await window.getActiveWindow();
+await UI.tapText('账号', {
+  within: win,
   provider: 'local',
-  targetText: '账号',
-  matchMode: 'contains',
+  match: 'contains',
   minConfidence: 0.4,
-  defaultRole: 'input'
 });
-
-if (ui.count > 0) {
-  const p = ui.elements[0].clickPoint;
-  await mouse.click(p.x, p.y);
-  await keyboard.type('alice@example.com');
-}
+await keyboard.type('alice@example.com');
 ```
 
 **10. 用 mouse 做拖拽**
@@ -324,29 +304,14 @@ await page.ensurePermissions({
   openSettings: true
 });
 
-const imagePath = await page.screenshot({
-  target: 'activeWindow',
-  path: './.runtime/examples/current.png',
-  returnType: 'path'
-});
-
-const result = await Vision.detectUI({
-  imagePath,
+const win = await window.getActiveWindow();
+await UI.tapText('继续', {
+  within: win,
   provider: 'local',
-  targetText: '继续',
-  matchMode: 'contains',
+  match: 'contains',
   minConfidence: 0.45,
-  defaultRole: 'button'
+  click: { clickCount: 1, delay: 60 },
 });
-
-console.log(JSON.stringify(result, null, 2));
-
-if (result.count < 1) {
-  throw new Error('未找到目标文本');
-}
-
-const point = result.elements[0].clickPoint;
-await mouse.click(point.x, point.y, { clickCount: 1, delay: 60 });
 ```
 
 ## 最后建议
@@ -356,7 +321,7 @@ await mouse.click(point.x, point.y, { clickCount: 1, delay: 60 });
 - page.openApp / page.openURL
 - window.getActiveWindow / window.focus / window.setWindowBounds
 - mouse / keyboard
-- Vision.runOCR / Vision.detectUI
+- UI.findText / UI.tapText（底层 OCR 使用 Vision.runOCR）
 - File
 
 如果要写给团队复用的脚本模板，优先围绕这几组 API 组织。

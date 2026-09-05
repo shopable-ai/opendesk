@@ -6,6 +6,10 @@ order: 13
 
 # Custom UI
 
+> `ui`（小写）仅用于创建和管理 OpenDesk 自己的 Custom UI。它不是外部桌面应用的查找或点击 API；
+> 请使用大写 [`UI`](desktop-ui.md) 做 OCR/模板匹配、等待和激活外部可见目标。两者没有别名，
+> JavaScript 大小写敏感。
+
 Custom UI 由当前 JavaScript Runtime 控制受控桌面窗口。`FloatingWindow` 直接声明
 简单图标工具栏；`ui.createWindow()` 用受限 HTML/CSS 声明视图。这里的 “Custom” 指脚本
 作者可以声明自己的工具栏或受限视图；“native” 是底层 AppKit / host 的实现方式。HTML 不能直接取得

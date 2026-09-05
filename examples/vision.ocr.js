@@ -1,5 +1,5 @@
 /**
- * OCR + UI detect demo.
+ * OCR + external desktop UI demo.
  *
  * Required env:
  *   VISION_OCR_PROVIDER=paddle
@@ -29,17 +29,14 @@
   });
   console.log("OCR lines:", ocr.lineCount, "lang:", ocr.lang);
 
-  const sendButtons = await Vision.detectUI({
-    visionProfile,
-    image: imageBase64,
-    targetText: "发送",
-    matchMode: "contains",
+  // `UI` captures a fresh active-window scope and maps OCR image pixels back
+  // to virtual-desktop coordinates. It intentionally never clicks an
+  // unmarked Vision.detectUI clickPoint.
+  const target = await UI.findText("发送", {
+    match: "contains",
+    provider: visionProfile.provider,
+    lang: selectedLang,
   });
-
-  console.log("Detected elements:", sendButtons.count);
-  if (sendButtons.count > 0) {
-    const target = sendButtons.elements[0];
-    console.log("Try click:", JSON.stringify(target));
-    await mouse.click(target.clickPoint.x, target.clickPoint.y);
-  }
+  console.log("Resolved target:", JSON.stringify(target));
+  if (target) await mouse.clickPoint(target.center);
 })();

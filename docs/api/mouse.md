@@ -35,6 +35,7 @@ await page.mouse.click(640, 360);
 | 方法 | 用途 |
 | --- | --- |
 | `mouse.click(x, y, options?)` | 移动到屏幕点并点击 |
+| `mouse.clickPoint(point, options?)` | 点击一个明确标记为 screen logical coordinate 的点 |
 | `mouse.clickForPID(processID, x, y)` | macOS：对指定 PID 的可按压 Accessibility 控件执行一次 `AXPress` |
 | `mouse.move(x, y, options?)` | 移动指针；可分步移动 |
 | `mouse.down(options?)` | 按下鼠标键 |
@@ -71,6 +72,33 @@ await mouse.click(600, 420, { clickCount: 2, delay: 80 });
 
 这是全局点击，不能保证命中某个进程或窗口。需要 macOS 上 fail-closed 的进程定向控件操作时，
 使用 [`mouse.clickForPID`](#mouseclickforpidprocessid-x-y)。
+
+## `mouse.clickPoint(point, options?)`
+
+```js
+await mouse.clickPoint(point, options);
+```
+
+这是 `mouse.click(x, y, options)` 的严格坐标对象 companion，不改变旧 `click` 的签名或行为。它只接受
+由 [`Geometry`](geometry.md) 或 [`UI`](desktop-ui.md) 产生的 screen logical point：
+
+```js
+const win = await window.getActiveWindow();
+await mouse.clickPoint(Geometry.center(win));
+
+const target = await UI.findText('确定', { within: win });
+if (target) await mouse.clickPoint(target.center);
+```
+
+输入必须有以下形状；`x`、`y` 都必须是有限 number：
+
+```js
+{ x: 640, y: 360, coordinateSpace: 'screen' }
+```
+
+OCR bbox、ImageColor 匹配结果、截图 image-pixel point 或裸 `{ x, y }` 都会以结构化
+`INVALID_ARGUMENT`（`operation: 'mouse.clickPoint'`）拒绝。它内部只调用现有
+`mouse.click(point.x, point.y, options)`；同样会真实影响桌面，应遵循本页的输入安全边界。
 
 ## `mouse.clickForPID(processID, x, y)`
 

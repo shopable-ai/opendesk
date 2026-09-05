@@ -507,4 +507,4 @@ console.log(JSON.stringify(browsers, null, 2));
 - page.screenshot({ target: 'activeWindow' })
 - page.waitForFunction(...)
 - mouse / keyboard
-- Vision.detectUI()
+- UI.findText() / UI.tapText()（外部可见 UI）；原始 OCR 使用 Vision.runOCR()

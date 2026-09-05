@@ -30,6 +30,11 @@ declare global {
   interface OpenDeskMouse {
     click(x: number, y: number, options?: OpenDeskMouseClickOptions): void;
     /**
+     * Clicks an explicitly tagged virtual-desktop logical point. OCR/image
+     * pixel coordinates and unmarked `{ x, y }` objects are rejected.
+     */
+    clickPoint(point: OpenDeskScreenPoint, options?: OpenDeskMouseClickOptions): void;
+    /**
      * Performs one macOS Accessibility press on the press-capable element
      * owned by processID at the supplied global virtual-desktop coordinates.
      */

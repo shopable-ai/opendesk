@@ -431,7 +431,9 @@ const blocks = ImageColor.findColorBlocks(base64Image, '#ffffff', {
 
 用于快速判断某区域是否包含目标颜色。
 
-这是低级像素判断；如果你真正想判断“按钮是否存在”，优先考虑 `Vision.detectUI()` 或模板 + 验证组合。
+这是低级像素判断；如果你真正想判断外部桌面中“按钮是否存在”，优先考虑 `UI.hasText()`、
+`UI.findImage()` 或模板 + 业务状态验证。处理一张静态图片的原始文字时使用 `Vision.runOCR()`；
+`Vision.detectUI()` 仅保留为 image-local 的兼容 helper。
 
 ## ImageColor.isGray(...)
 

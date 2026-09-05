@@ -17,16 +17,16 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先找窗口，
 | 你想做什么 | 从这里开始 |
 | --- | --- |
 | 让 Codex、Claude Code 或 shell Agent 操作桌面 | [AI CLI](ai-cli.md)：先运行 `opendesk ai capabilities` 和 `opendesk ai schema`。 |
-| 写或维护 JavaScript 自动化脚本 | [Page API](page.md) → [Mouse API](mouse.md) → [Input APIs](input.md) → [Window API](window.md)。 |
-| 识别屏幕上的文本、按钮或颜色 | [Vision API](vision.md) 或 [ImageColor API](image-color.md)。 |
+| 写或维护 JavaScript 自动化脚本 | [Geometry API](geometry.md) → [Desktop UI API](desktop-ui.md) → [Mouse API](mouse.md) → [Window API](window.md)。 |
+| 识别并激活屏幕上的文本、按钮或图片 | [Desktop UI API](desktop-ui.md)；原始 OCR/模板能力见 [Vision API](vision.md) 与 [ImageColor API](image-color.md)。 |
 | 从服务或外部程序触发任务 | [HTTP Server API](http-server.md) 或 MCP。 |
 | 把已探索流程重复执行 | 保存 recipe，然后使用 [AI CLI](ai-cli.md) 的 `run`。 |
 | 为项目设置默认终端输出 | [Environment Configuration](environment.md)：`.env`、`.opendesk.env` 与 CLI 覆盖规则。 |
 
 ## 先读哪些
 
-- 写桌面脚本：[Page API](page.md) → [Mouse API](mouse.md) → [Input APIs](input.md) → [Window API](window.md)
-- 做 OCR / 找按钮：[Vision API](vision.md)
+- 写桌面脚本：[Geometry API](geometry.md) → [Desktop UI API](desktop-ui.md) → [Mouse API](mouse.md) → [Input APIs](input.md) → [Window API](window.md)
+- 做 OCR / 找按钮：优先 [Desktop UI API](desktop-ui.md)；底层 OCR 见 [Vision API](vision.md)
 - 做同尺寸图像差异 / 模板匹配 / 颜色判断：[ImageColor API](image-color.md)
 - 做系统与文件操作：[System API](system.md)、[File API](file.md)、[AppStorage](storage.md)
 - 读写系统剪贴板：[Clipboard API](clipboard.md)
@@ -56,6 +56,8 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先找窗口，
 | --- | --- | --- | --- | --- |
 | `page` | JavaScript Runtime | Stable | 截图、打开 URL/App、等待、权限 | [Page API](page.md) |
 | `mouse` / `page.mouse` | JavaScript Runtime | Stable | 全局鼠标移动、点击、拖拽、位置与滚轮 | [Mouse API](mouse.md) |
+| `Geometry` | JavaScript Runtime | Stable | 窗口/显示器/region 的 screen logical coordinate 与相对区域 | [Geometry API](geometry.md) |
+| `UI` | JavaScript Runtime | Stable | 以实际 capture scale 查找、等待和激活外部可见文字/图片 | [Desktop UI API](desktop-ui.md) |
 | `keyboard` / `touchscreen` | JavaScript Runtime | Stable | 键盘与触屏输入控制 | [Input APIs](input.md) |
 | `globalShortcut` | JavaScript Runtime | Stable（macOS / Windows） | 系统快捷键触发 JavaScript callback | [Global Shortcut API](global-shortcut.md) |
 | `Events` | JavaScript Runtime | Experimental | 外部桌面状态 watcher；当前明确使用 polling backend | [Desktop Events API](events.md) |
@@ -78,7 +80,7 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先找窗口，
 | `Notifications` | JavaScript Runtime | Experimental（macOS own-app） | 等待、脱敏读取和移除 OpenDesk 自身通知 | [Notifications API](notifications.md) |
 | `Dialog` / `alert()` / `confirm()` / `prompt()` | JavaScript Runtime | Conditional | 异步原生模态提示与短文本输入 | [Dialog API](dialog.md) |
 | `Sound` | JavaScript Runtime | Secondary | 播放并控制提示音 / 音频文件 | [Sound API](sound.md) |
-| `ui` | JavaScript Runtime | Conditional | 受限 HTML/CSS + JavaScript controller 的原生窗口 | [Custom UI](custom-ui.md) |
+| `ui` | JavaScript Runtime | Conditional | OpenDesk 自己的受限 HTML/CSS + JavaScript controller 原生窗口；与大写 `UI` 不同 | [Custom UI](custom-ui.md) |
 | `FloatingWindow` | JavaScript Runtime | Conditional | 简单图标工具栏 | [Custom UI](custom-ui.md) |
 | Global APIs | JavaScript Runtime | Stable | 计时器、等待、console 日志、剪贴板快捷函数、取消控制与 URL 参数 | [Global APIs](global-apis.md) |
 | lodash / moment / query-string / cheerio / beautify | JavaScript Runtime | Secondary | 脚本辅助库 | [JS Libraries](libs.md) |

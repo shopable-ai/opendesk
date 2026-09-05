@@ -47,11 +47,11 @@
     "For coding-agent desktop interaction, inspect `opendesk ai schema` and `opendesk ai capabilities`; prefer its window metadata, targeted screenshots, deterministic primitives, and reusable recipes before full-screen visual reasoning.",
     "Prefer stable documented APIs for new scripts.",
     "Prefer page.ensurePermissions for permission-gated desktop workflows.",
-    "Prefer Vision.runOCR or Vision.detectUI for structured OCR/UI text work; use OCR.extractText for simple local text extraction.",
+    "For external desktop UI, prefer UI.findText/UI.tapText and Geometry over direct OCR bbox clicking. Use Vision.runOCR for raw OCR; Vision.detectUI is a deprecated image-local compatibility helper.",
     "Use ImageColor as a secondary pixel/template/color primitive, not as a replacement for semantic verification.",
     "Prefer axios for normal script HTTP requests; axios is a polyfill backed by http.request.",
     "NativeExtensions is an Experimental manifest-discovered immutable binding. Normal local CLI calls use NativeExtensions.<namespace>.<method>(businessParams) with routes fixed by the Host; it discovers only the program-relative bundle directory by default. HTTP and MCP cannot enable or call it. The low-level NativeExtension.call compatibility surface requires the separate -experimental-unsafe-native-extension-call local diagnostic gate.",
-    "The ui global is always present but dormant by default. Enable it with -ui or strict clawdesk.runtime.json; HTML/CSS declares the view and all business API calls stay in the JavaScript controller.",
+    "Uppercase UI operates visible targets in external desktop apps. Lowercase ui is always present but dormant by default and creates OpenDesk Custom UI; enable it with -ui or strict clawdesk.runtime.json. They have no aliases.",
     "Dialog is always present but fail-closed without the ui capability. Its alert, confirm, and prompt methods are asynchronous native modal dialogs; global alert/confirm/prompt are thin polyfill aliases, never browser-style blocking calls.",
     "Treat upgraded/playwright surfaces as compatibility facades, not a complete Playwright browser engine.",
     "Do not use retired TestMonkey documentation as a current API authority."
@@ -88,19 +88,58 @@
     },
     {
       "name": "mouse",
-      "source": "native",
+      "source": "native + Geometry polyfill companion",
       "status": "stable",
       "doc": "mouse.md",
       "keyMethods": [
         "click",
+        "clickPoint",
         "clickForPID",
-        "pressButtonForPID",
         "move",
         "down",
         "up",
         "getPos",
         "wheel"
       ]
+    },
+    {
+      "name": "Geometry",
+      "source": "polyfill",
+      "status": "stable",
+      "doc": "geometry.md",
+      "types": "types/Geometry.d.ts",
+      "keyMethods": [
+        "rect",
+        "center",
+        "pointOffset",
+        "pointPercent",
+        "regionOffset",
+        "regionPercent",
+        "contains",
+        "intersect"
+      ],
+      "coordinateSpace": "Consumes WindowInfo, DisplayInfo, or tagged screen regions and emits only tagged virtual-desktop logical screen points/regions. It never accepts a bare bbox as screen coordinates."
+    },
+    {
+      "name": "UI",
+      "source": "polyfill over page.screenshot, Vision.runOCR, ImageColor.findImages, Geometry, and mouse.clickPoint",
+      "status": "stable",
+      "doc": "desktop-ui.md",
+      "types": "types/UI.d.ts",
+      "keyMethods": [
+        "getCapabilities",
+        "findTexts",
+        "findText",
+        "hasText",
+        "tapText",
+        "tapTexts",
+        "waitText",
+        "waitTextGone",
+        "findImages",
+        "findImage",
+        "tapImage"
+      ],
+      "coordinateMapping": "Every discovery uses a fresh explicit screen clip. imageWidth/logicalScope.width and imageHeight/logicalScope.height are separately calculated actual capture scales; a scope across effective different-DPI displays fails closed."
     },
     {
       "name": "keyboard",
