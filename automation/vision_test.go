@@ -443,3 +443,42 @@ func TestRunOCRTopLevelOverridesVisionProfile(t *testing.T) {
 		t.Fatalf("expected top-level lang=ch override, got %s", p.lastReq.Lang)
 	}
 }
+
+func TestAppleVisionLanguagesNormalizesCommonOCRAliases(t *testing.T) {
+	got := appleVisionLanguages("chi_sim+en-US, ja-JP")
+	want := []string{"zh-Hans", "en-US", "ja-JP"}
+	if len(got) != len(want) {
+		t.Fatalf("appleVisionLanguages length = %d, want %d: %#v", len(got), len(want), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("appleVisionLanguages[%d] = %q, want %q; full=%#v", i, got[i], want[i], got)
+		}
+	}
+}
+
+func TestAppleVisionResultConvertsToTopLeftPixelCoordinates(t *testing.T) {
+	result, err := appleVisionResult(map[string]interface{}{
+		"text":  "OpenDesk",
+		"image": map[string]interface{}{"width": 1000, "height": 500},
+		"items": []interface{}{
+			map[string]interface{}{
+				"text":        "OpenDesk",
+				"confidence":  0.95,
+				"boundingBox": map[string]interface{}{"x": 0.1, "y": 0.2, "width": 0.4, "height": 0.3},
+			},
+		},
+	}, "ch")
+	if err != nil {
+		t.Fatalf("appleVisionResult returned error: %v", err)
+	}
+	if result.Provider != "apple" || result.Lang != "zh-Hans" || result.Text != "OpenDesk" {
+		t.Fatalf("unexpected Apple Vision result: %#v", result)
+	}
+	if len(result.Lines) != 1 {
+		t.Fatalf("line count = %d, want 1", len(result.Lines))
+	}
+	if got, want := result.Lines[0].BBox, (VisionBBox{X: 100, Y: 250, Width: 400, Height: 150}); got != want {
+		t.Fatalf("bbox = %+v, want %+v", got, want)
+	}
+}

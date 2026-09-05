@@ -27,6 +27,7 @@ APP_NAME="${APP_NAME:-OpenDesk}"
 VERSION="${VERSION:-0.1.0}"
 CODESIGN_IDENTITY="${CODESIGN_IDENTITY:--}"
 NATIVE_EXTENSIONS_SOURCE="${NATIVE_EXTENSIONS_SOURCE:-}"
+APPLE_VISION_SOURCE="${ROOT_DIR}/examples/native-extensions/macos-vision"
 
 mkdir -p "${DIST_DIR}"
 
@@ -98,6 +99,28 @@ if [[ -n "${NATIVE_EXTENSIONS_SOURCE}" ]]; then
   chmod -R go-w "${RESOURCES_DIR}/NativeExtensions"
   printf 'Staged Native Extensions before codesign: %s\n' "${RESOURCES_DIR}/NativeExtensions"
 fi
+
+# Vision.runOCR uses this helper as the reliable local macOS default. Build it
+# from the current source into the app's program-relative discovery root, then
+# make the bundle immutable before signing.
+APPLE_VISION_BUNDLE="${RESOURCES_DIR}/NativeExtensions/com.example.macos-vision"
+APPLE_VISION_BIN="${APPLE_VISION_BUNDLE}/bin/native-ext-macos-vision"
+APPLE_VISION_STAGE="${APPLE_VISION_BIN}.stage.$$"
+if [[ -e "${APPLE_VISION_BUNDLE}" ]]; then
+  printf 'Reserved bundled Apple Vision OCR path already exists: %s\n' "${APPLE_VISION_BUNDLE}" >&2
+  exit 1
+fi
+ARCH="$(uname -m)"
+SDK_PATH="$(xcrun --sdk macosx --show-sdk-path)"
+install -d -m 700 "${APPLE_VISION_BUNDLE}/bin" "${APPLE_VISION_BUNDLE}/types"
+xcrun swiftc -O -target "${ARCH}-apple-macosx12.0" -sdk "${SDK_PATH}" \
+  "${APPLE_VISION_SOURCE}/main.swift" -framework Vision -framework ImageIO \
+  -o "${APPLE_VISION_STAGE}"
+mv "${APPLE_VISION_STAGE}" "${APPLE_VISION_BIN}"
+cp "${APPLE_VISION_SOURCE}/extension.json" "${APPLE_VISION_BUNDLE}/extension.json"
+cp "${APPLE_VISION_SOURCE}/types/index.d.ts" "${APPLE_VISION_BUNDLE}/types/index.d.ts"
+chmod -R go-w "${APPLE_VISION_BUNDLE}"
+test -x "${APPLE_VISION_BIN}"
 
 cat > "${PLIST_PATH}" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>

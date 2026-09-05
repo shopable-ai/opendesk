@@ -4,7 +4,7 @@ GO ?= go
 GOBIN ?= $(HOME)/go/bin
 export PATH := $(GOBIN):$(PATH)
 
-.PHONY: help doctor setup deps fmt vet test test-core test-icons test-runtime-api test-runtime-api-live test-host-api test-host-api-live build build-macos smoke
+.PHONY: help doctor setup deps fmt vet test test-core test-icons test-runtime-api test-runtime-api-live test-host-api test-host-api-live build build-apple-vision-ocr build-macos smoke
 
 help:
 	@echo "opendesk development targets:"
@@ -74,6 +74,32 @@ test-host-api-live: test-runtime-api-live
 build:
 	$(GO) build -o dist/opendesk ./cmd/opendesk
 	$(GO) build -o dist/opendesk-ui-host ./cmd/opendesk-ui-host
+
+ifeq ($(shell uname -s),Darwin)
+build: build-apple-vision-ocr
+
+# Apple Vision is the default macOS OCR provider. Keep its executable beside
+# the portable CLI so discovery validates and invokes only the current build.
+build-apple-vision-ocr:
+	@set -e; \
+	BUNDLE="$(CURDIR)/dist/native-extensions/com.example.macos-vision"; \
+	BIN="$$BUNDLE/bin/native-ext-macos-vision"; \
+	STAGE="$$BIN.stage.$$"; \
+	SDK_PATH="$$(xcrun --sdk macosx --show-sdk-path)"; \
+	install -d -m 700 "$$BUNDLE/bin" "$$BUNDLE/types"; \
+	xcrun swiftc -O -target "$$(uname -m)-apple-macosx12.0" -sdk "$$SDK_PATH" \
+		"$(CURDIR)/examples/native-extensions/macos-vision/main.swift" -framework Vision -framework ImageIO \
+		-o "$$STAGE"; \
+	mv "$$STAGE" "$$BIN"; \
+	cp "$(CURDIR)/examples/native-extensions/macos-vision/extension.json" "$$BUNDLE/extension.json"; \
+	cp "$(CURDIR)/examples/native-extensions/macos-vision/types/index.d.ts" "$$BUNDLE/types/index.d.ts"; \
+	chmod -R go-w "$$BUNDLE"; \
+	test -x "$$BIN"; \
+	echo "Built Apple Vision OCR helper: $$BIN"
+else
+build-apple-vision-ocr:
+	@echo "Apple Vision OCR helper is available only on macOS"
+endif
 
 build-macos:
 	SKIP_CODESIGN=1 ./scripts/build_macos_app.sh

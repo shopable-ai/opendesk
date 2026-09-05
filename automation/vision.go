@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -23,7 +24,7 @@ const (
 )
 
 // Vision provides OCR and basic UI element detection.
-// Default strategy: PaddleOCR provider first, optional cloud providers as reserved placeholders.
+// Default strategy: packaged Apple Vision on macOS, otherwise PaddleOCR.
 type Vision struct {
 	defaultProvider string
 	defaultLang     string
@@ -42,6 +43,7 @@ type OCRProviderWithCapabilities interface {
 type VisionOCRRequest struct {
 	ImageBase64        string
 	Lang               string
+	RecognitionLevel   string
 	DetectOrientation  bool
 	RecognizeDirection bool
 	TimeoutMS          int
@@ -166,7 +168,7 @@ func NewVision() *Vision {
 
 	defaultProvider := strings.ToLower(strings.TrimSpace(os.Getenv("VISION_OCR_PROVIDER")))
 	if defaultProvider == "" {
-		defaultProvider = "paddle"
+		defaultProvider = defaultVisionProvider()
 	}
 	defaultProvider = normalizeProviderName(defaultProvider)
 
@@ -183,7 +185,8 @@ func NewVision() *Vision {
 		client:   client,
 	}
 	local := &LocalTesseractOCRProvider{}
-	providers := buildVisionProviders(client, paddle, local)
+	apple := NewAppleVisionOCRProvider()
+	providers := buildVisionProviders(client, paddle, local, apple)
 
 	return &Vision{
 		defaultProvider: defaultProvider,
@@ -309,7 +312,7 @@ func (v *Vision) RunOCR(options map[string]interface{}) (map[string]interface{},
 		"provider":  result.Provider,
 		"lang":      result.Lang,
 		"text":      result.Text,
-		"lines":     result.Lines,
+		"lines":     visionRuntimeLines(result.Lines),
 		"lineCount": len(result.Lines),
 	}
 
@@ -355,7 +358,7 @@ func (v *Vision) DetectUI(options map[string]interface{}) (map[string]interface{
 		elements = append(elements, map[string]interface{}{
 			"role":       role,
 			"text":       line.Text,
-			"bbox":       line.BBox,
+			"bbox":       visionRuntimeBBox(line.BBox),
 			"score":      line.Confidence,
 			"clickPoint": map[string]int{"x": clickX, "y": clickY},
 		})
@@ -368,6 +371,27 @@ func (v *Vision) DetectUI(options map[string]interface{}) (map[string]interface{
 		"count":    len(elements),
 		"elements": elements,
 	}, nil
+}
+
+func visionRuntimeLines(lines []VisionLine) []map[string]interface{} {
+	result := make([]map[string]interface{}, 0, len(lines))
+	for _, line := range lines {
+		result = append(result, map[string]interface{}{
+			"text":       line.Text,
+			"confidence": line.Confidence,
+			"bbox":       visionRuntimeBBox(line.BBox),
+		})
+	}
+	return result
+}
+
+func visionRuntimeBBox(box VisionBBox) map[string]int {
+	return map[string]int{
+		"x":      box.X,
+		"y":      box.Y,
+		"width":  box.Width,
+		"height": box.Height,
+	}
 }
 
 // GetCapabilities returns provider/language capabilities for UI selection and provider switching.
@@ -491,6 +515,7 @@ func (v *Vision) runOCRResult(options map[string]interface{}) (*VisionOCRResult,
 		req := &VisionOCRRequest{
 			ImageBase64:        imageBase64,
 			Lang:               normalizedLang,
+			RecognitionLevel:   visionStringOption(options, "recognitionLevel", "accurate"),
 			DetectOrientation:  visionBoolOption(options, "detectOrientation", true),
 			RecognizeDirection: visionBoolOption(options, "recognizeDirection", true),
 			TimeoutMS:          timeoutMS,
@@ -1100,6 +1125,8 @@ func normalizeProviderName(name string) string {
 		return "paddle"
 	case "tesseract":
 		return "local"
+	case "applevision", "macos", "macosvision":
+		return "apple"
 	default:
 		return strings.ToLower(strings.TrimSpace(name))
 	}
@@ -1119,9 +1146,22 @@ func normalizeVisionLangByProvider(providerName, lang string) string {
 		return normalizePaddleLang(lang)
 	case "local":
 		return normalizeTesseractLang(lang)
+	case "apple":
+		return normalizeAppleVisionLang(lang)
 	default:
 		return strings.ToLower(lang)
 	}
+}
+
+func defaultVisionProvider() string {
+	if runtime.GOOS == "darwin" {
+		return "apple"
+	}
+	return "paddle"
+}
+
+func normalizeAppleVisionLang(lang string) string {
+	return strings.Join(appleVisionLanguages(lang), "+")
 }
 
 func normalizePaddleLang(lang string) string {
@@ -1188,16 +1228,20 @@ func visionCSVEnvOrDefault(key string, defaults []string) []string {
 	return out
 }
 
-func buildVisionProviders(client *http.Client, paddle *PaddleOCRProvider, local *LocalTesseractOCRProvider) map[string]OCRProvider {
+func buildVisionProviders(client *http.Client, paddle *PaddleOCRProvider, local *LocalTesseractOCRProvider, apple *AppleVisionOCRProvider) map[string]OCRProvider {
 	providers := map[string]OCRProvider{
-		"paddle":    paddle,
-		"paddleocr": paddle,
-		"local":     local,
-		"tesseract": local,
-		"openai":    &unimplementedOCRProvider{name: "openai"},
-		"azure":     &unimplementedOCRProvider{name: "azure"},
-		"google":    &unimplementedOCRProvider{name: "google"},
-		"aws":       &unimplementedOCRProvider{name: "aws"},
+		"paddle":      paddle,
+		"paddleocr":   paddle,
+		"local":       local,
+		"tesseract":   local,
+		"apple":       apple,
+		"applevision": apple,
+		"macos":       apple,
+		"macosvision": apple,
+		"openai":      &unimplementedOCRProvider{name: "openai"},
+		"azure":       &unimplementedOCRProvider{name: "azure"},
+		"google":      &unimplementedOCRProvider{name: "google"},
+		"aws":         &unimplementedOCRProvider{name: "aws"},
 	}
 	for _, name := range []string{"openai", "azure", "google", "aws"} {
 		if provider := buildHTTPVisionProviderFromEnv(name, client); provider != nil {

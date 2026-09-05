@@ -4,6 +4,7 @@
 
 Current provider status:
 
+- `apple` / `applevision`: packaged Apple Vision on macOS 12+, accurate local OCR without a network endpoint or tesseract.
 - `paddle` / `paddleocr`: implemented, requires external HTTP endpoint.
 - `local` / `tesseract`: implemented, uses local `tesseract` CLI.
 - `openai`, `azure`, `google`, `aws`: can now be configured as generic HTTP JSON OCR providers through env vars.
@@ -13,11 +14,29 @@ Current provider status:
 Environment variables:
 
 ```bash
-VISION_OCR_PROVIDER=paddle
+VISION_OCR_PROVIDER=apple
 VISION_OCR_LANG=ch
 ```
 
-If `VISION_OCR_PROVIDER` is omitted, the runtime still defaults to `paddle`.
+If `VISION_OCR_PROVIDER` is omitted, macOS defaults to `apple`; other platforms
+default to `paddle`. `make build` packages the Apple Vision helper beside the
+portable CLI, and `scripts/build_macos_app.sh` puts the same helper inside the
+app bundle. A bare `go build` or `go run` does not package it.
+
+## Apple Vision Provider (macOS)
+
+```bash
+make build
+./dist/opendesk \
+  -vision-ocr-image tests/extensions/native-process/fixtures/ocr/opendesk-ocr-123.png \
+  -vision-provider apple \
+  -vision-lang ch
+```
+
+The provider uses Vision's `accurate` recognition level by default. It maps
+common OCR aliases such as `ch`, `chi_sim+eng`, and `en` to Apple locale tags,
+then converts Apple Vision's lower-left normalized boxes into the top-left
+pixel coordinates returned by `Vision.runOCR`.
 
 ## Paddle Provider
 
@@ -129,7 +148,8 @@ This is intended for provider unavailability, endpoint misconfiguration, or scen
 
 ## Recommended Production Strategy
 
-- default local/dev fallback: `local`
+- macOS local/default: packaged `apple` (accurate)
+- default local/dev fallback on non-macOS: `local`
 - Chinese desktop UI mainline: `paddle`
 - premium document/cloud path: configured `google` / `azure` / `aws`
 - semantic arbitration or custom paid OCR gateway: configured `openai`

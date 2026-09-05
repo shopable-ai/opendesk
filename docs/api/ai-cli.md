@@ -157,6 +157,22 @@ Complex workflows belong in JavaScript recipes, not in a growing list of CLI fla
 ./opendesk ai run examples/ai-cli/write-to-focused-app.js --input '{"text":"Hello from a reusable recipe"}'
 ```
 
+macOS Calculator 的窗口相对、Display OCR 验证示例也使用同一入口；运行前需授予 Screen
+Recording 与 Accessibility，并确保 `ai capabilities` 报告至少一个可用 OCR provider：
+
+```bash
+./dist/opendesk ai run examples/ai-cli/macos-calculator-recipe.js --input '{"expression":"16*3","expected":"48"}'
+```
+
+该 Recipe 通过 Calculator 按钮输入算式，`expected` 只作为 Oracle；实际结果来自 Display ROI
+OCR。可选 `followUp.expression` 中的 `{result}` 会替换为第一步 OCR 提取值，而不是在 JavaScript
+内计算答案。真实桌面 gate 还会用 Calculator 的模式快捷键制造一次真实窗口尺寸变化，再由一次
+Fresh Run 恢复并验证 Basic 布局；它需要显式 opt-in：
+
+```bash
+OPENDESK_LIVE_CALCULATOR=1 ./scripts/test_ai_calculator_recipe.sh
+```
+
 The three JSON inputs are mutually exclusive:
 
 ```bash

@@ -6,7 +6,9 @@ order: 10
 
 # Vision
 
-Vision 是当前项目里最值得优先使用的视觉对象之一。
+Vision 提供底层 OCR、legacy text-center helper 与 provider capability。新桌面 Recipe 应优先使用
+[`UI`](desktop-ui.md)：它在每次截图后处理 capture scale、scope、歧义和安全的 screen-coordinate
+投影；需要原始 OCR 行时再直接使用 `Vision.runOCR`。
 
 适用场景
 - 对截图做 OCR
@@ -40,7 +42,7 @@ provider，适合用于可解释的视觉结构验证。
 | 方法 | 用途 |
 | --- | --- |
 | Vision.runOCR(options) | 对图片执行 OCR |
-| Vision.detectUI(options) | 基于 OCR 文本检测 UI 元素 |
+| Vision.detectUI(options) | 已弃用的基于 OCR 文本检测 UI 元素 helper |
 | Vision.getCapabilities(options) | 查看 provider 能力、默认语言、是否已配置 |
 
 ## Vision：provider 现状
@@ -49,6 +51,7 @@ provider，适合用于可解释的视觉结构验证。
 
 | provider | 状态 | 说明 |
 | --- | --- | --- |
+| apple / applevision | macOS 已实现 | 打包的 Apple Vision，默认 `accurate`，无需网络或 tesseract；macOS 12+ |
 | paddle / paddleocr | 已实现 | 需要配置 `PADDLE_OCR_ENDPOINT` |
 | local / tesseract | 已实现 | 本地 OCR provider |
 | openai | 预留未实现 | 会报 reserved but not implemented |
@@ -57,7 +60,8 @@ provider，适合用于可解释的视觉结构验证。
 | aws | 预留未实现 | 同上 |
 
 默认值
-- 默认 provider：`VISION_OCR_PROVIDER` 环境变量，否则 paddle
+- macOS：`VISION_OCR_PROVIDER` 环境变量，否则打包的 Apple Vision（`apple`）
+- 其他平台：`VISION_OCR_PROVIDER` 环境变量，否则 paddle
 - 默认 lang：`VISION_OCR_LANG` 环境变量，否则 ch
 
 ## Vision.runOCR(options)
@@ -81,8 +85,9 @@ const result = await Vision.runOCR(options)
 
 | 参数 | 类型 | 默认值 | 说明 |
 | --- | --- | --- | --- |
-| options.provider | string | 默认 provider | paddle / local / tesseract ... |
+| options.provider | string | 默认 provider | apple / paddle / local / tesseract ... |
 | options.lang | string | 默认 lang | 例如 ch / en |
+| options.recognitionLevel | string | accurate | Apple Vision：`accurate` / `fast`；默认以准确率优先 |
 | options.timeoutMs | number | 12000 | 超时 |
 | options.detectOrientation | boolean | true | 是否检测方向 |
 | options.recognizeDirection | boolean | true | 是否识别方向 |
@@ -119,8 +124,9 @@ const imagePath = await page.screenshot({
 
 const result = await Vision.runOCR({
   imagePath,
-  provider: 'local',
-  lang: 'chi_sim+eng'
+  provider: 'apple',
+  lang: 'ch',
+  recognitionLevel: 'accurate'
 });
 
 console.log(JSON.stringify(result, null, 2));
@@ -140,6 +146,10 @@ console.log(result.text);
 ```
 
 ## Vision.detectUI(options)
+
+> **Deprecated：** `detectUI` 是兼容保留的旧 OCR text-center helper。它返回的 bbox/clickPoint 都是
+> 输入图片的局部 image-pixel 坐标，不是可靠的业务目标解析或全局 mouse 坐标。新代码使用
+> `Vision.runOCR` 获取原始 OCR，或直接使用 `UI.findText` / `UI.tapText` 完成查找与激活。
 
 签名
 
@@ -201,7 +211,7 @@ const shot = await page.screenshot({
 
 const result = await Vision.detectUI({
   imagePath: shot,
-  provider: 'local',
+  provider: 'apple',
   targetText: '登录',
   matchMode: 'contains',
   minConfidence: 0.4,
@@ -209,11 +219,8 @@ const result = await Vision.detectUI({
 });
 
 console.log(JSON.stringify(result, null, 2));
-
-if (result.count > 0) {
-  const p = result.elements[0].clickPoint;
-  await mouse.click(p.x, p.y);
-}
+// 这是 image-local 诊断结果。不要选择 result.elements[0] 并直接 mouse.click。
+// 需要外部桌面操作时用 UI.findText/UI.tapText，它会重新截图并投影到 screen 坐标。
 ```
 
 示例：查找英文按钮
@@ -221,7 +228,7 @@ if (result.count > 0) {
 ```js
 const result = await Vision.detectUI({
   imagePath: './.runtime/examples/dialog.png',
-  provider: 'local',
+  provider: 'apple',
   targetText: 'Continue',
   matchMode: 'contains',
   minConfidence: 0.5,
@@ -255,20 +262,22 @@ const caps = await Vision.getCapabilities(options)
 
 ```js
 {
-  defaultProvider: 'paddle',
-  defaultLang: 'ch',
+  defaultProvider: 'apple',
+  defaultLang: 'zh-Hans',
   providers: [
     {
-      provider: 'paddle',
-      alias: 'paddle',
-      aliases: ['paddle', 'paddleocr'],
+      provider: 'apple',
+      alias: 'apple',
+      aliases: ['apple', 'applevision', 'macos', 'macosvision'],
       isDefault: true,
       implemented: true,
       switchReady: true,
       defaultLang: 'ch',
-      supportedLangs: ['ch', 'en'],
-      endpointRequired: true,
-      endpointConfigured: true
+      supportedLangs: ['ch', 'chinese_cht', 'en', 'ja', 'ko'],
+      endpointRequired: false,
+      endpointConfigured: true,
+      available: true,
+      recognitionLevelDefault: 'accurate'
     }
   ],
   providerCount: 1
@@ -278,7 +287,7 @@ const caps = await Vision.getCapabilities(options)
 示例
 
 ```js
-const caps = await Vision.getCapabilities({ provider: 'paddle' });
+const caps = await Vision.getCapabilities({ provider: 'apple' });
 console.log(JSON.stringify(caps, null, 2));
 ```
 
@@ -319,6 +328,15 @@ console.log(text);
 PADDLE_OCR_ENDPOINT is required for paddle provider
 ```
 
+**Apple Vision helper 未随程序打包**
+
+```text
+Apple Vision OCR is unavailable
+```
+
+从仓库根目录执行 `make build`（portable CLI）或
+`./scripts/build_macos_app.sh`（App）后再运行；不要用未打包 helper 的临时 `go run` 作为 macOS OCR 发布方式。
+
 **provider 未实现**
 
 ```text
@@ -338,44 +356,31 @@ unsupported ocr provider: xxx
 
 ## Vision / OCR：实战建议
 
-**推荐流程：截图 -> detectUI -> 点击**
+**推荐流程：Geometry/UI 查找 -> 激活 -> 业务状态验证**
 
 ```js
-const imagePath = await page.screenshot({
-  target: 'activeWindow',
-  path: './.runtime/examples/current.png',
-  returnType: 'path'
-});
-
-const ui = await Vision.detectUI({
-  imagePath,
-  provider: 'local',
-  targetText: '确定',
-  matchMode: 'contains',
+const win = await window.getActiveWindow();
+await UI.tapText('确定', {
+  within: win,
+  provider: 'apple',
+  match: 'contains',
   minConfidence: 0.4,
-  defaultRole: 'button'
 });
-
-if (ui.count === 0) {
-  throw new Error('没有找到目标按钮');
-}
-
-const { x, y } = ui.elements[0].clickPoint;
-await mouse.click(x, y);
+await UI.waitText('操作成功', { within: win, timeout: 10000 });
 ```
 
 **先检查能力再运行**
 
 ```js
-const caps = await Vision.getCapabilities({ provider: 'paddle' });
+const caps = await Vision.getCapabilities({ provider: 'apple' });
 const provider = caps.providers[0];
 
 if (!provider.implemented) {
   throw new Error('provider 未实现');
 }
 
-if (provider.endpointRequired && !provider.endpointConfigured) {
-  throw new Error('paddle endpoint 未配置');
+if (!provider.available) {
+	throw new Error('Apple Vision helper 未就绪，请重新执行 macOS 构建');
 }
 ```
 

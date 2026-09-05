@@ -212,19 +212,20 @@ docs/api/http-server.md
 OCR：
 
 ```bash
-go run ./cmd/opendesk \
-  -vision-ocr-image tests/desktopvision/fixtures/legacy-testmonkey-desktop.png \
-  -vision-provider paddle \
+make build
+./dist/opendesk \
+	-vision-ocr-image tests/extensions/native-process/fixtures/ocr/opendesk-ocr-123.png \
+	-vision-provider apple \
   -vision-lang ch
 ```
 
 UI 文本检测：
 
 ```bash
-go run ./cmd/opendesk \
-  -vision-detect-ui-image tests/desktopvision/fixtures/legacy-testmonkey-desktop.png \
-  -vision-target-text 发送 \
-  -vision-provider paddle \
+./dist/opendesk \
+	-vision-detect-ui-image tests/extensions/native-process/fixtures/ocr/opendesk-ocr-123.png \
+	-vision-target-text 你好 \
+	-vision-provider apple \
   -vision-lang ch
 ```
 

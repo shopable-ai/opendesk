@@ -32,6 +32,8 @@ declare global {
     lang?: string;
     language?: string;
     timeoutMs?: number;
+    /** Apple Vision runs in accurate mode by default on packaged macOS builds. */
+    recognitionLevel?: 'accurate' | 'fast';
     detectOrientation?: boolean;
     recognizeDirection?: boolean;
     includeRaw?: boolean;
@@ -82,6 +84,9 @@ declare global {
     supportedLangs?: string[];
     endpointRequired?: boolean;
     endpointConfigured?: boolean;
+    available?: boolean;
+    backend?: string;
+    recognitionLevelDefault?: 'accurate' | 'fast';
     [key: string]: unknown;
   }
 
@@ -94,6 +99,10 @@ declare global {
 
   interface OpenDeskVision {
     runOCR(options: OpenDeskVisionOptions): OpenDeskVisionOCRResult;
+    /**
+     * @deprecated Legacy OCR text-center helper. Use Vision.runOCR for raw OCR,
+     * then UI.findText/UI.tapText for screen-coordinate target resolution.
+     */
     detectUI(options: OpenDeskVisionOptions): OpenDeskVisionDetectUIResult;
     getCapabilities(options?: Pick<OpenDeskVisionOptions, "provider" | "providerName">): OpenDeskVisionCapabilities;
     analyzeLayout(options: OpenDeskVisionOptions & { image: string | OpenDeskByteInput | OpenDeskVisionImageSource }): Record<string, unknown>;

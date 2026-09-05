@@ -119,7 +119,7 @@ func parseFlags() *Config {
 	flag.StringVar(&config.VisionOCRImagePath, "vision-ocr-image", "", "Run OCR in CLI mode using image path")
 	flag.StringVar(&config.VisionDetectImagePath, "vision-detect-ui-image", "", "Run UI detection in CLI mode using image path")
 	flag.StringVar(&config.VisionTargetText, "vision-target-text", "", "Target text for UI detection")
-	flag.StringVar(&config.VisionProvider, "vision-provider", "paddle", "OCR provider (paddle/openai/azure/google/aws)")
+	flag.StringVar(&config.VisionProvider, "vision-provider", defaultCLIVisionProvider(), "OCR provider (apple/paddle/local/openai/azure/google/aws)")
 	flag.StringVar(&config.VisionLang, "vision-lang", "ch", "OCR language")
 	flag.Float64Var(&config.VisionMinConfidence, "vision-min-confidence", 0.5, "Minimum confidence for detect-ui")
 	flag.BoolVar(&config.VisionIncludeRaw, "vision-include-raw", false, "Include raw provider response in OCR output")
@@ -142,6 +142,13 @@ func parseFlags() *Config {
 	config.ConsoleCategories = consoleSettings.Categories
 	config.OutputFormat = consoleSettings.OutputFormat
 	return config
+}
+
+func defaultCLIVisionProvider() string {
+	if runtime.GOOS == "darwin" {
+		return "apple"
+	}
+	return "paddle"
 }
 
 func resolveCustomUIActivation(config *Config) error {
