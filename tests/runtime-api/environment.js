@@ -1,6 +1,6 @@
 // Project environment Runtime behavior. The formal gate supplies one explicit
 // env file and controlled inherited values; run through:
-// ./scripts/test_runtime_apis.sh environment
+// OPENDESK_RUNTIME_API_MODE=environment ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
 (0, eval)(File.read(File.join(File.cwd(), 'tests/runtime-api/framework.js')));
 RuntimeAPITest.load('tests/runtime-api/manifest.js');
 
@@ -25,8 +25,14 @@ function environmentCommand(script) {
     equal(Execution.env.OPENDESK_ENV_EMPTY, '', 'empty value');
     equal(Execution.env.OPENDESK_ENV_QUOTED, 'quoted value', 'quoted value');
     equal(Execution.env.OPENDESK_ENV_SYSTEM_ONLY, 'system=a=b', 'inherited system value');
+    equal(System.getEnv('OPENDESK_ENV_FILE_ONLY'), 'file-value', 'System.getEnv file value');
+    equal(System.getEnv('OPENDESK_ENV_EMPTY', 'fallback'), '', 'empty value must not use fallback');
+    equal(System.getEnv('OPENDESK_ENV_MISSING', 'fallback'), 'fallback', 'missing value fallback');
+    equal(System.hasEnv('OPENDESK_ENV_EMPTY'), true, 'empty value presence');
+    equal(System.hasEnv('OPENDESK_ENV_MISSING'), false, 'missing value presence');
     assert(typeof Execution.env.PATH === 'string' && Execution.env.PATH.length > 0, 'system PATH is missing');
     equal(Execution.env.__proto__, 'literal-key', '__proto__ environment key');
+    equal(System.getEnv('__proto__'), 'literal-key', 'safe __proto__ lookup');
     equal(Object.getPrototypeOf(Execution.env), null, 'environment snapshot prototype');
     assert(Object.isFrozen(Execution.env), 'Execution.env is mutable');
     assert(Object.values(Execution.env).every((value) => typeof value === 'string'), 'non-string environment value');

@@ -1,5 +1,5 @@
 (() => {
-  const { assert, test } = RuntimeAPITest;
+  const { assert, equal, test } = RuntimeAPITest;
   RuntimeAPITest.contractObject('System');
 
   test({
@@ -35,6 +35,38 @@
         rejected = String(error && error.message || error).includes(expectedMessage);
       }
       assert(rejected, `System.delay must reject invalid milliseconds: ${milliseconds}`);
+    }
+  });
+
+  test({
+    name: 'System environment accessors read only the execution snapshot',
+    tier: 'unit',
+    covers: ['System.getEnv', 'System.hasEnv', 'Execution.env'],
+  }, () => {
+    const name = 'OPENDESK_RUNTIME_API_RUN_ID';
+    equal(System.getEnv(name), Execution.env[name], 'inherited execution value');
+    equal(System.hasEnv(name), true, 'present inherited execution value');
+
+    const missing = 'OPENDESK_ENV_NAME_THAT_MUST_NOT_EXIST';
+    equal(System.getEnv(missing), undefined, 'missing value');
+    equal(System.getEnv(missing, 'fallback'), 'fallback', 'missing fallback');
+    equal(System.hasEnv(missing), false, 'missing presence');
+
+    for (const invoke of [
+      () => System.getEnv(),
+      () => System.getEnv('INVALID-NAME'),
+      () => System.getEnv(missing, 42),
+      () => System.getEnv(missing, 'one', 'two'),
+      () => System.hasEnv(),
+      () => System.hasEnv('INVALID-NAME'),
+    ]) {
+      let rejected = false;
+      try {
+        invoke();
+      } catch (error) {
+        rejected = error && error.name === 'TypeError';
+      }
+      assert(rejected, 'invalid System environment access did not throw TypeError');
     }
   });
 

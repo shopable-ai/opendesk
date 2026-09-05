@@ -113,3 +113,24 @@ func TestWindowsEnvironmentNamesAreUnambiguous(t *testing.T) {
 		t.Fatal("case-insensitive duplicate environment names were accepted")
 	}
 }
+
+func TestLookupUsesPlatformEnvironmentNameSemantics(t *testing.T) {
+	values, err := runtimeenv.Clone(map[string]string{"LOOKUP_VALUE": "", "PRESENT": "yes"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if value, found := runtimeenv.Lookup(values, "LOOKUP_VALUE"); !found || value != "" {
+		t.Fatalf("empty value lookup = %q, %v", value, found)
+	}
+	if value, found := runtimeenv.Lookup(values, "PRESENT"); !found || value != "yes" {
+		t.Fatalf("present lookup = %q, %v", value, found)
+	}
+	if _, found := runtimeenv.Lookup(values, "INVALID-NAME"); found {
+		t.Fatal("invalid environment name was found")
+	}
+	if runtime.GOOS == "windows" {
+		if value, found := runtimeenv.Lookup(values, "present"); !found || value != "yes" {
+			t.Fatalf("case-insensitive Windows lookup = %q, %v", value, found)
+		}
+	}
+}

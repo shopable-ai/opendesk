@@ -4,14 +4,15 @@
 // Read only the keys the automation needs. Avoid logging the complete snapshot:
 // local executions may inherit credentials from the OpenDesk process.
 const platform = System.getPlatformInfo().os;
-const home = platform === 'windows'
-  ? Execution.env.USERPROFILE
-  : Execution.env.HOME;
+const home = System.getEnv(platform === 'windows' ? 'USERPROFILE' : 'HOME');
 
 const summary = {
-  mode: Execution.env.OPENDESK_EXAMPLE_MODE || 'default',
+  mode: System.getEnv('OPENDESK_EXAMPLE_MODE', 'default'),
+  // This OpenDesk-owned key is non-secret and safe to show. Do not add
+  // application credentials or the complete environment snapshot here.
+  consoleMode: System.getEnv('OPENDESK_CONSOLE_MODE', 'unset'),
   platform,
-  pathAvailable: typeof Execution.env.PATH === 'string' && Execution.env.PATH.length > 0,
+  pathAvailable: System.hasEnv('PATH') && System.getEnv('PATH').length > 0,
   homeAvailable: typeof home === 'string' && home.length > 0,
   snapshotFrozen: Object.isFrozen(Execution.env),
 };

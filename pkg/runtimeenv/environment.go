@@ -197,6 +197,17 @@ func Clone(values map[string]string) (map[string]string, error) {
 	return FromEnviron(entries), nil
 }
 
+// Lookup reads one portable name using the host platform's environment-name
+// semantics. Resolved Windows snapshots use canonical uppercase names, but
+// callers may query them with any casing.
+func Lookup(values map[string]string, name string) (string, bool) {
+	if !ValidName(name) {
+		return "", false
+	}
+	value, found := values[normalizedName(name)]
+	return value, found
+}
+
 // ValidName reports whether a key is portable across the supported hosts.
 func ValidName(name string) bool {
 	if name == "" {

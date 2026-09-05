@@ -21,12 +21,16 @@ import (
 
 // InitJSOptions 控制 JS 运行时初始化行为。
 type InitJSOptions struct {
-	EventSink   EventSink
-	Context     context.Context
-	EventLoop   *eventloop.EventLoop
+	EventSink EventSink
+	Context   context.Context
+	EventLoop *eventloop.EventLoop
+	// WorkDir is the already-normalized execution directory. It is passed to
+	// the shared File backend; InitJS callers that omit it retain host-cwd
+	// behavior for legacy synchronous File methods.
+	WorkDir string
 	// Environment is the execution-owned string snapshot. A non-nil empty map
 	// is intentional for remote executions and must not fall back to os.Environ.
-	Environment map[string]string
+	Environment                     map[string]string
 	EnableNativeExtensions          bool
 	EnableUnsafeNativeExtensionCall bool
 	NativeExtensionRoots            []nativeextension.DiscoveryRoot
@@ -85,6 +89,8 @@ type RuntimeLifecycle struct {
 	App            *AppRuntime
 	Notifications  *NotificationsRuntime
 	Command        *CommandRuntime
+	FileJSON       *FileJSONRuntime
+	FileSystem     *FileSystem
 }
 
 // Wait joins host workers after their execution context has been cancelled.
@@ -113,6 +119,9 @@ func (l *RuntimeLifecycle) Wait() {
 	}
 	if l != nil && l.Command != nil {
 		l.Command.Wait()
+	}
+	if l != nil && l.FileJSON != nil {
+		l.FileJSON.Wait()
 	}
 }
 
@@ -145,6 +154,12 @@ func (l *RuntimeLifecycle) CancelAsync() {
 	}
 	if l != nil && l.Command != nil {
 		l.Command.Close()
+	}
+	if l != nil && l.FileJSON != nil {
+		l.FileJSON.CancelPending()
+	}
+	if l != nil && l.FileSystem != nil {
+		l.FileSystem.Close()
 	}
 }
 
@@ -197,6 +212,11 @@ func (l *RuntimeLifecycle) AsyncCounts() (timers int, workers int64, callbacks i
 		workers += commandWorkers
 		callbacks += int(commandCallbacks)
 	}
+	if l.FileJSON != nil {
+		fileWorkers, fileCallbacks, _ := l.FileJSON.ResourceCounts()
+		workers += fileWorkers
+		callbacks += fileCallbacks
+	}
 	return timers, workers, callbacks
 }
 
@@ -228,6 +248,10 @@ type RuntimeResourceCounts struct {
 	CommandWorkers      int64
 	CommandCallbacks    int64
 	CommandProcesses    int
+	FileJSONWorkers     int64
+	FileJSONCallbacks   int
+	FileJSONTemps       int64
+	FileHandles         int
 }
 
 func (l *RuntimeLifecycle) ResourceCounts() RuntimeResourceCounts {
@@ -273,6 +297,12 @@ func (l *RuntimeLifecycle) ResourceCounts() RuntimeResourceCounts {
 	if l.Command != nil {
 		counts.CommandWorkers, counts.CommandCallbacks, counts.CommandProcesses = l.Command.ResourceCounts()
 	}
+	if l.FileJSON != nil {
+		counts.FileJSONWorkers, counts.FileJSONCallbacks, counts.FileJSONTemps = l.FileJSON.ResourceCounts()
+	}
+	if l.FileSystem != nil {
+		counts.FileHandles = l.FileSystem.OpenHandleCount()
+	}
 	return counts
 }
 
@@ -286,16 +316,19 @@ func (c RuntimeResourceCounts) IsZero() bool {
 		c.AppWorkers == 0 && c.AppPending == 0 &&
 		c.SoundWorkers == 0 && c.SoundPending == 0 && c.SoundPlaybacks == 0 &&
 		c.NotificationWorkers == 0 && c.NotificationPending == 0 &&
-		c.CommandWorkers == 0 && c.CommandCallbacks == 0 && c.CommandProcesses == 0
+		c.CommandWorkers == 0 && c.CommandCallbacks == 0 && c.CommandProcesses == 0 &&
+		c.FileJSONWorkers == 0 && c.FileJSONCallbacks == 0 && c.FileJSONTemps == 0 &&
+		c.FileHandles == 0
 }
 
 func (c RuntimeResourceCounts) String() string {
-	return fmt.Sprintf("timers=%d httpWorkers=%d httpCallbacks=%d uiWorkers=%d uiPending=%d uiQueued=%d uiWindows=%d uiListeners=%d uiDriverSinks=%d uiHostProcesses=%d shortcutBindings=%d shortcutPending=%d eventSubscriptions=%d eventPending=%d captureWorkers=%d capturePending=%d captureSessions=%d appWorkers=%d appPending=%d soundWorkers=%d soundPending=%d soundPlaybacks=%d notificationWorkers=%d notificationPending=%d commandWorkers=%d commandCallbacks=%d commandProcesses=%d",
+	return fmt.Sprintf("timers=%d httpWorkers=%d httpCallbacks=%d uiWorkers=%d uiPending=%d uiQueued=%d uiWindows=%d uiListeners=%d uiDriverSinks=%d uiHostProcesses=%d shortcutBindings=%d shortcutPending=%d eventSubscriptions=%d eventPending=%d captureWorkers=%d capturePending=%d captureSessions=%d appWorkers=%d appPending=%d soundWorkers=%d soundPending=%d soundPlaybacks=%d notificationWorkers=%d notificationPending=%d commandWorkers=%d commandCallbacks=%d commandProcesses=%d fileJSONWorkers=%d fileJSONCallbacks=%d fileJSONTemps=%d fileHandles=%d",
 		c.Timers, c.HTTPWorkers, c.HTTPCallbacks, c.UIWorkers, c.UIPending, c.UIQueued,
 		c.UIWindows, c.UIListeners, c.UIDriverSinks, c.UIHostProcesses, c.ShortcutBindings, c.ShortcutPending,
 		c.EventSubscriptions, c.EventPending, c.CaptureWorkers, c.CapturePending, c.CaptureSessions,
 		c.AppWorkers, c.AppPending, c.SoundWorkers, c.SoundPending, c.SoundPlaybacks,
-		c.NotificationWorkers, c.NotificationPending, c.CommandWorkers, c.CommandCallbacks, c.CommandProcesses)
+		c.NotificationWorkers, c.NotificationPending, c.CommandWorkers, c.CommandCallbacks, c.CommandProcesses,
+		c.FileJSONWorkers, c.FileJSONCallbacks, c.FileJSONTemps, c.FileHandles)
 }
 
 func emitRuntimeLog(sink EventSink, level, message string, fields map[string]any) {
@@ -435,6 +468,11 @@ func jsValueForResult(runtime *goja.Runtime, result interface{}) goja.Value {
 	switch v := result.(type) {
 	case []byte:
 		return runtime.ToValue(runtime.NewArrayBuffer(v))
+	case *FileHandle:
+		if v == nil {
+			return goja.Null()
+		}
+		return runtime.ToValue(AutoMapObject(runtime, v))
 	case *Browser:
 		if v == nil {
 			return goja.Null()
@@ -486,6 +524,7 @@ var jsMethodAllowlist = map[reflect.Type][]string{
 	reflect.TypeOf((*System)(nil)):         {"Delay", "GetPlatformInfo", "GetSystemInfo", "GetProcessList", "KillProcess", "GetNetworkInterfaces", "GetNetworkConnections", "GetPowerInfo", "Shutdown", "Restart", "Sleep", "GetDirectoryContents", "GetExecutablePath", "GetWorkingDirectory", "GetUserInfo", "IsAdministrator", "GetSystemMetrics", "GetFingerprint", "ToJSON"},
 	reflect.TypeOf((*WindowManager)(nil)):  {"GetCapabilities", "GetActiveWindow", "GetWindowByTitle", "GetFocusWindow", "Focus", "SetWindowBounds", "SetWidth", "SetHeight", "Maximize", "Minimize", "Restore", "RestoreByPID", "MinimizeByPID", "MaximizeByPID", "CloseWindow", "CloseActiveWindow", "Kill", "Title", "GetTitle", "Content", "GetContent", "List", "SetAlwaysOnTop", "UnsetTopMost", "BringToTop"},
 	reflect.TypeOf((*FileSystem)(nil)):     {"Path", "Cwd", "Create", "CreateIfNotExists", "CreateWithDirs", "Exists", "EnsureDir", "Read", "ReadBytes", "Write", "Append", "WriteBytes", "AppendBytes", "Copy", "RenameWithoutExtension", "Rename", "Move", "GetExtension", "GetName", "GetNameWithoutExtension", "Remove", "RemoveDir", "ListDir", "IsFile", "IsDir", "IsEmptyDir", "GetHumanReadableSize", "GetSimplifiedPath", "Join", "Open"},
+	reflect.TypeOf((*FileHandle)(nil)):     {"Close", "Read", "ReadBytes", "Write", "WriteBytes", "Seek", "Truncate", "Sync"},
 	reflect.TypeOf((*AppStorage)(nil)):     {"GetItem", "SetItem", "RemoveItem", "Clear", "GetLength", "Key"},
 	reflect.TypeOf((*Sound)(nil)):          {"PlaySuccess", "PlayFail", "PlayWarning", "PlayError", "PlayCaptcha", "PlaySound", "Play"},
 	reflect.TypeOf((*ImageColor)(nil)):     {"FindPos", "FindImage", "FindImages", "Diff", "LoadBase64", "Resize", "Clip", "Pixel", "FindColor", "FindColorBlocks", "HasColor", "IsGray", "GetSize", "Save", "FindRedChannel", "FindGreenChannel", "FindBlueChannel", "ToRGB", "ToRGBA", "ToHSL", "ToHSLA", "IsColorSimilar", "AnalyzeLayout"},
@@ -772,6 +811,9 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 	}
 	system := NewSystemWithSessionBackend(runtime, timer, sessionBackend)
 	systemMethods := AutoMapObject(runtime, system)
+	if err := registerSystemEnvironment(runtime, opts.Environment, systemMethods); err != nil {
+		return err
+	}
 	registerSystemSession(runtime, system, systemMethods)
 	runtime.Set("System", systemMethods)
 
@@ -787,9 +829,25 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 	globalShortcut := registerGlobalShortcut(runtime, opts)
 	events := registerDesktopEvents(runtime, opts)
 
-	fileSystem := NewFileSystem()
+	fileSystem, err := NewFileSystemWithWorkDir(opts.WorkDir)
+	if err != nil {
+		return fmt.Errorf("failed to create File filesystem: %w", err)
+	}
 	fileSystemMethods := AutoMapObject(runtime, fileSystem)
-	runtime.Set("File", fileSystemMethods)
+	fileObject := runtime.NewObject()
+	for name, method := range fileSystemMethods {
+		if err := fileObject.Set(name, method); err != nil {
+			return fmt.Errorf("failed to register File.%s: %w", name, err)
+		}
+	}
+	fileJSON, err := registerFileJSON(runtime, fileObject, fileSystem, opts)
+	if err != nil {
+		return fmt.Errorf("failed to register File JSON methods: %w", err)
+	}
+	runtime.Set("File", fileObject)
+	if err := registerPath(runtime, fileSystem.Cwd()); err != nil {
+		return fmt.Errorf("failed to register path: %w", err)
+	}
 
 	appStorage := NewAppStorage("testMonkey")
 	appStorageMethods := AutoMapObject(runtime, appStorage)
@@ -897,7 +955,7 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 		return fmt.Errorf("failed to bind Screen.screenshot: %v", err)
 	}
 	if opts.OnReady != nil {
-		opts.OnReady(&RuntimeLifecycle{Timers: timer, HTTP: httpClient, Sound: sound, UI: uiRuntime, GlobalShortcut: globalShortcut, Events: events, ScreenCapture: screenCapture, App: appRuntime, Notifications: notificationsRuntime, Command: commandRuntime})
+		opts.OnReady(&RuntimeLifecycle{Timers: timer, HTTP: httpClient, Sound: sound, UI: uiRuntime, GlobalShortcut: globalShortcut, Events: events, ScreenCapture: screenCapture, App: appRuntime, Notifications: notificationsRuntime, Command: commandRuntime, FileJSON: fileJSON, FileSystem: fileSystem})
 	}
 	return nil
 }

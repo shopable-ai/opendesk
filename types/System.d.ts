@@ -103,6 +103,12 @@ declare global {
     /** Non-blocking workflow delay. This does not suspend the host operating system. */
     delay(milliseconds?: number): Promise<void>;
     getPlatformInfo(): OpenDeskPlatformInfo;
+    /** Reads one key from the execution environment snapshot; missing keys are undefined. */
+    getEnv(name: string): string | undefined;
+    /** Reads one key and returns fallback only when the key is missing. */
+    getEnv(name: string, fallback: string): string;
+    /** True for present keys, including keys whose value is an empty string. */
+    hasEnv(name: string): boolean;
     getSessionCapabilities(): OpenDeskSystemSessionCapabilities;
     getSessionState(): OpenDeskSystemSessionState;
     /** Experimental. Always requires explicit confirmation and may end desktop automation. */

@@ -7,23 +7,47 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 // FileSystem handles file system operations
 type FileSystem struct {
 	workingDir string
+	handlesMu  sync.Mutex
+	handles    map[*FileHandle]struct{}
 }
 
-// NewFileSystem creates a new FileSystem instance
+// NewFileSystem creates a FileSystem rooted at the host process working
+// directory. It remains for callers that use the synchronous legacy File API
+// outside an execution Runtime.
 func NewFileSystem() *FileSystem {
-	cwd, err := os.Getwd()
+	fs, err := NewFileSystemWithWorkDir("")
 	if err != nil {
-		fmt.Errorf("failed to get working directory: %v", err)
 		return nil
 	}
-	return &FileSystem{
-		workingDir: cwd,
+	return fs
+}
+
+// NewFileSystemWithWorkDir creates a FileSystem rooted at one explicit,
+// normalized absolute directory. Runtime executions use this constructor so
+// every File method shares the same base as Execution.workdir without ever
+// changing the process working directory.
+func NewFileSystemWithWorkDir(workingDir string) (*FileSystem, error) {
+	if strings.TrimSpace(workingDir) == "" {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return nil, fmt.Errorf("get working directory: %w", err)
+		}
+		workingDir = cwd
 	}
+	abs, err := filepath.Abs(workingDir)
+	if err != nil {
+		return nil, fmt.Errorf("normalize working directory: %w", err)
+	}
+	return &FileSystem{
+		workingDir: filepath.Clean(abs),
+		handles:    make(map[*FileHandle]struct{}),
+	}, nil
 }
 
 // Path returns the absolute path for a given relative path
@@ -58,8 +82,11 @@ func (fs *FileSystem) CreateIfNotExists(path string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := os.Stat(absPath); os.IsNotExist(err) {
-		return fs.Create(path)
+	if _, err := os.Stat(absPath); err != nil {
+		if os.IsNotExist(err) {
+			return fs.Create(path)
+		}
+		return err
 	}
 	return nil
 }
@@ -343,8 +370,10 @@ func (fs *FileSystem) Join(parent string, children ...string) string {
 	return filepath.Join(elements...)
 }
 
-// Open opens a file with specified mode
-func (fs *FileSystem) Open(path string, mode string) (*os.File, error) {
+// Open opens a file with the specified mode and returns a constrained Runtime
+// handle. It intentionally never returns *os.File to JavaScript: a raw Go
+// file would make arbitrary host methods public outside the File API contract.
+func (fs *FileSystem) Open(path string, mode string) (*FileHandle, error) {
 	absPath, err := fs.Path(path)
 	if err != nil {
 		return nil, err
@@ -362,5 +391,60 @@ func (fs *FileSystem) Open(path string, mode string) (*os.File, error) {
 		return nil, errors.New("invalid file mode")
 	}
 
-	return os.OpenFile(absPath, flag, 0644)
+	file, err := os.OpenFile(absPath, flag, 0644)
+	if err != nil {
+		return nil, err
+	}
+	info, err := file.Stat()
+	if err != nil {
+		_ = file.Close()
+		return nil, err
+	}
+	if !info.Mode().IsRegular() {
+		_ = file.Close()
+		return nil, errors.New("File.open supports regular files only")
+	}
+	handle := newFileHandle(fs, file)
+	fs.handlesMu.Lock()
+	fs.handles[handle] = struct{}{}
+	fs.handlesMu.Unlock()
+	return handle, nil
+}
+
+func (fs *FileSystem) removeHandle(handle *FileHandle) {
+	if fs == nil || handle == nil {
+		return
+	}
+	fs.handlesMu.Lock()
+	delete(fs.handles, handle)
+	fs.handlesMu.Unlock()
+}
+
+// Close closes every FileHandle still owned by this Runtime. Explicit handle
+// close remains preferred, while this safety net prevents file-descriptor
+// leaks when a script throws, times out, or simply forgets to close one.
+func (fs *FileSystem) Close() {
+	if fs == nil {
+		return
+	}
+	fs.handlesMu.Lock()
+	handles := make([]*FileHandle, 0, len(fs.handles))
+	for handle := range fs.handles {
+		handles = append(handles, handle)
+	}
+	fs.handles = make(map[*FileHandle]struct{})
+	fs.handlesMu.Unlock()
+	for _, handle := range handles {
+		_ = handle.close(false)
+	}
+}
+
+// OpenHandleCount is a teardown diagnostic. It is not a JavaScript API.
+func (fs *FileSystem) OpenHandleCount() int {
+	if fs == nil {
+		return 0
+	}
+	fs.handlesMu.Lock()
+	defer fs.handlesMu.Unlock()
+	return len(fs.handles)
 }
