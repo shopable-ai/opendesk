@@ -210,10 +210,24 @@ Evidence：
 .runtime/tests/platform-primitives/task-004-audio/control-smoke.json
 ```
 
+## 可复制固定声音监听示例
+
+工作目录必须是仓库根目录。示例先检查 `patternWatch` 与 source capability；支持时监听
+`OPENDESK_AUDIO_REFERENCE` 指定的本地参考音频，未设置时使用 `./public/ding.mp3`。请从另一个应用
+触发相同的短提示音；示例不会自行播放 reference，以免制造自触发循环：
+
+```bash
+OPENDESK_AUDIO_REFERENCE=/absolute/path/to/new-order.wav ./dist/opendesk -script examples/audio/watch-known-sound.js -console-mode script
+```
+
+若 backend 支持 process source，可额外设置正整数 `OPENDESK_AUDIO_PROCESS_PID`；不设置则显式选择
+system source。该命令只是公开运行方式，不代表每台主机或 source 已做实机验证；实际支持状态以
+运行时 capability 为准。
+
 ## 平台矩阵
 
-| 平台 | control / device discovery | Capture |
-| --- | --- | --- |
-| macOS CGO build | CoreAudio；本轮实机验证 | Not Implemented |
-| macOS non-CGO | Unsupported，明确报错 | Not Implemented |
-| Windows / Linux | Unsupported / Not verified；不 silent no-op | Not Implemented |
+| 平台 | control / device discovery | Pattern watch | Recording capture |
+| --- | --- | --- | --- |
+| macOS CGO build | CoreAudio；本轮实机验证 | 以 `patternWatch.sources` runtime probe 为准 | Not Implemented |
+| macOS non-CGO | Unsupported，明确报错 | Unsupported，明确报错 | Not Implemented |
+| Windows / Linux | Unsupported / Not verified；不 silent no-op | 未经 capability 声明与平台验证不得使用 | Not Implemented |
