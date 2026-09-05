@@ -44,4 +44,12 @@ Workflow 应保持 fail closed：目标歧义、身份变化、权限缺失、�
 
 当前切片只收录 Calculator 参考 Workflow；TextEdit 不在本轮执行链中。
 
-架构事实源是 [`docs/architecture/desktop-automation/demonstration-to-automation-pipeline.md`](../docs/architecture/desktop-automation/demonstration-to-automation-pipeline.md)。其中的 Flow 0.1、Distill、IR、Compiler 和 Replay 描述目标演进与当前有限基础之间的差距，不能被本目录的普通脚本冒充为已经完成的通用引擎。
+## Agent 生成与后续验证
+
+开发流程使用[六个独立 Skill](../prompts/automation/agent-to-recipe/README.md)，每个生产者按[共享合同](../docs/frameworks/agent-to-recipe-skill-contract.md)交付确定版本的产物。示范必须保存关键业务值、来源与证据，供提炼和生成使用，不能依靠旧聊天记忆。
+
+分阶段开发与最终同文件 JS 并不矛盾。开发接续可以复用有效知识和代码；Fresh Run 必须重新取得真实业务数据。Skill 目录不会给 Runtime 增加 import、调度、暂停恢复或新的 execution 入口。
+
+后续计算器基本测试使用[计算器验证规程](../docs/quality/agent-to-recipe/calculator-validation.md)。其中分别定义 BASIC、现有 LIVE-GATE 与六 Skill PIPELINE；参考脚本成功不能替代新候选或跨 Agent 交接验收。本次只补充作业文件与导航，不声明计算器已重新运行或所有场景已通过。
+
+方法事实源是 [`docs/frameworks/demonstration-to-automation-pipeline.md`](../docs/frameworks/demonstration-to-automation-pipeline.md)。原架构路径仅为迁移入口。其中的 Flow 0.1、Distill、IR、Compiler 和 Replay 描述目标演进与当前有限基础之间的差距，不能被本目录的普通脚本冒充为已经完成的通用引擎。
