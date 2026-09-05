@@ -869,6 +869,7 @@ async function liveSuite() {
   let failure = null;
   try {
     await contract();
+    await language();
     await unit();
     await smokeCase();
     await failureExit();
@@ -893,6 +894,7 @@ async function liveSuite() {
 
 async function smokeSuite() {
   await contract();
+  await language();
   await unit();
   await smokeCase();
   await asyncStacks();

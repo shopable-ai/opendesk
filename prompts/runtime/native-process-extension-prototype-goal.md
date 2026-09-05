@@ -201,7 +201,7 @@ OCR output 至少有 `text`、`items[].text`、`confidence`、`boundingBox`、im
 
 先复用仓库已有稳定 OCR fixture；没有才新增 synthetic、无网络、来源明确且可提交的 fixture。私人截图不能成为正式 fixture。
 
-正式 Runtime API 测试必须是 `tests/runtime-api/` 下的 JavaScript，由 `scripts/test_runtime_apis.sh` 运行，Evidence 写 `.runtime/tests/runtime-api/`。测试 runner 应在 run directory 构建独立 Go Extension 并通过 context 注入绝对路径。
+正式 Runtime API 测试必须是 `tests/runtime-api/` 下的 JavaScript，由 `./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script` 运行；指定测试模式时使用 `OPENDESK_RUNTIME_API_MODE=<mode>`。Evidence 写 `.runtime/tests/runtime-api/`。测试 runner 应在 run directory 构建独立 Go Extension 并通过 context 注入绝对路径。
 
 跨进程协议、Swift/Vision、fault injection 和源码隔离 smoke 使用 `tests/extensions/native-process/`；运行产物只能进入 `.runtime/tests/extensions/native-process/` 和明确的 `/tmp` proof directory。
 

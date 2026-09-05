@@ -1,62 +1,12 @@
-# Browser Automation HTTP Verification
+# Historical Stack HTTP Verification Boundary
 
-当前仓库有 `/executions` stack routing 的 Go tests，也有可对已启动 server 执行的
-`examples/browser_stack_http_e2e_smoke.py` client；当前没有负责启动/清理 server 的专用 browser
-smoke wrapper。
+`pkg/http/handler_test.go` 仍覆盖 `legacy`、`upgraded`、`playwright` 和缺省 stack 的请求兼容性。
+这些测试只证明旧请求值被接受并转发到 execution；不证明 browser、DOM、selector、tab、cookie、
+storage 或 Playwright 语义。
 
-## What is currently proved
+旧 `browser_stack_http_e2e_smoke.py` client 已从公共 examples 删除，因为它只能观察 transport
+完成和 summary，却容易被误读为 browser E2E。当前没有公开的 browser-stack HTTP smoke 命令。
 
-`pkg/http/handler_test.go` 当前覆盖：
-
-- legacy stack request accepted
-- upgraded stack request accepted
-- playwright stack request accepted
-- missing stack defaults to legacy
-
-这属于 `T2` handler/runtime integration evidence。
-
-它们不证明：
-
-- HTTP 请求实际执行了 upgraded/playwright facade 方法；
-- server 在真实环境已启动并完成 E2E；
-- browser/tab/DOM/session semantics。
-
-## Current artifact baseline
-
-通用 execution runtime 由 `pkg/execution/artifacts.go` 准备：
-
-```text
-stdout.log
-stderr.log
-script_snapshot.<ext>
-summary.json
-agent_summary.json
-events.ndjson
-```
-
-其他 DOM/layout/OCR/replay artifact 必须由具体 scenario/runtime 显式生成，不能视为 HTTP execution 的默认产物。
-
-## Running the current client
-
-在另一个终端启动当前 OpenDesk HTTP server 后，可从仓库根目录执行：
-
-```bash
-python3 examples/browser_stack_http_e2e_smoke.py http://127.0.0.1:60844 upgraded
-python3 examples/browser_stack_http_e2e_smoke.py http://127.0.0.1:60844 playwright
-```
-
-正式保存一次 T2/T3 HTTP smoke 时至少应记录：
-
-- commit SHA
-- platform/runtime version
-- requested stack
-- request payload
-- execution id
-- terminal status
-- artifact directory
-- explicit boundary note
-
-对于 `upgraded` / `playwright`，结果必须写成 transport/stack/facade routing proof，而不是 Playwright support。
-
-这个 Python client 当前只检查 execution transport、terminal status 与 summary；它没有调用 locator/evaluate，
-因此不能替代 direct facade smoke 或 browser-driver test。
+通用 HTTP execution 的正式调用、status、summary、SSE、取消和 artifact 契约见
+`docs/api/http-server.md`。未来若引入真正的 browser driver，必须另建包含 server 生命周期、受控
+网页 fixture、DOM postcondition、失败分类和清理证据的独立 gate。

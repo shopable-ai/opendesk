@@ -504,7 +504,7 @@ SUPPORT.md
 ## 自定义 JavaScript API：相关文档
 
 - [用户 API 索引](../../api/index.md)：当前公开 API 地图。
-- [Runtime Stacks](../../api/runtime.md)：用户可见的 stack 选择与兼容边界。
+- [JavaScript Runtime](../../api/runtime.md)：执行生命周期、默认模式与实现兼容边界；新脚本不选择 stack。
 - [Native Extension Plugin](../../api/native-extension.md)：Experimental Native Extension Plugin、底层 one-shot Native Process Protocol V0、默认目录与安全边界。
 - [Global APIs](../../api/global-apis.md)：当前全局接口、运行时辅助能力和已有增强能力。
 - [HTTP and Axios](../../api/http.md)：脚本内 HTTP 调用。

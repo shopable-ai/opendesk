@@ -1,5 +1,5 @@
 // Transport-only asynchronous conformance. This file is run once per
-// legacy/upgraded/playwright stack by scripts/test_runtime_apis.sh; it needs no
+// legacy/upgraded/playwright stack by scripts/test_runtime_apis.js; it needs no
 // desktop target and only uses the isolated loopback fixture.
 (0, eval)(File.read(File.join(File.cwd(), 'tests/runtime-api/framework.js')));
 RuntimeAPITest.load('tests/runtime-api/manifest.js');

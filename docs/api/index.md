@@ -21,14 +21,14 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先找窗口，
 | 识别并激活屏幕上的文本、按钮或图片 | [Desktop UI API](desktop-ui.md)；原始 OCR/模板能力见 [Vision API](vision.md) 与 [ImageColor API](image-color.md)。 |
 | 从服务或外部程序触发任务 | [HTTP Server API](http-server.md) 或 MCP。 |
 | 把已探索流程重复执行 | 保存 recipe，然后使用 [AI CLI](ai-cli.md) 的 `run`。 |
-| 读取项目环境或设置默认终端输出 | [Environment Configuration](environment.md)：`Execution.env`、`.env`、`.opendesk.env` 与 CLI 覆盖规则。 |
+| 读取项目/系统环境或设置默认终端输出 | [Environment Configuration](environment.md)：`System.getEnv()`、`Execution.env`、`.env`、`.opendesk.env` 与 CLI 覆盖规则。 |
 
 ## 先读哪些
 
 - 写桌面脚本：[Geometry API](geometry.md) → [Desktop UI API](desktop-ui.md) → [Mouse API](mouse.md) → [Input APIs](input.md) → [Window API](window.md)
 - 做 OCR / 找按钮：优先 [Desktop UI API](desktop-ui.md)；底层 OCR 见 [Vision API](vision.md)
 - 做同尺寸图像差异 / 模板匹配 / 颜色判断：[ImageColor API](image-color.md)
-- 做系统与文件操作：[System API](system.md)、[File API](file.md)、[AppStorage](storage.md)
+- 做系统、路径与文件操作：[System API](system.md)、[Path API](path.md)、[File API](file.md)、[AppStorage](storage.md)
 - 在本地 JavaScript execution 中运行命令行程序：[Command API](command.md)
 - 读写系统剪贴板：[Clipboard API](clipboard.md)
 - 订阅窗口、应用、剪贴板和显示器变化：[Desktop Events API](events.md)
@@ -45,9 +45,10 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先找窗口，
 - 显示原生对话框、图标工具栏或受控面板：[Custom UI](custom-ui.md)
 - 定时执行文件或内联 JavaScript：[Scheduler](scheduler.md)；程序化管理接口：[Scheduler HTTP API](scheduler-api.md)
 - 录制并生成可确定性回放的流程：[OpenDesk Agent-first Recorder MCP API](recorder.md)
-- 读取 `Execution.env`，设置项目变量/输出默认值、`.env` 和 `-env-file`：[Environment Configuration](environment.md)
+- 按文件查找并复制仓库示例和测试脚本：[Examples 快速索引](examples/README.md)
+- 使用 `System.getEnv()` / `Execution.env`，设置项目变量/输出默认值、`.env` 和 `-env-file`：[Environment Configuration](environment.md)
 - 读取本次运行的 ID、输入和 artifact 目录：[Execution Context](execution.md)
-- 理解 legacy / upgraded / playwright：[Runtime Stacks](runtime.md)
+- 理解 JavaScript 完成、取消与历史兼容边界：[JavaScript Runtime](runtime.md)
 - 直接拿范例：[Cookbook](cookbook.md)
 - 用结构化、低 Token 的桌面 Agent CLI：[AI CLI](ai-cli.md)
 - 给 Agent / 工具读取：[runtime-api.ai.json](runtime-api.ai.json)
@@ -73,6 +74,7 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先找窗口，
 | `System` | JavaScript Runtime | Stable reads / Experimental session actions | 系统、进程、网络、指标与 session capability | [System API](system.md) |
 | `Execution` | JavaScript Runtime | Stable | 本次运行的 ID、输入、环境快照、工作目录、来源与 artifact 上下文 | [Execution Context](execution.md) |
 | `Command` | 本地 JavaScript Runtime | Conditional | 运行命令行程序并读取退出码与输出 | [Command API](command.md) |
+| `path` | JavaScript Runtime | Stable | 按目标平台规则处理路径字符串；resolve/relative 使用 Execution WorkDir | [Path API](path.md) |
 | `File` | JavaScript Runtime | Stable | 文件与目录操作 | [File API](file.md) |
 | `AppStorage` | JavaScript Runtime | Secondary | 持久化键值存储 | [AppStorage](storage.md) |
 | `clipboard` | JavaScript Runtime | Stable text / Experimental rich (macOS) | 文本及富格式系统剪贴板 | [Clipboard API](clipboard.md) |
@@ -88,14 +90,13 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先找窗口，
 | `FloatingWindow` | JavaScript Runtime | Conditional | 简单图标工具栏 | [Custom UI](custom-ui.md) |
 | Global APIs | JavaScript Runtime | Stable | 计时器、等待、console 日志、剪贴板快捷函数、取消控制与 URL 参数 | [Global APIs](global-apis.md) |
 | lodash / moment / query-string / cheerio / beautify | JavaScript Runtime | Secondary | 脚本辅助库 | [JS Libraries](libs.md) |
-| `browser` / `context` / upgraded facade | Compatibility stack | Compatibility | 浏览器风格迁移接口 | [Runtime Stacks](runtime.md) |
 | `opendesk ai` | CLI | Stable | 给 Coding Agent 的 JSON desktop-tool surface 与 recipe 入口 | [AI CLI](ai-cli.md) |
 | `Execution.env` + `.env` / `.opendesk.env` | Runtime/CLI 配置 | Stable | 本地 execution 环境快照与终端输出默认值；远程入口不继承宿主环境 | [Environment Configuration](environment.md) |
 
 ## 使用边界
 
 - 新脚本优先使用标记为 **Stable** 的 API；**Conditional** API 必须先满足页面写明的前置条件。
-- `legacy`、`upgraded`、`playwright` 是迁移兼容栈，不是完整浏览器或 DOM 自动化引擎；选择规则和边界见 [Runtime Stacks](runtime.md)。
+- 新脚本省略 `-stack`。早期 `upgraded` / `playwright` facade 不属于维护中的用户 API；边界见 [JavaScript Runtime](runtime.md)。
 - `page.$`、`page.$$` 与旧 DOM 风格的 `page.click(selector)` / `page.type(selector, text)` 不属于当前稳定桌面 API。
 - HTTP 的路由、请求和响应见 [HTTP Server API](http-server.md)；Scheduler 的专用 HTTP 契约见 [Scheduler HTTP API](scheduler-api.md)。
 

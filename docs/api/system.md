@@ -24,6 +24,8 @@ System 提供系统信息与基础系统操作能力。
 | --- | --- |
 | System.delay(milliseconds) | 非阻塞等待，不休眠主机 |
 | System.getPlatformInfo() | 获取 Runtime OS、架构和进程信息 |
+| System.getEnv(name, fallback?) | 从本次 execution 的有效环境快照读取一个键 |
+| System.hasEnv(name) | 判断有效环境快照中是否存在一个键，包括空字符串值 |
 | System.getSessionCapabilities() | 查询 session backend 和逐操作能力 |
 | System.getSessionState() | 查询当前 session identity/state；不推测未知 lock state |
 | System.lock({confirm: true}) | 请求锁定当前 session（Experimental，平台受限） |
@@ -85,6 +87,31 @@ console.log(platform.os, platform.arch, platform.processId);
 
 其中 `os` 使用 Go Runtime 的稳定值：`darwin`、`linux` 或 `windows`。不要使用该方法
 绕过能力检测；平台信息只适合选择明确支持的平台实现。
+
+## System.getEnv() / System.hasEnv()
+
+```js
+const path = System.getEnv('PATH');
+const mode = System.getEnv('MY_PROJECT_MODE', 'development');
+
+if (System.hasEnv('CI')) {
+  console.log('running in CI');
+}
+```
+
+`System.getEnv(name)` 返回字符串；键不存在时返回 `undefined`。传入字符串 fallback 后，只有键不存在
+才返回 fallback，已定义的空字符串仍返回 `''`。`System.hasEnv(name)` 可明确区分“缺失”和“存在但
+为空”。键名必须满足 `[A-Za-z_][A-Za-z0-9_]*`，额外参数或非字符串 fallback 会抛出 `TypeError`。
+
+这两个方法是 `Execution.env` 的按键读取入口，不是绕过 Runtime 的第二套宿主环境读取器：
+
+- 本地 execution 读取 `.env`、`.opendesk.env`（或显式 env file）与进程启动时 OS 环境合并后的快照；
+- Windows 查询大小写不敏感，快照中的键仍统一为大写；
+- HTTP、MCP、Scheduler 的快照默认为空，因此两个方法不能读取服务端宿主环境；
+- 值在 execution 启动后保持不变，不会重新解析 shell startup 文件或观察父进程后续变化。
+
+API 刻意不提供 `System.getAllEnv()`。环境经常包含 token，读取时应明确指定业务需要的键，也不要把
+返回值无选择写入日志或外部请求。需要枚举已授权快照时可使用 `Execution.env`，并自行承担脱敏责任。
 
 ## System session：先查询能力
 

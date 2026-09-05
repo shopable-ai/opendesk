@@ -251,16 +251,19 @@ curl -X POST http://127.0.0.1:60844/executions   -H 'Content-Type: application/j
 curl -N 'http://127.0.0.1:60844/executions/http-xxxx/events?categories=script,error'
 ```
 
-**22. 在 playwright 栈里打开页面**
+**22. 把结果写入本次 Execution 的 artifact 目录**
 
 ```js
-console.log(page === pageUpgraded);
-console.log(browser === browserUpgraded);
-console.log(context === contextUpgraded);
+const result = {
+  executionId: Execution.id,
+  input: Execution.input,
+  ok: true
+};
 
-const ctx = browser.newContext();
-const p = ctx.newPage();
-await p.open('https://example.com');
+File.write(
+  File.join(Execution.artifactDir, 'result.json'),
+  JSON.stringify(result, null, 2)
+);
 ```
 
 **23. 权限自检并给出诊断信息**

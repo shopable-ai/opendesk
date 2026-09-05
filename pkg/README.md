@@ -28,7 +28,7 @@ automatically exposed to JavaScript.
 
 ```bash
 go test -race -count=50 -shuffle=on ./pkg/runtime ./pkg/container ./pkg/execution ./pkg/http ./automation
-scripts/test_runtime_apis.sh smoke
+./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
 ```
 
 Runtime API run artifacts are written below `.runtime/tests/runtime-api/`.

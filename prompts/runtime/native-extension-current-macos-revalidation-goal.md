@@ -147,7 +147,7 @@ Release Asset。
 停止所有写入后冻结输入，再真实运行：
 
 1. Native Extension 的 Go 路径、安全和远程门禁测试；
-2. `./scripts/test_runtime_apis.sh unit` 正式 `.js` 测试；
+2. `OPENDESK_RUNTIME_API_MODE=unit ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script` 正式 `.js` 测试；
 3. 当前 Mac 的 host-only 专项 proof；
 4. source-free bundle 默认目录安装；
 5. 独立 zero-child diagnostics；

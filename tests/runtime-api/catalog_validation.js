@@ -7,6 +7,7 @@ globalThis.RuntimeAPICatalogValidation = (() => {
   const publicObjectNames = () => Object.keys(RuntimeAPIObjects).filter((name) => name !== 'global');
   const reservedGlobals = new Set([
     'page____Inject', 'browser____Inject', 'context____Inject',
+    'browser', 'context', 'playwright',
     'global', 'globalThis', 'module', 'exports', 'require',
     '_', 'moment', 'cheerio', 'queryString', 'querystring',
     'Automation', 'RuntimeAPITest', 'RuntimeAPICatalogValidation', 'RuntimeAPICoverageValidation', 'RuntimeAPICrypto',
@@ -36,7 +37,7 @@ globalThis.RuntimeAPICatalogValidation = (() => {
       objects[name] = {
         optionalAbsent: false,
         methods: [
-          ...Object.keys(value || {}).filter((key) => typeof value[key] === 'function'),
+          ...Object.keys(value || {}).filter((key) => typeof value[key] === 'function' && !(definition.compatibilityMethods || []).includes(key)),
           ...(definition.methods.includes('constructor') && typeof value === 'function' ? ['constructor'] : []),
         ].sort(),
         properties: (definition.properties || []).filter((property) => property in (value || {})).sort(),
@@ -60,10 +61,7 @@ globalThis.RuntimeAPICatalogValidation = (() => {
     for (const item of index.globals || []) {
       const name = String(item.name || '');
       if (name === 'notify' || name === 'Promise/timers/sleep' || name === 'Global APIs') families.add('global');
-      else if (name === 'browser/context/upgraded facades') {
-        families.add('browser');
-        families.add('context');
-      } else if (name) {
+      else if (name) {
         families.add(name);
       }
     }
@@ -157,6 +155,13 @@ globalThis.RuntimeAPICatalogValidation = (() => {
     if (actual.unknownObjects.length) errors.push('Runtime added unknown public object(s): ' + actual.unknownObjects.join(','));
 
     const documented = documentedFamilies();
+    const retiredPublicFamilies = new Set(['browser', 'context', 'playwright', 'browser/context/upgraded facades']);
+    for (const item of documented.index.globals || []) {
+      const name = String(item.name || '');
+      if (retiredPublicFamilies.has(name)) {
+        errors.push('docs/api machine index republishes implementation-only compatibility facade: ' + name);
+      }
+    }
     for (const family of Object.keys(RuntimeAPIObjects)) {
       if (!documented.families.has(family)) errors.push('docs/api object drift: missing ' + family);
     }

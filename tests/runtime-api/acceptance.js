@@ -1,7 +1,7 @@
 // Results-driven acceptance validation. It intentionally scores no source text:
 // only current-run result files, evidence bytes and cleanup observations count.
 globalThis.RuntimeAPIAcceptance = (() => {
-  const requiredGates = ['contract', 'unit', 'coverage', 'smoke', 'failure-exit', 'live', 'composition', 'custom-ui', 'cleanup'];
+  const requiredGates = ['contract', 'language', 'unit', 'coverage', 'smoke', 'failure-exit', 'live', 'composition', 'custom-ui', 'cleanup'];
 
   function errorList() {
     const errors = [];

@@ -88,10 +88,14 @@ AI recipe 使用对应的长参数：
 ```js
 const mode = Execution.env.MY_PROJECT_MODE;
 const endpoint = Execution.env.MY_SERVICE_ENDPOINT;
+
+// 更适合按键读取，并可提供缺失时的默认值：
+const region = System.getEnv('MY_REGION', 'local');
+const isCI = System.hasEnv('CI');
 ```
 
-仓库提供了只报告变量是否存在、不会打印 `PATH`、home 或完整环境内容的安全示例。从仓库根目录
-直接运行：
+仓库提供了安全示例：它会显示 allowlist 中无敏感性的 `OPENDESK_CONSOLE_MODE`，但对 `PATH` 和
+home 只报告是否存在，也不会打印完整环境内容。从仓库根目录直接运行：
 
 ```bash
 ./opendesk -script examples/environment.js
@@ -99,6 +103,10 @@ const endpoint = Execution.env.MY_SERVICE_ENDPOINT;
 
 可在 shell 或环境文件中设置 `OPENDESK_EXAMPLE_MODE`，观察项目变量进入同一个快照；不设置时示例
 使用 `default`。源码见 [`examples/environment.js`](../../examples/environment.js)。
+
+通过 `opendesk ai run` 执行时，终端 stdout 必须保持为一个 JSON envelope，因此 recipe 的
+`console.log()` 不会直接混入终端输出；请读取返回结果中的 `result.artifacts.stdoutPath`。这只影响
+日志展示，`Execution.env` 的内容和解析优先级不变。
 
 所有值都是字符串，未定义键返回 `undefined`。`Execution.env` 是一次 execution 的冻结快照；给它
 赋值不会修改宿主进程、后续 execution 或 `Command.run()` 的默认环境。完整 execution 契约见
@@ -221,10 +229,22 @@ OPENDESK_CONSOLE_CATEGORIES=script,summary,error
 `[A-Za-z_][A-Za-z0-9_]*`。OpenDesk 不执行 shell、不展开 `$VARIABLE` / `${VARIABLE}`，也不修改
 父 shell；例如 `LITERAL=${OTHER}` 会保留为原字符串。歧义行、非法键、未闭合引号和 NUL 会明确失败。
 
+若脚本用模板字符串生成环境文件，要区分 JavaScript 插值和 dotenv 解析：模板字符串中的
+`${OTHER}` 会在写文件前由 JavaScript 求值；要让文件包含字面量 `${OTHER}`，源码应写成
+`\${OTHER}`：
+
+```js
+const contents = `OPENDESK_ENV_FILE_ONLY=file-value
+OPENDESK_ENV_LITERAL=\${OTHER}
+OPENDESK_ENV_EMPTY=
+`;
+File.write(envFile, contents);
+```
+
 每个合法键都会进入本地 `Execution.env`，但只有上表三个 `OPENDESK_CONSOLE_*` 键具有 CLI 配置
 含义。环境值可能含有访问令牌，禁止整体打印 `Execution.env` 或无选择写入 artifact。
 
 HTTP、MCP 和 Scheduler execution 默认获得空的 `Execution.env`，不会继承服务端进程环境，也不会
 自动读取服务端工作目录中的 `.env`。这保证远程提交的脚本不能通过 Runtime 环境入口读取宿主秘密。
-框架不再提供第二套 `System.getenv()`：环境属于一次 execution，统一从 `Execution.env` 读取才能
-保持快照、子进程继承和远程隔离语义一致。
+`System.getEnv()` / `System.hasEnv()` 只是同一快照的按键访问器，不会重新读取宿主 `os.Environ`；
+因此它们与 `Execution.env`、子进程继承和远程隔离始终一致。

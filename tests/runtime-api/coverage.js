@@ -2,7 +2,24 @@
 RuntimeAPITest.load('tests/runtime-api/manifest.js');
 RuntimeAPITest.load('tests/runtime-api/catalog_validation.js');
 RuntimeAPITest.load('tests/runtime-api/coverage_validation.js');
+
+// The coverage gate only imports test files to collect their declarative
+// `covers` metadata. Live test files normally receive this driver from
+// macos_live.js, but their registration must also work in this offline gate.
+// Keep the stub deliberately incomplete: no test body runs here, and a live
+// gate cannot mistake this metadata-only driver for real evidence.
+const coverageInstalledRuntimeLiveStub = !globalThis.RuntimeLive;
+if (coverageInstalledRuntimeLiveStub) {
+  globalThis.RuntimeLive = {
+    fixture: {
+      title: 'runtime-api-coverage-metadata-only',
+      browserApp: 'coverage-metadata-only',
+    },
+    refreshTarget: () => Promise.reject(new Error('RuntimeLive is unavailable in the coverage metadata gate')),
+  };
+}
 for (const file of [...RuntimeAPITestFiles.unit, ...RuntimeAPITestFiles.live]) RuntimeAPITest.load(file);
+if (coverageInstalledRuntimeLiveStub) delete globalThis.RuntimeLive;
 
 const catalogCheck = RuntimeAPICatalogValidation.validateCatalog();
 const requiredFamilyFiles = {
@@ -28,8 +45,6 @@ const requiredFamilyFiles = {
   Sound: 'sound.test.js',
   Audio: 'audio.test.js',
   FloatingWindow: 'floating-window.test.js',
-  browser: 'browser.test.js',
-  context: 'context.test.js',
   global: 'globals.test.js',
 };
 

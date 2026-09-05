@@ -39,4 +39,4 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this);
 
 // 验证计时器功能是否正确加载
-console.log('Timer polyfills loaded successfully');
+console.debug('Timer polyfills loaded successfully');

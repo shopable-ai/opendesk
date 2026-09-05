@@ -426,7 +426,9 @@ docs/quality/native-extension-plugin-v1.md
 ## 十三、验收测试
 
 Runtime API 测试必须先以 `docs-user-api/` 为准，正式 JavaScript 用例放在
-`tests/runtime-api/`，入口仍为 `scripts/test_runtime_apis.sh`。专项插件运行产物写入
+`tests/runtime-api/`，入口为
+`./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script`；指定测试模式时使用
+`OPENDESK_RUNTIME_API_MODE=<mode>`。专项插件运行产物写入
 `.runtime/tests/extensions/native-plugin/`。
 
 必须新增或更新并真实运行：

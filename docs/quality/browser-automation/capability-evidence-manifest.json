@@ -63,11 +63,6 @@
           "kind": "go_test_name",
           "path": "automation/browser_compat_test.go",
           "go_test_name": "TestPlaywrightStackAliasesStayConsistentWithLaunchHandle"
-        },
-        {
-          "kind": "contains",
-          "path": "examples/browser_stack_playwright_smoke.js",
-          "contains": "Playwright smoke proves a playwright-shaped shim"
         }
       ]
     },
@@ -132,11 +127,6 @@
           "kind": "contains",
           "path": "automation/utils.go",
           "contains": "runtime.Set(\"context____Inject\", contextMethods)"
-        },
-        {
-          "kind": "contains",
-          "path": "types/browser.d.ts",
-          "contains": "interface OpenDeskBrowserContext"
         }
       ]
     },
@@ -191,11 +181,6 @@
           "kind": "contains",
           "path": "automation/browser.go",
           "contains": "func (b *Browser) NewContext"
-        },
-        {
-          "kind": "contains",
-          "path": "types/browser.d.ts",
-          "contains": "newContext(): OpenDeskBrowserContext"
         },
         {
           "kind": "go_test_name",

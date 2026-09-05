@@ -9,6 +9,11 @@ order: 3
 所有命令从仓库根目录执行。每项都给出源码链接、可复制命令和对应的检查入口；测试文件
 本身由 OpenDesk Runtime 启动，不要用 Node 直接运行。
 
+反引号多行字符串及 ES2015–ES2023 的选定作者基线见
+[JavaScript Runtime](../runtime.md#javascript-语言基线)；版本能力由一个统一 language gate 验证，
+对应源码为 [javascript-language.js](../../../tests/runtime-api/javascript-language.js)，不为 ES6、ES7、ES8
+分别复制测试文件。
+
 ## 目录
 
 - [基础 Runtime 与数据](../../../examples/)
@@ -233,6 +238,9 @@ make build
 
 ## 正式测试 Scripts
 
+- JavaScript language baseline：[`tests/runtime-api/javascript-language.js`](../../../tests/runtime-api/javascript-language.js)；直接运行：
+  `./dist/opendesk -script tests/runtime-api/javascript-language.js -console-mode script`；正式 gate：
+  `OPENDESK_RUNTIME_API_MODE=language ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script`。
 - Runtime API smoke：[`scripts/test_runtime_apis.js`](../../../scripts/test_runtime_apis.js)；运行：
   `./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script`。
 - Runtime API contract：[`scripts/test_runtime_apis.js`](../../../scripts/test_runtime_apis.js)；运行：

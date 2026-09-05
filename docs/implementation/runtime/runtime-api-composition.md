@@ -7,7 +7,7 @@ order: 13
 # Runtime API composition
 
 本文面向 OpenDesk 维护者，记录 JavaScript Runtime 的内部组成与排障边界。用户应从
-[Runtime Stacks](../../api/runtime.md) 和对应 API 页面了解可调用契约；不要把这里的内部名
+[JavaScript Runtime](../../api/runtime.md) 和对应 API 页面了解可调用契约；不要把这里的内部名
 当作公开接口。
 
 ## 文档职责
@@ -27,6 +27,8 @@ Go native method 到 Goja function 的反射、参数/返回/错误投影，以�
 
 1. 注册 `console`、`http` 与 timers，然后注册 `System`、`window`、`clipboard`、
    `Command`、`globalShortcut`、`File`、`AppStorage`、`Sound`、`Audio`、`ImageColor`、`OCR` 和 `Vision`。
+   `File` 先映射旧同步方法，再由 `automation/file_json.go` 显式增强同一个对象的 `readJSON` /
+   `writeJSON`；它不是 polyfill，也不创建第二个 File global。
 2. 根据显式 gate 注册 `NativeExtensions` / `NativeExtension`，再注册 Custom UI 和始终
    fail-closed 的 `Dialog`。
 3. 创建 `mouse`、`keyboard`、`touchscreen`、`page`，以及原始 `browser` / `context` 对象，
@@ -118,3 +120,23 @@ automation/sound.go 或 automation/audio.go
 
 `Command` 的 native owner 使用 `automation/command.go` 与平台 `command_*.go`，公开契约位于
 `docs/api/command.md`、`types/Command.d.ts`，行为 gate 由 Runtime API 测试覆盖。
+
+小写 `path` 的 native owner 是 `automation/path.go`。它只做目标平台路径字符串计算，没有资源
+生命周期；`automation/utils.go` 在创建 execution-owned `FileSystem` 后，用同一个 `File.cwd()`
+注册 `path`，避免第二套 cwd 解析。可信源码绝对路径由各 transport 单独写入内部 Request，
+`pkg/execution` 只规范化该字段并注入 `Execution.scriptPath/scriptDir`，不会解析来源标签。
+
+项目环境的文件解析 owner 是 `pkg/runtimeenv`，execution 注入 owner 是 `pkg/execution`。
+本地 CLI 在创建 Request 前解析 `.env` / `.opendesk.env`（或显式环境文件），再以进程启动时继承的
+OS 环境覆盖文件；它不会启动 login shell 或读取 shell startup 文件。Windows 键名统一为大写并按
+大小写不敏感语义合并；HTTP、MCP、Scheduler Request 不填宿主环境。Runner 复制并校验快照，注册冻结、
+null-prototype 的 `Execution.env`，同时经 `InitJSOptions` 交给 `Command` 作为子进程环境基线。
+`System.getEnv()` / `System.hasEnv()` 也只闭包读取这份经过复制的快照，不在调用时访问 `os.Environ`。
+这条数据流不调用 `os.Setenv`，也不允许 remote execution 回退读取宿主环境。
+
+`File.readJSON` / `File.writeJSON` 的 native owner 是 `automation/file_json.go`，普通文件 I/O 与
+临时文件/替换实现位于 `automation/file_json_io.go` 和互斥的平台后端。Runner 在 execution 开始时将
+同一个规范化绝对 WorkDir 同时传给 `FileSystem` 与 `Execution.workdir`。JSON 编解码、Promise settle
+与 AbortSignal listener 都在 Goja EventLoop owner；worker 只接收不可变 Go 请求。其 `CancelPending`、
+`Wait`、`AsyncCounts`、`ResourceCounts`、`IsZero` 和 runner cleanup event 均属于
+`RuntimeLifecycle`，因此未 await 的操作不能在脚本返回时脱离 execution。

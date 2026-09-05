@@ -6,10 +6,11 @@ order: 14
 
 # Audio API
 
-**状态：Experimental / macOS CoreAudio**
+**状态：Experimental / capability-gated native backends**
 
 `Audio` 是系统音频控制 primitive。它负责默认输出音量、mute 和设备发现；旧 `Sound` 继续负责
-同步 MP3/WAV 播放，两者没有重复实现播放器。
+MP3/WAV 播放，两者没有重复实现播放器。`Audio` 还提供独立的固定声音模式监听：它只在内存中
+匹配用户提供的参考音频，不生成录音文件，也不把 PCM 暴露给 JavaScript。
 
 ```js
 const capabilities = Audio.getCapabilities();
@@ -37,7 +38,9 @@ if (capabilities.controls.volume.write) {
 | `Audio.getInputDevices()` | `AudioDevice[]` | 当前有输入 channel 的设备 |
 | `Audio.getDefaultOutput()` | `AudioDevice \| null` | 当前默认输出；不存在时为 `null` |
 | `Audio.getDefaultInput()` | `AudioDevice \| null` | 当前默认输入；不存在时为 `null` |
-| `Audio.getCapabilities()` | capability | backend、控制读写、设备发现、capture 边界 |
+| `Audio.watchSound(options, callback)` | `Promise<AudioSoundWatcher>` | 持续匹配本地固定声音；仅在 capability 支持的 source 上启动 |
+| `Audio.waitForSound(options)` | `Promise<AudioPatternMatch>` | 等待首个命中并释放内部 watcher；超时为 `TIMEOUT` |
+| `Audio.getCapabilities()` | capability | backend、控制读写、设备发现、pattern watcher 与 capture 边界 |
 
 设备对象包含 `id`、`uid`、`name`、`manufacturer`、`transport`、输入/输出 channel 数、alive、
 default 标记，以及逐设备 `volume.read/write` 和 `mute.read/write`。设备名和 UID 可能来自用户或

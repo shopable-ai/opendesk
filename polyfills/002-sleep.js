@@ -22,4 +22,4 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this);
 
 // Test the sleep functionality
-console.log('Sleep utility functions loaded successfully');
+console.debug('Sleep utility functions loaded successfully');

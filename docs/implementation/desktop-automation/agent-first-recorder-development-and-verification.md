@@ -207,10 +207,11 @@ PASS / PARTIAL / FAIL rules
 正式入口：
 
 ```bash
-scripts/test_recorder.sh
+./dist/opendesk -script scripts/test_recorder.js -console-mode script
 ```
 
-该脚本验证 contract 和 integration，不等于真实桌面 replay。
+该 OpenDesk Runtime JS gate 验证 contract 和 integration，不等于真实桌面 replay；旧
+`scripts/test_recorder.sh` 已由同名 JS 入口取代。
 
 ### T2：受控真值 Benchmark
 

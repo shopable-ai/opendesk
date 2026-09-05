@@ -46,8 +46,15 @@ run_required go-test-live-default-skip go test ./automation -run '^(TestDarwinAu
 run_required go-build-opendesk go build -o "$EVIDENCE_DIR/bin/opendesk" ./cmd/opendesk
 shasum -a 256 "$EVIDENCE_DIR/bin/opendesk" >"$EVIDENCE_DIR/bin/opendesk.sha256"
 
-run_required runtime-api-smoke env OPENDESK_RUNTIME_API_RUN_ID="$RUN_ID" ./scripts/test_runtime_apis.sh smoke
-run_required runtime-api-sound-cancel env OPENDESK_RUNTIME_API_RUN_ID="$SOUND_CANCEL_RUN_ID" ./scripts/test_runtime_apis.sh sound-cancel
+run_required runtime-api-smoke env \
+  OPENDESK_RUNTIME_API_RUN_ID="$RUN_ID" \
+  OPENDESK_BINARY="$EVIDENCE_DIR/bin/opendesk" \
+  "$EVIDENCE_DIR/bin/opendesk" -script scripts/test_runtime_apis.js -console-mode script
+run_required runtime-api-sound-cancel env \
+  OPENDESK_RUNTIME_API_RUN_ID="$SOUND_CANCEL_RUN_ID" \
+  OPENDESK_RUNTIME_API_MODE=sound-cancel \
+  OPENDESK_BINARY="$EVIDENCE_DIR/bin/opendesk" \
+  "$EVIDENCE_DIR/bin/opendesk" -script scripts/test_runtime_apis.js -console-mode script
 
 run_required tool-image-layout go run ./tests/automation/tools/image-layout-lab all "$EVIDENCE_DIR/tools/image-layout"
 run_required build-wechat-visualizer go build -o "$EVIDENCE_DIR/bin/wechat-visualize-layout" ./tests/wechat/tools/visualize-layout
@@ -74,7 +81,17 @@ run_required source-no-drift node -e '
   const before = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
   const after = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
   if (before.sourceSnapshot.closureSha256 !== after.sourceSnapshot.closureSha256) {
-    throw new Error(`source drift: ${before.sourceSnapshot.closureSha256} -> ${after.sourceSnapshot.closureSha256}`);
+    const beforeFiles = new Map((before.sourceSnapshot.files || []).map(({ file, sha256 }) => [file, sha256]));
+    const afterFiles = new Map((after.sourceSnapshot.files || []).map(({ file, sha256 }) => [file, sha256]));
+    const changes = [];
+    for (const file of new Set([...beforeFiles.keys(), ...afterFiles.keys()])) {
+      const beforeDigest = beforeFiles.get(file);
+      const afterDigest = afterFiles.get(file);
+      if (beforeDigest === afterDigest) continue;
+      changes.push(beforeDigest === undefined ? `added:${file}` : afterDigest === undefined ? `removed:${file}` : `changed:${file}`);
+    }
+    const detail = changes.length === 0 ? " (file manifest unavailable)" : ` (${changes.slice(0, 20).join(", ")}${changes.length > 20 ? ", ..." : ""})`;
+    throw new Error(`source drift: ${before.sourceSnapshot.closureSha256} -> ${after.sourceSnapshot.closureSha256}${detail}`);
   }
   process.stdout.write(`${after.sourceSnapshot.closureSha256}\n`);
 ' "$EVIDENCE_DIR/audit-before.json" "$EVIDENCE_DIR/audit-after.json"

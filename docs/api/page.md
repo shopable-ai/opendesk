@@ -59,7 +59,6 @@ order: 2
 | `page.checkPermissions(options?)` | 跨平台权限快照 |
 | `page.requestPermissions(options?)` | 跨平台权限请求 |
 | `page.ensurePermissions(options?)` | 严格权限守卫 |
-| `page.browser()` / `page.context()` | compatibility facade 的当前 Browser / Context |
 
 ## page.screenshot(options)
 

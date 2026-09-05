@@ -42,12 +42,15 @@ this is the second line
 使用 `\n`。写入多行文件的完整示例见 [File API](file.md)，生成 dotenv 内容时的转义示例见
 [Environment Configuration](environment.md)。
 
-ES6 是 ES2015 的旧称；常说的 ES7、ES8 分别对应 ES2016、ES2017，此后 ECMAScript 版本通常直接
-按年份称呼。OpenDesk 不以“支持 ES6”或“支持最新 JavaScript”概括兼容性，而是逐项验证脚本实际依赖
-的能力。当前正式 language gate 覆盖以下常用作者基线；版本只表示该能力首次进入标准，不表示 Runtime
-通过了该版本的全部一致性测试：
+**当前支持结论：OpenDesk 已通过正式 JavaScript 测试，验证了 ES2015（ES6）、ES2016（ES7）和
+ES2017（ES8）中下表列出的能力，也验证了 ES2018–ES2023 的部分常用能力。** 这里的“支持”只指
+表中已测试的具体能力，不表示完整通过某一 ECMAScript 版本的全部一致性测试；未列出的能力不属于
+稳定承诺。
 
-| 标准版本 | 当前已验证的代表能力 |
+名称上，ES6 是 ES2015 的旧称；常说的 ES7、ES8 分别对应 ES2016、ES2017，此后通常直接按年份称呼。
+表中的版本表示相应能力首次进入标准。
+
+| 标准版本 | 当前支持且已测试的能力 |
 | --- | --- |
 | ES2015（ES6） | `let` / `const`、箭头函数、模板字面量、对象/数组解构、默认参数、rest/spread、`class`、`for...of`、`Map`、`Set`、`Promise` |
 | ES2016（常称 ES7） | 指数运算符 `**`、`Array.prototype.includes()` |
@@ -59,14 +62,21 @@ ES6 是 ES2015 的旧称；常说的 ES7、ES8 分别对应 ES2016、ES2017，�
 | ES2022 | class public/private fields 与 static block、`Error.cause`、`Object.hasOwn()`、`.at()` |
 | ES2023 | `findLast()` / `findLastIndex()`、Array change-by-copy（`toSorted()`、`toReversed()`、`toSpliced()`、`with()`） |
 
-从仓库根目录运行对应的正式 JavaScript 验证：
+测试代码正式放在 `tests/runtime-api/`，不放在 `examples/` 中重复维护。可从仓库根目录直接运行该测试文件：
+
+```bash
+./dist/opendesk -script tests/runtime-api/javascript-language.js -console-mode script
+```
+
+需要生成正式 run context、机器结果和清理证据时，运行 language gate：
 
 ```bash
 OPENDESK_RUNTIME_API_MODE=language ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
 ```
 
-测试源码是 [`tests/runtime-api/javascript-language.js`](../../tests/runtime-api/javascript-language.js)。
-它是 OpenDesk 作者基线测试，不替代 JavaScript 引擎上游的 Test262，也不按每个 ECMAScript 年份复制
+测试源码是 [`tests/runtime-api/javascript-language.js`](../../tests/runtime-api/javascript-language.js)，
+其中 `es2015-*`、`es2016`、`es2017` 等断言与上表逐项对应。它是 OpenDesk 作者基线测试，不替代
+JavaScript 引擎上游的 Test262，也不按每个 ECMAScript 年份复制
 一份测试文件。以后只有在实际示例或公开契约需要某项新语法时，才先把代表性断言加入该文件，再更新
 本表；引擎碰巧能运行但未列入和未测试的语法不属于稳定承诺。当前未把 ES2024 及之后版本列入作者
 基线。

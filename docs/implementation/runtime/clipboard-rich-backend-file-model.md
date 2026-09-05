@@ -36,7 +36,7 @@ go test ./automation -run '^TestDarwinRichClipboardMetadataCanBeReadWithoutConte
 GOOS=darwin CGO_ENABLED=0 go list -f '{{.GoFiles}}' ./automation
 
 # JavaScript 公共契约。
-./scripts/test_runtime_apis.sh unit
+OPENDESK_RUNTIME_API_MODE=unit ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
 ```
 
 最后一条只证明 `clipboard_rich_unsupported.go` 被正确选择。当前完整 `automation` package 还依赖

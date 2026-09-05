@@ -12,7 +12,7 @@ Status: done
 
 Problem: `automation/browser.go` 已有 Browser/Context/Page ownership、close/isClosed、newPage/newContext，但当前缺 focused regression tests。
 
-Current evidence: E3 implementation in `automation/browser.go`; public shape in `types/browser.d.ts`.
+Current evidence: E3 implementation in `automation/browser.go`; no maintained public TypeScript surface.
 
 Target: 用确定性 Go tests 固定当前 container contract。
 
@@ -75,13 +75,18 @@ Out of scope: full Playwright compatibility.
 Execution record (2026-09-02):
 
 - Decision: `EXTEND`; current source already chose the bounded upgraded/playwright compatibility facade option through `polyfills/010-browser-automation-upgraded.js`, so no second stack system was created.
-- Real tracked callers exist in `examples/browser_stack_{legacy,upgraded,playwright}_smoke.js`; `docs/api/runtime.md` and `runtime-api.ai.json` already state the compatibility-only boundary.
+- At the time of this 2026-09-02 record, tracked callers existed in
+  `examples/browser_stack_{legacy,upgraded,playwright}_smoke.js`. They were removed from the public examples on
+  2026-09-05 when the facade was reclassified as implementation-only compatibility code.
 - Audit found architecture/quality documents that incorrectly said the facade, Playwright-shaped shim, and smoke recipes were absent; those facts were calibrated to current source and focused tests.
 - The upgraded and playwright public recipes initially hung because they overwrote an owner's same-name `waitFor`/`evaluate` method and relied on Goja wrapper identity. They now retain owner methods on the prototype and assert observable facade behavior before reporting success.
 - From the repository root, the exact README commands passed against current source: legacy run `direct-20260902-155842-667000`, upgraded run `direct-20260902-160242-685000`, and playwright run `direct-20260902-160242-291000`. Logs are under `.runtime/tests/browser-automation/b02-stack-mode-product-decision-20260902/`.
 - Focused facade tests passed 28/28; execution stack tests passed 5/5 and HTTP stack handler tests passed 4/4. The Evidence validator passed with 9 claims / 32 references.
 - `go test ./... -count=1` again passed every package except the same four known `pkg/visionrun` real-input/fixture baseline failures; B02 added no Go test failure.
 - Proof remains T1/T2 compatibility routing only: no browser process, DOM selector engine, tab protocol, page realm, or Playwright parity is claimed.
+- Product recalibration (2026-09-05): example files and public Runtime API catalog/type entries were removed.
+  The underlying shim remains only to avoid an unreviewed breaking deletion; new scripts omit `-stack` and cannot
+  treat `browser` / `context` as maintained user APIs.
 
 ## P1
 

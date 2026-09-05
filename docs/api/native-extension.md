@@ -557,7 +557,7 @@ NativeExtensions.goBasic.hello({ name: "OpenDesk" });
 ## NativeExtensions：验收
 
 ```bash
-./scripts/test_runtime_apis.sh unit
+OPENDESK_RUNTIME_API_MODE=unit ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
 python3 tests/extensions/native-process/tools/smoke-harness/main.py
 python3 tests/extensions/native-plugin/tools/proof-harness/main.py
 ```

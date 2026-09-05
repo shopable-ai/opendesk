@@ -26,9 +26,9 @@ order: 21
 
 | 标签 | 文件数 |
 | --- | ---: |
-| `KEEP_PACKAGE` | 85 |
+| `KEEP_PACKAGE` | 87 |
 | `MOVE_GO_BLACKBOX` | 29 |
-| `SPLIT_JS_CONTRACT` | 14 |
+| `SPLIT_JS_CONTRACT` | 12 |
 | `MOVE_TOOL` | 3 |
 | `OPT_IN_LIVE` | 2 |
 | `VENDOR_ONLY` | 4 |
@@ -40,14 +40,14 @@ order: 21
 下面不是将来要做的建议，而是完整逐文件表中“处置”列的**已执行操作**。因此，某个
 `*_test.go` 还在原 package 目录不等于遗漏：只有 `E-T` 应从旧路径消失；`E-K`、`E-J`、
 `E-L` 和 `E-V` 都有意保留原文件以保持它们的 package、平台或上游边界。每个文件只有一个
-处置标签，故也只有一个下面的执行码；14 个 `E-J` 的具体 JS 文件仍逐行写在它自己的“结论与
+处置标签，故也只有一个下面的执行码；12 个 `E-J` 的具体 JS 文件仍逐行写在它自己的“结论与
 证据”列，不能由本表的汇总命令取代。
 
 | 执行码 / 对应标签 | 已完成的文件调整 | 当前状态与保留位置 | 如何验收 |
 | --- | --- | --- | --- |
-| `E-K` / `KEEP_PACKAGE`（85） | 不移动；保留需要 private helper、fake backend、Goja EventLoop、并发/EventLoop 状态机或 native seam 的白盒测试。 | **已完成**。测试继续与实现同包；原路径就是正确位置。 | `go test ./... -count=1`；某行明确标有 build tag 时按该行限定命令运行。 |
+| `E-K` / `KEEP_PACKAGE`（87） | 不移动；保留需要 private helper、fake backend、Goja EventLoop、并发/EventLoop 状态机或 native seam 的白盒测试。 | **已完成**。测试继续与实现同包；原路径就是正确位置。 | `go test ./... -count=1`；某行明确标有 build tag 时按该行限定命令运行。 |
 | `E-B` / `MOVE_GO_BLACKBOX`（29） | 将只调用 exported Go API、没有同包 fixture/helper 依赖的领域或模型测试移至顶层 `tests/<domain>/`，并改为外部 `package <owner>_test`。 | **已完成**。测试不再与 `automation/` 或 `pkg/` 实现混放；每行记录迁移前路径。 | `go test ./tests/automation ./tests/container ./tests/custom-ui ./tests/custom-ui/core ./tests/desktopvision ./tests/execution ./tests/recorder ./tests/runtime ./tests/runtimeconfig ./tests/scheduler ./tests/semantic-exec -count=1`。 |
-| `E-J` / `SPLIT_JS_CONTRACT`（14） | 保留 Go native/private seam，同时把可由用户观察的 Runtime 行为拆到该行引用的 `tests/runtime-api/unit/*.test.js`。 | **已完成**。Go 文件不移动，JS 契约已在逐行证据列存在。 | `go test ./... -count=1` 加 `./scripts/test_runtime_apis.sh unit`；每行列出的 JS 文件是公共行为的直接来源。 |
+| `E-J` / `SPLIT_JS_CONTRACT`（12） | 保留 Go native/private seam，同时把可由用户观察的 Runtime 行为拆到该行引用的 `tests/runtime-api/unit/*.test.js`。 | **已完成**。Go 文件不移动，JS 契约已在逐行证据列存在。 | `go test ./... -count=1` 加 `./scripts/test_runtime_apis.sh unit`；每行列出的 JS 文件是公共行为的直接来源。 |
 | `E-T` / `MOVE_TOOL`（3） | 删除旧的输出型 `*_test.go`，改为可执行工具；不再把生成图片或人工可视化计作 unit test。 | **已完成**。旧路径不存在；两个 layout 职责在 `tests/automation/tools/image-layout-lab/main.go`，WeChat 职责在 `tests/wechat/tools/visualize-layout/main.go`。 | `go run ./tests/automation/tools/image-layout-lab all .runtime/tests/test-architecture/tools/image-layout`；WeChat 工具仅在已有截图时以 `go run ./tests/wechat/tools/visualize-layout --image <input> --output .runtime/tests/wechat/visualize-layout` 运行。 |
 | `E-L` / `OPT_IN_LIVE`（2） | 不移动真实主机读取代码；默认 skip，并把读取权限收紧为显式 opt-in。 | **已完成**。仍在 `automation/`，因为 platform backend 的 private seam 不能搬出 package。 | 音频：`OPENDESK_LIVE_AUDIO_TEST=1 go test ./automation -run '^TestDarwinAudioDeviceEnumerationMetadataDecodes$' -count=1`；剪贴板：`OPENDESK_LIVE_CLIPBOARD_TEST=1 go test ./automation -run '^TestDarwinRichClipboardMetadataCanBeReadWithoutContent$' -count=1`。 |
 | `E-V` / `VENDOR_ONLY`（4） | 不移动或改写上游测试；从根模块成功率隔离，并为嵌套 module 建立单独 compile/live 边界。 | **已完成**。仍在 `third_party/kbinani-screenshot/` 与 `third_party/robotgo/`；RobotGo 的 compile 通过 nested `go.mod` local replace 使用兼容 screenshot 实现。 | compile-only：`(cd third_party/kbinani-screenshot && go test -run '^$' ./...)` 和 `(cd third_party/robotgo && go test -run '^$' ./...)`；不运行输入设备/剪贴板 live 用例。 |
@@ -60,9 +60,9 @@ order: 21
 
 ## 先看处置结论
 
-- **继续与源码同包的 85 个文件**不是按路径批量保留。表中必须逐项列出直接访问的未导出实现、
+- **继续与源码同包的 87 个文件**不是按路径批量保留。表中必须逐项列出直接访问的未导出实现、
   同包 test fixture、native seam 或 EventLoop/状态机边界；“只是 Go contract”不再是保留理由。
-- **拆分公共契约的 14 个文件**继续保留必要的 native/private seam，同时在“结论与证据”列给出
+- **拆分公共契约的 12 个文件**继续保留必要的 native/private seam，同时在“结论与证据”列给出
   对应的 `tests/runtime-api/unit/*.test.js`。Go 断言不能替代这些 JS 文件，JS 文件也不能证明
   backend、取消、资源计数或 Goja owner EventLoop。
 - **迁至顶层 tests 的 29 个文件**只依赖 exported Go API；已改为外部 test package，因此不能重新
@@ -107,7 +107,7 @@ order: 21
 | `automation/app_test.go` | `SPLIT_JS_CONTRACT` | 是：`parseAppTarget`、`registerApp`、wait owner | App target 投影、fake backend、取消与多进程分组 | fake backend、clock、Goja EventLoop | 防止结构化错误、取消后 worker 泄漏和分组丢 PID | Go seam 留同包；公共 `App` 契约由 `tests/runtime-api/unit/app.test.js`。 |
 | `automation/audio_backend_darwin_test.go` | `OPT_IN_LIVE` | 是：`darwinAudioBackend` | CoreAudio 真实设备枚举与 metadata 解码 | 当前 macOS 音频设备，可能含私有名称/UID | 只证明本机 backend 能解码当前设备 | 默认 skip；仅 `OPENDESK_LIVE_AUDIO_TEST=1` 显式运行。 |
 | `automation/audio_test.go` | `SPLIT_JS_CONTRACT` | 是：`newAudioWithBackend`、`registerAudio`、错误转换 | Audio fake backend、校验、readback、Goja shape | fake backend、Goja | 防止范围校验、lowerCamel 投影和稳定错误码回归 | native seam 留同包；公共 `Audio` 由 `tests/runtime-api/unit/audio.test.js`。 |
-| `automation/browser_compat_test.go` | `SPLIT_JS_CONTRACT` | 是：同包 Browser/Context 容器状态并注入 raw handles | legacy/upgraded/playwright facade 路由与容器生命周期 | Goja，全部 fake page | 防止 context 隔离、close 状态、fallback method 和 locator owner 断裂 | Go 容器 seam 保留；公共 facade 由 `tests/runtime-api/unit/browser.test.js`、`tests/runtime-api/unit/context.test.js`、`tests/runtime-api/unit/page-compat.test.js`。 |
+| `automation/browser_compat_test.go` | `KEEP_PACKAGE` | 是：同包 Browser/Context 容器状态并注入 raw handles | 非公开 legacy/upgraded/playwright facade 路由与容器生命周期 | Goja，全部 fake page | 防止旧脚本兼容层意外崩溃，但不证明 browser capability | 兼容层已退出公共 catalog/types/examples；只保留同包私有回归。 |
 | `tests/automation/browser_lifecycle_test.go` | `MOVE_GO_BLACKBOX` | 否：只调用 exported Browser/Context 方法 | 默认 context 所有权、closed guard、幂等 close | 无，纯内存 | 防止关闭后复活或 page 跨 context 泄漏 | 已从 `automation/browser_lifecycle_test.go` 迁至外部 package；仍不是用户 JS 参数/返回契约。 |
 | `automation/cgwindow_darwin_test.go` | `KEEP_PACKAGE` | 是：`cStringBytes`、`lsappinfoPIDPattern` | Darwin C string 与 lsappinfo 解析 helper | 无真实窗口 | 防止 NUL 截断和 PID 正则误匹配 | 确定性 Darwin 私有解析 seam，保留同包。 |
 | `automation/clipboard_rich_darwin_test.go` | `OPT_IN_LIVE` | 是：`darwinClipboardBackend` | NSPasteboard 真实 metadata 读取 | 当前系统剪贴板，可能含私有格式标识 | 只验证本机读取且不抓正文 | 默认 skip；仅 `OPENDESK_LIVE_CLIPBOARD_TEST=1` 显式运行。 |
@@ -139,7 +139,7 @@ order: 21
 | `automation/page_permissions_test.go` | `KEEP_PACKAGE` | 是：permission section normalization/reservation 与 command timeout helper | macOS privacy status 聚合、缺项选择和设置页去重 | fake probe；一个可用性 skip | 防止 unknown 被当 granted、已满足权限重复打开设置 | 私有权限策略 seam；真实 TCC 不由本文件证明。 |
 | `automation/page_screenshot_test.go` | `KEEP_PACKAGE` | 是：`parseScreenshotOptions`、`buildScreenshotResponse` | screenshot 参数和 path/object/bytes/none 投影 | `t.TempDir()`，不截真实屏 | 防止 clip/displayIndex/returnType 校验和临时路径错误 | native parser/response builder 白盒；真实截图在 live。 |
 | `automation/runtime_hardening_test.go` | `KEEP_PACKAGE` | 是：`jsMethodAllowlist`、static bundle cache、HTTP limit、resource counts | Go→Goja 暴露白名单、资源缓存并发与 cleanup 计数 | fake FS/HTTP、goroutine、Goja | 防止隐式导出 diagnostics、并发重复读 polyfill 和 Notifications 漏计数 | 核心 private hardening seam；JS surface 另由 Runtime catalog。 |
-| `automation/runtime_stack_test.go` | `SPLIT_JS_CONTRACT` | 是：`normalizeRuntimeStack`、`applyRuntimeStackMode` alias seam | legacy/upgraded/playwright global alias 选择 | Goja，无桌面 | 防止缺失 facade 时错误覆盖 global | Go alias seam 留同包；公共 stack 由 `tests/runtime-api/unit/page-compat.test.js`、`tests/runtime-api/unit/browser.test.js`、`tests/runtime-api/unit/context.test.js`。 |
+| `automation/runtime_stack_test.go` | `KEEP_PACKAGE` | 是：`normalizeRuntimeStack`、`applyRuntimeStackMode` alias seam | 非公开 legacy/upgraded/playwright global alias 选择 | Goja，无桌面 | 防止旧请求在删除兼容实现前发生无意破坏 | 只保留内部 alias seam；新脚本省略 `-stack`，没有公共 stack contract。 |
 | `automation/screen_capture_darwin_test.go` | `KEEP_PACKAGE` | 是：`boundedCaptureBuffer`、helper flag、error mapping | Darwin selector/helper 协议和有界诊断 | 无真实屏幕；合成 helper input | 防止 stdout/stderr 无界、路由串线和错误码漂移 | 平台 helper 私有 seam，保留同包。 |
 | `automation/screen_capture_test.go` | `SPLIT_JS_CONTRACT` | 是：option parser、`registerScreenCapture`、session stop/finalize | selector/recording fake backend、handle 投影、teardown | fake displays/recorder、Goja EventLoop、`t.TempDir()` | 防止 invalid target 触发 backend、stop 非幂等和 teardown 不 finalize | Go session seam 留同包；公共 `Screen` 由 `tests/runtime-api/unit/screen.test.js`，真实捕获由 `tests/runtime-api/live/capture-screen.test.js`。 |
 | `automation/screen_test.go` | `KEEP_PACKAGE` | 是：`computeVirtualBounds` | 多显示器虚拟坐标纯函数 | 无 | 防止负坐标、多屏 union 和空列表回归 | 纯算法白盒，不需要真实显示器。 |

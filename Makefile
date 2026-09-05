@@ -61,11 +61,11 @@ test-core:
 test-icons:
 	./scripts/test_app_icons.sh
 
-test-runtime-api:
-	./scripts/test_runtime_apis.sh smoke
+test-runtime-api: build
+	./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
 
-test-runtime-api-live:
-	./scripts/test_runtime_apis.sh live
+test-runtime-api-live: build
+	OPENDESK_RUNTIME_API_MODE=live ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
 
 test-host-api: test-runtime-api
 
@@ -104,5 +104,5 @@ endif
 build-macos:
 	SKIP_CODESIGN=1 ./scripts/build_macos_app.sh
 
-smoke:
-	RUN_MAC_UI=0 ./scripts/e2e_smoke.sh
+smoke: build
+	./dist/opendesk -script scripts/e2e_smoke.js -console-mode script

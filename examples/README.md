@@ -1,6 +1,34 @@
 # JavaScript automation examples
 
-OpenDesk 的公开自动化示例使用 JavaScript，并以 `docs-user-api/` 为 API 契约。
+OpenDesk 的公开自动化示例使用 JavaScript，并以 [`docs/api/`](../docs/api/README.md) 为 API 契约。
+
+按工作目录、可复制命令、入口选择和旧脚本迁移说明运行示例，请先看
+[`docs/api/examples/`](../docs/api/examples/README.md)。本文保留示例目录中较详细
+的专题说明。
+
+## macOS：按名称打开系统计算器
+
+从仓库根目录运行：
+
+```bash
+./dist/opendesk ai run examples/open-calculator-by-name.js
+```
+
+示例使用 `App.launch('计算器', { waitUntilReady: 'window', timeout: 10000 })`，只启动或激活
+Calculator、确认其实际 identity 并打印结果；它不会输入、清空、restart 或 terminate 已有实例。
+`计算器` 和 `Calculator` 是仅限 macOS native-identity backend 的两个明确系统别名，均规范化为
+`com.apple.calculator`，不是对任意应用名称的翻译。完整契约见 [`docs/api/app.md`](../docs/api/app.md)。
+
+## 路径与源码上下文
+
+从仓库根目录运行无需桌面权限的路径示例：
+
+```bash
+./dist/opendesk -script examples/path.js -console-mode script
+```
+
+它使用全局 `path` 计算 artifact 路径，并展示可信文件入口的
+`Execution.scriptPath/scriptDir`。完整契约见 [`docs/api/path.md`](../docs/api/path.md)。
 
 ## 原生 Dialog
 
@@ -11,8 +39,7 @@ Promise-only 的 alert / confirm / prompt 流程提供两个互相独立的示�
   `.then()` / `.catch()` / `.finally()`。
 
 两份文件都不会用开关隐藏另一种写法。它们都会在第二个原生 Dialog 中显示非敏感输入值，
-并把取消路径明确显示为 `null`。完整契约见
-[`docs-user-api/dialog.md`](../docs-user-api/dialog.md)。
+并把取消路径明确显示为 `null`。完整契约见 [`docs/api/dialog.md`](../docs/api/dialog.md)。
 
 ### 普通手动运行
 
@@ -58,7 +85,7 @@ binary 或自动化 gate 的成功代替普通运行验证。
 AX/WindowServer 控制、exactly-once、资源清理和截图证据由正式 gate 承担：
 
 ```bash
-./scripts/test_runtime_apis.sh dialog
+OPENDESK_RUNTIME_API_MODE=dialog ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
 ```
 
 源码位于 `tests/runtime-api/`，运行证据分别写入 `.runtime/tests/runtime-api/` 和

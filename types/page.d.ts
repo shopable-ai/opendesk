@@ -106,8 +106,6 @@ declare global {
     ensureMacPermissions(options?: Record<string, unknown>): Promise<OpenDeskPermissionReport>;
     requestMacAutomationPermission(targetApp?: string): Record<string, unknown>;
 
-    browser(): OpenDeskBrowser;
-    context(): OpenDeskBrowserContext;
   }
 
   var page: OpenDeskPage;

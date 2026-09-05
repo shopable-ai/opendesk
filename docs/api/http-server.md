@@ -75,7 +75,7 @@ order: 11
 | --- | --- | --- |
 | script | string | 必填，JS 源码 |
 | timeout | number | 秒 |
-| stack | string | legacy / upgraded / playwright |
+| stack | string | 可选；新调用省略。`legacy` 是当前默认兼容标签，其他值只为旧请求保留。 |
 | consoleMode | string | 可选 |
 | outputFormat | string | 可选 |
 | logDir | string | 可选，产物目录 |
@@ -265,17 +265,12 @@ curl -X POST http://127.0.0.1:60844/vision/detect-ui \
   -F target_text=确定
 ```
 
-## HTTP Server API：stack 参数
+## HTTP Server API：`stack` 兼容参数
 
-HTTP 执行接口支持：
-- legacy
-- upgraded
-- playwright
-
-含义
-- legacy：默认旧栈
-- upgraded：page 指向升级 facade
-- playwright：page / browser / context 指向升级 facade
+新请求应省略 `stack`，使用当前默认 JavaScript Runtime。服务端为了兼容早期调用仍接受
+`legacy`、`upgraded` 和 `playwright`，但后两者只切换进程内 facade，不启动浏览器，也不提供
+DOM、selector、tab、page realm、真实 cookie 或 storage 语义。它们不属于当前维护的用户 API，
+不得用于新 workflow。完整边界见 [JavaScript Runtime](runtime.md)。
 
 `USE_DI_CONTAINER=0` 不再启用一套独立 Runtime 实现；它保留为路由兼容别名，
 与默认模式共享本页的执行、超时、事件、产物和错误语义。

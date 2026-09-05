@@ -262,11 +262,11 @@ isolated hello / add / OCR
 SKIP_FYNE_INIT=1 go test -p 1 \
   ./pkg/nativeextension ./pkg/execution ./pkg/http ./cmd/opendesk ./automation
 
-./scripts/test_runtime_apis.sh unit
+OPENDESK_RUNTIME_API_MODE=unit ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
 # 294 passed, 0 failed
 # .runtime/tests/runtime-api/20260831T160252Z-70330/results/unit.json
 
-./scripts/test_runtime_apis.sh contract
+OPENDESK_RUNTIME_API_MODE=contract ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
 # 227 passed, 0 failed
 # .runtime/tests/runtime-api/20260831T160338Z-70896/results/contract.json
 ```

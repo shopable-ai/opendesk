@@ -26,11 +26,15 @@ shell Coding Agent。它不会重做截图、窗口、输入或 Vision backend�
 ./opendesk ai screenshot --window-title "TextEdit" --region-relative 0.05,0.10,0.90,0.70
 ```
 
-复杂且已验证的流程保存为 recipe，再传 JSON 输入重复执行：
+复杂且已验证的流程应保存为可阅读、可版本控制的普通 JavaScript Workflow：
 
 ```bash
-./opendesk ai run recipe.js --input '{"text":"Hello"}'
+./dist/opendesk ai run workflows/macos/calculator/calculate-and-reuse-result.js
 ```
+
+Workflow 把 Goal、Success Criteria、业务步骤与验证写在脚本中；默认不要求 `--input`。
+`Execution.input` 默认为 `{}`，只作为部署配置或确有必要变化的业务数据的可选覆盖。作者约定和
+当前边界见 [`workflows/README.md`](../../workflows/README.md)。
 
 `schema` 是全部命令和参数的机器可读索引；下一节说明所有命令共用的输出与错误 contract。
 
@@ -149,9 +153,19 @@ does not claim background-app scrolling.
 Use Vision only when window metadata and deterministic coordinates cannot solve the task. `detect-ui` returns
 compact matched elements; it does not automatically click them.
 
-## Recipes: explore once, automate repeatedly
+## Workflows and compatibility recipes: explore once, automate repeatedly
 
-Complex workflows belong in JavaScript recipes, not in a growing list of CLI flags:
+面向用户的主要入口是普通 JavaScript Workflow，而不是不断增加的 CLI 参数：
+
+```bash
+./dist/opendesk ai run workflows/macos/calculator/calculate-and-reuse-result.js
+```
+
+这个 Calculator Workflow 默认执行 `125*8`，从最小 Display ROI OCR 得到真实 `firstResult`，再
+执行 `firstResult/4+37` 并验证第二次 OCR 为 `287`。它是一个 Fresh Run 脚本，不依赖在线 Agent/LLM
+规划。
+
+底层 recipe 仍可用于参数化测试或兼容旧调用：
 
 ```bash
 ./opendesk ai run examples/ai-cli/write-to-focused-app.js --input '{"text":"Hello from a reusable recipe"}'
@@ -164,18 +178,19 @@ Recording 与 Accessibility，并确保 `ai capabilities` 报告至少一个可�
 ./dist/opendesk ai run examples/ai-cli/macos-calculator-recipe.js --input '{"expression":"16*3","expected":"48"}'
 ```
 
-该 Recipe 通过 Calculator 按钮输入算式，`expected` 只作为 Oracle；实际结果来自 Display ROI
+该兼容 Recipe 通过 Calculator 按钮输入算式，`expected` 只作为 Oracle；实际结果来自 Display ROI
 OCR。可选 `followUp.expression` 中的 `{result}` 会替换为第一步 OCR 提取值，而不是在 JavaScript
-内计算答案。真实桌面 gate 还会用 Calculator 的模式快捷键制造一次真实窗口尺寸变化，再由一次
-Fresh Run 恢复并验证 Basic 布局；它需要显式 opt-in：
+内计算答案。它不应成为 Workflow 的主要作者体验。真实桌面 gate 仍需显式 opt-in：
 
 ```bash
-OPENDESK_LIVE_CALCULATOR=1 ./dist/opendesk ai run scripts/test_ai_calculator_recipe.js
+OPENDESK_LIVE_CALCULATOR=1 ./dist/opendesk -script scripts/test_ai_calculator_recipe.js -console-mode script
 ```
 
-这个 JavaScript runner 自身也是 `opendesk ai run` 管理的标准 Execution；它通过本地
-[Command API](command.md) 启动多个独立子 Execution，并负责受控扰动和结果汇总。本地
-`ai run` 默认提供 `Command`，不需要附加能力开关；旧的 `.sh` 路径只作为兼容包装器。
+这个 JS runner 自身通过普通 `opendesk -script` 启动；它再通过本地
+[Command API](command.md) 启动多个确实需要 `ai run` artifact/envelope 的独立子 Execution，并负责受控扰动和结果汇总。实际
+Calculator 操作、OCR 和业务断言仍在子 Execution 的 JavaScript Workflow 中完成，因此每次
+Fresh Run 仍有独立的 `Execution.id`、`Execution.artifactDir`、deadline 和 cleanup evidence。
+本地 `-script` 与 `ai run` 都提供 `Command`，不需要附加能力开关；旧的 `.sh` 入口已删除。
 
 The three JSON inputs are mutually exclusive:
 
@@ -199,13 +214,16 @@ recipe 可通过 `Execution.env` 读取启动时的项目环境。默认合并�
 文件不会展开变量，且该快照只提供给本地 execution；详见
 [Environment Configuration](environment.md)。
 
+`ai run` 的终端 stdout 只输出 JSON envelope。recipe 的 `console.log()` 保存在 envelope 所指向的
+`result.artifacts.stdoutPath`，不会直接打印在 envelope 前后；这不是环境变量未读取。
+
 本地 recipe 的 `Command.run()` 使用当前 OS 用户权限；HTTP、MCP 与 Scheduler execution 不提供该能力。
 
-Recipes receive the existing execution metadata plus:
+Workflow 和 recipe 都会收到 [Execution Context](execution.md)；常用字段包括：
 
 ```js
 Execution.id;       // execution ID
-Execution.input;    // parsed JSON input (defaults to {})
+Execution.input;    // parsed JSON input (defaults to {}); Workflow normally uses its script defaults
 Execution.workdir;  // caller working directory
 Execution.env;      // frozen string environment snapshot; missing keys are undefined
 Execution.artifactDir;

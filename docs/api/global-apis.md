@@ -35,7 +35,7 @@ main();
 | `AbortController` / `AbortSignal` | 取消在途 HTTP 请求 | Stable / Compatibility | 与 `http`、`axios` 的 `signal` 配合 |
 | `URLSearchParams` | 生成查询参数或表单参数 | Stable / Compatibility | 当前为轻量兼容实现 |
 | `URL` | 解析和拼接 HTTP(S) / file URL | Stable / Compatibility | 支持相对 URL、`searchParams` 和常用字段 |
-| `Promise` / `async` / `await` | 异步脚本基础 | Stable | Runtime 会提供 Promise 能力 |
+| `Promise` | 异步结果与组合 | Stable | `async` / `await` 属于语言语法；见 [JavaScript Runtime](runtime.md#javascript-语言基线) |
 
 ## `setTimeout` / `setInterval` / `requestAnimationFrame` / `delay` / `sleep`：计时器与等待
 
@@ -327,7 +327,7 @@ console.log(url.href);
 `search`、`hash` 和 `searchParams`。当前实现覆盖 HTTP(S)、file URL 和常见相对 URL 解析，
 不承诺完整浏览器 WHATWG URL/DOM 行为。
 
-## `Promise` / `async` / `await`：异步脚本
+## `Promise` 与 `async` / `await`：异步脚本
 
 Runtime 会确保脚本可以使用 `Promise` 以及 `async` / `await`：
 
@@ -342,6 +342,8 @@ runTask();
 
 异步回调、timer、sleep 和 HTTP 请求都由 Runtime 事件循环驱动。脚本应使用 `await`、
 `Promise.all()` 或显式错误处理来管理结果，不要通过阻塞式循环等待。
+语法版本、脚本级顶层 `await` 与模块边界见
+[JavaScript 语言基线](runtime.md#javascript-语言基线)。
 
 ## 相关接口文档
 
@@ -365,7 +367,7 @@ runTask();
 
 新增、删除或改名全局接口时，应同步检查本页、`runtime-api.ai.json`、`types/global.d.ts`
 和 `tests/runtime-api/` 中的 JavaScript 契约。Runtime 的加载顺序与资源目录说明见
-[Runtime Stacks](runtime.md)；不要把 `polyfills/*.js` 中的内部 bridge 名称当作用户 API。
+[JavaScript Runtime](runtime.md)；不要把 `polyfills/*.js` 中的内部 bridge 或历史兼容 facade 当作用户 API。
 
 ## 全局接口与 Polyfill 的关系
 
@@ -384,4 +386,6 @@ runTask();
 - [Clipboard API](clipboard.md)：完整的 `clipboard` 对象方法。
 - [HTTP and Axios](http.md)：`http` 与全局 `axios`。
 - [Command API](command.md)：本地 CLI 默认提供、execution-owned 的命令行执行；HTTP、MCP 与 Scheduler 关闭。
-- [Runtime Stacks](runtime.md)：运行时装载顺序和 upgraded / playwright 兼容入口。
+- [System API](system.md)：包含 `System.getEnv()` / `System.hasEnv()` 等按键环境读取和系统信息能力。
+- [Execution Context](execution.md)：本次运行的 ID、输入、只读环境快照、工作目录和 artifact 路径。
+- [JavaScript Runtime](runtime.md)：异步完成、取消、输出和历史兼容边界。

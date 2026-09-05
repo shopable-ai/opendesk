@@ -272,13 +272,13 @@ for (const key in globalThis.page____Inject) {
 | --- | --- | --- |
 | allowlist 不隐式暴露 Go 内部方法、引用的方法真实存在 | `automation/runtime_hardening_test.go` | native/private reflection seam；不是用户契约 |
 | `000-page.js` generic forwarding、显式 wrapper、权限组合、等待 facade | `tests/runtime-api/unit/page.test.js` | JavaScript 公共 facade 行为 |
-| Page 与 Browser/Context 的公开关系 | `tests/runtime-api/unit/page-compat.test.js` | JS compatibility surface |
+| Page 公开对象 | `tests/runtime-api/unit/page.test.js` | 只覆盖 `docs/api/page.md` 中维护的桌面 Runtime surface |
 | 真实截图、权限、窗口或浏览器环境 | `tests/runtime-api/live/` | 当前 macOS/真实环境的 live boundary |
 
 正式 unit 入口：
 
 ```bash
-./scripts/test_runtime_apis.sh unit
+OPENDESK_RUNTIME_API_MODE=unit ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
 ```
 
 用户/开发者直接复现入口（从仓库根目录）：

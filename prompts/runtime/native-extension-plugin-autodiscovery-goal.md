@@ -458,7 +458,7 @@ pkg/execution/
 cmd/opendesk/
 tests/runtime-api/unit/native-extension.test.js
 tests/extensions/native-process/
-scripts/test_runtime_apis.sh
+scripts/test_runtime_apis.js
 python3 tests/extensions/native-process/tools/smoke-harness/main.py
 docs-user-api/native-extension.md
 types/NativeExtension.d.ts
@@ -471,7 +471,9 @@ types/NativeExtension.d.ts
 ## 十二、测试要求
 
 Runtime API 测试必须先读 `docs-user-api/`，并使用
-`tests/runtime-api/` 下的 JavaScript，由 `scripts/test_runtime_apis.sh` 执行。
+`tests/runtime-api/` 下的 JavaScript，由
+`./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script` 执行；指定测试模式时使用
+`OPENDESK_RUNTIME_API_MODE=<mode>`。
 
 至少覆盖：
 

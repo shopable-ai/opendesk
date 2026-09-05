@@ -151,6 +151,7 @@ globalThis.RuntimeAPITest = (() => {
     if (label === 'RUNTIME-API-UNIT') return 'unit';
     if (label === 'RUNTIME-API-SMOKE') return 'smoke';
     if (label === 'RUNTIME-API-ENVIRONMENT') return 'environment';
+    if (label === 'RUNTIME-API-PATH') return 'path';
     if (label === 'RUNTIME-API-LIVE') return 'live';
     if (label === 'RUNTIME-API-CUSTOM-UI') return 'custom-ui';
     if (label === 'RUNTIME-API-CUSTOM-UI-BEHAVIOR') return 'custom-ui-behavior';

@@ -8,9 +8,7 @@
       "pkg/nativeextension/*.go",
       "polyfills/*.js",
       "cmd/opendesk/main.go",
-      "pkg/http/*.go",
-      "pkg/execution/*.go",
-      "pkg/runtimeenv/*.go"
+      "pkg/http/*.go"
     ],
     "canonicalUserDocs": "docs/api/",
     "retiredDocTrees": [
@@ -24,11 +22,7 @@
       "file": "opendesk -script <file.js>",
       "inline": "opendesk -script-text \"...\"",
       "stdin": "opendesk -script-stdin",
-      "stack": [
-        "legacy",
-        "upgraded",
-        "playwright"
-      ]
+      "runtimeMode": "Use the default JavaScript Runtime. Do not add the compatibility-only -stack flag to new commands."
     },
     "aiCli": {
       "command": "opendesk ai schema",
@@ -48,6 +42,7 @@
   "runtimeRules": [
     "For coding-agent desktop interaction, inspect `opendesk ai schema` and `opendesk ai capabilities`; prefer its window metadata, targeted screenshots, deterministic primitives, and reusable recipes before full-screen visual reasoning.",
     "Prefer stable documented APIs for new scripts.",
+    "Treat JavaScript compatibility as a tested feature baseline, not an edition-wide claim. The language gate covers selected ES2015-ES2023 authoring syntax and built-ins; script-level await is provided by the OpenDesk execution wrapper and is not ESM. Static/dynamic ESM loading is unsupported, while require/module/exports are reserved implementation compatibility globals rather than public APIs.",
     "Prefer page.ensurePermissions for permission-gated desktop workflows.",
     "For external desktop UI, prefer UI.findText/UI.tapText and Geometry over direct OCR bbox clicking. Use Vision.runOCR for raw OCR; Vision.detectUI is a deprecated image-local compatibility helper.",
     "Use ImageColor as a secondary pixel/template/color primitive, not as a replacement for semantic verification.",
@@ -55,9 +50,10 @@
     "NativeExtensions is an Experimental manifest-discovered immutable binding. Normal local CLI calls use NativeExtensions.<namespace>.<method>(businessParams) with routes fixed by the Host; it discovers only the program-relative bundle directory by default. HTTP and MCP cannot enable or call it. The low-level NativeExtension.call compatibility surface requires the separate -experimental-unsafe-native-extension-call local diagnostic gate.",
     "Uppercase UI operates visible targets in external desktop apps. Lowercase ui is always present but dormant by default and creates OpenDesk Custom UI; enable it with -ui or strict clawdesk.runtime.json. They have no aliases.",
     "Dialog is always present but fail-closed without the ui capability. Its alert, confirm, and prompt methods are asynchronous native modal dialogs; global alert/confirm/prompt are thin polyfill aliases, never browser-style blocking calls.",
+    "Omit -stack for new scripts. The old upgraded/playwright values and browser/context-shaped globals are implementation compatibility residue, not maintained user APIs or a browser engine.",
     "Use the frozen Execution.env snapshot for local project and inherited OS environment values. Local executions merge .env, .opendesk.env, then the environment supplied when the OpenDesk process started; they do not parse shell startup files. Windows names are uppercase. Remote and scheduled executions do not inherit host environment secrets.",
     "Command is an execution-owned native command runner, not Node.js child_process. Local -script and ai run executions enable it by default; HTTP, MCP, and Scheduler executions disable it. Use Command.run(executable,args,options) without shell command interpolation.",
-    "Treat upgraded/playwright surfaces as compatibility facades, not a complete Playwright browser engine.",
+    "Use the native lowercase path global for platform path-string operations. path.resolve and path.relative use the immutable Execution.workdir, not the host process cwd; path never performs filesystem I/O or symlink resolution.",
     "Do not use retired TestMonkey documentation as a current API authority."
   ],
   "globals": [
@@ -85,9 +81,7 @@
         "checkScreenshotPermissions",
         "openMacOSPrivacySettings",
         "requestMacPermissions",
-        "requestMacAutomationPermission",
-        "browser",
-        "context"
+        "requestMacAutomationPermission"
       ]
     },
     {
@@ -146,7 +140,30 @@
         "findImage",
         "tapImage"
       ],
-      "coordinateMapping": "Every discovery uses a fresh explicit screen clip. imageWidth/logicalScope.width and imageHeight/logicalScope.height are separately calculated actual capture scales; a scope across effective different-DPI displays fails closed."
+      "coordinateMapping": "Every discovery uses a fresh explicit screen clip. imageWidth/logicalScope.width and imageHeight/logicalScope.height are separately calculated actual capture scales; a scope across effective different-DPI displays fails closed.",
+      "relativeTextTargeting": {
+        "supportedMethods": [
+          "findTexts",
+          "findText",
+          "hasText",
+          "tapText",
+          "tapTexts"
+        ],
+        "requiresWithin": "Using region or relativeTo requires an explicit within: OpenDeskWindowInfo so the Runtime can preserve and revalidate window identity.",
+        "region": "A tagged OpenDeskScreenRegion snapshot or a synchronous (currentWin: OpenDeskWindowInfo) => OpenDeskScreenRegion rule. Dynamic rules are recomputed once per fresh observation; static regions never track moved windows.",
+        "relativeTo": "Uses one exact text anchor from the same capture and Vision.runOCR result. Choose either direction with inclusive maxGap/minOverlap filtering, or a synchronous anchor => tagged screen region whose final intersection must fully contain each target bbox. It never auto-selects the nearest or first candidate.",
+        "spatialUnits": "All gaps, overlap calculations, and regions use Geometry desktop logical screen coordinates; never multiply or divide them by Display.scale. Spatial predicates use the continuous logical projection of OCR bboxes before public bounds are outward-rounded; callbacks still receive the public target shape.",
+        "disambiguation": "The anchor must be unique and top-level index applies only after target relationship filtering. Missing anchors follow each read method's no-result contract, while clicks fail TARGET_NOT_FOUND with stage=anchor; multiple anchors fail AMBIGUOUS_TARGET with stage=anchor.",
+        "freshness": "Revalidate the specified window before capture and after recognition. Dynamic or absent outer regions permit at most one complete pre-input re-observation after same-window bounds changes; static regions fail stale. Never retry after mouse input has been invoked.",
+        "unsupportedMethods": [
+          "waitText",
+          "waitTextGone",
+          "findImages",
+          "findImage",
+          "tapImage"
+        ],
+        "unsupportedBehavior": "Passing region or relativeTo to an unsupported method fails with INVALID_ARGUMENT before observation or input. Image and Accessibility anchors are not supported."
+      }
     },
     {
       "name": "keyboard",
@@ -215,11 +232,11 @@
         "restart",
         "getCapabilities"
       ],
-      "identity": "PID, name, bundleId, or path; stable bundle/path identity is preferred and one identity may group multiple process instances",
+      "identity": "PID, name, bundleId, or path; stable bundle/path identity is preferred and one identity may group multiple process instances. macOS+cgo recognizes only the exact system aliases 计算器 and Calculator, each normalized to com.apple.calculator; explicit bundleId/path/PID targets and unknown names are never translated",
       "readiness": "process or an existing Window-facade row owned by a matching PID; custom predicates are explicitly unsupported",
       "lifecycle": "Promise workers are execution-scoped, context-cancelable, timeout-bounded, and joined during Runtime teardown",
       "compatibility": "page.openApp and AI CLI app.open retain their public contract while sharing the same launch bridge; System process and Window APIs remain independent",
-      "platformBehavior": "macOS+cgo uses NSWorkspace/Open/NSRunningApplication and is fixture-verified; Windows/Linux use explicit partial process fallbacks and are not live verified",
+      "platformBehavior": "macOS+cgo uses NSWorkspace/Open/NSRunningApplication and recognizes the documented Calculator aliases through the existing bundle-ID launcher; macOS without cgo and Windows/Linux retain existing name/path behavior without those aliases. Windows/Linux use explicit partial process fallbacks and are not live verified",
       "surface": "JavaScript Runtime only in this phase; no HTTP or MCP method was added"
     },
     {
@@ -353,13 +370,15 @@
     },
     {
       "name": "System",
-      "source": "native + platform session backend",
+      "source": "native + execution environment adapter + platform session backend",
       "status": "stable reads with experimental session actions",
       "doc": "system.md",
       "types": "types/System.d.ts",
       "keyMethods": [
         "delay",
         "getPlatformInfo",
+        "getEnv",
+        "hasEnv",
         "getSessionCapabilities",
         "getSessionState",
         "lock",
@@ -367,6 +386,7 @@
         "startScreenSaver"
       ],
       "sessionSafety": "lock, logout, and startScreenSaver require confirm=true before backend access; success returns initiated=true and verified=false because request acceptance is not a postcondition",
+      "environmentAccess": "getEnv(name, optionalFallback) and hasEnv(name) read only the same per-execution snapshot exposed by Execution.env. They never refresh os.Environ or bypass the empty remote/scheduled environment, and no getAllEnv method is exposed.",
       "sessionIdentity": "getSessionState returns only normalized user/session identity and state; unavailable booleans including locked are null rather than inferred",
       "platformBehavior": "macOS public CGSessionCopyCurrentDictionary supports read-only WindowServer session state and leaves locked unknown; ScreenSaverEngine launch is Experimental while lock/logout are unsupported. Windows uses public LockWorkStation/ExitWindowsEx candidates but remains target-runtime unverified. Linux requires loginctl plus XDG_SESSION_ID and remains target-runtime unverified.",
       "notExposed": [
@@ -393,11 +413,14 @@
         "source",
         "ext",
         "scriptHash",
+        "scriptPath",
+        "scriptDir",
         "activationSource"
       ],
       "lifecycle": "Read-only per-execution context contract; it does not create, cancel, pause, resume, or enumerate executions.",
       "environment": "env is a frozen string snapshot. Trusted local -script and ai run executions merge .env, .opendesk.env (or one explicit env file), then the OS environment supplied when OpenDesk started; no login shell or startup file is parsed. Windows names are canonical uppercase. HTTP, MCP, and Scheduler executions receive an empty snapshot by default.",
-      "privacy": "env may contain credentials and source/workdir may contain local paths; do not serialize them into logs or remote requests. scriptHash is a correlation aid, not a signature or trust decision."
+      "sourcePath": "scriptPath is a normalized absolute trusted file path and scriptDir is its parent. Direct -script, ai run, and Scheduler file executions provide them; inline, stdin, HTTP, MCP, and Scheduler inline executions expose null. They are never parsed from source labels.",
+      "privacy": "env may contain credentials and source/workdir/scriptPath may contain local paths; do not serialize them into logs or remote requests. scriptHash is a correlation aid, not a signature or trust decision."
     },
     {
       "name": "Command",
@@ -417,10 +440,41 @@
       "lifecycle": "The enclosing execution stays alive while a command runs, and teardown terminates remaining command processes."
     },
     {
-      "name": "File",
-      "source": "native",
+      "name": "path",
+      "source": "native path-string helper backed by the execution File WorkDir",
       "status": "stable",
-      "doc": "file.md"
+      "doc": "path.md",
+      "types": "types/path.d.ts",
+      "keyMethods": [
+        "join",
+        "resolve",
+        "normalize",
+        "dirname",
+        "basename",
+        "extname",
+        "relative",
+        "isAbsolute"
+      ],
+      "properties": [
+        "sep",
+        "delimiter"
+      ],
+      "compatibility": "Common string behavior tracks Node.js 24.15.0 node:path on the target platform. OpenDesk intentionally uses Execution.workdir instead of process.cwd for resolve and relative.",
+      "safety": "String-only and synchronous: no disk access, existence checks, symlink resolution, tilde/environment expansion, process cwd mutation, or lifecycle resources."
+    },
+    {
+      "name": "File",
+      "source": "native FileSystem + execution-owned JSON I/O",
+      "status": "stable",
+      "doc": "file.md",
+      "keyMethods": [
+        "readJSON",
+        "writeJSON"
+      ],
+      "workdir": "File.cwd and every relative File path use the normalized Execution.workdir for this execution.",
+      "open": "File.open returns a constrained synchronous FileHandle (close, read/readBytes, write/writeBytes, seek, truncate, sync), never a raw host file descriptor. Runtime teardown closes unclosed handles.",
+      "json": "readJSON and writeJSON are Promise-based; JSON uses Runtime JSON.parse/stringify semantics, has an 8 MiB maximum per operation and 128 container nesting limit.",
+      "writeSafety": "writeJSON uses a supported same-directory replacement backend on macOS/Linux. Windows fails closed with ATOMIC_REPLACE_UNSUPPORTED; it never truncates as a fallback."
     },
     {
       "name": "AppStorage",
@@ -694,12 +748,6 @@
         "URL",
         "URLSearchParams"
       ]
-    },
-    {
-      "name": "browser/context/upgraded facades",
-      "source": "native+compatibility polyfill",
-      "status": "compatibility",
-      "doc": "runtime.md"
     }
   ],
   "httpServerRoutes": [

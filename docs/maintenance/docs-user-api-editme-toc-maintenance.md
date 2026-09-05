@@ -108,6 +108,7 @@ TOC 应表现“用户导航骨架”，不是内部维护机制清单。
 
 ### Runtime
 
+- `execution.md`
 - `runtime.md`
 - `global-apis.md`
 - `libs.md`
@@ -126,7 +127,9 @@ TOC 应表现“用户导航骨架”，不是内部维护机制清单。
 `docs/api/` 只保留用户最终能调用的 API、参数、返回值、错误、平台限制和可复制示例。它不应
 解释 Go 注入顺序、polyfill 构造、资源查找或内部 `*____Inject` 对象。
 
-- `docs/api/runtime.md` 只说明 stack 选择、兼容边界和 `Execution` 的用户可见字段。
+- `docs/api/execution.md` 说明 `Execution` 的完整用户可见字段、输入、artifact 和安全边界。
+- `docs/api/runtime.md` 说明脚本运行、异步生命周期、取消和历史兼容边界；不把内部
+  browser-shaped facade 当作维护中的用户 API。
 - [Runtime API composition](../implementation/runtime/runtime-api-composition.md) 记录 native
   注入、polyfill / facade 组成、内部对象和运行时资源排障。
 - `page____Inject`、`browser____Inject`、`context____Inject` 不得被标记为用户 API，也不应

@@ -1,5 +1,9 @@
 # OpenDesk API 文档发布质量评分
 
+> **历史记录，已于 2026-09-05 被后续审计取代。** 本文保留 2026-09-01 当时的评分证据；其中把
+> `browser` / `context` facade 计入公开 Runtime 契约的结论不再有效。当前公开边界以
+> `docs/api/runtime.md`、`docs/api/runtime-api.ai.json` 和 `tests/runtime-api/manifest.js` 为准。
+
 日期：2026-09-01
 
 范围：`docs/api/` 的用户导航、Runtime API、Custom UI、MCP Recorder 与 Scheduler 文档。
@@ -22,7 +26,7 @@
 | 文档组 | 已核对页面 | 结果 |
 | --- | --- | --- |
 | 导航与范例 | `README.md`、`index.md`、`cookbook.md` | 任务入口、对象地图与范例路由一致。 |
-| Runtime 对象 | `clipboard.md`、`dialog.md`、`file.md`、`global-apis.md`、`global-shortcut.md`、`http.md`、`image-color.md`、`input.md`、`mouse.md`、`native-extension.md`、`custom-ui.md`、`notify.md`、`page.md`、`runtime.md`、`screen.md`、`sound.md`、`storage.md`、`system.md`、`vision.md`、`window.md` | Runtime manifest 覆盖为 **251 / 251**；本轮补充了 `waitForAll`、`analyzeLayout`、`js_beautify` 和 browser/context facade 的正式调用契约。 |
+| Runtime 对象 | `clipboard.md`、`dialog.md`、`file.md`、`global-apis.md`、`global-shortcut.md`、`http.md`、`image-color.md`、`input.md`、`mouse.md`、`native-extension.md`、`custom-ui.md`、`notify.md`、`page.md`、`runtime.md`、`screen.md`、`sound.md`、`storage.md`、`system.md`、`vision.md`、`window.md` | 当时统计为 **251 / 251**；其中把 browser/context facade 计入公开契约的口径已于 2026-09-05 撤销。 |
 | 服务与 MCP | `http-server.md`、`scheduler.md`、`scheduler-api.md`、`recorder.md` | HTTP、Scheduler 与 Recorder 的启用边界、输入、生命周期和本地 artifact 路径均有用户文档。Recorder 补齐了每个 MCP 工具的必填参数和结果。 |
 | 专题能力 | `ai-cli.md`、`libs.md` | Agent CLI、内置库和脚本运行入口与用户导航一致。 |
 
@@ -41,7 +45,7 @@
 
 - `Custom UI` 成为 `FloatingWindow` 与 `ui.createWindow()` 的唯一用户入口；构造参数、按钮参数、状态 patch、返回值、错误和生命周期均为显式契约。
 - `Sound API` 从混合的 Runtime Utilities 页面拆出，并补齐 path、返回与失败行为。
-- `Page`、`ImageColor`、`Window` 和 `Runtime Stacks` 补全 manifest 中此前缺少说明的公开方法。
+- `Page`、`ImageColor`、`Window` 和 Runtime 当时的契约说明已补充；browser/context facade 的公开结论已于 2026-09-05 撤销。
 - `Recorder` 补齐 MCP 生命周期工具的必填参数、返回和调用顺序。
 - 删除旧的 `native-ui.md`、`runtime-utilities.md` 路由；`custom-ui.md` 作为唯一公开 UI 入口，不把旧入口放入公开导航。
 

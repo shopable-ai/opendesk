@@ -1,8 +1,8 @@
-// Opt-in macOS live suite. scripts/test_runtime_apis.sh injects an isolated local
+// Opt-in macOS live suite. scripts/test_runtime_apis.js injects an isolated local
 // HTML fixture configuration before executing this file.
 
 if (!globalThis.RUNTIME_API_FIXTURE) {
-  throw new Error('RUNTIME_API_FIXTURE was not injected; run scripts/test_runtime_apis.sh live');
+  throw new Error('RUNTIME_API_FIXTURE was not injected; run OPENDESK_RUNTIME_API_MODE=live ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script');
 }
 
 (0, eval)(File.read(File.join(File.cwd(), 'tests/runtime-api/framework.js')));

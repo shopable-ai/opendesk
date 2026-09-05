@@ -88,7 +88,7 @@ main();
 - 公开示例必须说明工作目录，并给出从该目录原样可复制的一行命令；实际验收必须运行该命令，
   run-local 临时命令不能替代。
 - Runtime API 验收只使用正式 JavaScript：`tests/runtime-api/` 与
-  `./scripts/test_runtime_apis.sh`。
+  `./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script`。
 
 ## 执行顺序
 
@@ -113,7 +113,7 @@ index、working tree、真实程序相对目录和旧 Evidence。旧 run 只有�
 停止写入后冻结输入；proof 期间输入变化必须失败，不能反复试到绿色。实际执行：
 
 1. Native Extension 的 macOS 路径、安全、ACL、替换、隐私与 HTTP/MCP 门禁测试；
-2. `./scripts/test_runtime_apis.sh unit` 的正式 `.js` 测试；
+2. `OPENDESK_RUNTIME_API_MODE=unit ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script` 的正式 `.js` 测试；
 3. 文档指定工作目录中的公开一行命令；
 4. 程序相对目录的 source-free bundle、zero-child `list/get/diagnostics`、installed
    `hello/add` 与真实 Apple Vision OCR；

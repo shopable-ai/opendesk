@@ -265,6 +265,16 @@ quiet
 agent
 ```
 
+交互终端默认按日志类别自动配色；管道和重定向自动保持纯文本。可按单次命令覆盖：
+
+```bash
+go run ./cmd/opendesk -script-text "console.log('colored')" -color always
+go run ./cmd/opendesk -script-text "console.log('plain')" -color never
+```
+
+非空 `NO_COLOR` 会关闭默认的 `auto` 配色；未设置它时也可用 `FORCE_COLOR=1` 强制开启。
+Agent/JSON 输出始终无颜色控制码。
+
 默认产物目录：
 
 ```text
@@ -298,39 +308,19 @@ go run ./cmd/opendesk \
   -save-last-script .runtime/debug/last-script.js
 ```
 
-## 5. Browser compatibility stack
+## 5. JavaScript Runtime 与 Execution
 
-默认：
-
-```text
-legacy
-```
-
-可选：
-
-```text
-legacy
-upgraded
-playwright
-```
-
-示例：
+新脚本直接使用默认 Runtime，不要指定 `-stack`。查看本次运行上下文：
 
 ```bash
-go run ./cmd/opendesk -script examples/browser_stack_legacy_smoke.js -stack legacy
-go run ./cmd/opendesk -script examples/browser_stack_upgraded_smoke.js -stack upgraded
-go run ./cmd/opendesk -script examples/browser_stack_playwright_smoke.js -stack playwright
+go run ./cmd/opendesk -script-text "console.log(JSON.stringify({id: Execution.id, artifactDir: Execution.artifactDir}))"
 ```
 
-注意：`upgraded` / `playwright` 是兼容 facade，不代表完整 Playwright 浏览器运行时。
+`Execution.input`、`workdir`、源码 hash 和 artifact 规则见 `docs/api/execution.md`；异步完成、
+取消和资源清理见 `docs/api/runtime.md`。
 
-阅读：
-
-```text
-docs/api/runtime.md
-docs/architecture/browser-automation/capabilities.md
-docs/architecture/browser-automation/stack.md
-```
+早期 `upgraded` / `playwright` 只是进程内兼容 shim，不是 browser driver，不提供 DOM、selector、
+tab 或 Playwright 语义，不应在新 workflow 中使用。
 
 ## 6. HTTP 模式
 
@@ -497,10 +487,16 @@ Go 回归：
 go test ./...
 ```
 
-项目 smoke：
+项目非 UI smoke（从仓库根目录运行）：
 
 ```bash
-./scripts/e2e_smoke.sh
+./dist/opendesk -script scripts/e2e_smoke.js -console-mode script
+```
+
+真实 macOS App probe 仅在显式 opt-in 时运行，且仍需检查生成截图才能给出视觉结论：
+
+```bash
+OPENDESK_LIVE_E2E=1 ./dist/opendesk -script scripts/e2e_smoke.js -console-mode script
 ```
 
 浏览器自动化测试规范：

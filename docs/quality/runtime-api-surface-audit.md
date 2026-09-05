@@ -14,7 +14,7 @@ order: 22
 | --- | --- | --- | --- | --- | --- | --- |
 | Sound | `automation/sound.go` | allowlist 提供同步旧方法；`registerSound` 显式提供 `start/playAsync/stop/stopAll/getActive` 和 playback handle | `docs/api/sound.md` / `types/Sound.d.ts` | `unit/sound.test.js` | playback `pause/resume/stop/wait`；execution `Close/Wait/ResourceCounts` | 闭合 |
 | Audio | `automation/audio.go` + platform backend | `registerAudio` 显式同步注册，非 allowlist | `docs/api/audio.md` / `types/Audio.d.ts` | `unit/audio.test.js` | 当前仅同步设备控制，无持续 worker；真实设备枚举单独 opt-in | 闭合；无伪造 start/stop |
-| Page | `automation/page.go` | allowlist → `page____Inject` → `polyfills/000-page.js` facade | `docs/api/page.md` / `types/page.d.ts` | `unit/page.test.js`、`page-compat.test.js` | screenshot/open 为 one-shot；wait/HTTP callback 由 EventLoop/cancel drain | 闭合 |
+| Page | `automation/page.go` | allowlist → `page____Inject` → `polyfills/000-page.js` facade | `docs/api/page.md` / `types/page.d.ts` | `unit/page.test.js` | screenshot/open 为 one-shot；wait/HTTP callback 由 EventLoop/cancel drain | 闭合 |
 | Vision / ImageColor | `automation/vision*.go`、`imageColor.go` | allowlist lowerCamelCase | `docs/api/vision.md`、`image-color.md` / 对应 types | `unit/vision*.test.js`、`image-color.test.js` | one-shot provider/图像调用；provider deadline 在调用内结束 | 闭合 |
 | Window | `automation/window_manager*.go` | allowlist + `polyfills/003-window.js` 结果规范化 | `docs/api/window.md` / `types/window.d.ts` | `unit/window.test.js` + live composition | 操作均 one-shot；没有“打开 session”需要 stop | 闭合 |
 | Mouse / Keyboard | `automation/mouse.go`、`keyboard.go` | allowlist，经 Page 组合为全局和嵌套输入对象 | `docs/api/mouse.md`、`input.md` / 对应 types | `unit/mouse.test.js`、`keyboard.test.js` + live | `down` 与 `up` 对称；click/wheel/type 为 one-shot | 闭合 |
@@ -22,7 +22,7 @@ order: 22
 | Notify / Notifications | `automation/notify*.go`、`notifications*.go` | `notify____Inject` 先于 `000-systemBase.js`；Notifications 由 `registerNotifications` | `docs/api/notify.md`、`notifications.md` / `global.d.ts`、`Notifications.d.ts` | `unit/notify.test.js`、`notifications.test.js` | notify 是 one-shot；Notifications 有 dismiss；wait worker 纳入 Close/Wait/ResourceCounts | 已修复 teardown 计数闭环 |
 | Screen capture | `automation/screen_capture*.go` | 显式合入 `Screen` | `docs/api/screen.md` / `types/Screen.d.ts` | `unit/screen.test.js` + live | `startRecording` 返回带 `stop()` 的 session；execution close 强制 finalize | 闭合 |
 | Scheduler | `pkg/scheduler` + HTTP/CLI owner | 不是 JavaScript Runtime global；通过 scheduler service/HTTP 与 inline Runtime executor | `docs/api/scheduler*.md` | `pkg/scheduler/*_test.go`；inline script 为 fixture | `Service.Start/Close`、`Store.Close` | 闭合；不伪装成 Runtime global |
-| Browser / Context | `automation/browser.go` | raw `browser____Inject/context____Inject` + compatibility polyfill | `docs/api/runtime.md` / `types/browser.d.ts` | `unit/browser.test.js`、`context.test.js`、`page-compat.test.js` | `close/isClosed`；page/context ownership 有 Go lifecycle seam | 闭合 |
+| Legacy Browser / Context | `automation/browser.go` | raw handles + compatibility polyfill | `docs/api/runtime.md` 仅记录非公开边界；无用户类型 | 无公共 JS contract；Go compatibility regression 保留 | 内存 owner/close 状态 | 已从公共 API catalog 隔离，不宣称 browser capability |
 | NativeExtensions | `automation/native_extensions.go` + `pkg/nativeextension` | manifest-bound immutable namespace；unsafe V0 仅显式 diagnostic gate | `docs/api/native-extension.md` / `types/NativeExtension.d.ts` | `unit/native-extension.test.js` + proof harness | one-shot child有 deadline、等待与 reap；无常驻 session | 闭合；跨平台 package 与 live 分级 |
 
 ## 本轮发现并修复的不一致

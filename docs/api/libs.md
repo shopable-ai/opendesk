@@ -8,6 +8,9 @@ order: 13
 
 jslibs 目录中的 .js 文件会在 polyfills 之后自动加载到运行时。
 
+这些库以全局变量预加载，不是通过 `import` / `require` 安装或解析的 npm 包；脚本应使用下表记录的
+全局入口。JavaScript 语言与模块边界见 [JavaScript Runtime](runtime.md#javascript-语言基线)。
+
 这意味着：
 - 这些库不是“参考代码”
 - 而是脚本运行时真实可用的内置库

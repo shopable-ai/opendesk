@@ -53,8 +53,8 @@ Page 还必须检查 `page____Inject` 与 `polyfills/000-page.js`；Sound/Audio 
 
 | 目标 | 位置与入口 |
 | --- | --- |
-| JS 公共 surface、参数、返回值、错误、可观察 lifecycle | `tests/runtime-api/unit/*.test.js`；`./scripts/test_runtime_apis.sh unit` |
-| catalog、文档、types 与 Runtime surface | `tests/runtime-api/contract.js`；`./scripts/test_runtime_apis.sh contract` |
+| JS 公共 surface、参数、返回值、错误、可观察 lifecycle | `tests/runtime-api/unit/*.test.js`；`OPENDESK_RUNTIME_API_MODE=unit ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script` |
+| catalog、文档、types 与 Runtime surface | `tests/runtime-api/contract.js`；`OPENDESK_RUNTIME_API_MODE=contract ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script` |
 | 真实 macOS 窗口、权限、设备、桌面副作用 | `tests/runtime-api/live/` 或领域 live gate；显式前置条件、watchdog、cleanup、`.runtime/` Evidence |
 | Go private/state machine/concurrency/EventLoop/backend seam | 实现同包 `*_test.go`；`go test ./... -count=1` |
 | 生成器、可视化器、转换器、手工或长运行工具 | `tests/<domain>/tools/<tool>/`；不得命名为 `*_test.go` |
@@ -66,18 +66,18 @@ Page 还必须检查 `page____Inject` 与 `polyfills/000-page.js`；Sound/Audio 
 ```bash
 node scripts/audit_test_architecture.js
 go test ./... -count=1
-./scripts/test_runtime_apis.sh contract
-./scripts/test_runtime_apis.sh unit
-./scripts/test_runtime_apis.sh smoke
+OPENDESK_RUNTIME_API_MODE=contract ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+OPENDESK_RUNTIME_API_MODE=unit ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
 ```
 
 只有验收目标需要真实桌面时才运行：
 
 ```bash
-./scripts/test_runtime_apis.sh live
+OPENDESK_RUNTIME_API_MODE=live ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
 ```
 
-公开示例必须另外原样执行它在文档中给出的命令。Shell gate 使用的 run-local binary 证明当前源码 gate，不等于 `./dist/opendesk ...` 示例命令已经通过。
+公开示例必须另外原样执行它在文档中给出的命令。正式 gate 使用的 run-local binary 证明当前源码 gate，不等于其他 `./dist/opendesk ...` 示例命令已经通过。
 
 ## 6. 证据等级
 

@@ -38,6 +38,7 @@ Dialog 的视觉验收与行为验收分别判定：即使返回值、Promise �
 | failure-exit | 普通 JS throw 快速非零、且不是 watchdog 124 | `results/failure-exit.json` |
 | sound-cancel | 连续采样率播放后，同步 `Sound.play` 在真实 SIGINT 下快速取消并清空播放资源 | `sound-cancel/result.json` |
 | command | 本地 execution 的直接程序执行、非零退出、输出上限、timeout，以及 SIGINT teardown 的进程树清理 | `results/command.json`、`runtime-logs/command*/resources.json` |
+| environment | 本地 `Execution.env`、环境文件优先级、`Command.run` 继承、`ai run --env-file` 与 HTTP 隔离 | `runtime-logs/environment*`、`results/environment-*.log` |
 | path | Node-compatible 平台路径字符串、两个独立 WorkDir，以及 file/inline 来源路径正反例 | `results/path.json`、`runtime-logs/path-*` |
 | live | Safari、权限、窗口身份、输入、剪贴板、HTTP 和截图 | `results/live.json` |
 | notify-icon-live | 已安装 macOS Runtime 提交通知并保活 15 秒供图标取证 | `results/runtime-api-notify-icon-live.json` + 截图 |
