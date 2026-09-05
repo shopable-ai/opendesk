@@ -21,6 +21,9 @@
     assert(typeof Execution.source === 'string' && Execution.source.length > 0, 'Execution source is empty');
     equal(Execution.ext, '.js', 'Execution source extension differs');
     assert(/^[0-9a-f]{64}$/.test(Execution.scriptHash), 'Execution scriptHash is not lowercase SHA-256');
+    assert(Execution.scriptPath === null || path.isAbsolute(Execution.scriptPath), 'Execution scriptPath must be null or absolute');
+    equal(Execution.scriptPath === null, Execution.scriptDir === null, 'Execution source path fields must share nullability');
+    if (Execution.scriptPath !== null) equal(Execution.scriptDir, path.dirname(Execution.scriptPath));
     assert(['disabled', 'cli', 'projectConfig', 'httpRequest'].includes(Execution.activationSource), 'Execution activationSource is invalid');
   });
 })();

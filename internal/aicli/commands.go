@@ -991,7 +991,7 @@ func runCommand(ctx *Context) (any, *Error) {
 	}
 	inputEvidence, _ := json.MarshalIndent(map[string]any{"command": "run", "recipe": recipe, "input": input}, "", "  ")
 	_ = os.WriteFile(filepath.Join(artifacts.RunDir, "command.json"), append(inputEvidence, '\n'), 0o644)
-	request := pkgExecution.Request{ExecutionID: id, SourceLabel: "file:" + recipe, Ext: ".js", ScriptHash: pkgExecution.ComputeScriptHash(source), ScriptContent: source, Input: input, WorkDir: workingDir, Environment: environment.Values, Timeout: *timeout, TimeoutMinutes: 30, EnableCommand: true, Artifacts: artifacts, Selection: pkgExecution.TerminalSelection{Mode: "quiet", Categories: map[string]bool{}}}
+	request := pkgExecution.Request{ExecutionID: id, SourceLabel: "file:" + recipe, ScriptPath: recipe, Ext: ".js", ScriptHash: pkgExecution.ComputeScriptHash(source), ScriptContent: source, Input: input, WorkDir: workingDir, Environment: environment.Values, Timeout: *timeout, TimeoutMinutes: 30, EnableCommand: true, Artifacts: artifacts, Selection: pkgExecution.TerminalSelection{Mode: "quiet", Categories: map[string]bool{}}}
 	result, summary, runErr := pkgExecution.Run(request)
 	_ = pkgExecution.WriteLegacySummary(artifacts.SummaryPath, result, summary)
 	if runErr != nil {

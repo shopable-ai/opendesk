@@ -49,6 +49,7 @@ func (e *ScriptExecutor) Execute(ctx context.Context, job Job) (pkgExecution.Exe
 	}
 	var content []byte
 	var sourceLabel string
+	var scriptPath string
 	switch sourceType {
 	case SourceFile:
 		path, _, err := resolveScriptPath(e.scriptRoot, job.ScriptPath)
@@ -60,6 +61,7 @@ func (e *ScriptExecutor) Execute(ctx context.Context, job Job) (pkgExecution.Exe
 			return pkgExecution.ExecutionResult{}, fmt.Errorf("read scheduled script: %w", err)
 		}
 		sourceLabel = "scheduler:file:" + job.ScriptPath
+		scriptPath = path
 	case SourceInline:
 		if strings.TrimSpace(job.InlineScript) == "" {
 			return pkgExecution.ExecutionResult{}, fmt.Errorf("scheduled inline script is unavailable")
@@ -92,6 +94,7 @@ func (e *ScriptExecutor) Execute(ctx context.Context, job Job) (pkgExecution.Exe
 		Context:       ctx,
 		ExecutionID:   executionID,
 		SourceLabel:   sourceLabel,
+		ScriptPath:    scriptPath,
 		Ext:           ".js",
 		StackMode:     "legacy",
 		ScriptHash:    pkgExecution.ComputeScriptHash(content),

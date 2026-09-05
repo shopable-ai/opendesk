@@ -24,6 +24,10 @@ declare global {
     readonly ext: string;
     /** Lowercase hexadecimal SHA-256 of the executed source bytes. */
     readonly scriptHash: string;
+    /** Normalized absolute source path for a trusted file execution; otherwise null. */
+    readonly scriptPath: string | null;
+    /** dirname(scriptPath) for a trusted file execution; otherwise null. */
+    readonly scriptDir: string | null;
     /** Custom UI authorization source; use ui/Dialog capabilities to test availability. */
     readonly activationSource: OpenDeskExecutionActivationSource;
   }

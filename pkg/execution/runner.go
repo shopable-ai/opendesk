@@ -39,17 +39,21 @@ type Request struct {
 	ExpectedCancellation func() bool
 	ExecutionID          string
 	SourceLabel          string
-	ScriptPath           string
-	Ext                  string
-	StackMode            string
-	ScriptHash           string
-	ScriptContent        []byte
+	// ScriptPath is trusted caller metadata for file-backed executions. It is
+	// normalized against WorkDir without reading, resolving symlinks, or parsing
+	// SourceLabel. Inline, stdin, HTTP, and MCP callers leave it empty.
+	ScriptPath    string
+	Ext           string
+	StackMode     string
+	ScriptHash    string
+	ScriptContent []byte
 	// Input is the structured, JSON-compatible data supplied by a caller such
 	// as `opendesk ai run`. It is exposed to JavaScript as Execution.input.
 	Input any
-	// WorkDir is the caller's execution working directory. It is metadata only;
-	// the execution runtime does not mutate the process working directory.
-	WorkDir        string
+	// WorkDir is normalized once for this execution and becomes both
+	// Execution.workdir and the shared base for every File method. It never
+	// mutates the process working directory.
+	WorkDir string
 	// Environment is a caller-owned snapshot exposed as Execution.env and used
 	// as Command.run's default child environment. Local CLI entrypoints populate
 	// it; remote and scheduled entrypoints deliberately leave it empty.
@@ -113,6 +117,16 @@ func RunWithEmitter(req Request, emitter *Emitter) (ExecutionResult, AgentSummar
 	if req.ScriptHash == "" {
 		req.ScriptHash = ComputeScriptHash(req.ScriptContent)
 	}
+	workDir, err := normalizeExecutionWorkDir(req.WorkDir)
+	if err != nil {
+		return ExecutionResult{}, AgentSummary{}, err
+	}
+	req.WorkDir = workDir
+	scriptPath, err := normalizeExecutionScriptPath(req.ScriptPath, req.WorkDir)
+	if err != nil {
+		return ExecutionResult{}, AgentSummary{}, err
+	}
+	req.ScriptPath = scriptPath
 	environment, err := runtimeenv.Clone(req.Environment)
 	if err != nil {
 		return ExecutionResult{}, AgentSummary{}, fmt.Errorf("normalize execution environment: %w", err)
@@ -144,6 +158,10 @@ func RunWithEmitter(req Request, emitter *Emitter) (ExecutionResult, AgentSummar
 		}
 		if expectedCancellation {
 			emitter.Emit(EventCategoryMeta, EventLevelInfo, EventSourceRuntime, "status", "script execution was replaced by a newer invocation", nil)
+		} else if status == ExecutionStatusCanceled {
+			emitter.Emit(EventCategoryMeta, EventLevelWarn, EventSourceRuntime, "status", "script execution canceled", map[string]any{
+				"reason": execErr.Error(),
+			})
 		} else {
 			emitter.Emit(EventCategoryError, EventLevelError, EventSourceRuntime, "error", execErr.Error(), nil)
 		}
@@ -279,6 +297,7 @@ func runJavaScript(req Request, emitter *Emitter) error {
 			sink := &automationSink{emitter: emitter}
 			if err := automation.InitJSWithOptions(rt, automation.InitJSOptions{
 				EventSink: sink, Context: ctx, EventLoop: loop,
+				WorkDir:                         req.WorkDir,
 				Environment:                     req.Environment,
 				EnableNativeExtensions:          req.EnableNativeExtensions,
 				EnableUnsafeNativeExtensionCall: req.EnableUnsafeNativeExtensionCall,
@@ -376,7 +395,9 @@ func runJavaScript(req Request, emitter *Emitter) error {
 				"notificationWorkers": resources.NotificationWorkers, "notificationPending": resources.NotificationPending,
 				"commandWorkers": resources.CommandWorkers, "commandCallbacks": resources.CommandCallbacks,
 				"commandProcesses": resources.CommandProcesses,
-				"uiWorkers":        resources.UIWorkers, "uiPending": resources.UIPending,
+				"fileJSONWorkers":  resources.FileJSONWorkers, "fileJSONCallbacks": resources.FileJSONCallbacks,
+				"fileJSONTemps": resources.FileJSONTemps, "fileHandles": resources.FileHandles,
+				"uiWorkers": resources.UIWorkers, "uiPending": resources.UIPending,
 				"uiQueued": resources.UIQueued, "uiWindows": resources.UIWindows,
 				"uiListeners": resources.UIListeners, "uiDriverSinks": resources.UIDriverSinks,
 				"uiHostProcesses":  resources.UIHostProcesses,
@@ -564,6 +585,12 @@ func registerExecutionContext(rt *goja.Runtime, req Request) error {
 	}
 
 	context := rt.NewObject()
+	var scriptPath any
+	var scriptDir any
+	if req.ScriptPath != "" {
+		scriptPath = req.ScriptPath
+		scriptDir = filepath.Dir(req.ScriptPath)
+	}
 	fields := map[string]any{
 		"id":               req.ExecutionID,
 		"executionId":      req.ExecutionID,
@@ -575,6 +602,8 @@ func registerExecutionContext(rt *goja.Runtime, req Request) error {
 		"source":           req.SourceLabel,
 		"ext":              req.Ext,
 		"scriptHash":       req.ScriptHash,
+		"scriptPath":       scriptPath,
+		"scriptDir":        scriptDir,
 		"activationSource": string(normalizeCustomUIActivationSource(req)),
 	}
 	for key, value := range fields {
@@ -608,13 +637,41 @@ func executionInput(input any) any {
 }
 
 func executionWorkDir(workDir string) string {
-	if strings.TrimSpace(workDir) != "" {
-		return workDir
-	}
-	if cwd, err := os.Getwd(); err == nil {
-		return cwd
+	// RunWithEmitter normalizes WorkDir once before Runtime construction. Keep
+	// this helper defensive for isolated registerExecutionContext tests.
+	if normalized, err := normalizeExecutionWorkDir(workDir); err == nil {
+		return normalized
 	}
 	return "."
+}
+
+func normalizeExecutionWorkDir(workDir string) (string, error) {
+	if strings.TrimSpace(workDir) == "" {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return "", fmt.Errorf("get execution working directory: %w", err)
+		}
+		workDir = cwd
+	}
+	abs, err := filepath.Abs(workDir)
+	if err != nil {
+		return "", fmt.Errorf("normalize execution working directory: %w", err)
+	}
+	return filepath.Clean(abs), nil
+}
+
+func normalizeExecutionScriptPath(scriptPath, workDir string) (string, error) {
+	if strings.TrimSpace(scriptPath) == "" {
+		return "", nil
+	}
+	if !filepath.IsAbs(scriptPath) {
+		scriptPath = filepath.Join(workDir, scriptPath)
+	}
+	abs, err := filepath.Abs(scriptPath)
+	if err != nil {
+		return "", fmt.Errorf("normalize execution script path: %w", err)
+	}
+	return filepath.Clean(abs), nil
 }
 
 func normalizeCustomUIActivationSource(req Request) customui.ActivationSource {

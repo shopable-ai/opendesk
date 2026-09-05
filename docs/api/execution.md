@@ -46,6 +46,8 @@ console.log(Execution.id, Execution.workdir, Execution.env.MY_PROJECT_MODE);
 | `Execution.source` | `string` | 脚本来源标签，例如 `file:...`、`inline`、`stdin` 或 transport 来源。 |
 | `Execution.ext` | `string` | 执行源码的扩展名，JavaScript 通常为 `.js`。 |
 | `Execution.scriptHash` | `string` | 实际执行源码字节的十六进制 SHA-256。 |
+| `Execution.scriptPath` | `string \| null` | 可信文件入口的规范化绝对源码路径；内联/远程来源为 `null`。 |
+| `Execution.scriptDir` | `string \| null` | `scriptPath` 的父目录；没有可信文件路径时为 `null`。 |
 | `Execution.activationSource` | `string` | Custom UI 授权来源：`disabled`、`cli`、`projectConfig` 或 `httpRequest`。 |
 
 字段在一次 execution 内表示启动时上下文。脚本应把 `Execution` 当作只读数据；在 JavaScript
@@ -105,7 +107,8 @@ HTTP、MCP 和 Scheduler execution 默认得到空对象 `{}`，不会自动继�
 回退到宿主 `os.Environ`。
 
 `Execution.env` 和 `Execution` 对象本身均被冻结。环境值可能包含凭据；不要整体打印、写入 artifact
-或发送给外部服务，只读取业务确实需要的键。
+或发送给外部服务，只读取业务确实需要的键。无需枚举时可使用 `System.getEnv(name, fallback?)` 和
+`System.hasEnv(name)`；它们读取的仍是同一个快照，不会重新访问宿主环境。
 
 ## Artifact 与来源
 
@@ -120,7 +123,12 @@ Runtime 自己的 `stdout.log`、`stderr.log`、`events.ndjson` 和 summary 也�
 具体目录随入口而不同，例如直接运行默认使用 `.runtime/runs/`，AI recipe 使用
 `.runtime/ai/`；脚本不要自行推导目录，应读取 `Execution.artifactDir`。
 
-`source` 和 `workdir` 可能包含本机路径。不要把它们无条件发送到外部服务或写入面向不受信任
+`scriptPath` 由已实际选择文件的入口作为独立字段传给 Runtime，并非从 `source` 标签解析。
+直接 `-script`、`ai run` 和 Scheduler file execution 会提供它；`-script-text`、stdin、HTTP、MCP
+与 Scheduler inline 返回 `null`。`scriptDir` 始终与 `path.dirname(scriptPath)` 一致，或与其一起为
+`null`。路径字符串计算见 [Path API](path.md)。
+
+`source`、`scriptPath` 和 `workdir` 可能包含本机路径。不要把它们无条件发送到外部服务或写入面向不受信任
 用户的输出。`scriptHash` 可用于核对本次执行内容，但不能替代代码签名或信任校验。
 
 ## `activationSource`
