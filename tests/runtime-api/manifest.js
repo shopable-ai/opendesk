@@ -67,7 +67,7 @@ globalThis.RuntimeAPIObjects = {
     ],
   },
   axios: { docs: 'docs/api/http.md', types: 'types/axios.d.ts', source: 'polyfills/004-axios.js', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: ['request', 'get', 'post', 'put', 'delete', 'patch'] },
-  Geometry: { docs: 'docs/api/geometry.md', types: 'types/Geometry.d.ts', source: 'polyfills/005-geometry.js', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: ['rect', 'center', 'pointOffset', 'pointPercent', 'regionOffset', 'regionPercent', 'contains', 'intersect'] },
+  Geometry: { docs: 'docs/api/geometry.md', types: 'types/Geometry.d.ts', source: 'polyfills/005-geometry.js + polyfills/007-geometry-layout.js', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: ['rect', 'center', 'pointOffset', 'pointPercent', 'regionOffset', 'regionPercent', 'regionByEdges', 'inset', 'anchorPoint', 'contains', 'intersect'] },
   UI: { docs: 'docs/api/desktop-ui.md', types: 'types/UI.d.ts', source: 'polyfills/006-ui.js', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: ['getCapabilities', 'findTexts', 'findText', 'hasText', 'tapText', 'tapTexts', 'waitText', 'waitTextGone', 'findImages', 'findImage', 'tapImage'] },
   OCR: { docs: 'docs/api/vision.md', types: 'types/Vision.d.ts', source: 'automation/ocr.go', status: 'secondary', platforms: ['darwin', 'linux', 'windows'], methods: ['extractText'] },
   Vision: { docs: 'docs/api/vision.md', types: 'types/Vision.d.ts', source: 'automation/vision.go', status: 'secondary', platforms: ['darwin', 'linux', 'windows'], methods: ['runOCR', 'detectUI', 'getCapabilities', 'analyzeLayout', 'annotateRegions'] },
@@ -282,6 +282,7 @@ globalThis.RuntimeAPITestFiles = {
     'tests/runtime-api/unit/window-library.test.js',
     'tests/runtime-api/unit/globals.test.js',
     'tests/runtime-api/geometry.js',
+    'tests/runtime-api/geometry-layout.js',
     'tests/runtime-api/ui.js',
   ],
   live: [

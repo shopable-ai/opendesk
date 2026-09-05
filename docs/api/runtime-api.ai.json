@@ -116,6 +116,9 @@
         "pointPercent",
         "regionOffset",
         "regionPercent",
+        "regionByEdges",
+        "inset",
+        "anchorPoint",
         "contains",
         "intersect"
       ],
