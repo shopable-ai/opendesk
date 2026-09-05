@@ -70,54 +70,10 @@ exit_status=$?
 set -e
 trap - EXIT HUP INT TERM
 
-if [ "$exit_status" -eq 0 ]; then
-  echo "Sound cancellation probe exited successfully instead of canceled" >&2
-  exit 1
-fi
-if grep -q 'SOUND_SYNC_CANCEL_UNEXPECTED_RETURN' "$stdout_log"; then
-  echo "Sound.play returned normally after the cancellation marker" >&2
-  exit 1
-fi
-if ! grep -q 'status=canceled' "$stdout_log"; then
-  echo "Sound cancellation probe did not report canceled status" >&2
-  sed -n '1,160p' "$stdout_log" >&2
-  exit 1
-fi
-
-python3 - "$runtime_log/events.ndjson" "$runtime_log/summary.json" "$run_dir/result.json" "$observed_exit_ms" "$exit_status" <<'PY'
-import json
-import pathlib
-import sys
-
-events_path, summary_path, result_path = map(pathlib.Path, sys.argv[1:4])
-observed_exit_ms = int(sys.argv[4])
-exit_status = int(sys.argv[5])
-summary = json.loads(summary_path.read_text(encoding="utf-8"))
-if summary.get("status") != "canceled":
-    raise SystemExit("summary status is not canceled")
-cleanup = None
-for line in events_path.read_text(encoding="utf-8").splitlines():
-    if not line.strip():
-        continue
-    event = json.loads(line)
-    if event.get("kind") == "cleanup":
-        cleanup = event.get("fields") or {}
-if cleanup is None:
-    raise SystemExit("runtime cleanup event is missing")
-sound_counts = {key: cleanup.get(key) for key in ("soundWorkers", "soundPending", "soundPlaybacks")}
-if any(value != 0 for value in sound_counts.values()):
-    raise SystemExit("sound resources were not drained: " + json.dumps(sound_counts, sort_keys=True))
-result = {
-    "schemaVersion": 1,
-    "status": "passed",
-    "runtimeStatus": summary["status"],
-    "exitStatus": exit_status,
-    "observedSignalToExitMsUpperBound": observed_exit_ms,
-    "maximumAllowedMs": 3000,
-    "soundResources": sound_counts,
-    "events": str(events_path),
-    "summary": str(summary_path),
-}
-result_path.write_text(json.dumps(result, indent=2), encoding="utf-8")
-print("[RUNTIME-API-SOUND-CANCEL] " + json.dumps(result, sort_keys=True))
-PY
+OPENDESK_SOUND_CANCEL_RUNTIME_LOG="$runtime_log" \
+OPENDESK_SOUND_CANCEL_STDOUT_LOG="$stdout_log" \
+OPENDESK_SOUND_CANCEL_OBSERVED_EXIT_MS="$observed_exit_ms" \
+OPENDESK_SOUND_CANCEL_EXIT_STATUS="$exit_status" \
+OPENDESK_SOUND_CANCEL_RUN_DIR="$run_dir" \
+  "$binary" -script tests/runtime-api/sound-cancel-validation.js -console-mode script \
+  -log-dir "$run_dir/validation-runtime-log"
