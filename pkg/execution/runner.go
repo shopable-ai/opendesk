@@ -27,6 +27,16 @@ import (
 // path below.
 const interactiveCancellationGrace = 750 * time.Millisecond
 
+// runtimeTeardownInterruptGrace bounds JavaScript Promise reactions that are
+// triggered synchronously while execution-owned resources are being closed.
+// The main context watchdog may already have spent its interrupt stopping the
+// user script, so teardown needs an independent interrupt source.
+const runtimeTeardownInterruptGrace = 100 * time.Millisecond
+
+// Promise rejection handlers are independent jobs. Goja clears an interrupt
+// after it aborts one job, so keep re-arming while teardown is still running.
+const runtimeTeardownInterruptRetry = 25 * time.Millisecond
+
 // Request 描述一次脚本执行请求。
 type Request struct {
 	// Context cancels the complete execution lifecycle: JavaScript evaluation,
@@ -85,6 +95,9 @@ type Request struct {
 	// DesktopEventBackendFactory is an internal test seam for deterministic
 	// watcher emission, backpressure, and teardown validation.
 	DesktopEventBackendFactory automation.DesktopEventBackendFactory
+	// AudioCaptureBackendFactory is an internal test seam for sound-pattern
+	// watcher lifecycle and teardown validation.
+	AudioCaptureBackendFactory automation.AudioCaptureBackendFactory
 	// Timeout is the exact execution deadline used by transports that accept
 	// sub-minute timeouts. TimeoutMinutes remains for CLI compatibility.
 	Timeout   time.Duration
@@ -229,12 +242,14 @@ func runJavaScript(req Request, emitter *Emitter) error {
 			watchdogDone    chan struct{}
 			watchdogRelease chan struct{}
 			keepAlive       *eventloop.Interval
+			runtimeValue    *goja.Runtime
 			scriptDone      bool
 			checkDone       func()
 			unhandled       = map[*goja.Promise]string{}
 		)
 
 		loop.Run(func(rt *goja.Runtime) {
+			runtimeValue = rt
 			// A runtime may be touched only by this event-loop owner. Interrupt is
 			// the one documented Goja exception: this context watcher may call it
 			// from another goroutine to break a CPU-bound JavaScript loop.
@@ -311,6 +326,7 @@ func runJavaScript(req Request, emitter *Emitter) error {
 				CustomUIBaseDir:                 customUIBaseDir(req),
 				GlobalShortcutBackendFactory:    req.GlobalShortcutBackendFactory,
 				DesktopEventBackendFactory:      req.DesktopEventBackendFactory,
+				AudioCaptureBackendFactory:      req.AudioCaptureBackendFactory,
 				OnAsyncError:                    onAsyncError,
 				OnReady:                         func(resources *automation.RuntimeLifecycle) { lifecycle = resources },
 			}); err != nil {
@@ -358,27 +374,31 @@ func runJavaScript(req Request, emitter *Emitter) error {
 			}
 		})
 
-		if stopWatchdog != nil {
-			close(watchdogRelease)
-			// If cancellation has already started, wait for the only permitted
-			// cross-goroutine Runtime call (Interrupt) before ClearInterrupt below.
-			// This is the synchronization boundary required by Goja's API.
-			if !stopWatchdog() {
-				<-watchdogDone
-			}
-		}
 		if keepAlive != nil {
 			loop.ClearInterval(keepAlive)
 		}
 
-		// The following teardown remains on the runtime-owner goroutine. Workers
-		// only see context cancellation and send Go data through RunOnLoop.
+		// Teardown remains on the runtime-owner goroutine. Keep the interrupt
+		// watchdog armed while lifecycle owners reject retained Promises: user
+		// catch/finally handlers run synchronously in Goja and must not be able to
+		// turn cancellation into an unbounded teardown.
 		cancel()
 		if lifecycle != nil && lifecycle.Timers != nil {
 			lifecycle.Timers.Cleanup()
 		}
 		if lifecycle != nil {
-			lifecycle.CancelAsync()
+			cancelRuntimeLifecycle(runtimeValue, lifecycle)
+		}
+		if stopWatchdog != nil {
+			close(watchdogRelease)
+			// Wait for the only permitted cross-goroutine Runtime call
+			// (Interrupt) before clearing it and terminating queued jobs.
+			if !stopWatchdog() {
+				<-watchdogDone
+			}
+			if runtimeValue != nil {
+				runtimeValue.ClearInterrupt()
+			}
 		}
 		loop.Terminate()
 		if lifecycle != nil {
@@ -394,8 +414,10 @@ func runJavaScript(req Request, emitter *Emitter) error {
 				"soundPlaybacks":      resources.SoundPlaybacks,
 				"notificationWorkers": resources.NotificationWorkers, "notificationPending": resources.NotificationPending,
 				"commandWorkers": resources.CommandWorkers, "commandCallbacks": resources.CommandCallbacks,
-				"commandProcesses": resources.CommandProcesses,
-				"fileJSONWorkers":  resources.FileJSONWorkers, "fileJSONCallbacks": resources.FileJSONCallbacks,
+				"commandProcesses":    resources.CommandProcesses,
+				"audioPatternWorkers": resources.AudioPatternWorkers, "audioPatternPending": resources.AudioPatternPending,
+				"audioPatternWatches": resources.AudioPatternWatches, "audioPatternSessions": resources.AudioPatternSessions,
+				"fileJSONWorkers": resources.FileJSONWorkers, "fileJSONCallbacks": resources.FileJSONCallbacks,
 				"fileJSONTemps": resources.FileJSONTemps, "fileHandles": resources.FileHandles,
 				"uiWorkers": resources.UIWorkers, "uiPending": resources.UIPending,
 				"uiQueued": resources.UIQueued, "uiWindows": resources.UIWindows,
@@ -445,6 +467,50 @@ func runJavaScript(req Request, emitter *Emitter) error {
 		"durationMs": time.Since(startTime).Milliseconds(),
 	})
 	return nil
+}
+
+// cancelRuntimeLifecycle runs on the Goja owner goroutine. NewPromise
+// resolving functions synchronously drain queued Promise jobs when invoked
+// outside JavaScript, so hostile catch/finally code can otherwise block this
+// call forever. Use a fresh guard rather than relying on the execution context
+// watchdog, whose interrupt may already have been consumed to stop the script.
+func cancelRuntimeLifecycle(runtimeValue *goja.Runtime, lifecycle *automation.RuntimeLifecycle) {
+	if lifecycle == nil {
+		return
+	}
+	if runtimeValue == nil {
+		lifecycle.CancelAsync()
+		return
+	}
+
+	interruptRelease := make(chan struct{})
+	interruptDone := make(chan struct{})
+	go func() {
+		defer close(interruptDone)
+		initial := time.NewTimer(runtimeTeardownInterruptGrace)
+		defer initial.Stop()
+		select {
+		case <-interruptRelease:
+			return
+		case <-initial.C:
+		}
+
+		retry := time.NewTicker(runtimeTeardownInterruptRetry)
+		defer retry.Stop()
+		for {
+			runtimeValue.Interrupt("script execution teardown canceled a JavaScript callback")
+			select {
+			case <-interruptRelease:
+				return
+			case <-retry.C:
+			}
+		}
+	}()
+	defer func() {
+		close(interruptRelease)
+		<-interruptDone
+	}()
+	lifecycle.CancelAsync()
 }
 
 func customUIBaseDir(req Request) string {

@@ -74,9 +74,9 @@ if (!executionLedgerMatch) {
 }
 const executionLedger = executionLedgerMatch?.[1] || '';
 const requiredExecutionLanes = [
-  ['E-K', 'KEEP_PACKAGE', 87],
+  ['E-K', 'KEEP_PACKAGE', 90],
   ['E-B', 'MOVE_GO_BLACKBOX', 29],
-  ['E-J', 'SPLIT_JS_CONTRACT', 12],
+  ['E-J', 'SPLIT_JS_CONTRACT', 15],
   ['E-T', 'MOVE_TOOL', 3],
   ['E-L', 'OPT_IN_LIVE', 2],
   ['E-V', 'VENDOR_ONLY', 4],
@@ -269,9 +269,9 @@ for (const [file, classification] of classifications.entries()) {
 }
 
 const expectedCounts = {
-  KEEP_PACKAGE: 87,
+  KEEP_PACKAGE: 90,
   MOVE_GO_BLACKBOX: 29,
-  SPLIT_JS_CONTRACT: 12,
+  SPLIT_JS_CONTRACT: 15,
   MOVE_TOOL: 3,
   OPT_IN_LIVE: 2,
   VENDOR_ONLY: 4,
@@ -284,8 +284,8 @@ for (const [label, expected] of Object.entries(expectedCounts)) {
     errors.push(`${label} count=${dispositionCounts[label]}, expected=${expected}`);
   }
 }
-if (classifications.size !== 145) errors.push(`classification total=${classifications.size}, expected=145`);
-if (currentGoTests.length !== 142) errors.push(`current _test.go total=${currentGoTests.length}, expected=142`);
+if (classifications.size !== 151) errors.push(`classification total=${classifications.size}, expected=151`);
+if (currentGoTests.length !== 148) errors.push(`current _test.go total=${currentGoTests.length}, expected=148`);
 
 if (fs.existsSync(path.join(root, 'temp'))) errors.push('retired repository-root output directory exists');
 

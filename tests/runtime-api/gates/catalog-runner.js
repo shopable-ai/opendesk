@@ -29,6 +29,7 @@ const CLEANUP_FIELDS = [
   'captureWorkers', 'capturePending', 'captureSessions',
   'appWorkers', 'appPending',
   'commandWorkers', 'commandCallbacks', 'commandProcesses',
+  'audioPatternWorkers', 'audioPatternPending', 'audioPatternWatches', 'audioPatternSessions',
   'fileJSONWorkers', 'fileJSONCallbacks', 'fileJSONTemps', 'fileHandles',
 ];
 

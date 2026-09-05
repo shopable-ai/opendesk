@@ -1,6 +1,8 @@
 package automation
 
 import (
+	"context"
+	"errors"
 	"math"
 	"math/rand"
 	"testing"
@@ -51,6 +53,86 @@ func TestAudioPatternMatcherDoesNotMatchNoise(t *testing.T) {
 	}
 }
 
+func TestAudioPatternMatcherRejectsReferenceBelowMinimumActiveRatio(t *testing.T) {
+	reference := make([]float32, audioMatcherTestSampleRate)
+	toneSamples := samplesForMilliseconds(audioMatcherTestSampleRate, 40)
+	for index := 0; index < toneSamples; index++ {
+		sample := float32(math.Sin(2 * math.Pi * 660 * float64(index) / audioMatcherTestSampleRate))
+		reference[index] = sample
+		reference[len(reference)-toneSamples+index] = sample
+	}
+
+	_, err := NewAudioPatternMatcher(AudioPatternMatcherConfig{
+		SampleRate:         audioMatcherTestSampleRate,
+		Patterns:           []AudioPattern{{ID: "sparse", Samples: reference}},
+		Threshold:          0.4,
+		MaxPatternSamples:  len(reference),
+		MaxBufferedSamples: len(reference),
+	})
+	if err == nil {
+		t.Fatal("matcher accepted a reference below the minimum active-frame ratio")
+	}
+}
+
+func TestAudioPatternMatcherDoesNotTreatReferenceSilenceAsPositiveEvidence(t *testing.T) {
+	reference := make([]float32, samplesForMilliseconds(audioMatcherTestSampleRate, 900))
+	toneSamples := samplesForMilliseconds(audioMatcherTestSampleRate, 100)
+	for index := 0; index < toneSamples; index++ {
+		sample := float32(math.Sin(2 * math.Pi * 660 * float64(index) / audioMatcherTestSampleRate))
+		reference[index] = sample
+		reference[len(reference)-toneSamples+index] = sample
+	}
+	matcher := newAudioMatcherForTest(t, reference, 0.4, 0)
+
+	if matches := matcher.Push(make([]float32, len(reference))); len(matches) != 0 {
+		t.Fatalf("silent input matched a reference with silent spacing: %#v", matches)
+	}
+}
+
+func TestAudioPatternMatcherTreatsLowEnergyReferenceDitherAsSilence(t *testing.T) {
+	reference := make([]float32, samplesForMilliseconds(audioMatcherTestSampleRate, 900))
+	input := make([]float32, len(reference))
+	toneSamples := samplesForMilliseconds(audioMatcherTestSampleRate, 120)
+	for index := range reference {
+		if index < toneSamples || index >= len(reference)-toneSamples {
+			seconds := float64(index) / audioMatcherTestSampleRate
+			sample := float32(0.7*math.Sin(2*math.Pi*660*seconds) + 0.2*math.Sin(2*math.Pi*990*seconds+0.2))
+			reference[index] = sample
+			input[index] = sample
+			continue
+		}
+		// This is far below the cue energy but still has a well-formed spectral
+		// shape. It must not receive the same weight as an audible frame.
+		reference[index] = float32(1e-5 * math.Sin(2*math.Pi*1234*float64(index)/audioMatcherTestSampleRate))
+	}
+
+	matcher := newAudioMatcherForTest(t, reference, 0.95, 0)
+	matches := matcher.Push(input)
+	if len(matches) != 1 || matches[0].Confidence < 0.95 {
+		t.Fatalf("low-energy dither dominated reference similarity: %#v", matches)
+	}
+}
+
+func TestAudioPatternMatcherRejectsShortUsablePatternSpan(t *testing.T) {
+	reference := make([]float32, samplesForMilliseconds(audioMatcherTestSampleRate, 200))
+	start := samplesForMilliseconds(audioMatcherTestSampleRate, 90)
+	end := start + samplesForMilliseconds(audioMatcherTestSampleRate, 20)
+	for index := start; index < end; index++ {
+		reference[index] = float32(math.Sin(2 * math.Pi * 660 * float64(index) / audioMatcherTestSampleRate))
+	}
+
+	_, err := NewAudioPatternMatcher(AudioPatternMatcherConfig{
+		SampleRate:         audioMatcherTestSampleRate,
+		Patterns:           []AudioPattern{{ID: "burst", Samples: reference}},
+		Threshold:          0.8,
+		MaxPatternSamples:  len(reference),
+		MaxBufferedSamples: len(reference),
+	})
+	if err == nil {
+		t.Fatal("matcher accepted a reference with less than 100ms of usable span")
+	}
+}
+
 func TestAudioPatternMatcherFindsCueAcrossArbitraryChunks(t *testing.T) {
 	cue := synthesizeAudioMatcherCue(audioMatcherTestSampleRate)
 	matcher := newAudioMatcherForTest(t, cue, 0.999999, 0)
@@ -86,6 +168,41 @@ func TestAudioPatternMatcherAppliesPerPatternCooldown(t *testing.T) {
 	}
 }
 
+func TestAudioPatternMatcherUsesHysteresisForSustainedCue(t *testing.T) {
+	toneSamples := audioMatcherTestSampleRate / 5
+	tone := make([]float32, toneSamples)
+	for index := range tone {
+		tone[index] = float32(math.Sin(2 * math.Pi * 660 * float64(index) / audioMatcherTestSampleRate))
+	}
+	matcher := newAudioMatcherForTest(t, tone, 0.99, 0)
+
+	continuous := make([]float32, audioMatcherTestSampleRate)
+	for index := range continuous {
+		continuous[index] = float32(math.Sin(2 * math.Pi * 660 * float64(index) / audioMatcherTestSampleRate))
+	}
+	if matches := matcher.Push(continuous); len(matches) != 1 {
+		t.Fatalf("sustained cue produced %d matches, want one rising-edge match: %#v", len(matches), matches)
+	}
+
+	matcher.Push(make([]float32, audioMatcherTestSampleRate/2))
+	if matches := matcher.Push(tone); len(matches) != 1 {
+		t.Fatalf("cue after release produced %d matches, want 1: %#v", len(matches), matches)
+	}
+}
+
+func TestSelectAudioPatternMatchesUsesStableWinner(t *testing.T) {
+	matches := []AudioPatternMatch{
+		{PatternID: "lower", Confidence: 0.91, EndSample: 100},
+		{PatternID: "zeta", Confidence: 0.97, EndSample: 100},
+		{PatternID: "alpha", Confidence: 0.97, EndSample: 100},
+		{PatternID: "later", Confidence: 0.92, EndSample: 200},
+	}
+	selected := selectAudioPatternMatches(matches)
+	if len(selected) != 2 || selected[0].PatternID != "alpha" || selected[1].PatternID != "later" {
+		t.Fatalf("unexpected deterministic winners: %#v", selected)
+	}
+}
+
 func TestAudioPatternMatcherStateStaysBounded(t *testing.T) {
 	cue := synthesizeAudioMatcherCue(audioMatcherTestSampleRate)
 	matcher := newAudioMatcherForTest(t, cue, 0.999999, 0)
@@ -105,6 +222,38 @@ func TestAudioPatternMatcherRejectsPatternBeyondLimits(t *testing.T) {
 	_, err := NewAudioPatternMatcher(AudioPatternMatcherConfig{SampleRate: audioMatcherTestSampleRate, Patterns: []AudioPattern{{ID: "order", Samples: cue}}, Threshold: 0.9, MaxPatternSamples: len(cue) - 1, MaxBufferedSamples: len(cue)})
 	if err == nil {
 		t.Fatal("matcher accepted a template beyond MaxPatternSamples")
+	}
+}
+
+func TestAudioPatternMatcherHonorsCanceledPreparationContext(t *testing.T) {
+	contextValue, cancel := context.WithCancel(context.Background())
+	cancel()
+	cue := synthesizeAudioMatcherCue(audioMatcherTestSampleRate)
+	_, err := NewAudioPatternMatcher(AudioPatternMatcherConfig{
+		Context:            contextValue,
+		SampleRate:         audioMatcherTestSampleRate,
+		Patterns:           []AudioPattern{{ID: "order", Samples: cue}},
+		Threshold:          0.9,
+		MaxPatternSamples:  len(cue),
+		MaxBufferedSamples: len(cue),
+	})
+	if err == nil || !errors.Is(err, context.Canceled) {
+		t.Fatalf("matcher preparation error = %v, want context.Canceled", err)
+	}
+}
+
+func TestAudioPatternMatcherOffsetsRemainMonotonicAfterReset(t *testing.T) {
+	cue := synthesizeAudioMatcherCue(audioMatcherTestSampleRate)
+	matcher := newAudioMatcherForTest(t, cue, 0.999999, 0)
+	prefix := make([]float32, audioMatcherTestSampleRate/2)
+	matcher.Push(prefix)
+	matcher.Reset()
+	matches := matcher.Push(cue)
+	if len(matches) != 1 {
+		t.Fatalf("got %d matches after reset, want 1: %#v", len(matches), matches)
+	}
+	if matches[0].StartSample != int64(len(prefix)) || matches[0].EndSample != int64(len(prefix)+len(cue)) {
+		t.Fatalf("non-monotonic offsets after reset: %#v", matches[0])
 	}
 }
 

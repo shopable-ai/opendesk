@@ -633,11 +633,13 @@
     },
     {
       "name": "Audio",
-      "source": "native runtime wrapper + macOS CoreAudio HAL",
+      "source": "native runtime wrapper + macOS CoreAudio HAL controls + audio pattern matcher/backend seam",
       "status": "experimental",
       "doc": "audio.md",
       "platforms": [
-        "darwin"
+        "darwin",
+        "linux",
+        "windows"
       ],
       "keyMethods": [
         "getVolume",
@@ -650,10 +652,13 @@
         "getInputDevices",
         "getDefaultOutput",
         "getDefaultInput",
+        "watchSound",
+        "waitForSound",
         "getCapabilities"
       ],
       "volumeUnit": "inclusive scalar 0..1 with hardware readback",
       "capture": "not implemented; microphone and systemAudio are explicitly false in capability discovery",
+      "patternWatch": "experimental contract and bounded in-memory matcher; the default product build currently has no platform capture backend, reports unsupported, and rejects watchSound/waitForSound with NOT_SUPPORTED; source is explicit, raw PCM is neither exposed nor persisted, and a future match is a heuristic wake-up signal rather than a business event",
       "soundCompatibility": "Sound keeps blocking MP3/WAV compatibility methods and adds execution-scoped controllable playback sessions",
       "platformBehavior": "darwin+cgo uses CoreAudio; non-CGO macOS and other platforms report unavailable and reject instead of silent no-op"
     },

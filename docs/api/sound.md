@@ -18,7 +18,8 @@ order: 14
 `Sound` 是 output-only：它不会监听系统输出、麦克风或其他应用，也不会识别声音。需要把本地
 `.wav` / `.mp3` 当作参考模式监听时，使用 capability-gated 的
 `Audio.watchSound()` / `Audio.waitForSound()`；该能力只在内存中匹配，并不改变 Audio recording
-capture 仍为 `notImplemented` 的边界。
+capture 仍为 `notImplemented` 的边界。当前默认产品构建尚未接入系统音频 capture backend，
+`patternWatch` 会明确报告 `unsupported`；已有 matcher/backend seam 不代表真实系统监听可用。
 
 ## 方法
 

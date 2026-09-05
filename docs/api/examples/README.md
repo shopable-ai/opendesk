@@ -149,6 +149,10 @@ order: 3
 - `audio/control-smoke.js` — [源码](../../../examples/audio/control-smoke.js)；运行：
   `./opendesk -script examples/audio/control-smoke.js -console-mode script`；检查：
   [audio.test.js](../../../tests/runtime-api/unit/audio.test.js)。
+- `audio/pattern-watch-smoke.js` — [源码](../../../examples/audio/pattern-watch-smoke.js)；运行：
+  `OPENDESK_AUDIO_REFERENCE=/absolute/path/to/new-order.wav ./dist/opendesk -script examples/audio/pattern-watch-smoke.js -console-mode script`；检查：
+  当前 capability/source 的 fail-closed skip 或真实平台 `audio.pattern.matched` envelope；Evidence 写入
+  `.runtime/tests/platform-primitives/task-016-audio-pattern-watcher/pattern-watch-smoke.json`。
 
 ## Dialog 与 Custom UI（macOS）
 

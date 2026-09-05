@@ -3,20 +3,9 @@
 
 const referencePath = System.getEnv('OPENDESK_AUDIO_REFERENCE', './public/ding.mp3');
 const processPIDText = System.getEnv('OPENDESK_AUDIO_PROCESS_PID');
-const processPID = processPIDText === undefined ? undefined : Number(processPIDText);
-
-if (processPID !== undefined && (!Number.isInteger(processPID) || processPID <= 0)) {
-  throw new Error('OPENDESK_AUDIO_PROCESS_PID must be a positive integer');
-}
-if (!File.exists(referencePath)) {
-  throw new Error(`reference audio does not exist: ${referencePath}`);
-}
-
-const source = processPID === undefined
-  ? { type: 'system' }
-  : { type: 'process', pid: processPID };
 const capability = Audio.getCapabilities().patternWatch;
-const sourceCapability = capability.sources[source.type];
+const sourceType = processPIDText === undefined ? 'system' : 'process';
+const sourceCapability = capability.sources[sourceType];
 
 if (!capability.supported || !sourceCapability.supported) {
   console.log(JSON.stringify({
@@ -25,12 +14,23 @@ if (!capability.supported || !sourceCapability.supported) {
     reason: 'known-sound watching is unsupported for the selected source on this host',
     backend: capability.backend,
     status: capability.status,
-    source: source.type,
+    source: sourceType,
     selfPlaybackExclusion: capability.selfPlaybackExclusion,
     rawAudioExposed: capability.rawAudioExposed,
     rawAudioPersisted: capability.rawAudioPersisted,
   }));
 } else {
+  const processPID = processPIDText === undefined ? undefined : Number(processPIDText);
+  if (processPID !== undefined && (!Number.isInteger(processPID) || processPID <= 0)) {
+    throw new Error('OPENDESK_AUDIO_PROCESS_PID must be a positive integer');
+  }
+  if (!File.exists(referencePath)) {
+    throw new Error('reference audio is unavailable');
+  }
+  const source = processPID === undefined
+    ? { type: 'system' }
+    : { type: 'process', pid: processPID };
+
   console.log(JSON.stringify({
     listening: true,
     source: source.type,

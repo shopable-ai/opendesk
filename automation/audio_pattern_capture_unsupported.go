@@ -23,12 +23,17 @@ func newUnsupportedAudioCaptureBackend(platform, reason string) AudioCaptureBack
 func (b *unsupportedAudioCaptureBackend) Name() string { return "unavailable" }
 
 func (b *unsupportedAudioCaptureBackend) Capabilities() AudioCaptureCapabilities {
+	permission := "none"
+	if b.platform == "darwin" {
+		permission = "screenRecording"
+	}
 	return AudioCaptureCapabilities{
-		Supported: false,
-		Platform:  b.platform,
-		Backend:   b.Name(),
-		Permission: "screenRecording",
-		Notes:      b.reason,
+		Supported:             false,
+		Platform:              b.platform,
+		Backend:               b.Name(),
+		Permission:            permission,
+		SelfPlaybackExclusion: "unavailable",
+		Notes:                 b.reason,
 	}
 }
 
@@ -38,4 +43,4 @@ func (b *unsupportedAudioCaptureBackend) Start(context.Context, AudioCaptureOpti
 
 func (b *unsupportedAudioCaptureBackend) Close() error { return nil }
 
-func (b *unsupportedAudioCaptureBackend) Wait() {}
+func (b *unsupportedAudioCaptureBackend) Wait(context.Context) error { return nil }

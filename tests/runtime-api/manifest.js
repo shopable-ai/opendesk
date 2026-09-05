@@ -83,9 +83,9 @@ globalThis.RuntimeAPIObjects = {
     'findBlueChannel', 'toRGB', 'toRGBA', 'toHSL', 'toHSLA', 'isColorSimilar', 'analyzeLayout',
   ] },
   Sound: { docs: 'docs/api/sound.md', types: 'types/Sound.d.ts', source: 'automation/sound.go', status: 'secondary', platforms: ['darwin', 'linux', 'windows'], methods: ['playSuccess', 'playFail', 'playWarning', 'playError', 'playCaptcha', 'playSound', 'play', 'start', 'playAsync', 'stop', 'stopAll', 'getActive'] },
-  Audio: { docs: 'docs/api/audio.md', types: 'types/Audio.d.ts', source: 'automation/audio.go', status: 'experimental', platforms: ['darwin'], methods: [
+  Audio: { docs: 'docs/api/audio.md', types: 'types/Audio.d.ts', source: 'automation/audio.go + automation/audio_pattern_runtime.go', status: 'experimental', platforms: ['darwin', 'linux', 'windows'], methods: [
     'getVolume', 'setVolume', 'isMuted', 'mute', 'unmute', 'toggleMute', 'getOutputDevices',
-    'getInputDevices', 'getDefaultOutput', 'getDefaultInput', 'getCapabilities',
+    'getInputDevices', 'getDefaultOutput', 'getDefaultInput', 'watchSound', 'waitForSound', 'getCapabilities',
   ] },
   Dialog: { docs: 'docs/api/dialog.md', types: 'types/dialog.d.ts', source: 'automation/dialog.go', status: 'conditional', platforms: ['darwin', 'linux', 'windows'], methods: ['alert', 'confirm', 'prompt', 'getCapabilities'] },
   ui: { docs: 'docs/api/custom-ui.md', types: 'types/custom-ui.d.ts', source: 'automation/custom_ui.go', status: 'conditional', platforms: ['darwin', 'linux', 'windows'], methods: ['getCapabilities', 'createWindow', 'closeAll', 'on'] },
@@ -121,7 +121,7 @@ const unitBehavior = new Set([
   'http.request', 'NativeExtensions.list', 'NativeExtensions.get', 'NativeExtensions.diagnostics', 'OCR.extractText', 'Vision.runOCR', 'Vision.detectUI', 'Vision.getCapabilities', 'Vision.analyzeLayout', 'Vision.annotateRegions',
   ...RuntimeAPIObjects.ImageColor.methods.map((method) => 'ImageColor.' + method),
   'Sound.playSound', 'Sound.play', 'Sound.start', 'Sound.playAsync', 'Sound.stop', 'Sound.stopAll', 'Sound.getActive',
-  'Audio.setVolume', 'Audio.getCapabilities',
+  'Audio.setVolume', 'Audio.watchSound', 'Audio.waitForSound', 'Audio.getCapabilities',
   ...RuntimeAPIObjects.Dialog.methods.map((method) => 'Dialog.' + method),
   ...RuntimeAPIObjects.ui.methods.map((method) => 'ui.' + method),
   'global.notify', 'global.alert', 'global.confirm', 'global.prompt',
@@ -179,8 +179,11 @@ const restricted = {
 restricted['Command.run'] = 'runs a host command and is available only to a local script execution';
 for (const method of ['playSuccess', 'playFail', 'playWarning', 'playError', 'playCaptcha']) restricted['Sound.' + method] = 'plays audible system output';
 for (const method of ['start', 'playAsync', 'stop', 'stopAll']) restricted['Sound.' + method] = 'starts or changes audible system output; use a dedicated playback lifecycle smoke';
-for (const method of RuntimeAPIObjects.Audio.methods.filter((method) => method !== 'getCapabilities')) {
+for (const method of RuntimeAPIObjects.Audio.methods.filter((method) => !['getCapabilities', 'watchSound', 'waitForSound'].includes(method))) {
   restricted['Audio.' + method] = 'depends on or changes host audio device state; dedicated macOS smoke must restore control state and redact device names and UIDs';
+}
+for (const method of ['watchSound', 'waitForSound']) {
+  restricted['Audio.' + method] = 'captures sensitive system-output content in memory; unit coverage is fail-closed and live validation requires a dedicated synthetic-audio fixture';
 }
 for (const method of ['launch', 'terminate', 'restart']) restricted['App.' + method] = 'starts or terminates a real desktop application; dedicated fixture smoke owns the target lifecycle';
 restricted['Notifications.list'] = 'may reveal own-app notification metadata or explicitly requested content; the formal unit gate validates arguments without reading host notifications';

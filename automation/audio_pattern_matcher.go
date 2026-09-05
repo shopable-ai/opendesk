@@ -1,6 +1,7 @@
 package automation
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"strings"
@@ -9,12 +10,13 @@ import (
 )
 
 const (
-	audioPatternFrameMilliseconds = 20
-	audioPatternHopMilliseconds   = 10
-	audioPatternBandCount         = 12
-	audioPatternMinimumFrequency  = 80.0
-	audioPatternMaximumFrequency  = 12000.0
-	audioPatternSilenceWeight     = 0.25
+	audioPatternFrameMilliseconds           = 20
+	audioPatternHopMilliseconds             = 10
+	audioPatternBandCount                   = 12
+	audioPatternMinimumFrequency            = 80.0
+	audioPatternMaximumFrequency            = 12000.0
+	audioPatternMinimumActiveRatio          = 0.20
+	audioPatternMinimumTemplateMilliseconds = 100
 )
 
 // AudioPattern is a named mono PCM template. Samples are copied into spectral
@@ -29,6 +31,7 @@ type AudioPattern struct {
 // MaxPatternSamples and MaxBufferedSamples are required safety limits; every
 // template must fit both.
 type AudioPatternMatcherConfig struct {
+	Context            context.Context
 	SampleRate         int
 	Patterns           []AudioPattern
 	Threshold          float64
@@ -57,8 +60,9 @@ type preparedAudioPattern struct {
 	id       string
 	features []audioPatternFeature
 
-	hasMatch     bool
-	lastMatchEnd int64
+	hasMatch       bool
+	lastMatchEnd   int64
+	aboveThreshold bool
 }
 
 // AudioPatternMatcher compares a stream with fixed spectral templates. PCM is
@@ -79,14 +83,25 @@ type AudioPatternMatcher struct {
 
 	sampleBuffer  []float32
 	featureBuffer []audioPatternFeature
-	totalSamples  int64
-	totalFeatures int64
+	// segmentSamples resets after a capture discontinuity so frames are never
+	// assembled across a gap. totalSamples remains monotonic and backs the
+	// public offsets, which are measured from the first sample pushed.
+	segmentSamples int64
+	totalSamples   int64
+	totalFeatures  int64
 }
 
 // NewAudioPatternMatcher validates and preprocesses reference templates.
-// Templates must contain at least one complete 20 ms analysis frame. Constant,
-// silent, and non-finite templates are rejected.
+// Templates must contain at least 100 ms between their first and last usable
+// analysis frames. Constant, silent, and non-finite templates are rejected.
 func NewAudioPatternMatcher(config AudioPatternMatcherConfig) (*AudioPatternMatcher, error) {
+	ctx := config.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("audio pattern matcher: %w", err)
+	}
 	if config.SampleRate <= 0 {
 		return nil, fmt.Errorf("audio pattern matcher: sample rate must be positive")
 	}
@@ -119,6 +134,9 @@ func NewAudioPatternMatcher(config AudioPatternMatcherConfig) (*AudioPatternMatc
 	seenIDs := make(map[string]struct{}, len(config.Patterns))
 	longestFeatureCount := 0
 	for index, pattern := range config.Patterns {
+		if err := ctx.Err(); err != nil {
+			return nil, fmt.Errorf("audio pattern matcher: %w", err)
+		}
 		if strings.TrimSpace(pattern.ID) == "" {
 			return nil, fmt.Errorf("audio pattern matcher: pattern %d has an empty id", index)
 		}
@@ -138,7 +156,7 @@ func NewAudioPatternMatcher(config AudioPatternMatcherConfig) (*AudioPatternMatc
 				return nil, fmt.Errorf("audio pattern matcher: pattern %q samples must be finite", pattern.ID)
 			}
 		}
-		features, err := extractor.templateFeatures(pattern.Samples)
+		features, err := extractor.templateFeatures(ctx, pattern.Samples)
 		if err != nil {
 			return nil, fmt.Errorf("audio pattern matcher: pattern %q: %w", pattern.ID, err)
 		}
@@ -170,13 +188,14 @@ func (m *AudioPatternMatcher) Push(samples []float32) []AudioPatternMatch {
 
 	var matches []AudioPatternMatch
 	for _, sample := range samples {
-		m.sampleBuffer[m.totalSamples%int64(len(m.sampleBuffer))] = sample
+		m.sampleBuffer[m.segmentSamples%int64(len(m.sampleBuffer))] = sample
+		m.segmentSamples++
 		m.totalSamples++
 		frameSize, hopSize := int64(m.extractor.frameSize), int64(m.extractor.hopSize)
-		if m.totalSamples < frameSize || (m.totalSamples-frameSize)%hopSize != 0 {
+		if m.segmentSamples < frameSize || (m.segmentSamples-frameSize)%hopSize != 0 {
 			continue
 		}
-		feature := m.extractor.featureFromRing(m.sampleBuffer, m.totalSamples-frameSize)
+		feature := m.extractor.featureFromRing(m.sampleBuffer, m.segmentSamples-frameSize)
 		m.featureBuffer[m.totalFeatures%int64(len(m.featureBuffer))] = feature
 		m.totalFeatures++
 
@@ -187,7 +206,19 @@ func (m *AudioPatternMatcher) Push(samples []float32) []AudioPatternMatch {
 				continue
 			}
 			confidence := m.latestFeatureSimilarity(pattern.features)
-			if confidence < m.threshold || pattern.hasMatch && m.totalSamples-pattern.lastMatchEnd < m.cooldownSamples {
+			if pattern.aboveThreshold {
+				// A release threshold prevents one sustained cue from producing a
+				// match on every 10 ms analysis hop when cooldown is zero.
+				if confidence < m.threshold*0.9 {
+					pattern.aboveThreshold = false
+				}
+				continue
+			}
+			if confidence < m.threshold {
+				continue
+			}
+			pattern.aboveThreshold = true
+			if pattern.hasMatch && m.totalSamples-pattern.lastMatchEnd < m.cooldownSamples {
 				continue
 			}
 			pattern.hasMatch = true
@@ -199,8 +230,9 @@ func (m *AudioPatternMatcher) Push(samples []float32) []AudioPatternMatch {
 	return matches
 }
 
-// Reset discards buffered stream data, offsets, and cooldown state. Capture
-// backends should call it after a dropped-buffer discontinuity.
+// Reset discards buffered stream data and cooldown state while preserving the
+// monotonic public sample offset. Capture backends should call it after a
+// dropped-buffer discontinuity.
 func (m *AudioPatternMatcher) Reset() {
 	if m == nil {
 		return
@@ -209,10 +241,11 @@ func (m *AudioPatternMatcher) Reset() {
 	defer m.mu.Unlock()
 	clear(m.sampleBuffer)
 	clear(m.featureBuffer)
-	m.totalSamples, m.totalFeatures = 0, 0
+	m.segmentSamples, m.totalFeatures = 0, 0
 	for index := range m.patterns {
 		m.patterns[index].hasMatch = false
 		m.patterns[index].lastMatchEnd = 0
+		m.patterns[index].aboveThreshold = false
 	}
 }
 
@@ -230,10 +263,8 @@ func (m *AudioPatternMatcher) latestFeatureSimilarity(reference []audioPatternFe
 	for index, referenceFrame := range reference {
 		inputFrame := m.featureBuffer[(windowStart+int64(index))%int64(len(m.featureBuffer))]
 		if !referenceFrame.active {
-			totalWeight += audioPatternSilenceWeight
-			if !inputFrame.active {
-				weightedSimilarity += audioPatternSilenceWeight
-			}
+			// Silence is temporal spacing, not positive matching evidence. In
+			// particular, long silent references must never match a silent stream.
 			continue
 		}
 		totalWeight++
@@ -258,13 +289,14 @@ func (m *AudioPatternMatcher) latestFeatureSimilarity(reference []audioPatternFe
 }
 
 type audioPatternFeatureExtractor struct {
-	frameSize int
-	hopSize   int
-	window    []float64
-	bandStart [audioPatternBandCount]int
-	bandEnd   [audioPatternBandCount]int
-	real      []float64
-	imaginary []float64
+	sampleRate int
+	frameSize  int
+	hopSize    int
+	window     []float64
+	bandStart  [audioPatternBandCount]int
+	bandEnd    [audioPatternBandCount]int
+	real       []float64
+	imaginary  []float64
 }
 
 func newAudioPatternFeatureExtractor(sampleRate int) (*audioPatternFeatureExtractor, error) {
@@ -277,7 +309,7 @@ func newAudioPatternFeatureExtractor(sampleRate int) (*audioPatternFeatureExtrac
 	if err != nil {
 		return nil, err
 	}
-	e := &audioPatternFeatureExtractor{frameSize: frameSize, hopSize: hopSize, window: make([]float64, frameSize), real: make([]float64, fftSize), imaginary: make([]float64, fftSize)}
+	e := &audioPatternFeatureExtractor{sampleRate: sampleRate, frameSize: frameSize, hopSize: hopSize, window: make([]float64, frameSize), real: make([]float64, fftSize), imaginary: make([]float64, fftSize)}
 	for index := range e.window {
 		e.window[index] = 0.5 - 0.5*math.Cos(2*math.Pi*float64(index)/float64(frameSize-1))
 	}
@@ -302,10 +334,13 @@ func newAudioPatternFeatureExtractor(sampleRate int) (*audioPatternFeatureExtrac
 	return e, nil
 }
 
-func (e *audioPatternFeatureExtractor) templateFeatures(samples []float32) ([]audioPatternFeature, error) {
+func (e *audioPatternFeatureExtractor) templateFeatures(ctx context.Context, samples []float32) ([]audioPatternFeature, error) {
 	features := make([]audioPatternFeature, 0, 1+(len(samples)-e.frameSize)/e.hopSize)
 	maximumEnergy := 0.0
 	for start := 0; start+e.frameSize <= len(samples); start += e.hopSize {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		feature := e.featureFromSlice(samples[start : start+e.frameSize])
 		features = append(features, feature)
 		maximumEnergy = math.Max(maximumEnergy, feature.energy)
@@ -314,19 +349,34 @@ func (e *audioPatternFeatureExtractor) templateFeatures(samples []float32) ([]au
 		return nil, fmt.Errorf("samples contain no usable spectral energy")
 	}
 	cutoff, firstActive, lastActive := maximumEnergy*1e-8, -1, -1
-	for index, feature := range features {
-		if feature.active && feature.energy >= cutoff {
-			if firstActive < 0 {
-				firstActive = index
-			}
-			lastActive = index
+	activeFrames := 0
+	for index := range features {
+		feature := &features[index]
+		if !feature.active || feature.energy < cutoff {
+			// Decoder dither and quantization noise can have a valid spectral
+			// shape while carrying negligible energy. Treat it as temporal
+			// spacing rather than equal-weight positive matching evidence.
+			feature.active = false
+			continue
 		}
+		activeFrames++
+		if firstActive < 0 {
+			firstActive = index
+		}
+		lastActive = index
 	}
 	if firstActive < 0 {
 		return nil, fmt.Errorf("samples contain no usable non-silent frames")
 	}
 	trimmed := make([]audioPatternFeature, lastActive-firstActive+1)
 	copy(trimmed, features[firstActive:lastActive+1])
+	trimmedSamples := e.frameSize + (len(trimmed)-1)*e.hopSize
+	if trimmedSamples < samplesForMilliseconds(e.sampleRate, audioPatternMinimumTemplateMilliseconds) {
+		return nil, fmt.Errorf("samples contain less than %d milliseconds of usable pattern span", audioPatternMinimumTemplateMilliseconds)
+	}
+	if float64(activeFrames)/float64(len(trimmed)) < audioPatternMinimumActiveRatio {
+		return nil, fmt.Errorf("samples contain too little active audio for reliable matching")
+	}
 	return trimmed, nil
 }
 

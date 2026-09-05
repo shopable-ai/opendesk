@@ -1,12 +1,12 @@
 ---
 title: Go 测试逐文件分类清单
-description: 2026-09-02 OpenDesk 测试架构审查中 145 个迁移前 *_test.go 资产的逐文件结论、实际处置与验收入口。
+description: OpenDesk 测试架构审查中 151 个已登记 *_test.go 资产的逐文件结论、实际处置与验收入口。
 order: 21
 ---
 
 # Go 测试逐文件分类清单
 
-本清单以 2026-09-02 最终工作树为输入：迁移前口径共 145 个 `*_test.go` 资产；3 个伪测试工具迁移后，当前仍有 142 个。每个文件只取一个主处置标签，避免同一文件在评分时重复计数。
+本清单以 2026-09-02 基线并纳入 Audio pattern watcher 增量：共登记 151 个 `*_test.go` 资产；3 个伪测试工具迁移后，当前应有 148 个。每个文件只取一个主处置标签，避免同一文件在评分时重复计数。
 
 ## 决策依据
 
@@ -26,28 +26,28 @@ order: 21
 
 | 标签 | 文件数 |
 | --- | ---: |
-| `KEEP_PACKAGE` | 87 |
+| `KEEP_PACKAGE` | 90 |
 | `MOVE_GO_BLACKBOX` | 29 |
-| `SPLIT_JS_CONTRACT` | 12 |
+| `SPLIT_JS_CONTRACT` | 15 |
 | `MOVE_TOOL` | 3 |
 | `OPT_IN_LIVE` | 2 |
 | `VENDOR_ONLY` | 4 |
 | `ARCHIVE_ONLY` | 8 |
-| 合计 | 145 |
+| 合计 | 151 |
 
 ## 执行账本：标签就是逐文件操作码
 
 下面不是将来要做的建议，而是完整逐文件表中“处置”列的**已执行操作**。因此，某个
 `*_test.go` 还在原 package 目录不等于遗漏：只有 `E-T` 应从旧路径消失；`E-K`、`E-J`、
 `E-L` 和 `E-V` 都有意保留原文件以保持它们的 package、平台或上游边界。每个文件只有一个
-处置标签，故也只有一个下面的执行码；12 个 `E-J` 的具体 JS 文件仍逐行写在它自己的“结论与
+处置标签，故也只有一个下面的执行码；15 个 `E-J` 的具体 JS 文件仍逐行写在它自己的“结论与
 证据”列，不能由本表的汇总命令取代。
 
 | 执行码 / 对应标签 | 已完成的文件调整 | 当前状态与保留位置 | 如何验收 |
 | --- | --- | --- | --- |
-| `E-K` / `KEEP_PACKAGE`（87） | 不移动；保留需要 private helper、fake backend、Goja EventLoop、并发/EventLoop 状态机或 native seam 的白盒测试。 | **已完成**。测试继续与实现同包；原路径就是正确位置。 | `go test ./... -count=1`；某行明确标有 build tag 时按该行限定命令运行。 |
+| `E-K` / `KEEP_PACKAGE`（90） | 不移动；保留需要 private helper、fake backend、Goja EventLoop、并发/EventLoop 状态机或 native seam 的白盒测试。 | **已完成**。测试继续与实现同包；原路径就是正确位置。 | `go test ./... -count=1`；某行明确标有 build tag 时按该行限定命令运行。 |
 | `E-B` / `MOVE_GO_BLACKBOX`（29） | 将只调用 exported Go API、没有同包 fixture/helper 依赖的领域或模型测试移至顶层 `tests/<domain>/`，并改为外部 `package <owner>_test`。 | **已完成**。测试不再与 `automation/` 或 `pkg/` 实现混放；每行记录迁移前路径。 | `go test ./tests/automation ./tests/container ./tests/custom-ui ./tests/custom-ui/core ./tests/desktopvision ./tests/execution ./tests/recorder ./tests/runtime ./tests/runtimeconfig ./tests/scheduler ./tests/semantic-exec -count=1`。 |
-| `E-J` / `SPLIT_JS_CONTRACT`（12） | 保留 Go native/private seam，同时把可由用户观察的 Runtime 行为拆到该行引用的 `tests/runtime-api/unit/*.test.js`。 | **已完成**。Go 文件不移动，JS 契约已在逐行证据列存在。 | `go test ./... -count=1` 加 `./scripts/test_runtime_apis.sh unit`；每行列出的 JS 文件是公共行为的直接来源。 |
+| `E-J` / `SPLIT_JS_CONTRACT`（15） | 保留 Go native/private seam，同时把可由用户观察的 Runtime 行为拆到该行引用的 `tests/runtime-api/**/*.js`。 | **已完成**。Go 文件不移动，JS 契约已在逐行证据列存在。 | `go test ./... -count=1` 加正式 Runtime API unit gate；每行列出的 JS 文件是公共行为的直接来源。 |
 | `E-T` / `MOVE_TOOL`（3） | 删除旧的输出型 `*_test.go`，改为可执行工具；不再把生成图片或人工可视化计作 unit test。 | **已完成**。旧路径不存在；两个 layout 职责在 `tests/automation/tools/image-layout-lab/main.go`，WeChat 职责在 `tests/wechat/tools/visualize-layout/main.go`。 | `go run ./tests/automation/tools/image-layout-lab all .runtime/tests/test-architecture/tools/image-layout`；WeChat 工具仅在已有截图时以 `go run ./tests/wechat/tools/visualize-layout --image <input> --output .runtime/tests/wechat/visualize-layout` 运行。 |
 | `E-L` / `OPT_IN_LIVE`（2） | 不移动真实主机读取代码；默认 skip，并把读取权限收紧为显式 opt-in。 | **已完成**。仍在 `automation/`，因为 platform backend 的 private seam 不能搬出 package。 | 音频：`OPENDESK_LIVE_AUDIO_TEST=1 go test ./automation -run '^TestDarwinAudioDeviceEnumerationMetadataDecodes$' -count=1`；剪贴板：`OPENDESK_LIVE_CLIPBOARD_TEST=1 go test ./automation -run '^TestDarwinRichClipboardMetadataCanBeReadWithoutContent$' -count=1`。 |
 | `E-V` / `VENDOR_ONLY`（4） | 不移动或改写上游测试；从根模块成功率隔离，并为嵌套 module 建立单独 compile/live 边界。 | **已完成**。仍在 `third_party/kbinani-screenshot/` 与 `third_party/robotgo/`；RobotGo 的 compile 通过 nested `go.mod` local replace 使用兼容 screenshot 实现。 | compile-only：`(cd third_party/kbinani-screenshot && go test -run '^$' ./...)` 和 `(cd third_party/robotgo && go test -run '^$' ./...)`；不运行输入设备/剪贴板 live 用例。 |
@@ -60,9 +60,9 @@ order: 21
 
 ## 先看处置结论
 
-- **继续与源码同包的 87 个文件**不是按路径批量保留。表中必须逐项列出直接访问的未导出实现、
+- **继续与源码同包的 90 个文件**不是按路径批量保留。表中必须逐项列出直接访问的未导出实现、
   同包 test fixture、native seam 或 EventLoop/状态机边界；“只是 Go contract”不再是保留理由。
-- **拆分公共契约的 12 个文件**继续保留必要的 native/private seam，同时在“结论与证据”列给出
+- **拆分公共契约的 15 个文件**继续保留必要的 native/private seam，同时在“结论与证据”列给出
   对应的 `tests/runtime-api/unit/*.test.js`。Go 断言不能替代这些 JS 文件，JS 文件也不能证明
   backend、取消、资源计数或 Goja owner EventLoop。
 - **迁至顶层 tests 的 29 个文件**只依赖 exported Go API；已改为外部 test package，因此不能重新
@@ -106,6 +106,10 @@ order: 21
 | `automation/appStorage_test.go` | `KEEP_PACKAGE` | 是：`normalizeAppStorageName`、`migrateLegacyStorage` | AppStorage 历史品牌名与迁移优先级 | `t.TempDir()` 文件树 | 防止迁移选错目录或覆盖现有数据 | 私有迁移算法只能同包白盒；不是 Runtime public contract。 |
 | `automation/app_test.go` | `SPLIT_JS_CONTRACT` | 是：`parseAppTarget`、`registerApp`、wait owner | App target 投影、fake backend、取消与多进程分组 | fake backend、clock、Goja EventLoop | 防止结构化错误、取消后 worker 泄漏和分组丢 PID | Go seam 留同包；公共 `App` 契约由 `tests/runtime-api/unit/app.test.js`。 |
 | `automation/audio_backend_darwin_test.go` | `OPT_IN_LIVE` | 是：`darwinAudioBackend` | CoreAudio 真实设备枚举与 metadata 解码 | 当前 macOS 音频设备，可能含私有名称/UID | 只证明本机 backend 能解码当前设备 | 默认 skip；仅 `OPENDESK_LIVE_AUDIO_TEST=1` 显式运行。 |
+| `automation/audio_pattern_matcher_test.go` | `KEEP_PACKAGE` | 是：`audioPatternFeatureExtractor`、template feature 与 matcher 内部状态 | 固定声音的 FFT 特征、静音裁剪、cooldown、discontinuity 和 offset | 合成 PCM、clock、context | 防止低能量噪声误命中、短 burst 伪装 reference 或断流后跨段匹配 | DSP 私有 seam 留同包；它不替代 JavaScript watcher 契约。 |
+| `automation/audio_pattern_reference_open_unix_test.go` | `KEEP_PACKAGE` | 是：`openAudioPatternReference` Unix 文件打开 helper | symlink 指向 FIFO 时的非阻塞文件类型防护 | `t.TempDir()`、Unix FIFO 与 symlink | 防止 reference 检查在恶意命名管道上永久阻塞 | build-tagged filesystem 安全 seam 必须贴近 Unix 私有 opener。 |
+| `automation/audio_pattern_reference_test.go` | `KEEP_PACKAGE` | 是：WAV/MP3 frame validator、reference loader 与 decoder recovery | reference 格式、大小、时长、context 优先级和 malformed input | `t.TempDir()`、合成 WAV/MP3、仓库 ding fixture | 防止畸形 chunk/frame、decoder panic、静音 reference 和取消错误映射回归 | parser/decoder 防御边界是 Go 私有 seam；公共输入错误另由 Audio JS 测试覆盖。 |
+| `automation/audio_pattern_runtime_internal_test.go` | `SPLIT_JS_CONTRACT` | 是：`AudioPatternRuntime` 私有 watch map、queued loop、fake backend 与资源计数 | PCM backpressure、first-signal、Promise single-flight、Stop/Wait 和 Close teardown | Goja、合成 WAV、goroutine、fake capture backend | 防止 capture 扩域、孤儿 session 无界累积、回调竞态及 cleanup 假归零 | Go 生命周期 seam 留同包；公共形状由 `tests/runtime-api/unit/audio.test.js` 与 `tests/runtime-api/seams/audio-pattern-positive.js`。 |
 | `automation/audio_test.go` | `SPLIT_JS_CONTRACT` | 是：`newAudioWithBackend`、`registerAudio`、错误转换 | Audio fake backend、校验、readback、Goja shape | fake backend、Goja | 防止范围校验、lowerCamel 投影和稳定错误码回归 | native seam 留同包；公共 `Audio` 由 `tests/runtime-api/unit/audio.test.js`。 |
 | `automation/browser_compat_test.go` | `KEEP_PACKAGE` | 是：同包 Browser/Context 容器状态并注入 raw handles | 非公开 legacy/upgraded/playwright facade 路由与容器生命周期 | Goja，全部 fake page | 防止旧脚本兼容层意外崩溃，但不证明 browser capability | 兼容层已退出公共 catalog/types/examples；只保留同包私有回归。 |
 | `tests/automation/browser_lifecycle_test.go` | `MOVE_GO_BLACKBOX` | 否：只调用 exported Browser/Context 方法 | 默认 context 所有权、closed guard、幂等 close | 无，纯内存 | 防止关闭后复活或 page 跨 context 泄漏 | 已从 `automation/browser_lifecycle_test.go` 迁至外部 package；仍不是用户 JS 参数/返回契约。 |
@@ -183,7 +187,9 @@ order: 21
 | `tests/execution/desktop_events_test.go` | `MOVE_GO_BLACKBOX` | 否：仅用 exported Request/Run/artifact API 注入 public fake backend | Events 让 execution 存活、回调和结束 cleanup | fake desktop backend、goroutine、clock | 防止 runner 过早退出或 teardown 后 subscription 残留 | 已从 `pkg/execution/desktop_events_test.go` 迁至外部 package；公开 Event shape 仍由 `tests/runtime-api/unit/events.test.js`。 |
 | `tests/execution/global_shortcut_test.go` | `MOVE_GO_BLACKBOX` | 否：仅用 exported Request/Run/artifact API 注入 public fake backend | shortcut callback、keepalive、failure cleanup | fake backend、goroutine、clock | 防止 callback failure 后注册残留或 execution 不结束 | 已从 `pkg/execution/global_shortcut_test.go` 迁至外部 package；公开 globalShortcut 语义仍由 `tests/runtime-api/unit/global-shortcut.test.js`。 |
 | `tests/execution/manager_test.go` | `MOVE_GO_BLACKBOX` | 否：仅调用 exported Manager/ExecutionResult/AgentSummary | 并发 execution registry、CancelAll/WaitAll、shutdown admission | goroutine | 防止 shutdown 后仍接收任务或 WaitAll 提前返回 | 已从 `pkg/execution/manager_test.go` 迁至外部 package；manager 不再以同包测试为默认位置。 |
+| `pkg/execution/audio_pattern_runtime_api_test.go` | `SPLIT_JS_CONTRACT` | 否：只用 exported execution Request/Run 和 Audio capture backend interfaces | 注入确定性 PCM 后运行真实 watchSound、waitForSound 与 cleanup-failure JavaScript | Goja execution、合成 WAV、memory capture backend、临时 Evidence | 防止公开 match envelope、cached wait Promise、stop 幂等、cleanup failure 误 resolve 和资源计数断裂 | Go 仅提供 backend/harness；用户行为事实源是 `tests/runtime-api/seams/audio-pattern-positive.js` 与 `tests/runtime-api/seams/audio-pattern-cleanup-failure.js`。 |
 | `pkg/execution/native_extension_privacy_unix_test.go` | `KEEP_PACKAGE` | 是：helper-process 模式与 persistent artifact 检查 | extension remote error 的日志/summary 脱敏 | helper subprocess、`t.TempDir()` | 防止 extension stderr/secret 进入持久 Evidence | Unix execution privacy integration。 |
+| `pkg/execution/runner_teardown_test.go` | `SPLIT_JS_CONTRACT` | 否：只用 exported execution Request/Run、artifact 和 backend interfaces | 取消时多个 hostile Promise rejection handler 与音频 session teardown | Goja execution、goroutine、合成 WAV、memory backend | 防止单次 Interrupt 被消耗后第二个无限 handler 卡住 execution cleanup | Go 负责 runner watchdog seam；实际 hostile 用户脚本在 `tests/runtime-api/seams/audio-pattern-teardown.js`。 |
 | `tests/execution/runner_lifecycle_test.go` | `MOVE_GO_BLACKBOX` | 否：仅经 exported Request/Run/artifact API 驱动 lifecycle | async HTTP、Abort、unhandled rejection、deadline 与 goroutine drain | loopback HTTP、clock、goroutine、临时 artifacts | 防止 Promise/cancel 后 worker 或 goroutine 累积 | 已从 `pkg/execution/runner_lifecycle_test.go` 迁至外部 package；用户 surface 仍由 Runtime JS catalog 负责。 |
 | `tests/execution/runner_test.go` | `MOVE_GO_BLACKBOX` | 否：仅经 exported Request/Run/artifact API 与公开 Custom UI interfaces 注入 fake | Custom UI、Dialog、stack、Execution、Native Extension opt-in 与 timeout cleanup | fake UI、loopback、clock、`t.TempDir()` | 防止 capability 越权、unawaited resource 泄漏和 busy loop 不可中断 | 已从 `pkg/execution/runner_test.go` 迁至外部 package；Go integration 不替代 Runtime JS public contract。 |
 | `tests/runtime/runtime_ownership_test.go` | `MOVE_GO_BLACKBOX` | 否：静态读取受审源码而不访问 execution 私有符号 | EventLoop ownership 和禁止跨 goroutine 直接触碰 Goja 的静态约束 | 仓库源码文件 | 防止关键 `RunOnLoop`/`Interrupt` 约束被移除 | 已从 `pkg/execution/runtime_ownership_test.go` 迁至外部 package；静态规则属于仓库级 runtime test，而非 execution 源码同包测试。 |

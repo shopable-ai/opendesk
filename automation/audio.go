@@ -277,7 +277,7 @@ func audioDevicePayload(device AudioDevice) map[string]interface{} {
 	}
 }
 
-func registerAudio(runtimeValue *goja.Runtime, opts InitJSOptions) *Audio {
+func registerAudio(runtimeValue *goja.Runtime, opts InitJSOptions) (*Audio, *AudioPatternRuntime) {
 	factory := opts.AudioBackendFactory
 	var backend AudioBackend
 	if factory != nil {
@@ -316,8 +316,9 @@ func registerAudio(runtimeValue *goja.Runtime, opts InitJSOptions) *Audio {
 	set("getDefaultOutput", func(goja.FunctionCall) (interface{}, error) { return audio.GetDefaultOutput() })
 	set("getDefaultInput", func(goja.FunctionCall) (interface{}, error) { return audio.GetDefaultInput() })
 	set("getCapabilities", func(goja.FunctionCall) (interface{}, error) { return audio.GetCapabilities(), nil })
+	patterns := attachAudioPatternMethods(runtimeValue, object, opts)
 	_ = runtimeValue.Set("Audio", object)
-	return audio
+	return audio, patterns
 }
 
 func audioVolumeArgument(value goja.Value) (float64, error) {

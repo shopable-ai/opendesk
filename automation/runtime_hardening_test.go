@@ -117,12 +117,23 @@ func TestHTTPResponseBodyLimitIsNormalized(t *testing.T) {
 	}
 }
 
-func TestRuntimeResourceCountsIncludeNotificationWorkers(t *testing.T) {
-	counts := RuntimeResourceCounts{NotificationWorkers: 1, NotificationPending: 2}
+func TestRuntimeResourceCountsIncludeAsyncOwners(t *testing.T) {
+	counts := RuntimeResourceCounts{
+		NotificationWorkers:  1,
+		NotificationPending:  2,
+		AudioPatternWorkers:  3,
+		AudioPatternPending:  4,
+		AudioPatternWatches:  5,
+		AudioPatternSessions: 6,
+	}
 	if counts.IsZero() {
 		t.Fatal("notification resources were omitted from RuntimeResourceCounts.IsZero")
 	}
-	for _, field := range []string{"notificationWorkers=1", "notificationPending=2"} {
+	for _, field := range []string{
+		"notificationWorkers=1", "notificationPending=2",
+		"audioPatternWorkers=3", "audioPatternPending=4",
+		"audioPatternWatches=5", "audioPatternSessions=6",
+	} {
 		if !strings.Contains(counts.String(), field) {
 			t.Fatalf("RuntimeResourceCounts.String() omitted %q: %s", field, counts.String())
 		}

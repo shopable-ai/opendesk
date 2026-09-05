@@ -54,20 +54,25 @@ declare global {
     references: OpenDeskAudioPatternReference[];
     /** Finite matcher confidence threshold in (0, 1]; default 0.88. */
     threshold?: number;
-    /** Per-reference duplicate suppression interval; default 3000ms. */
+    /** Per-reference duplicate suppression interval in 0..600000; default 3000ms. */
     cooldownMs?: number;
-    /** Upper bound for permission and native backend startup. */
+    /** Cooperative setup deadline in 1..60000; settlement follows bounded cleanup and blocking OS I/O can delay observation. */
     startupTimeoutMs?: number;
   }
 
   interface OpenDeskAudioPatternWaitOptions extends OpenDeskAudioPatternWatchOptions {
-    /** One-shot wait timeout; default 30000ms. A timeout rejects with code TIMEOUT. */
+    /**
+     * One-shot listening timeout in 1..600000, counted after setup succeeds; default 30000ms. A timeout rejects with code TIMEOUT.
+     * Match, backend error, and timeout use a producer-observed first-signal arbitration.
+     */
     timeoutMs?: number;
   }
 
+  type OpenDeskAudioPatternPermission = "screenRecording" | "none";
+
   interface OpenDeskAudioPatternSourceCapability {
     supported: boolean;
-    permission: "screenRecording" | "none";
+    permission: OpenDeskAudioPatternPermission;
   }
 
   interface OpenDeskAudioProcessPatternSourceCapability extends OpenDeskAudioPatternSourceCapability {
@@ -77,10 +82,11 @@ declare global {
   interface OpenDeskAudioPatternWatchCapability {
     supported: boolean;
     status: "experimental" | "unsupported";
+    platform: string;
     backend: string;
-    /** Runtime probe result, not a per-host live-evidence attestation. */
+    /** Runtime backend/source probe result. False keeps every source fail-closed. */
     verified: boolean;
-    permission: string;
+    permission: OpenDeskAudioPatternPermission;
     sources: {
       system: OpenDeskAudioPatternSourceCapability;
       process: OpenDeskAudioProcessPatternSourceCapability;
@@ -106,6 +112,7 @@ declare global {
 
   interface OpenDeskAudioSoundWatcherResult {
     id: string;
+    /** "stopped" confirms session release; "failed" records callback/backend/cleanup failure and may leave final cleanup to execution teardown. */
     status: "stopped" | "failed";
     stoppedAt: string;
     matches?: number;
@@ -117,11 +124,18 @@ declare global {
     readonly backend: string;
     readonly startedAt: string;
     readonly sourceScope: OpenDeskAudioPatternSourceScope;
-    readonly sourceVerified: boolean;
+    /** Confirms the requested stream scope, not application attribution for a system mix. */
+    readonly sourceVerified: true;
     status(): OpenDeskAudioSoundWatcherStatus;
     /** True only when this call accepts the transition to stopping. */
     stop(): boolean;
-    /** Resolves after capture, matcher, callback, and buffers have been released. */
+    /**
+     * Resolves after the bounded stop/join attempt completes and no new callback can start.
+     * Only status "stopped" confirms session release; status "failed" can leave final cleanup to execution teardown.
+     * It does not await or cancel a callback Promise that was already invoked before stop was accepted.
+     * While the execution is still active, a later rejection is reported through its async-error path, but
+     * does not change the watcher's stopped terminal state or delay this Promise.
+     */
     wait(): Promise<OpenDeskAudioSoundWatcherResult>;
   }
 
@@ -135,8 +149,8 @@ declare global {
     /** Digest identifies the validated reference without exposing its path or contents. */
     referenceDigest: string;
     sourceScope: OpenDeskAudioPatternSourceScope;
-    sourceVerified: boolean;
-    pid?: number;
+    /** Confirms the requested stream scope, not application attribution for a system mix. */
+    sourceVerified: true;
     contentIncluded: false;
   }
 
@@ -146,7 +160,7 @@ declare global {
     backend: string;
     timestamp: string;
     sequence: number;
-    /** Number of newer matches folded into this callback delivery. */
+    /** Number of earlier undispatched matches superseded or folded into this callback delivery. */
     coalesced: number;
     data: OpenDeskAudioPatternMatchData;
   }
@@ -200,12 +214,19 @@ declare global {
     getInputDevices(): OpenDeskAudioDevice[];
     getDefaultOutput(): OpenDeskAudioDevice | null;
     getDefaultInput(): OpenDeskAudioDevice | null;
-    /** Starts an execution-owned in-memory known-sound watcher. */
+    /**
+     * Starts an execution-owned in-memory known-sound watcher.
+     * Callback rejection while listening fails the watcher. If the execution is still active, a rejection that
+     * settles after stop was accepted is still an async error, but does not replace the stopped terminal state.
+     */
     watchSound(
       options: OpenDeskAudioPatternWatchOptions,
       callback: (event: OpenDeskAudioPatternMatch) => void | Promise<void>,
     ): Promise<OpenDeskAudioSoundWatcher>;
-    /** Resolves with the first match and releases its watcher. */
+    /**
+     * Resolves only after the first match and successful capture release.
+     * A native cleanup failure rejects instead of returning the saved match.
+     */
     waitForSound(options: OpenDeskAudioPatternWaitOptions): Promise<OpenDeskAudioPatternMatch>;
     getCapabilities(): OpenDeskAudioCapabilities;
   }

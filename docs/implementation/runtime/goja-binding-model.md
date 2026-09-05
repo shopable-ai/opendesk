@@ -184,10 +184,12 @@ set("getCapabilities", ...)
 runtime.Set("Audio", object)
 ```
 
-这层显式注册用于稳定控制错误转成、`null` 返回值和 backend 选择；它不是遗漏。当前
-Audio backend 没有播放 worker、Promise handle 或 teardown 资源，因此初始化处有意不把返回的
-`*Audio` 保存到 `RuntimeLifecycle`。如果以后加入录音、持续设备订阅或其他异步资源，应像
-Sound 一样把 owner 加入 lifecycle，并同时补充 allowlist/catalog、TypeScript、文档和 JS 测试。
+这层显式注册用于稳定控制错误转换、`null` 返回值和 backend 选择；它不是遗漏。同步音量/设备控制
+仍由 `*Audio` backend 直接完成；固定声音监听则由 `attachAudioPatternMethods` 把
+`watchSound/waitForSound` 合入同一个 namespace。返回的 `*AudioPatternRuntime` 保存在
+`RuntimeLifecycle`，其 capture session、matcher worker、Promise 与有界队列统一进入
+`Close → Wait → ResourceCounts`。默认产品 capture backend 仍为 unsupported；注入 memory backend
+只用于 matcher 与 Runtime API seam，不能当作平台 live evidence。
 
 ## 第二层：Runtime 注册和 raw bridge
 

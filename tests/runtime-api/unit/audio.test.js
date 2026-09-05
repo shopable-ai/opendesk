@@ -28,14 +28,17 @@
 
     const patternWatch = capabilities.patternWatch;
     assert(patternWatch && typeof patternWatch === 'object', 'patternWatch capability must be present');
-    assert(typeof patternWatch.supported === 'boolean', 'patternWatch support must be explicit');
-    assert(['experimental', 'unsupported'].includes(patternWatch.status), 'patternWatch status must be explicit');
-    assert(typeof patternWatch.backend === 'string' && patternWatch.backend.length > 0, 'patternWatch backend must be explicit');
-    assert(typeof patternWatch.verified === 'boolean', 'patternWatch verification must be explicit');
+    equal(patternWatch.supported, false, 'default product pattern backend must remain unavailable');
+    equal(patternWatch.status, 'unsupported', 'default product pattern backend status');
+    assert(typeof patternWatch.platform === 'string' && patternWatch.platform.length > 0, 'patternWatch platform must be explicit');
+    equal(patternWatch.backend, 'unavailable', 'default product pattern backend identity');
+    equal(patternWatch.verified, false, 'default product pattern backend must remain unverified');
+    assert(['screenRecording', 'none'].includes(patternWatch.permission), 'patternWatch permission must be bounded');
     assert(patternWatch.sources && typeof patternWatch.sources === 'object', 'patternWatch sources must be present');
-    assert(typeof patternWatch.sources.system.supported === 'boolean', 'system pattern source support must be explicit');
-    assert(typeof patternWatch.sources.system.permission === 'string', 'system pattern source permission must be explicit');
-    assert(typeof patternWatch.sources.process.supported === 'boolean', 'process pattern source support must be explicit');
+    equal(patternWatch.sources.system.supported, false, 'default system pattern source must be unavailable');
+    assert(['screenRecording', 'none'].includes(patternWatch.sources.system.permission), 'system pattern source permission must be bounded');
+    equal(patternWatch.sources.process.supported, false, 'default process pattern source must be unavailable');
+    assert(['screenRecording', 'none'].includes(patternWatch.sources.process.permission), 'process pattern source permission must be bounded');
     equal(patternWatch.sources.process.selector, 'pid', 'process source selector');
     assert(Array.isArray(patternWatch.formats), 'reference formats must be an array');
     assert(patternWatch.formats.includes('wav'), 'WAV references must be declared');
@@ -45,7 +48,7 @@
     assert(Number.isInteger(patternWatch.minReferenceDurationMs) && patternWatch.minReferenceDurationMs > 0, 'minimum reference duration must be bounded');
     assert(Number.isInteger(patternWatch.maxReferenceDurationMs) && patternWatch.maxReferenceDurationMs >= patternWatch.minReferenceDurationMs, 'maximum reference duration must be bounded');
     assert(Number.isInteger(patternWatch.maxConcurrentWatchers) && patternWatch.maxConcurrentWatchers > 0, 'watcher limit must be bounded');
-    assert(['native', 'runtime-guard', 'unavailable'].includes(patternWatch.selfPlaybackExclusion), 'self-playback exclusion must be explicit');
+    equal(patternWatch.selfPlaybackExclusion, 'unavailable', 'default self-playback exclusion must fail closed');
     equal(patternWatch.rawAudioExposed, false, 'raw audio must not be exposed');
     equal(patternWatch.rawAudioPersisted, false, 'raw audio must not be persisted');
     equal(capabilities.devices.setDefaultOutput, false, 'default-output mutation must not be advertised');
@@ -94,6 +97,21 @@
     );
     await expectAudioError(
       () => Audio.watchSound({ source: { type: 'system' }, references: [reference], cooldownMs: -1 }, () => {}),
+      'INVALID_ARGUMENT',
+      'Audio.watchSound',
+    );
+    await expectAudioError(
+      () => Audio.watchSound({ source: { type: 'system' }, references: [reference], cooldownMs: 600001 }, () => {}),
+      'INVALID_ARGUMENT',
+      'Audio.watchSound',
+    );
+    await expectAudioError(
+      () => Audio.watchSound({ source: { type: 'system' }, references: [reference], startupTimeoutMs: 0 }, () => {}),
+      'INVALID_ARGUMENT',
+      'Audio.watchSound',
+    );
+    await expectAudioError(
+      () => Audio.watchSound({ source: { type: 'system' }, references: [reference], startupTimeoutMs: 60001 }, () => {}),
       'INVALID_ARGUMENT',
       'Audio.watchSound',
     );

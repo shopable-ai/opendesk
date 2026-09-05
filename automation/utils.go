@@ -50,6 +50,10 @@ type InitJSOptions struct {
 	// AudioBackendFactory is an internal dependency seam for Audio unit tests.
 	// Normal executions use the platform-selected backend.
 	AudioBackendFactory AudioBackendFactory
+	// AudioCaptureBackendFactory is an internal dependency seam for known-sound
+	// watcher tests. Product executions currently use the explicit unsupported
+	// backend until a platform capture backend has real runtime evidence.
+	AudioCaptureBackendFactory AudioCaptureBackendFactory
 	// ClipboardBackendFactory is an internal dependency seam for rich-format,
 	// size-limit, format-negotiation, and privacy tests.
 	ClipboardBackendFactory ClipboardBackendFactory
@@ -89,6 +93,7 @@ type RuntimeLifecycle struct {
 	App            *AppRuntime
 	Notifications  *NotificationsRuntime
 	Command        *CommandRuntime
+	AudioPatterns  *AudioPatternRuntime
 	FileJSON       *FileJSONRuntime
 	FileSystem     *FileSystem
 }
@@ -119,6 +124,9 @@ func (l *RuntimeLifecycle) Wait() {
 	}
 	if l != nil && l.Command != nil {
 		l.Command.Wait()
+	}
+	if l != nil && l.AudioPatterns != nil {
+		l.AudioPatterns.Wait()
 	}
 	if l != nil && l.FileJSON != nil {
 		l.FileJSON.Wait()
@@ -154,6 +162,9 @@ func (l *RuntimeLifecycle) CancelAsync() {
 	}
 	if l != nil && l.Command != nil {
 		l.Command.Close()
+	}
+	if l != nil && l.AudioPatterns != nil {
+		l.AudioPatterns.Close()
 	}
 	if l != nil && l.FileJSON != nil {
 		l.FileJSON.CancelPending()
@@ -212,6 +223,11 @@ func (l *RuntimeLifecycle) AsyncCounts() (timers int, workers int64, callbacks i
 		workers += commandWorkers
 		callbacks += int(commandCallbacks)
 	}
+	if l.AudioPatterns != nil {
+		audioWorkers, audioCallbacks := l.AudioPatterns.AsyncCounts()
+		workers += audioWorkers
+		callbacks += audioCallbacks
+	}
 	if l.FileJSON != nil {
 		fileWorkers, fileCallbacks, _ := l.FileJSON.ResourceCounts()
 		workers += fileWorkers
@@ -221,37 +237,41 @@ func (l *RuntimeLifecycle) AsyncCounts() (timers int, workers int64, callbacks i
 }
 
 type RuntimeResourceCounts struct {
-	Timers              int
-	HTTPWorkers         int64
-	HTTPCallbacks       int
-	UIWorkers           int64
-	UIPending           int
-	UIQueued            int
-	UIWindows           int
-	UIListeners         int
-	UIDriverSinks       int
-	UIHostProcesses     int
-	ShortcutBindings    int
-	ShortcutPending     int
-	EventSubscriptions  int
-	EventPending        int
-	CaptureWorkers      int64
-	CapturePending      int
-	CaptureSessions     int
-	AppWorkers          int64
-	AppPending          int
-	SoundWorkers        int64
-	SoundPending        int
-	SoundPlaybacks      int
-	NotificationWorkers int64
-	NotificationPending int
-	CommandWorkers      int64
-	CommandCallbacks    int64
-	CommandProcesses    int
-	FileJSONWorkers     int64
-	FileJSONCallbacks   int
-	FileJSONTemps       int64
-	FileHandles         int
+	Timers               int
+	HTTPWorkers          int64
+	HTTPCallbacks        int
+	UIWorkers            int64
+	UIPending            int
+	UIQueued             int
+	UIWindows            int
+	UIListeners          int
+	UIDriverSinks        int
+	UIHostProcesses      int
+	ShortcutBindings     int
+	ShortcutPending      int
+	EventSubscriptions   int
+	EventPending         int
+	CaptureWorkers       int64
+	CapturePending       int
+	CaptureSessions      int
+	AppWorkers           int64
+	AppPending           int
+	SoundWorkers         int64
+	SoundPending         int
+	SoundPlaybacks       int
+	NotificationWorkers  int64
+	NotificationPending  int
+	CommandWorkers       int64
+	CommandCallbacks     int64
+	CommandProcesses     int
+	AudioPatternWorkers  int64
+	AudioPatternPending  int
+	AudioPatternWatches  int
+	AudioPatternSessions int
+	FileJSONWorkers      int64
+	FileJSONCallbacks    int
+	FileJSONTemps        int64
+	FileHandles          int
 }
 
 func (l *RuntimeLifecycle) ResourceCounts() RuntimeResourceCounts {
@@ -297,6 +317,9 @@ func (l *RuntimeLifecycle) ResourceCounts() RuntimeResourceCounts {
 	if l.Command != nil {
 		counts.CommandWorkers, counts.CommandCallbacks, counts.CommandProcesses = l.Command.ResourceCounts()
 	}
+	if l.AudioPatterns != nil {
+		counts.AudioPatternWorkers, counts.AudioPatternPending, counts.AudioPatternWatches, counts.AudioPatternSessions = l.AudioPatterns.ResourceCounts()
+	}
 	if l.FileJSON != nil {
 		counts.FileJSONWorkers, counts.FileJSONCallbacks, counts.FileJSONTemps = l.FileJSON.ResourceCounts()
 	}
@@ -317,17 +340,19 @@ func (c RuntimeResourceCounts) IsZero() bool {
 		c.SoundWorkers == 0 && c.SoundPending == 0 && c.SoundPlaybacks == 0 &&
 		c.NotificationWorkers == 0 && c.NotificationPending == 0 &&
 		c.CommandWorkers == 0 && c.CommandCallbacks == 0 && c.CommandProcesses == 0 &&
+		c.AudioPatternWorkers == 0 && c.AudioPatternPending == 0 && c.AudioPatternWatches == 0 && c.AudioPatternSessions == 0 &&
 		c.FileJSONWorkers == 0 && c.FileJSONCallbacks == 0 && c.FileJSONTemps == 0 &&
 		c.FileHandles == 0
 }
 
 func (c RuntimeResourceCounts) String() string {
-	return fmt.Sprintf("timers=%d httpWorkers=%d httpCallbacks=%d uiWorkers=%d uiPending=%d uiQueued=%d uiWindows=%d uiListeners=%d uiDriverSinks=%d uiHostProcesses=%d shortcutBindings=%d shortcutPending=%d eventSubscriptions=%d eventPending=%d captureWorkers=%d capturePending=%d captureSessions=%d appWorkers=%d appPending=%d soundWorkers=%d soundPending=%d soundPlaybacks=%d notificationWorkers=%d notificationPending=%d commandWorkers=%d commandCallbacks=%d commandProcesses=%d fileJSONWorkers=%d fileJSONCallbacks=%d fileJSONTemps=%d fileHandles=%d",
+	return fmt.Sprintf("timers=%d httpWorkers=%d httpCallbacks=%d uiWorkers=%d uiPending=%d uiQueued=%d uiWindows=%d uiListeners=%d uiDriverSinks=%d uiHostProcesses=%d shortcutBindings=%d shortcutPending=%d eventSubscriptions=%d eventPending=%d captureWorkers=%d capturePending=%d captureSessions=%d appWorkers=%d appPending=%d soundWorkers=%d soundPending=%d soundPlaybacks=%d notificationWorkers=%d notificationPending=%d commandWorkers=%d commandCallbacks=%d commandProcesses=%d audioPatternWorkers=%d audioPatternPending=%d audioPatternWatches=%d audioPatternSessions=%d fileJSONWorkers=%d fileJSONCallbacks=%d fileJSONTemps=%d fileHandles=%d",
 		c.Timers, c.HTTPWorkers, c.HTTPCallbacks, c.UIWorkers, c.UIPending, c.UIQueued,
 		c.UIWindows, c.UIListeners, c.UIDriverSinks, c.UIHostProcesses, c.ShortcutBindings, c.ShortcutPending,
 		c.EventSubscriptions, c.EventPending, c.CaptureWorkers, c.CapturePending, c.CaptureSessions,
 		c.AppWorkers, c.AppPending, c.SoundWorkers, c.SoundPending, c.SoundPlaybacks,
 		c.NotificationWorkers, c.NotificationPending, c.CommandWorkers, c.CommandCallbacks, c.CommandProcesses,
+		c.AudioPatternWorkers, c.AudioPatternPending, c.AudioPatternWatches, c.AudioPatternSessions,
 		c.FileJSONWorkers, c.FileJSONCallbacks, c.FileJSONTemps, c.FileHandles)
 }
 
@@ -853,12 +878,12 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 	appStorageMethods := AutoMapObject(runtime, appStorage)
 	runtime.Set("AppStorage", appStorageMethods)
 
-	// Sound is retained by RuntimeLifecycle because playback workers and handles
-	// must be stopped when the owning Runtime is torn down. Audio currently only
-	// exposes synchronous device/volume operations, so its registration result
-	// does not need lifecycle retention.
+	// Sound playback and Audio pattern watching both own asynchronous resources.
+	// Their lifecycle owners are retained so execution teardown stops workers,
+	// native sessions, Promise waiters, and bounded queues. Audio's volume/device
+	// control backend remains synchronous and needs no separate lifecycle owner.
 	sound := registerSound(runtime, opts)
-	_ = registerAudio(runtime, opts)
+	_, audioPatterns := registerAudio(runtime, opts)
 
 	imageColor := NewImageColor()
 	imageColorMethods := AutoMapObject(runtime, imageColor)
@@ -955,7 +980,7 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 		return fmt.Errorf("failed to bind Screen.screenshot: %v", err)
 	}
 	if opts.OnReady != nil {
-		opts.OnReady(&RuntimeLifecycle{Timers: timer, HTTP: httpClient, Sound: sound, UI: uiRuntime, GlobalShortcut: globalShortcut, Events: events, ScreenCapture: screenCapture, App: appRuntime, Notifications: notificationsRuntime, Command: commandRuntime, FileJSON: fileJSON, FileSystem: fileSystem})
+		opts.OnReady(&RuntimeLifecycle{Timers: timer, HTTP: httpClient, Sound: sound, UI: uiRuntime, GlobalShortcut: globalShortcut, Events: events, ScreenCapture: screenCapture, App: appRuntime, Notifications: notificationsRuntime, Command: commandRuntime, AudioPatterns: audioPatterns, FileJSON: fileJSON, FileSystem: fileSystem})
 	}
 	return nil
 }

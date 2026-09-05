@@ -30,14 +30,14 @@ tests”而破坏 package-private 测试的访问边界。
 代表旧 `_test.go` 已从原路径消失，`SPLIT_JS_CONTRACT` 代表 Go seam 仍在原包而 JS 契约已拆出，
 `KEEP_PACKAGE`、`OPT_IN_LIVE` 和 `VENDOR_ONLY` 留在原路径则是有意的边界，不是待迁移遗漏。
 
-本轮完整逐文件结论见 [Go 测试逐文件分类清单](go-test-file-classification.md)：迁移前口径 145，迁移 3 个伪测试工具后当前仍为 142；其中 `KEEP_PACKAGE=85`、`MOVE_GO_BLACKBOX=29`、`SPLIT_JS_CONTRACT=14`、`OPT_IN_LIVE=2`、`VENDOR_ONLY=4`、`ARCHIVE_ONLY=8`。前 29 项已从 `automation/` 或 `pkg/` 移到顶层 `tests/`，不是仅改标签。机器可复现的闭合检查为：
+已登记的完整逐文件结论见 [Go 测试逐文件分类清单](go-test-file-classification.md)：登记口径 151，迁移 3 个伪测试工具后应为 148；其中 `KEEP_PACKAGE=90`、`MOVE_GO_BLACKBOX=29`、`SPLIT_JS_CONTRACT=15`、`OPT_IN_LIVE=2`、`VENDOR_ONLY=4`、`ARCHIVE_ONLY=8`。前 29 项已从 `automation/` 或 `pkg/` 移到顶层 `tests/`，不是仅改标签。机器可复现的闭合检查为：
 
 ```bash
 node scripts/audit_test_architecture.js
 ```
 
-它核对每个当前 `_test.go` 均有唯一结论，并要求迁移前 145 行逐文件记录都含
-`privateAccess`、测试边界、外部依赖、断言价值和具体理由；14 个 `SPLIT_JS_CONTRACT` 必须引用
+它核对每个当前 `_test.go` 均有唯一结论，并要求已登记的 151 行逐文件记录都含
+`privateAccess`、测试边界、外部依赖、断言价值和具体理由；15 个 `SPLIT_JS_CONTRACT` 必须引用
 实际存在的 Runtime JS 测试，MOVE/live/vendor/archive 的目标或隔离条件也必须闭合。审计同时
 检查伪测试旧路径已消失、工具目标存在、根目录没有 `temp/`、Runtime catalog 的 docs/types
 存在，并把报告写到 `.runtime/tests/test-architecture/audit.json`。
@@ -331,6 +331,7 @@ JavaScript 测试和正式入口如下：
 | `automation/system_environment.go` 的 `System.getEnv` / `System.hasEnv` | `tests/runtime-api/unit/system.test.js`、`tests/runtime-api/environment.js`、`tests/runtime-api/acceptance/environment-http-isolation.js` | 按键读取、fallback、空值、非法参数、默认文件/OS 来源与远程宿主隔离 | Runtime API JS 的 `unit`、`environment` mode |
 | `pkg/runtimeenv/environment.go` | `tests/runtimeenv/environment_test.go` + `tests/runtime-api/environment.js` + `tests/runtime-api/acceptance/environment-default-files.js` + `examples/environment.js` | dotenv 子集、默认文件发现、显式文件/启动时 OS 环境优先级、Windows 键名、非法输入、冻结 JS 快照、Command 继承与安全公开示例 | `go test ./tests/runtimeenv`、Runtime API JS 的 `environment` mode |
 | `automation/sound.go` 的 `registerSound` | `tests/runtime-api/unit/sound.test.js` | allowlist 旧同步方法 + 显式 `start`/`playAsync`/`stop`/`stopAll`/`getActive` bridge 的公共 JS surface | Runtime API JS 的 `unit` mode |
+| `automation/audio_pattern_runtime.go` 与 execution lifecycle | `tests/runtime-api/unit/audio.test.js`、`tests/runtime-api/seams/audio-pattern-positive.js`、`audio-pattern-fixtures.js`、`audio-pattern-cleanup-failure.js`、`audio-pattern-teardown.js` | 默认 backend fail-closed、合成 WAV 的音量/噪声/重采样变体、confuser 不误触发、cooldown/连续命中/first-signal，以及 cleanup failure/hostile Promise teardown | Runtime API JS 的 `unit` mode + 下方 injected-backend Go harness；fixture 与结果写入临时 execution workdir，正式日志写入 `.runtime/tests/runtime-api/` |
 
 从仓库根目录直接复现完整 unit 脚本：
 
@@ -342,6 +343,16 @@ JavaScript 测试和正式入口如下：
 `tests/runtime-api/unit/page.test.js` 当成无需 Runtime 初始化的独立脚本。Go 侧
 `automation/runtime_hardening_test.go` 仅验证 allowlist 和反射 seam，不替代上述 JavaScript
 facade 测试。
+
+Audio pattern 的成功捕获不能由默认产品 backend 在普通 unit 中伪造；确定性 PCM 只从 Go harness
+注入，但公开调用与断言都保存在 `tests/runtime-api/seams/*.js`：
+
+```bash
+go test ./pkg/execution -run 'TestRunJavaScriptAudioPatternPositiveSeam|TestRunJavaScriptAudioPatternCleanupFailureSeam|TestRunJavaScriptTeardownInterruptsWatchWaitRejectionHandler' -count=1
+go test -race ./automation -run '^TestAudioPattern' -count=1
+```
+
+这些命令证明 matcher、JS bridge 与 execution cleanup seam，不证明真实平台系统音频 capture。
 
 ### Runtime API live 子测试
 
@@ -536,8 +547,9 @@ OPENDESK_BINARY=./dist/opendesk ./dist/opendesk -script scripts/test_runtime_api
 ```
 
 `scripts/test_runtime_apis.js` 通过上述环境变量选择 mode；并发 server、PID、signal、
-WindowServer/AX 和截图等无法由一次性 `Command.run()` 表达的生命周期步骤留在
-`tests/runtime-api/seams/` 的专用系统 shell。它们不是第二套断言层。
+WindowServer/AX 和截图等无法由一次性 `Command.run()` 表达的生命周期步骤，以及需要 injected
+native backend 的真实 JavaScript fixture，都留在 `tests/runtime-api/seams/`。其中 shell 负责外层
+进程编排，`.js` 负责用户可观察断言；它们不是第二套 API 实现。
 
 `sound-cancel` 会生成静音 WAV、启动一次同步播放并向当前 run-local CLI 发送 SIGINT，用于证明阻塞 native 调用能取消且 Sound 资源归零。它会短暂初始化主机音频设备，属于显式运行的专用 lifecycle smoke，不包含在普通 `unit` 中。
 shell 保留在途进程、SIGINT 和 wait；Runtime summary/events 与资源归零断言由

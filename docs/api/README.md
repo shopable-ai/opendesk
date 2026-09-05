@@ -60,7 +60,7 @@ order: 1
 6. `global-shortcut.md`：macOS / Windows 系统级快捷键与 Runtime callback
 7. `events.md`：外部窗口、应用、剪贴板与显示器状态变化 watcher
 8. `app.md`：按 stable identity 启动、等待、终止与重启桌面应用
-9. `audio.md`：默认输出音量、mute 与输入/输出设备发现
+9. `audio.md`：默认输出音量、mute、输入/输出设备发现与 capability-gated 固定声音模式匹配；默认 pattern capture backend 尚不可用
 10. `window.md`：窗口查询与控制
 11. `vision.md`：OCR、UI 文本定位、provider
 12. `image-color.md`：模板匹配、颜色与图像辅助能力

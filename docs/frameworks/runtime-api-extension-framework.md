@@ -264,13 +264,17 @@ axios
 | Public global | Native owner | Polyfill | JS contract | Runtime test |
 | --- | --- | --- | --- | --- |
 | `Sound` | `automation/sound.go` + `automation/utils.go` | 无 | `docs/api/sound.md`、`types/Sound.d.ts` | `tests/runtime-api/unit/sound.test.js` |
-| `Audio` | `automation/audio.go` + `automation/utils.go` | 无 | `docs/api/audio.md`、`types/Audio.d.ts` | `tests/runtime-api/unit/audio.test.js` |
+| `Audio` | `automation/audio.go` + `automation/audio_pattern_runtime.go` + `automation/utils.go` | 无 | `docs/api/audio.md`、`types/Audio.d.ts` | `tests/runtime-api/unit/audio.test.js` + `tests/runtime-api/seams/audio-pattern-positive.js`、`audio-pattern-cleanup-failure.js`、`audio-pattern-teardown.js` |
 | `Command` | `automation/command.go` + `automation/command_*.go` + `automation/utils.go` | 无 | `docs/api/command.md`、`types/Command.d.ts` | Runtime API command contract/behavior tests |
 
 `Sound.start()` / `playAsync()` 的句柄、完成通知、停止和 execution teardown 都属于 native
 lifecycle；不得在 polyfill 中用计时器伪造这些状态，也不得再注册同名 `Sound`。如果未来增加
 纯 JavaScript 的便捷组合，应使用不同的 facade 名称或经过 owner 审查的增强层，并同步更新
 Runtime composition 文档。
+
+`Audio.watchSound()` / `waitForSound()` 的 capture、matcher、Promise 与资源回收同样由
+`audio_pattern_runtime.go` 的 execution-scoped native owner 管理；默认 backend unsupported，
+memory backend 只用于确定性 seam，不能在 polyfill 中伪造系统音频输入。
 
 `Command` 的 process、stdio、timeout、Promise settlement 和 teardown 同样属于 native lifecycle；
 `require('child_process')` 不参与该 owner，也不能在 polyfill 中注册第二套命令执行面。本地

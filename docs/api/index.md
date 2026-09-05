@@ -33,7 +33,7 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先找窗口，
 - 读写系统剪贴板：[Clipboard API](clipboard.md)
 - 订阅窗口、应用、剪贴板和显示器变化：[Desktop Events API](events.md)
 - 启动、等待、终止与重启桌面应用：[App Lifecycle API](app.md)
-- 控制音量、mute 并发现音频设备：[Audio API](audio.md)
+- 控制音量、mute、发现音频设备，并按 capability 监听固定声音模式（默认 capture backend 尚不可用）：[Audio API](audio.md)
 - 读取显示器 mode、交互选择区域并录制本地 QuickTime 文件：[Screen API](screen.md)（mode mutation 与录屏为 macOS Experimental）
 - 做网络调用：[HTTP and Axios](http.md)
 - 发送系统通知：[notify](notify.md)
@@ -65,7 +65,7 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先找窗口，
 | `globalShortcut` | JavaScript Runtime | Stable（macOS / Windows） | 系统快捷键触发 JavaScript callback | [Global Shortcut API](global-shortcut.md) |
 | `Events` | JavaScript Runtime | Experimental | 外部桌面状态 watcher；当前明确使用 polling backend | [Desktop Events API](events.md) |
 | `App` | JavaScript Runtime | Experimental | 按稳定 identity 启动、等待、终止与重启应用 | [App Lifecycle API](app.md) |
-| `Audio` | JavaScript Runtime | Experimental（macOS） | 默认输出音量、mute 与音频设备发现 | [Audio API](audio.md) |
+| `Audio` | JavaScript Runtime | Experimental（capability-gated；默认 pattern capture backend unavailable） | 默认输出音量、mute、设备发现与固定声音模式匹配 | [Audio API](audio.md) |
 | `window` | JavaScript Runtime | Stable reads / platform-partial actions | 窗口读取、能力矩阵与控制 | [Window API](window.md) |
 | `Screen` | JavaScript Runtime | Stable；mode mutation 与录屏为 Experimental（macOS） | 显示器/mode、像素、截图别名、区域选择与录屏 | [Screen API](screen.md) |
 | `Vision` | JavaScript Runtime | Stable | OCR、UI 文本检测、provider 能力 | [Vision API](vision.md) |
