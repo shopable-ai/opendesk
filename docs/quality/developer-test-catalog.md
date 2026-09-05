@@ -314,6 +314,8 @@ JavaScript 测试和正式入口如下：
 | --- | --- | --- | --- |
 | `automation/utils.go` 的 `AutoMapObject` / Page 注册 | `tests/runtime-api/unit/page.test.js` | native method 的 generic forwarding、显式 screenshot/goto/url wrapper、权限和等待 facade | `./scripts/test_runtime_apis.sh unit` |
 | `polyfills/000-page.js` 的 Page facade | `tests/runtime-api/unit/page.test.js` | `page____Inject` 替换、参数转发、权限组合、timer/predicate/navigation 组合 | `./scripts/test_runtime_apis.sh unit` |
+| `pkg/execution/runner.go` 的 `Execution` 注入 | `tests/runtime-api/unit/execution.test.js`、`tests/runtime-api/environment.js` | 运行标识、输入、环境快照、工作目录、artifact、来源字段与环境隔离 | `./scripts/test_runtime_apis.sh unit`、`./scripts/test_runtime_apis.sh environment` |
+| `pkg/runtimeenv/environment.go` | `tests/runtimeenv/environment_test.go` + `tests/runtime-api/environment.js` + `tests/runtime-api/acceptance/environment-default-files.js` + `examples/environment.js` | dotenv 子集、默认文件发现、显式文件/启动时 OS 环境优先级、Windows 键名、非法输入、冻结 JS 快照、Command 继承与安全公开示例 | `go test ./tests/runtimeenv`、`./scripts/test_runtime_apis.sh environment` |
 | `polyfills/010-browser-automation-upgraded.js` | `tests/runtime-api/unit/page-compat.test.js`、`browser.test.js`、`context.test.js` | upgraded/playwright-shaped compatibility surface | `./scripts/test_runtime_apis.sh unit` |
 | `automation/sound.go` 的 `registerSound` | `tests/runtime-api/unit/sound.test.js` | allowlist 旧同步方法 + 显式 `start`/`playAsync`/`stop`/`stopAll`/`getActive` bridge 的公共 JS surface | `./scripts/test_runtime_apis.sh unit` |
 
@@ -505,6 +507,7 @@ Runtime API 正式 gate（默认 mode 是 `smoke`）：
 ./scripts/test_runtime_apis.sh smoke
 ./scripts/test_runtime_apis.sh coverage
 ./scripts/test_runtime_apis.sh negative
+./scripts/test_runtime_apis.sh environment
 ./scripts/test_runtime_apis.sh sound-cancel
 ./scripts/test_runtime_apis.sh live
 ./scripts/test_runtime_apis.sh custom-ui-config

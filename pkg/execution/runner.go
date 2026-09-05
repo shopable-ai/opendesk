@@ -9,8 +9,10 @@ import (
 	"opendesk/automation"
 	"opendesk/pkg/customui"
 	"opendesk/pkg/nativeextension"
+	"opendesk/pkg/runtimeenv"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -47,6 +49,10 @@ type Request struct {
 	// WorkDir is the caller's execution working directory. It is metadata only;
 	// the execution runtime does not mutate the process working directory.
 	WorkDir        string
+	// Environment is a caller-owned snapshot exposed as Execution.env and used
+	// as Command.run's default child environment. Local CLI entrypoints populate
+	// it; remote and scheduled entrypoints deliberately leave it empty.
+	Environment    map[string]string
 	TimeoutMinutes int
 	// EnableNativeExtensions opts a trusted local execution into the
 	// manifest-generated registry. It never enables arbitrary executable paths.
@@ -106,6 +112,11 @@ func RunWithEmitter(req Request, emitter *Emitter) (ExecutionResult, AgentSummar
 	if req.ScriptHash == "" {
 		req.ScriptHash = ComputeScriptHash(req.ScriptContent)
 	}
+	environment, err := runtimeenv.Clone(req.Environment)
+	if err != nil {
+		return ExecutionResult{}, AgentSummary{}, fmt.Errorf("normalize execution environment: %w", err)
+	}
+	req.Environment = environment
 
 	emitter.SetStatus(ExecutionStatusRunning)
 	emitter.SetSource(req.SourceLabel, req.ScriptHash)
@@ -267,6 +278,7 @@ func runJavaScript(req Request, emitter *Emitter) error {
 			sink := &automationSink{emitter: emitter}
 			if err := automation.InitJSWithOptions(rt, automation.InitJSOptions{
 				EventSink: sink, Context: ctx, EventLoop: loop,
+				Environment:                     req.Environment,
 				EnableNativeExtensions:          req.EnableNativeExtensions,
 				EnableUnsafeNativeExtensionCall: req.EnableUnsafeNativeExtensionCall,
 				NativeExtensionRoots:            req.NativeExtensionRoots,
@@ -527,11 +539,31 @@ func registerExecutionContext(rt *goja.Runtime, req Request) error {
 	if strings.TrimSpace(req.Artifacts.RunDir) != "" {
 		artifactDir = req.Artifacts.RunDir
 	}
-	context := map[string]any{
+	environment := rt.NewObject()
+	if err := environment.SetPrototype(nil); err != nil {
+		return fmt.Errorf("register Execution.env prototype: %w", err)
+	}
+	environmentKeys := make([]string, 0, len(req.Environment))
+	for key := range req.Environment {
+		environmentKeys = append(environmentKeys, key)
+	}
+	sort.Strings(environmentKeys)
+	for _, key := range environmentKeys {
+		if err := environment.Set(key, req.Environment[key]); err != nil {
+			return fmt.Errorf("register Execution.env.%s: %w", key, err)
+		}
+	}
+	if err := freezeExecutionObject(rt, environment, "Execution.env"); err != nil {
+		return err
+	}
+
+	context := rt.NewObject()
+	fields := map[string]any{
 		"id":               req.ExecutionID,
 		"executionId":      req.ExecutionID,
 		"input":            executionInput(req.Input),
 		"workdir":          executionWorkDir(req.WorkDir),
+		"env":              environment,
 		"stack":            normalizeStackModeForContext(req.StackMode),
 		"artifactDir":      artifactDir,
 		"source":           req.SourceLabel,
@@ -539,7 +571,27 @@ func registerExecutionContext(rt *goja.Runtime, req Request) error {
 		"scriptHash":       req.ScriptHash,
 		"activationSource": string(normalizeCustomUIActivationSource(req)),
 	}
-	return rt.Set("Execution", context)
+	for key, value := range fields {
+		if err := context.Set(key, value); err != nil {
+			return fmt.Errorf("register Execution.%s: %w", key, err)
+		}
+	}
+	if err := rt.Set("Execution", context); err != nil {
+		return err
+	}
+	return freezeExecutionObject(rt, context, "Execution")
+}
+
+func freezeExecutionObject(rt *goja.Runtime, object *goja.Object, label string) error {
+	objectConstructor := rt.Get("Object").ToObject(rt)
+	freeze, ok := goja.AssertFunction(objectConstructor.Get("freeze"))
+	if !ok {
+		return fmt.Errorf("register %s: Object.freeze is unavailable", label)
+	}
+	if _, err := freeze(goja.Undefined(), object); err != nil {
+		return fmt.Errorf("freeze %s: %w", label, err)
+	}
+	return nil
 }
 
 func executionInput(input any) any {

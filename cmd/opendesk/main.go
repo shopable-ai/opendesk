@@ -22,6 +22,7 @@ import (
 	pkgHttp "opendesk/pkg/http"
 	"opendesk/pkg/nativeextension"
 	"opendesk/pkg/runtimeconfig"
+	"opendesk/pkg/runtimeenv"
 	pkgScheduler "opendesk/pkg/scheduler"
 	"os"
 	"os/signal"
@@ -103,7 +104,7 @@ func parseFlags() *Config {
 	flag.StringVar(&config.ConsoleMode, "console-mode", defaultConsoleMode, "Terminal output mode: normal | full | script | meta | summary | quiet | agent")
 	flag.StringVar(&config.ConsoleCategories, "console-categories", "", "Override terminal output categories: framework,meta,script,summary,error")
 	flag.BoolVar(&config.Debug, "debug", false, "Show complete diagnostic terminal output (unless console mode/categories is explicitly set)")
-	flag.StringVar(&config.EnvironmentFile, "env-file", "", "OpenDesk environment file (default: .env then .opendesk.env in the working directory)")
+	flag.StringVar(&config.EnvironmentFile, "env-file", "", "Project environment file (default: .env then .opendesk.env in the working directory)")
 	flag.StringVar(&config.OutputFormat, "output-format", "text", "Agent output format: text | json")
 	flag.IntVar(&config.Delay, "delay", 0, "Delay before start (seconds)")
 	flag.IntVar(&config.Timeout, "timeout", 30, "Execution timeout in minutes (0 for no timeout)") // 默认30分钟
@@ -685,6 +686,18 @@ func executeScript(config *Config) error {
 	if err != nil {
 		return err
 	}
+	workingDir, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("read execution working directory: %w", err)
+	}
+	environment, err := runtimeenv.Resolve(runtimeenv.Options{
+		WorkingDirectory: workingDir,
+		File:             config.EnvironmentFile,
+		Inherited:        os.Environ(),
+	})
+	if err != nil {
+		return fmt.Errorf("resolve local execution environment: %w", err)
+	}
 
 	// A direct file invocation is replaceable by the next invocation of that
 	// same file. The old execution receives a local takeover request, cancels
@@ -722,6 +735,8 @@ func executeScript(config *Config) error {
 		StackMode:            config.StackMode,
 		ScriptHash:           pkgExecution.ComputeScriptHash(content),
 		ScriptContent:        content,
+		WorkDir:              workingDir,
+		Environment:          environment.Values,
 		TimeoutMinutes:       config.Timeout,
 		// NativeExtensions is available to every local CLI JavaScript
 		// execution. The remote HTTP/MCP paths construct their own Requests and

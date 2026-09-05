@@ -8,7 +8,9 @@
       "pkg/nativeextension/*.go",
       "polyfills/*.js",
       "cmd/opendesk/main.go",
-      "pkg/http/*.go"
+      "pkg/http/*.go",
+      "pkg/execution/*.go",
+      "pkg/runtimeenv/*.go"
     ],
     "canonicalUserDocs": "docs/api/",
     "retiredDocTrees": [
@@ -53,6 +55,7 @@
     "NativeExtensions is an Experimental manifest-discovered immutable binding. Normal local CLI calls use NativeExtensions.<namespace>.<method>(businessParams) with routes fixed by the Host; it discovers only the program-relative bundle directory by default. HTTP and MCP cannot enable or call it. The low-level NativeExtension.call compatibility surface requires the separate -experimental-unsafe-native-extension-call local diagnostic gate.",
     "Uppercase UI operates visible targets in external desktop apps. Lowercase ui is always present but dormant by default and creates OpenDesk Custom UI; enable it with -ui or strict clawdesk.runtime.json. They have no aliases.",
     "Dialog is always present but fail-closed without the ui capability. Its alert, confirm, and prompt methods are asynchronous native modal dialogs; global alert/confirm/prompt are thin polyfill aliases, never browser-style blocking calls.",
+    "Use the frozen Execution.env snapshot for local project and inherited OS environment values. Local executions merge .env, .opendesk.env, then the environment supplied when the OpenDesk process started; they do not parse shell startup files. Windows names are uppercase. Remote and scheduled executions do not inherit host environment secrets.",
     "Command is an execution-owned native command runner, not Node.js child_process. Local -script and ai run executions enable it by default; HTTP, MCP, and Scheduler executions disable it. Use Command.run(executable,args,options) without shell command interpolation.",
     "Treat upgraded/playwright surfaces as compatibility facades, not a complete Playwright browser engine.",
     "Do not use retired TestMonkey documentation as a current API authority."
@@ -372,6 +375,29 @@
         "switchUser"
       ],
       "compatibility": "existing shutdown, restart, and sleep remain the separate legacy power-control surface; this task does not create a second System or Power namespace"
+    },
+    {
+      "name": "Execution",
+      "source": "runtime-owned metadata injected by pkg/execution",
+      "status": "stable",
+      "doc": "execution.md",
+      "types": "types/Execution.d.ts",
+      "keyProperties": [
+        "id",
+        "executionId",
+        "input",
+        "workdir",
+        "env",
+        "stack",
+        "artifactDir",
+        "source",
+        "ext",
+        "scriptHash",
+        "activationSource"
+      ],
+      "lifecycle": "Read-only per-execution context contract; it does not create, cancel, pause, resume, or enumerate executions.",
+      "environment": "env is a frozen string snapshot. Trusted local -script and ai run executions merge .env, .opendesk.env (or one explicit env file), then the OS environment supplied when OpenDesk started; no login shell or startup file is parsed. Windows names are canonical uppercase. HTTP, MCP, and Scheduler executions receive an empty snapshot by default.",
+      "privacy": "env may contain credentials and source/workdir may contain local paths; do not serialize them into logs or remote requests. scriptHash is a correlation aid, not a signature or trust decision."
     },
     {
       "name": "Command",
@@ -736,6 +762,7 @@
     ],
     "systemData": [
       "system.md",
+      "execution.md",
       "command.md",
       "file.md",
       "storage.md",
@@ -747,6 +774,7 @@
     ],
     "runtime": [
       "environment.md",
+      "execution.md",
       "runtime.md",
       "command.md",
       "notify.md",

@@ -20,9 +20,12 @@ import (
 
 // InitJSOptions 控制 JS 运行时初始化行为。
 type InitJSOptions struct {
-	EventSink                       EventSink
-	Context                         context.Context
-	EventLoop                       *eventloop.EventLoop
+	EventSink   EventSink
+	Context     context.Context
+	EventLoop   *eventloop.EventLoop
+	// Environment is the execution-owned string snapshot. A non-nil empty map
+	// is intentional for remote executions and must not fall back to os.Environ.
+	Environment map[string]string
 	EnableNativeExtensions          bool
 	EnableUnsafeNativeExtensionCall bool
 	NativeExtensionRoots            []nativeextension.DiscoveryRoot

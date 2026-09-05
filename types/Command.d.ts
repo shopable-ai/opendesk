@@ -4,7 +4,7 @@ declare global {
   interface OpenDeskCommandOptions {
     /** Working directory; defaults to the OpenDesk process working directory. */
     cwd?: string;
-    /** String environment entries merged over the host environment. */
+    /** Portable string entries merged over Execution.env; Windows names are case-insensitive and canonical uppercase. */
     env?: Record<string, string>;
     /** Complete UTF-8 stdin payload. */
     input?: string;

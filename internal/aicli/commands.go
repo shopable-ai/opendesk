@@ -17,6 +17,7 @@ import (
 
 	"opendesk/automation"
 	pkgExecution "opendesk/pkg/execution"
+	"opendesk/pkg/runtimeenv"
 )
 
 func runtimePlatform() string { return runtime.GOOS }
@@ -923,6 +924,7 @@ func runCommand(ctx *Context) (any, *Error) {
 	inputRaw := fs.String("input", "", "")
 	inputFile := fs.String("input-file", "", "")
 	inputStdin := fs.Bool("input-stdin", false, "")
+	environmentFile := fs.String("env-file", "", "")
 	timeout := fs.Duration("timeout", 0, "")
 	if len(ctx.Args) == 0 || strings.HasPrefix(ctx.Args[0], "-") {
 		return nil, invalidArgument("run requires exactly one recipe.js path")
@@ -950,6 +952,9 @@ func runCommand(ctx *Context) (any, *Error) {
 	if *timeout < 0 {
 		return nil, invalidArgument("timeout cannot be negative")
 	}
+	if visited(fs, "env-file") && strings.TrimSpace(*environmentFile) == "" {
+		return nil, invalidArgument("env-file requires a path")
+	}
 	recipe, err := filepath.Abs(recipeArg)
 	if err != nil {
 		return nil, &Error{Code: "invalid_argument", Message: "invalid recipe path"}
@@ -966,6 +971,18 @@ func runCommand(ctx *Context) (any, *Error) {
 	if cliErr != nil {
 		return nil, cliErr
 	}
+	workingDir, err := os.Getwd()
+	if err != nil {
+		return nil, &Error{Code: "internal_error", Message: "read working directory: " + err.Error()}
+	}
+	environment, err := runtimeenv.Resolve(runtimeenv.Options{
+		WorkingDirectory: workingDir,
+		File:             *environmentFile,
+		Inherited:        os.Environ(),
+	})
+	if err != nil {
+		return nil, invalidArgument(err.Error())
+	}
 
 	id := pkgExecution.NewExecutionID("ai")
 	artifacts, err := pkgExecution.PrepareArtifacts(filepath.Join(".runtime", "ai", id), id, ".js")
@@ -974,8 +991,7 @@ func runCommand(ctx *Context) (any, *Error) {
 	}
 	inputEvidence, _ := json.MarshalIndent(map[string]any{"command": "run", "recipe": recipe, "input": input}, "", "  ")
 	_ = os.WriteFile(filepath.Join(artifacts.RunDir, "command.json"), append(inputEvidence, '\n'), 0o644)
-	workingDir, _ := os.Getwd()
-	request := pkgExecution.Request{ExecutionID: id, SourceLabel: "file:" + recipe, Ext: ".js", ScriptHash: pkgExecution.ComputeScriptHash(source), ScriptContent: source, Input: input, WorkDir: workingDir, Timeout: *timeout, TimeoutMinutes: 30, EnableCommand: true, Artifacts: artifacts, Selection: pkgExecution.TerminalSelection{Mode: "quiet", Categories: map[string]bool{}}}
+	request := pkgExecution.Request{ExecutionID: id, SourceLabel: "file:" + recipe, Ext: ".js", ScriptHash: pkgExecution.ComputeScriptHash(source), ScriptContent: source, Input: input, WorkDir: workingDir, Environment: environment.Values, Timeout: *timeout, TimeoutMinutes: 30, EnableCommand: true, Artifacts: artifacts, Selection: pkgExecution.TerminalSelection{Mode: "quiet", Categories: map[string]bool{}}}
 	result, summary, runErr := pkgExecution.Run(request)
 	_ = pkgExecution.WriteLegacySummary(artifacts.SummaryPath, result, summary)
 	if runErr != nil {

@@ -103,6 +103,19 @@ globalThis.RuntimeAPITest = (() => {
         assert(typeof object[method] === 'function', 'missing runtime function ' + objectName + '.' + method);
       });
     }
+    for (const property of definition.properties || []) {
+      test({
+        name: objectName + '.' + property + ' is exposed by the JavaScript runtime',
+        tier: 'unit',
+        verification: 'contract',
+        covers: [objectName + '.' + property],
+      }, async () => {
+        const object = globalThis[objectName];
+        if (definition.optional && (object === undefined || object === null)) return;
+        assert(object && (typeof object === 'object' || typeof object === 'function'), 'missing runtime object ' + objectName);
+        assert(property in object, 'missing runtime property ' + objectName + '.' + property);
+      });
+    }
   }
 
   function contractGlobals() {
@@ -137,6 +150,7 @@ globalThis.RuntimeAPITest = (() => {
     if (label === 'RUNTIME-API-CONTRACT') return 'contract';
     if (label === 'RUNTIME-API-UNIT') return 'unit';
     if (label === 'RUNTIME-API-SMOKE') return 'smoke';
+    if (label === 'RUNTIME-API-ENVIRONMENT') return 'environment';
     if (label === 'RUNTIME-API-LIVE') return 'live';
     if (label === 'RUNTIME-API-CUSTOM-UI') return 'custom-ui';
     if (label === 'RUNTIME-API-CUSTOM-UI-BEHAVIOR') return 'custom-ui-behavior';

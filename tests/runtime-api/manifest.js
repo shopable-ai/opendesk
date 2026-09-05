@@ -41,6 +41,9 @@ globalThis.RuntimeAPIObjects = {
     'getDirectoryContents', 'getExecutablePath', 'getWorkingDirectory', 'getUserInfo',
     'isAdministrator', 'getSystemMetrics', 'getFingerprint', 'toJSON',
   ] },
+  Execution: { docs: 'docs/api/execution.md', types: 'types/Execution.d.ts', source: 'pkg/execution/runner.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: [], properties: [
+    'id', 'executionId', 'input', 'workdir', 'env', 'stack', 'artifactDir', 'source', 'ext', 'scriptHash', 'activationSource',
+  ] },
   Command: { docs: 'docs/api/command.md', types: 'types/Command.d.ts', source: 'automation/command.go + automation/command_*.go', status: 'local', platforms: ['darwin', 'linux', 'windows'], methods: ['getCapabilities', 'run'] },
   File: { docs: 'docs/api/file.md', types: 'types/File.d.ts', source: 'automation/file.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: [
     'path', 'cwd', 'create', 'createIfNotExists', 'createWithDirs', 'exists', 'ensureDir',
@@ -103,6 +106,7 @@ const unitBehavior = new Set([
   'window.getCapabilities', 'window.list', 'window.setAlwaysOnTop', 'window.unsetTopMost', 'window.js_beautify',
   ...RuntimeAPIObjects.Screen.methods.filter((method) => method !== 'screenshot').map((method) => 'Screen.' + method),
   ...RuntimeAPIObjects.System.methods.filter((method) => !['killProcess', 'shutdown', 'restart', 'sleep'].includes(method)).map((method) => 'System.' + method),
+  ...RuntimeAPIObjects.Execution.properties.map((property) => 'Execution.' + property),
   ...RuntimeAPIObjects.Command.methods.map((method) => 'Command.' + method),
   ...RuntimeAPIObjects.File.methods.map((method) => 'File.' + method),
   ...RuntimeAPIObjects.AppStorage.methods.filter((method) => method !== 'clear').map((method) => 'AppStorage.' + method),
@@ -216,6 +220,22 @@ for (const [family, definition] of Object.entries(RuntimeAPIObjects)) {
       evidenceRequirements: behaviorTiers.length > 0 ? ['contract-result', ...behaviorTiers.map((tier) => tier + '-result')] : ['contract-result', 'risk-rationale'],
     });
   }
+  for (const property of definition.properties || []) {
+    const id = family + '.' + property;
+    const behaviorTiers = unitBehavior.has(id) ? ['unit'] : [];
+    RuntimeAPIManifest.push({
+      id,
+      family,
+      kind: 'property',
+      source: { runtime: definition.source, docs: definition.docs, types: definition.types },
+      status: definition.status,
+      platforms: definition.platforms,
+      requiredVerificationTiers: ['contract', ...behaviorTiers],
+      riskClassification: 'safe',
+      contractOnlyReason: null,
+      evidenceRequirements: ['contract-result', ...behaviorTiers.map((tier) => tier + '-result')],
+    });
+  }
 }
 
 for (const entry of RuntimeAPIObjects.NativeExtensions.dynamicMethods) {
@@ -257,6 +277,7 @@ globalThis.RuntimeAPITestFiles = {
     'tests/runtime-api/unit/window.test.js',
     'tests/runtime-api/unit/screen.test.js',
     'tests/runtime-api/unit/system.test.js',
+    'tests/runtime-api/unit/execution.test.js',
     'tests/runtime-api/unit/command.test.js',
     'tests/runtime-api/unit/file.test.js',
     'tests/runtime-api/unit/storage.test.js',

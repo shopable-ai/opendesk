@@ -188,6 +188,17 @@ cat input.json | ./opendesk ai run recipe.js --input-stdin
 `--timeout` 接受 Go duration，例如 `--timeout 30s` 或 `--timeout 2m`；省略时沿用标准的
 30 分钟 Execution timeout。
 
+recipe 可通过 `Execution.env` 读取启动时的项目环境。默认合并当前工作目录的 `.env`、
+`.opendesk.env` 和 OpenDesk 进程启动时继承的 OS 环境；要只使用一份项目文件，可指定：
+
+```bash
+./opendesk ai run recipe.js --env-file config/ci.env
+```
+
+继承环境中的同名键优先于文件值。Runtime 不会另起 login shell 或解析 shell startup 文件；环境
+文件不会展开变量，且该快照只提供给本地 execution；详见
+[Environment Configuration](environment.md)。
+
 本地 recipe 的 `Command.run()` 使用当前 OS 用户权限；HTTP、MCP 与 Scheduler execution 不提供该能力。
 
 Recipes receive the existing execution metadata plus:
@@ -196,6 +207,7 @@ Recipes receive the existing execution metadata plus:
 Execution.id;       // execution ID
 Execution.input;    // parsed JSON input (defaults to {})
 Execution.workdir;  // caller working directory
+Execution.env;      // frozen string environment snapshot; missing keys are undefined
 Execution.artifactDir;
 ```
 

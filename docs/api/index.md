@@ -21,7 +21,7 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先找窗口，
 | 识别并激活屏幕上的文本、按钮或图片 | [Desktop UI API](desktop-ui.md)；原始 OCR/模板能力见 [Vision API](vision.md) 与 [ImageColor API](image-color.md)。 |
 | 从服务或外部程序触发任务 | [HTTP Server API](http-server.md) 或 MCP。 |
 | 把已探索流程重复执行 | 保存 recipe，然后使用 [AI CLI](ai-cli.md) 的 `run`。 |
-| 为项目设置默认终端输出 | [Environment Configuration](environment.md)：`.env`、`.opendesk.env` 与 CLI 覆盖规则。 |
+| 读取项目环境或设置默认终端输出 | [Environment Configuration](environment.md)：`Execution.env`、`.env`、`.opendesk.env` 与 CLI 覆盖规则。 |
 
 ## 先读哪些
 
@@ -45,7 +45,8 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先找窗口，
 - 显示原生对话框、图标工具栏或受控面板：[Custom UI](custom-ui.md)
 - 定时执行文件或内联 JavaScript：[Scheduler](scheduler.md)；程序化管理接口：[Scheduler HTTP API](scheduler-api.md)
 - 录制并生成可确定性回放的流程：[OpenDesk Agent-first Recorder MCP API](recorder.md)
-- 设置项目级输出默认值、`.env` 和 `-env-file`：[Environment Configuration](environment.md)
+- 读取 `Execution.env`，设置项目变量/输出默认值、`.env` 和 `-env-file`：[Environment Configuration](environment.md)
+- 读取本次运行的 ID、输入和 artifact 目录：[Execution Context](execution.md)
 - 理解 legacy / upgraded / playwright：[Runtime Stacks](runtime.md)
 - 直接拿范例：[Cookbook](cookbook.md)
 - 用结构化、低 Token 的桌面 Agent CLI：[AI CLI](ai-cli.md)
@@ -70,6 +71,7 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先找窗口，
 | `OCR` | JavaScript Runtime | Secondary | 本地 Tesseract 纯文本 OCR | [Vision API](vision.md) |
 | `ImageColor` | JavaScript Runtime | Secondary | 同尺寸图像差异、模板匹配、颜色与图像辅助分析 | [ImageColor API](image-color.md) |
 | `System` | JavaScript Runtime | Stable reads / Experimental session actions | 系统、进程、网络、指标与 session capability | [System API](system.md) |
+| `Execution` | JavaScript Runtime | Stable | 本次运行的 ID、输入、环境快照、工作目录、来源与 artifact 上下文 | [Execution Context](execution.md) |
 | `Command` | 本地 JavaScript Runtime | Conditional | 运行命令行程序并读取退出码与输出 | [Command API](command.md) |
 | `File` | JavaScript Runtime | Stable | 文件与目录操作 | [File API](file.md) |
 | `AppStorage` | JavaScript Runtime | Secondary | 持久化键值存储 | [AppStorage](storage.md) |
@@ -88,7 +90,7 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先找窗口，
 | lodash / moment / query-string / cheerio / beautify | JavaScript Runtime | Secondary | 脚本辅助库 | [JS Libraries](libs.md) |
 | `browser` / `context` / upgraded facade | Compatibility stack | Compatibility | 浏览器风格迁移接口 | [Runtime Stacks](runtime.md) |
 | `opendesk ai` | CLI | Stable | 给 Coding Agent 的 JSON desktop-tool surface 与 recipe 入口 | [AI CLI](ai-cli.md) |
-| `.env` / `.opendesk.env` | CLI 配置 | Stable | 项目级终端输出默认值与 CLI 覆盖 | [Environment Configuration](environment.md) |
+| `Execution.env` + `.env` / `.opendesk.env` | Runtime/CLI 配置 | Stable | 本地 execution 环境快照与终端输出默认值；远程入口不继承宿主环境 | [Environment Configuration](environment.md) |
 
 ## 使用边界
 

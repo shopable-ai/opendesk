@@ -28,6 +28,12 @@ function timeoutFixture() {
     equal(capabilities.enabled, true, 'local CLI capability');
     equal(capabilities.supported, true, 'platform support');
 
+    const inheritedFixture = System.getPlatformInfo().os === 'windows'
+      ? commandFixture('echo|set /p=%OPENDESK_RUNTIME_API_RUN_ID%')
+      : commandFixture('printf %s "$OPENDESK_RUNTIME_API_RUN_ID"');
+    const inherited = await Command.run(inheritedFixture.command, inheritedFixture.args);
+    equal(inherited.stdout, Execution.env.OPENDESK_RUNTIME_API_RUN_ID, 'Command default environment differs from Execution.env');
+
     const fixture = System.getPlatformInfo().os === 'windows'
       ? commandFixture('set /p OPENDESK_INPUT=& echo|set /p=out:%OPENDESK_INPUT%:%OPENDESK_COMMAND_TEST%& echo err 1>&2')
       : commandFixture('IFS= read -r value; printf "out:%s:%s" "$value" "$OPENDESK_COMMAND_TEST"; printf "err" >&2');

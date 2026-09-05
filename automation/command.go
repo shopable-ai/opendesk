@@ -15,6 +15,7 @@ import (
 
 	"github.com/dop251/goja"
 	"github.com/dop251/goja_nodejs/eventloop"
+	"opendesk/pkg/runtimeenv"
 )
 
 const (
@@ -85,9 +86,10 @@ type commandWaiter struct {
 // CommandRuntime owns commands started by one JavaScript execution. Workers
 // never access Goja directly, and teardown terminates every surviving process.
 type CommandRuntime struct {
-	runtime *goja.Runtime
-	loop    *eventloop.EventLoop
-	enabled bool
+	runtime     *goja.Runtime
+	loop        *eventloop.EventLoop
+	enabled     bool
+	environment []string
 
 	closing   atomic.Bool
 	workers   atomic.Int64
@@ -129,11 +131,16 @@ type commandOutputWriter struct {
 }
 
 func registerCommand(runtimeValue *goja.Runtime, opts InitJSOptions) *CommandRuntime {
+	environment := os.Environ()
+	if opts.Environment != nil {
+		environment = commandEnvironmentEntries(opts.Environment)
+	}
 	manager := &CommandRuntime{
-		runtime:   runtimeValue,
-		loop:      opts.EventLoop,
-		enabled:   opts.EnableCommand,
-		processes: make(map[*commandProcess]struct{}),
+		runtime:     runtimeValue,
+		loop:        opts.EventLoop,
+		enabled:     opts.EnableCommand,
+		environment: environment,
+		processes:   make(map[*commandProcess]struct{}),
 	}
 	object := runtimeValue.NewObject()
 	_ = object.Set("getCapabilities", func(goja.FunctionCall) goja.Value {
@@ -158,7 +165,7 @@ func (c *CommandRuntime) run(call goja.FunctionCall) goja.Value {
 	if err := c.available(); err != nil {
 		return rejectWith(err)
 	}
-	spec, err := parseCommandInvocation(call)
+	spec, err := parseCommandInvocation(call, c.environment)
 	if err != nil {
 		return rejectWith(err)
 	}
@@ -485,8 +492,8 @@ func (c *CommandRuntime) ResourceCounts() (workers int64, callbacks int64, proce
 	return c.workers.Load(), c.callbacks.Load(), processes
 }
 
-func parseCommandInvocation(call goja.FunctionCall) (commandSpec, error) {
-	spec := commandSpec{env: os.Environ(), maxOutputBytes: commandDefaultMaxOutput}
+func parseCommandInvocation(call goja.FunctionCall, environment []string) (commandSpec, error) {
+	spec := commandSpec{env: append([]string(nil), environment...), maxOutputBytes: commandDefaultMaxOutput}
 	command, ok := call.Argument(0).Export().(string)
 	if !ok || strings.TrimSpace(command) == "" || strings.ContainsRune(command, '\x00') {
 		return spec, commandOperationError(CommandInvalidArg, "command must be a non-empty string without NUL", nil)
@@ -508,6 +515,19 @@ func parseCommandInvocation(call goja.FunctionCall) (commandSpec, error) {
 		}
 	}
 	return spec, nil
+}
+
+func commandEnvironmentEntries(values map[string]string) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	entries := make([]string, 0, len(keys))
+	for _, key := range keys {
+		entries = append(entries, key+"="+values[key])
+	}
+	return entries
 }
 
 func commandArguments(value goja.Value) ([]string, bool, error) {
@@ -590,29 +610,15 @@ func parseCommandOptions(value goja.Value, spec *commandSpec) error {
 }
 
 func mergeCommandEnv(base []string, overrides map[string]interface{}) ([]string, error) {
-	values := make(map[string]string, len(base)+len(overrides))
-	for _, entry := range base {
-		if index := strings.IndexByte(entry, '='); index >= 0 {
-			values[entry[:index]] = entry[index+1:]
-		}
-	}
+	values := make(map[string]string, len(overrides))
 	for key, raw := range overrides {
 		value, ok := raw.(string)
-		if !ok || key == "" || strings.ContainsAny(key, "=\x00") || strings.ContainsRune(value, '\x00') {
+		if !ok || !runtimeenv.ValidName(key) || strings.ContainsRune(value, '\x00') {
 			return nil, fmt.Errorf("env.%s must use a valid name and string value without NUL", key)
 		}
 		values[key] = value
 	}
-	keys := make([]string, 0, len(values))
-	for key := range values {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	result := make([]string, 0, len(keys))
-	for _, key := range keys {
-		result = append(result, key+"="+values[key])
-	}
-	return result, nil
+	return runtimeenv.MergeEnviron(base, values)
 }
 
 func commandInteger(value interface{}) (int, bool) {

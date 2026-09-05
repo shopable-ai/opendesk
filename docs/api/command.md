@@ -66,7 +66,7 @@ const result = await Command.run('/usr/bin/uname');
 | 字段 | 默认 | 契约 |
 | --- | --- | --- |
 | `cwd` | OpenDesk 当前工作目录 | 必须是已存在目录。 |
-| `env` | `{}` | 字符串键值，覆盖继承的 host 环境。 |
+| `env` | `{}` | 合法环境键与字符串值，覆盖 `Execution.env`；未设置时子进程继承完整 execution 环境快照。 |
 | `input` | 未设置 | 一次性 UTF-8 stdin，写完自动关闭；最大 64 MiB。 |
 | `timeout` | `0` | 毫秒；`0` 表示仅服从外层 execution deadline，最大 24 小时。 |
 | `maxOutputBytes` | 4 MiB | stdout + stderr 合计上限，最大 64 MiB。 |
@@ -91,4 +91,6 @@ const result = await Command.run('/usr/bin/uname');
 | `CANCELED` | 外层 execution 被取消。 |
 
 命令进程归当前 execution 管理；超时、中断和 teardown 会清理仍在运行的进程。这不是 sandbox：
-本地脚本中的命令继承 OpenDesk 进程当前 OS 用户的权限。
+本地脚本中的命令继承 OpenDesk 进程当前 OS 用户的权限。环境基线来自 `Execution.env`，因此项目
+`.env` 值会传给子进程，而 HTTP/MCP/Scheduler 不会借由 `Command` 或环境回退取得宿主秘密。
+键名遵循 `[A-Za-z_][A-Za-z0-9_]*`；Windows 下统一为大写并按大小写不敏感方式覆盖。

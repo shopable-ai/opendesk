@@ -270,6 +270,200 @@ coverage() { runjs coverage "$ROOT_DIR/tests/runtime-api/coverage.js" 5 180; }
 smoke() { runjs smoke "$ROOT_DIR/tests/runtime-api/smoke.js" 3 120; }
 negative() { runjs negative "$ROOT_DIR/tests/runtime-api/negative.js" 5 120; }
 
+environment() {
+  local environment_dir="$RUN_DIR/environment" env_file="$RUN_DIR/environment/project.env"
+  local generated="$RUN_DIR/generated/environment.generated.js" pidfile="$RUN_DIR/processes/environment.json"
+  local acceptance_stdout="$RUN_DIR/results/environment-ai-run.stdout.json"
+  local acceptance_stderr="$RUN_DIR/results/environment-ai-run.stderr.log"
+  local acceptance_pidfile="$RUN_DIR/processes/environment-ai-run.json"
+  local example_stdout="$RUN_DIR/results/environment-example.stdout.log"
+  local example_stderr="$RUN_DIR/results/environment-example.stderr.log"
+  local example_pidfile="$RUN_DIR/processes/environment-example.json"
+  local default_project="$RUN_DIR/environment/default-project"
+  local default_stdout="$RUN_DIR/results/environment-default-files.stdout.log"
+  local default_stderr="$RUN_DIR/results/environment-default-files.stderr.log"
+  local default_pidfile="$RUN_DIR/processes/environment-default-files.json"
+  local http_request="$RUN_DIR/environment/http-request.json" http_response="$RUN_DIR/environment/http-response.json"
+  local http_status="$RUN_DIR/environment/http-status.json" port base execution_id server=""
+  local watchdog status
+
+  cleanup_environment_server() {
+    if [[ -n "$server" ]] && kill -0 "$server" >/dev/null 2>&1; then
+      kill -TERM "$server" >/dev/null 2>&1 || true
+      wait "$server" 2>/dev/null || true
+    fi
+  }
+  trap cleanup_environment_server RETURN
+
+  mkdir -p "$environment_dir"
+  python3 - "$env_file" <<'PY'
+import pathlib, sys
+pathlib.Path(sys.argv[1]).write_text(
+    "OPENDESK_ENV_FILE_ONLY=file-value\n"
+    "OPENDESK_ENV_PRECEDENCE=file-value\n"
+    "OPENDESK_ENV_LITERAL=${SHOULD_NOT_EXPAND}\n"
+    "OPENDESK_ENV_EMPTY=\n"
+    "export OPENDESK_ENV_QUOTED='quoted value'\n"
+    "__proto__=literal-key\n",
+    encoding="utf-8",
+)
+PY
+  python3 - "$default_project" <<'PY'
+import pathlib, sys
+root = pathlib.Path(sys.argv[1])
+root.mkdir(parents=True, exist_ok=True)
+(root / ".env").write_text(
+    "OPENDESK_ENV_DOTENV_ONLY=dotenv-value\n"
+    "OPENDESK_ENV_DEFAULT_PRECEDENCE=dotenv-value\n",
+    encoding="utf-8",
+)
+(root / ".opendesk.env").write_text(
+    "OPENDESK_ENV_OPENDESK_ONLY=opendesk-value\n"
+    "OPENDESK_ENV_DEFAULT_PRECEDENCE=opendesk-value\n",
+    encoding="utf-8",
+)
+PY
+  export OPENDESK_ENV_PRECEDENCE=shell-value
+  export OPENDESK_ENV_SYSTEM_ONLY='system=a=b'
+  export OPENDESK_ENV_DEFAULT_PRECEDENCE=system-value
+  generate "$ROOT_DIR/tests/runtime-api/environment.js" "$generated"
+  set +e
+  python3 "$WATCHDOG" --seconds 120 --pid-file "$pidfile" -- "$BINARY" \
+    -env-file "$env_file" -script "$generated" -console-mode script -timeout 3 \
+    -log-dir "$RUN_DIR/runtime-logs/environment" &
+  watchdog=$!
+  wait "$watchdog"
+  status=$?
+  set -e
+  record_watchdog environment "$watchdog"
+  [[ "$status" -eq 0 ]] || return "$status"
+  verify_zero_cleanup environment
+
+  set +e
+  (
+    cd "$default_project"
+    exec python3 "$WATCHDOG" --seconds 120 --pid-file "$default_pidfile" -- \
+      "$BINARY" -script "$ROOT_DIR/tests/runtime-api/acceptance/environment-default-files.js" \
+      -console-mode script -timeout 3 -log-dir "$RUN_DIR/runtime-logs/environment-default-files"
+  ) >"$default_stdout" 2>"$default_stderr" &
+  watchdog=$!
+  wait "$watchdog"
+  status=$?
+  set -e
+  record_watchdog environment-default-files "$watchdog"
+  [[ "$status" -eq 0 ]] || return "$status"
+  grep -Fq '[RUNTIME-API-ENVIRONMENT] .env and .opendesk.env discovery passed' "$default_stdout" || {
+    echo "environment default file discovery marker is missing" >&2
+    return 1
+  }
+  verify_zero_cleanup environment-default-files
+
+  set +e
+  OPENDESK_EXAMPLE_MODE=runtime-gate python3 "$WATCHDOG" --seconds 120 --pid-file "$example_pidfile" -- \
+    "$BINARY" -script "$ROOT_DIR/examples/environment.js" -console-mode script -timeout 3 \
+    -log-dir "$RUN_DIR/runtime-logs/environment-example" \
+    >"$example_stdout" 2>"$example_stderr" &
+  watchdog=$!
+  wait "$watchdog"
+  status=$?
+  set -e
+  record_watchdog environment-example "$watchdog"
+  [[ "$status" -eq 0 ]] || return "$status"
+  python3 - "$example_stdout" <<'PY'
+import json, pathlib, sys
+marker = "[ENVIRONMENT-EXAMPLE] "
+lines = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8").splitlines()
+matches = [line.split(marker, 1)[1] for line in lines if marker in line]
+if len(matches) != 1:
+    raise SystemExit("environment public example did not emit exactly one summary")
+value = json.loads(matches[0])
+if (value.get("mode") != "runtime-gate"
+        or value.get("pathAvailable") is not True
+        or value.get("snapshotFrozen") is not True):
+    raise SystemExit("environment public example summary is invalid: " + json.dumps(value, sort_keys=True))
+print("[RUNTIME-API-ENVIRONMENT] public example passed")
+PY
+  verify_zero_cleanup environment-example
+
+  set +e
+  python3 "$WATCHDOG" --seconds 120 --pid-file "$acceptance_pidfile" -- "$BINARY" ai run \
+    "$ROOT_DIR/tests/runtime-api/acceptance/environment-ai-run.js" --env-file "$env_file" \
+    >"$acceptance_stdout" 2>"$acceptance_stderr" &
+  watchdog=$!
+  wait "$watchdog"
+  status=$?
+  set -e
+  record_watchdog environment-ai-run "$watchdog"
+  [[ "$status" -eq 0 ]] || return "$status"
+
+  python3 - "$acceptance_stdout" <<'PY'
+import json, pathlib, sys
+payload = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+if payload.get("ok") is not True or payload.get("command") != "run":
+    raise SystemExit("environment ai run did not return a successful envelope")
+run_dir = pathlib.Path(((payload.get("result") or {}).get("artifacts") or {}).get("runDir") or "")
+report = run_dir / "environment-acceptance.json"
+if not report.is_file() or json.loads(report.read_text(encoding="utf-8")).get("ok") is not True:
+    raise SystemExit("environment ai run report is missing or invalid: " + str(report))
+print("[RUNTIME-API-ENVIRONMENT] ai run report=" + str(report))
+PY
+
+  export OPENDESK_ENV_HOST_SECRET=must-not-leak
+  port="$(python3 - <<'PY'
+import socket
+sock = socket.socket()
+sock.bind(("127.0.0.1", 0))
+print(sock.getsockname()[1])
+sock.close()
+PY
+)"
+  base="http://127.0.0.1:$port"
+  "$BINARY" -http -port "$port" -scheduler-db "$RUN_DIR/environment/scheduler.db" -console-mode agent \
+    >"$RUN_DIR/environment/http-server.stdout.log" 2>"$RUN_DIR/environment/http-server.stderr.log" &
+  server=$!
+  record runtime "$server" environment-http-server
+  for _ in $(seq 1 100); do
+    /usr/bin/curl --silent --max-time 1 "$base/status" >/dev/null 2>&1 && break
+    kill -0 "$server" >/dev/null 2>&1 || { echo "environment HTTP server exited before ready" >&2; return 1; }
+    sleep 0.05
+  done
+  /usr/bin/curl --fail --silent --show-error --max-time 2 "$base/status" >/dev/null
+  python3 - "$ROOT_DIR/tests/runtime-api/acceptance/environment-http-isolation.js" "$http_request" "$RUN_DIR/runtime-logs/environment-http" <<'PY'
+import json, pathlib, sys
+source, request, log_dir = sys.argv[1:]
+payload = {
+    "script": pathlib.Path(source).read_text(encoding="utf-8"),
+    "timeout": 10,
+    "consoleMode": "script",
+    "logDir": log_dir,
+}
+pathlib.Path(request).write_text(json.dumps(payload), encoding="utf-8")
+PY
+  /usr/bin/curl --fail --silent --show-error --max-time 5 -H 'Content-Type: application/json' \
+    --data-binary "@$http_request" "$base/executions" >"$http_response"
+  execution_id="$(python3 - "$http_response" <<'PY'
+import json, sys
+value = json.load(open(sys.argv[1], encoding="utf-8"))
+print((value.get("data") or {}).get("executionId") or "")
+PY
+)"
+  [[ -n "$execution_id" ]] || { echo "environment HTTP execution ID is missing" >&2; return 1; }
+  for _ in $(seq 1 100); do
+    /usr/bin/curl --fail --silent --show-error --max-time 2 "$base/executions/$execution_id" >"$http_status"
+    status="$(python3 - "$http_status" <<'PY'
+import json, sys
+print((json.load(open(sys.argv[1], encoding="utf-8")).get("data") or {}).get("status", ""))
+PY
+)"
+    [[ "$status" == succeeded || "$status" == failed || "$status" == timed_out || "$status" == canceled ]] && break
+    sleep 0.05
+  done
+  [[ "$status" == succeeded ]] || { echo "environment HTTP isolation failed with status $status" >&2; return 1; }
+  cleanup_environment_server
+  server=""
+  no_residual
+  trap - RETURN
+}
 sound_cancel() {
   OPENDESK_BINARY="$BINARY" \
     OPENDESK_SOUND_CANCEL_RUN_DIR="$RUN_DIR/sound-cancel" \
@@ -1101,5 +1295,6 @@ case "$MODE" in
   custom-ui-config) custom_ui_config ;;
   dialog) dialog ;;
   command) command ;;
-  *) echo "usage: $0 [contract|unit|smoke|live|live-only|coverage|negative|sound-cancel|command|custom-ui|custom-ui-config|dialog]" >&2; exit 2 ;;
+  environment) environment ;;
+  *) echo "usage: $0 [contract|unit|smoke|live|live-only|coverage|negative|sound-cancel|command|environment|custom-ui|custom-ui-config|dialog]" >&2; exit 2 ;;
 esac

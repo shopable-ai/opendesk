@@ -6,7 +6,7 @@ globalThis.RuntimeAPICatalogValidation = (() => {
   const root = File.cwd();
   const publicObjectNames = () => Object.keys(RuntimeAPIObjects).filter((name) => name !== 'global');
   const reservedGlobals = new Set([
-    'page____Inject', 'browser____Inject', 'context____Inject', 'Execution',
+    'page____Inject', 'browser____Inject', 'context____Inject',
     'global', 'globalThis', 'module', 'exports', 'require',
     '_', 'moment', 'cheerio', 'queryString', 'querystring',
     'Automation', 'RuntimeAPITest', 'RuntimeAPICatalogValidation', 'RuntimeAPICoverageValidation', 'RuntimeAPICrypto',
@@ -39,6 +39,7 @@ globalThis.RuntimeAPICatalogValidation = (() => {
           ...Object.keys(value || {}).filter((key) => typeof value[key] === 'function'),
           ...(definition.methods.includes('constructor') && typeof value === 'function' ? ['constructor'] : []),
         ].sort(),
+        properties: (definition.properties || []).filter((property) => property in (value || {})).sort(),
       };
     }
     const globals = RuntimeAPIObjects.global.methods.filter((method) => typeof globalThis[method] === 'function').sort();
@@ -72,6 +73,10 @@ globalThis.RuntimeAPICatalogValidation = (() => {
   function typeContains(entry) {
     const source = File.read(File.join(root, entry.source.types));
     const method = entry.id.slice(entry.id.indexOf('.') + 1);
+    if (entry.kind === 'property') {
+      return source.includes('var ' + entry.family)
+        && new RegExp('\\b' + method + '\\s*\\??\\s*:').test(source);
+    }
     if (entry.family === 'global') return source.includes('function ' + method + '(') || source.includes('var ' + method);
     if (entry.family === 'NativeExtensions' && method.includes('.')) {
       const [namespace, pluginMethod] = method.split('.');
@@ -89,6 +94,13 @@ globalThis.RuntimeAPICatalogValidation = (() => {
     return [
       ...(definition && definition.methods || []),
       ...((definition && definition.dynamicMethods || []).map((entry) => entry.path)),
+    ];
+  }
+
+  function declaredMembers(definition) {
+    return [
+      ...declaredMethods(definition),
+      ...(definition && definition.properties || []),
     ];
   }
 
@@ -113,10 +125,14 @@ globalThis.RuntimeAPICatalogValidation = (() => {
         const id = family + '.' + method;
         if (!idSet.has(id)) errors.push('catalog missing Runtime method: ' + id);
       }
+      for (const property of definition.properties || []) {
+        const id = family + '.' + property;
+        if (!idSet.has(id)) errors.push('catalog missing Runtime property: ' + id);
+      }
     }
     for (const entry of catalog) {
       const definition = RuntimeAPIObjects[entry.family];
-      if (!definition || !declaredMethods(definition).includes(entry.id.slice(entry.id.indexOf('.') + 1))) errors.push('catalog contains unknown ID: ' + entry.id);
+      if (!definition || !declaredMembers(definition).includes(entry.id.slice(entry.id.indexOf('.') + 1))) errors.push('catalog contains unknown ID: ' + entry.id);
     }
     for (const family of publicObjectNames()) {
       const actualFamily = actual.objects[family];
@@ -127,6 +143,9 @@ globalThis.RuntimeAPICatalogValidation = (() => {
       }
       for (const method of definition.methods) {
         if (!actualFamily.methods.includes(method)) errors.push('catalog method missing from Runtime: ' + family + '.' + method);
+      }
+      for (const property of definition.properties || []) {
+        if (!actualFamily.properties.includes(property)) errors.push('catalog property missing from Runtime: ' + family + '.' + property);
       }
     }
     for (const method of actual.globals) {
