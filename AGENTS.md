@@ -6,13 +6,14 @@
 - 接口测试必须编写并运行 JavaScript（`.js`）文件，不得为了测试接口而直接编写 Go（`.go`）文件。
 - 测试所用的接口路径、请求参数和返回数据格式仅以 `docs/api/` 中的文档为准；不得恢复或使用任何退役接口文档。
 - JavaScript Runtime API 一致性测试的正式目录是 `tests/runtime-api/`，正式入口为
-  `scripts/test_runtime_apis.sh`，运行证据目录是 `.runtime/tests/runtime-api/`。旧
-  `scripts/test_host_apis.sh` 只能作为打印 deprecated 提示的兼容包装器；不得复制测试实现。
+  `./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script`，运行证据目录是
+  `.runtime/tests/runtime-api/`。不得恢复已删除的 shell wrapper 或复制测试实现。
 - 选择测试入口时必须先按验收目标区分命令：公开示例或 quickstart 优先原样执行文档中的一行
   JavaScript 命令（例如从仓库根目录执行 `./dist/opendesk -script examples/native-extensions/quickstart.js`；
   文档写 `./opendesk` 时不得擅自替换），单个 Runtime API 场景优先使用指定可执行文件直接运行对应
   的 `tests/runtime-api/*.js`；只有需要完整 catalog、生成 run context、跨步骤编排或正式证据时才使用
-  `scripts/test_runtime_apis.sh <mode>`。Shell gate 不能替代公开示例的直接命令，run-local binary
+  `OPENDESK_RUNTIME_API_MODE=<mode> ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script`。
+  Shell gate 不能替代公开示例的直接命令，run-local binary
   或临时生成脚本也不能被表述为用户命令已通过。
 - Runtime API 的正常公开行为测试统一写入 `tests/runtime-api/*.js`；不要为了验证一个可由 JS
   观察的接口，在 `automation/` 下新增类似 `sound_test.go` 的常规 `test.go` 文件。只有 JS 无法

@@ -22,16 +22,27 @@ contract、unit、safe smoke 和 opt-in macOS Safari 真实事件测试：
 全部测试 JS、单文件命令和 runner 对应关系见
 [`docs/quality/developer-test-catalog.md`](../docs/quality/developer-test-catalog.md)。
 
-正式 gate 仍使用唯一的编排入口：
+正式 gate 使用唯一的 OpenDesk Runtime JavaScript 编排入口：
 
 ```bash
-./scripts/test_runtime_apis.sh smoke
-./scripts/test_runtime_apis.sh live
+./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+OPENDESK_RUNTIME_API_MODE=live ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
 ```
 
 详细分层、证据和新增用例方式见 `tests/runtime-api/README.md`。运行证据统一写入
-`.runtime/tests/runtime-api/`。旧
-`scripts/test_host_apis.sh` 仅为会打印 deprecated 提示的兼容入口。
+`.runtime/tests/runtime-api/`。旧 shell wrapper 已删除；正式入口始终是 OpenDesk Runtime
+JavaScript。
+
+## CLI 终端输出
+
+终端颜色、管道纯文本、Agent JSON 和 artifact ANSI 隔离由独立 JavaScript 黑盒验证：
+
+```bash
+node tests/cli-output/console-color.js
+```
+
+运行前需先用 `make build` 刷新 `dist/opendesk`；细节见
+[`tests/cli-output/README.md`](cli-output/README.md)。
 
 ## OpenCV ImageColor 夹具
 

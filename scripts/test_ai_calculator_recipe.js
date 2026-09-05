@@ -5,8 +5,12 @@
 // Executions through the local Command API, applies opt-in
 // perturbations, and records a readable scenario matrix.
 //
+// The outer runner is an ordinary OpenDesk Runtime script. Its child `ai run`
+// commands deliberately create the independent Workflow executions and artifacts
+// that this qualification matrix verifies.
+//
 // From the repository root:
-// OPENDESK_LIVE_CALCULATOR=1 ./dist/opendesk ai run scripts/test_ai_calculator_recipe.js
+// OPENDESK_LIVE_CALCULATOR=1 ./dist/opendesk -script scripts/test_ai_calculator_recipe.js -console-mode script
 
 'use strict';
 
@@ -43,20 +47,6 @@ function parseJson(text, label) {
 
 function readJson(file, label) {
   return parseJson(File.read(file), label);
-}
-
-async function inheritedEnvironment() {
-  const result = await Command.run('/usr/bin/env', [], {
-    cwd: repoRoot,
-    timeout: 5_000,
-    maxOutputBytes: 1024 * 1024,
-  });
-  const environment = {};
-  for (const line of result.stdout.split('\n')) {
-    const separator = line.indexOf('=');
-    if (separator > 0) environment[line.slice(0, separator)] = line.slice(separator + 1);
-  }
-  return environment;
 }
 
 async function runOpenDesk(args, label) {
@@ -179,12 +169,11 @@ async function run() {
     console.log('[SKIP] macOS Calculator live Workflow requires macOS.');
     return;
   }
-  const environment = await inheritedEnvironment();
-  if (environment.OPENDESK_LIVE_CALCULATOR !== '1') {
+  if (System.getEnv('OPENDESK_LIVE_CALCULATOR') !== '1') {
     console.log('[SKIP] Set OPENDESK_LIVE_CALCULATOR=1 to permit real Calculator UI input.');
     return;
   }
-  binary = environment.OPENDESK_BINARY || defaultBinary;
+  binary = System.getEnv('OPENDESK_BINARY', defaultBinary);
 
   File.ensureDir(runDir);
   ensureFile(binary, 'OpenDesk binary');

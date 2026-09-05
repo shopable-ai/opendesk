@@ -32,12 +32,13 @@ Dialog 的视觉验收与行为验收分别判定：即使返回值、Promise �
 | --- | --- | --- |
 | contract | 实际 Runtime、catalog、文档和类型声明没有未允许漂移 | `results/contract.json` |
 | unit | 每个 API family 的独立 `.test.js` 安全行为 | `results/unit.json` |
+| language | 选定的 ES2015–ES2023 作者语法与内建能力，以及 OpenDesk 脚本级 `await` | `results/language.json` |
 | coverage | 每方法 contract、已通过 tier、required tier、风险理由和用例 | `results/coverage.json` |
 | smoke | 安全公共路径与错误路径 | `results/smoke.json` |
 | failure-exit | 普通 JS throw 快速非零、且不是 watchdog 124 | `results/failure-exit.json` |
 | sound-cancel | 连续采样率播放后，同步 `Sound.play` 在真实 SIGINT 下快速取消并清空播放资源 | `sound-cancel/result.json` |
 | command | 本地 execution 的直接程序执行、非零退出、输出上限、timeout，以及 SIGINT teardown 的进程树清理 | `results/command.json`、`runtime-logs/command*/resources.json` |
-| environment | 本地 `Execution.env`、环境文件优先级、`Command.run` 继承、`ai run --env-file` 与 HTTP 隔离 | `runtime-logs/environment*`、`results/environment-*.log` |
+| path | Node-compatible 平台路径字符串、两个独立 WorkDir，以及 file/inline 来源路径正反例 | `results/path.json`、`runtime-logs/path-*` |
 | live | Safari、权限、窗口身份、输入、剪贴板、HTTP 和截图 | `results/live.json` |
 | notify-icon-live | 已安装 macOS Runtime 提交通知并保活 15 秒供图标取证 | `results/runtime-api-notify-icon-live.json` + 截图 |
 | composition | 多控件、DOM/像素、截图、state/events 和移动窗口重放 | `results/composition.json` |
@@ -53,17 +54,18 @@ tier，以及没有风险理由的 contract-only 接口。
 ## 运行
 
 ```bash
-OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./scripts/test_runtime_apis.sh contract
-OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./scripts/test_runtime_apis.sh unit
-OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./scripts/test_runtime_apis.sh smoke
-OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./scripts/test_runtime_apis.sh sound-cancel
-OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./scripts/test_runtime_apis.sh command
-OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./scripts/test_runtime_apis.sh environment
-OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./scripts/test_runtime_apis.sh custom-ui-config
-OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./scripts/test_runtime_apis.sh custom-ui
-OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./scripts/test_runtime_apis.sh dialog
-OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./scripts/test_runtime_apis.sh live
-OPENDESK_BINARY=/absolute/path/to/OpenDesk.app/Contents/MacOS/opendesk ./scripts/test_runtime_apis.sh notify-icon-live
+OPENDESK_RUNTIME_API_MODE=contract OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+OPENDESK_RUNTIME_API_MODE=unit OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+OPENDESK_RUNTIME_API_MODE=language ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+OPENDESK_RUNTIME_API_MODE=sound-cancel OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+OPENDESK_RUNTIME_API_MODE=command OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+OPENDESK_RUNTIME_API_MODE=path OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+OPENDESK_RUNTIME_API_MODE=custom-ui-config OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+OPENDESK_RUNTIME_API_MODE=custom-ui OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+OPENDESK_RUNTIME_API_MODE=dialog OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+OPENDESK_RUNTIME_API_MODE=live OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+OPENDESK_RUNTIME_API_MODE=notify-icon-live OPENDESK_BINARY=/absolute/path/to/OpenDesk.app/Contents/MacOS/opendesk ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
 ```
 
 `dialog` 在 macOS 构建 run-local native host，并实际运行公开 JavaScript 的 disabled、严格
@@ -81,15 +83,26 @@ worker、callback、timer、window、listener、driver sink 与 native host proc
 `sound-cancel` 运行正式 JavaScript 文件生成一段静音 WAV，先播放短提示音初始化共享 speaker，
 再进入较长的同步 `Sound.play()`。外层 gate 看到 READY 后发送一次真实 SIGINT，并要求 Runtime
 在 3 秒内以 `canceled` 结束，且 cleanup event 中的 sound worker、waiter 和 playback 全部归零。
+shell 只负责 readiness、SIGINT 和 wait，因为 `Command.run()` 不提供在途进程 handle；取消状态、
+events/summary 和资源归零断言由 `tests/runtime-api/sound-cancel-validation.js` 完成。
 
 `command` 使用本地 run-local CLI 的默认 `Command.run()` 能力。它覆盖直接执行、input/env、
 stdout/stderr、非零退出、输出上限和 timeout，再启动包含后代的长时 fixture，由外层 gate 向 Runtime
 发送 SIGINT，并要求 direct child、descendant、worker、Promise callback 和 process registry 全部
 归零。HTTP、MCP 和 Scheduler 入口仍不会启用 `Command`。
 
-`environment` 覆盖本地 `Execution.env` 的显式 dotenv 文件、默认 `.env` / `.opendesk.env`、启动时 OS 环境及其覆盖优先级、
-系统 `PATH`、冻结快照、`Command.run` 默认继承、`ai run --env-file`，以及 HTTP execution 不继承
-服务端环境；同一 gate 还运行并检查公开的 `examples/environment.js`。
+`language` 是作者基线，不是按 ES6、ES7、ES8 分开的完整 ECMAScript 一致性套件。它用一个正式
+JavaScript 文件验证文档列出的选定 ES2015–ES2023 语法、内建能力以及 OpenDesk 脚本级顶层 `await`；新增公开
+语法承诺时，应先扩展该文件。引擎未列入基线的其他能力仍以未承诺处理。
+
+`environment` 覆盖本地 `Execution.env` 的显式 dotenv 文件、启动时 OS 环境及其覆盖优先级、
+默认 `.env` / `.opendesk.env` 自动发现、系统 `PATH`、冻结快照、`Command.run` 默认继承、
+`ai run --env-file`，以及 HTTP execution 不继承服务端环境；同一 gate 还运行并检查公开的
+`examples/environment.js`：
+
+```bash
+OPENDESK_RUNTIME_API_MODE=environment ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+```
 
 即使设置了 `OPENDESK_BINARY`，runner 也不会直接从原目录执行它：先验证其为可执行普通
 文件，记录原始绝对路径和 SHA-256，再复制到本次
@@ -115,7 +128,7 @@ OPENDESK_RUNTIME_API_BROWSER_APP=Safari
 ```
 
 旧 `HOST_API_LIVE_FILTER` 和 `HOST_API_BROWSER_APP` 可由兼容入口映射，但新文档只推荐上列
-变量。`scripts/test_host_apis.sh` 只打印 deprecated 提示后 `exec` 新脚本，绝不维护第二套
+变量。旧 shell wrapper 已删除，绝不维护第二套
 测试实现。
 
 ## globalShortcut focused verification
@@ -142,8 +155,8 @@ OPENDESK_RUNTIME_API_BROWSER_APP=Safari
    go test ./pkg/execution -run '^TestRunJavaScriptGlobalShortcut' -count=1
    go test -race ./automation -run '^(TestGlobalShortcut|TestDarwinGlobalShortcut)' -count=1
    go test -race ./pkg/execution -run '^TestRunJavaScriptGlobalShortcut' -count=1
-   ./scripts/test_runtime_apis.sh contract
-   ./scripts/test_runtime_apis.sh unit
+   OPENDESK_RUNTIME_API_MODE=contract ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+   OPENDESK_RUNTIME_API_MODE=unit ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
    ```
 
    Windows host 上可运行
@@ -165,6 +178,7 @@ macOS 构建 run-local `clawdesk-ui-host`，运行真实原生 JavaScript 测试
 `custom-ui-config` 使用独立 JavaScript 文件对 CLI 发现和优先级做黑盒验证；完整 `custom-ui`
 gate 会同时运行它。全部仍由唯一正式入口启动。
 
-建议纳入版本控制的正式资产：`tests/runtime-api/`、`scripts/test_runtime_apis.sh`、
-`scripts/test_host_apis.sh`、`schemas/runtime-api/*.schema.json`、相关 Makefile/README/AGENTS、
+建议纳入版本控制的正式资产：`tests/runtime-api/`、`scripts/test_runtime_apis.js`、
+已删除的兼容包装器 `scripts/test_runtime_apis.sh` 与 `scripts/test_host_apis.sh` 不再使用；
+`schemas/runtime-api/*.schema.json`、相关 Makefile/README/AGENTS、
 以及 `docs/api/`、`types/` 修订。`.runtime/tests/runtime-api/` 中的任何文件都是本地运行产物。

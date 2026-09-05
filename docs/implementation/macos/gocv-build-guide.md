@@ -6,7 +6,7 @@
 
 - 系统: macOS 14.x (Apple Silicon / arm64)
 - Go: 1.23+（当前验证为 1.24.0）
-- 项目依赖: `gocv.io/x/gocv v0.40.0`
+- 项目依赖: `gocv.io/x/gocv v0.43.0`
 
 ## 问题现象
 
@@ -94,3 +94,20 @@ go build ./...
 - `pkg-config --modversion opencv4` 有版本输出
 - 最小 `gocv` 示例可编译运行
 
+## 仓库 OpenCV gate
+
+从仓库根目录运行完整检查：
+
+```bash
+bash -o pipefail -c './scripts/check_opencv.sh 2>&1 | tee .runtime/tests/opencv/check-opencv.log'
+```
+
+该 gate 不是普通 Runtime API runner：它先验证 Go、`CGO_ENABLED=1`、`pkg-config`、GoCV
+`v0.43.0` 和 OpenCV `4.13.x`，再执行 tagged native health check、tagged Go seam 和
+OpenDesk JavaScript fixture。JS 运行日志固定写入 `.runtime/tests/opencv/js/`，总日志写入
+`.runtime/tests/opencv/check-opencv.log`；`.runtime/` 中的日志不得提交。
+
+失败应按首个明确诊断归类：缺 Go/CGO、缺 `pkg-config`、未发现 `opencv4`、GoCV/OpenCV
+版本不匹配、tagged native health check 失败、tagged Go seam 失败，或 JavaScript fixture
+失败。不能把工具链缺失记为 Runtime API PASS，也不能用未带 `opencv` tag 的普通 binary
+替代该 gate。

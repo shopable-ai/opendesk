@@ -15,7 +15,7 @@ order: 10
 
 | 被验证的边界 | 保存位置 | 说明 |
 | --- | --- | --- |
-| JavaScript Runtime 公共契约、参数、返回值和用户可观察生命周期 | `tests/runtime-api/unit/<namespace>.test.js` | 正式入口是 `./scripts/test_runtime_apis.sh unit`；必须以 `docs/api/` 为契约来源。 |
+| JavaScript Runtime 公共契约、参数、返回值和用户可观察生命周期 | `tests/runtime-api/unit/<namespace>.test.js` | 正式入口是 `OPENDESK_RUNTIME_API_MODE=unit ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script`；必须以 `docs/api/` 为契约来源。 |
 | 需要真实窗口、权限、音频设备或外部应用的 JS 场景 | `tests/runtime-api/live/` 或对应 `tests/<domain>/` | 运行输出写入 `.runtime/tests/<domain>/`，不写回源码目录。 |
 | 只依赖 exported Go API 的确定性领域、模型或服务黑盒 | `tests/<domain>/*.go`，使用 `package <owner>_test` | 与实现物理分离；编译器禁止它们重新依赖未导出实现。 |
 | native backend、纯 Go 算法、包内私有 lifecycle / EventLoop seam | 与实现同包的 `*_test.go` | 允许访问未导出实现；不能替代上面的 JS 公共契约测试。 |
@@ -48,6 +48,17 @@ node scripts/audit_test_architecture.js
 已通过。
 
 ## JavaScript：直接运行
+
+### CLI 终端输出
+
+构建当前源码后，验证语义色、TTY/pipe 配置、Agent JSON 和 artifact ANSI 隔离：
+
+```text
+node tests/cli-output/console-color.js
+```
+
+证据写入 `.runtime/tests/cli-output/`；真实 TTY 的 `auto` 路径另按
+[`tests/cli-output/README.md`](../../tests/cli-output/README.md) 所述进行 PTY 验收。
 
 ### 原生插件
 
@@ -145,11 +156,15 @@ Dialog 手动交互脚本（需要 `-ui` 和真实窗口）：
 
 ### OpenCV ImageColor
 
-OpenCV fixture JavaScript（需要 CGO、OpenCV 4.13.x 和 GoCV v0.43.0）：
+OpenCV 完整工具链 gate（需要 CGO、OpenCV 4.13.x 和 GoCV v0.43.0）：
 
 ```text
-go run -tags opencv ./cmd/opendesk -script tests/opencv/image_color_opencv_test.js -timeout 1 -console-mode script -log-dir .runtime/tests/opencv/js
+bash -o pipefail -c './scripts/check_opencv.sh 2>&1 | tee .runtime/tests/opencv/check-opencv.log'
 ```
+
+该 shell 仅负责工具链探测、tagged native build/seam 和外部日志生命周期；公开图像行为由
+`tests/opencv/image_color_opencv_test.js` 断言。缺少 OpenCV 时应记录为环境 gate 未通过，不能
+记作 JavaScript 行为通过。
 
 ### WeChat 布局识别
 
@@ -179,8 +194,8 @@ go run ./tests/automation/tools/image-layout-lab all
 模拟微信完整识别：
 
 ```text
-./dist/opendesk -script tests/wechat/run_and_visualize.js simple
-./dist/opendesk -script tests/wechat/run_and_visualize.js complex
+OPENDESK_WECHAT_MODE=simple ./dist/opendesk -script tests/wechat/run_and_visualize.js -console-mode script
+OPENDESK_WECHAT_MODE=complex ./dist/opendesk -script tests/wechat/run_and_visualize.js -console-mode script
 ```
 
 模拟微信可视化：
@@ -279,6 +294,7 @@ tests/runtime-api/unit/touchscreen.test.js
 tests/runtime-api/unit/window.test.js
 tests/runtime-api/unit/screen.test.js
 tests/runtime-api/unit/system.test.js
+tests/runtime-api/unit/execution.test.js
 tests/runtime-api/unit/command.test.js
 tests/runtime-api/unit/file.test.js
 tests/runtime-api/unit/storage.test.js
@@ -298,9 +314,6 @@ tests/runtime-api/unit/audio.test.js
 tests/runtime-api/unit/dialog.test.js
 tests/runtime-api/unit/custom-ui.test.js
 tests/runtime-api/unit/floating-window.test.js
-tests/runtime-api/unit/browser.test.js
-tests/runtime-api/unit/context.test.js
-tests/runtime-api/unit/page-compat.test.js
 tests/runtime-api/unit/window-library.test.js
 tests/runtime-api/unit/globals.test.js
 ```
@@ -312,12 +325,12 @@ JavaScript 测试和正式入口如下：
 
 | 实现来源 | JavaScript 测试 | 覆盖内容 | 正式运行命令 |
 | --- | --- | --- | --- |
-| `automation/utils.go` 的 `AutoMapObject` / Page 注册 | `tests/runtime-api/unit/page.test.js` | native method 的 generic forwarding、显式 screenshot/goto/url wrapper、权限和等待 facade | `./scripts/test_runtime_apis.sh unit` |
-| `polyfills/000-page.js` 的 Page facade | `tests/runtime-api/unit/page.test.js` | `page____Inject` 替换、参数转发、权限组合、timer/predicate/navigation 组合 | `./scripts/test_runtime_apis.sh unit` |
-| `pkg/execution/runner.go` 的 `Execution` 注入 | `tests/runtime-api/unit/execution.test.js`、`tests/runtime-api/environment.js` | 运行标识、输入、环境快照、工作目录、artifact、来源字段与环境隔离 | `./scripts/test_runtime_apis.sh unit`、`./scripts/test_runtime_apis.sh environment` |
-| `pkg/runtimeenv/environment.go` | `tests/runtimeenv/environment_test.go` + `tests/runtime-api/environment.js` + `tests/runtime-api/acceptance/environment-default-files.js` + `examples/environment.js` | dotenv 子集、默认文件发现、显式文件/启动时 OS 环境优先级、Windows 键名、非法输入、冻结 JS 快照、Command 继承与安全公开示例 | `go test ./tests/runtimeenv`、`./scripts/test_runtime_apis.sh environment` |
-| `polyfills/010-browser-automation-upgraded.js` | `tests/runtime-api/unit/page-compat.test.js`、`browser.test.js`、`context.test.js` | upgraded/playwright-shaped compatibility surface | `./scripts/test_runtime_apis.sh unit` |
-| `automation/sound.go` 的 `registerSound` | `tests/runtime-api/unit/sound.test.js` | allowlist 旧同步方法 + 显式 `start`/`playAsync`/`stop`/`stopAll`/`getActive` bridge 的公共 JS surface | `./scripts/test_runtime_apis.sh unit` |
+| `automation/utils.go` 的 `AutoMapObject` / Page 注册 | `tests/runtime-api/unit/page.test.js` | native method 的 generic forwarding、显式 screenshot/goto/url wrapper、权限和等待 facade | Runtime API JS 的 `unit` mode |
+| `polyfills/000-page.js` 的 Page facade | `tests/runtime-api/unit/page.test.js` | `page____Inject` 替换、参数转发、权限组合、timer/predicate/navigation 组合 | Runtime API JS 的 `unit` mode |
+| `pkg/execution/runner.go` 的 `Execution` 注入 | `tests/runtime-api/unit/execution.test.js`、`tests/runtime-api/environment.js` | 运行标识、输入、环境快照、工作目录、artifact、来源字段与环境隔离 | Runtime API JS 的 `unit`、`environment` mode |
+| `automation/system_environment.go` 的 `System.getEnv` / `System.hasEnv` | `tests/runtime-api/unit/system.test.js`、`tests/runtime-api/environment.js`、`tests/runtime-api/acceptance/environment-http-isolation.js` | 按键读取、fallback、空值、非法参数、默认文件/OS 来源与远程宿主隔离 | Runtime API JS 的 `unit`、`environment` mode |
+| `pkg/runtimeenv/environment.go` | `tests/runtimeenv/environment_test.go` + `tests/runtime-api/environment.js` + `tests/runtime-api/acceptance/environment-default-files.js` + `examples/environment.js` | dotenv 子集、默认文件发现、显式文件/启动时 OS 环境优先级、Windows 键名、非法输入、冻结 JS 快照、Command 继承与安全公开示例 | `go test ./tests/runtimeenv`、Runtime API JS 的 `environment` mode |
+| `automation/sound.go` 的 `registerSound` | `tests/runtime-api/unit/sound.test.js` | allowlist 旧同步方法 + 显式 `start`/`playAsync`/`stop`/`stopAll`/`getActive` bridge 的公共 JS surface | Runtime API JS 的 `unit` mode |
 
 从仓库根目录直接复现完整 unit 脚本：
 
@@ -353,8 +366,9 @@ tests/runtime-api/live/composition-replay.test.js
 对应 runner：`tests/runtime-api/macos_live.js`；它由正式 live 入口准备 fixture。
 
 `tests/runtime-api/live/app-lifecycle.test.js` 和 `tests/runtime-api/live/notify-icon.test.js`
-不属于上述注入式 live 子测试：前者由 `./scripts/test_app_lifecycle.sh` 独立准备 App fixture，
-后者由 `./scripts/test_runtime_apis.sh notify-icon-live` 使用已安装 `.app` 独立运行。
+不属于上述注入式 live 子测试：前者由 `scripts/test_app_lifecycle.js` 独立准备 App fixture，
+后者由 `OPENDESK_RUNTIME_API_MODE=notify-icon-live ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script`
+使用已安装 `.app` 独立运行。
 
 ### Runtime API Custom UI 子测试
 
@@ -426,7 +440,7 @@ tests/extensions/native-process/smoke.js
 ./dist/opendesk -script tests/wechat/具体文件名.js -console-mode script
 ```
 
-这批历史/探索脚本不是统一 acceptance gate：部分脚本以 `catch(console.error)` 结束，只适合诊断和人工观察，不能因为进程退出码为 0 就记为测试通过。正式结论只来自有断言、失败退出、固定输入和 `.runtime` Evidence 的入口（例如 `run_e2e_test.sh` 或 Runtime API runner）。
+这批历史/探索脚本不是统一 acceptance gate：部分脚本以 `catch(console.error)` 结束，只适合诊断和人工观察，不能因为进程退出码为 0 就记为测试通过。正式结论只来自有断言、失败退出、固定输入和 `.runtime` Evidence 的入口（例如 `./dist/opendesk -script tests/wechat/e2e.js -console-mode script` 或 Runtime API runner）。
 
 静态图片、算法和可视化：
 
@@ -495,39 +509,44 @@ tests/scheduler/fixtures/write-result.js
 find tests -type f -name '*.js' -print | sort
 ```
 
-## 必要的 Shell 编排入口
+## OpenDesk JavaScript gate 与必要的系统 shell
 
-下面的 Shell 不是 JS 的重复包装，而是确实包含多个步骤或系统级动作的入口：
-
-Runtime API 正式 gate（默认 mode 是 `smoke`）：
+Runtime API 的正式业务编排位于 `scripts/test_runtime_apis.js`。默认 mode 是 `smoke`；直接
+`-script` 没有公开位置参数，因此其他 mode 通过 `OPENDESK_RUNTIME_API_MODE` 选择：
 
 ```text
-./scripts/test_runtime_apis.sh contract
-./scripts/test_runtime_apis.sh unit
-./scripts/test_runtime_apis.sh smoke
-./scripts/test_runtime_apis.sh coverage
-./scripts/test_runtime_apis.sh negative
-./scripts/test_runtime_apis.sh environment
-./scripts/test_runtime_apis.sh sound-cancel
-./scripts/test_runtime_apis.sh live
-./scripts/test_runtime_apis.sh custom-ui-config
-./scripts/test_runtime_apis.sh custom-ui
-./scripts/test_runtime_apis.sh dialog
+./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+OPENDESK_RUNTIME_API_MODE=contract ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+OPENDESK_RUNTIME_API_MODE=unit ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+OPENDESK_RUNTIME_API_MODE=coverage ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+OPENDESK_RUNTIME_API_MODE=negative ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+OPENDESK_RUNTIME_API_MODE=environment ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+OPENDESK_RUNTIME_API_MODE=sound-cancel ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+OPENDESK_RUNTIME_API_MODE=live ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+OPENDESK_RUNTIME_API_MODE=custom-ui-config ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+OPENDESK_RUNTIME_API_MODE=custom-ui ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+OPENDESK_RUNTIME_API_MODE=dialog ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
 ```
 
-普通 `contract/unit/smoke/coverage/negative` 不需要写 `OPENDESK_BINARY=`；入口会生成
+普通 `contract/unit/smoke/coverage/negative` 不需要写 `OPENDESK_BINARY=`；JS 入口会生成
 run-local binary。只有要锁定已有二进制时才写，例如：
 
 ```text
-OPENDESK_BINARY=./dist/opendesk ./scripts/test_runtime_apis.sh smoke
+OPENDESK_BINARY=./dist/opendesk ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
 ```
 
+`scripts/test_runtime_apis.js` 通过上述环境变量选择 mode；并发 server、PID、signal、
+WindowServer/AX 和截图等无法由一次性 `Command.run()` 表达的生命周期步骤留在
+`tests/runtime-api/seams/` 的专用系统 shell。它们不是第二套断言层。
+
 `sound-cancel` 会生成静音 WAV、启动一次同步播放并向当前 run-local CLI 发送 SIGINT，用于证明阻塞 native 调用能取消且 Sound 资源归零。它会短暂初始化主机音频设备，属于显式运行的专用 lifecycle smoke，不包含在普通 `unit` 中。
+shell 保留在途进程、SIGINT 和 wait；Runtime summary/events 与资源归零断言由
+`tests/runtime-api/sound-cancel-validation.js` 执行。
 
 通知图标和全局快捷键必须指定实际 macOS binary，保留变量是为了避免测错程序：
 
 ```text
-OPENDESK_BINARY=./dist/OpenDesk.app/Contents/MacOS/opendesk ./scripts/test_runtime_apis.sh notify-icon-live
+OPENDESK_RUNTIME_API_MODE=notify-icon-live OPENDESK_BINARY=./dist/OpenDesk.app/Contents/MacOS/opendesk ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
 OPENDESK_BINARY=./dist/opendesk ./tests/runtime-api/global-shortcut-smoke-darwin.sh
 ```
 
@@ -535,13 +554,13 @@ OPENDESK_BINARY=./dist/opendesk ./tests/runtime-api/global-shortcut-smoke-darwin
 
 ```text
 node scripts/audit_test_architecture.js
-./scripts/test_app_lifecycle.sh
+OPENDESK_LIVE_APP_LIFECYCLE=1 ./dist/opendesk -script scripts/test_app_lifecycle.js -console-mode script
 ./scripts/test_app_icons.sh
-./scripts/test_recorder.sh
+./dist/opendesk -script scripts/test_recorder.js -console-mode script
 ./tests/cli-install/test_macos_cli_installer.sh
-./tests/wechat/run_e2e_test.sh
+./dist/opendesk -script tests/wechat/e2e.js -console-mode script
 ./scripts/check_opencv.sh
-./scripts/e2e_smoke.sh
+./dist/opendesk -script scripts/e2e_smoke.js -console-mode script
 ./scripts/audit_repo_layout.sh
 python3 scripts/validate_browser_automation_evidence.py
 go test -count=1 ./pkg/mcpserver ./cmd/opendesk-mcp
@@ -559,11 +578,7 @@ OPENDESK_LIVE_AUDIO_TEST=1 go test ./automation -run '^TestDarwinAudioDeviceEnum
 OPENDESK_LIVE_CLIPBOARD_TEST=1 go test ./automation -run '^TestDarwinRichClipboardMetadataCanBeReadWithoutContent$' -count=1
 ```
 
-旧兼容入口仍保留，但不维护第二套测试实现：
-
-```text
-./scripts/test_host_apis.sh smoke
-```
+旧 shell 兼容入口已删除；不维护第二套测试实现。
 
 构建、安装和权限辅助脚本不是测试：`build_macos_app.sh`、`build_automation_bootstrap_app.sh`、
 `build_permission_bootstrap_app.sh`、`generate_app_icons.sh`、`install_macos_cli.sh`、

@@ -97,7 +97,8 @@ go build -o ./opendesk ./cmd/opendesk && go build -o ./opendesk-ui-host ./cmd/op
 ```
 
 vertical 工具栏固定为单列、最多五个按钮，超过上限会以 `INVALID_SPEC` 失败。正式
-WindowServer/Accessibility gate 与截图证据使用 `./scripts/test_runtime_apis.sh custom-ui`，不要求
+WindowServer/Accessibility gate 与截图证据使用
+`OPENDESK_RUNTIME_API_MODE=custom-ui ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script`，不要求
 普通用户手工运行控制器或 watchdog。
 
 ### Agent 友好输出
@@ -144,27 +145,25 @@ go run ./cmd/opendesk ai windows
 go run ./cmd/opendesk ai screenshot --window-title "TextEdit"
 go run ./cmd/opendesk ai mouse click --window-title "TextEdit" --x 300 --y 200
 go run ./cmd/opendesk ai keyboard type --text "Hello"
-go run ./cmd/opendesk ai run examples/ai-cli/write-to-focused-app.js --input '{"text":"Hello"}'
+./dist/opendesk ai run workflows/macos/calculator/calculate-and-reuse-result.js
 ```
 
-运行 `go run ./cmd/opendesk ai schema` 可从 CLI 本身发现命令与参数。截图默认只返回 PNG artifact
-路径，不在 stdout 输出 Base64。完整的 JSON contract、坐标空间、权限、Vision 和 recipe workflow
-见 [`docs/api/ai-cli.md`](docs/api/ai-cli.md)。
+运行 `./dist/opendesk ai schema` 可从 CLI 本身发现命令与参数。截图默认只返回 PNG artifact
+路径，不在 stdout 输出 Base64。完整的 JSON contract、坐标空间、权限、Vision、Workflow 作者约定
+和兼容 recipe 见 [`docs/api/ai-cli.md`](docs/api/ai-cli.md) 与 [`workflows/README.md`](workflows/README.md)。
 
-### Browser compatibility stack
+### JavaScript Runtime 与 Execution
+
+新脚本直接使用默认 Runtime，不需要选择 browser stack。每次运行都会注入 `Execution`，可读取
+本次运行的 ID、结构化输入、工作目录和 artifact 目录：
 
 ```bash
-go run ./cmd/opendesk -script examples/browser_stack_legacy_smoke.js -stack legacy
-go run ./cmd/opendesk -script examples/browser_stack_upgraded_smoke.js -stack upgraded
-go run ./cmd/opendesk -script examples/browser_stack_playwright_smoke.js -stack playwright
+./dist/opendesk -script-text "console.log(Execution.id, Execution.artifactDir)"
 ```
 
-`upgraded` / `playwright` 是 compatibility facade，不应理解为完整 Playwright 浏览器引擎。详细边界见：
-
-```text
-docs/api/runtime.md
-docs/architecture/browser-automation/
-```
+完整契约见 [`Execution Context`](docs/api/execution.md) 和
+[`JavaScript Runtime`](docs/api/runtime.md)。早期 `upgraded` / `playwright` 仅是进程内兼容 shim，
+不提供浏览器进程、DOM、selector 或 Playwright 语义，不应在新 workflow 中使用。
 
 ## HTTP 服务
 
@@ -286,10 +285,16 @@ docs/implementation/macos/gocv-build-guide.md
 go test ./...
 ```
 
-项目已有 e2e smoke 入口：
+项目的非 UI e2e smoke 由 OpenDesk Runtime JavaScript 编排（工作目录为仓库根目录）：
 
 ```bash
-./scripts/e2e_smoke.sh
+./dist/opendesk -script scripts/e2e_smoke.js -console-mode script
+```
+
+真实 macOS App probe 不进入默认 smoke 或 CI，只有显式授权后才运行；其进程成功也不等于视觉通过：
+
+```bash
+OPENDESK_LIVE_E2E=1 ./dist/opendesk -script scripts/e2e_smoke.js -console-mode script
 ```
 
 浏览器自动化质量与 smoke：
@@ -349,8 +354,10 @@ docs/api/runtime-api.ai.json
 ```
 
 JavaScript Runtime API contract、unit、safe smoke、Safari live 与 acceptance 测试位于
-`tests/runtime-api/`，入口为 `scripts/test_runtime_apis.sh`；一次性证据只写入
-`.runtime/tests/runtime-api/`。旧 `scripts/test_host_apis.sh` 仅保留为 deprecated 兼容包装器。
+`tests/runtime-api/`，OpenDesk JS 入口为 `scripts/test_runtime_apis.js`；默认 smoke 从仓库根目录运行
+`./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script`，其他 mode 通过
+`OPENDESK_RUNTIME_API_MODE` 选择。一次性证据只写入 `.runtime/tests/runtime-api/`；旧 shell
+wrapper 已删除。
 
 编辑器声明位于：
 
