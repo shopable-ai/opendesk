@@ -1,10 +1,12 @@
 # OpenDesk 商业化研究
 
-更新时间：2026-09-03
+更新时间：2026-09-05
 
 本目录保存 OpenDesk 的**市场、竞品、收费方式、行业机会和商业模式研究**。
 
 它属于 `docs/research/`，是产品与商业决策的输入，不是当前产品能力、架构事实或正式路线图。
+
+2026-09-05 已在现有[个人自动化与 Creator 生态竞品研究](个人自动化与Creator生态竞品研究.md#custom-ui-automation-20260905)中补充“自定义界面 + 脚本接口 + 桌面自动化小应用”专题，而不是另建平行竞品目录。**OpenDesk 当前支持 Windows 与 macOS**；某个接口（例如本轮所读 Custom UI 文档）的平台限制，不能被扩大为整个程序的平台限制。具体接口与实机验收状态按正式 API 文档分别核对；本目录更新时间不代表所有历史价格、商业条款均已重新核验。
 
 ## 当前研究文件
 
@@ -42,10 +44,13 @@
 
 6. [`个人自动化与Creator生态竞品研究.md`](个人自动化与Creator生态竞品研究.md)
    - 补齐过去相对缺失的中国个人自动化、快捷动作、脚本作者、插件市场和 Creator RPA 谱系；
-   - P0 研究按键精灵、Quicker、uTools、影刀 RPA、阿里云 RPA / 原码栈；
+   - 商业生态重点研究按键精灵、Quicker、uTools、影刀 RPA、阿里云 RPA / 原码栈；Custom UI 小应用重点加入 AutoHotkey v2、Hammerspoon、Script Kit、BetterTouchTool；
    - 将 Macro / Script、Context Action Panel、Plugin / Tool Marketplace、Creator RPA、Enterprise Agentic Automation 分成五条产品谱系；
    - 研究“免费 Creator → Action / Script / Automation App → 分发 / 授权 / Marketplace → Team / Enterprise → Outcome”的商业升级路径；
    - 对近期候选电商 Custom UI 方向，重点比较 Quicker 的上下文动作、uTools 的插件 / Agent Tool、按键精灵的作者商业化、影刀的 Automation App 与阿里云 RPA 的 Robot / MCP / 调度；
+   - [2026-09-05 Custom UI 增补](个人自动化与Creator生态竞品研究.md#custom-ui-automation-20260905)：补充 AutoIt、Keyboard Maestro、Rubick、OpenRPA、RPA.Assistant、UiPath Apps、Power Automate Desktop，并说明 UI-TARS / Peekaboo 与本专题的相邻关系；
+   - 分开记录 Windows / macOS 平台、直接竞品与开源实现、SDK 与桌面宿主许可、宿主脚本 / 插件与独立 EXE / 企业应用交付；Script Kit SDK 的 MIT 许可不能套用到其专有桌面宿主；
+   - 后续用同一业务小工具比较开发成本、运行可靠性、任务取消、结果证据、平台适配与安装交付，不以“能画按钮”或 API 数量代表竞争优势；
    - 当前只作为 Research，不自动把 Creator、Marketplace 或完整企业控制台写入正式 Roadmap。
 
 7. [`../desktop-automation/2026-08-31-computer-use-agent-competitor-rescan.md`](../desktop-automation/2026-08-31-computer-use-agent-competitor-rescan.md)
@@ -176,6 +181,8 @@ Action / Automation 本体
 12. 2026-08 起，技术竞品扫描必须同时覆盖 Driver、Computer Use、Recorder、Agent OS、Agent-authored RPA、Enterprise Agentic Automation 与 Browser/Sandbox，不再只扫描传统 RPA。
 13. 2026-09 起，商业竞品扫描必须额外覆盖 Personal Automation、Action Panel、Plugin / Tool Marketplace、Creator Economy 和 Automation Package，不再只看底层 Library 与大型 RPA 两端。
 14. 同名或近似命名项目需要独立记录 GitHub / SEO / Domain / Package namespace 风险；正式商业发行前另做 Naming / Trademark Clearance，不把搜索结果直接当成法律结论。
+15. 平台结论必须分开记录产品 / Runtime、单项接口、目标 OS 实机证据；OpenDesk 已支持 Windows，不因 Mac-only 示例或某模块限制而改写产品定位。
+16. 源码研究须区分开源、公开但专有、免费但闭源，以及 SDK / 宿主 / 插件的许可范围；未查到许可证的组件不自动归为可自由复用。
 
 ## 当前商业研究主线
 
