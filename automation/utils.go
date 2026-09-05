@@ -16,6 +16,7 @@ import (
 	"github.com/dop251/goja_nodejs/eventloop"
 	"opendesk/pkg/customui"
 	"opendesk/pkg/nativeextension"
+	"opendesk/pkg/terminalstyle"
 )
 
 // InitJSOptions 控制 JS 运行时初始化行为。
@@ -311,7 +312,8 @@ func emitRuntimeLog(sink EventSink, level, message string, fields map[string]any
 	case "error":
 		prefix = "[ERROR]"
 	}
-	fmt.Printf("%s %s\n", prefix, message)
+	line := terminalstyle.ColorizeTaggedLine(fmt.Sprintf("%s %s", prefix, message), terminalstyle.ModeAuto, os.Stdout)
+	_, _ = terminalstyle.WriteString(os.Stdout, line+"\n")
 }
 
 func AutoMapMethods(runtime *goja.Runtime, goObj interface{}, jsObjName string) map[string]interface{} {
@@ -738,8 +740,15 @@ func (s initEventSink) Emit(category, level, source, kind, message string, field
 	if s.base == nil {
 		return
 	}
+	// Anything emitted through the bootstrap console belongs to the runtime,
+	// never to the user's script. Benign console.log/info calls in polyfills are
+	// diagnostics, so surface them as framework debug while preserving warn/error.
+	source = "runtime"
 	if category == "script" {
 		category = "framework"
+		if level == "info" {
+			level = "debug"
+		}
 	}
 	s.base.Emit(category, level, source, kind, message, fields)
 }

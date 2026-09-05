@@ -11,10 +11,11 @@ require (
 	github.com/dop251/goja v0.0.0-20260826204918-8f1c0696a37b
 	github.com/dop251/goja_nodejs v0.0.0-20260212111938-1f56ff5bcf14
 	github.com/faiface/beep v1.1.0
-	github.com/fatih/color v1.7.0
 	github.com/gen2brain/beeep v0.0.0-20240516210008-9c006672e7f4
 	github.com/go-vgo/robotgo v0.110.5
 	github.com/lxn/win v0.0.0-20210218163916-a377121e959e
+	github.com/mattn/go-colorable v0.0.9
+	github.com/mattn/go-isatty v0.0.24
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/shirou/gopsutil/v3 v3.24.5
 	gocv.io/x/gocv v0.43.0
@@ -60,8 +61,6 @@ require (
 	github.com/jsummers/gobmp v0.0.0-20151104160322-e2ba15ffa76e // indirect
 	github.com/kbinani/screenshot v0.0.0-20240820160931-a8a2c5d0e191 // indirect
 	github.com/lufia/plan9stats v0.0.0-20240909124753-873cd0166683 // indirect
-	github.com/mattn/go-colorable v0.0.9 // indirect
-	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646 // indirect
 	github.com/nicksnyder/go-i18n/v2 v2.5.1 // indirect

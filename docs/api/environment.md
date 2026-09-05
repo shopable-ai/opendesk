@@ -15,8 +15,9 @@ OpenDesk 可在**命令启动的工作目录**读取项目环境，并把合并�
 shell，不会读取 `.zshrc`、`.bashrc`、Windows 注册表或运行中后来修改的父进程环境。因此从 macOS
 Finder/Dock 等 GUI 启动时，变量集合可能少于从 Terminal 启动；这类项目值应写入环境文件。
 
-其中 `OPENDESK_CONSOLE_MODE` 和 `OPENDESK_CONSOLE_CATEGORIES` 还会配置终端输出。其他键只进入
-execution 环境；`OPENDESK_TIMEOUT`、`OPENDESK_STACK` 等不会自动映射为同名 CLI flag。
+其中 `OPENDESK_CONSOLE_MODE`、`OPENDESK_CONSOLE_CATEGORIES` 和 `OPENDESK_CONSOLE_COLOR`
+还会配置终端输出。其他键只进入 execution 环境；`OPENDESK_TIMEOUT`、`OPENDESK_STACK` 等不会
+自动映射为同名 CLI flag。
 
 ## 快速开始
 
@@ -113,6 +114,7 @@ const endpoint = Execution.env.MY_SERVICE_ENDPOINT;
 | --- | --- | --- | --- |
 | `OPENDESK_CONSOLE_MODE` | `-console-mode <mode>` | `normal`、`script`、`full`、`meta`、`summary`、`quiet`、`agent` | 选择预设输出档位。 |
 | `OPENDESK_CONSOLE_CATEGORIES` | `-console-categories <list>` | `framework`、`meta`、`script`、`summary`、`error` 的逗号列表 | 精确替代 mode 默认类别。 |
+| `OPENDESK_CONSOLE_COLOR` | `-color <mode>` | `auto`、`always`、`never` | 控制终端语义色；默认 `auto`。 |
 
 ### 输出模式
 
@@ -128,6 +130,59 @@ const endpoint = Execution.env.MY_SERVICE_ENDPOINT;
 
 `normal` 会隐藏 framework、执行元数据、`console.debug` 与 `console.time*`，但完整事件和
 原始 stdout/stderr 仍写入本次 `.runtime/runs/...` artifact。
+
+### 终端颜色
+
+交互终端默认使用语义色帮助快速扫描，同时始终保留文字标签，颜色不是识别日志的唯一方式：
+
+| 标签/级别 | 终端样式 |
+| --- | --- |
+| `[FRAMEWORK]` | 灰色，降低加载细节的视觉权重 |
+| `[SCRIPT]` | 粗体亮青色，突出用户脚本输出 |
+| `[META]` | 紫色，表示执行上下文和生命周期 |
+| `[SUMMARY]` | 成功为粗体绿色；失败/超时为红色；取消为黄色 |
+| warn / error / debug | 额外保留 `[WARN]` / `[ERROR]` / `[DEBUG]` 文字标识，并分别使用黄色、粗体红色和弱化灰色 |
+
+终端标签采用“owner + 方法/级别”两层结构，不能只靠颜色判断来源。例如 `full` 模式下：
+
+```text
+[FRAMEWORK] [DEBUG] Loaded polyfill: 006-ui.js
+[SCRIPT] [LOG] order created id=42
+[SCRIPT] [DEBUG] normalized payload
+[SCRIPT] [WARN] retrying request
+[SCRIPT] [ERROR] request rejected
+```
+
+Runtime 初始化、资源探测和 polyfill 装载属于 framework；其正常诊断统一为 `debug`，不会冒充业务
+`console.log()`。用户脚本的 `console.log/info/debug/warn/error` 则保留 `SCRIPT` owner 和对应方法标签。
+框架自身的完成通知只进入 `META` / `SUMMARY`，不会进入 `SCRIPT` 或 Agent 的 `scriptLogs`。因此即使
+`full` 同时展示两类内容，也能按 `[FRAMEWORK]` / `[SCRIPT]` 搜索，并能在禁色环境中可靠区分。
+
+| 归属与级别 | `normal` | `script` | `full` |
+| --- | --- | --- | --- |
+| framework debug | 隐藏 | 隐藏 | `[FRAMEWORK] [DEBUG]` |
+| script log/info | `[SCRIPT] [LOG/INFO]` | `[SCRIPT] [LOG/INFO]` | `[SCRIPT] [LOG/INFO]` |
+| script debug/time | 隐藏 | `[SCRIPT] [DEBUG/TIME]` | `[SCRIPT] [DEBUG/TIME]` |
+| warn/error | 显示 | 显示 | 显示，并保留 owner 与级别标签 |
+
+`auto` 会分别检查 stdout 和 stderr：真实 TTY 才着色，管道、文件重定向及 `TERM=dumb` 自动保持
+纯文本。OpenDesk 继承的进程环境中，非空 `NO_COLOR` 会关闭 `auto` 配色；未设置它时，非空且不为
+`0` 的 `FORCE_COLOR` 强制开启，`FORCE_COLOR=0` 关闭。两者同时存在时 `NO_COLOR` 优先。项目环境
+文件不会把这两个通用变量解释为终端配置；需要项目默认值时使用 `OPENDESK_CONSOLE_COLOR`。显式
+`-color always|never` 的优先级更高：`always` 适合保留 ANSI 的终端工具，`never` 则无条件关闭：
+
+```bash
+# 日常交互：自动判断 TTY。
+./opendesk -script examples/environment.js
+
+# 一次性关闭或强制开启。
+./opendesk -script examples/environment.js -color never
+./opendesk -script examples/environment.js -color always
+```
+
+`agent` / `-output-format json` 属于机器协议，即使指定 `always` 也不会加入颜色。OpenDesk 只在最终
+终端渲染时给前缀着色；`.runtime/runs/...` 内的 `stdout.log`、`stderr.log`、`events.ndjson` 和
+JSON 摘要始终不写入系统生成的 ANSI 控制码。
 
 ### 类别覆盖
 
@@ -166,7 +221,7 @@ OPENDESK_CONSOLE_CATEGORIES=script,summary,error
 `[A-Za-z_][A-Za-z0-9_]*`。OpenDesk 不执行 shell、不展开 `$VARIABLE` / `${VARIABLE}`，也不修改
 父 shell；例如 `LITERAL=${OTHER}` 会保留为原字符串。歧义行、非法键、未闭合引号和 NUL 会明确失败。
 
-每个合法键都会进入本地 `Execution.env`，但只有上表两个 `OPENDESK_CONSOLE_*` 键具有 CLI 配置
+每个合法键都会进入本地 `Execution.env`，但只有上表三个 `OPENDESK_CONSOLE_*` 键具有 CLI 配置
 含义。环境值可能含有访问令牌，禁止整体打印 `Execution.env` 或无选择写入 artifact。
 
 HTTP、MCP 和 Scheduler execution 默认获得空的 `Execution.env`，不会继承服务端进程环境，也不会

@@ -162,7 +162,19 @@ console.debug('debug info');
 ```
 
 结构化执行入口可以把日志作为执行事件流输出；直接终端运行时，日志会写入终端。
-`null` 和 `undefined` 会被显式标记，复杂对象会被转换为 JSON 风格文本。
+`null` 和 `undefined` 会被显式标记，复杂对象会被转换为 JSON 风格文本。交互终端会按
+framework、script、meta、summary、warn 和 error 语义给文字前缀着色；正文及文字标签保持不变。
+颜色由 `-color auto|always|never` 控制，完整规则见[环境配置](environment.md#终端颜色)。运行 artifact
+和 JSON 输出不会写入 OpenDesk 生成的颜色控制码。
+
+用户方法会保留可搜索的终端身份：`console.log` 为 `[SCRIPT] [LOG]`、`console.info` 为
+`[SCRIPT] [INFO]`、`console.debug` 为 `[SCRIPT] [DEBUG]`、`console.warn` 为
+`[SCRIPT] [WARN]`，`console.error` 为 `[SCRIPT] [ERROR]`。Runtime 初始化期间临时 console 的
+普通输出会被重新归属为 `[FRAMEWORK] [DEBUG]`，不会混入业务 `scriptLogs`；结构化事件同时保留
+`category`、`level`、`source` 和 `fields.consoleMethod`。
+
+`console.clear()` 只会对真实交互终端发送清屏控制序列；输出被管道或重定向时它是 no-op，避免污染
+纯文本和机器协议。
 
 ### `console.table(data)`
 

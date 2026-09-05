@@ -39,6 +39,7 @@ type Request struct {
 	ExpectedCancellation func() bool
 	ExecutionID          string
 	SourceLabel          string
+	ScriptPath           string
 	Ext                  string
 	StackMode            string
 	ScriptHash           string
@@ -459,9 +460,7 @@ func wrapJavaScript(source []byte) string {
 				await (async function __opendeskUserScript() {
 %s
 				})();
-				console.log("script execution completed successfully");
 			} catch (err) {
-				console.error(err && err.message ? err.message : err);
 				globalThis.__scriptError = String(err && (err.stack || err.message) || err);
 			} finally {
 				globalThis.__opendeskComplete(globalThis.__scriptError);
@@ -479,6 +478,13 @@ func toScriptError(value goja.Value) string {
 
 type automationSink struct {
 	emitter *Emitter
+}
+
+func (s *automationSink) ClearConsole() {
+	if s == nil || s.emitter == nil {
+		return
+	}
+	s.emitter.clearTerminal()
 }
 
 func (s *automationSink) Emit(category, level, source, kind, message string, fields map[string]any) {

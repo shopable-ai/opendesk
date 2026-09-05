@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
+	"opendesk/pkg/terminalstyle"
 	"os"
 	"strings"
 	"sync"
@@ -17,6 +19,7 @@ type TerminalSelection struct {
 	Mode         string
 	Categories   map[string]bool
 	IncludeDebug bool
+	ColorMode    string
 }
 
 // Emitter 管理事件落盘、摘要聚合与订阅广播。
@@ -35,6 +38,8 @@ type Emitter struct {
 	counters    map[string]int64
 	subscribers map[int]chan RunEvent
 	nextSubID   int
+	terminalOut io.Writer
+	terminalErr io.Writer
 }
 
 // NewEmitter 创建执行事件发射器。
@@ -51,6 +56,8 @@ func NewEmitter(executionID string, selection TerminalSelection, artifacts Execu
 			"errorLogs":   0,
 		},
 		subscribers: make(map[int]chan RunEvent),
+		terminalOut: os.Stdout,
+		terminalErr: os.Stderr,
 		summary: AgentSummary{
 			SchemaVersion: schemaVersion,
 			ExecutionID:   executionID,
@@ -208,7 +215,7 @@ func (e *Emitter) Finalize(status ExecutionStatus, execErr error) (ExecutionResu
 	e.summary.Status = string(status)
 	e.summary.FinishedAt = time.Now().Format(time.RFC3339)
 	e.summary.DurationMs = time.Since(e.startedAt).Milliseconds()
-	if execErr != nil {
+	if execErr != nil && status != ExecutionStatusCanceled && !containsAgentError(e.summary.Errors, execErr.Error()) {
 		e.summary.Errors = append(e.summary.Errors, AgentErrorItem{
 			Timestamp: time.Now().Format(time.RFC3339),
 			Message:   execErr.Error(),
@@ -236,6 +243,13 @@ func (e *Emitter) Finalize(status ExecutionStatus, execErr error) (ExecutionResu
 		result.Error = execErr.Error()
 	}
 
+	doneLevel := EventLevelInfo
+	switch status {
+	case ExecutionStatusCanceled:
+		doneLevel = EventLevelWarn
+	case ExecutionStatusFailed, ExecutionStatusTimedOut:
+		doneLevel = EventLevelError
+	}
 	doneEvent := RunEvent{
 		SchemaVersion: schemaVersion,
 		EventID:       fmt.Sprintf("%s-done", e.executionID),
@@ -243,7 +257,7 @@ func (e *Emitter) Finalize(status ExecutionStatus, execErr error) (ExecutionResu
 		Sequence:      e.sequence + 1,
 		Timestamp:     time.Now().Format(time.RFC3339),
 		Category:      EventCategorySummary,
-		Level:         EventLevelInfo,
+		Level:         doneLevel,
 		Source:        EventSourceSystem,
 		Kind:          "done",
 		Message:       string(status),
@@ -255,6 +269,15 @@ func (e *Emitter) Finalize(status ExecutionStatus, execErr error) (ExecutionResu
 	e.broadcastLocked(doneEvent)
 
 	return result, e.summary, nil
+}
+
+func containsAgentError(errors []AgentErrorItem, message string) bool {
+	for index := len(errors) - 1; index >= 0; index-- {
+		if errors[index].Message == message {
+			return true
+		}
+	}
+	return false
 }
 
 // Subscribe 订阅执行事件。
@@ -333,12 +356,26 @@ func (e *Emitter) echoLocked(event RunEvent) {
 	if event.Level == EventLevelDebug && !e.selection.IncludeDebug {
 		return
 	}
-	line := formatTerminalEvent(event)
+	colorMode := terminalstyle.Mode(e.selection.ColorMode)
+	if strings.EqualFold(strings.TrimSpace(e.selection.Mode), "agent") {
+		colorMode = terminalstyle.ModeNever
+	}
 	if event.Category == EventCategoryError {
-		_, _ = os.Stderr.WriteString(line + "\n")
+		line := formatTerminalEvent(event, colorMode, e.terminalErr)
+		_, _ = terminalstyle.WriteString(e.terminalErr, line+"\n")
 		return
 	}
-	_, _ = os.Stdout.WriteString(line + "\n")
+	line := formatTerminalEvent(event, colorMode, e.terminalOut)
+	_, _ = terminalstyle.WriteString(e.terminalOut, line+"\n")
+}
+
+func (e *Emitter) clearTerminal() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if strings.EqualFold(strings.TrimSpace(e.selection.Mode), "agent") || !e.selection.Categories[string(EventCategoryScript)] {
+		return
+	}
+	terminalstyle.ClearScreen(e.terminalOut)
 }
 
 func (e *Emitter) broadcastLocked(event RunEvent) {
@@ -393,7 +430,53 @@ func writeJSONFile(path string, payload any) error {
 	return nil
 }
 
-func formatTerminalEvent(event RunEvent) string {
+func formatTerminalEvent(event RunEvent, colorMode terminalstyle.Mode, writer io.Writer) string {
 	prefix := strings.ToUpper(string(event.Category))
-	return fmt.Sprintf("[%s] %s", prefix, event.Message)
+	if event.Category == EventCategoryError && event.Source == EventSourceConsole {
+		prefix = strings.ToUpper(string(EventCategoryScript))
+	}
+	detailPrefix := terminalEventDetailPrefix(event)
+	line := fmt.Sprintf("[%s] %s", prefix, event.Message)
+	if detailPrefix != "" {
+		line = fmt.Sprintf("[%s] %s %s", prefix, detailPrefix, event.Message)
+	}
+	return terminalstyle.ColorizeEventLine(line, string(event.Category), string(event.Level), colorMode, writer)
+}
+
+func terminalEventDetailPrefix(event RunEvent) string {
+	if event.Category == EventCategoryError && event.Source != EventSourceConsole {
+		return ""
+	}
+	if event.Source == EventSourceConsole && event.Fields != nil {
+		if method, ok := event.Fields["consoleMethod"].(string); ok {
+			switch strings.ToLower(strings.TrimSpace(method)) {
+			case "log":
+				return "[LOG]"
+			case "info":
+				return "[INFO]"
+			case "warn":
+				return "[WARN]"
+			case "debug":
+				return "[DEBUG]"
+			case "table":
+				return "[TABLE]"
+			case "group":
+				return "[GROUP]"
+			case "groupend":
+				return "[GROUP]"
+			case "time", "timeend":
+				return "[TIME]"
+			}
+		}
+	}
+	switch event.Level {
+	case EventLevelError:
+		return "[ERROR]"
+	case EventLevelWarn:
+		return "[WARN]"
+	case EventLevelDebug:
+		return "[DEBUG]"
+	default:
+		return ""
+	}
 }

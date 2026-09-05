@@ -9,7 +9,6 @@ import (
 	"image/color"
 	"image/jpeg"
 	"image/png"
-	"log"
 	"math"
 	"os"
 	"path/filepath"
@@ -258,21 +257,18 @@ func (ic *ImageColor) FindColor(imageStr, colorStr string, options interface{}) 
 func (ic *ImageColor) FindColorBlocks(imageStr, colorStr string, options interface{}) ([]map[string]interface{}, error) {
 	// Check if color is empty
 	if colorStr == "" {
-		log.Printf("Color string is empty, returning empty array")
 		return []map[string]interface{}{}, nil
 	}
 
 	// Decode bitmap
 	img, err := ic.decodeBitmap(imageStr)
 	if err != nil {
-		log.Printf("Failed to decode bitmap: %v", err)
 		return nil, fmt.Errorf("failed to decode bitmap: %v", err)
 	}
 
 	// Parse target color and convert to RGBA
 	colorValue, err := parseHexColor(colorStr)
 	if err != nil {
-		log.Printf("Color parsing failed: %v", err)
 		return nil, fmt.Errorf("invalid color format: %v", err)
 	}
 
@@ -327,15 +323,12 @@ func (ic *ImageColor) FindColorBlocks(imageStr, colorStr string, options interfa
 
 	// Validate bounds
 	if width <= 0 || height <= 0 {
-		log.Printf("Invalid search bounds: width=%d, height=%d", width, height)
 		return nil, fmt.Errorf("invalid search bounds: width=%d, height=%d", width, height)
 	}
 
 	// Validate image bounds
 	if x < bounds.Min.X || y < bounds.Min.Y ||
 		x+width > bounds.Max.X || y+height > bounds.Max.Y {
-		log.Printf("Search bounds outside image dimensions: x=%d, y=%d, width=%d, height=%d",
-			x, y, width, height)
 		return nil, fmt.Errorf("search bounds outside image dimensions")
 	}
 
@@ -345,7 +338,6 @@ func (ic *ImageColor) FindColorBlocks(imageStr, colorStr string, options interfa
 		SubImage(r image.Rectangle) image.Image
 	})
 	if !ok {
-		log.Printf("Image does not support SubImage")
 		return nil, fmt.Errorf("image does not support SubImage")
 	}
 	searchArea := subImage.SubImage(searchBounds)
