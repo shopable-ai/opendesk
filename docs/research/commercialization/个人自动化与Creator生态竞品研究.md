@@ -1,8 +1,10 @@
 # 个人自动化与 Creator 生态竞品研究
 
-更新时间：2026-09-03
+更新时间：2026-09-05
 
 > 文档性质：Research / 商业化与产品形态决策输入。本文补充 OpenDesk 过去商业研究中相对薄弱的“中国个人自动化、快捷动作、脚本作者、插件市场、Creator RPA”谱系。它不是 OpenDesk 当前能力声明，也不代表这些产品能力都应进入 Roadmap。
+>
+> 2026-09-05 增补：将“自定义界面 + 脚本接口 + 桌面自动化小应用”的产品与开源项目纳入本专题，详见[第 14 节](#custom-ui-automation-20260905)。OpenDesk 当前支持 Windows 和 macOS，不能因某个接口或示例只支持 macOS，就把整个程序写成 Mac-only；产品支持、接口支持和实机验收须分开记录。本次未重新核验第 5 节原有价格与商业事实，其研究快照仍为 2026-09-03，不应将本文更新时间理解为全部事实均已刷新。
 
 ## 1. 为什么需要单独研究这一层
 
@@ -34,6 +36,8 @@
 4. **影刀代表国内 Creator RPA / Automation App 的高相关商业样本。** Recorder、元素与图像资产、自动化任务、应用市场、团队 / 企业能力以及真实电商案例已经形成完整商品结构。
 5. **阿里云 RPA / 原码栈代表企业级上限。** Editor + Robot + Console、低代码 + 全代码、UIA / CV、人工 / 定时 / OpenAPI / MCP 触发、授权和调度已经被包装为“生产可用的 Computer Use Agent”基础设施。
 6. 因此 OpenDesk 的竞争研究不能只问“谁的 Desktop Automation Engine 更强”，还必须问：**谁把底层能力包装成了普通人可以创建、触发、分享、安装、购买和被 Agent 调用的小工具。**
+7. **自定义界面并非空白市场。** Hammerspoon、Script Kit、BetterTouchTool、Quicker、AutoHotkey 等已经覆盖不同形式的“自己的界面 → 脚本 / 动作 → 操作其他软件”；需要比较开发、可靠运行和交付成本，而不是只比较是否有按钮。证据和边界见第 14 节。
+8. **跨平台研究必须包含 Windows。** Windows 侧重点比较 Quicker、AutoHotkey v2、AutoIt、按键精灵；macOS 侧比较 Hammerspoon、BetterTouchTool、Keyboard Maestro；Script Kit、uTools、Rubick 则用于比较脚本 / 插件宿主体验。这里是研究分工，不代表所有接口在各平台完全等价。
 
 ## 3. 应补齐的五条产品谱系
 
@@ -42,13 +46,13 @@ A. Macro / Script
 按键精灵 / AutoHotkey / AutoIt / 自动精灵 / KeymouseGo
 
 B. Context Action Panel / Personal Automation
-Quicker / Keyboard Maestro / Hammerspoon / PhraseExpress / Espanso
+Quicker / BetterTouchTool / Keyboard Maestro / Hammerspoon / Script Kit / PhraseExpress / Espanso
 
 C. Plugin / Launcher / Tool Marketplace
-uTools / Raycast / Alfred
+uTools / Rubick / Raycast / Alfred
 
 D. Creator RPA / Automation App
-影刀 / UiBot / Power Automate Desktop / UiPath Studio
+影刀 / UiBot / Power Automate Desktop / UiPath Studio + Apps / OpenRPA / RPA.Assistant
 
 E. Enterprise RPA / Agentic Automation
 阿里云 RPA / 来也 / 弘玑 / UiPath / Automation Anywhere
@@ -63,19 +67,25 @@ E. Enterprise RPA / Agentic Automation
 | P0 | 按键精灵 | Macro / Script / Creator Economy | C1 | B3 | 研究免费 Creator、脚本成品化、授权和作者销售闭环 |
 | P0 | Quicker | Context Action Panel | C1 | B3 | 与 Custom UI、按钮动作、上下文切换、快捷键触发高度相邻 |
 | P0 | uTools | Plugin / Tool Platform / Agent Tool | C1-C2 | B3 | 研究插件 UI、API、付费、Marketplace、MCP / Agent Tool |
+| P0 | AutoHotkey v2 | Script / GUI / Executable Tool | C1 | B1 | Windows 脚本、GUI、事件与 EXE 交付基准；见第 14 节 |
+| P0 | Hammerspoon | Scriptable Desktop Automation / WebView | C1 | B1 | macOS 原生系统 API、Lua 与自定义窗口桥接基准；见第 14 节 |
+| P0 | Script Kit | JS/TS Script / Widget Host | C1 | B2 | 脚本生成小工具的开发体验；SDK 与宿主许可必须分开；见第 14 节 |
+| P0 | BetterTouchTool | Floating Menu / Scriptable WebView | C1 | B2 | macOS 浮动面板、应用专属控制台和脚本交互；见第 14 节 |
 | P0 | 影刀 RPA | Creator RPA / Automation App | C1 | B3 | 研究 Recorder、应用市场、第三方应用运行、企业升级和电商场景 |
 | P0 | 阿里云 RPA / 原码栈 | Enterprise RPA / Computer Use Agent | C1 | B3 | 研究 Editor / Robot / Console、调度、MCP、License 和企业部署 |
+| P1 | AutoIt / Keyboard Maestro | Script or Macro / Custom GUI | C1 | B2 | 对比 Windows 工具打包与 macOS 宏交互；见第 14 节 |
+| P1 | Rubick | Open-source Plugin Host | C1-C2 | B1 | 研究插件宿主与分发，不等同于完整桌面自动化引擎 |
+| P1 | OpenRPA / RPA.Assistant | RPA / Human-in-the-loop UI | C1-C2 | B2 | 研究交互表单、回调、执行反馈和开源实现边界 |
 | P1 | UiBot / 来也 | Creator + Enterprise RPA | C1-C2 | B3 | 国内 RPA 重要对照，后续单独核验当前产品形态 |
 | P1 | 弘玑 Cyclone | Hyperautomation / Agentic Automation | C2 | B3 | 企业自动化与 Agentic Automation 跟踪对象 |
 | P1 | 自动精灵 | Macro / Visual Automation | C1 | B2 | 与按键精灵相邻的个人脚本 / 自动化产品样本 |
 | P1 | KeymouseGo | Open-source Macro | C1 | B1 | 研究极简录制回放工具的边界与开源分发 |
 | P1 | Hamibot / Auto.js | Mobile Automation | C2 | B2 | 研究 Android 自动化、脚本分发和移动端 Creator 生态 |
-| P2 | AutoIt / Hammerspoon | Scriptable Desktop Automation | C1 | B1 | 研究脚本语言 / 系统 API 路线 |
 | P2 | SikuliX / 视觉自动化工具 | Vision-first GUI Automation | C1 | B1 | 研究图像驱动自动化和语义能力边界 |
 | P2 | Raycast / Alfred | Launcher / Extension / Workflow | C2 | B3 | 研究命令入口、扩展生态和工作流 Packaging |
 | P2 | PhraseExpress / Espanso | Text / Snippet Automation | C2 | B2 | 研究高频文本、模板和轻量客服效率场景 |
 
-> P1 / P2 中部分对象在本文只作为候选跟踪池；具体当前功能、价格和商业事实进入正式结论前需要再次以官方材料核验。
+> 优先级与 C/B 等级是研究判断，不是市场份额或性能排名。2026-09-05 新增 / 调整的 Custom UI 对象以第 14 节证据为依据；其余 P1 / P2 中部分对象仍只是候选跟踪池，具体当前功能、价格和商业事实进入正式结论前需要再次以官方材料核验。
 
 ## 5. P0 产品专项观察
 
@@ -555,7 +565,8 @@ P0 后续需要继续补证据，而不是立即开发：
 4. **影刀深挖**：第三方应用市场、创业版 Runner 商业逻辑、电商应用供给、企业升级路径。
 5. **阿里云 RPA 深挖**：MCP Tool、Robot 调度、服务型机器人、授权与企业部署边界。
 6. **国内 RPA 补齐**：UiBot / 来也、弘玑等当前产品线和 Agentic Automation 重新核验。
-7. **海外 Personal Automation 补齐**：Keyboard Maestro、Raycast、Alfred、PhraseExpress、Espanso 等与 OpenDesk Action / Custom UI 的关系。
+7. **海外 Personal Automation 深挖**：Hammerspoon、Script Kit、BetterTouchTool、AutoHotkey、AutoIt、Keyboard Maestro 的 Custom UI 初步事实已补入第 14 节；后续做同任务实测。Raycast、Alfred、PhraseExpress、Espanso 等继续作为相邻研究池。
+8. **Windows / macOS 对照**：同一个业务目标分别记录平台、界面宿主、自动化接口、安装交付与实机证据；不把某一平台的截图或编译结果当作跨平台验收。
 
 ## 13. 当前决策
 
@@ -566,3 +577,156 @@ P0 后续需要继续补证据，而不是立即开发：
 > OpenDesk 是否能以底层 Runtime 为基础，形成一种比大型 RPA 更轻、比普通快捷工具更可编程、比传统宏更可靠、又天然可被 Agent 调用的 **Action / Automation Package**？
 
 近期电商 Custom UI Demo 可以作为这一问题的低成本验证器，但它首先应该证明真实用户价值和 Action 模型，而不是先扩建完整 Creator、Marketplace 或 Enterprise Console。
+
+<a id="custom-ui-automation-20260905"></a>
+
+## 14. Custom UI 与桌面自动化小应用竞品增补（2026-09-05）
+
+### 14.1 研究对象与 OpenDesk 平台口径
+
+本次研究的是下面这个组合，而不是只研究宏录制器、流程编辑器或普通 GUI 框架：
+
+```text
+开发者或 Agent 编写业务脚本
+→ 创建自己的按钮、表单或持续交互窗口
+→ 用户操作界面
+→ 调用系统 / 文件 / 网络 / 外部桌面自动化接口
+→ 显示运行状态与结果
+→ 复用、交付或分发这个小工具
+```
+
+**OpenDesk 当前支持 Windows 和 macOS。** 这是本轮维护者明确确认的产品事实；仓库 [Global Shortcut API](../../api/global-shortcut.md) 也明确将 macOS、Windows 标为 Stable。不能再将 OpenDesk 整体写成“只支持 macOS”，也不能仅研究 Mac 工具而忽略 Windows 同类。
+
+需要严格区分三个层次：
+
+| 层次 | 本轮采用的口径 | 不能由此推导的结论 |
+|---|---|---|
+| 产品 / Runtime | OpenDesk 支持 Windows 与 macOS | 所有模块、示例和接口在两端均完全一致 |
+| 单项接口 | 按 `docs/api/` 对应契约记录平台、授权、可用性和限制 | 从一个接口的限制推导整个程序不支持该平台 |
+| 验收证据 | 文档、源码、编译结果、真实目标系统运行分别记录 | 文档或交叉编译等于已经完成 Windows / macOS 实机验收 |
+
+本轮读取的 [Custom UI API](../../api/custom-ui.md) 仍明确写明：macOS 使用 AppKit / WKWebView，Windows 与 Linux 的该模块报告 `available: false`。**这是当前所读 Custom UI 文档的接口级描述，不否定 OpenDesk 程序的 Windows 支持。** 本轮未执行目标系统测试，也不据此声称 Windows Custom UI 已完成或已实测；若实现已先于文档更新，应另以源码和对应版本的 Runtime 证据更新正式接口文档。
+
+另需保留当前命名边界：小写 `ui` / `FloatingWindow` 创建 OpenDesk 自己的界面，大写 `UI` 操作外部可见目标；`docs/custom-ui/` 是资源与示例说明入口，正式接口契约在 `docs/api/custom-ui.md`。依据：[Custom UI 资源说明](../../custom-ui/README.md)、[Custom UI API](../../api/custom-ui.md)。
+
+### 14.2 直接或高度相邻的小应用产品
+
+下表中的“研究价值”是对 OpenDesk 的判断；“已确认组合”来自所列官方文档，不代表已经安装实测。跨平台产品的单项功能仍须按具体版本核验。
+
+| 产品 | 平台 / 形态 | 已确认的相似组合 | 对 OpenDesk 的研究价值与边界 | 来源 |
+|---|---|---|---|---|
+| Hammerspoon | macOS，Lua 自动化宿主 | `hs.webview` 使用 WKWebView 创建窗口，可注入 JavaScript 并通过 user content controller 与宿主通信；与系统自动化扩展组合 | 优先看原生系统能力、脚本桥接、窗口事件与资源生命周期；不是 JS 主运行时 | [WebView 文档][CU-HS]、[项目][CU-HS-REPO] |
+| Script Kit | 跨平台桌面脚本宿主；官网另列 Windows / Linux 版本入口 | JS/TS 脚本；`widget()` 创建 HTML 窗口，`onClick`、`onInput`、`setState` 处理交互，并可调用键鼠等脚本能力 | 优先看少量代码生成业务小工具的体验；窗口依赖宿主，不等于独立安装包；SDK 与宿主许可分开 | [官网][CU-KIT-HOME]、[API][CU-KIT-API] |
+| BetterTouchTool | macOS，商业自动化宿主 | Floating Menus / Scriptable WebView 可加载 HTML、触发 BTT 功能并显示结果，联动脚本和应用专属动作 | 优先看浮动操作台、应用上下文、触发器和界面反馈；不应仅当作触控板工具 | [WebView][CU-BTT]、[JSON / AI 菜单创建][CU-BTT-AI] |
+| Quicker | Windows，动作 / 面板宿主 | 自定义操作窗和 XAML/WPF 自定义窗口；按钮可触发动作或子程序，传入参数并更新窗口数据 | 优先看业务操作面板、输入输出绑定及不抢焦点模式；部分高级功能的适用版本 / 预览标识需逐项核验 | [操作窗][CU-QUICKER-PANEL]、[自定义窗口][CU-QUICKER-WINDOW] |
+| AutoHotkey v2 | Windows，脚本 / GUI / 可执行工具 | `Gui()` 创建窗口和控件；与快捷键、输入、窗口自动化组合；Ahk2Exe 可将脚本转换为 EXE | 优先看“自己的界面 + 操作其他软件 + 工具交付”；新研究使用 v2，不能将 v1 示例直接当作 v2 契约 | [Gui][CU-AHK-GUI]、[项目][CU-AHK]、[Ahk2Exe][CU-AHK-EXE] |
+| AutoIt | Windows，脚本 / GUI / EXE | 自定义 GUI、键鼠模拟、窗口与控件操作、COM / DLL 调用，可生成独立 EXE | Windows 业务小工具与交付基准；免费软件不等于开源运行时 | [官方介绍][CU-AUTOIT]、[许可][CU-AUTOIT-LICENSE] |
+| Keyboard Maestro | macOS，宏 / 面板宿主 | Custom HTML Prompt 用 HTML/CSS/JS 自定义交互窗口，读写宏变量并触发宏；支持异步显示选项 | 看宏与表单、状态、人工确认的结合；不是与 OpenDesk 相同的通用 JS Runtime | [Custom HTML Prompt][CU-KM] |
+| uTools | 跨平台插件宿主 | HTML 插件界面、`plugin.json`、Node.js preload 与系统 API；提供插件打包和市场入口 | 看小应用开发、宿主扩展、安装分发与 Agent Tool；插件包不等于独立 EXE，浏览器能力不等于全部桌面能力 | [第一个插件][CU-UTOOLS]、第 5.3 节 |
+| 按键精灵 / 商业小精灵 | 本专题重点看 Windows PC 与脚本成品；移动端另列 | 脚本成品化、作者授权和商业小精灵分发，沿用第 5.1 节已有研究 | 看脚本作者如何交付和销售工具；不能把移动端 WebUI / APK 的资料直接当作 Windows 同版本能力证明 | 第 5.1 节的官方来源；本轮未刷新各端版本 / 价格 |
+
+这里存在三种不同交付物，竞品比较必须分别记录：**宿主内脚本 / 插件、可独立启动的打包工具、企业平台中的自动化应用**。不能把“创建额外窗口”“导出插件包”“生成 EXE”“销售成品”都归为一个“支持桌面应用”的勾选项。
+
+### 14.3 开源实现与许可边界
+
+本表记录本轮官方仓库或包元数据可确认的许可标签，不代替针对具体版本、文件和依赖的复用审查；开源不代表可不保留许可或无条件移植。
+
+| 项目 / 组件 | 本轮确认的许可或状态 | 最适合研究的实现 | 注意事项 / 来源 |
+|---|---|---|---|
+| `Hammerspoon/hammerspoon` | MIT | 系统扩展、Lua bridge、WebView 与生命周期 | [LICENSE][CU-HS-LICENSE]；macOS 技术参照，不是 Windows backend |
+| `AutoHotkey/AutoHotkey` | GPL-2.0 | Windows 脚本、GUI、事件与工具交付 | [仓库及许可入口][CU-AHK]；复用解释器实现与参考 API 设计是两件事 |
+| `johnlindquist/kit` SDK | MIT | JS/TS SDK、Widget 与脚本开发体验 | [SDK LICENSE][CU-KIT-LICENSE]；不能据此将整个 Script Kit 宿主归为 MIT |
+| `script-kit/app` 桌面宿主 | LICENSE 明确标注专有软件；公开代码用于贡献修复 | 仅作为产品与架构研究对象 | [宿主 LICENSE][CU-KIT-APP-LICENSE]；与官网笼统的 open-source 描述存在范围差异，实际复用须以具体组件许可为准 |
+| `rubickCenter/rubick` | MIT | Electron 插件宿主、UI / 系统插件、安装卸载与分发 | [仓库][CU-RUBICK]；高度相邻，但不是已经自带全部桌面识别与控制能力的 RPA 引擎 |
+| `open-rpa/openrpa` | MPL-2.0 | Windows 工作流自动化、交互表单及机器人执行 | [仓库][CU-OPENRPA-REPO]；不要把 OpenRPA 的许可直接套到其他服务、插件或后端组件 |
+| `robocorp/rpaframework` 的 `rpaframework-assistant` 包 | 包元数据标注 Apache-2.0 | Python / Robot Framework 的动态对话框、输入校验与按钮回调 | [包信息][CU-ASSISTANT-PACKAGE]、[迁移说明][CU-ASSISTANT-GUIDE]；研究 `RPA.Assistant`，不要无差别沿用旧 `RPA.Dialogs` 方法 |
+| AutoIt | 自有 EULA，不归入上述开源实现池 | 产品、脚本 API 与 EXE 交付体验 | [EULA][CU-AUTOIT-LICENSE]明确允许商业使用和销售所创建的脚本；不等于开放运行时源码 |
+
+BetterTouchTool、Quicker、Keyboard Maestro、uTools、按键精灵等在本专题主要作为产品研究对象，不能仅因其脚本、示例或插件代码公开，就把其整个宿主标为开源。
+
+### 14.4 企业 RPA、人机协同和 AI 相邻对象
+
+| 产品 / 项目 | 已确认的重叠能力 | 在本专题中的边界 | 来源 |
+|---|---|---|---|
+| OpenRPA | Windows、浏览器等自动化；工作流内嵌脚本；Forge Forms 交互表单；有人 / 无人值守机器人 | 适合看“界面 + RPA 执行”；不是同等轻量的 JS 小应用宿主。官网的多类应用集成不能直接解释为桌面客户端支持所有 OS | [官方产品页][CU-OPENRPA] |
+| RPA.Assistant | 对话框输入、校验、按钮回调等人与自动化交互能力 | 是可集成的库，不是完整商业桌面小应用平台；系统可用性还取决于版本和依赖 | [迁移说明][CU-ASSISTANT-GUIDE]、[包信息][CU-ASSISTANT-PACKAGE] |
+| UiPath Apps + Assistant / Robot | Apps 与 attended automation 可维持双向通信，通过用户交互调用关联工作流 | 企业级“业务界面 + 自动化”参照；不要等同于本地独立 EXE，部署与许可需按组件另查 | [官方通信机制][CU-UIPATH] |
+| Power Automate Desktop | `Display custom form` 基于 Adaptive Cards；表单输出数据和按钮选择，后续流程据此分支 | Windows 流程中的自定义表单参照，不宜直接等同于任意持续交互窗口 | [官方表单文档][CU-PAD] |
+| UI-TARS Desktop / Agent TARS | AI 驱动的计算机 / 浏览器操作与 Agent 工具组合 | 主要比较 Agent 执行，而不是把其自带的操作界面误认为给脚本作者提供 Custom UI SDK | [官方仓库][CU-TARS] |
+| Peekaboo | macOS CLI / MCP、截图与原生 UI 自动化 | Desktop Driver / Agent Tool 参照，不因它有菜单栏 App 就视为同类的小应用开发平台 | [官方仓库][CU-PEEKABOO] |
+
+AI / Driver 的完整竞争池继续由 [Computer-use 竞品重扫](../desktop-automation/2026-08-31-computer-use-agent-competitor-rescan.md) 承载；本节只说明与 Custom UI 小应用方向的交集，避免复制一套平行总表。
+
+### 14.5 对 OpenDesk 的判断与研究顺序
+
+**判断一：单独“能画界面”不足以差异化。** 第 14.2 节已能反证“其他产品只有脚本、没有自己的界面”。BetterTouchTool 还提供 JSON / AI 创建浮动菜单的官方说明，因此“可用 AI 生成面板”本身也不宜宣称独有能力。[来源][CU-BTT-AI]
+
+**判断二：更值得验证的是可靠小应用的开发与交付成本。** 研究假设是：OpenDesk 能否让开发者或 Agent 以更少的胶水代码，将同一业务动作接到按钮、快捷键和外部调用入口，并能解释失败、保留结果、维护版本。这是待验证优势，不是已经证明的竞品领先结论。
+
+| 研究视角 | 优先对象 | 本次建议关注的问题 |
+|---|---|---|
+| Windows 业务操作台 | Quicker、AutoHotkey v2；再看 AutoIt、按键精灵 | 外部窗口焦点、控件 / 输入、参数和结果绑定、脚本打包及用户安装 |
+| macOS 原生交互 | Hammerspoon、BetterTouchTool；再看 Keyboard Maestro | 原生接口 bridge、浮动窗口、事件、权限与生命周期 |
+| JS/TS 与插件开发体验 | Script Kit、uTools；开源宿主参照 Rubick | 少量代码完成界面与动作联动、状态更新、宿主边界和分发 |
+| 人工参与 / 企业交付 | RPA.Assistant、OpenRPA；再看 UiPath Apps、Power Automate Desktop | 表单、审批、长任务反馈、机器人执行与组织交付成本 |
+
+这里的 Windows / macOS 是并列研究维度，不是将 Windows 视为未来才支持的平台；也不意味着 OpenDesk 现在必须重建 Electron、全功能 GUI 设计器或企业控制台。
+
+### 14.6 后续同任务验证：不用接口数量替代产品价值
+
+建议以同一个低风险业务小工具做对照：选择目标应用与参数 → 点击开始 → 执行外部操作 → 展示状态 / 结果 → 异常时停止 → 调整参数后再次运行。真实业务批量提交或外部发送另设人工确认，不使用真实客户数据做无保护演示。
+
+| 维度 | 应记录的输入与输出 | 验证问题 |
+|---|---|---|
+| 开发成本 | 同一需求、实现代码、配置和开发步骤 | UI / Action / 数据绑定需要多少重复代码？ |
+| 执行可靠性 | 固定样本、应用版本、成功 / 失败记录 | 焦点变化、目标不存在、重复点击时行为是否明确？ |
+| 生命周期 | 运行 ID、取消请求、终态、资源清理记录 | 能否区分关闭面板、停止单次任务、退出整个宿主？长任务如何取消须另做实现审计，不能靠“有停止按钮”判定 |
+| 结果与恢复 | 参数、阶段输出、错误原因、结果证据 | 是否能解释失败、保留输出并安全重试？ |
+| 平台与交付 | OS、构建版本、依赖、授权、安装和更新步骤 | Windows / macOS 分别支持哪些模块？交付的是脚本、插件、配套 Runtime 还是独立安装包？ |
+
+正式比较应分开记录“共同可用能力”的任务结果与“平台能力缺口”。例如某版本没有 Windows Custom UI，应标记该模块未支持或待核验，而不是写成 OpenDesk 整体不支持 Windows。没有目标 OS 实机记录时，不得标注已通过。
+
+本次只补 Research、研究优先级与后续验证问题，未修改 API 契约、实现代码、测试或 Roadmap，也未执行竞品实机性能测试。
+
+### 14.7 本次来源与时效说明
+
+以下链接为 2026-09-05 本轮核对的官方文档、官方仓库或维护者发布的包信息。功能事实、许可标签和研究判断分别记录；不以 GitHub Star、公开营销表述或本文更新时间替代可运行性与商业条款的核验。第 5 节及按键精灵的历史研究仍按各自原始日期阅读。
+
+- Hammerspoon：[WebView][CU-HS]、[项目][CU-HS-REPO]、[许可][CU-HS-LICENSE]。
+- Script Kit：[官网][CU-KIT-HOME]、[API][CU-KIT-API]、[SDK 许可][CU-KIT-LICENSE]、[宿主许可][CU-KIT-APP-LICENSE]。
+- BetterTouchTool：[Scriptable WebView][CU-BTT]、[JSON / AI 创建][CU-BTT-AI]。
+- Quicker：[自定义操作窗][CU-QUICKER-PANEL]、[自定义窗口][CU-QUICKER-WINDOW]。
+- AutoHotkey：[v2 Gui][CU-AHK-GUI]、[仓库][CU-AHK]、[Ahk2Exe][CU-AHK-EXE]。
+- AutoIt：[产品][CU-AUTOIT]、[EULA][CU-AUTOIT-LICENSE]；Keyboard Maestro：[Custom HTML Prompt][CU-KM]。
+- uTools：[插件开发][CU-UTOOLS]；Rubick：[仓库][CU-RUBICK]。
+- OpenRPA：[产品][CU-OPENRPA]、[仓库][CU-OPENRPA-REPO]；RPA.Assistant：[包信息][CU-ASSISTANT-PACKAGE]、[迁移说明][CU-ASSISTANT-GUIDE]。
+- UiPath：[Apps 双向通信][CU-UIPATH]；Power Automate Desktop：[自定义表单][CU-PAD]。
+- UI-TARS：[仓库][CU-TARS]；Peekaboo：[仓库][CU-PEEKABOO]。
+
+[CU-HS]: https://www.hammerspoon.org/docs/hs.webview.html
+[CU-HS-REPO]: https://github.com/Hammerspoon/hammerspoon
+[CU-HS-LICENSE]: https://github.com/Hammerspoon/hammerspoon/blob/master/LICENSE
+[CU-KIT-HOME]: https://www.scriptkit.com/
+[CU-KIT-API]: https://johnlindquist.github.io/kit-docs/
+[CU-KIT-LICENSE]: https://github.com/johnlindquist/kit/blob/main/LICENSE
+[CU-KIT-APP-LICENSE]: https://github.com/script-kit/app/blob/main/LICENSE
+[CU-BTT]: https://docs.folivora.ai/docs/webview/overview/
+[CU-BTT-AI]: https://docs.folivora.ai/docs/floating-menus/json-ai-creation/
+[CU-QUICKER-PANEL]: https://getquicker.net/KC/Help/Doc/custompanel
+[CU-QUICKER-WINDOW]: https://getquicker.net/KC/Help/Doc/customwindow
+[CU-AHK-GUI]: https://www.autohotkey.com/docs/v2/lib/Gui.htm
+[CU-AHK]: https://github.com/AutoHotkey/AutoHotkey
+[CU-AHK-EXE]: https://github.com/AutoHotkey/Ahk2Exe
+[CU-AUTOIT]: https://www.autoitscript.com/site/autoit/
+[CU-AUTOIT-LICENSE]: https://www.autoitscript.com/autoit3/docs/license.htm
+[CU-KM]: https://wiki.keyboardmaestro.com/action/Custom_HTML_Prompt
+[CU-UTOOLS]: https://www.u-tools.cn/docs/developer/basic/first-plugin.html
+[CU-RUBICK]: https://github.com/rubickCenter/rubick
+[CU-OPENRPA]: https://openiap.io/openrpa
+[CU-OPENRPA-REPO]: https://github.com/open-rpa/openrpa
+[CU-ASSISTANT-PACKAGE]: https://pypi.org/project/rpaframework-assistant/
+[CU-ASSISTANT-GUIDE]: https://github.com/robocorp/rpaframework/blob/master/packages/assistant/docs/Migration-Guide.md
+[CU-UIPATH]: https://docs.uipath.com/apps/automation-cloud/latest/user-guide/apps-and-attended-automations-bi-directional-and-instant-communication
+[CU-PAD]: https://learn.microsoft.com/en-us/power-automate/desktop-flows/custom-forms
+[CU-TARS]: https://github.com/bytedance/UI-TARS-desktop
+[CU-PEEKABOO]: https://github.com/openclaw/Peekaboo
