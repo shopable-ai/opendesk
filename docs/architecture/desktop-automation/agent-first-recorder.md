@@ -1,5 +1,13 @@
 # Agent-first Recorder 架构决策与核心模型
 
+## 适用范围与相关入口
+
+本页是 Recorder／编译路线的专项架构，原有 `Accepted for MVP` 决策保留，不表示所有 OpenDesk 自动化任务都必须走此路线，也不表示目标能力已全部验证。
+
+普通 JavaScript Recipe／应用 helper 先使用[任务求解方法](../../frameworks/automation-problem-solving-framework.md)和现有公开 API；仅当任务明确需要录制、蒸馏、编译和回放时进入本页。框架分类见[总导航](../../frameworks/README.md)，完整生命周期见[示范到自动化执行方法](demonstration-to-automation-pipeline.md)。
+
+本次仅澄清文档职责与路线边界，没有重新验证以下 Current／Validated 记载。使用这些结论时仍须检查原证据、当前源码和适用平台，不能以导航更新替代实现核验。
+
 ## 状态
 
 - 架构方向：`Accepted for MVP`
@@ -97,6 +105,8 @@ Current 控制面是 MCP-first；完整 JavaScript / HTTP Recorder session routi
 - 更适合先在少量软件中完成闭环。
 
 ### D2. Raw Trace 不可变，Flow IR 才是脚本权威源
+
+本决策约束 Recorder 生成的脚本。人工维护的普通 Recipe 不会仅因本页存在而自动变成 IR 派生产物；其任务合同、源码和业务验证仍需明确维护。
 
 ```text
 raw/events.ndjson

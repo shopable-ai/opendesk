@@ -20,19 +20,18 @@ docs-api-user/
 
 ## 核心开发框架
 
-桌面自动化相关开发优先阅读：
+先从 [自动化框架总导航](frameworks/README.md) 选择入口，再进入对应方法与接口。不要把多个框架当作一条每次必须完整实现的技术流水线。
 
-1. [`frameworks/automation-framework.md`](frameworks/automation-framework.md)：**自动化总体框架**，定义从底层驱动、感知识别、目标定位、可验证动作到 Skill、Workflow、Agent / Supervisor 的总体分层与执行闭环。
-2. [`frameworks/capability-development.md`](frameworks/capability-development.md)：**能力开发与成熟度路径**，定义 OpenDesk 从底层动作、HTML Benchmark、系统应用到复杂应用和自主 Agent 的逐级开发顺序。
-3. [`frameworks/app-development-framework.md`](frameworks/app-development-framework.md)：**应用自动化开发框架**，定义新增微信、千牛、计算器等具体应用时，从窗口、状态、区域、Locator 到 Skill、Workflow 和测试 Evidence 的标准方法。
+| 需要回答的问题 | 文档 |
+| --- | --- |
+| 自动化系统整体怎样设计？ | [自动化总体框架](frameworks/automation-framework.md) |
+| 这个业务任务怎样拆解、交接和验证？ | [自动化任务求解方法](frameworks/automation-problem-solving-framework.md) |
+| 一个具体应用怎样分析和开发？ | [应用自动化开发框架](frameworks/app-development-framework.md) |
+| 一次示范怎样形成可维护自动化？ | [示范到自动化执行方法](architecture/desktop-automation/demonstration-to-automation-pipeline.md) |
+| 能力应该在哪一层扩展？ | [Runtime API 扩展与定制框架](frameworks/runtime-api-extension-framework.md) |
+| OpenDesk 怎样从简单做到复杂？ | [能力开发与成熟度路径](frameworks/capability-development.md) |
 
-三者分别回答：
-
-```text
-自动化系统整体怎么设计？
-OpenDesk 自身怎么从简单做到复杂？
-一个具体应用应该怎么分析和开发？
-```
+普通 Recipe 和应用 helper 可以复用这些方法，但不以 Recorder、IR、Compiler 或独立 Workflow Runtime 为前置条件。相关目标架构只在明确选择对应路线时适用。
 
 `frameworks/` 保存长期稳定的核心开发方法；更细的系统结构进入 `architecture/`，具体实现进入 `implementation/`，质量与 Evidence 进入 `quality/`，单一应用场景进入 `scenarios/`。
 
@@ -69,9 +68,14 @@ OpenDesk 长期使用的核心开发框架，是桌面自动化开发的重要�
 
 当前核心文件：
 
+- `README.md`：总导航、六类框架、阅读路线和目录边界。
 - `automation-framework.md`：自动化总体框架。
+- `automation-problem-solving-framework.md`：业务任务求解、六类解题模式和步骤交接。
 - `capability-development.md`：能力开发与成熟度路径。
 - `app-development-framework.md`：应用自动化开发框架。
+- `runtime-api-extension-framework.md`：能力扩展与交付层级。
+
+本轮保留现有架构文档路径，以提炼通用方法和交叉链接改善导航，不整体搬迁长流程或复制千牛案例。具体归属见[框架总导航](frameworks/README.md)。
 
 本目录强调稳定的开发思路、分层、顺序和边界，不保存一次性实现计划、测试报告或单一应用细节。
 

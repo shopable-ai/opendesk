@@ -10,6 +10,12 @@
 
 具体实现细节、单一应用规则和阶段计划不应替代本文件。
 
+## 阅读入口与适用范围
+
+先用[框架总导航](README.md)区分系统、方法、成果交接、机制、验证和横切约束；面对具体业务问题时，再用[自动化任务求解方法](automation-problem-solving-framework.md)选择解题模式。
+
+本页是长期系统地图，不要求每个任务实现全部层级。普通 Recipe 可以用 JavaScript 函数与现有 API 表达业务能力和流程；Skill／Workflow 在此表示职责，不自动要求独立运行时、Registry 或 IR。只有明确选择 Recorder／编译路线，才进入相应专项架构。列出的感知手段也不是所有平台当前均已支持的声明。
+
 ## 一、核心执行闭环
 
 ```text
@@ -22,7 +28,7 @@
 → 再次观察（Observe Again）
 → 验证结果（Verify）
 → 诊断失败（Diagnose）
-→ 恢复处理（Recover）
+→ 按需恢复或安全停止（Recover / Stop）
 → 保存证据（Evidence）
 ```
 
@@ -138,6 +144,9 @@
 具体应用中的固定标题、颜色、图标、区域和业务状态，不应直接写入通用核心。
 
 ## 五、配套框架
+
+- [框架总导航](README.md)：各框架分类、阅读路线、唯一维护位置与目录边界。
+- [自动化任务求解方法](automation-problem-solving-framework.md)：业务对象、步骤交接、状态准备、相对定位、结果验证与有界恢复的六类模式。
 
 - [能力开发与成熟度路径](./capability-development.md)：OpenDesk 自身如何从简单能力逐级发展到复杂桌面 Agent。
 - [应用自动化开发框架](./app-development-framework.md)：新增一个具体桌面应用时应如何分析、开发、验证和封装。
