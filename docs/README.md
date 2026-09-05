@@ -27,7 +27,7 @@ docs-api-user/
 | 自动化系统整体怎样设计？ | [自动化总体框架](frameworks/automation-framework.md) |
 | 这个业务任务怎样拆解、交接和验证？ | [自动化任务求解方法](frameworks/automation-problem-solving-framework.md) |
 | 一个具体应用怎样分析和开发？ | [应用自动化开发框架](frameworks/app-development-framework.md) |
-| 一次示范怎样形成可维护自动化？ | [示范到自动化执行方法](architecture/desktop-automation/demonstration-to-automation-pipeline.md) |
+| 一次示范怎样形成可维护自动化？ | [示范到自动化执行方法](frameworks/demonstration-to-automation-pipeline.md) |
 | 能力应该在哪一层扩展？ | [Runtime API 扩展与定制框架](frameworks/runtime-api-extension-framework.md) |
 | OpenDesk 怎样从简单做到复杂？ | [能力开发与成熟度路径](frameworks/capability-development.md) |
 
@@ -73,9 +73,10 @@ OpenDesk 长期使用的核心开发框架，是桌面自动化开发的重要�
 - `automation-problem-solving-framework.md`：业务任务求解、六类解题模式和步骤交接。
 - `capability-development.md`：能力开发与成熟度路径。
 - `app-development-framework.md`：应用自动化开发框架。
+- `demonstration-to-automation-pipeline.md`：示范到自动化执行方法与千牛案例，由原架构目录迁入。
 - `runtime-api-extension-framework.md`：能力扩展与交付层级。
 
-本轮保留现有架构文档路径，以提炼通用方法和交叉链接改善导航，不整体搬迁长流程或复制千牛案例。具体归属见[框架总导航](frameworks/README.md)。
+日常方法集中在本目录；Target、Adapter 和 Recorder 等专项设计保留在架构目录，经[桌面自动化架构导航](architecture/desktop-automation/README.md)按需进入。主流程旧路径只保留迁移入口，不复制千牛案例或维护第二份正文。具体归属见[框架总导航](frameworks/README.md)。
 
 本目录强调稳定的开发思路、分层、顺序和边界，不保存一次性实现计划、测试报告或单一应用细节。
 
@@ -85,7 +86,7 @@ OpenDesk 长期使用的核心开发框架，是桌面自动化开发的重要�
 
 主要分区：
 
-- `desktop-automation/`
+- [desktop-automation/](architecture/desktop-automation/README.md)：目标、应用适配和 Recorder 等专项设计的按需导航。
 - `browser-automation/`
 - `execution/`
 - `decisions/`：未来 ADR 的标准位置。

@@ -6,7 +6,7 @@
 
 先看[框架总导航](README.md)。本文属于“执行与解题方法”，不是新的 Runtime、业务编排系统或 API 清单。
 
-方法来源是[自动化总体框架](automation-framework.md)、[应用自动化开发框架](app-development-framework.md)，以及[示范到自动化执行方法](../architecture/desktop-automation/demonstration-to-automation-pipeline.md)中的任务合同、业务分段、泛化和第 10 节千牛案例。本文将分散的判断整理成可选用的模式；新增的分类、步骤模板与对照用例是方法建议，不是源码已实现声明。
+方法来源是[自动化总体框架](automation-framework.md)、[应用自动化开发框架](app-development-framework.md)，以及[示范到自动化执行方法](demonstration-to-automation-pipeline.md)中的任务合同、业务分段、泛化和第 10 节千牛案例。本文将分散的判断整理成可选用的模式；新增的分类、步骤模板与对照用例是方法建议，不是源码已实现声明。
 
 默认先用普通 JavaScript Recipe／应用 helper 落地。没有明确选择 Recorder 路线时，不要求先建立 IR、Compiler、Skill Registry 或独立 Workflow Runtime。
 

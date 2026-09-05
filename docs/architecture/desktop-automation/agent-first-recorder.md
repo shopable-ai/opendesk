@@ -4,7 +4,7 @@
 
 本页是 Recorder／编译路线的专项架构，原有 `Accepted for MVP` 决策保留，不表示所有 OpenDesk 自动化任务都必须走此路线，也不表示目标能力已全部验证。
 
-普通 JavaScript Recipe／应用 helper 先使用[任务求解方法](../../frameworks/automation-problem-solving-framework.md)和现有公开 API；仅当任务明确需要录制、蒸馏、编译和回放时进入本页。框架分类见[总导航](../../frameworks/README.md)，完整生命周期见[示范到自动化执行方法](demonstration-to-automation-pipeline.md)。
+普通 JavaScript Recipe／应用 helper 先使用[任务求解方法](../../frameworks/automation-problem-solving-framework.md)和现有公开 API；仅当任务明确需要录制、蒸馏、编译和回放时进入本页。框架分类见[总导航](../../frameworks/README.md)，完整生命周期见[示范到自动化执行方法](../../frameworks/demonstration-to-automation-pipeline.md)。
 
 本次仅澄清文档职责与路线边界，没有重新验证以下 Current／Validated 记载。使用这些结论时仍须检查原证据、当前源码和适用平台，不能以导航更新替代实现核验。
 
