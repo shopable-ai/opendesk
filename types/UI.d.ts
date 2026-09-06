@@ -8,9 +8,9 @@ declare global {
     within?: OpenDeskUIScope;
     /** Zero-based explicit disambiguation index. */
     index?: number;
-    /** Finite wait deadline in milliseconds. Defaults to 10000. */
+    /** Finite wait deadline in milliseconds. Defaults to 10000; image find/tap only validate it and do not poll. */
     timeout?: number;
-    /** Finite polling interval in milliseconds. Defaults to 200. */
+    /** Finite polling interval in milliseconds. Defaults to 200; image find/tap only validate it and do not poll. */
     polling?: number;
     click?: OpenDeskMouseClickOptions;
   }
@@ -155,9 +155,9 @@ declare global {
     tapTexts(texts: string[], options?: OpenDeskUITextLocateOptions): Promise<OpenDeskUITapTextsResult>;
     waitText(text: string, options?: OpenDeskUITextOptions): Promise<OpenDeskUITextTarget>;
     waitTextGone(text: string, options?: OpenDeskUITextOptions): Promise<true>;
-    findImages(template: string, options?: OpenDeskUIImageOptions): Promise<OpenDeskUIImageTarget[]>;
-    findImage(template: string, options?: OpenDeskUIImageOptions): Promise<OpenDeskUIImageTarget | null>;
-    tapImage(template: string, options?: OpenDeskUIImageOptions): Promise<OpenDeskUITapResult<OpenDeskUIImageTarget>>;
+    findImages(template: OpenDeskImageTemplate, options?: OpenDeskUIImageOptions): Promise<OpenDeskUIImageTarget[]>;
+    findImage(template: OpenDeskImageTemplate, options?: OpenDeskUIImageOptions): Promise<OpenDeskUIImageTarget | null>;
+    tapImage(template: OpenDeskImageTemplate, options?: OpenDeskUIImageOptions): Promise<OpenDeskUITapResult<OpenDeskUIImageTarget>>;
   }
 
   /**

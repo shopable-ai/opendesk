@@ -42,6 +42,11 @@ type templateMatchCandidate struct {
 	Scale      float64
 }
 
+type imageTemplateInput struct {
+	Value string
+	Index int
+}
+
 type templateMatchScoreGrid struct {
 	Template *image.NRGBA
 	Scale    float64
@@ -63,11 +68,16 @@ type templateMatchPlan struct {
 	MaxDiff  uint64
 }
 
-// FindImage finds the single highest-confidence occurrence of template in
-// source. source and template accept a file path, image data URL, or raw
-// base64 PNG/JPEG input.
-func (ic *ImageColor) FindImage(sourceInput, templateInput string, rawOptions interface{}) (map[string]interface{}, error) {
+// FindImage finds the single highest-confidence occurrence of one template in
+// source. templateInput accepts either one image input or a non-empty array of
+// state variants. source and every template accept a file path, image data URL,
+// or raw base64 PNG/JPEG input.
+func (ic *ImageColor) FindImage(sourceInput string, templateInput interface{}, rawOptions interface{}) (map[string]interface{}, error) {
 	options, err := parseImageTemplateOptions(rawOptions, false)
+	if err != nil {
+		return nil, err
+	}
+	templates, err := parseImageTemplateInputs(templateInput)
 	if err != nil {
 		return nil, err
 	}
@@ -75,16 +85,29 @@ func (ic *ImageColor) FindImage(sourceInput, templateInput string, rawOptions in
 	if err != nil {
 		return nil, fmt.Errorf("failed to load source image: %w", err)
 	}
-	template, err := loadImageSource(templateInput)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load template image: %w", err)
+	sourceNRGBA := imageToNRGBA(source)
+	best := templateMatchCandidate{Confidence: -1}
+	bestTemplateIndex := -1
+	for _, input := range templates {
+		template, err := loadImageSource(input.Value)
+		if err != nil {
+			if len(templates) == 1 {
+				return nil, fmt.Errorf("failed to load template image: %w", err)
+			}
+			return nil, fmt.Errorf("failed to load template image at index %d: %w", input.Index, err)
+		}
+		candidate, err := findBestTemplateCandidate(sourceNRGBA, imageToNRGBA(template), options)
+		if err != nil {
+			return nil, fmt.Errorf("template at index %d: %w", input.Index, err)
+		}
+		if bestTemplateIndex < 0 || templateCandidateLess(candidate, best) {
+			best = candidate
+			bestTemplateIndex = input.Index
+		}
 	}
-
-	best, err := findBestTemplateCandidate(imageToNRGBA(source), imageToNRGBA(template), options)
-	if err != nil {
-		return nil, err
-	}
-	return best.toMap(best.Confidence >= options.Threshold), nil
+	result := best.toMap(best.Confidence >= options.Threshold)
+	result["templateIndex"] = bestTemplateIndex
+	return result, nil
 }
 
 // FindImages finds all distinct occurrences of template above threshold. The
@@ -113,6 +136,29 @@ func (ic *ImageColor) FindImages(sourceInput, templateInput string, rawOptions i
 		results = append(results, candidate.toMap(true))
 	}
 	return results, nil
+}
+
+func parseImageTemplateInputs(raw interface{}) ([]imageTemplateInput, error) {
+	if value, ok := raw.(string); ok {
+		return []imageTemplateInput{{Value: value, Index: 0}}, nil
+	}
+
+	value := reflect.ValueOf(raw)
+	if !value.IsValid() || (value.Kind() != reflect.Slice && value.Kind() != reflect.Array) {
+		return nil, fmt.Errorf("template must be a string or a non-empty string array")
+	}
+	if value.Len() == 0 {
+		return nil, fmt.Errorf("template must be a non-empty string array")
+	}
+	templates := make([]imageTemplateInput, 0, value.Len())
+	for index := 0; index < value.Len(); index++ {
+		input, ok := value.Index(index).Interface().(string)
+		if !ok || input == "" {
+			return nil, fmt.Errorf("template[%d] must be a non-empty string", index)
+		}
+		templates = append(templates, imageTemplateInput{Value: input, Index: index})
+	}
+	return templates, nil
 }
 
 func parseImageTemplateOptions(raw interface{}, includeMaxResults bool) (imageTemplateOptions, error) {

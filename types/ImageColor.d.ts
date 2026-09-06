@@ -35,6 +35,9 @@ declare global {
     height: number;
   }
 
+  /** One template or ordered visual-state variants of the same control. */
+  type OpenDeskImageTemplate = string | string[];
+
   interface OpenDeskImageRegion {
     x: number;
     y: number;
@@ -56,6 +59,8 @@ declare global {
     centerX: number;
     centerY: number;
     scale: number;
+    /** Present for findImage; index of the winning template, or 0 for one template. */
+    templateIndex?: number;
   }
 
   interface OpenDeskImageDiffRegion {
@@ -123,7 +128,7 @@ declare global {
 
   interface OpenDeskImageColor {
     findPos(sourceImage: string, templateImage: string, threshold?: number): OpenDeskTemplateMatchResult;
-    findImage(sourceImage: string, templateImage: string, options?: OpenDeskFindImageOptions): OpenDeskFindImageResult;
+    findImage(sourceImage: string, templateImage: OpenDeskImageTemplate, options?: OpenDeskFindImageOptions): OpenDeskFindImageResult;
     findImages(sourceImage: string, templateImage: string, options?: OpenDeskFindImagesOptions): OpenDeskFindImageResult[];
     diff(actualImage: string, expectedImage: string, options?: OpenDeskImageDiffOptions): OpenDeskImageDiffResult;
     loadBase64(path: string): string;

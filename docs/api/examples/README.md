@@ -134,9 +134,14 @@ order: 3
 - `imageColor.js` — [源码](../../../examples/imageColor.js)；运行：
   `./opendesk -script examples/imageColor.js -console-mode script`；检查：
   [image-color.test.js](../../../tests/runtime-api/unit/image-color.test.js)。
-- `image-color/template-match.js` — [源码](../../../examples/image-color/template-match.js)；运行：
-  `./opendesk -script examples/image-color/template-match.js -console-mode script`；检查：
+- `image-color/template-match.js` — [源码](../../../examples/image-color/template-match.js)；输入：
+  [source](../../../examples/image-color/fixtures/template-match/scene_color_blocks.png)、
+  [template](../../../examples/image-color/fixtures/template-match/template_blue-panel.png)、
+  [WeChat panel](../../../examples/image-color/fixtures/wechat-panel.png)（均为版本化图片，不依赖 `.runtime/`）；运行：
+  `./opendesk -script examples/image-color/template-match.js`；检查：
   [image-color.test.js](../../../tests/runtime-api/unit/image-color.test.js)。
+- `image-color/wechat-template-match-visual.js` — [源码](../../../examples/image-color/wechat-template-match-visual.js)；在真实 Custom UI 中人工验收微信“消息”按钮的有序状态模板（`#0` 灰色未选中、`#1` 绿色已选中）：两张 source 上的 ROI、实际命中框、模板预览、全图/ROI 一致性和逐项通过/失败判据；从仓库根目录运行：
+  `./opendesk -ui -script examples/image-color/wechat-template-match-visual.js -console-mode script`；状态数组只能包含同一控件的不同状态，不能混用灰色消息与绿色联系人；这些 fixture 来自不同截图，仅验证契约，生产请按同一微信版本、主题、DPI 与缩放重新采集。关闭窗口后结束，失败判据会使脚本返回失败状态。
 - `image-color/diff.js` — [源码](../../../examples/image-color/diff.js)；运行：
   `./opendesk -script examples/image-color/diff.js -console-mode script`；检查：
   [image-color.test.js](../../../tests/runtime-api/unit/image-color.test.js)。

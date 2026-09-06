@@ -45,7 +45,7 @@ await UI.tapText('编辑', {
 
 没有 `UI = ui`、`ui = UI` 或 `DesktopUI` 别名。
 
-## 快速接口
+## `UI.getCapabilities()` / `UI.findTexts()` / `UI.findText()` / `UI.hasText()` / `UI.tapText()` / `UI.tapTexts()` / `UI.waitText()` / `UI.waitTextGone()` / `UI.findImages()` / `UI.findImage()` / `UI.tapImage()`：快速接口
 
 | 方法 | 用途 |
 | --- | --- |
@@ -248,7 +248,7 @@ bounds。身份 unresolved、原窗口失效或无法可靠确认时会停止；
 同一个测试窗口后再次执行同一条命令，动态 `region` 会从最新窗口 bounds 重算；示例不会复用上次点击
 坐标。这个手动前置条件意味着命令不能安全地在任意当前活动窗口上自动验收。
 
-## 文本接口
+## `UI.findTexts()` / `UI.findText()` / `UI.hasText()` / `UI.tapText()` / `UI.tapTexts()` / `UI.waitText()` / `UI.waitTextGone()`：文本接口
 
 ```js
 const matches = await UI.findTexts('编辑', {
@@ -325,9 +325,67 @@ await UI.tapTexts(['1', '6', '×', '3', '='], {
 `page.waitFor(1000)` 伪造业务成功。超时抛 `TIMEOUT`，含 timeout、text、lastObservation 和
 lastError 摘要。
 
-## 图片接口
+## `UI.findImages()` / `UI.findImage()` / `UI.tapImage()`：图片接口
 
 `UI` 复用 `ImageColor.findImages`，不重写模板匹配：
+
+### `UI.findImages(template, options?)`
+
+在当前 `within` 范围内查找模板图片，返回按屏幕阅读顺序排列的全部候选数组；没有匹配时返回
+`[]`。`template` 可以是一张非空图片字符串，或同一控件的非空状态模板数组；路径按
+`ImageColor.findImages` 的规则解析。
+
+### `UI.findImage(template, options?)`
+
+参数与 `UI.findImages` 相同，但只返回唯一候选；没有匹配时返回 `null`，有多个候选且未提供
+`index` 时抛出 `AMBIGUOUS_TARGET`。提供 `index` 后只选择匹配候选数组中的对应零基索引。
+
+### `UI.tapImage(template, options?)`
+
+查找模板图片并点击唯一候选的中心点。其参数为：
+
+| 参数 | 类型 | 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `template` | `string \| string[]` | 必填 | 一张模板图片，或同一控件的有序状态模板组；每项必须是非空字符串。 |
+| `options.within` | `OpenDeskWindowInfo \| OpenDeskDisplayInfo \| OpenDeskScreenRegion` | 当前活动窗口 | 限定截图和匹配范围；不能传裸 bbox。 |
+| `options.threshold` | `number` | ImageColor 默认值 | 匹配阈值，必须是有限数，范围 `0..1`。 |
+| `options.scales` | `number[]` | ImageColor 默认值 | 要尝试的缩放比例；必须是非空数组，所有值必须为正数。 |
+| `options.maxResults` | `number` | ImageColor 默认值 | 最多保留的候选数；必须是正整数。 |
+| `options.index` | `number` | 未设置 | 候选的零基索引；用于明确选择一个匹配结果。 |
+| `options.timeout` | `number` | `10000` | 仅作统一 options 合同的校验；图片点击本身不轮询。 |
+| `options.polling` | `number` | `200` | 仅作统一 options 合同的校验；`tapImage` 当前不进行等待轮询。 |
+| `options.click` | `OpenDeskMouseClickOptions` | 未设置 | 转发给 `mouse.clickPoint(target.center, options.click)`。 |
+
+返回 `Promise<OpenDeskUITapResult<OpenDeskUIImageTarget>>`：
+
+```js
+{
+  ok: true,
+  action: 'tapImage',
+  target: {
+    source: 'image',
+    template: './assets/save-icon.png',
+    confidence: 0.97,
+    scale: 1,
+    imageBounds: { x: 120, y: 80, width: 32, height: 32, coordinateSpace: 'image' },
+    bounds: { x: 420, y: 260, width: 16, height: 16, coordinateSpace: 'screen' },
+    center: { x: 428, y: 268, coordinateSpace: 'screen' },
+  },
+  point: { x: 428, y: 268, coordinateSpace: 'screen' },
+}
+```
+
+在稳定的 scope 中，`tapImage` 每次调用只截图、匹配一次，随后最多提交一次
+`mouse.clickPoint`；找不到目标会立即报错，不会因为传了 `timeout` / `polling` 而等待或重复匹配。
+输入前若窗口或目标范围变化，最多会重新观察一次以避免点击旧坐标，但鼠标输入已调用后绝不会自动
+重复点击。当前没有 `UI.waitImage`，因此需要等待图片出现时不能把 `tapImage` 伪装成等待 API；调用方
+必须明确安排后续重试或等待策略。成功只表示已找到模板并提交一次 `mouse.clickPoint`，不代表外部
+应用已经完成业务动作。
+
+可能的错误包括：模板无效或 options 无效时为 `INVALID_ARGUMENT`；没有候选或 `index` 越界时为
+`TARGET_NOT_FOUND`；多个候选未消歧时为 `AMBIGUOUS_TARGET`；窗口/范围变化时为 `STALE_TARGET`；
+范围不可见、截图失败、模板匹配失败或坐标无法映射时分别为 `TARGET_SCOPE_NOT_VISIBLE`、
+`SCREENSHOT_FAILED`、`IMAGE_MATCH_FAILED` 或 `UNSUPPORTED_COORDINATE_MAPPING`。
 
 ```js
 const icon = await UI.findImage('./assets/save-icon.png', {
@@ -342,6 +400,61 @@ if (icon) await mouse.clickPoint(icon.center);
 图片 options 为 `within`、`threshold`、`scales`、`maxResults`、`index`、`timeout`、`polling`、`click`。
 歧义和 index 规则与文本接口相同。图片候选含 `source: 'image'`、template、confidence、可选 scale、
 `imageBounds`、screen-space `bounds` 与 tagged `center`。
+
+状态模板组在同一次截图中逐一匹配；重叠候选会按置信度去重，同分时按模板数组顺序选择。用
+`UI.findImage([unselected, selected])` 判断当前状态时，返回 target 的 `template` 是实际命中的状态图片
+（`UI` target 不暴露 `templateIndex`）。数组不应用来把多个不同按钮默认为“任选一个”；这种情况应分开
+定位或用 `within` 明确范围。
+
+对于“确保按钮最终已选中”这种 toggle 业务，**不要**写
+`UI.tapImage([unselected, selected])`：当前若已经选中，它仍会找到 selected 模板并点击，反而可能把状态
+切回未选中。正确流程是“数组分类 → 只点击未选中模板 → 重新分类验证”。下面的 `top: 100` 只是当前
+fixture 的示例值；生产中必须按实际微信窗口、主题和缩放标定这个窄 scope：
+
+```js
+const unselected = './examples/image-color/fixtures/wechat-message/unselected.png';
+const selected = './examples/image-color/fixtures/wechat-message/selected.png';
+const states = [unselected, selected];
+
+async function ensureMessageSelected(win) {
+  const messageRow = Geometry.regionOffset(win, {
+    left: 0, top: 100, width: 60, height: 44,
+  });
+  const options = { within: messageRow, threshold: 0.95 };
+  const inspect = async () => {
+    const target = await UI.findImage(states, options);
+    if (!target) return { state: 'unknown', target: null };
+    if (target.template === unselected) return { state: 'unselected', target };
+    if (target.template === selected) return { state: 'selected', target };
+    throw new Error(`unexpected state template: ${target.template}`);
+  };
+
+  const before = await inspect();
+  if (before.state === 'unknown') throw new Error('UNKNOWN_MESSAGE_STATE');
+  if (before.state === 'selected') return { changed: false, target: before.target };
+
+  // Re-captures immediately and clicks only if the old state is still visible.
+  // A concurrent actor may have selected it already; re-check that safe race.
+  try {
+    await UI.tapImage(unselected, options);
+  } catch (error) {
+    if (!error || error.code !== 'TARGET_NOT_FOUND') throw error;
+  }
+
+  // UI has no waitImage; make the postcondition and retry policy explicit.
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    await delay(100);
+    const after = await inspect();
+    if (after.state === 'selected') return { changed: true, target: after.target };
+    if (after.state === 'unknown') throw new Error('MESSAGE_STATE_BECAME_UNKNOWN');
+  }
+  throw new Error('MESSAGE_NOT_SELECTED_AFTER_TAP');
+}
+```
+
+如果两种状态下都允许执行同一个、不会改变状态的动作，才可以把状态数组直接传给
+`UI.tapImage(states)`。只用未选中图片搜索适合作为“允许点击”的 action gate；它未命中时只能表示
+“不能安全点击”，不能单独证明按钮已经选中——仍应使用状态数组复核。
 
 ## Capture mapping 与 DPI
 

@@ -160,9 +160,138 @@
     assert(legacy.found === true && legacy.x === 202 && legacy.y === 132, JSON.stringify(legacy));
     assert(!Object.prototype.hasOwnProperty.call(legacy, 'scale'), JSON.stringify(legacy));
 
+    const wechatFixtureRoot = File.join(File.cwd(), 'examples', 'image-color', 'fixtures');
+    const wechatPanelPath = File.join(wechatFixtureRoot, 'wechat-panel.png');
+    const wechatStateSourcePath = File.join(wechatFixtureRoot, 'wechat-sidebar-states.png');
+    const statePairs = [
+      {
+        id: 'messages',
+        templates: [
+          File.join(wechatFixtureRoot, 'wechat-message', 'unselected.png'),
+          File.join(wechatFixtureRoot, 'wechat-message', 'selected.png'),
+        ],
+        cases: [
+          {
+            state: 'unselected', sourcePath: wechatStateSourcePath, templateIndex: 0,
+            bounds: { x: 18, y: 21, width: 24, height: 22 },
+            region: { x: 0, y: 10, width: 60, height: 44 },
+          },
+          {
+            state: 'selected', sourcePath: wechatPanelPath, templateIndex: 1,
+            bounds: { x: 18, y: 111, width: 24, height: 22 },
+            region: { x: 0, y: 100, width: 60, height: 44 },
+          },
+        ],
+      },
+      {
+        id: 'contacts',
+        templates: [
+          File.join(wechatFixtureRoot, 'wechat-sidebar', 'contacts.png'),
+          File.join(wechatFixtureRoot, 'wechat-contacts', 'selected.png'),
+        ],
+        cases: [
+          {
+            state: 'unselected', sourcePath: wechatPanelPath, templateIndex: 0,
+            bounds: { x: 18, y: 159, width: 24, height: 22 },
+            region: { x: 0, y: 148, width: 60, height: 44 },
+          },
+          {
+            state: 'selected', sourcePath: wechatStateSourcePath, templateIndex: 1,
+            bounds: { x: 18, y: 69, width: 24, height: 22 },
+            region: { x: 0, y: 58, width: 60, height: 44 },
+          },
+        ],
+      },
+    ];
+    assert(File.exists(wechatPanelPath) && File.exists(wechatStateSourcePath), 'WeChat state source fixtures are missing');
+    assert(JSON.stringify(ImageColor.getSize(wechatStateSourcePath)) === JSON.stringify([62, 200]),
+      'unexpected sanitized WeChat sidebar-state source dimensions');
+
+    const matchKeys = ['found', 'x', 'y', 'width', 'height', 'centerX', 'centerY', 'confidence', 'scale', 'templateIndex'];
+    const candidatePositionCount = (sourceSize, templates, region) => templates.reduce((total, template) => {
+      const size = ImageColor.getSize(template);
+      const width = region ? region.width : sourceSize[0];
+      const height = region ? region.height : sourceSize[1];
+      return total + Math.max(0, width - size[0] + 1) * Math.max(0, height - size[1] + 1);
+    }, 0);
+    const expectedStateMatch = (stateCase, match) => match.found === true
+      && match.x === stateCase.bounds.x && match.y === stateCase.bounds.y
+      && match.width === stateCase.bounds.width && match.height === stateCase.bounds.height
+      && match.centerX === stateCase.bounds.x + stateCase.bounds.width / 2
+      && match.centerY === stateCase.bounds.y + stateCase.bounds.height / 2
+      && match.confidence === 1 && match.scale === 1 && match.templateIndex === stateCase.templateIndex;
+
+    statePairs.forEach((pair) => {
+      pair.templates.forEach((path) => assert(File.exists(path), `${pair.id} state fixture is missing: ${path}`));
+      const stateTemplates = pair.templates.map((path) => ImageColor.loadBase64(path));
+      const stateDiff = ImageColor.diff(stateTemplates[0], stateTemplates[1]);
+      assert(stateDiff.matched === false, `${pair.id} selected and unselected templates must differ: ${JSON.stringify(stateDiff)}`);
+
+      pair.cases.forEach((stateCase) => {
+        const template = stateTemplates[stateCase.templateIndex];
+        const integrity = ImageColor.diff(ImageColor.clip(stateCase.sourcePath, stateCase.bounds), template);
+        assert(integrity.matched === true && integrity.diffPixels === 0,
+          `${pair.id} ${stateCase.state} crop integrity failed: ${JSON.stringify(integrity)}`);
+
+        const full = ImageColor.findImage(stateCase.sourcePath, pair.templates, { threshold: 1 });
+        const roi = ImageColor.findImage(stateCase.sourcePath, pair.templates, {
+          threshold: 1,
+          region: stateCase.region,
+        });
+        assert(expectedStateMatch(stateCase, full) && expectedStateMatch(stateCase, roi),
+          `${pair.id} ${stateCase.state} state selection failed: ${JSON.stringify({ full, roi })}`);
+        matchKeys.forEach((key) => assert(full[key] === roi[key],
+          `${pair.id} ${stateCase.state} full image and ROI disagree on ${key}: ${JSON.stringify({ full, roi })}`));
+
+        const opposite = ImageColor.findImage(stateCase.sourcePath, pair.templates[1 - stateCase.templateIndex], {
+          threshold: 0.95,
+          region: stateCase.region,
+        });
+        assert(opposite.found === false,
+          `${pair.id} ${stateCase.state} must reject the opposite-state template at 0.95: ${JSON.stringify(opposite)}`);
+
+        // A state array is used to classify the current screenshot. The
+        // business action gate then searches only for the unselected visual
+        // state, so an already-selected toggle is never clicked again.
+        const unselectedOnly = ImageColor.findImage(stateCase.sourcePath, pair.templates[0], {
+          threshold: 1,
+          region: stateCase.region,
+        });
+        const selectedOnly = ImageColor.findImage(stateCase.sourcePath, pair.templates[1], {
+          threshold: 1,
+          region: stateCase.region,
+        });
+        assert(unselectedOnly.found === (stateCase.templateIndex === 0),
+          `${pair.id} ${stateCase.state} unselected-only action gate is wrong: ${JSON.stringify(unselectedOnly)}`);
+        assert(selectedOnly.found === (stateCase.templateIndex === 1),
+          `${pair.id} ${stateCase.state} selected-only probe is wrong: ${JSON.stringify(selectedOnly)}`);
+
+        const sourceSize = ImageColor.getSize(stateCase.sourcePath);
+        const fullCandidatePositions = candidatePositionCount(sourceSize, pair.templates);
+        const roiCandidatePositions = candidatePositionCount(sourceSize, pair.templates, stateCase.region);
+        assert(fullCandidatePositions > 0 && roiCandidatePositions > 0 && roiCandidatePositions < fullCandidatePositions,
+          `${pair.id} ${stateCase.state} has invalid deterministic search-space counts: ${JSON.stringify({ fullCandidatePositions, roiCandidatePositions })}`);
+      });
+    });
+
+    const selectedMessageIcon = ImageColor.loadBase64(statePairs[0].templates[1]);
+    const deterministicTie = ImageColor.findImage(wechatPanelPath, [selectedMessageIcon, selectedMessageIcon], {
+      threshold: 1,
+      region: statePairs[0].cases[1].region,
+    });
+    assert(deterministicTie.found === true && deterministicTie.templateIndex === 0, JSON.stringify(deterministicTie));
+
     await RuntimeAPITest.expectThrow(
       () => ImageColor.findImage(sourceDataURL, templatePath, { threshold: 1.01 }),
       'threshold must be between 0 and 1',
+    );
+    await RuntimeAPITest.expectThrow(
+      () => ImageColor.findImage(sourceDataURL, [], { threshold: 0.99 }),
+      'template must be a non-empty string array',
+    );
+    await RuntimeAPITest.expectThrow(
+      () => ImageColor.findImage(sourceDataURL, [templatePath, ''], { threshold: 0.99 }),
+      'template[1] must be a non-empty string',
     );
     await RuntimeAPITest.expectThrow(
       () => ImageColor.findImages(sourceDataURL, templatePath, { maxResults: 0 }),

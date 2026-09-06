@@ -666,46 +666,88 @@
     };
   }
 
-  async function discoverImages(template, options, operation, targetOverride) {
-    if (typeof template !== 'string' || template.length === 0) {
-      fail('INVALID_ARGUMENT', operation, 'template must be a non-empty string');
+  function normalizeImageTemplates(template, operation) {
+    if (typeof template === 'string' && template.length > 0) return [template];
+    if (!Array.isArray(template) || template.length === 0 || template.some(function (item) {
+      return typeof item !== 'string' || item.length === 0;
+    })) {
+      fail('INVALID_ARGUMENT', operation, 'template must be a non-empty string or string array');
     }
-    const capture = await captureScope(options, operation, targetOverride);
-    let matches;
-    try {
-      const request = {};
-      if (options.threshold !== undefined) request.threshold = options.threshold;
-      if (options.scales !== undefined) request.scales = options.scales;
-      if (options.maxResults !== undefined) request.maxResults = options.maxResults;
-      matches = await global.ImageColor.findImages(capture.image, template, request);
-    } catch (error) {
-      fail('IMAGE_MATCH_FAILED', operation, 'image template matching failed', { cause: errorSummary(error) });
-    }
-    if (!Array.isArray(matches)) {
-      fail('IMAGE_MATCH_FAILED', operation, 'image template matching did not return candidates');
-    }
-    const candidates = [];
-    for (const match of matches) {
-      if (!match || match.found === false) continue;
-      let rawBounds;
-      let bounds;
-      try {
-        rawBounds = imageBounds(match, capture, operation);
-        bounds = projectImageBounds(match, capture, operation);
-      } catch (error) {
-        fail('IMAGE_MATCH_FAILED', operation, 'image template matching returned an invalid bounding box', { cause: errorSummary(error) });
+    return template.slice();
+  }
+
+  function imageCandidateIoU(first, second) {
+    const left = Math.max(first.bounds.x, second.bounds.x);
+    const top = Math.max(first.bounds.y, second.bounds.y);
+    const right = Math.min(first.bounds.x + first.bounds.width, second.bounds.x + second.bounds.width);
+    const bottom = Math.min(first.bounds.y + first.bounds.height, second.bounds.y + second.bounds.height);
+    if (right <= left || bottom <= top) return 0;
+    const intersection = (right - left) * (bottom - top);
+    const union = first.bounds.width * first.bounds.height + second.bounds.width * second.bounds.height - intersection;
+    return union > 0 ? intersection / union : 0;
+  }
+
+  function selectDistinctImageCandidates(rows, maxResults) {
+    const ranked = rows.slice().sort(function (left, right) {
+      if (left.candidate.confidence !== right.candidate.confidence) {
+        return right.candidate.confidence - left.candidate.confidence;
       }
-      candidates.push({
-        source: 'image',
-        template: template,
-        confidence: isFiniteNumber(match.confidence) ? match.confidence : 0,
-        scale: isFiniteNumber(match.scale) ? match.scale : undefined,
-        imageBounds: rawBounds,
-        bounds: bounds,
-        center: centerOf(bounds),
-      });
+      if (left.templateIndex !== right.templateIndex) return left.templateIndex - right.templateIndex;
+      if (left.candidate.bounds.y !== right.candidate.bounds.y) return left.candidate.bounds.y - right.candidate.bounds.y;
+      return left.candidate.bounds.x - right.candidate.bounds.x;
+    });
+    const selected = [];
+    for (const row of ranked) {
+      if (selected.some(function (existing) { return imageCandidateIoU(existing, row.candidate) > 0.30; })) continue;
+      selected.push(row.candidate);
     }
-    return { capture: capture, candidates: sortReadingOrder(candidates) };
+    return sortReadingOrder(selected).slice(0, maxResults);
+  }
+
+  async function discoverImages(template, options, operation, targetOverride) {
+    const templates = normalizeImageTemplates(template, operation);
+    const capture = await captureScope(options, operation, targetOverride);
+    const rows = [];
+    const maxResults = options.maxResults === undefined ? 20 : options.maxResults;
+    for (let templateIndex = 0; templateIndex < templates.length; templateIndex += 1) {
+      const currentTemplate = templates[templateIndex];
+      let matches;
+      try {
+        const request = { maxResults: maxResults };
+        if (options.threshold !== undefined) request.threshold = options.threshold;
+        if (options.scales !== undefined) request.scales = options.scales;
+        matches = await global.ImageColor.findImages(capture.image, currentTemplate, request);
+      } catch (error) {
+        fail('IMAGE_MATCH_FAILED', operation, 'image template matching failed', { cause: errorSummary(error) });
+      }
+      if (!Array.isArray(matches)) {
+        fail('IMAGE_MATCH_FAILED', operation, 'image template matching did not return candidates');
+      }
+      for (const match of matches) {
+        if (!match || match.found === false) continue;
+        let rawBounds;
+        let bounds;
+        try {
+          rawBounds = imageBounds(match, capture, operation);
+          bounds = projectImageBounds(match, capture, operation);
+        } catch (error) {
+          fail('IMAGE_MATCH_FAILED', operation, 'image template matching returned an invalid bounding box', { cause: errorSummary(error) });
+        }
+        rows.push({
+          templateIndex: templateIndex,
+          candidate: {
+            source: 'image',
+            template: currentTemplate,
+            confidence: isFiniteNumber(match.confidence) ? match.confidence : 0,
+            scale: isFiniteNumber(match.scale) ? match.scale : undefined,
+            imageBounds: rawBounds,
+            bounds: bounds,
+            center: centerOf(bounds),
+          },
+        });
+      }
+    }
+    return { capture: capture, candidates: selectDistinctImageCandidates(rows, maxResults) };
   }
 
   function chooseCandidate(candidates, options, operation) {

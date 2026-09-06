@@ -62,6 +62,10 @@ order: 10
 - `data:image/...;base64,...` data URL
 - 不带 data URL 前缀的 raw base64 PNG/JPEG
 
+`template` 也可以是非空的图片数组，用于同一控件的明确视觉状态，例如微信左侧“消息”按钮的
+灰色未选中和绿色选中图。每张图分别匹配，返回全体中置信度最高的候选；置信度相同则按数组顺序
+选择。不要把两个状态拼进一张图片，也不要仅为兼容状态变化而降低 `threshold`。
+
 路径会先被尝试打开，之后才会尝试 raw base64；不再用字符串长度猜测输入类型，所以超过 100 字符的合法路径不会被误判成 base64。
 
 ```js
@@ -98,11 +102,67 @@ const result = ImageColor.findImage(
   centerX: 1165,
   centerY: 755,
   confidence: 0.94,
-  scale: 1
+  scale: 1,
+  templateIndex: 0
 }
 ```
 
 找不到阈值内的结果时，仍返回最佳候选的 `confidence`、`width`、`height`、`scale`，但 `found: false`，并且 `x`、`y`、`centerX`、`centerY` 都是 `-1`。
+`templateIndex` 始终指向产生该最佳候选的输入模板；传单张图片时固定为 `0`。
+
+### 视觉状态变体
+
+为每一种**真实截图状态**各保存一张小而有辨识度的模板。模板应只包含图标及其稳定边缘，不要把
+会变化的未读红点、日期、昵称或整行背景带进去。状态数组的每一项必须是**同一个控件**的另一个视觉状态：
+
+| 控件 | `templateIndex: 0` | `templateIndex: 1` | 适用的单行 ROI（全窗口截图坐标） |
+| --- | --- | --- | --- |
+| 消息 | 灰色未选中 `wechat-message/unselected.png` | 绿色已选中 `wechat-message/selected.png` | `{ x: 0, y: 100, width: 60, height: 44 }` |
+| 联系人 | 灰色未选中 `wechat-sidebar/contacts.png` | 绿色已选中 `wechat-contacts/selected.png` | `{ x: 0, y: 148, width: 60, height: 44 }` |
+
+下面以“消息”按钮为例：
+
+```js
+const selectedPath = './examples/image-color/fixtures/wechat-message/selected.png';
+const unselectedPath = './examples/image-color/fixtures/wechat-message/unselected.png';
+// Both files must be cropped from their respective real WeChat screenshots.
+const messageButtonStates = [unselectedPath, selectedPath];
+
+const match = ImageColor.findImage(screenshot, messageButtonStates, {
+  threshold: 0.95,
+  region: { x: 0, y: 100, width: 60, height: 44 },
+});
+
+if (!match.found) throw new Error('消息按钮当前没有落在已知视觉状态中');
+const state = match.templateIndex === 0 ? 'unselected' : 'selected';
+```
+
+业务上建议把“识别”与“动作”分开：默认先用状态数组分类，因为只查 `selected` 或只查 `unselected`
+都无法区分“另一状态”“目标不存在”和“模板/环境漂移”。当操作的前置条件是未选中时，再单独查
+未选中模板作为 action gate：
+
+```js
+const unselectedMatch = ImageColor.findImage(screenshot, unselectedPath, {
+  threshold: 0.95,
+  region: { x: 0, y: 100, width: 60, height: 44 },
+});
+
+const action = unselectedMatch.found ? 'tap-unselected' : 'do-not-tap';
+```
+
+这段单模板查找适合固定截图分析，或作为桌面点击前的安全条件；`found: false` 绝不等同于“已选中”。
+实际桌面中的完整流程是先 `UI.findImage([unselected, selected])` 分类，只在未选中时
+`UI.tapImage(unselected)`，并在新截图上再次分类验证已选中；不要把状态数组直接交给会改变 toggle
+状态的 `UI.tapImage`。参见 [Desktop UI 的状态切换流程](desktop-ui.md)。
+
+数组是“同一目标的状态备选”，不是多个不同按钮的泛搜索。下载截图中的灰色“消息”和绿色“联系人”
+会同时出现，不能放进同一个数组；它们应分别用上表的两个状态数组和各自 ROI 调用。`findImages` 用于
+查找多个相同的**单模板**目标；需要状态分类时使用 `findImage`。
+
+固定 fixture 使用 `threshold: 1`，以验证裁剪和 matcher 的确定性。实际屏幕先用 `0.95` 起步，并在命中后
+校验预期的 `templateIndex`、中心点和业务状态。对主题、DPI、缩放或抗锯齿变化，不要一味降低阈值：先缩小
+`region`、显式给出已验证的 `scales`，并为每个真实环境采集同一控件的两态模板。当前消息 fixture 的灰/绿
+图来自不同截图，适合状态数组契约验证；它们不能代替在你的生产微信版本/主题/DPI 中重新采集的模板。
 
 ## ImageColor.findImages(source, template, options?)
 
@@ -152,6 +212,28 @@ Pure Go 是当前唯一生产 matcher，适用于正常构建和带 `opencv` bui
 ```bash
 ./opendesk -script examples/image-color/template-match.js
 ```
+
+示例直接读取版本化、可视化查看的
+[`scene_color_blocks.png`](../../examples/image-color/fixtures/template-match/scene_color_blocks.png)
+和 [`template_blue-panel.png`](../../examples/image-color/fixtures/template-match/template_blue-panel.png)，不在
+`.runtime/` 中生成或依赖输入图片。它还逐项验证
+[`wechat-panel.png`](../../examples/image-color/fixtures/wechat-panel.png) 中的已选中消息、联系人、收藏、视频号、
+小程序、看一看、手机与设置菜单图标；每张模板均是原图裁剪，且每个不同按钮都使用自己的紧凑 ROI，
+而非放入同一个状态数组。另有 `wechatStateEvidence` 用两张真实 source 分别验证“消息”和“联系人”的
+有序 `[unselected, selected]` 状态数组：四个 case 均断言精确裁剪、完整图/ROI 一致、正确的
+`templateIndex`（0 或 1）、相反状态在 `0.95` 下被拒绝，以及 ROI 搜索空间缩减；同时用未选中模板
+单独搜索，验证它只会在未选中 case 打开 `tap-unselected` action gate，已选中 case 必须是 `no-op`。
+
+要把微信 fixture 的 ROI 验收交给人工核对，请从仓库根目录运行真实 Custom UI：
+
+```bash
+./opendesk -ui -script examples/image-color/wechat-template-match-visual.js -console-mode script
+```
+
+窗口会重点显示“消息”按钮的两张 source、蓝色搜索 ROI、红色实际命中框、两个状态模板和
+全图/ROI 匹配结果；必须同时验证未选中返回 `templateIndex: 0`、选中返回 `templateIndex: 1`，以及
+未选中才开启 `tap-unselected` action gate、已选中为 `no-op`。红色框只表示目标标注，不代表失败。关闭
+窗口后，任何失败判据会使脚本返回失败状态。
 
 ## ImageColor.findPos(source, template, threshold)
 

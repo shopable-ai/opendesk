@@ -385,6 +385,63 @@
       assert(indexed && indexed.bounds.x === 500, JSON.stringify(indexed));
       await expectCode(() => UI.findImage('template.png', { within: windowInfo(), index: 2 }), 'TARGET_NOT_FOUND', 'UI.findImage');
     });
+
+    await withStubs({
+      findImages: function (_, template) {
+        if (template === 'message-unselected.png') return [];
+        return [{ found: true, confidence: 0.99, scale: 1, x: 125, y: 125, width: 250, height: 50 }];
+      },
+    }, async function (records) {
+      // This proves the generic API behavior only: an array may select the
+      // currently-selected visual state and click it. Toggle workflows must
+      // inspect first, then pass only the unselected template to tapImage.
+      const result = await UI.tapImage(['message-unselected.png', 'message-selected.png'], {
+        within: windowInfo(), timeout: 1, polling: 1,
+      });
+      assert(result.ok && result.target.template === 'message-selected.png', JSON.stringify(result));
+      equal(records.screenshots.length, 1, 'state variants must share one capture');
+      equal(records.imageRequests.length, 2, 'state variants must each be matched');
+      equal(records.clicks.length, 1, 'state variants must click once');
+      equal(records.waits.length, 0, 'tapImage timeout and polling must not create a wait loop');
+    });
+
+    await withStubs({
+      findImages: function () { return []; },
+    }, async function (records) {
+      await expectCode(() => UI.tapImage('message-selected.png', {
+        within: windowInfo(), timeout: 50, polling: 1,
+      }), 'TARGET_NOT_FOUND', 'UI.tapImage');
+      equal(records.screenshots.length, 1, 'missing tapImage target captures once instead of polling');
+      equal(records.imageRequests.length, 1, 'missing tapImage target matches once instead of polling');
+      equal(records.waits.length, 0, 'missing tapImage target must not wait');
+      equal(records.clicks.length, 0, 'missing tapImage target must not click');
+    });
+
+    await withStubs({
+      findImages: function (_, template) {
+        return [{
+          found: true,
+          confidence: template === 'message-selected.png' ? 0.99 : 0.95,
+          scale: 1,
+          x: 125,
+          y: 125,
+          width: 250,
+          height: 50,
+        }];
+      },
+    }, async function (records) {
+      const target = await UI.findImage(['message-unselected.png', 'message-selected.png'], { within: windowInfo() });
+      assert(target && target.template === 'message-selected.png', JSON.stringify(target));
+      equal(records.screenshots.length, 1, 'overlapping state variants must share one capture');
+      equal(records.imageRequests.length, 2, 'overlapping state variants must each be matched');
+    });
+
+    await withStubs({}, async function (records) {
+      await expectCode(() => UI.findImage([], { within: windowInfo() }), 'INVALID_ARGUMENT', 'UI.findImage');
+      await expectCode(() => UI.tapImage(['message-selected.png', ''], { within: windowInfo() }), 'INVALID_ARGUMENT', 'UI.tapImage');
+      equal(records.screenshots.length, 0, 'invalid state variants must fail before capture');
+      equal(records.imageRequests.length, 0, 'invalid state variants must not invoke template matching');
+    });
   });
 
   test({ name: 'UI detects stale window identity and retries exactly once after a window move or resize', tier: 'unit', covers: ['UI.tapText'] }, async () => {
