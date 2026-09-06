@@ -4,9 +4,12 @@ set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")/../../.." && pwd)
 cd "$root"
 
-stack=${1:?usage: async-fixture-session.sh legacy|upgraded|playwright}
+stack=${1:?usage: async-fixture-session.sh legacy|upgraded|playwright|http-download|http-response-types}
+source="$root/tests/runtime-api/async-lifecycle.js"
 case "$stack" in
   legacy|upgraded|playwright) ;;
+  http-download) source="$root/tests/runtime-api/http-download.js" ;;
+  http-response-types) source="$root/tests/runtime-api/http-response-types.js" ;;
   *) echo "invalid Runtime stack: $stack" >&2; exit 2 ;;
 esac
 
@@ -14,7 +17,12 @@ run_dir=${OPENDESK_RUNTIME_API_RUN_DIR:?missing OPENDESK_RUNTIME_API_RUN_DIR}
 binary=${OPENDESK_RUNTIME_API_BINARY:?missing OPENDESK_RUNTIME_API_BINARY}
 context=${OPENDESK_RUNTIME_API_CONTEXT_PATH:-"$run_dir/context.json"}
 watchdog="$root/tests/runtime-api/run_with_timeout.py"
-gate="async-$stack"
+if [ "$stack" = "http-download" ] || [ "$stack" = "http-response-types" ]; then
+  gate="http-download"
+  if [ "$stack" = "http-response-types" ]; then gate="http-response-types"; fi
+else
+  gate="async-$stack"
+fi
 ready="$run_dir/$gate-fixture-ready.json"
 extra="$run_dir/$gate-fixture-extra.json"
 generated="$run_dir/generated/$gate.generated.js"
@@ -42,7 +50,7 @@ while [ "$attempt" -lt 100 ] && [ ! -f "$ready" ]; do
 done
 [ -f "$ready" ] || { echo "timed out waiting for Runtime async fixture" >&2; exit 1; }
 
-python3 - "$context" "$ready" "$extra" "$root/tests/runtime-api/async-lifecycle.js" "$generated" <<'PY'
+python3 - "$context" "$ready" "$extra" "$source" "$generated" <<'PY'
 import json, pathlib, sys
 context, ready, extra, source, generated = map(pathlib.Path, sys.argv[1:])
 fixture = json.loads(ready.read_text(encoding="utf-8"))

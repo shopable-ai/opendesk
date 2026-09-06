@@ -84,6 +84,10 @@ type Request struct {
 	// EnableCommand permits local command execution. Trusted local script
 	// entrypoints set it; remote and scheduled requests leave it false.
 	EnableCommand bool
+	// EnableDownload permits native streaming HTTP downloads to a local path.
+	// It is intentionally separate from ordinary HTTP so remote transports keep
+	// their existing network behavior without gaining filesystem side effects.
+	EnableDownload bool
 	// EnableSQLite permits local first-party SQLite database handles. It is a
 	// separate explicit capability because SQLite.open accepts filesystem paths;
 	// HTTP, MCP, and Scheduler requests leave it false by default.
@@ -327,6 +331,7 @@ func runJavaScript(req Request, emitter *Emitter) error {
 				NativeExtensionRoots:            req.NativeExtensionRoots,
 				EnableCustomUI:                  req.EnableCustomUI,
 				EnableCommand:                   req.EnableCommand,
+				EnableDownload:                  req.EnableDownload,
 				EnableSQLite:                    req.EnableSQLite,
 				SQLiteProtectedPaths:            req.SQLiteProtectedPaths,
 				CustomUIActivationSource:        normalizeCustomUIActivationSource(req),
@@ -420,6 +425,7 @@ func runJavaScript(req Request, emitter *Emitter) error {
 			emitter.Emit(EventCategoryMeta, EventLevelInfo, EventSourceRuntime, "cleanup", "runtime async resources drained", map[string]any{
 				"timers": timers, "workers": workers, "promiseCallbacks": callbacks,
 				"httpWorkers": resources.HTTPWorkers, "httpCallbacks": resources.HTTPCallbacks,
+				"httpTemps":    resources.HTTPTemps,
 				"soundWorkers": resources.SoundWorkers, "soundPending": resources.SoundPending,
 				"soundPlaybacks":      resources.SoundPlaybacks,
 				"notificationWorkers": resources.NotificationWorkers, "notificationPending": resources.NotificationPending,

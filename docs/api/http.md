@@ -22,6 +22,7 @@ order: 9
 | `http.request(options)` | 任意 HTTP 请求 |
 | `http.get(url, options?)` | GET |
 | `http.post(url, data, options?)` | POST |
+| `http.download(url, options)` | 授权的原生流式 GET 下载到最终文件 |
 
 ## http.request(options)
 
@@ -48,6 +49,7 @@ console.log(resp.data);
 | `data` | string / object | 请求体 |
 | `timeout` | number | 请求级 deadline（毫秒）；`0` 仅关闭该请求的本地 deadline，执行级 deadline 仍生效 |
 | `signal` | AbortSignal | 可选取消信号；`AbortController.abort()` 会取消在途请求 |
+| `responseType` | `json` / `text` / `arraybuffer` | `text` 始终返回字符串，`arraybuffer` 返回真实 `ArrayBuffer`；默认与旧版相同，优先 JSON 解析、否则为字符串 |
 
 常见返回：
 
@@ -82,6 +84,70 @@ const resp = await http.post('https://httpbin.org/post', {
 });
 console.log(resp.data);
 ```
+
+## http.download(url, options)：原生流式下载
+
+`http.download()` 是唯一的下载入口。它在 native `HTTPClient` 中把响应分块写入同目录临时文件，
+按实际写入字节做限额与 SHA-256，完成后才安全发布最终文件；它不是 `axios.get()` 加
+`File.writeBytes()` 的组合，也不会调用 `curl`、`wget` 或命令行下载器。
+
+```js
+const result = await http.download('https://www.example.com/', {
+  path: '.runtime/downloads/example.html',
+  maxBytes: 1024 * 1024,
+  sha256: 'expected-64-character-hex-digest', // 可选
+});
+
+console.log(result.path, result.bytesWritten, result.sha256, result.committed);
+```
+
+参数：
+
+| 参数 | 默认值 | 契约 |
+| --- | --- | --- |
+| `path` | 必填 | 最终文件名；相对路径以不可变的 `Execution.workdir` 为基准。 |
+| `headers` | `{}` | 初始 GET 的自定义请求头；禁止 `Range` 与 `If-Range`。发生获准的跨源重定向后全部丢弃且不恢复。 |
+| `timeout` | `30000` | 毫秒；`0` 只取消本地请求 deadline，不取消 execution deadline 或 signal 取消。 |
+| `signal` | 未设置 | `AbortSignal`；取消在提交前保留旧目标，提交后才观察到取消会如实报告 `committed: true`。 |
+| `maxBytes` | `64 MiB` | 实际落盘的解压后字节数，必须是 1 到 `1 GiB` 的整数。 |
+| `overwrite` | `false` | `false` 时在提交点仍拒绝覆盖竞争创建的目标；`true` 使用平台已验证的安全替换，不会先删或截断旧文件。 |
+| `createDirs` | `false` | 是否创建缺失父目录。 |
+| `sha256` | 未设置 | 64 位十六进制预期摘要；不匹配时不提交。 |
+| `allowCrossOriginRedirects` | `false` | 默认只允许同源重定向；显式开启后每次跨源都会永久丢弃调用者 headers。 |
+
+成功只在最终 HTTP 状态为 `200`、文件关闭、摘要校验和发布都完成时返回：
+
+```js
+{
+  path: '/absolute/destination/file',
+  bytesWritten: 1234,
+  status: 200,
+  sha256: '...',
+  committed: true
+}
+```
+
+只接受没有内嵌凭据的绝对 HTTP(S) URL，保持 TLS 验证；不接受 `206`、`304` 或其他状态作为
+完整下载。最多跟随 5 次重定向，禁止 HTTPS 降级。`Content-Length` 只用于尽早拒绝过大的未压缩
+响应；实际计数始终来自写入循环。支持 identity 和 gzip，gzip 的大小、摘要和 `bytesWritten`
+都是解压后的内容；未知 `Content-Encoding` 会失败。下载并发上限为每个 execution 4 个。
+
+下载仅在受信任的本地 `-script` / `ai run` execution 中由 host 显式启用。HTTP、MCP、Scheduler
+和泛用 Runtime execution 调用它会在任何网络或文件副作用前以 `DOWNLOAD_DISABLED` 拒绝；
+JavaScript 参数、`Execution.env` 或 shell 环境变量不能提升该权限。普通 `http.request()` / axios
+请求的既有网络权限不受影响。
+
+临时文件始终与目标同目录并独占创建。最终目标必须是普通文件而非 symlink、目录、设备或平台特殊
+路径；Windows 也拒绝设备名与 ADS。macOS/Linux 使用同目录原子提交；Windows 使用同目录
+`MoveFileEx` 的原子替换或原子 hard-link 发布，均不会退化为 copy/delete。无长度且没有可信摘要的 HTTP body
+干净 EOF 无法识别语义截断；已知长度截断、读写错误、取消、限额和摘要失败均不会把部分文件提交。
+
+错误是 `HTTPDownloadError` rejection，至少包含 `code`、`operation: 'http.download'`、`status` 和
+真实 `committed`。常见 code 包括 `DOWNLOAD_DISABLED`、`INVALID_ARGUMENT`、`INVALID_URL`、
+`HTTP_STATUS`、`REDIRECT_DENIED`、`MAX_BYTES_EXCEEDED`、`SHA256_MISMATCH`、`TARGET_EXISTS`、
+`CANCELED`、`TIMEOUT` 与 `IO_FAILED`。错误不回显完整 URL、headers 或响应正文。
+
+公开使用示例和确定性自测见 [examples/http](../../examples/http/README.md)。
 
 ## axios：便捷 HTTP 请求
 
@@ -189,5 +255,8 @@ try {
 ```
 
 `AbortController` 是运行时提供的最小标准兼容实现；它支持本页 HTTP/axios
-取消所需的 `signal`、`abort()`、`addEventListener()` 和 `removeEventListener()`。
+取消所需的 `signal`、`abort()`、`addEventListener()` 和 `removeEventListener()`。`abort()` 保留首次
+reason 且重复调用幂等；一个同步 `onabort` 或 listener 抛错不会阻止其他 listener 或 native 取消。
+listener 返回的 Promise 不会被自动 await；失败经 Runtime 的明确 console error 通道报告而不回显
+listener 的任意错误内容。
 全局接口的完整说明见 [Global APIs](global-apis.md)。

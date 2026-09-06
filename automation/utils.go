@@ -76,6 +76,10 @@ type InitJSOptions struct {
 	// EnableCommand is set by trusted local script entrypoints. Generic Runtime,
 	// HTTP, MCP, and Scheduler executions leave it false.
 	EnableCommand bool
+	// EnableDownload opts trusted local executions into HTTPClient's native
+	// streaming file writer. Remote HTTP, MCP, and Scheduler executions remain
+	// denied before either a network request or a filesystem side effect.
+	EnableDownload bool
 	// EnableSQLite is deliberately separate from File: it opts a trusted local
 	// execution into the first-party SQLite owner. Shared Runtime initialization
 	// leaves it false for HTTP, MCP, and Scheduler executions so this global
@@ -261,6 +265,7 @@ type RuntimeResourceCounts struct {
 	Timers               int
 	HTTPWorkers          int64
 	HTTPCallbacks        int
+	HTTPTemps            int64
 	UIWorkers            int64
 	UIPending            int
 	UIQueued             int
@@ -309,6 +314,7 @@ func (l *RuntimeLifecycle) ResourceCounts() RuntimeResourceCounts {
 	if l.HTTP != nil {
 		counts.HTTPWorkers = l.HTTP.ActiveWorkers()
 		counts.HTTPCallbacks = l.HTTP.PendingCallbacks()
+		counts.HTTPTemps = l.HTTP.ActiveTempResources()
 	}
 	if l.UI != nil {
 		ui := l.UI.ResourceCounts()
@@ -357,7 +363,7 @@ func (l *RuntimeLifecycle) ResourceCounts() RuntimeResourceCounts {
 }
 
 func (c RuntimeResourceCounts) IsZero() bool {
-	return c.Timers == 0 && c.HTTPWorkers == 0 && c.HTTPCallbacks == 0 &&
+	return c.Timers == 0 && c.HTTPWorkers == 0 && c.HTTPCallbacks == 0 && c.HTTPTemps == 0 &&
 		c.UIWorkers == 0 && c.UIPending == 0 && c.UIQueued == 0 && c.UIWindows == 0 &&
 		c.UIListeners == 0 && c.UIDriverSinks == 0 && c.UIHostProcesses == 0 &&
 		c.ShortcutBindings == 0 && c.ShortcutPending == 0 &&
@@ -373,8 +379,8 @@ func (c RuntimeResourceCounts) IsZero() bool {
 }
 
 func (c RuntimeResourceCounts) String() string {
-	return fmt.Sprintf("timers=%d httpWorkers=%d httpCallbacks=%d uiWorkers=%d uiPending=%d uiQueued=%d uiWindows=%d uiListeners=%d uiDriverSinks=%d uiHostProcesses=%d shortcutBindings=%d shortcutPending=%d eventSubscriptions=%d eventPending=%d captureWorkers=%d capturePending=%d captureSessions=%d appWorkers=%d appPending=%d soundWorkers=%d soundPending=%d soundPlaybacks=%d notificationWorkers=%d notificationPending=%d commandWorkers=%d commandCallbacks=%d commandProcesses=%d audioPatternWorkers=%d audioPatternPending=%d audioPatternWatches=%d audioPatternSessions=%d fileJSONWorkers=%d fileJSONCallbacks=%d fileJSONTemps=%d fileHandles=%d sqliteWorkers=%d sqliteCallbacks=%d sqliteHandles=%d",
-		c.Timers, c.HTTPWorkers, c.HTTPCallbacks, c.UIWorkers, c.UIPending, c.UIQueued,
+	return fmt.Sprintf("timers=%d httpWorkers=%d httpCallbacks=%d httpTemps=%d uiWorkers=%d uiPending=%d uiQueued=%d uiWindows=%d uiListeners=%d uiDriverSinks=%d uiHostProcesses=%d shortcutBindings=%d shortcutPending=%d eventSubscriptions=%d eventPending=%d captureWorkers=%d capturePending=%d captureSessions=%d appWorkers=%d appPending=%d soundWorkers=%d soundPending=%d soundPlaybacks=%d notificationWorkers=%d notificationPending=%d commandWorkers=%d commandCallbacks=%d commandProcesses=%d audioPatternWorkers=%d audioPatternPending=%d audioPatternWatches=%d audioPatternSessions=%d fileJSONWorkers=%d fileJSONCallbacks=%d fileJSONTemps=%d fileHandles=%d sqliteWorkers=%d sqliteCallbacks=%d sqliteHandles=%d",
+		c.Timers, c.HTTPWorkers, c.HTTPCallbacks, c.HTTPTemps, c.UIWorkers, c.UIPending, c.UIQueued,
 		c.UIWindows, c.UIListeners, c.UIDriverSinks, c.UIHostProcesses, c.ShortcutBindings, c.ShortcutPending,
 		c.EventSubscriptions, c.EventPending, c.CaptureWorkers, c.CapturePending, c.CaptureSessions,
 		c.AppWorkers, c.AppPending, c.SoundWorkers, c.SoundPending, c.SoundPlaybacks,
@@ -573,7 +579,7 @@ func autoMapPageResult(runtime *goja.Runtime, page *Page) map[string]interface{}
 // in tests/runtime-api/manifest.js and never belong here.
 var jsMethodAllowlist = map[reflect.Type][]string{
 	reflect.TypeOf((*Console)(nil)):        {"Log", "Info", "Warn", "Error", "Debug", "Table", "Group", "GroupEnd", "Time", "TimeEnd", "Clear"},
-	reflect.TypeOf((*HTTPClient)(nil)):     {"Request", "Get", "Post"},
+	reflect.TypeOf((*HTTPClient)(nil)):     {"Request", "Get", "Post", "Download"},
 	reflect.TypeOf((*System)(nil)):         {"Delay", "GetPlatformInfo", "GetSystemInfo", "GetProcessList", "KillProcess", "GetNetworkInterfaces", "GetNetworkConnections", "GetPowerInfo", "Shutdown", "Restart", "Sleep", "GetDirectoryContents", "GetExecutablePath", "GetWorkingDirectory", "GetUserInfo", "IsAdministrator", "GetSystemMetrics", "GetFingerprint", "ToJSON"},
 	reflect.TypeOf((*WindowManager)(nil)):  {"GetCapabilities", "GetActiveWindow", "GetWindowByTitle", "GetFocusWindow", "Focus", "SetWindowBounds", "SetWidth", "SetHeight", "Maximize", "Minimize", "Restore", "RestoreByPID", "MinimizeByPID", "MaximizeByPID", "CloseWindow", "CloseActiveWindow", "Kill", "Title", "GetTitle", "Content", "GetContent", "List", "SetAlwaysOnTop", "UnsetTopMost", "BringToTop"},
 	reflect.TypeOf((*FileSystem)(nil)):     {"Path", "Cwd", "Create", "CreateIfNotExists", "CreateWithDirs", "Exists", "EnsureDir", "Read", "ReadBytes", "Write", "Append", "WriteBytes", "AppendBytes", "Copy", "RenameWithoutExtension", "Rename", "Move", "GetExtension", "GetName", "GetNameWithoutExtension", "Remove", "RemoveDir", "ListDir", "IsFile", "IsDir", "IsEmptyDir", "GetHumanReadableSize", "GetSimplifiedPath", "Join", "Open"},
@@ -851,7 +857,9 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 	consoleMethods := AutoMapObject(runtime, NewConsoleWithSink(initSink))
 	runtime.Set("console", consoleMethods)
 
-	httpClient := NewHTTPClientWithOptions(runtime, opts.Context, opts.EventLoop, opts.OnAsyncError)
+	httpClient := NewHTTPClientWithOptions(runtime, opts.Context, opts.EventLoop, opts.OnAsyncError, HTTPClientOptions{
+		WorkDir: opts.WorkDir, EnableDownload: opts.EnableDownload,
+	})
 	httpMethods := AutoMapObject(runtime, httpClient)
 	runtime.Set("http", httpMethods)
 

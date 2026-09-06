@@ -3,6 +3,7 @@
 'use strict';
 const modules = {
   'core': { file: 'suites/core.js', exports: ["contract", "unit", "coverage", "smokeCase", "negative", "failureExit", "cleanup", "quality", "asyncStacks"] },
+  'http-download': { file: 'suites/http-download.js', exports: ["httpDownload"] },
   'language': { file: 'suites/language.js', exports: ["language"] },
   'sqlite': { file: 'suites/sqlite.js', exports: ["sqlite"] },
   'page-wait': { file: 'suites/page-wait.js', exports: ["pageWait"] },
@@ -37,9 +38,10 @@ const modes = {
   "path": "pathContext",
   "language": "language",
   "sqlite": "sqlite",
-  "unit-selected": "unitSelected"
-};
   "page-wait": "pageWait",
+  "unit-selected": "unitSelected",
+  "http-download": "httpDownload"
+};
 const owners = Object.create(null);
 for (const [name, definition] of Object.entries(modules)) {
   for (const entry of definition.exports) {

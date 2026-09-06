@@ -2,6 +2,23 @@
 // observes this signal and cancels only Go request context state; Promise
 // settlement remains on the runtime event-loop owner.
 if (typeof globalThis.AbortController !== 'function') {
+    function reportAbortListenerFailure() {
+        // Listener exceptions must not prevent native cancellation or later
+        // listeners from running. Keep the already-established console error
+        // channel explicit while withholding arbitrary listener payloads.
+        if (globalThis.console && typeof globalThis.console.error === 'function') {
+            globalThis.console.error('AbortSignal listener failed');
+        }
+    }
+
+    function dispatchAbortListener(signal, listener, event) {
+        try {
+            listener.call(signal, event);
+        } catch (_) {
+            reportAbortListenerFailure();
+        }
+    }
+
     function AbortSignal() {
         this.aborted = false;
         this.reason = undefined;
@@ -12,7 +29,7 @@ if (typeof globalThis.AbortController !== 'function') {
     AbortSignal.prototype.addEventListener = function(type, listener) {
         if (type !== 'abort' || typeof listener !== 'function') return;
         if (this.aborted) {
-            listener.call(this, { type: 'abort', target: this });
+            dispatchAbortListener(this, listener, { type: 'abort', target: this });
             return;
         }
         this._abortListeners.push(listener);
@@ -33,10 +50,14 @@ if (typeof globalThis.AbortController !== 'function') {
         signal.aborted = true;
         signal.reason = reason;
         const event = { type: 'abort', target: signal };
-        if (typeof signal.onabort === 'function') signal.onabort.call(signal, event);
+        if (typeof signal.onabort === 'function') {
+            dispatchAbortListener(signal, signal.onabort, event);
+        }
         const listeners = signal._abortListeners.slice();
         signal._abortListeners.length = 0;
-        for (const listener of listeners) listener.call(signal, event);
+        for (const listener of listeners) {
+            dispatchAbortListener(signal, listener, event);
+        }
     };
 
     globalThis.AbortController = AbortController;
@@ -115,6 +136,33 @@ const axios = (function() {
             return url;
         },
 
+        // The native http bridge accepts one flat Header map. Preserve Axios'
+        // common + verb-specific defaults without leaking their container
+        // objects as literal "common: [object Object]" headers.
+        flattenHeaders(headers, method) {
+            const result = {};
+            const copy = (source) => {
+                if (!source || typeof source !== 'object') return;
+                Object.keys(source).forEach(key => {
+                    const value = source[key];
+                    if (value !== null && typeof value !== 'undefined' && typeof value !== 'object') {
+                        result[key] = value;
+                    }
+                });
+            };
+            const source = headers || {};
+            const verb = String(method || 'get').toLowerCase();
+            copy(source.common);
+            copy(source[verb]);
+            Object.keys(source).forEach(key => {
+                const value = source[key];
+                if (key !== 'common' && key !== verb && !this.isPlainObject(value)) {
+                    result[key] = value;
+                }
+            });
+            return result;
+        },
+
         // 数据类型检测
         isFormData(val) {
             return val && val.constructor && val.constructor.name === 'FormData';
@@ -164,7 +212,13 @@ const axios = (function() {
             // 发送请求
             let response;
             try {
-                response = await http.request(config);
+                const requestConfig = {
+                    ...config,
+                    url: utils.buildURL(config.url, config.params),
+                    headers: utils.flattenHeaders(config.headers, config.method)
+                };
+                delete requestConfig.params;
+                response = await http.request(requestConfig);
             } catch (err) {
                 console.error('HTTP request error:', err);
                 throw err;

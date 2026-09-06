@@ -32,6 +32,7 @@ Dialog 的视觉验收与行为验收分别判定：即使返回值、Promise �
 | --- | --- | --- |
 | contract | 实际 Runtime、catalog、文档和类型声明没有未允许漂移 | `results/contract.json` |
 | unit | 每个 API family 的独立 `.test.js` 安全行为 | `results/unit.json` |
+| http-download | 已知二进制、gzip、chunked、限额、重定向、取消、并发和文件提交的确定性 loopback Runtime 行为；不是公网示例 | `results/http-download.json`、`runtime-logs/http-download/resources.json` |
 | sqlite | SQLite 专用 contract、复用公开 smoke cases 的 unit、SQLite scoped coverage，以及每个 child execution 的资源归零和进程 cleanup；不执行无关 desktop live 测试 | `results/contract.json`、`results/unit.json`、`results/coverage.json`、`runtime-logs/*/resources.json`、`results/cleanup.json` |
 | language | 选定的 ES2015–ES2023 作者语法与内建能力，以及 OpenDesk 脚本级 `await` | `results/language.json` |
 | coverage | 每方法 contract、已通过 tier、required tier、风险理由和用例 | `results/coverage.json` |
@@ -58,6 +59,7 @@ tier，以及没有风险理由的 contract-only 接口。
 ```bash
 OPENDESK_RUNTIME_API_MODE=contract OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
 OPENDESK_RUNTIME_API_MODE=unit OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+OPENDESK_RUNTIME_API_MODE=http-download OPENDESK_BINARY=./dist/opendesk ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
 OPENDESK_RUNTIME_API_MODE=sqlite OPENDESK_BINARY=./dist/opendesk ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
 OPENDESK_RUNTIME_API_MODE=language ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
 OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script

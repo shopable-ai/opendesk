@@ -29,6 +29,7 @@
 - `clipboard`：`./dist/opendesk -script tests/runtime-api/single/clipboard.js -console-mode script`
 - `console`：`./dist/opendesk -script tests/runtime-api/single/console.js -console-mode script`
 - `http`：`./dist/opendesk -script tests/runtime-api/single/http.js -console-mode script`
+- `http-download`：`./dist/opendesk -script tests/runtime-api/single/http-download.js -console-mode script`
 - `notify`：`./dist/opendesk -script tests/runtime-api/single/notify.js -console-mode script`
 - `native-extension`：`./dist/opendesk -script tests/runtime-api/single/native-extension.js -console-mode script`
 - `axios`：`./dist/opendesk -script tests/runtime-api/single/axios.js -console-mode script`

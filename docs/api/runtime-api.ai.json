@@ -46,7 +46,7 @@
     "Prefer page.ensurePermissions for permission-gated desktop workflows.",
     "For external desktop UI, prefer UI.findText/UI.tapText and Geometry over direct OCR bbox clicking. Use Vision.runOCR for raw OCR; Vision.detectUI is a deprecated image-local compatibility helper.",
     "Use ImageColor as a secondary pixel/template/color primitive, not as a replacement for semantic verification.",
-    "Prefer axios for normal script HTTP requests; axios is a polyfill backed by http.request.",
+    "Prefer axios for normal script HTTP requests; axios is a polyfill backed by http.request. Use http.download only for host-authorized native streaming GET downloads; local CLI and ai run enable it, while HTTP, MCP, Scheduler, generic Runtime, JavaScript options, and environment variables cannot grant it.",
     "NativeExtensions is an Experimental manifest-discovered immutable binding. Normal local CLI calls use NativeExtensions.<namespace>.<method>(businessParams) with routes fixed by the Host; it discovers only the program-relative bundle directory by default. HTTP and MCP cannot enable or call it. The low-level NativeExtension.call compatibility surface requires the separate -experimental-unsafe-native-extension-call local diagnostic gate.",
     "Uppercase UI operates visible targets in external desktop apps. Lowercase ui is always present but dormant by default and creates OpenDesk Custom UI; enable it with -ui or strict clawdesk.runtime.json. They have no aliases.",
     "Dialog is always present but fail-closed without the ui capability. Its alert, confirm, and prompt methods are asynchronous native modal dialogs; global alert/confirm/prompt are thin polyfill aliases, never browser-style blocking calls.",
@@ -567,7 +567,8 @@
       "keyMethods": [
         "request",
         "get",
-        "post"
+        "post",
+        "download"
       ]
     },
     {

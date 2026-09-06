@@ -25,9 +25,9 @@ const originalModes = {
   path: 'pathContext', language: 'language', sqlite: 'sqlite',
 };
 
-test('all existing modes retain their route; focused Page wait and unit selection are additive', () => {
+test('all existing modes retain their route; focused HTTP download, Page wait and unit selection are additive', () => {
   assert.deepEqual(plain(registry.modes), {
-    ...originalModes, 'page-wait': 'pageWait', 'unit-selected': 'unitSelected',
+    ...originalModes, 'http-download': 'httpDownload', 'page-wait': 'pageWait', 'unit-selected': 'unitSelected',
   });
 });
 
@@ -89,7 +89,7 @@ async function dispatch(mode, options = {}) {
 }
 
 for (const [mode, entry] of Object.entries({
-  ...originalModes, 'page-wait': 'pageWait', 'unit-selected': 'unitSelected',
+  ...originalModes, 'http-download': 'httpDownload', 'page-wait': 'pageWait', 'unit-selected': 'unitSelected',
 })) {
   test(`dispatcher routes ${mode} exactly once and loads only its suite`, async () => {
     const result = await dispatch(mode, mode === 'unit-selected' ? { filter: 'file' } : {});
@@ -109,7 +109,7 @@ for (const mode of ['typo', '__proto__', 'constructor', 'toString']) {
 }
 
 test('selection filter cannot silently narrow an ordinary smoke or live gate', async () => {
-  for (const mode of ['unit', 'smoke', 'live', 'sqlite', 'page-wait']) {
+  for (const mode of ['unit', 'smoke', 'live', 'sqlite', 'http-download', 'page-wait']) {
     const result = await dispatch(mode, { filter: 'file' });
     assert.match(result.error.message, /requires mode=unit-selected/);
     assert.deepEqual(result.trace, []);
@@ -183,6 +183,30 @@ test('SQLite preserves scoped phases and cleanup on failure; first error wins', 
   assert.deepEqual(calls, [
     ['contract', '/repo/tests/runtime-api/sqlite-contract.js', 5, 180], ['zero', 'contract'],
     ['unit', '/repo/tests/runtime-api/sqlite-unit.js', 15, 240], ['cleanup'],
+  ]);
+});
+
+test('HTTP download runs both loopback fixture sessions and verifies cleanup', async () => {
+  const calls = [];
+  const context = {
+    ROOT_DIR: '/repo', RUN_DIR: '/evidence', CONTEXT: '/context.json',
+    executeProcess: async (...args) => { calls.push(['executeProcess', ...args]); return { exitCode: 0 }; },
+    record: async (...args) => calls.push(['record', ...args]),
+    verifyZeroCleanup: async (gate) => calls.push(['zero', gate]),
+    noResidual: async () => calls.push(['noResidual']),
+    fail: message => { throw new Error(message); },
+  };
+  const File = {
+    join: path.posix.join,
+    isFile: file => file.endsWith('.pid'),
+    read: file => file.includes('http-response-types') ? '321\\n' : '654\\n',
+  };
+  await suite('http-download', context, { File }).httpDownload();
+  assert.deepEqual(plain(calls), [
+    ['executeProcess', 'http-response-types-fixture-session', '/bin/sh', ['/repo/tests/runtime-api/seams/async-fixture-session.sh', 'http-response-types'], { deadlineSeconds: 180, env: { OPENDESK_RUNTIME_API_CONTEXT_PATH: '/context.json' } }],
+    ['record', 'fixture-server', 321, 'loopback-http-response-types-fixture'], ['zero', 'http-response-types'],
+    ['executeProcess', 'http-download-fixture-session', '/bin/sh', ['/repo/tests/runtime-api/seams/async-fixture-session.sh', 'http-download'], { deadlineSeconds: 180, env: { OPENDESK_RUNTIME_API_CONTEXT_PATH: '/context.json' } }],
+    ['record', 'fixture-server', 654, 'loopback-http-download-fixture'], ['zero', 'http-download'], ['noResidual'],
   ]);
 });
 

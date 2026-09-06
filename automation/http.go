@@ -20,7 +20,17 @@ import (
 const (
 	defaultHTTPRequestTimeout  = 30 * time.Second
 	defaultHTTPResponseBodyMax = int64(10 << 20)
+	httpDownloadMaxInFlight    = 4
 )
+
+// HTTPClientOptions are host-owned settings for the native HTTP bridge. In
+// particular, EnableDownload is never inferred from JavaScript options or the
+// execution environment: transports must explicitly opt trusted local
+// executions into file-writing downloads.
+type HTTPClientOptions struct {
+	WorkDir        string
+	EnableDownload bool
+}
 
 // HTTPClient is the native bridge below the documented axios polyfill. The
 // runtime field is accessed only on its event-loop owner goroutine. A network
@@ -33,10 +43,14 @@ type HTTPClient struct {
 	loop         *eventloop.EventLoop
 	onAsyncError func(error)
 	bodyLimit    int64
+	workDir      string
+	downloadsOK  bool
 
-	workers *httpWorkers
-	nextID  uint64 // event-loop owner only
-	pending map[uint64]pendingHTTPRequest
+	workers         *httpWorkers
+	nextID          uint64 // event-loop owner only
+	pending         map[uint64]pendingHTTPRequest
+	downloadPending int
+	temps           atomic.Int64
 }
 
 type httpWorkers struct {
@@ -55,19 +69,21 @@ func (w *httpWorkers) done() {
 }
 
 type httpRequest struct {
-	context context.Context
-	cancel  context.CancelFunc
-	method  string
-	url     string
-	headers http.Header
-	body    []byte
+	context      context.Context
+	cancel       context.CancelFunc
+	method       string
+	url          string
+	headers      http.Header
+	body         []byte
+	responseType string
 }
 
 type pendingHTTPRequest struct {
-	cancel  context.CancelFunc
-	resolve func(interface{}) error
-	reject  func(interface{}) error
-	cleanup func()
+	cancel         context.CancelFunc
+	resolve        func(interface{}) error
+	reject         func(interface{}) error
+	cleanup        func()
+	downloadCommit *downloadCommitState
 }
 
 type httpResponse struct {
@@ -83,9 +99,13 @@ func NewHTTPClient(runtime *goja.Runtime) *HTTPClient {
 	return NewHTTPClientWithOptions(runtime, context.Background(), nil, nil)
 }
 
-func NewHTTPClientWithOptions(runtime *goja.Runtime, ctx context.Context, loop *eventloop.EventLoop, onAsyncError func(error)) *HTTPClient {
+func NewHTTPClientWithOptions(runtime *goja.Runtime, ctx context.Context, loop *eventloop.EventLoop, onAsyncError func(error), options ...HTTPClientOptions) *HTTPClient {
 	if ctx == nil {
 		ctx = context.Background()
+	}
+	settings := HTTPClientOptions{}
+	if len(options) > 0 {
+		settings = options[0]
 	}
 	return &HTTPClient{
 		runtime:      runtime,
@@ -94,6 +114,8 @@ func NewHTTPClientWithOptions(runtime *goja.Runtime, ctx context.Context, loop *
 		loop:         loop,
 		onAsyncError: onAsyncError,
 		bodyLimit:    defaultHTTPResponseBodyMax,
+		workDir:      settings.WorkDir,
+		downloadsOK:  settings.EnableDownload,
 		workers:      &httpWorkers{},
 		pending:      make(map[uint64]pendingHTTPRequest),
 	}
@@ -140,14 +162,65 @@ func (h *HTTPClient) Post(url string, data interface{}, options *goja.Object) (g
 	return h.Request(options)
 }
 
+// Download is exported to JavaScript as http.download(url, options?). Unlike
+// buffered request/get/post it is an execution-authorized, streaming native
+// file operation implemented in http_download.go.
+func (h *HTTPClient) Download(url string, options *goja.Object) (goja.Value, error) {
+	promise, resolve, reject := h.runtime.NewPromise()
+	promiseValue := h.runtime.ToValue(promise)
+	rejectWith := func(err error) goja.Value {
+		_ = reject(downloadJSError(h.runtime, err))
+		return promiseValue
+	}
+	if h == nil || !h.downloadsOK {
+		return rejectWith(downloadError(DownloadDisabled, "http.download", "downloads are disabled for this execution", 0, false, nil)), nil
+	}
+	if h.loop == nil {
+		return rejectWith(downloadError(DownloadIOFailed, "http.download", "downloads require an event-loop-owned Runtime", 0, false, nil)), nil
+	}
+	if h.downloadPending >= httpDownloadMaxInFlight {
+		return rejectWith(downloadError(DownloadConcurrencyLimit, "http.download", fmt.Sprintf("http.download permits at most %d in-flight downloads", httpDownloadMaxInFlight), 0, false, nil)), nil
+	}
+
+	spec, cleanup, commit, err := h.downloadSpec(url, options)
+	if err != nil {
+		return rejectWith(err), nil
+	}
+	h.nextID++
+	id := h.nextID
+	h.pending[id] = pendingHTTPRequest{
+		cancel:         spec.cancel,
+		resolve:        resolve,
+		reject:         reject,
+		cleanup:        cleanup,
+		downloadCommit: commit,
+	}
+	h.downloadPending++
+
+	client := h.client
+	loop := h.loop
+	workers := h.workers
+	activeTemps := &h.temps
+	workers.start()
+	go func(request httpDownloadRequest, requestID uint64) {
+		defer workers.done()
+		result, requestErr := performHTTPDownload(client, request, activeTemps)
+		loop.RunOnLoop(func(runtime *goja.Runtime) {
+			h.finishDownload(runtime, requestID, result, requestErr)
+		})
+	}(spec, id)
+	return promiseValue, nil
+}
+
 func (h *HTTPClient) requestFromOptions(options *goja.Object) (httpRequest, func(), error) {
 	if options == nil {
 		return httpRequest{}, nil, fmt.Errorf("options is required")
 	}
 	request := httpRequest{
-		method:  toStringHTTP(options.Get("method"), http.MethodGet),
-		url:     toStringHTTP(options.Get("url"), ""),
-		headers: make(http.Header),
+		method:       toStringHTTP(options.Get("method"), http.MethodGet),
+		url:          toStringHTTP(options.Get("url"), ""),
+		headers:      make(http.Header),
+		responseType: "auto",
 	}
 	if request.url == "" {
 		return httpRequest{}, nil, fmt.Errorf("url is required")
@@ -180,6 +253,11 @@ func (h *HTTPClient) requestFromOptions(options *goja.Object) (httpRequest, func
 			}
 		}
 	}
+	responseType, err := httpResponseType(options.Get("responseType"))
+	if err != nil {
+		return httpRequest{}, nil, err
+	}
+	request.responseType = responseType
 
 	ctx, cancel := h.requestContext(options.Get("timeout"))
 	request.context = ctx
@@ -211,6 +289,13 @@ func (h *HTTPClient) requestContext(timeoutValue goja.Value) (context.Context, c
 // on its owner goroutine. The callback itself only invokes context.CancelFunc;
 // it does not use Goja, so the network worker receives no JS values.
 func (h *HTTPClient) bindAbortSignal(value goja.Value, cancel context.CancelFunc) func() {
+	return h.bindAbortSignalCallback(value, cancel)
+}
+
+// bindAbortSignalCallback performs all signal inspection and JavaScript
+// listener registration on the event-loop owner. Workers receive only the Go
+// callback's resulting context state.
+func (h *HTTPClient) bindAbortSignalCallback(value goja.Value, callback func()) func() {
 	if value == nil || goja.IsUndefined(value) || goja.IsNull(value) {
 		return func() {}
 	}
@@ -219,11 +304,11 @@ func (h *HTTPClient) bindAbortSignal(value goja.Value, cancel context.CancelFunc
 		return func() {}
 	}
 	if signal.Get("aborted").ToBoolean() {
-		cancel()
+		callback()
 		return func() {}
 	}
 	listener := h.runtime.ToValue(func(goja.FunctionCall) goja.Value {
-		cancel()
+		callback()
 		return goja.Undefined()
 	})
 	if add, ok := goja.AssertFunction(signal.Get("addEventListener")); ok {
@@ -283,6 +368,27 @@ func (h *HTTPClient) finishRequest(runtime *goja.Runtime, id uint64, response ht
 	}
 }
 
+func (h *HTTPClient) finishDownload(runtime *goja.Runtime, id uint64, result httpDownloadResult, requestErr error) {
+	pending, exists := h.pending[id]
+	if !exists {
+		return
+	}
+	delete(h.pending, id)
+	if pending.downloadCommit != nil && h.downloadPending > 0 {
+		h.downloadPending--
+	}
+	pending.cleanup()
+	if requestErr != nil {
+		if err := pending.reject(downloadJSError(runtime, requestErr)); err != nil {
+			h.reportAsyncError(err)
+		}
+		return
+	}
+	if err := pending.resolve(h.downloadValue(result)); err != nil {
+		h.reportAsyncError(err)
+	}
+}
+
 func performHTTPRequest(client *http.Client, bodyLimit int64, request httpRequest) (httpResponse, error) {
 	req, err := http.NewRequestWithContext(request.context, request.method, request.url, bytes.NewReader(request.body))
 	if err != nil {
@@ -305,8 +411,15 @@ func performHTTPRequest(client *http.Client, bodyLimit int64, request httpReques
 		return httpResponse{}, fmt.Errorf("HTTP response body exceeds configured limit of %d bytes", bodyLimit)
 	}
 	var data interface{}
-	if err := json.Unmarshal(body, &data); err != nil {
+	switch request.responseType {
+	case "arraybuffer":
+		data = body
+	case "text":
 		data = string(body)
+	default:
+		if err := json.Unmarshal(body, &data); err != nil {
+			data = string(body)
+		}
 	}
 	return httpResponse{data: data, status: response.StatusCode, statusText: response.Status, headers: response.Header.Clone()}, nil
 }
@@ -323,7 +436,11 @@ func normalizeHTTPError(ctx context.Context, err error) error {
 
 func (h *HTTPClient) toValue(response httpResponse) goja.Value {
 	value := h.runtime.NewObject()
-	must(value.Set("data", response.data))
+	if data, ok := response.data.([]byte); ok {
+		must(value.Set("data", h.runtime.NewArrayBuffer(data)))
+	} else {
+		must(value.Set("data", response.data))
+	}
 	must(value.Set("status", response.status))
 	must(value.Set("statusText", response.statusText))
 	must(value.Set("headers", response.headers))
@@ -342,6 +459,13 @@ func (h *HTTPClient) reportAsyncError(err error) {
 func (h *HTTPClient) CancelPending() {
 	for id, pending := range h.pending {
 		delete(h.pending, id)
+		pending.cleanup()
+		if pending.downloadCommit != nil {
+			pending.downloadCommit.cancel()
+			if h.downloadPending > 0 {
+				h.downloadPending--
+			}
+		}
 		pending.cancel()
 	}
 }
@@ -368,6 +492,16 @@ func (h *HTTPClient) PendingCallbacks() int {
 	return len(h.pending)
 }
 
+// ActiveTempResources exposes a lifecycle diagnostic only. It is not included
+// in the JavaScript allowlist. A failed temporary-file removal deliberately
+// remains visible instead of being forced to zero.
+func (h *HTTPClient) ActiveTempResources() int64 {
+	if h == nil {
+		return 0
+	}
+	return h.temps.Load()
+}
+
 func requestCancel(request httpRequest) {
 	if cancel := requestCancelFunc(request); cancel != nil {
 		cancel()
@@ -383,6 +517,22 @@ func toStringHTTP(value goja.Value, fallback string) string {
 		return fallback
 	}
 	return value.String()
+}
+
+func httpResponseType(value goja.Value) (string, error) {
+	if value == nil || goja.IsUndefined(value) || goja.IsNull(value) {
+		return "auto", nil
+	}
+	responseType, ok := value.Export().(string)
+	if !ok {
+		return "", fmt.Errorf("unsupported responseType: responseType must be json, text, or arraybuffer")
+	}
+	switch responseType {
+	case "json", "text", "arraybuffer":
+		return responseType, nil
+	default:
+		return "", fmt.Errorf("unsupported responseType %q: supported values are json, text, and arraybuffer", responseType)
+	}
 }
 
 func must(err error) {

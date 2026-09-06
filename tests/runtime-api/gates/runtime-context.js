@@ -8,7 +8,7 @@ const WATCHDOG = File.join(ROOT_DIR, 'tests', 'runtime-api', 'run_with_timeout.p
 const MODE = options.mode;
 const CLEANUP_FIELDS = [
   'workers', 'promiseCallbacks', 'timers',
-  'httpWorkers', 'httpCallbacks',
+  'httpWorkers', 'httpCallbacks', 'httpTemps',
   'soundWorkers', 'soundPending', 'soundPlaybacks',
   'notificationWorkers', 'notificationPending',
   'uiWorkers', 'uiPending', 'uiQueued', 'uiWindows', 'uiListeners', 'uiDriverSinks', 'uiHostProcesses',

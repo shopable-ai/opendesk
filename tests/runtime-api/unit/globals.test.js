@@ -8,7 +8,7 @@
     covers: [
       'global.setTimeout', 'global.clearTimeout', 'global.setInterval', 'global.clearInterval',
       'global.delay', 'global.sleep', 'global.sleepSeconds', 'global.requestAnimationFrame', 'global.cancelAnimationFrame',
-      'global.URL', 'global.URLSearchParams',
+      'global.URL', 'global.URLSearchParams', 'global.AbortController',
     ],
   }, async () => {
     let cancelledTimeoutFired = false;
@@ -52,5 +52,15 @@
     const params = new URLSearchParams('a=1&a=2&b=x%3Dy');
     assert(JSON.stringify(params.getAll('a')) === JSON.stringify(['1', '2']), JSON.stringify(params.getAll('a')));
     assert(params.get('b') === 'x=y', params.get('b'));
+
+    const controller = new AbortController();
+    let delivered = 0;
+    controller.signal.onabort = () => { throw new Error('listener error must not halt dispatch'); };
+    controller.signal.addEventListener('abort', () => { delivered += 1; });
+    controller.abort('first reason');
+    controller.abort('second reason');
+    assert(controller.signal.aborted === true, 'AbortSignal did not become aborted');
+    assert(controller.signal.reason === 'first reason', 'AbortSignal did not preserve first reason');
+    assert(delivered === 1, 'AbortSignal did not continue past a throwing listener');
   });
 })();

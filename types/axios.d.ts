@@ -9,7 +9,7 @@ declare global {
     signal?: AbortSignal;
     params?: Record<string, unknown>;
     data?: unknown;
-    responseType?: string;
+    responseType?: "json" | "text" | "arraybuffer";
     validateStatus?: (status: number) => boolean;
     [key: string]: unknown;
   }
