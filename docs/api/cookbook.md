@@ -62,8 +62,8 @@ await page.screenshot({
 ```js
 await page.openApp('Safari');
 
-await page.waitForFunction(() => {
-  const info = window.getActiveWindow();
+await page.waitForFunction(async () => {
+  const info = await window.getActiveWindow();
   return info && info.title && info.title.includes('Safari');
 }, { timeout: 10000, polling: 200 });
 

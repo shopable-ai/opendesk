@@ -3,7 +3,7 @@
 // it; no fixed method count is used as a pass condition.
 
 globalThis.RuntimeAPIObjects = {
-  page: { docs: 'docs/api/page.md', types: 'types/page.d.ts', source: 'automation/page.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: [
+  page: { docs: 'docs/api/page.md', types: 'types/page.d.ts', source: 'automation/page.go + polyfills/000-page.js', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: [
     'screenshot', 'captureScreen', 'goto', 'openURL', 'openApp', 'openURLInApp', 'title', 'url',
     'waitFor', 'waitForTimeout', 'waitForNavigation', 'waitForFunction', 'waitForAll',
     'checkPermissions', 'requestPermissions', 'ensurePermissions', 'ensureMacPermissions',

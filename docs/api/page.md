@@ -40,7 +40,6 @@ order: 2
 | `page.openURLInApp(appName, url)` | 用指定应用打开 URL |
 | `page.title()` | 当前活动窗口标题 |
 | `page.url()` | Page 内部 executable 字段，不等于真实浏览器 URL |
-| `page.waitFor(milliseconds)` | 原生毫秒等待，最大 30000ms |
 | `page.checkScreenshotPermissions()` | 截图/辅助功能权限检查 |
 | `page.openMacOSPrivacySettings(section)` | 打开 macOS 隐私设置 |
 | `page.requestMacPermissions(options)` | 请求/探测 macOS 权限 |
@@ -51,11 +50,11 @@ order: 2
 
 | 方法 | 用途 |
 | --- | --- |
-| `page.waitFor(number|function, options?)` | 数字等待或条件等待 |
-| `page.waitForTimeout(ms)` | Promise 风格等待 |
+| `page.waitFor(number|function, options?)` | 数字等待或条件等待，支持 `AbortSignal` |
+| `page.waitForTimeout(ms, options?)` | Promise 风格固定等待，支持 `AbortSignal` |
 | `page.waitForNavigation(options?)` | 基于 `page.url()` 的兼容等待 |
-| `page.waitForFunction(fn, options?, ...args)` | 条件轮询 |
-| `page.waitForAll(promises, options?)` | 等待一组值或 Promise 全部完成 |
+| `page.waitForFunction(fn, options?, ...args)` | 有独立 deadline 的单在途条件轮询 |
+| `page.waitForAll(promises, options?)` | 按输入顺序等待一组值或 Promise |
 | `page.checkPermissions(options?)` | 跨平台权限快照 |
 | `page.requestPermissions(options?)` | 跨平台权限请求 |
 | `page.ensurePermissions(options?)` | 严格权限守卫 |
@@ -198,57 +197,65 @@ const value = page.url();
 
 判断状态。
 
-## page.waitFor(milliseconds)
-
-原生毫秒等待：
-
-```js
-await page.waitFor(800);
-```
-
-约束：
-
-- 不能为负数
-- 最大 30000ms
-
-## page.waitForTimeout(ms)
-
-Polyfill Promise 风格等待：
-
-```js
-await page.waitForTimeout(1000);
-```
-
-## page.waitFor(number|function, options)
+## page.waitFor(numberOrFunction, options?)
 
 Polyfill 会根据第一个参数分派：
 
 ```js
-await page.waitFor(1200);
+const controller = new AbortController();
+await page.waitFor(1200, { signal: controller.signal });
 
 await page.waitFor(() => {
   return page.title().includes('Safari');
-});
+}, { timeout: 10000, polling: 200, signal: controller.signal });
 ```
 
+数字分支把 `options.signal` 原样转发给 `page.waitForTimeout()`；函数分支把
+`timeout`、`polling` 和 `signal` 转发给 `page.waitForFunction()`。选项可省略，不会被修改。
 当前不应把字符串 selector 当成 Puppeteer 风格 `waitFor(selector)` 使用。
 
-## page.waitForFunction(fn, options, ...args)
+## page.waitForTimeout(ms, options?)
+
+固定等待使用 Runtime 持有的 timer，不阻塞事件循环：
 
 ```js
-await page.waitForFunction(() => {
-  const info = window.getActiveWindow();
-  return info && info.title && info.title.includes('Safari');
-}, {
-  timeout: 10000,
-  polling: 200
-});
+const controller = new AbortController();
+const pending = page.waitForTimeout(1000, { signal: controller.signal });
+// controller.abort(); // 如需取消本次等待
+await pending;
 ```
 
-常用参数：
+`ms: 0` 仍会异步完成，不会在调用栈内同步 resolve。取消会清除本次等待的 timer
+并以 `AbortError` / `CANCELED` 拒绝 Promise。完成或取消后都会移除本次等待自己的 timer 和
+signal listener。
+
+## page.waitForFunction(fn, options?, ...args)
+
+```js
+const value = await page.waitForFunction(async (expectedTitle) => {
+  const info = await window.getActiveWindow();
+  return info && info.title && info.title.includes(expectedTitle) && info;
+}, {
+  timeout: 10000,
+  polling: 200,
+  signal: null,
+}, 'Safari');
+```
+
+选项：
 
 - `timeout`：默认 30000ms
 - `polling`：默认 100ms
+- `signal`：可选 `AbortSignal`；省略或 `null` 表示不启用主动取消
+
+方法使用独立 deadline，同一等待最多只有一次在途条件调用。条件函数返回 Promise
+时会先等它完成，再决定成功或继续轮询；永不完成的条件 Promise 不会使 timeout
+失效。条件自身的同步抛错或 Promise rejection 默认视为本次未满足，会继续轮询；参数或
+基础设施错误不属于条件失败。成功值保留原始 identity，`...args` 按原顺序透传。
+
+`timeout: 0` 会立即以 `TimeoutError` / `TIMEOUT` 拒绝，不执行条件函数。成功、超时或取消后，
+本次等待会清理自己的 timer 和 signal listener；条件的晚到成功或拒绝不会再次结算或
+重启轮询。
 
 ## page.waitForAll(promises, options?)
 
@@ -258,15 +265,39 @@ await page.waitForFunction(() => {
 const [title, active] = await page.waitForAll([
   page.title(),
   window.getActiveWindow(),
-], { timeout: 5000 });
+], { timeout: 5000, signal: null });
 ```
 
 | 参数 | 类型 | 说明 |
 | --- | --- | --- |
 | `promises` | `Array<Promise<T> \| T>` | 必填；需要一起等待的值或 Promise。 |
-| `options.timeout` | number | 可选；超时毫秒数。 |
+| `options.timeout` | number | 可选；超时毫秒数，默认 30000。 |
+| `options.signal` | AbortSignal \| null | 可选；只取消本次组合等待。 |
 
-返回 `Promise<T[]>`。任一项目拒绝或超时会使整体 Promise 拒绝。
+返回 `Promise<T[]>`，结果保持输入顺序。任一输入 Promise 拒绝时，原始原因会原样透传，
+包括 `null` 等非 Error 值。函数只作为普通输入值返回，不会自动调用。`timeout: 0` 立即以
+`TimeoutError` / `TIMEOUT` 拒绝。
+
+拒绝、超时或取消只结束这一层等待：不会 abort 调用者的 controller，不会取消输入 Promise
+背后的任务。所有结束路径都会立即清理本次等待自己的 timer 和 signal listener。
+
+### 共同参数、超时与取消契约
+
+`ms`、`timeout` 和 `polling` 都必须是 `0..86400000` 内的有限 `number`，含两端。
+允许小数；调度 timer 时由 Runtime 转为整数毫秒。负数、`NaN`、无穷大、字符串或超出上限会以
+`INVALID_ARGUMENT` 失败。
+所有 `signal` 选项都可省略或传 `null`。这些方法不修改 options、输入数组、controller 或 signal。
+
+| 类别 | `name` | `code` | 说明 |
+| --- | --- | --- | --- |
+| 超时 | `TimeoutError` | `TIMEOUT` | 本次 function/all deadline 到期 |
+| 取消 | `AbortError` | `CANCELED` | 传入 signal 已取消或在等待期间取消 |
+| 参数 | `TypeError` | `INVALID_ARGUMENT` | 函数、数组、options、signal 或时间参数无效 |
+
+条件与组合等待的超时 message 保留可识别的 `Timeout waiting for function` 和
+`Timeout waiting for all promises` 文本。
+
+超时或 signal 取消都不能抢占同步死循环或长时间阻塞 JavaScript 事件循环的函数。
 
 ## page.waitForNavigation(options)
 
@@ -423,6 +454,8 @@ const result = await page.requestMacPermissions({
 ```
 
 用于触发权限探测和用户引导。
+
+`section: 'screenCapture'` 只会请求并打开屏幕捕捉对应的 macOS 设置页（在较新的 macOS 中显示为“屏幕与系统音频录制”）；它不会额外请求“辅助功能”。需要辅助功能的桌面交互流程应明确请求 `section: 'accessibility'` 或 `section: 'all'`。
 
 ## page.requestMacAutomationPermission(targetApp)
 

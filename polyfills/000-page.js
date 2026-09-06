@@ -79,6 +79,48 @@ function capabilitiesToMacSection(capabilities) {
   return 'screenCapture';
 }
 
+// The raw macOS bridge deliberately accepts one narrowly-scoped section at a
+// time. Keep the higher-level facade capable of requesting an explicit
+// capability combination without widening it to `all` (which would also ask
+// for Input Monitoring and Automation). In particular, screenshot workflows
+// that explicitly ask for both Screen Capture and Accessibility receive two
+// correspondingly scoped native requests.
+function capabilitiesToMacSections(capabilities) {
+  const caps = normalizeCapabilities(capabilities);
+  const has = (name) => caps.includes(name);
+  if (has('automation') && (has('screenCapture') || has('accessibility') || has('inputMonitoring'))) return ['all'];
+  if (has('automation')) return ['automation'];
+  if (has('accessibility') && has('inputMonitoring') && !has('screenCapture')) return ['globalShortcut'];
+
+  const sections = [];
+  if (has('screenCapture')) sections.push('screenCapture');
+  if (has('accessibility')) sections.push('accessibility');
+  if (has('inputMonitoring')) sections.push('inputMonitoring');
+  return sections.length ? sections : ['screenCapture'];
+}
+
+function combineMacPermissionFlows(section, sections, flows) {
+  const list = Array.isArray(flows) ? flows : [];
+  const first = list[0] || null;
+  const last = list[list.length - 1] || null;
+  const probes = {};
+  for (const flow of list) {
+    if (flow && flow.probes && typeof flow.probes === 'object') Object.assign(probes, flow.probes);
+  }
+  return {
+    ok: list.length > 0 && list.every((flow) => flow && flow.ok === true),
+    before: first && first.before,
+    after: last && last.after,
+    section,
+    sections,
+    flows: list,
+    probes,
+    settingsOpened: list.some((flow) => flow && flow.settingsOpened),
+    skipped: list.length > 0 && list.every((flow) => flow && flow.skipped),
+    reason: last && last.reason,
+  };
+}
+
 function buildPermissionSnapshot(capabilities, macCheckReport, flowReport) {
   const caps = normalizeCapabilities(capabilities);
   const result = {};
@@ -254,6 +296,7 @@ pageWrapper.requestPermissions = async function(options = {}) {
   }
 
   const section = capabilitiesToMacSection(capabilities);
+  const nativeSections = capabilitiesToMacSections(capabilities);
   const forceSettingsNavigation = !!cfg.openSettings && !!cfg.forceOpenSettings;
   let initialCheck = null;
   if (canCheck) {
@@ -277,19 +320,25 @@ pageWrapper.requestPermissions = async function(options = {}) {
 
   let flow = null;
   if (canRequest) {
-    flow = await globalThis.page____Inject.requestMacPermissions({
-      openSettings: !!cfg.openSettings,
-      forceOpenSettings: !!cfg.forceOpenSettings,
-      section,
-    });
+    const flows = [];
+    for (const nativeSection of nativeSections) {
+      flows.push(await globalThis.page____Inject.requestMacPermissions({
+        openSettings: !!cfg.openSettings,
+        forceOpenSettings: !!cfg.forceOpenSettings,
+        section: nativeSection,
+      }));
+    }
+    flow = combineMacPermissionFlows(section, nativeSections, flows);
   } else {
     let settingsOpened = false;
     if (cfg.openSettings && canOpenSettings) {
-      await globalThis.page____Inject.openMacOSPrivacySettings(section);
+      for (const nativeSection of nativeSections) {
+        await globalThis.page____Inject.openMacOSPrivacySettings(nativeSection);
+      }
       settingsOpened = true;
     }
     const check = canCheck ? await globalThis.page____Inject.checkScreenshotPermissions() : null;
-    flow = { ok: !!(check && check.ok), before: check, after: check, section, settingsOpened };
+    flow = { ok: !!(check && check.ok), before: check, after: check, section, sections: nativeSections, settingsOpened };
   }
 
   const latestCheck = canCheck ? await globalThis.page____Inject.checkScreenshotPermissions() : (flow.after || flow.before || initialCheck || null);
@@ -305,6 +354,7 @@ pageWrapper.requestPermissions = async function(options = {}) {
     os,
     capabilities,
     section,
+    nativeSections,
     permissions,
     flow,
     raw: latestCheck,
@@ -380,48 +430,200 @@ pageWrapper.url = function() {
   return globalThis.page____Inject.url();
 };
 
-// Now add our enhanced methods to the wrapper
-/**
- * Enhanced waitFor that mimics a subset of Puppeteer's behavior
- * Can accept:
- * - A number (milliseconds to wait)
- * - A function that returns a promise or truthy value
- */
-pageWrapper.waitFor = function(timeoutOrFunction, options = {}) {
-  // Default options
-  const defaultOptions = {
-    timeout: 30000,
-    polling: 100 // Default polling interval in ms
-  };
-  
-  // Merge options
-  options = {...defaultOptions, ...options};
-  
-  // Case 1: If the argument is a number, it's a timeout
-  if (typeof timeoutOrFunction === 'number') {
-    return pageWrapper.waitForTimeout(timeoutOrFunction);
+// Now add our enhanced methods to the wrapper. The installer scope keeps every
+// helper private: Page must not publish another wait/task manager global.
+(function installPageWaitMethods() {
+const PAGE_WAIT_MAX_DURATION = 24 * 60 * 60 * 1000;
+const PAGE_WAIT_DEFAULT_TIMEOUT = 30000;
+const PAGE_WAIT_DEFAULT_POLLING = 100;
+
+function pageWaitError(name, code, operation, message, details) {
+  const error = name === 'TypeError' ? new TypeError(message) : new Error(message);
+  error.name = name;
+  error.code = code;
+  error.operation = operation;
+  if (details && typeof details === 'object') {
+    for (const key of Object.keys(details)) error[key] = details[key];
   }
-  // Case 2: If the argument is a function, it's a predicate function
-  else if (typeof timeoutOrFunction === 'function') {
+  return error;
+}
+
+function invalidPageWaitArgument(operation, message) {
+  throw pageWaitError('TypeError', 'INVALID_ARGUMENT', operation, message);
+}
+
+function pageWaitTimeout(operation, message, timeout) {
+  return pageWaitError('TimeoutError', 'TIMEOUT', operation, message, { timeout });
+}
+
+function pageWaitCanceled(operation, signal) {
+  const details = {};
+  // `reason` is optional on AbortSignal-compatible implementations. A hostile
+  // getter must not turn an abort callback into a permanently pending wait.
+  if (signal) {
+    try {
+      const reason = signal.reason;
+      if (reason !== undefined) details.reason = reason;
+    } catch (_) {
+      // Cancellation identity is more important than optional reason metadata.
+    }
+  }
+  return pageWaitError('AbortError', 'CANCELED', operation, operation + ' was canceled', details);
+}
+
+function requirePageWaitDuration(value, name, operation) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    invalidPageWaitArgument(operation, name + ' must be a finite number');
+  }
+  if (value < 0 || value > PAGE_WAIT_MAX_DURATION) {
+    invalidPageWaitArgument(operation, name + ' must be between 0 and ' + PAGE_WAIT_MAX_DURATION + ' milliseconds');
+  }
+  return value;
+}
+
+function requirePageWaitOptions(value, operation) {
+  if (value === undefined) return {};
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    invalidPageWaitArgument(operation, 'options must be an object');
+  }
+  return value;
+}
+
+function requirePageWaitSignal(value, operation) {
+  if (value === undefined || value === null) return null;
+  if ((typeof value !== 'object' && typeof value !== 'function') ||
+      typeof value.aborted !== 'boolean' ||
+      typeof value.addEventListener !== 'function' ||
+      typeof value.removeEventListener !== 'function') {
+    invalidPageWaitArgument(operation, 'options.signal must be an AbortSignal');
+  }
+  return value;
+}
+
+function pageWaitOptions(value, operation, includeTimeout, includePolling) {
+  const options = requirePageWaitOptions(value, operation);
+  const normalized = {
+    signal: requirePageWaitSignal(options.signal, operation),
+  };
+  if (includeTimeout) {
+    normalized.timeout = options.timeout === undefined
+      ? PAGE_WAIT_DEFAULT_TIMEOUT
+      : requirePageWaitDuration(options.timeout, 'timeout', operation);
+  }
+  if (includePolling) {
+    normalized.polling = options.polling === undefined
+      ? PAGE_WAIT_DEFAULT_POLLING
+      : requirePageWaitDuration(options.polling, 'polling', operation);
+  }
+  return normalized;
+}
+
+/**
+ * Enhanced waitFor that accepts a fixed duration or a truthy predicate.
+ */
+pageWrapper.waitFor = function(timeoutOrFunction, options) {
+  if (typeof timeoutOrFunction === 'number') {
+    return pageWrapper.waitForTimeout(timeoutOrFunction, options);
+  }
+  if (typeof timeoutOrFunction === 'function') {
     return pageWrapper.waitForFunction(timeoutOrFunction, options);
   }
-  else {
-    throw new Error('waitFor() expects a timeout or function');
-  }
+  invalidPageWaitArgument('page.waitFor', 'waitFor() expects a timeout or function');
 };
 
 /**
- * Wait for a specific amount of time using Promise
+ * Wait for a specific amount of time using an execution-owned timer.
  * @param {number} timeout - Time to wait in milliseconds
+ * @param {object} options - Optional AbortSignal-compatible cancellation
  */
-pageWrapper.waitForTimeout = function(timeout) {
-  // console.log(`Waiting for ${timeout} milliseconds...`);
-  if (typeof timeout !== 'number') {
-    throw new Error('waitForTimeout() expects a number');
-  }
-  
-  return new Promise(resolve => {
-    setTimeout(resolve, timeout);
+pageWrapper.waitForTimeout = function(timeout, options) {
+  const operation = 'page.waitForTimeout';
+  const duration = requirePageWaitDuration(timeout, 'timeout', operation);
+  const { signal } = pageWaitOptions(options, operation, false, false);
+
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    let timer = null;
+    let listenerAttached = false;
+
+    function cleanup() {
+      let cleanupFailed = false;
+      let cleanupError;
+      if (timer !== null) {
+        const ownedTimer = timer;
+        timer = null;
+        try {
+          clearTimeout(ownedTimer);
+        } catch (error) {
+          cleanupFailed = true;
+          cleanupError = error;
+        }
+      }
+      if (listenerAttached && signal) {
+        listenerAttached = false;
+        try {
+          signal.removeEventListener('abort', onAbort);
+        } catch (error) {
+          if (!cleanupFailed) {
+            cleanupFailed = true;
+            cleanupError = error;
+          }
+        }
+      }
+      return { failed: cleanupFailed, error: cleanupError };
+    }
+
+    function finish(kind, value) {
+      if (settled) return;
+      settled = true;
+      const cleanupResult = cleanup();
+      if (kind === 'resolve' && cleanupResult.failed) reject(cleanupResult.error);
+      else if (kind === 'resolve') resolve(value);
+      else reject(value);
+    }
+
+    function onAbort() {
+      finish('reject', pageWaitCanceled(operation, signal));
+    }
+
+    if (signal) {
+      try {
+        if (signal.aborted) {
+          onAbort();
+          return;
+        }
+      } catch (error) {
+        finish('reject', error);
+        return;
+      }
+      listenerAttached = true;
+      try {
+        signal.addEventListener('abort', onAbort);
+      } catch (error) {
+        // Some structural signal implementations can register before throwing.
+        // Keep the attached flag so finish() still attempts explicit removal.
+        finish('reject', error);
+        return;
+      }
+      if (settled) return;
+      try {
+        if (signal.aborted) {
+          onAbort();
+          return;
+        }
+      } catch (error) {
+        finish('reject', error);
+        return;
+      }
+    }
+    try {
+      timer = setTimeout(() => {
+        timer = null;
+        finish('resolve');
+      }, duration);
+    } catch (error) {
+      finish('reject', error);
+    }
   });
 };
 
@@ -459,35 +661,174 @@ pageWrapper.waitForNavigation = function(options = {}) {
  * @param {Function} pageFunction - Function to evaluate (can be async)
  * @param {object} options - Options for the waiting behavior
  */
-pageWrapper.waitForFunction = async function(pageFunction, options = {}, ...args) {
-  // console.log('Waiting for function to evaluate to truthy');
-  const { timeout = 30000, polling = 100 } = options;
-  
+pageWrapper.waitForFunction = function(pageFunction, options, ...args) {
+  const operation = 'page.waitForFunction';
+  if (typeof pageFunction !== 'function') {
+    invalidPageWaitArgument(operation, 'waitForFunction() expects a function');
+  }
+  const { timeout, polling, signal } = pageWaitOptions(options, operation, true, true);
+  const deadline = Date.now() + timeout;
+
   return new Promise((resolve, reject) => {
-    const startTime = Date.now();
-    
-    async function evaluateFunction() {
-      if (Date.now() - startTime > timeout) {
-        return reject(new Error('Timeout waiting for function'));
+    let settled = false;
+    let deadlineTimer = null;
+    let pollingTimer = null;
+    let listenerAttached = false;
+    function cleanup() {
+      let cleanupFailed = false;
+      let cleanupError;
+      if (deadlineTimer !== null) {
+        const ownedDeadlineTimer = deadlineTimer;
+        deadlineTimer = null;
+        try {
+          clearTimeout(ownedDeadlineTimer);
+        } catch (error) {
+          cleanupFailed = true;
+          cleanupError = error;
+        }
       }
-      
+      if (pollingTimer !== null) {
+        const ownedPollingTimer = pollingTimer;
+        pollingTimer = null;
+        try {
+          clearTimeout(ownedPollingTimer);
+        } catch (error) {
+          if (!cleanupFailed) {
+            cleanupFailed = true;
+            cleanupError = error;
+          }
+        }
+      }
+      if (listenerAttached && signal) {
+        listenerAttached = false;
+        try {
+          signal.removeEventListener('abort', onAbort);
+        } catch (error) {
+          if (!cleanupFailed) {
+            cleanupFailed = true;
+            cleanupError = error;
+          }
+        }
+      }
+      return { failed: cleanupFailed, error: cleanupError };
+    }
+
+    function finish(kind, value) {
+      if (settled) return;
+      settled = true;
+      const cleanupResult = cleanup();
+      if (kind === 'resolve' && cleanupResult.failed) reject(cleanupResult.error);
+      else if (kind === 'resolve') resolve(value);
+      else reject(value);
+    }
+
+    function timeoutWait() {
+      finish('reject', pageWaitTimeout(operation, 'Timeout waiting for function', timeout));
+    }
+
+    function onAbort() {
+      finish('reject', pageWaitCanceled(operation, signal));
+    }
+
+    function expired() {
+      return Date.now() >= deadline;
+    }
+
+    function scheduleNext() {
+      if (settled) return;
+      if (expired()) {
+        timeoutWait();
+        return;
+      }
       try {
-        // 关键改动：等待函数执行结果，无论是Promise还是同步值
-        const result = await Promise.resolve(pageFunction(...args));
-        
-        if (result) {
-          return resolve(result);
+        pollingTimer = setTimeout(() => {
+          pollingTimer = null;
+          evaluateFunction();
+        }, polling);
+      } catch (error) {
+        finish('reject', error);
+      }
+    }
+
+    function evaluateFunction() {
+      if (settled) return;
+      if (expired()) {
+        timeoutWait();
+        return;
+      }
+
+      let result;
+      try {
+        result = pageFunction(...args);
+      } catch (error) {
+        // Predicate failures are transient by contract. Infrastructure errors
+        // stay outside this catch and reject the wait instead of being retried.
+        scheduleNext();
+        return;
+      }
+
+      Promise.resolve(result).then(
+        (value) => {
+          if (settled) return;
+          if (expired()) {
+            timeoutWait();
+            return;
+          }
+          if (value) finish('resolve', value);
+          else scheduleNext();
+        },
+        () => {
+          if (!settled) scheduleNext();
+        },
+      );
+    }
+
+    if (signal) {
+      try {
+        if (signal.aborted) {
+          onAbort();
+          return;
         }
       } catch (error) {
-        // Predicate errors are transient while polling; retry without leaking
-        // framework implementation details into the user's business log.
+        finish('reject', error);
+        return;
       }
-      
-      // Use the specified polling interval
-      const pollingInterval = typeof polling === 'number' ? polling : 100;
-      setTimeout(evaluateFunction, pollingInterval);
+      listenerAttached = true;
+      try {
+        signal.addEventListener('abort', onAbort);
+      } catch (error) {
+        finish('reject', error);
+        return;
+      }
+      if (settled) return;
+      try {
+        if (signal.aborted) {
+          onAbort();
+          return;
+        }
+      } catch (error) {
+        finish('reject', error);
+        return;
+      }
     }
-    
+    if (timeout === 0) {
+      timeoutWait();
+      return;
+    }
+    const remaining = Math.max(0, deadline - Date.now());
+    if (remaining === 0) {
+      timeoutWait();
+      return;
+    }
+    try {
+      deadlineTimer = setTimeout(() => {
+        deadlineTimer = null;
+        timeoutWait();
+      }, remaining);
+    } catch (error) {
+      finish('reject', error);
+      return;
+    }
     evaluateFunction();
   });
 };
@@ -497,21 +838,132 @@ pageWrapper.waitForFunction = async function(pageFunction, options = {}, ...args
  * @param {Array<Promise>} promises - Array of promises to wait for
  * @param {object} options - Options for the waiting behavior
  */
-pageWrapper.waitForAll = function(promises, options = {}) {
-  // console.log('Waiting for all promises to resolve');
-  const { timeout = 30000 } = options;
-  
-  // Create a timeout promise
-  const timeoutPromise = new Promise((_, reject) => {
-    setTimeout(() => reject(new Error('Timeout waiting for all promises')), timeout);
+pageWrapper.waitForAll = function(promises, options) {
+  const operation = 'page.waitForAll';
+  if (!Array.isArray(promises)) {
+    invalidPageWaitArgument(operation, 'waitForAll() expects an array');
+  }
+  const { timeout, signal } = pageWaitOptions(options, operation, true, false);
+  const deadline = Date.now() + timeout;
+  const aggregate = Promise.all(promises);
+
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    let deadlineTimer = null;
+    let listenerAttached = false;
+
+    function cleanup() {
+      let cleanupFailed = false;
+      let cleanupError;
+      if (deadlineTimer !== null) {
+        const ownedDeadlineTimer = deadlineTimer;
+        deadlineTimer = null;
+        try {
+          clearTimeout(ownedDeadlineTimer);
+        } catch (error) {
+          cleanupFailed = true;
+          cleanupError = error;
+        }
+      }
+      if (listenerAttached && signal) {
+        listenerAttached = false;
+        try {
+          signal.removeEventListener('abort', onAbort);
+        } catch (error) {
+          if (!cleanupFailed) {
+            cleanupFailed = true;
+            cleanupError = error;
+          }
+        }
+      }
+      return { failed: cleanupFailed, error: cleanupError };
+    }
+
+    function finish(kind, value) {
+      if (settled) return;
+      settled = true;
+      const cleanupResult = cleanup();
+      if (kind === 'resolve' && cleanupResult.failed) reject(cleanupResult.error);
+      else if (kind === 'resolve') resolve(value);
+      else reject(value);
+    }
+
+    function onAbort() {
+      finish('reject', pageWaitCanceled(operation, signal));
+    }
+
+    function timeoutWait() {
+      finish('reject', pageWaitTimeout(operation, 'Timeout waiting for all promises', timeout));
+    }
+
+    function expired() {
+      return Date.now() >= deadline;
+    }
+
+    // Attach both handlers before cancellation/zero-timeout can settle the
+    // public wait. Late input rejection is still observed and cannot pollute a
+    // following execution, but never settles the wait twice.
+    aggregate.then(
+      (values) => {
+        if (settled) return;
+        if (expired()) timeoutWait();
+        else finish('resolve', values);
+      },
+      (reason) => {
+        if (settled) return;
+        if (expired()) timeoutWait();
+        else finish('reject', reason);
+      },
+    );
+
+    if (signal) {
+      try {
+        if (signal.aborted) {
+          onAbort();
+          return;
+        }
+      } catch (error) {
+        finish('reject', error);
+        return;
+      }
+      listenerAttached = true;
+      try {
+        signal.addEventListener('abort', onAbort);
+      } catch (error) {
+        finish('reject', error);
+        return;
+      }
+      if (settled) return;
+      try {
+        if (signal.aborted) {
+          onAbort();
+          return;
+        }
+      } catch (error) {
+        finish('reject', error);
+        return;
+      }
+    }
+    if (timeout === 0) {
+      timeoutWait();
+      return;
+    }
+    const remaining = Math.max(0, deadline - Date.now());
+    if (remaining === 0) {
+      timeoutWait();
+      return;
+    }
+    try {
+      deadlineTimer = setTimeout(() => {
+        deadlineTimer = null;
+        timeoutWait();
+      }, remaining);
+    } catch (error) {
+      finish('reject', error);
+    }
   });
-  
-  // Race all promises against the timeout
-  return Promise.race([
-    Promise.all(promises),
-    timeoutPromise
-  ]);
 };
+})();
 
 // pageObj["mouse"] = mouseMethods
 // pageObj["keyboard"] = keyboardMethods

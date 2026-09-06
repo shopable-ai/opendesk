@@ -25,8 +25,10 @@ const originalModes = {
   path: 'pathContext', language: 'language', sqlite: 'sqlite',
 };
 
-test('all 18 existing modes retain their route; focused selection is additive', () => {
-  assert.deepEqual(plain(registry.modes), { ...originalModes, 'unit-selected': 'unitSelected' });
+test('all existing modes retain their route; focused Page wait and unit selection are additive', () => {
+  assert.deepEqual(plain(registry.modes), {
+    ...originalModes, 'page-wait': 'pageWait', 'unit-selected': 'unitSelected',
+  });
 });
 
 test('all declared modules are inert factories with exact exports and no global registration', () => {
@@ -86,7 +88,9 @@ async function dispatch(mode, options = {}) {
   return { trace, reads, error };
 }
 
-for (const [mode, entry] of Object.entries({ ...originalModes, 'unit-selected': 'unitSelected' })) {
+for (const [mode, entry] of Object.entries({
+  ...originalModes, 'page-wait': 'pageWait', 'unit-selected': 'unitSelected',
+})) {
   test(`dispatcher routes ${mode} exactly once and loads only its suite`, async () => {
     const result = await dispatch(mode, mode === 'unit-selected' ? { filter: 'file' } : {});
     assert.equal(result.error, null);
@@ -105,7 +109,7 @@ for (const mode of ['typo', '__proto__', 'constructor', 'toString']) {
 }
 
 test('selection filter cannot silently narrow an ordinary smoke or live gate', async () => {
-  for (const mode of ['unit', 'smoke', 'live', 'sqlite']) {
+  for (const mode of ['unit', 'smoke', 'live', 'sqlite', 'page-wait']) {
     const result = await dispatch(mode, { filter: 'file' });
     assert.match(result.error.message, /requires mode=unit-selected/);
     assert.deepEqual(result.trace, []);
@@ -134,7 +138,7 @@ test('empty module, non-factory, missing export and suite rejection fail closed'
 });
 
 function suite(name, context, globals = {}) {
-  return factory(gates + 'suites/' + name + '.js', { File: { join: path.posix.join }, ...globals })(context);
+  return factory(gates + 'suites/' + name + '.js', { File: { join: path.posix.join, isFile: () => true }, ...globals })(context);
 }
 
 test('smoke composition retains its existing order', async () => {
@@ -179,6 +183,82 @@ test('SQLite preserves scoped phases and cleanup on failure; first error wins', 
   assert.deepEqual(calls, [
     ['contract', '/repo/tests/runtime-api/sqlite-contract.js', 5, 180], ['zero', 'contract'],
     ['unit', '/repo/tests/runtime-api/sqlite-unit.js', 15, 240], ['cleanup'],
+  ]);
+});
+
+test('Page wait runs scoped gates, lifecycle, expected failure, host cancellation and cleanup', async () => {
+  const calls = [];
+  const context = {
+    ROOT_DIR: '/repo',
+    RUN_DIR: '/evidence',
+    fail: (message) => { throw new Error(message); },
+    readJSON: async (file) => {
+      calls.push(['readJSON', file]);
+      return file.endsWith('/page-wait-host-cancel-validation.json') ? { status: 'passed' } : { status: 'failed' };
+    },
+    writeJSON: async (file) => calls.push(['writeJSON', file]),
+    generate: async (...args) => calls.push(['generate', ...args]),
+    recordWatchdog: async (gate) => calls.push(['recordWatchdog', gate]),
+    executeProcess: async (...args) => { calls.push(['executeProcess', ...args]); return { exitCode: 0 }; },
+    executeJS: async (...args) => {
+      calls.push(['executeJS', ...args]);
+      return {
+        exitCode: 1,
+        stdout: [
+          'PAGE_WAIT_OLD_DEADLINE_FAILURE_READY=1',
+          'PAGE_WAIT_OLD_CLEANUP_FAILURE_READY=1',
+          'PAGE_WAIT_ASSERTION_FAILURE_READY=1',
+        ].join('\n'),
+      };
+    },
+    runJS: async (...args) => calls.push(args),
+    verifyZeroCleanup: async (gate) => calls.push(['zero', gate]),
+    invoke: async (name) => calls.push([name]),
+    noResidual: async () => calls.push(['noResidual']),
+  };
+  await suite('page-wait', context).pageWait();
+  assert.deepEqual(plain(calls), [
+    ['contract', '/repo/tests/runtime-api/page-wait-contract.js', 5, 180], ['zero', 'contract'],
+    ['unit', '/repo/tests/runtime-api/page-wait-unit.js', 15, 240], ['zero', 'unit'],
+    ['coverage', '/repo/tests/runtime-api/page-wait-coverage.js', 10, 240], ['zero', 'coverage'],
+    ['page-wait-lifecycle', '/repo/tests/runtime-api/page-wait-lifecycle.js', 5, 120], ['zero', 'page-wait-lifecycle'],
+    ['executeJS', 'page-wait-old-deadline-failure', '/repo/tests/runtime-api/page-wait-old-deadline-failure.js', 2, 60, { display: false }],
+    ['readJSON', '/evidence/runtime-logs/page-wait-old-deadline-failure/summary.json'], ['zero', 'page-wait-old-deadline-failure'],
+    ['writeJSON', '/evidence/results/page-wait-old-deadline-failure.json'],
+    ['executeJS', 'page-wait-old-cleanup-failure', '/repo/tests/runtime-api/page-wait-old-cleanup-failure.js', 2, 60, { display: false }],
+    ['readJSON', '/evidence/runtime-logs/page-wait-old-cleanup-failure/summary.json'], ['zero', 'page-wait-old-cleanup-failure'],
+    ['writeJSON', '/evidence/results/page-wait-old-cleanup-failure.json'],
+    ['executeJS', 'page-wait-failure', '/repo/tests/runtime-api/page-wait-failure.js', 2, 60, { display: false }],
+    ['readJSON', '/evidence/runtime-logs/page-wait-failure/summary.json'], ['zero', 'page-wait-failure'],
+    ['writeJSON', '/evidence/results/page-wait-failure.json'],
+    ['generate', '/repo/tests/runtime-api/page-wait-host-cancel.js', '/evidence/generated/page-wait-host-cancel.generated.js'],
+    ['executeProcess', 'page-wait-host-cancel-seam', '/bin/sh', ['/repo/tests/runtime-api/seams/page-wait-host-cancel.sh', '/evidence/generated/page-wait-host-cancel.generated.js'], { deadlineSeconds: 60 }],
+    ['recordWatchdog', 'page-wait-host-cancel'], ['zero', 'page-wait-host-cancel'],
+    ['page-wait-host-cancel-validation', '/repo/tests/runtime-api/page-wait-host-cancel-validation.js', 5, 120],
+    ['zero', 'page-wait-host-cancel-validation'],
+    ['readJSON', '/evidence/results/page-wait-host-cancel-validation.json'],
+    ['cleanup'], ['noResidual'],
+    ['writeJSON', '/evidence/results/page-wait.json'],
+  ]);
+});
+
+test('Page wait preserves the first phase failure while attempting cleanup', async () => {
+  const calls = [];
+  const first = new Error('Page wait unit failed');
+  const context = {
+    ROOT_DIR: '/repo',
+    RUN_DIR: '/evidence',
+    runJS: async (gate, file, timeout, deadline) => { calls.push([gate, file, timeout, deadline]); if (gate === 'unit') throw first; },
+    verifyZeroCleanup: async (gate) => calls.push(['zero', gate]),
+    invoke: async (name) => { calls.push([name]); throw new Error('cleanup also failed'); },
+    noResidual: async () => calls.push(['noResidual']),
+    writeJSON: async (file) => calls.push(['writeJSON', file]),
+  };
+  await assert.rejects(suite('page-wait', context).pageWait(), (error) => error === first);
+  assert.deepEqual(calls, [
+    ['contract', '/repo/tests/runtime-api/page-wait-contract.js', 5, 180], ['zero', 'contract'],
+    ['unit', '/repo/tests/runtime-api/page-wait-unit.js', 15, 240], ['cleanup'],
+    ['writeJSON', '/evidence/results/page-wait.json'],
   ]);
 });
 

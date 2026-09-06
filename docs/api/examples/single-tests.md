@@ -33,11 +33,24 @@ order: 4
 - [持久化写入](../../../examples/sqlite/persistence-write.js)：`./dist/opendesk -script examples/sqlite/persistence-write.js -console-mode script`
 - [读取上一步的数据](../../../examples/sqlite/persistence-read.js)：`./dist/opendesk -script examples/sqlite/persistence-read.js -console-mode script`
 
-## Page 点击与截图
+## Page 点击、截图与等待
 
 现有 `page.js` 会按固定坐标点击桌面。先查看代码、调整坐标，再在测试桌面运行，并授予截图权限。
 
 - [Page 点击与截图](../../../examples/page.js)：`./opendesk -script examples/page.js -console-mode script`
+- [Page 等待 quickstart](../../../examples/page.waitfor.js)：`./dist/opendesk -script examples/page.waitfor.js -console-mode script`
+- [Page 等待共享用例 smoke](../../../examples/runtime/page-wait.test.js)：`./dist/opendesk -script examples/runtime/page-wait.test.js -console-mode script`
+
+Page 等待 smoke 复用正式 Page family 的共享行为用例，要求必需分组与四个方法全部执行，并报告 `failed: 0`、`skipped: 0`。
+
+Windows PowerShell 的对应待验收命令：
+
+```powershell
+.\dist\opendesk.exe -script examples/page.waitfor.js -console-mode script
+.\dist\opendesk.exe -script examples/runtime/page-wait.test.js -console-mode script
+```
+
+本轮没有 Windows 真机 Runtime evidence，因此这两条命令是 **NOT_EVALUATED**；登记命令不表示已经运行或通过。
 
 ## 窗口与键盘
 

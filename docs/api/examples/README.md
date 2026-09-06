@@ -13,6 +13,9 @@ order: 3
 - [入门、环境、文件、JSON、路径、命令与 HTTP](../../../examples/runtime/README.md)
 - [控制台打印](../../../examples/console.js)、[全局对象](../../../examples/globalThis.js)、[Promise](../../../examples/promise.js)、[等待](../../../examples/sleep.js)、[定时器](../../../examples/timer.js)
 - [本地存储](../../../examples/appStorage.js)
+- [Page 等待 quickstart](../../../examples/page.waitfor.js)与[共享用例 smoke](../../../examples/runtime/page-wait.test.js)
+
+Page 等待示例以真实断言检查固定等待、条件轮询、single-flight、`AbortSignal` 和组合结果；命令及 Windows 验收状态见[基础 Runtime 示例](../../../examples/runtime/README.md)。
 
 ## SQLite Runtime API
 

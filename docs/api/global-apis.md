@@ -106,7 +106,7 @@ await sleepSeconds(0.5); // 0.5 秒
 ```js
 await page.waitForFunction(() => window.title() === '完成', {
   timeout: 5000,
-  interval: 100,
+  polling: 100,
 });
 ```
 

@@ -1113,8 +1113,12 @@ func (p *Page) triggerMacPermissionPrompts(sections []string) map[string]interfa
 	}
 
 	requestScreen := containsMacPrivacySection(sections, "screenCapture")
-	// Active-window screenshot flow usually depends on both screen capture and accessibility.
-	requestAccessibility := containsMacPrivacySection(sections, "accessibility") || requestScreen
+	// Keep an explicitly scoped screen-capture request scoped to that consent.
+	// Desktop screenshot/interaction flows that need Accessibility must request
+	// that section themselves (or use "all"). In particular, the system-audio
+	// watcher only needs Screen & System Audio Recording and must not make an
+	// unrelated Accessibility prompt appear as part of its permission flow.
+	requestAccessibility := containsMacPrivacySection(sections, "accessibility")
 	requestInputMonitoring := containsMacPrivacySection(sections, "inputMonitoring")
 	requestAutomation := containsMacPrivacySection(sections, "automation")
 

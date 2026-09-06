@@ -71,6 +71,7 @@ declare global {
   interface OpenDeskPageWaitOptions {
     timeout?: number;
     polling?: number;
+    signal?: AbortSignal | null;
   }
 
   interface OpenDeskPage {
@@ -89,12 +90,12 @@ declare global {
     title(): string;
     url(): string;
 
-    waitFor(milliseconds: number): Promise<void>;
+    waitFor(milliseconds: number, options?: { signal?: AbortSignal | null }): Promise<void>;
     waitFor<T>(predicate: (...args: any[]) => T | Promise<T>, options?: OpenDeskPageWaitOptions): Promise<T>;
-    waitForTimeout(milliseconds: number): Promise<void>;
+    waitForTimeout(milliseconds: number, options?: { signal?: AbortSignal | null }): Promise<void>;
     waitForNavigation(options?: { timeout?: number }): Promise<void>;
     waitForFunction<T>(predicate: (...args: any[]) => T | Promise<T>, options?: OpenDeskPageWaitOptions, ...args: any[]): Promise<T>;
-    waitForAll<T>(promises: Array<Promise<T> | T>, options?: { timeout?: number }): Promise<T[]>;
+    waitForAll<T>(promises: Array<Promise<T> | T>, options?: { timeout?: number; signal?: AbortSignal | null }): Promise<T[]>;
 
     checkPermissions(options?: OpenDeskPermissionOptions): Promise<OpenDeskPermissionReport>;
     requestPermissions(options?: OpenDeskPermissionOptions): Promise<OpenDeskPermissionReport>;

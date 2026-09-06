@@ -12,6 +12,8 @@
 | [file.js](file.js) | `./opendesk -script examples/runtime/file.js -console-mode script` | 只创建本次 `Execution.artifactDir/file-demo/`；核对读写、复制、移动、JSON 文本和目录结果；拒绝覆盖已有示例目录。 |
 | [command.js](command.js) | `./dist/opendesk -script examples/runtime/command.js -console-mode script` | 固定 echo 程序，5000 ms 超时、4096 字节输出上限；核对退出码和输出；没有用户可插入的 shell 文本。 |
 | [http.js](http.js) | `OPENDESK_EXAMPLE_HTTP_URL=http://127.0.0.1:8080/echo ./opendesk -script examples/runtime/http.js -console-mode script` | 先准备自己控制的测试服务并替换地址；默认只有 GET，不存在内置局域网地址或服务端。 |
+| [page.waitfor.js](../page.waitfor.js) | `./dist/opendesk -script examples/page.waitfor.js -console-mode script` | Page 等待 quickstart；真实断言 0ms 异步、条件轮询、single-flight、取消与结果顺序。 |
+| [page-wait.test.js](page-wait.test.js) | `./dist/opendesk -script examples/runtime/page-wait.test.js -console-mode script` | 公开 Page 等待 smoke；复用正式 Page family 的共享行为用例，不使用私有注入。 |
 
 ## HTTP 输入与结果
 
@@ -40,10 +42,27 @@ Windows PowerShell 的当前 dist 构建可直接运行 File 和 Command 示例�
 .\dist\opendesk.exe -script examples/runtime/command.js -console-mode script
 ```
 
+其他基础 Runtime 与 Page 等待示例的 PowerShell 入口：
+
+```powershell
+.\dist\opendesk.exe -script examples/runtime/api-quickstart.js -console-mode script
+.\dist\opendesk.exe -script examples/runtime/environment.js -console-mode script
+.\dist\opendesk.exe -script examples/runtime/path.js -console-mode script
+.\dist\opendesk.exe -script examples/runtime/file-json.js -console-mode script
+.\dist\opendesk.exe -script examples/page.waitfor.js -console-mode script
+.\dist\opendesk.exe -script examples/runtime/page-wait.test.js -console-mode script
+```
+
 其他带环境变量的示例先通过 `$env:变量名 = '值'` 设置并在运行后清除，只替换可执行文件路径。
 这些是用法，不是 Windows 实机已通过的声明。特别是 File JSON 的 `writeJSON`，当前
 [File 契约](../../docs/api/file.md)在 Windows 返回 `ATOMIC_REPLACE_UNSUPPORTED`，不能用普通
 文本写入悄悄替代它的原子写契约。基础 File 示例仅使用同步文本接口，未修改 JSON API。
+
+上述两条 Page 等待 PowerShell 命令是 Windows 本机后续验收入口。本轮没有 Windows 真机
+Runtime evidence，因此 Windows 状态是 **NOT_EVALUATED**，不能把命令已登记表述为 Windows PASS。
+
+Page 等待 smoke 与正式 unit family 共用
+[`tests/runtime-api/page-wait-cases.js`](../../tests/runtime-api/page-wait-cases.js)，不维护第二套断言。
 
 相关单项测试：`tests/runtime-api/single/file.js`、`single/command.js`、`single/http-axios.js`。
 运行命令和前置条件见 [单项测试索引](../../docs/api/examples/single-tests.md)；单项测试通过不等于

@@ -1,0 +1,91 @@
+(function pageWaitRequirements() {
+  'use strict';
+
+  // This is the independent, fail-closed acceptance inventory for the shared
+  // Page wait behavior suite. Keep it declarative: test implementations live
+  // only in page-wait-cases.js.
+  const requirements = [
+    { id: 'normal.sync-success-value', group: 'normal', name: 'synchronous predicate preserves the original success value', covers: ['page.waitForFunction'] },
+    { id: 'normal.async-success', group: 'normal', name: 'asynchronous predicate success is awaited', covers: ['page.waitForFunction'] },
+    { id: 'normal.args-identity', group: 'normal', name: 'predicate arguments and identity pass through unchanged', covers: ['page.waitForFunction'] },
+    { id: 'normal.falsey-polling', group: 'normal', name: 'falsey predicate values continue polling', covers: ['page.waitForFunction'] },
+    { id: 'normal.sync-error-recovery', group: 'normal', name: 'synchronous predicate errors remain transient', covers: ['page.waitForFunction'] },
+    { id: 'normal.async-rejection-recovery', group: 'normal', name: 'asynchronous predicate rejections remain transient', covers: ['page.waitForFunction'] },
+    { id: 'normal.single-flight', group: 'normal', name: 'predicate polling has at most one invocation in flight', covers: ['page.waitForFunction'] },
+    { id: 'normal.rejection-single-flight', group: 'normal', name: 'rejected asynchronous predicates never overlap the next invocation', covers: ['page.waitForFunction'] },
+    { id: 'normal.timeout-zero-async', group: 'normal', name: 'fixed zero millisecond wait completes asynchronously', covers: ['page.waitForTimeout'] },
+    { id: 'normal.single-settlement', group: 'normal', name: 'a completed wait settles its Promise chain once', covers: ['page.waitForFunction'] },
+    { id: 'normal.frozen-inputs', group: 'normal', name: 'frozen options and input arrays are not modified', covers: ['page.waitFor', 'page.waitForTimeout', 'page.waitForFunction', 'page.waitForAll'] },
+    { id: 'normal.no-new-globals', group: 'normal', name: 'Page wait helpers do not publish new globals', covers: ['page.waitFor', 'page.waitForTimeout', 'page.waitForFunction', 'page.waitForAll'] },
+
+    { id: 'deadline.hanging-predicate', group: 'deadline', name: 'a never-settling predicate cannot disable the independent deadline', covers: ['page.waitForFunction'] },
+    { id: 'deadline.polling-exceeds-timeout', group: 'deadline', name: 'deadline wins when polling is longer than timeout', covers: ['page.waitForFunction'] },
+    { id: 'deadline.function-zero', group: 'deadline', name: 'zero function timeout wins without invoking its predicate', covers: ['page.waitForFunction'] },
+    { id: 'deadline.false-values', group: 'deadline', name: 'continuous false values end with the API timeout', covers: ['page.waitForFunction'] },
+    { id: 'deadline.predicate-rejections', group: 'deadline', name: 'continuous predicate rejection ends with the API timeout', covers: ['page.waitForFunction'] },
+    { id: 'deadline.late-success', group: 'deadline', name: 'late predicate success cannot settle or restart a timed-out wait', covers: ['page.waitForFunction'] },
+    { id: 'deadline.late-rejection', group: 'deadline', name: 'late predicate rejection cannot restart a timed-out wait', covers: ['page.waitForFunction'] },
+    { id: 'deadline.all-unfinished', group: 'deadline', name: 'waitForAll rejects its own unfinished input deadline', covers: ['page.waitForAll'] },
+    { id: 'deadline.all-zero', group: 'deadline', name: 'zero waitForAll timeout wins over already fulfilled input', covers: ['page.waitForAll'] },
+    { id: 'deadline.all-event-loop-blocking', group: 'deadline', name: 'waitForAll absolute deadline wins after event-loop blocking', covers: ['page.waitForAll'] },
+
+    { id: 'cancel.function-pre-aborted', group: 'cancel', name: 'pre-canceled predicate wait never calls the predicate', covers: ['page.waitForFunction'] },
+    { id: 'cancel.function-polling', group: 'cancel', name: 'active false-value polling honors cancellation', covers: ['page.waitForFunction'] },
+    { id: 'cancel.function-hanging', group: 'cancel', name: 'a hanging predicate Promise honors cancellation', covers: ['page.waitForFunction'] },
+    { id: 'cancel.wait-for-number-forwarding', group: 'cancel', name: 'numeric waitFor forwards its signal option', covers: ['page.waitFor', 'page.waitForTimeout'] },
+    { id: 'cancel.wait-for-function-forwarding', group: 'cancel', name: 'functional waitFor forwards timeout polling and signal', covers: ['page.waitFor', 'page.waitForFunction'] },
+    { id: 'cancel.predicate-triggered', group: 'cancel', name: 'predicate-triggered cancellation wins over a truthy return', covers: ['page.waitForFunction'] },
+    { id: 'cancel.after-success', group: 'cancel', name: 'canceling after success cannot change the result', covers: ['page.waitForFunction'] },
+    { id: 'cancel.repeated', group: 'cancel', name: 'repeated cancellation rejects only once', covers: ['page.waitForTimeout'] },
+    { id: 'cancel.timeout-clears-timer', group: 'cancel', name: 'waitForTimeout clears its timer when canceled', covers: ['page.waitForTimeout'] },
+
+    { id: 'all.mixed-no-function-call', group: 'all', name: 'waitForAll mixes values and Promises without invoking functions', covers: ['page.waitForAll'] },
+    { id: 'all.input-order', group: 'all', name: 'waitForAll preserves input order across out-of-order completion', covers: ['page.waitForAll'] },
+    { id: 'all.empty', group: 'all', name: 'waitForAll accepts an empty array', covers: ['page.waitForAll'] },
+    { id: 'all.error-identity', group: 'all', name: 'waitForAll preserves an Error rejection identity', covers: ['page.waitForAll'] },
+    { id: 'all.null-reason', group: 'all', name: 'waitForAll preserves a null rejection reason', covers: ['page.waitForAll'] },
+    { id: 'all.pre-abort-observes-rejection', group: 'all', name: 'pre-cancellation still observes an already rejected input', covers: ['page.waitForAll'] },
+    { id: 'all.late-rejection-after-timeout', group: 'all', name: 'late input rejection after timeout is handled and cannot pollute the next wait', covers: ['page.waitForAll'] },
+    { id: 'all.late-rejection-after-cancel', group: 'all', name: 'late input rejection after active cancellation stays observed', covers: ['page.waitForAll'] },
+    { id: 'all.caller-work-continues', group: 'all', name: 'timeout does not stop caller-owned work', covers: ['page.waitForAll'] },
+    { id: 'all.caller-controller-unchanged', group: 'all', name: 'timeout does not abort the caller-owned controller', covers: ['page.waitForAll'] },
+
+    { id: 'arguments.function-required', group: 'arguments', name: 'waitForFunction rejects a non-function synchronously', covers: ['page.waitForFunction'] },
+    { id: 'arguments.array-required', group: 'arguments', name: 'waitForAll rejects a non-array synchronously', covers: ['page.waitForAll'] },
+    { id: 'arguments.options-object', group: 'arguments', name: 'wait options must be objects', covers: ['page.waitForTimeout', 'page.waitForFunction', 'page.waitForAll'] },
+    { id: 'arguments.signal-shape', group: 'arguments', name: 'wait signals must be AbortSignal-compatible', covers: ['page.waitFor', 'page.waitForTimeout', 'page.waitForFunction', 'page.waitForAll'] },
+    { id: 'arguments.negative', group: 'arguments', name: 'negative durations are invalid', covers: ['page.waitFor', 'page.waitForTimeout', 'page.waitForFunction', 'page.waitForAll'] },
+    { id: 'arguments.nan', group: 'arguments', name: 'NaN durations are invalid', covers: ['page.waitForTimeout', 'page.waitForFunction', 'page.waitForAll'] },
+    { id: 'arguments.nonfinite-over-limit', group: 'arguments', name: 'infinite and over-limit durations are invalid', covers: ['page.waitFor', 'page.waitForTimeout', 'page.waitForFunction', 'page.waitForAll'] },
+    { id: 'arguments.no-string-coercion', group: 'arguments', name: 'string durations are not coerced', covers: ['page.waitFor', 'page.waitForTimeout', 'page.waitForFunction', 'page.waitForAll'] },
+    { id: 'arguments.zero-max-fraction', group: 'arguments', name: 'zero upper-bound and fractional durations follow the final contract', covers: ['page.waitFor', 'page.waitForTimeout', 'page.waitForFunction', 'page.waitForAll'] },
+    { id: 'arguments.signal-optional-null', group: 'arguments', name: 'omitted and null signals both mean no cancellation', covers: ['page.waitForTimeout', 'page.waitForFunction', 'page.waitForAll'] },
+    { id: 'arguments.wait-for-discriminator', group: 'arguments', name: 'waitFor rejects unsupported first arguments synchronously', covers: ['page.waitFor'] },
+
+    { id: 'cleanup.timeout-success', group: 'cleanup', name: 'waitForTimeout success immediately releases its timer and listener', covers: ['page.waitForTimeout'] },
+    { id: 'cleanup.timeout-cancel', group: 'cleanup', name: 'waitForTimeout cancellation immediately releases its timer and listener', covers: ['page.waitForTimeout'] },
+    { id: 'cleanup.zero-timeouts', group: 'cleanup', name: 'zero function and all timeouts allocate no residual resources', covers: ['page.waitForFunction', 'page.waitForAll'] },
+    { id: 'cleanup.function-success', group: 'cleanup', name: 'waitForFunction success immediately releases deadline and listener', covers: ['page.waitForFunction'] },
+    { id: 'cleanup.function-timeout', group: 'cleanup', name: 'waitForFunction timeout immediately releases all owned resources', covers: ['page.waitForFunction'] },
+    { id: 'cleanup.function-cancel', group: 'cleanup', name: 'waitForFunction cancellation immediately releases all owned resources', covers: ['page.waitForFunction'] },
+    { id: 'cleanup.transient-rejection-success', group: 'cleanup', name: 'transient predicate rejection still cleans resources on success', covers: ['page.waitForFunction'] },
+    { id: 'cleanup.all-success', group: 'cleanup', name: 'waitForAll early success clears its long deadline immediately', covers: ['page.waitForAll'] },
+    { id: 'cleanup.all-error', group: 'cleanup', name: 'waitForAll Error rejection clears owned resources immediately', covers: ['page.waitForAll'] },
+    { id: 'cleanup.all-null', group: 'cleanup', name: 'waitForAll null rejection clears owned resources immediately', covers: ['page.waitForAll'] },
+    { id: 'cleanup.all-timeout', group: 'cleanup', name: 'waitForAll timeout clears owned resources immediately', covers: ['page.waitForAll'] },
+    { id: 'cleanup.all-cancel', group: 'cleanup', name: 'waitForAll cancellation clears owned resources immediately', covers: ['page.waitForAll'] },
+    { id: 'cleanup.wait-for-dispatch', group: 'cleanup', name: 'both waitFor dispatch branches release owned resources', covers: ['page.waitFor', 'page.waitForTimeout', 'page.waitForFunction'] },
+    { id: 'cleanup.falsey-timer-error', group: 'cleanup', name: 'falsey timer infrastructure failures reject instead of resolving', covers: ['page.waitForTimeout'] },
+    { id: 'cleanup.function-cleanup-error', group: 'cleanup', name: 'cleanup failure cannot leave a successful predicate Promise pending', covers: ['page.waitForFunction'] },
+    { id: 'cleanup.all-primary-rejection', group: 'cleanup', name: 'waitForAll preserves raw rejection when cleanup also fails', covers: ['page.waitForAll'] },
+    { id: 'cleanup.partial-listener-registration', group: 'cleanup', name: 'partial signal registration failure is explicitly removed and rejected', covers: ['page.waitForTimeout'] },
+    { id: 'cleanup.abort-reason-getter', group: 'cleanup', name: 'throwing optional abort reason cannot prevent cancellation', covers: ['page.waitForTimeout'] },
+  ];
+
+  return Object.freeze(requirements.map((item) => Object.freeze({
+    id: item.id,
+    group: item.group,
+    name: item.name,
+    covers: Object.freeze(item.covers.slice()),
+  })));
+})()

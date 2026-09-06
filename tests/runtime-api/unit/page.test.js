@@ -6,6 +6,59 @@
     return withGlobal('page____Inject', overrides, fn);
   }
 
+  const pageWaitRequirementsPath = File.join(File.cwd(), 'tests/runtime-api/page-wait-requirements.js');
+  assert(File.isFile(pageWaitRequirementsPath), 'Page wait requirements are missing: ' + pageWaitRequirementsPath);
+  const pageWaitRequirements = (0, eval)(File.read(pageWaitRequirementsPath) + '\n//# sourceURL=' + pageWaitRequirementsPath);
+  assert(Array.isArray(pageWaitRequirements) && pageWaitRequirements.length > 0, 'Page wait requirements registered no behavior');
+
+  const pageWaitCasesPath = File.join(File.cwd(), 'tests/runtime-api/page-wait-cases.js');
+  assert(File.isFile(pageWaitCasesPath), 'shared Page wait cases are missing: ' + pageWaitCasesPath);
+  const createPageWaitCases = (0, eval)(File.read(pageWaitCasesPath) + '\n//# sourceURL=' + pageWaitCasesPath);
+  assert(typeof createPageWaitCases === 'function', 'shared Page wait cases must export a factory');
+  const discoveredPageWaitCases = createPageWaitCases({ assert, equal });
+  assert(Array.isArray(discoveredPageWaitCases) && discoveredPageWaitCases.length > 0, 'shared Page wait cases registered no cases');
+
+  function pageWaitSignature(item) {
+    return JSON.stringify([item.group, item.name, item.covers]);
+  }
+
+  const requirementIds = new Set();
+  const requirementSignatures = new Set();
+  for (const requirement of pageWaitRequirements) {
+    assert(requirement && typeof requirement === 'object', 'Page wait requirement must be an object');
+    assert(typeof requirement.id === 'string' && requirement.id.length > 0, 'Page wait requirement has no stable id');
+    assert(typeof requirement.group === 'string' && requirement.group.length > 0, 'Page wait requirement has no group: ' + requirement.id);
+    assert(typeof requirement.name === 'string' && requirement.name.length > 0, 'Page wait requirement has no name: ' + requirement.id);
+    assert(Array.isArray(requirement.covers) && requirement.covers.length > 0, 'Page wait requirement has no covers: ' + requirement.id);
+    assert(!requirementIds.has(requirement.id), 'duplicate Page wait requirement id: ' + requirement.id);
+    requirementIds.add(requirement.id);
+    const signature = pageWaitSignature(requirement);
+    assert(!requirementSignatures.has(signature), 'duplicate Page wait requirement metadata: ' + signature);
+    requirementSignatures.add(signature);
+  }
+
+  const discoveredSignatures = new Set();
+  for (const item of discoveredPageWaitCases) {
+    assert(item && typeof item === 'object' && typeof item.run === 'function', 'invalid shared Page wait case');
+    assert(typeof item.group === 'string' && typeof item.name === 'string' && Array.isArray(item.covers), 'invalid shared Page wait case metadata');
+    const signature = pageWaitSignature(item);
+    assert(!discoveredSignatures.has(signature), 'duplicate shared Page wait case: ' + signature);
+    discoveredSignatures.add(signature);
+    assert(requirementSignatures.has(signature), 'unregistered shared Page wait case: ' + signature);
+  }
+  equal(discoveredPageWaitCases.length, pageWaitRequirements.length, 'Page wait required/discovered behavior count differs');
+
+  const pageWaitCases = pageWaitRequirements.map((requirement) => {
+    const signature = pageWaitSignature(requirement);
+    const matches = discoveredPageWaitCases.filter((item) => pageWaitSignature(item) === signature);
+    equal(matches.length, 1, 'Page wait requirement must have exactly one shared case: ' + requirement.id);
+    return { id: requirement.id, group: requirement.group, name: requirement.name, covers: requirement.covers, run: matches[0].run };
+  });
+
+  for (const item of pageWaitCases) {
+    test({ name: 'page wait [' + item.id + ']: ' + item.name, tier: 'unit', covers: item.covers }, item.run);
+  }
+
   test({ name: 'page.screenshot delegates options and result', tier: 'unit', covers: ['page.screenshot'] }, async () => {
     const options = { returnType: 'object', clip: { x: 1, y: 2, width: 3, height: 4 } };
     await withNative({ screenshot: async (actual) => ({ actual }) }, async () => {
@@ -46,16 +99,6 @@
     await withNative({ url: () => '/Applications/Safari.app' }, async () => equal(page.url(), '/Applications/Safari.app'));
   });
 
-  test({ name: 'page.waitFor accepts numeric waits', tier: 'unit', covers: ['page.waitFor'] }, async () => {
-    const started = Date.now();
-    await page.waitFor(5);
-    assert(Date.now() >= started, 'clock moved backwards');
-  });
-
-  test({ name: 'page.waitForTimeout resolves', tier: 'unit', covers: ['page.waitForTimeout'] }, async () => {
-    await page.waitForTimeout(5);
-  });
-
   test({ name: 'page.waitForNavigation detects URL change', tier: 'unit', covers: ['page.waitForNavigation'] }, async () => {
     const original = page.url;
     let value = 'before';
@@ -68,16 +111,6 @@
     }
   });
 
-  test({ name: 'page.waitForFunction passes arguments and result', tier: 'unit', covers: ['page.waitForFunction'] }, async () => {
-    const result = await page.waitForFunction((left, right) => left + right === 5 && 'ready', { timeout: 200, polling: 5 }, 2, 3);
-    equal(result, 'ready');
-  });
-
-  test({ name: 'page.waitForAll returns ordered results', tier: 'unit', covers: ['page.waitForAll'] }, async () => {
-    const result = await page.waitForAll([Promise.resolve('left'), Promise.resolve('right')], { timeout: 50 });
-    equal(JSON.stringify(result), JSON.stringify(['left', 'right']));
-  });
-
   test({ name: 'page.checkPermissions normalizes native report', tier: 'unit', covers: ['page.checkPermissions'] }, async () => {
     await withNative({ checkScreenshotPermissions: async () => ({ screenCapture: true, accessibility: true, ok: true }) }, async () => {
       const report = await page.checkPermissions({ capabilities: ['screenCapture', 'accessibility'] });
@@ -86,18 +119,21 @@
   });
 
   test({ name: 'page.requestPermissions uses a non-opening native flow', tier: 'unit', covers: ['page.requestPermissions'] }, async () => {
-    let options = null;
+    const options = [];
     let checks = 0;
     await withNative({
-      requestMacPermissions: async (actual) => { options = actual; return { ok: true, after: { screenCapture: true, accessibility: true, ok: true } }; },
+      requestMacPermissions: async (actual) => {
+        options.push(actual);
+        return { ok: true, after: { screenCapture: true, accessibility: true, ok: true } };
+      },
       checkScreenshotPermissions: async () => (++checks === 1
         ? { screenCapture: false, accessibility: false, ok: false }
         : { screenCapture: true, accessibility: true, ok: true }),
     }, async () => {
       const report = await page.requestPermissions({ capabilities: ['screenCapture', 'accessibility'], openSettings: false });
       assert(report.ok, JSON.stringify(report));
-      equal(options.openSettings, false);
-      equal(options.forceOpenSettings, false);
+      equal(JSON.stringify(options.map((item) => item.section)), JSON.stringify(['screenCapture', 'accessibility']));
+      assert(options.every((item) => item.openSettings === false && item.forceOpenSettings === false), JSON.stringify(options));
     });
   });
 
@@ -306,6 +342,7 @@
       assert((await page.requestMacPermissions({ section: 'screenCapture', openSettings: false })).ok);
     });
     equal(options.openSettings, false);
+    equal(options.section, 'screenCapture');
   });
 
   test({ name: 'page.requestMacAutomationPermission delegates target app', tier: 'unit', covers: ['page.requestMacAutomationPermission'] }, async () => {

@@ -5,6 +5,7 @@ const modules = {
   'core': { file: 'suites/core.js', exports: ["contract", "unit", "coverage", "smokeCase", "negative", "failureExit", "cleanup", "quality", "asyncStacks"] },
   'language': { file: 'suites/language.js', exports: ["language"] },
   'sqlite': { file: 'suites/sqlite.js', exports: ["sqlite"] },
+  'page-wait': { file: 'suites/page-wait.js', exports: ["pageWait"] },
   'file-json': { file: 'suites/file-json.js', exports: ["fileJSON"] },
   'environment': { file: 'suites/environment.js', exports: ["environment"] },
   'path': { file: 'suites/path.js', exports: ["pathContext"] },
@@ -38,6 +39,7 @@ const modes = {
   "sqlite": "sqlite",
   "unit-selected": "unitSelected"
 };
+  "page-wait": "pageWait",
 const owners = Object.create(null);
 for (const [name, definition] of Object.entries(modules)) {
   for (const entry of definition.exports) {

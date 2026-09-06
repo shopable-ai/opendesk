@@ -76,6 +76,7 @@
         "waitFor",
         "waitForTimeout",
         "waitForFunction",
+        "waitForAll",
         "checkPermissions",
         "requestPermissions",
         "ensurePermissions",
@@ -83,7 +84,8 @@
         "openMacOSPrivacySettings",
         "requestMacPermissions",
         "requestMacAutomationPermission"
-      ]
+      ],
+      "waitSemantics": "waitFor dispatches number waits to waitForTimeout and predicates to waitForFunction, forwarding their options. waitForTimeout supports AbortSignal and resolves asynchronously even for 0ms. waitForFunction has an independent deadline and one predicate call in flight; predicate throws/rejections remain transient. waitForAll preserves order, values, identity, and raw rejection reasons, treats functions as values, and never cancels caller-owned work. Duration, timeout, and polling are finite numbers in inclusive 0..86400000; fractional values are accepted and Timer converts them to integer milliseconds. Function/all timeout 0 rejects with TimeoutError/TIMEOUT; signal cancellation rejects with AbortError/CANCELED; invalid arguments use INVALID_ARGUMENT. Every terminal path removes wait-owned timers and listeners."
     },
     {
       "name": "mouse",

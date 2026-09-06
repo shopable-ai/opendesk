@@ -5,37 +5,33 @@ RuntimeAPITest.load('tests/runtime-api/coverage_validation.js');
 
 // A focused API can use the exact same coverage algorithm without pretending
 // that unrelated desktop/live evidence has been collected. The default remains
-// the complete catalog; sqlite-coverage.js supplies the narrow scope below.
+// the complete catalog; focused entrypoints supply either families or exact IDs.
 const coverageScope = globalThis.RuntimeAPICoverageScope || null;
 const coverageFamilies = coverageScope && Array.isArray(coverageScope.families)
   ? new Set(coverageScope.families.map((family) => String(family)))
   : null;
-const coverageManifest = coverageFamilies
-  ? RuntimeAPIManifest.filter((entry) => coverageFamilies.has(entry.family))
-  : RuntimeAPIManifest;
-if (coverageFamilies && coverageManifest.length === 0) {
-  throw new Error('Runtime API coverage scope matched no catalog entries: ' + Array.from(coverageFamilies).join(','));
+const coverageIds = coverageScope && Array.isArray(coverageScope.ids)
+  ? new Set(coverageScope.ids.map((id) => String(id)))
+  : null;
+if (coverageFamilies && coverageIds) {
+  throw new Error('Runtime API coverage scope must use either families or ids, not both');
+}
+if (coverageIds) {
+  const unknownScopeIds = Array.from(coverageIds).filter((id) => !RuntimeAPIManifest.some((entry) => entry.id === id));
+  if (coverageIds.size === 0 || unknownScopeIds.length > 0) {
+    throw new Error('Runtime API coverage scope contains no entries or unknown IDs: ' + unknownScopeIds.join(','));
+  }
+}
+const coverageManifest = coverageIds
+  ? RuntimeAPIManifest.filter((entry) => coverageIds.has(entry.id))
+  : (coverageFamilies
+    ? RuntimeAPIManifest.filter((entry) => coverageFamilies.has(entry.family))
+    : RuntimeAPIManifest);
+if ((coverageFamilies || coverageIds) && coverageManifest.length === 0) {
+  const requested = coverageIds || coverageFamilies;
+  throw new Error('Runtime API coverage scope matched no catalog entries: ' + Array.from(requested).join(','));
 }
 
-// The coverage gate only imports test files to collect their declarative
-// `covers` metadata. Live test files normally receive this driver from
-// macos_live.js, but their registration must also work in this offline gate.
-// Keep the stub deliberately incomplete: no test body runs here, and a live
-// gate cannot mistake this metadata-only driver for real evidence.
-const coverageInstalledRuntimeLiveStub = !globalThis.RuntimeLive;
-if (coverageInstalledRuntimeLiveStub) {
-  globalThis.RuntimeLive = {
-    fixture: {
-      title: 'runtime-api-coverage-metadata-only',
-      browserApp: 'coverage-metadata-only',
-    },
-    refreshTarget: () => Promise.reject(new Error('RuntimeLive is unavailable in the coverage metadata gate')),
-  };
-}
-for (const file of [...RuntimeAPITestFiles.unit, ...RuntimeAPITestFiles.live]) RuntimeAPITest.load(file);
-if (coverageInstalledRuntimeLiveStub) delete globalThis.RuntimeLive;
-
-const catalogCheck = RuntimeAPICatalogValidation.validateCatalog();
 const allRequiredFamilyFiles = {
   page: 'page.test.js',
   mouse: 'mouse.test.js',
@@ -63,11 +59,40 @@ const allRequiredFamilyFiles = {
   FloatingWindow: 'floating-window.test.js',
   global: 'globals.test.js',
 };
-const requiredFamilyFiles = coverageFamilies
-  ? Object.fromEntries(Object.entries(allRequiredFamilyFiles).filter(([family]) => coverageFamilies.has(family)))
+const scopedFamilies = coverageIds
+  ? new Set(coverageManifest.map((entry) => entry.family))
+  : coverageFamilies;
+const requiredFamilyFiles = scopedFamilies
+  ? Object.fromEntries(Object.entries(allRequiredFamilyFiles).filter(([family]) => scopedFamilies.has(family)))
   : allRequiredFamilyFiles;
-
 const allFiles = [...RuntimeAPITestFiles.unit, ...RuntimeAPITestFiles.live];
+
+// The coverage gate only imports test files to collect their declarative
+// `covers` metadata. Live test files normally receive this driver from
+// macos_live.js, but their registration must also work in this offline gate.
+// Keep the stub deliberately incomplete: no test body runs here, and a live
+// gate cannot mistake this metadata-only driver for real evidence.
+const coverageInstalledRuntimeLiveStub = !globalThis.RuntimeLive;
+if (coverageInstalledRuntimeLiveStub) {
+  globalThis.RuntimeLive = {
+    fixture: {
+      title: 'runtime-api-coverage-metadata-only',
+      browserApp: 'coverage-metadata-only',
+    },
+    refreshTarget: () => Promise.reject(new Error('RuntimeLive is unavailable in the coverage metadata gate')),
+  };
+}
+// Exact-ID coverage is deliberately isolated from unrelated API families. It
+// still loads the authoritative family test file so declaration metadata is
+// verified, but an in-progress file in another family cannot turn a focused
+// Page report into an accidental full-catalog execution.
+const metadataFiles = coverageIds
+  ? allFiles.filter((file) => Object.values(requiredFamilyFiles).some((expected) => file.endsWith('/' + expected)))
+  : allFiles;
+for (const file of metadataFiles) RuntimeAPITest.load(file);
+if (coverageInstalledRuntimeLiveStub) delete globalThis.RuntimeLive;
+
+const catalogCheck = RuntimeAPICatalogValidation.validateCatalog();
 const missingFamilyFiles = Object.entries(requiredFamilyFiles)
   .filter(([, expected]) => !allFiles.some((file) => file.endsWith('/' + expected)))
   .map(([family, expected]) => family + ':' + expected);
@@ -133,10 +158,13 @@ for (const entry of coverageManifest) {
 const result = {
   status: failed === 0 && duplicates.length === 0 && unknown.length === 0 && missingFamilyFiles.length === 0
     && failedRequiredGates.length === 0 && catalogCheck.ok ? 'passed' : 'failed',
-  scope: coverageFamilies ? {
+  scope: coverageIds ? {
+    name: String(coverageScope.name || 'focused'),
+    ids: Array.from(coverageIds).sort(),
+  } : (coverageFamilies ? {
     name: String(coverageScope.name || 'focused'),
     families: Array.from(coverageFamilies).sort(),
-  } : null,
+  } : null),
   documentedMethods: coverageManifest.length,
   covered: coverageManifest.length - failed,
   failed,
