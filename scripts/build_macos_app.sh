@@ -16,6 +16,7 @@ MACOS_DIR="${CONTENTS_DIR}/MacOS"
 RESOURCES_DIR="${CONTENTS_DIR}/Resources"
 HELPERS_DIR="${CONTENTS_DIR}/Helpers"
 EXECUTABLE_PATH="${MACOS_DIR}/opendesk"
+EXECUTABLE_STAGE="${DIST_DIR}/.opendesk-build.$$"
 UI_HOST_PATH="${HELPERS_DIR}/opendesk-ui-host"
 CLAWDESK_UI_HOST_PATH="${HELPERS_DIR}/clawdesk-ui-host"
 STATUS_HELPER_PATH="${HELPERS_DIR}/opendesk-status"
@@ -28,8 +29,23 @@ VERSION="${VERSION:-0.1.0}"
 CODESIGN_IDENTITY="${CODESIGN_IDENTITY:--}"
 NATIVE_EXTENSIONS_SOURCE="${NATIVE_EXTENSIONS_SOURCE:-}"
 APPLE_VISION_SOURCE="${ROOT_DIR}/examples/native-extensions/macos-vision"
+MACOS_DEPLOYMENT_TARGET="${MACOS_DEPLOYMENT_TARGET:-12.0}"
+if [[ ! "${MACOS_DEPLOYMENT_TARGET}" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]]; then
+  printf 'MACOS_DEPLOYMENT_TARGET must be a numeric macOS version: %s\n' "${MACOS_DEPLOYMENT_TARGET}" >&2
+  exit 1
+fi
+MACOS_MIN_VERSION_FLAG="-mmacosx-version-min=${MACOS_DEPLOYMENT_TARGET}"
+
+# Go's cgo link step otherwise inherits the host's newest SDK target. Keep all
+# Go payloads launchable on the same macOS 12 baseline as the dynamically
+# loaded ScreenCaptureKit bridge; the bridge itself still fails closed below
+# macOS 13 when audio capture is unavailable.
+export MACOSX_DEPLOYMENT_TARGET="${MACOS_DEPLOYMENT_TARGET}"
+export CGO_CFLAGS="${CGO_CFLAGS:+${CGO_CFLAGS} }${MACOS_MIN_VERSION_FLAG}"
+export CGO_LDFLAGS="${CGO_LDFLAGS:+${CGO_LDFLAGS} }${MACOS_MIN_VERSION_FLAG}"
 
 mkdir -p "${DIST_DIR}"
+trap 'rm -f "${EXECUTABLE_STAGE}"' EXIT
 
 GO_BIN="${GO_BIN:-$(command -v go || true)}"
 if [[ -z "${GO_BIN}" ]]; then
@@ -48,7 +64,7 @@ if [[ -z "${GO_BIN}" ]]; then
   exit 1
 fi
 
-"${GO_BIN}" build -o "${DIST_DIR}/opendesk" ./cmd/opendesk
+"${GO_BIN}" build -o "${EXECUTABLE_STAGE}" ./cmd/opendesk
 "${GO_BIN}" build -o "${DIST_DIR}/opendesk-ui-host" ./cmd/opendesk-ui-host
 "${GO_BIN}" build -o "${DIST_DIR}/opendesk-status" ./cmd/opendesk-status
 
@@ -60,7 +76,7 @@ fi
 rm -rf "${APP_ROOT}"
 mkdir -p "${MACOS_DIR}" "${HELPERS_DIR}" "${RESOURCES_DIR}"
 
-cp "${DIST_DIR}/opendesk" "${EXECUTABLE_PATH}"
+cp "${EXECUTABLE_STAGE}" "${EXECUTABLE_PATH}"
 cp "${DIST_DIR}/opendesk-ui-host" "${UI_HOST_PATH}"
 cp "${DIST_DIR}/opendesk-ui-host" "${CLAWDESK_UI_HOST_PATH}"
 cp "${DIST_DIR}/opendesk-status" "${STATUS_HELPER_PATH}"
@@ -113,7 +129,7 @@ fi
 ARCH="$(uname -m)"
 SDK_PATH="$(xcrun --sdk macosx --show-sdk-path)"
 install -d -m 700 "${APPLE_VISION_BUNDLE}/bin" "${APPLE_VISION_BUNDLE}/types"
-xcrun swiftc -O -target "${ARCH}-apple-macosx12.0" -sdk "${SDK_PATH}" \
+xcrun swiftc -O -target "${ARCH}-apple-macosx${MACOS_DEPLOYMENT_TARGET}" -sdk "${SDK_PATH}" \
   "${APPLE_VISION_SOURCE}/main.swift" -framework Vision -framework ImageIO \
   -o "${APPLE_VISION_STAGE}"
 mv "${APPLE_VISION_STAGE}" "${APPLE_VISION_BIN}"
@@ -148,13 +164,17 @@ cat > "${PLIST_PATH}" <<EOF
   <key>CFBundleVersion</key>
   <string>1</string>
   <key>LSMinimumSystemVersion</key>
-  <string>12.0</string>
+  <string>${MACOS_DEPLOYMENT_TARGET}</string>
   <key>LSUIElement</key>
   <true/>
   <key>LSMultipleInstancesProhibited</key>
   <true/>
   <key>NSAppleEventsUsageDescription</key>
   <string>OpenDesk needs Automation permission to control System Events and target applications for desktop automation workflows.</string>
+  <key>NSScreenCaptureUsageDescription</key>
+  <string>OpenDesk captures system output in memory to match the sound patterns you choose. It does not save screen recordings.</string>
+  <key>NSAudioCaptureUsageDescription</key>
+  <string>OpenDesk captures system audio in memory to match the sound patterns you choose. It does not save audio recordings.</string>
   <key>NSUserNotificationAlertStyle</key>
   <string>alert</string>
 </dict>
@@ -167,6 +187,13 @@ else
   codesign --force --deep --sign "${CODESIGN_IDENTITY}" "${APP_ROOT}" >/dev/null
   codesign --verify --deep --strict "${APP_ROOT}"
 fi
+
+# Keep the documented ./dist/opendesk entry point, but execute the signed
+# payload inside OpenDesk.app. This gives a direct CLI invocation the same
+# stable macOS privacy identity as the app bundle instead of creating a second
+# bare-binary TCC client.
+rm -f "${DIST_DIR}/opendesk"
+ln -s "OpenDesk.app/Contents/MacOS/opendesk" "${DIST_DIR}/opendesk"
 
 printf 'Built binary: %s\n' "${DIST_DIR}/opendesk"
 printf 'Built custom UI host: %s\n' "${UI_HOST_PATH}"

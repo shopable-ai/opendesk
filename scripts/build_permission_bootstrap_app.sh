@@ -48,6 +48,8 @@ cat > "${PLIST_PATH}" <<'EOF'
   <string>12.0</string>
   <key>NSAppleEventsUsageDescription</key>
   <string>OpenDesk needs Automation permission to control System Events and target applications for desktop automation workflows.</string>
+  <key>NSScreenCaptureUsageDescription</key>
+  <string>OpenDesk requests screen recording access so its desktop automation features can capture the selected screen content.</string>
 </dict>
 </plist>
 EOF

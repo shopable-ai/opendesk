@@ -36,14 +36,88 @@ import (
 	"github.com/go-vgo/robotgo"
 )
 
+// commandLineArgs removes the private LaunchServices process-serial-number
+// argument that macOS adds when an app bundle is opened through Finder or
+// `open`. It is not an OpenDesk option; passing it to flag.Parse would make a
+// double-clicked OpenDesk.app exit before it can start its default service.
+func commandLineArgs() []string {
+	args := os.Args[1:]
+	if runtime.GOOS != "darwin" {
+		return args
+	}
+	return stripLeadingMacOSLaunchServicesPSN(args)
+}
+
+func stripLeadingMacOSLaunchServicesPSN(args []string) []string {
+	if len(args) == 0 || !isMacOSLaunchServicesPSN(args[0]) {
+		return args
+	}
+	return args[1:]
+}
+
+func isMacOSLaunchServicesPSN(arg string) bool {
+	const prefix = "-psn_"
+	if !strings.HasPrefix(arg, prefix) {
+		return false
+	}
+	parts := strings.Split(strings.TrimPrefix(arg, prefix), "_")
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return false
+	}
+	for _, part := range parts {
+		for _, character := range part {
+			if character < '0' || character > '9' {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func normalizeMacOSLaunchServicesArgs() {
+	if runtime.GOOS != "darwin" {
+		return
+	}
+	args := commandLineArgs()
+	if len(args) == len(os.Args)-1 {
+		return
+	}
+	os.Args = append([]string{os.Args[0]}, args...)
+}
+
+// Finder and `open` can start a bundle with `/` as the working directory.
+// That directory is not writable, so a script execution would fail before it
+// can create its normal `.runtime` artifact directory. Restrict the repair to
+// a real app-bundle payload started from `/`; direct CLI execution preserves
+// the caller's working directory.
+func normalizeMacOSBundleLaunchWorkingDirectory() {
+	if runtime.GOOS != "darwin" {
+		return
+	}
+	workingDirectory, err := os.Getwd()
+	if err != nil || workingDirectory != string(filepath.Separator) {
+		return
+	}
+	executable, err := os.Executable()
+	if err != nil || !strings.Contains(filepath.ToSlash(filepath.Clean(executable)), ".app/Contents/MacOS/") {
+		return
+	}
+	home, err := os.UserHomeDir()
+	if err != nil || strings.TrimSpace(home) == "" {
+		return
+	}
+	_ = os.Chdir(home)
+}
+
 func init() {
-	if automation.MacOSRegionSelectorHelperRequested(os.Args[1:]) {
+	args := commandLineArgs()
+	if automation.MacOSRegionSelectorHelperRequested(args) {
 		// Pin the primordial process thread before Go can schedule main
 		// elsewhere. AppKit must own that thread for the selector lifetime.
 		runtime.LockOSThread()
 		return
 	}
-	if aicli.IsCommand(os.Args[1:]) || nativeExtensionCLIRequested(os.Args[1:]) || automation.MacOSNotificationHelperRequested(os.Args[1:]) || automation.MacOSRegionSelectorHelperRequested(os.Args[1:]) {
+	if aicli.IsCommand(args) || nativeExtensionCLIRequested(args) || automation.MacOSNotificationHelperRequested(args) || automation.MacOSRegionSelectorHelperRequested(args) {
 		return
 	}
 }
@@ -182,6 +256,8 @@ func resolveCustomUIActivation(config *Config) error {
 var isAutoRunJs bool = false
 
 func main() {
+	normalizeMacOSLaunchServicesArgs()
+	normalizeMacOSBundleLaunchWorkingDirectory()
 	os.Stdout.Sync()
 	if aicli.IsCommand(os.Args[1:]) {
 		os.Exit(aicli.Execute(os.Args[1:], os.Stdout, os.Stderr))
