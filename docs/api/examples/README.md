@@ -17,6 +17,7 @@ order: 3
 ## 目录
 
 - [基础 Runtime 与数据](../../../examples/)
+- [SQLite Runtime API](../../../examples/sqlite/)
 - [Custom UI](../../../examples/custom-ui/)
 - [macOS 权限与真实应用](../../../examples/mac/)
 - [AI recipe](../../../examples/ai-cli/)
@@ -68,6 +69,28 @@ order: 3
 - `page.waitfor.js` — [源码](../../../examples/page.waitfor.js)；运行：
   `./opendesk -script examples/page.waitfor.js -console-mode script`；检查：
   [smoke.js](../../../tests/runtime-api/smoke.js)。
+
+## SQLite Runtime API
+
+SQLite 示例和测试都从仓库根目录运行，且只会把数据库、日志和结果写入
+`.runtime/tests/sqlite/`。它们不使用 Scheduler 或 AppStorage 的内部数据库。完整的 API
+契约、参数、取消和事务边界见 [SQLite API](../sqlite.md)；各脚本的行为范围见
+[SQLite examples README](../../../examples/sqlite/README.md)。
+
+- `sqlite/quickstart.js` — [源码](../../../examples/sqlite/quickstart.js)；运行：
+  `./dist/opendesk -script examples/sqlite/quickstart.js -console-mode script`；检查基础建表、绑定、
+  `batch`、查询和显式关闭。
+- `sqlite/smoke.test.js` — [公开 Runtime 测试脚本](../../../examples/sqlite/smoke.test.js)；运行：
+  `./dist/opendesk -script examples/sqlite/smoke.test.js -console-mode script`；检查路径、值绑定、
+  多语句拒绝、只读、查询取消、锁等待、batch 回滚和句柄生命周期。
+- `sqlite/persistence-write.js` / `sqlite/persistence-read.js` — [写入脚本](../../../examples/sqlite/persistence-write.js)
+  与 [只读验证脚本](../../../examples/sqlite/persistence-read.js)；按顺序运行：
+  `./dist/opendesk -script examples/sqlite/persistence-write.js -console-mode script`，然后
+  `./dist/opendesk -script examples/sqlite/persistence-read.js -console-mode script`。两次执行使用独立进程，
+  后者以 `mode: 'ro'` 验证前者写入的 nonce。
+- SQLite 专用正式 gate — [入口](../../../scripts/test_runtime_apis.js)；运行：
+  `OPENDESK_RUNTIME_API_MODE=sqlite OPENDESK_BINARY=./dist/opendesk ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script`；
+  依次运行 `SQLite.open` 与句柄方法的 contract、共享 JS 行为断言、scoped coverage 和 execution cleanup。
 
 ## 桌面输入、屏幕、窗口和系统
 
