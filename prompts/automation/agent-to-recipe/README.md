@@ -25,6 +25,12 @@
 
 request、handoff、权限、发布与恢复仍只维护在[共享合同](../../../docs/frameworks/agent-to-recipe-skill-contract.md)。专业依据按需读[主方法](../../../docs/frameworks/demonstration-to-automation-pipeline.md)、[任务求解](../../../docs/frameworks/automation-problem-solving-framework.md)和[应用开发](../../../docs/frameworks/app-development-framework.md)。
 
+## 已有普通 JS 的接续入口
+
+需要采用或修复已有脚本时仍从 `automation-plan` 进入，按[共享合同](../../../docs/frameworks/agent-to-recipe-skill-contract.md)的可选接续元数据固定已有资产、区分证据作用、限定反向提炼与变更范围，再只调用有实际缺口的现有 Skill。原样复用和最小修复都由 `recipe-build` 形成可核对清单，最后由 `recipe-qualify` 对冻结候选做明确范围的 Fresh Run；这不是第七个 Skill 或新阶段。
+
+接续可以交付“该已有候选在本次声明范围内通过”，不能据此改写其来源、把参考运行标成 Agent 示范，或宣称完整新生成链通过。用户要求完整新 Agent 示范／新生成时，仍走上面的完整阶段和 Gate。
+
 ## 宿主怎样实际使用
 
 宿主支持 Skill 时按其实际机制逐个启用；仅有文件与对话能力时，显式读取当前 Skill、阶段卡、共享合同和指定输入后顺序推进。文件本身不提供上下文隔离、工具授权或执行能力，不虚构 `opendesk skill run`／Execution.resume。

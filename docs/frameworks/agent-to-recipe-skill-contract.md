@@ -21,6 +21,8 @@ Agent 使用 OpenDesk 当前能力完成真实任务，保存关键事实，复�
 
 任务合同定义正确性；普通 JS 定义业务执行；Evidence 证明实际发生的事实。过程说明与交接 JSON 不能成为第二份可执行规格。计划可变更，但不得为了通过而静默修改目标或降低成功条件。
 
+已有普通 JS 的接续也是路线 A 的受限入口：先冻结资产来源和内容，再按实际目标选择原样复用或最小修复，只补当前交付所需的证据、过程和验收缺口。既有代码或历史运行不能被追认成一次新的 Agent 示范；接续验收通过也不能表述为完整新生成链通过。用户要求完整新 Agent 示范／新生成时，仍须满足原 S1—S12 的全部适用要求。
+
 ## 2. 六个独立 Skill 与阶段映射
 
 | Skill | 原方法阶段 | 主要输入 | 本环节必须保存的主产物 | 正常消费者 |
@@ -35,7 +37,7 @@ Agent 使用 OpenDesk 当前能力完成真实任务，保存关键事实，复�
 S1 先形成任务合同，再形成粗粒度工作包计划。初始计划允许明确的未知项，禁止编造全部点击细节。S3—S5 是操作、观察、标注的微循环；S6 是整次示范的业务验证。一个工作包完成不代表全部任务完成。
 
 ```text
-新任务／接续
+新任务／完整新生成
 → 规划
 → 应用初步认识
 → 真实示范并逐节点保存事实
@@ -44,7 +46,18 @@ S1 先形成任务合同，再形成粗粒度工作包计划。初始计划允�
 → 直接生成普通 JS
 → 独立 Fresh Run 验收
 → 交付，或按问题归属定向返回
+
+已有普通 JS 接续
+→ 规划并冻结已有资产、目标范围与证据作用
+→ 盘点适用证据，并按真实缺口定向补证
+→ 在证据边界内反向提炼，并按需补强应用认识
+→ 原样复用，或只对已确认缺口做最小修复
+→ 为冻结候选建立清单
+→ 独立 Fresh Run 做明确范围的验收
+→ 限定范围交付，或按问题归属定向返回
 ```
+
+接续分支复用现有六个 Skill 和十二阶段，不新增 Skill、阶段或执行入口。未调用的环节表示本次接续范围不需要它，不表示相应完整开发 Gate 已通过。
 
 应用工程每次调用明确 `discover`、`harden` 或 `repair` 模式；不是重复研究整个应用。AppProfile 的事实条目标注 `observed`、`demo-confirmed` 或 `qualified`，且附环境范围和证据；阶段名称本身不能自动提升成熟度。
 
@@ -102,6 +115,7 @@ S1 先形成任务合同，再形成粗粒度工作包计划。初始计划允�
 | `authority / capabilities` | 获准对象、动作、读写根目录及工具；敏感动作绑定目标、内容及相关版本 |
 | `budgets` | 本次与任务总执行时间、工具调用、重试和修复上限；给出本次实际预算而非无限循环 |
 | `environmentRef / evidenceRoots` | 当前入口、OS／应用／provider／构建来源和获准证据根；不含环境变量全集 |
+| `continuation` | 可选的已有资产接续元数据；字段及语义见下文。缺失表示未知，不表示从零生成或没有既有资产 |
 
 ### 输出交接 `handoff.json`
 
@@ -116,10 +130,28 @@ S1 先形成任务合同，再形成粗粒度工作包计划。初始计划允�
 | `sideEffects` | 已执行／结果待核对的关键动作、目标及证据；不能把 uncertain 写成 not-executed |
 | `failures[]` | primaryClass 映射 F0—F10；可有 secondaryClasses、责任环节、下一步安全动作 |
 | `planDelta / nextRequest` | 建议变更或补采请求；生产者不得越权直接覆盖全局进度、上游事实和授权 |
+| `continuation` | 可选；记录本 attempt 实际消费或产生的接续来源、证据作用和处置边界，不代替 artifacts、Gate 或失败记录 |
 
-所有交接都要有这些字段；不适用使用空数组或明确说明，不能用缺字段掩盖未知。门禁适用已有 G0—G7；只有 `pass` 可进入依赖该结果的正常路径，`warn` 仅可探测／诊断。格式完整的失败包可进入诊断，不能作为成功示范进入生成。
+除表中明确标为可选的 `continuation` 外，所有交接都要有这些字段；不适用使用空数组或明确说明，不能用缺字段掩盖未知。门禁适用已有 G0—G7；只有 `pass` 可进入依赖该结果的正常路径，`warn` 仅可探测／诊断。格式完整的失败包可进入诊断，不能作为成功示范进入生成。
 
 文件写完／格式正确／生产者自报成功，分别不等于业务成功。负向测试中，“错误期望被拒绝”是测试通过，但该业务执行仍应记录失败，不能混用两种 verdict。
+
+### 已有资产接续的可选 v1 增量字段
+
+`agent-to-recipe/v1` 的 request、handoff 和需要记录来源的主产物可以带可选 `continuation` 对象；旧产物不因此失效。该对象及其子字段缺失一律表示“未知／未记录”，不得推断为 false、空范围、从零生成或已满足。它只记录来源、证据作用和资产处置事实，不新增工作状态、scenario 状态或 Gate。尤其不得把 `reuse-unchanged`／`minimal-repair` 写进 `executionStatus`，也不得用 `gate.verdict` 表示资产是否被采用。
+
+`continuation` 的字段词汇只在此定义：
+
+下列所有 `*Ref`／`*Refs` 都使用现有引用结构 `rootId / path / sha256 / schemaVersion`；需要区分同一文件中的声明时再由 claim／scope 限定，不引入无 hash 的旁路引用。
+
+| 字段 | 约束 |
+| --- | --- |
+| `sourceAssetRefs[]` | 接续起点的已有脚本、清单或相关资产。引用只能证明所指字节和来源记录，不能证明业务正确 |
+| `evidenceRoles[]` | 每项包含 `evidenceRef / role / claimRefs / scope`。`role` 仅为 `asset-provenance`、`historical-evidence`、`reference-execution`、`agent-demonstration` 或 `candidate-qualification`：依次表示来源依据、当前接续前产生的历史证据、当前为理解已有资产而执行的参考观察、当前 Agent 示范事实、冻结候选的独立验收事实。历史事实不证明当前现场，reference execution 也不自动成为示范或资格证据。同一证据只有在分别满足条件时才能登记多个作用；一种作用不能自动升级为另一种 |
+| `reverseSynthesis` | 可选对象，包含 `sourceRefs / scope / bounds / unresolved`；记录从已有实现反向提炼的明确来源、允许确认的范围、不得外推的边界和未决项。代码可证明实现结构，不能单独证明业务意图、真实行为或完整正确性 |
+| `assetDisposition` | 可选对象，包含 `treatment / preservedScope / changedScope / reasons / changeRefs`。`treatment` 仅为 `reuse-unchanged` 或 `minimal-repair`；前者要求消费的脚本 ref／hash 不变，后者要求新候选、新 hash 和可核对的最小变更引用。它是处置分类，不是生命周期状态 |
+
+完整新生成不得用 `continuation` 绕过成功 Agent 示范、完整 SemanticProcedure 或新候选验收。接续则可以只对声明范围做反向提炼和修复；范围外保持未知或未资格化，不能因未改动而自动继承结论。
 
 ## 6. 六类主产物最小内容
 
@@ -145,13 +177,17 @@ WorkPlan 包含 `revision / contractRef / workPackages / dependencies / budgets 
 
 包含 `businessSteps / parameters / config / secretRefs / runtimeValues / dataDependencies / retainedReasons / omittedReasons / recoveryCandidates / supportedScope / unresolved / evidenceRefs`。每步定义输入、前后条件、输出、验证与副作用；区分事实、解释和待测规则。去除探索不等于删除事实。未证明分支只作为候选或补采请求，不进入支持声明。
 
+接续中的反向提炼只能在 `continuation.reverseSynthesis` 声明的边界内确认过程；已有代码说明“实现了什么”，不自动说明“业务为何如此”或“现场确实成功”。用于最小修复的局部 SemanticProcedure 可以有受限 Gate scope，但不能冒充完整新生成所需的完整过程。
+
 ### CandidateManifest
 
-包含 `scriptRef / scriptHash / contractRef / procedureRef / appProfileRefs / apiRefs / entryCommand / workingDirectory / inputContract / dependencies / supportedScope / sourceMapping / limitations`。脚本以普通 JS 的函数、验证、失败处理表达业务；sourceMapping 可为业务步骤到函数的简表，不是 SourceMap／IR 引擎。读取在线 OCR／Vision 或模型依赖必须明示；不得把依赖 Agent 实时规划的程序称为确定性离线 Recipe。
+包含 `scriptRef / scriptHash / contractRef / procedureRef / appProfileRefs / apiRefs / entryCommand / workingDirectory / inputContract / dependencies / supportedScope / sourceMapping / limitations`。脚本以普通 JS 的函数、验证、失败处理表达业务；sourceMapping 可为业务步骤到函数的简表，不是 SourceMap／IR 引擎。读取在线 OCR／Vision 或模型依赖必须明示；不得把依赖 Agent 实时规划的程序称为确定性离线 Recipe。只有 `reuse-unchanged` 且本次声明范围不要求反向提炼时，`procedureRef` 才可为 `null`，并须在 `limitations` 与接续处置中说明；不能用该例外规避新生成或最小修复所需的过程依据。
+
+接续时清单通过可选 `continuation` 保存已有资产 lineage 和实际处置。原样复用可以直接引用获准路径下 hash 不变的脚本，不要求复制或重写；任何代码修改都形成新候选并使旧资格结论不能自动沿用。
 
 ### QualificationRecord
 
-包含 `candidateRef / contractRef / scenarios / actualCommands / workingDirectories / executionRefs / buildProvenance / environmentScope / observedResults / evidenceRefs / failedCriteria / skipped / verdict / repairRequests`。场景结果至少区分 pass、fail、not-run、blocked，不得把没有执行写成通过。验收只针对具体候选与范围，不能修改候选和标准后仍沿用旧资格结论。
+包含 `candidateRef / contractRef / scenarios / actualCommands / workingDirectories / executionRefs / buildProvenance / environmentScope / observedResults / evidenceRefs / failedCriteria / skipped / verdict / repairRequests`，并可带 v1 增量字段 `qualificationScope`；旧记录缺失该字段表示资格范围与链路来源未知，不能推断为完整范围或任一链路。`qualificationScope` 包含 `lineage / requested / exercised / qualified / excluded`。`lineage` 仅为 `reference-only`、`continuation-chain` 或 `new-generation-chain`，分别表示只验参考候选、从已有资产接续、由当前完整新生成链产生；这是来源分类，不是状态或 Gate。其余四项分别记录调用者要求验证的范围、实际执行范围、证据足以支持的子集，以及候选已声明但明确不在本次 requested 内的范围与原因。requested 中未资格化的部分不得移入 `excluded`，必须保留在场景／`skipped`／`failedCriteria` 中；只有 requested 全部进入 qualified 且没有对应 fail、not-run 或 blocked 时，`verdict` 才可为 pass。生产者不得为取得 pass 静默缩小 requested；handoff 的 `gate.scope` 不得宽于 requested，且 gate 为 pass 时不得宽于 qualified。场景结果至少区分 pass、fail、not-run、blocked，不得把没有执行写成通过。验收只针对具体候选与范围，不能修改候选和标准后仍沿用旧资格结论。
 
 ## 7. 发布、消费与恢复
 
