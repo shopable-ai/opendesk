@@ -63,7 +63,7 @@ failure-exit → negative。这里的历史 smoke 编排包含扩展构建和 lo
 
 `single/<family>.js` 是薄入口，与 `unit-selected.js` 复用同一个
 `support/run-selected.js`，不再用 `eval` 拼装另一套断言或修改 `Execution.env`。
-固定入口拒绝残留筛选变量；完整[单项脚本和命令表](../api/examples/single-tests.md)随 manifest 核验。
+固定入口拒绝残留筛选变量；完整[开发者单项测试命令](../../tests/runtime-api/single/README.md)随 manifest 核验。
 这些是单个 unit 文件的检查，不是每个方法单独的 runner，也不是整组所有层次已验收。
 
 ### 只运行一个或几个接口组

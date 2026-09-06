@@ -170,3 +170,38 @@ test('canonical environment suite no longer launches the old compatibility path'
   assert(text.includes("File.join(ROOT_DIR, 'examples', 'runtime', 'environment.js')"));
   assert(!text.includes("File.join(ROOT_DIR, 'examples', 'environment.js')"));
 });
+
+
+test('user example page is an unordered list of runnable examples, not unit tests', () => {
+  const document = read('docs/api/examples/single-tests.md');
+  assert.match(document, /^# 单项示例运行$/m);
+  assert.doesNotMatch(document, /^\s*\|/m);
+  assert.doesNotMatch(document, /单文件入口|唯一断言来源|tests\/runtime-api|OPENDESK_RUNTIME_API_UNIT_FILTER/);
+  const items = document.split('\n').filter(line => line.startsWith('- '));
+  assert(items.length > 0);
+  for (const line of items) {
+    const link = /\]\(\.\.\/\.\.\/\.\.\/(examples\/[^)]+\.js)\)/.exec(line);
+    const command = /(?:-script |ai run )(examples\/[^\s`]+\.js)(?=[\s`])/.exec(line);
+    assert(link, 'example name must link to its source: ' + line);
+    assert(command, 'example item must contain a run command: ' + line);
+    assert.equal(command[1], link[1], 'example command must run the linked source');
+    assert.doesNotMatch(command[1], /(?:^|\/)\.\.?(?:\/|$)/);
+  }
+});
+
+test('public example navigation does not present developer gates as user commands', () => {
+  const document = read('docs/api/examples/README.md');
+  assert.match(document, /\[单项示例运行\]\(single-tests\.md\)/);
+  assert.doesNotMatch(document, /-script\s+(?:tests|scripts)\//);
+  assert.doesNotMatch(document, /单文件入口|唯一断言来源/);
+});
+
+test('developer command list stays with tests and contains no redundant source columns', () => {
+  assert.equal(guide, 'tests/runtime-api/single/README.md');
+  const rendered = documentationTable(files);
+  assert.doesNotMatch(rendered, /^\s*\||单文件入口|唯一断言来源/m);
+  assert.equal(rendered.split('\n').filter(line => line.startsWith('- ')).length, files.length);
+  const document = read(guide);
+  assert.match(document, /开发者/);
+  assert.doesNotMatch(document, /^\s*\|/m);
+});

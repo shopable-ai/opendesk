@@ -1,108 +1,78 @@
 ---
-title: 单项接口测试脚本
-description: 每个已登记 Runtime unit 接口组的单文件入口、断言来源和可复制命令。
+title: 单项示例运行
+description: 直接运行 examples 中的示例，查看输出和使用方法。
 order: 4
 ---
 
-# 单项接口测试脚本
+# 单项示例运行
 
-工作目录：OpenDesk 仓库根目录。准备与源码匹配的主程序后，下面每行只需一条命令；
-无需先设置筛选变量。Windows 将 `./dist/opendesk` 换为 `.\dist\opendesk.exe`，脚本路径可保留 `/`。
-这是直接 OpenDesk Runtime 入口，不用 Node 执行；不要直接启动 `unit/*.test.js` 或 `gates/suites/*.js`。
+从仓库根目录运行，点击示例名称查看代码。按命令使用已准备好的 `opendesk` 或 `dist/opendesk`，输出显示在终端；窗口示例还会打开实际窗口。
 
-## 范围与前置条件
+## 基础用法
 
-每个入口只选择一个已有 unit 文件（不是单个 API 方法），复用现有 `manifest.js`、选择器和断言。
-三个根层 unit 文件 `geometry.js`、`geometry-layout.js`、`ui.js` 同样由 manifest 确定归属。
-单项执行不会隐含构建扩展、运行完整 contract/coverage/quality 或完成任何实际示例。
+- [Runtime 入门](../../../examples/runtime/api-quickstart.js)：`./opendesk -script examples/runtime/api-quickstart.js -console-mode script`
+- [环境信息](../../../examples/runtime/environment.js)：`./opendesk -script examples/runtime/environment.js -console-mode script`
+- [路径与脚本位置](../../../examples/runtime/path.js)：`./dist/opendesk -script examples/runtime/path.js -console-mode script`
+- [文件读写、复制与移动](../../../examples/runtime/file.js)：`./opendesk -script examples/runtime/file.js -console-mode script`
+- [JSON 读写](../../../examples/runtime/file-json.js)：`./opendesk -script examples/runtime/file-json.js -console-mode script`
+- [运行命令并打印结果](../../../examples/runtime/command.js)：`./dist/opendesk -script examples/runtime/command.js -console-mode script`
+- [控制台打印](../../../examples/console.js)：`./opendesk -script examples/console.js -console-mode script`
+- [Promise](../../../examples/promise.js)：`./opendesk -script examples/promise.js -console-mode script`
+- [等待](../../../examples/sleep.js)：`./opendesk -script examples/sleep.js -console-mode script`
+- [定时器](../../../examples/timer.js)：`./opendesk -script examples/timer.js -console-mode script`
 
-固定入口拒绝已设置的 `OPENDESK_RUNTIME_API_UNIT_FILTER`（含空值），防止残留环境改变或混淆范围。
-先移除该变量再运行；确实要选择多个组时仍用 `unit-selected.js`。入口不修改 `Execution.env`。
+## HTTP 请求
 
-原有 unit 的参数校验、模拟组合及真实资源需求保持不变。平台能力、权限、UI host、测试 bundle
-和 fixture 未就绪时必须报告失败/未验证，不能通过增加 skip 或假返回值宣称通过。尤其：
+先启动自己控制的测试服务，并将地址替换为实际地址。
 
-- `native-extension` 需要被当前 CLI 发现的 `goBasic` 测试 bundle。需要构建准备时使用下文正式入口。
-- `sqlite` 的连接、路径、取消等仍是真实操作；单项运行不能代替退出后资源归零与专项 coverage。
-- `page`、输入/窗口、`dialog`、`custom-ui`、音视频等 unit 不证明真实桌面或视觉验收通过；保留各自 live gate。
+- [GET 请求](../../../examples/runtime/http.js)：`OPENDESK_EXAMPLE_HTTP_URL=http://127.0.0.1:8080/echo ./opendesk -script examples/runtime/http.js -console-mode script`
 
-## 独立入口与命令
+## SQLite
 
-<!-- runtime-api-single:start -->
-| 接口组 ID | 单文件入口 | 唯一断言来源 | 从仓库根目录运行 |
-| --- | --- | --- | --- |
-| `page` | [page.js](../../../tests/runtime-api/single/page.js) | [原用例](../../../tests/runtime-api/unit/page.test.js) | `./dist/opendesk -script tests/runtime-api/single/page.js -console-mode script` |
-| `mouse` | [mouse.js](../../../tests/runtime-api/single/mouse.js) | [原用例](../../../tests/runtime-api/unit/mouse.test.js) | `./dist/opendesk -script tests/runtime-api/single/mouse.js -console-mode script` |
-| `keyboard` | [keyboard.js](../../../tests/runtime-api/single/keyboard.js) | [原用例](../../../tests/runtime-api/unit/keyboard.test.js) | `./dist/opendesk -script tests/runtime-api/single/keyboard.js -console-mode script` |
-| `global-shortcut` | [global-shortcut.js](../../../tests/runtime-api/single/global-shortcut.js) | [原用例](../../../tests/runtime-api/unit/global-shortcut.test.js) | `./dist/opendesk -script tests/runtime-api/single/global-shortcut.js -console-mode script` |
-| `events` | [events.js](../../../tests/runtime-api/single/events.js) | [原用例](../../../tests/runtime-api/unit/events.test.js) | `./dist/opendesk -script tests/runtime-api/single/events.js -console-mode script` |
-| `app` | [app.js](../../../tests/runtime-api/single/app.js) | [原用例](../../../tests/runtime-api/unit/app.test.js) | `./dist/opendesk -script tests/runtime-api/single/app.js -console-mode script` |
-| `notifications` | [notifications.js](../../../tests/runtime-api/single/notifications.js) | [原用例](../../../tests/runtime-api/unit/notifications.test.js) | `./dist/opendesk -script tests/runtime-api/single/notifications.js -console-mode script` |
-| `touchscreen` | [touchscreen.js](../../../tests/runtime-api/single/touchscreen.js) | [原用例](../../../tests/runtime-api/unit/touchscreen.test.js) | `./dist/opendesk -script tests/runtime-api/single/touchscreen.js -console-mode script` |
-| `window` | [window.js](../../../tests/runtime-api/single/window.js) | [原用例](../../../tests/runtime-api/unit/window.test.js) | `./dist/opendesk -script tests/runtime-api/single/window.js -console-mode script` |
-| `screen` | [screen.js](../../../tests/runtime-api/single/screen.js) | [原用例](../../../tests/runtime-api/unit/screen.test.js) | `./dist/opendesk -script tests/runtime-api/single/screen.js -console-mode script` |
-| `system` | [system.js](../../../tests/runtime-api/single/system.js) | [原用例](../../../tests/runtime-api/unit/system.test.js) | `./dist/opendesk -script tests/runtime-api/single/system.js -console-mode script` |
-| `execution` | [execution.js](../../../tests/runtime-api/single/execution.js) | [原用例](../../../tests/runtime-api/unit/execution.test.js) | `./dist/opendesk -script tests/runtime-api/single/execution.js -console-mode script` |
-| `command` | [command.js](../../../tests/runtime-api/single/command.js) | [原用例](../../../tests/runtime-api/unit/command.test.js) | `./dist/opendesk -script tests/runtime-api/single/command.js -console-mode script` |
-| `path` | [path.js](../../../tests/runtime-api/single/path.js) | [原用例](../../../tests/runtime-api/unit/path.test.js) | `./dist/opendesk -script tests/runtime-api/single/path.js -console-mode script` |
-| `file` | [file.js](../../../tests/runtime-api/single/file.js) | [原用例](../../../tests/runtime-api/unit/file.test.js) | `./dist/opendesk -script tests/runtime-api/single/file.js -console-mode script` |
-| `file-json` | [file-json.js](../../../tests/runtime-api/single/file-json.js) | [原用例](../../../tests/runtime-api/unit/file-json.test.js) | `./dist/opendesk -script tests/runtime-api/single/file-json.js -console-mode script` |
-| `sqlite` | [sqlite.js](../../../tests/runtime-api/single/sqlite.js) | [原用例](../../../tests/runtime-api/unit/sqlite.test.js) | `./dist/opendesk -script tests/runtime-api/single/sqlite.js -console-mode script` |
-| `storage` | [storage.js](../../../tests/runtime-api/single/storage.js) | [原用例](../../../tests/runtime-api/unit/storage.test.js) | `./dist/opendesk -script tests/runtime-api/single/storage.js -console-mode script` |
-| `clipboard` | [clipboard.js](../../../tests/runtime-api/single/clipboard.js) | [原用例](../../../tests/runtime-api/unit/clipboard.test.js) | `./dist/opendesk -script tests/runtime-api/single/clipboard.js -console-mode script` |
-| `console` | [console.js](../../../tests/runtime-api/single/console.js) | [原用例](../../../tests/runtime-api/unit/console.test.js) | `./dist/opendesk -script tests/runtime-api/single/console.js -console-mode script` |
-| `http` | [http.js](../../../tests/runtime-api/single/http.js) | [原用例](../../../tests/runtime-api/unit/http.test.js) | `./dist/opendesk -script tests/runtime-api/single/http.js -console-mode script` |
-| `notify` | [notify.js](../../../tests/runtime-api/single/notify.js) | [原用例](../../../tests/runtime-api/unit/notify.test.js) | `./dist/opendesk -script tests/runtime-api/single/notify.js -console-mode script` |
-| `native-extension` | [native-extension.js](../../../tests/runtime-api/single/native-extension.js) | [原用例](../../../tests/runtime-api/unit/native-extension.test.js) | `./dist/opendesk -script tests/runtime-api/single/native-extension.js -console-mode script` |
-| `axios` | [axios.js](../../../tests/runtime-api/single/axios.js) | [原用例](../../../tests/runtime-api/unit/axios.test.js) | `./dist/opendesk -script tests/runtime-api/single/axios.js -console-mode script` |
-| `http-axios` | [http-axios.js](../../../tests/runtime-api/single/http-axios.js) | [原用例](../../../tests/runtime-api/unit/http-axios.test.js) | `./dist/opendesk -script tests/runtime-api/single/http-axios.js -console-mode script` |
-| `ocr` | [ocr.js](../../../tests/runtime-api/single/ocr.js) | [原用例](../../../tests/runtime-api/unit/ocr.test.js) | `./dist/opendesk -script tests/runtime-api/single/ocr.js -console-mode script` |
-| `vision` | [vision.js](../../../tests/runtime-api/single/vision.js) | [原用例](../../../tests/runtime-api/unit/vision.test.js) | `./dist/opendesk -script tests/runtime-api/single/vision.js -console-mode script` |
-| `vision-layout` | [vision-layout.js](../../../tests/runtime-api/single/vision-layout.js) | [原用例](../../../tests/runtime-api/unit/vision-layout.test.js) | `./dist/opendesk -script tests/runtime-api/single/vision-layout.js -console-mode script` |
-| `image-color` | [image-color.js](../../../tests/runtime-api/single/image-color.js) | [原用例](../../../tests/runtime-api/unit/image-color.test.js) | `./dist/opendesk -script tests/runtime-api/single/image-color.js -console-mode script` |
-| `sound` | [sound.js](../../../tests/runtime-api/single/sound.js) | [原用例](../../../tests/runtime-api/unit/sound.test.js) | `./dist/opendesk -script tests/runtime-api/single/sound.js -console-mode script` |
-| `audio` | [audio.js](../../../tests/runtime-api/single/audio.js) | [原用例](../../../tests/runtime-api/unit/audio.test.js) | `./dist/opendesk -script tests/runtime-api/single/audio.js -console-mode script` |
-| `dialog` | [dialog.js](../../../tests/runtime-api/single/dialog.js) | [原用例](../../../tests/runtime-api/unit/dialog.test.js) | `./dist/opendesk -script tests/runtime-api/single/dialog.js -console-mode script` |
-| `custom-ui` | [custom-ui.js](../../../tests/runtime-api/single/custom-ui.js) | [原用例](../../../tests/runtime-api/unit/custom-ui.test.js) | `./dist/opendesk -script tests/runtime-api/single/custom-ui.js -console-mode script` |
-| `floating-window` | [floating-window.js](../../../tests/runtime-api/single/floating-window.js) | [原用例](../../../tests/runtime-api/unit/floating-window.test.js) | `./dist/opendesk -script tests/runtime-api/single/floating-window.js -console-mode script` |
-| `window-library` | [window-library.js](../../../tests/runtime-api/single/window-library.js) | [原用例](../../../tests/runtime-api/unit/window-library.test.js) | `./dist/opendesk -script tests/runtime-api/single/window-library.js -console-mode script` |
-| `globals` | [globals.js](../../../tests/runtime-api/single/globals.js) | [原用例](../../../tests/runtime-api/unit/globals.test.js) | `./dist/opendesk -script tests/runtime-api/single/globals.js -console-mode script` |
-| `geometry` | [geometry.js](../../../tests/runtime-api/single/geometry.js) | [原用例](../../../tests/runtime-api/geometry.js) | `./dist/opendesk -script tests/runtime-api/single/geometry.js -console-mode script` |
-| `geometry-layout` | [geometry-layout.js](../../../tests/runtime-api/single/geometry-layout.js) | [原用例](../../../tests/runtime-api/geometry-layout.js) | `./dist/opendesk -script tests/runtime-api/single/geometry-layout.js -console-mode script` |
-| `ui` | [ui.js](../../../tests/runtime-api/single/ui.js) | [原用例](../../../tests/runtime-api/ui.js) | `./dist/opendesk -script tests/runtime-api/single/ui.js -console-mode script` |
-<!-- runtime-api-single:end -->
+- [建表、写入与查询](../../../examples/sqlite/quickstart.js)：`./dist/opendesk -script examples/sqlite/quickstart.js -console-mode script`
+- [持久化写入](../../../examples/sqlite/persistence-write.js)：`./dist/opendesk -script examples/sqlite/persistence-write.js -console-mode script`
+- [读取上一步的数据](../../../examples/sqlite/persistence-read.js)：`./dist/opendesk -script examples/sqlite/persistence-read.js -console-mode script`
 
-## 结果与完整验收
+## Page 点击与截图
 
-单项结果位于 `.runtime/tests/runtime-api/<Execution.id>/results/`（正式上下文则使用它的 runDir）：
-`unit-selection.json` 记录选中的 ID 和用例路径，`runtime-api-unit-selected.json` 记录执行结果。
-选择记录明确 `scope: selected-unit-files`、`fullCatalog: false`；失败会抛错，不能获得空测试的绿色结果。
-这些文件不能替代全量 `unit.json`、coverage 或 quality，缺少实机验证不能写成已通过。
+现有 `page.js` 会按固定坐标点击桌面。先查看代码、调整坐标，再在测试桌面运行，并授予截图权限。
 
-多组直接运行仍支持：
+- [Page 点击与截图](../../../examples/page.js)：`./opendesk -script examples/page.js -console-mode script`
 
-```bash
-OPENDESK_RUNTIME_API_UNIT_FILTER=file,path ./dist/opendesk -script tests/runtime-api/unit-selected.js -console-mode script
-```
+## 窗口与键盘
 
-需要构建来源、watchdog、测试扩展准备和清理证据时仍用原正式入口：
+查询无需修改窗口。输入和移动示例需将标题、PID 替换为可丢弃测试窗口的实际值，并按系统提示授予权限。
 
-```bash
-OPENDESK_RUNTIME_API_MODE=unit-selected OPENDESK_RUNTIME_API_UNIT_FILTER=native-extension ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
-OPENDESK_RUNTIME_API_MODE=sqlite ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
-```
+- [查询窗口](../../../examples/desktop/window-inspect.js)：`./opendesk -script examples/desktop/window-inspect.js -console-mode script`
+- [检查窗口能力](../../../examples/window-capabilities.js)：`./opendesk -script examples/window-capabilities.js -console-mode script`
+- [向指定窗口输入一行文字](../../../examples/desktop/keyboard.js)：`OPENDESK_EXAMPLE_WINDOW_TITLE='OpenDesk input test' OPENDESK_EXAMPLE_WINDOW_PID=12345 OPENDESK_EXAMPLE_ALLOW_INPUT=1 ./opendesk -script examples/desktop/keyboard.js -console-mode script`
+- [移动指定窗口并恢复位置](../../../examples/desktop/window-controls.js)：`OPENDESK_EXAMPLE_WINDOW_TITLE='OpenDesk window test' OPENDESK_EXAMPLE_WINDOW_PID=12345 OPENDESK_EXAMPLE_ALLOW_WINDOW_CHANGE=1 ./opendesk -script examples/desktop/window-controls.js -console-mode script`
 
-原正式编排继承 POSIX 工具依赖；上述正式命令不是 Windows 原生完整 gate 已移植的声明。
-真实应用、权限弹窗、录屏、图像视觉和 Recipe 仍按[示例索引](README.md)的专项/人工步骤验收。
+## 剪贴板
 
-## 维护
+以下示例会覆盖系统剪贴板，不会恢复原内容；先保存需要保留的内容。
 
-新增接口组时，在原 manifest 登记独立 unit 用例，并增加一个同名 `single/<id>.js` 薄入口。
-不要复制断言或扩大入口职责。表格和薄入口模板由 `scripts/lib/runtime-api-entrypoints.js`
-定义；现有 `node scripts/audit_test_architecture.js` 核对 manifest、入口、断言文件和本文表格一致。
+- [文本复制与读回](../../../examples/clipboard/text.js)：`OPENDESK_EXAMPLE_ALLOW_CLIPBOARD_WRITE=1 ./opendesk -script examples/clipboard/text.js -console-mode script`
+- [富文本复制（macOS）](../../../examples/clipboard/rich-paste-fixture.js)：`./opendesk -script examples/clipboard/rich-paste-fixture.js -console-mode script`
 
-```bash
-node --test tests/test-architecture/layout.test.js tests/test-architecture/runtime-api-modules.test.js tests/test-architecture/runtime-api-entrypoints.test.js
-```
+## Dialog 与 Custom UI（macOS）
 
-这是目录、入口控制流与文档一致性测试，不是 Runtime API 的实机验证。不能用这些结果替代上面的直接命令。
+主程序及配套 `opendesk-ui-host` 就绪后，运行一条命令，在打开的窗口中操作。
+
+- [Dialog：async/await](../../../examples/dialog.js)：`./opendesk -ui -script examples/dialog.js -console-mode script`
+- [Dialog：Promise 链](../../../examples/dialog-promise-chain.js)：`./opendesk -ui -script examples/dialog-promise-chain.js -console-mode script`
+- [按钮面板](../../../examples/custom-ui/panel.js)：`./opendesk -ui -script examples/custom-ui/panel.js -console-mode script`
+- [表单](../../../examples/custom-ui/form.js)：`./opendesk -ui -script examples/custom-ui/form.js -console-mode script`
+- [浮动工具栏](../../../examples/custom-ui/five-button-toolbar.js)：`./opendesk -ui -script examples/custom-ui/five-button-toolbar.js -console-mode script`
+- [图标列表](../../../examples/custom-ui/icon-list.js)：`./opendesk -ui -script examples/custom-ui/icon-list.js -console-mode script`
+
+## 图像与原生扩展
+
+图像示例使用仓库自带图片；原生扩展需先按[安装说明](../../../examples/native-extensions/README.md)准备对应扩展包。
+
+- [图像模板匹配](../../../examples/image-color/template-match.js)：`./opendesk -script examples/image-color/template-match.js`
+- [图像差异](../../../examples/image-color/diff.js)：`./opendesk -script examples/image-color/diff.js -console-mode script`
+- [调用原生扩展](../../../examples/native-extensions/quickstart.js)：`./dist/opendesk -script examples/native-extensions/quickstart.js -console-mode script`
+- [原生 OCR](../../../examples/native-extensions/ocr-quickstart.js)：`./dist/opendesk -script examples/native-extensions/ocr-quickstart.js -console-mode script`
+
+其他示例与平台说明见[示例索引](README.md)。

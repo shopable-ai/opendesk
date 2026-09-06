@@ -4,9 +4,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const directory = 'tests/runtime-api/single';
-const guide = 'docs/api/examples/single-tests.md';
-const tableStart = '<!-- runtime-api-single:start -->';
-const tableEnd = '<!-- runtime-api-single:end -->';
+const guide = 'tests/runtime-api/single/README.md';
+const listStart = '<!-- runtime-api-single:start -->';
+const listEnd = '<!-- runtime-api-single:end -->';
 
 function entriesFor(files) {
   if (!Array.isArray(files) || files.length === 0) throw new Error('single-entry unit manifest is empty');
@@ -32,11 +32,11 @@ await runSelected('${id}');
 `;
 }
 
+// Keep the existing helper export for its audit consumers; render a list, not a table.
 function documentationTable(files) {
-  const rows = entriesFor(files).map(({ id, source, entry }) =>
-    `| \`${id}\` | [${id}.js](../../../${entry}) | [原用例](../../../${source}) | \`./dist/opendesk -script ${entry} -console-mode script\` |`);
-  return [tableStart, '| 接口组 ID | 单文件入口 | 唯一断言来源 | 从仓库根目录运行 |',
-    '| --- | --- | --- | --- |', ...rows, tableEnd].join('\n');
+  const rows = entriesFor(files).map(({ id, entry }) =>
+    `- \`${id}\`：\`./dist/opendesk -script ${entry} -console-mode script\``);
+  return [listStart, ...rows, listEnd].join('\n');
 }
 
 // Pure content checks are also usable against a pinned remote file inventory.
@@ -66,10 +66,10 @@ function inspectEntries(files, read, list) {
   } catch (error) { errors.push(`single-entry directory unavailable: ${error.message}`); }
   const document = required(guide);
   if (document !== null) {
-    const start = document.indexOf(tableStart), end = document.indexOf(tableEnd);
-    if (start < 0 || end < start || document.indexOf(tableStart, start + 1) >= 0 || document.indexOf(tableEnd, end + 1) >= 0
-      || document.slice(start, end + tableEnd.length) !== documentationTable(files)) {
-      errors.push('single-entry documentation table differs from the unit manifest');
+    const start = document.indexOf(listStart), end = document.indexOf(listEnd);
+    if (start < 0 || end < start || document.indexOf(listStart, start + 1) >= 0 || document.indexOf(listEnd, end + 1) >= 0
+      || document.slice(start, end + listEnd.length) !== documentationTable(files)) {
+      errors.push('single-entry documentation list differs from the unit manifest');
     }
   }
   return { errors, entries, guide, scope: 'registered-unit-entrypoints' };
@@ -83,7 +83,7 @@ function auditRuntimeSingleEntries(root) {
     const files = context.RuntimeAPITestFiles && context.RuntimeAPITestFiles.unit;
     const report = inspectEntries(files, read, dir => fs.readdirSync(path.join(root, dir)));
     const index = read('docs/api/examples/README.md');
-    if (!index.includes('(single-tests.md)')) report.errors.push('examples index must link to the single-entry guide');
+    if (!index.includes('(single-tests.md)')) report.errors.push('examples index must link to the example guide');
     if (/；检查：\s*\[[^\]]+\]\([^)]*\/unit\/[^)]+\.test\.js\)/.test(index)) {
       report.errors.push('examples index labels a framework-dependent unit file as a direct check');
     }
