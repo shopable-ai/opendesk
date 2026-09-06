@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "suiteId": "image-color-wechat-sidebar-button-template-acceptance-20260906-r1",
+  "sourceSnapshots": [
+    {
+      "id": "message-selected-panel",
+      "path": "sources/message-selected-panel-880x640.png",
+      "size": [880, 640],
+      "sha256": "6a79bd709d184279e7fd213993aced95c340c700e0f390e34a704bb203b21b79",
+      "originAtGeneration": "examples/image-color/fixtures/wechat-panel.png"
+    },
+    {
+      "id": "contacts-selected-sidebar",
+      "path": "sources/contacts-selected-sidebar-62x290.png",
+      "size": [62, 290],
+      "sha256": "1338bdc50de09aa534b5e2a76aafdf99f0dae821be39bc8421cca92a637dcdf1",
+      "originAtGeneration": "/Users/mac/Downloads/wechat-temp.png"
+    }
+  ],
+  "statePairs": [
+    {
+      "id": "messages",
+      "order": ["unselected", "selected"],
+      "region": {"x": 0, "y": 100, "width": 60, "height": 44},
+      "bounds": {"x": 18, "y": 111, "width": 24, "height": 22},
+      "templates": [
+        {
+          "path": "states/messages/unselected-24x22.png",
+          "sha256": "ed4f1d9d35d53af4c806a9f462db762d6d0c8fe394c2da9cbc3d7a90717d0e52"
+        },
+        {
+          "path": "states/messages/selected-24x22.png",
+          "sha256": "f8e64f37468a7a691b2ae5b7fcc638a26369b4b5fb2cd9d69ac71c0259fee1a5"
+        }
+      ]
+    },
+    {
+      "id": "contacts",
+      "order": ["unselected", "selected"],
+      "region": {"x": 0, "y": 148, "width": 60, "height": 44},
+      "bounds": {"x": 18, "y": 159, "width": 24, "height": 22},
+      "templates": [
+        {
+          "path": "states/contacts/unselected-24x22.png",
+          "sha256": "8c98e80788db6437f1712cc52ba85d00b7d5338db1bb7c34de39e90f1fc534c1"
+        },
+        {
+          "path": "states/contacts/selected-24x22.png",
+          "sha256": "da4cd7fdf1edd9508370d7199df42600a3ccf7709f8884fea58e893075a27ab1"
+        }
+      ]
+    }
+  ],
+  "additionalButtons": [
+    {"id": "favorites", "path": "buttons/favorites-24x22.png", "bounds": {"x": 18, "y": 207, "width": 24, "height": 22}, "sha256": "c618082b019ac338465fbd5a0d4af95245588498a42956932249949c9f64059c"},
+    {"id": "channels", "path": "buttons/channels-24x22.png", "bounds": {"x": 18, "y": 255, "width": 24, "height": 22}, "sha256": "c21e2c8aa7797cc5ff92ad15bda82c23169b9d0232461824ef7507b6092abbe2"},
+    {"id": "mini-programs", "path": "buttons/mini-programs-24x22.png", "bounds": {"x": 18, "y": 303, "width": 24, "height": 22}, "sha256": "c90b8328dccf95c4db4d0f0fc650e506df7646eb59b1e006cb2c4b485904d5b2"},
+    {"id": "look", "path": "buttons/look-24x22.png", "bounds": {"x": 18, "y": 351, "width": 24, "height": 22}, "sha256": "3e04d4e91d382c46dcdd604f721e11255c31bf2693ef388248ea91d2119498a6"},
+    {"id": "mobile", "path": "buttons/mobile-24x22.png", "bounds": {"x": 18, "y": 548, "width": 24, "height": 22}, "sha256": "f0dcce20d95756830f7947f5847db3831e2cd94cfd2606bc6fd640b6c8609d9e"},
+    {"id": "settings", "path": "buttons/settings-32x28.png", "bounds": {"x": 14, "y": 592, "width": 32, "height": 28}, "sha256": "1de9719bb081260438e1bdd2f2dbe75b49a5b922b07c1877266878dce176a011"}
+  ]
+}
