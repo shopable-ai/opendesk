@@ -11,6 +11,14 @@ Implementation note: matcher、reference loader、execution lifecycle 与 backen
 `patternWatch` 必须报告 `supported: false, status: 'unsupported'`，公开监听调用必须
 `NOT_SUPPORTED` fail closed，不能把这些基础设施表述为可用的系统声音监听。
 
+当前真实干扰测试资产：`examples/audio/generate-pattern-interference-fixture.js` 生成无语音、可重复的
+20 秒 WAV（同一 `order-created` cue 约 3 秒、12 秒各一次；非目标 payment cue 约 9.2 秒、其他
+声音/confuser 约 7 秒和 16.2 秒，并含背景、噪声、重采样和音量干扰），
+`examples/audio/pattern-watch-interference-listener.js` 提供立即输出公开 match 字段及 stop/wait
+evidence 的 listener。macOS 12.7.6 实跑时以独立 `afplay` 播放并确认 listener 先启动；结果为
+capability unsupported、0 命中，详见
+`.runtime/tests/platform-primitives/task-016-audio-pattern-watcher/interference-live.json`。
+
 ## Goal
 
 为 JavaScript Runtime 增加 execution-scoped 的固定声音模式监听能力：从用户明确选择的系统输出
@@ -262,6 +270,11 @@ OPENDESK_RUNTIME_API_MODE=unit ./dist/opendesk -script scripts/test_runtime_apis
 
 该 gate 不是 macOS/Windows/Linux 平台 live capture evidence；真实 gate 仍需由独立平台 backend 与安全
 fixture 进程完成。
+
+`tests/runtime-api/seams/audio-pattern-market.js` 额外让注入 backend 提供约 3 秒与 12 秒的两个
+`order-created` cue，并在约 7 秒插入 confuser、约 9.2 秒插入非目标 payment cue；脚本只参考 order
+cue，验证公开 callback 字段、顺序、干扰不误触发、`stop()/wait()` 和 cleanup。它同样不能替代平台
+live evidence。
 
 必须分别报告公开一行命令、Runtime API gate、真实平台 live evidence 和仅 cross-compile 平台结果。
 

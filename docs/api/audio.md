@@ -6,16 +6,19 @@ order: 14
 
 # Audio API
 
-**状态：Audio controls 为 Native；patternWatch 为 Experimental，默认产品 backend Unsupported**
+**状态：Audio controls 为 Native；patternWatch 为 Experimental。macOS 13+ 在获得 Screen Recording
+权限后支持 system-mix backend；其他平台、旧版 macOS 或未授权状态保持 Unsupported。**
 
 `Audio` 是系统音频控制 primitive。它负责默认输出音量、mute 和设备发现；旧 `Sound` 继续负责
 MP3/WAV 播放，两者没有重复实现播放器。`Audio` 还提供独立的固定声音模式监听：它只在内存中
 匹配用户提供的参考音频，不生成录音文件，也不把 PCM 暴露给 JavaScript。
 
-> 当前产品默认构建尚未注册可用的系统音频 capture backend：
-> `Audio.getCapabilities().patternWatch` 会报告 `supported: false`、`status: 'unsupported'`，
-> `Audio.watchSound()` / `Audio.waitForSound()` 会以 `NOT_SUPPORTED` 拒绝。仓库中已有的 matcher、
-> backend seam 和注入测试基础不等于 macOS、Windows 或 Linux 的真实系统声音监听已经可用。
+> macOS 产品构建使用运行时 availability guard 的 ScreenCaptureKit system-mix stream。它目前以 display
+> filter 创建 stream，因此必须给当前 OpenDesk.app 授予“屏幕与系统音频录制”（Screen Recording），而不是只选
+> “仅系统音频”。只有运行在 macOS 13+ 且当前进程已获该权限时，`Audio.getCapabilities().patternWatch` 才会报告
+> `supported: true`；没有权限、系统版本过低或 backend probe 失败时，`Audio.watchSound()` /
+> `Audio.waitForSound()` 都会以结构化 `NOT_SUPPORTED` 或 `PERMISSION_DENIED` fail closed。
+> matcher、backend seam 和注入测试基础本身不等于其它平台已经具备真实系统声音监听。
 
 ```js
 const capabilities = Audio.getCapabilities();
@@ -30,7 +33,7 @@ if (capabilities.controls.volume.write) {
 }
 ```
 
-## API
+## `Audio.getVolume()` / `Audio.setVolume()` / `Audio.isMuted()` / `Audio.mute()` / `Audio.unmute()` / `Audio.toggleMute()` / `Audio.getOutputDevices()` / `Audio.getInputDevices()` / `Audio.getDefaultOutput()` / `Audio.getDefaultInput()` / `Audio.watchSound()` / `Audio.waitForSound()` / `Audio.getCapabilities()`：API 总览
 
 | 方法 | 返回 | 说明 |
 | --- | --- | --- |
@@ -291,8 +294,150 @@ Evidence：
 .runtime/tests/platform-primitives/task-016-audio-pattern-watcher/pattern-watch-smoke.json
 ```
 
+### 可重复干扰 fixture 与真实双进程尝试
+
+它在 `.runtime/tests/platform-primitives/task-016-audio-pattern-watcher/fixture/` 生成一个 20 秒
+播放 WAV 和三个纯合成 reference WAV。播放文件使用原创、确定性的合成和弦/琶音/低频打击伴奏，
+不下载或包含第三方音乐；它在约 3 秒、12 秒各放入一次目标订单 cue，并包含约 7 秒的其他声音、
+约 9.2 秒的重采样 payment 干扰、确定性噪声和明显 confuser。
+
+要由你自己完成真实播放测试，请在两个终端中按以下顺序执行（工作目录始终是仓库根目录）：
+
+1. 先生成 fixture：
+
+```bash
+node examples/audio/generate-pattern-interference-fixture.js
+```
+
+2. 在终端 A 先启动 OpenDesk listener。不要在它退出前播放：
+
+```bash
+./dist/opendesk -script examples/audio/pattern-watch-interference-listener.js -console-mode script
+```
+
+3. 确认终端 A 输出 `listening:true` 后，在终端 B 用独立程序播放（约 20 秒）：
+
+```bash
+afplay .runtime/tests/platform-primitives/task-016-audio-pattern-watcher/fixture/order-interference-20s.wav
+```
+
+若要使用浏览器，请以浏览器替代终端 B 的 `afplay`，不要两个播放端同时播放：
+
+```bash
+open -a Safari .runtime/tests/platform-primitives/task-016-audio-pattern-watcher/fixture/order-interference-20s.wav
+```
+
+支持 capture 的平台预期会立即打印两条 `order-created` callback：`sequence` 为 1、2，
+`startOffsetMs` 分别约为 3000、12000；7、9.2、16.2 秒的干扰不应产生目标命中。随后 listener 应记录
+`stopAccepted:true`、终态 `stopped` 和 cleanup。浏览器和 `afplay` 都只是独立播放端；它们不构成业务确认层。
+
+listener 的 callback 首先输出 `patternId`、`confidence`、`startOffsetMs`、`endOffsetMs`、
+`sequence`、`sourceScope` 和 `coalesced`；完整脱敏结果写入
+`.runtime/tests/platform-primitives/task-016-audio-pattern-watcher/interference-live.json`。
+该脚本不播放 cue，声音命中也不代表订单事实。
+
+播放结束后，在仓库根目录检查 listener 结果：
+
+```bash
+sed -n '1,200p' .runtime/tests/platform-primitives/task-016-audio-pattern-watcher/interference-live.json
+```
+
+在 macOS 12.7.6 上当前产品 capability 为 `backend: unavailable`、`status: unsupported`，
+因此上述 listener 会 fail closed 并记录 `skipped: true`；`afplay` 的成功只证明独立播放器
+能够消费 WAV，不是 capture live evidence。不得用 runtime-api memory seam 替代这项证据。
+
 这个 `examples/` 脚本是平台用户侧 smoke，不注入 memory backend；注入式 deterministic fixture 仍由
 `tests/runtime-api/seams/` 与 Go execution harness 验证。
+
+### 双订单 cue 干扰场景（独立播放器 + OpenDesk listener）
+
+下面的 fixture 面向市场自动化场景，包含同一 `order-created` cue（约 3 秒、12 秒各一次），
+以及非目标的 payment cue 和 confuser。所有声音均由脚本确定性合成，不含语音或第三方素材；它们只是
+用于匹配的固定声学模板，不是 ASR，也不能单独证明订单或支付业务事实。
+
+工作目录为仓库根目录，先生成 fixture：
+
+```bash
+node examples/audio/generate-pattern-interference-fixture.js
+```
+
+再启动 OpenDesk listener，并在另一个终端用独立播放器播放约 20 秒混音（订单目标约在 3 秒和
+12 秒；其他声音约在 7 秒和 9.2 秒，confuser 约在 16.2 秒）：
+
+```bash
+./dist/opendesk -script examples/audio/pattern-watch-interference-listener.js -console-mode script
+afplay .runtime/tests/platform-primitives/task-016-audio-pattern-watcher/fixture/order-interference-20s.wav
+```
+
+listener callback 首先输出脱敏的 `patternId`、`confidence`、`startOffsetMs`、`endOffsetMs`、
+`sequence` 和 `sourceScope`；Evidence 只写入 `.runtime/`，不包含设备名、UID、路径、PID 或原始 PCM。
+默认 backend 不可用时会生成明确的 `skipped` live evidence；这不能用 memory seam 通过替代真实浏览器/播放器捕获。
+
+### 市场场景验收边界
+
+| 关注点 | 当前验证 | 业务使用边界 |
+| --- | --- | --- |
+| 两次订单 cue 的顺序与 patternId | Runtime seam 断言 3 秒、12 秒均为 `order-created`，并拒绝 payment/confuser 干扰 | pattern 命中只表示声学模板相似，不表示订单事实。 |
+| 背景、音量、噪声与重采样 | 20 秒 fixture 覆盖；独立 fixture seam 覆盖 volume/noise/resample 变体与 confuser | 真正系统 mix 的误报率仍须在每个目标平台采样。 |
+| cooldown 与 callback 合并 | fixture seam 验证 per-reference cooldown、`coalesced` 和单调 `sequence` | 按业务提示的最短重复间隔设定，不应以 cooldown 掩盖误报。 |
+| 丢帧 / discontinuity | matcher 在 backend 报告缺口后 reset，不跨缺口拼接模板，offset 单调不回退 | 应将 drop/discontinuity 计入 live evidence，不把缺失片段当作“未发生”。 |
+| callback 延迟 | 当前 seam 只验证字段、顺序和 cleanup；没有平台 capture 时钟延迟结论 | live evidence 应记录“播放器启动/目标 offset/callback wall time”的脱敏聚合延迟。 |
+| cleanup | watcher `stop()` / `wait()`、session join 与 execution teardown 已由 seam 覆盖 | `status:'stopped'` 才代表确认释放；`failed` 不可当作成功。 |
+| 业务确认 | 文档与 example 均固定 `businessConfirmed:false` | 音频只能唤醒后续 API、窗口、UI 或 OCR 确认层；该确认层独立于 Audio。 |
+
+### 多语句市场 fixture（TTS 优先）
+
+`examples/audio/generate-market-multisentence-fixture.js` 是与旧的双订单 cue 示例分开的市场测试：
+它优先使用 macOS 随系统提供的免费 `/usr/bin/say`（默认已安装语音）合成 `Order created`、
+`Payment completed` 和未注册的 `Payment pending`，再用 `/usr/bin/afconvert` 转成 48 kHz mono PCM16 WAV；
+不调用网络服务或付费 API。TTS 不可用、命令失败，或设置
+`OPENDESK_AUDIO_FIXTURE_FORCE_FALLBACK=1` 时，三个声音都会回退到脚本内确定性的程序化音符合成。
+约 20 秒的混音在 3 秒和 11 秒安排两个目标，并在
+7 秒加入相近语句 confuser，另有背景、音量变化、确定性噪声、44100→48000 重采样和 16.2 秒音调干扰。
+它们都只是固定声学 pattern，不是 ASR 或业务确认。
+
+生成内容和监听目标如下：
+
+| WAV / patternId | 生成句子 | 角色 | 混音位置 |
+| --- | --- | --- | --- |
+| `order-created` | `Order created` | 监听目标 | 3 秒 |
+| `payment-completed` | `Payment completed` | 监听目标 | 11 秒 |
+| `payment-pending-confuser` | `Payment pending` | 相近语句干扰，预期零命中 | 7 秒 |
+
+监听器只把前两个 reference 传给 `Audio.watchSound()`；它匹配完整的固定声学 pattern，
+不是提取关键词、不是语音识别，也不会因为文本中出现 `order` 或 `payment` 就判定命中。
+generator 的 JSON 输出也会包含 `utterances` 和 `watchTargets` 字段，便于核对内容与目标。
+
+脚本末尾会打印 `tts` 字段，明确三个 cue 是否实际使用 TTS，并打印四个 WAV 的绝对路径。
+因此可用以下命令显式验证 fallback 分支：
+
+```bash
+OPENDESK_AUDIO_FIXTURE_FORCE_FALLBACK=1 ./dist/opendesk -script examples/audio/generate-market-multisentence-fixture.js -console-mode script
+```
+
+从仓库根目录执行：
+
+```bash
+./dist/opendesk -script examples/audio/generate-market-multisentence-fixture.js -console-mode script
+./dist/opendesk -script examples/audio/watch-market-multisentence.js -console-mode script
+```
+
+待 listener 输出 `listening:true` 后，另一个终端或浏览器进程播放：
+
+```bash
+afplay .runtime/tests/platform-primitives/task-016-audio-pattern-watcher/market-multisentence/market-multisentence-20s.wav
+open -a Safari .runtime/tests/platform-primitives/task-016-audio-pattern-watcher/market-multisentence/market-multisentence-20s.wav
+```
+
+callback 的第一条动作只输出 `patternId`、`confidence`、`startOffsetMs`、`endOffsetMs`、`sequence` 和
+`sourceScope`。Evidence 位于 `.runtime/tests/platform-primitives/task-016-audio-pattern-watcher/market-multisentence-live.json`，
+不含设备名、UID、路径、PID 或 PCM。当前默认 capture backend unavailable 时，该脚本记录 `skipped`；
+memory seam 成功不等同于浏览器/独立播放器真实系统 mix 捕获成功。
+
+Runtime market seam 使用相同的两个 reference，断言 3 秒 `order-created`、11 秒
+`payment-completed` 的顺序与 ID、7 秒 confuser 零命中、公开 callback 字段以及 stop/wait cleanup。
+对误报率、callback 延迟、drop/discontinuity 和 cooldown 的平台统计仍须在真实 capture backend 接入后收集；
+命中后的 API/UI/OCR 业务确认层必须独立实现。
 
 ## 平台矩阵
 

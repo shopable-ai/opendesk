@@ -238,7 +238,7 @@ func attachAudioPatternMethods(runtimeValue *goja.Runtime, object *goja.Object, 
 		backend = opts.AudioCaptureBackendFactory()
 	}
 	if backend == nil {
-		backend = newUnsupportedAudioCaptureBackend(runtime.GOOS, "system audio pattern capture has no platform backend")
+		backend = newDefaultAudioCaptureBackend()
 	}
 	manager := &AudioPatternRuntime{
 		runtime: runtimeValue, context: ctx, cancel: cancel, workDir: opts.WorkDir,
@@ -468,7 +468,13 @@ func (a *AudioPatternRuntime) validateCapability(source AudioCaptureSource, oper
 		return audioOperationError(operation, AudioNotSupported, "system audio pattern capture is unavailable", nil)
 	}
 	capability := a.backend.Capabilities()
-	if !capability.Supported || !capability.Verified {
+	if !capability.Supported {
+		return audioOperationError(operation, AudioNotSupported, "system audio pattern capture is unavailable on this platform/backend", nil)
+	}
+	if !capability.Verified {
+		if capability.Permission == "screenRecording" {
+			return audioOperationError(operation, AudioPatternPermissionDenied, "system audio pattern capture requires Screen Recording permission", nil)
+		}
 		return audioOperationError(operation, AudioNotSupported, "system audio pattern capture is unavailable on this platform/backend", nil)
 	}
 	switch source.Type {

@@ -93,6 +93,50 @@ func TestRunJavaScriptAudioPatternPositiveSeam(t *testing.T) {
 	assertAudioPatternRuntimeAPICleanupZero(t, artifacts.EventLogPath)
 }
 
+func TestRunJavaScriptAudioPatternMarketSeam(t *testing.T) {
+	workDir := t.TempDir()
+	order := writeAudioPatternRuntimeAPIWAV(t, filepath.Join(workDir, "order-created.wav"))
+	payment := writeAudioPatternRuntimeAPIWAVVariant(t, filepath.Join(workDir, "payment-completed.wav"), true)
+	backend := newAudioPatternMarketBackend(order, payment, audioPatternRuntimeAPIConfuserPCM())
+	scriptContent, err := os.ReadFile(filepath.Join("..", "..", "tests", "runtime-api", "seams", "audio-pattern-market.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	artifacts, err := PrepareArtifacts(filepath.Join(t.TempDir(), "artifacts"), "audio-pattern-market", ".js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	runResult, summary, runErr := Run(Request{Context: context.Background(), ExecutionID: "audio-pattern-market", SourceLabel: "runtime API audio pattern market seam", Ext: ".js", WorkDir: workDir, ScriptContent: scriptContent, Artifacts: artifacts, Timeout: 40 * time.Second, Selection: TerminalSelection{Mode: "quiet", Categories: map[string]bool{}}, AudioCaptureBackendFactory: func() automation.AudioCaptureBackend { return backend }})
+	if runErr != nil || runResult.Status != ExecutionStatusSucceeded {
+		t.Fatalf("market seam status=%s error=%v logs=%#v", runResult.Status, runErr, summary.ScriptLogs)
+	}
+	content, err := os.ReadFile(filepath.Join(workDir, "audio-pattern-market-result.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var evidence struct {
+		Matches []struct {
+			PatternID string `json:"patternId"`
+			Start     int64  `json:"startOffsetMs"`
+		} `json:"matches"`
+		Terminal struct {
+			Status  string `json:"status"`
+			Matches int    `json:"matches"`
+		} `json:"terminal"`
+	}
+	if err := json.Unmarshal(content, &evidence); err != nil {
+		t.Fatal(err)
+	}
+	if len(evidence.Matches) != 2 || evidence.Matches[0].PatternID != "order-created" || evidence.Matches[1].PatternID != "payment-completed" || evidence.Matches[0].Start < 2800 || evidence.Matches[0].Start > 3800 || evidence.Matches[1].Start < 10800 || evidence.Matches[1].Start > 12000 || evidence.Terminal.Status != "stopped" || evidence.Terminal.Matches != 2 {
+		t.Fatalf("market evidence = %#v, want distinct targets near 3s/11s, no confuser match, and clean stop", evidence)
+	}
+	starts, stops, active := backend.counts()
+	if starts != 1 || stops != 1 || active != 0 {
+		t.Fatalf("market backend lifecycle = %d/%d/%d, want 1/1/0", starts, stops, active)
+	}
+	assertAudioPatternRuntimeAPICleanupZero(t, artifacts.EventLogPath)
+}
+
 func TestRunJavaScriptAudioPatternCleanupFailureSeam(t *testing.T) {
 	workDir := t.TempDir()
 	referencePCM := writeAudioPatternRuntimeAPIWAV(t, filepath.Join(workDir, "reference.wav"))
@@ -167,6 +211,8 @@ func TestRunJavaScriptAudioPatternCleanupFailureSeam(t *testing.T) {
 type audioPatternRuntimeAPIBackend struct {
 	mu        sync.Mutex
 	reference []float32
+	payment   []float32
+	confuser  []float32
 	starts    int
 	stops     int
 	closed    bool
@@ -180,6 +226,13 @@ func newAudioPatternRuntimeAPIBackend(reference []float32) *audioPatternRuntimeA
 		sessions:  make(map[*audioPatternRuntimeAPISession]struct{}),
 		waitErrs:  make(map[int]error),
 	}
+}
+
+func newAudioPatternMarketBackend(order, payment, confuser []float32) *audioPatternRuntimeAPIBackend {
+	b := newAudioPatternRuntimeAPIBackend(order)
+	b.payment = append([]float32(nil), payment...)
+	b.confuser = append([]float32(nil), confuser...)
+	return b
 }
 
 func (b *audioPatternRuntimeAPIBackend) failSessionWait(ordinal int, err error) {
@@ -233,7 +286,25 @@ func (b *audioPatternRuntimeAPIBackend) Start(ctx context.Context, options autom
 	}
 	b.sessions[session] = struct{}{}
 	reference := append([]float32(nil), b.reference...)
+	payment := append([]float32(nil), b.payment...)
+	confuser := append([]float32(nil), b.confuser...)
 	b.mu.Unlock()
+	if len(payment) > 0 {
+		// Match the public fixture: targets at 3s and 11s plus a distinct
+		// confuser at 7s that must not generate an event.
+		stream := make([]float32, 3*48000)
+		stream = append(stream, reference...)
+		stream = append(stream, make([]float32, int(3.75*48000))...)
+		stream = append(stream, confuser...)
+		stream = append(stream, make([]float32, int(3.75*48000))...)
+		stream = append(stream, payment...)
+		// Start returns before the test source emits PCM, so the Runtime has
+		// registered the watcher and started its worker. The bounded paced feed
+		// prevents the internal four-chunk queue from becoming a resource-limit
+		// artifact of this deterministic seam.
+		go pushAudioPatternRuntimeAPIStream(session.stopped, sink, stream, ordinal)
+		return session, nil
+	}
 
 	if ordinal == 2 {
 		// Deliver two complete cues in one matcher Push. The silent release gap
@@ -318,15 +389,71 @@ func (s *audioPatternRuntimeAPISession) Wait(ctx context.Context) error {
 }
 
 func pushAudioPatternRuntimeAPIChunk(sink automation.AudioCaptureSink, samples []float32, ordinal, offset int) {
-	sink.Push(automation.AudioPCMChunk{
-		CapturedAt: time.Date(2026, 9, 5, 12, ordinal, offset, 0, time.UTC),
-		SampleRate: 48000,
-		Channels:   1,
-		Samples:    append([]float32(nil), samples...),
-	})
+	for index := 0; index < len(samples); index += 48000 {
+		end := index + 48000
+		if end > len(samples) {
+			end = len(samples)
+		}
+		sink.Push(automation.AudioPCMChunk{
+			CapturedAt: time.Date(2026, 9, 5, 12, ordinal, offset+index/48000, 0, time.UTC),
+			SampleRate: 48000,
+			Channels:   1,
+			Samples:    append([]float32(nil), samples[index:end]...),
+		})
+	}
+}
+
+func pushAudioPatternRuntimeAPIStream(stopped <-chan struct{}, sink automation.AudioCaptureSink, samples []float32, ordinal int) {
+	start := time.NewTimer(300 * time.Millisecond)
+	defer start.Stop()
+	select {
+	case <-stopped:
+		return
+	case <-start.C:
+	}
+	for index := 0; index < len(samples); index += 48000 {
+		select {
+		case <-stopped:
+			return
+		default:
+		}
+		end := index + 48000
+		if end > len(samples) {
+			end = len(samples)
+		}
+		sink.Push(automation.AudioPCMChunk{
+			CapturedAt: time.Date(2026, 9, 5, 12, ordinal, index/48000, 0, time.UTC),
+			SampleRate: 48000,
+			Channels:   1,
+			Samples:    append([]float32(nil), samples[index:end]...),
+		})
+		pause := time.NewTimer(40 * time.Millisecond)
+		select {
+		case <-stopped:
+			pause.Stop()
+			return
+		case <-pause.C:
+		}
+	}
+}
+
+func audioPatternRuntimeAPIConfuserPCM() []float32 {
+	const sampleRate = 48000
+	pcm := make([]float32, sampleRate/4)
+	for index := range pcm {
+		t := float64(index) / sampleRate
+		// Keep the confuser in a low, stationary spectral region; the payment
+		// target is an upward chirp, so matching it would be a false positive.
+		pcm[index] = float32(0.46*math.Sin(2*math.Pi*92*t) + 0.12*math.Sin(2*math.Pi*157*t))
+	}
+	return pcm
 }
 
 func writeAudioPatternRuntimeAPIWAV(t *testing.T, path string) []float32 {
+	return writeAudioPatternRuntimeAPIWAVVariant(t, path, false)
+}
+
+func writeAudioPatternRuntimeAPIWAVVariant(t *testing.T, path string, payment bool) []float32 {
 	t.Helper()
 	const (
 		sampleRate  = 48000
@@ -354,6 +481,15 @@ func writeAudioPatternRuntimeAPIWAV(t *testing.T, path string) []float32 {
 	for index := 0; index < sampleCount; index++ {
 		timePoint := float64(index) / sampleRate
 		wave := 0.45*math.Sin(2*math.Pi*523.25*timePoint) + 0.20*math.Sin(2*math.Pi*880*timePoint)
+		if payment {
+			// A high-frequency two-part cue stays distinct from both the order
+			// pattern and the low-frequency market confuser.
+			frequency := 4200.0
+			if index >= sampleCount/2 {
+				frequency = 7100.0
+			}
+			wave = 0.47*math.Sin(2*math.Pi*frequency*timePoint) + 0.14*math.Sin(2*math.Pi*frequency*1.7*timePoint)
+		}
 		sample := int16(math.Round(wave * 32767))
 		binary.LittleEndian.PutUint16(content[44+index*2:46+index*2], uint16(sample))
 		decoded := float32(float64(sample) / (1<<16 - 1))
