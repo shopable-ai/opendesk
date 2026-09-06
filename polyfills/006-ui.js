@@ -1032,12 +1032,42 @@
     return { ok: true, action: 'tapText', target: target, point: target.center };
   }
 
+  function accessibilityCapabilitySummary() {
+    if (!global.Accessibility || typeof global.Accessibility.getCapabilities !== 'function') {
+      return {
+        available: false,
+        implemented: false,
+        status: 'notImplemented',
+        enabled: false,
+        backend: 'unsupported',
+        permission: 'unknown',
+        menus: false,
+        actions: {},
+        coordinateMapping: false,
+        notes: '',
+      };
+    }
+    const capabilities = global.Accessibility.getCapabilities();
+    return {
+      available: capabilities.available === true,
+      implemented: capabilities.implementation.available === true,
+      status: String(capabilities.implementation.status),
+      enabled: capabilities.hostAuthorization.enabled === true,
+      backend: String(capabilities.backend),
+      permission: String(capabilities.permission.state),
+      menus: capabilities.implementation.menus === true,
+      actions: capabilities.implementation.actions,
+      coordinateMapping: capabilities.implementation.coordinateMapping === true,
+      notes: String(capabilities.implementation.notes),
+    };
+  }
+
   const UI = {
     getCapabilities: function () {
       return {
         text: { find: true, tap: true, wait: true, backend: 'Vision.runOCR' },
         image: { find: true, tap: true, backend: 'ImageColor.findImages' },
-        accessibility: { available: false, status: 'notImplemented' },
+        accessibility: accessibilityCapabilitySummary(),
         coordinateMapping: { actualCaptureScale: true, mixedDPIScope: false },
       };
     },

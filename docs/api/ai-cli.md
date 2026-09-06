@@ -61,6 +61,9 @@ Workflow 把 Goal、Success Criteria、业务步骤与验证写在脚本中；�
 `supported`、`conditional` 或 `unsupported`，不把所有能力硬编码成 true。`schema` 由 CLI
 registry 生成，是 Agent 应优先读取的紧凑参数索引。
 
+这里的 CLI capability 是桌面工具 preflight，不等于任意元素支持原生动作。JavaScript recipe 应再读取
+`Accessibility.getCapabilities()`，区分宿主授权、后端实现和 OS 权限；该同步查询不会扫描目标或弹窗。
+
 ## Command tree
 
 ```text
@@ -218,6 +221,10 @@ recipe 可通过 `Execution.env` 读取启动时的项目环境。默认合并�
 `result.artifacts.stdoutPath`，不会直接打印在 envelope 前后；这不是环境变量未读取。
 
 本地 recipe 的 `Command.run()` 使用当前 OS 用户权限；HTTP、MCP 与 Scheduler execution 不提供该能力。
+同样，本地 `ai run` 可显式启用 Experimental `Accessibility` 和 `UI` 菜单方法，远程 HTTP、MCP 与
+Scheduler execution 当前关闭，只能看到禁用 capability 且不会读取原生目标。AI CLI 没有为此新增一套
+平行 menu 命令、HTTP route 或 MCP tool；调用契约见 [Accessibility API](accessibility.md) 与
+[Desktop UI Menu API](desktop-ui-menu.md)。这个 execution 准入开关不是完整 Runtime 沙箱。
 
 Workflow 和 recipe 都会收到 [Execution Context](execution.md)；常用字段包括：
 

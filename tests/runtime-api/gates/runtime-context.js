@@ -16,6 +16,7 @@ const CLEANUP_FIELDS = [
   'eventSubscriptions', 'eventPending',
   'captureWorkers', 'capturePending', 'captureSessions',
   'appWorkers', 'appPending',
+  'accessibilityWorkers', 'accessibilityPending', 'accessibilityQueued', 'accessibilityRefs', 'accessibilityNativeResources',
   'commandWorkers', 'commandCallbacks', 'commandProcesses',
   'audioPatternWorkers', 'audioPatternPending', 'audioPatternWatches', 'audioPatternSessions',
   'fileJSONWorkers', 'fileJSONCallbacks', 'fileJSONTemps', 'fileHandles',

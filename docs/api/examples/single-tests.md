@@ -61,6 +61,12 @@ Windows PowerShell 的对应待验收命令：
 - [向指定窗口输入一行文字](../../../examples/desktop/keyboard.js)：`OPENDESK_EXAMPLE_WINDOW_TITLE='OpenDesk input test' OPENDESK_EXAMPLE_WINDOW_PID=12345 OPENDESK_EXAMPLE_ALLOW_INPUT=1 ./opendesk -script examples/desktop/keyboard.js -console-mode script`
 - [移动指定窗口并恢复位置](../../../examples/desktop/window-controls.js)：`OPENDESK_EXAMPLE_WINDOW_TITLE='OpenDesk window test' OPENDESK_EXAMPLE_WINDOW_PID=12345 OPENDESK_EXAMPLE_ALLOW_WINDOW_CHANGE=1 ./opendesk -script examples/desktop/window-controls.js -console-mode script`
 
+## Accessibility 与菜单
+
+使用仓库自有 fixture 时，示例只读取 launch receipt 并复核当前 executable identity，因此默认命令不需要 shell PID/window 变量；运行明确启动且可安全清理的其他应用时，才同时传入当前观察到的精确 PID/window id。不要选择“当前/第一个”窗口，也不要在失败后降级到鼠标或发送 Escape。
+
+三个示例各自所需的完整环境变量和可复制命令见 [Accessibility examples](../../../examples/accessibility/README.md)；必须从仓库根目录原样运行对应命令。
+
 ## 剪贴板
 
 以下示例会覆盖系统剪贴板，不会恢复原内容；先保存需要保留的内容。

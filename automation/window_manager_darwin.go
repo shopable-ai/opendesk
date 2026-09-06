@@ -104,6 +104,48 @@ func (m macWindow) toWindowInfo() *WindowInfo {
 // darwinWindowManager handles window-related operations on macOS via System Events.
 type darwinWindowManager struct{}
 
+func (w *darwinWindowManager) resolveAccessibilityWindow(
+	ctx context.Context,
+	expected AccessibilityWindowIdentity,
+) (map[string]interface{}, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	items, err := listMacWindowsCoreGraphics()
+	if err != nil {
+		return nil, err
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	var matched *macWindow
+	for index := range items {
+		item := &items[index]
+		if int64(item.PID) != expected.PID || uint64(item.Handle) != expected.Handle {
+			continue
+		}
+		if matched != nil {
+			return nil, fmt.Errorf("CoreGraphics returned duplicate window identity pid=%d handle=%d", expected.PID, expected.Handle)
+		}
+		matched = item
+	}
+	if matched == nil {
+		return nil, nil
+	}
+	row := map[string]interface{}{
+		"title": matched.Title, "pid": matched.PID, "processId": matched.PID,
+		"x": matched.X, "y": matched.Y, "width": matched.Width, "height": matched.Height,
+		"exeName": matched.ExeName, "exePath": matched.ExePath,
+		"isForeground": matched.IsForeground, "hasFocus": matched.HasFocus,
+		"isPopup": matched.IsPopup, "handle": uint64(matched.Handle), "index": matched.Index,
+	}
+	normalizeWindowRow(row)
+	if id, _ := row["id"].(string); id != expected.ID {
+		return nil, nil
+	}
+	return row, nil
+}
+
 func newPlatformWindowManager() windowManagerPlatform {
 	return &darwinWindowManager{}
 }

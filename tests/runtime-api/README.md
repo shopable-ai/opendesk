@@ -33,6 +33,8 @@ Dialog 的视觉验收与行为验收分别判定：即使返回值、Promise �
 | contract | 实际 Runtime、catalog、文档和类型声明没有未允许漂移 | `results/contract.json` |
 | unit | 每个 API family 的独立 `.test.js` 安全行为 | `results/unit.json` |
 | http-download | 已知二进制、gzip、chunked、限额、重定向、取消、并发和文件提交的确定性 loopback Runtime 行为；不是公网示例 | `results/http-download.json`、`runtime-logs/http-download/resources.json` |
+| accessibility | 三个真实 Runtime execution 中的 Accessibility/UI menu 注册、capability、严格参数、Promise 与五项资源归零；不冒充 native fixture | `results/accessibility.json`、`runtime-logs/accessibility-*/resources.json` |
+| accessibility-native-macos（显式直接运行） | 仓库自有 AppKit fixture 的真实 AX snapshot/find/read/action/release、只读菜单及多级菜单动作 | `.runtime/tests/accessibility/<runId>/result.json`、`runtime-logs/{events.ndjson,summary.json}` |
 | sqlite | SQLite 专用 contract、复用公开 smoke cases 的 unit、SQLite scoped coverage，以及每个 child execution 的资源归零和进程 cleanup；不执行无关 desktop live 测试 | `results/contract.json`、`results/unit.json`、`results/coverage.json`、`runtime-logs/*/resources.json`、`results/cleanup.json` |
 | language | 选定的 ES2015–ES2023 作者语法与内建能力，以及 OpenDesk 脚本级 `await` | `results/language.json` |
 | coverage | 每方法 contract、已通过 tier、required tier、风险理由和用例 | `results/coverage.json` |
@@ -59,8 +61,9 @@ tier，以及没有风险理由的 contract-only 接口。
 ```bash
 OPENDESK_RUNTIME_API_MODE=contract OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
 OPENDESK_RUNTIME_API_MODE=unit OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
-OPENDESK_RUNTIME_API_MODE=http-download OPENDESK_BINARY=./dist/opendesk ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+OPENDESK_RUNTIME_API_MODE=accessibility OPENDESK_BINARY=./dist/opendesk ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
 OPENDESK_RUNTIME_API_MODE=sqlite OPENDESK_BINARY=./dist/opendesk ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+OPENDESK_RUNTIME_API_MODE=http-download OPENDESK_BINARY=./dist/opendesk ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
 OPENDESK_RUNTIME_API_MODE=language ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
 OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
 OPENDESK_RUNTIME_API_MODE=sound-cancel OPENDESK_BINARY=/absolute/path/to/audited/opendesk ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
@@ -78,6 +81,33 @@ OPENDESK_RUNTIME_API_MODE=notify-icon-live OPENDESK_BINARY=/absolute/path/to/Ope
 并在 contract、unit、coverage 每个独立 execution 后从 lifecycle event 核对
 `sqliteWorkers`、`sqliteCallbacks` 和 `sqliteHandles` 全部为零。它不是全 catalog quality gate，也不
 把未运行的 Safari、Custom UI 或其他 desktop live 验收标为通过。
+
+`accessibility` 依次直接运行 `accessibility.js`、`accessibility-menu.js` 和
+`accessibility-lifecycle.js`，并在每个 child execution 结束后要求五项 Accessibility cleanup 字段
+都存在且为零。它不使用 Node mock、环境变量 fake backend 或任意活动桌面，也不把参数门禁结果
+表述为 AX/UIA native fixture、取消 in-flight 原生调用或真实菜单动作已经通过。
+
+macOS 原生 fixture 是补充性的显式验收，不是 catalog runner mode，也不会随普通 `unit`、`live` 或
+`accessibility` 自动操作桌面。维护者先从仓库根目录使用
+`./dist/opendesk -script tests/accessibility/fixtures/macos/launch.js -console-mode script` 启动一个全新的自有实例，并独立复核 PID、进程完整路径、
+state 中的 PID/windowNumber 与 `window.list()` 身份；随后可原样运行：
+
+```bash
+run_id=accessibility-native-macos-$(date +%Y%m%d-%H%M%S)
+fixture_state="$PWD/.runtime/tests/accessibility/macos/state.json"
+fixture_pid=$(sed -n '1p' "$PWD/.runtime/tests/accessibility/macos/fixture.pid")
+fixture_window_number=$(/usr/bin/python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["windowNumber"])' "$fixture_state")
+evidence="$PWD/.runtime/tests/accessibility/$run_id"
+mkdir -p "$evidence/runtime-logs"
+OPENDESK_RUNTIME_API_RUN_ID="$run_id" OPENDESK_ACCESSIBILITY_TARGET_PID="$fixture_pid" OPENDESK_ACCESSIBILITY_WINDOW_ID="darwin:$fixture_pid:native:$fixture_window_number" OPENDESK_ACCESSIBILITY_STATE_PATH="$fixture_state" OPENDESK_ACCESSIBILITY_APP_PATH="$PWD/.runtime/tests/accessibility/macos/OpenDeskAccessibilityFixture.app" OPENDESK_ACCESSIBILITY_EVIDENCE_DIR="$evidence" ./dist/OpenDesk.app/Contents/MacOS/opendesk -script tests/runtime-api/accessibility-native-macos.js -stack legacy -console-mode script -timeout 180 -log-dir "$evidence/runtime-logs"
+```
+
+这个测试先确认同一 PID/instance fingerprint 仍在运行，再通过已验证的 app path 激活该实例；它不会把
+缺失或换代实例当作目标，也不会复制、重签或终止 App。运行后仍由
+持有该 PID 的维护者执行 `./dist/opendesk -script tests/accessibility/fixtures/macos/stop.js -console-mode script`。只有 `result.json` 为 `passed`、
+`summary.json` 为 `succeeded`，且 `events.ndjson` 的最终 cleanup event 中
+`accessibilityWorkers/accessibilityPending/accessibilityQueued/accessibilityRefs/accessibilityNativeResources`
+五项均为 `0`，才可报告该次原生验收通过。
 
 `dialog` 在 macOS 构建 run-local native host，并实际运行公开 JavaScript 的 disabled、严格
 参数、non-blocking、single-flight、`.then/.catch/.finally`、prompt 真实键盘输入、输入值第二个

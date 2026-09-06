@@ -9,6 +9,7 @@ const vm = require('node:vm');
 const { migrations, compatibilitySource } = require('../../scripts/lib/test-architecture-layout');
 const root = path.resolve(__dirname, '../..');
 const read = file => fs.readFileSync(path.join(root, file), 'utf8');
+const plain = value => JSON.parse(JSON.stringify(value));
 const script = async (file, env = {}, extra = {}) => {
   const messages = [];
   const context = { Execution: Object.freeze({ env: Object.freeze(env), artifactDir: '/artifacts', id: 'host-test' }),
@@ -217,6 +218,354 @@ test('Qianniu inventory is read-only; topmost requires explicit target/action an
   assert.deepEqual(d.actions, [['topmost', 'Disposable', true]]);
   const other = desktop({ exeName: 'Notepad.exe' });
   await assert.rejects(script('examples/app/qianniu-window.js', env, { window: other.window, System }), /not AliWorkbench/); assert.equal(other.actions.length, 0);
+});
+
+const accessibilityExamples = Object.freeze({
+  'inspect-window.js': {
+    command: './dist/opendesk -script examples/accessibility/inspect-window.js -console-mode script -log-dir .runtime/tests/accessibility/public-inspect',
+    runtimeTest: 'tests/runtime-api/accessibility-native-macos.js',
+  },
+  'invoke-control.js': {
+    command: 'OPENDESK_ACCESSIBILITY_CONTROL_ROLE=button OPENDESK_ACCESSIBILITY_CONTROL_NAME=\'Invoke Once\' OPENDESK_ACCESSIBILITY_CONTROL_IDENTIFIER=\'fixture.invoke\' OPENDESK_ACCESSIBILITY_VERIFY_ROLE=staticText OPENDESK_ACCESSIBILITY_VERIFY_IDENTIFIER=\'fixture.status\' OPENDESK_ACCESSIBILITY_VERIFY_PROPERTY=value OPENDESK_ACCESSIBILITY_EXPECTED_VALUE=\'invoke-button | invoke=1 checkbox=0 menu=0\' ./dist/opendesk -script examples/accessibility/invoke-control.js -console-mode script -log-dir .runtime/tests/accessibility/public-invoke',
+    runtimeTest: 'tests/runtime-api/accessibility-native-macos.js',
+  },
+  'menu-command.js': {
+    command: 'OPENDESK_ACCESSIBILITY_MENU_PATH_JSON=\'[{"identifier":"fixture.menu.root"},{"identifier":"fixture.menu.invoke"}]\' OPENDESK_ACCESSIBILITY_VERIFY_ROLE=staticText OPENDESK_ACCESSIBILITY_VERIFY_IDENTIFIER=\'fixture.status\' OPENDESK_ACCESSIBILITY_VERIFY_PROPERTY=value OPENDESK_ACCESSIBILITY_EXPECTED_VALUE=\'menu-invoke | invoke=0 checkbox=0 menu=1\' ./dist/opendesk -script examples/accessibility/menu-command.js -console-mode script -log-dir .runtime/tests/accessibility/public-menu',
+    runtimeTest: 'tests/runtime-api/accessibility-native-macos.js',
+  },
+});
+
+const accessibilityWindow = Object.freeze({
+  id: 'darwin:42:native:99', title: 'OpenDesk Accessibility Fixture', pid: 42,
+  x: 10, y: 20, width: 520, height: 420, exeName: 'OpenDeskAccessibilityFixture',
+  exePath: '/repo/.runtime/tests/accessibility/macos/OpenDeskAccessibilityFixture.app/Contents/MacOS/OpenDeskAccessibilityFixture',
+  isForeground: true, hasFocus: true, handle: 99, isPopup: false, index: 0,
+});
+
+function accessibilityRuntime(overrides = {}) {
+  const env = {
+    OPENDESK_ACCESSIBILITY_TARGET_PID: '42',
+    OPENDESK_ACCESSIBILITY_WINDOW_ID: 'darwin:42:native:99',
+    OPENDESK_ACCESSIBILITY_CONTROL_ROLE: 'button',
+    OPENDESK_ACCESSIBILITY_CONTROL_NAME: 'Invoke Once',
+    OPENDESK_ACCESSIBILITY_CONTROL_IDENTIFIER: 'fixture.invoke',
+    OPENDESK_ACCESSIBILITY_VERIFY_ROLE: 'staticText',
+    OPENDESK_ACCESSIBILITY_VERIFY_IDENTIFIER: 'fixture.status',
+    OPENDESK_ACCESSIBILITY_VERIFY_PROPERTY: 'value',
+    OPENDESK_ACCESSIBILITY_EXPECTED_VALUE: 'invoke-button | invoke=1 checkbox=0 menu=0',
+    OPENDESK_ACCESSIBILITY_MENU_PATH_JSON: '[{"identifier":"fixture.menu.root"},{"identifier":"fixture.menu.invoke"}]',
+    ...overrides.env,
+  };
+  const calls = [];
+  const refs = [];
+  const System = { getEnv: name => env[name] || '' };
+  const windowObject = {
+    list: async () => [overrides.window || accessibilityWindow],
+  };
+  const Accessibility = {
+    getCapabilities: () => {
+      calls.push(['Accessibility.getCapabilities']);
+      return {
+        hostAuthorization: { enabled: true },
+        implementation: { available: true, menus: true },
+        permission: { granted: true },
+        available: true,
+      };
+    },
+    snapshot: async options => {
+      calls.push(['Accessibility.snapshot', options]);
+      return {
+        requestId: 'axreq-host-1', backend: 'macos-ax', complete: true,
+        truncated: false, reason: null, stats: { nodes: 3, maxDepth: 2 },
+        root: { role: 'window', nativeRole: 'AXWindow', children: [{ role: 'button', children: [] }] },
+      };
+    },
+    find: async selector => {
+      calls.push(['Accessibility.find', selector]);
+      const ref = selector.identifier === 'fixture.invoke'
+        ? { kind: 'AccessibilityElementRef', id: 'invoke', role: 'button', nativeRole: 'AXButton' }
+        : { kind: 'AccessibilityElementRef', id: 'status', role: 'staticText', nativeRole: 'AXStaticText' };
+      refs.push(ref);
+      return ref;
+    },
+    perform: async (ref, action) => {
+      calls.push(['Accessibility.perform', ref, action]);
+      return { requestId: 'axreq-host-2', backend: 'macos-ax', action: action.action, actionState: 'acknowledged' };
+    },
+    read: async (_ref, options) => {
+      calls.push(['Accessibility.read', options]);
+      return { properties: { value: env.OPENDESK_ACCESSIBILITY_EXPECTED_VALUE } };
+    },
+    release: async ref => {
+      calls.push(['Accessibility.release', ref]);
+      return refs.includes(ref);
+    },
+  };
+  const UI = {
+    tapMenuItem: async (pathValue, options) => {
+      calls.push(['UI.tapMenuItem', pathValue, options]);
+      return {
+        requestId: 'axreq-host-3', backend: 'macos-ax', action: 'invoke',
+        actionState: 'acknowledged', completedLevels: pathValue.length, expansionOccurred: true,
+      };
+    },
+  };
+  return { env, calls, System, window: windowObject, Accessibility, UI };
+}
+
+test('Accessibility public examples are documented one-line commands with matching Runtime evidence sources', () => {
+  const readme = read('examples/accessibility/README.md');
+  const singleTests = read('docs/api/examples/single-tests.md');
+  const names = fs.readdirSync(path.join(root, 'examples/accessibility')).filter(name => name.endsWith('.js')).sort();
+  assert.deepEqual(names, Object.keys(accessibilityExamples).sort());
+  assert.match(singleTests, /三个示例各自所需的完整环境变量和可复制命令见/);
+  assert.match(readme, /\.\/dist\/opendesk -script tests\/accessibility\/fixtures\/macos\/launch\.js -console-mode script -log-dir \.runtime\/tests\/accessibility\/fixture-launch/);
+  assert.match(readme, /后续的默认公开命令无需 shell 变量/);
+  assert.match(readme, /OPENDESK_ACCESSIBILITY_TARGET_PID` 与 `OPENDESK_ACCESSIBILITY_WINDOW_ID`/);
+  for (const [name, expected] of Object.entries(accessibilityExamples)) {
+    assert(readme.includes(expected.command), name + ' command is documented exactly once');
+    assert.equal(readme.split(expected.command).length - 1, 1, name + ' command must not be duplicated');
+    assert(fs.existsSync(path.join(root, expected.runtimeTest)), name + ' Runtime evidence source must exist');
+  }
+  const native = read('tests/runtime-api/accessibility-native-macos.js');
+  for (const method of [
+    'Accessibility.getCapabilities', 'Accessibility.snapshot', 'Accessibility.find',
+    'Accessibility.read', 'Accessibility.perform', 'Accessibility.release',
+    'UI.getMenuItems', 'UI.findMenuItem', 'UI.tapMenuItem',
+  ]) {
+    assert(native.includes(method), 'native fixture evidence must exercise ' + method);
+  }
+});
+
+test('Accessibility examples resolve only an exact checked-out fixture receipt when target variables are absent', async () => {
+  const absentTarget = { OPENDESK_ACCESSIBILITY_TARGET_PID: '', OPENDESK_ACCESSIBILITY_WINDOW_ID: '' };
+  const runtime = accessibilityRuntime({ env: absentTarget });
+  const fixtureExecutable = path.join(root, '.runtime/tests/accessibility/macos/OpenDeskAccessibilityFixture.app/Contents/MacOS/OpenDeskAccessibilityFixture');
+  const fixtureWindow = { ...accessibilityWindow, exePath: fixtureExecutable };
+  const receipt = {
+    status: 'ready', pid: 42, windowNumber: 99, windowId: 'darwin:42:native:99',
+    app: path.join(root, '.runtime/tests/accessibility/macos/OpenDeskAccessibilityFixture.app'),
+    executable: fixtureExecutable,
+    state: path.join(root, '.runtime/tests/accessibility/macos/state.json'),
+  };
+  const File = {
+    cwd: () => root,
+    join: path.join,
+    exists: file => file.endsWith('/launch.json') || file.endsWith('/fixture.pid'),
+    read: file => {
+      if (file.endsWith('/fixture.pid')) return '42\n';
+      return read(path.isAbsolute(file) ? path.relative(root, file) : file);
+    },
+    readJSON: async file => file.endsWith('/launch.json') ? receipt : { pid: 42, windowNumber: 99 },
+  };
+  const result = await script('examples/accessibility/inspect-window.js', {}, {
+    ...runtime,
+    window: { list: async () => [fixtureWindow] },
+    File,
+    Execution: { env: {}, artifactDir: '/artifacts', id: 'host-test', workdir: root },
+  });
+  assert.equal(runtime.calls[1][1].within.id, fixtureWindow.id);
+  assert(result.messages.join('\n').includes('[ACCESSIBILITY-INSPECT]'));
+
+  const wrongExecutable = accessibilityRuntime({ env: absentTarget });
+  await assert.rejects(script('examples/accessibility/inspect-window.js', {}, {
+    ...wrongExecutable,
+    File,
+    Execution: { env: {}, artifactDir: '/artifacts', id: 'host-test', workdir: root },
+    window: { list: async () => [{ ...fixtureWindow, exePath: '/tmp/unrelated-app' }] },
+  }), /unexpected executable identity/);
+});
+
+test('Accessibility inspect auto-launches and cleans up only the repository-owned fixture when no receipt exists', async () => {
+  const absentTarget = { OPENDESK_ACCESSIBILITY_TARGET_PID: '', OPENDESK_ACCESSIBILITY_WINDOW_ID: '' };
+  const runtime = accessibilityRuntime({ env: absentTarget });
+  const fixtureExecutable = path.join(root, '.runtime/tests/accessibility/macos/OpenDeskAccessibilityFixture.app/Contents/MacOS/OpenDeskAccessibilityFixture');
+  const fixtureWindow = { ...accessibilityWindow, exePath: fixtureExecutable };
+  const receipt = {
+    status: 'ready', pid: 42, windowNumber: 99, windowId: 'darwin:42:native:99',
+    app: path.join(root, '.runtime/tests/accessibility/macos/OpenDeskAccessibilityFixture.app'),
+    executable: fixtureExecutable,
+    state: path.join(root, '.runtime/tests/accessibility/macos/state.json'),
+  };
+  let running = false;
+  const commands = [];
+  const File = {
+    cwd: () => root,
+    join: path.join,
+    exists: file => file.endsWith('/dist/opendesk') || (running && (file.endsWith('/launch.json') || file.endsWith('/fixture.pid'))),
+    read: file => {
+      if (file.endsWith('/fixture.pid')) return '42\n';
+      return read(path.isAbsolute(file) ? path.relative(root, file) : file);
+    },
+    readJSON: async file => file.endsWith('/launch.json') ? receipt : { pid: 42, windowNumber: 99 },
+  };
+  const Command = {
+    getCapabilities: () => ({ enabled: true, supported: true }),
+    run: async (binary, args, options) => {
+      commands.push([binary, args, options]);
+      if (args[1] === 'tests/accessibility/fixtures/macos/launch.js') running = true;
+      if (args[1] === 'tests/accessibility/fixtures/macos/stop.js') running = false;
+      return { exitCode: 0, stdout: '', stderr: '' };
+    },
+  };
+  let windowListCalls = 0;
+  let snapshotCalls = 0;
+  const defaultSnapshot = runtime.Accessibility.snapshot;
+  runtime.Accessibility.snapshot = async options => {
+    snapshotCalls += 1;
+    if (snapshotCalls === 1) {
+      runtime.calls.push(['Accessibility.snapshot', options]);
+      const error = new Error('fixture AX hierarchy is still starting');
+      error.code = 'STALE_TARGET';
+      throw error;
+    }
+    return defaultSnapshot(options);
+  };
+  const waits = [];
+  const result = await script('examples/accessibility/inspect-window.js', {}, {
+    ...runtime,
+    window: { list: async () => { windowListCalls += 1; return [fixtureWindow]; } },
+    File,
+    Command,
+    sleep: async milliseconds => { waits.push(milliseconds); },
+    Execution: { env: {}, artifactDir: '/artifacts', id: 'host-test', workdir: root },
+  });
+  assert.deepEqual(commands.map(([, args]) => args[1]), [
+    'tests/accessibility/fixtures/macos/launch.js',
+    'tests/accessibility/fixtures/macos/stop.js',
+  ]);
+  assert.equal(running, false);
+  assert.equal(snapshotCalls, 2);
+  assert.equal(windowListCalls, 2);
+  assert.deepEqual(waits, [100]);
+  assert.equal(runtime.calls[1][1].within.id, fixtureWindow.id);
+  assert(result.messages.join('\n').includes('[ACCESSIBILITY-INSPECT]'));
+});
+
+test('Accessibility inspect retries neither explicit targets nor a persistent fixture stale target', async () => {
+  const stale = () => {
+    const error = new Error('verified window is no longer present in the accessibility hierarchy');
+    error.code = 'STALE_TARGET';
+    return error;
+  };
+
+  const explicit = accessibilityRuntime();
+  let explicitWindowLists = 0;
+  explicit.Accessibility.snapshot = async options => {
+    explicit.calls.push(['Accessibility.snapshot', options]);
+    throw stale();
+  };
+  await assert.rejects(script('examples/accessibility/inspect-window.js', explicit.env, {
+    ...explicit,
+    window: { list: async () => { explicitWindowLists += 1; return [accessibilityWindow]; } },
+  }), error => error && error.code === 'STALE_TARGET');
+  assert.deepEqual(explicit.calls.map(call => call[0]), ['Accessibility.getCapabilities', 'Accessibility.snapshot']);
+  assert.equal(explicitWindowLists, 1);
+
+  const absentTarget = { OPENDESK_ACCESSIBILITY_TARGET_PID: '', OPENDESK_ACCESSIBILITY_WINDOW_ID: '' };
+  const receiptRuntime = accessibilityRuntime({ env: absentTarget });
+  const fixtureExecutable = path.join(root, '.runtime/tests/accessibility/macos/OpenDeskAccessibilityFixture.app/Contents/MacOS/OpenDeskAccessibilityFixture');
+  const fixtureWindow = { ...accessibilityWindow, exePath: fixtureExecutable };
+  const receipt = {
+    status: 'ready', pid: 42, windowNumber: 99, windowId: 'darwin:42:native:99',
+    app: path.join(root, '.runtime/tests/accessibility/macos/OpenDeskAccessibilityFixture.app'),
+    executable: fixtureExecutable,
+    state: path.join(root, '.runtime/tests/accessibility/macos/state.json'),
+  };
+  const File = {
+    cwd: () => root,
+    join: path.join,
+    exists: file => file.endsWith('/launch.json') || file.endsWith('/fixture.pid'),
+    read: file => file.endsWith('/fixture.pid') ? '42\n' : read(path.isAbsolute(file) ? path.relative(root, file) : file),
+    readJSON: async file => file.endsWith('/launch.json') ? receipt : { pid: 42, windowNumber: 99 },
+  };
+  let receiptWindowLists = 0;
+  receiptRuntime.Accessibility.snapshot = async options => {
+    receiptRuntime.calls.push(['Accessibility.snapshot', options]);
+    throw stale();
+  };
+  const waits = [];
+  await assert.rejects(script('examples/accessibility/inspect-window.js', {}, {
+    ...receiptRuntime,
+    window: { list: async () => { receiptWindowLists += 1; return [fixtureWindow]; } },
+    File,
+    sleep: async milliseconds => { waits.push(milliseconds); },
+    Execution: { env: {}, artifactDir: '/artifacts', id: 'host-test', workdir: root },
+  }), error => error && error.code === 'STALE_TARGET');
+  assert.deepEqual(receiptRuntime.calls.map(call => call[0]), [
+    'Accessibility.getCapabilities', 'Accessibility.snapshot', 'Accessibility.snapshot',
+  ]);
+  assert.equal(receiptWindowLists, 2);
+  assert.deepEqual(waits, [100]);
+  assert(!receiptRuntime.calls.some(call => ['Accessibility.perform', 'UI.tapMenuItem'].includes(call[0])));
+});
+
+test('macOS Accessibility fixture lifecycle is JavaScript Runtime-owned', () => {
+  const fixtureRoot = 'tests/accessibility/fixtures/macos';
+  const launch = read(fixtureRoot + '/launch.js');
+  const stop = read(fixtureRoot + '/stop.js');
+  const build = read(fixtureRoot + '/build.js');
+  const library = read(fixtureRoot + '/fixture-lib.js');
+  for (const name of ['build.js', 'launch.js', 'stop.js', 'fixture-lib.js']) {
+    assert(fs.existsSync(path.join(root, fixtureRoot, name)), name + ' fixture JavaScript source must exist');
+  }
+  for (const removed of ['build.sh', 'launch.sh', 'stop.sh']) {
+    assert(!fs.existsSync(path.join(root, fixtureRoot, removed)), removed + ' must not remain as a second fixture implementation');
+  }
+  assert.match(build, /fixture\.build\(paths\)/);
+  assert.match(launch, /Command\.run\('\/usr\/bin\/open', \['-n', paths\.app, '--args', '--state', paths\.state\]/);
+  assert.match(launch, /fixture\.waitForReady\(paths\)/);
+  assert.match(launch, /fixture\.confirmStillOwned\(paths, ready\.pid\)/);
+  assert.match(launch, /fixture\.waitForVisibleWindow\(paths, ready\)/);
+  assert.match(stop, /command !== fixture\.expectedCommand\(paths\)/);
+  assert.match(stop, /Command\.run\('\/bin\/kill', \['-TERM', String\(pid\)\]/);
+  assert.match(library, /File\.readJSON\(paths\.state\)/);
+  assert.match(library, /await this\.ownedPid\(paths, state\.pid\)/);
+  assert.match(library, /await this\.ownedPid\(paths, pid\)/);
+  assert.match(library, /async waitForVisibleWindow\(paths, ready\)/);
+  assert.match(library, /Command\.run\('\/usr\/bin\/xcrun'/);
+  assert.match(library, /Command\.run\('\/usr\/bin\/codesign'/);
+});
+
+test('Accessibility inspect example observes only the reviewed window scope', async () => {
+  const runtime = accessibilityRuntime();
+  const result = await script('examples/accessibility/inspect-window.js', runtime.env, runtime);
+  assert.deepEqual(runtime.calls.map(call => call[0]), ['Accessibility.getCapabilities', 'Accessibility.snapshot']);
+  assert.equal(runtime.calls[1][1].within.id, accessibilityWindow.id);
+  assert.equal(runtime.calls[1][1].maxDepth, 4);
+  assert.equal(runtime.calls[1][1].maxNodes, 300);
+  assert(result.messages.join('\n').includes('[ACCESSIBILITY-INSPECT]'));
+  assert(!runtime.calls.some(call => ['Accessibility.perform', 'UI.tapMenuItem'].includes(call[0])));
+});
+
+test('Accessibility invoke example performs once, verifies readback, and releases refs', async () => {
+  const runtime = accessibilityRuntime();
+  const result = await script('examples/accessibility/invoke-control.js', runtime.env, runtime);
+  assert.deepEqual(runtime.calls.map(call => call[0]), [
+    'Accessibility.getCapabilities', 'Accessibility.find', 'Accessibility.perform',
+    'Accessibility.find', 'Accessibility.read', 'Accessibility.release', 'Accessibility.release',
+  ]);
+  assert.deepEqual(plain(runtime.calls[2][2]), { action: 'invoke' });
+  assert(result.messages.join('\n').includes('[ACCESSIBILITY-INVOKE]'));
+  assert(!runtime.calls.some(call => call[0] === 'UI.tapMenuItem'));
+});
+
+test('Accessibility menu example requires the reviewed foreground window and verifies readback', async () => {
+  const runtime = accessibilityRuntime({
+    env: { OPENDESK_ACCESSIBILITY_EXPECTED_VALUE: 'menu-invoke | invoke=0 checkbox=0 menu=1' },
+  });
+  const result = await script('examples/accessibility/menu-command.js', runtime.env, runtime);
+  assert.deepEqual(runtime.calls.map(call => call[0]), [
+    'Accessibility.getCapabilities', 'UI.tapMenuItem',
+    'Accessibility.find', 'Accessibility.read', 'Accessibility.release',
+  ]);
+  assert.deepEqual(plain(runtime.calls[1][1]), [{ identifier: 'fixture.menu.root' }, { identifier: 'fixture.menu.invoke' }]);
+  assert.equal(runtime.calls[1][2].within.id, accessibilityWindow.id);
+  assert(result.messages.join('\n').includes('[ACCESSIBILITY-MENU]'));
+
+  const background = accessibilityRuntime({ window: { ...accessibilityWindow, isForeground: false } });
+  await assert.rejects(script('examples/accessibility/menu-command.js', background.env, background), /must already be foreground/);
+  assert.deepEqual(background.calls.map(call => call[0]), ['Accessibility.getCapabilities']);
 });
 
 async function stress(env = {}, options = {}) {

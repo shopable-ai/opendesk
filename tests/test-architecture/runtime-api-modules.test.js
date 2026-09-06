@@ -25,9 +25,9 @@ const originalModes = {
   path: 'pathContext', language: 'language', sqlite: 'sqlite',
 };
 
-test('all existing modes retain their route; focused HTTP download, Page wait and unit selection are additive', () => {
+test('all existing modes retain their route; focused Accessibility, HTTP download, Page wait and unit selection are additive', () => {
   assert.deepEqual(plain(registry.modes), {
-    ...originalModes, 'http-download': 'httpDownload', 'page-wait': 'pageWait', 'unit-selected': 'unitSelected',
+    ...originalModes, accessibility: 'accessibility', 'http-download': 'httpDownload', 'page-wait': 'pageWait', 'unit-selected': 'unitSelected',
   });
 });
 
@@ -89,7 +89,7 @@ async function dispatch(mode, options = {}) {
 }
 
 for (const [mode, entry] of Object.entries({
-  ...originalModes, 'http-download': 'httpDownload', 'page-wait': 'pageWait', 'unit-selected': 'unitSelected',
+  ...originalModes, accessibility: 'accessibility', 'http-download': 'httpDownload', 'page-wait': 'pageWait', 'unit-selected': 'unitSelected',
 })) {
   test(`dispatcher routes ${mode} exactly once and loads only its suite`, async () => {
     const result = await dispatch(mode, mode === 'unit-selected' ? { filter: 'file' } : {});
@@ -109,7 +109,7 @@ for (const mode of ['typo', '__proto__', 'constructor', 'toString']) {
 }
 
 test('selection filter cannot silently narrow an ordinary smoke or live gate', async () => {
-  for (const mode of ['unit', 'smoke', 'live', 'sqlite', 'http-download', 'page-wait']) {
+  for (const mode of ['unit', 'smoke', 'live', 'sqlite', 'accessibility', 'http-download', 'page-wait']) {
     const result = await dispatch(mode, { filter: 'file' });
     assert.match(result.error.message, /requires mode=unit-selected/);
     assert.deepEqual(result.trace, []);
@@ -183,6 +183,26 @@ test('SQLite preserves scoped phases and cleanup on failure; first error wins', 
   assert.deepEqual(calls, [
     ['contract', '/repo/tests/runtime-api/sqlite-contract.js', 5, 180], ['zero', 'contract'],
     ['unit', '/repo/tests/runtime-api/sqlite-unit.js', 15, 240], ['cleanup'],
+  ]);
+});
+
+test('Accessibility runs three real Runtime scripts and verifies all cleanup counters', async () => {
+  const calls = [];
+  const context = {
+    ROOT_DIR: '/repo',
+    RUN_DIR: '/evidence',
+    runJS: async (...args) => calls.push(args),
+    verifyZeroCleanup: async (gate) => calls.push(['zero', gate]),
+    invoke: async (name) => calls.push([name]),
+    noResidual: async () => calls.push(['noResidual']),
+    writeJSON: async (file) => calls.push(['writeJSON', file]),
+  };
+  await suite('accessibility', context).accessibility();
+  assert.deepEqual(plain(calls), [
+    ['accessibility-api', '/repo/tests/runtime-api/accessibility.js', 8, 120], ['zero', 'accessibility-api'],
+    ['accessibility-menu', '/repo/tests/runtime-api/accessibility-menu.js', 8, 120], ['zero', 'accessibility-menu'],
+    ['accessibility-lifecycle', '/repo/tests/runtime-api/accessibility-lifecycle.js', 8, 120], ['zero', 'accessibility-lifecycle'],
+    ['cleanup'], ['noResidual'], ['writeJSON', '/evidence/results/accessibility.json'],
   ]);
 });
 

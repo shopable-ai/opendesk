@@ -40,7 +40,9 @@ order: 1
 ```
 
 按 [Page API](page.md) → [Mouse API](mouse.md) → [Input APIs](input.md) → [Window API](window.md) 阅读；需要识别
-文本或图像时再使用 [Vision API](vision.md) 或 [ImageColor API](image-color.md)。
+文本或图像时再使用 [Vision API](vision.md) 或 [ImageColor API](image-color.md)，需要明确 scope 内的原生
+语义元素或完整菜单路径时使用 [Accessibility API](accessibility.md) 与
+[Desktop UI Menu API](desktop-ui-menu.md)。
 
 需要直接复制运行仓库内示例、正式 scripts 或排查旧命令时，直接打开
 [Examples 快速索引](examples/README.md)。
@@ -62,31 +64,33 @@ order: 1
 8. `app.md`：按 stable identity 启动、等待、终止与重启桌面应用
 9. `audio.md`：默认输出音量、mute、输入/输出设备发现与 capability-gated 固定声音模式匹配；默认 pattern capture backend 尚不可用
 10. `window.md`：窗口查询与控制
-11. `vision.md`：OCR、UI 文本定位、provider
-12. `image-color.md`：模板匹配、颜色与图像辅助能力
-13. `notify.md`：系统通知调用契约、平台限制与可见性边界
-14. `notifications.md`：macOS/OpenDesk 自身通知的观察、等待、脱敏和移除边界
-15. `dialog.md`：异步 alert / confirm / prompt、UI capability 与隐私边界
-16. `clipboard.md`：系统剪贴板对象与文本读写
-17. `global-apis.md`：无需 import 即可调用的全局接口、console、等待、计时器和参数工具
-18. `sqlite.md`：第一方、本地 execution-owned 的异步 SQLite 句柄、参数、事务与取消边界
-19. `environment.md`：`System.getEnv()`、`Execution.env`、`.env`、`.opendesk.env`、输出档位、优先级与 `-env-file`
-20. `execution.md`：每次运行的 ID、结构化输入、工作目录、来源和 artifact 上下文
-21. `path.md`：平台原生路径字符串与 `Execution.scriptPath/scriptDir`
-22. `runtime.md`：JavaScript 执行、异步生命周期与历史兼容边界
-23. `command.md`：本地命令执行、输出、错误与 execution-owned 清理
-24. `sound.md`：播放并控制内置提示音或本地音频文件
-25. `custom-ui.md`：Dialog、FloatingWindow 和受限 HTML/CSS 原生窗口的选择与调用
-26. [native-extension.md](native-extension.md)：本机 CLI 默认提供、仅程序相对目录 discovery 的 Native Extension Plugin V1；必须先安装与实际 CLI 配套的完整 source-free bundle，底层复用 one-shot Native Process Protocol V0
-27. [examples/native-extensions/README.md](../../examples/native-extensions/README.md)：插件作者 build/package、source-free bundle 与程序相对安装；业务调用脚本为 [quickstart.js](../../examples/native-extensions/quickstart.js)
-28. `cookbook.md`：可直接改造的脚本范例
-29. `scheduler.md`：file/inline JavaScript 定时任务、SQLite 持久化与本地管理页
-30. `scheduler-api.md`：Scheduler 本地 HTTP API 的字段、响应与完整调用示例
-31. 其余专题页按需查阅
+11. `accessibility.md`：明确 scope 内的第一方 macOS AX / Windows UIA 元素观察与动作（Experimental）
+12. `desktop-ui-menu.md`：现有大写 UI 上的完整原生菜单路径操作（Experimental）
+13. `vision.md`：OCR、UI 文本定位、provider
+14. `image-color.md`：模板匹配、颜色与图像辅助能力
+15. `notify.md`：系统通知调用契约、平台限制与可见性边界
+16. `notifications.md`：macOS/OpenDesk 自身通知的观察、等待、脱敏和移除边界
+17. `dialog.md`：异步 alert / confirm / prompt、UI capability 与隐私边界
+18. `clipboard.md`：系统剪贴板对象与文本读写
+19. `global-apis.md`：无需 import 即可调用的全局接口、console、等待、计时器和参数工具
+20. `sqlite.md`：第一方、本地 execution-owned 的异步 SQLite 句柄、参数、事务与取消边界
+21. `environment.md`：`System.getEnv()`、`Execution.env`、`.env`、`.opendesk.env`、输出档位、优先级与 `-env-file`
+22. `execution.md`：每次运行的 ID、结构化输入、工作目录、来源和 artifact 上下文
+23. `path.md`：平台原生路径字符串与 `Execution.scriptPath/scriptDir`
+24. `runtime.md`：JavaScript 执行、异步生命周期与历史兼容边界
+25. `command.md`：本地命令执行、输出、错误与 execution-owned 清理
+26. `sound.md`：播放并控制内置提示音或本地音频文件
+27. `custom-ui.md`：Dialog、FloatingWindow 和受限 HTML/CSS 原生窗口的选择与调用
+28. [native-extension.md](native-extension.md)：本机 CLI 默认提供、仅程序相对目录 discovery 的 Native Extension Plugin V1；必须先安装与实际 CLI 配套的完整 source-free bundle，底层复用 one-shot Native Process Protocol V0
+29. [examples/native-extensions/README.md](../../examples/native-extensions/README.md)：插件作者 build/package、source-free bundle 与程序相对安装；业务调用脚本为 [quickstart.js](../../examples/native-extensions/quickstart.js)
+30. `cookbook.md`：可直接改造的脚本范例
+31. `scheduler.md`：file/inline JavaScript 定时任务、SQLite 持久化与本地管理页
+32. `scheduler-api.md`：Scheduler 本地 HTTP API 的字段、响应与完整调用示例
+33. 其余专题页按需查阅
 
 ## 文档分层
 
-- **核心桌面自动化**：`page.md`、`mouse.md`、`input.md`、`global-shortcut.md`、`events.md`、`app.md`、`audio.md`、`window.md`、`screen.md`
+- **核心桌面自动化**：`page.md`、`mouse.md`、`input.md`、`global-shortcut.md`、`events.md`、`app.md`、`audio.md`、`window.md`、`screen.md`、`accessibility.md`、`desktop-ui-menu.md`
 - **视觉能力**：`vision.md`、`image-color.md`
 - **系统与数据**：`system.md`、`command.md`、`path.md`、`file.md`、`sqlite.md`、`storage.md`、`clipboard.md`、`audio.md`
 - **网络与服务**：`http.md`、`http-server.md`、`scheduler.md`、`scheduler-api.md`

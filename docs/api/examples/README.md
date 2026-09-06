@@ -29,8 +29,11 @@ Page 等待示例以真实断言检查固定等待、条件轮询、single-fligh
 - [屏幕信息](../../../examples/screen.js)、[截图](../../../examples/screenshot.js)、[截图字节](../../../examples/screenshot_bytes_smoke.js)、[显示模式](../../../examples/display-modes.js)、[区域录屏](../../../examples/screen-record-region.js)
 - [系统信息](../../../examples/system.js)、[会话状态](../../../examples/system-session-state.js)、[发送通知](../../../examples/notify.js)、[读取通知](../../../examples/notifications.js)
 - [千牛窗口](../../../examples/app/README.md)
+- [Native Accessibility 与菜单](../../../examples/accessibility/README.md)
 
 输入、窗口变更和剪贴板写入分别需要显式设置 `OPENDESK_EXAMPLE_ALLOW_INPUT=1`、`OPENDESK_EXAMPLE_ALLOW_WINDOW_CHANGE=1`、`OPENDESK_EXAMPLE_ALLOW_CLIPBOARD_WRITE=1`。输入与窗口变更还需指定目标标题和 PID；剪贴板写入会覆盖原内容。
+
+Accessibility 示例默认只从仓库自有 fixture 的 receipt 解析并复核当前 executable identity；运行已审核的非-fixture target 时才必须同时传入精确 PID/window id。它们不会选择“当前/第一个”窗口，也不会在失败后降级到鼠标或发送 Escape。运行证据写入 `.runtime/tests/accessibility/`。
 
 ## Vision、OCR、图像和声音
 

@@ -104,6 +104,9 @@ func (b *defaultAppBackend) List(context.Context) ([]desktopApplicationState, er
 		if item.ExecutablePath == "" {
 			item.ExecutablePath = live.ExecutablePath
 		}
+		if item.LaunchTimeMS <= 0 {
+			item.LaunchTimeMS = live.LaunchTimeMS
+		}
 		result = append(result, item)
 		seen[item.PID] = true
 	}

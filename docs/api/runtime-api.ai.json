@@ -48,6 +48,7 @@
     "Use ImageColor as a secondary pixel/template/color primitive, not as a replacement for semantic verification.",
     "Prefer axios for normal script HTTP requests; axios is a polyfill backed by http.request. Use http.download only for host-authorized native streaming GET downloads; local CLI and ai run enable it, while HTTP, MCP, Scheduler, generic Runtime, JavaScript options, and environment variables cannot grant it.",
     "NativeExtensions is an Experimental manifest-discovered immutable binding. Normal local CLI calls use NativeExtensions.<namespace>.<method>(businessParams) with routes fixed by the Host; it discovers only the program-relative bundle directory by default. HTTP and MCP cannot enable or call it. The low-level NativeExtension.call compatibility surface requires the separate -experimental-unsafe-native-extension-call local diagnostic gate.",
+    "Accessibility is an execution-owned Experimental local Runtime API. Trusted local script and AI CLI entrypoints explicitly enable it; HTTP, MCP, Scheduler, and generic Runtime initialization leave it disabled. Every traversal requires an explicit window, execution-owned element ref, or App target scope. It never silently falls back to OCR or mouse input.",
     "Uppercase UI operates visible targets in external desktop apps. Lowercase ui is always present but dormant by default and creates OpenDesk Custom UI; enable it with -ui or strict clawdesk.runtime.json. They have no aliases.",
     "Dialog is always present but fail-closed without the ui capability. Its alert, confirm, and prompt methods are asynchronous native modal dialogs; global alert/confirm/prompt are thin polyfill aliases, never browser-style blocking calls.",
     "Omit -stack for new scripts. The old upgraded/playwright values and browser/context-shaped globals are implementation compatibility residue, not maintained user APIs or a browser engine.",
@@ -125,9 +126,55 @@
       "coordinateSpace": "Consumes WindowInfo, DisplayInfo, or tagged screen regions and emits only tagged virtual-desktop logical screen points/regions. It never accepts a bare bbox as screen coordinates."
     },
     {
+      "name": "Accessibility",
+      "source": "execution-owned native Runtime + macOS AX / Windows UIA backend",
+      "status": "experimental-local",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "doc": "accessibility.md",
+      "types": "types/Accessibility.d.ts",
+      "keyMethods": [
+        "getCapabilities",
+        "snapshot",
+        "find",
+        "read",
+        "perform",
+        "release"
+      ],
+      "authorization": "Enabled only by trusted local script and AI CLI execution.Request values. Disabled operations reject without native target reads; getCapabilities remains available and never prompts or crawls the desktop.",
+      "capabilities": "getCapabilities returns schemaVersion, platform/backend, hostAuthorization.enabled, implementation {available,status,menus,actions,coordinateMapping,notes}, permission {required,state,granted,cached}, top-level available, fixed limits, and cancellation.hardCancel=false. implementation.actions is a per-action boolean map and does not promise element-level support.",
+      "scope": "Every snapshot/find call requires an existing OpenDeskWindowInfo, an element ref owned by the current execution, or {app: OpenDeskAppTarget, root: application|menuBar}. No implicit whole-desktop traversal.",
+      "roles": [
+        "application",
+        "window",
+        "button",
+        "checkbox",
+        "radioButton",
+        "textField",
+        "staticText",
+        "menuBar",
+        "menu",
+        "menuItem",
+        "group",
+        "list",
+        "listItem",
+        "table",
+        "row",
+        "cell",
+        "unknown"
+      ],
+      "limits": "One total 3000ms default/30000ms maximum deadline including queue time; maxDepth 8/32, maxNodes 1000/5000, 256 active refs, and 32 queued requests per execution.",
+      "identity": "Element refs are opaque execution-owned objects bound to the process/container/native element. Their public fields cannot be serialized and reconstructed as authority.",
+      "actions": "invoke, setValue, expand, collapse, select, and setChecked use native capability/state checks and never auto-retry or fall back to pointer input after an attempted action.",
+      "lifecycle": "Workers, pending/queued requests, refs, and native resources are canceled, joined, counted, and released by the owning execution; hardCancel is false.",
+      "coordinates": "nativeBounds stays tagged in the backend coordinate space. bounds is null unless a reliable conversion to OpenDesk logical screen coordinates was performed."
+    },
+    {
       "name": "UI",
-      "source": "polyfill over page.screenshot, Vision.runOCR, ImageColor.findImages, Geometry, and mouse.clickPoint",
-      "status": "stable",
+      "source": "stable visual polyfill plus execution-owned native Accessibility menu composition",
+      "status": "stable-with-experimental-local-menu",
       "doc": "desktop-ui.md",
       "types": "types/UI.d.ts",
       "keyMethods": [
@@ -141,7 +188,10 @@
         "waitTextGone",
         "findImages",
         "findImage",
-        "tapImage"
+        "tapImage",
+        "getMenuItems",
+        "findMenuItem",
+        "tapMenuItem"
       ],
       "coordinateMapping": "Every discovery uses a fresh explicit screen clip. imageWidth/logicalScope.width and imageHeight/logicalScope.height are separately calculated actual capture scales; a scope across effective different-DPI displays fails closed.",
       "relativeTextTargeting": {
@@ -166,6 +216,14 @@
           "tapImage"
         ],
         "unsupportedBehavior": "Passing region or relativeTo to an unsupported method fails with INVALID_ARGUMENT before observation or input. Image and Accessibility anchors are not supported."
+      },
+      "menu": {
+        "status": "experimental-local",
+        "doc": "desktop-ui-menu.md",
+        "scope": "Requires a resolved OpenDeskWindowInfo or {app: OpenDeskAppTarget, root: menuBar}; read methods never expand or focus menus.",
+        "path": "A non-empty complete hierarchy path whose segments are non-empty strings or exact {name?,identifier?} AND selectors.",
+        "action": "tapMenuItem serially expands freshly observed unique levels under one total deadline, then submits invoke/select/setChecked at most once through the same AccessibilityRuntime.",
+        "compatibility": "Existing UI text/image methods retain their screenshot, OCR, image and mouse contracts; they are not silently replaced with native Accessibility actions."
       }
     },
     {
@@ -833,6 +891,9 @@
       "input.md",
       "events.md",
       "app.md",
+      "accessibility.md",
+      "desktop-ui.md",
+      "desktop-ui-menu.md",
       "audio.md",
       "window.md",
       "screen.md"

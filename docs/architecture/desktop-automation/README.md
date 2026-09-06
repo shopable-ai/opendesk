@@ -11,6 +11,7 @@
 | 文件 | 回答的问题 | 什么时候需要读 |
 | --- | --- | --- |
 | [Action Target Model](action-target-model.md) | 目标、候选、定位依据、动作前后条件与安全失败如何表达？ | 设计相对定位、候选消歧、动作保护和结果验证时；一般调用先看公开 API |
+| [Native Accessibility](native-accessibility.md) | 单一 AX/UIA owner、ElementRef、菜单 popup 身份、线程、取消和清理如何闭环？ | 维护 Accessibility 后端、UI 菜单组合或 execution lifecycle 时；脚本调用先看公开 API |
 | [App Adapter Contract](app-adapter-contract.md) | 通用窗口／区域结构与应用专属语义怎样交接？ | 封装应用 helper／adapter 或划分通用与业务职责时 |
 | [App Classification Policy](app-classification-policy.md) | 应用类型怎样影响架构划分与适配范围？ | 选择或设计应用适配方案时 |
 | [Agent-first Recorder](agent-first-recorder.md) | 示范采集、Trace、蒸馏、IR、Compiler 与 Replay 怎样组织？ | 明确研究或实施 Recorder／编译路线时；普通 Recipe 不以此为前置条件 |
@@ -23,7 +24,9 @@
 
 ## 与实际接口和验证的边界
 
-实际调用以 [Desktop UI API](../../api/desktop-ui.md)、[Geometry API](../../api/geometry.md) 及对应当前源码、类型与测试为准。设计模型和历史验证记载不自动等于当前所有平台已支持。
+实际调用以 [Desktop UI API](../../api/desktop-ui.md)、[Accessibility API](../../api/accessibility.md)、
+[Desktop UI Menu API](../../api/desktop-ui-menu.md)、[Geometry API](../../api/geometry.md) 及对应当前源码、
+类型与测试为准。设计模型、平台源码或历史验证记载不自动等于当前所有平台已通过 native live 验收。
 
 业务对象、授权、步骤交接与成果失效条件见[自动化任务求解方法](../../frameworks/automation-problem-solving-framework.md)。方法阅读不替代业务成功验证；目录迁移不代表本目录模型重新通过源码或真机审计。
 

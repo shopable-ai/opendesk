@@ -22,6 +22,12 @@ order: 22
 | 一次性日志、截图、探针输出 | `.runtime/` | 不提交；不要清理仍被进行中任务引用的证据。 |
 | 有保留理由的历史资料 | `.archive/` | 不作为活跃实现，也不是不加审查的垃圾桶。 |
 
+Accessibility V1 沿用这套归属：公开示例放 `examples/accessibility/`，Runtime 公共合同放
+`tests/runtime-api/accessibility*.js`，repo-owned 原生目标放
+`tests/accessibility/fixtures/<platform>/`，独立 native 诊断工具放 `tests/accessibility/tools/`，所有
+编译物、PID/state、日志和截图写入 `.runtime/tests/accessibility/`。fake backend 只能提供确定性 seam，
+不能代替当前平台 native fixture 或真实应用 evidence。
+
 ## 第一批迁移台账
 
 | 原入口 | 唯一实现位置 | 处理 |
@@ -159,3 +165,19 @@ PID/native identity、聚焦失败拒绝输入、bounds 恢复失败、兼容入
 来宣布例子已经运行。先执行无桌面副作用的 File/Command，然后才在明确配置下验证 HTTP，
 最后显式运行剪贴板和真实窗口场景。Windows/POSIX、原生行为/视觉效果分别记录。
 本批源码快照验证不具备完整仓库或 OpenDesk binary，不包含 native/live 通过声明。
+
+## Accessibility 示例与验收边界
+
+Accessibility 的公开示例必须从仓库根目录原样运行文档中的一行
+`./dist/opendesk -script examples/accessibility/<name>.js -console-mode script`；run-local binary、临时脚本和
+formal gate 不能替代这条用户命令。正式 Runtime 单项测试仍直接运行三个
+`tests/runtime-api/accessibility*.js`，需要 catalog、
+跨 execution 编排或正式 evidence 时才使用薄入口 `scripts/test_runtime_apis.js`。原生 UI 功能返回成功
+也不自动等于视觉通过；应保存裁剪到已验证 fixture/owned popup 的截图或等价实窗证据，且默认不记录
+value、密码、完整控件树或用户菜单正文。
+
+`tests/test-architecture/examples-safety.test.js` 固定检查 `inspect-window.js`、`invoke-control.js` 和
+`menu-command.js` 的公开命令、示例文件清单、安全控制流以及
+`tests/runtime-api/accessibility-native-macos.js` 的对应 fixture evidence 来源。该宿主侧检查只证明示例
+源码和文档命令保持闭合；公开示例是否真实通过仍必须以仓库根目录原样执行对应 `./dist/opendesk -script
+examples/accessibility/*.js` 命令及 `.runtime/tests/accessibility/` 证据为准。

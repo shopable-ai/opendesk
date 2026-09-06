@@ -17,6 +17,14 @@ globalThis.RuntimeAPIObjects = {
   App: { docs: 'docs/api/app.md', types: 'types/App.d.ts', source: 'automation/app.go + automation/app_name.go + automation/app_backend*.go', status: 'experimental', platforms: ['darwin', 'linux', 'windows'], methods: [
     'launch', 'get', 'list', 'isRunning', 'waitForLaunch', 'waitForExit', 'terminate', 'restart', 'getCapabilities',
   ] },
+  Accessibility: {
+    docs: 'docs/api/accessibility.md', types: 'types/Accessibility.d.ts',
+    source: 'automation/accessibility.go + automation/accessibility_runtime.go + automation/accessibility_backend*.go',
+    status: 'experimental-local', platforms: ['darwin', 'windows'],
+    authorization: 'local',
+    roles: ['application', 'window', 'button', 'checkbox', 'radioButton', 'textField', 'staticText', 'menuBar', 'menu', 'menuItem', 'group', 'list', 'listItem', 'table', 'row', 'cell', 'unknown'],
+    methods: ['getCapabilities', 'snapshot', 'find', 'read', 'perform', 'release'],
+  },
   Notifications: { docs: 'docs/api/notifications.md', types: 'types/Notifications.d.ts', source: 'automation/notifications.go + automation/notifications_backend*.go', status: 'experimental', platforms: ['darwin'], methods: [
     'list', 'waitFor', 'dismiss', 'getCapabilities',
   ] },
@@ -85,7 +93,17 @@ globalThis.RuntimeAPIObjects = {
   },
   axios: { docs: 'docs/api/http.md', types: 'types/axios.d.ts', source: 'polyfills/004-axios.js', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: ['request', 'get', 'post', 'put', 'delete', 'patch'] },
   Geometry: { docs: 'docs/api/geometry.md', types: 'types/Geometry.d.ts', source: 'polyfills/005-geometry.js + polyfills/007-geometry-layout.js', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: ['rect', 'center', 'pointOffset', 'pointPercent', 'regionOffset', 'regionPercent', 'regionByEdges', 'inset', 'anchorPoint', 'contains', 'intersect'] },
-  UI: { docs: 'docs/api/desktop-ui.md', types: 'types/UI.d.ts', source: 'polyfills/006-ui.js', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: ['getCapabilities', 'findTexts', 'findText', 'hasText', 'tapText', 'tapTexts', 'waitText', 'waitTextGone', 'findImages', 'findImage', 'tapImage'] },
+  UI: {
+    docs: 'docs/api/desktop-ui.md', types: 'types/UI.d.ts',
+    source: 'polyfills/006-ui.js + automation/accessibility_menu.go',
+    status: 'stable', platforms: ['darwin', 'linux', 'windows'],
+    methods: ['getCapabilities', 'findTexts', 'findText', 'hasText', 'tapText', 'tapTexts', 'waitText', 'waitTextGone', 'findImages', 'findImage', 'tapImage', 'getMenuItems', 'findMenuItem', 'tapMenuItem'],
+    methodMetadata: {
+      getMenuItems: { docs: 'docs/api/desktop-ui-menu.md', status: 'experimental-local', platforms: ['darwin', 'windows'] },
+      findMenuItem: { docs: 'docs/api/desktop-ui-menu.md', status: 'experimental-local', platforms: ['darwin', 'windows'] },
+      tapMenuItem: { docs: 'docs/api/desktop-ui-menu.md', status: 'experimental-local', platforms: ['darwin', 'windows'] },
+    },
+  },
   OCR: { docs: 'docs/api/vision.md', types: 'types/Vision.d.ts', source: 'automation/ocr.go', status: 'secondary', platforms: ['darwin', 'linux', 'windows'], methods: ['extractText'] },
   Vision: { docs: 'docs/api/vision.md', types: 'types/Vision.d.ts', source: 'automation/vision.go', status: 'secondary', platforms: ['darwin', 'linux', 'windows'], methods: ['runOCR', 'detectUI', 'getCapabilities', 'analyzeLayout', 'annotateRegions'] },
   ImageColor: { docs: 'docs/api/image-color.md', types: 'types/ImageColor.d.ts', source: 'automation/imageColor.go', status: 'secondary', platforms: ['darwin', 'linux', 'windows'], methods: [
@@ -114,6 +132,7 @@ const unitBehavior = new Set([
   ...RuntimeAPIObjects.keyboard.methods.map((method) => 'keyboard.' + method),
   ...RuntimeAPIObjects.Events.methods.map((method) => 'Events.' + method),
   ...RuntimeAPIObjects.App.methods.map((method) => 'App.' + method),
+  ...RuntimeAPIObjects.Accessibility.methods.map((method) => 'Accessibility.' + method),
   ...RuntimeAPIObjects.Notifications.methods.map((method) => 'Notifications.' + method),
   'window.getCapabilities', 'window.list', 'window.setAlwaysOnTop', 'window.unsetTopMost', 'window.js_beautify',
   ...RuntimeAPIObjects.Screen.methods.filter((method) => method !== 'screenshot').map((method) => 'Screen.' + method),
@@ -198,6 +217,12 @@ for (const method of RuntimeAPIObjects.Audio.methods.filter((method) => !['getCa
 for (const method of ['watchSound', 'waitForSound']) {
   restricted['Audio.' + method] = 'captures sensitive system-output content in memory; unit coverage is fail-closed and live validation requires a dedicated synthetic-audio fixture';
 }
+for (const method of ['snapshot', 'find', 'read', 'perform', 'release']) {
+  restricted['Accessibility.' + method] = 'local execution-only native Accessibility access; unit coverage is limited to validation and local authorization/capability behavior until a dedicated native fixture supplies live evidence';
+}
+restricted['UI.getMenuItems'] = 'local execution-only native menu observation; no native live tier is claimed without a dedicated application fixture';
+restricted['UI.findMenuItem'] = 'local execution-only native menu observation; no native live tier is claimed without a dedicated application fixture';
+restricted['UI.tapMenuItem'] = 'submits a native application menu action at most once and requires a dedicated foreground fixture for live evidence';
 for (const method of ['launch', 'terminate', 'restart']) restricted['App.' + method] = 'starts or terminates a real desktop application; dedicated fixture smoke owns the target lifecycle';
 restricted['Notifications.list'] = 'may reveal own-app notification metadata or explicitly requested content; the formal unit gate validates arguments without reading host notifications';
 restricted['Notifications.waitFor'] = 'waits on the own-app notification model and may explicitly return content; the formal unit gate validates arguments without reading host notifications';
@@ -215,6 +240,7 @@ globalThis.RuntimeAPIManifest = [];
 for (const [family, definition] of Object.entries(RuntimeAPIObjects)) {
   for (const method of definition.methods) {
     const id = family + '.' + method;
+    const methodMetadata = definition.methodMetadata && definition.methodMetadata[method] || {};
     const behaviorTiers = [
       ...(unitBehavior.has(id) ? ['unit'] : []),
       ...(liveBehavior.has(id) ? ['live'] : []),
@@ -225,9 +251,13 @@ for (const [family, definition] of Object.entries(RuntimeAPIObjects)) {
     RuntimeAPIManifest.push({
       id,
       family,
-      source: { runtime: definition.source, docs: definition.docs, types: definition.types },
-      status: definition.status,
-      platforms: definition.platforms,
+      source: {
+        runtime: methodMetadata.source || definition.source,
+        docs: methodMetadata.docs || definition.docs,
+        types: methodMetadata.types || definition.types,
+      },
+      status: methodMetadata.status || definition.status,
+      platforms: methodMetadata.platforms || definition.platforms,
       requiredVerificationTiers: ['contract', ...behaviorTiers],
       riskClassification: restricted[id] ? 'restricted' : 'safe',
       contractOnlyReason,
@@ -293,6 +323,11 @@ for (const entry of RuntimeAPIObjects.NativeExtensions.dynamicMethods) {
 }
 
 globalThis.RuntimeAPITestFiles = {
+  // Supplemental native acceptance is deliberately excluded from unit/live.
+  // It must be run explicitly against the repository-owned macOS fixture.
+  accessibilityNativeMacOS: [
+    'tests/runtime-api/accessibility-native-macos.js',
+  ],
   async: [
     'tests/runtime-api/async-lifecycle.js',
   ],
@@ -346,6 +381,9 @@ globalThis.RuntimeAPITestFiles = {
     'tests/runtime-api/geometry.js',
     'tests/runtime-api/geometry-layout.js',
     'tests/runtime-api/ui.js',
+    'tests/runtime-api/accessibility.js',
+    'tests/runtime-api/accessibility-menu.js',
+    'tests/runtime-api/accessibility-lifecycle.js',
   ],
   live: [
     'tests/runtime-api/live/page.test.js',

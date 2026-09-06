@@ -256,16 +256,19 @@ Vision
 axios
 ```
 
-#### Sound / Audio / Command 的当前放置
+#### Sound / Audio / Command / Accessibility 的当前放置
 
-`Sound`、`Audio` 和 `Command` 是第一方 native Runtime primitive，直接由统一 Runtime Builder 注入为 JS
-全局；它们当前不由 `polyfills/` 提供，也不自动生成 HTTP/MCP 接口。其 owner 与同步资产为：
+`Sound`、`Audio`、`Command` 和 `Accessibility` 是第一方 native Runtime primitive，直接由统一 Runtime
+Builder 注入为 JS 全局；它们当前不由 `polyfills/` 提供，也不自动生成 HTTP/MCP 接口。其 owner 与
+同步资产为：
 
 | Public global | Native owner | Polyfill | JS contract | Runtime test |
 | --- | --- | --- | --- | --- |
 | `Sound` | `automation/sound.go` + `automation/utils.go` | 无 | `docs/api/sound.md`、`types/Sound.d.ts` | `tests/runtime-api/unit/sound.test.js` |
 | `Audio` | `automation/audio.go` + `automation/audio_pattern_runtime.go` + `automation/utils.go` | 无 | `docs/api/audio.md`、`types/Audio.d.ts` | `tests/runtime-api/unit/audio.test.js` + `tests/runtime-api/seams/audio-pattern-positive.js`、`audio-pattern-cleanup-failure.js`、`audio-pattern-teardown.js` |
 | `Command` | `automation/command.go` + `automation/command_*.go` + `automation/utils.go` | 无 | `docs/api/command.md`、`types/Command.d.ts` | Runtime API command contract/behavior tests |
+| `Accessibility` | `automation/accessibility*.go` + `automation/utils.go` | 无；显式 native global | `docs/api/accessibility.md`、`types/Accessibility.d.ts` | `tests/runtime-api/accessibility.js`、`accessibility-lifecycle.js` |
+| `UI` menu methods | 同一个 `AccessibilityRuntime`，在 `006-ui.js` 后附加 | `006-ui.js` 只创建既有 UI；不实现第二个菜单 owner | `docs/api/desktop-ui-menu.md`、`types/UI.d.ts` | `tests/runtime-api/accessibility-menu.js` |
 
 `Sound.start()` / `playAsync()` 的句柄、完成通知、停止和 execution teardown 都属于 native
 lifecycle；不得在 polyfill 中用计时器伪造这些状态，也不得再注册同名 `Sound`。如果未来增加
@@ -279,6 +282,14 @@ memory backend 只用于确定性 seam，不能在 polyfill 中伪造系统音�
 `Command` 的 process、stdio、timeout、Promise settlement 和 teardown 同样属于 native lifecycle；
 `require('child_process')` 不参与该 owner，也不能在 polyfill 中注册第二套命令执行面。本地
 `-script` 与 `ai run` 默认启用，HTTP、MCP 与 Scheduler execution 关闭。
+
+`Accessibility` 的 AX/UIA backend、native worker、request queue、ElementRef 与菜单串行协调属于同一个
+execution-owned `AccessibilityRuntime`。六个 Accessibility 方法显式注册；`006-ui.js` 建成现有大写
+`UI` 后，只把三个菜单闭包附加到同一个 owner。不能反射导出 `Close`、`Wait`、backend factory、队列或
+ref 表，也不能用 `MenuRuntime`、新 polyfill native global 或视觉/mouse fallback 复制能力。
+
+可信本地 `-script` / `ai run` 可显式启用该 owner；HTTP、MCP 与 Scheduler 当前关闭。禁用 execution
+仍可读取 capability 摘要，其余调用不得访问目标。这个 authorization input 不是完整 Runtime 沙箱。
 
 ## 四、公开对象只有一个 owner
 
@@ -337,7 +348,9 @@ runtime tests
 - execution context。
 - logging / evidence configuration。
 
-不得在不同入口私自注册不同 API。
+不得在不同入口私自建设不同 API 实现。能力准入仍可由入口传入显式、不可由脚本升级的 authorization
+字段；例如 Accessibility surface 在禁用入口保留 capability 摘要，但 native 观察/动作返回
+`CAPABILITY_DISABLED`，而不是另起一套远程实现。
 
 目标结构：
 
@@ -494,9 +507,16 @@ result(jobId)
 
 不要让一个普通 API 在不可取消的 Go 调用中无限阻塞 Runtime。
 
+Accessibility 是 Promise Bridge 的受控例子：参数与 settlement 在所属 EventLoop，AX/UIA 调用在单一
+native worker；队列、查询、菜单逐层操作与复核共享总 deadline。排队取消不会执行，in-flight 平台调用
+使用 native timeout 但 V1 明确 `hardCancel: false`；迟到结果不能访问已关闭 Goja Runtime。
+
 ## 十、接口状态与成熟度
 
 新增接口默认不能直接标记 Stable。
+
+`Accessibility` 与 `UI` 菜单方法当前为 Experimental。平台源码、cross-compile 或 capability 摘要不能
+代替真实 Runtime、原生 fixture、业务后置条件、取消/清理与对应平台 live evidence。
 
 推荐：
 

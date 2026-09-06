@@ -88,6 +88,10 @@ type Request struct {
 	// It is intentionally separate from ordinary HTTP so remote transports keep
 	// their existing network behavior without gaining filesystem side effects.
 	EnableDownload bool
+	// EnableAccessibility permits the first-party native Accessibility owner.
+	// Trusted local script entrypoints set it; remote and scheduled requests
+	// leave it false.
+	EnableAccessibility bool
 	// EnableSQLite permits local first-party SQLite database handles. It is a
 	// separate explicit capability because SQLite.open accepts filesystem paths;
 	// HTTP, MCP, and Scheduler requests leave it false by default.
@@ -110,6 +114,9 @@ type Request struct {
 	// AudioCaptureBackendFactory is an internal test seam for sound-pattern
 	// watcher lifecycle and teardown validation.
 	AudioCaptureBackendFactory automation.AudioCaptureBackendFactory
+	// AccessibilityBackendFactory is an internal test seam for deterministic
+	// native Accessibility query, action, cancellation, and lifecycle coverage.
+	AccessibilityBackendFactory automation.AccessibilityBackendFactory
 	// Timeout is the exact execution deadline used by transports that accept
 	// sub-minute timeouts. TimeoutMinutes remains for CLI compatibility.
 	Timeout   time.Duration
@@ -332,6 +339,7 @@ func runJavaScript(req Request, emitter *Emitter) error {
 				EnableCustomUI:                  req.EnableCustomUI,
 				EnableCommand:                   req.EnableCommand,
 				EnableDownload:                  req.EnableDownload,
+				EnableAccessibility:             req.EnableAccessibility,
 				EnableSQLite:                    req.EnableSQLite,
 				SQLiteProtectedPaths:            req.SQLiteProtectedPaths,
 				CustomUIActivationSource:        normalizeCustomUIActivationSource(req),
@@ -342,6 +350,7 @@ func runJavaScript(req Request, emitter *Emitter) error {
 				GlobalShortcutBackendFactory:    req.GlobalShortcutBackendFactory,
 				DesktopEventBackendFactory:      req.DesktopEventBackendFactory,
 				AudioCaptureBackendFactory:      req.AudioCaptureBackendFactory,
+				AccessibilityBackendFactory:     req.AccessibilityBackendFactory,
 				OnAsyncError:                    onAsyncError,
 				OnReady:                         func(resources *automation.RuntimeLifecycle) { lifecycle = resources },
 			}); err != nil {
@@ -446,6 +455,9 @@ func runJavaScript(req Request, emitter *Emitter) error {
 				"captureWorkers": resources.CaptureWorkers, "capturePending": resources.CapturePending,
 				"captureSessions": resources.CaptureSessions,
 				"appWorkers":      resources.AppWorkers, "appPending": resources.AppPending,
+				"accessibilityWorkers": resources.AccessibilityWorkers, "accessibilityPending": resources.AccessibilityPending,
+				"accessibilityQueued": resources.AccessibilityQueued, "accessibilityRefs": resources.AccessibilityRefs,
+				"accessibilityNativeResources": resources.AccessibilityNativeResources,
 			})
 			if !resources.IsZero() && runtimeErr == nil {
 				runtimeErr = fmt.Errorf("runtime cleanup left resources: %s", resources.String())

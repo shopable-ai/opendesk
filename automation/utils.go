@@ -66,6 +66,10 @@ type InitJSOptions struct {
 	// snapshot plus the existing normalized Window facade.
 	AppBackendFactory AppBackendFactory
 	AppWindowProbe    func(int64) (bool, error)
+	// AccessibilityBackendFactory is an internal dependency seam for bounded
+	// query, action, cancellation, and lifecycle tests. Product executions use
+	// the platform backend selected by the Accessibility owner.
+	AccessibilityBackendFactory AccessibilityBackendFactory
 	// NotificationInteractionBackendFactory is an internal dependency seam for
 	// own-app list/wait/dismiss lifecycle and privacy tests.
 	NotificationInteractionBackendFactory NotificationInteractionBackendFactory
@@ -80,6 +84,10 @@ type InitJSOptions struct {
 	// streaming file writer. Remote HTTP, MCP, and Scheduler executions remain
 	// denied before either a network request or a filesystem side effect.
 	EnableDownload bool
+	// EnableAccessibility opts a trusted local execution into the first-party
+	// native Accessibility owner. Generic Runtime, HTTP, MCP, and Scheduler
+	// executions leave it false while retaining the capability summary.
+	EnableAccessibility bool
 	// EnableSQLite is deliberately separate from File: it opts a trusted local
 	// execution into the first-party SQLite owner. Shared Runtime initialization
 	// leaves it false for HTTP, MCP, and Scheduler executions so this global
@@ -104,6 +112,7 @@ type RuntimeLifecycle struct {
 	Events         *DesktopEventsRuntime
 	ScreenCapture  *ScreenCaptureRuntime
 	App            *AppRuntime
+	Accessibility  *AccessibilityRuntime
 	Notifications  *NotificationsRuntime
 	Command        *CommandRuntime
 	AudioPatterns  *AudioPatternRuntime
@@ -132,6 +141,9 @@ func (l *RuntimeLifecycle) Wait() {
 	}
 	if l != nil && l.App != nil {
 		l.App.Wait()
+	}
+	if l != nil && l.Accessibility != nil {
+		l.Accessibility.Wait()
 	}
 	if l != nil && l.Notifications != nil {
 		l.Notifications.Wait()
@@ -173,6 +185,9 @@ func (l *RuntimeLifecycle) CancelAsync() {
 	}
 	if l != nil && l.App != nil {
 		l.App.Close()
+	}
+	if l != nil && l.Accessibility != nil {
+		l.Accessibility.Close()
 	}
 	if l != nil && l.Notifications != nil {
 		l.Notifications.Close()
@@ -232,6 +247,11 @@ func (l *RuntimeLifecycle) AsyncCounts() (timers int, workers int64, callbacks i
 		appWorkers, appPending := l.App.ResourceCounts()
 		workers += appWorkers
 		callbacks += appPending
+	}
+	if l.Accessibility != nil {
+		accessibilityWorkers, accessibilityCallbacks := l.Accessibility.AsyncCounts()
+		workers += accessibilityWorkers
+		callbacks += accessibilityCallbacks
 	}
 	if l.Notifications != nil {
 		notificationWorkers, notificationPending := l.Notifications.ResourceCounts()
@@ -301,6 +321,12 @@ type RuntimeResourceCounts struct {
 	SQLiteWorkers        int64
 	SQLiteCallbacks      int
 	SQLiteHandles        int
+
+	AccessibilityWorkers         int64
+	AccessibilityPending         int
+	AccessibilityQueued          int
+	AccessibilityRefs            int
+	AccessibilityNativeResources int
 }
 
 func (l *RuntimeLifecycle) ResourceCounts() RuntimeResourceCounts {
@@ -338,6 +364,14 @@ func (l *RuntimeLifecycle) ResourceCounts() RuntimeResourceCounts {
 	if l.App != nil {
 		counts.AppWorkers, counts.AppPending = l.App.ResourceCounts()
 	}
+	if l.Accessibility != nil {
+		accessibility := l.Accessibility.ResourceCounts()
+		counts.AccessibilityWorkers = accessibility.Workers
+		counts.AccessibilityPending = accessibility.Pending
+		counts.AccessibilityQueued = accessibility.Queued
+		counts.AccessibilityRefs = accessibility.Refs
+		counts.AccessibilityNativeResources = accessibility.NativeResources
+	}
 	if l.Sound != nil {
 		counts.SoundWorkers, counts.SoundPending, counts.SoundPlaybacks = l.Sound.ResourceCounts()
 	}
@@ -370,6 +404,8 @@ func (c RuntimeResourceCounts) IsZero() bool {
 		c.EventSubscriptions == 0 && c.EventPending == 0 &&
 		c.CaptureWorkers == 0 && c.CapturePending == 0 && c.CaptureSessions == 0 &&
 		c.AppWorkers == 0 && c.AppPending == 0 &&
+		c.AccessibilityWorkers == 0 && c.AccessibilityPending == 0 && c.AccessibilityQueued == 0 &&
+		c.AccessibilityRefs == 0 && c.AccessibilityNativeResources == 0 &&
 		c.SoundWorkers == 0 && c.SoundPending == 0 && c.SoundPlaybacks == 0 &&
 		c.NotificationWorkers == 0 && c.NotificationPending == 0 &&
 		c.CommandWorkers == 0 && c.CommandCallbacks == 0 && c.CommandProcesses == 0 &&
@@ -379,11 +415,12 @@ func (c RuntimeResourceCounts) IsZero() bool {
 }
 
 func (c RuntimeResourceCounts) String() string {
-	return fmt.Sprintf("timers=%d httpWorkers=%d httpCallbacks=%d httpTemps=%d uiWorkers=%d uiPending=%d uiQueued=%d uiWindows=%d uiListeners=%d uiDriverSinks=%d uiHostProcesses=%d shortcutBindings=%d shortcutPending=%d eventSubscriptions=%d eventPending=%d captureWorkers=%d capturePending=%d captureSessions=%d appWorkers=%d appPending=%d soundWorkers=%d soundPending=%d soundPlaybacks=%d notificationWorkers=%d notificationPending=%d commandWorkers=%d commandCallbacks=%d commandProcesses=%d audioPatternWorkers=%d audioPatternPending=%d audioPatternWatches=%d audioPatternSessions=%d fileJSONWorkers=%d fileJSONCallbacks=%d fileJSONTemps=%d fileHandles=%d sqliteWorkers=%d sqliteCallbacks=%d sqliteHandles=%d",
+	return fmt.Sprintf("timers=%d httpWorkers=%d httpCallbacks=%d httpTemps=%d uiWorkers=%d uiPending=%d uiQueued=%d uiWindows=%d uiListeners=%d uiDriverSinks=%d uiHostProcesses=%d shortcutBindings=%d shortcutPending=%d eventSubscriptions=%d eventPending=%d captureWorkers=%d capturePending=%d captureSessions=%d appWorkers=%d appPending=%d accessibilityWorkers=%d accessibilityPending=%d accessibilityQueued=%d accessibilityRefs=%d accessibilityNativeResources=%d soundWorkers=%d soundPending=%d soundPlaybacks=%d notificationWorkers=%d notificationPending=%d commandWorkers=%d commandCallbacks=%d commandProcesses=%d audioPatternWorkers=%d audioPatternPending=%d audioPatternWatches=%d audioPatternSessions=%d fileJSONWorkers=%d fileJSONCallbacks=%d fileJSONTemps=%d fileHandles=%d sqliteWorkers=%d sqliteCallbacks=%d sqliteHandles=%d",
 		c.Timers, c.HTTPWorkers, c.HTTPCallbacks, c.HTTPTemps, c.UIWorkers, c.UIPending, c.UIQueued,
 		c.UIWindows, c.UIListeners, c.UIDriverSinks, c.UIHostProcesses, c.ShortcutBindings, c.ShortcutPending,
 		c.EventSubscriptions, c.EventPending, c.CaptureWorkers, c.CapturePending, c.CaptureSessions,
-		c.AppWorkers, c.AppPending, c.SoundWorkers, c.SoundPending, c.SoundPlaybacks,
+		c.AppWorkers, c.AppPending, c.AccessibilityWorkers, c.AccessibilityPending, c.AccessibilityQueued,
+		c.AccessibilityRefs, c.AccessibilityNativeResources, c.SoundWorkers, c.SoundPending, c.SoundPlaybacks,
 		c.NotificationWorkers, c.NotificationPending, c.CommandWorkers, c.CommandCallbacks, c.CommandProcesses,
 		c.AudioPatternWorkers, c.AudioPatternPending, c.AudioPatternWatches, c.AudioPatternSessions,
 		c.FileJSONWorkers, c.FileJSONCallbacks, c.FileJSONTemps, c.FileHandles,
@@ -590,7 +627,7 @@ var jsMethodAllowlist = map[reflect.Type][]string{
 	reflect.TypeOf((*OCR)(nil)):            {"ExtractText"},
 	reflect.TypeOf((*Vision)(nil)):         {"RunOCR", "DetectUI", "GetCapabilities", "AnalyzeLayout", "AnnotateRegions"},
 	reflect.TypeOf((*Page)(nil)):           {"Browser", "Context", "Screenshot", "CaptureScreen", "CheckScreenshotPermissions", "OpenMacOSPrivacySettings", "RequestMacPermissions", "EnsureMacPermissions", "RequestMacAutomationPermission", "Goto", "OpenURL", "OpenApp", "OpenURLInApp", "Title", "WaitFor", "Url"},
-	reflect.TypeOf((*Mouse)(nil)):          {"Click", "ClickForPID", "PressButtonForPID", "Move", "Down", "Up", "GetPos", "Wheel"},
+	reflect.TypeOf((*Mouse)(nil)):          {"Click", "ClickForPID", "Move", "Down", "Up", "GetPos", "Wheel"},
 	reflect.TypeOf((*Keyboard)(nil)):       {"Type", "Press", "Down", "Up", "Combination"},
 	reflect.TypeOf((*Touchscreen)(nil)):    {"Tap"},
 	reflect.TypeOf((*Browser)(nil)):        {"NewPage", "NewContext", "DefaultContext", "Contexts", "Pages", "LastPage", "Close", "IsClosed"},
@@ -1022,8 +1059,21 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 	if _, err := runtime.RunString(`Screen.screenshot = page.screenshot;`); err != nil {
 		return fmt.Errorf("failed to bind Screen.screenshot: %v", err)
 	}
+	accessibilityRuntime, err := registerAccessibility(runtime, opts, appRuntime, windowManager)
+	if err != nil {
+		if accessibilityRuntime != nil {
+			accessibilityRuntime.Close()
+			accessibilityRuntime.Wait()
+		}
+		return fmt.Errorf("failed to register Accessibility: %w", err)
+	}
+	if err := attachUIMenu(runtime, accessibilityRuntime); err != nil {
+		accessibilityRuntime.Close()
+		accessibilityRuntime.Wait()
+		return fmt.Errorf("failed to attach UI menu methods: %w", err)
+	}
 	if opts.OnReady != nil {
-		opts.OnReady(&RuntimeLifecycle{Timers: timer, HTTP: httpClient, Sound: sound, UI: uiRuntime, GlobalShortcut: globalShortcut, Events: events, ScreenCapture: screenCapture, App: appRuntime, Notifications: notificationsRuntime, Command: commandRuntime, AudioPatterns: audioPatterns, FileJSON: fileJSON, FileSystem: fileSystem, SQLite: sqliteRuntime})
+		opts.OnReady(&RuntimeLifecycle{Timers: timer, HTTP: httpClient, Sound: sound, UI: uiRuntime, GlobalShortcut: globalShortcut, Events: events, ScreenCapture: screenCapture, App: appRuntime, Accessibility: accessibilityRuntime, Notifications: notificationsRuntime, Command: commandRuntime, AudioPatterns: audioPatterns, FileJSON: fileJSON, FileSystem: fileSystem, SQLite: sqliteRuntime})
 	}
 	return nil
 }

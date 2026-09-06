@@ -48,6 +48,9 @@
 - `geometry`：`./dist/opendesk -script tests/runtime-api/single/geometry.js -console-mode script`
 - `geometry-layout`：`./dist/opendesk -script tests/runtime-api/single/geometry-layout.js -console-mode script`
 - `ui`：`./dist/opendesk -script tests/runtime-api/single/ui.js -console-mode script`
+- `accessibility`：`./dist/opendesk -script tests/runtime-api/single/accessibility.js -console-mode script`
+- `accessibility-menu`：`./dist/opendesk -script tests/runtime-api/single/accessibility-menu.js -console-mode script`
+- `accessibility-lifecycle`：`./dist/opendesk -script tests/runtime-api/single/accessibility-lifecycle.js -console-mode script`
 <!-- runtime-api-single:end -->
 
 结果仍写入 `unit-selection.json` 和 `runtime-api-unit-selected.json`，标记 `fullCatalog: false`；

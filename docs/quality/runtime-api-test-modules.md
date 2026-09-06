@@ -20,7 +20,9 @@ scripts/test_runtime_apis.js          原命令入口
     ├── runtime-context.js            构建来源、进程执行、证据与资源检查
     └── suites/
         ├── core.js                  contract、全量 unit、coverage 等基本阶段
+	    ├── http-download.js         原生流式下载 loopback、取消和资源清理
         ├── catalog.js               smoke/live 的组合顺序与失败收尾
+        ├── accessibility.js         Accessibility/UI menu 公共合同与清理
         ├── sqlite.js                SQLite 专用分层与清理
         ├── file-json.js             File JSON 及 ai run 验证
         ├── environment.js           环境文件、本地与 HTTP 隔离
@@ -74,8 +76,8 @@ OPENDESK_RUNTIME_API_UNIT_FILTER=file,path ./dist/opendesk -script tests/runtime
 ```
 
 选择 ID 是现有 `RuntimeAPITestFiles.unit` 中文件的 basename，去掉 `.test.js` 或 `.js`。
-例如 `file`、`file-json`、`path`、`sqlite`、`command`、`clipboard`；`geometry`、`geometry-layout`
-和 `ui` 继续引用 manifest 中的既有根层 unit 文件。输入大小写归一、去重，并按 manifest 顺序
+例如 `file`、`file-json`、`path`、`sqlite`、`command`、`clipboard`；`geometry`、`geometry-layout`、
+`ui` 和三个 `accessibility*` 测试继续引用 manifest 中的根层 unit 文件。输入大小写归一、去重，并按 manifest 顺序
 运行。没有额外维护第二份接口文件目录。
 
 空选择、拼错 ID、任意路径、通配符和重复的 manifest ID 都会失败；已选文件必须实际注册
@@ -99,10 +101,30 @@ OPENDESK_RUNTIME_API_MODE=unit-selected OPENDESK_RUNTIME_API_UNIT_FILTER=file,pa
 OPENDESK_RUNTIME_API_MODE=sqlite ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
 ```
 
-原有 18 个 mode 均保留：`contract`、`unit`、`smoke`、`live`、`live-only`、`coverage`、
+Accessibility 的三个公开 JavaScript 合同和每个 execution 的五项资源清理：
+
+```bash
+OPENDESK_RUNTIME_API_MODE=accessibility ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+```
+
+这个 mode 不解析或操作任意活动桌面；native fixture 和真实应用菜单验收仍是独立显式步骤。
+
+HTTP 下载使用现有 loopback fixture 与 watchdog，不依赖公网或桌面 UI：
+
+```bash
+OPENDESK_RUNTIME_API_MODE=http-download ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+```
+
+它独立启动 `http-response-types.js`（`HTTP-DOWNLOAD-001`）和 `http-download.js`
+（`HTTP-DOWNLOAD-002` 至 `HTTP-DOWNLOAD-010`）；各自有 fixture、子 Runtime、日志和退出状态，
+不会把 axios/responseType 断言混入下载 I/O 脚本。它记录 fixture PID、二进制 provenance、生成脚本、
+`results/http-download.json` 和对应 `runtime-logs/`。该结果仅证明本机 native HTTP download 路径；
+Windows/Linux 不因 cross-compile 结果被表述为 live Runtime 通过。
+
+原有 mode 均保留：`contract`、`unit`、`smoke`、`live`、`live-only`、`coverage`、
 `negative`、`sound-cancel`、`notify-icon-live`、`custom-ui`、`custom-ui-config`、`dialog`、
 `command`、`environment`、`file-json`、`path`、`language`、`sqlite`。
-新增 `unit-selected` 不改变它们的范围。普通完整 gate 和直接 `unit.js` 收到筛选变量会明确
+新增 `accessibility`、`page-wait`、`unit-selected` 和 `http-download` 不改变它们的范围。普通完整 gate 和直接 `unit.js` 收到筛选变量会明确
 拒绝，而不是忽略筛选或把部分接口结果充当全量结果。
 
 ## 证据不混用

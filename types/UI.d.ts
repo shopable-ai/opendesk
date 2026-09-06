@@ -115,10 +115,100 @@ declare global {
     completed: Array<OpenDeskUITapResult<OpenDeskUITextTarget>>;
   }
 
+  interface OpenDeskUIMenuAppScope {
+    app: OpenDeskAppTarget;
+    root: "menuBar";
+  }
+
+  /** Menu traversal is always bound to a resolved window or an explicit app menu bar. */
+  type OpenDeskUIMenuScope = OpenDeskWindowInfo | OpenDeskUIMenuAppScope;
+
+  type OpenDeskUIMenuPathSegment =
+    | string
+    | { name: string; identifier?: string }
+    | { name?: string; identifier: string };
+
+  /** A complete, non-empty hierarchy path, not a list of aliases or independent clicks. */
+  type OpenDeskUIMenuPath = [OpenDeskUIMenuPathSegment, ...OpenDeskUIMenuPathSegment[]];
+
+  interface OpenDeskUIMenuOptions {
+    within: OpenDeskUIMenuScope;
+    /** One total deadline for the entire observation/action. Default 3000; maximum 30000. */
+    timeout?: number;
+    /** Default 8; maximum 32. */
+    maxDepth?: number;
+    /** Default 1000; maximum 5000. */
+    maxNodes?: number;
+  }
+
+  type OpenDeskUIMenuFinalAction =
+    | { action: "invoke" }
+    | { action: "select" }
+    | { action: "setChecked"; checked: boolean };
+
+  interface OpenDeskUITapMenuItemOptions extends OpenDeskUIMenuOptions {
+    /** Defaults to { action: "invoke" }. */
+    finalAction?: OpenDeskUIMenuFinalAction;
+  }
+
+  interface OpenDeskUIMenuItem {
+    role: OpenDeskAccessibilityRole;
+    nativeRole: string;
+    name: string | null;
+    identifier: string | null;
+    enabled: boolean | null;
+    focused: boolean | null;
+    selected: boolean | null;
+    checked: OpenDeskAccessibilityCheckedState;
+    expanded: boolean | null;
+    actions: string[];
+    nativeBounds: OpenDeskAccessibilityNativeBounds | null;
+    /** Null unless the backend performed a verified screen-coordinate conversion. */
+    bounds: OpenDeskScreenRegion | null;
+    children: OpenDeskUIMenuItem[];
+  }
+
+  interface OpenDeskUIGetMenuItemsResult {
+    requestId: string;
+    operation: "UI.getMenuItems";
+    backend: string;
+    items: OpenDeskUIMenuItem[];
+    complete: boolean;
+    truncated: boolean;
+    reason: string | null;
+    stats: OpenDeskAccessibilityStats;
+  }
+
+  interface OpenDeskUITapMenuItemResult {
+    requestId: string;
+    operation: "UI.tapMenuItem";
+    backend: string;
+    action: OpenDeskUIMenuFinalAction["action"];
+    actionState: OpenDeskAccessibilityActionState;
+    completedLevels: number;
+    expansionOccurred: boolean;
+  }
+
+  interface OpenDeskUIAccessibilityCapabilitySummary {
+    /** Current execution usability: implementation, OS permission, and execution authorization all passed. */
+    available: boolean;
+    /** Whether the native backend is implemented on this build, independent of permission/authorization. */
+    implemented: boolean;
+    status: string;
+    enabled: boolean;
+    backend: string;
+    permission: string;
+    menus: boolean;
+    /** Backend-level implementation summary, not a promise that a matched element supports an action. */
+    actions: Record<string, boolean>;
+    coordinateMapping: boolean;
+    notes: string;
+  }
+
   interface OpenDeskUICapabilities {
     text: { find: true; tap: true; wait: true; backend: "Vision.runOCR" };
     image: { find: true; tap: true; backend: "ImageColor.findImages" };
-    accessibility: { available: false; status: "notImplemented" };
+    accessibility: OpenDeskUIAccessibilityCapabilitySummary;
     coordinateMapping: { actualCaptureScale: true; mixedDPIScope: false };
   }
 
@@ -146,6 +236,13 @@ declare global {
     cause?: unknown;
   }
 
+  interface OpenDeskUIMenuError extends OpenDeskAccessibilityError {
+    operation: "UI.getMenuItems" | "UI.findMenuItem" | "UI.tapMenuItem";
+    failedLevel?: number;
+    completedLevels?: number;
+    expansionOccurred?: boolean;
+  }
+
   interface OpenDeskUI {
     getCapabilities(): OpenDeskUICapabilities;
     findTexts(text: string, options?: OpenDeskUITextLocateOptions): Promise<OpenDeskUITextTarget[]>;
@@ -158,6 +255,12 @@ declare global {
     findImages(template: OpenDeskImageTemplate, options?: OpenDeskUIImageOptions): Promise<OpenDeskUIImageTarget[]>;
     findImage(template: OpenDeskImageTemplate, options?: OpenDeskUIImageOptions): Promise<OpenDeskUIImageTarget | null>;
     tapImage(template: OpenDeskImageTemplate, options?: OpenDeskUIImageOptions): Promise<OpenDeskUITapResult<OpenDeskUIImageTarget>>;
+    /** Observes only; it does not expand menus or take focus. */
+    getMenuItems(options: OpenDeskUIMenuOptions): Promise<OpenDeskUIGetMenuItemsResult>;
+    /** Observes only and returns null on a complete zero-match search. */
+    findMenuItem(path: OpenDeskUIMenuPath, options: OpenDeskUIMenuOptions): Promise<OpenDeskUIMenuItem | null>;
+    /** Expands each uniquely matched level under one deadline, then submits the final action at most once. */
+    tapMenuItem(path: OpenDeskUIMenuPath, options: OpenDeskUITapMenuItemOptions): Promise<OpenDeskUITapMenuItemResult>;
   }
 
   /**

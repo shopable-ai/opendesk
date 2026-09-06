@@ -13,6 +13,14 @@ OpenDesk 的公开自动化示例使用 JavaScript，并以 [`docs/api/`](../doc
 [`tests/runtime-api/`](../tests/runtime-api/sqlite-smoke.js)，公开使用示例仍在 `sqlite/`。
 图像分级分析归入 `tests/automation/tools/image-layout-lab/`，不作为用户 quickstart 或回归通过证明。
 
+原生语义元素和菜单的公开示例位于 [`accessibility/`](accessibility/README.md)。它们只面向可信本地
+execution，要求明确、可验证且可安全清理的目标；运行产物统一写入
+`.runtime/tests/accessibility/`。
+
+原生流式 HTTP 下载的普通示例与自动 loopback 自测位于
+[`http/`](http/README.md)。普通示例使用小型公网只读文档；确定性自测自动管理 loopback fixture，
+两者的结果和证据不混用。
+
 本轮仅整理已确认职责的文件，不批量删除 probe、图片、JSON 或历史脚本。完整迁移台账、
 兼容退出条件和验证边界见 [目录与迁移规则](../docs/quality/example-test-layout.md)。
 
@@ -52,6 +60,13 @@ Calculator、确认其实际 identity 并打印结果；它不会输入、清空
 
 它使用全局 `path` 计算 artifact 路径，并展示可信文件入口的
 `Execution.scriptPath/scriptDir`。完整契约见 [`docs/api/path.md`](../docs/api/path.md)。
+
+## 原生 Accessibility 与菜单
+
+受控 fixture 的 JavaScript 启动方式、默认自动复核 receipt 的观察命令、两条操作命令、权限、副作用验证与
+evidence 路径见
+[`accessibility/README.md`](accessibility/README.md)。不要把操作示例指向任意活动窗口；
+`acknowledged` 也不能替代 fixture counter/readback 或真实业务状态验证。
 
 ## 原生 Dialog
 

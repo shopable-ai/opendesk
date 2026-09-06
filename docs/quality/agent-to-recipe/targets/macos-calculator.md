@@ -29,6 +29,7 @@ Calculator 是用于验证通用 Agent-to-Recipe 流程的一个目标应用，�
 | --- | --- | --- |
 | 只运行一次已有脚本 | 验证规程的公开命令与必要前置 | 不自动运行四项 BASIC 或完整开发链 |
 | 计算器基本测试 | 验证规程 BASIC B0—B3 | 不自动进行 PIPELINE、窗口扰动 gate 或全量测试 |
+| 接续已有脚本并补齐开发链资料 | 通用 WORKFLOW 的 existing-script continuation 路径＋验证规程 CONTINUATION | 不把历史证据、本轮参考执行或接续验收冒充新的 Agent 示范／从零生成整链 |
 | 验证 Agent 完成任务并生成脚本 | 通用 WORKFLOW＋本目标＋验证规程 PIPELINE | 不把已有参考脚本通过冒充新候选或跨 Agent 交接通过 |
 | 明确授权受控扰动 | 验证规程 LIVE-GATE | 不自动安装依赖、改权限或启动其他平台 |
 
@@ -44,7 +45,7 @@ Calculator 是用于验证通用 Agent-to-Recipe 流程的一个目标应用，�
 
 ## 现有参考资产与位置兼容
 
-[calculate-and-reuse-result.js](../../../../workflows/macos/calculator/calculate-and-reuse-result.js) 是现有具体业务参考程序，而不是“Calculator 应用本身是工作流”的定义。本次不移动或改写它，以免破坏已公开命令及现有测试 runner 的固定引用。
+[calculate-and-reuse-result.js](../../../../workflows/macos/calculator/calculate-and-reuse-result.js) 是现有具体业务参考程序，而不是“Calculator 应用本身是工作流”的定义。默认保留其路径和有效实现，不为流程形式重新生成。只有任务明确授权、事实指出最小缺陷、任务内候选已单独验证且兼容公开入口时，才可按通用 continuation 规则把该最小补丁应用回原路径并重验；这不等于迁移、重写或新生成。
 
 测试命令、BASIC／LIVE-GATE／PIPELINE 判据及报告要求统一见[验证规程](../calculator-validation.md)。后续若要迁移参考 JS，应作为单独兼容性变更同步 runner、示例和文档，而不是为纠正方法分类悄悄改变运行路径。
 

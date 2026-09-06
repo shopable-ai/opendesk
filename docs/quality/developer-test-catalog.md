@@ -106,6 +106,26 @@ Runtime API negative：
 ./dist/opendesk -script tests/runtime-api/negative.js -console-mode script
 ```
 
+Accessibility V1 的无目标公共合同、菜单参数和 lifecycle 测试（不会遍历桌面或提交菜单动作）：
+
+```text
+./dist/opendesk -script tests/runtime-api/accessibility.js -console-mode script
+./dist/opendesk -script tests/runtime-api/accessibility-menu.js -console-mode script
+./dist/opendesk -script tests/runtime-api/accessibility-lifecycle.js -console-mode script
+```
+
+需要 run-local 构建来源、三个独立 execution 的清理字段及 no-residual 证据时，使用同一个正式
+runner 的专用 mode：
+
+```text
+OPENDESK_RUNTIME_API_MODE=accessibility ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+```
+
+这组安全门禁只证明注册、可信本地授权、capability、严格参数、结构化 rejection、伪造引用拒绝、
+Promise settlement，以及 `accessibilityWorkers` / `accessibilityPending` / `accessibilityQueued` /
+`accessibilityRefs` / `accessibilityNativeResources` 清理归零；原生 fixture、动作副作用和真实应用菜单
+必须另行显式 opt-in，不能由这组结果代替。
+
 Clipboard 富文本粘贴 fixture：
 
 ```text
@@ -332,6 +352,7 @@ JavaScript 测试和正式入口如下：
 | `pkg/runtimeenv/environment.go` | `tests/runtimeenv/environment_test.go` + `tests/runtime-api/environment.js` + `tests/runtime-api/acceptance/environment-default-files.js` + `examples/environment.js` | dotenv 子集、默认文件发现、显式文件/启动时 OS 环境优先级、Windows 键名、非法输入、冻结 JS 快照、Command 继承与安全公开示例 | `go test ./tests/runtimeenv`、Runtime API JS 的 `environment` mode |
 | `automation/sound.go` 的 `registerSound` | `tests/runtime-api/unit/sound.test.js` | allowlist 旧同步方法 + 显式 `start`/`playAsync`/`stop`/`stopAll`/`getActive` bridge 的公共 JS surface | Runtime API JS 的 `unit` mode |
 | `automation/audio_pattern_runtime.go` 与 execution lifecycle | `tests/runtime-api/unit/audio.test.js`、`tests/runtime-api/seams/audio-pattern-positive.js`、`audio-pattern-fixtures.js`、`audio-pattern-market.js`、`audio-pattern-cleanup-failure.js`、`audio-pattern-teardown.js` | 默认 backend fail-closed、合成 WAV 的音量/噪声/重采样变体、confuser 不误触发、cooldown/连续命中/first-signal；market seam 验证 3s/12s 双 order cue、payment/confuser 干扰与 stop/wait；以及 cleanup failure/hostile Promise teardown | Runtime API JS 的 `unit` mode + 下方 injected-backend Go harness；fixture 与结果写入临时 execution workdir，正式日志写入 `.runtime/tests/runtime-api/` |
+| `automation/accessibility*.go` 与 execution lifecycle | `tests/runtime-api/accessibility.js`、`accessibility-menu.js`、`accessibility-lifecycle.js` | 六个 Accessibility 方法、三个现有 `UI` 菜单方法、可信本地授权、严格参数与引用 authority、结构化 Promise rejection、五项资源清理字段；默认不解析真实目标 | Runtime API JS 的 `unit` mode 与 `accessibility` 专用 mode；native fixture evidence 独立报告 |
 
 从仓库根目录直接复现完整 unit 脚本：
 
@@ -532,6 +553,7 @@ OPENDESK_RUNTIME_API_MODE=unit ./dist/opendesk -script scripts/test_runtime_apis
 OPENDESK_RUNTIME_API_MODE=coverage ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
 OPENDESK_RUNTIME_API_MODE=negative ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
 OPENDESK_RUNTIME_API_MODE=environment ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+OPENDESK_RUNTIME_API_MODE=accessibility ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
 OPENDESK_RUNTIME_API_MODE=sound-cancel ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
 OPENDESK_RUNTIME_API_MODE=live ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
 OPENDESK_RUNTIME_API_MODE=custom-ui-config ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script

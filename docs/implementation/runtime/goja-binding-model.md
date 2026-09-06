@@ -209,6 +209,26 @@ SQLite 连接、事务、Rows、Stmt、worker、队列和 AbortSignal listener �
 而获得数据库 HTTP route 或 MCP tool。该 gate 与文件路径权限边界一起由 transport/runner 决定，
 不能由脚本、polyfill 或扩展绕过。
 
+### Accessibility 是唯一 native owner，UI 菜单只附加闭包
+
+`Accessibility` 不能使用 `AutoMapObject` 反射整个 owner。`registerAccessibility(runtime, opts)` 只显式
+注册 `getCapabilities/snapshot/find/read/perform/release`：除同步 capability 摘要外，Promise 的参数
+解析和 settlement 都在创建它们的 EventLoop；AX/UIA 查询、动作与 native release 只在
+`AccessibilityRuntime` 的专用 worker 中执行。worker 不保存或访问 Goja object/value。
+
+`AccessibilityElementRef` 是 owner 表中的 execution-scoped capability，不是 AX/COM 指针或可由 id
+反序列化的句柄。queue、ref lease、总 deadline、取消和 backend resource 都属于这个 owner，并进入
+`RuntimeLifecycle.Accessibility` 的 `Close/Wait/ResourceCounts`。
+
+现有大写 `UI` 由 `polyfills/006-ui.js` 最后整体创建，因此菜单方法必须在
+`loadPolyfillsWithSink(...)` 成功后通过 `attachUIMenu(runtime, owner)` 附加。三个闭包捕获同一个
+AccessibilityRuntime；不能创建 `MenuRuntime`，也不能从可被脚本替换的 `App` / `window` global 重新
+解析 target。原有视觉 UI 方法不改变。
+
+可信本地 file/text/stdin 与 `ai run` Request 可显式启用 Accessibility；HTTP、MCP 和 Scheduler 默认
+关闭。关闭时 global 与 capability 摘要仍存在，但其他方法拒绝且不读取目标。backend factory 只在内部
+Request/InitJSOptions seam 传递，不能成为 JS 选项或环境变量。
+
 ## 第二层：Runtime 注册和 raw bridge
 
 `InitJSWithOptions` 先创建 native 对象，再通过 `runtime.Set` 注入 Goja global。Page 的当前
@@ -228,6 +248,20 @@ NewPage()
 `page____Inject`、`browser____Inject` 和 `context____Inject` 是内部构造面，不是用户 API，
 也不应进入 `types/*.d.ts` 或 `runtime-api.ai.json`。它们的作用是让 polyfill 在加载时获得
 稳定的 native owner，同时避免 facade 再创建第二个 Page/Browser/Context owner。
+
+Accessibility 与 UI 菜单的相关顺序是：
+
+```text
+loadPolyfillsWithSink(...)
+  → 006-ui.js assigns global.UI
+  → registerAccessibility(runtime, opts)
+  → runtime.Set("Accessibility", six explicit methods)
+  → attachUIMenu(runtime, same owner)
+  → RuntimeLifecycle.Accessibility = owner
+```
+
+初始化任一步骤失败都必须关闭已创建 owner 并等待 native worker；不能等到 execution teardown 才处理
+半初始化 COM/CF resource。
 
 ## 第三层：静态 JavaScript asset 和 polyfill facade
 
@@ -293,6 +327,8 @@ for (const key in globalThis.page____Inject) {
 | allowlist 不隐式暴露 Go 内部方法、引用的方法真实存在 | `automation/runtime_hardening_test.go` | native/private reflection seam；不是用户契约 |
 | `000-page.js` generic forwarding、显式 wrapper、权限组合、等待 facade | `tests/runtime-api/unit/page.test.js` | JavaScript 公共 facade 行为 |
 | Page 公开对象 | `tests/runtime-api/unit/page.test.js` | 只覆盖 `docs/api/page.md` 中维护的桌面 Runtime surface |
+| Accessibility 六方法与 UI 三菜单方法的参数、授权、Promise/错误 | `tests/runtime-api/accessibility*.js` | 真实 OpenDesk Runtime 公共合同；fake backend 只作为内部 deterministic seam |
+| AX/UIA 动作、菜单 popup owner 与副作用计数 | `tests/accessibility/fixtures/<platform>/` + 对应 Runtime JS | 当前平台 native/live；不能由 Node mock、Go 直调或 cross-compile 替代 |
 | 真实截图、权限、窗口或浏览器环境 | `tests/runtime-api/live/` | 当前 macOS/真实环境的 live boundary |
 
 正式 unit 入口：
@@ -327,6 +363,6 @@ OPENDESK_RUNTIME_API_MODE=unit ./dist/opendesk -script scripts/test_runtime_apis
 
 ## execution teardown 的可观测闭环
 
-`RuntimeLifecycle.AsyncCounts()` 提供总 worker/callback 数；`ResourceCounts()` 提供分 owner 细目。两者必须同时覆盖 HTTP、Sound、SQLite、Custom UI、Global Shortcut、Events、Screen Capture、App 和 Notifications。`pkg/execution/runner.go` 把分 owner 数写入 cleanup event，正式 Runtime gate 再逐项断言为零。
+`RuntimeLifecycle.AsyncCounts()` 提供总 worker/callback 数；`ResourceCounts()` 提供分 owner 细目。两者必须同时覆盖 HTTP、Sound、SQLite、Custom UI、Global Shortcut、Events、Screen Capture、App、Notifications 和 Accessibility。`pkg/execution/runner.go` 把分 owner数写入 cleanup event，正式 Runtime gate 再逐项断言为零。Accessibility 的显式字段为 `accessibilityWorkers`、`accessibilityPending`、`accessibilityQueued`、`accessibilityRefs` 和 `accessibilityNativeResources`。
 
 因此新增异步 owner 时至少同步 `CancelAsync`、`Wait`、`AsyncCounts`、`ResourceCounts`、`IsZero`、`String`、cleanup event 和 shell gate 的 required fields。漏掉任何一项都会造成“实际残留但证据显示为零”的假阴性。

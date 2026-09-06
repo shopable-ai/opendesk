@@ -1,0 +1,41 @@
+# Public docs ignore rules
+# Paths are matched relative to the project root.
+#
+# Built-in filtering always ignores these system/private paths, even if a later ! rule matches:
+# - .git/
+# - .next/
+# - build/
+# - dist/
+# - node_modules/
+# - .shopme/
+#
+# Default filtering also hides any path segment starting with . or _.
+# The runtime treats a referenced .asset/ image container as storage-only; it is never a docs page or navigation item.
+# To publish a small dot-prefixed content directory, allow both the directory and its descendants:
+# !**/.well-known/
+# !**/.well-known/**
+# Keep secrets and tool state private; do not allow .env*, .git/, .shopme/, node_modules/, or build outputs.
+#
+# Add project-specific public content exclusions below.
+
+# AI/editor junk
+.claude/
+.cursor/
+.claude-backups/
+
+# Common local tooling and coverage output
+coverage/
+.turbo/
+.cache/
+.idea/
+.vscode/
+out/
+tmp/
+
+# Temporary docs
+_drafts/
+temp/
+scratch/
+**/*.draft.md
+**/*.bak.md
+**/*.tmp.md

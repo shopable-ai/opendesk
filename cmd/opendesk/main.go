@@ -826,6 +826,7 @@ func executeScript(config *Config) error {
 		EnableUnsafeNativeExtensionCall: config.ExperimentalUnsafeNativeExtensionCall,
 		EnableCommand:                   true,
 		EnableDownload:                  true,
+		EnableAccessibility:             true,
 		// SQLite is a first-party local Runtime API. HTTP, MCP, and Scheduler
 		// requests construct their own execution.Request values and leave this
 		// capability false so they do not inherit host file database access.

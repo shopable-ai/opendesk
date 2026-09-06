@@ -6,6 +6,7 @@ const modules = {
   'http-download': { file: 'suites/http-download.js', exports: ["httpDownload"] },
   'language': { file: 'suites/language.js', exports: ["language"] },
   'sqlite': { file: 'suites/sqlite.js', exports: ["sqlite"] },
+  'accessibility': { file: 'suites/accessibility.js', exports: ["accessibility"] },
   'page-wait': { file: 'suites/page-wait.js', exports: ["pageWait"] },
   'file-json': { file: 'suites/file-json.js', exports: ["fileJSON"] },
   'environment': { file: 'suites/environment.js', exports: ["environment"] },
@@ -38,6 +39,7 @@ const modes = {
   "path": "pathContext",
   "language": "language",
   "sqlite": "sqlite",
+  "accessibility": "accessibility",
   "page-wait": "pageWait",
   "unit-selected": "unitSelected",
   "http-download": "httpDownload"

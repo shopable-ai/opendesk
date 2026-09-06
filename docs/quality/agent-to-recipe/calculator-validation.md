@@ -9,10 +9,11 @@
 | 用户授权范围 | 执行什么 | 能证明什么 |
 | --- | --- | --- |
 | BASIC：计算器基本测试 | 下文 B0—B3，按顺序执行，阻塞时停止依赖用例 | 当前参考 Workflow 的真实 UI、数据复用、输入变化和错误拒绝 |
+| CONTINUATION：已有脚本接续 | 盘点并绑定已有实现／历史证据，按缺口补资料或最小修复，最后对采用版本执行 B0—B3 | 指定 hash 的已有实现在本次接续范围内可交接、可反向提炼并通过本轮 Fresh Run |
 | LIVE-GATE：受控扰动验收 | 明确授权后复用现有 JS live gate | 该 gate 实际包含的参考脚本／兼容 Recipe 场景 |
 | PIPELINE：六个 Skill 整链验证 | 下文完整开发与交接链，再验收新候选 | 独立 Skill 的数据交接、可接续性、生成与 Fresh Run |
 
-仅说“基本测试”时默认 BASIC，不自动扩展到全部 Runtime API、系统设置改动、跨平台验证或大规模故障注入。只要求写文件时不执行任一范围。BASIC／LIVE-GATE 通过不能宣称 PIPELINE 通过。
+仅说“基本测试”时默认 BASIC，不自动扩展到全部 Runtime API、系统设置改动、跨平台验证或大规模故障注入。只要求写文件时不执行任一范围。BASIC／CONTINUATION／LIVE-GATE 的通过范围各自独立，均不能宣称 PIPELINE 从零生成整链通过。
 
 本次参考为 macOS Calculator。OpenDesk 支持其他平台不代表本案例已在 Windows／Linux 验证；不得以本例推断跨平台通过，也不为此自动启动 VM／Wine／下载系统镜像。
 
@@ -83,7 +84,19 @@
 
 BASIC 完成后使用共享 QualificationRecord 记录四项实际结果，任意 not-run／blocked 均如实报告。不得把未运行的场景填为通过，不预填专家分数。
 
-## 5. LIVE-GATE：复用已有受控扰动入口
+## 5. CONTINUATION：已有脚本与历史执行的接续验收
+
+本范围用于“业务脚本已经存在并运行过，但合同、dossier、procedure、候选登记或当前验收尚需补齐”。它不是把 PIPELINE 改成低门槛捷径，也不要求删除有效代码、知识或历史证据后重新探索。
+
+1. 先盘点已有脚本、Git／工作区状态、实际 raw hash、入口规范化后的 execution hash、已定位的历史 execution 与构建来源。已有任务包有效时接续；没有时用本轮真实 taskId 初始化，并明确它不是历史任务包。
+2. S3—S6 将材料分别标成历史证据、当前 `reference-execution` 或新的 Agent demonstration。历史截图／结果只证明原 execution；源码只证明实现逻辑。足以支持指定事实的 continuation fact dossier 可以用限定 scope 的 Gate 进入反向提炼，但不能写成完整示范 pass；缺关键证据仍须 warn／fail 并定向补采。
+3. S7—S9 同时消费冻结的已有脚本和确定版本事实资料，输出代码到业务步骤映射、每步输入输出／状态／失败边界、字面量分类和 firstResult 数据依赖。把 execution-evidenced、implementation-only 与 unknown 分开；移除一项关键证据的独立副本应触发明确缺口，而不是算出答案。
+4. S10—S11 默认登记既有实现及内容 hash，并写明“复用、未重新生成”。若发现明确缺陷，先冻结字节一致基线，再建立任务内最小候选和 diff；候选通过相应用例后，只有在发布授权内才应用到公开原路径并重验。不得覆盖参考文件来偷换候选，也不得为“生成”复制同功能源码。
+5. S12 对最终采用的路径和 hash 执行本轮获准的 B0—B3。Fresh Run 是新的业务 execution：重新确认应用／窗口、重新输入、重新读取 firstResult 并消费；不读取 dossier 样本作为答案，也不删除任务知识、历史证据或用户数据来制造“干净”。
+
+最终 QualificationRecord 的 scope 只能是本次 continuation 及实际场景。它可以报告接续流程和采用版本通过，但不能据此声称新的 Agent 从零示范、全新脚本生成、完整 PIPELINE、LIVE-GATE 或未运行环境已通过。
+
+## 6. LIVE-GATE：复用已有受控扰动入口
 
 仅在明确选择该范围、同意其窗口扰动且前置条件满足后执行：
 
@@ -95,7 +108,7 @@ OPENDESK_LIVE_CALCULATOR=1 ./dist/opendesk -script scripts/test_ai_calculator_re
 
 当前 gate 针对仓库固定参考 Workflow／兼容 Recipe。新生成的候选未经路径和实际执行 hash 核验，不能用该 gate 的成功替它背书；禁止通过覆盖参考文件偷换测试对象。gate 的 summary 与各子 execution 的业务证据分别保留。
 
-## 6. PIPELINE：验证六个独立 Skill，不是只运行现有脚本
+## 7. PIPELINE：验证六个独立 Skill，不是只运行现有脚本
 
 ### P1：冻结合同和计划
 
@@ -127,13 +140,13 @@ recipe-qualify 对候选实际路径与 hash 执行 Fresh Run、不同输入和�
 
 失败后只提出修复请求，由对应生产者新建版本；重跑受影响场景和必要回归。预算耗尽或结果不明即停止。最终报告与现有参考脚本结果分开。
 
-## 7. 故障验证扩展：不能自动混入 BASIC
+## 8. 故障验证扩展：不能自动混入 BASIC
 
 完整可靠性测试在单独副本／低风险环境中注入：半写 handoff、缺失文件、旧任务／旧版本、上游变化、产物已写但 progress 未更新、观察后窗口变化、暂停取消、类型／单位不匹配、越界路径／不可信指令、入口环境差异、自报假成功和旧结果污染。
 
 每项明确前置、注入点、期望拒绝／恢复方式、实际证据及副作用边界。计算器不涉及发送／付款；这些副作用恢复保证只能在安全 fixture 或另行获准业务场景验证，不能由计算器成功外推。
 
-## 8. 最终报告与停止规则
+## 9. 最终报告与停止规则
 
 至少报告：scope、合同／候选版本、实际命令及工作目录、构建／应用／provider、每个场景的期望与实际、executionId、证据路径、数据流核对、失败分类、未测项、限制和下一步。运行记录保存在实际 artifact 与 `.runtime/automation-authoring/<task-id>/`，不要提交截图和临时结果。
 

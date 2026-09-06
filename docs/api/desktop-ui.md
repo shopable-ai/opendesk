@@ -1,13 +1,15 @@
 ---
 title: Desktop UI API
-description: 使用 OCR、模板匹配与实际截图比例查找、点击和等待外部桌面应用的可见 UI。
+description: 使用 OCR、模板匹配与实际截图比例操作可见 UI，并通过原生 Accessibility 处理完整菜单路径。
 order: 11
 ---
 
 # UI
 
-大写 `UI` 用于查找和操作**外部桌面应用**的可见文本和图片。它每次操作都会使用新的截图，并把
-OCR/模板匹配的 image-pixel bbox 投影为可供 `mouse` 使用的 screen logical coordinate。
+大写 `UI` 用于查找和操作**外部桌面应用**。既有文字和图片方法每次操作都会使用新的截图，并把
+OCR/模板匹配的 image-pixel bbox 投影为可供 `mouse` 使用的 screen logical coordinate；Experimental
+菜单方法则通过同一个第一方 [`AccessibilityRuntime`](accessibility.md) 使用原生语义树，不使用这些
+截图坐标。
 
 对于会移动或调整尺寸的窗口，保存窗口身份和**定位规则**，不要保存一次 OCR 得到的旧坐标。文字相对定位
 按以下顺序工作：
@@ -40,12 +42,12 @@ await UI.tapText('编辑', {
 
 | 对象 | 作用 | 不做什么 |
 | --- | --- | --- |
-| `UI` | 查找、等待、激活外部应用可见目标 | 不创建 OpenDesk 窗口，不提供 Accessibility provider |
+| `UI` | 查找、等待、激活外部应用可见目标，并提供 Experimental 原生菜单组合 | 不创建 OpenDesk 窗口，不建立平行菜单/Accessibility owner |
 | `ui` | 创建和管理 OpenDesk 自己的 Custom UI | 不查询或点击外部桌面应用 |
 
 没有 `UI = ui`、`ui = UI` 或 `DesktopUI` 别名。
 
-## `UI.getCapabilities()` / `UI.findTexts()` / `UI.findText()` / `UI.hasText()` / `UI.tapText()` / `UI.tapTexts()` / `UI.waitText()` / `UI.waitTextGone()` / `UI.findImages()` / `UI.findImage()` / `UI.tapImage()`：快速接口
+## 视觉快速接口
 
 | 方法 | 用途 |
 | --- | --- |
@@ -61,10 +63,18 @@ await UI.tapText('编辑', {
 | `UI.findImage(template, options?)` | 返回唯一图片候选、无结果为 `null`、歧义时报错 |
 | `UI.tapImage(template, options?)` | 找到唯一模板匹配并点击中心 |
 
-`tapText` 的 P0 定义是“查找并激活一个可见文本目标”，实现使用现有 `mouse.click`。它成功只代表
+`tapText` 的 P0 定义是“查找并激活一个可见文本目标”，实现继续使用现有 `mouse.click`。它成功只代表
 目标已找到且已调用点击，不代表业务已完成；后续仍应 `waitText`、`hasText`、`ImageColor.diff` 或使用
-业务状态验证。未来可在不改变调用方式的情况下增加 Accessibility action，但当前
-`accessibility.available` 始终为 `false`。
+业务状态验证。新增 Accessibility 能力不会悄悄改变这些视觉方法，也不会在失败时替它们自动执行原生
+动作。
+
+## 原生菜单接口
+
+`UI.getMenuItems(options)`、`UI.findMenuItem(path, options)` 和 `UI.tapMenuItem(path, options)` 是
+Experimental 菜单接口。它们要求明确 WindowInfo 或 `{ app, root: 'menuBar' }` scope，并与
+`Accessibility` 共享 owner、总 deadline、取消和资源清理；完整 path、只读观察、逐层展开、最终动作
+与错误合同见 [Desktop UI Menu API](desktop-ui-menu.md)。本页后续 `within`、OCR、图片和坐标规则只
+适用于既有视觉方法，不能套用到原生菜单方法。
 
 ## scope：`within`
 
@@ -523,11 +533,28 @@ console.log(UI.getCapabilities());
 // {
 //   text: { find: true, tap: true, wait: true, backend: 'Vision.runOCR' },
 //   image: { find: true, tap: true, backend: 'ImageColor.findImages' },
-//   accessibility: { available: false, status: 'notImplemented' },
+//   accessibility: {
+//     available: true,
+//     implemented: true,
+//     status: 'available',
+//     enabled: true,
+//     backend: 'macos-ax',
+//     permission: 'granted',
+//     menus: true,
+//     actions: {
+//       invoke: true, setValue: true, expand: true,
+//       collapse: true, select: true, setChecked: true
+//     },
+//     coordinateMapping: false,
+//     notes: 'element actions remain conditional on current native support'
+//   },
 //   coordinateMapping: { actualCaptureScale: true, mixedDPIScope: false }
 // }
 ```
 
-尚未实现的候选能力包括 Accessibility.find/hitTest、role/name lookup、aliases、image waits、图片或
-Accessibility 参照物，以及 mixed-DPI split capture。Recorder、replay、UIMap/scene 和 automatic
-repair 不属于此 API。
+上例只展示字段形状；当前 execution 的实际值以结果为准。`available` 已同时包含 implementation、
+execution 授权和当前 OS 权限，但仍不代表任意元素支持动作；完整 host/backend/OS 权限摘要应读取
+[`Accessibility.getCapabilities()`](accessibility.md#getcapabilities能力不是元素保证)。
+
+视觉 API 尚未提供 image waits、图片或 Accessibility 参照物以及 mixed-DPI split capture。原生菜单
+接口也不做 aliases、自动翻译或自动 repair。Recorder、replay 和 UIMap/scene 不属于这些 API。

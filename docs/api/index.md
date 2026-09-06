@@ -17,8 +17,8 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先找窗口，
 | 你想做什么 | 从这里开始 |
 | --- | --- |
 | 让 Codex、Claude Code 或 shell Agent 操作桌面 | [AI CLI](ai-cli.md)：先运行 `opendesk ai capabilities` 和 `opendesk ai schema`。 |
-| 写或维护 JavaScript 自动化脚本 | [Geometry API](geometry.md) → [Desktop UI API](desktop-ui.md) → [Mouse API](mouse.md) → [Window API](window.md)。 |
-| 识别并激活屏幕上的文本、按钮或图片 | [Desktop UI API](desktop-ui.md)；原始 OCR/模板能力见 [Vision API](vision.md) 与 [ImageColor API](image-color.md)。 |
+| 写或维护 JavaScript 自动化脚本 | [Geometry API](geometry.md) → [Desktop UI API](desktop-ui.md) → [Mouse API](mouse.md) → [Window API](window.md)；原生语义元素见 [Accessibility API](accessibility.md)。 |
+| 识别并激活屏幕上的文本、按钮、图片或菜单 | 可见文本/图片见 [Desktop UI API](desktop-ui.md)，原生元素见 [Accessibility API](accessibility.md)，完整菜单路径见 [Desktop UI Menu API](desktop-ui-menu.md)。 |
 | 从服务或外部程序触发任务 | [HTTP Server API](http-server.md) 或 MCP。 |
 | 把已探索流程重复执行 | 保存 recipe，然后使用 [AI CLI](ai-cli.md) 的 `run`。 |
 | 读取项目/系统环境或设置默认终端输出 | [Environment Configuration](environment.md)：`System.getEnv()`、`Execution.env`、`.env`、`.opendesk.env` 与 CLI 覆盖规则。 |
@@ -27,6 +27,8 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先找窗口，
 
 - 写桌面脚本：[Geometry API](geometry.md) → [Desktop UI API](desktop-ui.md) → [Mouse API](mouse.md) → [Input APIs](input.md) → [Window API](window.md)
 - 做 OCR / 找按钮：优先 [Desktop UI API](desktop-ui.md)；底层 OCR 见 [Vision API](vision.md)
+- 在明确应用/窗口 scope 内读取和操作原生语义元素：[Accessibility API](accessibility.md)（Experimental；仅可信本地 execution）
+- 观察或执行完整菜单路径：[Desktop UI Menu API](desktop-ui-menu.md)（Experimental；与 Accessibility 共享 owner）
 - 做同尺寸图像差异 / 模板匹配 / 颜色判断：[ImageColor API](image-color.md)
 - 做系统、路径与文件操作：[System API](system.md)、[Path API](path.md)、[File API](file.md)、[SQLite API](sqlite.md)、[AppStorage](storage.md)
 - 在本地 JavaScript execution 中运行命令行程序：[Command API](command.md)
@@ -60,7 +62,8 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先找窗口，
 | `page` | JavaScript Runtime | Stable | 截图、打开 URL/App、等待、权限 | [Page API](page.md) |
 | `mouse` / `page.mouse` | JavaScript Runtime | Stable | 全局鼠标移动、点击、拖拽、位置与滚轮 | [Mouse API](mouse.md) |
 | `Geometry` | JavaScript Runtime | Stable | 窗口/显示器/region 的 screen logical coordinate 与相对区域 | [Geometry API](geometry.md) |
-| `UI` | JavaScript Runtime | Stable | 以实际 capture scale 查找、等待和激活外部可见文字/图片 | [Desktop UI API](desktop-ui.md) |
+| `UI` | JavaScript Runtime | Stable visual / Experimental menu | 以实际 capture scale 查找可见文字/图片；以原生语义执行完整菜单路径 | [Desktop UI API](desktop-ui.md)、[Desktop UI Menu API](desktop-ui-menu.md) |
+| `Accessibility` | 可信本地 JavaScript Runtime | Experimental（capability-gated） | 在明确 scope 内 snapshot/find/read/perform/release 原生元素 | [Accessibility API](accessibility.md) |
 | `keyboard` / `touchscreen` | JavaScript Runtime | Stable | 键盘与触屏输入控制 | [Input APIs](input.md) |
 | `globalShortcut` | JavaScript Runtime | Stable（macOS / Windows） | 系统快捷键触发 JavaScript callback | [Global Shortcut API](global-shortcut.md) |
 | `Events` | JavaScript Runtime | Experimental | 外部桌面状态 watcher；当前明确使用 polling backend | [Desktop Events API](events.md) |
@@ -100,6 +103,7 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先找窗口，
 - 新脚本省略 `-stack`。早期 `upgraded` / `playwright` facade 不属于维护中的用户 API；边界见 [JavaScript Runtime](runtime.md)。
 - `page.$`、`page.$$` 与旧 DOM 风格的 `page.click(selector)` / `page.type(selector, text)` 不属于当前稳定桌面 API。
 - `SQLite` 仅供可信本地 execution 使用；HTTP、MCP 和 Scheduler 不注入该全局对象，也没有通用 SQL remote route/tool。
+- `Accessibility` 与 `UI` 菜单方法仅在可信本地 execution 启用；HTTP、MCP 和 Scheduler 当前只能看到禁用 capability，不会读取目标，也没有新的 remote route/tool。该开关不是完整 Runtime 沙箱。
 - HTTP 的路由、请求和响应见 [HTTP Server API](http-server.md)；Scheduler 的专用 HTTP 契约见 [Scheduler HTTP API](scheduler-api.md)。
 
 `runtime-api.ai.json` 是给 Agent 的紧凑机器索引；它不替代本目录各页面的用户调用契约。Runtime

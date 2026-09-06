@@ -1,6 +1,7 @@
 (() => {
   const { assert, equal, test } = RuntimeAPITest;
   RuntimeAPITest.contractObject('UI');
+  RuntimeAPITest.contractObject('Accessibility');
 
   function windowInfo(overrides = {}) {
     return {
@@ -165,10 +166,34 @@
     }
   }
 
-  test({ name: 'UI exposes only implemented high-level capabilities', tier: 'unit', covers: ['UI.getCapabilities'] }, async () => {
+  test({ name: 'UI preserves visual capabilities and projects the native Accessibility summary', tier: 'unit', covers: ['UI.getCapabilities', 'Accessibility.getCapabilities'] }, async () => {
+    const accessibility = Accessibility.getCapabilities();
     const capabilities = UI.getCapabilities();
     assert(capabilities.text.backend === 'Vision.runOCR' && capabilities.image.backend === 'ImageColor.findImages', JSON.stringify(capabilities));
-    assert(capabilities.accessibility.available === false && capabilities.accessibility.status === 'notImplemented', JSON.stringify(capabilities));
+    assert(accessibility && accessibility.schemaVersion === 1, JSON.stringify(accessibility));
+    assert(accessibility.hostAuthorization && typeof accessibility.hostAuthorization.enabled === 'boolean', JSON.stringify(accessibility));
+    assert(typeof accessibility.available === 'boolean', JSON.stringify(accessibility));
+    assert(accessibility.implementation && typeof accessibility.implementation.available === 'boolean', JSON.stringify(accessibility));
+    assert(accessibility.implementation.actions && typeof accessibility.implementation.actions === 'object', JSON.stringify(accessibility));
+    assert(typeof accessibility.implementation.coordinateMapping === 'boolean', JSON.stringify(accessibility));
+    assert(typeof accessibility.implementation.notes === 'string', JSON.stringify(accessibility));
+    assert(accessibility.permission && typeof accessibility.permission.state === 'string', JSON.stringify(accessibility));
+    assert(accessibility.cancellation && accessibility.cancellation.hardCancel === false, JSON.stringify(accessibility));
+    equal(capabilities.accessibility.available, accessibility.available, JSON.stringify(capabilities));
+    equal(capabilities.accessibility.implemented, accessibility.implementation.available, JSON.stringify(capabilities));
+    equal(capabilities.accessibility.status, String(accessibility.implementation.status), JSON.stringify(capabilities));
+    equal(capabilities.accessibility.enabled, accessibility.hostAuthorization.enabled, JSON.stringify(capabilities));
+    equal(capabilities.accessibility.backend, String(accessibility.backend), JSON.stringify(capabilities));
+    equal(capabilities.accessibility.permission, accessibility.permission.state, JSON.stringify(capabilities));
+    equal(capabilities.accessibility.menus, accessibility.implementation.menus, JSON.stringify(capabilities));
+    const projectedActionNames = Object.keys(capabilities.accessibility.actions).sort();
+    const nativeActionNames = Object.keys(accessibility.implementation.actions).sort();
+    equal(JSON.stringify(projectedActionNames), JSON.stringify(nativeActionNames), JSON.stringify(capabilities));
+    for (const actionName of nativeActionNames) {
+      equal(capabilities.accessibility.actions[actionName], accessibility.implementation.actions[actionName], `${actionName}: ${JSON.stringify(capabilities)}`);
+    }
+    equal(capabilities.accessibility.coordinateMapping, accessibility.implementation.coordinateMapping, JSON.stringify(capabilities));
+    equal(capabilities.accessibility.notes, accessibility.implementation.notes, JSON.stringify(capabilities));
     assert(capabilities.coordinateMapping.actualCaptureScale === true && capabilities.coordinateMapping.mixedDPIScope === false, JSON.stringify(capabilities));
   });
 

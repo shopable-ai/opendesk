@@ -93,7 +93,8 @@ Runtime：文件、路径、命令、网络和桌面能力应分别使用文档�
 `axios` 和桌面 API。
 
 脚本内无需 `import` 即可使用 `page`、`window`、`mouse`、`keyboard`、`File`、`path`、`System` 等
-对象。完整对象列表见 [API 文档索引](index.md)，本次运行的标识、输入和 artifact 目录见
+对象；可信本地 execution 还可按 capability 使用 Experimental `Accessibility` 和 `UI` 菜单方法。
+完整对象列表见 [API 文档索引](index.md)，本次运行的标识、输入和 artifact 目录见
 [Execution Context](execution.md)。
 
 `Execution.workdir` 是本次 execution 的规范化绝对工作目录；`File.cwd()` 和所有相对 File 路径
@@ -120,6 +121,16 @@ HTTP、MCP 与 Scheduler execution 不提供。
 
 `opendesk ai run` 还会等待常见的末尾 `main();` Promise；其他入口应使用顶层 `await` 明确
 表达完成条件。AI recipe 的输入与输出约定见 [AI CLI](ai-cli.md)。
+
+Accessibility 的 pending/queued 请求属于同一次 execution 生命周期，即使脚本没有 await 已提交的
+Promise，也不能被结束条件提前丢弃；仅持有闲置 ElementRef 不会让脚本永久等待。timeout、取消或正常
+teardown 会停止接收新请求、取消队列、等待 native worker，并释放遗留 ref/native resource。V1
+`hardCancel: false`：已进入平台调用的动作不保证撤回，迟到结果不会回调已关闭的 Runtime。详见
+[Accessibility API](accessibility.md#限制队列取消与-teardown)。
+
+本地 `-script` / `-script-text` / stdin 与 `ai run` 可由宿主显式启用 Accessibility；HTTP、MCP 与
+Scheduler 默认关闭，禁用状态只允许 capability 摘要而不读取目标。该准入字段不能由脚本、环境变量或
+source label 升级，也不是完整 Runtime 沙箱。
 
 ## 默认模式与 `-stack` 历史参数
 
