@@ -100,7 +100,6 @@ function resolveTask(input) {
     followUpTemplate: '{result}/4+37',
     followUpExpected: '287',
   };
-  if (Object.keys(input).length === 0) return task;
   if (input.expression !== undefined) task.firstExpression = input.expression;
   if (input.expected !== undefined) task.firstExpected = input.expected;
   if (input.followUp !== undefined) {
@@ -115,6 +114,45 @@ function resolveTask(input) {
   task.firstExpected = expectedText(task.firstExpected, 'first expected result');
   task.followUpExpected = expectedText(task.followUpExpected, 'follow-up expected result');
   return task;
+}
+
+function buildEffectiveTaskContract(task) {
+  return {
+    role: 'authoritative-for-this-execution',
+    source: 'validated-and-normalized resolveTask result',
+    goal: 'Evaluate the resolved first expression in Calculator, bind its current Display ROI OCR result into the resolved follow-up template, and verify both observed results.',
+    resolvedExpressions: {
+      firstCalculation: task.firstExpression,
+      dependentCalculationTemplate: task.followUpTemplate,
+      dependentCalculationResolution: 'Replace every {result} marker with firstResult from this execution; the resulting expression is recorded in reuse.resolvedExpression.',
+    },
+    comparisonOracles: {
+      firstCalculation: { role: 'comparison-oracle', value: task.firstExpected },
+      dependentCalculation: { role: 'comparison-oracle', value: task.followUpExpected },
+    },
+    firstResultRuntimeBinding: {
+      type: 'normalized numeric string',
+      origin: 'current first Calculator Display ROI OCR',
+      consumer: 'every {result} marker in the resolved dependentCalculationTemplate',
+      forbiddenSources: ['comparison oracle', 'historical sample', 'JavaScript arithmetic', 'stale display'],
+    },
+    applicationAssumptions: {
+      bundleId: CALCULATOR_BUNDLE_ID,
+      surface: 'one visible Calculator window whose current id and PID remain unchanged',
+    },
+    layoutAssumptions: [
+      taskContract.verifiedLayout,
+      'The current Calculator window is visible and can be safely normalized to Basic layout.',
+      'Screen Recording and Accessibility are granted to the current OpenDesk host.',
+      'A documented OCR provider succeeds for the current Display ROI.',
+    ],
+    successCriteria: [
+      `The first calculation evaluates ${task.firstExpression} and its current Display ROI OCR equals comparison-oracle ${task.firstExpected}.`,
+      'firstResult is the current first Display ROI OCR string and is substituted into every {result} marker without JavaScript arithmetic.',
+      `The dependent calculation uses template ${task.followUpTemplate} and its current Display ROI OCR equals comparison-oracle ${task.followUpExpected}.`,
+      'Both calculations retain the same resolved Calculator application and window lifecycle identity.',
+    ],
+  };
 }
 
 async function resolveCalculator() {
@@ -241,7 +279,9 @@ function roundedScreenRegion(region) {
   return { x: Math.round(region.x), y: Math.round(region.y), width: Math.max(1, Math.round(region.width)), height: Math.max(1, Math.round(region.height)) };
 }
 
-async function pressKey(key) {
+async function pressKey(key, calculationNumber, phase) {
+  if (!Number.isInteger(calculationNumber) || calculationNumber <= 0) throw new Error(`Invalid calculation number: ${calculationNumber}`);
+  if (!['clear', 'expression', 'submit'].includes(phase)) throw new Error(`Invalid Calculator action phase: ${JSON.stringify(phase)}`);
   const relative = CALCULATOR_LAYOUT.keyPoints[key];
   if (!relative) throw new Error(`Unsupported Calculator key: ${JSON.stringify(key)}`);
   const active = await requireActiveCalculator(true);
@@ -249,16 +289,27 @@ async function pressKey(key) {
   const current = Geometry.rect(active);
   if (!Geometry.contains(current, point)) throw new Error(`Calculator key ${key} projected outside the current window`);
   await mouse.clickForPID(Number(active.pid), point.x, point.y);
+  resultDocument.actionTrace.push({
+    sequence: resultDocument.actionTrace.length + 1,
+    timestamp: new Date().toISOString(),
+    calculationNumber,
+    phase,
+    key,
+    bundleId: String(calculatorRun.application.bundleId),
+    pid: Number(active.pid),
+    windowId: String(active.id),
+  });
+  writeResult();
   await page.waitForTimeout(key === '=' ? 180 : 70);
 }
 
-async function clearCalculator() {
-  await pressKey('clear');
-  await pressKey('clear');
+async function clearCalculator(calculationNumber) {
+  await pressKey('clear', calculationNumber, 'clear');
+  await pressKey('clear', calculationNumber, 'clear');
 }
 
-async function enterExpression(expression) {
-  for (const key of tokenize(expression)) await pressKey(key);
+async function enterExpression(expression, calculationNumber) {
+  for (const key of tokenize(expression)) await pressKey(key, calculationNumber, key === '=' ? 'submit' : 'expression');
 }
 
 async function captureDisplay(number) {
@@ -310,8 +361,8 @@ async function readDisplay(number) {
 }
 
 async function calculate(label, expression, expected, number) {
-  await clearCalculator();
-  await enterExpression(expression);
+  await clearCalculator(number);
+  await enterExpression(expression, number);
   const display = await readDisplay(number);
   const calculation = { label, expression, expected, rawDisplay: display.rawDisplay, normalizedResult: display.normalizedResult, displayScreenshot: display.screenshot.path, ocr: { provider: display.ocr.provider, lines: display.ocr.lines }, verified: display.normalizedResult === expected };
   resultDocument.calculations.push(calculation);
@@ -321,9 +372,10 @@ async function calculate(label, expression, expected, number) {
 }
 
 async function main() {
-  resultDocument = { executionId: Execution.id, workflow: 'macos/calculator/calculate-and-reuse-result', taskContract, input: Execution.input, application: { bundleId: CALCULATOR_BUNDLE_ID, pid: 0, windowId: '', windowTitle: '' }, calculations: [], reuse: null, passed: false };
+  resultDocument = { executionId: Execution.id, workflow: 'macos/calculator/calculate-and-reuse-result', taskContract, effectiveTaskContract: null, input: Execution.input, application: { bundleId: CALCULATOR_BUNDLE_ID, pid: 0, windowId: '', windowTitle: '' }, actionTraceSemantics: 'dispatch-only: each entry proves only that mouse.clickForPID resolved successfully; Calculator key consumption remains proven by Display ROI OCR and comparison-oracle verification.', actionTrace: [], calculations: [], reuse: null, passed: false };
   try {
     const task = resolveTask(Execution.input);
+    resultDocument.effectiveTaskContract = buildEffectiveTaskContract(task);
     resultDocument.task = task;
     await page.ensurePermissions({ capabilities: ['screenCapture', 'accessibility'], openSettings: false });
     calculatorRun = await resolveCalculator();

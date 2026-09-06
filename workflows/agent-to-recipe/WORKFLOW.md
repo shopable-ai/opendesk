@@ -37,6 +37,10 @@ S1 任务合同＋计划
 
 S3—S5 按业务节点循环，不是所有动作做完才统一验证；同一 Skill 可在一次调用内完成该微循环。阶段结束必须保存需要的事实或产物，但不要求十二个 Agent、十二个进程或十二种主文件格式。
 
+接续既有脚本时仍使用这十二阶段，但必须一直区分三种来源：任务开始前留下的**历史资料**、本次对固定版本既有脚本做的**当前参考执行**、以及 Agent 在当前合同下新完成的**新示范**。历史资料不冒充本次观察，参考执行只证明该脚本版本与场景的当前表现；只有新示范完成 S3—S6 的完整门禁，才能声明完整 Agent demonstration pass。
+
+当既有代码与当前合同确实匹配，且事实 dossier 足以支持指定业务路径时，接续链可以从 S7—S9 做证据有界的反向提炼，再由 S11 登记未改实现或制作最小候选。该路径必须保留代码到业务步骤的映射、证据强弱和未知项；它不是完整新生成链的替代证明。
+
 ## 3. 十二阶段的输入、输出和责任
 
 | 阶段文件 | 责任 Skill | 输入 | 保存后交给下游的内容 |
@@ -46,19 +50,21 @@ S3—S5 按业务节点循环，不是所有动作做完才统一验证；同一
 | [S3 真实操作](stages/03-demonstrate-actions.md) | task-demonstrate | 当前子目标、应用资料、获准输入 | 实际动作、原始观察、关键业务值与来源；给 S4 |
 | [S4 动作验证](stages/04-verify-action-results.md) | task-demonstrate | 指定动作和后置条件 | 步骤验证、可消费值及限制；给 S5／下一业务节点 |
 | [S5 分类与恢复](stages/05-classify-exploration-and-recovery.md) | task-demonstrate | 动作、实际效果、验证和预算 | 分类、依赖、重试关联和下一决策；给 S3／S6／S7 |
-| [S6 示范交付](stages/06-close-demonstration.md) | task-demonstrate | 合同、完整操作与证据 | dossier.json；给 S7，只有完整示范 pass 能正常提炼 |
-| [S7 因果复盘](stages/07-review-causal-path.md) | procedure-synthesize | dossier、合同、指定证据 | Analysis、必要路径与排除依据；给 S8 |
+| [S6 示范交付](stages/06-close-demonstration.md) | task-demonstrate | 合同、完整操作与证据 | dossier.json；完整示范与接续事实范围分开声明后给 S7 |
+| [S7 因果复盘](stages/07-review-causal-path.md) | procedure-synthesize | 完整示范，或匹配既有代码＋有界事实 dossier | Analysis、代码到业务映射、必要路径与排除依据；给 S8 |
 | [S8 业务分段](stages/08-decompose-business-steps.md) | procedure-synthesize | 必要路径与数据流 | 步骤草案、每步输入输出／前后状态；给 S9 |
 | [S9 参数化](stages/09-parameterize-and-generalize.md) | procedure-synthesize | 步骤草案、数据来源 | procedure.json、参数／依赖／支持范围与能力缺口；给 S10／S11 |
 | [S10 工程化](stages/10-harden-application-operations.md) | application-engineer | 过程、AppProfile、真实缺口 | 适用应用资料、必要 helper 与验证／复用依据；给 S11 |
-| [S11 生成 JS](stages/11-build-javascript-recipe.md) | recipe-build | 过程、应用能力、公开 API | .js＋candidate.json，实际路径／命令／hash；给 S12 |
-| [S12 验收交付](stages/12-qualify-and-deliver.md) | recipe-qualify | 冻结合同、候选版本、测试场景 | qualification.json、证据、范围及修复请求；给协调者 |
+| [S11 生成 JS](stages/11-build-javascript-recipe.md) | recipe-build | 过程、应用能力、公开 API、可选既有实现 | 未改实现登记或 .js＋candidate.json，实际路径／命令／hash；给 S12 |
+| [S12 验收交付](stages/12-qualify-and-deliver.md) | recipe-qualify | 冻结合同、候选版本、测试场景 | qualification.json、证据、链路范围及修复请求；给协调者 |
 
 这里显示的是方法阶段，不是固定业务工作包。S1 依据具体任务另列稳定工作包 ID；每个包写清阶段、Skill、依赖和预期交接。应用工程使用[应用开发框架](../../docs/frameworks/app-development-framework.md)，不重新定义用户任务。
 
 ## 4. 启动、调用与可接续状态
 
 新任务按[模板](../../prompts/automation/agent-to-recipe/templates/task-package.md)初始化真实任务标识、用户请求、授权、资料根、宿主调用方式、预算和停止入口。仅要求查看／设计／写文件时，不创建运行事实或启动桌面动作。
+
+若接续既有脚本但找不到旧任务包，S1 为本次工作诚实建立并“收养”当前任务包：固定用户提供的代码、资料及来源，写明哪些事实发生在本包之前、哪些阶段状态未知，并从本次第一个可执行工作包开始。不得倒填并不存在的旧 request／handoff，也不得把历史产物标成 S1—S6 已在本次通过。
 
 接续先读合同、计划、唯一 progress 和已发布 handoff；检查依赖版本、证据和当前前提，再从输入就绪的未完成阶段／工作包开始。已有效的知识和代码可复用；动态窗口、账号、焦点、坐标和业务值需按本次动作重新核对。
 
@@ -77,7 +83,7 @@ S3—S5 按业务节点循环，不是所有动作做完才统一验证；同一
  → 消费者检查数据适用性及必要的新现场观察
 ```
 
-S3—S5 的局部成果可以接续，但不能替代 S6 完整 dossier；S7／S8 草案不能冒充 S9 完整过程。局部门禁、交接完整和业务成功分开记录。跨调用只能消费已封存的确定版本，不把正在变化的日志当不可变证据。
+S3—S5 的局部成果可以接续，但不能替代 S6 完整示范 dossier；S7／S8 草案不能冒充 S9 完整过程。接续链可消费固定版本既有代码与明确范围的事实 dossier，但只能形成与证据相称的过程结论，不能把该例外写成完整示范 pass。局部门禁、交接完整和业务成功分开记录。跨调用只能消费已封存的确定版本，不把正在变化的日志当不可变证据。
 
 关键业务值包含 type、observedValue、origin、evidenceRefs、消费者和有效条件；示范样本不得变成 Fresh Run 的答案。缺信息时明确返回缺口，不依靠记忆填空。
 
@@ -103,6 +109,6 @@ S3—S5 的局部成果可以接续，但不能替代 S6 完整 dossier；S7／S
 
 ## 7. 测试对象的使用方式
 
-基本测试某个已有脚本时，直接使用该目标的测试规程，不强制重走开发阶段。完整验证通用流程时，输入目标应用和业务场景，仍使用本文件与十二阶段。
+只测试某个已有脚本、接续既有资产或完整验证新生成流程时，分别按共享合同选择对应的 `qualificationScope.lineage`，不在本文件重定义其取值。`requested / exercised / qualified / excluded` 仍须写实际业务主张、场景与边界，不能只填 lineage 标签。参考脚本测试不强制重走开发阶段；完整新生成仍须保持 S1—S12、尤其新 Agent 示范与 S6 完整门禁全部成立，各 lineage 的结果不能互相冒充。
 
 首个现成测试目标是 [macOS Calculator](../../docs/quality/agent-to-recipe/targets/macos-calculator.md)，命令和判据见[计算器验证规程](../../docs/quality/agent-to-recipe/calculator-validation.md)。将来换目标只换相关任务资料、AppProfile 和测试用例，不复制本工作流、不增加按应用命名的开发 WORKFLOW。
