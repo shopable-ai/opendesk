@@ -48,7 +48,7 @@ OPENDESK_ENV_DEFAULT_PRECEDENCE=opendesk-value
 
   const exampleGate = 'environment-example';
   const example = await executeProcess(exampleGate, BINARY, [
-    '-script', File.join(ROOT_DIR, 'examples', 'environment.js'),
+    '-script', File.join(ROOT_DIR, 'examples', 'runtime', 'environment.js'),
     '-console-mode', 'script', '-timeout', '3',
     '-log-dir', File.join(RUN_DIR, 'runtime-logs', exampleGate),
   ], {

@@ -62,7 +62,9 @@ function auditExampleTestLayout(root) {
       errors.push(`layout SQLite consumer must load canonical shared assertions: ${relative}`);
     }
   }
-  return { scope: 'reviewed-first-batch', errors, migrations, protectedPaths };
+  const singleEntries = require('./runtime-api-entrypoints').auditRuntimeSingleEntries(root);
+  errors.push(...singleEntries.errors);
+  return { scope: 'reviewed-first-batch-and-unit-entrypoints', errors, migrations, protectedPaths, singleEntries };
 }
 
 const historicalCounts = Object.freeze({

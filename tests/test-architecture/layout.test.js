@@ -11,6 +11,7 @@ const {
   migrations, protectedPaths, compatibilitySource, auditExampleTestLayout,
   historicalCounts, validateGoCounts,
 } = require('../../scripts/lib/test-architecture-layout');
+const { entrySource, documentationTable, guide } = require('../../scripts/lib/runtime-api-entrypoints');
 const root = path.resolve(__dirname, '../..');
 const output = path.join(root, '.runtime/tests/test-architecture/layout-unit');
 fs.mkdirSync(output, { recursive: true });
@@ -31,6 +32,13 @@ function fixture(t) {
   for (const file of ['tests/runtime-api/unit/sqlite.test.js', 'tests/runtime-api/sqlite-smoke.js']) {
     write(file, "load('tests/runtime-api/support/sqlite-smoke-cases.js');\n");
   }
+  const files = ['tests/runtime-api/unit/sqlite.test.js'];
+  write('tests/runtime-api/manifest.js', 'globalThis.RuntimeAPITestFiles = ' + JSON.stringify({ unit: files }) + ';');
+  write('tests/runtime-api/single/sqlite.js', entrySource('sqlite'));
+  write('tests/runtime-api/support/run-selected.js', '// fixture shared runner');
+  write('tests/runtime-api/support/unit-selection.js', '// fixture selector');
+  write(guide, documentationTable(files));
+  write('docs/api/examples/README.md', '[single scripts](single-tests.md)');
   return { directory, write };
 }
 

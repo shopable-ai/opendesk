@@ -54,6 +54,18 @@ scripts/test_runtime_apis.js          原命令入口
 failure-exit → negative。这里的历史 smoke 编排包含扩展构建和 loopback fixture，不是纯静态
 检查，也不等价于 `tests/runtime-api/smoke.js` 的直接运行。
 
+### 单个接口组：一条脚本命令
+
+```bash
+./dist/opendesk -script tests/runtime-api/single/file.js -console-mode script
+./dist/opendesk -script tests/runtime-api/single/path.js -console-mode script
+```
+
+`single/<family>.js` 是薄入口，与 `unit-selected.js` 复用同一个
+`support/run-selected.js`，不再用 `eval` 拼装另一套断言或修改 `Execution.env`。
+固定入口拒绝残留筛选变量；完整[单项脚本和命令表](../api/examples/single-tests.md)随 manifest 核验。
+这些是单个 unit 文件的检查，不是每个方法单独的 runner，也不是整组所有层次已验收。
+
 ### 只运行一个或几个接口组
 
 ```bash
@@ -126,7 +138,7 @@ finally { Remove-Item Env:OPENDESK_RUNTIME_API_UNIT_FILTER }
 ## 维护检查
 
 ```bash
-node --test tests/test-architecture/runtime-api-modules.test.js
+node --test tests/test-architecture/runtime-api-modules.test.js tests/test-architecture/runtime-api-entrypoints.test.js
 ```
 
 这是宿主侧分派、依赖加载、选择器、组合顺序与失败路径检查，不证明 OpenDesk API、SQLite

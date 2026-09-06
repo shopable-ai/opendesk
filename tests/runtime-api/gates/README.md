@@ -15,3 +15,8 @@
 
 结构、全部模式、示例命令和验证边界见
 [Runtime API 测试模块与按接口运行](../../../docs/quality/runtime-api-test-modules.md)。
+
+单个接口组的直接脚本在 `../single/`，例如从仓库根目录运行
+`./dist/opendesk -script tests/runtime-api/single/file.js -console-mode script`。
+它复用 shared selected runner，不经过本目录的完整构建/fixture 编排。
+入口、断言源和命令表见 [单项测试脚本](../../../docs/api/examples/single-tests.md)。
