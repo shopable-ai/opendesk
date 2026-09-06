@@ -331,7 +331,7 @@ JavaScript 测试和正式入口如下：
 | `automation/system_environment.go` 的 `System.getEnv` / `System.hasEnv` | `tests/runtime-api/unit/system.test.js`、`tests/runtime-api/environment.js`、`tests/runtime-api/acceptance/environment-http-isolation.js` | 按键读取、fallback、空值、非法参数、默认文件/OS 来源与远程宿主隔离 | Runtime API JS 的 `unit`、`environment` mode |
 | `pkg/runtimeenv/environment.go` | `tests/runtimeenv/environment_test.go` + `tests/runtime-api/environment.js` + `tests/runtime-api/acceptance/environment-default-files.js` + `examples/environment.js` | dotenv 子集、默认文件发现、显式文件/启动时 OS 环境优先级、Windows 键名、非法输入、冻结 JS 快照、Command 继承与安全公开示例 | `go test ./tests/runtimeenv`、Runtime API JS 的 `environment` mode |
 | `automation/sound.go` 的 `registerSound` | `tests/runtime-api/unit/sound.test.js` | allowlist 旧同步方法 + 显式 `start`/`playAsync`/`stop`/`stopAll`/`getActive` bridge 的公共 JS surface | Runtime API JS 的 `unit` mode |
-| `automation/audio_pattern_runtime.go` 与 execution lifecycle | `tests/runtime-api/unit/audio.test.js`、`tests/runtime-api/seams/audio-pattern-positive.js`、`audio-pattern-fixtures.js`、`audio-pattern-cleanup-failure.js`、`audio-pattern-teardown.js` | 默认 backend fail-closed、合成 WAV 的音量/噪声/重采样变体、confuser 不误触发、cooldown/连续命中/first-signal，以及 cleanup failure/hostile Promise teardown | Runtime API JS 的 `unit` mode + 下方 injected-backend Go harness；fixture 与结果写入临时 execution workdir，正式日志写入 `.runtime/tests/runtime-api/` |
+| `automation/audio_pattern_runtime.go` 与 execution lifecycle | `tests/runtime-api/unit/audio.test.js`、`tests/runtime-api/seams/audio-pattern-positive.js`、`audio-pattern-fixtures.js`、`audio-pattern-market.js`、`audio-pattern-cleanup-failure.js`、`audio-pattern-teardown.js` | 默认 backend fail-closed、合成 WAV 的音量/噪声/重采样变体、confuser 不误触发、cooldown/连续命中/first-signal；market seam 验证 3s/12s 双 order cue、payment/confuser 干扰与 stop/wait；以及 cleanup failure/hostile Promise teardown | Runtime API JS 的 `unit` mode + 下方 injected-backend Go harness；fixture 与结果写入临时 execution workdir，正式日志写入 `.runtime/tests/runtime-api/` |
 
 从仓库根目录直接复现完整 unit 脚本：
 
@@ -348,7 +348,7 @@ Audio pattern 的成功捕获不能由默认产品 backend 在普通 unit 中伪
 注入，但公开调用与断言都保存在 `tests/runtime-api/seams/*.js`：
 
 ```bash
-go test ./pkg/execution -run 'TestRunJavaScriptAudioPatternPositiveSeam|TestRunJavaScriptAudioPatternCleanupFailureSeam|TestRunJavaScriptTeardownInterruptsWatchWaitRejectionHandler' -count=1
+go test ./pkg/execution -run 'TestRunJavaScriptAudioPatternPositiveSeam|TestRunJavaScriptAudioPatternMarketSeam|TestRunJavaScriptAudioPatternCleanupFailureSeam|TestRunJavaScriptTeardownInterruptsWatchWaitRejectionHandler' -count=1
 go test -race ./automation -run '^TestAudioPattern' -count=1
 ```
 
