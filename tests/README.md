@@ -21,6 +21,34 @@ node scripts/audit_test_architecture.js
 `tests/automation/tools/image-layout-lab/analyze-progressive.js`；其报告必须区分诊断完成和识别
 正确性。现有 Runtime 正式编排入口、领域目录及 Go 同包私有测试保持不变。
 
+## 按接口组独立运行与模块化编排
+
+接口用例继续在 `runtime-api/unit/<family>.test.js` 独立维护；正式入口不堆接口逻辑。
+编排职责已拆至 `runtime-api/gates/suites/`，模式以 `gates/registry.js` 为唯一注册表。
+结构、全部模式与验收边界见 [Runtime API 测试模块](../docs/quality/runtime-api-test-modules.md)。
+
+从仓库根目录仅运行 File 和 path 的既有 unit 文件：
+
+```bash
+OPENDESK_RUNTIME_API_UNIT_FILTER=file,path ./dist/opendesk -script tests/runtime-api/unit-selected.js -console-mode script
+```
+
+需要相同选择的 run-local 构建、watchdog 与资源清理证据时：
+
+```bash
+OPENDESK_RUNTIME_API_MODE=unit-selected OPENDESK_RUNTIME_API_UNIT_FILTER=file,path ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+```
+
+选择结果明确为 `selected-unit-files`，不写入完整 `unit.json`、coverage 或 quality 通过记录。
+空值、未知 ID、路径/通配符或没有注册任何测试的文件都会失败。普通全量 `unit`/`smoke`/`live`
+不接受筛选变量，防止误用；各接口专用 gate（例如 `sqlite`）仍优先用于生命周期完整验收。
+
+维护编排模块后运行宿主侧检查（不替代真实 Runtime 测试）：
+
+```bash
+node --test tests/test-architecture/runtime-api-modules.test.js
+```
+
 ## JavaScript Runtime API 一致性
 
 OpenDesk JavaScript Runtime API Conformance Lab 位于 `tests/runtime-api/`，按当前 Runtime、
