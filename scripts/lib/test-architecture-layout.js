@@ -3,7 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 
-// Only the reviewed first batch is enforced. This is not a deletion list for other files.
+// Only reviewed migrations are enforced. This is not a deletion list for other files.
 const migrations = [
   ['examples/api-quickstart.js', 'examples/runtime/api-quickstart.js', 'example', 'async'],
   ['examples/environment.js', 'examples/runtime/environment.js', 'example', 'async'],
@@ -12,6 +12,14 @@ const migrations = [
   ['examples/sqlite/smoke-cases.js', 'tests/runtime-api/support/sqlite-smoke-cases.js', 'test-support', 'sync'],
   ['examples/sqlite/smoke.test.js', 'tests/runtime-api/sqlite-smoke.js', 'test-entry', 'async'],
   ['examples/analyze_progressive_tests.js', 'tests/automation/tools/image-layout-lab/analyze-progressive.js', 'diagnostic-tool', 'async'],
+  ['examples/file.js', 'examples/runtime/file.js', 'example', 'async'],
+  ['examples/command.js', 'examples/runtime/command.js', 'example', 'async'],
+  ['examples/http.js', 'examples/runtime/http.js', 'example', 'async'],
+  ['examples/clipboard.js', 'examples/clipboard/text.js', 'example', 'async'],
+  ['examples/keyboard.js', 'examples/desktop/keyboard.js', 'example', 'async'],
+  ['examples/window.js', 'examples/desktop/window-inspect.js', 'example', 'async'],
+  ['examples/window-more.js', 'examples/desktop/window-controls.js', 'example', 'async'],
+  ['examples/clipboard.test.js', 'tests/runtime-api/clipboard-stress.js', 'test-entry', 'async'],
 ].map(([from, to, role, mode]) => ({ from, to, role, mode }));
 
 const protectedPaths = [
@@ -21,6 +29,8 @@ const protectedPaths = [
   'tests/runtime-api/framework.js',
   'tests/runtime-api/manifest.js',
   'tests/runtime-api/unit.js',
+  'examples/desktop/support/target-window.js',
+  'examples/app/qianniu-window.js',
 ];
 
 function compatibilitySource(target, mode = 'async') {
@@ -64,7 +74,7 @@ function auditExampleTestLayout(root) {
   }
   const singleEntries = require('./runtime-api-entrypoints').auditRuntimeSingleEntries(root);
   errors.push(...singleEntries.errors);
-  return { scope: 'reviewed-first-batch-and-unit-entrypoints', errors, migrations, protectedPaths, singleEntries };
+  return { scope: 'reviewed-example-batches-and-unit-entrypoints', errors, migrations, protectedPaths, singleEntries };
 }
 
 const historicalCounts = Object.freeze({

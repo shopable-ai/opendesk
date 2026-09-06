@@ -15,6 +15,11 @@ order: 3
 平台/fixture；缺少资源不能当作通过。每组的独立脚本、完整命令与边界见
 [单项测试脚本索引](single-tests.md)。`unit/*.test.js` 是被加载的断言源，不是直接启动入口。
 
+本批 File/Command/HTTP、剪贴板与桌面示例的具体前置条件见
+[Runtime 示例](../../../examples/runtime/README.md)、[剪贴板示例](../../../examples/clipboard/README.md)
+和[桌面示例](../../../examples/desktop/README.md)。目录调整同时收紧了旧入口的危险默认行为；
+不要把旧命令的副作用假设套用到新版本。
+
 下面保留每个示例的运行命令；相关单项测试和专项/人工检查分别列出。涉及真实输入、剪贴板、
 设备或应用的示例仍须按原来的权限与确认要求运行；不要批量执行整个示例目录。
 
@@ -50,8 +55,8 @@ order: 3
   [单项脚本 file-json.js](../../../tests/runtime-api/single/file-json.js)；运行：
   `./dist/opendesk -script tests/runtime-api/single/file-json.js -console-mode script`；专项完整验收：
   `OPENDESK_RUNTIME_API_MODE=file-json ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script`。
-- `command.js` — [源码](../../../examples/command.js)；运行：
-  `./opendesk -script examples/command.js -console-mode script`；接口组检查：
+- `command.js` — [源码](../../../examples/runtime/command.js)；运行：
+  `./dist/opendesk -script examples/runtime/command.js -console-mode script`；接口组检查：
   [单项脚本 command.js](../../../tests/runtime-api/single/command.js)；运行：
   `./dist/opendesk -script tests/runtime-api/single/command.js -console-mode script`；专项完整验收：
   `OPENDESK_RUNTIME_API_MODE=command ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script`。
@@ -59,8 +64,8 @@ order: 3
   `./opendesk -script examples/runtime/path.js -console-mode script`；检查：
   [单项脚本 path.js](../../../tests/runtime-api/single/path.js)；运行：
   `./dist/opendesk -script tests/runtime-api/single/path.js -console-mode script`。
-- `file.js` — [源码](../../../examples/file.js)；运行：
-  `./opendesk -script examples/file.js -console-mode script`；检查：
+- `file.js` — [源码](../../../examples/runtime/file.js)；运行：
+  `./opendesk -script examples/runtime/file.js -console-mode script`；检查：
   [单项脚本 file.js](../../../tests/runtime-api/single/file.js)；运行：
   `./dist/opendesk -script tests/runtime-api/single/file.js -console-mode script`。
 - `appStorage.js` — [源码](../../../examples/appStorage.js)；运行：
@@ -96,6 +101,12 @@ order: 3
   [smoke.js](../../../tests/runtime-api/smoke.js)；运行：
   `./dist/opendesk -script tests/runtime-api/smoke.js -console-mode script`。
 
+HTTP 示例已从历史局域网地址切换为显式测试服务：
+[http.js](../../../examples/runtime/http.js)；从仓库根目录运行：
+`OPENDESK_EXAMPLE_HTTP_URL=http://127.0.0.1:8080/echo ./opendesk -script examples/runtime/http.js -console-mode script`。
+必须先准备自己控制的服务并替换地址；默认 GET，写入/删除需额外授权。接口组检查：
+`./dist/opendesk -script tests/runtime-api/single/http-axios.js -console-mode script`，不代替真实服务观察。
+
 ## SQLite Runtime API
 
 SQLite 示例与独立 smoke 将数据库和结果写入 `.runtime/tests/sqlite/`；单项 unit 与正式 gate
@@ -125,12 +136,12 @@ SQLite 示例与独立 smoke 将数据库和结果写入 `.runtime/tests/sqlite/
   `./opendesk -script examples/mouse.js -console-mode script`；检查：
   [单项脚本 mouse.js](../../../tests/runtime-api/single/mouse.js)；运行：
   `./dist/opendesk -script tests/runtime-api/single/mouse.js -console-mode script`。
-- `keyboard.js` — [源码](../../../examples/keyboard.js)；运行：
-  `./opendesk -script examples/keyboard.js -console-mode script`；检查：
+- `keyboard.js` — [源码](../../../examples/desktop/keyboard.js)；运行：
+  `OPENDESK_EXAMPLE_WINDOW_TITLE='OpenDesk input test' OPENDESK_EXAMPLE_WINDOW_PID=12345 OPENDESK_EXAMPLE_ALLOW_INPUT=1 ./opendesk -script examples/desktop/keyboard.js -console-mode script`；检查：
   [单项脚本 keyboard.js](../../../tests/runtime-api/single/keyboard.js)；运行：
   `./dist/opendesk -script tests/runtime-api/single/keyboard.js -console-mode script`。
-- `clipboard.js` — [源码](../../../examples/clipboard.js)；运行：
-  `./opendesk -script examples/clipboard.js -console-mode script`；检查：
+- `clipboard/text.js` — [源码](../../../examples/clipboard/text.js)；运行：
+  `OPENDESK_EXAMPLE_ALLOW_CLIPBOARD_WRITE=1 ./opendesk -script examples/clipboard/text.js -console-mode script`；检查：
   [单项脚本 clipboard.js](../../../tests/runtime-api/single/clipboard.js)；运行：
   `./dist/opendesk -script tests/runtime-api/single/clipboard.js -console-mode script`。
 - `clipboard/rich-smoke.js` — [源码](../../../examples/clipboard/rich-smoke.js)；运行：
@@ -165,12 +176,12 @@ SQLite 示例与独立 smoke 将数据库和结果写入 `.runtime/tests/sqlite/
   `./opendesk -script examples/window-capabilities.js -console-mode script`；检查：
   [单项脚本 window.js](../../../tests/runtime-api/single/window.js)；运行：
   `./dist/opendesk -script tests/runtime-api/single/window.js -console-mode script`。
-- `window.js` — [源码](../../../examples/window.js)；运行：
-  `./opendesk -script examples/window.js -console-mode script`；检查：
+- `desktop/window-inspect.js` — [源码](../../../examples/desktop/window-inspect.js)；运行：
+  `./opendesk -script examples/desktop/window-inspect.js -console-mode script`；检查：
   [单项脚本 window.js](../../../tests/runtime-api/single/window.js)；运行：
   `./dist/opendesk -script tests/runtime-api/single/window.js -console-mode script`。
-- `window-more.js` — [源码](../../../examples/window-more.js)；运行：
-  `./opendesk -script examples/window-more.js -console-mode script`；检查：
+- `desktop/window-controls.js` — [源码](../../../examples/desktop/window-controls.js)；运行：
+  `OPENDESK_EXAMPLE_WINDOW_TITLE='OpenDesk window test' OPENDESK_EXAMPLE_WINDOW_PID=12345 OPENDESK_EXAMPLE_ALLOW_WINDOW_CHANGE=1 ./opendesk -script examples/desktop/window-controls.js -console-mode script`；检查：
   [单项脚本 window.js](../../../tests/runtime-api/single/window.js)；运行：
   `./dist/opendesk -script tests/runtime-api/single/window.js -console-mode script`。
 - `system.js` — [源码](../../../examples/system.js)；运行：
@@ -189,6 +200,15 @@ SQLite 示例与独立 smoke 将数据库和结果写入 `.runtime/tests/sqlite/
   `./opendesk -script examples/notifications.js -console-mode script`；检查：
   [单项脚本 notifications.js](../../../tests/runtime-api/single/notifications.js)；运行：
   `./dist/opendesk -script tests/runtime-api/single/notifications.js -console-mode script`。
+
+上述窗口与输入命令中的标题和 PID 是占位值，必须替换为已查询到的可丢弃测试窗口。
+窗口查询默认不打印标题；输入不按 Enter，窗口控制只演示位置变化与 bounds 恢复。
+千牛特定操作见 [qianniu-window.js](../../../examples/app/qianniu-window.js) 和
+[应用示例说明](../../../examples/app/README.md)；不再由通用窗口查询隐式执行。
+
+剪贴板压力测试已归入 `tests/runtime-api/clipboard-stress.js`，独立显式运行：
+`OPENDESK_LIVE_CLIPBOARD_STRESS=1 ./dist/opendesk -script tests/runtime-api/clipboard-stress.js -console-mode script`。
+它覆盖真实剪贴板且不恢复，不加入默认测试；参数和结果边界见 [剪贴板说明](../../../examples/clipboard/README.md)。
 
 ## Vision、OCR、图像和声音
 

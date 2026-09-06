@@ -1,12 +1,12 @@
 ---
 title: Examples 与 Tests 目录及迁移规则
-description: 第一批示例、共享断言与诊断工具归位，兼容边界和增量审计。
+description: 示例、共享断言与诊断工具分批归位，副作用控制、兼容边界和增量审计。
 order: 22
 ---
 
 # Examples 与 Tests 目录及迁移规则
 
-本轮基于 `master@6ae230233de95b34b66c8bdec864d24f6a34eeb7`，只整理已经确认职责的
+第一批基于 `master@6ae230233de95b34b66c8bdec864d24f6a34eeb7`，只整理已经确认职责的
 第一批文件。不是全仓文件鉴定，也不是已批准的批量删除清单。
 
 ## 归属
@@ -81,7 +81,7 @@ node scripts/audit_test_architecture.js
 它新增第一批迁移检查：目标存在且非空、旧路径只能是指定转发、SQLite 的两个正式入口
 直接加载规范 support，以及所列构建关键资产/Runtime 基础设施存在。结果写入原来的
 `.runtime/tests/test-architecture/audit.json`，新增 `exampleTestLayout` 和对应 invariant。
-检查范围是已审查的七项，不宣称其他 examples/tests 文件都已经分类。
+第一批检查范围是七项；后续增量见本文第二批台账，不宣称全仓文件均已分类。
 
 历史 Go 迁移账本仍验证 151 行及其处置计数。以后新增 Go 测试时，在现有
 `docs/quality/go-test-file-classification.md` 最后追加唯一的 `## 增量登记` 章节，使用相同的
@@ -111,3 +111,51 @@ OPENDESK_RUNTIME_API_MODE=sqlite OPENDESK_BINARY=./dist/opendesk ./dist/opendesk
 
 完整架构审计、实际 Runtime 和目标平台验证必须分别报告；静态/模拟检查不能标为实机通过。
 本轮不遍历执行所有 `.js`，不自动触发桌面输入、真实应用操作或完整历史验收脚本。
+
+## 第二批：修复已有示例内容，再归位
+
+以 `master@56074184f442b1e6fec8f9437386e0ed37d71b2a` 为实施基线，不重复第一批迁移，
+不改 Runtime 生产 API、已有 unit 断言、39 个 single 入口、Native Extension 构建或工作流。
+
+| 原入口 | 唯一实现位置 | 行为修复与兼容说明 |
+| --- | --- | --- |
+| `examples/file.js` | `examples/runtime/file.js` | 只操作本次 artifactDir/file-demo；补复制、移动、目录和 JSON 文本验证，拒绝覆盖旧目录。 |
+| `examples/command.js` | `examples/runtime/command.js` | 保留 Windows/POSIX 固定 echo，增加能力与结果检查、有限输出；不接收动态 shell 文本。 |
+| `examples/http.js` | `examples/runtime/http.js` | 去掉局域网固定地址和 Node 说明；必填测试 URL；默认 GET，其他方法显式授权；失败退出且不记录正文/URL。 |
+| `examples/clipboard.js` | `examples/clipboard/text.js` | 必须显式允许覆盖剪贴板；不匹配抛错，不无条件清空，不声称恢复私有格式。 |
+| `examples/keyboard.js` | `examples/desktop/keyboard.js` | 指定精确标题/PID、显式输入授权，核对 native identity 和聚焦；只派发一行，不按 Enter 或 Meta+d。 |
+| `examples/window.js` | `examples/desktop/window-inspect.js` | 通用示例改为只读，不混入千牛、不读窗口内容，标题输出单独 opt-in。 |
+| `examples/window-more.js` | `examples/desktop/window-controls.js` | 不再控制当前任意活动窗口；仅显式测试窗口的 x 位移、验证和 bounds 恢复，拒绝覆盖独立发生的变化。 |
+| `examples/clipboard.test.js` | `tests/runtime-api/clipboard-stress.js` | 独立 live-stress，不加入默认 suite；有上限、可重放 seed、有限进度证据；任一失败均非零，不输出误读正文。 |
+
+这八个旧路径已有公开文档或历史直接入口，本批保留薄转发，避免未经完整调用关系验证就删入口。
+**路径兼容不表示危险默认行为不变**：HTTP、剪贴板、键盘、窗口变更继承新的显式参数与授权，
+原 window.js 的千牛动作不再隐式执行。千牛独立场景是 `examples/app/qianniu-window.js`。
+移除这些别名时沿用上面的引用、公开命令和弃用安排检查；不再向旧路径加实现。
+
+复用现有 `scripts/lib/test-architecture-layout.js` 的迁移清单与转发模板，不建设新审计入口。
+当前检查范围为第一批七项加第二批八项，以及已登记单项入口。共享 guard 和千牛新入口登记
+为必需路径。这仅证明迁移闭合，不说明全仓历史文件都已审核，也不说明 native 行为通过。
+
+运行说明和预期结果分别在 [Runtime](../../examples/runtime/README.md)、
+[剪贴板](../../examples/clipboard/README.md)、[桌面](../../examples/desktop/README.md)、
+[应用场景](../../examples/app/README.md)，[示例主索引](../api/examples/README.md)推荐规范路径。
+HTTP 需要实际测试服务；桌面需要可丢弃窗口和平台支持；剪贴板压力测试会持续覆盖真实系统内容。
+
+### 本批验收
+
+宿主侧隔离检查（不代替实际 OpenDesk 命令）：
+
+```bash
+node --test tests/test-architecture/examples-safety.test.js tests/test-architecture/layout.test.js tests/test-architecture/runtime-api-modules.test.js tests/test-architecture/runtime-api-entrypoints.test.js
+node scripts/audit_test_architecture.js
+```
+
+`examples-safety.test.js` 检查文件隔离和结果校验、HTTP 请求授权、剪贴板失败退出、唯一标题/
+PID/native identity、聚焦失败拒绝输入、bounds 恢复失败、兼容入口和文档路径。临时文件只放
+`.runtime/tests/test-architecture/`，清理仅限测试自己创建的目录。
+
+实际 Runtime 验收必须分别记录本批新旧命令；不能用上述宿主侧 mock 或仅跑 single 接口测试
+来宣布例子已经运行。先执行无桌面副作用的 File/Command，然后才在明确配置下验证 HTTP，
+最后显式运行剪贴板和真实窗口场景。Windows/POSIX、原生行为/视觉效果分别记录。
+本批源码快照验证不具备完整仓库或 OpenDesk binary，不包含 native/live 通过声明。

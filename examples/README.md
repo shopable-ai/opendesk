@@ -16,6 +16,19 @@ OpenDesk 的公开自动化示例使用 JavaScript，并以 [`docs/api/`](../doc
 本轮仅整理已确认职责的文件，不批量删除 probe、图片、JSON 或历史脚本。完整迁移台账、
 兼容退出条件和验证边界见 [目录与迁移规则](../docs/quality/example-test-layout.md)。
 
+## 已维护的使用示例
+
+文件、固定命令与显式测试服务请求见 [runtime/](runtime/README.md)；剪贴板文本见
+[clipboard/](clipboard/README.md)；只读窗口查询、指定窗口输入和 bounds 控制见
+[desktop/](desktop/README.md)。千牛特定动作独立在 [app/](app/README.md)，不再混入窗口查询。
+
+旧根目录入口只转发到唯一实现。HTTP/剪贴板/桌面动作新增的显式前置条件同样约束旧入口，
+不再默认访问旧局域网服务、清空剪贴板、向任意焦点按 Enter 或改变当前窗口。
+剪贴板压力矩阵属于 `tests/runtime-api/clipboard-stress.js`，显式 opt-in，不是新用户体验步骤。
+
+各示例包含必要结果检查，但检查 API 返回或宿主侧单元测试通过，不代表实窗内容/视觉效果已通过。
+先原样运行文档命令并观察结果；不要批量执行示例目录，也不要把所有未知文件标成已维护。
+
 ## macOS：按名称打开系统计算器
 
 从仓库根目录运行：
