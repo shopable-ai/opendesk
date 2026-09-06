@@ -38,7 +38,7 @@ fail closed，避免终止用户原有实例：
 .runtime/tests/platform-primitives/task-007-app-lifecycle/example.json
 ```
 
-## API
+## `App.list()` / `App.get()` / `App.isRunning()` / `App.launch()` / `App.waitForLaunch()` / `App.waitForExit()` / `App.terminate()` / `App.restart()` / `App.getCapabilities()`：API 总览
 
 | 方法 | 返回 | 语义 |
 | --- | --- | --- |

@@ -25,7 +25,7 @@ native 资源，应使用 [Audio API](audio.md) 的 `Audio.watchSound()` / `Audi
 接入系统音频 capture backend，因此 `patternWatch` 会报告 `unsupported`；matcher/backend seam
 不是可用平台监听能力，也不会由 `Events` fallback 补足。
 
-## API
+## `Events.on()` / `Events.once()` / `Events.getCapabilities()`：API 总览
 
 ```js
 const subscription = Events.on('window.focused', async event => {

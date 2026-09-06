@@ -16,7 +16,7 @@ Node.js 24.15.0 的 `node:path` 常用字符串行为为兼容基线，但不是
 ./dist/opendesk -script examples/path.js -console-mode script
 ```
 
-## 属性与方法
+## `path.sep` / `path.delimiter` / `path.join()` / `path.resolve()` / `path.normalize()` / `path.dirname()` / `path.basename()` / `path.extname()` / `path.relative()` / `path.isAbsolute()`：属性与方法
 
 | 成员 | 返回 | 说明 |
 | --- | --- | --- |

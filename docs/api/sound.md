@@ -21,7 +21,7 @@ order: 14
 capture 仍为 `notImplemented` 的边界。当前默认产品构建尚未接入系统音频 capture backend，
 `patternWatch` 会明确报告 `unsupported`；已有 matcher/backend seam 不代表真实系统监听可用。
 
-## 方法
+## `Sound.playSuccess()` / `Sound.playFail()` / `Sound.playWarning()` / `Sound.playError()` / `Sound.playCaptcha()` / `Sound.playSound()` / `Sound.play()` / `Sound.start()` / `Sound.playAsync()` / `Sound.stop()` / `Sound.stopAll()` / `Sound.getActive()`：方法总览
 
 | 方法 | 参数 | 返回 | 用途 |
 | --- | --- | --- | --- |

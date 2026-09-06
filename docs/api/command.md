@@ -27,7 +27,7 @@ order: 7
 HTTP、MCP 和 Scheduler execution 不提供命令执行能力。此时仍可调用 `getCapabilities()` 检测，
 `run()` 会以 `COMMAND_DISABLED` 失败。
 
-## 方法
+## `Command.getCapabilities()` / `Command.run()`：方法总览
 
 | 方法 | 说明 |
 | --- | --- |

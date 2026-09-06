@@ -30,7 +30,7 @@ globalShortcut.register(
 Runtime 的 Goja EventLoop 中执行，因此可以直接组合 `clipboard`、`window`、
 `FloatingWindow` 与其他现有 JavaScript API；原生按键线程不会直接触碰 JavaScript。
 
-## 方法
+## `globalShortcut.register()` / `globalShortcut.unregister()` / `globalShortcut.unregisterAll()` / `globalShortcut.isRegistered()`：方法总览
 
 | 方法 | 返回值 | 说明 |
 | --- | --- | --- |
