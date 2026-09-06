@@ -35,7 +35,7 @@ user database.
 ```bash
 ./dist/opendesk -script examples/sqlite/quickstart.js -console-mode script
 
-./dist/opendesk -script examples/sqlite/smoke.test.js -console-mode script
+./dist/opendesk -script tests/runtime-api/sqlite-smoke.js -console-mode script
 
 ./dist/opendesk -script examples/sqlite/persistence-write.js -console-mode script
 
@@ -53,20 +53,31 @@ root after building `dist\opendesk.exe`:
 ```powershell
 .\dist\opendesk.exe -script examples/sqlite/quickstart.js -console-mode script
 
-.\dist\opendesk.exe -script examples/sqlite/smoke.test.js -console-mode script
+.\dist\opendesk.exe -script tests/runtime-api/sqlite-smoke.js -console-mode script
 
 .\dist\opendesk.exe -script examples/sqlite/persistence-write.js -console-mode script
 
 .\dist\opendesk.exe -script examples/sqlite/persistence-read.js -console-mode script
 ```
 
+## Canonical test ownership and compatibility
+
+The standalone smoke entry is now
+[`tests/runtime-api/sqlite-smoke.js`](../../tests/runtime-api/sqlite-smoke.js).
+It and `tests/runtime-api/unit/sqlite.test.js` load the same
+[`support/sqlite-smoke-cases.js`](../../tests/runtime-api/support/sqlite-smoke-cases.js).
+The shared assertion implementation was moved without changing its contents.
+The two old `examples/sqlite/smoke*` paths are thin compatibility entries, not a
+second implementation. Existing commands still resolve; new commands should use
+the paths above. See [migration rules](../../docs/quality/example-test-layout.md).
+
 ## What each file proves
 
 | File | Purpose |
 | --- | --- |
 | `quickstart.js` | Creates a database/table, uses parameterized writes, performs one transactional `batch`, queries rows, and always closes the handle. |
-| `smoke-cases.js` | Shared, dependency-free JavaScript assertions used by the public smoke script and the formal Runtime API suite. Loading it does not start tests. |
-| `smoke.test.js` | Runs ten isolated behavior groups with real assertions, including query cancellation/timeout, FIFO close fencing, two-handle lock-wait cancellation, a canceled batch rollback, and POSIX literal-backslash paths. The literal-backslash group is explicitly skipped on Windows. Each run uses a new `.runtime/tests/sqlite/smoke/...` directory and exits nonzero on any failure. |
+| `tests/runtime-api/support/sqlite-smoke-cases.js` | Shared, dependency-free JavaScript assertions used by the public smoke script and the formal Runtime API suite. Loading it does not start tests. |
+| `tests/runtime-api/sqlite-smoke.js` | Runs isolated behavior groups with real assertions, including query cancellation/timeout, FIFO close fencing, two-handle lock-wait cancellation, a canceled batch rollback, and POSIX literal-backslash paths. The literal-backslash group is explicitly skipped on Windows. Each run uses a new `.runtime/tests/sqlite/smoke/...` directory and exits nonzero on any failure. |
 | `persistence-write.js` | Writes one fresh nonce to a fixed local test database, closes it, then emits metadata for the next process. |
 | `persistence-read.js` | Reads the writer metadata, opens the existing database with `mode: "ro"`, and verifies the nonce. |
 

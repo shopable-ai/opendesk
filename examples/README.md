@@ -6,6 +6,16 @@ OpenDesk 的公开自动化示例使用 JavaScript，并以 [`docs/api/`](../doc
 [`docs/api/examples/`](../docs/api/examples/README.md)。本文保留示例目录中较详细
 的专题说明。
 
+## 第一批规范目录
+
+基础 Runtime 示例现位于 [`runtime/`](runtime/README.md)，包含 quickstart、环境、路径和 JSON
+读写；旧的四个根目录文件仅兼容转发。SQLite 共享断言和独立 smoke 入口归入
+[`tests/runtime-api/`](../tests/runtime-api/sqlite-smoke.js)，公开使用示例仍在 `sqlite/`。
+图像分级分析归入 `tests/automation/tools/image-layout-lab/`，不作为用户 quickstart 或回归通过证明。
+
+本轮仅整理已确认职责的文件，不批量删除 probe、图片、JSON 或历史脚本。完整迁移台账、
+兼容退出条件和验证边界见 [目录与迁移规则](../docs/quality/example-test-layout.md)。
+
 ## macOS：按名称打开系统计算器
 
 从仓库根目录运行：
@@ -24,7 +34,7 @@ Calculator、确认其实际 identity 并打印结果；它不会输入、清空
 从仓库根目录运行无需桌面权限的路径示例：
 
 ```bash
-./dist/opendesk -script examples/path.js -console-mode script
+./dist/opendesk -script examples/runtime/path.js -console-mode script
 ```
 
 它使用全局 `path` 计算 artifact 路径，并展示可信文件入口的

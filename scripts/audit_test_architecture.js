@@ -5,6 +5,7 @@ const childProcess = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const { auditExampleTestLayout, validateGoCounts } = require('./lib/test-architecture-layout');
 
 const root = process.cwd();
 const output = path.resolve(process.argv[2] || '.runtime/tests/test-architecture/audit.json');
@@ -92,9 +93,14 @@ for (const [code, disposition, count] of requiredExecutionLanes) {
 const classificationPattern = /^\| `([^`]+_test\.go)` \| `(KEEP_PACKAGE|MOVE_GO_BLACKBOX|SPLIT_JS_CONTRACT|MOVE_TOOL|OPT_IN_LIVE|VENDOR_ONLY|ARCHIVE_ONLY)` \| ([^|\n]+) \| ([^|\n]+) \| ([^|\n]+) \| ([^|\n]+) \| ([^|\n]+) \|$/gm;
 const classifications = new Map();
 const reviewFingerprints = new Map();
+const incrementalHeaders = [...classificationText.matchAll(/^## 增量登记\s*$/gm)];
+if (incrementalHeaders.length > 1) errors.push('classification has duplicate incremental sections');
+const incrementalStart = incrementalHeaders[0]?.index ?? Infinity;
+const incrementalFiles = new Set();
 let match;
 while ((match = classificationPattern.exec(classificationText)) !== null) {
   const [, file, disposition, privateAccessRaw, boundaryRaw, externalDependenciesRaw, assertionValueRaw, reasonRaw] = match;
+  if (match.index > incrementalStart) incrementalFiles.add(file);
   const privateAccess = privateAccessRaw.trim();
   const boundary = boundaryRaw.trim();
   const externalDependencies = externalDependenciesRaw.trim();
@@ -268,24 +274,9 @@ for (const [file, classification] of classifications.entries()) {
   }
 }
 
-const expectedCounts = {
-  KEEP_PACKAGE: 90,
-  MOVE_GO_BLACKBOX: 29,
-  SPLIT_JS_CONTRACT: 15,
-  MOVE_TOOL: 3,
-  OPT_IN_LIVE: 2,
-  VENDOR_ONLY: 4,
-  ARCHIVE_ONLY: 8,
-};
-const dispositionCounts = Object.fromEntries(Object.keys(expectedCounts).map((label) => [label, 0]));
-for (const { disposition } of classifications.values()) dispositionCounts[disposition] += 1;
-for (const [label, expected] of Object.entries(expectedCounts)) {
-  if (dispositionCounts[label] !== expected) {
-    errors.push(`${label} count=${dispositionCounts[label]}, expected=${expected}`);
-  }
-}
-if (classifications.size !== 151) errors.push(`classification total=${classifications.size}, expected=151`);
-if (currentGoTests.length !== 148) errors.push(`current _test.go total=${currentGoTests.length}, expected=148`);
+const goCounts = validateGoCounts(classifications, currentGoTests.length, incrementalFiles);
+const { dispositionCounts } = goCounts;
+errors.push(...goCounts.errors);
 
 if (fs.existsSync(path.join(root, 'temp'))) errors.push('retired repository-root output directory exists');
 
@@ -342,6 +333,9 @@ for (const relative of walk(path.join(root, 'tests'), () => true)) {
   if (fixtureIndex >= 0) fixtures.push(parts.slice(0, fixtureIndex + 1).join('/'));
 }
 
+const exampleTestLayout = auditExampleTestLayout(root);
+errors.push(...exampleTestLayout.errors);
+
 const report = {
   schemaVersion: 2,
   generatedAt: new Date().toISOString(),
@@ -358,7 +352,10 @@ const report = {
     files: sourceFileDigests,
   },
   goTests: {
-    migrationBaseline: classifications.size,
+    migrationBaseline: goCounts.migrationBaseline,
+    classifiedTotal: goCounts.classifiedTotal,
+    incremental: goCounts.incremental,
+    baselineCounts: goCounts.baselineCounts,
     current: currentGoTests.length,
     dispositionCounts,
     classificationDocument: relativeFrom(root, classificationPath),
@@ -395,7 +392,9 @@ const report = {
     toolRoots: [...new Set(tools)].sort(),
     fixtureRoots: [...new Set(fixtures)].sort(),
   },
+  exampleTestLayout,
   invariants: {
+    reviewedExampleTestLayoutValid: exampleTestLayout.errors.length === 0,
     rootTempAbsent: !fs.existsSync(path.join(root, 'temp')),
     movedPseudoTestsAbsent: [...movedSources].every((file) => !fs.existsSync(path.join(root, file))),
     externalGoTestsMovedAndExternal: !errors.some((error) => error.includes('external Go test') || error.includes('MOVE_GO_BLACKBOX')),
@@ -421,6 +420,8 @@ console.log(JSON.stringify({
   },
   goTests: {
     migrationBaseline: report.goTests.migrationBaseline,
+    classifiedTotal: report.goTests.classifiedTotal,
+    incremental: report.goTests.incremental,
     current: report.goTests.current,
     dispositionCounts: report.goTests.dispositionCounts,
     classificationDocument: report.goTests.classificationDocument,

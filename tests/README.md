@@ -5,6 +5,22 @@
 开发者需要按功能查找测试脚本、入口命令和已知失败时，先看
 [`docs/quality/developer-test-catalog.md`](../docs/quality/developer-test-catalog.md)。
 
+## 示例、测试与诊断工具归位
+
+目录边界和第一批迁移见 [目录与迁移规则](../docs/quality/example-test-layout.md)。
+SQLite 共享断言位于 `runtime-api/support/sqlite-smoke-cases.js`，正式 unit 与独立 smoke
+直接加载它；`examples/sqlite/` 的旧测试路径仅保留兼容入口。
+
+```bash
+./dist/opendesk -script tests/runtime-api/sqlite-smoke.js -console-mode script
+node --test tests/test-architecture/layout.test.js
+node scripts/audit_test_architecture.js
+```
+
+后两条是宿主侧目录/工具检查，不验证 Runtime 公共 API 或真实桌面行为。图像分级分析工具为
+`tests/automation/tools/image-layout-lab/analyze-progressive.js`；其报告必须区分诊断完成和识别
+正确性。现有 Runtime 正式编排入口、领域目录及 Go 同包私有测试保持不变。
+
 ## JavaScript Runtime API 一致性
 
 OpenDesk JavaScript Runtime API Conformance Lab 位于 `tests/runtime-api/`，按当前 Runtime、

@@ -59,3 +59,18 @@
 - `.archive/` 用于历史资料，`.staging-sync/` 仅用于短期同步中间文件；二者都不能作为日常运行输出目录。
 - 删除未跟踪文件前，必须先按上述生命周期分类；禁止使用无选择的批量清理，以免删除源码、fixture 或用户当前修改。
 - 新增命令、脚本或测试时，必须让生成路径默认落到 `.runtime/`，并同步更新相关文档和 `.gitignore`。
+
+## Examples / Tests 增量整理
+
+- 归属与第一批迁移台账见 `docs/quality/example-test-layout.md`。新增文件先明确示例、测试、
+  fixture、工具或运行产物职责；不要继续把临时 probe 或测试矩阵堆入 `examples/` 根目录。
+- 公开示例归 `examples/<topic>/`；共享断言归 `tests/runtime-api/`；诊断工具归所属领域的
+  `tools/`。本轮基础示例规范目录是 `examples/runtime/`。
+- 判断保留价值以构建依赖、调用者、文档命令及独立覆盖为准，不按 AI 来源、文件名或相似度删除。
+  `examples/native-extensions/macos-vision/` 参与构建，不能按普通示例清理。
+- 已登记旧路径只允许薄兼容转发，不保留两套实现；移除前按迁移台账完成引用及直接命令验证。
+  转发不得吞掉错误、启动新 Execution 或伪造 `Execution.scriptPath/scriptDir`。
+- Go 新增审查行写入原分类账本末尾的唯一 `## 增量登记` 章节；保留历史迁移基线，不因新增
+  测试改写历史计数。未登记或丢失的测试仍必须使审计失败。
+- 目录整理运行 `node scripts/audit_test_architecture.js`；维护审计逻辑时补跑
+  `node --test tests/test-architecture/layout.test.js`。宿主侧模拟检查不能代替真实 Runtime gate。

@@ -1,12 +1,12 @@
-// Public SQLite behavior is shared with examples/sqlite/smoke.test.js. Keep
+// SQLite behavior is shared with tests/runtime-api/sqlite-smoke.js. Keep
 // the formal unit gate on those exact cases rather than maintaining a second
 // set of database assertions.
 
 (() => {
   const { assert, test } = RuntimeAPITest;
-  RuntimeAPITest.load('examples/sqlite/smoke-cases.js');
+  RuntimeAPITest.load('tests/runtime-api/support/sqlite-smoke-cases.js');
   const cases = globalThis.SQLiteSmokeCases;
-  // The shared example is intentionally a global when run as its own script.
+  // The shared support module registers a global when loaded by either entry.
   // Retain its object in this test closure but do not leave a test helper on
   // the Runtime surface that catalog validation inspects.
   delete globalThis.SQLiteSmokeCases;

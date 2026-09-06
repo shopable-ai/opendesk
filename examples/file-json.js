@@ -1,7 +1,3 @@
-const settings = await File.readJSON('config/settings.json', {
-  defaultValue: { enabled: true, retryCount: 2 },
-});
-
-const reportPath = File.join(Execution.artifactDir, 'file-json-example', 'settings-copy.json');
-await File.writeJSON(reportPath, settings);
-console.log('Saved JSON copy: ' + reportPath);
+// Compatibility entry only; implementation lives at examples/runtime/file-json.js.
+// Run from the repository root. See docs/quality/example-test-layout.md.
+await (0, eval)('(async () => {\n' + File.read('examples/runtime/file-json.js') + '\n})()\n//# sourceURL=examples/runtime/file-json.js');
