@@ -6,8 +6,8 @@
 | 示例 | 根目录直接运行命令 | 输入、输出及副作用 |
 | --- | --- | --- |
 | [api-quickstart.js](api-quickstart.js) | `./opendesk -script examples/runtime/api-quickstart.js -console-mode script` | 无业务输入；短暂等待后打印说明，不点击桌面。 |
-| [environment.js](environment.js) | `./opendesk -script examples/runtime/environment.js -console-mode script` | 只打印白名单环境摘要，不输出完整环境或凭据。 |
-| [path.js](path.js) | `./dist/opendesk -script examples/runtime/path.js -console-mode script` | 在 `Execution.artifactDir` 写入 `path-example.json`。 |
+| [environment.js](environment.js) | `./opendesk -script examples/runtime/environment.js -console-mode script` | 按需读取平台及环境键；只打印白名单环境摘要，不输出完整环境或凭据。 |
+| [path.js](path.js) | `./dist/opendesk -script examples/runtime/path.js -console-mode script` | 读取当前 Execution 来源；在 `Execution.artifactDir` 写入 `path-example.json`。 |
 | [file-json.js](file-json.js) | `./opendesk -script examples/runtime/file-json.js -console-mode script` | 相对工作目录读取可选 `config/settings.json`，写入 `Execution.artifactDir/file-json-example/`；平台限制见下文。 |
 | [file.js](file.js) | `./opendesk -script examples/runtime/file.js -console-mode script` | 只创建本次 `Execution.artifactDir/file-demo/`；核对读写、复制、移动、JSON 文本和目录结果；拒绝覆盖已有示例目录。 |
 | [command.js](command.js) | `./dist/opendesk -script examples/runtime/command.js -console-mode script` | 固定 echo 程序，5000 ms 超时、4096 字节输出上限；核对退出码和输出；没有用户可插入的 shell 文本。 |
@@ -65,7 +65,7 @@ Page 等待 smoke 与正式 unit family 共用
 [`tests/runtime-api/page-wait-cases.js`](../../tests/runtime-api/page-wait-cases.js)，不维护第二套断言。
 
 相关单项测试：`tests/runtime-api/single/file.js`、`single/command.js`、`single/http-axios.js`。
-运行命令和前置条件见 [单项测试索引](../../docs/api/examples/single-tests.md)；单项测试通过不等于
+运行命令和前置条件见 [Runtime API 单项入口](../../tests/runtime-api/single/README.md)；单项测试通过不等于
 示例已运行。示例自检、HTTP 服务端观察和正式 Runtime gate 要分别报告。
 
 旧的根目录路径暂时只做兼容转发；新旧入口都使用相同前置条件。Execution 来源保持真实入口，
