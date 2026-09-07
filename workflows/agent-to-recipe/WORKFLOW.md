@@ -5,7 +5,7 @@
 ## 从当前目的进入
 
 - 先看[设计总纲](design/README.md)，了解有效决定、旧方案替代与迁移状态。
-- 明确要满足什么：看[需求与基线](design/requirements.md)。
+- 明确项目背景、业务交付与本轮建设要求：看[需求与基线](design/requirements.md)。
 - 理解完整需要做什么：看[任务分解树](design/task-decomposition.md)。
 - 明确由谁做、消费什么、交付什么：看[链路设计](design/chain-design.md)。
 - 深入专业问题：看[应用操作](design/application-operations.md)或[独立代码改进](design/code-rebuild.md)。
@@ -29,8 +29,10 @@
 
 ## 专业责任、交接与长任务接续
 
-- 当前[六个 Skill](../../prompts/automation/agent-to-recipe/README.md)与[共享合同](../../docs/frameworks/agent-to-recipe-skill-contract.md)未迁移；新七项职责和独立 code-rebuild 仍是待实现设计，不使用未定义调用名冒充安装完成。
+- 旧 `prompts/automation/agent-to-recipe/` 已在 `17ccb9258dd34ce8b7c21296339a17f0c46e6586` 删除；[共享合同](../../docs/frameworks/agent-to-recipe-skill-contract.md)仍记录原调用体系，七项目标职责见[链路设计](design/chain-design.md)。历史名称、合同和文档不证明当前有可调用 Skill，本轮不恢复目录或安装实现。
 - 正式执行前核对本次目标、来源、权限、实际宿主、工具、输入版本与场景；设计文档不能替代这些前提。
 - 生成与可选改进分开，失败按原因返回，不必所有任务都重走完整链。正式路由和交接兼容按[链路设计](design/chain-design.md)后续实施。
 
 2026-09-07：原完整正文从此路径迁入 design/task-decomposition.md；旧路径保留导航以兼容既有引用。此迁移不表示原 Skill 索引中的其他旧路径已全部修复，也不证明任何运行阶段通过。
+
+2026-09-07：随项目背景修订同步需求入口与旧 Skill 删除状态；保持过渡导航，不复制正文或改变阶段编号。

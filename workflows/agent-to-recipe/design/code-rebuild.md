@@ -11,7 +11,7 @@
 - 简单脚本已满足本次用途和风险要求时，直接进入必要验收；不强制深度优化。不可跳过真实数据、正确 API、必要等待、验证和错误处理。
 - 代码本身只能证明实现结构，不能独立证明业务意图、历史成功或现场正确；本环节不自行改变目标、授权、成功标准、平台支持或上游观察。
 - 应用认识缺口返回[应用操作分析](application-operations.md)，业务解释缺口返回提炼，缺现场事实定向补采；不能通过重构猜出缺失规则。
-- 保留[现有 recipe-build](../../../prompts/automation/agent-to-recipe/recipe-build/SKILL.md)负责生成，拟增加独立可选 code-rebuild，而不是将其改名替代；[当前共享合同](../../../docs/frameworks/agent-to-recipe-skill-contract.md)仍只有原调用体系。
+- 保留[链路设计](chain-design.md)中的 recipe-build 生成职责，拟增加独立可选 code-rebuild，而不是将其改名替代；[共享合同](../../../docs/frameworks/agent-to-recipe-skill-contract.md)仍记录原调用体系。旧 Skill 目录已删除，职责名称和历史合同不证明当前存在实现。
 - 本次只保存新职责设计；新调用名、独立优化的处置和超出 minimal-repair 的改动范围须后续兼容设计、编写 Skill 并验证。不能把尚未支持的优化伪填成旧 schema，或宣称目录已经被宿主加载。
 
 ## 工作流任务分解树
@@ -113,7 +113,7 @@
   - 新候选及诊断放在本次获准 attempt；原样复用维持获准来源位置。仅在成果完备后按适用共享合同发布 handoff。
   - 修改应用 helper 时同步实际版本、操作说明与候选依赖；改变语义或定位规则须返回应用工程核验，不能私下改代码却继续引用旧 AppProfile。
   - 列出真实完成的检查、未测场景、外部依赖、未集成 Agent 环节和必要运行说明。
-  - 交给[recipe-qualify](../../../prompts/automation/agent-to-recipe/recipe-qualify/SKILL.md)验证指定字节与业务结果；验收者不改标准或代码后宣布原候选通过。
+  - 交给[链路设计](chain-design.md)中的 recipe-qualify 独立验收职责验证指定字节与业务结果；验收者不改标准或代码后宣布原候选通过。实际 Skill 未实现或未加载时如实标明，不链接已删除实现。
 
 ## 独立质量门槛与责任返回
 
@@ -150,3 +150,4 @@
 - 2026-09-07：原 workflows/code-rebuild/WORKFLOW.md 的完整质量分析归入本目录，旧位置保留导航；原基线 2707893a9581ccf356dc8130ad608158145b4fc6，原 blob 8b506eace742e0962714a98409ed8eaf934fdd16。
 - 旧方案曾将 code-rebuild 作为 recipe-build 的拟升级名称，并在 S11 后固定安排优化；用户随后明确简单脚本可不优化、已有代码可独立改进，故本次替换为生成与可选改进分离。
 - 保留原分析的代码质量任务、数据与安全规则和全部反例，新增预算结束、helper 一致性及新职责未实现边界。此记录不是迁移 Skill 已完成，也不代表实际代码或桌面验收通过。
+- 2026-09-07：随项目背景修订，仅将已删除的 recipe-build／recipe-qualify 实现链接改为链路职责入口，并纠正实现状态；本文件原质量作业树与反例不变。

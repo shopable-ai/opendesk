@@ -1,13 +1,15 @@
 # Agent-first Recorder｜设计总纲与文件地图
 
-状态：阶段性设计结论 v0.2，2026-09-07。此目录保存构建自动化开发工作流与多个 Skill 的依据，不是每次业务执行的指令，也不是实现或验收通过报告。先读本页，无需拼接历史对话。返回[工作流总入口](../../README.md)。
+状态：阶段性设计结论 v0.3，2026-09-07。此目录保存构建自动化开发工作流与多个 Skill 的依据，不是每次业务执行的指令，也不是实现或验收通过报告。先读本页，无需拼接历史对话。返回[工作流总入口](../../README.md)。
 
 ## 一、当前要建设什么
 
-- 从真实任务／人工开发目标／已有自动化资产出发，形成有依据、可独立运行、可验证并可维护的普通 OpenDesk JavaScript。
+- 继承[项目背景与本工作流的职责](requirements.md#项目背景与本工作流的职责)：OpenDesk 面向工作与生活中的重复及复杂任务，Agent-to-Recipe 是生产自动化成果的开发链，不是整个产品的范围。
+- 从真实任务／人工开发目标／已有自动化资产出发，形成有依据、可验证并可维护的普通 OpenDesk JavaScript 与必要组合能力；存在必要判断时交付明确接入的 JS／Agent 混合流程。可独立使用不等于没有在线依赖，未接入片段不冒充完整程序。
 - 已明确、能够验证的步骤交给 JS；必要的理解与动态判断交给 Agent，授权决策保留人工。
 - 先保存需求、完整任务树、链路交接和验证设计，再完善正式 WORKFLOW 与多个 SKILL.md。不从目录名反推职责，不把设计文件写完视为能力完成。
 - 普通脚本不以前置建设 Recorder Session、Compiler、可执行 IR、独立 Replay Runtime、LangGraph 或资产平台为条件；明确选择完整 Recorder 专项时仍遵守其独立模型和验证门槛。
+- 近期让交付成果可调用、可配置、可验证、可维护；未来按真实需求考虑多人共享与平台化。延期建设平台不取消资产复用要求，也不允许共享作者的凭据、个人数据或未获准证据。
 
 ## 二、只区分三条不同层次的链
 
@@ -15,18 +17,20 @@
 - 自动化开发工作流：取得可信依据 → 解释过程 → 归纳规则 → 形成程序 → 验证与维护，回答怎样生产自动化。
 - 业务执行工作流：生成后的程序每次实际完成的业务步骤，计算器例子是首次计算 → 真实读数 → 再次计算 → 读取并打印。
 - Capability 是需要具备的业务能力；业务 Function 不等于 JS 函数；Agent Skill 是专业作业；已有 API 和普通函数是实现方式。这些对象不能一一硬配。
+- 业务运行按“框架原语 → 应用语义操作 → 组合业务能力 → 完整业务流程”理解粒度，沿用已有框架而不新增 Runtime 层。详细对照见[聊天业务示例](application-operations.md#聊天业务的粒度与组合示例)；它不是第四条开发链。
+- “向指定联系人发送确定内容”可以复用 JS 组合能力；“根据历史回复”再加入必要读取、Agent 判断与校验。开发 Skill 负责生产这些能力，不要求每个业务操作再生成一个 SKILL.md。
 
 ## 三、建设顺序与唯一正文
 
-- [requirements.md](requirements.md)：来源、事实／未知、业务叙事、场景、功能和质量需求、范围与基线变更。
+- [requirements.md](requirements.md)：项目背景与业务目标、来源、事实／未知、业务叙事、开发入口和业务场景、功能和质量需求、范围与基线变更。
 - [task-decomposition.md](task-decomposition.md)：完整保留《Agent-first Recorder｜工作流任务分解树》、五个结果层次、S1—S12、R1—R13 对照和三个循环。
 - [chain-design.md](chain-design.md)：把任务节点分配给独立作业，明确 Workflow／Skill、输入输出、组合、复用、跳过、失败与中断返回。
-- [application-operations.md](application-operations.md)：保留从 Layout、区域、组件到目标、定位、Geometry、可验证操作的专业分析。
+- [application-operations.md](application-operations.md)：保留从 Layout、区域、组件到目标、定位、Geometry、可验证操作的专业分析；唯一维护聊天业务粒度与组合案例，不复制成多份案例文件。
 - [code-rebuild.md](code-rebuild.md)：保留代码改进的依据、方法、质量底线和反例；独立按需，不再作为 recipe-build 的改名替代。
-- [validation-plan.md](validation-plan.md)：行为案例、测试空间、独立 Skill／交接／整链／实际脚本的验证与评分。
+- [validation-plan.md](validation-plan.md)：行为案例、测试空间、独立 Skill／交接／整链／实际脚本的验证与评分；补足组合能力、混合回复、跨应用和他人复用的计划案例。
 - [计算器案例](../cases/calculator.md)：长期保留需求代入、十三节点、数据关系、备选方案、设计演变、失败反例及未决问题，不复制成七份 Skill 案例。
 - [WORKFLOW.md](../WORKFLOW.md)：当前仅为过渡入口；后续根据已确认链路形成正式调用与路由，不再承载完整推理正文。
-- `../skills/`：仅为后续目标位置。本轮不创建空目录、不迁移现有 Skill、不假定 Codex 或其他宿主自动扫描此目录。
+- `../skills/`：仅为后续目标位置。本轮不创建空目录、不恢复已删除 Skill、不假定 Codex 或其他宿主自动扫描此目录。
 
 建设关系：需求及行为案例 → 完整任务树 → 链路／交接／测试设计 → 各 Skill 实施规格与正式 WORKFLOW → 独立和组合验证。行为案例、研究和验证可反向修订上游；不是不可回退的瀑布链。
 
@@ -47,25 +51,27 @@
 - 原 `workflows/agent-to-recipe/WORKFLOW.md` 的框架正文归入本目录任务树；原位置保留导航。不是删掉任务树，也不是把长设计文档直接当最终运行文件。
 - 原 `workflows/agent-to-recipe/application-operations.md` 正文归入本目录；旧位置只保留迁移入口。
 - 原 `workflows/code-rebuild/WORKFLOW.md` 的代码质量分析归入本目录；旧位置只保留导航。
-- 原“recipe-build 改名为 code-rebuild”和“S11 必经独立优化”已被本次需求修订替代：生成与改进分开，改进按需。旧版本及其理由在 Git 历史和专项修订说明中保留，不同时作为有效指令。
+- 原“recipe-build 改名为 code-rebuild”和“S11 必经独立优化”已被需求修订替代：生成与改进分开，改进按需。旧版本及其理由在 Git 历史和专项修订说明中保留，不同时作为有效指令。
 - 拟建的平行 `chains/*.md` 不再创建。chain-design.md 是进入 Skill 化之前的设计合同，不是又一套专业作业实现。
-- 计算器文件原位保留，仅同步设计入口和可选优化语义，原需求、分段、R1—R13、矩阵备选和失败记录不能因迁移被删掉。
+- 计算器文件原位保留，原需求、分段、R1—R13、矩阵备选和失败记录不能因迁移被删掉；新增业务场景不以计算器成功替代其验证。
+- 2026-09-07 的提交 `17ccb9258dd34ce8b7c21296339a17f0c46e6586` 已删除 `prompts/automation/agent-to-recipe/`。原“六个 Skill 仍在原目录”的说明失效；本目录保留职责设计与历史合同依据，不恢复目录或宣称已有可调用实现。
 
 ## 六、与已有框架和合同的关系
 
-- [框架导航](../../../docs/frameworks/README.md)、[任务求解](../../../docs/frameworks/automation-problem-solving-framework.md)、[示范到自动化方法](../../../docs/frameworks/demonstration-to-automation-pipeline.md)提供方法来源；只提取本工作流需要的选择规则，不复制另一个总框架。
+- [框架导航](../../../docs/frameworks/README.md)、[总体框架](../../../docs/frameworks/automation-framework.md)、[任务求解](../../../docs/frameworks/automation-problem-solving-framework.md)、[示范到自动化方法](../../../docs/frameworks/demonstration-to-automation-pipeline.md)提供方法来源；只提取本工作流需要的选择规则，不复制另一个总框架。
 - [应用开发](../../../docs/frameworks/app-development-framework.md)、[能力成熟度](../../../docs/frameworks/capability-development.md)、[扩展框架](../../../docs/frameworks/runtime-api-extension-framework.md)分别约束应用认识、验证层次和能力归属。
-- [共享合同](../../../docs/frameworks/agent-to-recipe-skill-contract.md)仍是当前字段与交接的唯一正文；[G0—G7](../../../docs/quality/gates-and-evidence.md)和[失败分类](../../../docs/quality/failure-taxonomy.md)不被本目录评分替换。
-- [现有六个 Skill](../../../prompts/automation/agent-to-recipe/README.md)仍在原目录。七项目标职责、独立优化和新的交付裁剪是本次设计，不表示共享合同或宿主已支持新调用名。
+- [共享合同](../../../docs/frameworks/agent-to-recipe-skill-contract.md)仍是现有字段与交接的唯一正文；[G0—G7](../../../docs/quality/gates-and-evidence.md)和[失败分类](../../../docs/quality/failure-taxonomy.md)不被本目录评分替换。
+- 七项目标职责、独立优化和交付裁剪是设计，不表示共享合同或宿主已支持新调用名。上游文档若仍引用已删除 Skill，按历史依据理解，不能将失效链接当作安装入口；实际实现与加载状态须重新核实。
 - [当前 API](../../../docs/api/README.md)定义可调用能力；历史设计里的 UI.tap、AX、UIA 或示意 helper 名称不是实现证明。
 
 ## 七、实施前仍需核对的事项
 
 - 逐项完成任务树、需求、行为案例、责任环节和测试的覆盖检查；确认阻断性未知项及受影响范围。
 - 核实目标宿主的 Skill 发现／加载、工具权限、独立上下文、文件访问和实际停止能力。目录存在不等于已安装；不虚构 skill run 或恢复 API。
-- 独立 code-rebuild 的调用名、优化范围、原候选与新候选交接，以及人工开发来源需要与当前六 Skill 合同做兼容设计，不能硬塞成旧的 minimal-repair 后宣称全部支持。
-- 现有 Skill 索引引用的旧 `stages/README.md` 在当前工作流目录不存在；后续 Skill 化时修正索引与阶段对应，不恢复一套重复阶段卡。本轮不改旧 Skill 或其索引。
+- 独立 code-rebuild 的调用名、优化范围、原候选与新候选交接，以及人工开发来源需要与现有共享合同做兼容设计，不能硬塞成旧的 minimal-repair 后宣称全部支持。
+- 旧 Skill 索引及其 stages 路径不再是有效入口；后续 Skill 化时建立与本设计一致的新入口，不恢复一套重复阶段卡。本轮不创建或安装 Skill。
 - 应用的真实 OS、版本、布局、读数方式、已有脚本路径和构建来源仍须在获准运行时确认；没有对应证据不承诺 Windows／macOS 的特定场景已通过。
+- 混合回复、跨应用和他人复用尚为计划案例；任务授权、真实接入和目标环境验证各自完成前，不能从计算器或离线样例推导端到端通过。
 
 ## 八、保留与变更规则
 
@@ -74,6 +80,10 @@
 - 保留失败、局部补证和旧候选；清理 `.runtime/` 前核对引用，长期复核需要的资料经授权脱敏保留。证据丢失应标不可复核，不能保留虚假的通过结论。
 - 需求变更先修订相应基线和行为案例，再进行影响分析，更新受影响设计／Skill／代码并重验；不靠调整期望消除失败。
 
-## 本次写入范围
+## 初始归位范围（v0.2）
 
-依据用户本轮“先按照当前结构执行，写入文件”的授权整理设计材料。读取基线为远端 master `2707893a9581ccf356dc8130ad608158145b4fc6`；不代表用户本地工作树。仅写入七个设计文件、更新入口与案例引用；不生成或搬迁 Skill、不改 Runtime／API、不运行计算器、不发布生产自动化。文档写入授权不等于逐项技术假设被确认，后续验证按验证计划执行。
+依据用户当时“先按照当前结构执行，写入文件”的授权整理设计材料。读取基线为远端 master `2707893a9581ccf356dc8130ad608158145b4fc6`；不代表用户本地工作树。初次写入七个设计文件、更新入口与案例引用；未生成或搬迁 Skill、未改 Runtime／API、未运行计算器、未发布生产自动化。文档写入授权不等于逐项技术假设被确认。
+
+## 本次修订范围（v0.3）
+
+依据用户补充的“OpenDesk 项目背景与目标”和本轮“执行”授权，在远端 master `17ccb9258dd34ce8b7c21296339a17f0c46e6586` 上补充项目目标、组合能力、混合运行、资产复用及相应行为案例，保留原任务树与编号；同步设计和工作流导航中已删除 Skill 的状态与引用。不新增目录、Skill、Runtime、平台或真实业务操作，不将需求设计写成通过报告。
