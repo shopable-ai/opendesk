@@ -6,225 +6,361 @@ order: 4
 
 # Geometry
 
-`Geometry` 是桌面 Recipe 的纯 JavaScript 坐标层。它以当前窗口、显示器或已标记的屏幕区域为
-输入，输出可安全传给 `mouse.clickPoint()` 的 **screen logical coordinate**。它不截图、不做 OCR、
-不改变桌面状态。
+`Geometry` 是纯 JavaScript 坐标工具，只处理 **screen logical coordinate**。它不截图、不做 OCR，也不改变桌面状态。
 
-```js
-const win = await window.getActiveWindow();
-const footer = Geometry.regionByEdges(win, {
-  left: 16,
-  right: 16,
-  bottom: 12,
-  height: 60,
-});
+## API 一览
 
-await UI.tapText('确定', { within: footer });
+| 方法 | 用途 |
+| --- | --- |
+| `Geometry.rect(target)` | 正规化为 screen region。 |
+| `Geometry.center(target)` | 返回内部中心点。 |
+| `Geometry.pointOffset(target, x, y)` | 按逻辑坐标偏移得到点。 |
+| `Geometry.pointPercent(target, xPercent, yPercent)` | 按百分比得到点。 |
+| `Geometry.regionOffset(target, region)` | 按逻辑坐标偏移得到子区域。 |
+| `Geometry.regionPercent(target, region)` | 按百分比得到子区域。 |
+| `Geometry.regionByEdges(target, options)` | 用边距和尺寸确定子区域。 |
+| `Geometry.inset(target, margins)` | 将区域向内缩。 |
+| `Geometry.anchorPoint(target, position, options?)` | 返回标准锚点。 |
+| `Geometry.contains(region, point)` | 判断点是否在区域内。 |
+| `Geometry.intersect(regionA, regionB)` | 返回区域交集。 |
+
+## 公共约定
+
+### 坐标空间
+
+`Geometry` 只接受 `OpenDeskWindowInfo`、`OpenDeskDisplayInfo` 或 tagged `OpenDeskScreenRegion`。裸 `{x,y,width,height}` 和 image-pixel bbox 会被拒绝。返回点/区域始终带 `coordinateSpace: 'screen'`。
+
+所有数字必须为有限 `number`；区域宽高必须大于 `0`。虚拟桌面坐标允许负数。
+
+### 百分比与快照
+
+`pointPercent()` / `regionPercent()` 使用 `0..100`，不是 `0..1`。Geometry 只做当前快照计算；窗口移动或 resize 后应重新读取窗口并重新计算。
+
+## `Geometry.rect(target)`
+
+将目标正规化为 tagged screen region。
+
+**签名**
+```ts
+Geometry.rect(target: OpenDeskGeometryTarget): OpenDeskScreenRegion;
 ```
 
-它解决窗口移动、窗口尺寸变化和负坐标显示器中的“相对位置”问题；它不处理 Retina 或 Windows
-DPI 截图像素比例，那是 [`UI`](desktop-ui.md) 的 capture mapping 工作。
+**参数**
 
-## 坐标空间与输入
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `target` | `OpenDeskGeometryTarget` | 是 | 无 | WindowInfo、DisplayInfo 或 tagged ScreenRegion。 |
 
-- `screen` 是虚拟桌面的逻辑坐标，供 `window`、`Screen`、`mouse` 使用。第二显示器在主屏左方或
-  上方时，`x` / `y` 可以为负数。
-- `image` 是截图像素坐标，只供 OCR 与模板匹配结果使用，不能直接传给 Geometry 或 mouse。
-- `Geometry` 只接受正式的 `OpenDeskWindowInfo`、`OpenDeskDisplayInfo` 或自身/`UI` 生成的
-  `OpenDeskScreenRegion`。一个裸 `{ x, y, width, height }` 会被拒绝，避免把 OCR bbox 或裁剪局部
-  bbox 误作全局坐标。
+**返回值**
 
-Geometry 产生的点和区域始终有不可省略的标记：
+`OpenDeskScreenRegion`。
 
+**行为与错误**
+
+无效坐标空间、裸 bbox 或非法尺寸抛 `INVALID_ARGUMENT`。
+
+**示例**
 ```js
-{ x: 100, y: 200, coordinateSpace: 'screen' }
-{ x: 100, y: 200, width: 800, height: 600, coordinateSpace: 'screen' }
+const bounds = Geometry.rect(await window.getActiveWindow());
 ```
 
-全部数字必须是有限 `number`（不能为 `NaN` 或 `Infinity`）；所有区域的 `width`、`height` 必须
-大于 `0`。
+## `Geometry.center(target)`
 
-## 方法
+返回目标内部中心点击点。
 
-| 方法 | 返回 | 用途 |
-| --- | --- | --- |
-| `Geometry.rect(target)` | `OpenDeskScreenRegion` | 将窗口、显示器或已标记 region 正规化为 screen region |
-| `Geometry.center(target)` | `OpenDeskScreenPoint` | 目标内部的中心点击点 |
-| `Geometry.pointOffset(target, x, y)` | `OpenDeskScreenPoint` | 从目标左上角偏移的逻辑坐标点 |
-| `Geometry.pointPercent(target, xPercent, yPercent)` | `OpenDeskScreenPoint` | 目标宽高的百分比位置 |
-| `Geometry.regionOffset(target, region)` | `OpenDeskScreenRegion` | 从目标左上角偏移的相对区域 |
-| `Geometry.regionPercent(target, region)` | `OpenDeskScreenRegion` | 目标宽高的百分比区域 |
-| `Geometry.regionByEdges(target, options)` | `OpenDeskScreenRegion` | 用父区域边距与固定/拉伸尺寸确定子区域 |
-| `Geometry.inset(target, margins)` | `OpenDeskScreenRegion` | 将区域四边向内缩，得到新的搜索范围 |
-| `Geometry.anchorPoint(target, position, options?)` | `OpenDeskScreenPoint` | 取得九个标准锚点之一，可先应用内部留白 |
-| `Geometry.contains(region, point)` | `boolean` | point 是否位于 region 内（右、下边界为排他） |
-| `Geometry.intersect(regionA, regionB)` | `OpenDeskScreenRegion \| null` | 两区域交集；不相交时为 `null` |
-
-### `rect(target)`、`center(target)`
-
-```js
-const win = await window.getActiveWindow();
-const bounds = Geometry.rect(win);
-const point = Geometry.center(win);
+**签名**
+```ts
+Geometry.center(target: OpenDeskGeometryTarget): OpenDeskScreenPoint;
 ```
 
-中心点总会 clamp 在目标内部。对于 `100 × 40` 的目标，中心不会落在右或下的排他边界。
+**参数**
 
-### `pointOffset(target, x, y)` 与 `regionOffset(target, region)`
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `target` | `OpenDeskGeometryTarget` | 是 | 无 | 目标区域。 |
 
-`offset` 是相对目标左上角的**桌面逻辑坐标偏移**，不是 screenshot pixel：
+**返回值**
 
+`OpenDeskScreenPoint`。
+
+**行为与错误**
+
+结果会保持在右/下排他边界以内；非法 target 抛 `INVALID_ARGUMENT`。
+
+**示例**
 ```js
-const titlePoint = Geometry.pointOffset(win, 24, 18);
-const content = Geometry.regionOffset(win, {
-  left: 0,
-  top: 48,
-  width: win.width,
-  height: win.height - 48,
-});
+await mouse.clickPoint(Geometry.center(win));
 ```
 
-它不会把 offset 解释成比例，也不会把 `0.5` 猜成 50%。
+## `Geometry.pointOffset(target, x, y)`
 
-### `pointPercent(target, xPercent, yPercent)`
+从目标左上角按逻辑坐标偏移得到点。
 
-百分比范围固定为 **0–100**，不是 0–1：
+**签名**
+```ts
+Geometry.pointOffset(target: OpenDeskGeometryTarget, x: number, y: number): OpenDeskScreenPoint;
+```
 
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `target` | `OpenDeskGeometryTarget` | 是 | 无 | 父目标。 |
+| `x` | `number` | 是 | 无 | X 偏移。 |
+| `y` | `number` | 是 | 无 | Y 偏移。 |
+
+**返回值**
+
+`OpenDeskScreenPoint`。
+
+**行为与错误**
+
+偏移按 screen logical unit 解释，不按比例解释。非法参数抛 `INVALID_ARGUMENT`。
+
+**示例**
+```js
+const point = Geometry.pointOffset(win, 24, 18);
+```
+
+## `Geometry.pointPercent(target, xPercent, yPercent)`
+
+按目标宽高百分比得到点。
+
+**签名**
+```ts
+Geometry.pointPercent(target: OpenDeskGeometryTarget, xPercent: number, yPercent: number): OpenDeskScreenPoint;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `target` | `OpenDeskGeometryTarget` | 是 | 无 | 父目标。 |
+| `xPercent` | `number` | 是 | 无 | `0..100`。 |
+| `yPercent` | `number` | 是 | 无 | `0..100`。 |
+
+**返回值**
+
+`OpenDeskScreenPoint`。
+
+**行为与错误**
+
+`100` 合法，但最终点仍位于半开区域内部。范围外值抛 `INVALID_ARGUMENT`。
+
+**示例**
 ```js
 const middle = Geometry.pointPercent(win, 50, 50);
-const lowerRight = Geometry.pointPercent(win, 100, 100);
 ```
 
-`100` 合法；返回的最终整数点击点会 clamp 在目标内部，因此 `lowerRight` 不会得到
-`x + width` 或 `y + height` 的外部点。
+## `Geometry.regionOffset(target, region)`
 
-### `regionPercent(target, region)`
+按逻辑坐标定义子区域。
 
-`left`、`top`、`width`、`height` 都是 0–100 百分比，且 `left + width` 与 `top + height` 不能超过
-100。左上边界使用 `floor`，右下边界使用 `ceil`，再计算返回的 width / height：
+**签名**
+```ts
+Geometry.regionOffset(target: OpenDeskGeometryTarget, region: OpenDeskGeometryOffsetRegion): OpenDeskScreenRegion;
+```
 
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `target` | `OpenDeskGeometryTarget` | 是 | 无 | 父目标。 |
+| `region` | `OpenDeskGeometryOffsetRegion` | 是 | 无 | `left/top/width/height` 逻辑坐标。 |
+
+**返回值**
+
+`OpenDeskScreenRegion`。
+
+**行为与错误**
+
+不把偏移解释成百分比；非法尺寸或区域抛 `INVALID_ARGUMENT`。
+
+**示例**
 ```js
-const keypad = Geometry.regionPercent(win, {
-  left: 0,
-  top: 35,
-  width: 100,
-  height: 65,
-});
+const content = Geometry.regionOffset(win, { left: 0, top: 48, width: win.width, height: win.height - 48 });
 ```
 
-### `regionByEdges(target, options)`
+## `Geometry.regionPercent(target, region)`
 
-`left`、`right`、`top`、`bottom`、`width`、`height` 都使用 Geometry 既有的桌面逻辑坐标单位，
-不是截图像素、百分比或应用内容区推测值。水平方向必须正好提供 `left` / `right` / `width` 中的
-两个；垂直方向必须正好提供 `top` / `bottom` / `height` 中的两个。数值 `0` 是已提供的有效约束。
+按 `0..100` 百分比定义子区域。
 
+**签名**
+```ts
+Geometry.regionPercent(target: OpenDeskGeometryTarget, region: OpenDeskGeometryPercentRegion): OpenDeskScreenRegion;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `target` | `OpenDeskGeometryTarget` | 是 | 无 | 父目标。 |
+| `region` | `OpenDeskGeometryPercentRegion` | 是 | 无 | 百分比 `left/top/width/height`。 |
+
+**返回值**
+
+`OpenDeskScreenRegion`。
+
+**行为与错误**
+
+`left + width`、`top + height` 不能超过 100。范围无效抛 `INVALID_ARGUMENT`。
+
+**示例**
 ```js
-// 底部栏：左右拉伸。
-const footer = Geometry.regionByEdges(win, {
-  left: 16,
-  right: 16,
-  bottom: 12,
-  height: 60,
-});
-
-// 右侧栏：固定宽度，上下拉伸。
-const sidebar = Geometry.regionByEdges(win, {
-  top: 0,
-  bottom: 0,
-  right: 0,
-  width: 300,
-});
-
-// 右下角固定操作区。
-const actions = Geometry.regionByEdges(win, {
-  right: 16,
-  bottom: 12,
-  width: 180,
-  height: 64,
-});
+const keypad = Geometry.regionPercent(win, { left: 0, top: 35, width: 100, height: 65 });
 ```
 
-允许的水平组合只有 `left + width`、`right + width`、`left + right`；垂直方向同理。少于两个约束
-无法确定区域，三个约束则属于过度约束，即使当前数值恰好一致也不会猜测优先级。边距必须为有限、
-非负 `number`，`width` / `height` 必须为有限且大于 0 的 `number`。结果必须完整位于父区域内；
-父区域过小时直接抛错，不移动、不裁切，也不自动缩小。
+## `Geometry.regionByEdges(target, options)`
 
-百分比定位继续使用 `regionPercent()`。`regionByEdges()` 不接受百分比字符串，也不会把 `0.5`
-解释为 50%。
+用边距和固定/拉伸尺寸确定子区域。
 
-### `inset(target, margins)`
+**签名**
+```ts
+Geometry.regionByEdges(target: OpenDeskGeometryTarget, options: OpenDeskGeometryEdgeRegionOptions): OpenDeskScreenRegion;
+```
 
-数字形式表示四边使用相同内边距；对象形式中未提供的边默认为 `0`：
+**参数**
 
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `target` | `OpenDeskGeometryTarget` | 是 | 无 | 父目标。 |
+| `options.left` | `number` | 条件 | 未设置 | 左边距。 |
+| `options.right` | `number` | 条件 | 未设置 | 右边距。 |
+| `options.top` | `number` | 条件 | 未设置 | 上边距。 |
+| `options.bottom` | `number` | 条件 | 未设置 | 下边距。 |
+| `options.width` | `number` | 条件 | 未设置 | 固定宽度。 |
+| `options.height` | `number` | 条件 | 未设置 | 固定高度。 |
+
+**返回值**
+
+`OpenDeskScreenRegion`。
+
+**行为与错误**
+
+水平方向必须恰好提供 `left/right/width` 中两个，垂直方向同理。结果必须完整位于父区域内；不自动裁剪或缩小。
+
+**示例**
 ```js
-const innerFooter = Geometry.inset(footer, 12);
-
-const safeSearch = Geometry.inset(footer, {
-  left: 12,
-  right: 12,
-  top: 4,
-  bottom: 8,
-});
+const footer = Geometry.regionByEdges(win, { left: 16, right: 16, bottom: 12, height: 60 });
 ```
 
-`margins` 必须明确提供。每条边距必须是有限、非负 `number`；`0` 合法。内缩后的宽和高必须仍然
-大于 0。方法返回新区域，不修改 `target` 或 `margins`，也不会压缩过大的边距。
+## `Geometry.inset(target, margins)`
 
-### `anchorPoint(target, position, options?)`
+向内缩目标并返回新区域。
 
-`position` 支持 `top-left`、`top-center`、`top-right`、`center-left`、`center`、
-`center-right`、`bottom-left`、`bottom-center`、`bottom-right`。`options.inset` 与 `inset()` 的
-参数形式相同，默认值为 `0`；Geometry 先取得内缩区域，再选择锚点：
+**签名**
+```ts
+Geometry.inset(target: OpenDeskGeometryTarget, margins: number | OpenDeskGeometryMargins): OpenDeskScreenRegion;
+```
 
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `target` | `OpenDeskGeometryTarget` | 是 | 无 | 父目标。 |
+| `margins` | `number \| OpenDeskGeometryMargins` | 是 | 无 | 单值四边相同，或逐边指定。 |
+
+**返回值**
+
+`OpenDeskScreenRegion`。
+
+**行为与错误**
+
+对象中未提供的边按 `0` 处理；内缩后必须仍有正面积。
+
+**示例**
 ```js
-const point = Geometry.anchorPoint(win, 'bottom-right', {
-  inset: {
-    right: 16,
-    bottom: 12,
-  },
-});
-
-await mouse.clickPoint(point);
+const inner = Geometry.inset(footer, { left: 12, right: 12, top: 4, bottom: 8 });
 ```
 
-锚点沿用 Geometry 既有的整数点击点规则。右侧与下侧锚点会落在半开区域的最后一个有效整数点，
-不会返回 `x + width` 或 `y + height`。如果内缩后的区域虽然有正面积、却不包含可寻址的整数点击点，
-方法会明确抛错。仅需要中心点时继续使用 `Geometry.center(target)`。
+## `Geometry.anchorPoint(target, position, options?)`
 
-## 窗口变化与快照语义
+返回九宫格标准锚点。
 
-当前 Geometry 没有窗口监听或动态派生区域机制。三个布局方法与既有方法一样执行确定性的快照计算：
-相同父区域与参数产生相同结果；普通返回对象不会自动跟随窗口。
+**签名**
+```ts
+Geometry.anchorPoint(target: OpenDeskGeometryTarget, position: OpenDeskGeometryAnchorPosition, options?: { inset?: number | OpenDeskGeometryMargins }): OpenDeskScreenPoint;
+```
 
-保存布局规则，并在操作前重新读取窗口：
+**参数**
 
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `target` | `OpenDeskGeometryTarget` | 是 | 无 | 父目标。 |
+| `position` | `OpenDeskGeometryAnchorPosition` | 是 | 无 | `top-left` 到 `bottom-right`。 |
+| `options.inset` | `number \| OpenDeskGeometryMargins` | 否 | `0` | 选锚点前的内缩。 |
+
+**返回值**
+
+`OpenDeskScreenPoint`。
+
+**行为与错误**
+
+无法得到有效内部整数点时抛 `INVALID_ARGUMENT`。
+
+**示例**
 ```js
-const footerRule = { left: 16, right: 16, bottom: 12, height: 60 };
-
-const currentWin = await window.getActiveWindow();
-const footer = Geometry.regionByEdges(currentWin, footerRule);
-await UI.tapText('确定', { within: footer });
+const point = Geometry.anchorPoint(win, 'bottom-right', { inset: { right: 16, bottom: 12 } });
 ```
 
-窗口移动或 resize 后，再次读取更新后的窗口信息并应用同一规则。不要把旧坐标悄悄关联到另一个活动
-窗口，也不要缓存已计算的点跨窗口生命周期使用。Geometry 不读取或乘除 `display.scale`，不猜测标题栏
-高度，也不改变目标应用布局。
+## `Geometry.contains(region, point)`
+
+判断点是否位于区域内。
+
+**签名**
+```ts
+Geometry.contains(region: OpenDeskScreenRegion, point: OpenDeskScreenPoint): boolean;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `region` | `OpenDeskScreenRegion` | 是 | 无 | tagged screen region。 |
+| `point` | `OpenDeskScreenPoint` | 是 | 无 | tagged screen point。 |
+
+**返回值**
+
+`boolean`。
+
+**行为与错误**
+
+右边界和下边界排他；非法坐标空间抛 `INVALID_ARGUMENT`。
+
+**示例**
+```js
+console.log(Geometry.contains(footer, Geometry.center(footer)));
+```
+
+## `Geometry.intersect(regionA, regionB)`
+
+返回两个 screen region 的交集。
+
+**签名**
+```ts
+Geometry.intersect(regionA: OpenDeskScreenRegion, regionB: OpenDeskScreenRegion): OpenDeskScreenRegion | null;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `regionA` | `OpenDeskScreenRegion` | 是 | 无 | 第一个区域。 |
+| `regionB` | `OpenDeskScreenRegion` | 是 | 无 | 第二个区域。 |
+
+**返回值**
+
+`OpenDeskScreenRegion | null`。
+
+**行为与错误**
+
+无正面积交集返回 `null`；非法 region 抛 `INVALID_ARGUMENT`。
+
+**示例**
+```js
+const visible = Geometry.intersect(footer, Screen.getVirtualBounds());
+```
 
 ## 错误
 
-Geometry 的参数错误为结构化 `Error`：
-
-```js
-try {
-  Geometry.regionByEdges(win, { left: 16, bottom: 12, height: 60 });
-} catch (error) {
-  console.log(error.code);      // INVALID_ARGUMENT
-  console.log(error.operation); // Geometry.regionByEdges
-}
-```
-
-新增方法也保留 `INVALID_ARGUMENT` 与具体 `operation`。错误会区分约束不足、过度约束、非法数值、
-父区域过小以及无法产生有效点击点。
-
-`pointPercent()` / `regionPercent()` 中的 `0.5` 表示 0.5%，不是 50%。50% 必须明确写成
-`Geometry.pointPercent(win, 50, 50)`。
+Geometry 参数错误使用结构化 `Error`，`code` 为 `INVALID_ARGUMENT`，并带具体 `operation`。不会猜测单位、坐标空间或过度约束时的优先级。
