@@ -6,405 +6,508 @@ order: 5
 
 # Screen
 
-Screen 用于读取显示器信息、虚拟桌面范围，以及按坐标取色。现有显示器、像素和截图能力保持
-Stable；display mode 读取使用 macOS CoreGraphics，mode mutation、`selectRegion()`、
-`startRecording()` 是 macOS Experimental，不会替代现有截图 API、Recorder 或 Audio。
+`Screen` 提供显示器信息、虚拟桌面范围、像素读取与截图。Display mode mutation、`selectRegion()`、`startRecording()` 为 **Experimental**；不会替代 Recorder、Audio 或现有截图 API。
 
-没有另建 `Display` global：`Display.list()` / `Display.getPrimary()` 会与现有 Screen API 重复。
-亮度没有同时覆盖 macOS 内置屏和外接屏的统一硬件契约，因此明确为 Unsupported；DDC/CI 或特定
-硬件控制应使用 Native Extension。
+`Screen.screenshot` 是 `page.screenshot` 的 alias。
 
-运行时额外绑定
-- `Screen.screenshot = page.screenshot`
-- 所以截图能力请优先查看 page.md 中的 `page.screenshot()`
+## API 一览
 
-## Screen：方法总表
+| 方法 | 状态 | 用途 |
+| --- | --- | --- |
+| `Screen.getWidth()` | Stable | 主显示器宽度。 |
+| `Screen.getHeight()` | Stable | 主显示器高度。 |
+| `Screen.getDisplays()` | Stable | 列出所有显示器。 |
+| `Screen.getPrimaryDisplay()` | Stable | 返回主显示器。 |
+| `Screen.getDisplay(index)` | Stable | 按 1-based index 返回显示器。 |
+| `Screen.getVirtualBounds()` | Stable | 返回虚拟桌面边界。 |
+| `Screen.getDisplayCapabilities()` | Stable | 查询 display identity/mode/brightness 能力。 |
+| `Screen.getDisplayMode(displayId)` | Stable/平台限定 | 读取当前 display mode。 |
+| `Screen.listDisplayModes(displayId)` | Stable/平台限定 | 枚举可用 display modes。 |
+| `Screen.setDisplayMode(displayId, modeId)` | Experimental | 设置并 readback 验证 display mode。 |
+| `Screen.pixel(x, y)` | Stable | 读取单个屏幕像素。 |
+| `Screen.pixels(points, scaled?)` | Stable | 批量读取屏幕像素。 |
+| `Screen.screenshot(options?)` | Alias | `page.screenshot()` 的 alias。 |
+| `Screen.selectRegion(options?)` | Experimental | 原生选择一个显示器内的区域。 |
+| `Screen.startRecording(options)` | Experimental | 录制显示器/区域到 `.mov`。 |
+| `Screen.getCaptureCapabilities()` | Stable | 查询 selector/recording/frameStream 能力。 |
 
-| 方法 | 用途 |
-| --- | --- |
-| Screen.getWidth() | 主显示器宽度 |
-| Screen.getHeight() | 主显示器高度 |
-| Screen.getDisplays() | 列出所有显示器 |
-| Screen.getPrimaryDisplay() | 获取主显示器 |
-| Screen.getDisplay(index) | 获取指定 index 的显示器 |
-| Screen.getVirtualBounds() | 获取整个虚拟桌面边界 |
-| Screen.getDisplayCapabilities() | 查询 identity、brightness 和 mode capability |
-| Screen.getDisplayMode(displayId) | 读取当前 display mode（macOS） |
-| Screen.listDisplayModes(displayId) | 枚举 desktop-usable 标记和 mode metadata（macOS） |
-| Screen.setDisplayMode(displayId, modeId) | 同步设置并 readback 验证 mode（macOS Experimental） |
-| Screen.pixel(x, y) | 获取单个像素颜色 |
-| Screen.pixels(points, scaled) | 批量取色 |
-| Screen.screenshot(options) | 等同 page.screenshot |
-| Screen.selectRegion(options?) | 打开多显示器原生区域选择器（macOS Experimental） |
-| Screen.startRecording(options) | 录制显示器或区域到 `.mov`（macOS Experimental） |
-| Screen.getCaptureCapabilities() | 查询录屏、音频和帧流边界 |
+## 公共约定
 
-## Screen.getWidth()
+### Display identity
 
-```js
-const width = Screen.getWidth();
-```
+`getDisplays()` 的 `index` 为当前 1-based 顺序；`id` 是当前系统会话的 display ID；`hardwareId` 是 vendor/model/serial/unit 组合线索，不是跨机器全局 UUID。显示器拓扑变化后应重新读取。
 
-返回值
-- number
+### 坐标
 
-## Screen.getHeight()
+显示器和虚拟桌面使用全局 screen logical coordinate；副显示器可出现负坐标。`pixelWidth/pixelHeight` 与 `scale` 描述像素维度，不应把 logical bounds 当作 screenshot pixel。
 
-```js
-const height = Screen.getHeight();
-```
+### Display mode
 
-返回值
-- number
+`setDisplayMode()` 只接受同一 display 的 `listDisplayModes()` 返回的 mode ID，并在系统调用后重新读取当前 mode 验证。调用方修改显示模式时应保存原值并在 `finally` 恢复。
 
-## Screen.getDisplays()
+### Recording
 
-签名
+当前 recording target 支持 `display` / `region`，输出必须是不存在的绝对 `.mov` 路径，父目录已存在；当前 `fps` 只支持 `30`。execution teardown 会停止并 finalize 未结束录制。
 
-```js
-const displays = Screen.getDisplays()
-```
+## `Screen.getWidth()`
 
-作用
-- 返回所有物理显示器
-- 顺序与 `page.screenshot({ displayIndex })` 对齐
-- index 为 1-based
+返回主显示器逻辑宽度。
 
-返回项示例
-
-```js
-{
-  index: 1,
-  id: '1104977161',
-  hardwareId: 'darwin:1970170734:1986622068:0:9',
-  isPrimary: true,
-  isBuiltin: true,
-  vendor: 1970170734,
-  model: 1986622068,
-  serial: 0,
-  unit: 9,
-  x: 0,
-  y: 0,
-  width: 1512,
-  height: 982,
-  pixelWidth: 3024,
-  pixelHeight: 1964,
-  scale: 2
-}
-```
-
-`id` 是当前 WindowServer session 的 `CGDirectDisplayID`；Apple 说明它通常维持到重启。
-`hardwareId` 组合公开的 vendor/model/serial/unit，其中显示器没有编码 serial 时可能为 `0`，所以它
-是比数组 index 更好的硬件线索，但不是跨机器全局 UUID。`index` 仅表示当前 1-based 顺序。
-
-示例
-
-```js
-console.log(JSON.stringify(Screen.getDisplays(), null, 2));
-```
-
-## Screen.getPrimaryDisplay()
-
-```js
-const display = Screen.getPrimaryDisplay();
-console.log(display);
-```
-
-## Screen.getDisplay(index)
-
-签名
-
-```js
-const display = Screen.getDisplay(index)
+**签名**
+```ts
+Screen.getWidth(): number;
 ```
 
 **参数**
 
-| 参数 | 类型 | 说明 |
-| --- | --- | --- |
-| index | number | 1-based 显示器编号 |
-
-**注意**
-- index <= 0 时返回 null
-- 找不到指定编号也返回 null
-
-## Screen.getVirtualBounds()
-
-签名
-
-```js
-const bounds = Screen.getVirtualBounds()
-```
+无。
 
 **返回值**
 
+`number`。
+
+**行为与错误**
+
+同步读取；backend 不可用时明确失败。
+
+**示例**
 ```js
-{ x, y, width, height }
+console.log(Screen.getWidth());
 ```
 
-**用途**
-- 适合多显示器下做全局坐标计算
+## `Screen.getHeight()`
 
-## Screen.pixel(x, y)
+返回主显示器逻辑高度。
 
-签名
-
-```js
-const color = Screen.pixel(x, y)
+**签名**
+```ts
+Screen.getHeight(): number;
 ```
 
-返回值
-- 十六进制颜色字符串，例如 `#ffffff`
-- 取不到时返回空字符串
+**参数**
 
-示例
+无。
 
+**返回值**
+
+`number`。
+
+**行为与错误**
+
+同步读取当前主显示器。
+
+**示例**
+```js
+console.log(Screen.getHeight());
+```
+
+## `Screen.getDisplays()`
+
+列出当前显示器 snapshot。
+
+**签名**
+```ts
+Screen.getDisplays(): OpenDeskDisplayInfo[];
+```
+
+**参数**
+
+无。
+
+**返回值**
+
+`OpenDeskDisplayInfo[]`，包含 index/id/hardwareId、logical bounds、pixel size、scale 与平台可提供的硬件 metadata。
+
+**行为与错误**
+
+顺序与 `page.screenshot({displayIndex})` 对齐。只读取 snapshot，不监听后续拓扑变化。
+
+**示例**
+```js
+console.log(Screen.getDisplays());
+```
+
+## `Screen.getPrimaryDisplay()`
+
+返回当前主显示器。
+
+**签名**
+```ts
+Screen.getPrimaryDisplay(): OpenDeskDisplayInfo;
+```
+
+**参数**
+
+无。
+
+**返回值**
+
+`OpenDeskDisplayInfo`。
+
+**行为与错误**
+
+无法读取主显示器时明确失败。
+
+**示例**
+```js
+const display = Screen.getPrimaryDisplay();
+```
+
+## `Screen.getDisplay(index)`
+
+按 1-based index 返回当前显示器。
+
+**签名**
+```ts
+Screen.getDisplay(index: number): OpenDeskDisplayInfo | null;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `index` | `number` | 是 | 无 | 1-based 显示器编号。 |
+
+**返回值**
+
+`OpenDeskDisplayInfo | null`；`index <= 0` 或不存在时返回 `null`。
+
+**行为与错误**
+
+只读取当前 snapshot。
+
+**示例**
+```js
+const second = Screen.getDisplay(2);
+```
+
+## `Screen.getVirtualBounds()`
+
+返回全部显示器联合形成的虚拟桌面边界。
+
+**签名**
+```ts
+Screen.getVirtualBounds(): OpenDeskScreenRegion;
+```
+
+**参数**
+
+无。
+
+**返回值**
+
+`OpenDeskScreenRegion` / `{x,y,width,height}` 逻辑边界。
+
+**行为与错误**
+
+只读 snapshot，适合全局坐标验证。
+
+**示例**
+```js
+console.log(Screen.getVirtualBounds());
+```
+
+## `Screen.getDisplayCapabilities()`
+
+查询 display identity、brightness 与 mode 能力。
+
+**签名**
+```ts
+Screen.getDisplayCapabilities(): OpenDeskDisplayCapabilities;
+```
+
+**参数**
+
+无。
+
+**返回值**
+
+`OpenDeskDisplayCapabilities`。
+
+**行为与错误**
+
+只读 capability。亮度当前没有统一硬件合同时会明确报告 unsupported。
+
+**示例**
+```js
+console.log(Screen.getDisplayCapabilities());
+```
+
+## `Screen.getDisplayMode(displayId)`
+
+读取指定 display 当前 mode。
+
+**签名**
+```ts
+Screen.getDisplayMode(displayId: string): OpenDeskDisplayMode;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `displayId` | `string` | 是 | 无 | 当前 `getDisplays()` 返回的 display ID。 |
+
+**返回值**
+
+`OpenDeskDisplayMode`，包含 mode id、logical/pixel size、refreshRate、desktop-usable/current flags。
+
+**行为与错误**
+
+当前主要由 macOS CoreGraphics 提供；其他平台明确 `NOT_SUPPORTED`。
+
+**示例**
+```js
+const mode = Screen.getDisplayMode(Screen.getPrimaryDisplay().id);
+```
+
+## `Screen.listDisplayModes(displayId)`
+
+枚举指定 display 的 mode metadata。
+
+**签名**
+```ts
+Screen.listDisplayModes(displayId: string): OpenDeskDisplayMode[];
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `displayId` | `string` | 是 | 无 | 当前 display ID。 |
+
+**返回值**
+
+`OpenDeskDisplayMode[]`。
+
+**行为与错误**
+
+返回 mode ID 供 `setDisplayMode()` 使用；平台不支持时明确失败。
+
+**示例**
+```js
+console.log(Screen.listDisplayModes(display.id));
+```
+
+## `Screen.setDisplayMode(displayId, modeId)`
+
+设置 display mode 并 readback 验证。
+
+**签名**
+```ts
+Screen.setDisplayMode(displayId: string, modeId: string): OpenDeskSetDisplayModeResult;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `displayId` | `string` | 是 | 无 | 目标 display。 |
+| `modeId` | `string` | 是 | 无 | 同一 display 的 `listDisplayModes()` 返回值。 |
+
+**返回值**
+
+`OpenDeskSetDisplayModeResult`，包含 readback 后的 current mode。
+
+**行为与错误**
+
+**Experimental**。readback 不一致抛 `READBACK_FAILED`；平台不支持、display/mode 不存在、backend 失败均明确报错。不会 silent no-op。
+
+**示例**
+```js
+const original = Screen.getDisplayMode(display.id);
+try {
+  Screen.setDisplayMode(display.id, alternative.id);
+} finally {
+  Screen.setDisplayMode(display.id, original.id);
+}
+```
+
+## `Screen.pixel(x, y)`
+
+读取一个全局屏幕像素颜色。
+
+**签名**
+```ts
+Screen.pixel(x: number, y: number): string;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `x` | `number` | 是 | 无 | 全局逻辑 X。 |
+| `y` | `number` | 是 | 无 | 全局逻辑 Y。 |
+
+**返回值**
+
+十六进制颜色 string；当前 backend 取不到时可能返回空字符串。
+
+**行为与错误**
+
+同步读取，不移动鼠标。
+
+**示例**
 ```js
 console.log(Screen.pixel(100, 100));
 ```
 
-## Screen.pixels(points, scaled)
+## `Screen.pixels(points, scaled?)`
 
-签名
+批量读取多个屏幕点颜色。
 
-```js
-const colors = Screen.pixels(points, scaled)
+**签名**
+```ts
+Screen.pixels(points: Array<[number, number] | {x:number;y:number}>, scaled?: boolean): string[];
 ```
 
 **参数**
 
-| 参数 | 类型 | 说明 |
-| --- | --- | --- |
-| points | array | 点列表，支持 `[x, y]` 或 `{ x, y }` |
-| scaled | boolean | 当前保留参数，false 尚未实现特殊换算 |
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `points` | `Array<[number,number] \| {x:number;y:number}>` | 是 | 无 | 点列表。 |
+| `scaled` | `boolean` | 否 | backend 默认 | 保留的 scale 行为参数。 |
 
 **返回值**
-- `string[]`
+
+`string[]`，与输入顺序对应。
+
+**行为与错误**
+
+非法点列表明确失败；当前 `scaled:false` 不承诺额外特殊换算。
 
 **示例**
-
 ```js
-const colors = Screen.pixels([
-  [100, 100],
-  { x: 200, y: 200 },
-  { x: 300, y: 300 }
-], true);
-
-console.log(colors);
+console.log(Screen.pixels([[100, 100], { x: 200, y: 200 }], true));
 ```
 
-## Display control 与 mode
+## `Screen.screenshot(options?)`
 
-```js
-const capabilities = Screen.getDisplayCapabilities();
-const display = Screen.getPrimaryDisplay();
+`page.screenshot()` 的 alias。
 
-if (capabilities.modes.read) {
-  const current = Screen.getDisplayMode(display.id);
-  const modes = Screen.listDisplayModes(display.id);
-  console.log({ current, modes });
-}
+**签名**
+```ts
+Screen.screenshot(options?: OpenDeskScreenshotOptions): Promise<OpenDeskScreenshotResult>;
 ```
 
-`getDisplayMode()` / `listDisplayModes()` 返回：
+**参数**
 
-```js
-{
-  id: '0:1920x1080:1920x1080:60.000',
-  ioModeId: 0,
-  width: 1920,
-  height: 1080,
-  pixelWidth: 1920,
-  pixelHeight: 1080,
-  refreshRate: 60,
-  usableForDesktopGUI: true,
-  isCurrent: true
-}
-```
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `options` | `OpenDeskScreenshotOptions` | 否 | `{}` | 参数见 [`page.screenshot()`](page.md#pagescreenshotoptions)。 |
 
-设置只能使用刚由同一 display 的 `listDisplayModes()` 返回的 `mode.id`。CoreGraphics 调用是同步的，
-OpenDesk 随后重新读取 mode；readback 不一致会失败，不返回伪成功。调用方仍必须保存并恢复原 mode：
+**返回值**
 
-```js
-const display = Screen.getPrimaryDisplay();
-const original = Screen.getDisplayMode(display.id);
-const alternative = Screen.listDisplayModes(display.id)
-  .find((mode) => mode.usableForDesktopGUI && mode.id !== original.id);
+与 `page.screenshot()` 完全一致。
 
-if (alternative) {
-  try {
-    const receipt = Screen.setDisplayMode(display.id, alternative.id);
-    console.log(receipt.current);
-  } finally {
-    Screen.setDisplayMode(display.id, original.id);
-  }
-}
-```
+**行为与错误**
 
-Apple 的公开 [CGDisplaySetDisplayMode](https://developer.apple.com/documentation/coregraphics/cgdisplaysetdisplaymode%28_%3A_%3A_%3A%29)
-契约说明进程退出会恢复 Displays 设置中的永久 mode；这不是跳过 `finally` restore 的理由。mirroring
-set 可能连带改变其他显示器，自动化必须先检查拓扑并保留原状态。本轮不实现 rotation、sleep、
-color profile 或 brightness。
-
-非 macOS 上 mode capability 为 Unsupported；不会执行 shell fallback 或 silent no-op。结构化错误：
-`INVALID_ARGUMENT`、`NOT_SUPPORTED`、`NOT_FOUND`、`BACKEND_FAILED`、`READBACK_FAILED`。
-
-## Screen.screenshot(options)
-
-**说明**
-- 运行时通过 `Screen.screenshot = page.screenshot` 绑定
-- 参数、返回值、错误行为与 `page.screenshot()` 完全一致
+Canonical method：`page.screenshot()`；没有第二套截图 backend/合同。
 
 **示例**
-
 ```js
-await Screen.screenshot({
-  target: 'screen',
-  path: './.runtime/examples/screen.png'
-});
+await Screen.screenshot({ target: 'screen', returnType: 'base64' });
 ```
 
-## Screen.selectRegion(options?) — Experimental
+## `Screen.selectRegion(options?)`
 
-```js
-const region = await Screen.selectRegion({
-  dimOutside: true,
-  movable: true,
-  resizable: true,
-  minWidth: 24,
-  minHeight: 24,
-});
+打开原生区域选择器并返回一个显示器内的逻辑区域。
+
+**签名**
+```ts
+Screen.selectRegion(options?: OpenDeskSelectRegionOptions): Promise<OpenDeskSelectedRegion>;
 ```
 
-macOS 会打开真正的 AppKit 多显示器遮罩。拖动创建区域；已有区域可移动并通过 8 个手柄缩放；
-`Enter` 确认，`Esc` 取消。一次选择被限制在一个显示器内，避免把一个区域伪装成跨屏统一像素面。
+**参数**
 
-返回的是全局虚拟桌面的逻辑坐标和对应像素尺寸：
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `options.dimOutside` | `boolean` | 否 | `true` | 是否 dim 区域外。 |
+| `options.movable` | `boolean` | 否 | `true` | 选区是否可移动。 |
+| `options.resizable` | `boolean` | 否 | `true` | 选区是否可 resize。 |
+| `options.minWidth` | `number` | 否 | backend 默认 | `24..4096` 整数。 |
+| `options.minHeight` | `number` | 否 | backend 默认 | `24..4096` 整数。 |
 
+**返回值**
+
+`OpenDeskSelectedRegion`，包含 logical bounds、displayId/index、scaleFactor 与 pixel size。
+
+**行为与错误**
+
+**Experimental / macOS**。选区限制在单个 display；用户取消以 `CANCELED` reject，不返回空区域。
+
+**示例**
 ```js
-{
-  x: 120,
-  y: 120,
-  width: 320,
-  height: 240,
-  displayId: '1104977161',
-  displayIndex: 1,
-  scaleFactor: 2,
-  pixelWidth: 640,
-  pixelHeight: 480
-}
+const region = await Screen.selectRegion({ movable: true, resizable: true });
 ```
 
-`minWidth` / `minHeight` 必须是 `24..4096` 的整数。取消会以 `CANCELED` 拒绝 Promise；
-不会返回一个看似有效的空区域。
+## `Screen.startRecording(options)`
 
-## Screen.startRecording(options) — Experimental
+录制显示器或区域到本地 `.mov`。
 
+**签名**
+```ts
+Screen.startRecording(options: OpenDeskScreenRecordingOptions): Promise<OpenDeskScreenRecordingHandle>;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `options.target` | `{type:'display'| 'region', ...}` | 是 | 无 | 录制 target。 |
+| `options.fps` | `number` | 否 | `30` | 当前只支持 30。 |
+| `options.output` | `string` | 是 | 无 | 不存在的绝对 `.mov` 路径。 |
+| `options.showCursor` | `boolean` | 否 | backend 默认 | 是否录制鼠标指针。 |
+
+**返回值**
+
+`Promise<OpenDeskScreenRecordingHandle>`；handle 提供 `stop()`，成功结果包含 `finalized`、时长、字节和像素尺寸。
+
+**行为与错误**
+
+**Experimental / macOS**。需要 Screen Recording 权限。display identity 变化可抛 `TARGET_UNAVAILABLE`。`stop()` 可重复安全调用；teardown 会 finalize 活动录制。
+
+**示例**
 ```js
 const recording = await Screen.startRecording({
-  target: {
-    type: 'region',
-    displayIndex: region.displayIndex,
-    displayId: region.displayId,
-    x: region.x,
-    y: region.y,
-    width: region.width,
-    height: region.height,
-  },
+  target: { type: 'display', displayIndex: 1 },
   fps: 30,
-  output: '/absolute/path/to/capture.mov',
-  showCursor: true,
+  output: '/tmp/opendesk-capture.mov',
 });
-
-await sleep(1500);
-const result = await recording.stop();
+await page.waitForTimeout(1000);
+await recording.stop();
 ```
 
-当前 macOS backend 是对系统原生 video capture 命令的薄会话 adapter，输出 QuickTime/H.264；
-不把连续 PNG 截图拼成视频。当前契约：
+## `Screen.getCaptureCapabilities()`
 
-- `target.type` 支持 `display` 和 `region`，不宣称 window recording。
-- `fps` 只接受 `30`。
-- `output` 必须是干净的绝对 `.mov` 路径；父目录已存在且目标文件尚不存在。
-- `displayId` 可用于防止选择后显示器拓扑变化造成错录；不匹配时返回 `TARGET_UNAVAILABLE`。
-- `stop()` 可重复安全调用；成功结果含 `finalized: true`、时长、字节数和像素尺寸。
-- execution teardown 会停止并 finalize 尚未结束的录制，不留下后台录制进程。
+查询区域选择、录屏、音频和帧流能力。
 
-录制可能包含敏感屏幕内容。文件只写入调用者指定的本地路径；错误和 Runtime Evidence 不含捕获像素
-或系统 helper 输出。macOS 必须已有 Screen Recording 权限，可先使用
-`page.checkScreenshotPermissions()` 检查。
+**签名**
+```ts
+Screen.getCaptureCapabilities(): OpenDeskScreenCaptureCapabilities;
+```
 
-## Screen.getCaptureCapabilities()
+**参数**
 
+无。
+
+**返回值**
+
+`OpenDeskScreenCaptureCapabilities`。
+
+**行为与错误**
+
+无 UI/录制副作用。当前 `audio` 为 false，`frameStream.supported` 为 false / `notImplemented` 时不得解释为可用。
+
+**示例**
 ```js
-const capabilities = Screen.getCaptureCapabilities();
+console.log(Screen.getCaptureCapabilities());
 ```
 
-该方法无 UI 和录制副作用。必须以返回值判断当前平台；不支持时不会 silent no-op。当前明确边界：
+## 错误
 
-- 录屏音频为 `false`。它不复制 `Audio`，也不把未实现的 microphone/system audio 说成可用。
-- `frameStream.supported` 为 `false`，状态为 `notImplemented`。低频帧流要等可复用的有界帧 backend，
-  不使用截图轮询冒充 streaming。
-- Windows/Linux 当前 selector/recording 为 unsupported；原有 Screen 信息、像素和截图契约不变。
+Display mode 常见：`INVALID_ARGUMENT`、`NOT_SUPPORTED`、`NOT_FOUND`、`BACKEND_FAILED`、`READBACK_FAILED`。录屏/选区还包括 `PERMISSION_DENIED`、`CANCELED`、`TARGET_UNAVAILABLE`、`OUTPUT_FAILED`、`TIMEOUT`。
 
-## 直接运行区域录屏示例
+## 平台与能力
 
-工作目录必须是仓库根目录。先用当前源码构建根程序，然后运行公开示例：
-
-```bash
-go build -o ./opendesk ./cmd/opendesk
-./opendesk -script examples/screen-record-region.js -console-mode script
-```
-
-普通体验保持为一条启动命令：第二行启动后，用户只需在真实遮罩中拖动区域并按 `Enter`。示例录制
-约 1.5 秒，文件写入 `.runtime/tests/platform-primitives/task-006-screen-capture/`，终端仅打印媒体元数据。
-
-## 直接运行 display mode 只读示例
-
-工作目录必须是仓库根目录；先用当前源码构建根程序，然后原样运行：
-
-```bash
-go build -o ./opendesk ./cmd/opendesk
-./opendesk -script examples/display-modes.js -console-mode script
-```
-
-示例只读取 capability、identity、current mode 和 mode count，不改变显示器配置。
-
-## 录屏错误代码
-
-| code | 含义 |
-| --- | --- |
-| `INVALID_ARGUMENT` | options、区域、fps 或路径不符合契约 |
-| `NOT_SUPPORTED` | 当前平台/backend 不支持 |
-| `PERMISSION_DENIED` | macOS 拒绝 Screen Recording 权限 |
-| `CANCELED` | 用户取消选择或 execution teardown 取消待处理操作 |
-| `TARGET_UNAVAILABLE` | 显示器不存在或 identity 已变化 |
-| `OUTPUT_FAILED` | 输出存在、父目录无效或媒体文件没有完成 |
-| `BACKEND_FAILED` | 原生 helper 或录制进程失败 |
-| `TIMEOUT` | 录制未在 teardown/stop 时限内 finalize |
-
-## Screen：实战示例
-
-**示例 1：打印所有显示器并截图第二屏**
-
-```js
-const displays = Screen.getDisplays();
-console.log(JSON.stringify(displays, null, 2));
-
-await page.screenshot({
-  target: 'screen',
-  displayIndex: 2,
-  path: './.runtime/examples/display-2.png'
-});
-```
-
-**示例 2：获取某区域关键点颜色**
-
-```js
-const points = [
-  { x: 100, y: 100 },
-  { x: 120, y: 100 },
-  { x: 140, y: 100 }
-];
-console.log(Screen.pixels(points, true));
-```
+显示器枚举、虚拟桌面、像素和截图按当前平台 backend 提供。Display mode mutation、原生选区和录屏当前主要为 macOS Experimental；Windows/Linux 不支持时明确报告 capability，而不是 shell fallback 或 silent no-op。
