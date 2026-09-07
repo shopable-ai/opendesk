@@ -1,0 +1,140 @@
+name: One-time API heading normalization
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - .github/workflows/api-headings-once-20260907.yml
+
+permissions:
+  contents: write
+
+jobs:
+  normalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Normalize and verify API documentation headings
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          EXPECTED_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch master "https://github.com/${REPOSITORY}.git" repo
+          cd repo
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test "$(git hash-object AGENTS.md)" = 3598051c9b4ab4f5853885a157b61087b28dbd43
+          test "$(git hash-object docs/api/.rules.md)" = 4f394ddd097cd1d43a611ae770e3245c4070ae6d
+          python3 - <<'PY'
+          import os
+          import re
+          import subprocess
+          from pathlib import Path
+
+          heading = re.compile(r'^ {0,3}#{1,6}(?:[ \t]+|$)')
+          fence = re.compile(r'^ {0,3}(`{3,}|~{3,})(.*)$')
+          nav = re.compile(r'^ {0,3}(?:[-+*]|\d+[.)])\s+\[')
+          link = re.compile(r'\[([^\]\n]+)\]\((<[^>\n]+>|[^\s\n]+?)(?:\s+("[^"\n]*"|\x27[^\x27\n]*\x27))?\)')
+          setext = re.compile(r'^ {0,3}(?:=+|-+)\s*$')
+
+          def plain(value):
+              value = value.replace('\\`', '').replace('`', '')
+              value = re.sub(r'&(?:#0*96|#x0*60|grave);', '', value, flags=re.I)
+              return re.sub(r'</?code\b[^>]*>', '', value, flags=re.I)
+
+          def normalize(text):
+              lines = text.splitlines(keepends=True)
+              output = list(lines)
+              protected = set()
+              active = None
+              frontmatter = bool(lines and lines[0].strip() == '---')
+              eligible = set()
+              for i, line in enumerate(lines):
+                  if frontmatter:
+                      protected.add(i)
+                      if i and line.strip() in ('---', '...'):
+                          frontmatter = False
+                      continue
+                  match = fence.match(line)
+                  if active:
+                      protected.add(i)
+                      if match and match[1][0] == active[0] and len(match[1]) >= active[1] and not match[2].strip():
+                          active = None
+                      continue
+                  if match:
+                      protected.add(i)
+                      active = (match[1][0], len(match[1]))
+                      continue
+                  if line.startswith('    ') or line.startswith('\t'):
+                      protected.add(i)
+                      continue
+                  eligible.add(i)
+              headings = {i for i in eligible if heading.match(lines[i])}
+              for i in sorted(eligible):
+                  if i > 0 and setext.match(lines[i]) and i - 1 in eligible and lines[i - 1].strip():
+                      previous = lines[i - 1]
+                      if not re.match(r'^\s*(?:[-+*]|\d+[.)]|>|#)', previous):
+                          headings.add(i - 1)
+              changed_headings = 0
+              changed_nav = 0
+              for i in sorted(eligible):
+                  if i in headings:
+                      output[i] = plain(lines[i])
+                      changed_headings += output[i] != lines[i]
+                  elif nav.match(lines[i]):
+                      def replace_link(match):
+                          title = ' ' + plain(match[3]) if match[3] else ''
+                          return '[' + plain(match[1]) + '](' + match[2] + title + ')'
+                      output[i] = link.sub(replace_link, lines[i])
+                      changed_nav += output[i] != lines[i]
+              assert all(output[i] == lines[i] for i in protected), 'Code or front matter changed'
+              assert all(plain(output[i]) == output[i] for i in headings), 'Heading still contains code markup'
+              assert all(output[i] == lines[i] for i in range(len(lines)) if i not in headings and not (i in eligible and nav.match(lines[i]))), 'Non-heading body changed'
+              for i in eligible:
+                  if nav.match(lines[i]):
+                      assert [m[2] for m in link.finditer(lines[i])] == [m[2] for m in link.finditer(output[i])], 'Navigation destinations changed'
+              return ''.join(output), changed_headings, changed_nav
+
+          fixture = '# `UI`\n\n## `UI.getCapabilities()`\n\n### Scope：`within`\n\n- [`UI.getCapabilities()`](desktop-ui.md#uigetcapabilities "`UI.getCapabilities()`")\n\n正文 `value`。\n\n```js\nconst value = `text`;\n## `keep this code`\n```\n'
+          result, count, navigation = normalize(fixture)
+          assert count == 3 and navigation == 1
+          assert '## UI.getCapabilities()' in result
+          assert '正文 `value`。' in result and 'const value = `text`;' in result and '## `keep this code`' in result
+          assert normalize(result)[0] == result
+          fixture = '---\ntitle: "`unchanged`"\n---\n\nHeading `name`\n===\n\n~~~js\n# `unchanged`\n~~~\n\n    ## `indented code`\n'
+          result, count, navigation = normalize(fixture)
+          assert count == 1 and 'Heading name\n===' in result
+          assert 'title: "`unchanged`"' in result and '# `unchanged`' in result and '    ## `indented code`' in result
+
+          tracked = subprocess.check_output(['git', 'ls-files', '-z', '--', 'docs/api/']).decode().split('\0')
+          files = [Path(name) for name in tracked if name and Path(name).suffix.lower() in ('.md', '.mdx', '.markdown')]
+          report = []
+          for path in files:
+              before = path.read_bytes()
+              original = before.decode('utf-8')
+              updated, headings, navigation = normalize(original)
+              assert normalize(updated)[0] == updated, str(path) + ': formatter is not idempotent'
+              if updated != original:
+                  path.write_bytes(updated.encode('utf-8'))
+                  report.append((str(path), headings, navigation))
+          summary = ['Scanned Markdown files: ' + str(len(files)), 'Modified Markdown files: ' + str(len(report)), 'Heading lines normalized: ' + str(sum(row[1] for row in report)), 'Navigation lines normalized: ' + str(sum(row[2] for row in report)), 'Code blocks, front matter, non-heading body and navigation destinations: preserved', 'Formatter fixtures and idempotence: PASS']
+          summary.extend(path + ': headings=' + str(headings) + ', navigation=' + str(navigation) for path, headings, navigation in report)
+          output = '\n'.join(summary) + '\n'
+          print(output)
+          Path(os.environ['GITHUB_STEP_SUMMARY']).write_text('```text\n' + output + '```\n', encoding='utf-8')
+          PY
+          git diff --check
+          git diff --stat
+          git add -- docs/api/
+          if git diff --cached --quiet; then
+            echo 'No documentation changes required.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git -c core.hooksPath=/dev/null commit -m 'docs(api): remove code markup from all documentation headings'
+          auth_header=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth_header" push origin HEAD:master
+          git rev-parse HEAD
