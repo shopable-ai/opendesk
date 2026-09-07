@@ -6,109 +6,26 @@ order: 12
 
 # Accessibility
 
-`Accessibility` 是 OpenDesk 的第一方原生桌面语义接口。它在同一个 JavaScript execution 中统一
-macOS Accessibility（AX）和 Windows UI Automation（UIA），提供有界观察、受管元素引用和原生动作。
-它不读取浏览器 DOM，不使用 OCR 或鼠标坐标，也不会建立第二个脚本 Runtime。
+`Accessibility` 是 OpenDesk 的第一方原生桌面语义接口。它统一 macOS Accessibility（AX）和 Windows UI Automation（UIA），提供有界观察、受管元素引用和原生动作；不读取浏览器 DOM，不使用 OCR 或鼠标坐标。
 
-本接口为 **Experimental**。可信本地 `-script`、`-script-text`、stdin 和 `opendesk ai run` execution
-可显式启用；HTTP、MCP 与 Scheduler execution 当前关闭。关闭时仍可调用
-`Accessibility.getCapabilities()`，其余方法拒绝为 `CAPABILITY_DISABLED`，且不会读取原生目标。
-这个准入开关只是能力授权，不是完整 Runtime 沙箱，脚本不能通过选项、环境变量或 source label
-自行升级授权。
+本接口为 **Experimental**。可信本地 `-script`、`-script-text`、stdin 与 `opendesk ai run` execution 可启用；HTTP、MCP 与 Scheduler 当前关闭。关闭时仍可调用 `Accessibility.getCapabilities()`，其他方法以 `CAPABILITY_DISABLED` 拒绝。
 
-## 快速开始
+## API 一览
 
-```js
-const capabilities = Accessibility.getCapabilities();
-if (!capabilities.hostAuthorization.enabled ||
-    !capabilities.implementation.available ||
-    !capabilities.permission.granted) {
-  console.log(capabilities);
-  return;
-}
+| 方法 | 用途 |
+| --- | --- |
+| `Accessibility.getCapabilities()` | 同步读取 backend、授权、权限、限制与动作能力摘要。 |
+| `Accessibility.snapshot(options)` | 在明确 scope 内读取普通数据树。 |
+| `Accessibility.find(selector, options)` | 在完整有界搜索中返回唯一受管元素引用。 |
+| `Accessibility.read(ref, options?)` | 读取受管引用的白名单属性。 |
+| `Accessibility.perform(ref, action, options?)` | 对受管引用最多提交一次原生动作。 |
+| `Accessibility.release(ref)` | 释放当前 execution 创建的元素引用。 |
 
-const win = await window.getActiveWindow();
-const button = await Accessibility.find(
-  { role: 'button', name: 'Apply' },
-  { within: win }
-);
+## 公共约定
 
-if (button) {
-  try {
-    const result = await Accessibility.perform(button, { action: 'invoke' });
-    console.log(result.actionState); // acknowledged，不等于业务完成
-  } finally {
-    await Accessibility.release(button);
-  }
-}
-```
+### Scope：`within`
 
-生产脚本还必须在动作后读取应用业务状态；`acknowledged` 只表示原生调用返回成功。
-
-## 方法一览
-
-| 方法 | 返回 | 行为 |
-| --- | --- | --- |
-| `Accessibility.getCapabilities()` | `OpenDeskAccessibilityCapabilities` | 同步返回摘要；不弹授权窗口、不扫描桌面。 |
-| `Accessibility.snapshot(options)` | `Promise<OpenDeskAccessibilitySnapshotResult>` | 在显式 scope 内返回普通数据树，不为每个节点创建长期引用。 |
-| `Accessibility.find(selector, options)` | `Promise<OpenDeskAccessibilityElementRef \| null>` | 完整、有界搜索；只在能证明唯一时返回受管引用。 |
-| `Accessibility.read(ref, options?)` | `Promise<OpenDeskAccessibilityReadResult>` | 读取白名单属性；`value` 必须显式请求。 |
-| `Accessibility.perform(ref, action, options?)` | `Promise<OpenDeskAccessibilityPerformResult>` | 复核身份、状态和原生能力后，最多提交一次动作。 |
-| `Accessibility.release(ref)` | `Promise<boolean>` | 释放当前 execution 创建的合法引用。 |
-
-除 `getCapabilities()` 外，所有方法都返回 Promise。未知字段、非法类型、非有限数字和超过上限的
-选项都会明确拒绝；不会静默忽略，也不会返回假成功。
-
-## `getCapabilities()`：能力不是元素保证
-
-```js
-const capabilities = Accessibility.getCapabilities();
-// {
-//   schemaVersion: 1,
-//   platform: 'darwin',
-//   backend: 'macos-ax',
-//   hostAuthorization: { enabled: true },
-//   available: true,
-//   implementation: {
-//     available: true,
-//     status: 'available',
-//     menus: true,
-//     actions: {
-//       invoke: true, setValue: true, expand: true,
-//       collapse: true, select: true, setChecked: true
-//     },
-//     coordinateMapping: false,
-//     notes: 'element actions remain conditional on current native support'
-//   },
-//   permission: {
-//     required: true,
-//     state: 'granted',
-//     granted: true,
-//     cached: false
-//   },
-//   limits: {
-//     defaultTimeoutMs: 3000,
-//     maxTimeoutMs: 30000,
-//     defaultMaxDepth: 8,
-//     maxMaxDepth: 32,
-//     defaultMaxNodes: 1000,
-//     maxMaxNodes: 5000,
-//     maxActiveRefs: 256,
-//     maxQueuedRequests: 32
-//   },
-//   cancellation: { hardCancel: false }
-// }
-```
-
-上例只展示字段形状，不是任意机器的固定值。`hostAuthorization`、后端是否实现和 OS 权限是三个
-独立事实；平台有后端也不代表某个元素支持某个动作。摘要中的权限状态可以标记为缓存，实际观察或
-动作前仍会重新检查必要权限。需要由用户主动打开系统授权时，使用既有
-[`page.ensurePermissions()` / `page.requestPermissions()`](page.md#权限方法)，Accessibility 方法本身
-不触发授权提示。
-
-## Scope：`within` 必填
-
-`snapshot()` 和 `find()` 的 `within` 必须是以下三种之一：
+`snapshot()` 与 `find()` 必须显式提供 `within`：
 
 ```ts
 type OpenDeskAccessibilityScope =
@@ -117,71 +34,33 @@ type OpenDeskAccessibilityScope =
   | { app: OpenDeskAppTarget; root: 'application' | 'menuBar' };
 ```
 
-- `OpenDeskWindowInfo` 复用 [Window API](window.md) 的当前窗口身份。`:unresolved` 身份、已关闭或重建的
-  窗口会安全失败；标题、PID、handle 或旧 bounds 不能单独充当永久身份。
-- 元素引用只能来自当前 execution 的 `Accessibility.find()`，并把搜索限制在该元素的子树。
-- `{ app, root }` 复用 [App target](app.md) 的解析和实例消歧。多实例不能取第一个；调用方应提供足以
-  唯一定位当前进程实例的 target。
-- macOS `root: 'menuBar'` 是应用级语义根，不会被裁剪到应用窗口矩形。Windows 窗口菜单优先使用明确
-  WindowInfo；弹出层仍须由后端验证 owner 关系。
+- `OpenDeskWindowInfo` 必须仍能解析为原窗口；关闭、重建或 unresolved identity 会安全失败。
+- `OpenDeskAccessibilityElementRef` 只能来自当前 execution 的 `Accessibility.find()`。
+- `{ app, root }` 复用 [App](app.md) identity 解析；多实例必须由调用方消歧。
+- 不提供全桌面默认 scope，也不接受 ScreenRegion、Display、裸坐标、快照节点或用户拼接的 ref ID。
 
-不提供全桌面默认 scope，不接受裸坐标、ScreenRegion、Display、快照节点、用户拼接的 ref ID 或原生
-AX/COM 地址。
-
-## Selector 与唯一性
+### Selector
 
 V1 selector 至少包含一个有效字段：
 
 ```ts
-{ role?: string, name?: string, identifier?: string }
+interface OpenDeskAccessibilitySelector {
+  role?: string;
+  name?: string;
+  identifier?: string;
+}
 ```
 
-所有给出的字段按 AND 精确匹配。`name` / `identifier` 不做模糊匹配、翻译或忽略大小写；
-`identifier` 只是在当前 scope 内的定位信号，不是永久 ID。
+所有给出的字段按 AND 精确匹配。`name` / `identifier` 不做模糊匹配、翻译或忽略大小写。
 
-公开 `role` 使用规范化值。V1 的跨平台核心映射包括 `application`、`window`、`menuBar`、`menu`、
-`menuItem`、`button`、`checkbox`、`radioButton`、`textField`、`staticText`、`list`、`listItem`、
-`table`、`row`、`cell` 和 `group`。没有安全映射的角色返回 `role: 'unknown'` 并保留
-`nativeRole`；不会把未知元素猜成 `button`。调用方应同时检查实际 `actions`，不能只根据 role 推断动作。
+常用规范化 role 包括：`application`、`window`、`menuBar`、`menu`、`menuItem`、`button`、`checkbox`、`radioButton`、`textField`、`staticText`、`group`、`list`、`listItem`、`table`、`row`、`cell`。无法安全映射时返回 `unknown` 并保留 `nativeRole`。
 
-`find()` 会完成本次有界搜索后再判断：
-
-- 完整搜索且没有候选：返回 `null`；
-- 完整搜索且唯一：返回受管 ref；
-- 多个候选：拒绝为 `AMBIGUOUS_TARGET`；
-- 到达节点、深度或总 deadline，无法证明结果：拒绝为 `SEARCH_INCOMPLETE` 或 `TIMEOUT`。
-
-找到第一个候选不会提前结束并宣称唯一。`timeout` 是单次有界定位 deadline，不是等待元素出现；V1
-没有隐式 wait 行为。
-
-## `snapshot()`：普通数据与完整性
-
-```js
-const result = await Accessibility.snapshot({
-  within: win,
-  maxDepth: 4,
-  maxNodes: 300,
-  properties: ['role', 'name', 'enabled', 'actions'],
-});
-
-console.log(result.complete, result.truncated, result.reason, result.stats.nodes);
-```
-
-结果包含 `requestId`、`operation`、`backend`、`root`、`complete`、`truncated`、`reason` 和
-`stats: { nodes, maxDepth }`。节点可包含 `role`、`nativeRole`、`name`、`identifier`、状态、动作、
-边界和 `children`。省略 `properties` 时读取除 value 外的上述白名单基本属性；只在
-`properties` 明确含 `value` 时返回 `value`。
-
-快照不会为每个节点保留原生 ref。未物化、不可读取或被限制截断的子树必须通过
-`complete: false`、`truncated` 和 `reason` 表达，不能伪造成空且完整。不要把完整控件树或 value
-写入常规日志。
-
-## ElementRef、`read()` 与 `release()`
+### ElementRef
 
 `OpenDeskAccessibilityElementRef` 是当前 execution 内的 opaque capability：
 
 ```ts
-{
+interface OpenDeskAccessibilityElementRef {
   readonly kind: 'AccessibilityElementRef';
   readonly id: string;
   readonly role: string;
@@ -189,62 +68,11 @@ console.log(result.complete, result.truncated, result.reason, result.stats.nodes
 }
 ```
 
-公开字段便于诊断，不构成可伪造的 authority。JSON 序列化再构造、跨 execution 使用、释放后使用、
-目标关闭重建或进程实例变化都会失败；失效 ref 不会按同名元素自动重定位。
+公开字段只用于诊断，不构成可伪造 authority。跨 execution、释放后、目标重建后或通过 JSON 自行重建的 ref 均无效。
 
-```js
-const details = await Accessibility.read(ref, {
-  properties: ['role', 'name', 'enabled', 'actions'],
-  timeout: 1000,
-});
-```
+### 观察限制
 
-可读属性白名单为 `role`、`nativeRole`、`name`、`identifier`、`enabled`、`focused`、`selected`、
-`checked`、`expanded`、`actions`、`nativeBounds`、`bounds` 和 `value`。受保护或密码字段拒绝读取 value；
-没有通用绕过参数。省略 `properties` 时使用不含 value 的基本属性集合。无法可靠把原生 bounds 转换为
-OpenDesk screen logical coordinate 时，`bounds` 为 `null`；`nativeBounds.coordinateSpace` 明确保留
-后端坐标空间，不能直接交给 `mouse`。
-
-首次释放当前 execution 的合法 ref 返回 `true`；再次释放同一个合法 ref 返回 `false`。伪造或其他
-execution 的对象不是正常重复释放，会拒绝。Runtime 会协调 release 与 in-flight 操作，并在 teardown
-释放遗留 ref；必要清理不依赖 JavaScript GC。
-
-## `perform()`：动作与状态
-
-```ts
-type OpenDeskAccessibilityAction =
-  | { action: 'invoke' }
-  | { action: 'setValue', value: string }
-  | { action: 'expand' }
-  | { action: 'collapse' }
-  | { action: 'select' }
-  | { action: 'setChecked', checked: boolean };
-```
-
-| 动作 | 语义 |
-| --- | --- |
-| `invoke` | 只调用当前元素明确支持的原生命令动作。 |
-| `setValue` | 通过可写 value 修改，不模拟逐字键盘输入；只读/受保护字段拒绝。 |
-| `expand` / `collapse` | 先读取当前展开状态和具体能力；不能用一次不定向 press 冒充。 |
-| `select` | 使用明确的选择 pattern/action；不等同 toggle。 |
-| `setChecked` | 已满足时不提交输入；状态未知或三态无法安全映射时停止。 |
-
-每次动作前都会重新验证 ref、目标身份、enabled/readonly 状态和实际 pattern/action。原生动作最多提交
-一次；超时或失败后不会自动重试，也不会改用 OCR/鼠标。平台或元素没有可证明的安全映射时返回
-`ACTION_NOT_SUPPORTED` 或 `STATE_UNKNOWN`。
-
-成功结果至少包含 `requestId`、`operation`、`action`、`backend` 和 `actionState`：
-
-| `actionState` | 含义 |
-| --- | --- |
-| `not_started` | 已确认对应最终动作没有尝试。 |
-| `not_needed` | 目标状态已满足，没有提交输入。 |
-| `acknowledged` | 原生调用返回成功；尚未证明业务完成。 |
-| `unknown` | 动作可能已经提交，不能自动重做。 |
-
-## 限制、队列、取消与 teardown
-
-| 限制 | 默认 | 最大 |
+| 选项/资源 | 默认值 | 最大值 |
 | --- | ---: | ---: |
 | `timeout` | 3000 ms | 30000 ms |
 | `maxDepth` | 8 | 32 |
@@ -254,14 +82,272 @@ type OpenDeskAccessibilityAction =
 | selector/path 单段 | — | 1024 Unicode code points |
 | `setValue` UTF-8 内容 | — | 1 MiB |
 
-deadline 包含排队和全部原生工作。排队已取消的请求不会执行；in-flight 原生调用不能保证强制撤回，
-所以 capability 明确报告 `hardCancel: false`。迟到结果不能 settlement 已关闭 Runtime，也不能污染新
-execution。脚本即使没有 await 已提交的请求，execution 也会等待其受管生命周期；仅持有闲置 ref
-不会让脚本永久不退出，teardown 会释放它。
+`timeout` 是包含排队和原生工作的总 deadline。in-flight 原生调用不能保证强制撤回，因此 `getCapabilities().cancellation.hardCancel` 为 `false`。
 
-## 结构化错误
+### 可读属性
 
-rejection 是 `Error`，并至少带：
+`read()` / `snapshot()` 的公开白名单包括：`role`、`nativeRole`、`name`、`identifier`、`enabled`、`focused`、`selected`、`checked`、`expanded`、`actions`、`nativeBounds`、`bounds` 与 `value`。
+
+省略 `properties` 时使用不含 `value` 的基本属性集合。受保护或密码字段拒绝读取 `value`。无法可靠转换坐标时 `bounds` 为 `null`，不得把 `nativeBounds` 直接交给 `mouse`。
+
+### 动作
+
+```ts
+type OpenDeskAccessibilityAction =
+  | { action: 'invoke' }
+  | { action: 'setValue'; value: string }
+  | { action: 'expand' }
+  | { action: 'collapse' }
+  | { action: 'select' }
+  | { action: 'setChecked'; checked: boolean };
+```
+
+`perform()` 会重新检查 ref、目标 identity、状态和实际原生 action/pattern。动作不会在失败后自动重试，也不会降级为 OCR 或鼠标。
+
+`actionState`：
+
+| 值 | 含义 |
+| --- | --- |
+| `not_started` | 已确认最终动作未尝试。 |
+| `not_needed` | 目标状态已经满足，没有提交输入。 |
+| `acknowledged` | 原生调用返回成功，但未证明业务完成。 |
+| `unknown` | 动作可能已提交，不能自动重做。 |
+
+## `Accessibility.getCapabilities()`
+
+同步读取 Accessibility 能力摘要，不扫描桌面也不触发系统授权提示。
+
+**签名**
+
+```ts
+Accessibility.getCapabilities(): OpenDeskAccessibilityCapabilities;
+```
+
+**参数**
+
+无。
+
+**返回值**
+
+`OpenDeskAccessibilityCapabilities`，包含 `schemaVersion`、`platform`、`backend`、`hostAuthorization`、`implementation`、`permission`、`limits` 与 `cancellation` 等字段。
+
+**行为与错误**
+
+即使当前 execution 没有授权 Accessibility，也可以调用本方法检查状态。摘要中的全局 action capability 不是某个具体元素一定支持该动作的保证。
+
+**示例**
+
+```js
+const capabilities = Accessibility.getCapabilities();
+if (!capabilities.hostAuthorization.enabled ||
+    !capabilities.implementation.available ||
+    !capabilities.permission.granted) {
+  console.log(capabilities);
+}
+```
+
+## `Accessibility.snapshot(options)`
+
+在明确 scope 内读取普通、可序列化的语义元素树。
+
+**签名**
+
+```ts
+Accessibility.snapshot(
+  options: OpenDeskAccessibilitySnapshotOptions,
+): Promise<OpenDeskAccessibilitySnapshotResult>;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `options` | `OpenDeskAccessibilitySnapshotOptions` | 是 | 无 | snapshot 选项。 |
+| `options.within` | `OpenDeskAccessibilityScope` | 是 | 无 | 明确观察 scope。 |
+| `options.timeout` | `number` | 否 | `3000` ms | 总 deadline。 |
+| `options.maxDepth` | `number` | 否 | `8` | 最大深度。 |
+| `options.maxNodes` | `number` | 否 | `1000` | 最大节点数。 |
+| `options.properties` | `string[]` | 否 | 基本属性 | 要读取的白名单属性。 |
+
+**返回值**
+
+`Promise<OpenDeskAccessibilitySnapshotResult>`。结果包含 `requestId`、`operation`、`backend`、`root`、`complete`、`truncated`、`reason` 与 `stats`。
+
+**行为与错误**
+
+snapshot 不为每个节点创建长期原生 ref。未物化、不可读取或超过限制的子树必须通过 `complete: false`、`truncated` 与 `reason` 表达，不能伪造成空且完整。
+
+**示例**
+
+```js
+const result = await Accessibility.snapshot({
+  within: win,
+  maxDepth: 4,
+  maxNodes: 300,
+  properties: ['role', 'name', 'enabled', 'actions'],
+});
+console.log(result.complete, result.stats.nodes);
+```
+
+## `Accessibility.find(selector, options)`
+
+完整搜索明确 scope，并且只在能证明唯一时返回受管元素引用。
+
+**签名**
+
+```ts
+Accessibility.find(
+  selector: OpenDeskAccessibilitySelector,
+  options: OpenDeskAccessibilityFindOptions,
+): Promise<OpenDeskAccessibilityElementRef | null>;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `selector` | `OpenDeskAccessibilitySelector` | 是 | 无 | 至少包含 `role`、`name`、`identifier` 之一。 |
+| `options` | `OpenDeskAccessibilityFindOptions` | 是 | 无 | 搜索选项。 |
+| `options.within` | `OpenDeskAccessibilityScope` | 是 | 无 | 明确搜索 scope。 |
+| `options.timeout` | `number` | 否 | `3000` ms | 总 deadline；不是等待元素出现。 |
+| `options.maxDepth` | `number` | 否 | `8` | 最大深度。 |
+| `options.maxNodes` | `number` | 否 | `1000` | 最大节点数。 |
+
+**返回值**
+
+`Promise<OpenDeskAccessibilityElementRef | null>`。完整搜索且无候选返回 `null`；唯一候选返回当前 execution 所有的 opaque ref。
+
+**行为与错误**
+
+多个候选抛 `AMBIGUOUS_TARGET`；达到限制而无法证明唯一性时抛 `SEARCH_INCOMPLETE`；deadline 到达抛 `TIMEOUT`。不会看到第一个候选就提前宣称唯一。
+
+**示例**
+
+```js
+const button = await Accessibility.find(
+  { role: 'button', name: 'Apply' },
+  { within: win },
+);
+```
+
+## `Accessibility.read(ref, options?)`
+
+读取受管元素引用的白名单属性。
+
+**签名**
+
+```ts
+Accessibility.read(
+  ref: OpenDeskAccessibilityElementRef,
+  options?: OpenDeskAccessibilityReadOptions,
+): Promise<OpenDeskAccessibilityReadResult>;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `ref` | `OpenDeskAccessibilityElementRef` | 是 | 无 | 当前 execution 创建且尚未释放的元素引用。 |
+| `options` | `OpenDeskAccessibilityReadOptions` | 否 | `{}` | 读取选项。 |
+| `options.properties` | `string[]` | 否 | 基本属性 | 要读取的白名单属性。 |
+| `options.timeout` | `number` | 否 | `3000` ms | 总 deadline。 |
+
+**返回值**
+
+`Promise<OpenDeskAccessibilityReadResult>`。
+
+**行为与错误**
+
+读取前重新验证 ref 与目标。受保护 value、失效 ref、释放后的 ref 或 backend 失败会以结构化错误拒绝。不会自动按同名元素重新定位失效 ref。
+
+**示例**
+
+```js
+const details = await Accessibility.read(button, {
+  properties: ['role', 'name', 'enabled', 'actions'],
+  timeout: 1000,
+});
+```
+
+## `Accessibility.perform(ref, action, options?)`
+
+对受管元素最多提交一次原生动作。
+
+**签名**
+
+```ts
+Accessibility.perform(
+  ref: OpenDeskAccessibilityElementRef,
+  action: OpenDeskAccessibilityAction,
+  options?: OpenDeskAccessibilityPerformOptions,
+): Promise<OpenDeskAccessibilityPerformResult>;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `ref` | `OpenDeskAccessibilityElementRef` | 是 | 无 | 当前 execution 创建且尚未释放的元素引用。 |
+| `action` | `OpenDeskAccessibilityAction` | 是 | 无 | 要执行的明确原生动作。 |
+| `options` | `OpenDeskAccessibilityPerformOptions` | 否 | `{}` | 动作选项。 |
+| `options.timeout` | `number` | 否 | `3000` ms | 包含排队和原生工作的总 deadline。 |
+
+**返回值**
+
+`Promise<OpenDeskAccessibilityPerformResult>`，至少包含 `requestId`、`operation`、`action`、`backend` 与 `actionState`。
+
+**行为与错误**
+
+执行前重新验证 ref、identity、enabled/readonly 状态和实际原生能力。`setChecked` 已满足目标值时可返回 `not_needed`。不支持动作时抛 `ACTION_NOT_SUPPORTED`；无法可靠读取当前状态时可抛 `STATE_UNKNOWN`。一旦动作可能已经提交，错误必须通过 `actionState: 'unknown'` 表达，调用方不得自动重做。
+
+**示例**
+
+```js
+const result = await Accessibility.perform(button, { action: 'invoke' });
+console.log(result.actionState);
+```
+
+## `Accessibility.release(ref)`
+
+显式释放当前 execution 创建的元素引用。
+
+**签名**
+
+```ts
+Accessibility.release(
+  ref: OpenDeskAccessibilityElementRef,
+): Promise<boolean>;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `ref` | `OpenDeskAccessibilityElementRef` | 是 | 无 | 要释放的合法元素引用。 |
+
+**返回值**
+
+`Promise<boolean>`。首次释放合法 ref 返回 `true`；再次释放同一合法 ref 返回 `false`。
+
+**行为与错误**
+
+伪造或其他 execution 的对象不是正常重复释放，会拒绝。Runtime teardown 会释放遗留 ref，但长期脚本仍应在不再使用时主动释放。
+
+**示例**
+
+```js
+if (button) {
+  try {
+    await Accessibility.perform(button, { action: 'invoke' });
+  } finally {
+    await Accessibility.release(button);
+  }
+}
+```
+
+## 错误
+
+rejection 为 `Error`，并至少包含：
 
 ```ts
 {
@@ -274,33 +360,36 @@ rejection 是 `Error`，并至少带：
 }
 ```
 
-错误 code：
+稳定错误码包括：
 
 ```text
-INVALID_ARGUMENT       CAPABILITY_DISABLED    NOT_SUPPORTED
-PERMISSION_DENIED      TARGET_NOT_FOUND       AMBIGUOUS_TARGET
-SEARCH_INCOMPLETE      STALE_TARGET           ELEMENT_DISABLED
-ACTION_NOT_SUPPORTED   STATE_UNKNOWN          TIMEOUT
-CANCELED               QUEUE_FULL             RESOURCE_LIMIT
+INVALID_ARGUMENT
+CAPABILITY_DISABLED
+NOT_SUPPORTED
+PERMISSION_DENIED
+TARGET_NOT_FOUND
+AMBIGUOUS_TARGET
+SEARCH_INCOMPLETE
+STALE_TARGET
+ELEMENT_DISABLED
+ACTION_NOT_SUPPORTED
+STATE_UNKNOWN
+TIMEOUT
+CANCELED
+QUEUE_FULL
+RESOURCE_LIMIT
 BACKEND_FAILED
 ```
 
-不要解析 `message` 判断错误。错误默认不包含 selector、输入 value、完整控件正文、原生地址或完整菜单
-路径。动作已提交但结果不确定时必须是 `actionState: 'unknown'`，调用方不能自动重做。
+不要解析 `message` 判断错误类型。错误默认不包含 selector、输入 value、完整控件正文、原生地址或完整菜单路径。
 
-## 平台边界
+## 平台与能力
 
-| 平台构建 | 第一方后端 | 边界 |
+| 平台 | 后端 | 说明 |
 | --- | --- | --- |
-| macOS + cgo | AXUIElement client | 需要系统 Accessibility 权限；不自动弹窗。每个实际调用对象使用有界 messaging timeout。 |
-| macOS without cgo | unsupported | 明确 `implementation.available: false`；不会降级到 AppleScript。 |
-| Windows | UI Automation client | 后端在专用、固定 OS 线程的 MTA 中调用并释放 COM；元素 pattern 决定动作支持。 |
-| 其他平台 | unsupported | capability 摘要仍可读，观察和动作拒绝为 `NOT_SUPPORTED`。 |
+| macOS + cgo | AXUIElement client | 需要系统 Accessibility 权限；方法本身不自动弹授权窗口。 |
+| macOS without cgo | Unsupported | `implementation.available: false`，不降级为 AppleScript。 |
+| Windows | UI Automation client | 元素实际 pattern/action 决定动作支持。 |
+| 其他平台 | Unsupported | capability 摘要可读，观察和动作拒绝为 `NOT_SUPPORTED`。 |
 
-表格说明后端合同，不是当前机器的验收结论。某个平台的 cross-compile、`go-ole` 依赖存在或
-`implementation.available: true` 都不能替代原生真机测试；每次运行以 `getCapabilities()` 和实际
-错误为准。
-
-菜单组合操作见 [Desktop UI Menu API](desktop-ui-menu.md)，内部 owner、线程、身份和清理模型见
-[Native Accessibility architecture](../architecture/desktop-automation/native-accessibility.md)。公开示例见
-[examples/accessibility/README.md](../../examples/accessibility/README.md)。
+需要主动处理系统权限时使用 [`page.ensurePermissions()`](page.md)。高层原生菜单组合操作见 [`UI.getMenuItems()` / `UI.findMenuItem()` / `UI.tapMenuItem()`](desktop-ui.md)。
