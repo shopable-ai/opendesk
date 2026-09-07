@@ -1,394 +1,260 @@
 ---
 title: Vision API
-description: OCR、UI 文本检测、provider capabilities 与旧 OCR 对象的关系。
+description: OCR、UI 文本检测、provider capabilities、布局分析与旧 OCR 对象。
 order: 10
 ---
 
 # Vision
 
-Vision 提供底层 OCR、legacy text-center helper 与 provider capability。新桌面 Recipe 应优先使用
-[`UI`](desktop-ui.md)：它在每次截图后处理 capture scale、scope、歧义和安全的 screen-coordinate
-投影；需要原始 OCR 行时再直接使用 `Vision.runOCR`。
+`Vision` 提供底层 OCR、provider capability 和图像布局分析。需要直接操作桌面文本时优先使用 [`UI`](desktop-ui.md)，因为 `UI` 会处理 scope、歧义与 image-pixel → screen-logical 投影。
 
-适用场景
-- 对截图做 OCR
-- 从图片中按文本查找 UI 元素
-- 根据 provider 能力做运行时切换
+同页记录 secondary `OCR.extractText()`，它是独立的本地 Tesseract 纯文本兼容入口。
 
-与其他对象关系
-- 常与 `page.screenshot()` 联用
-- 常与 `File` 联用保存图片或结果
-- 常与 `window` 联用定位当前窗口后截图
+## API 一览
 
-## Vision.analyzeLayout / Vision.annotateRegions：布局分析与标注
+| 方法 | 状态 | 用途 |
+| --- | --- | --- |
+| `Vision.runOCR(options)` | Stable | 对图片执行 OCR。 |
+| `Vision.detectUI(options)` | Deprecated | 兼容的 OCR text-center helper。 |
+| `Vision.getCapabilities(options?)` | Stable | 查询 provider 能力与默认值。 |
+| `Vision.analyzeLayout(options)` | Stable | 分析图像区域与分隔线。 |
+| `Vision.annotateRegions(options)` | Stable | 输出带区域/分隔线标注的 PNG。 |
+| `OCR.extractText(image, lang?)` | Secondary | 使用本地 Tesseract 抽取纯文本。 |
 
-`Vision.analyzeLayout({ image, ...options })` 对 Runtime 截图或 base64 图像生成通用区域与分隔线结构；
-`Vision.annotateRegions({ image, regions?, separators?, outputPath? })` 返回带标记 PNG。二者不依赖 OCR
-provider，适合用于可解释的视觉结构验证。
+## 公共约定
 
-当前实现重点
-- `Vision.runOCR(options)`
-- `Vision.detectUI(options)`
-- `Vision.getCapabilities(options)`
+### 图像输入
 
-同时项目里还有一个旧的 `OCR` 对象：
-- `OCR.extractText(image, lang)`
-- 它基于本地 tesseract CLI
-- 更适合简单本地 OCR
-- 新脚本优先推荐 Vision
+OCR 输入可通过 `image`、`imageBase64` 或 `imagePath` 提供。路径相对当前 execution 工作目录解析；无效路径/base64/类型会明确失败。
 
-## Vision：方法总表
-
-| 方法 | 用途 |
-| --- | --- |
-| Vision.runOCR(options) | 对图片执行 OCR |
-| Vision.detectUI(options) | 已弃用的基于 OCR 文本检测 UI 元素 helper |
-| Vision.getCapabilities(options) | 查看 provider 能力、默认语言、是否已配置 |
-
-## Vision：provider 现状
-
-当前源码内 provider 注册情况：
+### OCR provider
 
 | provider | 状态 | 说明 |
 | --- | --- | --- |
-| apple / applevision | macOS 已实现 | 打包的 Apple Vision，默认 `accurate`，无需网络或 tesseract；macOS 12+ |
-| paddle / paddleocr | 已实现 | 需要配置 `PADDLE_OCR_ENDPOINT` |
-| local / tesseract | 已实现 | 本地 OCR provider |
-| openai | 预留未实现 | 会报 reserved but not implemented |
-| azure | 预留未实现 | 同上 |
-| google | 预留未实现 | 同上 |
-| aws | 预留未实现 | 同上 |
+| `apple` / `applevision` | macOS implemented | Apple Vision，默认 `accurate`，macOS 12+。 |
+| `paddle` / `paddleocr` | Implemented | 需要 `PADDLE_OCR_ENDPOINT`。 |
+| `local` / `tesseract` | Implemented | 本地 OCR。 |
+| `openai` | Reserved | 当前未实现。 |
+| `azure` | Reserved | 当前未实现。 |
+| `google` | Reserved | 当前未实现。 |
+| `aws` | Reserved | 当前未实现。 |
 
-默认值
-- macOS：`VISION_OCR_PROVIDER` 环境变量，否则打包的 Apple Vision（`apple`）
-- 其他平台：`VISION_OCR_PROVIDER` 环境变量，否则 paddle
-- 默认 lang：`VISION_OCR_LANG` 环境变量，否则 ch
+macOS 默认 provider 为环境配置值或 `apple`；其他平台为环境配置值或 `paddle`。默认语言来自 `VISION_OCR_LANG`，否则使用 Runtime 默认值。
 
-## Vision.runOCR(options)
+### OCR 坐标
 
-签名
+`Vision.runOCR()` / `Vision.detectUI()` 返回的 bbox 是输入图片的 image-pixel 坐标，不是可直接传给 `mouse` 的 screen logical coordinate。需要点击外部桌面目标时使用 `UI.findText()` / `UI.tapText()`。
 
-```js
-const result = await Vision.runOCR(options)
+## `Vision.runOCR(options)`
+
+对图片执行 OCR，并返回全文与逐行结构。
+
+**签名**
+```ts
+Vision.runOCR(options: OpenDeskVisionOCROptions): Promise<OpenDeskVisionOCRResult>;
 ```
 
-作用
-- 对图片做 OCR，返回全文与逐行结果
+**参数**
 
-输入支持
-- `image`：字节数组
-- `imageBase64`
-- `imagePath`
-- 具体提取逻辑由内部 `visionExtractImage()` 完成
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `options.image` | bytes | 条件 | 未设置 | 图片字节输入。 |
+| `options.imageBase64` | `string` | 条件 | 未设置 | base64 图片输入。 |
+| `options.imagePath` | `string` | 条件 | 未设置 | 图片文件路径。 |
+| `options.provider` | `string` | 否 | 平台默认 | OCR provider。 |
+| `options.lang` | `string` | 否 | Runtime 默认 | OCR 语言。 |
+| `options.recognitionLevel` | `'accurate' \| 'fast'` | 否 | `'accurate'` | Apple Vision recognition level。 |
+| `options.timeoutMs` | `number` | 否 | `12000` | 超时毫秒。 |
+| `options.detectOrientation` | `boolean` | 否 | `true` | 是否检测方向。 |
+| `options.recognizeDirection` | `boolean` | 否 | `true` | 是否识别方向。 |
+| `options.includeRaw` | `boolean` | 否 | `false` | 是否附带 provider 原始响应。 |
 
-常用参数
+**返回值**
 
-| 参数 | 类型 | 默认值 | 说明 |
-| --- | --- | --- | --- |
-| options.provider | string | 默认 provider | apple / paddle / local / tesseract ... |
-| options.lang | string | 默认 lang | 例如 ch / en |
-| options.recognitionLevel | string | accurate | Apple Vision：`accurate` / `fast`；默认以准确率优先 |
-| options.timeoutMs | number | 12000 | 超时 |
-| options.detectOrientation | boolean | true | 是否检测方向 |
-| options.recognizeDirection | boolean | true | 是否识别方向 |
-| options.includeRaw | boolean | false | 是否附带 provider 原始响应 |
-| options.image / imagePath / imageBase64 | - | - | 图片输入 |
+`OpenDeskVisionOCRResult`，包含 `provider`、`lang`、`text`、`lines[]`、`lineCount`，以及可选 `raw`。每个 line 包含 `text`、`confidence` 与 image-pixel `bbox`。
 
-返回值结构
+**行为与错误**
 
-```js
-{
-  provider: string,
-  lang: string,
-  text: string,
-  lines: [
-    {
-      text: string,
-      confidence: number,
-      bbox: { x, y, width, height }
-    }
-  ],
-  lineCount: number,
-  raw?: any
-}
-```
+必须提供一种有效图像输入。provider 未实现、未配置、不可用、图片无效或 timeout 时 reject；不会把 reserved provider 静默替换成其他 provider。
 
-示例：对截图做 OCR
-
+**示例**
 ```js
 const imagePath = await page.screenshot({
   target: 'activeWindow',
   path: './.runtime/examples/vision-input.png',
-  returnType: 'path'
+  returnType: 'path',
 });
-
-const result = await Vision.runOCR({
-  imagePath,
-  provider: 'apple',
-  lang: 'ch',
-  recognitionLevel: 'accurate'
-});
-
-console.log(JSON.stringify(result, null, 2));
-```
-
-示例：使用 paddle
-
-```js
-const result = await Vision.runOCR({
-  imagePath: './.runtime/examples/vision-input.png',
-  provider: 'paddle',
-  lang: 'ch',
-  includeRaw: true
-});
-
+const result = await Vision.runOCR({ imagePath, provider: 'apple', lang: 'ch' });
 console.log(result.text);
 ```
 
-## Vision.detectUI(options)
+## `Vision.detectUI(options)`
 
-> **Deprecated：** `detectUI` 是兼容保留的旧 OCR text-center helper。它返回的 bbox/clickPoint 都是
-> 输入图片的局部 image-pixel 坐标，不是可靠的业务目标解析或全局 mouse 坐标。新代码使用
-> `Vision.runOCR` 获取原始 OCR，或直接使用 `UI.findText` / `UI.tapText` 完成查找与激活。
+兼容保留的 OCR 文本候选 helper。
 
-签名
-
-```js
-const result = await Vision.detectUI(options)
+**签名**
+```ts
+Vision.detectUI(options: OpenDeskVisionDetectUIOptions): Promise<OpenDeskVisionDetectUIResult>;
 ```
 
-作用
-- 先做 OCR
-- 再按目标文本过滤候选行
-- 返回匹配元素及点击点
+**参数**
 
-常用参数
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `options.image` | bytes | 条件 | 未设置 | 图片输入。 |
+| `options.imageBase64` | `string` | 条件 | 未设置 | base64 图片输入。 |
+| `options.imagePath` | `string` | 条件 | 未设置 | 图片路径。 |
+| `options.provider` | `string` | 否 | 平台默认 | OCR provider。 |
+| `options.lang` | `string` | 否 | Runtime 默认 | OCR 语言。 |
+| `options.targetText` | `string` | 否 | `''` | 目标文本。 |
+| `options.matchMode` | `string` | 否 | `'contains'` | 文本比较模式。 |
+| `options.minConfidence` | `number` | 否 | `0` | 最低置信度。 |
+| `options.defaultRole` | `string` | 否 | `'text'` | 无法推断 role 时的兼容值。 |
 
-| 参数 | 类型 | 默认值 | 说明 |
-| --- | --- | --- | --- |
-| options.provider | string | 默认 provider | OCR provider |
-| options.lang | string | 默认 lang | OCR 语言 |
-| options.targetText | string | 空 | 目标文本，最常用 |
-| options.matchMode | string | contains | contains / exact 等比较模式 |
-| options.minConfidence | number | 0 | 最低置信度 |
-| options.defaultRole | string | text | 当无法猜角色时使用 |
-| options.image / imagePath / imageBase64 | - | - | 图片输入 |
+**返回值**
 
-返回值结构
+包含 `provider`、`lang`、`text`、`count` 与 `elements[]`；元素 bbox/clickPoint 均为 image-local 坐标。
 
+**行为与错误**
+
+**Deprecated**。每条 OCR line 参与过滤；空文本和低置信度项跳过。不要把 `elements[0].clickPoint` 直接交给全局 mouse。
+
+**示例**
 ```js
-{
-  provider: string,
-  lang: string,
-  text: string,
-  count: number,
-  elements: [
-    {
-      role: string,
-      text: string,
-      bbox: { x, y, width, height },
-      score: number,
-      clickPoint: { x, y }
-    }
-  ]
-}
-```
-
-行为规则
-- 每条 OCR line 都会参与匹配
-- 文本为空或低于 `minConfidence` 的行会被跳过
-- 点击点取 bbox 中心点
-- role 会根据文本做简单猜测；猜不到则用 `defaultRole`
-
-示例：查找“登录”按钮
-
-```js
-const shot = await page.screenshot({
-  target: 'activeWindow',
-  path: './.runtime/examples/login-page.png',
-  returnType: 'path'
-});
-
-const result = await Vision.detectUI({
-  imagePath: shot,
-  provider: 'apple',
-  targetText: '登录',
-  matchMode: 'contains',
-  minConfidence: 0.4,
-  defaultRole: 'button'
-});
-
-console.log(JSON.stringify(result, null, 2));
-// 这是 image-local 诊断结果。不要选择 result.elements[0] 并直接 mouse.click。
-// 需要外部桌面操作时用 UI.findText/UI.tapText，它会重新截图并投影到 screen 坐标。
-```
-
-示例：查找英文按钮
-
-```js
-const result = await Vision.detectUI({
-  imagePath: './.runtime/examples/dialog.png',
-  provider: 'apple',
-  targetText: 'Continue',
-  matchMode: 'contains',
-  minConfidence: 0.5,
-  defaultRole: 'button'
-});
-
+const result = await Vision.detectUI({ imagePath, targetText: '登录', matchMode: 'contains' });
 console.log(result.elements);
 ```
 
-## Vision.getCapabilities(options)
+## `Vision.getCapabilities(options?)`
 
-签名
+查询 OCR provider、默认语言和可用状态。
 
-```js
-const caps = await Vision.getCapabilities(options)
+**签名**
+```ts
+Vision.getCapabilities(options?: { provider?: string }): Promise<OpenDeskVisionCapabilities>;
 ```
 
-作用
-- 查看 provider 是否已实现
-- 查看默认 provider / 默认 lang
-- 查看某 provider 是否已配置 endpoint
-- 适合脚本启动时做自检
+**参数**
 
-参数
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `options.provider` | `string` | 否 | 未设置 | 只查看指定 provider。 |
 
-| 参数 | 类型 | 说明 |
-| --- | --- | --- |
-| options.provider | string | 可选，只查看某个 provider |
+**返回值**
 
-返回值示例
+`OpenDeskVisionCapabilities`，包含 `defaultProvider`、`defaultLang`、`providers` 与 `providerCount`。
 
-```js
-{
-  defaultProvider: 'apple',
-  defaultLang: 'zh-Hans',
-  providers: [
-    {
-      provider: 'apple',
-      alias: 'apple',
-      aliases: ['apple', 'applevision', 'macos', 'macosvision'],
-      isDefault: true,
-      implemented: true,
-      switchReady: true,
-      defaultLang: 'ch',
-      supportedLangs: ['ch', 'chinese_cht', 'en', 'ja', 'ko'],
-      endpointRequired: false,
-      endpointConfigured: true,
-      available: true,
-      recognitionLevelDefault: 'accurate'
-    }
-  ],
-  providerCount: 1
-}
-```
+**行为与错误**
 
-示例
+只读取 capability，不执行 OCR。provider capability 可区分 `implemented`、`available`、endpoint 配置等状态。
 
+**示例**
 ```js
 const caps = await Vision.getCapabilities({ provider: 'apple' });
-console.log(JSON.stringify(caps, null, 2));
+console.log(caps.providers[0]);
 ```
 
-## OCR：旧对象与当前可用范围
+## `Vision.analyzeLayout(options)`
 
-除了 Vision，当前项目还注入了 `OCR`：
+分析一张图像中的通用区域与分隔线结构。
 
-## OCR.extractText(image, lang)
+**签名**
+```ts
+Vision.analyzeLayout(options: { image: OpenDeskImageInput; [key: string]: unknown }): OpenDeskVisionLayoutResult;
+```
 
-签名
+**参数**
 
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `options.image` | `OpenDeskImageInput` | 是 | 无 | Runtime 支持的图像输入。 |
+| `options` | `object` | 是 | 无 | 其他布局分析选项以当前 Runtime 合同为准。 |
+
+**返回值**
+
+`OpenDeskVisionLayoutResult`，包含检测到的区域和分隔线信息。
+
+**行为与错误**
+
+不依赖 OCR provider，不产生桌面输入。无效图像或选项会明确失败。
+
+**示例**
 ```js
-const text = await OCR.extractText(image, lang)
+const layout = Vision.analyzeLayout({ image });
+console.log(layout.regions, layout.separators);
 ```
 
-说明
-- 基于本地 `tesseract` CLI
-- 输入支持文件路径或 data URL
-- 默认语言：`chi_sim+eng`
-- 会尝试多组 PSM 与增强图像路径
+## `Vision.annotateRegions(options)`
 
-示例
+将区域/分隔线标注到图像并返回或保存 PNG。
 
+**签名**
+```ts
+Vision.annotateRegions(options: OpenDeskVisionAnnotateOptions): OpenDeskImageResult;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `options.image` | `OpenDeskImageInput` | 是 | 无 | 输入图像。 |
+| `options.regions` | `array` | 否 | 未设置 | 要标注的区域。 |
+| `options.separators` | `array` | 否 | 未设置 | 要标注的分隔线。 |
+| `options.outputPath` | `string` | 否 | 未设置 | 可选输出路径。 |
+
+**返回值**
+
+当前 Runtime 的标注图像结果。
+
+**行为与错误**
+
+不依赖 OCR provider。无效图像、标注数据或输出路径明确失败。
+
+**示例**
+```js
+const annotated = Vision.annotateRegions({
+  image,
+  regions: layout.regions,
+  separators: layout.separators,
+});
+```
+
+**Secondary OCR API**
+
+## `OCR.extractText(image, lang?)`
+
+使用本地 Tesseract CLI 抽取纯文本。
+
+**签名**
+```ts
+OCR.extractText(image: string, lang?: string): Promise<string>;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `image` | `string` | 是 | 无 | 文件路径或 data URL。 |
+| `lang` | `string` | 否 | `'chi_sim+eng'` | Tesseract 语言。 |
+
+**返回值**
+
+`Promise<string>`。
+
+**行为与错误**
+
+依赖本地 Tesseract；不可用、图片无效或 OCR 失败时 reject。需要结构化 lines/bbox/provider 管理时使用 `Vision.runOCR()`。
+
+**示例**
 ```js
 const text = await OCR.extractText('./.runtime/examples/vision-input.png', 'chi_sim+eng');
 console.log(text);
 ```
 
-推荐使用策略
-- 需要结构化 lines / bbox / provider 管理：用 Vision
-- 只想快速本地抽纯文本：可用 OCR.extractText
+## 错误
 
-## Vision / OCR：常见错误
+常见失败包括 provider 未实现/未配置、Apple Vision 不可用、Tesseract 不可用和图片输入无效。调用方应依据结构化错误或 capability 判断，不通过 OCR 文本内容推断 backend 是否可用。
 
-**paddle 未配置 endpoint**
+## 平台与能力
 
-```text
-PADDLE_OCR_ENDPOINT is required for paddle provider
-```
-
-**Apple Vision helper 未随程序打包**
-
-```text
-Apple Vision OCR is unavailable
-```
-
-从仓库根目录执行 `make build`（portable CLI）或
-`./scripts/build_macos_app.sh`（App）后再运行；不要用未打包 helper 的临时 `go run` 作为 macOS OCR 发布方式。
-
-**provider 未实现**
-
-```text
-ocr provider 'openai' is reserved but not implemented in current build
-```
-
-**provider 名不支持**
-
-```text
-unsupported ocr provider: xxx
-```
-
-**图片输入无效**
-- imagePath 不存在
-- base64 非法
-- image 字段格式不对
-
-## Vision / OCR：实战建议
-
-**推荐流程：Geometry/UI 查找 -> 激活 -> 业务状态验证**
-
-```js
-const win = await window.getActiveWindow();
-await UI.tapText('确定', {
-  within: win,
-  provider: 'apple',
-  match: 'contains',
-  minConfidence: 0.4,
-});
-await UI.waitText('操作成功', { within: win, timeout: 10000 });
-```
-
-**先检查能力再运行**
-
-```js
-const caps = await Vision.getCapabilities({ provider: 'apple' });
-const provider = caps.providers[0];
-
-if (!provider.implemented) {
-  throw new Error('provider 未实现');
-}
-
-if (!provider.available) {
-	throw new Error('Apple Vision helper 未就绪，请重新执行 macOS 构建');
-}
-```
-
-## Vision / OCR：兼容说明
-
-旧文档对视觉能力覆盖较弱。
-
-当前项目中，Vision 是正式一等能力，且应优先纳入用户主文档，因为它直接影响：
-- 基于截图找按钮
-- 非 DOM 场景文本识别
-- 桌面应用自动化可用性
+Apple Vision 仅在受支持的 macOS 构建中可用；Paddle 需要 endpoint；Tesseract 依赖本地 CLI。实际可用性始终以 `Vision.getCapabilities()` 为准。
