@@ -219,7 +219,7 @@
       },
       "menu": {
         "status": "experimental-local",
-        "doc": "desktop-ui-menu.md",
+        "doc": "desktop-ui.md",
         "scope": "Requires a resolved OpenDeskWindowInfo or {app: OpenDeskAppTarget, root: menuBar}; read methods never expand or focus menus.",
         "path": "A non-empty complete hierarchy path whose segments are non-empty strings or exact {name?,identifier?} AND selectors.",
         "action": "tapMenuItem serially expands freshly observed unique levels under one total deadline, then submits invoke/select/setChecked at most once through the same AccessibilityRuntime.",
@@ -893,7 +893,6 @@
       "app.md",
       "accessibility.md",
       "desktop-ui.md",
-      "desktop-ui-menu.md",
       "audio.md",
       "window.md",
       "screen.md"
