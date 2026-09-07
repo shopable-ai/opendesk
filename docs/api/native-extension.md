@@ -66,7 +66,7 @@ machine-wide root、cwd、`PATH`、源码祖先或脚本所在目录。
 [`examples/native-extensions/README.md`](../../examples/native-extensions/README.md)，业务脚本源文件是
 [`quickstart.js`](../../examples/native-extensions/quickstart.js)。
 
-### 本仓库 `dist/opendesk` 的直接验证
+### 本仓库 dist/opendesk 的直接验证
 
 以下准备命令从仓库根目录执行，且只把本地验证产物放到 `dist/`。`PROGRAM_DIR` 必须与实际执行
 的 CLI 目录一致；不要把 bundle 放到仓库根目录的 `native-extensions/`、`examples/` 或脚本所在
@@ -521,7 +521,7 @@ codesign --verify --deep --strict "$DIST/OpenDesk.app"
 codesign 后修改 `.app/Contents/Resources`；App 内 staging 是应用发布者在 codesign 前完成的
 工作。
 
-## NativeExtensions：可选 `.d.ts`
+## NativeExtensions：可选 .d.ts
 
 `types/index.d.ts` 只服务编辑器，不参与 discovery、digest 信任或 process execution。V1 不自动合并插件类型。插件作者可发布声明，用户在项目中显式 include：
 

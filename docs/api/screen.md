@@ -49,7 +49,7 @@ order: 5
 
 当前 recording target 支持 `display` / `region`，输出必须是不存在的绝对 `.mov` 路径，父目录已存在；当前 `fps` 只支持 `30`。execution teardown 会停止并 finalize 未结束录制。
 
-## `Screen.getWidth()`
+## Screen.getWidth()
 
 返回主显示器逻辑宽度。
 
@@ -75,7 +75,7 @@ Screen.getWidth(): number;
 console.log(Screen.getWidth());
 ```
 
-## `Screen.getHeight()`
+## Screen.getHeight()
 
 返回主显示器逻辑高度。
 
@@ -101,7 +101,7 @@ Screen.getHeight(): number;
 console.log(Screen.getHeight());
 ```
 
-## `Screen.getDisplays()`
+## Screen.getDisplays()
 
 列出当前显示器 snapshot。
 
@@ -127,7 +127,7 @@ Screen.getDisplays(): OpenDeskDisplayInfo[];
 console.log(Screen.getDisplays());
 ```
 
-## `Screen.getPrimaryDisplay()`
+## Screen.getPrimaryDisplay()
 
 返回当前主显示器。
 
@@ -153,7 +153,7 @@ Screen.getPrimaryDisplay(): OpenDeskDisplayInfo;
 const display = Screen.getPrimaryDisplay();
 ```
 
-## `Screen.getDisplay(index)`
+## Screen.getDisplay(index)
 
 按 1-based index 返回当前显示器。
 
@@ -181,7 +181,7 @@ Screen.getDisplay(index: number): OpenDeskDisplayInfo | null;
 const second = Screen.getDisplay(2);
 ```
 
-## `Screen.getVirtualBounds()`
+## Screen.getVirtualBounds()
 
 返回全部显示器联合形成的虚拟桌面边界。
 
@@ -207,7 +207,7 @@ Screen.getVirtualBounds(): OpenDeskScreenRegion;
 console.log(Screen.getVirtualBounds());
 ```
 
-## `Screen.getDisplayCapabilities()`
+## Screen.getDisplayCapabilities()
 
 查询 display identity、brightness 与 mode 能力。
 
@@ -233,7 +233,7 @@ Screen.getDisplayCapabilities(): OpenDeskDisplayCapabilities;
 console.log(Screen.getDisplayCapabilities());
 ```
 
-## `Screen.getDisplayMode(displayId)`
+## Screen.getDisplayMode(displayId)
 
 读取指定 display 当前 mode。
 
@@ -261,7 +261,7 @@ Screen.getDisplayMode(displayId: string): OpenDeskDisplayMode;
 const mode = Screen.getDisplayMode(Screen.getPrimaryDisplay().id);
 ```
 
-## `Screen.listDisplayModes(displayId)`
+## Screen.listDisplayModes(displayId)
 
 枚举指定 display 的 mode metadata。
 
@@ -289,7 +289,7 @@ Screen.listDisplayModes(displayId: string): OpenDeskDisplayMode[];
 console.log(Screen.listDisplayModes(display.id));
 ```
 
-## `Screen.setDisplayMode(displayId, modeId)`
+## Screen.setDisplayMode(displayId, modeId)
 
 设置 display mode 并 readback 验证。
 
@@ -323,7 +323,7 @@ try {
 }
 ```
 
-## `Screen.pixel(x, y)`
+## Screen.pixel(x, y)
 
 读取一个全局屏幕像素颜色。
 
@@ -352,7 +352,7 @@ Screen.pixel(x: number, y: number): string;
 console.log(Screen.pixel(100, 100));
 ```
 
-## `Screen.pixels(points, scaled?)`
+## Screen.pixels(points, scaled?)
 
 批量读取多个屏幕点颜色。
 
@@ -381,7 +381,7 @@ Screen.pixels(points: Array<[number, number] | {x:number;y:number}>, scaled?: bo
 console.log(Screen.pixels([[100, 100], { x: 200, y: 200 }], true));
 ```
 
-## `Screen.screenshot(options?)`
+## Screen.screenshot(options?)
 
 `page.screenshot()` 的 alias。
 
@@ -409,7 +409,7 @@ Canonical method：`page.screenshot()`；没有第二套截图 backend/合同。
 await Screen.screenshot({ target: 'screen', returnType: 'base64' });
 ```
 
-## `Screen.selectRegion(options?)`
+## Screen.selectRegion(options?)
 
 打开原生区域选择器并返回一个显示器内的逻辑区域。
 
@@ -441,7 +441,7 @@ Screen.selectRegion(options?: OpenDeskSelectRegionOptions): Promise<OpenDeskSele
 const region = await Screen.selectRegion({ movable: true, resizable: true });
 ```
 
-## `Screen.startRecording(options)`
+## Screen.startRecording(options)
 
 录制显示器或区域到本地 `.mov`。
 
@@ -478,7 +478,7 @@ await page.waitForTimeout(1000);
 await recording.stop();
 ```
 
-## `Screen.getCaptureCapabilities()`
+## Screen.getCaptureCapabilities()
 
 查询区域选择、录屏、音频和帧流能力。
 

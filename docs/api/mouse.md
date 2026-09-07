@@ -33,7 +33,7 @@ order: 3
 
 macOS 发送全局输入通常需要 Accessibility 权限；截图验证另需 Screen Recording。`mouse.clickForPID()` 仅在启用 cgo 的 macOS 构建中可用，并且不会降级为普通全局点击。
 
-## `mouse.click(x, y, options?)`
+## mouse.click(x, y, options?)
 
 移动到全局屏幕点并执行一次或多次点击。
 
@@ -65,7 +65,7 @@ mouse.click(x: number, y: number, options?: OpenDeskMouseClickOptions): Promise<
 await mouse.click(400, 300, { button: 'left', clickCount: 2, delay: 80 });
 ```
 
-## `mouse.clickPoint(point, options?)`
+## mouse.clickPoint(point, options?)
 
 点击明确标记为 screen logical coordinate 的点。
 
@@ -95,7 +95,7 @@ const win = await window.getActiveWindow();
 await mouse.clickPoint(Geometry.center(win));
 ```
 
-## `mouse.clickForPID(processID, x, y)`
+## mouse.clickForPID(processID, x, y)
 
 在 macOS 上对指定 PID 的可按压 Accessibility 元素执行一次 `AXPress`。
 
@@ -126,7 +126,7 @@ const active = await window.getActiveWindow();
 await mouse.clickForPID(active.pid, point.x, point.y);
 ```
 
-## `mouse.move(x, y, options?)`
+## mouse.move(x, y, options?)
 
 移动鼠标指针到全局坐标。
 
@@ -156,7 +156,7 @@ mouse.move(x: number, y: number, options?: OpenDeskMouseMoveOptions): Promise<vo
 await mouse.move(900, 300, { steps: 30 });
 ```
 
-## `mouse.down(options?)`
+## mouse.down(options?)
 
 按下指定鼠标键。
 
@@ -184,7 +184,7 @@ mouse.down(options?: OpenDeskMouseButtonOptions): Promise<void>;
 await mouse.down({ button: 'left' });
 ```
 
-## `mouse.up(options?)`
+## mouse.up(options?)
 
 释放指定鼠标键。
 
@@ -212,7 +212,7 @@ mouse.up(options?: OpenDeskMouseButtonOptions): Promise<void>;
 await mouse.up({ button: 'left' });
 ```
 
-## `mouse.getPos()`
+## mouse.getPos()
 
 读取当前指针的全局虚拟桌面坐标。
 
@@ -239,7 +239,7 @@ const position = mouse.getPos();
 console.log(position.x, position.y);
 ```
 
-## `mouse.wheel(options?)`
+## mouse.wheel(options?)
 
 在当前指针位置发送滚轮输入。
 

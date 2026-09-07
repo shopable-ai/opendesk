@@ -36,7 +36,7 @@ order: 4
 
 `pointPercent()` / `regionPercent()` 使用 `0..100`，不是 `0..1`。Geometry 只做当前快照计算；窗口移动或 resize 后应重新读取窗口并重新计算。
 
-## `Geometry.rect(target)`
+## Geometry.rect(target)
 
 将目标正规化为 tagged screen region。
 
@@ -64,7 +64,7 @@ Geometry.rect(target: OpenDeskGeometryTarget): OpenDeskScreenRegion;
 const bounds = Geometry.rect(await window.getActiveWindow());
 ```
 
-## `Geometry.center(target)`
+## Geometry.center(target)
 
 返回目标内部中心点击点。
 
@@ -92,7 +92,7 @@ Geometry.center(target: OpenDeskGeometryTarget): OpenDeskScreenPoint;
 await mouse.clickPoint(Geometry.center(win));
 ```
 
-## `Geometry.pointOffset(target, x, y)`
+## Geometry.pointOffset(target, x, y)
 
 从目标左上角按逻辑坐标偏移得到点。
 
@@ -122,7 +122,7 @@ Geometry.pointOffset(target: OpenDeskGeometryTarget, x: number, y: number): Open
 const point = Geometry.pointOffset(win, 24, 18);
 ```
 
-## `Geometry.pointPercent(target, xPercent, yPercent)`
+## Geometry.pointPercent(target, xPercent, yPercent)
 
 按目标宽高百分比得到点。
 
@@ -152,7 +152,7 @@ Geometry.pointPercent(target: OpenDeskGeometryTarget, xPercent: number, yPercent
 const middle = Geometry.pointPercent(win, 50, 50);
 ```
 
-## `Geometry.regionOffset(target, region)`
+## Geometry.regionOffset(target, region)
 
 按逻辑坐标定义子区域。
 
@@ -181,7 +181,7 @@ Geometry.regionOffset(target: OpenDeskGeometryTarget, region: OpenDeskGeometryOf
 const content = Geometry.regionOffset(win, { left: 0, top: 48, width: win.width, height: win.height - 48 });
 ```
 
-## `Geometry.regionPercent(target, region)`
+## Geometry.regionPercent(target, region)
 
 按 `0..100` 百分比定义子区域。
 
@@ -210,7 +210,7 @@ Geometry.regionPercent(target: OpenDeskGeometryTarget, region: OpenDeskGeometryP
 const keypad = Geometry.regionPercent(win, { left: 0, top: 35, width: 100, height: 65 });
 ```
 
-## `Geometry.regionByEdges(target, options)`
+## Geometry.regionByEdges(target, options)
 
 用边距和固定/拉伸尺寸确定子区域。
 
@@ -244,7 +244,7 @@ Geometry.regionByEdges(target: OpenDeskGeometryTarget, options: OpenDeskGeometry
 const footer = Geometry.regionByEdges(win, { left: 16, right: 16, bottom: 12, height: 60 });
 ```
 
-## `Geometry.inset(target, margins)`
+## Geometry.inset(target, margins)
 
 向内缩目标并返回新区域。
 
@@ -273,7 +273,7 @@ Geometry.inset(target: OpenDeskGeometryTarget, margins: number | OpenDeskGeometr
 const inner = Geometry.inset(footer, { left: 12, right: 12, top: 4, bottom: 8 });
 ```
 
-## `Geometry.anchorPoint(target, position, options?)`
+## Geometry.anchorPoint(target, position, options?)
 
 返回九宫格标准锚点。
 
@@ -303,7 +303,7 @@ Geometry.anchorPoint(target: OpenDeskGeometryTarget, position: OpenDeskGeometryA
 const point = Geometry.anchorPoint(win, 'bottom-right', { inset: { right: 16, bottom: 12 } });
 ```
 
-## `Geometry.contains(region, point)`
+## Geometry.contains(region, point)
 
 判断点是否位于区域内。
 
@@ -332,7 +332,7 @@ Geometry.contains(region: OpenDeskScreenRegion, point: OpenDeskScreenPoint): boo
 console.log(Geometry.contains(footer, Geometry.center(footer)));
 ```
 
-## `Geometry.intersect(regionA, regionB)`
+## Geometry.intersect(regionA, regionB)
 
 返回两个 screen region 的交集。
 

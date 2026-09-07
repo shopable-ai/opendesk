@@ -59,7 +59,7 @@ const capabilities = Notifications.getCapabilities();
 
 `verified` 不会因为仓库保存过一次 smoke 就变成当前主机证明；真实运行仍要保存本次 Evidence。
 
-## `list(options?)`
+## list(options?)
 
 ```ts
 Notifications.list(options?: { includeContent?: boolean }): Promise<NotificationRecord[]>;
@@ -78,7 +78,7 @@ contentRedacted: true
 标题和正文可能包含敏感数据，因此只有显式传入 `{includeContent: true}` 才返回 `title` 和
 `message`。结果只包含仍位于 Notification Center 的 OpenDesk 自身通知，按投递时间倒序排列。
 
-## `waitFor(options?)`
+## waitFor(options?)
 
 ```ts
 Notifications.waitFor({
@@ -99,7 +99,7 @@ Notifications.waitFor({
 - worker 属于当前 JavaScript execution；取消或 teardown 会拒绝 Promise 并完成清理。
 - 多条相同标题/正文通知仍由系统生成的 opaque `id` 区分；最新投递优先。
 
-## `dismiss(target)`
+## dismiss(target)
 
 ```ts
 Notifications.dismiss(id: string): Promise<{id: string, dismissed: true}>;

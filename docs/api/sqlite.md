@@ -52,7 +52,7 @@ HTTP、MCP 和 Scheduler execution 不注入 `SQLite`，也没有任意 SQL 的 
 进程全局业务连接或另一个句柄的表；它可使用默认 `rw` 或 `rwc`，但没有既存文件可供 `ro` 打开，因此
 `mode: 'ro'` 会 reject。
 
-## 打开数据库：`SQLite.open(options)`
+## 打开数据库：SQLite.open(options)
 
 ```ts
 SQLite.open({
@@ -116,7 +116,7 @@ SQLite 本身没有 BOOLEAN 存储类：绑定的 `boolean` 按 SQLite INTEGER �
 
 ## 句柄方法
 
-### `db.exec(sql, params?, options?)`
+### db.exec(sql, params?, options?)
 
 ```ts
 db.exec(
@@ -128,7 +128,7 @@ db.exec(
 
 执行一条顶层 SQL 并返回受影响行数。参数始终由 SQLite 原生绑定，绝不通过字符串拼接生成 SQL。
 
-### `db.query(sql, params?, options?)`
+### db.query(sql, params?, options?)
 
 ```ts
 db.query(
@@ -150,7 +150,7 @@ db.query(
 为避免无界结果，query 默认最多返回 **10,000 行**和 **8 MiB** 的编码结果数据。`maxRows` 可设为
 1–100,000，`maxBytes` 可设为 1–64 MiB；任一上限触发时 reject `RESULT_LIMIT`，不会静默截断后返回部分行。
 
-### `db.batch(statements, options?)`
+### db.batch(statements, options?)
 
 ```ts
 db.batch([
@@ -169,7 +169,7 @@ db.batch([
 `ROLLBACK`、`SAVEPOINT`、`RELEASE` 等原始事务控制语句均被拒绝，尤其不能放进 batch 绕过 owner。`ATTACH`、
 `DETACH` 和 `VACUUM` 这类改变连接/文件边界的语句也不受此句柄支持。
 
-### `db.close()`
+### db.close()
 
 ```ts
 db.close(): Promise<void>

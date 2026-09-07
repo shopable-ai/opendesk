@@ -23,7 +23,7 @@ order: 12
 
 ## 公共约定
 
-### Scope：`within`
+### Scope：within
 
 `snapshot()` 与 `find()` 必须显式提供 `within`：
 
@@ -113,7 +113,7 @@ type OpenDeskAccessibilityAction =
 | `acknowledged` | 原生调用返回成功，但未证明业务完成。 |
 | `unknown` | 动作可能已提交，不能自动重做。 |
 
-## `Accessibility.getCapabilities()`
+## Accessibility.getCapabilities()
 
 同步读取 Accessibility 能力摘要，不扫描桌面也不触发系统授权提示。
 
@@ -146,7 +146,7 @@ if (!capabilities.hostAuthorization.enabled ||
 }
 ```
 
-## `Accessibility.snapshot(options)`
+## Accessibility.snapshot(options)
 
 在明确 scope 内读取普通、可序列化的语义元素树。
 
@@ -189,7 +189,7 @@ const result = await Accessibility.snapshot({
 console.log(result.complete, result.stats.nodes);
 ```
 
-## `Accessibility.find(selector, options)`
+## Accessibility.find(selector, options)
 
 完整搜索明确 scope，并且只在能证明唯一时返回受管元素引用。
 
@@ -230,7 +230,7 @@ const button = await Accessibility.find(
 );
 ```
 
-## `Accessibility.read(ref, options?)`
+## Accessibility.read(ref, options?)
 
 读取受管元素引用的白名单属性。
 
@@ -269,7 +269,7 @@ const details = await Accessibility.read(button, {
 });
 ```
 
-## `Accessibility.perform(ref, action, options?)`
+## Accessibility.perform(ref, action, options?)
 
 对受管元素最多提交一次原生动作。
 
@@ -307,7 +307,7 @@ const result = await Accessibility.perform(button, { action: 'invoke' });
 console.log(result.actionState);
 ```
 
-## `Accessibility.release(ref)`
+## Accessibility.release(ref)
 
 显式释放当前 execution 创建的元素引用。
 

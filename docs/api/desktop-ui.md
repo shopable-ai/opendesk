@@ -77,7 +77,7 @@ interface OpenDeskUITextOptions {
 
 `region` 与 `relativeTo` 只支持 `findTexts()`、`findText()`、`hasText()`、`tapText()` 和 `tapTexts()`，并要求 `within` 是明确的 `OpenDeskWindowInfo`。`waitText()`、`waitTextGone()` 或图片方法收到这两个字段时会在观察或输入前抛 `INVALID_ARGUMENT`。
 
-### Scope：`within`
+### Scope：within
 
 未指定 `within` 时，视觉 API 使用当前活动窗口。显式 scope 可为：
 
@@ -89,7 +89,7 @@ OpenDeskWindowInfo | OpenDeskDisplayInfo | OpenDeskScreenRegion
 
 如果 scope 横跨有效 scale 不同的显示器，当前版本抛 `UNSUPPORTED_MIXED_DPI_SCOPE`。不要传裸 `{x, y, width, height}` bbox。
 
-### `region`
+### region
 
 `region` 是显式窗口内的更严格搜索范围。
 
@@ -117,7 +117,7 @@ currentWin => Geometry.regionByEdges(currentWin, {
 
 动态规则必须同步返回 tagged `OpenDeskScreenRegion`。`Promise`、`null`、裸 bbox、image-space region 或非法数字均为 `INVALID_ARGUMENT`。
 
-### `relativeTo`
+### relativeTo
 
 `relativeTo` 使用**同一次截图、同一次 OCR** 中唯一的 exact 文本作为参照物。
 
@@ -201,7 +201,7 @@ interface OpenDeskUIMenuOptions {
 
 菜单 scope 不接受 Display、ScreenRegion、裸坐标或 Accessibility ref。App target 匹配多个实例时必须消歧；unresolved、关闭重建或前后身份不一致时安全失败。
 
-### 原生菜单 `path`
+### 原生菜单 path
 
 ```ts
 type OpenDeskUIMenuPathSegment =
@@ -241,7 +241,7 @@ screenBottom = logicalScope.y + (bbox.y + bbox.height) / scaleY
 
 使用窗口 scope 时，视觉 API 在截图前和返回/输入前重新验证窗口身份。动态范围允许在输入前最多完整重新观察一次；静态失效范围直接抛 `STALE_TARGET`。一旦鼠标或原生最终动作已经提交，Runtime 不会自动重复输入。
 
-## `UI.getCapabilities()`
+## UI.getCapabilities()
 
 返回当前 execution 的文本、图片、Accessibility 菜单与坐标映射能力摘要。
 
@@ -272,7 +272,7 @@ console.log(capabilities.text, capabilities.image, capabilities.accessibility);
 
 **Text APIs**
 
-## `UI.findTexts(text, options?)`
+## UI.findTexts(text, options?)
 
 返回当前观察中全部匹配文本。
 
@@ -311,7 +311,7 @@ const matches = await UI.findTexts('编辑', {
 });
 ```
 
-## `UI.findText(text, options?)`
+## UI.findText(text, options?)
 
 返回唯一匹配文本，拒绝未经显式消歧的多候选结果。
 
@@ -346,7 +346,7 @@ const target = await UI.findText('保存', { within: win });
 if (target) console.log(target.center);
 ```
 
-## `UI.hasText(text, options?)`
+## UI.hasText(text, options?)
 
 判断当前观察中是否存在匹配文本。
 
@@ -382,7 +382,7 @@ if (await UI.hasText('完成', { within: win })) {
 }
 ```
 
-## `UI.tapText(text, options?)`
+## UI.tapText(text, options?)
 
 查找唯一文本并最多提交一次鼠标点击。
 
@@ -419,7 +419,7 @@ await UI.tapText('确定', {
 });
 ```
 
-## `UI.tapTexts(texts, options?)`
+## UI.tapTexts(texts, options?)
 
 按顺序重新观察并点击多个文本。
 
@@ -457,7 +457,7 @@ await UI.tapTexts(['1', '6', '×', '3', '='], {
 });
 ```
 
-## `UI.waitText(text, options?)`
+## UI.waitText(text, options?)
 
 轮询等待唯一文本出现。
 
@@ -495,7 +495,7 @@ const target = await UI.waitText('完成', {
 });
 ```
 
-## `UI.waitTextGone(text, options?)`
+## UI.waitTextGone(text, options?)
 
 轮询等待匹配文本消失。
 
@@ -534,7 +534,7 @@ await UI.waitTextGone('加载中', {
 
 **Image APIs**
 
-## `UI.findImages(template, options?)`
+## UI.findImages(template, options?)
 
 返回当前观察中的全部图片模板候选。
 
@@ -571,7 +571,7 @@ const targets = await UI.findImages('./assets/save.png', {
 });
 ```
 
-## `UI.findImage(template, options?)`
+## UI.findImage(template, options?)
 
 返回唯一图片模板候选。
 
@@ -605,7 +605,7 @@ UI.findImage(
 const target = await UI.findImage('./assets/save.png', { within: win });
 ```
 
-## `UI.tapImage(template, options?)`
+## UI.tapImage(template, options?)
 
 查找唯一图片并最多提交一次鼠标点击。
 
@@ -644,7 +644,7 @@ await UI.tapImage('./assets/save.png', {
 
 **Native Menu APIs · Experimental**
 
-## `UI.getMenuItems(options)`
+## UI.getMenuItems(options)
 
 只读观察当前已经物化的原生菜单数据。
 
@@ -680,7 +680,7 @@ const observed = await UI.getMenuItems({
 console.log(observed.complete, observed.items);
 ```
 
-## `UI.findMenuItem(path, options)`
+## UI.findMenuItem(path, options)
 
 在完整只读观察中查找唯一原生菜单路径。
 
@@ -716,7 +716,7 @@ const item = await UI.findMenuItem(['File', 'Export', 'PDF'], {
 });
 ```
 
-## `UI.tapMenuItem(path, options)`
+## UI.tapMenuItem(path, options)
 
 逐层重新观察菜单并对最终唯一目标最多提交一次原生动作。
 

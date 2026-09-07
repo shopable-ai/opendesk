@@ -81,7 +81,7 @@ JavaScript 引擎上游的 Test262，也不按每个 ECMAScript 年份复制
 本表；引擎碰巧能运行但未列入和未测试的语法不属于稳定承诺。当前未把 ES2024 及之后版本列入作者
 基线。
 
-### 脚本级 `await` 与模块边界
+### 脚本级 await 与模块边界
 
 OpenDesk 允许在脚本文件顶层直接写 `await`，因为 Runtime 会把脚本主体放入受控的 async function
 执行；这不是 ES module 的 top-level await 语义。当前脚本入口没有公开的 ESM loader，不能使用静态
@@ -132,7 +132,7 @@ teardown 会停止接收新请求、取消队列、等待 native worker，并释
 Scheduler 默认关闭，禁用状态只允许 capability 摘要而不读取目标。该准入字段不能由脚本、环境变量或
 source label 升级，也不是完整 Runtime 沙箱。
 
-## 默认模式与 `-stack` 历史参数
+## 默认模式与 -stack 历史参数
 
 `-stack` 是为早期兼容实验保留的参数。省略它时，当前实现内部记录
 `Execution.stack === "legacy"`；这里的 `legacy` 只是默认 Runtime 的历史标签，不表示应为新

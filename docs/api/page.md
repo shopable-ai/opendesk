@@ -62,7 +62,7 @@ order: 2
 | `object` | `{path,mimeType,width,height,sizeBytes,source,backend}` |
 | `none` | `null` |
 
-## `page.screenshot(options?)`
+## page.screenshot(options?)
 
 截取活动窗口、整屏、指定显示器或明确 clip。
 
@@ -103,7 +103,7 @@ const path = await page.screenshot({
 });
 ```
 
-## `page.captureScreen(options?)`
+## page.captureScreen(options?)
 
 提供与 `page.screenshot()` 兼容的直接屏幕抓取入口。
 
@@ -131,7 +131,7 @@ page.captureScreen(options?: OpenDeskScreenshotOptions): Promise<OpenDeskScreens
 const image = await page.captureScreen({ target: 'screen', returnType: 'base64' });
 ```
 
-## `page.goto(url)`
+## page.goto(url)
 
 将 URL 交给操作系统默认打开方式。
 
@@ -159,7 +159,7 @@ page.goto(url: string): Promise<void>;
 await page.goto('https://example.com');
 ```
 
-## `page.openURL(url)`
+## page.openURL(url)
 
 `page.goto()` 的语义别名。
 
@@ -187,7 +187,7 @@ Canonical method：`page.goto()`。行为和错误与 `goto()` 一致。
 await page.openURL('https://example.com');
 ```
 
-## `page.openApp(appName)`
+## page.openApp(appName)
 
 按当前平台应用启动规则打开本地应用。
 
@@ -215,7 +215,7 @@ page.openApp(appName: string): Promise<void>;
 await page.openApp('Safari');
 ```
 
-## `page.openURLInApp(appName, url)`
+## page.openURLInApp(appName, url)
 
 请求指定应用打开 URL。
 
@@ -244,7 +244,7 @@ page.openURLInApp(appName: string, url: string): Promise<void>;
 await page.openURLInApp('Google Chrome', 'https://example.com');
 ```
 
-## `page.title()`
+## page.title()
 
 读取当前活动窗口标题。
 
@@ -270,7 +270,7 @@ page.title(): string;
 console.log(page.title());
 ```
 
-## `page.url()`
+## page.url()
 
 返回 Page 内部 executable 字段。
 
@@ -296,7 +296,7 @@ page.url(): string;
 console.log(page.url());
 ```
 
-## `page.waitFor(value, options?)`
+## page.waitFor(value, options?)
 
 根据第一个参数分派固定等待或条件等待。
 
@@ -326,7 +326,7 @@ await page.waitFor(1200);
 await page.waitFor(() => page.title().includes('Safari'), { timeout: 10000, polling: 200 });
 ```
 
-## `page.waitForTimeout(ms, options?)`
+## page.waitForTimeout(ms, options?)
 
 使用 Runtime timer 非阻塞等待固定时间。
 
@@ -355,7 +355,7 @@ page.waitForTimeout(ms: number, options?: { signal?: AbortSignal | null }): Prom
 await page.waitForTimeout(1000);
 ```
 
-## `page.waitForFunction(fn, options?, ...args)`
+## page.waitForFunction(fn, options?, ...args)
 
 轮询条件函数，保持单一在途调用并使用独立 deadline。
 
@@ -390,7 +390,7 @@ const win = await page.waitForFunction(async title => {
 }, { timeout: 10000, polling: 200 }, 'Safari');
 ```
 
-## `page.waitForAll(values, options?)`
+## page.waitForAll(values, options?)
 
 有界等待一组值或 Promise，保持输入顺序。
 
@@ -423,7 +423,7 @@ const [title, active] = await page.waitForAll([
 ], { timeout: 5000 });
 ```
 
-## `page.checkPermissions(options?)`
+## page.checkPermissions(options?)
 
 读取所需桌面权限的当前快照。
 
@@ -452,7 +452,7 @@ page.checkPermissions(options?: OpenDeskPermissionOptions): Promise<OpenDeskPerm
 const permissions = await page.checkPermissions({ capabilities: ['screenCapture', 'accessibility'] });
 ```
 
-## `page.requestPermissions(options?)`
+## page.requestPermissions(options?)
 
 检查权限并按选项引导系统授权流程。
 
@@ -484,7 +484,7 @@ page.requestPermissions(options?: OpenDeskPermissionRequestOptions): Promise<Ope
 await page.requestPermissions({ capabilities: ['screenCapture', 'accessibility'], openSettings: true });
 ```
 
-## `page.ensurePermissions(options?)`
+## page.ensurePermissions(options?)
 
 严格确保所需权限已满足。
 
@@ -512,7 +512,7 @@ page.ensurePermissions(options?: OpenDeskPermissionRequestOptions): Promise<Open
 await page.ensurePermissions({ capabilities: ['screenCapture', 'accessibility'] });
 ```
 
-## `page.checkScreenshotPermissions()`
+## page.checkScreenshotPermissions()
 
 检查截图相关系统权限。
 
@@ -538,7 +538,7 @@ page.checkScreenshotPermissions(): Promise<OpenDeskPermissionResult>;
 console.log(await page.checkScreenshotPermissions());
 ```
 
-## `page.openMacOSPrivacySettings(section)`
+## page.openMacOSPrivacySettings(section)
 
 打开指定 macOS Privacy 设置页。
 
@@ -566,7 +566,7 @@ page.openMacOSPrivacySettings(section: string): Promise<void>;
 await page.openMacOSPrivacySettings('accessibility');
 ```
 
-## `page.requestMacPermissions(options)`
+## page.requestMacPermissions(options)
 
 请求或检查 macOS 权限组合。
 
@@ -595,7 +595,7 @@ const result = await page.requestMacPermissions({ screenCapture: true, accessibi
 console.log(result);
 ```
 
-## `page.requestMacAutomationPermission(targetApp)`
+## page.requestMacAutomationPermission(targetApp)
 
 触发对指定目标应用的 macOS AppleEvents Automation 权限请求。
 

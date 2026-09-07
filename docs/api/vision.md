@@ -45,7 +45,7 @@ macOS 默认 provider 为环境配置值或 `apple`；其他平台为环境配�
 
 `Vision.runOCR()` / `Vision.detectUI()` 返回的 bbox 是输入图片的 image-pixel 坐标，不是可直接传给 `mouse` 的 screen logical coordinate。需要点击外部桌面目标时使用 `UI.findText()` / `UI.tapText()`。
 
-## `Vision.runOCR(options)`
+## Vision.runOCR(options)
 
 对图片执行 OCR，并返回全文与逐行结构。
 
@@ -88,7 +88,7 @@ const result = await Vision.runOCR({ imagePath, provider: 'apple', lang: 'ch' })
 console.log(result.text);
 ```
 
-## `Vision.detectUI(options)`
+## Vision.detectUI(options)
 
 兼容保留的 OCR 文本候选 helper。
 
@@ -125,7 +125,7 @@ const result = await Vision.detectUI({ imagePath, targetText: '登录', matchMod
 console.log(result.elements);
 ```
 
-## `Vision.getCapabilities(options?)`
+## Vision.getCapabilities(options?)
 
 查询 OCR provider、默认语言和可用状态。
 
@@ -154,7 +154,7 @@ const caps = await Vision.getCapabilities({ provider: 'apple' });
 console.log(caps.providers[0]);
 ```
 
-## `Vision.analyzeLayout(options)`
+## Vision.analyzeLayout(options)
 
 分析一张图像中的通用区域与分隔线结构。
 
@@ -184,7 +184,7 @@ const layout = Vision.analyzeLayout({ image });
 console.log(layout.regions, layout.separators);
 ```
 
-## `Vision.annotateRegions(options)`
+## Vision.annotateRegions(options)
 
 将区域/分隔线标注到图像并返回或保存 PNG。
 
@@ -221,7 +221,7 @@ const annotated = Vision.annotateRegions({
 
 **Secondary OCR API**
 
-## `OCR.extractText(image, lang?)`
+## OCR.extractText(image, lang?)
 
 使用本地 Tesseract CLI 抽取纯文本。
 

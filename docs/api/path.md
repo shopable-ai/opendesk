@@ -33,7 +33,7 @@ order: 15
 
 所有路径参数必须为 string。方法只计算字符串：不检查文件存在、不展开 `~` / 环境变量、不解析 symlink、快捷方式或挂载点。文件 I/O 使用 [`File`](file.md)。
 
-## `path.sep`
+## path.sep
 
 当前平台目录分隔符。
 
@@ -59,7 +59,7 @@ POSIX 为 `'/'`，Windows 为 `'\\'`。
 console.log(path.sep);
 ```
 
-## `path.delimiter`
+## path.delimiter
 
 当前平台路径列表分隔符。
 
@@ -85,7 +85,7 @@ POSIX 为 `':'`，Windows 为 `';'`。
 console.log(path.delimiter);
 ```
 
-## `path.join(...parts)`
+## path.join(...parts)
 
 连接非空路径片段并规范化。
 
@@ -113,7 +113,7 @@ path.join(...parts: string[]): string;
 const log = path.join(Execution.artifactDir, 'result.log');
 ```
 
-## `path.resolve(...parts)`
+## path.resolve(...parts)
 
 从右向左解析绝对路径。
 
@@ -141,7 +141,7 @@ path.resolve(...parts: string[]): string;
 const config = path.resolve('config', 'app.json');
 ```
 
-## `path.normalize(value)`
+## path.normalize(value)
 
 规范化路径字符串。
 
@@ -169,7 +169,7 @@ path.normalize(value: string): string;
 console.log(path.normalize('a/./b/../c'));
 ```
 
-## `path.dirname(value)`
+## path.dirname(value)
 
 返回路径的父目录部分。
 
@@ -197,7 +197,7 @@ path.dirname(value: string): string;
 console.log(path.dirname('/a/b/file.txt'));
 ```
 
-## `path.basename(value, suffix?)`
+## path.basename(value, suffix?)
 
 返回最后一个路径段。
 
@@ -226,7 +226,7 @@ path.basename(value: string, suffix?: string): string;
 console.log(path.basename('/a/b/file.txt', '.txt'));
 ```
 
-## `path.extname(value)`
+## path.extname(value)
 
 返回最后路径段的扩展名。
 
@@ -254,7 +254,7 @@ path.extname(value: string): string;
 console.log(path.extname('archive.tar.gz'));
 ```
 
-## `path.relative(from, to)`
+## path.relative(from, to)
 
 返回两个路径间的平台原生相对路径。
 
@@ -283,7 +283,7 @@ path.relative(from: string, to: string): string;
 console.log(path.relative(Execution.workdir, Execution.artifactDir));
 ```
 
-## `path.isAbsolute(value)`
+## path.isAbsolute(value)
 
 判断字符串是否是当前平台的绝对路径。
 

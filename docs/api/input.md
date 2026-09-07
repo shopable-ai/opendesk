@@ -31,7 +31,7 @@ OpenDesk 默认注入 `keyboard` 与 `touchscreen`，并提供 `page.keyboard` /
 
 **Keyboard APIs**
 
-## `keyboard.type(text)`
+## keyboard.type(text)
 
 向当前输入目标输入文本。
 
@@ -59,7 +59,7 @@ keyboard.type(text: string): Promise<void>;
 await keyboard.type('hello world');
 ```
 
-## `keyboard.press(key)`
+## keyboard.press(key)
 
 按下并释放单个键。
 
@@ -88,7 +88,7 @@ await keyboard.press('Enter');
 await keyboard.press('ArrowDown');
 ```
 
-## `keyboard.down(key)`
+## keyboard.down(key)
 
 发送一个键的按下事件并保持按下状态。
 
@@ -121,7 +121,7 @@ try {
 }
 ```
 
-## `keyboard.up(key)`
+## keyboard.up(key)
 
 释放一个按下的键。
 
@@ -149,7 +149,7 @@ keyboard.up(key: string): Promise<void>;
 await keyboard.up('Shift');
 ```
 
-## `keyboard.combination(...keys)`
+## keyboard.combination(...keys)
 
 按顺序按下所有键，再逆序释放，形成常用组合键。
 
@@ -179,7 +179,7 @@ await keyboard.combination('Meta', 'C');
 
 **Touchscreen API**
 
-## `touchscreen.tap(x, y)`
+## touchscreen.tap(x, y)
 
 在全局坐标模拟一次简单 tap。
 

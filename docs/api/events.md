@@ -54,7 +54,7 @@ interface OpenDeskDesktopEvent {
 
 subscription 属于当前 execution；正常结束、异常、timeout、取消和 Runtime teardown 都会关闭 backend handle。`Events.on()` 会让 execution 保持活动，直到 unsubscribe、取消或 execution timeout。
 
-## `Events.on(type, callback)`
+## Events.on(type, callback)
 
 持续订阅一个支持的桌面事件类型。
 
@@ -86,7 +86,7 @@ const subscription = Events.on('window.focused', event => {
 subscription.unsubscribe();
 ```
 
-## `Events.once(type, options?)`
+## Events.once(type, options?)
 
 等待下一次指定事件并自动结束订阅。
 
@@ -116,7 +116,7 @@ const changed = await Events.once('clipboard.changed', { timeout: 5000 });
 console.log(changed.data.changeCount);
 ```
 
-## `Events.getCapabilities()`
+## Events.getCapabilities()
 
 返回桌面事件 watcher 的机器可读能力摘要。
 

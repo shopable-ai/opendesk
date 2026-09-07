@@ -73,7 +73,7 @@ interface OpenDeskWindowInfo {
 
 macOS/Windows 都使用平台提供的虚拟桌面逻辑坐标，副显示器可以出现负坐标。窗口位置不可跨机器缓存。Space / virtual desktop 管理不属于本 API。
 
-## `window.getCapabilities()`
+## window.getCapabilities()
 
 返回当前平台机器可读窗口能力矩阵。
 
@@ -99,7 +99,7 @@ window.getCapabilities(): OpenDeskWindowCapabilities;
 console.log(window.getCapabilities());
 ```
 
-## `window.getActiveWindow()`
+## window.getActiveWindow()
 
 返回当前活动窗口信息。
 
@@ -126,7 +126,7 @@ const info = await window.getActiveWindow();
 console.log(info.title, info.pid);
 ```
 
-## `window.getWindowByTitle(title)`
+## window.getWindowByTitle(title)
 
 按当前标题解析唯一窗口。
 
@@ -154,7 +154,7 @@ window.getWindowByTitle(title: string): Promise<OpenDeskWindowInfo>;
 const chrome = await window.getWindowByTitle('Google Chrome');
 ```
 
-## `window.focus(title)`
+## window.focus(title)
 
 聚焦唯一标题窗口。
 
@@ -182,7 +182,7 @@ macOS 可能依赖 Accessibility/System Events；Windows 受 foreground-lock pol
 await window.focus('Safari');
 ```
 
-## `window.setWindowBounds(title, x, y, width, height)`
+## window.setWindowBounds(title, x, y, width, height)
 
 一次设置窗口位置和大小。
 
@@ -214,7 +214,7 @@ window.setWindowBounds(title: string, x: number, y: number, width: number, heigh
 await window.setWindowBounds('Safari', 100, 80, 1280, 900);
 ```
 
-## `window.setWidth(title, width)`
+## window.setWidth(title, width)
 
 只修改目标窗口宽度。
 
@@ -243,7 +243,7 @@ window.setWidth(title: string, width: number): Promise<void>;
 await window.setWidth('Safari', 1200);
 ```
 
-## `window.setHeight(title, height)`
+## window.setHeight(title, height)
 
 只修改目标窗口高度。
 
@@ -272,7 +272,7 @@ window.setHeight(title: string, height: number): Promise<void>;
 await window.setHeight('Safari', 900);
 ```
 
-## `window.maximize(title)`
+## window.maximize(title)
 
 最大化唯一标题窗口。
 
@@ -300,7 +300,7 @@ window.maximize(title: string): Promise<void>;
 await window.maximize('Safari');
 ```
 
-## `window.minimize(title)`
+## window.minimize(title)
 
 最小化唯一标题窗口。
 
@@ -328,7 +328,7 @@ window.minimize(title: string): Promise<void>;
 await window.minimize('Safari');
 ```
 
-## `window.restore(title)`
+## window.restore(title)
 
 恢复唯一标题窗口。
 
@@ -356,7 +356,7 @@ window.restore(title: string): Promise<void>;
 await window.restore('Safari');
 ```
 
-## `window.restoreByPID(pid)`
+## window.restoreByPID(pid)
 
 按 PID 恢复目标进程窗口。
 
@@ -384,7 +384,7 @@ PID 不存在、平台不支持或 backend 失败时 reject。
 await window.restoreByPID(12345);
 ```
 
-## `window.minimizeByPID(pid)`
+## window.minimizeByPID(pid)
 
 按 PID 最小化目标进程窗口。
 
@@ -412,7 +412,7 @@ window.minimizeByPID(pid: number): Promise<void>;
 await window.minimizeByPID(12345);
 ```
 
-## `window.maximizeByPID(pid)`
+## window.maximizeByPID(pid)
 
 按 PID 最大化目标进程窗口。
 
@@ -440,7 +440,7 @@ window.maximizeByPID(pid: number): Promise<void>;
 await window.maximizeByPID(12345);
 ```
 
-## `window.closeWindow(title)`
+## window.closeWindow(title)
 
 关闭唯一标题窗口。
 
@@ -468,7 +468,7 @@ window.closeWindow(title: string): Promise<void>;
 await window.closeWindow('Untitled - TextEdit');
 ```
 
-## `window.closeActiveWindow()`
+## window.closeActiveWindow()
 
 关闭当前活动窗口。
 
@@ -494,7 +494,7 @@ window.closeActiveWindow(): Promise<void>;
 await window.closeActiveWindow();
 ```
 
-## `window.kill(processId)`
+## window.kill(processId)
 
 直接终止指定 PID 的进程。
 
@@ -523,7 +523,7 @@ const info = await window.getActiveWindow();
 await window.kill(info.pid);
 ```
 
-## `window.title()`
+## window.title()
 
 同步返回当前活动窗口标题。
 
@@ -549,7 +549,7 @@ window.title(): string;
 console.log(window.title());
 ```
 
-## `window.getTitle(selector)`
+## window.getTitle(selector)
 
 读取指定窗口标题。
 
@@ -577,7 +577,7 @@ window.getTitle(selector: string): Promise<string>;
 console.log(await window.getTitle('Notes'));
 ```
 
-## `window.content()`
+## window.content()
 
 同步读取当前聚焦窗口可访问文本内容。
 
@@ -603,7 +603,7 @@ window.content(): string;
 console.log(window.content());
 ```
 
-## `window.getContent(selector)`
+## window.getContent(selector)
 
 读取指定窗口可访问文本内容。
 
@@ -631,7 +631,7 @@ window.getContent(selector: string): Promise<string>;
 console.log(await window.getContent('Notes'));
 ```
 
-## `window.list()`
+## window.list()
 
 返回当前可枚举窗口 snapshot。
 
@@ -658,7 +658,7 @@ const items = await window.list();
 console.log(items.length);
 ```
 
-## `window.getFocusWindow()`
+## window.getFocusWindow()
 
 返回当前拥有焦点的窗口。
 
@@ -684,7 +684,7 @@ window.getFocusWindow(): Promise<OpenDeskWindowInfo>;
 console.log(await window.getFocusWindow());
 ```
 
-## `window.setAlwaysOnTop(title, alwaysOnTop)`
+## window.setAlwaysOnTop(title, alwaysOnTop)
 
 设置或取消窗口置顶。
 
@@ -713,7 +713,7 @@ window.setAlwaysOnTop(title: string, alwaysOnTop: boolean): Promise<void>;
 await window.setAlwaysOnTop('Tool', true);
 ```
 
-## `window.unsetTopMost(title)`
+## window.unsetTopMost(title)
 
 取消窗口置顶状态。
 
@@ -741,7 +741,7 @@ window.unsetTopMost(title: string): Promise<void>;
 await window.unsetTopMost('Tool');
 ```
 
-## `window.bringToTop(title, pid?)`
+## window.bringToTop(title, pid?)
 
 将目标窗口请求提升到顶层。
 

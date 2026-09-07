@@ -19,7 +19,7 @@ order: 7
 
 ## 公共约定
 
-### `Command.run()` options
+### Command.run() options
 
 | 参数 | 类型 | 必填 | 默认值 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -33,7 +33,7 @@ order: 7
 
 环境键必须满足 `[A-Za-z_][A-Za-z0-9_]*`。Windows 下 Runtime 统一为大写并按大小写不敏感方式覆盖。未显式覆盖时，子进程使用当前 `Execution.env` 快照。
 
-## `Command.getCapabilities()`
+## Command.getCapabilities()
 
 查询当前 execution 的命令执行能力。
 
@@ -69,7 +69,7 @@ if (!capabilities.enabled || !capabilities.supported) {
 }
 ```
 
-## `Command.run(command, args?, options?)`
+## Command.run(command, args?, options?)
 
 直接运行一个可执行文件，等待退出并收集有界输出。
 

@@ -25,7 +25,7 @@ Custom UI 由当前 JavaScript Runtime 控制受控桌面窗口。`FloatingWindo
 | 最多 32 个简单图标操作按钮，以及少量分隔结构 | `new FloatingWindow(options)` | 需要可见文本、表单、任意 HTML/CSS 或动态控件树 |
 | 表单、受限 HTML/CSS 或动态控件树 | `ui.createWindow(spec)` | 仅需图标工具栏 |
 
-## Custom UI：命令行 `-ui` 与启用方式
+## Custom UI：命令行 -ui 与启用方式
 
 `-ui` 是不带值的布尔开关：它只为**本次 CLI JavaScript execution** 授予 Custom UI
 能力；配合 `-http` 时，它只允许服务器接受后续可能请求 UI 的 execution。它本身不会创建窗口、
@@ -122,7 +122,7 @@ const toolbar = new FloatingWindow({
 });
 ```
 
-## `new FloatingWindow(options?)`
+## new FloatingWindow(options?)
 
 | 参数 | 类型 | 默认值 | 说明 |
 | --- | --- | --- | --- |
@@ -215,7 +215,7 @@ Anchor 是一次明确的重定位动作，不是持续约束。用户拖动、`
 
 迁移：已发布的绝对 `FloatingWindow({x,y})` 与 `ui.createWindow({bounds})` 继续有效；新代码应改用 `position`。尚未稳定的顶层 `{placement}` 或 `{size,placement}` 草案不再接受，必须分别移到 `position:{mode:"anchor",...}`，以避免“谁覆盖谁”的兼容陷阱。
 
-## `toolbar.addButton(id, label, icon, callback?)`
+## toolbar.addButton(id, label, icon, callback?)
 
 | 参数 | 类型 | 说明 |
 | --- | --- | --- |
@@ -226,7 +226,7 @@ Anchor 是一次明确的重定位动作，不是持续约束。用户拖动、`
 
 按钮只能在首次 `show()` 前增加或删除。重复 id 返回 `DUPLICATE_ID`；无效 id、label、icon、callback 或超出按钮数返回 `INVALID_SPEC`。
 
-## `toolbar.addSeparator(id)` / `toolbar.addSpacer(id)`
+## toolbar.addSeparator(id) / toolbar.addSpacer(id)
 
 两者都是只可在首次 `show()` 前声明的真实 native structure primitive，不是 disabled Button：
 
@@ -364,7 +364,7 @@ await toolbar.waitUntilClosed();
 
 若需要 GIF/WebP、可见文字、不同图片尺寸或更自由的组合布局，继续使用 `ui.createWindow()` 中受限的 `img`；它的本地图片仍必须位于脚本目录 / `content.basePath` 内。
 
-## `toolbar`：状态、事件与生命周期
+## toolbar：状态、事件与生命周期
 
 | 方法 | 参数 | 返回 | 说明 |
 | --- | --- | --- | --- |
@@ -488,7 +488,7 @@ await main();
 | `theme` | `system` / `dark` | 默认 `system`；FloatingWindow 固定使用 `dark` |
 | `content` | object | 必填；受限 HTML/CSS、局部资源根目录与本地文件入口。字段、互斥规则见下表。 |
 
-### `content` 参数
+### content 参数
 
 `content` 只能使用下列五个字段；未知字段不会被忽略，而是以 `INVALID_SPEC` 拒绝。表格按推荐的
 `file`-first 写法排列：`file` 是清晰的首选文件入口，`html` 是内联内容或简写入口；二者是**互斥的

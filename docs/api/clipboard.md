@@ -54,7 +54,7 @@ order: 8
 
 RTF / PNG 按 base64 解码后的原始 bytes 计数；text / HTML / path 按 UTF-8 bytes 计数。PNG 校验签名和可解码 header；RTF 必须有 RTF header。
 
-## `clipboard.copy(text)`
+## clipboard.copy(text)
 
 写入纯文本剪贴板内容。
 
@@ -84,7 +84,7 @@ Runtime 会验证文本写入结果。空字符串保留为 `text/plain` 的空�
 clipboard.copy('hello');
 ```
 
-## `clipboard.paste()`
+## clipboard.paste()
 
 读取当前剪贴板的纯文本内容。
 
@@ -113,7 +113,7 @@ const text = clipboard.paste();
 console.log(text);
 ```
 
-## `clipboard.clear()`
+## clipboard.clear()
 
 移除当前剪贴板内容和格式。
 
@@ -142,7 +142,7 @@ clipboard.clear();
 console.log(clipboard.paste()); // ''
 ```
 
-## `clipboard.read(options?)`
+## clipboard.read(options?)
 
 读取一个 changeCount 一致的剪贴板内容与元数据快照。
 
@@ -182,7 +182,7 @@ const selected = clipboard.read({
 });
 ```
 
-## `clipboard.write(payload)`
+## clipboard.write(payload)
 
 一次写入一种或多种 canonical representation。
 
@@ -223,7 +223,7 @@ const result = clipboard.write({
 console.log(result.formats, result.changeCount);
 ```
 
-## `clipboard.getFormats()`
+## clipboard.getFormats()
 
 返回当前可识别的 canonical formats，不读取正文。
 
@@ -251,7 +251,7 @@ clipboard.getFormats(): string[];
 console.log(clipboard.getFormats());
 ```
 
-## `clipboard.getCapabilities()`
+## clipboard.getCapabilities()
 
 返回当前剪贴板 backend、格式和限制能力摘要。
 

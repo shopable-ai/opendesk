@@ -64,7 +64,7 @@ custom readiness predicate 当前不支持。timeout 默认 10 秒，最大 5 �
 
 `App.get()`、`App.launch()`、`App.waitForLaunch()` 与 `App.restart()` 返回按 identity 聚合的 group。一个 identity 可以对应多个 process instance；调用方不应假设 `pids[0]` 是唯一实例。
 
-## `App.list()`
+## App.list()
 
 返回当前应用/进程 snapshot。
 
@@ -93,7 +93,7 @@ const apps = App.list();
 console.log(apps.map(app => ({ pid: app.pid, name: app.name })));
 ```
 
-## `App.get(target)`
+## App.get(target)
 
 返回当前匹配 identity 的应用 group。
 
@@ -124,7 +124,7 @@ const app = App.get({ bundleId: 'com.apple.calculator' });
 if (app) console.log(app.pids);
 ```
 
-## `App.isRunning(target)`
+## App.isRunning(target)
 
 判断当前是否存在匹配实例。
 
@@ -156,7 +156,7 @@ if (App.isRunning({ name: 'Calculator' })) {
 }
 ```
 
-## `App.launch(target, options?)`
+## App.launch(target, options?)
 
 启动或激活目标应用，并可等待 readiness。
 
@@ -197,7 +197,7 @@ const app = await App.launch(
 console.log(app.pids);
 ```
 
-## `App.waitForLaunch(target, options?)`
+## App.waitForLaunch(target, options?)
 
 等待目标应用达到明确 readiness。
 
@@ -236,7 +236,7 @@ const app = await App.waitForLaunch('Calculator', {
 });
 ```
 
-## `App.waitForExit(target, options?)`
+## App.waitForExit(target, options?)
 
 等待目标 identity 当前不再运行。
 
@@ -273,7 +273,7 @@ await App.waitForExit({ bundleId: 'com.apple.calculator' }, {
 });
 ```
 
-## `App.terminate(target, options?)`
+## App.terminate(target, options?)
 
 向调用开始时匹配的全部实例发出 graceful 或 force 终止请求，并等待退出。
 
@@ -309,7 +309,7 @@ App.terminate(
 await App.terminate({ bundleId: 'com.apple.calculator' });
 ```
 
-## `App.restart(target, options?)`
+## App.restart(target, options?)
 
 终止匹配实例后按稳定 identity 重新启动应用。
 
@@ -346,7 +346,7 @@ const app = await App.restart(
 );
 ```
 
-## `App.getCapabilities()`
+## App.getCapabilities()
 
 返回当前平台、backend、identity、readiness 与 mutation 支持矩阵。
 

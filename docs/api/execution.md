@@ -40,7 +40,7 @@ order: 14
 
 `scriptPath` 只由可信文件入口提供；内联、stdin、HTTP、MCP 和 Scheduler inline 为 `null`。Runtime 不从可伪造的 `source` 标签推导真实路径。
 
-## `Execution.id`
+## Execution.id
 
 当前 execution ID 的短别名。
 
@@ -66,7 +66,7 @@ Execution.id: string;
 console.log(Execution.id);
 ```
 
-## `Execution.executionId`
+## Execution.executionId
 
 返回当前 execution 的完整关联 ID。
 
@@ -92,7 +92,7 @@ Execution.executionId: string;
 console.log(Execution.executionId);
 ```
 
-## `Execution.input`
+## Execution.input
 
 返回当前 execution 的结构化 recipe 输入。
 
@@ -121,7 +121,7 @@ if (!input || typeof input !== 'object' || Array.isArray(input)) {
 }
 ```
 
-## `Execution.workdir`
+## Execution.workdir
 
 返回当前 execution 的工作目录。
 
@@ -147,7 +147,7 @@ Execution.workdir: string;
 console.log(Execution.workdir);
 ```
 
-## `Execution.env`
+## Execution.env
 
 返回当前 execution 的冻结环境字符串快照。
 
@@ -173,7 +173,7 @@ Execution.env: Readonly<Record<string, string>>;
 const endpoint = Execution.env.MY_SERVICE_ENDPOINT;
 ```
 
-## `Execution.stack`
+## Execution.stack
 
 返回 Runtime 记录的兼容模式元数据。
 
@@ -199,7 +199,7 @@ Execution.stack: string;
 console.log(Execution.stack);
 ```
 
-## `Execution.artifactDir`
+## Execution.artifactDir
 
 返回本次运行的 artifact 根目录。
 
@@ -226,7 +226,7 @@ const resultPath = path.join(Execution.artifactDir, 'result.json');
 File.write(resultPath, JSON.stringify({ ok: true }));
 ```
 
-## `Execution.source`
+## Execution.source
 
 返回脚本来源标签。
 
@@ -252,7 +252,7 @@ Execution.source: string;
 console.log(Execution.source);
 ```
 
-## `Execution.ext`
+## Execution.ext
 
 返回执行源码扩展名。
 
@@ -278,7 +278,7 @@ Execution.ext: string;
 console.log(Execution.ext);
 ```
 
-## `Execution.scriptHash`
+## Execution.scriptHash
 
 返回实际执行源码字节的 SHA-256。
 
@@ -304,7 +304,7 @@ Execution.scriptHash: string;
 console.log(Execution.scriptHash);
 ```
 
-## `Execution.scriptPath`
+## Execution.scriptPath
 
 返回可信文件入口的规范化绝对源码路径。
 
@@ -330,7 +330,7 @@ Execution.scriptPath: string | null;
 if (Execution.scriptPath) console.log(Execution.scriptPath);
 ```
 
-## `Execution.scriptDir`
+## Execution.scriptDir
 
 返回 `scriptPath` 的父目录。
 
@@ -358,7 +358,7 @@ const asset = Execution.scriptDir
   : null;
 ```
 
-## `Execution.activationSource`
+## Execution.activationSource
 
 返回当前 execution 的 Custom UI 授权来源。
 

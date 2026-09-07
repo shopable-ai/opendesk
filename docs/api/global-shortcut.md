@@ -49,7 +49,7 @@ await page.requestPermissions({
 
 普通 global shortcut 不需要 Screen Recording 或 Automation 权限。
 
-## `globalShortcut.register(accelerator, callback)`
+## globalShortcut.register(accelerator, callback)
 
 注册系统级快捷键。
 
@@ -81,7 +81,7 @@ function copyText() {
 globalShortcut.register('CommandOrControl+Shift+1', copyText);
 ```
 
-## `globalShortcut.unregister(accelerator)`
+## globalShortcut.unregister(accelerator)
 
 注销当前 Runtime 拥有的一个快捷键。
 
@@ -109,7 +109,7 @@ globalShortcut.unregister(accelerator: string): void;
 globalShortcut.unregister('CommandOrControl+Shift+1');
 ```
 
-## `globalShortcut.isRegistered(accelerator)`
+## globalShortcut.isRegistered(accelerator)
 
 检查当前 Runtime 是否拥有某个注册。
 
@@ -137,7 +137,7 @@ globalShortcut.isRegistered(accelerator: string): boolean;
 console.log(globalShortcut.isRegistered('CommandOrControl+Shift+1'));
 ```
 
-## `globalShortcut.unregisterAll()`
+## globalShortcut.unregisterAll()
 
 注销当前 Runtime 创建的全部系统快捷键。
 

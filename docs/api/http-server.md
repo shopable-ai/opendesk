@@ -265,7 +265,7 @@ curl -X POST http://127.0.0.1:60844/vision/detect-ui \
   -F target_text=确定
 ```
 
-## HTTP Server API：`stack` 兼容参数
+## HTTP Server API：stack 兼容参数
 
 新请求应省略 `stack`，使用当前默认 JavaScript Runtime。服务端为了兼容早期调用仍接受
 `legacy`、`upgraded` 和 `playwright`，但后两者只切换进程内 facade，不启动浏览器，也不提供

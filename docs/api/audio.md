@@ -58,7 +58,7 @@ interface OpenDeskAudioPatternOptions {
 
 `watchSound()` 返回 execution-owned watcher，至少包含 `id`、`backend`、`startedAt`、`sourceScope`、`sourceVerified`，并提供 `status()`、`stop()`、`wait()`。状态为 `listening`、`stopping`、`stopped` 或 `failed`。
 
-## `Audio.getVolume()`
+## Audio.getVolume()
 
 读取系统输出音量。
 
@@ -84,7 +84,7 @@ Audio.getVolume(): number;
 console.log(Audio.getVolume());
 ```
 
-## `Audio.setVolume(value)`
+## Audio.setVolume(value)
 
 设置系统输出音量。
 
@@ -112,7 +112,7 @@ Audio.setVolume(value: number): void;
 Audio.setVolume(0.5);
 ```
 
-## `Audio.isMuted()`
+## Audio.isMuted()
 
 读取当前系统 mute 状态。
 
@@ -138,7 +138,7 @@ Audio.isMuted(): boolean;
 console.log(Audio.isMuted());
 ```
 
-## `Audio.mute()`
+## Audio.mute()
 
 将系统输出设置为 muted。
 
@@ -164,7 +164,7 @@ Audio.mute(): void;
 Audio.mute();
 ```
 
-## `Audio.unmute()`
+## Audio.unmute()
 
 取消系统输出 mute。
 
@@ -190,7 +190,7 @@ backend 不支持或 mutation 失败时抛错。
 Audio.unmute();
 ```
 
-## `Audio.toggleMute()`
+## Audio.toggleMute()
 
 切换系统 mute 状态。
 
@@ -216,7 +216,7 @@ Audio.toggleMute(): boolean;
 const muted = Audio.toggleMute();
 ```
 
-## `Audio.getOutputDevices()`
+## Audio.getOutputDevices()
 
 列出当前可发现的输出设备。
 
@@ -242,7 +242,7 @@ Audio.getOutputDevices(): OpenDeskAudioDevice[];
 console.log(Audio.getOutputDevices());
 ```
 
-## `Audio.getInputDevices()`
+## Audio.getInputDevices()
 
 列出当前可发现的输入设备。
 
@@ -268,7 +268,7 @@ Audio.getInputDevices(): OpenDeskAudioDevice[];
 console.log(Audio.getInputDevices());
 ```
 
-## `Audio.getDefaultOutput()`
+## Audio.getDefaultOutput()
 
 返回当前默认输出设备。
 
@@ -294,7 +294,7 @@ Audio.getDefaultOutput(): OpenDeskAudioDevice | null;
 console.log(Audio.getDefaultOutput());
 ```
 
-## `Audio.getDefaultInput()`
+## Audio.getDefaultInput()
 
 返回当前默认输入设备。
 
@@ -320,7 +320,7 @@ Audio.getDefaultInput(): OpenDeskAudioDevice | null;
 console.log(Audio.getDefaultInput());
 ```
 
-## `Audio.watchSound(options, callback)`
+## Audio.watchSound(options, callback)
 
 持续监听固定声音 reference 并投递匹配事件。
 
@@ -353,7 +353,7 @@ const watcher = await Audio.watchSound({
 await watcher.stop();
 ```
 
-## `Audio.waitForSound(options)`
+## Audio.waitForSound(options)
 
 等待一次固定声音 reference 匹配。
 
@@ -386,7 +386,7 @@ const match = await Audio.waitForSound({
 });
 ```
 
-## `Audio.getCapabilities()`
+## Audio.getCapabilities()
 
 返回 Audio 控制、设备和 patternWatch 能力摘要。
 

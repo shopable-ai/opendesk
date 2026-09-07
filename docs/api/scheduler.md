@@ -69,7 +69,7 @@ Execution ID。内联 snapshot 属于该次执行的受控 Evidence，不会出�
 
 ## Scheduler：时间类型
 
-### Scheduler：一次（`at`）
+### Scheduler：一次（at）
 
 页面中选择日期和时间即可。HTTP API 接受 RFC3339 或本地时间：
 
@@ -83,7 +83,7 @@ Execution ID。内联 snapshot 属于该次执行的受控 Evidence，不会出�
 
 任务执行一次后自动停用，不自动重试。
 
-### Scheduler：每隔（`every`）
+### Scheduler：每隔（every）
 
 页面中输入数字并选择分钟或小时。HTTP API 使用 Go duration 表达式，例如：
 
@@ -98,7 +98,7 @@ Execution ID。内联 snapshot 属于该次执行的受控 Evidence，不会出�
 `every` 是 fixed-delay：一次执行完成后，再等待完整 interval，然后开始下一次。
 长任务不会按固定时钟频率堆积。第一版最小 interval 是 1 分钟。
 
-### Scheduler：高级（`cron`）
+### Scheduler：高级（cron）
 
 Cron 使用标准 Linux 五字段格式：
 

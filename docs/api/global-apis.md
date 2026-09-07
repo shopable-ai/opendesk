@@ -39,9 +39,9 @@ main();
 | `URL` | 解析和拼接 HTTP(S) / file URL | Stable / Compatibility | 支持相对 URL、`searchParams` 和常用字段 |
 | `Promise` | 异步结果与组合 | Stable | `async` / `await` 属于语言语法；见 [JavaScript Runtime](runtime.md#javascript-语言基线) |
 
-## `setTimeout` / `setInterval` / `requestAnimationFrame` / `delay` / `sleep`：计时器与等待
+## setTimeout / setInterval / requestAnimationFrame / delay / sleep：计时器与等待
 
-### `setTimeout` / `clearTimeout`：一次性计时器
+### setTimeout / clearTimeout：一次性计时器
 
 ```js
 const timeoutID = setTimeout(() => {
@@ -58,7 +58,7 @@ clearTimeout(timeoutID); // 不再需要时取消
 
 `delay` 使用毫秒；省略时由 Runtime 使用默认延迟。取消后回调不会执行。
 
-### `setInterval` / `clearInterval`：周期计时器
+### setInterval / clearInterval：周期计时器
 
 ```js
 let count = 0;
@@ -78,7 +78,7 @@ const intervalID = setInterval(() => {
 周期任务必须在完成条件满足后调用 `clearInterval()`。不要用无限周期任务维持脚本生命周期；
 需要等待窗口关闭或 UI 事件时，请使用对应的页面或 Custom UI 生命周期接口。
 
-### `requestAnimationFrame` / `cancelAnimationFrame`：帧回调
+### requestAnimationFrame / cancelAnimationFrame：帧回调
 
 ```js
 const frameID = requestAnimationFrame((timestamp) => {
@@ -92,7 +92,7 @@ const frameID = requestAnimationFrame((timestamp) => {
 它不会等待浏览器 DOM 绘制，也不代表屏幕像素已经刷新；桌面自动化中的 UI 状态应优先使用
 `page.waitForFunction()` 或其他可验证条件等待。
 
-### `delay` / `sleep` / `sleepSeconds`：固定等待
+### delay / sleep / sleepSeconds：固定等待
 
 ```js
 await delay(3000);         // 推荐的通用等待写法
@@ -116,7 +116,7 @@ await page.waitForFunction(() => window.title() === '完成', {
 `delay()` 和 `System.delay()` 都是脚本等待；`System.sleep()` 则会尝试让整台电脑进入睡眠，
 三者不要混用。
 
-## `copyToClipboard` / `getClipboard`：剪贴板快捷函数
+## copyToClipboard / getClipboard：剪贴板快捷函数
 
 当脚本只需要读写文本时，可以直接使用全局函数：
 
@@ -134,7 +134,7 @@ console.log(text);
 需要清空剪贴板、处理平台重试或使用完整对象接口时，请阅读
 [Clipboard API](clipboard.md)。
 
-## `console`：日志与执行事件输出
+## console：日志与执行事件输出
 
 `console` 是 Runtime 提供的全局日志对象。它不需要导入或实例化；所有方法都是同步
 调用并返回 `undefined`。
@@ -178,7 +178,7 @@ framework、script、meta、summary、warn 和 error 语义给文字前缀着色
 `console.clear()` 只会对真实交互终端发送清屏控制序列；输出被管道或重定向时它是 no-op，避免污染
 纯文本和机器协议。
 
-### `console.table(data)`
+### console.table(data)
 
 ```js
 console.table([
@@ -187,7 +187,7 @@ console.table([
 ]);
 ```
 
-### `console.group(label)` / `console.groupEnd(label)`
+### console.group(label) / console.groupEnd(label)
 
 ```js
 console.group('OCR Run');
@@ -196,7 +196,7 @@ console.log('step 2');
 console.groupEnd('OCR Run');
 ```
 
-### `console.time(label)` / `console.timeEnd(label)`
+### console.time(label) / console.timeEnd(label)
 
 ```js
 console.time('capture');
@@ -204,7 +204,7 @@ await page.waitForTimeout(500);
 console.timeEnd('capture');
 ```
 
-## `notify`：系统通知
+## notify：系统通知
 
 `notify()` 是全局系统通知函数：
 
@@ -221,7 +221,7 @@ notify({
 它的完整参数、同步返回、平台后端、权限和可见性边界见
 [notify](notify.md)。通知显示不是业务成功或执行证据的替代品。
 
-## `alert` / `confirm` / `prompt`：异步原生 Dialog
+## alert / confirm / prompt：异步原生 Dialog
 
 OpenDesk 的同名全局函数是 [Dialog API](dialog.md) 的 Promise alias，和浏览器的同步 API
 不同：它们不会阻塞 Runtime EventLoop，也没有 options callback。使用 `await` 或
@@ -247,7 +247,7 @@ try {
 用户取消不是 reject；execution 取消、deadline 和 native host failure 才 reject。完整 capability、
 参数、隐私、exactly-once settlement 与 teardown 契约见 [Dialog API](dialog.md)。
 
-## `AbortController` / `AbortSignal`：取消 HTTP 请求
+## AbortController / AbortSignal：取消 HTTP 请求
 
 `AbortController` 与 `AbortSignal` 是运行时提供的轻量兼容接口，主要用于取消在途的
 `http.request()` 或 `axios` 请求：
@@ -283,7 +283,7 @@ JavaScript 函数。首次 `abort(reason)` 保留 reason，后续调用幂等。
 HTTP 错误和 deadline 语义见 [HTTP and Axios](http.md)；SQLite 的超时、写入状态和清理语义见
 [SQLite API](sqlite.md)。
 
-## `URLSearchParams`：查询参数
+## URLSearchParams：查询参数
 
 使用 `URLSearchParams` 生成查询字符串：
 
@@ -316,7 +316,7 @@ console.log(params.toString());
 当前实现覆盖 OpenDesk 脚本常用的查询参数场景；它不是完整浏览器 URL 或 DOM API，
 `entries()`、`keys()`、`values()` 返回数组而不是浏览器中的迭代器。
 
-## `URL`：解析和拼接 URL
+## URL：解析和拼接 URL
 
 ```js
 const url = new URL('/search?q=OpenDesk', 'https://example.com/base/index.html');
@@ -333,7 +333,7 @@ console.log(url.href);
 `search`、`hash` 和 `searchParams`。当前实现覆盖 HTTP(S)、file URL 和常见相对 URL 解析，
 不承诺完整浏览器 WHATWG URL/DOM 行为。
 
-## `Promise` 与 `async` / `await`：异步脚本
+## Promise 与 async / await：异步脚本
 
 Runtime 会确保脚本可以使用 `Promise` 以及 `async` / `await`：
 

@@ -69,7 +69,7 @@ interface PromptOptions extends ConfirmOptions {
 
 Dialog 只 settle 一次；用户动作、关闭、Esc、取消和 host failure 竞争时以第一个终态为准。未观察的 Dialog Promise 不会让 execution 无限存活。
 
-## `Dialog.getCapabilities()`
+## Dialog.getCapabilities()
 
 返回当前 Dialog host 与授权能力摘要。
 
@@ -95,7 +95,7 @@ Dialog.getCapabilities(): OpenDeskDialogCapabilities;
 console.log(Dialog.getCapabilities());
 ```
 
-## `Dialog.alert(messageOrOptions)`
+## Dialog.alert(messageOrOptions)
 
 显示一个需要 acknowledgement 的原生提示框。
 
@@ -128,7 +128,7 @@ await Dialog.alert({
 });
 ```
 
-## `alert(messageOrOptions)`
+## alert(messageOrOptions)
 
 `Dialog.alert()` 的全局兼容 alias。
 
@@ -156,7 +156,7 @@ Canonical method：`Dialog.alert()`；参数、返回值与错误完全一致。
 await alert('任务完成');
 ```
 
-## `Dialog.confirm(messageOrOptions)`
+## Dialog.confirm(messageOrOptions)
 
 显示确认/取消原生对话框。
 
@@ -189,7 +189,7 @@ const proceed = await Dialog.confirm({
 });
 ```
 
-## `confirm(messageOrOptions)`
+## confirm(messageOrOptions)
 
 `Dialog.confirm()` 的全局兼容 alias。
 
@@ -217,7 +217,7 @@ Canonical method：`Dialog.confirm()`。
 const accepted = await confirm('是否继续？');
 ```
 
-## `Dialog.prompt(messageOrOptions)`
+## Dialog.prompt(messageOrOptions)
 
 显示原生文本输入对话框。
 
@@ -249,7 +249,7 @@ const name = await Dialog.prompt({
 });
 ```
 
-## `prompt(messageOrOptions)`
+## prompt(messageOrOptions)
 
 `Dialog.prompt()` 的全局兼容 alias。
 
