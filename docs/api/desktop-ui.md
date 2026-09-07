@@ -1,134 +1,274 @@
 ---
 title: Desktop UI API
-description: 使用 OCR、模板匹配与实际截图比例操作可见 UI，并通过原生 Accessibility 处理完整菜单路径。
+description: 使用 OCR、模板匹配、屏幕坐标与原生 Accessibility 查找和操作外部桌面应用 UI。
 order: 11
 ---
 
 # UI
 
-大写 `UI` 用于查找和操作**外部桌面应用**。既有文字和图片方法每次操作都会使用新的截图，并把
-OCR/模板匹配的 image-pixel bbox 投影为可供 `mouse` 使用的 screen logical coordinate；Experimental
-菜单方法则通过同一个第一方 [`AccessibilityRuntime`](accessibility.md) 使用原生语义树，不使用这些
-截图坐标。
+大写 `UI` 是 OpenDesk 操作**外部桌面应用界面**的高层 API。它把同一个公开对象上的能力集中在本页：
 
-对于会移动或调整尺寸的窗口，保存窗口身份和**定位规则**，不要保存一次 OCR 得到的旧坐标。文字相对定位
-按以下顺序工作：
+- 文本：OCR 查找、判断、等待与点击；
+- 图片：模板匹配、查找与点击；
+- 菜单：通过第一方 `AccessibilityRuntime` 观察并执行完整原生菜单路径。
 
-```text
-指定窗口
-→ 读取同一窗口的最新位置与尺寸
-→ 根据规则计算搜索区域
-→ 新截图与一次 OCR
-→ 定位唯一文字参照物并筛选目标
-→ 复核窗口
-→ 返回目标或执行一次点击
-```
-
-```js
-const win = await window.getActiveWindow();
-
-await UI.tapText('编辑', {
-  within: win,
-  region: currentWin => Geometry.inset(currentWin, 12),
-  relativeTo: {
-    text: '联系人 A',
-    direction: 'right',
-    maxGap: 240,
-  },
-});
-```
+文本和图片方法使用新的截图，并把 OCR / 模板匹配得到的 image-pixel bbox 映射到 `mouse` 使用的 screen logical coordinate。菜单方法不使用 OCR 坐标，而是复用 [`Accessibility`](accessibility.md) 的原生语义树、owner、deadline、取消和资源清理。
 
 `UI` 与小写 [`ui`](custom-ui.md) 完全不同，JavaScript 大小写敏感：
 
 | 对象 | 作用 | 不做什么 |
 | --- | --- | --- |
-| `UI` | 查找、等待、激活外部应用可见目标，并提供 Experimental 原生菜单组合 | 不创建 OpenDesk 窗口，不建立平行菜单/Accessibility owner |
+| `UI` | 查找、等待和操作外部桌面应用的文本、图片与原生菜单 | 不创建 OpenDesk 自己的窗口 |
 | `ui` | 创建和管理 OpenDesk 自己的 Custom UI | 不查询或点击外部桌面应用 |
 
 没有 `UI = ui`、`ui = UI` 或 `DesktopUI` 别名。
 
-## 视觉快速接口
+## API 总览
 
-| 方法 | 用途 |
-| --- | --- |
-| `UI.getCapabilities()` | 返回当前 P0 高层能力摘要 |
-| `UI.findTexts(text, options?)` | 返回全部匹配文本候选；支持 `region` / `relativeTo` |
-| `UI.findText(text, options?)` | 返回唯一候选、无结果为 `null`、歧义时报错；支持 `region` / `relativeTo` |
-| `UI.hasText(text, options?)` | 是否有至少一个匹配文本；支持 `region` / `relativeTo` |
-| `UI.tapText(text, options?)` | 找到唯一可见文本并以鼠标点击激活；支持 `region` / `relativeTo` |
-| `UI.tapTexts(texts, options?)` | 按顺序点击 `string[]` 中的文字；每一步重新截图/OCR/定位 |
-| `UI.waitText(text, options?)` | 轮询到文字出现，返回唯一候选 |
-| `UI.waitTextGone(text, options?)` | 轮询到文字消失，返回 `true` |
-| `UI.findImages(template, options?)` | 返回全部模板匹配候选 |
-| `UI.findImage(template, options?)` | 返回唯一图片候选、无结果为 `null`、歧义时报错 |
-| `UI.tapImage(template, options?)` | 找到唯一模板匹配并点击中心 |
+| 方法 | 状态 | 主要用途 |
+| --- | --- | --- |
+| `UI.getCapabilities()` | Stable / capability summary | 查询当前高层 UI 能力 |
+| `UI.findTexts(text, options?)` | Stable | 返回全部匹配文本 |
+| `UI.findText(text, options?)` | Stable | 返回唯一匹配文本 |
+| `UI.hasText(text, options?)` | Stable | 判断是否存在匹配文本 |
+| `UI.tapText(text, options?)` | Stable | 查找并点击唯一文本 |
+| `UI.tapTexts(texts, options?)` | Stable | 按顺序点击多个文本 |
+| `UI.waitText(text, options?)` | Stable | 等待唯一文本出现 |
+| `UI.waitTextGone(text, options?)` | Stable | 等待文本消失 |
+| `UI.findImages(template, options?)` | Stable | 返回全部模板匹配 |
+| `UI.findImage(template, options?)` | Stable | 返回唯一模板匹配 |
+| `UI.tapImage(template, options?)` | Stable | 查找并点击唯一图片 |
+| `UI.getMenuItems(options)` | Experimental | 只读观察原生菜单 |
+| `UI.findMenuItem(path, options)` | Experimental | 在完整观察中查找菜单路径 |
+| `UI.tapMenuItem(path, options)` | Experimental | 逐层展开并执行完整菜单路径 |
 
-`tapText` 的 P0 定义是“查找并激活一个可见文本目标”，实现继续使用现有 `mouse.click`。它成功只代表
-目标已找到且已调用点击，不代表业务已完成；后续仍应 `waitText`、`hasText`、`ImageColor.diff` 或使用
-业务状态验证。新增 Accessibility 能力不会悄悄改变这些视觉方法，也不会在失败时替它们自动执行原生
-动作。
+视觉方法成功只证明目标已找到、读取或输入已提交，不证明业务已经完成。菜单动作中的 `acknowledged` 也不是保存、导出、提交等业务结果的证明。自动化脚本仍应验证业务后置条件。
 
-## 原生菜单接口
-
-`UI.getMenuItems(options)`、`UI.findMenuItem(path, options)` 和 `UI.tapMenuItem(path, options)` 是
-Experimental 菜单接口。它们要求明确 WindowInfo 或 `{ app, root: 'menuBar' }` scope，并与
-`Accessibility` 共享 owner、总 deadline、取消和资源清理；完整 path、只读观察、逐层展开、最终动作
-与错误合同见 [Desktop UI Menu API](desktop-ui-menu.md)。本页后续 `within`、OCR、图片和坐标规则只
-适用于既有视觉方法，不能套用到原生菜单方法。
-
-## scope：`within`
-
-所有方法都可指定：
-
-```ts
-within?: OpenDeskWindowInfo | OpenDeskDisplayInfo | OpenDeskScreenRegion
-```
-
-未指定时，UI 读取当前活动窗口并只在其范围内查找。提供 `within` 时可传当前 window、display 或
-`Geometry.regionPercent()` / `Geometry.regionOffset()` 产生的已标记 screen region。不要传裸 bbox。
-
-UI 会先计算 `Geometry.rect(within)`，再和 `Screen.getVirtualBounds()` 求交。完全不可见时报
-`TARGET_SCOPE_NOT_VISIBLE`；部分可见时只截取可见交集，后续坐标映射也以这个实际 capture scope 为准。
-
-如果 scope 跨多个显示器且这些显示器的 `scale` 明显不同，P0 会 fail closed 并抛
-`UNSUPPORTED_MIXED_DPI_SCOPE`。同 scale 的多显示器 scope 可继续使用本次截图的真实比例。P1 才会
-实现 mixed-DPI split capture；不会假装一个全局比例能准确覆盖不同 DPI 显示器。
-
-`region` 和 `relativeTo` 是更严格的文字定位选项：当前只由 `findTexts`、`findText`、`hasText`、
-`tapText` 和 `tapTexts` 支持，而且必须同时显式传入 `within: OpenDeskWindowInfo`。这样 UI 才能在窗口
-移动后保留身份并重新读取其 bounds。未使用这两个选项的旧调用继续接受原有 window、display、screen
-region scope，并保持原有默认行为。
-
-## 可重算文字定位
-
-### 外层搜索区域：`region`
-
-`region` 可以是同步计算规则，也可以是静态 screen region。动态规则适合需要跟随窗口位置和尺寸变化的
-布局：
+## `UI.getCapabilities()`
 
 ```js
-const win = await window.getActiveWindow();
-const footerRule = {
-  left: 16,
-  right: 16,
-  bottom: 12,
-  height: 60,
-};
+const capabilities = UI.getCapabilities();
+console.log(capabilities);
+```
 
-await UI.tapText('确定', {
+返回当前 execution 可用的文本、图片、Accessibility 菜单与坐标映射能力摘要。示例字段形状：
+
+```js
+{
+  text: { find: true, tap: true, wait: true, backend: 'Vision.runOCR' },
+  image: { find: true, tap: true, backend: 'ImageColor.findImages' },
+  accessibility: {
+    available: true,
+    implemented: true,
+    status: 'available',
+    enabled: true,
+    backend: 'macos-ax',
+    permission: 'granted',
+    menus: true,
+    actions: {
+      invoke: true,
+      setValue: true,
+      expand: true,
+      collapse: true,
+      select: true,
+      setChecked: true,
+    },
+    coordinateMapping: false,
+  },
+  coordinateMapping: {
+    actualCaptureScale: true,
+    mixedDPIScope: false,
+  },
+}
+```
+
+实际值以当前 execution 为准。完整 host/backend/OS 权限摘要见 [`Accessibility.getCapabilities()`](accessibility.md#getcapabilities能力不是元素保证)。
+
+# 文本 API
+
+文本方法复用 [`Vision.runOCR`](vision.md)，不建立第二套 OCR 后端。
+
+## 文本公共 options
+
+```ts
+interface OpenDeskUITextOptions {
+  within?: OpenDeskWindowInfo | OpenDeskDisplayInfo | OpenDeskScreenRegion;
+  match?: 'exact' | 'contains';
+  caseSensitive?: boolean;
+  normalizeWhitespace?: boolean;
+  minConfidence?: number;
+  provider?: string;
+  providerChain?: string[];
+  lang?: string;
+  index?: number;
+  timeout?: number;
+  polling?: number;
+  click?: OpenDeskMouseClickOptions;
+  intervalMs?: number;
+  region?: OpenDeskScreenRegion | ((currentWin: OpenDeskWindowInfo) => OpenDeskScreenRegion);
+  relativeTo?: OpenDeskUIRelativeTextRule;
+}
+```
+
+常用参数：
+
+| 参数 | 默认 | 说明 |
+| --- | --- | --- |
+| `within` | 当前活动窗口 | window、display 或已标记 screen region |
+| `match` | `"exact"` | `"exact"` 或 `"contains"` |
+| `caseSensitive` | `false` | 是否区分大小写 |
+| `normalizeWhitespace` | `true` | trim 并把连续空白折叠为一个空格 |
+| `minConfidence` | 未设置 | OCR 最低置信度 |
+| `provider` / `providerChain` / `lang` | Vision 默认 | 转发给 `Vision.runOCR` |
+| `index` | 未设置 | 零基显式消歧索引 |
+| `timeout` / `polling` | `10000` / `200` ms | `waitText` / `waitTextGone` 的有限轮询控制 |
+| `click` | 未设置 | 转发给 `mouse.clickPoint` |
+| `intervalMs` | `0` | `tapTexts` 两步间的显式间隔 |
+
+`region` 与 `relativeTo` 只支持 `findTexts`、`findText`、`hasText`、`tapText` 和 `tapTexts`，且必须显式传入 `within: OpenDeskWindowInfo`。`waitText`、`waitTextGone`、图片方法收到这些选项时会在截图或输入前抛 `INVALID_ARGUMENT`，不会静默忽略。
+
+## `UI.findTexts()`
+
+```ts
+UI.findTexts(text: string, options?: OpenDeskUITextOptions): Promise<OpenDeskUITextTarget[]>;
+```
+
+返回全部匹配文本，按 screen reading order 排序：先 y，同行再 x。没有结果返回 `[]`。
+
+```js
+const matches = await UI.findTexts('编辑', {
   within: win,
-  region: currentWin => Geometry.regionByEdges(currentWin, footerRule),
+  match: 'exact',
+  minConfidence: 0.5,
+  provider: 'apple',
+  lang: 'ch',
 });
 ```
 
-每次完整观察前，UI 先确认仍是 `within` 指定的窗口，再把该窗口的最新快照作为 `currentWin` 调用规则。
-一次观察只调用规则一次，不会为每个 OCR 候选重复执行，也不会缓存上一次结果。规则必须同步返回宽高为
-正数、数值有限并带 `coordinateSpace: "screen"` 的 region；`Promise`、`null`、裸 bbox、image-space
-region 和字符串表达式均报 `INVALID_ARGUMENT`。规则应只执行 `Geometry` 等纯计算，不要在其中截图、
-等待或执行输入；这是回调的使用合同，Runtime 不会声称能证明任意 JavaScript 回调没有副作用。UI 不会
-修改传入的窗口对象，也不会向回调暴露内部可变状态。
+候选形状：
 
-静态形式是一个已经标记的 `OpenDeskScreenRegion`：
+```js
+{
+  source: 'ocr',
+  text: '确定',
+  confidence: 0.98,
+  provider: 'apple',
+  imageBounds: {
+    x: 125, y: 125, width: 250, height: 50,
+    coordinateSpace: 'image',
+  },
+  bounds: {
+    x: 200, y: 300, width: 200, height: 40,
+    coordinateSpace: 'screen',
+  },
+  center: { x: 300, y: 320, coordinateSpace: 'screen' },
+}
+```
+
+## `UI.findText()`
+
+```ts
+UI.findText(text: string, options?: OpenDeskUITextOptions): Promise<OpenDeskUITextTarget | null>;
+```
+
+参数同 [`UI.findTexts()`](#uifindtexts)。结果规则：
+
+- 0 个候选：返回 `null`；
+- 1 个候选：返回该候选；
+- 多个候选且没有 `index`：抛 `AMBIGUOUS_TARGET`；
+- `index` 越界：抛 `TARGET_NOT_FOUND`。
+
+不会默认取 `elements[0]`、最近项或最高置信度项。
+
+## `UI.hasText()`
+
+```ts
+UI.hasText(text: string, options?: OpenDeskUITextOptions): Promise<boolean>;
+```
+
+参数同 [`UI.findTexts()`](#uifindtexts)。存在至少一个匹配候选返回 `true`，否则返回 `false`。使用 `relativeTo` 时，参照物不存在返回 `false`；参照物歧义仍抛 `AMBIGUOUS_TARGET`。
+
+## `UI.tapText()`
+
+```ts
+UI.tapText(text: string, options?: OpenDeskUITextOptions): Promise<OpenDeskUITapResult<OpenDeskUITextTarget>>;
+```
+
+参数同 [`UI.findText()`](#uifindtext)，并可通过 `options.click` 传递既有鼠标点击选项。
+
+0 个候选或 `index` 越界时抛 `TARGET_NOT_FOUND`；多个候选且未消歧时抛 `AMBIGUOUS_TARGET`。找到目标后最多调用一次 `mouse.clickPoint`。输入已提交后不会因超时或结果不确定自动重复点击。
+
+## `UI.tapTexts()`
+
+```ts
+UI.tapTexts(texts: string[], options?: OpenDeskUITextOptions): Promise<OpenDeskUITapResult[]>;
+```
+
+只接受动作序列 `string[]`，不会按空格拆分字符串，也不会把数组解释为 aliases。
+
+```js
+await UI.tapTexts(['1', '6', '×', '3', '='], {
+  within: Geometry.regionPercent(win, {
+    left: 0,
+    top: 35,
+    width: 100,
+    height: 65,
+  }),
+  match: 'exact',
+});
+```
+
+每一步都会重新截图、OCR 和定位，不复用上一步坐标。任何一步失败立即停止；错误包含 `failedIndex`、`failedText`、`completed` 和原始 `cause`。已完成步骤不会自动重做。
+
+## `UI.waitText()`
+
+```ts
+UI.waitText(text: string, options?: OpenDeskUITextOptions): Promise<OpenDeskUITextTarget>;
+```
+
+参数沿用文本公共 options，但不支持 `region` / `relativeTo`。按 `polling` 轮询，每次重新截图和 OCR；找到唯一候选时返回。超时抛 `TIMEOUT`，包含 `timeout`、`text`、`lastObservation` 和 `lastError` 摘要。
+
+## `UI.waitTextGone()`
+
+```ts
+UI.waitTextGone(text: string, options?: OpenDeskUITextOptions): Promise<true>;
+```
+
+参数同 [`UI.waitText()`](#uiwaittext)。每次轮询重新截图和 OCR，直到文本消失。超时抛 `TIMEOUT`。它不会用固定 `page.waitFor(...)` 代替业务条件判断。
+
+## 文本 `within`
+
+未指定 `within` 时，视觉 API 读取当前活动窗口并只在其范围内查找。显式指定时可传：
+
+```ts
+OpenDeskWindowInfo | OpenDeskDisplayInfo | OpenDeskScreenRegion
+```
+
+UI 会先计算 `Geometry.rect(within)`，再与 `Screen.getVirtualBounds()` 求交。完全不可见时报 `TARGET_SCOPE_NOT_VISIBLE`；部分可见时只截取可见交集。
+
+如果 scope 横跨多个 `scale` 明显不同的显示器，当前版本 fail closed 并抛 `UNSUPPORTED_MIXED_DPI_SCOPE`。同 scale 的多显示器 scope 可以继续使用本次截图的真实比例。不要传裸 bbox。
+
+## 文本 `region`
+
+`region` 是更严格的外层搜索范围，只在显式 `within: OpenDeskWindowInfo` 时可用。
+
+动态形式适合随窗口移动或 resize 重新计算：
+
+```js
+await UI.tapText('确定', {
+  within: win,
+  region: currentWin => Geometry.regionByEdges(currentWin, {
+    left: 16,
+    right: 16,
+    bottom: 12,
+    height: 60,
+  }),
+});
+```
+
+每次完整观察前，UI 重新确认同一窗口，再把最新窗口快照传给同步规则。规则必须同步返回有效的 tagged screen region；`Promise`、`null`、裸 bbox、非法数字、image-space region 或字符串表达式均为 `INVALID_ARGUMENT`。
+
+静态形式是坐标快照：
 
 ```js
 const fixedRegion = Geometry.regionOffset(win, {
@@ -141,32 +281,24 @@ const fixedRegion = Geometry.regionOffset(win, {
 await UI.findText('确定', { within: win, region: fixedRegion });
 ```
 
-静态 region 始终是坐标快照。UI 不推断它来自哪次截图，不会随窗口自动平移，也不会给 Geometry 返回对象
-附加隐藏跟踪行为。在使用新定位选项时，如果 `within` 的窗口 bounds 已改变，静态 region 会导致
-`STALE_TARGET`，调用方应重新计算；窗口快照检查也不能证明任意手写 region 的历史来源。
+静态 region 不会自动跟随窗口。启用新定位选项时，如果窗口 bounds 已变化，静态 region 会导致 `STALE_TARGET`，调用方应重新计算。
 
-外层有效搜索范围依次与当前窗口 bounds、现有可见屏幕范围求交。没有有效范围时抛
-`TARGET_SCOPE_NOT_VISIBLE`。这仍是可见屏幕截图：不假定窗口未被遮挡，也不支持最小化窗口的后台内容捕获。
+## 文本 `relativeTo`
 
-### 文字参照物：`relativeTo`
+`relativeTo` 使用**同一次截图、同一次 OCR** 中的唯一 exact 文本作为参照物，不递归调用 `UI.findText()` 拼接两个画面。
 
-`relativeTo.text` 是非空字符串，仅按 exact 匹配。大小写、空白归一化和最低置信度沿用顶层对应选项；
-顶层 `match: "contains"` 只控制目标文字，不会隐式改成 contains 参照物。provider、语言和 OCR 来源也
-复用本次观察。参照物和目标来自同一次 capture、同一次 `Vision.runOCR`；不会递归调用 `UI.findText`
-拼接两个画面。
+参照物不存在时：
 
-参照物必须唯一。没有参照物时，`findTexts` 返回 `[]`、未指定 `index` 的 `findText` 返回 `null`、
-`hasText` 返回 `false`；点击时报 `TARGET_NOT_FOUND` 且 `stage: "anchor"`。参照物超过一个时，所有启用
-`relativeTo` 的方法都抛 `AMBIGUOUS_TARGET` 且 `stage: "anchor"`。顶层 `index` 不能挑选参照物。
-作为参照物的 OCR 行本身不会再次充当相邻目标。
+- `findTexts` 返回 `[]`；
+- 未指定 `index` 的 `findText` 返回 `null`；
+- `hasText` 返回 `false`；
+- 点击抛 `TARGET_NOT_FOUND`，`stage: "anchor"`。
 
-OCR provider 如果把标签和按钮合并为一条文本行，UI 不会根据字符长度猜测按钮 bbox；应改进实际画面、
-OCR provider 或搜索规则，让参照物和目标产生独立识别结果。
+参照物超过一个时，所有启用 `relativeTo` 的方法抛 `AMBIGUOUS_TARGET`，`stage: "anchor"`。顶层 `index` 不能用于挑选参照物。
 
-#### 方向模式
+### 方向模式
 
-方向模式支持 `right`、`left`、`above` 和 `below`。`maxGap` 必须是有限且不小于 0 的屏幕逻辑坐标
-距离；`minOverlap` 必须在 `(0, 1]`，默认 `0.5`。阈值边界均包含在内。
+支持 `right`、`left`、`above`、`below`：
 
 ```js
 await UI.tapText('编辑', {
@@ -180,14 +312,9 @@ await UI.tapText('编辑', {
 });
 ```
 
-以 `right` 为例，目标左边界必须不小于参照物右边界，水平边缘间隔必须不大于 `maxGap`，纵向重叠
-长度除以两者较小高度必须不小于 `minOverlap`。`left` 使用反向水平边缘关系；`above` / `below`
-使用垂直边缘间隔，并以横向重叠长度除以两者较小宽度。方向只做空间筛选，不证明业务关联，也不会自动
-选择最近、最高置信度或第一个候选。
+`maxGap` 必须是有限且不小于 0 的屏幕逻辑坐标距离；`minOverlap` 必须在 `(0, 1]`，默认 `0.5`。方向规则只做空间筛选，不证明业务关联，也不自动挑最近目标。
 
-#### 矩形模式
-
-矩形模式由同帧参照物计算一个候选筛选范围：
+### 矩形模式
 
 ```js
 await UI.tapText('编辑', {
@@ -204,169 +331,84 @@ await UI.tapText('编辑', {
 });
 ```
 
-`anchor` 使用 `OpenDeskUITextTarget` 的既有形状，`anchor.bounds` 是本次观察得到的 screen region。
-唯一参照物确认后只调用回调一次，不会为每个目标候选重复执行。回调必须同步返回有效、带 screen 标记的
-region；`Promise`、`null`、裸 bbox、非法数字和非正尺寸均报 `INVALID_ARGUMENT`。它可以超出参照物，
-但最终会与外层有效搜索范围求交，不能扩大外层范围。目标 bbox 必须**完整位于**最终矩形内；仅中心落入、
-边缘相交或部分重叠均不通过。交集为空表示没有符合条件的目标，不会点击矩形中心，也不会自动扩大范围。
+回调只在唯一参照物确认后调用一次，必须同步返回有效 tagged screen region。目标 bbox 必须完整位于最终矩形内；仅中心落入、边缘相交或部分重叠均不通过。矩形最终仍与外层有效搜索范围求交，不能扩大 `within`。
 
-方向距离、重叠和矩形全部使用 Geometry 既有的桌面逻辑坐标单位，不按 `Display.scale` 乘除。空间筛选使用
-OCR bbox 连续投影后的逻辑边界，避免非整数截图比例下由取整造成边界误判；公开返回的 `bounds` 仍保持
-既有的左/上 `floor`、右/下 `ceil` 形状，`relativeTo.region` 回调看到的也是这个公开形状。
+方向模式与矩形模式二选一。不能同时传 `direction` 和 `relativeTo.region`；矩形模式也不接受 `maxGap` / `minOverlap`。未知字段不会被静默忽略。
 
-方向模式与矩形模式二选一。同时提供 `direction` 和 `relativeTo.region` 报 `INVALID_ARGUMENT`；矩形模式
-也不接受 `maxGap` / `minOverlap`。这些定位结构中的未知字段会被拒绝，而不是静默忽略。
+## 文本定位的新鲜度
 
-### 消歧与窗口新鲜度
+启用 `region` / `relativeTo` 后，每次调用会在截图前确认窗口身份，并在识别后、返回或点击前再次复核。不会凭标题、PID 或坐标相似把失效窗口换成另一个窗口。
 
-关系筛选后的目标继续沿用既有结果和消歧合同：
+动态 `region` 或未指定外层 `region` 时，同一窗口在识别期间移动/resize，最多执行一次完整的重新读取 → 重算 → 截图 → OCR。静态 `region` 立即停止。重试观察期间再次变化则抛 `STALE_TARGET`，不会无限重试。
 
-- `findTexts` 返回过滤后的全部候选，`hasText` 表示是否至少有一个。
-- `findText` 没有目标且未指定 `index` 时返回 `null`；`tapText` 则抛 `TARGET_NOT_FOUND`。
-- 多个目标不会自动取最近或第一个；`findText` / `tapText` 要求唯一目标或显式 `index`。
-- `index` 是零基索引，只作用于关系筛选后的目标候选。
+最后一次检查与系统实际接收点击之间仍存在竞态；UI 不声称能原子消除这段窗口。
 
-启用新定位选项后，每次调用会在截图前重新读取窗口并确认身份，在识别后、返回或点击前再次复核身份和
-bounds。身份 unresolved、原窗口失效或无法可靠确认时会停止；不会凭标题、PID 或坐标相似自动换成另一个
-窗口。当前身份复核复用 `window.getActiveWindow()`，因此指定窗口必须继续是活动窗口；切换到其他窗口会
-按身份变化停止。即使旧位置已没有任何候选，也会执行窗口复核，不会等找到目标后才首次检查窗口移动。
+# 图片 API
 
-同一窗口在识别期间移动或 resize 时，动态 `region`（以及未指定外层 `region`）最多进行一次完整的
-重新读取、重算、截图和 OCR；静态 `region` 立即停止而不猜测新位置。重试观察期间再次变化则抛
-`STALE_TARGET`，不会无限重试。重试仅发生在输入前；一旦鼠标输入已被调用，无论调用结果是否确定，
-都不会自动再次点击。最后一次检查与系统接收点击之间仍可能发生界面变化，UI 不声称能原子消除这段竞态。
+图片方法复用 [`ImageColor.findImages`](image-color.md)，不建立第二套模板匹配实现。
 
-`tapTexts` 的每一步都会重新识别参照物和目标，并始终保留指定窗口身份；步骤失败即停止，错误继续包含
-`failedIndex`、`failedText`、`completed` 和原始 `cause`，已完成步骤不会重做。
+## 图片公共 options
 
-### 暂不支持新定位选项的方法
-
-`UI.waitText`、`UI.waitTextGone`、`UI.findImages`、`UI.findImage` 和 `UI.tapImage` 当前不支持
-`region` / `relativeTo`。这些方法收到任一新选项时，会在截图、OCR、模板匹配或输入之前明确抛
-`INVALID_ARGUMENT`；不会静默忽略。图片相对定位、图片或 Accessibility 参照物也不在本批范围内。
-
-### 受控示例
-
-先在不含业务数据的临时测试窗口中准备两条独立文字行：`OpenDesk 测试行 A    编辑` 和
-`OpenDesk 测试行 B    编辑`，并聚焦该窗口。然后从 **OpenDesk 仓库根目录**原样运行：
-
-```bash
-./opendesk -script examples/ui-relative-target.js
-```
-
-该示例只会尝试一次相对点击，不创建截图或上传内容。请勿在真实联系人、订单或支付页面运行。移动或调整
-同一个测试窗口后再次执行同一条命令，动态 `region` 会从最新窗口 bounds 重算；示例不会复用上次点击
-坐标。这个手动前置条件意味着命令不能安全地在任意当前活动窗口上自动验收。
-
-## `UI.findTexts()` / `UI.findText()` / `UI.hasText()` / `UI.tapText()` / `UI.tapTexts()` / `UI.waitText()` / `UI.waitTextGone()`：文本接口
-
-```js
-const matches = await UI.findTexts('编辑', {
-  within: win,
-  match: 'exact',
-  minConfidence: 0.5,
-  provider: 'apple',
-  lang: 'ch',
-});
-
-if (matches.length === 1) {
-  await mouse.clickPoint(matches[0].center);
+```ts
+interface OpenDeskUIImageOptions {
+  within?: OpenDeskWindowInfo | OpenDeskDisplayInfo | OpenDeskScreenRegion;
+  threshold?: number;
+  scales?: number[];
+  maxResults?: number;
+  index?: number;
+  timeout?: number;
+  polling?: number;
+  click?: OpenDeskMouseClickOptions;
 }
 ```
 
-文本 options：
-
 | 参数 | 默认 | 说明 |
 | --- | --- | --- |
-| `within` | 当前活动窗口 | window、display 或已标记 screen region |
-| `match` | `"exact"` | `"exact"` 或 `"contains"` |
-| `caseSensitive` | `false` | 是否区分大小写 |
-| `normalizeWhitespace` | `true` | trim 并将连续空白折叠为一个空格 |
-| `minConfidence` | 未设置 | OCR 最低置信度 |
-| `provider` / `providerChain` / `lang` | Vision 默认 | 转发给 `Vision.runOCR` |
-| `index` | 未设置 | 零基、显式消歧 index |
-| `timeout` / `polling` | 10000 / 200 ms | `waitText` 与 `waitTextGone` 的有限轮询控制 |
-| `click` | 未设置 | 转发给 `mouse.clickPoint` 的既有鼠标选项 |
-| `intervalMs` | 0 | `tapTexts` 两步间的显式间隔 |
+| `within` | 当前活动窗口 | 限定截图和匹配范围；不能传裸 bbox |
+| `threshold` | ImageColor 默认 | `0..1` 的有限数 |
+| `scales` | ImageColor 默认 | 非空正数数组 |
+| `maxResults` | ImageColor 默认 | 正整数 |
+| `index` | 未设置 | 候选零基索引 |
+| `timeout` | `10000` | 统一 options 合同校验；图片点击本身不轮询 |
+| `polling` | `200` | 统一 options 合同校验；图片点击本身不轮询 |
+| `click` | 未设置 | 转发给 `mouse.clickPoint` |
 
-以下定位 options 仅用于 `findTexts`、`findText`、`hasText`、`tapText` 和 `tapTexts`，并要求显式
-`within: OpenDeskWindowInfo`：
+当前图片方法不支持 `region` / `relativeTo`。
 
-| 参数 | 默认 | 说明 |
-| --- | --- | --- |
-| `region` | 当前窗口 bounds | tagged screen region 快照，或 `(currentWin) => screenRegion` 同步规则 |
-| `relativeTo` | 未设置 | 相对于唯一 exact 文字参照物的方向或矩形筛选规则 |
+## `UI.findImages()`
 
-`findTexts` 以 screen reading order 返回所有匹配：先 y，同行再 x。候选的稳定形状为：
-
-```js
-{
-  source: 'ocr',
-  text: '确定',
-  confidence: 0.98,
-  provider: 'apple',
-  imageBounds: { x: 125, y: 125, width: 250, height: 50, coordinateSpace: 'image' },
-  bounds: { x: 200, y: 300, width: 200, height: 40, coordinateSpace: 'screen' },
-  center: { x: 300, y: 320, coordinateSpace: 'screen' },
-}
+```ts
+UI.findImages(
+  template: string | string[],
+  options?: OpenDeskUIImageOptions,
+): Promise<OpenDeskUIImageTarget[]>;
 ```
 
-`findText` / `tapText` 不会默认选择 `elements[0]`：
+返回当前 `within` 范围内按 screen reading order 排列的全部候选；没有结果返回 `[]`。`template` 可以是一张非空模板图片，也可以是**同一控件**的非空状态模板数组。
 
-- 0 个候选：`findText` 返回 `null`；`tapText` 抛 `TARGET_NOT_FOUND`。
-- 1 个候选：返回或点击该候选。
-- 多个候选且没有 `index`：抛 `AMBIGUOUS_TARGET`，错误含 `candidateCount`、`candidates` 与
-  `operation`。
-- `index` 越界：抛 `TARGET_NOT_FOUND`，不会退回第一个。
+## `UI.findImage()`
 
-优先用 `within` 缩小范围；`index` 仅是明确的消歧方式。`tapTexts` 只接受动作序列 `string[]`：
-
-```js
-await UI.tapTexts(['1', '6', '×', '3', '='], {
-  within: Geometry.regionPercent(win, { left: 0, top: 35, width: 100, height: 65 }),
-  match: 'exact',
-});
+```ts
+UI.findImage(
+  template: string | string[],
+  options?: OpenDeskUIImageOptions,
+): Promise<OpenDeskUIImageTarget | null>;
 ```
 
-它不会按空格拆分字符串，也不会把数组解释为 aliases。任何一步失败即停止；错误含
-`failedIndex`、`failedText`、`completed` 和原始 `cause`。
+参数同 [`UI.findImages()`](#uifindimages)。0 个候选返回 `null`；唯一候选直接返回；多个候选且没有 `index` 时抛 `AMBIGUOUS_TARGET`；`index` 越界抛 `TARGET_NOT_FOUND`。
 
-`waitText` 与 `waitTextGone` 都是 predicate polling：每次轮询重新截图并重新 OCR，不使用固定
-`page.waitFor(1000)` 伪造业务成功。超时抛 `TIMEOUT`，含 timeout、text、lastObservation 和
-lastError 摘要。
+## `UI.tapImage()`
 
-## `UI.findImages()` / `UI.findImage()` / `UI.tapImage()`：图片接口
+```ts
+UI.tapImage(
+  template: string | string[],
+  options?: OpenDeskUIImageOptions,
+): Promise<OpenDeskUITapResult<OpenDeskUIImageTarget>>;
+```
 
-`UI` 复用 `ImageColor.findImages`，不重写模板匹配：
+查找唯一图片并点击中心。稳定 scope 中每次调用只截图、匹配一次，随后最多提交一次 `mouse.clickPoint`。找不到目标立即报错；不会因为传入 `timeout` / `polling` 而隐式等待或重复匹配。
 
-### `UI.findImages(template, options?)`
-
-在当前 `within` 范围内查找模板图片，返回按屏幕阅读顺序排列的全部候选数组；没有匹配时返回
-`[]`。`template` 可以是一张非空图片字符串，或同一控件的非空状态模板数组；路径按
-`ImageColor.findImages` 的规则解析。
-
-### `UI.findImage(template, options?)`
-
-参数与 `UI.findImages` 相同，但只返回唯一候选；没有匹配时返回 `null`，有多个候选且未提供
-`index` 时抛出 `AMBIGUOUS_TARGET`。提供 `index` 后只选择匹配候选数组中的对应零基索引。
-
-### `UI.tapImage(template, options?)`
-
-查找模板图片并点击唯一候选的中心点。其参数为：
-
-| 参数 | 类型 | 默认值 | 说明 |
-| --- | --- | --- | --- |
-| `template` | `string \| string[]` | 必填 | 一张模板图片，或同一控件的有序状态模板组；每项必须是非空字符串。 |
-| `options.within` | `OpenDeskWindowInfo \| OpenDeskDisplayInfo \| OpenDeskScreenRegion` | 当前活动窗口 | 限定截图和匹配范围；不能传裸 bbox。 |
-| `options.threshold` | `number` | ImageColor 默认值 | 匹配阈值，必须是有限数，范围 `0..1`。 |
-| `options.scales` | `number[]` | ImageColor 默认值 | 要尝试的缩放比例；必须是非空数组，所有值必须为正数。 |
-| `options.maxResults` | `number` | ImageColor 默认值 | 最多保留的候选数；必须是正整数。 |
-| `options.index` | `number` | 未设置 | 候选的零基索引；用于明确选择一个匹配结果。 |
-| `options.timeout` | `number` | `10000` | 仅作统一 options 合同的校验；图片点击本身不轮询。 |
-| `options.polling` | `number` | `200` | 仅作统一 options 合同的校验；`tapImage` 当前不进行等待轮询。 |
-| `options.click` | `OpenDeskMouseClickOptions` | 未设置 | 转发给 `mouse.clickPoint(target.center, options.click)`。 |
-
-返回 `Promise<OpenDeskUITapResult<OpenDeskUIImageTarget>>`：
+返回示例：
 
 ```js
 {
@@ -377,104 +419,241 @@ lastError 摘要。
     template: './assets/save-icon.png',
     confidence: 0.97,
     scale: 1,
-    imageBounds: { x: 120, y: 80, width: 32, height: 32, coordinateSpace: 'image' },
-    bounds: { x: 420, y: 260, width: 16, height: 16, coordinateSpace: 'screen' },
+    imageBounds: {
+      x: 120, y: 80, width: 32, height: 32,
+      coordinateSpace: 'image',
+    },
+    bounds: {
+      x: 420, y: 260, width: 16, height: 16,
+      coordinateSpace: 'screen',
+    },
     center: { x: 428, y: 268, coordinateSpace: 'screen' },
   },
   point: { x: 428, y: 268, coordinateSpace: 'screen' },
 }
 ```
 
-在稳定的 scope 中，`tapImage` 每次调用只截图、匹配一次，随后最多提交一次
-`mouse.clickPoint`；找不到目标会立即报错，不会因为传了 `timeout` / `polling` 而等待或重复匹配。
-输入前若窗口或目标范围变化，最多会重新观察一次以避免点击旧坐标，但鼠标输入已调用后绝不会自动
-重复点击。当前没有 `UI.waitImage`，因此需要等待图片出现时不能把 `tapImage` 伪装成等待 API；调用方
-必须明确安排后续重试或等待策略。成功只表示已找到模板并提交一次 `mouse.clickPoint`，不代表外部
-应用已经完成业务动作。
+输入前若窗口或目标范围变化，最多重新观察一次；鼠标输入已调用后绝不会自动重复点击。当前没有 `UI.waitImage()`。
 
-可能的错误包括：模板无效或 options 无效时为 `INVALID_ARGUMENT`；没有候选或 `index` 越界时为
-`TARGET_NOT_FOUND`；多个候选未消歧时为 `AMBIGUOUS_TARGET`；窗口/范围变化时为 `STALE_TARGET`；
-范围不可见、截图失败、模板匹配失败或坐标无法映射时分别为 `TARGET_SCOPE_NOT_VISIBLE`、
-`SCREENSHOT_FAILED`、`IMAGE_MATCH_FAILED` 或 `UNSUPPORTED_COORDINATE_MAPPING`。
+## 图片状态模板
+
+同一控件的多个状态模板会在同一次截图中逐一匹配。重叠候选按置信度去重，同分时按模板数组顺序选择。返回 target 的 `template` 是实际命中的状态模板。
+
+数组不表示“多个不同按钮任选一个”。对于 toggle，不要直接写：
 
 ```js
-const icon = await UI.findImage('./assets/save-icon.png', {
-  within: win,
-  threshold: 0.95,
-  scales: [1, 1.25, 1.5],
-});
-
-if (icon) await mouse.clickPoint(icon.center);
+await UI.tapImage([unselected, selected]);
 ```
 
-图片 options 为 `within`、`threshold`、`scales`、`maxResults`、`index`、`timeout`、`polling`、`click`。
-歧义和 index 规则与文本接口相同。图片候选含 `source: 'image'`、template、confidence、可选 scale、
-`imageBounds`、screen-space `bounds` 与 tagged `center`。
+如果当前已经 selected，这会再次点击并可能把状态切回去。正确流程是：
 
-状态模板组在同一次截图中逐一匹配；重叠候选会按置信度去重，同分时按模板数组顺序选择。用
-`UI.findImage([unselected, selected])` 判断当前状态时，返回 target 的 `template` 是实际命中的状态图片
-（`UI` target 不暴露 `templateIndex`）。数组不应用来把多个不同按钮默认为“任选一个”；这种情况应分开
-定位或用 `within` 明确范围。
+```text
+状态数组分类
+→ 如果已是目标状态则结束
+→ 只点击允许改变状态的模板
+→ 重新分类并验证后置条件
+```
 
-对于“确保按钮最终已选中”这种 toggle 业务，**不要**写
-`UI.tapImage([unselected, selected])`：当前若已经选中，它仍会找到 selected 模板并点击，反而可能把状态
-切回未选中。正确流程是“数组分类 → 只点击未选中模板 → 重新分类验证”。下面的 `top: 100` 只是当前
-fixture 的示例值；生产中必须按实际微信窗口、主题和缩放标定这个窄 scope：
+只搜索未选中模板可以作为 action gate，但“未命中未选中模板”不能单独证明已经选中，仍应重新读取状态。
 
-```js
-const unselected = './examples/image-color/fixtures/wechat-message/unselected.png';
-const selected = './examples/image-color/fixtures/wechat-message/selected.png';
-const states = [unselected, selected];
+# 原生菜单 API
 
-async function ensureMessageSelected(win) {
-  const messageRow = Geometry.regionOffset(win, {
-    left: 0, top: 100, width: 60, height: 44,
-  });
-  const options = { within: messageRow, threshold: 0.95 };
-  const inspect = async () => {
-    const target = await UI.findImage(states, options);
-    if (!target) return { state: 'unknown', target: null };
-    if (target.template === unselected) return { state: 'unselected', target };
-    if (target.template === selected) return { state: 'selected', target };
-    throw new Error(`unexpected state template: ${target.template}`);
-  };
+`UI.getMenuItems()`、`UI.findMenuItem()`、`UI.tapMenuItem()` 属于同一个大写 `UI` 对象，因此菜单合同与文本、图片接口统一维护在本页，不再拆成独立 `desktop-ui-menu.md`。
 
-  const before = await inspect();
-  if (before.state === 'unknown') throw new Error('UNKNOWN_MESSAGE_STATE');
-  if (before.state === 'selected') return { changed: false, target: before.target };
+菜单方法为 **Experimental**。它们复用唯一的 [`AccessibilityRuntime`](accessibility.md)、元素表、总 deadline、取消和资源清理；没有 `MenuRuntime`、平行菜单后端或鼠标/OCR 降级。
 
-  // Re-captures immediately and clicks only if the old state is still visible.
-  // A concurrent actor may have selected it already; re-check that safe race.
-  try {
-    await UI.tapImage(unselected, options);
-  } catch (error) {
-    if (!error || error.code !== 'TARGET_NOT_FOUND') throw error;
-  }
+可信本地 `-script` / `ai run` execution 可显式启用；HTTP、MCP 和 Scheduler execution 当前关闭。禁用时拒绝为 `CAPABILITY_DISABLED`，不会先读取目标。
 
-  // UI has no waitImage; make the postcondition and retry policy explicit.
-  for (let attempt = 0; attempt < 10; attempt += 1) {
-    await delay(100);
-    const after = await inspect();
-    if (after.state === 'selected') return { changed: true, target: after.target };
-    if (after.state === 'unknown') throw new Error('MESSAGE_STATE_BECAME_UNKNOWN');
-  }
-  throw new Error('MESSAGE_NOT_SELECTED_AFTER_TAP');
+## 菜单公共 options
+
+```ts
+interface OpenDeskUIMenuOptions {
+  within:
+    | OpenDeskWindowInfo
+    | {
+        app: OpenDeskAppTarget;
+        root: 'menuBar';
+      };
+  timeout?: number;  // default 3000, max 30000
+  maxDepth?: number; // default 8, max 32
+  maxNodes?: number; // default 1000, max 5000
 }
 ```
 
-如果两种状态下都允许执行同一个、不会改变状态的动作，才可以把状态数组直接传给
-`UI.tapImage(states)`。只用未选中图片搜索适合作为“允许点击”的 action gate；它未命中时只能表示
-“不能安全点击”，不能单独证明按钮已经选中——仍应使用状态数组复核。
+菜单 `within` **必填**，且与视觉 API 的 `within` 合同不同：
 
-## Capture mapping 与 DPI
+- 可传可重新验证的明确 `OpenDeskWindowInfo`；
+- 或 `{ app: OpenDeskAppTarget, root: 'menuBar' }`；
+- 不能传 Display、ScreenRegion、裸坐标、Accessibility ref；
+- 不能传只有 title/PID/handle 的自造对象；
+- App target 匹配多个实例时必须消歧；
+- unresolved、关闭重建或前后身份不一致时返回 `STALE_TARGET`。
 
-UI 始终严格区分三种坐标：
+macOS menu bar 是应用级根，不按主窗口矩形裁剪。菜单 popup 可以位于原窗口外或使用不同原生窗口，但后端必须证明应用/窗口 owner 关系。只凭同一 PID、文字同名、距离接近或 handle 变化不能接受 popup；无法证明归属时停止。
 
-1. **screen logical coordinate**：window/display bounds 和 `mouse.click` 使用的虚拟桌面坐标。
-2. **screenshot image pixel**：OCR 与 ImageColor bbox 使用的图片像素。
-3. **scope-local coordinate**：本次 screenshot clip 内部的局部坐标。
+## 菜单 path
 
-每次查找都使用已有截图接口：
+```ts
+type OpenDeskUIMenuPathSegment =
+  | string
+  | { name: string; identifier?: string }
+  | { name?: string; identifier: string };
+
+type OpenDeskUIMenuPath = [
+  OpenDeskUIMenuPathSegment,
+  ...OpenDeskUIMenuPathSegment[],
+];
+```
+
+数组不能为空。字符串段必须非空；对象段至少有一个非空 `name` / `identifier`。对象的多个字段按 AND 精确匹配：不翻译、不忽略大小写、不自动修复、不把数组解释为 aliases。未知字段、非法类型或超过限制的值会拒绝，不会静默忽略。
+
+每一层都必须在明确父容器中唯一匹配，不会跨整个应用挑第一个同名项。
+
+```js
+const saveAs = [
+  { identifier: 'file-menu' },
+  { name: 'Export' },
+  { name: 'PDF' },
+];
+```
+
+具体应用、版本和语言的菜单映射应放在应用 adapter；通用 Runtime 不猜菜单翻译或替代路径。
+
+## `UI.getMenuItems()`
+
+```ts
+UI.getMenuItems(
+  options: OpenDeskUIMenuOptions,
+): Promise<OpenDeskUIGetMenuItemsResult>;
+```
+
+只读观察当前已经物化的菜单数据，不展开菜单、不激活应用、不抢焦点。
+
+```js
+const win = await window.getActiveWindow();
+const observed = await UI.getMenuItems({
+  within: win,
+  maxDepth: 3,
+});
+
+console.log(observed.complete, observed.truncated, observed.reason);
+```
+
+返回：
+
+```ts
+{
+  requestId: string;
+  operation: 'UI.getMenuItems';
+  backend: string;
+  items: OpenDeskUIMenuItem[];
+  complete: boolean;
+  truncated: boolean;
+  reason: string | null;
+  stats: {
+    nodes: number;
+    maxDepth: number;
+  };
+}
+```
+
+菜单项只包含白名单观察数据：规范化/native role、name、identifier、状态、actions、经验证的 bounds 和 children；不返回可伪造的原生 handle。未物化、不可读或超过深度/节点/deadline 的子菜单不能被描述成“空且完整”。
+
+## `UI.findMenuItem()`
+
+```ts
+UI.findMenuItem(
+  path: OpenDeskUIMenuPath,
+  options: OpenDeskUIMenuOptions,
+): Promise<OpenDeskUIMenuItem | null>;
+```
+
+同样是只读操作：不展开菜单、不激活应用、不抢焦点。
+
+- 完整观察且 0 个候选：返回 `null`；
+- 唯一候选：返回普通 `OpenDeskUIMenuItem` 数据；
+- 多个候选：抛 `AMBIGUOUS_TARGET`；
+- 路径需要尚未物化的子菜单，或限制使 Runtime 无法证明 0/1：抛 `SEARCH_INCOMPLETE`。
+
+`SEARCH_INCOMPLETE` 不会被伪装成 `null`。
+
+## `UI.tapMenuItem()`
+
+```ts
+UI.tapMenuItem(
+  path: OpenDeskUIMenuPath,
+  options: OpenDeskUIMenuOptions & {
+    finalAction?:
+      | { action: 'invoke' }
+      | { action: 'select' }
+      | { action: 'setChecked'; checked: boolean };
+  },
+): Promise<OpenDeskUITapMenuItemResult>;
+```
+
+`finalAction` 省略时等价于 `{ action: 'invoke' }`。
+
+```js
+const result = await UI.tapMenuItem(
+  ['File', 'Export', 'PDF'],
+  {
+    within: {
+      app: { bundleId: 'com.example.fixture' },
+      root: 'menuBar',
+    },
+    timeout: 3000,
+  },
+);
+
+console.log(result.actionState);
+```
+
+执行顺序固定为：
+
+```text
+复核目标身份与前台状态
+→ 在当前观察中唯一匹配第 0 层
+→ 展开并重新观察已验证 owner 的新菜单
+→ 逐层重复唯一匹配与重新观察
+→ 再次复核目标、enabled、状态和实际 action
+→ 最终动作最多提交一次
+```
+
+调用前应通过既有 `App.launch(..., { activate: true })` 或 `window.focus(...)` 激活已知目标，并自行验证身份。菜单方法不会按标题盲目切前台。开始或最终动作前发现其他应用、模态状态或 owner 不明会停止。
+
+打开后的每一层定位必须来自新观察，不缓存旧坐标或旧菜单 ref，也不会全屏点击同名文字。
+
+整个路径共享一个从入队开始计算的 deadline，不会每展开一层重置 timeout。Accessibility 菜单请求在本模块内有界串行，避免本模块自身的多个操作穿插；这不等于锁住真人、其他进程或旧鼠标脚本。
+
+成功结果包含 `requestId`、`operation`、`backend`、最终 `action`、`actionState`、`completedLevels` 和 `expansionOccurred`。`actionState` 与 [`Accessibility.perform()`](accessibility.md#perform动作与状态) 相同。
+
+`setChecked` 已是目标值时返回 `not_needed` 且不提交输入。状态未知、只读、disabled、三态无法安全映射或 pattern/action 不支持时停止；`select` 不会退化成 toggle；任何最终动作都不会在失败或超时后自动重做。
+
+## 菜单失败、副作用与清理
+
+菜单 rejection 复用 [Accessibility 结构化错误](accessibility.md#结构化错误)，并在适用时增加：
+
+```ts
+{
+  failedLevel?: number;
+  completedLevels?: number;
+  expansionOccurred?: boolean;
+}
+```
+
+如果最终动作尚未开始，`actionState` 可以是 `not_started`；但此前若已经展开菜单，`expansionOccurred` 仍为 `true`，不能把整个请求描述成“无副作用”。取消只能阻止尚未执行的后续层级，已经发出的原生动作不保证撤回。
+
+Runtime 不会向身份未知的当前前台窗口强发 Escape。只有后端仍能证明展开菜单属于原目标时，才允许受控清理；清理失败不得覆盖原始错误。默认日志不记录完整 path、菜单正文或用户数据。
+
+# Capture mapping 与 DPI
+
+视觉 UI 始终区分：
+
+1. **screen logical coordinate**：window/display bounds 与 `mouse.click` 使用的虚拟桌面坐标；
+2. **screenshot image pixel**：OCR 与 ImageColor bbox 使用的图片像素；
+3. **scope-local coordinate**：本次 screenshot clip 内部局部坐标。
+
+每次视觉查找使用现有截图接口：
 
 ```js
 const image = await page.screenshot({
@@ -487,13 +666,11 @@ const scaleX = imageWidth / width;
 const scaleY = imageHeight / height;
 ```
 
-`UI` 默认只在内存中使用本次截图，不新增截图文件、上传内容或记录 OCR 正文日志。
+UI 默认只在内存中使用本次截图，不新增截图文件、上传内容或记录 OCR 正文日志。
 
-因此不会假定 screenshot pixel 等于 screen logical coordinate、不会写死 Retina 2× 或 Windows
-125%/150%，也不要求 `scaleX === scaleY`。`Display.scale` 只用于 mixed-DPI 安全检查与诊断；本次
-真实图片尺寸才是坐标投影依据。
+不会假定 screenshot pixel 等于 screen logical coordinate，不写死 Retina 2× 或 Windows 125%/150%，也不要求 `scaleX === scaleY`。`Display.scale` 只用于 mixed-DPI 安全检查与诊断；本次真实图片尺寸才是坐标投影依据。
 
-对于图片 bbox `{ x, y, width, height }`，UI 使用：
+投影规则：
 
 ```text
 screenLeft   = logicalScope.x + bbox.x / scaleX
@@ -502,17 +679,13 @@ screenRight  = logicalScope.x + (bbox.x + bbox.width) / scaleX
 screenBottom = logicalScope.y + (bbox.y + bbox.height) / scaleY
 ```
 
-返回 screen bounds 的左/上取 `floor`，右/下取 `ceil`；center 由最终完整 bounds 计算并 clamp 在
-bounds 内。不要直接使用旧 OCR/ImageColor result 的 `centerX` / `centerY` 点击。
+公开 screen bounds 左/上取 `floor`，右/下取 `ceil`；center 从最终完整 bounds 计算并 clamp 在 bounds 内。不要直接使用旧 OCR/ImageColor result 的 `centerX` / `centerY` 点击。
 
-如果 scope 是 window，UI 会在点击前重新读取窗口：身份（包括可用的稳定 id / handle）变化时抛
-`STALE_TARGET`。未使用静态 `region` 时，同一个窗口若移动或 resize，最多执行一次完整的重新
-capture → recognition → projection；静态 `region` 不会随窗口移动。两种情况都不会点击旧 point 或
-无限重试。启用新定位选项时还会在无候选和读取返回前复核，完整顺序见“消歧与窗口新鲜度”。
+如果 scope 是 window，输入前会重新读取窗口身份。身份变化抛 `STALE_TARGET`。动态范围允许在输入前最多重新观察一次；鼠标或原生动作已提交后不会自动重复输入。
 
-## 错误与能力
+# 错误与边界
 
-新 API 的错误至少含 `code`、`operation`、`message`。P0 code 为：
+视觉 API 常见错误：
 
 ```text
 INVALID_ARGUMENT
@@ -528,33 +701,36 @@ UNSUPPORTED_COORDINATE_MAPPING
 TIMEOUT
 ```
 
-```js
-console.log(UI.getCapabilities());
-// {
-//   text: { find: true, tap: true, wait: true, backend: 'Vision.runOCR' },
-//   image: { find: true, tap: true, backend: 'ImageColor.findImages' },
-//   accessibility: {
-//     available: true,
-//     implemented: true,
-//     status: 'available',
-//     enabled: true,
-//     backend: 'macos-ax',
-//     permission: 'granted',
-//     menus: true,
-//     actions: {
-//       invoke: true, setValue: true, expand: true,
-//       collapse: true, select: true, setChecked: true
-//     },
-//     coordinateMapping: false,
-//     notes: 'element actions remain conditional on current native support'
-//   },
-//   coordinateMapping: { actualCaptureScale: true, mixedDPIScope: false }
-// }
+原生菜单还可能出现 Accessibility 结构化错误、`CAPABILITY_DISABLED` 与 `SEARCH_INCOMPLETE`。
+
+当前明确边界：
+
+- 没有 `UI.waitImage()`；
+- 图片方法不支持 `region` / `relativeTo`；
+- `waitText` / `waitTextGone` 暂不支持 `region` / `relativeTo`；
+- visual API 不把失败自动降级为 Accessibility 动作；
+- menu API 不把失败自动降级为 OCR/鼠标点击；
+- menu API 不做 aliases、翻译或自动 repair；
+- mixed-DPI split capture 尚未提供；
+- Recorder、replay、UIMap/scene 不属于本页 API。
+
+# 示例与验证
+
+文字相对定位的受控示例：
+
+```bash
+./opendesk -script examples/ui-relative-target.js
 ```
 
-上例只展示字段形状；当前 execution 的实际值以结果为准。`available` 已同时包含 implementation、
-execution 授权和当前 OS 权限，但仍不代表任意元素支持动作；完整 host/backend/OS 权限摘要应读取
-[`Accessibility.getCapabilities()`](accessibility.md#getcapabilities能力不是元素保证)。
+请只在明确准备的测试窗口运行；不要把示例直接用于真实联系人、订单、支付或其他高风险界面。移动或调整测试窗口后再次运行，动态 `region` 会从最新窗口 bounds 重算，不复用上次点击坐标。
 
-视觉 API 尚未提供 image waits、图片或 Accessibility 参照物以及 mixed-DPI split capture。原生菜单
-接口也不做 aliases、自动翻译或自动 repair。Recorder、replay 和 UIMap/scene 不属于这些 API。
+原生菜单 smoke 应使用仓库自有 fixture，或由本次 execution 明确启动且可安全清理的应用，并通过独立状态读取验证副作用。相关示例和产物约定见 [`examples/accessibility/README.md`](../../examples/accessibility/README.md)。
+
+相关文档：
+
+- [`Accessibility API`](accessibility.md)：底层原生元素 snapshot/find/read/perform/release；
+- [`Vision API`](vision.md)：OCR provider 与底层识别；
+- [`ImageColor API`](image-color.md)：模板匹配和图像辅助能力；
+- [`Geometry API`](geometry.md)：screen logical coordinate 与可重算区域；
+- [`Mouse API`](mouse.md)：实际鼠标输入；
+- [`Native Accessibility architecture`](../architecture/desktop-automation/native-accessibility.md)：owner 与 popup 身份模型。
