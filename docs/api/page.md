@@ -6,476 +6,628 @@ order: 2
 
 # page
 
-`page` 是 OpenDesk 脚本层最常用的入口。
+`page` 是 OpenDesk 桌面脚本的常用入口。它不是浏览器 DOM Page；主要负责截图、打开 URL/App、等待和权限处理。
 
-它更接近“桌面自动化 Page”，**不是浏览器 DOM Page**。
+`page.mouse`、`page.keyboard`、`page.touchscreen` 分别对应同一 Runtime 的 [`mouse`](mouse.md)、[`keyboard`](input.md) 与 [`touchscreen`](input.md) 能力。
 
-## page：适用场景
-
-- 截图当前窗口、整屏或指定区域
-- 打开 URL
-- 打开本地应用
-- 读取前台窗口标题
-- 等待条件
-- macOS 截图 / 辅助功能 / Automation 权限预检与引导
-
-## page：与其他全局对象的关系
-
-- `page.mouse` = 全局 `mouse`
-- `page.keyboard` = 全局 `keyboard`
-- `page.touchscreen` = 全局 `touchscreen`
-- `Screen.screenshot` 在运行时绑定到 `page.screenshot`
-
-## page：方法总表
-
-### page：Native 接口
+## API 一览
 
 | 方法 | 用途 |
 | --- | --- |
-| `page.screenshot(options?)` | 截图 |
-| `page.captureScreen(options?)` | 直接抓取屏幕或裁剪区域；返回值兼容 `page.screenshot` |
-| `page.goto(url)` | 用系统默认方式打开 URL |
-| `page.openURL(url)` | `goto` 的语义别名 |
-| `page.openApp(appName)` | 打开应用 |
-| `page.openURLInApp(appName, url)` | 用指定应用打开 URL |
-| `page.title()` | 当前活动窗口标题 |
-| `page.url()` | Page 内部 executable 字段，不等于真实浏览器 URL |
-| `page.checkScreenshotPermissions()` | 截图/辅助功能权限检查 |
-| `page.openMacOSPrivacySettings(section)` | 打开 macOS 隐私设置 |
-| `page.requestMacPermissions(options)` | 请求/探测 macOS 权限 |
-| `page.ensureMacPermissions(options)` | 严格确保 macOS 权限 |
-| `page.requestMacAutomationPermission(targetApp)` | 触发 AppleEvents 权限请求 |
+| `page.screenshot(options?)` | 截取活动窗口、屏幕或明确 clip。 |
+| `page.captureScreen(options?)` | 截屏兼容入口，返回形式与 `page.screenshot()` 一致。 |
+| `page.goto(url)` | 交给系统默认方式打开 URL。 |
+| `page.openURL(url)` | `page.goto()` 的语义别名。 |
+| `page.openApp(appName)` | 打开本地应用。 |
+| `page.openURLInApp(appName, url)` | 用指定应用打开 URL。 |
+| `page.title()` | 读取当前活动窗口标题。 |
+| `page.url()` | 返回 Page 内部 executable 字段；不是浏览器 URL。 |
+| `page.waitFor(value, options?)` | 分派到固定等待或条件等待。 |
+| `page.waitForTimeout(ms, options?)` | 非阻塞固定等待。 |
+| `page.waitForFunction(fn, options?, ...args)` | 轮询条件，带独立 deadline。 |
+| `page.waitForAll(values, options?)` | 有界等待一组值/Promise。 |
+| `page.checkPermissions(options?)` | 读取跨平台权限快照。 |
+| `page.requestPermissions(options?)` | 请求或引导用户处理跨平台权限。 |
+| `page.ensurePermissions(options?)` | 严格确保所需权限已满足。 |
+| `page.checkScreenshotPermissions()` | 检查截图相关权限。 |
+| `page.openMacOSPrivacySettings(section)` | 打开指定 macOS Privacy 设置页。 |
+| `page.requestMacPermissions(options)` | 请求/检查 macOS 权限。 |
+| `page.requestMacAutomationPermission(targetApp)` | 触发指定应用的 AppleEvents 权限请求。 |
 
-### page：Polyfill 增强
+## 公共约定
 
-| 方法 | 用途 |
+### 等待时间与取消
+
+`ms`、`timeout`、`polling` 必须是 `0..86400000` 内有限 `number`；允许小数，Runtime 调度时转换为整数毫秒。等待方法的 `signal` 可省略或为 `AbortSignal | null`。
+
+- timeout：`TimeoutError`，`code: 'TIMEOUT'`。
+- signal 取消：`AbortError`，`code: 'CANCELED'`。
+- 参数错误：`TypeError`，`code: 'INVALID_ARGUMENT'`。
+
+超时或取消不能抢占阻塞 JavaScript EventLoop 的同步死循环。
+
+### 权限 capability
+
+跨平台权限入口使用 `capabilities` 数组，常见值包括 `screenCapture`、`accessibility`、`inputMonitoring` 与 `automation`。`section: 'globalShortcut'` 会映射为 Accessibility + Input Monitoring 组合。
+
+权限方法不会把 `unknown` 当作 granted。需要系统设置导航时由显式 request/ensure 流程处理。
+
+### Screenshot returnType
+
+| `returnType` | 返回值 |
 | --- | --- |
-| `page.waitFor(number|function, options?)` | 数字等待或条件等待，支持 `AbortSignal` |
-| `page.waitForTimeout(ms, options?)` | Promise 风格固定等待，支持 `AbortSignal` |
-| `page.waitForNavigation(options?)` | 基于 `page.url()` 的兼容等待 |
-| `page.waitForFunction(fn, options?, ...args)` | 有独立 deadline 的单在途条件轮询 |
-| `page.waitForAll(promises, options?)` | 按输入顺序等待一组值或 Promise |
-| `page.checkPermissions(options?)` | 跨平台权限快照 |
-| `page.requestPermissions(options?)` | 跨平台权限请求 |
-| `page.ensurePermissions(options?)` | 严格权限守卫 |
-
-## page.screenshot(options)
-
-```js
-const result = await page.screenshot(options);
-```
-
-**参数**
-
-| 参数 | 类型 | 默认值 | 说明 |
-| --- | --- | --- | --- |
-| `path` | string | 空 | 保存路径 |
-| `type` | string | `png` | 当前输出主流程仍为 PNG |
-| `quality` | number | `100` | 保留字段；当前 PNG 流程不会体现 JPEG quality 差异 |
-| `fullPage` | boolean | `false` | true 时走整屏逻辑 |
-| `omitBackground` | boolean | `false` | 兼容字段 |
-| `encoding` | string | `binary` | 兼容字段 |
-| `returnType` | string | `base64` | base64 / bytes / path / object / none |
-| `target` | string | `activeWindow` | activeWindow / screen |
-| `displayIndex` | number | `0` | 显示器索引 |
-| `clip` | object | 空 | `{x,y,width,height}` 裁剪区域 |
-
-**返回形式**
-
-| returnType | 返回 |
-| --- | --- |
-| `base64` / 空 | `data:image/png;base64,...` |
-| `bytes` | PNG 二进制 / JS ArrayBuffer |
+| `base64` 或省略 | `data:image/png;base64,...` |
+| `bytes` | PNG bytes / ArrayBuffer |
 | `path` | 保存后的绝对路径 |
 | `object` | `{path,mimeType,width,height,sizeBytes,source,backend}` |
 | `none` | `null` |
 
-**行为优先级**
+## `page.screenshot(options?)`
 
-1. 有 `clip`：按 clip 截图，优先于 target。
-2. 否则 `fullPage=true` 或 `target='screen'`：整屏/指定显示器。
-3. 否则：尝试活动窗口；取不到活动窗口边界时可能降级整屏。
+截取活动窗口、整屏、指定显示器或明确 clip。
 
-**约束**
+**签名**
+```ts
+page.screenshot(options?: OpenDeskScreenshotOptions): Promise<OpenDeskScreenshotResult>;
+```
 
-- `clip.width` / `clip.height` 必须 > 0。
-- `displayIndex` 不能 < 0。
-- `target` 只接受当前实现支持的值。
-- `returnType` 非法会直接报错。
+**参数**
 
-**示例：当前窗口**
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `options.path` | `string` | 否 | 未设置 | 保存路径。 |
+| `options.type` | `string` | 否 | `'png'` | 当前主流程输出 PNG。 |
+| `options.quality` | `number` | 否 | `100` | 兼容字段；PNG 不体现 JPEG quality 差异。 |
+| `options.fullPage` | `boolean` | 否 | `false` | `true` 时按整屏逻辑。 |
+| `options.omitBackground` | `boolean` | 否 | `false` | 兼容字段。 |
+| `options.encoding` | `string` | 否 | `'binary'` | 兼容字段。 |
+| `options.returnType` | `string` | 否 | `'base64'` | 返回形式，见 [Screenshot returnType](#screenshot-returntype)。 |
+| `options.target` | `'activeWindow' \| 'screen'` | 否 | `'activeWindow'` | 截图目标。 |
+| `options.displayIndex` | `number` | 否 | `0` | 显示器索引。 |
+| `options.clip` | `{x:number,y:number,width:number,height:number}` | 否 | 未设置 | 明确裁剪区域。 |
 
+**返回值**
+
+由 `returnType` 决定，见公共约定。
+
+**行为与错误**
+
+`clip` 优先于 target；否则 `fullPage` / `target:'screen'` 走屏幕逻辑；其余尝试活动窗口。`clip.width/height` 必须大于 0，`displayIndex` 不能为负，非法 `returnType` 明确拒绝。
+
+**示例**
 ```js
-const out = await page.screenshot({
+const path = await page.screenshot({
   target: 'activeWindow',
   path: './.runtime/examples/current.png',
-  returnType: 'path'
+  returnType: 'path',
 });
-console.log(out);
 ```
 
-**示例：第二块显示器**
+## `page.captureScreen(options?)`
 
+提供与 `page.screenshot()` 兼容的直接屏幕抓取入口。
+
+**签名**
+```ts
+page.captureScreen(options?: OpenDeskScreenshotOptions): Promise<OpenDeskScreenshotResult>;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `options` | `OpenDeskScreenshotOptions` | 否 | `{}` | 截图选项，见 `page.screenshot()`。 |
+
+**返回值**
+
+与 `page.screenshot()` 相同。
+
+**行为与错误**
+
+使用当前 Runtime 的截图 backend，不建立第二套截图语义。非法截图参数明确拒绝。
+
+**示例**
 ```js
-console.log(Screen.getDisplays());
-
-await page.screenshot({
-  target: 'screen',
-  displayIndex: 2,
-  path: './.runtime/examples/display-2.png',
-  returnType: 'path'
-});
+const image = await page.captureScreen({ target: 'screen', returnType: 'base64' });
 ```
 
-**示例：裁剪区域**
+## `page.goto(url)`
 
+将 URL 交给操作系统默认打开方式。
+
+**签名**
+```ts
+page.goto(url: string): Promise<void>;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `url` | `string` | 是 | 无 | 非空 URL。 |
+
+**返回值**
+
+`Promise<void>`。
+
+**行为与错误**
+
+不是浏览器 tab 导航，不等待网页加载完成。平台启动失败时拒绝。
+
+**示例**
 ```js
-const shot = await page.screenshot({
-  clip: { x: 100, y: 120, width: 480, height: 320 },
-  path: './.runtime/examples/clip.png',
-  returnType: 'object'
-});
-console.log(shot);
+await page.goto('https://example.com');
 ```
 
-## page.goto(url) / page.openURL(url)
+## `page.openURL(url)`
 
+`page.goto()` 的语义别名。
+
+**签名**
+```ts
+page.openURL(url: string): Promise<void>;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `url` | `string` | 是 | 无 | 非空 URL。 |
+
+**返回值**
+
+`Promise<void>`。
+
+**行为与错误**
+
+Canonical method：`page.goto()`。行为和错误与 `goto()` 一致。
+
+**示例**
 ```js
 await page.openURL('https://example.com');
 ```
 
-它们把 URL 交给操作系统打开：
+## `page.openApp(appName)`
 
-- macOS：`open`
-- Windows：系统 start 机制
-- Linux：`xdg-open`
+按当前平台应用启动规则打开本地应用。
 
-注意：
+**签名**
+```ts
+page.openApp(appName: string): Promise<void>;
+```
 
-- 不是浏览器 tab 内 DOM 导航。
-- 不负责等待网页真正加载完成。
+**参数**
 
-## page.openApp(appName)
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `appName` | `string` | 是 | 无 | 非空应用名称或当前 backend 支持的 target spelling。 |
 
+**返回值**
+
+`Promise<void>`。
+
+**行为与错误**
+
+启动请求失败时拒绝。需要稳定 identity、等待 readiness 或终止/重启时使用 [`App`](app.md)。
+
+**示例**
 ```js
 await page.openApp('Safari');
 ```
 
-`appName` 不能为空。
+## `page.openURLInApp(appName, url)`
 
-## page.openURLInApp(appName, url)
+请求指定应用打开 URL。
 
+**签名**
+```ts
+page.openURLInApp(appName: string, url: string): Promise<void>;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `appName` | `string` | 是 | 无 | 目标应用。 |
+| `url` | `string` | 是 | 无 | 非空 URL。 |
+
+**返回值**
+
+`Promise<void>`。
+
+**行为与错误**
+
+交给平台 launcher，不提供 DOM 导航语义。无效参数或启动失败时拒绝。
+
+**示例**
 ```js
 await page.openURLInApp('Google Chrome', 'https://example.com');
 ```
 
-`url` 不能为空；`appName` 可按当前平台实现处理。
+## `page.title()`
 
-## page.title()
+读取当前活动窗口标题。
 
-```js
-const title = page.title();
+**签名**
+```ts
+page.title(): string;
 ```
 
-返回当前活动窗口标题。
+**参数**
 
-## page.url()
+无。
 
+**返回值**
+
+`string`。
+
+**行为与错误**
+
+同步读取当前活动窗口标题，不等待标题变化。
+
+**示例**
 ```js
-const value = page.url();
+console.log(page.title());
 ```
 
-返回 Page 结构里的 `Executable` 字段。
+## `page.url()`
 
-**不要把它当成真实浏览器 URL API。**
+返回 Page 内部 executable 字段。
 
-因此 `page.waitForNavigation()` 也只应视为兼容能力。桌面自动化更推荐结合：
-
-- `page.title()`
-- `window.getActiveWindow()`
-- `page.waitForFunction()`
-
-判断状态。
-
-## page.waitFor(numberOrFunction, options?)
-
-Polyfill 会根据第一个参数分派：
-
-```js
-const controller = new AbortController();
-await page.waitFor(1200, { signal: controller.signal });
-
-await page.waitFor(() => {
-  return page.title().includes('Safari');
-}, { timeout: 10000, polling: 200, signal: controller.signal });
+**签名**
+```ts
+page.url(): string;
 ```
 
-数字分支把 `options.signal` 原样转发给 `page.waitForTimeout()`；函数分支把
-`timeout`、`polling` 和 `signal` 转发给 `page.waitForFunction()`。选项可省略，不会被修改。
-当前不应把字符串 selector 当成 Puppeteer 风格 `waitFor(selector)` 使用。
+**参数**
 
-## page.waitForTimeout(ms, options?)
+无。
 
-固定等待使用 Runtime 持有的 timer，不阻塞事件循环：
+**返回值**
 
+`string`。
+
+**行为与错误**
+
+不是浏览器真实 URL API，不应作为网页导航完成的权威状态。
+
+**示例**
 ```js
-const controller = new AbortController();
-const pending = page.waitForTimeout(1000, { signal: controller.signal });
-// controller.abort(); // 如需取消本次等待
-await pending;
+console.log(page.url());
 ```
 
-`ms: 0` 仍会异步完成，不会在调用栈内同步 resolve。取消会清除本次等待的 timer
-并以 `AbortError` / `CANCELED` 拒绝 Promise。完成或取消后都会移除本次等待自己的 timer 和
-signal listener。
+## `page.waitFor(value, options?)`
 
-## page.waitForFunction(fn, options?, ...args)
+根据第一个参数分派固定等待或条件等待。
 
-```js
-const value = await page.waitForFunction(async (expectedTitle) => {
-  const info = await window.getActiveWindow();
-  return info && info.title && info.title.includes(expectedTitle) && info;
-}, {
-  timeout: 10000,
-  polling: 200,
-  signal: null,
-}, 'Safari');
+**签名**
+```ts
+page.waitFor(value: number | Function, options?: OpenDeskWaitOptions): Promise<unknown>;
 ```
 
-选项：
+**参数**
 
-- `timeout`：默认 30000ms
-- `polling`：默认 100ms
-- `signal`：可选 `AbortSignal`；省略或 `null` 表示不启用主动取消
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `value` | `number \| Function` | 是 | 无 | number → `waitForTimeout()`；function → `waitForFunction()`。 |
+| `options` | `OpenDeskWaitOptions` | 否 | `{}` | timeout/polling/signal，按分支转发。 |
 
-方法使用独立 deadline，同一等待最多只有一次在途条件调用。条件函数返回 Promise
-时会先等它完成，再决定成功或继续轮询；永不完成的条件 Promise 不会使 timeout
-失效。条件自身的同步抛错或 Promise rejection 默认视为本次未满足，会继续轮询；参数或
-基础设施错误不属于条件失败。成功值保留原始 identity，`...args` 按原顺序透传。
+**返回值**
 
-`timeout: 0` 会立即以 `TimeoutError` / `TIMEOUT` 拒绝，不执行条件函数。成功、超时或取消后，
-本次等待会清理自己的 timer 和 signal listener；条件的晚到成功或拒绝不会再次结算或
-重启轮询。
+Promise；具体值由分派方法决定。
 
-## page.waitForAll(promises, options?)
+**行为与错误**
 
-等待数组中所有值或 Promise 完成，并保持输入顺序返回结果数组：
+不接受 Puppeteer 风格 selector 字符串。选项不被修改。
 
+**示例**
+```js
+await page.waitFor(1200);
+await page.waitFor(() => page.title().includes('Safari'), { timeout: 10000, polling: 200 });
+```
+
+## `page.waitForTimeout(ms, options?)`
+
+使用 Runtime timer 非阻塞等待固定时间。
+
+**签名**
+```ts
+page.waitForTimeout(ms: number, options?: { signal?: AbortSignal | null }): Promise<void>;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `ms` | `number` | 是 | 无 | `0..86400000` 毫秒。 |
+| `options.signal` | `AbortSignal \| null` | 否 | `null` | 取消本次等待。 |
+
+**返回值**
+
+`Promise<void>`。
+
+**行为与错误**
+
+`ms:0` 仍异步完成。取消清理本次 timer/listener 并以 `CANCELED` 拒绝。
+
+**示例**
+```js
+await page.waitForTimeout(1000);
+```
+
+## `page.waitForFunction(fn, options?, ...args)`
+
+轮询条件函数，保持单一在途调用并使用独立 deadline。
+
+**签名**
+```ts
+page.waitForFunction(fn: Function, options?: OpenDeskWaitForFunctionOptions, ...args: unknown[]): Promise<unknown>;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `fn` | `Function` | 是 | 无 | 条件函数；truthy 结果结束等待。 |
+| `options.timeout` | `number` | 否 | `30000` ms | 总 deadline。 |
+| `options.polling` | `number` | 否 | `100` ms | 轮询间隔。 |
+| `options.signal` | `AbortSignal \| null` | 否 | `null` | 取消本次等待。 |
+| `args` | `unknown[]` | 否 | `[]` | 原顺序传给 `fn`。 |
+
+**返回值**
+
+Promise，成功值保留条件函数返回值 identity。
+
+**行为与错误**
+
+条件 throw/reject 默认视为当前轮未满足。`timeout:0` 不执行条件函数并立即以 `TIMEOUT` 拒绝。终态会清理自有 timer/listener。
+
+**示例**
+```js
+const win = await page.waitForFunction(async title => {
+  const current = await window.getActiveWindow();
+  return current && current.title.includes(title) && current;
+}, { timeout: 10000, polling: 200 }, 'Safari');
+```
+
+## `page.waitForAll(values, options?)`
+
+有界等待一组值或 Promise，保持输入顺序。
+
+**签名**
+```ts
+page.waitForAll(values: unknown[], options?: OpenDeskWaitForAllOptions): Promise<unknown[]>;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `values` | `Array<Promise<unknown> \| unknown>` | 是 | 无 | 要共同等待的值。 |
+| `options.timeout` | `number` | 否 | `30000` ms | 总 deadline。 |
+| `options.signal` | `AbortSignal \| null` | 否 | `null` | 取消这一层组合等待。 |
+
+**返回值**
+
+`Promise<unknown[]>`，保持输入顺序。
+
+**行为与错误**
+
+函数仅作为普通值，不自动调用。任一输入拒绝时原始 rejection reason 原样透传。超时/取消不会取消 caller-owned Promise。
+
+**示例**
 ```js
 const [title, active] = await page.waitForAll([
   page.title(),
   window.getActiveWindow(),
-], { timeout: 5000, signal: null });
+], { timeout: 5000 });
 ```
 
-| 参数 | 类型 | 说明 |
-| --- | --- | --- |
-| `promises` | `Array<Promise<T> \| T>` | 必填；需要一起等待的值或 Promise。 |
-| `options.timeout` | number | 可选；超时毫秒数，默认 30000。 |
-| `options.signal` | AbortSignal \| null | 可选；只取消本次组合等待。 |
+## `page.checkPermissions(options?)`
 
-返回 `Promise<T[]>`，结果保持输入顺序。任一输入 Promise 拒绝时，原始原因会原样透传，
-包括 `null` 等非 Error 值。函数只作为普通输入值返回，不会自动调用。`timeout: 0` 立即以
-`TimeoutError` / `TIMEOUT` 拒绝。
+读取所需桌面权限的当前快照。
 
-拒绝、超时或取消只结束这一层等待：不会 abort 调用者的 controller，不会取消输入 Promise
-背后的任务。所有结束路径都会立即清理本次等待自己的 timer 和 signal listener。
+**签名**
+```ts
+page.checkPermissions(options?: OpenDeskPermissionOptions): Promise<OpenDeskPermissionResult>;
+```
 
-### 共同参数、超时与取消契约
+**参数**
 
-`ms`、`timeout` 和 `polling` 都必须是 `0..86400000` 内的有限 `number`，含两端。
-允许小数；调度 timer 时由 Runtime 转为整数毫秒。负数、`NaN`、无穷大、字符串或超出上限会以
-`INVALID_ARGUMENT` 失败。
-所有 `signal` 选项都可省略或传 `null`。这些方法不修改 options、输入数组、controller 或 signal。
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `options.capabilities` | `string[]` | 否 | 当前默认组合 | 要检查的 capability。 |
+| `options.section` | `string` | 否 | 未设置 | 预定义权限组合。 |
 
-| 类别 | `name` | `code` | 说明 |
-| --- | --- | --- | --- |
-| 超时 | `TimeoutError` | `TIMEOUT` | 本次 function/all deadline 到期 |
-| 取消 | `AbortError` | `CANCELED` | 传入 signal 已取消或在等待期间取消 |
-| 参数 | `TypeError` | `INVALID_ARGUMENT` | 函数、数组、options、signal 或时间参数无效 |
+**返回值**
 
-条件与组合等待的超时 message 保留可识别的 `Timeout waiting for function` 和
-`Timeout waiting for all promises` 文本。
+`Promise<OpenDeskPermissionResult>`。
 
-超时或 signal 取消都不能抢占同步死循环或长时间阻塞 JavaScript 事件循环的函数。
+**行为与错误**
 
-## page.waitForNavigation(options)
+只检查，不主动打开设置。`inputMonitoring: 'unknown'` 不会被当作 granted。
 
-兼容式方法，会轮询 `page.url()` 是否变化。
-
-由于 `page.url()` 不是可靠浏览器 URL，新桌面脚本通常不要把它作为主等待策略。
-
-## page.checkPermissions(options)
-
-跨平台权限快照：
-
+**示例**
 ```js
-const result = await page.checkPermissions({
-  capabilities: ['screenCapture', 'accessibility']
-});
+const permissions = await page.checkPermissions({ capabilities: ['screenCapture', 'accessibility'] });
+```
+
+## `page.requestPermissions(options?)`
+
+检查权限并按选项引导系统授权流程。
+
+**签名**
+```ts
+page.requestPermissions(options?: OpenDeskPermissionRequestOptions): Promise<OpenDeskPermissionResult>;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `options.capabilities` | `string[]` | 否 | 当前默认组合 | 目标 capability。 |
+| `options.section` | `string` | 否 | 未设置 | 预定义组合。 |
+| `options.openSettings` | `boolean` | 否 | `true` | 未授权时是否打开设置。 |
+| `options.forceOpenSettings` | `boolean` | 否 | `false` | 是否即使已检查过仍再次导航设置页。 |
+| `options.strict` | `boolean` | 否 | `false` | 未满足时是否 reject。 |
+
+**返回值**
+
+`Promise<OpenDeskPermissionResult>`。
+
+**行为与错误**
+
+已全部授权时可直接返回 skipped 结果，不重复打开设置。`forceOpenSettings` 不会改变实际权限判断。
+
+**示例**
+```js
+await page.requestPermissions({ capabilities: ['screenCapture', 'accessibility'], openSettings: true });
+```
+
+## `page.ensurePermissions(options?)`
+
+严格确保所需权限已满足。
+
+**签名**
+```ts
+page.ensurePermissions(options?: OpenDeskPermissionRequestOptions): Promise<OpenDeskPermissionResult>;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `options` | `OpenDeskPermissionRequestOptions` | 否 | `{}` | 与 `requestPermissions()` 相同的 capability/设置选项。 |
+
+**返回值**
+
+`Promise<OpenDeskPermissionResult>`。
+
+**行为与错误**
+
+未满足必要权限时 reject，而不是返回假成功。适合在需要截图、Accessibility 或输入权限的工作流开始前作为 guard。
+
+**示例**
+```js
+await page.ensurePermissions({ capabilities: ['screenCapture', 'accessibility'] });
+```
+
+## `page.checkScreenshotPermissions()`
+
+检查截图相关系统权限。
+
+**签名**
+```ts
+page.checkScreenshotPermissions(): Promise<OpenDeskPermissionResult>;
+```
+
+**参数**
+
+无。
+
+**返回值**
+
+`Promise<OpenDeskPermissionResult>`。
+
+**行为与错误**
+
+只检查，不保证自动弹出权限提示。平台不支持时按当前 permission backend 返回明确状态/错误。
+
+**示例**
+```js
+console.log(await page.checkScreenshotPermissions());
+```
+
+## `page.openMacOSPrivacySettings(section)`
+
+打开指定 macOS Privacy 设置页。
+
+**签名**
+```ts
+page.openMacOSPrivacySettings(section: string): Promise<void>;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `section` | `string` | 是 | 无 | Runtime 支持的 Privacy section。 |
+
+**返回值**
+
+`Promise<void>`。
+
+**行为与错误**
+
+仅负责导航系统设置，不将“已打开设置页”解释为权限已授予。非 macOS 或未知 section 明确失败。
+
+**示例**
+```js
+await page.openMacOSPrivacySettings('accessibility');
+```
+
+## `page.requestMacPermissions(options)`
+
+请求或检查 macOS 权限组合。
+
+**签名**
+```ts
+page.requestMacPermissions(options: OpenDeskMacPermissionOptions): Promise<OpenDeskPermissionResult>;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `options` | `OpenDeskMacPermissionOptions` | 是 | 无 | macOS 权限请求选项。 |
+
+**返回值**
+
+`Promise<OpenDeskPermissionResult>`。
+
+**行为与错误**
+
+不会把系统设置导航等同于授权成功；实际结果仍以重新检查权限状态为准。非 macOS 明确不支持。
+
+**示例**
+```js
+const result = await page.requestMacPermissions({ screenCapture: true, accessibility: true });
 console.log(result);
 ```
 
-常见 capability：
+## `page.requestMacAutomationPermission(targetApp)`
 
-- `screenCapture`
-- `accessibility`
-- `inputMonitoring`：macOS 10.15+ 使用公开的 `IOHIDCheckAccess` 读取监听事件权限，返回
-  `granted`、`denied` 或 `unknown`。只有 `granted` 会使该 capability 通过；`unknown` 仍保持
-  fail-closed，不会被当作已经授权。
-- `automation`
+触发对指定目标应用的 macOS AppleEvents Automation 权限请求。
 
-`section` 还支持 `globalShortcut`。`checkPermissions()` 将它展开为 `accessibility` 和
-`inputMonitoring`。`requestPermissions()` 会先检查二者：都已授权时直接返回，不执行权限请求，
-也不打开系统设置；仅缺少一项时只导航对应的设置页。通常优先传 `capabilities`，由 Runtime
-自动选择组合。
-
-## page.requestPermissions(options)
-
-```js
-const result = await page.requestPermissions({
-  capabilities: ['screenCapture', 'accessibility'],
-  openSettings: true
-});
+**签名**
+```ts
+page.requestMacAutomationPermission(targetApp: string): Promise<OpenDeskPermissionResult>;
 ```
 
-常用参数：
+**参数**
 
-- `capabilities`：要检查/请求的 capability 列表。
-- `section`：预定义组合；`globalShortcut` 表示 `accessibility + inputMonitoring`。
-- `openSettings`：未授权时是否打开相关系统设置，默认 `true`。
-- `forceOpenSettings`：默认 `false`。仅在 `openSettings: true` 时生效；即使已经授权或本进程
-  已打开过，也再次导航设置页。它不会强制 macOS 重复 consent，也不会改变权限判断结果。
-- `strict`：结果未满足时是否抛错，默认 `false`。
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `targetApp` | `string` | 是 | 无 | 非空目标应用标识。 |
 
-正常调用具有幂等行为：全部已授权时返回 `skipped: true`、`reason: 'already_granted'`、
-`settingsOpened: false`；仍未授权时，同一进程对每个设置页默认只打开一次，避免循环调用持续
-拉起窗口。只有明确的“重新打开权限设置”按钮才应使用：
+**返回值**
 
+`Promise<OpenDeskPermissionResult>`。
+
+**行为与错误**
+
+仅适用于 macOS Automation/AppleEvents 权限；不用于 Accessibility 或 Screen Recording。平台/target 无效时明确失败。
+
+**示例**
 ```js
-await page.requestPermissions({
-  section: 'globalShortcut',
-  openSettings: true,
-  forceOpenSettings: true,
-  strict: false,
-});
+const result = await page.requestMacAutomationPermission('Finder');
+console.log(result);
 ```
 
-## page.ensurePermissions(options)
+## 错误
 
-新脚本推荐的严格权限守卫：
+所有异步方法都应通过明确 rejection 表达参数、平台、权限、截图或 launcher 失败。等待方法使用稳定 `TIMEOUT` / `CANCELED` / `INVALID_ARGUMENT` 语义，不要解析 message 判断类型。
 
-```js
-await page.ensurePermissions({
-  capabilities: ['screenCapture', 'accessibility'],
-  openSettings: true
-});
-```
+## 平台与能力
 
-权限不满足时应尽早失败，而不是继续执行不可验证的点击链路。
-
-### globalShortcut 的窄范围预检
-
-`globalShortcut` 与通用 `page` 权限 API 是独立的；不要新增或调用
-`globalShortcut.requestPermission()`。系统级快捷键的首次配置应由显式的设置/首次运行 UI 调用
-通用 API，而不是在每次注册或 callback 时请求。该 section 是 `accessibility` 与
-`inputMonitoring` 的组合；不要为了快捷键而请求 Screen Recording：
-
-```js
-// Call from explicit first-run / settings UI, not from every shortcut callback.
-const permissions = await page.requestPermissions({
-  section: 'globalShortcut',
-  openSettings: true,
-  strict: false,
-});
-
-if (!permissions.ok) {
-  throw new Error('Enable Accessibility and Input Monitoring for OpenDesk, restart it, then retry.');
-}
-```
-
-上面的 `requestPermissions()` 先检查两个权限；已经授权时不再打开窗口。未授权时只打开缺失
-权限对应的设置页，并按需请求 macOS 显示系统授权提示；是否显示由 macOS 对该宿主已有的授权
-决定。Input Monitoring 通过 `IOHIDCheckAccess` 校验，`denied` / `unknown` 都不会被误报为成功。
-如果流程要求未授权时立即停止，可改用 `strict: true` 或 `page.ensurePermissions()`。
-普通 `globalShortcut` 不需要 `screenCapture` 或 `automation`；后两者分别属于截图和 AppleEvents
-控制其他应用的独立能力。`globalShortcut.register()` 本身不会隐式弹出权限提示或打开设置页。
-详见 [Global Shortcut](global-shortcut.md)。
-
-## page.ensureMacPermissions(options)
-
-macOS 专用/兼容入口。
-
-```js
-await page.ensureMacPermissions({
-  section: 'all',
-  openSettingsOnFail: true,
-  strict: true
-});
-```
-
-新通用脚本优先使用 `ensurePermissions()`。
-
-## page.checkScreenshotPermissions()
-
-```js
-const report = page.checkScreenshotPermissions();
-console.log(report);
-```
-
-macOS 下主要检查：
-
-- screenCapture
-- accessibility
-
-同时给出排障提示。
-
-## page.openMacOSPrivacySettings(section)
-
-```js
-await page.openMacOSPrivacySettings('screenCapture');
-```
-
-支持的 section 以当前源码为准，常见：
-
-- accessibility
-- inputMonitoring
-- screenCapture
-- automation
-- all
-
-## page.requestMacPermissions(options)
-
-```js
-const result = await page.requestMacPermissions({
-  openSettings: true,
-  section: 'screenCapture'
-});
-```
-
-用于触发权限探测和用户引导。
-
-`section: 'screenCapture'` 只会请求并打开屏幕捕捉对应的 macOS 设置页（在较新的 macOS 中显示为“屏幕与系统音频录制”）；它不会额外请求“辅助功能”。需要辅助功能的桌面交互流程应明确请求 `section: 'accessibility'` 或 `section: 'all'`。
-
-## page.requestMacAutomationPermission(targetApp)
-
-```js
-const report = page.requestMacAutomationPermission('Finder');
-console.log(report);
-```
-
-它只负责触发 AppleEvents 权限请求，**不能绕过 macOS 用户确认**。
-
-## page：当前不属于稳定 API 的旧写法
-
-不要从历史 TestMonkey 文档重新引入：
-
-- `page.$`
-- `page.$$`
-- DOM 风格 `page.click(selector)`
-- DOM 风格 `page.type(selector, text)`
-- 把 `page.waitForSelector(selector)` 当作当前桌面主链路
-
-当前更可靠的组合是：
-
-`page + window + Screen + mouse/keyboard + Vision/ImageColor`
+`page` 是桌面 Runtime facade；具体截图、launcher 与权限能力依赖当前平台。外部 UI 识别使用 [`UI`](desktop-ui.md)，应用生命周期使用 [`App`](app.md)，原生语义元素使用 [`Accessibility`](accessibility.md)。
