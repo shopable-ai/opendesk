@@ -4,68 +4,116 @@ description: 每次 JavaScript 执行的标识、结构化输入、工作目录�
 order: 14
 ---
 
-# Execution Context
+# Execution
 
-`Execution` 是每次 JavaScript execution 都会注入的只读上下文约定。它让脚本读取本次运行的
-标识、输入、工作目录、环境快照和 artifact 目录；它不是执行管理器，也不负责创建、暂停、取消或查询
-其他 execution。
+`Execution` 是每次 JavaScript execution 注入的只读上下文。它只描述**当前**执行，不负责创建、暂停、取消、枚举或管理其他 execution。
 
-**状态：Stable / Runtime-owned metadata**
+## API 一览
 
-## 快速开始
-
-工作目录：OpenDesk 仓库根目录。
-
-```bash
-./opendesk -script-text "console.log(JSON.stringify({id: Execution.id, artifactDir: Execution.artifactDir}))"
-```
-
-可复用 recipe 通过 `opendesk ai run` 接收结构化 JSON：
-
-```bash
-./opendesk ai run examples/ai-cli/write-to-focused-app.js \
-  --input '{"text":"Hello from OpenDesk"}'
-```
-
-```js
-const input = Execution.input;
-console.log(Execution.id, Execution.workdir, Execution.env.MY_PROJECT_MODE);
-```
-
-## 字段
-
-| 字段 | 类型 | 含义 |
+| 属性 | 类型 | 用途 |
 | --- | --- | --- |
-| `Execution.id` | `string` | `executionId` 的短别名。用于关联日志、结果和 artifact；不是凭据。 |
-| `Execution.executionId` | `string` | 本次 execution 的完整关联 ID。 |
-| `Execution.input` | JSON value | 本次 recipe 的结构化输入；未提供时为 `{}`。 |
-| `Execution.workdir` | `string` | 调用方启动 execution 时的工作目录。 |
-| `Execution.env` | `Readonly<Record<string, string>>` | 本次 execution 的只读字符串环境快照；不存在的键为 `undefined`。 |
-| `Execution.stack` | `string` | Runtime 记录的兼容模式；新脚本省略 `-stack`，当前默认值为 `legacy`。 |
-| `Execution.artifactDir` | `string` | 本次运行的 artifact 根目录；可能是相对路径或绝对路径。 |
-| `Execution.source` | `string` | 脚本来源标签，例如 `file:...`、`inline`、`stdin` 或 transport 来源。 |
-| `Execution.ext` | `string` | 执行源码的扩展名，JavaScript 通常为 `.js`。 |
-| `Execution.scriptHash` | `string` | 实际执行源码字节的十六进制 SHA-256。 |
-| `Execution.scriptPath` | `string \| null` | 可信文件入口的规范化绝对源码路径；内联/远程来源为 `null`。 |
-| `Execution.scriptDir` | `string \| null` | `scriptPath` 的父目录；没有可信文件路径时为 `null`。 |
-| `Execution.activationSource` | `string` | Custom UI 授权来源：`disabled`、`cli`、`projectConfig` 或 `httpRequest`。 |
+| `Execution.id` | `string` | `executionId` 的短别名。 |
+| `Execution.executionId` | `string` | 当前 execution 完整关联 ID。 |
+| `Execution.input` | JSON value | 当前 recipe 的结构化输入。 |
+| `Execution.workdir` | `string` | 当前 execution 工作目录。 |
+| `Execution.env` | `Readonly<Record<string,string>>` | 冻结的环境字符串快照。 |
+| `Execution.stack` | `string` | Runtime 兼容模式元数据。 |
+| `Execution.artifactDir` | `string` | 当前运行 artifact 根目录。 |
+| `Execution.source` | `string` | 脚本来源标签。 |
+| `Execution.ext` | `string` | 执行源码扩展名。 |
+| `Execution.scriptHash` | `string` | 实际执行源码 SHA-256。 |
+| `Execution.scriptPath` | `string \| null` | 可信文件入口的规范化绝对路径。 |
+| `Execution.scriptDir` | `string \| null` | `scriptPath` 父目录。 |
+| `Execution.activationSource` | `string` | Custom UI capability 的授权来源。 |
 
-字段在一次 execution 内表示启动时上下文。脚本应把 `Execution` 当作只读数据；在 JavaScript
-里改写字段不会更改宿主持有的 execution ID、日志、证据路径、取消状态或最终结果。
+## 公共约定
+
+### 只读与生命周期
+
+`Execution` 与 `Execution.env` 在一次 execution 内被冻结。脚本改写字段不会改变宿主持有的 ID、deadline、取消状态、artifact 或最终结果。
+
+### 本地环境来源
+
+本地 `-script`、`-script-text` 与 `ai run` 的环境优先级为 `.env` → `.opendesk.env` → OpenDesk 启动时收到的 OS 环境。显式 env-file 时只读取该文件。HTTP、MCP 与 Scheduler execution 默认使用空环境快照。完整规则见 [`environment.md`](environment.md)。
+
+### 来源路径
+
+`scriptPath` 只由可信文件入口提供；内联、stdin、HTTP、MCP 和 Scheduler inline 为 `null`。Runtime 不从可伪造的 `source` 标签推导真实路径。
+
+## `Execution.id`
+
+当前 execution ID 的短别名。
+
+**签名**
+```ts
+Execution.id: string;
+```
+
+**参数**
+
+无。
+
+**返回值**
+
+`string`；canonical property 为 `Execution.executionId`。
+
+**行为与错误**
+
+只读元数据，不是凭据。
+
+**示例**
+```js
+console.log(Execution.id);
+```
+
+## `Execution.executionId`
+
+返回当前 execution 的完整关联 ID。
+
+**签名**
+```ts
+Execution.executionId: string;
+```
+
+**参数**
+
+无。
+
+**返回值**
+
+`string`。
+
+**行为与错误**
+
+只读；用于关联日志、summary 和 artifact。
+
+**示例**
+```js
+console.log(Execution.executionId);
+```
 
 ## `Execution.input`
 
-所有 JavaScript execution 都有 `Execution.input`。当前公开的参数化入口是 `opendesk ai run`：
+返回当前 execution 的结构化 recipe 输入。
 
-```bash
-./opendesk ai run recipe.js --input '{"limit":10}'
-./opendesk ai run recipe.js --input-file input.json
-cat input.json | ./opendesk ai run recipe.js --input-stdin
+**签名**
+```ts
+Execution.input: unknown;
 ```
 
-三个输入选项互斥，并且输入必须恰好包含一个合法 JSON value。对象、数组、字符串、数字、
-布尔值和 `null` 都是合法 JSON；recipe 应自行验证业务所需的形状：
+**参数**
 
+无。
+
+**返回值**
+
+任意合法 JSON value；没有输入的入口通常为 `{}`。
+
+**行为与错误**
+
+`ai run` 支持 `--input`、`--input-file`、`--input-stdin`，三者互斥。Runtime 只保证 JSON 合法，业务脚本仍须验证所需形状。
+
+**示例**
 ```js
 const input = Execution.input;
 if (!input || typeof input !== 'object' || Array.isArray(input)) {
@@ -73,78 +121,269 @@ if (!input || typeof input !== 'object' || Array.isArray(input)) {
 }
 ```
 
-直接 `-script`、`-script-text`、HTTP execution 和 Scheduler 当前没有独立的公开 input 参数时，
-该字段为 `{}`。不要用未约束的 argv 位置参数替代 recipe input。
+## `Execution.workdir`
+
+返回当前 execution 的工作目录。
+
+**签名**
+```ts
+Execution.workdir: string;
+```
+
+**参数**
+
+无。
+
+**返回值**
+
+规范化工作目录 string。
+
+**行为与错误**
+
+由 execution 启动上下文决定；[`path.resolve()`](path.md#pathresolveparts) 与 `File.cwd()` 使用同一基准。
+
+**示例**
+```js
+console.log(Execution.workdir);
+```
 
 ## `Execution.env`
 
-`Execution.env` 是 Vite `import.meta.env` / Node.js `process.env` 在 OpenDesk Runtime 中的对应入口，
-但契约更窄：它只是 execution 启动时创建的字符串快照，不提供 Node.js `process`，也不会修改宿主进程。
+返回当前 execution 的冻结环境字符串快照。
 
+**签名**
+```ts
+Execution.env: Readonly<Record<string, string>>;
+```
+
+**参数**
+
+无。
+
+**返回值**
+
+只读字符串字典；不存在键返回 `undefined`。
+
+**行为与错误**
+
+不会提供 Node `process.env`，也不会重新读取宿主环境。环境可能包含凭据，不应整体打印或外传。
+
+**示例**
 ```js
 const endpoint = Execution.env.MY_SERVICE_ENDPOINT;
-const liveEnabled = Execution.env.OPENDESK_LIVE_CALCULATOR === '1';
 ```
 
-本地 `-script`、`-script-text` 和 `ai run` 按以下优先级合并环境，后者覆盖前者：
+## `Execution.stack`
 
-1. 当前工作目录的 `.env`；
-2. 当前工作目录的 `.opendesk.env`；
-3. 启动 OpenDesk 时继承的 shell 环境。
+返回 Runtime 记录的兼容模式元数据。
 
-第 3 项准确地说是 OpenDesk 进程启动时收到的 OS 环境；Runtime 不会解析 `.zshrc`、`.bashrc`、
-Windows 注册表或另起 login shell。从 GUI 启动时未传入的变量不会凭空出现。Linux/macOS 键名保持
-大小写敏感；Windows 键名统一为大写，以匹配其大小写不敏感的系统语义。平台和架构信息使用
-`System.getPlatformInfo()`，而不是新增伪环境键。
+**签名**
+```ts
+Execution.stack: string;
+```
 
-使用 `-env-file path`（`ai run` 使用 `--env-file path`）时，只读取指定文件，不再自动读取两个默认
-文件。环境文件不会执行 shell 或展开 `${NAME}`；完整语法和命令见
-[Environment Configuration](environment.md)。`Command.run()` 未显式覆盖 `env` 时，也继承同一个
-快照，因此脚本读取值与子进程收到的值保持一致。
+**参数**
 
-HTTP、MCP 和 Scheduler execution 默认得到空对象 `{}`，不会自动继承服务器进程环境。这是刻意的
-秘密隔离边界；未来若某个 transport 需要环境输入，应由该 transport 显式定义可审计字段，而不是
-回退到宿主 `os.Environ`。
+无。
 
-`Execution.env` 和 `Execution` 对象本身均被冻结。环境值可能包含凭据；不要整体打印、写入 artifact
-或发送给外部服务，只读取业务确实需要的键。无需枚举时可使用 `System.getEnv(name, fallback?)` 和
-`System.hasEnv(name)`；它们读取的仍是同一个快照，不会重新访问宿主环境。
+**返回值**
 
-## Artifact 与来源
+`string`；当前默认兼容值为 `legacy`。
 
-`Execution.artifactDir` 是当前运行保存截图、诊断 JSON 或业务结果的首选目录：
+**行为与错误**
 
+新脚本不应为了读取该值而添加旧 `-stack` 参数。
+
+**示例**
 ```js
-const resultPath = File.join(Execution.artifactDir, 'result.json');
-File.write(resultPath, JSON.stringify({ executionId: Execution.id, ok: true }, null, 2));
+console.log(Execution.stack);
 ```
 
-Runtime 自己的 `stdout.log`、`stderr.log`、`events.ndjson` 和 summary 也会关联同一个 execution。
-具体目录随入口而不同，例如直接运行默认使用 `.runtime/runs/`，AI recipe 使用
-`.runtime/ai/`；脚本不要自行推导目录，应读取 `Execution.artifactDir`。
+## `Execution.artifactDir`
 
-`scriptPath` 由已实际选择文件的入口作为独立字段传给 Runtime，并非从 `source` 标签解析。
-直接 `-script`、`ai run` 和 Scheduler file execution 会提供它；`-script-text`、stdin、HTTP、MCP
-与 Scheduler inline 返回 `null`。`scriptDir` 始终与 `path.dirname(scriptPath)` 一致，或与其一起为
-`null`。路径字符串计算见 [Path API](path.md)。
+返回本次运行的 artifact 根目录。
 
-`source`、`scriptPath` 和 `workdir` 可能包含本机路径。不要把它们无条件发送到外部服务或写入面向不受信任
-用户的输出。`scriptHash` 可用于核对本次执行内容，但不能替代代码签名或信任校验。
+**签名**
+```ts
+Execution.artifactDir: string;
+```
 
-## `activationSource`
+**参数**
 
-这个字段只描述当前 execution 的 Custom UI 授权来源。判断 `ui` 或 `Dialog` 是否可用时，仍应
-调用各自的 `getCapabilities()`；不要只根据 `Execution.activationSource` 推断平台 host、窗口
-能力或权限状态。完整规则见 [Custom UI](custom-ui.md) 和 [Dialog API](dialog.md)。
+无。
 
-## 生命周期边界
+**返回值**
 
-`Execution` 不提供以下方法：
+相对或绝对路径 string。
 
-- `Execution.cancel()`、`pause()`、`resume()`；
-- 创建或枚举其他 execution；
-- 查询实时资源计数或修改 deadline；
-- 修改宿主持有的 artifact、status 或 evidence。
+**行为与错误**
 
-从外部创建、查询、取消 HTTP execution 请使用 [HTTP Server API](http-server.md)；脚本 Runtime
-如何等待异步资源和处理取消见 [JavaScript Runtime](runtime.md)。
+具体目录随入口变化；脚本应读取本属性而不是自行推导 `.runtime/...` 布局。
+
+**示例**
+```js
+const resultPath = path.join(Execution.artifactDir, 'result.json');
+File.write(resultPath, JSON.stringify({ ok: true }));
+```
+
+## `Execution.source`
+
+返回脚本来源标签。
+
+**签名**
+```ts
+Execution.source: string;
+```
+
+**参数**
+
+无。
+
+**返回值**
+
+例如 `file:...`、`inline`、`stdin` 或 transport 来源。
+
+**行为与错误**
+
+仅用于来源描述，不是可信路径 authority。
+
+**示例**
+```js
+console.log(Execution.source);
+```
+
+## `Execution.ext`
+
+返回执行源码扩展名。
+
+**签名**
+```ts
+Execution.ext: string;
+```
+
+**参数**
+
+无。
+
+**返回值**
+
+通常为 `.js`。
+
+**行为与错误**
+
+只读 metadata。
+
+**示例**
+```js
+console.log(Execution.ext);
+```
+
+## `Execution.scriptHash`
+
+返回实际执行源码字节的 SHA-256。
+
+**签名**
+```ts
+Execution.scriptHash: string;
+```
+
+**参数**
+
+无。
+
+**返回值**
+
+十六进制 SHA-256 string。
+
+**行为与错误**
+
+可用于核对本次内容，但不能替代代码签名或信任校验。
+
+**示例**
+```js
+console.log(Execution.scriptHash);
+```
+
+## `Execution.scriptPath`
+
+返回可信文件入口的规范化绝对源码路径。
+
+**签名**
+```ts
+Execution.scriptPath: string | null;
+```
+
+**参数**
+
+无。
+
+**返回值**
+
+文件入口为绝对路径；没有可信文件身份时为 `null`。
+
+**行为与错误**
+
+直接 `-script`、`ai run` 和 Scheduler file execution 可提供该值；内联/远程来源不从 `source` 猜测。
+
+**示例**
+```js
+if (Execution.scriptPath) console.log(Execution.scriptPath);
+```
+
+## `Execution.scriptDir`
+
+返回 `scriptPath` 的父目录。
+
+**签名**
+```ts
+Execution.scriptDir: string | null;
+```
+
+**参数**
+
+无。
+
+**返回值**
+
+`string | null`。
+
+**行为与错误**
+
+始终与 `path.dirname(Execution.scriptPath)` 一致，或与 `scriptPath` 一起为 `null`。
+
+**示例**
+```js
+const asset = Execution.scriptDir
+  ? path.join(Execution.scriptDir, 'assets', 'icon.png')
+  : null;
+```
+
+## `Execution.activationSource`
+
+返回当前 execution 的 Custom UI 授权来源。
+
+**签名**
+```ts
+Execution.activationSource: 'disabled' | 'cli' | 'projectConfig' | 'httpRequest';
+```
+
+**参数**
+
+无。
+
+**返回值**
+
+授权来源 string。
+
+**行为与错误**
+
+不能只据此判断 `ui` / `Dialog` 是否实际可用；仍应调用各自 `getCapabilities()`。
+
+**示例**
+```js
+console.log(Execution.activationSource);
+```
+
+## 平台与能力
+
+`Execution` 在每次 JavaScript execution 中提供只读上下文。它没有 `cancel()`、`pause()`、`resume()`、其他 execution 枚举或管理方法。外部 execution 管理使用 [`HTTP Server API`](http-server.md)。
