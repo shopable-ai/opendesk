@@ -55,7 +55,7 @@ OpenDesk（不是 `opendesc`）不是被操作的微信、Safari、Finder 等目
 1. 在 Finder 中把 `OpenDesk.app` 拖到“应用程序”目录。只保留并长期使用一个固定副本，
    例如 `/Applications/OpenDesk.app`。
 2. 双击这个 App。它的主要入口不是业务操作窗口，而是本机 HTTP 服务。HTTP socket 和
-   Scheduler 都就绪后，菜单栏会出现带 OpenDesk 图标的 **OpenDesk** 状态项；点击它可以
+   Scheduler 都就绪后，菜单栏右上角会出现一个 OpenDesk 图标；点击它可以
    打开状态页、Scheduler 或退出服务。这个状态项出现才表示启动完成：App 不会保留 Dock
    图标，也不会打开业务窗口，这是常驻后台服务的正常行为，不是卡死。
 
@@ -151,7 +151,7 @@ bash scripts/install_macos_cli.sh --adopt-legacy-launcher --bin-dir /usr/local/b
 
 ### 常驻服务与 HTTP 调用
 
-无参数启动后，OpenDesk 会持续运行 HTTP 服务。菜单栏的 OpenDesk 状态项是日常的启动完成
+无参数启动后，OpenDesk 会持续运行 HTTP 服务。菜单栏的 OpenDesk 状态图标是日常的启动完成
 提示；先检查状态：
 
 ```bash
@@ -188,7 +188,7 @@ Scheduler 只在 OpenDesk 进程运行时实际调度；退出 App 后不会继�
 
 ### 退出和安全提醒
 
-- 不需要服务时，在菜单栏点击 **OpenDesk → Quit OpenDesk**。它会向主进程发送正常的
+- 不需要服务时，点击菜单栏的 OpenDesk 图标，再选择 **Quit OpenDesk**。它会向主进程发送正常的
   终止信号并停止 HTTP 和 Scheduler；正在运行的执行会进入关闭流程。
 - HTTP 端口默认是 `60844`。正常再次双击会复用现有 OpenDesk；如果端口由未知进程占用，
   请先检查并停止该进程，或用其他端口启动：`open -n /Applications/OpenDesk.app --args -http -port 60845`。

@@ -52,15 +52,18 @@ void OpenDeskRunStatusItem(int parent_pid, const char *status_url, const char *s
 
         controller.statusItem = [[NSStatusBar systemStatusBar] statusItemWithLength:NSVariableStatusItemLength];
         NSStatusBarButton *button = controller.statusItem.button;
-        button.title = @"OpenDesk";
+        // Keep the menu bar compact: the app icon is the sole visible status
+        // item. Keep a text alternative for hover and VoiceOver.
+        button.title = @"";
         button.toolTip = @"OpenDesk is running. Click for status, Scheduler, or Quit.";
+        button.accessibilityLabel = @"OpenDesk";
         NSString *iconPath = OpenDeskString(icon_path, @"");
         NSImage *icon = [[NSImage alloc] initWithContentsOfFile:iconPath];
         if (icon != nil) {
             icon.size = NSMakeSize(18, 18);
             icon.template = NO;
             button.image = icon;
-            button.imagePosition = NSImageLeft;
+            button.imagePosition = NSImageOnly;
         }
 
         NSMenu *menu = [NSMenu new];
