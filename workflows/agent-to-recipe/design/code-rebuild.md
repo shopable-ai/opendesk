@@ -1,3 +1,9 @@
+---
+title: "code-rebuild｜独立、按需的普通 JavaScript 质量改进"
+description: "按真实需求与应用规则独立改进普通 JavaScript 的职责、边界与质量门槛。"
+order: 60
+---
+
 # code-rebuild｜独立、按需的普通 JavaScript 质量改进
 
 将已有脚本或已生成的代码，依据真实需求、应用规则和当前 OpenDesk API，改进为更易理解、维护和验证的普通 JS。已经满足要求的代码可以原样采用；rebuild 不是推倒重写。

@@ -1,3 +1,9 @@
+---
+title: "Agent-first Recorder｜需求发现与需求基线"
+description: "定义 Agent-to-Recipe 的项目背景、需求推导链、范围与可追溯基线。"
+order: 20
+---
+
 # Agent-first Recorder｜需求发现与需求基线
 
 状态：需求设计候选 v0.3，2026-09-07。本文先继承 OpenDesk 项目背景，再约束“自动化开发工作流与多个 Skill 应具备什么”，不是某次计算器运行的 TaskContract；写入不等于技术假设、宿主能力或桌面结果已确认。返回[设计总纲](README.md)，后续进入[任务树](task-decomposition.md)、[链路设计](chain-design.md)和[验证计划](validation-plan.md)。

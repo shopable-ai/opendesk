@@ -1,3 +1,9 @@
+---
+title: "应用操作建模与封装｜迁移入口"
+description: "路由到 Agent-to-Recipe 应用操作建模与封装设计的兼容入口。"
+order: 20
+---
+
 # 应用操作建模与封装｜迁移入口
 
 完整分析已归位到 [design/application-operations.md](design/application-operations.md)。它保存 Layout、区域、组件、目标身份、定位、矩阵候选、Geometry、清空／读数、操作封装、证据和验证条件，是 Skill 化之前的专业设计，不是已执行报告。

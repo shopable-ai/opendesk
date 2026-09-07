@@ -1,3 +1,9 @@
+---
+title: "Agent-first Recorder｜工作流任务分解树"
+description: "按需求语义展开 Agent-to-Recipe 工作流任务、循环与责任边界。"
+order: 30
+---
+
 # Agent-first Recorder｜工作流任务分解树
 
 从真实任务／人工开发目标／已有自动化资产出发，形成有依据、可验证并能维护的普通 OpenDesk JavaScript 与必要组合能力；有必要判断时明确交付 JS／Agent 混合流程及真实接入条件。状态：阶段性框架分析 v0.3，不是最终 WORKFLOW.md，也不是已运行通过报告。返回[设计总纲](README.md)；贯穿案例见[计算器](../cases/calculator.md)，组合业务示意见[聊天案例](application-operations.md#聊天业务的粒度与组合示例)。

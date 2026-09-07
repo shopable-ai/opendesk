@@ -1,3 +1,9 @@
+---
+title: "Agent-first Recorder｜链路、职责与成果交接设计"
+description: "定义 Agent-to-Recipe 的职责分配、输入输出、路由与成果交接。"
+order: 40
+---
+
 # Agent-first Recorder｜链路、职责与成果交接设计
 
 状态：Skill 化前的链路设计 v0.3，2026-09-07。本文把[需求](requirements.md)与[完整任务树](task-decomposition.md)转成可实施的环节关系，不是最终 WORKFLOW.md，也不新增可执行 IR、调度器或公共 schema。返回[设计总纲](README.md)。

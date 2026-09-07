@@ -1,3 +1,9 @@
+---
+title: "Agent-to-Recipe｜过渡入口"
+description: "Agent-to-Recipe 设计阶段的阅读导航、职责边界与正式工作流入口。"
+order: 10
+---
+
 # Agent-to-Recipe｜过渡入口
 
 当前是设计阶段导航，不是已定稿的运行工作流。原《Agent-first Recorder｜工作流任务分解树》已完整归位到 design，未被删除。后续根据需求、链路与验证设计生成正式 WORKFLOW，再组织多个独立 Skill；本文件不自动调度或授予桌面权限。

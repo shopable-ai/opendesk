@@ -1,3 +1,9 @@
+---
+title: "Agent-first Recorder｜设计总纲与文件地图"
+description: "Agent-to-Recipe 工作流的有效决定、阅读顺序与实施前核对事项。"
+order: 10
+---
+
 # Agent-first Recorder｜设计总纲与文件地图
 
 状态：阶段性设计结论 v0.3，2026-09-07。此目录保存构建自动化开发工作流与多个 Skill 的依据，不是每次业务执行的指令，也不是实现或验收通过报告。先读本页，无需拼接历史对话。返回[工作流总入口](../../README.md)。

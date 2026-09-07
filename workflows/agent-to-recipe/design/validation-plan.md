@@ -1,3 +1,9 @@
+---
+title: "Agent-first Recorder｜行为案例、测试空间与验收计划"
+description: "规定 Agent-to-Recipe 的行为案例、测试空间、门禁与验收证据。"
+order: 70
+---
+
 # Agent-first Recorder｜行为案例、测试空间与验收计划
 
 状态：验证设计 v0.3，2026-09-07。本文件定义应怎样验证，不是已执行的质量报告。实际 Skill、宿主加载、桌面测试及评分均未因文档写入自动通过。返回[设计总纲](README.md)，需求见[requirements.md](requirements.md)，责任映射见[chain-design.md](chain-design.md)。

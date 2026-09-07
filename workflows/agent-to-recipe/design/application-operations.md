@@ -1,3 +1,9 @@
+---
+title: "应用操作建模与封装｜从界面认识到可靠操作"
+description: "从界面认识到可靠应用操作的设计方法、数据交接与验证边界。"
+order: 50
+---
+
 # 应用操作建模与封装｜从界面认识到可靠操作
 
 把已经明确的业务子目标，落实为能够重复定位、执行、读取和验证的普通应用操作。状态：阶段性专业分析 v0.3，供后续 application-engineer Skill 细化使用，不是新 Runtime 或 API 合同。返回[设计总纲](README.md)，关联[任务分解树](task-decomposition.md)、[链路与交接](chain-design.md)和[计算器案例](../cases/calculator.md)。本文件展开 S2、S7—S10，供 S11 生成和按需改进代码使用。
