@@ -1,60 +1,38 @@
 # 工作流入口
 
-本目录保存从需求到可复用自动化、以及普通 JavaScript 质量改进的作业框架。状态：框架文档；写入日期 2026-09-07。文档存在不表示 Skill 已注册、调度已实现、脚本或桌面业务已验收通过。
+本目录当前保存 Agent-first Recorder 的需求与设计结论，后续据此形成正式 WORKFLOW 和多个独立 Skill。2026-09-07 完成设计归位；文档存在不表示 Skill 已加载、调度已实现或桌面任务已通过。
 
-## 从当前目标进入
+## 从这里开始
 
-- 从真实任务、人工开发目标或已有自动化资产推进。
-  - 阅读 [Agent-first Recorder｜工作流任务分解树](agent-to-recipe/WORKFLOW.md)。
-  - 按业务子目标拆解需求，再选择观察、操作、验证和实现方法。
-  - JS 执行已明确、可验证的步骤；Agent 只参与必要的理解和动态判断。
-- 将应用认识转成可靠操作。
-  - 阅读 [应用操作建模与封装](agent-to-recipe/application-operations.md)。
-  - 区分布局、区域、UI 组件、目标身份、定位规则和本次动作坐标。
-  - 优先复用公开 API，必要时使用普通函数，不强制应用类或 `calc` 对象。
-- 对已有或新生成的普通 JS 独立改进质量。
-  - 阅读 [code-rebuild｜普通 JavaScript 构建与质量改进](code-rebuild/WORKFLOW.md)。
-  - 保持需求和真实数据流，区分结构重构、修复、可靠性增强和优化。
-  - 代码已经满足要求时允许不改；rebuild 不等于推倒重写。
-- 用具体任务检查上述环节能否衔接。
-  - 阅读 [计算器案例与设计记录](agent-to-recipe/cases/calculator.md)。
-  - 案例保留任务树、十三节点展开、数据流、布局备选方案、设计决策、反例和待验证事项。
-  - 计算器是目标应用与技术基线，不是另一个通用工作流或完整产品。
+- 阅读[设计总纲与文件地图](agent-to-recipe/design/README.md)：了解当前有效决定、职责、资料位置和待完成事项。
+- 阅读[需求发现与基线](agent-to-recipe/design/requirements.md)：明确来源、事实／未知、需求、场景、质量和授权。
+- 阅读[Agent-first Recorder｜工作流任务分解树](agent-to-recipe/design/task-decomposition.md)：完整保留五个结果层次、S1—S12、十三节点对照和三个循环。
+- 阅读[链路与成果交接](agent-to-recipe/design/chain-design.md)：理解 Workflow／Skill、输入输出、可选路由、失败返回和过程文件。
+- 按需阅读[应用操作分析](agent-to-recipe/design/application-operations.md)、[代码改进分析](agent-to-recipe/design/code-rebuild.md)和[验证计划](agent-to-recipe/design/validation-plan.md)。
+- 用[计算器案例与设计记录](agent-to-recipe/cases/calculator.md)检查方法是否接得起来；保留真实数据关系、布局备选、反例和未知项，未运行的场景不写成通过。
 
-## 文件与职责
+## 文件职责
 
-- `agent-to-recipe/WORKFLOW.md` 是本目录唯一主流程，保存五个结果层次、阶段关联、执行闭环和交接。
-- `agent-to-recipe/application-operations.md` 展开从界面认识到可靠操作的专业任务，不重复定义底层 API。
-- `code-rebuild/WORKFLOW.md` 保存可以独立调用的代码改进框架，尚不是详细 `SKILL.md`。
-- `agent-to-recipe/cases/calculator.md` 是可维护的案例和设计记录，不是一次真实运行报告。
-- 本目录按嵌套无序列表表达“需要完成什么”。树中的缩进表示任务归属，不自动表示所有子任务串行；执行与同步采集并行，失败按原因返回。
+- design 保存为什么这样拆、需要什么、怎样交接和怎样验证，不是最终运行指令。
+- [agent-to-recipe/WORKFLOW.md](agent-to-recipe/WORKFLOW.md)当前仅作过渡导航；正式文件后续负责选择和组合 Skill，不承载完整推理正文。
+- 后续 skills 负责各专业环节。当前[六个 Skill](../prompts/automation/agent-to-recipe/README.md)仍在原目录，本轮不新增、改名或搬迁，也不假定宿主自动发现未来目录。
+- 生成与代码改进分开：recipe-build 保留生成职责，code-rebuild 为拟新增的独立可选改进；简单脚本可以跳过深度优化，但不能跳过必要正确性与安全检查。
+- 原[应用操作入口](agent-to-recipe/application-operations.md)和[代码改进入口](code-rebuild/WORKFLOW.md)只保留迁移导航，不维护两份正文。
+- 不新增与 Skill 平行的 chains 目录，不按每个任务节点创建文件或 Skill。计算器是贯穿案例，不另建计算器产品或专用工作流。
 
-## 与既有文档和 Skill 的关系
+## 与现有方法的关系
 
-- [框架导航](../docs/frameworks/README.md)负责方法与架构分类；[示范到自动化主方法](../docs/frameworks/demonstration-to-automation-pipeline.md)和[任务求解方法](../docs/frameworks/automation-problem-solving-framework.md)提供阶段与业务拆解依据。
-- [应用开发框架](../docs/frameworks/app-development-framework.md)、[能力成熟度](../docs/frameworks/capability-development.md)及[扩展框架](../docs/frameworks/runtime-api-extension-framework.md)继续负责原有领域，不在这里复制另一套正文。
-- [共享合同](../docs/frameworks/agent-to-recipe-skill-contract.md)继续负责 request、handoff、版本、权限、进度和资格范围。本文不新增可执行 schema、Gate 或 Runtime 状态。
-- [现有六个 Agent Skill](../prompts/automation/agent-to-recipe/README.md)仍保持原路径与调用名。本次不改名、不覆盖原 `recipe-build`，不假装新增的工作流文件已经安装为 Skill。
-  - `code-rebuild` 是拟升级的专业环节名称；后续统一细化、评估并迁移原 `recipe-build` 的职责和引用。
-  - 迁移前，正式 Skill 请求仍使用现有合同允许的名字；需要时在其 S11 作业内引用代码改进框架。
-  - 不长期维护两份职责重叠的生成 Skill，也不把独立业务函数误认为独立 Agent Skill。
-- [当前 API 文档](../docs/api/README.md)定义实际调用；框架示意、历史源码或相似工具名称不能证明某个 API 存在。
-- 普通 JS 路线不以前置建设 Recorder Session、Compiler、可执行 IR、独立 Replay Runtime、LangGraph 或平台为条件。完整 Recorder／编译专项仍遵守其独立规格与验证要求。
+- [框架导航](../docs/frameworks/README.md)、[示范方法](../docs/frameworks/demonstration-to-automation-pipeline.md)与[任务求解](../docs/frameworks/automation-problem-solving-framework.md)提供依据；不复制成新的总框架。
+- [应用开发](../docs/frameworks/app-development-framework.md)、[能力成熟度](../docs/frameworks/capability-development.md)和[扩展框架](../docs/frameworks/runtime-api-extension-framework.md)继续负责原有领域。
+- [共享合同](../docs/frameworks/agent-to-recipe-skill-contract.md)继续维护公共字段、权限、版本、交接和资格范围；新 code-rebuild 和人工开发等目标路由的兼容实施尚待完成。
+- [当前 API](../docs/api/README.md)决定真正可调用能力；优先框架 API 和必要普通函数，不强制 calc 对象，不虚构 UI.tap 或新 Runtime。
+- 普通 JS 路线不以前置 Recorder Session、Compiler、可执行 IR、独立 Replay Runtime、LangGraph 或平台为条件；明确选择完整 Recorder 专项时仍执行对应门槛。
 
-## 保留计算器资料，而不混淆知识和运行证据
+## 资料留存与进度真实性
 
-- 长期保留本目录案例中的需求、设计理由、候选方案、反例、支持边界和未决事项，后续故障可以回查，不仅存放在会被清理的临时目录。
-- 实际操作时，在 `.runtime/automation-authoring/<task-id>/` 保存任务包、尝试和证据索引；真实 JS 的截图、日志和输出优先使用当次 `Execution.artifactDir`。路径规则沿用共享合同。
-- 探索、失败和未完成资料不因成功而被覆盖；先保存事实，再建立成功路径或新修订。不存在的截图、脚本或历史运行不得补造。
-- 临时试验可留下设计摘要、选择依据和待验证项；摘要不是原始执行证据，也不要求记录模型私有思维过程。
-- `.runtime/` 可清理，不是永久证据库。清理前核对活动任务引用；需要长期复现时，经授权保留脱敏材料或稳定 fixture，并记录实际归档位置与内容版本。证据丢失后相关旧结论不能继续假装可复核。
-- 遵守 [AGENTS.md](../AGENTS.md)：不提交凭据、个人屏幕、运行日志或无关临时文件，不删除已有用户资料，不新建根级 `temp/`、`test/` 或计算器专用工作流目录。
-
-## 本次建立范围与后续顺序
-
-- 先保存五个框架文件，保留完整任务树和计算器设计资料。
-- 再按这些框架审查实际计算器脚本，形成保留项、最小改动、API 复用与回归范围。
-- 随后独立细化并评估 code-rebuild Skill，统一处理旧名称与链接迁移。
-- 最后对指定候选执行获准的真实验收；文档、静态检查、Skill 评估和桌面通过分别报告。
-
-本轮文档基线为远端 `master` 提交 `6d04b6f01fcc652470d5fd3888c8b8ae84aabffe`。该快照不包含 `workflows/`；本次仅建立获准的五个文件，不恢复全部历史目录，不声明已查看或修改用户本地工作树。以下方法的新增细化来自本轮需求讨论；仓库已有合同与设计通过相应链接追溯。
+- 长期设计、取舍、备选、未知和脱敏案例留在本目录，不能只放入可清理的临时目录。
+- 实际任务按共享合同在 `.runtime/automation-authoring/<task-id>/` 保存过程与交接，真实截图日志使用当次 Execution.artifactDir；路径示意不是已存在证据。
+- 保留探索、失败、局部补证与旧候选，原始事实不因新尝试成功而覆盖。临时分析保存可审阅结论，不保存模型私有思维过程。
+- `.runtime/` 不是永久证据库，清理前核对活动引用；需要长期复核时经授权脱敏保留。证据丢失应标不可复核，不能继续声称通过。
+- 遵守[AGENTS.md](../AGENTS.md)：不提交凭据、个人屏幕和运行日志，不删除已有用户资料，不新建根级 temp 或 test。
+- 本轮仅整理设计文件和迁移入口。未生成或迁移 Skill，未改 API／Runtime，未运行计算器；实际评分、安装、独立交接和业务验收按验证计划后续分别记录。
