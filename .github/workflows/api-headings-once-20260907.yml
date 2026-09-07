@@ -22,8 +22,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git clone --depth 1 --branch master "https://github.com/${REPOSITORY}.git" repo
+          git clone --depth 1 --filter=blob:none --no-checkout --branch master "https://github.com/${REPOSITORY}.git" repo
           cd repo
+          git sparse-checkout set --no-cone '/AGENTS.md' '/docs/api/'
+          git checkout master
           test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
           test "$(git hash-object AGENTS.md)" = 3598051c9b4ab4f5853885a157b61087b28dbd43
           test "$(git hash-object docs/api/.rules.md)" = 4f394ddd097cd1d43a611ae770e3245c4070ae6d
