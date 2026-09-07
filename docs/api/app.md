@@ -1,130 +1,403 @@
 ---
-title: App Lifecycle API
+title: App API
 description: Launch, find, wait for, terminate, and restart desktop applications by stable identity.
 order: 14
 ---
 
-# App Lifecycle API
+# App
 
-`App` 是 JavaScript Runtime 中的实验性应用生命周期原语。它把已有的 `page.openApp()`、
-`System.getProcessList()` / `killProcess()`、Window/PID 和 macOS `NSWorkspace` snapshot 组合成薄层；
-没有创建第二套 Process、Window、EventLoop 或快捷键系统。
+`App` 是 OpenDesk JavaScript Runtime 的实验性应用生命周期 API。它按稳定 identity 启动、查找、等待、终止和重启桌面应用，不创建第二套 Process、Window 或 EventLoop 系统。
 
-优先使用稳定 identity：macOS bundle id 或 `.app` bundle path；PID 只标识一次运行实例，显示名称
-可能变化。一个 identity 匹配多个进程时，`App.get()`、`launch()` 和 `restart()` 返回一个 group，
-其 `pids` 和 `instances` 保留全部匹配项。
+优先使用稳定 identity：macOS 使用 bundle id 或 `.app` path；PID 只标识一次运行实例；显示名称可能变化。一个 identity 匹配多个进程时，返回的 group 会保留全部匹配 `pids` 与 `instances`。
 
-## 快速开始
+## API 一览
 
-```js
-const target = { bundleId: 'com.apple.calculator' };
-const app = await App.launch(target, { waitUntilReady: 'window', timeout: 10000 });
-console.log({ pids: app.pids, name: app.name });
+| 方法 | 用途 |
+| --- | --- |
+| `App.list()` | 返回当前应用/进程 snapshot。 |
+| `App.get(target)` | 按 identity 返回当前匹配 group。 |
+| `App.isRunning(target)` | 判断当前是否存在匹配实例。 |
+| `App.launch(target, options?)` | 启动或激活应用并可等待 readiness。 |
+| `App.waitForLaunch(target, options?)` | 等待应用达到 process/window readiness。 |
+| `App.waitForExit(target, options?)` | 等待该 identity 当前不再运行。 |
+| `App.terminate(target, options?)` | 向开始时匹配的实例发出 graceful 或 force 终止请求。 |
+| `App.restart(target, options?)` | 终止匹配实例后按稳定 identity 重新启动。 |
+| `App.getCapabilities()` | 返回当前平台和 backend 的能力矩阵。 |
 
-await App.terminate(target); // graceful
-await App.waitForExit(target, { timeout: 10000 });
+## 公共约定
+
+### App target
+
+```ts
+type OpenDeskAppTarget =
+  | number
+  | string
+  | { pid: number }
+  | { name: string }
+  | { bundleId: string }
+  | { path: string };
 ```
 
-工作目录必须是仓库根目录。示例只在 Calculator 原本未运行时启动、restart 并清理它；若已运行会
-fail closed，避免终止用户原有实例：
+对象 target 必须只包含一个 identity 字段。字符串绝对路径按 path 解释；macOS 上含点且不含路径分隔符的字符串可按 bundle id 解释，其他普通字符串按 name 解释。有歧义时使用显式对象。
 
-```bash
-./opendesk -script examples/app-lifecycle.js -console-mode script
-```
+### macOS Calculator 别名
 
-示例 evidence 写入：
+macOS + cgo 的 native identity backend 当前只提供两个精确系统别名：
 
-```text
-.runtime/tests/platform-primitives/task-007-app-lifecycle/example.json
-```
-
-## `App.list()` / `App.get()` / `App.isRunning()` / `App.launch()` / `App.waitForLaunch()` / `App.waitForExit()` / `App.terminate()` / `App.restart()` / `App.getCapabilities()`：API 总览
-
-| 方法 | 返回 | 语义 |
-| --- | --- | --- |
-| `App.list()` | instance[] | 当前 app/process snapshot；macOS 来自 NSWorkspace |
-| `App.get(target)` | group / `null` | 按 identity 分组全部匹配进程 |
-| `App.isRunning(target)` | boolean | 当前 snapshot 是否存在匹配实例 |
-| `App.launch(target, options?)` | Promise\<group> | 启动或激活；已运行时不制造平行 OpenDesk 进程系统 |
-| `App.waitForLaunch(target, options?)` | Promise\<group> | 等待 process 或 window readiness |
-| `App.waitForExit(target, options?)` | Promise\<true> | 等待该 identity 当前不再运行 |
-| `App.terminate(target, options?)` | Promise\<result> | 向开始时匹配的全部 PID 发出 graceful 或 force 请求并等待退出 |
-| `App.restart(target, options?)` | Promise\<group> | 终止匹配实例后用 stable identity 重启；PID 输入会先解析为 bundle/path/name |
-| `App.getCapabilities()` | object | 平台、backend、identity、readiness 和 mutation 支持矩阵 |
-
-`target` 支持 number PID、字符串，以及只含一个字段的
-`{ pid }` / `{ name }` / `{ bundleId }` / `{ path }`。字符串绝对路径视为 path；macOS 上含点且不含
-路径分隔符的字符串视为 bundle id，其他平台视为 name（例如 `notepad.exe`）；有歧义时使用显式对象。
-
-## macOS 系统应用别名
-
-当前 macOS + cgo 的 native-identity backend 只为下列系统应用名提供精确别名；它们不是通用名称
-翻译或模糊匹配：
-
-| 输入 `name`（字符串或 `{ name }`） | 规范化 identity |
+| 输入 name | 规范化 identity |
 | --- | --- |
 | `计算器` | `com.apple.calculator` |
 | `Calculator` | `com.apple.calculator` |
 
-规范化发生在解析后、启动前，因此会持续用于 `launch`、`get`、`isRunning`、`waitForLaunch`、
-`waitForExit`、`terminate`、`restart`、进程匹配和窗口 readiness。它复用 macOS 的 bundle-ID launcher
-和平台身份查询，不硬编码系统应用安装目录，也不依赖 `App.list()` 里已有的运行实例，所以可用于冷启动。
+别名不是通用翻译或模糊匹配。显式 `{ bundleId }`、`{ path }` 与 PID 不参与翻译；未知 name 保持原 name 行为。
 
-显式 `{ bundleId }`、`{ path }` 和 PID 从不翻译；未知 name 保留原有 name 行为，绝不会回退为
-Calculator。第三方同名应用应使用显式 `bundleId` 或 `path`。别名调用的 `group.identity` 返回规范化后的
-`{ kind: 'bundleId', value: 'com.apple.calculator' }`；`name`、`bundleId`、`pids` 和 `instances` 仍是
-实际 snapshot 观察值，不会伪造为输入的“计算器”。
+### Readiness
 
-## Readiness、timeout 与 cancellation
+| 值 | 含义 |
+| --- | --- |
+| `'process'` | 当前 snapshot 至少出现一个匹配 PID；默认值。 |
+| `'window'` | 匹配 PID 中至少一个出现在 Window facade。 |
 
-- `waitUntilReady: 'process'`：snapshot 中至少出现一个匹配 PID；默认值。
-- `waitUntilReady: 'window'`：匹配 PID 中至少一个出现在现有 `window.list()` facade。
-- custom predicate 当前明确为 unsupported；capability 为 `false`。
-- timeout 默认 10 秒，最大 5 分钟；execution 取消或 teardown 会取消 worker 并清理 Promise callback。
-- `args`、`env`、`cwd` 已保留为候选字段，但当前会返回 `NOT_SUPPORTED`，不会 silent ignore。
+custom readiness predicate 当前不支持。timeout 默认 10 秒，最大 5 分钟；execution 取消或 teardown 会取消并回收等待 worker。
 
-`terminate({ force: false })` 请求应用级 graceful termination；`force: true` 是明确的立即 force 请求，
-不是隐式 fallback。若 graceful 超时，返回 `TIMEOUT`，由调用方决定是否再明确调用 force。
+### Group 与 instance
+
+`App.get()`、`App.launch()`、`App.waitForLaunch()` 与 `App.restart()` 返回按 identity 聚合的 group。一个 identity 可以对应多个 process instance；调用方不应假设 `pids[0]` 是唯一实例。
+
+## `App.list()`
+
+返回当前应用/进程 snapshot。
+
+**签名**
+
+```ts
+App.list(): OpenDeskAppInstance[];
+```
+
+**参数**
+
+无。
+
+**返回值**
+
+`OpenDeskAppInstance[]`。macOS native backend 使用 NSWorkspace；其他平台按当前 capability 使用 process fallback。
+
+**行为与错误**
+
+同步读取当前 snapshot，不启动、激活或终止应用。backend 失败时同步抛结构化错误。
+
+**示例**
+
+```js
+const apps = App.list();
+console.log(apps.map(app => ({ pid: app.pid, name: app.name })));
+```
+
+## `App.get(target)`
+
+返回当前匹配 identity 的应用 group。
+
+**签名**
+
+```ts
+App.get(target: OpenDeskAppTarget): OpenDeskAppGroup | null;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `target` | `OpenDeskAppTarget` | 是 | 无 | 要查找的应用 identity。 |
+
+**返回值**
+
+`OpenDeskAppGroup | null`。当前没有匹配实例时返回 `null`。
+
+**行为与错误**
+
+同步读取当前 snapshot。一个 identity 有多个实例时返回同一 group 中的全部实例，不默认挑选第一个。
+
+**示例**
+
+```js
+const app = App.get({ bundleId: 'com.apple.calculator' });
+if (app) console.log(app.pids);
+```
+
+## `App.isRunning(target)`
+
+判断当前是否存在匹配实例。
+
+**签名**
+
+```ts
+App.isRunning(target: OpenDeskAppTarget): boolean;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `target` | `OpenDeskAppTarget` | 是 | 无 | 要检查的应用 identity。 |
+
+**返回值**
+
+`boolean`。
+
+**行为与错误**
+
+只读取当前 snapshot，不等待后续变化。无效 target 或 backend 失败会同步抛结构化错误。
+
+**示例**
+
+```js
+if (App.isRunning({ name: 'Calculator' })) {
+  console.log('running');
+}
+```
+
+## `App.launch(target, options?)`
+
+启动或激活目标应用，并可等待 readiness。
+
+**签名**
+
+```ts
+App.launch(
+  target: OpenDeskAppTarget,
+  options?: OpenDeskAppLaunchOptions,
+): Promise<OpenDeskAppGroup>;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `target` | `OpenDeskAppTarget` | 是 | 无 | 要启动或激活的应用 identity。 |
+| `options` | `OpenDeskAppLaunchOptions` | 否 | `{}` | 启动与 readiness 选项。 |
+| `options.waitUntilReady` | `'process' \| 'window'` | 否 | `'process'` | 启动后等待条件。 |
+| `options.timeout` | `number` | 否 | `10000` ms | 等待 readiness 的 timeout。 |
+| `options.activate` | `boolean` | 否 | backend 默认 | 是否请求激活目标应用。 |
+
+**返回值**
+
+`Promise<OpenDeskAppGroup>`。
+
+**行为与错误**
+
+已运行应用可以被激活，不会创建平行的 OpenDesk process abstraction。当前保留的 `args`、`env`、`cwd` 字段若 backend 尚不支持，会明确返回 `NOT_SUPPORTED`，不会静默忽略。
+
+**示例**
+
+```js
+const app = await App.launch(
+  { bundleId: 'com.apple.calculator' },
+  { waitUntilReady: 'window', timeout: 10000 },
+);
+console.log(app.pids);
+```
+
+## `App.waitForLaunch(target, options?)`
+
+等待目标应用达到明确 readiness。
+
+**签名**
+
+```ts
+App.waitForLaunch(
+  target: OpenDeskAppTarget,
+  options?: OpenDeskAppWaitOptions,
+): Promise<OpenDeskAppGroup>;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `target` | `OpenDeskAppTarget` | 是 | 无 | 要等待的应用 identity。 |
+| `options` | `OpenDeskAppWaitOptions` | 否 | `{}` | 等待选项。 |
+| `options.waitUntilReady` | `'process' \| 'window'` | 否 | `'process'` | readiness 条件。 |
+| `options.timeout` | `number` | 否 | `10000` ms | timeout。 |
+
+**返回值**
+
+`Promise<OpenDeskAppGroup>`。
+
+**行为与错误**
+
+本方法只等待，不负责启动应用。timeout 抛 `TIMEOUT`；execution 取消抛 `CANCELED`。
+
+**示例**
+
+```js
+const app = await App.waitForLaunch('Calculator', {
+  waitUntilReady: 'window',
+  timeout: 10000,
+});
+```
+
+## `App.waitForExit(target, options?)`
+
+等待目标 identity 当前不再运行。
+
+**签名**
+
+```ts
+App.waitForExit(
+  target: OpenDeskAppTarget,
+  options?: OpenDeskAppWaitOptions,
+): Promise<true>;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `target` | `OpenDeskAppTarget` | 是 | 无 | 要等待退出的应用 identity。 |
+| `options` | `OpenDeskAppWaitOptions` | 否 | `{}` | 等待选项。 |
+| `options.timeout` | `number` | 否 | `10000` ms | timeout。 |
+
+**返回值**
+
+`Promise<true>`。
+
+**行为与错误**
+
+目标在 timeout 内不再运行时 resolve `true`。超时抛 `TIMEOUT`，execution 取消抛 `CANCELED`。
+
+**示例**
+
+```js
+await App.waitForExit({ bundleId: 'com.apple.calculator' }, {
+  timeout: 10000,
+});
+```
+
+## `App.terminate(target, options?)`
+
+向调用开始时匹配的全部实例发出 graceful 或 force 终止请求，并等待退出。
+
+**签名**
+
+```ts
+App.terminate(
+  target: OpenDeskAppTarget,
+  options?: OpenDeskAppTerminateOptions,
+): Promise<OpenDeskAppTerminateResult>;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `target` | `OpenDeskAppTarget` | 是 | 无 | 要终止的应用 identity。 |
+| `options` | `OpenDeskAppTerminateOptions` | 否 | `{}` | 终止选项。 |
+| `options.force` | `boolean` | 否 | `false` | `false` 为 graceful；`true` 为明确 force 请求。 |
+| `options.timeout` | `number` | 否 | `10000` ms | 等待退出的 timeout。 |
+
+**返回值**
+
+`Promise<OpenDeskAppTerminateResult>`。
+
+**行为与错误**
+
+`force: false` 超时不会自动升级为 force；调用方必须显式决定是否再次以 `force: true` 调用。开始时没有目标时按当前实现返回结构化 not-found 结果或错误，不会终止不相关进程。
+
+**示例**
+
+```js
+await App.terminate({ bundleId: 'com.apple.calculator' });
+```
+
+## `App.restart(target, options?)`
+
+终止匹配实例后按稳定 identity 重新启动应用。
+
+**签名**
+
+```ts
+App.restart(
+  target: OpenDeskAppTarget,
+  options?: OpenDeskAppRestartOptions,
+): Promise<OpenDeskAppGroup>;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `target` | `OpenDeskAppTarget` | 是 | 无 | 要重启的应用 identity。 |
+| `options` | `OpenDeskAppRestartOptions` | 否 | `{}` | 终止、启动和 readiness 选项。 |
+
+**返回值**
+
+`Promise<OpenDeskAppGroup>`。
+
+**行为与错误**
+
+PID 输入会先解析为可复用的 bundle/path/name identity，再执行 restart；不会尝试用已经退出的旧 PID 直接“重新启动”。终止或启动阶段失败会以对应结构化错误拒绝。
+
+**示例**
+
+```js
+const app = await App.restart(
+  { bundleId: 'com.apple.calculator' },
+  { waitUntilReady: 'window', timeout: 10000 },
+);
+```
+
+## `App.getCapabilities()`
+
+返回当前平台、backend、identity、readiness 与 mutation 支持矩阵。
+
+**签名**
+
+```ts
+App.getCapabilities(): OpenDeskAppCapabilities;
+```
+
+**参数**
+
+无。
+
+**返回值**
+
+`OpenDeskAppCapabilities`。
+
+**行为与错误**
+
+同步读取 capability，不启动、激活或终止应用。调用方应以当前返回值判断平台支持，不把其他平台的构建或测试状态当作本机能力。
+
+**示例**
+
+```js
+console.log(App.getCapabilities());
+```
 
 ## 错误
 
-Promise rejection 的 `error.code` 为：`INVALID_ARGUMENT`、`NOT_SUPPORTED`、`NOT_FOUND`、
-`LAUNCH_FAILED`、`TERMINATE_FAILED`、`TIMEOUT`、`CANCELED` 或 `BACKEND_FAILED`。
-同步 `list/get/isRunning` 的无效参数或 backend 失败会直接 throw 同样的结构化错误。
-
-## 平台矩阵
-
-| 平台 | list / identity | launch | terminate | window readiness | 本轮验证 |
-| --- | --- | --- | --- | --- | --- |
-| macOS + cgo | NSWorkspace；PID/name/bundle/path；支持本文两个 Calculator 别名 | `open -a/-b` 或 `.app` path | NSRunningApplication graceful/force | 复用现有 Window facade | real fixture verified |
-| macOS 无 cgo | process fallback；不规范化本文别名 | 同上 | gopsutil signal/kill | partial | not live verified |
-| Windows | process fallback | name/path | gopsutil signal/kill | existing Window facade | not live verified |
-| Linux | process fallback | executable name/path | gopsutil signal/kill | capability false | not live verified |
-
-## 兼容与边界
-
-- `page.openApp(name)` 和 AI CLI `app.open` 保持原签名，并改为共享同一 launcher bridge。
-- `page.openURLInApp()` 仍是 URL 行为，不混入 `App` core。
-- `System.getProcessList()` / `killProcess()` 和 Window/PID API 保持兼容；`App` 不取代完整 Process API。
-- 当前没有新增 HTTP/MCP surface；脚本 Runtime 是本轮公共入口。
-- `Events` 继续负责外部 app launched/terminated 变化；`App` 不复制 watcher 或 `globalShortcut`。
-
-## 正式 macOS fixture gate
-
-工作目录为仓库根目录。该 gate 编译仓库自带的无用户数据 AppKit fixture，执行 launch →
-window-ready → second launch → restart → graceful terminate → force terminate，并保存窗口截图和脱敏 JSON：
-
-```bash
-OPENDESK_LIVE_APP_LIFECYCLE=1 ./dist/opendesk -script scripts/test_app_lifecycle.js -console-mode script
-```
-
-未设置 opt-in 时 runner 会安全 `[SKIP]`，不能记为 live pass。正式 runner 会先核对实际启动的
-`dist/opendesk` 与配套 `dist/opendesk-ui-host` 是否来自同一次当前构建，再编译 fixture。功能通过后
-仍需检查 `.runtime/tests/platform-primitives/task-007-app-lifecycle/window.png`；进程、Promise 和
-JSON evidence 通过不等于视觉通过。
-
-产物目录：
+Promise rejection 的稳定 `error.code` 包括：
 
 ```text
-.runtime/tests/platform-primitives/task-007-app-lifecycle/
+INVALID_ARGUMENT
+NOT_SUPPORTED
+NOT_FOUND
+LAUNCH_FAILED
+TERMINATE_FAILED
+TIMEOUT
+CANCELED
+BACKEND_FAILED
 ```
+
+同步的 `list()` / `get()` / `isRunning()` 在参数或 backend 失败时直接抛同样的结构化错误。
+
+## 平台与能力
+
+| 平台 | identity / list | launch | terminate | window readiness |
+| --- | --- | --- | --- | --- |
+| macOS + cgo | NSWorkspace；PID/name/bundle/path | bundle/name/path | graceful/force | Window facade |
+| macOS without cgo | process fallback | name/path | process signal/kill | partial |
+| Windows | process fallback | name/path | process signal/kill | Window facade |
+| Linux | process fallback | executable name/path | process signal/kill | capability-dependent |
+
+`page.openApp()` 与 AI CLI `app.open` 保持各自公开合同并复用同一 launcher bridge；`System` process API、`window` 与 `Events` 保持独立职责。
