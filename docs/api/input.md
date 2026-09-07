@@ -1,205 +1,213 @@
 ---
 title: Input APIs
-description: OpenDesk JavaScript Runtime 的键盘和触屏输入接口；鼠标见独立 Mouse API。
+description: OpenDesk JavaScript Runtime 的键盘和轻量触屏输入接口。
 order: 3
 ---
 
-# keyboard / touchscreen
+# Input APIs
 
-这两个对象默认都会注入：
-- keyboard
-- touchscreen
+OpenDesk 默认注入 `keyboard` 与 `touchscreen`，并提供 `page.keyboard` / `page.touchscreen` 兼容入口。鼠标能力见 [`mouse`](mouse.md)。
 
-同时也会挂在 page 上：
-- page.keyboard
-- page.touchscreen
-
-适用场景
-- 键盘输入、按键、组合键
-- 简单触屏 tap
-
-`keyboard` 只负责 OpenDesk 向操作系统发送输入；需要由系统级按键反向触发当前
-JavaScript Runtime 时，使用独立的 [globalShortcut](global-shortcut.md)，不要把注册能力加到
-`keyboard`。
-
-鼠标移动、点击、拖拽、位置读取与滚轮请查看独立的 [Mouse API](mouse.md)。`mouse` 和
-`page.mouse` 均可使用，坐标、平台限制与安全边界均以该页面为准。
-
-## keyboard
-
-**方法总表**
+## API 一览
 
 | 方法 | 用途 |
 | --- | --- |
-| keyboard.type(text) | 输入文本 |
-| keyboard.press(key) | 点击单个按键 |
-| keyboard.down(key) | 按住按键 |
-| keyboard.up(key) | 释放按键 |
-| keyboard.combination(...keys) | 组合键 |
+| `keyboard.type(text)` | 输入文本。 |
+| `keyboard.press(key)` | 按下并释放单个键。 |
+| `keyboard.down(key)` | 按住一个键。 |
+| `keyboard.up(key)` | 释放一个键。 |
+| `keyboard.combination(...keys)` | 顺序按下并逆序释放组合键。 |
+| `touchscreen.tap(x, y)` | 在全局坐标执行一次轻量 tap。 |
 
-## keyboard.type(text)
+## 公共约定
+
+### 键名
+
+`keyboard` 会规范化常见键名，例如 `Enter` / `Return` → `enter`、`Escape` → `escape`、`ArrowUp` → `up`、`Meta` → `command`、`Control` → `ctrl`。
+
+### 输入边界
+
+这些方法向真实桌面发送输入，不注册系统级快捷键。需要系统快捷键回调时使用 [`globalShortcut`](global-shortcut.md)。Promise resolve 只表示输入调用完成，不证明目标应用业务状态已完成。
+
+**Keyboard APIs**
+
+## `keyboard.type(text)`
+
+向当前输入目标输入文本。
 
 **签名**
-
-```js
-await keyboard.type(text)
+```ts
+keyboard.type(text: string): Promise<void>;
 ```
 
 **参数**
 
-| 参数 | 类型 | 说明 |
-| --- | --- | --- |
-| text | string | 要输入的文本 |
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `text` | `string` | 是 | 无 | 要输入的非空文本。 |
 
-**错误条件**
-- 空字符串会报错：`input text cannot be empty`
+**返回值**
+
+`Promise<void>`。
+
+**行为与错误**
+
+空字符串会拒绝；方法不负责聚焦目标控件，也不验证文本是否被应用接受。
 
 **示例**
-
 ```js
 await keyboard.type('hello world');
-await keyboard.type('https://example.com');
 ```
 
-## keyboard.press(key)
+## `keyboard.press(key)`
+
+按下并释放单个键。
 
 **签名**
-
-```js
-await keyboard.press(key)
+```ts
+keyboard.press(key: string): Promise<void>;
 ```
 
-**说明**
-- 按下并释放单个键
-- 会做常见键名规范化
+**参数**
 
-**常见映射示例**
-- Enter -> enter
-- Return -> enter
-- Escape -> escape
-- ArrowUp -> up
-- ArrowDown -> down
-- ArrowLeft -> left
-- ArrowRight -> right
-- Meta -> command
-- Control -> ctrl
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `key` | `string` | 是 | 无 | 支持的键名。 |
+
+**返回值**
+
+`Promise<void>`。
+
+**行为与错误**
+
+常见键名会按公共映射规范化；未知或无效键名会拒绝。
 
 **示例**
-
 ```js
 await keyboard.press('Enter');
-await keyboard.press('Escape');
 await keyboard.press('ArrowDown');
 ```
 
-## keyboard.down(key)
+## `keyboard.down(key)`
+
+发送一个键的按下事件并保持按下状态。
 
 **签名**
-
-```js
-await keyboard.down(key)
+```ts
+keyboard.down(key: string): Promise<void>;
 ```
 
-**示例**
+**参数**
 
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `key` | `string` | 是 | 无 | 要按下的键名。 |
+
+**返回值**
+
+`Promise<void>`。
+
+**行为与错误**
+
+不会自动释放；调用方应使用 `try/finally` 与 `keyboard.up()` 成对清理。
+
+**示例**
 ```js
 await keyboard.down('Shift');
-await keyboard.press('ArrowRight');
+try {
+  await keyboard.press('ArrowRight');
+} finally {
+  await keyboard.up('Shift');
+}
+```
+
+## `keyboard.up(key)`
+
+释放一个按下的键。
+
+**签名**
+```ts
+keyboard.up(key: string): Promise<void>;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `key` | `string` | 是 | 无 | 要释放的键名。 |
+
+**返回值**
+
+`Promise<void>`。
+
+**行为与错误**
+
+发送对应 key-up 事件；无效键名会拒绝。
+
+**示例**
+```js
 await keyboard.up('Shift');
 ```
 
-## keyboard.up(key)
+## `keyboard.combination(...keys)`
+
+按顺序按下所有键，再逆序释放，形成常用组合键。
 
 **签名**
-
-```js
-await keyboard.up(key)
+```ts
+keyboard.combination(...keys: string[]): Promise<void>;
 ```
 
-## keyboard.combination(...keys)
+**参数**
 
-**签名**
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `keys` | `string[]` | 是 | 无 | 非空键名序列。 |
 
-```js
-await keyboard.combination(...keys)
-```
+**返回值**
 
-**作用**
-- 依次按下所有键，再逆序释放
+`Promise<void>`。
+
+**行为与错误**
+
+组合按顺序执行 down/up，并非系统级原子快捷键 API。无效键名会使调用拒绝。
 
 **示例**
-
 ```js
 await keyboard.combination('Meta', 'C');
-await keyboard.combination('Control', 'Shift', 'Escape');
 ```
 
-**注意**
-- 当前实现按顺序执行 down/up，并非系统级原子快捷键 API
-- 但对大多数复制、粘贴、关闭窗口等场景足够实用
+**Touchscreen API**
 
-## touchscreen
+## `touchscreen.tap(x, y)`
 
-**方法总表**
-
-| 方法 | 用途 |
-| --- | --- |
-| touchscreen.tap(x, y) | 在指定坐标做一次 tap |
-
-## touchscreen.tap(x, y)
+在全局坐标模拟一次简单 tap。
 
 **签名**
-
-```js
-await touchscreen.tap(x, y)
+```ts
+touchscreen.tap(x: number, y: number): Promise<void>;
 ```
 
-**作用**
-- 用鼠标左键 down/up 模拟一次触摸
-- 适合简单点按，不适合复杂手势
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `x` | `number` | 是 | 无 | 全局 X 坐标。 |
+| `y` | `number` | 是 | 无 | 全局 Y 坐标。 |
+
+**返回值**
+
+`Promise<void>`。
+
+**行为与错误**
+
+使用一次左键 down/up 模拟轻量点按；不提供多指、长按或复杂手势。非法坐标会拒绝。
 
 **示例**
-
 ```js
 await touchscreen.tap(500, 600);
 ```
 
-## mouse / keyboard / touchscreen：实战示例
+## 平台与能力
 
-**示例 1：拖拽窗口中的元素**
-
-```js
-await mouse.move(300, 300);
-await mouse.down({ button: 'left' });
-await mouse.move(900, 300, { steps: 30 });
-await mouse.up({ button: 'left' });
-```
-
-**示例 2：打开地址后输入并确认**
-
-```js
-await page.openApp('Safari');
-await page.waitForTimeout(1000);
-await keyboard.type('https://example.com');
-await keyboard.press('Enter');
-```
-
-**示例 3：滚动并截图**
-
-```js
-await mouse.wheel({ deltaY: 600, steps: 8, delay: 10 });
-await page.waitForTimeout(500);
-await page.screenshot({ path: './.runtime/examples/after-scroll.png' });
-```
-
-## mouse / keyboard / touchscreen：兼容说明
-
-旧文档倾向把交互动作写到 page.click(selector) / page.type(selector, text) 下面。
-
-当前项目更适合按对象分层理解：
-- page：截图、打开、权限、等待
-- mouse：坐标点击与移动
-- keyboard：文本与按键
-- touchscreen：轻量 tap
-
-这样更符合当前源码，也更接近桌面自动化实际用法。
+输入是否真正可达目标应用取决于当前平台后端、系统权限、前台窗口和命中测试。需要可重算坐标时使用 [`Geometry`](geometry.md)，需要语义定位时优先使用 [`UI`](desktop-ui.md)。
