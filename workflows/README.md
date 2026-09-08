@@ -1,8 +1,15 @@
 # 工作流入口
 
-本目录保存 Agent-first Recorder／Agent-to-Recipe 的需求、设计、方法入口与案例。文档存在不表示 Skill 已加载、整体调度已实现或桌面任务已通过。Agent-to-Recipe 是生产可复用自动化能力与纯 JS／混合业务流程的开发链，不代表 OpenDesk 的全部产品范围。
+本目录保存 Agent-first Recorder／Agent-to-Recipe 与人工 Recorder／Human-to-Recipe 的需求、设计、方法入口与案例。两种来源独立录制，应用认识、过程工程化、普通 JS 生成和验收按实际合同复用。文档存在不表示 Skill 已加载、整体调度已实现或桌面任务已通过；这些开发链不代表 OpenDesk 的全部产品范围。
 
-## 从这里开始
+## 人工 Recorder：从这里开始
+
+- 阅读[Human-to-Recipe 入口](human-to-recipe/README.md)：理解受控坐标、增强普通 JS、JS／Agent 混合出口及其边界。
+- 阅读[完整作业任务树](human-to-recipe/design/task-decomposition.md)：H1—H8、点击与无文字图标分析、其他动作分支及贯穿约束。
+- 阅读[实施与验收计划](human-to-recipe/design/implementation-plan.md)：阶段交接、数据责任、最小工作包、待核查类方法和验证门槛。
+- 人工录制设计不重写 Agent-first 工作流，不把候选方法写成已实现 API，也不要求基础坐标脚本先完成大模型分析。只保留上述三份主文档，不按每个阶段另建文件或 Skill。
+
+## Agent-to-Recipe：从这里开始
 
 - 阅读[设计总纲与文件地图](agent-to-recipe/design/README.md)：了解当前有效决定、职责、资料位置和待完成事项。
 - 阅读[需求发现与基线](agent-to-recipe/design/requirements.md)：先看项目背景与业务目标，再明确来源、事实／未知、开发入口、业务场景、质量和授权。
