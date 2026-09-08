@@ -49,6 +49,41 @@ Workflow 把 Goal、Success Criteria、业务步骤与验证写在脚本中；�
 `vision_failed`、`execution_failed`、`timeout`、`internal_error`。退出码为 0（成功）、2（输入/命令
 错误）、3（平台/能力不可用）、4（权限）、5（执行目标失败）或 1（内部错误）。
 
+## ai run 与 -script
+
+`opendesk ai run` 和 `opendesk -script` 都使用同一套 JavaScript Execution Runtime，都会注入
+`Execution`，并复用 Runtime API、超时、取消、资源清理与 artifact 机制。两者不是完全等价的
+命令别名；`ai run` 是面向 Coding Agent 和参数化 recipe 的窄 CLI 适配层，`-script` 是通用的
+本地脚本入口。
+
+| 行为 | `opendesk ai run recipe.js` | `opendesk -script script.js` |
+| --- | --- | --- |
+| 结构化输入 | 支持 `--input`、`--input-file` 和 `--input-stdin`，解析后注入 `Execution.input` | 没有对应的结构化输入参数；`Execution.input` 默认为 `{}` |
+| stdout | 只输出一个 JSON envelope，recipe 的 `console.log()` 写入 envelope 指向的 `stdout.log` | 按 `-console-mode` 和 `-console-categories` 输出面向终端的脚本日志与摘要 |
+| artifact 目录 | 固定在 `.runtime/ai/<executionId>/` | 默认在 `.runtime/runs/<executionId>/`，可用 `-log-dir` 指定 |
+| 异步收尾 | 会等待脚本末尾常见的 `main();` Promise | 不解释 recipe 的 `main();` 约定；应使用顶层 `await main();` 明确表达完成条件 |
+| 超时参数 | `--timeout 30s` 或 `--timeout 2m`；默认 30 分钟 | `-timeout 30`，单位为分钟 |
+| 其他入口选项 | 只接受 recipe 所需的输入、环境文件和超时选项 | 可配置 `-ui`、`-no-ui`、`-config`、`-stack`、`-log-dir` 和 console 输出等通用运行选项 |
+
+需要 Agent 消费稳定 JSON、向 recipe 传入 JSON，或运行以末尾 `main();` 为约定的既有 recipe 时，
+使用 `ai run`。普通本地脚本、测试 runner、人工查看终端日志，或需要通用运行选项时，使用
+`-script`。需要同时支持两个入口的异步脚本应使用顶层 `await`，并在脚本内明确处理
+`Execution.input` 为 `{}` 的情况。
+
+`examples/ai-cli/macos-calculator-recipe.js` 是需要 `expression` 和 `expected` 的参数化
+compatibility recipe，正确命令为：
+
+```bash
+./dist/opendesk ai run examples/ai-cli/macos-calculator-recipe.js --input '{"expression":"16*3","expected":"48"}'
+```
+
+如果省略 `--input`，`ai run` 会注入默认的 `{}`，recipe 将报错
+`Execution.input.expression must be a non-empty string`。直接改成
+`./dist/opendesk -script examples/ai-cli/macos-calculator-recipe.js` 也不等价：`-script` 没有
+`--input` 参数，且不保证等待该 recipe 末尾的 `main();` Promise。不需要输入的 Calculator
+Workflow 是 `workflows/macos/calculator/calculate-and-reuse-result.js`，不要把它与这个底层参数化
+recipe 混为同一个入口。
+
 ## Discover first
 
 ```bash
