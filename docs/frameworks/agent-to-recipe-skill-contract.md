@@ -1,17 +1,18 @@
 # Agent-to-Recipe：独立 Skill 与成果交接合同
 
-状态：路线 A 的作业规范 v1；文档与 Skill 资产，不代表宿主调度、权限隔离、自动校验或桌面测试已实现／通过。记录日期：2026-09-06。接口及目录基线核对：`823b7308c367fa3c408d7922bc94aa9a2cc1beef`；实际执行仍须核对当次代码、构建物和接口。
+状态：路线 A 的作业规范 v1，应用工程增量修订于 2026-09-08。原记录日期：2026-09-06；原接口及目录基线：`823b7308c367fa3c408d7922bc94aa9a2cc1beef`。本次文档核对基线：`f41f0e2ddf1beda40ce90f46d7ea51d127553e9e`；实际执行仍须核对当次代码、构建物和接口。规范与 Skill 文件不证明宿主调度、权限隔离、自动校验或桌面测试已经实现／通过。
 
 ## 1. 定位与唯一职责
 
-本文件把已确定的方法落实为六个独立 Agent Skill 的输入、输出、交接和恢复约定，不另建一套开发阶段或业务执行引擎。
+本文件维护原六项 Agent Skill 职责的输入、输出、交接和恢复约定，不另建开发阶段或业务执行引擎。独立 code-rebuild 仍以工作流设计中的待实现职责为准，不因本次应用工程修订自动获得调用支持。
 
 - 阶段与完整生命周期：[示范到自动化执行方法](demonstration-to-automation-pipeline.md)。
 - 业务拆解、数据依赖和六类解题模式：[自动化任务求解方法](automation-problem-solving-framework.md)。
 - 专业操作依据：[应用开发框架](app-development-framework.md)、[总体执行闭环](automation-framework.md)。
 - 可调用能力：[API 入口](../api/README.md)、[Execution](../api/execution.md)、[扩展放置原则](runtime-api-extension-framework.md)。
 - 已有质量体系：[G0—G7](../quality/gates-and-evidence.md)、[F0—F10](../quality/failure-taxonomy.md)。不另造平行 Gate／Failure 编号。
-- 调用入口：[六个 Skill 目录](../../prompts/automation/agent-to-recipe/README.md)。首个验证任务：[计算器规程](../quality/agent-to-recipe/calculator-validation.md)。
+- 工作流导航：[当前入口](../../workflows/agent-to-recipe/WORKFLOW.md)。本次唯一正式 Skill 文件：[application-engineer](../../workflows/agent-to-recipe/skills/application-engineer/SKILL.md)。旧 prompts 目录不是有效入口；其他职责名称不证明当前存在已安装实现。
+- 原首个验证任务：[计算器规程](../quality/agent-to-recipe/calculator-validation.md)。应用工程增量评测和批次沿用[当前验证计划](../../workflows/agent-to-recipe/design/validation-plan.md)。
 
 业务 Skill／普通 JS helper 与本文 Agent Skill 不同。前者在业务运行中复用动作；后者生产并验证业务程序。本文只约束明确选择多 Skill 开发链的任务，不强制所有短 Recipe 创建整套工件。
 
@@ -23,12 +24,12 @@ Agent 使用 OpenDesk 当前能力完成真实任务，保存关键事实，复�
 
 已有普通 JS 的接续也是路线 A 的受限入口：先冻结资产来源和内容，再按实际目标选择原样复用或最小修复，只补当前交付所需的证据、过程和验收缺口。既有代码或历史运行不能被追认成一次新的 Agent 示范；接续验收通过也不能表述为完整新生成链通过。用户要求完整新 Agent 示范／新生成时，仍须满足原 S1—S12 的全部适用要求。
 
-## 2. 六个独立 Skill 与阶段映射
+## 2. 六项原职责与阶段映射
 
 | Skill | 原方法阶段 | 主要输入 | 本环节必须保存的主产物 | 正常消费者 |
 | --- | --- | --- | --- | --- |
 | `automation-plan` | S1，含前置拆解 | 用户任务、授权、已有任务资料 | TaskContract、WorkPlan | 应用工程、示范及所有后续环节 |
-| `application-engineer` | S2、S10 | 合同、所需操作、观察证据或定向缺口 | AppProfile、必要的普通 JS helper | 示范、生成 |
+| `application-engineer` | S2、S10 | 合同、所需操作、观察证据或定向缺口 | AppProfile、必要的普通 JS helper、同版审阅／验证记录 | 示范、提炼、生成与验收，各按限定范围消费 |
 | `task-demonstrate` | S3—S6 | 合同、计划、应用资料、获准业务输入 | DemonstrationDossier、关键业务值及证据索引 | 提炼 |
 | `procedure-synthesize` | S7—S9 | 合同、示范包、应用资料 | SemanticProcedure、参数与数据依赖 | 应用补强、生成 |
 | `recipe-build` | S11 的路线 A 实现 | 已确认过程、应用资料、当前 API | 普通 JS、CandidateManifest | 验收 |
@@ -57,23 +58,27 @@ S1 先形成任务合同，再形成粗粒度工作包计划。初始计划允�
 → 限定范围交付，或按问题归属定向返回
 ```
 
-接续分支复用现有六个 Skill 和十二阶段，不新增 Skill、阶段或执行入口。未调用的环节表示本次接续范围不需要它，不表示相应完整开发 Gate 已通过。
+接续分支复用现有职责和十二阶段，不新增阶段或执行入口。未调用的环节表示本次接续范围不需要它，不表示相应完整开发 Gate 已通过。
 
-应用工程每次调用明确 `discover`、`harden` 或 `repair` 模式；不是重复研究整个应用。AppProfile 的事实条目标注 `observed`、`demo-confirmed` 或 `qualified`，且附环境范围和证据；阶段名称本身不能自动提升成熟度。
+应用工程每次调用明确 `discover`、`harden` 或 `repair` 模式；不是重复研究整个应用。discover 不要求完整 SemanticProcedure；harden 消费已确认过程和工程缺口；repair 消费旧规则、具体失败和受影响范围。仅界面认识与审阅是交付范围，不新增模式或 ui-understanding 独立 Skill。
+
+AppProfile 的事实条目标注 `observed`、`demo-confirmed` 或 `qualified`，且附环境范围和证据；阶段名称本身不能自动提升成熟度。模型解释与候选并非事实，不能为满足此枚举而伪标 observed／qualified；其认识依据与候选状态按下文分开保存。
 
 ## 3. 调用与宿主责任
 
-独立 Skill 的验收标准：换一个未参与上游操作的 Agent，仅凭本 Skill、共享合同和指定输入，能继续完成职责，或准确指出缺失项。不能通过复制全部聊天补救糟糕的接口。
+默认由同一个 Agent 按工作流顺序使用专业方法。Skill 不等于 Agent 或进程；返回某项职责不要求换 Agent。正常使用与独立性测试不同：独立性测试让未参与上游的执行者仅凭指定 Skill、合同和输入接续，或准确指出缺失项；不通过复制全部聊天补救接口缺陷。
 
-宿主可顺序调用六个 Skill，也可使用分离上下文；必须记录实际方式。没有独立上下文能力时可以显式按合同接续，但不得宣称通过“无历史上下文交接测试”。Skill 文件不会自动安装、注册、运行、调度或隔离权限。
+宿主可顺序执行，也可提供分离上下文；必须记录实际方式。同一 Agent 可以执行冻结候选的测试，但须使用事先确定的标准和独立结果来源，不以自述作 Oracle。没有独立上下文能力时，不宣称通过“无历史上下文交接测试”。Skill 文件不会自动安装、注册、运行、调度或隔离权限。
 
-薄协调者只负责：读取合同／计划／状态；选择输入就绪的工作包；派发调用；检查交接完整性及 Gate；维护唯一进度；管理预算、暂停、取消与计划变更；把失败送回责任 Skill。协调者不代替专业判断，也不自行修改验收标准。V1 可以由具备文件与工具能力的 Agent 宿主执行这些步骤，不依赖新增 Go 管理器。
+薄协调者只负责：读取合同／计划／状态；选择输入就绪的工作包；派发调用；检查交接完整性及 Gate；维护唯一进度；管理预算、暂停、取消与计划变更；把失败送回责任 Skill。协调者不代替专业判断，也不自行修改验收标准。V1 可以由具备文件与工具能力的 Agent 宿主执行这些步骤，不依赖新增 Go 管理器；协调者也是职责，不强制独立 Agent。
 
 同一任务只有一个进度写入者；同一桌面同一时刻只有一个操作拥有者。离线分析可并行，桌面输入不得并行。宿主不支持强制工具隔离时，记录限制，不得承诺无人值守高风险安全。
 
 ## 4. 工作包与文件组织
 
 先按可独立解释、验收、接续的子目标拆分，再按数据和现场依赖组合。阶段、Skill、工作包、JS 文件不是一一对应。多个工作包最终可以交付一个普通 JS 文件；是否拆代码文件以当前 Runtime 加载能力为准，不凭空使用 import／require。
+
+同一工作包内的截图、认识、审阅和规则整理直接共享明确版本的数据，不为每个子步骤创建新 request／handoff。只有真正派发、发布或另一次尝试才处理对应边界；不能因此省略已有 request／handoff 必需字段。可由程序生成的引用、hash 和摘要不反复要求 Agent 手填。输入版本改变仍执行第七节影响分析。
 
 任务根目录由协调者选定并保存绝对解析基准，例如：
 
@@ -117,6 +122,8 @@ S1 先形成任务合同，再形成粗粒度工作包计划。初始计划允�
 | `environmentRef / evidenceRoots` | 当前入口、OS／应用／provider／构建来源和获准证据根；不含环境变量全集 |
 | `continuation` | 可选的已有资产接续元数据；字段及语义见下文。缺失表示未知，不表示从零生成或没有既有资产 |
 
+应用工程沿用 mode 示例：`application/discover`、`harden`、`repair`。人类文档可简称 discover；不由生产者任意新增别名。交付范围放 requiredOutputs／工作包，而不是 executionStatus。
+
 ### 输出交接 `handoff.json`
 
 | 字段 | 约束 |
@@ -133,6 +140,8 @@ S1 先形成任务合同，再形成粗粒度工作包计划。初始计划允�
 | `continuation` | 可选；记录本 attempt 实际消费或产生的接续来源、证据作用和处置边界，不代替 artifacts、Gate 或失败记录 |
 
 除表中明确标为可选的 `continuation` 外，所有交接都要有这些字段；不适用使用空数组或明确说明，不能用缺字段掩盖未知。门禁适用已有 G0—G7；只有 `pass` 可进入依赖该结果的正常路径，`warn` 仅可探测／诊断。格式完整的失败包可进入诊断，不能作为成功示范进入生成。
+
+仅认识与审阅的 gate.scope 可以只放行该范围；定位／操作／业务未测不填 pass。若请求本来要求操作验证而未完成，不能改为只认识的 scope 后宣称原工作包全部通过。blocked 是工作状态，不擅自加入 executionStatus；已结束作业仍可能 gate.fail。
 
 文件写完／格式正确／生产者自报成功，分别不等于业务成功。负向测试中，“错误期望被拒绝”是测试通过，但该业务执行仍应记录失败，不能混用两种 verdict。
 
@@ -164,6 +173,37 @@ WorkPlan 包含 `revision / contractRef / workPackages / dependencies / budgets 
 ### AppProfile
 
 包含 `applicationIdentity / environmentScope / states / regions / targets / geometryRules / operations / verifiers / preconditions / limitations / evidenceRefs / maturity`。每个 operation 有输入输出、前后条件、失败方式和当前公开 API 依据。描述规则，而非把一次窗口坐标当永久身份。未知布局、provider 或平台不得伪标 qualified。
+
+### 应用工程增量
+
+本节是字段职责与交接的唯一正文；专业方法见 application-operations.md，不建立第二份 AppProfile 或公共 UI Runtime schema。下列新格式是本次定义的方法合同，尚无自动校验器、宿主加载或运行兼容性通过证据。
+
+**版本与兼容。** request／handoff 仍用 `agent-to-recipe/v1`。使用本增量的 AppProfile 主文件用 `schemaVersion: agent-to-recipe/app-profile/v1.1` 并保留既有字段，新增 `revision / observationRefs / relations / claimSources / changeLog`。新增数组没有适用条目时可为空，但关键缺口必须写入 limitations／unresolved，不以空数组代表已经核验。旧 AppProfile 可以作为历史／接续来源；新消费者对缺失关系、审阅、验证信息保持未知，不能默认通过。不了解新产物版本的消费者必须拒绝正式消费，不能丢弃新约束后继续；不冒称旧消费者已经通过兼容测试。
+
+| 内容 | 归属与最小含义 | 消费与失效 |
+| --- | --- | --- |
+| 本次观察 | observationRefs 指向不可变观察记录：截图引用、来源、采集时间或未知、应用／窗口／页面范围、imageSize、裁剪缩放 mapping 或未知、原始文字／原生属性及完整性 | 支持当时可见事实；未知映射不阻止认识，但阻止依赖其的桌面坐标操作。新页面／时刻是新观察 |
+| 界面认识 | states／regions／targets 保存稳定本地 ID、类型／名称／parentRegionId、必要状态与 observationId 关联；一次 textBounds、controlBounds、safeActionRegion 分开，注明坐标空间，未知用 null 加原因 | 图片矩形只属对应观察，不作永久目标；动态业务值和记录实例不写成以后运行的固定答案 |
+| 关系 | relations 每项有 id、kind、from、to、来源及未知说明；父子用 parentRegionId；标签—输入、Tab—面板、记录—动作明确对应 | ID 唯一、引用存在、父关系无环；字段形式合法不证明关系语义正确 |
+| 主张来源 | claimSources 按对象 ID 和字段路径关联 evidenceRefs、观察事实／模型解释／假设／人工修订的来源类型与简短依据 | 模型分类、置信度及算法结果不自动成为实测事实；没有读到状态不等于 false |
+| 候选规则 | 在 targets 的定位描述、geometryRules、operations 和 verifiers 内记录实际条件、环境范围、必要依赖和失败去向；不新建并行规则注册表 | 同屏坐标、人审标注、模型候选不自动升级成熟度；布局／环境变化重新核对 |
+| 修改影响 | changeLog 保存旧版本引用、字段、旧新值、原因、修改者、范围；规则／操作／verifier 用 dependsOn 的本地对象 ID 表达必要依赖 | 按依赖传播 needs-revalidation 建议；依赖不明保守复核。工作状态仍由协调者更新，不覆盖历史验证 |
+
+上述 ref 均沿用本合同的带根目录、hash 和格式版本的引用结构；对象内引用用本地 ID，与文件 ref 区分。外部截图或原生观察的原始格式不能被模型重写成“实际读取”。不在这里制造观测数据、placeholder hash 或伪造原生元素 ref。
+
+**任务优先级。** 当前核心目标、必要依赖／安全前提和次要候选，在 WorkPlan 当前工作包范围中按目标 ID 表达，并记录延后原因、影响、再处理条件。原本必需的目标不能因识别困难被降级；范围改变走计划授权流程，而不是改 AppProfile 中的永久重要性。
+
+**审阅和验证。** 当前认识数据先冻结，再由独立审阅／测试记录引用该 AppProfile 的精确 ref；handoff.artifacts 发布 Profile、记录和视图的引用，不把当前审阅记录的 hash 写回其所引用的 Profile，避免互相引用的 hash 环。记录可以同一文件按对象／范围组织，不强制每个控件一个文件。
+
+审阅记录至少写实际 appProfileRef、scope、核验方法、执行者或实际人工、时间、结论、未知及修改请求。结构校验、自动语义核验、人工审阅分别记录；不存在的人审不填确认者。修订 Profile 后发布新版本，再生成视图并按影响复核；旧记录仍只证明旧版本和范围。
+
+验证记录至少写实际 appProfileRef／helperRef、目标或操作、环境与场景、criterionRefs、预期与实际、evidenceRefs、pass／fail／not-run／blocked、重验范围；位置、人审、动作返回、后置及业务结果分别判断。只有候选脚本正式验收使用 QualificationRecord；应用局部验证记录不能冒充整份候选资格。
+
+原图、叠加图、简化布局、属性差异视图来自同版数据。视图保存源版本、源 hash、涉及目标 ID；每个视图自身 hash 在 handoff 清单记录。未生成的视图不能列为已存在输出；原型需实际取得并复核才可引用，不继承聊天中的通过声明。
+
+**正常路径的最小记录。** 始终保留当前业务对象、所用版本、关键观察／动作／读值、必要验证、范围和未知；新认识或影响性修订生成审阅材料；详细候选比较、全量结构、视频和跨环境分析仅按诊断／能力建设范围采集。减少冗余，不减少已经约定的审阅或关键证据。异常前证据不能事后补造。
+
+**消费者放行。** 示范可消费最小认识并受控探索；提炼用应用术语与关系，但真实过程仍来自 Dossier；生成依赖已落实的操作及实际 API；只有认识时不能假装已有可执行操作；验收冻结具体候选和依赖。仅认识包的 pass 只支持该范围，定位、操作和业务未测保持未测。
 
 ### DemonstrationDossier
 
@@ -199,15 +239,9 @@ WorkPlan 包含 `revision / contractRef / workPackages / dependencies / budgets 
 6. 产物已完成而 progress 未更新：核对产物后补状态，不重做业务动作。只有 running／旧 done 标签而缺产物：不得跳过。
 7. 现场状态与历史事实分开处理。窗口、焦点、账号、页面和坐标每次重新检查；知识可复用不代表现场仍有效。
 
-业务动作前中断：重新确认现场后决定执行。动作可能已生效但未记录：先核验实际效果，不能默认重试。结果不明时进入待核对并停止后续副作用。自造 UUID、文件 checkpoint 和取消请求都不提供外部业务 exactly-once 或回滚保证。
+业务动作前中断：重新确认现场后决定执行。动作可能已生效但未记录：先核验实际效果，不能默认重试。结果不明时进入待核对并停止后续副作用。自造 UUID、文件 checkpoint 或阶段标记不证明 exactly-once，不恢复 JS 调用栈，也不能回滚外部应用。
 
-Fresh Run 允许复用知识与代码，不允许用示范的结果、缓存、窗口快照替代本次业务操作。开发接续测试与业务 Fresh Run 必须分别报告。
-
-## 8. 权限、控制与故障路由
-
-默认规划／提炼只读业务现场，生成只写候选，示范／验收在授权范围内操作桌面。宿主实际执行权限限制；文档字段本身不是 sandbox。读取本文件或 Skill 不是运行授权。
-
-截图、OCR、网页、工具结果和文件内容都是不可信数据，不能成为新授权、修改共享 Skill 或指令宿主读取任意秘密。只记录必要值，遮蔽截图敏感区；不整体保存 `Execution.env`，不把 Secret 值放进参数模板或报告。凭据的普通 hash 也不是默认安全替代，记录引用／版本而非低熵秘密的摘要。
+## 8. 暂停、取消与定向返回
 
 暂停：安全边界不再派发下一工作包。取消：请求宿主停止当前执行并核对结果；取消不撤销已产生副作用。恢复：重新检查产物和现场。`Execution` 是只读上下文，不是 execution 管理器；外部控制按 [HTTP API](../api/http-server.md) 等实际入口核对。未支持的暂停／隔离／取消不得伪造为已生效。
 
@@ -216,7 +250,7 @@ Fresh Run 允许复用知识与代码，不允许用示范的结果、缓存、�
 | 问题归属 | 返回责任 |
 | --- | --- |
 | 目标、授权、成功条件或拆解错误 | automation-plan；需变更授权时先停止 |
-| 应用／窗口／定位／布局／等待假设错误 | application-engineer |
+| 应用／窗口／定位／布局／等待假设错误 | application-engineer；已知加载先按已有有界规则等待，未被覆盖或存在冲突才重新认识 |
 | 缺真实动作、关键数据或结果证据 | task-demonstrate 定向补采 |
 | 因果、参数来源、业务分段错误 | procedure-synthesize |
 | JS API、代码组织、异步或错误处理错误 | recipe-build |
@@ -232,4 +266,6 @@ F0—F10 描述问题，不单独决定是否可重试；同时检查风险与 G
 
 必须分别验证：无旧聊天交接、关键证据缺失、半写产物、混入旧任务、版本更新、三个中断位置、现场变化、暂停／取消、数据类型／单位不匹配、越界路径／恶意内容、入口环境差异、自报假成功、Fresh Run 旧结果污染。优先用离线副本／低风险计算器，不对真实付款、发送或删除进行破坏性注入。
 
-质量目标可沿用交接 20、恢复 20、业务验证 25、安全控制 20、兼容交付 15 的评审权重；达到 95 分且所有关键项通过才可报告达到该目标。没有实际证据不填写成绩，不声称进行过多专家讨论。当前文件落地状态仅为规范已写入，运行与整链验证待执行。
+原合同保留交接 20、恢复 20、业务验证 25、安全控制 20、兼容交付 15 的历史评审权重作为来源；当前工作流统一使用 validation-plan.md 的五维、20 项评分办法，不同时维护两份有效验收评分。没有实际证据不填写能力成绩，不声称进行过多专家讨论。设计评审与运行资格必须区分。
+
+2026-09-08：本次只深化应用工程合同并写入正式 Skill 方法入口。保留既有主产物和 request／handoff 枚举，修正失效调用入口，明确同一 Agent、工作包内部复用、最小数据和 AppProfile 增量版本；辅助工具、模型提取、独立上下文、实际桌面及整链验收尚未因写入通过。
