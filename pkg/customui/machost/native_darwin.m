@@ -9,7 +9,7 @@
 #import "native_darwin.h"
 #import "floating_toolbar_darwin.h"
 
-static NSString *const CDProtocolVersion = @"1.4.0";
+static NSString *const CDProtocolVersion = @"1.7.0";
 static NSMutableDictionary<NSString *, id> *CDWindows;
 
 static BOOL CDDragDebugEnabled(void) {
@@ -625,6 +625,14 @@ static void CDFinalizeClosedWindow(CDWindowController *controller, NSUInteger at
 	[self emitType:@"click" target:targetID body:@{} reason:nil];
 }
 
+- (void)floatingToolbarDidChangeControl:(NSString *)targetID type:(NSString *)type value:(id)value checked:(NSNumber *)checked {
+	if (self.closed || ![self.controlIDs containsObject:targetID]) return;
+	NSMutableDictionary *body = [NSMutableDictionary dictionary];
+	if (value && value != NSNull.null) body[@"value"] = value;
+	if (checked) body[@"checked"] = checked;
+	[self emitType:type target:targetID body:body.copy reason:nil];
+}
+
 - (void)syncAccessibilityControlFromState:(NSDictionary *)state {
 	if (![state isKindOfClass:NSDictionary.class] || ![state[@"type"] isEqualToString:@"button"] || !self.contentView) return;
 	NSString *targetID = state[@"id"];
@@ -1100,8 +1108,9 @@ static void CDHandleCreate(NSDictionary *request, NSString *requestID) {
         CDFail(requestID, @"INVALID_SPEC", @"create", windowID, nil, @"window bounds are required");
         return;
     }
-    NSDictionary *toolbarSpec = [spec[@"toolbar"] isKindOfClass:NSDictionary.class] ? spec[@"toolbar"] : nil;
+	NSDictionary *toolbarSpec = [spec[@"toolbar"] isKindOfClass:NSDictionary.class] ? spec[@"toolbar"] : nil;
 	BOOL isNativeToolbar = toolbarSpec != nil;
+	BOOL toolbarNeedsKeyboard = isNativeToolbar && [CDToolbarView requiresKeyboardActivationForSpec:toolbarSpec];
 	if (isNativeToolbar) bounds = [CDToolbarView outerBoundsForSpec:toolbarSpec position:bounds];
     NSString *kind = spec[@"kind"] ?: @"normal";
 	// Host-owned Dialog frames deliberately keep the compact, non-resizable
@@ -1116,7 +1125,8 @@ static void CDHandleCreate(NSDictionary *request, NSString *requestID) {
 	}
     NSWindow *window;
     if ([kind isEqualToString:@"floating"]) {
-		NSPanel *panel = [[NSPanel alloc] initWithContentRect:frame styleMask:(style | NSWindowStyleMaskNonactivatingPanel) backing:NSBackingStoreBuffered defer:NO];
+		NSWindowStyleMask panelStyle = toolbarNeedsKeyboard ? style : (style | NSWindowStyleMaskNonactivatingPanel);
+		NSPanel *panel = [[NSPanel alloc] initWithContentRect:frame styleMask:panelStyle backing:NSBackingStoreBuffered defer:NO];
         panel.collectionBehavior = NSWindowCollectionBehaviorCanJoinAllSpaces | NSWindowCollectionBehaviorFullScreenAuxiliary;
 		panel.floatingPanel = YES;
 		panel.becomesKeyOnlyIfNeeded = YES;
@@ -1145,10 +1155,14 @@ static void CDHandleCreate(NSDictionary *request, NSString *requestID) {
 		[window setMinSize:frame.size];
 		[window setMaxSize:frame.size];
 	}
-    window.releasedWhenClosed = NO;
-    window.title = spec[@"title"] ?: @"";
+	window.releasedWhenClosed = NO;
+	window.title = spec[@"title"] ?: @"";
+	// FloatingWindow paints a near-black native toolbar surface regardless of
+	// the user's system appearance. Scope Dark Aqua to that window so standard
+	// AppKit controls keep readable foregrounds, tracks, and disabled states.
+	if (isNativeToolbar) window.appearance = [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua];
 
-    CDWindowController *controller = [CDWindowController new];
+	CDWindowController *controller = [CDWindowController new];
     controller.sessionID = sessionID;
     controller.windowID = windowID;
     controller.kind = kind;
@@ -1313,6 +1327,56 @@ static void CDEvaluateToolbarButton(CDWindowController *controller, NSDictionary
 	CDRespond(requestID, result);
 }
 
+static void CDEvaluateToolbarLabel(CDWindowController *controller, NSDictionary *request,
+								NSString *requestID, NSString *operation) {
+	NSDictionary *payload = [request[@"payload"] isKindOfClass:NSDictionary.class] ? request[@"payload"] : @{};
+	NSString *targetID = @"";
+	NSDictionary *result = nil;
+	if ([operation isEqualToString:@"getToolbarLabelState"]) {
+		targetID = [payload[@"id"] isKindOfClass:NSString.class] ? payload[@"id"] : @"";
+		result = [controller.floatingToolbarView stateForLabelID:targetID window:controller.window];
+	} else {
+		NSDictionary *label = [payload[@"label"] isKindOfClass:NSDictionary.class] ? payload[@"label"] : nil;
+		targetID = [label[@"id"] isKindOfClass:NSString.class] ? label[@"id"] : @"";
+		NSError *error = nil;
+		result = [controller.floatingToolbarView applyLabelSpec:label window:controller.window error:&error];
+		if (error) {
+			CDFail(requestID, @"INVALID_SPEC", operation, controller.windowID, targetID, error.localizedDescription);
+			return;
+		}
+	}
+	if (!result) {
+		CDFail(requestID, @"NOT_FOUND", operation, controller.windowID, targetID, @"native toolbar label was not found");
+		return;
+	}
+	CDRespond(requestID, result);
+}
+
+static void CDEvaluateToolbarControl(CDWindowController *controller, NSDictionary *request,
+								  NSString *requestID, NSString *operation) {
+	NSDictionary *payload = [request[@"payload"] isKindOfClass:NSDictionary.class] ? request[@"payload"] : @{};
+	NSString *targetID = @"";
+	NSDictionary *result = nil;
+	if ([operation isEqualToString:@"getToolbarControlState"]) {
+		targetID = [payload[@"id"] isKindOfClass:NSString.class] ? payload[@"id"] : @"";
+		result = [controller.floatingToolbarView stateForControlID:targetID window:controller.window];
+	} else {
+		NSDictionary *control = [payload[@"control"] isKindOfClass:NSDictionary.class] ? payload[@"control"] : nil;
+		targetID = [control[@"id"] isKindOfClass:NSString.class] ? control[@"id"] : @"";
+		NSError *error = nil;
+		result = [controller.floatingToolbarView applyControlSpec:control window:controller.window error:&error];
+		if (error) {
+			CDFail(requestID, @"INVALID_SPEC", operation, controller.windowID, targetID, error.localizedDescription);
+			return;
+		}
+	}
+	if (!result) {
+		CDFail(requestID, @"NOT_FOUND", operation, controller.windowID, targetID, @"native toolbar control was not found");
+		return;
+	}
+	CDRespond(requestID, result);
+}
+
 static void CDHandleRequest(NSDictionary *request) {
     NSString *version = request[@"version"];
     NSString *requestID = request[@"requestId"] ?: @"";
@@ -1354,6 +1418,7 @@ static void CDHandleRequest(NSDictionary *request) {
     if ([operation isEqualToString:@"show"]) {
 		if ([controller.kind isEqualToString:@"floating"]) {
 			[controller.window orderFrontRegardless];
+			[controller.floatingToolbarView setAnimationsActive:YES];
 		}
         else {
 			[NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
@@ -1367,8 +1432,9 @@ static void CDHandleRequest(NSDictionary *request) {
         }
         controller.revision += 1;
 		CDRespondWhenVisible(controller, requestID, 0);
-    } else if ([operation isEqualToString:@"hide"]) {
-        [controller.floatingToolbarView invalidateTooltips];
+	} else if ([operation isEqualToString:@"hide"]) {
+		[controller.floatingToolbarView invalidateTooltips];
+		[controller.floatingToolbarView setAnimationsActive:NO];
         [controller.window orderOut:nil];
         controller.revision += 1;
         CDRespond(requestID, controller.state);
@@ -1427,9 +1493,21 @@ static void CDHandleRequest(NSDictionary *request) {
 			return;
 		}
 		CDEvaluateToolbarButton(controller, request, requestID, operation);
+	} else if ([operation isEqualToString:@"getToolbarLabelState"] || [operation isEqualToString:@"applyToolbarLabel"]) {
+		if (!controller.floatingToolbarView) {
+			CDFail(requestID, @"UNSUPPORTED_CAPABILITY", operation, controller.windowID, nil, @"window is not a native toolbar");
+			return;
+		}
+		CDEvaluateToolbarLabel(controller, request, requestID, operation);
+	} else if ([operation isEqualToString:@"getToolbarControlState"] || [operation isEqualToString:@"applyToolbarControl"]) {
+		if (!controller.floatingToolbarView) {
+			CDFail(requestID, @"UNSUPPORTED_CAPABILITY", operation, controller.windowID, nil, @"window is not a native toolbar");
+			return;
+		}
+		CDEvaluateToolbarControl(controller, request, requestID, operation);
 	} else if ([operation isEqualToString:@"getControlState"] || [operation isEqualToString:@"updateControl"]) {
 		if (controller.floatingToolbarView) {
-			CDFail(requestID, @"UNSUPPORTED_CAPABILITY", operation, controller.windowID, nil, @"native toolbar requires structured button operations");
+			CDFail(requestID, @"UNSUPPORTED_CAPABILITY", operation, controller.windowID, nil, @"native toolbar requires structured item operations");
 			return;
 		}
         CDEvaluateControl(controller, request, requestID, operation);

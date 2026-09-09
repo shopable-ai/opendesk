@@ -169,3 +169,114 @@ func TestToolbarItemPlannerKeepsBoundariesBetweenActionGroups(t *testing.T) {
 		t.Fatalf("vertical separator plan = %#v, err=%v", plan, err)
 	}
 }
+
+func TestToolbarLabelGeometryAndWrapping(t *testing.T) {
+	label := func(id string, width float64) ToolbarItemSpec {
+		return LabelItem(LabelSpec{ID: id, Text: id, Width: width, Alignment: LabelAlignmentLeading, VerticalAlignment: LabelVerticalAlignmentCenter, Tone: LabelTonePrimary, Revision: 1})
+	}
+	button := ButtonItem(ButtonSpec{ID: "run", Label: "Run", Icon: "timer", State: ButtonState{Revision: 1}})
+	plan, err := Plan(ToolbarSpec{
+		SchemaVersion: SchemaVersion, Revision: 1, Orientation: OrientationHorizontal, MaxColumns: 2,
+		Items: []ToolbarItemSpec{label("status", 120), button, label("detail", 80)},
+	})
+	if err != nil || len(plan.Rows) != 2 || plan.OuterWidth != 188 || plan.OuterHeight != 129 {
+		t.Fatalf("horizontal label plan = %#v, err=%v", plan, err)
+	}
+	vertical, err := Plan(ToolbarSpec{
+		SchemaVersion: SchemaVersion, Revision: 1, Orientation: OrientationVertical, MaxColumns: 1,
+		Items: []ToolbarItemSpec{label("status", 120)},
+	})
+	if err != nil || vertical.OuterWidth != 140 || vertical.OuterHeight != 81 {
+		t.Fatalf("vertical label plan = %#v, err=%v", vertical, err)
+	}
+	_, err = Plan(ToolbarSpec{
+		SchemaVersion: SchemaVersion, Revision: 1, Orientation: OrientationHorizontal, MaxColumns: 1, MaxWidth: 100,
+		Items: []ToolbarItemSpec{label("tooWide", 120)},
+	})
+	if err == nil {
+		t.Fatal("label wider than maxWidth unexpectedly passed")
+	}
+}
+
+func TestToolbarContentItemsShareHeightGapPaddingAndDeclaredWidths(t *testing.T) {
+	button := ButtonItem(ButtonSpec{ID: "run", Label: "Run", Icon: "timer", State: ButtonState{Revision: 1}})
+	label := LabelItem(LabelSpec{ID: "status", Text: "Ready", Width: 120, Alignment: LabelAlignmentLeading, VerticalAlignment: LabelVerticalAlignmentCenter, Tone: LabelTonePrimary, Revision: 1})
+	control := ControlItem(ControlSpec{ID: "query", Kind: ItemInput, Label: "Query", Width: 180, MaxLength: 32, Revision: 1})
+	for _, item := range []ToolbarItemSpec{button, label, control} {
+		_, height := item.VisualSize(OrientationHorizontal)
+		if height != ContentItemHeight {
+			t.Fatalf("%s height = %v, want shared %v", item.Type, height, ContentItemHeight)
+		}
+	}
+	buttonWidth, _ := button.VisualSize(OrientationHorizontal)
+	labelWidth, _ := label.VisualSize(OrientationHorizontal)
+	controlWidth, _ := control.VisualSize(OrientationHorizontal)
+	if buttonWidth != 40 || labelWidth != 120 || controlWidth != 180 {
+		t.Fatalf("declared widths = button %v label %v control %v", buttonWidth, labelWidth, controlWidth)
+	}
+	plan, err := Plan(ToolbarSpec{
+		SchemaVersion: SchemaVersion, Revision: 1, Orientation: OrientationHorizontal, MaxColumns: 2,
+		Items: []ToolbarItemSpec{button, label, control},
+	})
+	if err != nil || len(plan.Rows) != 2 || plan.OuterWidth != 200 || plan.OuterHeight != 129 {
+		t.Fatalf("mixed content layout = %#v, err=%v", plan, err)
+	}
+	vertical, err := Plan(ToolbarSpec{
+		SchemaVersion: SchemaVersion, Revision: 1, Orientation: OrientationVertical, MaxColumns: 1,
+		Items: []ToolbarItemSpec{button, label, control},
+	})
+	if err != nil || vertical.OuterWidth != 200 || vertical.OuterHeight != 177 {
+		t.Fatalf("mixed vertical content layout = %#v, err=%v", vertical, err)
+	}
+	if ContentItemGap != 8 || HorizontalPadding != 10 || VerticalPadding != 8 {
+		t.Fatalf("shared toolbar spacing = gap %v padding %v/%v", ContentItemGap, HorizontalPadding, VerticalPadding)
+	}
+}
+
+func TestToolbarNativeControlValidationAndGeometry(t *testing.T) {
+	controls := []ControlSpec{
+		{ID: "toggle", Kind: ItemSwitch, Label: "Enabled", Width: 140, Checked: true, Revision: 1},
+		{ID: "include", Kind: ItemCheckbox, Label: "Include logs", Width: 140, Revision: 1},
+		{ID: "name", Kind: ItemInput, Label: "Name", Width: 180, Text: "draft", Placeholder: "Task name", MaxLength: 32, Revision: 1},
+		{ID: "mode", Kind: ItemSelect, Label: "Mode", Width: 160, Selected: "safe", Options: []OptionSpec{{Value: "safe", Label: "Safe"}, {Value: "fast", Label: "Fast"}}, Revision: 1},
+		{ID: "speed", Kind: ItemSlider, Label: "Speed", Width: 180, Min: 0, Max: 10, Step: 1, Value: 4, Revision: 1},
+		{ID: "scope", Kind: ItemSegmented, Label: "Scope", Width: 200, Selected: "page", Options: []OptionSpec{{Value: "page", Label: "Page"}, {Value: "app", Label: "App"}}, Revision: 1},
+		{ID: "work", Kind: ItemProgress, Label: "Work", Width: 160, Min: 0, Max: 1, Value: .25, Revision: 1},
+	}
+	items := make([]ToolbarItemSpec, 0, len(controls))
+	for _, control := range controls {
+		if err := ValidateControlSpec(control); err != nil {
+			t.Fatalf("valid %s control rejected: %v", control.Kind, err)
+		}
+		items = append(items, ControlItem(control))
+	}
+	plan, err := Plan(ToolbarSpec{SchemaVersion: SchemaVersion, Revision: 1, Orientation: OrientationHorizontal, MaxColumns: 2, Items: items})
+	if err != nil || len(plan.Rows) != 4 || plan.OuterHeight != 225 {
+		t.Fatalf("control layout = %#v, err=%v", plan, err)
+	}
+	invalid := controls[3]
+	invalid.Selected = "missing"
+	if err := ValidateControlSpec(invalid); err == nil {
+		t.Fatal("select value outside options unexpectedly passed")
+	}
+	invalid = controls[4]
+	invalid.Value = 11
+	if err := ValidateControlSpec(invalid); err == nil {
+		t.Fatal("out-of-range slider unexpectedly passed")
+	}
+	updated := controls[3]
+	updated.Selected = "fast"
+	updated.Disabled = true
+	updated.Revision++
+	if !SameControlDeclaration(controls[3], updated) {
+		t.Fatal("mutable choice state changed its native declaration")
+	}
+	updated.Options = append([]OptionSpec(nil), updated.Options...)
+	updated.Options[0].Label = "Safer"
+	if SameControlDeclaration(controls[3], updated) {
+		t.Fatal("choice option mutation was accepted as a stable declaration")
+	}
+	if ValidateBadge("999") != nil || ValidateBadge("NEW!") != nil || ValidateBadge("TOO-LONG") == nil {
+		t.Fatal("button badge bounds changed")
+	}
+}

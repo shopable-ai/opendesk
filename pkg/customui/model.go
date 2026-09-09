@@ -6,9 +6,9 @@ import (
 	"time"
 )
 
-// ProtocolVersion advances with bounded raster toolbar icons so an older host
-// cannot silently accept a newer FloatingWindow declaration.
-const ProtocolVersion = "1.4.0"
+// ProtocolVersion advances with native toolbar schema changes so an older host
+// cannot silently accept a newer FloatingWindow declaration or mutation.
+const ProtocolVersion = "1.7.0"
 
 type ActivationSource string
 
@@ -211,4 +211,8 @@ type DriverWindow interface {
 	UpdateControl(context.Context, string, ControlPatch) (ControlState, error)
 	ToolbarButtonState(context.Context, string) (toolbar.ButtonResult, error)
 	ApplyToolbarButton(context.Context, toolbar.ButtonSpec) (toolbar.ButtonResult, error)
+	ToolbarLabelState(context.Context, string) (toolbar.LabelResult, error)
+	ApplyToolbarLabel(context.Context, toolbar.LabelSpec) (toolbar.LabelResult, error)
+	ToolbarControlState(context.Context, string) (toolbar.ControlResult, error)
+	ApplyToolbarControl(context.Context, toolbar.ControlSpec) (toolbar.ControlResult, error)
 }

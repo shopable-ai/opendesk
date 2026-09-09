@@ -56,3 +56,14 @@
 结果仍写入 `unit-selection.json` 和 `runtime-api-unit-selected.json`，标记 `fullCatalog: false`；
 不能替代全量 unit、coverage 或 quality。多组选择、前置条件、证据和正式模式见
 [Runtime API 测试说明](../../../docs/quality/runtime-api-test-modules.md)。
+
+原生 FloatingWindow Label 的实窗布局/readback 可独立运行，避免完整 custom-ui suite 中更早的
+窗口场景失败使共享 driver fail-closed 后产生级联误判：
+
+```bash
+./dist/opendesk -ui -script tests/runtime-api/custom-ui-label.js -console-mode script
+```
+
+该入口直接复用 `tests/runtime-api/custom-ui/floating-window-label.test.js`，会验证默认垂直居中、
+真实水平居中、运行时 top/bottom 更新、固定几何、截断、Accessibility 与截图；它是专项证据，
+不能替代完整 `OPENDESK_RUNTIME_API_MODE=custom-ui` gate。

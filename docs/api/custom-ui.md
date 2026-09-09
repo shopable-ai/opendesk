@@ -7,11 +7,11 @@ order: 13
 # Custom UI
 
 > `ui`（小写）仅用于创建和管理 OpenDesk 自己的 Custom UI。它不是外部桌面应用的查找或点击 API；
-> 请使用大写 [`UI`](desktop-ui.md) 做 OCR/模板匹配、等待和激活外部可见目标。两者没有别名，
+> 请使用大写 [UI](desktop-ui.md) 做 OCR/模板匹配、等待和激活外部可见目标。两者没有别名，
 > JavaScript 大小写敏感。
 
 Custom UI 由当前 JavaScript Runtime 控制受控桌面窗口。`FloatingWindow` 直接声明
-简单图标工具栏；`ui.createWindow()` 用受限 HTML/CSS 声明视图。这里的 “Custom” 指脚本
+带短状态文字、紧凑设置控件和进度的简单工具栏；`ui.createWindow()` 用受限 HTML/CSS 声明视图。这里的 “Custom” 指脚本
 作者可以声明自己的工具栏或受限视图；“native” 是底层 AppKit / host 的实现方式。HTML 不能直接取得
 `mouse`、`File`、`http` 等全局能力；业务接口仍由 JavaScript listener 调用。
 
@@ -22,7 +22,7 @@ Custom UI 由当前 JavaScript Runtime 控制受控桌面窗口。`FloatingWindo
 | 需求 | 使用 API | 不适用的情况 |
 | --- | --- | --- |
 | 一次性的确认、取消或短文本输入 | [Dialog API](dialog.md) | 任意布局、持续交互或复杂表单 |
-| 最多 32 个简单图标操作按钮，以及少量分隔结构 | `new FloatingWindow(options)` | 需要可见文本、表单、任意 HTML/CSS 或动态控件树 |
+| 最多 32 个紧凑 Button / Label / 原生控件内容项，以及少量分隔结构 | `new FloatingWindow(options)` | 需要多行表单、任意 HTML/CSS、滚动区或动态控件树 |
 | 表单、受限 HTML/CSS 或动态控件树 | `ui.createWindow(spec)` | 仅需图标工具栏 |
 
 ## Custom UI：命令行 -ui 与启用方式
@@ -107,13 +107,14 @@ console.log(Execution.activationSource);
 **状态：Conditional / Native**
 
 `FloatingWindow` 是 compact native action toolbar：它通过结构化、版本化的
-`ToolbarSpec.Items[]`（`Button` / `Separator` / `Spacer`）直接创建 AppKit toolbar，
-不生成 HTML/CSS 或 WKWebView。复杂表单、可见标题分区、任意受限 HTML/CSS、输入、滚动区或
+`ToolbarSpec.Items[]`（`Button` / `Label` / `Switch` / `Checkbox` / `Input` / `Select` / `Slider` /
+`SegmentedControl` / `Progress` / `Separator` / `Spacer`）直接创建 AppKit toolbar，
+不生成 HTML/CSS 或 WKWebView。复杂多行表单、长文本、可见标题分区、任意受限 HTML/CSS、滚动区或
 动态控件树仍使用本页的 `ui.createWindow()`。两者共享 native driver、事件队列、
 `EventLoop.RunOnLoop`、统一 `WindowState`、结构化错误和生命周期清理，不引用或初始化 Fyne。
 只有 execution 已显式授权 UI 时才注入 `FloatingWindow`。
 
-每个工具栏都通过 `new FloatingWindow(options?)` 创建；后续按钮和生命周期方法只在该实例上调用：
+每个工具栏都通过 `new FloatingWindow(options?)` 创建；后续 item、状态和生命周期方法只在该实例上调用：
 
 ```js
 const toolbar = new FloatingWindow({
@@ -132,16 +133,16 @@ const toolbar = new FloatingWindow({
 | `title` | string | `"Toolbar"` | 原生窗口标题，最多 128 个 Unicode 字符。 |
 | `alwaysOnTop` | boolean | `true` | 是否使用原生置顶层级。 |
 | `draggable` | boolean | `true` | 是否允许拖动原生窗口。 |
-| `orientation` | `"horizontal"` / `"vertical"` | `"horizontal"` | horizontal 最多 32 个 actionable Button；vertical 最多 5 个。Separator / Spacer 不占 Button quota。 |
+| `orientation` | `"horizontal"` / `"vertical"` | `"horizontal"` | horizontal 最多 32 个内容项；vertical 最多 5 个。Separator / Spacer 不占内容 quota。 |
 | `toolbar` | object | 未设置 | horizontal 工具栏的换行约束；见下表。vertical 保持兼容的一列布局，不接受此对象中的约束。 |
 
-`toolbar` 采用与主流 responsive flex/grid 一致的“**宽度或轨道上限 + 自动换行**”模型：按钮保持 40×40pt 和 8pt 间隔，native host 按声明顺序从左到右填充，达到有效列数后换到下一行。它不缩小图标、不裁切按钮，也不要求调用方预先计算窗口 frame。
+`toolbar` 采用“**宽度或轨道上限 + 自动换行**”模型：Button、Label 和原生 control 的 content item 外框统一为 40pt 高；Button 宽 40pt，Label 与 control 使用各自不可变的声明宽度。item 之间及换行之间均为 8pt 间隔，外层保持 10pt 水平 padding 与 8pt 垂直 padding。native host 按声明顺序和实际 item 宽度从左到右填充，达到有效列数或宽度上限后换到下一行，不缩放 item，也不要求调用方预先计算窗口 frame。`alignment`、`verticalAlignment`、文字 peer 与 `renderedTextBounds` 只属于 Label；Switch、Checkbox、Input、Select、Slider、SegmentedControl 和 Progress 不接受这些选项。dark toolbar 的窗口级 native appearance 同样固定为 Dark Aqua，使标准 AppKit control 的默认、交互和 disabled 前景跟随系统深色语义色。
 
 | `toolbar` 字段 | 类型 | 默认值 | 说明 |
 | --- | --- | --- | --- |
-| `maxWidth` | number | `960` | 最大外部宽度，单位 pt，范围 `60–960`。host 根据按钮尺寸计算一行可放的整数列数；最后一行或按钮较少时窗口自动收紧。 |
-| `maxColumns` | integer | `19` | 每行最多按钮数，范围 `1–19`。与 `maxWidth` 同时设置时使用较窄的限制。设置 `2` 即每行至多两列。 |
-| `maxRows` | integer | 自动 | 最多行数，范围 `1–32`。host 为当前按钮数选取刚好满足该行数的紧凑列数；若再添加按钮会超过有效列数（`maxWidth` 与 `maxColumns` 中较窄者）乘以 `maxRows`，`addButton()` 返回 `INVALID_SPEC`，不会静默裁切或溢出。 |
+| `maxWidth` | number | `960` | 最大外部宽度，单位 pt，范围 `60–960`。host 先用历史 40pt 轨道估算列数，再按每个 content item 的实际声明宽度严格规划；最后一行或内容较少时窗口自动收紧。 |
+| `maxColumns` | integer | `19` | 每行最多内容项数，范围 `1–19`。与 `maxWidth` 同时设置时使用较窄的限制。设置 `2` 即每行至多两项。 |
+| `maxRows` | integer | 自动 | 最多行数，范围 `1–32`。host 为当前内容项数选取刚好满足该行数的紧凑列数；增加任何 Button、Label 或原生 control 超出容量时返回 `INVALID_SPEC`。 |
 
 例如，五个按钮每行最多两列：
 
@@ -163,9 +164,9 @@ const toolbar = new FloatingWindow({
 });
 ```
 
-如果设计稿直接给出宽度，就只使用 `maxWidth`；例如 `toolbar: { maxWidth: 252 }` 恰好可放五个 40pt 按钮，新增第六个按钮会自动开始第二行。`orientation: "vertical"` 继续是固定单列、最多五个按钮的兼容模式；需要任意二维控件布局、滚动或可见文字时应使用 `ui.createWindow()`。
+如果设计稿直接给出宽度，就只使用 `maxWidth`；例如 `toolbar: { maxWidth: 252 }` 恰好可放五个 40pt 按钮，新增第六个按钮会自动开始第二行。`orientation: "vertical"` 继续是固定单列、最多五个 content item 的兼容模式；需要任意二维控件布局、滚动或多行长文本时应使用 `ui.createWindow()`。
 
-首次 `show()` 前必须按声明顺序添加 toolbar item。未提供 `toolbar` 时，horizontal 的安全宽度上限仍为 960pt；vertical 在单列中从上至下排列，固定宽 60pt，五个 Button 时高 273pt（含原生标题栏）。初始定位必须只选择一种模式：推荐的 `position.mode` 明确描述该模式；不提供任何位置时保留已有 `100/100` 默认绝对位置。顶层 `placement` 是已废弃的草案形式，会返回 `INVALID_SPEC` 并提示迁移，绝不采用隐式优先级。
+首次 `show()` 前必须按声明顺序添加 toolbar item。未提供 `toolbar` 时，horizontal 的安全宽度上限仍为 960pt；vertical 在单列中从上至下排列，外宽按最宽 content item 加 20pt 水平 padding 收紧。只有 Button 的单列外宽为 60pt；五个 40×40pt Button 时高 273pt（含原生标题栏）。初始定位必须只选择一种模式：推荐的 `position.mode` 明确描述该模式；不提供任何位置时保留已有 `100/100` 默认绝对位置。顶层 `placement` 是已废弃的草案形式，会返回 `INVALID_SPEC` 并提示迁移，绝不采用隐式优先级。
 
 ## 窗口停靠与对齐（框架能力）
 
@@ -226,9 +227,531 @@ Anchor 是一次明确的重定位动作，不是持续约束。用户拖动、`
 
 按钮只能在首次 `show()` 前增加或删除。重复 id 返回 `DUPLICATE_ID`；无效 id、label、icon、callback 或超出按钮数返回 `INVALID_SPEC`。
 
-## toolbar.addSeparator(id) / toolbar.addSpacer(id)
+## toolbar.addLabel(id, text, options?)
 
-两者都是只可在首次 `show()` 前声明的真实 native structure primitive，不是 disabled Button：
+在紧凑工具栏中增加可见的原生静态文字，适合短状态、计数、计时和当前步骤。
+
+**签名**
+
+```ts
+addLabel(id: string, text: string, options?: {
+  width?: number;
+  alignment?: "leading" | "center" | "trailing";
+  verticalAlignment?: "top" | "center" | "bottom";
+  tone?: "primary" | "secondary" | "success" | "warning" | "error";
+}): void
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `id` | string | 是 | 无 | 匹配 `[A-Za-z][A-Za-z0-9_-]{0,63}`，与所有 toolbar item 共用唯一命名空间。 |
+| `text` | string | 是 | 无 | 1–120 个 Unicode 字符；同时是可见文字与 native Accessibility name。 |
+| `options.width` | number | 否 | `120` | 固定宽度，范围 `48–240` pt；显示后不可修改。 |
+| `options.alignment` | string | 否 | `"leading"` | 水平对齐：`leading`、`center` 或 `trailing`。 |
+| `options.verticalAlignment` | string | 否 | `"center"` | 40pt 固定高度内的显式垂直对齐：`top`、`center` 或 `bottom`。 |
+| `options.tone` | string | 否 | `"primary"` | 语义文字色：`primary`、`secondary`、`success`、`warning` 或 `error`。 |
+
+**返回值**
+
+`undefined`。
+
+**行为与错误**
+
+Label 高度固定为 40pt。`alignment` 是水平轴，默认 `leading`，其中 `center` 已由 native `NSTextField` 的实际水平布局和 readback 保证；`verticalAlignment` 是独立的垂直轴，默认 `center`，由 host 显式定位内部单行文字 peer，不依赖 `NSTextField` 在 40pt 外框中的默认绘制偏移。文字过长时 native view 使用末尾截断，但 `text`、`renderedText`、Accessibility name 和 Accessibility value 都保留完整内容，`getLabelState().truncated` 报告是否发生视觉截断，`renderedTextBounds` 返回 native 实际文字布局的 toolbar-local bounds。固定外框使运行中的文字、水平/垂直对齐和 tone 更新都不会移动窗口或相邻按钮。Label 只能在首次 `show()` 前增加；重复 id 返回 `DUPLICATE_ID`，无效文字、宽度、对齐、tone、未知 option 或内容项溢出返回 `INVALID_SPEC`。Label wrapper 是唯一、不可聚焦的 native `staticText` Accessibility element，内部 `NSTextField` 不进入 Accessibility tree；readback 中 `accessibilityRole` 固定为 `staticText`，`accessibilityName` 和 `accessibilityValue` 都是完整文字。Label 没有 callback、focus、busy、active 或 error 状态。
+
+FloatingWindow 可以混排上述固定几何内容。horizontal 最多 32 个内容项，vertical 最多 5 个；Button 自身仍不能超过原有配额。复杂排版、多行表单、长段落、动态 option tree 或可自由改变尺寸的内容使用 `ui.createWindow()`。
+
+**示例**
+
+从仓库根目录运行 `./opendesk -ui -script examples/custom-ui/floating-toolbar-status-label.js -console-mode script`。最小声明为：
+
+```js
+const toolbar = new FloatingWindow({ x: 100, y: 100 });
+toolbar.addLabel("status", "Ready", {
+  width: 144,
+  alignment: "center",
+  verticalAlignment: "center",
+  tone: "secondary"
+});
+toolbar.addButton("run", "运行", "automation.run");
+await toolbar.show();
+await toolbar.updateLabel("status", { text: "Completed", tone: "success" });
+```
+
+## toolbar.addSwitch(id, label, options?, callback?)
+
+增加表示“立即生效开关”的原生 Switch。
+
+**签名**
+
+```ts
+addSwitch(id: string, label: string, options?: {
+  value?: boolean; disabled?: boolean; width?: number;
+}, callback?: (event) => unknown | Promise<unknown>): void
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `id` | string | 是 | 无 | 严格且全 toolbar 唯一的 item id。 |
+| `label` | string | 是 | 无 | 1–60 个 Unicode 字符；可见语义标签及 Accessibility name。 |
+| `options.value` | boolean | 否 | `false` | 初始开关值。 |
+| `options.disabled` | boolean | 否 | `false` | 是否禁止用户切换。 |
+| `options.width` | number | 否 | `140` | 固定宽度，范围 `80–360` pt。 |
+| `callback` | function | 否 | 无 | 接收带 `type:"change"`、`checked` 与 `value` 的事件。 |
+
+**返回值**
+
+`undefined`。
+
+**行为与错误**
+
+Switch 表示会立即改变行为的 on/off 设置，不替代 Checkbox 的“是否纳入”语义。只能在首次 `show()` 前增加；无效字段、宽度、callback 或重复 id 分别返回 `INVALID_SPEC` / `DUPLICATE_ID`。
+
+**示例**
+
+```js
+toolbar.addSwitch("liveSync", "实时同步", { value: true }, event => {
+  console.log(event.checked);
+});
+```
+
+## toolbar.addCheckbox(id, label, options?, callback?)
+
+增加表示独立选择或纳入状态的原生 Checkbox。
+
+**签名**
+
+```ts
+addCheckbox(id: string, label: string, options?: {
+  value?: boolean; disabled?: boolean; width?: number;
+}, callback?: (event) => unknown | Promise<unknown>): void
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `id` | string | 是 | 无 | 严格且全 toolbar 唯一的 item id。 |
+| `label` | string | 是 | 无 | 1–60 个 Unicode 字符；可见语义标签及 Accessibility name。 |
+| `options.value` | boolean | 否 | `false` | 初始勾选值。 |
+| `options.disabled` | boolean | 否 | `false` | 是否禁止用户修改。 |
+| `options.width` | number | 否 | `140` | 固定宽度，范围 `80–360` pt。 |
+| `callback` | function | 否 | 无 | 接收带 `type:"change"`、`checked` 与 `value` 的事件。 |
+
+**返回值**
+
+`undefined`。
+
+**行为与错误**
+
+Checkbox 表示“选择/纳入”，不会与相邻 Checkbox 自动互斥。需要互斥选项时使用 `addSegmentedControl()`。声明时的严格 id、固定宽度、资源配额和错误规则与 Switch 相同。
+
+**示例**
+
+```js
+toolbar.addCheckbox("includeLogs", "包含日志", { value: true });
+```
+
+## toolbar.addInput(id, label, options?, callback?)
+
+增加一个有界的单行原生 Input。
+
+**签名**
+
+```ts
+addInput(id: string, label: string, options?: {
+  value?: string; placeholder?: string; maxLength?: number;
+  disabled?: boolean; width?: number;
+}, callback?: (event) => unknown | Promise<unknown>): void
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `id` | string | 是 | 无 | 严格且唯一的 item id。 |
+| `label` | string | 是 | 无 | 1–60 个 Unicode 字符；作为 tooltip 和 Accessibility name。 |
+| `options.value` | string | 否 | `""` | 初始单行值。 |
+| `options.placeholder` | string | 否 | `""` | 最多 120 个 Unicode 字符。 |
+| `options.maxLength` | integer | 否 | `256` | 范围 `1–256`；native peer 与 EventLoop owner 都执行上限。 |
+| `options.disabled` | boolean | 否 | `false` | 是否禁止编辑。 |
+| `options.width` | number | 否 | `180` | 固定宽度，范围 `80–360` pt。 |
+| `callback` | function | 否 | 无 | 接收可合并的 `type:"input"` 事件，`value` 为当前 string。 |
+
+**返回值**
+
+`undefined`。
+
+**行为与错误**
+
+Input 使用明确的 activation/focus 契约：`show()` 仍通过 `orderFrontRegardless` 显示，不激活应用、不取得键盘焦点；只有用户直接点击可用的真实 native 输入框时，UI host 才激活并让该字段成为 first responder。API 不提供 `focus()` / `autofocus`，因此脚本和普通状态更新不能在后台抢走键盘。含 Input 的 panel 可以在这次用户动作后成为 key window；隐藏、失去活动键盘上下文或关闭窗口后，readback 的 `focused` 为 `false`。多行输入、验证提示、提交按钮编排和复杂表单使用 `ui.createWindow()` 或 Dialog。
+
+无效类型、超长 value/placeholder、越界 maxLength/width、未知字段或 callback 返回 `INVALID_SPEC`。
+
+**示例**
+
+```js
+toolbar.addInput("query", "搜索", {
+  placeholder: "输入关键词", maxLength: 64, width: 200
+}, event => console.log(event.value));
+```
+
+## toolbar.addSelect(id, label, options, callback?)
+
+增加一个从固定有界选项中选择单值的原生 Select。
+
+**签名**
+
+```ts
+addSelect(id: string, label: string, options: {
+  options: Array<{ value: string; label: string }>;
+  value?: string; disabled?: boolean; width?: number;
+}, callback?: (event) => unknown | Promise<unknown>): void
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `id` | string | 是 | 无 | 严格且全 toolbar 唯一的 item id。 |
+| `label` | string | 是 | 无 | 1–60 个 Unicode 字符；作为 tooltip 与 Accessibility name。 |
+| `options.options` | Array | 是 | 无 | 2–12 个 `{value,label}`；value 唯一，value/label 各 1–40 个 Unicode 字符。 |
+| `options.value` | string | 否 | 首项 value | 必须匹配一个已声明 option value。 |
+| `options.disabled` | boolean | 否 | `false` | 是否禁止用户选择。 |
+| `options.width` | number | 否 | `160` | 固定宽度，范围 `80–360` pt。 |
+| `callback` | function | 否 | 无 | 接收带 `type:"change"` 与当前 `value` 的事件。 |
+
+**返回值**
+
+`undefined`。
+
+**行为与错误**
+
+选项集合和宽度在声明后不可变；运行时只更新 value/disabled。无匹配 value、重复/越界选项、未知字段或 callback 返回 `INVALID_SPEC`。
+
+**示例**
+
+```js
+toolbar.addSelect("quality", "质量", {
+  options: [{ value: "fast", label: "快速" }, { value: "best", label: "最佳" }],
+  value: "best"
+});
+```
+
+## toolbar.addSlider(id, label, options?, callback?)
+
+增加有界数值范围的原生 Slider。
+
+**签名**
+
+```ts
+addSlider(id: string, label: string, options?: {
+  min?: number; max?: number; value?: number; step?: number;
+  disabled?: boolean; width?: number;
+}, callback?: (event) => unknown | Promise<unknown>): void
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `id` | string | 是 | 无 | 严格且全 toolbar 唯一的 item id。 |
+| `label` | string | 是 | 无 | 1–60 个 Unicode 字符；作为 tooltip 与 Accessibility name。 |
+| `options.min` | finite number | 否 | `0` | 范围下界，必须小于 max。 |
+| `options.max` | finite number | 否 | `100` | 范围上界，必须大于 min。 |
+| `options.value` | finite number | 否 | min | 初始值，必须位于闭区间内。 |
+| `options.step` | finite number | 否 | `1` | 必须满足 `0 < step <= max-min`。 |
+| `options.disabled` | boolean | 否 | `false` | 是否禁止用户调整。 |
+| `options.width` | number | 否 | `180` | 固定宽度，范围 `80–360` pt。 |
+| `callback` | function | 否 | 无 | 接收带 `type:"change"` 与吸附后 `value` 的事件。 |
+
+**返回值**
+
+`undefined`。
+
+**行为与错误**
+
+native peer 把用户变化吸附到声明的 step 后发送 `change`；范围、step 和宽度不可更新。无效范围或未知字段返回 `INVALID_SPEC`。
+
+**示例**
+
+```js
+toolbar.addSlider("volume", "音量", { min: 0, max: 10, value: 4, step: 1 });
+```
+
+## toolbar.addSegmentedControl(id, label, options, callback?)
+
+增加一组 first-class、互斥的原生分段选项。
+
+**签名**
+
+```ts
+addSegmentedControl(id: string, label: string, options: {
+  options: Array<{ value: string; label: string }>;
+  value?: string; disabled?: boolean; width?: number;
+}, callback?: (event) => unknown | Promise<unknown>): void
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `id` | string | 是 | 无 | 严格且全 toolbar 唯一的 item id。 |
+| `label` | string | 是 | 无 | 1–60 个 Unicode 字符；作为组的 Accessibility name。 |
+| `options.options` | Array | 是 | 无 | 2–12 个 `{value,label}`；value 唯一，value/label 各 1–40 个 Unicode 字符。 |
+| `options.value` | string | 否 | 首项 value | 必须匹配一个已声明 option value。 |
+| `options.disabled` | boolean | 否 | `false` | 是否禁止用户选择。 |
+| `options.width` | number | 否 | `200` | 固定宽度，范围 `80–360` pt。 |
+| `callback` | function | 否 | 无 | 接收带 `type:"change"` 与单一当前 `value` 的事件。 |
+
+**返回值**
+
+`undefined`。
+
+**行为与错误**
+
+这是 FloatingWindow 的互斥选择语义，native readback 使用 group/radio-group Accessibility role，并发送单一 value 的 `change`。不提供零散 Radio，也不提供无语义 ButtonGroup container；普通 Button 的视觉分组继续使用 Separator / Spacer。错误规则与 Select 相同。
+
+**示例**
+
+```js
+toolbar.addSegmentedControl("scope", "范围", {
+  options: [{ value: "page", label: "页面" }, { value: "app", label: "应用" }]
+});
+```
+
+## toolbar.addProgress(id, label, options?)
+
+增加独立的原生 Progress item。
+
+**签名**
+
+```ts
+addProgress(id: string, label: string, options?: {
+  min?: number; max?: number; value?: number;
+  indeterminate?: boolean; width?: number;
+}): void
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `id` | string | 是 | 无 | 严格且全 toolbar 唯一的 item id。 |
+| `label` | string | 是 | 无 | 1–60 个 Unicode 字符；作为 tooltip 与 Accessibility name。 |
+| `options.min` | finite number | 否 | `0` | 确定进度的范围下界，必须小于 max。 |
+| `options.max` | finite number | 否 | `1` | 确定进度的范围上界，必须大于 min。 |
+| `options.value` | finite number | 否 | min | 当前值，必须位于闭区间内。 |
+| `options.indeterminate` | boolean | 否 | `false` | 是否呈现为不确定进度。 |
+| `options.width` | number | 否 | `160` | 固定宽度，范围 `80–360` pt。 |
+
+**返回值**
+
+`undefined`。
+
+**行为与错误**
+
+Progress 不可交互、没有 callback，也不占 Button 的 busy 状态；确定和不确定模式可通过 `updateControl()` 切换，固定外框确保更新不改变窗口几何。无效范围、未知字段或资源溢出返回 `INVALID_SPEC`。
+
+**示例**
+
+```js
+toolbar.addProgress("upload", "上传进度", { value: 0.25 });
+```
+
+## toolbar.removeControl(id)
+
+在首次显示前删除一个 Switch、Checkbox、Input、Select、Slider、SegmentedControl 或 Progress。
+
+**签名**
+
+```ts
+removeControl(id: string): void
+```
+
+**参数**
+
+`id`：已声明的 native control id。
+
+**返回值**
+
+`undefined`。
+
+**行为与错误**
+
+同时清理相邻 Separator / Spacer。不存在或属于 Button/Label/结构项的 id 返回 `NOT_FOUND`；首次 `show()` 开始后返回 `INVALID_STATE`。
+
+**示例**
+
+```js
+toolbar.removeControl("temporaryFilter");
+```
+
+## toolbar.updateControl(id, patch)
+
+更新原生控件的值或允许变化的呈现状态。
+
+**签名**
+
+```ts
+updateControl(id: string, patch: object): Promise<ControlState>
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `id` | string | 是 | 已存在的 native control id。 |
+| `patch` | object | 是 | 至少包含下面按 kind 允许的一个字段。 |
+
+| 控件 | 可更新字段 |
+| --- | --- |
+| Switch / Checkbox | `checked: boolean`、`disabled: boolean` |
+| Input | `value: string`、`placeholder: string`、`disabled: boolean` |
+| Select / SegmentedControl | `value: string`、`disabled: boolean` |
+| Slider | `value: number`、`disabled: boolean` |
+| Progress | `value: number`、`indeterminate: boolean` |
+
+**返回值**
+
+`Promise<ControlState>`，包含 EventLoop owner 状态与 native applied readback。
+
+**行为与错误**
+
+patch 至少有一个字段。`width`、choice options、数值范围/step 和 Input maxLength 固定，更新它们或传未知字段返回 `INVALID_SPEC`。显示前后均可更新；创建中返回 `BUSY`，关闭后返回 `INVALID_STATE`，不存在或非 control id 返回 `NOT_FOUND`。每次有效更新推进全 toolbar 单调 revision；native host 忽略陈旧 revision。
+
+**示例**
+
+```js
+await toolbar.updateControl("upload", { value: 0.6 });
+await toolbar.updateControl("quality", { value: "fast" });
+```
+
+## toolbar.getControlState(id)
+
+读取一个原生控件的逻辑值、native value、Accessibility 和 bounds。
+
+**签名**
+
+```ts
+getControlState(id: string): Promise<ControlState>
+```
+
+**参数**
+
+`id`：已声明的 native control id。
+
+**返回值**
+
+所有状态包含 `id`、`type`、`label`、`width`、`disabled`、`revision`、`renderedValue`、`accessibilityName`、`accessibilityRole`、`accessibilitySubrole`、`accessibilityValue`、`focused`、`localBounds` 与 `screenBounds`。Switch 使用 `AXCheckBox` role 加 `AXSwitch` subrole，与没有 subrole 的 Checkbox 保持明确语义差异；SegmentedControl 使用 `AXRadioGroup`。此外 Toggle 返回 boolean `value`；Input 返回 string `value`、placeholder/maxLength；Choice 返回 string `value` 与 options；Slider 返回 number value/min/max/step；Progress 返回 value/min/max/indeterminate，indeterminate 时 `renderedValue` 为 `null`、Accessibility value 为 `"indeterminate"`。
+
+**行为与错误**
+
+显示前 native-only bounds 为零；显示后来自真实 AppKit peer。不存在或其他 item 类型返回带 `capability:"control"` 的 `NOT_FOUND`。
+
+**示例**
+
+```js
+const state = await toolbar.getControlState("scope");
+console.log(state.type, state.value, state.accessibilityRole);
+```
+
+## toolbar.onControlChange(id, callback)
+
+为已声明的交互控件绑定或替换 EventLoop-owned callback。
+
+**签名**
+
+```ts
+onControlChange(id: string, callback: (event) => unknown | Promise<unknown>): void
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `id` | string | 是 | Switch、Checkbox、Input、Select、Slider 或 SegmentedControl id。 |
+| `callback` | function | 是 | 接收原生事件；Input 为 `input`，其余为 `change`。 |
+
+**返回值**
+
+`undefined`。
+
+**行为与错误**
+
+Progress 不可绑定。callback 只在所属 Goja EventLoop owner 上执行；同步值和 Promise 都被观察，失败进入 Runtime async error 通道。无效 id、Progress 或非函数 callback 返回 `NOT_FOUND` / `INVALID_SPEC`。
+
+**示例**
+
+```js
+toolbar.onControlChange("liveSync", event => console.log(event.checked));
+```
+
+## toolbar.addSeparator(id)
+
+增加一条只可在首次显示前声明的 1pt 原生分割线。horizontal 为竖线，vertical 为横线；它只允许位于两个内容项之间。
+
+**签名**
+
+```ts
+addSeparator(id: string): void
+```
+
+**参数**
+
+`id`：严格 toolbar item id，与其他 item 共用命名空间。
+
+**返回值**
+
+`undefined`。
+
+**行为与错误**
+
+首位、末位、连续结构项和重复 id 不合法。分割线没有 callback、状态、tooltip、focus 或 Accessibility element。
+
+**示例**
+
+```js
+toolbar.addButton("reply", "回复", "arrowshape.turn.up.left.fill", reply);
+toolbar.addSeparator("reply-status-divider");
+toolbar.addLabel("status", "Ready");
+```
+
+## toolbar.addSpacer(id)
+
+增加一个只可在首次显示前声明的固定 8pt 原生分组间距；它不是 flexible space。
+
+**签名**
+
+```ts
+addSpacer(id: string): void
+```
+
+**参数**
+
+`id`：严格 toolbar item id，与其他 item 共用命名空间。
+
+**返回值**
+
+`undefined`。
+
+**行为与错误**
+
+首位、末位、连续结构项和重复 id 不合法。Spacer 没有 callback、状态、tooltip、focus 或 Accessibility element。
+
+**示例**
+
+```js
+toolbar.addLabel("status", "3 tasks ready");
+toolbar.addSpacer("status-help-space");
+toolbar.addButton("help", "帮助", "questionmark.circle.fill", help);
+```
+
+Separator 与 Spacer 都是真实 native structure primitive，不是 disabled Button：
 
 ```js
 toolbar.addButton("reply", "回复", "arrowshape.turn.up.left.fill", reply);
@@ -240,16 +763,16 @@ toolbar.addButton("help", "帮助", "questionmark.circle.fill", help);
 
 - `Separator` 是 1pt native line；horizontal 为竖线，vertical 为横线。它在两侧各保留一个标准 8pt gap，因此是紧凑、可见的 17pt group boundary，而不是孤立的空白区域。
 - `Spacer` 是固定、无绘制的 8pt group gap（一个标准 Button gap）；host 不会在它后面再叠加第二个 stack gap，也不会额外占用 intrinsic 8pt track。它不是 arbitrary width、flexible space、percentage 或负间距。
-- 两者都没有 callback、busy、active、error、tooltip、focus target 或 Accessibility button；它们不会出现在 `getButtonState()` 中。
+- 两者都没有 callback、busy、active、error、tooltip、focus target 或 Accessibility element；它们不会出现在任何 state readback 中。
 - 所有 item 的 `id` 共用一个严格命名空间，匹配 Button id 规则，重复返回 `DUPLICATE_ID`。这只用于稳定证据、调试和 strict validation，不会成为业务控件。
 
-结构项只能表达相邻 action group 的边界：不能在首位或末位，不能连续；构建期间可暂时以 Separator / Spacer 结尾来继续添加下一个 Button，但在 `show()` / 未显示的 `getState()` 时仍未闭合的结构会返回 `INVALID_SPEC`。show 后不能 add/remove Button、Separator 或 Spacer。
+结构项只能表达相邻内容组的边界：不能在首位或末位，不能连续；构建期间可暂时以 Separator / Spacer 结尾来继续添加下一个内容项，但在 `show()` / 未显示的 `getState()` 时仍未闭合的结构会返回 `INVALID_SPEC`。show 后不能 add/remove 任何内容项或结构项。
 
-horizontal planner 按 Button capacity、`maxWidth` 和 `maxRows` 计算行；Separator / Spacer 不占 action Button quota，但会占真实视觉空间。如果 boundary 与自然换行恰好重合，host 不绘制该 boundary，而让换行本身承担分组，因此不会产生空行、行首 / 行尾 separator 或错误窗口尺寸。每行仍保持 Button 的 40×40pt 外盒和 8pt Button gap。
+horizontal planner 按内容项 capacity、`maxWidth` 和 `maxRows` 计算行；Separator / Spacer 不占内容 quota，但会占真实视觉空间。如果 boundary 与自然换行恰好重合，host 不绘制该 boundary，而让换行本身承担分组，因此不会产生空行、行首 / 行尾 separator 或错误窗口尺寸。
 
-资源限制分别计算：horizontal 最多 32 个 Button、63 个 total item；vertical 最多 5 个 Button、9 个 total item。63 与 9 分别来自 `2 × MaxButtons - 1`，即每两个相邻 action group 之间至多一个结构边界；不能通过无限 Separator / Spacer 绕过 compact toolbar 限制。
+资源限制分别计算：horizontal 最多 32 个内容项、63 个 total item；vertical 最多 5 个内容项、9 个 total item。Choice options 每项最多 12 个，Input 最多 256 个字符，所有 control 固定宽度不超过 360pt。63 与 9 分别来自 `2 × MaxContentItems - 1`，不能通过任何 control 或无限 Separator / Spacer 绕过 compact toolbar 限制。
 
-没有 `addGroup(title)`：调用方只需用顺序和 Separator / Spacer 表达边界。可见的 `──── 订单操作 ────`、文本 label block 或任何 group title 会把 icon-first toolbar 发展成第二个 UI framework，应使用 `ui.createWindow()`。本版本同样不实现 Button badge / indicator；未来它若需要，应是 Button presentation state，而不是新的结构 item。
+没有 `addGroup(title)`：调用方只需用顺序和 Separator / Spacer 表达视觉边界。互斥语义使用一个 `SegmentedControl`；不会把零散 Radio 或普通 Button 包进伪 group。Label 是单行短状态，Progress 是独立固定几何进度；Button 内部短任务反馈仍可使用 `busy`。Badge 是 Button 的附属状态，不是重复 Label 的独立 item。
 
 `FloatingWindow` 的按钮正文始终只有图标，因此 `label` 是按钮文字的单一来源：每个按钮都会把它显示为原生 tooltip，并同时用作 macOS Accessibility name。无需再传一份容易与 `label` 不一致的 tooltip 文案；需要修改提示时调用 `updateButton(id, { label })`，原生 tooltip 与 Accessibility name 会在同一次更新中同步变化。`ui.createWindow()` 中自行声明的 HTML 按钮不走这套映射，可按 HTML 标准分别使用可见文字、`title` tooltip 与 `aria-label`。
 
@@ -290,11 +813,11 @@ horizontal planner 按 Button capacity、`maxWidth` 和 `maxRows` 计算行；Se
 toolbar.addButton("icon-camera-fill", "动作说明", "camera.fill", () => {});
 ```
 
-复制使用稳定的 [`clipboard.copy()`](clipboard.md#clipboardcopytext写入文本)。控制台还会输出 `CUSTOM_UI_ICON_COPIED`，分别保留唯一 `id`、`icon`、`usage`、注册表序号和总数，便于自动化或日志检查。剪贴板写入失败时，固定状态栏和 `CUSTOM_UI_ICON_LIST_ERROR` 会显示失败，不会打印虚假的成功记录。
+复制使用稳定的 [clipboard.copy()](clipboard.md#clipboardcopytext写入文本)。控制台还会输出 `CUSTOM_UI_ICON_COPIED`，分别保留唯一 `id`、`icon`、`usage`、注册表序号和总数，便于自动化或日志检查。剪贴板写入失败时，固定状态栏和 `CUSTOM_UI_ICON_LIST_ERROR` 会显示失败，不会打印虚假的成功记录。
 
 如果主要目的是查找、复制或保存图标名称，直接打开仓库内长期保存的自包含图鉴：
 
-[打开 `docs/custom-ui/icon-list.html`](../custom-ui/icon-list.html)。
+[打开 docs/custom-ui/icon-list.html](../custom-ui/icon-list.html)。
 
 它默认以大图模式显示，支持切换紧凑模式、名称搜索、点击复制图标名、复制完整 `addButton()` 用法、复制全部名称以及保存 JSON。HTML 内的 160 个图像由 macOS 根据同一注册表生成并以内联 data image 保存，因此移动单个 HTML 文件也能离线使用，不依赖 `.runtime/` 或另外 160 张图片。
 
@@ -364,19 +887,135 @@ await toolbar.waitUntilClosed();
 
 若需要 GIF/WebP、可见文字、不同图片尺寸或更自由的组合布局，继续使用 `ui.createWindow()` 中受限的 `img`；它的本地图片仍必须位于脚本目录 / `content.basePath` 内。
 
+## toolbar.removeLabel(id)
+
+在首次显示前删除一个 Label，并清理它相邻的 Separator / Spacer，避免留下非法边界。
+
+**签名**
+
+```ts
+removeLabel(id: string): void
+```
+
+**参数**
+
+`id`：已经声明的 Label id。
+
+**返回值**
+
+`undefined`。
+
+**行为与错误**
+
+不存在的 id 或其他 item 类型返回 `NOT_FOUND`；首次 `show()` 开始后返回 `INVALID_STATE`。
+
+**示例**
+
+```js
+toolbar.removeLabel("temporary-status");
+```
+
+## toolbar.updateLabel(id, patch)
+
+更新 Label 的文字、水平/垂直对齐或语义色，不改变声明宽度、40pt 高度和窗口几何。
+
+**签名**
+
+```ts
+updateLabel(id: string, patch: {
+  text?: string;
+  alignment?: "leading" | "center" | "trailing";
+  verticalAlignment?: "top" | "center" | "bottom";
+  tone?: "primary" | "secondary" | "success" | "warning" | "error";
+}): Promise<LabelState>
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `id` | string | 是 | 无 | 已声明的 Label id。 |
+| `patch.text` | string | 否 | 保持当前值 | 1–120 个 Unicode 字符。 |
+| `patch.alignment` | string | 否 | 保持当前值 | 水平对齐：`leading`、`center` 或 `trailing`。 |
+| `patch.verticalAlignment` | string | 否 | 保持当前值 | 垂直对齐：`top`、`center` 或 `bottom`。 |
+| `patch.tone` | string | 否 | 保持当前值 | `primary`、`secondary`、`success`、`warning` 或 `error`。 |
+
+**返回值**
+
+`Promise<LabelState>`，返回 EventLoop 逻辑状态和 native host 实际应用的 readback。
+
+**行为与错误**
+
+显示前后都可调用。patch 必须至少包含一个支持字段；`width` 与未知字段返回 `INVALID_SPEC`。不存在的 id 返回 `NOT_FOUND`，创建进行中返回 `BUSY`，窗口关闭后返回 `INVALID_STATE`。每次有效更新推进单调递增的 `revision`。
+
+**示例**
+
+```js
+await toolbar.updateLabel("status", {
+  text: "Recording 00:12",
+  alignment: "center",
+  verticalAlignment: "top",
+  tone: "warning"
+});
+```
+
+## toolbar.getLabelState(id)
+
+读取 Label 的逻辑状态、native 静态文字状态、Accessibility name 与实际外框/文字边界。
+
+**签名**
+
+```ts
+getLabelState(id: string): Promise<LabelState>
+```
+
+**参数**
+
+`id`：已声明的 Label id。
+
+**返回值**
+
+`LabelState` 包含 `id`、`text`、`width`、`alignment`、`verticalAlignment`、`tone`、`revision`、`renderedText`、`truncated`、`accessibilityName`、`accessibilityRole`、`accessibilityValue`、`renderedTextBounds`、`localBounds` 与 `screenBounds`。显示前 bounds 为零值；显示后全部展示属性来自 native host 的实际应用结果。`renderedText`、`accessibilityName` 与 `accessibilityValue` 保留完整文字，`accessibilityRole` 固定为 `staticText`，`truncated` 只描述视觉上的末尾截断。`renderedTextBounds` 与 `localBounds` 使用同一 toolbar-local 坐标空间，可验证水平或垂直中心是否真正落在固定 Label 外框中心。
+
+**行为与错误**
+
+不存在的 Label 或传入 Button / 结构项 id 时返回带 `capability: "label"` 的 `NOT_FOUND`。
+
+**示例**
+
+```js
+const state = await toolbar.getLabelState("status");
+console.log(state.alignment, state.verticalAlignment, state.renderedTextBounds);
+```
+
 ## toolbar：状态、事件与生命周期
 
 | 方法 | 参数 | 返回 | 说明 |
 | --- | --- | --- | --- |
 | `addButton(id, label, icon, callback?)` | 见上表 | `void` | 增加有序图标按钮。 |
-| `addSeparator(id)` | 严格 item id | `void` | 增加非交互的 native 分割线；只允许在相邻 Button group 之间。 |
+| `addLabel(id, text, options?)` | 见上文 | `void` | 增加固定宽度、40pt 高的可见 native Label。 |
+| `addSwitch(id, label, options?, callback?)` | 见上文 | `void` | 增加立即生效的 on/off 开关。 |
+| `addCheckbox(id, label, options?, callback?)` | 见上文 | `void` | 增加独立选择项。 |
+| `addInput(id, label, options?, callback?)` | 见上文 | `void` | 增加有界单行输入；只在用户直接进入时激活键盘。 |
+| `addSelect(id, label, options, callback?)` | 见上文 | `void` | 增加固定 options 的单值选择。 |
+| `addSlider(id, label, options?, callback?)` | 见上文 | `void` | 增加有界、按 step 吸附的数值滑杆。 |
+| `addSegmentedControl(id, label, options, callback?)` | 见上文 | `void` | 增加 first-class 互斥选项组。 |
+| `addProgress(id, label, options?)` | 见上文 | `void` | 增加确定或不确定的独立进度。 |
+| `addSeparator(id)` | 严格 item id | `void` | 增加非交互的 native 分割线；只允许在相邻内容组之间。 |
 | `addSpacer(id)` | 严格 item id | `void` | 增加固定 8pt group gap；不是 flexible space。 |
 | `removeButton(id)` | `id: string` | `void` | 在首次 `show()` 前删除按钮及其相邻 separator/spacer，避免留下无效边界；不存在时返回 `NOT_FOUND`。 |
+| `removeLabel(id)` | `id: string` | `void` | 在首次 `show()` 前删除 Label 及其相邻结构边界。 |
+| `removeControl(id)` | `id: string` | `void` | 在首次 `show()` 前删除一个 control 及相邻结构边界。 |
 | `updateButton(id, patch)` | `id: string`、见下表 | `Promise<ButtonState>` | 更新非结构状态；显示前后都可调用。 |
+| `updateLabel(id, patch)` | `id: string`、见上文 | `Promise<LabelState>` | 更新文字、水平/垂直对齐或 tone；固定几何不变。 |
+| `updateControl(id, patch)` | `id: string`、见上文 | `Promise<ControlState>` | 按 control kind 更新允许的值/状态；固定几何不变。 |
 | `getButtonState(id)` | `id: string` | `Promise<ButtonState>` | 返回逻辑状态及 local/screen bounds。 |
+| `getLabelState(id)` | `id: string` | `Promise<LabelState>` | 返回 native 对齐、完整文字、截断状态、Accessibility name 及外框/文字 bounds。 |
+| `getControlState(id)` | `id: string` | `Promise<ControlState>` | 返回 discriminated value、native/AX readback 与 bounds。 |
 | `onButtonClick(id, callback)` | `id: string`、callback | `void` | 为已声明按钮绑定或替换 callback。 |
+| `onControlChange(id, callback)` | `id: string`、callback | `void` | 绑定 control callback；Input 发 `input`，其余交互 control 发 `change`。 |
 | `onError(callback)` | `(error) => unknown \| Promise<unknown>` | `void` | 接收 callback 失败的结构化错误。 |
-| `show()` | 无 | `Promise<WindowState>` | 创建或显示原生工具栏；至少需要一个按钮。 |
+| `show()` | 无 | `Promise<WindowState>` | 创建或显示原生工具栏；至少需要一个内容项。 |
 | `hide()` | 无 | `Promise<WindowState \| null>` | 隐藏工具栏。 |
 | `close()` | 无 | `Promise<WindowState \| null>` | 关闭工具栏并释放资源。 |
 | `getState()` | 无 | `Promise<WindowState>` | 读取统一 WindowState；首次 show 前返回完整、已闭合声明的 hidden state。 |
@@ -388,18 +1027,78 @@ await toolbar.waitUntilClosed();
 | `waitUntilClosed()` | 无 | `Promise<WindowState>` | 保持 Runtime 存活直到工具栏关闭。 |
 | `run()` | 无 | `Promise<WindowState>` | 与 `waitUntilClosed()` 相同。 |
 
-`patch` 必须至少包含一个字段，且不接受未知字段：
+## toolbar.updateButton(id, patch)
+
+更新 Button 的 icon、语义标签、业务状态、错误或附属 badge，不改变 40×40pt 外框。
+
+**签名**
+
+```ts
+updateButton(id: string, patch: ButtonPatch): Promise<ButtonState>
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `id` | string | 是 | 已声明的 Button id。 |
+| `patch` | object | 是 | 至少包含下列一个字段；不接受未知字段。 |
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `icon` | 内置 icon 名称或 `{path, renderingMode?}` | 替换图标；自定义图片遵循上面的脚本目录、格式和资源限制。 |
 | `label` | string | 按 `addButton()` 的 label 规则更新 tooltip 与 Accessibility name。 |
-| `active` / `disabled` / `busy` | boolean | 更新对应视觉与交互状态。 |
+| `active` | boolean | 更新持久业务选中态。 |
+| `disabled` | boolean | 更新是否禁止交互。 |
+| `busy` | boolean | 更新原生 busy spinner；busy 时 badge 暂时隐藏。 |
 | `error` | string / `null` | 设置错误状态；`null` 清除，字符串最多 2048 bytes。 |
+| `badge` | string / integer / `null` | 附属 badge；string 为 1–4 个紧凑 Unicode 字符，integer 为 0–999，`null` 清除。 |
+
+**返回值**
+
+`Promise<ButtonState>`，包含规范化 owner 状态与 native readback。
+
+**行为与错误**
 
 `addButton()` 默认创建瞬时普通按钮，点击不会自动写入 `active`。只有“录制中”“当前模式”等需要持续表达的业务状态才应显式设置 `active: true`；复制、发送、刷新等一次性动作保留默认的 `active: false`，使用原生 pressed 和 callback 期间的 busy 反馈即可。
 
-`ButtonState` 包含 `id`、`label`、`icon`、`active`、`disabled`、`busy`、`error`、单调递增的 `revision`、`renderedText`、`tooltip`、`tooltipVisible`、`iconPresentation`、`accessibilityName`、`localBounds` 与 `screenBounds`。`icon` 按原声明读回：内置图标为 string，自定义图标为不含图片 bytes 的 `{path, renderingMode}`；`iconPresentation.kind` 为 `builtIn` 或 `image`，图片 presentation 只公开 media type、像素尺寸和 rendering mode。工具栏始终是 icon-only，`renderedText` 为空字符串；`tooltip` 是 native host 实际应用的读回值，并与 `label` 一致；`tooltipVisible` 表示原生提示面板当前是否可见。
+Badge 的空字符串无效，必须用 `null` 清除；native host 会再次检查 1–4 字符上限。Badge 为空时不绘制；非空时由同一个 40×40pt Button 内的原生附属 pill 显示，不增加 content quota、不改变几何，busy 时暂时隐藏以保留 spinner，Accessibility value 同时宣布 active/inactive 与 badge。无效 badge、未知字段或错误类型返回 `INVALID_SPEC`；关闭后返回 `INVALID_STATE`。
+
+**示例**
+
+```js
+await toolbar.updateButton("inbox", { badge: 12, active: true });
+await toolbar.updateButton("inbox", { badge: null });
+```
+
+## toolbar.getButtonState(id)
+
+读取一个 Button 的逻辑状态、native 呈现、Accessibility 和 bounds。
+
+**签名**
+
+```ts
+getButtonState(id: string): Promise<ButtonState>
+```
+
+**参数**
+
+`id`：已声明的 Button id。
+
+**返回值**
+
+`ButtonState` 包含 `id`、`label`、`icon`、`active`、`disabled`、`busy`、`error`、`badge`、`revision`、`renderedText`、`tooltip`、`tooltipVisible`、`iconPresentation`、`accessibilityName`、`accessibilityValue`、`localBounds` 与 `screenBounds`。`icon` 按原声明读回：内置图标为 string，自定义图标为不含图片 bytes 的 `{path, renderingMode}`；`iconPresentation.kind` 为 `builtIn` 或 `image`。Button 正文仍是 icon-only，`renderedText` 为空字符串；`tooltip` 与 `label` 一致。
+
+**行为与错误**
+
+显示前 native-only bounds 为零；显示后返回真实 AppKit peer 的 readback。不存在或非 Button id 返回带 `capability:"button"` 的 `NOT_FOUND`。
+
+**示例**
+
+```js
+const button = await toolbar.getButtonState("inbox");
+console.log(button.badge, button.accessibilityValue);
+```
 
 `getState()` 与 `ui.createWindow()` 的 `WindowHandle.getState()` 返回相同 `WindowState`：`status`、`visible`、`bounds`、`alwaysOnTop`、`draggable`、`revision`、`lastSequence`，以及 host 存在时的 `hostPid` / `nativeWindowId`、`onScreen`、`layer`、`alpha`。未 show 的 toolbar 没有 native identity，因此这些 host-only 字段为零值；anchor 初始位置也须等 native host 创建后才有实际屏幕坐标。
 
@@ -640,7 +1339,7 @@ content: {
 | `activationSource` | `disabled` / `cli` / `projectConfig` / `httpRequest` | 授权来源。 |
 | `platform` / `driver` | string | 当前平台和原生 driver。 |
 | `window` | object | `position`、`placement`、`size`、`alwaysOnTop`、`draggable`、`nativeIdentity` 的支持情况。 |
-| `controls` | string[] | 当前公开的控件类型。 |
+| `controls` | string[] | `ui.createWindow()` 受限 HTML surface 的公开控件类型；FloatingWindow 是独立的 typed native-toolbar surface，由本页列出的实例方法声明能力。 |
 | `reason` | string | 可选；不可用或未授权的原因。 |
 
 macOS 上 `available` 还要求随包的 `clawdesk-ui-host` 可发现；缺失时创建窗口抛出 `UI_HOST_NOT_FOUND`。
@@ -739,16 +1438,16 @@ try {
 | --- | --- |
 | `UI_DISABLED` | execution 没有 UI 授权。 |
 | `UNSUPPORTED_PLATFORM` / `UNSUPPORTED_CAPABILITY` | 当前平台、host 或控件能力不支持请求。 |
-| `INVALID_SPEC` | `FloatingWindow.constructor`、`addButton`、`createWindow` 或 update 参数不合法。 |
+| `INVALID_SPEC` | `FloatingWindow` 构造、Button / Label / control 声明、badge、`createWindow` 或 update 参数不合法。 |
 | `DUPLICATE_ID` / `NOT_FOUND` | 重复声明 id（包括同一 execution 中已关闭窗口的 id），或请求不存在的窗口/控件/按钮。 |
 | `INVALID_STATE` / `UI_BUSY` / `UI_CANCELED` | 在错误生命周期阶段操作、创建进行中或 execution 被取消。 |
 | `UI_EVENT_QUEUE_OVERFLOW` / `UI_DRIVER_FAILURE` / `UI_HOST_NOT_FOUND` | 事件队列、native driver 或原生 host 失败。 |
-| `UI_CALLBACK_FAILED` | 按钮 callback 抛错或拒绝；注册 `toolbar.onError()` 可处理。 |
+| `UI_CALLBACK_FAILED` | Button 或交互 control callback 抛错或拒绝；注册 `toolbar.onError()` 可处理。 |
 
 ## ui / WindowHandle：生命周期
 
 - 所有 JavaScript callback 只在 EventLoop owner 上调用；原生 / driver goroutine 不直接触碰 Goja。
-- FloatingWindow callback 的同步值和 Promise 都在 owner loop 中接续；每个按钮有独立 single-flight，其他按钮不会被锁住。
+- FloatingWindow callback 的同步值和 Promise 都在 owner loop 中接续；每个 Button 有独立 single-flight，其他 Button 不会被锁住。Control 事件先更新 owner 状态，再调用所属 callback。
 - `waitUntilClosed()` 会保持 execution 存活。
 - 脚本异常、timeout、HTTP cancel、server shutdown 和未等待的脚本结束都会清理窗口、listener、pending callback 与 host process。
 - `close()`、`closeAll()` 和 execution teardown 是幂等的。
@@ -764,6 +1463,8 @@ HTTP UI 必须同时满足：服务器用 `-ui` 或可信本地配置启用、�
 - `examples/custom-ui/recording-console.js`：默认是小型 `recording-console/tray.html` 托盘；点“展开”才显示 `recording-console/recorder.html` 设置页。HTML 只声明受限结构和稳定 id，CSS 与 JavaScript controller 分离；它使用空的原生 `title`，因此 HTML header 是唯一可见标题。录制会话本身仍必须由 [Recorder MCP API](recorder.md) 创建，不能由 HTML 或 Runtime 直接绕过。
 - `examples/custom-ui/floating-recording-toolbar.js`
 - `examples/custom-ui/floating-toolbar-primitives.js`：Button + Separator + fixed Spacer、统一 `getState()` 与 `move` / `close` lifecycle 的最小 native toolbar 示例；不保存位置，也不拥有 global shortcut。
+- `examples/custom-ui/floating-toolbar-status-label.js`：固定宽度 native Label 与 Button 混排；展示默认垂直居中、显式水平居中、动态 `text` / `alignment` / `verticalAlignment` / `tone` 更新、native `renderedTextBounds` readback 及不变的窗口几何。从仓库根目录执行 `./opendesk -ui -script examples/custom-ui/floating-toolbar-status-label.js -console-mode script`。
+- `examples/custom-ui/floating-toolbar-controls.js`：在一个窗口中混排 Switch、Checkbox、Input、Select、Slider、SegmentedControl、独立 Progress 与 Button badge；从仓库根目录执行 `./opendesk -ui -script examples/custom-ui/floating-toolbar-controls.js -console-mode script -log-dir .runtime/examples/custom-ui/floating-toolbar-controls`。Input 只会在用户直接进入输入框时激活键盘。
 - `examples/custom-ui/custom-image-icons.js`：同一个 `FloatingWindow` 中组合原色 PNG、template PNG 与内置图标，展示脚本相对路径和动态图标切换。
 - `examples/custom-ui/icon-list.js` 与 `icon-list.html`：在一个可滚动的真实 Runtime 窗口中声明全部 160 个默认图标按钮；其中 `ai.*` 与 `automation.*` 为 AI、全自动和半自动场景提供直接可发现的语义键，悬停查看名称与复制提示，点击直接复制一行 `addButton()` 代码。
 - `docs/custom-ui/icon-list.html`：提交到仓库的自包含浏览器图鉴，可长期查找、复制和离线保存，不依赖 `.runtime/`。

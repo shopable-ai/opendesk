@@ -17,6 +17,41 @@ Custom UI 的 API 契约、`-ui` / `-no-ui` / `-config` 的优先级、配置文
 `clawdesk.runtime.json` 决定能力。平台或 host 不可用时，即使传入 `-ui`，创建窗口仍会明确失败；
 脚本可用 `ui.getCapabilities()` 区分“已授权”和“可用”。
 
+## FloatingWindow 状态文字
+
+`FloatingWindow` 除了图标 Button、Separator 和固定 Spacer，也支持固定宽度的 native Label，适合显示
+“Ready”“录制中 00:12”“3 tasks completed”等短状态。Label 的宽度在首次 `show()` 前声明，运行中只更新
+文字、水平/垂直对齐和语义色，因此不会让窗口或相邻按钮随文字长度跳动。水平 `center` 由 native
+text peer 实际应用；垂直轴使用独立的 `top` / `center`（默认）/ `bottom` 契约，不依赖 40pt 外框内
+`NSTextField` 的默认绘制位置。Accessibility 只暴露 wrapper 这一个 `staticText` 元素，完整文字同时作为
+name 和 value；内部 text peer 隐藏。`getLabelState()` 通过 `renderedTextBounds` 和完整的
+`accessibilityName` / `accessibilityValue` 返回可验证的 native 布局与语义 readback。
+从仓库根目录直接运行：
+
+```bash
+./opendesk -ui -script examples/custom-ui/floating-toolbar-status-label.js -console-mode script
+```
+
+## FloatingWindow 紧凑控件
+
+紧凑设置栏现在可以直接混排 Switch、Checkbox、单行 Input、Select、Slider、SegmentedControl 和独立
+Progress。Checkbox 表示“是否纳入”，Switch 表示立即生效的开关；互斥选项统一使用一个
+SegmentedControl，不提供零散 Radio。Button 的短 badge 通过 `updateButton(id, {badge})` 附着并可用
+`null` 清除，不再增加一个与 Label 重复的 item。
+
+Input 不会让 `show()` 抢走键盘：只有用户直接进入真实 native 输入框时 host 才激活并接受输入；没有
+autofocus 或脚本 `focus()`。所有控件的 width、options、range、step 和 maxLength 在显示前固定，运行中用
+`updateControl()` 更新值，用 `getControlState()` 读取 native/Accessibility 状态。
+
+从仓库根目录运行完整控件示例：
+
+```bash
+./opendesk -ui -script examples/custom-ui/floating-toolbar-controls.js -console-mode script -log-dir .runtime/examples/custom-ui/floating-toolbar-controls
+```
+
+多行表单、动态 option tree、滚动内容和任意进度布局仍使用 `ui.createWindow()`；完整契约见
+[Custom UI API](../api/custom-ui.md)。
+
 ## 内置图标图鉴
 
 [打开 `icon-list.html`](icon-list.html) 可以用默认大图模式查看全部 160 个内置图标，也可切换紧凑模式，并按名称搜索、复制图标名称、复制 `FloatingWindow.addButton()` 用法或保存名称 JSON。清单包含可直接发现的 `ai.*` 与 `automation.*` 默认图标键。

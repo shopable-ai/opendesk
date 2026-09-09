@@ -78,11 +78,18 @@ func TestNormalizeToolbarItemsIsStrictAndAdaptsLegacyButtons(t *testing.T) {
 		}}
 	}
 	valid, err := Normalize(base([]toolbar.ToolbarItemSpec{
-		button("one"), {Type: toolbar.ItemSeparator, ID: "divider"}, button("two"),
+		button("one"), toolbar.LabelItem(toolbar.LabelSpec{ID: "status", Text: "Ready", Width: 120, Alignment: toolbar.LabelAlignmentLeading, Tone: toolbar.LabelToneSuccess, Revision: 1}),
+		{Type: toolbar.ItemSeparator, ID: "divider"}, button("two"),
 		{Type: toolbar.ItemSpacer, ID: "space"}, button("three"),
 	}), t.TempDir())
-	if err != nil || len(valid.Toolbar.Items) != 5 || len(valid.Controls) != 3 {
+	if err != nil || len(valid.Toolbar.Items) != 6 || len(valid.Controls) != 4 || valid.Controls[1].Type != "text" || valid.Toolbar.Items[1].Label.VerticalAlignment != toolbar.LabelVerticalAlignmentCenter {
 		t.Fatalf("valid toolbar items = %#v, err=%v", valid.Toolbar, err)
+	}
+	labelOnly, err := Normalize(base([]toolbar.ToolbarItemSpec{
+		toolbar.LabelItem(toolbar.LabelSpec{ID: "statusOnly", Text: "Waiting", Width: 120, Alignment: toolbar.LabelAlignmentCenter, VerticalAlignment: toolbar.LabelVerticalAlignmentBottom, Tone: toolbar.LabelToneSecondary, Revision: 1}),
+	}), t.TempDir())
+	if err != nil || labelOnly.Toolbar.ContentCount() != 1 || labelOnly.Toolbar.ButtonCount() != 0 {
+		t.Fatalf("label-only toolbar = %#v, err=%v", labelOnly.Toolbar, err)
 	}
 	legacy, err := Normalize(WindowSpec{ID: "legacyToolbar", Bounds: Bounds{X: 1, Y: 2}, Toolbar: &toolbar.ToolbarSpec{
 		SchemaVersion: toolbar.LegacySchemaVersion, Revision: 1, Orientation: toolbar.OrientationHorizontal,
@@ -90,6 +97,27 @@ func TestNormalizeToolbarItemsIsStrictAndAdaptsLegacyButtons(t *testing.T) {
 	}}, t.TempDir())
 	if err != nil || legacy.Toolbar.SchemaVersion != toolbar.SchemaVersion || len(legacy.Toolbar.Items) != 1 || len(legacy.Toolbar.Buttons) != 0 {
 		t.Fatalf("legacy toolbar adaptation = %#v, err=%v", legacy.Toolbar, err)
+	}
+	legacyBadge := WindowSpec{ID: "legacyBadge", Bounds: Bounds{X: 1, Y: 2}, Toolbar: &toolbar.ToolbarSpec{
+		SchemaVersion: toolbar.LegacySchemaVersion, Revision: 1, Orientation: toolbar.OrientationHorizontal,
+		Buttons: []toolbar.ButtonSpec{{ID: "legacy", Label: "legacy", Icon: "timer", Badge: "1", State: toolbar.ButtonState{Revision: 1}}},
+	}}
+	if _, err := Normalize(legacyBadge, t.TempDir()); err == nil {
+		t.Fatal("schema v1 badge unexpectedly passed")
+	}
+	structured, err := Normalize(WindowSpec{ID: "structuredToolbar", Bounds: Bounds{X: 1, Y: 2}, Toolbar: &toolbar.ToolbarSpec{
+		SchemaVersion: toolbar.StructuredSchemaVersion, Revision: 1, Orientation: toolbar.OrientationHorizontal,
+		Items: []toolbar.ToolbarItemSpec{button("structured")},
+	}}, t.TempDir())
+	if err != nil || structured.Toolbar.SchemaVersion != toolbar.SchemaVersion || len(structured.Toolbar.Items) != 1 {
+		t.Fatalf("schema v2 toolbar adaptation = %#v, err=%v", structured.Toolbar, err)
+	}
+	v2Label := WindowSpec{ID: "v2Label", Bounds: Bounds{X: 1, Y: 2}, Toolbar: &toolbar.ToolbarSpec{
+		SchemaVersion: toolbar.StructuredSchemaVersion, Revision: 1, Orientation: toolbar.OrientationHorizontal,
+		Items: []toolbar.ToolbarItemSpec{toolbar.LabelItem(toolbar.LabelSpec{ID: "status", Text: "Ready", Width: 120, Alignment: toolbar.LabelAlignmentLeading, VerticalAlignment: toolbar.LabelVerticalAlignmentCenter, Tone: toolbar.LabelTonePrimary, Revision: 1})},
+	}}
+	if _, err := Normalize(v2Label, t.TempDir()); err == nil {
+		t.Fatal("schema v2 label unexpectedly passed")
 	}
 	for _, test := range []struct {
 		name  string
@@ -121,6 +149,45 @@ func TestNormalizeToolbarItemsIsStrictAndAdaptsLegacyButtons(t *testing.T) {
 	tooMany[len(tooMany)-1] = button("terminal")
 	if _, err := Normalize(base(tooMany), t.TempDir()); err == nil {
 		t.Fatal("too many toolbar items unexpectedly passed")
+	}
+}
+
+func TestNormalizeToolbarControlPayloadIsStrict(t *testing.T) {
+	control := toolbar.ControlSpec{
+		ID: "scope", Kind: toolbar.ItemSegmented, Label: "Scope", Width: 200,
+		Selected: "page", Options: []toolbar.OptionSpec{{Value: "page", Label: "Page"}, {Value: "app", Label: "App"}}, Revision: 1,
+	}
+	spec := WindowSpec{ID: "toolbarControls", Bounds: Bounds{X: 10, Y: 20}, Toolbar: &toolbar.ToolbarSpec{
+		SchemaVersion: toolbar.SchemaVersion, Revision: 1, Orientation: toolbar.OrientationHorizontal,
+		Items: []toolbar.ToolbarItemSpec{toolbar.ControlItem(control)},
+	}}
+	normalized, err := Normalize(spec, t.TempDir())
+	if err != nil || normalized.Controls[0].Type != toolbar.ItemSegmented || normalized.Toolbar.ControlCount() != 1 {
+		t.Fatalf("normalized toolbar control = %#v, err=%v", normalized.Toolbar, err)
+	}
+	bad := spec
+	bad.Toolbar = &toolbar.ToolbarSpec{SchemaVersion: toolbar.SchemaVersion, Revision: 1, Orientation: toolbar.OrientationHorizontal,
+		Items: []toolbar.ToolbarItemSpec{{Type: toolbar.ItemSelect, ID: control.ID, Control: &control}}}
+	if _, err := Normalize(bad, t.TempDir()); err == nil {
+		t.Fatal("mismatched control kind unexpectedly passed")
+	}
+}
+
+func TestNormalizeToolbarLabelRejectsInvalidVerticalAlignment(t *testing.T) {
+	label := toolbar.LabelSpec{
+		ID: "status", Text: "Ready", Width: 120, Alignment: toolbar.LabelAlignmentCenter,
+		VerticalAlignment: "baseline", Tone: toolbar.LabelTonePrimary, Revision: 1,
+	}
+	_, err := Normalize(WindowSpec{
+		ID: "invalidLabelAlignment", Bounds: Bounds{X: 10, Y: 20},
+		Toolbar: &toolbar.ToolbarSpec{
+			SchemaVersion: toolbar.SchemaVersion, Revision: 1, Orientation: toolbar.OrientationHorizontal,
+			Items: []toolbar.ToolbarItemSpec{toolbar.LabelItem(label)},
+		},
+	}, t.TempDir())
+	var uiErr *Error
+	if !errors.As(err, &uiErr) || uiErr.Code != CodeInvalidSpec || uiErr.Capability != "label" {
+		t.Fatalf("invalid vertical label alignment error = %#v", err)
 	}
 }
 

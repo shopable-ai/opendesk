@@ -672,6 +672,30 @@ func (w *processWindow) ApplyToolbarButton(ctx context.Context, button toolbar.B
 	return state, err
 }
 
+func (w *processWindow) ToolbarLabelState(ctx context.Context, id string) (toolbar.LabelResult, error) {
+	var state toolbar.LabelResult
+	err := w.driver.call(ctx, w.sessionID, w.id, "getToolbarLabelState", map[string]string{"id": id}, &state)
+	return state, err
+}
+
+func (w *processWindow) ApplyToolbarLabel(ctx context.Context, label toolbar.LabelSpec) (toolbar.LabelResult, error) {
+	var state toolbar.LabelResult
+	err := w.driver.call(ctx, w.sessionID, w.id, "applyToolbarLabel", toolbar.LabelUpdate{Label: label}, &state)
+	return state, err
+}
+
+func (w *processWindow) ToolbarControlState(ctx context.Context, id string) (toolbar.ControlResult, error) {
+	var state toolbar.ControlResult
+	err := w.driver.call(ctx, w.sessionID, w.id, "getToolbarControlState", map[string]string{"id": id}, &state)
+	return state, err
+}
+
+func (w *processWindow) ApplyToolbarControl(ctx context.Context, control toolbar.ControlSpec) (toolbar.ControlResult, error) {
+	var state toolbar.ControlResult
+	err := w.driver.call(ctx, w.sessionID, w.id, "applyToolbarControl", toolbar.ControlUpdate{Control: control}, &state)
+	return state, err
+}
+
 var _ Driver = (*ProcessDriver)(nil)
 
 func (d *ProcessDriver) String() string {

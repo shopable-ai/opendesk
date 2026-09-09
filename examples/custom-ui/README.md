@@ -38,6 +38,14 @@ For the compact native toolbar primitives—Button, Separator, fixed Spacer, sha
 
 The example remains an icon-first action toolbar: the separator and spacer are noninteractive native structure, not disabled buttons. Dragging prints a `TOOLBAR_MOVE` state event; closing prints `TOOLBAR_CLOSE`. It intentionally does not persist the position—use `AppStorage` in application code only when that policy is desired.
 
+For the first-class native settings controls, attached Button badge, and standalone Progress, run this one-line command from the repository root:
+
+```bash
+./opendesk -ui -script examples/custom-ui/floating-toolbar-controls.js -console-mode script -log-dir .runtime/examples/custom-ui/floating-toolbar-controls
+```
+
+The example keeps one window open for direct interaction. Switch and Checkbox remain semantically distinct; Select and SegmentedControl use bounded immutable options; Slider uses a fixed range; Progress can change between determinate and indeterminate. `show()` does not activate the host. Only a direct user gesture into the native Input activates keyboard focus, and no script-side focus API is exposed.
+
 To mix script-local PNG images with a built-in icon, and compare color-preserving `original` with native-tinted `template` rendering, run this one-line command from the repository root:
 
 ```bash
@@ -97,6 +105,8 @@ Each example uses a JavaScript controller, waits for the native window to become
 - `floating-toolbar-wrap-demo.js` plus `floating-toolbar-wrap-demo.json` opens three interactive native toolbars together: `maxWidth: 252` (five plus one), `maxColumns: 2` (two plus two plus one), and `maxRows: 2` (four plus three). Edit the adjacent JSON to try other limits. Click an icon to toggle its active state, then close all three windows to finish. Its `FLOATING_TOOLBAR_WRAP_DEMO` records show the selected layout and button.
 - `five-button-toolbar.js` is the focused standalone Button-first example. It directly uses `new FloatingWindow()` and five `addButton()` calls, opens five native 40×40pt icon buttons in declaration order, and never closes on a timer.
 - `floating-toolbar-primitives.js` is the minimal public primitive example: two action groups separated by a native line, a fixed spacer before Help, `getState()` before / after show, and move / close lifecycle logs. It has no business persistence or global shortcut ownership.
+- `floating-toolbar-status-label.js` shows the bounded visible Label primitive beside two icon buttons. Its 144pt × 40pt frame remains fixed while `text`, horizontal `alignment`, explicit `verticalAlignment`, and semantic `tone` update; `renderedTextBounds` demonstrates native horizontal/vertical centering without moving the window or its action targets. From the repository root, run `./opendesk -ui -script examples/custom-ui/floating-toolbar-status-label.js -console-mode script`.
+- `floating-toolbar-controls.js` demonstrates Switch, Checkbox, Input, Select, Slider, SegmentedControl, standalone Progress and an attached Button badge in one fixed-geometry native toolbar. It never injects mouse or keyboard input and stays open until the user closes it.
 - `custom-image-icons.js` combines `original` and `template` local PNG declarations with a built-in icon, then changes that built-in icon to a local image at runtime.
 - `icon-list.js` plus generated `icon-list.html` opens one scrollable Custom UI window whose control tree contains all 160 default icon buttons; it exposes scenario-first AI, unattended-automation, and human-in-the-loop automation choices alongside common SF Symbols. Clicks copy a minimal `addButton()` line, mark the selected card, and log the icon plus usage.
 - `panel.js` and `form.js` show when to use lower-level `ui.createWindow()`.

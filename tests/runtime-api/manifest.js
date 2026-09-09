@@ -118,7 +118,7 @@ globalThis.RuntimeAPIObjects = {
   ] },
   Dialog: { docs: 'docs/api/dialog.md', types: 'types/dialog.d.ts', source: 'automation/dialog.go', status: 'conditional', platforms: ['darwin', 'linux', 'windows'], methods: ['alert', 'confirm', 'prompt', 'getCapabilities'] },
   ui: { docs: 'docs/api/custom-ui.md', types: 'types/custom-ui.d.ts', source: 'automation/custom_ui.go', status: 'conditional', platforms: ['darwin', 'linux', 'windows'], methods: ['getCapabilities', 'createWindow', 'closeAll', 'on'] },
-  FloatingWindow: { docs: 'docs/api/custom-ui.md', types: 'types/FloatingWindow.d.ts', source: 'automation/floating_window.go', status: 'conditional', platforms: ['darwin', 'linux', 'windows'], optional: true, methods: ['constructor', 'addButton', 'addSeparator', 'addSpacer', 'removeButton', 'updateButton', 'getButtonState', 'getState', 'show', 'hide', 'close', 'setPosition', 'setPlacement', 'onButtonClick', 'onError', 'setAlwaysOnTop', 'setDraggable', 'on', 'waitUntilClosed', 'run'] },
+  FloatingWindow: { docs: 'docs/api/custom-ui.md', types: 'types/FloatingWindow.d.ts', source: 'automation/floating_window.go + automation/floating_window_controls.go', status: 'conditional', platforms: ['darwin', 'linux', 'windows'], optional: true, methods: ['constructor', 'addButton', 'addLabel', 'addSwitch', 'addCheckbox', 'addInput', 'addSelect', 'addSlider', 'addSegmentedControl', 'addProgress', 'addSeparator', 'addSpacer', 'removeButton', 'removeLabel', 'removeControl', 'updateButton', 'updateLabel', 'updateControl', 'getButtonState', 'getLabelState', 'getControlState', 'getState', 'show', 'hide', 'close', 'setPosition', 'setPlacement', 'onButtonClick', 'onControlChange', 'onError', 'setAlwaysOnTop', 'setDraggable', 'on', 'waitUntilClosed', 'run'], labelOptions: ['width', 'alignment', 'verticalAlignment', 'tone'], labelStateFields: ['id', 'text', 'width', 'alignment', 'verticalAlignment', 'tone', 'revision', 'renderedText', 'truncated', 'accessibilityName', 'accessibilityRole', 'accessibilityValue', 'renderedTextBounds', 'localBounds', 'screenBounds'] },
   global: { docs: 'docs/api/global-apis.md', types: 'types/global.d.ts', source: 'polyfills', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: [
     'notify', 'alert', 'confirm', 'prompt', 'copyToClipboard', 'getClipboard', 'AbortController', 'setTimeout', 'clearTimeout',
     'setInterval', 'clearInterval', 'delay', 'sleep', 'sleepSeconds', 'requestAnimationFrame',
@@ -227,7 +227,7 @@ for (const method of ['launch', 'terminate', 'restart']) restricted['App.' + met
 restricted['Notifications.list'] = 'may reveal own-app notification metadata or explicitly requested content; the formal unit gate validates arguments without reading host notifications';
 restricted['Notifications.waitFor'] = 'waits on the own-app notification model and may explicitly return content; the formal unit gate validates arguments without reading host notifications';
 restricted['Notifications.dismiss'] = 'removes an own-app notification; the formal unit gate validates arguments without changing host notification state';
-for (const method of RuntimeAPIObjects.FloatingWindow.methods) restricted['FloatingWindow.' + method] = 'button-first facade is exposed only when Custom UI is explicitly authorized';
+for (const method of RuntimeAPIObjects.FloatingWindow.methods) restricted['FloatingWindow.' + method] = 'compact native toolbar facade is exposed only when Custom UI is explicitly authorized';
 for (const method of RuntimeAPIObjects.window.methods) {
   const id = 'window.' + method;
   const hasSafeBehavior = ['getCapabilities', 'getActiveWindow', 'setWindowBounds', 'list', 'setAlwaysOnTop', 'unsetTopMost', 'js_beautify'].includes(method);
@@ -323,6 +323,11 @@ for (const entry of RuntimeAPIObjects.NativeExtensions.dynamicMethods) {
 }
 
 globalThis.RuntimeAPITestFiles = {
+	// One direct, fixed-scope native readback scenario. It opens one toolbar,
+	// never injects pointer/keyboard input, and closes it in finally.
+	floatingWindowControls: [
+		'tests/runtime-api/floating-window-controls.js',
+	],
   // Supplemental native acceptance is deliberately excluded from unit/live.
   // It must be run explicitly against the repository-owned macOS fixture.
   accessibilityNativeMacOS: [

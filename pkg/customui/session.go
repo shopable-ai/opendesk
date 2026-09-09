@@ -361,7 +361,7 @@ func (w *Window) UpdateControl(ctx context.Context, id string, patch ControlPatc
 func (w *Window) ToolbarButtonState(ctx context.Context, id string) (toolbar.ButtonResult, error) {
 	w.operation.Lock()
 	defer w.operation.Unlock()
-	if w.spec.Toolbar == nil || !w.hasControl(id) {
+	if w.spec.Toolbar == nil || !w.hasToolbarItem(id, toolbar.ItemButton) {
 		return toolbar.ButtonResult{}, &Error{Code: CodeNotFound, Operation: "getToolbarButtonState", WindowID: w.ID(), TargetID: id, Capability: "button", Message: "toolbar button not found"}
 	}
 	state, err := w.driver.ToolbarButtonState(ctx, id)
@@ -374,11 +374,61 @@ func (w *Window) ApplyToolbarButton(ctx context.Context, button toolbar.ButtonSp
 	if err := w.requireOpen("applyToolbarButton"); err != nil {
 		return toolbar.ButtonResult{}, err
 	}
-	if w.spec.Toolbar == nil || !w.hasControl(button.ID) {
+	if w.spec.Toolbar == nil || !w.hasToolbarItem(button.ID, toolbar.ItemButton) {
 		return toolbar.ButtonResult{}, &Error{Code: CodeNotFound, Operation: "applyToolbarButton", WindowID: w.ID(), TargetID: button.ID, Capability: "button", Message: "toolbar button not found"}
 	}
 	state, err := w.driver.ApplyToolbarButton(ctx, button)
 	return state, wrapDriver("applyToolbarButton", w.ID(), err)
+}
+
+func (w *Window) ToolbarLabelState(ctx context.Context, id string) (toolbar.LabelResult, error) {
+	w.operation.Lock()
+	defer w.operation.Unlock()
+	if w.spec.Toolbar == nil || !w.hasToolbarItem(id, toolbar.ItemLabel) {
+		return toolbar.LabelResult{}, &Error{Code: CodeNotFound, Operation: "getToolbarLabelState", WindowID: w.ID(), TargetID: id, Capability: "label", Message: "toolbar label not found"}
+	}
+	state, err := w.driver.ToolbarLabelState(ctx, id)
+	return state, wrapDriver("getToolbarLabelState", w.ID(), err)
+}
+
+func (w *Window) ApplyToolbarLabel(ctx context.Context, label toolbar.LabelSpec) (toolbar.LabelResult, error) {
+	w.operation.Lock()
+	defer w.operation.Unlock()
+	if err := w.requireOpen("applyToolbarLabel"); err != nil {
+		return toolbar.LabelResult{}, err
+	}
+	if w.spec.Toolbar == nil || !w.hasToolbarItem(label.ID, toolbar.ItemLabel) {
+		return toolbar.LabelResult{}, &Error{Code: CodeNotFound, Operation: "applyToolbarLabel", WindowID: w.ID(), TargetID: label.ID, Capability: "label", Message: "toolbar label not found"}
+	}
+	state, err := w.driver.ApplyToolbarLabel(ctx, label)
+	return state, wrapDriver("applyToolbarLabel", w.ID(), err)
+}
+
+func (w *Window) ToolbarControlState(ctx context.Context, id string) (toolbar.ControlResult, error) {
+	w.operation.Lock()
+	defer w.operation.Unlock()
+	if w.spec.Toolbar == nil || !w.hasToolbarControl(id) {
+		return toolbar.ControlResult{}, &Error{Code: CodeNotFound, Operation: "getToolbarControlState", WindowID: w.ID(), TargetID: id, Capability: "control", Message: "toolbar control not found"}
+	}
+	state, err := w.driver.ToolbarControlState(ctx, id)
+	return state, wrapDriver("getToolbarControlState", w.ID(), err)
+}
+
+func (w *Window) ApplyToolbarControl(ctx context.Context, control toolbar.ControlSpec) (toolbar.ControlResult, error) {
+	w.operation.Lock()
+	defer w.operation.Unlock()
+	if err := w.requireOpen("applyToolbarControl"); err != nil {
+		return toolbar.ControlResult{}, err
+	}
+	if w.spec.Toolbar == nil || !toolbar.IsControlItemType(control.Kind) || !w.hasToolbarItem(control.ID, control.Kind) {
+		return toolbar.ControlResult{}, &Error{Code: CodeNotFound, Operation: "applyToolbarControl", WindowID: w.ID(), TargetID: control.ID, Capability: "control", Message: "toolbar control not found"}
+	}
+	declared, ok := w.toolbarControl(control.ID)
+	if !ok || toolbar.ValidateControlSpec(control) != nil || !toolbar.SameControlDeclaration(declared, control) {
+		return toolbar.ControlResult{}, &Error{Code: CodeInvalidSpec, Operation: "applyToolbarControl", WindowID: w.ID(), TargetID: control.ID, Capability: control.Kind, Message: "toolbar control update changes an immutable declaration or contains an invalid value"}
+	}
+	state, err := w.driver.ApplyToolbarControl(ctx, control)
+	return state, wrapDriver("applyToolbarControl", w.ID(), err)
 }
 
 func (w *Window) WaitClosed() <-chan struct{} { return w.closed }
@@ -395,6 +445,35 @@ func (w *Window) requireOpen(operation string) error {
 func (w *Window) hasControl(id string) bool {
 	_, ok := w.control(id)
 	return ok
+}
+
+func (w *Window) hasToolbarItem(id, typeName string) bool {
+	if w.spec.Toolbar == nil {
+		return false
+	}
+	for _, item := range w.spec.Toolbar.Items {
+		if item.ID == id && item.Type == typeName {
+			return true
+		}
+	}
+	return false
+}
+
+func (w *Window) hasToolbarControl(id string) bool {
+	_, ok := w.toolbarControl(id)
+	return ok
+}
+
+func (w *Window) toolbarControl(id string) (toolbar.ControlSpec, bool) {
+	if w.spec.Toolbar == nil {
+		return toolbar.ControlSpec{}, false
+	}
+	for _, item := range w.spec.Toolbar.Items {
+		if item.ID == id && item.IsControl() && item.Control != nil {
+			return *item.Control, true
+		}
+	}
+	return toolbar.ControlSpec{}, false
 }
 
 func (w *Window) control(id string) (Control, bool) {

@@ -59,7 +59,7 @@ func (d *MemoryDriver) Create(_ context.Context, sessionID string, spec WindowSp
 	window := &memoryWindow{
 		driver: d, sessionID: sessionID, spec: spec, sink: sink,
 		state:    WindowState{ID: spec.ID, SessionID: sessionID, Status: StatusHidden, Bounds: spec.Bounds, AlwaysOnTop: spec.AlwaysOnTop, Draggable: spec.Draggable, HostPID: d.pid, NativeWindowID: int64(len(d.windows) + 1), Layer: 0, Alpha: 1, Revision: 1},
-		controls: map[string]ControlState{}, toolbarButtons: map[string]toolbar.ButtonResult{},
+		controls: map[string]ControlState{}, toolbarButtons: map[string]toolbar.ButtonResult{}, toolbarLabels: map[string]toolbar.LabelResult{}, toolbarControls: map[string]toolbar.ControlResult{},
 	}
 	if spec.Placement != nil {
 		placed, err := ResolveWindowPlacement(window.state.Bounds, *spec.Placement, Bounds{Width: 1440, Height: 900})
@@ -73,6 +73,19 @@ func (d *MemoryDriver) Create(_ context.Context, sessionID string, spec WindowSp
 	}
 	if spec.Toolbar != nil {
 		for _, item := range spec.Toolbar.Items {
+			if item.IsControl() {
+				control := *item.Control
+				window.toolbarControls[control.ID] = memoryToolbarControlResult(control)
+				continue
+			}
+			if item.IsLabel() {
+				label := *item.Label
+				window.toolbarLabels[label.ID] = toolbar.LabelResult{
+					LabelSpec: label, RenderedText: label.Text,
+					AccessibilityName: label.Text, AccessibilityRole: "staticText", AccessibilityValue: label.Text,
+				}
+				continue
+			}
 			if !item.IsButton() {
 				continue
 			}
@@ -80,7 +93,7 @@ func (d *MemoryDriver) Create(_ context.Context, sessionID string, spec WindowSp
 			presentation, _ := toolbar.IconPresentationForButton(button)
 			window.toolbarButtons[button.ID] = toolbar.ButtonResult{
 				ButtonSpec: button, IconPresentation: presentation,
-				Tooltip: button.Label, AccessibilityName: button.Label,
+				Tooltip: button.Label, AccessibilityName: button.Label, AccessibilityValue: memoryToolbarButtonAccessibilityValue(button),
 			}
 		}
 	}
@@ -165,11 +178,13 @@ type memoryWindow struct {
 	spec      WindowSpec
 	sink      func(Event)
 
-	mu             sync.RWMutex
-	state          WindowState
-	controls       map[string]ControlState
-	toolbarButtons map[string]toolbar.ButtonResult
-	sequence       uint64
+	mu              sync.RWMutex
+	state           WindowState
+	controls        map[string]ControlState
+	toolbarButtons  map[string]toolbar.ButtonResult
+	toolbarLabels   map[string]toolbar.LabelResult
+	toolbarControls map[string]toolbar.ControlResult
+	sequence        uint64
 }
 
 func (w *memoryWindow) mutate(fn func(*WindowState)) WindowState {
@@ -316,8 +331,119 @@ func (w *memoryWindow) ApplyToolbarButton(_ context.Context, button toolbar.Butt
 		state.IconPresentation = presentation
 		state.Tooltip = button.Label
 		state.AccessibilityName = button.Label
+		state.AccessibilityValue = memoryToolbarButtonAccessibilityValue(button)
 		state.RenderedText = ""
 		w.toolbarButtons[button.ID] = state
+	}
+	return state, nil
+}
+
+func memoryToolbarButtonAccessibilityValue(button toolbar.ButtonSpec) any {
+	if button.Badge != "" {
+		active := "inactive"
+		if button.State.Active {
+			active = "active"
+		}
+		return active + "; badge " + button.Badge
+	}
+	return button.State.Active
+}
+
+func (w *memoryWindow) ToolbarLabelState(_ context.Context, id string) (toolbar.LabelResult, error) {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	state, ok := w.toolbarLabels[id]
+	if !ok {
+		return toolbar.LabelResult{}, fmt.Errorf("toolbar label not found")
+	}
+	return state, nil
+}
+
+func (w *memoryWindow) ApplyToolbarLabel(_ context.Context, label toolbar.LabelSpec) (toolbar.LabelResult, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	state, ok := w.toolbarLabels[label.ID]
+	if !ok {
+		return toolbar.LabelResult{}, fmt.Errorf("toolbar label not found")
+	}
+	if label.Revision > state.Revision {
+		state.LabelSpec = label
+		state.RenderedText = label.Text
+		state.AccessibilityName = label.Text
+		state.AccessibilityRole = "staticText"
+		state.AccessibilityValue = label.Text
+		w.toolbarLabels[label.ID] = state
+	}
+	return state, nil
+}
+
+func memoryToolbarControlResult(control toolbar.ControlSpec) toolbar.ControlResult {
+	role, subrole := memoryToolbarControlAccessibility(control.Kind)
+	result := toolbar.ControlResult{ControlSpec: control, AccessibilityName: control.Label, AccessibilityRole: role, AccessibilitySubrole: subrole}
+	switch control.Kind {
+	case toolbar.ItemSwitch, toolbar.ItemCheckbox:
+		result.RenderedValue, result.AccessibilityValue = control.Checked, control.Checked
+	case toolbar.ItemInput:
+		result.RenderedValue, result.AccessibilityValue = control.Text, control.Text
+	case toolbar.ItemSelect, toolbar.ItemSegmented:
+		result.RenderedValue, result.AccessibilityValue = control.Selected, control.Selected
+	case toolbar.ItemSlider:
+		result.RenderedValue, result.AccessibilityValue = control.Value, control.Value
+	case toolbar.ItemProgress:
+		if control.Indeterminate {
+			result.RenderedValue, result.AccessibilityValue = nil, "indeterminate"
+		} else {
+			result.RenderedValue, result.AccessibilityValue = control.Value, control.Value
+		}
+	}
+	return result
+}
+
+func memoryToolbarControlAccessibility(kind string) (string, string) {
+	switch kind {
+	case toolbar.ItemSwitch:
+		return "AXCheckBox", "AXSwitch"
+	case toolbar.ItemCheckbox:
+		return "AXCheckBox", ""
+	case toolbar.ItemInput:
+		return "AXTextField", ""
+	case toolbar.ItemSelect:
+		return "AXPopUpButton", ""
+	case toolbar.ItemSlider:
+		return "AXSlider", ""
+	case toolbar.ItemSegmented:
+		return "AXRadioGroup", ""
+	default:
+		return "AXProgressIndicator", ""
+	}
+}
+
+func (w *memoryWindow) ToolbarControlState(_ context.Context, id string) (toolbar.ControlResult, error) {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	state, ok := w.toolbarControls[id]
+	if !ok {
+		return toolbar.ControlResult{}, fmt.Errorf("toolbar control not found")
+	}
+	return state, nil
+}
+
+func (w *memoryWindow) ApplyToolbarControl(_ context.Context, control toolbar.ControlSpec) (toolbar.ControlResult, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	state, ok := w.toolbarControls[control.ID]
+	if !ok {
+		return toolbar.ControlResult{}, fmt.Errorf("toolbar control not found")
+	}
+	if err := toolbar.ValidateControlSpec(control); err != nil {
+		return toolbar.ControlResult{}, fmt.Errorf("invalid toolbar control update: %w", err)
+	}
+	if !toolbar.SameControlDeclaration(state.ControlSpec, control) {
+		return toolbar.ControlResult{}, fmt.Errorf("toolbar control declaration changed")
+	}
+	if control.Revision > state.Revision {
+		state = memoryToolbarControlResult(control)
+		w.toolbarControls[control.ID] = state
 	}
 	return state, nil
 }

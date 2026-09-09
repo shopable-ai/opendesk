@@ -243,7 +243,7 @@ func normalizeToolbarWindow(spec WindowSpec) (WindowSpec, error) {
 	}
 	declaration := *spec.Toolbar
 	// Schema v1 was button-only. Accept it at the core boundary so persisted
-	// internal declarations can be normalized safely, then send only the v2
+	// internal declarations can be normalized safely, then send only the current
 	// typed Items shape to the native host. Public JavaScript has always used
 	// addButton(), so callers do not need to migrate to a wire-object DSL.
 	if declaration.SchemaVersion == toolbar.LegacySchemaVersion {
@@ -252,15 +252,38 @@ func normalizeToolbarWindow(spec WindowSpec) (WindowSpec, error) {
 		}
 		items := make([]toolbar.ToolbarItemSpec, 0, len(declaration.Buttons))
 		for _, button := range declaration.Buttons {
+			if button.Badge != "" {
+				return WindowSpec{}, invalidSpec("native toolbar schemaVersion 1 cannot contain badges")
+			}
 			items = append(items, toolbar.ButtonItem(button))
 		}
 		declaration.Items = items
 		declaration.Buttons = nil
 		declaration.SchemaVersion = toolbar.SchemaVersion
+	} else if declaration.SchemaVersion == toolbar.StructuredSchemaVersion {
+		if len(declaration.Buttons) != 0 {
+			return WindowSpec{}, invalidSpec("native toolbar schemaVersion 2 requires items instead of buttons")
+		}
+		for _, item := range declaration.Items {
+			if item.Type == toolbar.ItemLabel || item.Label != nil || item.Control != nil || toolbar.IsControlItemType(item.Type) || (item.Button != nil && item.Button.Badge != "") {
+				return WindowSpec{}, invalidSpec("native toolbar schemaVersion 2 cannot contain labels, controls, or badges")
+			}
+		}
+		declaration.SchemaVersion = toolbar.SchemaVersion
+	} else if declaration.SchemaVersion == toolbar.LabelSchemaVersion {
+		if len(declaration.Buttons) != 0 {
+			return WindowSpec{}, invalidSpec("native toolbar schemaVersion 3 requires items instead of buttons")
+		}
+		for _, item := range declaration.Items {
+			if item.Control != nil || toolbar.IsControlItemType(item.Type) || (item.Button != nil && item.Button.Badge != "") {
+				return WindowSpec{}, invalidSpec("native toolbar schemaVersion 3 cannot contain controls or badges")
+			}
+		}
+		declaration.SchemaVersion = toolbar.SchemaVersion
 	} else if declaration.SchemaVersion != toolbar.SchemaVersion {
 		return WindowSpec{}, invalidSpec("native toolbar schemaVersion is unsupported")
 	} else if len(declaration.Buttons) != 0 {
-		return WindowSpec{}, invalidSpec("native toolbar schemaVersion 2 requires items instead of buttons")
+		return WindowSpec{}, invalidSpec("native toolbar schemaVersion 4 requires items instead of buttons")
 	}
 	if declaration.Orientation == "" {
 		declaration.Orientation = toolbar.OrientationHorizontal
@@ -293,14 +316,19 @@ func normalizeToolbarWindow(spec WindowSpec) (WindowSpec, error) {
 	}
 	buttonCount := declaration.ButtonCount()
 	maxButtons := toolbar.MaxButtonsForOrientation(declaration.Orientation)
-	if buttonCount < toolbar.MinButtons || buttonCount > maxButtons {
-		return WindowSpec{}, invalidSpec(fmt.Sprintf("native %s toolbar requires between 1 and %d buttons", declaration.Orientation, maxButtons))
+	if buttonCount > maxButtons {
+		return WindowSpec{}, invalidSpec(fmt.Sprintf("native %s toolbar supports at most %d buttons", declaration.Orientation, maxButtons))
+	}
+	contentCount := declaration.ContentCount()
+	maxContent := toolbar.MaxContentItemsForOrientation(declaration.Orientation)
+	if contentCount < 1 || contentCount > maxContent {
+		return WindowSpec{}, invalidSpec(fmt.Sprintf("native %s toolbar requires between 1 and %d content items", declaration.Orientation, maxContent))
 	}
 	if declaration.Revision == 0 {
 		return WindowSpec{}, invalidSpec("native toolbar revision must be positive")
 	}
 	seen := make(map[string]struct{}, len(declaration.Items))
-	controls := make([]Control, 0, buttonCount)
+	controls := make([]Control, 0, contentCount)
 	items := make([]toolbar.ToolbarItemSpec, len(declaration.Items))
 	totalImageBytes := 0
 	for index, item := range declaration.Items {
@@ -320,12 +348,65 @@ func normalizeToolbarWindow(spec WindowSpec) (WindowSpec, error) {
 		if index > 0 && toolbar.IsStructuralItemType(item.Type) && toolbar.IsStructuralItemType(declaration.Items[index-1].Type) {
 			return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", TargetID: item.ID, Capability: "structure", Message: "toolbar cannot contain consecutive structural items"}
 		}
-		if item.Type != toolbar.ItemButton {
-			if item.Button != nil {
-				return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", TargetID: item.ID, Capability: "structure", Message: "separator and spacer cannot carry a button payload"}
+		if toolbar.IsStructuralItemType(item.Type) {
+			if item.Button != nil || item.Label != nil || item.Control != nil {
+				return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", TargetID: item.ID, Capability: "structure", Message: "separator and spacer cannot carry content payloads"}
 			}
 			items[index] = item
 			continue
+		}
+		if item.Type == toolbar.ItemLabel {
+			if item.Button != nil || item.Label == nil || item.Control != nil || item.Label.ID != item.ID {
+				return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", TargetID: item.ID, Capability: "label", Message: "toolbar label item must contain a matching label payload"}
+			}
+			label := *item.Label
+			if strings.TrimSpace(label.Text) == "" || utf8.RuneCountInString(label.Text) > toolbar.MaxLabelRunes {
+				return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", TargetID: label.ID, Capability: "label", Message: fmt.Sprintf("toolbar label text must contain 1 to %d Unicode characters", toolbar.MaxLabelRunes)}
+			}
+			if !finiteNumber(label.Width) || label.Width < toolbar.MinLabelWidth || label.Width > toolbar.MaxLabelWidth {
+				return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", TargetID: label.ID, Capability: "label", Message: fmt.Sprintf("toolbar label width must be between %d and %d", toolbar.MinLabelWidth, toolbar.MaxLabelWidth)}
+			}
+			if !toolbar.IsValidLabelAlignment(label.Alignment) {
+				return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", TargetID: label.ID, Capability: "label", Message: "toolbar label alignment is invalid"}
+			}
+			// Older internal schema-v3 Label declarations predate the explicit
+			// vertical field. Normalize them to the public center default so the
+			// current native wire always carries an explicit, verifiable value.
+			if label.VerticalAlignment == "" {
+				label.VerticalAlignment = toolbar.LabelVerticalAlignmentCenter
+			}
+			if !toolbar.IsValidLabelVerticalAlignment(label.VerticalAlignment) {
+				return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", TargetID: label.ID, Capability: "label", Message: "toolbar label verticalAlignment is invalid"}
+			}
+			if !toolbar.IsValidLabelTone(label.Tone) {
+				return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", TargetID: label.ID, Capability: "label", Message: "toolbar label tone is invalid"}
+			}
+			if label.Revision == 0 || label.Revision > declaration.Revision {
+				return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", TargetID: label.ID, Capability: "revision", Message: "toolbar label revision is invalid"}
+			}
+			item.Label = &label
+			items[index] = item
+			controls = append(controls, Control{ID: label.ID, Type: "text", Order: len(controls)})
+			continue
+		}
+		if toolbar.IsControlItemType(item.Type) {
+			if item.Button != nil || item.Label != nil || item.Control == nil || item.Control.ID != item.ID || item.Control.Kind != item.Type {
+				return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", TargetID: item.ID, Capability: "control", Message: "toolbar control item must contain one matching control payload"}
+			}
+			control := *item.Control
+			if control.Revision > declaration.Revision {
+				return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", TargetID: item.ID, Capability: "revision", Message: "toolbar control revision is invalid"}
+			}
+			if err := toolbar.ValidateControlSpec(control); err != nil {
+				return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", TargetID: item.ID, Capability: item.Type, Message: err.Error()}
+			}
+			item.Control = &control
+			items[index] = item
+			controls = append(controls, Control{ID: control.ID, Type: control.Kind, Order: len(controls)})
+			continue
+		}
+		if item.Label != nil || item.Control != nil {
+			return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", TargetID: item.ID, Capability: "button", Message: "toolbar button cannot carry a label payload"}
 		}
 		if item.Button == nil || item.Button.ID != item.ID {
 			return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", TargetID: item.ID, Capability: "button", Message: "toolbar button item must contain a matching button payload"}
@@ -340,6 +421,9 @@ func normalizeToolbarWindow(spec WindowSpec) (WindowSpec, error) {
 				message = "custom toolbar icon payload is invalid"
 			}
 			return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", TargetID: button.ID, Capability: "icon", Message: message}
+		}
+		if err := toolbar.ValidateBadge(button.Badge); err != nil {
+			return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", TargetID: button.ID, Capability: "badge", Message: err.Error()}
 		}
 		if button.IconImage != nil {
 			totalImageBytes += button.IconImage.ByteLength

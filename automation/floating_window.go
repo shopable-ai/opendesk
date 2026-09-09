@@ -25,18 +25,43 @@ type floatingButton struct {
 	callback goja.Callable
 }
 
+type floatingLabel struct {
+	spec toolbar.LabelSpec
+}
+
+type floatingControl struct {
+	spec         toolbar.ControlSpec
+	callback     goja.Callable
+	syncInFlight bool
+	pendingSync  *toolbar.ControlSpec
+}
+
+type floatingLabelOptionsDeclaration struct {
+	Width             *float64 `json:"width,omitempty"`
+	Alignment         string   `json:"alignment,omitempty"`
+	VerticalAlignment string   `json:"verticalAlignment,omitempty"`
+	Tone              string   `json:"tone,omitempty"`
+}
+
 type floatingImageIconDeclaration struct {
 	Path          string `json:"path"`
 	RenderingMode string `json:"renderingMode,omitempty"`
 }
 
 // floatingToolbarItem keeps the public pre-show builder small while the
-// native wire model remains a typed ordered item list. Only Button owns a
-// callback or mutable presentation state; Separator and Spacer are inert.
+// native wire model remains a typed ordered item list. Button owns callbacks
+// and action state, Label owns bounded visible status text, and Separator /
+// Spacer are inert.
 type floatingToolbarItem struct {
 	typeName string
 	id       string
 	button   *floatingButton
+	label    *floatingLabel
+	control  *floatingControl
+}
+
+func (item floatingToolbarItem) isContent() bool {
+	return item.button != nil || item.label != nil || item.control != nil
 }
 
 type floatingLifecycleListener struct {
@@ -191,8 +216,10 @@ func (u *CustomUIRuntime) jsFloatingWindowConstructor() *goja.Object {
 	}).ToObject(u.runtime)
 	defaultObject := u.defaultToolbar.jsObject()
 	for _, name := range []string{
-		"addButton", "addSeparator", "addSpacer", "removeButton", "updateButton", "getButtonState", "getState",
-		"onButtonClick", "onError", "on", "show", "hide", "close",
+		"addButton", "addLabel", "addSeparator", "addSpacer", "removeButton", "removeLabel",
+		"addSwitch", "addCheckbox", "addInput", "addSelect", "addSlider", "addSegmentedControl", "addProgress",
+		"removeControl", "updateButton", "updateLabel", "updateControl", "getButtonState", "getLabelState", "getControlState", "getState",
+		"onButtonClick", "onControlChange", "onError", "on", "show", "hide", "close",
 		"setPosition", "setPlacement", "setAlwaysOnTop", "setDraggable", "waitUntilClosed", "run",
 	} {
 		_ = constructor.Set(name, defaultObject.Get(name))
@@ -319,6 +346,9 @@ func (f *floatingWindow) jsObject() *goja.Object {
 			if f.buttonCount() >= f.maxButtons() {
 				panic(customUIJSError(f.ui.runtime, &customui.Error{Code: customui.CodeInvalidSpec, Operation: "FloatingWindow.addButton", WindowID: f.windowID, TargetID: id, Capability: "button", Message: fmt.Sprintf("%s floating toolbar supports at most %d buttons", f.orientation, f.maxButtons())}))
 			}
+			if f.contentCount() >= f.maxContentItems() {
+				panic(customUIJSError(f.ui.runtime, &customui.Error{Code: customui.CodeInvalidSpec, Operation: "FloatingWindow.addButton", WindowID: f.windowID, TargetID: id, Capability: "item", Message: fmt.Sprintf("%s floating toolbar supports at most %d content items", f.orientation, f.maxContentItems())}))
+			}
 			if callbackValue := call.Argument(3); callbackValue != nil && !goja.IsUndefined(callbackValue) && !goja.IsNull(callbackValue) {
 				callback, ok := goja.AssertFunction(callbackValue)
 				if !ok {
@@ -329,6 +359,44 @@ func (f *floatingWindow) jsObject() *goja.Object {
 			button.spec.State.Revision = f.nextRevision()
 			f.items = append(f.items, floatingToolbarItem{typeName: toolbar.ItemButton, id: id, button: &button})
 			return goja.Undefined()
+		},
+		"addLabel": func(call goja.FunctionCall) goja.Value {
+			f.requireMutable("addLabel")
+			id := f.stringArgument(call, 0, "id", "FloatingWindow.addLabel")
+			label, err := f.newFloatingLabelFromValue(id, call.Argument(1), call.Argument(2), "FloatingWindow.addLabel")
+			if err != nil {
+				panic(customUIJSError(f.ui.runtime, err))
+			}
+			if f.item(id) != nil {
+				panic(customUIJSError(f.ui.runtime, &customui.Error{Code: customui.CodeDuplicateID, Operation: "FloatingWindow.addLabel", WindowID: f.windowID, TargetID: id, Capability: "item", Message: "toolbar item id already exists"}))
+			}
+			if f.contentCount() >= f.maxContentItems() {
+				panic(customUIJSError(f.ui.runtime, &customui.Error{Code: customui.CodeInvalidSpec, Operation: "FloatingWindow.addLabel", WindowID: f.windowID, TargetID: id, Capability: "label", Message: fmt.Sprintf("%s floating toolbar supports at most %d content items", f.orientation, f.maxContentItems())}))
+			}
+			label.spec.Revision = f.nextRevision()
+			f.items = append(f.items, floatingToolbarItem{typeName: toolbar.ItemLabel, id: id, label: &label})
+			return goja.Undefined()
+		},
+		"addSwitch": func(call goja.FunctionCall) goja.Value {
+			return f.addFloatingToggle(call, toolbar.ItemSwitch, "FloatingWindow.addSwitch")
+		},
+		"addCheckbox": func(call goja.FunctionCall) goja.Value {
+			return f.addFloatingToggle(call, toolbar.ItemCheckbox, "FloatingWindow.addCheckbox")
+		},
+		"addInput": func(call goja.FunctionCall) goja.Value {
+			return f.addFloatingInput(call)
+		},
+		"addSelect": func(call goja.FunctionCall) goja.Value {
+			return f.addFloatingChoice(call, toolbar.ItemSelect, "FloatingWindow.addSelect")
+		},
+		"addSlider": func(call goja.FunctionCall) goja.Value {
+			return f.addFloatingSlider(call)
+		},
+		"addSegmentedControl": func(call goja.FunctionCall) goja.Value {
+			return f.addFloatingChoice(call, toolbar.ItemSegmented, "FloatingWindow.addSegmentedControl")
+		},
+		"addProgress": func(call goja.FunctionCall) goja.Value {
+			return f.addFloatingProgress(call)
 		},
 		"addSeparator": func(call goja.FunctionCall) goja.Value {
 			return f.addStructuralItem(call, toolbar.ItemSeparator, "FloatingWindow.addSeparator")
@@ -344,7 +412,25 @@ func (f *floatingWindow) jsObject() *goja.Object {
 			}
 			panic(customUIJSError(f.ui.runtime, f.buttonNotFound("FloatingWindow.removeButton", id)))
 		},
-		"updateButton": func(call goja.FunctionCall) goja.Value { return f.updateButton(call) },
+		"removeLabel": func(call goja.FunctionCall) goja.Value {
+			f.requireMutable("removeLabel")
+			id := f.stringArgument(call, 0, "id", "FloatingWindow.removeLabel")
+			if f.removeLabelItem(id) {
+				return goja.Undefined()
+			}
+			panic(customUIJSError(f.ui.runtime, f.labelNotFound("FloatingWindow.removeLabel", id)))
+		},
+		"removeControl": func(call goja.FunctionCall) goja.Value {
+			f.requireMutable("removeControl")
+			id := f.stringArgument(call, 0, "id", "FloatingWindow.removeControl")
+			if f.removeControlItem(id) {
+				return goja.Undefined()
+			}
+			panic(customUIJSError(f.ui.runtime, f.controlNotFound("FloatingWindow.removeControl", id)))
+		},
+		"updateButton":  func(call goja.FunctionCall) goja.Value { return f.updateButton(call) },
+		"updateLabel":   func(call goja.FunctionCall) goja.Value { return f.updateLabel(call) },
+		"updateControl": func(call goja.FunctionCall) goja.Value { return f.updateControl(call) },
 		"getButtonState": func(call goja.FunctionCall) goja.Value {
 			id := f.stringArgument(call, 0, "id", "FloatingWindow.getButtonState")
 			button := f.button(id)
@@ -365,6 +451,29 @@ func (f *floatingWindow) jsObject() *goja.Object {
 				return f.ui.runtime.ToValue(jsonCompatible(publicFloatingButtonState(current.spec, value.(toolbar.ButtonResult))))
 			})
 		},
+		"getLabelState": func(call goja.FunctionCall) goja.Value {
+			id := f.stringArgument(call, 0, "id", "FloatingWindow.getLabelState")
+			label := f.label(id)
+			if label == nil {
+				panic(customUIJSError(f.ui.runtime, f.labelNotFound("FloatingWindow.getLabelState", id)))
+			}
+			if f.window == nil {
+				return f.resolved(publicFloatingLabelState(label.spec, toolbar.LabelResult{}))
+			}
+			return f.ui.startAsync("FloatingWindow.getLabelState", func(ctx context.Context) (any, error) {
+				state, err := f.window.ToolbarLabelState(ctx, id)
+				return state, customUIOperationError(err, "FloatingWindow.getLabelState", f.windowID)
+			}, func(value any) goja.Value {
+				current := f.label(id)
+				if current == nil {
+					return goja.Undefined()
+				}
+				return f.ui.runtime.ToValue(jsonCompatible(publicFloatingLabelState(current.spec, value.(toolbar.LabelResult))))
+			})
+		},
+		"getControlState": func(call goja.FunctionCall) goja.Value {
+			return f.getControlState(call)
+		},
 		"getState": func(goja.FunctionCall) goja.Value { return f.getState() },
 		"onButtonClick": func(call goja.FunctionCall) goja.Value {
 			id := f.stringArgument(call, 0, "id", "FloatingWindow.onButtonClick")
@@ -377,6 +486,19 @@ func (f *floatingWindow) jsObject() *goja.Object {
 				panic(customUIJSError(f.ui.runtime, &customui.Error{Code: customui.CodeInvalidSpec, Operation: "FloatingWindow.onButtonClick", WindowID: f.windowID, TargetID: id, Capability: "callback", Message: "callback must be a function"}))
 			}
 			button.callback = callback
+			return goja.Undefined()
+		},
+		"onControlChange": func(call goja.FunctionCall) goja.Value {
+			id := f.stringArgument(call, 0, "id", "FloatingWindow.onControlChange")
+			control := f.control(id)
+			if control == nil || !toolbar.IsInteractiveControlType(control.spec.Kind) {
+				panic(customUIJSError(f.ui.runtime, f.controlNotFound("FloatingWindow.onControlChange", id)))
+			}
+			callback, ok := goja.AssertFunction(call.Argument(1))
+			if !ok {
+				panic(customUIJSError(f.ui.runtime, &customui.Error{Code: customui.CodeInvalidSpec, Operation: "FloatingWindow.onControlChange", WindowID: f.windowID, TargetID: id, Capability: "callback", Message: "callback must be a function"}))
+			}
+			control.callback = callback
 			return goja.Undefined()
 		},
 		"onError": func(call goja.FunctionCall) goja.Value {
@@ -576,7 +698,7 @@ func (f *floatingWindow) requireMutable(operation string) {
 	if f.window != nil || f.starting || f.closed {
 		panic(customUIJSError(f.ui.runtime, &customui.Error{
 			Code: customui.CodeInvalidState, Operation: "FloatingWindow." + operation, WindowID: f.windowID, Capability: "structure",
-			Message: "toolbar structure can be changed only before the first show(); use updateButton() for post-show button state",
+			Message: "toolbar structure can be changed only before the first show(); use updateButton(), updateLabel(), or updateControl() for post-show state",
 		}))
 	}
 }
@@ -591,8 +713,11 @@ func (f *floatingWindow) show() goja.Value {
 	if f.starting {
 		panic(customUIJSError(f.ui.runtime, &customui.Error{Code: customui.CodeBusy, Operation: "FloatingWindow.show", WindowID: f.windowID, Capability: "lifecycle", Message: "floating toolbar is being created"}))
 	}
-	if f.buttonCount() < toolbar.MinButtons || f.buttonCount() > f.maxButtons() {
-		panic(customUIJSError(f.ui.runtime, &customui.Error{Code: customui.CodeInvalidSpec, Operation: "FloatingWindow.show", WindowID: f.windowID, Capability: "button", Message: fmt.Sprintf("%s floating toolbar requires between 1 and %d buttons", f.orientation, f.maxButtons())}))
+	if f.contentCount() < 1 || f.contentCount() > f.maxContentItems() {
+		panic(customUIJSError(f.ui.runtime, &customui.Error{Code: customui.CodeInvalidSpec, Operation: "FloatingWindow.show", WindowID: f.windowID, Capability: "item", Message: fmt.Sprintf("%s floating toolbar requires between 1 and %d content items", f.orientation, f.maxContentItems())}))
+	}
+	if f.buttonCount() > f.maxButtons() {
+		panic(customUIJSError(f.ui.runtime, &customui.Error{Code: customui.CodeInvalidSpec, Operation: "FloatingWindow.show", WindowID: f.windowID, Capability: "button", Message: fmt.Sprintf("%s floating toolbar supports at most %d buttons", f.orientation, f.maxButtons())}))
 	}
 	if err := f.validateStructure("FloatingWindow.show"); err != nil {
 		panic(customUIJSError(f.ui.runtime, err))
@@ -637,6 +762,14 @@ func (f *floatingWindow) show() goja.Value {
 func (f *floatingWindow) toolbarSpec() toolbar.ToolbarSpec {
 	items := make([]toolbar.ToolbarItemSpec, 0, len(f.items))
 	for _, item := range f.items {
+		if item.control != nil {
+			items = append(items, toolbar.ControlItem(item.control.spec))
+			continue
+		}
+		if item.label != nil {
+			items = append(items, toolbar.LabelItem(item.label.spec))
+			continue
+		}
 		if item.button == nil {
 			items = append(items, toolbar.ToolbarItemSpec{Type: item.typeName, ID: item.id})
 			continue
@@ -649,7 +782,7 @@ func (f *floatingWindow) toolbarSpec() toolbar.ToolbarSpec {
 	}
 	columns := 0
 	if orientation == toolbar.OrientationHorizontal && f.layout.configured {
-		columns, _ = toolbar.ColumnsForButtonCount(f.buttonCount(), f.layout.columns(), f.layout.maxRows)
+		columns, _ = toolbar.ColumnsForContentCount(f.contentCount(), f.layout.columns(), f.layout.maxRows)
 	}
 	if orientation == toolbar.OrientationVertical {
 		columns = 1
@@ -661,8 +794,25 @@ func (f *floatingWindow) toolbarSpec() toolbar.ToolbarSpec {
 }
 
 func (f *floatingWindow) removeButtonItem(id string) bool {
+	return f.removeContentItem(id, toolbar.ItemButton)
+}
+
+func (f *floatingWindow) removeLabelItem(id string) bool {
+	return f.removeContentItem(id, toolbar.ItemLabel)
+}
+
+func (f *floatingWindow) removeControlItem(id string) bool {
+	for _, item := range f.items {
+		if item.id == id && item.control != nil {
+			return f.removeContentItem(id, item.typeName)
+		}
+	}
+	return false
+}
+
+func (f *floatingWindow) removeContentItem(id, typeName string) bool {
 	for index := range f.items {
-		if f.items[index].typeName != toolbar.ItemButton || f.items[index].id != id {
+		if f.items[index].typeName != typeName || f.items[index].id != id {
 			continue
 		}
 		start, end := index, index+1
@@ -686,6 +836,10 @@ func (f *floatingWindow) maxButtons() int {
 	return toolbar.MaxButtonsForLayout(f.orientation, f.layout.columns(), f.layout.maxRows)
 }
 
+func (f *floatingWindow) maxContentItems() int {
+	return toolbar.MaxContentItemsForLayout(f.orientation, f.layout.columns(), f.layout.maxRows)
+}
+
 func (f *floatingWindow) maxItems() int {
 	return toolbar.MaxItemsForOrientation(f.orientation)
 }
@@ -694,6 +848,16 @@ func (f *floatingWindow) buttonCount() int {
 	count := 0
 	for _, item := range f.items {
 		if item.button != nil {
+			count++
+		}
+	}
+	return count
+}
+
+func (f *floatingWindow) contentCount() int {
+	count := 0
+	for _, item := range f.items {
+		if item.isContent() {
 			count++
 		}
 	}
@@ -722,9 +886,9 @@ func (f *floatingWindow) addStructuralItem(call goja.FunctionCall, typeName, ope
 		panic(customUIJSError(f.ui.runtime, &customui.Error{Code: customui.CodeInvalidSpec, Operation: operation, WindowID: f.windowID, TargetID: id, Capability: "item", Message: fmt.Sprintf("%s floating toolbar supports at most %d items", f.orientation, f.maxItems())}))
 	}
 	if len(f.items) == 0 {
-		panic(customUIJSError(f.ui.runtime, &customui.Error{Code: customui.CodeInvalidSpec, Operation: operation, WindowID: f.windowID, TargetID: id, Capability: "structure", Message: "separator and spacer must follow a button"}))
+		panic(customUIJSError(f.ui.runtime, &customui.Error{Code: customui.CodeInvalidSpec, Operation: operation, WindowID: f.windowID, TargetID: id, Capability: "structure", Message: "separator and spacer must follow a content item"}))
 	}
-	if previous := f.items[len(f.items)-1]; previous.button == nil {
+	if previous := f.items[len(f.items)-1]; !previous.isContent() {
 		panic(customUIJSError(f.ui.runtime, &customui.Error{Code: customui.CodeInvalidSpec, Operation: operation, WindowID: f.windowID, TargetID: id, Capability: "structure", Message: "toolbar cannot contain consecutive separator or spacer items"}))
 	}
 	f.items = append(f.items, floatingToolbarItem{typeName: typeName, id: id})
@@ -734,16 +898,16 @@ func (f *floatingWindow) addStructuralItem(call goja.FunctionCall, typeName, ope
 
 func (f *floatingWindow) validateStructure(operation string) error {
 	if len(f.items) == 0 {
-		return &customui.Error{Code: customui.CodeInvalidSpec, Operation: operation, WindowID: f.windowID, Capability: "structure", Message: "toolbar requires at least one button"}
+		return &customui.Error{Code: customui.CodeInvalidSpec, Operation: operation, WindowID: f.windowID, Capability: "structure", Message: "toolbar requires at least one content item"}
 	}
-	if f.items[0].button == nil {
+	if !f.items[0].isContent() {
 		return &customui.Error{Code: customui.CodeInvalidSpec, Operation: operation, WindowID: f.windowID, TargetID: f.items[0].id, Capability: "structure", Message: "toolbar cannot start with a separator or spacer"}
 	}
-	if f.items[len(f.items)-1].button == nil {
+	if !f.items[len(f.items)-1].isContent() {
 		return &customui.Error{Code: customui.CodeInvalidSpec, Operation: operation, WindowID: f.windowID, TargetID: f.items[len(f.items)-1].id, Capability: "structure", Message: "toolbar cannot end with a separator or spacer"}
 	}
 	for index := 1; index < len(f.items); index++ {
-		if f.items[index-1].button == nil && f.items[index].button == nil {
+		if !f.items[index-1].isContent() && !f.items[index].isContent() {
 			return &customui.Error{Code: customui.CodeInvalidSpec, Operation: operation, WindowID: f.windowID, TargetID: f.items[index].id, Capability: "structure", Message: "toolbar cannot contain consecutive separator or spacer items"}
 		}
 	}
@@ -751,21 +915,72 @@ func (f *floatingWindow) validateStructure(operation string) error {
 }
 
 type floatingButtonPublicState struct {
-	ID                string         `json:"id"`
-	Label             string         `json:"label"`
-	Icon              any            `json:"icon"`
-	Active            bool           `json:"active"`
-	Disabled          bool           `json:"disabled"`
-	Busy              bool           `json:"busy"`
-	Error             string         `json:"error"`
-	Revision          uint64         `json:"revision"`
-	RenderedText      string         `json:"renderedText"`
-	Tooltip           string         `json:"tooltip"`
-	TooltipVisible    bool           `json:"tooltipVisible"`
-	IconPresentation  any            `json:"iconPresentation"`
-	AccessibilityName string         `json:"accessibilityName"`
-	LocalBounds       toolbar.Bounds `json:"localBounds"`
-	ScreenBounds      toolbar.Bounds `json:"screenBounds"`
+	ID                 string         `json:"id"`
+	Label              string         `json:"label"`
+	Icon               any            `json:"icon"`
+	Active             bool           `json:"active"`
+	Disabled           bool           `json:"disabled"`
+	Busy               bool           `json:"busy"`
+	Error              string         `json:"error"`
+	Badge              string         `json:"badge"`
+	Revision           uint64         `json:"revision"`
+	RenderedText       string         `json:"renderedText"`
+	Tooltip            string         `json:"tooltip"`
+	TooltipVisible     bool           `json:"tooltipVisible"`
+	IconPresentation   any            `json:"iconPresentation"`
+	AccessibilityName  string         `json:"accessibilityName"`
+	AccessibilityValue any            `json:"accessibilityValue"`
+	LocalBounds        toolbar.Bounds `json:"localBounds"`
+	ScreenBounds       toolbar.Bounds `json:"screenBounds"`
+}
+
+type floatingLabelPublicState struct {
+	ID                 string         `json:"id"`
+	Text               string         `json:"text"`
+	Width              float64        `json:"width"`
+	Alignment          string         `json:"alignment"`
+	VerticalAlignment  string         `json:"verticalAlignment"`
+	Tone               string         `json:"tone"`
+	Revision           uint64         `json:"revision"`
+	RenderedText       string         `json:"renderedText"`
+	Truncated          bool           `json:"truncated"`
+	AccessibilityName  string         `json:"accessibilityName"`
+	AccessibilityRole  string         `json:"accessibilityRole"`
+	AccessibilityValue string         `json:"accessibilityValue"`
+	RenderedTextBounds toolbar.Bounds `json:"renderedTextBounds"`
+	LocalBounds        toolbar.Bounds `json:"localBounds"`
+	ScreenBounds       toolbar.Bounds `json:"screenBounds"`
+}
+
+func publicFloatingLabelState(spec toolbar.LabelSpec, native toolbar.LabelResult) floatingLabelPublicState {
+	applied := spec
+	if native.ID != "" {
+		applied = native.LabelSpec
+	}
+	renderedText := native.RenderedText
+	if renderedText == "" {
+		renderedText = applied.Text
+	}
+	accessibilityName := native.AccessibilityName
+	if accessibilityName == "" {
+		accessibilityName = applied.Text
+	}
+	accessibilityRole := native.AccessibilityRole
+	if accessibilityRole == "" {
+		accessibilityRole = "staticText"
+	}
+	accessibilityValue := native.AccessibilityValue
+	if accessibilityValue == "" {
+		accessibilityValue = applied.Text
+	}
+	return floatingLabelPublicState{
+		ID: applied.ID, Text: applied.Text, Width: applied.Width, Alignment: applied.Alignment,
+		VerticalAlignment: applied.VerticalAlignment, Tone: applied.Tone,
+		Revision: applied.Revision, RenderedText: renderedText, Truncated: native.Truncated,
+		AccessibilityName: accessibilityName, AccessibilityRole: accessibilityRole, AccessibilityValue: accessibilityValue,
+		RenderedTextBounds: native.RenderedTextBounds,
+		LocalBounds:        native.LocalBounds, ScreenBounds: native.ScreenBounds,
+	}
 }
 
 func publicFloatingButtonState(spec toolbar.ButtonSpec, native toolbar.ButtonResult) floatingButtonPublicState {
@@ -781,13 +996,27 @@ func publicFloatingButtonState(spec toolbar.ButtonSpec, native toolbar.ButtonRes
 	if tooltip == "" {
 		tooltip = spec.Label
 	}
+	accessibilityValue := native.AccessibilityValue
+	if accessibilityValue == nil {
+		if spec.Badge != "" {
+			active := "inactive"
+			if spec.State.Active {
+				active = "active"
+			}
+			accessibilityValue = active + "; badge " + spec.Badge
+		} else {
+			accessibilityValue = spec.State.Active
+		}
+	}
 	return floatingButtonPublicState{
 		ID: spec.ID, Label: spec.Label, Icon: publicFloatingIcon(spec), Active: spec.State.Active,
 		Disabled: spec.State.Disabled, Busy: spec.State.Busy, Error: spec.State.Error,
+		Badge:    spec.Badge,
 		Revision: spec.State.Revision, RenderedText: native.RenderedText,
 		Tooltip: tooltip, TooltipVisible: native.TooltipVisible,
 		IconPresentation: publicFloatingIconPresentation(presentation), AccessibilityName: accessibilityName,
-		LocalBounds: native.LocalBounds, ScreenBounds: native.ScreenBounds,
+		AccessibilityValue: accessibilityValue,
+		LocalBounds:        native.LocalBounds, ScreenBounds: native.ScreenBounds,
 	}
 }
 
@@ -823,15 +1052,15 @@ func (f *floatingWindow) updateButton(call goja.FunctionCall) goja.Value {
 	if f.starting {
 		panic(customUIJSError(f.ui.runtime, &customui.Error{Code: customui.CodeBusy, Operation: "FloatingWindow.updateButton", WindowID: f.windowID, TargetID: id, Capability: "state", Message: "toolbar creation is still in progress"}))
 	}
+	if f.closed {
+		panic(customUIJSError(f.ui.runtime, &customui.Error{Code: customui.CodeInvalidState, Operation: "FloatingWindow.updateButton", WindowID: f.windowID, TargetID: id, Capability: "state", Message: "toolbar is closed"}))
+	}
 	if err := f.applyButtonPatch(button, call.Argument(1)); err != nil {
 		panic(customUIJSError(f.ui.runtime, err))
 	}
 	spec := button.spec
 	if f.window == nil {
 		return f.resolved(publicFloatingButtonState(spec, toolbar.ButtonResult{}))
-	}
-	if f.closed {
-		panic(customUIJSError(f.ui.runtime, &customui.Error{Code: customui.CodeInvalidState, Operation: "FloatingWindow.updateButton", WindowID: f.windowID, TargetID: id, Capability: "state", Message: "toolbar is closed"}))
 	}
 	return f.ui.startAsync("FloatingWindow.updateButton", func(ctx context.Context) (any, error) {
 		state, err := f.window.ApplyToolbarButton(ctx, spec)
@@ -845,6 +1074,73 @@ func (f *floatingWindow) updateButton(call goja.FunctionCall) goja.Value {
 	})
 }
 
+func (f *floatingWindow) updateLabel(call goja.FunctionCall) goja.Value {
+	id := f.stringArgument(call, 0, "id", "FloatingWindow.updateLabel")
+	label := f.label(id)
+	if label == nil {
+		panic(customUIJSError(f.ui.runtime, f.labelNotFound("FloatingWindow.updateLabel", id)))
+	}
+	if f.starting {
+		panic(customUIJSError(f.ui.runtime, &customui.Error{Code: customui.CodeBusy, Operation: "FloatingWindow.updateLabel", WindowID: f.windowID, TargetID: id, Capability: "label", Message: "toolbar creation is still in progress"}))
+	}
+	if f.closed {
+		panic(customUIJSError(f.ui.runtime, &customui.Error{Code: customui.CodeInvalidState, Operation: "FloatingWindow.updateLabel", WindowID: f.windowID, TargetID: id, Capability: "label", Message: "toolbar is closed"}))
+	}
+	if err := f.applyLabelPatch(label, call.Argument(1)); err != nil {
+		panic(customUIJSError(f.ui.runtime, err))
+	}
+	spec := label.spec
+	if f.window == nil {
+		return f.resolved(publicFloatingLabelState(spec, toolbar.LabelResult{}))
+	}
+	return f.ui.startAsync("FloatingWindow.updateLabel", func(ctx context.Context) (any, error) {
+		state, err := f.window.ApplyToolbarLabel(ctx, spec)
+		return state, customUIOperationError(err, "FloatingWindow.updateLabel", f.windowID)
+	}, func(value any) goja.Value {
+		current := f.label(id)
+		if current == nil {
+			return goja.Undefined()
+		}
+		return f.ui.runtime.ToValue(jsonCompatible(publicFloatingLabelState(current.spec, value.(toolbar.LabelResult))))
+	})
+}
+
+func (f *floatingWindow) applyLabelPatch(label *floatingLabel, value goja.Value) error {
+	var patch map[string]any
+	if err := exportCustomUIValue(value, &patch); err != nil {
+		return f.invalidLabelPatch(label.spec.ID, "label patch is invalid", err)
+	}
+	if len(patch) == 0 {
+		return f.invalidLabelPatch(label.spec.ID, "label patch must change at least one property", nil)
+	}
+	for key := range patch {
+		switch key {
+		case "text", "alignment", "verticalAlignment", "tone":
+		default:
+			return f.invalidLabelPatch(label.spec.ID, "unknown label patch field "+key, nil)
+		}
+	}
+	candidate := label.spec
+	for key, target := range map[string]*string{
+		"text": &candidate.Text, "alignment": &candidate.Alignment,
+		"verticalAlignment": &candidate.VerticalAlignment, "tone": &candidate.Tone,
+	} {
+		if raw, exists := patch[key]; exists {
+			text, ok := raw.(string)
+			if !ok {
+				return f.invalidLabelPatch(label.spec.ID, key+" must be a string", nil)
+			}
+			*target = text
+		}
+	}
+	if err := validateFloatingLabelSpec(candidate); err != nil {
+		return withFloatingOperation(err, "FloatingWindow.updateLabel", f.windowID, label.spec.ID)
+	}
+	candidate.Revision = f.nextRevision()
+	label.spec = candidate
+	return nil
+}
+
 func (f *floatingWindow) applyButtonPatch(button *floatingButton, value goja.Value) error {
 	var patch map[string]any
 	if err := exportCustomUIValue(value, &patch); err != nil {
@@ -855,7 +1151,7 @@ func (f *floatingWindow) applyButtonPatch(button *floatingButton, value goja.Val
 	}
 	for key := range patch {
 		switch key {
-		case "icon", "label", "active", "disabled", "busy", "error":
+		case "icon", "label", "badge", "active", "disabled", "busy", "error":
 		default:
 			return f.invalidButtonPatch(button.spec.ID, "unknown button patch field "+key)
 		}
@@ -880,6 +1176,27 @@ func (f *floatingWindow) applyButtonPatch(button *floatingButton, value goja.Val
 		candidate.IconImage = iconImage
 		if f.customIconBytesExcept(button.spec.ID)+customIconBytes(candidate) > toolbar.MaxToolbarImageBytes {
 			return &customui.Error{Code: customui.CodeInvalidSpec, Operation: "FloatingWindow.updateButton", WindowID: f.windowID, TargetID: button.spec.ID, Capability: "icon", Message: fmt.Sprintf("custom toolbar icon data exceeds the %d-byte window limit", toolbar.MaxToolbarImageBytes)}
+		}
+	}
+	if raw, exists := patch["badge"]; exists {
+		switch typed := raw.(type) {
+		case nil:
+			candidate.Badge = ""
+		case string:
+			if typed == "" {
+				return f.invalidButtonPatch(button.spec.ID, "badge string must contain 1 to 4 compact Unicode characters; use null to clear")
+			}
+			candidate.Badge = typed
+		case float64:
+			if !finiteCustomUINumber(typed) || typed < 0 || typed > 999 || math.Trunc(typed) != typed {
+				return f.invalidButtonPatch(button.spec.ID, "numeric badge must be an integer between 0 and 999")
+			}
+			candidate.Badge = fmt.Sprintf("%.0f", typed)
+		default:
+			return f.invalidButtonPatch(button.spec.ID, "badge must be a compact string, an integer from 0 to 999, or null")
+		}
+		if err := toolbar.ValidateBadge(candidate.Badge); err != nil {
+			return f.invalidButtonPatch(button.spec.ID, err.Error())
 		}
 	}
 	for key, target := range map[string]*bool{"active": &candidate.State.Active, "disabled": &candidate.State.Disabled, "busy": &candidate.State.Busy} {
@@ -937,6 +1254,75 @@ func (f *floatingWindow) invalidButtonPatch(id, message string) error {
 	return &customui.Error{Code: customui.CodeInvalidSpec, Operation: "FloatingWindow.updateButton", WindowID: f.windowID, TargetID: id, Capability: "state", Message: message}
 }
 
+func (f *floatingWindow) invalidLabelPatch(id, message string, cause error) error {
+	return &customui.Error{Code: customui.CodeInvalidSpec, Operation: "FloatingWindow.updateLabel", WindowID: f.windowID, TargetID: id, Capability: "label", Message: message, Cause: cause}
+}
+
+func (f *floatingWindow) newFloatingLabelFromValue(id string, textValue, optionsValue goja.Value, operation string) (floatingLabel, error) {
+	if textValue == nil || goja.IsUndefined(textValue) || goja.IsNull(textValue) {
+		return floatingLabel{}, &customui.Error{Code: customui.CodeInvalidSpec, Operation: operation, WindowID: f.windowID, TargetID: id, Capability: "label", Message: "label text must be a string"}
+	}
+	text, ok := textValue.Export().(string)
+	if !ok {
+		return floatingLabel{}, &customui.Error{Code: customui.CodeInvalidSpec, Operation: operation, WindowID: f.windowID, TargetID: id, Capability: "label", Message: "label text must be a string"}
+	}
+	options := floatingLabelOptionsDeclaration{}
+	if optionsValue != nil && !goja.IsUndefined(optionsValue) && !goja.IsNull(optionsValue) {
+		if err := exportCustomUIValue(optionsValue, &options); err != nil {
+			return floatingLabel{}, &customui.Error{Code: customui.CodeInvalidSpec, Operation: operation, WindowID: f.windowID, TargetID: id, Capability: "label", Message: "label options are invalid", Cause: err}
+		}
+	}
+	width := float64(toolbar.DefaultLabelWidth)
+	if options.Width != nil {
+		width = *options.Width
+	}
+	alignment := options.Alignment
+	if alignment == "" {
+		alignment = toolbar.LabelAlignmentLeading
+	}
+	verticalAlignment := options.VerticalAlignment
+	if verticalAlignment == "" {
+		verticalAlignment = toolbar.LabelVerticalAlignmentCenter
+	}
+	tone := options.Tone
+	if tone == "" {
+		tone = toolbar.LabelTonePrimary
+	}
+	label := floatingLabel{spec: toolbar.LabelSpec{
+		ID: id, Text: text, Width: width, Alignment: alignment,
+		VerticalAlignment: verticalAlignment, Tone: tone,
+	}}
+	if err := validateFloatingLabelSpec(label.spec); err != nil {
+		return floatingLabel{}, withFloatingOperation(err, operation, f.windowID, id)
+	}
+	return label, nil
+}
+
+func validateFloatingLabelSpec(label toolbar.LabelSpec) error {
+	if !floatingButtonIDPattern.MatchString(label.ID) {
+		return &customui.Error{Code: customui.CodeInvalidSpec, Operation: "FloatingWindow.addLabel", TargetID: label.ID, Capability: "label", Message: "label id must match [A-Za-z][A-Za-z0-9_-]{0,63}"}
+	}
+	if strings.TrimSpace(label.Text) == "" {
+		return &customui.Error{Code: customui.CodeInvalidSpec, Operation: "FloatingWindow.addLabel", TargetID: label.ID, Capability: "label", Message: "label text must not be empty"}
+	}
+	if utf8.RuneCountInString(label.Text) > toolbar.MaxLabelRunes {
+		return &customui.Error{Code: customui.CodeInvalidSpec, Operation: "FloatingWindow.addLabel", TargetID: label.ID, Capability: "label", Message: fmt.Sprintf("label text must contain at most %d Unicode characters", toolbar.MaxLabelRunes)}
+	}
+	if !finiteCustomUINumber(label.Width) || label.Width < toolbar.MinLabelWidth || label.Width > toolbar.MaxLabelWidth {
+		return &customui.Error{Code: customui.CodeInvalidSpec, Operation: "FloatingWindow.addLabel", TargetID: label.ID, Capability: "label", Message: fmt.Sprintf("label width must be a finite number between %d and %d", toolbar.MinLabelWidth, toolbar.MaxLabelWidth)}
+	}
+	if !toolbar.IsValidLabelAlignment(label.Alignment) {
+		return &customui.Error{Code: customui.CodeInvalidSpec, Operation: "FloatingWindow.addLabel", TargetID: label.ID, Capability: "label", Message: `label alignment must be "leading", "center", or "trailing"`}
+	}
+	if !toolbar.IsValidLabelVerticalAlignment(label.VerticalAlignment) {
+		return &customui.Error{Code: customui.CodeInvalidSpec, Operation: "FloatingWindow.addLabel", TargetID: label.ID, Capability: "label", Message: `label verticalAlignment must be "top", "center", or "bottom"`}
+	}
+	if !toolbar.IsValidLabelTone(label.Tone) {
+		return &customui.Error{Code: customui.CodeInvalidSpec, Operation: "FloatingWindow.addLabel", TargetID: label.ID, Capability: "label", Message: `label tone must be "primary", "secondary", "success", "warning", or "error"`}
+	}
+	return nil
+}
+
 func newFloatingButton(id, label, icon string) (floatingButton, error) {
 	button := toolbar.ButtonSpec{ID: id, Label: label, Icon: icon}
 	if err := validateFloatingButtonSpec(button); err != nil {
@@ -962,6 +1348,9 @@ func validateFloatingButtonSpec(button toolbar.ButtonSpec) error {
 			message = "custom toolbar icon payload is invalid"
 		}
 		return &customui.Error{Code: customui.CodeInvalidSpec, Operation: "FloatingWindow.addButton", TargetID: id, Capability: "icon", Message: message}
+	}
+	if err := toolbar.ValidateBadge(button.Badge); err != nil {
+		return &customui.Error{Code: customui.CodeInvalidSpec, Operation: "FloatingWindow.addButton", TargetID: id, Capability: "badge", Message: err.Error()}
 	}
 	return nil
 }
@@ -1028,6 +1417,21 @@ func (f *floatingWindow) dispatch(event customui.Event, argument goja.Value) {
 	if event.Type == "close" {
 		f.release()
 		delete(f.ui.floatingToolbars, f.windowID)
+		return
+	}
+	if (event.Type == "change" || event.Type == "input") && !f.closed {
+		control := f.control(event.TargetID)
+		if f.applyNativeControlEvent(control, event) {
+			f.syncControlState(control)
+			if control.callback != nil {
+				result, err := control.callback(goja.Undefined(), argument)
+				if err != nil {
+					f.ui.reportAsyncError(err)
+				} else {
+					f.ui.observeListenerResult(result)
+				}
+			}
+		}
 		return
 	}
 	if event.Type != "click" || f.closed {
@@ -1188,14 +1592,30 @@ func (f *floatingWindow) button(id string) *floatingButton {
 	return nil
 }
 
+func (f *floatingWindow) label(id string) *floatingLabel {
+	for index := range f.items {
+		if f.items[index].typeName == toolbar.ItemLabel && f.items[index].id == id {
+			return f.items[index].label
+		}
+	}
+	return nil
+}
+
 func (f *floatingWindow) buttonNotFound(operation, id string) error {
 	return &customui.Error{Code: customui.CodeNotFound, Operation: operation, WindowID: f.windowID, TargetID: id, Capability: "button", Message: "button not found"}
+}
+
+func (f *floatingWindow) labelNotFound(operation, id string) error {
+	return &customui.Error{Code: customui.CodeNotFound, Operation: operation, WindowID: f.windowID, TargetID: id, Capability: "label", Message: "label not found"}
 }
 
 func (f *floatingWindow) listenerCount() int {
 	count := 0
 	for _, item := range f.items {
 		if item.button != nil && item.button.callback != nil {
+			count++
+		}
+		if item.control != nil && item.control.callback != nil {
 			count++
 		}
 	}
@@ -1214,12 +1634,15 @@ func (f *floatingWindow) release() {
 	f.errorHandler = nil
 	f.lifecycleListeners = map[uint64]floatingLifecycleListener{}
 	for _, item := range f.items {
-		if item.button == nil {
-			continue
+		if item.control != nil {
+			item.control.callback = nil
+			item.control.pendingSync = nil
 		}
-		item.button.callback = nil
-		item.button.inFlight = false
-		item.button.spec.State.Busy = false
+		if item.button != nil {
+			item.button.callback = nil
+			item.button.inFlight = false
+			item.button.spec.State.Busy = false
+		}
 	}
 }
 
