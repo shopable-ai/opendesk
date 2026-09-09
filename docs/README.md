@@ -157,6 +157,8 @@ YYYY-MM-DD-topic.md
 
 已完成或失效的计划应更新、关闭或归档，不能长期以“待做”状态污染当前事实。
 
+[Accessibility Workbench 实施方案](plans/desktop-automation/accessibility-workbench.md) 规定 Agent 直接使用原生 Accessibility、可选本机 Web 人工审阅、受限 HTTP、定位修订与交接的最小闭环；[本地 Codex Goal](../prompts/runtime/accessibility-workbench-goal.md) 用于实施。当前为方案与执行目标，不能视为 Web 功能已发布。
+
 ### `maintenance/`
 
 仓库与文档治理规则，包括：
