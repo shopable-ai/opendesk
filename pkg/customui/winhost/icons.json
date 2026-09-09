@@ -1,0 +1,482 @@
+{
+  "play.fill": {
+    "glyph": "▶"
+  },
+  "pause.fill": {
+    "glyph": "Ⅱ"
+  },
+  "stop.fill": {
+    "glyph": "■"
+  },
+  "gearshape.fill": {
+    "glyph": "⚙"
+  },
+  "paperplane.fill": {
+    "glyph": "➤"
+  },
+  "timer": {
+    "glyph": "◴"
+  },
+  "forward.fill": {
+    "glyph": "≫"
+  },
+  "backward.fill": {
+    "glyph": "≪"
+  },
+  "forward.end.fill": {
+    "glyph": "▸|"
+  },
+  "backward.end.fill": {
+    "glyph": "|◂"
+  },
+  "arrow.clockwise": {
+    "glyph": "↻"
+  },
+  "arrow.counterclockwise": {
+    "glyph": "↺"
+  },
+  "repeat": {
+    "glyph": "⟳"
+  },
+  "shuffle": {
+    "glyph": "⤨"
+  },
+  "eject.fill": {
+    "glyph": "⏏"
+  },
+  "power": {
+    "glyph": "⏻"
+  },
+  "xmark": {
+    "glyph": "×"
+  },
+  "checkmark": {
+    "glyph": "✓"
+  },
+  "plus": {
+    "glyph": "+"
+  },
+  "minus": {
+    "glyph": "−"
+  },
+  "ellipsis": {
+    "glyph": "⋯"
+  },
+  "ai.assistant": {
+    "glyph": "🧠"
+  },
+  "ai.generate": {
+    "glyph": "✨"
+  },
+  "ai.analyze": {
+    "glyph": "⌕"
+  },
+  "ai.search": {
+    "glyph": "⌕"
+  },
+  "automation.run": {
+    "glyph": "⟳"
+  },
+  "automation.schedule": {
+    "glyph": "◴"
+  },
+  "automation.trigger": {
+    "glyph": "⚡"
+  },
+  "automation.configure": {
+    "glyph": "⚙"
+  },
+  "automation.review": {
+    "glyph": "☞"
+  },
+  "automation.approve": {
+    "glyph": "☑"
+  },
+  "magnifyingglass": {
+    "glyph": "⌕"
+  },
+  "slider.horizontal.3": {
+    "glyph": "☷"
+  },
+  "info.circle": {
+    "glyph": "ⓘ"
+  },
+  "questionmark.circle": {
+    "glyph": "?"
+  },
+  "exclamationmark.triangle": {
+    "glyph": "⚠"
+  },
+  "bell.fill": {
+    "glyph": "♟"
+  },
+  "bell.slash.fill": {
+    "glyph": "♟"
+  },
+  "trash.fill": {
+    "glyph": "▥"
+  },
+  "square.and.arrow.up": {
+    "glyph": "↥"
+  },
+  "square.and.arrow.down": {
+    "glyph": "↧"
+  },
+  "doc.on.doc": {
+    "glyph": "▣"
+  },
+  "folder.fill": {
+    "glyph": "📁"
+  },
+  "tray.fill": {
+    "glyph": "▰"
+  },
+  "envelope.fill": {
+    "glyph": "✉"
+  },
+  "message.fill": {
+    "glyph": "▤"
+  },
+  "bubble.left.and.bubble.right.fill": {
+    "glyph": "▤"
+  },
+  "phone.fill": {
+    "glyph": "☎"
+  },
+  "video.fill": {
+    "glyph": "▷"
+  },
+  "mic.fill": {
+    "glyph": "♩"
+  },
+  "speaker.wave.2.fill": {
+    "glyph": "♪"
+  },
+  "headphones": {
+    "glyph": "♬"
+  },
+  "at": {
+    "glyph": "@"
+  },
+  "link": {
+    "glyph": "🔗"
+  },
+  "person.crop.circle.fill": {
+    "glyph": "●"
+  },
+  "person.2.fill": {
+    "glyph": "👥"
+  },
+  "person.badge.plus": {
+    "glyph": "⊕"
+  },
+  "person.badge.minus": {
+    "glyph": "⊖"
+  },
+  "heart.fill": {
+    "glyph": "♥"
+  },
+  "star.fill": {
+    "glyph": "★"
+  },
+  "bookmark.fill": {
+    "glyph": "🔖"
+  },
+  "flag.fill": {
+    "glyph": "⚑"
+  },
+  "pin.fill": {
+    "glyph": "📌"
+  },
+  "location.fill": {
+    "glyph": "➤"
+  },
+  "map.fill": {
+    "glyph": "🗺"
+  },
+  "calendar": {
+    "glyph": "▦"
+  },
+  "clock.fill": {
+    "glyph": "◷"
+  },
+  "alarm.fill": {
+    "glyph": "⏰"
+  },
+  "bolt.fill": {
+    "glyph": "⚡"
+  },
+  "lightbulb.fill": {
+    "glyph": "☀"
+  },
+  "lock.fill": {
+    "glyph": "🔒"
+  },
+  "lock.open.fill": {
+    "glyph": "🔓"
+  },
+  "key.fill": {
+    "glyph": "⚿"
+  },
+  "eye.fill": {
+    "glyph": "◉"
+  },
+  "eye.slash.fill": {
+    "glyph": "◌"
+  },
+  "camera.fill": {
+    "glyph": "📷"
+  },
+  "camera.rotate.fill": {
+    "glyph": "⟳"
+  },
+  "photo.fill": {
+    "glyph": "▧"
+  },
+  "photo.on.rectangle": {
+    "glyph": "▧"
+  },
+  "video.circle.fill": {
+    "glyph": "▷"
+  },
+  "play.rectangle.fill": {
+    "glyph": "▣"
+  },
+  "pause.rectangle.fill": {
+    "glyph": "Ⅱ"
+  },
+  "music.note": {
+    "glyph": "♪"
+  },
+  "music.note.list": {
+    "glyph": "♫"
+  },
+  "waveform": {
+    "glyph": "∿"
+  },
+  "radio.fill": {
+    "glyph": "◉"
+  },
+  "tv.fill": {
+    "glyph": "▣"
+  },
+  "gamecontroller.fill": {
+    "glyph": "◈"
+  },
+  "film.fill": {
+    "glyph": "▥"
+  },
+  "sparkles": {
+    "glyph": "✦"
+  },
+  "wand.and.stars": {
+    "glyph": "✨"
+  },
+  "paintbrush.fill": {
+    "glyph": "🖌"
+  },
+  "pencil": {
+    "glyph": "✎"
+  },
+  "pencil.tip.crop.circle": {
+    "glyph": "✎"
+  },
+  "scissors": {
+    "glyph": "✂"
+  },
+  "crop": {
+    "glyph": "⌗"
+  },
+  "textformat": {
+    "glyph": "T"
+  },
+  "text.alignleft": {
+    "glyph": "≡"
+  },
+  "text.aligncenter": {
+    "glyph": "≡"
+  },
+  "text.alignright": {
+    "glyph": "≡"
+  },
+  "bold": {
+    "glyph": "B"
+  },
+  "italic": {
+    "glyph": "I"
+  },
+  "underline": {
+    "glyph": "U"
+  },
+  "sum": {
+    "glyph": "∑"
+  },
+  "function": {
+    "glyph": "ƒ"
+  },
+  "doc.fill": {
+    "glyph": "▯"
+  },
+  "doc.text.fill": {
+    "glyph": "▤"
+  },
+  "doc.richtext.fill": {
+    "glyph": "▤"
+  },
+  "doc.append.fill": {
+    "glyph": "⊞"
+  },
+  "folder.badge.plus": {
+    "glyph": "📁"
+  },
+  "folder.badge.minus": {
+    "glyph": "📁"
+  },
+  "tray.and.arrow.down.fill": {
+    "glyph": "⇩"
+  },
+  "tray.and.arrow.up.fill": {
+    "glyph": "⇧"
+  },
+  "externaldrive.fill": {
+    "glyph": "▰"
+  },
+  "internaldrive.fill": {
+    "glyph": "▰"
+  },
+  "icloud.fill": {
+    "glyph": "☁"
+  },
+  "archivebox.fill": {
+    "glyph": "▣"
+  },
+  "shippingbox.fill": {
+    "glyph": "📦"
+  },
+  "printer.fill": {
+    "glyph": "▣"
+  },
+  "viewfinder": {
+    "glyph": "⌖"
+  },
+  "qrcode": {
+    "glyph": "▦"
+  },
+  "barcode": {
+    "glyph": "▥"
+  },
+  "creditcard.fill": {
+    "glyph": "▰"
+  },
+  "cart.fill": {
+    "glyph": "🛒"
+  },
+  "bag.fill": {
+    "glyph": "🛍"
+  },
+  "gift.fill": {
+    "glyph": "🎁"
+  },
+  "tag.fill": {
+    "glyph": "◇"
+  },
+  "list.bullet": {
+    "glyph": "☷"
+  },
+  "square.grid.2x2.fill": {
+    "glyph": "▦"
+  },
+  "tablecells.fill": {
+    "glyph": "▦"
+  },
+  "chart.bar.fill": {
+    "glyph": "▥"
+  },
+  "chart.pie.fill": {
+    "glyph": "◔"
+  },
+  "chart.line.uptrend.xyaxis": {
+    "glyph": "⤴"
+  },
+  "wifi": {
+    "glyph": "≋"
+  },
+  "antenna.radiowaves.left.and.right": {
+    "glyph": "♜"
+  },
+  "network": {
+    "glyph": "⊞"
+  },
+  "battery.100": {
+    "glyph": "▰"
+  },
+  "cpu": {
+    "glyph": "▦"
+  },
+  "memorychip": {
+    "glyph": "▥"
+  },
+  "desktopcomputer": {
+    "glyph": "▣"
+  },
+  "laptopcomputer": {
+    "glyph": "▱"
+  },
+  "keyboard": {
+    "glyph": "⌨"
+  },
+  "computermouse.fill": {
+    "glyph": "🖱"
+  },
+  "display": {
+    "glyph": "▣"
+  },
+  "iphone": {
+    "glyph": "▯"
+  },
+  "ipad": {
+    "glyph": "▯"
+  },
+  "applewatch": {
+    "glyph": "◷"
+  },
+  "house.fill": {
+    "glyph": "⌂"
+  },
+  "building.2.fill": {
+    "glyph": "▥"
+  },
+  "car.fill": {
+    "glyph": "🚗"
+  },
+  "airplane": {
+    "glyph": "✈"
+  },
+  "tram.fill": {
+    "glyph": "▣"
+  },
+  "bus.fill": {
+    "glyph": "▣"
+  },
+  "bicycle": {
+    "glyph": "🚲"
+  },
+  "figure.walk": {
+    "glyph": "🚶"
+  },
+  "sun.max.fill": {
+    "glyph": "☀"
+  },
+  "moon.fill": {
+    "glyph": "☾"
+  },
+  "cloud.sun.fill": {
+    "glyph": "☁"
+  },
+  "cloud.rain.fill": {
+    "glyph": "☂"
+  },
+  "shield.fill": {
+    "glyph": "⛨"
+  }
+}

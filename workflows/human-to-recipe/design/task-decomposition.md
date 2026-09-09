@@ -8,7 +8,7 @@ order: 20
 
 **目标：从用户真实示范出发，形成有来源、可审阅、可验证并可维护的普通 OpenDesk JS；仅在确有必要时保留 Agent 判断。**
 
-状态：H1—H8 作业树基线，2026-09-10。H2/H3 已同步 Recorder v2 的观察事实；H4/H6 现有仓库内 human-to-recipe Skill、最小 `SemanticBuildPlan` schema／validator 和提示词交接，renderer 仍未实现。H5.2 已补齐点击目标的 Native／OCR／Visual／Geometry／Context 多源证据、文字绑定、语义化与重新定位要求；树中其他子作业不代表接口或工具已全部实现。返回[工作流入口](../README.md)；规范性 DQ 合同见 [Recorder 工程设计](recorder-design.md)，真实完成、证据与未运行项见[实施与验收计划](implementation-plan.md)。
+状态：H1—H8 作业树基线，2026-09-10。H2/H3 已同步 Recorder v2 的观察事实；H4/H6 现有仓库内 `human-to-recipe` 与 behavior-preserving `recorder-script-refiner` Skill、最小 `SemanticBuildPlan` schema／validator 和单行任务交接，renderer 仍未实现。H5.2 已补齐点击目标的 Native／OCR／Visual／Geometry／Context 多源证据、文字绑定、语义化与重新定位要求；树中其他子作业不代表接口或工具已全部实现。返回[工作流入口](../README.md)；规范性 DQ 合同见 [Recorder 工程设计](recorder-design.md)，真实完成、证据与未运行项见[实施与验收计划](implementation-plan.md)。
 
 ## 阅读方法
 
@@ -371,7 +371,7 @@ H6. 生成普通 OpenDesk JavaScript
 
 代码生成开始前冻结最小 build plan。当前机器合同是 [`semantic-build-plan.schema.json`](../skills/human-to-recipe/references/semantic-build-plan.schema.json)，并由 [`validate-semantic-build-plan.js`](../skills/human-to-recipe/scripts/validate-semantic-build-plan.js) 检查；它不是 Runtime API 或通用 Compiler。plan 必须包含 actions 实际文件／revision／hash、逐动作 `business | runtime-guard | qualification | evidence | excluded | unknown` disposition、Business Episode 名称与顺序、参数和常量分类、Target/Locator/Geometry、动作策略、运行门禁、恢复规则、qualification claims 以及 action→episode→代码位置的 source map。一个 action 只能有一个主 disposition；任何 `unknown`、遗漏、重复消费或相互冲突都使 H6 fail closed。
 
-simple console 的“复制 Agent 完善提示词”只把 workdir、录制路径、revision/readiness、issue code 计数、semantic coverage、可选 candidate 路径和用户待补合同交给新对话。它不复制动作正文／AXValue／raw，不自动调用 Skill、生成 Recipe、运行 Gate 或取得资格；接收 Agent 仍须重新读取实际 actions 字节和 hash。业务目标或成功条件占位符未填写时，Agent 先询问，不能从事件序列推断。
+simple console 的“复制 Agent 优化脚本”只把仓库相对 generated script 写成一句话，不携带 Skill 路径、机器 workdir、业务问卷、动作正文、派生元数据或流程说明。仓库 `AGENTS.md` 把这类请求路由到 `recorder-script-refiner`；按钮仅在脚本存在且没有真实重放时启用，Skill 在当前包内核对完整 lineage，默认行为保持优化且不提问。业务目标、动作取舍、参数化和结果 Oracle 仍属于独立的 `human-to-recipe` 生产化入口，不能因删掉提示词字段而猜测。
 
 固定 plan 后，生成器或 recipe-build Agent 不再推断业务，只按同一顺序落代码：
 

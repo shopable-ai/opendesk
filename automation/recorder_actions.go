@@ -840,6 +840,9 @@ func recorderValidateManifestRawFacts(manifest recorderManifest, raw []byte, eve
 			}
 		}
 	}
+	if err := recorderValidateManifestKeyStatesAtStop(manifest, eventsByID); err != nil {
+		return err
+	}
 	seenContexts := map[string]bool{}
 	for _, context := range manifest.InputContexts {
 		if !recorderIDPattern.MatchString(context.EventID) || seenContexts[context.EventID] || (context.Kind != "pointer" && context.Kind != "keyboard") || (context.Status != "verified" && context.Status != "unverified") || context.ResolutionDelayMS < 0 {
@@ -900,6 +903,56 @@ func recorderValidateManifestRawFacts(manifest recorderManifest, raw []byte, eve
 	}
 	if err := recorderValidateManifestTextEdits(manifest, eventsByID); err != nil {
 		return err
+	}
+	return nil
+}
+
+func recorderValidateManifestKeyStatesAtStop(manifest recorderManifest, eventsByID map[string]recorderRawEvent) error {
+	if len(manifest.KeyStatesAtStop) == 0 {
+		return nil
+	}
+	if manifest.FormatVersion != recorderRecordingFormatVersion || !manifest.Capture.CaptureKeyboard || manifest.Capture.KeyboardContent != "non-sensitive-test" || len(manifest.KeyStatesAtStop) > 256 {
+		return fmt.Errorf("stop key-state evidence requires explicit non-sensitive keyboard capture")
+	}
+	seen := map[string]bool{}
+	hasIssue := func(code, eventID string) bool {
+		for _, issue := range manifest.Issues {
+			if issue.Code == code && issue.EventID == eventID {
+				return true
+			}
+		}
+		return false
+	}
+	for _, state := range manifest.KeyStatesAtStop {
+		event, ok := eventsByID[state.PressEventID]
+		if !ok || seen[state.PressEventID] || event.LibraryEvent != "KEY_PRESSED" || event.Keycode == nil || event.Rawcode == nil || *event.Keycode != state.Keycode || *event.Rawcode != state.Rawcode {
+			return fmt.Errorf("stop key-state evidence has an invalid press reference %s", state.PressEventID)
+		}
+		seen[state.PressEventID] = true
+		if _, err := time.Parse(time.RFC3339Nano, state.ObservedAt); err != nil {
+			return fmt.Errorf("stop key-state evidence has an invalid observation time for %s", state.PressEventID)
+		}
+		for _, candidate := range eventsByID {
+			if candidate.LibraryEvent == "KEY_RELEASED" && candidate.Keycode != nil && *candidate.Keycode == state.Keycode && recorderNativeStringValue(candidate.Sequence) > recorderNativeStringValue(event.Sequence) {
+				return fmt.Errorf("stop key-state evidence contradicts a recorded release for %s", state.PressEventID)
+			}
+		}
+		switch state.State {
+		case "pressed":
+			if state.Source != "combined-session-key-state" || !hasIssue("key-still-pressed-at-stop", state.PressEventID) {
+				return fmt.Errorf("pressed stop key-state evidence is incomplete for %s", state.PressEventID)
+			}
+		case "released":
+			if state.Source != "combined-session-key-state" || !hasIssue("key-release-not-observed-at-stop", state.PressEventID) {
+				return fmt.Errorf("released stop key-state evidence is incomplete for %s", state.PressEventID)
+			}
+		case "unavailable":
+			if state.Source != "unavailable" {
+				return fmt.Errorf("unavailable stop key-state evidence has an invalid source for %s", state.PressEventID)
+			}
+		default:
+			return fmt.Errorf("stop key-state evidence has an invalid state for %s", state.PressEventID)
+		}
 	}
 	return nil
 }
@@ -2258,7 +2311,7 @@ func recorderBuildDragAction(segment *recorderMouseSegment, ordinal int, context
 		return nil
 	}
 	press, release := *segment.press, *segment.release
-	if press.Button != "left" || release.Button != "left" || press.Clicks == 0 || release.Clicks != press.Clicks ||
+	if press.Button != "left" || release.Button != "left" || !recorderValidDragReleaseClickCount(press.Clicks, release.Clicks) ||
 		press.X == nil || press.Y == nil || release.X == nil || release.Y == nil ||
 		!press.CoordinateVerified || !release.CoordinateVerified || press.CoordinateSpace != "screen-logical" ||
 		release.CoordinateSpace != "screen-logical" || press.DisplayRef == "" || release.DisplayRef != press.DisplayRef ||
@@ -2307,6 +2360,15 @@ func recorderBuildDragAction(segment *recorderMouseSegment, ordinal int, context
 		Args:        recorderActionArguments{Button: "left", Steps: steps}, Strategy: "mouse.drag",
 		Review: recorderActionReview{Required: false, Status: "not-required"},
 	}
+}
+
+// Darwin reports the press-side click-series count for a drag, but a drag
+// release that does not become MOUSE_CLICKED can legitimately carry the
+// libuiohook zero/default. Accept only that documented absence or the exact
+// press count. A positive conflicting release count remains invalid, and the
+// raw press/release events stay in the action source for strict regeneration.
+func recorderValidDragReleaseClickCount(press, release uint16) bool {
+	return press > 0 && (release == 0 || release == press)
 }
 
 func recorderVerifiedDragPath(segment *recorderMouseSegment, press, release recorderRawEvent, lineTolerance, maximumPathRatio float64) ([]recorderRawEvent, bool) {
@@ -3414,12 +3476,14 @@ func recorderGenerateBasicSource(actions recorderActions, rawEvents []recorderRa
 		write("  return row;\n")
 		write("}\n")
 	}
-	write("async function __recorderRequireActiveWindow(target) {\n")
-	write("  const expected = await __recorderResolveWindow(target);\n")
+	write("async function __recorderRequireResolvedActiveWindow(expected) {\n")
 	write("  const active = await window.getActiveWindow();\n")
 	write("  const sameCurrentWindow = String(active.id || \"\") !== \"\" && String(expected.id || \"\") !== \"\" ? String(active.id) === String(expected.id) : Number(active.pid) === Number(expected.pid) && String(active.title || \"\") === String(expected.title || \"\");\n")
-	write("  if (!sameCurrentWindow) throw new Error(\"Recorder candidate active keyboard window mismatch\");\n")
+	write("  if (!sameCurrentWindow) throw new Error(\"Recorder candidate active window mismatch\");\n")
 	write("  return expected;\n")
+	write("}\n")
+	write("async function __recorderRequireActiveWindow(target) {\n")
+	write("  return await __recorderRequireResolvedActiveWindow(await __recorderResolveWindow(target));\n")
 	write("}\n")
 	if hasTextEdit {
 		write(recorderGeneratedTextEditHelpers)
@@ -3428,6 +3492,11 @@ func recorderGenerateBasicSource(actions recorderActions, rawEvents []recorderRa
 	write("  const point = Geometry.pointOffset(row, position.offsetX, position.offsetY);\n")
 	write("  if (!Geometry.contains(Geometry.rect(row), point)) throw new Error(\"Recorder candidate relative point is outside current \" + targetKind + \" bounds\");\n")
 	write("  return point;\n")
+	write("}\n")
+	write("function __recorderRequirePointer(point, actionId, phase) {\n")
+	write("  const actual = mouse.getPos();\n")
+	write("  if (!actual || Math.abs(Number(actual.x) - Number(point.x)) > 2 || Math.abs(Number(actual.y) - Number(point.y)) > 2) throw new Error(\"Recorder candidate pointer position mismatch for \" + actionId + \" \" + phase);\n")
+	write("  console.log(\"[Recorder candidate input] \" + JSON.stringify({ actionId, phase, point: { x: Number(actual.x), y: Number(actual.y) } }));\n")
 	write("}\n")
 	windowTargetJSON := func(action recorderAction) ([]byte, error) {
 		if action.Target == nil || action.Target.Window == nil {
@@ -3523,11 +3592,19 @@ func recorderGenerateBasicSource(actions recorderActions, rawEvents []recorderRa
 			}
 			mappings = append(mappings, recorderCandidateMapping{ActionID: action.ID, Line: line})
 			write(fmt.Sprintf("await mouse.move(__recorderDragStart%d.x, __recorderDragStart%d.y);\n", index+1, index+1))
+			write(fmt.Sprintf("__recorderRequirePointer(__recorderDragStart%d, %q, \"start-position-confirmed\");\n", index+1, action.ID))
 			write("await mouse.down({ button: \"left\" });\n")
+			write(fmt.Sprintf("console.log(\"[Recorder candidate input] \" + JSON.stringify({ actionId: %q, phase: \"button-down-returned\" }));\n", action.ID))
 			write("try {\n")
+			if action.Target.Kind == "window" {
+				write(fmt.Sprintf("  await __recorderRequireResolvedActiveWindow(__recorderWindow%d);\n", index+1))
+				write(fmt.Sprintf("  console.log(\"[Recorder candidate input] \" + JSON.stringify({ actionId: %q, phase: \"active-window-confirmed\" }));\n", action.ID))
+			}
 			write(fmt.Sprintf("  await mouse.move(__recorderDragEnd%d.x, __recorderDragEnd%d.y, { steps: %d });\n", index+1, index+1, action.Args.Steps))
+			write(fmt.Sprintf("  __recorderRequirePointer(__recorderDragEnd%d, %q, \"end-position-confirmed\");\n", index+1, action.ID))
 			write("} finally {\n")
 			write("  await mouse.up({ button: \"left\" });\n")
+			write(fmt.Sprintf("  console.log(\"[Recorder candidate input] \" + JSON.stringify({ actionId: %q, phase: \"button-up-returned\" }));\n", action.ID))
 			write("}\n")
 		case "wheel":
 			if action.Target.Kind == "display" {
@@ -3618,7 +3695,8 @@ func recorderGenerateBasicSource(actions recorderActions, rawEvents []recorderRa
 		"the operator must restore the intended starting desktop and application state before execution",
 		"clicks use Geometry.pointOffset and Geometry.contains with recorded top-left window offsets against fresh bounds, so window translation is supported; normalized ratios are retained for review but resizing is not guessed",
 		"desktop-level clicks use recorded top-left display offsets against fresh bounds and require the operator to restore the intended desktop chrome state",
-		"straight left-button drags resolve and bounds-check both endpoints, preserve a bounded motion sample count, and always release the button in finally",
+		"straight left-button drags resolve and bounds-check both endpoints, confirm the pointer reached each endpoint, verify window targets became active after button-down, preserve a bounded motion sample count, and always release the button in finally",
+		"generated drag trace lines prove only resolved input-call boundaries and pointer observations, never target business success",
 		"wheel bursts move to a bounds-checked recorded window/display-relative point before input, preserve signed horizontal or vertical total delta, and replay at most 100 equal steps",
 		"shortcuts and special keys require the recorded application/window to be active immediately before physical replay",
 		"verified focused text edits require a unique Accessibility textField and exact UTF-16LE SHA-256 precondition; setValue is followed by an exact hash postcondition and is never retried",

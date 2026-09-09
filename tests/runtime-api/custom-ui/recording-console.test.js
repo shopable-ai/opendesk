@@ -238,7 +238,8 @@
     const detailsState = await details.getState();
     assert(detailsState.onScreen && detailsState.alpha > 0, 'details window did not become visible');
     equal((await app.tray().getState()).status, 'hidden', 'tray stayed visible behind the details window');
-    equal((await details.control('recordingState').getState()).text, '已生成 · 未运行');
+    equal((await details.control('recordingState').getState()).text, '已生成 · 未重放');
+    equal((await details.control('runScript').getState()).text, '重放', 'details replay terminology');
     equal((await details.control('scriptPreview').getState()).text, generatedSource, 'details did not show generated source');
     assert(!(await details.control('copyScript').getState()).disabled, 'copy stayed disabled after source load');
     await screenshot('details-generated-not-run', detailsState);

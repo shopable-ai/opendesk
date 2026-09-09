@@ -18,6 +18,8 @@
 - `notifications`：`./dist/opendesk -script tests/runtime-api/single/notifications.js -console-mode script`
 - `touchscreen`：`./dist/opendesk -script tests/runtime-api/single/touchscreen.js -console-mode script`
 - `window`：`./dist/opendesk -script tests/runtime-api/single/window.js -console-mode script`
+- `window-target`：`./dist/opendesk -script tests/runtime-api/single/window-target.js -console-mode script`
+- `ui-sequence`：`./dist/opendesk -script tests/runtime-api/single/ui-sequence.js -console-mode script`
 - `screen`：`./dist/opendesk -script tests/runtime-api/single/screen.js -console-mode script`
 - `system`：`./dist/opendesk -script tests/runtime-api/single/system.js -console-mode script`
 - `execution`：`./dist/opendesk -script tests/runtime-api/single/execution.js -console-mode script`
@@ -71,8 +73,9 @@
 
 Recorder 的真实 macOS 采集不属于上述无副作用 selected 测试。以下命令都必须从仓库根目录使用匹配当前源码的构建物运行。
 
-验证真实 FloatingWindow stop 回调、`captureKeyboard: false` 的 native 过滤、连续启动／停止和
-lease 复用。测试只发送一个通常未绑定的 F18，并点击自己的停止控件；同时保存工具条截图：
+验证真实 FloatingWindow stop 回调、`captureKeyboard: false` 的 native 过滤、
+`captureKeyboard: true` 时 ArrowLeft 的完整物理 press/release 与 special-key action，以及连续启动／停止和
+lease 复用。两个场景各发送一次 ArrowLeft 并点击自己的停止控件；同时保存工具条截图：
 
 ```bash
 ./dist/opendesk -ui -allow-recorder-capture -script tests/runtime-api/recorder-native-stop-macos.js -console-mode script

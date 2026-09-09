@@ -359,7 +359,9 @@
         return { provider: 'fixture', lines: index === 0 ? [{ text: '1', confidence: 1, bbox: { x: 100, y: 100, width: 100, height: 40 } }] : [] };
       },
     }, async function () {
-      const error = await expectCode(() => UI.tapTexts(['1', 'missing'], { within: windowInfo() }), 'TARGET_NOT_FOUND', 'UI.tapTexts');
+      const error = await expectCode(() => UI.tapTexts(['1', 'missing'], {
+        within: windowInfo(), waitForEach: false, intervalMs: 0,
+      }), 'TARGET_NOT_FOUND', 'UI.tapTexts');
       assert(error.failedIndex === 1 && error.failedText === 'missing' && Array.isArray(error.completed) && error.completed.length === 1 && error.cause, JSON.stringify(error));
     });
   });
@@ -925,7 +927,9 @@
         return { provider: 'fixture', lines: [screenLine('编辑', region(500, 400, 50, 30), index, records)] };
       },
     }, async function (records) {
-      const error = await expectCode(() => UI.tapTexts(['编辑'], positioned), 'TARGET_NOT_FOUND', 'UI.tapTexts');
+      const error = await expectCode(() => UI.tapTexts(['编辑'], {
+        ...positioned, waitForEach: false, intervalMs: 0,
+      }), 'TARGET_NOT_FOUND', 'UI.tapTexts');
       assert(error.failedIndex === 0 && error.failedText === '编辑' && error.completed.length === 0, JSON.stringify(error));
       equal(error.stage, 'anchor', JSON.stringify(error));
       equal(error.cause && error.cause.stage, 'anchor', JSON.stringify(error));
@@ -959,7 +963,8 @@
         equal(anchorError && anchorError.stage, 'anchor', JSON.stringify(error));
         equal(anchorError && anchorError.candidateCount, 2, JSON.stringify(error));
         assertObservationCounts(records, 1, 1, 0, item.operation + ' ambiguous anchor');
-        equal(records.windowReads.length, 2, item.operation + ' ambiguous anchor freshness reads');
+        equal(records.windowReads.length, item.operation === 'UI.tapTexts' ? 3 : 2,
+          item.operation + ' ambiguous anchor freshness reads');
       });
     }
   });
@@ -1316,7 +1321,8 @@
       assert(records.clicks[1].x === 575 && records.clicks[1].y === 515, JSON.stringify(records.clicks));
       assert(records.screenshots[0].clip.x === 110 && records.screenshots[0].clip.y === 210, JSON.stringify(records.screenshots));
       assert(records.screenshots[1].clip.x === 260 && records.screenshots[1].clip.y === 310, JSON.stringify(records.screenshots));
-      equal(records.windowReads.length, 4, 'each tapTexts step must perform pre/post window checks');
+      equal(records.windowReads.length, 6,
+        'default tapTexts must bind/check the sequence window and perform per-observation freshness checks');
       equal(records.waits.filter(function (value) { return value === 1; }).length, 1, JSON.stringify(records.waits));
       assertObservationCounts(records, 2, 2, 2, 'tapTexts fresh steps');
     });
@@ -1338,6 +1344,8 @@
           return Geometry.inset(currentWin, 10);
         },
         relativeTo: { text: '联系人 A', direction: 'right', maxGap: 20 },
+        waitForEach: false,
+        intervalMs: 0,
       }), 'TARGET_NOT_FOUND', 'UI.tapTexts');
       assert(error.failedIndex === 1 && error.failedText === '保存', JSON.stringify(error));
       assert(Array.isArray(error.completed) && error.completed.length === 1 && error.cause, JSON.stringify(error));
@@ -1376,8 +1384,10 @@
       }), 'STALE_TARGET', 'UI.tapTexts');
       assert(error.failedIndex === 0 && error.completed.length === 0 && error.cause, JSON.stringify(error));
       assertObservationCounts(records, 1, 1, 1, 'tapTexts input failure');
-      equal(records.windowReads.length, 2, 'tapTexts input failure must not retry or begin step two');
-      equal(records.events.map(function (event) { return event.type; }).join(','), 'window,screenshot,ocr,window,click', 'tapTexts must stop immediately after the click primitive throws');
+      equal(records.windowReads.length, 3, 'tapTexts input failure must not retry or begin step two');
+      equal(records.events.map(function (event) { return event.type; }).join(','),
+        'window,window,screenshot,ocr,window,click',
+        'default tapTexts must stop immediately after the click primitive throws');
     });
   });
 

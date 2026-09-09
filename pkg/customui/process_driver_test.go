@@ -9,18 +9,31 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
 
 func TestUIHostCandidatesUseBundledClawdeskHostNameWithOpenDeskMigrationFallback(t *testing.T) {
 	executable := filepath.Join(string(filepath.Separator), "Applications", "OpenDesk.app", "Contents", "MacOS", "opendesk")
+	if runtime.GOOS == "windows" {
+		executable = filepath.Join(`C:\`, "Program Files", "OpenDesk", "opendesk.exe")
+	}
 	candidates := uiHostCandidates(executable)
-	want := []string{
-		filepath.Join(filepath.Dir(executable), "clawdesk-ui-host"),
-		filepath.Join(filepath.Dir(executable), "..", "Helpers", "clawdesk-ui-host"),
-		filepath.Join(filepath.Dir(executable), "opendesk-ui-host"),
-		filepath.Join(filepath.Dir(executable), "..", "Helpers", "opendesk-ui-host"),
+	want := []string{}
+	if runtime.GOOS == "windows" {
+		want = []string{
+			filepath.Join(filepath.Dir(executable), "clawdesk-ui-host.exe"),
+			filepath.Join(filepath.Dir(executable), "opendesk-ui-host.exe"),
+			filepath.Join(filepath.Dir(executable), "ui-host", "opendesk-ui-host.exe"),
+		}
+	} else {
+		want = []string{
+			filepath.Join(filepath.Dir(executable), "clawdesk-ui-host"),
+			filepath.Join(filepath.Dir(executable), "..", "Helpers", "clawdesk-ui-host"),
+			filepath.Join(filepath.Dir(executable), "opendesk-ui-host"),
+			filepath.Join(filepath.Dir(executable), "..", "Helpers", "opendesk-ui-host"),
+		}
 	}
 	if len(candidates) != len(want) {
 		t.Fatalf("candidates = %#v, want %#v", candidates, want)
@@ -119,7 +132,11 @@ func TestResolveUIHostPathRejectsMissingAndNonExecutableOverride(t *testing.T) {
 	if err := os.WriteFile(nonExecutable, []byte("host"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	for _, path := range []string{missing, nonExecutable} {
+	paths := []string{missing}
+	if runtime.GOOS != "windows" {
+		paths = append(paths, nonExecutable)
+	}
+	for _, path := range paths {
 		_, err := resolveUIHostPath(path)
 		var uiErr *Error
 		if !errors.As(err, &uiErr) || uiErr.Code != CodeHostNotFound {
@@ -146,7 +163,7 @@ func TestProcessDriverMissingHostCleanupIsIdempotent(t *testing.T) {
 }
 
 func TestProcessDriverUnsupportedPlatformsAreExplicit(t *testing.T) {
-	for _, platform := range []string{"linux", "windows"} {
+	for _, platform := range []string{"linux", "freebsd"} {
 		t.Run(platform, func(t *testing.T) {
 			driver := NewProcessDriver(ProcessDriverOptions{Platform: platform})
 			capabilities := driver.Capabilities(context.Background())
@@ -162,6 +179,19 @@ func TestProcessDriverUnsupportedPlatformsAreExplicit(t *testing.T) {
 				t.Fatalf("unsupported platform created resources: %#v", counts)
 			}
 		})
+	}
+}
+
+func TestProcessDriverWindowsCapabilitiesAreAvailableWithHostCommand(t *testing.T) {
+	driver := NewProcessDriver(ProcessDriverOptions{
+		Platform: "windows",
+		Command: func(string) *exec.Cmd {
+			return exec.Command(os.Args[0], "-test.run=TestProcessDriverHelper")
+		},
+	})
+	capabilities := driver.Capabilities(context.Background())
+	if !capabilities.Available || capabilities.Platform != "windows" || capabilities.Driver != "native-process" || capabilities.Reason != "" {
+		t.Fatalf("capabilities = %#v", capabilities)
 	}
 }
 

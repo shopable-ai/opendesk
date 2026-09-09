@@ -9,7 +9,7 @@
       <div id="dragbar" class="brand" data-clawdesk-drag>
         <span class="brand-mark">REC</span>
         <strong>OpenDesk 脚本录制</strong>
-        <span class="brand-copy">同一 Recorder Runtime · 检查后手动试运行</span>
+        <span class="brand-copy">同一 Recorder Runtime · 检查后手动重放</span>
       </div>
       <div class="header-actions">
         <button id="collapse" class="ghost-button">收起</button>
@@ -31,7 +31,7 @@
           <input id="keyboardCapture" type="checkbox">
           <span><strong>记录键盘输入</strong><em>默认关闭；只能用于明确的非敏感测试文本</em></span>
         </label>
-        <p class="safety-note">Custom UI 按钮是用户的即时开始授权。录制可跨窗口和应用；暂停只停止保存输入，不卸载 native listener，整个桌面流程都必须保持非敏感。生成不会自动回放；“试运行”是另一项明确的真实输入动作。</p>
+        <p class="safety-note">Custom UI 按钮是用户的即时开始授权。录制可跨窗口和应用；暂停只停止保存输入，不卸载 native listener，整个桌面流程都必须保持非敏感。生成不会自动重放；“重放”是另一项明确的真实输入动作。</p>
       </section>
 
       <section class="pipeline-card">
@@ -42,7 +42,7 @@
           <span id="stageSave" class="stage-chip is-pending">○ 保存</span>
           <span id="stageActions" class="stage-chip is-pending">○ Actions</span>
           <span id="stageGenerate" class="stage-chip is-pending">○ 生成</span>
-          <span id="stageRun" class="stage-chip is-pending">○ 试运行</span>
+          <span id="stageRun" class="stage-chip is-pending">○ 重放</span>
         </div>
         <p id="recordingDetail" class="detail-text" aria-live="polite">点击“开始录制”后，请在 3 秒内聚焦起始窗口；用于聚焦的点击不会被记录，之后可切换窗口和应用。</p>
         <p id="recordingError" class="error-banner" hidden aria-live="assertive"></p>
@@ -57,22 +57,22 @@
         <div class="artifact-notes">
           <p class="artifact-note">停止先固定截止并保存 raw / manifest，再制作 Actions。</p>
           <p class="artifact-note">部分保存、blocked actions 和结构化错误会保留在这里。</p>
-          <p class="artifact-note">candidate 的 verification 固定为 not-run；试运行结果单独显示。</p>
+          <p class="artifact-note">candidate 的 verification 固定为 not-run；重放结果单独显示。</p>
         </div>
       </section>
 
       <section class="script-card">
         <div class="section-heading">
-          <div><span class="eyebrow">GENERATED SCRIPT</span><strong class="section-title">脚本内容与试运行结果</strong></div>
+          <div><span class="eyebrow">GENERATED SCRIPT</span><strong class="section-title">脚本内容与重放结果</strong></div>
           <div class="script-actions">
-            <span id="runSummary" class="run-summary">尚未试运行。生成不会自动触发回放。</span>
+            <span id="runSummary" class="run-summary">尚未重放。生成不会自动触发重放。</span>
             <button id="copyScript" class="ghost-button" disabled>复制脚本</button>
           </div>
         </div>
         <p id="scriptPath" class="script-path">尚未生成脚本。</p>
         <div class="script-grid">
           <p id="scriptPreview" class="script-preview" aria-label="生成的 JavaScript，可滚动选择并复制" tabindex="0">生成后可在这里滚动查看并选择文本。</p>
-          <p id="runOutput" class="run-output" aria-label="试运行标准输出和错误输出" tabindex="0">stdout / stderr 将显示在这里。</p>
+          <p id="runOutput" class="run-output" aria-label="重放标准输出和错误输出" tabindex="0">stdout / stderr 将显示在这里。</p>
         </div>
       </section>
 
@@ -82,7 +82,7 @@
         <button id="pause" class="pause-button" disabled>暂停录制</button>
         <button id="stop" class="stop-button" disabled>停止并制作 Actions</button>
         <button id="generate" class="generate-button" disabled>生成脚本</button>
-        <button id="runScript" class="run-button" disabled>试运行</button>
+        <button id="runScript" class="run-button" disabled>重放</button>
         <button id="start" class="record-button">开始录制</button>
       </section>
     </main>

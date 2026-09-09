@@ -30,12 +30,13 @@ const (
 )
 
 type uiohookBackend struct {
-	ready     chan struct{}
-	done      chan struct{}
-	readyOnce sync.Once
-	doneOnce  sync.Once
-	stopOnce  sync.Once
-	wg        sync.WaitGroup
+	ready       chan struct{}
+	done        chan struct{}
+	readyOnce   sync.Once
+	doneOnce    sync.Once
+	stopMu      sync.Mutex
+	recoverOnce sync.Once
+	wg          sync.WaitGroup
 
 	sink       func(RecorderInputEvent)
 	failure    func(error)
@@ -48,6 +49,10 @@ type uiohookBackend struct {
 	// native event-tap mask so disabled keyboard content cannot enter
 	// libuiohook's main-queue Unicode translation path.
 	captureKeyboard bool
+
+	// Tests can replace only the native stop call. Production always uses the
+	// statically linked bridge below.
+	nativeStop func() int
 }
 
 var activeUIOHookBackend atomic.Pointer[uiohookBackend]
@@ -97,6 +102,11 @@ func (b *uiohookBackend) configureCaptureKeyboard(enabled bool) {
 	b.captureKeyboard = enabled
 }
 
+func (b *uiohookBackend) keyPressedAtStop(rawcode uint16) (bool, bool) {
+	state := int(C.opendesk_recorder_uiohook_key_state(C.uint16_t(rawcode)))
+	return state == 1, state == 0 || state == 1
+}
+
 func (b *uiohookBackend) Start(ctx context.Context, sink func(RecorderInputEvent), failure func(error)) error {
 	if b == nil || sink == nil {
 		return recorderError(RecorderInvalidArgument, "Recorder.start", "native backend requires an event sink", nil)
@@ -109,7 +119,19 @@ func (b *uiohookBackend) Start(ctx context.Context, sink func(RecorderInputEvent
 		return recorderError(RecorderCaptureDenied, "Recorder.start", "operating-system input monitoring permission is denied", nil)
 	}
 	if !acquireUIOHookLease(b) {
-		return recorderError(RecorderCaptureOccupied, "Recorder.start", "another execution owns the process-wide input capture lease", nil)
+		active := activeUIOHookBackend.Load()
+		if active != nil && active != b && active.stopping.Load() {
+			recoveryCtx, recoveryCancel := context.WithTimeout(ctx, time.Second)
+			_ = active.Stop(recoveryCtx)
+			recoveryCancel()
+		}
+		if !acquireUIOHookLease(b) {
+			message := "another execution owns the process-wide input capture lease"
+			if active := activeUIOHookBackend.Load(); active != nil && active.stopping.Load() {
+				message = "a previous native input backend is quarantined until its hook thread confirms exit"
+			}
+			return recorderError(RecorderCaptureOccupied, "Recorder.start", message, nil)
+		}
 	}
 	b.sink = sink
 	b.failure = failure
@@ -160,12 +182,7 @@ func (b *uiohookBackend) Stop(ctx context.Context) error {
 		return recorderUIOHookResultError("run", int(b.runResult.Load()))
 	default:
 	}
-	b.stopOnce.Do(func() {
-		result := recorderRetryUIOHookStop(ctx, b.done, func() int {
-			return int(C.opendesk_recorder_uiohook_stop())
-		}, recorderUIOHookStopRetryInterval)
-		b.stopResult.Store(int32(result))
-	})
+	result := b.requestStop(ctx)
 	select {
 	case <-b.done:
 		stopResult := int(b.stopResult.Load())
@@ -178,8 +195,65 @@ func (b *uiohookBackend) Stop(ctx context.Context) error {
 		}
 		return nil
 	case <-ctx.Done():
+		if result == recorderUIOHookFailure || result == 0 {
+			b.startQuarantineRecovery()
+		}
 		return recorderError(RecorderCaptureUnavailable, "RecorderSession.stop", "native input backend did not exit before the stop deadline", ctx.Err())
 	}
+}
+
+func (b *uiohookBackend) requestStop(ctx context.Context) int {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	b.stopMu.Lock()
+	defer b.stopMu.Unlock()
+	select {
+	case <-b.done:
+		b.stopResult.Store(0)
+		return 0
+	default:
+	}
+	stop := b.nativeStop
+	if stop == nil {
+		stop = func() int { return int(C.opendesk_recorder_uiohook_stop()) }
+	}
+	result := recorderRetryUIOHookStop(ctx, b.done, stop, recorderUIOHookStopRetryInterval)
+	b.stopResult.Store(int32(result))
+	return result
+}
+
+// A failed deadline never releases the global lease: the hook may still be
+// receiving desktop input. Keep that backend quarantined and continue bounded
+// stop attempts in the background. A later Recorder.start may also retry this
+// same backend, but cannot acquire the lease until hook_run itself exits.
+func (b *uiohookBackend) startQuarantineRecovery() {
+	if b == nil {
+		return
+	}
+	b.recoverOnce.Do(func() {
+		go func() {
+			deadline := time.NewTimer(time.Minute)
+			defer deadline.Stop()
+			ticker := time.NewTicker(250 * time.Millisecond)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-b.done:
+					return
+				case <-deadline.C:
+					return
+				case <-ticker.C:
+					attemptCtx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+					result := b.requestStop(attemptCtx)
+					cancel()
+					if result != 0 && result != recorderUIOHookFailure {
+						return
+					}
+				}
+			}
+		}()
+	})
 }
 
 // libuiohook's macOS hook_stop returns the generic UIOHOOK_FAILURE while its
@@ -283,7 +357,7 @@ func recorderCaptureLeaseCount() int {
 }
 
 //export opendeskRecorderDispatch
-func opendeskRecorderDispatch(eventType C.uint16_t, nativeTime C.uint64_t, mask C.uint16_t, keycode C.uint16_t, rawcode C.uint16_t, keychar C.uint16_t, button C.uint16_t, clicks C.uint16_t, x C.int16_t, y C.int16_t, amount C.uint16_t, rotation C.int16_t, direction C.uint8_t) {
+func opendeskRecorderDispatch(eventType C.uint16_t, nativeTime C.uint64_t, mask C.uint16_t, keycode C.uint16_t, rawcode C.uint16_t, keychar C.uint16_t, button C.uint16_t, clicks C.uint16_t, x C.int16_t, y C.int16_t, amount C.uint16_t, rotation C.int16_t, direction C.uint8_t, physicalPointAvailable C.uint8_t, physicalX C.int32_t, physicalY C.int32_t) {
 	backend := activeUIOHookBackend.Load()
 	if backend == nil {
 		return
@@ -293,5 +367,7 @@ func opendeskRecorderDispatch(eventType C.uint16_t, nativeTime C.uint64_t, mask 
 		Keycode: uint16(keycode), Rawcode: uint16(rawcode), Keychar: uint16(keychar),
 		Button: uint16(button), Clicks: uint16(clicks), X: int16(x), Y: int16(y),
 		Amount: uint16(amount), Rotation: int16(rotation), Direction: uint8(direction),
+		PhysicalPointAvailable: physicalPointAvailable != 0,
+		PhysicalX: int32(physicalX), PhysicalY: int32(physicalY),
 	})
 }

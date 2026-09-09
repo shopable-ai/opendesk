@@ -231,6 +231,8 @@
     ]) {
       assert(trayIDs.includes(id), 'recording tray control is missing: ' + id);
     }
+    equal((await tray.control('trayRunStage').getState()).text, '○ 重放', 'tray replay stage terminology');
+    equal((await tray.control('trayRun').getState()).text, '重放', 'tray replay button terminology');
     const trayShown = await tray.show();
     assert(trayShown.onScreen && trayShown.alpha > 0 && trayShown.hostPid > 0 && trayShown.nativeWindowId > 0);
     equal(trayShown.bounds.width, 780);
@@ -265,6 +267,9 @@
     ]) {
       assert(ids.includes(id), 'recording console control is missing: ' + id);
     }
+    equal((await panel.control('stageRun').getState()).text, '○ 重放', 'details replay stage terminology');
+    equal((await panel.control('runScript').getState()).text, '重放', 'details replay button terminology');
+    equal((await panel.control('runSummary').getState()).text, '尚未重放。生成不会自动触发重放。', 'details replay summary terminology');
     await panel.control('recordingDetail').update({ text: 'Recorder Runtime workflow fixture ready.' });
     const shown = await panel.show();
     assert(shown.onScreen && shown.alpha > 0 && shown.hostPid > 0 && shown.nativeWindowId > 0);

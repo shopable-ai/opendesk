@@ -149,7 +149,7 @@ mouse.move(x: number, y: number, options?: OpenDeskMouseMoveOptions): Promise<vo
 
 **行为与错误**
 
-`steps <= 1` 直接移动；大于 1 时分步。按钮保持按下时，macOS 会发送对应拖拽事件。非法坐标拒绝。
+`steps <= 1` 直接移动；大于 1 时分步。按钮保持按下时，macOS 会发送对应拖拽事件，并在返回前保留一个有界 native 事件稳定间隔，避免紧随其后的 down、up 或键盘输入越过异步 Quartz 事件。非法坐标拒绝。
 
 **示例**
 ```js
@@ -177,7 +177,7 @@ mouse.down(options?: OpenDeskMouseButtonOptions): Promise<void>;
 
 **行为与错误**
 
-仅发送 down 事件，不自动释放。调用方应使用 `try/finally` 与 `mouse.up()` 成对使用。
+仅发送 down 事件，不自动释放。macOS 返回前的有界稳定间隔只保证同一 Runtime 的后续输入不会立即越过已提交的按钮转换，不证明目标业务状态已经变化。调用方应使用 `try/finally` 与 `mouse.up()` 成对使用。
 
 **示例**
 ```js
@@ -205,7 +205,7 @@ mouse.up(options?: OpenDeskMouseButtonOptions): Promise<void>;
 
 **行为与错误**
 
-仅发送 up 事件。应与同一脚本中的对应 `down()` 使用相同按钮。
+仅发送 up 事件。macOS 返回前同样保留有界 native 事件稳定间隔；它不是业务结果检查。应与同一脚本中的对应 `down()` 使用相同按钮。
 
 **示例**
 ```js

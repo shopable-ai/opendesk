@@ -102,6 +102,13 @@ type RecorderInputEvent struct {
 	Amount     uint16
 	Rotation   int16
 	Direction  uint8
+	// PhysicalPoint is populated by the Windows bridge with
+	// GetPhysicalCursorPos in the native input callback. UI Automation point
+	// hit-testing consumes physical desktop coordinates; the logical libuiohook
+	// coordinates remain the authoritative raw input fact.
+	PhysicalPointAvailable bool
+	PhysicalX              int32
+	PhysicalY              int32
 }
 
 // RecorderInputBackend is the private-test seam around the one production
@@ -118,6 +125,13 @@ type RecorderInputBackend interface {
 // optional seam still receive the session's existing callback-level filter.
 type recorderKeyboardCaptureConfigurator interface {
 	configureCaptureKeyboard(bool)
+}
+
+// recorderKeyboardStateProbe is an optional native seam used only at the
+// frozen stop boundary. It distinguishes a physically held key from a release
+// the event tap did not deliver; neither result fabricates a KEY_RELEASED row.
+type recorderKeyboardStateProbe interface {
+	keyPressedAtStop(rawcode uint16) (pressed bool, available bool)
 }
 
 type RecorderBackendFactory func() RecorderInputBackend
@@ -186,6 +200,18 @@ type recorderElementDescriptor struct {
 	ValueSettable bool                 `json:"valueSettable"`
 	NativeActions []string             `json:"nativeActions"`
 	Bounds        recorderWindowBounds `json:"bounds"`
+	BoundsSpace   string               `json:"boundsSpace,omitempty"`
+}
+
+type recorderElementCoordinateMapping struct {
+	InputX     int    `json:"inputX"`
+	InputY     int    `json:"inputY"`
+	InputSpace string `json:"inputSpace"`
+	NativeX    int    `json:"nativeX"`
+	NativeY    int    `json:"nativeY"`
+	NativeSpace string `json:"nativeSpace"`
+	Method     string `json:"method"`
+	Verified   bool   `json:"verified"`
 }
 
 // recorderElementSnapshot is deliberately label-only evidence. Recorder never
@@ -203,10 +229,21 @@ type recorderElementSnapshot struct {
 	ValueSettable bool                        `json:"valueSettable"`
 	NativeActions []string                    `json:"nativeActions"`
 	Bounds        recorderWindowBounds        `json:"bounds"`
+	BoundsSpace   string                      `json:"boundsSpace,omitempty"`
 	Hit           recorderElementDescriptor   `json:"hit"`
 	Ancestors     []recorderElementDescriptor `json:"ancestors"`
+	Containers    []recorderElementDescriptor `json:"containers,omitempty"`
 	Point         recorderElementPoint        `json:"point"`
+	CoordinateMapping *recorderElementCoordinateMapping `json:"coordinateMapping,omitempty"`
 	ObservedAt    string                      `json:"observedAt"`
+}
+
+type recorderObservation struct {
+	StartedAt    string `json:"startedAt"`
+	EndedAt      string `json:"endedAt"`
+	Source       string `json:"source"`
+	Completeness string `json:"completeness"`
+	Association  string `json:"association"`
 }
 
 // recorderInputContext is resolved off the native callback thread after a
@@ -224,6 +261,23 @@ type recorderInputContext struct {
 	Element           *recorderElementSnapshot `json:"element,omitempty"`
 	SemanticStatus    string                   `json:"semanticStatus"`
 	SemanticReason    string                   `json:"semanticReason,omitempty"`
+	Observation       *recorderObservation     `json:"observation,omitempty"`
+}
+
+type recorderNativeInputPoint struct {
+	X      int    `json:"x"`
+	Y      int    `json:"y"`
+	Space  string `json:"space"`
+	Source string `json:"source"`
+}
+
+type recorderKeyStateAtStop struct {
+	PressEventID string `json:"pressEventId"`
+	Keycode      uint16 `json:"keycode"`
+	Rawcode      uint16 `json:"rawcode"`
+	State        string `json:"state"`
+	Source       string `json:"source"`
+	ObservedAt   string `json:"observedAt"`
 }
 
 type recorderContextRequest struct {
@@ -233,6 +287,14 @@ type recorderContextRequest struct {
 	ReceivedAt time.Time
 	X          *int
 	Y          *int
+	NativePoint *recorderNativeInputPoint
+}
+
+type recorderTargetPoint struct {
+	X           int
+	Y           int
+	InputSpace  string
+	NativePoint *recorderNativeInputPoint
 }
 
 type recorderStartOptions struct {
@@ -282,6 +344,7 @@ type recorderRawEvent struct {
 	CoordinateSpace    string            `json:"coordinateSpace,omitempty"`
 	CoordinateVerified bool              `json:"coordinateVerified,omitempty"`
 	DisplayRef         string            `json:"displayRef,omitempty"`
+	NativePoint        *recorderNativeInputPoint `json:"nativePoint,omitempty"`
 	Keycode            *uint16           `json:"keycode,omitempty"`
 	Rawcode            *uint16           `json:"rawcode,omitempty"`
 	Keychar            *uint16           `json:"keychar,omitempty"`
@@ -342,10 +405,11 @@ type recorderManifest struct {
 		RawSHA256    string `json:"rawSha256,omitempty"`
 		RawBytes     int64  `json:"rawBytes,omitempty"`
 	} `json:"storage"`
-	Displays      []DisplayInfo          `json:"displays"`
-	InputContexts []recorderInputContext `json:"inputContexts,omitempty"`
-	TextEdits     []recorderTextEdit     `json:"textEdits,omitempty"`
-	Issues        []recorderIssue        `json:"issues"`
+	Displays        []DisplayInfo            `json:"displays"`
+	InputContexts   []recorderInputContext   `json:"inputContexts,omitempty"`
+	TextEdits       []recorderTextEdit       `json:"textEdits,omitempty"`
+	KeyStatesAtStop []recorderKeyStateAtStop `json:"keyStatesAtStop,omitempty"`
+	Issues          []recorderIssue          `json:"issues"`
 }
 
 type recorderStopResult struct {
@@ -436,7 +500,7 @@ type RecorderRuntime struct {
 	enableCapture   bool
 	backendFactory  RecorderBackendFactory
 	windowProbe     RecorderWindowProbe
-	targetProbe     func(context.Context, *WindowInfo, int, int) (*recorderElementSnapshot, error)
+	targetProbe     func(context.Context, *WindowInfo, recorderTargetPoint) (*recorderElementSnapshot, error)
 	textProbe       recorderTextProbe
 	displayResolver func() []DisplayInfo
 	onAsyncError    func(error)
@@ -492,11 +556,12 @@ type recorderSession struct {
 	lastTextContextNative atomic.Uint64
 	overflowSeq           atomic.Uint64
 	textSignalsDropped    atomic.Uint64
-	lastWheelContextMS    uint64             // guarded by transitionMu
-	lastWheelDirection    uint8              // guarded by transitionMu
-	lastWheelSign         int8               // guarded by transitionMu
-	heldMouseButtons      map[string]bool    // guarded by transitionMu
-	recentInput           []recorderRawEvent // guarded by transitionMu; bounded native-input tail
+	lastWheelContextMS    uint64                      // guarded by transitionMu
+	lastWheelDirection    uint8                       // guarded by transitionMu
+	lastWheelSign         int8                        // guarded by transitionMu
+	heldMouseButtons      map[string]bool             // guarded by transitionMu
+	heldKeyboardKeys      map[uint16]recorderRawEvent // guarded by transitionMu; keyed by libuiohook keycode
+	recentInput           []recorderRawEvent          // guarded by transitionMu; bounded native-input tail
 	contextMu             sync.Mutex
 	inputContexts         []recorderInputContext
 	textMu                sync.Mutex
@@ -584,7 +649,7 @@ func (r *RecorderRuntime) capabilities() map[string]any {
 			"coordinateSpace": capability.CoordinateSpace,
 			"keyboardDefault": false, "evidenceModes": []string{"none", "target-semantics"}, "limitations": limitations,
 		},
-		"actions":         map[string]any{"available": true, "version": recorderActionsFormatVersion, "actionSubset": []string{"click.left.single", "drag.left.straight", "drag.left.text-selection-natural", "wheel.xy.burst", "text.focused-value-patch", "text.basic-latin-fallback", "keyboard.shortcut", "keyboard.special-key"}},
+		"actions":         map[string]any{"available": true, "version": recorderActionsFormatVersion, "actionSubset": []string{"click.left.single", "drag.left.straight", "wheel.xy.burst", "text.focused-value-patch", "text.basic-latin-fallback", "keyboard.shortcut", "keyboard.special-key"}},
 		"basicGeneration": map[string]any{"available": true, "mode": "basic", "version": recorderCandidateFormatVersion},
 	}
 }
@@ -870,7 +935,7 @@ func (r *RecorderRuntime) startSession(options recorderStartOptions) (*recorderS
 		contextDone:     make(chan struct{}),
 		textSignals:     make(chan recorderTextSignal, recorderQueueCapacity),
 		textDone:        make(chan struct{}), done: make(chan struct{}),
-		heldMouseButtons: map[string]bool{}, inputContexts: make([]recorderInputContext, 0),
+		heldMouseButtons: map[string]bool{}, heldKeyboardKeys: map[uint16]recorderRawEvent{}, inputContexts: make([]recorderInputContext, 0),
 	}
 	session.issues = append(session.issues, initialIssues...)
 	session.startedAt, _ = time.Parse(time.RFC3339Nano, manifest.StartedAt)
@@ -1405,6 +1470,14 @@ func (s *recorderSession) receiveNativeEvent(input RecorderInputEvent) {
 		s.transitionMu.Unlock()
 		return
 	}
+	if input.Type == recorderEventKeyTyped && recorderHasControlModifier(input.Mask) {
+		// Command/Control/Option chords are represented by their paired physical
+		// boundaries. A layout-dependent Unicode payload must not become a second
+		// text action or leak into the final-value channel.
+		s.counts.Filtered.Add(1)
+		s.transitionMu.Unlock()
+		return
+	}
 	if recorderIsKeyboardEvent(input.Type) && s.options.ControlKeycodes[input.Keycode] {
 		s.counts.Filtered.Add(1)
 		s.transitionMu.Unlock()
@@ -1428,6 +1501,11 @@ func (s *recorderSession) receiveNativeEvent(input RecorderInputEvent) {
 	select {
 	case s.events <- event:
 		s.counts.Accepted.Add(1)
+		if input.Type == recorderEventKeyPressed {
+			s.heldKeyboardKeys[input.Keycode] = event
+		} else if input.Type == recorderEventKeyReleased {
+			delete(s.heldKeyboardKeys, input.Keycode)
+		}
 		s.recentInput = append(s.recentInput, event)
 		if len(s.recentInput) > 64 {
 			s.recentInput = append([]recorderRawEvent(nil), s.recentInput[len(s.recentInput)-64:]...)
@@ -1504,6 +1582,12 @@ func (s *recorderSession) normalizeEvent(sequence uint64, input RecorderInputEve
 		if input.Type == recorderEventMouseMoved {
 			event.Sampled = false
 		}
+		if input.PhysicalPointAvailable {
+			event.NativePoint = &recorderNativeInputPoint{
+				X: int(input.PhysicalX), Y: int(input.PhysicalY),
+				Space: "windowsPhysicalScreen", Source: "GetPhysicalCursorPos",
+			}
+		}
 	}
 	if input.Type == recorderEventMouseWheel {
 		amount, rotation, direction := input.Amount, input.Rotation, input.Direction
@@ -1532,12 +1616,20 @@ func (s *recorderSession) queueInputContextLocked(event recorderRawEvent, kind, 
 		x, y := *event.X, *event.Y
 		request.X, request.Y = &x, &y
 	}
+	if event.NativePoint != nil {
+		point := *event.NativePoint
+		request.NativePoint = &point
+	}
 	select {
 	case s.contextRequests <- request:
 	default:
 		s.appendInputContext(recorderInputContext{
 			EventID: event.EventID, Kind: kind, Phase: phase, Status: "unverified",
 			Reason: "window context queue overflowed", SemanticStatus: "not-applicable",
+			Observation: &recorderObservation{
+				StartedAt: time.Now().UTC().Format(time.RFC3339Nano), EndedAt: time.Now().UTC().Format(time.RFC3339Nano),
+				Source: "queue", Completeness: "unavailable", Association: "post-event-correlated",
+			},
 		})
 		s.addIssue("window-context-overflow", "error", "the bounded window-context queue overflowed", event.EventID)
 	}
@@ -1557,6 +1649,10 @@ func (s *recorderSession) runContextResolver() {
 			EventID: request.EventID, Kind: request.Kind, Phase: request.Phase, Status: "unverified",
 			ResolutionDelayMS: observedAt.Sub(request.ReceivedAt).Milliseconds(),
 			SemanticStatus:    "not-applicable",
+			Observation: &recorderObservation{
+				StartedAt: observedAt.Format(time.RFC3339Nano), Source: "window",
+				Completeness: "unavailable", Association: "post-event-correlated",
+			},
 		}
 		active, err := s.owner.windowProbe()
 		if err != nil || active == nil {
@@ -1577,36 +1673,56 @@ func (s *recorderSession) runContextResolver() {
 		} else {
 			resolved.Status = "verified"
 			resolved.Window = snapshot
+			resolved.Observation.Completeness = "complete"
 			if request.Kind == "pointer" && request.Phase != "wheel" && request.X != nil && request.Y != nil {
 				if s.options.Evidence == "none" {
 					resolved.SemanticStatus = "not-requested"
-					s.appendInputContext(resolved)
-					continue
-				}
-				resolved.SemanticStatus = "unavailable"
-				if s.owner.targetProbe == nil {
-					resolved.SemanticReason = "platform target semantics are unavailable"
+					resolved.Observation.Source = "policy"
+					resolved.Observation.Completeness = "not-requested"
 				} else {
-					probeContext, cancel := context.WithTimeout(context.Background(), recorderContextFreshness)
-					element, semanticErr := s.owner.targetProbe(probeContext, active, *request.X, *request.Y)
-					cancel()
-					if semanticErr != nil {
-						resolved.SemanticReason = semanticErr.Error()
-					} else if element == nil {
-						resolved.SemanticReason = "no accessibility element was resolved at the pointer"
+					resolved.SemanticStatus = "unavailable"
+					resolved.Observation.Source = "accessibility"
+					resolved.Observation.Completeness = "unavailable"
+					if s.owner.targetProbe == nil {
+						resolved.SemanticReason = "platform target semantics are unavailable"
 					} else {
-						resolved.SemanticStatus = "verified"
-						resolved.Element = element
+						probeContext, cancel := context.WithTimeout(s.context, recorderContextFreshness)
+						element, semanticErr := s.owner.targetProbe(probeContext, active, recorderTargetPoint{
+							X: *request.X, Y: *request.Y, InputSpace: "screen-logical", NativePoint: request.NativePoint,
+						})
+						cancel()
+						if semanticErr != nil {
+							resolved.SemanticReason = semanticErr.Error()
+						} else if element == nil {
+							resolved.SemanticReason = "no accessibility element was resolved at the pointer"
+						} else {
+							resolved.SemanticStatus = "verified"
+							resolved.Element = element
+							resolved.Observation.Completeness = "complete"
+						}
 					}
 				}
 			}
 		}
+		resolved.Observation.EndedAt = time.Now().UTC().Format(time.RFC3339Nano)
 		s.appendInputContext(resolved)
 	}
 }
 
 func recorderPointInsideWindow(x, y int, bounds recorderWindowBounds) bool {
 	return bounds.Width > 0 && bounds.Height > 0 && x >= bounds.X && x < bounds.X+bounds.Width && y >= bounds.Y && y < bounds.Y+bounds.Height
+}
+
+func recorderElementSupportsSingleClick(descriptor recorderElementDescriptor) bool {
+	if descriptor.Role != "button" {
+		return false
+	}
+	for _, action := range descriptor.NativeActions {
+		if action == "invoke" || action == "AXPress" {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *recorderSession) runWriter() {
@@ -1640,6 +1756,7 @@ func (s *recorderSession) finish(reason error, cutoffTime time.Time) {
 	// stop. Events already accepted remain in the queue and are drained; later
 	// callbacks are counted as late but cannot extend the recording.
 	s.accepting.Store(false)
+	keyStatesAtStop := s.captureKeyStatesAtStop()
 	s.cancel()
 	stopCtx, cancel := context.WithTimeout(context.Background(), recorderBackendStopTimeout)
 	backendErr := s.backend.Stop(stopCtx)
@@ -1696,7 +1813,7 @@ func (s *recorderSession) finish(reason error, cutoffTime time.Time) {
 	}
 	manifestErr := s.writer.finishManifest(recorderManifestFinal{
 		State: manifestState, StoppedAt: cutoffTime, CutoffSequence: s.cutoffSeq.Load(),
-		Counts: s.countSnapshot(), Storage: writerResult, InputContexts: inputContexts, TextEdits: textEdits, Issues: issues,
+		Counts: s.countSnapshot(), Storage: writerResult, InputContexts: inputContexts, TextEdits: textEdits, KeyStatesAtStop: keyStatesAtStop, Issues: issues,
 	})
 	if manifestErr != nil {
 		writerResult.State = "failed"
@@ -1729,6 +1846,52 @@ func (s *recorderSession) finish(reason error, cutoffTime time.Time) {
 	s.result, s.stopErr = result, finalErr
 	s.resultMu.Unlock()
 	close(s.done)
+}
+
+func (s *recorderSession) captureKeyStatesAtStop() []recorderKeyStateAtStop {
+	if s == nil {
+		return nil
+	}
+	s.transitionMu.Lock()
+	held := make([]recorderRawEvent, 0, len(s.heldKeyboardKeys))
+	for _, event := range s.heldKeyboardKeys {
+		held = append(held, event)
+	}
+	s.transitionMu.Unlock()
+	sort.SliceStable(held, func(i, j int) bool {
+		return recorderNativeStringValue(held[i].Sequence) < recorderNativeStringValue(held[j].Sequence)
+	})
+	probe, probeAvailable := s.backend.(recorderKeyboardStateProbe)
+	result := make([]recorderKeyStateAtStop, 0, len(held))
+	for _, event := range held {
+		if event.Keycode == nil {
+			continue
+		}
+		entry := recorderKeyStateAtStop{
+			PressEventID: event.EventID,
+			Keycode:      *event.Keycode,
+			State:        "unavailable",
+			Source:       "unavailable",
+			ObservedAt:   time.Now().UTC().Format(time.RFC3339Nano),
+		}
+		if event.Rawcode != nil {
+			entry.Rawcode = *event.Rawcode
+			if probeAvailable {
+				if pressed, available := probe.keyPressedAtStop(*event.Rawcode); available {
+					entry.Source = "combined-session-key-state"
+					if pressed {
+						entry.State = "pressed"
+						s.addIssue("key-still-pressed-at-stop", "error", "the physical key was still pressed at the stop boundary; no release was synthesized", event.EventID)
+					} else {
+						entry.State = "released"
+						s.addIssue("key-release-not-observed-at-stop", "error", "the physical key was released but the event tap did not deliver a matching release before the stop boundary; no release was synthesized", event.EventID)
+					}
+				}
+			}
+		}
+		result = append(result, entry)
+	}
+	return result
 }
 
 func (s *recorderSession) monitorDeadline() {

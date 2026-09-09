@@ -12,10 +12,10 @@ order: 13
 
 Custom UI 由当前 JavaScript Runtime 控制受控桌面窗口。`FloatingWindow` 直接声明
 带短状态文字、紧凑设置控件和进度的简单工具栏；`ui.createWindow()` 用受限 HTML/CSS 声明视图。这里的 “Custom” 指脚本
-作者可以声明自己的工具栏或受限视图；“native” 是底层 AppKit / host 的实现方式。HTML 不能直接取得
+作者可以声明自己的工具栏或受限视图；“native” 是底层平台 UI / host 的实现方式。HTML 不能直接取得
 `mouse`、`File`、`http` 等全局能力；业务接口仍由 JavaScript listener 调用。
 
-在 macOS 上，Custom UI 使用 AppKit；只有 `ui.createWindow()` 使用 WKWebView。Windows 与 Linux 会报告 `available: false`；创建窗口明确抛出 `UNSUPPORTED_PLATFORM`，不会静默成功。需要固定的一次性确认/输入窗口时使用 [Dialog API](dialog.md)：Dialog 由 host 根据结构化参数生成，不能提交 HTML/CSS，也不会成为 Custom UI 的第二套 controller。
+macOS host 使用 AppKit，受限 HTML surface 使用 WKWebView；Windows host 使用 WinForms，受限 HTML surface 使用 Microsoft Edge WebView2。Windows 的 `FloatingWindow` 不依赖 WebView2 Runtime，`ui.createWindow()` 与 Dialog 需要系统已安装 WebView2 Runtime，缺失时明确抛出 `UNSUPPORTED_CAPABILITY`。Linux 仍报告 `available: false`，创建窗口抛出 `UNSUPPORTED_PLATFORM`，不会静默成功。需要固定的一次性确认/输入窗口时使用 [Dialog API](dialog.md)：Dialog 由 host 根据结构化参数生成，不能提交 HTML/CSS，也不会成为 Custom UI 的第二套 controller。
 
 ## 选择 UI API
 
@@ -67,6 +67,14 @@ Custom UI 由当前 JavaScript Runtime 控制受控桌面窗口。`FloatingWindo
 ./opendesk -config examples/custom-ui/clawdesk.runtime.json -script examples/custom-ui/panel.js -console-mode script
 ```
 
+Windows 发布目录必须同时包含 `opendesk.exe` 和 `ui-host/opendesk-ui-host.exe` 的完整 self-contained publish closure。从仓库根目录启动相同示例：
+
+```powershell
+.\dist\opendesk.exe -ui -script examples/custom-ui/panel.js -console-mode script
+```
+
+维护者在 Windows 上可先运行 `pwsh -File scripts/build_windows_app.ps1` 构建这对产物；只构建或交叉发布 sidecar 时使用 `pwsh -File scripts/build_windows_ui.ps1`。发布脚本不会把 `bin/`、`obj/` 或临时 profile 写入源码目录。
+
 | 开关或配置 | 是否带值 | 作用 |
 | --- | --- | --- |
 | `-ui` | 否 | 强制授予本次 CLI execution 的 UI 能力；也可使 HTTP server 具备接受 UI 请求的前提。它优先于项目配置。 |
@@ -108,8 +116,8 @@ console.log(Execution.activationSource);
 
 `FloatingWindow` 是 compact native action toolbar：它通过结构化、版本化的
 `ToolbarSpec.Items[]`（`Button` / `Label` / `Switch` / `Checkbox` / `Input` / `Select` / `Slider` /
-`SegmentedControl` / `Progress` / `Separator` / `Spacer`）直接创建 AppKit toolbar，
-不生成 HTML/CSS 或 WKWebView。复杂多行表单、长文本、可见标题分区、任意受限 HTML/CSS、滚动区或
+`SegmentedControl` / `Progress` / `Separator` / `Spacer`）直接创建平台原生 toolbar，
+不生成 HTML/CSS 或 WebView。复杂多行表单、长文本、可见标题分区、任意受限 HTML/CSS、滚动区或
 动态控件树仍使用本页的 `ui.createWindow()`。两者共享 native driver、事件队列、
 `EventLoop.RunOnLoop`、统一 `WindowState`、结构化错误和生命周期清理，不引用或初始化 Fyne。
 只有 execution 已显式授权 UI 时才注入 `FloatingWindow`。
@@ -136,7 +144,7 @@ const toolbar = new FloatingWindow({
 | `orientation` | `"horizontal"` / `"vertical"` | `"horizontal"` | horizontal 最多 32 个内容项；vertical 最多 5 个。Separator / Spacer 不占内容 quota。 |
 | `toolbar` | object | 未设置 | horizontal 工具栏的换行约束；见下表。vertical 保持兼容的一列布局，不接受此对象中的约束。 |
 
-`toolbar` 采用“**宽度或轨道上限 + 自动换行**”模型：Button、Label 和原生 control 的 content item 外框统一为 40pt 高；Button 宽 40pt，Label 与 control 使用各自不可变的声明宽度。item 之间及换行之间均为 8pt 间隔，外层保持 10pt 水平 padding 与 8pt 垂直 padding。native host 按声明顺序和实际 item 宽度从左到右填充，达到有效列数或宽度上限后换到下一行，不缩放 item，也不要求调用方预先计算窗口 frame。`alignment`、`verticalAlignment`、文字 peer 与 `renderedTextBounds` 只属于 Label；Switch、Checkbox、Input、Select、Slider、SegmentedControl 和 Progress 不接受这些选项。dark toolbar 的窗口级 native appearance 同样固定为 Dark Aqua，使标准 AppKit control 的默认、交互和 disabled 前景跟随系统深色语义色。
+`toolbar` 采用“**宽度或轨道上限 + 自动换行**”模型：Button、Label 和原生 control 的 content item 外框统一为 40pt 高；Button 宽 40pt，Label 与 control 使用各自不可变的声明宽度。item 之间及换行之间均为 8pt 间隔，外层保持 10pt 水平 padding 与 8pt 垂直 padding。native host 按声明顺序和实际 item 宽度从左到右填充，达到有效列数或宽度上限后换到下一行，不缩放 item，也不要求调用方预先计算窗口 frame。`alignment`、`verticalAlignment`、文字 peer 与 `renderedTextBounds` 只属于 Label；Switch、Checkbox、Input、Select、Slider、SegmentedControl 和 Progress 不接受这些选项。dark toolbar 在 macOS 使用 Dark Aqua，在 Windows 使用固定深色窗口与系统原生控件状态色。
 
 | `toolbar` 字段 | 类型 | 默认值 | 说明 |
 | --- | --- | --- | --- |
@@ -221,7 +229,7 @@ Anchor 是一次明确的重定位动作，不是持续约束。用户拖动、`
 | 参数 | 类型 | 说明 |
 | --- | --- | --- |
 | `id` | string | 必填；匹配 `[A-Za-z][A-Za-z0-9_-]{0,63}`，同一工具栏内唯一。 |
-| `label` | string | 必填，1–60 个 Unicode 字符；作为 tooltip、macOS Accessibility name 和调试证据，不显示在图标按钮正文。 |
+| `label` | string | 必填，1–60 个 Unicode 字符；作为 tooltip、原生 Accessibility name 和调试证据，不显示在图标按钮正文。 |
 | `icon` | string \| `{path, renderingMode?}` | 必填；可传 160 个经过审核的内置图标键，或脚本目录内的本地 PNG/JPEG。`renderingMode` 为 `original`（默认）或 `template`。 |
 | `callback` | `(event) => unknown \| Promise<unknown>` | 可选；接收 `click` 事件，可同步返回或返回 Promise。 |
 
@@ -259,7 +267,7 @@ addLabel(id: string, text: string, options?: {
 
 **行为与错误**
 
-Label 高度固定为 40pt。`alignment` 是水平轴，默认 `leading`，其中 `center` 已由 native `NSTextField` 的实际水平布局和 readback 保证；`verticalAlignment` 是独立的垂直轴，默认 `center`，由 host 显式定位内部单行文字 peer，不依赖 `NSTextField` 在 40pt 外框中的默认绘制偏移。文字过长时 native view 使用末尾截断，但 `text`、`renderedText`、Accessibility name 和 Accessibility value 都保留完整内容，`getLabelState().truncated` 报告是否发生视觉截断，`renderedTextBounds` 返回 native 实际文字布局的 toolbar-local bounds。固定外框使运行中的文字、水平/垂直对齐和 tone 更新都不会移动窗口或相邻按钮。Label 只能在首次 `show()` 前增加；重复 id 返回 `DUPLICATE_ID`，无效文字、宽度、对齐、tone、未知 option 或内容项溢出返回 `INVALID_SPEC`。Label wrapper 是唯一、不可聚焦的 native `staticText` Accessibility element，内部 `NSTextField` 不进入 Accessibility tree；readback 中 `accessibilityRole` 固定为 `staticText`，`accessibilityName` 和 `accessibilityValue` 都是完整文字。Label 没有 callback、focus、busy、active 或 error 状态。
+Label 高度固定为 40pt。`alignment` 是水平轴，默认 `leading`，其中 `center` 由平台原生单行 Label 的实际布局和 readback 保证；`verticalAlignment` 是独立的垂直轴，默认 `center`，不依赖控件在 40pt 外框中的默认绘制偏移。文字过长时 native view 使用末尾截断，但 `text`、`renderedText`、Accessibility name 和 Accessibility value 都保留完整内容，`getLabelState().truncated` 报告是否发生视觉截断，`renderedTextBounds` 返回 native 实际文字布局的 toolbar-local bounds。固定外框使运行中的文字、水平/垂直对齐和 tone 更新都不会移动窗口或相邻按钮。Label 只能在首次 `show()` 前增加；重复 id 返回 `DUPLICATE_ID`，无效文字、宽度、对齐、tone、未知 option 或内容项溢出返回 `INVALID_SPEC`。Label 只暴露一个不可聚焦的 native `staticText` Accessibility element；macOS 的内部 `NSTextField` peer 不单独进入 Accessibility tree。readback 中 `accessibilityRole` 固定为 `staticText`，`accessibilityName` 和 `accessibilityValue` 都是完整文字。Label 没有 callback、focus、busy、active 或 error 状态。
 
 FloatingWindow 可以混排上述固定几何内容。horizontal 最多 32 个内容项，vertical 最多 5 个；Button 自身仍不能超过原有配额。复杂排版、多行表单、长段落、动态 option tree 或可自由改变尺寸的内容使用 `ui.createWindow()`。
 
@@ -651,7 +659,7 @@ getControlState(id: string): Promise<ControlState>
 
 **行为与错误**
 
-显示前 native-only bounds 为零；显示后来自真实 AppKit peer。不存在或其他 item 类型返回带 `capability:"control"` 的 `NOT_FOUND`。
+显示前 native-only bounds 为零；显示后来自真实平台 peer。不存在或其他 item 类型返回带 `capability:"control"` 的 `NOT_FOUND`。
 
 **示例**
 
@@ -774,13 +782,13 @@ horizontal planner 按内容项 capacity、`maxWidth` 和 `maxRows` 计算行；
 
 没有 `addGroup(title)`：调用方只需用顺序和 Separator / Spacer 表达视觉边界。互斥语义使用一个 `SegmentedControl`；不会把零散 Radio 或普通 Button 包进伪 group。Label 是单行短状态，Progress 是独立固定几何进度；Button 内部短任务反馈仍可使用 `busy`。Badge 是 Button 的附属状态，不是重复 Label 的独立 item。
 
-`FloatingWindow` 的按钮正文始终只有图标，因此 `label` 是按钮文字的单一来源：每个按钮都会把它显示为原生 tooltip，并同时用作 macOS Accessibility name。无需再传一份容易与 `label` 不一致的 tooltip 文案；需要修改提示时调用 `updateButton(id, { label })`，原生 tooltip 与 Accessibility name 会在同一次更新中同步变化。`ui.createWindow()` 中自行声明的 HTML 按钮不走这套映射，可按 HTML 标准分别使用可见文字、`title` tooltip 与 `aria-label`。
+`FloatingWindow` 的按钮正文始终只有图标，因此 `label` 是按钮文字的单一来源：每个按钮都会把它显示为原生 tooltip，并同时用作平台 Accessibility name。无需再传一份容易与 `label` 不一致的 tooltip 文案；需要修改提示时调用 `updateButton(id, { label })`，原生 tooltip 与 Accessibility name 会在同一次更新中同步变化。`ui.createWindow()` 中自行声明的 HTML 按钮不走这套映射，可按 HTML 标准分别使用可见文字、`title` tooltip 与 `aria-label`。
 
-内置图标注册表当前提供 **160** 个常用图标键，覆盖播放/导航、通信/人员、媒体/编辑、文件/数据和设备/状态。除了直接使用 SF Symbol 名称（例如 `arrow.clockwise`、`envelope.fill`、`camera.fill`、`doc.text.fill`、`chart.line.uptrend.xyaxis` 或 `wifi`），还提供十个面向主流工作流的语义键：`ai.*` 处理 AI 协作，`automation.*` 处理无人值守与人工介入流程。编辑器会通过 `ClawdeskFloatingIconKey` 提供完整补全。完整图标清单由同一注册表生成类型、Go 与 macOS host 映射；远程 URL、`javascript:`、越出脚本目录的路径及未注册内置名称一律以带 `capability: "icon"` 的 `INVALID_SPEC` 拒绝。
+内置图标注册表当前提供 **160** 个常用图标键，覆盖播放/导航、通信/人员、媒体/编辑、文件/数据和设备/状态。除了沿用稳定的 SF Symbol 风格键名（例如 `arrow.clockwise`、`envelope.fill`、`camera.fill`、`doc.text.fill`、`chart.line.uptrend.xyaxis` 或 `wifi`），还提供十个面向主流工作流的语义键：`ai.*` 处理 AI 协作，`automation.*` 处理无人值守与人工介入流程。编辑器会通过 `ClawdeskFloatingIconKey` 提供完整补全。完整名称清单由同一注册表生成类型与 host 映射；macOS 使用审核过的 SF Symbol recipe，Windows 使用审核过的 Segoe UI Symbol glyph。远程 URL、`javascript:`、越出脚本目录的路径及未注册内置名称一律以带 `capability: "icon"` 的 `INVALID_SPEC` 拒绝。
 
 ### 按主流场景选择默认图标
 
-| 场景 | 首选键 | 当前审核的 SF Symbol | 适用边界 |
+| 场景 | 首选键 | 当前审核的 macOS SF Symbol | 适用边界 |
 | --- | --- | --- | --- |
 | AI 助手 / Agent 入口 | `ai.assistant` | `brain` | 打开助手、对话或 Agent 面板；不表示已经执行。 |
 | AI 生成 / 改写 | `ai.generate` | `wand.and.rays` | 生成、摘要、润色或转换内容。 |
@@ -793,7 +801,7 @@ horizontal planner 按内容项 capacity、`maxWidth` 和 `maxRows` 计算行；
 | 半自动：人工审阅 | `automation.review` | `rectangle.and.hand.point.up.left.fill` | 自动处理到人工检查点；避免误用为“自动批准”。 |
 | 半自动：人工批准 | `automation.approve` | `hand.tap.fill` | 明确需要用户确认后才能继续的步骤。 |
 
-语义键是受控的产品级别别名，稳定映射到当前审核的 SF Symbol；它们让业务代码表达意图，而不是让用户从近似的图形里猜测。`label` 仍必须写清真实动作，例如“运行日报工作流”“等待人工批准”，不能只写“自动化”。
+语义键是受控的产品级别别名，在各平台稳定映射到审核过的系统图形；表中列出 macOS recipe，Windows host 使用对应的 Segoe glyph。它们让业务代码表达意图，而不是让用户从近似的图形里猜测。`label` 仍必须写清真实动作，例如“运行日报工作流”“等待人工批准”，不能只写“自动化”。
 
 ### 查找和试用全部内置图标
 
@@ -807,7 +815,7 @@ horizontal planner 按内容项 capacity、`maxWidth` 和 `maxRows` 计算行；
 
 这里使用 `ui.createWindow()` 是因为 `FloatingWindow` 的 32 按钮上限属于简单原生工具栏的安全契约，不应为了目录场景放宽。目录图片由当前 macOS 根据注册表中的同一 SF Symbol recipe 生成，并作为受限 base64 PNG 内嵌；HTML 不包含业务 `<script>`，160 个 click listener、剪贴板调用和可见状态更新仍全部由 `icon-list.js` 的 Runtime controller 持有。
 
-每个按钮都以紧凑卡片显示较小图标与名称；编号和“点击复制代码”不重复铺在每张卡片上，而是保留在 DOM 的稳定 id / index 与完整 `title` / `aria-label` 中。完整提示仍使用“`图标名 · 点击复制按钮代码`”，实际 host 还会为 WebView button 同步原生 AXButton peer。点击图标会直接把以下一行代码写入系统剪贴板，将当前卡片显示为绿色选中状态，并在固定状态栏显示“已复制”作为成功反馈：
+每个按钮都以紧凑卡片显示较小图标与名称；编号和“点击复制代码”不重复铺在每张卡片上，而是保留在 DOM 的稳定 id / index 与完整 `title` / `aria-label` 中。完整提示仍使用“`图标名 · 点击复制按钮代码`”，实际 host 还会为 WebView button 同步原生 Accessibility button peer。点击图标会直接把以下一行代码写入系统剪贴板，将当前卡片显示为绿色选中状态，并在固定状态栏显示“已复制”作为成功反馈：
 
 ```js
 toolbar.addButton("icon-camera-fill", "动作说明", "camera.fill", () => {});
@@ -1087,11 +1095,11 @@ getButtonState(id: string): Promise<ButtonState>
 
 **返回值**
 
-`ButtonState` 包含 `id`、`label`、`icon`、`active`、`disabled`、`busy`、`error`、`badge`、`revision`、`renderedText`、`tooltip`、`tooltipVisible`、`iconPresentation`、`accessibilityName`、`accessibilityValue`、`localBounds` 与 `screenBounds`。`icon` 按原声明读回：内置图标为 string，自定义图标为不含图片 bytes 的 `{path, renderingMode}`；`iconPresentation.kind` 为 `builtIn` 或 `image`。Button 正文仍是 icon-only，`renderedText` 为空字符串；`tooltip` 与 `label` 一致。
+`ButtonState` 包含 `id`、`label`、`icon`、`active`、`disabled`、`busy`、`error`、`badge`、`revision`、`renderedText`、`tooltip`、`tooltipVisible`、`iconPresentation`、`accessibilityName`、`accessibilityValue`、`localBounds` 与 `screenBounds`。`icon` 按原声明读回：内置图标为 string，自定义图标为不含图片 bytes 的 `{path, renderingMode}`；`iconPresentation.kind` 在 macOS 内置图标上为 `builtIn`，在 Windows 内置图标上为 `windowsGlyph`，自定义图片为 `image`。Button 正文仍是 icon-only，`renderedText` 为空字符串；`tooltip` 与 `label` 一致。
 
 **行为与错误**
 
-显示前 native-only bounds 为零；显示后返回真实 AppKit peer 的 readback。不存在或非 Button id 返回带 `capability:"button"` 的 `NOT_FOUND`。
+显示前 native-only bounds 为零；显示后返回真实平台 peer 的 readback。不存在或非 Button id 返回带 `capability:"button"` 的 `NOT_FOUND`。
 
 **示例**
 
@@ -1342,7 +1350,7 @@ content: {
 | `controls` | string[] | `ui.createWindow()` 受限 HTML surface 的公开控件类型；FloatingWindow 是独立的 typed native-toolbar surface，由本页列出的实例方法声明能力。 |
 | `reason` | string | 可选；不可用或未授权的原因。 |
 
-macOS 上 `available` 还要求随包的 `clawdesk-ui-host` 可发现；缺失时创建窗口抛出 `UI_HOST_NOT_FOUND`。
+macOS 与 Windows 上 `available` 还要求配套 UI host 可发现；Windows 会依次查找 Runtime 同目录的 `clawdesk-ui-host.exe`、`opendesk-ui-host.exe` 以及 `ui-host/opendesk-ui-host.exe`。缺失时创建窗口抛出 `UI_HOST_NOT_FOUND`。Windows 的 HTML surface 在 host 启动后还会单独检查 WebView2 Runtime；该依赖不影响纯 `FloatingWindow`。
 
 ## WindowHandle：窗口句柄
 
@@ -1460,7 +1468,7 @@ HTTP UI 必须同时满足：服务器用 `-ui` 或可信本地配置启用、�
 
 - `examples/custom-ui/panel.js`
 - `examples/custom-ui/form.js`
-- `examples/custom-ui/recording-console.js`：同一个 [Recorder Runtime](recorder-runtime.md) 的原生控制面。小型 `recording-console/tray.html` 托盘和按需打开的 `recording-console/recorder.html` 详情页共享 `controller.js` 状态；开始按钮授权后留出 3 秒供用户聚焦目标，再冻结该窗口的 PID＋title。录制期间每个 Custom UI button click 先把原始事件交给 `session.excludeControlClick(event)` 写入显式 raw 排除边界；暂停／继续分别调用明确的 `session.pause()`／`session.resume()`，停止后调用已有 `buildActions()`，只有独立的生成按钮才调用 `generateScript()`。blocked Actions 使用 warning 状态，托盘显示首个结构化 issue，详情页显示 `code`、`eventId` 和 message，生成保持禁用。生成后详情页以受限 `p` 文本控件显示实际脚本并由 Runtime controller 提供复制；不会使用不受支持的 `textarea` 或页面脚本。详情页显示时暂时隐藏置顶托盘，收起或关闭详情后恢复托盘而不重置流程，避免两窗覆盖。生成成功后同一按钮可再次明确“重新生成”，从 ready actions 重走生成与读取并清理旧的内存候选／运行结果。另一次明确的“试运行”才通过 [Command.run()](command.md#commandruncommand-args-options) 启动 `./dist/opendesk -script <scriptFile>` Fresh Run，取消／主窗口关闭用 `AbortSignal` 清理同一受管进程；不 `eval`、不解释 actions、也不自动回放。重置清除 controller 候选/actions/run 状态但保留磁盘事实。HTML 只声明受限结构和稳定 id。窗口关闭、脚本异常与 execution teardown 仍由 Runtime owner 终结活动 session 和在途 run。运行命令和安全前提见 `examples/custom-ui/README.md`。
+- `examples/custom-ui/recording-console.js`：同一个 [Recorder Runtime](recorder-runtime.md) 的原生控制面。小型 `recording-console/tray.html` 托盘和按需打开的 `recording-console/recorder.html` 详情页共享 `controller.js` 状态；开始按钮授权后留出 3 秒供用户聚焦目标，再冻结该窗口的 PID＋title。录制期间每个 Custom UI button click 先把原始事件交给 `session.excludeControlClick(event)` 写入显式 raw 排除边界；暂停／继续分别调用明确的 `session.pause()`／`session.resume()`，停止后调用已有 `buildActions()`，只有独立的生成按钮才调用 `generateScript()`。blocked Actions 使用 warning 状态，托盘显示首个结构化 issue，详情页显示 `code`、`eventId` 和 message，生成保持禁用。生成后详情页以受限 `p` 文本控件显示实际脚本并由 Runtime controller 提供复制；不会使用不受支持的 `textarea` 或页面脚本。详情页显示时暂时隐藏置顶托盘，收起或关闭详情后恢复托盘而不重置流程，避免两窗覆盖。生成成功后同一按钮可再次明确“重新生成”，从 ready actions 重走生成与读取并清理旧的内存候选／运行结果。另一次明确的“重放”才通过 [Command.run()](command.md#commandruncommand-args-options) 启动 `./dist/opendesk -script <scriptFile>` Fresh Run，取消／主窗口关闭用 `AbortSignal` 清理同一受管进程；不 `eval`、不解释 actions、也不自动重放。重置清除 controller 候选/actions/run 状态但保留磁盘事实。HTML 只声明受限结构和稳定 id。窗口关闭、脚本异常与 execution teardown 仍由 Runtime owner 终结活动 session 和在途 run。运行命令和安全前提见 `examples/custom-ui/README.md`。
 - `examples/custom-ui/floating-recording-toolbar.js`：兼容入口，复用同一个 recording-console controller 和 Runtime 对象，不维护模拟录制状态。
 - `examples/custom-ui/floating-toolbar-primitives.js`：Button + Separator + fixed Spacer、统一 `getState()` 与 `move` / `close` lifecycle 的最小 native toolbar 示例；不保存位置，也不拥有 global shortcut。
 - `examples/custom-ui/floating-toolbar-status-label.js`：固定宽度 native Label 与 Button 混排；展示默认垂直居中、显式水平居中、动态 `text` / `alignment` / `verticalAlignment` / `tone` 更新、native `renderedTextBounds` readback 及不变的窗口几何。从仓库根目录执行 `./opendesk -ui -script examples/custom-ui/floating-toolbar-status-label.js -console-mode script`。
@@ -1482,7 +1490,7 @@ HTTP UI 必须同时满足：服务器用 `-ui` 或可信本地配置启用、�
 用户事件按以下内部链路回到所属 JavaScript Runtime：
 
 ```text
-DOM / WKWebView event
+DOM / WKWebView / WebView2 event，或平台原生 control event
   -> native host
   -> bounded Go event queue
   -> EventLoop.RunOnLoop

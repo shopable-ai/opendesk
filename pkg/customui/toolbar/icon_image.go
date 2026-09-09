@@ -11,6 +11,7 @@ import (
 const (
 	IconKindBuiltIn = "builtIn"
 	IconKindImage   = "image"
+	IconKindWindows = "windowsGlyph"
 
 	IconRenderingOriginal = "original"
 	IconRenderingTemplate = "template"

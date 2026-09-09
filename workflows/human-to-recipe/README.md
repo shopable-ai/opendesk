@@ -8,7 +8,7 @@ order: 10
 
 **人提供示范，Recorder 保存事实，Agent 按需理解界面和过程，程序验证定位与操作，确定部分交付为普通 OpenDesk JavaScript。**
 
-状态：Recorder 数据合同 v2、Custom UI 控制面、合成文件闭环与 macOS Calculator 真实 native capture/语义证据已实施并验收，2026-09-10。仓库内现已提供可复用的 [`human-to-recipe` Skill](skills/human-to-recipe/SKILL.md)、最小 `SemanticBuildPlan` schema／validator、Calculator plan golden，以及 simple console 的“复制 Agent 完善提示词”交接；通用 renderer 尚未实现，Skill 也未安装到用户级 Codex Skill 目录。用户通过 simple console 产生的 Calculator 录制包 `rec-20260909T113509.231387000Z-e2232547fa4e` 已完成旧 basic 源码的独立真实回放和 `115` oracle，并交付对应的[可维护语义优化 recipe](../../examples/human-to-recipe/calculator-115.semantic.recipe.js)；这些资格不自动转移给其他 candidate 或当前工作树的新 hash。普通用户命令和新 hash 的 live Gate／视觉仍必须单独重跑。
+状态：Recorder 数据合同 v2、Custom UI 控制面、合成文件闭环与 macOS Calculator 真实 native capture/语义证据已实施并验收，2026-09-10。仓库内现已分别提供零配置行为保持优化的 [`recorder-script-refiner` Skill](skills/recorder-script-refiner/SKILL.md)，以及业务生产化的 [`human-to-recipe` Skill](skills/human-to-recipe/SKILL.md)、最小 `SemanticBuildPlan` schema／validator和 Calculator plan golden；simple console 使用单行相对路径任务交接。通用 renderer 尚未实现，Skill 也未安装到用户级 Codex Skill 目录。用户通过 simple console 产生的 Calculator 录制包 `rec-20260909T113509.231387000Z-e2232547fa4e` 已完成旧 basic 源码的独立真实回放和 `115` oracle，并交付对应的[可维护语义优化 recipe](../../examples/human-to-recipe/calculator-115.semantic.recipe.js)；这些资格不自动转移给其他 candidate 或当前工作树的新 hash。普通用户命令和新 hash 的 live Gate／视觉仍必须单独重跑。
 
 本目录只负责人工 human-to-recipe；另一条 [Agent-to-Recipe](../agent-to-recipe/WORKFLOW.md) 工作流保持独立推进。Agent-first 是本方案采用的开发分工背景，不表示本次输入改成 Agent 示范。
 
@@ -34,7 +34,7 @@ order: 10
 | 受控坐标脚本 | 声明固定条件的普通 JS | 可以不参与，也可仅辅助整理 |
 | 增强普通 JS | 已确认定位、输入、等待和结果验证 | 开发阶段参与，正常运行不必参与 |
 | JS／Agent 混合流程 | 普通 JS 与明确的必要判断节点 | 只在声明的判断节点参与；需有实际宿主与权限支持 |
-| Recorder → Agent 交接 | actions 路径、结构化缺口和用户待补合同 | 只复制提示词；不自动启动、生成、运行或授予资格 |
+| Recorder → Agent 交接 | 仓库相对 generated script 入口 | 单行调用 `recorder-script-refiner`；无业务问卷，默认只做行为保持的静态优化 |
 
 不为普通 JS 强制建设应用对象方法层、Registry、复杂可执行 IR、Compiler、专用 Replay Runtime 或 LangGraph。`calc.tapButton(...)` 不恢复为应用对象层。优先实际存在的框架 API 和有价值的普通函数。
 
@@ -70,14 +70,15 @@ H1—H8 是制作和维护自动化的方法，不是每次运行都重走的步
 | [Recorder 工程设计](design/recorder-design.md) | DQ-01—DQ-08 规范性需求、已实现调用链、数据合同、真实符号、native 生命周期、动作、生成与下游交接 |
 | [实施与验收计划](design/implementation-plan.md) | 真实完成、命令、证据、未运行、失败条件与下一批 |
 
-任务树回答完整需要做什么；工程设计回答基础 Recorder 实际如何工作；实施计划只记录资格和证据。不按每个任务节点创建文件、Skill 或 Agent；当前唯一新增的 `human-to-recipe` Skill 对应一个真实、可重复的 actions→plan→production/gate/evidence 专业流程，不是节点占位或迁移壳。
+任务树回答完整需要做什么；工程设计回答基础 Recorder 实际如何工作；实施计划只记录资格和证据。不按每个任务节点创建文件、Skill 或 Agent。当前两个 Skill 对应不同且可重复的专业流程：`recorder-script-refiner` 做 script→refined candidate 的行为保持优化；`human-to-recipe` 做 actions→plan→production/gate/evidence 的业务生产化。二者不是节点占位或迁移壳。
 
 ### 4.1 Skill、plan 和 renderer 的当前状态
 
 | 能力 | 当前状态 | 边界 |
 | --- | --- | --- |
-| 仓库内 `human-to-recipe` Skill 源码 | 已实现 | 新会话可按提示词中的仓库路径完整读取并执行 |
-| 用户级／系统级 Skill 安装 | 未安装 | 不能仅因 `$human-to-recipe` 名称出现就假设自动发现成功 |
+| 仓库内 `recorder-script-refiner` Skill 源码 | 已实现 | 新会话用 generated script 相对路径零配置进入；校验 sibling lineage 后只做行为保持的静态优化 |
+| 仓库内 `human-to-recipe` Skill 源码 | 已实现 | 仅在用户要求业务理解、动作取舍、参数化或结果资格时使用 |
+| 用户级／系统级 Skill 安装 | 未安装 | simple console 由仓库 `AGENTS.md` 路由到仓库内 Skill，不要求用户传入 Skill 路径 |
 | `SemanticBuildPlan` schema | 已实现 | `skills/human-to-recipe/references/semantic-build-plan.schema.json`；结构允许表达 blocked／unknown |
 | plan validator | 已实现 | `skills/human-to-recipe/scripts/validate-semantic-build-plan.js`；unknown、遗漏、重复消费、source 漂移和 Gate 源码冲突会阻止生产生成 |
 | 通用 renderer | 未实现 | 当前只能由 Agent 按 Skill 的确定性输出顺序生成，不能宣称一键编译 |
@@ -96,6 +97,8 @@ Recorder 只保存观察事实。AX／DOM 语义可能因 WebView、Canvas、远
 [application-engineer](../agent-to-recipe/skills/application-engineer/SKILL.md) 及其[专业正文](../agent-to-recipe/design/application-operations.md) 继续负责应用认识、关系、定位和操作。人工目录补充事件—现场关联与点击目标分析的任务要求，不另建 Recorder 专属 UI 模型。
 
 [`human-to-recipe`](skills/human-to-recipe/SKILL.md) 消费固定 human actions lineage，负责逐动作 disposition、Business Episode、`SemanticBuildPlan`、生产 Recipe 与独立 Gate 分层。需要 locator 加固时才遵循 `application-engineer`，且只消费其 target／locator／geometry／strategy／guard／claim／source／unknown handoff；application-engineer 不生成最终 Recipe。
+
+[`recorder-script-refiner`](skills/recorder-script-refiner/SKILL.md) 只消费已生成 Recorder script 的相对路径，通过确定性 inspector 在当前录制包内重定位并核对 candidate/actions/manifest/raw。它不要求业务目标，不删除或重排动作，也不取得业务资格；需要这些能力时才显式升级到 `human-to-recipe`。
 
 ## 6. 与 Agent-first 的共享边界
 
@@ -145,7 +148,7 @@ actions 与生成状态；停止后制作 actions，生成需要另一次点击�
 ./dist/opendesk -ui -allow-recorder-capture -script examples/custom-ui/recording-console-simple.js -console-mode script -log-dir .runtime/examples/custom-ui/recording-console-simple
 ```
 
-该入口默认请求 `target-semantics`。普通 hover 不进入 raw；每个 release 绑定当时的应用、具体窗口、窗口内坐标和可取得的控件标签。切换应用或同一应用的其他窗口是允许的录制行为，不再触发旧版 `scope-changed` 停止。停止后会制作 actions，并在 actions ready 时自动生成脚本；生成结果仍是 `verification: "not-run"`，只有另点“重放／试运行”才启动新的 execution。actions ready、blocked 或 basic generation error 时，“复制 Agent 完善提示词”都可把实际路径和去正文摘要复制给新 Codex 对话；它不启动 Agent、不创建线程、不生成、不回放，也不改变录制包。
+该入口默认请求 `target-semantics`。普通 hover 不进入 raw；每个 release 绑定当时的应用、具体窗口、窗口内坐标和可取得的控件标签。切换应用或同一应用的其他窗口是允许的录制行为，不再触发旧版 `scope-changed` 停止。停止后会制作 actions，并在 actions ready 时自动生成脚本；生成结果仍是 `verification: "not-run"`，只有另点“重放”才启动新的 execution。“复制 Agent 优化脚本”只在 generated script 存在且未运行时启用，复制内容只有该脚本的仓库相对路径；仓库 `AGENTS.md` 负责路由到 `recorder-script-refiner`。它不启动 Agent、不创建线程、不读取录制正文、不生成、不重放，也不改变录制包。
 
 独立生成使用：
 
@@ -180,7 +183,7 @@ OPENDESK_RECORDER_ACTIONS_FILE=.runtime/recordings/<ID>/actions.json ./dist/open
 | 应用／窗口／控件层级和多窗口 | 任务树 H2.3/H2.4 | 工程设计 DQ-03/DQ-04/DQ-06 | 实施计划 WP2、Calculator live |
 | screen/window/element 多坐标 | 任务树 H2.3、H3.1 | 工程设计 DQ-05、文件合同 | 实施计划 coordinate recipe |
 | 生产代码确定性生成／审阅、Geometry 收敛 | 任务树 H6 | demonstration pipeline 的确定性闸门、multi-application 路线图批次 A | 实施计划 4.10—4.12 |
-| actions→Agent 提示词、SemanticBuildPlan 和 validator | 任务树 H4/H6 | `human-to-recipe` Skill、schema 和 source-check validator | 实施计划 4.13；Calculator 是第一个 plan golden |
+| generated script→Agent 单行任务；actions→业务生产化 | 任务树 H4/H6 | `recorder-script-refiner` inspector；`human-to-recipe` schema 和 source-check validator | 实施计划 4.13；Calculator 是第一个 production plan golden |
 | 隐私、显式失败和旧包兼容 | 任务树 H1.5、H2.6 | 工程设计 DQ-07/DQ-08 | 实施计划硬性失败条件 |
 
 公开 API 参数、返回值和错误只在 [Recorder Runtime API](../../docs/api/recorder-runtime.md) 维护；仓库正式质量报告仍归 [docs/quality](../../docs/quality/recorder-data-quality-v2.md)。workflow 保存“为什么、必须做什么、如何验收”，避免把 API Reference 或一次性运行日志复制进来。

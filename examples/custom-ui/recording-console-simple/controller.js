@@ -14,9 +14,6 @@
     finder: 'folder.fill',
   });
 
-  const HUMAN_TO_RECIPE_SKILL = 'workflows/human-to-recipe/skills/human-to-recipe/SKILL.md';
-  const APPLICATION_ENGINEER_SKILL = 'workflows/agent-to-recipe/skills/application-engineer/SKILL.md';
-
   const ACTIVE_CAPTURE_PHASES = new Set([
     'countdown', 'starting', 'stop-requested', 'recording', 'pausing', 'paused', 'resuming', 'stopping',
   ]);
@@ -44,131 +41,36 @@
     return new Promise(resolve => setTimeout(resolve, delayMs));
   }
 
-  function joinWorkdir(workdir, relativePath) {
-    const root = String(workdir || '').replace(/[\\/]+$/, '');
-    const separator = root.includes('\\') && !root.includes('/') ? '\\' : '/';
-    const suffix = String(relativePath || '').replace(/^[\\/]+/, '').replace(/[\\/]/g, separator);
-    return root ? root + separator + suffix : suffix;
-  }
-
-  function summarizePromptIssues(issues) {
-    if (!Array.isArray(issues) || issues.length === 0) return 'none';
-    const counts = new Map();
-    for (const issue of issues) {
-      const raw = issue && issue.code ? String(issue.code) : '';
-      const code = /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(raw) ? raw : 'unknown-issue';
-      counts.set(code, (counts.get(code) || 0) + 1);
-    }
-    return `count=${issues.length}; ` + Array.from(counts)
-      .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
-      .map(([code, count]) => `${code}=${count}`)
-      .join(', ');
-  }
-
-  function summarizeSemanticCoverage(actionsDocument) {
-    const counts = {
-      verified: 0,
-      unavailable: 0,
-      'not-requested': 0,
-      'not-applicable': 0,
-      missing: 0,
-      other: 0,
-      unavailableWithReason: 0,
-      unavailableWithoutReason: 0,
-    };
-    const actions = actionsDocument && Array.isArray(actionsDocument.actions)
-      ? actionsDocument.actions : [];
-    for (const action of actions) {
-      const target = action && action.target && typeof action.target === 'object' ? action.target : null;
-      const status = target && typeof target.semanticStatus === 'string'
-        ? target.semanticStatus : 'missing';
-      if (Object.prototype.hasOwnProperty.call(counts, status)) counts[status] += 1;
-      else counts.other += 1;
-      if (status === 'unavailable') {
-        if (target && typeof target.semanticReason === 'string' && target.semanticReason.length > 0) {
-          counts.unavailableWithReason += 1;
-        } else {
-          counts.unavailableWithoutReason += 1;
-        }
-      }
-    }
-    return counts;
+  function repositoryRelativePath(workdir, value) {
+    const normalize = input => String(input || '').replace(/\\/g, '/').replace(/\/{2,}/g, '/');
+    const root = normalize(workdir).replace(/\/+$/, '');
+    const path = normalize(value);
+    if (!path || /[\x00-\x1f\x7f`]/.test(path)) return '';
+    const pathSegments = path.replace(/^\.\//, '').split('/');
+    if (pathSegments.includes('.') || pathSegments.includes('..')) return '';
+    let relative = '';
+    if (root && path.startsWith(root + '/')) relative = './' + path.slice(root.length + 1);
+    const absolute = path.startsWith('/') || /^[A-Za-z]:\//.test(path);
+    if (!relative && absolute) return '';
+    if (!relative) relative = './' + pathSegments.join('/');
+    return /^\.\/\.runtime\/recordings\/rec-[A-Za-z0-9][A-Za-z0-9._-]*\/generated\/[^/]+\.js$/.test(relative)
+      ? relative : '';
   }
 
   function buildAgentRefinementPrompt(input) {
     const context = input || {};
     const execution = context.execution || {};
-    const saved = context.saved || {};
-    const actions = context.actions || {};
     const generated = context.generated || {};
-    const document = context.actionsDocument && typeof context.actionsDocument === 'object'
-      ? context.actionsDocument : null;
     const workdir = String(execution.workdir || '');
-    const recordingDir = String(saved.recordingDir || 'not-available');
-    const actionsFile = String(actions.actionsFile || 'not-available');
-    const revision = Number.isInteger(document && document.revision)
-      ? document.revision : Number.isInteger(actions.revision) ? actions.revision : 'unknown';
-    const readiness = document && (document.readiness === 'ready' || document.readiness === 'blocked')
-      ? document.readiness
-      : actions.readiness === 'ready' || actions.readiness === 'blocked' ? actions.readiness : 'unknown';
-    const issues = document && Array.isArray(document.issues) ? document.issues : actions.issues;
-    const coverage = summarizeSemanticCoverage(document);
-    const semanticSummary = context.actionsReadError
-      ? 'unavailable-to-summarize; the console could not parse actions JSON, so the Agent must inspect the actual bytes'
-      : [
-        `verified=${coverage.verified}`,
-        `unavailable=${coverage.unavailable}`,
-        `not-requested=${coverage['not-requested']}`,
-        `not-applicable=${coverage['not-applicable']}`,
-        `missing=${coverage.missing}`,
-        `other=${coverage.other}`,
-        `unavailable-with-reason=${coverage.unavailableWithReason}`,
-        `unavailable-without-reason=${coverage.unavailableWithoutReason}`,
-      ].join(', ');
-    const actionsSha256 = /^[a-f0-9]{64}$/.test(String(generated.actionsSha256 || ''))
-      ? String(generated.actionsSha256)
-      : 'recompute-required-from-actual-actions-bytes';
-    const skillPath = joinWorkdir(workdir, HUMAN_TO_RECIPE_SKILL);
-    const applicationEngineerPath = joinWorkdir(workdir, APPLICATION_ENGINEER_SKILL);
+    const scriptFile = repositoryRelativePath(workdir, generated.scriptFile);
+    if (!scriptFile) {
+      const error = new Error('无法生成可移植任务：scriptFile 必须是当前仓库内的 Recorder 生成脚本');
+      error.code = 'INVALID_ARGUMENT';
+      error.operation = 'buildAgentRefinementPrompt';
+      throw error;
+    }
 
-    return [
-      `请在 ${workdir} 中使用 $human-to-recipe 处理以下 Recorder 包。`,
-      `如果当前会话尚未安装该 Skill，先完整读取仓库内 ${skillPath} 并严格按其执行，不得引用不存在的能力后继续。`,
-      `语义或 locator 需要补强时使用 $application-engineer；若当前会话未安装，则完整读取 ${applicationEngineerPath}。它只提供应用认识输入，最终 Recipe 仍由 human-to-recipe 生成。`,
-      '',
-      '业务目标：[请用户补充；缺失时 Agent 必须询问]',
-      '成功条件：[请用户补充；缺失时 Agent 必须询问]',
-      '允许副作用：[请用户补充]',
-      '禁止触碰：[请用户补充]',
-      '应用、语言、布局和环境约束：[请用户补充；只结合 actions 中可验证事实核对，不得猜测]',
-      '',
-      '实际录制输入：',
-      `- workdir: ${workdir}`,
-      `- recordingDir: ${recordingDir}`,
-      `- actionsFile: ${actionsFile}`,
-      `- revision: ${revision}`,
-      `- readiness: ${readiness}`,
-      `- actionsSha256: ${actionsSha256}`,
-      `- issues: ${summarizePromptIssues(issues)}`,
-      `- semantic coverage: ${semanticSummary}`,
-      `- generated script: ${generated.scriptFile ? String(generated.scriptFile) : 'not-generated'}`,
-      `- candidate: ${generated.candidateFile ? String(generated.candidateFile) : 'not-generated'}`,
-      '- raw reference: read it from the actual actions file; raw contents are intentionally not copied here',
-      '',
-      '隐私边界：此提示词只含本地路径和结构化计数。不要要求用户粘贴动作文本正文、AXValue、截图内容、raw 全量或键盘内容；在仓库授权范围内直接读取实际文件。',
-      '',
-      '执行要求：',
-      '1. 阅读 AGENTS.md、human-to-recipe Skill 和本次需要调用的 docs/api 当前文档。',
-      '2. 读取实际 actions 字节并重新计算 hash；核对 revision、readiness、raw reference 和 action source。',
-      '3. 未提供业务目标或成功条件时先询问，不得从点击序列猜业务意图。',
-      '4. 为每个 action 建立唯一 disposition 和 source map；unknown、遗漏、重复消费或冲突都停止生产生成。',
-      '5. semanticStatus unavailable 时保留缺口，并按需使用 application-engineer 定向补认识；不得伪造 AX、DOM、OCR 或业务事实。',
-      '6. 先形成并校验 SemanticBuildPlan，再生成生产 Recipe；通用 renderer 当前尚未实现。',
-      '7. 生产 Recipe、Qualification Gate 和 Evidence 分离；生产文件只保留业务步骤、必要状态判断和防误操作门禁。',
-      '8. Gate 必须冻结并执行实际 production 源码，不能维护第二份隐藏业务动作实现。',
-      '9. 不使用未实现 API，不覆盖已有文件，不运行 Recorder、回放或真实桌面动作，除非另获明确授权。',
-      '10. 分别报告 generated、statically reviewed、synthetically verified、普通用户命令、live Gate、qualified 和视觉状态。',
-    ].join('\n');
+    return `优化 Recorder 已生成脚本：\`${scriptFile}\`。`;
   }
 
   function createApp(options) {
@@ -310,8 +212,10 @@
         && !!state.actions && state.actions.readiness === 'ready'
         && !state.generated && !generatePromise && !runPromise;
       const canReplay = !!state.generated && !runPromise && !ACTIVE_CAPTURE_PHASES.has(phase);
-      const canCopyAgentPrompt = !!(state.actions && state.actions.actionsFile)
-        && !!copyText && !copyPromptPromise;
+      const canCopyAgentPrompt = !!(state.generated && state.generated.scriptFile)
+        && !!copyText && !copyPromptPromise && state.promptCopyStatus !== 'copying'
+        && !runPromise && phase !== 'run-countdown' && phase !== 'running'
+        && !ACTIVE_CAPTURE_PHASES.has(phase);
       const terminalArtifact = !!artifact();
 
       return {
@@ -332,7 +236,7 @@
         },
         stop: {
           icon: BUILT_IN_ICONS.stop,
-          label: runPromise ? '取消试运行'
+          label: runPromise ? '取消重放'
             : (phase === 'countdown' || phase === 'starting' || phase === 'stop-requested'
               ? '取消开始' : '停止录制'),
           active: false,
@@ -342,16 +246,16 @@
         replay: {
           icon: phase === 'generating' || canRetryGeneration ? BUILT_IN_ICONS.generate : BUILT_IN_ICONS.replay,
           label: phase === 'run-countdown' && state.runCountdown
-            ? `试运行将在 ${state.runCountdown} 秒后开始`
+            ? `重放将在 ${state.runCountdown} 秒后开始`
             : phase === 'generating' ? '正在自动生成脚本'
             : canRetryGeneration ? '自动生成失败，点击重试'
-              : '重放／试运行',
+              : '重放',
           active: phase === 'run-countdown' || phase === 'running' || phase === 'generating',
           disabled: !(canReplay || canRetryGeneration),
         },
         agentPrompt: {
           icon: BUILT_IN_ICONS.agentPrompt,
-          label: '复制 Agent 完善提示词',
+          label: '复制 Agent 优化脚本',
           active: false,
           disabled: !canCopyAgentPrompt,
         },
@@ -506,7 +410,7 @@
               closeRequested ? 'closing' : (stopFailure ? 'actions-blocked' : 'saved'),
               stopFailure
                 ? `录制因采集故障终结并保留了可用事实：${stopFailure.message}`
-                : '录制事实已保存；未自动生成或回放。',
+                : '录制事实已保存；未自动生成或重放。',
             );
             return snapshot();
           }
@@ -693,7 +597,7 @@
           const generated = await recorder.generateScript(state.actions.actionsFile, {mode: 'basic'});
           const source = String(file.read(generated.scriptFile));
           state.generated = {...clone(generated), source};
-          await transition('generated', '脚本已自动生成但尚未运行；重放需要单独点击。');
+          await transition('generated', '脚本已自动生成但尚未重放；重放需要单独点击。');
         } catch (error) {
           await fail(error, 'replay', 'generation-error', '自动生成脚本失败');
         }
@@ -726,12 +630,12 @@
           await wait(countdownStepMs);
           if (runController.signal.aborted) {
             state.run = {...state.run, status: 'canceled', finishedAt: new Date().toISOString()};
-            await transition('run-canceled', '试运行准备已取消；生成脚本仍保留。', {runCountdown: null});
+            await transition('run-canceled', '重放准备已取消；生成脚本仍保留。', {runCountdown: null});
             runController = null;
             return snapshot();
           }
         }
-        await transition('running', '正在新的 OpenDesk execution 中试运行生成脚本…', {
+        await transition('running', '正在新的 OpenDesk execution 中重放生成脚本…', {
           error: null,
           errorButton: '',
           runCountdown: null,
@@ -752,7 +656,7 @@
             status: 'succeeded', startedAt, finishedAt: new Date().toISOString(),
             exitCode: result.exitCode, stdout: result.stdout || '', stderr: result.stderr || '', logDir: runLogDir,
           };
-          await transition('run-succeeded', '试运行已以 exit code 0 结束；业务结果仍需独立确认。');
+          await transition('run-succeeded', '重放已以 exit code 0 结束；业务结果仍需独立确认。');
         } catch (error) {
           const normalized = normalizeError(error, 'Command.run');
           const canceled = normalized.code === 'CANCELED';
@@ -763,9 +667,9 @@
           if (canceled) {
             state.error = null;
             state.errorButton = '';
-            await transition('run-canceled', '试运行已取消；生成脚本仍保留。', {runCountdown: null});
+            await transition('run-canceled', '重放已取消；生成脚本仍保留。', {runCountdown: null});
           } else {
-            await fail(error, 'replay', 'run-failed', '试运行失败');
+            await fail(error, 'replay', 'run-failed', '重放失败');
           }
         } finally {
           state.runCountdown = null;
@@ -788,33 +692,29 @@
     }
 
     function copyAgentPrompt() {
-      if (copyPromptPromise || closeRequested || !state.actions || !state.actions.actionsFile || !copyText) {
+      if (copyPromptPromise || closeRequested || runPromise
+        || !state.generated || !state.generated.scriptFile || !copyText) {
         return copyPromptPromise || Promise.resolve(snapshot());
       }
       copyPromptPromise = (async () => {
-        let actionsDocument = null;
-        let actionsReadError = false;
         try {
-          actionsDocument = JSON.parse(String(file.read(state.actions.actionsFile)));
-        } catch (_) {
-          actionsReadError = true;
-        }
-        try {
+          state.promptCopyStatus = 'copying';
+          await syncButtons();
           const prompt = buildAgentRefinementPrompt({
             execution,
-            saved: state.saved,
-            actions: state.actions,
             generated: state.generated,
-            actionsDocument,
-            actionsReadError,
           });
           await copyText(prompt);
           state.promptCopyStatus = 'copied';
-          state.detail = '已复制 Agent 完善提示词；未启动 Agent、生成、回放或桌面输入。';
+          if (state.errorButton === 'agentPrompt') {
+            state.error = null;
+            state.errorButton = '';
+          }
+          state.detail = '已复制 Agent 脚本优化任务；粘贴到新对话即可。';
           await syncButtons();
         } catch (error) {
           state.promptCopyStatus = 'failed';
-          await fail(error, 'agentPrompt', state.phase, '复制 Agent 完善提示词失败');
+          await fail(error, 'agentPrompt', state.phase, '复制 Agent 脚本优化任务失败');
         }
         return snapshot();
       })();
@@ -847,7 +747,7 @@
         `生成节奏：${timingText}`,
         `错误：${state.error ? `${state.error.code} · ${state.error.operation} · ${state.error.message}` : '无'}`,
         `生成源码预览：\n${previewText(state.generated && state.generated.source, 360)}`,
-        `试运行摘要：\n${runDetails()}`,
+        `重放摘要：\n${runDetails()}`,
       ];
       const text = parts.join('\n');
       if (text.length <= 4000) return text;
@@ -936,8 +836,8 @@
       return stop();
     });
     toolbar.addSeparator('capture-output-separator');
-    toolbar.addButton('replay', '重放／试运行', BUILT_IN_ICONS.replay, replayOrRetryGeneration);
-    toolbar.addButton('agentPrompt', '复制 Agent 完善提示词', BUILT_IN_ICONS.agentPrompt, copyAgentPrompt);
+    toolbar.addButton('replay', '重放', BUILT_IN_ICONS.replay, replayOrRetryGeneration);
+    toolbar.addButton('agentPrompt', '复制 Agent 优化脚本', BUILT_IN_ICONS.agentPrompt, copyAgentPrompt);
     toolbar.addSeparator('output-info-separator');
     toolbar.addButton('details', '查看详情', BUILT_IN_ICONS.details, showDetails);
     toolbar.addButton('finder', '在 Finder 显示生成脚本', BUILT_IN_ICONS.finder, reveal);
@@ -991,6 +891,5 @@
   global.OpenDeskSimpleRecordingConsole = Object.freeze({
     createApp,
     buildAgentRefinementPrompt,
-    summarizeSemanticCoverage,
   });
 })(globalThis);

@@ -3,6 +3,10 @@
 #include "recorder_uiohook_bridge.h"
 #include "../third_party/libuiohook/include/uiohook.h"
 
+#if defined(_WIN32)
+#include <windows.h>
+#endif
+
 #if defined(__APPLE__)
 #include <ApplicationServices/ApplicationServices.h>
 
@@ -29,6 +33,9 @@ static void opendesk_recorder_uiohook_dispatch(uiohook_event *const event) {
     uint16_t amount = 0;
     int16_t rotation = 0;
     uint8_t direction = 0;
+    uint8_t physical_point_available = 0;
+    int32_t physical_x = 0;
+    int32_t physical_y = 0;
 
     if (event == NULL) {
         return;
@@ -63,6 +70,27 @@ static void opendesk_recorder_uiohook_dispatch(uiohook_event *const event) {
             break;
     }
 
+#if defined(_WIN32)
+    switch (event->type) {
+        case EVENT_MOUSE_CLICKED:
+        case EVENT_MOUSE_PRESSED:
+        case EVENT_MOUSE_RELEASED:
+        case EVENT_MOUSE_MOVED:
+        case EVENT_MOUSE_DRAGGED:
+        case EVENT_MOUSE_WHEEL: {
+            POINT point;
+            if (GetPhysicalCursorPos(&point)) {
+                physical_point_available = 1;
+                physical_x = (int32_t) point.x;
+                physical_y = (int32_t) point.y;
+            }
+            break;
+        }
+        default:
+            break;
+    }
+#endif
+
     opendeskRecorderDispatch(
         (uint16_t) event->type,
         event->time,
@@ -76,7 +104,10 @@ static void opendesk_recorder_uiohook_dispatch(uiohook_event *const event) {
         y,
         amount,
         rotation,
-        direction);
+        direction,
+        physical_point_available,
+        physical_x,
+        physical_y);
 }
 
 int opendesk_recorder_uiohook_run(bool capture_keyboard) {
@@ -100,6 +131,17 @@ int opendesk_recorder_uiohook_permission(void) {
 #elif defined(_WIN32) || defined(__linux__)
     return 1;
 #else
+    return -1;
+#endif
+}
+
+int opendesk_recorder_uiohook_key_state(uint16_t rawcode) {
+#if defined(__APPLE__)
+    return CGEventSourceKeyState(
+            kCGEventSourceStateCombinedSessionState,
+            (CGKeyCode) rawcode) ? 1 : 0;
+#else
+    (void) rawcode;
     return -1;
 #endif
 }

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"unsafe"
@@ -104,7 +105,7 @@ func platformGlobalShortcutAccelerator(accelerator Accelerator) (GlobalShortcutP
 		parts = append(parts, "Meta")
 	}
 	parts = append(parts, accelerator.Key)
-	return GlobalShortcutPlatformAccelerator{Canonical: joinShortcutParts(parts), KeyCode: keyCode, Modifiers: windowsModifiers}, nil
+	return GlobalShortcutPlatformAccelerator{Canonical: strings.Join(parts, "+"), KeyCode: keyCode, Modifiers: windowsModifiers}, nil
 }
 
 func (b *windowsGlobalShortcutBackend) Register(accelerator GlobalShortcutPlatformAccelerator, callback func()) (GlobalShortcutBackendHandle, error) {

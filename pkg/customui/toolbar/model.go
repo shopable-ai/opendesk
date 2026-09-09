@@ -186,6 +186,8 @@ type Bounds struct {
 // IconPresentation is generated from the versioned reviewed icon registry.
 type IconPresentation struct {
 	Kind          string  `json:"kind,omitempty"`
+	Glyph         string  `json:"glyph,omitempty"`
+	FontFamily    string  `json:"fontFamily,omitempty"`
 	SystemSymbol  string  `json:"systemSymbol"`
 	Scale         float64 `json:"scale"`
 	OffsetX       float64 `json:"offsetX"`

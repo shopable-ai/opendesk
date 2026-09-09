@@ -265,6 +265,41 @@ func (value *uiaAutomation) elementFromHandle(handle uintptr) (*uiaElement, erro
 	return result, nil
 }
 
+func (value *uiaAutomation) elementFromPoint(x, y int32) (*uiaElement, error) {
+	var result *uiaElement
+	var hr uintptr
+	if unsafe.Sizeof(uintptr(0)) == 8 {
+		// POINT is an eight-byte by-value aggregate on 64-bit Windows.
+		packed := uintptr(uint64(uint32(x)) | uint64(uint32(y))<<32)
+		hr, _, _ = syscall.SyscallN(
+			value.vtbl.elementFromPoint,
+			uintptr(unsafe.Pointer(value)),
+			packed,
+			uintptr(unsafe.Pointer(&result)),
+		)
+	} else {
+		// On 32-bit Windows the two LONG members occupy consecutive argument
+		// slots before the out pointer.
+		hr, _, _ = syscall.SyscallN(
+			value.vtbl.elementFromPoint,
+			uintptr(unsafe.Pointer(value)),
+			uintptr(uint32(x)),
+			uintptr(uint32(y)),
+			uintptr(unsafe.Pointer(&result)),
+		)
+	}
+	if err := uiaResult("IUIAutomation.ElementFromPoint", hr); err != nil {
+		if result != nil {
+			result.release()
+		}
+		return nil, err
+	}
+	if result == nil {
+		return nil, fmt.Errorf("IUIAutomation.ElementFromPoint returned nil")
+	}
+	return result, nil
+}
+
 func (value *uiaAutomation) rawViewWalker() (*uiaTreeWalker, error) {
 	var result *uiaTreeWalker
 	hr, _, _ := syscall.SyscallN(

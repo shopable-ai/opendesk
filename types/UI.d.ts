@@ -139,6 +139,22 @@ declare global {
     completed: Array<OpenDeskUITapResult<OpenDeskUITextTarget>>;
   }
 
+  /** Native text-value lookup reuses Accessibility selector and scope semantics. */
+  interface OpenDeskUIValueOptions extends OpenDeskAccessibilityTraversalOptions {
+    /** Required: semantic value lookup never defaults to the whole desktop or active window. */
+    within: OpenDeskAccessibilityScope;
+  }
+
+  interface OpenDeskUISetValueResult {
+    requestId: string;
+    operation: "UI.setValue";
+    backend: string;
+    action: "setValue";
+    /** Native submission state; it is separate from strict same-ref readback verification. */
+    actionState: OpenDeskAccessibilityActionState;
+    verified: true;
+  }
+
   interface OpenDeskUIMenuAppScope {
     app: OpenDeskAppTarget;
     root: "menuBar";
@@ -273,6 +289,10 @@ declare global {
 
   interface OpenDeskUI {
     getCapabilities(): OpenDeskUICapabilities;
+    /** Reads only a native string value from one uniquely located textField. */
+    getValue(target: OpenDeskAccessibilitySelector, options: OpenDeskUIValueOptions): Promise<string>;
+    /** Sets one complete native string value once and verifies it by reading the same ref. */
+    setValue(target: OpenDeskAccessibilitySelector, value: string, options: OpenDeskUIValueOptions): Promise<OpenDeskUISetValueResult>;
     findTexts(text: string, options?: OpenDeskUITextLocateOptions): Promise<OpenDeskUITextTarget[]>;
     findText(text: string, options?: OpenDeskUITextLocateOptions): Promise<OpenDeskUITextTarget | null>;
     hasText(text: string, options?: OpenDeskUITextLocateOptions): Promise<boolean>;

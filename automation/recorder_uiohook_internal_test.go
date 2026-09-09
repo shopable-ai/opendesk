@@ -4,6 +4,7 @@ package automation
 
 import (
 	"context"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -55,5 +56,43 @@ func TestRecorderUIOHookStopDoesNotRetryPlatformFailure(t *testing.T) {
 	}, time.Microsecond)
 	if result != 0x41 || calls != 1 {
 		t.Fatalf("stop result=%#x calls=%d", result, calls)
+	}
+}
+
+func TestRecorderUIOHookFailedStopQuarantinesLeaseAndCanRecover(t *testing.T) {
+	if activeUIOHookBackend.Load() != nil {
+		t.Fatal("unexpected active libuiohook backend before recovery test")
+	}
+	backend := &uiohookBackend{done: make(chan struct{})}
+	backend.started.Store(true)
+	if !acquireUIOHookLease(backend) {
+		t.Fatal("test backend did not acquire process-wide lease")
+	}
+	var recoverable atomic.Bool
+	backend.nativeStop = func() int {
+		if !recoverable.Load() {
+			return recorderUIOHookFailure
+		}
+		releaseUIOHookLease(backend)
+		backend.doneOnce.Do(func() { close(backend.done) })
+		return 0
+	}
+
+	firstCtx, firstCancel := context.WithTimeout(context.Background(), time.Millisecond)
+	err := backend.Stop(firstCtx)
+	firstCancel()
+	if err == nil || activeUIOHookBackend.Load() != backend || backend.ResourceCount() != 1 {
+		t.Fatalf("failed stop must retain quarantine lease: err=%v active=%p resources=%d", err, activeUIOHookBackend.Load(), backend.ResourceCount())
+	}
+	if acquireUIOHookLease(&uiohookBackend{}) {
+		t.Fatal("another owner acquired a quarantined process-wide lease")
+	}
+
+	recoverable.Store(true)
+	secondCtx, secondCancel := context.WithTimeout(context.Background(), time.Second)
+	err = backend.Stop(secondCtx)
+	secondCancel()
+	if err != nil || activeUIOHookBackend.Load() != nil || backend.ResourceCount() != 0 {
+		t.Fatalf("retryable stop did not recover quarantine: err=%v active=%p resources=%d", err, activeUIOHookBackend.Load(), backend.ResourceCount())
 	}
 }

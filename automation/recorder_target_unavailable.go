@@ -1,10 +1,10 @@
-//go:build !darwin || !cgo
+//go:build (!darwin && !windows) || (darwin && !cgo)
 
 package automation
 
 import "context"
 
-func newRecorderTargetProbe() func(context.Context, *WindowInfo, int, int) (*recorderElementSnapshot, error) {
+func newRecorderTargetProbe() func(context.Context, *WindowInfo, recorderTargetPoint) (*recorderElementSnapshot, error) {
 	return nil
 }
 

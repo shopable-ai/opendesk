@@ -12,6 +12,20 @@ Custom UI 的 API 契约、`-ui` / `-no-ui` / `-config` 的优先级、配置文
 ./opendesk -ui -script examples/custom-ui/panel.js -console-mode script
 ```
 
+Windows 发行目录使用 `dist/opendesk.exe` 与 `dist/ui-host/opendesk-ui-host.exe`。维护者在 Windows 仓库根目录先构建配套产物：
+
+```powershell
+pwsh -File scripts/build_windows_app.ps1
+```
+
+然后仍从仓库根目录直接运行公开示例：
+
+```powershell
+.\dist\opendesk.exe -ui -script examples/custom-ui/panel.js -console-mode script
+```
+
+后文以 `./opendesk` 开头的 Custom UI 示例在 Windows 中同样把可执行文件替换为 `.\dist\opendesk.exe`。`FloatingWindow` 直接使用 WinForms 原生控件，不要求 WebView2；`ui.createWindow()` 的受限 HTML surface 需要系统已安装 Microsoft Edge WebView2 Runtime，缺失时会返回结构化 `UNSUPPORTED_CAPABILITY`。
+
 `-ui` 只授予这一轮脚本创建原生窗口的能力，不会自行显示界面；示例脚本中的
 `ui.createWindow()` 与 `show()` 才会打开窗口。若项目选择配置方式，可去掉 `-ui`，让脚本同目录的
 `clawdesk.runtime.json` 决定能力。平台或 host 不可用时，即使传入 `-ui`，创建窗口仍会明确失败；
@@ -23,8 +37,8 @@ Custom UI 的 API 契约、`-ui` / `-no-ui` / `-config` 的优先级、配置文
 “Ready”“录制中 00:12”“3 tasks completed”等短状态。Label 的宽度在首次 `show()` 前声明，运行中只更新
 文字、水平/垂直对齐和语义色，因此不会让窗口或相邻按钮随文字长度跳动。水平 `center` 由 native
 text peer 实际应用；垂直轴使用独立的 `top` / `center`（默认）/ `bottom` 契约，不依赖 40pt 外框内
-`NSTextField` 的默认绘制位置。Accessibility 只暴露 wrapper 这一个 `staticText` 元素，完整文字同时作为
-name 和 value；内部 text peer 隐藏。`getLabelState()` 通过 `renderedTextBounds` 和完整的
+平台控件的默认绘制位置。Accessibility 只暴露一个 `staticText` 元素，完整文字同时作为
+name 和 value；macOS 的内部 text peer 隐藏。`getLabelState()` 通过 `renderedTextBounds` 和完整的
 `accessibilityName` / `accessibilityValue` 返回可验证的 native 布局与语义 readback。
 从仓库根目录直接运行：
 
@@ -63,14 +77,14 @@ autofocus 或脚本 `focus()`。所有控件的 width、options、range、step �
 点击“开始录制”会立即授权本次采集，并留出 3 秒供用户聚焦隔离、非敏感、可恢复的目标窗口；
 倒计时结束后才读取并冻结其 PID＋标题并调用同一个 execution-owned `Recorder.start()`，用于聚焦的
 点击不会被录入。界面明确显示准备、录制、保存、
-Actions、生成和试运行阶段，并提供暂停／继续、取消、停止保存、独立生成、重置和试运行按钮。暂停仍保留 native listener；
+Actions、生成和重放阶段，并提供暂停／继续、取消、停止保存、独立生成、重置和重放按钮。暂停仍保留 native listener；
 敏感操作或长期离开应停止。停止后由已有 `Recorder.buildActions()` 制作 actions，只有 ready 时才能
 手工点击生成。详情页用可滚动、可选择的受限文本控件显示 `File.read(scriptFile)` 的实际内容，并可由
-Runtime controller 复制。生成不会自动回放；只有用户另点“试运行”，才会通过 `Command.run()` 启动
-`./dist/opendesk -script <scriptFile>` Fresh Run。试运行可取消并保留结果，candidate 自身仍保持
+Runtime controller 复制。生成不会自动重放；只有用户另点“重放”，才会通过 `Command.run()` 启动
+`./dist/opendesk -script <scriptFile>` Fresh Run。重放可取消并保留结果，candidate 自身仍保持
 `verification: "not-run"`。生成成功后按钮变为“重新生成”，再次明确点击会从现有 ready actions 重新生成并重新读取内容，
 同时清理旧的内存候选／运行结果。重置只清空 UI/controller 引用，不删除不可变产物，也不重复停止已经终结的
-Recorder session。主托盘关闭、脚本异常或宿主退出会取消在途试运行并沿现有 execution 生命周期清理。
+Recorder session。主托盘关闭、脚本异常或宿主退出会取消在途重放并沿现有 execution 生命周期清理。
 详情页打开时会暂时隐藏置顶托盘，收起或关闭详情后恢复托盘，避免两个原生窗口互相覆盖；该操作不重置流程。
 录制期间的每个 Custom UI 按钮 click 会先调用 `session.excludeControlClick(event)`；宿主原始事件同时携带控件屏幕范围，Recorder 只把范围内对应 native 点击 ID 写入
 显式 raw 边界，Actions 只排除这些引用。范围内确有输入但无法匹配完整包络时才会阻塞；没有观察到 native 输入会明确记为 `not-observed`。若 actions blocked，托盘摘要和详情页会显示

@@ -82,7 +82,8 @@ RuntimeAPITest.contractObject('Recorder');
         },
       })),
 	  textEdits: options.textEdits || [],
-      issues: [],
+	  keyStatesAtStop: options.keyStatesAtStop || [],
+      issues: options.issues || [],
     };
     const editableContextEventIds = new Set(options.editableContextEventIds || []);
     for (const context of manifest.inputContexts) {
@@ -156,8 +157,7 @@ RuntimeAPITest.contractObject('Recorder');
     equal(capabilities.capture.available, false, 'capture availability includes host authorization');
     equal(capabilities.capture.evidenceModes.join(','), 'none,target-semantics', 'Recorder evidence modes');
     equal(capabilities.actions.available, true, 'saved-file actions remain available');
-    assert(capabilities.actions.actionSubset.includes('drag.left.straight'), JSON.stringify(capabilities.actions));
-	assert(capabilities.actions.actionSubset.includes('drag.left.text-selection-natural'), JSON.stringify(capabilities.actions));
+	assert(capabilities.actions.actionSubset.includes('drag.left.straight'), JSON.stringify(capabilities.actions));
 	assert(capabilities.actions.actionSubset.includes('wheel.xy.burst'), JSON.stringify(capabilities.actions));
 	assert(capabilities.actions.actionSubset.includes('text.focused-value-patch'), JSON.stringify(capabilities.actions));
 	assert(capabilities.actions.actionSubset.includes('keyboard.shortcut'), JSON.stringify(capabilities.actions));
@@ -298,6 +298,124 @@ RuntimeAPITest.contractObject('Recorder');
   });
 
   test({
+	name: 'Recorder classifies macOS numeric-keypad Enter and keeps final focused values authoritative',
+	tier: 'unit',
+	covers: ['Recorder.buildActions', 'Recorder.generateScript'],
+  }, async () => {
+	const root = File.join(Execution.workdir, '.runtime', 'recordings');
+	const suffix = Date.now();
+	const physicalId = `rec-keypad-enter-physical-${suffix}`;
+	const valueId = `rec-keypad-enter-final-value-${suffix}`;
+	const ambiguousId = `rec-keypad-enter-ime-boundary-${suffix}`;
+	const physicalDir = File.join(root, physicalId);
+	const valueDir = File.join(root, valueId);
+	const ambiguousDir = File.join(root, ambiguousId);
+	const press = rawEvent(1, 'KEY_PRESSED', {keycode: 0x0e1c, rawcode: 76, keychar: 65535});
+	const release = rawEvent(2, 'KEY_RELEASED', {keycode: 0x0e1c, rawcode: 76, keychar: 65535});
+	const windowSnapshot = {
+	  id: 'fixture-window', title: 'Recorder Fixture', handle: 4242, index: 0, isPopup: false,
+	  application: {
+		processId: 4242, executableName: 'RecorderFixture', executablePath: '/fixture/recorder',
+		identityKind: 'executable-path', identityValue: '/fixture/recorder',
+	  },
+	  bounds: {x: 0, y: 0, width: 800, height: 600}, observedAt: '2024-01-01T00:00:00Z',
+	};
+	const editable = {
+	  role: 'textField', nativeRole: 'AXTextArea', name: 'Editor', identifier: 'editor',
+	  focused: true, valueSettable: true, nativeActions: [], bounds: {x: 10, y: 10, width: 300, height: 80},
+	};
+	const textEdit = (insertText, after) => ({
+	  id: 't0001', status: 'verified', sourceEventIds: [press.eventId, release.eventId],
+	  window: windowSnapshot, element: editable,
+	  before: {sha256: '8b400d1ccfa164050e7b311d76cb184190babc162cd0669d0e250dcf18ff30c0', utf16Units: 6},
+	  patch: {unit: 'utf16-code-unit', start: 6, deleteCount: 0, insertText},
+	  after,
+	  observedAt: '2024-01-01T00:00:00.020Z',
+	});
+	try {
+	  writeFixture(physicalDir, physicalId, [press, release], {
+		keyboardContextEventIds: [press.eventId],
+	  });
+	  const built = await Recorder.buildActions(physicalDir);
+	  equal(built.readiness, 'ready', JSON.stringify(built.issues));
+	  equal(built.actionCount, 1, 'numeric-keypad Enter must produce one special-key action');
+	  const actions = JSON.parse(File.read(built.actionsFile));
+	  equal(actions.issues.length, 0, JSON.stringify(actions.issues));
+	  equal(actions.actions[0].kind, 'key', JSON.stringify(actions.actions[0]));
+	  equal(actions.actions[0].args.key, 'Enter', JSON.stringify(actions.actions[0]));
+	  equal(actions.actions[0].source.eventIds.join(','), `${press.eventId},${release.eventId}`, JSON.stringify(actions.actions[0]));
+	  assert(actions.eventDisposition.every(item => item.actionId === 'a0001' && (item.disposition === 'consumed' || item.disposition === 'evidence')), JSON.stringify(actions.eventDisposition));
+	  const generated = await Recorder.generateScript(built.actionsFile);
+	  assert(File.isFile(generated.scriptFile) && File.isFile(generated.candidateFile), JSON.stringify(generated));
+	  assert(File.read(generated.scriptFile).includes('await keyboard.press("Enter")'), File.read(generated.scriptFile));
+
+	  writeFixture(valueDir, valueId, [press, release], {
+		textEdits: [textEdit('\n', {
+		  sha256: 'ac80c2c4a9845737c21e3b2424a8555be87ed29e105b12da53efe74ba9109858', utf16Units: 7,
+		})],
+	  });
+	  const valueBuilt = await Recorder.buildActions(valueDir);
+	  equal(valueBuilt.readiness, 'ready', JSON.stringify(valueBuilt.issues));
+	  equal(valueBuilt.actionCount, 1, 'a verified final value patch must replace physical-key replay');
+	  const valueActions = JSON.parse(File.read(valueBuilt.actionsFile));
+	  equal(valueActions.actions[0].kind, 'text-edit', JSON.stringify(valueActions.actions[0]));
+	  equal(valueActions.actions[0].args.textEdit.patch.insertText, '\n', JSON.stringify(valueActions.actions[0]));
+	  const valueGenerated = await Recorder.generateScript(valueBuilt.actionsFile);
+	  const valueSource = File.read(valueGenerated.scriptFile);
+	  assert(valueSource.includes('Accessibility.perform(ref, { action: "setValue", value: next })'), valueSource);
+	  assert(!valueSource.includes('keyboard.press("Enter")'), valueSource);
+
+	  writeFixture(ambiguousDir, ambiguousId, [press, release], {
+		textEdits: [textEdit('世界', {
+		  sha256: '454f8a7203509d2e76d7b9083b68a2b7a6d10ab09e518db5ae0a7c345de5c17b', utf16Units: 8,
+		})],
+	  });
+	  const ambiguous = await Recorder.buildActions(ambiguousDir);
+	  equal(ambiguous.readiness, 'blocked', JSON.stringify(ambiguous));
+	  assert(ambiguous.issues.some(issue => issue.code === 'ime-boundary-ambiguous'), JSON.stringify(ambiguous.issues));
+	  assert(!ambiguous.issues.some(issue => issue.code === 'physical-key-unsupported'), JSON.stringify(ambiguous.issues));
+	} finally {
+	  for (const recordingDir of [physicalDir, valueDir, ambiguousDir]) File.removeDir(recordingDir);
+	}
+  });
+
+  test({
+	name: 'Recorder distinguishes a lost key release from a key still held at stop without synthesizing either',
+	tier: 'unit',
+	covers: ['Recorder.buildActions'],
+  }, async () => {
+	const root = File.join(Execution.workdir, '.runtime', 'recordings');
+	for (const fixture of [
+	  {suffix: 'released', state: 'released', issue: 'key-release-not-observed-at-stop'},
+	  {suffix: 'pressed', state: 'pressed', issue: 'key-still-pressed-at-stop'},
+	]) {
+	  const recordingId = `rec-key-stop-${fixture.suffix}-${Date.now()}`;
+	  const recordingDir = File.join(root, recordingId);
+	  const press = rawEvent(1, 'KEY_PRESSED', {keycode: 0x001e, rawcode: 0, keychar: 65535});
+	  try {
+		writeFixture(recordingDir, recordingId, [press], {
+		  keyStatesAtStop: [{
+			pressEventId: press.eventId, keycode: press.keycode, rawcode: press.rawcode,
+			state: fixture.state, source: 'combined-session-key-state', observedAt: '2024-01-01T00:00:01.001Z',
+		  }],
+		  issues: [{
+			code: fixture.issue, severity: 'error',
+			message: 'fixture proves that Recorder keeps the unmatched press fail closed without synthesizing a release',
+			eventId: press.eventId,
+		  }],
+		});
+		const built = await Recorder.buildActions(recordingDir);
+		equal(built.readiness, 'blocked', JSON.stringify(built));
+		assert(built.issues.some(issue => issue.code === fixture.issue), JSON.stringify(built.issues));
+		assert(built.issues.some(issue => issue.code === 'missing-key-release-at-stop'), JSON.stringify(built.issues));
+		assert(!File.read(File.join(recordingDir, 'raw', 'events.ndjson')).includes('KEY_RELEASED'), 'fixture raw unexpectedly contains a release');
+	  } finally {
+		File.removeDir(recordingDir);
+	  }
+	}
+  });
+
+  test({
     name: 'Recorder normalizes input and generates adjustable recorded timing between actions',
     tier: 'unit',
     covers: ['Recorder.buildActions', 'Recorder.generateScript'],
@@ -316,7 +434,8 @@ RuntimeAPITest.contractObject('Recorder');
 	const crossWindowDragId = `rec-natural-cross-window-${Date.now()}`;
 	const semanticCurveId = `rec-natural-curve-${Date.now()}`;
 	const semanticBacktrackId = `rec-natural-backtrack-${Date.now()}`;
-    const recordingDirs = [jitterId, clickSeriesId, spatialDoubleId, controlId, timingId, desktopId, dragId, curvedDragId, naturalSelectionId, nonTextDragId, crossWindowDragId, semanticCurveId, semanticBacktrackId].map(id => File.join(root, id));
+	const conflictingDragClickCountId = `rec-drag-conflicting-release-click-count-${Date.now()}`;
+    const recordingDirs = [jitterId, clickSeriesId, spatialDoubleId, controlId, timingId, desktopId, dragId, curvedDragId, naturalSelectionId, nonTextDragId, crossWindowDragId, semanticCurveId, semanticBacktrackId, conflictingDragClickCountId].map(id => File.join(root, id));
     try {
       writeFixture(recordingDirs[0], jitterId, [
         rawEvent(1, 'MOUSE_PRESSED', {button: 'left', clicks: 1, x: 20, y: 30, coordinateSpace: 'screen-logical', coordinateVerified: true, displayRef: 'fixture-display'}),
@@ -337,7 +456,7 @@ RuntimeAPITest.contractObject('Recorder');
         rawEvent(1, 'MOUSE_PRESSED', {button: 'left', clicks: 1, x: 300, y: 200, coordinateSpace: 'screen-logical', coordinateVerified: true, displayRef: 'fixture-display'}),
         rawEvent(2, 'MOUSE_DRAGGED', {button: 'none', x: 280, y: 200, modifierMask: 1 << 8, coordinateSpace: 'screen-logical', coordinateVerified: true, displayRef: 'fixture-display'}),
         rawEvent(3, 'MOUSE_DRAGGED', {button: 'none', x: 250, y: 201, modifierMask: 1 << 8, coordinateSpace: 'screen-logical', coordinateVerified: true, displayRef: 'fixture-display'}),
-        rawEvent(4, 'MOUSE_RELEASED', {button: 'left', clicks: 1, x: 240, y: 201, coordinateSpace: 'screen-logical', coordinateVerified: true, displayRef: 'fixture-display'}),
+        rawEvent(4, 'MOUSE_RELEASED', {button: 'left', clicks: 0, x: 240, y: 201, coordinateSpace: 'screen-logical', coordinateVerified: true, displayRef: 'fixture-display'}),
       ], {editableContextEventIds: ['e000000000001', 'e000000000004']});
       const drag = await Recorder.buildActions(recordingDirs[6]);
       equal(drag.readiness, 'ready', JSON.stringify(drag.issues));
@@ -354,11 +473,18 @@ RuntimeAPITest.contractObject('Recorder');
       const dragGenerated = await Recorder.generateScript(drag.actionsFile);
       const dragSource = File.read(dragGenerated.scriptFile);
       assert(dragSource.includes('await mouse.move(__recorderDragStart1.x, __recorderDragStart1.y)')
+        && dragSource.includes('__recorderRequirePointer(__recorderDragStart1, "a0001", "start-position-confirmed")')
         && dragSource.includes('await mouse.down({ button: "left" })')
+        && dragSource.includes('phase: "button-down-returned"')
         && dragSource.includes('try {')
+        && dragSource.includes('await __recorderRequireResolvedActiveWindow(__recorderWindow1)')
+        && dragSource.includes('phase: "active-window-confirmed"')
         && dragSource.includes('await mouse.move(__recorderDragEnd1.x, __recorderDragEnd1.y, { steps: 2 })')
+        && dragSource.includes('__recorderRequirePointer(__recorderDragEnd1, "a0001", "end-position-confirmed")')
         && dragSource.includes('finally {')
-        && dragSource.includes('await mouse.up({ button: "left" })'), dragSource);
+        && dragSource.includes('await mouse.up({ button: "left" })')
+        && dragSource.includes('phase: "button-up-returned"'), dragSource);
+      assert(dragGenerated.constraints.some(constraint => constraint.includes('never target business success')), JSON.stringify(dragGenerated.constraints));
 
       writeFixture(recordingDirs[7], curvedDragId, [
         rawEvent(1, 'MOUSE_PRESSED', {button: 'left', clicks: 1, x: 100, y: 100, coordinateSpace: 'screen-logical', coordinateVerified: true, displayRef: 'fixture-display'}),
@@ -372,7 +498,7 @@ RuntimeAPITest.contractObject('Recorder');
 	  const naturalEvents = () => [
 		rawEvent(1, 'MOUSE_PRESSED', {button: 'left', clicks: 1, x: 350, y: 220, modifierMask: 1 << 8, coordinateSpace: 'screen-logical', coordinateVerified: true, displayRef: 'fixture-display'}),
 		...[ [348, 220], [317, 216], [278, 211], [224, 206], [188, 206], [180, 209], [163, 216], [140, 220] ].map((point, index) => rawEvent(index + 2, 'MOUSE_DRAGGED', {button: 'none', x: point[0], y: point[1], modifierMask: 1 << 8, coordinateSpace: 'screen-logical', coordinateVerified: true, displayRef: 'fixture-display'})),
-		rawEvent(10, 'MOUSE_RELEASED', {button: 'left', clicks: 1, x: 132, y: 220, coordinateSpace: 'screen-logical', coordinateVerified: true, displayRef: 'fixture-display'}),
+		rawEvent(10, 'MOUSE_RELEASED', {button: 'left', clicks: 0, x: 132, y: 220, coordinateSpace: 'screen-logical', coordinateVerified: true, displayRef: 'fixture-display'}),
 	  ];
 	  const endpointIds = ['e000000000001', 'e000000000010'];
 	  writeFixture(recordingDirs[8], naturalSelectionId, naturalEvents(), {editableContextEventIds: endpointIds});
@@ -410,6 +536,15 @@ RuntimeAPITest.contractObject('Recorder');
 	  const semanticBacktrack = await Recorder.buildActions(recordingDirs[12]);
 	  equal(semanticBacktrack.readiness, 'blocked', JSON.stringify(semanticBacktrack));
 	  assert(semanticBacktrack.issues.some(issue => issue.code === 'drag-unsupported'), JSON.stringify(semanticBacktrack.issues));
+
+	  const conflictingDragClickCount = naturalEvents();
+	  conflictingDragClickCount[conflictingDragClickCount.length - 1] = {
+	    ...conflictingDragClickCount[conflictingDragClickCount.length - 1], clicks: 2,
+	  };
+	  writeFixture(recordingDirs[13], conflictingDragClickCountId, conflictingDragClickCount, {editableContextEventIds: endpointIds});
+	  const conflictingDrag = await Recorder.buildActions(recordingDirs[13]);
+	  equal(conflictingDrag.readiness, 'blocked', JSON.stringify(conflictingDrag));
+	  assert(conflictingDrag.issues.some(issue => issue.code === 'drag-unsupported'), JSON.stringify(conflictingDrag.issues));
 
       writeFixture(recordingDirs[1], clickSeriesId, [
         rawEvent(1, 'MOUSE_PRESSED', {button: 'left', clicks: 1, x: 20, y: 30, coordinateSpace: 'screen-logical', coordinateVerified: true, displayRef: 'fixture-display'}),

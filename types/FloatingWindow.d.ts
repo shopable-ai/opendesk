@@ -157,7 +157,8 @@ declare global {
 
   type ClawdeskFloatingIconPresentation =
     | ClawdeskFloatingBuiltInIconPresentation
-    | ClawdeskFloatingImageIconPresentation;
+    | ClawdeskFloatingImageIconPresentation
+    | { kind: "windowsGlyph"; systemSymbol: ""; glyph: string; fontFamily: "Segoe UI Symbol"; scale: number; offsetX: number; offsetY: number };
 
   interface ClawdeskFloatingButtonState {
     id: string;

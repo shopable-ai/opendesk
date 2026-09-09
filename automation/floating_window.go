@@ -1028,6 +1028,13 @@ func publicFloatingIconPresentation(presentation toolbar.IconPresentation) any {
 			"renderingMode": presentation.RenderingMode,
 		}
 	}
+	if presentation.Kind == toolbar.IconKindWindows {
+		return map[string]any{
+			"kind": presentation.Kind, "systemSymbol": "", "glyph": presentation.Glyph,
+			"fontFamily": presentation.FontFamily, "scale": presentation.Scale,
+			"offsetX": presentation.OffsetX, "offsetY": presentation.OffsetY,
+		}
+	}
 	return map[string]any{
 		"kind": toolbar.IconKindBuiltIn, "systemSymbol": presentation.SystemSymbol,
 		"scale": presentation.Scale, "offsetX": presentation.OffsetX, "offsetY": presentation.OffsetY,

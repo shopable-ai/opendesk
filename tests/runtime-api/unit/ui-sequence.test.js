@@ -31,7 +31,11 @@
       Geometry,
       Screen: {
         getVirtualBounds: () => ({ x: 0, y: 0, width: 2000, height: 1500 }),
-        getDisplays: () => [{ id: 'fixture-display', index: 1, x: 0, y: 0, width: 2000, height: 1500, scale: 1 }],
+        getDisplays: () => [{
+          id: 'fixture-display', index: 1,
+          x: 0, y: 0, width: 2000, height: 1500,
+          pixelWidth: 2000, pixelHeight: 1500, scale: 1,
+        }],
       },
       page: {
         waitFor: wait, waitForTimeout: wait,

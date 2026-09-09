@@ -40,6 +40,10 @@ new.txt
 test.txt
 screenshot_cut.png
 
+# Windows native UI build cache; publish outputs stay under .runtime/ or dist/.
+/pkg/customui/winhost/bin/
+/pkg/customui/winhost/obj/
+
 # build/release payloads; keep source and release metadata, not binaries/archives
 /testMonkey.exe
 

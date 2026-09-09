@@ -15,6 +15,8 @@ type Mouse struct {
 	pressedButtons map[string]bool
 }
 
+const darwinMouseEventSettleDelay = 50 * time.Millisecond
+
 func NewMouse() *Mouse {
 	return &Mouse{pressedButtons: make(map[string]bool)}
 }
@@ -163,6 +165,12 @@ func (m *Mouse) Move(x, y int, options interface{}) error {
 			robotgo.Move(x, y)
 		}
 	}
+	if runtime.GOOS == "darwin" {
+		// CGEventPost is asynchronous. Keep the public await boundary behind one
+		// short bounded interval so a following down/up or keyboard call cannot overtake
+		// the posted move in AppKit/WebKit's input handling.
+		time.Sleep(darwinMouseEventSettleDelay)
+	}
 
 	return nil
 }
@@ -187,6 +195,12 @@ func (m *Mouse) Down(options interface{}) error {
 
 	robotgo.Toggle(opts.Button, "down")
 	m.setButtonPressed(opts.Button, true)
+	if runtime.GOOS == "darwin" {
+		// The next mouse.move must not be posted before the target has observed
+		// this button transition; otherwise Quartz can collapse the sequence into
+		// a click even though drag-typed motion events follow.
+		time.Sleep(darwinMouseEventSettleDelay)
+	}
 	return nil
 }
 
@@ -210,6 +224,11 @@ func (m *Mouse) Up(options interface{}) error {
 
 	robotgo.Toggle(opts.Button, "up")
 	m.setButtonPressed(opts.Button, false)
+	if runtime.GOOS == "darwin" {
+		// Preserve the ordering promised by await mouse.up() before the caller can
+		// submit a keyboard event or inspect the target application's result.
+		time.Sleep(darwinMouseEventSettleDelay)
+	}
 	return nil
 }
 

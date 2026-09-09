@@ -71,6 +71,7 @@ func newRecorderTextProbe() recorderTextProbe {
 			Name: darwinAXString(inspection.Name), Identifier: darwinAXString(inspection.Identifier), Enabled: inspection.Enabled, Focused: inspection.Focused,
 			ValueSettable: inspection.ValueSettable, NativeActions: append([]string{}, inspection.NativeActions...),
 			Bounds: recorderWindowBounds{X: int(math.Round(bounds.X)), Y: int(math.Round(bounds.Y)), Width: int(math.Round(bounds.Width)), Height: int(math.Round(bounds.Height))},
+			BoundsSpace: "screen-logical",
 		}
 		if err := recorderValidateElementDescriptor(descriptor); err != nil {
 			return nil, err
@@ -79,17 +80,21 @@ func newRecorderTextProbe() recorderTextProbe {
 	}
 }
 
-func newRecorderTargetProbe() func(context.Context, *WindowInfo, int, int) (*recorderElementSnapshot, error) {
-	return func(ctx context.Context, window *WindowInfo, x, y int) (*recorderElementSnapshot, error) {
+func newRecorderTargetProbe() func(context.Context, *WindowInfo, recorderTargetPoint) (*recorderElementSnapshot, error) {
+	return func(ctx context.Context, window *WindowInfo, point recorderTargetPoint) (*recorderElementSnapshot, error) {
 		if ctx == nil {
 			ctx = context.Background()
 		}
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if window == nil || window.ProcessID == 0 {
+		if window == nil || window.ProcessID == 0 || window.Handle == 0 {
 			return nil, fmt.Errorf("semantic target window is unavailable")
 		}
+		if point.InputSpace != "screen-logical" {
+			return nil, fmt.Errorf("semantic target input coordinate space is unsupported")
+		}
+		x, y := point.X, point.Y
 		if C.opendesk_ax_is_process_trusted() == 0 {
 			return nil, fmt.Errorf("macOS Accessibility permission is not granted")
 		}
@@ -140,39 +145,69 @@ func newRecorderTargetProbe() func(context.Context, *WindowInfo, int, int) (*rec
 
 		selected := hit
 		resolution := "point-hit"
+		selectedForClick := recorderElementSupportsSingleClick(hit)
 		ancestors := make([]recorderElementDescriptor, 0, 6)
-		if len(hit.NativeActions) == 0 {
-			current := element
-			for depth := 0; depth < 6; depth++ {
-				timeout, timeoutErr := recorderTargetTimeout(ctx)
-				if timeoutErr != nil {
-					break
-				}
-				var parent C.uintptr_t
-				parentStatus := C.opendesk_ax_copy_element_attribute(current, C.OPENDESK_AX_ELEMENT_ATTRIBUTE_PARENT, C.double(timeout.Seconds()), &parent)
-				if parentStatus == C.int32_t(C.OPENDESK_AX_STATUS_TARGET_NOT_FOUND) || parent == 0 {
-					break
-				}
-				if parentStatus != 0 {
-					break
-				}
-				owned = append(owned, parent)
-				current = parent
-				var parentPID C.int32_t
-				if pidStatus := C.opendesk_ax_element_pid(parent, C.double(timeout.Seconds()), &parentPID); pidStatus != 0 || uint32(parentPID) != window.ProcessID {
-					break
-				}
-				descriptor, parentSecure, inspectErr := recorderInspectAXDescriptor(ctx, parent)
-				if inspectErr != nil || parentSecure || !recorderPointInsideWindow(x, y, descriptor.Bounds) {
-					break
-				}
-				ancestors = append(ancestors, descriptor)
-				if len(descriptor.NativeActions) > 0 {
-					selected = descriptor
-					resolution = "nearest-actionable-ancestor"
-					break
-				}
+		containers := make([]recorderElementDescriptor, 0, 3)
+		windowMatched := false
+		current := element
+		for depth := 0; depth < 32; depth++ {
+			timeout, timeoutErr := recorderTargetTimeout(ctx)
+			if timeoutErr != nil {
+				return nil, timeoutErr
 			}
+			var parent C.uintptr_t
+			parentStatus := C.opendesk_ax_copy_element_attribute(current, C.OPENDESK_AX_ELEMENT_ATTRIBUTE_PARENT, C.double(timeout.Seconds()), &parent)
+			if parentStatus == C.int32_t(C.OPENDESK_AX_STATUS_TARGET_NOT_FOUND) || parent == 0 {
+				break
+			}
+			if err := darwinAXStatusError(ctx, parentStatus, "recorder_target_parent", false); err != nil {
+				return nil, err
+			}
+			owned = append(owned, parent)
+			current = parent
+			var parentPID C.int32_t
+			if pidStatus := C.opendesk_ax_element_pid(parent, C.double(timeout.Seconds()), &parentPID); pidStatus != 0 || uint32(parentPID) != window.ProcessID {
+				return nil, fmt.Errorf("accessibility ancestry leaves the resolved window application")
+			}
+			descriptor, parentSecure, inspectErr := recorderInspectAXDescriptor(ctx, parent)
+			if parentSecure {
+				return nil, fmt.Errorf("secure accessibility ancestor semantics are not recorded")
+			}
+			if errors.Is(inspectErr, errRecorderElementBoundsUnavailable) {
+				continue
+			}
+			if inspectErr != nil {
+				return nil, inspectErr
+			}
+			if descriptor.Role == "window" {
+				windowID, identityErr := getMacWindowIDForPIDAndBounds(
+					window.ProcessID, int32(descriptor.Bounds.X), int32(descriptor.Bounds.Y),
+					int32(descriptor.Bounds.Width), int32(descriptor.Bounds.Height),
+				)
+				if identityErr != nil || uint64(windowID) != window.Handle {
+					return nil, fmt.Errorf("accessibility element does not belong to the resolved exact window")
+				}
+				windowMatched = true
+				break
+			}
+			if !recorderPointInsideWindow(x, y, descriptor.Bounds) {
+				return nil, fmt.Errorf("accessibility ancestor bounds do not contain the pointer")
+			}
+			if !selectedForClick && len(ancestors) < 6 {
+				ancestors = append(ancestors, descriptor)
+				if recorderElementSupportsSingleClick(descriptor) {
+					selected = descriptor
+					selectedForClick = true
+					resolution = "nearest-actionable-ancestor"
+				}
+				continue
+			}
+			if selectedForClick && len(containers) < 3 {
+				containers = append(containers, descriptor)
+			}
+		}
+		if !windowMatched {
+			return nil, fmt.Errorf("accessibility element exact window ancestry is unavailable")
 		}
 
 		offsetX, offsetY := x-selected.Bounds.X, y-selected.Bounds.Y
@@ -181,8 +216,12 @@ func newRecorderTargetProbe() func(context.Context, *WindowInfo, int, int) (*rec
 			Role: selected.Role, NativeRole: selected.NativeRole, Subrole: selected.Subrole, Name: selected.Name,
 			Identifier: selected.Identifier, Enabled: selected.Enabled, Focused: selected.Focused, ValueSettable: selected.ValueSettable,
 			NativeActions: append([]string{}, selected.NativeActions...),
-			Bounds:        selected.Bounds, Hit: hit, Ancestors: ancestors,
-			Point:      recorderElementPoint{OffsetX: offsetX, OffsetY: offsetY, XRatio: float64(offsetX) / float64(selected.Bounds.Width), YRatio: float64(offsetY) / float64(selected.Bounds.Height)},
+			Bounds: selected.Bounds, BoundsSpace: "screen-logical", Hit: hit, Ancestors: ancestors, Containers: containers,
+			Point: recorderElementPoint{OffsetX: offsetX, OffsetY: offsetY, XRatio: float64(offsetX) / float64(selected.Bounds.Width), YRatio: float64(offsetY) / float64(selected.Bounds.Height)},
+			CoordinateMapping: &recorderElementCoordinateMapping{
+				InputX: x, InputY: y, InputSpace: "screen-logical", NativeX: x, NativeY: y,
+				NativeSpace: "screen-logical", Method: "identity", Verified: true,
+			},
 			ObservedAt: time.Now().UTC().Format(time.RFC3339Nano),
 		}, nil
 	}
@@ -219,8 +258,12 @@ func recorderElementSnapshotFromDescriptor(descriptor recorderElementDescriptor,
 		Role: descriptor.Role, NativeRole: descriptor.NativeRole, Subrole: descriptor.Subrole, Name: descriptor.Name,
 		Identifier: descriptor.Identifier, Enabled: descriptor.Enabled, Focused: descriptor.Focused, ValueSettable: descriptor.ValueSettable,
 		NativeActions: append([]string{}, descriptor.NativeActions...), Bounds: descriptor.Bounds,
-		Hit: descriptor, Ancestors: []recorderElementDescriptor{},
+		BoundsSpace: descriptor.BoundsSpace, Hit: descriptor, Ancestors: []recorderElementDescriptor{}, Containers: []recorderElementDescriptor{},
 		Point:      recorderElementPoint{OffsetX: offsetX, OffsetY: offsetY, XRatio: float64(offsetX) / float64(descriptor.Bounds.Width), YRatio: float64(offsetY) / float64(descriptor.Bounds.Height)},
+		CoordinateMapping: &recorderElementCoordinateMapping{
+			InputX: x, InputY: y, InputSpace: "screen-logical", NativeX: x, NativeY: y,
+			NativeSpace: "screen-logical", Method: "identity", Verified: true,
+		},
 		ObservedAt: time.Now().UTC().Format(time.RFC3339Nano),
 	}
 }
@@ -268,6 +311,7 @@ func recorderInspectAXDescriptor(ctx context.Context, element C.uintptr_t) (reco
 		Name: darwinAXString(inspection.Name), Identifier: darwinAXString(inspection.Identifier), Enabled: inspection.Enabled, Focused: inspection.Focused,
 		ValueSettable: inspection.ValueSettable, NativeActions: append([]string{}, inspection.NativeActions...),
 		Bounds: recorderWindowBounds{X: int(math.Round(bounds.X)), Y: int(math.Round(bounds.Y)), Width: int(math.Round(bounds.Width)), Height: int(math.Round(bounds.Height))},
+		BoundsSpace: "screen-logical",
 	}
 	if err := recorderValidateElementDescriptor(descriptor); err != nil {
 		return recorderElementDescriptor{}, false, err

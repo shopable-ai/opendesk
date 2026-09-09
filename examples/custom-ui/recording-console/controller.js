@@ -215,7 +215,7 @@
 
       if (canceled || reason === 'close') {
         await transition(canceled ? 'canceled' : state.phase,
-          canceled ? '已按用户的取消请求停止录制；录制事实保留，不制作 actions，也不生成或回放。' : state.detail);
+          canceled ? '已按用户的取消请求停止录制；录制事实保留，不制作 actions，也不生成或重放。' : state.detail);
         return snapshot();
       }
       if (build && controlBoundaryFailure) {
@@ -388,7 +388,7 @@
         }
         return operationPromise;
       }
-      if (!session) return transition('canceled', '已取消；没有活动监听，未生成或回放任何脚本。').then(snapshot);
+      if (!session) return transition('canceled', '已取消；没有活动监听，未生成或重放任何脚本。').then(snapshot);
       return runExclusive('cancel', () => stopSession({build: false, canceled: true, reason: 'cancel'}));
     }
 
@@ -414,7 +414,7 @@
             });
           }
           const source = String(await readGeneratedScript(generated.scriptFile));
-          await transition('generated', '脚本已生成且可检查。只有点击“试运行”才会启动新的受管 execution。', {
+          await transition('generated', '脚本已生成且可检查。只有点击“重放”才会启动新的受管 execution。', {
             generated: {...clone(generated), source}, run: null, copyStatus: 'idle', error: null,
           });
         } catch (error) {
@@ -430,12 +430,12 @@
       if (!state.generated || typeof state.generated.source !== 'string') {
         return setFailure({
           code: 'RUN_BLOCKED', operation: 'Command.run', message: '没有已加载的生成脚本',
-        }, state.generated ? 'generation-error' : 'error', '不能试运行脚本');
+        }, state.generated ? 'generation-error' : 'error', '不能重放脚本');
       }
       if (!executeGeneratedScript) {
         return setFailure({
           code: 'COMMAND_DISABLED', operation: 'Command.run', message: '当前 execution 没有正式脚本执行适配器',
-        }, 'run-failed', '不能试运行脚本');
+        }, 'run-failed', '不能重放脚本');
       }
       return runExclusive('run', async () => {
         runAbortController = createAbortController();
@@ -456,11 +456,11 @@
               code: 'CANCELED', operation: 'Command.run',
             });
           }
-          await transition('running', '正在新的 OpenDesk execution 中试运行。关闭或“取消试运行”会终止受管子进程。', {
+          await transition('running', '正在新的 OpenDesk execution 中重放。关闭或“取消重放”会终止受管子进程。', {
             run: {status: 'running', startedAt, finishedAt: null, exitCode: null, stdout: '', stderr: '', logDir: ''},
           });
           const result = await executeGeneratedScript(clone(state.generated), {signal: runAbortController.signal});
-          await transition('run-succeeded', '试运行已以 exit code 0 完成；这不等于目标应用的业务结果已验证。', {
+          await transition('run-succeeded', '重放已以 exit code 0 完成；这不等于目标应用的业务结果已验证。', {
             run: {
               status: 'succeeded', startedAt, finishedAt: new Date().toISOString(),
               exitCode: Number.isInteger(result && result.exitCode) ? result.exitCode : 0,
@@ -475,8 +475,8 @@
           const normalized = normalizeError(error);
           const canceled = normalized.code === 'CANCELED' && runCancelRequested;
           await transition(canceled ? 'run-canceled' : 'run-failed', canceled
-            ? '试运行已取消；生成脚本仍保留，可再次试运行、重置或重新录制。'
-            : `试运行失败：${normalized.message}`, {
+            ? '重放已取消；生成脚本仍保留，可再次重放、重置或重新录制。'
+            : `重放失败：${normalized.message}`, {
             run: {
               status: canceled ? 'canceled' : 'failed', startedAt, finishedAt: new Date().toISOString(),
               exitCode: normalized.exitCode, stdout: normalized.stdout, stderr: normalized.stderr,
@@ -496,7 +496,7 @@
       if (!operationPromise || operationName !== 'run' || !runAbortController) return snapshot();
       if (!runCancelRequested) {
         runCancelRequested = true;
-        await transition('run-canceling', '正在取消受管试运行；等待子进程和输出管道清理…');
+        await transition('run-canceling', '正在取消受管重放；等待子进程和输出管道清理…');
         runAbortController.abort('recording console run canceled');
       }
       return operationPromise;
@@ -514,7 +514,7 @@
         try {
           await copyText(state.generated.source);
           state.copyStatus = 'copied';
-          state.detail = '生成脚本已复制到系统剪贴板；试运行仍需单独点击。';
+          state.detail = '生成脚本已复制到系统剪贴板；重放仍需单独点击。';
           state.error = null;
           await emit();
         } catch (error) {
@@ -575,7 +575,7 @@
       if (session) {
         await runExclusive('close-stop', () => stopSession({build: false, canceled: false, reason: 'close'}));
       }
-      await transition('closed', '录制控制台已关闭；不会自动生成或回放。');
+      await transition('closed', '录制控制台已关闭；不会自动生成或重放。');
       return snapshot();
     }
 
@@ -592,9 +592,9 @@
     unavailable: '不可用', ready: '准备就绪', preparing: '正在准备', 'stop-requested': '等待停止',
     recording: '录制中', pausing: '正在暂停', paused: '已暂停', resuming: '正在继续', stopping: '正在停止', saved: '已保存', 'partial-saved': '部分保存',
     'building-actions': '制作 actions', 'actions-ready': 'actions 就绪', 'actions-blocked': 'actions 需处理',
-    generating: '正在生成', generated: '已生成 · 未运行', 'generation-error': '生成失败',
-    'run-preparing': '准备试运行', running: '试运行中', 'run-canceling': '正在取消试运行', 'run-succeeded': '试运行完成',
-    'run-failed': '试运行失败', 'run-canceled': '试运行已取消',
+    generating: '正在生成', generated: '已生成 · 未重放', 'generation-error': '生成失败',
+    'run-preparing': '准备重放', running: '重放中', 'run-canceling': '正在取消重放', 'run-succeeded': '重放完成',
+    'run-failed': '重放失败', 'run-canceled': '重放已取消',
     canceled: '已取消', error: '发生错误', closed: '已关闭',
   };
 
@@ -652,12 +652,12 @@
   }
 
   function runSummaryText(state) {
-    if (!state.run) return '尚未试运行。生成不会自动触发回放。';
+    if (!state.run) return '尚未重放。生成不会自动触发重放。';
     if (state.run.status === 'preparing') return '准备中 · 请恢复起始桌面和窗口';
-    if (state.run.status === 'running') return '运行中 · 新的 OpenDesk execution';
+    if (state.run.status === 'running') return '重放中 · 新的 OpenDesk execution';
     if (state.run.status === 'canceled') return '已取消 · 生成脚本仍保留';
     if (state.run.status === 'succeeded') return `已完成 · exit code ${state.run.exitCode}`;
-    return `运行失败${state.run.exitCode === null ? '' : ` · exit code ${state.run.exitCode}`}`;
+    return `重放失败${state.run.exitCode === null ? '' : ` · exit code ${state.run.exitCode}`}`;
   }
 
   function runOutputText(state) {
@@ -667,7 +667,7 @@
     if (state.run.stdout) sections.push(`stdout:\n${state.run.stdout}`);
     if (state.run.stderr) sections.push(`stderr:\n${state.run.stderr}`);
     if (!sections.length) sections.push(state.run.status === 'preparing' ? '等待用户恢复起始环境…'
-      : state.run.status === 'running' ? '等待子 execution 完成…' : '本次运行没有 stdout / stderr。');
+      : state.run.status === 'running' ? '等待子 execution 完成…' : '本次重放没有 stdout / stderr。');
     const output = sections.join('\n\n');
     return output.length > 12000 ? output.slice(0, 12000) + '\n…（UI 仅显示前 12000 字符；完整输出见 log 目录）' : output;
   }
@@ -842,15 +842,15 @@
         updateBoth('traySaveStage', 'stageSave', {text: stageText('保存', stages.save), classes: ['stage-chip', 'is-' + stages.save]}),
         updateBoth('trayActionsStage', 'stageActions', {text: stageText('Actions', stages.actions), classes: ['stage-chip', 'is-' + stages.actions]}),
         updateBoth('trayGenerateStage', 'stageGenerate', {text: stageText('生成', stages.generate), classes: ['stage-chip', 'is-' + stages.generate]}),
-        updateBoth('trayRunStage', 'stageRun', {text: stageText('试运行', stages.run), classes: ['stage-chip', 'is-' + stages.run]}),
+        updateBoth('trayRunStage', 'stageRun', {text: stageText('重放', stages.run), classes: ['stage-chip', 'is-' + stages.run]}),
         update(tray.control('trayDetails'), {text: state.generated ? '查看脚本' : '查看详情'}),
         updateBoth('trayStart', 'start', {text: state.saved || state.actions || state.generated ? '重新录制' : '开始录制', disabled: !canStart, busy: state.operation === 'start', error: state.phase === 'error' ? errorText : ''}),
         updateBoth('trayPause', 'pause', {text: state.phase === 'paused' ? '继续录制' : '暂停录制', disabled: !canPause, busy: state.operation === 'pause-resume', error: state.phase === 'paused' && state.error ? errorText : ''}),
         updateBoth('trayStop', 'stop', {disabled: !canStop, busy: state.operation === 'stop'}),
         updateBoth('trayGenerate', 'generate', {text: state.generated ? '重新生成' : '生成脚本', disabled: !canGenerate, busy: state.operation === 'generate', error: state.phase === 'generation-error' ? errorText : ''}),
-        updateBoth('trayRun', 'runScript', {text: runActive ? '试运行中' : '试运行', disabled: !canRun, busy: runActive, error: state.phase === 'run-failed' ? errorText : ''}),
+        updateBoth('trayRun', 'runScript', {text: runActive ? '重放中' : '重放', disabled: !canRun, busy: runActive, error: state.phase === 'run-failed' ? errorText : ''}),
         updateBoth('trayReset', 'reset', {disabled: !canReset}),
-        updateBoth('trayCancel', 'cancel', {text: runActive ? '取消试运行' : '取消并保存', disabled: !canCancel, busy: state.phase === 'run-canceling' || state.operation === 'cancel'}),
+        updateBoth('trayCancel', 'cancel', {text: runActive ? '取消重放' : '取消并保存', disabled: !canCancel, busy: state.phase === 'run-canceling' || state.operation === 'cancel'}),
         withDetails(panel => update(panel.control('copyScript'), {text: state.copyStatus === 'copied' ? '已复制' : '复制脚本', disabled: !state.generated || busy})),
         withDetails(panel => update(panel.control('scriptPath'), {text: scriptPath})),
         withDetails(panel => update(panel.control('scriptPreview'), {text: scriptSource, classes: ['script-preview', ...(state.generated ? ['has-source'] : [])]})),

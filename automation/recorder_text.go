@@ -243,7 +243,7 @@ func recorderTextEditHasAmbiguousIMEBoundary(edit recorderTextEdit, events map[s
 	}
 	for _, eventID := range edit.SourceEventIDs {
 		event := events[eventID]
-		if event.Keycode != nil && (*event.Keycode == 0x001c || *event.Keycode == 0x000f) {
+		if event.Keycode != nil && (*event.Keycode == 0x001c || *event.Keycode == 0x0e1c || *event.Keycode == 0x000f) {
 			return true
 		}
 	}
@@ -319,8 +319,8 @@ func recorderIsTextEditingKey(code uint16) bool {
 	}
 	switch code {
 	case 0x0001, // Escape
-		0x000f, // Tab
-		0x001c, // Enter
+		0x000f,         // Tab
+		0x001c, 0x0e1c, // Enter and numeric-keypad Enter
 		0x003b, 0x003c, 0x003d, 0x003e, 0x003f, 0x0040, 0x0041, 0x0042, 0x0043, 0x0044, 0x0057, 0x0058,
 		0xe048, 0xe04b, 0xe04d, 0xe050, // arrows
 		0x0e47, 0x0e4f, 0x0e49, 0x0e51, 0x0e52: // navigation/insert
@@ -338,7 +338,7 @@ func recorderKeyName(code uint16) (string, bool) {
 	}
 	keyMap := map[uint16]string{
 		0x0001: "Escape", 0x0002: "1", 0x0003: "2", 0x0004: "3", 0x0005: "4", 0x0006: "5", 0x0007: "6", 0x0008: "7", 0x0009: "8", 0x000a: "9", 0x000b: "0",
-		0x000c: "-", 0x000d: "=", 0x000e: "Backspace", 0x000f: "Tab", 0x001a: "[", 0x001b: "]", 0x002b: "\\", 0x0027: ";", 0x0028: "'", 0x001c: "Enter", 0x0033: ",", 0x0034: ".", 0x0035: "/", 0x0039: "Space",
+		0x000c: "-", 0x000d: "=", 0x000e: "Backspace", 0x000f: "Tab", 0x001a: "[", 0x001b: "]", 0x002b: "\\", 0x0027: ";", 0x0028: "'", 0x001c: "Enter", 0x0e1c: "Enter", 0x0033: ",", 0x0034: ".", 0x0035: "/", 0x0039: "Space",
 		0x0e53: "Delete", 0x0e47: "Home", 0x0e4f: "End", 0x0e49: "PageUp", 0x0e51: "PageDown", 0xe048: "ArrowUp", 0xe04b: "ArrowLeft", 0xe04d: "ArrowRight", 0xe050: "ArrowDown",
 	}
 	if code >= 0x003b && code <= 0x0044 {

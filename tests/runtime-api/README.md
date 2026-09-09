@@ -35,6 +35,7 @@ Dialog 的视觉验收与行为验收分别判定：即使返回值、Promise �
 | http-download | 已知二进制、gzip、chunked、限额、重定向、取消、并发和文件提交的确定性 loopback Runtime 行为；不是公网示例 | `results/http-download.json`、`runtime-logs/http-download/resources.json` |
 | accessibility | 三个真实 Runtime execution 中的 Accessibility/UI menu 注册、capability、严格参数、Promise 与五项资源归零；不冒充 native fixture | `results/accessibility.json`、`runtime-logs/accessibility-*/resources.json` |
 | accessibility-native-macos（显式直接运行） | 仓库自有 AppKit fixture 的真实 AX snapshot/find/read/action/release、只读菜单及多级菜单动作 | `.runtime/tests/accessibility/<runId>/result.json`、`runtime-logs/{events.ndjson,summary.json}` |
+| ui-taptexts-native-macos（显式直接运行） | 仓库自有 AppKit fixture 的真实窗口截图、Apple Vision OCR、PID 约束鼠标序列与独立点击状态 | `.runtime/tests/ui-taptexts-macos/<executionId>/result.json`、截图与 Runtime 日志 |
 | sqlite | SQLite 专用 contract、复用公开 smoke cases 的 unit、SQLite scoped coverage，以及每个 child execution 的资源归零和进程 cleanup；不执行无关 desktop live 测试 | `results/contract.json`、`results/unit.json`、`results/coverage.json`、`runtime-logs/*/resources.json`、`results/cleanup.json` |
 | language | 选定的 ES2015–ES2023 作者语法与内建能力，以及 OpenDesk 脚本级 `await` | `results/language.json` |
 | coverage | 每方法 contract、已通过 tier、required tier、风险理由和用例 | `results/coverage.json` |
@@ -108,6 +109,21 @@ OPENDESK_RUNTIME_API_RUN_ID="$run_id" OPENDESK_ACCESSIBILITY_TARGET_PID="$fixtur
 `summary.json` 为 `succeeded`，且 `events.ndjson` 的最终 cleanup event 中
 `accessibilityWorkers/accessibilityPending/accessibilityQueued/accessibilityRefs/accessibilityNativeResources`
 五项均为 `0`，才可报告该次原生验收通过。
+
+`UI.tapTexts` 的 macOS 原生序列 fixture 也是补充性的显式验收。它只创建、激活和停止本次运行自行
+构建的 AppKit fixture，不接触已有业务窗口。fixture 独立记录按钮点击次数、按钮出现时间、窗口编号
+和最终状态；测试通过真实窗口截图、Apple Vision OCR 与 PID 约束鼠标输入核对默认序列、显式
+`within`/间隔、旧立即查找模式、窗口平移、超时、歧义、窗口切换和两个取消时机。从仓库根目录运行：
+
+```bash
+./dist/opendesk -script tests/runtime-api/ui-taptexts-native-macos.js -console-mode script -timeout 300
+```
+
+结果、fixture 状态、开始/中间/完成截图与 Runtime 日志写入
+`.runtime/tests/ui-taptexts-macos/<executionId>/`。只有 `result.json` 为 `passed`、每个场景的
+`fixtureStopped` 为 true，且 Runtime cleanup event 的 timer、listener、subscription、worker、
+Promise callback 与 UI host process 等字段全部为 0，才可报告通过。该入口需要 macOS Screen
+Recording、Accessibility 和 Input Monitoring 权限，不属于默认 catalog/unit/live gate。
 
 `dialog` 在 macOS 构建 run-local native host，并实际运行公开 JavaScript 的 disabled、严格
 参数、non-blocking、single-flight、`.then/.catch/.finally`、prompt 真实键盘输入、输入值第二个

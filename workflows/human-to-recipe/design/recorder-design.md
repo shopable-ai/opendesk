@@ -23,8 +23,11 @@ Recorder v2 的实现必须逐项追溯到下列需求；代码、API、类型�
 | DQ-07 | 隐私和失败状态明确 | pointer 证据不读取／保存 AXValue、选择文本、密码内容、剪贴板、默认截图/OCR或整树；显式键盘文本结果只保存指纹、补丁及插入正文；`verified/unavailable/not-requested` 不互相冒充 | strict schema 与 live manifest |
 | DQ-08 | 旧包和生成 fail closed | v1 可读但 screen-only action 为 `needs-review`；v2 缺窗口上下文、目标歧义或不支持动作时 blocked | legacy/negative fixtures |
 | DQ-09 | 文本输入按最终编辑结果录制 | 显式非敏感键盘录制在 macOS 观察 focused editable 的起止值；只持久化起始/结果 SHA-256、UTF-16 单一范围补丁及插入正文，不把输入法的物理按键或 marked 中间态当作 committed text | Go text tracker；TextEdit Unicode live |
-| DQ-10 | 物理键、快捷键和文本不得互相冒充 | Command/Control/Option chord 与独立特殊键由成对 key press/release 生成；已被 verified text edit 覆盖的键只作 evidence；无法区分 IME 确认键与随后业务提交时 blocked | Go grouping；Runtime 生成替身；macOS shortcut live |
-| DQ-11 | 合法直线拖动和真人文本选择的自然近直线采样不得被当成 jitter 或一律拒绝 | `>4` points 的完整单次左键路径默认仍只在同显示器、≤30s、≤8 points 端点弦线偏差且无明显回退时形成普通 drag；只有 press/release 同属一个 verified 录制窗口、同一个 verified 可写 `textField` 时，才允许独立的 natural text-selection 子集：偏差上限为 `min(16, max(8, 距离×8%))`、采样路径长／端点距离≤1.08，且沿弦线投影不得越界或明显回退。该子集使用独立 source basis 并分类为 text-selection；缺少双端点 traits、非 textField、跨窗口、曲线、回退、跨屏和未验证坐标继续 blocked | Go grouping/endpoint/natural-selection negative matrix；Runtime latest-shape fixture；固定失败录制重建；真人文本选择 |
+| DQ-10 | 物理键、快捷键和文本不得互相冒充 | Command/Control/Option chord 与独立特殊键由成对 key press/release 生成；macOS callback 直接读取 CGEvent 的 Basic Latin payload，不同步等待进程主队列；已被 verified text edit 覆盖的键只作 evidence；无法区分 IME 确认键与随后业务提交时 blocked。stop 时 raw 未配对按键另用 combined-session key state 区分 release 丢失与真人仍按住，但两者都不补造 release 且保持 blocked | Go grouping/key-state；Runtime 生成替身；macOS shortcut/stop live |
+| DQ-11 | 合法直线拖动和真人文本选择的自然近直线采样不得被当成 jitter 或一律拒绝 | `>4` points 的完整单次左键路径默认仍只在同显示器、≤30s、≤8 points 端点弦线偏差且无明显回退时形成普通 drag；macOS 非 click drag 的 release `clicks` 可为与 press 相同的值或缺省 0，正数冲突仍拒绝。只有 press/release 同属一个 verified 录制窗口、同一个 verified 可写 `textField` 时，才允许独立的 natural text-selection 子集：偏差上限为 `min(16, max(8, 距离×8%))`、采样路径长／端点距离≤1.08，且沿弦线投影不得越界或明显回退。该子集使用独立 source basis 并分类为 text-selection；缺少双端点 traits、非 textField、跨窗口、曲线、回退、跨屏和未验证坐标继续 blocked | Go grouping/endpoint/natural-selection negative matrix；Runtime latest-shape fixture；固定失败录制重建；真人文本选择 |
+| DQ-12 | 原始点击事实与后到原生观察不得混同 | raw event 保留自己的 sequence／native time／receivedAt；每条 input context 另存 observation start/end、source、completeness 和 `post-event-correlated` 关联。超过 freshness、窗口变化、队列溢出、provider 失败或弹层消失都保存 unavailable/unverified 原因，不把点击后重新命中写成点击时句柄 | Go context timing/overflow/late-window matrix；terminal manifest strict validation |
+| DQ-13 | 单左键按钮证据必须形成可重新解析且经完整搜索验证的 locator | 只接受精确窗口内、role=`button`、enabled=true、具有与单击等价的 `invoke`／`AXPress` 证据；selector 使用实际 role 加可用 name/identifier，identifier 仅作为本候选的录制来源并在制作与每次运行重新核对。可用时先唯一查找有限父容器再在其内唯一查按钮；截断、超时、同名、多窗口或部分读取不产生 verified locator | semantic generation fake backend matrix；macOS moving-control fixture；Windows cross-build |
+| DQ-14 | native-semantic 生成与执行保持普通 JS 和单次动作语义 | 调用方显式选择 `Recorder.generateScript(..., {mode: "native-semantic"})`；制作阶段用当前窗口和原生 backend 只读验证 locator，并把来源、范围、唯一性、状态、动作能力和环境写入 candidate。生成 JS 在新 execution 用 `window.get`、`Accessibility.find/read/perform/release` 重新解析；`invoke` 只提交一次，`unknown` 禁止重试且无坐标 fallback；业务结果仍由独立 Gate/oracle 负责 | Runtime composition；fresh-run/reopen/stale-ref negative；独立 fixture oracle |
 
 问题基线来自 `.runtime/recordings/rec-20260909T102712.649528000Z-a299028412fa`：70 条 raw 中 67 条是普通 `MOUSE_MOVED`，只有一组 press/release/click；因此“一个 action”并非漏记，低质量来自 hover 噪声、仅有 screen 坐标，以及旧版 `scope-changed` 导致的 `failed/blocked`。v2 不原地改写该历史事实，新录制使用新合同。
 
@@ -42,7 +45,7 @@ Recorder v2 的实现必须逐项追溯到下列需求；代码、API、类型�
   → 静态编入的 libuiohook 1.2.2
   → 回调只复制标量、分配 session sequence、按策略过滤／入 4096 有界队列
   → recorderWriter 唯一顺序写 raw/events.ndjson
-  → 鼠标释放／文本段起点另入 128 容量的上下文队列
+  → 鼠标按下、释放／文本段起点另入 128 容量的上下文队列
   → callback 线程之外解析动作当时的 application → window → optional element 层级
 
 录制中的 F9 UI toggle（仅交互层）
@@ -80,6 +83,14 @@ Recorder.generateScript(actionsFile, {mode: "basic"})
   → 每个动作重新解析当前应用窗口或显示器，再生成白名单普通 JS 文本
   → exclusive-create generated/basic.recipe.js
   → generated/basic.candidate.json（verification: not-run）
+
+Recorder.generateScript(actionsFile, {mode: "native-semantic"})
+  → 重新读取并严格核对同一 actions／raw／manifest
+  → 只接受普通单左键、verified press 关联、精确窗口和可证明 invoke 等价的 button
+  → 在当前新解析窗口执行有界完整查找；必要时先唯一查有限父容器再唯一查目标
+  → 保存 verified locator、当前 enabled/actions、观察环境和 sourceActionId/sourceEventId
+  → exclusive-create generated/native-semantic.recipe.js 与 candidate；不执行动作
+  → 后续独立 OpenDesk execution 再次解析窗口和元素并最多提交一次 invoke
 
 默认 timing 以每对非暂停动作的 raw 间隔为基础，按 1× 速度限制到 500ms..30s；
 调用方可用 minimumDelayMs、maximumDelayMs、speedMultiplier 生成新的、不覆盖旧文件的候选版本。
@@ -138,16 +149,18 @@ libuiohook callback 不写文件、不截图、不扫 AX、不调用模型或 Ja
 
 - application 保存跨 execution 可解析的 executable path，缺失时退到 executable name；录制 PID 只作 provenance。
 - window 保存 title、bounds、ID、index、handle 和 popup 标志；ID／handle 不跨 execution 复用。一个应用有多个窗口时优先以应用身份＋精确标题唯一匹配；标题变化时仅允许该应用当前恰好一个窗口的无歧义回退。
-- element 是 `target-semantics` 的可选标签证据，先记录 point-hit；若叶节点不可执行，再沿最多 6 层父链“冒泡”到最近的 actionable ancestor。保存所选节点的 role、native role、subrole、name／description、identifier、enabled/focused/valueSettable、native actions、bounds 和元素内点，并保留原始 hit 与有界 ancestors。point-hit 缺少可用 bounds 时只允许同 PID、已聚焦、可写、非安全且覆盖该点的 textField fallback。它有助于判断按钮与输入框，但 basic click/drag replay 暂不把不稳定 AX 标签自动升级为执行 locator。
+- element 是 `target-semantics` 的可选标签证据，先记录 point-hit；对本轮单击只把 role=`button` 且具有 `invoke`／`AXPress` 的节点或最近祖先视为等价操作目标，不能用“存在任意 native action”代替动作类型匹配。保存所选节点的 role、native role、subrole、name／description、identifier、enabled/focused/valueSettable、native actions、bounds 和元素内点，并分别保留原始 hit、从 hit 到操作目标的有界 ancestors，以及操作目标之上的少量 container context；即使 hit 自身就是按钮也可取得容器用于消歧。point-hit 缺少可用 bounds 时只允许同 PID、已聚焦、可写、非安全且覆盖该点的 textField fallback。basic click/drag replay 不变；只有显式 native-semantic 制作通过完整唯一性和状态验证后才把这些事实提升为 locator。
 - position 同时保存原始 screen-logical 点、窗口左上角偏移、窗口比例和元素内偏移／比例。basic replay 使用重新解析窗口的新 bounds＋像素偏移，支持窗口平移；比例留作审核，窗口缩放不自动猜测。
 
-pointer 上下文在 press 和 release 后分别解析，双端点各保留自己的窗口与 phase；解析结果必须在 750ms 内并验证点仍位于该窗口。text-selection 只有在两个端点属于同一录制窗口和同一 verified 可写 textField 时成立；只有该事实才能启用比普通 drag 的 8 points 端点弦线更宽、但仍受 16 points、8% 比例、1.08 路径长度比和无明显回退共同约束的 natural text-selection 子集。旧包、`unavailable` 或 `not-requested` 端点不得从窗口位置、应用名称或轨迹形状补造输入框证据。每个失败都有 `status`／`reason`，语义另有 `semanticStatus`／`semanticReason`，因此“没获取到”与“用户明确关闭”不会混为一谈。
+pointer 上下文在 press 和 release 后分别解析，双端点各保留自己的窗口与 phase；观察另存 start/end/source/completeness，并明确属于 `post-event-correlated`，不是点击前快照或可跨运行 ref。解析必须在 750ms 内开始并验证点仍位于同一精确窗口；PID 相同不足以确认窗口归属。press locator 观察与 release 结果分开，release 后重新命中的节点不能覆盖 press 事实；若弹层已经消失或前台窗口改变就保留 unavailable/unverified。text-selection 只有在两个端点属于同一录制窗口和同一 verified 可写 textField 时成立；只有该事实才能启用比普通 drag 的 8 points 端点弦线更宽、但仍受 16 points、8% 比例、1.08 路径长度比和无明显回退共同约束的 natural text-selection 子集。旧包、`unavailable` 或 `not-requested` 端点不得从窗口位置、应用名称或轨迹形状补造输入框证据。每个失败都有 `status`／`reason`，语义另有 `semanticStatus`／`semanticReason`，因此“没获取到”与“用户明确关闭”不会混为一谈。
+
+native-semantic candidate 中的 locator 是 actions 证据的派生物，不反向改写 raw、manifest 或 actions。每条 locator 固定 sourceActionId、press sourceEventId、窗口范围、可选父容器 selector、目标 selector、制作时完整唯一搜索结果、enabled/actions 状态、backend/platform 和验证时间。新 execution 再做同样的完整唯一搜索；目标 identity 或状态不符即停止。只读查找可以按候选明确的有限策略重新发起；`Accessibility.perform(...invoke...)` 本身及 `actionState: unknown` 都不重试，也不改用录制坐标。
 
 ### 4.4 桌面范围与隐私
 
 `within` 保存开始时的 PID＋title 作为起始 provenance，不是 OS hook filter、持续范围或重放门槛。Runtime 对启动时前台窗口的二次读取只产生 warning；开始后不会因标题变化、切窗或切换应用停止 session。采集覆盖桌面级全局输入，因此只允许明确的非敏感测试流程；键盘默认关闭，开启时必须写 `keyboardContent: "non-sensitive-test"`，并假定整个跨应用序列均不含敏感输入。Recorder 不读剪贴板、不保留未启用的键盘内容、不上传材料；lib logger 被静音。
 
-macOS 键盘开启后同时存在两条互斥消费通道。native hook 保存物理按下／释放、modifier mask 和 Quartz 事件可取得的 Unicode，只负责证明键与 chord；callback 不读取 AX。独立的有界 text tracker 在 callback 外采样当前前台窗口的 focused、非 secure、可写 text field。一个编辑段只保留内存中的起止值并确定性计算最长公共前后缀；manifest 持久化字段身份、source event IDs、起始／结果 UTF-16LE SHA-256、起始长度，以及 `start/deleteCount/insertText` 补丁，不保存未改变的前后文。采样迟到、secure、焦点/字段漂移、字段不可唯一重定位或补丁哈希不闭合都显式阻塞 semantic text action。
+macOS 键盘开启后同时存在两条互斥消费通道。native hook 保存物理按下／释放、modifier mask，并直接从 callback 当前 `CGEvent` 读取可打印 Basic Latin，不同步 dispatch 到不保证泵送的进程主队列；Control／Meta／Alt 的 layout-dependent typed payload 在持久化前过滤。该通道只负责证明键、chord 和无最终值时的 ASCII fallback，callback 不读取 AX。独立的有界 text tracker 在 callback 外采样当前前台窗口的 focused、非 secure、可写 text field。一个编辑段只保留内存中的起止值并确定性计算最长公共前后缀；manifest 持久化字段身份、source event IDs、起始／结果 UTF-16LE SHA-256、起始长度，以及 `start/deleteCount/insertText` 补丁，不保存未改变的前后文。采样迟到、secure、焦点/字段漂移、字段不可唯一重定位或补丁哈希不闭合都显式阻塞 semantic text action。
 
 actions 制作优先消费 verified text edit：该段内的 printable、dead-key、IME 候选和删除键只作同一动作 evidence，不再从 `KEY_TYPED` 生成第二份文字。没有 verified edit 时，Basic Latin `KEY_TYPED` 仍是兼容 fallback；Command/Control/Option chord 及 Enter、Tab、Escape、方向键等可映射特殊键由完整 press/release 生成 `shortcut`／`key`。若 Enter/Tab 等边界键是否属于 IME 提交仍有歧义，制作结果必须 blocked，不能既丢掉业务提交，也不能把确认键重复回放。
 
@@ -172,7 +185,9 @@ starting → recording ⇄ paused → stopping → stopped
 
 ### 4.6 停止与 execution 生命周期
 
-第一次 stop 固定截止，立即令 callback 只累计 late，再取消 deadline/execution monitor。`hook_stop()` 在 8s deadline 内必须让 `hook_run()` 和 callback 退出；成功后才 join。失败时仍关闭自身 writer、返回部分摘要并保留 backend residual 资源计数，不做无期限 join。
+第一次 stop 固定截止，立即令 callback 只累计 late，再取消 deadline/execution monitor。`hook_stop()` 在 8s deadline 内必须让 `hook_run()` 和 callback 退出；generic run-loop stop failure 可在同一 deadline 内重试，成功后才 join。失败时仍关闭自身 writer、返回部分摘要并保留 backend residual 资源计数，不做无期限 join；底层 `hook_run()` 未返回时进程 lease 保持 quarantine，后台一分钟有限恢复和后续 start 都可重试同一 stop，但任何新 owner 必须等到旧线程真实退出后才可取得 lease。不得用清除 singleton 伪装底层资源已释放。
+
+stop 截止冻结后、native stop 前，session 只对 raw 末尾尚未配对的按键查询 combined-session 物理状态。manifest 的 `keyStatesAtStop` 保存 press event、keycode/rawcode、查询来源、时间和 `pressed`／`released`／`unavailable`；`released` 表示 event tap 未观察到 release，`pressed` 表示真人确实仍按住。两种已知状态写不同 error issue，但 builder 都继续要求真实 raw release，因此不合成时间、不生成动作，也不向系统发送抬键。
 
 所有已 accepted 的事件在 producer 退出后由同一 writer 排空；然后依次 Flush、Sync、Close，实际文件重新读取计算 SHA-256，再原子写 terminal manifest。并发／重复 stop 共享 `sync.Once` 和同一 `done/result`。writer 任一失败使 storage 为 partial/failed；不存在的文件不返回路径。
 
@@ -246,7 +261,7 @@ candidate 固定 actions 绝对文件、hash、revision、脚本路径/hash、ac
 | Command/Control/Option chord | 完整 primary press/release 形成 shortcut；modifier transition 为 evidence | 确认动作窗口前台后 `keyboard.combination(...keys)` |
 | Enter/Tab/Escape/方向键等独立特殊键 | 完整 press/release 形成 key；与 IME 提交歧义时 blocked | 确认动作窗口前台后 `keyboard.press(key)` |
 | 未按鼠标键的 hover move | filtered，不进入 raw | 不生成 |
-| button-held motion／dragged | ≤4 points 的完整短路径归一化为 click jitter；`>4` points 的普通左键路径仍要求同显示器、≤30s、≤8 points 端点弦线偏差且无明显回退。同窗口同一 verified 可写 `textField` 的双端点可启用独立 natural text-selection predicate：偏差≤`min(16, max(8, 距离×8%))`、路径长／端点距离≤1.08、投影不越界且无明显回退；使用独立 source basis。双端点窗口和 label-only AX traits 写入 pointer evidence；缺 traits、非 textField 或端点窗口不一致不能启用该放宽 | 重新投影 start/destination，`move → down → try move → finally up`；普通 drag 的 8 points 全局容差不变，曲线、明显回退、跨屏、非左键、未验证路径及不满足语义门槛的自然偏移仍 blocked |
+| button-held motion／dragged | ≤4 points 的完整短路径归一化为 click jitter；`>4` points 的普通左键路径仍要求同显示器、≤30s、≤8 points 端点弦线偏差且无明显回退。press `clicks` 必须大于 0，release 只允许相同值或 macOS 非 click drag 的缺省 0。同窗口同一 verified 可写 `textField` 的双端点可启用独立 natural text-selection predicate：偏差≤`min(16, max(8, 距离×8%))`、路径长／端点距离≤1.08、投影不越界且无明显回退；使用独立 source basis。双端点窗口和 label-only AX traits 写入 pointer evidence；缺 traits、非 textField 或端点窗口不一致不能启用该放宽 | 重新投影 start/destination，`move → down → try move → finally up`；普通 drag 的 8 points 全局容差不变，正数 click-count 冲突、曲线、明显回退、跨屏、非左键、未验证路径及不满足语义门槛的自然偏移仍 blocked |
 | 未修改的 vertical/horizontal wheel | 同显示器、同轴同向、相邻 ≤250ms 的事件归为最多 100 步的 burst；保存首事件坐标及 window/display 相对投影、累加 delta 和 burst delay | bounds-check 后先 `mouse.move(point)`，再 `mouse.wheel({deltaX, deltaY, steps, delay})`；旧无 wheel context 的 v2 包可按已验证 display 坐标降级 |
 | 同一点连续 double/multi-click、right/middle/modified click 或带修饰键 wheel | pending，issue | blocked；不同坐标间沿用的 native 时间序列计数仍按各自单次物理 click 处理 |
 | missing pair、long press、drop、unverified point | 保留事实与 issue | blocked |

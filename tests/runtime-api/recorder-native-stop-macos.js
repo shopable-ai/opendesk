@@ -1,5 +1,6 @@
 // Explicit macOS native-listener + Custom UI lifecycle acceptance.
-// It injects only an otherwise unused F18 key and clicks its own stop control.
+// It verifies both keyboard-disabled filtering and keyboard-enabled shutdown
+// with one harmless ArrowLeft pair, then clicks its own stop control.
 // Run from the repository root:
 // ./dist/opendesk -ui -allow-recorder-capture -script tests/runtime-api/recorder-native-stop-macos.js -console-mode script
 'use strict';
@@ -81,7 +82,13 @@ if (System.getPlatformInfo().os !== 'darwin') {
     assert(visual && visual.sizeBytes > 100,
       'Recorder stop toolbar screenshot was not saved', visual);
 
-    for (let attempt = 1; attempt <= 2; attempt += 1) {
+    const scenarios = [
+      {name: 'keyboard-disabled', captureKeyboard: false},
+      {name: 'keyboard-enabled', captureKeyboard: true},
+    ];
+    for (let index = 0; index < scenarios.length; index += 1) {
+      const attempt = index + 1;
+      const scenario = scenarios[index];
       const active = await window.getActiveWindow();
       const within = {
         processId: activePID(active),
@@ -92,7 +99,8 @@ if (System.getPlatformInfo().os !== 'darwin') {
 
       session = await Recorder.start({
         within,
-        captureKeyboard: false,
+        captureKeyboard: scenario.captureKeyboard,
+        ...(scenario.captureKeyboard ? {keyboardContent: 'non-sensitive-test'} : {}),
         evidence: 'none',
         maxDurationMs: 15000,
       });
@@ -100,12 +108,18 @@ if (System.getPlatformInfo().os !== 'darwin') {
         `attempt ${attempt} did not start recording`, session.status());
 
       const beforeKey = session.status();
-      await keyboard.press('F18');
-      await page.waitForTimeout(100);
+      await keyboard.press('ArrowLeft');
+      await page.waitForTimeout(150);
       const afterKey = session.status();
-      assert(afterKey.captureState === 'recording'
-        && afterKey.counts.accepted === beforeKey.counts.accepted,
-      `attempt ${attempt} leaked disabled keyboard input into raw`, {beforeKey, afterKey});
+      assert(afterKey.captureState === 'recording',
+        `attempt ${attempt} stopped while processing ${scenario.name} input`, {beforeKey, afterKey});
+      if (scenario.captureKeyboard) {
+        assert(afterKey.counts.accepted >= beforeKey.counts.accepted + 2,
+          `attempt ${attempt} did not capture the enabled ArrowLeft press/release pair`, {beforeKey, afterKey});
+      } else {
+        assert(afterKey.counts.accepted === beforeKey.counts.accepted,
+          `attempt ${attempt} leaked disabled keyboard input into raw`, {beforeKey, afterKey});
+      }
 
       const completion = new Promise((resolve, reject) => { pendingStop = {resolve, reject}; });
       const button = await toolbar.getButtonState('stop');
@@ -126,18 +140,38 @@ if (System.getPlatformInfo().os !== 'darwin') {
         `attempt ${attempt} approached the native stop deadline`, result);
 
       const events = parseRaw(result.saved.rawFile);
-      assert(!events.some(event => /^KEY_/.test(event.libraryEvent)),
-        `attempt ${attempt} persisted keyboard input while disabled`, events);
+      const keyEvents = events.filter(event => /^KEY_/.test(event.libraryEvent));
+      if (scenario.captureKeyboard) {
+        const keyPressed = keyEvents.filter(event => event.libraryEvent === 'KEY_PRESSED');
+        const keyReleased = keyEvents.filter(event => event.libraryEvent === 'KEY_RELEASED');
+        assert(keyPressed.length === 1 && keyReleased.length === 1
+          && keyPressed[0].keycode === keyReleased[0].keycode
+          && keyPressed[0].rawcode === keyReleased[0].rawcode,
+        `attempt ${attempt} did not persist a complete enabled keyboard envelope`, keyEvents);
+        assert(!result.saved.issues.some(issue => issue.code === 'key-still-pressed-at-stop'
+          || issue.code === 'key-release-not-observed-at-stop'),
+        `attempt ${attempt} reported an unresolved physical key at stop`, result.saved);
+      } else {
+        assert(keyEvents.length === 0,
+          `attempt ${attempt} persisted keyboard input while disabled`, keyEvents);
+      }
       const control = events.filter(event => event.libraryEvent === 'RECORDER_CONTROL_CLICK');
       assert(control.length === 1 && control[0].metadata.targetId === 'stop',
         `attempt ${attempt} did not persist one stop control boundary`, control);
 
       const built = await Recorder.buildActions(result.saved.recordingDir);
-      assert(built.readiness === 'needs-review' && built.actionCount === 0
-        && built.issues.length === 1 && built.issues[0].code === 'no-supported-actions',
-      `attempt ${attempt} did not build the expected non-blocked control-only action set`, built);
+      if (scenario.captureKeyboard) {
+        assert(built.readiness === 'ready' && built.actionCount === 1
+          && built.issues.length === 0,
+        `attempt ${attempt} did not build the expected ArrowLeft special-key action`, built);
+      } else {
+        assert(built.readiness === 'needs-review' && built.actionCount === 0
+          && built.issues.length === 1 && built.issues[0].code === 'no-supported-actions',
+        `attempt ${attempt} did not build the expected non-blocked control-only action set`, built);
+      }
       stops.push({
         attempt,
+        scenario,
         beforeKey,
         afterKey,
         exclusion: result.exclusion,

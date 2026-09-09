@@ -6,7 +6,7 @@ order: 30
 
 # 人工 Recorder｜实施与验收计划
 
-状态：Recorder 数据合同 v2、合成文件闭环、macOS Calculator 真实 native capture／按钮语义、用户 simple console 录制包独立回放／业务 oracle，以及该录制包的可维护语义优化 recipe 已实施并验收，2026-09-10。当前工作树另已实现仓库内 human-to-recipe Skill、最小 `SemanticBuildPlan` schema／validator、Calculator plan golden 和 simple console 的去正文提示词交接；通用 renderer、用户级 Skill 安装、当前生产 hash 的 live Gate 和视觉验收均未实施或未运行。点击目标理解的 Native／OCR／Visual／Geometry／Context 统一合同及五类回归场景已写入设计基线，但显式 target-crop OCR、文字归属绑定和 locator portfolio 的通用实现仍未完成，不能把已有 AX 标签或无文字图标设计冒充完整 OCR 增强闭环。旧 hash 的 live 证据不能自动转移。本文只记录当前工作树的真实完成与验收边界；H1—H8 完整作业仍以 [任务分解](task-decomposition.md) 为准，DQ-01—DQ-08 规范性决定和唯一技术方案见 [Recorder 工程设计](recorder-design.md)。
+状态：Recorder 数据合同 v2、合成文件闭环、macOS Calculator 真实 native capture／按钮语义、用户 simple console 录制包独立回放／业务 oracle，以及该录制包的可维护语义优化 recipe 已实施并验收，2026-09-10。当前工作树另已实现仓库内 `human-to-recipe` 与零配置 `recorder-script-refiner` Skill、最小 `SemanticBuildPlan` schema／validator、Calculator plan golden 和 simple console 的去正文、单行相对路径任务交接；通用 renderer、用户级 Skill 安装、当前生产 hash 的 live Gate 和视觉验收均未实施或未运行。点击目标理解的 Native／OCR／Visual／Geometry／Context 统一合同及五类回归场景已写入设计基线，但显式 target-crop OCR、文字归属绑定和 locator portfolio 的通用实现仍未完成，不能把已有 AX 标签或无文字图标设计冒充完整 OCR 增强闭环。旧 hash 的 live 证据不能自动转移。本文只记录当前工作树的真实完成与验收边界；H1—H8 完整作业仍以 [任务分解](task-decomposition.md) 为准，DQ-01—DQ-08 规范性决定和唯一技术方案见 [Recorder 工程设计](recorder-design.md)。
 
 ## 1. 本轮验收目标
 
@@ -38,8 +38,8 @@ order: 30
 | WP1 native capture owner | 已实施，macOS live 通过 | libuiohook 1.2.2、单 adapter、process lease、真实 ready、desktop capture、button-held-only motion policy、bounded event/context queues、deadline、stop/drain、manifest、resource counts | Windows 真实 listener、X11 live |
 | WP2 动作上下文与 actions | 已实施并通过合成与 macOS live | application/window/element 分层；稳定应用身份与瞬态 PID/handle 分离；窗口 offset/ratio；AX point-hit＋最多 6 层 actionable ancestor；fixed raw/hash、唯一 grouping、pause boundary、revision、disposition/readiness/issues | 键盘 focused-element 语义、Windows/Linux target semantics live |
 | WP3 basic JS 生成 | 已实施；原版本隔离／用户回放通过，Geometry 收敛版正式 JavaScript 合成 Gate 通过 | 每动作用 `window.get` 重新解析当前应用窗口；同应用多窗口无歧义门；以 `Geometry.pointOffset/contains` 按新 bounds＋offset 重算并用 tagged point 输入；strict actions/hash、白名单 JS、candidate、exclusive create、替身执行 | 语义 locator、resize/layout adaptation、窗口解析到动作提交的原子性；旧 candidate 资格不转移给新生成源码 |
-| WP4 正常用户入口 | 已实施；新增提示词按钮仅合成通过，当前 UI 视觉未重跑 | `record.js` 快捷键；完整和 simple 原生控制台；simple actions ready/blocked/generation-error 均可复制去正文 Agent handoff；Calculator 既有真实 listener、制作、生成和用户包独立试运行 | 本次六按钮工具条 live／视觉；完整 Custom UI 的人工业务采集；其他 candidate 的真实回放 |
-| WP5 下游语义增强交接 | 最小可复用链已实现；点击目标多源语义合同已补入设计；renderer／OCR 实现未完成 | 仓库内 Skill、schema、source-check validator、Calculator plan golden；human lineage 的 disposition／Episode／target／gate 分层；AX 标签只作证据；H5.2 已定义 Native／OCR／Visual／Geometry／Context 统一消费和 locator portfolio | 用户级 Skill 安装、通用 renderer、focused-element、显式 target-crop OCR、OCR 文字与目标／标签／父区域绑定、五类点击目标回归 fixture、第二个应用的 human golden |
+| WP4 正常用户入口 | 已实施；优化脚本按钮仅合成通过，当前 UI 视觉未重跑 | `record.js` 快捷键；完整和 simple 原生控制台；simple 在 generated script 可用后复制单行相对路径任务交接；Calculator 既有真实 listener、制作、生成和用户包独立重放 | 本次六按钮工具条 live／视觉；完整 Custom UI 的人工业务采集；其他 candidate 的真实重放 |
+| WP5 下游语义增强交接 | 最小可复用链已实现；点击目标多源语义合同已补入设计；renderer／OCR 实现未完成 | 仓库内 `human-to-recipe` 与 `recorder-script-refiner` Skill、schema、source-check validator、Calculator plan golden；human lineage 的 disposition／Episode／target／gate 分层；AX 标签只作证据；H5.2 已定义 Native／OCR／Visual／Geometry／Context 统一消费和 locator portfolio | 用户级 Skill 安装、通用 renderer、focused-element、显式 target-crop OCR、OCR 文字与目标／标签／父区域绑定、五类点击目标回归 fixture、第二个应用的 human golden |
 
 WP5 的“设计已补齐”不等于功能已经实现。当前 Calculator 通过的是 AX 标签语义和已冻结按钮身份；没有实际 target-crop OCR evidence 时，不得把它登记成 OCR 场景通过。
 
@@ -189,7 +189,8 @@ git diff --check
 | 本线程 Calculator 新生产源码普通命令 | 未运行 | 本线程没有获得或触发真实 Calculator 桌面动作；旧 hash 的普通命令结果不转移 |
 | 本线程 Calculator 新生产源码资格 Gate／视觉 | 未运行 | 没有运行显式授权的 live Gate，也没有产生当前 hash 的新窗口截图；旧 `before.png`／`after.png` 不作为本版本证据 |
 | human-to-recipe Skill／schema／validator | 静态与单元通过 | `quick_validate.py` 通过；`node --test tests/human-to-recipe/semantic-build-plan.test.js` 为 7/7；Calculator plan 以 `--check-source` 重新读取实际 actions 并得到 `valid=true`、`productionReady=true`、`sourceChecked=true`；renderer 明确未实现 |
-| simple console Agent 提示词 synthetic | 通过 | `./dist/opendesk -script tests/runtime-api/recording-console-simple.js -console-mode script`；execution `direct-20260910-002458-864000`，fake clipboard 三场景各调用一次，未启动 listener／真实输入或系统剪贴板写入 |
+| recorder-script-refiner bundle inspector | 3/3 通过 | `node --test tests/human-to-recipe/recorder-script-refiner.test.js`；覆盖旧 macOS／Windows absolute provenance 的安全重定位、script/actions/mapping 漂移拒绝、路径穿越、控制字符与 symlink 逃逸拒绝；用户包 `rec-20260909T164404.862087000Z-7cee64d9c064` 也通过实际字节 lineage 检查 |
+| simple console Agent 脚本转接 synthetic | 通过 | `./dist/opendesk -script tests/runtime-api/recording-console-simple.js -console-mode script`；execution `direct-20260910-013808-766000`，精确验证单句相对路径、跨 macOS／Windows 仓库迁移不变、generated-only 启用、run 期间禁用和 clipboard 失败可重试；未启动 listener／真实输入或系统剪贴板写入 |
 | 本次 six-button simple console live／视觉 | 未运行 | 未启动公开 `-ui -allow-recorder-capture` 命令，未刷新或核对新的主程序／UI host provenance，也未产生当前六按钮截图 |
 
 用户提供的旧包 `rec-20260909T102712.649528000Z-a299028412fa` 是 v1：70 条 raw 中 67 条为普通 move、只有一组 click，且 `scope-changed` 令状态为 failed。它用于证明问题基线，不计作 v2 通过证据，也不会被原地改写。
@@ -261,9 +262,9 @@ Calculator 质量来自一条可重复的输入收敛链，而不是最后一次
 
 ### 4.13 simple console → Codex 交接
 
-新增“复制 Agent 完善提示词”按钮由纯 JavaScript builder 生成确定性文本，并通过 `copyText` adapter 注入剪贴板 owner。按钮只在实际 `actionsFile` 已产生后启用；actions ready、blocked 或 basic generation error 都可交接，basic script 不是前置条件。提示词绑定 `Execution.workdir`、recording/actions 路径、实际 JSON revision/readiness、只含 code 的 issue 计数、semantic coverage，以及存在时的 script/candidate 路径；actions hash 若没有生成结果可提供，则明确要求接收 Agent 从实际字节重算。
+“复制 Agent 优化脚本”按钮由纯 JavaScript builder 生成确定性单行文本，并通过 `copyText` adapter 注入剪贴板 owner。按钮只在实际 `generated.scriptFile` 已产生后启用，录制、生成失败、actions blocked 和真实重放期间均禁用。提示词只绑定本次 generated script 的仓库相对路径，不携带 Skill 路径；仓库 `AGENTS.md` 负责路由到 `recorder-script-refiner`。提示词不写入 `Execution.workdir`、业务问卷、派生元数据或流程说明。若仓库迁移而相对录制路径不变，同一输入生成相同文本。
 
-提示词不展开 action text、键盘内容、AXValue、semanticReason 文本、截图或 raw。两个显眼占位符要求用户补充业务目标和成功条件；缺失时 Skill 必须先询问，不能从点击序列猜意图。仓库内 Skill 路径始终写入提示词，因此用户级未安装 `$human-to-recipe` 时接收会话仍有真实入口。复制是 handoff，不创建线程、不调用 Agent、不生成／回放、不改变录制包，也不表示 generated、live verified、视觉通过或 qualified。
+`recorder-script-refiner` 从 script sibling candidate 安全重定位当前包内 actions、manifest 和 raw，忽略 candidate 中旧机器绝对路径并核对 hash、revision、recording ID、readiness、raw 字节和 action mapping。默认目标是保持每个动作、顺序、参数、目标与时序语义不变，只做静态质量提升；不问业务目标，缺少证据的增强直接跳过。Skill 不运行 Recorder、脚本、Gate 或真实桌面动作，不覆盖 basic 文件，只能报告 generated／statically reviewed，其他资格为 not-run。需要业务动作取舍、参数化或结果 Oracle 时才转入 `human-to-recipe`。
 
 ### 4.14 点击目标 OCR／语义化的防遗漏验收矩阵
 

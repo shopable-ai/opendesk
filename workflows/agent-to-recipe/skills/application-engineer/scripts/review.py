@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Validate, review, and revise AppProfile v1.1 artifacts.
 
-This is a deterministic host-side helper.  It does not perform model extraction,
-human approval, desktop input, or OpenDesk Runtime execution.
+This is a deterministic host-side helper. It can strictly ingest a separately
+preserved, actual image-consuming Agent/model extraction, but it does not call a
+model, grant human approval, produce desktop input, or execute OpenDesk Runtime.
 
 The renderer consumes an immutable AppProfile and a root map (``--root ID=DIR``).
 Each observation embeds a ``screenshotRef`` using the shared root-relative ref
@@ -30,6 +31,7 @@ from typing import Any, Iterable, Mapping, Sequence
 
 
 PROFILE_VERSION_RE = re.compile(r"^agent-to-recipe/app-profile/v1\.(\d+)$")
+MODEL_EXTRACTION_VERSION = "application-engineer/model-extraction-raw/v2"
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 REQUIRED_PROFILE_FIELDS = (
     "schemaVersion",
@@ -484,6 +486,20 @@ def validate_profile(profile: Any) -> dict[str, Any]:
             for ref_id in depends_on:
                 _require(ref_id in all_objects, f"{section} {object_id!r} depends on missing object {ref_id!r}")
 
+    if profile.get("reviewScope") is not None:
+        scoped_observation = profile["reviewScope"].get("observationId")
+        if scoped_observation is None:
+            _require(
+                len(observations) == 1,
+                "reviewScope.observationId is required when a profile has multiple observations",
+            )
+            scoped_observation = next(iter(observations))
+        _require(
+            scoped_observation in observations,
+            f"reviewScope references unknown observation {scoped_observation!r}",
+        )
+        _review_scope(profile, scoped_observation)
+
     return {
         "schemaVersion": schema_version,
         "revision": revision,
@@ -561,6 +577,96 @@ def _selected_regions(profile: Mapping[str, Any], observation_id: str) -> list[M
     return [item for item in profile["regions"] if item.get("observationId") == observation_id]
 
 
+def _review_scope(
+    profile: Mapping[str, Any], observation_id: str
+) -> dict[str, Any]:
+    """Resolve the explicit review selection without guessing omitted targets."""
+
+    all_targets = _selected_targets(profile, observation_id)
+    all_ids = sorted(target["id"] for target in all_targets)
+    configured = profile.get("reviewScope")
+    if configured is None:
+        return {
+            "kind": "all-profile-targets",
+            "description": "All AppProfile targets for this observation are displayed.",
+            "displayedTargetIds": all_ids,
+            "hiddenTargetIds": [],
+            "hiddenReasons": {},
+        }
+    _require(isinstance(configured, dict), "reviewScope must be an object")
+    scoped_observation = configured.get("observationId")
+    if scoped_observation is not None:
+        _require(
+            scoped_observation == observation_id,
+            "reviewScope.observationId does not match the rendered observation",
+        )
+    displayed = configured.get("displayedTargetIds")
+    hidden = configured.get("hiddenTargetIds")
+    reasons = configured.get("hiddenReasons")
+    _require_nonempty_string(configured.get("kind"), "reviewScope.kind")
+    _require_nonempty_string(
+        configured.get("description"), "reviewScope.description"
+    )
+    _require(
+        isinstance(displayed, list)
+        and all(isinstance(value, str) and value for value in displayed),
+        "reviewScope.displayedTargetIds must be an array of target IDs",
+    )
+    _require(
+        isinstance(hidden, list)
+        and all(isinstance(value, str) and value for value in hidden),
+        "reviewScope.hiddenTargetIds must be an array of target IDs",
+    )
+    _require(
+        len(set(displayed)) == len(displayed)
+        and len(set(hidden)) == len(hidden),
+        "reviewScope target IDs must be unique",
+    )
+    overlap = sorted(set(displayed) & set(hidden))
+    _require(
+        not overlap,
+        "reviewScope displayedTargetIds and hiddenTargetIds must not overlap: "
+        + ", ".join(overlap),
+    )
+    unknown = sorted((set(displayed) | set(hidden)) - set(all_ids))
+    _require(
+        not unknown,
+        "reviewScope references unknown target IDs: " + ", ".join(unknown),
+    )
+    omitted = sorted(set(all_ids) - set(displayed) - set(hidden))
+    _require(
+        not omitted,
+        "reviewScope must classify every observation target as displayed or hidden: "
+        + ", ".join(omitted),
+    )
+    _require(bool(displayed), "reviewScope must display at least one target")
+    _require(isinstance(reasons, dict), "reviewScope.hiddenReasons must be an object")
+    missing_reasons = sorted(
+        target_id
+        for target_id in hidden
+        if not isinstance(reasons.get(target_id), str)
+        or not reasons[target_id].strip()
+    )
+    _require(
+        not missing_reasons,
+        "reviewScope hidden targets require a reason: "
+        + ", ".join(missing_reasons),
+    )
+    extra_reasons = sorted(set(reasons) - set(hidden))
+    _require(
+        not extra_reasons,
+        "reviewScope.hiddenReasons contains non-hidden target IDs: "
+        + ", ".join(extra_reasons),
+    )
+    return {
+        "kind": configured["kind"],
+        "description": configured["description"],
+        "displayedTargetIds": sorted(displayed),
+        "hiddenTargetIds": sorted(hidden),
+        "hiddenReasons": {target_id: reasons[target_id] for target_id in sorted(hidden)},
+    }
+
+
 def _rect_for_draw(item: Mapping[str, Any], observation: Mapping[str, Any], field: str) -> dict[str, float] | None:
     value = item.get(field)
     if value is None:
@@ -606,14 +712,68 @@ def _target_visual_labels(target_ids: Sequence[str]) -> dict[str, str]:
     }
 
 
-def _view_metadata(profile_path: Path, profile: Mapping[str, Any], observation_id: str, target_ids: Sequence[str]) -> dict[str, Any]:
+def _region_visual_labels(region_ids: Sequence[str]) -> dict[str, str]:
+    ordered = sorted(region_ids)
+    width = max(2, len(str(len(ordered))))
+    return {
+        f"R{index:0{width}d}": region_id
+        for index, region_id in enumerate(ordered, start=1)
+    }
+
+
+def _review_font(size: int):
+    """Use a deterministic Unicode-capable font when one is locally available."""
+
+    from PIL import ImageFont
+
+    candidates = (
+        "DejaVuSans.ttf",
+        "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
+        "/System/Library/Fonts/Supplemental/Arial.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    )
+    for candidate in candidates:
+        try:
+            return ImageFont.truetype(candidate, size=size)
+        except OSError:
+            continue
+    return ImageFont.load_default()
+
+
+def _view_metadata(
+    profile_path: Path,
+    profile: Mapping[str, Any],
+    observation_id: str,
+    target_ids: Sequence[str],
+    *,
+    show_relations: bool = False,
+) -> dict[str, Any]:
+    scope = _review_scope(profile, observation_id)
+    all_target_ids = sorted(
+        target["id"] for target in _selected_targets(profile, observation_id)
+    )
+    _require(
+        sorted(target_ids) == scope["displayedTargetIds"],
+        "rendered targets do not match reviewScope.displayedTargetIds",
+    )
     return {
         "appProfileSchemaVersion": profile["schemaVersion"],
         "appProfileRevision": profile["revision"],
         "appProfileSha256": sha256_file(profile_path),
         "observationId": observation_id,
         "targetIds": sorted(target_ids),
+        "allTargetIds": all_target_ids,
+        "hiddenTargetIds": scope["hiddenTargetIds"],
         "targetVisualLabels": _target_visual_labels(target_ids),
+        "regionVisualLabels": _region_visual_labels(
+            region["id"] for region in _selected_regions(profile, observation_id)
+        ),
+        "reviewScope": {
+            "kind": scope["kind"],
+            "description": scope["description"],
+            "hiddenReasons": scope["hiddenReasons"],
+        },
+        "relationDisplay": "shown" if show_relations else "hidden-by-default",
     }
 
 
@@ -646,6 +806,7 @@ def _render_overlay(
     regions: Sequence[Mapping[str, Any]],
     observation: Mapping[str, Any],
     visual_labels_by_id: Mapping[str, str],
+    region_visual_labels_by_id: Mapping[str, str] | None = None,
 ) -> Any:
     try:
         from PIL import Image, ImageDraw
@@ -654,13 +815,26 @@ def _render_overlay(
     base = image.convert("RGBA")
     layer = Image.new("RGBA", base.size, (0, 0, 0, 0))
     draw = ImageDraw.Draw(layer)
+    label_font = _review_font(10)
+    if region_visual_labels_by_id is None:
+        region_visual_labels_by_id = {
+            region_id: label
+            for label, region_id in _region_visual_labels(
+                region["id"] for region in regions
+            ).items()
+        }
     for region in regions:
         rect = _rect_for_draw(region, observation, "bounds")
         if rect is None:
             continue
         color = _color_for_id(region["id"], 190)
         draw.rectangle(_box(rect), outline=color, width=2)
-        draw.text((rect["x"] + 3, rect["y"] + 3), region["id"], fill=color)
+        draw.text(
+            (rect["x"] + 3, rect["y"] + 3),
+            region_visual_labels_by_id[region["id"]],
+            fill=color,
+            font=label_font,
+        )
     for target_index, target in enumerate(targets):
         color = _color_for_id(target["id"], 225)
         rect = _rect_for_draw(target, observation, "controlBounds")
@@ -682,6 +856,7 @@ def _render_overlay(
             label_position,
             visual_labels_by_id[target["id"]],
             fill=color,
+            font=label_font,
         )
     return Image.alpha_composite(base, layer)
 
@@ -692,6 +867,9 @@ def _render_simplified(
     regions: Sequence[Mapping[str, Any]],
     observation: Mapping[str, Any],
     visual_labels_by_id: Mapping[str, str],
+    region_visual_labels_by_id: Mapping[str, str] | None = None,
+    *,
+    show_relations: bool = False,
 ) -> Any:
     try:
         from PIL import Image, ImageDraw
@@ -699,13 +877,27 @@ def _render_simplified(
         raise ReviewError("Pillow is required to produce deterministic PNG review views") from exc
     image = Image.new("RGBA", size, (250, 250, 250, 255))
     draw = ImageDraw.Draw(image)
+    region_font = _review_font(10)
+    target_font = _review_font(10)
+    if region_visual_labels_by_id is None:
+        region_visual_labels_by_id = {
+            region_id: label
+            for label, region_id in _region_visual_labels(
+                region["id"] for region in regions
+            ).items()
+        }
     centers: dict[str, tuple[float, float]] = {}
     for region in regions:
         rect = _rect_for_draw(region, observation, "bounds")
         if rect is None:
             continue
         draw.rounded_rectangle(_box(rect), radius=5, fill=(230, 233, 238, 255), outline=(110, 118, 130, 255), width=2)
-        draw.text((rect["x"] + 4, rect["y"] + 4), region["id"], fill=(35, 35, 40, 255))
+        draw.text(
+            (rect["x"] + 4, rect["y"] + 4),
+            region_visual_labels_by_id[region["id"]],
+            fill=(35, 35, 40, 255),
+            font=region_font,
+        )
         centers[region["id"]] = (rect["x"] + rect["width"] / 2, rect["y"] + rect["height"] / 2)
     for target_index, target in enumerate(targets):
         rect = _rect_for_draw(target, observation, "controlBounds")
@@ -716,6 +908,7 @@ def _render_simplified(
                 (3, 3 + target_index * 10),
                 visual_labels_by_id[target["id"]],
                 fill=_color_for_id(target["id"], 255),
+                font=target_font,
             )
             continue
         color = _color_for_id(target["id"], 255)
@@ -725,12 +918,23 @@ def _render_simplified(
             f"{visual_labels_by_id[target['id']]}\n"
             f"{target.get('name', target.get('type', 'target'))}"
         )
-        draw.multiline_text((rect["x"] + 3, rect["y"] + 3), label, fill=(20, 20, 25, 255), spacing=1)
+        draw.multiline_text(
+            (rect["x"] + 3, rect["y"] + 3),
+            label,
+            fill=(20, 20, 25, 255),
+            spacing=1,
+            font=target_font,
+        )
         centers[target["id"]] = (rect["x"] + rect["width"] / 2, rect["y"] + rect["height"] / 2)
-    for target in targets:
-        parent_id = target.get("parentRegionId")
-        if target["id"] in centers and parent_id in centers:
-            draw.line((centers[parent_id], centers[target["id"]]), fill=(100, 100, 100, 110), width=1)
+    if show_relations:
+        for target in targets:
+            parent_id = target.get("parentRegionId")
+            if target["id"] in centers and parent_id in centers:
+                draw.line(
+                    (centers[parent_id], centers[target["id"]]),
+                    fill=(100, 100, 100, 110),
+                    width=1,
+                )
     return image
 
 
@@ -770,7 +974,14 @@ def _format_unknown(value: Any, reason: str | None = None) -> str:
     return canonical_json(value)
 
 
-def _render_html(profile: Mapping[str, Any], metadata: Mapping[str, Any], targets: Sequence[Mapping[str, Any]], diff: Sequence[Mapping[str, Any]]) -> str:
+def _render_html(
+    profile: Mapping[str, Any],
+    metadata: Mapping[str, Any],
+    targets: Sequence[Mapping[str, Any]],
+    hidden_targets: Sequence[Mapping[str, Any]],
+    diff: Sequence[Mapping[str, Any]],
+    raw_evidence_path: str,
+) -> str:
     rows: list[str] = []
     visual_labels_by_id = {
         target_id: label
@@ -826,6 +1037,28 @@ def _render_html(profile: Mapping[str, Any], metadata: Mapping[str, Any], target
         )
     if not diff_rows:
         diff_rows.append("<tr><td colspan=\"3\">No comparison profile supplied, or no differences.</td></tr>")
+    hidden_reasons = metadata["reviewScope"]["hiddenReasons"]
+    hidden_rows = [
+        "<tr>"
+        + f"<td><code>{html.escape(target['id'])}</code></td>"
+        + f"<td>{html.escape(str(target.get('name', 'unknown')))}</td>"
+        + f"<td>{html.escape(hidden_reasons[target['id']])}</td>"
+        + "</tr>"
+        for target in hidden_targets
+    ]
+    if not hidden_rows:
+        hidden_rows.append(
+            '<tr><td colspan="3">No targets are intentionally hidden.</td></tr>'
+        )
+    region_names = {region["id"]: region.get("name", "unknown") for region in profile["regions"]}
+    region_rows = [
+        "<tr>"
+        + f"<td>{html.escape(label)}</td>"
+        + f"<td><code>{html.escape(region_id)}</code></td>"
+        + f"<td>{html.escape(str(region_names.get(region_id, 'unknown')))}</td>"
+        + "</tr>"
+        for label, region_id in sorted(metadata["regionVisualLabels"].items())
+    ]
     metadata_json = canonical_json(metadata).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
@@ -833,13 +1066,17 @@ def _render_html(profile: Mapping[str, Any], metadata: Mapping[str, Any], target
 <meta name="app-profile-revision" content="{html.escape(str(metadata['appProfileRevision']), quote=True)}">
 <meta name="app-profile-sha256" content="{html.escape(metadata['appProfileSha256'], quote=True)}">
 <title>Application Engineer Review</title>
-<style>body{{font:14px system-ui,sans-serif;margin:24px;color:#202124}} .notice{{padding:12px;background:#fff4ce;border:1px solid #e0b84f}} img{{max-width:48%;border:1px solid #bbb}} table{{border-collapse:collapse;width:100%;margin:16px 0}} th,td{{border:1px solid #ccc;padding:6px;vertical-align:top}} pre{{white-space:pre-wrap;margin:0}} code{{word-break:break-all}}</style>
+<style>body{{font:14px system-ui,sans-serif;margin:24px;color:#202124}} .notice{{padding:12px;background:#fff4ce;border:1px solid #e0b84f}} .views{{display:grid;grid-template-columns:repeat(3,minmax(220px,1fr));gap:16px;align-items:start}} figure{{margin:0}} figcaption{{font-weight:600;margin:0 0 6px}} img{{display:block;width:100%;height:auto;border:1px solid #bbb;background:#fafafa}} table{{border-collapse:collapse;width:100%;margin:16px 0}} th,td{{border:1px solid #ccc;padding:6px;vertical-align:top}} pre{{white-space:pre-wrap;margin:0}} code{{word-break:break-all}} @media(max-width:900px){{.views{{grid-template-columns:1fr}}}}</style>
 </head><body>
 <h1>Application Engineer Review</h1>
 <p class="notice"><strong>Tool status:</strong> structural validation completed. Semantic confirmation and human review are not inferred by this helper.</p>
 <dl><dt>Schema</dt><dd>{html.escape(str(metadata['appProfileSchemaVersion']))}</dd><dt>Revision</dt><dd>{html.escape(str(metadata['appProfileRevision']))}</dd><dt>Profile SHA-256</dt><dd><code>{metadata['appProfileSha256']}</code></dd><dt>Observation</dt><dd>{html.escape(metadata['observationId'])}</dd></dl>
+<h2>Review scope</h2>
+<dl><dt>Kind</dt><dd>{html.escape(metadata['reviewScope']['kind'])}</dd><dt>Description</dt><dd>{html.escape(metadata['reviewScope']['description'])}</dd><dt>Displayed targets</dt><dd>{len(metadata['targetIds'])}</dd><dt>Intentionally hidden targets</dt><dd>{len(metadata['hiddenTargetIds'])}</dd><dt>Relationships</dt><dd>{html.escape(metadata['relationDisplay'])}; parent and other relation lines do not cover the default layout.</dd></dl>
 <p><a href="raw-evidence.json">Raw evidence index</a> · <a href="view-manifest.json">View manifest</a></p>
-<p><img src="overlay.png" alt="Original evidence with deterministic overlay"><img src="simplified.png" alt="Deterministic simplified layout"></p>
+<div class="views"><figure><figcaption>Original evidence</figcaption><img data-view="original-evidence" src="{html.escape(raw_evidence_path, quote=True)}" alt="Unmodified original observation"></figure><figure><figcaption>Overlay</figcaption><img data-view="overlay" src="overlay.png" alt="Original evidence with deterministic overlay"></figure><figure><figcaption>Simplified layout</figcaption><img data-view="simplified" src="simplified.png" alt="Deterministic simplified layout"></figure></div>
+<h2>Intentionally hidden controls</h2><table><thead><tr><th>ID</th><th>Name</th><th>Reason</th></tr></thead><tbody>{''.join(hidden_rows)}</tbody></table>
+<h2>Region label map</h2><table><thead><tr><th>Visual label</th><th>ID</th><th>Name</th></tr></thead><tbody>{''.join(region_rows)}</tbody></table>
 <h2>Attributes, sources, and validation status</h2>
 <table><thead><tr><th>Visual label</th><th>ID</th><th>Type</th><th>Name</th><th>Parent</th><th>Observed state</th><th>Validation</th><th>Geometry</th><th>Claim sources</th></tr></thead><tbody>{''.join(rows)}</tbody></table>
 <h2>Differences</h2><table><thead><tr><th>Path</th><th>Old</th><th>New</th></tr></thead><tbody>{''.join(diff_rows)}</tbody></table>
@@ -857,9 +1094,14 @@ def render_views(
     observation_id: str | None = None,
     previous_profile_path: Path | str | None = None,
     copy_evidence: bool = False,
+    show_relations: bool = False,
     force: bool = False,
 ) -> dict[str, Any]:
-    """Generate the four deterministic review views and publish manifest last."""
+    """Generate deterministic review views and publish the manifest last.
+
+    ``copy_evidence`` remains accepted for the first implementation's CLI
+    compatibility; an original-evidence copy is now always required.
+    """
 
     profile_path = Path(profile_path).resolve()
     output_dir = Path(output_dir).resolve()
@@ -870,14 +1112,30 @@ def render_views(
         _require(len(observations) == 1, "--observation-id is required when a profile has multiple observations")
         observation_id = observations[0]["id"]
     observation = _object_by_id(observations, observation_id)
-    targets = _selected_targets(profile, observation_id)
+    all_targets = _selected_targets(profile, observation_id)
     regions = _selected_regions(profile, observation_id)
-    _require(bool(targets), f"observation {observation_id!r} has no targets to review")
+    _require(bool(all_targets), f"observation {observation_id!r} has no targets to review")
+    scope = _review_scope(profile, observation_id)
+    targets_by_id = {target["id"]: target for target in all_targets}
+    targets = [targets_by_id[target_id] for target_id in scope["displayedTargetIds"]]
+    hidden_targets = [
+        targets_by_id[target_id] for target_id in scope["hiddenTargetIds"]
+    ]
     target_ids = sorted(target["id"] for target in targets)
-    metadata = _view_metadata(profile_path, profile, observation_id, target_ids)
+    metadata = _view_metadata(
+        profile_path,
+        profile,
+        observation_id,
+        target_ids,
+        show_relations=show_relations,
+    )
     visual_labels_by_id = {
         target_id: label
         for label, target_id in metadata["targetVisualLabels"].items()
+    }
+    region_visual_labels_by_id = {
+        region_id: label
+        for label, region_id in metadata["regionVisualLabels"].items()
     }
 
     screenshot_ref = observation["screenshotRef"]
@@ -907,18 +1165,17 @@ def render_views(
         "screenshotRef": screenshot_ref,
         "verifiedSha256": sha256_file(screenshot_path),
     }
-    if copy_evidence:
-        suffix = screenshot_path.suffix.lower() or ".bin"
-        # Local object IDs are data, not path components. A digest keeps even a
-        # hostile or slash-containing ID inside the declared bundle directory.
-        observation_digest = sha256_bytes(observation_id.encode("utf-8"))[:16]
-        copy_path = output_dir / "raw-evidence" / f"observation-{observation_digest}{suffix}"
-        copy_path.parent.mkdir(parents=True, exist_ok=True)
-        if copy_path.exists() and not force:
-            raise ReviewError(f"refusing to overwrite existing evidence copy: {copy_path}")
-        shutil.copyfile(screenshot_path, copy_path)
-        evidence_entry["copiedPath"] = copy_path.relative_to(output_dir).as_posix()
-        evidence_entry["copiedSha256"] = sha256_file(copy_path)
+    suffix = screenshot_path.suffix.lower() or ".bin"
+    # Every review page contains an independently visible original-evidence
+    # pane. Local object IDs stay data: the digest prevents path traversal.
+    observation_digest = sha256_bytes(observation_id.encode("utf-8"))[:16]
+    copy_path = output_dir / "raw-evidence" / f"observation-{observation_digest}{suffix}"
+    copy_path.parent.mkdir(parents=True, exist_ok=True)
+    if copy_path.exists() and not force:
+        raise ReviewError(f"refusing to overwrite existing evidence copy: {copy_path}")
+    shutil.copyfile(screenshot_path, copy_path)
+    evidence_entry["copiedPath"] = copy_path.relative_to(output_dir).as_posix()
+    evidence_entry["copiedSha256"] = sha256_file(copy_path)
 
     raw_index = {
         "schemaVersion": "agent-to-recipe/application-review-view/v1",
@@ -933,14 +1190,32 @@ def render_views(
     }
     _atomic_write_json(output_dir / "raw-evidence.json", raw_index, force)
     overlay = _render_overlay(
-        screenshot, targets, regions, observation, visual_labels_by_id
+        screenshot,
+        targets,
+        regions,
+        observation,
+        visual_labels_by_id,
+        region_visual_labels_by_id,
     )
     simplified = _render_simplified(
-        screenshot.size, targets, regions, observation, visual_labels_by_id
+        screenshot.size,
+        targets,
+        regions,
+        observation,
+        visual_labels_by_id,
+        region_visual_labels_by_id,
+        show_relations=show_relations,
     )
     _save_png(overlay, output_dir / "overlay.png", metadata, force)
     _save_png(simplified, output_dir / "simplified.png", metadata, force)
-    review_html = _render_html(profile, metadata, targets, diff)
+    review_html = _render_html(
+        profile,
+        metadata,
+        targets,
+        hidden_targets,
+        diff,
+        evidence_entry["copiedPath"],
+    )
     _atomic_write(output_dir / "review.html", review_html.encode("utf-8"), force)
 
     views = []
@@ -998,11 +1273,18 @@ def verify_view_bundle(profile_path: Path | str, bundle_dir: Path | str) -> dict
     _require(isinstance(source, dict), "view manifest source must be an object")
     observation_id = _require_nonempty_string(source.get("observationId"), "view manifest source.observationId")
     _object_by_id(profile["observationRefs"], observation_id)
-    target_ids = sorted(
-        target["id"] for target in _selected_targets(profile, observation_id)
+    target_ids = _review_scope(profile, observation_id)["displayedTargetIds"]
+    relation_display = source.get("relationDisplay")
+    _require(
+        relation_display in ("hidden-by-default", "shown"),
+        "view bundle source has an invalid relationDisplay",
     )
     expected_meta = _view_metadata(
-        profile_path, profile, observation_id, target_ids
+        profile_path,
+        profile,
+        observation_id,
+        target_ids,
+        show_relations=relation_display == "shown",
     )
     _require(source == expected_meta, "view bundle source metadata does not exactly match profile")
     listed = manifest.get("views")
@@ -1027,6 +1309,23 @@ def verify_view_bundle(profile_path: Path | str, bundle_dir: Path | str) -> dict
         _require(sha256_file(path) == listed_by_path[name].get("sha256"), f"view hash mismatch: {name}")
     raw = load_json(bundle_dir / "raw-evidence.json")
     _require(raw.get("source") == expected_meta, "raw evidence view source metadata differs")
+    evidence = raw.get("evidence")
+    _require(
+        isinstance(evidence, list) and len(evidence) == 1,
+        "raw evidence view must list exactly one observation image",
+    )
+    copied_rel = evidence[0].get("copiedPath")
+    _require_nonempty_string(copied_rel, "raw evidence copiedPath")
+    copied_path = (bundle_dir / PurePosixPath(copied_rel)).resolve()
+    try:
+        copied_path.relative_to(bundle_dir)
+    except ValueError as exc:
+        raise ReviewError("raw evidence copiedPath escapes the view bundle") from exc
+    _require(copied_path.is_file(), "raw evidence copied image is missing")
+    _require(
+        sha256_file(copied_path) == evidence[0].get("copiedSha256"),
+        "raw evidence copied image hash mismatch",
+    )
     _require(_png_metadata(bundle_dir / "overlay.png") == expected_meta, "overlay source metadata differs")
     _require(_png_metadata(bundle_dir / "simplified.png") == expected_meta, "simplified source metadata differs")
     _require(_html_metadata(bundle_dir / "review.html") == expected_meta, "review HTML source metadata differs")
@@ -1394,6 +1693,376 @@ def inject_error(profile_path: Path | str, kind: str, output_path: Path | str, *
     return injected
 
 
+def _extraction_ref(
+    extraction_path: Path, root_id: str, root_path: Path
+) -> dict[str, Any]:
+    root = root_path.resolve()
+    source = extraction_path.resolve()
+    try:
+        relative = source.relative_to(root)
+    except ValueError as exc:
+        raise ReviewError("model extraction file is outside its declared root") from exc
+    _require(source.is_file(), f"model extraction file does not exist: {source}")
+    return {
+        "id": "evidence.model-extraction.actual",
+        "rootId": root_id,
+        "path": relative.as_posix(),
+        "sha256": sha256_file(source),
+        "schemaVersion": MODEL_EXTRACTION_VERSION,
+    }
+
+
+def _extraction_target(target: Mapping[str, Any], index: int) -> dict[str, Any]:
+    label = f"rawOutput.targets[{index}]"
+    for key in ("id", "name", "type", "parentRegionId", "observationId", "coordinateSpace"):
+        _require_nonempty_string(target.get(key), f"{label}.{key}")
+    _require(isinstance(target.get("required"), bool), f"{label}.required must be boolean")
+    visibility = target.get("reviewVisibility")
+    _require(
+        visibility in ("displayed", "hidden"),
+        f"{label}.reviewVisibility must be displayed or hidden",
+    )
+    hidden_reason = target.get("hiddenReason")
+    if visibility == "hidden":
+        _require_nonempty_string(hidden_reason, f"{label}.hiddenReason")
+    else:
+        _require(
+            hidden_reason in (None, ""),
+            f"{label}.hiddenReason is only valid for hidden targets",
+        )
+    _require_nonempty_string(target.get("claimBasis"), f"{label}.claimBasis")
+    normalized = {
+        key: copy.deepcopy(value)
+        for key, value in target.items()
+        if key
+        not in (
+            "reviewVisibility",
+            "hiddenReason",
+            "claimBasis",
+        )
+    }
+    return normalized
+
+
+def ingest_model_extraction(
+    profile_path: Path | str,
+    extraction_path: Path | str,
+    output_path: Path | str,
+    *,
+    extraction_root_id: str,
+    extraction_root: Path | str,
+    new_revision: str,
+    changed_at: str,
+    actor_id: str,
+    force: bool = False,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Strictly adapt an actual Agent/model image extraction into AppProfile.
+
+    Existing target semantics must match exactly. A conflict is not normalized
+    away: it must be handled later by an explicit baseline-bound revision.
+    """
+
+    profile_path = Path(profile_path).resolve()
+    extraction_path = Path(extraction_path).resolve()
+    output_path = Path(output_path).resolve()
+    extraction_root = Path(extraction_root).resolve()
+    _require(
+        output_path not in (profile_path, extraction_path),
+        "ingestion output must not overwrite the baseline or raw extraction",
+    )
+    profile = load_json(profile_path)
+    baseline_summary = validate_profile(profile)
+    extraction = load_json(extraction_path)
+    _require(isinstance(extraction, dict), "model extraction must be an object")
+    _require(
+        extraction.get("schemaVersion") == MODEL_EXTRACTION_VERSION,
+        f"unsupported model extraction schemaVersion: {extraction.get('schemaVersion')!r}",
+    )
+    if profile.get("taskId") is not None:
+        _require(
+            extraction.get("taskId") == profile.get("taskId"),
+            "model extraction taskId does not match AppProfile",
+        )
+    _require_nonempty_string(extraction.get("attemptId"), "model extraction attemptId")
+    _require_nonempty_string(extraction.get("extractedAt"), "model extraction extractedAt")
+    producer = extraction.get("producer")
+    _require(isinstance(producer, dict), "model extraction producer must be an object")
+    _require_nonempty_string(producer.get("host"), "model extraction producer.host")
+    _require_nonempty_string(producer.get("method"), "model extraction producer.method")
+    _require(
+        producer.get("actualImageConsumed") is True,
+        "model extraction must attest that actual image bytes were consumed",
+    )
+    instruction = extraction.get("instruction")
+    _require(isinstance(instruction, dict), "model extraction instruction must be an object")
+    _require_nonempty_string(instruction.get("version"), "model extraction instruction.version")
+    _require_nonempty_string(instruction.get("text"), "model extraction instruction.text")
+
+    raw_input = extraction.get("input")
+    _require(isinstance(raw_input, dict), "model extraction input must be an object")
+    observation_id = _require_nonempty_string(
+        raw_input.get("observationId"), "model extraction input.observationId"
+    )
+    observation = _object_by_id(profile["observationRefs"], observation_id)
+    screenshot_ref = raw_input.get("screenshotRef")
+    validate_external_ref(screenshot_ref, "model extraction input.screenshotRef")
+    _validate_image_size(raw_input.get("imageSize"), "model extraction input.imageSize")
+    _require(
+        {
+            key: screenshot_ref.get(key)
+            for key in ("rootId", "path", "sha256", "schemaVersion")
+        }
+        == {
+            key: observation["screenshotRef"].get(key)
+            for key in ("rootId", "path", "sha256", "schemaVersion")
+        },
+        "model extraction screenshot ref does not match the AppProfile observation",
+    )
+    _require(
+        raw_input["imageSize"] == observation["imageSize"],
+        "model extraction image size does not match the AppProfile observation",
+    )
+
+    raw_output = extraction.get("rawOutput")
+    _require(isinstance(raw_output, dict), "model extraction rawOutput must be an object")
+    scope = raw_output.get("scope")
+    _require(isinstance(scope, dict), "model extraction rawOutput.scope must be an object")
+    _require_nonempty_string(scope.get("kind"), "model extraction rawOutput.scope.kind")
+    _require_nonempty_string(
+        scope.get("description"), "model extraction rawOutput.scope.description"
+    )
+    raw_targets = raw_output.get("targets")
+    _require(isinstance(raw_targets, list) and raw_targets, "model extraction targets must be a non-empty array")
+    normalized_targets: list[dict[str, Any]] = []
+    raw_by_id: dict[str, Mapping[str, Any]] = {}
+    for index, raw_target in enumerate(raw_targets):
+        _require(isinstance(raw_target, dict), f"rawOutput.targets[{index}] must be an object")
+        normalized = _extraction_target(raw_target, index)
+        target_id = normalized["id"]
+        _require(target_id not in raw_by_id, f"duplicate model extraction target ID {target_id!r}")
+        _require(
+            normalized["observationId"] == observation_id,
+            f"model extraction target {target_id!r} belongs to a different observation",
+        )
+        raw_by_id[target_id] = raw_target
+        normalized_targets.append(normalized)
+
+    existing_by_id = {
+        target["id"]: target
+        for target in profile["targets"]
+        if target.get("observationId") == observation_id
+    }
+    omitted_existing = sorted(set(existing_by_id) - set(raw_by_id))
+    _require(
+        not omitted_existing,
+        "model extraction omits existing observation targets: "
+        + ", ".join(omitted_existing),
+    )
+    comparable_fields = (
+        "name",
+        "type",
+        "parentRegionId",
+        "observationId",
+        "coordinateSpace",
+        "textBounds",
+        "controlBounds",
+        "safeActionRegion",
+        "required",
+    )
+    for target_id in sorted(set(existing_by_id) & set(raw_by_id)):
+        normalized = next(item for item in normalized_targets if item["id"] == target_id)
+        conflicts = [
+            field
+            for field in comparable_fields
+            if existing_by_id[target_id].get(field) != normalized.get(field)
+        ]
+        _require(
+            not conflicts,
+            f"model extraction conflicts with existing target {target_id!r} fields; use an explicit revision: "
+            + ", ".join(conflicts),
+        )
+
+    extraction_evidence = _extraction_ref(
+        extraction_path, extraction_root_id, extraction_root
+    )
+    _require(
+        all(ref.get("id") != extraction_evidence["id"] for ref in profile["evidenceRefs"]),
+        f"duplicate evidence ref id {extraction_evidence['id']!r}",
+    )
+    revised = copy.deepcopy(profile)
+    revised["revision"] = new_revision
+    revised["evidenceRefs"].append(extraction_evidence)
+    changes: list[dict[str, Any]] = [
+        {
+            "op": "add",
+            "path": "/evidenceRefs/-",
+            "oldValue": "<missing>",
+            "newValue": copy.deepcopy(extraction_evidence),
+            "reason": "Retain the actual image-consuming model/Agent output used by normalization.",
+        }
+    ]
+    changed_ids: set[str] = set()
+    existing_all_ids = {target["id"] for target in revised["targets"]}
+    for normalized in normalized_targets:
+        if normalized["id"] in existing_all_ids:
+            continue
+        revised["targets"].append(normalized)
+        existing_all_ids.add(normalized["id"])
+        changed_ids.add(normalized["id"])
+        changes.append(
+            {
+                "op": "add",
+                "path": "/targets/-",
+                "oldValue": "<missing>",
+                "newValue": copy.deepcopy(normalized),
+                "reason": "Adapt an explicitly extracted visible target without changing its model semantics.",
+            }
+        )
+        claim_id = "claim.model-extraction." + sha256_bytes(
+            normalized["id"].encode("utf-8")
+        )[:12]
+        claim = {
+            "id": claim_id,
+            "objectId": normalized["id"],
+            "fieldPath": "name,type,parentRegionId,textBounds,controlBounds,safeActionRegion,state",
+            "sourceType": "actual-agent-multimodal-extraction",
+            "basis": raw_by_id[normalized["id"]]["claimBasis"],
+            "evidenceRefs": [extraction_evidence["id"]],
+        }
+        revised["claimSources"].append(claim)
+        changes.append(
+            {
+                "op": "add",
+                "path": "/claimSources/-",
+                "oldValue": "<missing>",
+                "newValue": copy.deepcopy(claim),
+                "reason": "Keep the added target traceable to the untouched extraction record.",
+            }
+        )
+
+    raw_relations = raw_output.get("relations", [])
+    _require(isinstance(raw_relations, list), "model extraction relations must be an array")
+    relation_by_id = {relation["id"]: relation for relation in revised["relations"]}
+    for index, raw_relation in enumerate(raw_relations):
+        _require(isinstance(raw_relation, dict), f"rawOutput.relations[{index}] must be an object")
+        for key in ("id", "kind", "from", "to", "basis"):
+            _require_nonempty_string(raw_relation.get(key), f"rawOutput.relations[{index}].{key}")
+        normalized_relation = {
+            "id": raw_relation["id"],
+            "kind": raw_relation["kind"],
+            "from": raw_relation["from"],
+            "to": raw_relation["to"],
+            "source": {
+                "type": "actual-agent-multimodal-extraction",
+                "observationId": observation_id,
+                "evidenceRefId": extraction_evidence["id"],
+                "basis": raw_relation["basis"],
+            },
+        }
+        existing = relation_by_id.get(normalized_relation["id"])
+        if existing is not None:
+            _require(
+                all(existing.get(key) == normalized_relation[key] for key in ("kind", "from", "to")),
+                f"model extraction relation {normalized_relation['id']!r} conflicts with the baseline",
+            )
+            continue
+        revised["relations"].append(normalized_relation)
+        relation_by_id[normalized_relation["id"]] = normalized_relation
+        changed_ids.add(normalized_relation["id"])
+        changes.append(
+            {
+                "op": "add",
+                "path": "/relations/-",
+                "oldValue": "<missing>",
+                "newValue": copy.deepcopy(normalized_relation),
+                "reason": "Adapt an explicit relation from the actual extraction.",
+            }
+        )
+
+    displayed = sorted(
+        target_id
+        for target_id, raw_target in raw_by_id.items()
+        if raw_target["reviewVisibility"] == "displayed"
+    )
+    hidden = sorted(set(raw_by_id) - set(displayed))
+    review_scope = {
+        "observationId": observation_id,
+        "kind": scope["kind"],
+        "description": scope["description"],
+        "displayedTargetIds": displayed,
+        "hiddenTargetIds": hidden,
+        "hiddenReasons": {
+            target_id: raw_by_id[target_id]["hiddenReason"]
+            for target_id in hidden
+        },
+    }
+    changes.append(
+        {
+            "op": "replace" if "reviewScope" in revised else "add",
+            "path": "/reviewScope",
+            "oldValue": copy.deepcopy(revised.get("reviewScope", "<missing>")),
+            "newValue": copy.deepcopy(review_scope),
+            "reason": "Make task display scope and every intentionally hidden target explicit.",
+        }
+    )
+    revised["reviewScope"] = review_scope
+    revised["normalization"] = {
+        "kind": "strict-field-adaptation-of-actual-multimodal-extraction",
+        "sourceEvidenceRef": extraction_evidence["id"],
+        "sourceExtractedAt": extraction["extractedAt"],
+        "semanticBoundary": "Existing target conflicts are rejected; unknowns and hidden targets are not filled or dropped.",
+        "modelBlindness": producer.get("blindness", "unknown"),
+    }
+    maturity = revised.get("maturity")
+    if isinstance(maturity, dict):
+        maturity["modelExtraction"] = "actual-image-consumed"
+        maturity["normalization"] = "complete"
+        maturity["semanticReview"] = "pending"
+        maturity["humanReview"] = "not-run"
+    impact = {
+        "status": "needs-revalidation",
+        "changedObjectIds": sorted(changed_ids),
+        "affected": {
+            "views": ["raw-evidence", "overlay", "simplified", "review-html"],
+            "geometryRules": [],
+            "operations": [],
+            "verifiers": [],
+        },
+        "conservative": False,
+        "note": "Newly visible secondary targets and review scope require a new review bundle; operation conclusions are not promoted.",
+    }
+    revised["changeLog"].append(
+        {
+            "base": {
+                "schemaVersion": profile["schemaVersion"],
+                "revision": profile["revision"],
+                "sha256": sha256_file(profile_path),
+            },
+            "revision": new_revision,
+            "modifiedBy": {
+                "kind": "actual-model-output-ingestion",
+                "id": actor_id,
+                "approval": "not-human-approval",
+            },
+            "changedAt": changed_at,
+            "changes": changes,
+            "impact": copy.deepcopy(impact),
+            "scopeChangeAuthorizationRef": None,
+        }
+    )
+    validate_profile(revised)
+    _atomic_write_json(output_path, revised, force)
+    impact["revisedProfileSha256"] = sha256_file(output_path)
+    return revised, {
+        "baseline": baseline_summary,
+        "extractionSha256": extraction_evidence["sha256"],
+        "targetCount": len(normalized_targets),
+        "addedTargetIds": sorted(changed_ids & set(raw_by_id)),
+        "reviewScope": review_scope,
+        "impact": impact,
+    }
+
+
 def _load_critical_targets(scope_path: str | None, direct: Sequence[str]) -> list[str]:
     result = list(direct)
     if scope_path:
@@ -1418,7 +2087,16 @@ def _parser() -> argparse.ArgumentParser:
     render_cmd.add_argument("--root", action="append", default=[], metavar="ID=DIR")
     render_cmd.add_argument("--observation-id")
     render_cmd.add_argument("--previous-profile")
-    render_cmd.add_argument("--copy-evidence", action="store_true")
+    render_cmd.add_argument(
+        "--copy-evidence",
+        action="store_true",
+        help="compatibility flag; original evidence is now always copied",
+    )
+    render_cmd.add_argument(
+        "--show-relations",
+        action="store_true",
+        help="draw parent relation lines; hidden by default to keep targets legible",
+    )
     render_cmd.add_argument("--force", action="store_true")
 
     verify_cmd = subparsers.add_parser("verify-bundle", help="reject incomplete, stale, or mixed-version view bundles")
@@ -1439,6 +2117,20 @@ def _parser() -> argparse.ArgumentParser:
     inject_cmd.add_argument("--kind", required=True, choices=("invalid-rectangle", "dangling-reference", "unknown-to-false", "critical-downgrade"))
     inject_cmd.add_argument("--output", required=True)
     inject_cmd.add_argument("--force", action="store_true")
+
+    ingest_cmd = subparsers.add_parser(
+        "ingest-extraction",
+        help="strictly adapt a preserved actual multimodal extraction into a new AppProfile revision",
+    )
+    ingest_cmd.add_argument("--profile", required=True)
+    ingest_cmd.add_argument("--extraction", required=True)
+    ingest_cmd.add_argument("--output", required=True)
+    ingest_cmd.add_argument("--extraction-root-id", required=True)
+    ingest_cmd.add_argument("--extraction-root", required=True)
+    ingest_cmd.add_argument("--new-revision", required=True)
+    ingest_cmd.add_argument("--changed-at", required=True)
+    ingest_cmd.add_argument("--actor-id", required=True)
+    ingest_cmd.add_argument("--force", action="store_true")
     return parser
 
 
@@ -1455,6 +2147,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 observation_id=args.observation_id,
                 previous_profile_path=args.previous_profile,
                 copy_evidence=args.copy_evidence,
+                show_relations=args.show_relations,
                 force=args.force,
             )
         elif args.command == "verify-bundle":
@@ -1481,6 +2174,18 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "output": str(Path(args.output).resolve()),
                 "profile": inject_error(args.profile, args.kind, args.output, force=args.force).get("testFaultInjection"),
             }
+        elif args.command == "ingest-extraction":
+            _, result = ingest_model_extraction(
+                args.profile,
+                args.extraction,
+                args.output,
+                extraction_root_id=args.extraction_root_id,
+                extraction_root=args.extraction_root,
+                new_revision=args.new_revision,
+                changed_at=args.changed_at,
+                actor_id=args.actor_id,
+                force=args.force,
+            )
         else:  # pragma: no cover - argparse guarantees a known command
             raise ReviewError(f"unsupported command: {args.command}")
     except ReviewError as exc:

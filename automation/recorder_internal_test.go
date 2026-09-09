@@ -17,15 +17,17 @@ import (
 )
 
 type recorderMemoryBackend struct {
-	mu         sync.Mutex
-	sink       func(RecorderInputEvent)
-	startErr   error
-	stopErr    error
-	startCalls int
-	stopCalls  int
-	waitCalls  int
-	emitLate   bool
-	active     atomic.Bool
+	mu                sync.Mutex
+	sink              func(RecorderInputEvent)
+	startErr          error
+	stopErr           error
+	startCalls        int
+	stopCalls         int
+	waitCalls         int
+	emitLate          bool
+	active            atomic.Bool
+	keyStateAvailable bool
+	pressedRawcodes   map[uint16]bool
 }
 
 func (b *recorderMemoryBackend) Capabilities() RecorderBackendCapabilities {
@@ -60,6 +62,14 @@ func (b *recorderMemoryBackend) ResourceCount() int {
 		return 1
 	}
 	return 0
+}
+func (b *recorderMemoryBackend) keyPressedAtStop(rawcode uint16) (bool, bool) {
+	if !b.keyStateAvailable {
+		return false, false
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.pressedRawcodes[rawcode], true
 }
 func (b *recorderMemoryBackend) Emit(event RecorderInputEvent) {
 	b.mu.Lock()
@@ -175,6 +185,61 @@ func TestRecorderSessionReadyStopDrainIdempotenceAndReuse(t *testing.T) {
 	<-next.done
 	if nextBackend.startCalls != 1 || nextBackend.stopCalls != 1 {
 		t.Fatalf("next backend calls=%d/%d", nextBackend.startCalls, nextBackend.stopCalls)
+	}
+}
+
+func TestRecorderSessionPersistsAuditableUnmatchedKeyStateAtStop(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		pressed   bool
+		state     string
+		issueCode string
+	}{
+		{name: "release-not-observed", pressed: false, state: "released", issueCode: "key-release-not-observed-at-stop"},
+		{name: "still-physically-held", pressed: true, state: "pressed", issueCode: "key-still-pressed-at-stop"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			backend := &recorderMemoryBackend{
+				keyStateAvailable: true,
+				pressedRawcodes:   map[uint16]bool{0: test.pressed},
+			}
+			owner := recorderTestOwner(t.TempDir(), backend)
+			options := recorderTestStartOptions()
+			options.CaptureKeyboard = true
+			options.KeyboardContent = "non-sensitive-test"
+			session, err := owner.startSession(options)
+			if err != nil {
+				t.Fatal(err)
+			}
+			backend.Emit(RecorderInputEvent{Type: recorderEventKeyPressed, NativeTime: 1000, Keycode: 0x001e, Rawcode: 0})
+			session.finishAsync(nil)
+			<-session.done
+			if session.stopErr != nil {
+				t.Fatalf("stop error=%v", session.stopErr)
+			}
+			manifestBytes, err := os.ReadFile(session.writer.manifestPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var manifest recorderManifest
+			if err := recorderDecodeStrict(manifestBytes, &manifest); err != nil {
+				t.Fatal(err)
+			}
+			if len(manifest.KeyStatesAtStop) != 1 || manifest.KeyStatesAtStop[0].State != test.state || manifest.KeyStatesAtStop[0].PressEventID != "e000000000002" || !recorderHasIssue(manifest.Issues, test.issueCode) {
+				t.Fatalf("stop key-state evidence=%#v issues=%#v", manifest.KeyStatesAtStop, manifest.Issues)
+			}
+			rawBytes, err := os.ReadFile(session.writer.rawPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(string(rawBytes), `"libraryEvent":"KEY_RELEASED"`) {
+				t.Fatalf("Recorder synthesized a key release: %s", rawBytes)
+			}
+			built, err := owner.buildActionsFile(session.writer.recordingDir)
+			if err != nil || built.Readiness != "blocked" || !recorderHasIssue(built.Issues, test.issueCode) || !recorderHasIssue(built.Issues, "missing-key-release-at-stop") {
+				t.Fatalf("actions must remain blocked without a raw release: result=%#v error=%v", built, err)
+			}
+		})
 	}
 }
 
@@ -446,9 +511,16 @@ func TestRecorderActionGroupingPreservesUnsupportedBoundaries(t *testing.T) {
 	dragged := recorderTestMouseEventAt(2, "MOUSE_DRAGGED", 1005, 1<<8, 40, 50)
 	dragged.Button = "none"
 	dragRelease := recorderTestMouseEventAt(3, "MOUSE_RELEASED", 1010, 0, 40, 50)
+	dragRelease.Clicks = 0
 	actions, _, issues = recorderBuildActionList([]recorderRawEvent{press, dragged, dragRelease})
 	if len(actions) != 1 || len(issues) != 0 || actions[0].Kind != "drag" || actions[0].Strategy != "mouse.drag" || actions[0].Position == nil || actions[0].Destination == nil || actions[0].Position.X != 10 || actions[0].Destination.X != 40 || actions[0].Args.Steps != 2 {
 		t.Fatalf("straight drag=%#v issues=%#v", actions, issues)
+	}
+	conflictingRelease := dragRelease
+	conflictingRelease.Clicks = 2
+	actions, _, issues = recorderBuildActionList([]recorderRawEvent{press, dragged, conflictingRelease})
+	if len(actions) != 0 || !recorderHasIssue(issues, "drag-unsupported") {
+		t.Fatalf("positive conflicting drag release count must remain blocked: actions=%#v issues=%#v", actions, issues)
 	}
 	curved := recorderTestMouseEventAt(2, "MOUSE_DRAGGED", 1005, 1<<8, 40, 80)
 	curved.Button = "none"
@@ -552,6 +624,55 @@ func TestRecorderDragEndpointEvidenceKeepsWindowAndEditableTraits(t *testing.T) 
 	}
 }
 
+func TestRecorderGeneratedDragKeepsOrderedAuditableInputBoundaries(t *testing.T) {
+	window, err := recorderSnapshotWindow(recorderTestWindow(42, "Recorder Fixture", "Recorder.app"), time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	position := func(x int) *recorderActionPosition {
+		return &recorderActionPosition{
+			X: x, Y: 200, Space: "screen-logical", DisplayRef: "display-1", Verified: true,
+			Window: &recorderWindowPosition{Anchor: "top-left", OffsetX: x, OffsetY: 200, Space: "window-logical", Verified: true},
+		}
+	}
+	action := recorderAction{
+		ID: "a0001", Kind: "drag", Position: position(300), Destination: position(240),
+		Target: &recorderActionTarget{Kind: "window", Window: window},
+		Args:   recorderActionArguments{Button: "left", Steps: 37},
+	}
+	source, _, constraints, err := recorderGenerateBasicSource(
+		recorderActions{Environment: recorderActionEnvironment{Platform: "darwin"}, Actions: []recorderAction{action}},
+		nil,
+		recorderGenerationTiming{MinimumDelayMS: 0, MaximumDelayMS: 1, SpeedMultiplier: 1},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(source)
+	ordered := []string{
+		`start-position-confirmed`,
+		`await mouse.down({ button: "left" })`,
+		`button-down-returned`,
+		`await __recorderRequireResolvedActiveWindow(__recorderWindow1)`,
+		`active-window-confirmed`,
+		`await mouse.move(__recorderDragEnd1.x, __recorderDragEnd1.y, { steps: 37 })`,
+		`end-position-confirmed`,
+		`await mouse.up({ button: "left" })`,
+		`button-up-returned`,
+	}
+	previous := -1
+	for _, fragment := range ordered {
+		index := strings.Index(text, fragment)
+		if index <= previous {
+			t.Fatalf("generated drag boundary %q is missing or out of order:\n%s", fragment, text)
+		}
+		previous = index
+	}
+	if !strings.Contains(strings.Join(constraints, "\n"), "never target business success") {
+		t.Fatalf("generated drag constraints overstate trace evidence: %#v", constraints)
+	}
+}
+
 func TestRecorderNaturalTextSelectionRequiresMatchingEditableEndpoints(t *testing.T) {
 	observed := time.Now().UTC()
 	window, err := recorderSnapshotWindow(recorderTestWindow(42, "Recorder Fixture", "Recorder.app"), observed)
@@ -583,6 +704,9 @@ func TestRecorderNaturalTextSelectionRequiresMatchingEditableEndpoints(t *testin
 		events = append(events, motion)
 	}
 	release := recorderTestMouseEventAt(len(events)+1, "MOUSE_RELEASED", 1100, 0, 992, 723)
+	// macOS leaves click count at its zero/default for a drag release that does
+	// not become a CLICKED event. The raw release remains authoritative.
+	release.Clicks = 0
 	events = append(events, release)
 	pressContext := recorderInputContext{EventID: press.EventID, Kind: "pointer", Phase: "pressed", Status: "verified", Window: window, Element: textElement(), SemanticStatus: "verified"}
 	releaseContext := recorderInputContext{EventID: release.EventID, Kind: "pointer", Phase: "released", Status: "verified", Window: window, Element: textElement(), SemanticStatus: "verified"}
@@ -771,6 +895,13 @@ func TestRecorderKeyboardShortcutsSpecialKeysAndVerifiedTextEdits(t *testing.T) 
 		t.Fatalf("special-key actions=%#v issues=%#v", actions, issues)
 	}
 
+	keypadEnterPress := keyboardEvent(1, "KEY_PRESSED", 0x0e1c, 76, 0)
+	keypadEnterRelease := keyboardEvent(2, "KEY_RELEASED", 0x0e1c, 76, 0)
+	actions, _, issues = recorderBuildActionList([]recorderRawEvent{keypadEnterPress, keypadEnterRelease})
+	if len(issues) != 0 || len(actions) != 1 || actions[0].Kind != "key" || actions[0].Args.Key != "Enter" || actions[0].Strategy != "keyboard.press" {
+		t.Fatalf("numeric-keypad Enter actions=%#v issues=%#v", actions, issues)
+	}
+
 	before, after := "prefix🙂suffix", "prefix世界🙂suffix"
 	patch := recorderBuildTextPatch(before, after)
 	if applied, ok := recorderApplyTextPatch(before, patch); !ok || applied != after || patch.Unit != "utf16-code-unit" || patch.Start != 6 {
@@ -807,12 +938,79 @@ func TestRecorderKeyboardShortcutsSpecialKeysAndVerifiedTextEdits(t *testing.T) 
 	}
 }
 
+func TestRecorderTextTrackerCapturesFinalASCIIAndUnicodeValuePatches(t *testing.T) {
+	backend := &recorderMemoryBackend{}
+	owner := recorderTestOwner(t.TempDir(), backend)
+	var valueMu sync.Mutex
+	value := "private-context"
+	focused := true
+	owner.textProbe = func(_ context.Context, _ *WindowInfo, window *recorderWindowSnapshot) (*recorderTextFieldSample, error) {
+		valueMu.Lock()
+		current := value
+		valueMu.Unlock()
+		return &recorderTextFieldSample{
+			ObservedAt: time.Now().UTC(), Window: recorderCloneWindowSnapshot(window), Value: current,
+			Element: recorderElementDescriptor{
+				Role: "textField", NativeRole: "AXTextArea", Name: "Editor", Identifier: "editor",
+				Focused: &focused, ValueSettable: true, NativeActions: []string{},
+				Bounds: recorderWindowBounds{X: 10, Y: 10, Width: 400, Height: 100},
+			},
+		}, nil
+	}
+	options := recorderTestStartOptions()
+	options.CaptureKeyboard = true
+	options.KeyboardContent = "non-sensitive-test"
+	session, err := owner.startSession(options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(2 * recorderTextSampleInterval)
+
+	emitEdit := func(native uint64, keycode, rawcode, keychar uint16, next string) {
+		backend.Emit(RecorderInputEvent{Type: recorderEventKeyPressed, NativeTime: native, Keycode: keycode, Rawcode: rawcode, Keychar: 0xffff})
+		valueMu.Lock()
+		value = next
+		valueMu.Unlock()
+		backend.Emit(RecorderInputEvent{Type: recorderEventKeyTyped, NativeTime: native, Rawcode: rawcode, Keychar: keychar})
+		backend.Emit(RecorderInputEvent{Type: recorderEventKeyReleased, NativeTime: native + 1, Keycode: keycode, Rawcode: rawcode, Keychar: 0xffff})
+	}
+	emitEdit(1000, 0x001e, 0, 'a', "private-contexta")
+	time.Sleep(2 * recorderTextSettleInterval)
+	emitEdit(2000, 0x0030, 11, 'b', "private-contexta中文")
+	time.Sleep(2 * recorderTextSettleInterval)
+
+	session.finishAsync(nil)
+	<-session.done
+	if session.stopErr != nil {
+		t.Fatalf("stop error=%v", session.stopErr)
+	}
+	manifestBytes, err := os.ReadFile(session.writer.manifestPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var manifest recorderManifest
+	if err := recorderDecodeStrict(manifestBytes, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	if len(manifest.TextEdits) != 2 || manifest.TextEdits[0].Patch.InsertText != "a" || manifest.TextEdits[1].Patch.InsertText != "中文" {
+		t.Fatalf("final text edits=%#v", manifest.TextEdits)
+	}
+	if strings.Contains(string(manifestBytes), "private-context") {
+		t.Fatalf("manifest leaked unchanged text context: %s", manifestBytes)
+	}
+	built, err := owner.buildActionsFile(session.writer.recordingDir)
+	if err != nil || built.Readiness != "ready" || built.ActionCount != 2 || len(built.Issues) != 0 {
+		t.Fatalf("text actions=%#v error=%v", built, err)
+	}
+}
+
 func recorderTestOwner(workDir string, backend RecorderInputBackend) *RecorderRuntime {
 	return &RecorderRuntime{
 		context: context.Background(), workDir: workDir, executionID: "test-execution",
 		backendFactory: func() RecorderInputBackend { return backend },
 		windowProbe:    func() (*WindowInfo, error) { return recorderTestWindow(42, "Recorder Fixture", "Recorder.app"), nil },
-		targetProbe: func(_ context.Context, _ *WindowInfo, x, y int) (*recorderElementSnapshot, error) {
+		targetProbe: func(_ context.Context, _ *WindowInfo, point recorderTargetPoint) (*recorderElementSnapshot, error) {
+			x, y := point.X, point.Y
 			enabled, focused := true, false
 			descriptor := recorderElementDescriptor{Role: "button", NativeRole: "AXButton", Name: "Save", Identifier: "save-button", Enabled: &enabled, Focused: &focused, NativeActions: []string{"AXPress"}, Bounds: recorderWindowBounds{X: x - 5, Y: y - 5, Width: 20, Height: 20}}
 			return &recorderElementSnapshot{

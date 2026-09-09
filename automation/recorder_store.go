@@ -54,14 +54,15 @@ type recorderWriterResult struct {
 }
 
 type recorderManifestFinal struct {
-	State          string
-	StoppedAt      time.Time
-	CutoffSequence uint64
-	Counts         map[string]uint64
-	Storage        recorderWriterResult
-	InputContexts  []recorderInputContext
-	TextEdits      []recorderTextEdit
-	Issues         []recorderIssue
+	State           string
+	StoppedAt       time.Time
+	CutoffSequence  uint64
+	Counts          map[string]uint64
+	Storage         recorderWriterResult
+	InputContexts   []recorderInputContext
+	TextEdits       []recorderTextEdit
+	KeyStatesAtStop []recorderKeyStateAtStop
+	Issues          []recorderIssue
 }
 
 func newRecorderID() string {
@@ -231,6 +232,7 @@ func (w *recorderWriter) finishManifest(final recorderManifestFinal) error {
 	manifest.Storage.RawBytes = final.Storage.RawBytes
 	manifest.InputContexts = append(make([]recorderInputContext, 0, len(final.InputContexts)), final.InputContexts...)
 	manifest.TextEdits = append(make([]recorderTextEdit, 0, len(final.TextEdits)), final.TextEdits...)
+	manifest.KeyStatesAtStop = append(make([]recorderKeyStateAtStop, 0, len(final.KeyStatesAtStop)), final.KeyStatesAtStop...)
 	if final.Storage.RawFile == "" {
 		manifest.Storage.RawFile = ""
 	}

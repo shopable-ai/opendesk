@@ -277,65 +277,33 @@ static inline void process_key_pressed(uint64_t timestamp, CGEventRef event_ref)
     // Fire key pressed event.
     dispatch_event(&event);
 
-    // If the pressed event was not consumed...
+    // If the pressed event was not consumed, read the Unicode payload already
+    // carried by the CGEvent. OpenDesk runs hook_run on a dedicated locked Go
+    // thread; synchronously dispatching TIS translation to the process main
+    // queue can therefore block this event-tap callback forever. In that
+    // failure mode the physical press is delivered, but every later key and
+    // release is lost and hook_stop cannot make the in-flight callback return.
+    // CGEventKeyboardGetUnicodeString is callback-local and needs no AppKit or
+    // main-runloop handoff. Recorder treats this only as a Basic Latin fallback;
+    // committed IME text is obtained independently from the focused AX value.
     if (event.reserved ^ 0x01) {
         tis_keycode_message->event = event_ref;
         tis_keycode_message->length = 0;
-        bool is_runloop_main = CFEqual(event_loop, CFRunLoopGetMain());
-
-        if (dispatch_sync_f_f != NULL && dispatch_main_queue_s != NULL && !is_runloop_main) {
-            logger(LOG_LEVEL_DEBUG, "%s [%u]: Using dispatch_sync_f for key typed events.\n",
-                    __FUNCTION__, __LINE__);
-            (*dispatch_sync_f_f)(dispatch_main_queue_s, tis_keycode_message, &keycode_to_lookup);
-        }
-        #if !defined(USE_CARBON_LEGACY) && defined(USE_APPLICATION_SERVICES)
-        else if (!is_runloop_main) {
-            logger(LOG_LEVEL_DEBUG, "%s [%u]: Using CFRunLoopWakeUp for key typed events.\n",
-                    __FUNCTION__, __LINE__);
-
-            // Lock for code dealing with the main runloop.
-            pthread_mutex_lock(&main_runloop_mutex);
-
-            // Check to see if the main runloop is still running.
-            // TODO I would rather this be a check on hook_enable(),
-            // but it makes the usage complicated by requiring a separate
-            // thread for the main runloop and hook registration.
-            CFStringRef mode = CFRunLoopCopyCurrentMode(CFRunLoopGetMain());
-            if (mode != NULL) {
-                CFRelease(mode);
-
-                // Lookup the Unicode representation for this event.
-                //CFRunLoopSourceContext context = { .version = 0 };
-                //CFRunLoopSourceGetContext(main_runloop_keycode->source, &context);
-
-                // Get the run loop context info pointer.
-                //TISKeycodeMessage *info = (TISKeycodeMessage *) context.info;
-
-                // Set the event pointer.
-                //info->event = event_ref;
-
-
-                // Signal the custom source and wakeup the main runloop.
-                CFRunLoopSourceSignal(main_runloop_keycode->source);
-                CFRunLoopWakeUp(CFRunLoopGetMain());
-
-                // Wait for a lock while the main runloop processes they key typed event.
-                pthread_cond_wait(&main_runloop_cond, &main_runloop_mutex);
-            }
-            else {
-                logger(LOG_LEVEL_WARN, "%s [%u]: Failed to signal RunLoop main!\n",
-                        __FUNCTION__, __LINE__);
-            }
-
-            // Unlock for code dealing with the main runloop.
-            pthread_mutex_unlock(&main_runloop_mutex);
-        }
-        #endif
-        else {
-            keycode_to_lookup(tis_keycode_message);
-        }
+        CGEventKeyboardGetUnicodeString(
+                event_ref,
+                KEY_BUFFER_SIZE,
+                &tis_keycode_message->length,
+                tis_keycode_message->buffer);
 
         for (unsigned int i = 0; i < tis_keycode_message->length; i++) {
+            // Recorder's low-level compatibility channel is intentionally
+            // Basic Latin only. Navigation/private-use key payloads are
+            // represented by their paired physical events, while Unicode and
+            // IME commits come from the focused AX value tracker.
+            if (tis_keycode_message->buffer[i] < 0x20 ||
+                    tis_keycode_message->buffer[i] > 0x7E) {
+                continue;
+            }
             // Populate key typed event.
             event.time = timestamp;
             event.reserved = 0x00;

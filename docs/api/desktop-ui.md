@@ -15,6 +15,8 @@ order: 11
 | 方法 | 状态 | 用途 |
 | --- | --- | --- |
 | `UI.getCapabilities()` | Stable | 查询当前高层 UI 能力。 |
+| `UI.getValue(target, options)` | Experimental · Local | 读取唯一原生文本框的字符串值。 |
+| `UI.setValue(target, value, options)` | Experimental · Local | 设置唯一原生文本框的完整字符串值并用同一引用回读。 |
 | `UI.findTexts(text, options?)` | Stable | 返回全部匹配文本。 |
 | `UI.findText(text, options?)` | Stable | 返回唯一匹配文本。 |
 | `UI.hasText(text, options?)` | Stable | 判断是否存在匹配文本。 |
@@ -34,6 +36,32 @@ order: 11
 本页示例用于从仓库根目录运行的普通 OpenDesk JavaScript。引用 `win` 的示例要求先取得并核对目标窗口，例如 `const win = await window.getActiveWindow();`；目标必须可见且具备当前平台所需权限。菜单和素材示例还需对应应用菜单与实际模板文件，不能直接对未知业务窗口尝试。
 
 ## 公共约定
+
+### 原生文本值选项
+
+`UI.getValue()` 与 `UI.setValue()` 是现有 [Accessibility](accessibility.md) owner 上的无 ref 高层组合，不创建另一套定位器、原生资源或动作 Runtime。`target` 直接使用 `OpenDeskAccessibilitySelector`；`role`、`name`、`identifier` 仍按 V1 的 AND 精确匹配解释。`name` 只是 selector 证据，不会在 `value` 不可读时替代字段值。
+
+```ts
+interface OpenDeskUIValueOptions {
+  within: OpenDeskAccessibilityScope;
+  timeout?: number;
+  maxDepth?: number;
+  maxNodes?: number;
+}
+```
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `within` | `OpenDeskAccessibilityScope` | 是 | 无 | 明确窗口、当前 execution 的容器 ref 或 App application root；不默认全桌面或活动窗口。 |
+| `timeout` | `number` | 否 | `3000` ms | `1..30000` 的整数；覆盖定位、读取、动作与回读的单一总 deadline，不按阶段重置。 |
+| `maxDepth` | `number` | 否 | `8` | 有界唯一查找深度；最大 `32`。 |
+| `maxNodes` | `number` | 否 | `1000` | 有界唯一查找节点数；最大 `5000`。 |
+
+调用不会启动、聚焦或切换窗口，不等待控件将来出现，也不从原生语义降级到 OCR、鼠标或键盘。当前底层没有 per-call `AbortSignal` owner，因此这两个方法不接受 `signal`；外层 `Promise.race` 也不能取消正在执行的原生调用。
+
+首版只接受原生 role 为 `textField` 且 `value` 实际为字符串的目标。checkbox、range、selection、name、文档正文和 OCR 文本不属于本合同；数字、布尔值、对象与 `null` 不做隐式字符串转换。`UI.setValue()` 的空字符串是合法完整值，可用于清空非受保护、enabled、明确支持 `setValue` 的可编辑文本框。
+
+每次调用都执行完整有界唯一查找。目标不存在、多个目标或搜索不完整分别保留 `TARGET_NOT_FOUND`、`AMBIGUOUS_TARGET` 与 `SEARCH_INCOMPLETE`。当前 flat selector 不能在一次调用中表达父容器／祖先 selector；若 Recorder 或手写 locator 的唯一性依赖该约束，调用方必须先用 `Accessibility.find()` 取得并管理容器 ref，再作为 `within` 使用，或停止并保留该依赖，不能静默丢弃结构约束。
 
 ### 文本选项
 
@@ -272,6 +300,108 @@ UI.getCapabilities(): OpenDeskUICapabilities;
 ```js
 const capabilities = UI.getCapabilities();
 console.log(capabilities.text, capabilities.image, capabilities.accessibility);
+```
+
+**Native Text Value APIs · Experimental Local**
+
+## UI.getValue(target, options)
+
+读取一个唯一原生文本框的字符串值。
+
+**签名**
+
+```ts
+UI.getValue(
+  target: OpenDeskAccessibilitySelector,
+  options: OpenDeskUIValueOptions,
+): Promise<string>;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `target` | `OpenDeskAccessibilitySelector` | 是 | 无 | 与 `Accessibility.find()` 相同的 flat selector 字段和精确 AND 语义。 |
+| `options` | `OpenDeskUIValueOptions` | 是 | 无 | 明确 scope、总 deadline 和有界搜索限制，见[原生文本值选项](#原生文本值选项)。 |
+
+**返回值**
+
+`Promise<string>`。空字符串、中文和多行字符串原样返回；看起来像数字的文本仍是字符串。
+
+**行为与错误**
+
+内部顺序是 `Accessibility.find → Accessibility.read(role,value) → finally release`。只读取同一 execution 创建的目标 ref，不使用 `name`、OCR 或文档正文补值。目标不是 `textField`、value 不是字符串或受保护时明确拒绝；无目标、歧义、搜索不完整、失效 ref、权限和 timeout 保留对应结构化错误。释放失败时不把已读取值写入错误或日志。
+
+**示例**
+
+前置：从仓库根目录运行，目标应用已打开；调用本身不会启动或聚焦它。
+
+```js
+const win = await window.get({ exeName: 'ExampleEditor', title: 'Draft' });
+const value = await UI.getValue(
+  { role: 'textField', identifier: 'document-title' },
+  { within: win, timeout: 3000 },
+);
+console.log(value.length);
+```
+
+## UI.setValue(target, value, options)
+
+最多提交一次原生动作，将一个唯一可编辑文本框设置为完整字符串，并用同一 ref 严格回读。
+
+**签名**
+
+```ts
+UI.setValue(
+  target: OpenDeskAccessibilitySelector,
+  value: string,
+  options: OpenDeskUIValueOptions,
+): Promise<OpenDeskUISetValueResult>;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `target` | `OpenDeskAccessibilitySelector` | 是 | 无 | 与 `Accessibility.find()` 相同的 flat selector 字段和精确 AND 语义。 |
+| `value` | `string` | 是 | 无 | 要设置的完整文本；`''` 是有效清空值，不接受隐式数字或布尔转换。 |
+| `options` | `OpenDeskUIValueOptions` | 是 | 无 | 明确 scope、总 deadline 和有界搜索限制，见[原生文本值选项](#原生文本值选项)。 |
+
+**返回值**
+
+`Promise<OpenDeskUISetValueResult>`：
+
+```ts
+interface OpenDeskUISetValueResult {
+  requestId: string;
+  operation: 'UI.setValue';
+  backend: string;
+  action: 'setValue';
+  actionState: OpenDeskAccessibilityActionState;
+  verified: true;
+}
+```
+
+回执不包含旧值、新值或 selector。`actionState` 只说明原生提交状态；`verified` 来自其后的严格回读，二者不合并。`acknowledged` 本身不证明业务保存、提交或其他应用级结果。
+
+**行为与错误**
+
+内部顺序是 `find → 同 ref 读取 role/enabled/actions/value 前置 → perform(setValue) → 同 ref 回读 value → finally release`。目标必须是非受保护、enabled、公开 `setValue` action 的 `textField`；readonly、disabled、不支持和受保护分别明确失败。整个定位、前置、动作和回读只使用一个 `timeout` 预算。
+
+原生动作至多调用一次。动作返回后超时、ref 失效、回读失败或值不匹配时，方法拒绝并保留已知 `actionState` 与 `verified: false`；不会再次设值，也不会切换 OCR、鼠标或键盘。释放失败不覆盖已有主错误；如果动作和回读已经完成但释放失败，cleanup 错误仍携带动作状态与验证状态。Runtime teardown 继续作为遗留 ref 的最终兜底。
+
+Recorder 的增量文本补丁不应被本方法替换：需要 UTF-16 长度/hash 前置、patch 边界、结果 hash 和专用后置验证的生成脚本，继续使用其现有同-ref `Accessibility` 组合。键盘输入、完整原生设值和增量文本补丁是三种不同动作策略。
+
+**示例**
+
+```js
+const win = await window.get({ exeName: 'ExampleEditor', title: 'Draft' });
+const receipt = await UI.setValue(
+  { role: 'textField', identifier: 'document-title' },
+  '',
+  { within: win, timeout: 3000 },
+);
+console.log(receipt.actionState, receipt.verified);
 ```
 
 **Text APIs**
@@ -781,7 +911,7 @@ CANCELED
 BACKEND_FAILED
 ```
 
-`tapTexts()` 的序列错误还包含步骤和完成前缀。原生菜单可能出现 [Accessibility](accessibility.md) 的结构化错误、`CAPABILITY_DISABLED` 与 `SEARCH_INCOMPLETE`。不要通过解析 `error.message` 判断错误类型。
+`tapTexts()` 的序列错误还包含步骤和完成前缀。原生文本值与菜单可能出现 [Accessibility](accessibility.md) 的结构化错误，包括 `CAPABILITY_DISABLED`、`NOT_SUPPORTED`、`PERMISSION_DENIED`、`SEARCH_INCOMPLETE`、`ELEMENT_DISABLED`、`ACTION_NOT_SUPPORTED`、`STATE_UNKNOWN`、`QUEUE_FULL` 与 `RESOURCE_LIMIT`。`UI.setValue()` 在动作可能已经提交后保留 `actionState` 和 `verified`，cleanup 失败可另带不含字段内容的 `cleanupError`。不要通过解析 `error.message` 判断错误类型。
 
 ## 平台与能力
 
@@ -789,6 +919,10 @@ BACKEND_FAILED
 
 当前明确不提供：
 
+- `UI.inputValue()`、`UI.fill()`、`UI.type()` 或其他 `UI.setValue()` 同义写入别名；
+- `UI.invoke()`；
+- 原生 value 的 OCR/name fallback、非字符串转换或 checkbox/range/selection/document 泛化；
+- `UI.getValue()` / `UI.setValue()` 的 `signal`，以及包含父／祖先 selector 的第二套 locator schema；
 - `UI.waitImage()`；
 - 图片 `region` / `relativeTo`；
 - `waitText()` / `waitTextGone()` 的 `region` / `relativeTo`；

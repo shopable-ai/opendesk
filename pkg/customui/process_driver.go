@@ -75,10 +75,10 @@ func NewProcessDriver(opts ProcessDriverOptions) *ProcessDriver {
 
 func (d *ProcessDriver) Capabilities(context.Context) Capabilities {
 	platform := d.platform()
-	available := platform == "darwin"
+	available := platform == "darwin" || platform == "windows"
 	reason := ""
 	if !available {
-		reason = "custom UI v1 requires the macOS AppKit/WebKit host"
+		reason = "custom UI requires a macOS AppKit or Windows native host"
 	} else if d.opts.Command == nil {
 		if _, err := resolveUIHostPath(d.opts.HostPath); err != nil {
 			available = false
@@ -119,7 +119,7 @@ func (d *ProcessDriver) ResourceCounts() DriverResourceCounts {
 
 func (d *ProcessDriver) Create(ctx context.Context, sessionID string, spec WindowSpec, sink func(Event)) (DriverWindow, error) {
 	platform := d.platform()
-	if platform != "darwin" && d.opts.Command == nil {
+	if platform != "darwin" && platform != "windows" && d.opts.Command == nil {
 		return nil, &Error{Code: CodeUnsupportedPlatform, Operation: "createWindow", WindowID: spec.ID, Capability: "ui", Message: "custom UI v1 is not available on " + platform}
 	}
 	if err := d.ensureStarted(ctx); err != nil {
@@ -562,7 +562,7 @@ func resolveUIHostPath(configured string) (string, error) {
 	if configured != "" {
 		path, err := filepath.Abs(configured)
 		if err == nil {
-			if info, statErr := os.Stat(path); statErr == nil && info.Mode().IsRegular() && info.Mode()&0o111 != 0 {
+			if info, statErr := os.Stat(path); statErr == nil && usableUIHostFile(info, runtime.GOOS) {
 				return path, nil
 			}
 		}
@@ -574,15 +574,26 @@ func resolveUIHostPath(configured string) (string, error) {
 	}
 	candidates := uiHostCandidates(executable)
 	for _, candidate := range candidates {
-		if info, err := os.Stat(candidate); err == nil && info.Mode().IsRegular() && info.Mode()&0o111 != 0 {
+		if info, err := os.Stat(candidate); err == nil && usableUIHostFile(info, runtime.GOOS) {
 			return filepath.Clean(candidate), nil
 		}
 	}
-	return "", &Error{Code: CodeHostNotFound, Operation: "startHost", Capability: "ui", Message: "clawdesk-ui-host or opendesk-ui-host was not found beside the runtime executable or in Contents/Helpers"}
+	return "", &Error{Code: CodeHostNotFound, Operation: "startHost", Capability: "ui", Message: "clawdesk-ui-host or opendesk-ui-host was not found beside the runtime executable, in Contents/Helpers, or in the Windows ui-host directory"}
+}
+
+func usableUIHostFile(info os.FileInfo, platform string) bool {
+	return info.Mode().IsRegular() && (platform == "windows" || info.Mode()&0o111 != 0)
 }
 
 func uiHostCandidates(executable string) []string {
 	dir := filepath.Dir(executable)
+	if runtime.GOOS == "windows" {
+		return []string{
+			filepath.Join(dir, "clawdesk-ui-host.exe"),
+			filepath.Join(dir, "opendesk-ui-host.exe"),
+			filepath.Join(dir, "ui-host", "opendesk-ui-host.exe"),
+		}
+	}
 	return []string{
 		filepath.Join(dir, "clawdesk-ui-host"),
 		filepath.Join(dir, "..", "Helpers", "clawdesk-ui-host"),
