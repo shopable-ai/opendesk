@@ -5,7 +5,7 @@ description: 将 OpenDesk Recorder 的固定 actions 包加工为可读生产 Re
 
 # human-to-recipe
 
-版本：0.1，2026-09-10。当前仓库提供 Skill 源码、`SemanticBuildPlan` schema、validator 和 Calculator golden；通用 renderer 尚未实现。Skill 源码存在不表示已安装到当前 Codex 的用户级 Skill 目录，也不表示任何生成物已经 live verified 或 qualified。
+版本：0.2，2026-09-10。当前仓库提供 Skill 源码、`SemanticBuildPlan` schema、validator 和 Calculator golden；通用 renderer 尚未实现。Skill 源码存在不表示已安装到当前 Codex 的用户级 Skill 目录，也不表示任何生成物已经 live verified 或 qualified。
 
 ## 输入与停止条件
 
@@ -26,7 +26,7 @@ description: 将 OpenDesk Recorder 的固定 actions 包加工为可读生产 Re
 1. 阅读仓库 `AGENTS.md`、本 Skill、相关工作流文档和将要调用的 `docs/api/` 当前 API Reference。修改前核对工作树，保留既有和并行修改。
 2. 从磁盘读取 `actionsFile` 的实际字节，不信任 UI 内存摘要。计算 SHA-256；核对 revision、readiness、raw file/hash/bytes、action ID 和 source event ID。把 repository/workdir、recordingDir、actions 路径、hash 与可选 candidate 路径写入 plan。
 3. 每个 action 恰好归入一个 disposition：`business`、`runtime-guard`、`qualification`、`evidence`、`excluded` 或 `unknown`。建立 action → raw event → consumer 的 source map。遗漏、重复消费、冲突或任何 `unknown` 都是 production blocker。
-4. 将连续低层业务动作整理为有业务目的和可观察状态转换的 Business Episode。名称使用用户业务语言；禁止以 `a0001`、`click1`、`action2` 等事件编号命名业务函数。单次示范不能证明的参数、分支、循环和业务规则保持 unknown。
+4. 将连续低层业务动作整理为有业务目的和可观察状态转换的 Business Episode。名称使用用户业务语言；禁止以 `a0001`、`click1`、`action2` 等事件编号命名业务函数。单次示范不能证明的参数、分支、循环和业务规则保持 unknown。Business Episode 名称同时是运行时阶段提示的唯一业务语义来源，不再维护另一套手写“步骤文案”。
 5. 分开记录：应用知识／业务规则；Target／Locator／Geometry；动作策略；运行时安全门禁；Qualification Oracle；Evidence。生产 Recipe 只消费已解决的生产输入。
 6. 当应用认识或 locator 需要加固时，完整读取并遵循 `workflows/agent-to-recipe/skills/application-engineer/SKILL.md`。只接收其 `target`、`locator`、`geometry`、`actionStrategy`、`runtimeGuards`、`recoveryRule`、`qualificationClaims`、`sourceRefs` 和 `unknowns`；最终 plan、Recipe 和 Gate 仍由本 Skill 负责。
 7. 先形成 `SemanticBuildPlan`，再运行 validator。schema 位于 [references/semantic-build-plan.schema.json](references/semantic-build-plan.schema.json)，validator 位于 [scripts/validate-semantic-build-plan.js](scripts/validate-semantic-build-plan.js)。从仓库根目录执行：
@@ -36,9 +36,52 @@ description: 将 OpenDesk Recorder 的固定 actions 包加工为可读生产 Re
    ```
 
    只有 `valid: true` 且 `productionReady: true` 才能进入生产生成。Calculator 校准输入见 `workflows/human-to-recipe/golden-samples/calculator-115.semantic-build-plan.json`。
-8. 通用 renderer 尚未实现。当前由 Agent 严格按同一 plan 生成：来源和正常命令注释 → 应用／布局常量 → 目标或控件表 → 安全 helper → 业务 Episode → 顶层业务顺序 → 简明完成结果。生成期间不得重新解释业务、补写 unknown、引入新 fallback 或覆盖已有文件；有冲突先停下并报告。
-9. 生产 Recipe 只保留业务步骤、决定本次控制流的状态判断，以及防止误操作所需的目标、权限、布局和边界门禁。来源 hash、逐步固定 Oracle、截图矩阵和 evidence 写入独立 Gate／Evidence。
+8. 通用 renderer 尚未实现。当前由 Agent 严格按同一 plan 生成：来源和正常命令注释 → 应用／布局常量 → 目标或控件表 → 安全 helper → 可选的非阻塞运行阶段提示 helper → 业务 Episode → 顶层业务顺序 → 简明完成结果。生成期间不得重新解释业务、补写 unknown、引入新 fallback 或覆盖已有文件；有冲突先停下并报告。
+9. 生产 Recipe 只保留业务步骤、决定本次控制流的状态判断、防止误操作所需的目标／权限／布局／边界门禁，以及不改变业务结果的运行可观察性。来源 hash、逐步固定 Oracle、截图矩阵和 evidence 写入独立 Gate／Evidence。
 10. Qualification Gate 必须固定 production path/hash，并读取和执行该文件的实际源码；允许 instrument 现有动作边界以观察结果，不得维护第二份隐藏业务动作实现。候选变化后旧资格失效。
+
+## 运行时语义阶段提示
+
+阶段提示是 Human-to-Recipe 完成语义化后的可选可观察层。它回答“当前在做什么”，不能成为业务动作、成功 Oracle、恢复条件或 Evidence 的替代品。
+
+- **提示粒度使用 Business Episode，不使用 raw event 或 action。** 一个 Episode 内的点击、输入、等待和有限恢复只更新同一阶段，不为每个低层动作弹一条消息。
+- **提示文案单一来源。** 默认直接使用 `businessEpisodes[].name`；需要更改用户可见文案时先改 Episode 的业务命名并重新审阅，不额外维护容易漂移的 `toastText`／`stepLabel` 列表。
+- **展示时机。** Episode 的 preconditions 通过、第一项业务副作用发生前更新“当前阶段”；只有最终成功条件实际成立后才显示整体完成。失败时显示当前 Episode 名称和非敏感错误摘要，然后继续抛出原业务错误。
+- **进度只在语义成立时显示。** 顶层 Episode 顺序确定且本次都会执行时，可以显示 `当前阶段 i / n`；存在分支、可跳过 Episode、循环或动态子任务时默认只显示阶段名称，不从静态 Episode 数量伪造百分比。真实业务进度只能来自已验证的运行时数据。
+- **提示不得控制业务。** 创建、更新、定位或关闭提示失败默认只写入 `console`，不得让本来可执行的业务失败、重试副作用或改变 fallback。只有用户明确把可见提示本身定义为业务交付物时，才另行把它作为需求和资格项处理。
+- **能力按当前 Runtime 决定。** 生成前读取当前 `docs/api/custom-ui.md`。只有其中已经公开 `ui.notify()` 时才可生成该调用；若该接口尚未进入当前 API Reference，则保留同一 Episode 语义并使用 `console` 输出，不得把路线图名称写成可调用 API。
+- **UI 授权保持现有规则。** `-ui` 可以显式授权；项目配置已经授权 `ui` 时无需重复传 `-ui`；`-no-ui` 始终强制禁用。脚本可以先读取 `ui.getCapabilities()`，UI 未授权或当前平台／host 不可用时走非阻塞 `console` 降级，不自行弹系统通知冒充同一表面。
+- **一个运行尽量复用一个提示句柄。** 长任务创建一次持续提示，在 Episode 切换时原位 `update()`；整体成功／失败后给出短暂终态并关闭。不要逐阶段创建互相堆叠的 Toast 历史。
+- **提示与业务来源映射分离。** 阶段显示由已有 Episode 派生，不新增 action disposition，不消费新的 source event，也不要求为了提示修改 `SemanticBuildPlan` v1。若未来需要用户可配置主题、位置或展示策略，再单独扩展 presentation 配置；不要污染业务语义 schema。
+- **敏感数据最小化。** 默认只显示 Episode 名和有限计数；账号、文件内容、粘贴值、OCR 文本和异常堆栈不得直接拼进屏幕提示。
+- **Recorder／截图隔离由 Runtime 负责。** Skill 不通过改写坐标或临时遮罩规避自有提示。若 Custom UI 支持录制／截图排除，应复用正式 Runtime 行为；不能因为提示可见就改变 Target/Locator/Geometry。
+
+推荐生成形态是一个很薄的观察 helper，而不是业务框架：
+
+```js
+const runStatus = await createRunStatus({episodeCount: BUSINESS_EPISODES.length});
+let currentEpisode = null;
+
+try {
+  currentEpisode = '打开订单详情';
+  await runStatus.stage(1, currentEpisode);
+  await openOrderDetails();
+
+  currentEpisode = '填写发货信息';
+  await runStatus.stage(2, currentEpisode);
+  await fillShippingInfo();
+
+  // 只有独立成功条件真正成立后才发布完成状态。
+  await runStatus.success('任务完成');
+} catch (error) {
+  await runStatus.failure(currentEpisode, error);
+  throw error;
+} finally {
+  await runStatus.finish();
+}
+```
+
+`createRunStatus()` 只是生成代码中的薄 helper 名称，不是 OpenDesk 公共 API。其实现必须以当前 API Reference 为准：有已发布 `ui.notify()` 时复用一个原生提示句柄；否则只做 `console` 输出。不得为该 helper 创建第二套 execution、Replay Runtime 或隐藏业务流程。
 
 ## 语义缺失与定位边界
 
