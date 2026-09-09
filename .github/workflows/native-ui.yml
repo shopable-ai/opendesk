@@ -9,6 +9,7 @@ on:
       - 'automation/floating_window*'
       - 'tests/runtime-api/custom-ui*'
       - 'tests/custom-ui/**'
+      - 'examples/custom-ui/**'
       - 'scripts/build_windows_ui*'
   workflow_dispatch:
 
