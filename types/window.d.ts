@@ -1,3 +1,4 @@
+import './App';
 export {};
 
 declare global {
@@ -21,6 +22,25 @@ declare global {
     index: number;
   }
 
+  /** One identity optionally ANDed with an exact title, or an exact title alone. */
+  type OpenDeskWindowTarget = { title?: string } & (
+    | { id: string; pid?: never; app?: never; exePath?: never; exeName?: never }
+    | { pid: number; id?: never; app?: never; exePath?: never; exeName?: never }
+    | { app: OpenDeskAppTarget; id?: never; pid?: never; exePath?: never; exeName?: never }
+    | { exePath: string; id?: never; pid?: never; app?: never; exeName?: never }
+    | { exeName: string; id?: never; pid?: never; app?: never; exePath?: never }
+    | { title: string; id?: never; pid?: never; app?: never; exePath?: never; exeName?: never }
+  );
+
+  interface OpenDeskWindowWaitOptions {
+    /** Total milliseconds, 0..300000; default 10000. Zero makes one immediate observation. */
+    timeout?: number;
+    /** Polling interval in milliseconds, 1..10000; default 200. */
+    polling?: number;
+    /** Cancels waiting, not an already-running synchronous native call. */
+    signal?: AbortSignal;
+  }
+
   type OpenDeskWindowCapabilityStatus = 'Stable' | 'Partial' | 'Unsupported' | 'Experimental';
 
   interface OpenDeskWindowCapability {
@@ -40,16 +60,21 @@ declare global {
 
   interface OpenDeskWindowError extends Error {
     code: 'INVALID_ARGUMENT' | 'NOT_SUPPORTED' | 'NOT_FOUND' | 'AMBIGUOUS_TARGET' |
-      'STALE_TARGET' | 'PERMISSION_DENIED' | 'VERIFICATION_FAILED' | 'TIMEOUT' | 'BACKEND_FAILED';
+      'STALE_TARGET' | 'PERMISSION_DENIED' | 'VERIFICATION_FAILED' | 'TIMEOUT' | 'BACKEND_FAILED' | 'CANCELED';
     operation: string;
     platform: string;
     capability?: string;
+    cause?: unknown;
   }
 
   interface OpenDeskWindowManager {
     getCapabilities(): OpenDeskWindowCapabilities;
     getActiveWindow(): Promise<OpenDeskWindowInfo>;
     getWindowByTitle(title: string): Promise<OpenDeskWindowInfo>;
+    /** Read-only unique query; no implicit launch, focus, fallback or first-match selection. */
+    get(target: OpenDeskWindowTarget): Promise<OpenDeskWindowInfo>;
+    /** Retry empty successful queries only; all backend and ambiguity errors are terminal. */
+    wait(target: OpenDeskWindowTarget, options?: OpenDeskWindowWaitOptions): Promise<OpenDeskWindowInfo>;
     getFocusWindow(): OpenDeskWindowInfo | null;
     focus(title: string): void;
     setWindowBounds(title: string, x: number, y: number, width: number, height: number): void;
@@ -68,7 +93,8 @@ declare global {
     getTitle(selector: string): string;
     content(): string;
     getContent(selector: string): string;
-    list(): Array<Record<string, unknown>>;
+    /** Synchronous snapshot; existing await window.list() remains valid. */
+    list(target?: OpenDeskWindowTarget): OpenDeskWindowInfo[];
     setAlwaysOnTop(title: string, alwaysOnTop: boolean): void;
     unsetTopMost(title: string): void;
     bringToTop(title: string, pid?: number): void;

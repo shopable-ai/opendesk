@@ -2195,14 +2195,15 @@ func recorderGenerateBasicSource(actions recorderActions, rawEvents []recorderRa
 	write("const __recorderPlatform = System.getPlatformInfo();\n")
 	write(fmt.Sprintf("if (!__recorderPlatform || __recorderPlatform.os !== %s) throw new Error(\"Recorder candidate platform mismatch\");\n", platform))
 	write("async function __recorderResolveWindow(target) {\n")
-	write("  const rows = await window.list();\n")
-	write("  const identityMatches = rows.filter(row => target.application.identityKind === \"executable-path\" ? String(row.exePath || \"\") === target.application.identityValue : String(row.exeName || \"\") === target.application.identityValue);\n")
-	write("  const titleMatches = identityMatches.filter(row => String(row.title || \"\") === target.title);\n")
-	write("  const matches = titleMatches.length === 1 ? titleMatches : (identityMatches.length === 1 ? identityMatches : []);\n")
-	write("  if (matches.length !== 1) throw new Error(\"Recorder candidate could not resolve one current target window\");\n")
-	write("  const row = matches[0];\n")
-	write("  if (![row.x, row.y, row.width, row.height].every(Number.isFinite) || row.width <= 0 || row.height <= 0) throw new Error(\"Recorder candidate resolved invalid window bounds\");\n")
-	write("  return row;\n")
+	write("  let identity;\n")
+	write("  switch (target.application.identityKind) {\n")
+	write("    case \"executable-path\": identity = { exePath: target.application.identityValue }; break;\n")
+	write("    case \"executable-name\": identity = { exeName: target.application.identityValue }; break;\n")
+	write("    default: throw new Error(\"Unsupported Recorder application identity kind\");\n")
+	write("  }\n")
+	write("  try { return await window.get({ ...identity, title: target.title }); }\n")
+	write("  catch (error) { if (!error || error.code !== \"NOT_FOUND\" || error.cause !== undefined) throw error; }\n")
+	write("  return await window.get(identity);\n")
 	write("}\n")
 	write("async function __recorderRequireActiveWindow(target) {\n")
 	write("  const expected = await __recorderResolveWindow(target);\n")
@@ -2287,7 +2288,7 @@ func recorderGenerateBasicSource(actions recorderActions, rawEvents []recorderRa
 	constraints := []string{
 		"verification is not-run until the generated file is executed separately and its outcome is independently checked",
 		"the recorded OS must match before input",
-		"each action resolves exactly one current window by recorded executable path/name and title before input",
+		"each action uses window.get with recorded executable path/name and exact title; only a missing match permits unique executable-only fallback",
 		"recorded process IDs and native window handles are provenance only and are not reused as cross-execution identity",
 		"the operator must restore the intended starting desktop and application state before execution",
 		"clicks use recorded top-left window offsets against fresh bounds, so window translation is supported; normalized ratios are retained for review but resizing is not guessed",

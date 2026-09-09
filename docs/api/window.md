@@ -32,7 +32,9 @@ order: 4
 | `window.getTitle(selector)` | 返回指定窗口标题。 |
 | `window.content()` | 同步读取活动窗口可访问文本。 |
 | `window.getContent(selector)` | 读取指定窗口可访问文本。 |
-| `window.list()` | 返回当前窗口列表。 |
+| `window.list(target?)` | 同步返回全部或筛选后的窗口快照。 |
+| `window.get(target)` | 取得唯一、身份与几何有效的窗口快照。 |
+| `window.wait(target, options?)` | 等待唯一窗口出现，支持超时和取消。 |
 | `window.getFocusWindow()` | 返回当前焦点窗口。 |
 | `window.setAlwaysOnTop(title, alwaysOnTop)` | 设置/取消置顶。 |
 | `window.unsetTopMost(title)` | 取消置顶。 |
@@ -64,6 +66,25 @@ interface OpenDeskWindowInfo {
 ```
 
 `id` 只表示当前窗口生命周期的观察 identity，不是永久 ID。窗口关闭并重建后必须重新读取。
+
+### WindowTarget
+
+`window.get()`、`window.wait()` 和 `window.list(target)` 的目标查询为 **Experimental**。必须使用明确对象；裸字符串不会被猜测为应用名称或窗口标题。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `app` | `OpenDeskAppTarget` | 原样交给 App.get，使用现有应用名称、bundle ID、应用路径或 PID 规则。 |
+| `id` | `string` | 当前窗口观察 ID；不能使用以 `:unresolved` 结尾的值。 |
+| `pid` | `number` | 正 uint32；进程可能拥有多个窗口。 |
+| `exePath` | `string` | 精确匹配 WindowInfo.exePath，不等同于 macOS 应用包路径。 |
+| `exeName` | `string` | 精确匹配 WindowInfo.exeName，不按显示名称或别名解释。 |
+| `title` | `string` | 精确窗口标题，可单独使用，或与一个身份字段共同使用。 |
+
+`app/id/pid/exePath/exeName` 最多提供一个；至少提供一个身份字段或 `title`。条件按 AND 匹配。未知字段、symbol 字段、空对象、空字符串、无效 PID、多身份字段，以及字段值为 `undefined` 都是 `INVALID_ARGUMENT`。整个 target 省略仅适用于 `list()`。
+
+`title/exePath/exeName/id` 不自动 trim、忽略大小写、翻译或模糊匹配。查询不自动放宽标题、取第一项、启动、聚焦、恢复或关闭应用。`app` 使用现有 [App](app.md) 解析；macOS native App backend 的“计算器”和“Calculator”别名不代表其他平台也支持相同映射。
+
+`WindowTarget` 是查询条件，`WindowInfo` 是一次观察快照。快照不是永久句柄，也不代表后续输入目标仍然有效。旧动作接口保持原来的标题/PID 参数，本轮 target 对象不能直接传给 `focus/maximize/restore` 等方法。
 
 ### 标题消歧与 stale target
 
@@ -631,31 +652,109 @@ window.getContent(selector: string): Promise<string>;
 console.log(await window.getContent('Notes'));
 ```
 
-## window.list()
+## window.list(target?)
 
-返回当前可枚举窗口 snapshot。
+同步返回当前可枚举窗口快照，可按目标条件筛选。
 
 **签名**
 ```ts
-window.list(): Promise<OpenDeskWindowInfo[]>;
+window.list(target?: OpenDeskWindowTarget): OpenDeskWindowInfo[];
 ```
 
 **参数**
 
-无。
+`target`：可选，字段见 [WindowTarget](#windowtarget)。省略时保持原来的无筛选枚举行为。
 
 **返回值**
 
-`Promise<OpenDeskWindowInfo[]>`。
+`OpenDeskWindowInfo[]`，0 到多项，无匹配返回 `[]`。方法保持同步，既有 `await window.list()` 同样有效。
 
 **行为与错误**
 
-平台 capability 为 Partial 时列表可能受系统权限或 backend 覆盖范围限制；失败不会伪装成完整空列表。
+参数或 backend 错误同步抛出，不伪装成空列表。`app` 保留 App group 全部 PID，不取首个进程。Partial backend 的枚举范围受权限、平台和桌面覆盖限制；列表唯一不证明不可枚举范围不存在其他窗口。
+
+匹配行中的无效 bounds 或 unresolved identity 不会被偷偷过滤后再声称唯一。需要唯一有效快照时使用 `get()`。
 
 **示例**
+
+在仓库根目录的 OpenDesk 脚本中使用；前置为计算器已经运行，当前 App backend 支持该名称。
+
 ```js
-const items = await window.list();
+const items = window.list({ app: 'Calculator' });
 console.log(items.length);
+```
+
+## window.get(target)
+
+读取当前唯一匹配且身份、几何有效的窗口快照，不等待或操作窗口。
+
+**签名**
+```ts
+window.get(target: OpenDeskWindowTarget): Promise<OpenDeskWindowInfo>;
+```
+
+**参数**
+
+`target`：必填，字段见 [WindowTarget](#windowtarget)。
+
+**返回值**
+
+`Promise<OpenDeskWindowInfo>`。
+
+**行为与错误**
+
+0 项为 `NOT_FOUND`，多项为 `AMBIGUOUS_TARGET`。唯一行的 ID 缺失或 unresolved 为 `STALE_TARGET`；坐标非有限数或宽高不为正为 `VERIFICATION_FAILED`。负 X/Y 合法。按 ID 查无匹配仍为 `NOT_FOUND`，不会凭空断言该 ID 曾经存在。
+
+查询失败保留结构化错误 code，operation 为 `window.get`。原生/App 失败带 `cause`，不触发隐式放宽条件；成功枚举后的无匹配错误不带 cause。
+
+**示例**
+
+在仓库根目录的 OpenDesk 脚本中使用；macOS native App backend，计算器已运行且有唯一可枚举窗口。
+
+```js
+const win = await window.get({ app: '计算器' });
+const precise = await window.get({ app: { bundleId: 'com.apple.calculator' } });
+console.log(win.id, precise.width, precise.height);
+```
+
+## window.wait(target, options?)
+
+等待唯一有效窗口出现，只重试成功枚举后没有匹配的观察。
+
+**签名**
+```ts
+window.wait(target: OpenDeskWindowTarget, options?: OpenDeskWindowWaitOptions): Promise<OpenDeskWindowInfo>;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `target` | `OpenDeskWindowTarget` | 是 | 无 | 等待开始时复制条件，后续修改原对象不改变本次等待。 |
+| `options.timeout` | `number` | 否 | `10000` | 总毫秒数，整数 0..300000；0 只立即观察一次。 |
+| `options.polling` | `number` | 否 | `200` | 观察间隔毫秒数，整数 1..10000。 |
+| `options.signal` | `AbortSignal` | 否 | 未设置 | 取消本次等待；预先取消的信号不会触发枚举。 |
+
+**返回值**
+
+`Promise<OpenDeskWindowInfo>`，唯一性和有效性与 `get()` 相同。
+
+**行为与错误**
+
+只重试成功枚举后的 `NOT_FOUND`。歧义、无效身份/几何、参数、权限和 backend 错误立即拒绝，包括 backend 自己产生的 `NOT_FOUND`。总期限耗尽为 `TIMEOUT`，显式取消为 `CANCELED`。timeout 为 0 时有唯一窗口立即成功，否则为 TIMEOUT。
+
+成功、失败和取消都清理本次等待的定时器及监听器。复用当前 Execution 受管 timer，不启动独立 Execution。宿主销毁后不承诺 JS Promise 仍有机会执行回调。同步原生调用不能被 JS 定时器或 AbortSignal 强制打断，原生返回后检查期限。
+
+等待不等于启动、聚焦、恢复或业务界面就绪，不自动改变应用状态。
+
+**示例**
+
+在仓库根目录的 OpenDesk 脚本中使用；前置为当前平台 App backend 支持该应用启动方式。
+
+```js
+await App.launch('Calculator');
+const win = await window.wait({ app: 'Calculator' }, { timeout: 10000, polling: 200 });
+console.log(win.id);
 ```
 
 ## window.getFocusWindow()
@@ -772,8 +871,10 @@ await window.bringToTop(info.title, info.pid);
 
 ## 错误
 
-Window 结构化错误至少包含 `code`、`operation`、`platform`，适用时包含 `capability`。稳定 code：`INVALID_ARGUMENT`、`NOT_SUPPORTED`、`NOT_FOUND`、`AMBIGUOUS_TARGET`、`STALE_TARGET`、`PERMISSION_DENIED`、`VERIFICATION_FAILED`、`TIMEOUT`、`BACKEND_FAILED`。
+Window 结构化错误至少包含 `code`、`operation`、`platform`，适用时包含 `capability`。稳定 code：`INVALID_ARGUMENT`、`NOT_SUPPORTED`、`NOT_FOUND`、`AMBIGUOUS_TARGET`、`STALE_TARGET`、`PERMISSION_DENIED`、`VERIFICATION_FAILED`、`TIMEOUT`、`BACKEND_FAILED`。目标等待另支持 `CANCELED`；包装原生/App 错误时保留 `cause`。
 
 ## 平台与能力
 
 macOS 的多项 mutation 为 Partial，依赖 Accessibility/System Events、目标应用和 Space；Windows 的多数 bounds/minimize/maximize/restore 为 Stable，focus/bring-to-top 受 foreground policy 影响；Linux/other 当前窗口 facade 能力有限或 Unsupported。实际能力以 `window.getCapabilities()` 为准。
+
+目标查询复用现有 `window.list` capability；`app` 条件还依赖 App backend。接口存在不代表当前平台覆盖完整。实施边界与验证入口见 [Window target 交付记录](../quality/window-target-resolution.md)。

@@ -12,6 +12,21 @@ RuntimeAPITest.load('tests/runtime-api/manifest.js');
   const created = [];
   const platform = System.getPlatformInfo().os;
 
+  // Exercise the real public query implementation over synthetic native rows.
+  // Do not duplicate the resolver or enumerate the actual desktop in this fixture.
+  const windowSource = File.read(File.join(File.cwd(), 'polyfills/003-window.js'));
+  function fixtureWindow(rows, active) {
+    const host = { window: {
+      list: () => rows,
+      getCapabilities: () => ({ platform: 'fixture' }),
+      getActiveWindow: () => active,
+      getWindowByTitle: () => null,
+      getFocusWindow: () => null,
+    } };
+    new Function('globalThis', 'window', windowSource)(host, host.window);
+    return host.window;
+  }
+
   function event(sequence, kind, fields = {}, nativeTime = 1000 + sequence * 10) {
     return {
       formatVersion: 'opendesk.recorder.raw-event/v2', eventId: `e${String(sequence).padStart(12, '0')}`,
@@ -92,12 +107,14 @@ RuntimeAPITest.load('tests/runtime-api/manifest.js');
     equal(actions.actions.map((action) => action.kind).join(','), 'click,text', 'equal timestamps reversed source order');
     const generated = await Recorder.generateScript(actionsResult.actionsFile);
     const source = File.read(generated.scriptFile);
+    assert(source.includes('await window.get('), 'generated helper must use public window.get');
+    assert(!source.includes('identityMatches') && !source.includes('await window.list()'), 'generated helper must not own window enumeration');
     const calls = [];
     await withGlobal('System', {getPlatformInfo: () => ({os: platform})}, () =>
-      withGlobal('window', {
-        list: async () => [{id: 'current-window', pid: 9001, title: 'Recorder Fixture', exeName: 'RecorderFixture', exePath: '/fixture/recorder', x: 100, y: 80, width: 800, height: 600}],
-        getActiveWindow: async () => ({id: 'current-window', pid: 9001, title: 'Recorder Fixture', exeName: 'RecorderFixture', exePath: '/fixture/recorder'}),
-      }, () =>
+      withGlobal('window', fixtureWindow(
+        [{id: 'current-window', pid: 9001, title: 'Recorder Fixture', exeName: 'RecorderFixture', exePath: '/fixture/recorder', x: 100, y: 80, width: 800, height: 600}],
+        {id: 'current-window', pid: 9001, title: 'Recorder Fixture', exeName: 'RecorderFixture', exePath: '/fixture/recorder'}
+      ), () =>
         withGlobal('mouse', {click: async (...args) => { calls.push(['click', ...args]); }}, () =>
           withGlobal('keyboard', {type: async (...args) => { calls.push(['type', ...args]); }}, () =>
             withGlobal('sleep', async (...args) => { calls.push(['sleep', ...args]); }, async () => {
@@ -116,13 +133,10 @@ RuntimeAPITest.load('tests/runtime-api/manifest.js');
     let ambiguousError = null;
     try {
       await withGlobal('System', {getPlatformInfo: () => ({os: platform})}, () =>
-        withGlobal('window', {
-          list: async () => [
-            {id: 'duplicate-1', pid: 9001, title: 'Recorder Fixture', exeName: 'RecorderFixture', exePath: '/fixture/recorder', x: 0, y: 0, width: 800, height: 600},
-            {id: 'duplicate-2', pid: 9002, title: 'Recorder Fixture', exeName: 'RecorderFixture', exePath: '/fixture/recorder', x: 50, y: 50, width: 800, height: 600},
-          ],
-          getActiveWindow: async () => null,
-        }, () =>
+        withGlobal('window', fixtureWindow([
+          {id: 'duplicate-1', pid: 9001, title: 'Recorder Fixture', exeName: 'RecorderFixture', exePath: '/fixture/recorder', x: 0, y: 0, width: 800, height: 600},
+          {id: 'duplicate-2', pid: 9002, title: 'Recorder Fixture', exeName: 'RecorderFixture', exePath: '/fixture/recorder', x: 50, y: 50, width: 800, height: 600},
+        ], null), () =>
           withGlobal('mouse', {click: async () => { ambiguousClicks += 1; }}, () =>
             withGlobal('keyboard', {type: async () => {}}, () =>
               withGlobal('sleep', async () => {}, async () => {
@@ -131,7 +145,7 @@ RuntimeAPITest.load('tests/runtime-api/manifest.js');
     } catch (error) {
       ambiguousError = error;
     }
-    assert(ambiguousError && String(ambiguousError).includes('could not resolve one current target window'), String(ambiguousError));
+    assert(ambiguousError && ambiguousError.code === 'AMBIGUOUS_TARGET', String(ambiguousError));
     equal(ambiguousClicks, 0, 'ambiguous same-application windows must fail before input');
   });
 
