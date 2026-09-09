@@ -52,6 +52,33 @@ autofocus 或脚本 `focus()`。所有控件的 width、options、range、step �
 多行表单、动态 option tree、滚动内容和任意进度布局仍使用 `ui.createWindow()`；完整契约见
 [Custom UI API](../api/custom-ui.md)。
 
+## 脚本录制控制台
+
+从仓库根目录运行真实 Recorder 控制台：
+
+```bash
+./dist/opendesk -ui -allow-recorder-capture -script examples/custom-ui/recording-console.js -console-mode script -log-dir .runtime/examples/custom-ui/recording-console
+```
+
+点击“开始录制”会立即授权本次采集，并留出 3 秒供用户聚焦隔离、非敏感、可恢复的目标窗口；
+倒计时结束后才读取并冻结其 PID＋标题并调用同一个 execution-owned `Recorder.start()`，用于聚焦的
+点击不会被录入。界面明确显示准备、录制、保存、
+Actions、生成和试运行阶段，并提供暂停／继续、取消、停止保存、独立生成、重置和试运行按钮。暂停仍保留 native listener；
+敏感操作或长期离开应停止。停止后由已有 `Recorder.buildActions()` 制作 actions，只有 ready 时才能
+手工点击生成。详情页用可滚动、可选择的受限文本控件显示 `File.read(scriptFile)` 的实际内容，并可由
+Runtime controller 复制。生成不会自动回放；只有用户另点“试运行”，才会通过 `Command.run()` 启动
+`./dist/opendesk -script <scriptFile>` Fresh Run。试运行可取消并保留结果，candidate 自身仍保持
+`verification: "not-run"`。生成成功后按钮变为“重新生成”，再次明确点击会从现有 ready actions 重新生成并重新读取内容，
+同时清理旧的内存候选／运行结果。重置只清空 UI/controller 引用，不删除不可变产物，也不重复停止已经终结的
+Recorder session。主托盘关闭、脚本异常或宿主退出会取消在途试运行并沿现有 execution 生命周期清理。
+详情页打开时会暂时隐藏置顶托盘，收起或关闭详情后恢复托盘，避免两个原生窗口互相覆盖；该操作不重置流程。
+录制期间的每个 Custom UI 按钮 click 会先调用 `session.excludeControlClick(event)`，把对应 native 点击 ID 写入
+显式 raw 边界，Actions 只排除这些引用，不按按钮坐标猜测。若 actions blocked，托盘摘要和详情页会显示
+结构化 `code`、`eventId` 与 message，生成按钮保持禁用；这是可检查的转换状态，不会被隐藏或伪造成成功。
+完整按钮和错误／部分保存语义见
+[`examples/custom-ui/README.md`](../../examples/custom-ui/README.md)，公开 Recorder 契约见
+[`Recorder Runtime API`](../api/recorder-runtime.md)。
+
 ## 内置图标图鉴
 
 [打开 `icon-list.html`](icon-list.html) 可以用默认大图模式查看全部 160 个内置图标，也可切换紧凑模式，并按名称搜索、复制图标名称、复制 `FloatingWindow.addButton()` 用法或保存名称 JSON。清单包含可直接发现的 `ai.*` 与 `automation.*` 默认图标键。

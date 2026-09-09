@@ -2,62 +2,88 @@
 <html>
   <head>
     <meta charset="utf-8">
-    <title>OpenDesk 录制工作台</title>
+    <title>OpenDesk 脚本录制详情</title>
   </head>
   <body>
     <header>
       <div id="dragbar" class="brand" data-clawdesk-drag>
         <span class="brand-mark">REC</span>
-        <strong>OpenDesk 录制工作台</strong>
-        <span class="brand-copy">配置、截图与会话意图</span>
+        <strong>OpenDesk 脚本录制</strong>
+        <span class="brand-copy">同一 Recorder Runtime · 检查后手动试运行</span>
       </div>
       <div class="header-actions">
         <button id="collapse" class="ghost-button">收起</button>
-        <button id="library" class="ghost-button">录制库</button>
-        <button id="close" class="close-button">关闭</button>
+        <button id="close" class="close-button">关闭详情</button>
       </div>
     </header>
 
     <main>
-      <section class="preview-card">
-        <div class="preview-grid">
-          <div class="preview-topline"><span class="live-dot"></span><span id="captureTarget">全屏录制</span></div>
-          <div class="preview-center"><strong>屏幕采集预览</strong><span>选择来源与声音后，再由 MCP 创建 Recorder 会话。</span></div>
-          <div class="preview-footer"><span id="snapshotCount">0 张截图</span><span>H.264 · MP4</span></div>
+      <section class="scope-card">
+        <div class="section-heading">
+          <div><span class="eyebrow">START CONTEXT</span><strong class="section-title">起始上下文与授权</strong></div>
+          <span id="recordingState" class="status-pill" aria-live="polite">准备就绪</span>
+        </div>
+        <div class="scope-value">
+          <span>开始后留出 3 秒选择</span>
+          <strong id="captureTarget">点击开始后 3 秒读取起始窗口</strong>
+        </div>
+        <label class="keyboard-option">
+          <input id="keyboardCapture" type="checkbox">
+          <span><strong>记录键盘输入</strong><em>默认关闭；只能用于明确的非敏感测试文本</em></span>
+        </label>
+        <p class="safety-note">Custom UI 按钮是用户的即时开始授权。录制可跨窗口和应用；暂停只停止保存输入，不卸载 native listener，整个桌面流程都必须保持非敏感。生成不会自动回放；“试运行”是另一项明确的真实输入动作。</p>
+      </section>
+
+      <section class="pipeline-card">
+        <div class="section-heading"><div><span class="eyebrow">PIPELINE</span><strong class="section-title">当前制作进度</strong></div></div>
+        <div class="stage-list">
+          <span id="stagePrepare" class="stage-chip is-pending">○ 准备</span>
+          <span id="stageCapture" class="stage-chip is-pending">○ 录制</span>
+          <span id="stageSave" class="stage-chip is-pending">○ 保存</span>
+          <span id="stageActions" class="stage-chip is-pending">○ Actions</span>
+          <span id="stageGenerate" class="stage-chip is-pending">○ 生成</span>
+          <span id="stageRun" class="stage-chip is-pending">○ 试运行</span>
+        </div>
+        <p id="recordingDetail" class="detail-text" aria-live="polite">点击“开始录制”后，请在 3 秒内聚焦起始窗口；用于聚焦的点击不会被记录，之后可切换窗口和应用。</p>
+        <p id="recordingError" class="error-banner" hidden aria-live="assertive"></p>
+        <button id="refresh" class="ghost-button refresh-button">刷新 session.status()</button>
+      </section>
+
+      <section class="artifact-card">
+        <div class="section-heading"><div><span class="eyebrow">ARTIFACTS</span><strong class="section-title">已保存结果</strong></div></div>
+        <p class="artifact-value" id="artifactPath">尚无录制产物。</p>
+        <p class="count-value" id="recordingCounts">accepted 0 · persisted 0 · paused 0 · dropped 0</p>
+        <p id="actionIssues" class="action-issues" hidden aria-live="polite"></p>
+        <div class="artifact-notes">
+          <p class="artifact-note">停止先固定截止并保存 raw / manifest，再制作 Actions。</p>
+          <p class="artifact-note">部分保存、blocked actions 和结构化错误会保留在这里。</p>
+          <p class="artifact-note">candidate 的 verification 固定为 not-run；试运行结果单独显示。</p>
         </div>
       </section>
 
-      <section class="settings-card">
-        <div class="section-heading"><strong>录制来源</strong><span>选择一个视频来源</span></div>
-        <div class="mode-grid">
-          <button id="modeFull" class="mode-button is-selected"><strong>全屏</strong><span>录制当前显示器</span></button>
-          <button id="modeRegion" class="mode-button"><strong>区域</strong><span>选择矩形区域</span></button>
-          <button id="modeWindow" class="mode-button"><strong>窗口</strong><span>锁定单个窗口</span></button>
+      <section class="script-card">
+        <div class="section-heading">
+          <div><span class="eyebrow">GENERATED SCRIPT</span><strong class="section-title">脚本内容与试运行结果</strong></div>
+          <div class="script-actions">
+            <span id="runSummary" class="run-summary">尚未试运行。生成不会自动触发回放。</span>
+            <button id="copyScript" class="ghost-button" disabled>复制脚本</button>
+          </div>
         </div>
-
-        <div class="section-heading spacing"><strong>声音与画面</strong><span>录制前可随时调整</span></div>
-        <div class="option-grid">
-          <label class="option-row"><input id="systemAudio" type="checkbox" checked><span>系统声音</span><em>桌面音频</em></label>
-          <label class="option-row"><input id="microphone" type="checkbox" checked><span>麦克风</span><em>旁白解说</em></label>
-          <label class="option-row"><input id="camera" type="checkbox"><span>摄像头</span><em>画中画</em></label>
-          <label class="option-row"><input id="mousePointer" type="checkbox" checked><span>显示鼠标</span><em>教程演示</em></label>
-        </div>
-
-        <div class="select-grid">
-          <label><span>帧率</span><select id="frameRate"><option value="30">30 FPS</option><option value="60" selected>60 FPS</option></select></label>
-          <label><span>画质</span><select id="quality"><option value="standard">标准</option><option value="high" selected>高清</option><option value="lossless">无损</option></select></label>
+        <p id="scriptPath" class="script-path">尚未生成脚本。</p>
+        <div class="script-grid">
+          <p id="scriptPreview" class="script-preview" aria-label="生成的 JavaScript，可滚动选择并复制" tabindex="0">生成后可在这里滚动查看并选择文本。</p>
+          <p id="runOutput" class="run-output" aria-label="试运行标准输出和错误输出" tabindex="0">stdout / stderr 将显示在这里。</p>
         </div>
       </section>
 
       <section class="action-card">
-        <div class="state-line"><span id="recordingState" class="recording-state">待命</span><span id="recordingDetail">选择来源后，通过 MCP 开始受验证的录制会话。</span></div>
-        <div class="action-row">
-          <button id="start" class="record-button">开始录制</button>
-          <button id="pause" class="secondary-button" disabled>暂停</button>
-          <button id="capture" class="secondary-button">截图</button>
-          <button id="stop" class="stop-button" disabled>停止</button>
-        </div>
-        <footer><span>Recorder 只接受 MCP 会话；此界面不会绕过目标校验、Raw Trace 或 Flow IR。</span></footer>
+        <button id="reset" class="secondary-button" disabled>重置界面</button>
+        <button id="cancel" class="secondary-button" disabled>取消并保存事实</button>
+        <button id="pause" class="pause-button" disabled>暂停录制</button>
+        <button id="stop" class="stop-button" disabled>停止并制作 Actions</button>
+        <button id="generate" class="generate-button" disabled>生成脚本</button>
+        <button id="runScript" class="run-button" disabled>试运行</button>
+        <button id="start" class="record-button">开始录制</button>
       </section>
     </main>
   </body>

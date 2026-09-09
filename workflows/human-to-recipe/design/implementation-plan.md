@@ -1,227 +1,240 @@
 ---
 title: "人工 Recorder｜实施与验收计划"
-description: "阶段交接、最小工作包、源码与类方法核查、行为验收和接续推进要求。"
+description: "当前 Recorder 实施状态、分层命令、证据、未运行项目与下一批语义交接。"
 order: 30
 ---
 
 # 人工 Recorder｜实施与验收计划
 
-状态：设计基线 v0.1，2026-09-08。依据[工作流入口](../README.md)和[完整作业任务树](task-decomposition.md)。本文件把既有方案转成文档驱动实施的入口；候选接口、内部方法和数据分组均为待源码核查的设计议题，不是已实现 API 或必须照搬的最终签名。
+状态：Recorder 数据合同 v2、合成文件闭环与 macOS Calculator 真实 native capture／按钮语义已实施并验收，2026-09-09。本文只记录当前工作树的真实完成与验收边界；H1—H8 完整作业仍以 [任务分解](task-decomposition.md) 为准，DQ-01—DQ-08 规范性决定和唯一技术方案见 [Recorder 工程设计](recorder-design.md)。
 
-## 1. 推进原则
+## 1. 本轮验收目标
 
-先核实当前能力，再解释一次真实使用会经过哪些调用和数据变化，然后给出最小类方法差异与行为案例，最后按当次授权实现和验证。不先生成一大批 Recorder 类、Skill、schema 或占位文件。
+本轮基础链固定为：明确本地授权 → libuiohook native 事件 → hover 降噪 raw writer＋动作上下文 resolver → 独立 stop → `Recorder.buildActions()` → 独立 `Recorder.generateScript()` → 窗口相对 basic JS → 另一次明确授权回放和独立结果核对。
 
-本次保存不修改生产代码、既有 API Reference、Agent-first 专业正文或共享合同。另一会话并行推进 Agent-first；需要共享变更时先提出具体原因、消费者、兼容风险和最小差异，不同时写同一批文件。
+实现和测试不能把下列事项合并为一个“录制成功”：
 
-文档中的原始记录、步骤、目标认识和验证记录是普通数据与证据，不要求新增可执行 IR、编译平台或专用回放 Runtime。简单坐标 JS 通过正常脚本入口独立运行，不以模型识别为前置条件。
+1. listener 是否真实就绪并属于当前 execution；
+2. stop 是否确认 callback 退出并保存已接收事件；
+3. raw／manifest 是否完整可校验；
+4. actions 是否 ready；
+5. basic candidate 是否生成且未覆盖旧文件；
+6. candidate 是否在独立 invocation 实际运行；
+7. fixture 业务结果是否由独立 oracle 通过。
 
-## 2. 阶段交接与继续条件
+当前 1—5 已在 macOS Calculator fixture 完成真实 listener、动作级窗口上下文、按钮标签语义和文件链验收；6、7 的独立真实回放与回放后业务 oracle 未运行。合成 raw 和替身执行不标作真人输入，Calculator evidence 标记为真实 native capture＋受控输入。
 
-| 阶段 | 主要承担者 | 输入 | 可交接成果 | 继续条件 |
-| --- | --- | --- | --- | --- |
-| H1 任务约定 | 用户与 Agent | 用户目标、已有资产、实际能力 | 范围、模式、成功标准、权限和采集约定 | 足以开始获准录制，未知项明确 |
-| H2 现场记录 | Recorder 与平台实现 | 约定、人工输入、获准现场 | 事件、环境、证据关联与完整性状态 | 下游知道可信材料和缺口；部分记录不冒充完整 |
-| H3 步骤整理 | 程序，Agent 按需辅助 | 原始记录及事件—证据关系 | 可审阅步骤及来源映射 | 已支持动作被正确整理，不重复、不静默遗漏 |
-| H4 审阅补充 | Agent 与按需参与的用户 | 步骤、证据、未知与冲突 | 修订步骤、必要说明、未决项 | 关键歧义解决，或依赖工作明确暂停 |
-| H5 理解增强 | Agent、应用工程与过程提炼方法 | 任务、步骤、观察、已有认识 | 应用认识、过程、数据关系、候选操作规则 | 已确认与待验证部分分开，足以生成限定候选 |
-| H6 程序生成 | 生成程序与 Agent | 固定步骤、规则、输入与实际 API | 普通 JS、必要资源、正常运行方法 | 可进入测试，无伪造接口或隐藏依赖；仍为候选 |
-| H7 运行验收 | 测试程序与真实运行观察 | 候选版本、场景、预期、环境 | 证据、结果、限制与修复请求 | 当前版本在声明范围满足标准，未测项不算通过 |
-| H8 发布维护 | 工作流维护者与用户 | 获准成果及验收记录 | 可使用、可追溯的交付物 | 方法、版本、限制和维修入口明确 |
+### 1.1 数据质量门槛
 
-H4 可轻量执行，不要求普通宏用户逐步填表；H5 可按步骤跳过。H2→H3→H5 允许增量处理，只有达到相应阶段需要的完整性和确认范围才允许发布。停止录制不自动意味着证据已保存完整、分析结束或脚本已通过。
+本轮使用固定 100 分量表，结果为 **98/100**，达到用户要求的 95 分门槛。评分维度固定为输入降噪 15、动作完整性 15、应用／多窗口身份 20、坐标迁移 20、控件语义与隐私 15、fail-closed 生成 10、文档／兼容／验证 5。扣 1 分是 basic 尚未把 AX 证据自动提升为通用 locator；另扣 1 分是 Windows/Linux 目标系统 live 未运行。详细量表和可清理运行证据见 [Recorder 数据质量 v2 验收](../../../docs/quality/recorder-data-quality-v2.md)。
 
-## 3. 数据责任与最小信息
+## 2. 实际工作包状态
 
-以下是逻辑信息分组，不是本轮新增的 schema、文件清单或公开类型。优先核对已有结构并复用；最终命名、必填字段和枚举须在源码核查后确定。
-
-| 信息组 | 至少需要表达 | 责任与约束 |
-| --- | --- | --- |
-| 任务与录制约定 | 目标、对象、模式、支持范围、输入与成功条件、权限、预算 | H1；任务变化不能伪装为定位修复 |
-| 原始输入与现场 | 顺序与时间、输入状态、可知来源、应用／窗口、坐标空间、观察来源 | H2；未知不补默认值，原始事实不被整理结果覆盖 |
-| 事件—证据关系 | 事件和观察引用、前／后／未知、时间差、窗口一致性、缺失原因 | H2/H3；不同步的材料不冒充同一现场 |
-| 整理后步骤 | 动作、参数、窗口／目标、时序、来源事件、修改理由 | H3/H4；原始按键和文本不能生成两遍 |
-| 目标认识与规则 | 原生／视觉候选、对象归属、几何、映射、解释、未知、适用条件、规则版本 | 复用 AppProfile 的责任，不建立 Recorder 专属第二份应用模型 |
-| 业务过程与数据 | 必要步骤、准备／读取／等待、参数、生产者与消费者、分支规则 | 过程提炼；应用工程不批准业务泛化 |
-| 代码候选与资格 | 输入版本、实际 API、资源、代码差异、场景期望／实际、命令与证据、未测项 | H6/H7；候选代码不自动取得资格，旧版资格不传给新版 |
-
-原始记录、模型推断、人工修订、经过实测的规则分别标注来源。人工没有给出的意图或动作后验证不能为了套 Agent 格式而伪造。
-
-保留以下可见状态维度，具体枚举后定：输入记录完整性、现场证据对用途的充分性、目标认识是否核验、定位规则是否测试、脚本是否生成与实际验收。不能用一个“录制成功”替代全部维度。
-
-优先对齐现有 `.runtime/recordings/<recording-id>/`、`.runtime/automation-authoring/<task-id>/` 及当次 Execution 的 artifact 规则；人工来源隔离与 ID 关联先核查，不直接混入既有 MCP 会话。截图、日志和候选脚本不提交；长期维护资产或脱敏 fixture 按仓库既有归属保存。证据清理须处理活动引用和不可复核状态。
-
-## 4. 用户使用时的执行路径
-
-以下是设计时序，不是可运行 API 示例；方法名在第 6 节等待核查。
-
-### 4.1 基础闭环
-
-```text
-用户选择录制范围、坐标模式和支持动作
-→ 调用实际录制入口
-→ 框架检查权限、建立记录关联并安装输入监听
-→ 用户操作：监听路径保存事件，不等待模型
-→ 程序增量整理已支持动作并显示缺口
-→ 用户停止：停止采集，完成约定内保存并释放监听资源
-→ 根据保存状态检查是否允许生成
-→ 轻量审阅；有歧义或不支持动作时明确处理
-→ 确定性转换为使用现有 mouse／keyboard 等实际 API 的普通 JS
-→ 在获准的固定起点从正常脚本入口执行
-→ 人工或程序按预定方式确认实际结果
-→ 保存代码和已验证条件
-```
-
-### 4.2 无文字图标增强闭环
-
-```text
-在获准的增强采集模式下发生点击
-→ 保存事件与可取得的同期窗口、操作前后画面
-→ H3 关联现场；不足时保留缺口而不是猜测
-→ 从已有原图生成目标细节、必要行／工具栏上下文和页面上下文
-→ application-engineer 方法分析候选、关系、归属和未知
-→ 程序检查结构、裁切缩放映射和几何；按约定审阅
-→ 过程提炼确认本步骤在业务中的作用、输入与成功条件
-→ 应用工程形成最小足够定位、操作、等待和验证规则
-→ 构建普通 JS 候选
-→ 新画面重新定位，并在实际应用执行获准测试
-→ 发布已验证范围；重复图标、对象缺失等问题定向维修
-```
-
-裁切映射缺失可以支持有限界面认识，不能支持依赖该映射的实际点击。缺历史操作前画面不是重新截图就能补回。Tooltip、页面切换和试点击必须作为获准的新观察或动作，不打断人工操作。
-
-### 4.3 取消、部分失败与恢复
-
-停止采集、终止分析、终止脚本执行是不同责任；按现有 Execution 能力整合，不能用一个 Recorder 状态掩盖所有生命周期。取消不能撤回已经发生的发送、提交或文件修改。保存失败、队列拥塞、暂停跨越按住动作等细节须进入首批状态与支持规则审查；不得承诺操作系统无法提供的全部事件零丢失证明。
-
-模型调用失败不影响基础事件的已保存事实；依赖模型认识的步骤不得因此默认为成功。结果可能已生效时先核对副作用，不能换一种定位方式再提交一次。
-
-## 5. 分批工作包
-
-工作包字段统一为：要解决的问题、H 节点、实际输入、处理与分支、输出、通过条件、失败返回、现有能力、所需变更和授权范围。不按每次模型调用或每个按钮建包。
-
-### WP0：当前源码与公共接口对照
-
-读取最新工作树、AGENTS、已有 API、类型、native 实现、polyfills、示例和测试。搜索 Recorder 命名、原生事件监听、截图与裁切、Geometry、窗口、Accessibility、Execution、文件保存及 JS 生成的实际入口。不要因为文档没有出现就断言源码没有实现，也不要因名称相似就认定已接通。
-
-产出是能力对照、真实调用图、复用与缺口清单、候选类方法差异和首批验收规格，不是批量生成实现。当前记录的仓库基线仅用于追溯；进入时重新检查 HEAD、未提交修改及并行变化。
-
-### WP1：基础人工录制到普通 JS
-
-对应 H1—H4、H6—H8。输入为明确支持的鼠标／键盘动作、录制范围和固定回放条件。先把开始／停止、记录保存、步骤可见、普通 JS 生成及真实回放做完整，暂停／恢复／取消的支持边界与资源清理必须明确。
-
-通过：已支持动作无重复、无静默遗漏；不支持和已知缺口可见；坐标空间与环境前提明确；不依赖在线模型或专用 Replay Runtime；实际结果满足本次目标。用户正常体验保持一条已核实启动命令加真实窗口交互，不把一串验收探针作为普通使用方式。
-
-失败按来源返回 H2/H3/H4/H6。首批动作子集先由能力核查确定，不承诺把拖动、中文输入、剪贴板数据和所有平台一次完成。
-
-### WP2：可信现场与无文字图标
-
-对应 H2.4、H3.3、H5.1—H5.2、H5.5、H6—H7。WP1 不依赖本包完成，但本包的证据需求从第一批采集设计就纳入。
-
-输入为获准的事件、同期窗口、前后观察和当前目标。完成多尺度裁切、对象归属、事实／解释区分、映射校验、必要审阅、定位与结果规则，并生成普通 JS。
-
-通过：图标无文字也有可审阅依据；多个相同图标时不混淆业务对象；映射未知不用于点击；模型未运行不报告提取完成；使用未参与建模的画面检查定位，实际操作按授权验证结果。只有离线材料时如实交付离线认识与未测项，不冒充端到端通过。
-
-### WP3：变化、失败与定位加固
-
-覆盖窗口移动、重复目标、列表重排、图标与按钮范围不同、目标缺失、遮挡、加载延迟及声明支持的缩放／主题变化。区分识别图形正确、业务归属错误和操作效果错误。
-
-通过：声明支持的变化能正确完成；不支持变化与关键歧义能明确停止；不自动放宽目标约束，不把合理停止计为业务完成。只修受影响规则和消费者。
-
-### WP4：业务泛化与持续维护
-
-明确输入参数、运行时读值、跨应用数据关系、分支／循环和必要 Agent 判断。一次示范只作为来源，不自动生成未确认业务规则。
-
-通过：换输入仍操作正确对象并产生预期结果；再生成不会静默覆盖人工修改；局部修复有影响范围、版本差异和重验记录；混合节点具备实际宿主、权限与有界失败条件。
-
-## 6. 下一轮类、方法与接口核查
-
-### 6.1 先分责任，再定名字
-
-| 责任 | 应先核查什么 | 必要变更的候选方向 | 不能预先认定 |
+| 工作包 | 当前状态 | 实际成果 | 未完成或未运行 |
 | --- | --- | --- | --- |
-| 录制入口与生命周期 | Recorder 名称、公开绑定、执行归属和实际调用方式 | 开始、暂停、恢复、停止、取消、状态及能力查询 | 不因 MCP start 已有，就认定人工监听已实现；不直接复制第二个同名 Recorder |
-| 平台输入采集 | 已有 hook／监听驱动、权限、事件来源与清理 | 有界事件传递、顺序、按键状态、丢失和中断报告 | native 资源不放到 polyfills 中重复拥有 |
-| 现场证据 | 截图／窗口／原生属性及实际采集时序 | 事件—观察关联、按需关键帧、证据质量记录 | 不认定点击后的截图是操作前证据 |
-| 图像与坐标 | 实际 Image／Geometry／窗口能力 | 复用裁切缩放与映射；缺失时提出最小 helper | 不另造一套视觉或坐标框架，不把像素直接当屏幕点 |
-| 步骤整理 | 现有事件表示与纯 JS 组合能力 | 事件规范化、动作分组、来源映射和支持诊断 | 不把所有事件盲目拼成脚本，不新建可执行 IR |
-| 目标与应用理解 | application-engineer 与 AppProfile | 补点击证据适配、必要校验和方法内部任务 | 不建独立图标 Agent，不重建应用模型 |
-| JS 生成 | 普通运行入口、实际鼠标键盘 API、构建职责 | 模式明确的普通代码生成及差异保护 | 不把语义、业务批准、模型调用全塞进 Recorder |
-| 测试与停止 | 现有 JS Runtime 测试、Execution 与产物规则 | 可观察公共契约、正常命令和真实桌面案例 | 不用宿主 mock 或交叉编译冒充目标系统运行 |
+| WP0 源码和规则核查 | 完成 | 核对 Runtime 初始化、polyfill 顺序、File/path、mouse/keyboard/window/display、execution 生命周期、Agent MCP Recorder 和下游现有方法 | 无附件包可读取；未声称读取不存在附件 |
+| WP1 native capture owner | 已实施，macOS live 通过 | libuiohook 1.2.2、单 adapter、process lease、真实 ready、desktop capture、button-held-only motion policy、bounded event/context queues、deadline、stop/drain、manifest、resource counts | Windows 真实 listener、X11 live |
+| WP2 动作上下文与 actions | 已实施并通过合成与 macOS live | application/window/element 分层；稳定应用身份与瞬态 PID/handle 分离；窗口 offset/ratio；AX point-hit＋最多 6 层 actionable ancestor；fixed raw/hash、唯一 grouping、pause boundary、revision、disposition/readiness/issues | 键盘 focused-element 语义、Windows/Linux target semantics live |
+| WP3 basic JS 生成 | 已实施并隔离验证 | 每动作重新解析当前应用窗口；同应用多窗口无歧义门；按新 bounds＋offset 重算；strict actions/hash、白名单 JS、candidate、exclusive create、替身执行 | 语义 locator、resize/layout adaptation、真实桌面回放和业务 oracle |
+| WP4 正常用户入口 | 已实施；simple console 当前构建视觉通过；专用 macOS live gate 通过 | `record.js` 快捷键；完整和 simple 原生控制台；默认 `target-semantics`；Calculator 真实 listener、点击、暂停、恢复、按钮标签、停止、制作和生成 | Custom UI 人工业务采集；生成 candidate 的真实回放 |
+| WP5 下游语义增强交接 | 设计冻结 | human lineage 输入／输出／失败 H1—H6 返回；AX 标签作为证据而非已验证业务意图；只读列出现有 application-engineer 和共享合同 | focused-element、显式 target-crop OCR、通用 locator 与 postcondition；不创建第二 listener |
 
-为便于讨论，生命周期可用 `start`、`pause`、`resume`、`stop`、`cancel`、`status`、`getCapabilities` 作候选方法标签；这不是承诺 `Recorder.start()` 等均已存在，也没有冻结静态调用、实例调用、参数或返回值。优先保持真实现有接口形式，只有出现明确能力缺口才提新增。
+## 3. 正常用户命令
 
-整理与证据处理中可用 `normalizeEvents`、`associateEvidence`、`buildTargetEvidence`、`validateCoordinateMapping`、`generateRecipe` 作为候选内部函数标签。它们不自动成为新的全局 API、类或文件；已有能力等价时直接复用。普通脚本封装优先有语义价值的变量和函数，不新增应用对象方法层。
+全部命令从仓库根目录执行。
 
-### 6.2 每项变更必须交付的接口规格
+macOS 的交互录制：
 
-下一轮对每个确需新增或修改的方法列明：实际文件和符号、公开或内部、责任 owner、现有行为、变更原因、拟定签名、参数和默认值、返回数据、同步／异步、错误和不支持语义、暂停／停止／取消、权限与副作用、资源清理、平台差异、对应 H 节点和 JS 验收场景。
+```bash
+./dist/opendesk -allow-recorder-capture -script examples/human-to-recipe/record.js -console-mode script
+```
 
-同时回答需要复用、修改、新增、暂缓中的哪一种；不得先按照候选名称创建类再寻找需求。无源码证据的文件位置标待核查，不编造“已找到”的类和方法。
+F8 在获准非敏感 fixture 前台时开始；F9 由示例串行 UI 根据状态调用显式 pause/resume；F10 stop 并制作 actions；只有 `ready` 时 F11 生成；F12 不生成结束。关闭 execution 或 Ctrl+C 触发 native owner stop。该命令不回放。
 
-截图采样／关联时差阈值、事件缓冲上限、拖动与双击判定、暂停时按键配对、stop 的保存完成语义、磁盘满处理、输入法策略、并发录制归属及取消传播都需在相应工作包冻结并测试，不在此凭空给固定数值。
+macOS 的原生窗口录制入口：
 
-## 7. 验收空间
+```bash
+./dist/opendesk -ui -allow-recorder-capture -script examples/custom-ui/recording-console.js -console-mode script -log-dir .runtime/examples/custom-ui/recording-console
+```
 
-### 7.1 动作支持矩阵
+点击开始后的倒计时用于选择起始窗口；PID＋title 只保存为 provenance，不会冻结采集范围。
+暂停／继续分别分派到公开 `session.pause()`／`session.resume()`，用户可在任意窗口继续；录制期间可自由切换窗口和应用。
+停止保存后自动制作 actions，生成仍需另一次明确点击且不回放。取消或关闭窗口是用户显式停止路径，只沿 native lifecycle 停止并保留可用事实。
 
-实施时对左键、双击、右键、滚动、拖动、悬停、组合键、文本、中文输入、复制粘贴、窗口切换逐项填写：平台、能否采集、能否整理、能否生成、是否真实回放、限制与证据。矩阵不预填通过。不支持的动作可以明确阻塞或按已声明范围保留，不得静默消失。
+macOS 的简化原生工具条入口：
 
-### 7.2 最小行为案例
+```bash
+./dist/opendesk -ui -allow-recorder-capture -script examples/custom-ui/recording-console-simple.js -console-mode script -log-dir .runtime/examples/custom-ui/recording-console-simple
+```
 
-| 案例 | 主要检查 |
-| --- | --- |
-| 固定坐标点击与明确输入 | 基础闭环不调用模型，步骤与实际结果一致 |
-| 无文字工具栏图标 | 目标／控件／操作点分开，有必要上下文 |
-| 多行重复图标 | 按业务对象归属消歧，不取全屏第一个匹配 |
-| 列表重排 | 支持的规则仍指向输入对象，不依赖未声明行号 |
-| 分裂按钮或图标小于点击区 | 不默认取完整框中心代替原意图 |
-| 悬停后出现的目标 | 保留必要状态和等待，不在分析时擅自移动用户鼠标 |
-| 点击后立即消失的菜单 | 前后证据时序正确，缺前帧不伪造 |
-| 快速连续输入 | 无重复消费，无法拆开的效果不强行归因 |
-| 中文输入及粘贴 | 按键、最终文本和数据来源不混淆 |
-| 窗口移动、缩放和多屏 | 空间与映射明确，只证明实际测试过的变化 |
-| 加载延迟、重复点击 | 区分等待、重试和业务循环，结果不明不重复提交 |
-| 目标不存在或被遮挡 | 不放宽对象约束后点击其他目标 |
-| 停止、暂停边界、保存失败 | 资源清理与部分成果状态真实，控制按键不进入业务回放 |
-| 敏感输入、截图外发、界面指令 | 录制／存储／上传权限分开，界面内容不升级授权 |
-| 代码修正与重新生成 | 人工修改不被静默覆盖，新候选不继承旧资格 |
+该入口停止后自动制作 actions 和生成普通 JS，但仍不会自动回放；回放按钮需要独立点击。开始时使用 `target-semantics`，普通 hover 不写 raw，动作可跨应用／窗口并分别解析上下文。
 
-区分任务正确完成、合理停止、证据不足和错误完成；单独统计错误完成却报告成功。合理停止是安全表现，不是业务完成。通过有限样例不能推断所有应用上的错误概率为零。
+Windows 的交互录制：
 
-### 7.3 设计评分与阻断项
+```powershell
+.\dist\opendesk.exe -allow-recorder-capture -script examples\human-to-recipe\record.js -console-mode script
+```
 
-95 分是设计和验收目标，不是自报识别率或回放成功率。每项按证据评分，无证据写待评，不因本文已经写全就授予满分。
+Linux/X11 native adapter 已接线，但当前 `record.js` 的 F8/F9 控制面依赖仅支持 macOS／Windows 的 `globalShortcut`，因此本轮没有把该示例命令宣称为 Linux 用户入口。Wayland 全桌面采集不支持。
 
-| 维度 | 权重 | 证据 |
+独立生成：
+
+```bash
+OPENDESK_RECORDER_ACTIONS_FILE=.runtime/recordings/<ID>/actions.json ./dist/opendesk -script examples/human-to-recipe/generate.js -console-mode script
+```
+
+```powershell
+$env:OPENDESK_RECORDER_ACTIONS_FILE='.runtime\recordings\<ID>\actions.json'; .\dist\opendesk.exe -script examples\human-to-recipe\generate.js -console-mode script
+```
+
+生成后只在另一次明确回放授权和已恢复测试起点下运行：
+
+```bash
+./dist/opendesk -script .runtime/recordings/<ID>/generated/basic.recipe.js -console-mode script
+```
+
+回放命令 resolve、进程退出或 mouse/keyboard API 成功都不是业务成功；必须另查 fixture 约定状态。
+
+## 4. 分层测试
+
+### 4.1 无桌面副作用的 native 白盒
+
+```bash
+go test ./automation -run '^TestRecorder' -count=1
+```
+
+覆盖私有 backend/writer seam：ready、重复 stop、截止后 late callback、积压排空、下一次 start、context cancel、queue overflow、Write／Flush／Sync／Close／manifest 失败、process lease、普通 hover 过滤、button-held motion 保留、动作级窗口上下文和 click/text/drag/control/composition 边界。不调用真实 hook。
+
+### 4.2 Runtime 公共面
+
+```bash
+./dist/opendesk -script tests/runtime-api/recorder.js -console-mode script
+```
+
+覆盖：全局对象、`none/target-semantics` 能力、未授权 start 无 side effect、无 capture 权限仍能 build/generate、recording/actions v2、窗口和语义状态、实际 raw 文件重读、manifest/count/cutoff/display 交叉校验、revision、strict schema、candidate/hash、二次生成拒绝。该命令不加 `-allow-recorder-capture`，因此不会监听桌面。
+
+正式 selected 入口：
+
+```bash
+OPENDESK_RUNTIME_API_MODE=unit-selected OPENDESK_RUNTIME_API_UNIT_FILTER=recorder ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+```
+
+另有 `pkg/execution/recorder_runtime_api_test.go` 通过现有 Goja execution host 注入私有内存 backend，覆盖真实 `start → status → 并发 stop → buildActions` 句柄链和清理；普通 Runtime 不暴露事件注入方法。
+
+### 4.3 actions 与生成反例及隔离执行
+
+```bash
+./dist/opendesk -script tests/human-to-recipe/coordinate-recipe.js -console-mode script
+```
+
+覆盖：窗口从 `(0,0)` 平移到 `(100,80)` 后 click 从 `(20,30)` 重算为 `(120,110)`；同应用两个同标题窗口在输入前拒绝；另覆盖 CLICKED 唯一消费、drag 不降 click、double/control-click、缺 release、composition、相同 timestamp 按 source sequence、伪造几何、悬空 ref、缺失 disposition、错误 basis、empty text 和额外 args。生成代码在同一 OpenDesk Runtime 内替换 `System`、`window`、`mouse` 和 `keyboard` 全部入口后执行；不会触达真实桌面。
+
+### 4.4 Custom UI 合成状态机与实窗证据
+
+```bash
+OPENDESK_RUNTIME_API_MODE=custom-ui ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+```
+
+正式 JavaScript 测试使用真实 Custom UI host、ControlHandle 点击和窗口截图，但注入合成 Recorder
+fixture，因此不会启动 libuiohook。它覆盖准备、录制、暂停／继续、停止、保存、actions、显式生成、
+按钮防重入、部分保存／blocked、启动过程中关闭的唯一 stop，以及 `verification: "not-run"`／零回放。
+证据写入 `.runtime/tests/runtime-api/<run-id>/runtime-logs/custom-ui/floating-toolbar/recording-console/`。
+
+### 4.5 macOS 计算器真实 pause/resume
+
+从仓库根目录显式授权一次性、非敏感、可恢复的系统计算器 fixture：
+
+```bash
+OPENDESK_RECORDER_CALCULATOR_CONFIRM=authorized-calculator-fixture ./dist/opendesk -allow-recorder-capture -script tests/runtime-api/recorder-native-calculator-macos.js -console-mode script
+```
+
+该 JavaScript gate 先用 Accessibility 树验证 PID、窗口与按钮，再用 `mouse.click()` 产生真实全局输入。Calculator 从 `0` 依次显示 `9 → 98 → 987`：`9` 在 recording、`8` 在 paused、`7` 在 resumed。断言普通 move 被 filtered、raw 只有一对相邻 pause/resume 边界、Actions 只有 `9` 和 `7`，两个动作都带 `semanticStatus: "verified"`、`role: "button"`、对应名称与 `AXPress`，并生成保持 `verification: "not-run"` 的 candidate。截图和摘要写入 `.runtime/tests/human-to-recipe/calculator-live-*/`；不会回放 candidate。
+
+### 4.6 架构与文档检查
+
+```bash
+node scripts/audit_test_architecture.js
+node --test tests/test-architecture/layout.test.js
+git diff --check
+```
+
+修改 Runtime catalog 后还应运行对应 catalog／selected gate；运行证据落在 `.runtime/tests/runtime-api/`。公开示例只有从根目录原样运行文档命令后才能标通过。
+
+### 4.7 平台 build
+
+当前主机已用 `bash scripts/build_macos_app.sh` 刷新主程序、配套 UI host、status helper 和签名 app bundle，且 `codesign --verify --deep --strict` 通过。最终 Recorder Go 源码时间早于 19:29 app/host 构建时间；Custom UI 的脚本从当前工作树按入口加载。Windows 与 Linux 目标机 CGO toolchain/headers 当前不存在，目标平台 package 和 live 均标未运行。本轮不自动下载编译器、VM、Wine 或系统镜像；cross build 不能写成目标系统 live。
+
+### 4.8 2026-09-09 当前证据
+
+| 层 | 结果 | run-scoped 证据／说明 |
 | --- | --- | --- |
-| 需求范围与三个交付出口 | 10 | 简单模式不被复杂化，增强模式不虚报能力 |
-| 采集、时序与证据关联 | 20 | 来源对应、完整性、前后画面及连续动作处理 |
-| 多模态目标理解 | 20 | 无文字、重复目标、几何与对象归属案例 |
-| 定位、操作与效果验证 | 20 | 新画面、正确对象、结果未知和失败处理 |
-| 过程与 JS 质量 | 15 | 数据、参数、等待、实际 API 和正常运行 |
-| 隐私、权限与取消 | 10 | 采集／外发／试探动作边界、停止与副作用 |
-| 复用、维修与成本 | 5 | 局部修复、重验范围与有界预算 |
-| 合计 | 100 | 证据支持总分至少 95，关键维度逐项核验 |
+| macOS bundle | 通过 | `bash scripts/build_macos_app.sh`；`OpenDesk.app/Contents/MacOS/opendesk` 与 UI host 于 19:29 从当前源码刷新并 ad-hoc codesign |
+| Go Recorder＋execution owner | 通过 | `go test ./automation ./pkg/execution`；只出现 vendored libuiohook 的既有编译 warning |
+| Runtime direct | 8/8 通过 | `.runtime/runs/direct-20260909-192935-169000/`；未授予 capture，不启动 listener |
+| 坐标迁移／多窗口歧义／strict generation | 6/6 通过 | `.runtime/runs/direct-20260909-192936-786000/`；验证平移重算和歧义零输入 |
+| 测试架构审计 | 通过 | `.runtime/tests/test-architecture/audit.json`；所有当前 Go tests 已分类，禁止公共调用未出现 |
+| simple console 公开命令与视觉 | ready 和实窗视觉通过 | 从仓库根目录原样启动；`.runtime/tests/human-to-recipe/ui/recording-console-simple-current.png`；截图后 Ctrl+C 清理，所以 execution 为预期 canceled，不冒充完整交互通过 |
+| macOS Calculator 真实 native capture＋受控输入 | 通过 | `.runtime/tests/human-to-recipe/calculator-live-1788953384136-direct-20260909-192943-906000/`；现场包 `rec-20260909T112946.465966000Z-112176b826ec` 为 `stopped/saved`、actions `ready`、issues 空；按钮“9”／“7”语义 verified，暂停“8”未进入 raw/actions |
+| 真实回放／回放后业务 oracle | 未运行 | basic candidate 已生成且保持 `verification: "not-run"`；未把生成、API resolve 或当前录制后画面冒充独立回放成功 |
 
-错误业务对象操作、伪造证据、越权外发、结果未知而重复提交、错误完成却报告成功均为阻断项，不能用其他项高分抵消。约定范围内的必测案例未运行，不得用文档评分替代资格；范围外未实现能力明确限制，不要求首批实现所有平台和所有动作。
+用户提供的旧包 `rec-20260909T102712.649528000Z-a299028412fa` 是 v1：70 条 raw 中 67 条为普通 move、只有一组 click，且 `scope-changed` 令状态为 failed。它用于证明问题基线，不计作 v2 通过证据，也不会被原地改写。
 
-## 8. 与现有仓库规范的对齐
+## 5. 当前动作资格
 
-按 [AGENTS.md](../../../AGENTS.md)，修改或测试公开接口前读取 [docs/api](../../../docs/api/README.md)，修改 API Reference 先读 [docs/api/.rules.md](../../../docs/api/.rules.md)。一个公开对象原则上保留一个主 API Reference，不按每个 backend 拆平行参考页。
+| 动作 | capture 字段 | actions | basic JS | live 状态 |
+| --- | --- | --- | --- | --- |
+| 单次左键 click | press/release/click、modifier、screen/display、动作级 app/window、可选 AX element | 完整配对；保存 window offset/ratio、semantic status/reason、hit/ancestors | 解析唯一当前窗口，以新 bounds＋offset 执行 `mouse.click` | macOS Calculator 标签与 actions 通过；独立回放未运行 |
+| Basic Latin 文本 | KEY_TYPED＋物理 key evidence＋动作级 app/window | 无 Ctrl/Meta/Alt 且非 composition 时 ready；element 为 not-applicable | 解析并确认当前活动窗口后 `keyboard.type` | 合成通过；真实键盘未运行 |
+| 未按键 hover move | callback 计入 observed 后 filtered，不写 raw | 无 action；可由计数审计降噪 | 无 | Go session 测试覆盖 |
+| button-held motion / dragged | 完整保留路径 | ≤4 logical points 的完整 press/motion/release 可归一化为 jitter click；其余为 drag issue | jitter click 或 blocked | Go 与 JS composition 测试覆盖 |
+| double/right/middle/wheel | 原事实 | blocked | 无 | 未运行 |
+| Control/Meta/Alt click/key | modifier facts | blocked | 无 | 未运行 |
+| IME/dead key/composition | key facts与 gap | blocked，不补 finalText | 无 | 未运行 |
+| missing pair／long press／drop | raw＋manifest issue | blocked | 无 | 私有 seam 已测，live 未运行 |
 
-平台驱动、真实资源和 execution 生命周期由实际 native owner 承担；polyfills 只放纯 JS 组合、适配和兼容 facade。公共 Runtime 行为以 `tests/runtime-api/` 内 JS 检查；公开示例归 examples 的对应主题，运行证据归 `.runtime/`。不要为可由 JS 观察的公共接口新建重复 Go 测试层。
+## 6. 真人闭环执行条件
 
-验收使用当时 API 文档规定的正常脚本入口，给出工作目录和可复制的一行命令；不编造 Node runner，不把临时等价命令当公开命令已通过。静态、mock、模型分析、人工审阅、真实应用操作与端到端结果分别报告。各平台只声明实际执行过的验证；遵守仓库对交叉编译和真机验证的既有范围约定，不为凑分自动启动 VM 或下载系统镜像。
+真人 gate 只有同时满足下列条件才开始：
 
-## 9. 新对话接续时应交付什么
+- 当前源码、`dist/opendesk`、必要 UI host 和静态 lib provenance 一致；
+- macOS/Windows 对应系统和权限可用；
+- 使用隔离、可恢复、无真实业务或外发的 fixture；
+- 用户明确按 F8 开始，键盘内容明确非敏感；
+- 预先冻结初始状态、操作、期望结果和独立 oracle；
+- 回放是另一 invocation，并再次明确授权。
 
-先读本目录三份文档及最新源码，再按以下顺序回答：
+验收顺序：先 capture/stop，检查 raw、manifest、counts、控制排除和 resource zero；再从该真人录制 build actions；再生成 basic JS；恢复 fixture；最后单独回放并由 oracle 检查对象、次数和文本。任一数据缺口、storage failure、unsupported action 或错误对象都使完整闭环失败。
 
-1. 用户开始录制、操作、停止、生成、运行会经过什么，附真实类／方法调用与数据变化。
-2. 已有能力与缺口表：文档、类型、实现、实际运行证据分列，区分复用、修改、新增、暂缓。
-3. 首批最小文件与类方法变更清单，以及每个变化对应的 H 节点、参数、返回、错误、权限和取消语义。
-4. 普通坐标闭环与无文字图标闭环的测试设计、命令、预期、证据和失败返回。
-5. 本轮实际完成、未运行、受阻与下一批最小范围；先展示修改前后差异，不把设计建议写成已实现。
+本轮使用用户明确允许的系统 Calculator 作为一次性非敏感 fixture，专用 JavaScript gate 记录起始 provenance、清零、通过 Runtime `mouse.click()` 发送受控全局输入并独立读取显示值，已实际启动 native listener。该 gate 是真实应用／listener 验收，不冒充真人手工输入。公开 F8 和 Custom UI 的人工采集没有另行完成，生成脚本也没有在独立 invocation 回放，因此它们分别保持未运行，candidate 保持 `verification: "not-run"`。
 
-用户未进一步授权时先完成源码核查和实施规格，不直接修改生产代码、运行真实桌面副作用、覆盖并行会话文件或提交推送。可执行的检查按当次授权与实际环境开展；不要求用户回答可以从源码核实的问题，不重建整套工作流。
+## 7. 下游语义工作流接续
+
+| 项目 | 固定交接 |
+| --- | --- |
+| 输入 | actions exact file/revision/hash、raw ref/hash、basic candidate/hash、环境、用户目标／预期结果、实际 evidence 或 missing reason；AppProfile 只引用真实版本 |
+| 下游责任 | 目标／业务对象、定位、等待、验证、参数、普通函数和代码质量；不再次实现 listener |
+| 输出 | 新 semantic candidate JS、引用规则、每项修改理由、适用条件和独立 verification；不覆盖 basic candidate/raw |
+| 失败返回 | facts→H2；grouping→H3；intent/text→H4；target/locator→H5；code→H6；authority/success criteria→H1 |
+
+可直接借用 `application-engineer` 的 discover/harden/repair 方法和共享合同的 recipe-build/recipe-qualify 职责，但 human raw/actions 需要 lineage adapter，不能伪装 Agent demonstration。当前不存在已安装的 human Skill 或自动 validator；本轮不批量创建。
+
+## 8. 硬性失败条件
+
+- 未收到真实 `HOOK_ENABLED` 就返回 session；
+- stop 前没有固定截止，或 hook 未退仍写成 stopped；
+- accepted 事件未排空、drop 不可见、storage failure 写 saved；
+- 未按键 hover move 继续写入 v2 raw，或过滤后没有 `filtered` 计数；
+- 键盘范围外事件先保存后删除；
+- v2 action 没有已验证的应用／窗口上下文仍标 ready，或只用旧 PID/handle/screen point 回放；
+- 同应用多个窗口无法唯一解析时仍发送输入；
+- AX 失败后伪造按钮文字，读取 AXValue／安全内容，或把 OCR 字符串冒充原始事实；
+- drag/double/control/composition 被静默变成 click/text；
+- actions/代码从旧内存而不是实际固定文件生成；
+- raw 和 actions 同时回放，或 recipe 循环解释 actions；
+- 生成覆盖人工代码，或 `approved` 字段赋予执行权限；
+- 自动运行刚生成的脚本；
+- synthetic/cross-build/API resolve 冒充真人 capture、目标系统 live 或业务成功。
+
+## 9. 下一批最小范围
+
+下一批按文档驱动顺序选择最小增强：先为键盘动作增加不读取值的 focused-element 标签；再定义显式 `target-crop` OCR observation（裁剪、hash、坐标、引擎版本、候选与置信度）；最后定义 AX/文字/图像 locator 的唯一性、可见／启用状态和歧义拒绝规则。随后才接入 human lineage adapter，生成独立 semantic candidate JS 并做真实回放／业务 oracle。不要回到 native listener、不改 raw、不创建第二 Recorder、AppProfile 或专用 Replay Runtime；每项必须先扩展 DQ requirement，再实现和验收。

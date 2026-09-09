@@ -57,3 +57,149 @@ export interface RecorderFlow {
   createdAt: string;
   steps: RecorderFlowStep[];
 }
+
+declare global {
+  type OpenDeskRecorderReadiness = 'ready' | 'needs-review' | 'blocked';
+
+  interface OpenDeskRecorderIssue {
+    code: string;
+    severity: 'warning' | 'error' | string;
+    message: string;
+    eventId?: string;
+  }
+
+  interface OpenDeskRecorderCapabilities {
+    capture: {
+      available: boolean;
+      supported: boolean;
+      hostAuthorized: boolean;
+      permission: 'authorized' | 'denied' | 'not-required' | 'unsupported' | 'unknown';
+      platform: string;
+      backend: string;
+      library: {name: 'libuiohook'; version: '1.2.2'; commit: string; linkage: 'source-static'};
+      coordinateSpace: 'screen-logical' | 'unavailable' | string;
+      keyboardDefault: false;
+      evidenceModes: Array<'none' | 'target-semantics'>;
+      limitations: string[];
+    };
+    actions: {available: true; version: string; actionSubset: string[]};
+    basicGeneration: {available: true; mode: 'basic'; version: string};
+  }
+
+  interface OpenDeskRecorderStartOptions {
+    /** Initial foreground-window provenance; it does not filter desktop input or prevent window/application switches. */
+    within: {processId: number; title: string};
+    captureKeyboard?: boolean;
+    /** Required only for keyboard capture; it does not grant host capture authority. */
+    keyboardContent?: 'non-sensitive-test';
+    /** Defaults to label-only AX evidence for the element under a pointer release; values and secure fields are never persisted. */
+    evidence?: 'none' | 'target-semantics';
+    /** Must remain below Execution.workdir/.runtime/recordings. */
+    outputDir?: string;
+    maxDurationMs?: number;
+    /** libuiohook keycodes used by an explicit out-of-band control surface. */
+    controlKeycodes?: number[];
+  }
+
+  interface OpenDeskRecorderStatus {
+    captureState: 'starting' | 'recording' | 'paused' | 'stopping' | 'stopped' | 'failed';
+    storageState: 'open' | 'saved' | 'partial' | 'failed';
+    recordingId: string;
+    recordingDir: string;
+    counts: {observed: number; accepted: number; persisted: number; filtered: number; paused: number; dropped: number; late: number};
+    cutoffSequence: string | null;
+    maxDurationMs: number;
+    startedAt: string;
+    pausedAt: string | null;
+    elapsedDurationMs: number;
+    activeDurationMs: number;
+    pausedDurationMs: number;
+    pauseCount: number;
+    issues: OpenDeskRecorderIssue[];
+  }
+
+  interface OpenDeskRecorderControlResult {
+    changed: boolean;
+    captureState: 'recording' | 'paused';
+    transitionSequence: string | null;
+    transitionedAt: string;
+  }
+
+  interface OpenDeskRecorderControlClickEvent {
+    sessionId: string;
+    windowId: string;
+    targetId: string;
+    type: 'click';
+    sequence: number;
+    timestamp: string;
+  }
+
+  interface OpenDeskRecorderControlClickResult {
+    changed: boolean;
+    transitionSequence: string | null;
+    /** Native raw event IDs excluded by the auditable control boundary. */
+    eventIds: string[];
+  }
+
+  interface OpenDeskRecorderStopResult {
+    recordingId: string;
+    recordingDir: string;
+    rawFile: string | null;
+    manifestFile: string | null;
+    captureState: 'stopped' | 'failed';
+    storageState: 'saved' | 'partial' | 'failed';
+    counts: OpenDeskRecorderStatus['counts'];
+    issues: OpenDeskRecorderIssue[];
+  }
+
+  interface OpenDeskRecorderSession {
+    status(): OpenDeskRecorderStatus;
+    pause(): Promise<OpenDeskRecorderControlResult>;
+    resume(): Promise<OpenDeskRecorderControlResult>;
+    excludeControlClick(event: OpenDeskRecorderControlClickEvent): Promise<OpenDeskRecorderControlClickResult>;
+    stop(): Promise<OpenDeskRecorderStopResult>;
+  }
+
+  interface OpenDeskRecorderActionsResult {
+    actionsFile: string;
+    revision: number;
+    actionCount: number;
+    readiness: OpenDeskRecorderReadiness;
+    issues: OpenDeskRecorderIssue[];
+  }
+
+  interface OpenDeskRecorderGenerationTiming {
+    /** Lower bound for every non-pause inter-action delay. Defaults to 500. */
+    minimumDelayMs: number;
+    /** Upper bound for every non-pause inter-action delay. Defaults to 30000. */
+    maximumDelayMs: number;
+    /** Recorded gaps are divided by this value before clamping. Defaults to 1. */
+    speedMultiplier: number;
+  }
+
+  interface OpenDeskRecorderGenerateOptions {
+    mode?: 'basic';
+    outputFile?: string;
+    timing?: Partial<OpenDeskRecorderGenerationTiming>;
+  }
+
+  interface OpenDeskRecorderScriptResult {
+    scriptFile: string;
+    candidateFile: string;
+    actionsSha256: string;
+    scriptSha256: string;
+    constraints: string[];
+    verification: 'not-run';
+    /** Fully resolved timing policy used to emit sleep calls. */
+    timing: OpenDeskRecorderGenerationTiming;
+  }
+
+  interface OpenDeskRecorderRuntime {
+    getCapabilities(): OpenDeskRecorderCapabilities;
+    start(options: OpenDeskRecorderStartOptions): Promise<OpenDeskRecorderSession>;
+    buildActions(recordingDir: string): Promise<OpenDeskRecorderActionsResult>;
+    generateScript(actionsFile: string, options?: OpenDeskRecorderGenerateOptions): Promise<OpenDeskRecorderScriptResult>;
+  }
+
+  var Recorder: OpenDeskRecorderRuntime;
+}

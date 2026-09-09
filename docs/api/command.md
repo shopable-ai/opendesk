@@ -28,8 +28,11 @@ order: 7
 | `input` | `string` | 否 | 未设置 | 一次性 UTF-8 stdin；写完自动关闭；最大 64 MiB。 |
 | `timeout` | `number` | 否 | `0` | 毫秒；`0` 仅服从外层 execution deadline；最大 24 小时。 |
 | `maxOutputBytes` | `number` | 否 | 4 MiB | stdout + stderr 合计上限；最大 64 MiB。 |
+| `signal` | `AbortSignal \| null` | 否 | `null` | 取消在途命令及其进程组；预先取消的 signal 不会启动子进程。 |
 
 接口不提供 shell command interpolation、流式 handle、PTY、detached/unref、IPC 或交互式 stdin。
+`signal` 复用 Runtime 的 `AbortController`；取消后 Promise 以 `CANCELED` 拒绝，并保留取消前已收集的
+有界 stdout / stderr。listener 会在完成、失败、取消或 teardown 时移除。
 
 环境键必须满足 `[A-Za-z_][A-Za-z0-9_]*`。Windows 下 Runtime 统一为大写并按大小写不敏感方式覆盖。未显式覆盖时，子进程使用当前 `Execution.env` 快照。
 
@@ -79,8 +82,8 @@ if (!capabilities.enabled || !capabilities.supported) {
 Command.run(
   command: string,
   args?: string[],
-  options?: OpenDeskCommandRunOptions,
-): Promise<OpenDeskCommandRunResult>;
+  options?: OpenDeskCommandOptions,
+): Promise<OpenDeskCommandResult>;
 ```
 
 **参数**
@@ -89,12 +92,12 @@ Command.run(
 | --- | --- | --- | --- | --- |
 | `command` | `string` | 是 | 无 | 可执行文件名称或路径；不按 shell command line 解析。 |
 | `args` | `string[]` | 否 | `[]` | 参数数组。 |
-| `options` | `OpenDeskCommandRunOptions` | 否 | `{}` | 运行选项，见 [`Command.run()` options](#commandrun-options)。 |
+| `options` | `OpenDeskCommandOptions` | 否 | `{}` | 运行选项，见 [`Command.run()` options](#commandrun-options)。 |
 
 **返回值**
 
 ```ts
-interface OpenDeskCommandRunResult {
+interface OpenDeskCommandResult {
   exitCode: number;
   stdout: string;
   stderr: string;
@@ -103,7 +106,7 @@ interface OpenDeskCommandRunResult {
 
 **行为与错误**
 
-成功只在进程以 exit code `0` 完成并且输出未超过限制时 resolve。非零退出、启动失败、timeout、输出超限、I/O 失败或 execution 取消时 reject `CommandError`。
+成功只在进程以 exit code `0` 完成并且输出未超过限制时 resolve。非零退出、启动失败、timeout、输出超限、I/O 失败、`AbortSignal` 取消或 execution 取消时 reject `CommandError`。
 
 `CommandError` 的公开字段包括 `name`、`code`、`exitCode`、`stdout` 与 `stderr`。稳定错误码：
 
@@ -118,7 +121,7 @@ IO_FAILED
 CANCELED
 ```
 
-命令进程归当前 execution 管理；timeout、中断和 teardown 会清理仍在运行的进程。`Command` 不是 sandbox，本地命令继承 OpenDesk 进程当前 OS 用户权限。
+命令进程归当前 execution 管理；`AbortSignal`、timeout、中断和 teardown 都沿同一进程组终止路径清理仍在运行的进程。`Command` 不是 sandbox，本地命令继承 OpenDesk 进程当前 OS 用户权限。
 
 **示例**
 
@@ -131,6 +134,24 @@ const result = await Command.run('/usr/bin/git', ['status', '--short'], {
 });
 
 console.log(result.stdout);
+```
+
+在 UI 等持续交互中显式取消：
+
+```js
+const controller = new AbortController();
+const pending = Command.run('./dist/opendesk', [
+  '-script', '.runtime/recordings/example/generated/basic.recipe.js',
+  '-console-mode', 'script',
+], {signal: controller.signal});
+
+// 由另一个明确的用户动作调用。
+controller.abort('user canceled');
+try {
+  await pending;
+} catch (error) {
+  if (error.code !== 'CANCELED') throw error;
+}
 ```
 
 ## 平台与能力

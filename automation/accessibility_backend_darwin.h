@@ -21,7 +21,8 @@ enum {
 enum {
     OPENDESK_AX_ELEMENT_ATTRIBUTE_MENU_BAR = 1,
     OPENDESK_AX_ELEMENT_ATTRIBUTE_CHILDREN = 2,
-    OPENDESK_AX_ELEMENT_ATTRIBUTE_WINDOWS = 3
+    OPENDESK_AX_ELEMENT_ATTRIBUTE_WINDOWS = 3,
+    OPENDESK_AX_ELEMENT_ATTRIBUTE_PARENT = 4
 };
 
 enum {
@@ -39,6 +40,12 @@ int32_t opendesk_ax_is_process_trusted(void);
 uintptr_t opendesk_ax_create_application(int32_t pid);
 uintptr_t opendesk_ax_retain_element(uintptr_t element);
 void opendesk_ax_release_element(uintptr_t element);
+
+int32_t opendesk_ax_copy_element_at_position(
+    double x,
+    double y,
+    double timeout_seconds,
+    uintptr_t *result);
 
 int32_t opendesk_ax_element_pid(
     uintptr_t element,

@@ -134,6 +134,11 @@ func TestRuntimeResourceCountsIncludeAsyncOwners(t *testing.T) {
 		AccessibilityQueued:          9,
 		AccessibilityRefs:            10,
 		AccessibilityNativeResources: 11,
+		RecorderWorkers:              12,
+		RecorderPending:              13,
+		RecorderSessions:             14,
+		RecorderBackendLeases:        15,
+		RecorderWriters:              16,
 	}
 	if counts.IsZero() {
 		t.Fatal("notification resources were omitted from RuntimeResourceCounts.IsZero")
@@ -147,6 +152,11 @@ func TestRuntimeResourceCountsIncludeAsyncOwners(t *testing.T) {
 		{name: "queued", counts: RuntimeResourceCounts{AccessibilityQueued: 1}},
 		{name: "refs", counts: RuntimeResourceCounts{AccessibilityRefs: 1}},
 		{name: "native resources", counts: RuntimeResourceCounts{AccessibilityNativeResources: 1}},
+		{name: "recorder workers", counts: RuntimeResourceCounts{RecorderWorkers: 1}},
+		{name: "recorder pending", counts: RuntimeResourceCounts{RecorderPending: 1}},
+		{name: "recorder sessions", counts: RuntimeResourceCounts{RecorderSessions: 1}},
+		{name: "recorder leases", counts: RuntimeResourceCounts{RecorderBackendLeases: 1}},
+		{name: "recorder writers", counts: RuntimeResourceCounts{RecorderWriters: 1}},
 	} {
 		if test.counts.IsZero() {
 			t.Fatalf("accessibility %s were omitted from RuntimeResourceCounts.IsZero", test.name)
@@ -158,6 +168,8 @@ func TestRuntimeResourceCountsIncludeAsyncOwners(t *testing.T) {
 		"audioPatternWatches=5", "audioPatternSessions=6",
 		"accessibilityWorkers=7", "accessibilityPending=8",
 		"accessibilityQueued=9", "accessibilityRefs=10", "accessibilityNativeResources=11",
+		"recorderWorkers=12", "recorderPending=13", "recorderSessions=14",
+		"recorderBackendLeases=15", "recorderWriters=16",
 	} {
 		if !strings.Contains(counts.String(), field) {
 			t.Fatalf("RuntimeResourceCounts.String() omitted %q: %s", field, counts.String())

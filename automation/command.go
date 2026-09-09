@@ -109,20 +109,23 @@ type commandProcess struct {
 	waiter    commandWaiter
 	inputDone chan struct{}
 
-	mu          sync.Mutex
-	stdout      []byte
-	stderr      []byte
-	totalOutput int
-	exitCode    *int
-	finished    bool
-	settled     bool
-	timedOut    bool
-	canceled    bool
-	overflow    bool
-	ioErr       error
-	waitErr     error
-	timer       *time.Timer
-	stdinOnce   sync.Once
+	mu            sync.Mutex
+	stdout        []byte
+	stderr        []byte
+	totalOutput   int
+	exitCode      *int
+	finished      bool
+	settled       bool
+	timedOut      bool
+	canceled      bool
+	overflow      bool
+	ioErr         error
+	waitErr       error
+	timer         *time.Timer
+	stdinOnce     sync.Once
+	abortOnce     sync.Once
+	abortCleanup  func()
+	cancelMessage string
 }
 
 type commandOutputWriter struct {
@@ -165,14 +168,66 @@ func (c *CommandRuntime) run(call goja.FunctionCall) goja.Value {
 	if err := c.available(); err != nil {
 		return rejectWith(err)
 	}
-	spec, err := parseCommandInvocation(call, c.environment)
+	spec, signal, err := parseCommandInvocation(call, c.environment)
 	if err != nil {
 		return rejectWith(err)
 	}
-	if _, err := c.launch(spec, commandWaiter{resolve: resolve, reject: reject}); err != nil {
+	var process *commandProcess
+	cleanupAbort, preCanceled, err := c.bindAbortSignal(signal, func() {
+		if process != nil {
+			process.cancelFromSignal()
+		}
+	})
+	if err != nil {
 		return rejectWith(err)
 	}
+	if preCanceled {
+		cleanupAbort()
+		return rejectWith(commandOperationError(CommandCanceled, "command was canceled before start", nil))
+	}
+	process, err = c.launch(spec, commandWaiter{resolve: resolve, reject: reject})
+	if err != nil {
+		cleanupAbort()
+		return rejectWith(err)
+	}
+	process.abortCleanup = cleanupAbort
 	return c.runtime.ToValue(promise)
+}
+
+// bindAbortSignal installs and removes the JavaScript listener only while the
+// Runtime is on its owner goroutine. The listener calls a Go cancellation
+// callback and never hands a Goja value to a command worker.
+func (c *CommandRuntime) bindAbortSignal(value goja.Value, cancel func()) (func(), bool, error) {
+	if value == nil || goja.IsUndefined(value) || goja.IsNull(value) {
+		return func() {}, false, nil
+	}
+	signal, ok := value.(*goja.Object)
+	if !ok {
+		return nil, false, commandOperationError(CommandInvalidArg, "options.signal must be an AbortSignal", nil)
+	}
+	aborted, ok := signal.Get("aborted").Export().(bool)
+	if !ok {
+		return nil, false, commandOperationError(CommandInvalidArg, "options.signal must be an AbortSignal", nil)
+	}
+	add, addOK := goja.AssertFunction(signal.Get("addEventListener"))
+	remove, removeOK := goja.AssertFunction(signal.Get("removeEventListener"))
+	if !addOK || !removeOK {
+		return nil, false, commandOperationError(CommandInvalidArg, "options.signal must be an AbortSignal", nil)
+	}
+	if aborted {
+		return func() {}, true, nil
+	}
+	listener := c.runtime.ToValue(func(goja.FunctionCall) goja.Value {
+		cancel()
+		return goja.Undefined()
+	})
+	if _, err := add(signal, c.runtime.ToValue("abort"), listener); err != nil {
+		return nil, false, commandOperationError(CommandInvalidArg, "options.signal must be an AbortSignal", err)
+	}
+	return func() {
+		defer func() { _ = recover() }()
+		_, _ = remove(signal, c.runtime.ToValue("abort"), listener)
+	}, false, nil
 }
 
 func (c *CommandRuntime) available() error {
@@ -311,6 +366,7 @@ func (p *commandProcess) finishOnLoop() {
 	p.owner.mu.Lock()
 	delete(p.owner.processes, p)
 	p.owner.mu.Unlock()
+	p.cleanupAbortSignal()
 	waiter, ok := p.takeWaiter()
 	if !ok {
 		return
@@ -357,7 +413,11 @@ func (p *commandProcess) operationError() error {
 	message := "command exited with a non-zero status"
 	switch {
 	case p.canceled:
-		code, message = CommandCanceled, "command was canceled during execution teardown"
+		message = p.cancelMessage
+		if message == "" {
+			message = "command was canceled during execution teardown"
+		}
+		code = CommandCanceled
 	case p.timedOut:
 		code, message = CommandTimeout, "command exceeded timeout"
 	case p.overflow:
@@ -400,16 +460,33 @@ func (p *commandProcess) forceKill() {
 }
 
 func (p *commandProcess) cancel() {
+	p.cancelWithMessage("command was canceled during execution teardown")
+}
+
+func (p *commandProcess) cancelFromSignal() {
+	p.cancelWithMessage("command was canceled by AbortSignal")
+}
+
+func (p *commandProcess) cancelWithMessage(message string) {
 	p.mu.Lock()
-	if p.finished {
+	if p.finished || p.canceled || p.timedOut || p.overflow || p.ioErr != nil {
 		p.mu.Unlock()
 		return
 	}
 	p.canceled = true
+	p.cancelMessage = message
 	p.mu.Unlock()
 	_ = terminateCommand(p.cmd, false)
 	time.AfterFunc(commandKillGrace, p.forceKill)
 	_ = p.closeStdin()
+}
+
+func (p *commandProcess) cleanupAbortSignal() {
+	p.abortOnce.Do(func() {
+		if p.abortCleanup != nil {
+			p.abortCleanup()
+		}
+	})
 }
 
 func (p *commandProcess) closeStdin() error {
@@ -466,6 +543,7 @@ func (c *CommandRuntime) Close() {
 	c.processes = make(map[*commandProcess]struct{})
 	c.mu.Unlock()
 	for _, process := range processes {
+		process.cleanupAbortSignal()
 		if waiter, ok := process.takeWaiter(); ok {
 			_ = waiter.reject(commandJSError(c.runtime, &CommandError{
 				Code:    CommandCanceled,
@@ -492,29 +570,34 @@ func (c *CommandRuntime) ResourceCounts() (workers int64, callbacks int64, proce
 	return c.workers.Load(), c.callbacks.Load(), processes
 }
 
-func parseCommandInvocation(call goja.FunctionCall, environment []string) (commandSpec, error) {
+func parseCommandInvocation(call goja.FunctionCall, environment []string) (commandSpec, goja.Value, error) {
 	spec := commandSpec{env: append([]string(nil), environment...), maxOutputBytes: commandDefaultMaxOutput}
 	command, ok := call.Argument(0).Export().(string)
 	if !ok || strings.TrimSpace(command) == "" || strings.ContainsRune(command, '\x00') {
-		return spec, commandOperationError(CommandInvalidArg, "command must be a non-empty string without NUL", nil)
+		return spec, nil, commandOperationError(CommandInvalidArg, "command must be a non-empty string without NUL", nil)
 	}
 	spec.command = command
 	optionsIndex := 1
 	if args, isArray, err := commandArguments(call.Argument(1)); err != nil {
-		return spec, err
+		return spec, nil, err
 	} else if isArray {
 		spec.args = args
 		optionsIndex = 2
 	}
-	if err := parseCommandOptions(call.Argument(optionsIndex), &spec); err != nil {
-		return spec, err
+	optionsValue := call.Argument(optionsIndex)
+	if err := parseCommandOptions(optionsValue, &spec); err != nil {
+		return spec, nil, err
 	}
 	for index := optionsIndex + 1; index < len(call.Arguments); index++ {
 		if !goja.IsUndefined(call.Argument(index)) {
-			return spec, commandOperationError(CommandInvalidArg, "too many arguments", nil)
+			return spec, nil, commandOperationError(CommandInvalidArg, "too many arguments", nil)
 		}
 	}
-	return spec, nil
+	var signal goja.Value = goja.Undefined()
+	if options, ok := optionsValue.(*goja.Object); ok {
+		signal = options.Get("signal")
+	}
+	return spec, signal, nil
 }
 
 func commandEnvironmentEntries(values map[string]string) []string {
@@ -557,7 +640,7 @@ func parseCommandOptions(value goja.Value, spec *commandSpec) error {
 	if !ok {
 		return commandOperationError(CommandInvalidArg, "options must be an object", nil)
 	}
-	allowed := map[string]bool{"cwd": true, "env": true, "timeout": true, "maxOutputBytes": true, "input": true}
+	allowed := map[string]bool{"cwd": true, "env": true, "timeout": true, "maxOutputBytes": true, "input": true, "signal": true}
 	for key := range options {
 		if !allowed[key] {
 			return commandOperationError(CommandInvalidArg, "options contains unknown field "+key, nil)

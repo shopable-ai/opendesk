@@ -43,6 +43,7 @@ static CFStringRef opendesk_ax_element_attribute(int32_t attribute) {
         case OPENDESK_AX_ELEMENT_ATTRIBUTE_MENU_BAR: return kAXMenuBarAttribute;
         case OPENDESK_AX_ELEMENT_ATTRIBUTE_CHILDREN: return kAXChildrenAttribute;
         case OPENDESK_AX_ELEMENT_ATTRIBUTE_WINDOWS: return kAXWindowsAttribute;
+        case OPENDESK_AX_ELEMENT_ATTRIBUTE_PARENT: return kAXParentAttribute;
         default: return NULL;
     }
 }
@@ -255,6 +256,30 @@ uintptr_t opendesk_ax_retain_element(uintptr_t token) {
 void opendesk_ax_release_element(uintptr_t token) {
     AXUIElementRef element = opendesk_ax_element(token);
     if (element != NULL) CFRelease(element);
+}
+
+int32_t opendesk_ax_copy_element_at_position(
+    double x,
+    double y,
+    double timeout_seconds,
+    uintptr_t *result) {
+    if (result == NULL) return kAXErrorIllegalArgument;
+    *result = (uintptr_t)0;
+    AXUIElementRef system = AXUIElementCreateSystemWide();
+    if (system == NULL) return kAXErrorFailure;
+    int32_t status = opendesk_ax_set_timeout(system, timeout_seconds);
+    AXUIElementRef element = NULL;
+    if (status == kAXErrorSuccess) {
+        status = (int32_t)AXUIElementCopyElementAtPosition(system, (float)x, (float)y, &element);
+    }
+    CFRelease(system);
+    if (status != kAXErrorSuccess) {
+        if (element != NULL) CFRelease(element);
+        return status;
+    }
+    if (element == NULL) return OPENDESK_AX_STATUS_TARGET_NOT_FOUND;
+    *result = (uintptr_t)(void *)element;
+    return kAXErrorSuccess;
 }
 
 int32_t opendesk_ax_element_pid(

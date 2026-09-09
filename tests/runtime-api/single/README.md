@@ -11,6 +11,7 @@
 - `page`：`./dist/opendesk -script tests/runtime-api/single/page.js -console-mode script`
 - `mouse`：`./dist/opendesk -script tests/runtime-api/single/mouse.js -console-mode script`
 - `keyboard`：`./dist/opendesk -script tests/runtime-api/single/keyboard.js -console-mode script`
+- `recorder`：`./dist/opendesk -script tests/runtime-api/single/recorder.js -console-mode script`
 - `global-shortcut`：`./dist/opendesk -script tests/runtime-api/single/global-shortcut.js -console-mode script`
 - `events`：`./dist/opendesk -script tests/runtime-api/single/events.js -console-mode script`
 - `app`：`./dist/opendesk -script tests/runtime-api/single/app.js -console-mode script`
@@ -67,3 +68,11 @@
 该入口直接复用 `tests/runtime-api/custom-ui/floating-window-label.test.js`，会验证默认垂直居中、
 真实水平居中、运行时 top/bottom 更新、固定几何、截断、Accessibility 与截图；它是专项证据，
 不能替代完整 `OPENDESK_RUNTIME_API_MODE=custom-ui` gate。
+
+Recorder 的真实 macOS 采集不属于上述无副作用 selected 测试。使用当前源码构建物并明确授权一次性计算器 fixture 后，从仓库根目录运行：
+
+```bash
+OPENDESK_RECORDER_CALCULATOR_CONFIRM=authorized-calculator-fixture ./dist/opendesk -allow-recorder-capture -script tests/runtime-api/recorder-native-calculator-macos.js -console-mode script
+```
+
+该 gate 会向系统计算器发送真实点击并留下截图，只能在可恢复的测试桌面显式运行。

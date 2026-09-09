@@ -35,6 +35,7 @@
         'audioPatternWorkers', 'audioPatternPending', 'audioPatternWatches', 'audioPatternSessions',
         'fileJSONWorkers', 'fileJSONCallbacks', 'fileJSONTemps', 'fileHandles',
         'sqliteWorkers', 'sqliteCallbacks', 'sqliteHandles',
+        'recorderWorkers', 'recorderPending', 'recorderSessions', 'recorderBackendLeases', 'recorderWriters',
       ],
       runId: '',
       runDir: '',

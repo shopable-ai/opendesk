@@ -140,6 +140,7 @@ type Config struct {
 	Timeout                               int // 修改为 timeout，单位为分钟
 	ExperimentalNativeExtension           bool
 	ExperimentalUnsafeNativeExtensionCall bool
+	AllowRecorderCapture                  bool
 	CustomUI                              bool
 	CustomUIDisabled                      bool
 	RuntimeConfigPath                     string
@@ -186,6 +187,7 @@ func parseFlags() *Config {
 	flag.IntVar(&config.Timeout, "timeout", 30, "Execution timeout in minutes (0 for no timeout)") // 默认30分钟
 	flag.BoolVar(&config.ExperimentalNativeExtension, "experimental-native-extension", false, "Deprecated compatibility flag; local CLI JavaScript already enables manifest-discovered NativeExtensions")
 	flag.BoolVar(&config.ExperimentalUnsafeNativeExtensionCall, "experimental-unsafe-native-extension-call", false, "Enable unsafe low-level NativeExtension.call for explicit local diagnostics")
+	flag.BoolVar(&config.AllowRecorderCapture, "allow-recorder-capture", false, "Allow this trusted local script execution to start Recorder global input capture")
 	flag.BoolVar(&config.CustomUI, "ui", false, "Explicitly enable custom UI for this CLI execution or HTTP server")
 	flag.BoolVar(&config.CustomUIDisabled, "no-ui", false, "Explicitly disable custom UI, overriding every other activation source")
 	flag.StringVar(&config.RuntimeConfigPath, "config", "", "Runtime project configuration path")
@@ -831,6 +833,7 @@ func executeScript(config *Config) error {
 		// requests construct their own execution.Request values and leave this
 		// capability false so they do not inherit host file database access.
 		EnableSQLite:             true,
+		EnableRecorderCapture:    config.AllowRecorderCapture,
 		SQLiteProtectedPaths:     sqliteProtectedPaths(config),
 		EnableCustomUI:           config.CustomUI,
 		CustomUIActivationSource: config.CustomUIActivationSource,

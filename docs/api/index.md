@@ -23,6 +23,7 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先确定应用
 | 直接操作原生语义元素 | [Accessibility API](accessibility.md) |
 | 从服务或其他程序触发任务 | [HTTP Server API](http-server.md) 或 MCP |
 | 把已探索流程重复执行 | 保存 recipe，再使用 [AI CLI](ai-cli.md) 的 `run` |
+| 人工录制非敏感测试操作并生成基础 JS | [Recorder Runtime API](recorder-runtime.md) |
 | 管理环境变量和默认输出 | [Environment Configuration](environment.md) |
 
 ## 推荐阅读路径
@@ -50,7 +51,8 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先确定应用
 - 调用、安装或编写 manifest 插件：[Native Extension Plugin](native-extension.md)
 - 创建 OpenDesk 自己的窗口/面板：[Custom UI](custom-ui.md)
 - 定时执行 JavaScript：[Scheduler](scheduler.md)；外部管理协议见 [Scheduler HTTP API](scheduler-api.md)
-- 录制并生成可确定性回放的流程：[Recorder](recorder.md)
+- 人工采集输入、制作 actions 并生成 basic JS：[Recorder Runtime API](recorder-runtime.md)
+- 记录 Agent 工具动作并提炼 Flow：[Agent-first Recorder MCP API](recorder.md)
 - 查找仓库示例：[Examples 快速索引](examples/README.md)
 - 读取 Execution ID、输入和 artifact 上下文：[Execution Context](execution.md)
 - 理解 JavaScript 生命周期与取消：[JavaScript Runtime](runtime.md)
@@ -68,6 +70,7 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先确定应用
 | `Accessibility` | 可信本地 JavaScript Runtime | Experimental | 明确 scope 内 snapshot/find/read/perform/release 原生元素 | [Accessibility API](accessibility.md) |
 | `keyboard` / `touchscreen` | JavaScript Runtime | Stable | 键盘与触屏输入 | [Input APIs](input.md) |
 | `globalShortcut` | JavaScript Runtime | Stable（macOS / Windows） | 系统快捷键触发 JavaScript callback | [Global Shortcut API](global-shortcut.md) |
+| `Recorder` | 可信本地 JavaScript Runtime | Experimental | 人工输入采集、actions 制作与 basic 普通 JS 生成 | [Recorder Runtime API](recorder-runtime.md) |
 | `Events` | JavaScript Runtime | Experimental | 外部桌面状态 watcher | [Desktop Events API](events.md) |
 | `App` | JavaScript Runtime | Experimental | 按稳定 identity 启动、等待、终止与重启应用 | [App Lifecycle API](app.md) |
 | `window` | JavaScript Runtime | Stable reads / platform-partial actions | 窗口读取、能力矩阵与控制 | [Window API](window.md) |

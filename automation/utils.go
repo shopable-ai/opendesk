@@ -93,6 +93,17 @@ type InitJSOptions struct {
 	// leaves it false for HTTP, MCP, and Scheduler executions so this global
 	// cannot silently expand remote host filesystem access.
 	EnableSQLite bool
+	// EnableRecorderCapture is set only by the trusted local CLI when the user
+	// supplies -allow-recorder-capture. File-only buildActions/generateScript
+	// remain available when it is false.
+	EnableRecorderCapture bool
+	// ExecutionID binds a capture session and its manifest to this Runtime.
+	ExecutionID string
+	// RecorderBackendFactory and RecorderWindowProbe are internal seams for
+	// native readiness, failure, scope, and teardown tests. Product executions
+	// use the libuiohook adapter and the native active-window probe.
+	RecorderBackendFactory RecorderBackendFactory
+	RecorderWindowProbe    RecorderWindowProbe
 	// SQLiteProtectedPaths is an additional deny-list supplied by a trusted
 	// host owner (for example a configured Scheduler store). Paths are resolved
 	// with the same WorkDir rules as SQLite.open before the global is injected.
@@ -119,6 +130,7 @@ type RuntimeLifecycle struct {
 	FileJSON       *FileJSONRuntime
 	FileSystem     *FileSystem
 	SQLite         *SQLiteRuntime
+	Recorder       *RecorderRuntime
 }
 
 // Wait joins host workers after their execution context has been cancelled.
@@ -159,6 +171,9 @@ func (l *RuntimeLifecycle) Wait() {
 	}
 	if l != nil && l.SQLite != nil {
 		l.SQLite.Wait()
+	}
+	if l != nil && l.Recorder != nil {
+		l.Recorder.Wait()
 	}
 }
 
@@ -206,6 +221,9 @@ func (l *RuntimeLifecycle) CancelAsync() {
 	}
 	if l != nil && l.SQLite != nil {
 		l.SQLite.CancelPending()
+	}
+	if l != nil && l.Recorder != nil {
+		l.Recorder.Close()
 	}
 }
 
@@ -278,49 +296,59 @@ func (l *RuntimeLifecycle) AsyncCounts() (timers int, workers int64, callbacks i
 		workers += sqliteWorkers
 		callbacks += sqliteCallbacks
 	}
+	if l.Recorder != nil {
+		recorderWorkers, recorderCallbacks := l.Recorder.AsyncCounts()
+		workers += recorderWorkers
+		callbacks += recorderCallbacks
+	}
 	return timers, workers, callbacks
 }
 
 type RuntimeResourceCounts struct {
-	Timers               int
-	HTTPWorkers          int64
-	HTTPCallbacks        int
-	HTTPTemps            int64
-	UIWorkers            int64
-	UIPending            int
-	UIQueued             int
-	UIWindows            int
-	UIListeners          int
-	UIDriverSinks        int
-	UIHostProcesses      int
-	ShortcutBindings     int
-	ShortcutPending      int
-	EventSubscriptions   int
-	EventPending         int
-	CaptureWorkers       int64
-	CapturePending       int
-	CaptureSessions      int
-	AppWorkers           int64
-	AppPending           int
-	SoundWorkers         int64
-	SoundPending         int
-	SoundPlaybacks       int
-	NotificationWorkers  int64
-	NotificationPending  int
-	CommandWorkers       int64
-	CommandCallbacks     int64
-	CommandProcesses     int
-	AudioPatternWorkers  int64
-	AudioPatternPending  int
-	AudioPatternWatches  int
-	AudioPatternSessions int
-	FileJSONWorkers      int64
-	FileJSONCallbacks    int
-	FileJSONTemps        int64
-	FileHandles          int
-	SQLiteWorkers        int64
-	SQLiteCallbacks      int
-	SQLiteHandles        int
+	Timers                int
+	HTTPWorkers           int64
+	HTTPCallbacks         int
+	HTTPTemps             int64
+	UIWorkers             int64
+	UIPending             int
+	UIQueued              int
+	UIWindows             int
+	UIListeners           int
+	UIDriverSinks         int
+	UIHostProcesses       int
+	ShortcutBindings      int
+	ShortcutPending       int
+	EventSubscriptions    int
+	EventPending          int
+	CaptureWorkers        int64
+	CapturePending        int
+	CaptureSessions       int
+	AppWorkers            int64
+	AppPending            int
+	SoundWorkers          int64
+	SoundPending          int
+	SoundPlaybacks        int
+	NotificationWorkers   int64
+	NotificationPending   int
+	CommandWorkers        int64
+	CommandCallbacks      int64
+	CommandProcesses      int
+	AudioPatternWorkers   int64
+	AudioPatternPending   int
+	AudioPatternWatches   int
+	AudioPatternSessions  int
+	FileJSONWorkers       int64
+	FileJSONCallbacks     int
+	FileJSONTemps         int64
+	FileHandles           int
+	SQLiteWorkers         int64
+	SQLiteCallbacks       int
+	SQLiteHandles         int
+	RecorderWorkers       int64
+	RecorderPending       int
+	RecorderSessions      int
+	RecorderBackendLeases int
+	RecorderWriters       int
 
 	AccessibilityWorkers         int64
 	AccessibilityPending         int
@@ -393,6 +421,9 @@ func (l *RuntimeLifecycle) ResourceCounts() RuntimeResourceCounts {
 	if l.SQLite != nil {
 		counts.SQLiteWorkers, counts.SQLiteCallbacks, counts.SQLiteHandles = l.SQLite.ResourceCounts()
 	}
+	if l.Recorder != nil {
+		counts.RecorderWorkers, counts.RecorderPending, counts.RecorderSessions, counts.RecorderBackendLeases, counts.RecorderWriters = l.Recorder.ResourceCounts()
+	}
 	return counts
 }
 
@@ -411,11 +442,12 @@ func (c RuntimeResourceCounts) IsZero() bool {
 		c.CommandWorkers == 0 && c.CommandCallbacks == 0 && c.CommandProcesses == 0 &&
 		c.AudioPatternWorkers == 0 && c.AudioPatternPending == 0 && c.AudioPatternWatches == 0 && c.AudioPatternSessions == 0 &&
 		c.FileJSONWorkers == 0 && c.FileJSONCallbacks == 0 && c.FileJSONTemps == 0 &&
-		c.FileHandles == 0 && c.SQLiteWorkers == 0 && c.SQLiteCallbacks == 0 && c.SQLiteHandles == 0
+		c.FileHandles == 0 && c.SQLiteWorkers == 0 && c.SQLiteCallbacks == 0 && c.SQLiteHandles == 0 &&
+		c.RecorderWorkers == 0 && c.RecorderPending == 0 && c.RecorderSessions == 0 && c.RecorderBackendLeases == 0 && c.RecorderWriters == 0
 }
 
 func (c RuntimeResourceCounts) String() string {
-	return fmt.Sprintf("timers=%d httpWorkers=%d httpCallbacks=%d httpTemps=%d uiWorkers=%d uiPending=%d uiQueued=%d uiWindows=%d uiListeners=%d uiDriverSinks=%d uiHostProcesses=%d shortcutBindings=%d shortcutPending=%d eventSubscriptions=%d eventPending=%d captureWorkers=%d capturePending=%d captureSessions=%d appWorkers=%d appPending=%d accessibilityWorkers=%d accessibilityPending=%d accessibilityQueued=%d accessibilityRefs=%d accessibilityNativeResources=%d soundWorkers=%d soundPending=%d soundPlaybacks=%d notificationWorkers=%d notificationPending=%d commandWorkers=%d commandCallbacks=%d commandProcesses=%d audioPatternWorkers=%d audioPatternPending=%d audioPatternWatches=%d audioPatternSessions=%d fileJSONWorkers=%d fileJSONCallbacks=%d fileJSONTemps=%d fileHandles=%d sqliteWorkers=%d sqliteCallbacks=%d sqliteHandles=%d",
+	return fmt.Sprintf("timers=%d httpWorkers=%d httpCallbacks=%d httpTemps=%d uiWorkers=%d uiPending=%d uiQueued=%d uiWindows=%d uiListeners=%d uiDriverSinks=%d uiHostProcesses=%d shortcutBindings=%d shortcutPending=%d eventSubscriptions=%d eventPending=%d captureWorkers=%d capturePending=%d captureSessions=%d appWorkers=%d appPending=%d accessibilityWorkers=%d accessibilityPending=%d accessibilityQueued=%d accessibilityRefs=%d accessibilityNativeResources=%d soundWorkers=%d soundPending=%d soundPlaybacks=%d notificationWorkers=%d notificationPending=%d commandWorkers=%d commandCallbacks=%d commandProcesses=%d audioPatternWorkers=%d audioPatternPending=%d audioPatternWatches=%d audioPatternSessions=%d fileJSONWorkers=%d fileJSONCallbacks=%d fileJSONTemps=%d fileHandles=%d sqliteWorkers=%d sqliteCallbacks=%d sqliteHandles=%d recorderWorkers=%d recorderPending=%d recorderSessions=%d recorderBackendLeases=%d recorderWriters=%d",
 		c.Timers, c.HTTPWorkers, c.HTTPCallbacks, c.HTTPTemps, c.UIWorkers, c.UIPending, c.UIQueued,
 		c.UIWindows, c.UIListeners, c.UIDriverSinks, c.UIHostProcesses, c.ShortcutBindings, c.ShortcutPending,
 		c.EventSubscriptions, c.EventPending, c.CaptureWorkers, c.CapturePending, c.CaptureSessions,
@@ -424,7 +456,8 @@ func (c RuntimeResourceCounts) String() string {
 		c.NotificationWorkers, c.NotificationPending, c.CommandWorkers, c.CommandCallbacks, c.CommandProcesses,
 		c.AudioPatternWorkers, c.AudioPatternPending, c.AudioPatternWatches, c.AudioPatternSessions,
 		c.FileJSONWorkers, c.FileJSONCallbacks, c.FileJSONTemps, c.FileHandles,
-		c.SQLiteWorkers, c.SQLiteCallbacks, c.SQLiteHandles)
+		c.SQLiteWorkers, c.SQLiteCallbacks, c.SQLiteHandles,
+		c.RecorderWorkers, c.RecorderPending, c.RecorderSessions, c.RecorderBackendLeases, c.RecorderWriters)
 }
 
 func emitRuntimeLog(sink EventSink, level, message string, fields map[string]any) {
@@ -1041,6 +1074,17 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 	}); err != nil {
 		return fmt.Errorf("failed to register notify bridge: %w", err)
 	}
+	recorderRuntime, err := registerRecorder(runtime, opts)
+	if err != nil {
+		return fmt.Errorf("failed to register Recorder: %w", err)
+	}
+	recorderReady := false
+	defer func() {
+		if !recorderReady {
+			recorderRuntime.Close()
+			recorderRuntime.Wait()
+		}
+	}()
 
 	if err := loadPolyfillsWithSink(runtime, opts.EventSink); err != nil {
 		return fmt.Errorf("failed to load polyfills: %v", err)
@@ -1073,8 +1117,9 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 		return fmt.Errorf("failed to attach UI menu methods: %w", err)
 	}
 	if opts.OnReady != nil {
-		opts.OnReady(&RuntimeLifecycle{Timers: timer, HTTP: httpClient, Sound: sound, UI: uiRuntime, GlobalShortcut: globalShortcut, Events: events, ScreenCapture: screenCapture, App: appRuntime, Accessibility: accessibilityRuntime, Notifications: notificationsRuntime, Command: commandRuntime, AudioPatterns: audioPatterns, FileJSON: fileJSON, FileSystem: fileSystem, SQLite: sqliteRuntime})
+		opts.OnReady(&RuntimeLifecycle{Timers: timer, HTTP: httpClient, Sound: sound, UI: uiRuntime, GlobalShortcut: globalShortcut, Events: events, ScreenCapture: screenCapture, App: appRuntime, Accessibility: accessibilityRuntime, Notifications: notificationsRuntime, Command: commandRuntime, AudioPatterns: audioPatterns, FileJSON: fileJSON, FileSystem: fileSystem, SQLite: sqliteRuntime, Recorder: recorderRuntime})
 	}
+	recorderReady = true
 	return nil
 }
 

@@ -142,7 +142,7 @@ const recorder = {
     calls.start += 1;
     equal(options.within.processId, 4242, 'start target pid');
     equal(options.within.title, 'Recorder Fixture', 'start target title');
-    equal(options.evidence, 'none', 'capture evidence policy');
+    equal(options.evidence, 'target-semantics', 'capture evidence policy');
     return makeSession();
   },
   async buildActions(recordingDir) {
@@ -313,7 +313,7 @@ equal(app.state().run.stdout, 'fixture stdout', 'test-run stdout');
 const pendingReplay = app.runGenerated();
 await Promise.resolve();
 equal(app.state().phase, 'run-countdown', 'second test-run must allow time to restore the starting desktop');
-for (let index = 0; index < 20 && app.state().phase !== 'running'; index += 1) await Promise.resolve();
+for (let index = 0; index < 200 && app.state().phase !== 'running'; index += 1) await Promise.resolve();
 equal(app.state().phase, 'running', 'second test-run phase');
 await app.close();
 await pendingReplay;

@@ -32,7 +32,7 @@ function timeoutFixture() {
       ? commandFixture('echo|set /p=%OPENDESK_RUNTIME_API_RUN_ID%')
       : commandFixture('printf %s "$OPENDESK_RUNTIME_API_RUN_ID"');
     const inherited = await Command.run(inheritedFixture.command, inheritedFixture.args);
-    equal(inherited.stdout, Execution.env.OPENDESK_RUNTIME_API_RUN_ID, 'Command default environment differs from Execution.env');
+    equal(inherited.stdout, Execution.env.OPENDESK_RUNTIME_API_RUN_ID || '', 'Command default environment differs from Execution.env');
 
     const fixture = System.getPlatformInfo().os === 'windows'
       ? commandFixture('set /p OPENDESK_INPUT=& echo|set /p=out:%OPENDESK_INPUT%:%OPENDESK_COMMAND_TEST%& echo err 1>&2')
@@ -103,6 +103,59 @@ function timeoutFixture() {
       startError = error;
     }
     assert(startError && startError.code === 'START_FAILED', String(startError));
+  });
+
+  test({
+    name: 'Command.run AbortSignal prevents start, cancels in-flight work, and removes listeners',
+    tier: 'unit',
+    covers: ['Command.run'],
+  }, async () => {
+    const preCanceled = new AbortController();
+    preCanceled.abort('cancel before launch');
+    let preCanceledError = null;
+    try {
+      await Command.run('opendesk-command-that-must-not-start-37cdd957', [], {signal: preCanceled.signal});
+    } catch (error) {
+      preCanceledError = error;
+    }
+    assert(preCanceledError && preCanceledError.code === 'CANCELED', String(preCanceledError));
+
+    const controller = new AbortController();
+    const signal = controller.signal;
+    const originalAdd = signal.addEventListener;
+    const originalRemove = signal.removeEventListener;
+    let added = 0;
+    let removed = 0;
+    signal.addEventListener = function(type, listener) {
+      added += 1;
+      return originalAdd.call(this, type, listener);
+    };
+    signal.removeEventListener = function(type, listener) {
+      removed += 1;
+      return originalRemove.call(this, type, listener);
+    };
+    const slow = timeoutFixture();
+    const startedAt = Date.now();
+    const pending = Command.run(slow.command, slow.args, {signal});
+    setTimeout(() => controller.abort('cancel in flight'), 40);
+    let canceledError = null;
+    try {
+      await pending;
+    } catch (error) {
+      canceledError = error;
+    }
+    assert(canceledError && canceledError.code === 'CANCELED', String(canceledError));
+    assert(Date.now() - startedAt < 1500, 'AbortSignal did not cancel the command promptly');
+    equal(added, 1, 'abort listener registration count');
+    equal(removed, 1, 'abort listener cleanup count');
+
+    let invalidSignalError = null;
+    try {
+      await Command.run(slow.command, slow.args, {signal: {aborted: false}});
+    } catch (error) {
+      invalidSignalError = error;
+    }
+    assert(invalidSignalError && invalidSignalError.code === 'INVALID_ARGUMENT', String(invalidSignalError));
   });
 })();
 

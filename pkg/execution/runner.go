@@ -96,6 +96,10 @@ type Request struct {
 	// separate explicit capability because SQLite.open accepts filesystem paths;
 	// HTTP, MCP, and Scheduler requests leave it false by default.
 	EnableSQLite bool
+	// EnableRecorderCapture is deliberately narrower than local filesystem
+	// access: only an explicit trusted local CLI invocation may start global
+	// input capture. Saved-file Recorder production remains available otherwise.
+	EnableRecorderCapture bool
 	// SQLiteProtectedPaths supplies additional internal database files that a
 	// local SQLite Runtime must not open (for example a configured Scheduler
 	// store). The automation owner also protects the default Scheduler path.
@@ -117,6 +121,12 @@ type Request struct {
 	// AccessibilityBackendFactory is an internal test seam for deterministic
 	// native Accessibility query, action, cancellation, and lifecycle coverage.
 	AccessibilityBackendFactory automation.AccessibilityBackendFactory
+	// RecorderBackendFactory and RecorderWindowProbe are internal seams for
+	// deterministic Runtime lifecycle tests. Product execution uses libuiohook
+	// plus the native foreground-window probe.
+	RecorderBackendFactory  automation.RecorderBackendFactory
+	RecorderWindowProbe     automation.RecorderWindowProbe
+	RecorderDisplayResolver func() []automation.DisplayInfo
 	// Timeout is the exact execution deadline used by transports that accept
 	// sub-minute timeouts. TimeoutMinutes remains for CLI compatibility.
 	Timeout   time.Duration
@@ -341,6 +351,8 @@ func runJavaScript(req Request, emitter *Emitter) error {
 				EnableDownload:                  req.EnableDownload,
 				EnableAccessibility:             req.EnableAccessibility,
 				EnableSQLite:                    req.EnableSQLite,
+				EnableRecorderCapture:           req.EnableRecorderCapture,
+				ExecutionID:                     req.ExecutionID,
 				SQLiteProtectedPaths:            req.SQLiteProtectedPaths,
 				CustomUIActivationSource:        normalizeCustomUIActivationSource(req),
 				CustomUIDriver:                  req.CustomUIDriver,
@@ -351,6 +363,9 @@ func runJavaScript(req Request, emitter *Emitter) error {
 				DesktopEventBackendFactory:      req.DesktopEventBackendFactory,
 				AudioCaptureBackendFactory:      req.AudioCaptureBackendFactory,
 				AccessibilityBackendFactory:     req.AccessibilityBackendFactory,
+				RecorderBackendFactory:          req.RecorderBackendFactory,
+				RecorderWindowProbe:             req.RecorderWindowProbe,
+				ScreenCaptureDisplayResolver:    req.RecorderDisplayResolver,
 				OnAsyncError:                    onAsyncError,
 				OnReady:                         func(resources *automation.RuntimeLifecycle) { lifecycle = resources },
 			}); err != nil {
@@ -445,8 +460,11 @@ func runJavaScript(req Request, emitter *Emitter) error {
 				"fileJSONWorkers": resources.FileJSONWorkers, "fileJSONCallbacks": resources.FileJSONCallbacks,
 				"fileJSONTemps": resources.FileJSONTemps, "fileHandles": resources.FileHandles,
 				"sqliteWorkers": resources.SQLiteWorkers, "sqliteCallbacks": resources.SQLiteCallbacks,
-				"sqliteHandles": resources.SQLiteHandles,
-				"uiWorkers":     resources.UIWorkers, "uiPending": resources.UIPending,
+				"sqliteHandles":   resources.SQLiteHandles,
+				"recorderWorkers": resources.RecorderWorkers, "recorderPending": resources.RecorderPending,
+				"recorderSessions": resources.RecorderSessions, "recorderBackendLeases": resources.RecorderBackendLeases,
+				"recorderWriters": resources.RecorderWriters,
+				"uiWorkers":       resources.UIWorkers, "uiPending": resources.UIPending,
 				"uiQueued": resources.UIQueued, "uiWindows": resources.UIWindows,
 				"uiListeners": resources.UIListeners, "uiDriverSinks": resources.UIDriverSinks,
 				"uiHostProcesses":  resources.UIHostProcesses,

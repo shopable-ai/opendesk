@@ -55,6 +55,7 @@
     "Use the frozen Execution.env snapshot for local project and inherited OS environment values. Local executions merge .env, .opendesk.env, then the environment supplied when the OpenDesk process started; they do not parse shell startup files. Windows names are uppercase. Remote and scheduled executions do not inherit host environment secrets.",
     "Command is an execution-owned native command runner, not Node.js child_process. Local -script and ai run executions enable it by default; HTTP, MCP, and Scheduler executions disable it. Use Command.run(executable,args,options) without shell command interpolation.",
     "SQLite is a first-party, Promise-only local Runtime API, not a Native Extension. Use SQLite.open({path, mode}) and the returned handle's query/exec/batch/close methods with bound parameters; it is enabled only for trusted local script/AI executions and is absent from HTTP, MCP, and Scheduler to avoid granting remote filesystem database access.",
+    "Recorder is one execution-owned local Runtime object. Global input capture requires the explicit trusted local -allow-recorder-capture flag; within is initial provenance rather than a persistent input filter, and action-level application/window context supports intentional app and window switches. Ordinary hover motion is filtered, while button-held motion is retained. target-semantics records label-only point-hit Accessibility evidence and bubbles through at most six parents to the nearest actionable control, without AX values, screenshots, OCR, or trees. HTTP, MCP, Scheduler, JavaScript options, and environment variables cannot grant capture. Recorder.buildActions and Recorder.generateScript remain available without capture permission, reread fixed files, never call a model, never overwrite an existing candidate, and never auto-replay.",
     "Use the native lowercase path global for platform path-string operations. path.resolve and path.relative use the immutable Execution.workdir, not the host process cwd; path never performs filesystem I/O or symlink resolution.",
     "Do not use retired TestMonkey documentation as a current API authority."
   ],
@@ -247,6 +248,35 @@
         "isRegistered",
         "unregisterAll"
       ]
+    },
+    {
+      "name": "Recorder",
+      "source": "native execution owner + static libuiohook adapter + JavaScript facade",
+      "status": "experimental-local",
+      "platforms": [
+        "darwin",
+        "windows",
+        "linux-x11"
+      ],
+      "doc": "recorder-runtime.md",
+      "types": "types/recorder.d.ts",
+      "keyMethods": [
+        "getCapabilities",
+        "start",
+        "buildActions",
+        "generateScript"
+      ],
+      "sessionMethods": [
+        "status",
+        "pause",
+        "resume",
+        "excludeControlClick",
+        "stop"
+      ],
+      "captureAuthorization": "Only a trusted local -script invocation with -allow-recorder-capture may start the process-wide listener. The option object and Execution.env cannot grant capture.",
+      "captureScope": "within requires an exact initial foreground PID and title. The owner fails closed when polling observes a mismatch while recording; a paused session may leave the target, but resume revalidates the exact scope before accepting input. This is monitoring rather than an OS-level hook filter.",
+      "platformBehavior": "macOS and Windows use the same pinned libuiohook 1.2.2 adapter and data contract. Linux is X11-only. Wayland full-desktop capture is explicitly unsupported.",
+      "production": "Session control uses explicit idempotent pause and resume methods; toggle is only a serialized UI adaptation. Pause retains the native hook lease, drops input content before normalization, records pause/resume boundaries, and counts against maxDurationMs. excludeControlClick consumes an unmodified live Custom UI click event and records an auditable boundary with explicit native event IDs so its pointer envelope cannot become a generated target action. buildActions rereads the actual manifest plus raw NDJSON and writes versioned actions; a missing terminal manifest or damaged final partial line yields only a validated-prefix, blocked revision. A complete <=4-point libuiohook press/drag/release jitter envelope becomes an auditable click, while a real drag remains blocked. generateScript rereads strict ready actions, verifies the pinned raw byte reference, and emits a sleep for every non-pause inter-action gap. Recorded gaps are divided by a configurable speedMultiplier and clamped to configurable minimumDelayMs/maximumDelayMs bounds (defaults: 1x, 500ms, 30000ms); the resolved policy is returned and pinned in the v2 candidate. Generation exclusively creates ordinary basic JavaScript plus a not-run candidate; it starts neither capture nor replay."
     },
     {
       "name": "touchscreen",
@@ -494,11 +524,11 @@
         "run"
       ],
       "availability": "Enabled by default for local -script and ai run executions. Disabled for HTTP, MCP, and Scheduler executions.",
-      "signature": "Command.run(command, args?, {cwd?, env?, input?, timeout?, maxOutputBytes?}) -> Promise<{exitCode,stdout,stderr}>",
+      "signature": "Command.run(command, args?, {cwd?, env?, input?, timeout?, maxOutputBytes?, signal?}) -> Promise<{exitCode,stdout,stderr}>",
       "capabilities": "getCapabilities returns only schemaVersion=1, enabled, supported, and executionScoped=true.",
       "errors": "CommandError exposes name, code, exitCode, stdout, and stderr.",
       "safety": "run executes an executable directly with an optional argument array. Combined stdout/stderr is bounded; shell interpretation, streaming handles, detached/unref, IPC, and PTY are not exposed.",
-      "lifecycle": "The enclosing execution stays alive while a command runs, and teardown terminates remaining command processes."
+      "lifecycle": "The enclosing execution stays alive while a command runs. AbortSignal, timeout, and teardown terminate the same execution-owned process group and remove the signal listener."
     },
     {
       "name": "path",

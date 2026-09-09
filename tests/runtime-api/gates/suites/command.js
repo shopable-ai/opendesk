@@ -5,7 +5,7 @@
 const { ROOT_DIR, RUN_DIR, CONTEXT, fail, readJSON, recordWatchdog, generate, executeProcess, runJS, verifyZeroCleanup, noResidual } = context;
 
 async function commandGate() {
-  await runJS('command', File.join(ROOT_DIR, 'tests', 'runtime-api', 'command.js'), 2, 90);
+  await runJS('command', File.join(ROOT_DIR, 'tests', 'runtime-api', 'command.js'), 3, 90);
   await verifyZeroCleanup('command');
   const context = await readJSON(CONTEXT);
   if (!/^(MINGW|MSYS)/.test(context.environment.os)) {

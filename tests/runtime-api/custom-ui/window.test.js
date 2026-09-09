@@ -120,17 +120,17 @@
     tier: 'custom-ui',
     covers: ['ui.createWindow', 'WindowHandle.close', 'WindowHandle.waitUntilClosed', 'WindowHandle.control', 'WindowHandle.on'],
   }, async () => {
-    const recordingController = File.read(File.join(File.cwd(), 'examples', 'custom-ui', 'recording-console.js'));
+    const recordingController = File.read(File.join(File.cwd(), 'examples', 'custom-ui', 'recording-console', 'controller.js'));
     for (const fragment of [
-      'let settings = null;',
-      'let settingsGeneration = 0;',
-      'async function withSettings(update)',
-      'panel.on("close"',
-      'async function createSettingsWindow()'
+      'let details = null;',
+      'let detailsGeneration = 0;',
+      'async function withDetails(update)',
+      "panel.on('close'",
+      'async function createDetailsWindow()'
     ]) {
       assert(recordingController.includes(fragment), 'recording console lost lifecycle protection: ' + fragment);
     }
-    assert(!/settings\.control\s*\(/.test(recordingController), 'recording console directly accesses a replaceable workbench handle');
+    assert(!/details\.control\s*\(/.test(recordingController), 'recording console directly accesses a replaceable details handle');
 
     const html = '<!doctype html><html><head><meta charset="utf-8"></head><body>'
       + '<header id="drag" data-clawdesk-drag>Lifecycle</header><button id="action">Action</button><span id="status">Ready</span>'
@@ -204,80 +204,68 @@
   });
 
   test({
-    name: 'ui.createWindow renders the compact file-backed recording tray and expandable settings page',
+    name: 'ui.createWindow renders the file-backed Recorder workflow surfaces',
     tier: 'custom-ui',
     covers: ['ui.createWindow'],
   }, async () => {
     const exampleRoot = File.join(File.cwd(), 'examples', 'custom-ui', 'recording-console');
     const fixtureDir = File.join(RuntimeAPITest.context.runDir, 'generated', 'recording-console');
     await File.ensureDir(fixtureDir);
-    const fixtureIconDir = File.join(fixtureDir, 'icons');
-    await File.ensureDir(fixtureIconDir);
     await File.write(File.join(fixtureDir, 'recorder.html'), File.read(File.join(exampleRoot, 'recorder.html')));
     await File.write(File.join(fixtureDir, 'recorder.css'), File.read(File.join(exampleRoot, 'recorder.css')));
     await File.write(File.join(fixtureDir, 'tray.html'), File.read(File.join(exampleRoot, 'tray.html')));
     await File.write(File.join(fixtureDir, 'tray.css'), File.read(File.join(exampleRoot, 'tray.css')));
-    for (const icon of [
-      'screen.png', 'region.png', 'audio.png', 'camera.png', 'window.png', 'microphone.png',
-      'pointer.png', 'pause.png', 'stop.png', 'timer.png', 'snapshot.png', 'tools.png', 'library.png'
-    ]) {
-      await File.copy(File.join(exampleRoot, 'icons', icon), File.join(fixtureIconDir, icon));
-    }
 
     const tray = await ui.createWindow({
-      id: 'recordingTrayFixture', kind: 'floating', title: 'OpenDesk 录屏',
+      id: 'recordingTrayFixture', kind: 'floating', title: '',
       // Native titlebar is part of the reviewed window frame.
-      bounds: { x: 260, y: 130, width: 895, height: 272 }, alwaysOnTop: true, draggable: true, theme: 'dark',
+      bounds: { x: 260, y: 130, width: 780, height: 304 }, alwaysOnTop: true, draggable: true, theme: 'dark',
       content: { html: 'recording-console/tray.html', cssFile: 'recording-console/tray.css' },
     });
     const trayIDs = tray.controls().map(control => control.id);
     for (const id of [
-      'trayShell', 'trayDrag', 'trayState', 'trayMode', 'trayRegion', 'trayAudio', 'trayCamera', 'trayCapture',
-      'trayStart', 'trayPause', 'trayStop', 'trayExpand', 'trayWorkspace', 'trayExpanded', 'trayClose',
-      'trayTimer', 'trayRunningTarget', 'trayRunningCamera', 'trayRunningDraw', 'trayRunningWindow',
-      'traySourceFull', 'traySourceRegion', 'traySourceWindow', 'trayOptionSystemAudio',
-      'trayOptionMicrophone', 'trayOptionCamera', 'trayOptionMousePointer', 'trayQuickSchedule',
-      'trayFrameRate', 'trayQuality'
+      'trayDrag', 'trayState', 'trayClose', 'trayTarget', 'trayPrepareStage', 'trayCaptureStage',
+      'traySaveStage', 'trayActionsStage', 'trayGenerateStage', 'trayRunStage', 'trayDetail', 'trayError',
+      'trayCounts', 'trayArtifact', 'trayDetails', 'trayCancel', 'trayReset', 'trayStop', 'trayPause',
+      'trayGenerate', 'trayRun', 'trayStart'
     ]) {
       assert(trayIDs.includes(id), 'recording tray control is missing: ' + id);
     }
     const trayShown = await tray.show();
     assert(trayShown.onScreen && trayShown.alpha > 0 && trayShown.hostPid > 0 && trayShown.nativeWindowId > 0);
-    equal(trayShown.bounds.width, 895);
-    equal(trayShown.bounds.height, 272);
+    equal(trayShown.bounds.width, 780);
+    equal(trayShown.bounds.height, 304);
     const evidenceDir = File.join(RuntimeAPITest.context.runDir, 'runtime-logs', 'custom-ui', 'recording-console');
     await File.ensureDir(evidenceDir);
     const trayCapture = await Screen.screenshot({ clip: trayShown.bounds, path: File.join(evidenceDir, 'tray.png'), returnType: 'object' });
     assert(trayCapture.sizeBytes > 100 && await File.exists(File.join(evidenceDir, 'tray.png')), 'recording tray screenshot was not written');
     // Verify the same public control mutations used by the controller without
-    // routing a physical click to a Recorder-adjacent surface.
+    // starting the native listener in this structural test.
     await tray.control('trayState').update({ text: '录制中', classes: ['tray-state', 'is-recording'] });
     await tray.control('trayStart').update({ disabled: true });
-    await tray.control('trayPause').update({ disabled: false });
     await tray.control('trayStop').update({ disabled: false });
+    await tray.control('trayGenerate').update({ disabled: true });
     equal((await tray.control('trayState').getState()).text, '录制中');
     assert((await tray.control('trayStart').getState()).disabled);
-    assert(!(await tray.control('trayPause').getState()).disabled);
     assert(!(await tray.control('trayStop').getState()).disabled);
-    await tray.setBounds({ ...trayShown.bounds, height: 426 });
-    await tray.control('trayExpanded').update({ visible: true });
-    const expanded = await tray.getState();
-    assert(expanded.onScreen && expanded.alpha > 0);
-    equal(expanded.bounds.height, 426);
-    const expandedPath = File.join(evidenceDir, 'tray-expanded.png');
-    const expandedCapture = await Screen.screenshot({ clip: expanded.bounds, path: expandedPath, returnType: 'object' });
-    assert(expandedCapture.sizeBytes > 100 && await File.exists(expandedPath), 'expanded recording tray screenshot was not written');
+    assert((await tray.control('trayGenerate').getState()).disabled);
 
     const panel = await ui.createWindow({
       id: 'recordingSettingsFixture', kind: 'floating', title: '',
-      bounds: { x: 180, y: 120, width: 860, height: 610 }, alwaysOnTop: true, draggable: true, theme: 'dark',
+      bounds: { x: 180, y: 120, width: 900, height: 700 }, alwaysOnTop: true, draggable: true, theme: 'dark',
       content: { html: 'recording-console/recorder.html', cssFile: 'recording-console/recorder.css' },
     });
     const ids = panel.controls().map(control => control.id);
-    for (const id of ['dragbar', 'collapse', 'modeFull', 'modeRegion', 'modeWindow', 'systemAudio', 'microphone', 'camera', 'mousePointer', 'frameRate', 'quality', 'start', 'pause', 'capture', 'stop', 'recordingState', 'recordingDetail']) {
+    for (const id of [
+      'dragbar', 'collapse', 'close', 'recordingState', 'captureTarget', 'keyboardCapture',
+      'stagePrepare', 'stageCapture', 'stageSave', 'stageActions', 'stageGenerate', 'stageRun',
+      'recordingDetail', 'recordingError', 'refresh', 'artifactPath', 'recordingCounts', 'actionIssues',
+      'scriptPath', 'scriptPreview', 'copyScript', 'runSummary', 'runOutput',
+      'cancel', 'reset', 'stop', 'pause', 'generate', 'runScript', 'start'
+    ]) {
       assert(ids.includes(id), 'recording console control is missing: ' + id);
     }
-    await panel.control('recordingDetail').update({ text: 'Native file-backed preview ready.' });
+    await panel.control('recordingDetail').update({ text: 'Recorder Runtime workflow fixture ready.' });
     const shown = await panel.show();
     assert(shown.onScreen && shown.alpha > 0 && shown.hostPid > 0 && shown.nativeWindowId > 0);
     const screenshotPath = File.join(evidenceDir, 'visible.png');

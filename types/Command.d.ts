@@ -12,6 +12,8 @@ declare global {
     timeout?: number;
     /** Combined stdout/stderr byte bound; defaults to 4 MiB and cannot exceed 64 MiB. */
     maxOutputBytes?: number;
+    /** Cancels the execution-owned command and its process group when aborted. */
+    signal?: AbortSignal | null;
   }
 
   interface OpenDeskCommandResult {

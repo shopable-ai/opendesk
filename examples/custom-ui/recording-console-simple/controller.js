@@ -440,7 +440,7 @@
             within: target,
             captureKeyboard: !!settings.captureKeyboard,
             ...(settings.captureKeyboard ? {keyboardContent: 'non-sensitive-test'} : {}),
-            evidence: 'none',
+            evidence: 'target-semantics',
             ...(settings.outputDir ? {outputDir: settings.outputDir} : {}),
             ...(Number.isFinite(settings.maxDurationMs) ? {maxDurationMs: settings.maxDurationMs} : {}),
             controlKeycodes: Array.isArray(settings.controlKeycodes) ? settings.controlKeycodes.slice() : [],

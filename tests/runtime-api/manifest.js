@@ -12,6 +12,14 @@ globalThis.RuntimeAPIObjects = {
   ], compatibilityMethods: ['browser', 'context'] },
   mouse: { docs: 'docs/api/mouse.md', types: 'types/mouse.d.ts', source: 'automation/mouse.go + polyfills/005-geometry.js', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: ['click', 'clickPoint', 'clickForPID', 'move', 'down', 'up', 'getPos', 'wheel'] },
   keyboard: { docs: 'docs/api/input.md', types: 'types/keyboard.d.ts', source: 'automation/keyboard.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: ['type', 'press', 'down', 'up', 'combination'] },
+  Recorder: {
+    docs: 'docs/api/recorder-runtime.md', types: 'types/recorder.d.ts',
+    source: 'automation/recorder*.go + polyfills/008-recorder.js', status: 'experimental-local',
+    platforms: ['darwin', 'windows', 'linux'],
+    authorization: 'explicit-local-capture',
+    methods: ['getCapabilities', 'start', 'buildActions', 'generateScript'],
+    sessionMethods: ['status', 'pause', 'resume', 'excludeControlClick', 'stop'],
+  },
   globalShortcut: { docs: 'docs/api/global-shortcut.md', types: 'types/globalShortcut.d.ts', source: 'automation/global_shortcut.go', status: 'stable', platforms: ['darwin', 'windows'], methods: ['register', 'unregister', 'isRegistered', 'unregisterAll'] },
   Events: { docs: 'docs/api/events.md', types: 'types/Events.d.ts', source: 'automation/desktop_events.go', status: 'experimental', platforms: ['darwin', 'linux', 'windows'], methods: ['on', 'once', 'getCapabilities'] },
   App: { docs: 'docs/api/app.md', types: 'types/App.d.ts', source: 'automation/app.go + automation/app_name.go + automation/app_backend*.go', status: 'experimental', platforms: ['darwin', 'linux', 'windows'], methods: [
@@ -130,6 +138,7 @@ const unitBehavior = new Set([
   ...RuntimeAPIObjects.page.methods.filter((method) => !['captureScreen', 'openMacOSPrivacySettings', 'requestMacAutomationPermission'].includes(method)).map((method) => 'page.' + method),
   ...RuntimeAPIObjects.mouse.methods.map((method) => 'mouse.' + method),
   ...RuntimeAPIObjects.keyboard.methods.map((method) => 'keyboard.' + method),
+  ...RuntimeAPIObjects.Recorder.methods.map((method) => 'Recorder.' + method),
   ...RuntimeAPIObjects.Events.methods.map((method) => 'Events.' + method),
   ...RuntimeAPIObjects.App.methods.map((method) => 'App.' + method),
   ...RuntimeAPIObjects.Accessibility.methods.map((method) => 'Accessibility.' + method),
@@ -333,6 +342,11 @@ globalThis.RuntimeAPITestFiles = {
   accessibilityNativeMacOS: [
     'tests/runtime-api/accessibility-native-macos.js',
   ],
+  // Explicit opt-in because it starts the native hook and sends real input to
+  // the disposable macOS Calculator fixture.
+  recorderNativeMacOS: [
+    'tests/runtime-api/recorder-native-calculator-macos.js',
+  ],
   async: [
     'tests/runtime-api/async-lifecycle.js',
   ],
@@ -349,6 +363,7 @@ globalThis.RuntimeAPITestFiles = {
     'tests/runtime-api/unit/page.test.js',
     'tests/runtime-api/unit/mouse.test.js',
     'tests/runtime-api/unit/keyboard.test.js',
+    'tests/runtime-api/unit/recorder.test.js',
     'tests/runtime-api/unit/global-shortcut.test.js',
     'tests/runtime-api/unit/events.test.js',
     'tests/runtime-api/unit/app.test.js',

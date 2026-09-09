@@ -406,6 +406,7 @@ tests/runtime-api/live/composition-replay.test.js
 
 ```text
 tests/runtime-api/custom-ui/window.test.js
+tests/runtime-api/custom-ui/recording-console.test.js
 tests/runtime-api/custom-ui/floating-window-layout.test.js
 tests/runtime-api/custom-ui/floating-window-vertical.test.js
 tests/runtime-api/custom-ui/floating-window-callback.test.js

@@ -219,7 +219,7 @@ test('HTTP download runs both loopback fixture sessions and verifies cleanup', a
   const File = {
     join: path.posix.join,
     isFile: file => file.endsWith('.pid'),
-    read: file => file.includes('http-response-types') ? '321\\n' : '654\\n',
+    read: file => file.includes('http-response-types') ? '321\n' : '654\n',
   };
   await suite('http-download', context, { File }).httpDownload();
   assert.deepEqual(plain(calls), [
