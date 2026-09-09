@@ -56,6 +56,16 @@ CFRunLoopRef event_loop;
 // Flag to restart the event tap incase of timeout.
 static Boolean restart_tap = false;
 
+// OpenDesk configures this immediately before hook_run(). Recorder defaults to
+// not capturing keyboard content, so its event tap must not subscribe to key
+// events only to discard them after libuiohook has synchronously translated
+// them on the embedding CLI process's main dispatch queue.
+static bool opendesk_capture_keyboard = true;
+
+void opendesk_uiohook_set_capture_keyboard(bool enabled) {
+    opendesk_capture_keyboard = enabled;
+}
+
 // Modifiers for tracking key masks.
 static uint16_t current_modifiers = 0x0000;
 
@@ -1147,11 +1157,7 @@ static int create_event_runloop_info(event_runloop_info **hook) {
     }
 
     // Setup the event mask to listen for.
-    CGEventMask event_mask = CGEventMaskBit(kCGEventKeyDown) |
-            CGEventMaskBit(kCGEventKeyUp) |
-            CGEventMaskBit(kCGEventFlagsChanged) |
-
-            CGEventMaskBit(kCGEventLeftMouseDown) |
+    CGEventMask event_mask = CGEventMaskBit(kCGEventLeftMouseDown) |
             CGEventMaskBit(kCGEventLeftMouseUp) |
             CGEventMaskBit(kCGEventLeftMouseDragged) |
 
@@ -1164,11 +1170,17 @@ static int create_event_runloop_info(event_runloop_info **hook) {
             CGEventMaskBit(kCGEventOtherMouseDragged) |
 
             CGEventMaskBit(kCGEventMouseMoved) |
-            CGEventMaskBit(kCGEventScrollWheel) |
+            CGEventMaskBit(kCGEventScrollWheel);
 
-            // NOTE This event is undocumented and used
-            // for caps-lock release and multi-media keys.
-            CGEventMaskBit(NX_SYSDEFINED);
+    if (opendesk_capture_keyboard) {
+        event_mask |= CGEventMaskBit(kCGEventKeyDown) |
+                CGEventMaskBit(kCGEventKeyUp) |
+                CGEventMaskBit(kCGEventFlagsChanged) |
+
+                // NOTE This event is undocumented and used
+                // for caps-lock release and multi-media keys.
+                CGEventMaskBit(NX_SYSDEFINED);
+    }
 
     // Create the event tap.
     (*hook)->port = CGEventTapCreate(
@@ -1427,6 +1439,14 @@ UIOHOOK_API int hook_stop() {
 
         // Stop the run loop.
         CFRunLoopStop(event_loop);
+
+        // CFRunLoopStop only marks the current invocation as stopped.  When
+        // hook_stop is called from Recorder's JavaScript thread the hook run
+        // loop can be asleep waiting for its event source, so it must also be
+        // woken explicitly or hook_run may not return until another native
+        // input arrives.  That leaves Recorder's process-wide capture lease
+        // occupied and makes an otherwise clean stop hit its deadline.
+        CFRunLoopWakeUp(event_loop);
 
         // Cleanup native input functions.
         unload_input_helper();

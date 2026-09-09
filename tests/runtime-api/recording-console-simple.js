@@ -14,6 +14,14 @@ function equal(actual, expected, message) {
   }
 }
 
+async function waitFor(predicate, message) {
+  for (let index = 0; index < 200; index += 1) {
+    if (predicate()) return;
+    await Promise.resolve();
+  }
+  throw new Error(message);
+}
+
 class FakeFloatingWindow {
   constructor(options) {
     this.id = 'recording-console-simple-fixture';
@@ -76,10 +84,34 @@ const fixtureRoot = File.join(
 );
 File.ensureDir(fixtureRoot);
 const generatedScript = File.join(fixtureRoot, 'basic.recipe.js');
+const generatedCandidate = File.join(fixtureRoot, 'basic.candidate.json');
+const actionsFile = File.join(fixtureRoot, 'actions.json');
 const generatedSource = "'use strict';\nconsole.log('recording-console-simple fixture');\n";
 File.write(generatedScript, generatedSource);
+File.write(actionsFile, JSON.stringify({
+  formatVersion: 'opendesk.recorder.actions/v2',
+  revision: 1,
+  readiness: 'ready',
+  issues: [{code: 'semantic-unavailable', message: 'DO_NOT_COPY_ISSUE_TEXT'}],
+  raw: {file: 'raw/events.ndjson', content: 'DO_NOT_COPY_RAW_CONTENT'},
+  actions: [
+    {
+      id: 'a0001', kind: 'click', text: 'DO_NOT_COPY_ACTION_TEXT',
+      target: {semanticStatus: 'verified', element: {name: 'DO_NOT_COPY_AX_NAME', AXValue: 'DO_NOT_COPY_AX_VALUE'}},
+    },
+    {
+      id: 'a0002', kind: 'click',
+      target: {semanticStatus: 'unavailable', semanticReason: 'DO_NOT_COPY_SEMANTIC_REASON'},
+    },
+    {
+      id: 'a0003', kind: 'key', args: {text: 'DO_NOT_COPY_KEYBOARD_TEXT'},
+      target: {semanticStatus: 'not-requested'},
+    },
+  ],
+}));
 
-const calls = {start: 0, exclude: 0, pause: 0, resume: 0, stop: 0, build: 0, generate: 0, replay: 0, finder: 0, dialog: 0};
+const calls = {start: 0, exclude: 0, pause: 0, resume: 0, stop: 0, build: 0, generate: 0, replay: 0, finder: 0, dialog: 0, copy: 0};
+const copiedPrompts = [];
 const startHandoffTimeline = [];
 let captureState = 'recording';
 const counts = {observed: 4, accepted: 4, persisted: 4, filtered: 0, paused: 0, dropped: 0, late: 0};
@@ -108,8 +140,9 @@ function makeSession() {
     async excludeControlClick(event) {
       calls.exclude += 1;
       equal(event.windowId, 'recording-console-simple-fixture', 'control boundary window id');
-      assert(event.targetId === 'pause' || event.targetId === 'stop', 'unexpected control boundary target');
-      return {changed: true, transitionSequence: String(6 + calls.exclude), eventIds: ['e000000000001']};
+      assert(event.targetId === 'capture' || event.targetId === 'stop', 'unexpected control boundary target');
+      assert(event.bounds && event.bounds.width > 0 && event.bounds.height > 0, 'control boundary screen bounds');
+      return {changed: true, transitionSequence: String(6 + calls.exclude), eventIds: ['e000000000001'], matchStatus: 'matched'};
     },
     async stop() {
       calls.stop += 1;
@@ -149,18 +182,20 @@ const recorder = {
     calls.build += 1;
     equal(recordingDir, fixtureRoot, 'actions recording directory');
     return {
-      actionsFile: File.join(fixtureRoot, 'actions.json'),
-      revision: 1, actionCount: 1, readiness: 'ready', issues: [],
+      actionsFile,
+      revision: 1, actionCount: 3, readiness: 'ready', issues: [],
     };
   },
   async generateScript(actionsFile, options) {
     calls.generate += 1;
     equal(actionsFile, File.join(fixtureRoot, 'actions.json'), 'generation actions file');
     equal(options.mode, 'basic', 'generation mode');
+    assert(!FakeFloatingWindow.instance.buttons.get('agentPrompt').state.disabled,
+      'actions-ready must enable Agent prompt before generation');
     return {
       scriptFile: generatedScript,
-      candidateFile: File.join(fixtureRoot, 'basic.candidate.json'),
-      actionsSha256: 'actions-fixture', scriptSha256: 'script-fixture',
+      candidateFile: generatedCandidate,
+      actionsSha256: 'a'.repeat(64), scriptSha256: 'script-fixture',
       constraints: ['fixture'], verification: 'not-run',
       timing: {minimumDelayMs: 500, maximumDelayMs: 30000, speedMultiplier: 1},
     };
@@ -208,6 +243,18 @@ const controllerPath = File.join(
 );
 (0, eval)(File.read(controllerPath) + '\n//# sourceURL=' + controllerPath);
 assert(globalThis.OpenDeskSimpleRecordingConsole, 'simple controller did not install its namespace');
+const deterministicPromptInput = {
+  execution: Execution,
+  saved: {recordingDir: fixtureRoot},
+  actions: {actionsFile, revision: 1, readiness: 'ready', issues: []},
+  generated: {scriptFile: generatedScript, candidateFile: generatedCandidate, actionsSha256: 'a'.repeat(64)},
+  actionsDocument: JSON.parse(File.read(actionsFile)),
+};
+equal(
+  OpenDeskSimpleRecordingConsole.buildAgentRefinementPrompt(deterministicPromptInput),
+  OpenDeskSimpleRecordingConsole.buildAgentRefinementPrompt(deterministicPromptInput),
+  'Agent prompt builder must be deterministic for the same input',
+);
 
 const app = OpenDeskSimpleRecordingConsole.createApp({
   recorder,
@@ -218,6 +265,10 @@ const app = OpenDeskSimpleRecordingConsole.createApp({
   FloatingWindow: FakeFloatingWindow,
   dialog,
   command,
+  copyText: async text => {
+    calls.copy += 1;
+    copiedPrompts.push(text);
+  },
   file: File,
   execution: Execution,
   sleep: async () => {},
@@ -234,15 +285,23 @@ equal(toolbar.options.toolbar.maxColumns, 6, 'toolbar column count');
 equal(toolbar.items.filter(item => item.kind === 'Button').length, 6, 'button count');
 equal(toolbar.items.filter(item => item.kind === 'Separator').length, 2, 'separator count');
 assert(!toolbar.items.some(item => item.kind === 'Label'), 'toolbar must not contain a visible Label');
-equal(toolbar.buttons.get('start').state.icon, 'play.fill', 'start registry icon');
-equal(toolbar.buttons.get('pause').state.icon, 'pause.fill', 'pause registry icon');
+equal(toolbar.buttons.get('capture').state.icon, 'play.fill', 'initial capture icon');
+equal(toolbar.buttons.get('capture').state.label, '开始录制', 'initial capture tooltip');
+assert(!toolbar.buttons.has('pause'), 'play and pause must not occupy separate buttons');
 equal(toolbar.buttons.get('stop').state.icon, 'stop.fill', 'stop registry icon');
 equal(toolbar.buttons.get('replay').state.icon, 'repeat', 'replay registry icon');
+equal(toolbar.buttons.get('agentPrompt').state.icon, 'ai.assistant', 'Agent prompt registry icon');
+equal(toolbar.buttons.get('agentPrompt').state.label, '复制 Agent 完善提示词', 'Agent prompt tooltip');
+assert(toolbar.buttons.get('agentPrompt').state.disabled, 'Agent prompt must be disabled before actions exist');
 equal(toolbar.buttons.get('details').state.icon, 'info.circle', 'details registry icon');
 equal(toolbar.buttons.get('finder').state.icon, 'folder.fill', 'Finder registry icon');
 assert(!toolbar.buttons.has('generate'), 'generation must not require a permanent toolbar button');
 
-await app.start();
+equal(toolbar.buttons.get('capture').callback(controlEvent('capture', 0)), undefined, 'start click must not enter callback busy state');
+await waitFor(
+  () => app.state().phase === 'recording' && !toolbar.buttons.get('capture').state.disabled,
+  'combined capture button did not finish starting recording',
+);
 equal(app.state().phase, 'recording', 'capture phase after countdown');
 equal(calls.start, 1, 'Recorder.start call count');
 equal(
@@ -251,7 +310,7 @@ equal(
   'target handoff must not await native toolbar updates between foreground read and Recorder.start',
 );
 const countdownPaths = toolbar.updates
-  .filter(update => update.id === 'start' && update.patch.icon && typeof update.patch.icon === 'object')
+  .filter(update => update.id === 'capture' && update.patch.icon && typeof update.patch.icon === 'object')
   .map(update => update.patch.icon.path);
 assert(countdownPaths.some(path => path.endsWith('countdown-3.png')), 'missing countdown 3 icon update');
 assert(countdownPaths.some(path => path.endsWith('countdown-2.png')), 'missing countdown 2 icon update');
@@ -266,16 +325,23 @@ function controlEvent(targetId, sequence) {
     type: 'click',
     sequence,
     timestamp: new Date().toISOString(),
+    bounds: {x: 180, y: 120, width: 36, height: 36},
   };
 }
 
-await toolbar.buttons.get('pause').callback(controlEvent('pause', 1));
+equal(toolbar.buttons.get('capture').state.icon, 'pause.fill', 'recording capture icon');
+equal(toolbar.buttons.get('capture').state.label, '暂停录制', 'recording capture tooltip');
+assert(toolbar.buttons.get('capture').state.active, 'capture button must show an active session');
+await toolbar.buttons.get('capture').callback(controlEvent('capture', 1));
 equal(app.state().phase, 'paused', 'pause phase');
 equal(calls.pause, 1, 'pause call count');
-equal(toolbar.buttons.get('pause').state.icon, 'play.fill', 'resume icon');
-await toolbar.buttons.get('pause').callback(controlEvent('pause', 2));
+equal(toolbar.buttons.get('capture').state.icon, 'play.fill', 'resume icon');
+equal(toolbar.buttons.get('capture').state.label, '继续录制', 'resume tooltip');
+assert(toolbar.buttons.get('capture').state.active, 'paused session must remain visually active');
+await toolbar.buttons.get('capture').callback(controlEvent('capture', 2));
 equal(app.state().phase, 'recording', 'resume phase');
 equal(calls.resume, 1, 'resume call count');
+equal(toolbar.buttons.get('capture').state.icon, 'pause.fill', 'resumed capture icon');
 
 await toolbar.buttons.get('stop').callback(controlEvent('stop', 3));
 equal(app.state().phase, 'generated', 'stop must finish with a generated script');
@@ -283,11 +349,49 @@ equal(calls.stop, 1, 'stop call count');
 equal(calls.build, 1, 'buildActions call count');
 equal(calls.generate, 1, 'stop must automatically generate once from ready actions');
 equal(calls.exclude, 3, 'capture controls must establish exclusion boundaries');
-equal(toolbar.buttons.get('start').state.label, '重新录制', 're-record tooltip');
+equal(toolbar.buttons.get('capture').state.label, '重新录制', 're-record tooltip');
+equal(toolbar.buttons.get('capture').state.icon, 'play.fill', 're-record icon');
+assert(!toolbar.buttons.get('capture').state.active, 'completed capture must not remain active');
 equal(app.state().generated.source, generatedSource, 'loaded generated source');
 equal(app.state().generated.verification, 'not-run', 'generation must remain not-run');
 equal(calls.replay, 0, 'generation must not automatically test-run');
 assert(!toolbar.buttons.get('replay').state.disabled, 'replay must enable after automatic generation');
+assert(!toolbar.buttons.get('agentPrompt').state.disabled, 'Agent prompt must stay enabled after generation');
+
+const callsBeforePromptCopy = JSON.parse(JSON.stringify(calls));
+const commandCountBeforePromptCopy = commandCalls.length;
+await toolbar.buttons.get('agentPrompt').callback();
+equal(calls.copy, 1, 'Agent prompt copy adapter call count');
+equal(copiedPrompts.length, 1, 'Agent prompt copy payload count');
+equal(app.state().phase, 'generated', 'copying the Agent prompt must preserve phase');
+const copiedPrompt = copiedPrompts[0];
+assert(copiedPrompt.includes(`请在 ${Execution.workdir} 中使用 $human-to-recipe`), 'prompt omits actual workdir');
+assert(copiedPrompt.includes(`actionsFile: ${actionsFile}`), 'prompt omits actual actions path');
+assert(copiedPrompt.includes('revision: 1'), 'prompt omits actual revision');
+assert(copiedPrompt.includes('readiness: ready'), 'prompt omits actual readiness');
+assert(copiedPrompt.includes(File.join(
+  Execution.workdir, 'workflows', 'human-to-recipe', 'skills', 'human-to-recipe', 'SKILL.md',
+)), 'prompt omits repository Skill path');
+assert(copiedPrompt.includes(File.join(
+  Execution.workdir, 'workflows', 'agent-to-recipe', 'skills', 'application-engineer', 'SKILL.md',
+)), 'prompt omits application-engineer fallback path');
+assert(copiedPrompt.includes('业务目标：[请用户补充；缺失时 Agent 必须询问]'), 'prompt omits business goal placeholder');
+assert(copiedPrompt.includes('成功条件：[请用户补充；缺失时 Agent 必须询问]'), 'prompt omits success condition placeholder');
+assert(copiedPrompt.includes('semantic coverage: verified=1, unavailable=1, not-requested=1'),
+  'prompt must preserve unavailable semantic coverage');
+assert(copiedPrompt.includes(`generated script: ${generatedScript}`), 'prompt omits generated script path');
+assert(copiedPrompt.includes(`candidate: ${generatedCandidate}`), 'prompt omits generated candidate path');
+for (const forbidden of [
+  'DO_NOT_COPY_ISSUE_TEXT', 'DO_NOT_COPY_RAW_CONTENT', 'DO_NOT_COPY_ACTION_TEXT',
+  'DO_NOT_COPY_AX_NAME', 'DO_NOT_COPY_AX_VALUE', 'DO_NOT_COPY_SEMANTIC_REASON',
+  'DO_NOT_COPY_KEYBOARD_TEXT',
+]) {
+  assert(!copiedPrompt.includes(forbidden), `prompt leaked recorded content: ${forbidden}`);
+}
+for (const name of ['start', 'exclude', 'pause', 'resume', 'stop', 'build', 'generate', 'replay', 'finder', 'dialog']) {
+  equal(calls[name], callsBeforePromptCopy[name], `Agent prompt copy unexpectedly called ${name}`);
+}
+equal(commandCalls.length, commandCountBeforePromptCopy, 'Agent prompt copy must not call Command.run');
 
 await app.showDetails();
 equal(calls.dialog, 1, 'Dialog.alert call count');
@@ -321,7 +425,8 @@ equal(app.state().phase, 'closed', 'close phase');
 equal(calls.stop, 1, 'close must not stop an already stopped session twice');
 equal(calls.replay, 2, 'close test must start a second managed test-run');
 
-const retryCalls = {stop: 0, build: 0, generate: 0, replay: 0};
+const retryCalls = {stop: 0, build: 0, generate: 0, replay: 0, copy: 0};
+let retryPrompt = '';
 const retryRecorder = {
   getCapabilities: recorder.getCapabilities,
   async start() {
@@ -375,6 +480,10 @@ const retryApp = OpenDeskSimpleRecordingConsole.createApp({
       return {exitCode: 0, stdout: '', stderr: ''};
     },
   },
+  copyText: async text => {
+    retryCalls.copy += 1;
+    retryPrompt = text;
+  },
   file: File,
   execution: Execution,
   sleep: async () => {},
@@ -390,13 +499,24 @@ const retryToolbar = FakeFloatingWindow.instance;
 equal(retryToolbar.buttons.get('replay').state.icon, 'ai.generate', 'retry must reuse the output button');
 equal(retryToolbar.buttons.get('replay').state.label, '自动生成失败，点击重试', 'retry tooltip');
 assert(!retryToolbar.buttons.get('replay').state.disabled, 'generation retry must be available');
+assert(!retryToolbar.buttons.get('agentPrompt').state.disabled,
+  'generation-error must keep Agent prompt available');
+await retryToolbar.buttons.get('agentPrompt').callback();
+equal(retryCalls.copy, 1, 'generation-error Agent prompt copy count');
+equal(retryCalls.generate, 1, 'generation-error prompt copy must not retry generation');
+equal(retryCalls.replay, 0, 'generation-error prompt copy must not replay');
+equal(retryApp.state().error.code, 'RECORDER_GENERATION_FAILED',
+  'generation-error prompt copy must preserve the generation failure');
+assert(retryPrompt.includes('generated script: not-generated'), 'generation-error prompt must mark script not-generated');
+assert(retryPrompt.includes('candidate: not-generated'), 'generation-error prompt must mark candidate not-generated');
 await retryToolbar.buttons.get('replay').callback();
 equal(retryApp.state().phase, 'generated', 'generation retry phase');
 equal(retryCalls.generate, 2, 'generation retry count');
 equal(retryCalls.replay, 0, 'generation retry must not replay');
 await retryApp.close();
 
-const failedCalls = {stop: 0, build: 0, finder: 0, dialog: 0};
+const failedCalls = {stop: 0, build: 0, generate: 0, finder: 0, dialog: 0, copy: 0};
+let failedPrompt = '';
 const captureIssue = {
   code: 'backend-interrupted', severity: 'error',
   message: 'native input backend exited before an explicit stop',
@@ -407,6 +527,18 @@ const failedSaved = {
   manifestFile: File.join(fixtureRoot, 'failed-recording', 'manifest.json'),
   captureState: 'failed', storageState: 'saved', counts, issues: [captureIssue],
 };
+File.ensureDir(failedSaved.recordingDir);
+const failedActionsFile = File.join(failedSaved.recordingDir, 'actions.json');
+File.write(failedActionsFile, JSON.stringify({
+  formatVersion: 'opendesk.recorder.actions/v2',
+  revision: 7,
+  readiness: 'blocked',
+  issues: [captureIssue, {code: 'semantic-unavailable', message: 'DO_NOT_COPY_BLOCKED_MESSAGE'}],
+  actions: [{
+    id: 'a0001', kind: 'click', args: {text: 'DO_NOT_COPY_BLOCKED_TEXT'},
+    target: {semanticStatus: 'unavailable', semanticReason: 'DO_NOT_COPY_BLOCKED_REASON'},
+  }],
+}));
 const failedRecorder = {
   getCapabilities: recorder.getCapabilities,
   async start() {
@@ -426,11 +558,12 @@ const failedRecorder = {
     failedCalls.build += 1;
     equal(recordingDir, failedSaved.recordingDir, 'partial build recording directory');
     return {
-      actionsFile: File.join(recordingDir, 'actions.json'), revision: 1,
+      actionsFile: failedActionsFile, revision: 7,
       actionCount: 1, readiness: 'blocked', issues: [captureIssue],
     };
   },
   async generateScript() {
+    failedCalls.generate += 1;
     throw new Error('blocked actions must not reach generation');
   },
 };
@@ -456,6 +589,10 @@ const failedApp = OpenDeskSimpleRecordingConsole.createApp({
   FloatingWindow: FakeFloatingWindow,
   dialog: failedDialog,
   command: failedCommand,
+  copyText: async text => {
+    failedCalls.copy += 1;
+    failedPrompt = text;
+  },
   file: File,
   execution: Execution,
   sleep: async () => {},
@@ -471,6 +608,26 @@ equal(failedApp.state().error.code, 'RECORDER_CAPTURE_UNAVAILABLE', 'failed capt
 assert(!failedApp.state().detail.includes('已安全停止'), 'non-user capture failure must not be presented as a user stop');
 equal(failedCalls.stop, 1, 'failed session stop count');
 equal(failedCalls.build, 1, 'recoverable failed package was not built for inspection');
+const failedToolbar = FakeFloatingWindow.instance;
+assert(!failedToolbar.buttons.get('agentPrompt').state.disabled,
+  'actions-blocked must keep Agent prompt available');
+const failedCallsBeforeCopy = JSON.parse(JSON.stringify(failedCalls));
+await failedToolbar.buttons.get('agentPrompt').callback();
+equal(failedCalls.copy, 1, 'blocked Agent prompt copy count');
+equal(failedCalls.generate, 0, 'blocked Agent prompt copy must not generate');
+equal(failedCalls.stop, failedCallsBeforeCopy.stop, 'blocked Agent prompt copy must not stop again');
+equal(failedCalls.build, failedCallsBeforeCopy.build, 'blocked Agent prompt copy must not rebuild actions');
+assert(failedPrompt.includes(`recordingDir: ${failedSaved.recordingDir}`), 'blocked prompt omits recording directory');
+assert(failedPrompt.includes(`actionsFile: ${failedActionsFile}`), 'blocked prompt omits actions path');
+assert(failedPrompt.includes('revision: 7'), 'blocked prompt omits actual revision');
+assert(failedPrompt.includes('readiness: blocked'), 'blocked prompt omits actual readiness');
+assert(failedPrompt.includes('semantic coverage: verified=0, unavailable=1'),
+  'blocked prompt must preserve unavailable semantic status');
+assert(failedPrompt.includes('generated script: not-generated'), 'blocked prompt must mark script not-generated');
+assert(failedPrompt.includes('candidate: not-generated'), 'blocked prompt must mark candidate not-generated');
+for (const forbidden of ['DO_NOT_COPY_BLOCKED_MESSAGE', 'DO_NOT_COPY_BLOCKED_TEXT', 'DO_NOT_COPY_BLOCKED_REASON']) {
+  assert(!failedPrompt.includes(forbidden), `blocked prompt leaked recorded content: ${forbidden}`);
+}
 await failedApp.reveal();
 equal(failedCalls.finder, 1, 'failed artifact reveal count');
 equal(failedApp.state().error.code, 'RECORDER_CAPTURE_UNAVAILABLE', 'Finder reveal erased the root capture error');

@@ -16,12 +16,15 @@ Recorder v2 的实现必须逐项追溯到下列需求；代码、API、类型�
 | --- | --- | --- | --- |
 | DQ-01 | 删除无意义移动噪声 | 未按鼠标键的 `MOUSE_MOVED` 只计入 `observed/filtered`，不写 raw；button-held motion/drag 保留 | Go session 测试；manifest counts |
 | DQ-02 | 不因降噪掩盖遗漏 | raw 事件、过滤／暂停／丢弃／晚到计数、action source 和每事件唯一 disposition 可交叉审计 | Runtime Recorder gate |
-| DQ-03 | 动作绑定真实目标层级 | 每个权威 release／文本段起点关联 `application → window → optional element`，不把起始 `within` 当持续范围 | manifest `inputContexts`；Calculator live |
+| DQ-03 | 动作绑定真实目标层级 | 窗口内权威 pointer press/release／keyboard 边界关联 `application → window → optional element`；活动窗口外但 display 已验证的桌面级端点关联 display-relative target；不把起始 `within` 当持续范围 | manifest `inputContexts`；Calculator live；desktop target unit |
 | DQ-04 | 同应用多窗口可区分 | 可执行路径／名称是应用稳定身份；标题用于窗口消歧；PID、ID、index、handle 只作 provenance；多候选不发送输入 | coordinate recipe ambiguity case |
 | DQ-05 | 窗口移动后仍可执行 | 保存 screen fact、window offset/ratio 和 element offset/ratio；basic 以当前 window bounds＋offset 重算；resize 不猜测 | translated-window substitute |
-| DQ-06 | 点击具有可审核语义 | 默认 `target-semantics` 点命中 AX；非操作叶节点最多向上 6 层选择最近 actionable ancestor；保存标签、角色、标识、动作、bounds、hit/ancestors | macOS Calculator 按钮“9”／“7” |
-| DQ-07 | 隐私和失败状态明确 | 不保存 AXValue、密码内容、剪贴板、默认截图/OCR或整树；`verified/unavailable/not-requested` 不互相冒充 | strict schema 与 live manifest |
+| DQ-06 | 指针端点具有可审核语义 | 默认 `target-semantics` 分别解析 press/release；点命中非操作叶节点时最多向上 6 层选择最近 actionable ancestor；保存窗口、phase、标签、角色、subrole、enabled/focused/valueSettable、标识、动作、bounds、hit/ancestors | Go endpoint test；Runtime straight-drag fixture；macOS Calculator 按钮 |
+| DQ-07 | 隐私和失败状态明确 | pointer 证据不读取／保存 AXValue、选择文本、密码内容、剪贴板、默认截图/OCR或整树；显式键盘文本结果只保存指纹、补丁及插入正文；`verified/unavailable/not-requested` 不互相冒充 | strict schema 与 live manifest |
 | DQ-08 | 旧包和生成 fail closed | v1 可读但 screen-only action 为 `needs-review`；v2 缺窗口上下文、目标歧义或不支持动作时 blocked | legacy/negative fixtures |
+| DQ-09 | 文本输入按最终编辑结果录制 | 显式非敏感键盘录制在 macOS 观察 focused editable 的起止值；只持久化起始/结果 SHA-256、UTF-16 单一范围补丁及插入正文，不把输入法的物理按键或 marked 中间态当作 committed text | Go text tracker；TextEdit Unicode live |
+| DQ-10 | 物理键、快捷键和文本不得互相冒充 | Command/Control/Option chord 与独立特殊键由成对 key press/release 生成；已被 verified text edit 覆盖的键只作 evidence；无法区分 IME 确认键与随后业务提交时 blocked | Go grouping；Runtime 生成替身；macOS shortcut live |
+| DQ-11 | 合法直线拖动和真人文本选择的自然近直线采样不得被当成 jitter 或一律拒绝 | `>4` points 的完整单次左键路径默认仍只在同显示器、≤30s、≤8 points 端点弦线偏差且无明显回退时形成普通 drag；只有 press/release 同属一个 verified 录制窗口、同一个 verified 可写 `textField` 时，才允许独立的 natural text-selection 子集：偏差上限为 `min(16, max(8, 距离×8%))`、采样路径长／端点距离≤1.08，且沿弦线投影不得越界或明显回退。该子集使用独立 source basis 并分类为 text-selection；缺少双端点 traits、非 textField、跨窗口、曲线、回退、跨屏和未验证坐标继续 blocked | Go grouping/endpoint/natural-selection negative matrix；Runtime latest-shape fixture；固定失败录制重建；真人文本选择 |
 
 问题基线来自 `.runtime/recordings/rec-20260909T102712.649528000Z-a299028412fa`：70 条 raw 中 67 条是普通 `MOUSE_MOVED`，只有一组 press/release/click；因此“一个 action”并非漏记，低质量来自 hover 噪声、仅有 screen 坐标，以及旧版 `scope-changed` 导致的 `failed/blocked`。v2 不原地改写该历史事实，新录制使用新合同。
 
@@ -68,13 +71,13 @@ Recorder.buildActions(recordingDir)
   → 大小／regular-file／schema／顺序／hash／引用检查
   → 终结包验证 raw hash；未终结包只恢复完整 NDJSON 前缀并固定 blocked
   → 唯一动作归组器
-  → 每个动作绑定自己的窗口／应用上下文；点击转换为窗口左上角相对偏移
+  → 每个动作绑定自己的窗口／应用上下文；桌面 chrome 点击绑定 display；点击转换为对应目标左上角相对偏移
   → actions.json；人工修改存在时 actions.rNNN.json
 
 Recorder.generateScript(actionsFile, {mode: "basic"})
   → 重新读取同一份 actions 字节并计算 hash
   → strict schema、ready、固定 raw bytes/hash/revision 检查
-  → 每个动作重新解析当前应用窗口，再生成白名单普通 JS 文本
+  → 每个动作重新解析当前应用窗口或显示器，再生成白名单普通 JS 文本
   → exclusive-create generated/basic.recipe.js
   → generated/basic.candidate.json（verification: not-run）
 
@@ -125,7 +128,7 @@ backend 在 ready 前失败、启动中 context 取消或 manifest 无法写为 
 
 libuiohook callback 不写文件、不截图、不扫 AX、不调用模型或 JavaScript。C bridge 在 callback 生命周期内读取 union，传给 Go 的只有值拷贝。Go callback 分配 sequence、保存 native timestamp/clock/unit 和接收时间，依据已冻结显示器检查 screen-logical 点，然后 non-blocking 写入容量 4096 的事件队列。
 
-普通 hover `MOUSE_MOVED` 不保存；只有鼠标键按住期间的 motion／dragged 与 press、release、clicked、wheel 和启用后的 keyboard 进入事件队列。权威 release 和文本段起始 `KEY_TYPED` 另投递到容量 128 的上下文队列；独立 resolver 读取该动作当时的前台窗口、应用身份和 bounds，macOS 条件允许时再读取不含值内容的 AX 元素标签。上下文读取失败保留为动作级 unverified 事实，不停止 listener；只有该动作无法形成可验证目标时才阻塞 basic 生成。满事件队列在独立 atomic counter 记录 drop，并在队列外触发 session stop；不会把唯一 overflow 通知塞回已经满的队列。
+普通 hover `MOUSE_MOVED` 不保存；只有鼠标键按住期间的 motion／dragged 与 press、release、clicked、wheel 和启用后的 keyboard 进入事件队列。权威 pointer press/release/wheel 以 `pressed`／`released`／`wheel` phase 另投递到容量 128 的上下文队列；独立 resolver 读取动作当时的前台窗口、应用身份和 bounds，macOS 条件允许时只为 press/release 读取不含值内容的 AX 元素标签，wheel 不做控件点击语义探测。相关 keyboard 边界同样在 callback 外解析。上下文读取失败保留为动作级 unverified 事实，不停止 listener；wheel 可在坐标和 display provenance 已验证时降级为 display-relative，其他动作只有无法形成可验证目标时才阻塞 basic 生成。满事件队列在独立 atomic counter 记录 drop，并在队列外触发 session stop；不会把唯一 overflow 通知塞回已经满的队列。
 
 `observed` 是已排序的 native callback 与 Recorder 控制边界总数，`accepted` 是进入 writer 队列的输入和控制边界数，`persisted` 是成功写出并 flush 的完整记录数，`filtered` 是按公开策略不保存的数目，`paused` 是暂停期间在规范化前丢弃内容的 native callback 数，`dropped` 是队列拒收，`late` 是 stop 截止后仍到达的 callback。它们不能互相替代。
 
@@ -135,16 +138,20 @@ libuiohook callback 不写文件、不截图、不扫 AX、不调用模型或 Ja
 
 - application 保存跨 execution 可解析的 executable path，缺失时退到 executable name；录制 PID 只作 provenance。
 - window 保存 title、bounds、ID、index、handle 和 popup 标志；ID／handle 不跨 execution 复用。一个应用有多个窗口时优先以应用身份＋精确标题唯一匹配；标题变化时仅允许该应用当前恰好一个窗口的无歧义回退。
-- element 是 `target-semantics` 的可选标签证据，先记录 point-hit；若叶节点不可执行，再沿最多 6 层父链“冒泡”到最近的 actionable ancestor。保存所选节点的 role、native role、name／description、identifier、native actions、bounds 和元素内点，并保留原始 hit 与有界 ancestors。它有助于人工或下游语义制作判断“点击了哪个按钮”，但 basic replay 暂不把不稳定 AX 标签自动升级为执行 locator。
+- element 是 `target-semantics` 的可选标签证据，先记录 point-hit；若叶节点不可执行，再沿最多 6 层父链“冒泡”到最近的 actionable ancestor。保存所选节点的 role、native role、subrole、name／description、identifier、enabled/focused/valueSettable、native actions、bounds 和元素内点，并保留原始 hit 与有界 ancestors。point-hit 缺少可用 bounds 时只允许同 PID、已聚焦、可写、非安全且覆盖该点的 textField fallback。它有助于判断按钮与输入框，但 basic click/drag replay 暂不把不稳定 AX 标签自动升级为执行 locator。
 - position 同时保存原始 screen-logical 点、窗口左上角偏移、窗口比例和元素内偏移／比例。basic replay 使用重新解析窗口的新 bounds＋像素偏移，支持窗口平移；比例留作审核，窗口缩放不自动猜测。
 
-上下文在 release 后解析，因点击本身可能激活另一个窗口；解析结果必须在 750ms 内并验证点仍位于该窗口。每个失败都有 `status`／`reason`，语义另有 `semanticStatus`／`semanticReason`，因此“没获取到”与“用户明确关闭”不会混为一谈。
+pointer 上下文在 press 和 release 后分别解析，双端点各保留自己的窗口与 phase；解析结果必须在 750ms 内并验证点仍位于该窗口。text-selection 只有在两个端点属于同一录制窗口和同一 verified 可写 textField 时成立；只有该事实才能启用比普通 drag 的 8 points 端点弦线更宽、但仍受 16 points、8% 比例、1.08 路径长度比和无明显回退共同约束的 natural text-selection 子集。旧包、`unavailable` 或 `not-requested` 端点不得从窗口位置、应用名称或轨迹形状补造输入框证据。每个失败都有 `status`／`reason`，语义另有 `semanticStatus`／`semanticReason`，因此“没获取到”与“用户明确关闭”不会混为一谈。
 
 ### 4.4 桌面范围与隐私
 
-`within` 保存开始时的 PID＋title 作为起始 provenance，不是 OS hook filter、持续范围或重放门槛。Runtime 对启动时前台窗口的二次读取只产生 warning；开始后不轮询身份，也不会因标题变化、切窗或切换应用停止 session。采集覆盖桌面级全局输入，因此只允许明确的非敏感测试流程；键盘默认关闭，开启时必须写 `keyboardContent: "non-sensitive-test"`，并假定整个跨应用序列均不含敏感输入。Recorder 不读剪贴板、不保留未启用的键盘内容、不上传材料；lib logger 被静音。
+`within` 保存开始时的 PID＋title 作为起始 provenance，不是 OS hook filter、持续范围或重放门槛。Runtime 对启动时前台窗口的二次读取只产生 warning；开始后不会因标题变化、切窗或切换应用停止 session。采集覆盖桌面级全局输入，因此只允许明确的非敏感测试流程；键盘默认关闭，开启时必须写 `keyboardContent: "non-sensitive-test"`，并假定整个跨应用序列均不含敏感输入。Recorder 不读剪贴板、不保留未启用的键盘内容、不上传材料；lib logger 被静音。
 
-默认 `target-semantics` 只点命中一个 AX 元素，并以 `include_value=0` 检查；安全元素跳过，不保存 AXValue、选中文本或整棵树。OCR 不是 AX 失败时的静默降级，因为它需要截图裁剪、额外隐私声明、证据文件及识别置信度。未来如启用，只允许显式模式对控件附近有界裁剪生成独立 observation，并同时保留原图 hash、裁剪坐标、引擎版本和置信度；不能只把 OCR 字符串写成事实。
+macOS 键盘开启后同时存在两条互斥消费通道。native hook 保存物理按下／释放、modifier mask 和 Quartz 事件可取得的 Unicode，只负责证明键与 chord；callback 不读取 AX。独立的有界 text tracker 在 callback 外采样当前前台窗口的 focused、非 secure、可写 text field。一个编辑段只保留内存中的起止值并确定性计算最长公共前后缀；manifest 持久化字段身份、source event IDs、起始／结果 UTF-16LE SHA-256、起始长度，以及 `start/deleteCount/insertText` 补丁，不保存未改变的前后文。采样迟到、secure、焦点/字段漂移、字段不可唯一重定位或补丁哈希不闭合都显式阻塞 semantic text action。
+
+actions 制作优先消费 verified text edit：该段内的 printable、dead-key、IME 候选和删除键只作同一动作 evidence，不再从 `KEY_TYPED` 生成第二份文字。没有 verified edit 时，Basic Latin `KEY_TYPED` 仍是兼容 fallback；Command/Control/Option chord 及 Enter、Tab、Escape、方向键等可映射特殊键由完整 press/release 生成 `shortcut`／`key`。若 Enter/Tab 等边界键是否属于 IME 提交仍有歧义，制作结果必须 blocked，不能既丢掉业务提交，也不能把确认键重复回放。
+
+默认 `target-semantics` 对 pointer press/release 都以 `include_value=0` 检查；安全元素跳过，不保存 AXValue、选中文本或整棵树。focused-input fallback 也只保存 descriptor/traits，不读取字段内容。OCR 不是 AX 失败时的静默降级，因为它需要截图裁剪、额外隐私声明、证据文件及识别置信度。未来如启用，只允许显式模式对控件附近有界裁剪生成独立 observation，并同时保留原图 hash、裁剪坐标、引擎版本和置信度；不能只把 OCR 字符串写成事实。
 
 example 的 F8/F9/F10/F11/F12 keycode 在 native 入队前过滤。控制快捷键本身不成为业务 action；stop 不合成缺失 release，也不向系统发送抬键。
 
@@ -225,7 +232,7 @@ Windows 真机/VM Runtime evidence 是目标系统具备后单独执行的后续
 
 `observations/` 只有实际产生截图／OCR 等现场材料时创建；v2 的标签级 Accessibility 上下文直接进入 manifest/actions，不创建空目录。raw 的 sequence 和 native timestamp 为十进制字符串，避免 JS safe integer 损失；原始事实不由 actions 或后来修订覆盖。
 
-`recording/v2` manifest 除 raw、显示器和计数事实外，还保存可选起始窗口与动作事件对应的 `inputContexts`。窗口快照把应用可执行文件身份与录制时 PID、窗口 ID／index／handle 分层保存；后者只作 provenance。actions 固定 raw 相对路径/hash/bytes、环境、revision reason/basis、动作级 target、source event IDs/basis、timing、绝对及窗口相对位置、args/strategy、review、每个事件唯一 disposition、readiness 和 issues。`ready` 表示基础生成支持子集完整，不表示人工审批。已有 revision 字节不同时由 `buildActions` 写新 revision，并注明从固定 raw 重建且不覆盖旧文件；不改 raw。
+`recording/v2` manifest 除 raw、显示器和计数事实外，还保存可选起始窗口与动作事件对应的 `inputContexts`。窗口快照把应用可执行文件身份与录制时 PID、窗口 ID／index／handle 分层保存；后者只作 provenance。actions 固定 raw 相对路径/hash/bytes、环境、revision reason/basis、动作级 window/display target、source event IDs/basis、timing、绝对及窗口／显示器相对位置、args/strategy、review、每个事件唯一 disposition、readiness 和 issues。`ready` 表示基础生成支持子集完整，不表示人工审批。已有 revision 字节不同时由 `buildActions` 写新 revision，并注明从固定 raw 重建且不覆盖旧文件；不改 raw。
 
 candidate 固定 actions 绝对文件、hash、revision、脚本路径/hash、action-line mapping、约束和 `verification: not-run`。新 candidate 不继承旧资格，人工代码不覆盖。
 
@@ -234,16 +241,20 @@ candidate 固定 actions 绝对文件、hash、revision、脚本路径/hash、ac
 | 输入 | actions 处理 | basic 生成 |
 | --- | --- | --- |
 | 左键单次 CLICKED＋匹配 press/release＋已验证窗口上下文 | 一个 click；press/release 为 evidence；保存动作窗口和窗口内偏移 | 重新解析当前应用窗口，以新 bounds＋窗口内偏移调用 `mouse.click` |
-| Basic Latin KEY_TYPED、无 Ctrl/Meta/Alt＋已验证窗口上下文 | 相邻字符组成 text；物理 key 为 evidence | 重新解析并确认当前窗口后 `keyboard.type(text)` |
+| macOS verified focused editable value diff | 一个 text-edit；物理 key/KEY_TYPED 为 evidence | 唯一定位字段，核对 before hash，应用 UTF-16 patch，核对 after hash，再 `Accessibility.perform(...setValue)` |
+| Basic Latin KEY_TYPED、无 Ctrl/Meta/Alt＋已验证窗口上下文 | 无 value diff 时的兼容 text fallback；物理 key 为 evidence | 重新解析并确认当前窗口后 `keyboard.type(text)` |
+| Command/Control/Option chord | 完整 primary press/release 形成 shortcut；modifier transition 为 evidence | 确认动作窗口前台后 `keyboard.combination(...keys)` |
+| Enter/Tab/Escape/方向键等独立特殊键 | 完整 press/release 形成 key；与 IME 提交歧义时 blocked | 确认动作窗口前台后 `keyboard.press(key)` |
 | 未按鼠标键的 hover move | filtered，不进入 raw | 不生成 |
-| button-held motion／dragged | 完整 press/motion/release 中不超过 4 个 logical points 时只可归一化为 click jitter；其余保留 drag issue | jitter click 或 blocked；真实拖动不降为 click |
-| double/right/middle/wheel/modified click | pending，issue | blocked |
+| button-held motion／dragged | ≤4 points 的完整短路径归一化为 click jitter；`>4` points 的普通左键路径仍要求同显示器、≤30s、≤8 points 端点弦线偏差且无明显回退。同窗口同一 verified 可写 `textField` 的双端点可启用独立 natural text-selection predicate：偏差≤`min(16, max(8, 距离×8%))`、路径长／端点距离≤1.08、投影不越界且无明显回退；使用独立 source basis。双端点窗口和 label-only AX traits 写入 pointer evidence；缺 traits、非 textField 或端点窗口不一致不能启用该放宽 | 重新投影 start/destination，`move → down → try move → finally up`；普通 drag 的 8 points 全局容差不变，曲线、明显回退、跨屏、非左键、未验证路径及不满足语义门槛的自然偏移仍 blocked |
+| 未修改的 vertical/horizontal wheel | 同显示器、同轴同向、相邻 ≤250ms 的事件归为最多 100 步的 burst；保存首事件坐标及 window/display 相对投影、累加 delta 和 burst delay | bounds-check 后先 `mouse.move(point)`，再 `mouse.wheel({deltaX, deltaY, steps, delay})`；旧无 wheel context 的 v2 包可按已验证 display 坐标降级 |
+| 同一点连续 double/multi-click、right/middle/modified click 或带修饰键 wheel | pending，issue | blocked；不同坐标间沿用的 native 时间序列计数仍按各自单次物理 click 处理 |
 | missing pair、long press、drop、unverified point | 保留事实与 issue | blocked |
-| composition、dead key、IME、无 typed source 的物理 key | pending，issue | blocked；不猜 finalText |
+| composition、dead key、IME | verified field diff 覆盖时归入 text-edit；缺 diff 或确认键归属不明时 pending | patch 闭环时可生成，否则 blocked；不从物理键猜 finalText |
 
 同 native timestamp 始终按 session sequence，native time 回退视为损坏，不能逆序。文本 source 只允许可转义 ASCII 字符；ID、路径和描述不进入代码注释或结构。generator 重新解析固定 raw，并严格拒绝未知字段、任意 args、非法数值、缺失／重复 disposition、source/basis/timing 不一致和悬空引用；只发出固定白名单调用。
 
-生成脚本检查 OS，并为每个动作按可执行文件路径／名称与窗口标题解析当前候选；标题无法精确命中时，仅允许“该应用当前只有一个窗口”的无歧义回退。录制时 PID、窗口 ID、index 和 handle 从不参与跨 execution 比较，标题也不是单独硬门槛。点击以新鲜窗口 bounds 加录制偏移计算屏幕点，支持窗口平移但不猜测 resize；文本比较的是本次解析出的当前活动窗口，不是旧编号。只有当前候选无法唯一确定时才拒绝发送输入。每个非暂停 raw gap 都转换成显式 `sleep`：先除以 `speedMultiplier`，再限制到 `minimumDelayMs..maximumDelayMs`；默认值为 1×、500ms、30s，原始间隔保留在行内注释和 candidate timing 中。该等待只表达录制节奏，不冒充页面 readiness。高级条件等待、重新定位、参数化与后置条件属于下游语义工作流。
+生成脚本检查 OS。窗口动作按可执行文件路径／名称与窗口标题解析当前候选；标题无法精确命中时，仅允许“该应用当前只有一个窗口”的无歧义回退。桌面级指针动作按录制 display ID、唯一 hardware identity 和显示器内偏移解析。录制时 PID、窗口 ID、index 和 handle 从不参与跨 execution 比较，标题也不是单独硬门槛。窗口 click/drag 以新鲜 bounds 加录制偏移计算屏幕点，支持窗口平移但不猜测 resize；drag 在按下后用 `try/finally` 保证抬键。文本比较的是本次解析出的当前活动窗口，不是旧编号。只有当前候选无法唯一确定时才拒绝发送输入。每个非暂停 raw gap 都转换成显式 `sleep`：先除以 `speedMultiplier`，再限制到 `minimumDelayMs..maximumDelayMs`；默认值为 1×、500ms、30s，原始间隔保留在行内注释和 candidate timing 中。该等待只表达录制节奏，不冒充页面 readiness。高级条件等待、重新定位、参数化与后置条件属于下游语义工作流。
 
 ## 8. 下游交接
 
@@ -270,7 +281,7 @@ candidate 固定 actions 绝对文件、hash、revision、脚本路径/hash、ac
 
 - OCR、Layout、LLM、AppProfile 建模和业务参数提取；
 - 语义函数、对象关系、重新定位和业务 postcondition；
-- drag、scroll、double-click、IME／composition 和剪贴板正文回放；
+- 复杂／曲线／跨显示器 drag、scroll、double-click、无法以最终文本差异闭环的 IME／composition 和剪贴板正文回放；
 - class Recipe、Registry、可执行 IR、Compiler、专用 Replay Runtime 或 `calc.tapButton`；
 - 自动回放刚完成的用户操作；
 - HTTP／MCP／Scheduler 继承 capture 权限；

@@ -113,8 +113,16 @@ type RecorderInputBackend interface {
 	Wait()
 }
 
+// recorderKeyboardCaptureConfigurator is implemented only by native backends
+// that can narrow their OS subscription before Start. Backends without this
+// optional seam still receive the session's existing callback-level filter.
+type recorderKeyboardCaptureConfigurator interface {
+	configureCaptureKeyboard(bool)
+}
+
 type RecorderBackendFactory func() RecorderInputBackend
 type RecorderWindowProbe func() (*WindowInfo, error)
+type recorderTextProbe func(context.Context, *WindowInfo, *recorderWindowSnapshot) (*recorderTextFieldSample, error)
 
 type recorderWithin struct {
 	ProcessID uint32 `json:"processId"`
@@ -126,6 +134,16 @@ type recorderWindowBounds struct {
 	Y      int `json:"y"`
 	Width  int `json:"width"`
 	Height int `json:"height"`
+}
+
+// recorderControlBounds is copied from the trusted Custom UI event. Floating
+// controls can have fractional native layout coordinates, so keep the original
+// precision instead of rounding them into recorderWindowBounds.
+type recorderControlBounds struct {
+	X      float64 `json:"x"`
+	Y      float64 `json:"y"`
+	Width  float64 `json:"width"`
+	Height float64 `json:"height"`
 }
 
 type recorderApplicationSnapshot struct {
@@ -160,8 +178,12 @@ type recorderElementPoint struct {
 type recorderElementDescriptor struct {
 	Role          string               `json:"role"`
 	NativeRole    string               `json:"nativeRole,omitempty"`
+	Subrole       string               `json:"subrole,omitempty"`
 	Name          string               `json:"name,omitempty"`
 	Identifier    string               `json:"identifier,omitempty"`
+	Enabled       *bool                `json:"enabled,omitempty"`
+	Focused       *bool                `json:"focused,omitempty"`
+	ValueSettable bool                 `json:"valueSettable"`
 	NativeActions []string             `json:"nativeActions"`
 	Bounds        recorderWindowBounds `json:"bounds"`
 }
@@ -173,8 +195,12 @@ type recorderElementSnapshot struct {
 	Resolution    string                      `json:"resolution"`
 	Role          string                      `json:"role"`
 	NativeRole    string                      `json:"nativeRole,omitempty"`
+	Subrole       string                      `json:"subrole,omitempty"`
 	Name          string                      `json:"name,omitempty"`
 	Identifier    string                      `json:"identifier,omitempty"`
+	Enabled       *bool                       `json:"enabled,omitempty"`
+	Focused       *bool                       `json:"focused,omitempty"`
+	ValueSettable bool                        `json:"valueSettable"`
 	NativeActions []string                    `json:"nativeActions"`
 	Bounds        recorderWindowBounds        `json:"bounds"`
 	Hit           recorderElementDescriptor   `json:"hit"`
@@ -183,13 +209,14 @@ type recorderElementSnapshot struct {
 	ObservedAt    string                      `json:"observedAt"`
 }
 
-// recorderInputContext is resolved off the native callback thread after an
-// authoritative release (or the first typed event in a text run). It binds a
+// recorderInputContext is resolved off the native callback thread after a
+// pointer press/release (or the first typed event in a text run). It binds a
 // raw event to the window/application that owns the action without delaying
 // libuiohook or polluting raw with ordinary pointer motion.
 type recorderInputContext struct {
 	EventID           string                   `json:"eventId"`
 	Kind              string                   `json:"kind"`
+	Phase             string                   `json:"phase,omitempty"`
 	Status            string                   `json:"status"`
 	Reason            string                   `json:"reason,omitempty"`
 	ResolutionDelayMS int64                    `json:"resolutionDelayMs"`
@@ -202,6 +229,7 @@ type recorderInputContext struct {
 type recorderContextRequest struct {
 	EventID    string
 	Kind       string
+	Phase      string
 	ReceivedAt time.Time
 	X          *int
 	Y          *int
@@ -316,6 +344,7 @@ type recorderManifest struct {
 	} `json:"storage"`
 	Displays      []DisplayInfo          `json:"displays"`
 	InputContexts []recorderInputContext `json:"inputContexts,omitempty"`
+	TextEdits     []recorderTextEdit     `json:"textEdits,omitempty"`
 	Issues        []recorderIssue        `json:"issues"`
 }
 
@@ -341,6 +370,7 @@ type recorderControlClickResult struct {
 	Changed            bool
 	TransitionSequence uint64
 	EventIDs           []string
+	MatchStatus        string
 }
 
 func (r recorderControlClickResult) jsValue() map[string]any {
@@ -350,7 +380,7 @@ func (r recorderControlClickResult) jsValue() map[string]any {
 	}
 	return map[string]any{
 		"changed": r.Changed, "transitionSequence": sequence,
-		"eventIds": append([]string(nil), r.EventIDs...),
+		"eventIds": append([]string(nil), r.EventIDs...), "matchStatus": r.MatchStatus,
 	}
 }
 
@@ -407,6 +437,7 @@ type RecorderRuntime struct {
 	backendFactory  RecorderBackendFactory
 	windowProbe     RecorderWindowProbe
 	targetProbe     func(context.Context, *WindowInfo, int, int) (*recorderElementSnapshot, error)
+	textProbe       recorderTextProbe
 	displayResolver func() []DisplayInfo
 	onAsyncError    func(error)
 
@@ -433,6 +464,8 @@ type recorderSession struct {
 	writerDone      chan recorderWriterResult
 	contextRequests chan recorderContextRequest
 	contextDone     chan struct{}
+	textSignals     chan recorderTextSignal
+	textDone        chan struct{}
 	done            chan struct{}
 	stopOnce        sync.Once
 	resultMu        sync.RWMutex
@@ -458,10 +491,16 @@ type recorderSession struct {
 	lastNativeTime        atomic.Uint64
 	lastTextContextNative atomic.Uint64
 	overflowSeq           atomic.Uint64
+	textSignalsDropped    atomic.Uint64
+	lastWheelContextMS    uint64             // guarded by transitionMu
+	lastWheelDirection    uint8              // guarded by transitionMu
+	lastWheelSign         int8               // guarded by transitionMu
 	heldMouseButtons      map[string]bool    // guarded by transitionMu
 	recentInput           []recorderRawEvent // guarded by transitionMu; bounded native-input tail
 	contextMu             sync.Mutex
 	inputContexts         []recorderInputContext
+	textMu                sync.Mutex
+	textEdits             []recorderTextEdit
 	issueMu               sync.Mutex
 	issues                []recorderIssue
 }
@@ -491,6 +530,7 @@ func registerRecorder(runtimeValue *goja.Runtime, opts InitJSOptions) (*Recorder
 		probe = NewWindowManager().GetActiveWindow
 	}
 	targetProbe := newRecorderTargetProbe()
+	textProbe := newRecorderTextProbe()
 	resolver := opts.ScreenCaptureDisplayResolver
 	if resolver == nil {
 		resolver = resolveDisplays
@@ -499,7 +539,7 @@ func registerRecorder(runtimeValue *goja.Runtime, opts InitJSOptions) (*Recorder
 		runtime: runtimeValue, loop: opts.EventLoop, context: ctx,
 		workDir: workDir, executionID: opts.ExecutionID,
 		enableCapture:  opts.EnableRecorderCapture,
-		backendFactory: factory, windowProbe: probe, targetProbe: targetProbe, displayResolver: resolver,
+		backendFactory: factory, windowProbe: probe, targetProbe: targetProbe, textProbe: textProbe, displayResolver: resolver,
 		onAsyncError: opts.OnAsyncError,
 	}
 	object := runtimeValue.NewObject()
@@ -544,7 +584,7 @@ func (r *RecorderRuntime) capabilities() map[string]any {
 			"coordinateSpace": capability.CoordinateSpace,
 			"keyboardDefault": false, "evidenceModes": []string{"none", "target-semantics"}, "limitations": limitations,
 		},
-		"actions":         map[string]any{"available": true, "version": recorderActionsFormatVersion, "actionSubset": []string{"click.left.single", "text.basic-latin"}},
+		"actions":         map[string]any{"available": true, "version": recorderActionsFormatVersion, "actionSubset": []string{"click.left.single", "drag.left.straight", "drag.left.text-selection-natural", "wheel.xy.burst", "text.focused-value-patch", "text.basic-latin-fallback", "keyboard.shortcut", "keyboard.special-key"}},
 		"basicGeneration": map[string]any{"available": true, "mode": "basic", "version": recorderCandidateFormatVersion},
 	}
 }
@@ -800,6 +840,9 @@ func (r *RecorderRuntime) startSession(options recorderStartOptions) (*recorderS
 	if backend == nil {
 		return nil, recorderError(RecorderCaptureUnavailable, "Recorder.start", "Recorder input backend is unavailable", nil)
 	}
+	if configurable, ok := backend.(recorderKeyboardCaptureConfigurator); ok {
+		configurable.configureCaptureKeyboard(options.CaptureKeyboard)
+	}
 	capability := backend.Capabilities()
 	if !capability.Supported {
 		return nil, recorderError(RecorderCaptureUnavailable, "Recorder.start", strings.Join(capability.Limitations, "; "), nil)
@@ -824,7 +867,9 @@ func (r *RecorderRuntime) startSession(options recorderStartOptions) (*recorderS
 		events:          make(chan recorderRawEvent, recorderQueueCapacity),
 		writerDone:      make(chan recorderWriterResult, 1),
 		contextRequests: make(chan recorderContextRequest, recorderContextQueueCapacity),
-		contextDone:     make(chan struct{}), done: make(chan struct{}),
+		contextDone:     make(chan struct{}),
+		textSignals:     make(chan recorderTextSignal, recorderQueueCapacity),
+		textDone:        make(chan struct{}), done: make(chan struct{}),
 		heldMouseButtons: map[string]bool{}, inputContexts: make([]recorderInputContext, 0),
 	}
 	session.issues = append(session.issues, initialIssues...)
@@ -834,6 +879,7 @@ func (r *RecorderRuntime) startSession(options recorderStartOptions) (*recorderS
 	session.accepting.Store(true)
 	go session.runWriter()
 	go session.runContextResolver()
+	go session.runTextTracker()
 	startCtx, startCancel := context.WithTimeout(ctx, recorderBackendStartTimeout)
 	err = backend.Start(startCtx, session.receiveNativeEvent, session.backendFailed)
 	startCancel()
@@ -983,7 +1029,36 @@ func (r *RecorderRuntime) excludeControlClick(session *recorderSession, call goj
 		_ = reject(recorderJSError(r.runtime, recorderError(RecorderInvalidArgument, "RecorderSession.excludeControlClick", "event must be a valid Custom UI click with stable windowId, targetId, and timestamp", timestampErr)))
 		return value
 	}
-	result, err := session.excludeControlClick(windowID, targetID, at)
+	boundsValue := recorderObjectOption(event, "bounds")
+	if goja.IsUndefined(boundsValue) || goja.IsNull(boundsValue) {
+		_ = reject(recorderJSError(r.runtime, recorderError(RecorderInvalidArgument, "RecorderSession.excludeControlClick", "event.bounds must contain the original Custom UI control screen bounds", nil)))
+		return value
+	}
+	boundsObject := boundsValue.ToObject(r.runtime)
+	if boundsObject == nil || boundsObject.ClassName() != "Object" {
+		_ = reject(recorderJSError(r.runtime, recorderError(RecorderInvalidArgument, "RecorderSession.excludeControlClick", "event.bounds must be an object", nil)))
+		return value
+	}
+	if err := recorderRejectUnknownKeys(boundsObject, map[string]bool{"x": true, "y": true, "width": true, "height": true}); err != nil {
+		_ = reject(recorderJSError(r.runtime, recorderError(RecorderInvalidArgument, "RecorderSession.excludeControlClick", "event.bounds "+err.Error(), nil)))
+		return value
+	}
+	readNumber := func(name string) (float64, bool) {
+		value := recorderObjectOption(boundsObject, name)
+		if goja.IsUndefined(value) || goja.IsNull(value) {
+			return 0, false
+		}
+		return recorderJSNumber(value)
+	}
+	x, xOK := readNumber("x")
+	y, yOK := readNumber("y")
+	width, widthOK := readNumber("width")
+	height, heightOK := readNumber("height")
+	if !xOK || !yOK || !widthOK || !heightOK || math.IsNaN(x) || math.IsInf(x, 0) || math.IsNaN(y) || math.IsInf(y, 0) || math.IsNaN(width) || math.IsInf(width, 0) || math.IsNaN(height) || math.IsInf(height, 0) || width <= 0 || height <= 0 {
+		_ = reject(recorderJSError(r.runtime, recorderError(RecorderInvalidArgument, "RecorderSession.excludeControlClick", "event.bounds must contain finite x/y and positive width/height", nil)))
+		return value
+	}
+	result, err := session.excludeControlClick(windowID, targetID, at, recorderControlBounds{X: x, Y: y, Width: width, Height: height})
 	if err != nil {
 		_ = reject(recorderJSError(r.runtime, err))
 		return value
@@ -1213,6 +1288,8 @@ func (s *recorderSession) enqueueControlEventWithMetadataLocked(kind string, now
 	select {
 	case s.events <- event:
 		s.counts.Accepted.Add(1)
+		s.lastWheelContextMS, s.lastWheelDirection, s.lastWheelSign = 0, 0, 0
+		s.signalTextTrackerLocked(event)
 		return event, true
 	default:
 		s.counts.Dropped.Add(1)
@@ -1221,7 +1298,7 @@ func (s *recorderSession) enqueueControlEventWithMetadataLocked(kind string, now
 	}
 }
 
-func (s *recorderSession) excludeControlClick(windowID, targetID string, uiTimestamp time.Time) (recorderControlClickResult, error) {
+func (s *recorderSession) excludeControlClick(windowID, targetID string, uiTimestamp time.Time, controlBounds recorderControlBounds) (recorderControlClickResult, error) {
 	const operation = "RecorderSession.excludeControlClick"
 	now := time.Now().UTC()
 	if uiTimestamp.After(now.Add(time.Second)) || now.Sub(uiTimestamp) > 5*time.Second {
@@ -1233,22 +1310,32 @@ func (s *recorderSession) excludeControlClick(windowID, targetID string, uiTimes
 		// Native callbacks are already discarded before normalization while
 		// paused, so the resume/stop click has no raw input to exclude.
 		s.transitionMu.Unlock()
-		return recorderControlClickResult{Changed: false, EventIDs: []string{}}, nil
+		return recorderControlClickResult{Changed: false, EventIDs: []string{}, MatchStatus: "not-observed"}, nil
 	}
 	if state != "recording" || !s.accepting.Load() {
 		s.transitionMu.Unlock()
 		return recorderControlClickResult{}, recorderError(RecorderInvalidState, operation, "control-click exclusion requires a recording or paused session", nil)
 	}
-	matched := recorderTrailingControlClick(s.recentInput, uiTimestamp)
+	matched := recorderTrailingControlClickWithin(s.recentInput, uiTimestamp, &controlBounds)
 	eventIDs := make([]string, 0, len(matched))
 	for _, event := range matched {
 		eventIDs = append(eventIDs, event.EventID)
 	}
+	matchStatus := "matched"
+	if len(eventIDs) == 0 {
+		matchStatus = "not-observed"
+		if recorderRecentControlPointerInput(s.recentInput, uiTimestamp, controlBounds) {
+			matchStatus = "unmatched"
+		}
+	}
 	encodedIDs, _ := json.Marshal(eventIDs)
+	encodedBounds, _ := json.Marshal(controlBounds)
 	boundary, ok := s.enqueueControlEventWithMetadataLocked("RECORDER_CONTROL_CLICK", now, map[string]string{
 		"windowId": windowID, "targetId": targetID,
 		"uiTimestamp":     uiTimestamp.UTC().Format(time.RFC3339Nano),
 		"triggerEventIds": string(encodedIDs),
+		"controlBounds":   string(encodedBounds),
+		"matchStatus":     matchStatus,
 	})
 	s.recentInput = nil
 	if !ok {
@@ -1259,7 +1346,7 @@ func (s *recorderSession) excludeControlClick(windowID, targetID string, uiTimes
 	}
 	s.transitionMu.Unlock()
 	return recorderControlClickResult{
-		Changed: true, TransitionSequence: recorderNativeStringValue(boundary.Sequence), EventIDs: eventIDs,
+		Changed: true, TransitionSequence: recorderNativeStringValue(boundary.Sequence), EventIDs: eventIDs, MatchStatus: matchStatus,
 	}, nil
 }
 
@@ -1345,17 +1432,40 @@ func (s *recorderSession) receiveNativeEvent(input RecorderInputEvent) {
 		if len(s.recentInput) > 64 {
 			s.recentInput = append([]recorderRawEvent(nil), s.recentInput[len(s.recentInput)-64:]...)
 		}
-		if input.Type == recorderEventMouseReleased {
+		if input.Type != recorderEventMouseWheel {
+			s.lastWheelContextMS, s.lastWheelDirection, s.lastWheelSign = 0, 0, 0
+		}
+		if input.Type == recorderEventMousePressed {
+			s.queueInputContextLocked(event, "pointer", "pressed")
+		} else if input.Type == recorderEventMouseReleased {
 			delete(s.heldMouseButtons, button)
-			s.queueInputContextLocked(event, "pointer")
+			s.queueInputContextLocked(event, "pointer", "released")
+		} else if input.Type == recorderEventMouseWheel {
+			nativeMS := recorderInputTimeMilliseconds(input.NativeTime)
+			sign := int8(0)
+			if input.Rotation > 0 {
+				sign = 1
+			} else if input.Rotation < 0 {
+				sign = -1
+			}
+			if s.lastWheelContextMS == 0 || nativeMS < s.lastWheelContextMS || nativeMS-s.lastWheelContextMS > recorderWheelBurstGapMS || input.Direction != s.lastWheelDirection || sign != s.lastWheelSign {
+				s.queueInputContextLocked(event, "pointer", "wheel")
+			}
+			s.lastWheelContextMS, s.lastWheelDirection, s.lastWheelSign = nativeMS, input.Direction, sign
+		} else if input.Type == recorderEventKeyPressed && !recorderIsModifierKey(input.Keycode) {
+			keyName, known := recorderKeyName(input.Keycode)
+			if recorderHasControlModifier(input.Mask) || (known && recorderIsReplayableSpecialKey(keyName)) {
+				s.queueInputContextLocked(event, "keyboard", "pressed")
+			}
 		} else if input.Type == recorderEventKeyTyped {
 			nativeMS := recorderInputTimeMilliseconds(input.NativeTime)
 			previous := s.lastTextContextNative.Load()
 			if previous == 0 || nativeMS < previous || nativeMS-previous > 1000 {
-				s.queueInputContextLocked(event, "keyboard")
+				s.queueInputContextLocked(event, "keyboard", "")
 			}
 			s.lastTextContextNative.Store(nativeMS)
 		}
+		s.signalTextTrackerLocked(event)
 		s.transitionMu.Unlock()
 	default:
 		s.counts.Dropped.Add(1)
@@ -1409,12 +1519,15 @@ func recorderInputTimeMilliseconds(value uint64) uint64 {
 	return value
 }
 
-func (s *recorderSession) queueInputContextLocked(event recorderRawEvent, kind string) {
+func (s *recorderSession) queueInputContextLocked(event recorderRawEvent, kind, phase string) {
+	if s.contextRequests == nil {
+		return
+	}
 	receivedAt, err := time.Parse(time.RFC3339Nano, event.ReceivedAt)
 	if err != nil {
 		receivedAt = time.Now().UTC()
 	}
-	request := recorderContextRequest{EventID: event.EventID, Kind: kind, ReceivedAt: receivedAt}
+	request := recorderContextRequest{EventID: event.EventID, Kind: kind, Phase: phase, ReceivedAt: receivedAt}
 	if event.X != nil && event.Y != nil {
 		x, y := *event.X, *event.Y
 		request.X, request.Y = &x, &y
@@ -1423,7 +1536,7 @@ func (s *recorderSession) queueInputContextLocked(event recorderRawEvent, kind s
 	case s.contextRequests <- request:
 	default:
 		s.appendInputContext(recorderInputContext{
-			EventID: event.EventID, Kind: kind, Status: "unverified",
+			EventID: event.EventID, Kind: kind, Phase: phase, Status: "unverified",
 			Reason: "window context queue overflowed", SemanticStatus: "not-applicable",
 		})
 		s.addIssue("window-context-overflow", "error", "the bounded window-context queue overflowed", event.EventID)
@@ -1441,7 +1554,7 @@ func (s *recorderSession) runContextResolver() {
 	for request := range s.contextRequests {
 		observedAt := time.Now().UTC()
 		resolved := recorderInputContext{
-			EventID: request.EventID, Kind: request.Kind, Status: "unverified",
+			EventID: request.EventID, Kind: request.Kind, Phase: request.Phase, Status: "unverified",
 			ResolutionDelayMS: observedAt.Sub(request.ReceivedAt).Milliseconds(),
 			SemanticStatus:    "not-applicable",
 		}
@@ -1455,11 +1568,16 @@ func (s *recorderSession) runContextResolver() {
 			resolved.Window = snapshot
 		} else if request.X != nil && request.Y != nil && !recorderPointInsideWindow(*request.X, *request.Y, snapshot.Bounds) {
 			resolved.Reason = "pointer release is outside the resolved active window"
+			if request.Phase == "pressed" {
+				resolved.Reason = "pointer press is outside the resolved active window"
+			} else if request.Phase == "wheel" {
+				resolved.Reason = "wheel position is outside the resolved active window"
+			}
 			resolved.Window = snapshot
 		} else {
 			resolved.Status = "verified"
 			resolved.Window = snapshot
-			if request.Kind == "pointer" && request.X != nil && request.Y != nil {
+			if request.Kind == "pointer" && request.Phase != "wheel" && request.X != nil && request.Y != nil {
 				if s.options.Evidence == "none" {
 					resolved.SemanticStatus = "not-requested"
 					s.appendInputContext(resolved)
@@ -1533,6 +1651,8 @@ func (s *recorderSession) finish(reason error, cutoffTime time.Time) {
 	}
 	close(s.contextRequests)
 	<-s.contextDone
+	close(s.textSignals)
+	<-s.textDone
 	close(s.events)
 	writerResult := <-s.writerDone
 	s.storageState.Store(writerResult.State)
@@ -1550,12 +1670,18 @@ func (s *recorderSession) finish(reason error, cutoffTime time.Time) {
 		s.addIssue("queue-overflow", "error", "the bounded capture queue overflowed; capture stopped", overflowEventID)
 		s.addIssue("events-dropped", "error", "one or more observed events were not accepted by the writer queue", "")
 	}
+	if s.textSignalsDropped.Load() > 0 {
+		s.addIssue("text-tracker-overflow", "error", "the bounded text-classification queue overflowed; keyboard text cannot be reconstructed safely", "")
+	}
 	s.issueMu.Lock()
 	issues := append([]recorderIssue(nil), s.issues...)
 	s.issueMu.Unlock()
 	s.contextMu.Lock()
 	inputContexts := append([]recorderInputContext(nil), s.inputContexts...)
 	s.contextMu.Unlock()
+	s.textMu.Lock()
+	textEdits := append([]recorderTextEdit(nil), s.textEdits...)
+	s.textMu.Unlock()
 	sort.SliceStable(inputContexts, func(i, j int) bool {
 		return recorderNativeStringValue(strings.TrimPrefix(inputContexts[i].EventID, "e")) < recorderNativeStringValue(strings.TrimPrefix(inputContexts[j].EventID, "e"))
 	})
@@ -1570,7 +1696,7 @@ func (s *recorderSession) finish(reason error, cutoffTime time.Time) {
 	}
 	manifestErr := s.writer.finishManifest(recorderManifestFinal{
 		State: manifestState, StoppedAt: cutoffTime, CutoffSequence: s.cutoffSeq.Load(),
-		Counts: s.countSnapshot(), Storage: writerResult, InputContexts: inputContexts, Issues: issues,
+		Counts: s.countSnapshot(), Storage: writerResult, InputContexts: inputContexts, TextEdits: textEdits, Issues: issues,
 	})
 	if manifestErr != nil {
 		writerResult.State = "failed"

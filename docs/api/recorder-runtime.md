@@ -53,7 +53,7 @@ Recorder.getCapabilities(): OpenDeskRecorderCapabilities
 
 **返回值**
 
-`capture` 分别给出 `supported`、当前 execution 的 `hostAuthorized`、无提示权限探测 `permission`、`available`、平台、固定 libuiohook 版本、坐标空间、`evidenceModes` 和限制。`evidenceModes` 当前包含 `"none"` 与 `"target-semantics"`。`actions.available` 与 `basicGeneration.available` 描述文件制作能力；它们不因 hook 不可用或未授权而变为 `false`。
+`capture` 分别给出 `supported`、当前 execution 的 `hostAuthorized`、无提示权限探测 `permission`、`available`、平台、固定 libuiohook 版本、坐标空间、`evidenceModes` 和限制。`evidenceModes` 当前包含 `"none"` 与 `"target-semantics"`。`actions.available` 与 `basicGeneration.available` 描述文件制作能力；它们不因 hook 不可用或未授权而变为 `false`。`actions.actionSubset` 分别列出普通直线 drag 的 `drag.left.straight` 和需要 verified 双端点输入框语义的 `drag.left.text-selection-natural`，不会用后者暗示缺失的 Accessibility 证据。
 
 **行为与错误**
 
@@ -85,7 +85,7 @@ Recorder.start(options: OpenDeskRecorderStartOptions): Promise<OpenDeskRecorderS
 | `options.within.title` | `string` | 是 | 无 | 起始前台窗口标题，仅作为录制来源与生成候选的 provenance |
 | `options.captureKeyboard` | `boolean` | 否 | `false` | 是否保存键盘事件；仅限明确的非敏感测试场景 |
 | `options.keyboardContent` | `"non-sensitive-test"` | 条件必填 | 无 | `captureKeyboard: true` 时必须提供；它不是宿主授权 |
-| `options.evidence` | `"target-semantics" \| "none"` | 否 | `"target-semantics"` | 前者在鼠标释放后采集点击处控件的标签级语义；后者显式关闭控件语义。两者都不采集截图、OCR、AX 值或整棵 AX 树 |
+| `options.evidence` | `"target-semantics" \| "none"` | 否 | `"target-semantics"` | 前者在鼠标释放后采集点击处控件的标签级语义；后者显式关闭鼠标控件语义。两者都不采集截图、OCR 或整棵 AX 树；该开关不覆盖显式开启的键盘文本结果采集 |
 | `options.outputDir` | `string` | 否 | `.runtime/recordings` | 只能位于 `Execution.workdir/.runtime/recordings` 内的父目录 |
 | `options.maxDurationMs` | `number` | 否 | `900000` | 录制上限，范围 1000–1800000 毫秒；由 native owner 强制停止 |
 | `options.controlKeycodes` | `number[]` | 否 | `[]` | 最多 16 个 libuiohook 控制键码；对应按键事件在入队前排除 |
@@ -98,9 +98,13 @@ Promise resolve 为当前 execution 专有的 `OpenDeskRecorderSession`。sessio
 
 采集入口必须使用 `-allow-recorder-capture`；普通本地脚本、HTTP、MCP 和 Scheduler 默认不能从 JavaScript 参数或环境变量取得该权限。`within` 记录启动时由调用方选择的前台窗口上下文，不是输入过滤范围或重放门槛。Runtime 会尽力再次读取启动时的前台窗口；无法读取或与 `within` 不一致时记录 `initial-window-unverified` 或 `initial-window-changed` warning，但不拒绝启动。listener 就绪后采集是桌面级的，切换窗口、改变标题或切换应用不会过滤输入、终止 session 或阻塞 actions。
 
-每次权威 `MOUSE_RELEASED` 和每个文本段的首个 `KEY_TYPED` 都会在 callback 之外解析当时的前台应用、具体窗口和 bounds；解析必须在 750ms 新鲜度边界内完成。`target-semantics` 还在 macOS 通过点命中读取单个 Accessibility 元素；若命中的是按钮内文字等非操作节点，最多沿 6 层父链选择最近的可执行祖先。它保存所选目标的 `role`、native role、名称／描述、identifier、原生动作、bounds、元素内点击点，以及原始 hit 和有界 ancestors。它不会保存 `AXValue`、选择文本、密码字段内容或整棵子树；安全元素明确跳过。语义不可用时保存 `semanticStatus: "unavailable"` 及原因，窗口上下文仍可独立使用；`none` 保存 `semanticStatus: "not-requested"`，而不是伪装成探测成功。
+每次权威 `MOUSE_PRESSED`／`MOUSE_RELEASED` 和相关 keyboard 边界都会在 callback 之外解析当时的前台应用、具体窗口和 bounds；pointer context 用 `phase: "pressed"`／`"released"` 明确区分两个端点，解析必须在 750ms 新鲜度边界内完成。`target-semantics` 还在 macOS 通过点命中读取单个 Accessibility 元素；若命中的是按钮内文字等非操作节点，最多沿 6 层父链选择最近的可执行祖先。它保存所选目标的 `role`、native role、`subrole`、名称／描述、identifier、`enabled`、`focused`、`valueSettable`、原生动作、bounds、元素内点击点，以及原始 hit 和有界 ancestors。
 
-键盘默认不保存；显式开启后键盘采集会跟随前台应用，因此调用方必须确保整个录制过程均为非敏感测试。Recorder 不读取剪贴板、不上传材料。OCR 需要截图裁剪、隐私声明和独立证据文件，当前不会作为 AX 失败时的静默降级；需要 OCR 的后续语义制作必须显式读取独立现场材料。
+pointer 端点探测始终使用不读取值的 Accessibility 请求，不保存 `AXValue`、选择文本、密码字段内容或整棵子树；安全元素明确跳过。若 point-hit 没有可用 bounds，macOS 只允许回退到同一 PID、已聚焦、可写、非安全且覆盖该点的 `textField`，并标记 `resolution: "focused-input-fallback"`，仍不读取字段值。语义不可用时保存 `semanticStatus: "unavailable"` 及原因，窗口上下文仍可独立使用；`none` 保存 `semanticStatus: "not-requested"`，而不是伪装成探测成功。
+
+键盘默认不保存；macOS native event tap 在 `captureKeyboard: false` 时也不订阅键盘事件，避免已禁用内容进入按键翻译和 Runtime callback。显式开启后，Recorder 使用两个分离通道：libuiohook 的物理 press/release 保存快捷键和特殊键事实；callback 之外的 macOS Accessibility 焦点文本框采样保存最终值变化，用来覆盖普通输入、删除、选择替换以及输入法候选提交。低层 `KEY_TYPED` 不是 IME commit 合同，只在无法取得最终文本结果时作为 Basic Latin 兼容回退。
+
+文本结果采集只在同时声明 `captureKeyboard: true` 和 `keyboardContent: "non-sensitive-test"` 时启用，并且不受鼠标 `evidence` 模式关闭影响。它会读取当前可写、已聚焦、非安全 `textField` 的值，但 manifest 不保存完整 before/after 值：只保存两端 UTF-16LE SHA-256、UTF-16 code-unit 长度，以及 `{start, deleteCount, insertText}` 差异；`insertText` 就是用户实际输入内容，因此该声明必须覆盖整个录制过程。安全/密码字段拒绝读取，Recorder 不读取剪贴板、不上传材料。OCR 需要截图裁剪、隐私声明和独立证据文件，当前不会作为 AX 失败时的静默降级。
 
 一次进程只允许一个 libuiohook dispatcher lease。writer、参数、权限、backend 和 `HOOK_ENABLED` 就绪任一失败都会拒绝 Promise；部分启动会回滚。常见 `RecorderError.code` 包括 `INVALID_ARGUMENT`、`RECORDER_CAPTURE_DENIED`、`RECORDER_CAPTURE_UNAVAILABLE` 和 `RECORDER_CAPTURE_OCCUPIED`。
 
@@ -128,11 +132,10 @@ macOS 使用静态编入的 libuiohook 并需要 Input Monitoring/Accessibility 
 ./dist/opendesk -ui -allow-recorder-capture -script examples/custom-ui/recording-console-simple.js -console-mode script -log-dir .runtime/examples/custom-ui/recording-console-simple
 ```
 
-开始按钮是本次即时采集授权；点击后控制台留出 3 秒供用户聚焦起始窗口，再读取并保存该窗口上下文，
-用于聚焦的点击发生在 listener 启动前，不会进入录制。暂停／继续按钮按
-`status().captureState` 分派到明确的 `pause()`／`resume()`；继续时可以位于任意窗口。录制中可切换窗口和应用。停止后界面显示保存摘要并调用同一个
-`Recorder.buildActions()`；只有 actions 为 `ready` 时，用户才能另点“生成脚本”调用
-`Recorder.generateScript()`。生成后详情页读取并显示真实脚本内容，但不会自动回放。只有再次明确点击
+开始控制是本次即时采集授权；点击后控制台留出 3 秒供用户聚焦起始窗口，再读取并保存该窗口上下文，
+用于聚焦的点击发生在 listener 启动前，不会进入录制。简化工具条把 Play 与 Pause 合并在首个按钮：录制中原位显示 Pause，暂停后原位恢复 Play；该按钮按
+`status().captureState` 分派到明确的 `pause()`／`resume()`，继续时可以位于任意窗口。录制中可切换窗口和应用。停止后界面显示保存摘要并调用同一个
+`Recorder.buildActions()`；actions 为 `ready` 时立即调用 `Recorder.generateScript()` 生成文件，生成失败时原“重放”位置切换为显式重试入口，不增加常驻按钮。生成后详情页读取并显示真实脚本内容，但不会自动回放。只有再次明确点击
 “试运行”后控制台先留出 3 秒供用户恢复起始桌面和窗口，再通过 [Command.run()](command.md#commandruncommand-args-options) 启动新的
 `./dist/opendesk -script <scriptFile>` execution；取消或关闭使用 `AbortSignal` 清理该受管子进程。
 进程退出结果与 candidate 分开显示，生成结果仍保持 `verification: "not-run"`。生成成功后可再次明确点击
@@ -218,17 +221,19 @@ session.excludeControlClick(event: OpenDeskRecorderControlClickEvent): Promise<O
 
 | 参数 | 类型 | 必填 | 默认值 | 说明 |
 | --- | --- | --- | --- | --- |
-| `event` | `OpenDeskRecorderControlClickEvent` | 是 | 无 | `FloatingWindow` 或 Custom UI 的原始 `click` 事件；必须包含有效的 `windowId`、`targetId` 和 `timestamp`，不得重建或延迟转交。 |
+| `event` | `OpenDeskRecorderControlClickEvent` | 是 | 无 | `FloatingWindow` 或 Custom UI 的原始 `click` 事件；必须包含有效的 `windowId`、`targetId`、`timestamp` 和宿主生成的控件屏幕 `bounds`，不得重建或延迟转交。 |
 
 **返回值**
 
-返回 `changed`、控制边界的 `transitionSequence` 和被该边界引用的 native `eventIds`。在 `recording` 状态写入边界时，`changed` 为 `true`；`eventIds` 是与事件时间相邻的最近一次完整左键 press/release（可含 `CLICKED` 或有界 drag jitter）包络。`paused` 状态没有保存 native 输入，返回 `changed: false` 和空 `eventIds`。
+返回 `changed`、控制边界的 `transitionSequence`、被该边界引用的 native `eventIds` 和 `matchStatus`。在 `recording` 状态写入边界时，`changed` 为 `true`；`eventIds` 只引用时间相邻、全部坐标位于宿主控件 `bounds` 内的最近一次完整左键 press/release（可含 `CLICKED` 或有界 drag jitter）包络。`matchStatus` 为 `matched`、`not-observed` 或 `unmatched`。`paused` 状态没有保存 native 输入，返回 `changed: false`、`not-observed` 和空 `eventIds`。
 
 **行为与错误**
 
-调用方应在每个可能发生于录制期间的 Custom UI `click` 回调中先 `await session.excludeControlClick(event)`，再执行按钮业务；这不只适用于暂停和停止按钮。Runtime 只关联 native 输入尾部完整、有界且与该 UI 时间戳相差不超过 1.5 秒的左键点击包络，并把 `RECORDER_CONTROL_CLICK` 写入 raw；`buildActions()` 根据边界中的事件 ID 排除控制输入，不按坐标、窗口标题或按钮位置猜测。空引用、过期引用或被修改的元数据会明确产生 blocked issue，不会静默删除 raw 输入。
+调用方应在每个可能发生于录制期间的 Custom UI `click` 回调中先 `await session.excludeControlClick(event)`，再执行按钮业务；这不只适用于暂停和停止按钮。Runtime 只关联 native 输入尾部完整、有界、与该 UI 时间戳相差不超过 1.5 秒且落在宿主所报控件屏幕范围内的左键点击包络，并把范围、匹配状态和 `RECORDER_CONTROL_CLICK` 写入 raw；`buildActions()` 根据边界中的事件 ID 排除控制输入，不会把快速切换应用前的最近业务点击误认成工具条点击。
 
-事件不是实时 click、身份或时间戳无效、session 不在 `recording`／`paused` 状态时返回 `INVALID_ARGUMENT` 或 `RECORDER_INVALID_STATE`。若控制台未能建立边界，仍应允许用户停止监听，但必须阻止自动制作或生成脚本，避免把控制按钮静默重放为目标点击。
+若控件范围内没有任何相邻 native 指针输入，边界使用 `matchStatus: "not-observed"` 和空引用；raw 中没有可排除的控制输入，因此不会单独阻塞制作。若范围内出现了输入但无法组成完整包络，则使用 `unmatched` 并产生 blocked issue。过期引用、范围不符或被修改的元数据同样会阻塞，不会静默删除 raw 输入。
+
+事件不是实时 click、身份、时间戳或控件范围无效，或者 session 不在 `recording`／`paused` 状态时返回 `INVALID_ARGUMENT` 或 `RECORDER_INVALID_STATE`。若控制台未能建立边界，仍应允许用户停止监听，但必须阻止自动制作或生成脚本，避免把控制按钮静默重放为目标点击。
 
 **示例**
 
@@ -326,11 +331,23 @@ Recorder.buildActions(recordingDir: string): Promise<OpenDeskRecorderActionsResu
 
 该方法不要求 active session、hook、桌面权限或原 execution 句柄。它从同一份 raw 字节计算 hash 并解析，限制 regular file、路径、大小、行长、事件数、结构和引用，并交叉检查 manifest 的状态、计数、截止、显示器与已验证坐标。终结 manifest 缺失或 storage 非 `saved` 时，只允许从完整 NDJSON 行恢复可验证前缀；最后一条未终结损坏行被排除并记录 error，readiness 固定为 `blocked`。首次保存 `actions.json`；已有内容完全相同时复用，已有文件被人工修改时写 `actions.rNNN.json`，不覆盖旧内容。每个 revision 都保存 `revisionReason` 与固定制作 `revisionBasis`；每个 action 另保存其 source basis。
 
-首版把完整的单次左键 `CLICKED` 与对应 `PRESSED`／`RELEASED` 制作为 click。libuiohook 在指针发生极小移动后会把中间事件报告为 `MOUSE_DRAGGED`、`button: "none"` 并省略 `CLICKED`；当完整 press/drag/release 在 2 秒内、同一显示器且所有点距按下点不超过 4 logical points 时，builder 确定性归一化为一个 click，并在 action source 保存独立 basis。超过该边界的真实拖动仍明确 blocked，绝不降级为 click。
+首版把每个完整的单次物理左键 `CLICKED` 包络与对应 `PRESSED`／`RELEASED` 制作为 click。libuiohook 的 `clicks` 是同一按钮的时间序列计数，并不会比较前后坐标；因此快速点击两个不同控件时，第二个完整包络也可能携带 `clicks: 2`。builder 在三条事件计数一致、且前一个 `CLICKED` 不在同一 4 logical points 范围内时仍保留为一次物理 click；录制起点只有 `clicks > 1` 的序列后缀时同理。同一点范围内连续递增的包络仍按真实 double/multi-click 明确 blocked，不会拆成受默认最小延迟影响的独立点击。
 
-可靠的 Basic Latin `KEY_TYPED` 制作为当前焦点插入文本。物理键只作证据，避免与 `keyboard.type` 双重消费。pause/resume 控制边界被明确排除但会切断动作归组；`RECORDER_CONTROL_CLICK` 只排除其显式引用的 Custom UI 点击包络。输入按下状态跨越 pause、双击、非左键、真实拖动、滚轮、Control/Meta/Alt click、composition／死键、不配对边界、未验证坐标和事件丢失会保留问题并阻塞生成。
+libuiohook 在指针发生极小移动后还会把中间事件报告为 `MOUSE_DRAGGED`、`button: "none"` 并省略 `CLICKED`；当完整 press/drag/release 在 2 秒内、同一显示器且所有点距按下点不超过 4 logical points 时，builder 确定性归一化为一个 click，并在 action source 保存独立 basis。它不会把超过该边界的真实拖动伪装成 click。
 
-`recording/v2` 在鼠标释放和文本输入段起点异步记录动作级窗口上下文。窗口快照把可复用的应用身份（可执行文件路径，缺失时为可执行文件名）与仅能说明本次录制来源的 PID、窗口 ID、窗口序号和原生 handle 分开；点击同时保存录制时的屏幕事实、窗口左上角偏移和归一化比例。macOS 在权限和可用性允许时还保存不含值内容的 Accessibility 元素标签证据，包括按钮文字、role、identifier、原生动作、控件 bounds、控件内点击点、原始命中节点和最多 6 层祖先路径；非操作叶节点会“冒泡”到最近的可执行祖先。`semanticStatus`／`semanticReason` 明确区分已验证、不可用和未请求。元素语义不可用不会退回到“固定起始窗口”或终止录制。起始窗口读取失败也只留下 warning，只要具体动作具有可验证上下文，actions 仍可为 `ready`。
+basic 动作子集另支持可审计的单次直线左键 drag：完整 press/motion/release 必须在 30 秒内、全部坐标已验证且位于同一显示器，起终点距离大于 4 logical points；普通 drag 的每个路径点到起终点线段仍不得超过 8 logical points，投影进度不得越出线段或明显回退。action 保存起点、`destination`、有界 `steps`、全部 source event IDs，以及 press/release 各自的窗口、phase、解析状态和不含内容的 Accessibility traits。
+
+只有两个端点都属于同一 verified 录制窗口、同一个 verified 可写 `textField` 时，真人文字选择才可进入独立的自然近直线子集并分类为 `text-selection`。该子集仍要求同屏、≤30 秒、全路径坐标 verified、投影不越界且无明显回退；横向偏差上限是 `min(16, max(8, 起终点距离 × 8%))` logical points，采样路径总长不得超过起终点直线距离的 1.08 倍，并使用独立 source basis。普通 drag 的全局 8 points 容差不变；非输入控件、双端点窗口不一致、只有 release context、`semanticStatus` 为 `unavailable`／`not-requested`、明显曲线、回退、跨显示器、非左键、超时和未验证坐标都不能使用该语义子集，继续以 `drag-unsupported` fail closed。Recorder 不会根据应用名、窗口位置或轨迹形状补造 `text-selection` 证据。
+
+未带修饰键的滚轮输入会制作为 `wheel`。同一显示器、同一轴、同一方向且相邻 native 时间不超过 250ms 的连续事件合并为一个最多 100 步的 burst；action 固化首事件的 `x/y`，同时保存 window/display 相对投影，把各事件的 `wheelAmount * wheelRotation` 累加为 `deltaX` 或 `deltaY`，并从 burst 时长确定 `delayMs`。正值与 [mouse.wheel()](mouse.md#mousewheeloptions) 一致，表示向右／向下。换轴、反向、较长停顿或步数上限会切断 burst；缺少原生滚轮字段、零 delta、未验证坐标以及按住键盘修饰键或鼠标键的滚轮仍会 fail closed。
+
+键盘制作遵循“结果优先、物理事实补充”：已验证的焦点文本框值变化制作 `text-edit`，其源按键只作证据，避免再发一次物理键；没有文本变化的 Control/Meta/Alt 组合制作 `shortcut`，Enter、Escape、Tab、Backspace/Delete、方向/导航键和 F 键制作 `key`。无法取得最终值结果时，仅可靠 Basic Latin `KEY_TYPED` 回退为 `keyboard.type`。非 ASCII 差异若与 Enter/Tab 共用源事件会记录 `ime-boundary-ambiguous` 并阻塞，因为仅从 AX 值变化无法证明该键是否还触发提交等应用副作用。未知物理键、无配对边界、跨 pause 以及未关联 modifier 同样 fail closed。
+
+pause/resume 控制边界被明确排除但会切断动作归组；`RECORDER_CONTROL_CLICK` 只排除其显式引用的 Custom UI 点击包络。输入按下状态跨越 pause、同一点连续双击／多击、非左键、带修饰键的滚轮、Control/Meta/Alt click、未验证坐标和事件丢失会保留问题并阻塞生成。
+
+`recording/v2` 在鼠标按下／释放、每个滚轮 burst 起点和文本输入段起点异步记录动作级窗口上下文。滚轮上下文只解析前台窗口和 bounds，不执行无意义的控件点击语义探测。窗口快照把可复用的应用身份（可执行文件路径，缺失时为可执行文件名）与仅能说明本次录制来源的 PID、窗口 ID、窗口序号和原生 handle 分开；点击和滚轮同时保存录制时的屏幕事实、窗口左上角偏移和归一化比例。坐标已由录制时 display provenance 验证、但落在当时活动窗口之外的点击（例如 Dock、菜单栏或桌面）不会伪装成窗口动作；builder 把它保存为带 display identity、显示器内偏移和比例的明确 display-relative click。滚轮接收者本来就由指针位置和系统命中测试决定，因此窗口上下文缺失／过期时，只要录制坐标及 display provenance 已验证，也会明确降级为 display-relative wheel；这同时允许早期未采集 wheel context 的 v2 录制包生成候选。其他窗口上下文缺失或过期仍会 blocked。
+
+macOS 在权限和可用性允许时还保存不含值内容的 Accessibility 元素标签证据，包括按钮文字、role、subrole、identifier、enabled/focused/valueSettable traits、原生动作、控件 bounds、控件内点击点、原始命中节点和最多 6 层祖先路径；非操作叶节点会“冒泡”到最近的可执行祖先。`semanticStatus`／`semanticReason` 明确区分已验证、不可用和未请求。元素语义不可用不会退回到“固定起始窗口”或终止录制。起始窗口读取失败也只留下 warning，只要具体动作具有可验证上下文，actions 仍可为 `ready`。
 
 窗口或应用切换本身是正常桌面序列，不产生 blocked issue。完整非暂停动作间隔不作为 readiness 错误；其 raw 时长由 basic 生成器按 timing 策略显式转换为脚本中的固定等待。
 
@@ -380,11 +397,17 @@ Recorder.generateScript(
 
 **行为与错误**
 
-该方法重新读取并严格校验实际 actions 字节及其固定 raw hash/byte reference，不信任上次调用的内存对象。它重新解析 raw，要求 eventDisposition 完整且唯一，并验证 click/text、source basis、timing 与 raw 事件的确定性归组一致。未知字段、未知动作、非法数值、悬空引用、unsafe ID、空文本、非 `ready` 资格和非 basic mode 均拒绝。输出使用 exclusive create；已存在脚本或 candidate 返回 `WOULD_OVERWRITE`，不会覆盖人工代码。
+该方法重新读取并严格校验实际 actions 字节及其固定 raw hash/byte reference，不信任上次调用的内存对象。它重新解析 raw 和终结 manifest，要求 eventDisposition 完整且唯一，并验证 click/drag/wheel/text/text-edit/shortcut/key、source basis、timing 与固定输入事实的确定性归组一致。未知字段、未知动作、非法数值、悬空引用、unsafe ID、空文本、非 `ready` 资格和非 basic mode 均拒绝。输出使用 exclusive create；已存在脚本或 candidate 返回 `WOULD_OVERWRITE`，不会覆盖人工代码。
 
-生成脚本先检查 OS，然后仅发出白名单 `window.list`、`window.getActiveWindow`、`mouse.click`、`keyboard.type`，以及相邻动作间固定的 `sleep` 调用。每个动作在运行时都按录制的可执行文件路径／名称和标题重新解析当前窗口：标题精确匹配可唯一定位时优先采用，否则仅在该应用当前只有一个候选窗口时采用它。录制时的 PID、窗口 ID、窗口序号和原生 handle 永远只作 provenance，不与当前 execution 比较；窗口标题也不是单独的硬门槛。无法唯一解析当前目标才明确拒绝该动作，避免把输入发送给任意同应用窗口。
+生成脚本先检查 OS，然后仅发出白名单窗口、显示器、Geometry、mouse、keyboard 与 Accessibility 调用，以及相邻动作间固定的 `sleep`。快捷键和特殊键先证明重新解析的窗口正在前台，再分别调用 `keyboard.combination()` 和 `keyboard.press()`。`text-edit` 先在该窗口内用录制的 role 加 identifier（缺失时 name）执行完整唯一性搜索，读取当前 `value` 并核对 UTF-16 code-unit 长度和 UTF-16LE SHA-256；只有 precondition 精确匹配才在内存应用差异、核对 after hash、最多一次调用 `Accessibility.perform(...setValue...)`，随后重新读取并验证 postcondition。安全字段、歧义、前置状态漂移、动作未确认或回读不一致均停止，绝不重试或退回键盘猜测。执行这类候选必须显式启用 Accessibility Runtime 能力并具备系统权限。
 
-点击使用当前窗口的新鲜 bounds 加录制时的窗口内偏移，因此允许窗口平移；窗口缩放不会用比例坐标猜测。文本动作会确认刚刚重新解析出的当前窗口确实处于前台，但比较的是本次解析得到的当前窗口身份，不是录制时的 PID 或编号。调用方应在执行前恢复预期的起始桌面和应用状态，不必恢复录制时 PID、窗口编号或屏幕位置。
+窗口动作在运行时先用录制的可执行文件路径／名称加精确标题调用 `window.get`；只有该调用明确返回无底层 cause 的 `NOT_FOUND` 时，才退回仅按可执行文件身份调用 `window.get`，而该查询本身仍要求唯一匹配。歧义、后端失败和带 cause 的错误原样拒绝，不触发放宽条件。录制时的 PID、窗口 ID、窗口序号和原生 handle 永远只作 provenance，不与当前 execution 比较；窗口标题也不是单独的硬门槛。无法唯一解析当前目标才明确拒绝该动作，避免把输入发送给任意同应用窗口。
+
+窗口点击把当前窗口快照和录制时的窗口内偏移交给 `Geometry.pointOffset()`，再用 `Geometry.contains()` 明确拒绝越界点，因此允许窗口平移；窗口缩放不会用比例坐标猜测。桌面级点击按录制 display ID 解析，ID 不能唯一匹配时才使用唯一的 hardware identity，并以同一 Geometry 路径把显示器内偏移投影到当前 bounds。两类点击都通过 tagged screen point 调用 `mouse.clickPoint()`；这减少生成物自带的坐标换算样板，但不会把窗口解析、投影和输入提交合并成原子操作。调用方必须恢复预期的 Dock／菜单栏／桌面状态。
+
+drag 使用同样的新鲜窗口／显示器解析分别投影起点和终点；脚本先 `mouse.move(start)`，再 `mouse.down({button: "left"})`，在 `try` 中用受限 `steps` 移到终点，并在 `finally` 中无条件 `mouse.up({button: "left"})`，避免移动失败后留下按键按下状态。文本动作会确认刚刚重新解析出的当前窗口确实处于前台，但比较的是本次解析得到的当前窗口身份，不是录制时的 PID 或编号。调用方应在执行前恢复预期的起始桌面和应用状态，不必恢复录制时 PID、窗口编号或屏幕位置。
+
+wheel 同样先解析新鲜窗口或显示器，把录制的首事件坐标投影到当前 bounds 并拒绝越界；生成脚本显式 `mouse.move(point)` 后才调用 `mouse.wheel({deltaX, deltaY, steps, delay})`。因此滚动目标坐标不会被省略，窗口平移时使用窗口内偏移，旧录制的 display-relative 降级则要求恢复对应桌面布局。
 
 脚本不导入 Node、不 `eval` actions、不循环解释 actions、不调用 OCR／模型／Skill，也不自动运行。每个非暂停动作间隔都以“前一动作最后事件到后一动作首个事件”的 raw 毫秒差为基准，先除以 `speedMultiplier`，再限制到 `minimumDelayMs..maximumDelayMs`；默认因此保留用户节奏，同时给快速操作至少 500ms 的稳定间隔，并把异常长等待限制为 30 秒。显式 pause/resume 之间的墙钟时间不重放。生成代码在每个 `sleep` 后以内联注释保留原始间隔，resolved timing 同时写入返回值和 `basic-candidate/v3` 元数据，调用方或后续 AI 可在生成时调整策略，也可审核后修改普通 JS。这些 sleep 是可检查的录制时间事实与重放节奏策略，不是目标就绪、加载完成或业务成功条件。
 
@@ -423,7 +446,7 @@ Recorder v2 目录为：
   generated/basic.candidate.json
 ```
 
-raw 使用字符串保存 session sequence 和 native timestamp，避免 JavaScript safe-integer 损失；同时保存 native clock/unit、接收时间、modifier、库事件、坐标验证、输入来源和已知 gap。`manifest.json` 保存可选的起始窗口快照以及与权威 `MOUSE_RELEASED`／文本段起始 `KEY_TYPED` 事件关联的 `inputContexts`；窗口和可选元素语义是动作当时的事实，不写入 raw 事件本身。Recorder 自身的暂停／恢复与 Custom UI 控制点击边界使用 `source: "recorder"`；控制点击边界的 metadata 固定保存 `windowId`、`targetId`、`uiTimestamp` 和 `triggerEventIds`。暂停区间的输入内容不写入 raw。普通 hover `MOUSE_MOVED` 不保存；只在鼠标键按住期间保留 motion／drag 路径供动作判定。默认事件队列 4096、窗口上下文队列 128、上下文新鲜度上限 750ms、writer flush 250ms、backend start/stop deadline 8s、默认 session 15 分钟、最大 30 分钟；这些是有限设计默认值，不是性能实测结论。
+raw 使用字符串保存 session sequence 和 native timestamp，避免 JavaScript safe-integer 损失；同时保存 native clock/unit、接收时间、modifier、库事件、坐标验证、输入来源和已知 gap。`manifest.json` 保存可选的起始窗口快照、与权威 pointer/keyboard 事件关联的 `inputContexts`，以及显式键盘授权下的 `textEdits`。新录制的 pointer press/release/wheel context 分别带 `pressed`／`released`／`wheel` phase；旧 v2 release-only context 的空 phase 仍可读取，但不能补造缺失的 press traits。窗口和标签语义是动作当时事实；`textEdits` 只含 before/after 指纹、差异插入内容、精确可写文本框 descriptor 和源事件引用，不保存未变化上下文、完整字段值、选择文本或安全字段内容。Recorder 自身的暂停／恢复与 Custom UI 控制点击边界使用 `source: "recorder"`；控制点击边界的 metadata 固定保存 `windowId`、`targetId`、`uiTimestamp`、`triggerEventIds`、`controlBounds` 和 `matchStatus`。暂停区间的输入内容不写入 raw。普通 hover `MOUSE_MOVED` 不保存；只在鼠标键按住期间保留 motion／drag 路径供动作判定。默认事件队列 4096、窗口上下文队列 128、文本采样 40ms、文本静默归组 120ms、上下文新鲜度上限 750ms、writer flush 250ms、backend start/stop deadline 8s、默认 session 15 分钟、最大 30 分钟；这些是有限设计默认值，不是性能实测结论。
 
 basic 模式不创建 `observations/`。Accessibility 标签直接作为动作上下文中的结构化事实保存，不等于 OCR，也不被当作已证明的业务意图。只有未来在明确启用屏幕证据后实际取得有界目标裁剪时才能创建并引用 `observations/`；不得把后来截图、OCR 文本或模型描述伪装成录制时事实。
 

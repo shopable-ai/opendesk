@@ -5,6 +5,11 @@
 
 #if defined(__APPLE__)
 #include <ApplicationServices/ApplicationServices.h>
+
+/* OpenDesk's vendored Darwin backend uses this before hook_run() so a
+ * keyboard-disabled Recorder never enters libuiohook's synchronous Unicode
+ * translation path on the CLI process main queue. */
+extern void opendesk_uiohook_set_capture_keyboard(bool enabled);
 #endif
 
 static bool opendesk_recorder_uiohook_log(unsigned int level, const char *format, ...) {
@@ -74,7 +79,12 @@ static void opendesk_recorder_uiohook_dispatch(uiohook_event *const event) {
         direction);
 }
 
-int opendesk_recorder_uiohook_run(void) {
+int opendesk_recorder_uiohook_run(bool capture_keyboard) {
+#if defined(__APPLE__)
+    opendesk_uiohook_set_capture_keyboard(capture_keyboard);
+#else
+    (void) capture_keyboard;
+#endif
     hook_set_logger_proc(&opendesk_recorder_uiohook_log);
     hook_set_dispatch_proc(&opendesk_recorder_uiohook_dispatch);
     return hook_run();

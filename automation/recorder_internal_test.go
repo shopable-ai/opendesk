@@ -136,8 +136,13 @@ func TestRecorderSessionReadyStopDrainIdempotenceAndReuse(t *testing.T) {
 	if err != nil || recorderDecodeStrict(manifestBytes, &manifest) != nil {
 		t.Fatalf("manifest read/decode: %v", err)
 	}
-	if manifest.State != "stopped" || manifest.Storage.State != "saved" || manifest.Counts.Persisted != 6 || manifest.Counts.Filtered != 3 || manifest.Counts.Paused != 1 || manifest.Counts.Late != 1 || len(manifest.InputContexts) != 1 || manifest.InputContexts[0].Status != "verified" {
+	if manifest.State != "stopped" || manifest.Storage.State != "saved" || manifest.Counts.Persisted != 6 || manifest.Counts.Filtered != 3 || manifest.Counts.Paused != 1 || manifest.Counts.Late != 1 || len(manifest.InputContexts) != 2 || manifest.InputContexts[0].Status != "verified" || manifest.InputContexts[0].Phase != "pressed" || manifest.InputContexts[1].Status != "verified" || manifest.InputContexts[1].Phase != "released" {
 		t.Fatalf("terminal manifest=%#v", manifest)
+	}
+	for _, inputContext := range manifest.InputContexts {
+		if inputContext.Element == nil || inputContext.Element.Enabled == nil || !*inputContext.Element.Enabled || inputContext.Element.Focused == nil || *inputContext.Element.Focused || inputContext.Element.ValueSettable {
+			t.Fatalf("pointer endpoint traits=%#v", inputContext)
+		}
 	}
 	if !strings.Contains(string(manifestBytes), `"issues": []`) {
 		t.Fatalf("terminal manifest must use a stable empty issues array: %s", manifestBytes)
@@ -200,6 +205,43 @@ func TestRecorderInitialWindowChangeDoesNotStopOrBlockDesktopCapture(t *testing.
 	built, err := owner.buildActionsFile(session.writer.recordingDir)
 	if err != nil || built.Readiness != "ready" || built.ActionCount != 1 {
 		t.Fatalf("desktop recording did not remain buildable: result=%#v error=%v", built, err)
+	}
+}
+
+func TestRecorderDesktopChromeClickUsesVerifiedDisplayTarget(t *testing.T) {
+	backend := &recorderMemoryBackend{}
+	owner := recorderTestOwner(t.TempDir(), backend)
+	owner.windowProbe = func() (*WindowInfo, error) {
+		active := recorderTestWindow(42, "Recorder Fixture", "Recorder.app")
+		active.Height = 300
+		return active, nil
+	}
+	session, err := owner.startSession(recorderTestStartOptions())
+	if err != nil {
+		t.Fatal(err)
+	}
+	backend.Emit(RecorderInputEvent{Type: recorderEventMousePressed, NativeTime: 1000, Button: 1, Clicks: 1, X: 100, Y: 550})
+	backend.Emit(RecorderInputEvent{Type: recorderEventMouseReleased, NativeTime: 1010, Button: 1, Clicks: 1, X: 100, Y: 550})
+	backend.Emit(RecorderInputEvent{Type: recorderEventMouseClicked, NativeTime: 1010, Button: 1, Clicks: 1, X: 100, Y: 550})
+	session.finishAsync(nil)
+	<-session.done
+	if session.stopErr != nil {
+		t.Fatalf("stop error=%v", session.stopErr)
+	}
+	built, err := owner.buildActionsFile(session.writer.recordingDir)
+	if err != nil || built.Readiness != "ready" || built.ActionCount != 1 || len(built.Issues) != 0 {
+		t.Fatalf("desktop-level click actions=%#v error=%v", built, err)
+	}
+	var actions recorderActions
+	actionsBytes, readErr := os.ReadFile(built.ActionsFile)
+	if readErr != nil || recorderDecodeStrict(actionsBytes, &actions) != nil || len(actions.Actions) != 1 {
+		t.Fatalf("desktop-level action decode=%v actions=%#v", readErr, actions.Actions)
+	}
+	action := actions.Actions[0]
+	if action.Target == nil || action.Target.Kind != "display" || action.Target.Display == nil || action.Target.Display.ID != "display-1" ||
+		action.Target.Window != nil || action.Position == nil || action.Position.Display == nil || action.Position.Display.OffsetX != 100 ||
+		action.Position.Display.OffsetY != 550 || action.Position.Window != nil {
+		t.Fatalf("desktop-level action did not preserve a display-relative target: %#v", action)
 	}
 }
 
@@ -404,13 +446,21 @@ func TestRecorderActionGroupingPreservesUnsupportedBoundaries(t *testing.T) {
 	dragged := recorderTestMouseEventAt(2, "MOUSE_DRAGGED", 1005, 1<<8, 40, 50)
 	dragged.Button = "none"
 	dragRelease := recorderTestMouseEventAt(3, "MOUSE_RELEASED", 1010, 0, 40, 50)
+	actions, _, issues = recorderBuildActionList([]recorderRawEvent{press, dragged, dragRelease})
+	if len(actions) != 1 || len(issues) != 0 || actions[0].Kind != "drag" || actions[0].Strategy != "mouse.drag" || actions[0].Position == nil || actions[0].Destination == nil || actions[0].Position.X != 10 || actions[0].Destination.X != 40 || actions[0].Args.Steps != 2 {
+		t.Fatalf("straight drag=%#v issues=%#v", actions, issues)
+	}
+	curved := recorderTestMouseEventAt(2, "MOUSE_DRAGGED", 1005, 1<<8, 40, 80)
+	curved.Button = "none"
+	curvedRelease := recorderTestMouseEventAt(3, "MOUSE_RELEASED", 1010, 0, 80, 20)
 	for _, test := range []struct {
 		name   string
 		events []recorderRawEvent
 		issue  string
 	}{
-		{name: "drag", events: []recorderRawEvent{press, dragged, dragRelease}, issue: "drag-unsupported"},
-		{name: "double-click", events: []recorderRawEvent{press, release, recorderTestMouseEventWithClicks(3, "MOUSE_CLICKED", 1010, 0, 2)}, issue: "click-count-unsupported"},
+		{name: "curved-drag", events: []recorderRawEvent{press, curved, curvedRelease}, issue: "drag-unsupported"},
+		{name: "inconsistent-click-count", events: []recorderRawEvent{press, release, recorderTestMouseEventWithClicks(3, "MOUSE_CLICKED", 1010, 0, 2)}, issue: "click-count-inconsistent"},
+		{name: "zero-click-count", events: []recorderRawEvent{recorderTestMouseEventWithClicks(1, "MOUSE_PRESSED", 1000, 0, 0), recorderTestMouseEventWithClicks(2, "MOUSE_RELEASED", 1010, 0, 0), recorderTestMouseEventWithClicks(3, "MOUSE_CLICKED", 1010, 0, 0)}, issue: "click-count-invalid"},
 		{name: "control-click", events: []recorderRawEvent{press, release, recorderTestMouseEvent(3, "MOUSE_CLICKED", 1010, 1<<1)}, issue: "modified-click-unsupported"},
 		{name: "long-press", events: []recorderRawEvent{press, recorderTestMouseEvent(2, "MOUSE_RELEASED", 4001, 0), recorderTestMouseEvent(3, "MOUSE_CLICKED", 4001, 0)}, issue: "long-press-unsupported"},
 		{name: "missing-release", events: []recorderRawEvent{press}, issue: "missing-release-at-stop"},
@@ -424,6 +474,31 @@ func TestRecorderActionGroupingPreservesUnsupportedBoundaries(t *testing.T) {
 				t.Fatalf("actions=%#v issues=%#v", actions, issues)
 			}
 		})
+	}
+
+	secondPress := recorderTestMouseEventWithClicks(4, "MOUSE_PRESSED", 1200, 0, 2)
+	secondRelease := recorderTestMouseEventWithClicks(5, "MOUSE_RELEASED", 1210, 0, 2)
+	secondClicked := recorderTestMouseEventWithClicks(6, "MOUSE_CLICKED", 1210, 0, 2)
+	actions, _, issues = recorderBuildActionList([]recorderRawEvent{press, release, clicked, secondPress, secondRelease, secondClicked})
+	if len(actions) != 1 || !recorderHasIssue(issues, "click-count-unsupported") {
+		t.Fatalf("spatial double click must remain blocked: actions=%#v issues=%#v", actions, issues)
+	}
+
+	secondPress = recorderTestMouseEventAt(4, "MOUSE_PRESSED", 1200, 0, 70, 80)
+	secondRelease = recorderTestMouseEventAt(5, "MOUSE_RELEASED", 1210, 0, 70, 80)
+	secondClicked = recorderTestMouseEventAt(6, "MOUSE_CLICKED", 1210, 0, 70, 80)
+	secondPress.Clicks, secondRelease.Clicks, secondClicked.Clicks = 2, 2, 2
+	actions, _, issues = recorderBuildActionList([]recorderRawEvent{press, release, clicked, secondPress, secondRelease, secondClicked})
+	if len(actions) != 2 || len(issues) != 0 || actions[1].Args.ClickCount != 1 || actions[1].Position.X != 70 {
+		t.Fatalf("cross-position click-series count must preserve two physical clicks: actions=%#v issues=%#v", actions, issues)
+	}
+
+	prefixPress := recorderTestMouseEventWithClicks(1, "MOUSE_PRESSED", 1000, 0, 2)
+	prefixRelease := recorderTestMouseEventWithClicks(2, "MOUSE_RELEASED", 1010, 0, 2)
+	prefixClicked := recorderTestMouseEventWithClicks(3, "MOUSE_CLICKED", 1010, 0, 2)
+	actions, _, issues = recorderBuildActionList([]recorderRawEvent{prefixPress, prefixRelease, prefixClicked})
+	if len(actions) != 1 || len(issues) != 0 || actions[0].Args.ClickCount != 1 {
+		t.Fatalf("capture-start click-series suffix must preserve one physical click: actions=%#v issues=%#v", actions, issues)
 	}
 
 	jitter := recorderTestMouseEvent(2, "MOUSE_MOVED", 1005, 0)
@@ -441,18 +516,156 @@ func TestRecorderActionGroupingPreservesUnsupportedBoundaries(t *testing.T) {
 	}
 }
 
+func TestRecorderDragEndpointEvidenceKeepsWindowAndEditableTraits(t *testing.T) {
+	observed := time.Now().UTC()
+	window, err := recorderSnapshotWindow(recorderTestWindow(42, "Recorder Fixture", "Recorder.app"), observed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	enabled, focused := true, true
+	descriptor := recorderElementDescriptor{
+		Role: "textField", NativeRole: "AXTextField", Subrole: "AXSearchField", Name: "Search", Identifier: "search-input",
+		Enabled: &enabled, Focused: &focused, ValueSettable: true, NativeActions: []string{}, Bounds: recorderWindowBounds{X: 100, Y: 100, Width: 300, Height: 40},
+	}
+	element := &recorderElementSnapshot{
+		Source: "accessibility", Resolution: "point-hit", Role: descriptor.Role, NativeRole: descriptor.NativeRole, Subrole: descriptor.Subrole,
+		Name: descriptor.Name, Identifier: descriptor.Identifier, Enabled: descriptor.Enabled, Focused: descriptor.Focused, ValueSettable: descriptor.ValueSettable,
+		NativeActions: []string{}, Bounds: descriptor.Bounds, Hit: descriptor, Ancestors: []recorderElementDescriptor{},
+		Point: recorderElementPoint{OffsetX: 20, OffsetY: 20, XRatio: 1.0 / 15.0, YRatio: 0.5}, ObservedAt: observed.Format(time.RFC3339Nano),
+	}
+	press := recorderInputContext{EventID: "e000000000001", Kind: "pointer", Phase: "pressed", Status: "verified", Window: window, Element: element, SemanticStatus: "verified"}
+	release := recorderInputContext{EventID: "e000000000004", Kind: "pointer", Phase: "released", Status: "verified", Window: window, Element: element, SemanticStatus: "verified"}
+	action := recorderAction{Kind: "drag", Source: recorderActionSource{EventIDs: []string{press.EventID, "e000000000002", "e000000000003", release.EventID}}}
+	evidence := recorderBuildPointerEvidence(action, map[string]recorderInputContext{press.EventID: press, release.EventID: release})
+	if evidence.Classification != "text-selection" || evidence.Press == nil || evidence.Release == nil ||
+		evidence.Press.Window == nil || evidence.Release.Window == nil || evidence.Press.Window.ID != window.ID || evidence.Release.Window.ID != window.ID ||
+		evidence.Press.Element == nil || evidence.Press.Element.Subrole != "AXSearchField" || !evidence.Release.Element.ValueSettable || recorderValidatePointerEvidence(evidence) != nil {
+		t.Fatalf("drag endpoint evidence=%#v", evidence)
+	}
+
+	otherWindow := *window
+	otherWindow.ID = "window-other"
+	release.Window = &otherWindow
+	evidence = recorderBuildPointerEvidence(action, map[string]recorderInputContext{press.EventID: press, release.EventID: release})
+	if evidence.Classification != "drag" {
+		t.Fatalf("cross-window editable endpoints must not be classified as text selection: %#v", evidence)
+	}
+}
+
+func TestRecorderNaturalTextSelectionRequiresMatchingEditableEndpoints(t *testing.T) {
+	observed := time.Now().UTC()
+	window, err := recorderSnapshotWindow(recorderTestWindow(42, "Recorder Fixture", "Recorder.app"), observed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	window.Bounds = recorderWindowBounds{X: 0, Y: 0, Width: 1600, Height: 1000}
+	enabled, focused := true, true
+	textDescriptor := recorderElementDescriptor{
+		Role: "textField", NativeRole: "AXTextArea", Name: "Message", Identifier: "message-input",
+		Enabled: &enabled, Focused: &focused, ValueSettable: true, NativeActions: []string{},
+		Bounds: recorderWindowBounds{X: 900, Y: 680, Width: 400, Height: 100},
+	}
+	textElement := func() *recorderElementSnapshot {
+		return &recorderElementSnapshot{
+			Source: "accessibility", Resolution: "focused-input-fallback", Role: textDescriptor.Role, NativeRole: textDescriptor.NativeRole,
+			Name: textDescriptor.Name, Identifier: textDescriptor.Identifier, Enabled: textDescriptor.Enabled, Focused: textDescriptor.Focused,
+			ValueSettable: textDescriptor.ValueSettable, NativeActions: []string{}, Bounds: textDescriptor.Bounds, Hit: textDescriptor,
+			Ancestors: []recorderElementDescriptor{}, Point: recorderElementPoint{OffsetX: 20, OffsetY: 20, XRatio: 0.05, YRatio: 0.2},
+			ObservedAt: observed.Format(time.RFC3339Nano),
+		}
+	}
+	press := recorderTestMouseEventAt(1, "MOUSE_PRESSED", 1000, 1<<8, 1210, 723)
+	coordinates := [][2]int{{1208, 723}, {1177, 719}, {1138, 714}, {1084, 709}, {1048, 709}, {1040, 712}, {1023, 719}, {1000, 723}}
+	events := []recorderRawEvent{press}
+	for index, point := range coordinates {
+		motion := recorderTestMouseEventAt(index+2, "MOUSE_DRAGGED", uint64(1010+index*10), 1<<8, point[0], point[1])
+		motion.Button = "none"
+		events = append(events, motion)
+	}
+	release := recorderTestMouseEventAt(len(events)+1, "MOUSE_RELEASED", 1100, 0, 992, 723)
+	events = append(events, release)
+	pressContext := recorderInputContext{EventID: press.EventID, Kind: "pointer", Phase: "pressed", Status: "verified", Window: window, Element: textElement(), SemanticStatus: "verified"}
+	releaseContext := recorderInputContext{EventID: release.EventID, Kind: "pointer", Phase: "released", Status: "verified", Window: window, Element: textElement(), SemanticStatus: "verified"}
+
+	build := func(contexts []recorderInputContext, input []recorderRawEvent) ([]recorderAction, []recorderIssue) {
+		actions, _, issues := recorderBuildActionListWithContexts(input, nil, contexts)
+		return actions, issues
+	}
+	actions, issues := build([]recorderInputContext{pressContext, releaseContext}, events)
+	if len(issues) != 0 || len(actions) != 1 || actions[0].Kind != "drag" || actions[0].Source.Basis != recorderTextSelectionDragBasis {
+		t.Fatalf("natural text selection actions=%#v issues=%#v", actions, issues)
+	}
+
+	for _, test := range []struct {
+		name     string
+		contexts []recorderInputContext
+		events   []recorderRawEvent
+	}{
+		{name: "missing-traits", contexts: []recorderInputContext{{EventID: press.EventID, Kind: "pointer", Phase: "pressed", Status: "verified", Window: window, SemanticStatus: "unavailable", SemanticReason: "no target"}, {EventID: release.EventID, Kind: "pointer", Phase: "released", Status: "verified", Window: window, SemanticStatus: "unavailable", SemanticReason: "no target"}}, events: events},
+		{name: "non-text-field", contexts: func() []recorderInputContext {
+			buttonPress, buttonRelease := pressContext, releaseContext
+			buttonPress.Element, buttonRelease.Element = textElement(), textElement()
+			buttonPress.Element.Role, buttonRelease.Element.Role = "button", "button"
+			buttonPress.Element.NativeRole, buttonRelease.Element.NativeRole = "AXButton", "AXButton"
+			buttonPress.Element.ValueSettable, buttonRelease.Element.ValueSettable = false, false
+			return []recorderInputContext{buttonPress, buttonRelease}
+		}(), events: events},
+		{name: "different-window", contexts: func() []recorderInputContext {
+			otherRelease := releaseContext
+			otherWindow := *window
+			otherWindow.ID = "window-other"
+			otherRelease.Window = &otherWindow
+			return []recorderInputContext{pressContext, otherRelease}
+		}(), events: events},
+		{name: "curved", contexts: []recorderInputContext{pressContext, releaseContext}, events: func() []recorderRawEvent {
+			curved := append([]recorderRawEvent(nil), events...)
+			y := 660
+			curved[len(curved)/2].Y = &y
+			return curved
+		}()},
+		{name: "clear-backtrack", contexts: []recorderInputContext{pressContext, releaseContext}, events: func() []recorderRawEvent {
+			backtrack := append([]recorderRawEvent(nil), events...)
+			x := 1195
+			backtrack[3].X = &x
+			return backtrack
+		}()},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			actions, issues := build(test.contexts, test.events)
+			if len(actions) != 0 || !recorderHasIssue(issues, "drag-unsupported") {
+				t.Fatalf("actions=%#v issues=%#v", actions, issues)
+			}
+		})
+	}
+
+	payload, err := json.Marshal([]recorderInputContext{pressContext, releaseContext})
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(payload)
+	if strings.Contains(text, `"value":`) || strings.Contains(text, `"selectedText":`) || strings.Contains(text, `"selection":`) {
+		t.Fatalf("pointer endpoint evidence leaked content: %s", text)
+	}
+}
+
 func TestRecorderSessionControlClickBoundaryCapturesProductionTail(t *testing.T) {
 	backend := &recorderMemoryBackend{}
 	session, err := recorderTestOwner(t.TempDir(), backend).startSession(recorderTestStartOptions())
 	if err != nil {
 		t.Fatal(err)
 	}
-	backend.Emit(RecorderInputEvent{Type: recorderEventMousePressed, NativeTime: 1000, Button: 1, Clicks: 1, X: 300, Y: 400})
+	// libuiohook may carry a time/button click-series count from input that
+	// happened before capture or at a different point. The complete current
+	// control envelope remains matchable when all three events agree.
+	backend.Emit(RecorderInputEvent{Type: recorderEventMousePressed, NativeTime: 1000, Button: 1, Clicks: 2, X: 300, Y: 400})
 	backend.Emit(RecorderInputEvent{Type: recorderEventMouseDragged, NativeTime: 1005, Button: 0, Clicks: 0, Mask: 1 << 8, X: 301, Y: 400})
-	backend.Emit(RecorderInputEvent{Type: recorderEventMouseReleased, NativeTime: 1010, Button: 1, Clicks: 1, X: 301, Y: 400})
-	result, err := session.excludeControlClick("recorder-window", "stop", time.Now().UTC())
+	backend.Emit(RecorderInputEvent{Type: recorderEventMouseReleased, NativeTime: 1010, Button: 1, Clicks: 2, X: 301, Y: 400})
+	result, err := session.excludeControlClick("recorder-window", "stop", time.Now().UTC(), recorderControlBounds{X: 290, Y: 390, Width: 40, Height: 40})
 	if err != nil || !result.Changed || len(result.EventIDs) != 3 {
 		t.Fatalf("control-click result=%#v error=%v", result, err)
+	}
+	if result.MatchStatus != "matched" {
+		t.Fatalf("control-click match status=%q", result.MatchStatus)
 	}
 	session.finishAsync(nil)
 	<-session.done
@@ -467,6 +680,32 @@ func TestRecorderSessionControlClickBoundaryCapturesProductionTail(t *testing.T)
 	references, err := recorderControlClickReferences(events[3])
 	if err != nil || !reflect.DeepEqual(references, result.EventIDs) {
 		t.Fatalf("control references=%#v result=%#v error=%v", references, result.EventIDs, err)
+	}
+}
+
+func TestRecorderSessionControlClickDoesNotExcludeRecentTargetOutsideControlBounds(t *testing.T) {
+	backend := &recorderMemoryBackend{}
+	owner := recorderTestOwner(t.TempDir(), backend)
+	session, err := owner.startSession(recorderTestStartOptions())
+	if err != nil {
+		t.Fatal(err)
+	}
+	backend.Emit(RecorderInputEvent{Type: recorderEventMousePressed, NativeTime: 1000, Button: 1, Clicks: 1, X: 20, Y: 30})
+	backend.Emit(RecorderInputEvent{Type: recorderEventMouseReleased, NativeTime: 1010, Button: 1, Clicks: 1, X: 20, Y: 30})
+	backend.Emit(RecorderInputEvent{Type: recorderEventMouseClicked, NativeTime: 1010, Button: 1, Clicks: 1, X: 20, Y: 30})
+
+	result, err := session.excludeControlClick("recorder-window", "stop", time.Now().UTC(), recorderControlBounds{X: 300, Y: 400, Width: 40, Height: 40})
+	if err != nil || !result.Changed || result.MatchStatus != "not-observed" || len(result.EventIDs) != 0 {
+		t.Fatalf("control-click result=%#v error=%v", result, err)
+	}
+	session.finishAsync(nil)
+	<-session.done
+	if session.stopErr != nil {
+		t.Fatalf("stop error=%v", session.stopErr)
+	}
+	built, err := owner.buildActionsFile(session.writer.recordingDir)
+	if err != nil || built.Readiness != "ready" || built.ActionCount != 1 || len(built.Issues) != 0 {
+		t.Fatalf("cross-application target click was not preserved: result=%#v error=%v", built, err)
 	}
 }
 
@@ -502,15 +741,83 @@ func TestRecorderTextGroupingDoesNotReplayPhysicalKeysAndBlocksComposition(t *te
 	}
 }
 
+func TestRecorderKeyboardShortcutsSpecialKeysAndVerifiedTextEdits(t *testing.T) {
+	keyboardEvent := func(sequence int, kind string, code, rawcode, mask uint16) recorderRawEvent {
+		event := recorderTestRawEvent(sequence, kind)
+		undefined := uint16(0xffff)
+		event.Keycode, event.Rawcode, event.Keychar = &code, &rawcode, &undefined
+		event.ModifierMask = mask
+		event.Modifiers = recorderModifiers(mask)
+		return event
+	}
+	metaPress := keyboardEvent(1, "KEY_PRESSED", 0xe05b, 0, 1<<2)
+	cPress := keyboardEvent(2, "KEY_PRESSED", 0x002e, 8, 1<<2)
+	cRelease := keyboardEvent(3, "KEY_RELEASED", 0x002e, 8, 1<<2)
+	metaRelease := keyboardEvent(4, "KEY_RELEASED", 0xe05b, 0, 0)
+	actions, dispositions, issues := recorderBuildActionList([]recorderRawEvent{metaPress, cPress, cRelease, metaRelease})
+	if len(issues) != 0 || len(actions) != 1 || actions[0].Kind != "shortcut" || actions[0].Strategy != "keyboard.combination" || !reflect.DeepEqual(actions[0].Args.Keys, []string{"Meta", "C"}) || !reflect.DeepEqual(actions[0].Source.EventIDs, []string{metaPress.EventID, cPress.EventID, cRelease.EventID, metaRelease.EventID}) {
+		t.Fatalf("shortcut actions=%#v dispositions=%#v issues=%#v", actions, dispositions, issues)
+	}
+	for _, item := range dispositions {
+		if item.ActionID != actions[0].ID || (item.Disposition != "consumed" && item.Disposition != "evidence") {
+			t.Fatalf("shortcut disposition=%#v", dispositions)
+		}
+	}
+
+	enterPress := keyboardEvent(1, "KEY_PRESSED", 0x001c, 0x24, 0)
+	enterRelease := keyboardEvent(2, "KEY_RELEASED", 0x001c, 0x24, 0)
+	actions, _, issues = recorderBuildActionList([]recorderRawEvent{enterPress, enterRelease})
+	if len(issues) != 0 || len(actions) != 1 || actions[0].Kind != "key" || actions[0].Args.Key != "Enter" || actions[0].Strategy != "keyboard.press" {
+		t.Fatalf("special-key actions=%#v issues=%#v", actions, issues)
+	}
+
+	before, after := "prefix🙂suffix", "prefix世界🙂suffix"
+	patch := recorderBuildTextPatch(before, after)
+	if applied, ok := recorderApplyTextPatch(before, patch); !ok || applied != after || patch.Unit != "utf16-code-unit" || patch.Start != 6 {
+		t.Fatalf("unicode patch=%#v applied=%q ok=%t", patch, applied, ok)
+	}
+	focused := true
+	window, err := recorderSnapshotWindow(recorderTestWindow(42, "Recorder Fixture", "Recorder.app"), time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	edit := recorderTextEdit{
+		ID: "t0001", Status: "verified", SourceEventIDs: []string{enterPress.EventID, enterRelease.EventID}, Window: window,
+		Element: recorderElementDescriptor{Role: "textField", NativeRole: "AXTextField", Name: "Editor", Identifier: "editor", Focused: &focused, ValueSettable: true, NativeActions: []string{}, Bounds: recorderWindowBounds{X: 10, Y: 10, Width: 300, Height: 40}},
+		Before:  recorderFingerprintText(before), Patch: patch, After: recorderFingerprintText(after), ObservedAt: time.Now().UTC().Format(time.RFC3339Nano),
+	}
+	actions, dispositions, issues = recorderBuildActionListWithTextEdits([]recorderRawEvent{enterPress, enterRelease}, []recorderTextEdit{edit})
+	if len(actions) != 1 || actions[0].Kind != "text-edit" || actions[0].Strategy != "accessibility.setValue" || actions[0].Args.TextEdit == nil || actions[0].Target == nil || actions[0].Target.Editable == nil || !recorderHasIssue(issues, "ime-boundary-ambiguous") {
+		t.Fatalf("verified text edit actions=%#v dispositions=%#v issues=%#v", actions, dispositions, issues)
+	}
+
+	plainPress := keyboardEvent(1, "KEY_PRESSED", 0x001e, 0, 0)
+	plainRelease := keyboardEvent(2, "KEY_RELEASED", 0x001e, 0, 0)
+	edit.SourceEventIDs = []string{plainPress.EventID, plainRelease.EventID}
+	actions, _, issues = recorderBuildActionListWithTextEdits([]recorderRawEvent{plainPress, plainRelease}, []recorderTextEdit{edit})
+	if len(issues) != 0 || len(actions) != 1 {
+		t.Fatalf("unambiguous text edit actions=%#v issues=%#v", actions, issues)
+	}
+	if err := recorderValidateActionTarget(actions[0]); err != nil {
+		t.Fatalf("unambiguous text edit target=%#v error=%v", actions[0].Target, err)
+	}
+	source, _, constraints, err := recorderGenerateBasicSource(recorderActions{Environment: recorderActionEnvironment{Platform: "darwin"}, Actions: actions}, []recorderRawEvent{plainPress, plainRelease}, recorderGenerationTiming{MinimumDelayMS: 0, MaximumDelayMS: 1, SpeedMultiplier: 1})
+	if err != nil || !strings.Contains(string(source), "await __recorderApplyTextEdit") || !strings.Contains(string(source), "editable value precondition mismatch") || !strings.Contains(string(source), "Accessibility.perform(ref, { action: \"setValue\"") || !strings.Contains(strings.Join(constraints, "\n"), "UTF-16LE SHA-256") {
+		t.Fatalf("text edit source error=%v\n%s\nconstraints=%#v", err, source, constraints)
+	}
+}
+
 func recorderTestOwner(workDir string, backend RecorderInputBackend) *RecorderRuntime {
 	return &RecorderRuntime{
 		context: context.Background(), workDir: workDir, executionID: "test-execution",
 		backendFactory: func() RecorderInputBackend { return backend },
 		windowProbe:    func() (*WindowInfo, error) { return recorderTestWindow(42, "Recorder Fixture", "Recorder.app"), nil },
 		targetProbe: func(_ context.Context, _ *WindowInfo, x, y int) (*recorderElementSnapshot, error) {
-			descriptor := recorderElementDescriptor{Role: "button", NativeRole: "AXButton", Name: "Save", Identifier: "save-button", NativeActions: []string{"AXPress"}, Bounds: recorderWindowBounds{X: x - 5, Y: y - 5, Width: 20, Height: 20}}
+			enabled, focused := true, false
+			descriptor := recorderElementDescriptor{Role: "button", NativeRole: "AXButton", Name: "Save", Identifier: "save-button", Enabled: &enabled, Focused: &focused, NativeActions: []string{"AXPress"}, Bounds: recorderWindowBounds{X: x - 5, Y: y - 5, Width: 20, Height: 20}}
 			return &recorderElementSnapshot{
 				Source: "accessibility", Resolution: "point-hit", Role: "button", NativeRole: "AXButton", Name: "Save", Identifier: "save-button",
+				Enabled: &enabled, Focused: &focused,
 				NativeActions: []string{"AXPress"}, Bounds: recorderWindowBounds{X: x - 5, Y: y - 5, Width: 20, Height: 20},
 				Hit: descriptor, Ancestors: []recorderElementDescriptor{}, Point: recorderElementPoint{OffsetX: 5, OffsetY: 5, XRatio: 0.25, YRatio: 0.25}, ObservedAt: time.Now().UTC().Format(time.RFC3339Nano),
 			}, nil

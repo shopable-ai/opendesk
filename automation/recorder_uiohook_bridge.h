@@ -1,9 +1,10 @@
 #ifndef OPENDESK_RECORDER_UIOHOOK_BRIDGE_H
 #define OPENDESK_RECORDER_UIOHOOK_BRIDGE_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
-int opendesk_recorder_uiohook_run(void);
+int opendesk_recorder_uiohook_run(bool capture_keyboard);
 int opendesk_recorder_uiohook_stop(void);
 int opendesk_recorder_uiohook_permission(void);
 

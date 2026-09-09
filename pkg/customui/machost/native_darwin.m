@@ -261,10 +261,10 @@ static NSString *CDBridgeSource(NSArray *controls, NSString *css, BOOL draggable
 	         "const update = (id, patch) => { const el = element(id); if (Object.prototype.hasOwnProperty.call(patch,'text')) { const text=String(patch.text ?? ''); el.textContent=text; if (el.tagName === 'BUTTON') { el.title=text; el.setAttribute('aria-label',text); } } if (Object.prototype.hasOwnProperty.call(patch,'icon')) el.dataset.icon=String(patch.icon ?? ''); if (Object.prototype.hasOwnProperty.call(patch,'value')) el.value = patch.value ?? ''; if (Object.prototype.hasOwnProperty.call(patch,'checked')) el.checked = !!patch.checked; if (Object.prototype.hasOwnProperty.call(patch,'active')) el.setAttribute('aria-pressed',patch.active ? 'true' : 'false'); if (Object.prototype.hasOwnProperty.call(patch,'disabled')) el.disabled = !!patch.disabled; if (Object.prototype.hasOwnProperty.call(patch,'busy')) { el.dataset.busy=patch.busy ? 'true' : 'false'; el.setAttribute('aria-busy',patch.busy ? 'true' : 'false'); } if (Object.prototype.hasOwnProperty.call(patch,'error')) { const message=String(patch.error ?? ''); el.dataset.error=message; el.setAttribute('aria-invalid',message ? 'true' : 'false'); } if (Object.prototype.hasOwnProperty.call(patch,'visible')) el.hidden = !patch.visible; if (Array.isArray(patch.classes)) el.className = patch.classes.join(' '); if (Object.prototype.hasOwnProperty.call(patch,'source')) { if (el.tagName !== 'IMG') throw new Error('source is supported only for img controls'); el.src = patch.source || ''; } if (Array.isArray(patch.options)) { if (el.tagName !== 'SELECT') throw new Error('options are supported only for select controls'); el.replaceChildren(...patch.options.map(o => { const option=document.createElement('option'); option.value=String(o.value); option.textContent=String(o.label); return option; })); } return state(id); };\n"
 	         "const toolbarUpdate = (id, patch) => { update(id, patch); const el=element(id); if (el.dataset.opendeskIconOnly === 'true') { if (Object.prototype.hasOwnProperty.call(patch,'text')) el.textContent=''; const p=patch.iconPresentation; if (p && typeof p.systemSymbol === 'string') { el.dataset.iconSymbol=p.systemSymbol; el.dataset.iconScale=String(p.scale); el.dataset.iconOffsetX=String(p.offsetX); el.dataset.iconOffsetY=String(p.offsetY); } } return toolbarState(id); };\n"
 	         "const targetFor = (event) => { const el = event.target && event.target.closest ? event.target.closest('[id]') : null; return el && allowed.has(el.id) ? el : null; };\n"
-	         "document.addEventListener('click', event => { const el=targetFor(event); if (el && !el.disabled && el.dataset.busy !== 'true') send({type:'click',targetId:el.id,value:('value' in el ? el.value : null),checked:('checked' in el ? !!el.checked : null)}); });\n"
+	         "document.addEventListener('click', event => { const el=targetFor(event); if (el && !el.disabled && el.dataset.busy !== 'true') send({type:'click',targetId:el.id,value:('value' in el ? el.value : null),checked:('checked' in el ? !!el.checked : null),bounds:state(el.id).screenBounds}); });\n"
 	         "document.addEventListener('input', event => { const el=targetFor(event); if (el && !el.hasAttribute('data-opendesk-dialog-private-input')) send({type:'input',targetId:el.id,value:('value' in el ? el.value : null),checked:('checked' in el ? !!el.checked : null)}); });\n"
 	         "document.addEventListener('change', event => { const el=targetFor(event); if (el && !el.hasAttribute('data-opendesk-dialog-private-input')) send({type:'change',targetId:el.id,value:('value' in el ? el.value : null),checked:('checked' in el ? !!el.checked : null)}); });\n"
-	         "document.addEventListener('keydown', event => { if (event.isComposing || event.defaultPrevented) return; if (event.key === 'Escape') { const cancel=document.querySelector('[data-opendesk-dialog-cancel]'); if (cancel || document.querySelector('[data-opendesk-dialog-default]')) { event.preventDefault(); send({type:'dialogCancel'}); } return; } if (event.key === 'Enter') { const button=document.querySelector('[data-opendesk-dialog-default]'); if (button && !button.disabled) { event.preventDefault(); send({type:'click',targetId:button.id}); } } });\n"
+	         "document.addEventListener('keydown', event => { if (event.isComposing || event.defaultPrevented) return; if (event.key === 'Escape') { const cancel=document.querySelector('[data-opendesk-dialog-cancel]'); if (cancel || document.querySelector('[data-opendesk-dialog-default]')) { event.preventDefault(); send({type:'dialogCancel'}); } return; } if (event.key === 'Enter') { const button=document.querySelector('[data-opendesk-dialog-default]'); if (button && !button.disabled) { event.preventDefault(); send({type:'click',targetId:button.id,bounds:state(button.id).screenBounds}); } } });\n"
 	         "const dialogFocus = document.querySelector('[data-opendesk-dialog-focus]'); if (dialogFocus) requestAnimationFrame(() => dialogFocus.focus());\n"
          "const setDraggable = (enabled) => { config.draggable = !!enabled; };\n"
 	         "Object.defineProperty(window, '__opendesk', {value:Object.freeze({state:toolbarState,states,update:toolbarUpdate,setDraggable,dragRects}), configurable:false, writable:false});\n"
@@ -622,7 +622,9 @@ static void CDFinalizeClosedWindow(CDWindowController *controller, NSUInteger at
 
 - (void)floatingToolbarDidActivateButton:(NSString *)targetID {
 	if (self.closed || ![self.controlIDs containsObject:targetID]) return;
-	[self emitType:@"click" target:targetID body:@{} reason:nil];
+	NSDictionary *state = [self.floatingToolbarView stateForButtonID:targetID window:self.window];
+	NSDictionary *bounds = [state[@"screenBounds"] isKindOfClass:NSDictionary.class] ? state[@"screenBounds"] : nil;
+	[self emitType:@"click" target:targetID body:(bounds ? @{@"bounds": bounds} : @{}) reason:nil];
 }
 
 - (void)floatingToolbarDidChangeControl:(NSString *)targetID type:(NSString *)type value:(id)value checked:(NSNumber *)checked {
@@ -814,8 +816,9 @@ static void CDFinalizeClosedWindow(CDWindowController *controller, NSUInteger at
         @"timestamp": CDTimestamp(),
     } mutableCopy];
     if (target.length) event[@"targetId"] = target;
-    if (body[@"value"] && body[@"value"] != NSNull.null) event[@"value"] = body[@"value"];
-    if (body[@"checked"] && body[@"checked"] != NSNull.null) event[@"checked"] = body[@"checked"];
+	if (body[@"value"] && body[@"value"] != NSNull.null) event[@"value"] = body[@"value"];
+	if (body[@"checked"] && body[@"checked"] != NSNull.null) event[@"checked"] = body[@"checked"];
+	if ([body[@"bounds"] isKindOfClass:NSDictionary.class]) event[@"bounds"] = body[@"bounds"];
 	if ([type isEqualToString:@"move"] || [type isEqualToString:@"resize"]) event[@"bounds"] = CDBoundsForWindow(self.window);
     if (reason.length) event[@"reason"] = reason;
     CDEmit(@{@"version": CDProtocolVersion, @"kind": @"event", @"event": event});

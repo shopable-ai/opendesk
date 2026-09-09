@@ -60,6 +60,7 @@ type recorderManifestFinal struct {
 	Counts         map[string]uint64
 	Storage        recorderWriterResult
 	InputContexts  []recorderInputContext
+	TextEdits      []recorderTextEdit
 	Issues         []recorderIssue
 }
 
@@ -229,6 +230,7 @@ func (w *recorderWriter) finishManifest(final recorderManifestFinal) error {
 	manifest.Storage.RawSHA256 = final.Storage.RawSHA256
 	manifest.Storage.RawBytes = final.Storage.RawBytes
 	manifest.InputContexts = append(make([]recorderInputContext, 0, len(final.InputContexts)), final.InputContexts...)
+	manifest.TextEdits = append(make([]recorderTextEdit, 0, len(final.TextEdits)), final.TextEdits...)
 	if final.Storage.RawFile == "" {
 		manifest.Storage.RawFile = ""
 	}

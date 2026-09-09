@@ -69,7 +69,16 @@
 真实水平居中、运行时 top/bottom 更新、固定几何、截断、Accessibility 与截图；它是专项证据，
 不能替代完整 `OPENDESK_RUNTIME_API_MODE=custom-ui` gate。
 
-Recorder 的真实 macOS 采集不属于上述无副作用 selected 测试。使用当前源码构建物并明确授权一次性计算器 fixture 后，从仓库根目录运行：
+Recorder 的真实 macOS 采集不属于上述无副作用 selected 测试。以下命令都必须从仓库根目录使用匹配当前源码的构建物运行。
+
+验证真实 FloatingWindow stop 回调、`captureKeyboard: false` 的 native 过滤、连续启动／停止和
+lease 复用。测试只发送一个通常未绑定的 F18，并点击自己的停止控件；同时保存工具条截图：
+
+```bash
+./dist/opendesk -ui -allow-recorder-capture -script tests/runtime-api/recorder-native-stop-macos.js -console-mode script
+```
+
+需要完整计算器动作验收时，另行明确授权一次性 Calculator fixture：
 
 ```bash
 OPENDESK_RECORDER_CALCULATOR_CONFIRM=authorized-calculator-fixture ./dist/opendesk -allow-recorder-capture -script tests/runtime-api/recorder-native-calculator-macos.js -console-mode script

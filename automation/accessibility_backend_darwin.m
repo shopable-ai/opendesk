@@ -44,6 +44,7 @@ static CFStringRef opendesk_ax_element_attribute(int32_t attribute) {
         case OPENDESK_AX_ELEMENT_ATTRIBUTE_CHILDREN: return kAXChildrenAttribute;
         case OPENDESK_AX_ELEMENT_ATTRIBUTE_WINDOWS: return kAXWindowsAttribute;
         case OPENDESK_AX_ELEMENT_ATTRIBUTE_PARENT: return kAXParentAttribute;
+        case OPENDESK_AX_ELEMENT_ATTRIBUTE_FOCUSED_UI_ELEMENT: return kAXFocusedUIElementAttribute;
         default: return NULL;
     }
 }

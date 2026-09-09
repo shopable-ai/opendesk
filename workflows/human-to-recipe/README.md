@@ -8,7 +8,7 @@ order: 10
 
 **人提供示范，Recorder 保存事实，Agent 按需理解界面和过程，程序验证定位与操作，确定部分交付为普通 OpenDesk JavaScript。**
 
-状态：Recorder 数据合同 v2、Custom UI 控制面、合成文件闭环与 macOS Calculator 真实 native capture/语义证据已实施并验收，2026-09-09。v2 已实现 hover 降噪、动作级应用／窗口上下文、窗口相对坐标、同应用多窗口消歧，以及点击处 AX 标签和有界祖先“冒泡”；当前仓库内固定质量量表为 98/100。生成脚本的独立真实回放及回放后业务 oracle 仍未运行。实现不表示已安装下游 Skill，也不以文档完整度或 candidate 生成代替真实资格。
+状态：Recorder 数据合同 v2、Custom UI 控制面、合成文件闭环与 macOS Calculator 真实 native capture/语义证据已实施并验收，2026-09-10。仓库内现已提供可复用的 [`human-to-recipe` Skill](skills/human-to-recipe/SKILL.md)、最小 `SemanticBuildPlan` schema／validator、Calculator plan golden，以及 simple console 的“复制 Agent 完善提示词”交接；通用 renderer 尚未实现，Skill 也未安装到用户级 Codex Skill 目录。用户通过 simple console 产生的 Calculator 录制包 `rec-20260909T113509.231387000Z-e2232547fa4e` 已完成旧 basic 源码的独立真实回放和 `115` oracle，并交付对应的[可维护语义优化 recipe](../../examples/human-to-recipe/calculator-115.semantic.recipe.js)；这些资格不自动转移给其他 candidate 或当前工作树的新 hash。普通用户命令和新 hash 的 live Gate／视觉仍必须单独重跑。
 
 本目录只负责人工 human-to-recipe；另一条 [Agent-to-Recipe](../agent-to-recipe/WORKFLOW.md) 工作流保持独立推进。Agent-first 是本方案采用的开发分工背景，不表示本次输入改成 Agent 示范。
 
@@ -34,6 +34,7 @@ order: 10
 | 受控坐标脚本 | 声明固定条件的普通 JS | 可以不参与，也可仅辅助整理 |
 | 增强普通 JS | 已确认定位、输入、等待和结果验证 | 开发阶段参与，正常运行不必参与 |
 | JS／Agent 混合流程 | 普通 JS 与明确的必要判断节点 | 只在声明的判断节点参与；需有实际宿主与权限支持 |
+| Recorder → Agent 交接 | actions 路径、结构化缺口和用户待补合同 | 只复制提示词；不自动启动、生成、运行或授予资格 |
 
 不为普通 JS 强制建设应用对象方法层、Registry、复杂可执行 IR、Compiler、专用 Replay Runtime 或 LangGraph。`calc.tapButton(...)` 不恢复为应用对象层。优先实际存在的框架 API 和有价值的普通函数。
 
@@ -69,7 +70,20 @@ H1—H8 是制作和维护自动化的方法，不是每次运行都重走的步
 | [Recorder 工程设计](design/recorder-design.md) | DQ-01—DQ-08 规范性需求、已实现调用链、数据合同、真实符号、native 生命周期、动作、生成与下游交接 |
 | [实施与验收计划](design/implementation-plan.md) | 真实完成、命令、证据、未运行、失败条件与下一批 |
 
-任务树回答完整需要做什么；工程设计回答基础 Recorder 实际如何工作；实施计划只记录资格和证据。不按每个任务节点创建文件、Skill 或 Agent；本轮不创建迁移壳、不另造占位 WORKFLOW.md 或独立图标 Skill。
+任务树回答完整需要做什么；工程设计回答基础 Recorder 实际如何工作；实施计划只记录资格和证据。不按每个任务节点创建文件、Skill 或 Agent；当前唯一新增的 `human-to-recipe` Skill 对应一个真实、可重复的 actions→plan→production/gate/evidence 专业流程，不是节点占位或迁移壳。
+
+### 4.1 Skill、plan 和 renderer 的当前状态
+
+| 能力 | 当前状态 | 边界 |
+| --- | --- | --- |
+| 仓库内 `human-to-recipe` Skill 源码 | 已实现 | 新会话可按提示词中的仓库路径完整读取并执行 |
+| 用户级／系统级 Skill 安装 | 未安装 | 不能仅因 `$human-to-recipe` 名称出现就假设自动发现成功 |
+| `SemanticBuildPlan` schema | 已实现 | `skills/human-to-recipe/references/semantic-build-plan.schema.json`；结构允许表达 blocked／unknown |
+| plan validator | 已实现 | `skills/human-to-recipe/scripts/validate-semantic-build-plan.js`；unknown、遗漏、重复消费、source 漂移和 Gate 源码冲突会阻止生产生成 |
+| 通用 renderer | 未实现 | 当前只能由 Agent 按 Skill 的确定性输出顺序生成，不能宣称一键编译 |
+| 第一个 golden | Calculator | plan、production、Gate、Evidence 分层已校准；下一个建议应用是 TextEdit，但必须先取得其 human 录制和用户目标，不能预填业务意图 |
+
+Recorder 只保存观察事实。AX／DOM 语义可能因 WebView、Canvas、远程桌面或权限不足正常处于 `unavailable`；这不等于失败，也不允许从坐标和常见布局猜标签或业务目标。OCR、图像和人工标注只能作为有来源的候选，必须保留授权范围、映射和未知项。
 
 ## 5. workflows 与 docs 的边界
 
@@ -80,6 +94,8 @@ H1—H8 是制作和维护自动化的方法，不是每次运行都重走的步
 [docs/api](../../docs/api/README.md) 只描述经实现与核对的公开接口；当前 JavaScript 全局对象见 [Recorder Runtime API](../../docs/api/recorder-runtime.md)。Agent-first MCP 的 [Recorder API](../../docs/api/recorder.md) 保持独立协议页，不据同名合并数据模型。
 
 [application-engineer](../agent-to-recipe/skills/application-engineer/SKILL.md) 及其[专业正文](../agent-to-recipe/design/application-operations.md) 继续负责应用认识、关系、定位和操作。人工目录补充事件—现场关联与点击目标分析的任务要求，不另建 Recorder 专属 UI 模型。
+
+[`human-to-recipe`](skills/human-to-recipe/SKILL.md) 消费固定 human actions lineage，负责逐动作 disposition、Business Episode、`SemanticBuildPlan`、生产 Recipe 与独立 Gate 分层。需要 locator 加固时才遵循 `application-engineer`，且只消费其 target／locator／geometry／strategy／guard／claim／source／unknown handoff；application-engineer 不生成最终 Recipe。
 
 ## 6. 与 Agent-first 的共享边界
 
@@ -99,7 +115,7 @@ Agent 执行 → 工具调用、观察与验证 → 提炼 → Agent 来源的�
 
 ## 7. 第一批交付与正常使用
 
-闭环 A 的代码链已经实现：开始人工录制 → 降噪 raw＋动作上下文 → actions/v2 → 窗口相对 basic JS。macOS Calculator 已用真实 native listener 和受控 `mouse.click()` 验证 recording 点击、paused 点击丢弃、resumed 点击、按钮“9”／“7”的 AX 语义、stop、actions 和 candidate；固定条件下的独立真实回放与回放后结果确认仍未运行，不能从 capture 结果推断回放通过。
+闭环 A 的代码链已经实现：开始人工录制 → 降噪 raw＋动作上下文 → actions/v2 → 窗口／显示器相对 basic JS。macOS Calculator 已用真实 native listener 和受控 `mouse.click()` 验证 recording 点击、paused 点击丢弃、resumed 点击、按钮“9”／“7”的 AX 语义、stop、actions 和 candidate；另一个用户 simple console 录制包已在固定窗口尺寸下独立回放，并由回放后的 AX display oracle 验证为 `115`。两份包的资格分别记录，不能从一个 capture 或 replay 结果推断其他 candidate 通过。
 
 闭环 B：一次无文字图标操作 → 可信现场 → 目标与上下文裁切 → Agent 判断控件及业务归属 → 重新定位与验证规则 → 普通 JS → 新条件下实际验证。
 
@@ -129,13 +145,21 @@ actions 与生成状态；停止后制作 actions，生成需要另一次点击�
 ./dist/opendesk -ui -allow-recorder-capture -script examples/custom-ui/recording-console-simple.js -console-mode script -log-dir .runtime/examples/custom-ui/recording-console-simple
 ```
 
-该入口默认请求 `target-semantics`。普通 hover 不进入 raw；每个 release 绑定当时的应用、具体窗口、窗口内坐标和可取得的控件标签。切换应用或同一应用的其他窗口是允许的录制行为，不再触发旧版 `scope-changed` 停止。停止后会制作 actions，并在 actions ready 时自动生成脚本；生成结果仍是 `verification: "not-run"`，只有另点“重放／试运行”才启动新的 execution。
+该入口默认请求 `target-semantics`。普通 hover 不进入 raw；每个 release 绑定当时的应用、具体窗口、窗口内坐标和可取得的控件标签。切换应用或同一应用的其他窗口是允许的录制行为，不再触发旧版 `scope-changed` 停止。停止后会制作 actions，并在 actions ready 时自动生成脚本；生成结果仍是 `verification: "not-run"`，只有另点“重放／试运行”才启动新的 execution。actions ready、blocked 或 basic generation error 时，“复制 Agent 完善提示词”都可把实际路径和去正文摘要复制给新 Codex 对话；它不启动 Agent、不创建线程、不生成、不回放，也不改变录制包。
 
 独立生成使用：
 
 ```bash
 OPENDESK_RECORDER_ACTIONS_FILE=.runtime/recordings/<ID>/actions.json ./dist/opendesk -script examples/human-to-recipe/generate.js -console-mode script
 ```
+
+本次 Calculator 录制经过人工来源核对、语义加固和独立资格验证后的正式优化文件，从仓库根目录运行：
+
+```bash
+./dist/opendesk -script examples/human-to-recipe/calculator-115.semantic.recipe.js -console-mode script
+```
+
+该文件只表达 `AC → 25 × 4 = → + 20 → − 5 =` 的日常业务动作，并保留平台、唯一窗口、录制布局、前台身份和 PID-scoped AXPress 的安全门禁；窗口内 offset 通过 `Geometry` 投影并检查越界。它不会把逐步 assert、独立 oracle 或 evidence 写入塞进正常自动化。严格来源核对、生产源码 hash、按钮语义、逐步显示值和最终 `115` 验证位于独立的 [`tests/runtime-api/calculator-115-semantic-recipe-macos.js`](../../tests/runtime-api/calculator-115-semantic-recipe-macos.js)，Gate instrument 实际生产源码而不维护第二份点击实现，证据只写入 `.runtime/tests/runtime-api/`。具体边界和两条独立命令见[实施计划 4.10](design/implementation-plan.md#410-生产自动化资格测试与证据分层)。
 
 ## 8. 文档驱动代码的使用顺序
 
@@ -155,6 +179,8 @@ OPENDESK_RECORDER_ACTIONS_FILE=.runtime/recordings/<ID>/actions.json ./dist/open
 | hover move 过滤、button-held motion 保留 | 任务树 H2.2 | 工程设计 DQ-01/DQ-02、回调与队列 | 实施计划 4.1、4.8、5 |
 | 应用／窗口／控件层级和多窗口 | 任务树 H2.3/H2.4 | 工程设计 DQ-03/DQ-04/DQ-06 | 实施计划 WP2、Calculator live |
 | screen/window/element 多坐标 | 任务树 H2.3、H3.1 | 工程设计 DQ-05、文件合同 | 实施计划 coordinate recipe |
+| 生产代码确定性生成／审阅、Geometry 收敛 | 任务树 H6 | demonstration pipeline 的确定性闸门、multi-application 路线图批次 A | 实施计划 4.10—4.12 |
+| actions→Agent 提示词、SemanticBuildPlan 和 validator | 任务树 H4/H6 | `human-to-recipe` Skill、schema 和 source-check validator | 实施计划 4.13；Calculator 是第一个 plan golden |
 | 隐私、显式失败和旧包兼容 | 任务树 H1.5、H2.6 | 工程设计 DQ-07/DQ-08 | 实施计划硬性失败条件 |
 
 公开 API 参数、返回值和错误只在 [Recorder Runtime API](../../docs/api/recorder-runtime.md) 维护；仓库正式质量报告仍归 [docs/quality](../../docs/quality/recorder-data-quality-v2.md)。workflow 保存“为什么、必须做什么、如何验收”，避免把 API Reference 或一次性运行日志复制进来。
@@ -163,4 +189,4 @@ OPENDESK_RECORDER_ACTIONS_FILE=.runtime/recordings/<ID>/actions.json ./dist/open
 
 遵守 [AGENTS.md](../../AGENTS.md)：运行日志、截图、临时配置、脚本候选和测试证据写入 `.runtime/`，不提交个人屏幕或凭据。现有录制及 authoring 目录先复用并核查来源隔离；正式可维护的脚本、脱敏 fixture 和示例按各自归属保存，不把临时证据目录当永久文档库。证据被删除后应标不可复核，不继续声称已证实通过。
 
-本轮仓库核查基线：`master` 的 `d444fedc27fb28387f48e262111261b1c5f6b814` 加当前未提交实现。已核查工作流导航、两类 Recorder 契约、Runtime 生命周期和协作规范；已运行 Go/Runtime/架构 gate、macOS Calculator 真实 native capture 与 simple console 实窗检查，未运行模型调用、独立 candidate 回放或回放后业务 oracle。后续接续必须重新读取当时的 HEAD、工作树和差异，不能覆盖并行修改。
+历史基线为 `master` 的 `d444fedc27fb28387f48e262111261b1c5f6b814` 加当时未提交实现；随后已完成 Calculator 独立 candidate 回放和回放后 `115` oracle，详见实施计划 4.8。当前接续已重新核对工作树与协作规范；任何新源码 hash 的普通用户命令、formal Gate 和视觉证据都必须重新运行并单列，不能继承历史结论，也不能覆盖并行修改。

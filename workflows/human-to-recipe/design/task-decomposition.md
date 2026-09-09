@@ -8,7 +8,7 @@ order: 20
 
 **目标：从用户真实示范出发，形成有来源、可审阅、可验证并可维护的普通 OpenDesk JS；仅在确有必要时保留 Agent 判断。**
 
-状态：H1—H8 作业树基线，2026-09-09。H2/H3 已同步 Recorder v2 的 hover 降噪、动作级 application/window/element 层级、多窗口身份、窗口相对坐标和 AX 标签事实；树中其余子作业仍不代表接口、工具或 Skill 已全部实现。返回[工作流入口](../README.md)；规范性 DQ 合同见 [Recorder 工程设计](recorder-design.md)，真实完成、证据与未运行项见[实施与验收计划](implementation-plan.md)。
+状态：H1—H8 作业树基线，2026-09-10。H2/H3 已同步 Recorder v2 的观察事实；H4/H6 现有仓库内 human-to-recipe Skill、最小 `SemanticBuildPlan` schema／validator 和提示词交接，renderer 仍未实现。树中其他子作业不代表接口或工具已全部实现。返回[工作流入口](../README.md)；规范性 DQ 合同见 [Recorder 工程设计](recorder-design.md)，真实完成、证据与未运行项见[实施与验收计划](implementation-plan.md)。
 
 ## 阅读方法
 
@@ -320,11 +320,13 @@ H6. 生成普通 OpenDesk JavaScript
 │  ├─ 已整理／确认的步骤版本
 │  ├─ 选定的目标规则与适用条件
 │  ├─ 输入、配置、数据流和成功标准
-│  └─ 明确保留未知与尚未具备的依赖
+│  ├─ 每个 action 的唯一 disposition 和 source map
+│  └─ 未分类、歧义和尚未具备的依赖必须阻止生产生成
 │
 ├─ H6.2 使用实际可调用的框架能力
 │  ├─ 核对当前 API、参数、返回值和运行方式
 │  ├─ 基础动作直接形成普通脚本
+│  ├─ 窗口／显示器相对点使用 Geometry，不手写 win.x + offset
 │  ├─ 必要时提取语义变量和普通函数
 │  └─ 不强制应用对象层、复杂中间表示或专用回放运行时
 │
@@ -350,6 +352,25 @@ H6. 生成普通 OpenDesk JavaScript
    ├─ 必要资源和正常运行方法
    └─ 标记为待验收，不把生成成功当成运行成功
 ```
+
+### H6 的确定性输入和审阅规则
+
+代码生成开始前冻结最小 build plan。当前机器合同是 [`semantic-build-plan.schema.json`](../skills/human-to-recipe/references/semantic-build-plan.schema.json)，并由 [`validate-semantic-build-plan.js`](../skills/human-to-recipe/scripts/validate-semantic-build-plan.js) 检查；它不是 Runtime API 或通用 Compiler。plan 必须包含 actions 实际文件／revision／hash、逐动作 `business | runtime-guard | qualification | evidence | excluded | unknown` disposition、Business Episode 名称与顺序、参数和常量分类、Target/Locator/Geometry、动作策略、运行门禁、恢复规则、qualification claims 以及 action→episode→代码位置的 source map。一个 action 只能有一个主 disposition；任何 `unknown`、遗漏、重复消费或相互冲突都使 H6 fail closed。
+
+simple console 的“复制 Agent 完善提示词”只把 workdir、录制路径、revision/readiness、issue code 计数、semantic coverage、可选 candidate 路径和用户待补合同交给新对话。它不复制动作正文／AXValue／raw，不自动调用 Skill、生成 Recipe、运行 Gate 或取得资格；接收 Agent 仍须重新读取实际 actions 字节和 hash。业务目标或成功条件占位符未填写时，Agent 先询问，不能从事件序列推断。
+
+固定 plan 后，生成器或 recipe-build Agent 不再推断业务，只按同一顺序落代码：
+
+1. 来源 lineage 和仓库根目录正常命令注释；
+2. 应用身份、布局范围和其他运行常量；
+3. 语义控件／操作点表，保留选择依据而不复制资格 Oracle；
+4. 目标解析、当前状态重验、Geometry、动作和有限恢复 helper；
+5. 以业务语言命名的 Episode 函数或清晰顶层段；
+6. 只含业务顺序的顶层流程和不冒充验证的完成输出。
+
+静态审阅逐项拒绝：plan/source hash 不匹配、action 未映射或多次映射、事件编号泄漏为业务命名、未实现 API、路线图工作名、目标歧义放宽、隐式 AX/OCR/坐标/键盘 fallback、手写坐标空间换算、无理由固定等待、把动作发送写成 `[PASS]`，以及来源 hash／逐步固定 Oracle／截图矩阵／evidence 写入混入生产 Recipe。生产文件与 qualification 文件分别检查；Gate 必须冻结并运行同一生产源码，不能维护另一份隐藏业务动作序列。
+
+重新生成只接受同一 plan 的可审阅 diff，不覆盖已有人改；人工确实改变业务、门禁或定位时，先修订 plan、记录理由和影响，再派生新候选并重新资格。[Calculator plan](../golden-samples/calculator-115.semantic-build-plan.json) 是第一个 golden；TextEdit 是下一建议应用，但当前只用于跨应用 Geometry／window lifecycle 校准，尚无同等级 human 录制和 production/gate，不能预填其业务意图或双应用通过。
 
 ## H7. 实际运行、验收与定向维修
 

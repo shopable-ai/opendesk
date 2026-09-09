@@ -99,6 +99,28 @@ RuntimeAPITest.load('tests/runtime-api/manifest.js');
     return result;
   }
 
+  test({name: 'Calculator production recipe matches its golden and the qualification gate freezes actual source bytes', tier: 'composition', covers: ['Geometry.pointOffset', 'Geometry.contains', 'mouse.clickForPID']}, async () => {
+    const recipePath = File.join(Execution.workdir, 'examples', 'human-to-recipe', 'calculator-115.semantic.recipe.js');
+    const goldenPath = File.join(Execution.workdir, 'workflows', 'human-to-recipe', 'golden-samples', 'calculator.js');
+    const gatePath = File.join(Execution.workdir, 'tests', 'runtime-api', 'calculator-115-semantic-recipe-macos.js');
+    const recipe = File.read(recipePath);
+    equal(recipe, File.read(goldenPath), 'Calculator golden drifted from the maintained production recipe');
+    assert(recipe.includes('Geometry.pointOffset(active, offset.x, offset.y)')
+      && recipe.includes('Geometry.contains(Geometry.rect(active), point)')
+      && recipe.includes('mouse.clickForPID(Number(active.pid), point.x, point.y)'), recipe);
+    assert(!recipe.includes('active.x + offset.x') && !recipe.includes('active.y + offset.y'), recipe);
+    for (const forbidden of ['Accessibility.snapshot', 'expectedDisplay', 'finalDisplay', 'page.screenshot', 'File.writeJSON', '[PASS]']) {
+      assert(!recipe.includes(forbidden), `production recipe contains qualification-only code: ${forbidden}`);
+    }
+
+    (0, eval)(File.read(File.join(Execution.workdir, 'tests', 'runtime-api', 'crypto.js')));
+    const recipeSha256 = RuntimeAPICrypto.hashFile(recipePath);
+    const gate = File.read(gatePath);
+    assert(gate.includes(`const RECIPE_SHA256 = '${recipeSha256}';`), 'qualification gate does not freeze the current production recipe hash');
+    assert(gate.includes('runQualifiedRecipe(target, qualifiedSource.recipeSource, result.observations)'), 'qualification gate does not execute the frozen production source');
+    assert(gate.includes('await (0, eval)(`(async () => {'), 'qualification gate does not evaluate the exact production bytes in its harness');
+  });
+
   test({name: 'basic mode preserves source order, follows window translation, and rejects ambiguous app windows', tier: 'composition', covers: ['Recorder.buildActions', 'Recorder.generateScript']}, async () => {
     const dir = packageFor('isolated', basicEvents(true));
     const actionsResult = await Recorder.buildActions(dir);
@@ -115,7 +137,7 @@ RuntimeAPITest.load('tests/runtime-api/manifest.js');
         [{id: 'current-window', pid: 9001, title: 'Recorder Fixture', exeName: 'RecorderFixture', exePath: '/fixture/recorder', x: 100, y: 80, width: 800, height: 600}],
         {id: 'current-window', pid: 9001, title: 'Recorder Fixture', exeName: 'RecorderFixture', exePath: '/fixture/recorder'}
       ), () =>
-        withGlobal('mouse', {click: async (...args) => { calls.push(['click', ...args]); }}, () =>
+        withGlobal('mouse', {clickPoint: async (point, options) => { calls.push(['click', point.x, point.y, options]); }}, () =>
           withGlobal('keyboard', {type: async (...args) => { calls.push(['type', ...args]); }}, () =>
             withGlobal('sleep', async (...args) => { calls.push(['sleep', ...args]); }, async () => {
               await (0, eval)(`(async () => {\n${source}\n})()`);
@@ -137,7 +159,7 @@ RuntimeAPITest.load('tests/runtime-api/manifest.js');
           {id: 'duplicate-1', pid: 9001, title: 'Recorder Fixture', exeName: 'RecorderFixture', exePath: '/fixture/recorder', x: 0, y: 0, width: 800, height: 600},
           {id: 'duplicate-2', pid: 9002, title: 'Recorder Fixture', exeName: 'RecorderFixture', exePath: '/fixture/recorder', x: 50, y: 50, width: 800, height: 600},
         ], null), () =>
-          withGlobal('mouse', {click: async () => { ambiguousClicks += 1; }}, () =>
+          withGlobal('mouse', {clickPoint: async () => { ambiguousClicks += 1; }}, () =>
             withGlobal('keyboard', {type: async () => {}}, () =>
               withGlobal('sleep', async () => {}, async () => {
                 await (0, eval)(`(async () => {\n${source}\n})()`);
@@ -147,15 +169,44 @@ RuntimeAPITest.load('tests/runtime-api/manifest.js');
     }
     assert(ambiguousError && ambiguousError.code === 'AMBIGUOUS_TARGET', String(ambiguousError));
     equal(ambiguousClicks, 0, 'ambiguous same-application windows must fail before input');
+
+    let outsideClicks = 0;
+    let outsideError = null;
+    try {
+      await withGlobal('System', {getPlatformInfo: () => ({os: platform})}, () =>
+        withGlobal('window', fixtureWindow([
+          {id: 'current-window', pid: 9001, title: 'Recorder Fixture', exeName: 'RecorderFixture', exePath: '/fixture/recorder', x: -300, y: 80, width: 10, height: 20},
+        ], null), () =>
+          withGlobal('mouse', {clickPoint: async () => { outsideClicks += 1; }}, () =>
+            withGlobal('keyboard', {type: async () => {}}, () =>
+              withGlobal('sleep', async () => {}, async () => {
+                await (0, eval)(`(async () => {\n${source}\n})()`);
+              })))));
+    } catch (error) {
+      outsideError = error;
+    }
+    assert(outsideError && String(outsideError).includes('relative point is outside current window bounds'), String(outsideError));
+    equal(outsideClicks, 0, 'window resize must fail before an out-of-bounds click');
   });
 
-  test({name: 'drag, double click, Control-click, missing release and composition never downgrade silently', tier: 'composition', covers: ['Recorder.buildActions']}, async () => {
-    await expectBlocked('drag', [
+  test({name: 'unsupported drag shapes, spatial multi-click, Control-click, missing release and composition never downgrade silently', tier: 'composition', covers: ['Recorder.buildActions']}, async () => {
+    await expectBlocked('curved-drag', [
       mouse(1, 'MOUSE_PRESSED'),
       mouse(2, 'MOUSE_DRAGGED', {button: 'none', clicks: 0, modifierMask: 1 << 8, x: 80, y: 90}),
-      mouse(3, 'MOUSE_RELEASED', {x: 80, y: 90}),
+      mouse(3, 'MOUSE_RELEASED', {x: 140, y: 30}),
     ], 'drag-unsupported');
-    await expectBlocked('double', [mouse(1, 'MOUSE_PRESSED'), mouse(2, 'MOUSE_RELEASED'), mouse(3, 'MOUSE_CLICKED', {clicks: 2})], 'click-count-unsupported');
+    const counted = await Recorder.buildActions(packageFor('cross-position-click-series', [
+      mouse(1, 'MOUSE_PRESSED'), mouse(2, 'MOUSE_RELEASED'), mouse(3, 'MOUSE_CLICKED'),
+      mouse(4, 'MOUSE_PRESSED', {clicks: 2, y: 80}), mouse(5, 'MOUSE_RELEASED', {clicks: 2, y: 80}),
+      mouse(6, 'MOUSE_CLICKED', {clicks: 2, y: 80}),
+    ]));
+    equal(counted.readiness, 'ready', JSON.stringify(counted.issues));
+    equal(JSON.parse(File.read(counted.actionsFile)).actions.length, 2, 'time/button click counter must not merge distinct points');
+    await expectBlocked('double', [
+      mouse(1, 'MOUSE_PRESSED'), mouse(2, 'MOUSE_RELEASED'), mouse(3, 'MOUSE_CLICKED'),
+      mouse(4, 'MOUSE_PRESSED', {clicks: 2, x: 21}), mouse(5, 'MOUSE_RELEASED', {clicks: 2, x: 21}),
+      mouse(6, 'MOUSE_CLICKED', {clicks: 2, x: 21}),
+    ], 'click-count-unsupported');
     await expectBlocked('control-click', [mouse(1, 'MOUSE_PRESSED'), mouse(2, 'MOUSE_RELEASED'), mouse(3, 'MOUSE_CLICKED', {modifierMask: 1 << 1, modifiers: ['control-left']})], 'modified-click-unsupported');
     await expectBlocked('missing-release', [mouse(1, 'MOUSE_PRESSED')], 'missing-release-at-stop');
     await expectBlocked('composition', [event(1, 'KEY_TYPED', {keycode: 0, rawcode: 229, keychar: 65535, gaps: ['key-typed-is-not-an-ime-commit']})], 'composition-unsupported');

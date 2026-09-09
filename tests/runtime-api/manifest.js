@@ -342,9 +342,11 @@ globalThis.RuntimeAPITestFiles = {
   accessibilityNativeMacOS: [
     'tests/runtime-api/accessibility-native-macos.js',
   ],
-  // Explicit opt-in because it starts the native hook and sends real input to
-  // the disposable macOS Calculator fixture.
+  // Explicit opt-in because these start the native hook. The lifecycle case
+  // opens a real toolbar, sends an otherwise unused F18 key and clicks only
+  // its own stop control; the Calculator case sends real fixture input.
   recorderNativeMacOS: [
+    'tests/runtime-api/recorder-native-stop-macos.js',
     'tests/runtime-api/recorder-native-calculator-macos.js',
   ],
   async: [

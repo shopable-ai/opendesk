@@ -1411,7 +1411,7 @@ unsubscribe();
 
 公开事件为 `click`、`change`、`input`、`move`、`resize`、`close`，监听器也可以用 `*`。未知拼写会立即返回 `INVALID_SPEC`。
 
-事件包含 `sessionId`、`windowId`、可选 `targetId`、`type`、单调 `sequence`、`timestamp`，以及相应的 `value`、`checked`、`bounds` 或 `reason`。
+事件包含 `sessionId`、`windowId`、可选 `targetId`、`type`、单调 `sequence`、`timestamp`，以及相应的 `value`、`checked`、`bounds` 或 `reason`。宿主为控件 `click` 事件附带被点击控件的 screen-logical `bounds`；move／resize 的 `bounds` 仍表示窗口范围。
 
 事件队列有界。只有 `input`、`move`、`resize` 可以在不跨越 click/change/close 屏障时合并；click/change/close 不会静默丢失。队列满时 execution 以 `UI_EVENT_QUEUE_OVERFLOW` 失败。
 

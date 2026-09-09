@@ -92,7 +92,7 @@ declare global {
     captureKeyboard?: boolean;
     /** Required only for keyboard capture; it does not grant host capture authority. */
     keyboardContent?: 'non-sensitive-test';
-    /** Defaults to label-only AX evidence for the element under a pointer release; values and secure fields are never persisted. */
+    /** Defaults to label-only AX evidence for pointer press/release endpoints; pointer values, selections, and secure fields are never persisted. */
     evidence?: 'none' | 'target-semantics';
     /** Must remain below Execution.workdir/.runtime/recordings. */
     outputDir?: string;
@@ -132,6 +132,8 @@ declare global {
     type: 'click';
     sequence: number;
     timestamp: string;
+    /** Original screen-logical bounds emitted by the Custom UI host for the clicked control. */
+    bounds: ClawdeskUIBounds;
   }
 
   interface OpenDeskRecorderControlClickResult {
@@ -139,6 +141,8 @@ declare global {
     transitionSequence: string | null;
     /** Native raw event IDs excluded by the auditable control boundary. */
     eventIds: string[];
+    /** Whether native input was matched, absent, or present but ambiguous inside the control bounds. */
+    matchStatus: 'matched' | 'not-observed' | 'unmatched';
   }
 
   interface OpenDeskRecorderStopResult {

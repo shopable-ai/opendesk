@@ -33,6 +33,7 @@ OpenDesk 按“框架分类 → 任务求解方法 → 解题模式 → 案例 �
 | --- | --- | --- |
 | 怎样表示目标、处理歧义与安全失败？ | [Action Target Model](../architecture/desktop-automation/action-target-model.md) | 设计定位、动作前置条件、业务验证或失败策略时阅读；不是使用每个 UI 方法前的必读项 |
 | 通用结构与应用专属语义怎样分开？ | [App Adapter Contract](../architecture/desktop-automation/app-adapter-contract.md) | 封装应用 helper／adapter 时阅读 |
+| 多应用 Recipe 反复出现的窗口、控件、坐标和等待代码应怎样进入框架？ | [多应用自动化高频框架能力](multi-application-automation-primitives.md) | 设计公共原语、减少生成代码样板或安排 Runtime 实施批次时阅读 |
 | 怎样实现录制、蒸馏、编译和回放？ | [Agent-first Recorder](../architecture/desktop-automation/agent-first-recorder.md) | 仅在明确研究或实施 Recorder／编译路线时深入阅读；普通 Recipe 可以跳过 |
 | 能力应该在哪一层扩展？ | [Runtime API 扩展与定制框架](runtime-api-extension-framework.md) | 选择 Recipe、JS helper、外置服务、Native Extension 或 native owner 时阅读 |
 | 当前该验证到什么程度？ | [能力开发与成熟度路径](capability-development.md) | 确定受控、集成、真机与业务验证范围时阅读 |

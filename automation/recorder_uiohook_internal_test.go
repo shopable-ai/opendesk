@@ -2,7 +2,11 @@
 
 package automation
 
-import "testing"
+import (
+	"context"
+	"testing"
+	"time"
+)
 
 func TestRecorderUIOHookProcessLeaseIsExclusiveAndReusable(t *testing.T) {
 	if activeUIOHookBackend.Load() != nil {
@@ -24,5 +28,32 @@ func TestRecorderUIOHookProcessLeaseIsExclusiveAndReusable(t *testing.T) {
 	}
 	if !acquireUIOHookLease(second) || !releaseUIOHookLease(second) {
 		t.Fatal("lease was not reusable after a clean release")
+	}
+}
+
+func TestRecorderUIOHookStopRetriesTransientRunLoopFailure(t *testing.T) {
+	done := make(chan struct{})
+	calls := 0
+	result := recorderRetryUIOHookStop(context.Background(), done, func() int {
+		calls++
+		if calls < 3 {
+			return recorderUIOHookFailure
+		}
+		return 0
+	}, time.Microsecond)
+	if result != 0 || calls != 3 {
+		t.Fatalf("stop result=%#x calls=%d", result, calls)
+	}
+}
+
+func TestRecorderUIOHookStopDoesNotRetryPlatformFailure(t *testing.T) {
+	done := make(chan struct{})
+	calls := 0
+	result := recorderRetryUIOHookStop(context.Background(), done, func() int {
+		calls++
+		return 0x41
+	}, time.Microsecond)
+	if result != 0x41 || calls != 1 {
+		t.Fatalf("stop result=%#x calls=%d", result, calls)
 	}
 }

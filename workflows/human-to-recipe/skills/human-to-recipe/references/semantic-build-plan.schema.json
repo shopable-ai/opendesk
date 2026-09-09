@@ -1,0 +1,429 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://opendesk.local/schemas/human-to-recipe/semantic-build-plan-v1.json",
+  "title": "OpenDesk Human-to-Recipe SemanticBuildPlan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "kind",
+    "source",
+    "intent",
+    "environment",
+    "semanticCoverage",
+    "actionDispositions",
+    "businessEpisodes",
+    "applicationKnowledge",
+    "targets",
+    "actionStrategies",
+    "runtimeGuards",
+    "recoveryRules",
+    "qualification",
+    "evidence",
+    "sourceMap",
+    "outputs",
+    "verification"
+  ],
+  "properties": {
+    "schemaVersion": {"const": "semantic-build-plan/v1"},
+    "kind": {"const": "human-to-recipe-semantic-build-plan"},
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "workdir",
+        "recordingDir",
+        "actionsFile",
+        "actionsRevision",
+        "actionsReadiness",
+        "actionsSha256",
+        "rawReference",
+        "actionIds"
+      ],
+      "properties": {
+        "repository": {"$ref": "#/$defs/nonEmptyString"},
+        "workdir": {"$ref": "#/$defs/nonEmptyString"},
+        "recordingDir": {"$ref": "#/$defs/nonEmptyString"},
+        "actionsFile": {"$ref": "#/$defs/nonEmptyString"},
+        "actionsRevision": {"type": "integer", "minimum": 1},
+        "actionsReadiness": {"enum": ["ready", "blocked"]},
+        "actionsSha256": {"$ref": "#/$defs/sha256"},
+        "rawReference": {"$ref": "#/$defs/rawReference"},
+        "actionIds": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/id"}
+        },
+        "basicScriptFile": {"$ref": "#/$defs/nonEmptyString"},
+        "candidateFile": {"$ref": "#/$defs/nonEmptyString"}
+      }
+    },
+    "intent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["businessGoal", "successConditions", "allowedSideEffects", "forbiddenObjects"],
+      "properties": {
+        "businessGoal": {"$ref": "#/$defs/nonPlaceholderString"},
+        "successConditions": {"$ref": "#/$defs/nonEmptyStringArray"},
+        "allowedSideEffects": {"$ref": "#/$defs/stringArray"},
+        "forbiddenObjects": {"$ref": "#/$defs/stringArray"}
+      }
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["applications", "languages", "layoutConstraints", "otherConstraints"],
+      "properties": {
+        "applications": {"$ref": "#/$defs/nonEmptyStringArray"},
+        "languages": {"$ref": "#/$defs/stringArray"},
+        "layoutConstraints": {"$ref": "#/$defs/stringArray"},
+        "otherConstraints": {"$ref": "#/$defs/stringArray"}
+      }
+    },
+    "semanticCoverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "verified",
+        "unavailable",
+        "notRequested",
+        "notApplicable",
+        "missing",
+        "unavailableWithReason",
+        "unavailableWithoutReason",
+        "issues"
+      ],
+      "properties": {
+        "verified": {"type": "integer", "minimum": 0},
+        "unavailable": {"type": "integer", "minimum": 0},
+        "notRequested": {"type": "integer", "minimum": 0},
+        "notApplicable": {"type": "integer", "minimum": 0},
+        "missing": {"type": "integer", "minimum": 0},
+        "unavailableWithReason": {"type": "integer", "minimum": 0},
+        "unavailableWithoutReason": {"type": "integer", "minimum": 0},
+        "issues": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["code", "count"],
+            "properties": {
+              "code": {"$ref": "#/$defs/id"},
+              "count": {"type": "integer", "minimum": 1}
+            }
+          }
+        }
+      }
+    },
+    "actionDispositions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/actionDisposition"}
+    },
+    "businessEpisodes": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/businessEpisode"}
+    },
+    "applicationKnowledge": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/knowledgeItem"}
+    },
+    "targets": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/target"}
+    },
+    "actionStrategies": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/actionStrategy"}
+    },
+    "runtimeGuards": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/guard"}
+    },
+    "recoveryRules": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/recoveryRule"}
+    },
+    "qualification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claims", "gate"],
+      "properties": {
+        "claims": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/describedItem"}
+        },
+        "gate": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path", "productionSource", "executionMode"],
+          "properties": {
+            "path": {"$ref": "#/$defs/nonEmptyString"},
+            "productionSource": {"$ref": "#/$defs/artifact"},
+            "executionMode": {"const": "freeze-and-execute-production-source"}
+          }
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["items"],
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/describedItem"}
+        }
+      }
+    },
+    "sourceMap": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/sourceMapEntry"}
+    },
+    "outputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["productionRecipe", "qualificationGate", "evidenceRoot", "renderer"],
+      "properties": {
+        "productionRecipe": {"$ref": "#/$defs/artifact"},
+        "qualificationGate": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path"],
+          "properties": {"path": {"$ref": "#/$defs/nonEmptyString"}}
+        },
+        "evidenceRoot": {"$ref": "#/$defs/nonEmptyString"},
+        "renderer": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "mode"],
+          "properties": {
+            "status": {"enum": ["not-implemented", "implemented"]},
+            "mode": {"enum": ["deterministic-agent-instructions", "renderer"]}
+          }
+        }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["generated", "staticallyReviewed", "syntheticallyVerified", "liveVerified", "qualified"],
+      "properties": {
+        "generated": {"enum": ["not-generated", "present"]},
+        "staticallyReviewed": {"$ref": "#/$defs/verificationStatus"},
+        "syntheticallyVerified": {"$ref": "#/$defs/verificationStatus"},
+        "liveVerified": {"$ref": "#/$defs/verificationStatus"},
+        "qualified": {"$ref": "#/$defs/verificationStatus"}
+      }
+    }
+  },
+  "$defs": {
+    "nonEmptyString": {"type": "string", "minLength": 1},
+    "nonPlaceholderString": {
+      "type": "string",
+      "minLength": 1,
+      "not": {"pattern": "请.*补充|must ask|todo|unknown"}
+    },
+    "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"},
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "stringArray": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/nonEmptyString"}
+    },
+    "nonEmptyStringArray": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/nonPlaceholderString"}
+    },
+    "sourceRefs": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/nonEmptyString"}
+    },
+    "rawReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file", "sha256", "bytes"],
+      "properties": {
+        "file": {"$ref": "#/$defs/nonEmptyString"},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "bytes": {"type": "integer", "minimum": 1}
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {"$ref": "#/$defs/nonEmptyString"},
+        "sha256": {
+          "oneOf": [
+            {"$ref": "#/$defs/sha256"},
+            {"type": "null"}
+          ]
+        }
+      }
+    },
+    "actionDisposition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actionId", "disposition", "sourceEventIds", "rationale"],
+      "properties": {
+        "actionId": {"$ref": "#/$defs/id"},
+        "disposition": {
+          "enum": ["business", "runtime-guard", "qualification", "evidence", "excluded", "unknown"]
+        },
+        "sourceEventIds": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/id"}
+        },
+        "rationale": {"$ref": "#/$defs/nonEmptyString"}
+      }
+    },
+    "businessEpisode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "purpose", "actionIds", "preconditions", "postconditions"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "name": {"$ref": "#/$defs/nonEmptyString"},
+        "purpose": {"$ref": "#/$defs/nonEmptyString"},
+        "actionIds": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/id"}
+        },
+        "preconditions": {"$ref": "#/$defs/stringArray"},
+        "postconditions": {"$ref": "#/$defs/stringArray"}
+      }
+    },
+    "knowledgeItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "statement", "kind", "sourceRefs"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "statement": {"$ref": "#/$defs/nonEmptyString"},
+        "kind": {"enum": ["observed-fact", "user-rule", "application-rule", "candidate"]},
+        "sourceRefs": {"$ref": "#/$defs/sourceRefs"}
+      }
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "description", "locator", "geometry", "sourceRefs", "unknowns"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "description": {"$ref": "#/$defs/nonEmptyString"},
+        "locator": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "strategies", "fallbackPolicy", "sourceRefs"],
+          "properties": {
+            "status": {"enum": ["verified", "candidate", "unavailable", "not-requested"]},
+            "strategies": {"$ref": "#/$defs/stringArray"},
+            "fallbackPolicy": {"enum": ["none", "explicit-ordered"]},
+            "sourceRefs": {"$ref": "#/$defs/sourceRefs"}
+          }
+        },
+        "geometry": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["space", "projectionApi", "values", "sourceRefs"],
+          "properties": {
+            "space": {"enum": ["window-relative", "display-relative", "semantic-only", "none"]},
+            "projectionApi": {"enum": ["Geometry.pointOffset", "Geometry.pointPercent", "none"]},
+            "values": {"type": "object"},
+            "sourceRefs": {"$ref": "#/$defs/sourceRefs"}
+          }
+        },
+        "sourceRefs": {"$ref": "#/$defs/sourceRefs"},
+        "unknowns": {"$ref": "#/$defs/stringArray"}
+      }
+    },
+    "actionStrategy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "targetId", "method", "apiCalls", "noImplicitFallback", "sourceRefs"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "targetId": {"$ref": "#/$defs/id"},
+        "method": {"$ref": "#/$defs/nonEmptyString"},
+        "apiCalls": {"$ref": "#/$defs/nonEmptyStringArray"},
+        "noImplicitFallback": {"const": true},
+        "sourceRefs": {"$ref": "#/$defs/sourceRefs"}
+      }
+    },
+    "guard": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "description", "actionIds", "sourceRefs"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "description": {"$ref": "#/$defs/nonEmptyString"},
+        "actionIds": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/id"}
+        },
+        "sourceRefs": {"$ref": "#/$defs/sourceRefs"}
+      }
+    },
+    "recoveryRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "description", "maxAttempts", "actionIds", "sourceRefs"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "description": {"$ref": "#/$defs/nonEmptyString"},
+        "maxAttempts": {"type": "integer", "minimum": 0},
+        "actionIds": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/id"}
+        },
+        "sourceRefs": {"$ref": "#/$defs/sourceRefs"}
+      }
+    },
+    "describedItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "description", "sourceRefs"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "description": {"$ref": "#/$defs/nonEmptyString"},
+        "sourceRefs": {"$ref": "#/$defs/sourceRefs"}
+      }
+    },
+    "sourceMapEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actionId", "disposition", "consumerIds"],
+      "properties": {
+        "actionId": {"$ref": "#/$defs/id"},
+        "disposition": {
+          "enum": ["business", "runtime-guard", "qualification", "evidence", "excluded", "unknown"]
+        },
+        "episodeId": {"$ref": "#/$defs/id"},
+        "consumerIds": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/id"}
+        }
+      }
+    },
+    "verificationStatus": {"enum": ["not-run", "passed", "failed", "blocked"]}
+  }
+}

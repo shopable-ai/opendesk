@@ -13,11 +13,71 @@ import "C"
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"time"
 	"unsafe"
 )
+
+var errRecorderElementBoundsUnavailable = errors.New("accessibility element has no usable bounds")
+
+func newRecorderTextProbe() recorderTextProbe {
+	return func(ctx context.Context, window *WindowInfo, snapshot *recorderWindowSnapshot) (*recorderTextFieldSample, error) {
+		if ctx == nil {
+			ctx = context.Background()
+		}
+		if window == nil || snapshot == nil || window.ProcessID == 0 || snapshot.Application.ProcessID != window.ProcessID {
+			return nil, fmt.Errorf("focused text window is unavailable")
+		}
+		if C.opendesk_ax_is_process_trusted() == 0 {
+			return nil, fmt.Errorf("macOS Accessibility permission is not granted")
+		}
+		focused, err := recorderFocusedInputElement(ctx, window.ProcessID)
+		if err != nil {
+			return nil, err
+		}
+		defer C.opendesk_ax_release_element(focused)
+		timeout, err := recorderTargetTimeout(ctx)
+		if err != nil {
+			return nil, err
+		}
+		var raw *C.char
+		status := C.opendesk_ax_inspect_json(focused, C.double(timeout.Seconds()), 1, &raw)
+		if raw != nil {
+			defer C.opendesk_ax_free(unsafe.Pointer(raw))
+		}
+		if err := darwinAXStatusError(ctx, status, "recorder_text", false); err != nil {
+			return nil, err
+		}
+		if raw == nil {
+			return nil, fmt.Errorf("focused text input returned no inspection")
+		}
+		var inspection darwinAXInspection
+		if err := json.Unmarshal([]byte(C.GoString(raw)), &inspection); err != nil {
+			return nil, fmt.Errorf("decode focused text input: %w", err)
+		}
+		role := normalizeDarwinAXRole(darwinAXString(inspection.NativeRole))
+		value, valueOK := inspection.Value.(string)
+		if inspection.Secure || role != "textField" || !inspection.ValueSettable || inspection.Focused == nil || !*inspection.Focused || !inspection.ValueIncluded || !valueOK {
+			return nil, fmt.Errorf("focused element is not a readable writable non-secure text field")
+		}
+		bounds := inspection.NativeBounds
+		if bounds == nil || bounds.Width <= 0 || bounds.Height <= 0 {
+			return nil, errRecorderElementBoundsUnavailable
+		}
+		descriptor := recorderElementDescriptor{
+			Role: role, NativeRole: darwinAXString(inspection.NativeRole), Subrole: darwinAXString(inspection.Subrole),
+			Name: darwinAXString(inspection.Name), Identifier: darwinAXString(inspection.Identifier), Enabled: inspection.Enabled, Focused: inspection.Focused,
+			ValueSettable: inspection.ValueSettable, NativeActions: append([]string{}, inspection.NativeActions...),
+			Bounds: recorderWindowBounds{X: int(math.Round(bounds.X)), Y: int(math.Round(bounds.Y)), Width: int(math.Round(bounds.Width)), Height: int(math.Round(bounds.Height))},
+		}
+		if err := recorderValidateElementDescriptor(descriptor); err != nil {
+			return nil, err
+		}
+		return &recorderTextFieldSample{ObservedAt: time.Now().UTC(), Window: recorderCloneWindowSnapshot(snapshot), Element: descriptor, Value: value}, nil
+	}
+}
 
 func newRecorderTargetProbe() func(context.Context, *WindowInfo, int, int) (*recorderElementSnapshot, error) {
 	return func(ctx context.Context, window *WindowInfo, x, y int) (*recorderElementSnapshot, error) {
@@ -57,7 +117,19 @@ func newRecorderTargetProbe() func(context.Context, *WindowInfo, int, int) (*rec
 		}
 		hit, secure, err := recorderInspectAXDescriptor(ctx, element)
 		if err != nil {
-			return nil, err
+			if !errors.Is(err, errRecorderElementBoundsUnavailable) {
+				return nil, err
+			}
+			focused, focusedErr := recorderFocusedInputElement(ctx, window.ProcessID)
+			if focusedErr != nil {
+				return nil, err
+			}
+			owned = append(owned, focused)
+			focusedDescriptor, focusedSecure, focusedInspectErr := recorderInspectAXDescriptor(ctx, focused)
+			if focusedInspectErr != nil || focusedSecure || focusedDescriptor.Role != "textField" || !focusedDescriptor.ValueSettable || focusedDescriptor.Focused == nil || !*focusedDescriptor.Focused || !recorderPointInsideWindow(x, y, focusedDescriptor.Bounds) {
+				return nil, err
+			}
+			return recorderElementSnapshotFromDescriptor(focusedDescriptor, "focused-input-fallback", x, y), nil
 		}
 		if secure {
 			return nil, fmt.Errorf("secure accessibility element semantics are not recorded")
@@ -106,12 +178,50 @@ func newRecorderTargetProbe() func(context.Context, *WindowInfo, int, int) (*rec
 		offsetX, offsetY := x-selected.Bounds.X, y-selected.Bounds.Y
 		return &recorderElementSnapshot{
 			Source: "accessibility", Resolution: resolution,
-			Role: selected.Role, NativeRole: selected.NativeRole, Name: selected.Name,
-			Identifier: selected.Identifier, NativeActions: append([]string{}, selected.NativeActions...),
-			Bounds: selected.Bounds, Hit: hit, Ancestors: ancestors,
+			Role: selected.Role, NativeRole: selected.NativeRole, Subrole: selected.Subrole, Name: selected.Name,
+			Identifier: selected.Identifier, Enabled: selected.Enabled, Focused: selected.Focused, ValueSettable: selected.ValueSettable,
+			NativeActions: append([]string{}, selected.NativeActions...),
+			Bounds:        selected.Bounds, Hit: hit, Ancestors: ancestors,
 			Point:      recorderElementPoint{OffsetX: offsetX, OffsetY: offsetY, XRatio: float64(offsetX) / float64(selected.Bounds.Width), YRatio: float64(offsetY) / float64(selected.Bounds.Height)},
 			ObservedAt: time.Now().UTC().Format(time.RFC3339Nano),
 		}, nil
+	}
+}
+
+func recorderFocusedInputElement(ctx context.Context, processID uint32) (C.uintptr_t, error) {
+	if processID == 0 || processID > math.MaxInt32 {
+		return 0, fmt.Errorf("focused input process is invalid")
+	}
+	application := C.opendesk_ax_create_application(C.int32_t(processID))
+	if application == 0 {
+		return 0, fmt.Errorf("focused input application is unavailable")
+	}
+	defer C.opendesk_ax_release_element(application)
+	timeout, err := recorderTargetTimeout(ctx)
+	if err != nil {
+		return 0, err
+	}
+	var focused C.uintptr_t
+	status := C.opendesk_ax_copy_element_attribute(application, C.OPENDESK_AX_ELEMENT_ATTRIBUTE_FOCUSED_UI_ELEMENT, C.double(timeout.Seconds()), &focused)
+	if err := darwinAXStatusError(ctx, status, "recorder_focused_input", false); err != nil {
+		return 0, err
+	}
+	if focused == 0 {
+		return 0, fmt.Errorf("focused input is unavailable")
+	}
+	return focused, nil
+}
+
+func recorderElementSnapshotFromDescriptor(descriptor recorderElementDescriptor, resolution string, x, y int) *recorderElementSnapshot {
+	offsetX, offsetY := x-descriptor.Bounds.X, y-descriptor.Bounds.Y
+	return &recorderElementSnapshot{
+		Source: "accessibility", Resolution: resolution,
+		Role: descriptor.Role, NativeRole: descriptor.NativeRole, Subrole: descriptor.Subrole, Name: descriptor.Name,
+		Identifier: descriptor.Identifier, Enabled: descriptor.Enabled, Focused: descriptor.Focused, ValueSettable: descriptor.ValueSettable,
+		NativeActions: append([]string{}, descriptor.NativeActions...), Bounds: descriptor.Bounds,
+		Hit: descriptor, Ancestors: []recorderElementDescriptor{},
+		Point:      recorderElementPoint{OffsetX: offsetX, OffsetY: offsetY, XRatio: float64(offsetX) / float64(descriptor.Bounds.Width), YRatio: float64(offsetY) / float64(descriptor.Bounds.Height)},
+		ObservedAt: time.Now().UTC().Format(time.RFC3339Nano),
 	}
 }
 
@@ -151,11 +261,12 @@ func recorderInspectAXDescriptor(ctx context.Context, element C.uintptr_t) (reco
 	}
 	bounds := inspection.NativeBounds
 	if bounds == nil || bounds.Width <= 0 || bounds.Height <= 0 {
-		return recorderElementDescriptor{}, false, fmt.Errorf("accessibility element has no usable bounds")
+		return recorderElementDescriptor{}, false, errRecorderElementBoundsUnavailable
 	}
 	descriptor := recorderElementDescriptor{
-		Role: normalizeDarwinAXRole(darwinAXString(inspection.NativeRole)), NativeRole: darwinAXString(inspection.NativeRole),
-		Name: darwinAXString(inspection.Name), Identifier: darwinAXString(inspection.Identifier), NativeActions: append([]string{}, inspection.NativeActions...),
+		Role: normalizeDarwinAXRole(darwinAXString(inspection.NativeRole)), NativeRole: darwinAXString(inspection.NativeRole), Subrole: darwinAXString(inspection.Subrole),
+		Name: darwinAXString(inspection.Name), Identifier: darwinAXString(inspection.Identifier), Enabled: inspection.Enabled, Focused: inspection.Focused,
+		ValueSettable: inspection.ValueSettable, NativeActions: append([]string{}, inspection.NativeActions...),
 		Bounds: recorderWindowBounds{X: int(math.Round(bounds.X)), Y: int(math.Round(bounds.Y)), Width: int(math.Round(bounds.Width)), Height: int(math.Round(bounds.Height))},
 	}
 	if err := recorderValidateElementDescriptor(descriptor); err != nil {

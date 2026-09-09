@@ -72,8 +72,8 @@ Runtime controller 复制。生成不会自动回放；只有用户另点“试�
 同时清理旧的内存候选／运行结果。重置只清空 UI/controller 引用，不删除不可变产物，也不重复停止已经终结的
 Recorder session。主托盘关闭、脚本异常或宿主退出会取消在途试运行并沿现有 execution 生命周期清理。
 详情页打开时会暂时隐藏置顶托盘，收起或关闭详情后恢复托盘，避免两个原生窗口互相覆盖；该操作不重置流程。
-录制期间的每个 Custom UI 按钮 click 会先调用 `session.excludeControlClick(event)`，把对应 native 点击 ID 写入
-显式 raw 边界，Actions 只排除这些引用，不按按钮坐标猜测。若 actions blocked，托盘摘要和详情页会显示
+录制期间的每个 Custom UI 按钮 click 会先调用 `session.excludeControlClick(event)`；宿主原始事件同时携带控件屏幕范围，Recorder 只把范围内对应 native 点击 ID 写入
+显式 raw 边界，Actions 只排除这些引用。范围内确有输入但无法匹配完整包络时才会阻塞；没有观察到 native 输入会明确记为 `not-observed`。若 actions blocked，托盘摘要和详情页会显示
 结构化 `code`、`eventId` 与 message，生成按钮保持禁用；这是可检查的转换状态，不会被隐藏或伪造成成功。
 完整按钮和错误／部分保存语义见
 [`examples/custom-ui/README.md`](../../examples/custom-ui/README.md)，公开 Recorder 契约见

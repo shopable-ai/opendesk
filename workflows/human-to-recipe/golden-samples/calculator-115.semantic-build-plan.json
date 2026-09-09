@@ -1,0 +1,423 @@
+{
+  "schemaVersion": "semantic-build-plan/v1",
+  "kind": "human-to-recipe-semantic-build-plan",
+  "source": {
+    "repository": ".",
+    "workdir": ".",
+    "recordingDir": ".runtime/recordings/rec-20260909T113509.231387000Z-e2232547fa4e",
+    "actionsFile": ".runtime/recordings/rec-20260909T113509.231387000Z-e2232547fa4e/actions.json",
+    "actionsRevision": 1,
+    "actionsReadiness": "ready",
+    "actionsSha256": "9238fad978581a6f6308b931dd91cd5ced76ad2d2f892f5ebf0965b3143c9574",
+    "rawReference": {
+      "file": "raw/events.ndjson",
+      "sha256": "0888eabe33d1d5d3a74c3dbf3f31bab175505c3f5e6b7762c845ea015c8838ff",
+      "bytes": 19157
+    },
+    "actionIds": [
+      "a0001",
+      "a0002",
+      "a0003",
+      "a0004",
+      "a0005",
+      "a0006",
+      "a0007",
+      "a0008",
+      "a0009",
+      "a0010",
+      "a0011",
+      "a0012"
+    ],
+    "basicScriptFile": ".runtime/recordings/rec-20260909T113509.231387000Z-e2232547fa4e/generated/basic.recipe.js",
+    "candidateFile": ".runtime/recordings/rec-20260909T113509.231387000Z-e2232547fa4e/generated/basic.candidate.json"
+  },
+  "intent": {
+    "businessGoal": "在系统 Calculator 中计算 25 × 4 + 20 − 5",
+    "successConditions": [
+      "Calculator 最终显示数值 115"
+    ],
+    "allowedSideEffects": [
+      "启动或激活系统 Calculator",
+      "在唯一的合格 Calculator 窗口内按下计划中的数字和运算按钮"
+    ],
+    "forbiddenObjects": [
+      "Calculator 以外的应用和窗口",
+      "不满足 232×321 合格布局的 Calculator 窗口"
+    ]
+  },
+  "environment": {
+    "applications": [
+      "macOS system Calculator (com.apple.calculator)"
+    ],
+    "languages": [
+      "Calculator 按钮语义证据来自当前中文本地化；资格 Gate 接受已列明的 C/AC 本地化动态名称"
+    ],
+    "layoutConstraints": [
+      "窗口尺寸必须严格为 232×321 logical points",
+      "窗口可以平移，但不能 resize 或切换布局模式"
+    ],
+    "otherConstraints": [
+      "仅支持 darwin",
+      "Calculator 可执行文件路径和标题必须唯一匹配"
+    ]
+  },
+  "semanticCoverage": {
+    "verified": 12,
+    "unavailable": 0,
+    "notRequested": 0,
+    "notApplicable": 0,
+    "missing": 0,
+    "unavailableWithReason": 0,
+    "unavailableWithoutReason": 0,
+    "issues": []
+  },
+  "actionDispositions": [
+    {
+      "actionId": "a0001",
+      "disposition": "runtime-guard",
+      "sourceEventIds": ["e000000000003", "e000000000004", "e000000000005"],
+      "rationale": "清除键用于把 Calculator 恢复到可重复的 all-clear 起点，不属于算式业务步骤"
+    },
+    {
+      "actionId": "a0002",
+      "disposition": "business",
+      "sourceEventIds": ["e000000000043", "e000000000044", "e000000000045"],
+      "rationale": "输入乘法左操作数 25 的第一位"
+    },
+    {
+      "actionId": "a0003",
+      "disposition": "business",
+      "sourceEventIds": ["e000000000063", "e000000000064", "e000000000065"],
+      "rationale": "输入乘法左操作数 25 的第二位"
+    },
+    {
+      "actionId": "a0004",
+      "disposition": "business",
+      "sourceEventIds": ["e000000000096", "e000000000097", "e000000000098"],
+      "rationale": "选择乘法运算"
+    },
+    {
+      "actionId": "a0005",
+      "disposition": "business",
+      "sourceEventIds": ["e000000000130", "e000000000131", "e000000000132"],
+      "rationale": "输入乘法右操作数 4"
+    },
+    {
+      "actionId": "a0006",
+      "disposition": "business",
+      "sourceEventIds": ["e000000000173", "e000000000174", "e000000000175"],
+      "rationale": "完成 25 × 4"
+    },
+    {
+      "actionId": "a0007",
+      "disposition": "business",
+      "sourceEventIds": ["e000000000201", "e000000000202", "e000000000203"],
+      "rationale": "选择加法运算"
+    },
+    {
+      "actionId": "a0008",
+      "disposition": "business",
+      "sourceEventIds": ["e000000000238", "e000000000239", "e000000000240"],
+      "rationale": "输入加数 20 的第一位"
+    },
+    {
+      "actionId": "a0009",
+      "disposition": "business",
+      "sourceEventIds": ["e000000000264", "e000000000265", "e000000000266"],
+      "rationale": "输入加数 20 的第二位"
+    },
+    {
+      "actionId": "a0010",
+      "disposition": "business",
+      "sourceEventIds": ["e000000000297", "e000000000298", "e000000000299"],
+      "rationale": "选择减法运算"
+    },
+    {
+      "actionId": "a0011",
+      "disposition": "business",
+      "sourceEventIds": ["e000000000336", "e000000000337", "e000000000338"],
+      "rationale": "输入减数 5"
+    },
+    {
+      "actionId": "a0012",
+      "disposition": "business",
+      "sourceEventIds": ["e000000000376", "e000000000377", "e000000000378"],
+      "rationale": "完成减法并产生最终业务结果"
+    }
+  ],
+  "businessEpisodes": [
+    {
+      "id": "multiply-25-by-4",
+      "name": "计算 25 乘以 4",
+      "purpose": "建立后续加减所需的中间结果 100",
+      "actionIds": ["a0002", "a0003", "a0004", "a0005", "a0006"],
+      "preconditions": ["Calculator 已完成 all-clear 起点恢复"],
+      "postconditions": ["Calculator 当前计算结果为 100；固定显示值由资格 Gate 核对"]
+    },
+    {
+      "id": "add-20",
+      "name": "在当前结果上加 20",
+      "purpose": "把中间结果从 100 更新为 120",
+      "actionIds": ["a0007", "a0008", "a0009"],
+      "preconditions": ["前一个乘法 Episode 已完成"],
+      "postconditions": ["已输入加数 20，下一运算将消费该值"]
+    },
+    {
+      "id": "subtract-5",
+      "name": "从当前结果减去 5",
+      "purpose": "完成用户要求的最终计算",
+      "actionIds": ["a0010", "a0011", "a0012"],
+      "preconditions": ["加法 Episode 已建立 120 的运算上下文"],
+      "postconditions": ["最终业务结果应为 115；由独立资格 Gate 读取显示值确认"]
+    }
+  ],
+  "applicationKnowledge": [
+    {
+      "id": "calculator-identity",
+      "statement": "合格目标是 bundle ID com.apple.calculator、固定可执行路径和标题 Calculator 的唯一窗口",
+      "kind": "observed-fact",
+      "sourceRefs": ["actions:a0001-a0012"]
+    },
+    {
+      "id": "calculator-clear-rule",
+      "statement": "同一 clear 控件可能显示 C 或 AC；最多两次调用可建立相同 all-clear 起点",
+      "kind": "application-rule",
+      "sourceRefs": ["action:a0001", "tests/runtime-api/calculator-115-semantic-recipe-macos.js"]
+    },
+    {
+      "id": "calculator-business-rule",
+      "statement": "本次获用户确认的业务顺序是 25 × 4，再加 20，再减 5",
+      "kind": "user-rule",
+      "sourceRefs": ["intent.businessGoal", "actions:a0002-a0012"]
+    }
+  ],
+  "targets": [
+    {
+      "id": "calculator-window",
+      "description": "唯一的系统 Calculator 标准布局窗口",
+      "locator": {
+        "status": "verified",
+        "strategies": ["executablePath + exact title + unique match"],
+        "fallbackPolicy": "none",
+        "sourceRefs": ["actions:a0001-a0012", "calculator-identity"]
+      },
+      "geometry": {
+        "space": "none",
+        "projectionApi": "none",
+        "values": {"width": 232, "height": 321},
+        "sourceRefs": ["actions:a0001-a0012"]
+      },
+      "sourceRefs": ["calculator-identity"],
+      "unknowns": []
+    },
+    {
+      "id": "calculator-button-map",
+      "description": "录制窗口内经 verified AXButton 证据校准的数字、运算符和 clear 操作点",
+      "locator": {
+        "status": "verified",
+        "strategies": ["recorded AX role/name/identifier for qualification", "PID-scoped hit validation at action time"],
+        "fallbackPolicy": "none",
+        "sourceRefs": ["actions:a0001-a0012"]
+      },
+      "geometry": {
+        "space": "window-relative",
+        "projectionApi": "Geometry.pointOffset",
+        "values": {
+          "clear": {"x": 33, "y": 107},
+          "0": {"x": 76, "y": 290},
+          "2": {"x": 83, "y": 239},
+          "4": {"x": 17, "y": 198},
+          "5": {"x": 82, "y": 203},
+          "multiply": {"x": 195, "y": 149},
+          "plus": {"x": 203, "y": 251},
+          "minus": {"x": 203, "y": 197},
+          "equals": {"x": 204, "y": 292}
+        },
+        "sourceRefs": ["actions:a0001-a0012"]
+      },
+      "sourceRefs": ["actions:a0001-a0012"],
+      "unknowns": []
+    }
+  ],
+  "actionStrategies": [
+    {
+      "id": "press-calculator-button",
+      "targetId": "calculator-button-map",
+      "method": "在新鲜活动窗口快照中用 Geometry 投影合格 offset，经越界检查后执行 PID-scoped AXPress",
+      "apiCalls": [
+        "window.getActiveWindow",
+        "Geometry.pointOffset",
+        "Geometry.rect",
+        "Geometry.contains",
+        "mouse.clickForPID"
+      ],
+      "noImplicitFallback": true,
+      "sourceRefs": ["actions:a0001-a0012", "docs/api/geometry.md", "docs/api/mouse.md"]
+    }
+  ],
+  "runtimeGuards": [
+    {
+      "id": "guard-platform",
+      "description": "运行前确认平台是 darwin",
+      "actionIds": [],
+      "sourceRefs": ["environment.otherConstraints", "docs/api/system.md"]
+    },
+    {
+      "id": "guard-unique-window",
+      "description": "按可执行路径和精确标题只接受一个 Calculator 窗口",
+      "actionIds": [],
+      "sourceRefs": ["calculator-identity", "docs/api/window.md"]
+    },
+    {
+      "id": "guard-qualified-layout",
+      "description": "拒绝不是 232×321 的 Calculator 布局并拒绝投影越界",
+      "actionIds": [],
+      "sourceRefs": ["calculator-button-map", "docs/api/geometry.md"]
+    },
+    {
+      "id": "guard-active-window",
+      "description": "每次发送动作前重新确认同一 Calculator 窗口仍处于前台",
+      "actionIds": [],
+      "sourceRefs": ["calculator-window", "docs/api/window.md"]
+    }
+  ],
+  "recoveryRules": [
+    {
+      "id": "normalize-clear-state",
+      "description": "对同一 clear 控件最多调用两次，以覆盖 C 和 AC 两种正常初始状态；其他失败不重试",
+      "maxAttempts": 2,
+      "actionIds": ["a0001"],
+      "sourceRefs": ["calculator-clear-rule", "action:a0001"]
+    }
+  ],
+  "qualification": {
+    "claims": [
+      {
+        "id": "claim-source-lineage",
+        "description": "actions revision、hash、12 个 action 和 AX identity 与冻结来源一致",
+        "sourceRefs": ["source.actionsSha256", "actions:a0001-a0012"]
+      },
+      {
+        "id": "claim-step-transitions",
+        "description": "instrument 实际生产源码后逐步观察固定 Calculator display transition",
+        "sourceRefs": ["tests/runtime-api/calculator-115-semantic-recipe-macos.js"]
+      },
+      {
+        "id": "claim-final-115",
+        "description": "实际生产源码执行后 Calculator 最终显示严格等于 115",
+        "sourceRefs": ["intent.successConditions", "tests/runtime-api/calculator-115-semantic-recipe-macos.js"]
+      }
+    ],
+    "gate": {
+      "path": "tests/runtime-api/calculator-115-semantic-recipe-macos.js",
+      "productionSource": {
+        "path": "examples/human-to-recipe/calculator-115.semantic.recipe.js",
+        "sha256": "751d25b682c9d1591507cddacee298a51d298ef9658d6c8b03e96a996c8a7e96"
+      },
+      "executionMode": "freeze-and-execute-production-source"
+    }
+  },
+  "evidence": {
+    "items": [
+      {
+        "id": "calculator-qualification-evidence",
+        "description": "run-scoped result、逐步 observation 和前后实窗截图；不进入生产 Recipe",
+        "sourceRefs": [".runtime/tests/runtime-api/calculator-115-qualification-<executionId>"]
+      }
+    ]
+  },
+  "sourceMap": [
+    {
+      "actionId": "a0001",
+      "disposition": "runtime-guard",
+      "consumerIds": ["normalize-clear-state", "press-calculator-button"]
+    },
+    {
+      "actionId": "a0002",
+      "disposition": "business",
+      "episodeId": "multiply-25-by-4",
+      "consumerIds": ["press-calculator-button"]
+    },
+    {
+      "actionId": "a0003",
+      "disposition": "business",
+      "episodeId": "multiply-25-by-4",
+      "consumerIds": ["press-calculator-button"]
+    },
+    {
+      "actionId": "a0004",
+      "disposition": "business",
+      "episodeId": "multiply-25-by-4",
+      "consumerIds": ["press-calculator-button"]
+    },
+    {
+      "actionId": "a0005",
+      "disposition": "business",
+      "episodeId": "multiply-25-by-4",
+      "consumerIds": ["press-calculator-button"]
+    },
+    {
+      "actionId": "a0006",
+      "disposition": "business",
+      "episodeId": "multiply-25-by-4",
+      "consumerIds": ["press-calculator-button"]
+    },
+    {
+      "actionId": "a0007",
+      "disposition": "business",
+      "episodeId": "add-20",
+      "consumerIds": ["press-calculator-button"]
+    },
+    {
+      "actionId": "a0008",
+      "disposition": "business",
+      "episodeId": "add-20",
+      "consumerIds": ["press-calculator-button"]
+    },
+    {
+      "actionId": "a0009",
+      "disposition": "business",
+      "episodeId": "add-20",
+      "consumerIds": ["press-calculator-button"]
+    },
+    {
+      "actionId": "a0010",
+      "disposition": "business",
+      "episodeId": "subtract-5",
+      "consumerIds": ["press-calculator-button"]
+    },
+    {
+      "actionId": "a0011",
+      "disposition": "business",
+      "episodeId": "subtract-5",
+      "consumerIds": ["press-calculator-button"]
+    },
+    {
+      "actionId": "a0012",
+      "disposition": "business",
+      "episodeId": "subtract-5",
+      "consumerIds": ["press-calculator-button"]
+    }
+  ],
+  "outputs": {
+    "productionRecipe": {
+      "path": "examples/human-to-recipe/calculator-115.semantic.recipe.js",
+      "sha256": "751d25b682c9d1591507cddacee298a51d298ef9658d6c8b03e96a996c8a7e96"
+    },
+    "qualificationGate": {
+      "path": "tests/runtime-api/calculator-115-semantic-recipe-macos.js"
+    },
+    "evidenceRoot": ".runtime/tests/runtime-api/calculator-115-qualification-<executionId>",
+    "renderer": {
+      "status": "not-implemented",
+      "mode": "deterministic-agent-instructions"
+    }
+  },
+  "verification": {
+    "generated": "present",
+    "staticallyReviewed": "passed",
+    "syntheticallyVerified": "passed",
+    "liveVerified": "not-run",
+    "qualified": "not-run"
+  }
+}

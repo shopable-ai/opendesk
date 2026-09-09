@@ -64,8 +64,8 @@
       },
       async excludeControlClick(event) {
         calls.exclude += 1;
-        controlEvents.push({windowId: event.windowId, targetId: event.targetId, type: event.type, timestamp: event.timestamp});
-        return {changed: captureState === 'recording', transitionSequence: String(5 + calls.exclude), eventIds: []};
+        controlEvents.push({windowId: event.windowId, targetId: event.targetId, type: event.type, timestamp: event.timestamp, bounds: event.bounds});
+        return {changed: captureState === 'recording', transitionSequence: String(5 + calls.exclude), eventIds: [], matchStatus: 'not-observed'};
       },
       stop() {
         calls.stop += 1;
@@ -192,7 +192,8 @@
     equal(calls.stop, 1, 'stop button did not call session.stop once');
     equal(calls.exclude, 3, 'recording controls did not report every live Custom UI click');
     equal(controlEvents.map(event => event.targetId).join(','), 'trayPause,trayPause,trayStop', JSON.stringify(controlEvents));
-    assert(controlEvents.every(event => event.type === 'click' && event.windowId === 'recorderWorkflowTray' && event.timestamp), JSON.stringify(controlEvents));
+    assert(controlEvents.every(event => event.type === 'click' && event.windowId === 'recorderWorkflowTray' && event.timestamp
+      && event.bounds && event.bounds.width > 0 && event.bounds.height > 0), JSON.stringify(controlEvents));
     void app.stop();
     equal(calls.stop, 1, 'a repeated stop entered session.stop twice');
     await screenshot('stopping');

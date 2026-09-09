@@ -21,6 +21,12 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
+)
+
+const (
+	recorderUIOHookFailure           = 0x01
+	recorderUIOHookStopRetryInterval = 10 * time.Millisecond
 )
 
 type uiohookBackend struct {
@@ -37,6 +43,11 @@ type uiohookBackend struct {
 	started    atomic.Bool
 	runResult  atomic.Int32
 	stopResult atomic.Int32
+
+	// Configured before Start launches run. On Darwin this also narrows the
+	// native event-tap mask so disabled keyboard content cannot enter
+	// libuiohook's main-queue Unicode translation path.
+	captureKeyboard bool
 }
 
 var activeUIOHookBackend atomic.Pointer[uiohookBackend]
@@ -80,6 +91,10 @@ func (b *uiohookBackend) Capabilities() RecorderBackendCapabilities {
 		capability.Permission = "unknown"
 	}
 	return capability
+}
+
+func (b *uiohookBackend) configureCaptureKeyboard(enabled bool) {
+	b.captureKeyboard = enabled
 }
 
 func (b *uiohookBackend) Start(ctx context.Context, sink func(RecorderInputEvent), failure func(error)) error {
@@ -126,7 +141,7 @@ func (b *uiohookBackend) run() {
 	defer b.wg.Done()
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
-	result := int(C.opendesk_recorder_uiohook_run())
+	result := int(C.opendesk_recorder_uiohook_run(C.bool(b.captureKeyboard)))
 	b.runResult.Store(int32(result))
 	releaseUIOHookLease(b)
 	b.doneOnce.Do(func() { close(b.done) })
@@ -146,7 +161,9 @@ func (b *uiohookBackend) Stop(ctx context.Context) error {
 	default:
 	}
 	b.stopOnce.Do(func() {
-		result := int(C.opendesk_recorder_uiohook_stop())
+		result := recorderRetryUIOHookStop(ctx, b.done, func() int {
+			return int(C.opendesk_recorder_uiohook_stop())
+		}, recorderUIOHookStopRetryInterval)
 		b.stopResult.Store(int32(result))
 	})
 	select {
@@ -162,6 +179,55 @@ func (b *uiohookBackend) Stop(ctx context.Context) error {
 		return nil
 	case <-ctx.Done():
 		return recorderError(RecorderCaptureUnavailable, "RecorderSession.stop", "native input backend did not exit before the stop deadline", ctx.Err())
+	}
+}
+
+// libuiohook's macOS hook_stop returns the generic UIOHOOK_FAILURE while its
+// CFRunLoop is between a timeout-driven teardown and restart. That state is
+// transient: treating the first result as final leaves hook_run alive and the
+// process-wide lease permanently occupied. Retry only the generic failure
+// until the run goroutine exits, a stop request is accepted, or the caller's
+// explicit deadline expires. Platform-specific failures remain terminal.
+func recorderRetryUIOHookStop(ctx context.Context, done <-chan struct{}, stop func() int, interval time.Duration) int {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if stop == nil {
+		return recorderUIOHookFailure
+	}
+	if interval <= 0 {
+		interval = recorderUIOHookStopRetryInterval
+	}
+	for {
+		select {
+		case <-done:
+			return 0
+		default:
+		}
+		result := stop()
+		if result != recorderUIOHookFailure {
+			return result
+		}
+		timer := time.NewTimer(interval)
+		select {
+		case <-done:
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
+			return 0
+		case <-ctx.Done():
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
+			return result
+		case <-timer.C:
+		}
 	}
 }
 
