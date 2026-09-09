@@ -3,41 +3,16 @@
   "project": "opendesk",
   "preferredForAI": true,
   "authority": {
-    "sourceOfTruth": [
-      "automation/*.go",
-      "pkg/nativeextension/*.go",
-      "polyfills/*.js",
-      "cmd/opendesk/main.go",
-      "pkg/http/*.go"
-    ],
+    "sourceOfTruth": ["automation/*.go", "pkg/nativeextension/*.go", "polyfills/*.js", "cmd/opendesk/main.go", "pkg/http/*.go"],
     "canonicalUserDocs": "docs/api/",
-    "retiredDocTrees": [
-      "docs-api/",
-      "docs-api-user/"
-    ],
+    "retiredDocTrees": ["docs-api/", "docs-api-user/"],
     "rule": "When documentation conflicts with current source/runtime behavior, current source wins."
   },
   "entrypoints": {
-    "cli": {
-      "file": "opendesk -script <file.js>",
-      "inline": "opendesk -script-text \"...\"",
-      "stdin": "opendesk -script-stdin",
-      "runtimeMode": "Use the default JavaScript Runtime. Do not add the compatibility-only -stack flag to new commands."
-    },
-    "aiCli": {
-      "command": "opendesk ai schema",
-      "docs": "docs/api/ai-cli.md",
-      "stdout": "single JSON envelope only",
-      "purpose": "Low-token desktop tool surface for coding agents; reuses Stable Runtime services and Execution evidence."
-    },
-    "httpServer": {
-      "command": "opendesk -http",
-      "defaultPort": 60844
-    },
-    "mcp": {
-      "command": "opendesk-mcp",
-      "docs": "docs/mcp/README.md"
-    }
+    "cli": {"file": "opendesk -script <file.js>", "inline": "opendesk -script-text \"...\"", "stdin": "opendesk -script-stdin", "runtimeMode": "Use the default JavaScript Runtime. Do not add the compatibility-only -stack flag to new commands."},
+    "aiCli": {"command": "opendesk ai schema", "docs": "docs/api/ai-cli.md", "stdout": "single JSON envelope only", "purpose": "Low-token desktop tool surface for coding agents; reuses Stable Runtime services and Execution evidence."},
+    "httpServer": {"command": "opendesk -http", "defaultPort": 60844},
+    "mcp": {"command": "opendesk-mcp", "docs": "docs/mcp/README.md"}
   },
   "runtimeRules": [
     "For coding-agent desktop interaction, inspect `opendesk ai schema` and `opendesk ai capabilities`; prefer its window metadata, targeted screenshots, deterministic primitives, and reusable recipes before full-screen visual reasoning.",
@@ -57,115 +32,29 @@
     "SQLite is a first-party, Promise-only local Runtime API, not a Native Extension. Use SQLite.open({path, mode}) and the returned handle's query/exec/batch/close methods with bound parameters; it is enabled only for trusted local script/AI executions and is absent from HTTP, MCP, and Scheduler to avoid granting remote filesystem database access.",
     "Recorder is one execution-owned local Runtime object. Global input capture requires the explicit trusted local -allow-recorder-capture flag; within is initial provenance rather than a persistent input filter, and action-level application/window context supports intentional app and window switches. Ordinary hover motion is filtered, while button-held motion is retained. target-semantics records label-only point-hit Accessibility evidence and bubbles through at most six parents to the nearest actionable control, without AX values, screenshots, OCR, or trees. HTTP, MCP, Scheduler, JavaScript options, and environment variables cannot grant capture. Recorder.buildActions and Recorder.generateScript remain available without capture permission, reread fixed files, never call a model, never overwrite an existing candidate, and never auto-replay.",
     "Use the native lowercase path global for platform path-string operations. path.resolve and path.relative use the immutable Execution.workdir, not the host process cwd; path never performs filesystem I/O or symlink resolution.",
-    "Do not use retired TestMonkey documentation as a current API authority."
+    "Do not use retired TestMonkey documentation as a current API authority.",
+    "UI.tapTexts defaults to intervalMs=300, waitForEach=true, timeout=10000 per step, polling=200 milliseconds. Omitted within binds the first resolved active window; explicit waiting scopes must be WindowInfo. It waits for successful empty observations only and never retries submitted input. Use waitForEach:false and intervalMs:0 explicitly for legacy fail-fast timing; another window requires a separate deliberate selection."
   ],
   "globals": [
     {
-      "name": "page",
-      "source": "native+polyfill",
-      "status": "stable",
-      "doc": "page.md",
+      "name": "page", "source": "native+polyfill", "status": "stable", "doc": "page.md",
       "summary": "Desktop page entry: screenshot, open URL/App, waits and permissions.",
-      "keyMethods": [
-        "screenshot",
-        "captureScreen",
-        "goto",
-        "openURL",
-        "openApp",
-        "openURLInApp",
-        "title",
-        "url",
-        "waitFor",
-        "waitForTimeout",
-        "waitForFunction",
-        "waitForAll",
-        "checkPermissions",
-        "requestPermissions",
-        "ensurePermissions",
-        "checkScreenshotPermissions",
-        "openMacOSPrivacySettings",
-        "requestMacPermissions",
-        "requestMacAutomationPermission"
-      ],
+      "keyMethods": ["screenshot", "captureScreen", "goto", "openURL", "openApp", "openURLInApp", "title", "url", "waitFor", "waitForTimeout", "waitForFunction", "waitForAll", "checkPermissions", "requestPermissions", "ensurePermissions", "checkScreenshotPermissions", "openMacOSPrivacySettings", "requestMacPermissions", "requestMacAutomationPermission"],
       "waitSemantics": "waitFor dispatches number waits to waitForTimeout and predicates to waitForFunction, forwarding their options. waitForTimeout supports AbortSignal and resolves asynchronously even for 0ms. waitForFunction has an independent deadline and one predicate call in flight; predicate throws/rejections remain transient. waitForAll preserves order, values, identity, and raw rejection reasons, treats functions as values, and never cancels caller-owned work. Duration, timeout, and polling are finite numbers in inclusive 0..86400000; fractional values are accepted and Timer converts them to integer milliseconds. Function/all timeout 0 rejects with TimeoutError/TIMEOUT; signal cancellation rejects with AbortError/CANCELED; invalid arguments use INVALID_ARGUMENT. Every terminal path removes wait-owned timers and listeners."
     },
+    {"name": "mouse", "source": "native + Geometry polyfill companion", "status": "stable", "doc": "mouse.md", "keyMethods": ["click", "clickPoint", "clickForPID", "move", "down", "up", "getPos", "wheel"]},
     {
-      "name": "mouse",
-      "source": "native + Geometry polyfill companion",
-      "status": "stable",
-      "doc": "mouse.md",
-      "keyMethods": [
-        "click",
-        "clickPoint",
-        "clickForPID",
-        "move",
-        "down",
-        "up",
-        "getPos",
-        "wheel"
-      ]
-    },
-    {
-      "name": "Geometry",
-      "source": "polyfill",
-      "status": "stable",
-      "doc": "geometry.md",
-      "types": "types/Geometry.d.ts",
-      "keyMethods": [
-        "rect",
-        "center",
-        "pointOffset",
-        "pointPercent",
-        "regionOffset",
-        "regionPercent",
-        "regionByEdges",
-        "inset",
-        "anchorPoint",
-        "contains",
-        "intersect"
-      ],
+      "name": "Geometry", "source": "polyfill", "status": "stable", "doc": "geometry.md", "types": "types/Geometry.d.ts",
+      "keyMethods": ["rect", "center", "pointOffset", "pointPercent", "regionOffset", "regionPercent", "regionByEdges", "inset", "anchorPoint", "contains", "intersect"],
       "coordinateSpace": "Consumes WindowInfo, DisplayInfo, or tagged screen regions and emits only tagged virtual-desktop logical screen points/regions. It never accepts a bare bbox as screen coordinates."
     },
     {
-      "name": "Accessibility",
-      "source": "execution-owned native Runtime + macOS AX / Windows UIA backend",
-      "status": "experimental-local",
-      "platforms": [
-        "darwin",
-        "windows"
-      ],
-      "doc": "accessibility.md",
-      "types": "types/Accessibility.d.ts",
-      "keyMethods": [
-        "getCapabilities",
-        "snapshot",
-        "find",
-        "read",
-        "perform",
-        "release"
-      ],
+      "name": "Accessibility", "source": "execution-owned native Runtime + macOS AX / Windows UIA backend", "status": "experimental-local", "platforms": ["darwin", "windows"], "doc": "accessibility.md", "types": "types/Accessibility.d.ts",
+      "keyMethods": ["getCapabilities", "snapshot", "find", "read", "perform", "release"],
       "authorization": "Enabled only by trusted local script and AI CLI execution.Request values. Disabled operations reject without native target reads; getCapabilities remains available and never prompts or crawls the desktop.",
       "capabilities": "getCapabilities returns schemaVersion, platform/backend, hostAuthorization.enabled, implementation {available,status,menus,actions,coordinateMapping,notes}, permission {required,state,granted,cached}, top-level available, fixed limits, and cancellation.hardCancel=false. implementation.actions is a per-action boolean map and does not promise element-level support.",
       "scope": "Every snapshot/find call requires an existing OpenDeskWindowInfo, an element ref owned by the current execution, or {app: OpenDeskAppTarget, root: application|menuBar}. No implicit whole-desktop traversal.",
-      "roles": [
-        "application",
-        "window",
-        "button",
-        "checkbox",
-        "radioButton",
-        "textField",
-        "staticText",
-        "menuBar",
-        "menu",
-        "menuItem",
-        "group",
-        "list",
-        "listItem",
-        "table",
-        "row",
-        "cell",
-        "unknown"
-      ],
+      "roles": ["application", "window", "button", "checkbox", "radioButton", "textField", "staticText", "menuBar", "menu", "menuItem", "group", "list", "listItem", "table", "row", "cell", "unknown"],
       "limits": "One total 3000ms default/30000ms maximum deadline including queue time; maxDepth 8/32, maxNodes 1000/5000, 256 active refs, and 32 queued requests per execution.",
       "identity": "Element refs are opaque execution-owned objects bound to the process/container/native element. Their public fields cannot be serialized and reconstructed as authority.",
       "actions": "invoke, setValue, expand, collapse, select, and setChecked use native capability/state checks and never auto-retry or fall back to pointer input after an attempted action.",
@@ -173,156 +62,58 @@
       "coordinates": "nativeBounds stays tagged in the backend coordinate space. bounds is null unless a reliable conversion to OpenDesk logical screen coordinates was performed."
     },
     {
-      "name": "UI",
-      "source": "stable visual polyfill plus execution-owned native Accessibility menu composition",
-      "status": "stable-with-experimental-local-menu",
-      "doc": "desktop-ui.md",
-      "types": "types/UI.d.ts",
-      "keyMethods": [
-        "getCapabilities",
-        "findTexts",
-        "findText",
-        "hasText",
-        "tapText",
-        "tapTexts",
-        "waitText",
-        "waitTextGone",
-        "findImages",
-        "findImage",
-        "tapImage",
-        "getMenuItems",
-        "findMenuItem",
-        "tapMenuItem"
-      ],
+      "name": "UI", "source": "stable visual polyfill plus execution-owned native Accessibility menu composition", "status": "stable-with-experimental-local-menu-and-sequence-wait", "doc": "desktop-ui.md", "types": "types/UI.d.ts",
+      "keyMethods": ["getCapabilities", "findTexts", "findText", "hasText", "tapText", "tapTexts", "waitText", "waitTextGone", "findImages", "findImage", "tapImage", "getMenuItems", "findMenuItem", "tapMenuItem"],
       "coordinateMapping": "Every discovery uses a fresh explicit screen clip. imageWidth/logicalScope.width and imageHeight/logicalScope.height are separately calculated actual capture scales; a scope across effective different-DPI displays fails closed.",
+      "tapTexts": {
+        "optionsType": "OpenDeskUITapTextsOptions",
+        "defaults": {"intervalMs": 300, "waitForEach": true, "timeout": 10000, "polling": 200},
+        "interval": "Extra milliseconds after the previous input returns and before the next observation; none before the first or after the last step. Explicit 0 disables this extra wait.",
+        "waiting": "Experimental per-step target wait, enabled by default. Each step budget starts after intervalMs and is checked before/after observation and before input. Poll only successful zero-match observations. Ambiguity, invalid explicit index, target loss, screenshot/OCR failure and input errors are terminal.",
+        "scope": "With waiting enabled, use a resolved WindowInfo or omit within to bind the first active window. Preserve id, PID, title and available handle throughout this sequence, refresh same-window bounds, and retain foreground checks. No implicit launch/focus or selection of a replacement window. Static regions remain snapshots.",
+        "cancellation": "signal accepts AbortSignal or null. Cancel delays and prevent later stages/input; synchronous native work cannot be forcibly interrupted. Never retry submitted input. If a successful input returns after cancellation, retain it in completed before rejecting.",
+        "result": "Promise<{ok:true, action:'tapTexts', completed:OpenDeskUITapResult[]}>; not an array. Step failures carry failedIndex, failedText, failedPhase interval|locate|input, completed and cause.",
+        "compatibility": "Default interval changed from 0 to 300 and target waiting is now enabled. Explicit waitForEach:false plus intervalMs:0 restores fail-fast timing and permits legacy Display/ScreenRegion scope. Unknown options, symbol fields, sparse strings and invalid timing are rejected before input.",
+        "verification": "Text visibility is not proof of enabled state or business completion. Verify postconditions independently; do not use an unknown input outcome as permission to replay. Runtime/native verification remains separate from source-level isolated tests."
+      },
       "relativeTextTargeting": {
-        "supportedMethods": [
-          "findTexts",
-          "findText",
-          "hasText",
-          "tapText",
-          "tapTexts"
-        ],
+        "supportedMethods": ["findTexts", "findText", "hasText", "tapText", "tapTexts"],
         "requiresWithin": "Using region or relativeTo requires an explicit within: OpenDeskWindowInfo so the Runtime can preserve and revalidate window identity.",
         "region": "A tagged OpenDeskScreenRegion snapshot or a synchronous (currentWin: OpenDeskWindowInfo) => OpenDeskScreenRegion rule. Dynamic rules are recomputed once per fresh observation; static regions never track moved windows.",
         "relativeTo": "Uses one exact text anchor from the same capture and Vision.runOCR result. Choose either direction with inclusive maxGap/minOverlap filtering, or a synchronous anchor => tagged screen region whose final intersection must fully contain each target bbox. It never auto-selects the nearest or first candidate.",
         "spatialUnits": "All gaps, overlap calculations, and regions use Geometry desktop logical screen coordinates; never multiply or divide them by Display.scale. Spatial predicates use the continuous logical projection of OCR bboxes before public bounds are outward-rounded; callbacks still receive the public target shape.",
-        "disambiguation": "The anchor must be unique and top-level index applies only after target relationship filtering. Missing anchors follow each read method's no-result contract, while clicks fail TARGET_NOT_FOUND with stage=anchor; multiple anchors fail AMBIGUOUS_TARGET with stage=anchor.",
+        "disambiguation": "The anchor must be unique and top-level index applies only after target relationship filtering. Missing anchors follow each read method's no-result contract, while single clicks fail TARGET_NOT_FOUND with stage=anchor; tapTexts waiting may poll a missing anchor. Multiple anchors fail AMBIGUOUS_TARGET with stage=anchor.",
         "freshness": "Revalidate the specified window before capture and after recognition. Dynamic or absent outer regions permit at most one complete pre-input re-observation after same-window bounds changes; static regions fail stale. Never retry after mouse input has been invoked.",
-        "unsupportedMethods": [
-          "waitText",
-          "waitTextGone",
-          "findImages",
-          "findImage",
-          "tapImage"
-        ],
+        "unsupportedMethods": ["waitText", "waitTextGone", "findImages", "findImage", "tapImage"],
         "unsupportedBehavior": "Passing region or relativeTo to an unsupported method fails with INVALID_ARGUMENT before observation or input. Image and Accessibility anchors are not supported."
       },
       "menu": {
-        "status": "experimental-local",
-        "doc": "desktop-ui.md",
+        "status": "experimental-local", "doc": "desktop-ui.md",
         "scope": "Requires a resolved OpenDeskWindowInfo or {app: OpenDeskAppTarget, root: menuBar}; read methods never expand or focus menus.",
         "path": "A non-empty complete hierarchy path whose segments are non-empty strings or exact {name?,identifier?} AND selectors.",
         "action": "tapMenuItem serially expands freshly observed unique levels under one total deadline, then submits invoke/select/setChecked at most once through the same AccessibilityRuntime.",
         "compatibility": "Existing UI text/image methods retain their screenshot, OCR, image and mouse contracts; they are not silently replaced with native Accessibility actions."
       }
     },
+    {"name": "keyboard", "source": "native", "status": "stable", "doc": "input.md"},
+    {"name": "globalShortcut", "source": "native", "status": "stable", "platforms": ["darwin", "windows"], "doc": "global-shortcut.md", "keyMethods": ["register", "unregister", "isRegistered", "unregisterAll"]},
     {
-      "name": "keyboard",
-      "source": "native",
-      "status": "stable",
-      "doc": "input.md"
-    },
-    {
-      "name": "globalShortcut",
-      "source": "native",
-      "status": "stable",
-      "platforms": [
-        "darwin",
-        "windows"
-      ],
-      "doc": "global-shortcut.md",
-      "keyMethods": [
-        "register",
-        "unregister",
-        "isRegistered",
-        "unregisterAll"
-      ]
-    },
-    {
-      "name": "Recorder",
-      "source": "native execution owner + static libuiohook adapter + JavaScript facade",
-      "status": "experimental-local",
-      "platforms": [
-        "darwin",
-        "windows",
-        "linux-x11"
-      ],
-      "doc": "recorder-runtime.md",
-      "types": "types/recorder.d.ts",
-      "keyMethods": [
-        "getCapabilities",
-        "start",
-        "buildActions",
-        "generateScript"
-      ],
-      "sessionMethods": [
-        "status",
-        "pause",
-        "resume",
-        "excludeControlClick",
-        "stop"
-      ],
+      "name": "Recorder", "source": "native execution owner + static libuiohook adapter + JavaScript facade", "status": "experimental-local", "platforms": ["darwin", "windows", "linux-x11"], "doc": "recorder-runtime.md", "types": "types/recorder.d.ts",
+      "keyMethods": ["getCapabilities", "start", "buildActions", "generateScript"],
+      "sessionMethods": ["status", "pause", "resume", "excludeControlClick", "stop"],
       "captureAuthorization": "Only a trusted local -script invocation with -allow-recorder-capture may start the process-wide listener. The option object and Execution.env cannot grant capture.",
       "captureScope": "within requires an exact initial foreground PID and title. The owner fails closed when polling observes a mismatch while recording; a paused session may leave the target, but resume revalidates the exact scope before accepting input. This is monitoring rather than an OS-level hook filter.",
       "platformBehavior": "macOS and Windows use the same pinned libuiohook 1.2.2 adapter and data contract. Linux is X11-only. Wayland full-desktop capture is explicitly unsupported.",
       "production": "Session control uses explicit idempotent pause and resume methods; toggle is only a serialized UI adaptation. Pause retains the native hook lease, drops input content before normalization, records pause/resume boundaries, and counts against maxDurationMs. excludeControlClick consumes an unmodified live Custom UI click event and records an auditable boundary with explicit native event IDs so its pointer envelope cannot become a generated target action. buildActions rereads the actual manifest plus raw NDJSON and writes versioned actions; a missing terminal manifest or damaged final partial line yields only a validated-prefix, blocked revision. A complete <=4-point libuiohook press/drag/release jitter envelope becomes an auditable click, while a real drag remains blocked. generateScript rereads strict ready actions, verifies the pinned raw byte reference, and emits a sleep for every non-pause inter-action gap. Recorded gaps are divided by a configurable speedMultiplier and clamped to configurable minimumDelayMs/maximumDelayMs bounds (defaults: 1x, 500ms, 30000ms); the resolved policy is returned and pinned in the v2 candidate. Generation exclusively creates ordinary basic JavaScript plus a not-run candidate; it starts neither capture nor replay."
     },
+    {"name": "touchscreen", "source": "native", "status": "stable", "doc": "input.md"},
     {
-      "name": "touchscreen",
-      "source": "native",
-      "status": "stable",
-      "doc": "input.md"
-    },
-    {
-      "name": "Events",
-      "source": "native runtime wrapper + explicit polling backend",
-      "status": "experimental",
-      "platforms": [
-        "darwin",
-        "windows",
-        "linux"
-      ],
-      "doc": "events.md",
-      "keyMethods": [
-        "on",
-        "once",
-        "getCapabilities"
-      ],
+      "name": "Events", "source": "native runtime wrapper + explicit polling backend", "status": "experimental", "platforms": ["darwin", "windows", "linux"], "doc": "events.md", "keyMethods": ["on", "once", "getCapabilities"],
       "notes": "Polling is reported in capability and event payloads; no MCP/HTTP surface and no GlobalShortcut duplication. Window events are unsupported on platforms where the existing window facade is unavailable."
     },
     {
-      "name": "App",
-      "source": "native Runtime wrapper + existing NSWorkspace/process/window backends",
-      "status": "experimental",
-      "platforms": [
-        "darwin",
-        "windows",
-        "linux"
-      ],
-      "doc": "app.md",
-      "types": "types/App.d.ts",
-      "keyMethods": [
-        "launch",
-        "get",
-        "list",
-        "isRunning",
-        "waitForLaunch",
-        "waitForExit",
-        "terminate",
-        "restart",
-        "getCapabilities"
-      ],
+      "name": "App", "source": "native Runtime wrapper + existing NSWorkspace/process/window backends", "status": "experimental", "platforms": ["darwin", "windows", "linux"], "doc": "app.md", "types": "types/App.d.ts",
+      "keyMethods": ["launch", "get", "list", "isRunning", "waitForLaunch", "waitForExit", "terminate", "restart", "getCapabilities"],
       "identity": "PID, name, bundleId, or path; stable bundle/path identity is preferred and one identity may group multiple process instances. macOS+cgo recognizes only the exact system aliases 计算器 and Calculator, each normalized to com.apple.calculator; explicit bundleId/path/PID targets and unknown names are never translated",
       "readiness": "process or an existing Window-facade row owned by a matching PID; custom predicates are explicitly unsupported",
       "lifecycle": "Promise workers are execution-scoped, context-cancelable, timeout-bounded, and joined during Runtime teardown",
@@ -331,20 +122,7 @@
       "surface": "JavaScript Runtime only in this phase; no HTTP or MCP method was added"
     },
     {
-      "name": "Notifications",
-      "source": "execution-owned Runtime wrapper + macOS UserNotifications own-app model",
-      "status": "experimental",
-      "platforms": [
-        "darwin"
-      ],
-      "doc": "notifications.md",
-      "types": "types/Notifications.d.ts",
-      "keyMethods": [
-        "list",
-        "waitFor",
-        "dismiss",
-        "getCapabilities"
-      ],
+      "name": "Notifications", "source": "execution-owned Runtime wrapper + macOS UserNotifications own-app model", "status": "experimental", "platforms": ["darwin"], "doc": "notifications.md", "types": "types/Notifications.d.ts", "keyMethods": ["list", "waitFor", "dismiss", "getCapabilities"],
       "scope": "macOS lists and removes only notifications delivered by the OpenDesk app identity; arbitrary application notifications are not exposed",
       "privacy": "title and message are redacted by default and require includeContent=true; metadata stays scoped to OpenDesk",
       "identity": "opaque UserNotifications request identifier plus OpenDesk app identity and delivery timestamp; duplicate content is not treated as identity",
@@ -354,175 +132,51 @@
       "surface": "JavaScript Runtime only; outbound sending remains the existing notify() global"
     },
     {
-      "name": "window",
-      "source": "native facade + CoreGraphics/System Events or Win32 backend + normalization polyfill",
-      "status": "stable-with-platform-partial-actions",
-      "platforms": [
-        "darwin",
-        "windows",
-        "linux"
-      ],
-      "doc": "window.md",
-      "keyMethods": [
-        "getCapabilities",
-        "list",
-        "getActiveWindow",
-        "getWindowByTitle",
-        "focus",
-        "setWindowBounds",
-        "minimize",
-        "maximize",
-        "restore",
-        "closeWindow",
-        "setAlwaysOnTop",
-        "bringToTop"
-      ],
+      "name": "window", "source": "native Window/App owners + polyfills/003-window.js normalization, strict target queries and wait composition", "status": "stable-with-platform-partial-actions-and-experimental-target-query", "platforms": ["darwin", "windows", "linux"], "doc": "window.md",
+      "keyMethods": ["getCapabilities", "list", "get", "wait", "getActiveWindow", "getWindowByTitle", "focus", "setWindowBounds", "minimize", "maximize", "restore", "closeWindow", "setAlwaysOnTop", "bringToTop"],
       "identity": "Every observed row has an id. A uniquely resolved row uses platform:pid:native:nativeHandle; metadata-poor or cross-Space rows use platform:pid:unresolved and must not be treated as stable. Title actions resolve a unique current title first and reject duplicate titles.",
       "coordinateSpace": "macOS uses global display points with a primary-display top-left origin and possible negative secondary coordinates; Windows uses virtual-screen logical coordinates subject to DPI awareness.",
       "staleTarget": "A title action that resolves successfully but loses or renames its target before the backend action reports STALE_TARGET. Initial absence reports NOT_FOUND.",
-      "platformBehavior": "macOS core paths are live fixture-verified but arbitrary actions remain permission/app/Space dependent; Windows source is target-compiled but not live verified in this macOS evidence run; Linux is explicit Unsupported.",
-      "surface": "The existing JavaScript window facade was extended; no second backend, HTTP route, MCP tool, Accessibility tree, or Spaces manager was added."
+      "platformBehavior": "Existing macOS core paths have historical live fixture evidence, but that does not verify the new target queries/wait. Windows source or packaging evidence is not native Runtime verification; Linux is explicit Unsupported. All calls depend on current capability, permissions and enumerable scope.",
+      "surface": "The existing JavaScript window facade was extended; no second backend, HTTP route, MCP tool, Accessibility tree, or Spaces manager was added.",
+      "targetQueries": {
+        "status": "experimental",
+        "target": "Explicit object with at most one app/id/pid/exePath/exeName identity and optional exact title, or title alone. No guessed bare string. app delegates to existing App.get and uses all group PIDs; exePath is not App.path and exeName is not App.name.",
+        "list": "list(target?) is synchronous and returns 0..N observations. Omitted target preserves unfiltered list. Do not discard invalid rows to manufacture uniqueness.",
+        "get": "get(target) returns Promise<WindowInfo>. Zero matches NOT_FOUND without cause; multiple matches AMBIGUOUS_TARGET; unresolved identity STALE_TARGET; invalid bounds VERIFICATION_FAILED. Wrapped backend errors retain cause, including backend NOT_FOUND. No implicit launch, focus, first-match or title relaxation.",
+        "wait": "wait(target,{timeout=10000,polling=200,signal?}) snapshots selectors, retries only successful zero-match enumeration, and rejects terminal errors immediately. timeout is integer 0..300000; 0 means one immediate observation. polling is integer 1..10000. Pre-abort does not enumerate. Check deadlines before and after observations; synchronous native calls cannot be forcibly interrupted.",
+        "cleanup": "Try all owned timer/listener cleanup on every terminal path and settle exactly once even if cleanup fails. cleanupError reports the failure; preserve primary code/cause or reject BACKEND_FAILED instead of false success. No timer creation after registration-time abort.",
+        "scopeBoundary": "WindowInfo is a current observation, not permanent authority. Querying an id never means it is foreground or safe to click. Old mutation methods retain their title/PID signatures."
+      }
     },
     {
-      "name": "Screen",
-      "source": "native + experimental AppKit/system video adapter",
-      "status": "stable",
-      "platforms": [
-        "darwin",
-        "windows",
-        "linux"
-      ],
-      "doc": "screen.md",
-      "keyMethods": [
-        "getDisplays",
-        "getDisplayCapabilities",
-        "getDisplayMode",
-        "listDisplayModes",
-        "setDisplayMode",
-        "screenshot",
-        "selectRegion",
-        "startRecording",
-        "getCaptureCapabilities"
-      ],
+      "name": "Screen", "source": "native + experimental AppKit/system video adapter", "status": "stable", "platforms": ["darwin", "linux", "windows"], "doc": "screen.md",
+      "keyMethods": ["getDisplays", "getDisplayCapabilities", "getDisplayMode", "listDisplayModes", "setDisplayMode", "screenshot", "selectRegion", "startRecording", "getCaptureCapabilities"],
       "notes": "Display inventory, pixel, and screenshot methods remain stable. Existing Screen owns display inventory; no duplicate Display global was added. macOS CoreGraphics mode read/list are available and setDisplayMode is Experimental with synchronous readback and caller restore. Brightness is explicitly Unsupported and delegated to hardware-specific Native Extensions. selectRegion/startRecording are Experimental on macOS; audio and frame streaming are explicitly unavailable."
     },
+    {"name": "Vision", "source": "native", "status": "stable", "doc": "vision.md", "keyMethods": ["runOCR", "detectUI", "getCapabilities", "analyzeLayout", "annotateRegions"]},
+    {"name": "OCR", "source": "native", "status": "secondary", "doc": "vision.md", "keyMethods": ["extractText"]},
+    {"name": "ImageColor", "source": "native", "status": "secondary", "doc": "image-color.md", "keyMethods": ["findPos", "findImage", "findImages", "diff", "loadBase64", "resize", "clip", "pixel", "findColor", "findColorBlocks", "hasColor", "isGray", "getSize", "save", "findRedChannel", "findGreenChannel", "findBlueChannel", "toRGB", "toRGBA", "toHSL", "toHSLA", "isColorSimilar", "analyzeLayout"]},
     {
-      "name": "Vision",
-      "source": "native",
-      "status": "stable",
-      "doc": "vision.md",
-      "keyMethods": [
-        "runOCR",
-        "detectUI",
-        "getCapabilities",
-        "analyzeLayout",
-        "annotateRegions"
-      ]
-    },
-    {
-      "name": "OCR",
-      "source": "native",
-      "status": "secondary",
-      "doc": "vision.md",
-      "keyMethods": [
-        "extractText"
-      ]
-    },
-    {
-      "name": "ImageColor",
-      "source": "native",
-      "status": "secondary",
-      "doc": "image-color.md",
-      "keyMethods": [
-        "findPos",
-        "findImage",
-        "findImages",
-        "diff",
-        "loadBase64",
-        "resize",
-        "clip",
-        "pixel",
-        "findColor",
-        "findColorBlocks",
-        "hasColor",
-        "isGray",
-        "getSize",
-        "save",
-        "findRedChannel",
-        "findGreenChannel",
-        "findBlueChannel",
-        "toRGB",
-        "toRGBA",
-        "toHSL",
-        "toHSLA",
-        "isColorSimilar",
-        "analyzeLayout"
-      ]
-    },
-    {
-      "name": "System",
-      "source": "native + execution environment adapter + platform session backend",
-      "status": "stable reads with experimental session actions",
-      "doc": "system.md",
-      "types": "types/System.d.ts",
-      "keyMethods": [
-        "delay",
-        "getPlatformInfo",
-        "getEnv",
-        "hasEnv",
-        "getSessionCapabilities",
-        "getSessionState",
-        "lock",
-        "logout",
-        "startScreenSaver"
-      ],
+      "name": "System", "source": "native + execution environment adapter + platform session backend", "status": "stable reads with experimental session actions", "doc": "system.md", "types": "types/System.d.ts",
+      "keyMethods": ["delay", "getPlatformInfo", "getEnv", "hasEnv", "getSessionCapabilities", "getSessionState", "lock", "logout", "startScreenSaver"],
       "sessionSafety": "lock, logout, and startScreenSaver require confirm=true before backend access; success returns initiated=true and verified=false because request acceptance is not a postcondition",
       "environmentAccess": "getEnv(name, optionalFallback) and hasEnv(name) read only the same per-execution snapshot exposed by Execution.env. They never refresh os.Environ or bypass the empty remote/scheduled environment, and no getAllEnv method is exposed.",
       "sessionIdentity": "getSessionState returns only normalized user/session identity and state; unavailable booleans including locked are null rather than inferred",
       "platformBehavior": "macOS public CGSessionCopyCurrentDictionary supports read-only WindowServer session state and leaves locked unknown; ScreenSaverEngine launch is Experimental while lock/logout are unsupported. Windows uses public LockWorkStation/ExitWindowsEx candidates but remains target-runtime unverified. Linux requires loginctl plus XDG_SESSION_ID and remains target-runtime unverified.",
-      "notExposed": [
-        "wake",
-        "unlock",
-        "switchUser"
-      ],
+      "notExposed": ["wake", "unlock", "switchUser"],
       "compatibility": "existing shutdown, restart, and sleep remain the separate legacy power-control surface; this task does not create a second System or Power namespace"
     },
     {
-      "name": "Execution",
-      "source": "runtime-owned metadata injected by pkg/execution",
-      "status": "stable",
-      "doc": "execution.md",
-      "types": "types/Execution.d.ts",
-      "keyProperties": [
-        "id",
-        "executionId",
-        "input",
-        "workdir",
-        "env",
-        "stack",
-        "artifactDir",
-        "source",
-        "ext",
-        "scriptHash",
-        "scriptPath",
-        "scriptDir",
-        "activationSource"
-      ],
+      "name": "Execution", "source": "runtime-owned metadata injected by pkg/execution", "status": "stable", "doc": "execution.md", "types": "types/Execution.d.ts",
+      "keyProperties": ["id", "executionId", "input", "workdir", "env", "stack", "artifactDir", "source", "ext", "scriptHash", "scriptPath", "scriptDir", "activationSource"],
       "lifecycle": "Read-only per-execution context contract; it does not create, cancel, pause, resume, or enumerate executions.",
       "environment": "env is a frozen string snapshot. Trusted local -script and ai run executions merge .env, .opendesk.env (or one explicit env file), then the OS environment supplied when OpenDesk started; no login shell or startup file is parsed. Windows names are canonical uppercase. HTTP, MCP, and Scheduler executions receive an empty snapshot by default.",
       "sourcePath": "scriptPath is a normalized absolute trusted file path and scriptDir is its parent. Direct -script, ai run, and Scheduler file executions provide them; inline, stdin, HTTP, MCP, and Scheduler inline executions expose null. They are never parsed from source labels.",
       "privacy": "env may contain credentials and source/workdir/scriptPath may contain local paths; do not serialize them into logs or remote requests. scriptHash is a correlation aid, not a signature or trust decision."
     },
     {
-      "name": "Command",
-      "source": "native execution owner + platform process-group adapter",
-      "status": "conditional",
-      "doc": "command.md",
-      "types": "types/Command.d.ts",
-      "keyMethods": [
-        "getCapabilities",
-        "run"
-      ],
+      "name": "Command", "source": "native execution owner + platform process-group adapter", "status": "conditional", "doc": "command.md", "types": "types/Command.d.ts", "keyMethods": ["getCapabilities", "run"],
       "availability": "Enabled by default for local -script and ai run executions. Disabled for HTTP, MCP, and Scheduler executions.",
       "signature": "Command.run(command, args?, {cwd?, env?, input?, timeout?, maxOutputBytes?, signal?}) -> Promise<{exitCode,stdout,stderr}>",
       "capabilities": "getCapabilities returns only schemaVersion=1, enabled, supported, and executionScoped=true.",
@@ -531,58 +185,20 @@
       "lifecycle": "The enclosing execution stays alive while a command runs. AbortSignal, timeout, and teardown terminate the same execution-owned process group and remove the signal listener."
     },
     {
-      "name": "path",
-      "source": "native path-string helper backed by the execution File WorkDir",
-      "status": "stable",
-      "doc": "path.md",
-      "types": "types/path.d.ts",
-      "keyMethods": [
-        "join",
-        "resolve",
-        "normalize",
-        "dirname",
-        "basename",
-        "extname",
-        "relative",
-        "isAbsolute"
-      ],
-      "properties": [
-        "sep",
-        "delimiter"
-      ],
+      "name": "path", "source": "native path-string helper backed by the execution File WorkDir", "status": "stable", "doc": "path.md", "types": "types/path.d.ts",
+      "keyMethods": ["join", "resolve", "normalize", "dirname", "basename", "extname", "relative", "isAbsolute"], "properties": ["sep", "delimiter"],
       "compatibility": "Common string behavior tracks Node.js 24.15.0 node:path on the target platform. OpenDesk intentionally uses Execution.workdir instead of process.cwd for resolve and relative.",
       "safety": "String-only and synchronous: no disk access, existence checks, symlink resolution, tilde/environment expansion, process cwd mutation, or lifecycle resources."
     },
     {
-      "name": "File",
-      "source": "native FileSystem + execution-owned JSON I/O",
-      "status": "stable",
-      "doc": "file.md",
-      "keyMethods": [
-        "readJSON",
-        "writeJSON"
-      ],
+      "name": "File", "source": "native FileSystem + execution-owned JSON I/O", "status": "stable", "doc": "file.md", "keyMethods": ["readJSON", "writeJSON"],
       "workdir": "File.cwd and every relative File path use the normalized Execution.workdir for this execution.",
       "open": "File.open returns a constrained synchronous FileHandle (close, read/readBytes, write/writeBytes, seek, truncate, sync), never a raw host file descriptor. Runtime teardown closes unclosed handles.",
       "json": "readJSON and writeJSON are Promise-based; JSON uses Runtime JSON.parse/stringify semantics, has an 8 MiB maximum per operation and 128 container nesting limit.",
       "writeSafety": "writeJSON uses a supported same-directory replacement backend on macOS/Linux. Windows fails closed with ATOMIC_REPLACE_UNSUPPORTED; it never truncates as a fallback."
     },
     {
-      "name": "SQLite",
-      "source": "native execution-owned SQLite owner",
-      "status": "stable-local",
-      "doc": "sqlite.md",
-      "types": "types/sqlite.d.ts",
-      "keyMethods": [
-        "open"
-      ],
-      "handleType": "OpenDeskSQLiteDatabase",
-      "handleMethods": [
-        "query",
-        "exec",
-        "batch",
-        "close"
-      ],
+      "name": "SQLite", "source": "native execution-owned SQLite owner", "status": "stable-local", "doc": "sqlite.md", "types": "types/sqlite.d.ts", "keyMethods": ["open"], "handleType": "OpenDeskSQLiteDatabase", "handleMethods": ["query", "exec", "batch", "close"],
       "availability": "Injected only for trusted local -script, -script-text, -script-stdin, and ai run executions. HTTP, MCP, and Scheduler do not inject SQLite and no generic SQL route/tool is added.",
       "signature": "SQLite.open({path, mode?:'rw'|'rwc'|'ro', timeoutMs?, signal?}) -> Promise<OpenDeskSQLiteDatabase>",
       "pathResolution": "Relative paths use immutable Execution.workdir exactly like File.path. rw is the default and opens an existing file only; rwc permits file creation but never creates parent directories; ro is enforced at SQLite connection level. POSIX backslashes stay literal filename characters; Windows paths use Windows separator/drive/UNC rules. :memory: is isolated per handle and rejects ro. Protected Scheduler database paths (default and direct CLI -scheduler-db) reject PROTECTED_PATH, including resolvable symlink aliases.",
@@ -591,79 +207,15 @@
       "transaction": "batch({sql, params?}[]) runs at most 256 single top-level statements in one physical-connection transaction; all success commits, and failure/cancel before commit rolls back. A commit-race error reports writeState unknown/committed null and must not be automatically retried. Raw transaction and connection-changing SQL are rejected.",
       "lifecycle": "Each handle has a bounded serialized queue, operation context/timeout/AbortSignal, and an execution-owned worker. close fences new work and waits prior accepted work; execution teardown cancels and releases forgotten handles. SQLiteError carries code, operation, committed, and writeState including unknown outcomes that must not be automatically retried."
     },
+    {"name": "AppStorage", "source": "native", "status": "secondary", "doc": "storage.md", "keyMethods": ["getItem", "setItem", "removeItem", "clear", "getLength", "key"], "storage": {"canonical": "~/.opendesk/opendesk/storage.json", "legacyMigrationFrom": ["~/.clawdesk/clawdesk/storage.json", "~/.testmonkey/testMonkey/storage.json"]}},
     {
-      "name": "AppStorage",
-      "source": "native",
-      "status": "secondary",
-      "doc": "storage.md",
-      "keyMethods": [
-        "getItem",
-        "setItem",
-        "removeItem",
-        "clear",
-        "getLength",
-        "key"
-      ],
-      "storage": {
-        "canonical": "~/.opendesk/opendesk/storage.json",
-        "legacyMigrationFrom": [
-          "~/.clawdesk/clawdesk/storage.json",
-          "~/.testmonkey/testMonkey/storage.json"
-        ]
-      }
-    },
-    {
-      "name": "clipboard",
-      "source": "native",
-      "status": "stable",
-      "doc": "clipboard.md",
-      "keyMethods": [
-        "copy",
-        "paste",
-        "clear",
-        "read",
-        "write",
-        "getFormats",
-        "getCapabilities"
-      ],
+      "name": "clipboard", "source": "native", "status": "stable", "doc": "clipboard.md", "keyMethods": ["copy", "paste", "clear", "read", "write", "getFormats", "getCapabilities"],
       "capability": "Stable text compatibility API on all supported desktops; experimental rich text, PNG, and file representations currently use NSPasteboard on macOS. clipboard.write verifies every requested representation, clipboard.read returns a changeCount-consistent snapshot, and formats:[] reads metadata only. Binary values are canonical base64, files are absolute paths, and Events clipboard.changed reports metadata only."
     },
+    {"name": "console", "source": "native runtime wrapper", "status": "stable", "doc": "global-apis.md", "keyMethods": ["log", "info", "warn", "error", "debug", "table", "group", "groupEnd", "time", "timeEnd", "clear"]},
+    {"name": "http", "source": "native", "status": "stable", "doc": "http.md", "keyMethods": ["request", "get", "post", "download"]},
     {
-      "name": "console",
-      "source": "native runtime wrapper",
-      "status": "stable",
-      "doc": "global-apis.md",
-      "keyMethods": [
-        "log",
-        "info",
-        "warn",
-        "error",
-        "debug",
-        "table",
-        "group",
-        "groupEnd",
-        "time",
-        "timeEnd",
-        "clear"
-      ]
-    },
-    {
-      "name": "http",
-      "source": "native",
-      "status": "stable",
-      "doc": "http.md",
-      "keyMethods": [
-        "request",
-        "get",
-        "post",
-        "download"
-      ]
-    },
-    {
-      "name": "NativeExtensions",
-      "source": "strict manifest registry plus host-generated immutable binding",
-      "status": "experimental",
-      "doc": "native-extension.md",
+      "name": "NativeExtensions", "source": "strict manifest registry plus host-generated immutable binding", "status": "experimental", "doc": "native-extension.md",
       "condition": "available to local CLI JavaScript by default after a complete source-free bundle is installed beside the actual executable; the -script path does not affect discovery; HTTP, MCP, and other remote execution transports never inject, enable, redirect, or call it",
       "summary": "Discovers strict extension.json bundles from exactly one portable/app-bundled program-relative root; it does not compile or install source examples, generates frozen namespaces and method closures, and starts one validated executable only when a generated method is called.",
       "platformStatus": "V1 has Darwin/Linux/Windows implementation candidates; macOS-only examples or Runtime Evidence do not mean the whole API is macOS-only. go-basic is target-buildable Go; macos-vision is macOS-only. A target without target-machine Runtime Evidence is Not Evaluated, not Unsupported.",
@@ -671,51 +223,15 @@
       "excludedDefaultRoots": ["HOME", "machine-wide", "cwd", "PATH", "source ancestors", "script path"],
       "migration": "legacy prototype roots are not scanned or auto-moved/copied/merged/deleted",
       "lifecycle": "registry frozen per execution; start a new execution after install or upgrade; no hot reload",
-      "callOptions": [
-        "timeoutMs"
-      ],
-      "errorModel": "method failure throws NativeExtensionsError; successful calls return the extension result directly",
-      "keyMethods": [
-        "list",
-        "get",
-        "diagnostics"
-      ],
-      "manifestProvidedExamples": [
-        "NativeExtensions.goBasic.hello",
-        "NativeExtensions.goBasic.add",
-        "NativeExtensions.macosVision.ocr"
-      ],
-      "doesNotExecute": [
-        "third-party JavaScript facade files during discovery",
-        "native executable during discovery/list/get/diagnostics"
-      ]
+      "callOptions": ["timeoutMs"], "errorModel": "method failure throws NativeExtensionsError; successful calls return the extension result directly",
+      "keyMethods": ["list", "get", "diagnostics"],
+      "manifestProvidedExamples": ["NativeExtensions.goBasic.hello", "NativeExtensions.goBasic.add", "NativeExtensions.macosVision.ocr"],
+      "doesNotExecute": ["third-party JavaScript facade files during discovery", "native executable during discovery/list/get/diagnostics"]
     },
+    {"name": "axios", "source": "polyfill", "status": "stable", "doc": "http.md", "backedBy": "http.request", "keyMethods": ["request", "get", "post", "put", "delete", "patch"]},
     {
-      "name": "axios",
-      "source": "polyfill",
-      "status": "stable",
-      "doc": "http.md",
-      "backedBy": "http.request",
-      "keyMethods": [
-        "request",
-        "get",
-        "post",
-        "put",
-        "delete",
-        "patch"
-      ]
-    },
-    {
-      "name": "notify",
-      "source": "polyfill+native bridge",
-      "status": "secondary",
-      "doc": "notify.md",
-      "callShape": "notify(string)|notify(options)",
-      "signature": "notify(message: string): void; notify(options: OpenDeskNotifyOptions): void",
-      "defaults": {
-        "string": {"message": "", "sound": true},
-        "options": {"title": "OpenDesk Notification", "message": "", "sound": false}
-      },
+      "name": "notify", "source": "polyfill+native bridge", "status": "secondary", "doc": "notify.md", "callShape": "notify(string)|notify(options)", "signature": "notify(message: string): void; notify(options: OpenDeskNotifyOptions): void",
+      "defaults": {"string": {"message": "", "sound": true}, "options": {"title": "OpenDesk Notification", "message": "", "sound": false}},
       "timeout": "accepted for compatibility but ignored by current platform notification backends",
       "result": "undefined on backend submission success; throws on invalid input or backend failure",
       "validation": "options fields use their documented primitive types; timeout must be finite; title and message must be valid UTF-8 without NUL",
@@ -725,253 +241,59 @@
       "bridge": "notify____Inject"
     },
     {
-      "name": "Dialog",
-      "source": "host-owned native binding plus thin polyfill aliases",
-      "status": "conditional",
-      "doc": "dialog.md",
-      "types": "types/dialog.d.ts",
+      "name": "Dialog", "source": "host-owned native binding plus thin polyfill aliases", "status": "conditional", "doc": "dialog.md", "types": "types/dialog.d.ts",
       "condition": "always injected but DIALOG_DISABLED without the ui capability; CLI needs -ui or trusted config, HTTP additionally needs server enablement, per-request ui and loopback source; Scheduler and MCP have no Dialog opt-in",
       "platformBehavior": "macOS normal AppKit top-level window through the existing Custom UI native host; unsupported platforms reject DIALOG_UNSUPPORTED_PLATFORM",
-      "keyMethods": [
-        "alert",
-        "confirm",
-        "prompt",
-        "getCapabilities"
-      ],
-      "globalAliases": [
-        "alert",
-        "confirm",
-        "prompt"
-      ],
+      "keyMethods": ["alert", "confirm", "prompt", "getCapabilities"], "globalAliases": ["alert", "confirm", "prompt"],
       "asyncControlFlow": "Promise-only: no onConfirm/onCancel options callbacks and no synchronous EventLoop blocking. await pauses only its async flow; then/catch/finally run on the owner EventLoop. An unobserved Dialog Promise is closed during execution teardown rather than retaining the execution indefinitely; all competing terminal paths settle exactly once.",
       "promptResult": "prompt resolves a string on confirm and null on user cancellation. Public examples display a non-sensitive result in a following Dialog.alert; secure or otherwise sensitive input must not be echoed to logs, notifications, or another Dialog.",
       "privacy": "secure prompt uses a password input; Dialog never writes message, defaultValue, or prompt input to ordinary logs, errors, summaries, events, or HTTP responses"
     },
     {
-      "name": "Audio",
-      "source": "native runtime wrapper + macOS CoreAudio HAL controls + audio pattern matcher/backend seam",
-      "status": "experimental",
-      "doc": "audio.md",
-      "platforms": [
-        "darwin",
-        "linux",
-        "windows"
-      ],
-      "keyMethods": [
-        "getVolume",
-        "setVolume",
-        "isMuted",
-        "mute",
-        "unmute",
-        "toggleMute",
-        "getOutputDevices",
-        "getInputDevices",
-        "getDefaultOutput",
-        "getDefaultInput",
-        "watchSound",
-        "waitForSound",
-        "getCapabilities"
-      ],
+      "name": "Audio", "source": "native runtime wrapper + macOS CoreAudio HAL controls + audio pattern matcher/backend seam", "status": "experimental", "doc": "audio.md", "platforms": ["darwin", "linux", "windows"],
+      "keyMethods": ["getVolume", "setVolume", "isMuted", "mute", "unmute", "toggleMute", "getOutputDevices", "getInputDevices", "getDefaultOutput", "getDefaultInput", "watchSound", "waitForSound", "getCapabilities"],
       "volumeUnit": "inclusive scalar 0..1 with hardware readback",
       "capture": "not implemented; microphone and systemAudio are explicitly false in capability discovery",
       "patternWatch": "experimental contract and bounded in-memory matcher; the default product build currently has no platform capture backend, reports unsupported, and rejects watchSound/waitForSound with NOT_SUPPORTED; source is explicit, raw PCM is neither exposed nor persisted, and a future match is a heuristic wake-up signal rather than a business event",
       "soundCompatibility": "Sound keeps blocking MP3/WAV compatibility methods and adds execution-scoped controllable playback sessions",
       "platformBehavior": "darwin+cgo uses CoreAudio; non-CGO macOS and other platforms report unavailable and reject instead of silent no-op"
     },
+    {"name": "Sound", "source": "native", "status": "secondary", "doc": "sound.md", "keyMethods": ["playSuccess", "playFail", "playWarning", "playError", "playCaptcha", "playSound", "play", "start", "playAsync", "stop", "stopAll", "getActive"]},
     {
-      "name": "Sound",
-      "source": "native",
-      "status": "secondary",
-      "doc": "sound.md",
-      "keyMethods": [
-        "playSuccess",
-        "playFail",
-        "playWarning",
-        "playError",
-        "playCaptcha",
-        "playSound",
-        "play",
-        "start",
-        "playAsync",
-        "stop",
-        "stopAll",
-        "getActive"
-      ]
-    },
-    {
-      "name": "ui",
-      "source": "native process driver plus EventLoop bridge",
-      "status": "conditional",
-      "doc": "custom-ui.md",
+      "name": "ui", "source": "native process driver plus EventLoop bridge", "status": "conditional", "doc": "custom-ui.md",
       "condition": "always present but dormant by default; local CLI or strict project config authorization is required, while HTTP additionally requires server opt-in, per-request capability declaration, and a loopback peer; new initial positioning is the discriminated position union {mode:absolute,bounds} or {mode:anchor,size,horizontal,vertical}; established absolute bounds remains a compatibility spelling, while the retired top-level size plus placement draft is rejected; WindowHandle placement composes left/center/right with top/center/bottom inside the selected display work area",
       "platformBehavior": "macOS AppKit/WebKit host; Windows and Linux report available=false and createWindow rejects UNSUPPORTED_PLATFORM",
-      "keyMethods": [
-        "getCapabilities",
-        "createWindow",
-        "closeAll",
-        "on"
-      ],
-      "activationSources": [
-        "disabled",
-        "cli",
-        "projectConfig",
-        "httpRequest"
-      ]
+      "keyMethods": ["getCapabilities", "createWindow", "closeAll", "on"], "activationSources": ["disabled", "cli", "projectConfig", "httpRequest"]
     },
     {
-      "name": "FloatingWindow",
-      "source": "compact native action-toolbar facade over the Custom UI driver",
-      "status": "conditional",
-      "doc": "custom-ui.md",
+      "name": "FloatingWindow", "source": "compact native action-toolbar facade over the Custom UI driver", "status": "conditional", "doc": "custom-ui.md",
       "condition": "injected only when Custom UI is explicitly authorized; initial positioning is the discriminated position union {mode:absolute,x,y} or {mode:anchor,horizontal,vertical}. The version-4 ToolbarSpec contains ordered Button, Label, Separator, fixed Spacer, Switch, Checkbox, Input, Select, Slider, SegmentedControl and Progress items, with 1-32 content items horizontally or 1-5 vertically and bounded total items. Controls have stable IDs, fixed 40pt geometry, strict kind-specific payloads, owner-loop value state, native/Accessibility readback and revisioned updates. Input show is nonactivating and never autofocuses; only direct user entry into the native field may activate the host and acquire keyboard focus. Checkbox remains independent selection, while SegmentedControl is the first-class mutually exclusive group; loose Radio and a non-semantic ButtonGroup container are omitted. Button accepts an optional bounded badge string, and standalone Progress supports determinate or indeterminate state. Button icons accept a reviewed built-in name or bounded script-contained PNG/JPEG. Structural items never receive callbacks, state, focus or Accessibility exposure. It reuses shared WindowState, move/close lifecycle events and native draggable readback; conflicting positioning, invalid control/value declarations, unknown fields/items, invalid structure/layout constraints and overflow are INVALID_SPEC",
-      "keyMethods": [
-        "addButton",
-        "addLabel",
-        "addSwitch",
-        "addCheckbox",
-        "addInput",
-        "addSelect",
-        "addSlider",
-        "addSegmentedControl",
-        "addProgress",
-        "addSeparator",
-        "addSpacer",
-        "removeButton",
-        "removeLabel",
-        "removeControl",
-        "updateButton",
-        "updateLabel",
-        "updateControl",
-        "getButtonState",
-        "getLabelState",
-        "getControlState",
-        "getState",
-        "show",
-        "hide",
-        "close",
-        "setPosition",
-        "setPlacement",
-        "onButtonClick",
-        "onControlChange",
-        "onError",
-        "setAlwaysOnTop",
-        "setDraggable",
-        "on",
-        "waitUntilClosed",
-        "run"
-      ]
+      "keyMethods": ["addButton", "addLabel", "addSwitch", "addCheckbox", "addInput", "addSelect", "addSlider", "addSegmentedControl", "addProgress", "addSeparator", "addSpacer", "removeButton", "removeLabel", "removeControl", "updateButton", "updateLabel", "updateControl", "getButtonState", "getLabelState", "getControlState", "getState", "show", "hide", "close", "setPosition", "setPlacement", "onButtonClick", "onControlChange", "onError", "setAlwaysOnTop", "setDraggable", "on", "waitUntilClosed", "run"]
     },
     {
-      "name": "Global APIs",
-      "source": "native+polyfill",
-      "status": "stable",
-      "doc": "global-apis.md",
+      "name": "Global APIs", "source": "native+polyfill", "status": "stable", "doc": "global-apis.md",
       "summary": "无需 import 即可直接调用的计时器、等待、console 日志、剪贴板快捷函数、取消控制、通知与 URL 参数接口。",
-      "keyMethods": [
-        "notify",
-        "copyToClipboard",
-        "getClipboard",
-        "AbortController",
-        "setTimeout",
-        "clearTimeout",
-        "setInterval",
-        "clearInterval",
-        "delay",
-        "sleep",
-        "sleepSeconds",
-        "requestAnimationFrame",
-        "cancelAnimationFrame",
-        "URL",
-        "URLSearchParams"
-      ]
+      "keyMethods": ["notify", "copyToClipboard", "getClipboard", "AbortController", "setTimeout", "clearTimeout", "setInterval", "clearInterval", "delay", "sleep", "sleepSeconds", "requestAnimationFrame", "cancelAnimationFrame", "URL", "URLSearchParams"]
     }
   ],
   "httpServerRoutes": [
-    {
-      "method": "POST",
-      "path": "/SCRIPT_RUN",
-      "status": "legacy-compatible"
-    },
-    {
-      "method": "POST",
-      "path": "/executions",
-      "status": "recommended"
-    },
-    {
-      "method": "GET",
-      "path": "/executions/{id}"
-    },
-    {
-      "method": "DELETE",
-      "path": "/executions/{id}",
-      "description": "cancel an in-flight execution"
-    },
-    {
-      "method": "GET",
-      "path": "/executions/{id}/summary"
-    },
-    {
-      "method": "GET",
-      "path": "/executions/{id}/events",
-      "protocol": "SSE"
-    },
-    {
-      "method": "GET",
-      "path": "/status"
-    },
-    {
-      "method": "POST",
-      "path": "/vision/ocr"
-    },
-    {
-      "method": "POST",
-      "path": "/vision/detect-ui"
-    }
+    {"method": "POST", "path": "/SCRIPT_RUN", "status": "legacy-compatible"},
+    {"method": "POST", "path": "/executions", "status": "recommended"},
+    {"method": "GET", "path": "/executions/{id}"},
+    {"method": "DELETE", "path": "/executions/{id}", "description": "cancel an in-flight execution"},
+    {"method": "GET", "path": "/executions/{id}/summary"},
+    {"method": "GET", "path": "/executions/{id}/events", "protocol": "SSE"},
+    {"method": "GET", "path": "/status"},
+    {"method": "POST", "path": "/vision/ocr"},
+    {"method": "POST", "path": "/vision/detect-ui"}
   ],
   "documentation": {
     "index": "index.md",
-    "core": [
-      "page.md",
-      "mouse.md",
-      "input.md",
-      "events.md",
-      "app.md",
-      "accessibility.md",
-      "desktop-ui.md",
-      "audio.md",
-      "window.md",
-      "screen.md"
-    ],
-    "vision": [
-      "vision.md",
-      "image-color.md"
-    ],
-    "systemData": [
-      "system.md",
-      "execution.md",
-      "command.md",
-      "file.md",
-      "sqlite.md",
-      "storage.md",
-      "clipboard.md"
-    ],
-    "network": [
-      "http.md",
-      "http-server.md"
-    ],
-    "runtime": [
-      "environment.md",
-      "execution.md",
-      "runtime.md",
-      "command.md",
-      "notify.md",
-      "audio.md",
-      "sound.md",
-      "custom-ui.md",
-      "native-extension.md",
-      "global-apis.md",
-      "libs.md"
-    ],
+    "core": ["page.md", "mouse.md", "input.md", "events.md", "app.md", "accessibility.md", "desktop-ui.md", "audio.md", "window.md", "screen.md"],
+    "vision": ["vision.md", "image-color.md"],
+    "systemData": ["system.md", "execution.md", "command.md", "file.md", "sqlite.md", "storage.md", "clipboard.md"],
+    "network": ["http.md", "http-server.md"],
+    "runtime": ["environment.md", "execution.md", "runtime.md", "command.md", "notify.md", "audio.md", "sound.md", "custom-ui.md", "native-extension.md", "global-apis.md", "libs.md"],
     "examples": "cookbook.md"
   }
 }

@@ -37,13 +37,17 @@ globalThis.RuntimeAPIObjects = {
     'list', 'waitFor', 'dismiss', 'getCapabilities',
   ] },
   touchscreen: { docs: 'docs/api/input.md', types: 'types/touchscreen.d.ts', source: 'automation/touchscreen.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: ['tap'] },
-  window: { docs: 'docs/api/window.md', types: 'types/window.d.ts', source: 'automation/window_manager.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: [
+  window: { docs: 'docs/api/window.md', types: 'types/window.d.ts', source: 'automation/window_manager_core.go + automation/window_manager*.go + polyfills/003-window.js', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: [
     'getCapabilities', 'getActiveWindow', 'getWindowByTitle', 'getFocusWindow', 'focus', 'setWindowBounds',
     'setWidth', 'setHeight', 'maximize', 'minimize', 'restore', 'restoreByPID',
     'minimizeByPID', 'maximizeByPID', 'closeWindow', 'closeActiveWindow', 'kill',
-    'title', 'getTitle', 'content', 'getContent', 'list', 'setAlwaysOnTop',
+    'title', 'getTitle', 'content', 'getContent', 'list', 'get', 'wait', 'setAlwaysOnTop',
     'unsetTopMost', 'bringToTop', 'js_beautify',
-  ] },
+  ], methodMetadata: {
+    list: { status: 'stable-with-experimental-target-query' },
+    get: { status: 'experimental' },
+    wait: { status: 'experimental' },
+  } },
   Screen: { docs: 'docs/api/screen.md', types: 'types/Screen.d.ts', source: 'automation/screen.go + automation/screen_capture.go', status: 'stable-with-experimental-capture', platforms: ['darwin', 'linux', 'windows'], methods: [
     'getWidth', 'getHeight', 'getDisplays', 'getPrimaryDisplay', 'getDisplay',
     'getDisplayCapabilities', 'getDisplayMode', 'listDisplayModes', 'setDisplayMode',
@@ -107,9 +111,10 @@ globalThis.RuntimeAPIObjects = {
     status: 'stable', platforms: ['darwin', 'linux', 'windows'],
     methods: ['getCapabilities', 'findTexts', 'findText', 'hasText', 'tapText', 'tapTexts', 'waitText', 'waitTextGone', 'findImages', 'findImage', 'tapImage', 'getMenuItems', 'findMenuItem', 'tapMenuItem'],
     methodMetadata: {
-      getMenuItems: { docs: 'docs/api/desktop-ui-menu.md', status: 'experimental-local', platforms: ['darwin', 'windows'] },
-      findMenuItem: { docs: 'docs/api/desktop-ui-menu.md', status: 'experimental-local', platforms: ['darwin', 'windows'] },
-      tapMenuItem: { docs: 'docs/api/desktop-ui-menu.md', status: 'experimental-local', platforms: ['darwin', 'windows'] },
+      tapTexts: { status: 'stable-with-experimental-sequence-wait' },
+      getMenuItems: { docs: 'docs/api/desktop-ui.md', status: 'experimental-local', platforms: ['darwin', 'windows'] },
+      findMenuItem: { docs: 'docs/api/desktop-ui.md', status: 'experimental-local', platforms: ['darwin', 'windows'] },
+      tapMenuItem: { docs: 'docs/api/desktop-ui.md', status: 'experimental-local', platforms: ['darwin', 'windows'] },
     },
   },
   OCR: { docs: 'docs/api/vision.md', types: 'types/Vision.d.ts', source: 'automation/ocr.go', status: 'secondary', platforms: ['darwin', 'linux', 'windows'], methods: ['extractText'] },
@@ -143,7 +148,7 @@ const unitBehavior = new Set([
   ...RuntimeAPIObjects.App.methods.map((method) => 'App.' + method),
   ...RuntimeAPIObjects.Accessibility.methods.map((method) => 'Accessibility.' + method),
   ...RuntimeAPIObjects.Notifications.methods.map((method) => 'Notifications.' + method),
-  'window.getCapabilities', 'window.list', 'window.setAlwaysOnTop', 'window.unsetTopMost', 'window.js_beautify',
+  'window.getCapabilities', 'window.list', 'window.get', 'window.wait', 'window.setAlwaysOnTop', 'window.unsetTopMost', 'window.js_beautify',
   ...RuntimeAPIObjects.Screen.methods.filter((method) => method !== 'screenshot').map((method) => 'Screen.' + method),
   ...RuntimeAPIObjects.System.methods.filter((method) => !['killProcess', 'shutdown', 'restart', 'sleep'].includes(method)).map((method) => 'System.' + method),
   ...RuntimeAPIObjects.Execution.properties.map((property) => 'Execution.' + property),
@@ -234,12 +239,12 @@ restricted['UI.findMenuItem'] = 'local execution-only native menu observation; n
 restricted['UI.tapMenuItem'] = 'submits a native application menu action at most once and requires a dedicated foreground fixture for live evidence';
 for (const method of ['launch', 'terminate', 'restart']) restricted['App.' + method] = 'starts or terminates a real desktop application; dedicated fixture smoke owns the target lifecycle';
 restricted['Notifications.list'] = 'may reveal own-app notification metadata or explicitly requested content; the formal unit gate validates arguments without reading host notifications';
-restricted['Notifications.waitFor'] = 'waits on the own-app notification model and may explicitly return content; the formal unit gate validates arguments without reading host notifications';
+restricted['Notifications.waitFor'] = 'waits on the own-app notification model and may explicitly return content; the formal unit gate validates arguments without changing host notification state';
 restricted['Notifications.dismiss'] = 'removes an own-app notification; the formal unit gate validates arguments without changing host notification state';
 for (const method of RuntimeAPIObjects.FloatingWindow.methods) restricted['FloatingWindow.' + method] = 'compact native toolbar facade is exposed only when Custom UI is explicitly authorized';
 for (const method of RuntimeAPIObjects.window.methods) {
   const id = 'window.' + method;
-  const hasSafeBehavior = ['getCapabilities', 'getActiveWindow', 'setWindowBounds', 'list', 'setAlwaysOnTop', 'unsetTopMost', 'js_beautify'].includes(method);
+  const hasSafeBehavior = ['getCapabilities', 'getActiveWindow', 'setWindowBounds', 'list', 'get', 'wait', 'setAlwaysOnTop', 'unsetTopMost', 'js_beautify'].includes(method);
   if (!hasSafeBehavior && !restricted[id]) {
     restricted[id] = 'generic macOS Accessibility enumeration or third-party window action is high-latency and only the verified foreground fixture route is live-tested';
   }
@@ -372,6 +377,8 @@ globalThis.RuntimeAPITestFiles = {
     'tests/runtime-api/unit/notifications.test.js',
     'tests/runtime-api/unit/touchscreen.test.js',
     'tests/runtime-api/unit/window.test.js',
+    'tests/runtime-api/unit/window-target.test.js',
+    'tests/runtime-api/unit/ui-sequence.test.js',
     'tests/runtime-api/unit/screen.test.js',
     'tests/runtime-api/unit/system.test.js',
     'tests/runtime-api/unit/execution.test.js',
@@ -427,6 +434,6 @@ globalThis.RuntimeAPITestFiles = {
 
 globalThis.RuntimeAPICatalog = {
   schemaVersion: '1.0.0',
-  catalogVersion: '2026-09-06',
+  catalogVersion: '2026-09-10',
   entries: RuntimeAPIManifest,
 };

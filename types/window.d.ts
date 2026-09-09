@@ -65,6 +65,8 @@ declare global {
     platform: string;
     capability?: string;
     cause?: unknown;
+    /** A cleanup dependency failed; settlement still occurs and cleanup is not claimed as successful. */
+    cleanupError?: unknown;
   }
 
   interface OpenDeskWindowManager {

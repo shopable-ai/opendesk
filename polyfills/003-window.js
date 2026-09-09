@@ -149,42 +149,92 @@ window.getFocusWindow = function() {
             if (signal !== undefined && (!signal || typeof signal.aborted !== 'boolean' ||
                 typeof signal.addEventListener !== 'function' || typeof signal.removeEventListener !== 'function')) invalid(operation, 'signal must be an AbortSignal');
             let finished = false;
+            let listenerAttached = false;
             let pollingTimer = null;
             let deadlineTimer = null;
             const deadline = Date.now() + timeout;
             function finish(cause, row) {
                 if (finished) return;
                 finished = true;
-                if (pollingTimer !== null) global.clearTimeout(pollingTimer);
-                if (deadlineTimer !== null) global.clearTimeout(deadlineTimer);
-                if (signal) signal.removeEventListener('abort', onAbort);
+                let cleanupFailed = false;
+                let cleanupError;
+                function attempt(cleanup) {
+                    try { cleanup(); }
+                    catch (error) {
+                        if (!cleanupFailed) cleanupError = error;
+                        cleanupFailed = true;
+                    }
+                }
+                // Release each owned reference before calling a potentially
+                // throwing dependency. One failure must not skip other cleanup
+                // or strand the Promise after finished has become true.
+                if (pollingTimer !== null) {
+                    const timer = pollingTimer;
+                    pollingTimer = null;
+                    attempt(() => global.clearTimeout(timer));
+                }
+                if (deadlineTimer !== null) {
+                    const timer = deadlineTimer;
+                    deadlineTimer = null;
+                    attempt(() => global.clearTimeout(timer));
+                }
+                if (listenerAttached) {
+                    listenerAttached = false;
+                    attempt(() => signal.removeEventListener('abort', onAbort));
+                }
+                if (cleanupFailed) {
+                    const primary = cause;
+                    cause = primary
+                        ? failure(primary.code || 'BACKEND_FAILED', operation, 'Window wait failed and cleanup failed', primary)
+                        : failure('BACKEND_FAILED', operation, 'Window wait cleanup failed', cleanupError);
+                    cause.cleanupError = cleanupError;
+                }
                 if (cause) reject(cause); else resolve(row);
             }
             function onAbort() { finish(failure('CANCELED', operation, 'Window wait was canceled')); }
             function onTimeout() { finish(failure('TIMEOUT', operation, 'Window wait timed out')); }
             function observe() {
                 if (finished) return;
-                if (signal && signal.aborted) { onAbort(); return; }
                 try {
+                    if (signal && signal.aborted) { onAbort(); return; }
+                    // Timers can be delivered late; do not depend on the
+                    // deadline callback running before a late polling callback.
+                    if (timeout > 0 && Date.now() >= deadline) { onTimeout(); return; }
                     const row = unique(selector, operation);
+                    if (finished) return;
                     if (signal && signal.aborted) onAbort();
                     else if (timeout > 0 && Date.now() >= deadline) onTimeout();
                     else finish(null, row);
                 } catch (cause) {
+                    if (finished) return;
                     // Retry only a successful enumeration with zero matches,
                     // not a backend failure that happens to use NOT_FOUND.
                     if (!cause || cause.code !== 'NOT_FOUND' || cause.cause !== undefined) { finish(cause); return; }
-                    if (timeout === 0 || Date.now() >= deadline) { onTimeout(); return; }
                     try {
-                        pollingTimer = global.setTimeout(observe, Math.min(polling, Math.max(1, deadline - Date.now())));
+                        if (signal && signal.aborted) { onAbort(); return; }
+                        if (timeout === 0 || Date.now() >= deadline) { onTimeout(); return; }
+                        pollingTimer = global.setTimeout(function() {
+                            pollingTimer = null;
+                            observe();
+                        }, Math.min(polling, Math.max(1, deadline - Date.now())));
                     } catch (timerError) { finish(failure('BACKEND_FAILED', operation, 'Could not schedule window observation', timerError)); }
                 }
             }
-            if (signal && signal.aborted) { onAbort(); return; }
             try {
-                if (signal) signal.addEventListener('abort', onAbort, { once: true });
-                if (timeout > 0) deadlineTimer = global.setTimeout(onTimeout, timeout);
-                observe();
+                if (signal && signal.aborted) { onAbort(); return; }
+                if (signal) {
+                    // A structural signal may register and then throw or call
+                    // onAbort synchronously. Both paths still own cleanup.
+                    listenerAttached = true;
+                    signal.addEventListener('abort', onAbort, { once: true });
+                    if (finished) return;
+                    if (signal.aborted) { onAbort(); return; }
+                }
+                if (timeout > 0) deadlineTimer = global.setTimeout(function() {
+                    deadlineTimer = null;
+                    onTimeout();
+                }, timeout);
+                if (!finished) observe();
             } catch (cause) { finish(failure('BACKEND_FAILED', operation, 'Could not start window wait', cause)); }
         });
     };

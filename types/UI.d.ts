@@ -23,7 +23,7 @@ declare global {
     provider?: string;
     providerChain?: string[];
     lang?: string;
-    /** Delay between UI.tapTexts actions; defaults to 0. */
+    /** Extra milliseconds between UI.tapTexts actions. Defaults to 300; explicit 0 disables the extra delay. */
     intervalMs?: number;
   }
 
@@ -67,6 +67,30 @@ declare global {
   type OpenDeskUITextLocateOptions =
     | (OpenDeskUITextOptions & { region?: never; relativeTo?: never })
     | OpenDeskUIPositionedTextOptions;
+
+  /**
+   * Experimental sequential timing contract. Defaults: intervalMs=300,
+   * waitForEach=true, timeout=10000 per step, polling=200 milliseconds.
+   * Waiting pins one resolved window; it never launches, focuses or switches
+   * windows. Only successful zero-candidate observations are polled, never input.
+   * timeout starts after each inter-step interval and bounds the next input's
+   * start, not the whole batch or an already-running synchronous native call.
+   * Use waitForEach:false and intervalMs:0 for legacy fail-fast behavior.
+   */
+  type OpenDeskUITapTextsOptions = (
+    | ((
+        | (Omit<OpenDeskUITextOptions, "within"> & {
+            within?: OpenDeskWindowInfo;
+            region?: never;
+            relativeTo?: never;
+          })
+        | OpenDeskUIPositionedTextOptions
+      ) & { waitForEach?: boolean })
+    | (OpenDeskUITextLocateOptions & { waitForEach: false })
+  ) & {
+    /** Cancels delays and prevents later observations/input; null means no per-call signal. */
+    signal?: AbortSignal | null;
+  };
 
   interface OpenDeskUIImageOptions extends OpenDeskUIBaseOptions {
     threshold?: number;
@@ -224,12 +248,16 @@ declare global {
       | "IMAGE_MATCH_FAILED"
       | "UNSUPPORTED_MIXED_DPI_SCOPE"
       | "UNSUPPORTED_COORDINATE_MAPPING"
-      | "TIMEOUT";
+      | "TIMEOUT"
+      | "CANCELED"
+      | "BACKEND_FAILED";
     operation: string;
     candidateCount?: number;
     candidates?: Array<OpenDeskUITextTarget | OpenDeskUIImageTarget>;
     failedIndex?: number;
     failedText?: string;
+    /** Sequence failure stage; input may have been submitted even when it failed. */
+    failedPhase?: "interval" | "locate" | "input";
     completed?: Array<OpenDeskUITapResult<OpenDeskUITextTarget>>;
     /** Identifies anchor resolution failures when relativeTo is enabled. */
     stage?: "anchor";
@@ -249,7 +277,7 @@ declare global {
     findText(text: string, options?: OpenDeskUITextLocateOptions): Promise<OpenDeskUITextTarget | null>;
     hasText(text: string, options?: OpenDeskUITextLocateOptions): Promise<boolean>;
     tapText(text: string, options?: OpenDeskUITextLocateOptions): Promise<OpenDeskUITapResult<OpenDeskUITextTarget>>;
-    tapTexts(texts: string[], options?: OpenDeskUITextLocateOptions): Promise<OpenDeskUITapTextsResult>;
+    tapTexts(texts: string[], options?: OpenDeskUITapTextsOptions): Promise<OpenDeskUITapTextsResult>;
     waitText(text: string, options?: OpenDeskUITextOptions): Promise<OpenDeskUITextTarget>;
     waitTextGone(text: string, options?: OpenDeskUITextOptions): Promise<true>;
     findImages(template: OpenDeskImageTemplate, options?: OpenDeskUIImageOptions): Promise<OpenDeskUIImageTarget[]>;

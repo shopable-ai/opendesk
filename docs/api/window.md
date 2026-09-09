@@ -35,7 +35,7 @@ order: 4
 | `window.list(target?)` | 同步返回全部或筛选后的窗口快照。 |
 | `window.get(target)` | 取得唯一、身份与几何有效的窗口快照。 |
 | `window.wait(target, options?)` | 等待唯一窗口出现，支持超时和取消。 |
-| `window.getFocusWindow()` | 返回当前焦点窗口。 |
+| `window.getFocusWindow()` | 同步返回当前焦点窗口。 |
 | `window.setAlwaysOnTop(title, alwaysOnTop)` | 设置/取消置顶。 |
 | `window.unsetTopMost(title)` | 取消置顶。 |
 | `window.bringToTop(title, pid?)` | 将目标窗口提升到顶层。 |
@@ -536,7 +536,7 @@ window.kill(processId: number): Promise<void>;
 
 **行为与错误**
 
-这是强副作用操作，可能造成未保存内容丢失。更完整的应用生命周期优先使用 [`App.terminate()`](app.md#appterminatetarget-options)。
+这是强副作用操作，可能造成未保存内容丢失。更完整的应用生命周期优先使用 [App.terminate()](app.md#appterminatetarget-options)。
 
 **示例**
 ```js
@@ -743,7 +743,9 @@ window.wait(target: OpenDeskWindowTarget, options?: OpenDeskWindowWaitOptions): 
 
 只重试成功枚举后的 `NOT_FOUND`。歧义、无效身份/几何、参数、权限和 backend 错误立即拒绝，包括 backend 自己产生的 `NOT_FOUND`。总期限耗尽为 `TIMEOUT`，显式取消为 `CANCELED`。timeout 为 0 时有唯一窗口立即成功，否则为 TIMEOUT。
 
-成功、失败和取消都清理本次等待的定时器及监听器。复用当前 Execution 受管 timer，不启动独立 Execution。宿主销毁后不承诺 JS Promise 仍有机会执行回调。同步原生调用不能被 JS 定时器或 AbortSignal 强制打断，原生返回后检查期限。
+成功、失败和取消都逐项尝试清理本次等待的定时器及已注册监听器。清理依赖抛错时 Promise 仍会结算，错误包含 `cleanupError`；原操作已失败时保留其 code，并通过 cause 保留主错误，原本成功则改为 `BACKEND_FAILED`。清理依赖实际没有释放的资源不能被声称已经归零。
+
+复用当前 Execution 受管 timer，不启动独立 Execution。signal 注册过程中同步取消后不再创建定时器。每次观察前后都检查期限；即使轮询回调被延迟调度，也不会在期限之后新启动枚举。宿主销毁后不承诺 JS Promise 仍有机会执行回调。同步原生调用不能被 JS 定时器或 AbortSignal 强制打断，原生返回后检查期限。
 
 等待不等于启动、聚焦、恢复或业务界面就绪，不自动改变应用状态。
 
@@ -759,11 +761,11 @@ console.log(win.id);
 
 ## window.getFocusWindow()
 
-返回当前拥有焦点的窗口。
+同步返回当前拥有焦点的窗口。
 
 **签名**
 ```ts
-window.getFocusWindow(): Promise<OpenDeskWindowInfo>;
+window.getFocusWindow(): OpenDeskWindowInfo | null;
 ```
 
 **参数**
@@ -772,15 +774,16 @@ window.getFocusWindow(): Promise<OpenDeskWindowInfo>;
 
 **返回值**
 
-`Promise<OpenDeskWindowInfo>`。
+`OpenDeskWindowInfo | null`，不是 Promise；具体无目标行为受 native backend 影响。
 
 **行为与错误**
 
-无法解析 focus window 时 reject。
+保留 native 的空结果；backend 失败同步抛出结构化错误，不会因为调用方写了 `await` 就变成异步接口。
 
 **示例**
 ```js
-console.log(await window.getFocusWindow());
+const focused = window.getFocusWindow();
+console.log(focused);
 ```
 
 ## window.setAlwaysOnTop(title, alwaysOnTop)
@@ -871,7 +874,7 @@ await window.bringToTop(info.title, info.pid);
 
 ## 错误
 
-Window 结构化错误至少包含 `code`、`operation`、`platform`，适用时包含 `capability`。稳定 code：`INVALID_ARGUMENT`、`NOT_SUPPORTED`、`NOT_FOUND`、`AMBIGUOUS_TARGET`、`STALE_TARGET`、`PERMISSION_DENIED`、`VERIFICATION_FAILED`、`TIMEOUT`、`BACKEND_FAILED`。目标等待另支持 `CANCELED`；包装原生/App 错误时保留 `cause`。
+Window 结构化错误至少包含 `code`、`operation`、`platform`，适用时包含 `capability`。稳定 code：`INVALID_ARGUMENT`、`NOT_SUPPORTED`、`NOT_FOUND`、`AMBIGUOUS_TARGET`、`STALE_TARGET`、`PERMISSION_DENIED`、`VERIFICATION_FAILED`、`TIMEOUT`、`BACKEND_FAILED`。目标等待另支持 `CANCELED`；包装原生/App 错误时保留 `cause`。等待清理失败另带 `cleanupError`，不伪装成功或保持 Promise 悬挂。
 
 ## 平台与能力
 

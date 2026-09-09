@@ -455,7 +455,9 @@
   }
 
   async function captureScope(options, operation, targetOverride, requestedOverride) {
+    if (options.sequenceGuard) options.sequenceGuard();
     const scope = await resolveScope(options, operation, targetOverride, requestedOverride);
+    if (options.sequenceGuard) options.sequenceGuard();
     let image;
     try {
       image = await global.page.screenshot({
@@ -471,6 +473,7 @@
     } catch (error) {
       fail('SCREENSHOT_FAILED', operation, 'failed to capture the target scope', { cause: errorSummary(error) });
     }
+    if (options.sequenceGuard) options.sequenceGuard();
     if (typeof image !== 'string' || image.length === 0) {
       fail('SCREENSHOT_FAILED', operation, 'screenshot did not return base64 image data');
     }
@@ -592,6 +595,7 @@
 
   async function runTextObservation(options, operation, targetOverride, requestedOverride) {
     const capture = await captureScope(options, operation, targetOverride, requestedOverride);
+    if (options.sequenceGuard) options.sequenceGuard();
     let result;
     try {
       const request = { image: capture.image };
@@ -602,6 +606,7 @@
     } catch (error) {
       fail('OCR_FAILED', operation, 'OCR failed while searching the target scope', { cause: errorSummary(error) });
     }
+    if (options.sequenceGuard) options.sequenceGuard();
     if (!result || !Array.isArray(result.lines)) {
       fail('OCR_FAILED', operation, 'OCR result did not contain line candidates');
     }
@@ -943,7 +948,9 @@
     const positioning = options.positioning;
     let retryWindow;
     for (let attempt = 0; attempt < 2; attempt += 1) {
+      if (options.sequenceGuard) options.sequenceGuard();
       const current = retryWindow === undefined ? await currentPositionedWindow(operation) : retryWindow;
+      if (options.sequenceGuard) options.sequenceGuard();
       retryWindow = undefined;
       const currentSnapshot = assertExpectedWindow(positioning.expectedWindow, current, operation);
       const requestedScope = positionedOuterScope(options, current, currentSnapshot, operation);
@@ -990,7 +997,7 @@
     fail('STALE_TARGET', operation, 'window bounds changed while resolving the target');
   }
 
-  async function tapWithDiscovery(discover, value, options, operation, action) {
+  async function tapWithDiscovery(discover, value, options, operation, action, beforeInput) {
     let override;
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const found = await discover(value, options, operation, override);
@@ -1006,6 +1013,7 @@
         }
         fail('STALE_TARGET', operation, 'window bounds changed repeatedly while resolving the target');
       }
+      if (beforeInput) beforeInput();
       try {
         await global.mouse.clickPoint(target.center, options.click);
       } catch (error) {
@@ -1017,12 +1025,13 @@
     fail('STALE_TARGET', operation, 'window bounds changed while resolving the target');
   }
 
-  async function tapPositionedText(text, options, operation) {
-    const found = await discoverPositionedTexts(text, options, operation, true);
+  async function tapPositionedText(text, options, operation, beforeInput, discover) {
+    const found = await (discover || discoverPositionedTexts)(text, options, operation, true);
     const target = chooseCandidate(found.candidates, options, operation);
     if (!target) {
       fail('TARGET_NOT_FOUND', operation, 'target was not found in the visible scope');
     }
+    if (beforeInput) beforeInput();
     try {
       await global.mouse.clickPoint(target.center, options.click);
     } catch (error) {
@@ -1111,24 +1120,112 @@
 
     tapTexts: async function (texts, rawOptions) {
       const operation = 'UI.tapTexts';
-      if (!Array.isArray(texts) || texts.length === 0 || texts.some(function (text) { return typeof text !== 'string' || text.length === 0; })) {
+      // Capture the requested sequence before the first await. Array.from also
+      // turns sparse slots into undefined so they fail before any input.
+      const sequence = Array.isArray(texts) ? Array.from(texts) : null;
+      if (!sequence || sequence.length === 0 || sequence.some(function (text) { return typeof text !== 'string' || text.length === 0; })) {
         fail('INVALID_ARGUMENT', operation, 'texts must be a non-empty string array');
       }
       const options = validateOptions(rawOptions, operation, 'text', true);
+      const raw = rawOptions === undefined ? {} : rawOptions;
+      rejectUnknownFields(raw, [
+        'within', 'index', 'timeout', 'polling', 'click', 'intervalMs',
+        'match', 'caseSensitive', 'normalizeWhitespace', 'minConfidence',
+        'provider', 'providerChain', 'lang', 'region', 'relativeTo',
+        'waitForEach', 'signal',
+      ], 'options', operation);
+      if (Object.getOwnPropertySymbols(raw).length) fail('INVALID_ARGUMENT', operation, 'options must not contain symbol fields');
+      validateOptionalBoolean(raw.waitForEach, 'waitForEach', operation);
+      const waitForEach = raw.waitForEach === undefined ? true : raw.waitForEach;
+      if (raw.intervalMs === undefined) options.intervalMs = 300;
+      // Validate the existing timer owner's limit before the first input,
+      // rather than discovering a bad interval after a partial sequence.
+      if (options.intervalMs > 86400000) fail('INVALID_ARGUMENT', operation, 'intervalMs must be at most 86400000 milliseconds');
+      if (waitForEach && (options.timeout > 300000 || options.polling > 10000)) {
+        fail('INVALID_ARGUMENT', operation, 'waitForEach timeout must be at most 300000 and polling at most 10000 milliseconds');
+      }
+      const signal = raw.signal == null ? undefined : raw.signal;
+      if (signal !== undefined && (typeof signal.aborted !== 'boolean' ||
+          typeof signal.addEventListener !== 'function' || typeof signal.removeEventListener !== 'function')) {
+        fail('INVALID_ARGUMENT', operation, 'signal must be an AbortSignal');
+      }
+      // Waiting is the default for a sequence and pins the first window.
+      // Explicit waitForEach:false retains the legacy scope behavior.
+      // A fixed display/region cannot provide a window identity for waiting.
+      if (waitForEach && options.within !== undefined && !hasReliableWindowIdentity(options.within)) {
+        fail('INVALID_ARGUMENT', operation, 'waitForEach requires a resolved WindowInfo or an omitted within');
+      }
+      let expectedWindow = waitForEach && options.within !== undefined ? identitySnapshot(options.within) : null;
+      if (options.providerChain) options.providerChain = options.providerChain.slice();
+      if (options.click && typeof options.click === 'object') options.click = Object.assign({}, options.click);
       const completed = [];
-      for (let index = 0; index < texts.length; index += 1) {
-        if (index > 0 && options.intervalMs > 0) await delay(options.intervalMs);
+      for (let index = 0; index < sequence.length; index += 1) {
+        let phase = 'interval';
+        let deadline = null;
+        function check() {
+          if (signal && signal.aborted) fail('CANCELED', operation, 'text sequence was canceled');
+          if (deadline !== null && Date.now() >= deadline) {
+            fail('TIMEOUT', operation, 'timed out waiting for the next text target', { timeout: options.timeout });
+          }
+        }
+        function beforeInput() {
+          check();
+          phase = 'input';
+        }
+        // This guard is private to normalized options, never taken from a
+        // caller field. Capture/OCR check it between awaited native reads.
+        options.sequenceGuard = check;
+        async function discoverForStep(value, settings, currentOperation, override) {
+          while (true) {
+            check();
+            if (waitForEach) {
+              const current = await currentActiveWindow(currentOperation);
+              check();
+              if (expectedWindow === null) {
+                if (!hasReliableWindowIdentity(current)) fail('STALE_TARGET', currentOperation, 'the initial sequence window has no resolved identity');
+                expectedWindow = identitySnapshot(current);
+              }
+              assertExpectedWindow(expectedWindow, current, currentOperation);
+              settings.within = frozenWindowCopy(current);
+              override = current;
+            }
+            const found = settings.positioning
+              ? await discoverPositionedTexts(value, settings, currentOperation, !waitForEach)
+              : await discoverTexts(value, settings, currentOperation, override);
+            check();
+            if (!waitForEach || found.candidates.length > 0 || settings.index !== undefined) return found;
+            // Only a successful zero-candidate observation is retried. Errors,
+            // ambiguous matches and invalid explicit indices are never caught
+            // here; in particular this loop cannot retry mouse input.
+            const remaining = deadline - Date.now();
+            if (remaining <= 0) fail('TIMEOUT', operation, 'timed out waiting for the next text target', { timeout: settings.timeout });
+            await global.page.waitForTimeout(Math.min(settings.polling, remaining), { signal: signal });
+          }
+        }
         try {
-          completed.push(await (options.positioning
-            ? tapPositionedText(texts[index], options, operation)
-            : tapWithDiscovery(discoverTexts, texts[index], options, operation, 'tapText')));
+          check();
+          if (index > 0 && options.intervalMs > 0) {
+            if (signal) await global.page.waitForTimeout(options.intervalMs, { signal: signal });
+            else await delay(options.intervalMs);
+          }
+          check();
+          phase = 'locate';
+          if (waitForEach) deadline = Date.now() + options.timeout;
+          const result = await (options.positioning
+            ? tapPositionedText(sequence[index], options, operation, beforeInput, discoverForStep)
+            : tapWithDiscovery(discoverForStep, sequence[index], options, operation, 'tapText', beforeInput));
+          completed.push(result);
+          // Never drop a completed input when cancellation arrives during that
+          // input. Report the prefix and stop instead of submitting another.
+          if (signal && signal.aborted) fail('CANCELED', operation, 'text sequence was canceled after input');
         } catch (error) {
           const message = error && error.message ? error.message : 'text activation failed';
           const wrapped = new Error(message);
-          wrapped.code = error && error.code ? error.code : 'INVALID_ARGUMENT';
+          wrapped.code = error && error.code ? error.code : 'BACKEND_FAILED';
           wrapped.operation = operation;
           wrapped.failedIndex = index;
-          wrapped.failedText = texts[index];
+          wrapped.failedText = sequence[index];
+          wrapped.failedPhase = phase;
           wrapped.completed = completed;
           wrapped.cause = error;
           if (error && error.stage) wrapped.stage = error.stage;
