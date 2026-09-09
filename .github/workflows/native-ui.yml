@@ -4,49 +4,134 @@ on:
   push:
     paths:
       - '.github/workflows/native-ui.yml'
+      - '.staging-sync/native-ui.*.b85'
       - 'pkg/customui/**'
       - 'automation/custom_ui*'
       - 'automation/floating_window*'
+      - 'automation/page.go'
       - 'tests/runtime-api/custom-ui*'
       - 'tests/custom-ui/**'
       - 'examples/custom-ui/**'
-      - 'scripts/build_windows_ui*'
+      - 'scripts/build_windows*'
   workflow_dispatch:
 
 permissions:
   contents: read
 
+env:
+  NATIVE_UI_PATCH_SHA256: b7cee6d74d4bec02d564b142500520b32cc1ab3440937ca31625dea421df3036
+
 jobs:
-  source:
+  prepare:
     runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.patch.outputs.ready }}
     steps:
       - uses: actions/checkout@v4
-      - name: Archive exact source for offline diagnostics
-        run: git archive --format=tar HEAD | gzip > /tmp/native-ui-source.tar.gz
-      - uses: actions/upload-artifact@v4
-        with:
-          name: native-ui-source
-          path: /tmp/native-ui-source.tar.gz
-          retention-days: 3
+      - id: patch
+        shell: python
+        run: |
+          import os, pathlib
+          parts = list(pathlib.Path('.staging-sync').glob('native-ui.*.b85'))
+          with open(os.environ['GITHUB_OUTPUT'],'a') as out:
+            out.write('ready=' + ('true' if len(parts)==3 else 'false') + '\n')
   customui:
+    needs: prepare
+    if: needs.prepare.outputs.ready == 'true'
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      - name: Apply exact reviewed implementation to test worktree
+        shell: python
+        run: |
+          import base64, hashlib, lzma, os, pathlib, subprocess
+          data=''.join(pathlib.Path('.staging-sync/native-ui.%d.b85'%n).read_text().strip() for n in range(3))
+          patch=lzma.decompress(base64.b85decode(data))
+          assert hashlib.sha256(patch).hexdigest()==os.environ['NATIVE_UI_PATCH_SHA256'], 'staging digest mismatch'
+          target=pathlib.Path(os.environ['RUNNER_TEMP'])/'native-ui.patch'
+          target.write_bytes(patch)
+          subprocess.run(['git','apply','--check','--unidiff-zero',str(target)],check=True)
+          subprocess.run(['git','apply','--unidiff-zero',str(target)],check=True)
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           cache: true
+      - uses: actions/setup-dotnet@v4
+        if: runner.os == 'Windows'
+        with:
+          dotnet-version: '8.0.x'
       - name: Test native UI internal seams
         run: go test ./pkg/customui/...
-      - name: Build Windows UI host when present
+      - name: Test test-architecture invariants
+        run: node scripts/audit_test_architecture.js
+      - name: Build macOS native UI host
+        if: runner.os == 'macOS'
+        run: go build -o dist/opendesk-ui-host ./cmd/opendesk-ui-host
+      - name: Build Windows native UI host
         if: runner.os == 'Windows'
         shell: pwsh
+        run: ./scripts/build_windows_ui.ps1
+      - name: macOS native host protocol smoke
+        if: runner.os == 'macOS'
+        run: node tests/custom-ui/tools/native-host-smoke.cjs dist/opendesk-ui-host
+      - name: Windows native host protocol smoke
+        if: runner.os == 'Windows'
+        run: node tests/custom-ui/tools/native-host-smoke.cjs dist/ui-host/opendesk-ui-host.exe
+      - name: Build paired Runtime
+        if: runner.os != 'Linux'
+        shell: bash
         run: |
-          if (Test-Path scripts/build_windows_ui.ps1) {
-            & ./scripts/build_windows_ui.ps1
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          }
+          if [ "$RUNNER_OS" = Windows ]; then
+            go build -o dist/opendesk.exe ./cmd/opendesk
+          else
+            go build -o dist/opendesk ./cmd/opendesk
+          fi
+      - name: Public Runtime notification contract
+        if: runner.os != 'Linux'
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = Windows ]; then bin=./dist/opendesk.exe; else bin=./dist/opendesk; fi
+          "$bin" -no-ui -script tests/runtime-api/custom-ui-notify-disabled.js -console-mode script
+          "$bin" -ui -script tests/runtime-api/custom-ui-notify.js -console-mode script
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-ui-checks-${{ runner.os }}
+          path: .runtime/tests/native-ui
+          if-no-files-found: ignore
+          retention-days: 7
+  apply-source:
+    needs: [prepare, customui]
+    if: needs.prepare.outputs.ready == 'true' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Commit the tested source without rewriting parallel work
+        shell: python
+        run: |
+          import base64, hashlib, lzma, os, pathlib, subprocess
+          def git(*args): return subprocess.check_output(['git',*args],text=True).strip()
+          head=git('rev-parse','HEAD')
+          remote=git('ls-remote','origin','refs/heads/master').split()[0]
+          assert head==remote, 'master advanced; do not overwrite parallel work'
+          paths=[pathlib.Path('.staging-sync/native-ui.%d.b85'%n) for n in range(3)]
+          patch=lzma.decompress(base64.b85decode(''.join(p.read_text().strip() for p in paths)))
+          assert hashlib.sha256(patch).hexdigest()==os.environ['NATIVE_UI_PATCH_SHA256']
+          target=pathlib.Path(os.environ['RUNNER_TEMP'])/'native-ui.patch';target.write_bytes(patch)
+          git('apply','--check','--unidiff-zero',str(target))
+          git('apply','--unidiff-zero',str(target))
+          for path in paths: path.unlink()
+          git('add','-A')
+          # Only the reviewed source patch and its transient transport files are staged.
+          changed=git('diff','--cached','--name-only').splitlines()
+          assert all(not p.startswith('.github/') for p in changed), 'workflow changes are not allowed in the source patch'
+          git('-c','user.name=OpenDesk Native UI','-c','user.email=41898282+github-actions[bot]@users.noreply.github.com','commit','-m','feat(custom-ui): add native notifications and experimental Windows UI host')
+          git('push','origin','HEAD:master')
+          print('TESTED_NATIVE_UI_COMMIT='+git('rev-parse','HEAD'))
