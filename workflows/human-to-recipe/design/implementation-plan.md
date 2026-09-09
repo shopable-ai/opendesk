@@ -1,12 +1,12 @@
 ---
 title: "人工 Recorder｜实施与验收计划"
-description: "当前 Recorder 实施状态、分层命令、证据、未运行项目与下一批语义交接。"
+description: "当前 Recorder 实施状态、分层命令、证据、点击目标 OCR/语义化验收、未运行项目与下一批交接。"
 order: 30
 ---
 
 # 人工 Recorder｜实施与验收计划
 
-状态：Recorder 数据合同 v2、合成文件闭环、macOS Calculator 真实 native capture／按钮语义、用户 simple console 录制包独立回放／业务 oracle，以及该录制包的可维护语义优化 recipe 已实施并验收，2026-09-10。当前工作树另已实现仓库内 human-to-recipe Skill、最小 `SemanticBuildPlan` schema／validator、Calculator plan golden 和 simple console 的去正文提示词交接；通用 renderer、用户级 Skill 安装、当前生产 hash 的 live Gate 和视觉验收均未实施或未运行。旧 hash 的 live 证据不能自动转移。本文只记录当前工作树的真实完成与验收边界；H1—H8 完整作业仍以 [任务分解](task-decomposition.md) 为准，DQ-01—DQ-08 规范性决定和唯一技术方案见 [Recorder 工程设计](recorder-design.md)。
+状态：Recorder 数据合同 v2、合成文件闭环、macOS Calculator 真实 native capture／按钮语义、用户 simple console 录制包独立回放／业务 oracle，以及该录制包的可维护语义优化 recipe 已实施并验收，2026-09-10。当前工作树另已实现仓库内 human-to-recipe Skill、最小 `SemanticBuildPlan` schema／validator、Calculator plan golden 和 simple console 的去正文提示词交接；通用 renderer、用户级 Skill 安装、当前生产 hash 的 live Gate 和视觉验收均未实施或未运行。点击目标理解的 Native／OCR／Visual／Geometry／Context 统一合同及五类回归场景已写入设计基线，但显式 target-crop OCR、文字归属绑定和 locator portfolio 的通用实现仍未完成，不能把已有 AX 标签或无文字图标设计冒充完整 OCR 增强闭环。旧 hash 的 live 证据不能自动转移。本文只记录当前工作树的真实完成与验收边界；H1—H8 完整作业仍以 [任务分解](task-decomposition.md) 为准，DQ-01—DQ-08 规范性决定和唯一技术方案见 [Recorder 工程设计](recorder-design.md)。
 
 ## 1. 本轮验收目标
 
@@ -28,6 +28,8 @@ order: 30
 
 本轮使用固定 100 分量表，结果为 **98/100**，达到用户要求的 95 分门槛。评分维度固定为输入降噪 15、动作完整性 15、应用／多窗口身份 20、坐标迁移 20、控件语义与隐私 15、fail-closed 生成 10、文档／兼容／验证 5。扣 1 分是 basic 尚未把 AX 证据自动提升为通用 locator；另扣 1 分是 Windows/Linux 目标系统 live 未运行。详细量表和可清理运行证据见 [Recorder 数据质量 v2 验收](../../../docs/quality/recorder-data-quality-v2.md)。
 
+这里的 98/100 只针对 Recorder 数据质量 v2 已验范围，不可扩展解释为“点击目标 OCR／视觉语义化 98 分”。后者必须单独满足本文 4.14 的五类行为矩阵、来源追踪和重新定位资格后才可评分。
+
 ## 2. 实际工作包状态
 
 | 工作包 | 当前状态 | 实际成果 | 未完成或未运行 |
@@ -37,7 +39,9 @@ order: 30
 | WP2 动作上下文与 actions | 已实施并通过合成与 macOS live | application/window/element 分层；稳定应用身份与瞬态 PID/handle 分离；窗口 offset/ratio；AX point-hit＋最多 6 层 actionable ancestor；fixed raw/hash、唯一 grouping、pause boundary、revision、disposition/readiness/issues | 键盘 focused-element 语义、Windows/Linux target semantics live |
 | WP3 basic JS 生成 | 已实施；原版本隔离／用户回放通过，Geometry 收敛版正式 JavaScript 合成 Gate 通过 | 每动作用 `window.get` 重新解析当前应用窗口；同应用多窗口无歧义门；以 `Geometry.pointOffset/contains` 按新 bounds＋offset 重算并用 tagged point 输入；strict actions/hash、白名单 JS、candidate、exclusive create、替身执行 | 语义 locator、resize/layout adaptation、窗口解析到动作提交的原子性；旧 candidate 资格不转移给新生成源码 |
 | WP4 正常用户入口 | 已实施；新增提示词按钮仅合成通过，当前 UI 视觉未重跑 | `record.js` 快捷键；完整和 simple 原生控制台；simple actions ready/blocked/generation-error 均可复制去正文 Agent handoff；Calculator 既有真实 listener、制作、生成和用户包独立试运行 | 本次六按钮工具条 live／视觉；完整 Custom UI 的人工业务采集；其他 candidate 的真实回放 |
-| WP5 下游语义增强交接 | 最小可复用链已实现；renderer 未实现 | 仓库内 Skill、schema、source-check validator、Calculator plan golden；human lineage 的 disposition／Episode／target／gate 分层；AX 标签只作证据 | 用户级 Skill 安装、通用 renderer、focused-element、显式 target-crop OCR、第二个应用的 human golden |
+| WP5 下游语义增强交接 | 最小可复用链已实现；点击目标多源语义合同已补入设计；renderer／OCR 实现未完成 | 仓库内 Skill、schema、source-check validator、Calculator plan golden；human lineage 的 disposition／Episode／target／gate 分层；AX 标签只作证据；H5.2 已定义 Native／OCR／Visual／Geometry／Context 统一消费和 locator portfolio | 用户级 Skill 安装、通用 renderer、focused-element、显式 target-crop OCR、OCR 文字与目标／标签／父区域绑定、五类点击目标回归 fixture、第二个应用的 human golden |
+
+WP5 的“设计已补齐”不等于功能已经实现。当前 Calculator 通过的是 AX 标签语义和已冻结按钮身份；没有实际 target-crop OCR evidence 时，不得把它登记成 OCR 场景通过。
 
 ## 3. 正常用户命令
 
@@ -138,6 +142,7 @@ OPENDESK_RUNTIME_API_MODE=custom-ui ./dist/opendesk -script scripts/test_runtime
 正式 JavaScript 测试使用真实 Custom UI host、ControlHandle 点击和窗口截图，但注入合成 Recorder
 fixture，因此不会启动 libuiohook。它覆盖准备、录制、暂停／继续、停止、保存、actions、显式生成、
 按钮防重入、部分保存／blocked、启动过程中关闭的唯一 stop，以及 `verification: "not-run"`／零回放。
+
 证据写入 `.runtime/tests/runtime-api/<run-id>/runtime-logs/custom-ui/floating-toolbar/recording-console/`。
 
 ### 4.5 macOS 计算器真实 pause/resume
@@ -260,6 +265,40 @@ Calculator 质量来自一条可重复的输入收敛链，而不是最后一次
 
 提示词不展开 action text、键盘内容、AXValue、semanticReason 文本、截图或 raw。两个显眼占位符要求用户补充业务目标和成功条件；缺失时 Skill 必须先询问，不能从点击序列猜意图。仓库内 Skill 路径始终写入提示词，因此用户级未安装 `$human-to-recipe` 时接收会话仍有真实入口。复制是 handoff，不创建线程、不调用 Agent、不生成／回放、不改变录制包，也不表示 generated、live verified、视觉通过或 qualified。
 
+### 4.14 点击目标 OCR／语义化的防遗漏验收矩阵
+
+这一节把 H5.2 的设计要求变成后续实施的固定验收入口。它不宣称当前 OCR 已实现；目的是防止“Recorder 有 AX 标签”“无文字图标有视觉分析”两个局部事实掩盖中间整条文字证据链缺失。
+
+统一处理链固定为：
+
+```text
+click + event/window context
+→ target candidate
+→ target crop + necessary context crop
+→ Native text + OCR text + Visual + Geometry + Context
+→ text/object binding and conflict preservation
+→ semantic target + business ownership
+→ locator portfolio
+→ new observation relocalization
+→ authorized action + result verification
+```
+
+每个 OCR observation 至少保存：`text`、`bbox`、source image/hash、crop→original→window/screen 映射、engine/version、confidence、observedAt。Native name/label 与 OCR 分开保存；模型解释另存。禁止把 OCR 字符串写进 raw，禁止在 AX 缺失时无来源补一个“看起来正确”的按钮名，也禁止只保存 OCR 文本却丢失它属于哪个 bbox／控件／父区域。
+
+首批固定行为矩阵：
+
+| Case | 必备证据 | 关键判定 | 通过条件 | 当前状态 |
+| --- | --- | --- | --- | --- |
+| `text-button` | 目标 crop、Native 可用文字、OCR text+bbox | OCR 文字属于按钮本身而非周边 | 目标语义可追源；至少一个候选文字 locator 可在新画面重新找到正确目标 | 未实施通用 OCR Gate |
+| `icon-only` | 目标 crop、上下文 crop、视觉图形；OCR 可为空 | OCR 为空不伪造文字；图标业务归属需上下文 | 相同／相近图标存在时仍能绑定正确业务对象 | 设计已有，无通用 live Gate |
+| `text+icon` | 同一目标的文字和图形证据 | 两种证据并存；冲突不静默覆盖 | locator portfolio 能记录优先级、适用条件和冲突 | 未实施 |
+| `duplicate-same-text-or-icon` | 重复目标＋所属行／卡片／标签／业务 ID | 不以全屏同名文字或同图标首命中作为目标 | 列表重排后仍找到输入业务对象；对象不存在则 fail closed | 设计场景已有，未建立 OCR fixture |
+| `surrounding-label` | 目标、相邻 label、父区域 bbox／关系 | 区分“目标自己的文字”和“描述目标的周边文字” | 关系 locator 在新画面仍唯一；label 漂移／重复时不误点 | 未实施 |
+
+实施时至少再覆盖以下负例：OCR 漏字、低置信度、文字跨 bbox、Native/OCR 冲突、图片缩放映射缺失、目标 crop 截断、审阅标注污染模板、重复文字属于不同业务对象、图标识别正确但对象归属错误。每个失败必须路由到 H2 补采或 H5 修正，不允许自动降级成全局坐标后仍把 semantic qualification 标通过。
+
+点击目标能力的完成声明按层级区分：`captured`（证据已保存）→ `extracted`（Native/OCR/visual 已执行并可追源）→ `bound`（文字／图形已绑定到正确目标和业务对象）→ `locator-candidate` → `relocalized` → `action-verified`。任一上游状态缺失，不得直接写后续状态。后续代码和测试应把这套状态与现有 actions/AppProfile/qualification 结构做最小兼容对齐，而不是另造第二套 Recorder 或第二份应用模型。
+
 ## 5. 当前动作资格
 
 | 动作 | capture 字段 | actions | basic JS | live 状态 |
@@ -293,12 +332,12 @@ Calculator 质量来自一条可重复的输入收敛链，而不是最后一次
 
 | 项目 | 固定交接 |
 | --- | --- |
-| 输入 | actions exact file/revision/hash、raw ref/hash、basic candidate/hash、环境、用户目标／预期结果、实际 evidence 或 missing reason；AppProfile 只引用真实版本 |
-| 下游责任 | 目标／业务对象、定位、等待、验证、参数、普通函数和代码质量；不再次实现 listener |
-| 输出 | 新 semantic candidate JS、引用规则、每项修改理由、适用条件和独立 verification；不覆盖 basic candidate/raw |
-| 失败返回 | facts→H2；grouping→H3；intent/text→H4；target/locator→H5；code→H6；authority/success criteria→H1 |
+| 输入 | actions exact file/revision/hash、raw ref/hash、basic candidate/hash、环境、用户目标／预期结果、实际 evidence 或 missing reason；AppProfile 只引用真实版本；增强点击还需引用 target/context crop 与 Native/OCR/visual observations |
+| 下游责任 | 目标／业务对象、文字与图形证据绑定、定位、等待、验证、参数、普通函数和代码质量；不再次实现 listener |
+| 输出 | 新 semantic candidate JS、引用规则、每项修改理由、适用条件和独立 verification；不覆盖 basic candidate/raw；locator 必须能追到具体 evidence |
+| 失败返回 | facts/crop/mapping→H2；grouping→H3；intent/text→H4；target/text-binding/locator→H5；code→H6；authority/success criteria→H1 |
 
-下游统一从仓库内 [`human-to-recipe` Skill](../skills/human-to-recipe/SKILL.md) 进入；它在需要 target／locator 加固时再遵循 `application-engineer`，但 human raw/actions 仍保持独立 lineage，不能伪装 Agent demonstration。当前已实现最小 SemanticBuildPlan schema 和 validator，通用 renderer 与用户级 Skill 安装仍不存在；Calculator golden 和静态断言只校准已冻结规则，不冒充 live 或整条一键生成系统。
+下游统一从仓库内 [`human-to-recipe` Skill](../skills/human-to-recipe/SKILL.md) 进入；它在需要 target／locator 加固时再遵循 `application-engineer`，但 human raw/actions 仍保持独立 lineage，不能伪装 Agent demonstration。当前已实现最小 SemanticBuildPlan schema 和 validator，通用 renderer、OCR extractor/binder 与用户级 Skill 安装仍不存在；Calculator golden 和静态断言只校准已冻结规则，不冒充 live 或整条一键生成系统。
 
 ## 8. 硬性失败条件
 
@@ -310,6 +349,11 @@ Calculator 质量来自一条可重复的输入收敛链，而不是最后一次
 - v2 action 没有已验证的应用／窗口上下文仍标 ready，或只用旧 PID/handle/screen point 回放；
 - 同应用多个窗口无法唯一解析时仍发送输入；
 - AX 失败后伪造按钮文字，读取 AXValue／安全内容，或把 OCR 字符串冒充原始事实；
+- OCR observation 缺 source image/hash、bbox、坐标映射、engine/version 等来源仍标 `extracted`／`verified`；
+- 只得到 OCR 文字却没有判断它属于目标本身、周边 label、父区域还是其他业务对象，就直接生成文字 locator；
+- Native/OCR/模型文字冲突时静默选择一个覆盖其他来源；
+- OCR 为空时给无文字图标补造文字，或图标识别正确但业务归属未验证仍标 target verified；
+- locator 在建模原图命中一次就晋级，未用新观察做重新定位；
 - `>4` points drag 被静默变成 click，或复杂／曲线／跨屏 drag 被当成受支持直线 drag；
 - actions/代码从旧内存而不是实际固定文件生成；
 - raw 和 actions 同时回放，或 recipe 循环解释 actions；
@@ -319,4 +363,6 @@ Calculator 质量来自一条可重复的输入收敛链，而不是最后一次
 
 ## 9. 下一批最小范围
 
-下一应用建议选择 TextEdit，先取得新的 human Recorder v2 包和用户明确业务目标／成功条件，再用同一 Skill/plan/gate 分层校准；不得从现有 TextEdit 示例预填保存、编辑或其他业务意图。通用 renderer、focused-element、显式 `target-crop` OCR 和 locator portfolio 都是后续独立工作包；不要回到 native listener、不改 raw、不创建第二 Recorder、AppProfile 或专用 Replay Runtime，也不要把[多应用自动化高频框架能力](../../../docs/frameworks/multi-application-automation-primitives.md)中的路线图方法名提前写进代码。
+下一批语义增强优先完成“点击目标多源证据闭环”，而不是继续只扩无文字图标描述：在不改 raw、不创建第二 Recorder 或第二 AppProfile 的前提下，落地显式 `target-crop`／必要 context crop、OCR provenance、文字与目标关系 binder、locator portfolio 和新观察 relocalization；用 4.14 的 `text-button`、`icon-only`、`text+icon`、`duplicate-same-text-or-icon`、`surrounding-label` 五类 fixture 分层验收。实现顺序应允许 OCR extractor、binder、locator qualification 各自独立测试，任一层失败都保留上游证据并 fail closed。
+
+下一应用仍建议选择 TextEdit，但应在上述基础结构足够后取得新的 human Recorder v2 包和用户明确业务目标／成功条件，再用同一 Skill/plan/gate 分层校准；不得从现有 TextEdit 示例预填保存、编辑或其他业务意图。通用 renderer、focused-element 和第二应用 human golden 可随后推进；不要回到 native listener、不改 raw、不创建专用 Replay Runtime，也不要把[多应用自动化高频框架能力](../../../docs/frameworks/multi-application-automation-primitives.md)中的路线图方法名提前写进代码。
