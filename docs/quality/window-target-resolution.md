@@ -133,10 +133,10 @@ x86_64。验收启动和构建时，工作树位于 `master`，HEAD 为
 `f22750eff20db822aa3bae227aef01bb52608da1`，目标提交
 `cbf16856c935dcec7b23779487a69bcd4b8c21ca` 是其祖先。fetch 后一度发现远端新增提交涉及已有
 本地修改，因而没有冒险快进。原生验收结束后，共享工作树由并行会话推进并推送至
-`1d5404e89bb4c1587566b11382b7dff8aed71d7d`；当前本地 `master` 与 `origin/master` 一致，目标提交
-仍是祖先。`f22750e..1d5404e` 没有修改本批 Window/UI polyfill、类型、API Reference 或 catalog，
-所以已验收二进制中的目标实现与当前 HEAD 相同。本会话没有切分支、reset、clean、stash、提交
-或推送，也没有覆盖并行会话的修改。
+`1d5404e89bb4c1587566b11382b7dff8aed71d7d`；在本批交付提交开始前，本地 `master` 与
+`origin/master` 均为该提交，目标提交仍是祖先。`f22750e..1d5404e` 没有修改本批 Window/UI
+polyfill、类型、API Reference 或 catalog，所以已验收二进制中的目标实现与该基线相同。验收阶段
+没有切分支、reset、clean 或 stash，本批也不覆盖并行会话的修改。
 
 ### 构建来源
 
