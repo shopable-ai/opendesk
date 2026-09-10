@@ -18,12 +18,22 @@
 2. **不二 / NotTwice**：英文语义最直接，用户第一次看到就容易理解，但 `notwice.com` 已被注册。
 3. **不二 / NonBis**：最短的高质量 `.com` 候选之一，文化内涵强，但需要解释 `bis = twice`。
 
-若当前必须确定一个主域名，优先级为：
+另保留一条 OpenDesk 系备用路线：
+
+4. **OpenDesk X / `opendeskx.com`**：若不建立新的独立商业品牌，而希望延续现有 OpenDesk 技术品牌，可作为高优先级备用；Exact `.com` 在 2026-09-11 查询时仍可注册。`X` 可稳定承接 Cross-App、Cross-Platform、eXecution、eXtensible 四层含义，但该路线仍继承 `OpenDesk` 本身的重名与品牌近似风险，因此不取代前三个独立品牌候选。
+
+若当前必须确定一个主域名，优先级仍为：
 
 ```text
 untwice.com
 > notwice.ai
 > nonbis.com
+```
+
+OpenDesk 系备用：
+
+```text
+opendeskx.com
 ```
 
 ## 域名评分总表
@@ -57,6 +67,8 @@ untwice.com
 | 15 | **getbuer.com** | **78/100** | 可注册 | 保留 Buer 的短名称优势并能拿到 `.com`；但英语用户无法从 Buer 理解产品价值，而且 Buer 核心域名资产已经较分散。 |
 | 16 | **buer.run** | **76/100** | 可注册 | 4 字母极短，`.run` 又符合执行语义；但 `buer.com/.net/.ai/.app/.io` 均已注册，国际品牌解释成本较高。 |
 | 17 | **buer.one** | **75/100** | 可注册 | “不二 / One / 唯一”的品牌故事有趣；更适合作为创意或保护域名，不适合作为全球主站。 |
+
+> **OpenDesk 系备用评分：`opendeskx.com` — 95/100（条件评分）**。该评分成立的前提是正式使用 **OpenDesk X** 作为品牌或技术平台名称，使域名与品牌形成 Exact Match；若只是因为 `opendesk.com` 不可用而临时追加字母 `X`，则不应按 95 分评价。
 
 ## 三个决赛方案
 
@@ -114,6 +126,54 @@ Untwice your work.
 
 - 普通英语用户并不知道 `bis` 表示 twice，首次传播需要解释。
 
+## OpenDesk X 备用路线
+
+**品牌/技术平台候选：OpenDesk X**
+
+**主域名：`opendeskx.com`**
+
+**条件评分：95/100**
+
+2026-09-11 实时查询快照：
+
+```text
+opendeskx.com      -> 可注册
+opendeskx.ai       -> 可注册
+opendeskx.app      -> 可注册
+opendeskx.io       -> 可注册
+opendeskx.run      -> 可注册
+getopendeskx.com   -> 可注册
+useopendeskx.com   -> 可注册
+```
+
+推荐理由：
+
+- `opendeskx.com` 是可直接控制的 Exact `.com`，比 `useopendesk.com` 等前缀域名更完整；
+- 可以最大程度继承当前 OpenDesk 仓库、Runtime、SDK 和开发者认知，迁移成本低；
+- `X` 不必作为无意义附加字符，可以冻结为多层产品语义：
+  - **Cross-App**：跨桌面应用和业务系统执行；
+  - **Cross-Platform**：Windows、macOS 以及未来其他执行端；
+  - **eXecution**：把 Agent/AI 的意图转化为真实软件操作；
+  - **eXtensible**：JavaScript、Recipe、Runtime API、Custom UI 等扩展能力；
+- 可进一步形成 `OpenDesk Studio`、`OpenDesk Run`、`OpenDesk Runtime` 等技术产品线，而 OpenDesk X 作为上层技术品牌。
+
+主要限制：
+
+- 该方案仍完整继承 `OpenDesk` 字样，因此无法消除已有同名/近似 OpenDesk 软件、AI、自动化项目造成的搜索、商标和品牌混淆风险；
+- `X` 的四层解释必须真正写入品牌规范并长期一致使用，否则容易退化成“为了拿 `.com` 临时加一个 X”；
+- OpenDesk X 更适合作为**现有技术品牌延续方案/备用方案**，不自动优先于具有独立品牌资产的“不二 / Untwice”。
+
+当前定位建议：
+
+```text
+商业用户品牌候选：不二 / Untwice
+技术平台：OpenDesk / OpenDesk X（备用升级路线）
+
+如果最终采用双层品牌：
+Untwice
+  -> Powered by OpenDesk X
+```
+
 ## Buer 路线判断
 
 `Buer` 的优势非常明确：只有 4 个字母，并且与中文“不二”的拼音形式直接相关。
@@ -168,6 +228,15 @@ P0  nonbis.ai
 P1  nonbis.app
 P1  nonbis.run
 P2  nonbis.net / nonbis.io / nonbis.co / nonbis.one
+```
+
+若保留 **OpenDesk X** 作为备用技术品牌，优先顺序：
+
+```text
+P0  opendeskx.com
+P1  opendeskx.ai
+P1  opendeskx.app
+P2  opendeskx.run / opendeskx.io
 ```
 
 不建议因为首年促销价格很低就大量注册弱候选。优先控制：
