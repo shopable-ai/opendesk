@@ -6,7 +6,7 @@ order: 70
 
 # Agent-first Recorder｜行为案例、测试空间与验收计划
 
-状态：验证设计 v0.4，2026-09-08。本文件定义应怎样验证，不是已执行的质量报告。实际工具、Skill 宿主加载、模型提取、桌面测试及评分均未因文档写入自动通过。返回[设计总纲](README.md)，需求见[requirements.md](requirements.md)，责任映射见[chain-design.md](chain-design.md)。
+状态：验证设计 v0.5，2026-09-10。本文件定义应怎样验证，不是已执行的质量报告。实际工具、Skill 宿主加载、模型提取、桌面测试及评分均未因文档写入自动通过。返回[设计总纲](README.md)，需求见[requirements.md](requirements.md)，责任映射见[chain-design.md](chain-design.md)。Structured UI Collection Reading 的专项技术合同见[架构正文](../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)。
 
 ## 一、先确定验证对象与范围
 
@@ -229,7 +229,7 @@ order: 70
 
 ## 七、反向检查遗漏与无用新增
 
-- 逐项核对 DREQ-01—DREQ-24 是否在[链路映射](chain-design.md)中对应责任、行为案例和成果。
+- 逐项核对 DREQ-01—DREQ-29 是否在[链路映射](chain-design.md)中对应责任、行为案例和成果。
 - 核对 S1—S12、R1—R13、三个循环、三种入口、五个结果层次和计算器分段仍然完整；只改变文件位置不能丢掉方法，简化参考树不能覆盖完整任务树。
 - 核对本轮重点：模型主导、同一 Agent 正常路径、必要范围、材料分级、同源审阅与修改影响，以及真实提取到普通 JS 的消费链；不要只增加概念。
 - 项目背景未被开发链替代；组合能力与开发 Skill 不硬配；纯 JS／混合运行交付及资产复用均有输入输出、责任与行为判据。
@@ -246,3 +246,51 @@ order: 70
 2026-09-07，v0.3 修订：依据用户补充的项目背景新增 BC-17—BC-20，保留原 BC-01—BC-16、计算器基线与评分门禁；新增案例均为计划，不声称聊天、跨应用或他人复用已通过。
 
 2026-09-08，v0.4：在原唯一验证计划中增加 BC-21—BC-25、应用工程四层测试与三批实施，统一评分来源。第一批必须包含实际模型提取及审阅纠错；既有离线原型及其历史测试数不当成本轮结果，也不代替真实应用通过。
+
+## 九、Structured UI Collection Reading 专项验证矩阵（v0.5）
+
+本节把 DREQ-25—DREQ-29 转成可执行测试空间。它不新增 S13、不创建新的 Gate 枚举，也不把 Working API 当作已经存在；当前全部为 planned/not-run。Runtime 详细算法只引用[Structured UI Collection Reading](../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)。
+
+| ID | 场景 | 必须证明 | 禁止的错误通过 |
+| --- | --- | --- | --- |
+| SC-A | AX/UIA 完整 list | native observations 可形成当前 viewport items，结构、顺序和 coverage 可解释 | 把一次 snapshot 的 complete 当 whole collection complete |
+| SC-B | AX/UIA 不完整但 OCR 正常 | 保留 snapshot partial，OCR 补充可见文字并进入统一 Observation；结果来源可追溯 | 丢弃原生不完整状态或把 OCR 冒充 native value |
+| SC-C | 完全没有 usable UI tree 的视觉 list | 最小 ROI + OCR/Layout/Image 能产生可验证 visible items，或明确 uncertain | 因无 UI tree 直接宣称不支持，或 VLM 猜不可见 item |
+| SC-D | OCR 文本正常但 item grouping 困难 | deterministic validator 能识别不确定，需要时请求受限 Semantic Vision proposal | 仅按 OCR 行距任意合并成业务记录 |
+| SC-E | VLM proposal 正确 | proposal 关联 observation ids/bounds/source，重新经 validator 后才接受 | VLM 返回什么就直接成为 Truth/Item[] |
+| SC-F | VLM 与 OCR/native 冲突 | 冲突保留为 evidence/conflict，strict 模式 fail closed 或 partial/uncertain | 选择更方便的一方并覆盖另一方 |
+| SC-G | 连续重复相同文字 item | 三条相同“好的”等合法记录均保留；continuity 依赖序列上下文而非 text key | `dedupeKey=item.text` 合并合法重复 |
+| SC-H | item 高度不同的聊天 timeline | segmenter 支持 variable-height item、分隔/锚点/结构约束 | 用固定行高或 index 假定身份 |
+| SC-I | scroll 后约 30% overlap | overlap 可被 sequence continuity 证明，只合并已证明重叠项 | 直接整屏翻页后凭首尾文本猜连续 |
+| SC-J | scroll 后无法证明 continuity | strict collector 停止并返回 partial + continuity failure evidence | 静默把两个 viewport 直接拼接 |
+| SC-K | virtualized list | viewport coverage 与 whole collection completion 明确分离；滚动后可继续发现新物化 item | snapshot 只有 8 个节点就宣布列表只有 8 条 |
+| SC-L | 读取中新增消息/删除/重排 | anchor/sequence 变化触发 `COLLECTION_MUTATED` 或等价结构失败；不混合两个时间状态 | 把动态变化误当新页并合成“完整数组” |
+| SC-M | scroll 到末尾 | 至少组合 native end/实际位移/anchor/overlap 后无新 item 等可用证据形成终止 | 只因 OCR 没新文字就判断结束 |
+| SC-N | maxSteps/maxItems/timeout 提前停止 | 返回 partial、停止原因、已收集范围与 evidence；不继续副作用 | 超预算后仍滚动或把 partial 标 complete |
+| SC-O | VLM HTTP timeout / reject / schema invalid / empty | 有界失败，无无限重试；deterministic 部分按合同保留或整体 blocked | 把模型错误吞掉后返回虚构 item |
+| SC-P | business mapping parser 错误 | `CollectionItem[]` 读取质量与 `parseConversation/parseOrder` 业务转换分别归因 | parser bug 被记录成 readCollection/segmenter 失败，或反向扩大 Runtime business schema |
+
+### Collection 测试层级
+
+1. **Phase 1 fixture/schema**：先冻结 Observation 与 CollectionProfile schema，准备 list、table、variable-height timeline、重复文本、virtualized/no-tree fixture；校验 provenance、coordinate-space、unknown/conflict，不要求公共 API。
+2. **Phase 2 deterministic core**：独立测试 current-viewport CollectionSegmenter/CollectionValidator；SC-A—D、F—H、K 的 deterministic 部分必须可在无在线 VLM 时运行。
+3. **Phase 3 `UI.readCollection()` Experimental**：只有 Runtime/type/docs/tests 同步且 current viewport coverage 语义通过，才允许进入 Experimental；不得修改 Stable 文档提前宣称实现。
+4. **Phase 4 SemanticVisionProvider**：使用可注入 fixture provider 和一个真实受控 HTTP/provider 集成验证 SC-E/F/O；记录 timeout、call/size budget、最小 ROI 与脱敏边界，不绑定具体模型厂商到 Collection API。
+5. **Phase 5 scroll continuity/merge core**：SC-G/I/J/K/L/M/N 必须覆盖 overlap、sequence continuity、合法重复、mutation、partial stop；collector 只能复用 Phase 2/3 的同一 segmentation。
+6. **Phase 6 `UI.collectCollection()` Experimental**：明确 scroll side effect、timeout/limits/partial completion；没有可靠 restore-position 证据时不得承诺恢复原滚动位置。
+7. **Phase 7 真实应用资格**：至少一个普通 list、一个 variable-height timeline、一个 no-usable-UI-tree 场景；macOS 与 Windows 分别报告实际 backend/权限/结果，未真机的平台不外推。
+
+Pagination、Load More、custom click-next 不自动进入 Phase 1—6。需要时先在普通 Recipe/App Adapter 使用当前真实动作 API完成并验证 page identity/content change；只有多个独立应用证明稳定共同合同后，才进入 Traversal built-in strategy 评审。
+
+### Collection 专项硬性验收规则
+
+- `readCollection()` 必须保持观察语义：不滚动、不翻页、不改 UI 状态、不直接生成 `sender/price/customerName/conversationTitle` 等业务字段。
+- `collectCollection()` 必须明确有副作用；continuity/mutation 不确定时宁可 partial/stop，也不能静默拼接。
+- AX/UIA、OCR、Layout/Image、Semantic Vision 都保留 source/provenance；没有任何一个来源拥有“永远优先”的特权。
+- Runtime VLM assist 默认关闭并受 timeout/size/call budget；不得通过 `opendesk ai` 嵌套 Coding Agent，不 eval 模型输出。
+- 默认只上传最小 ROI；Secret/privacy policy、日志脱敏、provider error、schema invalid 和模型拒绝必须进入测试。
+- 设计通过不能替代实现；Phase 1/2 fixture 通过不能替代 Runtime API；Experimental API 通过不能替代真实应用资格。
+
+### 2026-09-10 v0.5 修订
+
+新增 Structured UI Collection Reading 专项矩阵 SC-A—SC-P 与 Phase 1—7 验证阶梯，覆盖 AX/UIA fallback、OCR、VLM proposal/conflict、重复文字、variable-height timeline、overlap、continuity、virtualization、mutation、end detection、budget stop 与 business mapping 边界。所有测试当前均保持 planned/not-run；本文写入不构成 Runtime 或真实应用通过。

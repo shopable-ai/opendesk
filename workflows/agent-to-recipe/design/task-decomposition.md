@@ -6,7 +6,7 @@ order: 30
 
 # Agent-first Recorder｜工作流任务分解树
 
-从真实任务／人工开发目标／已有自动化资产出发，形成有依据、可验证并能维护的普通 OpenDesk JavaScript 与必要组合能力；有必要判断时明确交付 JS／Agent 混合流程及真实接入条件。状态：框架分析 v0.4，2026-09-08，不是已运行通过报告。返回[设计总纲](README.md)；贯穿案例见[计算器](../cases/calculator.md)，组合业务示意见[聊天案例](application-operations.md#聊天业务的粒度与组合示例)。
+从真实任务／人工开发目标／已有自动化资产出发，形成有依据、可验证并能维护的普通 OpenDesk JavaScript 与必要组合能力；有必要判断时明确交付 JS／Agent 混合流程及真实接入条件。状态：框架分析 v0.5，2026-09-10，不是已运行通过报告。返回[设计总纲](README.md)；贯穿案例见[计算器](../cases/calculator.md)，组合业务示意见[聊天案例](application-operations.md#聊天业务的粒度与组合示例)。Structured UI Collection Reading 的详细 Runtime/VLM/Traversal 设计只维护在[专项架构](../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)。
 
 ## 使用依据与编号
 
@@ -14,6 +14,7 @@ order: 30
 - 本文保留五个需求结果层次，下面写实际要完成的大任务和小任务；阶段是开发自动化的方法，不是生成后每次业务运行都要重走的步骤。
 - 讨论中的十三节点视图也保留在后文，但用 R1—R13 标识其原节点，防止“讨论 S4＝状态重建”与“合同 S4＝动作后验证”混用。这是来源对照，不是新增运行阶段或悄悄修订上游文档。
 - 应用操作细化见[应用操作建模与封装](application-operations.md)；S11 的按需质量改进见[code-rebuild](code-rebuild.md)。本次只创建 [application-engineer 方法入口](../skills/application-engineer/SKILL.md)，不声明对应新 API、自动调度或其他 Skill 已实现。
+- Structured Collection Reading 作为 S1—S12 内的跨应用数据读取能力整合，**不新增 S13，也不新增 collection/ui-understanding/VLM Skill**。`UI.readCollection()`／`UI.collectCollection()` 当前只是在专项架构冻结的 Working Contract，真正实现前生成代码只能使用当前 API。
 - 本文回答完整需要做什么；[requirements.md](requirements.md)明确来源和需求基线，[chain-design.md](chain-design.md)明确环节、输入输出和组合，[validation-plan.md](validation-plan.md)明确凭什么通过。不在任务树复制完整专业方法和数据合同。
 
 ## 工作流定位与边界
@@ -47,11 +48,13 @@ order: 30
         - 分别确定步骤级和任务级成功标准、验证来源与证明强度，不把工具返回当业务成功。
         - 区分开发入口与业务交付：需要单项操作、组合能力或完整流程，采用纯 JS 还是保留必要判断；声明单次、自用复用或他人复用范围，不把脚本生成数当用户收益。
         - 明确当前核心目标、必要父区域／锚点／进入路径／结果区域、阻塞与重名对象及次要候选；困难不能成为降级必需目标的理由。
+        - 若任务需要重复 UI 记录，明确读取的是 current viewport 还是需要跨 viewport 的逻辑集合；业务需要的是 generic item 还是 Conversation／Message／Order 等字段，不把两者混成 Runtime 要求。
       - 明确执行约束与授权。
         - 限定允许对象、允许动作、禁止动作、人工确认、隐私和 Secret 引用。
         - 设置探索、执行、重试、模型调用和总成本预算，明确失败与停止条件。
         - 区分只读、可安全重试与有不可逆副作用的操作；界面文字和外部返回不是新授权。
         - 明确截图／人工图片的观察范围、允许保存和上传的内容、自动核验／人工审阅方式；能力建设另有页面、状态和预算边界。
+        - 若允许跨 viewport 收集，显式授权 scroll side effect 与最大步数／条数／时限；若只允许观察，则不得通过隐藏的 `scroll:true` 改变用户位置。
       - 盘点现有成果并建立粗粒度任务树。
         - 核对图片、脚本及内容版本、应用知识、任务包、交接和实际证据，不把聊天描述当可执行资产。
         - 按业务子目标与数据依赖拆工作包，写清完成结果、先后关系和待确认项，不预编造全部点击。
@@ -74,42 +77,48 @@ order: 30
         - 模型主导全局粗识别、关键部分精查：区域与排列、控件与语义、父子、标签—输入、行内归属、Tab—面板、可观察状态、候选特征与未知。
         - 按 Application、Window／Surface、Page／State、Region、Target、Action Point 缩小范围；区分 Layout、UI 组件和业务语义，保留操作及结果区域。
         - 核对实际可用结构、Accessibility、文字、图色、OCR／Vision；已有布局算法是待评测辅助，不能成为此子作业强制前提。
-        - 程序校验 ID、引用、关系、几何与版本，从同版数据生成原图、叠加图、简化结构图、属性／差异视图；不让模型自由重画核对图。
-        - 按约定自动核验或人工审阅关键认识。结构合法不等于语义正确，未发生的人审不写通过；关键授权和明确要求的人审不能绕过。
-        - 修订类型、名称、矩形、父区域、关系或未知项后保留原证据和旧版，记录原因及范围，重生视图并标出受影响规则、操作与验证。
-        - 发布当前可消费的限定认识、版本、候选、必需缺口和次要延后项；仅认识包可结束，定位／操作／业务未测保持未测。
+        - 若页面包含 list/timeline/table/grid/cards/tree，识别 collection region/kind、主轴、可见 item 边界与重复结构；将 AX/UIA、OCR、Layout/Image、Semantic Vision 的事实/候选统一按 provenance 关联，不建立多套互不兼容 reader。
+        - 为需要重复读取的结构生成或修订 `CollectionProfile` 候选，只描述 item 的结构识别与 validation constraints，不放 `sender`、`price`、`conversationTitle` 等业务字段；必要时用 VLM 提出 grouping/profile proposal，再由确定性校验和 overlay 审阅确认。
+        - 程序校验 ID、引用、关系、几何与版本，从同版数据生成原图、叠加图、简化结构图、属性／差异视图；collection overlay 还应标出 item boundary、证据来源和 conflict，不让模型自由重画核对图。
+        - 按约定自动核验或人工审阅关键认识。结构合法不等于语义正确，VLM proposal 不等于 Truth，未发生的人审不写通过；关键授权和明确要求的人审不能绕过。
+        - 修订类型、名称、矩形、父区域、关系、CollectionProfile 或未知项后保留原证据和旧版，记录原因及范围，重生视图并标出受影响规则、操作与验证。
+        - 发布当前可消费的限定认识、版本、候选、必需缺口和次要延后项；仅认识包可结束，定位／操作／collection runtime／业务未测保持未测。
       - 只消除影响下一步的未知。
         - 不足时进行有问题、有预算、有退出条件的探测，标记事实、解释和假设。
         - 只做获准的状态准备，重新观察确认，不擅自清空用户数据或关闭未保存内容。
-        - 缓存保存有效知识与条件，不保存永久坐标；不知道真实控件总数时不声称全量识别。
+        - 缓存保存有效知识与条件，不保存永久坐标；不知道真实控件或逻辑集合总数时不声称全量识别。
     - **S3 ↔ S4 ↔ S5｜操作、观察验证与分类决策的微循环；同步采集伴随执行**
       - S3：确认对象与前提，执行当前获准动作。
         - 动作前记录简短子目标、目标依据、预期状态变化和风险。
         - 允许有限探索、已有脚本调用、人工接管或替代路径，明确真实执行者及范围。
         - 同步记录动作请求与返回、前后观察、时间、窗口身份及证据引用，不在结束后补造事实。
         - 即时保存关键读取值、来源、实际消费者、数据有效条件与已发生或不确定的副作用；必要图片实际可读，不用示例路径顶替。
+        - collection scroll 属于 UI 输入副作用；若任务实际执行该动作，同样记录 scroll 前后 viewport、方向/幅度、观察变化和 continuity 证据，不能把它记成纯读取。
       - S4：重新观察并判断实际效果。
         - 区分动作返回、目标命中、界面变化和业务结果；独立保存期望与实际值。
         - 检查变化是否属于同一对象，排查加载延迟、其他操作和外部变化；时间相邻不等于因果已证实。
         - 将关键步骤记为 pass、fail 或 uncertain，保留验证来源和不足，不用“应该读到的值”补观察。
         - 没有读到状态不等于 false；Tab 高亮不等于内容就绪，需检查实际内容身份与加载条件。
+        - 对 collection traversal 区分“viewport 已改变”“两屏 continuity 已证明”“逻辑集合到达末尾”三件事；新消息/删除/重排等 mutation 不能误判为正常 scroll 连续性。
       - S5：标记路径性质并决定安全下一步。
         - 区分正常业务、setup／状态准备、verification、exploration、off-task、error、retry 和 recovery。
         - 保留必要的读取、准备和验证；失败动作可以有恢复价值，成功动作也可能是无关探索。
         - 短暂等待或安全重试有界执行，恢复后再次验证，不能把重试误作业务循环。
         - 发送、提交等结果不明时先核对副作用，不换路再做一次；身份歧义、越权或预算耗尽时停止。
+        - continuity 无法证明、collection mutation、profile drift 或模型/多源 evidence 冲突时停止依赖该结果的后续写操作，按责任返回；不能静默拼接或 text-only 去重后继续。
       - 保存可追溯的 Experience Unit。
         - 关联 BeforeState、子目标／意图、Target 假设与依据、Action、ExpectedTransition、AfterState、ActualEffect、Verification、Evidence、Classification 和恢复关联。
         - Raw Trace 只追加；后续去噪不能改写原事件、覆盖失败证据或把解释提升为事实。
         - 根据问题选择局部截图、结构化读取或补观察，不强制每步采集全屏、OCR、视频和全部模态。
       - 根据缺口返回正确位置。
-        - 已有页面和规则仍适用时核对现场后继续；未覆盖的新页面、布局冲突或对象歧义才定向返回 S2 的认识子作业。
+        - 已有页面和规则仍适用时核对现场后继续；未覆盖的新页面、布局冲突、collection profile drift 或对象歧义才定向返回 S2 的认识子作业。
         - 已知加载依原规则有界等待；应用规则失效返回 S2／S10；代码错误返回 S11；缺观察定向补采。
         - 目标或授权改变返回 S1；关键结果未知先核对／停止，不继续依赖它的写操作。
     - **S6｜用任务级证据关闭本次示范或指定范围的补采**
       - 汇总任务合同、原始事实、Experience Unit、实际数据流、初始／最终状态、环境和证据索引；检查关键图片及引用真实可读。
       - 核对最终业务对象、结果、副作用和证明强度；不能用“所有步骤走完”替代任务完成。
       - 封存 Demonstration Dossier，明确完整成功、失败、局部完成或 inconclusive，以及未决问题。
+      - collection 证据若只覆盖 current viewport，Dossier 必须保留该范围；只有实际 traversal/end-detection 支持时才能声明相应逻辑集合范围，不能从 native snapshot item count 推断全量。
       - 完整成功示范可进入完整新生成路径；失败包／局部补证包只支持诊断或同范围接续，不能冒充完整示范。
       - 人工开发及已有资产按实际来源交接代码、试验和证据；不伪造缺失示范，不能将接续资格升级为完整 Agent 新生成资格。
   - **Ⅱ. 从执行经历到可解释的业务过程**
@@ -119,6 +128,7 @@ order: 30
       - 解释哪些步骤为何必要、哪些提供数据或建立前提、哪些只是绕路或实现偶然。
       - 复核运行时分类，保留必要读取、状态准备、等待和验证；正常路径与异常经验分开。
       - 每个保留／排除决定关联原始观察与证据，保留 Omission Log、Recovery Candidates 和未决项。
+      - 对 collection 过程分别解释 viewport 观察、scroll 输入、continuity/merge 与业务 parser；不能把业务字段推断倒灌成“Runtime 当时观察到了该字段”。
       - 不足时补读相关时间段与局部关键帧；仍无法确认则提出定向补采，不凭语言自信补齐隐藏步骤。新观察不能事后伪装成原现场。
     - **S8｜语义落地 → 业务分段 → 命名 → 数据交接**
       - 将 Where／What 绑定到正确窗口、区域和业务对象，将 Why／Effect 绑定到子目标、实际变化及证据。
@@ -127,6 +137,7 @@ order: 30
       - 区分应用语义操作、组合业务能力和完整业务流程；为步骤保持稳定标识和到原始操作的映射。
       - 对照[聊天业务示例](application-operations.md#聊天业务的粒度与组合示例)提取可复用操作与组合合同：发送确定内容不必读取历史或生成回复；基于历史回复可以复用同一发送能力，不按业务动作新增开发 Skill。
       - 跨应用步骤明确源对象到目标对象的对应关系、实际数据与转换规则；切换窗口或剪贴板值本身不证明数据交接正确。
+      - 对重复记录读取明确两段数据合同：`CollectionItem[]` 是结构观察，随后才由 App Adapter／Recipe parser 映射为 `Conversation[]`／`Message[]`／`Order[]` 等业务对象；业务 parser 的字段规则、错误与验证不写入 CollectionProfile。
       - 用业务命名和注释伪代码表达过程，实现层的等待与定位放在相应步骤内部。
       - 标记确定执行、内容判断、人工确认及能力缺口；初步划分不代表这些集成已实现。
       - 过程解释不成立返回 S7，业务目标不清返回 S1，事实不足返回 S3—S6 定向补采。
@@ -142,14 +153,17 @@ order: 30
         - 按业务步骤与状态对齐多次示范，不按鼠标事件序号对齐。
         - 提出顺序、条件、分支、循环、前后条件、Recovery、Completion、Retry 和 Checkpoint 候选，并限制支持范围。
         - 本阶段确认业务复用要求和所需应用操作；AppProfile 已有定位候选不复制重建，S10 只将确认需求落实为应用规则及验证。
+        - 对 collection 明确 current-viewport 是否已满足业务；只有业务确实需要跨 viewport 且授权允许 UI 副作用时才选择 traversal。scroll overlap/continuity/end 是结构可靠性要求，pagination/load-more 在公共合同未成熟前仍由 App Adapter／Recipe 明确承担。
       - 用最小补证解决关键不确定性。
         - 区分已确认规律、待测候选和不支持情况；单次示范无法证明的分支不能被编造。
         - 形成最小 record-next，按缺口返回 S2 或 S3—S6，只补相关路径与条件。
+        - collection 只见一个 viewport、只有一份 VLM proposal 或只有 UI tree 当前物化项时，不能据此泛化 whole-collection completion、dedupe identity 或所有主题/缩放下的 grouping。
         - 新证据与原业务步骤及变量关系对齐后再批准，不能靠增加文档代替实证。
       - 为每步选择实现与判断责任。
         - 能复用则复用，确定规则由普通 JS 组合，必要理解交 Agent，授权决策交人工。
         - Agent 环节明确必要数据、结构化输出、校验、预算、在线依赖、失败与人工接管，不直接执行其返回的任意 JS。
         - 判断粒度与组合粒度分别选择；复杂的确定流程不强制模型推理，必要判断也不能固化成示范文案。声明允许的判断结果及上下文失效后返回读取／判断的位置。
+        - Semantic Vision 默认用于 application-engineer 作者期建立/维修 CollectionProfile；生产 runtime assist 即使未来实现也默认关闭且有界，只返回 proposal/evidence，不通过 `opendesk ai` 嵌套 Agent。
         - 确有能力缺口则单独列出，不假设宿主自动暂停、恢复或调用未接通服务。
       - 发布已确认的 SemanticProcedure。
         - procedure.json 是过程主产物，procedure.md 是同版本可读视图，不成为第二份可执行规格。
@@ -161,11 +175,13 @@ order: 30
       - 将业务所需操作落实为 Target、Locator、当前 Geometry 和本次 Coordinate，四者不混为永久坐标。
       - 按[应用操作作业树](application-operations.md)区分布局、区域、组件、按钮身份和操作方法。
       - 核验候选唯一性、锚点、布局适用性、坐标来源与新鲜度；按钮矩阵只是一种需证据支持的候选。
+      - 对重复 UI 结构按专项架构建立/修订 versioned CollectionProfile：只写 collection kind、axis、native role hints、item geometry/repetition/separator/anchor 与 validation constraints；AX/UIA/OCR/Layout/Image/VLM 都保留 provenance 和 conflict，不把 VLM proposal 当最终真值。
+      - 区分“识别当前 visible item”的 CollectionProfile 与“怎样继续滚动”的 TraversalStrategy；需要 scroll 时另定义 side effect、overlap、continuity、mutation、end 与预算，不把滚动参数塞进 item profile。
       - 补齐状态准备、有界等待、后置观察、业务验证、失败分类和安全停止／恢复。
-      - 定义感知预算、知识复用、局部观察与缓存失效；不每步全屏推理，也不为省成本取消关键验证。
+      - 定义感知预算、知识复用、局部观察与缓存失效；不每步全屏推理，也不为省成本取消关键验证。VLM 只上传获准最小 ROI，模型失败不无限重试。
       - 已有操作满足要求则复用；必要时普通函数组合，不新增应用对象或新的同名 API。
-      - 交付同版 AppProfile、实际存在的 helper、证据和审阅／验证状态；修订后标出影响，认识完成不自动证明定位／操作通过。
-      - 真正的 Runtime 原语缺口按[扩展框架](../../../docs/frameworks/runtime-api-extension-framework.md)开独立任务，只阻塞受影响部分，不顺手改 Core 或安装服务。
+      - 交付同版 AppProfile、CollectionProfile（如适用）、实际存在的 helper、证据和审阅／验证状态；修订后标出影响，认识完成不自动证明定位／操作／collector 通过。
+      - 真正的 Runtime 原语缺口按[扩展框架](../../../docs/frameworks/runtime-api-extension-framework.md)和[Structured Collection 专项](../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)开独立任务，只阻塞受影响部分，不顺手改 Core 或安装服务。
     - **S11｜生成或登记普通 JS → 检查本次要求 → 按需独立改进 → 冻结候选**
       - 根据来源取得合格基础代码。
         - 已有脚本满足需求时原样采用；有已确认缺口时最小修复；无代码时依据已批准过程形成基础实现。
@@ -180,6 +196,8 @@ order: 30
         - 保存实际源码／hash、入口、工作目录、依赖、输入合同、平台／布局支持范围和来源映射。
         - sourceMapping 用业务步骤到函数／代码区域的简表即可，不新增编译器或 source-map 引擎。
         - 说明组合能力怎样被直接调用或被完整流程复用；普通函数可以同文件实现，不为每个操作新增脚本入口。按[最小资产交付条件](chain-design.md#作为复用资产交付的最小条件)提供配置、验证与维护说明。
+        - 对 collection 生成物，先核对当前 Runtime 是否真的已有 `UI.readCollection()`／`UI.collectCollection()`；在它们仍是 Working Contract 时，不能写入候选并宣称可运行，只能使用当前真实 Accessibility/Vision/UI/scroll API 组合或明确保留 Runtime 实施缺口。
+        - business mapping parser 与 generic collection reader 分开；parser 的 `sender`/`price` 等字段规则由应用/业务测试覆盖，不能反向修改 CollectionProfile 来“配合期望答案”。
         - 混合候选没有实际宿主／服务接入时明确标未集成；mock 或片段不冒充端到端业务程序。
         - 新候选、新 hash 对应新资格；原样复用保留原 ref／hash，不复制伪装新资产。
         - 消费实际版本的过程、规则和 helper，不把旧截图、历史坐标和示范读值写成运行时事实。
@@ -197,6 +215,8 @@ order: 30
         - 先检查交接结构、版本和静态语义，再验证必要操作、业务子步骤及整体流程。
         - 分别检查采集、模型提取、审阅纠错、规则复用和实际执行；模型评测隔离真值，不能用手写 fixture 或模型自评代替独立结果。
         - 按用途、风险和请求范围选择基线 Fresh Run、合法变参、旧状态污染、支持范围内扰动、目标缺失／歧义、错误期望、关键证据缺失和错误拒绝，不将所有环境测试强加给单次受控任务。
+        - collection 资格按[验证计划](validation-plan.md#structured-ui-collection-reading-专项测试矩阵)覆盖 AX/UIA 完整/不完整、无 UI tree、OCR grouping、VLM proposal/conflict、重复相同文字、变高 timeline、scroll overlap/continuity、virtualization、mutation、end、预算停止与 provider failure；current viewport 与 whole collection 分别评价。
+        - scroll continuity 只有 sequence overlap 被证明后才允许 merge；text-only/index-only 去重即使最终条数“看起来正确”也失败。无法证明 continuity 或发现 mutation 时，应验证其 partial/structured stop，而非要求强行完成。
         - 按实际支持能力验证等待、恢复、失败定位、中断和安全接续；文件检查点不等于调用栈恢复。
         - 核对真实数据流和最终业务结果，两者分别证明；工具退出码、passed 字段或正确最终数值不能单独证明完整数据链。
         - JS 确定步骤、Agent 判断质量、人工边界和端到端结果分开评价，模拟只能证明其实际覆盖部分。
@@ -205,6 +225,7 @@ order: 30
         - 保存场景期望、实际、证据、pass／fail／not-run／blocked、局限和修复请求。
         - 按共享合同区分 requested、exercised、qualified、excluded；请求内未测或阻塞项不能移到 excluded 换取通过。
         - 资格只绑定实际候选和已证实范围；未在某系统真机验证不声称该平台 live 通过。
+        - CollectionProfile drift、evidence conflict、Semantic Vision unavailable、continuity unproven、collection mutation 与 business parser failure 必须归到不同责任；不能用一个“列表读取失败”掩盖原因。
         - 技术通过、客户接受、实际收款和允许共享是不同事实；计算器通过不代替真实客户交付。
       - 晋级并限定运行责任。
         - 区分采集完成、语义批准、静态候选、UI 回放、业务验证、扰动资格和生产维护状态，不新增公共枚举替换现有合同。
@@ -212,10 +233,11 @@ order: 30
         - 交付代码、必要 helper、配置与 Secret 引用说明、普通入口、停止方式、在线条件、维护人与未测项。
     - **验收失败后的定向返回**
       - 目标／授权／成功标准错误返回 S1。
-      - 应用、定位、布局、Geometry 或等待错误返回 S2／S10。
+      - 应用、定位、布局、Geometry、CollectionProfile drift 或等待错误返回 S2／S10。
       - 缺真实事实返回 S3—S6 定向补采。
-      - 因果、语义、业务分段、参数或数据依赖错误返回 S7—S9。
+      - 因果、语义、业务分段、参数、business mapping 或数据依赖错误返回 S7—S9。
       - JS 实现错误返回 S11，形成新候选与新资格记录。
+      - Runtime collection segmentation/continuity/collector 本身缺陷进入独立 Runtime 能力任务，不要求 application-engineer 用业务规则掩盖；Semantic Vision provider unavailable 按其是否为必要 evidence 决定阻塞或退回 deterministic 结果。
       - Oracle／测试设置错误修正验收方案并重验，不能降低业务标准或冒称原候选已通过。
     - **重复使用、维护与必要资产化**
       - 每次运行重新确认业务对象与可变现场，复用的是知识和代码，不是旧窗口、焦点、截图和读值。
@@ -238,6 +260,7 @@ order: 30
   - 普通路线 Generate 为普通代码生成／按需改进；完整 Recorder 路线才要求实际 Compiler。
 - 沿用工件生命周期而不复制 schema。
   - TaskContract／WorkPlan、AppProfile、Raw Trace／Experience Unit／Evidence、Dossier、SemanticProcedure、CandidateManifest、QualificationRecord 逐级关联。
+  - `CollectionProfile` 是 AppProfile 中可版本化的结构知识，不另建第二套 AppProfile；`Observation[]`/CollectionPage 是观察证据，generic item 与业务对象不是同一工件层。
   - 原始事实不可美化覆盖；意图是解释主张；过程主产物与可读视图保持同版；代码和资格分别冻结。
   - Runtime Evidence、Repair Patch 和新资格记录支持后续修复；知识、候选和资格不是同一种资产。
 
@@ -253,7 +276,7 @@ order: 30
 - R6｜Semantic Grounding：将 Where／What／Why／Effect 绑定证据，对应 S7／S8；效果归因保留在 S4／S7，不遗漏 Attribute。
 - R7｜Behavior Abstraction：参数、规则与能力抽象，对应 S9；先利用 S7／S8 已校正的语义过程。
 - R8｜Workflow Synthesis：组织状态、数据依赖、分支与完成条件，对应 S8／S9。
-- R9｜Robustness Engineering：目标定位、等待、验证和恢复，对应 S10。
+- R9｜Robustness Engineering：目标定位、等待、验证和恢复，对应 S10；collection 场景在此工程化 Profile 与 traversal 约束，不新增节点。
 - R10｜Automation Specification：确认可执行做法及来源，对应 S9—S11 的规格核对；普通路线不是新的可执行 IR。
 - R11｜Code Compilation：代码生成及按需质量改进，对应 S11；节点名称不代表当前须新增 Compiler。
 - R12｜Validation Ladder：结构、静态、Fresh Replay、扰动、恢复、业务结果，对应 S12 验收部分。
@@ -264,6 +287,7 @@ order: 30
 - 保留历史六项专业职责的设计依据，目标职责以[链路设计](chain-design.md)为准；旧 Skill 目录已删除，不作为当前可调用入口。本次新建 application-engineer 方法文件，其余实现状态不被升级。
   - automation-plan 负责 S1；application-engineer 负责 S2／S10；task-demonstrate 负责 S3—S6。
   - procedure-synthesize 负责 S7—S9；recipe-build 负责 S11 的生成／登记；recipe-qualify 负责 S12。
+  - Structured Collection 不增加一个 Skill：CollectionProfile 由 application-engineer 的既有认识/工程化职责生产，Runtime working primitive/collector 由后续能力任务实现，business mapping 属于过程/Recipe，资格仍由 recipe-qualify。
   - 拟新增 code-rebuild 负责独立按需质量改进，不复制另一套代码生成责任；详细 Skill 与正式合同兼容尚未实施，不能把设计名称当作已安装能力。
 - 将工作包与阶段、文件、Agent 区分开。
   - 一个业务工作包可以经过多个阶段；多个业务步骤可在一个 JS 文件中实现，不因节点多而创建大量 Skill。
@@ -277,6 +301,7 @@ order: 30
   - 先核对实际产物及副作用，再判断从哪里继续；running 状态不代表业务尚未发生。
   - 窗口和焦点过期就重读，输入或对象改变就标记受影响结果需重验，不默认从零开始。
   - 取消只承诺宿主与 Runtime 实际支持方式，外层超时不证明底层动作已停止；写结果不明先对账。
+  - collector 若已滚动但因 continuity/mutation/timeout 中断，接续前先核对当前 scroll position 和已取得 partial evidence；当前设计不假装能可靠 restore。
   - 工作包开始、完成、阻塞和计划修订时报告进度；缺工具、授权或证据时留下具体阻塞与已完成部分。
 - 保持证据与设计记录可追溯。
   - 临时运行资料留在 .runtime，长期设计与脱敏案例留在本目录及 cases；计算器记录不得因清理试验目录而丢失。
@@ -290,3 +315,4 @@ order: 30
 - 初次归位更新：明确设计而非最终运行入口；生成与独立可选改进分开，替代旧“改名／必经优化”决定；补充用途与风险裁剪、需求来源和实施前链路关系。未删除原阶段，也未修改上游阶段编号或当前 Skill 合同。
 - 2026-09-07，v0.3：将用户补充的项目目标落实到 S1 的交付范围、S8／S9 的组合与混合选择、S11 的可调用交付及 S12 的业务／复用验证，对应 DREQ-17—DREQ-20；修正已删除 Skill 的状态，不增加阶段、不重写原计算器方法、不声明任何新增业务已通过。
 - 2026-09-08，v0.4：在原完整树内补 S1 范围、S2 界面认识子作业、执行中定向回访、S7 证据边界、S9／S10 分工及分层验证；不以用户提供的简化树覆盖原树，不新增 ui-understanding Skill。
+- 2026-09-10，v0.5：把 Structured UI Collection Reading 分散整合进既有 S1—S12：S1 冻结 viewport/whole 与 scroll 授权，S2/S10 作者与维修 CollectionProfile，S8/S9 分离 generic item/business mapping 与 traversal 决策，S3—S6 保留 scroll/continuity/mutation 事实，S11 守住 Working API 状态，S12 验证 virtualized/overlap/merge/provider failure。未新增 S13、collection/VLM Skill、IR 或 Stable API。

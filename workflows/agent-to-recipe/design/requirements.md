@@ -6,7 +6,7 @@ order: 20
 
 # Agent-first Recorder｜需求发现与需求基线
 
-状态：需求设计基线 v0.4，2026-09-08。本文先继承 OpenDesk 项目背景，再约束“自动化开发工作流与多个 Skill 应具备什么”，不是某次计算器运行的 TaskContract；用户批准本轮方案写入，不表示技术假设、宿主能力或桌面结果已确认。返回[设计总纲](README.md)，后续进入[任务树](task-decomposition.md)、[链路设计](chain-design.md)和[验证计划](validation-plan.md)。
+状态：需求设计基线 v0.5，2026-09-10。本文先继承 OpenDesk 项目背景，再约束“自动化开发工作流与多个 Skill 应具备什么”，不是某次计算器运行的 TaskContract；用户批准本轮方案写入，不表示技术假设、宿主能力或桌面结果已确认。返回[设计总纲](README.md)，后续进入[任务树](task-decomposition.md)、[链路设计](chain-design.md)和[验证计划](validation-plan.md)。Structured UI Collection Reading 的 Runtime/VLM/Traversal 详细技术合同只维护在[专项架构](../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)，本文只保存工作流需求基线。
 
 ## 项目背景与本工作流的职责
 
@@ -51,6 +51,12 @@ Agent-to-Recipe 是生产和完善这些成果的一条开发路径，可以从�
 本次采纳：应用工程内设置可独立进入、交付和测试的界面认识子作业，不新增 ui-understanding 独立 Skill；正常路径先复用、只补缺口，诊断按异常展开但关键事实同步保存；保留用户提供树的 S1—S12 结构含义，作为现有完整树的增量而非替代。拆独立 Skill 必须再有消费者、稳定交接和重复使用证据，不能从名称推定已批准拆分。
 
 这是经本轮授权写入的设计选择，不是模型准确率、工具可靠性、真实人审或业务成功的证明。之前对话的 HTML／ZIP 或通过声明只有实际取得并核查后才可作对应范围的参考，不能直接继承为本轮结果。
+
+### 2026-09-10 Structured UI Collection Reading 需求来源与决策
+
+用户明确要求补齐跨应用重复 UI record extraction：会话列表、消息 timeline、订单/商品/文件/联系人、table/grid/cards/tree/virtualized list；并要求避免把区域发现、AX/UIA、OCR、VLM、item grouping、scroll、pagination、dedupe 与业务 Schema 塞进一个 `UI.extractList()`。
+
+本次采纳：公共结构链冻结为 `Observation[] → CollectionProfile → CollectionItem[]`，之后才由 App Adapter／Recipe／普通 JavaScript parser 转为 `Conversation[]`、`Message[]`、`Order[]` 等业务对象。current viewport 读取与有 UI 副作用的 traversal 分开；VLM 作为受约束 proposal/evidence，默认作者期使用，runtime assist 默认关闭。工作流消费该专项架构，不创建第二个 collection/VLM Skill，也不因工作名存在就修改 Stable API reference。
 
 ## 二、人类需求发现入口
 
@@ -101,6 +107,8 @@ Agent-to-Recipe 是生产和完善这些成果的一条开发路径，可以从�
 - 按任务交付普通 JS／必要操作函数，或有真实接入的 JS／Agent 混合流程；附最少必要的输入、依赖、授权、支持范围、结果验证与停止维护说明。不强迫每个能力拆成独立脚本或开发 Agent Skill。
 - 声明可供他人复用时，使用者应能依据交付说明配置自己的输入和凭据，在支持范围内验证并运行；不得要求继承作者的聊天上下文、个人数据、旧窗口或历史通过结论。成本与重复劳动改善以约定场景和实际测量评价，不预填收益数字。
 - 本轮正式写入应用工程方法及实施规格，不把完整通用 UI 系统作为第一批前提。初批真正完成仍须实际模型提取、同源审阅及纠错闭环；方法文件和手写 fixture 不能代替它。
+- 对重复 UI 记录读取，公共结构能力只产出有来源的 generic `CollectionItem[]`；业务字段由下游 parser/Adapter 映射。没有 usable UI tree 时允许 OCR/Layout/Semantic Vision 参与，但来源与不确定性必须保留，不能因模型可用就把业务 schema 推进 Runtime。
+- 对 virtualized list/timeline，单个 viewport 的可见项数量不能作为整个集合总数；需要跨 viewport 数据时必须明确 traversal 副作用、预算、continuity、mutation 和 partial completion。
 
 ## 五、场景与触发
 
@@ -122,6 +130,7 @@ Agent-to-Recipe 是生产和完善这些成果的一条开发路径，可以从�
 - 基于历史回复：读取获准历史，判断是否回复并生成候选内容，校验及必要人工确认后复用发送能力；不回复或转人工可以是约定的合法结果，见 BC-18／BC-14。
 - 跨应用任务：从一个获准应用取得实际数据，在另一个应用中使用并验证，保持业务对象、来源、数据版本与目标绑定；具体应用和数据规则在任务合同中确认，见 BC-19。
 - 后续及他人复用：在声明范围内重复调用能力或组合流程；共享版本不携带个人凭据和私有证据，新的使用者重新确认环境与授权，见 BC-20。
+- 结构化集合读取：从 list/timeline/table/grid/cards/tree 中读取当前可见 generic item，再按业务规则映射；如果需要历史/全部数据，单独判定是否允许 scroll traversal。没有 UI tree、OCR 分组困难或 profile drift 时可以使用有界 VLM assist，但不改变业务授权与字段 owner。
 
 ## 六、可追溯的设计需求
 
@@ -151,6 +160,11 @@ Agent-to-Recipe 是生产和完善这些成果的一条开发路径，可以从�
 - **DREQ-22｜同源审阅与纠错**：原始证据、叠加、简化结构和属性差异来自同版数据；人工可纠错，自动核验不冒充人审。保留旧版与原因，变更影响传到规则、操作和验证；不建立第二份 AppProfile。
 - **DREQ-23｜同一 Agent 与轻量正常路径**：默认一个 Agent 连续工作；内部子作业按需进入，不逐步骤制造交接。有效资料复用，必要事实同步保存，扩展诊断按异常展开；不能降低核心目标换取完成。
 - **DREQ-24｜分层应用工程评测**：确定性工具、真实模型提取、留出样本规则复用、真实应用／工作流分别证明；已知数据渲染后隔离真值，不混淆截图与辅助信息条件，不用全拒绝或平均分掩盖关键失败。
+- **DREQ-25｜Generic Collection 与业务 Mapping 分离**：公共读取只形成有 provenance 的 `CollectionItem[]`/viewport coverage；应用 `sender`、`price`、`conversationTitle` 等字段由 App Adapter／Recipe parser 映射。parser 错误不得通过扩大 Runtime schema 或模型 prompt 隐藏。
+- **DREQ-26｜多源 Observation 与无 UI tree 路径**：AX/UIA、OCR、Layout/Image、Semantic Vision 的结果归一为可追溯 Observation；snapshot 不完整、OCR 漏字、VLM proposal 与原生冲突均保留。完全无 usable UI tree 时仍可按获准视觉证据推进或明确 uncertain，不建立四套 reader。
+- **DREQ-27｜Collection 与 Traversal 分离**：current viewport item recognition 与跨 viewport scroll traversal 分开；virtualized visible count 不等于 whole collection count。scroll 必须有 overlap、continuity、merge、end、budget 与 side-effect 语义，禁止 text-only/index-only dedupe。
+- **DREQ-28｜VLM 作者期优先与运行期受限**：application-engineer 默认用最小 ROI + native/OCR/layout observations 生成/修订 CollectionProfile；runtime assist 默认 off，只在 uncertain 时有界调用 Semantic Vision provider，输出作为 proposal 经 deterministic validator 复核，不通过 `opendesk ai` 嵌套 Agent。
+- **DREQ-29｜集合动态变化与部分完成**：读取期间新增/删除/重排、continuity 无法证明、maxSteps/maxItems/timeout/cancel 必须显式停止并保留 partial/evidence；不得把两个时间状态静默拼成“完整数组”。pagination/load-more 在跨应用合同未证明前由 Recipe/App Adapter 负责。
 
 ## 七、用途、风险与验收强度
 
@@ -163,7 +177,7 @@ Agent-to-Recipe 是生产和完善这些成果的一条开发路径，可以从�
 
 ## 八、需求基线与变更
 
-- 本文为需求设计基线 v0.4；本轮应用工程方案获准写入，运行可行性、具体平台支持和宿主接入仍待核验，不把写入授权当全部技术结论批准。
+- 本文为需求设计基线 v0.5；本轮 Structured Collection Reading 架构及工作流接线获准写入，Runtime working names、VLM provider 和 scroll collector 仍是设计候选，不能据此声明当前 API 已实现。
 - 确认时记录版本、责任人或确认来源、范围、成功标准、阻断未知及决议；不伪填真实业务审批。
 - 业务运行另立本次 TaskContract；不能将本案例的按钮输入、正整数和期望答案变成所有任务的强制限制。
 - 修改后沿“需求 → 行为案例 → 任务节点 → 责任 Skill／JS／API → 测试与证据”确定影响；仅重做受影响工作，但未测范围仍为未知。
@@ -177,11 +191,12 @@ Agent-to-Recipe 是生产和完善这些成果的一条开发路径，可以从�
 - 跨应用组合、共享许可与支持环境、复用者的配置及维护责任：交付前按声明范围确认；不预设统一平台、分发协议或商业规则。
 - 模型建模耗时、人审修改量、调用费用、复用收益及各层实际质量：按验证计划测量；“主要分析由模型承担”不等于效率已经提高。
 - 既有 Vision 文档／类型返回形态、布局与标注行为、provider 和当前环境之间的差异：仅在需要接入时定向核实，不强制先修整个分割系统。
+- Structured Collection 的 Observation/Profile schema、deterministic segmenter/validator、SemanticVisionProvider、scroll continuity/merge 与真实跨平台资格均尚未实现；按专项架构 Phase 1–7 分批推进，不把 working contract 写进 Stable API。
 - 实际能力质量分与成功率：执行[验证计划](validation-plan.md)后分别报告；设计文本预评审单独记录，不填写运行通过率。
 
 ## 方法依据
 
-来源为用户提供的项目背景、本轮执行授权与参考推导链，以及仓库[总体框架](../../../docs/frameworks/automation-framework.md)、[任务求解](../../../docs/frameworks/automation-problem-solving-framework.md)、[应用开发](../../../docs/frameworks/app-development-framework.md)、[示范方法](../../../docs/frameworks/demonstration-to-automation-pipeline.md)、[能力成熟度](../../../docs/frameworks/capability-development.md)、[接口扩展](../../../docs/frameworks/runtime-api-extension-framework.md)和[质量门禁](../../../docs/quality/gates-and-evidence.md)。本文件的 DREQ 编号和组织方式是设计，不宣称这些编号为既有实现。
+来源为用户提供的项目背景、本轮执行授权与参考推导链，以及仓库[总体框架](../../../docs/frameworks/automation-framework.md)、[任务求解](../../../docs/frameworks/automation-problem-solving-framework.md)、[应用开发](../../../docs/frameworks/app-development-framework.md)、[示范方法](../../../docs/frameworks/demonstration-to-automation-pipeline.md)、[能力成熟度](../../../docs/frameworks/capability-development.md)、[接口扩展](../../../docs/frameworks/runtime-api-extension-framework.md)、[Structured UI Collection Reading](../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)和[质量门禁](../../../docs/quality/gates-and-evidence.md)。本文件的 DREQ 编号和组织方式是设计，不宣称这些编号为既有实现。
 
 ## 本次修订
 
@@ -190,3 +205,5 @@ Agent-to-Recipe 是生产和完善这些成果的一条开发路径，可以从�
 2026-09-08，v0.3.1：依据用户对错误示例 `calc.tapButton` 的明确纠正，删除“不强制 calc”的含糊表述，明确当前产物采用普通脚本与必要的普通函数，不新增应用对象方法层；同步 DREQ-07，并将矩阵定位保留为独立候选。既有框架 API 的调用形式不受此约束影响。本次仅修正文档，不声明脚本或桌面测试通过。
 
 2026-09-08，v0.4：记录用户的应用工程深化、同一 Agent 连续推进及参考作业树来源，新增 DREQ-21—DREQ-24；实际方法、链路和测试分别写回原唯一正文。授权限于本轮方案写入，不据此制造人审、模型提取或业务成功记录。
+
+2026-09-10，v0.5：加入 Structured UI Collection Reading 需求基线，新增 DREQ-25—DREQ-29；冻结 generic collection/business mapping、multi-source Observation、Collection/Traversal、VLM provider 和 mutation/partial completion 边界。详细 Runtime 算法只链接专项架构，不新增 S13、独立 collection Skill 或 Stable API 声明。

@@ -17,6 +17,7 @@
 | TextEdit 校准 | 已有独立 Recipe 代码证据；未形成 human production/gate 双层基线 | 现有 AI CLI Recipe 已使用 `Geometry.pointPercent()`、`Geometry.contains()` 和 `mouse.clickPoint()`，但运行、截图、断言和 evidence 仍混在一个文件中 |
 | 批次 B.1：原生文本值 facade | 当前工作树已实现；Experimental local；current-source deterministic 17/17 与 Recorder 14/14 通过 | `UI.getValue()`／`UI.setValue()` 复用现有 `Accessibility.find/read/perform/release`；current8 Recorder 已证明同一 locator/ref/actionState 合同和专用文本 patch 可共存；macOS 完整 value facade gate 仍在 disabled fixture 定位失败，Windows UIA 真机未验证 |
 | 批次 B.2：其他语义控件 facade | 设计候选 | 多属性读取继续使用 `Accessibility.read()`；`UI.invoke()`、通用 `UI.read()` 与 checkbox／range／selection 等尚未公开，不建立同义入口或第二套 locator |
+| Structured UI Collection Reading | **设计候选；专项 Target/Working Contract 已冻结** | 复用 AX/UIA、OCR、`Vision.analyzeLayout()`、截图/ROI 与 application-engineer；`UI.readCollection()`／`UI.collectCollection()` 仅为工作名，当前未进入 API Reference/类型/Runtime。详细唯一正文见[Structured UI Collection Reading](../architecture/desktop-automation/structured-ui-collection-reading.md) |
 | 批次 C：精确窗口生命周期 | 设计草案 | 当前 title/PID mutation 没有在所有平台贯穿 exact native handle，不能把工作形状当作已实现 API |
 | 批次 D：确切窗口内原子动作 | 设计草案，依赖 C | 当前 `mouse.clickForPID()` 只提供 macOS PID-scoped AXPress，不是 exact-window action receipt |
 | 批次 E：生产 Recipe 全量迁移 | 未开始 | Calculator 的单项 Geometry 收敛不等于 Calculator/TextEdit 已完成全部通用样板迁移 |
@@ -39,6 +40,8 @@
 
 这组证据已经足以进入跨应用公共能力设计。它不表示所有命中文件都应机械迁移，也不表示设计草案已经通过真实应用资格。
 
+新出现的跨应用需求还包括重复 UI record extraction：会话列表、消息 timeline、订单/商品/文件/联系人、table/grid/cards/tree 和 virtualized list。该类问题不能通过一个同时负责区域发现、OCR/VLM、业务 schema、滚动、分页与去重的 `UI.extractList()` 解决；应按专项架构拆成 Observation → visible CollectionItem、业务 Mapping 与 Traversal 三层。
+
 ## 二、目标分层
 
 ```text
@@ -57,6 +60,8 @@ Go / native Runtime
 
 归属判断不看“最终由 JavaScript 调用”，而看不可分割的正确性边界。纯组合放 JavaScript；身份、权限、native handle、竞态和 execution lifecycle 放 Go；应用按钮名称、区域、模式和恢复策略仍留在 AppProfile／Recipe。
 
+Structured Collection Reading 继续沿用同一边界：Runtime 只理解通用 `Observation`／`CollectionProfile`／`CollectionItem` 和经过验证的 scroll traversal；`sender`、`price`、`customerName`、`conversationTitle` 等业务字段由 App Adapter／Recipe／普通 JavaScript parser 转换。
+
 ## 三、优先能力清单
 
 | 优先级 | 能力 | 建议 owner | 主要消除的 Recipe 代码 |
@@ -64,12 +69,14 @@ Go / native Runtime
 | P0 | 精确窗口解析、刷新与激活 | Go `window` owner＋薄 JS 映射 | `window.list().filter()`、`sameWindow()`、标题型 focus、手写焦点轮询 |
 | P0 | 语义控件读取与动作 facade | `polyfills/006-ui.js` 组合现有 Go Accessibility | `find → read/perform → finally release`、每个应用的相同唯一性和 ref 清理代码 |
 | P0 | 确切窗口内相对点原子动作 | Go `mouse/window/accessibility` 共同 native owner，公开位置最终只选一个 | `active.x + offsetX`、动作前再次核对 PID／窗口、坐标与点击之间的竞态 |
+| P1 | Structured Collection current-viewport reading | 分层组合 Accessibility / Vision / UI observation；正式 owner 随 Phase 1–3 评审 | 各应用重复的 list/timeline item segmentation、多源 evidence 归一与 viewport coverage |
 | P1 | 窗口、语义控件、图片和属性状态等待 | JS 轮询策略＋Go 新鲜身份/取消能力 | `for + Date.now + sleep + reread`、无理由固定等待 |
 | P1 | 读取或完整设置原生文本值 | 当前 `UI.getValue()`／`UI.setValue()` JS facade 组合 native Accessibility；keyboard 仍是另一种显式策略 | 普通脚本中的唯一查找、同-ref 读写、回读验证和 ref 清理样板 |
 | P1 | 统一 Action Receipt 与失败分类 | Go 原始 action state＋JS 规范化 | 各 Recipe 自建 `acknowledged/unknown/not-started`、重试和错误包装 |
 | P2 | Locator portfolio、局部观察缓存和漂移诊断 | 框架服务／JS 策略，按实际 backend 分层 | 大型应用中重复的 OCR、图片、AX 候选排序和缓存失效代码 |
+| P2 | Structured Collection scroll collector | 在 current-viewport segmenter/validator 稳定后复用同一 reader；Traversal 独立 | 重复 scroll→wait→read→continuity→merge、text-only 去重与错误结束判断 |
 
-P0 先解决每个动作都可能用到的目标与输入基础设施；P1 解决常见状态交互；P2 只有在真实复杂应用证明收益后扩展，不能成为普通 Recipe 的前置系统。
+P0 先解决每个动作都可能用到的目标与输入基础设施；P1 解决常见状态交互和当前 viewport 结构读取；P2 的 collector 必须建立在已测试的 current-viewport core 上，不能反过来为了“支持滚动”先冻结巨型 API。
 
 ## 四、P0 合同草案
 
@@ -182,6 +189,41 @@ await UI.actAtWindowPoint(
 
 所有高层动作至少规范化：`operation、target、backend、actionState、startedAt、completedAt`。Receipt 用于控制流和诊断，不等同于业务 Evidence；业务 Oracle 仍由 Recipe 或独立资格 Gate 按风险决定。
 
+### 5.4 Structured Collection Reading
+
+详细技术合同只维护在[Structured UI Collection Reading](../architecture/desktop-automation/structured-ui-collection-reading.md)，本节只登记公共能力归属与晋级顺序。
+
+第一层工作名 `UI.readCollection()` 只读取 current viewport：
+
+```text
+resolve scope/region/profile
+→ AX/UIA + OCR + layout/image observations as required
+→ normalize Observation[]
+→ one deterministic CollectionSegmenter
+→ CollectionValidator
+→ optional SemanticVisionProvider proposal on uncertainty
+→ validate again
+→ generic CollectionItem[] + viewport coverage/evidence
+```
+
+第二层工作名 `UI.collectCollection()` 才允许 scroll side effect：
+
+```text
+readCollection
+→ bounded scroll with overlap
+→ wait observable change
+→ readCollection
+→ prove sequence continuity
+→ merge only proven overlap
+→ stop/end/mutation semantics
+```
+
+两者不能合成 `extractList({ scroll, pagination, ai, schema... })`：业务 Mapping、pagination/load-more action、VLM provider、current-viewport segmentation 与 traversal 的正确性边界不同。`Accessibility.snapshot().complete` 也不能升级成 whole-list complete；virtualized collection 只能证明当前已观察 viewport。
+
+Semantic Vision 是独立 provider family，主要解决复杂 grouping/icon/region proposal；OCR 仍只解决可见文字。VLM 默认用于 application-engineer 的 authoring-time profile 建立，runtime assist 默认关闭且只在 uncertain 时有界调用；VLM proposal 必须回到 validator，不能直接成为 Truth 或业务对象。
+
+后续实施顺序固定为：Observation/Profile schema + fixtures → deterministic segmenter/validator → `readCollection()` Experimental → SemanticVisionProvider prototype → scroll continuity/merge core → `collectCollection()` Experimental → list/timeline/no-UI-tree 真实应用验证。pagination/load-more 不自动进入前六期。
+
 ## 六、已存在但应优先复用的能力
 
 在新增 API 前，生成器和新 Recipe 应先消费已有能力：
@@ -192,6 +234,7 @@ await UI.actAtWindowPoint(
 - `UI.getValue()`／`UI.setValue()` 用于显式 scope 下的原生文本值，不要在普通脚本重复同一套 find/read/perform/release；多属性仍使用 `Accessibility.read()`。
 - `Accessibility` 的显式 `within` 和结构化 `actionState`，不要用全桌面首候选或解析错误字符串。
 - `mouse.clickForPID()` 作为当前 macOS PID-scoped AXPress 原语；在原子窗口动作落地前，仍须由 Recipe 做确切窗口和布局门禁。
+- 集合读取实施不得复制 OCR、布局或 Accessibility backend；应规范化为 Observation，并复用现有 scope/ROI/coordinate/lifecycle 语义。
 
 Recorder 的 basic generator 也应迁移为这些公共能力的消费者。框架函数存在但生成代码继续内联另一套 resolver，仍然没有减少用户维护面。
 
@@ -220,6 +263,10 @@ macOS 原生 fixture 的修复前运行曾在 disabled 文本定位阶段得到 
 
 B.2 只有出现重复且后端明确支持的需求后，才分别评审 `UI.invoke()` 或 `UI.read()`；当前多属性读取复用 `Accessibility.read()`，不批量改名 `UI.tapText()`／`tapTexts()` 或菜单 API。
 
+### Structured Collection Reading：独立实施线
+
+该能力不插入现有 Window/Action 批次字母顺序，也不把设计候选写成已实现。它按专项正文 Phase 1–7 推进：先 schema/fixture，再 current-viewport deterministic core；只有完成 Runtime/type/docs/tests 闭环后才把 `UI.readCollection()` 标为 Experimental。scroll collector 在 continuity/mutation/partial-stop fixture 通过后再进入 `UI.collectCollection()` Experimental。首轮真实应用资格至少覆盖 list、variable-height timeline、no-usable-UI-tree 三类，且 macOS/Windows 状态分别报告。
+
 ### 批次 C：确切窗口生命周期
 
 在 Go Window owner 增加 selector、精确 activate/current 与结构化错误；覆盖同标题、多 PID、多窗口、窗口关闭重建、前台抢占和 timeout。公开行为用 JavaScript Runtime 测试；Go 白盒只保留 JS 无法观察的 resolver seam。
@@ -241,12 +288,22 @@ B.2 只有出现重复且后端明确支持的需求后，才分别评审 `UI.in
 - native 构建物与源码一致，并保留所需实窗／视觉证据；
 - 不把独立资格断言重新塞回生产 Recipe。
 
+Structured Collection Reading 的晋级还额外要求：
+
+- current viewport coverage 与 whole collection traversal completion 明确分离；
+- repeated identical text、variable-height timeline、virtualized list 不发生 text/index-only dedupe；
+- scroll continuity 无法证明或 collection mutation 时返回 partial/structured failure，不静默拼接；
+- VLM provider timeout/schema invalid/conflict 有界失败，且 provider 输出经 validator 复核；
+- business mapping parser failure 不计为 Runtime collection segmentation failure。
+
 ## 八、不进入框架的内容
 
 - Calculator 的按钮表、`C/AC` 双清零和固定算式；
 - TextEdit 的具体工具栏位置和保存业务规则；
 - 微信会话身份、千牛订单状态、拼多多业务分支；
 - 某个应用的窗口尺寸数字、OCR 文案别名和恢复路径；
+- `sender`、`price`、`customerName`、`conversationTitle` 等业务字段及业务 JSON schema；
+- 某应用“下一页”或 Load More 控件的具体 locator/action，在跨应用合同未证明前继续属于 App Adapter／Recipe；
 - 来源 hash、逐步固定答案、截图矩阵和资格报告写入。
 
-框架提供“怎样安全找到、等待和操作”，AppProfile 提供“这个应用中目标是什么”，Recipe 保留“这次业务要做什么”。
+框架提供“怎样安全找到、观察、等待、分段和操作”，AppProfile 提供“这个应用中结构与目标是什么”，Recipe／App Adapter 保留“这次业务要做什么、generic item 怎样映射成业务对象”。

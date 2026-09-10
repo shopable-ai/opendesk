@@ -5,7 +5,7 @@ description: 为 OpenDesk 桌面自动化认识应用界面、审阅纠错并补
 
 # application-engineer
 
-版本：0.1，2026-09-08。正式方法入口已编写；不表示宿主已经安装、自动发现、隔离权限或通过模型提取、真实桌面及端到端验收。不要把本文中的未来辅助程序和未验证接口当成已存在工具。
+版本：0.2，2026-09-10。正式方法入口已编写；不表示宿主已经安装、自动发现、隔离权限或通过模型提取、真实桌面及端到端验收。不要把本文中的未来辅助程序和未验证接口当成已存在工具。
 
 ## 目标与责任
 
@@ -15,6 +15,8 @@ description: 为 OpenDesk 桌面自动化认识应用界面、审阅纠错并补
 
 复用已有效的知识和规则，只补当前缺口。已明确、可验证的动作最终用普通 OpenDesk JavaScript 执行，必要判断留给 Agent。优先框架 API 和有实际语义、验证或复用价值的普通函数；不新增应用类、应用对象方法层、Registry、IR、Compiler 或 Replay Runtime。`calc.tapButton(...)` 是已纠正的错误示例，不是候选方案；不因此改变 UI、Vision、Accessibility 等既有接口形式。
 
+对于 list、table、timeline、grid、cards、tree、virtualized list 等重复 UI，本 Skill 负责**认识 Collection、建立/修订 CollectionProfile、组织 evidence 与审阅**，不创建第二个 collection/VLM Skill。跨应用 Runtime 的 Observation、current-viewport reader、Semantic Vision provider、scroll continuity/merge 等技术合同统一引用[Structured UI Collection Reading](../../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)。
+
 ## 先读取什么
 
 进入时读取本 Skill、指定工作包及其固定版本输入，以及[共享合同](../../../../docs/frameworks/agent-to-recipe-skill-contract.md)中调用、AppProfile、发布与应用工程增量部分。不复制全部聊天或读取 prompts/ 历史实现。
@@ -23,8 +25,9 @@ description: 为 OpenDesk 桌面自动化认识应用界面、审阅纠错并补
 
 - 认识、审阅、纠错和操作方法：[唯一专业正文](../../design/application-operations.md)。
 - 应进入哪个环节、怎样返回：[链路设计](../../design/chain-design.md)。
-- 本次需要哪些证据与测试：[验证计划](../../design/validation-plan.md)，沿用已有 G0—G7／F0—F10。
+- 本次需要哪些证据与测试：[验证计划](../../design/validation-plan.md)，沿用已有 G0—G7／F0—F10，并在集合任务中执行 SC-A—SC-P 适用项。
 - 判断多个应用重复的窗口、控件、坐标、等待代码是否应上升为公共能力时，读取[多应用自动化高频框架能力](../../../../docs/frameworks/multi-application-automation-primitives.md)；只按其中已实现并有当前 API 文档的能力编写 Recipe，路线图中的工作名不能当作可调用接口。
+- 遇到重复 UI Collection、无 usable UI tree、VLM grouping、virtualized list 或 scroll traversal 时，读取[Structured UI Collection Reading](../../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)；`UI.readCollection()`、`UI.collectCollection()`、`SemanticVisionProvider` 当前若未出现在 API/类型/实现/测试闭环中，只能作为 Target contract。
 - 真正准备使用工具时，再读取对应[当前 API](../../../../docs/api/README.md)，核对类型、实现和当前环境。出现冲突要记录、补证，不自行采用最方便的解释。
 
 ## 入口、输入与完成范围
@@ -73,6 +76,35 @@ description: 为 OpenDesk 桌面自动化认识应用界面、审阅纠错并补
 
 实际模型输出先原样保存。整理器只可复制明确字段、关联来源和执行可追溯坐标变换；遗漏、冲突、截断、拒绝、空返回和未知都保留。当前 `scripts/review.py ingest-extraction` 只接收另存的实际提取记录并核对 `actualImageConsumed`、图片 ref、hash、尺寸、observation 和基线目标；它不调用模型。已有对象含义冲突时停止导入，改走显式 revise，不能静默取一方。缺原图、真实模型能力或必要目标核验时，程序测试可以继续，但模型提取和限定闭环不得发布 pass。
 
+#### Structured Collection 工作入口
+
+当本次任务需要把会话列表、消息时间流、订单/商品/文件/联系人、table/grid/cards/tree/virtualized list 读成多条记录时，在同一个 application-engineer 内增加以下子作业；它不是第四种 mode，也不是新的 Skill：
+
+```text
+认识 Collection 区域与 kind
+→ 选择必要 evidence：AX/UIA / OCR / Layout/Image
+→ normalize/关联可见事实
+→ 提出 CollectionProfile
+→ deterministic validation
+→ 必要时 authoring-time VLM proposal
+→ overlay review / 人工必要纠错
+→ 再验证
+→ 发布 versioned CollectionProfile + evidence/unknowns
+```
+
+固定责任边界：
+
+- `CollectionProfile` 描述 current viewport 中“一条 item 怎样被识别”：axis、container/item role、重复布局、separator、anchor、item geometry/spacing、必要视觉模式和 validation constraints；不得写 `sender`、`price`、`customerName`、`conversationTitle` 等业务字段。
+- 业务字段 Mapping 由 procedure/Recipe/App Adapter/普通 parser 负责；application-engineer 可以记录“某 generic element 在应用语义上可能对应什么”的有来源认识，但不能把任意业务 JSON Schema塞进 Runtime Profile。
+- AX/UIA、OCR、Layout/Image、Semantic Vision 都是 evidence source。原生 snapshot 不完整、OCR 漏字、模型 proposal 与其他来源冲突必须保留；没有一种来源自动升级为 Truth。
+- VLM 默认用于 authoring-time Profile 建立。输入优先最小 ROI screenshot + normalized AX/UIA observations + OCR lines/bbox + layout regions/separators + 当前 Profile 约束；要求模型只提出 item boundary/grouping candidate 并关联 observation/bounds/unknown，不补不可见 item。
+- 模型输出必须进入确定性 validator 和 overlay review。没有实际模型调用时不要写“VLM 已验证”；没有 validator 实现时也不要用模型自评代替验证。
+- 如果任务只读取当前 viewport，不需要讨论滚动。只有业务要求跨 viewport/历史/全部记录时，才记录 traversal need、允许的 UI side effect、方向、预算、结束条件和返回策略。
+- traversal 的 overlap/continuity/merge/mutation 属于 Structured Collection Runtime/collector 合同，不塞进 CollectionProfile。首版 scroll strategy 之外的 pagination/load-more 由 Recipe/App Adapter 负责，直到跨应用证据足以升级。
+- `UI.readCollection()`/`UI.collectCollection()` 当前未实现时，应用工程仍可以交付 Profile、fixtures、overlay、deterministic rules 和 Runtime gap；不得在候选 Recipe 中写一个不存在的方法冒充已完成。
+
+CollectionProfile 发布前至少回答：适用 window/page/region、collection kind/axis、item boundary 依据、可用/缺失 evidence、validation constraints、profile drift 条件、是否需要 traversal、模型调用与隐私预算、当前验证层级。详细算法和错误语义不在本 Skill 复制，统一见专项架构。
+
 ### 3. 按缺口补强规则与普通操作
 
 需要定位／操作交付时再执行。S9 由过程提炼明确可复用业务步骤、所需操作及条件；本 Skill 的 S10 将其落实为应用规则，不重复推导业务意图。
@@ -84,6 +116,7 @@ description: 为 OpenDesk 桌面自动化认识应用界面、审阅纠错并补
 - `Vision.analyzeLayout()` 和颜色分区算法只是待评测辅助，不是此作业前提；`annotateRegions()` 也不能代替严格数据校验与无推断绘图。没有实测证据不宣布可靠、全部错误或重写。
 - 优先已有 API；需要 helper 时形成普通函数和数据。模型输出作为待校验数据，不 eval 成任意代码。实际没有 helper 时不能把示意函数名列为已交付依赖。
 - 抽取前先判 owner：应用按钮表、模式和恢复规则留在 AppProfile／Recipe；纯公开 API 组合才是 JavaScript helper 候选；需要把确切 PID／窗口身份、坐标投影和原生动作做成一个不可分割生命周期时，记录为 native Runtime／Go 缺口。只有同一应用的重复不能证明公共 API，不能据此向 `UI`、`Accessibility` 或 `mouse` 增加方法。
+- Structured Collection 场景再额外区分：当前 viewport segmentation 是公共结构候选；CollectionProfile 是应用工程资产；业务字段 parser 是下游业务代码；scroll collector 是有副作用 orchestration。不要用一个 `extractList` helper 把四层重新合并。
 - 向 recipe-build 交付时区分“本次动作所需运行门禁”和“资格验证规则”：前者保护目标、布局、权限和控制流，后者固定来源、逐步 Oracle、截图及证据。不要要求生产 Recipe 携带完整资格 Gate，也不要因 Gate 独立而删除高风险动作所需的即时检查。
 - 向 recipe-build 的同版 handoff 必须逐项目给出 `target、locator、geometry、actionStrategy、runtimeGuards、recoveryRule、qualificationClaims、sourceRefs、unknowns`，并把每个来源 action 标为业务动作、运行门禁、资格断言、Evidence 或排除。应用工程只提供这些确定输入与缺口，不生成或润色最终代码；未分类、歧义或相互冲突的 action 明确返回 H4/H5，不能交给代码阶段猜。
 - 对窗口／显示器相对坐标，优先交付已有 `Geometry.pointOffset()`／`pointPercent()` 可消费的 offset/percent 和边界条件；不要交付 `win.x + offset` 代码。Geometry 只是快照投影：需要把确切窗口重验、投影和动作原子化时仍标 native 缺口。在路线图批次 C/D 实现并资格前，不得把现有 Geometry 或 `mouse.clickForPID()` 描述成 exact-window 原子动作。
@@ -96,6 +129,9 @@ description: 为 OpenDesk 桌面自动化认识应用界面、审阅纠错并补
 | 已认识页面、规则适用、必要后置满足 | 继续原任务，不生成无关诊断或重新建模 |
 | 已知加载或等待条件尚未满足 | 按既有规则有界等待，不自动归因于布局错误 |
 | 新页面未被知识覆盖、布局冲突、对象或关系歧义 | 定向进入步骤 2，只补相关认识 |
+| CollectionProfile drift / item boundary 证据冲突 | 回本 Skill 修订 Profile；保留旧版与影响范围，不让 parser 或 collector 猜修 |
+| continuity failure / collection mutation | 保留当前已读 partial/evidence 并停止依赖动作；按 chain-design 归因到 collector/现场变化，不通过 text-only 去重硬拼 |
+| runtime VLM unavailable | 若 deterministic 结果已达到所需验证则继续并记录 assist 未使用；若 VLM 是本次必要证据则 blocked/返回补能力，不无限重试 |
 | 定位、状态准备、读取或操作约定失效 | harden／repair，保留有效部分，提出重验范围 |
 | 缺真实过程或业务值证据 | 返回 task-demonstrate 定向补采，不事后重造原现场 |
 | 因果、参数或业务分段错误 | 返回 procedure-synthesize，不自行改业务 |
@@ -113,17 +149,19 @@ description: 为 OpenDesk 桌面自动化认识应用界面、审阅纠错并补
 
 每次工作包从 request 取得实际总时间、模型调用／费用、图像范围、探测动作、重试及修复上限，跨子作业共享总预算。未提供必要上限时，在不产生收费调用或桌面副作用前按合同补齐；不设无限默认值。没有新证据的同类失败停止盲重试。
 
+对于 Semantic Vision，默认只上传任务所需最小 ROI，不默认上传整张桌面；遵守 Secret/privacy policy，并记录 provider/call budget/timeout/size。模型返回空、拒绝、截断、schema invalid 或冲突均是正常失败状态，不 eval 为代码，也不因一次失败自动无限切换 provider。
+
 默认只读获准资料；导航、输入、切换页面、关闭弹窗和清空状态都是需授权的动作。审阅界面与模型输出不得提升权限。停止／取消仅按实际宿主能力执行，不声称撤回已经提交的原生动作。
 
 ## 冻结与交付检查
 
-主交付仍是 `app-profile.json`、实际存在的必要普通 helper，以及同版观察／审阅／验证引用，不创建第二份 UIProfile。发布前核对来源、可读性、版本、hash、范围及真实状态，最后写 handoff；消费者不读隐含 latest。
+主交付仍是 `app-profile.json`、实际存在的必要普通 helper，以及同版观察／审阅／验证引用，不创建第二份 UIProfile。CollectionProfile 作为 AppProfile 的应用工程资产/引用按当前合同版本化；它不是另一套业务 Schema，也不把 Runtime Working Contract 写入公共 API。发布前核对来源、可读性、版本、hash、范围及真实状态，最后写 handoff；消费者不读隐含 latest。
 
 按四部分简报：核心目标完成情况；必要依赖与安全前提；次要候选及延后事项；认识核验、定位验证、操作实测和业务结果的各自状态。执行结束不是 gate 通过，未调用不是已通过。
 
 - task-demonstrate 消费最小认识及缺口，执行中继续核对并留证，不把候选操作当 qualified。
-- procedure-synthesize 消费应用术语、关系与证据解释，真实过程仍依据 Dossier。
-- recipe-build 消费明确版本的规则、操作合同、helper 和当前 API；只有认识材料时，不能伪装成已有可执行操作。
-- recipe-qualify 消费冻结候选及依赖，用预定标准和独立结果来源核验。允许同一 Agent 执行检查，但不能冒充独立上下文或以自述替代证据。
+- procedure-synthesize 消费应用术语、关系与证据解释，真实过程仍依据 Dossier；generic CollectionItem 到业务字段的 Mapping 也在业务/过程责任下明确，不回塞 Profile。
+- recipe-build 消费明确版本的规则、操作合同、helper 和当前 API；只有认识材料时，不能伪装成已有可执行操作。Working `readCollection/collectCollection` 未实现时必须返回 Runtime gap 或使用实际存在的较低层 API，不写占位调用。
+- recipe-qualify 消费冻结候选及依赖，用预定标准和独立结果来源核验。集合任务至少按 validation-plan 的 SC-A—SC-P 选取适用场景，分别验证 visible collection、traversal 和 business parser；允许同一 Agent 执行检查，但不能冒充独立上下文或以自述替代证据。
 
 输入过期、关键证据缺失、规则超范围、身份歧义、权限不足或预算耗尽时，保留真实局部成果并报告对应 fail／not-run／blocked；不缩小原请求来换 pass。分批实施和正式验收以验证计划为唯一依据，当前未运行项目不得预填通过率或 95 分以上的能力结论。

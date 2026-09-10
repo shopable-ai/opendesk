@@ -6,7 +6,7 @@ order: 40
 
 # Agent-first Recorder｜链路、职责与成果交接设计
 
-状态：链路设计 v0.4，2026-09-08。本文把[需求](requirements.md)与[完整任务树](task-decomposition.md)转成环节关系；本次仅落地 application-engineer 方法入口及兼容设计，不是完整运行调度器，也不新增可执行 IR。返回[设计总纲](README.md)。
+状态：链路设计 v0.5，2026-09-10。本文把[需求](requirements.md)与[完整任务树](task-decomposition.md)转成环节关系；当前只落地 application-engineer 方法入口及设计接线，不是完整运行调度器，也不新增可执行 IR。Structured UI Collection Reading 的 Runtime/VLM/Traversal 详细合同只维护在[专项架构](../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)。返回[设计总纲](README.md)。
 
 ## 一、三层怎样配合
 
@@ -15,6 +15,7 @@ order: 40
 - 正式 WORKFLOW 按本次范围组合专业方法；每个 SKILL.md 只负责自己的步骤，长细节按需参考，不复制三套完整指令。
 - 需求 Function、业务 Capability、Agent Skill 与 JS 函数不一一对应；先选已有 API／普通 JS／Agent／人工，再决定是否需要独立 Skill。
 - S1—S12 沿用原方法和合同；R1—R13 只是任务树中保留的讨论视图；七项职责不是新编号的运行阶段。
+- Structured Collection Reading 作为既有职责间的数据/能力链，不增加第八个开发职责或新的 S13：application-engineer 生产结构知识，Runtime working primitive 读取 generic item，Recipe/Adapter 做业务 Mapping，recipe-qualify 分层验收。
 - 默认同一个 Agent 按工作流连续推进；协调、专业作业、生成和检查是职责，不强制创建多个 Agent 或隔离上下文。独立评测是另外的验证条件，不能混为正常运行前提。
 
 ## 二、七项独立职责及状态
@@ -24,12 +25,12 @@ order: 40
 | 环节与拟责任 | 对应任务节点 | 主要消费 | 主交付与消费者 |
 | --- | --- | --- | --- |
 | 明确需求与范围：automation-plan | S1 | 用户要求、来源、权限、预算、已有资产 | TaskContract／WorkPlan、业务任务树与未知项；供所有相关环节使用 |
-| 认识和补强应用：application-engineer | S2／S10 | 所需操作、当前观察、已有 AppProfile；harden 再加确认过程，repair 再加失败依据 | AppProfile、同版审阅／验证、必要 helper、操作合同、范围与证据；供示范、提炼、生成和验收按范围使用 |
-| 真实尝试与同步留证：task-demonstrate | S3—S6 | 合同、计划、最小应用认识、实际输入和桌面操作授权 | 节点事实、实际值及消费者、完整或限定范围 Dossier；供提炼或诊断使用 |
-| 解释与泛化过程：procedure-synthesize | S7—S9 | 合同、可消费的 Dossier、应用资料；接续须限定来源作用 | SemanticProcedure、参数、状态／数据依赖、来源与未决项；供应用补强和生成使用 |
-| 生成或登记普通 JS：recipe-build | S11 | 已确认过程、所需操作、实际 API；原样接续按旧合同例外处理 | 实际 JS 与 CandidateManifest；交按需改进或独立验收 |
+| 认识和补强应用：application-engineer | S2／S10 | 所需操作、当前观察、已有 AppProfile；harden 再加确认过程，repair 再加失败依据 | AppProfile、同版审阅／验证、必要 CollectionProfile、helper、操作合同、范围与证据；供示范、提炼、生成和验收按范围使用 |
+| 真实尝试与同步留证：task-demonstrate | S3—S6 | 合同、计划、最小应用认识、实际输入和桌面操作授权 | 节点事实、实际值及消费者、viewport/scroll 等真实副作用、完整或限定范围 Dossier；供提炼或诊断使用 |
+| 解释与泛化过程：procedure-synthesize | S7—S9 | 合同、可消费的 Dossier、应用资料；接续须限定来源作用 | SemanticProcedure、参数、generic→business 数据依赖、traversal need、来源与未决项；供应用补强和生成使用 |
+| 生成或登记普通 JS：recipe-build | S11 | 已确认过程、所需操作、实际 API；原样接续按旧合同例外处理 | 实际 JS 与 CandidateManifest；只使用当前真实 API，交按需改进或独立验收 |
 | 独立改善已有代码：code-rebuild（待实现） | S11 内可选工作／独立入口 | 代码基线、明确需求与改进目标、相关应用规则、允许变更范围 | 原样保留结论，或新候选、变更理由、检查结果和重验范围；交独立验收 |
-| 独立资格验收：recipe-qualify | S12 | 冻结候选及依赖、成功标准、获准场景、真实运行条件 | QualificationRecord、证据和修复请求；交协调者或交付者 |
+| 独立资格验收：recipe-qualify | S12 | 冻结候选及依赖、成功标准、获准场景、真实运行条件 | QualificationRecord、collection/runtime/business 分层证据和修复请求；交协调者或交付者 |
 
 - 应用发现不要求先取得完整 SemanticProcedure，否则新任务会陷入循环依赖；应用补强只在需要时消费提炼后的业务过程。
 - task-demonstrate 的 Capture 与动作、观察、验证同时进行，不新增一个事后追记 Skill。执行中局部验证不能推迟到最终验收。
@@ -43,17 +44,42 @@ order: 40
 | 入口／子作业 | 前提及正常处理 | 完成出口 |
 | --- | --- | --- |
 | discover 中的最小发现 | 所需任务、实际观察或获准采集条件；先复用，再检查材料充分性和模型提取 | 足以继续的最小认识，或局部资料与具体补采请求；无须先完成业务提炼 |
-| 界面认识与审阅子作业 | 可来自 discover，也可处理 harden／repair 的认识缺口；模型主导，程序校验绘图，按约定核验或人审 | 同版 AppProfile、原始证据和审阅材料；只认识不等于定位、操作或业务通过 |
-| harden 中的规则与操作补强 | 已确认过程、旧规则和具体缺口 | 满足指定范围的重新定位、状态准备、读取、等待、动作与后置验证；合格部分不重研究 |
-| repair 中的定向维修 | 失败现场、旧版本、受影响范围 | 新认识／规则或实际 helper、修改理由及重验请求；不改变业务成功标准 |
+| 界面认识与审阅子作业 | 可来自 discover，也可处理 harden／repair 的认识缺口；模型主导，程序校验绘图，按约定核验或人审 | 同版 AppProfile、原始证据和审阅材料；需要重复结构时可含 versioned CollectionProfile；只认识不等于 Runtime/操作/业务通过 |
+| harden 中的规则与操作补强 | 已确认过程、旧规则和具体缺口 | 满足指定范围的重新定位、状态准备、读取、等待、动作与后置验证；collection 场景补 profile/traversal requirements，合格部分不重研究 |
+| repair 中的定向维修 | 失败现场、旧版本、受影响范围 | 新认识／规则／CollectionProfile 或实际 helper、修改理由及重验请求；不改变业务成功标准 |
 
-`ui-understanding` 仅指内部认识子作业，不新增独立 Skill。工作包可只要求认识与审阅，不增加第四种模式。任务驱动与能力建设是范围选择，不改变职责数量。
+`ui-understanding` 仅指内部认识子作业，不新增独立 Skill。Structured Collection 同样不创建第二个 VLM/collection Skill。工作包可只要求认识与审阅，不增加第四种模式。任务驱动与能力建设是范围选择，不改变职责数量。
 
-S9 由过程提炼明确业务步骤、参数、数据流、所需应用操作及复用条件；S2 可以提供初步定位候选，S10 将确认要求落实为有依据的应用规则。应用定位知识唯一维护在 AppProfile／必要 helper，不在 S9 复制第二套规则。
+S9 由过程提炼明确业务步骤、参数、数据流、所需应用操作及复用条件；S2 可以提供初步定位/CollectionProfile 候选，S10 将确认要求落实为有依据的应用规则。应用定位与 collection profile 知识唯一维护在 AppProfile／必要 helper，不在 S9 复制第二套规则。
+
+### Structured Collection 的消费链
+
+```text
+application-engineer
+  → AppProfile.CollectionProfile + reviewed evidence
+  → recipe-build / future UI.readCollection consumer
+  → generic CollectionItem[]
+  → App Adapter / Recipe parser business mapping
+  → business objects / downstream steps
+  → recipe-qualify
+```
+
+需要跨 viewport 时增加一个明确且独立的副作用层：
+
+```text
+UI.readCollection(current viewport)
+  → scroll traversal orchestrator
+  → continuity proof + merge / mutation / end receipts
+  → generic collected items
+```
+
+`UI.readCollection()`／`UI.collectCollection()` 当前均为架构 Working Contract，不是现有可调用事实；在实现前，recipe-build 只能使用当前仓库真实 Accessibility/Vision/UI/scroll 能力或返回 Runtime 能力缺口。分页/load-more 当前由 App Adapter／Recipe 使用当前真实动作 API负责，不提前伪装成 built-in TraversalStrategy。
 
 ### 下游消费的边界
 
 示范可以消费最小认识，执行中仍核对现场并同步留证；提炼消费应用术语和关系，过程事实必须依据 Dossier；生成消费已经落实的操作规则和实际 API，只有认识材料时不能伪装成已有可执行操作；资格验收消费冻结候选及依赖，不继承生产者自报通过。未调用环节不是已通过，局部包不能冒充完整成功示范。
+
+对 collection，`CollectionItem[]` 与 `Conversation[]`／`Message[]`／`Order[]` 等业务对象是两个接口层。业务 parser 的字段命名、规则和失败不回写成 Runtime segmentation truth；Runtime evidence/conflict 也不能被 parser 静默覆盖。
 
 ## 三、按需求选择路径
 
@@ -100,10 +126,14 @@ S9 由过程提炼明确业务步骤、参数、数据流、所需应用操作�
 | --- | --- |
 | 已认识页面、窗口平移或数据变化仍在已验证规则内 | 刷新现场／重算当前位置，不必模型重新理解全屏 |
 | 已知加载条件未完成 | 依原规则有界等待，不能仅见 Tab 高亮就放行内容读取 |
-| 未覆盖的新页面、布局冲突、控件／记录关系歧义 | 返回认识与审阅子作业，仅补必要范围 |
+| 未覆盖的新页面、布局冲突、控件／记录关系歧义、CollectionProfile drift | 返回认识与审阅子作业，仅补必要范围 |
 | 定位、准备状态、读取或动作约定失效 | application-engineer harden／repair；已有有效部分保留 |
+| AX/UIA/OCR/VLM 多源 evidence 冲突且结构验证无法关闭 | application-engineer 定向补证/修 profile；不以单一来源强行覆盖 |
+| Semantic Vision provider unavailable | 若 deterministic evidence 足够则保留其可证明结果；若 VLM 为必要 evidence 则 blocked，不嵌套 `opendesk ai` 代替 |
+| scroll 后 continuity 无法证明 | collector/Runtime path 停止并保留 partial；不 text-only dedupe 后继续 |
+| collection 在读取期间新增/删除/重排 | `COLLECTION_MUTATED` 或等价结构状态；停止拼接并保留 partial/evidence |
 | 关键动作、读值或过去状态缺证据 | task-demonstrate 定向补采；新观察不能冒充过去现场 |
-| 业务因果、参数或分段错误 | procedure-synthesize |
+| business mapping、业务因果、参数或分段错误 | procedure-synthesize／应用业务 parser 责任；不修改 Runtime profile 掩盖错误 |
 | JS 调用、顺序或错误处理错误 | recipe-build |
 | 验收 Oracle 或测试设置错误 | recipe-qualify，不改标准掩盖失败 |
 | 目标、权限或成功条件变化 | 停止依赖动作，返回需求负责人 |
@@ -117,13 +147,13 @@ S9 由过程提炼明确业务步骤、参数、数据流、所需应用操作�
 
 - 派发前确定子目标、实际输入版本、允许操作、现场前提、预期成果、验证条件、预算和恢复边界。
 - 初次规划把来源与 Unknown 转成合同和粗计划；远期未知显式保留，临近工作包再细化，不凭空填满点击序列。
-- 应用工程发布当前所需 states、regions、targets、geometryRules、operations、verifiers 与成熟度；本次观察、界面认识、候选规则、审阅／验证分开。当前优先级在工作包，不能写成应用永久属性。
-- 认识输出使用共享合同定义的 AppProfile 增量版本；新消费者对旧资料缺失项保持未知，旧消费者不认识新版本时拒绝消费，不静默丢失约束。不是新增公共 Runtime schema。
-- 示范过程中逐节点保存真实读值、来源、消费者、前后状态和副作用；S6 才发布完整 Dossier。失败或局部包可以诊断，但不能作为成功全链输入。
+- 应用工程发布当前所需 states、regions、targets、geometryRules、operations、verifiers 与成熟度；本次观察、界面认识、候选规则、审阅／验证分开。需要重复 UI 结构时在同一 AppProfile 知识层发布 versioned CollectionProfile，当前优先级仍在工作包，不能写成应用永久属性。
+- 认识输出使用共享合同定义的 AppProfile 增量版本；新消费者对旧资料缺失项保持未知，旧消费者不认识新版本时拒绝消费，不静默丢失约束。CollectionProfile 是结构知识，不是新增公共 Runtime schema 或第二份 AppProfile。
+- 示范过程中逐节点保存真实读值、来源、消费者、前后状态和副作用；collection scroll 还保存 viewport/continuity/mutation 事实；S6 才发布完整 Dossier。失败或局部包可以诊断，但不能作为成功全链输入。
 - 提炼保留分析与草案，S9 发布完整的 procedure.json 及同版可读视图；视图不成为第二份可执行规格，版本冲突则阻塞消费。
-- 生成发布实际 JS、入口、工作目录、依赖、支持范围、来源映射和 candidate.json；接口或依赖不存在就返回缺口，不保留貌似可执行的占位调用。
+- 生成发布实际 JS、入口、工作目录、依赖、支持范围、来源映射和 candidate.json；接口或依赖不存在就返回缺口，不保留貌似可执行的 `UI.readCollection()`/`UI.collectCollection()` 占位调用。
 - 代码改进消费候选 A；无需改动继续引用 A，有修改发布候选 B 及差异理由，验收引用 B。不能 B 的代码搭配 A 的 helper hash 或旧资格。
-- 验收发布指定候选的场景、实际命令、环境、观察、证据、pass／fail／not-run／blocked 和修复请求；正确拒绝的测试通过不能改写业务失败事实。
+- 验收发布指定候选的场景、实际命令、环境、观察、证据、pass／fail／not-run／blocked 和修复请求；collection 结构读取、collector 和业务 parser 的结论分别记录；正确拒绝的测试通过不能改写业务失败事实。
 - 一个子任务可以只发布需要的局部成果，但必须明确覆盖范围；文件格式完整、工作包结束、任务成功与可复用资格分别判断。
 
 正常路径始终保留对象、规则版本、关键证据、实际值、必要验证和未决项；新认识／有影响修改时生成同版审阅视图；异常再展开详细候选或跨环境分析。减少的是冗余，不省略已经要求的人审、授权、真实结果和关键动作前证据。
@@ -133,6 +163,7 @@ S9 由过程提炼明确业务步骤、参数、数据流、所需应用操作�
 上面的 request／handoff 是生产自动化时的工作包交接；生成后每次“读取历史 → 判断 → 发送”的数据交接可以是普通函数参数与返回对象，不强制每次业务调用重建整个开发任务包。
 
 - S1 声明本次需要单项操作、组合能力还是完整流程，以及纯 JS 或混合交付目标；S8／S9 确定可复用子目标与真实数据依赖；S11 明示实际调用与接线；S12 验证声明的业务范围。
+- collection 业务运行至少交清：validated generic `CollectionItem[]` + coverage/evidence → App Adapter／Recipe parser → business objects + parser validation → downstream consumer。不能直接让 Runtime/VLM 根据任意业务 schema 生成最终对象。
 - 混合运行至少交清：JS 读取的实际业务数据及对象绑定 → Agent 的必要输入、业务规则和预算 → 可校验的判断与候选内容 → 授权及新鲜度复核 → 获准 JS 动作 → 实际结果。每一箭头有消费者、允许数据和失败出口。
 - provider／宿主未接入、输入不足、判断非法、预算耗尽或上下文过期时，停止依赖动作或按已授权策略转人工；不能用 mock、默认文案或上次判断掩盖缺口。JS 逻辑、判断质量、接入和端到端业务分别验证。
 - 跨应用交接须说明来源应用中的业务对象怎样对应目标应用中的对象；保留实际值及来源、转换规则、有效条件和目标结果。只在获准范围传递必要数据，不把剪贴板当前内容、旧焦点或切换窗口当成交接合同。
@@ -147,18 +178,20 @@ S9 由过程提炼明确业务步骤、参数、数据流、所需应用操作�
 | 用途、业务粒度、输入输出、前后条件与失败语义 | S1／S8／S9 明确，S11 保持对应，S12 检查行为 |
 | 普通入口／调用方式、配置、版本与依赖、支持环境、实际在线接入 | S11 随候选交付，S12 在声明范围原样核验；不假设 Node runner 或新执行 API |
 | 权限及 Secret 引用、验证方法、停止方式、诊断和维护说明 | S1 限定，S10／S11 落实，S12 检查；不以说明代替实际停止能力 |
+| collection 结构知识与业务 Mapping | application-engineer 发布 profile/证据；S8/S9/S11 保持 parser owner；S12 分别验证 current viewport、traversal（如有）与业务字段，不把三者合并成一个 passed |
 | 共享边界与独立使用条件 | 交付者确认共享许可与维护责任；S12 用 BC-20 检查他人配置及运行，不继承作者的私有上下文或通过状态 |
 
 共享版本仅包含获准代码、说明和必要脱敏样例；原始屏幕、私有聊天、凭据与临时任务包不随资产发布。需求、应用版本或依赖变化使相关资格需重核；未经共享授权的可运行代码仍不能自动公开。后续外部编排只组织已明确的调用合同，不成为本轮普通运行前提。
 
 ## 五、数据线、控制线与权限
 
-- **数据线**：来源／合同 → 观察与实际值 → 语义过程 → 应用规则和候选 → 验收与运行证据；每项标生产者、消费者、版本、来源和失效条件。
+- **数据线**：来源／合同 → Observation/实际值 → AppProfile/CollectionProfile → generic items → business mapping/语义过程 → 候选 → 验收与运行证据；每项标生产者、消费者、版本、来源和失效条件。
 - **控制线**：协调者读取合同、当前进度和输入就绪条件 → 派发当前工作包 → 检查成果及 Gate → 更新唯一进度 → 继续、补证、恢复或停止。
-- 同一任务一个进度写入者，同一桌面同一时刻一个操作拥有者；离线分析可以并行，点击和输入不并行抢占。
-- 同一 helper 版本由一个被授权的工作包修改；语义或定位规则改变同步 AppProfile 与候选依赖，其他环节只消费冻结版本或提出变更请求。
-- 只传必要业务数据和获准证据根；屏幕文字、检索材料、API 返回和模型建议都不自行扩大授权。
-- JS 处理确定步骤；Agent 输出先校验再用于获准动作，不直接 eval 任意模型代码。无实际宿主／provider 接入时明确未集成，片段或 mock 不冒充完整业务。
+- 同一任务一个进度写入者，同一桌面同一时刻一个操作拥有者；离线分析可以并行，点击、scroll 和输入不并行抢占。
+- 同一 helper/Profile 版本由一个被授权的工作包修改；语义或定位规则改变同步 AppProfile 与候选依赖，其他环节只消费冻结版本或提出变更请求。
+- 只传必要业务数据和获准证据根；屏幕文字、检索材料、API 返回和模型建议都不自行扩大授权。Semantic Vision 默认只接收必要最小 ROI 与结构化 observations，provider 失败不扩大上传范围。
+- JS 处理确定步骤；Agent/VLM 输出先校验再用于获准动作或 profile proposal，不直接 eval 任意模型代码。无实际宿主／provider 接入时明确未集成，片段或 mock 不冒充完整业务。
+- `opendesk ai` 继续是 Coding Agent 作者期工具，不作为生产 `UI.readCollection()` 内嵌 VLM 子进程。Runtime Semantic Vision 需要独立 provider owner。
 - 目录中的 WORKFLOW／Skill 文件不是调度程序。由实际宿主负责读取和执行，能力、工具权限、上下文隔离与停止方式须逐项确认。
 
 ## 六、过程文件与安全接续
@@ -169,6 +202,7 @@ S9 由过程提炼明确业务步骤、参数、数据流、所需应用操作�
 - 未发布的半写文件可供受控诊断，不能当正式成功输入。上游版本变化只使依赖结果需要重核，不覆盖旧事实。
 - 已写成果但进度未更新时先核对并补进度，不重做业务。动作可能发生但未记回执时先核对副作用，再决定后续。
 - 窗口、焦点、对象和布局每次重新确认；保存的业务数据与屏幕显示分开。文件 checkpoint 不恢复 JS 调用栈，也不提供外部事务回滚或 exactly-once。
+- collector 若已发生 scroll 但因 continuity/mutation/timeout/cancel 停止，handoff 保存已取得 partial、最后 viewport、已发生 side effect 与 stop reason；当前架构不承诺 restore scroll position。
 - 超时或取消请求不等于 native 已停止；使用真实支持方式并记录限制，不能用外层 Promise 结束制造“已经终止”。
 - 真实 JS 日志与截图使用当次 Execution.artifactDir，并由任务包索引；未经实际生成的路径不能写成证据。
 - 长期结论回到设计或脱敏案例，原始失败和旧候选不覆盖。清理前检查引用，归档后登记实际位置、访问范围和版本；证据丢失要标不可复核。
@@ -212,6 +246,11 @@ S9 由过程提炼明确业务步骤、参数、数据流、所需应用操作�
 | DREQ-22 同源审阅与纠错 | S2／S10；AppProfile、审阅记录、变更影响 | BC-08、BC-23 |
 | DREQ-23 同一 Agent 与轻量正常路径 | 本页默认路径、工作包边界和定向返回 | BC-03、BC-15、BC-24 |
 | DREQ-24 分层应用工程评测 | S2／S10／S12；验证计划分批执行 | BC-06、BC-10、BC-22、BC-25 |
+| DREQ-25 generic collection/business mapping | S8／S9／S11；本页 Structured Collection 消费链 | Collection A/P、business parser 专项 |
+| DREQ-26 多源 Observation/no-UI-tree | S2／S10；application-engineer + future reader | Collection A–F/K/O |
+| DREQ-27 Collection/Traversal 分离 | S1／S3—S5／S9／S10；future read/collector | Collection G–N |
+| DREQ-28 VLM 作者期优先/运行期受限 | S2／S9／S10；SemanticVisionProvider boundary | Collection D–F/O、隐私/预算检查 |
+| DREQ-29 mutation/partial completion | S3—S6／S12；collector + qualification | Collection J–N |
 
 正向检查每项需求有负责环节、成果和测试；反向检查每个新增环节都有需求依据。实际执行后补真实证据引用，不在此写预制通过状态。
 
@@ -219,13 +258,16 @@ S9 由过程提炼明确业务步骤、参数、数据流、所需应用操作�
 
 - 每个 Skill 需要明确适用触发、前提、输入合同、专业步骤、输出及消费者、错误和停止条件、允许工具、验证场景及未支持范围。
 - 核心步骤进入 SKILL.md，长示例和专项分析按需引用已有唯一正文；不是每阶段一个 Skill，也不重新建设平行 chains 正文。
-- WORKFLOW 保持范围与路由入口，不重复专业方法。本次只创建 application-engineer；辅助工具和完整应用工程第一批的完成标准以验证计划为准，不能只写文件便宣布实际提取通过。
+- WORKFLOW 保持范围与路由入口，不重复专业方法。本次只创建 application-engineer；Structured Collection 的 profile authoring 进入该既有 Skill，不拆第二个 collection/VLM Skill。
+- `UI.readCollection()`／`UI.collectCollection()` 必须按专项 Phase 1–7 经 Runtime/type/API/docs/test 闭环后才能分别进入 Experimental；工作流文档先接线不构成实现。
 - 核实实际实现与宿主加载路径，建立与本设计一致的入口；旧目录已删除，不将历史索引或 stages 路径作为当前依赖，不恢复重复阶段卡。
 - 独立 code-rebuild、超出 minimal-repair 的获准优化、人工开发来源及质量裁剪仍须各自兼容设计。本次不悄悄新增这些 JSON 枚举，不把代码改进伪称新示范。
 - 实施后再验证单 Skill、独立交接及完整生成；合同、业务设计、实现和实际加载分别核实，不以本文证明新调用已经可用。
 
-方法依据：[框架导航](../../../docs/frameworks/README.md)、[任务求解](../../../docs/frameworks/automation-problem-solving-framework.md)、[应用开发](../../../docs/frameworks/app-development-framework.md)、[共享合同](../../../docs/frameworks/agent-to-recipe-skill-contract.md)。
+方法依据：[框架导航](../../../docs/frameworks/README.md)、[任务求解](../../../docs/frameworks/automation-problem-solving-framework.md)、[应用开发](../../../docs/frameworks/app-development-framework.md)、[共享合同](../../../docs/frameworks/agent-to-recipe-skill-contract.md)、[Structured UI Collection Reading](../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)。
 
 2026-09-07，v0.3 修订：依据项目背景补充纯 JS／混合交付、运行时组合与最小资产交接，将 DREQ-17—DREQ-20 接到原 S1—S12 和 BC-17—BC-20；同步旧 Skill 已删除的事实，不修改公共 schema、不创建运行时或安装 Skill。
 
 2026-09-08，v0.4：依据用户写入授权，补同一 Agent 正常／异常路线、界面认识限定出口、S9／S10 分工、AppProfile 增量兼容与 DREQ-21—DREQ-24 映射。没有批量生成其他 Skill，也没有执行真实桌面业务。
+
+2026-09-10，v0.5：接入 Structured UI Collection Reading：application-engineer → CollectionProfile → recipe-build/future readCollection → generic CollectionItem[] → App Adapter/Recipe business mapping → qualification；跨 viewport 另经过 side-effecting scroll collector。新增 profile drift、evidence conflict、VLM unavailable、continuity unproven、collection mutation 五类定向返回，并接入 DREQ-25—DREQ-29；不新增 S13、Skill、稳定 API 或分页内建策略。
