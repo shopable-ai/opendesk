@@ -24,6 +24,13 @@ type Manifest struct {
 	Tray           TrayManifest   `json:"tray,omitempty"`
 }
 
+type manifestJSON struct {
+	Entry          string         `json:"entry"`
+	SingleInstance *bool          `json:"singleInstance"`
+	Window         WindowManifest `json:"window,omitempty"`
+	Tray           TrayManifest   `json:"tray,omitempty"`
+}
+
 type WindowManifest struct {
 	CloseBehavior string `json:"closeBehavior,omitempty"`
 }
@@ -59,14 +66,24 @@ func LoadManifest(packageDir string) (Manifest, error) {
 }
 
 func ParseManifest(data []byte) (Manifest, error) {
-	var manifest Manifest
+	var raw manifestJSON
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&manifest); err != nil {
+	if err := decoder.Decode(&raw); err != nil {
 		return Manifest{}, fmt.Errorf("invalid %s: %w", ManifestFileName, err)
 	}
 	if err := ensureJSONEOF(decoder); err != nil {
 		return Manifest{}, fmt.Errorf("invalid %s: %w", ManifestFileName, err)
+	}
+
+	manifest := Manifest{
+		Entry:          raw.Entry,
+		SingleInstance: true,
+		Window:         raw.Window,
+		Tray:           raw.Tray,
+	}
+	if raw.SingleInstance != nil {
+		manifest.SingleInstance = *raw.SingleInstance
 	}
 	if err := manifest.Validate(); err != nil {
 		return Manifest{}, err
@@ -138,13 +155,14 @@ func (m *Manifest) Validate() error {
 			if strings.TrimSpace(item.Label) == "" {
 				return fmt.Errorf("%s.label is required", field)
 			}
-			if strings.TrimSpace(item.Action) == "" {
-				return fmt.Errorf("%s.action is required", field)
-			}
 			if err := validateActionID(field+".id", item.ID, false); err != nil {
 				return err
 			}
-			if err := validateActionID(field+".action", item.Action, false); err != nil {
+			if strings.TrimSpace(item.Action) == "" {
+				if item.Enabled == nil || *item.Enabled {
+					return fmt.Errorf("%s.action is required unless enabled=false", field)
+				}
+			} else if err := validateActionID(field+".action", item.Action, false); err != nil {
 				return err
 			}
 			if _, exists := ids[item.ID]; exists {
