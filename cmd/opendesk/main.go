@@ -1663,6 +1663,15 @@ func startContainerBasedServer(port string, appConfig *Config) error {
 	}()
 
 	server := pkgHttp.NewServerWithScheduler(container, port, schedulerService)
+	workbenchArtifactRoot, err := accessibilityWorkbenchArtifactRoot()
+	if err != nil {
+		return fmt.Errorf("resolve on-demand Accessibility Workbench artifact root: %w", err)
+	}
+	_, controlPort, splitErr := net.SplitHostPort(listener.Addr().String())
+	if splitErr != nil {
+		return fmt.Errorf("resolve on-demand Accessibility Workbench control port: %w", splitErr)
+	}
+	server.EnableOnDemandAccessibilityWorkbench(workbenchArtifactRoot, controlPort)
 
 	// Only advertise readiness after the scheduler is running and the socket is
 	// reserved. This is the startup boundary used by the macOS status item.
@@ -1721,6 +1730,36 @@ func startContainerBasedServer(port string, appConfig *Config) error {
 		}
 	}
 	return nil
+}
+
+func accessibilityWorkbenchArtifactRoot() (string, error) {
+	workingDirectory, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	developmentTree := pathExists(filepath.Join(workingDirectory, "go.mod")) &&
+		pathExists(filepath.Join(workingDirectory, "cmd", "opendesk")) &&
+		pathExists(filepath.Join(workingDirectory, "pkg", "http"))
+	if developmentTree {
+		return resolveAccessibilityWorkbenchArtifactRoot(workingDirectory, "", true), nil
+	}
+	userConfigDirectory, err := os.UserConfigDir()
+	if err != nil {
+		return "", err
+	}
+	return resolveAccessibilityWorkbenchArtifactRoot(workingDirectory, userConfigDirectory, false), nil
+}
+
+func resolveAccessibilityWorkbenchArtifactRoot(workingDirectory, userConfigDirectory string, developmentTree bool) string {
+	if developmentTree {
+		return filepath.Join(workingDirectory, ".runtime", "accessibility-inspector")
+	}
+	return filepath.Join(userConfigDirectory, "opendesk", "accessibility-inspector")
+}
+
+func pathExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 // Modified handleStatus function

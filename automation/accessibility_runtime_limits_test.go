@@ -17,6 +17,48 @@ import (
 
 const accessibilityLimitsTestPID int64 = 424242
 
+func TestAccessibilityRestrictedExecutionPolicyRejectsMutationValueAndForeignScope(t *testing.T) {
+	backend := newAccessibilityLimitsBackend(false)
+	harness := newAccessibilityLimitsHarness(t, backend, AccessibilityExecutionPolicy{
+		ReadOnly: true, DenyValue: true, AllowedWindowID: "darwin:424242:native:7",
+	})
+	harness.runScript(t, fmt.Sprintf(`
+		globalThis.__policyDone = false;
+		globalThis.__policyFailure = "";
+		globalThis.__policyResult = null;
+		(async () => {
+			const within = { app: { pid: %d }, root: "application" };
+			const result = {};
+			try { await Accessibility.snapshot({ within, properties: ["value"] }); }
+			catch (error) { result.value = [error.code, error.phase]; }
+			try { await Accessibility.find({ role: "button" }, { within }); }
+			catch (error) { result.scope = [error.code, error.phase]; }
+			try { await Accessibility.perform({}, { action: "invoke" }); }
+			catch (error) { result.perform = [error.code, error.phase]; }
+			result.capabilities = Accessibility.getCapabilities().hostAuthorization;
+			globalThis.__policyResult = JSON.stringify(result);
+		})().then(
+			() => { globalThis.__policyDone = true; },
+			(error) => { globalThis.__policyFailure = String(error && (error.stack || error)); globalThis.__policyDone = true; }
+		);
+	`, accessibilityLimitsTestPID))
+	harness.waitForJSDone(t, "__policyDone", "__policyFailure", 5*time.Second)
+	result := harness.stringValue(t, "__policyResult")
+	for _, expected := range []string{
+		`"value":["CAPABILITY_DISABLED","authorization"]`,
+		`"scope":["CAPABILITY_DISABLED","authorization"]`,
+		`"perform":["CAPABILITY_DISABLED","authorization"]`,
+		`"readOnly":true`, `"valueAllowed":false`, `"windowScoped":true`,
+	} {
+		if !strings.Contains(result, expected) {
+			t.Fatalf("restricted policy result %s does not contain %s", result, expected)
+		}
+	}
+	if backend.findCalls.Load() != 0 || backend.readCalls.Load() != 0 || backend.performCalls.Load() != 0 {
+		t.Fatalf("restricted request reached native find/read/perform: %d/%d/%d", backend.findCalls.Load(), backend.readCalls.Load(), backend.performCalls.Load())
+	}
+}
+
 func TestAccessibilityRuntimeActiveRefLimitAndTeardown(t *testing.T) {
 	backend := newAccessibilityLimitsBackend(false)
 	harness := newAccessibilityLimitsHarness(t, backend)
@@ -245,15 +287,20 @@ type accessibilityLimitsHarness struct {
 	cleanupOnce sync.Once
 }
 
-func newAccessibilityLimitsHarness(t *testing.T, backend *accessibilityLimitsBackend) *accessibilityLimitsHarness {
+func newAccessibilityLimitsHarness(t *testing.T, backend *accessibilityLimitsBackend, policies ...AccessibilityExecutionPolicy) *accessibilityLimitsHarness {
 	t.Helper()
 	loop := eventloop.NewEventLoop(eventloop.EnableConsole(false))
 	loop.Start()
 	harness := &accessibilityLimitsHarness{loop: loop, backend: backend}
 	ready := make(chan error, 1)
 	if !loop.RunOnLoop(func(runtimeValue *goja.Runtime) {
+		policy := AccessibilityExecutionPolicy{}
+		if len(policies) > 0 {
+			policy = policies[0]
+		}
 		opts := InitJSOptions{
 			Context: context.Background(), EventLoop: loop, EnableAccessibility: true,
+			AccessibilityPolicy:         policy,
 			AppBackendFactory:           func() AppBackend { return accessibilityLimitsAppBackend{} },
 			AccessibilityBackendFactory: func() AccessibilityBackend { return backend },
 		}
@@ -406,6 +453,7 @@ type accessibilityLimitsBackend struct {
 	initializeCalls  atomic.Int64
 	findCalls        atomic.Int64
 	readCalls        atomic.Int64
+	performCalls     atomic.Int64
 	releaseCalls     atomic.Int64
 	closeCalls       atomic.Int64
 	lateReturns      atomic.Int64
@@ -478,6 +526,7 @@ func (b *accessibilityLimitsBackend) Read(context.Context, uint64, []string) (Ac
 
 func (b *accessibilityLimitsBackend) Perform(context.Context, uint64, AccessibilityAction) (AccessibilityActionData, error) {
 	b.noteNativeOwner()
+	b.performCalls.Add(1)
 	return AccessibilityActionData{State: AccessibilityActionAcknowledged}, nil
 }
 

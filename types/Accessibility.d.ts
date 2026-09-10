@@ -97,6 +97,7 @@ declare global {
   type OpenDeskAccessibilityProperty =
     | "role"
     | "nativeRole"
+    | "nativeSubrole"
     | "name"
     | "identifier"
     | "enabled"
@@ -143,6 +144,8 @@ declare global {
   interface OpenDeskAccessibilityNode {
     role: OpenDeskAccessibilityRole;
     nativeRole: string;
+    /** Backend-native subrole when the platform exposes one; otherwise null. */
+    nativeSubrole: string | null;
     name: string | null;
     identifier: string | null;
     enabled: boolean | null;
@@ -178,6 +181,7 @@ declare global {
   interface OpenDeskAccessibilityReadProperties {
     role?: OpenDeskAccessibilityRole;
     nativeRole?: string;
+    nativeSubrole?: string | null;
     name?: string | null;
     identifier?: string | null;
     enabled?: boolean | null;

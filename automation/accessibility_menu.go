@@ -130,6 +130,9 @@ func (a *AccessibilityRuntime) findMenuItem(call goja.FunctionCall) goja.Value {
 
 func (a *AccessibilityRuntime) tapMenuItem(call goja.FunctionCall) goja.Value {
 	const operation = "UI.tapMenuItem"
+	if a.policy.ReadOnly {
+		return a.rejected(operation, accessibilityError(AccessibilityCapabilityDisabled, "authorization", "native accessibility mutations are disabled for this execution", nil))
+	}
 	if len(call.Arguments) != 2 {
 		return a.rejected(operation, accessibilityError(AccessibilityInvalidArgument, "arguments", "tapMenuItem accepts path and options", nil))
 	}

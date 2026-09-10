@@ -88,6 +88,11 @@ type InitJSOptions struct {
 	// native Accessibility owner. Generic Runtime, HTTP, MCP, and Scheduler
 	// executions leave it false while retaining the capability summary.
 	EnableAccessibility bool
+	// AccessibilityPolicy is an optional host-owned restriction for a bounded
+	// first-party execution. Ordinary local scripts leave it zero-valued. The
+	// Accessibility Workbench uses it to deny every mutation/value read and to
+	// bind all semantic queries to one exact resolved window identity.
+	AccessibilityPolicy AccessibilityExecutionPolicy
 	// EnableSQLite is deliberately separate from File: it opts a trusted local
 	// execution into the first-party SQLite owner. Shared Runtime initialization
 	// leaves it false for HTTP, MCP, and Scheduler executions so this global

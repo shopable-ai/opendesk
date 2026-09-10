@@ -6,7 +6,7 @@ description: 原生 Accessibility 驱动的 Agent 自动化与可选本机 Web �
 # Accessibility Workbench：Agent 直接执行，人通过网页协作
 
 日期：2026-09-10。
-状态：**实施方案已落库；本文新增 Web 页面、HTTP 协议、授权和交接功能尚未实现或验收。**
+状态：**第一批只读 Web 闭环已实现，并已收敛为独立 loopback 静态前端＋按需 loopback API。OpenDesk 不包含、托管或启动前端；旧内嵌、专用 CLI 和 LAN 实验均已撤销。真实 macOS AX、前端模型、Runtime catalog 与 native gate 已有证据；Browser Skill 当前无可控实例，页面实窗截图仍未运行。Windows UIA live 也未运行，不转移平台资格。**
 初始核查：`1d5404e89bb4c1587566b11382b7dff8aed71d7d`；写入前复核：`0f5b13ac0271da6b5173adb36ee2bd0b8552dd12`。实施时读取当前分支及工作树，不回退这些提交。
 执行入口：[本地 Codex Goal](../../../prompts/runtime/accessibility-workbench-goal.md)。本文是方案主文档，Goal 负责实施顺序，不另建同主题正文。
 
@@ -81,11 +81,15 @@ AI 拿到树后可以直接推进支持范围内的业务，但树不等于任�
 
 | 运行情况 | 产品行为 |
 | --- | --- |
-| 本功能已启用，当前用户已授权 | 从工具入口打开页面，复用同一进程与获准会话 |
-| 仅启用了普通 HTTP／其他功能 | 明确显示检查能力未启用；只由可信本机入口启用，不能由任意网页授予权限 |
+| 本功能已启用，当前用户已授权 | 保留现有页面；再次启动返回冲突，不撤销正在进行的审阅 |
+| 仅启用了普通 HTTP／其他功能 | 独立静态页可在用户点击后通过严格 loopback Origin/CORS 控制接口，请求同一进程按需创建短期 API listener；无 Origin 客户端和远程网页不能启用 |
 | 版本不含功能、未监听或无法安全热启用 | 给出准确更新／启动说明；不谎报 URL，不启动重复实例，不中断其他任务 |
 
-新增开关、URL、菜单在实现前都是拟议设计。实施者必须交付一个真实的一行启动入口。没有 HTTP 监听的普通进程，不会因为打开 HTML 文件而自动获得服务。用户不应启动前端开发服务器、构建源码或复制隐藏 fixture。
+App 正常启动时不监听 `60845`。开发者可自行用 `serve`、`anywhere` 等工具直接发布 `apps/inspector_web/`；前端端口由该
+工具拥有。页面仅在用户点击 **Connect OpenDesk** 后通过已运行 App 的本机控制合同申请随机 loopback API listener，并把自身
+精确 Origin 纳入短期授权；不依赖 Node 启动器、`./dist/opendesk`、App bundle 内部 payload、菜单或内嵌副本。OpenDesk
+不托管页面，只保留必要的 loopback 数据合同。正式入口见
+[Desktop Agent 与 Accessibility Workbench](../../integrations/desktop-agent.md)。当前不提供 LAN 页面模式。
 
 ## 4. 网页显示什么，允许人改什么
 
@@ -150,15 +154,20 @@ native owner 边界补足必要的**内部只读和 scope 策略**，拒绝 perf
 
 ### 部署与来源
 
-复用 OpenDesk 进程、`pkg/http` 组件和内嵌静态资源方式。安全默认采用**同进程内 Inspector 专用的 loopback 来源和路由集合**，不挂载通用脚本、Scheduler 写入或任意文件接口。允许独立本机端口，但不是第二个需要用户管理的进程。
+复用 OpenDesk 进程和 `pkg/http` 组件。浏览器前端位于独立静态目录，可由开发者选择的 loopback 静态服务器发布；OpenDesk
+不拥有该前端 listener。原生 API 仍采用**同进程内 Inspector 专用的 loopback 来源和路由集合**，不挂载通用脚本、Scheduler
+写入或任意文件接口；外部前端模式使用随机 API 端口和单一精确 Origin CORS，端口与授权随会话释放。
 
 只有既有监听器已证明具有等效认证、来源及权限隔离时，才允许同源复用并记录依据，不能为了复用端口而共用不受限执行面。本轮不自动认证所有旧 HTTP 路由的安全性。
 
-HTML／CSS／JS 随包提供，由本机服务加载，页面用相对路径请求。不采用 `file://`＋放开 CORS，不用远程 CDN、外部字体或统计。页面无需 `-ui`、native host 或新的 WebView2 依赖。
+HTML／CSS／JS 使用相对资源路径，无 CDN、外部字体或统计，可由任意 loopback 静态服务器直接发布，不随 OpenDesk 安装包
+保留副本。不采用 `file://` 或通配 CORS。控制接口只回显页面提交的精确 loopback Origin；页面无需 `-ui`、native host 或
+新的 WebView2 依赖。
 
 ### 有限协议草案
 
-以下不是当前公开 API。公共前缀暂定 `/api/accessibility-inspector/v1`；实施后仅在 `docs/api/http-server.md` 维护正式 HTTP 合同。
+下列设计已收敛为公共前缀 `/api/accessibility-inspector/v1`；字段、状态、TTL 和错误的正式合同只在
+[HTTP Server API](../../api/http-server.md) 维护，本节继续解释架构边界。
 
 | 方法／路径 | 输入输出和边界 |
 | --- | --- |
@@ -190,11 +199,12 @@ UI nodeId 只标识某份快照中的展示节点，**不是 ElementRef、永久
 本机只读也可能泄露信息，loopback 不是身份认证。参考 OWASP 来源校验、凭据和 CSRF 原则；以下是拟实施约束，不是当前代码能力声明。[E4]
 
 - **可信启用／配对**：本机用户操作或明确 CLI 启用，OS 权限另检。短期一次性配对码换取短期 session bearer；未认证 GET 不能返回秘密。便利入口可用一次性 fragment，兑换后立即清除。长期 token 不进入 URL、日志、localStorage、导出或全局配置；页面内存持有，TTL／撤销使其失效。
-- **认证／来源**：只监听 loopback，核对真实 socket、配置确定的 Host／端口和精确 Origin；拒绝跨站、null Origin、恶意 Host、错／过期／跨会话凭据和 X-Forwarded-* 绕过。GET 也认证，正常浏览器 GET 不总有 Origin，结合 Fetch Metadata／同源 Referer及 token 形成明确规则；缺 Origin 不自动可信。测试客户端另用显式凭据规则。CORS 不是认证。
+- **认证／来源**：API 只监听 loopback。独立静态前端只在用户显式连接后登记单一精确 loopback Origin，控制请求还要求真实 loopback peer、Origin 与 `frontendUrl` 一致及严格 CORS preflight。所有请求都拒绝 null Origin、恶意 Host、错／过期／跨会话凭据和 X-Forwarded-* 绕过。GET 也认证，缺 Origin 不自动可信；测试客户端另用显式凭据规则。CORS 只允许浏览器读取响应，不构成授权。
 - **固定操作／安全展示**：JSON 白名单，无 eval、源码拼接、任意动作。UI 文本及注释以 textContent 等纯文本方式显示，不进 innerHTML／事件属性。配置 CSP、frame-ancestors、nosniff、no-referrer、no-store，不嵌入目标应用提供的 HTML／URL。
 - **数据最小化**：默认不读 value、密码、剪贴板、截图或其他窗口；标题、name、路径也可能敏感。用户明确导出／交给模型后才传递必要数据并先预览。UI 内容不是 Agent 指令，模型输出也不能扩大权限。
 
-不提供局域网／公网访问，不绕过 macOS 授权、Windows 完整性边界或 UAC，不以默认管理员、关闭沙箱或安装 Xcode 统一修复。已控制本机用户或浏览器扩展的攻击者不可能完全由此面板阻挡，需明确威胁模型。
+不提供局域网或公网访问，也不允许端口转发或未经审计的代理。已控制本机的恶意进程或能读取页面的浏览器扩展不可能完全由此
+工具阻挡。它不会绕过 macOS 授权、Windows 完整性边界或 UAC，也不以默认管理员、关闭沙箱或安装 Xcode 统一修复。
 
 ## 7. 人工成果如何交给 Agent 与 Recorder
 
@@ -245,7 +255,9 @@ UI nodeId 只标识某份快照中的展示节点，**不是 ElementRef、永久
 | --- | --- |
 | 本文 | 唯一方案、取舍、范围与验收，实施后更新状态 |
 | prompts/runtime/accessibility-workbench-goal.md | 本地执行目标，不复制全部方案 |
-| pkg/http/ 下同主题 handler／嵌入 assets | 复用既有组织，不建外部 Node 服务 |
+| apps/inspector_web/ | 可被任意 loopback 静态服务器直接发布的纯 HTML/CSS/JavaScript UI；不含 Go、Node 启动器、HTTP backend、授权或原生取数逻辑 |
+| pkg/http/ 下同主题 handler／controller | 仅提供配对、短期 API listener、精确 Origin CORS 和生命周期；不含页面资源，不反向依赖 `apps/` |
+| cmd/opendesk/ | 普通服务组合根；只启用外部页面需要的 loopback 控制合同，不注入或打开前端 |
 | automation/ 与现有 execution 集成 | 最小内部只读／scope 策略和 owner 适配，非第二套后端 |
 | docs/api/http-server.md | 实现后的正式 HTTP 合同及必要类型／索引 |
 | docs/integrations/desktop-agent.md | 实施时补集中式用户指南，区分安装版与开发命令 |
@@ -267,9 +279,62 @@ UI nodeId 只标识某份快照中的展示节点，**不是 ElementRef、永久
 
 目标 **95/100 及以上**，必须由实施证据支撑。未授权采集、执行浏览器源码、XSS、跨 execution 复用 ref、篡改事实、假树冒充实测、重复不确定动作、未测平台宣称通过，任一项均硬性不通过，不能靠其他分值抵消。
 
+### 2026-09-10 第一批验收结果
+
+当前构建基于 `8e9ff9e486398734008cfba74e07e4ef7277c054` 和本页所述未提交工作树；维护者构建时同步刷新
+`dist/opendesk`、App bundle 主程序及 `opendesk-ui-host`。运行证据都在 `.runtime/`，不属于版本控制资产。
+
+| 维度 | 得分 | 已通过证据 | 未运行／限制 |
+| --- | ---: | --- | --- |
+| 安装与日常使用 | 14/15 | 独立静态目录和当前 OpenDesk 普通服务的按需控制闭环通过；旧专用 CLI／内嵌页面证据已撤销，不再作为现行入口 | 本地 App 为 `SKIP_CODESIGN=1` 开发包；未验证 PATH 安装器 |
+| 原生数据与目标正确性 | 20/20 | 公开只读示例从仓库根目录返回 `macos-ax`、23 nodes、complete=true；真实专用 HTTP 链对精确 repo fixture 返回同一 backend/节点数，包含 execution/request/source hash；前端 geometry 测试覆盖负坐标、窗口外、无 bounds 与多显示器原点 | Windows UIA live 未运行，不借用 macOS 资格 |
+| 人工修订与定位闭环 | 18/20 | 真实 HTTP 流完成观察、选 `fixture.invoke`、UNIQUE/`performedAction=false`、恶意文本保存、导出、伪造导入降为 NOT_VALIDATED、恢复本机 receipt；当前 Agent 消费 handoff 后用普通 CLI JS 只执行一次 fixture invoke，独立状态由 0→1 且 `invoke-button` | Browser Skill 没有发现可控浏览器实例，因此没有可审阅的当前页面截图，也没有自动点击 UI 控件的实窗记录 |
+| 安全与权限 | 25/25 | owner 强制 read-only/value-denied/exact-window；专用 API listener 不含页面、静态资源或通用 execution/scheduler/vision；Go/HTTP/JS 测试覆盖 loopback、独立前端精确 Origin/CORS、Host、null/preflight/forwarded、配对重放、TTL、撤销、跨 session、XSS、敏感导出、导入资格和普通 HTTP 旁路 | 无 |
+| 生命周期与跨平台 | 8/10 | session/global concurrency、取消、关闭、迟到提交、TTL、8 MiB 响应和 64 KiB 请求均有测试；正式 Runtime accessibility mode 的 API/menu/lifecycle/cleanup 全通过且五项 Accessibility resource 为零；Windows fixture amd64 cross-build 和 Windows atomic replacement helper 编译通过 | 完整 Windows 主程序在本机 `CGO_ENABLED=0` 因 robotgo 必需类型缺失而 cross-build 失败；本机无 MinGW/Windows cgo toolchain；未运行 Windows UIA，未启 VM/Wine |
+| 文档、代码与验证交付 | 10/10 | 正式 HTTP Reference、集中用户指南、方案状态、文档索引、Go test 分类和可重复 JS live controller 已同步；命令、artifact 根、API 前缀与源码一致 | 无 |
+| **合计** | **95/100** | 安全与事实硬门槛全部通过；macOS 上不是假树或 mock 闭环 | 视觉截图与 Windows 资格继续单列，不解释为通过 |
+
+关键证据：
+
+- `.runtime/tests/accessibility-workbench/http-live-closure.json`：真实 HTTP→internal execution→macOS AX→review/handoff；
+- `.runtime/accessibility-inspector/session-cKsipserBEWnsrGd/handoff.json`：无凭据/ref/value 的实际交接实例；
+- `.runtime/tests/accessibility-workbench/agent-generated-run-final/`：Agent 普通 JS 一次动作与后置验证；
+- `.runtime/tests/runtime-api/direct-20260910-190408-570000/`：正式 Accessibility Runtime catalog 和资源清理；
+- `.runtime/tests/accessibility-workbench/build/`、`.runtime/tests/accessibility-workbench/windows/`：构建 provenance、失败边界和 cross-build 产物。
+
 最小矩阵：无 Inspector／无模型可看树；缺权限／后端／未启用；同名窗口／控件；空／partial／超大文本；平移／关闭重建／切换迟到响应；缺 bounds／负坐标／多显示器；校验无点击；错／过期／跨 session 凭据；恶意 Origin／Host／null Origin／预检／正常缺 Origin 的 GET；文本 XSS／提示注入；修订重新校验；导出不带凭据／ref；导入不伪造资格；断连／TTL／关闭清理；仅安装版真实命令；一个隔离业务任务的 JS 生成及后置验证。
 
 静态、mock、HTTP 集成、浏览器、Runtime、macOS AX、Windows UIA、安装包和业务闭环分别报告。无设备标未运行，交叉编译不是实机，不为评分安装 VM／Wine／镜像。可以先交可完成部分，但不能删掉安全门槛或平台资格缺口。
+
+### 已撤销的 LAN／内嵌实验
+
+2026-09-10 曾验证专用 CLI、内嵌页面和 LAN listener；当前简化方案已删除这些产品入口及相关代码，历史证据不构成现行命令或
+能力。现行设计只有独立 loopback 静态页面与按需 loopback API。
+
+### 2026-09-10 UI／Accessibility 树正确性增量
+
+本增量基于 HEAD `b69e396ce0b571f489e446d116ade314a40d161a` 和当时未提交工作树验证真实 HTTP controller，取得 `macos-ax` 的
+23-node complete 树：root 为 `AXWindow/AXStandardWindow`，22 个直接 children 顺序与 fixture
+一致；连续快照 23 个显示 node ID 和语义行稳定。fixture 的 invoke/disabled/checkbox/radio/secure-field 状态逐项匹配，23 个节点
+都有 `focused` 与 macOS `nativeBounds`；因混合缩放坐标未证明，23 个逻辑 `bounds` 全为 `null`，没有伪造坐标。
+
+| 验证层 | 本轮结果 | 证据边界 |
+| --- | --- | --- |
+| 独立静态页面与 API transport | 当前外部 loopback 跨进程测试通过 | 只证明传输和协议，不证明实窗树渲染 |
+| API 返回真实树 | **通过**：窗口发现、23-node AX 树、字段语义、顺序、稳定刷新、maxNodes 截断、关闭／重开、旧 ID、stale、review 失效和 handoff 均通过 | 非浏览器 controller 仍不能证明 DOM 视觉 |
+| 网页模型与安全呈现 | **自动化通过**：7/7 覆盖搜索、折叠状态、唯一语义恢复、stale、loading/error/empty/partial/truncated、几何、text-only 恶意文本和 `apps` → `pkg/http` 的单向装配边界 | 模型／静态源码不是实窗点击证据 |
+| Browser Skill 实窗 | **未运行**：`getForUrl` 返回 `No browser is available`，唯一允许的 `browsers.list()` 重试返回 `[]` | 没有用其他浏览器控制工具替代；这是唯一剩余的 Workbench 资格 |
+
+新增关键证据：
+
+- `.runtime/tests/accessibility-workbench-ui-tree/README.md`：分层结果、当前构建 provenance 与唯一剩余项；
+- `.runtime/tests/accessibility-workbench-ui-tree/http-live.log`：字段可用性、语义状态、稳定刷新、截断、handoff 和关闭／重开摘要；
+- `.runtime/tests/accessibility-workbench-ui-tree/browser-skill.txt`：Browser Skill 无实例的原始资格结论；
+- `.runtime/tests/runtime-api/direct-20260910-213443-069000/`：本轮最终构建的正式 Accessibility Runtime catalog 和 cleanup；
+- `.runtime/tests/accessibility/accessibility-native-macos-20260910-213443/`：本轮最终构建的真实 AppKit native gate 八阶段与五项资源归零。
+
+剩余的单个人机验收动作是：在 Browser Skill 出现可控实例后打开独立静态页面，完成配对并保存树展开／折叠、搜索、节点详情、
+刷新选择恢复、目标关闭后的 stale、截断提示和 handoff 状态截图。单纯 HTTP 可达性不能替代树正确性或视觉验收。
 
 ## 外部参考
 

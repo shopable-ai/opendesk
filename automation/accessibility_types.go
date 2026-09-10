@@ -179,6 +179,16 @@ type AccessibilityLimits struct {
 	Properties []string
 }
 
+// AccessibilityExecutionPolicy narrows an already authorized Accessibility
+// Runtime. It never grants access by itself: EnableAccessibility is still the
+// capability owner. AllowedWindowID is compared with the resolved WindowInfo
+// identity before native work is queued.
+type AccessibilityExecutionPolicy struct {
+	ReadOnly        bool
+	DenyValue       bool
+	AllowedWindowID string
+}
+
 type AccessibilitySelector struct {
 	Role       string
 	Name       *string
@@ -215,6 +225,7 @@ type AccessibilityScreenBounds struct {
 type AccessibilityNode struct {
 	Role          string
 	NativeRole    string
+	NativeSubrole *string
 	Name          *string
 	Identifier    *string
 	Enabled       *bool

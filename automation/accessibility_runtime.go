@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -129,6 +130,7 @@ type AccessibilityRuntime struct {
 	app     *AppRuntime
 	windows *WindowManager
 	enabled bool
+	policy  AccessibilityExecutionPolicy
 	nonce   string
 
 	closing  atomic.Bool
@@ -166,7 +168,8 @@ func newAccessibilityRuntime(runtimeValue *goja.Runtime, opts InitJSOptions, app
 	manager := &AccessibilityRuntime{
 		runtime: runtimeValue, context: ctx, cancel: cancel, backend: backend,
 		app: app, windows: windows, enabled: opts.EnableAccessibility,
-		nonce: accessibilityNonce(), pending: map[uint64]accessibilityPending{},
+		policy: opts.AccessibilityPolicy,
+		nonce:  accessibilityNonce(), pending: map[uint64]accessibilityPending{},
 		refs: map[*goja.Object]*accessibilityElementRef{},
 		jobs: make(chan accessibilityJob, accessibilityMaximumQueued), workerDone: make(chan struct{}),
 	}
@@ -631,6 +634,22 @@ func (a *AccessibilityRuntime) lookupRef(value goja.Value, operation string, all
 }
 
 func (a *AccessibilityRuntime) resolveScope(ctx context.Context, spec accessibilityScopeSpec, requireForeground bool) (AccessibilityScope, error) {
+	if allowed := strings.TrimSpace(a.policy.AllowedWindowID); allowed != "" {
+		var actual string
+		switch spec.kind {
+		case AccessibilityScopeWindow:
+			if spec.window != nil {
+				actual = spec.window.ID
+			}
+		case AccessibilityScopeElement:
+			if spec.ref != nil && spec.ref.window != nil {
+				actual = spec.ref.window.ID
+			}
+		}
+		if actual == "" || actual != allowed {
+			return AccessibilityScope{}, accessibilityError(AccessibilityCapabilityDisabled, "authorization", "accessibility scope is outside the host-authorized window", nil)
+		}
+	}
 	switch spec.kind {
 	case AccessibilityScopeApplication, AccessibilityScopeMenuBar:
 		if a.app == nil {
@@ -787,7 +806,10 @@ func (a *AccessibilityRuntime) capabilities() map[string]interface{} {
 		"platform":      capabilities.Platform,
 		"backend":       capabilities.Backend,
 		"hostAuthorization": map[string]interface{}{
-			"enabled": a != nil && a.enabled,
+			"enabled":      a != nil && a.enabled,
+			"readOnly":     a != nil && a.policy.ReadOnly,
+			"valueAllowed": a == nil || !a.policy.DenyValue,
+			"windowScoped": a != nil && strings.TrimSpace(a.policy.AllowedWindowID) != "",
 		},
 		"implementation": map[string]interface{}{
 			"available": capabilities.Implemented, "status": capabilities.Status,

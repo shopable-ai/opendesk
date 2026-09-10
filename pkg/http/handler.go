@@ -22,6 +22,19 @@ type Handler struct {
 	manager   *pkgExecution.Manager
 	scheduler *pkgScheduler.Service
 	inspector *inspectorService
+	workbench *accessibilityWorkbenchController
+	// workbenchControlPort is the ordinary OpenDesk listener port. The control
+	// route accepts only a real loopback peer and loopback Host on this port.
+	workbenchControlPort string
+	inspectorOnPaired    func()
+	inspectorOnIdle      func()
+	// inspectorFrontendOrigin is set only when a trusted local launcher names
+	// an independently served loopback UI. It is the sole CORS origin accepted
+	// by that time-bounded Workbench API listener.
+	inspectorFrontendOrigin string
+	// inspectorHost is the one Host value actually bound by the dedicated
+	// listener. Inspector routes never share the general HTTP mux.
+	inspectorHost string
 }
 
 // NewHandler 创建 HTTP 处理器。
@@ -296,6 +309,7 @@ func setupRoutes(handler *Handler) *http.ServeMux {
 	mux.HandleFunc("/executions/", handler.HandleExecutionRoutes)
 	mux.HandleFunc("/vision/ocr", handler.HandleVisionOCR)
 	mux.HandleFunc("/vision/detect-ui", handler.HandleVisionDetectUI)
+	mux.HandleFunc(accessibilityWorkbenchControlPath, handler.handleAccessibilityWorkbenchControl)
 	if handler.scheduler != nil {
 		mux.HandleFunc("/scheduler", handler.schedulerLocalOnly(handler.HandleSchedulerPage))
 		mux.HandleFunc("/scheduler/", handler.schedulerLocalOnly(handler.HandleSchedulerPage))
@@ -303,6 +317,12 @@ func setupRoutes(handler *Handler) *http.ServeMux {
 		mux.HandleFunc("/api/scheduler/jobs/", handler.schedulerLocalOnly(handler.HandleSchedulerJobRoutes))
 	}
 
+	return mux
+}
+
+func setupInspectorRoutes(handler *Handler) *http.ServeMux {
+	mux := http.NewServeMux()
+	mux.HandleFunc(inspectorAPIPrefix+"/", handler.HandleInspectorAPI)
 	return mux
 }
 
@@ -336,11 +356,30 @@ func NewServerWithScheduler(container *container.Container, port string, schedul
 	}
 }
 
+// EnableOnDemandAccessibilityWorkbench enables the local control plane for an
+// independently served frontend. It does not bind or serve frontend assets.
+func (s *Server) EnableOnDemandAccessibilityWorkbench(artifactRoot, controlPort string) {
+	if s == nil || s.handler == nil {
+		return
+	}
+	s.handler.workbench = newAccessibilityWorkbenchController(artifactRoot)
+	s.handler.workbenchControlPort = strings.TrimSpace(controlPort)
+}
+
 // Listen reserves the HTTP port before the caller reports the service as
 // ready. It prevents a Finder-launched App from claiming success and then
 // immediately exiting because another process already owns the port.
 func (s *Server) Listen() (net.Listener, error) {
-	return net.Listen("tcp", s.server.Addr)
+	listener, err := net.Listen("tcp", s.server.Addr)
+	if err == nil && s.handler != nil {
+		if s.handler.inspector != nil {
+			s.handler.inspectorHost = listener.Addr().String()
+		}
+		if s.handler.workbench != nil {
+			_, s.handler.workbenchControlPort, _ = net.SplitHostPort(listener.Addr().String())
+		}
+	}
+	return listener, err
 }
 
 // Serve accepts requests using a listener reserved by Listen.
@@ -364,11 +403,21 @@ func (s *Server) Start() error {
 
 // Shutdown 优雅关闭 HTTP 服务。
 func (s *Server) Shutdown(ctx context.Context) error {
-	if s.handler != nil {
+	var workbenchErr error
+	if s.handler != nil && s.handler.workbench != nil {
+		workbenchErr = s.handler.workbench.shutdown(ctx)
+	}
+	if s.handler != nil && s.handler.inspector != nil {
+		s.handler.inspector.close()
+	}
+	if s.handler != nil && s.handler.manager != nil {
 		s.handler.manager.BeginShutdown()
 	}
 	serverErr := s.server.Shutdown(ctx)
-	if s.handler != nil {
+	if serverErr == nil && workbenchErr != nil {
+		serverErr = workbenchErr
+	}
+	if s.handler != nil && s.handler.manager != nil {
 		s.handler.manager.CancelAll()
 		if err := s.handler.manager.WaitAll(ctx); err != nil && serverErr == nil {
 			serverErr = err

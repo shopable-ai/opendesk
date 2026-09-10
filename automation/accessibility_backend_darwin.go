@@ -678,6 +678,7 @@ func (inspection darwinAXInspection) node() AccessibilityNode {
 	node := AccessibilityNode{
 		Role:          normalizeDarwinAXRole(nativeRole),
 		NativeRole:    nativeRole,
+		NativeSubrole: inspection.Subrole,
 		Name:          inspection.Name,
 		Identifier:    inspection.Identifier,
 		Enabled:       inspection.Enabled,
@@ -954,7 +955,7 @@ func accessibilityNativeBoundsValue(bounds *AccessibilityNativeBounds) interface
 }
 
 func defaultDarwinReadProperties() []string {
-	return []string{"role", "nativeRole", "name", "identifier", "enabled", "focused", "selected", "checked", "expanded", "actions", "nativeBounds", "bounds"}
+	return []string{"role", "nativeRole", "nativeSubrole", "name", "identifier", "enabled", "focused", "selected", "checked", "expanded", "actions", "nativeBounds", "bounds"}
 }
 
 func (b *darwinAccessibilityBackend) Read(ctx context.Context, handle uint64, properties []string) (AccessibilityReadData, error) {
@@ -983,6 +984,8 @@ func (b *darwinAccessibilityBackend) Read(ctx context.Context, handle uint64, pr
 			result[property] = node.Role
 		case "nativeRole":
 			result[property] = node.NativeRole
+		case "nativeSubrole":
+			result[property] = pointerValue(node.NativeSubrole)
 		case "name":
 			result[property] = pointerValue(node.Name)
 		case "identifier":

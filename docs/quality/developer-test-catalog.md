@@ -126,6 +126,27 @@ Promise settlement，以及 `accessibilityWorkers` / `accessibilityPending` / `a
 `accessibilityRefs` / `accessibilityNativeResources` 清理归零；原生 fixture、动作副作用和真实应用菜单
 必须另行显式 opt-in，不能由这组结果代替。
 
+Accessibility Workbench 的浏览器模型单元测试使用：
+
+```text
+node --test tests/accessibility-workbench/model.test.js
+```
+
+跨进程验证时，先用任意一个静态服务器直接发布 `apps/inspector_web/`，再运行：
+
+```text
+OPENDESK_WORKBENCH_CONTROL_URL='http://127.0.0.1:<普通服务端口>/api/accessibility-workbench/v1/launch' OPENDESK_WORKBENCH_FRONTEND_URL='http://127.0.0.1:<静态服务端口>/' node tests/accessibility-workbench/control-launch.js
+```
+
+该脚本不会读取窗口或执行 Accessibility 动作；它模拟页面的 CORS 预检与显式连接，验证普通服务不预先创建 Workbench、
+控制请求创建隔离 API listener、独立 HTML/CSS/JS 可取、外部模式不占静态服务器端口且只允许精确 Origin、并发第二次启动
+被拒绝、一次性配对和撤销后 listener 释放。测试应使用独立临时端口和
+`.runtime/tests/accessibility-workbench/` 下的构建／Scheduler 数据，不连接用户正在运行的 `60844` 服务。
+
+`tests/accessibility-workbench/http-live.js` 仍可由更高层测试 harness 在内存中传入控制接口返回的一次性 URL，用于真实创建会话、
+重复观察和核对树字段；它不是用户启动入口。完整的人工启动与权限前提见
+[`docs/integrations/desktop-agent.md`](../integrations/desktop-agent.md)。
+
 Clipboard 富文本粘贴 fixture：
 
 ```text

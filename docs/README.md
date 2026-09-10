@@ -157,7 +157,11 @@ YYYY-MM-DD-topic.md
 
 已完成或失效的计划应更新、关闭或归档，不能长期以“待做”状态污染当前事实。
 
-[Accessibility Workbench 实施方案](plans/desktop-automation/accessibility-workbench.md) 规定 Agent 直接使用原生 Accessibility、可选本机 Web 人工审阅、受限 HTTP、定位修订与交接的最小闭环；[本地 Codex Goal](../prompts/runtime/accessibility-workbench-goal.md) 用于实施。当前为方案与执行目标，不能视为 Web 功能已发布。
+[Desktop Agent 与 Accessibility Workbench](integrations/desktop-agent.md) 是当前用户入口与人工修订／Agent 交接指南；
+[HTTP Server API](api/http-server.md) 维护独立静态前端与按需 loopback API listener 的正式合同；
+[Accessibility Workbench 实施方案](plans/desktop-automation/accessibility-workbench.md) 保留产品边界、阶段和本轮验收证据；
+[本地 Codex Goal](../prompts/runtime/accessibility-workbench-goal.md) 是实施约束。第一批只读 Web 闭环已在当前工作树实现，
+平台和视觉未运行项以方案的验收表为准，不能从源码存在推导未列明的平台资格。
 
 ### `maintenance/`
 

@@ -25,7 +25,8 @@
   }
 
   function searchableText(node) {
-    return [node && node.role, node && node.name, node && node.identifier]
+    return [node && node.role, node && node.nativeRole, node && node.nativeSubrole,
+      node && node.name, node && node.identifier]
       .map(text).join(" ").toLocaleLowerCase();
   }
 
@@ -41,6 +42,77 @@
     const role = text(node.role) || "unknown";
     const identity = text(node.name) || text(node.identifier) || "unnamed";
     return role + " · " + identity;
+  }
+
+  function nodeDetails(node) {
+    if (!node || typeof node !== "object") return null;
+    const result = {};
+    for (const key of [
+      "nodeId", "role", "nativeRole", "nativeSubrole", "name", "nameSource",
+      "identifier", "enabled", "focused", "selected", "checked", "expanded",
+      "actions", "nativeBounds", "bounds"
+    ]) {
+      if (Object.prototype.hasOwnProperty.call(node, key)) result[key] = node[key];
+    }
+    result.childCount = childrenOf(node).length;
+    return result;
+  }
+
+  function nodeFingerprint(node) {
+    if (!node || typeof node !== "object") return "";
+    return JSON.stringify([
+      text(node.role), text(node.nativeRole), text(node.nativeSubrole),
+      pointer(node.name) === undefined ? null : text(node.name),
+      pointer(node.identifier) === undefined ? null : text(node.identifier)
+    ]);
+  }
+
+  function selectionAnchor(root, selected) {
+    if (!root || !selected) return null;
+    const selectedId = typeof selected === "string" ? selected : text(selected.nodeId);
+    const selectedObject = typeof selected === "object" ? selected : null;
+    let result = null;
+    function visit(node, path) {
+      if (result || !node || typeof node !== "object") return;
+      if ((selectedObject && node === selectedObject) || (selectedId && text(node.nodeId) === selectedId)) {
+        result = {
+          path: path.slice(), fingerprint: nodeFingerprint(node),
+          role: text(node.role), identifier: text(node.identifier)
+        };
+        return;
+      }
+      childrenOf(node).forEach((child, index) => visit(child, path.concat(index)));
+    }
+    visit(root, []);
+    return result;
+  }
+
+  function nodeAtPath(root, path) {
+    let current = root;
+    for (const index of Array.isArray(path) ? path : []) {
+      const children = childrenOf(current);
+      if (!Number.isInteger(index) || index < 0 || index >= children.length) return null;
+      current = children[index];
+    }
+    return current && typeof current === "object" ? current : null;
+  }
+
+  function restoreSelection(root, anchor) {
+    if (!root || !anchor) return { node: null, status: "none" };
+    const rows = flattenTree(root);
+    if (anchor.identifier) {
+      const identified = rows.filter(({ node }) =>
+        text(node.identifier) === anchor.identifier && text(node.role) === anchor.role);
+      if (identified.length === 1) return { node: identified[0].node, status: "preserved" };
+      if (identified.length > 1) return { node: null, status: "stale" };
+    }
+    const atPath = nodeAtPath(root, anchor.path);
+    if (atPath && nodeFingerprint(atPath) === anchor.fingerprint) {
+      return { node: atPath, status: "preserved" };
+    }
+    const same = rows.filter(({ node }) => nodeFingerprint(node) === anchor.fingerprint);
+    if (same.length === 1) return { node: same[0].node, status: "preserved" };
+    return { node: null, status: "stale" };
   }
 
   function nodeFlags(node) {
@@ -103,12 +175,16 @@
       const boxWidth = bounds.width * scale;
       const boxHeight = bounds.height * scale;
       if (left + boxWidth < 0 || top + boxHeight < 0 || left > width || top > height) continue;
+	  const clippedLeft = Math.max(0, left);
+	  const clippedTop = Math.max(0, top);
+	  const clippedRight = Math.min(width, left + boxWidth);
+	  const clippedBottom = Math.min(height, top + boxHeight);
       boxes.push({
         nodeId: node.nodeId,
         label: nodeSummary(node), depth,
-        left: Math.max(0, left), top: Math.max(0, top),
-        width: Math.max(1, Math.min(width - Math.max(0, left), boxWidth)),
-        height: Math.max(1, Math.min(height - Math.max(0, top), boxHeight)),
+        left: clippedLeft, top: clippedTop,
+        width: Math.max(1, clippedRight - clippedLeft),
+        height: Math.max(1, clippedBottom - clippedTop),
         logicalBounds: bounds
       });
     }
@@ -152,8 +228,16 @@
     if (!observation) return { label: "Unavailable", tone: "neutral" };
     if (observation.freshness === "stale") return { label: "Stale", tone: "bad" };
     if (observation.truncated) return { label: "Truncated", tone: "warn" };
-    if (!observation.complete) return { label: "Incomplete", tone: "warn" };
+    if (!observation.complete) return { label: "Partial", tone: "warn" };
     return { label: "Complete", tone: "good" };
+  }
+
+  function observationState(observation, phase) {
+    if (phase === "loading") return { label: "Loading", tone: "pending", mode: "loading" };
+    if (!observation) return { label: "Unavailable", tone: "neutral", mode: "empty" };
+    const result = completeness(observation);
+    if (!observation.root) return { label: "Empty", tone: "warn", mode: "empty" };
+    return { label: result.label, tone: result.tone, mode: text(observation.freshness) === "stale" ? "stale" : "ready" };
   }
 
   function validationTone(status) {
@@ -190,7 +274,8 @@
   }
 
   return {
-    flattenTree, searchSnapshot, nodeSummary, nodeFlags, finiteBounds,
+    flattenTree, searchSnapshot, nodeSummary, nodeDetails, nodeFlags, nodeFingerprint,
+    selectionAnchor, restoreSelection, observationState, finiteBounds,
     observationWindowBounds, layoutMapping, locatorFromNode, normalizeLocator,
     sameLocator, completeness, validationTone, agentPrompt, jsSnippet
   };

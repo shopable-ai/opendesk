@@ -92,6 +92,10 @@ type Request struct {
 	// Trusted local script entrypoints set it; remote and scheduled requests
 	// leave it false.
 	EnableAccessibility bool
+	// AccessibilityPolicy can only narrow an enabled first-party execution.
+	// It is used by source-controlled internal programs, never by public HTTP
+	// script requests.
+	AccessibilityPolicy automation.AccessibilityExecutionPolicy
 	// EnableSQLite permits local first-party SQLite database handles. It is a
 	// separate explicit capability because SQLite.open accepts filesystem paths;
 	// HTTP, MCP, and Scheduler requests leave it false by default.
@@ -356,6 +360,7 @@ func runJavaScript(req Request, emitter *Emitter) error {
 				EnableCommand:                   req.EnableCommand,
 				EnableDownload:                  req.EnableDownload,
 				EnableAccessibility:             req.EnableAccessibility,
+				AccessibilityPolicy:             req.AccessibilityPolicy,
 				EnableSQLite:                    req.EnableSQLite,
 				EnableRecorderCapture:           req.EnableRecorderCapture,
 				ExecutionID:                     req.ExecutionID,

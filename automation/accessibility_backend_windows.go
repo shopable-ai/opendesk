@@ -1406,6 +1406,8 @@ func (b *windowsAccessibilityBackend) Read(ctx context.Context, handle uint64, p
 			} else {
 				result[property] = native
 			}
+		case "nativeSubrole":
+			result[property] = nil
 		case "name":
 			result[property], err = b.propertyString(entry.element, uiaNameProperty)
 		case "identifier":

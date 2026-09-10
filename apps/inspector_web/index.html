@@ -3,8 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self' http://127.0.0.1:* http://localhost:*; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <link rel="icon" href="data:,">
   <title>OpenDesk Accessibility Workbench</title>
-  <link rel="stylesheet" href="/accessibility-workbench/assets/app.css">
+  <link rel="stylesheet" href="./assets/app.css">
 </head>
 <body>
   <header class="topbar">
@@ -13,7 +16,8 @@
       <h1>Accessibility Workbench</h1>
     </div>
     <div class="service-state">
-      <span id="connection-badge" class="badge pending">Pairing</span>
+      <button id="connect-opendesk" class="primary" type="button">Connect OpenDesk</button>
+      <span id="connection-badge" class="badge neutral">Not connected</span>
       <span id="capability-summary">No capability observation yet</span>
     </div>
   </header>
@@ -32,7 +36,7 @@
     </div>
   </section>
 
-  <div id="global-message" class="message info" role="status">Use the trusted local launch URL to pair this page.</div>
+  <div id="global-message" class="message info" role="status">Keep OpenDesk running, then connect this local page when you need the Workbench.</div>
 
   <main class="workspace">
     <section class="pane tree-pane" aria-labelledby="tree-heading">
@@ -88,18 +92,20 @@
       <h3>Handoff</h3>
       <div class="button-row wrap">
         <button id="save-review" type="button" disabled>Save review</button>
+        <label class="file-button" for="import-handoff">Import JSON</label>
+        <input id="import-handoff" class="visually-hidden" type="file" accept="application/json,.json" disabled>
         <button id="export-handoff" type="button" disabled>Export JSON</button>
         <button id="copy-agent" type="button" disabled>Copy Agent prompt</button>
         <button id="copy-js" type="button" disabled>Copy OpenDesk JS</button>
       </div>
-      <p id="handoff-detail" class="hint">No model is required. Saving a review does not claim a recipe or business result was verified.</p>
+      <p id="handoff-detail" class="hint">No model is required. Export includes only the selected element facts and human review; saving does not claim a recipe or business result was verified.</p>
     </section>
   </main>
 
   <footer>
     Observation, Human Review, Locator Candidate, and Backend Validation Receipt are separate evidence layers. Visual/OCR/image overlays are reserved for a later capability.
   </footer>
-  <script src="/accessibility-workbench/assets/model.js"></script>
-  <script src="/accessibility-workbench/assets/app.js"></script>
+  <script src="./assets/model.js"></script>
+  <script src="./assets/app.js"></script>
 </body>
 </html>

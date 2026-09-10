@@ -120,6 +120,7 @@ static NSButton *PushButton(NSString *title, NSString *identifier, id target, SE
     NSTextField *heading = [NSTextField labelWithString:@"OpenDesk Native Accessibility Fixture"];
     heading.font = [NSFont systemFontOfSize:22 weight:NSFontWeightSemibold];
     SetIdentifier(heading, @"fixture.heading");
+    SetAccessibilityLabel(heading, @"<img src=x onerror=globalThis.__axInjected=1><script>globalThis.__axScript=1</script>");
     [root addArrangedSubview:heading];
 
     self.statusLabel = [NSTextField labelWithString:@"Ready"];
@@ -358,7 +359,12 @@ static NSButton *PushButton(NSString *title, NSString *identifier, id target, SE
     (void)sender;
     self.dynamicRevealCount += 1;
     [self updateStatus:@"dynamic-requested"];
-    if ([self.dynamicContainer viewWithTag:8842] != nil) {
+    NSView *existing = [self.dynamicContainer viewWithTag:8842];
+    if (existing != nil) {
+        [existing removeFromSuperview];
+        [self.dynamicContainer setAccessibilityChildren:nil];
+        self.lastAction = @"dynamic-unmaterialized";
+        [self writeState];
         return;
     }
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(200 * NSEC_PER_MSEC)), dispatch_get_main_queue(), ^{
@@ -366,6 +372,10 @@ static NSButton *PushButton(NSString *title, NSString *identifier, id target, SE
         child.tag = 8842;
         child.frame = NSMakeRect(0, 2, 140, 30);
         [self.dynamicContainer addSubview:child];
+        [self.dynamicContainer setAccessibilityElement:YES];
+        SetAccessibilityRole(self.dynamicContainer, NSAccessibilityGroupRole);
+        SetAccessibilityLabel(self.dynamicContainer, @"Dynamic fixture group");
+        [self.dynamicContainer setAccessibilityChildren:@[child]];
         self.lastAction = @"dynamic-materialized";
         [self writeState];
     });

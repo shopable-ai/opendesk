@@ -217,3 +217,17 @@ func TestExecutionRequestCarriesStackMode(t *testing.T) {
 		t.Fatalf("unexpected request source fields: %+v", request)
 	}
 }
+
+func TestResolveAccessibilityWorkbenchArtifactRoot(t *testing.T) {
+	development := resolveAccessibilityWorkbenchArtifactRoot("/workspace/opendesk", "", true)
+	wantDevelopment := filepath.Join("/workspace/opendesk", ".runtime", "accessibility-inspector")
+	if development != wantDevelopment {
+		t.Fatalf("development artifact root = %q, want %q", development, wantDevelopment)
+	}
+
+	installed := resolveAccessibilityWorkbenchArtifactRoot("/tmp", "/user/config", false)
+	wantInstalled := filepath.Join("/user/config", "opendesk", "accessibility-inspector")
+	if installed != wantInstalled {
+		t.Fatalf("installed artifact root = %q, want %q", installed, wantInstalled)
+	}
+}

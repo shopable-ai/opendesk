@@ -18,14 +18,14 @@ const (
 )
 
 var accessibilityPropertySet = map[string]bool{
-	"role": true, "nativeRole": true, "name": true, "identifier": true,
+	"role": true, "nativeRole": true, "nativeSubrole": true, "name": true, "identifier": true,
 	"enabled": true, "focused": true, "selected": true, "checked": true,
 	"expanded": true, "actions": true, "nativeBounds": true, "bounds": true,
 	"value": true,
 }
 
 var accessibilityDefaultProperties = []string{
-	"role", "nativeRole", "name", "identifier", "enabled", "focused",
+	"role", "nativeRole", "nativeSubrole", "name", "identifier", "enabled", "focused",
 	"selected", "checked", "expanded", "actions", "nativeBounds", "bounds",
 }
 
@@ -77,6 +77,9 @@ func (a *AccessibilityRuntime) snapshot(call goja.FunctionCall) goja.Value {
 	}
 	options, err := a.parseLocateOptions(call.Argument(0), operation, true, true)
 	if err != nil {
+		return a.rejected(operation, err)
+	}
+	if err := a.authorizeProperties(operation, options.limits.Properties); err != nil {
 		return a.rejected(operation, err)
 	}
 	if !a.enabled {
@@ -167,6 +170,9 @@ func (a *AccessibilityRuntime) read(call goja.FunctionCall) goja.Value {
 	if err != nil {
 		return a.rejected(operation, err)
 	}
+	if err := a.authorizeProperties(operation, options.properties); err != nil {
+		return a.rejected(operation, err)
+	}
 	if !a.enabled {
 		return a.rejected(operation, accessibilityError(AccessibilityCapabilityDisabled, "authorization", "native accessibility is disabled for this execution", nil))
 	}
@@ -227,6 +233,9 @@ func validateAccessibilityReadProjection(properties map[string]interface{}, requ
 
 func (a *AccessibilityRuntime) perform(call goja.FunctionCall) goja.Value {
 	const operation = "Accessibility.perform"
+	if a.policy.ReadOnly {
+		return a.rejected(operation, accessibilityError(AccessibilityCapabilityDisabled, "authorization", "native accessibility mutations are disabled for this execution", nil))
+	}
 	if len(call.Arguments) < 2 || len(call.Arguments) > 3 {
 		return a.rejected(operation, accessibilityError(AccessibilityInvalidArgument, "arguments", "perform accepts ref, action, and optional options", nil))
 	}
@@ -275,6 +284,18 @@ func (a *AccessibilityRuntime) perform(call goja.FunctionCall) goja.Value {
 			"backend": a.backendName(), "actionState": string(data.State),
 		}, nil
 	}, nil, nil)
+}
+
+func (a *AccessibilityRuntime) authorizeProperties(operation string, properties []string) error {
+	if !a.policy.DenyValue {
+		return nil
+	}
+	for _, property := range properties {
+		if property == "value" {
+			return accessibilityError(AccessibilityCapabilityDisabled, "authorization", operation+" cannot read value in this restricted execution", nil)
+		}
+	}
+	return nil
 }
 
 func validAccessibilityCompletionState(state AccessibilityActionState) bool {
@@ -768,7 +789,8 @@ func accessibilityDuration(value goja.Value, name string) (time.Duration, error)
 func accessibilityNodeProjection(node AccessibilityNode) map[string]interface{} {
 	result := map[string]interface{}{
 		"role": node.Role, "nativeRole": node.NativeRole,
-		"name": nullableAccessibilityString(node.Name), "identifier": nullableAccessibilityString(node.Identifier),
+		"nativeSubrole": nullableAccessibilityString(node.NativeSubrole),
+		"name":          nullableAccessibilityString(node.Name), "identifier": nullableAccessibilityString(node.Identifier),
 		"enabled": nullableAccessibilityBool(node.Enabled), "focused": nullableAccessibilityBool(node.Focused),
 		"selected": nullableAccessibilityBool(node.Selected), "checked": nullableAccessibilityBool(node.Checked),
 		"expanded": nullableAccessibilityBool(node.Expanded), "actions": append([]string(nil), node.Actions...),

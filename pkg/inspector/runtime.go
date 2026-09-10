@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"opendesk/automation"
 	pkgExecution "opendesk/pkg/execution"
 	"os"
 	"strings"
@@ -129,7 +130,7 @@ func (r *RuntimeRunner) Snapshot(ctx context.Context, target map[string]any, lim
 	var result SnapshotResult
 	executionID, err := r.execute(ctx, snapshotProgram, map[string]any{
 		"windowTarget": target,
-		"limits":       limits,
+		"limits":       runtimeLimitsInput(limits),
 	}, time.Duration(limits.TimeoutMS+1500)*time.Millisecond, &result)
 	result.ExecutionID = executionID
 	return result, err
@@ -139,8 +140,8 @@ func (r *RuntimeRunner) Validate(ctx context.Context, target map[string]any, loc
 	var result ValidationResult
 	executionID, err := r.execute(ctx, validateProgram, map[string]any{
 		"windowTarget": target,
-		"locator":      locator,
-		"limits":       limits,
+		"locator":      runtimeLocatorInput(locator),
+		"limits":       runtimeLimitsInput(limits),
 	}, time.Duration(limits.TimeoutMS+1500)*time.Millisecond, &result)
 	result.ExecutionID = executionID
 	if err != nil {
@@ -150,6 +151,26 @@ func (r *RuntimeRunner) Validate(ctx context.Context, target map[string]any, loc
 		result.Status = validationStatus(result.Error)
 	}
 	return result, nil
+}
+
+func runtimeLimitsInput(limits Limits) map[string]any {
+	return map[string]any{
+		"timeout": limits.TimeoutMS, "maxDepth": limits.MaxDepth, "maxNodes": limits.MaxNodes,
+	}
+}
+
+func runtimeLocatorInput(locator Locator) map[string]any {
+	result := map[string]any{}
+	if locator.Role != "" {
+		result["role"] = locator.Role
+	}
+	if locator.Name != nil {
+		result["name"] = *locator.Name
+	}
+	if locator.Identifier != nil {
+		result["identifier"] = *locator.Identifier
+	}
+	return result
 }
 
 func (r *RuntimeRunner) execute(ctx context.Context, program string, input any, timeout time.Duration, destination any) (string, error) {
@@ -191,7 +212,11 @@ func (r *RuntimeRunner) execute(ctx context.Context, program string, input any, 
 		Environment:         map[string]string{},
 		Timeout:             timeout,
 		EnableAccessibility: true,
-		InternalResultSink:  sink,
+		AccessibilityPolicy: automation.AccessibilityExecutionPolicy{
+			ReadOnly: true, DenyValue: true,
+			AllowedWindowID: inspectorWindowID(input),
+		},
+		InternalResultSink: sink,
 	}, emitter)
 	if runErr != nil {
 		return executionID, runErr
@@ -225,6 +250,13 @@ func (r *RuntimeRunner) execute(ctx context.Context, program string, input any, 
 		return executionID, fmt.Errorf("decode inspector data: %w", err)
 	}
 	return executionID, nil
+}
+
+func inspectorWindowID(input any) string {
+	root, _ := input.(map[string]any)
+	target, _ := root["windowTarget"].(map[string]any)
+	id, _ := target["id"].(string)
+	return strings.TrimSpace(id)
 }
 
 func validationStatus(runtimeErr *RuntimeError) string {
@@ -321,7 +353,7 @@ try {
     timeout: limits.timeout,
     maxDepth: limits.maxDepth,
     maxNodes: limits.maxNodes,
-    properties: ["role","nativeRole","name","identifier","enabled","focused","selected","checked","expanded","actions","nativeBounds","bounds"]
+    properties: ["role","nativeRole","nativeSubrole","name","identifier","enabled","focused","selected","checked","expanded","actions","nativeBounds","bounds"]
   });
   __inspectorEmit({ok:true,data:{window:__window,snapshot}});
 } catch (error) {
@@ -353,7 +385,7 @@ try {
   } else {
     const read = await Accessibility.read(__ref, {
       timeout: limits.timeout,
-      properties: ["role","nativeRole","name","identifier","enabled","focused","selected","checked","expanded","actions","nativeBounds","bounds"]
+      properties: ["role","nativeRole","nativeSubrole","name","identifier","enabled","focused","selected","checked","expanded","actions","nativeBounds","bounds"]
     });
     __result = {status:"UNIQUE",window:__window,element:read.properties};
   }

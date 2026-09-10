@@ -10,7 +10,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -24,7 +26,7 @@ import (
 )
 
 const (
-	inspectorAPIPrefix         = "/api/inspector/v1"
+	inspectorAPIPrefix         = "/api/accessibility-inspector/v1"
 	inspectorBodyLimit         = 64 << 10
 	inspectorResponseLimit     = 8 << 20
 	inspectorPairTTL           = 5 * time.Minute
@@ -42,6 +44,8 @@ var (
 	errInspectorBusy         = errors.New("inspector request limit reached")
 	errInspectorNotFound     = errors.New("inspector session not found")
 	errInspectorConflict     = errors.New("inspector session already has an operation in progress")
+	errInspectorInvalid      = errors.New("invalid inspector input")
+	errInspectorPrecondition = errors.New("inspector precondition failed")
 )
 
 type inspectorClient struct {
@@ -70,17 +74,18 @@ type inspectorSession struct {
 }
 
 type inspectorReview struct {
-	SchemaVersion  string            `json:"schemaVersion"`
-	ReviewID       string            `json:"reviewId"`
-	SessionID      string            `json:"sessionId"`
-	ObservationID  string            `json:"observationId"`
-	SelectedNodeID string            `json:"selectedNodeId"`
-	BusinessAlias  string            `json:"businessAlias"`
-	HumanNote      string            `json:"humanNote"`
-	IntendedUsage  string            `json:"intendedUsage"`
-	Locator        inspector.Locator `json:"locator"`
-	EvidenceSource string            `json:"evidenceSource"`
-	ReviewedAt     string            `json:"reviewedAt"`
+	SchemaVersion    string            `json:"schemaVersion"`
+	ReviewID         string            `json:"reviewId"`
+	SessionID        string            `json:"sessionId"`
+	ObservationID    string            `json:"observationId"`
+	SelectedNodeID   string            `json:"selectedNodeId"`
+	BusinessAlias    string            `json:"businessAlias"`
+	HumanNote        string            `json:"humanNote"`
+	IntendedUsage    string            `json:"intendedUsage"`
+	Locator          inspector.Locator `json:"locator"`
+	EvidenceSource   string            `json:"evidenceSource"`
+	ImportSourceHash string            `json:"importSourceHash,omitempty"`
+	ReviewedAt       string            `json:"reviewedAt"`
 }
 
 type inspectorService struct {
@@ -109,7 +114,7 @@ func newInspectorService(runner inspector.Runner, artifactRoot string) *inspecto
 		operationSlots: make(chan struct{}, 2), ctx: ctx, cancel: cancel, now: time.Now,
 	}
 	if service.artifactRoot == "" {
-		service.artifactRoot = filepath.Join(".runtime", "accessibility-workbench")
+		service.artifactRoot = filepath.Join(".runtime", "accessibility-inspector")
 	}
 	code, err := inspectorRandomToken(24)
 	if err != nil {
@@ -174,14 +179,18 @@ func (s *inspectorService) cleanupExpired() {
 	}
 }
 
-func (s *inspectorService) entryURL(port string) (string, error) {
+func (s *inspectorService) pairingURL(authority string) (string, error) {
 	if s == nil {
 		return "", errors.New("accessibility workbench is disabled")
 	}
 	if s.initializationErr != nil {
 		return "", s.initializationErr
 	}
-	return "http://127.0.0.1:" + port + "/accessibility-workbench#pair=" + url.QueryEscape(s.pairCode), nil
+	parsed, err := url.Parse("http://" + strings.TrimSpace(authority))
+	if err != nil || parsed.User != nil || parsed.Host == "" || parsed.Host != strings.TrimSpace(authority) {
+		return "", errors.New("accessibility workbench listener authority is invalid")
+	}
+	return parsed.String() + "/#pair=" + url.QueryEscape(s.pairCode), nil
 }
 
 func (s *inspectorService) pair(code string) (map[string]any, error) {
@@ -235,6 +244,31 @@ func (s *inspectorService) authorize(header string) (*inspectorClient, error) {
 	}
 	copy := *client
 	return &copy, nil
+}
+
+func (s *inspectorService) revokeClient(clientID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	found := false
+	for hash, client := range s.clients {
+		if client.ID == clientID {
+			delete(s.clients, hash)
+			found = true
+		}
+	}
+	if !found {
+		return errInspectorUnauthorized
+	}
+	for id, session := range s.sessions {
+		if session.ClientID != clientID {
+			continue
+		}
+		if session.Cancel != nil {
+			session.Cancel()
+		}
+		delete(s.sessions, id)
+	}
+	return nil
 }
 
 func (s *inspectorService) listWindows(ctx context.Context, clientID string) ([]map[string]any, error) {
@@ -378,15 +412,28 @@ func (s *inspectorService) observe(ctx context.Context, clientID, sessionID, tok
 		return runErr
 	})
 	if err != nil {
+		s.markObservationStale(session.ID, session.Generation, err)
 		return nil, err
 	}
 	finished := s.now().UTC()
-	root, _ := result.Snapshot["root"].(map[string]any)
+	projection := inspectorTreeProjection{}
+	root := projectInspectorSnapshotNode(result.Snapshot["root"], 0, limits, &projection)
+	if root == nil {
+		err = errors.New("inspector runtime returned an invalid snapshot root")
+		s.markObservationStale(session.ID, session.Generation, err)
+		return nil, err
+	}
 	assignSnapshotNodeIDs(root)
 	requestID, _ := result.Snapshot["requestId"].(string)
 	backend, _ := result.Snapshot["backend"].(string)
 	complete, _ := result.Snapshot["complete"].(bool)
 	truncated, _ := result.Snapshot["truncated"].(bool)
+	reason := result.Snapshot["reason"]
+	if projection.Truncated {
+		complete = false
+		truncated = true
+		reason = projection.Reason
+	}
 	observationID, err := inspectorRandomID("observation")
 	if err != nil {
 		return nil, err
@@ -398,12 +445,26 @@ func (s *inspectorService) observe(ctx context.Context, clientID, sessionID, tok
 		"limits": limits, "executionId": result.ExecutionID, "requestId": requestID, "backend": backend,
 		"startedAt": started.Format(time.RFC3339Nano), "observedAt": finished.Format(time.RFC3339Nano),
 		"root": root, "complete": complete, "truncated": truncated,
-		"reason": result.Snapshot["reason"], "stats": result.Snapshot["stats"],
+		"reason": reason, "stats": map[string]any{"nodes": projection.Nodes, "maxDepth": projection.MaxDepth},
 		"freshness": "current", "evidenceSource": "accessibility-runtime",
 	}
 	encoded, err := json.Marshal(observation)
 	if err != nil || len(encoded) > inspectorResponseLimit {
-		return nil, errors.New("inspector observation exceeds its response limit")
+		err = errors.New("inspector observation exceeds its response limit")
+		s.markObservationStale(session.ID, session.Generation, err)
+		return nil, err
+	}
+	sourceHash := sha256.Sum256(encoded)
+	observation["sourceHash"] = fmt.Sprintf("sha256:%x", sourceHash[:])
+	encoded, err = json.Marshal(observation)
+	if err != nil || len(encoded) > inspectorResponseLimit {
+		err = errors.New("inspector observation exceeds its response limit")
+		s.markObservationStale(session.ID, session.Generation, err)
+		return nil, err
+	}
+	if err := writeInspectorJSON(session.ArtifactPath, observationID+".json", observation); err != nil {
+		s.markObservationStale(session.ID, session.Generation, err)
+		return nil, err
 	}
 	s.mu.Lock()
 	current := s.sessions[session.ID]
@@ -411,12 +472,54 @@ func (s *inspectorService) observe(ctx context.Context, clientID, sessionID, tok
 		s.mu.Unlock()
 		return nil, errors.New("inspector observation target became stale")
 	}
-	current.Observation = cloneJSONMap(observation)
-	s.mu.Unlock()
-	if err := writeInspectorJSON(session.ArtifactPath, observationID+".json", observation); err != nil {
-		return nil, err
+	if !s.now().Before(current.ExpiresAt) || s.clientByIDLocked(current.ClientID) == nil {
+		if current.Cancel != nil {
+			current.Cancel()
+		}
+		delete(s.sessions, session.ID)
+		s.mu.Unlock()
+		return nil, errInspectorExpired
 	}
+	current.Observation = cloneJSONMap(observation)
+	// A review and its validation receipts are tied to one immutable
+	// observation. A refresh must never let a repeated display node ID attach
+	// those claims to different native facts.
+	current.Review = nil
+	current.Validations = nil
+	s.mu.Unlock()
 	return observation, nil
+}
+
+func (s *inspectorService) markObservationStale(sessionID string, generation int64, cause error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	current := s.sessions[sessionID]
+	if current == nil || current.Generation != generation {
+		return
+	}
+	if current.Observation != nil {
+		stale := cloneJSONMap(current.Observation)
+		stale["freshness"] = "stale"
+		stale["staleReason"] = inspectorFailureCode(cause)
+		stale["refreshFailedAt"] = s.now().UTC().Format(time.RFC3339Nano)
+		current.Observation = stale
+	}
+	current.Review = nil
+	current.Validations = nil
+}
+
+func inspectorFailureCode(err error) string {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return "TIMEOUT"
+	}
+	if errors.Is(err, context.Canceled) {
+		return "CANCELED"
+	}
+	var runtimeErr *inspector.RuntimeError
+	if errors.As(err, &runtimeErr) && strings.TrimSpace(runtimeErr.Code) != "" {
+		return runtimeErr.Code
+	}
+	return "BACKEND_FAILED"
 }
 
 func (s *inspectorService) validate(ctx context.Context, clientID, sessionID, token string, locator inspector.Locator, override *inspector.Limits) (map[string]any, error) {
@@ -469,6 +572,14 @@ func (s *inspectorService) validate(ctx context.Context, clientID, sessionID, to
 		s.mu.Unlock()
 		return nil, errors.New("inspector validation target became stale")
 	}
+	if !s.now().Before(current.ExpiresAt) || s.clientByIDLocked(current.ClientID) == nil {
+		if current.Cancel != nil {
+			current.Cancel()
+		}
+		delete(s.sessions, session.ID)
+		s.mu.Unlock()
+		return nil, errInspectorExpired
+	}
 	current.Validations = append(current.Validations, cloneJSONMap(receipt))
 	if len(current.Validations) > inspectorMaximumReceipts {
 		current.Validations = append([]map[string]any(nil), current.Validations[len(current.Validations)-inspectorMaximumReceipts:]...)
@@ -483,14 +594,17 @@ func (s *inspectorService) saveReview(clientID, sessionID, token string, input i
 		return nil, err
 	}
 	if session.Observation == nil {
-		return nil, errors.New("take an observation before saving a review")
+		return nil, fmt.Errorf("%w: take an observation before saving a review", errInspectorPrecondition)
+	}
+	if freshness, _ := session.Observation["freshness"].(string); freshness != "current" {
+		return nil, fmt.Errorf("%w: refresh the stale observation before saving a review", errInspectorPrecondition)
 	}
 	observationID, _ := session.Observation["observationId"].(string)
 	if input.ObservationID != observationID {
 		return nil, errors.New("review observation is stale")
 	}
 	if findSnapshotNode(session.Observation["root"], input.SelectedNodeID) == nil {
-		return nil, errors.New("selected node is not present in the current observation")
+		return nil, fmt.Errorf("%w: selected node is not present in the current observation", errInspectorInvalid)
 	}
 	reviewID, err := inspectorRandomID("review")
 	if err != nil {
@@ -512,6 +626,9 @@ func (s *inspectorService) saveReview(clientID, sessionID, token string, input i
 	current.Review = review
 	handoff := s.buildHandoffLocked(current)
 	s.mu.Unlock()
+	if err := writeInspectorJSON(session.ArtifactPath, reviewID+".json", review); err != nil {
+		return nil, err
+	}
 	if err := writeInspectorJSON(session.ArtifactPath, "review.json", review); err != nil {
 		return nil, err
 	}
@@ -524,13 +641,101 @@ func (s *inspectorService) saveReview(clientID, sessionID, token string, input i
 	}, nil
 }
 
+func (s *inspectorService) importReview(clientID, sessionID, token string, input inspectorImportInput) (map[string]any, error) {
+	session, err := s.session(clientID, sessionID, token)
+	if err != nil {
+		return nil, err
+	}
+	if session.Observation == nil {
+		return nil, fmt.Errorf("%w: take an observation before importing a review", errInspectorPrecondition)
+	}
+	if freshness, _ := session.Observation["freshness"].(string); freshness != "current" {
+		return nil, fmt.Errorf("%w: refresh the stale observation before importing a review", errInspectorPrecondition)
+	}
+	if !validSnapshotNodeID(input.SelectedNodeID) || findSnapshotNode(session.Observation["root"], input.SelectedNodeID) == nil {
+		return nil, fmt.Errorf("%w: select a node from the current observation before importing", errInspectorInvalid)
+	}
+	if len(input.Handoff) == 0 || len(input.Handoff) > inspectorBodyLimit {
+		return nil, fmt.Errorf("%w: imported handoff is empty or exceeds its size limit", errInspectorInvalid)
+	}
+	var payload map[string]any
+	decoder := json.NewDecoder(strings.NewReader(string(input.Handoff)))
+	decoder.UseNumber()
+	if err := decoder.Decode(&payload); err != nil {
+		return nil, fmt.Errorf("%w: imported handoff is not valid JSON data", errInspectorInvalid)
+	}
+	if schema, _ := payload["schemaVersion"].(string); schema != "opendesk.inspector.handoff/v1" {
+		return nil, fmt.Errorf("%w: imported handoff schemaVersion is not supported", errInspectorInvalid)
+	}
+	human, _ := payload["humanReview"].(map[string]any)
+	candidate, _ := payload["locatorCandidate"].(map[string]any)
+	selector, _ := candidate["selector"].(map[string]any)
+	locator, err := locatorFromJSONMap(selector)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", errInspectorInvalid, err)
+	}
+	reviewInput := inspectorReviewInput{
+		ObservationID:  stringValueFromMap(session.Observation, "observationId"),
+		SelectedNodeID: input.SelectedNodeID,
+		BusinessAlias:  stringValueFromMap(human, "businessAlias"),
+		HumanNote:      stringValueFromMap(human, "humanNote"),
+		IntendedUsage:  stringValueFromMap(human, "intendedUsage"),
+		Locator:        locator,
+	}
+	if err := validateInspectorReview(reviewInput); err != nil {
+		return nil, fmt.Errorf("%w: imported handoff review is invalid: %v", errInspectorInvalid, err)
+	}
+	reviewID, err := inspectorRandomID("review")
+	if err != nil {
+		return nil, err
+	}
+	hash := sha256.Sum256(input.Handoff)
+	review := &inspectorReview{
+		SchemaVersion: "opendesk.inspector.review/v1", ReviewID: reviewID,
+		SessionID: session.ID, ObservationID: reviewInput.ObservationID,
+		SelectedNodeID: input.SelectedNodeID, BusinessAlias: reviewInput.BusinessAlias,
+		HumanNote: reviewInput.HumanNote, IntendedUsage: reviewInput.IntendedUsage,
+		Locator: locator, EvidenceSource: "human-review-import",
+		ImportSourceHash: fmt.Sprintf("sha256:%x", hash[:]),
+		ReviewedAt:       s.now().UTC().Format(time.RFC3339Nano),
+	}
+	s.mu.Lock()
+	current := s.sessions[session.ID]
+	if current == nil || current.Generation != session.Generation {
+		s.mu.Unlock()
+		return nil, errors.New("inspector import target became stale")
+	}
+	current.Review = review
+	handoff := s.buildHandoffLocked(current)
+	s.mu.Unlock()
+	if err := writeInspectorJSON(session.ArtifactPath, reviewID+".json", review); err != nil {
+		return nil, err
+	}
+	if err := writeInspectorJSON(session.ArtifactPath, "review.json", review); err != nil {
+		return nil, err
+	}
+	if err := writeInspectorJSON(session.ArtifactPath, "handoff.json", handoff); err != nil {
+		return nil, err
+	}
+	return map[string]any{
+		"review": review, "handoff": handoff,
+		"artifactPath":     filepath.ToSlash(filepath.Join(session.ArtifactPath, "handoff.json")),
+		"validationStatus": "NOT_VALIDATED",
+	}, nil
+}
+
 func (s *inspectorService) handoff(clientID, sessionID, token string) (map[string]any, error) {
 	session, err := s.session(clientID, sessionID, token)
 	if err != nil {
 		return nil, err
 	}
 	if session.Review == nil || session.Observation == nil {
-		return nil, errors.New("save a current review before exporting a handoff")
+		return nil, fmt.Errorf("%w: save a current review before exporting a handoff", errInspectorPrecondition)
+	}
+	observationID, _ := session.Observation["observationId"].(string)
+	freshness, _ := session.Observation["freshness"].(string)
+	if freshness != "current" || session.Review.ObservationID != observationID {
+		return nil, fmt.Errorf("%w: refresh and review the current observation before exporting a handoff", errInspectorPrecondition)
 	}
 	s.mu.Lock()
 	current := s.sessions[session.ID]
@@ -541,13 +746,13 @@ func (s *inspectorService) handoff(clientID, sessionID, token string) (map[strin
 
 func (s *inspectorService) buildHandoffLocked(session *inspectorSession) map[string]any {
 	review := *session.Review
-	selected := findSnapshotNode(session.Observation["root"], review.SelectedNodeID)
+	selected := safeSelectedElementFacts(findSnapshotNode(session.Observation["root"], review.SelectedNodeID))
 	observationID, _ := session.Observation["observationId"].(string)
 	sourceRefs := []string{"inspector-observation:" + observationID, "inspector-human-review:" + review.ReviewID}
 	var latestValidation map[string]any
 	for index := len(session.Validations) - 1; index >= 0; index-- {
 		candidate := session.Validations[index]
-		if reflect.DeepEqual(candidate["locator"], jsonRoundTrip(review.Locator)) && candidate["generation"] == session.Generation {
+		if reflect.DeepEqual(candidate["locator"], jsonRoundTrip(review.Locator)) && inspectorGenerationEqual(candidate["generation"], session.Generation) {
 			latestValidation = cloneJSONMap(candidate)
 			break
 		}
@@ -602,19 +807,37 @@ func (s *inspectorService) buildHandoffLocked(session *inspectorSession) map[str
 			"observationId": observationID, "complete": session.Observation["complete"],
 			"truncated": session.Observation["truncated"], "reason": session.Observation["reason"],
 			"observedAt": session.Observation["observedAt"], "backend": session.Observation["backend"],
+			"sourceHash":           session.Observation["sourceHash"],
 			"selectedElementFacts": selected, "evidenceSource": "accessibility-runtime",
 		},
-		"humanReview": review,
+		"humanReview": handoffReview(review),
 		"locatorCandidate": map[string]any{
 			"selector": review.Locator, "validationStatus": validationStatus,
 			"validationReceipt": latestValidation,
 		},
 		"semanticBuildPlanTarget": target,
 		"recipeVerification":      "not-run",
+		"agentStatus":             "waiting-for-agent",
 		"evidenceExtensions": map[string]any{
 			"accessibility": sourceRefs, "visual": []any{}, "ocr": []any{}, "imageTargets": []any{},
 		},
 		"unresolved": unknowns,
+	}
+}
+
+func inspectorGenerationEqual(value any, expected int64) bool {
+	switch typed := value.(type) {
+	case int64:
+		return typed == expected
+	case int:
+		return int64(typed) == expected
+	case float64:
+		return typed == float64(expected)
+	case json.Number:
+		parsed, err := typed.Int64()
+		return err == nil && parsed == expected
+	default:
+		return false
 	}
 }
 
@@ -726,6 +949,11 @@ type inspectorReviewInput struct {
 	Locator        inspector.Locator `json:"locator"`
 }
 
+type inspectorImportInput struct {
+	SelectedNodeID string          `json:"selectedNodeId"`
+	Handoff        json.RawMessage `json:"handoff"`
+}
+
 func (h *Handler) inspectorEnabled() bool { return h != nil && h.inspector != nil }
 
 func (h *Handler) HandleInspectorAPI(w http.ResponseWriter, r *http.Request) {
@@ -734,7 +962,20 @@ func (h *Handler) HandleInspectorAPI(w http.ResponseWriter, r *http.Request) {
 		h.sendError(w, http.StatusNotFound, "accessibility workbench is not enabled")
 		return
 	}
-	if err := validateInspectorTransport(r); err != nil {
+	if err := h.validateInspectorNetwork(r); err != nil {
+		h.sendError(w, http.StatusForbidden, err.Error())
+		return
+	}
+	preflight, err := h.configureInspectorCORS(w, r)
+	if err != nil {
+		h.sendError(w, http.StatusForbidden, err.Error())
+		return
+	}
+	if preflight {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if err := h.validateInspectorTransport(r); err != nil {
 		h.sendError(w, http.StatusForbidden, err.Error())
 		return
 	}
@@ -759,11 +1000,29 @@ func (h *Handler) HandleInspectorAPI(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		h.sendSuccess(w, value)
+		if h.inspectorOnPaired != nil {
+			h.inspectorOnPaired()
+		}
 		return
 	}
 	client, err := h.inspector.authorize(r.Header.Get("Authorization"))
 	if err != nil {
 		h.sendInspectorError(w, err)
+		return
+	}
+	if path == "authorization" {
+		if r.Method != http.MethodDelete {
+			h.sendError(w, http.StatusMethodNotAllowed, "method not allowed")
+			return
+		}
+		if err := h.inspector.revokeClient(client.ID); err != nil {
+			h.sendInspectorError(w, err)
+			return
+		}
+		h.sendSuccess(w, map[string]any{"revoked": true})
+		if h.inspectorOnIdle != nil {
+			go h.inspectorOnIdle()
+		}
 		return
 	}
 	if path == "capabilities" {
@@ -922,6 +1181,22 @@ func (h *Handler) handleInspectorSessionRoute(w http.ResponseWriter, r *http.Req
 			return
 		}
 		h.sendSuccess(w, value)
+	case "import":
+		if r.Method != http.MethodPost {
+			h.sendError(w, http.StatusMethodNotAllowed, "method not allowed")
+			return
+		}
+		var input inspectorImportInput
+		if err := decodeInspectorJSON(w, r, &input); err != nil {
+			h.sendError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		value, err := h.inspector.importReview(client.ID, sessionID, sessionToken, input)
+		if err != nil {
+			h.sendInspectorError(w, err)
+			return
+		}
+		h.sendSuccess(w, value)
 	case "handoff":
 		if r.Method != http.MethodGet {
 			h.sendError(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -947,6 +1222,10 @@ func (h *Handler) sendInspectorError(w http.ResponseWriter, err error) {
 		status = http.StatusNotFound
 	case errors.Is(err, errInspectorConflict):
 		status = http.StatusConflict
+	case errors.Is(err, errInspectorPrecondition):
+		status = http.StatusConflict
+	case errors.Is(err, errInspectorInvalid):
+		status = http.StatusBadRequest
 	case errors.Is(err, errInspectorBusy):
 		status = http.StatusTooManyRequests
 	default:
@@ -971,9 +1250,37 @@ func (h *Handler) sendInspectorError(w http.ResponseWriter, err error) {
 	h.sendError(w, status, err.Error())
 }
 
-func validateInspectorTransport(r *http.Request) error {
-	if !isLoopbackRequest(r) || !schedulerHostAllowed(r.Host) {
-		return errors.New("accessibility workbench accepts only loopback requests with a loopback Host")
+func (h *Handler) inspectorHostAllowed(value string) bool {
+	return h != nil && strings.EqualFold(strings.TrimSpace(value), strings.TrimSpace(h.inspectorHost))
+}
+
+func (h *Handler) inspectorRemoteAllowed(remoteAddress string) bool {
+	host, _, err := net.SplitHostPort(strings.TrimSpace(remoteAddress))
+	if err != nil {
+		host = strings.TrimSpace(remoteAddress)
+	}
+	address, err := netip.ParseAddr(strings.Trim(host, "[]"))
+	if err != nil {
+		return false
+	}
+	return address.Unmap().IsLoopback()
+}
+
+func (h *Handler) validateInspectorNetwork(r *http.Request) error {
+	if r == nil || !h.inspectorRemoteAllowed(r.RemoteAddr) || !h.inspectorHostAllowed(r.Host) {
+		return errors.New("accessibility workbench socket source or Host is outside the configured access boundary")
+	}
+	for name := range r.Header {
+		if strings.HasPrefix(strings.ToLower(name), "x-forwarded-") || strings.EqualFold(name, "Forwarded") {
+			return errors.New("forwarded inspector requests are not allowed")
+		}
+	}
+	return nil
+}
+
+func (h *Handler) validateInspectorTransport(r *http.Request) error {
+	if err := h.validateInspectorNetwork(r); err != nil {
+		return err
 	}
 	if r.Header.Get("X-OpenDesk-Inspector") != "1" {
 		return errors.New("inspector request marker is required")
@@ -982,13 +1289,70 @@ func validateInspectorTransport(r *http.Request) error {
 	if origin == "null" {
 		return errors.New("null Origin is not allowed")
 	}
+	if h.inspectorFrontendOrigin != "" {
+		if origin != h.inspectorFrontendOrigin {
+			return errors.New("inspector request Origin does not match the authorized frontend")
+		}
+		return nil
+	}
 	if origin != "" {
 		parsed, err := url.Parse(origin)
-		if err != nil || parsed.Scheme != "http" || parsed.User != nil || !strings.EqualFold(parsed.Host, r.Host) {
+		expectedOrigin := "http://" + strings.TrimSpace(h.inspectorHost)
+		if err != nil || origin != expectedOrigin || parsed.Scheme != "http" || parsed.User != nil ||
+			parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" || parsed.Host != strings.TrimSpace(h.inspectorHost) {
 			return errors.New("cross-origin inspector requests are not allowed")
 		}
+		if site := strings.TrimSpace(r.Header.Get("Sec-Fetch-Site")); site != "" && site != "same-origin" {
+			return errors.New("cross-site inspector requests are not allowed")
+		}
+		return nil
 	}
-	return nil
+	// Same-origin browser GET requests do not consistently include Origin. The
+	// dedicated page has a no-referrer policy, so Fetch Metadata is the browser
+	// proof in that case. Non-browser clients must opt into the explicit client
+	// contract; bearer/session authentication is still required by the route.
+	if r.Header.Get("Sec-Fetch-Site") == "same-origin" && r.Header.Get("Sec-Fetch-Mode") == "cors" {
+		return nil
+	}
+	if r.Header.Get("X-OpenDesk-Inspector-Client") == "non-browser" {
+		return nil
+	}
+	return errors.New("inspector request source metadata is required")
+}
+
+func (h *Handler) configureInspectorCORS(w http.ResponseWriter, r *http.Request) (bool, error) {
+	if h == nil || h.inspectorFrontendOrigin == "" {
+		return false, nil
+	}
+	origin := strings.TrimSpace(r.Header.Get("Origin"))
+	if origin != h.inspectorFrontendOrigin {
+		return false, errors.New("inspector request Origin does not match the authorized frontend")
+	}
+	w.Header().Set("Access-Control-Allow-Origin", origin)
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-OpenDesk-Inspector, X-OpenDesk-Inspector-Session")
+	w.Header().Set("Cross-Origin-Resource-Policy", "cross-origin")
+	w.Header().Add("Vary", "Origin")
+	if r.Method != http.MethodOptions {
+		return false, nil
+	}
+	method := strings.TrimSpace(r.Header.Get("Access-Control-Request-Method"))
+	switch method {
+	case http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete:
+	default:
+		return false, errors.New("inspector CORS preflight method is not allowed")
+	}
+	allowedHeaders := map[string]bool{
+		"authorization": true, "content-type": true, "x-opendesk-inspector": true,
+		"x-opendesk-inspector-session": true,
+	}
+	for _, name := range strings.Split(r.Header.Get("Access-Control-Request-Headers"), ",") {
+		name = strings.ToLower(strings.TrimSpace(name))
+		if name != "" && !allowedHeaders[name] {
+			return false, errors.New("inspector CORS preflight header is not allowed")
+		}
+	}
+	return true, nil
 }
 
 func setInspectorSecurityHeaders(w http.ResponseWriter) {
@@ -1041,11 +1405,17 @@ func validateInspectorLocator(locator inspector.Locator) error {
 		if strings.TrimSpace(locator.Role) != locator.Role || utf8.RuneCountInString(locator.Role) > 128 {
 			return errors.New("locator.role is invalid")
 		}
+		if !inspectorLocatorRoles[locator.Role] {
+			return errors.New("locator.role is not a normalized Accessibility role")
+		}
 		count++
 	}
 	for name, value := range map[string]*string{"name": locator.Name, "identifier": locator.Identifier} {
 		if value == nil {
 			continue
+		}
+		if *value == "" {
+			return fmt.Errorf("locator.%s must be non-empty when provided", name)
 		}
 		if utf8.RuneCountInString(*value) > 1024 {
 			return fmt.Errorf("locator.%s exceeds its length limit", name)
@@ -1056,6 +1426,13 @@ func validateInspectorLocator(locator inspector.Locator) error {
 		return errors.New("locator requires role, name, or identifier")
 	}
 	return nil
+}
+
+var inspectorLocatorRoles = map[string]bool{
+	"application": true, "window": true, "button": true, "checkbox": true,
+	"radioButton": true, "textField": true, "staticText": true, "menuBar": true,
+	"menu": true, "menuItem": true, "group": true, "list": true,
+	"listItem": true, "table": true, "row": true, "cell": true, "unknown": true,
 }
 
 func validValidationStatus(status string) bool {
@@ -1147,10 +1524,68 @@ func safeObservedWindow(windowID string, selected inspector.WindowCandidate, obs
 }
 
 func handoffWindowTarget(window inspector.WindowCandidate) map[string]any {
-	if strings.TrimSpace(window.Application) != "" {
-		return map[string]any{"exeName": window.Application, "title": window.Title}
+	if id, _ := window.Target["id"].(string); strings.TrimSpace(id) != "" && !strings.HasSuffix(id, ":unresolved") {
+		return map[string]any{"id": id}
 	}
 	return map[string]any{"pid": window.PID, "title": window.Title}
+}
+
+type inspectorTreeProjection struct {
+	Nodes     int
+	MaxDepth  int
+	Truncated bool
+	Reason    string
+}
+
+func projectInspectorSnapshotNode(value any, depth int, limits inspector.Limits, state *inspectorTreeProjection) map[string]any {
+	node, _ := value.(map[string]any)
+	if node == nil || state == nil {
+		return nil
+	}
+	if state.Nodes >= limits.MaxNodes {
+		state.Truncated = true
+		state.Reason = "controllerMaxNodes"
+		return nil
+	}
+	state.Nodes++
+	if depth > state.MaxDepth {
+		state.MaxDepth = depth
+	}
+	result := map[string]any{}
+	// This is an independent HTTP projection boundary. Even if the internal
+	// runner changes, value, native handles, unknown provider fields, and
+	// executable content cannot reach the page.
+	for _, key := range []string{
+		"role", "nativeRole", "nativeSubrole", "name", "nameSource", "identifier",
+		"enabled", "focused", "selected", "checked", "expanded", "actions",
+		"nativeBounds", "bounds",
+	} {
+		if field, ok := node[key]; ok {
+			result[key] = jsonRoundTrip(field)
+		}
+	}
+	result["children"] = []any{}
+	children, _ := node["children"].([]any)
+	if len(children) == 0 {
+		return result
+	}
+	if depth >= limits.MaxDepth {
+		state.Truncated = true
+		if state.Reason == "" {
+			state.Reason = "controllerMaxDepth"
+		}
+		return result
+	}
+	projectedChildren := make([]any, 0, len(children))
+	for _, child := range children {
+		projected := projectInspectorSnapshotNode(child, depth+1, limits, state)
+		if projected == nil {
+			break
+		}
+		projectedChildren = append(projectedChildren, projected)
+	}
+	result["children"] = projectedChildren
+	return result
 }
 
 func assignSnapshotNodeIDs(root map[string]any) {
@@ -1201,6 +1636,71 @@ func snapshotNodeDescription(node map[string]any) string {
 		return role
 	}
 	return "Reviewed accessibility target"
+}
+
+func safeSelectedElementFacts(node map[string]any) map[string]any {
+	if node == nil {
+		return nil
+	}
+	result := map[string]any{}
+	for _, key := range []string{
+		"role", "nativeRole", "nativeSubrole", "name", "identifier", "enabled", "focused",
+		"selected", "checked", "expanded", "actions", "nativeBounds", "bounds",
+	} {
+		if value, ok := node[key]; ok {
+			result[key] = jsonRoundTrip(value)
+		}
+	}
+	return result
+}
+
+func handoffReview(review inspectorReview) map[string]any {
+	result := map[string]any{
+		"schemaVersion": review.SchemaVersion, "reviewId": review.ReviewID,
+		"observationId": review.ObservationID, "businessAlias": review.BusinessAlias,
+		"humanNote": review.HumanNote, "intendedUsage": review.IntendedUsage,
+		"locator": review.Locator, "evidenceSource": review.EvidenceSource,
+		"reviewedAt": review.ReviewedAt,
+	}
+	if review.ImportSourceHash != "" {
+		result["importSourceHash"] = review.ImportSourceHash
+	}
+	return result
+}
+
+func locatorFromJSONMap(value map[string]any) (inspector.Locator, error) {
+	if value == nil {
+		return inspector.Locator{}, errors.New("imported handoff has no locator selector")
+	}
+	locator := inspector.Locator{}
+	if role, exists := value["role"]; exists {
+		text, ok := role.(string)
+		if !ok {
+			return locator, errors.New("imported locator.role must be a string")
+		}
+		locator.Role = text
+	}
+	for name, destination := range map[string]**string{"name": &locator.Name, "identifier": &locator.Identifier} {
+		raw, exists := value[name]
+		if !exists {
+			continue
+		}
+		text, ok := raw.(string)
+		if !ok {
+			return locator, fmt.Errorf("imported locator.%s must be a string", name)
+		}
+		copy := text
+		*destination = &copy
+	}
+	if err := validateInspectorLocator(locator); err != nil {
+		return locator, err
+	}
+	return locator, nil
+}
+
+func stringValueFromMap(value map[string]any, key string) string {
+	result, _ := value[key].(string)
+	return result
 }
 
 func cloneSession(source *inspectorSession) *inspectorSession {
@@ -1265,7 +1765,7 @@ func writeInspectorJSON(directory, name string, value any) error {
 	if err := temporary.Close(); err != nil {
 		return err
 	}
-	if err := os.Rename(temporaryName, filepath.Join(directory, name)); err != nil {
+	if err := inspectorAtomicReplace(temporaryName, filepath.Join(directory, name)); err != nil {
 		return fmt.Errorf("publish inspector artifact: %w", err)
 	}
 	return nil

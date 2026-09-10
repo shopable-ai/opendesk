@@ -86,9 +86,11 @@ interface OpenDeskAccessibilityElementRef {
 
 ### 可读属性
 
-`read()` / `snapshot()` 的公开白名单包括：`role`、`nativeRole`、`name`、`identifier`、`enabled`、`focused`、`selected`、`checked`、`expanded`、`actions`、`nativeBounds`、`bounds` 与 `value`。
+`read()` / `snapshot()` 的公开白名单包括：`role`、`nativeRole`、`nativeSubrole`、`name`、`identifier`、`enabled`、`focused`、`selected`、`checked`、`expanded`、`actions`、`nativeBounds`、`bounds` 与 `value`。
 
-省略 `properties` 时使用不含 `value` 的基本属性集合。受保护或密码字段拒绝读取 `value`。无法可靠转换坐标时 `bounds` 为 `null`，不得把 `nativeBounds` 直接交给 `mouse`。
+省略 `properties` 时使用不含 `value` 的基本属性集合。`nativeSubrole` 是平台原生、可空的诊断属性：macOS 来自 AXSubrole，Windows UIA 当前返回 `null`；它不是新的 selector 字段。macOS 的规范化 `name` 优先来自 AXTitle，AXTitle 缺失时才使用 AXDescription；V1 不另行复制一个 `title` 字段。任何原生字段不可用时保留 `null`，不能根据常见界面补值。
+
+受保护或密码字段拒绝读取 `value`。无法可靠转换坐标时 `bounds` 为 `null`，不得把 `nativeBounds` 直接交给 `mouse`。
 
 ### 动作
 
@@ -184,7 +186,7 @@ const result = await Accessibility.snapshot({
   within: win,
   maxDepth: 4,
   maxNodes: 300,
-  properties: ['role', 'name', 'enabled', 'actions'],
+  properties: ['role', 'nativeSubrole', 'name', 'enabled', 'actions'],
 });
 console.log(result.complete, result.stats.nodes);
 ```

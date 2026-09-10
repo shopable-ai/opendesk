@@ -330,12 +330,15 @@ try {
     const snapshot = await Accessibility.snapshot({
       within, timeout: 10000, maxDepth: 8, maxNodes: 1000,
       properties: [
-        'role', 'nativeRole', 'name', 'identifier', 'enabled', 'focused', 'selected',
+        'role', 'nativeRole', 'nativeSubrole', 'name', 'identifier', 'enabled', 'focused', 'selected',
         'checked', 'expanded', 'actions', 'nativeBounds', 'bounds',
       ],
     });
     assert(snapshot.root && snapshot.root.role === 'window' && snapshot.root.identifier === 'fixture.window.main',
       'window snapshot root identity changed');
+    assert(Object.prototype.hasOwnProperty.call(snapshot.root, 'nativeSubrole') &&
+      (snapshot.root.nativeSubrole === null || typeof snapshot.root.nativeSubrole === 'string'),
+      'window snapshot did not preserve the optional native subrole field');
     assert(snapshot.complete === true && snapshot.truncated === false && snapshot.reason === null,
       'full fixture snapshot is incomplete');
     assert(snapshot.stats.nodes >= 15, 'fixture snapshot returned too few nodes');

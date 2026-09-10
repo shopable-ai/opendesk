@@ -10,7 +10,7 @@ whose final child is inserted 200 ms after the submenu opens.
 From the repository root, cross-compile the x86-64 executable with:
 
 ```sh
-./tests/accessibility/fixtures/windows/build.sh
+sh ./tests/accessibility/fixtures/windows/build.sh
 ```
 
 The executable is written to

@@ -1,11 +1,47 @@
 package execution
 
 import (
+	"context"
+	"encoding/json"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/dop251/goja"
 )
+
+func TestInternalResultSinkIsExplicitPrivateTransport(t *testing.T) {
+	workDir := t.TempDir()
+	ordinary, _, err := Run(Request{
+		Context: context.Background(), ExecutionID: NewExecutionID("ordinary"),
+		ScriptContent: []byte(`if (typeof __opendeskInspectorResult !== "undefined") throw new Error("private sink leaked");`),
+		WorkDir:       workDir, Timeout: 2 * time.Second,
+	})
+	if err != nil || ordinary.Status != ExecutionStatusSucceeded {
+		t.Fatalf("ordinary execution status/error = %s / %v", ordinary.Status, err)
+	}
+	var captured []byte
+	internal, summary, err := Run(Request{
+		Context: context.Background(), ExecutionID: NewExecutionID("internal"),
+		ScriptContent: []byte(`__opendeskInspectorResult(JSON.stringify({ok:true,secret:"kept in process"}));`),
+		WorkDir:       workDir, Timeout: 2 * time.Second,
+		InternalResultSink: func(value []byte) error {
+			captured = append([]byte(nil), value...)
+			return nil
+		},
+	})
+	if err != nil || internal.Status != ExecutionStatusSucceeded {
+		t.Fatalf("internal execution status/error = %s / %v", internal.Status, err)
+	}
+	if string(captured) != `{"ok":true,"secret":"kept in process"}` {
+		t.Fatalf("captured private result = %q", captured)
+	}
+	encodedSummary, _ := json.Marshal(summary)
+	if strings.Contains(string(encodedSummary), "kept in process") {
+		t.Fatal("private result leaked to execution console")
+	}
+}
 
 // This is an internal trust-boundary seam that public JavaScript cannot
 // construct: a source label must never be interpreted as a trusted file path.
