@@ -6,7 +6,7 @@
     name: 'File methods complete an isolated create-write-copy-rename-move-remove lifecycle',
     tier: 'unit',
     covers: [
-      'File.path', 'File.cwd', 'File.create', 'File.createIfNotExists', 'File.createWithDirs', 'File.exists', 'File.ensureDir',
+      'File.path', 'File.cwd', 'File.create', 'File.createIfNotExists', 'File.createWithDirs', 'File.exists', 'File.stat', 'File.ensureDir',
       'File.read', 'File.readBytes', 'File.write', 'File.append', 'File.writeBytes', 'File.appendBytes', 'File.copy',
       'File.renameWithoutExtension', 'File.rename', 'File.move', 'File.getExtension', 'File.getName',
       'File.getNameWithoutExtension', 'File.remove', 'File.removeDir', 'File.listDir', 'File.isFile', 'File.isDir',
@@ -24,9 +24,31 @@
       await File.ensureDir(empty);
       assert(await File.isDir(empty));
       assert(await File.isEmptyDir(empty));
+
+      const directoryStat = File.stat(empty);
+      assert(directoryStat && typeof directoryStat === 'object', 'File.stat directory result');
+      equal(Object.keys(directoryStat).sort().join(','), 'modifiedAt,size,type');
+      equal(directoryStat.type, 'directory');
+      equal(directoryStat.size, null);
+      assert(typeof directoryStat.modifiedAt === 'string' && directoryStat.modifiedAt.includes('T') && directoryStat.modifiedAt.endsWith('Z'), 'File.stat modifiedAt must be UTC RFC 3339 text');
+      equal(File.stat(File.join(root, 'missing-stat-target')), null, 'File.stat missing path');
+
       await File.create(source);
       await File.createIfNotExists(source);
       File.write(blockingFile, 'regular file');
+      const regularStat = File.stat(blockingFile);
+      equal(regularStat.type, 'file');
+      equal(regularStat.size, 12);
+      assert(typeof regularStat.modifiedAt === 'string' && regularStat.modifiedAt.endsWith('Z'), 'File.stat regular-file modifiedAt');
+
+      let statFailurePreserved = false;
+      try {
+        File.stat('invalid\u0000path');
+      } catch (_) {
+        statFailurePreserved = true;
+      }
+      assert(statFailurePreserved, 'File.stat must not collapse non-missing stat errors to null');
+
       let createThroughFileFailed = false;
       try {
         File.createIfNotExists(File.join(blockingFile, 'child.txt'));

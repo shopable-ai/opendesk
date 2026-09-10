@@ -30,6 +30,7 @@ File 是运行时注入的文件系统对象。原有 `read()`、`write()` 等�
 | File.createIfNotExists(path) | 不存在时创建 |
 | File.createWithDirs(path) | 自动创建父目录后建文件 |
 | File.exists(path) | 是否存在 |
+| File.stat(path) | 查询跨平台稳定文件元数据 |
 | File.ensureDir(path) | 确保目录存在 |
 | File.read(path) | 读取文本 |
 | File.readJSON(filePath, options?) | 异步读取并按 Runtime JSON.parse 解析 JSON |
@@ -208,6 +209,59 @@ if (!File.exists('./.runtime/examples/result.json')) {
 }
 ```
 
+## File.stat(path)
+
+查询路径当前的稳定跨平台文件元数据。需要一次获得对象类型、普通文件大小和修改时间，或者需要区分“路径不存在”与其他文件系统错误时，优先使用该方法。
+
+**签名**
+
+```ts
+File.stat(path: string): OpenDeskFileStat | null
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `path` | `string` | 是 | 无 | 文件系统路径；相对路径以当前 `Execution.workdir` 为基准，绝对路径直接使用。 |
+
+**返回值**
+
+路径不存在时返回 `null`。存在时返回：
+
+```ts
+interface OpenDeskFileStat {
+  type: 'file' | 'directory' | 'other';
+  size: number | null;
+  modifiedAt: string;
+}
+```
+
+| 字段 | 说明 |
+| --- | --- |
+| `type` | 普通文件为 `file`，目录为 `directory`，其他可被 stat 的对象为 `other`。 |
+| `size` | 普通文件的字节数；目录和 `other` 返回 `null`，不暴露平台相关的目录 stat 大小。 |
+| `modifiedAt` | 操作系统报告的最后修改时间，转换为 UTC RFC 3339 文本；实际精度取决于文件系统。 |
+
+**行为与错误**
+
+- `File.stat()` 是同步 metadata 查询，不创建 timer、listener、watcher，也没有 `timeout` 或 `signal` 选项。
+- 最终路径使用与 Go `os.Stat` 相同的跟随符号链接语义；断开的最终符号链接按不存在处理并返回 `null`。
+- 仅“路径不存在”返回 `null`；权限拒绝、非法路径和其他 stat 错误会直接抛出，不会压缩成 `null`。
+- `type: 'file'` 只表示普通文件。历史兼容的 `File.isFile()` 语义保持不变，因此需要严格类型判断时使用 `File.stat()`。
+- `modifiedAt` 和 `size` 只是一次 metadata 观察，不表示下载完成、导出成功、文件业务有效，也不提供稳定窗口判断。
+
+**示例**
+
+```js
+const info = File.stat('./artifacts/result.json');
+if (info === null) {
+  console.log('missing');
+} else if (info.type === 'file') {
+  console.log(info.size, info.modifiedAt);
+}
+```
+
 ## File.copy(pathFrom, pathTo)
 
 ```js
@@ -232,6 +286,8 @@ console.log(File.listDir('./artifacts'));
 console.log(File.isFile('./README.md'));
 console.log(File.isDir('./artifacts'));
 ```
+
+如果需要区分普通文件、目录和其他文件系统对象，或不能接受把某些 stat 错误折叠成布尔值，请使用 `File.stat()`。
 
 ## File.isEmptyDir(path)
 
@@ -333,5 +389,6 @@ File.write(File.join(dir, 'summary.txt'), 'done');
 
 - `File.write()` 不会自动建父目录
 - `File.move()` 底层直接使用 rename，跨设备移动时可能失败
+- `File.stat()` 只观察一次文件元数据，不是导出/下载/业务完成判定
 - `File.open()` 返回受控 `FileHandle`；脚本层通常更推荐直接用 read/write/append 系列方法
 - `File.readJSON()` 的返回类型是 `unknown`；读取后应由脚本自行验证业务结构

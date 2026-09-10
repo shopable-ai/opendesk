@@ -3,6 +3,15 @@ export {};
 declare global {
   type OpenDeskByteInput = ArrayBuffer | Uint8Array | number[];
 
+  interface OpenDeskFileStat {
+    /** Stable cross-platform classification after following the final symbolic link. */
+    type: 'file' | 'directory' | 'other';
+    /** Regular-file length in bytes; null for directories and other filesystem objects. */
+    size: number | null;
+    /** Last modification time as a UTC RFC 3339 timestamp. Filesystem precision may vary. */
+    modifiedAt: string;
+  }
+
   interface OpenDeskFileJSONReadOptions {
     /** Value returned only when the target file does not exist. The file is not created. */
     defaultValue?: unknown;
@@ -58,6 +67,8 @@ declare global {
     createIfNotExists(path: string): void;
     createWithDirs(path: string): void;
     exists(path: string): boolean;
+    /** Returns null only when the path does not exist; other filesystem stat failures throw. */
+    stat(path: string): OpenDeskFileStat | null;
     ensureDir(path: string): void;
     read(path: string, encoding?: string): string;
     readJSON(filePath: string, options?: OpenDeskFileJSONReadOptions): Promise<unknown>;
