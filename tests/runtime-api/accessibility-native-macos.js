@@ -20,7 +20,7 @@ function errorDetails(error) {
     message: String(error && error.message || error),
   };
   for (const key of [
-    'code', 'operation', 'backend', 'phase', 'requestId', 'actionState',
+    'code', 'operation', 'backend', 'phase', 'nativePhase', 'requestId', 'actionState', 'verified',
     'failedLevel', 'completedLevels', 'expansionOccurred',
   ]) {
     if (error && error[key] !== undefined) detail[key] = error[key];
@@ -120,6 +120,21 @@ async function expectError(run, expectedCodes, label, expectedState = 'not_start
   return caught;
 }
 
+async function expectValueError(run, expectedCode, operation, phase, label, expectedState = 'not_started') {
+  let caught = null;
+  try {
+    await run();
+  } catch (error) {
+    caught = error;
+  }
+  assert(caught, `${label} unexpectedly succeeded`);
+  assert(caught.code === expectedCode, `${label} returned an unexpected error code`);
+  assert(caught.operation === operation, `${label} returned an unexpected operation`);
+  assert(caught.phase === phase, `${label} returned an unexpected high-level phase`);
+  assert(caught.actionState === expectedState, `${label} returned an unexpected actionState`);
+  return caught;
+}
+
 function windowInfo(row) {
   return {
     id: row.id, title: row.title, pid: Number(row.pid),
@@ -193,6 +208,7 @@ const result = {
   covers: [
     'Accessibility.getCapabilities', 'Accessibility.snapshot', 'Accessibility.find',
     'Accessibility.read', 'Accessibility.perform', 'Accessibility.release',
+    'UI.getValue', 'UI.setValue',
     'UI.getMenuItems', 'UI.findMenuItem', 'UI.tapMenuItem',
   ],
   stages: [],
@@ -418,6 +434,85 @@ try {
   await stage('release-owned-refs', async () => {
     await releaseRemaining(true);
     return { released: true };
+  });
+
+  await stage('ui-value-facade', async () => {
+    const valueWithin = await focusFixture();
+    let before = stateSummary(state());
+    const baselineValue = state().editableValue;
+    assert(await UI.getValue({ role: 'textField', identifier: 'fixture.text.editable' }, {
+      within: valueWithin, timeout: 10000, maxDepth: 8, maxNodes: 1000,
+    }) === baselineValue, 'UI.getValue did not return the exact editable native string');
+    assert(await UI.getValue({ role: 'textField', identifier: 'fixture.text.readonly' }, {
+      within: valueWithin, timeout: 10000, maxDepth: 8, maxNodes: 1000,
+    }) === 'read only', 'UI.getValue rejected or changed a readable readonly value');
+    assert(await UI.getValue({ role: 'textField', identifier: 'fixture.text.disabled' }, {
+      within: valueWithin, timeout: 10000, maxDepth: 8, maxNodes: 1000,
+    }) === 'disabled value', 'UI.getValue rejected or changed a readable disabled value');
+
+    const ambiguous = await expectValueError(() => UI.getValue({ role: 'textField', name: 'Shared value' }, {
+      within: valueWithin, timeout: 10000, maxDepth: 8, maxNodes: 1000,
+    }), 'AMBIGUOUS_TARGET', 'UI.getValue', 'locate', 'UI value duplicate name');
+    assert(ambiguous.nativePhase === 'search' && ambiguous.backend === 'macos-ax',
+      'UI value duplicate name lost native diagnostics');
+    assert(await UI.getValue({ role: 'textField', name: 'Shared value', identifier: 'fixture.text.editable' }, {
+      within: valueWithin, timeout: 10000, maxDepth: 8, maxNodes: 1000,
+    }) === baselineValue, 'flat selector plus identifier did not disambiguate the editable value');
+    assertStateTransition(before, stateSummary(state()), {}, 'UI read-only value operations');
+
+    const firstValue = ' 00123 中文 ';
+    let setBefore = stateSummary(state());
+    let setCount = setBefore.setValueCount;
+    const firstReceipt = await UI.setValue({ role: 'textField', identifier: 'fixture.text.editable' }, firstValue, {
+      within: valueWithin, timeout: 10000, maxDepth: 8, maxNodes: 1000,
+    });
+    assert(firstReceipt.actionState === 'acknowledged' && firstReceipt.verified === true,
+      'UI.setValue did not separate acknowledged action and strict verification');
+    let observed = await waitForState((value) => value.editableValue === firstValue && value.setValueCount === setCount + 1,
+      'UI.setValue exact string');
+    assertStateTransition(setBefore, stateSummary(observed), { setValueCount: setCount + 1 }, 'UI.setValue exact string');
+    assert(await UI.getValue({ role: 'textField', identifier: 'fixture.text.editable' }, {
+      within: valueWithin, timeout: 10000, maxDepth: 8, maxNodes: 1000,
+    }) === firstValue, 'UI.getValue changed leading zeroes, Unicode, or surrounding whitespace');
+
+    setBefore = stateSummary(state());
+    setCount = setBefore.setValueCount;
+    const emptyReceipt = await UI.setValue({ role: 'textField', identifier: 'fixture.text.editable' }, '', {
+      within: valueWithin, timeout: 10000, maxDepth: 8, maxNodes: 1000,
+    });
+    assert(emptyReceipt.actionState === 'acknowledged' && emptyReceipt.verified === true,
+      'UI.setValue empty-string receipt changed');
+    observed = await waitForState((value) => value.editableValue === '' && value.setValueCount === setCount + 1,
+      'UI.setValue empty string');
+    assertStateTransition(setBefore, stateSummary(observed), { setValueCount: setCount + 1 }, 'UI.setValue empty string');
+    assert(await UI.getValue({ role: 'textField', identifier: 'fixture.text.editable' }, {
+      within: valueWithin, timeout: 10000, maxDepth: 8, maxNodes: 1000,
+    }) === '', 'UI.getValue did not preserve the empty string');
+
+    before = stateSummary(state());
+    await expectValueError(() => UI.setValue({ role: 'textField', identifier: 'fixture.text.readonly' }, 'must not write', {
+      within: valueWithin, timeout: 10000, maxDepth: 8, maxNodes: 1000,
+    }), 'ACTION_NOT_SUPPORTED', 'UI.setValue', 'precondition', 'UI readonly setValue');
+    await expectValueError(() => UI.setValue({ role: 'textField', identifier: 'fixture.text.disabled' }, 'must not write', {
+      within: valueWithin, timeout: 10000, maxDepth: 8, maxNodes: 1000,
+    }), 'ELEMENT_DISABLED', 'UI.setValue', 'precondition', 'UI disabled setValue');
+    const protectedError = await expectValueError(() => UI.getValue({ role: 'textField', identifier: 'fixture.text.protected' }, {
+      within: valueWithin, timeout: 10000, maxDepth: 8, maxNodes: 1000,
+    }), 'PERMISSION_DENIED', 'UI.getValue', 'read', 'UI protected getValue');
+    assert(protectedError.backend === 'macos-ax' && protectedError.nativePhase === 'read',
+      'UI protected read lost safe native diagnostics');
+    assert(!JSON.stringify(errorDetails(protectedError)).includes('fixture secret'),
+      'UI protected diagnostics leaked the fixture value');
+    assertStateTransition(before, stateSummary(state()), {}, 'UI rejected value operations');
+    return {
+      actionCountDelta: 2,
+      finalValueLength: state().editableValue.length,
+      firstActionState: firstReceipt.actionState,
+      emptyActionState: emptyReceipt.actionState,
+      readonly: 'rejected-before-action',
+      disabled: 'rejected-before-action',
+      protected: errorDetails(protectedError),
+    };
   });
 
   await stage('menu-fail-closed', async () => {

@@ -26,7 +26,8 @@ counter file remains test-only data:
 ```
 
 Control AutomationIds are `101` (invoke), `102` and `103` (duplicate), `104`
-(disabled), `105` (editable), `106` (read-only), `107` (protected), `108`
+(disabled button), `105` (editable), `106` (read-only), `107` (protected), `112`
+(disabled text), `108`
 (checkbox), and `109`/`110` (radio). Menu command IDs occupy `201` through
 `208`. The JSON state records action counts (including `setValueCount`) and current values without touching
 real applications or user data.

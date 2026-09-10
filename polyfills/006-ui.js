@@ -76,7 +76,7 @@
     if (Object.getOwnPropertySymbols(raw).length > 0) {
       fail('INVALID_ARGUMENT', operation, 'options must not contain symbol fields');
     }
-    if (!hasOwn(raw, 'within')) {
+    if (!hasOwn(raw, 'within') || raw.within === undefined || raw.within === null) {
       fail('INVALID_ARGUMENT', operation, 'options.within is required');
     }
     const options = {
@@ -106,6 +106,12 @@
       value === 'acknowledged' || value === 'unknown';
   }
 
+  function validValuePhase(value) {
+    return value === 'arguments' || value === 'capability' || value === 'locate' ||
+      value === 'read' || value === 'precondition' || value === 'action' ||
+      value === 'verification' || value === 'cleanup';
+  }
+
   function makeValueError(code, operation, message, phase, actionState, details) {
     const error = new Error(message);
     error.code = code;
@@ -119,7 +125,8 @@
   }
 
   function wrapValueError(error, operation, phase, fallbackActionState, forceActionState) {
-    if (error && error.operation === operation) return error;
+    if (error && error.operation === operation && validValuePhase(error.phase) &&
+        validAccessibilityActionState(error.actionState)) return error;
     const actionState = forceActionState
       ? fallbackActionState
       : (error && validAccessibilityActionState(error.actionState)
@@ -131,39 +138,44 @@
       phase === 'cleanup'
         ? 'native text value reference cleanup failed'
         : 'native text value operation failed',
-      error && typeof error.phase === 'string' ? error.phase : phase,
+      phase,
       actionState,
       { cause: error },
     );
+    if (error && typeof error.phase === 'string') wrapped.nativePhase = error.phase;
     if (error && typeof error.backend === 'string') wrapped.backend = error.backend;
     if (error && typeof error.requestId === 'string') wrapped.requestId = error.requestId;
     return wrapped;
   }
 
-  function remainingValueTimeout(deadline, operation, phase, actionState) {
+  function remainingValueTimeout(deadline, operation, phase, actionState, result) {
     const remaining = Math.ceil(deadline - Date.now());
     if (remaining <= 0) {
-      throw makeValueError('TIMEOUT', operation, 'native text value deadline expired', phase, actionState);
+      throw makeValueError('TIMEOUT', operation, 'native text value deadline expired', phase, actionState, valueResultDetails(result));
     }
     return Math.min(VALUE_MAX_TIMEOUT, remaining);
   }
 
-  function assertValueDeadline(deadline, operation, phase, actionState) {
+  function assertValueDeadline(deadline, operation, phase, actionState, result) {
     if (Date.now() >= deadline) {
-      throw makeValueError('TIMEOUT', operation, 'native text value deadline expired', phase, actionState);
+      throw makeValueError('TIMEOUT', operation, 'native text value deadline expired', phase, actionState, valueResultDetails(result));
     }
   }
 
   function valueCleanupSummary(error) {
-    return {
+    const summary = {
       code: error && error.code ? error.code : 'BACKEND_FAILED',
-      operation: error && error.operation ? error.operation : 'Accessibility.release',
-      phase: error && error.phase ? error.phase : 'cleanup',
+      operation: error && error.operation ? error.operation : 'UI.getValue',
+      phase: 'cleanup',
       actionState: error && validAccessibilityActionState(error.actionState)
         ? error.actionState
         : 'not_started',
       message: error && error.message ? String(error.message) : 'native reference cleanup failed',
     };
+    if (error && typeof error.nativePhase === 'string') summary.nativePhase = error.nativePhase;
+    if (error && typeof error.backend === 'string') summary.backend = error.backend;
+    if (error && typeof error.requestId === 'string') summary.requestId = error.requestId;
+    return summary;
   }
 
   async function releaseValueRef(ref, operation, primaryError, actionState, verified) {
@@ -183,25 +195,32 @@
     }
   }
 
+  function valueResultDetails(result, details) {
+    const combined = details && typeof details === 'object' ? details : {};
+    if (result && typeof result.backend === 'string') combined.backend = result.backend;
+    if (result && typeof result.requestId === 'string') combined.requestId = result.requestId;
+    return combined;
+  }
+
   function nativeTextProperties(read, operation, phase, actionState) {
     if (!read || !read.properties || typeof read.properties !== 'object') {
-      throw makeValueError('BACKEND_FAILED', operation, 'native text read returned no properties', phase, actionState);
+      throw makeValueError('BACKEND_FAILED', operation, 'native text read returned no properties', phase, actionState, valueResultDetails(read));
     }
     const properties = read.properties;
     if (properties.role !== 'textField') {
-      throw makeValueError('NOT_SUPPORTED', operation, 'target is not a supported native text field', phase, actionState);
+      throw makeValueError('NOT_SUPPORTED', operation, 'target is not a supported native text field', phase, actionState, valueResultDetails(read));
     }
     if (typeof properties.value !== 'string') {
-      throw makeValueError('NOT_SUPPORTED', operation, 'target does not expose a native string value', phase, actionState);
+      throw makeValueError('NOT_SUPPORTED', operation, 'target does not expose a native string value', phase, actionState, valueResultDetails(read));
     }
     return properties;
   }
 
-  function requireAccessibilityValueRuntime(operation) {
+  function requireAccessibilityValueRuntime(operation, requiresWrite) {
     if (!global.Accessibility || typeof global.Accessibility.find !== 'function' ||
         typeof global.Accessibility.read !== 'function' ||
-        typeof global.Accessibility.perform !== 'function' ||
-        typeof global.Accessibility.release !== 'function') {
+        typeof global.Accessibility.release !== 'function' ||
+        (requiresWrite && typeof global.Accessibility.perform !== 'function')) {
       throw makeValueError('NOT_SUPPORTED', operation, 'native Accessibility value runtime is unavailable', 'capability', 'not_started');
     }
   }
@@ -1228,8 +1247,13 @@
 
     getValue: async function (target, rawOptions) {
       const operation = 'UI.getValue';
-      requireAccessibilityValueRuntime(operation);
-      const options = valueOptions(rawOptions, operation);
+      let options;
+      try {
+        options = valueOptions(rawOptions, operation);
+      } catch (error) {
+        throw wrapValueError(error, operation, 'arguments', 'not_started', true);
+      }
+      requireAccessibilityValueRuntime(operation, false);
       const deadline = Date.now() + options.timeout;
       let ref = null;
       let failure = null;
@@ -1255,7 +1279,7 @@
         } catch (error) {
           throw wrapValueError(error, operation, 'read', 'not_started', false);
         }
-        assertValueDeadline(deadline, operation, 'read', 'not_started');
+        assertValueDeadline(deadline, operation, 'read', 'not_started', read);
         return nativeTextProperties(read, operation, 'read', 'not_started').value;
       } catch (error) {
         failure = error && error.operation === operation
@@ -1269,11 +1293,16 @@
 
     setValue: async function (target, value, rawOptions) {
       const operation = 'UI.setValue';
-      requireAccessibilityValueRuntime(operation);
       if (typeof value !== 'string') {
         throw makeValueError('INVALID_ARGUMENT', operation, 'value must be a string', 'arguments', 'not_started');
       }
-      const options = valueOptions(rawOptions, operation);
+      let options;
+      try {
+        options = valueOptions(rawOptions, operation);
+      } catch (error) {
+        throw wrapValueError(error, operation, 'arguments', 'not_started', true);
+      }
+      requireAccessibilityValueRuntime(operation, true);
       const deadline = Date.now() + options.timeout;
       let ref = null;
       let failure = null;
@@ -1302,48 +1331,52 @@
         } catch (error) {
           throw wrapValueError(error, operation, 'precondition', actionState, false);
         }
-        assertValueDeadline(deadline, operation, 'precondition', actionState);
+        assertValueDeadline(deadline, operation, 'precondition', actionState, before);
         const properties = nativeTextProperties(before, operation, 'precondition', actionState);
         if (properties.enabled === false) {
-          throw makeValueError('ELEMENT_DISABLED', operation, 'native text target is disabled', 'precondition', actionState);
-        }
-        if (properties.enabled !== true) {
-          throw makeValueError('STATE_UNKNOWN', operation, 'native text target enabled state is unavailable', 'precondition', actionState);
+          throw makeValueError('ELEMENT_DISABLED', operation, 'native text target is disabled', 'precondition', actionState, valueResultDetails(before));
         }
         if (!Array.isArray(properties.actions) || properties.actions.indexOf('setValue') < 0) {
-          throw makeValueError('ACTION_NOT_SUPPORTED', operation, 'native text target is not editable', 'precondition', actionState);
+          throw makeValueError('ACTION_NOT_SUPPORTED', operation, 'native text target is not editable', 'precondition', actionState, valueResultDetails(before));
         }
 
         let performed;
+        const performTimeout = remainingValueTimeout(deadline, operation, 'action', 'not_started', before);
         try {
+          actionState = 'unknown';
           performed = await global.Accessibility.perform(
             ref,
             { action: 'setValue', value: value },
-            { timeout: remainingValueTimeout(deadline, operation, 'action', 'unknown') },
+            { timeout: performTimeout },
           );
         } catch (error) {
-          throw wrapValueError(error, operation, 'action', 'unknown', false);
+          const wrapped = wrapValueError(error, operation, 'action', actionState, false);
+          actionState = wrapped.actionState;
+          throw wrapped;
         }
         actionState = performed && performed.actionState;
-        if (!validAccessibilityActionState(actionState) || actionState === 'not_started') {
+        if (!validAccessibilityActionState(actionState)) {
           actionState = 'unknown';
           throw makeValueError('BACKEND_FAILED', operation, 'native setValue returned no completion state', 'action', actionState);
         }
-        assertValueDeadline(deadline, operation, 'action', actionState);
+        if (actionState === 'not_started') {
+          throw makeValueError('BACKEND_FAILED', operation, 'native setValue did not start', 'action', actionState);
+        }
+        assertValueDeadline(deadline, operation, 'action', actionState, performed);
 
         let after;
         try {
           after = await global.Accessibility.read(ref, {
             properties: ['role', 'value'],
-            timeout: remainingValueTimeout(deadline, operation, 'verification', actionState),
+            timeout: remainingValueTimeout(deadline, operation, 'verification', actionState, performed),
           });
         } catch (error) {
           throw wrapValueError(error, operation, 'verification', actionState, true);
         }
-        assertValueDeadline(deadline, operation, 'verification', actionState);
+        assertValueDeadline(deadline, operation, 'verification', actionState, after);
         const actual = nativeTextProperties(after, operation, 'verification', actionState).value;
         if (actual !== value) {
-          throw makeValueError('STATE_UNKNOWN', operation, 'native text value readback did not match', 'verification', actionState, { verified: false });
+          throw makeValueError('STATE_UNKNOWN', operation, 'native text value readback did not match', 'verification', actionState, valueResultDetails(after, { verified: false }));
         }
         verified = true;
         return {

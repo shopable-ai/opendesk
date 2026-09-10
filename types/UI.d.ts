@@ -155,6 +155,44 @@ declare global {
     verified: true;
   }
 
+  type OpenDeskUIValuePhase =
+    | "arguments"
+    | "capability"
+    | "locate"
+    | "read"
+    | "precondition"
+    | "action"
+    | "verification"
+    | "cleanup";
+
+  interface OpenDeskUIValueCleanupError {
+    code: OpenDeskAccessibilityErrorCode;
+    operation: "UI.getValue" | "UI.setValue";
+    phase: "cleanup";
+    /** Preserved native phase when the owner provides one. */
+    nativePhase?: string;
+    actionState: OpenDeskAccessibilityActionState;
+    message: string;
+    backend?: string;
+    requestId?: string;
+  }
+
+  /** Error shape rejected by UI.getValue and UI.setValue; this is not a Runtime global constructor. */
+  interface OpenDeskUIValueError extends Error {
+    code: OpenDeskAccessibilityErrorCode;
+    operation: "UI.getValue" | "UI.setValue";
+    /** Stable high-level lifecycle phase. */
+    phase: OpenDeskUIValuePhase;
+    /** Optional lower-level native phase, kept separate from the high-level lifecycle. */
+    nativePhase?: string;
+    actionState: OpenDeskAccessibilityActionState;
+    verified?: boolean;
+    backend?: string;
+    requestId?: string;
+    cause?: unknown;
+    cleanupError?: OpenDeskUIValueCleanupError;
+  }
+
   interface OpenDeskUIMenuAppScope {
     app: OpenDeskAppTarget;
     root: "menuBar";

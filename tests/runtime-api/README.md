@@ -34,7 +34,7 @@ Dialog 的视觉验收与行为验收分别判定：即使返回值、Promise �
 | unit | 每个 API family 的独立 `.test.js` 安全行为 | `results/unit.json` |
 | http-download | 已知二进制、gzip、chunked、限额、重定向、取消、并发和文件提交的确定性 loopback Runtime 行为；不是公网示例 | `results/http-download.json`、`runtime-logs/http-download/resources.json` |
 | accessibility | 三个真实 Runtime execution 中的 Accessibility/UI menu 注册、capability、严格参数、Promise 与五项资源归零；不冒充 native fixture | `results/accessibility.json`、`runtime-logs/accessibility-*/resources.json` |
-| accessibility-native-macos（显式直接运行） | 仓库自有 AppKit fixture 的真实 AX snapshot/find/read/action/release、只读菜单及多级菜单动作 | `.runtime/tests/accessibility/<runId>/result.json`、`runtime-logs/{events.ndjson,summary.json}` |
+| accessibility-native-macos（显式直接运行） | 仓库自有 AppKit fixture 的真实 AX snapshot/find/read/action/release、UI 文本值读写、只读菜单及多级菜单动作 | `.runtime/tests/accessibility/<runId>/result.json`、`runtime-logs/{events.ndjson,summary.json}` |
 | ui-taptexts-native-macos（显式直接运行） | 仓库自有 AppKit fixture 的真实窗口截图、Apple Vision OCR、PID 约束鼠标序列与独立点击状态 | `.runtime/tests/ui-taptexts-macos/<executionId>/result.json`、截图与 Runtime 日志 |
 | sqlite | SQLite 专用 contract、复用公开 smoke cases 的 unit、SQLite scoped coverage，以及每个 child execution 的资源归零和进程 cleanup；不执行无关 desktop live 测试 | `results/contract.json`、`results/unit.json`、`results/coverage.json`、`runtime-logs/*/resources.json`、`results/cleanup.json` |
 | language | 选定的 ES2015–ES2023 作者语法与内建能力，以及 OpenDesk 脚本级 `await` | `results/language.json` |

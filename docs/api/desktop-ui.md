@@ -59,9 +59,11 @@ interface OpenDeskUIValueOptions {
 
 调用不会启动、聚焦或切换窗口，不等待控件将来出现，也不从原生语义降级到 OCR、鼠标或键盘。当前底层没有 per-call `AbortSignal` owner，因此这两个方法不接受 `signal`；外层 `Promise.race` 也不能取消正在执行的原生调用。
 
-首版只接受原生 role 为 `textField` 且 `value` 实际为字符串的目标。checkbox、range、selection、name、文档正文和 OCR 文本不属于本合同；数字、布尔值、对象与 `null` 不做隐式字符串转换。`UI.setValue()` 的空字符串是合法完整值，可用于清空非受保护、enabled、明确支持 `setValue` 的可编辑文本框。
+首版只接受原生 role 为 `textField` 且 `value` 实际为字符串的目标。checkbox、range、selection、name、文档正文和 OCR 文本不属于本合同；数字、布尔值、对象与 `null` 不做隐式字符串转换。`UI.setValue()` 的空字符串是合法完整值，可用于清空非受保护、未明确 disabled、由同一 Accessibility owner 公开 `setValue` action 的可编辑文本框。
 
 每次调用都执行完整有界唯一查找。目标不存在、多个目标或搜索不完整分别保留 `TARGET_NOT_FOUND`、`AMBIGUOUS_TARGET` 与 `SEARCH_INCOMPLETE`。当前 flat selector 不能在一次调用中表达父容器／祖先 selector；若 Recorder 或手写 locator 的唯一性依赖该约束，调用方必须先用 `Accessibility.find()` 取得并管理容器 ref，再作为 `within` 使用，或停止并保留该依赖，不能静默丢弃结构约束。
+
+值方法拒绝时符合 `OpenDeskUIValueError` 声明。`phase` 固定表达高层生命周期：`arguments`、`capability`、`locate`、`read`、`precondition`、`action`、`verification` 或 `cleanup`；底层 backend phase 可用时保留在 `nativePhase`，即使名称相同也不会覆盖高层 phase。错误始终包含 `code`、`operation`、`phase` 与 `actionState`，并在确实可用时保留 `verified`、`backend`、`requestId`、`cause` 和脱敏的 `cleanupError`。该声明只是错误对象形状，不新增 Runtime 全局构造器。
 
 ### 文本选项
 
@@ -386,9 +388,9 @@ interface OpenDeskUISetValueResult {
 
 **行为与错误**
 
-内部顺序是 `find → 同 ref 读取 role/enabled/actions/value 前置 → perform(setValue) → 同 ref 回读 value → finally release`。目标必须是非受保护、enabled、公开 `setValue` action 的 `textField`；readonly、disabled、不支持和受保护分别明确失败。整个定位、前置、动作和回读只使用一个 `timeout` 预算。
+内部顺序是 `find → 同 ref 读取 role/enabled/actions/value 前置 → perform(setValue) → 同 ref 回读 value → finally release`。目标必须是非受保护、未明确 disabled、公开 `setValue` action 的 `textField`；readonly、disabled、不支持和受保护分别明确失败。某些标准原生文本区不提供 enabled 状态，此时只以同一 Accessibility owner 返回的 `setValue` action 作为可写能力证明，facade 不另造平台判断；`Accessibility.perform()` 仍会在提交前重新验证原生状态。整个定位、前置、动作和回读只使用一个 `timeout` 预算；cleanup 由 `Accessibility.release()` 的 execution owner 独立限界，不重置或伪装业务 deadline。
 
-原生动作至多调用一次。动作返回后超时、ref 失效、回读失败或值不匹配时，方法拒绝并保留已知 `actionState` 与 `verified: false`；不会再次设值，也不会切换 OCR、鼠标或键盘。释放失败不覆盖已有主错误；如果动作和回读已经完成但释放失败，cleanup 错误仍携带动作状态与验证状态。Runtime teardown 继续作为遗留 ref 的最终兜底。
+原生动作至多调用一次。前置检查完成后，如果准备动作参数和剩余预算时 deadline 恰好到期，`perform` 不会被调用，错误保持 `actionState: 'not_started'`；只有进入可能执行 native action 的调用边界后，缺少可靠原生状态才使用 `unknown`。动作返回后超时、ref 失效、回读失败或值不匹配时，方法拒绝并保留已知 `actionState` 与 `verified: false`；不会再次设值，也不会切换 OCR、鼠标或键盘。`unknown` 加匹配回读也不会改写为 `acknowledged`。释放失败不覆盖已有主错误；如果动作和回读已经完成但释放失败，cleanup 错误仍携带动作状态与验证状态。Runtime teardown 继续作为遗留 ref 的最终兜底。
 
 Recorder 的增量文本补丁不应被本方法替换：需要 UTF-16 长度/hash 前置、patch 边界、结果 hash 和专用后置验证的生成脚本，继续使用其现有同-ref `Accessibility` 组合。键盘输入、完整原生设值和增量文本补丁是三种不同动作策略。
 
@@ -402,6 +404,12 @@ const receipt = await UI.setValue(
   { within: win, timeout: 3000 },
 );
 console.log(receipt.actionState, receipt.verified);
+```
+
+若要在仓库自有非敏感 fixture 上直观看到原值、只读值、动作状态、严格回读和独立提交次数，可从仓库根目录运行[UI 原生文本值可读示例](../../examples/accessibility/value-roundtrip.js)：
+
+```bash
+./dist/opendesk -script examples/accessibility/value-roundtrip.js -console-mode script -log-dir .runtime/tests/accessibility/public-value-roundtrip
 ```
 
 **Text APIs**
@@ -911,7 +919,7 @@ CANCELED
 BACKEND_FAILED
 ```
 
-`tapTexts()` 的序列错误还包含步骤和完成前缀。原生文本值与菜单可能出现 [Accessibility](accessibility.md) 的结构化错误，包括 `CAPABILITY_DISABLED`、`NOT_SUPPORTED`、`PERMISSION_DENIED`、`SEARCH_INCOMPLETE`、`ELEMENT_DISABLED`、`ACTION_NOT_SUPPORTED`、`STATE_UNKNOWN`、`QUEUE_FULL` 与 `RESOURCE_LIMIT`。`UI.setValue()` 在动作可能已经提交后保留 `actionState` 和 `verified`，cleanup 失败可另带不含字段内容的 `cleanupError`。不要通过解析 `error.message` 判断错误类型。
+`tapTexts()` 的序列错误还包含步骤和完成前缀。原生文本值与菜单可能出现 [Accessibility](accessibility.md) 的结构化错误，包括 `CAPABILITY_DISABLED`、`NOT_SUPPORTED`、`PERMISSION_DENIED`、`SEARCH_INCOMPLETE`、`ELEMENT_DISABLED`、`ACTION_NOT_SUPPORTED`、`STATE_UNKNOWN`、`QUEUE_FULL` 与 `RESOURCE_LIMIT`。值方法使用 `OpenDeskUIValueError` 的高层 `phase`，底层 phase 另存为 `nativePhase`；`UI.setValue()` 在动作可能已经提交后保留 `actionState` 和 `verified`，cleanup 失败可另带不含字段内容的 `cleanupError`。错误、cause、cleanupError、日志和回执都不附带旧值、新值或受保护内容。不要通过解析 `error.message` 判断错误类型。
 
 ## 平台与能力
 

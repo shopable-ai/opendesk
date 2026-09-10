@@ -75,7 +75,9 @@ Windows PowerShell 的对应待验收命令：
 
 使用仓库自有 fixture 时，示例只读取 launch receipt 并复核当前 executable identity，因此默认命令不需要 shell PID/window 变量；运行明确启动且可安全清理的其他应用时，才同时传入当前观察到的精确 PID/window id。不要选择“当前/第一个”窗口，也不要在失败后降级到鼠标或发送 Escape。
 
-三个示例各自所需的完整环境变量和可复制命令见 [Accessibility examples](../../../examples/accessibility/README.md)；必须从仓库根目录原样运行对应命令。
+- [UI 原生文本值可读演示](../../../examples/accessibility/value-roundtrip.js)：`./dist/opendesk -script examples/accessibility/value-roundtrip.js -console-mode script -log-dir .runtime/tests/accessibility/public-value-roundtrip`
+
+四个示例各自所需的完整环境变量和可复制命令见 [Accessibility examples](../../../examples/accessibility/README.md)；必须从仓库根目录原样运行对应命令。上面的文本值演示按 `1/5` 到 `5/5` 输出读取、写入状态、严格回读和独立提交次数，适合人工判断；`tests/runtime-api/single/ui-value.js` 是输出机器结果的开发者回归入口，不能替代公开示例。
 
 ## 剪贴板
 

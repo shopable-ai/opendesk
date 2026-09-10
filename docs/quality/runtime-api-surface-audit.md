@@ -365,3 +365,86 @@ WQ-01/02原生案例之外，继续复用现有target专项：精确AND、App多
 - `contract/unit` 证明当前构建的 JS surface 与确定性行为，不证明真实窗口可见、权限或设备状态。
 - Linux/Windows 的 Native Extension 在当时记录中只可记 compile/package；没有目标系统 live Runtime 时不能升级表述。
 - `.archive/`、`dist/` 和旧 `.runtime/` 产物不计入当前评分。最终证据必须引用对应 run id 与 binary hash。
+
+## 2026-09-10 增量：UI 原生文本值 facade
+
+本节只审计普通 JavaScript 的 `UI.getValue()`／`UI.setValue()` 与 Recorder AX/UIA 共用合同，不重写上面的历史 Window 评分或“闭合”结论。审计时仓库 HEAD 为 `1029f3fdb0d15772e95ab2cff396b4701ef7e0f8`；相关实现仍是共享工作树未提交增量，因此必须同时锁定工作树 blob，不能只引用 HEAD。
+
+### 当前状态与 owner
+
+| 表面 | 当前状态 | owner／边界 |
+| --- | --- | --- |
+| `UI.getValue(target, options)` | 当前工作树已实现；Experimental local | `polyfills/006-ui.js` 只做 JavaScript 组合；原生查找、读取、ref authority、权限和资源由既有 Accessibility owner 提供 |
+| `UI.setValue(target, value, options)` | 当前工作树已实现；Experimental local | facade 组合一次 find、同-ref 前置读取、至多一次 native `setValue`、同-ref 回读与 finally release；不新建 ControlManager／LocatorManager／Recorder Runtime |
+| 多属性读取 | 复用现有能力 | 继续调用 `Accessibility.read()`，不提前公开 `UI.read()` |
+| `UI.invoke()` | 仅后续候选 | 当前未公开；也不提供 `inputValue`、`fill`、`type` 等 `setValue` 同义别名 |
+| Recorder 增量文本补丁 | 现有专用链保持 | `automation/recorder_actions.go` 的生产 helper 继续执行 UTF-16 长度/hash 前置、patch 边界与完整性、native action state、回读后置和 finally release；不能简化为 `UI.setValue()` |
+
+审计时主要工作树 blob：
+
+| 文件 | 工作树 blob |
+| --- | --- |
+| `polyfills/006-ui.js` | `fb73e1ff12221d42df4230f6447cf7a0aa31bbd4` |
+| `types/UI.d.ts` | `51c8e90905c688fa8dc5b6725a4c0a2e910d43b0` |
+| `docs/api/desktop-ui.md` | `c3d8417fffee64579216f108ba8707c22f91a49d` |
+| `docs/frameworks/multi-application-automation-primitives.md` | `9ece1101ce4454ea8e2f23001dff0b3af06674bd` |
+| `tests/runtime-api/unit/ui-value.test.js` | `e871c1805ab7b25fb52546a2056271868b16269b` |
+| `tests/runtime-api/single/ui-value.js` | `f4dbf1f31269ec87af41d9cfd74b7e758e010547` |
+| `tests/runtime-api/manifest.js` | `c294e6210e03e4238751a28e105fff725abc71bb` |
+| `docs/api/runtime-api.ai.json` | `4bca13609141fa462e10dc36e6fdb227056fba71` |
+| `tests/runtime-api/accessibility-native-macos.js` | `dca82cbea88f17d724a84460a84b3942684bb6bb` |
+| `tests/accessibility/fixtures/macos/main.m` | `a087fe5689ddfc16c770c08f38f9e0aa4759e961` |
+| `automation/recorder_actions.go` | `98c740f6f394cd954bcc3005e44ae3c9978bdc88` |
+
+本审计文件自身不写入上表，避免自引用 blob 在补写该值时立即失效；交付时再对最终工作树执行 `git hash-object docs/quality/runtime-api-surface-audit.md`。
+
+### 共用合同审计
+
+| 合同 | 当前实现证据 | 结论 |
+| --- | --- | --- |
+| Locator 与 scope | value facade 把既有 `OpenDeskAccessibilitySelector`、显式 `within`、`maxDepth`、`maxNodes` 原样交给 `Accessibility.find()`；不存在全桌面默认查找，也不启动、聚焦或切换窗口 | 已实现；当前 flat selector 不能直接表达 Recorder 的祖先／容器约束，调用方须先取得容器 ref 作为 `within`，否则登记依赖缺口，不能静默丢弃 |
+| ref authority 与生命周期 | 每次调用只接受当前 execution 内 native ref；前置、动作和回读保持同一 ref，并在成功／失败路径 finally release；API 和回执都不序列化 ref | current9 deterministic gate 覆盖成功、主错误、cleanup 错误、stale ref 和取消前置并在结束时报告 ref/native resource 为零；最终 macOS 八阶段运行也通过并在 cleanup 后报告 Accessibility workers/pending/queued/refs/native resources 全零 |
+| 动作与回执 | `setValue` 只接受完整字符串，动作最多提交一次；保留 native `actionState`，并以独立 `verified` 表示严格回读；`acknowledged` 不升级为业务成功 | 当前源码满足；回读失败、超时或 stale ref 后无重做／OCR／鼠标／键盘 fallback |
+| 文本范围 | `getValue` 只接受原生 `textField` string value；空字符串、前导零、Unicode、空白和换行原样返回；不使用 name、OCR 或隐式字符串／数字转换 | 当前源码和 deterministic test 定义均覆盖；checkbox、range、selection、document body 不在首版 value 合同 |
+| deadline 与 cancellation | 定位、前置／动作和回读共享一个默认 3000ms、最大 30000ms 的递减预算；当前 native owner 未接通 per-call cancellation，所以 value facade 拒绝 `signal` | 当前源码满足；没有用 `Promise.race` 冒充底层取消 |
+| cleanup 与隐私 | cleanup failure 作为独立相位／元数据保留，不覆盖已提交 `actionState` 或主错误；错误、cause、cleanupError 和回执不附带旧值、新值或受保护字段内容 | deterministic test 定义已覆盖 cleanup 与 marker 扫描；native owner 的 release 是现有 execution-owned 资源路径，不在 polyfill 建立第二 owner |
+| 授权边界 | manifest 将两个方法标为 local Experimental；HTTP、MCP、Scheduler 未获得 Accessibility 权限或入口 | 未发现授权放宽 |
+
+Recorder 持久化只保存可重新查找的应用／窗口／元素证据，不保存 native ref authority；生成脚本中的 ref 仍只属于一次 execution。普通手写 JS 与 Recorder 对 flat role/name/identifier 字段使用同一 Accessibility 解释；Recorder 已持久化的祖先／容器证据尚不能直接映射为一次 value facade selector，这是明确依赖缺口，不另造第二套 schema。
+
+### current8 live／current10 Recorder 共用合同证据
+
+Recorder 与 Accessibility owner 均已明确交回控制权；本节只复用其落盘证据，不重复 UI/live：
+
+- current10 最终源码闭包为 `587baeca900bc552be4044362843ee0051bbd7c131fb36ec36e7f0c632048299`；成对构建为 `dist/opendesk` SHA-256 `d66f947561e39ccf2d30d2c288275b2882cbb89c0284cdea75c232835c712aac`、`dist/opendesk-ui-host` SHA-256 `d722a273cc31bccc85dafc5de546004fff41aa00fba97711dd5662941c381280`，两者与 current8 live 所用 pair 字节相同。current8 的闭包 `8891ff3bbc60f518cfb3cff22484828337b351da46be3bd8a136e695a666a92b` 只作为当时 live provenance，不再描述当前源码闭包。
+- 公开包 `.runtime/recordings/rec-20260909T220831.234712000Z-d8ee734a1596` 为 stopped/saved、`issues: []`、accepted/persisted `44/44`；`actions.json` 为 ready 的 6 actions。两段 `text-edit` 都保存 role `textField`、native role `AXTextArea`、identifier `recorder-live-text` 和完整 UTF-16 length/hash patch；其余动作保留 numeric-keypad Enter、ArrowLeft 与完整 Meta+A，不把键盘、native 完整设值和 patch 合并。
+- candidate SHA-256 为 `adc8122382e8244ade8bf071eed8644a0315811dffaf3ec3772159b0fb3e8f60`，脚本 SHA-256 为 `1e2cb607db6d2bcf937e6a6a2044ee2648bf864cbe309e1aa790e4f074e0c6b0`。生成的 `__recorderApplyTextEdit` 仍按 `find → UTF-16 长度/hash 前置 → patch 边界/结果校验 → perform(setValue) → actionState → 同-ref 回读后置 → finally release` 执行，源码中没有 `UI.setValue` 替换。
+- `.runtime/tests/recorder-keypad-enter/final-current8-20260910-055340/live/replay4-independent-ax-oracle.json` 独立观察到最终原生值 `中文`、selection `(2,0)`、`focused: true`；这是 Recorder 显式 replay 的业务后置证据，不冒充普通 facade 的 native gate。
+- current10 的 `.runtime/tests/runtime-api/recorder-final-current10-formal-20260910` 与 `.runtime/runs/direct-20260910-071233-274000` 均为 Recorder JavaScript `14/14`，formal teardown 后 `recorderSessions/backendLeases/writers` 全零；current8 的 `.runtime/tests/runtime-api/recorder-custom-ui-final-current8-20260910-062938/results/custom-ui-behavior.json` 为 `19/19`，`direct-20260910-063515-971000` native-stop 两次 stop 为 84ms／429ms。current10 没有重复 UI/live，真实 replay／AX oracle 继续引用同字节 pair 的 current8 证据。
+- 补充回归中，`.runtime/runs/direct-20260910-064515-929000/summary.json` 为共享 selected `101/101`，`.runtime/runs/direct-20260910-064455-258000/summary.json` 为 coordinate `7/7`。并行交接还报告 release seam Go 命令通过及 Windows fixture cross-build 退出 0，但前者没有专用日志、后者只有构建产物而非真机运行，因此二者不计入平台 live 评分。
+- 本轮在上述源码／文档修改后再次运行 `node scripts/audit_test_architecture.js`，`.runtime/tests/test-architecture/audit.json` 记录 `status: passed`、`errors: []`，并登记 `ui-value` single entry。并行交接报告 `go test ./automation` 通过，但本轮只读检查未找到独立保存的 Go test log，因此不把该口头结果计入下面的评分证据。
+
+### 验证状态：失败与未验证不得刷绿
+
+| 层级 | 当前证据 | 判定 |
+| --- | --- | --- |
+| 静态源码 | 已核对 facade、类型、API Reference、manifest、AI 索引、unit 注册体、single 薄入口、Recorder 生产 helper 及上述工作树 blob；value 命名搜索只发现文档中明确放弃的 aliases | value 表面当前源码形状对齐且继续是 Experimental local；共享 polyfill 另有并行、尚未登记到类型／文档／manifest／AI 索引的 `UI.findTextMatches`，本节不覆盖该增量，也不把整个 UI catalog 宣称为闭合 |
+| deterministic／宿主隔离 | `OPENDESK_RUNTIME_API_MODE=unit-selected`、filter `ui-value` 的 `.runtime/tests/runtime-api/ui-value-final-current9-20260910-065800` 使用 run-local copy of final current8 main，并从仓库根目录加载当前 `polyfills/006-ui.js`，结果 `17/17`；覆盖精确字符串、空值／中文／多行、无转换、显式且非空 scope、无目标／歧义／搜索不完整／stale ref、readonly／disabled／protected／unsupported、单总预算、取消前置、actionState、提交后不重做、release／cleanup 与隐私 | 通过；context binary SHA 为 `d66f947…`，resources 所有计数为零，runner 明确报告无 runtime/watchdog/run-scoped process 残留 |
+| Recorder 组合回归 | current10 direct／formal JavaScript 均为 `14/14`，直接执行生产 generator 发出的 `__recorderApplyTextEdit`；同字节 current8 pair 的公开包、candidate、脚本、显式 replay 与独立 AX oracle 见上节 | 通过；证明两条主线可共用底层 locator/ref/actionState，同时保留 Recorder patch 的严格前后置 |
+| OpenDesk Runtime | `tests/runtime-api/single/ui-value.js` 仍是固定薄入口；正式 current9 runner 使用与 current10 相同 SHA 的 main，并从仓库根目录加载最终 `polyfills/006-ui.js` 执行相同注册体 | `17/17` 与 teardown 通过；不冒充 Windows UIA 真机，且后续只有 `within: null/undefined` fail-closed guard，已包含在该 deterministic 注册体中 |
+| macOS native | `.runtime/tests/accessibility/accessibility-ui-value-final-20260910-065140/result.json` 的 identity-and-capabilities、menu-read-only、snapshot-and-find、element-actions、release-owned-refs、ui-value-facade、menu-fail-closed、menu-actions 八阶段全部通过；Unicode／前导零／空白与空字符串两次 facade set 均 `acknowledged + verified`，readonly／disabled 在动作前拒绝，protected 为 `PERMISSION_DENIED` 且保留 `phase/nativePhase/backend/requestId/actionState` | 通过；cleanup 事件记录 Accessibility workers/pending/queued/refs/native resources 全零，日志 marker／fixture secret／写入值扫描 clean。该次使用与 current10 相同字节的 main 加含 `nativePhase` 修复的根 polyfill；其后 facade 只增加 `within: null/undefined` 的 fail-closed guard，因此不把该次表述为完整 current10 源码闭包 live |
+| native pair／Runtime composition | current10 main `d66f947561e39ccf2d30d2c288275b2882cbb89c0284cdea75c232835c712aac`、host `d722a273cc31bccc85dafc5de546004fff41aa00fba97711dd5662941c381280`，源码闭包 `587baeca900bc552be4044362843ee0051bbd7c131fb36ec36e7f0c632048299`；pair 字节与 current8 live 相同 | current10 成对构建 provenance、Recorder direct/formal 与 current8 同字节 live 各自成立；value current9 runner 以同一 main SHA 加最终根 polyfill通过 `17/17`。没有把 current8 native live 写成 current10 完整源码闭包 live，也未重建或重复 UI/live |
+| Windows UIA live | 当前环境未执行 Windows 真机 value fixture | 未验证；不能用 cross-compile、macOS 或 fake owner 替代 |
+
+### 本批评分
+
+| 维度 | 得分 | 实际依据／扣分 |
+| --- | ---: | --- |
+| 命名行为 | 20/20 | canonical 只有 `UI.getValue`／`UI.setValue`；无 `inputValue`、`fill`、`type` 或 `invoke` 新入口；string-only、空字符串、Unicode/多行和无隐式转换由 current9 17/17 覆盖 |
+| 共享合同 | 25/25 | facade 与 current10 Recorder 使用同一 Accessibility selector/scope、execution ref、native `setValue` 与 `actionState`；Recorder 持久化可重找证据而不持久化 ref authority，复杂 patch 链完整保留 |
+| 安全生命周期 | 25/25 | 单总 deadline、动作至多一次、回读与 actionState 分离、finally release、cleanup 主次错误和全资源归零均有 deterministic／Recorder／macOS 八阶段证据；受保护值及写入内容未进入默认日志或错误 |
+| 可验证性 | 18/20 | current10 同 SHA main 加最终 polyfill 的 current9 `17/17`、current10 Recorder direct/formal `14/14`、current8 同字节真实 replay/AX oracle、macOS `8/8`、Custom UI、selected `101/101`、coordinate `7/7` 与 architecture audit 均有落盘证据；扣 1 分为 Windows UIA 真机未验证，扣 1 分为并行 `UI.findTextMatches` 尚未完成全 surface catalog 登记 |
+| 易用兼容 | 10/10 | 普通脚本不再手写 ref 样板；未批量改名 tap/menu API、未建第二 locator/runtime、未放宽 HTTP/MCP/Scheduler，状态保持 Experimental local |
+| **合计** | **98/100** | 达到本批 95 分硬门槛，但不代表 Stable、Windows UIA 真机或整个并行 UI surface catalog 已经闭合 |
+
+本批可以按 **Experimental local、98/100、带明确平台与 catalog 验证缺口** 交付。下一接续点是 Windows 设备可用时运行 UIA value fixture，并由并行 matcher owner 为 `UI.findTextMatches` 补齐类型、Reference、manifest、AI 索引和正式 contract gate；在这些证据闭合前不得升级为 Stable，也不得把 Recorder replay、macOS 结果或 cross-build 当作 Windows 真机替代证据。

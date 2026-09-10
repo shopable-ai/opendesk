@@ -109,8 +109,10 @@ globalThis.RuntimeAPIObjects = {
     docs: 'docs/api/desktop-ui.md', types: 'types/UI.d.ts',
     source: 'polyfills/006-ui.js + automation/accessibility_menu.go',
     status: 'stable', platforms: ['darwin', 'linux', 'windows'],
-    methods: ['getCapabilities', 'findTexts', 'findText', 'hasText', 'tapText', 'tapTexts', 'waitText', 'waitTextGone', 'findImages', 'findImage', 'tapImage', 'getMenuItems', 'findMenuItem', 'tapMenuItem'],
+    methods: ['getCapabilities', 'getValue', 'setValue', 'findTexts', 'findText', 'hasText', 'tapText', 'tapTexts', 'waitText', 'waitTextGone', 'findImages', 'findImage', 'tapImage', 'getMenuItems', 'findMenuItem', 'tapMenuItem'],
     methodMetadata: {
+      getValue: { source: 'polyfills/006-ui.js', docs: 'docs/api/desktop-ui.md', types: 'types/UI.d.ts', status: 'experimental-local', platforms: ['darwin', 'windows'] },
+      setValue: { source: 'polyfills/006-ui.js', docs: 'docs/api/desktop-ui.md', types: 'types/UI.d.ts', status: 'experimental-local', platforms: ['darwin', 'windows'] },
       tapTexts: { status: 'stable-with-experimental-sequence-wait' },
       getMenuItems: { docs: 'docs/api/desktop-ui.md', status: 'experimental-local', platforms: ['darwin', 'windows'] },
       findMenuItem: { docs: 'docs/api/desktop-ui.md', status: 'experimental-local', platforms: ['darwin', 'windows'] },
@@ -237,6 +239,8 @@ for (const method of ['snapshot', 'find', 'read', 'perform', 'release']) {
 restricted['UI.getMenuItems'] = 'local execution-only native menu observation; no native live tier is claimed without a dedicated application fixture';
 restricted['UI.findMenuItem'] = 'local execution-only native menu observation; no native live tier is claimed without a dedicated application fixture';
 restricted['UI.tapMenuItem'] = 'submits a native application menu action at most once and requires a dedicated foreground fixture for live evidence';
+restricted['UI.getValue'] = 'reads one explicitly scoped native text value in a local execution and requires native Accessibility permission';
+restricted['UI.setValue'] = 'submits one explicitly scoped native text mutation at most once and requires native Accessibility permission';
 for (const method of ['launch', 'terminate', 'restart']) restricted['App.' + method] = 'starts or terminates a real desktop application; dedicated fixture smoke owns the target lifecycle';
 restricted['Notifications.list'] = 'may reveal own-app notification metadata or explicitly requested content; the formal unit gate validates arguments without reading host notifications';
 restricted['Notifications.waitFor'] = 'waits on the own-app notification model and may explicitly return content; the formal unit gate validates arguments without changing host notification state';
@@ -379,6 +383,7 @@ globalThis.RuntimeAPITestFiles = {
     'tests/runtime-api/unit/window.test.js',
     'tests/runtime-api/unit/window-target.test.js',
     'tests/runtime-api/unit/ui-sequence.test.js',
+    'tests/runtime-api/unit/ui-value.test.js',
     'tests/runtime-api/unit/screen.test.js',
     'tests/runtime-api/unit/system.test.js',
     'tests/runtime-api/unit/execution.test.js',

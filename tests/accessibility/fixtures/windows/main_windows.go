@@ -26,6 +26,7 @@ const (
 	idRadioOne       = 109
 	idRadioTwo       = 110
 	idStatus         = 111
+	idDisabledText   = 112
 
 	idMenuInvoke       = 201
 	idMenuChecked      = 202
@@ -220,10 +221,12 @@ func createControls() {
 	createControl("EDIT", "read only", wsChild|wsVisible|wsTabStop|wsBorder|esAutoHScroll|esReadOnly, 154, 180, 360, 28, idReadOnly)
 	createControl("STATIC", "Protected value", wsChild|wsVisible|ssLeft, 24, 222, 120, 24, 0)
 	createControl("EDIT", "fixture secret", wsChild|wsVisible|wsTabStop|wsBorder|esAutoHScroll|esPassword, 154, 218, 360, 28, idProtected)
+	createControl("STATIC", "Disabled value", wsChild|wsVisible|ssLeft, 24, 260, 120, 24, 0)
+	createControl("EDIT", "disabled value", wsChild|wsVisible|wsTabStop|wsBorder|wsDisabled|esAutoHScroll, 154, 256, 360, 28, idDisabledText)
 
-	app.checkbox = createControl("BUTTON", "Fixture Checked", wsChild|wsVisible|wsTabStop|bsAutoCheckBox, 24, 272, 150, 28, idCheck)
-	app.radioOne = createControl("BUTTON", "Choice One", wsChild|wsVisible|wsTabStop|wsGroup|bsAutoRadioButton, 194, 272, 110, 28, idRadioOne)
-	app.radioTwo = createControl("BUTTON", "Choice Two", wsChild|wsVisible|wsTabStop|bsAutoRadioButton, 314, 272, 110, 28, idRadioTwo)
+	app.checkbox = createControl("BUTTON", "Fixture Checked", wsChild|wsVisible|wsTabStop|bsAutoCheckBox, 24, 310, 150, 28, idCheck)
+	app.radioOne = createControl("BUTTON", "Choice One", wsChild|wsVisible|wsTabStop|wsGroup|bsAutoRadioButton, 194, 310, 110, 28, idRadioOne)
+	app.radioTwo = createControl("BUTTON", "Choice Two", wsChild|wsVisible|wsTabStop|bsAutoRadioButton, 314, 310, 110, 28, idRadioTwo)
 	procSendMessageW.Call(app.radioOne, bmSetCheck, bstChecked, 0)
 	app.controlsReady = true
 }
@@ -435,7 +438,7 @@ func main() {
 		uintptr(unsafe.Pointer(className)),
 		uintptr(unsafe.Pointer(utf16(windowTitle))),
 		wsOverlappedWindow|wsVisible,
-		120, 120, 700, 420,
+		120, 120, 700, 460,
 		0, 0, instance, 0,
 	)
 	if hwnd == 0 {

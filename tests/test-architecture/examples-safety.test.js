@@ -229,6 +229,10 @@ const accessibilityExamples = Object.freeze({
     command: 'OPENDESK_ACCESSIBILITY_CONTROL_ROLE=button OPENDESK_ACCESSIBILITY_CONTROL_NAME=\'Invoke Once\' OPENDESK_ACCESSIBILITY_CONTROL_IDENTIFIER=\'fixture.invoke\' OPENDESK_ACCESSIBILITY_VERIFY_ROLE=staticText OPENDESK_ACCESSIBILITY_VERIFY_IDENTIFIER=\'fixture.status\' OPENDESK_ACCESSIBILITY_VERIFY_PROPERTY=value OPENDESK_ACCESSIBILITY_EXPECTED_VALUE=\'invoke-button | invoke=1 checkbox=0 menu=0\' ./dist/opendesk -script examples/accessibility/invoke-control.js -console-mode script -log-dir .runtime/tests/accessibility/public-invoke',
     runtimeTest: 'tests/runtime-api/accessibility-native-macos.js',
   },
+  'value-roundtrip.js': {
+    command: './dist/opendesk -script examples/accessibility/value-roundtrip.js -console-mode script -log-dir .runtime/tests/accessibility/public-value-roundtrip',
+    runtimeTest: 'tests/runtime-api/accessibility-native-macos.js',
+  },
   'menu-command.js': {
     command: 'OPENDESK_ACCESSIBILITY_MENU_PATH_JSON=\'[{"identifier":"fixture.menu.root"},{"identifier":"fixture.menu.invoke"}]\' OPENDESK_ACCESSIBILITY_VERIFY_ROLE=staticText OPENDESK_ACCESSIBILITY_VERIFY_IDENTIFIER=\'fixture.status\' OPENDESK_ACCESSIBILITY_VERIFY_PROPERTY=value OPENDESK_ACCESSIBILITY_EXPECTED_VALUE=\'menu-invoke | invoke=0 checkbox=0 menu=1\' ./dist/opendesk -script examples/accessibility/menu-command.js -console-mode script -log-dir .runtime/tests/accessibility/public-menu',
     runtimeTest: 'tests/runtime-api/accessibility-native-macos.js',
@@ -318,7 +322,7 @@ test('Accessibility public examples are documented one-line commands with matchi
   const singleTests = read('docs/api/examples/single-tests.md');
   const names = fs.readdirSync(path.join(root, 'examples/accessibility')).filter(name => name.endsWith('.js')).sort();
   assert.deepEqual(names, Object.keys(accessibilityExamples).sort());
-  assert.match(singleTests, /三个示例各自所需的完整环境变量和可复制命令见/);
+  assert.match(singleTests, /四个示例各自所需的完整环境变量和可复制命令见/);
   assert.match(readme, /\.\/dist\/opendesk -script tests\/accessibility\/fixtures\/macos\/launch\.js -console-mode script -log-dir \.runtime\/tests\/accessibility\/fixture-launch/);
   assert.match(readme, /后续的默认公开命令无需 shell 变量/);
   assert.match(readme, /OPENDESK_ACCESSIBILITY_TARGET_PID` 与 `OPENDESK_ACCESSIBILITY_WINDOW_ID`/);
@@ -440,6 +444,65 @@ test('Accessibility inspect auto-launches and cleans up only the repository-owne
   assert.deepEqual(waits, [100]);
   assert.equal(runtime.calls[1][1].within.id, fixtureWindow.id);
   assert(result.messages.join('\n').includes('[ACCESSIBILITY-INSPECT]'));
+});
+
+test('UI value example writes once, strictly reads back, checks independent state and cleans up its fixture', async () => {
+  const calls = [];
+  let editableValue = 'initial value';
+  let setValueCount = 4;
+  const within = { ...accessibilityWindow };
+  const File = {
+    cwd: () => root,
+    join: path.join,
+    read: file => file.endsWith('/examples/accessibility/lib/fixture-target.js')
+      ? `({
+          paths() { return { state: '/fixture/state.json' }; },
+          async window(options) {
+            exampleCalls.push(['fixture.window', options]);
+            return { window: fixtureWindow, startedByExample: true };
+          },
+          async stopFixture() { exampleCalls.push(['fixture.stop']); }
+        })`
+      : read(path.isAbsolute(file) ? path.relative(root, file) : file),
+    readJSON: async file => {
+      calls.push(['File.readJSON', file]);
+      return { editableValue, setValueCount };
+    },
+  };
+  const Accessibility = {
+    getCapabilities: () => ({
+      platform: 'darwin', backend: 'macos-ax',
+      hostAuthorization: { enabled: true }, implementation: { available: true }, permission: { granted: true },
+    }),
+  };
+  const UI = {
+    getValue: async (selector, options) => {
+      calls.push(['UI.getValue', selector, options]);
+      return selector.identifier === 'fixture.text.readonly' ? 'read only' : editableValue;
+    },
+    setValue: async (selector, value, options) => {
+      calls.push(['UI.setValue', selector, value, options]);
+      editableValue = value;
+      setValueCount += 1;
+      return { actionState: 'acknowledged', verified: true };
+    },
+  };
+  const exampleCalls = [];
+  const result = await script('examples/accessibility/value-roundtrip.js', {}, {
+    File, Accessibility, UI, exampleCalls, fixtureWindow: within, sleep: async () => {},
+    Execution: { env: {}, artifactDir: '/artifacts', id: 'host-test', workdir: root },
+  });
+  const writes = calls.filter(call => call[0] === 'UI.setValue');
+  const reads = calls.filter(call => call[0] === 'UI.getValue');
+  assert.equal(writes.length, 1);
+  assert.equal(reads.length, 3);
+  assert.equal(writes[0][1].identifier, 'fixture.text.editable');
+  assert.equal(writes[0][2], ' 00123 中文\n第二行 ');
+  for (const call of [...reads, ...writes]) assert.equal(call[call.length - 1].within.id, within.id);
+  assert.deepEqual(plain(exampleCalls), [['fixture.window', { autoLaunch: true }], ['fixture.stop']]);
+  assert.match(result.messages.join('\n'), /严格回读一致/);
+  assert.match(result.messages.join('\n'), /本次原生提交数=1/);
+  assert.match(result.messages.join('\n'), /✅ PASS/);
 });
 
 test('Accessibility inspect retries neither explicit targets nor a persistent fixture stale target', async () => {

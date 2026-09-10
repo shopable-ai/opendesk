@@ -36,6 +36,18 @@ static void SetIdentifier(id object, NSString *identifier) {
     }
 }
 
+static void SetAccessibilityLabel(id object, NSString *label) {
+    if ([object respondsToSelector:@selector(setAccessibilityLabel:)]) {
+        [object setAccessibilityLabel:label];
+    }
+}
+
+static void SetAccessibilityRole(id object, NSAccessibilityRole role) {
+    if ([object respondsToSelector:@selector(setAccessibilityRole:)]) {
+        [object setAccessibilityRole:role];
+    }
+}
+
 static NSButton *PushButton(NSString *title, NSString *identifier, id target, SEL action) {
     NSButton *button = [NSButton buttonWithTitle:title target:target action:action];
     button.bezelStyle = NSBezelStyleRounded;
@@ -79,7 +91,7 @@ static NSButton *PushButton(NSString *title, NSString *identifier, id target, SE
 }
 
 - (void)buildWindow {
-    NSRect frame = NSMakeRect(0, 0, 720, 340);
+    NSRect frame = NSMakeRect(0, 0, 720, 360);
     self.window = [[NSWindow alloc]
         initWithContentRect:frame
                   styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
@@ -87,7 +99,7 @@ static NSButton *PushButton(NSString *title, NSString *identifier, id target, SE
                     backing:NSBackingStoreBuffered
                       defer:NO];
     self.window.title = @"OpenDesk Accessibility Fixture";
-    self.window.minSize = NSMakeSize(680, 320);
+    self.window.minSize = NSMakeSize(680, 340);
     SetIdentifier(self.window, @"fixture.window.main");
     [self.window center];
 
@@ -136,6 +148,7 @@ static NSButton *PushButton(NSString *title, NSString *identifier, id target, SE
     fields.spacing = 8;
     [fields addArrangedSubview:[self fieldRow:@"Editable value" field:[self editableTextField]]];
     [fields addArrangedSubview:[self fieldRow:@"Read-only value" field:[self readOnlyTextField]]];
+    [fields addArrangedSubview:[self fieldRow:@"Disabled value" field:[self disabledTextField]]];
     [fields addArrangedSubview:[self fieldRow:@"Protected value" field:[self protectedTextField]]];
     [root addArrangedSubview:fields];
 
@@ -183,6 +196,7 @@ static NSButton *PushButton(NSString *title, NSString *identifier, id target, SE
     self.editableField = [NSTextField textFieldWithString:@"initial value"];
     self.editableField.delegate = self;
     SetIdentifier(self.editableField, @"fixture.text.editable");
+    SetAccessibilityLabel(self.editableField, @"Shared value");
     return self.editableField;
 }
 
@@ -192,12 +206,23 @@ static NSButton *PushButton(NSString *title, NSString *identifier, id target, SE
     field.selectable = YES;
     field.bezeled = YES;
     SetIdentifier(field, @"fixture.text.readonly");
+    SetAccessibilityLabel(field, @"Shared value");
+    SetAccessibilityRole(field, NSAccessibilityTextFieldRole);
+    return field;
+}
+
+- (NSTextField *)disabledTextField {
+    NSTextField *field = [NSTextField textFieldWithString:@"disabled value"];
+    field.enabled = NO;
+    SetIdentifier(field, @"fixture.text.disabled");
+    SetAccessibilityLabel(field, @"Disabled value");
     return field;
 }
 
 - (NSSecureTextField *)protectedTextField {
     NSSecureTextField *field = [NSSecureTextField textFieldWithString:@"fixture secret"];
     SetIdentifier(field, @"fixture.text.protected");
+    SetAccessibilityLabel(field, @"Protected value");
     return field;
 }
 

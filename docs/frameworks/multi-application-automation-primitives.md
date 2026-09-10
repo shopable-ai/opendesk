@@ -4,7 +4,7 @@
 
 本文回答一个具体问题：哪些代码不应由 Calculator、TextEdit、Safari、微信、千牛、拼多多等 Recipe 反复实现，而应成为 OpenDesk 的跨应用框架能力。
 
-状态：2026-09-09 的实施路线图。下文方法名是用于冻结职责和验收范围的设计草案，不是当前已公开 API。实际实现时仍须按[Runtime API 扩展与定制框架](runtime-api-extension-framework.md)完成 owner、类型、API 文档和 Runtime 测试。
+状态：2026-09-10 的实施路线图。`UI.getValue()`／`UI.setValue()` 已按 Experimental local 能力进入当前工作树；其余未在 API Reference、类型和 manifest 同时出现的方法名仍只是用于冻结职责和验收范围的设计草案，不是当前已公开 API。实际实现仍须按[Runtime API 扩展与定制框架](runtime-api-extension-framework.md)完成 owner、类型、API 文档和 Runtime 测试。
 
 目标不是隐藏业务逻辑，而是让生产 Recipe 主要保留：应用／窗口目标、页面或布局约束、业务值、业务步骤和影响后续控制流的状态判断。窗口枚举、身份重验、坐标空间转换、原生 ref 清理和通用轮询不应在每个 Recipe 中重写。
 
@@ -15,7 +15,8 @@
 | 批次 A.1：Recorder 生成物消费 Geometry | 当前工作树已实现；正式 JavaScript 合成 Gate 8/8 通过 | basic generator 使用既有 `Geometry.pointOffset()`、`Geometry.contains()` 和 tagged `mouse.clickPoint()`，不新增 Runtime API；仍不能关闭窗口解析到输入提交之间的竞态 |
 | Calculator 生产 Recipe 的 Geometry 收敛 | 当前工作树已实现；golden／源码冻结静态检查通过，新源码的 live 资格待重跑 | 保留 active-window、固定布局和 `mouse.clickForPID()` 门禁，只移除手写 `active.x/y + offset`；当前源码 SHA-256 为 `751d25b682c9d1591507cddacee298a51d298ef9658d6c8b03e96a996c8a7e96` |
 | TextEdit 校准 | 已有独立 Recipe 代码证据；未形成 human production/gate 双层基线 | 现有 AI CLI Recipe 已使用 `Geometry.pointPercent()`、`Geometry.contains()` 和 `mouse.clickPoint()`，但运行、截图、断言和 evidence 仍混在一个文件中 |
-| 批次 B：普通语义控件 facade | 设计草案 | 现有 `Accessibility.find/read/perform/release` 可组合，但普通控件 facade 尚未公开，cleanup/action-state 合同仍需评审 |
+| 批次 B.1：原生文本值 facade | 当前工作树已实现；Experimental local；current-source deterministic 17/17 与 Recorder 14/14 通过 | `UI.getValue()`／`UI.setValue()` 复用现有 `Accessibility.find/read/perform/release`；current8 Recorder 已证明同一 locator/ref/actionState 合同和专用文本 patch 可共存；macOS 完整 value facade gate 仍在 disabled fixture 定位失败，Windows UIA 真机未验证 |
+| 批次 B.2：其他语义控件 facade | 设计候选 | 多属性读取继续使用 `Accessibility.read()`；`UI.invoke()`、通用 `UI.read()` 与 checkbox／range／selection 等尚未公开，不建立同义入口或第二套 locator |
 | 批次 C：精确窗口生命周期 | 设计草案 | 当前 title/PID mutation 没有在所有平台贯穿 exact native handle，不能把工作形状当作已实现 API |
 | 批次 D：确切窗口内原子动作 | 设计草案，依赖 C | 当前 `mouse.clickForPID()` 只提供 macOS PID-scoped AXPress，不是 exact-window action receipt |
 | 批次 E：生产 Recipe 全量迁移 | 未开始 | Calculator 的单项 Geometry 收敛不等于 Calculator/TextEdit 已完成全部通用样板迁移 |
@@ -64,7 +65,7 @@ Go / native Runtime
 | P0 | 语义控件读取与动作 facade | `polyfills/006-ui.js` 组合现有 Go Accessibility | `find → read/perform → finally release`、每个应用的相同唯一性和 ref 清理代码 |
 | P0 | 确切窗口内相对点原子动作 | Go `mouse/window/accessibility` 共同 native owner，公开位置最终只选一个 | `active.x + offsetX`、动作前再次核对 PID／窗口、坐标与点击之间的竞态 |
 | P1 | 窗口、语义控件、图片和属性状态等待 | JS 轮询策略＋Go 新鲜身份/取消能力 | `for + Date.now + sleep + reread`、无理由固定等待 |
-| P1 | 聚焦并填写输入控件 | JS facade 组合 native `setValue`；显式选择 keyboard 策略 | 点击输入区、确认焦点、全选、输入、读取回值的通用样板 |
+| P1 | 读取或完整设置原生文本值 | 当前 `UI.getValue()`／`UI.setValue()` JS facade 组合 native Accessibility；keyboard 仍是另一种显式策略 | 普通脚本中的唯一查找、同-ref 读写、回读验证和 ref 清理样板 |
 | P1 | 统一 Action Receipt 与失败分类 | Go 原始 action state＋JS 规范化 | 各 Recipe 自建 `acknowledged/unknown/not-started`、重试和错误包装 |
 | P2 | Locator portfolio、局部观察缓存和漂移诊断 | 框架服务／JS 策略，按实际 backend 分层 | 大型应用中重复的 OCR、图片、AX 候选排序和缓存失效代码 |
 
@@ -98,31 +99,35 @@ const current = await window.activate(target, { timeout: 3000 });
 
 该能力属于 Go，因为当前各平台窗口身份、前台策略和 focus verification 已由 native Window owner 掌握。JavaScript facade 只负责友好的 selector/options。
 
-### 4.2 语义控件快捷操作
+### 4.2 原生文本值快捷操作
 
-工作形状：
+当前 Experimental local 调用：
 
 ```js
-await UI.tapControl(
-  { role: 'button', name: 'Save' },
+const value = await UI.getValue(
+  { role: 'textField', identifier: 'total' },
   { within: current },
 );
 
-const value = await UI.readControl(
+const receipt = await UI.setValue(
   { role: 'textField', identifier: 'total' },
-  { within: current, property: 'value' },
+  '00123\n中文',
+  { within: current },
 );
 ```
 
 必须满足：
 
 - 复用现有 `Accessibility.find/read/perform/release`，不创建第二个原生 Accessibility runtime。
-- 完整搜索并证明唯一；歧义、搜索不完整、disabled 或 unsupported action 均 fail closed。
-- facade 在所有成功和失败路径释放 ref；普通 Recipe 不需要接触 opaque ref。
-- `tapControl` 只返回 native action receipt，不宣称保存、发送或付款等业务成功。
-- 不自动从 AX 降级到 OCR、坐标或键盘；fallback 必须由调用方显式选择并单独资格验证。
+- `within` 必须显式给出；完整搜索并证明唯一；未找到、歧义、搜索不完整、disabled、readonly、protected 或 unsupported action 分别 fail closed。
+- selector、scope、唯一性和 stale ref 规则与 `Accessibility.find()` 相同；标签只是证据。当前 flat selector 不能直接表达祖先／容器 selector，若唯一性依赖该约束，先取得 execution-owned 容器 ref 作为 `within`，否则保留依赖缺口，不能静默丢弃。
+- `getValue()` 只返回原生字符串 value；空字符串、前导零、Unicode、空白和换行原样保留，不用 name、OCR 或数值转换补值。
+- `setValue()` 只接受完整字符串，只支持非受保护、未明确 disabled、可原生 `setValue` 的 text field；某些标准文本区不提供 enabled 状态，此时复用 Accessibility owner 暴露的 `setValue` action 作为可写证明，不另造平台判断。一次操作的前置读取、动作、回读都使用同一个 ref，并在 `finally` 释放。
+- 整个操作共用一个默认 3000ms、最大 30000ms 的 deadline；当前 owner 未接通 per-call cancellation，因此不公开 `signal`，也不用 `Promise.race` 冒充取消。
+- `setValue()` 最多提交一次动作；回执保留 native `actionState`，`verified` 只表示同-ref 严格回读相等。`acknowledged` 不等于业务成功，回读失败或 cleanup 失败都不能触发重做或 OCR／鼠标／键盘 fallback。
+- 回执、错误和 cleanup 元数据不包含旧值、新值或受保护内容；普通 Recipe 不需要接触或序列化 opaque ref。
 
-这是 JavaScript 高层组合能力；唯一性、ref authority、原生动作和 teardown 仍由现有 Go Accessibility owner 保证。
+这是 JavaScript 高层组合能力；唯一性、ref authority、原生动作和 teardown 仍由现有 Go Accessibility owner 保证。多属性读取继续直接使用 `Accessibility.read()`；不提供 `UI.inputValue()`、`UI.fill()`、`UI.type()` 同义写入别名，`UI.invoke()` 仅是后续需求候选。
 
 ### 4.3 确切窗口内相对点动作
 
@@ -165,13 +170,13 @@ await UI.actAtWindowPoint(
 
 ### 5.2 输入控件
 
-高层输入能力应显式区分：
+当前高层能力必须显式区分三种不可自动互换的策略：
 
-- native `setValue`：目标支持且调用方选择时使用；
+- `UI.setValue()`：完整原生字符串设值，目标支持且调用方明确选择时使用；
 - verified keyboard：先激活确切窗口并证明控件已聚焦，再发送键盘输入；
-- replace/append、敏感值日志策略和 readback 要在参数中明确。
+- Recorder text patch：保留 UTF-16 长度/hash 前置、patch 边界/完整性、native action state 和回读后置的专用组合。
 
-不得建立“setValue 失败就点击坐标并键盘输入”的隐式 fallback。
+即使最终字符串相同，也不得把键盘输入、完整原生设值或增量补丁自动互换；尤其不得建立“setValue 失败就点击坐标并键盘输入”的隐式 fallback。
 
 ### 5.3 Action Receipt
 
@@ -184,6 +189,7 @@ await UI.actAtWindowPoint(
 - `App.launch(..., { waitUntilReady: 'window' })`，不要自建 process readiness。
 - `Geometry.pointOffset()`／`pointPercent()`／`region*()`，不要手写 `win.x + offset` 作为长期模式。
 - `UI.tapText()`／`tapTexts()` 及动态 `region`／`relativeTo`，不要重复 OCR 截图映射。
+- `UI.getValue()`／`UI.setValue()` 用于显式 scope 下的原生文本值，不要在普通脚本重复同一套 find/read/perform/release；多属性仍使用 `Accessibility.read()`。
 - `Accessibility` 的显式 `within` 和结构化 `actionState`，不要用全桌面首候选或解析错误字符串。
 - `mouse.clickForPID()` 作为当前 macOS PID-scoped AXPress 原语；在原子窗口动作落地前，仍须由 Recipe 做确切窗口和布局门禁。
 
@@ -208,7 +214,11 @@ Recorder 的 basic generator 也应迁移为这些公共能力的消费者。框
 
 ### 批次 B：语义控件 facade
 
-实现 `tap/read/setValue` 的高层组合，补类型、`docs/api/`、`tests/runtime-api/*.js` 与 macOS／Windows 支持矩阵；用至少两个独立应用或一个应用加原生 fixture 验证 ref 清理、歧义和 action state。
+当前 B.1 只收敛原生文本 value：`UI.getValue()`／`UI.setValue()` 已在工作树补 facade、类型、API Reference、manifest、AI 索引、确定性 JavaScript unit 和原生 fixture gate，状态保持 Experimental local。确定性／宿主隔离入口已通过 17/17；Recorder current10 的正式 JavaScript 14/14 与 current8 同字节 pair 的真实录制、生成脚本和显式回放证明两条主线复用了 locator、execution-owned ref、`actionState` 与回读语义，且没有把专用文本 patch 简化为 `UI.setValue()`。
+
+macOS 原生 fixture 的修复前运行曾在 disabled 文本定位阶段得到 `TARGET_NOT_FOUND`；fixture 将 readonly 控件明确为 `AXTextField` 且保留空 action list 后，`.runtime/tests/accessibility/accessibility-ui-value-final-20260910-065140/result.json` 的八个阶段全部通过。`ui-value-facade` 对两个完整设值只提交两次动作，精确 Unicode／前导零／空白值和空字符串均为 acknowledged 且同-ref verified，readonly／disabled 在动作前拒绝，protected 以 `PERMISSION_DENIED` 拒绝，最终 Accessibility worker／pending／queued／ref／native resource 全为零。该实窗运行使用与 current10 字节相同的 main，并加载已含 `nativePhase` 修复的根目录 polyfill；随后只新增拒绝 `within: null/undefined` 的参数守门，按明确协调没有重复 UI/live。空字符串、Unicode、多行、不自动数值转换、无目标／歧义／搜索不完整、stale ref、readonly／disabled／protected／unsupported、单总 timeout、取消前置、同-ref release、cleanup 异常以及动作已提交但回读失败不重做，另有最终 polyfill 的 deterministic JavaScript 覆盖；Windows UIA 真机仍是后续独立验证项。
+
+B.2 只有出现重复且后端明确支持的需求后，才分别评审 `UI.invoke()` 或 `UI.read()`；当前多属性读取复用 `Accessibility.read()`，不批量改名 `UI.tapText()`／`tapTexts()` 或菜单 API。
 
 ### 批次 C：确切窗口生命周期
 

@@ -29,7 +29,7 @@ Page 等待示例以真实断言检查固定等待、条件轮询、single-fligh
 - [屏幕信息](../../../examples/screen.js)、[截图](../../../examples/screenshot.js)、[截图字节](../../../examples/screenshot_bytes_smoke.js)、[显示模式](../../../examples/display-modes.js)、[区域录屏](../../../examples/screen-record-region.js)
 - [系统信息](../../../examples/system.js)、[会话状态](../../../examples/system-session-state.js)、[发送通知](../../../examples/notify.js)、[读取通知](../../../examples/notifications.js)
 - [千牛窗口](../../../examples/app/README.md)
-- [Native Accessibility 与菜单](../../../examples/accessibility/README.md)
+- [Native Accessibility、UI 原生文本值与菜单](../../../examples/accessibility/README.md)
 - [Recorder：人工录制与独立 basic JS 生成](../../../workflows/human-to-recipe/README.md)
 
 输入、窗口变更和剪贴板写入分别需要显式设置 `OPENDESK_EXAMPLE_ALLOW_INPUT=1`、`OPENDESK_EXAMPLE_ALLOW_WINDOW_CHANGE=1`、`OPENDESK_EXAMPLE_ALLOW_CLIPBOARD_WRITE=1`。输入与窗口变更还需指定目标标题和 PID；剪贴板写入会覆盖原内容。

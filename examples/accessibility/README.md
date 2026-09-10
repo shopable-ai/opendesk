@@ -11,6 +11,8 @@
   `Accessibility.snapshot()`，用于观察已审核的 fixture 窗口。
 - [`invoke-control.js`](invoke-control.js)：调用 `Accessibility.find()`、`perform()`、`read()` 和
   `release()`，并用 fixture 状态回读验证一次受控按钮动作。
+- [`value-roundtrip.js`](value-roundtrip.js)：以逐步中文结果演示 `UI.getValue()`／`UI.setValue()`，并用独立
+  fixture 计数确认原生写入恰好发生一次；不输出整包测试 JSON。
 - [`menu-command.js`](menu-command.js)：调用 `UI.tapMenuItem()`、`Accessibility.find()`、`read()` 和
   `release()`，并用 fixture 状态回读验证一次受控菜单动作。
 
@@ -27,8 +29,8 @@ AppKit fixture，避免公开示例误操作任意活动应用。
 - `acknowledged` 只表示 native 调用返回成功；示例必须通过 fixture counter/readback 或可见业务状态
   验证副作用。
 
-三个示例都为每次原生调用显式使用 10 秒 deadline，以容纳真实 AX/UIA 遍历；这不会改变 API 的
-3000 ms 默认值。
+观察、控件和菜单三个底层示例为每次原生调用显式使用 10 秒 deadline，以容纳真实 AX/UIA 遍历；
+文本值示例显式使用其公开合同的 3000 ms 总预算。
 
 ## 准备仓库自有 macOS fixture target
 
@@ -81,6 +83,19 @@ OPENDESK_ACCESSIBILITY_CONTROL_ROLE=button OPENDESK_ACCESSIBILITY_CONTROL_NAME='
 `invoke-control.js` 用精确 scope + selector 找到唯一 fixture 控件，调用一次 `invoke`，通过独立计数器
 验证输入次数，并在 `finally` 中 release ref。目标缺失、歧义、权限不足或 fixture identity 不匹配时
 安全失败，不会 fallback 到鼠标。
+
+## 读写原生文本值
+
+从仓库根目录直接运行下面一行命令。没有现成 fixture 时，示例会自动构建、启动并最终停止仓库自有的
+macOS 测试窗口；已有有效 fixture 时只复用它，不会选择任意前台窗口：
+
+```bash
+./dist/opendesk -script examples/accessibility/value-roundtrip.js -console-mode script -log-dir .runtime/tests/accessibility/public-value-roundtrip
+```
+
+输出按 `1/5` 到 `5/5` 展示原值、只读值、`actionState`、严格回读和独立原生提交次数，最后明确打印
+`PASS` 或 `FAIL`。其中 `·` 表示空格、`↵` 表示换行，便于直接判断前导零、中文、空白和多行文本是否
+被原样保留。示例只写入非敏感 fixture 字段，动作至多一次，不使用键盘或视觉 fallback。
 
 ## 菜单命令
 

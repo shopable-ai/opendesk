@@ -29,7 +29,7 @@ well as invoke/check/radio/menu counters. Stop only the PID recorded by the help
 
 Notable identifiers include `fixture.window.main`, `fixture.invoke`,
 `fixture.duplicate.first`, `fixture.duplicate.second`, `fixture.disabled`,
-`fixture.text.editable`, `fixture.text.readonly`, `fixture.text.protected`,
+`fixture.text.editable`, `fixture.text.readonly`, `fixture.text.disabled`, `fixture.text.protected`,
 `fixture.checkbox`, `fixture.radio.one`, and `fixture.radio.two`. Menu
 identifiers use the `fixture.menu.*` prefix. `Delayed Submenu` materializes its
 child 200 ms after the submenu opens; `Reveal Dynamic Control` does the same for
