@@ -10,26 +10,73 @@
 
 | 文件 | 回答的问题 | 什么时候需要读 |
 | --- | --- | --- |
-| [Action Target Model](action-target-model.md) | 目标、候选、定位依据、动作前后条件与安全失败如何表达？ | 设计相对定位、候选消歧、动作保护和结果验证时；一般调用先看公开 API |
-| [Native Accessibility](native-accessibility.md) | 单一 AX/UIA owner、ElementRef、菜单 popup 身份、线程、取消和清理如何闭环？ | 维护 Accessibility 后端、UI 菜单组合或 execution lifecycle 时；脚本调用先看公开 API |
-| [Structured UI Collection Reading](structured-ui-collection-reading.md) | list／table／timeline 等重复 UI 怎样由 AX/UIA、OCR、Layout、VLM 形成通用 Item[]，以及滚动、连续性、合并去重与业务映射怎样分层？ | 设计结构化集合读取、无 UI tree fallback、大模型语义辅助、虚拟列表和跨 viewport traversal 时 |
-| [App Adapter Contract](app-adapter-contract.md) | 通用窗口／区域结构与应用专属语义怎样交接？ | 封装应用 helper／adapter 或划分通用与业务职责时 |
+| [Action Target Model](action-target-model.md) | 已经知道要操作某个对象后，怎样形成候选、消歧、动作前后条件和安全失败？ | 设计相对定位、候选消歧、动作保护和结果验证时；一般调用先看公开 API |
+| [Native Accessibility](native-accessibility.md) | macOS AX / Windows UIA 的元素读取、原生动作、引用生命周期、取消和清理怎样闭环？ | 维护 Accessibility 后端、UI 菜单组合或 execution lifecycle 时；脚本调用先看公开 API |
+| [结构化界面集合读取](structured-ui-collection-reading.md) | 当前界面里有很多会话、消息、订单、表格行或卡片时，怎样可靠地读成一条条通用数据？ | 设计 list／table／timeline／grid／cards／tree 等重复 UI 的读取、字段归属、多源证据和 VLM 辅助时 |
+| [App Adapter Contract](app-adapter-contract.md) | 通用界面事实怎样解释成某个应用的会话、消息、订单等业务对象？ | 封装应用 helper／adapter 或划分通用与业务职责时 |
 | [App Classification Policy](app-classification-policy.md) | 应用类型怎样影响架构划分与适配范围？ | 选择或设计应用适配方案时 |
 | [Agent-first Recorder](agent-first-recorder.md) | 示范采集、Trace、蒸馏、IR、Compiler 与 Replay 怎样组织？ | 明确研究或实施 Recorder／编译路线时；普通 Recipe 不以此为前置条件 |
 
-## 另外三份是否必读？
+## 三个容易混淆的问题
 
-**Action Target Model：定位和动作设计时按需读。** 重点看目标与坐标的区别、候选选择、前置／后置条件及安全失败去向。它是设计模型，不是当前 Runtime 的强制参数 schema；其中示意对象不能直接当作 Geometry／mouse 输入。
+### 1. 读取一批数据：看“结构化界面集合读取”
 
-**Structured UI Collection Reading：需要把重复 UI 读取成数组时读。** 它把当前 viewport 的 `readCollection` primitive 与会滚动并合并数据的 `collectCollection` orchestration 分开，同时把 AX/UIA、OCR、Layout 和 Semantic Vision/VLM 作为可保留来源的 evidence；VLM 是 proposal，不是自动真值。文中的 API 和 Provider 名称目前是 Target contract，不能当作已经发布的方法。
+例如当前聊天列表有 8 行，需要知道每一行有哪些文字、图标、状态和来源证据。
 
-**Agent-first Recorder：做录制、蒸馏、编译和回放时再深入读。** 先看“适用范围与相关入口”和 Current／Validated／Target 的区分。普通业务脚本或单个 UI helper 不必因为本文件存在而建设 Recorder、IR 或新运行时。
+核心关系：
+
+```text
+AX/UIA + OCR + 截图/布局
+→ 界面事实
+→ 划分记录
+→ 关联记录内字段
+→ 检查可信度
+→ 通用 CollectionItem[]
+→ App Adapter
+→ 会话 / 消息 / 订单等业务对象
+```
+
+AI/VLM 只在不确定时提出建议，建议必须重新经过结构检查。Collection 核心只处理当前明确观察范围；滚动、分页、跨批去重、结束判断和后续业务流程由 Recipe 负责。
+
+### 2. 已经知道要操作谁：看 Action Target Model
+
+例如业务代码已经选中了“李四”，下一步要在当前界面可靠找到“李四”并点击。
+
+```text
+业务对象
+→ Target 候选
+→ AX/UIA / OCR / 图片 / 相对几何等定位证据
+→ 重新解析唯一目标
+→ 动作前检查
+→ 点击 / 输入
+→ 结果验证
+```
+
+一次 CollectionItem 的 bbox 不能直接变成永久点击目标。
+
+### 3. “这是什么业务字段”：看 App Adapter Contract
+
+Collection core 只说明“这个 item 里可靠看到了哪些元素”；App Adapter 才解释：
+
+```text
+field A → 联系人名称
+field B → 最后一条消息
+```
+
+或者：
+
+```text
+field A → 订单号
+field B → 订单状态
+```
+
+Recipe 再根据这些业务对象决定下一步怎么做。
 
 ## 与实际接口和验证的边界
 
-实际调用以 [Desktop UI API](../../api/desktop-ui.md)、[Accessibility API](../../api/accessibility.md)、
-[Desktop UI Menu API](../../api/desktop-ui-menu.md)、[Geometry API](../../api/geometry.md) 及对应当前源码、
-类型与测试为准。设计模型、平台源码或历史验证记载不自动等于当前所有平台已通过 native live 验收。
+实际调用以 [Desktop UI API](../../api/desktop-ui.md)、[Accessibility API](../../api/accessibility.md)、[Desktop UI Menu API](../../api/desktop-ui-menu.md)、[Geometry API](../../api/geometry.md) 及对应当前源码、类型与测试为准。
+
+设计文档里的 `ObservationBundle`、`CollectionProfile`、`CollectionItem`、`SemanticVisionProvider` 或 `UI.readCollection()` 等名称不自动代表已发布 API。当前结构化集合读取先进行合同、fixture 和 JavaScript 原型验证，再决定是否值得晋级公共 API。
 
 业务对象、授权、步骤交接与成果失效条件见[自动化任务求解方法](../../frameworks/automation-problem-solving-framework.md)。方法阅读不替代业务成功验证；目录迁移不代表本目录模型重新通过源码或真机审计。
 
