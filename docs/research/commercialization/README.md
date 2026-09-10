@@ -1,6 +1,6 @@
 # OpenDesk 商业化研究
 
-更新时间：2026-09-05
+更新时间：2026-09-11
 
 本目录保存 OpenDesk 的**市场、竞品、收费方式、行业机会和商业模式研究**。
 
@@ -58,6 +58,12 @@
    - 对 `clawdesk/clawdesk` Agent2OS 与本项目做产品、技术和边界对比；
    - 给出 Tier 0 / Tier 1 竞品池、Build / Buy / Integrate 判断和 Naming 风险；
    - 该文件是当前技术竞品扫描的新入口，2026-04 的 Landscape 只作为历史研究基线继续保留。
+
+8. [`product-brand-domain-candidates.md`](product-brand-domain-candidates.md)
+   - 记录“不二”对外产品品牌及英文命名候选的阶段性评分；
+   - 汇总 Untwice、NotTwice、NonBis、Buer 等路线的域名资产、语义和国际传播判断；
+   - 保存 2026-09-11 的实时域名可注册状态快照，并明确域名状态与评分均需在最终品牌冻结前重新核验；
+   - 当前优先候选为 `untwice.com`、`notwice.ai`、`nonbis.com`，Naming Research 不自动触发现有 OpenDesk Runtime 品牌迁移。
 
 ## 商业 Research 的两条过滤轴
 
