@@ -38,12 +38,21 @@ internal static class Native
         if (!SetWindowPos(window.Handle,0,r.X,r.Y,r.Width,r.Height,0x0004|0x0010|0x0200))
             throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
     }
+    internal static void PassThrough(Form window,bool pass)
+    {
+        long style=GetWindowLongPtrW(window.Handle,-20).ToInt64();
+        // A layered non-activating notification is wholly mouse-transparent in
+        // passive mode. Interactive mode deliberately removes WS_EX_TRANSPARENT.
+        style=pass ? style|0x20|0x80000 : style&~0x20;
+        SetWindowLongPtrW(window.Handle,-20,(nint)style);
+    }
     internal static void Drag(Form window) { ReleaseCapture(); SendMessageW(window.Handle,0xA1,2,0); }
 }
 
 internal sealed class NativeForm : Form
 {
     internal bool NonActivating;
+    internal bool Passive;
     internal bool BackgroundDraggable;
     internal NativeForm()
     {
@@ -71,7 +80,7 @@ internal sealed class NativeForm : Form
         Native.SetWindowPos(Handle,0,0,0,0,0,0x0001|0x0002|0x0004|0x0010|0x0020);
     }
     protected override CreateParams CreateParams {
-        get { var p=base.CreateParams; p.ExStyle |= 0x80; if(NonActivating) p.ExStyle|=0x08000000; return p; }
+        get { var p=base.CreateParams; p.ExStyle |= 0x80; if(NonActivating) p.ExStyle|=0x08000000; if(Passive) p.ExStyle|=0x20|0x80000; return p; }
     }
     protected override void WndProc(ref Message m)
     {

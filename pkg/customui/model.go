@@ -8,7 +8,7 @@ import (
 
 // ProtocolVersion advances with native toolbar schema changes so an older host
 // cannot silently accept a newer FloatingWindow declaration or mutation.
-const ProtocolVersion = "1.7.0"
+const ProtocolVersion = "1.8.0"
 
 type ActivationSource string
 
@@ -72,6 +72,7 @@ type WindowSpec struct {
 	Content               ContentSpec          `json:"content,omitempty"`
 	Toolbar               *toolbar.ToolbarSpec `json:"toolbar,omitempty"`
 	Controls              []Control            `json:"controls,omitempty"`
+	Notification          *NotificationSpec    `json:"notification,omitempty"`
 }
 
 type Control struct {
@@ -103,20 +104,21 @@ type DriverResourceReporter interface {
 }
 
 type WindowState struct {
-	ID             string       `json:"id"`
-	SessionID      string       `json:"sessionId"`
-	Status         WindowStatus `json:"status"`
-	Visible        bool         `json:"visible"`
-	Bounds         Bounds       `json:"bounds"`
-	AlwaysOnTop    bool         `json:"alwaysOnTop"`
-	Draggable      bool         `json:"draggable"`
-	HostPID        int          `json:"hostPid,omitempty"`
-	NativeWindowID int64        `json:"nativeWindowId,omitempty"`
-	OnScreen       bool         `json:"onScreen"`
-	Layer          int          `json:"layer"`
-	Alpha          float64      `json:"alpha"`
-	Revision       uint64       `json:"revision"`
-	LastSequence   uint64       `json:"lastSequence"`
+	ID             string             `json:"id"`
+	SessionID      string             `json:"sessionId"`
+	Status         WindowStatus       `json:"status"`
+	Visible        bool               `json:"visible"`
+	Bounds         Bounds             `json:"bounds"`
+	AlwaysOnTop    bool               `json:"alwaysOnTop"`
+	Draggable      bool               `json:"draggable"`
+	HostPID        int                `json:"hostPid,omitempty"`
+	NativeWindowID int64              `json:"nativeWindowId,omitempty"`
+	OnScreen       bool               `json:"onScreen"`
+	Layer          int                `json:"layer"`
+	Alpha          float64            `json:"alpha"`
+	Revision       uint64             `json:"revision"`
+	LastSequence   uint64             `json:"lastSequence"`
+	Notification   *NotificationState `json:"notification,omitempty"`
 }
 
 type ControlState struct {

@@ -35,14 +35,15 @@ internal sealed class Host : IDisposable
                 var spec=J.O(request,"payload");
                 if(string.IsNullOrWhiteSpace(session)||string.IsNullOrWhiteSpace(id)) throw new HostError("INVALID_SPEC","session and window id are required");
                 if(Windows.Count>=64) throw new HostError("UI_BUSY","native window limit reached");
-                Surface w = spec["toolbar"] is JsonObject
-                    ? new ToolbarSurface(this,session,id,spec)
+                Surface w = spec["notification"] is JsonObject
+                    ? new NotificationSurface(this,session,id,spec)
+                    : spec["toolbar"] is JsonObject ? new ToolbarSurface(this,session,id,spec)
                     : new WebSurface(this,session,id,spec);
                 try { await w.Initialize(); Windows.Add(Key(session,id),w); result=w.State(); w.Registered=true; }
                 catch { w.Dispose(); throw; }
             } else {
                 if(!Windows.TryGetValue(Key(session,id),out var w)) {
-                    if(closed.TryGetValue(Key(session,id),out var end) && operation is "close" or "getState") result=end.DeepClone();
+                    if(closed.TryGetValue(Key(session,id),out var end) && operation is "close" or "getState" or "updateNotification") result=end.DeepClone();
                     else throw new HostError("NOT_FOUND","custom UI window was not found");
                 } else result=await w.Apply(operation,J.O(request,"payload"));
             }

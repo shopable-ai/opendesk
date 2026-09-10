@@ -28,7 +28,7 @@ internal sealed class WebSurface : Surface
     {
         InitializeFrame();
         try { _=CoreWebView2Environment.GetAvailableBrowserVersionString(); }
-        catch(WebView2RuntimeNotFoundException) { throw new HostError("UNSUPPORTED_CAPABILITY","HTML Custom UI and Dialog require Microsoft Edge WebView2 Runtime; FloatingWindow does not"); }
+        catch(WebView2RuntimeNotFoundException) { throw new HostError("UNSUPPORTED_CAPABILITY","HTML Custom UI and Dialog require Microsoft Edge WebView2 Runtime; FloatingWindow and ui.notify do not"); }
         environment=await CoreWebView2Environment.CreateAsync(null,profile,new CoreWebView2EnvironmentOptions());
         environment.BrowserProcessExited+=(_,_)=>DeleteProfile();
         await web.EnsureCoreWebView2Async(environment).WaitAsync(TimeSpan.FromSeconds(15));

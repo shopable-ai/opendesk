@@ -60,6 +60,9 @@ func Normalize(spec WindowSpec, baseDir string) (WindowSpec, error) {
 		}
 		spec.Placement = &placement
 	}
+	if spec.Notification != nil {
+		return normalizeNotificationWindow(spec)
+	}
 	if spec.Toolbar != nil {
 		return normalizeToolbarWindow(spec)
 	}

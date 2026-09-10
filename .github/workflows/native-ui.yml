@@ -4,7 +4,6 @@ on:
   push:
     paths:
       - '.github/workflows/native-ui.yml'
-      - '.staging-sync/native-ui*'
       - 'pkg/customui/**'
       - 'automation/custom_ui*'
       - 'automation/floating_window*'
@@ -18,27 +17,8 @@ on:
 permissions:
   contents: read
 
-env:
-  NATIVE_UI_PATCH_SHA256: b7cee6d74d4bec02d564b142500520b32cc1ab3440937ca31625dea421df3036
-  NATIVE_UI_FIX_SHA256: ee3075b9f977cc39006145c5be4959fd0885764a9253979dc0f3edc31609ecb0
-
 jobs:
-  prepare:
-    runs-on: ubuntu-latest
-    outputs:
-      ready: ${{ steps.patch.outputs.ready }}
-    steps:
-      - uses: actions/checkout@v4
-      - id: patch
-        shell: python
-        run: |
-          import os, pathlib
-          ready = len(list(pathlib.Path('.staging-sync').glob('native-ui.*.b85'))) == 3 and pathlib.Path('.staging-sync/native-ui-fix.patch').is_file()
-          with open(os.environ['GITHUB_OUTPUT'],'a') as out:
-            out.write('ready=' + str(ready).lower() + '\n')
   customui:
-    needs: prepare
-    if: needs.prepare.outputs.ready == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -47,22 +27,6 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - name: Apply exact reviewed implementation to test worktree
-        shell: python
-        run: |
-          import base64, hashlib, lzma, os, pathlib, subprocess
-          data=''.join(pathlib.Path('.staging-sync/native-ui.%d.b85'%n).read_text().strip() for n in range(3))
-          patch=lzma.decompress(base64.b85decode(data))
-          assert hashlib.sha256(patch).hexdigest()==os.environ['NATIVE_UI_PATCH_SHA256'], 'staging digest mismatch'
-          target=pathlib.Path(os.environ['RUNNER_TEMP'])/'native-ui.patch'
-          target.write_bytes(patch)
-          subprocess.run(['git','apply','--check','--unidiff-zero',str(target)],check=True)
-          subprocess.run(['git','apply','--unidiff-zero',str(target)],check=True)
-          fix=pathlib.Path('.staging-sync/native-ui-fix.patch').read_bytes()
-          assert hashlib.sha256(fix).hexdigest()==os.environ['NATIVE_UI_FIX_SHA256'], 'fix digest mismatch'
-          target=pathlib.Path(os.environ['RUNNER_TEMP'])/'native-ui-fix.patch'; target.write_bytes(fix)
-          subprocess.run(['git','apply','--check',str(target)],check=True)
-          subprocess.run(['git','apply',str(target)],check=True)
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
@@ -111,32 +75,3 @@ jobs:
           path: .runtime/tests/native-ui
           if-no-files-found: ignore
           retention-days: 7
-  apply-source:
-    needs: [prepare, customui]
-    if: needs.prepare.outputs.ready == 'true' && github.ref == 'refs/heads/master'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-      - name: Commit the tested source without rewriting parallel work
-        shell: python
-        run: |
-          import base64, hashlib, lzma, os, pathlib, subprocess
-          def git(*args): return subprocess.check_output(['git',*args],text=True).strip()
-          assert git('rev-parse','HEAD')==git('ls-remote','origin','refs/heads/master').split()[0], 'master advanced; do not overwrite parallel work'
-          paths=[pathlib.Path('.staging-sync/native-ui.%d.b85'%n) for n in range(3)]
-          patch=lzma.decompress(base64.b85decode(''.join(p.read_text().strip() for p in paths)))
-          assert hashlib.sha256(patch).hexdigest()==os.environ['NATIVE_UI_PATCH_SHA256']
-          target=pathlib.Path(os.environ['RUNNER_TEMP'])/'native-ui.patch';target.write_bytes(patch)
-          git('apply','--check','--unidiff-zero',str(target));git('apply','--unidiff-zero',str(target))
-          fixpath=pathlib.Path('.staging-sync/native-ui-fix.patch');fix=fixpath.read_bytes()
-          assert hashlib.sha256(fix).hexdigest()==os.environ['NATIVE_UI_FIX_SHA256']
-          target=pathlib.Path(os.environ['RUNNER_TEMP'])/'native-ui-fix.patch';target.write_bytes(fix)
-          git('apply','--check',str(target));git('apply',str(target))
-          for path in paths+[fixpath]: path.unlink()
-          git('add','-A')
-          assert all(not p.startswith('.github/') for p in git('diff','--cached','--name-only').splitlines()), 'workflow changes are not allowed in the source patch'
-          git('-c','user.name=OpenDesk Native UI','-c','user.email=41898282+github-actions[bot]@users.noreply.github.com','commit','-m','feat(custom-ui): add native notifications and experimental Windows UI host')
-          git('push','origin','HEAD:master')
-          print('TESTED_NATIVE_UI_COMMIT='+git('rev-parse','HEAD'))

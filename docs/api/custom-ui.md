@@ -15,7 +15,7 @@ Custom UI 由当前 JavaScript Runtime 控制受控桌面窗口。`FloatingWindo
 作者可以声明自己的工具栏或受限视图；“native” 是底层平台 UI / host 的实现方式。HTML 不能直接取得
 `mouse`、`File`、`http` 等全局能力；业务接口仍由 JavaScript listener 调用。
 
-macOS host 使用 AppKit，受限 HTML surface 使用 WKWebView；Windows host 使用 WinForms，受限 HTML surface 使用 Microsoft Edge WebView2。Windows 的 `FloatingWindow` 不依赖 WebView2 Runtime，`ui.createWindow()` 与 Dialog 需要系统已安装 WebView2 Runtime，缺失时明确抛出 `UNSUPPORTED_CAPABILITY`。Linux 仍报告 `available: false`，创建窗口抛出 `UNSUPPORTED_PLATFORM`，不会静默成功。需要固定的一次性确认/输入窗口时使用 [Dialog API](dialog.md)：Dialog 由 host 根据结构化参数生成，不能提交 HTML/CSS，也不会成为 Custom UI 的第二套 controller。
+macOS host 使用 AppKit，受限 HTML surface 使用 WKWebView；Windows host 使用 WinForms，受限 HTML surface 使用 Microsoft Edge WebView2。Windows 的 `FloatingWindow` 与 `ui.notify()` 不依赖 WebView2 Runtime，`ui.createWindow()` 与 Dialog 需要系统已安装 WebView2 Runtime，缺失时明确抛出 `UNSUPPORTED_CAPABILITY`。Linux 仍报告 `available: false`，创建窗口抛出 `UNSUPPORTED_PLATFORM`，不会静默成功。Windows 后端为 Experimental：构建、协议测试与交互/视觉验收是独立层次，详见 [实现与验收范围](../architecture/custom-ui-notifications.md)。需要固定的一次性确认/输入窗口时使用 [Dialog API](dialog.md)：Dialog 由 host 根据结构化参数生成，不能提交 HTML/CSS，也不会成为 Custom UI 的第二套 controller。
 
 ## 选择 UI API
 
@@ -32,7 +32,7 @@ macOS host 使用 AppKit，受限 HTML surface 使用 WKWebView；Windows host �
 不会启动一个图形化 shell，也不会替脚本调用 `ui.createWindow()` 或 `new FloatingWindow()`。
 脚本仍必须显式创建并显示窗口。
 
-`ui` 全局始终存在，但默认 dormant。未授权的 `createWindow()`、`closeAll()` 或 `on()` 会抛出 `UI_DISABLED`。
+`ui` 全局始终存在，但默认 dormant。未授权的 `notify()`、`createWindow()`、`closeAll()` 或 `on()` 会抛出 `UI_DISABLED`。
 `-ui` 让 `ui`、`FloatingWindow` 和 Dialog 获得当前 execution 的授权；是否真的可创建原生窗口
 还取决于平台和 UI host，可通过 `ui.getCapabilities()` 区分 `enabled` 与 `available`。
 
@@ -1334,6 +1334,7 @@ content: {
 
 | 方法 | 参数 | 返回 | 说明 |
 | --- | --- | --- | --- |
+| `ui.notify(messageOrOptions)` | 字符串或 `NotificationOptions` | `Promise<NotificationHandle>` | 创建并显示 execution-owned 原生提示，返回可更新句柄。 |
 | `ui.getCapabilities()` | 无 | `Capabilities` | 同步读取当前 execution 的启用、平台、driver 和可用控件能力。 |
 | `ui.createWindow(spec)` | `spec: WindowSpec` | `Promise<WindowHandle>` | 校验窗口声明并创建隐藏窗口。`WindowSpec` 见上文。 |
 | `ui.closeAll()` | 无 | `Promise<void>` | 幂等关闭当前 execution 的所有窗口。 |
@@ -1346,11 +1347,11 @@ content: {
 | `enabled` / `available` | boolean | 是否被当前 execution 授权、当前平台/host 是否可用。 |
 | `activationSource` | `disabled` / `cli` / `projectConfig` / `httpRequest` | 授权来源。 |
 | `platform` / `driver` | string | 当前平台和原生 driver。 |
-| `window` | object | `position`、`placement`、`size`、`alwaysOnTop`、`draggable`、`nativeIdentity` 的支持情况。 |
+| `window` | object | `position`、`placement`、`size`、`alwaysOnTop`、`draggable`、`nativeIdentity`、`notify` 的支持情况。 |
 | `controls` | string[] | `ui.createWindow()` 受限 HTML surface 的公开控件类型；FloatingWindow 是独立的 typed native-toolbar surface，由本页列出的实例方法声明能力。 |
 | `reason` | string | 可选；不可用或未授权的原因。 |
 
-macOS 与 Windows 上 `available` 还要求配套 UI host 可发现；Windows 会依次查找 Runtime 同目录的 `clawdesk-ui-host.exe`、`opendesk-ui-host.exe` 以及 `ui-host/opendesk-ui-host.exe`。缺失时创建窗口抛出 `UI_HOST_NOT_FOUND`。Windows 的 HTML surface 在 host 启动后还会单独检查 WebView2 Runtime；该依赖不影响纯 `FloatingWindow`。
+macOS 与 Windows 上 `available` 还要求配套 UI host 可发现；Windows 会依次查找 Runtime 同目录的 `clawdesk-ui-host.exe`、`opendesk-ui-host.exe` 以及 `ui-host/opendesk-ui-host.exe`。缺失时创建窗口抛出 `UI_HOST_NOT_FOUND`。Windows 的 HTML surface 在 host 启动后还会单独检查 WebView2 Runtime；该依赖不影响纯 `FloatingWindow` 或 `ui.notify()`。
 
 ## WindowHandle：窗口句柄
 
@@ -1500,3 +1501,180 @@ DOM / WKWebView / WebView2 event，或平台原生 control event
 
 该链路用于说明事件所有权和故障排查；普通脚本只应依赖本页列出的 `ui`、
 `WindowHandle` 与 `ControlHandle` 契约。
+
+## ui.notify(messageOrOptions)
+
+在桌面显示可更新的原生提示条；它不是全局 `notify()` 的操作系统通知。
+
+**签名**
+
+```ts
+ui.notify(messageOrOptions: string | NotificationOptions): Promise<NotificationHandle>
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `message` | string | 是 | 无 | 1–1024 个 Unicode 字符，纯文本，不能全空白或包含 NUL。 |
+| `caption` | string | 否 | 空字符串 | 次要说明，最多 2048 个 Unicode 字符。 |
+| `level` | string | 否 | `info` | `info`、`success`、`warning`、`error`。 |
+| `timeoutMs` | integer | 否 | `3000` | 0–86400000 毫秒；0 不自动消失，并强制显示关闭按钮。计时从首次显示开始。 |
+| `timeoutProgress` | boolean | 否 | `false` | 显示剩余展示时间的倒计时条，不代表业务进度。 |
+| `closable` | boolean | 否 | 定时提示为 `false` | 显示关闭按钮；关闭仅关闭提示，不取消业务。`timeoutMs:0` 时始终规范化为 true；仅有自动关闭路径时 false 才是整体鼠标穿透模式。 |
+| `progress` | object or null | 否 | null | `{min?:0,max?:1,value?:min,indeterminate?:false}`；数值有限，min < max，value 在闭区间内。null 清除任务进度。 |
+| `position` | object | 否 | `{mode:"auto"}` | 见下方定位规则。 |
+
+**返回值**
+
+`Promise<NotificationHandle>`。宿主完成创建和显示处理后返回；不是等提示消失，也不是用户可见性确认。
+
+**行为与错误**
+
+沿用 Custom UI 授权：不传 `-ui` 时，脚本目录的 `clawdesk.runtime.json` 可以用 `runtime.capabilities:["ui"]` 授权；完全未授权则抛 `UI_DISABLED`，不会自动启用。`-no-ui` 仍强制禁用。HTTP 请求继续执行原有服务器授权、loopback 与请求 capability 检查。OS `notify()` 不受本接口 UI 授权影响。
+
+提示默认不激活应用、不抢键盘焦点、不播放声音。启用关闭按钮后不再整体鼠标穿透。普通定时提示默认 3 秒自动关闭；任何 `timeoutMs:0` 持久提示都强制提供关闭按钮，不能形成无自动关闭、无手动出口的表面。用户关闭只终结提示，后续 `update()` 返回 `{applied:false,reason:"closed"}`，不取消或改变业务。每个 execution 最多三个同时存在的提示，超出返回 `UI_BUSY`；长任务应更新同一个句柄。
+
+提示宽度由 native host 按实际字体在 280–480pt/DIP 内测量：短文字收紧到 280，较长文字按内容扩展但不超过 480。高度继续在 52–124pt/DIP 内双向自适应。message 最多显示 3 行、caption 最多 2 行，超出后尾部截断；完整文字保留在状态中。进度条只增加有限的底部空间，更新后按同一定位语义原位重排，宽高都可以受控收缩或扩张。普通更新不延长倒计时。消息、进度、任务成功都由业务脚本报告，组件不推测任务结果。
+
+`position` 只能选一种模式，不混合字段。`auto` 在创建时选择本 execution 唯一可见 FloatingWindow，下方居中并跟随；没有或不唯一时使用指针所在显示器下中。`absolute` 要求 `{mode:"absolute",x,y}`。`anchor` 要求 `{mode:"anchor",horizontal,vertical,margin?,display?}`，横轴 left/center/right、纵轴 top/center/bottom、默认 margin 24、display active/primary。`relative` 要求 `{mode:"relative",target,side?,align?,gap?,follow?}`，target 为本 execution 的 FloatingWindow 实例或其 id，默认 bottom/center/8/true；side 可为 top/bottom/left/right，align 可为 start/center/end，gap 为 0–256。不是本 execution 的工具栏返回 `NOT_FOUND` 或 `INVALID_SPEC`。
+
+相对位置放不下时尝试另一侧，再退回同屏下中；目标隐藏/关闭则退回同屏下中。绝对坐标、明确屏幕锚点放不下时返回 `INVALID_SPEC`，不裁切。`getState().notification.positionAdjustment` 报告实际降级原因。普通文字更新不重新选显示器。自动位置的多条提示有限叠放，不积累任务历史。
+
+提示宽度动态限制在 280–480，高度动态限制在 52–124；macOS 单位为 points，Windows 按当前窗口 DPI 缩放内部 DIP。因此 macOS `getState().bounds` 可直接观察上述数值范围；Windows 的全局 bounds 仍使用 Per-Monitor-V2 的 Win32 screen logical 坐标（数值与 physical pixels 一致），在非 96 DPI 显示器上会反映缩放后的实际外框。不要把整张混合 DPI 虚拟桌面统一除以主屏缩放率。工具栏内部 localBounds 仍按控件 DIP/points 表达，screenBounds 为原生屏幕坐标。
+
+提示不会独立延长 execution。脚本结束、取消或宿主关闭时清理；要让末尾短提示展示到期，应显式 `await hint.waitUntilClosed()`。同一进程的 `page.screenshot()` 链路会隐藏自有提示并确认原生状态后再截图，随后恢复；不能保证其他进程、第三方录屏或人工 Recorder 的所有捕获路径自动排除。屏幕提示不替代日志和执行证据。
+
+未知字段、非法类型和非有限数值返回 `INVALID_SPEC`。宿主不可发现/协议不匹配会明确失败，不降级为系统通知。
+
+**示例**
+
+从仓库根目录运行：
+
+```bash
+./dist/opendesk -ui -script examples/custom-ui/notify.js -console-mode script
+```
+
+```js
+const hint = await ui.notify({message: "正在处理…", timeoutMs: 0, closable: true});
+await hint.update({message: "已完成", level: "success", timeoutMs: 1000, timeoutProgress: true});
+await hint.waitUntilClosed();
+```
+
+## NotificationHandle.update(patch)
+
+原位更新提示，不创建新窗口。
+
+**签名**
+
+```ts
+hint.update(patch: Partial<NotificationOptions>): Promise<{applied: boolean; reason?: "closed"; state: WindowState}>
+```
+
+**参数**
+
+`patch`：仅包含需要更新的 ui.notify 选项。`progress`、`position` 是完整替换，不做深层合并；`progress:null` 清除进度。
+
+**返回值**
+
+成功为 `{applied:true,state}`；已关闭为 `{applied:false,reason:"closed",state}`。
+
+**行为与错误**
+
+明确提供 `timeoutMs` 才重新计时，0 取消倒计时。正常关闭与迟到更新的竞争不会重新弹窗，也不会中断业务。非法 patch 仍会报错，即使提示已经关闭。所有 mutation 在当前句柄内序列化；失败不改变已提交状态。多个并发异步调用不应用作业务步骤顺序证明，业务脚本应 await 更新。
+
+**示例**
+
+```js
+const hint = await ui.notify({message: "准备", timeoutMs: 0, closable: true});
+await hint.update({message: "第 3 / 12 步", progress: {min: 0, max: 12, value: 2}});
+await hint.close();
+```
+
+## NotificationHandle.close()
+
+幂等关闭提示，不取消业务任务。
+
+**签名**
+
+```ts
+hint.close(): Promise<WindowState>
+```
+
+**参数**
+
+无。
+
+**返回值**
+
+关闭后的 `WindowState`。
+
+**行为与错误**
+
+重复关闭不报“窗口不存在”。与超时/用户关闭竞争时返回终态；真实驱动故障仍明确报错。
+
+**示例**
+
+```js
+const hint = await ui.notify("准备完成");
+await hint.close();
+```
+
+## NotificationHandle.getState()
+
+读取提示内容、剩余时长与原生窗口状态。
+
+**签名**
+
+```ts
+hint.getState(): Promise<WindowState & {notification?: NotificationState}>
+```
+
+**参数**
+
+无。
+
+**返回值**
+
+`WindowState`，另含 `notification` 选项、`remainingMs`、可选 `positionAdjustment` 和 `closeReason`。0 表示无倒计时或已到期，结合 `timeoutMs`、`status` 判断。终态是最后确认的原生快照，不继续查询已销毁的 HWND/NSWindow。
+
+**行为与错误**
+
+原生可见状态不是用户已阅读的证明；计时存在系统调度粒度。驱动失败按 Custom UI 错误规则返回。
+
+**示例**
+
+```js
+const hint = await ui.notify("检查状态");
+console.log(await hint.getState());
+await hint.close();
+```
+
+## NotificationHandle.waitUntilClosed()
+
+显式等待超时、用户关闭或脚本关闭。
+
+**签名**
+
+```ts
+hint.waitUntilClosed(): Promise<WindowState>
+```
+
+**参数**
+
+无。
+
+**返回值**
+
+关闭终态；execution 被取消时拒绝并清理原生资源。
+
+**行为与错误**
+
+明确 await/then 观察此 Promise 才保留等待工作；持久提示始终有关闭按钮，脚本仍可用 `close()` 结束它。该方法不会启动新的 execution。
+
+**示例**
+
+```js
+const hint = await ui.notify({message: "已完成", timeoutMs: 1500});
+await hint.waitUntilClosed();
+```

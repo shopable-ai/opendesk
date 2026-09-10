@@ -144,6 +144,8 @@ declare global {
   }
 
   interface ClawdeskUIWindowState {
+    /** Native notification state; its bounds use a measured 280–480pt/DIP width and 52–124pt/DIP height before platform screen scaling. */
+    notification?: ClawdeskUINotificationState;
     id: string;
     sessionId: string;
     status: ClawdeskUIWindowStatus;
@@ -271,6 +273,7 @@ declare global {
   }
 
   interface ClawdeskUI {
+    notify(messageOrOptions: string | ClawdeskUINotificationOptions): Promise<ClawdeskUINotificationHandle>;
     getCapabilities(): ClawdeskUICapabilities;
     createWindow(spec: ClawdeskUIWindowSpec): Promise<ClawdeskUIWindowHandle>;
     closeAll(): Promise<void>;
@@ -279,5 +282,37 @@ declare global {
 
   /** Always injected; dormant calls reject with UI_DISABLED until explicitly authorized. */
   var ui: ClawdeskUI;
+
+  type ClawdeskUINotificationPosition =
+    | { mode: "auto" }
+    | { mode: "absolute"; x: number; y: number }
+    | { mode: "anchor"; horizontal: ClawdeskUIHorizontalPlacement; vertical: ClawdeskUIVerticalPlacement; margin?: number; display?: ClawdeskUIInitialPlacementDisplay }
+    | { mode: "relative"; target: FloatingWindow | string; side?: "top" | "bottom" | "left" | "right"; align?: "start" | "center" | "end"; gap?: number; follow?: boolean };
+  interface ClawdeskUINotificationProgress { min?: number; max?: number; value?: number; indeterminate?: boolean; }
+  interface ClawdeskUINotificationOptions {
+    message: string;
+    caption?: string;
+    level?: "info" | "success" | "warning" | "error";
+    /** Integer milliseconds. Default 3000; 0 persists and always exposes a native close button. */
+    timeoutMs?: number;
+    timeoutProgress?: boolean;
+    /** Default false for timed hints. timeoutMs:0 forces true; closing the hint never cancels the task. */
+    closable?: boolean;
+    progress?: ClawdeskUINotificationProgress | null;
+    position?: ClawdeskUINotificationPosition;
+  }
+  interface ClawdeskUINotificationState extends ClawdeskUINotificationOptions {
+    remainingMs: number;
+    positionAdjustment?: string;
+    closeReason?: string;
+  }
+  interface ClawdeskUINotificationHandle {
+    readonly id: string;
+    update(patch: Partial<ClawdeskUINotificationOptions>): Promise<{ applied: boolean; reason?: "closed"; state: ClawdeskUIWindowState }>;
+    close(): Promise<ClawdeskUIWindowState>;
+    getState(): Promise<ClawdeskUIWindowState>;
+    /** Explicitly observed waits keep this execution alive; simply showing a notification does not. */
+    waitUntilClosed(): Promise<ClawdeskUIWindowState>;
+  }
 
 }

@@ -90,7 +90,7 @@ func (d *ProcessDriver) Capabilities(context.Context) Capabilities {
 		Platform: platform, Driver: "native-process", MaxSessions: 1,
 		Window: map[string]bool{
 			"position": available, "placement": available, "size": available, "alwaysOnTop": available,
-			"draggable": available, "nativeIdentity": available,
+			"draggable": available, "nativeIdentity": available, "notify": available,
 		},
 		Controls: []string{"button", "text", "img", "switch", "input", "select", "container"},
 		Reason:   reason,
@@ -389,6 +389,13 @@ func (d *ProcessDriver) readFrames(reader io.Reader) {
 			d.sequences[key] = frame.Event.Sequence
 			d.mu.Unlock()
 			sink(*frame.Event)
+			if frame.Event.Type == "close" {
+				d.mu.Lock()
+				delete(d.sinks, key)
+				delete(d.controls, key)
+				delete(d.sequences, key)
+				d.mu.Unlock()
+			}
 		default:
 			d.failTransport(&Error{Code: CodeDriverFailure, Operation: "readHost", Message: "native UI host emitted an unknown frame kind"})
 			return

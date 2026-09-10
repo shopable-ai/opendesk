@@ -190,7 +190,7 @@ func TestProcessDriverWindowsCapabilitiesAreAvailableWithHostCommand(t *testing.
 		},
 	})
 	capabilities := driver.Capabilities(context.Background())
-	if !capabilities.Available || capabilities.Platform != "windows" || capabilities.Driver != "native-process" || capabilities.Reason != "" {
+	if !capabilities.Available || capabilities.Platform != "windows" || capabilities.Driver != "native-process" || capabilities.Reason != "" || !capabilities.Window["notify"] {
 		t.Fatalf("capabilities = %#v", capabilities)
 	}
 }

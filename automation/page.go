@@ -5,11 +5,13 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"image"
 	"image/draw"
 	"image/png"
 	"log"
+	"opendesk/pkg/customui"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -109,7 +111,7 @@ func checkDirPermissions(dir string) error {
 	return nil
 }
 
-func (p *Page) Screenshot(options interface{}) (interface{}, error) {
+func (p *Page) Screenshot(options interface{}) (result interface{}, captureErr error) {
 	opts, err := parseScreenshotOptions(options)
 	if err != nil {
 		return "", err
@@ -141,6 +143,17 @@ func (p *Page) Screenshot(options interface{}) (interface{}, error) {
 		)
 	}
 
+	hideCtx, hideCancel := context.WithTimeout(context.Background(), 2*time.Second)
+	restore, err := customui.SuspendNotifications(hideCtx)
+	hideCancel()
+	if err != nil {
+		return "", fmt.Errorf("hide notification overlays before screenshot: %w", err)
+	}
+	defer func() {
+		if err := restore(); err != nil {
+			captureErr = errors.Join(captureErr, fmt.Errorf("restore notification overlays: %w", err))
+		}
+	}()
 	var pngBytes []byte
 	backend := "robotgo"
 	useDarwinNative := runtime.GOOS == "darwin" &&

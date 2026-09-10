@@ -176,15 +176,16 @@ type CustomUIRuntime struct {
 	detachedWorkers   atomic.Int64
 	detachedCallbacks atomic.Int64
 
-	listeners        map[uint64]customUIListener // event-loop owner only
-	nextListenerID   uint64                      // event-loop owner only
-	eventScheduled   atomic.Bool
-	eventFailed      atomic.Bool
-	closing          atomic.Bool
-	closeOnce        sync.Once
-	defaultToolbar   *floatingWindow
-	floatingToolbars map[string]*floatingWindow // event-loop owner only
-	nextToolbarID    uint64                     // event-loop owner only
+	listeners          map[uint64]customUIListener // event-loop owner only
+	nextListenerID     uint64                      // event-loop owner only
+	eventScheduled     atomic.Bool
+	eventFailed        atomic.Bool
+	closing            atomic.Bool
+	closeOnce          sync.Once
+	defaultToolbar     *floatingWindow
+	floatingToolbars   map[string]*floatingWindow // event-loop owner only
+	nextToolbarID      uint64                     // event-loop owner only
+	nextNotificationID uint64                     // event-loop owner only
 }
 
 type customUIWorkers struct {
@@ -307,7 +308,7 @@ func registerDisabledCustomUI(runtime *goja.Runtime, source customui.ActivationS
 		ProtocolVersion: customui.ProtocolVersion, Enabled: false, Available: false,
 		ActivationSource: normalizeCustomUIActivationSource(source, false),
 		Platform:         "disabled", Driver: "none", MaxSessions: 0,
-		Window:   map[string]bool{"position": false, "placement": false, "size": false, "alwaysOnTop": false, "draggable": false, "nativeIdentity": false},
+		Window:   map[string]bool{"position": false, "placement": false, "size": false, "alwaysOnTop": false, "draggable": false, "nativeIdentity": false, "notify": false},
 		Controls: []string{"button", "text", "img", "switch", "input", "select", "container"},
 		Reason:   "custom UI was not explicitly enabled for this execution",
 	}
@@ -319,6 +320,7 @@ func registerDisabledCustomUI(runtime *goja.Runtime, source customui.ActivationS
 	_ = runtime.Set("ui", map[string]any{
 		"getCapabilities": func() any { return jsonCompatible(capabilities) },
 		"createWindow":    disabled("createWindow"),
+		"notify":          disabled("ui.notify"),
 		"closeAll":        disabled("closeAll"),
 		"on":              disabled("on"),
 	})
@@ -326,6 +328,7 @@ func registerDisabledCustomUI(runtime *goja.Runtime, source customui.ActivationS
 
 func (u *CustomUIRuntime) jsUIObject() map[string]any {
 	return map[string]any{
+		"notify": u.jsNotify,
 		"getCapabilities": func() any {
 			capabilities := u.driver.Capabilities(u.context)
 			capabilities.Enabled = true

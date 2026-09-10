@@ -26,7 +26,7 @@ func (d *MemoryDriver) Capabilities(context.Context) Capabilities {
 	return Capabilities{
 		ProtocolVersion: ProtocolVersion, Enabled: true, Available: true,
 		Platform: runtime.GOOS, Driver: "memory", MaxSessions: 64,
-		Window:   map[string]bool{"position": true, "placement": true, "size": true, "alwaysOnTop": true, "draggable": true},
+		Window:   map[string]bool{"position": true, "placement": true, "size": true, "alwaysOnTop": true, "draggable": true, "notify": true},
 		Controls: []string{"button", "text", "img", "switch", "input", "select", "container"},
 	}
 }
@@ -60,6 +60,25 @@ func (d *MemoryDriver) Create(_ context.Context, sessionID string, spec WindowSp
 		driver: d, sessionID: sessionID, spec: spec, sink: sink,
 		state:    WindowState{ID: spec.ID, SessionID: sessionID, Status: StatusHidden, Bounds: spec.Bounds, AlwaysOnTop: spec.AlwaysOnTop, Draggable: spec.Draggable, HostPID: d.pid, NativeWindowID: int64(len(d.windows) + 1), Layer: 0, Alpha: 1, Revision: 1},
 		controls: map[string]ControlState{}, toolbarButtons: map[string]toolbar.ButtonResult{}, toolbarLabels: map[string]toolbar.LabelResult{}, toolbarControls: map[string]toolbar.ControlResult{},
+	}
+	if spec.Notification != nil {
+		notice := *spec.Notification
+		window.state.Notification = &NotificationState{NotificationSpec: notice, RemainingMS: notice.TimeoutMS}
+		var parent *Bounds
+		if notice.Position.Mode == "relative" {
+			if target := d.windows[sessionID+"/"+notice.Position.Target]; target != nil {
+				target.mu.RLock()
+				b := target.state.Bounds
+				target.mu.RUnlock()
+				parent = &b
+			}
+		}
+		rect, adjustment, err := NotificationRectangle(notice.Position, Bounds{Width: 1440, Height: 900}, parent, spec.Bounds)
+		if err != nil {
+			return nil, err
+		}
+		window.state.Bounds = rect
+		window.state.Notification.PositionAdjustment = adjustment
 	}
 	if spec.Placement != nil {
 		placed, err := ResolveWindowPlacement(window.state.Bounds, *spec.Placement, Bounds{Width: 1440, Height: 900})
@@ -219,6 +238,44 @@ func (w *memoryWindow) Close(context.Context) (WindowState, error) {
 		w.sink(Event{SessionID: w.sessionID, WindowID: w.spec.ID, Type: "close", Reason: "script", Sequence: sequence, Timestamp: time.Now().UTC()})
 	}
 	return state, nil
+}
+
+func (w *memoryWindow) UpdateNotification(_ context.Context, update NotificationUpdate) (WindowState, error) {
+	var parent *Bounds
+	if update.Spec.Position.Mode == "relative" {
+		w.driver.mu.RLock()
+		target := w.driver.windows[w.sessionID+"/"+update.Spec.Position.Target]
+		w.driver.mu.RUnlock()
+		if target != nil {
+			target.mu.RLock()
+			bounds := target.state.Bounds
+			target.mu.RUnlock()
+			parent = &bounds
+		}
+	}
+	size := NotificationPreferredSize(update.Spec)
+	rect, adjustment, err := NotificationRectangle(update.Spec.Position, Bounds{Width: 1440, Height: 900}, parent, size)
+	if err != nil {
+		return WindowState{}, err
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.state.Status == StatusClosed {
+		return w.state, nil
+	}
+	if w.state.Notification == nil {
+		return WindowState{}, invalidSpec("not a notification")
+	}
+	next := *w.state.Notification
+	next.NotificationSpec = update.Spec
+	if update.ResetTimeout {
+		next.RemainingMS = update.Spec.TimeoutMS
+	}
+	next.PositionAdjustment = adjustment
+	w.state.Notification = &next
+	w.state.Bounds = rect
+	w.state.Revision++
+	return w.state, nil
 }
 
 func (w *memoryWindow) SetBounds(_ context.Context, bounds Bounds) (WindowState, error) {

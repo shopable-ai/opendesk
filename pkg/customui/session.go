@@ -28,7 +28,9 @@ func NewSession(id, baseDir string, driver Driver, onEvent func(Event)) (*Sessio
 	if driver == nil {
 		return nil, fmt.Errorf("custom UI driver is required")
 	}
-	return &Session{id: id, driver: driver, baseDir: baseDir, onEvent: onEvent, windows: map[string]*Window{}}, nil
+	session := &Session{id: id, driver: driver, baseDir: baseDir, onEvent: onEvent, windows: map[string]*Window{}}
+	registerCaptureSession(session)
+	return session, nil
 }
 
 func (s *Session) ID() string { return s.id }
@@ -37,6 +39,11 @@ func (s *Session) Create(ctx context.Context, declaration WindowSpec) (*Window, 
 	spec, err := Normalize(declaration, s.baseDir)
 	if err != nil {
 		return nil, withUIErrorContext(err, "createWindow", strings.TrimSpace(declaration.ID), "")
+	}
+	if spec.Notification != nil {
+		if err := s.validateNotificationTarget(spec.Notification.Position); err != nil {
+			return nil, err
+		}
 	}
 	window := &Window{session: s, spec: spec, status: StatusCreating, closed: make(chan struct{})}
 	window.operation.Lock()
@@ -50,6 +57,19 @@ func (s *Session) Create(ctx context.Context, declaration WindowSpec) (*Window, 
 		s.mu.Unlock()
 		window.operation.Unlock()
 		return nil, &Error{Code: CodeDuplicateID, Operation: "createWindow", WindowID: spec.ID, Message: "window id already exists"}
+	}
+	if spec.Notification != nil {
+		count := 0
+		for _, existing := range s.windows {
+			if existing.spec.Kind == "notification" {
+				count++
+			}
+		}
+		if count >= MaxNotifications {
+			s.mu.Unlock()
+			window.operation.Unlock()
+			return nil, &Error{Code: CodeBusy, Operation: "notify", Message: "at most three notifications may be open; update an existing handle"}
+		}
 	}
 	s.windows[spec.ID] = window
 	s.mu.Unlock()
@@ -99,6 +119,7 @@ func (s *Session) Window(id string) (*Window, bool) {
 }
 
 func (s *Session) Close(ctx context.Context) error {
+	defer unregisterCaptureSession(s)
 	s.mu.Lock()
 	if s.closed {
 		s.mu.Unlock()
@@ -191,6 +212,14 @@ func (w *Window) Status() WindowStatus {
 }
 
 func (w *Window) Show(ctx context.Context) (WindowState, error) {
+	if w.spec.Kind == "notification" {
+		captureVisibility.RLock()
+		defer captureVisibility.RUnlock()
+	}
+	return w.show(ctx)
+}
+
+func (w *Window) show(ctx context.Context) (WindowState, error) {
 	w.operation.Lock()
 	defer w.operation.Unlock()
 	if err := w.requireOpen("show"); err != nil {
@@ -516,8 +545,20 @@ func (w *Window) markClosed() {
 		w.state.Visible = false
 		w.state.OnScreen = false
 		w.state.Alpha = 0
+		if w.state.Notification != nil && w.state.Notification.CloseReason == "timeout" {
+			copy := *w.state.Notification
+			copy.RemainingMS = 0
+			w.state.Notification = &copy
+		}
 		w.mu.Unlock()
 		close(w.closed)
+		if w.spec.Kind == "notification" {
+			w.session.mu.Lock()
+			if w.session.windows[w.ID()] == w {
+				delete(w.session.windows, w.ID())
+			}
+			w.session.mu.Unlock()
+		}
 	})
 }
 
@@ -565,6 +606,11 @@ func (w *Window) handleEvent(event Event) {
 	}
 	if event.Bounds != nil {
 		w.state.Bounds = *event.Bounds
+	}
+	if event.Type == "close" && w.state.Notification != nil {
+		state := *w.state.Notification
+		state.CloseReason = event.Reason
+		w.state.Notification = &state
 	}
 	w.mu.Unlock()
 	if event.Type == "close" {
