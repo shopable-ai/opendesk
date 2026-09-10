@@ -1,6 +1,7 @@
 package aicli
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -16,8 +17,10 @@ import (
 	"time"
 
 	"opendesk/automation"
+	"opendesk/internal/protectedcli"
 	pkgExecution "opendesk/pkg/execution"
 	"opendesk/pkg/runtimeenv"
+	"opendesk/pkg/scriptloader"
 )
 
 func runtimePlatform() string { return runtime.GOOS }
@@ -919,6 +922,13 @@ func systemMetricsCommand(ctx *Context) (any, *Error) {
 	return result, nil
 }
 
+var newRunFileLoader = func() scriptloader.Loader {
+	loader := scriptloader.NewProductionFileLoader()
+	return loader
+}
+
+var runArtifactRoot = filepath.Join(".runtime", "ai")
+
 func runCommand(ctx *Context) (any, *Error) {
 	fs := newFlagSet("run")
 	inputRaw := fs.String("input", "", "")
@@ -927,14 +937,14 @@ func runCommand(ctx *Context) (any, *Error) {
 	environmentFile := fs.String("env-file", "", "")
 	timeout := fs.Duration("timeout", 0, "")
 	if len(ctx.Args) == 0 || strings.HasPrefix(ctx.Args[0], "-") {
-		return nil, invalidArgument("run requires exactly one recipe.js path")
+		return nil, invalidArgument("run requires exactly one recipe.js or recipe.odpkg path")
 	}
 	recipeArg := ctx.Args[0]
 	if cliErr := parseFlags(fs, ctx.Args[1:]); cliErr != nil {
 		return nil, cliErr
 	}
 	if fs.NArg() != 0 {
-		return nil, invalidArgument("run requires exactly one recipe.js path")
+		return nil, invalidArgument("run requires exactly one recipe.js or recipe.odpkg path")
 	}
 	sources := 0
 	if visited(fs, "input") {
@@ -959,14 +969,31 @@ func runCommand(ctx *Context) (any, *Error) {
 	if err != nil {
 		return nil, &Error{Code: "invalid_argument", Message: "invalid recipe path"}
 	}
-	if filepath.Ext(recipe) != ".js" {
-		return nil, invalidArgument("recipe must be a .js file")
+	loader := newRunFileLoader()
+	if loader == nil {
+		return nil, &Error{Code: "internal_error", Message: "recipe source loader is unavailable"}
 	}
-	source, err := os.ReadFile(recipe)
+	loadedSource, err := loader.Load(context.Background(), recipe)
 	if err != nil {
-		return nil, &Error{Code: "invalid_argument", Message: fmt.Sprintf("read recipe: %v", err)}
+		code := scriptloader.ErrorCodeOf(err)
+		if code == "" {
+			code = "invalid_argument"
+		}
+		return nil, &Error{Code: code, Message: err.Error()}
 	}
-	source = normalizeRecipeEntrypoint(source)
+	if loadedSource == nil {
+		return nil, &Error{Code: "internal_error", Message: "recipe source loader returned no source"}
+	}
+	if err := scriptloader.ValidateFileSource(recipe, loadedSource); err != nil {
+		return nil, &Error{Code: scriptloader.ErrorCodeOf(err), Message: err.Error()}
+	}
+	if loadedSource.Protection.Mode == scriptloader.ProtectionProtected {
+		defer func() {
+			for index := range loadedSource.Content {
+				loadedSource.Content[index] = 0
+			}
+		}()
+	}
 	input, cliErr := readRunInput(*inputRaw, *inputFile, *inputStdin)
 	if cliErr != nil {
 		return nil, cliErr
@@ -983,11 +1010,48 @@ func runCommand(ctx *Context) (any, *Error) {
 	if err != nil {
 		return nil, invalidArgument(err.Error())
 	}
+	if loadedSource.Protection.Mode == scriptloader.ProtectionProtected {
+		normalizeProtectedRecipeEntrypoint(loadedSource)
+		result, _, protection, runErr := protectedcli.RunProtectedSource(context.Background(), loadedSource, recipe, protectedcli.RunOptions{
+			ExecutionIDPrefix:      "ai-protected",
+			LogDir:                 runArtifactRoot,
+			LogDirIsRoot:           true,
+			WorkDir:                workingDir,
+			Environment:            environment.Values,
+			Input:                  input,
+			Timeout:                *timeout,
+			TimeoutMinutes:         30,
+			EnableNativeExtensions: true,
+			EnableCommand:          true,
+			EnableDownload:         true,
+			EnableAccessibility:    true,
+			EnableSQLite:           true,
+		}, nil)
+		response := map[string]any{
+			"executionId": result.ExecutionID,
+			"status":      result.Status,
+			"durationMs":  result.DurationMs,
+			"scriptHash":  result.ScriptHash,
+			"artifacts":   result.Artifacts,
+			"protection":  protection,
+		}
+		if runErr != nil {
+			return response, &Error{Code: protectedcli.ErrorCodeOf(runErr), Message: runErr.Error()}
+		}
+		return response, nil
+	}
+	if loadedSource.Protection.Mode != scriptloader.ProtectionPlain {
+		return nil, &Error{Code: "unsupported_format", Message: "recipe source has an unsupported protection mode"}
+	}
+	source := normalizeRecipeEntrypoint(loadedSource.Content)
 
 	id := pkgExecution.NewExecutionID("ai")
-	artifacts, err := pkgExecution.PrepareArtifacts(filepath.Join(".runtime", "ai", id), id, ".js")
+	artifacts, err := pkgExecution.PrepareArtifacts(filepath.Join(runArtifactRoot, id), id, ".js")
 	if err != nil {
 		return nil, &Error{Code: "internal_error", Message: err.Error()}
+	}
+	if err := os.WriteFile(artifacts.ScriptSnapshotPath, source, 0o644); err != nil {
+		return nil, &Error{Code: "internal_error", Message: "write plain recipe snapshot: " + err.Error()}
 	}
 	inputEvidence, _ := json.MarshalIndent(map[string]any{"command": "run", "recipe": recipe, "input": input}, "", "  ")
 	_ = os.WriteFile(filepath.Join(artifacts.RunDir, "command.json"), append(inputEvidence, '\n'), 0o644)
@@ -999,9 +1063,23 @@ func runCommand(ctx *Context) (any, *Error) {
 		if strings.Contains(strings.ToLower(runErr.Error()), "timed out") {
 			code = "timeout"
 		}
-		return map[string]any{"executionId": id, "status": result.Status, "artifacts": result.Artifacts}, &Error{Code: code, Message: runErr.Error()}
+		return map[string]any{"executionId": id, "status": result.Status, "scriptHash": result.ScriptHash, "artifacts": result.Artifacts}, &Error{Code: code, Message: runErr.Error()}
 	}
-	return map[string]any{"executionId": id, "status": result.Status, "durationMs": result.DurationMs, "artifacts": result.Artifacts}, nil
+	return map[string]any{"executionId": id, "status": result.Status, "durationMs": result.DurationMs, "scriptHash": result.ScriptHash, "artifacts": result.Artifacts}, nil
+}
+
+func normalizeProtectedRecipeEntrypoint(source *scriptloader.ScriptSource) {
+	if source == nil || len(source.Content) == 0 {
+		return
+	}
+	original := source.Content
+	normalized := normalizeRecipeEntrypoint(original)
+	if len(normalized) > 0 && &normalized[0] != &original[0] {
+		for index := range original {
+			original[index] = 0
+		}
+	}
+	source.Content = normalized
 }
 
 var terminalMainCall = regexp.MustCompile(`(?m)^[\t ]*(?:await[\t ]+)?main[\t ]*\([\t ]*\)[\t ]*;?[\t ]*(?:\r?\n)?\z`)

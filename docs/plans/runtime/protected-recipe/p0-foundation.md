@@ -3,10 +3,11 @@
 ## Status
 
 ```text
-In progress
+Completed
 ```
 
-Implementation checkpoint 已写入 `master`，但本阶段仍缺本地编译、测试、CLI smoke 与最终集成收口证据。
+Final checkpoint 尚待提交；本地验收基于 2026-09-11 的当前 `master` 工作树完成。Protected Package
+Foundation 的编译、测试、CLI smoke、disclosure 与集成收口门禁均已通过。
 
 ## Goal
 
@@ -71,17 +72,15 @@ feat: add protected recipe package P0 foundation
 
 恢复时始终以当前 `master / HEAD` 为准。
 
-## Remaining closure work
+## Completion evidence
 
-- 对新增 Go 文件执行 `gofmt`。
-- 编译并修正真实 compiler error。
-- 将 `ai run .odpkg` 从早期 root interception 尽量收敛到 `internal/aicli/runCommand` 的统一 source resolution。
-- 检查 Direct `.odpkg` 是否还能进一步复用现有 `executeScript` 生命周期，避免长期保留重复 parser/request composition。
-- 保证 protected caller 显式把 package digest 放入兼容 `ScriptHash`，从而阻止 Execution 自动计算 plaintext source hash。
-- 保证 protected artifacts 的 `ScriptSnapshotPath` 在 emitter/summary 看到之前已经为空。
-- 验证 `-save-last-script + .odpkg` 在导出前返回 `protected_source_export_denied`。
-- 验证 HTTP/MCP/Scheduler 没有绕过统一安全边界；P0 不支持的 protected transport 明确 fail closed 或根本无 protected source input。
-- 更新 `docs/api/ai-cli.md`，但只能记录最终实际通过的用户行为。
+- `ai run` 已通过 `FileLoader` 统一解析 `.js` / `.odpkg`，不再依赖 root `init()` interception。
+- Direct `.odpkg` 已进入现有 `executeScript` 生命周期；早期独立 parser/lifecycle 已删除。
+- Protected execution 显式使用 package digest 作为兼容 `ScriptHash`，且 `ScriptSnapshotPath` 为空。
+- `-save-last-script + .odpkg` 在明文导出前返回 `protected_source_export_denied`。
+- HTTP 仍只接受 inline JavaScript、Scheduler 仍只接受 `.js`、MCP 没有 protected file input；没有文本 fallback。
+- narrow Go tests、全仓 `go test ./...`、`go build -o dist/opendesk ./cmd/opendesk`、plain/protected/package CLI smoke、test architecture audit 与 `git diff --check` 均通过。
+- production Publisher/License/ContentKey provider 仍按 P0 边界 fail closed；injected-provider tests 覆盖完整成功链路。
 
 ## Stable validation commands
 
@@ -194,14 +193,8 @@ package verify
 - `git diff --check` 通过。
 - 无第二套 Runtime。
 
-## On completion
+## Completion record
 
-更新本文件：
-
-```text
-Status: Completed
-Final checkpoint: <commit>
-Validated: <commands / evidence summary>
-```
-
-然后更新 [`STATUS.md`](STATUS.md)，把 Current stage 切换为 P1；下一阶段只读取 [`p1-device-bound-license.md`](p1-device-bound-license.md)，不要重新设计 P0。
+P0 已于 2026-09-11 在当前 `master` 工作树完成验收。代码尚未由本轮创建独立提交；后续提交可使用
+`fix: complete protected recipe package P0 integration`。下一阶段按 [`p1-device-bound-license.md`](p1-device-bound-license.md)
+继续，不重新设计 P0。

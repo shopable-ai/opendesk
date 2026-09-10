@@ -3,8 +3,28 @@ package scriptpackage
 import (
 	"crypto/ed25519"
 	"crypto/x509"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/pem"
+	"fmt"
+	"strings"
 )
+
+// ParseContentKey accepts the publisher-side file encodings supported by the
+// package and license CLIs. The returned buffer is always caller-owned.
+func ParseContentKey(data []byte) ([]byte, error) {
+	if len(data) == ContentKeySize {
+		return append([]byte(nil), data...), nil
+	}
+	trimmed := strings.TrimSpace(string(data))
+	if decoded, err := hex.DecodeString(trimmed); err == nil && len(decoded) == ContentKeySize {
+		return decoded, nil
+	}
+	if decoded, err := base64.StdEncoding.DecodeString(trimmed); err == nil && len(decoded) == ContentKeySize {
+		return decoded, nil
+	}
+	return nil, fmt.Errorf("content key file must contain 32 raw bytes, 64 hex characters, or base64 for 32 bytes")
+}
 
 func ParseEd25519PrivateKey(data []byte) (ed25519.PrivateKey, error) {
 	if len(data) == ed25519.PrivateKeySize {

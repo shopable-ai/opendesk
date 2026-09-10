@@ -2,8 +2,6 @@ package packagecli
 
 import (
 	"crypto/ed25519"
-	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -72,13 +70,13 @@ func protect(args []string, stdout io.Writer) int {
 		return writeError(stdout, "package.protect", "invalid_argument", "invalid package protect arguments", 2)
 	}
 	for name, value := range map[string]string{
-		"-o": *outputPath,
-		"--package-id": *packageID,
-		"--product-id": *productID,
-		"--publisher-id": *publisherID,
+		"-o":                 *outputPath,
+		"--package-id":       *packageID,
+		"--product-id":       *productID,
+		"--publisher-id":     *publisherID,
 		"--publisher-key-id": *publisherKeyID,
-		"--content-key-id": *contentKeyID,
-		"--signing-key": *signingKeyPath,
+		"--content-key-id":   *contentKeyID,
+		"--signing-key":      *signingKeyPath,
 	} {
 		if strings.TrimSpace(value) == "" {
 			return writeError(stdout, "package.protect", "invalid_argument", name+" is required", 2)
@@ -96,6 +94,7 @@ func protect(args []string, stdout io.Writer) int {
 	if err != nil {
 		return writeError(stdout, "package.protect", "invalid_argument", "cannot read signing key file", 2)
 	}
+	defer zeroBytes(privateKeyBytes)
 	privateKey, err := scriptpackage.ParseEd25519PrivateKey(privateKeyBytes)
 	if err != nil {
 		return writePackageError(stdout, "package.protect", err)
@@ -148,14 +147,16 @@ func protect(args []string, stdout io.Writer) int {
 		return writeError(stdout, "package.protect", "invalid_argument", err.Error(), 1)
 	}
 	return writeSuccess(stdout, "package.protect", map[string]any{
-		"output": *outputPath,
-		"packageId": result.Manifest.PackageID,
-		"productId": result.Manifest.ProductID,
-		"publisherId": result.Manifest.PublisherID,
+		"output":         *outputPath,
+		"packageId":      result.Manifest.PackageID,
+		"productId":      result.Manifest.ProductID,
+		"publisherId":    result.Manifest.PublisherID,
 		"publisherKeyId": result.Manifest.PublisherKeyID,
-		"packageDigest": result.PackageDigest,
+		"packageDigest":  result.PackageDigest,
 		"generatedContentKeyFile": func() string {
-			if generatedKey { return *keyOutputPath }
+			if generatedKey {
+				return *keyOutputPath
+			}
 			return ""
 		}(),
 	})
@@ -170,7 +171,7 @@ func inspect(args []string, stdout io.Writer) int {
 		return writePackageError(stdout, "package.inspect", err)
 	}
 	return writeSuccess(stdout, "package.inspect", map[string]any{
-		"manifest": protectedPackage.Manifest,
+		"manifest":      protectedPackage.Manifest,
 		"packageDigest": protectedPackage.PackageDigest,
 	})
 }
@@ -203,10 +204,10 @@ func verify(args []string, stdout io.Writer) int {
 	}
 	return writeSuccess(stdout, "package.verify", map[string]any{
 		"signatureVerified": true,
-		"packageId": protectedPackage.Manifest.PackageID,
-		"publisherId": protectedPackage.Manifest.PublisherID,
-		"publisherKeyId": protectedPackage.Manifest.PublisherKeyID,
-		"packageDigest": protectedPackage.PackageDigest,
+		"packageId":         protectedPackage.Manifest.PackageID,
+		"publisherId":       protectedPackage.Manifest.PublisherID,
+		"publisherKeyId":    protectedPackage.Manifest.PublisherKeyID,
+		"packageDigest":     protectedPackage.PackageDigest,
 	})
 }
 
@@ -215,17 +216,8 @@ func readContentKey(filePath string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot read content key file")
 	}
-	if len(data) == scriptpackage.ContentKeySize {
-		return append([]byte(nil), data...), nil
-	}
-	trimmed := strings.TrimSpace(string(data))
-	if decoded, err := hex.DecodeString(trimmed); err == nil && len(decoded) == scriptpackage.ContentKeySize {
-		return decoded, nil
-	}
-	if decoded, err := base64.StdEncoding.DecodeString(trimmed); err == nil && len(decoded) == scriptpackage.ContentKeySize {
-		return decoded, nil
-	}
-	return nil, fmt.Errorf("content key file must contain 32 raw bytes, 64 hex characters, or base64 for 32 bytes")
+	defer zeroBytes(data)
+	return scriptpackage.ParseContentKey(data)
 }
 
 func writeSecretFile(filePath string, content []byte) error {

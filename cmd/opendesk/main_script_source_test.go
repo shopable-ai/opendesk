@@ -1,14 +1,23 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	pkgExecution "opendesk/pkg/execution"
+	"opendesk/pkg/scriptloader"
 )
+
+type mainTestLoader func(context.Context, string) (*scriptloader.ScriptSource, error)
+
+func (loader mainTestLoader) Load(ctx context.Context, path string) (*scriptloader.ScriptSource, error) {
+	return loader(ctx, path)
+}
 
 func TestResolveScriptSourceFromText(t *testing.T) {
 	content, source, ext, err := resolveScriptSource(&Config{ScriptText: "await keyboard.type('hi')"})
@@ -101,6 +110,44 @@ func TestResolveScriptSourceWithStackModeDoesNotAffectSourceResolution(t *testin
 	}
 	if string(content) != "console.log('stack independent')" || source != "inline" || ext != ".js" {
 		t.Fatalf("unexpected resolution result: content=%q source=%q ext=%q", string(content), source, ext)
+	}
+}
+
+func TestResolveProtectedFileUsesScriptLoader(t *testing.T) {
+	loadCalls := 0
+	loader := mainTestLoader(func(_ context.Context, path string) (*scriptloader.ScriptSource, error) {
+		loadCalls++
+		return &scriptloader.ScriptSource{
+			Content: []byte("protected plaintext in memory"),
+			Source:  "package:" + path,
+			Ext:     ".js",
+			Protection: scriptloader.ProtectionInfo{
+				Mode:          scriptloader.ProtectionProtected,
+				PackageDigest: "package-digest",
+			},
+		}, nil
+	})
+	source, err := resolveScriptSourceWithLoader(context.Background(), &Config{ScriptPath: "recipe.odpkg"}, loader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loadCalls != 1 || source.Protection.Mode != scriptloader.ProtectionProtected || source.Source != "package:recipe.odpkg" {
+		t.Fatalf("protected source resolution calls=%d source=%#v", loadCalls, source)
+	}
+}
+
+func TestDirectProtectedExportAndHTTPModesFailBeforeSourceLoad(t *testing.T) {
+	exportPath := filepath.Join(t.TempDir(), "export.js")
+	err := executeScript(&Config{ScriptPath: "missing.odpkg", SaveLastScript: exportPath})
+	if err == nil || !strings.Contains(err.Error(), "protected_source_export_denied") {
+		t.Fatalf("protected export error = %v", err)
+	}
+	if _, statErr := os.Stat(exportPath); !os.IsNotExist(statErr) {
+		t.Fatalf("protected export path was created: %v", statErr)
+	}
+	err = executeScript(&Config{ScriptPath: "missing.odpkg", HttpMode: true})
+	if err == nil || !strings.Contains(err.Error(), "unsupported_format") {
+		t.Fatalf("protected HTTP combination error = %v", err)
 	}
 }
 

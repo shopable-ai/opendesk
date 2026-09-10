@@ -17,7 +17,12 @@ const (
 	CodeLicenseRequired       ErrorCode = "license_required"
 	CodeLicenseDenied         ErrorCode = "license_denied"
 	CodeLicenseExpired        ErrorCode = "license_expired"
+	CodeLicenseNotYetValid    ErrorCode = "license_not_yet_valid"
+	CodeInvalidLicense        ErrorCode = "invalid_license"
+	CodeInvalidLicenseSign    ErrorCode = "invalid_license_signature"
+	CodeWrongDevice           ErrorCode = "wrong_device"
 	CodeContentKeyUnavailable ErrorCode = "content_key_unavailable"
+	CodeDeviceKeyUnavailable  ErrorCode = "device_key_unavailable"
 )
 
 type Error struct {
@@ -56,10 +61,16 @@ func CodeOf(err error) ErrorCode {
 }
 
 type Entitlement struct {
-	LicenseID string
-	ProductID string
-	SubjectID string
-	ExpiresAt time.Time
+	LicenseID          string
+	ProductID          string
+	PackageID          string
+	ContentKeyID       string
+	SubjectID          string
+	DeviceID           string
+	DeviceKeyAlgorithm string
+	ExpiresAt          time.Time
+	KeyEnvelope        KeyEnvelope
+	verifiedClaims     *LicenseClaims
 }
 
 type LicenseVerifier interface {

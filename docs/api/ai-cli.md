@@ -46,21 +46,37 @@ Workflow 把 Goal、Success Criteria、业务步骤与验证写在脚本中；�
 
 错误 code 包括：`invalid_command`、`invalid_argument`、`invalid_json`、`window_not_found`、
 `permission_required`、`unsupported_platform`、`capability_unavailable`、`capture_failed`、
-`vision_failed`、`execution_failed`、`timeout`、`internal_error`。退出码为 0（成功）、2（输入/命令
-错误）、3（平台/能力不可用）、4（权限）、5（执行目标失败）或 1（内部错误）。
+`vision_failed`、`execution_failed`、`timeout`、`internal_error`。受保护包加载还可能返回
+`unsupported_format`、`invalid_package`、`package_too_large`、`invalid_manifest`、
+`invalid_signature`、`unknown_publisher`、`license_required`、`license_denied`、`license_expired`、
+`license_not_yet_valid`、`invalid_license`、`invalid_license_signature`、`wrong_device`、
+`device_key_unavailable`、`content_key_unavailable`、`decryption_failed`、`payload_invalid`、`unsupported_payload` 和
+`protected_source_export_denied`。退出码为 0（成功）、2（输入/命令错误）、3（平台/能力不可用）、
+4（权限）、5（执行目标失败）或 1（内部错误或受保护包准入失败）。
 
 ## ai run 与 -script
 
-`opendesk ai run` 和 `opendesk -script` 都使用同一套 JavaScript Execution Runtime，都会注入
+`opendesk ai run` 和 `opendesk -script` 都接受普通 `.js`；两者也都把 `.odpkg` 交给受保护包
+loader。两类来源最终使用同一套 JavaScript Execution Runtime，都会注入
 `Execution`，并复用 Runtime API、超时、取消、资源清理与 artifact 机制。两者不是完全等价的
 命令别名；`ai run` 是面向 Coding Agent 和参数化 recipe 的窄 CLI 适配层，`-script` 是通用的
 本地脚本入口。
 
-| 行为 | `opendesk ai run recipe.js` | `opendesk -script script.js` |
+```text
+recipe.js    -> PlainScriptLoader     -> existing pkg/execution.Run() -> existing Goja
+recipe.odpkg -> ProtectedPackageLoader -> verify -> authorize -> key -> decrypt in memory
+                                      -> existing pkg/execution.Run() -> existing Goja
+```
+
+普通 `.js` 仍直接执行，不需要 package、License 或内容密钥，也不会启用 protected artifact policy。
+`.odpkg` 不创建第二套 Runtime；它只在进入现有 Execution Runtime 前完成结构校验、发布者验签、
+授权、取密钥和 AES-GCM 内存解密。
+
+| 行为 | `opendesk ai run recipe.js` / `recipe.odpkg` | `opendesk -script script.js` / `recipe.odpkg` |
 | --- | --- | --- |
 | 结构化输入 | 支持 `--input`、`--input-file` 和 `--input-stdin`，解析后注入 `Execution.input` | 没有对应的结构化输入参数；`Execution.input` 默认为 `{}` |
 | stdout | 只输出一个 JSON envelope，recipe 的 `console.log()` 写入 envelope 指向的 `stdout.log` | 按 `-console-mode` 和 `-console-categories` 输出面向终端的脚本日志与摘要 |
-| artifact 目录 | 固定在 `.runtime/ai/<executionId>/` | 默认在 `.runtime/runs/<executionId>/`，可用 `-log-dir` 指定 |
+| artifact 目录 | 固定在 `.runtime/ai/<executionId>/`；`.odpkg` 不生成 script snapshot | 默认在 `.runtime/runs/<executionId>/`，可用 `-log-dir` 指定；`.odpkg` 不生成 script snapshot |
 | 异步收尾 | 会等待脚本末尾常见的 `main();` Promise | 不解释 recipe 的 `main();` 约定；应使用顶层 `await main();` 明确表达完成条件 |
 | 超时参数 | `--timeout 30s` 或 `--timeout 2m`；默认 30 分钟 | `-timeout 30`，单位为分钟 |
 | 其他入口选项 | 只接受 recipe 所需的输入、环境文件和超时选项 | 可配置 `-ui`、`-no-ui`、`-config`、`-stack`、`-log-dir` 和 console 输出等通用运行选项 |
@@ -69,6 +85,71 @@ Workflow 把 Goal、Success Criteria、业务步骤与验证写在脚本中；�
 使用 `ai run`。普通本地脚本、测试 runner、人工查看终端日志，或需要通用运行选项时，使用
 `-script`。需要同时支持两个入口的异步脚本应使用顶层 `await`，并在脚本内明确处理
 `Execution.input` 为 `{}` 的情况。
+
+## Protected Recipe 与 Device-bound Offline License
+
+Protected Recipe Package P0 冻结 `.odpkg` v1 的基础保护链路。受保护执行的 `Execution.scriptHash`、
+result `scriptHash` 和 summary `scriptHash` 都是原始 `.odpkg` 字节的 SHA-256 package digest，
+不是解密后 JavaScript 的 hash。`Execution.scriptPath` / `scriptDir` 为空，artifact 中的
+`scriptSnapshotPath` 也为空；不会创建 `script_snapshot.js` 或临时明文 `.js`。
+
+Direct CLI 不允许导出受保护源码：
+
+```bash
+./dist/opendesk -script recipe.odpkg -save-last-script exported.js
+```
+
+该命令在加载和解密前返回 `protected_source_export_denied`。普通 `.js` 的
+`-save-last-script` 与默认 snapshot 行为不变。
+
+P1 在 P0 的 `PublisherKeyProvider`、`LicenseVerifier` 与 `ContentKeyProvider` 边界内加入 production
+device-bound offline provider。未安装信任 pin 与 License 时，`.odpkg` 仍 fail closed，通常首先返回
+`unknown_publisher`；不会回退为普通 JavaScript。安装成功后，Runtime 从确定性用户配置目录取得 package
+publisher pin、License issuer pin 与 `.odlicense`，从 OS secure storage 取得设备私钥，在内存中恢复
+package DEK。普通 `.js` 不访问这些组件，也不要求 `license device` 或 License。
+
+Publisher 侧命令也由同一个二进制提供。以下命令均从仓库根目录执行；private signing key 和 DEK
+只通过文件传入。自动生成 DEK 时必须指定 `--key-out`，且新文件以 0600 创建：
+
+```bash
+./dist/opendesk package protect recipe.js -o recipe.odpkg --package-id pkg-example --product-id product-example --publisher-id publisher-example --publisher-key-id publisher-key-example --content-key-id content-key-example --minimum-runtime-version 0.0.0 --signing-key publisher-private.pem --key-out recipe.key
+./dist/opendesk package inspect recipe.odpkg
+./dist/opendesk package verify recipe.odpkg --public-key publisher-public.pem
+```
+
+`inspect` 只显示公开 manifest 与 package digest，不解密、不显示源码或 DEK。`verify` 验证包结构、
+格式和 publisher signature；验签成功不代表 License 已授权。P0 对 `minimumRuntimeVersion` 执行严格
+SemVer 语法校验，但当前没有可作为兼容比较依据的 canonical Runtime version source，因此不做
+运行时版本高低比较；该 compatibility gate 留给后续版本来源冻结后的阶段。
+
+Device-bound Offline License 使用独立的 P-256 设备密钥和 Ed25519 License signature。以下命令同样从
+仓库根目录执行。第一条只导出 public identity；设备私钥由 macOS Keychain 或 Windows DPAPI owner
+保存，不写入输出文件：
+
+```bash
+./dist/opendesk license device -o device-public.json
+./dist/opendesk license issue recipe.odpkg --device device-public.json --content-key recipe.key --signing-key license-issuer-private.pem --license-id license-example --subject-id customer-example --issuer-key-id license-key-example --expires-at 2027-01-01T00:00:00Z -o recipe.odlicense
+./dist/opendesk license inspect recipe.odlicense
+./dist/opendesk license verify recipe.odlicense --issuer-key license-issuer-public.pem
+./dist/opendesk license install recipe.odlicense --package recipe.odpkg --package-publisher-key publisher-public.pem --issuer-key license-issuer-public.pem
+./dist/opendesk -script recipe.odpkg
+./dist/opendesk ai run recipe.odpkg
+```
+
+`issue` 在 publisher 侧先验证传入 DEK 确实能解密目标 package，再为设备 public key 生成
+P-256/HKDF-SHA256/AES-256-GCM envelope 并签发 `.odlicense`；输出文件以 0600 独占创建。package signing
+key 与 License signing key 应按用途分离，即使 P1 格式允许二者都采用 Ed25519。
+
+`inspect` 只投影非敏感 License metadata，不显示 wrapped ciphertext；`verify` 验证签名、时间、当前设备
+绑定并证明当前设备能 unwrap DEK，但不输出 DEK。`install` 还验证 package signature、package/license
+metadata 一致性以及恢复出的 DEK 能解密该 package，然后安装精确 public-key pins 与 License。Runtime
+不会自动信任 package/License 自带的 public key。默认安装目录来自当前用户配置目录；隔离部署可以把
+`OPENDESK_PROTECTED_RECIPE_ROOT` 设置为绝对、非根目录路径，这只移动 License/public pins，设备私钥仍固定
+由 Keychain/DPAPI 持有。P1 是离线单设备授权 MVP；在线 activation、refresh、
+revoke 与 device-count 属于 P2，key rotation/retirement 属于 P3。
+
+P0 没有给 HTTP、MCP 或 Scheduler 增加受保护文件输入：HTTP 仍是 inline JavaScript，MCP 没有脚本
+文件执行工具，Scheduler 明确只接受 `.js`。这些入口不会把 `.odpkg` fallback 成普通文本。
 
 `examples/ai-cli/macos-calculator-recipe.js` 是需要 `expression` 和 `expected` 的参数化
 compatibility recipe，正确命令为：
@@ -275,8 +356,9 @@ For the conventional recipe ending `async function main() { ... }` followed by `
 terminal `main()` Promise before it completes the execution. Other async recipe entrypoints should use top-level
 `await` so their completion is explicit.
 
-`run` retains the normal execution artifact set (`script_snapshot.js`, `stdout.log`, `stderr.log`,
-`summary.json`, `agent_summary.json`, `events.ndjson`) under `.runtime/ai/`.
+普通 `.js` 的 `run` 保留正常 execution artifact set（`script_snapshot.js`、`stdout.log`、
+`stderr.log`、`summary.json`、`agent_summary.json`、`events.ndjson`）并写入 `.runtime/ai/`。
+受保护 `.odpkg` 保留日志、事件和摘要，但 `scriptSnapshotPath` 为空且不写明文 snapshot。
 
 ## Progressive Desktop Context policy
 

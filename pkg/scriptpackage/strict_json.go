@@ -14,6 +14,9 @@ func (m *Manifest) UnmarshalJSON(data []byte) error {
 	if err := rejectDuplicateObjectKeys(data); err != nil {
 		return err
 	}
+	if err := requireManifestFields(data); err != nil {
+		return err
+	}
 	type manifestAlias Manifest
 	var decoded manifestAlias
 	decoder := json.NewDecoder(bytes.NewReader(data))
@@ -26,6 +29,44 @@ func (m *Manifest) UnmarshalJSON(data []byte) error {
 		return fmt.Errorf("strict manifest decode: trailing JSON data")
 	}
 	*m = Manifest(decoded)
+	return nil
+}
+
+func requireManifestFields(data []byte) error {
+	var root map[string]json.RawMessage
+	if err := json.Unmarshal(data, &root); err != nil {
+		return fmt.Errorf("manifest must be a JSON object: %w", err)
+	}
+	if err := requireFields(root, []string{
+		"format", "formatVersion", "packageId", "productId", "publisherId",
+		"publisherKeyId", "entrypoint", "payloadType", "minimumRuntimeVersion",
+		"encryption", "license",
+	}); err != nil {
+		return err
+	}
+	var encryption map[string]json.RawMessage
+	if err := json.Unmarshal(root["encryption"], &encryption); err != nil || encryption == nil {
+		return fmt.Errorf("manifest encryption must be an object")
+	}
+	if err := requireFields(encryption, []string{"algorithm", "keyId", "nonce"}); err != nil {
+		return fmt.Errorf("manifest encryption: %w", err)
+	}
+	var license map[string]json.RawMessage
+	if err := json.Unmarshal(root["license"], &license); err != nil || license == nil {
+		return fmt.Errorf("manifest license must be an object")
+	}
+	if err := requireFields(license, []string{"required", "productId"}); err != nil {
+		return fmt.Errorf("manifest license: %w", err)
+	}
+	return nil
+}
+
+func requireFields(object map[string]json.RawMessage, fields []string) error {
+	for _, field := range fields {
+		if _, ok := object[field]; !ok {
+			return fmt.Errorf("required field %q is missing", field)
+		}
+	}
 	return nil
 }
 

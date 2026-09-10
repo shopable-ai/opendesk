@@ -3,6 +3,7 @@ package scriptloader
 import (
 	"context"
 	"time"
+	"unicode/utf8"
 
 	"opendesk/pkg/licensing"
 	"opendesk/pkg/scriptpackage"
@@ -16,10 +17,11 @@ type ProtectedPackageLoader struct {
 }
 
 func NewProductionProtectedPackageLoader() ProtectedPackageLoader {
+	publisherKeys, licenseVerifier, contentKeys := licensing.NewProductionProviders()
 	return ProtectedPackageLoader{
-		PublisherKeys:   licensing.UnavailablePublisherKeyProvider{},
-		LicenseVerifier: licensing.UnavailableLicenseVerifier{},
-		ContentKeys:     licensing.UnavailableContentKeyProvider{},
+		PublisherKeys:   publisherKeys,
+		LicenseVerifier: licenseVerifier,
+		ContentKeys:     contentKeys,
 		Now:             time.Now,
 	}
 }
@@ -74,6 +76,7 @@ func (loader ProtectedPackageLoader) Load(ctx context.Context, filePath string) 
 	}
 	contentKey, err := loader.ContentKeys.Resolve(ctx, protectedPackage.Manifest, entitlement)
 	if err != nil {
+		zeroBytes(contentKey)
 		return nil, err
 	}
 	if len(contentKey) != scriptpackage.ContentKeySize {
@@ -91,7 +94,12 @@ func (loader ProtectedPackageLoader) Load(ctx context.Context, filePath string) 
 		return nil, err
 	}
 	if len(plaintext) == 0 {
+		zeroBytes(plaintext)
 		return nil, newError("payload_invalid", "decrypted JavaScript payload is empty", nil)
+	}
+	if !utf8.Valid(plaintext) {
+		zeroBytes(plaintext)
+		return nil, newError("payload_invalid", "decrypted JavaScript payload is not valid UTF-8", nil)
 	}
 
 	return &ScriptSource{

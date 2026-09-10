@@ -9,13 +9,13 @@ import (
 type ErrorCode string
 
 const (
-	CodeUnsupportedFormat ErrorCode = "unsupported_format"
-	CodeInvalidPackage    ErrorCode = "invalid_package"
-	CodePackageTooLarge   ErrorCode = "package_too_large"
-	CodeInvalidManifest   ErrorCode = "invalid_manifest"
-	CodeInvalidSignature  ErrorCode = "invalid_signature"
-	CodeDecryptionFailed  ErrorCode = "decryption_failed"
-	CodePayloadInvalid    ErrorCode = "payload_invalid"
+	CodeUnsupportedFormat  ErrorCode = "unsupported_format"
+	CodeInvalidPackage     ErrorCode = "invalid_package"
+	CodePackageTooLarge    ErrorCode = "package_too_large"
+	CodeInvalidManifest    ErrorCode = "invalid_manifest"
+	CodeInvalidSignature   ErrorCode = "invalid_signature"
+	CodeDecryptionFailed   ErrorCode = "decryption_failed"
+	CodePayloadInvalid     ErrorCode = "payload_invalid"
 	CodeUnsupportedPayload ErrorCode = "unsupported_payload"
 )
 

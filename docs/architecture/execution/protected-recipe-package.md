@@ -305,6 +305,10 @@ v1 首先支持单 JavaScript entrypoint；不要第一版就实现复杂 Workfl
 - package reader 必须设置文件数量和大小限制，避免恶意包导致内存或磁盘资源耗尽。
 - 不允许通过 entrypoint 路径穿越容器边界。
 
+P0 对 `minimumRuntimeVersion` 只执行严格 SemVer 语法校验。当前仓库还没有冻结可作为比较依据的
+canonical Runtime version source，因此 P0 不编造运行时版本高低判断；compatibility gate 在版本
+来源与发布策略冻结后再接入 protected loader。
+
 ### 6.3 签名范围
 
 不要依赖“重新序列化 JSON 后签名”，避免字段顺序和 canonical JSON 细节造成不稳定。
@@ -741,6 +745,47 @@ customer runtime
 - Windows：使用 DPAPI 等系统保护机制保存设备私密材料。
 
 机器 ID 只能作为绑定证据之一，不应直接派生 AES 内容密钥。
+
+### 16.1 P1 Device-bound Offline License 冻结实现
+
+P1 采用以下标准 primitive，保持 package encryption、License signature 与 device wrapping 三个 domain
+彼此独立：
+
+```text
+installation key pair
+→ random P-256 ECDH private key
+→ DeviceID = SHA-256(domain || algorithm || public key)
+
+content-key envelope
+→ ephemeral P-256 ECDH
+→ HKDF-SHA256
+→ AES-256-GCM
+→ AAD 绑定 formatVersion / productId / packageId / contentKeyId / deviceId / deviceKeyAlgorithm
+
+offline License signature
+→ Ed25519(domain || SHA-256(raw license claims bytes))
+```
+
+License v1 使用 `.odlicense`，外层只包含原始 `license` claims object 与 `signature`。验证时对读取到的
+原始 claims bytes 建立签名消息，不依赖 JSON 重序列化；parser 拒绝 duplicate key、未知字段、非 canonical
+Base64、未知版本和异常大小。`issuedAt` 是 not-before 边界，`expiresAt` 到达即失效。
+
+设备私钥的 production owner 为：
+
+- macOS：Keychain generic-password item，使用 `WhenUnlockedThisDeviceOnly`，禁止 iCloud 同步。
+- Windows：当前用户范围的 `CryptProtectData` DPAPI，ciphertext 文件仅保存于当前用户
+  `LocalAppData`，并使用 application/item domain 作为 optional entropy；用户 profile、文件 ACL 与 DPAPI
+  共同约束读取范围，不使用可被同机其他用户解密的 `CRYPTPROTECT_LOCAL_MACHINE`。
+
+普通文件、环境变量、SQLite 和 License 文件都不保存 plaintext device private key。`.odlicense` 仅包含
+ephemeral public key、nonce 和 authenticated wrapped DEK；DEK 只以 caller-owned 短生命周期 buffer 进入
+protected loader，并在解密后清零。
+
+P1 的 `license install` 要求操作者显式提供 package publisher public key 与 License issuer public key，完整
+验证 package signature、License signature、device/time/metadata binding、DEK unwrap 与 package decrypt 后，
+才把 License 和两个精确 public-key pin 安装到确定性用户目录。Runtime 不自动信任 package 或 License
+自带的 key。P1 pin 只解决单 key 的离线信任入口；registry、rotation、retirement 和 compromise governance
+仍由 P3 负责。
 
 ---
 

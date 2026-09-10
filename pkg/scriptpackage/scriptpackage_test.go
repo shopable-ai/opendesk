@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"testing"
@@ -17,8 +18,8 @@ func testManifest() Manifest {
 		PublisherID:           "publisher-a",
 		PublisherKeyID:        "publisher-key-a",
 		MinimumRuntimeVersion: "0.0.0",
-		Encryption: EncryptionManifest{KeyID: "content-key-a"},
-		License: LicenseManifest{Required: true, ProductID: "product-a"},
+		Encryption:            EncryptionManifest{KeyID: "content-key-a"},
+		License:               LicenseManifest{Required: true, ProductID: "product-a"},
 	}
 }
 
@@ -59,6 +60,46 @@ func TestAESGCMAndPackageRoundTrip(t *testing.T) {
 	}
 	if !bytes.Equal(plaintext, source) {
 		t.Fatalf("decrypted source mismatch: %q", plaintext)
+	}
+}
+
+func TestGeneratedKeysAndNoncesAreFresh(t *testing.T) {
+	keyA, err := GenerateContentKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	keyB, err := GenerateContentKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	nonceA, err := GenerateNonce()
+	if err != nil {
+		t.Fatal(err)
+	}
+	nonceB, err := GenerateNonce()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(keyA) != ContentKeySize || len(keyB) != ContentKeySize || bytes.Equal(keyA, keyB) {
+		t.Fatal("content keys are not independent random 256-bit values")
+	}
+	if len(nonceA) != NonceSize || len(nonceB) != NonceSize || bytes.Equal(nonceA, nonceB) {
+		t.Fatal("AES-GCM nonces are not independent random values")
+	}
+}
+
+func TestSignatureMessageUsesExactDomainAndDigests(t *testing.T) {
+	if !bytes.Equal(signatureDomain, []byte("OpenDeskProtectedPackage/v1\x00")) {
+		t.Fatalf("signature domain = %q", signatureDomain)
+	}
+	manifest := []byte("raw manifest bytes")
+	payload := []byte("raw payload bytes")
+	manifestDigest := sha256.Sum256(manifest)
+	payloadDigest := sha256.Sum256(payload)
+	want := append([]byte("OpenDeskProtectedPackage/v1\x00"), manifestDigest[:]...)
+	want = append(want, payloadDigest[:]...)
+	if got := SignatureMessage(manifest, payload); !bytes.Equal(got, want) {
+		t.Fatalf("signature message mismatch: %x", got)
 	}
 }
 
@@ -164,6 +205,21 @@ func TestMalformedNonceFailsClosed(t *testing.T) {
 	}
 }
 
+func TestNonCanonicalNonceEncodingFailsClosed(t *testing.T) {
+	result, _, _, _ := buildTestPackage(t, []byte("void 6;"))
+	protectedPackage, err := Read(result.Bytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest := protectedPackage.Manifest
+	manifest.Encryption.Nonce = manifest.Encryption.Nonce[:4] + "\n" + manifest.Encryption.Nonce[4:]
+	rawManifest, _ := json.Marshal(manifest)
+	packageBytes := rewritePackage(t, rawManifest, protectedPackage.Payload, protectedPackage.Signature, nil)
+	if _, err := Read(packageBytes); CodeOf(err) != CodeInvalidManifest {
+		t.Fatalf("non-canonical nonce error code = %q, err=%v", CodeOf(err), err)
+	}
+}
+
 func TestUnsupportedVersionFailsClosed(t *testing.T) {
 	result, _, _, _ := buildTestPackage(t, []byte("void 7;"))
 	protectedPackage, err := Read(result.Bytes)
@@ -189,6 +245,14 @@ func TestUnexpectedAndTraversalZIPEntriesFailClosed(t *testing.T) {
 	if _, err := Read(withExtra); CodeOf(err) != CodeInvalidPackage {
 		t.Fatalf("extra entry error code = %q, err=%v", CodeOf(err), err)
 	}
+	unexpected := writeEntries(t, []testEntry{
+		{name: ManifestEntryName, data: protectedPackage.RawManifest},
+		{name: PayloadEntryName, data: protectedPackage.Payload},
+		{name: "unexpected.bin", data: protectedPackage.Signature},
+	})
+	if _, err := Read(unexpected); CodeOf(err) != CodeInvalidPackage {
+		t.Fatalf("unexpected entry error code = %q, err=%v", CodeOf(err), err)
+	}
 	traversal := writeEntries(t, []testEntry{
 		{name: ManifestEntryName, data: protectedPackage.RawManifest},
 		{name: PayloadEntryName, data: protectedPackage.Payload},
@@ -209,6 +273,69 @@ func TestOversizedPayloadEntryFailsClosed(t *testing.T) {
 	packageBytes := rewritePackage(t, protectedPackage.RawManifest, oversized, protectedPackage.Signature, nil)
 	if _, err := Read(packageBytes); CodeOf(err) != CodePackageTooLarge {
 		t.Fatalf("oversize error code = %q, err=%v", CodeOf(err), err)
+	}
+}
+
+func TestReaderRejectsMalformedDuplicateAndDirectoryEntries(t *testing.T) {
+	if _, err := Read([]byte("not a zip")); CodeOf(err) != CodeInvalidPackage {
+		t.Fatalf("malformed ZIP error code = %q, err=%v", CodeOf(err), err)
+	}
+	result, _, _, _ := buildTestPackage(t, []byte("void 10;"))
+	protectedPackage, err := Read(result.Bytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	duplicate := writeEntries(t, []testEntry{
+		{name: ManifestEntryName, data: protectedPackage.RawManifest},
+		{name: PayloadEntryName, data: protectedPackage.Payload},
+		{name: ManifestEntryName, data: protectedPackage.RawManifest},
+	})
+	if _, err := Read(duplicate); CodeOf(err) != CodeInvalidPackage {
+		t.Fatalf("duplicate ZIP entry error code = %q, err=%v", CodeOf(err), err)
+	}
+	directory := writeEntries(t, []testEntry{
+		{name: ManifestEntryName, data: protectedPackage.RawManifest},
+		{name: PayloadEntryName, data: protectedPackage.Payload},
+		{name: SignatureEntryName + "/", data: nil},
+	})
+	if _, err := Read(directory); CodeOf(err) != CodeInvalidPackage {
+		t.Fatalf("directory ZIP entry error code = %q, err=%v", CodeOf(err), err)
+	}
+}
+
+func TestReaderRejectsUnknownFieldsAndTrailingJSON(t *testing.T) {
+	result, _, _, _ := buildTestPackage(t, []byte("void 11;"))
+	protectedPackage, err := Read(result.Bytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	unknown := append([]byte(nil), protectedPackage.RawManifest[:len(protectedPackage.RawManifest)-1]...)
+	unknown = append(unknown, []byte(`,"unexpected":true}`)...)
+	if _, err := Read(rewritePackage(t, unknown, protectedPackage.Payload, protectedPackage.Signature, nil)); CodeOf(err) != CodeInvalidManifest {
+		t.Fatalf("unknown manifest field error code = %q, err=%v", CodeOf(err), err)
+	}
+	trailing := append(append([]byte(nil), protectedPackage.RawManifest...), []byte("\n{}")...)
+	if _, err := Read(rewritePackage(t, trailing, protectedPackage.Payload, protectedPackage.Signature, nil)); CodeOf(err) != CodeInvalidManifest {
+		t.Fatalf("trailing manifest JSON error code = %q, err=%v", CodeOf(err), err)
+	}
+}
+
+func TestReaderEnforcesPackageManifestAndSignatureLimits(t *testing.T) {
+	if _, err := Read(make([]byte, MaxPackageSize+1)); CodeOf(err) != CodePackageTooLarge {
+		t.Fatalf("total package size error code = %q, err=%v", CodeOf(err), err)
+	}
+	result, _, _, _ := buildTestPackage(t, []byte("void 12;"))
+	protectedPackage, err := Read(result.Bytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	oversizedManifest := bytes.Repeat([]byte{' '}, int(MaxManifestSize)+1)
+	if _, err := Read(rewritePackage(t, oversizedManifest, protectedPackage.Payload, protectedPackage.Signature, nil)); CodeOf(err) != CodePackageTooLarge {
+		t.Fatalf("manifest size error code = %q, err=%v", CodeOf(err), err)
+	}
+	oversizedSignature := bytes.Repeat([]byte{0x5a}, int(MaxSignatureSize)+1)
+	if _, err := Read(rewritePackage(t, protectedPackage.RawManifest, protectedPackage.Payload, oversizedSignature, nil)); CodeOf(err) != CodePackageTooLarge {
+		t.Fatalf("signature size error code = %q, err=%v", CodeOf(err), err)
 	}
 }
 

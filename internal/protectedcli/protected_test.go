@@ -1,15 +1,18 @@
 package protectedcli
 
 import (
+	"archive/zip"
 	"bytes"
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
+	"encoding/json"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	pkgExecution "opendesk/pkg/execution"
 	"opendesk/pkg/licensing"
@@ -23,13 +26,16 @@ func (provider testPublisherProvider) ResolvePublisherKey(context.Context, scrip
 	return provider.key, nil
 }
 
-type testLicenseProvider struct{ err error }
+type testLicenseProvider struct {
+	err       error
+	expiresAt time.Time
+}
 
 func (provider testLicenseProvider) Verify(context.Context, scriptpackage.Manifest) (*licensing.Entitlement, error) {
 	if provider.err != nil {
 		return nil, provider.err
 	}
-	return &licensing.Entitlement{LicenseID: "test-license", ProductID: "protected-product", SubjectID: "test-subject"}, nil
+	return &licensing.Entitlement{LicenseID: "test-license", ProductID: "protected-product", SubjectID: "test-subject", ExpiresAt: provider.expiresAt}, nil
 }
 
 type testContentKeyProvider struct {
@@ -55,13 +61,13 @@ func protectedFixture(t *testing.T, source []byte) (string, []byte, ed25519.Publ
 		t.Fatal(err)
 	}
 	manifest := scriptpackage.Manifest{
-		PackageID: "protected-package",
-		ProductID: "protected-product",
-		PublisherID: "protected-publisher",
-		PublisherKeyID: "protected-publisher-key",
+		PackageID:             "protected-package",
+		ProductID:             "protected-product",
+		PublisherID:           "protected-publisher",
+		PublisherKeyID:        "protected-publisher-key",
 		MinimumRuntimeVersion: "0.0.0",
-		Encryption: scriptpackage.EncryptionManifest{KeyID: "protected-content-key"},
-		License: scriptpackage.LicenseManifest{Required: true, ProductID: "protected-product"},
+		Encryption:            scriptpackage.EncryptionManifest{KeyID: "protected-content-key"},
+		License:               scriptpackage.LicenseManifest{Required: true, ProductID: "protected-product"},
 	}
 	result, err := scriptpackage.Build(source, manifest, contentKey, privateKey)
 	if err != nil {
@@ -76,28 +82,47 @@ func protectedFixture(t *testing.T, source []byte) (string, []byte, ed25519.Publ
 
 func loaderFor(publicKey ed25519.PublicKey, contentKey []byte, licenseErr, keyErr error) scriptloader.ProtectedPackageLoader {
 	return scriptloader.ProtectedPackageLoader{
-		PublisherKeys: testPublisherProvider{key: publicKey},
+		PublisherKeys:   testPublisherProvider{key: publicKey},
 		LicenseVerifier: testLicenseProvider{err: licenseErr},
-		ContentKeys: testContentKeyProvider{key: contentKey, err: keyErr},
+		ContentKeys:     testContentKeyProvider{key: contentKey, err: keyErr},
 	}
 }
 
 func TestAuthorizationFailuresCauseZeroExecution(t *testing.T) {
 	filePath, contentKey, publicKey, _ := protectedFixture(t, []byte("globalThis.__mustNotExecute = true;"))
+	wrongKey, err := scriptpackage.GenerateContentKey()
+	if err != nil {
+		t.Fatal(err)
+	}
 	tests := []struct {
-		name string
-		loader scriptloader.Loader
+		name     string
+		loader   scriptloader.Loader
 		wantCode string
 	}{
 		{
-			name: "license denied",
-			loader: loaderFor(publicKey, contentKey, licensing.NewError(licensing.CodeLicenseDenied, "denied", nil), nil),
+			name:     "license denied",
+			loader:   loaderFor(publicKey, contentKey, licensing.NewError(licensing.CodeLicenseDenied, "denied", nil), nil),
 			wantCode: string(licensing.CodeLicenseDenied),
 		},
 		{
-			name: "content key unavailable",
-			loader: loaderFor(publicKey, contentKey, nil, licensing.NewError(licensing.CodeContentKeyUnavailable, "unavailable", nil)),
+			name:     "content key unavailable",
+			loader:   loaderFor(publicKey, contentKey, nil, licensing.NewError(licensing.CodeContentKeyUnavailable, "unavailable", nil)),
 			wantCode: string(licensing.CodeContentKeyUnavailable),
+		},
+		{
+			name: "license expired",
+			loader: scriptloader.ProtectedPackageLoader{
+				PublisherKeys:   testPublisherProvider{key: publicKey},
+				LicenseVerifier: testLicenseProvider{expiresAt: time.Now().Add(-time.Minute)},
+				ContentKeys:     testContentKeyProvider{key: contentKey},
+				Now:             time.Now,
+			},
+			wantCode: string(licensing.CodeLicenseExpired),
+		},
+		{
+			name:     "wrong content key",
+			loader:   loaderFor(publicKey, wrongKey, nil, nil),
+			wantCode: string(scriptpackage.CodeDecryptionFailed),
 		},
 	}
 	for _, test := range tests {
@@ -115,6 +140,91 @@ func TestAuthorizationFailuresCauseZeroExecution(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestPackageLoadFailuresCauseZeroExecution(t *testing.T) {
+	malformedPath := filepath.Join(t.TempDir(), "malformed.odpkg")
+	if err := os.WriteFile(malformedPath, []byte("not a ZIP package"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	validPath, _, _, _ := protectedFixture(t, []byte("globalThis.__unsupportedMustNotRun = true;"))
+	unsupportedPath := writeUnsupportedVersionFixture(t, validPath)
+	tests := []struct {
+		name     string
+		path     string
+		wantCode string
+	}{
+		{
+			name:     "malformed package",
+			path:     malformedPath,
+			wantCode: string(scriptpackage.CodeInvalidPackage),
+		},
+		{
+			name:     "unsupported version",
+			path:     unsupportedPath,
+			wantCode: string(scriptpackage.CodeUnsupportedFormat),
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			executeCalls := 0
+			loader := scriptloader.NewProductionFileLoader()
+			_, _, _, err := RunProtectedFile(context.Background(), loader, test.path, RunOptions{}, func(pkgExecution.Request) (pkgExecution.ExecutionResult, pkgExecution.AgentSummary, error) {
+				executeCalls++
+				return pkgExecution.ExecutionResult{}, pkgExecution.AgentSummary{}, nil
+			})
+			if ErrorCodeOf(err) != test.wantCode {
+				t.Fatalf("error code = %q, want %q, err=%v", ErrorCodeOf(err), test.wantCode, err)
+			}
+			if executeCalls != 0 {
+				t.Fatalf("execution called %d times after %s", executeCalls, test.name)
+			}
+		})
+	}
+}
+
+func writeUnsupportedVersionFixture(t *testing.T, validPath string) string {
+	t.Helper()
+	data, err := os.ReadFile(validPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	protectedPackage, err := scriptpackage.Read(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest := protectedPackage.Manifest
+	manifest.FormatVersion = scriptpackage.FormatVersion + 1
+	rawManifest, err := json.Marshal(manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var output bytes.Buffer
+	writer := zip.NewWriter(&output)
+	for _, entry := range []struct {
+		name string
+		data []byte
+	}{
+		{name: scriptpackage.ManifestEntryName, data: rawManifest},
+		{name: scriptpackage.PayloadEntryName, data: protectedPackage.Payload},
+		{name: scriptpackage.SignatureEntryName, data: protectedPackage.Signature},
+	} {
+		file, err := writer.Create(entry.name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := file.Write(entry.data); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "unsupported.odpkg")
+	if err := os.WriteFile(path, output.Bytes(), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
 }
 
 func TestInvalidSignatureCausesZeroExecution(t *testing.T) {
@@ -156,8 +266,35 @@ func TestProtectedRequestUsesPackageDigestAndDisablesSnapshot(t *testing.T) {
 	if captured.ScriptPath != "" {
 		t.Fatalf("protected execution exposed package path as JavaScript scriptPath: %q", captured.ScriptPath)
 	}
+	if captured.Meta == nil || captured.Meta["protection"] == nil {
+		t.Fatalf("protected request omitted public protection metadata: %#v", captured.Meta)
+	}
 	if protection.Mode != scriptloader.ProtectionProtected || protection.PackageDigest != packageDigest {
 		t.Fatalf("unexpected protection metadata: %#v", protection)
+	}
+}
+
+func TestRunProtectedSourceClearsPlaintextAfterExecution(t *testing.T) {
+	content := []byte("protected plaintext buffer")
+	source := &scriptloader.ScriptSource{
+		Content: content,
+		Source:  "package:recipe.odpkg",
+		Ext:     ".js",
+		Protection: scriptloader.ProtectionInfo{
+			Mode:          scriptloader.ProtectionProtected,
+			PackageDigest: "package-digest",
+		},
+	}
+	_, _, _, err := RunProtectedSource(context.Background(), source, "recipe.odpkg", RunOptions{LogDir: t.TempDir()}, func(pkgExecution.Request) (pkgExecution.ExecutionResult, pkgExecution.AgentSummary, error) {
+		return pkgExecution.ExecutionResult{}, pkgExecution.AgentSummary{}, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for index, value := range content {
+		if value != 0 {
+			t.Fatalf("protected plaintext was not cleared at byte %d", index)
+		}
 	}
 }
 
@@ -180,6 +317,34 @@ func TestSaveLastScriptIsDeniedBeforeLoadOrExecution(t *testing.T) {
 	}
 }
 
+func TestRunProtectedSourceClearsPlaintextWhenExportIsDenied(t *testing.T) {
+	content := []byte("protected plaintext rejected before execution")
+	source := &scriptloader.ScriptSource{
+		Content: content,
+		Ext:     ".js",
+		Protection: scriptloader.ProtectionInfo{
+			Mode:          scriptloader.ProtectionProtected,
+			PackageDigest: "package-digest",
+		},
+	}
+	executeCalls := 0
+	_, _, _, err := RunProtectedSource(context.Background(), source, "recipe.odpkg", RunOptions{SaveLastScript: "source.js"}, func(pkgExecution.Request) (pkgExecution.ExecutionResult, pkgExecution.AgentSummary, error) {
+		executeCalls++
+		return pkgExecution.ExecutionResult{}, pkgExecution.AgentSummary{}, nil
+	})
+	if ErrorCodeOf(err) != "protected_source_export_denied" {
+		t.Fatalf("error code = %q, err=%v", ErrorCodeOf(err), err)
+	}
+	if executeCalls != 0 {
+		t.Fatalf("protected source executed after export denial: calls=%d", executeCalls)
+	}
+	for index, value := range content {
+		if value != 0 {
+			t.Fatalf("protected plaintext was not cleared at byte %d", index)
+		}
+	}
+}
+
 func TestProtectedExecutionDoesNotPersistPlaintextSentinel(t *testing.T) {
 	const sentinel = "OPENDESK_PROTECTED_SOURCE_SENTINEL_P0_7F8A"
 	source := []byte("const hidden = '" + sentinel + "'; void hidden;")
@@ -187,8 +352,8 @@ func TestProtectedExecutionDoesNotPersistPlaintextSentinel(t *testing.T) {
 	artifactDir := t.TempDir()
 	workDir := t.TempDir()
 	result, summary, _, err := RunProtectedFile(context.Background(), loaderFor(publicKey, contentKey, nil, nil), filePath, RunOptions{
-		LogDir: artifactDir,
-		WorkDir: workDir,
+		LogDir:         artifactDir,
+		WorkDir:        workDir,
 		TimeoutMinutes: 1,
 	}, pkgExecution.Run)
 	if err != nil {
@@ -202,6 +367,9 @@ func TestProtectedExecutionDoesNotPersistPlaintextSentinel(t *testing.T) {
 	}
 	if result.Artifacts.ScriptSnapshotPath != "" || summary.Artifacts.ScriptSnapshotPath != "" {
 		t.Fatalf("protected execution exposed snapshot path: result=%q summary=%q", result.Artifacts.ScriptSnapshotPath, summary.Artifacts.ScriptSnapshotPath)
+	}
+	if summary.Meta == nil || summary.Meta["protection"] == nil {
+		t.Fatalf("protected execution summary omitted protection metadata: %#v", summary.Meta)
 	}
 	plaintextHash := pkgExecution.ComputeScriptHash(source)
 	walkErr := filepath.WalkDir(artifactDir, func(path string, entry fs.DirEntry, err error) error {

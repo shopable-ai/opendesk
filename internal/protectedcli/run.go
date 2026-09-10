@@ -69,7 +69,7 @@ type RunOptions struct {
 	SaveLastScript    string
 	StackMode         string
 
-	ExpectedCancellation             func() bool
+	ExpectedCancellation            func() bool
 	EnableNativeExtensions          bool
 	EnableUnsafeNativeExtensionCall bool
 	EnableCommand                   bool
@@ -102,14 +102,32 @@ func RunProtectedFile(ctx context.Context, loader scriptloader.Loader, filePath 
 	if err != nil {
 		return pkgExecution.ExecutionResult{}, pkgExecution.AgentSummary{}, scriptloader.ProtectionInfo{}, err
 	}
+	if err := scriptloader.ValidateFileSource(filePath, source); err != nil {
+		return pkgExecution.ExecutionResult{}, pkgExecution.AgentSummary{}, scriptloader.ProtectionInfo{}, err
+	}
+	return RunProtectedSource(ctx, source, filePath, options, execute)
+}
+
+// RunProtectedSource composes an already-resolved protected ScriptSource into
+// the existing execution runtime. Keeping source loading separate lets each
+// CLI use its normal parser and lifecycle while sharing the protected artifact
+// and execution-request policy.
+func RunProtectedSource(ctx context.Context, source *scriptloader.ScriptSource, filePath string, options RunOptions, execute ExecuteFunc) (pkgExecution.ExecutionResult, pkgExecution.AgentSummary, scriptloader.ProtectionInfo, error) {
+	if source != nil && source.Protection.Mode == scriptloader.ProtectionProtected {
+		defer zeroBytes(source.Content)
+	}
+	if strings.TrimSpace(options.SaveLastScript) != "" {
+		return pkgExecution.ExecutionResult{}, pkgExecution.AgentSummary{}, scriptloader.ProtectionInfo{}, &Error{Code: "protected_source_export_denied", Message: "-save-last-script cannot export a protected recipe source"}
+	}
+	if execute == nil {
+		execute = pkgExecution.Run
+	}
 	if source == nil || source.Protection.Mode != scriptloader.ProtectionProtected {
 		return pkgExecution.ExecutionResult{}, pkgExecution.AgentSummary{}, scriptloader.ProtectionInfo{}, &Error{Code: "invalid_package", Message: "protected execution requires a protected ScriptSource"}
 	}
 	if source.Protection.PackageDigest == "" {
 		return pkgExecution.ExecutionResult{}, pkgExecution.AgentSummary{}, scriptloader.ProtectionInfo{}, &Error{Code: "invalid_package", Message: "protected ScriptSource is missing package digest"}
 	}
-	defer zeroBytes(source.Content)
-
 	prefix := strings.TrimSpace(options.ExecutionIDPrefix)
 	if prefix == "" {
 		prefix = "protected"
@@ -137,13 +155,13 @@ func RunProtectedFile(ctx context.Context, loader scriptloader.Loader, filePath 
 		selection = pkgExecution.TerminalSelection{Mode: "quiet", Categories: map[string]bool{}}
 	}
 	request := pkgExecution.Request{
-		Context:                         ctx,
-		ExpectedCancellation:            options.ExpectedCancellation,
-		ExecutionID:                     executionID,
-		SourceLabel:                     source.Source,
-		ScriptPath:                      "",
-		Ext:                             source.Ext,
-		StackMode:                       options.StackMode,
+		Context:              ctx,
+		ExpectedCancellation: options.ExpectedCancellation,
+		ExecutionID:          executionID,
+		SourceLabel:          source.Source,
+		ScriptPath:           "",
+		Ext:                  source.Ext,
+		StackMode:            options.StackMode,
 		// ScriptHash is intentionally the ciphertext package digest, not a hash
 		// of decrypted JavaScript. This prevents RunWithEmitter from deriving and
 		// publishing the plaintext source hash.
@@ -166,6 +184,7 @@ func RunProtectedFile(ctx context.Context, loader scriptloader.Loader, filePath 
 		CustomUIActivationSource:        options.CustomUIActivationSource,
 		CustomUIHostPath:                options.CustomUIHostPath,
 		CustomUIBaseDir:                 options.CustomUIBaseDir,
+		Meta:                            map[string]any{"protection": source.Protection},
 		Artifacts:                       artifacts,
 		Selection:                       selection,
 	}

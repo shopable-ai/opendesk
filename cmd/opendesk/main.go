@@ -15,6 +15,8 @@ import (
 	"net/http"
 	"opendesk/automation"
 	"opendesk/internal/aicli"
+	"opendesk/internal/licensecli"
+	"opendesk/internal/packagecli"
 	pkgContainer "opendesk/pkg/container"
 	"opendesk/pkg/customui"
 	pkgExecution "opendesk/pkg/execution"
@@ -24,6 +26,7 @@ import (
 	"opendesk/pkg/runtimeconfig"
 	"opendesk/pkg/runtimeenv"
 	pkgScheduler "opendesk/pkg/scheduler"
+	"opendesk/pkg/scriptloader"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -172,7 +175,7 @@ type Config struct {
 func parseFlags() *Config {
 	config := &Config{}
 
-	flag.StringVar(&config.ScriptPath, "script", "", "Script file path (.txt or .js)")
+	flag.StringVar(&config.ScriptPath, "script", "", "Script file path (.txt, .js, or .odpkg)")
 	flag.StringVar(&config.ScriptText, "script-text", "", "Execute JavaScript source directly from the command line")
 	flag.StringVar(&config.StackMode, "stack", "legacy", "Legacy compatibility selector; new scripts should omit this flag")
 	flag.StringVar(&config.SaveLastScript, "save-last-script", "", "Persist the executed script source to the given path")
@@ -261,8 +264,15 @@ func main() {
 	normalizeMacOSLaunchServicesArgs()
 	normalizeMacOSBundleLaunchWorkingDirectory()
 	os.Stdout.Sync()
-	if aicli.IsCommand(os.Args[1:]) {
-		os.Exit(aicli.Execute(os.Args[1:], os.Stdout, os.Stderr))
+	args := commandLineArgs()
+	if packagecli.IsCommand(args) {
+		os.Exit(packagecli.Execute(args, os.Stdout, os.Stderr))
+	}
+	if licensecli.IsCommand(args) {
+		os.Exit(licensecli.Execute(args, os.Stdout, os.Stderr))
+	}
+	if aicli.IsCommand(args) {
+		os.Exit(aicli.Execute(args, os.Stdout, os.Stderr))
 	}
 	if automation.MacOSNotificationHelperRequested(os.Args[1:]) {
 		os.Exit(automation.RunMacOSNotificationHelper(os.Stdin, os.Stdout, os.Stderr))
@@ -305,7 +315,6 @@ func main() {
 		os.Exit(2)
 	}
 	selection := buildExecutionConsoleSelection(config)
-
 	if shouldEchoStartupCategory("framework", selection) {
 		terminalPrintf(os.Stdout, "[FRAMEWORK] [DEBUG] robotgo version: %s\n", robotgo.Version)
 		terminalPrintln(os.Stdout, "[FRAMEWORK] [DEBUG] Program starting...")
@@ -403,7 +412,7 @@ func main() {
 	}
 
 	// 没有脚本的情况
-	fmt.Fprintln(os.Stderr, "Please specify a script source: -script path/to/script.[txt|js], -script-text 'code', or -script-stdin")
+	fmt.Fprintln(os.Stderr, "Please specify a script source: -script path/to/script.[txt|js|odpkg], -script-text 'code', or -script-stdin")
 
 	// 如果是 HTTP 模式，启动服务器
 	if config.HttpMode {
@@ -760,11 +769,14 @@ func updateScriptStatus(status string, err error) {
 }
 
 func executeScript(config *Config) error {
-	if err := resolveCustomUIActivation(config); err != nil {
-		return err
+	protectedFile := config != nil && strings.EqualFold(filepath.Ext(config.ScriptPath), ".odpkg")
+	if protectedFile && strings.TrimSpace(config.SaveLastScript) != "" {
+		return fmt.Errorf("protected_source_export_denied: -save-last-script cannot export a protected recipe source")
 	}
-	content, sourceLabel, ext, err := resolveScriptSource(config)
-	if err != nil {
+	if protectedFile && config.HttpMode {
+		return fmt.Errorf("unsupported_format: HTTP mode does not support .odpkg in Protected Recipe P0")
+	}
+	if err := resolveCustomUIActivation(config); err != nil {
 		return err
 	}
 	workingDir, err := os.Getwd()
@@ -796,6 +808,18 @@ func executeScript(config *Config) error {
 		}
 		defer instanceLease.Close()
 	}
+	fileLoader := scriptloader.NewProductionFileLoader()
+	resolvedSource, err := resolveScriptSourceWithLoader(executionContext, config, fileLoader)
+	if err != nil {
+		return err
+	}
+	content := resolvedSource.Content
+	sourceLabel := resolvedSource.Source
+	ext := resolvedSource.Ext
+	protectedSource := resolvedSource.Protection.Mode == scriptloader.ProtectionProtected
+	if protectedSource {
+		defer clearBytes(content)
+	}
 
 	selection := buildExecutionConsoleSelection(config)
 	executionID := pkgExecution.NewExecutionID("direct")
@@ -803,8 +827,22 @@ func executeScript(config *Config) error {
 	if err != nil {
 		return err
 	}
-	if err := persistExecutionSnapshots(config.SaveLastScript, artifacts.ScriptSnapshotPath, content); err != nil {
-		return err
+	if protectedSource {
+		// Protected Artifact Policy: the decrypted source is never written to a
+		// script snapshot or exported through -save-last-script.
+		artifacts.ScriptSnapshotPath = ""
+	} else {
+		if err := persistExecutionSnapshots(config.SaveLastScript, artifacts.ScriptSnapshotPath, content); err != nil {
+			return err
+		}
+	}
+	scriptPath := config.ScriptPath
+	scriptHash := pkgExecution.ComputeScriptHash(content)
+	var requestMeta map[string]any
+	if protectedSource {
+		scriptPath = ""
+		scriptHash = resolvedSource.Protection.PackageDigest
+		requestMeta = map[string]any{"protection": resolvedSource.Protection}
 	}
 
 	request := pkgExecution.Request{
@@ -812,10 +850,10 @@ func executeScript(config *Config) error {
 		ExpectedCancellation: func() bool { return instanceLease != nil && instanceLease.WasReplaced() },
 		ExecutionID:          executionID,
 		SourceLabel:          sourceLabel,
-		ScriptPath:           config.ScriptPath,
+		ScriptPath:           scriptPath,
 		Ext:                  ext,
 		StackMode:            config.StackMode,
-		ScriptHash:           pkgExecution.ComputeScriptHash(content),
+		ScriptHash:           scriptHash,
 		ScriptContent:        content,
 		WorkDir:              workingDir,
 		Environment:          environment.Values,
@@ -838,6 +876,7 @@ func executeScript(config *Config) error {
 		EnableCustomUI:           config.CustomUI,
 		CustomUIActivationSource: config.CustomUIActivationSource,
 		CustomUIHostPath:         config.CustomUIHostPath,
+		Meta:                     requestMeta,
 		Artifacts:                artifacts,
 		Selection: pkgExecution.TerminalSelection{
 			Mode:         selection.Mode,
@@ -854,6 +893,11 @@ func executeScript(config *Config) error {
 		}
 	} else {
 		printExecutionSummary(selection, result)
+		if protectedSource && selection.Categories["summary"] {
+			protection := resolvedSource.Protection
+			terminalPrintf(os.Stdout, "[SUMMARY] protection=protected packageId=%s productId=%s publisherId=%s publisherKeyId=%s packageDigest=%s\n",
+				protection.PackageID, protection.ProductID, protection.PublisherID, protection.PublisherKeyID, protection.PackageDigest)
+		}
 	}
 	if execErr != nil {
 		if instanceLease != nil && instanceLease.WasReplaced() && errors.Is(execErr, context.Canceled) {
@@ -982,8 +1026,21 @@ func hasScriptSource(config *Config) bool {
 }
 
 func resolveScriptSource(config *Config) ([]byte, string, string, error) {
+	loader := scriptloader.NewProductionFileLoader()
+	source, err := resolveScriptSourceWithLoader(context.Background(), config, loader)
+	if err != nil {
+		return nil, "", "", err
+	}
+	if source.Protection.Mode == scriptloader.ProtectionProtected {
+		clearBytes(source.Content)
+		return nil, "", "", fmt.Errorf("protected source requires metadata-aware resolution")
+	}
+	return source.Content, source.Source, source.Ext, nil
+}
+
+func resolveScriptSourceWithLoader(ctx context.Context, config *Config, fileLoader scriptloader.Loader) (*scriptloader.ScriptSource, error) {
 	if config == nil {
-		return nil, "", "", fmt.Errorf("config is required")
+		return nil, fmt.Errorf("config is required")
 	}
 
 	sourceCount := 0
@@ -997,36 +1054,76 @@ func resolveScriptSource(config *Config) ([]byte, string, string, error) {
 		sourceCount++
 	}
 	if sourceCount == 0 {
-		return nil, "", "", fmt.Errorf("no script source provided")
+		return nil, fmt.Errorf("no script source provided")
 	}
 	if sourceCount > 1 {
-		return nil, "", "", fmt.Errorf("please specify only one script source: -script, -script-text, or -script-stdin")
+		return nil, fmt.Errorf("please specify only one script source: -script, -script-text, or -script-stdin")
 	}
 
 	if config.ScriptPath != "" {
+		ext := strings.ToLower(filepath.Ext(config.ScriptPath))
+		if ext == ".js" || ext == ".odpkg" {
+			if fileLoader == nil {
+				return nil, fmt.Errorf("script file loader is required")
+			}
+			source, err := fileLoader.Load(ctx, config.ScriptPath)
+			if err != nil {
+				return nil, err
+			}
+			if err := scriptloader.ValidateFileSource(config.ScriptPath, source); err != nil {
+				return nil, err
+			}
+			return source, nil
+		}
 		content, err := os.ReadFile(config.ScriptPath)
 		if err != nil {
-			return nil, "", "", fmt.Errorf("failed to read script: %v", err)
+			return nil, fmt.Errorf("failed to read script: %v", err)
 		}
-		ext := strings.ToLower(filepath.Ext(config.ScriptPath))
 		if ext == "" {
 			ext = ".js"
 		}
-		return content, "file:" + config.ScriptPath, ext, nil
+		return &scriptloader.ScriptSource{
+			Content: content,
+			Source:  "file:" + config.ScriptPath,
+			Ext:     ext,
+			Protection: scriptloader.ProtectionInfo{
+				Mode: scriptloader.ProtectionPlain,
+			},
+		}, nil
 	}
 
 	if config.ScriptText != "" {
-		return []byte(config.ScriptText), "inline", ".js", nil
+		return &scriptloader.ScriptSource{
+			Content: []byte(config.ScriptText),
+			Source:  "inline",
+			Ext:     ".js",
+			Protection: scriptloader.ProtectionInfo{
+				Mode: scriptloader.ProtectionPlain,
+			},
+		}, nil
 	}
 
 	content, err := io.ReadAll(os.Stdin)
 	if err != nil {
-		return nil, "", "", fmt.Errorf("failed to read script from stdin: %v", err)
+		return nil, fmt.Errorf("failed to read script from stdin: %v", err)
 	}
 	if len(strings.TrimSpace(string(content))) == 0 {
-		return nil, "", "", fmt.Errorf("stdin script content cannot be empty")
+		return nil, fmt.Errorf("stdin script content cannot be empty")
 	}
-	return content, "stdin", ".js", nil
+	return &scriptloader.ScriptSource{
+		Content: content,
+		Source:  "stdin",
+		Ext:     ".js",
+		Protection: scriptloader.ProtectionInfo{
+			Mode: scriptloader.ProtectionPlain,
+		},
+	}, nil
+}
+
+func clearBytes(value []byte) {
+	for index := range value {
+		value[index] = 0
+	}
 }
 
 func saveScriptSnapshot(path string, content []byte) error {

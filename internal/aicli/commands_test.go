@@ -2,10 +2,69 @@ package aicli
 
 import (
 	"bytes"
+	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"encoding/json"
+	"io/fs"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	pkgExecution "opendesk/pkg/execution"
+	"opendesk/pkg/licensing"
+	"opendesk/pkg/scriptloader"
+	"opendesk/pkg/scriptpackage"
 )
+
+type aiTestPublisherKeys struct{ key ed25519.PublicKey }
+
+func (provider aiTestPublisherKeys) ResolvePublisherKey(context.Context, scriptpackage.Manifest) (ed25519.PublicKey, error) {
+	return provider.key, nil
+}
+
+type aiTestLicenseVerifier struct{}
+
+func (aiTestLicenseVerifier) Verify(context.Context, scriptpackage.Manifest) (*licensing.Entitlement, error) {
+	return &licensing.Entitlement{LicenseID: "ai-test-license", ProductID: "ai-test-product", SubjectID: "ai-test-subject", ExpiresAt: time.Now().Add(time.Hour)}, nil
+}
+
+type aiTestContentKeys struct{ key []byte }
+
+func (provider aiTestContentKeys) Resolve(context.Context, scriptpackage.Manifest, *licensing.Entitlement) ([]byte, error) {
+	return append([]byte(nil), provider.key...), nil
+}
+
+func writeAIProtectedFixture(t *testing.T, source []byte) (string, []byte, ed25519.PublicKey) {
+	t.Helper()
+	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	contentKey, err := scriptpackage.GenerateContentKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := scriptpackage.Build(source, scriptpackage.Manifest{
+		PackageID:             "ai-test-package",
+		ProductID:             "ai-test-product",
+		PublisherID:           "ai-test-publisher",
+		PublisherKeyID:        "ai-test-publisher-key",
+		MinimumRuntimeVersion: "0.0.0",
+		Encryption:            scriptpackage.EncryptionManifest{KeyID: "ai-test-content-key"},
+		License:               scriptpackage.LicenseManifest{Required: true, ProductID: "ai-test-product"},
+	}, contentKey, privateKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "recipe.odpkg")
+	if err := os.WriteFile(path, result.Bytes, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path, contentKey, publicKey
+}
 
 func TestResolveRoute(t *testing.T) {
 	tests := []struct {
@@ -157,6 +216,151 @@ func TestRunSchemaDocumentsExecutionOptions(t *testing.T) {
 	if !foundTimeout {
 		t.Fatal("run schema omitted --timeout")
 	}
+}
+
+func TestRunCommandResolvesProtectedSourceWithoutRootInterception(t *testing.T) {
+	useTempRunArtifactRoot(t)
+	const sentinel = "OPENDESK_PROTECTED_SOURCE_SENTINEL_P0_7F8A"
+	source := []byte(`
+const hidden = "` + sentinel + `";
+if (Execution.input.value !== "seven") throw new Error("input mismatch");
+if (Execution.env.P0_PROTECTED_ENV !== "ready") throw new Error("env mismatch");
+void hidden;
+`)
+	packagePath, contentKey, publicKey := writeAIProtectedFixture(t, source)
+	envPath := filepath.Join(t.TempDir(), "protected.env")
+	if err := os.WriteFile(envPath, []byte("P0_PROTECTED_ENV=ready\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	originalFactory := newRunFileLoader
+	newRunFileLoader = func() scriptloader.Loader {
+		return scriptloader.FileLoader{
+			Plain: scriptloader.PlainScriptLoader{},
+			Protected: scriptloader.ProtectedPackageLoader{
+				PublisherKeys:   aiTestPublisherKeys{key: publicKey},
+				LicenseVerifier: aiTestLicenseVerifier{},
+				ContentKeys:     aiTestContentKeys{key: contentKey},
+				Now:             time.Now,
+			},
+		}
+	}
+	defer func() { newRunFileLoader = originalFactory }()
+
+	var stdout, stderr bytes.Buffer
+	exit := Execute([]string{"ai", "run", packagePath, "--input", `{"value":"seven"}`, "--env-file", envPath, "--timeout", "5s"}, &stdout, &stderr)
+	if exit != 0 {
+		t.Fatalf("protected ai run exit=%d stdout=%s stderr=%s", exit, stdout.String(), stderr.String())
+	}
+	var response struct {
+		OK     bool `json:"ok"`
+		Result struct {
+			Artifacts  pkgExecution.ExecutionArtifacts `json:"artifacts"`
+			Protection scriptloader.ProtectionInfo     `json:"protection"`
+			ScriptHash string                          `json:"scriptHash"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if !response.OK || response.Result.Protection.Mode != scriptloader.ProtectionProtected || response.Result.Protection.PackageDigest == "" {
+		t.Fatalf("unexpected protected ai response: %s", stdout.String())
+	}
+	if response.Result.ScriptHash != response.Result.Protection.PackageDigest || response.Result.ScriptHash == pkgExecution.ComputeScriptHash(source) {
+		t.Fatalf("protected ai scriptHash = %q protection=%q plaintext=%q", response.Result.ScriptHash, response.Result.Protection.PackageDigest, pkgExecution.ComputeScriptHash(source))
+	}
+	if response.Result.Artifacts.ScriptSnapshotPath != "" {
+		t.Fatalf("protected ai run advertised snapshot %q", response.Result.Artifacts.ScriptSnapshotPath)
+	}
+	plaintextHash := pkgExecution.ComputeScriptHash(source)
+	if err := filepath.WalkDir(response.Result.Artifacts.RunDir, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil || entry.IsDir() {
+			return err
+		}
+		data, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return readErr
+		}
+		if bytes.Contains(data, []byte(sentinel)) || bytes.Contains(data, []byte(plaintextHash)) {
+			t.Fatalf("protected plaintext identity leaked into %s", path)
+		}
+		if strings.HasPrefix(entry.Name(), "script_snapshot") {
+			t.Fatalf("protected ai run created snapshot %s", path)
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRunCommandProtectedProductionLoaderFailsClosed(t *testing.T) {
+	useTempRunArtifactRoot(t)
+	packagePath, _, _ := writeAIProtectedFixture(t, []byte("void 1;"))
+	originalFactory := newRunFileLoader
+	newRunFileLoader = func() scriptloader.Loader {
+		loader := scriptloader.NewProductionFileLoader()
+		return loader
+	}
+	defer func() { newRunFileLoader = originalFactory }()
+
+	var stdout, stderr bytes.Buffer
+	if exit := Execute([]string{"ai", "run", packagePath}, &stdout, &stderr); exit == 0 {
+		t.Fatalf("production protected ai run unexpectedly succeeded: %s", stdout.String())
+	}
+	var response Envelope
+	if err := json.Unmarshal(stdout.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if response.Error == nil || response.Error.Code != string(licensing.CodeUnknownPublisher) {
+		t.Fatalf("production fail-closed response = %s", stdout.String())
+	}
+}
+
+func TestRunCommandPlainSourceKeepsInputEnvTimeoutAndSnapshot(t *testing.T) {
+	useTempRunArtifactRoot(t)
+	tempDir := t.TempDir()
+	sourcePath := filepath.Join(tempDir, "plain.js")
+	source := []byte(`
+if (Execution.input.value !== "plain") throw new Error("plain input mismatch");
+if (Execution.env.P0_PLAIN_ENV !== "ready") throw new Error("plain env mismatch");
+`)
+	if err := os.WriteFile(sourcePath, source, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	envPath := filepath.Join(tempDir, "plain.env")
+	if err := os.WriteFile(envPath, []byte("P0_PLAIN_ENV=ready\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	exit := Execute([]string{"ai", "run", sourcePath, "--input", `{"value":"plain"}`, "--env-file", envPath, "--timeout", "5s"}, &stdout, &stderr)
+	if exit != 0 {
+		t.Fatalf("plain ai run exit=%d stdout=%s stderr=%s", exit, stdout.String(), stderr.String())
+	}
+	var response struct {
+		OK     bool `json:"ok"`
+		Result struct {
+			Artifacts pkgExecution.ExecutionArtifacts `json:"artifacts"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if !response.OK || response.Result.Artifacts.ScriptSnapshotPath == "" {
+		t.Fatalf("plain ai run response = %s", stdout.String())
+	}
+	snapshot, err := os.ReadFile(response.Result.Artifacts.ScriptSnapshotPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(snapshot, source) {
+		t.Fatalf("plain snapshot mismatch: %q", snapshot)
+	}
+}
+
+func useTempRunArtifactRoot(t *testing.T) {
+	t.Helper()
+	original := runArtifactRoot
+	runArtifactRoot = t.TempDir()
+	t.Cleanup(func() { runArtifactRoot = original })
 }
 
 func TestEveryRegisteredCommandHasAHandler(t *testing.T) {

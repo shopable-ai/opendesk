@@ -35,19 +35,30 @@ type Package struct {
 }
 
 func ReadFile(filePath string) (*Package, error) {
-	info, err := os.Stat(filePath)
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, newError(CodeInvalidPackage, "cannot open protected package", err)
+	}
+	defer file.Close()
+	info, err := file.Stat()
 	if err != nil {
 		return nil, newError(CodeInvalidPackage, "cannot stat protected package", err)
 	}
 	if info.IsDir() {
 		return nil, newError(CodeInvalidPackage, "protected package path is a directory", nil)
 	}
+	if !info.Mode().IsRegular() {
+		return nil, newError(CodeInvalidPackage, "protected package path must be a regular file", nil)
+	}
 	if info.Size() > MaxPackageSize {
 		return nil, newError(CodePackageTooLarge, "protected package exceeds maximum size", nil)
 	}
-	data, err := os.ReadFile(filePath)
+	data, err := io.ReadAll(io.LimitReader(file, MaxPackageSize+1))
 	if err != nil {
 		return nil, newError(CodeInvalidPackage, "cannot read protected package", err)
+	}
+	if int64(len(data)) > MaxPackageSize {
+		return nil, newError(CodePackageTooLarge, "protected package exceeds maximum size", nil)
 	}
 	return Read(data)
 }

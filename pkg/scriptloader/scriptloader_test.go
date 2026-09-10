@@ -47,10 +47,16 @@ type fakeContentKeys struct {
 	err   error
 }
 
+type testLoaderFunc func(context.Context, string) (*ScriptSource, error)
+
+func (loader testLoaderFunc) Load(ctx context.Context, path string) (*ScriptSource, error) {
+	return loader(ctx, path)
+}
+
 func (provider *fakeContentKeys) Resolve(context.Context, scriptpackage.Manifest, *licensing.Entitlement) ([]byte, error) {
 	provider.calls++
 	if provider.err != nil {
-		return nil, provider.err
+		return provider.key, provider.err
 	}
 	return provider.key, nil
 }
@@ -66,13 +72,13 @@ func writeProtectedFixture(t *testing.T, source []byte) (string, []byte, ed25519
 		t.Fatal(err)
 	}
 	manifest := scriptpackage.Manifest{
-		PackageID: "pkg-loader",
-		ProductID: "product-loader",
-		PublisherID: "publisher-loader",
-		PublisherKeyID: "publisher-key-loader",
+		PackageID:             "pkg-loader",
+		ProductID:             "product-loader",
+		PublisherID:           "publisher-loader",
+		PublisherKeyID:        "publisher-key-loader",
 		MinimumRuntimeVersion: "0.0.0",
-		Encryption: scriptpackage.EncryptionManifest{KeyID: "content-key-loader"},
-		License: scriptpackage.LicenseManifest{Required: true, ProductID: "product-loader"},
+		Encryption:            scriptpackage.EncryptionManifest{KeyID: "content-key-loader"},
+		License:               scriptpackage.LicenseManifest{Required: true, ProductID: "product-loader"},
 	}
 	result, err := scriptpackage.Build(source, manifest, contentKey, privateKey)
 	if err != nil {
@@ -120,6 +126,11 @@ func TestProtectedPackageLoaderVerifiesAuthorizesAndDecrypts(t *testing.T) {
 	if publisherKeys.calls != 1 || licenseVerifier.calls != 1 || contentKeys.calls != 1 {
 		t.Fatalf("provider calls publisher=%d license=%d key=%d", publisherKeys.calls, licenseVerifier.calls, contentKeys.calls)
 	}
+	for index, value := range contentKey {
+		if value != 0 {
+			t.Fatalf("caller-owned content key was not cleared at byte %d", index)
+		}
+	}
 }
 
 func TestProtectedPackageLoaderLicenseDeniedStopsBeforeKey(t *testing.T) {
@@ -137,13 +148,22 @@ func TestProtectedPackageLoaderLicenseDeniedStopsBeforeKey(t *testing.T) {
 
 func TestProtectedPackageLoaderContentKeyUnavailable(t *testing.T) {
 	filePath, _, publicKey := writeProtectedFixture(t, []byte("void 1;"))
+	returnedKey := make([]byte, scriptpackage.ContentKeySize)
+	for index := range returnedKey {
+		returnedKey[index] = 0x5a
+	}
 	loader := ProtectedPackageLoader{
-		PublisherKeys: &fakePublisherKeys{key: publicKey},
+		PublisherKeys:   &fakePublisherKeys{key: publicKey},
 		LicenseVerifier: &fakeLicenseVerifier{entitlement: &licensing.Entitlement{ProductID: "product-loader"}},
-		ContentKeys: &fakeContentKeys{err: licensing.NewError(licensing.CodeContentKeyUnavailable, "test key unavailable", nil)},
+		ContentKeys:     &fakeContentKeys{key: returnedKey, err: licensing.NewError(licensing.CodeContentKeyUnavailable, "test key unavailable", nil)},
 	}
 	if _, err := loader.Load(context.Background(), filePath); ErrorCodeOf(err) != string(licensing.CodeContentKeyUnavailable) {
 		t.Fatalf("content key error code = %q, err=%v", ErrorCodeOf(err), err)
+	}
+	for index, value := range returnedKey {
+		if value != 0 {
+			t.Fatalf("content key returned with an error was not cleared at byte %d", index)
+		}
 	}
 }
 
@@ -169,5 +189,39 @@ func TestProductionProtectedLoaderFailsClosed(t *testing.T) {
 	loader := NewProductionProtectedPackageLoader()
 	if _, err := loader.Load(context.Background(), filePath); ErrorCodeOf(err) != string(licensing.CodeUnknownPublisher) {
 		t.Fatalf("production error code = %q, err=%v", ErrorCodeOf(err), err)
+	}
+}
+
+func TestProtectedPackageLoaderRejectsNonUTF8JavaScript(t *testing.T) {
+	filePath, contentKey, publicKey := writeProtectedFixture(t, []byte{0xff, 0xfe, 0xfd})
+	loader := ProtectedPackageLoader{
+		PublisherKeys:   &fakePublisherKeys{key: publicKey},
+		LicenseVerifier: &fakeLicenseVerifier{entitlement: &licensing.Entitlement{ProductID: "product-loader"}},
+		ContentKeys:     &fakeContentKeys{key: contentKey},
+	}
+	if _, err := loader.Load(context.Background(), filePath); ErrorCodeOf(err) != "payload_invalid" {
+		t.Fatalf("non-UTF-8 payload error code = %q, err=%v", ErrorCodeOf(err), err)
+	}
+}
+
+func TestFileLoaderRejectsMismatchedProtectionModeAndClearsContent(t *testing.T) {
+	content := []byte("must be cleared")
+	loader := FileLoader{Protected: testLoaderFunc(func(context.Context, string) (*ScriptSource, error) {
+		return &ScriptSource{
+			Content: content,
+			Source:  "package:recipe.odpkg",
+			Ext:     ".js",
+			Protection: ProtectionInfo{
+				Mode: ProtectionPlain,
+			},
+		}, nil
+	})}
+	if _, err := loader.Load(context.Background(), "recipe.odpkg"); ErrorCodeOf(err) != "invalid_package" {
+		t.Fatalf("mismatched protection mode error code = %q, err=%v", ErrorCodeOf(err), err)
+	}
+	for index, value := range content {
+		if value != 0 {
+			t.Fatalf("rejected source content was not cleared at byte %d", index)
+		}
 	}
 }

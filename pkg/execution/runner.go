@@ -137,6 +137,10 @@ type Request struct {
 	// The injected callback accepts one JSON string and is absent from ordinary
 	// JavaScript executions.
 	InternalResultSink func([]byte) error
+	// Meta contains non-source execution metadata selected by a trusted caller.
+	// Protected-package callers use it for public package identity and policy
+	// decisions; plaintext source and key material must never be placed here.
+	Meta map[string]any
 	// Timeout is the exact execution deadline used by transports that accept
 	// sub-minute timeouts. TimeoutMinutes remains for CLI compatibility.
 	Timeout   time.Duration
@@ -190,6 +194,9 @@ func RunWithEmitter(req Request, emitter *Emitter) (ExecutionResult, AgentSummar
 	emitter.SetMeta("ext", req.Ext)
 	emitter.SetMeta("timeoutMinutes", req.TimeoutMinutes)
 	emitter.SetMeta("customUIActivationSource", normalizeCustomUIActivationSource(req))
+	for key, value := range req.Meta {
+		emitter.SetMeta(key, value)
+	}
 	emitter.Emit(EventCategoryMeta, EventLevelInfo, EventSourceSystem, "status", "script execution started", map[string]any{
 		"source": req.SourceLabel,
 		"ext":    req.Ext,
