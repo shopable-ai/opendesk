@@ -21,6 +21,7 @@ type Handler struct {
 	container *container.Container
 	manager   *pkgExecution.Manager
 	scheduler *pkgScheduler.Service
+	inspector *inspectorService
 }
 
 // NewHandler 创建 HTTP 处理器。

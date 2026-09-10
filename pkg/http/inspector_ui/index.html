@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpenDesk Accessibility Workbench</title>
+  <link rel="stylesheet" href="/accessibility-workbench/assets/app.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">OpenDesk · read-only</p>
+      <h1>Accessibility Workbench</h1>
+    </div>
+    <div class="service-state">
+      <span id="connection-badge" class="badge pending">Pairing</span>
+      <span id="capability-summary">No capability observation yet</span>
+    </div>
+  </header>
+
+  <section class="scopebar" aria-label="Observation scope">
+    <label for="window-select">Explicit application / window</label>
+    <select id="window-select" disabled><option value="">Choose a window</option></select>
+    <button id="refresh-windows" type="button" disabled>Refresh windows</button>
+    <button id="create-session" class="primary" type="button" disabled>Open scope</button>
+    <button id="take-snapshot" type="button" disabled>Refresh tree</button>
+    <button id="close-session" type="button" disabled>Stop session</button>
+    <div class="limits" aria-label="Observation limits">
+      <label>Depth <input id="limit-depth" type="number" min="1" max="16" value="6"></label>
+      <label>Nodes <input id="limit-nodes" type="number" min="1" max="1000" value="500"></label>
+      <label>Timeout ms <input id="limit-timeout" type="number" min="100" max="10000" value="3000"></label>
+    </div>
+  </section>
+
+  <div id="global-message" class="message info" role="status">Use the trusted local launch URL to pair this page.</div>
+
+  <main class="workspace">
+    <section class="pane tree-pane" aria-labelledby="tree-heading">
+      <div class="pane-heading">
+        <div><p class="eyebrow">Observation</p><h2 id="tree-heading">UI Tree</h2></div>
+        <span id="tree-completeness" class="badge neutral">Unavailable</span>
+      </div>
+      <label class="search" for="tree-search">Snapshot preview search</label>
+      <input id="tree-search" type="search" autocomplete="off" placeholder="Search role, name, or identifier">
+      <p id="tree-search-note" class="hint">Search is only a preview inside the captured snapshot.</p>
+      <div id="tree" class="tree" role="tree" aria-label="Accessibility tree"></div>
+    </section>
+
+    <section class="pane preview-pane" aria-labelledby="preview-heading">
+      <div class="pane-heading">
+        <div><p class="eyebrow">Logical geometry only</p><h2 id="preview-heading">Layout Preview</h2></div>
+        <span id="preview-state" class="badge neutral">No mapping</span>
+      </div>
+      <p class="hint">Structure diagram from trusted window and element logical bounds; not a pixel-level replica. Native bounds are never used as mouse coordinates.</p>
+      <div id="layout-empty" class="empty">Take a snapshot with trustworthy logical bounds. Otherwise, use the Tree.</div>
+      <div id="layout" class="layout" aria-label="Logical bounds diagram"></div>
+      <dl id="observation-meta" class="meta-list"></dl>
+    </section>
+
+    <section class="pane inspector-pane" aria-labelledby="inspector-heading">
+      <div class="pane-heading">
+        <div><p class="eyebrow">Facts stay read-only</p><h2 id="inspector-heading">Element Inspector</h2></div>
+        <span id="selection-state" class="badge neutral">No node</span>
+      </div>
+      <h3>Raw accessibility properties</h3>
+      <pre id="raw-properties" class="raw">Select a tree node.</pre>
+
+      <h3>Human review</h3>
+      <label for="business-alias">Business alias</label>
+      <input id="business-alias" type="text" maxlength="256" placeholder="Your business label; never a native fact">
+      <label for="human-note">Human note</label>
+      <textarea id="human-note" maxlength="4096" rows="3" placeholder="Treat all captured text as untrusted data"></textarea>
+      <label for="intended-usage">Intended usage</label>
+      <input id="intended-usage" type="text" maxlength="512" placeholder="For example: locate the Save control">
+
+      <h3>Locator Playground</h3>
+      <div class="locator-grid">
+        <label for="locator-role">Role</label><input id="locator-role" type="text" maxlength="128">
+        <label for="locator-name">Name</label><input id="locator-name" type="text" maxlength="1024">
+        <label for="locator-identifier">Identifier</label><input id="locator-identifier" type="text" maxlength="1024">
+      </div>
+      <div class="button-row">
+        <button id="validate-locator" class="primary" type="button" disabled>Validate on live app</button>
+        <span id="validation-state" class="badge neutral">NOT_VALIDATED</span>
+      </div>
+      <p id="validation-detail" class="hint">Validation always resolves the window and calls Accessibility.find/read/release in a fresh execution. It never invokes the element.</p>
+
+      <h3>Handoff</h3>
+      <div class="button-row wrap">
+        <button id="save-review" type="button" disabled>Save review</button>
+        <button id="export-handoff" type="button" disabled>Export JSON</button>
+        <button id="copy-agent" type="button" disabled>Copy Agent prompt</button>
+        <button id="copy-js" type="button" disabled>Copy OpenDesk JS</button>
+      </div>
+      <p id="handoff-detail" class="hint">No model is required. Saving a review does not claim a recipe or business result was verified.</p>
+    </section>
+  </main>
+
+  <footer>
+    Observation, Human Review, Locator Candidate, and Backend Validation Receipt are separate evidence layers. Visual/OCR/image overlays are reserved for a later capability.
+  </footer>
+  <script src="/accessibility-workbench/assets/model.js"></script>
+  <script src="/accessibility-workbench/assets/app.js"></script>
+</body>
+</html>

@@ -127,6 +127,12 @@ type Request struct {
 	RecorderBackendFactory  automation.RecorderBackendFactory
 	RecorderWindowProbe     automation.RecorderWindowProbe
 	RecorderDisplayResolver func() []automation.DisplayInfo
+	// InternalResultSink is an in-process transport for source-controlled host
+	// programs that must return structured data without writing it to console,
+	// artifacts, the execution manager, or SSE. Public transports never set it.
+	// The injected callback accepts one JSON string and is absent from ordinary
+	// JavaScript executions.
+	InternalResultSink func([]byte) error
 	// Timeout is the exact execution deadline used by transports that accept
 	// sub-minute timeouts. TimeoutMinutes remains for CLI compatibility.
 	Timeout   time.Duration
@@ -383,6 +389,11 @@ func runJavaScript(req Request, emitter *Emitter) error {
 				loop.StopNoWait()
 				return
 			}
+			if err := registerInternalResultSink(rt, req.InternalResultSink); err != nil {
+				runtimeErr = err
+				loop.StopNoWait()
+				return
+			}
 			checkDone = func() {
 				if !scriptDone || lifecycle == nil {
 					return
@@ -515,6 +526,37 @@ func runJavaScript(req Request, emitter *Emitter) error {
 		"durationMs": time.Since(startTime).Milliseconds(),
 	})
 	return nil
+}
+
+const internalResultMaximumBytes = 8 << 20
+
+func registerInternalResultSink(rt *goja.Runtime, sink func([]byte) error) error {
+	if sink == nil {
+		return nil
+	}
+	callback := rt.ToValue(func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) != 1 {
+			panic(rt.NewGoError(fmt.Errorf("internal result requires one JSON string")))
+		}
+		exported, ok := call.Argument(0).Export().(string)
+		if !ok {
+			panic(rt.NewGoError(fmt.Errorf("internal result must be a JSON string")))
+		}
+		if len(exported) == 0 || len(exported) > internalResultMaximumBytes {
+			panic(rt.NewGoError(fmt.Errorf("internal result exceeds its size limit")))
+		}
+		if err := sink([]byte(exported)); err != nil {
+			panic(rt.NewGoError(err))
+		}
+		return goja.Undefined()
+	})
+	return rt.GlobalObject().DefineDataProperty(
+		"__opendeskInspectorResult",
+		callback,
+		goja.FLAG_FALSE,
+		goja.FLAG_FALSE,
+		goja.FLAG_FALSE,
+	)
 }
 
 // cancelRuntimeLifecycle runs on the Goja owner goroutine. NewPromise
