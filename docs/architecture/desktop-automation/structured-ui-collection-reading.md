@@ -5,7 +5,7 @@ description: "定义桌面重复数据的 Observation、Collection、VLM、当�
 
 # Structured UI Collection Reading｜结构化界面集合读取
 
-状态：Target architecture v0.1，2026-09-10。本文冻结跨应用“重复 UI 记录 → 通用结构化集合”的职责边界与实施顺序。本文中的 `UI.readCollection()`、`UI.collectCollection()`、`CollectionProfile`、`SemanticVisionProvider` 均为工作名称／目标合同；除非当前 API、类型、实现和测试已经同时出现，不得据本文宣称为已发布 Runtime API。
+状态：Target architecture v0.2，2026-09-10。本文冻结跨应用“重复 UI 记录 → 通用结构化集合”的职责边界与实施顺序。本文中的 `UI.readCollection()`、`UI.collectCollection()`、`CollectionProfile`、`SemanticVisionProvider` 均为工作名称／目标合同；除非当前 API、类型、实现和测试已经同时出现，不得据本文宣称为已发布 Runtime API。
 
 关联：[Native Accessibility](native-accessibility.md)、[App Adapter Contract](app-adapter-contract.md)、[Desktop UI API](../../api/desktop-ui.md)、[Accessibility API](../../api/accessibility.md)、[Vision API](../../api/vision.md)、[AI CLI](../../api/ai-cli.md)、[多应用自动化高频框架能力](../../frameworks/multi-application-automation-primitives.md)。Agent-to-Recipe 的应用认识与模型提取仍由 `workflows/agent-to-recipe/skills/application-engineer/` 负责；本文不创建第二个 Skill。
 
@@ -470,18 +470,17 @@ Recipe 生成阶段消费已验证 profile；业务运行根据任务选择 `rea
 
 ## 十三、实施顺序
 
-为避免过早冻结错误 API，建议分批：
+为避免过早冻结错误 API，后续实施固定为七个 Phase；Phase 是实现批次，不是新增 S1—S12 工作流阶段：
 
-1. **Observation + fixtures**：先冻结跨 source 的最低普通数据形状和坐标／来源语义。
-2. **CollectionProfile + Validator**：用静态截图、native snapshot 和 OCR fixture 验证 item 分段规则。
-3. **Current-viewport segmenter**：完成 deterministic `Observation[] → CollectionItem[]`。
-4. **`UI.readCollection()` Experimental**：只发布当前 viewport contract。
-5. **SemanticVisionProvider prototype**：先以 authoring 和 `on-uncertain` fallback 验证，不绑定具体厂商。
-6. **Scroll continuity / merger**：独立测试 overlap、合法重复、mutation、end detection。
-7. **`UI.collectCollection()` Experimental**：仅包装已验证的 scroll traversal。
-8. **真实应用资格**：至少验证普通 list、异构 timeline、无 usable UI tree 三类场景，再决定分页和 Load More 是否上升为公共策略。
+1. **Phase 1｜Observation schema + fixtures + CollectionProfile schema**：冻结跨 AX/UIA、OCR、Layout/Image、Semantic Vision 的最低 Observation 形状、provenance、坐标空间、unknown/conflict 表达；同时冻结仅描述 current-viewport item 识别的 CollectionProfile schema，并建立 list、table、variable-height timeline、重复文本、virtualized/no-tree fixtures。
+2. **Phase 2｜Current-viewport deterministic core**：实现并独立测试 `CollectionSegmenter` 与 `CollectionValidator`，完成 `Observation[] → CollectionItem[]` 与 viewport coverage；不依赖在线 VLM，不滚动、不做业务 Mapping。
+3. **Phase 3｜`UI.readCollection()` Experimental**：仅在 Phase 1/2 的 Runtime/type/docs/tests 闭环成立后发布 current-viewport Experimental contract；仍不滚动、不分页、不映射业务字段。
+4. **Phase 4｜SemanticVisionProvider prototype**：先验证 authoring-time 使用，再验证显式 `on-uncertain` runtime assist；provider 可由远端 HTTP、本地模型或未来实现替换，输出只作为 proposal 并重新经过 validator。
+5. **Phase 5｜Scroll continuity + merge collector core**：独立实现/测试 overlap、suffix↔prefix continuity、合法重复保留、virtualization、dynamic mutation、end detection、maxSteps/maxItems/timeout partial stop；只复用同一个 current-viewport segmenter/validator。
+6. **Phase 6｜`UI.collectCollection()` Experimental**：把已验证 scroll traversal 包装成有 UI 副作用的高层 orchestrator；明确 partial/evidence/stop reason，不承诺未证明的 restore-position；pagination/load-more 仍不进入 built-in strategy。
+7. **Phase 7｜真实应用资格**：至少验证一个普通 list、一个 variable-height timeline、一个 no-usable-UI-tree 场景；macOS 与 Windows 分别报告实际 backend/权限/结果，未真机的平台不外推，再依据跨应用证据决定 pagination/load-more 是否值得晋级。
 
-`Accessibility.queryAll()` 或等价“一个 scope 下返回多个普通可序列化节点”的能力可以单独评审，以填补 `find()` 强调唯一目标与 `snapshot()` 偏完整树之间的集合消费缺口；不要为了 `readCollection()` 一次创建大量长期 ElementRef。
+`Accessibility.queryAll()` 或等价“一个 scope 下返回多个普通可序列化节点”的能力可以单独评审，以填补 `find()` 强调唯一目标与 `snapshot()` 偏完整树之间的集合消费缺口；不要为了 `readCollection()` 一次创建大量长期 ElementRef。它不是 Phase 1—7 的前置承诺。
 
 ## 十四、验证矩阵
 
@@ -509,4 +508,8 @@ Recipe 生成阶段消费已验证 profile；业务运行根据任务选择 `rea
 
 截至本文建立时，仓库已经有 Accessibility、OCR、布局分析、截图和 Agent 多模态认识方法；本文没有证据证明 `CollectionSegmenter`、`CollectionValidator`、`SemanticVisionProvider`、`UI.readCollection()` 或 `UI.collectCollection()` 已实现。因此这些能力保持 Target 状态，不写入 Stable API Reference，也不让 Recipe 直接调用工作名称。
 
-下一步应先做离线 Observation/Profile/Segmenter/Validator fixture，而不是先把万能 `UI.extractList()` 暴露给用户。只有当前 viewport contract 通过后，才建设 VLM fallback 与滚动 collector。
+下一步只进入 Phase 1，然后 Phase 2：先做离线 Observation/Profile schema、fixtures、deterministic Segmenter/Validator；不要先把万能 `UI.extractList()`、`UI.readCollection()` 或滚动 collector 暴露给用户。只有 current-viewport deterministic core 通过后，才进入 Phase 3 及后续 VLM/scroll phases。
+
+## 十六、v0.2 一致性修订
+
+2026-09-10：将原先分成 8 个编号步骤的实施说明收敛为与 requirements、validation-plan 和本轮批准方案一致的 Phase 1—7。没有改变功能边界：CollectionProfile schema 与 fixtures 合入 Phase 1，current-viewport Segmenter/Validator 合入 Phase 2；`readCollection`、SemanticVisionProvider、scroll core、`collectCollection` 和真实应用资格依次为 Phase 3—7。该修订不代表任何 Phase 已实施。
