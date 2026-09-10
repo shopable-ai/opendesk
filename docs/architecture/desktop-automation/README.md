@@ -12,13 +12,16 @@
 | --- | --- | --- |
 | [Action Target Model](action-target-model.md) | 目标、候选、定位依据、动作前后条件与安全失败如何表达？ | 设计相对定位、候选消歧、动作保护和结果验证时；一般调用先看公开 API |
 | [Native Accessibility](native-accessibility.md) | 单一 AX/UIA owner、ElementRef、菜单 popup 身份、线程、取消和清理如何闭环？ | 维护 Accessibility 后端、UI 菜单组合或 execution lifecycle 时；脚本调用先看公开 API |
+| [Structured UI Collection Reading](structured-ui-collection-reading.md) | list／table／timeline 等重复 UI 怎样由 AX/UIA、OCR、Layout、VLM 形成通用 Item[]，以及滚动、连续性、合并去重与业务映射怎样分层？ | 设计结构化集合读取、无 UI tree fallback、大模型语义辅助、虚拟列表和跨 viewport traversal 时 |
 | [App Adapter Contract](app-adapter-contract.md) | 通用窗口／区域结构与应用专属语义怎样交接？ | 封装应用 helper／adapter 或划分通用与业务职责时 |
 | [App Classification Policy](app-classification-policy.md) | 应用类型怎样影响架构划分与适配范围？ | 选择或设计应用适配方案时 |
 | [Agent-first Recorder](agent-first-recorder.md) | 示范采集、Trace、蒸馏、IR、Compiler 与 Replay 怎样组织？ | 明确研究或实施 Recorder／编译路线时；普通 Recipe 不以此为前置条件 |
 
-## 另外两份是否必读？
+## 另外三份是否必读？
 
 **Action Target Model：定位和动作设计时按需读。** 重点看目标与坐标的区别、候选选择、前置／后置条件及安全失败去向。它是设计模型，不是当前 Runtime 的强制参数 schema；其中示意对象不能直接当作 Geometry／mouse 输入。
+
+**Structured UI Collection Reading：需要把重复 UI 读取成数组时读。** 它把当前 viewport 的 `readCollection` primitive 与会滚动并合并数据的 `collectCollection` orchestration 分开，同时把 AX/UIA、OCR、Layout 和 Semantic Vision/VLM 作为可保留来源的 evidence；VLM 是 proposal，不是自动真值。文中的 API 和 Provider 名称目前是 Target contract，不能当作已经发布的方法。
 
 **Agent-first Recorder：做录制、蒸馏、编译和回放时再深入读。** 先看“适用范围与相关入口”和 Current／Validated／Target 的区分。普通业务脚本或单个 UI helper 不必因为本文件存在而建设 Recorder、IR 或新运行时。
 
@@ -32,6 +35,6 @@
 
 ## 目录与维护规则
 
-本目录的 Target、Adapter、应用分类与 Recorder 文档继续保留唯一正文；不为集中阅读把技术细节全部搬进 `frameworks/`，也不在两处复制维护。
+本目录的 Target、Collection、Adapter、应用分类与 Recorder 文档继续保留唯一正文；不为集中阅读把技术细节全部搬进 `frameworks/`，也不在两处复制维护。
 
 主流程迁移映射：`docs/architecture/desktop-automation/demonstration-to-automation-pipeline.md` → `docs/frameworks/demonstration-to-automation-pipeline.md`。新引用使用新路径；旧路径仅为过渡导航，不是第二份方法文档。
