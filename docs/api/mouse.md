@@ -141,7 +141,9 @@ mouse.move(x: number, y: number, options?: OpenDeskMouseMoveOptions): Promise<vo
 | --- | --- | --- | --- | --- |
 | `x` | `number` | 是 | 无 | 目标 X 坐标。 |
 | `y` | `number` | 是 | 无 | 目标 Y 坐标。 |
-| `options.steps` | `number` | 否 | `1` | 大于 1 时分步移动。 |
+| `options.steps` | `number` | 否 | `1`，指定 `durationMs` 时自动采样 | 大于 1 时使用明确的采样步数；与 `durationMs` 同用时必须是 `2..2000` 的整数；steps-only 保留旧行为。 |
+| `options.durationMs` | `number` | 否 | 无 | 整个调用的时间预算，必须是 `1..30000` 的整数毫秒。 |
+| `options.curve` | `'linear' \| 'easeInOut'` | 否 | `'linear'` | 插值曲线；`easeInOut` 使用起止速度均为 0 的平滑曲线。 |
 
 **返回值**
 
@@ -149,11 +151,13 @@ mouse.move(x: number, y: number, options?: OpenDeskMouseMoveOptions): Promise<vo
 
 **行为与错误**
 
-`steps <= 1` 直接移动；大于 1 时分步。按钮保持按下时，macOS 会发送对应拖拽事件，并在返回前保留一个有界 native 事件稳定间隔，避免紧随其后的 down、up 或键盘输入越过异步 Quartz 事件。非法坐标拒绝。
+未指定 `durationMs` 时保持兼容行为：`steps <= 1` 直接移动，大于 1 时按旧有的每步约 1ms 采样；`curve` 只改变这些采样点的位置。指定 `durationMs` 时，native automation owner 在该总预算内按单调时间表发出采样点；未指定 `steps` 时使用约 16ms 的自动采样间隔并设内部上限。`easeInOut` 使用 `3t² - 2t³`，起点和终点速度连续且为 0，最后一个采样点固定为目标坐标。
+
+`durationMs` 包含 macOS 必需的有界 Quartz 稳定间隔，因此可与外部 `sleep` 预算相加；实际墙钟时间仍可能受系统调度产生小幅正向误差。Windows、Linux 与 macOS 共用相同的曲线、取整和采样规则；macOS 在按钮保持按下时发送对应拖拽事件。execution 取消会中止剩余等待和后续采样，Promise 拒绝并把指针留在最后一个已提交的点。非法 duration、curve 或坐标会拒绝。
 
 **示例**
 ```js
-await mouse.move(900, 300, { steps: 30 });
+await mouse.move(900, 300, { durationMs: 420, curve: 'easeInOut' });
 ```
 
 ## mouse.down(options?)

@@ -58,8 +58,12 @@ type Page struct {
 }
 
 func NewPage() *Page {
+	return NewPageWithContext(context.Background())
+}
+
+func NewPageWithContext(ctx context.Context) *Page {
 	return &Page{
-		Mouse:       NewMouse(), // 初始化时创建
+		Mouse:       NewMouseWithContext(ctx), // 初始化时创建
 		Keyboard:    NewKeyboard(),
 		Touchscreen: NewTouchscreen(),
 		Pid:         int32(os.Getpid()),

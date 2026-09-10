@@ -18,6 +18,15 @@
     await expectThrow(() => mouse.up({ button: 'invalid' }), 'invalid button type');
   });
 
+  test({ name: 'mouse.move rejects invalid duration and curve before OS input', tier: 'unit', covers: ['mouse.move'] }, async () => {
+    await expectThrow(() => mouse.move(0, 0, { durationMs: 0 }), 'durationMs');
+    await expectThrow(() => mouse.move(0, 0, { durationMs: 30001 }), 'durationMs');
+	await expectThrow(() => mouse.move(0, 0, { durationMs: 12.5 }), 'durationMs');
+	await expectThrow(() => mouse.move(0, 0, { durationMs: 420, steps: 1 }), 'steps');
+	await expectThrow(() => mouse.move(0, 0, { durationMs: 420, steps: 2001 }), 'steps');
+	await expectThrow(() => mouse.move(0, 0, { curve: 'easeOut' }), 'curve');
+  });
+
   test({ name: 'mouse.wheel accepts a zero-delta request', tier: 'unit', covers: ['mouse.wheel'] }, async () => {
     await mouse.wheel({ deltaX: 0, deltaY: 0, steps: 2, delay: 0 });
   });

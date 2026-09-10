@@ -14,6 +14,8 @@ declare global {
 
   interface OpenDeskMouseMoveOptions {
     steps?: number;
+    durationMs?: number;
+    curve?: "linear" | "easeInOut";
   }
 
   interface OpenDeskMouseButtonOptions {

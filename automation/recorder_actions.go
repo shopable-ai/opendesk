@@ -37,7 +37,12 @@ const (
 	recorderMaximumSpeedMultiplier                      = 100.0
 	recorderDefaultPointerMotion                        = "instant"
 	recorderSmoothPointerMotion                         = "smooth"
-	recorderSmoothPointerMotionSteps                    = 60
+	recorderSmoothPointerMotionCurve                    = "easeInOut"
+	recorderSmoothPointerInitialDurationMS              = uint64(320)
+	recorderSmoothPointerMinimumDurationMS              = uint64(300)
+	recorderSmoothPointerMaximumDurationMS              = uint64(1200)
+	recorderSmoothPointerBaseDurationMS                 = 180.0
+	recorderSmoothPointerLogicalPointsPerMS             = 1.2
 	recorderClickJitterPixels                           = 4
 	recorderDragLineTolerancePixels                     = 8
 	recorderTextSelectionDragMaximumLineTolerancePixels = 16
@@ -3844,6 +3849,59 @@ async function __recorderApplyTextEdit(win, selector, edit) {
 }
 `
 
+type recorderPointerMotionBudget struct {
+	DurationMS      uint64
+	ResidualDelayMS uint64
+	Distance        float64
+	DistanceKnown   bool
+}
+
+func recorderPointerActionStart(action recorderAction) *recorderActionPosition {
+	switch action.Kind {
+	case "click", "drag", "wheel":
+		return action.Position
+	default:
+		return nil
+	}
+}
+
+func recorderPointerActionEnd(action recorderAction) *recorderActionPosition {
+	if action.Kind == "drag" {
+		return action.Destination
+	}
+	return recorderPointerActionStart(action)
+}
+
+func recorderSmoothPointerBudget(previous, current *recorderActionPosition, availableGapMS uint64, hasReplayGap bool) recorderPointerMotionBudget {
+	budget := recorderPointerMotionBudget{DurationMS: recorderSmoothPointerInitialDurationMS}
+	if previous != nil && current != nil {
+		budget.DistanceKnown = true
+		budget.Distance = math.Hypot(float64(current.X-previous.X), float64(current.Y-previous.Y))
+		desired := uint64(math.Round(recorderSmoothPointerBaseDurationMS + budget.Distance/recorderSmoothPointerLogicalPointsPerMS))
+		if desired < recorderSmoothPointerMinimumDurationMS {
+			desired = recorderSmoothPointerMinimumDurationMS
+		}
+		if desired > recorderSmoothPointerMaximumDurationMS {
+			desired = recorderSmoothPointerMaximumDurationMS
+		}
+		budget.DurationMS = desired
+	}
+	if hasReplayGap {
+		if budget.DurationMS > availableGapMS {
+			budget.DurationMS = availableGapMS
+		}
+		// durationMs is positive by contract. A zero-sized available gap uses a
+		// one-millisecond synthetic move rather than falling back to legacy steps.
+		if budget.DurationMS == 0 {
+			budget.DurationMS = 1
+		}
+		if availableGapMS > budget.DurationMS {
+			budget.ResidualDelayMS = availableGapMS - budget.DurationMS
+		}
+	}
+	return budget
+}
+
 func recorderGenerateBasicSource(actions recorderActions, rawEvents []recorderRawEvent, timing recorderGenerationTiming, pointerMotion string) ([]byte, []recorderCandidateMapping, []string, error) {
 	if pointerMotion != recorderDefaultPointerMotion && pointerMotion != recorderSmoothPointerMotion {
 		return nil, nil, nil, recorderError(RecorderInvalidArgument, "Recorder.generateScript", "pointer motion policy is invalid", nil)
@@ -3875,7 +3933,7 @@ func recorderGenerateBasicSource(actions recorderActions, rawEvents []recorderRa
 	}
 	write("// Generated deterministically by Recorder.generateScript(mode: \"basic\").\n")
 	write("// It resolves a fresh window or display for every action and has not been verified.\n")
-	write(fmt.Sprintf("// Pointer motion: %s; smooth transit is synthetic and does not reproduce recorded hover paths.\n", pointerMotion))
+	write(fmt.Sprintf("// Pointer motion: %s; smooth transit uses an explicit time budget and %s, but does not reproduce recorded hover paths.\n", pointerMotion, recorderSmoothPointerMotionCurve))
 	write("const __recorderPlatform = System.getPlatformInfo();\n")
 	write(fmt.Sprintf("if (!__recorderPlatform || __recorderPlatform.os !== %s) throw new Error(\"Recorder candidate platform mismatch\");\n", platform))
 	if actions.Readiness == "needs-review" {
@@ -3939,29 +3997,47 @@ func recorderGenerateBasicSource(actions recorderActions, rawEvents []recorderRa
 		})
 	}
 	mappings := make([]recorderCandidateMapping, 0, len(actions.Actions))
+	var previousPointerPosition *recorderActionPosition
 	for index, action := range actions.Actions {
+		var recordedGap, effectiveDelay uint64
+		hasReplayGap := false
 		if index > 0 {
 			previous := actions.Actions[index-1]
 			previousEnd := recorderActionTimeMilliseconds(previous.Timing.NativeEnd, previous.Timing.NativeUnit)
 			currentStart := recorderActionTimeMilliseconds(action.Timing.NativeStart, action.Timing.NativeUnit)
 			previousSequence := recorderNativeStringValue(previous.Timing.SequenceEnd)
 			currentSequence := recorderNativeStringValue(action.Timing.SequenceStart)
-			if !recorderHasPauseBoundary(rawEvents, previousSequence, currentSequence) {
-				var recordedGap uint64
+			if recorderHasPauseBoundary(rawEvents, previousSequence, currentSequence) {
+				previousPointerPosition = nil
+			} else {
+				hasReplayGap = true
 				if currentStart > previousEnd {
 					recordedGap = currentStart - previousEnd
 				}
-				effectiveDelay := uint64(math.Round(float64(recordedGap) / timing.SpeedMultiplier))
+				effectiveDelay = uint64(math.Round(float64(recordedGap) / timing.SpeedMultiplier))
 				if effectiveDelay < timing.MinimumDelayMS {
 					effectiveDelay = timing.MinimumDelayMS
 				}
 				if effectiveDelay > timing.MaximumDelayMS {
 					effectiveDelay = timing.MaximumDelayMS
 				}
-				if effectiveDelay > 0 {
-					write(fmt.Sprintf("await sleep(%d); // recorded gap: %dms\n", effectiveDelay, recordedGap))
-				}
 			}
+		}
+
+		pointerStart := recorderPointerActionStart(action)
+		motionBudget := recorderSmoothPointerBudget(previousPointerPosition, pointerStart, effectiveDelay, hasReplayGap)
+		usesSmoothPointerBudget := pointerMotion == recorderSmoothPointerMotion && pointerStart != nil
+		if usesSmoothPointerBudget {
+			if motionBudget.DistanceKnown {
+				write(fmt.Sprintf("// Synthetic pointer budget: available=%dms, duration=%dms, residual sleep=%dms, recorded distance=%.1f logical points.\n", effectiveDelay, motionBudget.DurationMS, motionBudget.ResidualDelayMS, motionBudget.Distance))
+			} else {
+				write(fmt.Sprintf("// Synthetic pointer budget: no usable recorded predecessor; duration=%dms, residual sleep=%dms.\n", motionBudget.DurationMS, motionBudget.ResidualDelayMS))
+			}
+			if motionBudget.ResidualDelayMS > 0 {
+				write(fmt.Sprintf("await sleep(%d); // recorded gap: %dms; effective gap: %dms; residual after pointer-motion allocation\n", motionBudget.ResidualDelayMS, recordedGap, effectiveDelay))
+			}
+		} else if hasReplayGap && effectiveDelay > 0 {
+			write(fmt.Sprintf("await sleep(%d); // recorded gap: %dms\n", effectiveDelay, recordedGap))
 		}
 		switch action.Kind {
 		case "click":
@@ -3990,7 +4066,7 @@ func recorderGenerateBasicSource(actions recorderActions, rawEvents []recorderRa
 			}
 			mappings = append(mappings, recorderCandidateMapping{ActionID: action.ID, Line: line})
 			if pointerMotion == recorderSmoothPointerMotion {
-				write(fmt.Sprintf("await mouse.move(__recorderPoint%d.x, __recorderPoint%d.y, { steps: %d });\n", index+1, index+1, recorderSmoothPointerMotionSteps))
+				write(fmt.Sprintf("await mouse.move(__recorderPoint%d.x, __recorderPoint%d.y, { durationMs: %d, curve: %q });\n", index+1, index+1, motionBudget.DurationMS, recorderSmoothPointerMotionCurve))
 				write(fmt.Sprintf("__recorderRequirePointer(__recorderPoint%d, %q, \"click-position-confirmed\");\n", index+1, action.ID))
 			}
 			write(fmt.Sprintf("await mouse.clickPoint(__recorderPoint%d, { button: \"left\", clickCount: 1 });\n", index+1))
@@ -4024,7 +4100,7 @@ func recorderGenerateBasicSource(actions recorderActions, rawEvents []recorderRa
 			}
 			mappings = append(mappings, recorderCandidateMapping{ActionID: action.ID, Line: line})
 			if pointerMotion == recorderSmoothPointerMotion {
-				write(fmt.Sprintf("await mouse.move(__recorderDragStart%d.x, __recorderDragStart%d.y, { steps: %d });\n", index+1, index+1, recorderSmoothPointerMotionSteps))
+				write(fmt.Sprintf("await mouse.move(__recorderDragStart%d.x, __recorderDragStart%d.y, { durationMs: %d, curve: %q });\n", index+1, index+1, motionBudget.DurationMS, recorderSmoothPointerMotionCurve))
 			} else {
 				write(fmt.Sprintf("await mouse.move(__recorderDragStart%d.x, __recorderDragStart%d.y);\n", index+1, index+1))
 			}
@@ -4068,7 +4144,7 @@ func recorderGenerateBasicSource(actions recorderActions, rawEvents []recorderRa
 			}
 			mappings = append(mappings, recorderCandidateMapping{ActionID: action.ID, Line: line})
 			if pointerMotion == recorderSmoothPointerMotion {
-				write(fmt.Sprintf("await mouse.move(__recorderWheelPoint%d.x, __recorderWheelPoint%d.y, { steps: %d });\n", index+1, index+1, recorderSmoothPointerMotionSteps))
+				write(fmt.Sprintf("await mouse.move(__recorderWheelPoint%d.x, __recorderWheelPoint%d.y, { durationMs: %d, curve: %q });\n", index+1, index+1, motionBudget.DurationMS, recorderSmoothPointerMotionCurve))
 				write(fmt.Sprintf("__recorderRequirePointer(__recorderWheelPoint%d, %q, \"wheel-position-confirmed\");\n", index+1, action.ID))
 			} else {
 				write(fmt.Sprintf("await mouse.move(__recorderWheelPoint%d.x, __recorderWheelPoint%d.y);\n", index+1, index+1))
@@ -4141,6 +4217,9 @@ func recorderGenerateBasicSource(actions recorderActions, rawEvents []recorderRa
 		default:
 			return nil, nil, nil, recorderError(RecorderGenerationBlocked, "Recorder.generateScript", "unsupported action kind", nil)
 		}
+		if pointerEnd := recorderPointerActionEnd(action); pointerEnd != nil {
+			previousPointerPosition = pointerEnd
+		}
 	}
 	constraints := []string{
 		"verification is not-run until the generated file is executed separately and its outcome is independently checked",
@@ -4154,7 +4233,7 @@ func recorderGenerateBasicSource(actions recorderActions, rawEvents []recorderRa
 		"straight left-button drags resolve and bounds-check both endpoints, confirm the pointer reached each endpoint, verify window targets became active after button-down, preserve a bounded motion sample count, and always release the button in finally",
 		"generated drag trace lines prove only resolved input-call boundaries and pointer observations, never target business success",
 		"wheel bursts move to a bounds-checked recorded window/display-relative point before input, preserve signed horizontal or vertical total delta, and replay at most 100 equal steps",
-		fmt.Sprintf("pointer motion policy is %s; smooth transit is a fixed 60-step synthetic pre-action move, not a recorded hover path", pointerMotion),
+		fmt.Sprintf("pointer motion policy is %s; smooth transit uses explicit %s duration budgets from recorded logical-point distance and the available effective gap, with 300..1200ms desired bounds and residual sleep; it is not a recorded hover path", pointerMotion, recorderSmoothPointerMotionCurve),
 		"shortcuts and special keys require the recorded application/window to be active immediately before physical replay",
 		"repeated physical key presses are collapsed into a bounded repeatCount and replayed sequentially",
 		"verified focused text edits require a unique Accessibility textField and exact UTF-16LE SHA-256 precondition; setValue is followed by an exact hash postcondition and is never retried",

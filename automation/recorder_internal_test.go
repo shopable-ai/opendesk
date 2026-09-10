@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -855,6 +856,37 @@ func TestRecorderGeneratedDragKeepsOrderedAuditableInputBoundaries(t *testing.T)
 	}
 	if !strings.Contains(strings.Join(constraints, "\n"), "never target business success") {
 		t.Fatalf("generated drag constraints overstate trace evidence: %#v", constraints)
+	}
+}
+
+func TestRecorderSmoothPointerBudgetUsesDistanceAndAvailableGap(t *testing.T) {
+	point := func(x, y int) *recorderActionPosition {
+		return &recorderActionPosition{X: x, Y: y, Space: "screen-logical", Verified: true}
+	}
+
+	short := recorderSmoothPointerBudget(point(20, 30), point(40, 50), 500, true)
+	if !short.DistanceKnown || math.Abs(short.Distance-math.Hypot(20, 20)) > 0.001 || short.DurationMS != 300 || short.ResidualDelayMS != 200 {
+		t.Fatalf("short smooth pointer budget = %#v", short)
+	}
+
+	long := recorderSmoothPointerBudget(point(0, 0), point(2400, 0), 3000, true)
+	if long.DurationMS != 1200 || long.ResidualDelayMS != 1800 {
+		t.Fatalf("long smooth pointer budget = %#v", long)
+	}
+
+	constrained := recorderSmoothPointerBudget(point(0, 0), point(2400, 0), 180, true)
+	if constrained.DurationMS != 180 || constrained.ResidualDelayMS != 0 {
+		t.Fatalf("gap-constrained smooth pointer budget = %#v", constrained)
+	}
+
+	initial := recorderSmoothPointerBudget(nil, point(40, 50), 0, false)
+	if initial.DistanceKnown || initial.DurationMS != 320 || initial.ResidualDelayMS != 0 {
+		t.Fatalf("initial smooth pointer budget = %#v", initial)
+	}
+
+	zeroGap := recorderSmoothPointerBudget(point(20, 30), point(40, 50), 0, true)
+	if zeroGap.DurationMS != 1 || zeroGap.ResidualDelayMS != 0 {
+		t.Fatalf("zero-gap smooth pointer budget = %#v", zeroGap)
 	}
 }
 

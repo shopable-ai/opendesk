@@ -13,6 +13,18 @@
     assert(Math.abs(actual.x - point.x) <= 2 && Math.abs(actual.y - point.y) <= 2, JSON.stringify({ point, actual }));
   });
 
+  test({ name: 'mouse.move duration and easeInOut own a visible motion budget', tier: 'live', covers: ['mouse.move', 'mouse.getPos'] }, async () => {
+    const { point } = RuntimeLive.target('button-color');
+    const durationMs = 420;
+    const startedAt = Date.now();
+    await mouse.move(point.x, point.y, { durationMs, curve: 'easeInOut' });
+    const elapsedMs = Date.now() - startedAt;
+    const actual = mouse.getPos();
+    assert(elapsedMs >= durationMs - 35 && elapsedMs <= durationMs + 500, JSON.stringify({ durationMs, elapsedMs }));
+    assert(Math.abs(actual.x - point.x) <= 2 && Math.abs(actual.y - point.y) <= 2, JSON.stringify({ point, actual }));
+    console.log(`[RUNTIME-API-LIVE MOUSE MOTION] ${JSON.stringify({ durationMs, elapsedMs, curve: 'easeInOut', point, actual })}`);
+  });
+
   test({ name: 'mouse.click default path reaches HTML', tier: 'live', covers: ['mouse.click'] }, async () => {
     const { point } = RuntimeLive.target('button-primary');
     await RuntimeLive.reset();

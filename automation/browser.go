@@ -1,6 +1,9 @@
 package automation
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+)
 
 // Browser is the preserved legacy browser entrypoint plus an upgraded
 // multi-context container for newer compatibility layers.
@@ -8,13 +11,22 @@ type Browser struct {
 	pages          []*Page
 	contexts       []*BrowserContext
 	defaultContext *BrowserContext
+	context        context.Context
 	closed         bool
 }
 
 func NewBrowser() *Browser {
+	return NewBrowserWithContext(context.Background())
+}
+
+func NewBrowserWithContext(ctx context.Context) *Browser {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	b := &Browser{
 		pages:    make([]*Page, 0),
 		contexts: make([]*BrowserContext, 0),
+		context:  ctx,
 	}
 	b.defaultContext = b.NewContext()
 	return b
@@ -137,7 +149,11 @@ func (c *BrowserContext) NewPage() (*Page, error) {
 	if c.browser != nil && c.browser.IsClosed() {
 		return nil, fmt.Errorf("browser is closed")
 	}
-	page := NewPage()
+	ctx := context.Background()
+	if c.browser != nil && c.browser.context != nil {
+		ctx = c.browser.context
+	}
+	page := NewPageWithContext(ctx)
 	c.AdoptPage(page)
 	return page, nil
 }

@@ -397,7 +397,7 @@ Recorder.generateScript(
 | `options.timing.minimumDelayMs` | `number` | 否 | `500` | 每个非暂停动作间隔的下限；整数，范围 `0..1800000` |
 | `options.timing.maximumDelayMs` | `number` | 否 | `30000` | 每个非暂停动作间隔的上限；整数，范围 `0..1800000`，不得小于 `minimumDelayMs` |
 | `options.timing.speedMultiplier` | `number` | 否 | `1` | 先用录制间隔除以该倍率，再应用上下限；有限数值，范围 `0.1..100`，大于 `1` 会加快重放 |
-| `options.pointerMotion` | `"instant" \| "smooth"` | 否 | `"instant"` | 指针动作前的定位策略；`smooth` 合成 60 步可见移动，`instant` 保留直接定位。该策略不恢复未录制的真实 hover 轨迹 |
+| `options.pointerMotion` | `"instant" \| "smooth"` | 否 | `"instant"` | 指针动作前的定位策略；`smooth` 生成带明确时长、`easeInOut` 曲线和 residual sleep 的合成移动，`instant` 保留直接定位。该策略不恢复未录制的真实 hover 轨迹 |
 
 **返回值**
 
@@ -411,13 +411,15 @@ Recorder.generateScript(
 
 窗口动作在运行时先用录制的可执行文件路径／名称加精确标题调用 `window.get`；只有该调用明确返回无底层 cause 的 `NOT_FOUND` 时，才退回仅按可执行文件身份调用 `window.get`，而该查询本身仍要求唯一匹配。歧义、后端失败和带 cause 的错误原样拒绝，不触发放宽条件。录制时的 PID、窗口 ID、窗口序号和原生 handle 永远只作 provenance，不与当前 execution 比较；窗口标题也不是单独的硬门槛。无法唯一解析当前目标才明确拒绝该动作，避免把输入发送给任意同应用窗口。
 
-窗口点击把当前窗口快照和录制时的窗口内偏移交给 `Geometry.pointOffset()`，再用 `Geometry.contains()` 明确拒绝越界点，因此允许窗口平移；窗口缩放不会用比例坐标猜测。桌面级点击按录制 display ID 解析，ID 不能唯一匹配时才使用唯一的 hardware identity，并以同一 Geometry 路径把显示器内偏移投影到当前 bounds。`pointerMotion: "instant"` 直接通过 tagged screen point 调用 `mouse.clickPoint()`；`"smooth"` 先用 `mouse.move(..., {steps: 60})` 合成可见移动并以 `mouse.getPos()` 确认落点，再调用相同的 `mouse.clickPoint()`。该选择只改变生成代码和重放定位表现，不伪装成 Recorder 已保存普通 hover 轨迹。两种方式都不会把窗口解析、投影和输入提交合并成原子操作。调用方必须恢复预期的 Dock／菜单栏／桌面状态。
+窗口点击把当前窗口快照和录制时的窗口内偏移交给 `Geometry.pointOffset()`，再用 `Geometry.contains()` 明确拒绝越界点，因此允许窗口平移；窗口缩放不会用比例坐标猜测。桌面级点击按录制 display ID 解析，ID 不能唯一匹配时才使用唯一的 hardware identity，并以同一 Geometry 路径把显示器内偏移投影到当前 bounds。`pointerMotion: "instant"` 直接通过 tagged screen point 调用 `mouse.clickPoint()`；`"smooth"` 先用显式 `mouse.move(..., {durationMs, curve: "easeInOut"})` 合成可见移动并以 `mouse.getPos()` 确认落点，再调用相同的 `mouse.clickPoint()`。该选择只改变生成代码和重放定位表现，不伪装成 Recorder 已保存普通 hover 轨迹。两种方式都不会把窗口解析、投影和输入提交合并成原子操作。调用方必须恢复预期的 Dock／菜单栏／桌面状态。
 
-drag 使用同样的新鲜窗口／显示器解析分别投影起点和终点；脚本按 `pointerMotion` 瞬时或分 60 步移到起点，并用 `mouse.getPos()` 在 2 logical points 内确认实际起点，再 `mouse.down({button: "left"})`。窗口目标在 down 返回后、motion 前确认刚刚解析的当前窗口已经处于前台；不匹配时进入 `finally` 释放按钮并拒绝继续拖动。`try` 中使用录制动作自身的受限 `steps` 移到终点并再次确认实际指针位置；这段按键按下后的拖动语义不受定位开关关闭影响。`finally` 中无条件 `mouse.up({button: "left"})`，避免移动、窗口验证或终点检查失败后留下按键按下状态。生成脚本为起点、down 返回、前台确认、终点和 up 返回写入结构化 trace；这些 trace 只证明输入调用边界和指针观察，不是业务成功。键盘和文本动作也会确认刚刚重新解析出的当前窗口确实处于前台；两类比较都使用本次解析得到的当前窗口身份，不是录制时的 PID 或编号。调用方应在执行前恢复预期的起始桌面和应用状态，不必恢复录制时 PID、窗口编号或屏幕位置。
+drag 使用同样的新鲜窗口／显示器解析分别投影起点和终点；脚本按 `pointerMotion` 瞬时或按显式时长与 `easeInOut` 曲线移到起点，并用 `mouse.getPos()` 在 2 logical points 内确认实际起点，再 `mouse.down({button: "left"})`。窗口目标在 down 返回后、motion 前确认刚刚解析的当前窗口已经处于前台；不匹配时进入 `finally` 释放按钮并拒绝继续拖动。`try` 中使用录制动作自身的受限 `steps` 移到终点并再次确认实际指针位置；这段按键按下后的拖动语义不受定位开关或新时长预算影响。`finally` 中无条件 `mouse.up({button: "left"})`，避免移动、窗口验证或终点检查失败后留下按键按下状态。生成脚本为起点、down 返回、前台确认、终点和 up 返回写入结构化 trace；这些 trace 只证明输入调用边界和指针观察，不是业务成功。键盘和文本动作也会确认刚刚重新解析出的当前窗口确实处于前台；两类比较都使用本次解析得到的当前窗口身份，不是录制时的 PID 或编号。调用方应在执行前恢复预期的起始桌面和应用状态，不必恢复录制时 PID、窗口编号或屏幕位置。
 
-wheel 同样先解析新鲜窗口或显示器，把录制的首事件坐标投影到当前 bounds 并拒绝越界；生成脚本按 `pointerMotion` 瞬时或分 60 步移动到该点后才调用 `mouse.wheel({deltaX, deltaY, steps, delay})`，平滑模式还会在滚动前确认指针落点。因此滚动目标坐标不会被省略，窗口平移时使用窗口内偏移，旧录制的 display-relative 降级则要求恢复对应桌面布局。
+wheel 同样先解析新鲜窗口或显示器，把录制的首事件坐标投影到当前 bounds 并拒绝越界；生成脚本按 `pointerMotion` 瞬时或按显式时长与 `easeInOut` 曲线移动到该点后才调用 `mouse.wheel({deltaX, deltaY, steps, delay})`，平滑模式还会在滚动前确认指针落点。因此滚动目标坐标不会被省略，窗口平移时使用窗口内偏移，旧录制的 display-relative 降级则要求恢复对应桌面布局。
 
-脚本不导入 Node、不 `eval` actions、不循环解释 actions、不调用 OCR／模型／Skill，也不自动运行。每个非暂停动作间隔都以“前一动作最后事件到后一动作首个事件”的 raw 毫秒差为基准，先除以 `speedMultiplier`，再限制到 `minimumDelayMs..maximumDelayMs`；默认因此保留用户节奏，同时给快速操作至少 500ms 的稳定间隔，并把异常长等待限制为 30 秒。显式 pause/resume 之间的墙钟时间不重放。生成代码在每个 `sleep` 后以内联注释保留原始间隔，resolved timing 与 pointer motion 同时写入返回值和 `basic-candidate/v4` 元数据，调用方或后续 AI 可在生成时调整策略，也可审核后修改普通 JS。这些 sleep 是可检查的录制时间事实与重放节奏策略，不是目标就绪、加载完成或业务成功条件。
+脚本不导入 Node、不 `eval` actions、不循环解释 actions、不调用 OCR／模型／Skill，也不自动运行。每个非暂停动作间隔都以“前一动作最后事件到后一动作首个事件”的 raw 毫秒差为基准，先计算 `effectiveGap = clamp(round(recordedGap / speedMultiplier), minimumDelayMs, maximumDelayMs)`。instant 或非指针动作仍把完整 `effectiveGap` 生成为 `sleep`；smooth 的 click、wheel 和 drag start 则用录制 screen-logical 点间距离 `d` 计算 `desiredMotion = clamp(round(180 + d / 1.2), 300, 1200)`，再取 `motionDuration = min(desiredMotion, effectiveGap)` 与 `residualSleep = effectiveGap - motionDuration`。residual sleep 先发生，随后移动在动作前结束，所以目标解析仍尽量新鲜；短 gap 可以全部用于移动，长停顿不会被伪造成不自然的慢速 hover。没有可用前序指针点（首个指针动作或 pause boundary 后）使用明确的 320ms synthetic duration；若可用 gap 为 0，则使用 1ms 以满足公开 API 的正时长边界。所有数值和公式都以生成注释、`durationMs`、`curve` 与 residual `sleep` 明示。
+
+默认 timing 因此继续保留用户总节奏，同时给快速操作至少 500ms 的稳定间隔，并把异常长等待限制为 30 秒；`mouse.move.durationMs` 已包含平台稳定间隔，除系统调度误差外，budgeted gap 的 `residualSleep + motionDuration` 等于 `effectiveGap`。显式 pause/resume 之间的墙钟时间不重放。resolved timing 与 pointer motion 同时写入返回值和 `basic-candidate/v4` 元数据，调用方或后续 AI 可在生成时调整策略，也可审核后修改普通 JS。这些 duration 和 sleep 是可检查的录制时间事实与重放节奏策略，不是目标就绪、加载完成或业务成功条件。
 
 **示例**
 

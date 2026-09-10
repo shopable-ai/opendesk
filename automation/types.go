@@ -6,6 +6,8 @@ type MouseOptions struct {
 	ClickCount int
 	Delay      int
 	Steps      int
+	DurationMS int
+	Curve      string
 }
 
 // ScreenshotOptions defines options for taking screenshots

@@ -62,6 +62,12 @@ func executeLine(page *Page, line string) error {
 			if steps := regexp.MustCompile(`steps:\s*(\d+)`).FindStringSubmatch(matches[3]); steps != nil {
 				options.Steps, _ = strconv.Atoi(steps[1])
 			}
+			if duration := regexp.MustCompile(`durationMs:\s*(\d+)`).FindStringSubmatch(matches[3]); duration != nil {
+				options.DurationMS, _ = strconv.Atoi(duration[1])
+			}
+			if curve := regexp.MustCompile(`curve:\s*["']([^"']*)["']`).FindStringSubmatch(matches[3]); curve != nil {
+				options.Curve = curve[1]
+			}
 		}
 
 		return page.Mouse.Move(x, y, options)

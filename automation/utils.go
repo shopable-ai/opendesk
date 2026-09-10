@@ -1031,7 +1031,7 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 		return fmt.Errorf("failed to register Dialog: %w", err)
 	}
 
-	page := NewPage()
+	page := NewPageWithContext(opts.Context)
 	mouseMethods := AutoMapObject(runtime, page.Mouse)
 	keyboardMethods := AutoMapObject(runtime, page.Keyboard)
 	touchscreenMethods := AutoMapObject(runtime, page.Touchscreen)
@@ -1055,7 +1055,7 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 	runtime.Set("page____Inject", pageObj)
 	runtime.Set("page", pageObj)
 
-	browser := NewBrowser()
+	browser := NewBrowserWithContext(opts.Context)
 	browser.DefaultContext().AdoptPage(page)
 	browserMethods := AutoMapObject(runtime, browser)
 	runtime.Set("browser____Inject", browserMethods)

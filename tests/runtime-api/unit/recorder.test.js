@@ -255,7 +255,7 @@ RuntimeAPITest.contractObject('Recorder');
 	    outputFile: 'smooth-wheel.recipe.js', pointerMotion: 'smooth',
 	  });
 	  const smoothSource = File.read(smooth.scriptFile);
-	  const smoothMove = 'await mouse.move(__recorderWheelPoint1.x, __recorderWheelPoint1.y, { steps: 60 });';
+	  const smoothMove = 'await mouse.move(__recorderWheelPoint1.x, __recorderWheelPoint1.y, { durationMs: 320, curve: "easeInOut" });';
 	  const smoothConfirm = '__recorderRequirePointer(__recorderWheelPoint1, "a0001", "wheel-position-confirmed");';
 	  assert(smoothSource.indexOf(smoothMove) >= 0
 	    && smoothSource.indexOf(smoothMove) < smoothSource.indexOf(smoothConfirm)
@@ -775,7 +775,7 @@ RuntimeAPITest.contractObject('Recorder');
         outputFile: 'smooth-drag.recipe.js', pointerMotion: 'smooth',
       });
       const smoothDragSource = File.read(smoothDragGenerated.scriptFile);
-      assert(smoothDragSource.includes('await mouse.move(__recorderDragStart1.x, __recorderDragStart1.y, { steps: 60 })')
+      assert(smoothDragSource.includes('await mouse.move(__recorderDragStart1.x, __recorderDragStart1.y, { durationMs: 320, curve: "easeInOut" })')
         && smoothDragSource.includes('await mouse.move(__recorderDragEnd1.x, __recorderDragEnd1.y, { steps: 2 })'), smoothDragSource);
 
       writeFixture(recordingDirs[7], curvedDragId, [
@@ -989,7 +989,7 @@ RuntimeAPITest.contractObject('Recorder');
         outputFile: 'smooth.recipe.js', pointerMotion: 'smooth',
       });
       const smoothSource = File.read(smooth.scriptFile);
-      const smoothMove = 'await mouse.move(__recorderPoint1.x, __recorderPoint1.y, { steps: 60 });';
+      const smoothMove = 'await mouse.move(__recorderPoint1.x, __recorderPoint1.y, { durationMs: 320, curve: "easeInOut" });';
       const smoothConfirm = '__recorderRequirePointer(__recorderPoint1, "a0001", "click-position-confirmed");';
       const smoothClick = 'await mouse.clickPoint(__recorderPoint1, { button: "left", clickCount: 1 });';
       assert(smoothSource.indexOf(smoothMove) >= 0
@@ -998,7 +998,14 @@ RuntimeAPITest.contractObject('Recorder');
       equal(smooth.pointerMotion, 'smooth', 'smooth generation result policy');
       const smoothCandidate = JSON.parse(File.read(smooth.candidateFile));
       equal(smoothCandidate.pointerMotion, 'smooth', 'smooth candidate policy');
-      assert(smooth.constraints.some(item => item.includes('fixed 60-step synthetic pre-action move')), JSON.stringify(smooth.constraints));
+      assert(smoothSource.includes('// Synthetic pointer budget: available=500ms, duration=300ms, residual sleep=200ms, recorded distance=28.3 logical points.')
+        && smoothSource.includes('await sleep(200); // recorded gap: 390ms; effective gap: 500ms; residual after pointer-motion allocation')
+        && smoothSource.includes('await mouse.move(__recorderPoint2.x, __recorderPoint2.y, { durationMs: 300, curve: "easeInOut" });')
+        && smoothSource.includes('// Synthetic pointer budget: available=3590ms, duration=300ms, residual sleep=3290ms, recorded distance=28.3 logical points.')
+        && smoothSource.includes('await sleep(3290); // recorded gap: 3590ms; effective gap: 3590ms; residual after pointer-motion allocation')
+        && smoothSource.includes('await mouse.move(__recorderPoint3.x, __recorderPoint3.y, { durationMs: 300, curve: "easeInOut" });'), smoothSource);
+      assert(!smoothSource.includes('steps: 60'), smoothSource);
+      assert(smooth.constraints.some(item => item.includes('explicit easeInOut duration budgets')), JSON.stringify(smooth.constraints));
 
       const adjusted = await Recorder.generateScript(timing.actionsFile, {
         mode: 'basic', outputFile: 'adjusted.recipe.js',
