@@ -68,7 +68,7 @@ for (const file of sourceFiles) {
 
 const errors = [];
 const classificationPath = path.join(root, 'docs/quality/go-test-file-classification.md');
-const classificationText = fs.readFileSync(classificationPath, 'utf8');
+const classificationText = fs.readFileSync(classificationPath, 'utf8').replace(/\r\n?/g, '\n');
 const executionLedgerMatch = classificationText.match(/## 执行账本：标签就是逐文件操作码\n([\s\S]*?)\n## 先看处置结论/);
 if (!executionLedgerMatch) {
   errors.push('classification is missing the per-disposition execution ledger');
