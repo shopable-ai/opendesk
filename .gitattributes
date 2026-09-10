@@ -1,0 +1,3 @@
+# Keep the test-architecture ledger byte/line structure stable across Windows, macOS, and Linux checkouts.
+# scripts/audit_test_architecture.js intentionally parses this maintained Markdown ledger as a machine-reviewed source.
+docs/quality/go-test-file-classification.md text eol=lf
