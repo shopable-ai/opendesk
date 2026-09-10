@@ -67,7 +67,7 @@ jobs:
           if (-not (Test-Path -LiteralPath $hostPath)) {
             throw "Windows native UI host was not produced at $hostPath"
           }
-          node tests/custom-ui/tools/native-host-smoke.cjs $hostPath
+          node tests/custom-ui/tools/native-host-smoke.cjs $hostPath --profile=hosted-deterministic
           $exitCode = $LASTEXITCODE
           if (Test-Path -LiteralPath ".runtime/tests/native-ui/protocol-smoke.json") {
             Copy-Item -LiteralPath ".runtime/tests/native-ui/protocol-smoke.json" -Destination ".runtime/tests/windows-compat/native-host-protocol.json" -Force
@@ -80,6 +80,7 @@ jobs:
           }
 
       - name: Audit test architecture
+        if: always()
         shell: pwsh
         run: node scripts/audit_test_architecture.js
 
