@@ -3,78 +3,68 @@
 ## Current stage
 
 ```text
-P0｜Protected Package Foundation
-Status: In progress
+P2｜Online Entitlement
+Status: Ready
 ```
 
-## 当前真实交付点
+## Current checkpoint
 
-网页 GitHub 会话已经把 P0 foundation 写入 `master`，最近一次正式 checkpoint：
+P1 已完成并提交：
 
 ```text
-38ba981f11a87dcdd059d106e1663c2aeb9fee99
-feat: add protected recipe package P0 foundation
+81a847f752849a2df4bad0b1dfd63617171814a0
+feat: add device-bound offline licensing
 ```
 
-该 checkpoint 只用于历史定位。恢复工作时必须先读取当前 `master / HEAD`，不得 reset 到该提交，也不得覆盖该提交之后其他会话产生的修改。
+该 SHA 只用于 P1 实现定位。恢复工作时仍必须先读取当前 `master / HEAD`，不得 reset 到该提交，也不得覆盖其后其他会话产生的修改。
 
-当前已写入的主要范围包括：
+P1 在 P0 package/loader seam 上完成：
 
-- `pkg/scriptpackage/`
-- `pkg/licensing/`
-- `pkg/scriptloader/`
-- `internal/protectedcli/`
-- `internal/packagecli/`
-- `cmd/opendesk/protected_recipe_route.go`
-- 对应 package / loader / disclosure / routing Go tests
+- P-256 installation identity 与稳定 DeviceID。
+- macOS Keychain / Windows current-user DPAPI secure-store owner。
+- Ed25519 签名的 `.odlicense` v1 与 strict parser。
+- P-256 ECDH + HKDF-SHA256 + AES-256-GCM wrapped DEK。
+- production `DeviceLicenseVerifier` / `DeviceBoundContentKeyProvider`。
+- `license device/issue/inspect/verify/install` CLI。
+- authorized-device execution、zero-execution negative gates、plain `.js` 与 disclosure 回归。
 
-网页环境没有提供本地 Go 编译与 Runtime 执行证据，因此当前状态不能写成 `Completed`。
+完整实现和验证证据见 [`p1-device-bound-license.md`](p1-device-bound-license.md)。P1 是离线单设备授权 MVP；没有 online activation、subscription、refresh/revoke 或 device-count service。
 
 ## Next action
 
-下一步不是进入 P1，而是先完成 P0 的本地验证与集成收口：
+下一步读取并执行 [`p2-online-entitlement.md`](p2-online-entitlement.md)：
 
 ```text
-current master
-→ gofmt
-→ narrow go tests
-→ go build
-→ 修正真实 compile/test failure
-→ 收敛 ai run / direct source loading
-→ plain .js regression
-→ protected disclosure regression
-→ package CLI smoke
-→ docs/api/ai-cli.md 同步
-→ final cross-file review
-→ P0 Completed
+P1 offline device license
+→ entitlement service boundary
+→ online activation / device limits
+→ signed refresh/revoke state
+→ bounded offline grace/cache
+→ existing LicenseVerifier / ContentKeyProvider
 ```
 
-重点已知收口项：
+P2 必须继续保持：
 
-- `ai run .odpkg` 不应长期依赖 root `init()` interception；应尽量收敛到 `internal/aicli/runCommand` 的统一 `.js/.odpkg` source loading。
-- Direct `.odpkg` 应复用现有 Config、取消/替换、Custom UI、SQLite deny-list、console 与 artifact 生命周期，不保留第二套长期 parser/lifecycle。
-- production Publisher/License/ContentKey provider 仍应 fail closed；测试成功链路通过 injected provider 证明，不能靠内置万能 key。
+- 普通 `.js` 无 License/device activation 前置。
+- `.odpkg` 继续进入现有 `pkg/execution.Run()` / Goja。
+- P1 offline License 可独立工作，online service 只刷新 entitlement，不进入 `pkg/execution`。
+- 不内置 server/private signing key、master key、DEK、万能 License 或测试 bypass。
 
-详细门禁见 [`p0-foundation.md`](p0-foundation.md)。
+详细门禁见 [`p2-online-entitlement.md`](p2-online-entitlement.md)。
 
-## P0 完成后的切换动作
+## P1 completion evidence
 
-只有 P0 全部门禁通过后：
-
-1. 将 [`p0-foundation.md`](p0-foundation.md) 的状态改为 `Completed`，记录通过的测试/构建命令与最终 checkpoint。
-2. 将本文件 `Current stage` 改为：
-
-```text
-P1｜Device-bound Offline License MVP
-Status: In progress
-```
-
-3. 将 `Next action` 改为读取并执行 [`p1-device-bound-license.md`](p1-device-bound-license.md)。
-4. 不需要重新推导 P0，也不要把 P2 在线 License Server 提前塞进 P1。
+- `go test ./...`、P1 owner `go test -race` 与相关 `go vet` 通过。
+- `go build -o dist/opendesk ./cmd/opendesk` 通过。
+- macOS Keychain live、License CLI、authorized Direct/AI `.odpkg` binary smoke 通过。
+- wrong-device/no-license/expired/tamper/unknown-publisher zero-execution gates 通过。
+- protected plaintext/DEK/snapshot disclosure 扫描与普通 `.js` Direct/AI regression 通过。
+- Windows P1 owner cross-compile 通过；Windows live/full app packaging 未执行。
+- test architecture audit 与 `git diff --check` 通过。
 
 ## 当前阻塞
 
-没有架构阻塞；当前缺的是本地编译、测试、CLI smoke 与集成收口证据。
+无 P2 架构阻塞。Windows live/full application packaging 尚无当前设备证据，按仓库跨平台规则保留为独立后续验证，不阻塞 P2 启动。
 
 ## 恢复时最短指令
 
@@ -82,7 +72,8 @@ Status: In progress
 
 ```text
 读取 AGENTS.md、docs/architecture/execution/protected-recipe-package.md、
-docs/plans/runtime/protected-recipe/README.md 和 STATUS.md；
-以当前 master / HEAD 为真实基线，继续 Current stage 的未完成 Acceptance Gates，
-完成后更新 STATUS.md 和对应阶段文件。不要从零重做已完成阶段。
+docs/plans/runtime/protected-recipe/README.md、STATUS.md 和 p2-online-entitlement.md；
+以当前 master / HEAD 为真实基线，继续 P2 的 Acceptance Gates。
+不要从零重做已完成的 P0/P1，也不要让 online service 绕过 P1 的
+LicenseVerifier / ContentKeyProvider 或直接进入 pkg/execution。
 ```

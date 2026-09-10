@@ -3,10 +3,10 @@
 ## Status
 
 ```text
-Planned
+Completed
 ```
 
-只有 P0 状态变为 `Completed` 后才能切换为 `In progress`。
+P1 已完成并形成可恢复 checkpoint；P2 不得推翻本阶段的离线设备 License 与 Runtime provider 边界。
 
 ## Goal
 
@@ -226,6 +226,39 @@ ProtectedPackageLoader
 - CLI 与用户文档与真实行为一致。
 - build/tests/diff check 通过。
 
+## Implemented
+
+- `pkg/deviceidentity/` 生成并严格解析随机 P-256 installation identity；DeviceID 由带 domain separation 的 public-key digest 得出，损坏或不可用的 secure-store 数据 fail closed。
+- `pkg/securestore/` 在 macOS 使用禁止交互式提示的 Keychain `WhenUnlockedThisDeviceOnly` item，在 Windows 使用当前用户 DPAPI 与 `LocalAppData` ciphertext owner；private key 不进入普通文件、环境变量或 CLI 输出。
+- `.odlicense` v1 对原始 claims bytes 使用独立 Ed25519 domain 签名，strict parser 拒绝 duplicate/unknown/non-canonical 输入，并绑定 device、product、package、content key 与有效期。
+- DEK 使用 ephemeral P-256 ECDH、HKDF-SHA256 与 AES-256-GCM 包装；KDF/AAD 绑定 License version 和全部授权标识，wrong key、ciphertext 或 metadata tamper 均 fail closed。
+- production `DeviceLicenseVerifier` / `DeviceBoundContentKeyProvider` 只接受验证产生的 entitlement capability，从精确 package/issuer public-key pins、已安装 License 与 OS device key 完成授权和短生命周期内存 unwrap。
+- `license device/issue/inspect/verify/install` 已接入根 CLI；install 在落盘前验证 package signature、License signature/binding、DEK unwrap 与实际 package decrypt，安装文件以 0600 保存。
+- Direct 与 `ai run` 共用 `FileLoader`、既有 execution lifecycle 与唯一 Goja；普通 `.js` 路径保持独立且无 License 前置。
+
+## Validated
+
+2026-09-11 在当前 `master` 源码完成：
+
+- `go test ./...` 通过；P1 security owner 的 `go test -race` 通过；相关 package 的 `go vet` 通过。
+- `go build -o dist/opendesk ./cmd/opendesk` 通过，产物为 macOS x86_64 Mach-O。
+- package/license CLI binary smoke 通过；最终构建的 macOS Keychain identity 连续两次读取一致，issue/verify/install、Direct `.odpkg` 与 `ai run .odpkg` live smoke 通过。
+- no-license、wrong-device、expired、tampered License、unknown publisher 与 package tamper 均由 unit/integration 或 binary smoke 证明在 JavaScript 启动前失败。
+- protected artifacts、安装目录和 AI run 目录对 plaintext sentinel、DEK hex/Base64、`.js` 与 `script_snapshot.js` 的最终扫描均为零命中；普通 `.js` Direct/AI smoke 通过并保留正常 snapshot。
+- Windows P1 owner packages 以 `GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go test -c` 生成 PE32+ 产物；Windows live 和完整应用打包未执行，完整 host 的 CGO=0 交叉构建仍受既有 RobotGo native dependency 限制，不构成 P1 owner 边界失败。
+- `node scripts/audit_test_architecture.js` 与 `git diff --check` 通过。
+
+## Remaining
+
+P1 Acceptance Gates 无剩余项。Windows 真机/live 与正式应用打包在具备 Windows 构建机后独立验证；online activation、refresh/revoke、device-count 与 offline grace/cache 进入 P2。
+
+## Checkpoint
+
+```text
+81a847f752849a2df4bad0b1dfd63617171814a0
+feat: add device-bound offline licensing
+```
+
 ## On completion
 
-记录最终 checkpoint 与验证摘要，更新 [`STATUS.md`](STATUS.md) 将 Current stage 切换为 P2，并继续 [`p2-online-entitlement.md`](p2-online-entitlement.md)。
+P1 checkpoint 与验证摘要已记录；后续从 [`STATUS.md`](STATUS.md) 的 P2 入口继续 [`p2-online-entitlement.md`](p2-online-entitlement.md)。
