@@ -63,27 +63,24 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path .runtime/tests/windows-compat | Out-Null
-          $sessionPath = Join-Path (Get-Location) ".runtime/tests/windows-compat/native-host-session.txt"
-          Set-Content -LiteralPath $sessionPath -Value "session=windows-core" -Encoding utf8
-          $request = @{
-            action = "notify"
-            title = "Windows compatibility"
-            message = "native host smoke"
-            icon = "info"
-            sessionFile = $sessionPath
-          } | ConvertTo-Json -Compress
-          $responseLine = $request | & ".\dist\opendesk-ui.exe"
-          $lastLine = $responseLine | Select-Object -Last 1
-          if (-not $lastLine) {
-            throw "Windows native host returned no protocol response"
+          $hostPath = ".\dist\ui-host\opendesk-ui-host.exe"
+          if (-not (Test-Path -LiteralPath $hostPath)) {
+            throw "Windows native UI host was not produced at $hostPath"
           }
-          $response = $lastLine | ConvertFrom-Json
-          if (-not $response.success) {
-            throw "Windows native host protocol smoke failed: $lastLine"
+          node tests/custom-ui/tools/native-host-smoke.cjs $hostPath --profile=hosted-deterministic
+          $exitCode = $LASTEXITCODE
+          if (Test-Path -LiteralPath ".runtime/tests/native-ui/protocol-smoke.json") {
+            Copy-Item -LiteralPath ".runtime/tests/native-ui/protocol-smoke.json" -Destination ".runtime/tests/windows-compat/native-host-protocol.json" -Force
           }
-          $response | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath ".runtime/tests/windows-compat/native-host-protocol.json" -Encoding utf8
+          if (Test-Path -LiteralPath ".runtime/tests/native-ui/protocol-smoke-error.json") {
+            Copy-Item -LiteralPath ".runtime/tests/native-ui/protocol-smoke-error.json" -Destination ".runtime/tests/windows-compat/native-host-protocol-error.json" -Force
+          }
+          if ($exitCode -ne 0) {
+            exit $exitCode
+          }
 
       - name: Audit test architecture
+        if: always()
         shell: pwsh
         run: node scripts/audit_test_architecture.js
 

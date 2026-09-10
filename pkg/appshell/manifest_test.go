@@ -37,6 +37,36 @@ func TestParseManifestValid(t *testing.T) {
 	}
 }
 
+func TestParseManifestDefaultsSingleInstanceTrueAndPreservesExplicitFalse(t *testing.T) {
+	manifest, err := ParseManifest([]byte(`{"entry":"main.js"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !manifest.SingleInstance {
+		t.Fatal("singleInstance should default to true")
+	}
+
+	manifest, err = ParseManifest([]byte(`{"entry":"main.js","singleInstance":false}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if manifest.SingleInstance {
+		t.Fatal("explicit singleInstance=false must be preserved")
+	}
+}
+
+func TestParseManifestAllowsDisabledStatusItemWithoutAction(t *testing.T) {
+	input := strings.Replace(validManifestJSON(), `{"id":"sync.pause","label":"Pause","action":"sync.pause","enabled":true,"visible":true}`, `{"id":"status","label":"Status: Idle","enabled":false,"visible":true}`, 1)
+	if _, err := ParseManifest([]byte(input)); err != nil {
+		t.Fatalf("disabled status item should be valid: %v", err)
+	}
+
+	bad := strings.Replace(validManifestJSON(), `{"id":"sync.pause","label":"Pause","action":"sync.pause","enabled":true,"visible":true}`, `{"id":"status","label":"Status: Idle","enabled":true}`, 1)
+	if _, err := ParseManifest([]byte(bad)); err == nil || !strings.Contains(err.Error(), "enabled=false") {
+		t.Fatalf("enabled actionless item should fail, got %v", err)
+	}
+}
+
 func TestParseManifestRejectsInvalidJSONAndUnknownFields(t *testing.T) {
 	for _, input := range []string{
 		`{"entry":`,

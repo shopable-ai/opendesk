@@ -6,6 +6,10 @@ const path = require('node:path');
 const assert = require('node:assert/strict');
 const {createInterface} = require('node:readline');
 const hostPath = path.resolve(process.argv[2]);
+const profileArg = process.argv.find(arg=>arg.startsWith('--profile='));
+const profile = profileArg ? profileArg.slice('--profile='.length) : 'full';
+assert(['full','hosted-deterministic'].includes(profile), `unsupported native host smoke profile: ${profile}`);
+const hostedDeterministic = profile === 'hosted-deterministic';
 const root = path.resolve('.runtime/tests/native-ui');
 fs.mkdirSync(root, {recursive:true});
 const publicRegistry = JSON.parse(fs.readFileSync(path.resolve('pkg/customui/assets/toolbar-icons-v1.json'),'utf8'));
@@ -72,12 +76,19 @@ const notice={message:'正在执行 · Native UI smoke',caption:'Task progress a
   assert(events.some(e=>e.windowId==='notice'&&e.type==='close'&&e.reason==='timeout'),'native expiry close event missing');
   assert.equal((await call('getState',{},'notice')).status,'closed');
   const hidden=await call('hide',{},'toolbar');assert.equal(hidden.visible,false);assert.equal(hidden.onScreen,false);await call('show',{},'toolbar');
-  // HTML uses only the host's fixed bridge, with document scripts disabled.
-  const webspec={id:'web',kind:'normal',title:'Restricted UI smoke',bounds:{x:120,y:200,width:420,height:200},alwaysOnTop:false,draggable:false,content:{html:'<div id="root"><span id="text">Ready</span><input id="input" type="text" value="a"><button id="ok">OK</button></div>',css:'body { margin: 12px; }',basePath:process.cwd()},controls:[{id:'root',type:'container',order:0},{id:'text',type:'text',order:1},{id:'input',type:'input',order:2},{id:'ok',type:'button',order:3}]};
-  await call('create',webspec,'web');await call('show',{},'web');
-  assert.equal((await call('getControlState',{id:'text'},'web')).text,'Ready');
-  assert.equal((await call('updateControl',{id:'text',patch:{text:'Updated from host'}},'web')).text,'Updated from host');
-  await call('close',{},'web');await call('closeSession',{},'');
-  fs.writeFileSync(path.join(root,'protocol-smoke.json'),JSON.stringify({hostPath,platform:process.platform,passed:true,events,stderr},null,2));
+  if (!hostedDeterministic) {
+    // WebSurface navigation requires a real interactive desktop/WebView environment.
+    // Keep it in the full native-host smoke rather than weakening the hosted CI gate with a fake fallback.
+    const webspec={id:'web',kind:'normal',title:'Restricted UI smoke',bounds:{x:120,y:200,width:420,height:200},alwaysOnTop:false,draggable:false,content:{html:'<div id="root"><span id="text">Ready</span><input id="input" type="text" value="a"><button id="ok">OK</button></div>',css:'body { margin: 12px; }',basePath:process.cwd()},controls:[{id:'root',type:'container',order:0},{id:'text',type:'text',order:1},{id:'input',type:'input',order:2},{id:'ok',type:'button',order:3}]};
+    await call('create',webspec,'web');await call('show',{},'web');
+    assert.equal((await call('getControlState',{id:'text'},'web')).text,'Ready');
+    assert.equal((await call('updateControl',{id:'text',patch:{text:'Updated from host'}},'web')).text,'Updated from host');
+    await call('close',{},'web');
+  }
+  await call('closeSession',{},'');
+  const coverage = hostedDeterministic
+    ? {profile,verified:['hello','icon-registry','toolbar-lifecycle','toolbar-state','notification-lifecycle','notification-follow','notification-timeout'],requiresInteractive:['web-surface-navigation','web-surface-control-bridge']}
+    : {profile,verified:['hello','icon-registry','toolbar-lifecycle','toolbar-state','notification-lifecycle','notification-follow','notification-timeout','web-surface-navigation','web-surface-control-bridge'],requiresInteractive:[]};
+  fs.writeFileSync(path.join(root,'protocol-smoke.json'),JSON.stringify({hostPath,platform:process.platform,passed:true,coverage,events,stderr},null,2));
   console.log('NATIVE_HOST_PROTOCOL_PASS');await call('shutdown',{},'');child.stdin.end();
-})().catch(error=>{fs.writeFileSync(path.join(root,'protocol-smoke-error.json'),JSON.stringify({message:error.message,code:error.code,stderr,events},null,2));console.error(error,stderr);child.kill();process.exitCode=1;});
+})().catch(error=>{fs.writeFileSync(path.join(root,'protocol-smoke-error.json'),JSON.stringify({message:error.message,code:error.code,profile,stderr,events},null,2));console.error(error,stderr);child.kill();process.exitCode=1;});
