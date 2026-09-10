@@ -3,8 +3,11 @@
 From the repository root, run:
 
 ```bash
-./dist/opendesk -ui -allow-recorder-capture -script examples/custom-ui/recording-console-simple.js -console-mode script -log-dir .runtime/examples/custom-ui/recording-console-simple
+./dist/opendesk -ui -allow-recorder-capture -script examples/custom-ui/recording-console-simple.js
 ```
+
+The normal console mode and default `.runtime/runs/<executionId>/` artifacts are sufficient for ordinary use;
+add `-console-mode` or `-log-dir` only when you deliberately need different output.
 
 The always-on-top native `FloatingWindow` keeps one compact row with six icon buttons and a centered pointer-motion switch. Its visible label is intentionally hidden; hovering shows “鼠标移动（开：平滑，关：瞬移）”, while the same text remains its Accessibility name. Blue means on and neutral gray means off, and the non-activating macOS toolbar accepts the first click. The switch is selected by default: generated scripts synthesize a visible 60-step transit before clicks, wheel input, and drag starts. Turning it off preserves direct pointer positioning. This changes generated code, not the immutable recording, and it never claims to restore hover paths that Recorder deliberately does not retain. The switch locks from capture startup through generation and replay so its readback cannot diverge from the current script. Native separators divide capture, output, and inspection actions. There is no HTML/WKWebView surface or visible status label. Hovering an icon exposes its accessible tooltip. The first button shows Play before capture, becomes `3`, `2`, `1` during target selection, changes in place to Pause while recording, and returns to Play while paused or after completion. The initial window context is read only after the countdown ends.
 

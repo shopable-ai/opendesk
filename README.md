@@ -1,29 +1,59 @@
 # OpenDesk
 
-OpenDesk 是一个以 Go 为核心、向 JavaScript 注入桌面自动化能力的运行时。它可以通过脚本、HTTP 和 MCP 使用窗口、输入、截图、视觉/OCR、文件、网络和系统能力，并提供 execution evidence、日志与回放相关基础设施。
+OpenDesk 是一个本地桌面自动化运行时。你可以直接运行 JavaScript 文件，使用窗口、鼠标、
+键盘、截图、视觉/OCR、文件、网络和系统能力，也可以通过原生 UI、HTTP 或 MCP 触发任务。
 
-第一次以普通用户方式使用 Mac 桌面应用时，请先阅读
-[`QUICKSTART.md`](QUICKSTART.md) 的“先理解 OpenDesk 是什么”和“Mac 安装与第一次使用”
-两节；那里说明了 App、常驻 HTTP 服务、Scheduler 和一次性脚本之间的区别。
+普通用户使用发行包中已经编译好的程序，**不需要安装 Go，也不需要执行 `go run`**。下面的
+命令均从 OpenDesk 目录（也就是包含 `dist/`、`examples/` 的目录）执行。
 
 ## 快速开始
 
-### 运行脚本
+### 直接运行 JavaScript 文件
 
 ```bash
-go run ./cmd/opendesk -script examples/notify.js
+./dist/opendesk -script examples/notify.js
 ```
 
-直接执行 JavaScript：
+把路径换成自己的脚本即可：
 
 ```bash
-go run ./cmd/opendesk -script-text "console.log('hello from opendesk')"
+./dist/opendesk -script /absolute/path/to/task.js
+```
+
+### 打开录制 UI
+
+下面这条命令会直接打开原生录制工具栏：
+
+```bash
+./dist/opendesk -ui -allow-recorder-capture -script examples/custom-ui/recording-console-simple.js
+```
+
+![OpenDesk 原生录制工具栏](docs/assets/readme/recording-console-toolbar.png)
+
+点击播放按钮后选择目标窗口并开始录制；停止后会保存录制结果并生成 JavaScript，需要重放时
+可以直接点击工具栏中的循环箭头。默认不记录键盘输入。仅在确认录制内容不敏感时，显式开启
+键盘录制：
+
+```bash
+OPENDESK_RECORDER_CAPTURE_KEYBOARD=1 ./dist/opendesk -ui -allow-recorder-capture -script examples/custom-ui/recording-console-simple.js
+```
+
+这里保留的参数都有实际作用：`-ui` 启用原生界面，`-allow-recorder-capture` 授权本次本地进程
+捕获输入，`-script` 指定脚本。日常运行不必再传 `-console-mode script` 或 `-log-dir`；日志和
+执行摘要默认写入 `.runtime/runs/<executionId>/`。
+
+### 其他脚本入口
+
+直接执行一段 JavaScript：
+
+```bash
+./dist/opendesk -script-text "console.log('hello from opendesk')"
 ```
 
 从 stdin 执行：
 
 ```bash
-printf "console.log('hello from stdin')\n" | go run ./cmd/opendesk -script-stdin
+printf "console.log('hello from stdin')\n" | ./dist/opendesk -script-stdin
 ```
 
 三种脚本入口一次只使用一个：
@@ -36,16 +66,10 @@ printf "console.log('hello from stdin')\n" | go run ./cmd/opendesk -script-stdin
 
 ### 全局快捷键示例
 
-从仓库根目录先刷新一次可执行文件：
+从 OpenDesk 目录运行：
 
 ```bash
-make build
-```
-
-随后运行这一条命令：
-
-```bash
-./dist/opendesk -script examples/global-shortcut.js -console-mode script
+./dist/opendesk -script examples/global-shortcut.js
 ```
 
 在 macOS 按 `Command+Shift+9`，终端会显示 `copied`，并把示例文本写入剪贴板；按
@@ -54,7 +78,7 @@ make build
 `page.requestPermissions({ section: 'globalShortcut', openSettings: true, strict: false })`）：
 
 ```bash
-./dist/opendesk -script examples/global-shortcut-permission-setup.js -console-mode script
+./dist/opendesk -script examples/global-shortcut-permission-setup.js
 ```
 
 它只会为缺少的 Accessibility / Input Monitoring 权限打开设置；两项已授权时不会重复弹窗。
@@ -63,16 +87,16 @@ make build
 
 ### 原生 Dialog 示例（macOS）
 
-根目录已有由当前源码构建的 `./opendesk` 和同级 `./opendesk-ui-host` 时，可直接运行：
+发行包中的 `dist/opendesk` 和 `dist/opendesk-ui-host` 应保持在同一目录，然后直接运行：
 
 ```bash
-./opendesk -ui -script examples/dialog.js -console-mode script
+./dist/opendesk -ui -script examples/dialog.js
 ```
 
 Promise 链式 `.then()` / `.catch()` / `.finally()` 版本：
 
 ```bash
-./opendesk -ui -script examples/dialog-promise-chain.js -console-mode script
+./dist/opendesk -ui -script examples/dialog-promise-chain.js
 ```
 
 两条命令任选其一。普通体验不需要切换到 `dist/`，也不需要运行 AX/窗口控制工具；完整的
@@ -82,18 +106,11 @@ Promise 链式 `.then()` / `.catch()` / `.finally()` 版本：
 
 ### 客服纵向快捷回复示例（macOS）
 
-工作目录必须是仓库根目录 `/Users/mac/Documents/workspace/clawdesk`。先按当前源码准备一次
-主程序和 UI host：
-
-```bash
-go build -o ./opendesk ./cmd/opendesk && go build -o ./opendesk-ui-host ./cmd/opendesk-ui-host
-```
-
-构建物与当前源码对应后，原样执行下面这一行；它会打开五个从上到下排列的原生按钮，用户
+从 OpenDesk 目录执行下面这一行；它会打开五个从上到下排列的原生按钮，用户
 点击按钮即可把不同快捷回复复制到系统剪贴板，关闭窗口后脚本结束：
 
 ```bash
-./opendesk -ui -script examples/custom-ui/toolbar-vertical-quick-replies.js -console-mode script -log-dir .runtime/tests/custom-ui-vertical
+./dist/opendesk -ui -script examples/custom-ui/toolbar-vertical-quick-replies.js
 ```
 
 vertical 工具栏固定为单列、最多五个按钮，超过上限会以 `INVALID_SPEC` 失败。正式
@@ -104,7 +121,7 @@ WindowServer/Accessibility gate 与截图证据使用
 ### Agent 友好输出
 
 ```bash
-go run ./cmd/opendesk \
+./dist/opendesk \
   -script-text "console.log('agent run')" \
   -console-mode agent
 ```
@@ -112,7 +129,7 @@ go run ./cmd/opendesk \
 或：
 
 ```bash
-go run ./cmd/opendesk \
+./dist/opendesk \
   -script-text "console.log('agent run')" \
   -output-format json
 ```
@@ -140,11 +157,11 @@ OpenDesk 也提供 `opendesk ai`：一个为 Codex、Claude Code 与 shell-based
 低 Token JSON desktop-tool surface。
 
 ```bash
-go run ./cmd/opendesk ai capabilities
-go run ./cmd/opendesk ai windows
-go run ./cmd/opendesk ai screenshot --window-title "TextEdit"
-go run ./cmd/opendesk ai mouse click --window-title "TextEdit" --x 300 --y 200
-go run ./cmd/opendesk ai keyboard type --text "Hello"
+./dist/opendesk ai capabilities
+./dist/opendesk ai windows
+./dist/opendesk ai screenshot --window-title "TextEdit"
+./dist/opendesk ai mouse click --window-title "TextEdit" --x 300 --y 200
+./dist/opendesk ai keyboard type --text "Hello"
 ./dist/opendesk ai run workflows/macos/calculator/calculate-and-reuse-result.js
 ```
 
@@ -170,7 +187,7 @@ go run ./cmd/opendesk ai keyboard type --text "Hello"
 启动：
 
 ```bash
-go run ./cmd/opendesk -http -port 60844
+./dist/opendesk -http -port 60844
 ```
 
 当前默认 container 模式提供：
@@ -211,7 +228,6 @@ docs/api/http-server.md
 OCR：
 
 ```bash
-make build
 ./dist/opendesk \
 	-vision-ocr-image tests/extensions/native-process/fixtures/ocr/opendesk-ocr-123.png \
 	-vision-provider apple \
@@ -237,20 +253,30 @@ docs/api/image-color.md
 
 ## macOS
 
-长期使用桌面自动化时，建议使用固定 App 身份，避免 `go run` 临时可执行路径导致 TCC 权限主体变化。
+长期使用桌面自动化时，建议使用发行包中的固定 App 身份，避免临时可执行路径导致 TCC 权限主体变化。
 OpenDesk.app 的主要作用是承载这个稳定身份，并可在无参数启动时提供本机 HTTP 服务和
 Scheduler；它不是一个会自动操作其他 App 的业务窗口。双击安装在
 `/Applications/OpenDesk.app` 的 App 后，服务真正监听 `60844` 且 Scheduler 就绪时，菜单栏会
 显示带图标的 **OpenDesk** 状态项；其中可以打开状态页、Scheduler 或选择退出。没有业务窗口
 和没有 Dock 图标是此后台服务的正常状态，不是启动失败。
 
-构建：
+### 普通用户安装
+
+把发行包中的 `OpenDesk.app` 拖入 `/Applications`，然后启动：
+
+```bash
+open /Applications/OpenDesk.app
+```
+
+### 开发者从源码构建
+
+只有开发或制作发行包时才需要 Go。构建 App：
 
 ```bash
 ./scripts/build_macos_app.sh
 ```
 
-安装到 `/Applications` 后启动：
+构建结果位于 `dist/OpenDesk.app`；把它安装到 `/Applications` 后启动：
 
 ```bash
 open /Applications/OpenDesk.app
@@ -277,7 +303,13 @@ docs/implementation/macos/screenshot-troubleshooting.md
 docs/implementation/macos/gocv-build-guide.md
 ```
 
-## 测试
+## 开发与测试（需要 Go）
+
+普通用户不需要执行本节命令。从源码构建命令行程序及配套 UI host：
+
+```bash
+make build
+```
 
 基础回归：
 
