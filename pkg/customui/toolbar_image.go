@@ -23,13 +23,9 @@ func LoadToolbarIconImage(baseDir, source, renderingMode string) (*toolbar.IconI
 	if trimmed == "" || trimmed != source {
 		return nil, invalidSpec("custom icon path must be a non-empty string without surrounding whitespace")
 	}
-	parsed, err := url.Parse(trimmed)
-	if err != nil || parsed.Scheme != "" || parsed.Host != "" || parsed.RawQuery != "" || parsed.Fragment != "" || strings.HasPrefix(trimmed, "//") {
-		return nil, invalidSpec("custom icon path must be a local file path, not a URL")
-	}
-	resourcePath, err := url.PathUnescape(parsed.EscapedPath())
-	if err != nil || strings.TrimSpace(resourcePath) == "" {
-		return nil, invalidSpec("custom icon path is invalid")
+	resourcePath, err := toolbarIconLocalPath(trimmed)
+	if err != nil {
+		return nil, err
 	}
 	extension := strings.ToLower(filepath.Ext(resourcePath))
 	if extension != ".png" && extension != ".jpg" && extension != ".jpeg" {
@@ -94,4 +90,22 @@ func LoadToolbarIconImage(baseDir, source, renderingMode string) (*toolbar.IconI
 		return nil, invalidSpec("custom icon payload failed validation")
 	}
 	return value, nil
+}
+
+func toolbarIconLocalPath(source string) (string, error) {
+	if platformPath, recognized, err := platformToolbarLocalPath(source); recognized {
+		if err != nil {
+			return "", invalidSpec(err.Error())
+		}
+		return platformPath, nil
+	}
+	parsed, err := url.Parse(source)
+	if err != nil || parsed.Scheme != "" || parsed.Host != "" || parsed.RawQuery != "" || parsed.Fragment != "" || strings.HasPrefix(source, "//") {
+		return "", invalidSpec("custom icon path must be a local file path, not a URL")
+	}
+	resourcePath, err := url.PathUnescape(parsed.EscapedPath())
+	if err != nil || strings.TrimSpace(resourcePath) == "" {
+		return "", invalidSpec("custom icon path is invalid")
+	}
+	return resourcePath, nil
 }
