@@ -1,0 +1,97 @@
+name: Windows Core
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+
+concurrency:
+  group: windows-core-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  core:
+    name: Windows Core Compatibility
+    runs-on: windows-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Compile maintained Go source
+        shell: pwsh
+        run: go build ./...
+
+      - name: Run deterministic Windows internal seams
+        shell: pwsh
+        run: go test ./pkg/customui/...
+
+      - name: Build OpenDesk Windows runtime
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          go build -o dist/opendesk.exe ./cmd/opendesk
+          if (-not (Test-Path -LiteralPath "dist/opendesk.exe")) {
+            throw "dist/opendesk.exe was not produced"
+          }
+
+      - name: Run public Runtime window contract
+        shell: pwsh
+        run: .\dist\opendesk.exe -script "tests/runtime-api/window-target.js" -console-mode script
+
+      - name: Build complete Windows app pair
+        shell: pwsh
+        run: pwsh -NoProfile -File scripts/build_windows_app.ps1
+
+      - name: Windows native host protocol smoke
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path .runtime/tests/windows-compat | Out-Null
+          $sessionPath = Join-Path (Get-Location) ".runtime/tests/windows-compat/native-host-session.txt"
+          Set-Content -LiteralPath $sessionPath -Value "session=windows-core" -Encoding utf8
+          $request = @{
+            action = "notify"
+            title = "Windows compatibility"
+            message = "native host smoke"
+            icon = "info"
+            sessionFile = $sessionPath
+          } | ConvertTo-Json -Compress
+          $responseLine = $request | & ".\dist\opendesk-ui.exe"
+          $lastLine = $responseLine | Select-Object -Last 1
+          if (-not $lastLine) {
+            throw "Windows native host returned no protocol response"
+          }
+          $response = $lastLine | ConvertFrom-Json
+          if (-not $response.success) {
+            throw "Windows native host protocol smoke failed: $lastLine"
+          }
+          $response | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath ".runtime/tests/windows-compat/native-host-protocol.json" -Encoding utf8
+
+      - name: Audit test architecture
+        shell: pwsh
+        run: node scripts/audit_test_architecture.js
+
+      - name: Upload Windows compatibility evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-core-evidence
+          path: .runtime/tests/windows-compat
+          if-no-files-found: ignore
+          retention-days: 7
