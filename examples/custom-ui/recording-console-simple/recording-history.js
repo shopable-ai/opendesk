@@ -7,6 +7,12 @@
 
   const RECORDING_ID = /^rec-[A-Za-z0-9][A-Za-z0-9._-]*$/;
   const RECIPE_FILE = /^[A-Za-z0-9][A-Za-z0-9._-]*\.recipe\.js$/;
+  const ACTION_ICONS = Object.freeze({
+    run: 'play.fill',
+    rename: 'pencil',
+    open: 'folder.fill',
+    delete: 'trash.fill',
+  });
   const ACTIVE_CORE_PHASES = new Set([
     'countdown', 'starting', 'stop-requested', 'recording', 'pausing', 'paused',
     'resuming', 'stopping', 'building-actions', 'generating', 'run-countdown', 'running', 'closing', 'closed',
@@ -57,14 +63,15 @@
     return Number.isFinite(time) ? time : 0;
   }
 
+  function pad2(value) {
+    return String(value).padStart(2, '0');
+  }
+
   function displayTimestamp(value) {
     const time = parseTimestamp(value);
     if (!time) return '时间未知';
-    try {
-      return new Date(time).toLocaleString();
-    } catch (_) {
-      return new Date(time).toISOString();
-    }
+    const date = new Date(time);
+    return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())} ${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
   }
 
   function readJSON(file, path) {
@@ -194,26 +201,27 @@
     if (!rows.length) {
       return header + '<p id="emptyHistory" class="empty">还没有可显示的 Recorder 录制。</p></main>';
     }
+    const columnHeader = `
+        <div id="historyColumns" class="columns">
+          <div id="historyNameColumn">名称</div>
+          <div id="historyTimeColumn">时间</div>
+          <div id="historyActionsColumn">操作</div>
+        </div>`;
     const body = rows.map((row, index) => {
       const title = row.displayName || row.targetTitle || row.recordingId;
-      const state = [row.state, row.storageState].filter(Boolean).join(' / ');
-      const script = row.scriptFile ? '脚本可运行' : '尚无生成脚本';
-      const invalid = row.manifestValid ? '' : ' · manifest 无法解析';
-      const issues = row.issueCount ? ` · ${row.issueCount} 个问题` : '';
       return `
         <section id="recording${index}" class="recording">
-          <div id="recordingName${index}" class="name">${escapeHTML(title)}</div>
-          <div id="recordingMeta${index}" class="meta">${escapeHTML(displayTimestamp(row.startedAt))} · ${escapeHTML(state || '状态未知')} · ${escapeHTML(script)}${escapeHTML(issues + invalid)}</div>
-          <div id="recordingId${index}" class="id">${escapeHTML(row.recordingId)}</div>
+          <div id="recordingName${index}" class="name" title="${escapeHTML(title)}">${escapeHTML(title)}</div>
+          <div id="recordingTime${index}" class="time">${escapeHTML(displayTimestamp(row.startedAt))}</div>
           <div id="recordingActions${index}" class="actions">
-            <button id="run${index}"${row.scriptFile ? '' : ' disabled'}>运行</button>
-            <button id="rename${index}">改名</button>
-            <button id="open${index}">打开目录</button>
-            <button id="delete${index}" class="danger">删除</button>
+            <button id="run${index}" class="icon-action" title="运行" aria-label="运行"${row.scriptFile ? '' : ' disabled'}>运行</button>
+            <button id="rename${index}" class="icon-action" title="改名" aria-label="改名">改名</button>
+            <button id="open${index}" class="icon-action" title="打开目录" aria-label="打开目录">打开目录</button>
+            <button id="delete${index}" class="icon-action danger" title="删除" aria-label="删除">删除</button>
           </div>
         </section>`;
     }).join('');
-    return header + '<div id="historyList" class="list">' + body + '</div></main>';
+    return header + columnHeader + '<div id="historyList" class="list">' + body + '</div></main>';
   }
 
   const HISTORY_CSS = `
@@ -221,15 +229,18 @@
     #historyMain { box-sizing: border-box; height: 100vh; padding: 18px; overflow: hidden; }
     .header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
     .title { font-size: 20px; font-weight: 700; }
-    .status { margin: 10px 0 12px; color: #b9b9b9; font-size: 13px; }
-    .list { height: calc(100vh - 76px); overflow-y: auto; padding-right: 4px; }
-    .recording { border: 1px solid #3b3b3b; border-radius: 10px; padding: 12px; margin-bottom: 10px; background: #222; }
-    .name { font-size: 15px; font-weight: 650; margin-bottom: 4px; }
-    .meta { color: #c7c7c7; font-size: 12px; line-height: 1.45; }
-    .id { color: #8f8f8f; font-size: 11px; margin-top: 4px; }
-    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-    button { border: 1px solid #505050; border-radius: 7px; padding: 6px 11px; background: #303030; color: #f4f4f4; font-size: 13px; }
-    button:disabled { opacity: 0.45; }
+    .status { margin: 8px 0 12px; color: #b9b9b9; font-size: 13px; }
+    .columns, .recording { display: grid; grid-template-columns: minmax(0, 1fr) 160px 156px; align-items: center; column-gap: 12px; }
+    .columns { padding: 0 10px 7px; color: #8f8f8f; font-size: 11px; border-bottom: 1px solid #3b3b3b; }
+    .list { height: calc(100vh - 104px); overflow-y: auto; padding-right: 4px; }
+    .recording { min-height: 48px; padding: 0 10px; border-bottom: 1px solid #333; }
+    .recording:hover { background: #202020; }
+    .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 600; }
+    .time { color: #b9b9b9; font-size: 12px; white-space: nowrap; }
+    .actions { display: flex; flex-wrap: nowrap; align-items: center; justify-content: flex-start; gap: 6px; }
+    button { border: 1px solid #505050; border-radius: 7px; background: #303030; color: #f4f4f4; font-size: 13px; }
+    .icon-action { box-sizing: border-box; width: 32px; height: 32px; min-width: 32px; padding: 0; }
+    button:disabled { opacity: 0.38; }
     .danger { border-color: #754545; }
     .empty { color: #a8a8a8; padding: 24px 0; }
   `;
@@ -492,6 +503,15 @@
       return lastRun;
     }
 
+    async function applyActionIcons(window, rows) {
+      for (let index = 0; index < rows.length; index++) {
+        await window.control(`run${index}`).update({icon: ACTION_ICONS.run, text: ''});
+        await window.control(`rename${index}`).update({icon: ACTION_ICONS.rename, text: ''});
+        await window.control(`open${index}`).update({icon: ACTION_ICONS.open, text: ''});
+        await window.control(`delete${index}`).update({icon: ACTION_ICONS.delete, text: ''});
+      }
+    }
+
     async function bindWindow(window, rows) {
       window.control('refreshHistory').on('click', () => refresh());
       rows.forEach((row, index) => {
@@ -500,6 +520,7 @@
         window.control(`open${index}`).on('click', () => openDirectory(row.recordingId));
         window.control(`delete${index}`).on('click', () => remove(row.recordingId));
       });
+      await applyActionIcons(window, rows);
       window.on('close', () => {
         if (historyWindow === window) historyWindow = null;
         void syncAvailability();
@@ -526,7 +547,7 @@
         title: '历史录制',
         position: {
           mode: 'anchor',
-          size: {width: 760, height: 560},
+          size: {width: 860, height: 520},
           horizontal: 'center',
           vertical: 'center',
           margin: 0,
@@ -566,7 +587,7 @@
       }
     }
 
-    toolbar.addButton('history', '历史录制', 'clock.fill', () => open());
+    toolbar.addButton('history', '历史录制', 'list.bullet', () => open());
 
     return Object.freeze({
       open,
@@ -592,5 +613,6 @@
     resolveGeneratedScript,
     validateDisplayName,
     buildWindowHTML,
+    actionIcons: () => clone(ACTION_ICONS),
   });
 })(globalThis);

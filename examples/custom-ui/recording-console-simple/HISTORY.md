@@ -10,14 +10,17 @@ History is a view over those directories. It does not create a second recording 
 
 ## UI
 
-The simple native toolbar adds one `clock.fill` button named **历史录制**. The existing toolbar controller remains in
+The simple native toolbar adds one `list.bullet` button named **历史录制**. The existing toolbar controller remains in
 `controller-core.js`; `controller.js` is a thin compatibility layer that widens the one-row toolbar from 7 to 8 content
 slots, loads `recording-history.js`, and attaches the history button before the toolbar is shown.
 
-The history button opens a bounded `ui.createWindow()` list. Each row shows the display name (when one was assigned),
-recording time, Recorder state, immutable `recordingId`, issue count, and whether a generated recipe exists. Closing the
-history window does not close the recording toolbar. Reopening creates a new Custom UI window id because closed window ids
-cannot be reused within one execution.
+The history button opens a bounded `ui.createWindow()` list. Each recording is one horizontal row with only the display
+name, recording time, and four compact icon actions. The action icons are `play.fill` (运行), `pencil` (改名),
+`folder.fill` (打开目录), and `trash.fill` (删除). Their visible button text is cleared before the window is shown while
+tooltip/Accessibility labels keep the Chinese action names. Recorder state, issue count, generated-script state, and the
+immutable `recordingId` stay out of the normal list row; they remain internal data for validation and destructive-action
+confirmation. Closing the history window does not close the recording toolbar. Reopening creates a new Custom UI window id
+because closed window ids cannot be reused within one execution.
 
 ## Discovery and naming
 
@@ -47,8 +50,8 @@ newest `File.stat().modifiedAt`, then filename. It never executes a path from `u
 
 ## Run and cancel
 
-A history row never auto-runs. Clicking **运行** starts a 3/2/1 preparation countdown and then uses the same child Runtime
-shape as the simple console replay:
+A history row never auto-runs. Clicking the `play.fill` action starts a 3/2/1 preparation countdown and then uses the same
+child Runtime shape as the simple console replay:
 
 ```text
 Command.run(<dist/opendesk>, [
@@ -86,8 +89,10 @@ From the repository root:
 
 ```bash
 node tests/custom-ui/recording-history.test.js
+node --test tests/custom-ui/recording-history-presentation.test.js
 ```
 
-The fixture test covers File `stat().type` handling, newest-first discovery, canonical/fallback recipe selection, manifest
+The fixture tests cover File `stat().type` handling, newest-first discovery, canonical/fallback recipe selection, manifest
 identity mismatch, display-name sidecar writes, confirmed scoped deletion, unique window ids, Windows directory opening,
-and Stop-driven cancellation of a history child run without invoking the original Recorder Stop callback.
+Stop-driven cancellation of a history child run without invoking the original Recorder Stop callback, the one-row list
+shape, the `list.bullet` toolbar entry, and the four icon-only row actions.
