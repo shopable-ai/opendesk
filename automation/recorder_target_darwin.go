@@ -62,18 +62,20 @@ func newRecorderTextProbe() recorderTextProbe {
 		if inspection.Secure || role != "textField" || !inspection.ValueSettable || inspection.Focused == nil || !*inspection.Focused || !inspection.ValueIncluded || !valueOK {
 			return nil, fmt.Errorf("focused element is not a readable writable non-secure text field")
 		}
-		bounds := inspection.NativeBounds
-		if bounds == nil || bounds.Width <= 0 || bounds.Height <= 0 {
-			return nil, errRecorderElementBoundsUnavailable
-		}
 		descriptor := recorderElementDescriptor{
 			Role: role, NativeRole: darwinAXString(inspection.NativeRole), Subrole: darwinAXString(inspection.Subrole),
 			Name: darwinAXString(inspection.Name), Identifier: darwinAXString(inspection.Identifier), Enabled: inspection.Enabled, Focused: inspection.Focused,
 			ValueSettable: inspection.ValueSettable, NativeActions: append([]string{}, inspection.NativeActions...),
-			Bounds: recorderWindowBounds{X: int(math.Round(bounds.X)), Y: int(math.Round(bounds.Y)), Width: int(math.Round(bounds.Width)), Height: int(math.Round(bounds.Height))},
-			BoundsSpace: "screen-logical",
 		}
-		if err := recorderValidateElementDescriptor(descriptor); err != nil {
+		if bounds := inspection.NativeBounds; bounds != nil && bounds.Width > 0 && bounds.Height > 0 {
+			descriptor.Bounds = recorderWindowBounds{X: int(math.Round(bounds.X)), Y: int(math.Round(bounds.Y)), Width: int(math.Round(bounds.Width)), Height: int(math.Round(bounds.Height))}
+			descriptor.BoundsSpace = "screen-logical"
+		}
+		// Bounds are pointer evidence, not a prerequisite for observing the
+		// focused editable value. Some applications expose a valid writable
+		// AXTextArea without usable geometry; replay still resolves it uniquely
+		// inside the exact active window and verifies focus plus value hashes.
+		if err := recorderValidateEditableDescriptor(descriptor); err != nil {
 			return nil, err
 		}
 		return &recorderTextFieldSample{ObservedAt: time.Now().UTC(), Window: recorderCloneWindowSnapshot(snapshot), Element: descriptor, Value: value}, nil
@@ -216,7 +218,7 @@ func newRecorderTargetProbe() func(context.Context, *WindowInfo, recorderTargetP
 			Role: selected.Role, NativeRole: selected.NativeRole, Subrole: selected.Subrole, Name: selected.Name,
 			Identifier: selected.Identifier, Enabled: selected.Enabled, Focused: selected.Focused, ValueSettable: selected.ValueSettable,
 			NativeActions: append([]string{}, selected.NativeActions...),
-			Bounds: selected.Bounds, BoundsSpace: "screen-logical", Hit: hit, Ancestors: ancestors, Containers: containers,
+			Bounds:        selected.Bounds, BoundsSpace: "screen-logical", Hit: hit, Ancestors: ancestors, Containers: containers,
 			Point: recorderElementPoint{OffsetX: offsetX, OffsetY: offsetY, XRatio: float64(offsetX) / float64(selected.Bounds.Width), YRatio: float64(offsetY) / float64(selected.Bounds.Height)},
 			CoordinateMapping: &recorderElementCoordinateMapping{
 				InputX: x, InputY: y, InputSpace: "screen-logical", NativeX: x, NativeY: y,
@@ -259,7 +261,7 @@ func recorderElementSnapshotFromDescriptor(descriptor recorderElementDescriptor,
 		Identifier: descriptor.Identifier, Enabled: descriptor.Enabled, Focused: descriptor.Focused, ValueSettable: descriptor.ValueSettable,
 		NativeActions: append([]string{}, descriptor.NativeActions...), Bounds: descriptor.Bounds,
 		BoundsSpace: descriptor.BoundsSpace, Hit: descriptor, Ancestors: []recorderElementDescriptor{}, Containers: []recorderElementDescriptor{},
-		Point:      recorderElementPoint{OffsetX: offsetX, OffsetY: offsetY, XRatio: float64(offsetX) / float64(descriptor.Bounds.Width), YRatio: float64(offsetY) / float64(descriptor.Bounds.Height)},
+		Point: recorderElementPoint{OffsetX: offsetX, OffsetY: offsetY, XRatio: float64(offsetX) / float64(descriptor.Bounds.Width), YRatio: float64(offsetY) / float64(descriptor.Bounds.Height)},
 		CoordinateMapping: &recorderElementCoordinateMapping{
 			InputX: x, InputY: y, InputSpace: "screen-logical", NativeX: x, NativeY: y,
 			NativeSpace: "screen-logical", Method: "identity", Verified: true,
@@ -310,7 +312,7 @@ func recorderInspectAXDescriptor(ctx context.Context, element C.uintptr_t) (reco
 		Role: normalizeDarwinAXRole(darwinAXString(inspection.NativeRole)), NativeRole: darwinAXString(inspection.NativeRole), Subrole: darwinAXString(inspection.Subrole),
 		Name: darwinAXString(inspection.Name), Identifier: darwinAXString(inspection.Identifier), Enabled: inspection.Enabled, Focused: inspection.Focused,
 		ValueSettable: inspection.ValueSettable, NativeActions: append([]string{}, inspection.NativeActions...),
-		Bounds: recorderWindowBounds{X: int(math.Round(bounds.X)), Y: int(math.Round(bounds.Y)), Width: int(math.Round(bounds.Width)), Height: int(math.Round(bounds.Height))},
+		Bounds:      recorderWindowBounds{X: int(math.Round(bounds.X)), Y: int(math.Round(bounds.Y)), Width: int(math.Round(bounds.Width)), Height: int(math.Round(bounds.Height))},
 		BoundsSpace: "screen-logical",
 	}
 	if err := recorderValidateElementDescriptor(descriptor); err != nil {

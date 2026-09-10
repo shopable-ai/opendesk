@@ -23,7 +23,7 @@ import (
 
 const (
 	recorderActionsFormatVersion                        = "opendesk.recorder.actions/v2"
-	recorderCandidateFormatVersion                      = "opendesk.recorder.basic-candidate/v3"
+	recorderCandidateFormatVersion                      = "opendesk.recorder.basic-candidate/v4"
 	recorderMaxRawBytes                                 = 16 * 1024 * 1024
 	recorderMaxActionsBytes                             = 8 * 1024 * 1024
 	recorderMaxRawEvents                                = 100000
@@ -35,6 +35,9 @@ const (
 	recorderMaximumTimingDelayMS                        = uint64(1800000)
 	recorderMinimumSpeedMultiplier                      = 0.1
 	recorderMaximumSpeedMultiplier                      = 100.0
+	recorderDefaultPointerMotion                        = "instant"
+	recorderSmoothPointerMotion                         = "smooth"
+	recorderSmoothPointerMotionSteps                    = 60
 	recorderClickJitterPixels                           = 4
 	recorderDragLineTolerancePixels                     = 8
 	recorderTextSelectionDragMaximumLineTolerancePixels = 16
@@ -49,6 +52,7 @@ const (
 	recorderWheelBasis                                  = "libuiohook contiguous same-axis wheel burst"
 	recorderWheelBurstGapMS                             = uint64(250)
 	recorderMaximumWheelSteps                           = 100
+	recorderMaximumKeyRepeatCount                       = 100
 	recorderTextEditBasis                               = "verified focused editable value transition associated with keyboard events"
 	recorderShortcutBasis                               = "libuiohook physical modifier chord press/release"
 	recorderSpecialKeyBasis                             = "libuiohook physical special-key press/release"
@@ -155,6 +159,7 @@ type recorderActionArguments struct {
 	EditSemantics string                       `json:"editSemantics,omitempty"`
 	Key           string                       `json:"key,omitempty"`
 	Keys          []string                     `json:"keys,omitempty"`
+	RepeatCount   int                          `json:"repeatCount,omitempty"`
 	TextEdit      *recorderTextActionArguments `json:"textEdit,omitempty"`
 }
 
@@ -265,6 +270,7 @@ type recorderCandidate struct {
 	Actions       recorderCandidateActionsRef `json:"actions"`
 	Script        recorderCandidateScriptRef  `json:"script"`
 	Timing        recorderGenerationTiming    `json:"timing"`
+	PointerMotion string                      `json:"pointerMotion"`
 	Constraints   []string                    `json:"constraints"`
 	Mappings      []recorderCandidateMapping  `json:"mappings"`
 	Verification  string                      `json:"verification"`
@@ -278,6 +284,7 @@ type recorderScriptResult struct {
 	Constraints   []string
 	Verification  string
 	Timing        recorderGenerationTiming
+	PointerMotion string
 }
 
 func (r recorderScriptResult) jsValue() map[string]any {
@@ -285,7 +292,7 @@ func (r recorderScriptResult) jsValue() map[string]any {
 		"scriptFile": r.ScriptFile, "candidateFile": r.CandidateFile,
 		"actionsSha256": r.ActionsSHA256, "scriptSha256": r.ScriptSHA256,
 		"constraints": append([]string(nil), r.Constraints...), "verification": r.Verification,
-		"timing": r.Timing.jsValue(),
+		"timing": r.Timing.jsValue(), "pointerMotion": r.PointerMotion,
 	}
 }
 
@@ -332,13 +339,13 @@ func (r *RecorderRuntime) generateScript(call goja.FunctionCall) (value goja.Val
 		}
 	}()
 	actionsFile, err := recorderRequiredString(call, 0, "Recorder.generateScript", "actionsFile")
-	mode, outputFile := "basic", ""
+	mode, outputFile, pointerMotion := "basic", "", recorderDefaultPointerMotion
 	timing := recorderDefaultGenerationTiming()
 	if err == nil && len(call.Arguments) > 1 && !goja.IsUndefined(call.Argument(1)) && !goja.IsNull(call.Argument(1)) {
 		object := call.Argument(1).ToObject(r.runtime)
 		if object == nil || object.ClassName() != "Object" {
 			err = recorderError(RecorderInvalidArgument, "Recorder.generateScript", "options must be an object", nil)
-		} else if unknownErr := recorderRejectUnknownKeys(object, map[string]bool{"mode": true, "outputFile": true, "timing": true}); unknownErr != nil {
+		} else if unknownErr := recorderRejectUnknownKeys(object, map[string]bool{"mode": true, "outputFile": true, "timing": true, "pointerMotion": true}); unknownErr != nil {
 			err = recorderError(RecorderInvalidArgument, "Recorder.generateScript", unknownErr.Error(), nil)
 		} else {
 			if item := recorderObjectOption(object, "mode"); !goja.IsUndefined(item) {
@@ -364,6 +371,16 @@ func (r *RecorderRuntime) generateScript(call goja.FunctionCall) (value goja.Val
 					timing, err = r.parseGenerationTiming(item)
 				}
 			}
+			if err == nil {
+				if item := recorderObjectOption(object, "pointerMotion"); !goja.IsUndefined(item) {
+					text, ok := item.Export().(string)
+					if !ok {
+						err = recorderError(RecorderInvalidArgument, "Recorder.generateScript", "options.pointerMotion must be a string", nil)
+					} else {
+						pointerMotion = strings.TrimSpace(text)
+					}
+				}
+			}
 		}
 	}
 	if err == nil {
@@ -371,6 +388,9 @@ func (r *RecorderRuntime) generateScript(call goja.FunctionCall) (value goja.Val
 	}
 	if err == nil && mode != "basic" {
 		err = recorderError(RecorderInvalidArgument, "Recorder.generateScript", "mode must be \"basic\"", nil)
+	}
+	if err == nil && pointerMotion != recorderDefaultPointerMotion && pointerMotion != recorderSmoothPointerMotion {
+		err = recorderError(RecorderInvalidArgument, "Recorder.generateScript", "options.pointerMotion must be \"instant\" or \"smooth\"", nil)
 	}
 	if err != nil {
 		_ = reject(recorderJSError(r.runtime, err))
@@ -381,7 +401,7 @@ func (r *RecorderRuntime) generateScript(call goja.FunctionCall) (value goja.Val
 		return promiseValue
 	}
 	r.pending++
-	r.startWorker(func() (any, error) { return r.generateBasicScript(actionsFile, outputFile, timing) }, func(result any, err error) {
+	r.startWorker(func() (any, error) { return r.generateBasicScript(actionsFile, outputFile, timing, pointerMotion) }, func(result any, err error) {
 		r.pending--
 		if err != nil {
 			_ = reject(recorderJSError(r.runtime, err))
@@ -503,7 +523,7 @@ func (r *RecorderRuntime) buildActionsFile(input string) (recorderActionsResult,
 	if !terminal {
 		actions.Issues = appendIssue(actions.Issues, recorderIssue{Code: "terminal-manifest-missing", Severity: "error", Message: "the recording has no terminal manifest; only its validated raw prefix was recovered"})
 	}
-	if manifest.State != "stopped" || manifest.Storage.State != "saved" {
+	if (manifest.State != "stopped" && !recorderManifestFailureAllowsPartial(manifest)) || manifest.Storage.State != "saved" {
 		actions.Issues = appendIssue(actions.Issues, recorderIssue{Code: "recording-incomplete", Severity: "error", Message: "the recording did not finish with stopped capture and saved storage"})
 	}
 	if manifest.Storage.RawSHA256 != "" && manifest.Storage.RawSHA256 != rawHash {
@@ -519,10 +539,11 @@ func (r *RecorderRuntime) buildActionsFile(input string) (recorderActionsResult,
 	}
 	produced, dispositions, issues := recorderBuildActionListWithContexts(events, manifest.TextEdits, manifest.InputContexts)
 	produced, contextIssues := recorderEnrichActionsWithWindowContext(produced, manifest, events)
-	actions.Actions = produced
-	actions.EventDisposition = dispositions
 	actions.Issues = appendIssues(actions.Issues, issues)
 	actions.Issues = appendIssues(actions.Issues, contextIssues)
+	produced, dispositions, actions.Issues = recorderFinalizePartialActions(produced, dispositions, actions.Issues)
+	actions.Actions = produced
+	actions.EventDisposition = dispositions
 	actions.Readiness = recorderReadiness(actions.Issues)
 	file, revision, err := recorderSaveActionsRevision(recordingDir, &actions)
 	if err != nil {
@@ -787,6 +808,19 @@ func recorderValidateManifestRawFacts(manifest recorderManifest, raw []byte, eve
 		if event.Source != "unknown" && event.Source != "physical" && event.Source != "injected" && event.Source != "recorder" {
 			return fmt.Errorf("input source is invalid at event %s", event.EventID)
 		}
+		switch event.TextInputSource {
+		case "":
+		case "keyboard-layout":
+			if event.LibraryEvent != "KEY_TYPED" || recorderRawEventHasGap(event, "key-typed-is-not-an-ime-commit") {
+				return fmt.Errorf("keyboard-layout text source is inconsistent at event %s", event.EventID)
+			}
+		case "input-method", "unknown":
+			if event.LibraryEvent != "KEY_TYPED" || !recorderRawEventHasGap(event, "key-typed-is-not-an-ime-commit") {
+				return fmt.Errorf("unverified text source is inconsistent at event %s", event.EventID)
+			}
+		default:
+			return fmt.Errorf("text input source is invalid at event %s", event.EventID)
+		}
 		switch event.LibraryEvent {
 		case "RECORDER_PAUSED":
 			if event.Source != "recorder" || paused {
@@ -978,7 +1012,7 @@ func recorderValidateManifestTextEdits(manifest recorderManifest, eventsByID map
 		if err := recorderValidateWindowSnapshot(edit.Window); err != nil {
 			return fmt.Errorf("text edit %s window is invalid: %w", edit.ID, err)
 		}
-		if err := recorderValidateElementDescriptor(edit.Element); err != nil || edit.Element.Role != "textField" || !edit.Element.ValueSettable || edit.Element.Focused == nil || !*edit.Element.Focused {
+		if err := recorderValidateEditableDescriptor(edit.Element); err != nil {
 			return fmt.Errorf("text edit %s target is not a verified writable focused text field", edit.ID)
 		}
 		if _, err := time.Parse(time.RFC3339Nano, edit.ObservedAt); err != nil {
@@ -1067,7 +1101,7 @@ func recorderValidateElementSnapshot(snapshot *recorderElementSnapshot) error {
 	selected := recorderElementDescriptor{
 		Role: snapshot.Role, NativeRole: snapshot.NativeRole, Subrole: snapshot.Subrole, Name: snapshot.Name, Identifier: snapshot.Identifier,
 		Enabled: snapshot.Enabled, Focused: snapshot.Focused, ValueSettable: snapshot.ValueSettable,
-		NativeActions: snapshot.NativeActions, Bounds: snapshot.Bounds,
+		NativeActions: snapshot.NativeActions, Bounds: snapshot.Bounds, BoundsSpace: snapshot.BoundsSpace,
 	}
 	if err := recorderValidateElementDescriptor(selected); err != nil {
 		return fmt.Errorf("selected element descriptor is invalid")
@@ -1094,13 +1128,39 @@ func recorderValidateElementSnapshot(snapshot *recorderElementSnapshot) error {
 }
 
 func recorderValidateElementDescriptor(descriptor recorderElementDescriptor) error {
-	if strings.TrimSpace(descriptor.Role) == "" || len(descriptor.Role) > 128 || len(descriptor.NativeRole) > 128 || len(descriptor.Subrole) > 128 || len(descriptor.Name) > 1024 || len(descriptor.Identifier) > 512 || descriptor.NativeActions == nil || len(descriptor.NativeActions) > 32 || descriptor.Bounds.Width <= 0 || descriptor.Bounds.Height <= 0 {
+	if err := recorderValidateElementDescriptorFields(descriptor); err != nil || descriptor.Bounds.Width <= 0 || descriptor.Bounds.Height <= 0 {
 		return fmt.Errorf("element descriptor is invalid")
+	}
+	return nil
+}
+
+func recorderValidateElementDescriptorFields(descriptor recorderElementDescriptor) error {
+	if strings.TrimSpace(descriptor.Role) == "" || len(descriptor.Role) > 128 || len(descriptor.NativeRole) > 128 || len(descriptor.Subrole) > 128 || len(descriptor.Name) > 1024 || len(descriptor.Identifier) > 512 || descriptor.NativeActions == nil || len(descriptor.NativeActions) > 32 {
+		return fmt.Errorf("element descriptor fields are invalid")
 	}
 	for _, action := range descriptor.NativeActions {
 		if strings.TrimSpace(action) == "" || len(action) > 128 {
 			return fmt.Errorf("element native action is invalid")
 		}
+	}
+	return nil
+}
+
+func recorderValidateEditableDescriptor(descriptor recorderElementDescriptor) error {
+	if err := recorderValidateElementDescriptorFields(descriptor); err != nil || descriptor.Role != "textField" || !descriptor.ValueSettable || descriptor.Focused == nil || !*descriptor.Focused {
+		return fmt.Errorf("editable element descriptor is invalid")
+	}
+	if descriptor.Bounds.Width == 0 && descriptor.Bounds.Height == 0 {
+		if descriptor.Bounds.X != 0 || descriptor.Bounds.Y != 0 || descriptor.BoundsSpace != "" {
+			return fmt.Errorf("editable element has partial unavailable bounds")
+		}
+		if strings.TrimSpace(descriptor.Identifier) == "" && strings.TrimSpace(descriptor.Name) == "" {
+			return fmt.Errorf("bounds-free editable element has no stable locator")
+		}
+		return nil
+	}
+	if descriptor.Bounds.Width <= 0 || descriptor.Bounds.Height <= 0 {
+		return fmt.Errorf("editable element bounds are invalid")
 	}
 	return nil
 }
@@ -1112,6 +1172,8 @@ type recorderMouseSegment struct {
 	dragged []recorderRawEvent
 	motion  []recorderRawEvent
 }
+
+const recorderPointerButtonMask uint16 = (1 << 8) | (1 << 9) | (1 << 10) | (1 << 11) | (1 << 12)
 
 func recorderValidControlClickEnvelope(events []recorderRawEvent) bool {
 	if len(events) < 2 || events[0].LibraryEvent != "MOUSE_PRESSED" || events[0].Button != "left" || events[0].Clicks == 0 {
@@ -1178,6 +1240,91 @@ func recorderButtonMask(button string) uint16 {
 	default:
 		return 0
 	}
+}
+
+func recorderSingleHeldButton(modifierMask uint16) (string, bool) {
+	held := modifierMask & recorderPointerButtonMask
+	for _, button := range []string{"left", "right", "middle", "button4", "button5"} {
+		mask := recorderButtonMask(button)
+		if held == mask {
+			return button, true
+		}
+	}
+	return "", false
+}
+
+// recorderCaptureStartPointerExclusions recognizes only an input suffix that
+// was already in progress when the native listener became ready. The first
+// persisted event can therefore be DRAGGED/MOVED or RELEASED without a press
+// even when the session reports no loss. A matching release must return to a
+// neutral pointer state before the prefix can be excluded; the same shape
+// later in the recording remains an integrity error.
+func recorderCaptureStartPointerExclusions(events []recorderRawEvent) map[string]string {
+	excluded := map[string]string{}
+	if len(events) == 0 {
+		return excluded
+	}
+	const reason = "capture-start partial pointer envelope"
+	first := events[0]
+	button := ""
+	releaseIndex := -1
+	switch first.LibraryEvent {
+	case "MOUSE_DRAGGED", "MOUSE_MOVED":
+		var ok bool
+		button, ok = recorderSingleHeldButton(first.ModifierMask)
+		if !ok {
+			return excluded
+		}
+		index := 0
+		for index < len(events) && (events[index].LibraryEvent == "MOUSE_DRAGGED" || events[index].LibraryEvent == "MOUSE_MOVED") {
+			event := events[index]
+			heldButton, single := recorderSingleHeldButton(event.ModifierMask)
+			if !single || heldButton != button || (event.Button != "" && event.Button != "none" && event.Button != button) {
+				return excluded
+			}
+			index++
+		}
+		releaseIndex = index
+	case "MOUSE_RELEASED":
+		button = first.Button
+		releaseIndex = 0
+	case "MOUSE_CLICKED":
+		if recorderButtonMask(first.Button) == 0 || first.Clicks == 0 || first.ModifierMask&recorderPointerButtonMask != 0 {
+			return excluded
+		}
+		excluded[first.EventID] = reason
+		return excluded
+	default:
+		return excluded
+	}
+	if recorderButtonMask(button) == 0 || releaseIndex < 0 || releaseIndex >= len(events) {
+		return excluded
+	}
+	release := events[releaseIndex]
+	if release.LibraryEvent != "MOUSE_RELEASED" || release.Button != button || release.ModifierMask&recorderPointerButtonMask != 0 {
+		return excluded
+	}
+	for index := 0; index <= releaseIndex; index++ {
+		excluded[events[index].EventID] = reason
+	}
+	if releaseIndex+1 < len(events) && recorderReleaseMatchesImmediateClick(release, events[releaseIndex+1]) {
+		excluded[events[releaseIndex+1].EventID] = reason
+	}
+	return excluded
+}
+
+func recorderReleaseMatchesImmediateClick(release, clicked recorderRawEvent) bool {
+	if clicked.LibraryEvent != "MOUSE_CLICKED" || clicked.Button != release.Button || clicked.Clicks == 0 ||
+		clicked.ModifierMask&recorderPointerButtonMask != 0 || release.X == nil || release.Y == nil || clicked.X == nil || clicked.Y == nil ||
+		recorderPointDistanceSquared(*release.X, *release.Y, *clicked.X, *clicked.Y) > recorderClickJitterPixels*recorderClickJitterPixels {
+		return false
+	}
+	if release.Clicks > 0 && release.Clicks != clicked.Clicks {
+		return false
+	}
+	releaseTime := recorderActionTimeMilliseconds(release.NativeTime, release.NativeUnit)
+	clickedTime := recorderActionTimeMilliseconds(clicked.NativeTime, clicked.NativeUnit)
+	return clickedTime >= releaseTime && clickedTime-releaseTime <= 2000
 }
 
 // recorderMotionSegment associates libuiohook's production drag shape with
@@ -1602,9 +1749,10 @@ func recorderBuildActionListWithContexts(events []recorderRawEvent, textEdits []
 	actions := make([]recorderAction, 0)
 	disposition := make(map[string]recorderEventDisposition, len(events))
 	controlExclusions, issues := recorderControlClickExclusions(events)
+	startPointerExclusions := recorderCaptureStartPointerExclusions(events)
 	segments := map[string]*recorderMouseSegment{}
 	lastClicked := map[string]recorderRawEvent{}
-	pressedKeys := map[uint16]recorderRawEvent{}
+	pressedKeys := map[uint16][]recorderRawEvent{}
 	eventSegments := recorderCaptureSegmentIndexes(events)
 	eventsByID := make(map[string]recorderRawEvent, len(events))
 	for _, event := range events {
@@ -1766,6 +1914,10 @@ func recorderBuildActionListWithContexts(events []recorderRawEvent, textEdits []
 			disposition[event.EventID] = recorderEventDisposition{EventID: event.EventID, Disposition: "excluded", Reason: reason}
 			continue
 		}
+		if reason, excluded := startPointerExclusions[event.EventID]; excluded {
+			disposition[event.EventID] = recorderEventDisposition{EventID: event.EventID, Disposition: "excluded", Reason: reason}
+			continue
+		}
 		skipReleasedButton := ""
 		if event.LibraryEvent == "MOUSE_CLICKED" {
 			skipReleasedButton = event.Button
@@ -1780,17 +1932,19 @@ func recorderBuildActionListWithContexts(events []recorderRawEvent, textEdits []
 					disposition[mouse.press.EventID] = recorderEventDisposition{EventID: mouse.press.EventID, Disposition: "pending", Reason: "mouse press crossed a pause boundary"}
 				}
 			}
-			for _, pressed := range pressedKeys {
-				issues = appendIssue(issues, recorderIssue{Code: "input-open-at-pause", Severity: "error", Message: "a key press crossed an explicit pause boundary", EventID: pressed.EventID})
-				disposition[pressed.EventID] = recorderEventDisposition{EventID: pressed.EventID, Disposition: "pending", Reason: "key press crossed a pause boundary"}
+			for _, presses := range pressedKeys {
+				for _, pressed := range presses {
+					issues = appendIssue(issues, recorderIssue{Code: "input-open-at-pause", Severity: "error", Message: "a key press crossed an explicit pause boundary", EventID: pressed.EventID})
+					disposition[pressed.EventID] = recorderEventDisposition{EventID: pressed.EventID, Disposition: "pending", Reason: "key press crossed a pause boundary"}
+				}
 			}
 			segments = map[string]*recorderMouseSegment{}
-			pressedKeys = map[uint16]recorderRawEvent{}
+			pressedKeys = map[uint16][]recorderRawEvent{}
 			disposition[event.EventID] = recorderEventDisposition{EventID: event.EventID, Disposition: "excluded", Reason: "explicit recording pause boundary"}
 		case "RECORDER_RESUMED":
 			flushText()
 			segments = map[string]*recorderMouseSegment{}
-			pressedKeys = map[uint16]recorderRawEvent{}
+			pressedKeys = map[uint16][]recorderRawEvent{}
 			disposition[event.EventID] = recorderEventDisposition{EventID: event.EventID, Disposition: "excluded", Reason: "explicit recording resume boundary"}
 		case "MOUSE_PRESSED":
 			flushText()
@@ -1903,61 +2057,112 @@ func recorderBuildActionListWithContexts(events []recorderRawEvent, textEdits []
 			} else if recorderHasControlModifier(event.ModifierMask) {
 				flushText()
 				if event.LibraryEvent == "KEY_PRESSED" {
-					pressedKeys[*event.Keycode] = event
+					pressedKeys[*event.Keycode] = append(pressedKeys[*event.Keycode], event)
 					disposition[event.EventID] = recorderEventDisposition{EventID: event.EventID, Disposition: "pending", Reason: "shortcut press awaiting release"}
 					continue
 				}
-				press, ok := pressedKeys[*event.Keycode]
+				presses := pressedKeys[*event.Keycode]
 				delete(pressedKeys, *event.Keycode)
 				name, supported := recorderKeyName(*event.Keycode)
-				if !ok || !supported {
+				if len(presses) == 0 || !supported || len(presses) > recorderMaximumKeyRepeatCount {
 					issues = appendIssue(issues, recorderIssue{Code: "shortcut-unsupported", Severity: "error", Message: "modifier shortcut has no matching supported primary-key press", EventID: event.EventID})
 					disposition[event.EventID] = recorderEventDisposition{EventID: event.EventID, Disposition: "pending", Reason: "unsupported shortcut release"}
 					continue
 				}
+				press := presses[0]
 				id := fmt.Sprintf("a%04d", len(actions)+1)
 				keys := recorderShortcutKeys(press.ModifierMask|event.ModifierMask, name)
+				if !recorderRepeatedKeyPressesMatchKeys(presses, keys) {
+					issues = appendIssue(issues, recorderIssue{Code: "physical-key-modifiers-changed", Severity: "error", Message: "repeated primary-key presses do not share one stable modifier chord", EventID: event.EventID})
+					for _, item := range presses {
+						disposition[item.EventID] = recorderEventDisposition{EventID: item.EventID, Disposition: "pending", Reason: "repeated shortcut modifiers changed before release"}
+					}
+					disposition[event.EventID] = recorderEventDisposition{EventID: event.EventID, Disposition: "pending", Reason: "repeated shortcut modifiers changed before release"}
+					continue
+				}
+				eventIDs := make([]string, 0, len(presses)+1)
+				for _, item := range presses {
+					eventIDs = append(eventIDs, item.EventID)
+				}
+				eventIDs = append(eventIDs, event.EventID)
+				args := recorderActionArguments{Keys: keys}
+				if len(presses) > 1 {
+					args.RepeatCount = len(presses)
+				}
 				actions = append(actions, recorderAction{
-					ID: id, Kind: "shortcut", Source: recorderActionSource{EventIDs: []string{press.EventID, event.EventID}, Basis: recorderShortcutBasis},
-					Timing: recorderTiming(press, event), Args: recorderActionArguments{Keys: keys}, Strategy: "keyboard.combination",
+					ID: id, Kind: "shortcut", Source: recorderActionSource{EventIDs: eventIDs, Basis: recorderShortcutBasis},
+					Timing: recorderTiming(press, event), Args: args, Strategy: "keyboard.combination",
 					Review: recorderActionReview{Required: false, Status: "not-required"},
 				})
-				disposition[press.EventID] = recorderEventDisposition{EventID: press.EventID, Disposition: "consumed", ActionID: id, Reason: "primary shortcut press"}
+				for pressIndex, item := range presses {
+					kind, reason := "evidence", "repeated primary shortcut press"
+					if pressIndex == 0 {
+						kind, reason = "consumed", "primary shortcut press"
+					}
+					disposition[item.EventID] = recorderEventDisposition{EventID: item.EventID, Disposition: kind, ActionID: id, Reason: reason}
+				}
 				disposition[event.EventID] = recorderEventDisposition{EventID: event.EventID, Disposition: "evidence", ActionID: id, Reason: "primary shortcut release"}
 			} else if event.Rawcode != nil && typedRawcodes[eventSegments[event.EventID]][*event.Rawcode] {
 				disposition[event.EventID] = recorderEventDisposition{EventID: event.EventID, Disposition: "evidence", Reason: "physical key event is not replayed in addition to text"}
 			} else {
 				flushText()
 				if event.LibraryEvent == "KEY_PRESSED" {
-					pressedKeys[*event.Keycode] = event
+					pressedKeys[*event.Keycode] = append(pressedKeys[*event.Keycode], event)
 					disposition[event.EventID] = recorderEventDisposition{EventID: event.EventID, Disposition: "pending", Reason: "physical key press awaiting release"}
 					continue
 				}
-				press, ok := pressedKeys[*event.Keycode]
+				presses := pressedKeys[*event.Keycode]
 				delete(pressedKeys, *event.Keycode)
 				name, supported := recorderKeyName(*event.Keycode)
-				if !ok || !supported || !recorderIsReplayableSpecialKey(name) {
+				if len(presses) == 0 || len(presses) > recorderMaximumKeyRepeatCount || !supported || !recorderIsReplayableSpecialKey(name) {
 					issues = appendIssue(issues, recorderIssue{Code: "physical-key-unsupported", Severity: "error", Message: "physical key without supported text or special-key semantics cannot be generated", EventID: event.EventID})
 					disposition[event.EventID] = recorderEventDisposition{EventID: event.EventID, Disposition: "pending", Reason: "physical key generation is unsupported"}
 					continue
 				}
+				press := presses[0]
 				id := fmt.Sprintf("a%04d", len(actions)+1)
 				kind, strategy, args := "key", "keyboard.press", recorderActionArguments{Key: name}
 				basis := recorderSpecialKeyBasis
 				if press.ModifierMask&((1<<0)|(1<<4)) != 0 {
 					kind, strategy, args, basis = "shortcut", "keyboard.combination", recorderActionArguments{Keys: recorderShortcutKeys(press.ModifierMask|event.ModifierMask, name)}, recorderShortcutBasis
 				}
+				expectedKeys := []string{name}
+				if kind == "shortcut" {
+					expectedKeys = args.Keys
+				}
+				if !recorderRepeatedKeyPressesMatchKeys(presses, expectedKeys) {
+					issues = appendIssue(issues, recorderIssue{Code: "physical-key-modifiers-changed", Severity: "error", Message: "repeated primary-key presses do not share one stable modifier chord", EventID: event.EventID})
+					for _, item := range presses {
+						disposition[item.EventID] = recorderEventDisposition{EventID: item.EventID, Disposition: "pending", Reason: "repeated key modifiers changed before release"}
+					}
+					disposition[event.EventID] = recorderEventDisposition{EventID: event.EventID, Disposition: "pending", Reason: "repeated key modifiers changed before release"}
+					continue
+				}
+				if len(presses) > 1 {
+					args.RepeatCount = len(presses)
+				}
+				eventIDs := make([]string, 0, len(presses)+1)
+				for _, item := range presses {
+					eventIDs = append(eventIDs, item.EventID)
+				}
+				eventIDs = append(eventIDs, event.EventID)
 				actions = append(actions, recorderAction{
-					ID: id, Kind: kind, Source: recorderActionSource{EventIDs: []string{press.EventID, event.EventID}, Basis: basis},
+					ID: id, Kind: kind, Source: recorderActionSource{EventIDs: eventIDs, Basis: basis},
 					Timing: recorderTiming(press, event), Args: args, Strategy: strategy,
 					Review: recorderActionReview{Required: false, Status: "not-required"},
 				})
-				disposition[press.EventID] = recorderEventDisposition{EventID: press.EventID, Disposition: "consumed", ActionID: id, Reason: "physical key press"}
+				for pressIndex, item := range presses {
+					kind, reason := "evidence", "repeated physical key press"
+					if pressIndex == 0 {
+						kind, reason = "consumed", "physical key press"
+					}
+					disposition[item.EventID] = recorderEventDisposition{EventID: item.EventID, Disposition: kind, ActionID: id, Reason: reason}
+				}
 				disposition[event.EventID] = recorderEventDisposition{EventID: event.EventID, Disposition: "evidence", ActionID: id, Reason: "physical key release"}
 			}
 			if event.Keycode != nil {
 				if event.LibraryEvent == "KEY_PRESSED" {
-					pressedKeys[*event.Keycode] = event
+					pressedKeys[*event.Keycode] = append(pressedKeys[*event.Keycode], event)
 				} else {
 					delete(pressedKeys, *event.Keycode)
 				}
@@ -1976,9 +2181,11 @@ func recorderBuildActionListWithContexts(events []recorderRawEvent, textEdits []
 			disposition[segment.press.EventID] = recorderEventDisposition{EventID: segment.press.EventID, Disposition: "pending", Reason: "missing release at recording boundary"}
 		}
 	}
-	for _, pressed := range pressedKeys {
-		issues = appendIssue(issues, recorderIssue{Code: "missing-key-release-at-stop", Severity: "error", Message: "recording stopped before a matching key release", EventID: pressed.EventID})
-		disposition[pressed.EventID] = recorderEventDisposition{EventID: pressed.EventID, Disposition: "pending", Reason: "missing key release at recording boundary"}
+	for _, presses := range pressedKeys {
+		for _, pressed := range presses {
+			issues = appendIssue(issues, recorderIssue{Code: "missing-key-release-at-stop", Severity: "error", Message: "recording stopped before a matching key release", EventID: pressed.EventID})
+			disposition[pressed.EventID] = recorderEventDisposition{EventID: pressed.EventID, Disposition: "pending", Reason: "missing key release at recording boundary"}
+		}
 	}
 	recorderAssociateKeyboardEvidence(events, actions, disposition, eventSegments)
 	// Rebind every action-linked disposition from the stable source sequence,
@@ -2000,9 +2207,13 @@ func recorderBuildActionListWithContexts(events []recorderRawEvent, textEdits []
 		item := disposition[event.EventID]
 		if item.Disposition == "pending" {
 			issues = appendIssue(issues, recorderIssue{Code: "unresolved-event", Severity: "error", Message: "an input event has no supported action or explicit exclusion", EventID: event.EventID})
+			item.Disposition = "omitted"
+			item.ActionID = ""
 		}
 		if item.Disposition == "evidence" && item.ActionID == "" {
 			issues = appendIssue(issues, recorderIssue{Code: "unassociated-key-evidence", Severity: "error", Message: "keyboard state evidence is not associated with a supported text action", EventID: event.EventID})
+			item.Disposition = "omitted"
+			item.ActionID = ""
 		}
 		ordered = append(ordered, item)
 	}
@@ -2101,15 +2312,15 @@ func recorderModifierKey(code uint16) (string, uint16, bool) {
 		return "Shift", 1 << 4, true
 	case 0x001d:
 		return "Control", 1 << 1, true
-	case 0xe01d:
+	case 0x0e1d:
 		return "Control", 1 << 5, true
-	case 0xe05b:
+	case 0x0e5b:
 		return "Meta", 1 << 2, true
-	case 0xe05c:
+	case 0x0e5c:
 		return "Meta", 1 << 6, true
 	case 0x0038:
 		return "Alt", 1 << 3, true
-	case 0xe038:
+	case 0x0e38:
 		return "Alt", 1 << 7, true
 	default:
 		return "", 0, false
@@ -2140,7 +2351,39 @@ func recorderValidShortcutKeys(keys []string) bool {
 	return primary != "" && !seen[primary] && primary != "Control" && primary != "Meta" && primary != "Alt" && primary != "Shift"
 }
 
-func recorderValidPhysicalKeySources(events []recorderRawEvent, primary string, requireModifier bool) bool {
+func recorderEffectiveKeyRepeatCount(value int) (int, bool) {
+	if value == 0 {
+		return 1, true
+	}
+	if value < 2 || value > recorderMaximumKeyRepeatCount {
+		return 0, false
+	}
+	return value, true
+}
+
+func recorderRepeatedKeyPressesMatchKeys(presses []recorderRawEvent, keys []string) bool {
+	if len(presses) == 0 || len(keys) == 0 {
+		return false
+	}
+	primary := keys[len(keys)-1]
+	for _, press := range presses {
+		if press.LibraryEvent != "KEY_PRESSED" || !reflect.DeepEqual(recorderShortcutKeys(press.ModifierMask, primary), keys) {
+			return false
+		}
+	}
+	return true
+}
+
+func recorderValidPhysicalKeySources(events []recorderRawEvent, primary string, expectedModifiers []string, repeatCount int) bool {
+	expectedPresses, ok := recorderEffectiveKeyRepeatCount(repeatCount)
+	if !ok {
+		return false
+	}
+	expectedKeys := append(append([]string(nil), expectedModifiers...), primary)
+	expectedModifier := make(map[string]bool, len(expectedModifiers))
+	for _, modifier := range expectedModifiers {
+		expectedModifier[modifier] = true
+	}
 	primaryPressed, primaryReleased := 0, 0
 	modifierPressed := map[string]int{}
 	modifierReleased := map[string]int{}
@@ -2149,6 +2392,9 @@ func recorderValidPhysicalKeySources(events []recorderRawEvent, primary string, 
 			return false
 		}
 		if modifier, _, ok := recorderModifierKey(*event.Keycode); ok {
+			if !expectedModifier[modifier] {
+				return false
+			}
 			if event.LibraryEvent == "KEY_PRESSED" {
 				modifierPressed[modifier]++
 			} else {
@@ -2161,23 +2407,29 @@ func recorderValidPhysicalKeySources(events []recorderRawEvent, primary string, 
 			return false
 		}
 		if event.LibraryEvent == "KEY_PRESSED" {
+			if !reflect.DeepEqual(recorderShortcutKeys(event.ModifierMask, primary), expectedKeys) {
+				return false
+			}
 			primaryPressed++
 		} else {
+			releaseKeys := recorderShortcutKeys(event.ModifierMask, primary)
+			for _, modifier := range releaseKeys[:len(releaseKeys)-1] {
+				if !expectedModifier[modifier] {
+					return false
+				}
+			}
 			primaryReleased++
 		}
 	}
-	if primaryPressed != 1 || primaryReleased != 1 {
+	if primaryPressed != expectedPresses || primaryReleased != 1 {
 		return false
 	}
-	if requireModifier {
-		for name, count := range modifierPressed {
-			if count > 0 && modifierReleased[name] > 0 {
-				return true
-			}
+	for _, modifier := range expectedModifiers {
+		if modifierPressed[modifier] != 1 || modifierReleased[modifier] != 1 {
+			return false
 		}
-		return false
 	}
-	return len(modifierPressed) == 0 && len(modifierReleased) == 0
+	return len(modifierPressed) == len(expectedModifiers) && len(modifierReleased) == len(expectedModifiers)
 }
 
 func recorderBuildClickAction(clicked recorderRawEvent, segment *recorderMouseSegment, priorClicked *recorderRawEvent, ordinal int) (*recorderAction, []recorderIssue) {
@@ -2656,7 +2908,7 @@ func recorderValidateActionTarget(action recorderAction) error {
 			return err
 		}
 		element := action.Target.Editable
-		if err := recorderValidateElementDescriptor(*element); err != nil || element.Role != "textField" || !element.ValueSettable || element.Focused == nil || !*element.Focused {
+		if err := recorderValidateEditableDescriptor(*element); err != nil {
 			return fmt.Errorf("verified editable target is invalid")
 		}
 		return nil
@@ -2868,13 +3120,22 @@ func recorderBasicCharacter(event recorderRawEvent) (string, bool) {
 	return string(value), true
 }
 
+func recorderRawEventHasGap(event recorderRawEvent, gap string) bool {
+	for _, candidate := range event.Gaps {
+		if candidate == gap {
+			return true
+		}
+	}
+	return false
+}
+
 func recorderHasControlModifier(mask uint16) bool {
 	return mask&((1<<1)|(1<<2)|(1<<3)|(1<<5)|(1<<6)|(1<<7)) != 0
 }
 
 func recorderIsModifierKey(code uint16) bool {
 	switch code {
-	case 0x002a, 0x0036, 0x001d, 0xe01d, 0xe05b, 0xe05c, 0x0038, 0xe038:
+	case 0x002a, 0x0036, 0x001d, 0x0e1d, 0x0e5b, 0x0e5c, 0x0038, 0x0e38:
 		return true
 	}
 	return false
@@ -2920,6 +3181,141 @@ func appendIssues(target, values []recorderIssue) []recorderIssue {
 		target = appendIssue(target, issue)
 	}
 	return target
+}
+
+func recorderIssueAllowsPartial(code string) bool {
+	switch code {
+	case "action-target-invalid",
+		"ambiguous-button-motion",
+		"click-count-inconsistent",
+		"click-count-invalid",
+		"click-count-unsupported",
+		"click-missing-press",
+		"click-missing-release",
+		"composition-unsupported",
+		"coordinate-unverified",
+		"drag-not-click",
+		"drag-unsupported",
+		"ime-boundary-ambiguous",
+		"input-open-at-pause",
+		"key-release-not-observed-at-stop",
+		"key-still-pressed-at-stop",
+		"keycode-missing",
+		"legacy-screen-only",
+		"long-press-unsupported",
+		"maximum-duration",
+		"missing-key-release-at-stop",
+		"missing-release-at-stop",
+		"modified-click-unsupported",
+		"motion-path-not-click",
+		"mouse-button-unsupported",
+		"physical-key-modifiers-changed",
+		"physical-key-unsupported",
+		"release-without-press",
+		"shortcut-unsupported",
+		"text-edit-too-large",
+		"text-tracker-overflow",
+		"typed-text-unsupported",
+		"unassociated-key-evidence",
+		"unknown-library-event",
+		"unpaired-mouse-press",
+		"unresolved-event",
+		"wheel-invalid",
+		"wheel-modified-unsupported",
+		"window-context-missing",
+		"window-context-overflow",
+		"window-context-unverified",
+		"window-relative-coordinate-invalid":
+		return true
+	default:
+		return false
+	}
+}
+
+func recorderManifestFailureAllowsPartial(manifest recorderManifest) bool {
+	if manifest.State != "failed" || manifest.Storage.State != "saved" {
+		return false
+	}
+	sawMaximumDuration := false
+	for _, issue := range manifest.Issues {
+		if issue.Severity != "error" {
+			continue
+		}
+		if !recorderIssueAllowsPartial(issue.Code) {
+			return false
+		}
+		if issue.Code == "maximum-duration" {
+			sawMaximumDuration = true
+		}
+	}
+	return sawMaximumDuration
+}
+
+func recorderFinalizePartialActions(actions []recorderAction, dispositions []recorderEventDisposition, issues []recorderIssue) ([]recorderAction, []recorderEventDisposition, []recorderIssue) {
+	unsafeEvents := make(map[string]bool)
+	dropKeyboardActions := false
+	for index := range issues {
+		if !recorderIssueAllowsPartial(issues[index].Code) {
+			continue
+		}
+		if issues[index].Severity == "error" {
+			issues[index].Severity = "warning"
+		}
+		if issues[index].EventID != "" {
+			unsafeEvents[issues[index].EventID] = true
+		}
+		if issues[index].Code == "text-tracker-overflow" {
+			dropKeyboardActions = true
+		}
+	}
+
+	omittedActions := make(map[string]bool)
+	renamedActions := make(map[string]string)
+	safeActions := make([]recorderAction, 0, len(actions))
+	for _, action := range actions {
+		unsafe := recorderValidateActionTarget(action) != nil
+		if dropKeyboardActions && (action.Kind == "text" || action.Kind == "text-edit" || action.Kind == "shortcut" || action.Kind == "key") {
+			unsafe = true
+		}
+		for _, eventID := range action.Source.EventIDs {
+			if unsafeEvents[eventID] {
+				unsafe = true
+				break
+			}
+		}
+		if unsafe {
+			omittedActions[action.ID] = true
+			if recorderValidateActionTarget(action) != nil {
+				eventID := ""
+				if len(action.Source.EventIDs) > 0 {
+					eventID = action.Source.EventIDs[0]
+				}
+				issues = appendIssue(issues, recorderIssue{Code: "action-target-invalid", Severity: "warning", Message: "the action has no complete verified replay target and was omitted", EventID: eventID})
+			}
+			continue
+		}
+		oldID := action.ID
+		action.ID = fmt.Sprintf("a%04d", len(safeActions)+1)
+		renamedActions[oldID] = action.ID
+		safeActions = append(safeActions, action)
+	}
+
+	for index := range dispositions {
+		item := &dispositions[index]
+		if omittedActions[item.ActionID] {
+			item.Disposition = "omitted"
+			item.ActionID = ""
+			item.Reason = "action omitted because it is outside the verified replay subset"
+			continue
+		}
+		if renamed, ok := renamedActions[item.ActionID]; ok {
+			item.ActionID = renamed
+		}
+	}
+	if len(safeActions) == 0 {
+		issues = appendIssue(issues, recorderIssue{Code: "no-supported-actions", Severity: "warning", Message: "the recording contains no action in the basic supported subset"})
+	}
+	return safeActions, dispositions, issues
 }
 
 func recorderReadiness(issues []recorderIssue) string {
@@ -2972,7 +3368,7 @@ func recorderSaveActionsRevision(recordingDir string, actions *recorderActions) 
 	return "", 0, fmt.Errorf("actions revision limit exceeded")
 }
 
-func (r *RecorderRuntime) generateBasicScript(input, outputFile string, timing recorderGenerationTiming) (recorderScriptResult, error) {
+func (r *RecorderRuntime) generateBasicScript(input, outputFile string, timing recorderGenerationTiming, pointerMotion string) (recorderScriptResult, error) {
 	const operation = "Recorder.generateScript"
 	actionsPath, recordingDir, err := r.resolveActionsFile(input, operation)
 	if err != nil {
@@ -2991,8 +3387,8 @@ func (r *RecorderRuntime) generateBasicScript(input, outputFile string, timing r
 	if err := recorderValidateActions(actions, actionsPath, recordingDir, &rawEvents); err != nil {
 		return recorderScriptResult{}, err
 	}
-	if actions.Readiness != "ready" {
-		return recorderScriptResult{}, recorderError(RecorderGenerationBlocked, operation, "actions readiness is not ready; resolve its issues in a new actions revision", nil)
+	if actions.Readiness == "blocked" {
+		return recorderScriptResult{}, recorderError(RecorderGenerationBlocked, operation, "actions package integrity does not permit generation", nil)
 	}
 	generatedDir := filepath.Join(recordingDir, "generated")
 	if err := os.MkdirAll(generatedDir, 0700); err != nil {
@@ -3024,7 +3420,7 @@ func (r *RecorderRuntime) generateBasicScript(input, outputFile string, timing r
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return recorderScriptResult{}, recorderWrapFileError(operation, "candidate output", err)
 	}
-	script, mappings, constraints, err := recorderGenerateBasicSource(actions, rawEvents, timing)
+	script, mappings, constraints, err := recorderGenerateBasicSource(actions, rawEvents, timing, pointerMotion)
 	if err != nil {
 		return recorderScriptResult{}, err
 	}
@@ -3032,9 +3428,9 @@ func (r *RecorderRuntime) generateBasicScript(input, outputFile string, timing r
 	candidate := recorderCandidate{
 		FormatVersion: recorderCandidateFormatVersion, RecordingID: actions.RecordingID,
 		CreatedAt: time.Now().UTC().Format(time.RFC3339Nano), Mode: "basic",
-		Actions:     recorderCandidateActionsRef{File: actionsPath, SHA256: actionsHash, Revision: actions.Revision},
-		Script:      recorderCandidateScriptRef{File: scriptPath, SHA256: scriptHash},
-		Timing:      timing,
+		Actions: recorderCandidateActionsRef{File: actionsPath, SHA256: actionsHash, Revision: actions.Revision},
+		Script:  recorderCandidateScriptRef{File: scriptPath, SHA256: scriptHash},
+		Timing:  timing, PointerMotion: pointerMotion,
 		Constraints: constraints, Mappings: mappings, Verification: "not-run",
 	}
 	candidateBytes, err := json.MarshalIndent(candidate, "", "  ")
@@ -3055,7 +3451,7 @@ func (r *RecorderRuntime) generateBasicScript(input, outputFile string, timing r
 		}
 		return recorderScriptResult{}, recorderError(RecorderStorageFailed, operation, "could not save candidate metadata", err)
 	}
-	return recorderScriptResult{ScriptFile: scriptPath, CandidateFile: candidatePath, ActionsSHA256: actionsHash, ScriptSHA256: scriptHash, Constraints: constraints, Verification: "not-run", Timing: timing}, nil
+	return recorderScriptResult{ScriptFile: scriptPath, CandidateFile: candidatePath, ActionsSHA256: actionsHash, ScriptSHA256: scriptHash, Constraints: constraints, Verification: "not-run", Timing: timing, PointerMotion: pointerMotion}, nil
 }
 
 func recorderValidateActions(actions recorderActions, actionsPath, recordingDir string, validatedRaw *[]recorderRawEvent) error {
@@ -3063,8 +3459,12 @@ func recorderValidateActions(actions recorderActions, actionsPath, recordingDir 
 	if actions.FormatVersion != recorderActionsFormatVersion || !recorderIDPattern.MatchString(actions.RecordingID) || actions.RecordingID != filepath.Base(recordingDir) || actions.Revision < 1 {
 		return recorderError(RecorderInvalidRecording, operation, "actions identity, revision, or version is invalid", nil)
 	}
-	if len(actions.Actions) > recorderMaxActions || actions.Readiness == "" || (actions.Readiness == "ready" && len(actions.Actions) == 0) {
+	if len(actions.Actions) > recorderMaxActions || (actions.Readiness != "ready" && actions.Readiness != "needs-review" && actions.Readiness != "blocked") {
 		return recorderError(RecorderInvalidRecording, operation, "actions limits or readiness are invalid", nil)
+	}
+	if (actions.Readiness == "ready" && (len(actions.Actions) == 0 || len(actions.Issues) != 0)) ||
+		(actions.Readiness == "needs-review" && len(actions.Issues) == 0) {
+		return recorderError(RecorderInvalidRecording, operation, "actions readiness does not match its actions and issues", nil)
 	}
 	expectedName := "actions.json"
 	if actions.Revision > 1 && actions.Revision <= 999 {
@@ -3099,11 +3499,11 @@ func recorderValidateActions(actions recorderActions, actionsPath, recordingDir 
 	if err != nil || int64(len(rawBytes)) != actions.Raw.Bytes || recorderSHA256(rawBytes) != actions.Raw.SHA256 {
 		return recorderError(RecorderInvalidRecording, operation, "actions raw reference no longer matches the recorded bytes", err)
 	}
-	if actions.Readiness != "ready" || len(actions.Issues) != 0 {
-		return recorderError(RecorderGenerationBlocked, operation, "actions readiness and issues do not permit basic generation", nil)
+	if actions.Readiness == "blocked" {
+		return recorderError(RecorderGenerationBlocked, operation, "actions package integrity does not permit basic generation", nil)
 	}
 	rawEvents, rawIssues, err := recorderParseRawEvents(rawBytes, false)
-	if err != nil || len(rawIssues) != 0 {
+	if err != nil {
 		return recorderError(RecorderInvalidRecording, operation, "actions raw reference is not a complete valid event stream", err)
 	}
 	if validatedRaw != nil {
@@ -3118,7 +3518,9 @@ func recorderValidateActions(actions recorderActions, actionsPath, recordingDir 
 		return recorderError(RecorderInvalidRecording, operation, "manifest.json does not match the Recorder recording schema", err)
 	}
 	terminal, err := recorderValidateManifestStructure(manifest)
-	if err != nil || manifest.FormatVersion != recorderRecordingFormatVersion || !terminal || manifest.State != "stopped" || manifest.Storage.State != "saved" || manifest.RecordingID != actions.RecordingID {
+	if err != nil || manifest.FormatVersion != recorderRecordingFormatVersion || !terminal ||
+		(manifest.State != "stopped" && !recorderManifestFailureAllowsPartial(manifest)) ||
+		manifest.Storage.State != "saved" || manifest.RecordingID != actions.RecordingID {
 		return recorderError(RecorderInvalidRecording, operation, "actions do not reference a complete saved recording manifest", err)
 	}
 	if err := recorderValidateManifestRawFacts(manifest, rawBytes, rawEvents, terminal); err != nil {
@@ -3131,15 +3533,24 @@ func recorderValidateActions(actions recorderActions, actionsPath, recordingDir 
 	for _, event := range rawEvents {
 		rawByID[event.EventID] = event
 	}
-	expectedActions, expectedDisposition, expectedIssues := recorderBuildActionListWithContexts(rawEvents, manifest.TextEdits, manifest.InputContexts)
+	expectedIssues := append(make([]recorderIssue, 0), rawIssues...)
+	for _, issue := range manifest.Issues {
+		if issue.Severity == "error" {
+			expectedIssues = appendIssue(expectedIssues, issue)
+		}
+	}
+	expectedActions, expectedDisposition, groupingIssues := recorderBuildActionListWithContexts(rawEvents, manifest.TextEdits, manifest.InputContexts)
 	expectedActions, contextIssues := recorderEnrichActionsWithWindowContext(expectedActions, manifest, rawEvents)
+	expectedIssues = appendIssues(expectedIssues, groupingIssues)
 	expectedIssues = appendIssues(expectedIssues, contextIssues)
-	if len(expectedIssues) != 0 || !reflect.DeepEqual(actions.Actions, expectedActions) || !reflect.DeepEqual(actions.EventDisposition, expectedDisposition) {
+	expectedActions, expectedDisposition, expectedIssues = recorderFinalizePartialActions(expectedActions, expectedDisposition, expectedIssues)
+	expectedReadiness := recorderReadiness(expectedIssues)
+	if actions.Readiness != expectedReadiness || !reflect.DeepEqual(actions.Issues, expectedIssues) || !reflect.DeepEqual(actions.Actions, expectedActions) || !reflect.DeepEqual(actions.EventDisposition, expectedDisposition) {
 		return recorderError(RecorderInvalidRecording, operation, "actions do not match the deterministic grouping of their fixed raw bytes", nil)
 	}
 	eventDisposition := map[string]recorderEventDisposition{}
 	for _, item := range actions.EventDisposition {
-		if !recorderIDPattern.MatchString(item.EventID) || (item.Disposition != "consumed" && item.Disposition != "evidence" && item.Disposition != "excluded") || item.Reason == "" || len(item.Reason) > 1024 {
+		if !recorderIDPattern.MatchString(item.EventID) || (item.Disposition != "consumed" && item.Disposition != "evidence" && item.Disposition != "excluded" && item.Disposition != "omitted") || item.Reason == "" || len(item.Reason) > 1024 {
 			return recorderError(RecorderInvalidRecording, operation, "eventDisposition contains invalid data", nil)
 		}
 		if _, exists := rawByID[item.EventID]; !exists {
@@ -3189,7 +3600,7 @@ func recorderValidateActions(actions recorderActions, actionsPath, recordingDir 
 		for _, eventID := range action.Source.EventIDs {
 			disposition, exists := eventDisposition[eventID]
 			event, rawExists := rawByID[eventID]
-			if !recorderIDPattern.MatchString(eventID) || !exists || !rawExists || disposition.ActionID != action.ID || disposition.Disposition == "excluded" || seenSource[eventID] {
+			if !recorderIDPattern.MatchString(eventID) || !exists || !rawExists || disposition.ActionID != action.ID || (disposition.Disposition != "consumed" && disposition.Disposition != "evidence") || seenSource[eventID] {
 				return recorderError(RecorderInvalidRecording, operation, "action has a dangling or ambiguous event reference", nil)
 			}
 			sourceSequence := recorderNativeStringValue(event.Sequence)
@@ -3203,6 +3614,9 @@ func recorderValidateActions(actions recorderActions, actionsPath, recordingDir 
 		expectedTiming := recorderTiming(sourceEvents[0], sourceEvents[len(sourceEvents)-1])
 		if action.Timing != expectedTiming {
 			return recorderError(RecorderInvalidRecording, operation, "action timing does not match its fixed source events", nil)
+		}
+		if action.Args.RepeatCount != 0 && action.Kind != "shortcut" && action.Kind != "key" {
+			return recorderError(RecorderInvalidRecording, operation, "repeatCount is only valid for physical key actions", nil)
 		}
 		switch action.Kind {
 		case "click":
@@ -3328,11 +3742,11 @@ func recorderValidateActions(actions recorderActions, actionsPath, recordingDir 
 			if action.Source.Basis != recorderShortcutBasis || action.Position != nil || action.Destination != nil || action.Args.Button != "" || action.Args.ClickCount != 0 || action.Args.Steps != 0 || action.Args.Text != "" || action.Args.EditSemantics != "" || action.Args.Key != "" || len(action.Args.Keys) < 2 || len(action.Args.Keys) > 5 || action.Args.TextEdit != nil || action.Strategy != "keyboard.combination" || recorderValidateActionTarget(action) != nil || !recorderValidShortcutKeys(action.Args.Keys) {
 				return recorderError(RecorderInvalidRecording, operation, "shortcut action is outside the whitelisted physical chord schema", nil)
 			}
-			if !recorderValidPhysicalKeySources(sourceEvents, action.Args.Keys[len(action.Args.Keys)-1], true) {
+			if !recorderValidPhysicalKeySources(sourceEvents, action.Args.Keys[len(action.Args.Keys)-1], action.Args.Keys[:len(action.Args.Keys)-1], action.Args.RepeatCount) {
 				return recorderError(RecorderInvalidRecording, operation, "shortcut action has invalid physical source evidence", nil)
 			}
 		case "key":
-			if action.Source.Basis != recorderSpecialKeyBasis || action.Position != nil || action.Destination != nil || action.Args.Button != "" || action.Args.ClickCount != 0 || action.Args.Steps != 0 || action.Args.Text != "" || action.Args.EditSemantics != "" || action.Args.Key == "" || len(action.Args.Keys) != 0 || action.Args.TextEdit != nil || action.Strategy != "keyboard.press" || !recorderIsReplayableSpecialKey(action.Args.Key) || recorderValidateActionTarget(action) != nil || !recorderValidPhysicalKeySources(sourceEvents, action.Args.Key, false) {
+			if action.Source.Basis != recorderSpecialKeyBasis || action.Position != nil || action.Destination != nil || action.Args.Button != "" || action.Args.ClickCount != 0 || action.Args.Steps != 0 || action.Args.Text != "" || action.Args.EditSemantics != "" || action.Args.Key == "" || len(action.Args.Keys) != 0 || action.Args.TextEdit != nil || action.Strategy != "keyboard.press" || !recorderIsReplayableSpecialKey(action.Args.Key) || recorderValidateActionTarget(action) != nil || !recorderValidPhysicalKeySources(sourceEvents, action.Args.Key, nil, action.Args.RepeatCount) {
 				return recorderError(RecorderInvalidRecording, operation, "special key action is outside the whitelisted physical key schema", nil)
 			}
 		default:
@@ -3411,8 +3825,9 @@ async function __recorderApplyTextEdit(win, selector, edit) {
   const ref = await Accessibility.find(selector, { within: win, maxDepth: 32, maxNodes: 5000 });
   if (!ref) throw new Error("Recorder candidate editable target was not found");
   try {
-    const read = await Accessibility.read(ref, { properties: ["value"] });
+    const read = await Accessibility.read(ref, { properties: ["value", "focused"] });
     const current = read && read.properties && read.properties.value;
+    if (!read || !read.properties || read.properties.focused !== true) throw new Error("Recorder candidate editable target is not focused");
     if (typeof current !== "string" || current.length !== edit.before.utf16Units || __recorderUTF16SHA256(current) !== edit.before.sha256) throw new Error("Recorder candidate editable value precondition mismatch");
     const patch = edit.patch;
     if (patch.start < 0 || patch.deleteCount < 0 || patch.start + patch.deleteCount > current.length) throw new Error("Recorder candidate text patch boundary is invalid");
@@ -3420,21 +3835,30 @@ async function __recorderApplyTextEdit(win, selector, edit) {
     if (next.length !== edit.after.utf16Units || __recorderUTF16SHA256(next) !== edit.after.sha256) throw new Error("Recorder candidate text patch integrity mismatch");
     const performed = await Accessibility.perform(ref, { action: "setValue", value: next });
     if (!performed || (performed.actionState !== "acknowledged" && performed.actionState !== "not_needed")) throw new Error("Recorder candidate text edit was not acknowledged");
-    const verified = await Accessibility.read(ref, { properties: ["value"] });
+    const verified = await Accessibility.read(ref, { properties: ["value", "focused"] });
     const actual = verified && verified.properties && verified.properties.value;
-    if (typeof actual !== "string" || actual.length !== edit.after.utf16Units || __recorderUTF16SHA256(actual) !== edit.after.sha256) throw new Error("Recorder candidate text edit postcondition mismatch");
+    if (!verified || !verified.properties || verified.properties.focused !== true || typeof actual !== "string" || actual.length !== edit.after.utf16Units || __recorderUTF16SHA256(actual) !== edit.after.sha256) throw new Error("Recorder candidate text edit postcondition mismatch");
   } finally {
     await Accessibility.release(ref);
   }
 }
 `
 
-func recorderGenerateBasicSource(actions recorderActions, rawEvents []recorderRawEvent, timing recorderGenerationTiming) ([]byte, []recorderCandidateMapping, []string, error) {
+func recorderGenerateBasicSource(actions recorderActions, rawEvents []recorderRawEvent, timing recorderGenerationTiming, pointerMotion string) ([]byte, []recorderCandidateMapping, []string, error) {
+	if pointerMotion != recorderDefaultPointerMotion && pointerMotion != recorderSmoothPointerMotion {
+		return nil, nil, nil, recorderError(RecorderInvalidArgument, "Recorder.generateScript", "pointer motion policy is invalid", nil)
+	}
 	platform, err := json.Marshal(actions.Environment.Platform)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 	hasDisplayTarget, hasTextEdit := false, false
+	omittedEvents := 0
+	for _, item := range actions.EventDisposition {
+		if item.Disposition == "omitted" {
+			omittedEvents++
+		}
+	}
 	for _, action := range actions.Actions {
 		if action.Target != nil && action.Target.Kind == "display" {
 			hasDisplayTarget = true
@@ -3451,8 +3875,12 @@ func recorderGenerateBasicSource(actions recorderActions, rawEvents []recorderRa
 	}
 	write("// Generated deterministically by Recorder.generateScript(mode: \"basic\").\n")
 	write("// It resolves a fresh window or display for every action and has not been verified.\n")
+	write(fmt.Sprintf("// Pointer motion: %s; smooth transit is synthetic and does not reproduce recorded hover paths.\n", pointerMotion))
 	write("const __recorderPlatform = System.getPlatformInfo();\n")
 	write(fmt.Sprintf("if (!__recorderPlatform || __recorderPlatform.os !== %s) throw new Error(\"Recorder candidate platform mismatch\");\n", platform))
+	if actions.Readiness == "needs-review" {
+		write(fmt.Sprintf("console.warn(\"[Recorder partial candidate] readiness=needs-review; omitted raw events=%d; inspect the pinned actions issues before qualification.\");\n", omittedEvents))
+	}
 	write("async function __recorderResolveWindow(target) {\n")
 	write("  let identity;\n")
 	write("  switch (target.application.identityKind) {\n")
@@ -3561,6 +3989,10 @@ func recorderGenerateBasicSource(actions recorderActions, rawEvents []recorderRa
 				write(fmt.Sprintf("const __recorderPoint%d = __recorderPoint(__recorderWindow%d, %s, \"window\");\n", index+1, index+1, position))
 			}
 			mappings = append(mappings, recorderCandidateMapping{ActionID: action.ID, Line: line})
+			if pointerMotion == recorderSmoothPointerMotion {
+				write(fmt.Sprintf("await mouse.move(__recorderPoint%d.x, __recorderPoint%d.y, { steps: %d });\n", index+1, index+1, recorderSmoothPointerMotionSteps))
+				write(fmt.Sprintf("__recorderRequirePointer(__recorderPoint%d, %q, \"click-position-confirmed\");\n", index+1, action.ID))
+			}
 			write(fmt.Sprintf("await mouse.clickPoint(__recorderPoint%d, { button: \"left\", clickCount: 1 });\n", index+1))
 		case "drag":
 			if action.Target.Kind == "display" {
@@ -3591,7 +4023,11 @@ func recorderGenerateBasicSource(actions recorderActions, rawEvents []recorderRa
 				write(fmt.Sprintf("const __recorderDragEnd%d = __recorderPoint(__recorderWindow%d, %s, \"window\");\n", index+1, index+1, end))
 			}
 			mappings = append(mappings, recorderCandidateMapping{ActionID: action.ID, Line: line})
-			write(fmt.Sprintf("await mouse.move(__recorderDragStart%d.x, __recorderDragStart%d.y);\n", index+1, index+1))
+			if pointerMotion == recorderSmoothPointerMotion {
+				write(fmt.Sprintf("await mouse.move(__recorderDragStart%d.x, __recorderDragStart%d.y, { steps: %d });\n", index+1, index+1, recorderSmoothPointerMotionSteps))
+			} else {
+				write(fmt.Sprintf("await mouse.move(__recorderDragStart%d.x, __recorderDragStart%d.y);\n", index+1, index+1))
+			}
 			write(fmt.Sprintf("__recorderRequirePointer(__recorderDragStart%d, %q, \"start-position-confirmed\");\n", index+1, action.ID))
 			write("await mouse.down({ button: \"left\" });\n")
 			write(fmt.Sprintf("console.log(\"[Recorder candidate input] \" + JSON.stringify({ actionId: %q, phase: \"button-down-returned\" }));\n", action.ID))
@@ -3631,7 +4067,12 @@ func recorderGenerateBasicSource(actions recorderActions, rawEvents []recorderRa
 				write(fmt.Sprintf("const __recorderWheelPoint%d = __recorderPoint(__recorderWindow%d, %s, \"window\");\n", index+1, index+1, position))
 			}
 			mappings = append(mappings, recorderCandidateMapping{ActionID: action.ID, Line: line})
-			write(fmt.Sprintf("await mouse.move(__recorderWheelPoint%d.x, __recorderWheelPoint%d.y);\n", index+1, index+1))
+			if pointerMotion == recorderSmoothPointerMotion {
+				write(fmt.Sprintf("await mouse.move(__recorderWheelPoint%d.x, __recorderWheelPoint%d.y, { steps: %d });\n", index+1, index+1, recorderSmoothPointerMotionSteps))
+				write(fmt.Sprintf("__recorderRequirePointer(__recorderWheelPoint%d, %q, \"wheel-position-confirmed\");\n", index+1, action.ID))
+			} else {
+				write(fmt.Sprintf("await mouse.move(__recorderWheelPoint%d.x, __recorderWheelPoint%d.y);\n", index+1, index+1))
+			}
 			write(fmt.Sprintf("await mouse.wheel({ deltaX: %d, deltaY: %d, steps: %d, delay: %d });\n", action.Args.DeltaX, action.Args.DeltaY, action.Args.Steps, action.Args.DelayMS))
 		case "text":
 			target, targetErr := windowTargetJSON(action)
@@ -3642,9 +4083,10 @@ func recorderGenerateBasicSource(actions recorderActions, rawEvents []recorderRa
 			if err != nil {
 				return nil, nil, nil, err
 			}
+			write(fmt.Sprintf("const __recorderText%d = %s; // Low-level text fallback; this may be IME phonetic input rather than the committed result.\n", index+1, text))
 			write(fmt.Sprintf("await __recorderRequireActiveWindow(%s);\n", target))
 			mappings = append(mappings, recorderCandidateMapping{ActionID: action.ID, Line: line})
-			write(fmt.Sprintf("await keyboard.type(%s);\n", text))
+			write(fmt.Sprintf("await keyboard.type(__recorderText%d);\n", index+1))
 		case "text-edit":
 			target, targetErr := windowTargetJSON(action)
 			if targetErr != nil || action.Target.Editable == nil || action.Args.TextEdit == nil {
@@ -3672,7 +4114,14 @@ func recorderGenerateBasicSource(actions recorderActions, rawEvents []recorderRa
 			}
 			write(fmt.Sprintf("await __recorderRequireActiveWindow(%s);\n", target))
 			mappings = append(mappings, recorderCandidateMapping{ActionID: action.ID, Line: line})
-			write(fmt.Sprintf("await keyboard.combination(...%s);\n", keys))
+			repeatCount, _ := recorderEffectiveKeyRepeatCount(action.Args.RepeatCount)
+			if repeatCount == 1 {
+				write(fmt.Sprintf("await keyboard.combination(...%s);\n", keys))
+			} else {
+				write(fmt.Sprintf("for (let __recorderRepeat%d = 0; __recorderRepeat%d < %d; __recorderRepeat%d += 1) {\n", index+1, index+1, repeatCount, index+1))
+				write(fmt.Sprintf("  await keyboard.combination(...%s);\n", keys))
+				write("}\n")
+			}
 		case "key":
 			target, targetErr := windowTargetJSON(action)
 			key, keyErr := json.Marshal(action.Args.Key)
@@ -3681,7 +4130,14 @@ func recorderGenerateBasicSource(actions recorderActions, rawEvents []recorderRa
 			}
 			write(fmt.Sprintf("await __recorderRequireActiveWindow(%s);\n", target))
 			mappings = append(mappings, recorderCandidateMapping{ActionID: action.ID, Line: line})
-			write(fmt.Sprintf("await keyboard.press(%s);\n", key))
+			repeatCount, _ := recorderEffectiveKeyRepeatCount(action.Args.RepeatCount)
+			if repeatCount == 1 {
+				write(fmt.Sprintf("await keyboard.press(%s);\n", key))
+			} else {
+				write(fmt.Sprintf("for (let __recorderRepeat%d = 0; __recorderRepeat%d < %d; __recorderRepeat%d += 1) {\n", index+1, index+1, repeatCount, index+1))
+				write(fmt.Sprintf("  await keyboard.press(%s);\n", key))
+				write("}\n")
+			}
 		default:
 			return nil, nil, nil, recorderError(RecorderGenerationBlocked, "Recorder.generateScript", "unsupported action kind", nil)
 		}
@@ -3698,12 +4154,18 @@ func recorderGenerateBasicSource(actions recorderActions, rawEvents []recorderRa
 		"straight left-button drags resolve and bounds-check both endpoints, confirm the pointer reached each endpoint, verify window targets became active after button-down, preserve a bounded motion sample count, and always release the button in finally",
 		"generated drag trace lines prove only resolved input-call boundaries and pointer observations, never target business success",
 		"wheel bursts move to a bounds-checked recorded window/display-relative point before input, preserve signed horizontal or vertical total delta, and replay at most 100 equal steps",
+		fmt.Sprintf("pointer motion policy is %s; smooth transit is a fixed 60-step synthetic pre-action move, not a recorded hover path", pointerMotion),
 		"shortcuts and special keys require the recorded application/window to be active immediately before physical replay",
+		"repeated physical key presses are collapsed into a bounded repeatCount and replayed sequentially",
 		"verified focused text edits require a unique Accessibility textField and exact UTF-16LE SHA-256 precondition; setValue is followed by an exact hash postcondition and is never retried",
+		"low-level Basic Latin text is emitted as an editable script variable when no focused final value is available; under an input method it may be phonetic input rather than the committed result and must be reviewed or parameterized before production qualification",
 		"text content is present only when captureKeyboard and keyboardContent=non-sensitive-test were explicitly recorded; secure fields are never read",
 		fmt.Sprintf("each non-pause inter-action raw gap is divided by speedMultiplier %.6g and clamped to %d..%d milliseconds", timing.SpeedMultiplier, timing.MinimumDelayMS, timing.MaximumDelayMS),
 		"time between explicit Recorder pause and resume boundaries is not replayed",
 		"the candidate does not infer business intent, target identity, retries, OCR, or postconditions",
+	}
+	if actions.Readiness == "needs-review" {
+		constraints = append(constraints, fmt.Sprintf("partial candidate: %d raw event(s) were omitted; inspect the pinned actions issues and repair or re-record before claiming complete behavior", omittedEvents))
 	}
 	return []byte(builder.String()), mappings, constraints, nil
 }

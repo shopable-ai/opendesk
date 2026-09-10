@@ -305,10 +305,10 @@ addSwitch(id: string, label: string, options?: {
 | 参数 | 类型 | 必填 | 默认值 | 说明 |
 | --- | --- | --- | --- | --- |
 | `id` | string | 是 | 无 | 严格且全 toolbar 唯一的 item id。 |
-| `label` | string | 是 | 无 | 1–60 个 Unicode 字符；可见语义标签及 Accessibility name。 |
+| `label` | string | 是 | 无 | 1–60 个 Unicode 字符；作为语义标签、tooltip 与 Accessibility name；紧凑模式不绘制该文字。 |
 | `options.value` | boolean | 否 | `false` | 初始开关值。 |
 | `options.disabled` | boolean | 否 | `false` | 是否禁止用户切换。 |
-| `options.width` | number | 否 | `140` | 固定宽度，范围 `80–360` pt。 |
+| `options.width` | number | 否 | `140` | 固定宽度，范围 `48–360` pt；`48–79` 为只显示滑块的紧凑模式。 |
 | `callback` | function | 否 | 无 | 接收带 `type:"change"`、`checked` 与 `value` 的事件。 |
 
 **返回值**
@@ -317,7 +317,7 @@ addSwitch(id: string, label: string, options?: {
 
 **行为与错误**
 
-Switch 表示会立即改变行为的 on/off 设置，不替代 Checkbox 的“是否纳入”语义。只能在首次 `show()` 前增加；无效字段、宽度、callback 或重复 id 分别返回 `INVALID_SPEC` / `DUPLICATE_ID`。
+Switch 表示会立即改变行为的 on/off 设置，不替代 Checkbox 的“是否纳入”语义。紧凑模式隐藏可见 label，但仍保留完整 tooltip 与 Accessibility name。macOS 非激活悬浮工具条同样接受首击；开启使用蓝色轨道、关闭使用中性灰色，禁用态再降低透明度。只能在首次 `show()` 前增加；无效字段、宽度、callback 或重复 id 分别返回 `INVALID_SPEC` / `DUPLICATE_ID`。
 
 **示例**
 

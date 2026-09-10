@@ -8,21 +8,22 @@ import (
 )
 
 const (
-	ControlHeight        = ContentItemHeight
-	MinControlWidth      = 80
-	MaxControlWidth      = 360
-	DefaultToggleWidth   = 140
-	DefaultInputWidth    = 180
-	DefaultSelectWidth   = 160
-	DefaultSliderWidth   = 180
-	DefaultSegmentWidth  = 200
-	DefaultProgressWidth = 160
-	MaxControlLabelRunes = 60
-	MaxControlTextRunes  = 256
-	MaxPlaceholderRunes  = 120
-	MaxOptions           = 12
-	MaxOptionRunes       = 40
-	MaxBadgeRunes        = 4
+	ControlHeight         = ContentItemHeight
+	MinControlWidth       = 80
+	MinCompactSwitchWidth = 48
+	MaxControlWidth       = 360
+	DefaultToggleWidth    = 140
+	DefaultInputWidth     = 180
+	DefaultSelectWidth    = 160
+	DefaultSliderWidth    = 180
+	DefaultSegmentWidth   = 200
+	DefaultProgressWidth  = 160
+	MaxControlLabelRunes  = 60
+	MaxControlTextRunes   = 256
+	MaxPlaceholderRunes   = 120
+	MaxOptions            = 12
+	MaxOptionRunes        = 40
+	MaxBadgeRunes         = 4
 )
 
 // OptionSpec is a bounded choice exposed by Select or SegmentedControl.
@@ -131,8 +132,12 @@ func ValidateControlSpec(control ControlSpec) error {
 	if strings.TrimSpace(control.Label) == "" || utf8.RuneCountInString(control.Label) > MaxControlLabelRunes {
 		return fmt.Errorf("control label must contain 1 to %d Unicode characters", MaxControlLabelRunes)
 	}
-	if !finiteControlNumber(control.Width) || control.Width < MinControlWidth || control.Width > MaxControlWidth {
-		return fmt.Errorf("control width must be between %d and %d", MinControlWidth, MaxControlWidth)
+	minimumWidth := MinControlWidth
+	if control.Kind == ItemSwitch {
+		minimumWidth = MinCompactSwitchWidth
+	}
+	if !finiteControlNumber(control.Width) || control.Width < float64(minimumWidth) || control.Width > MaxControlWidth {
+		return fmt.Errorf("control width must be between %d and %d", minimumWidth, MaxControlWidth)
 	}
 	if control.Revision == 0 {
 		return fmt.Errorf("control revision must be positive")

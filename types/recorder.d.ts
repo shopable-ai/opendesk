@@ -59,6 +59,7 @@ export interface RecorderFlow {
 }
 
 declare global {
+  /** ready is complete; needs-review remains generatable with explicit warnings/omissions; blocked means package integrity is insufficient. */
   type OpenDeskRecorderReadiness = 'ready' | 'needs-review' | 'blocked';
 
   interface OpenDeskRecorderIssue {
@@ -89,8 +90,9 @@ declare global {
   interface OpenDeskRecorderStartOptions {
     /** Initial foreground-window provenance; it does not filter desktop input or prevent window/application switches. */
     within: {processId: number; title: string};
+    /** Saves physical key evidence; committed text capture is additionally gated by keyboardContent. */
     captureKeyboard?: boolean;
-    /** Required only for keyboard capture; it does not grant host capture authority. */
+    /** Required only for keyboard capture; permits non-secure focused final-value diffs but does not grant host capture authority. */
     keyboardContent?: 'non-sensitive-test';
     /** Defaults to label-only AX evidence for pointer press/release endpoints; pointer values, selections, and secure fields are never persisted. */
     evidence?: 'none' | 'target-semantics';
@@ -181,10 +183,15 @@ declare global {
     speedMultiplier: number;
   }
 
+  /** Controls synthetic pointer transit before click, wheel, and drag-start input. */
+  type OpenDeskRecorderPointerMotion = 'instant' | 'smooth';
+
   interface OpenDeskRecorderGenerateOptions {
     mode?: 'basic';
     outputFile?: string;
     timing?: Partial<OpenDeskRecorderGenerationTiming>;
+    /** Defaults to instant for API compatibility; the recording toolbar explicitly defaults this to smooth. */
+    pointerMotion?: OpenDeskRecorderPointerMotion;
   }
 
   interface OpenDeskRecorderScriptResult {
@@ -196,12 +203,15 @@ declare global {
     verification: 'not-run';
     /** Fully resolved timing policy used to emit sleep calls. */
     timing: OpenDeskRecorderGenerationTiming;
+    /** Fully resolved pointer transit policy embedded in the generated source and candidate. */
+    pointerMotion: OpenDeskRecorderPointerMotion;
   }
 
   interface OpenDeskRecorderRuntime {
     getCapabilities(): OpenDeskRecorderCapabilities;
     start(options: OpenDeskRecorderStartOptions): Promise<OpenDeskRecorderSession>;
     buildActions(recordingDir: string): Promise<OpenDeskRecorderActionsResult>;
+    /** Generates from ready or needs-review actions; blocked packages are rejected. */
     generateScript(actionsFile: string, options?: OpenDeskRecorderGenerateOptions): Promise<OpenDeskRecorderScriptResult>;
   }
 

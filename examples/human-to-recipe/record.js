@@ -81,8 +81,10 @@ async function stopAndBuild() {
   console.log('[Recorder] saved:', JSON.stringify(saved));
   actions = await Recorder.buildActions(saved.recordingDir);
   console.log('[Recorder] actions:', JSON.stringify(actions));
-  if (actions.readiness === 'ready') {
-    console.log('[Recorder] press F11 to generate basic JS, or F12 to finish without generation.');
+  if (actions.readiness === 'ready' || actions.readiness === 'needs-review') {
+    console.log(actions.readiness === 'ready'
+      ? '[Recorder] press F11 to generate basic JS, or F12 to finish without generation.'
+      : '[Recorder] action-local problems were omitted; press F11 to generate a runnable partial candidate, or F12 to finish.');
   } else {
     console.log('[Recorder] generation is not eligible; inspect issues, then press F12.');
   }
@@ -93,8 +95,8 @@ async function generateAndFinish() {
     console.log('[Recorder] no actions file is ready; press F10 first.');
     return;
   }
-  if (actions.readiness !== 'ready') {
-    console.log('[Recorder] basic generation blocked:', JSON.stringify(actions.issues));
+  if (actions.readiness !== 'ready' && actions.readiness !== 'needs-review') {
+    console.log('[Recorder] package-integrity failure blocks generation:', JSON.stringify(actions.issues));
     return;
   }
   const generated = await Recorder.generateScript(actions.actionsFile);

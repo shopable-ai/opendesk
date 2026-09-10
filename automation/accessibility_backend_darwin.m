@@ -188,6 +188,18 @@ static int32_t opendesk_ax_check_enabled(AXUIElementRef element) {
     return enabled ? kAXErrorSuccess : OPENDESK_AX_STATUS_ELEMENT_DISABLED;
 }
 
+/* Some standard writable AppKit text views omit AXEnabled altogether. For a
+ * string mutation, AXValue settable + non-secure is the native capability
+ * proof; an explicitly false AXEnabled must still reject the action. */
+static int32_t opendesk_ax_check_not_disabled(AXUIElementRef element) {
+    int32_t enabled = 0;
+    int32_t present = 0;
+    int32_t status = opendesk_ax_copy_optional_bool(element, kAXEnabledAttribute, &enabled, &present);
+    if (status != kAXErrorSuccess) return status;
+    if (present && !enabled) return OPENDESK_AX_STATUS_ELEMENT_DISABLED;
+    return kAXErrorSuccess;
+}
+
 static int32_t opendesk_ax_is_secure(AXUIElementRef element, int32_t *secure) {
     CFStringRef subrole = NULL;
     int32_t present = 0;
@@ -633,7 +645,7 @@ int32_t opendesk_ax_set_string_value(
     *already_satisfied = 0;
     int32_t status = opendesk_ax_set_timeout(element, timeout_seconds);
     if (status != kAXErrorSuccess) return status;
-    status = opendesk_ax_check_enabled(element);
+    status = opendesk_ax_check_not_disabled(element);
     if (status != kAXErrorSuccess) return status;
     int32_t secure = 0;
     status = opendesk_ax_is_secure(element, &secure);

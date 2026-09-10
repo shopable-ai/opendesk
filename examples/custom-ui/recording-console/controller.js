@@ -12,6 +12,10 @@
     'run-succeeded', 'run-failed', 'run-canceled', 'canceled', 'closed',
   ]);
 
+  function actionsCanGenerate(actions) {
+    return !!actions && (actions.readiness === 'ready' || actions.readiness === 'needs-review');
+  }
+
   function clone(value) {
     return JSON.parse(JSON.stringify(value));
   }
@@ -164,13 +168,16 @@
       });
       try {
         const actions = await recorder.buildActions(recordingDir);
-        const ready = actions.readiness === 'ready';
+        const generatable = actionsCanGenerate(actions);
+        const complete = actions.readiness === 'ready';
         const partialPrefix = preserveError ? '本次为部分保存；' : '';
         await transition(
-          ready ? 'actions-ready' : 'actions-blocked',
-          ready
+          generatable ? 'actions-ready' : 'actions-blocked',
+          complete
             ? partialPrefix + `actions 已就绪（${actions.actionCount} 个动作）。请检查后再点“生成脚本”。`
-            : partialPrefix + `actions 为 ${actions.readiness}：${formatActionIssues(actions.issues, 2)}；当前不能生成。`,
+            : generatable
+              ? partialPrefix + `actions 含省略项（${actions.actionCount} 个安全动作）：${formatActionIssues(actions.issues, 2)}；可生成并运行 partial candidate。`
+              : partialPrefix + `actions 为 ${actions.readiness}：${formatActionIssues(actions.issues, 2)}；录制包完整性不足，当前不能生成。`,
           {actions: clone(actions), error: preserveError || null},
         );
       } catch (error) {
@@ -395,10 +402,10 @@
     function generate() {
       if (state.phase === 'closed') return Promise.resolve(snapshot());
       if (operationPromise) return operationPromise;
-      if (!state.actions || state.actions.readiness !== 'ready') {
+      if (!actionsCanGenerate(state.actions)) {
         return setFailure({
           code: 'GENERATION_BLOCKED', operation: 'Recorder.generateScript',
-          message: 'actions 尚未 ready',
+          message: 'actions 录制包完整性不足，不能生成',
         }, state.actions ? 'actions-blocked' : 'error', '不能生成脚本');
       }
       return runExclusive('generate', async () => {
@@ -414,7 +421,9 @@
             });
           }
           const source = String(await readGeneratedScript(generated.scriptFile));
-          await transition('generated', '脚本已生成且可检查。只有点击“重放”才会启动新的受管 execution。', {
+          await transition('generated', state.actions.readiness === 'ready'
+            ? '脚本已生成且可检查。只有点击“重放”才会启动新的受管 execution。'
+            : 'Partial candidate 已生成且可检查；问题动作已省略，只有点击“重放”才会启动新的受管 execution。', {
             generated: {...clone(generated), source}, run: null, copyStatus: 'idle', error: null,
           });
         } catch (error) {
@@ -609,7 +618,8 @@
         : (phase === 'partial-saved' ? 'warning' : (captureDone && state.saved ? 'done' : 'pending')),
       actions: phase === 'building-actions' ? 'active'
         : (state.actions && state.actions.readiness === 'ready' ? 'done'
-          : phase === 'actions-blocked' ? 'warning' : 'pending'),
+          : state.actions && state.actions.readiness === 'needs-review' ? 'warning'
+            : phase === 'actions-blocked' ? 'warning' : 'pending'),
       generate: phase === 'generating' ? 'active'
         : (state.generated && typeof state.generated.source === 'string' ? 'done'
           : phase === 'generation-error' ? 'error' : 'pending'),
@@ -799,7 +809,7 @@
       const canStop = (state.phase === 'recording' || state.phase === 'paused' || state.phase === 'preparing' || state.phase === 'stop-requested')
         && state.operation !== 'stop' && state.operation !== 'cancel';
       const canPause = !busy && (state.phase === 'recording' || state.phase === 'paused');
-      const canGenerate = !busy && state.actions && state.actions.readiness === 'ready' && state.phase !== 'closed';
+      const canGenerate = !busy && actionsCanGenerate(state.actions) && state.phase !== 'closed';
       const runActive = state.operation === 'run';
       const canRun = !busy && state.generated && typeof state.generated.source === 'string' && state.phase !== 'closed';
       const canReset = !busy && !activePhases.has(state.phase) && state.phase !== 'closed'
@@ -817,7 +827,8 @@
       const stateClass = (state.error && state.phase !== 'paused') || ['generation-error', 'run-failed'].includes(state.phase)
         ? 'is-error' : state.phase === 'recording' ? 'is-recording' : state.phase === 'paused' ? 'is-paused'
           : ['preparing', 'stopping', 'building-actions', 'generating', 'stop-requested', 'run-preparing', 'running', 'run-canceling'].includes(state.phase) ? 'is-busy'
-            : ['saved', 'actions-ready', 'generated', 'run-succeeded'].includes(state.phase) ? 'is-success'
+            : state.actions && state.actions.readiness === 'needs-review' && ['actions-ready', 'generated'].includes(state.phase) ? 'is-warning'
+              : ['saved', 'actions-ready', 'generated', 'run-succeeded'].includes(state.phase) ? 'is-success'
               : state.phase === 'actions-blocked' ? 'is-warning' : '';
       const scriptSource = state.generated && typeof state.generated.source === 'string'
         ? state.generated.source : '生成后可在这里滚动查看并选择文本。';

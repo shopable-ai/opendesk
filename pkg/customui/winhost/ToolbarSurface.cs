@@ -138,7 +138,11 @@ internal sealed class ToolbarSurface : Surface
                 default:
                     peer.Enabled=!J.B(d,"disabled");
                     switch(peer){
-                        case CheckBox check:check.Text=J.S(d,"label");check.Checked=J.B(d,"checked");break;
+                        case CheckBox check:
+                            bool compactSwitch=kind=="switch"&&J.N(d,"width")<80;
+                            check.Text=compactSwitch?"":J.S(d,"label");check.Checked=J.B(d,"checked");
+                            if(kind=="switch")check.BackColor=check.Checked?Color.FromArgb(10,132,255):Color.FromArgb(85,85,90);
+                            break;
                         case TextBox input:input.Text=J.S(d,"text");input.PlaceholderText=J.S(d,"placeholder");break;
                         case ComboBox select:for(int i=0;i<select.Items.Count;i++)if(select.Items[i] is Choice choice&&choice.Value==J.S(d,"selected"))select.SelectedIndex=i;break;
                         case TrackBar slider:slider.Value=Math.Clamp((int)Math.Round((J.N(d,"value")-J.N(d,"min"))/(J.N(d,"max")-J.N(d,"min"))*slider.Maximum),0,slider.Maximum);break;

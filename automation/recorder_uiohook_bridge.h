@@ -27,6 +27,7 @@ extern void opendeskRecorderDispatch(
     uint8_t direction,
     uint8_t physical_point_available,
     int32_t physical_x,
-    int32_t physical_y);
+    int32_t physical_y,
+    uint8_t text_input_source);
 
 #endif

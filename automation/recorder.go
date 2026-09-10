@@ -109,6 +109,10 @@ type RecorderInputEvent struct {
 	PhysicalPointAvailable bool
 	PhysicalX              int32
 	PhysicalY              int32
+	// TextInputSource is a content-free native classification. Darwin reports
+	// 1 for a direct keyboard layout and 2 for an input method/input mode; zero
+	// means the backend cannot prove either case.
+	TextInputSource uint8
 }
 
 // RecorderInputBackend is the private-test seam around the one production
@@ -137,6 +141,15 @@ type recorderKeyboardStateProbe interface {
 type RecorderBackendFactory func() RecorderInputBackend
 type RecorderWindowProbe func() (*WindowInfo, error)
 type recorderTextProbe func(context.Context, *WindowInfo, *recorderWindowSnapshot) (*recorderTextFieldSample, error)
+
+// recorderReleaseOwned releases one native reference for every successful
+// acquisition recorded in owned. Callers defer a closure so later appends are
+// included; equal native identities still represent separate acquired refs.
+func recorderReleaseOwned[T any](owned []T, release func(T)) {
+	for _, resource := range owned {
+		release(resource)
+	}
+}
 
 type recorderWithin struct {
 	ProcessID uint32 `json:"processId"`
@@ -204,38 +217,38 @@ type recorderElementDescriptor struct {
 }
 
 type recorderElementCoordinateMapping struct {
-	InputX     int    `json:"inputX"`
-	InputY     int    `json:"inputY"`
-	InputSpace string `json:"inputSpace"`
-	NativeX    int    `json:"nativeX"`
-	NativeY    int    `json:"nativeY"`
+	InputX      int    `json:"inputX"`
+	InputY      int    `json:"inputY"`
+	InputSpace  string `json:"inputSpace"`
+	NativeX     int    `json:"nativeX"`
+	NativeY     int    `json:"nativeY"`
 	NativeSpace string `json:"nativeSpace"`
-	Method     string `json:"method"`
-	Verified   bool   `json:"verified"`
+	Method      string `json:"method"`
+	Verified    bool   `json:"verified"`
 }
 
 // recorderElementSnapshot is deliberately label-only evidence. Recorder never
 // persists AXValue, selected text, or protected field contents.
 type recorderElementSnapshot struct {
-	Source        string                      `json:"source"`
-	Resolution    string                      `json:"resolution"`
-	Role          string                      `json:"role"`
-	NativeRole    string                      `json:"nativeRole,omitempty"`
-	Subrole       string                      `json:"subrole,omitempty"`
-	Name          string                      `json:"name,omitempty"`
-	Identifier    string                      `json:"identifier,omitempty"`
-	Enabled       *bool                       `json:"enabled,omitempty"`
-	Focused       *bool                       `json:"focused,omitempty"`
-	ValueSettable bool                        `json:"valueSettable"`
-	NativeActions []string                    `json:"nativeActions"`
-	Bounds        recorderWindowBounds        `json:"bounds"`
-	BoundsSpace   string                      `json:"boundsSpace,omitempty"`
-	Hit           recorderElementDescriptor   `json:"hit"`
-	Ancestors     []recorderElementDescriptor `json:"ancestors"`
-	Containers    []recorderElementDescriptor `json:"containers,omitempty"`
-	Point         recorderElementPoint        `json:"point"`
+	Source            string                            `json:"source"`
+	Resolution        string                            `json:"resolution"`
+	Role              string                            `json:"role"`
+	NativeRole        string                            `json:"nativeRole,omitempty"`
+	Subrole           string                            `json:"subrole,omitempty"`
+	Name              string                            `json:"name,omitempty"`
+	Identifier        string                            `json:"identifier,omitempty"`
+	Enabled           *bool                             `json:"enabled,omitempty"`
+	Focused           *bool                             `json:"focused,omitempty"`
+	ValueSettable     bool                              `json:"valueSettable"`
+	NativeActions     []string                          `json:"nativeActions"`
+	Bounds            recorderWindowBounds              `json:"bounds"`
+	BoundsSpace       string                            `json:"boundsSpace,omitempty"`
+	Hit               recorderElementDescriptor         `json:"hit"`
+	Ancestors         []recorderElementDescriptor       `json:"ancestors"`
+	Containers        []recorderElementDescriptor       `json:"containers,omitempty"`
+	Point             recorderElementPoint              `json:"point"`
 	CoordinateMapping *recorderElementCoordinateMapping `json:"coordinateMapping,omitempty"`
-	ObservedAt    string                      `json:"observedAt"`
+	ObservedAt        string                            `json:"observedAt"`
 }
 
 type recorderObservation struct {
@@ -281,12 +294,12 @@ type recorderKeyStateAtStop struct {
 }
 
 type recorderContextRequest struct {
-	EventID    string
-	Kind       string
-	Phase      string
-	ReceivedAt time.Time
-	X          *int
-	Y          *int
+	EventID     string
+	Kind        string
+	Phase       string
+	ReceivedAt  time.Time
+	X           *int
+	Y           *int
 	NativePoint *recorderNativeInputPoint
 }
 
@@ -325,35 +338,36 @@ type recorderCounts struct {
 }
 
 type recorderRawEvent struct {
-	FormatVersion      string            `json:"formatVersion"`
-	EventID            string            `json:"eventId"`
-	Sequence           string            `json:"sequence"`
-	LibraryEvent       string            `json:"libraryEvent"`
-	NativeTime         string            `json:"nativeTime"`
-	NativeClock        string            `json:"nativeClock"`
-	NativeUnit         string            `json:"nativeUnit"`
-	ReceivedAt         string            `json:"receivedAt"`
-	ModifierMask       uint16            `json:"modifierMask"`
-	Modifiers          []string          `json:"modifiers"`
-	Source             string            `json:"source"`
-	ScopeRef           string            `json:"scopeRef"`
-	Button             string            `json:"button,omitempty"`
-	Clicks             uint16            `json:"clicks,omitempty"`
-	X                  *int              `json:"x,omitempty"`
-	Y                  *int              `json:"y,omitempty"`
-	CoordinateSpace    string            `json:"coordinateSpace,omitempty"`
-	CoordinateVerified bool              `json:"coordinateVerified,omitempty"`
-	DisplayRef         string            `json:"displayRef,omitempty"`
+	FormatVersion      string                    `json:"formatVersion"`
+	EventID            string                    `json:"eventId"`
+	Sequence           string                    `json:"sequence"`
+	LibraryEvent       string                    `json:"libraryEvent"`
+	NativeTime         string                    `json:"nativeTime"`
+	NativeClock        string                    `json:"nativeClock"`
+	NativeUnit         string                    `json:"nativeUnit"`
+	ReceivedAt         string                    `json:"receivedAt"`
+	ModifierMask       uint16                    `json:"modifierMask"`
+	Modifiers          []string                  `json:"modifiers"`
+	Source             string                    `json:"source"`
+	ScopeRef           string                    `json:"scopeRef"`
+	Button             string                    `json:"button,omitempty"`
+	Clicks             uint16                    `json:"clicks,omitempty"`
+	X                  *int                      `json:"x,omitempty"`
+	Y                  *int                      `json:"y,omitempty"`
+	CoordinateSpace    string                    `json:"coordinateSpace,omitempty"`
+	CoordinateVerified bool                      `json:"coordinateVerified,omitempty"`
+	DisplayRef         string                    `json:"displayRef,omitempty"`
 	NativePoint        *recorderNativeInputPoint `json:"nativePoint,omitempty"`
-	Keycode            *uint16           `json:"keycode,omitempty"`
-	Rawcode            *uint16           `json:"rawcode,omitempty"`
-	Keychar            *uint16           `json:"keychar,omitempty"`
-	WheelAmount        *uint16           `json:"wheelAmount,omitempty"`
-	WheelRotation      *int16            `json:"wheelRotation,omitempty"`
-	WheelDirection     *uint8            `json:"wheelDirection,omitempty"`
-	Sampled            bool              `json:"sampled,omitempty"`
-	Gaps               []string          `json:"gaps,omitempty"`
-	Metadata           map[string]string `json:"metadata,omitempty"`
+	Keycode            *uint16                   `json:"keycode,omitempty"`
+	Rawcode            *uint16                   `json:"rawcode,omitempty"`
+	Keychar            *uint16                   `json:"keychar,omitempty"`
+	TextInputSource    string                    `json:"textInputSource,omitempty"`
+	WheelAmount        *uint16                   `json:"wheelAmount,omitempty"`
+	WheelRotation      *int16                    `json:"wheelRotation,omitempty"`
+	WheelDirection     *uint8                    `json:"wheelDirection,omitempty"`
+	Sampled            bool                      `json:"sampled,omitempty"`
+	Gaps               []string                  `json:"gaps,omitempty"`
+	Metadata           map[string]string         `json:"metadata,omitempty"`
 }
 
 type recorderManifest struct {
@@ -1566,7 +1580,16 @@ func (s *recorderSession) normalizeEvent(sequence uint64, input RecorderInputEve
 		keycode, rawcode, keychar := input.Keycode, input.Rawcode, input.Keychar
 		event.Keycode, event.Rawcode, event.Keychar = &keycode, &rawcode, &keychar
 		if input.Type == recorderEventKeyTyped {
-			event.Gaps = append(event.Gaps, "key-typed-is-not-an-ime-commit")
+			switch input.TextInputSource {
+			case 1:
+				event.TextInputSource = "keyboard-layout"
+			case 2:
+				event.TextInputSource = "input-method"
+				event.Gaps = append(event.Gaps, "key-typed-is-not-an-ime-commit")
+			default:
+				event.TextInputSource = "unknown"
+				event.Gaps = append(event.Gaps, "key-typed-is-not-an-ime-commit")
+			}
 		}
 	}
 	if recorderIsMouseEvent(input.Type) {

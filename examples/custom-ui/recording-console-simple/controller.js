@@ -1,5 +1,5 @@
 // Independent native-only controller for recording-console-simple.js.
-// The toolbar is composed exclusively from FloatingWindow buttons and separators.
+// The toolbar is composed exclusively from native FloatingWindow controls.
 (function installOpenDeskSimpleRecordingConsole(global) {
   'use strict';
 
@@ -21,6 +21,10 @@
     'actions-ready', 'actions-blocked', 'generated', 'generation-error',
     'run-succeeded', 'run-failed', 'run-canceled', 'error',
   ]);
+
+  function actionsCanGenerate(actions) {
+    return !!actions && (actions.readiness === 'ready' || actions.readiness === 'needs-review');
+  }
 
   function clone(value) {
     return value == null ? value : JSON.parse(JSON.stringify(value));
@@ -130,6 +134,7 @@
 
     const state = {
       phase: capabilities.capture && capabilities.capture.available ? 'ready' : 'unavailable',
+      pointerMotion: settings.pointerMotion === 'instant' ? 'instant' : 'smooth',
       countdown: null,
       target: null,
       nativeStatus: null,
@@ -172,7 +177,7 @@
       alwaysOnTop: true,
       draggable: true,
       orientation: 'horizontal',
-      toolbar: {maxColumns: 6, maxRows: 1},
+      toolbar: {maxColumns: 7, maxRows: 1},
     });
 
     function snapshot() {
@@ -209,10 +214,11 @@
       const canControlCapture = (recording || paused)
         && !startPromise && !controlPromise && !stopPromise;
       const canRetryGeneration = phase === 'generation-error'
-        && !!state.actions && state.actions.readiness === 'ready'
+        && actionsCanGenerate(state.actions)
         && !state.generated && !generatePromise && !runPromise;
       const canReplay = !!state.generated && !runPromise && !ACTIVE_CAPTURE_PHASES.has(phase);
       const canCopyAgentPrompt = !!(state.generated && state.generated.scriptFile)
+        && !!state.actions && state.actions.readiness === 'ready'
         && !!copyText && !copyPromptPromise && state.promptCopyStatus !== 'copying'
         && !runPromise && phase !== 'run-countdown' && phase !== 'running'
         && !ACTIVE_CAPTURE_PHASES.has(phase);
@@ -274,6 +280,13 @@
       };
     }
 
+    function pointerMotionPresentation() {
+      const disabled = closeRequested || !!session || !!startPromise || !!controlPromise
+        || !!stopPromise || !!generatePromise || !!runPromise || !!state.generated
+        || state.phase === 'unavailable' || state.phase === 'closed';
+      return {checked: state.pointerMotion === 'smooth', disabled};
+    }
+
     async function syncButtons() {
       if (toolbarClosed) return;
       const presentation = buttonPresentation();
@@ -282,6 +295,7 @@
         patch.error = state.errorButton === id && state.error ? state.error.message : null;
         await toolbar.updateButton(id, patch);
       }
+      await toolbar.updateControl('pointerMotion', pointerMotionPresentation());
     }
 
     async function transition(phase, detail, patch) {
@@ -428,8 +442,13 @@
           await transition('building-actions', '正在校验并整理已保存的录制动作…');
           const actions = await recorder.buildActions(saved.recordingDir);
           state.actions = clone(actions);
-          if (actions.readiness === 'ready') {
-            await transition('actions-ready', '录制已保存并完成内部动作整理，正在自动生成可重放脚本…');
+          if (actionsCanGenerate(actions)) {
+            await transition(
+              'actions-ready',
+              actions.readiness === 'ready'
+                ? '录制已保存并完成内部动作整理，正在自动生成可重放脚本…'
+                : '录制已保存；有问题动作已明确省略，正在自动生成可运行的 partial candidate…',
+            );
             await generate();
           } else {
             await transition(
@@ -586,7 +605,7 @@
 
     function generate() {
       if (generatePromise || runPromise || closeRequested || !state.actions
-        || state.actions.readiness !== 'ready' || state.generated) {
+        || !actionsCanGenerate(state.actions) || state.generated) {
         return generatePromise || Promise.resolve(snapshot());
       }
       generatePromise = (async () => {
@@ -594,10 +613,18 @@
           error: null, errorButton: '', run: null,
         });
         try {
-          const generated = await recorder.generateScript(state.actions.actionsFile, {mode: 'basic'});
+          const pointerMotion = state.pointerMotion;
+          const generated = await recorder.generateScript(state.actions.actionsFile, {
+            mode: 'basic', pointerMotion,
+          });
           const source = String(file.read(generated.scriptFile));
-          state.generated = {...clone(generated), source};
-          await transition('generated', '脚本已自动生成但尚未重放；重放需要单独点击。');
+          state.generated = {...clone(generated), pointerMotion, source};
+          await transition(
+            'generated',
+            state.actions.readiness === 'ready'
+              ? '脚本已自动生成但尚未重放；重放需要单独点击。'
+              : 'Partial candidate 已自动生成但尚未重放；运行前请检查详情中的省略项。',
+          );
         } catch (error) {
           await fail(error, 'replay', 'generation-error', '自动生成脚本失败');
         }
@@ -685,15 +712,32 @@
 
     function replayOrRetryGeneration() {
       if (state.generated) return runGenerated();
-      if (state.phase === 'generation-error' && state.actions && state.actions.readiness === 'ready') {
+      if (state.phase === 'generation-error' && actionsCanGenerate(state.actions)) {
         return generate();
       }
       return Promise.resolve(snapshot());
     }
 
+    async function setPointerMotion(event) {
+      if (!event || event.type !== 'change' || typeof event.checked !== 'boolean') {
+        return snapshot();
+      }
+      if (pointerMotionPresentation().disabled) {
+        await syncButtons();
+        return snapshot();
+      }
+      state.pointerMotion = event.checked ? 'smooth' : 'instant';
+      state.detail = event.checked
+        ? '已启用可见鼠标移动：生成脚本会在指针动作前合成平滑移动。'
+        : '已关闭可见鼠标移动：生成脚本会保留直接定位的快速模式。';
+      await syncButtons();
+      return snapshot();
+    }
+
     function copyAgentPrompt() {
       if (copyPromptPromise || closeRequested || runPromise
-        || !state.generated || !state.generated.scriptFile || !copyText) {
+        || !state.generated || !state.generated.scriptFile || !copyText
+        || !state.actions || state.actions.readiness !== 'ready') {
         return copyPromptPromise || Promise.resolve(snapshot());
       }
       copyPromptPromise = (async () => {
@@ -745,6 +789,7 @@
         `生成脚本：${artifactPath(state.generated && state.generated.scriptFile)}`,
         `candidate：${artifactPath(state.generated && state.generated.candidateFile)}`,
         `生成节奏：${timingText}`,
+        `鼠标移动：${state.pointerMotion === 'smooth' ? '平滑（合成可见移动）' : '快速（瞬时定位）'}`,
         `错误：${state.error ? `${state.error.code} · ${state.error.operation} · ${state.error.message}` : '无'}`,
         `生成源码预览：\n${previewText(state.generated && state.generated.source, 360)}`,
         `重放摘要：\n${runDetails()}`,
@@ -837,6 +882,9 @@
     });
     toolbar.addSeparator('capture-output-separator');
     toolbar.addButton('replay', '重放', BUILT_IN_ICONS.replay, replayOrRetryGeneration);
+    toolbar.addSwitch('pointerMotion', '鼠标移动（开：平滑，关：瞬移）', {
+      value: state.pointerMotion === 'smooth', width: 48,
+    }, setPointerMotion);
     toolbar.addButton('agentPrompt', '复制 Agent 优化脚本', BUILT_IN_ICONS.agentPrompt, copyAgentPrompt);
     toolbar.addSeparator('output-info-separator');
     toolbar.addButton('details', '查看详情', BUILT_IN_ICONS.details, showDetails);
@@ -881,7 +929,7 @@
     }
 
     return Object.freeze({
-      run, show, close, start, pauseOrResume, stop, generate, runGenerated, copyAgentPrompt, showDetails, reveal,
+      run, show, close, start, pauseOrResume, stop, generate, runGenerated, setPointerMotion, copyAgentPrompt, showDetails, reveal,
       state: snapshot,
       toolbar: () => toolbar,
       icons: () => clone(BUILT_IN_ICONS),

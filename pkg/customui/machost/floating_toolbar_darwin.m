@@ -12,6 +12,7 @@ static const CGFloat CDToolbarLabelHeight = CDToolbarContentItemHeight;
 static const CGFloat CDToolbarMinLabelWidth = 48.0;
 static const CGFloat CDToolbarMaxLabelWidth = 240.0;
 static const CGFloat CDToolbarMinControlWidth = 80.0;
+static const CGFloat CDToolbarMinCompactSwitchWidth = 48.0;
 static const CGFloat CDToolbarMaxControlWidth = 360.0;
 static const CGFloat CDToolbarContentItemGap = 8.0;
 static const CGFloat CDToolbarSeparatorThickness = 1.0;
@@ -407,6 +408,10 @@ static NSDictionary *CDToolbarIconForButtonSpec(NSDictionary *spec, NSImage **cu
 	// tooltip manager does not reliably present for such panels, so the label
 	// is rendered by our own nonactivating native tooltip panel instead.
 	self.toolTip = nil;
+	// The button is fully custom-drawn, so title does not add visible text. It
+	// does provide the real AXTitle consumed by the public Accessibility backend;
+	// accessibilityLabel alone maps to AXDescription and loses to an empty title.
+	self.title = self.semanticLabel;
 	self.accessibilityLabel = self.semanticLabel;
 	self.accessibilityHelp = self.errorMessage.length ? self.errorMessage : nil;
 	self.accessibilityValue = self.badgeText.length ?
@@ -639,6 +644,71 @@ static const CGFloat CDToolbarLabelVerticalInset = 4.0;
 }
 @end
 
+// Floating toolbars deliberately stay non-activating. A stock NSSwitch drops
+// the first click in that setting and dims its accent as though the control
+// were inactive, so provide the same first-click contract as toolbar buttons
+// and draw an unambiguous blue-on / gray-off presentation.
+@interface CDToolbarSwitch : CDToolbarButton
+@end
+
+@implementation CDToolbarSwitch
+
+- (instancetype)initWithFrame:(NSRect)frameRect {
+	self = [super initWithFrame:frameRect];
+	if (self) {
+		self.title = @"";
+		self.bordered = NO;
+		self.buttonType = NSButtonTypePushOnPushOff;
+		self.focusRingType = NSFocusRingTypeNone;
+	}
+	return self;
+}
+
+- (BOOL)acceptsFirstMouse:(NSEvent *)event { (void)event; return YES; }
+
+- (NSString *)accessibilityRole { return NSAccessibilityCheckBoxRole; }
+
+- (NSString *)accessibilitySubrole { return NSAccessibilitySwitchSubrole; }
+
+- (void)setState:(NSControlStateValue)state {
+	[super setState:state];
+	[self setNeedsDisplay:YES];
+}
+
+- (void)setEnabled:(BOOL)enabled {
+	[super setEnabled:enabled];
+	[self setNeedsDisplay:YES];
+}
+
+- (void)drawRect:(NSRect)dirtyRect {
+	(void)dirtyRect;
+	BOOL on = self.state == NSControlStateValueOn;
+	CGFloat opacity = self.enabled ? 1.0 : 0.45;
+	NSRect trackRect = NSMakeRect(0.0, 1.0, NSWidth(self.bounds), MAX(1.0, NSHeight(self.bounds) - 2.0));
+	NSBezierPath *track = [NSBezierPath bezierPathWithRoundedRect:trackRect xRadius:NSHeight(trackRect) / 2.0 yRadius:NSHeight(trackRect) / 2.0];
+	NSColor *trackColor = on
+		? [NSColor colorWithCalibratedRed:0.04 green:0.52 blue:1.0 alpha:opacity]
+		: [NSColor colorWithCalibratedWhite:0.38 alpha:opacity];
+	[trackColor setFill];
+	[track fill];
+
+	CGFloat knobInset = 2.0;
+	CGFloat knobSize = NSHeight(trackRect) - knobInset * 2.0;
+	CGFloat knobX = on ? NSMaxX(trackRect) - knobSize - knobInset : NSMinX(trackRect) + knobInset;
+	NSRect knobRect = NSMakeRect(knobX, NSMinY(trackRect) + knobInset, knobSize, knobSize);
+	NSShadow *shadow = [NSShadow new];
+	shadow.shadowBlurRadius = 1.5;
+	shadow.shadowOffset = NSMakeSize(0.0, -0.5);
+	shadow.shadowColor = [NSColor colorWithCalibratedWhite:0.0 alpha:0.28 * opacity];
+	[NSGraphicsContext saveGraphicsState];
+	[shadow set];
+	[[NSColor colorWithCalibratedWhite:0.98 alpha:opacity] setFill];
+	[[NSBezierPath bezierPathWithOvalInRect:knobRect] fill];
+	[NSGraphicsContext restoreGraphicsState];
+}
+
+@end
+
 @interface CDToolbarControlView : NSView
 @property(nonatomic, copy) NSString *targetID;
 @property(nonatomic, copy) NSString *kind;
@@ -666,17 +736,22 @@ static const CGFloat CDToolbarLabelVerticalInset = 4.0;
 	CGFloat width = [spec[@"width"] doubleValue];
 	NSView *control = nil;
 	if ([self.kind isEqualToString:@"switch"]) {
-		NSSwitch *toggle = [[NSSwitch alloc] initWithFrame:NSMakeRect(MAX(0, width - 42), 9, 38, 22)];
+		BOOL compact = width < CDToolbarMinControlWidth;
+		NSButton *toggle = [[CDToolbarSwitch alloc] initWithFrame:NSMakeRect(compact ? (width - 38.0) / 2.0 : MAX(0, width - 42), 9, 38, 22)];
+		((CDToolbarSwitch *)toggle).semanticLabel = self.semanticLabel;
+		toggle.title = self.semanticLabel;
 		toggle.accessibilityRole = NSAccessibilityCheckBoxRole;
 		toggle.accessibilitySubrole = NSAccessibilitySwitchSubrole;
-		NSTextField *label = [NSTextField labelWithString:self.semanticLabel];
-		label.frame = NSMakeRect(0, 11, MAX(1, width - 48), 18);
-		label.textColor = NSColor.labelColor;
-		label.lineBreakMode = NSLineBreakByTruncatingTail;
-		label.accessibilityElement = NO;
-		label.accessibilityHidden = YES;
-		[self addSubview:label];
-		self.textLabel = label;
+		if (!compact) {
+			NSTextField *label = [NSTextField labelWithString:self.semanticLabel];
+			label.frame = NSMakeRect(0, 11, MAX(1, width - 48), 18);
+			label.textColor = NSColor.labelColor;
+			label.lineBreakMode = NSLineBreakByTruncatingTail;
+			label.accessibilityElement = NO;
+			label.accessibilityHidden = YES;
+			[self addSubview:label];
+			self.textLabel = label;
+		}
 		control = (NSView *)toggle;
 	} else if ([self.kind isEqualToString:@"checkbox"]) {
 		NSButton *checkbox = [NSButton checkboxWithTitle:self.semanticLabel target:target action:action];
@@ -731,7 +806,7 @@ static const CGFloat CDToolbarLabelVerticalInset = 4.0;
 	control.identifier = self.targetID;
 	if ([control respondsToSelector:@selector(setTarget:)]) [(id)control setTarget:target];
 	if ([control respondsToSelector:@selector(setAction:)]) [(id)control setAction:action];
-	control.toolTip = self.semanticLabel;
+	control.toolTip = [self.kind isEqualToString:@"switch"] ? nil : self.semanticLabel;
 	control.accessibilityLabel = self.semanticLabel;
 	[self addSubview:control];
 	[self applySpec:spec];
@@ -745,10 +820,16 @@ static const CGFloat CDToolbarLabelVerticalInset = 4.0;
 	BOOL disabled = [spec[@"disabled"] boolValue];
 	if ([self.nativeControl respondsToSelector:@selector(setEnabled:)]) [(id)self.nativeControl setEnabled:!disabled];
 	self.textLabel.textColor = disabled ? NSColor.disabledControlTextColor : NSColor.labelColor;
-	self.nativeControl.toolTip = self.semanticLabel;
+	self.nativeControl.toolTip = [self.kind isEqualToString:@"switch"] ? nil : self.semanticLabel;
+	if ([self.nativeControl isKindOfClass:CDToolbarSwitch.class]) {
+		CDToolbarSwitch *toggle = (CDToolbarSwitch *)self.nativeControl;
+		toggle.semanticLabel = self.semanticLabel;
+		toggle.title = self.semanticLabel;
+		if (toggle.pointerInside) [toggle scheduleTooltip];
+	}
 	self.nativeControl.accessibilityLabel = self.semanticLabel;
 	if ([self.kind isEqualToString:@"switch"]) {
-		((NSSwitch *)self.nativeControl).state = [spec[@"checked"] boolValue] ? NSControlStateValueOn : NSControlStateValueOff;
+		((NSButton *)self.nativeControl).state = [spec[@"checked"] boolValue] ? NSControlStateValueOn : NSControlStateValueOff;
 	} else if ([self.kind isEqualToString:@"checkbox"]) {
 		((NSButton *)self.nativeControl).state = [spec[@"checked"] boolValue] ? NSControlStateValueOn : NSControlStateValueOff;
 	} else if ([self.kind isEqualToString:@"input"]) {
@@ -780,7 +861,7 @@ static const CGFloat CDToolbarLabelVerticalInset = 4.0;
 }
 
 - (id)renderedValue {
-	if ([self.kind isEqualToString:@"switch"]) return [NSNumber numberWithBool:((NSSwitch *)self.nativeControl).state == NSControlStateValueOn];
+	if ([self.kind isEqualToString:@"switch"]) return [NSNumber numberWithBool:((NSButton *)self.nativeControl).state == NSControlStateValueOn];
 	if ([self.kind isEqualToString:@"checkbox"]) return [NSNumber numberWithBool:((NSButton *)self.nativeControl).state == NSControlStateValueOn];
 	if ([self.kind isEqualToString:@"input"]) return ((NSTextField *)self.nativeControl).stringValue ?: @"";
 	if ([self.kind isEqualToString:@"select"]) {
@@ -951,9 +1032,10 @@ static BOOL CDToolbarValidControl(NSDictionary *item, uint64_t toolbarRevision) 
 		CDToolbarNumber(control[@"step"], &step) && CDToolbarNumber(control[@"value"], &value) &&
 		CDToolbarUnsignedInteger(control[@"revision"], 1, NSUIntegerMax, &revisionValue);
 	uint64_t revision = (uint64_t)revisionValue;
+	CGFloat minimumControlWidth = [kind isEqualToString:@"switch"] ? CDToolbarMinCompactSwitchWidth : CDToolbarMinControlWidth;
 	if (!control || ![control[@"id"] isEqualToString:identifier] || ![kind isEqualToString:type] ||
 		!CDToolbarIsControlType(kind) || ![[label stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet] length] || CDToolbarUnicodeScalarCount(label) > 60 ||
-		!CDToolbarFiniteNumber(control[@"width"], CDToolbarMinControlWidth, CDToolbarMaxControlWidth, &width) ||
+		!CDToolbarFiniteNumber(control[@"width"], minimumControlWidth, CDToolbarMaxControlWidth, &width) ||
 		!validScalars || revision > toolbarRevision || item[@"button"] || item[@"label"]) return NO;
 	NSString *text = control[@"text"];
 	NSString *placeholder = control[@"placeholder"];
@@ -1581,6 +1663,7 @@ static NSDictionary *CDToolbarLayoutForSpec(NSDictionary *spec, NSString **messa
 		button.customIconImage = nil;
 	}
 	for (CDToolbarControlView *control in self.controlsByID.allValues) {
+		if ([control.nativeControl isKindOfClass:CDToolbarSwitch.class]) [(CDToolbarSwitch *)control.nativeControl invalidateTooltip];
 		if ([control.nativeControl respondsToSelector:@selector(setTarget:)]) [(id)control.nativeControl setTarget:nil];
 		if ([control.nativeControl respondsToSelector:@selector(setAction:)]) [(id)control.nativeControl setAction:nil];
 		if ([control.nativeControl isKindOfClass:NSProgressIndicator.class]) [(NSProgressIndicator *)control.nativeControl stopAnimation:nil];

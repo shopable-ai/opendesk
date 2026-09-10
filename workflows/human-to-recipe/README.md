@@ -8,7 +8,9 @@ order: 10
 
 **人提供示范，Recorder 保存事实，Agent 按需理解界面和过程，程序验证定位与操作，确定部分交付为普通 OpenDesk JavaScript。**
 
-状态：Recorder 数据合同 v2、Custom UI 控制面、合成文件闭环与 macOS Calculator 真实 native capture/语义证据已实施并验收，2026-09-10。仓库内现已分别提供零配置行为保持优化的 [`recorder-script-refiner` Skill](skills/recorder-script-refiner/SKILL.md)，以及业务生产化的 [`human-to-recipe` Skill](skills/human-to-recipe/SKILL.md)、最小 `SemanticBuildPlan` schema／validator和 Calculator plan golden；simple console 使用单行相对路径任务交接。通用 renderer 尚未实现，Skill 也未安装到用户级 Codex Skill 目录。用户通过 simple console 产生的 Calculator 录制包 `rec-20260909T113509.231387000Z-e2232547fa4e` 已完成旧 basic 源码的独立真实回放和 `115` oracle，并交付对应的[可维护语义优化 recipe](../../examples/human-to-recipe/calculator-115.semantic.recipe.js)；这些资格不自动转移给其他 candidate 或当前工作树的新 hash。普通用户命令和新 hash 的 live Gate／视觉仍必须单独重跑。
+状态：Recorder 数据合同 v2、Custom UI 控制面、合成文件闭环与 macOS 真实 native capture 已实施并验收，2026-09-10。构建源码闭包 `8891ff3b…` 的 current8 pair 已完成公开 simple console 原命令下的 keypad Enter、ArrowLeft、Basic Latin、Meta+A 和 macOS 拼音最终值 capture → actions → generate → 恢复初始值 → 显式 replay；独立 AX oracle 验证最终值为“中文”，同 pair 的 native-stop、正式 Recorder Runtime JS、Custom UI 功能／视觉和资源归零也通过。随后 `polyfills/006-ui.js` 仅增加两项 UI-value 错误／参数诊断收紧；最终 current10 pair 以构建源码闭包 `587baeca…` 重新 `go build -a`，其 main／host 字节 hash 与 current8 实窗 pair 完全相同，并通过 current10 direct／正式 Recorder JS 14/14 和资源归零。按交接要求未重复桌面 UI/live；固定实窗证据与精确差异边界见[实施与验收计划](design/implementation-plan.md#415-2026-09-10-current8-livecurrent10-最终-pair-证据)。该轮输入由受控真实键鼠完成，不冒充真人手工输入。
+
+仓库内现已分别提供零配置行为保持优化的 [`recorder-script-refiner` Skill](skills/recorder-script-refiner/SKILL.md)，以及业务生产化的 [`human-to-recipe` Skill](skills/human-to-recipe/SKILL.md)、最小 `SemanticBuildPlan` schema／validator和 Calculator plan golden；simple console 使用单行相对路径任务交接。通用 renderer 尚未实现，Skill 也未安装到用户级 Codex Skill 目录。用户通过 simple console 产生的 Calculator 录制包 `rec-20260909T113509.231387000Z-e2232547fa4e` 已完成旧 basic 源码的独立真实回放和 `115` oracle，并交付对应的[可维护语义优化 recipe](../../examples/human-to-recipe/calculator-115.semantic.recipe.js)；这些资格仍只属于各自 run-scoped evidence，不能自动转移给其他 candidate。
 
 本目录只负责人工 human-to-recipe；另一条 [Agent-to-Recipe](../agent-to-recipe/WORKFLOW.md) 工作流保持独立推进。Agent-first 是本方案采用的开发分工背景，不表示本次输入改成 Agent 示范。
 
@@ -67,7 +69,7 @@ H1—H8 是制作和维护自动化的方法，不是每次运行都重走的步
 | --- | --- |
 | 本 README | 需求背景、有效边界、主链路、文件地图与阅读顺序 |
 | [完整作业任务树](design/task-decomposition.md) | H1—H8 及子作业、无文字图标点击分析、贯穿约束、场景解释 |
-| [Recorder 工程设计](design/recorder-design.md) | DQ-01—DQ-08 规范性需求、已实现调用链、数据合同、真实符号、native 生命周期、动作、生成与下游交接 |
+| [Recorder 工程设计](design/recorder-design.md) | DQ-01—DQ-15 规范性需求、已实现调用链、数据合同、真实符号、native 生命周期、动作、生成与下游交接 |
 | [实施与验收计划](design/implementation-plan.md) | 真实完成、命令、证据、未运行、失败条件与下一批 |
 
 任务树回答完整需要做什么；工程设计回答基础 Recorder 实际如何工作；实施计划只记录资格和证据。不按每个任务节点创建文件、Skill 或 Agent。当前两个 Skill 对应不同且可重复的专业流程：`recorder-script-refiner` 做 script→refined candidate 的行为保持优化；`human-to-recipe` 做 actions→plan→production/gate/evidence 的业务生产化。二者不是节点占位或迁移壳。
@@ -148,7 +150,7 @@ actions 与生成状态；停止后制作 actions，生成需要另一次点击�
 ./dist/opendesk -ui -allow-recorder-capture -script examples/custom-ui/recording-console-simple.js -console-mode script -log-dir .runtime/examples/custom-ui/recording-console-simple
 ```
 
-该入口默认请求 `target-semantics`。普通 hover 不进入 raw；每个 release 绑定当时的应用、具体窗口、窗口内坐标和可取得的控件标签。切换应用或同一应用的其他窗口是允许的录制行为，不再触发旧版 `scope-changed` 停止。停止后会制作 actions，并在 actions ready 时自动生成脚本；生成结果仍是 `verification: "not-run"`，只有另点“重放”才启动新的 execution。“复制 Agent 优化脚本”只在 generated script 存在且未运行时启用，复制内容只有该脚本的仓库相对路径；仓库 `AGENTS.md` 负责路由到 `recorder-script-refiner`。它不启动 Agent、不创建线程、不读取录制正文、不生成、不重放，也不改变录制包。
+该入口默认请求 `target-semantics`。普通 hover 不进入 raw；每个 release 绑定当时的应用、具体窗口、窗口内坐标和可取得的控件标签。切换应用或同一应用的其他窗口是允许的录制行为，不再触发旧版 `scope-changed` 停止。停止后会制作 actions；`ready` 自动生成完整 basic candidate，`needs-review` 自动生成带省略 warning 的 partial candidate，只有 package-integrity `blocked` 不进入生成。生成结果仍是 `verification: "not-run"`，只有另点“重放”才启动新的 execution。“复制 Agent 优化脚本”只在 `ready` generated script 存在且未运行时启用；`needs-review` 需要先人工修复行为缺口。复制内容只有脚本的仓库相对路径；仓库 `AGENTS.md` 负责路由到 `recorder-script-refiner`。该按钮不启动 Agent、不创建线程、不读取录制正文、不生成、不重放，也不改变录制包。
 
 独立生成使用：
 
@@ -184,6 +186,7 @@ OPENDESK_RECORDER_ACTIONS_FILE=.runtime/recordings/<ID>/actions.json ./dist/open
 | screen/window/element 多坐标 | 任务树 H2.3、H3.1 | 工程设计 DQ-05、文件合同 | 实施计划 coordinate recipe |
 | 生产代码确定性生成／审阅、Geometry 收敛 | 任务树 H6 | demonstration pipeline 的确定性闸门、multi-application 路线图批次 A | 实施计划 4.10—4.12 |
 | generated script→Agent 单行任务；actions→业务生产化 | 任务树 H4/H6 | `recorder-script-refiner` inspector；`human-to-recipe` schema 和 source-check validator | 实施计划 4.13；Calculator 是第一个 production plan golden |
+| capture 起点 partial pointer envelope 与会话内 missing pair 分离 | 任务树 H2.2/H3.1 | 工程设计 DQ-15、唯一动作归组 | 实施计划 4.17、5 |
 | 隐私、显式失败和旧包兼容 | 任务树 H1.5、H2.6 | 工程设计 DQ-07/DQ-08 | 实施计划硬性失败条件 |
 
 公开 API 参数、返回值和错误只在 [Recorder Runtime API](../../docs/api/recorder-runtime.md) 维护；仓库正式质量报告仍归 [docs/quality](../../docs/quality/recorder-data-quality-v2.md)。workflow 保存“为什么、必须做什么、如何验收”，避免把 API Reference 或一次性运行日志复制进来。

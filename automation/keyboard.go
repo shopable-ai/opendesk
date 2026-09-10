@@ -119,7 +119,7 @@ func (k *Keyboard) Combination(keys ...string) error {
 func normalizeKeyName(key string) string {
 	keyMap := map[string]string{
 		// Special keys
-		"Meta":        "command", // Windows key
+		"Meta":        "cmd", // robotgo's modifier flag spelling on macOS/Windows
 		"Control":     "ctrl",
 		"Shift":       "shift",
 		"Alt":         "alt",

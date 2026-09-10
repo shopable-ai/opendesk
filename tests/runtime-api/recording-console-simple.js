@@ -28,6 +28,7 @@ class FakeFloatingWindow {
     this.options = options;
     this.items = [];
     this.buttons = new Map();
+    this.controls = new Map();
     this.updates = [];
     this.lifecycle = new Map();
     FakeFloatingWindow.instance = this;
@@ -43,12 +44,30 @@ class FakeFloatingWindow {
     this.items.push({kind: 'Separator', id});
   }
 
+  addSwitch(id, label, options, callback) {
+    const state = {
+      id, label, value: !!options.value, checked: !!options.value,
+      width: options.width, disabled: !!options.disabled,
+    };
+    this.items.push({kind: 'Switch', id});
+    this.controls.set(id, {state, callback});
+  }
+
   async updateButton(id, patch) {
     const button = this.buttons.get(id);
     assert(button, `unknown fake button ${id}`);
     Object.assign(button.state, patch);
     this.updates.push({id, patch: JSON.parse(JSON.stringify(patch))});
     return JSON.parse(JSON.stringify(button.state));
+  }
+
+  async updateControl(id, patch) {
+    const control = this.controls.get(id);
+    assert(control, `unknown fake control ${id}`);
+    Object.assign(control.state, patch);
+    if (Object.prototype.hasOwnProperty.call(patch, 'checked')) control.state.value = patch.checked;
+    this.updates.push({id, patch: JSON.parse(JSON.stringify(patch))});
+    return JSON.parse(JSON.stringify(control.state));
   }
 
   onError(callback) {
@@ -193,6 +212,7 @@ const recorder = {
     calls.generate += 1;
     equal(actionsFile, File.join(fixtureRoot, 'actions.json'), 'generation actions file');
     equal(options.mode, 'basic', 'generation mode');
+    equal(options.pointerMotion, 'smooth', 'default toolbar generation pointer motion');
     assert(FakeFloatingWindow.instance.buttons.get('agentPrompt').state.disabled,
       'Agent prompt must remain disabled until the generated script exists');
     return {
@@ -201,6 +221,7 @@ const recorder = {
       actionsSha256: 'a'.repeat(64), scriptSha256: 'script-fixture',
       constraints: ['fixture'], verification: 'not-run',
       timing: {minimumDelayMs: 500, maximumDelayMs: 30000, speedMultiplier: 1},
+      pointerMotion: options.pointerMotion,
     };
   },
 };
@@ -304,10 +325,21 @@ await app.show();
 const toolbar = FakeFloatingWindow.instance;
 equal(toolbar.options.orientation, 'horizontal', 'toolbar orientation');
 equal(toolbar.options.toolbar.maxRows, 1, 'toolbar row count');
-equal(toolbar.options.toolbar.maxColumns, 6, 'toolbar column count');
+equal(toolbar.options.toolbar.maxColumns, 7, 'toolbar column count');
 equal(toolbar.items.filter(item => item.kind === 'Button').length, 6, 'button count');
+equal(toolbar.items.filter(item => item.kind === 'Switch').length, 1, 'pointer motion switch count');
 equal(toolbar.items.filter(item => item.kind === 'Separator').length, 2, 'separator count');
 assert(!toolbar.items.some(item => item.kind === 'Label'), 'toolbar must not contain a visible Label');
+equal(
+  toolbar.items.filter(item => item.kind !== 'Separator').map(item => item.id).join(','),
+  'capture,stop,replay,pointerMotion,agentPrompt,details,finder',
+  'pointer motion switch must be the centered fourth content item',
+);
+const pointerMotionControl = toolbar.controls.get('pointerMotion');
+assert(pointerMotionControl.state.checked, 'pointer motion must default to selected');
+equal(pointerMotionControl.state.width, 48, 'pointer motion switch must use compact tooltip-only width');
+equal(pointerMotionControl.state.label, '鼠标移动（开：平滑，关：瞬移）', 'pointer motion tooltip');
+equal(app.state().pointerMotion, 'smooth', 'default pointer motion state');
 equal(toolbar.buttons.get('capture').state.icon, 'play.fill', 'initial capture icon');
 equal(toolbar.buttons.get('capture').state.label, '开始录制', 'initial capture tooltip');
 assert(!toolbar.buttons.has('pause'), 'play and pause must not occupy separate buttons');
@@ -321,6 +353,13 @@ equal(toolbar.buttons.get('details').state.icon, 'info.circle', 'details registr
 equal(toolbar.buttons.get('finder').state.icon, 'folder.fill', 'Finder registry icon');
 assert(!toolbar.buttons.has('generate'), 'generation must not require a permanent toolbar button');
 
+await pointerMotionControl.callback(controlChangeEvent('pointerMotion', 0, false));
+equal(app.state().pointerMotion, 'instant', 'switch off must select instant generation');
+assert(!pointerMotionControl.state.checked, 'switch off readback');
+await pointerMotionControl.callback(controlChangeEvent('pointerMotion', 1, true));
+equal(app.state().pointerMotion, 'smooth', 'switch on must select smooth generation');
+assert(pointerMotionControl.state.checked, 'switch on readback');
+
 equal(toolbar.buttons.get('capture').callback(controlEvent('capture', 0)), undefined, 'start click must not enter callback busy state');
 await waitFor(
   () => app.state().phase === 'recording' && !toolbar.buttons.get('capture').state.disabled,
@@ -328,6 +367,7 @@ await waitFor(
 );
 equal(app.state().phase, 'recording', 'capture phase after countdown');
 equal(calls.start, 1, 'Recorder.start call count');
+assert(pointerMotionControl.state.disabled, 'pointer motion must lock before native capture starts');
 equal(
   startHandoffTimeline.join(' -> '),
   'window.getActiveWindow -> Recorder.start',
@@ -353,6 +393,20 @@ function controlEvent(targetId, sequence) {
   };
 }
 
+function controlChangeEvent(targetId, sequence, checked) {
+  return {
+    sessionId: 'recording-console-simple-fixture-session',
+    windowId: 'recording-console-simple-fixture',
+    targetId,
+    type: 'change',
+    checked,
+    value: checked,
+    sequence,
+    timestamp: new Date().toISOString(),
+    bounds: {x: 260, y: 120, width: 48, height: 40},
+  };
+}
+
 equal(toolbar.buttons.get('capture').state.icon, 'pause.fill', 'recording capture icon');
 equal(toolbar.buttons.get('capture').state.label, '暂停录制', 'recording capture tooltip');
 assert(toolbar.buttons.get('capture').state.active, 'capture button must show an active session');
@@ -372,6 +426,8 @@ equal(app.state().phase, 'generated', 'stop must finish with a generated script'
 equal(calls.stop, 1, 'stop call count');
 equal(calls.build, 1, 'buildActions call count');
 equal(calls.generate, 1, 'stop must automatically generate once from ready actions');
+equal(app.state().generated.pointerMotion, 'smooth', 'generated script must retain selected pointer motion');
+assert(pointerMotionControl.state.disabled, 'pointer motion must stay locked to the generated script');
 equal(calls.exclude, 3, 'capture controls must establish exclusion boundaries');
 equal(toolbar.buttons.get('capture').state.label, '重新录制', 're-record tooltip');
 equal(toolbar.buttons.get('capture').state.icon, 'play.fill', 're-record icon');
@@ -517,8 +573,9 @@ const retryRecorder = {
       revision: 1, actionCount: 1, readiness: 'ready', issues: [],
     };
   },
-  async generateScript() {
+  async generateScript(actionsFile, options) {
     retryCalls.generate += 1;
+    equal(options.pointerMotion, 'instant', 'generation retry must preserve the selected pointer motion');
     if (retryCalls.generate === 1) {
       const error = new Error('synthetic first generation failure');
       error.code = 'RECORDER_GENERATION_FAILED';
@@ -551,6 +608,7 @@ const retryApp = OpenDeskSimpleRecordingConsole.createApp({
   execution: Execution,
   sleep: async () => {},
   countdownStepMs: 0,
+  pointerMotion: 'instant',
   logger: {log() {}, error(message) { throw new Error(message); }},
 });
 await retryApp.show();
@@ -577,6 +635,89 @@ equal(retryCalls.replay, 0, 'generation retry must not replay');
 assert(!retryToolbar.buttons.get('agentPrompt').state.disabled,
   'successful generation retry must enable Agent prompt');
 await retryApp.close();
+
+const reviewCalls = {stop: 0, build: 0, generate: 0, run: 0, copy: 0};
+const reviewIssue = {
+  code: 'drag-unsupported', severity: 'warning', eventId: 'e000000000004',
+  message: 'the unsupported drag was omitted from the partial candidate',
+};
+const reviewRecorder = {
+  getCapabilities: recorder.getCapabilities,
+  async start() {
+    return {
+      status: () => ({
+        captureState: 'recording', storageState: 'open', recordingId: 'review-fixture',
+        recordingDir: fixtureRoot, counts, issues: [],
+      }),
+      async stop() {
+        reviewCalls.stop += 1;
+        return {
+          recordingId: 'review-fixture', recordingDir: fixtureRoot,
+          rawFile: File.join(fixtureRoot, 'raw', 'events.ndjson'),
+          manifestFile: File.join(fixtureRoot, 'manifest.json'),
+          captureState: 'stopped', storageState: 'saved', counts, issues: [],
+        };
+      },
+    };
+  },
+  async buildActions() {
+    reviewCalls.build += 1;
+    return {
+      actionsFile, revision: 1, actionCount: 1,
+      readiness: 'needs-review', issues: [reviewIssue],
+    };
+  },
+  async generateScript() {
+    reviewCalls.generate += 1;
+    return {
+      scriptFile: generatedScript,
+      candidateFile: generatedCandidate,
+      actionsSha256: 'review-actions', scriptSha256: 'review-script',
+      constraints: ['partial candidate: one raw event was omitted'], verification: 'not-run',
+      timing: {minimumDelayMs: 500, maximumDelayMs: 30000, speedMultiplier: 1},
+    };
+  },
+};
+const reviewApp = OpenDeskSimpleRecordingConsole.createApp({
+  recorder: reviewRecorder,
+  getActiveWindow: async () => ({pid: 6363, title: 'Needs Review Fixture'}),
+  FloatingWindow: FakeFloatingWindow,
+  dialog,
+  command: {
+    async run(binary, args) {
+      reviewCalls.run += 1;
+      assert(binary.endsWith('/dist/opendesk'), 'partial replay must use dist/opendesk');
+      equal(args[1], generatedScript, 'partial replay script path');
+      return {exitCode: 0, stdout: 'partial fixture stdout', stderr: ''};
+    },
+  },
+  copyText: async () => { reviewCalls.copy += 1; },
+  file: File,
+  execution: Execution,
+  sleep: async () => {},
+  countdownStepMs: 0,
+  logger: {log() {}, error(message) { throw new Error(message); }},
+});
+await reviewApp.show();
+await reviewApp.start();
+await reviewApp.stop();
+equal(reviewApp.state().phase, 'generated', 'needs-review actions must produce a partial candidate');
+equal(reviewApp.state().actions.readiness, 'needs-review', 'partial action readiness');
+equal(reviewCalls.stop, 1, 'partial stop count');
+equal(reviewCalls.build, 1, 'partial build count');
+equal(reviewCalls.generate, 1, 'needs-review actions must reach generation');
+const reviewToolbar = FakeFloatingWindow.instance;
+assert(!reviewToolbar.buttons.get('replay').state.disabled, 'partial candidate must remain explicitly runnable');
+assert(reviewToolbar.buttons.get('agentPrompt').state.disabled,
+  'needs-review candidate must not enable Agent static-refinement handoff');
+await reviewToolbar.buttons.get('agentPrompt').callback();
+equal(reviewCalls.copy, 0, 'needs-review candidate must not copy an Agent refinement prompt');
+await reviewApp.runGenerated();
+equal(reviewCalls.run, 1, 'partial candidate explicit run count');
+equal(reviewApp.state().phase, 'run-succeeded', 'partial candidate explicit run phase');
+assert(reviewToolbar.buttons.get('agentPrompt').state.disabled,
+  'running a partial candidate must not enable Agent static-refinement handoff');
+await reviewApp.close();
 
 const failedCalls = {stop: 0, build: 0, generate: 0, finder: 0, dialog: 0, copy: 0};
 const captureIssue = {
@@ -693,5 +834,6 @@ console.log('RECORDING_CONSOLE_SIMPLE_TEST=' + JSON.stringify({
   countdownIcons: 3,
   captureCalls: calls,
   generationRetryCalls: retryCalls,
+  needsReviewCalls: reviewCalls,
   failedCaptureCalls: failedCalls,
 }));

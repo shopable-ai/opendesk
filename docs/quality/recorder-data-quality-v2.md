@@ -1,6 +1,6 @@
 # Recorder 数据质量 v2 验收
 
-状态：2026-09-09；适用于 `opendesk.recorder.recording/v2`、`opendesk.recorder.actions/v2` 与 `opendesk.recorder.basic-candidate/v3`。
+状态：2026-09-10；适用于 `opendesk.recorder.recording/v2`、`opendesk.recorder.actions/v2` 与 `opendesk.recorder.basic-candidate/v4`。
 
 ## 结论
 

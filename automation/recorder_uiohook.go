@@ -357,7 +357,7 @@ func recorderCaptureLeaseCount() int {
 }
 
 //export opendeskRecorderDispatch
-func opendeskRecorderDispatch(eventType C.uint16_t, nativeTime C.uint64_t, mask C.uint16_t, keycode C.uint16_t, rawcode C.uint16_t, keychar C.uint16_t, button C.uint16_t, clicks C.uint16_t, x C.int16_t, y C.int16_t, amount C.uint16_t, rotation C.int16_t, direction C.uint8_t, physicalPointAvailable C.uint8_t, physicalX C.int32_t, physicalY C.int32_t) {
+func opendeskRecorderDispatch(eventType C.uint16_t, nativeTime C.uint64_t, mask C.uint16_t, keycode C.uint16_t, rawcode C.uint16_t, keychar C.uint16_t, button C.uint16_t, clicks C.uint16_t, x C.int16_t, y C.int16_t, amount C.uint16_t, rotation C.int16_t, direction C.uint8_t, physicalPointAvailable C.uint8_t, physicalX C.int32_t, physicalY C.int32_t, textInputSource C.uint8_t) {
 	backend := activeUIOHookBackend.Load()
 	if backend == nil {
 		return
@@ -368,6 +368,7 @@ func opendeskRecorderDispatch(eventType C.uint16_t, nativeTime C.uint64_t, mask 
 		Button: uint16(button), Clicks: uint16(clicks), X: int16(x), Y: int16(y),
 		Amount: uint16(amount), Rotation: int16(rotation), Direction: uint8(direction),
 		PhysicalPointAvailable: physicalPointAvailable != 0,
-		PhysicalX: int32(physicalX), PhysicalY: int32(physicalY),
+		PhysicalX:              int32(physicalX), PhysicalY: int32(physicalY),
+		TextInputSource: uint8(textInputSource),
 	})
 }

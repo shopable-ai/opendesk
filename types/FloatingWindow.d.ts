@@ -216,7 +216,7 @@ declare global {
   }
 
   interface ClawdeskFloatingControlBaseOptions {
-    /** Immutable native item width in points (80–360). */
+    /** Immutable native item width in points (80–360; Switch also accepts 48–79 for tooltip-only compact presentation). */
     width?: number;
     disabled?: boolean;
   }
@@ -384,7 +384,7 @@ declare global {
     addButton(id: string, label: string, icon: ClawdeskFloatingIconSource, callback?: ClawdeskFloatingButtonCallback): void;
     /** Adds bounded visible native status text before first show. Width stays fixed across updates. */
     addLabel(id: string, text: string, options?: ClawdeskFloatingLabelOptions): void;
-    /** Adds an immediate-effect native on/off switch. */
+    /** Adds an immediate-effect native on/off switch. Widths below 80 hide the visual label while retaining its tooltip and Accessibility name. */
     addSwitch(id: string, label: string, options?: ClawdeskFloatingToggleOptions, callback?: ClawdeskFloatingToggleCallback): void;
     /** Adds an independent inclusion/selection checkbox. */
     addCheckbox(id: string, label: string, options?: ClawdeskFloatingToggleOptions, callback?: ClawdeskFloatingToggleCallback): void;

@@ -250,6 +250,15 @@ func TestToolbarNativeControlValidationAndGeometry(t *testing.T) {
 		}
 		items = append(items, ControlItem(control))
 	}
+	compactSwitch := controls[0]
+	compactSwitch.Width = MinCompactSwitchWidth
+	if err := ValidateControlSpec(compactSwitch); err != nil {
+		t.Fatalf("compact switch rejected: %v", err)
+	}
+	compactSwitch.Width = MinCompactSwitchWidth - 1
+	if err := ValidateControlSpec(compactSwitch); err == nil {
+		t.Fatal("undersized compact switch unexpectedly passed")
+	}
 	plan, err := Plan(ToolbarSpec{SchemaVersion: SchemaVersion, Revision: 1, Orientation: OrientationHorizontal, MaxColumns: 2, Items: items})
 	if err != nil || len(plan.Rows) != 4 || plan.OuterHeight != 225 {
 		t.Fatalf("control layout = %#v, err=%v", plan, err)

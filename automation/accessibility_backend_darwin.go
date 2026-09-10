@@ -1105,6 +1105,15 @@ func requireDarwinKnownEnabled(inspection darwinAXInspection) error {
 	return nil
 }
 
+func requireDarwinSetValueNotDisabled(inspection darwinAXInspection) error {
+	if inspection.Enabled != nil && !*inspection.Enabled {
+		return darwinAXTypedError(AccessibilityElementDisabled, "action_check", "the native accessibility element is disabled", nil, AccessibilityActionNotStarted)
+	}
+	// AXTextArea commonly omits AXEnabled. Its non-secure AXValue being
+	// settable is the stronger capability proof checked immediately below.
+	return nil
+}
+
 func (b *darwinAccessibilityBackend) Perform(ctx context.Context, handle uint64, action AccessibilityAction) (AccessibilityActionData, error) {
 	entry, err := b.lookupHandle(ctx, handle)
 	if err != nil {
@@ -1125,7 +1134,7 @@ func (b *darwinAccessibilityBackend) Perform(ctx context.Context, handle uint64,
 		}
 		return b.performNativeAction(ctx, entry.element, C.OPENDESK_AX_ACTION_PRESS, "action")
 	case "setValue":
-		if err := requireDarwinKnownEnabled(inspection); err != nil {
+		if err := requireDarwinSetValueNotDisabled(inspection); err != nil {
 			return AccessibilityActionData{}, err
 		}
 		if inspection.Secure {

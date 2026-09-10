@@ -27,7 +27,7 @@ RuntimeAPITest.contractObject('Recorder');
       rawEvent(2, 'MOUSE_RELEASED', {button: 'left', clicks: 1, x: 20, y: 30, coordinateSpace: 'screen-logical', coordinateVerified: true, displayRef: 'fixture-display'}),
       rawEvent(3, 'MOUSE_CLICKED', {button: 'left', clicks: 1, x: 20, y: 30, coordinateSpace: 'screen-logical', coordinateVerified: true, displayRef: 'fixture-display'}),
       rawEvent(4, 'KEY_PRESSED', {keycode: 30, rawcode: 65, keychar: 65535}),
-      rawEvent(5, 'KEY_TYPED', {keycode: 0, rawcode: 65, keychar: 97, gaps: ['key-typed-is-not-an-ime-commit']}),
+      rawEvent(5, 'KEY_TYPED', {keycode: 0, rawcode: 65, keychar: 97, textInputSource: 'keyboard-layout'}),
       rawEvent(6, 'KEY_RELEASED', {keycode: 30, rawcode: 65, keychar: 65535}),
     ];
     const rawPayload = raw.map((event) => JSON.stringify(event)).join('\n') + '\n';
@@ -89,10 +89,10 @@ RuntimeAPITest.contractObject('Recorder');
     for (const context of manifest.inputContexts) {
       if (!editableContextEventIds.has(context.eventId)) continue;
       const event = raw.find(item => item.eventId === context.eventId);
-	  const descriptor = {
+      const descriptor = {
         role: 'textField', nativeRole: 'AXTextField', subrole: 'AXSearchField', name: 'Search', identifier: 'search-input',
         enabled: true, focused: true, valueSettable: true, nativeActions: [],
-        bounds: {x: 100, y: 100, width: 300, height: 140},
+        bounds: {x: 100, y: 100, width: 300, height: 140}, boundsSpace: 'screen-logical',
       };
       context.semanticStatus = 'verified';
       delete context.semanticReason;
@@ -114,7 +114,7 @@ RuntimeAPITest.contractObject('Recorder');
 	  const descriptor = {
 		role: 'button', nativeRole: 'AXButton', name: 'Not an input', identifier: 'not-an-input',
 		enabled: true, focused: false, valueSettable: false, nativeActions: ['AXPress'],
-		bounds: {x: 100, y: 100, width: 300, height: 140},
+		bounds: {x: 100, y: 100, width: 300, height: 140}, boundsSpace: 'screen-logical',
 	  };
 	  context.semanticStatus = 'verified';
 	  delete context.semanticReason;
@@ -187,6 +187,34 @@ RuntimeAPITest.contractObject('Recorder');
   });
 
   test({
+	name: 'Recorder accepts coordinate-space provenance on verified Accessibility point hits',
+	tier: 'unit',
+	covers: ['Recorder.buildActions'],
+  }, async () => {
+	const recordingId = `rec-point-hit-bounds-space-${Date.now()}`;
+	const recordingDir = File.join(Execution.workdir, '.runtime', 'recordings', recordingId);
+	const events = [
+	  rawEvent(1, 'MOUSE_PRESSED', {button: 'left', clicks: 1, x: 120, y: 130, coordinateSpace: 'screen-logical', coordinateVerified: true, displayRef: 'fixture-display'}),
+	  rawEvent(2, 'MOUSE_RELEASED', {button: 'left', clicks: 1, x: 120, y: 130, coordinateSpace: 'screen-logical', coordinateVerified: true, displayRef: 'fixture-display'}),
+	  rawEvent(3, 'MOUSE_CLICKED', {button: 'left', clicks: 1, x: 120, y: 130, coordinateSpace: 'screen-logical', coordinateVerified: true, displayRef: 'fixture-display'}),
+	];
+	try {
+	  writeFixture(recordingDir, recordingId, events, {
+		nonEditableContextEventIds: ['e000000000001', 'e000000000002'],
+	  });
+	  const built = await Recorder.buildActions(recordingDir);
+	  equal(built.readiness, 'ready', JSON.stringify(built));
+	  equal(built.actionCount, 1, 'verified point hit produces one click');
+	  const actions = JSON.parse(File.read(built.actionsFile));
+	  equal(actions.actions[0].target.semanticStatus, 'verified', JSON.stringify(actions.actions[0].target));
+	  equal(actions.actions[0].target.element.boundsSpace, 'screen-logical', 'selected element preserves its coordinate space');
+	  equal(actions.actions[0].target.element.hit.boundsSpace, 'screen-logical', 'point-hit descriptor preserves its coordinate space');
+	} finally {
+	  File.removeDir(recordingDir);
+	}
+  });
+
+  test({
 	name: 'Recorder preserves wheel coordinates and generates window or display relative scrolling',
 	tier: 'unit',
 	covers: ['Recorder.buildActions', 'Recorder.generateScript'],
@@ -223,6 +251,15 @@ RuntimeAPITest.contractObject('Recorder');
 	  const move = 'await mouse.move(__recorderWheelPoint1.x, __recorderWheelPoint1.y);';
 	  const wheel = 'await mouse.wheel({ deltaX: 0, deltaY: 8, steps: 2, delay: 5 });';
 	  assert(source.includes('__recorderPoint(__recorderWindow1') && source.indexOf(move) >= 0 && source.indexOf(move) < source.indexOf(wheel), source);
+	  const smooth = await Recorder.generateScript(built.actionsFile, {
+	    outputFile: 'smooth-wheel.recipe.js', pointerMotion: 'smooth',
+	  });
+	  const smoothSource = File.read(smooth.scriptFile);
+	  const smoothMove = 'await mouse.move(__recorderWheelPoint1.x, __recorderWheelPoint1.y, { steps: 60 });';
+	  const smoothConfirm = '__recorderRequirePointer(__recorderWheelPoint1, "a0001", "wheel-position-confirmed");';
+	  assert(smoothSource.indexOf(smoothMove) >= 0
+	    && smoothSource.indexOf(smoothMove) < smoothSource.indexOf(smoothConfirm)
+	    && smoothSource.indexOf(smoothConfirm) < smoothSource.indexOf(wheel), smoothSource);
 
 	  writeFixture(displayDir, displayId, wheelEvents, {includeWheelContexts: false});
 	  const fallback = await Recorder.buildActions(displayDir);
@@ -257,10 +294,10 @@ RuntimeAPITest.contractObject('Recorder');
 	const events = [
 	  rawEvent(1, 'KEY_PRESSED', {keycode: 30, rawcode: 0, keychar: 65535}),
 	  rawEvent(2, 'KEY_RELEASED', {keycode: 30, rawcode: 0, keychar: 65535}),
-	  rawEvent(3, 'KEY_PRESSED', {keycode: 0xe05b, rawcode: 55, keychar: 65535, modifierMask: 1 << 2, modifiers: ['meta-left']}),
+	  rawEvent(3, 'KEY_PRESSED', {keycode: 0x0e5b, rawcode: 55, keychar: 65535, modifierMask: 1 << 2, modifiers: ['meta-left']}),
 	  rawEvent(4, 'KEY_PRESSED', {keycode: 0x002e, rawcode: 8, keychar: 65535, modifierMask: 1 << 2, modifiers: ['meta-left']}),
 	  rawEvent(5, 'KEY_RELEASED', {keycode: 0x002e, rawcode: 8, keychar: 65535, modifierMask: 1 << 2, modifiers: ['meta-left']}),
-	  rawEvent(6, 'KEY_RELEASED', {keycode: 0xe05b, rawcode: 55, keychar: 65535}),
+	  rawEvent(6, 'KEY_RELEASED', {keycode: 0x0e5b, rawcode: 55, keychar: 65535}),
 	  rawEvent(7, 'KEY_PRESSED', {keycode: 0x001c, rawcode: 36, keychar: 65535}),
 	  rawEvent(8, 'KEY_RELEASED', {keycode: 0x001c, rawcode: 36, keychar: 65535}),
 	];
@@ -270,7 +307,7 @@ RuntimeAPITest.contractObject('Recorder');
 		textEdits: [{
 		  id: 't0001', status: 'verified', sourceEventIds: ['e000000000001', 'e000000000002'],
 		  window: windowSnapshot,
-		  element: {role: 'textField', nativeRole: 'AXTextField', name: 'Editor', identifier: 'editor', focused: true, valueSettable: true, nativeActions: [], bounds: {x: 10, y: 10, width: 300, height: 40}},
+		  element: {role: 'textField', nativeRole: 'AXTextField', name: 'Editor', identifier: 'editor', focused: true, valueSettable: true, nativeActions: [], bounds: {x: 0, y: 0, width: 0, height: 0}},
 		  before: {sha256: '86f55afa3b3ad99dea93fc26587d8ea6a88cf2c2c4961d0b3ca03efaee2cbc15', utf16Units: 6},
 		  patch: {unit: 'utf16-code-unit', start: 6, deleteCount: 0, insertText: '世界'},
 		  after: {sha256: 'b75e62dbbc22a24c45daa78d96ebab29e972babf1d779b2903ab9757219c32df', utf16Units: 8},
@@ -283,6 +320,7 @@ RuntimeAPITest.contractObject('Recorder');
 	  const actions = JSON.parse(File.read(built.actionsFile));
 	  equal(actions.actions.map(action => action.kind).join(','), 'text-edit,shortcut,key', JSON.stringify(actions.actions));
 	  equal(actions.actions[0].args.textEdit.patch.insertText, '世界', 'explicit non-sensitive text patch');
+	  equal(actions.actions[0].target.editable.bounds.width, 0, 'focused editable values do not require pointer geometry');
 	  equal(actions.actions[1].args.keys.join(','), 'Meta,C', 'shortcut chord');
 	  equal(actions.actions[2].args.key, 'Enter', 'special key');
 	  const generated = await Recorder.generateScript(built.actionsFile);
@@ -292,6 +330,83 @@ RuntimeAPITest.contractObject('Recorder');
 		&& source.includes('text edit postcondition mismatch')
 		&& source.includes('await keyboard.combination(...["Meta","C"])')
 		&& source.includes('await keyboard.press("Enter")'), source);
+
+	  // Execute the helper emitted by the production generator. The candidate
+	  // hash is pinned before synthesis so this cannot drift into a hand-copied
+	  // model of the expected helper.
+	  const candidate = JSON.parse(File.read(generated.candidateFile));
+	  equal(candidate.script.sha256, generated.scriptSha256, 'candidate pins generated source hash');
+	  Object.freeze(candidate.script);
+	  const helperStart = source.indexOf('function __recorderRightRotate');
+	  const helperEnd = source.indexOf('function __recorderPoint', helperStart);
+	  assert(helperStart >= 0 && helperEnd > helperStart, 'production text-edit helper boundaries');
+	  const helperSource = source.slice(helperStart, helperEnd);
+	  const runHelper = new Function('Accessibility', 'win', 'selector', 'edit',
+		'"use strict"; return (async function () {\n' + helperSource +
+		'\nawait __recorderApplyTextEdit(win, selector, edit);\n})();');
+	  const edit = actions.actions[0].args.textEdit;
+	  const selector = {role: 'textField', name: 'Editor', identifier: 'editor'};
+	  const win = {id: 'fixture-window'};
+	  const execute = async settings => {
+		const trace = {value: settings.value, find: 0, read: 0, perform: 0, release: 0};
+		const ref = Object.freeze({kind: 'AccessibilityElementRef', id: 'generated-text-ref'});
+		const accessibility = {
+		  find: async () => { trace.find++; return ref; },
+		  read: async currentRef => {
+			trace.read++;
+			equal(currentRef, ref, 'generated helper read ref');
+			return {properties: {
+			  value: trace.read === 2 && settings.readback !== undefined ? settings.readback : trace.value,
+			  focused: settings.focused !== false,
+			}};
+		  },
+		  perform: async (currentRef, action) => {
+			trace.perform++;
+			equal(currentRef, ref, 'generated helper perform ref');
+			trace.value = action.value;
+			return {actionState: settings.actionState || 'acknowledged'};
+		  },
+		  release: async currentRef => { trace.release++; equal(currentRef, ref, 'generated helper release ref'); return true; },
+		};
+		let error = null;
+		try { await runHelper(accessibility, win, selector, settings.edit || edit); } catch (caught) { error = caught; }
+		return {trace, error};
+	  };
+
+	  const success = await execute({value: 'before'});
+	  assert(!success.error, String(success.error));
+	  equal(success.trace.value, 'before世界', 'generated helper exact patch result');
+	  equal(success.trace.perform, 1, 'generated helper success action count');
+	  equal(success.trace.read, 2, 'generated helper strict readback count');
+	  equal(success.trace.release, 1, 'generated helper success release count');
+
+	  const precondition = await execute({value: 'wrong'});
+	  assert(precondition.error && String(precondition.error).includes('precondition mismatch'), String(precondition.error));
+	  equal(precondition.trace.perform, 0, 'precondition failure action count');
+	  equal(precondition.trace.release, 1, 'precondition failure release count');
+
+	  const unfocused = await execute({value: 'prefix', focused: false});
+	  assert(unfocused.error && String(unfocused.error).includes('not focused'), String(unfocused.error));
+	  equal(unfocused.trace.perform, 0, 'unfocused target is never modified');
+	  equal(unfocused.trace.release, 1, 'unfocused failure release count');
+
+	  const invalidEdit = JSON.parse(JSON.stringify(edit));
+	  invalidEdit.patch.start = 999;
+	  const boundary = await execute({value: 'before', edit: invalidEdit});
+	  assert(boundary.error && String(boundary.error).includes('patch boundary'), String(boundary.error));
+	  equal(boundary.trace.perform, 0, 'patch boundary failure action count');
+	  equal(boundary.trace.release, 1, 'patch boundary failure release count');
+
+	  const postcondition = await execute({value: 'before', readback: 'wrong'});
+	  assert(postcondition.error && String(postcondition.error).includes('postcondition mismatch'), String(postcondition.error));
+	  equal(postcondition.trace.perform, 1, 'postcondition failure action count');
+	  equal(postcondition.trace.release, 1, 'postcondition failure release count');
+
+	  const unknown = await execute({value: 'before', actionState: 'unknown'});
+	  assert(unknown.error && String(unknown.error).includes('was not acknowledged'), String(unknown.error));
+	  equal(unknown.trace.perform, 1, 'unknown action result is not replayed');
+	  equal(unknown.trace.read, 1, 'unknown action result is not treated as verified');
+	  equal(unknown.trace.release, 1, 'unknown action result release count');
 	} finally {
 	  File.removeDir(recordingDir);
 	}
@@ -371,11 +486,146 @@ RuntimeAPITest.contractObject('Recorder');
 		})],
 	  });
 	  const ambiguous = await Recorder.buildActions(ambiguousDir);
-	  equal(ambiguous.readiness, 'blocked', JSON.stringify(ambiguous));
+	  equal(ambiguous.readiness, 'needs-review', JSON.stringify(ambiguous));
+	  equal(ambiguous.actionCount, 0, 'ambiguous IME boundary must quarantine the unsafe text edit');
 	  assert(ambiguous.issues.some(issue => issue.code === 'ime-boundary-ambiguous'), JSON.stringify(ambiguous.issues));
 	  assert(!ambiguous.issues.some(issue => issue.code === 'physical-key-unsupported'), JSON.stringify(ambiguous.issues));
+	  const ambiguousGenerated = await Recorder.generateScript(ambiguous.actionsFile);
+	  const ambiguousSource = File.read(ambiguousGenerated.scriptFile);
+	  assert(ambiguousSource.includes('[Recorder partial candidate] readiness=needs-review; omitted raw events=2'), ambiguousSource);
+	  assert(!ambiguousSource.includes('Accessibility.perform(') && !ambiguousSource.includes('keyboard.press('), ambiguousSource);
+	  assert(ambiguousGenerated.constraints.some(item => item.includes('partial candidate: 2 raw event(s) were omitted')), JSON.stringify(ambiguousGenerated.constraints));
 	} finally {
 	  for (const recordingDir of [physicalDir, valueDir, ambiguousDir]) File.removeDir(recordingDir);
+	}
+  });
+
+  test({
+	name: 'Recorder emits an editable low-level text fallback unless a focused final value is verified',
+	tier: 'unit',
+	covers: ['Recorder.buildActions', 'Recorder.generateScript'],
+  }, async () => {
+	const root = File.join(Execution.workdir, '.runtime', 'recordings');
+	const suffix = Date.now();
+	const fallbackId = `rec-ime-unverified-${suffix}`;
+	const finalValueId = `rec-ime-final-value-${suffix}`;
+	const fallbackDir = File.join(root, fallbackId);
+	const finalValueDir = File.join(root, finalValueId);
+	const events = [
+	  rawEvent(1, 'KEY_PRESSED', {keycode: 46, rawcode: 8, keychar: 65535}),
+	  rawEvent(2, 'KEY_TYPED', {
+		keycode: 0, rawcode: 8, keychar: 99, textInputSource: 'input-method',
+		gaps: ['key-typed-is-not-an-ime-commit'],
+	  }),
+	  rawEvent(3, 'KEY_RELEASED', {keycode: 46, rawcode: 8, keychar: 65535}),
+	];
+	const windowSnapshot = {
+	  id: 'fixture-window', title: 'Recorder Fixture', handle: 4242, index: 0, isPopup: false,
+	  application: {
+		processId: 4242, executableName: 'RecorderFixture', executablePath: '/fixture/recorder',
+		identityKind: 'executable-path', identityValue: '/fixture/recorder',
+	  },
+	  bounds: {x: 0, y: 0, width: 800, height: 600}, observedAt: '2024-01-01T00:00:00Z',
+	};
+	try {
+	  writeFixture(fallbackDir, fallbackId, events);
+	  const fallback = await Recorder.buildActions(fallbackDir);
+	  equal(fallback.readiness, 'ready', JSON.stringify(fallback));
+	  equal(fallback.actionCount, 1, 'IME phonetic payload remains a generatable low-level fallback');
+	  assert(!fallback.issues.some(issue => issue.code === 'text-outcome-unverified'), JSON.stringify(fallback.issues));
+	  const fallbackActions = JSON.parse(File.read(fallback.actionsFile));
+	  equal(fallbackActions.actions[0].kind, 'text', JSON.stringify(fallbackActions.actions[0]));
+	  equal(fallbackActions.actions[0].args.text, 'c', JSON.stringify(fallbackActions.actions[0]));
+	  const fallbackGenerated = await Recorder.generateScript(fallback.actionsFile);
+	  const fallbackSource = File.read(fallbackGenerated.scriptFile);
+	  assert(fallbackSource.includes('const __recorderText1 = "c";'), fallbackSource);
+	  assert(fallbackSource.includes('await keyboard.type(__recorderText1);'), fallbackSource);
+	  const fallbackCandidate = JSON.parse(File.read(fallbackGenerated.candidateFile));
+	  assert(fallbackCandidate.constraints.some(item => item.includes('may be phonetic input')), JSON.stringify(fallbackCandidate.constraints));
+
+	  writeFixture(finalValueDir, finalValueId, events, {textEdits: [{
+		id: 't0001', status: 'verified', sourceEventIds: events.map(event => event.eventId),
+		window: windowSnapshot,
+		element: {
+		  role: 'textField', nativeRole: 'AXTextArea', focused: true, valueSettable: true,
+		  name: 'Message',
+		  nativeActions: [], bounds: {x: 0, y: 0, width: 0, height: 0},
+		},
+		before: {sha256: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', utf16Units: 0},
+		patch: {unit: 'utf16-code-unit', start: 0, deleteCount: 0, insertText: '测试成功123'},
+		after: {sha256: '259458d6ba77885a75718690b6e03db10d2d5af10c53fcf828f331b36c54a827', utf16Units: 7},
+		observedAt: '2024-01-01T00:00:00.030Z',
+	  }]});
+	  const finalValue = await Recorder.buildActions(finalValueDir);
+	  equal(finalValue.readiness, 'ready', JSON.stringify(finalValue));
+	  equal(finalValue.actionCount, 1, 'verified focused final value replaces IME key evidence');
+	  const actions = JSON.parse(File.read(finalValue.actionsFile));
+	  equal(actions.actions[0].kind, 'text-edit', JSON.stringify(actions.actions[0]));
+	  equal(actions.actions[0].args.textEdit.patch.insertText, '测试成功123', JSON.stringify(actions.actions[0]));
+	  const generated = await Recorder.generateScript(finalValue.actionsFile);
+	  const source = File.read(generated.scriptFile);
+	  assert(source.includes('测试成功123') && !source.includes('__recorderText1'), source);
+	} finally {
+	  File.removeDir(fallbackDir);
+	  File.removeDir(finalValueDir);
+	}
+  });
+
+  test({
+	name: 'Recorder collapses repeated physical key actions into bounded replay counts',
+	tier: 'unit',
+	covers: ['Recorder.buildActions', 'Recorder.generateScript'],
+  }, async () => {
+	const recordingId = `rec-repeat-backspace-${Date.now()}`;
+	const recordingDir = File.join(Execution.workdir, '.runtime', 'recordings', recordingId);
+	const shortcutId = `rec-repeat-shortcut-${Date.now()}`;
+	const shortcutDir = File.join(Execution.workdir, '.runtime', 'recordings', shortcutId);
+	const events = [
+	  rawEvent(1, 'KEY_PRESSED', {keycode: 0x000e, rawcode: 0x33, keychar: 65535}),
+	  rawEvent(2, 'KEY_PRESSED', {keycode: 0x000e, rawcode: 0x33, keychar: 65535}),
+	  rawEvent(3, 'KEY_PRESSED', {keycode: 0x000e, rawcode: 0x33, keychar: 65535}),
+	  rawEvent(4, 'KEY_RELEASED', {keycode: 0x000e, rawcode: 0x33, keychar: 65535}),
+	];
+	try {
+	  writeFixture(recordingDir, recordingId, events, {keyboardContextEventIds: [events[0].eventId]});
+	  const built = await Recorder.buildActions(recordingDir);
+	  equal(built.readiness, 'ready', JSON.stringify(built));
+	  equal(built.actionCount, 1, 'one repeated Backspace action');
+	  const actions = JSON.parse(File.read(built.actionsFile));
+	  equal(actions.actions[0].kind, 'key', JSON.stringify(actions.actions[0]));
+	  equal(actions.actions[0].args.key, 'Backspace', JSON.stringify(actions.actions[0]));
+	  equal(actions.actions[0].args.repeatCount, 3, JSON.stringify(actions.actions[0]));
+	  equal(actions.actions[0].source.eventIds.length, 4, JSON.stringify(actions.actions[0]));
+	  const generated = await Recorder.generateScript(built.actionsFile);
+	  const source = File.read(generated.scriptFile);
+	  assert(source.includes('__recorderRepeat1 < 3'), source);
+	  assert(source.includes('await keyboard.press("Backspace")'), source);
+
+	  const meta = {modifierMask: 1 << 2, modifiers: ['meta-left']};
+	  const shortcutEvents = [
+		rawEvent(1, 'KEY_PRESSED', {keycode: 0x0e5b, rawcode: 0, keychar: 65535, ...meta}),
+		rawEvent(2, 'KEY_PRESSED', {keycode: 0x002e, rawcode: 8, keychar: 65535, ...meta}),
+		rawEvent(3, 'KEY_PRESSED', {keycode: 0x002e, rawcode: 8, keychar: 65535, ...meta}),
+		rawEvent(4, 'KEY_PRESSED', {keycode: 0x002e, rawcode: 8, keychar: 65535, ...meta}),
+		rawEvent(5, 'KEY_RELEASED', {keycode: 0x002e, rawcode: 8, keychar: 65535, ...meta}),
+		rawEvent(6, 'KEY_RELEASED', {keycode: 0x0e5b, rawcode: 0, keychar: 65535}),
+	  ];
+	  writeFixture(shortcutDir, shortcutId, shortcutEvents, {keyboardContextEventIds: [shortcutEvents[1].eventId]});
+	  const shortcutBuilt = await Recorder.buildActions(shortcutDir);
+	  equal(shortcutBuilt.readiness, 'ready', JSON.stringify(shortcutBuilt));
+	  equal(shortcutBuilt.actionCount, 1, 'one repeated shortcut action');
+	  const shortcutActions = JSON.parse(File.read(shortcutBuilt.actionsFile));
+	  equal(shortcutActions.actions[0].kind, 'shortcut', JSON.stringify(shortcutActions.actions[0]));
+	  equal(shortcutActions.actions[0].args.keys.join(','), 'Meta,C', JSON.stringify(shortcutActions.actions[0]));
+	  equal(shortcutActions.actions[0].args.repeatCount, 3, JSON.stringify(shortcutActions.actions[0]));
+	  equal(shortcutActions.actions[0].source.eventIds.length, 6, JSON.stringify(shortcutActions.actions[0]));
+	  const shortcutGenerated = await Recorder.generateScript(shortcutBuilt.actionsFile);
+	  const shortcutSource = File.read(shortcutGenerated.scriptFile);
+	  assert(shortcutSource.includes('__recorderRepeat1 < 3'), shortcutSource);
+	  assert(shortcutSource.includes('await keyboard.combination(...["Meta","C"])'), shortcutSource);
+	} finally {
+	  File.removeDir(recordingDir);
+	  File.removeDir(shortcutDir);
 	}
   });
 
@@ -400,18 +650,54 @@ RuntimeAPITest.contractObject('Recorder');
 		  }],
 		  issues: [{
 			code: fixture.issue, severity: 'error',
-			message: 'fixture proves that Recorder keeps the unmatched press fail closed without synthesizing a release',
+			message: 'fixture proves that Recorder omits the unmatched press without synthesizing a release',
 			eventId: press.eventId,
 		  }],
 		});
 		const built = await Recorder.buildActions(recordingDir);
-		equal(built.readiness, 'blocked', JSON.stringify(built));
+		equal(built.readiness, 'needs-review', JSON.stringify(built));
+		equal(built.actionCount, 0, 'unmatched physical key must be omitted');
 		assert(built.issues.some(issue => issue.code === fixture.issue), JSON.stringify(built.issues));
 		assert(built.issues.some(issue => issue.code === 'missing-key-release-at-stop'), JSON.stringify(built.issues));
+		assert(built.issues.every(issue => issue.severity !== 'error'), JSON.stringify(built.issues));
 		assert(!File.read(File.join(recordingDir, 'raw', 'events.ndjson')).includes('KEY_RELEASED'), 'fixture raw unexpectedly contains a release');
 	  } finally {
 		File.removeDir(recordingDir);
 	  }
+	}
+  });
+
+  test({
+	name: 'Recorder excludes a capture-start partial pointer envelope without blocking later complete actions',
+	tier: 'unit',
+	covers: ['Recorder.buildActions', 'Recorder.generateScript'],
+  }, async () => {
+	const recordingId = `rec-start-pointer-tail-${Date.now()}`;
+	const recordingDir = File.join(Execution.workdir, '.runtime', 'recordings', recordingId);
+	const events = [
+	  rawEvent(1, 'MOUSE_DRAGGED', {button: 'none', clicks: 0, x: 100, y: 100, modifierMask: 1 << 8, coordinateSpace: 'screen-logical', coordinateVerified: true, displayRef: 'fixture-display'}),
+	  rawEvent(2, 'MOUSE_DRAGGED', {button: 'none', clicks: 0, x: 120, y: 110, modifierMask: 1 << 8, coordinateSpace: 'screen-logical', coordinateVerified: true, displayRef: 'fixture-display'}),
+	  rawEvent(3, 'MOUSE_RELEASED', {button: 'left', clicks: 0, x: 120, y: 110, coordinateSpace: 'screen-logical', coordinateVerified: true, displayRef: 'fixture-display'}),
+	  rawEvent(4, 'MOUSE_PRESSED', {button: 'left', clicks: 1, x: 20, y: 30, coordinateSpace: 'screen-logical', coordinateVerified: true, displayRef: 'fixture-display'}),
+	  rawEvent(5, 'MOUSE_RELEASED', {button: 'left', clicks: 1, x: 20, y: 30, coordinateSpace: 'screen-logical', coordinateVerified: true, displayRef: 'fixture-display'}),
+	  rawEvent(6, 'MOUSE_CLICKED', {button: 'left', clicks: 1, x: 20, y: 30, coordinateSpace: 'screen-logical', coordinateVerified: true, displayRef: 'fixture-display'}),
+	];
+	try {
+	  writeFixture(recordingDir, recordingId, events);
+	  const built = await Recorder.buildActions(recordingDir);
+	  equal(built.readiness, 'ready', JSON.stringify(built));
+	  equal(built.actionCount, 1, JSON.stringify(built));
+	  equal(built.issues.length, 0, JSON.stringify(built));
+	  const actions = JSON.parse(File.read(built.actionsFile));
+	  equal(actions.actions[0].kind, 'click', JSON.stringify(actions.actions));
+	  for (const item of actions.eventDisposition.slice(0, 3)) {
+		equal(item.disposition, 'excluded', JSON.stringify(item));
+		equal(item.reason, 'capture-start partial pointer envelope', JSON.stringify(item));
+	  }
+	  const generated = await Recorder.generateScript(built.actionsFile);
+	  assert(File.read(generated.scriptFile).includes('await mouse.clickPoint'), 'ready action was not generated');
+	} finally {
+	  File.removeDir(recordingDir);
 	}
   });
 
@@ -485,6 +771,12 @@ RuntimeAPITest.contractObject('Recorder');
         && dragSource.includes('await mouse.up({ button: "left" })')
         && dragSource.includes('phase: "button-up-returned"'), dragSource);
       assert(dragGenerated.constraints.some(constraint => constraint.includes('never target business success')), JSON.stringify(dragGenerated.constraints));
+      const smoothDragGenerated = await Recorder.generateScript(drag.actionsFile, {
+        outputFile: 'smooth-drag.recipe.js', pointerMotion: 'smooth',
+      });
+      const smoothDragSource = File.read(smoothDragGenerated.scriptFile);
+      assert(smoothDragSource.includes('await mouse.move(__recorderDragStart1.x, __recorderDragStart1.y, { steps: 60 })')
+        && smoothDragSource.includes('await mouse.move(__recorderDragEnd1.x, __recorderDragEnd1.y, { steps: 2 })'), smoothDragSource);
 
       writeFixture(recordingDirs[7], curvedDragId, [
         rawEvent(1, 'MOUSE_PRESSED', {button: 'left', clicks: 1, x: 100, y: 100, coordinateSpace: 'screen-logical', coordinateVerified: true, displayRef: 'fixture-display'}),
@@ -492,8 +784,14 @@ RuntimeAPITest.contractObject('Recorder');
         rawEvent(3, 'MOUSE_RELEASED', {button: 'left', clicks: 1, x: 200, y: 100, coordinateSpace: 'screen-logical', coordinateVerified: true, displayRef: 'fixture-display'}),
       ]);
       const curvedDrag = await Recorder.buildActions(recordingDirs[7]);
-      equal(curvedDrag.readiness, 'blocked', JSON.stringify(curvedDrag));
+	  equal(curvedDrag.readiness, 'needs-review', JSON.stringify(curvedDrag));
+	  equal(curvedDrag.actionCount, 0, 'unsupported drag must be quarantined');
       assert(curvedDrag.issues.some(issue => issue.code === 'drag-unsupported'), JSON.stringify(curvedDrag.issues));
+	  const curvedGenerated = await Recorder.generateScript(curvedDrag.actionsFile);
+	  const curvedSource = File.read(curvedGenerated.scriptFile);
+	  assert(curvedSource.includes('[Recorder partial candidate] readiness=needs-review; omitted raw events=3'), curvedSource);
+	  assert(!curvedSource.includes('mouse.down(') && !curvedSource.includes('mouse.clickPoint('), curvedSource);
+	  assert(curvedGenerated.constraints.some(item => item.includes('partial candidate: 3 raw event(s) were omitted')), JSON.stringify(curvedGenerated.constraints));
 
 	  const naturalEvents = () => [
 		rawEvent(1, 'MOUSE_PRESSED', {button: 'left', clicks: 1, x: 350, y: 220, modifierMask: 1 << 8, coordinateSpace: 'screen-logical', coordinateVerified: true, displayRef: 'fixture-display'}),
@@ -515,26 +813,26 @@ RuntimeAPITest.contractObject('Recorder');
 
 	  writeFixture(recordingDirs[9], nonTextDragId, naturalEvents(), {nonEditableContextEventIds: endpointIds});
 	  const nonTextDrag = await Recorder.buildActions(recordingDirs[9]);
-	  equal(nonTextDrag.readiness, 'blocked', JSON.stringify(nonTextDrag));
+	  equal(nonTextDrag.readiness, 'needs-review', JSON.stringify(nonTextDrag));
 	  assert(nonTextDrag.issues.some(issue => issue.code === 'drag-unsupported'), JSON.stringify(nonTextDrag.issues));
 
 	  writeFixture(recordingDirs[10], crossWindowDragId, naturalEvents(), {editableContextEventIds: endpointIds, alternateWindowContextEventIds: ['e000000000010']});
 	  const crossWindowDrag = await Recorder.buildActions(recordingDirs[10]);
-	  equal(crossWindowDrag.readiness, 'blocked', JSON.stringify(crossWindowDrag));
+	  equal(crossWindowDrag.readiness, 'needs-review', JSON.stringify(crossWindowDrag));
 	  assert(crossWindowDrag.issues.some(issue => issue.code === 'drag-unsupported'), JSON.stringify(crossWindowDrag.issues));
 
 	  const curvedNaturalEvents = naturalEvents();
 	  curvedNaturalEvents[4] = {...curvedNaturalEvents[4], y: 140};
 	  writeFixture(recordingDirs[11], semanticCurveId, curvedNaturalEvents, {editableContextEventIds: endpointIds});
 	  const semanticCurve = await Recorder.buildActions(recordingDirs[11]);
-	  equal(semanticCurve.readiness, 'blocked', JSON.stringify(semanticCurve));
+	  equal(semanticCurve.readiness, 'needs-review', JSON.stringify(semanticCurve));
 	  assert(semanticCurve.issues.some(issue => issue.code === 'drag-unsupported'), JSON.stringify(semanticCurve.issues));
 
 	  const backtrackingEvents = naturalEvents();
 	  backtrackingEvents[3] = {...backtrackingEvents[3], x: 340};
 	  writeFixture(recordingDirs[12], semanticBacktrackId, backtrackingEvents, {editableContextEventIds: endpointIds});
 	  const semanticBacktrack = await Recorder.buildActions(recordingDirs[12]);
-	  equal(semanticBacktrack.readiness, 'blocked', JSON.stringify(semanticBacktrack));
+	  equal(semanticBacktrack.readiness, 'needs-review', JSON.stringify(semanticBacktrack));
 	  assert(semanticBacktrack.issues.some(issue => issue.code === 'drag-unsupported'), JSON.stringify(semanticBacktrack.issues));
 
 	  const conflictingDragClickCount = naturalEvents();
@@ -543,7 +841,7 @@ RuntimeAPITest.contractObject('Recorder');
 	  };
 	  writeFixture(recordingDirs[13], conflictingDragClickCountId, conflictingDragClickCount, {editableContextEventIds: endpointIds});
 	  const conflictingDrag = await Recorder.buildActions(recordingDirs[13]);
-	  equal(conflictingDrag.readiness, 'blocked', JSON.stringify(conflictingDrag));
+	  equal(conflictingDrag.readiness, 'needs-review', JSON.stringify(conflictingDrag));
 	  assert(conflictingDrag.issues.some(issue => issue.code === 'drag-unsupported'), JSON.stringify(conflictingDrag.issues));
 
       writeFixture(recordingDirs[1], clickSeriesId, [
@@ -569,8 +867,29 @@ RuntimeAPITest.contractObject('Recorder');
         rawEvent(6, 'MOUSE_CLICKED', {button: 'left', clicks: 2, x: 21, y: 30, coordinateSpace: 'screen-logical', coordinateVerified: true, displayRef: 'fixture-display'}),
       ]);
       const spatialDouble = await Recorder.buildActions(recordingDirs[2]);
-      equal(spatialDouble.readiness, 'blocked', JSON.stringify(spatialDouble));
+	  equal(spatialDouble.readiness, 'needs-review', JSON.stringify(spatialDouble));
+	  equal(spatialDouble.actionCount, 1, 'safe prefix click must survive a later unsupported multi-click');
       assert(spatialDouble.issues.some(issue => issue.code === 'click-count-unsupported'), JSON.stringify(spatialDouble.issues));
+	  const spatialDoubleActions = JSON.parse(File.read(spatialDouble.actionsFile));
+	  equal(spatialDoubleActions.actions.length, 1, JSON.stringify(spatialDoubleActions.actions));
+	  equal(spatialDoubleActions.actions[0].id, 'a0001', 'remaining action IDs must be dense');
+	  assert(spatialDoubleActions.eventDisposition.slice(0, 3).every(item => item.actionId === 'a0001'), JSON.stringify(spatialDoubleActions.eventDisposition));
+	  assert(spatialDoubleActions.eventDisposition.slice(3).every(item => item.disposition === 'omitted' && !item.actionId), JSON.stringify(spatialDoubleActions.eventDisposition));
+	  const spatialDoubleGenerated = await Recorder.generateScript(spatialDouble.actionsFile);
+	  const spatialDoubleSource = File.read(spatialDoubleGenerated.scriptFile);
+	  assert(spatialDoubleSource.includes('[Recorder partial candidate] readiness=needs-review; omitted raw events=3'), spatialDoubleSource);
+	  assert(spatialDoubleSource.includes('await mouse.clickPoint(__recorderPoint1'), spatialDoubleSource);
+	  assert(spatialDoubleGenerated.constraints.some(item => item.includes('partial candidate: 3 raw event(s) were omitted')), JSON.stringify(spatialDoubleGenerated.constraints));
+
+	  spatialDoubleActions.issues[0].message += ' tampered';
+	  File.write(spatialDouble.actionsFile, JSON.stringify(spatialDoubleActions, null, 2) + '\n');
+	  let partialTamper = null;
+	  try {
+		await Recorder.generateScript(spatialDouble.actionsFile, {mode: 'basic', outputFile: 'tampered.recipe.js'});
+	  } catch (error) {
+		partialTamper = error;
+	  }
+	  assert(partialTamper && partialTamper.code === 'INVALID_RECORDING', String(partialTamper));
 
       const receivedAt = '2024-01-01T00:00:00.070Z';
       writeFixture(recordingDirs[3], controlId, [
@@ -626,15 +945,18 @@ RuntimeAPITest.contractObject('Recorder');
       equal(generated.timing.minimumDelayMs, 500, 'default timing floor');
       equal(generated.timing.maximumDelayMs, 30000, 'default timing ceiling');
       equal(generated.timing.speedMultiplier, 1, 'default timing speed');
+      equal(generated.pointerMotion, 'instant', 'direct API generation preserves the compatible instant default');
       const candidate = JSON.parse(File.read(generated.candidateFile));
-      equal(candidate.formatVersion, 'opendesk.recorder.basic-candidate/v3', 'window-relative candidate version');
+      equal(candidate.formatVersion, 'opendesk.recorder.basic-candidate/v4', 'window-relative candidate version');
       equal(candidate.timing.minimumDelayMs, 500, 'candidate records resolved timing');
+      equal(candidate.pointerMotion, 'instant', 'candidate records resolved pointer motion');
       assert(candidate.mappings.every(item => Number.isInteger(item.line) && item.line > 20), JSON.stringify(candidate.mappings));
       assert(source.includes('await window.get({ ...identity, title: target.title })')
         && source.includes('return await window.get(identity)')
         && source.includes('Geometry.pointOffset')
         && source.includes('Geometry.contains(Geometry.rect(row), point)')
         && source.includes('await mouse.clickPoint(__recorderPoint1'), source);
+      assert(!source.includes('await mouse.move(__recorderPoint1.x'), source);
       assert(!source.includes('await window.list()'), source);
       assert(!source.includes('row.x + position.offsetX') && !source.includes('row.y + position.offsetY'), source);
       assert(!source.includes('target.id') && !source.includes('target.handle') && !source.includes('target.index'), source);
@@ -663,6 +985,21 @@ RuntimeAPITest.contractObject('Recorder');
       assert(!desktopSource.includes('row.x + position.offsetX') && !desktopSource.includes('row.y + position.offsetY'), desktopSource);
       assert(desktopGenerated.constraints.some(item => item.includes('desktop-level clicks resolve exactly one current display')), JSON.stringify(desktopGenerated.constraints));
 
+      const smooth = await Recorder.generateScript(timing.actionsFile, {
+        outputFile: 'smooth.recipe.js', pointerMotion: 'smooth',
+      });
+      const smoothSource = File.read(smooth.scriptFile);
+      const smoothMove = 'await mouse.move(__recorderPoint1.x, __recorderPoint1.y, { steps: 60 });';
+      const smoothConfirm = '__recorderRequirePointer(__recorderPoint1, "a0001", "click-position-confirmed");';
+      const smoothClick = 'await mouse.clickPoint(__recorderPoint1, { button: "left", clickCount: 1 });';
+      assert(smoothSource.indexOf(smoothMove) >= 0
+        && smoothSource.indexOf(smoothMove) < smoothSource.indexOf(smoothConfirm)
+        && smoothSource.indexOf(smoothConfirm) < smoothSource.indexOf(smoothClick), smoothSource);
+      equal(smooth.pointerMotion, 'smooth', 'smooth generation result policy');
+      const smoothCandidate = JSON.parse(File.read(smooth.candidateFile));
+      equal(smoothCandidate.pointerMotion, 'smooth', 'smooth candidate policy');
+      assert(smooth.constraints.some(item => item.includes('fixed 60-step synthetic pre-action move')), JSON.stringify(smooth.constraints));
+
       const adjusted = await Recorder.generateScript(timing.actionsFile, {
         mode: 'basic', outputFile: 'adjusted.recipe.js',
         timing: {minimumDelayMs: 250, maximumDelayMs: 1000, speedMultiplier: 2},
@@ -682,6 +1019,16 @@ RuntimeAPITest.contractObject('Recorder');
         invalidTiming = error;
       }
       assert(invalidTiming && invalidTiming.code === 'INVALID_ARGUMENT', String(invalidTiming));
+
+      let invalidPointerMotion = null;
+      try {
+        await Recorder.generateScript(timing.actionsFile, {
+          outputFile: 'invalid-motion.recipe.js', pointerMotion: 'recorded-path',
+        });
+      } catch (error) {
+        invalidPointerMotion = error;
+      }
+      assert(invalidPointerMotion && invalidPointerMotion.code === 'INVALID_ARGUMENT', String(invalidPointerMotion));
     } finally {
       for (const recordingDir of recordingDirs) File.removeDir(recordingDir);
     }
@@ -737,7 +1084,7 @@ RuntimeAPITest.contractObject('Recorder');
         && source.includes('Geometry.contains(Geometry.rect(row), point)')
         && source.includes('await mouse.clickPoint(__recorderPoint1'), source);
       assert(!source.includes('row.x + position.offsetX') && !source.includes('row.y + position.offsetY'), source);
-      assert(source.includes('await keyboard.type("a");'), source);
+      assert(source.includes('const __recorderText2 = "a";') && source.includes('await keyboard.type(__recorderText2);'), source);
       assert(!source.includes('actions.json') && !source.includes('for ('), source);
       const candidate = JSON.parse(File.read(generated.candidateFile));
       equal(candidate.actions.revision, 2, 'candidate pinned revision');
@@ -746,6 +1093,40 @@ RuntimeAPITest.contractObject('Recorder');
       let overwrite = null;
       try { await Recorder.generateScript(rebuilt.actionsFile); } catch (error) { overwrite = error; }
       assert(overwrite && overwrite.code === 'WOULD_OVERWRITE', String(overwrite));
+    } finally {
+      File.removeDir(recordingDir);
+    }
+  });
+
+  test({
+    name: 'Recorder generates from a reliably saved maximum-duration terminal package',
+    tier: 'unit',
+    covers: ['Recorder.buildActions', 'Recorder.generateScript'],
+  }, async () => {
+    const recordingId = `rec-maximum-duration-${Date.now()}`;
+    const recordingDir = File.join(Execution.workdir, '.runtime', 'recordings', recordingId);
+    try {
+      writeFixture(recordingDir, recordingId);
+      const manifestFile = File.join(recordingDir, 'manifest.json');
+      const manifest = JSON.parse(File.read(manifestFile));
+      manifest.state = 'failed';
+      manifest.issues = [{
+        code: 'maximum-duration', severity: 'error',
+        message: 'Recorder reached its configured maximum duration',
+      }];
+      File.write(manifestFile, JSON.stringify(manifest, null, 2) + '\n');
+
+      const built = await Recorder.buildActions(recordingDir);
+      equal(built.readiness, 'needs-review', JSON.stringify(built));
+      equal(built.actionCount, 2, 'complete actions before the controlled deadline must remain available');
+      assert(built.issues.some(issue => issue.code === 'maximum-duration' && issue.severity === 'warning'), JSON.stringify(built.issues));
+      assert(!built.issues.some(issue => issue.code === 'recording-incomplete'), JSON.stringify(built.issues));
+
+      const generated = await Recorder.generateScript(built.actionsFile);
+      const source = File.read(generated.scriptFile);
+      assert(source.includes('[Recorder partial candidate] readiness=needs-review; omitted raw events=0'), source);
+      assert(source.includes('await mouse.clickPoint(__recorderPoint1') && source.includes('await keyboard.type(__recorderText2)'), source);
+      assert(generated.constraints.some(item => item.includes('partial candidate: 0 raw event(s) were omitted')), JSON.stringify(generated.constraints));
     } finally {
       File.removeDir(recordingDir);
     }

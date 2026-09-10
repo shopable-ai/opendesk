@@ -14,7 +14,8 @@ import (
 const (
 	recorderTextSampleInterval  = 40 * time.Millisecond
 	recorderTextSampleFreshness = 750 * time.Millisecond
-	recorderTextSettleInterval  = 120 * time.Millisecond
+	recorderTextSettleInterval  = 750 * time.Millisecond
+	recorderTextSampleHistory   = 32
 )
 
 type recorderTextFieldSample struct {
@@ -61,7 +62,7 @@ type recorderTextSegment struct {
 }
 
 func (s *recorderSession) signalTextTrackerLocked(event recorderRawEvent) {
-	if s == nil || !s.options.CaptureKeyboard || s.owner == nil || s.owner.textProbe == nil || s.textSignals == nil {
+	if s == nil || !s.options.CaptureKeyboard || s.options.KeyboardContent != "non-sensitive-test" || s.owner == nil || s.owner.textProbe == nil || s.textSignals == nil {
 		return
 	}
 	select {
@@ -73,13 +74,18 @@ func (s *recorderSession) signalTextTrackerLocked(event recorderRawEvent) {
 
 func (s *recorderSession) runTextTracker() {
 	defer close(s.textDone)
-	if s == nil || !s.options.CaptureKeyboard || s.owner == nil || s.owner.textProbe == nil {
+	if s == nil || !s.options.CaptureKeyboard || s.options.KeyboardContent != "non-sensitive-test" || s.owner == nil || s.owner.textProbe == nil {
 		for range s.textSignals {
 		}
 		return
 	}
 
-	var latest *recorderTextFieldSample
+	// AX reads are not instantaneous. A key can arrive while a poll is in
+	// flight, so the sample which completes immediately before the signal is
+	// handled may actually be newer than the key. Keep a small bounded history
+	// and select the newest sample that completed at or before the event rather
+	// than letting that crossing poll erase the usable pre-input baseline.
+	samples := make([]recorderTextFieldSample, 0, recorderTextSampleHistory)
 	var segment *recorderTextSegment
 	appendEvent := func(event recorderRawEvent) {
 		if segment == nil || segment.seen[event.EventID] {
@@ -116,17 +122,26 @@ func (s *recorderSession) runTextTracker() {
 		if sample == nil {
 			return
 		}
-		if segment != nil {
-			if recorderSameTextField(segment.before, sample) {
-				copy := *sample
-				segment.after = &copy
-				latest = &copy
-				return
-			}
-			finishSegment()
-		}
 		copy := *sample
-		latest = &copy
+		if segment != nil {
+			if recorderSameTextField(segment.before, &copy) {
+				segment.after = &copy
+			} else {
+				finishSegment()
+			}
+		}
+		cutoff := copy.ObservedAt.Add(-recorderTextSampleFreshness)
+		first := 0
+		for first < len(samples) && samples[first].ObservedAt.Before(cutoff) {
+			first++
+		}
+		if first > 0 {
+			samples = append(samples[:0], samples[first:]...)
+		}
+		samples = append(samples, copy)
+		if len(samples) > recorderTextSampleHistory {
+			samples = append(samples[:0], samples[len(samples)-recorderTextSampleHistory:]...)
+		}
 	}
 	probe := func() {
 		active, err := s.owner.windowProbe()
@@ -152,10 +167,13 @@ func (s *recorderSession) runTextTracker() {
 			return
 		}
 		receivedAt, err := time.Parse(time.RFC3339Nano, event.ReceivedAt)
-		if err != nil || latest == nil || latest.ObservedAt.After(receivedAt) || receivedAt.Sub(latest.ObservedAt) > recorderTextSampleFreshness {
+		if err != nil {
 			return
 		}
-		before := *latest
+		before, ok := recorderTextSampleBefore(samples, receivedAt)
+		if !ok {
+			return
+		}
 		after := before
 		segment = &recorderTextSegment{before: &before, after: &after, seen: map[string]bool{}, lastInput: time.Now()}
 		appendEvent(event)
@@ -164,8 +182,8 @@ func (s *recorderSession) runTextTracker() {
 		switch event.LibraryEvent {
 		case "RECORDER_PAUSED", "RECORDER_RESUMED", "RECORDER_CONTROL_CLICK", "MOUSE_PRESSED", "MOUSE_DRAGGED", "MOUSE_WHEEL":
 			finishSegment()
+			samples = samples[:0]
 			if event.LibraryEvent == "RECORDER_RESUMED" {
-				latest = nil
 				probe()
 			}
 			return
@@ -182,11 +200,12 @@ func (s *recorderSession) runTextTracker() {
 				finishSegment()
 				return
 			}
+			if recorderHasControlModifier(event.ModifierMask) || recorderTextSegmentBoundaryKey(*event.Keycode) {
+				finishSegment()
+				probe()
+				return
+			}
 			if recorderIsModifierKey(*event.Keycode) {
-				if segment != nil {
-					appendEvent(event)
-					segment.lastInput = time.Now()
-				}
 				return
 			}
 		}
@@ -214,6 +233,33 @@ func (s *recorderSession) runTextTracker() {
 			}
 		}
 	}
+}
+
+func recorderTextSegmentBoundaryKey(code uint16) bool {
+	name, ok := recorderKeyName(code)
+	if !ok {
+		return false
+	}
+	switch name {
+	case "Escape", "Tab", "Home", "End", "PageUp", "PageDown", "ArrowUp", "ArrowLeft", "ArrowRight", "ArrowDown":
+		return true
+	}
+	return strings.HasPrefix(name, "F")
+}
+
+func recorderTextSampleBefore(samples []recorderTextFieldSample, receivedAt time.Time) (recorderTextFieldSample, bool) {
+	for index := len(samples) - 1; index >= 0; index-- {
+		sample := samples[index]
+		if sample.ObservedAt.After(receivedAt) {
+			continue
+		}
+		age := receivedAt.Sub(sample.ObservedAt)
+		if age >= 0 && age <= recorderTextSampleFreshness {
+			return sample, true
+		}
+		break
+	}
+	return recorderTextFieldSample{}, false
 }
 
 func recorderCloneWindowSnapshot(value *recorderWindowSnapshot) *recorderWindowSnapshot {

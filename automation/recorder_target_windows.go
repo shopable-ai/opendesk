@@ -88,7 +88,13 @@ func (b *windowsAccessibilityBackend) recorderTargetAtPoint(ctx context.Context,
 		return nil, windowsAccessibilityNativeError("recorder_target", err, AccessibilityActionNotStarted)
 	}
 	owned := []*uiaElement{hitElement}
-	defer releaseUIAElements(owned)
+	defer func() {
+		recorderReleaseOwned(owned, func(element *uiaElement) {
+			if element != nil {
+				element.release()
+			}
+		})
+	}()
 	if err := b.validateElementPID(hitElement, window.ProcessID); err != nil {
 		return nil, fmt.Errorf("UIA point target does not belong to the resolved window application: %w", err)
 	}

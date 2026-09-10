@@ -36,6 +36,7 @@ static void opendesk_recorder_uiohook_dispatch(uiohook_event *const event) {
     uint8_t physical_point_available = 0;
     int32_t physical_x = 0;
     int32_t physical_y = 0;
+    uint8_t text_input_source = 0;
 
     if (event == NULL) {
         return;
@@ -47,6 +48,10 @@ static void opendesk_recorder_uiohook_dispatch(uiohook_event *const event) {
             keycode = event->data.keyboard.keycode;
             rawcode = event->data.keyboard.rawcode;
             keychar = event->data.keyboard.keychar;
+            /* A TIS query here describes the Recorder process, which can
+             * disagree with the front application's per-app input source.
+             * Keep Darwin KEY_TYPED fail-closed as unknown; the asynchronous
+             * focused AX value tracker is the authoritative text outcome. */
             break;
         case EVENT_MOUSE_CLICKED:
         case EVENT_MOUSE_PRESSED:
@@ -107,7 +112,8 @@ static void opendesk_recorder_uiohook_dispatch(uiohook_event *const event) {
         direction,
         physical_point_available,
         physical_x,
-        physical_y);
+        physical_y,
+        text_input_source);
 }
 
 int opendesk_recorder_uiohook_run(bool capture_keyboard) {

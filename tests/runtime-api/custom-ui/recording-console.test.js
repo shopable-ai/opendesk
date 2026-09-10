@@ -403,8 +403,8 @@
         return {
           actionsFile: recordingDir + '/actions.json', revision: 1, actionCount: 1,
           readiness: 'blocked', issues: [{
-            code: 'drag-unsupported', severity: 'error', eventId: 'e000000000371',
-            message: 'drag path exceeded the bounded click-jitter envelope',
+            code: 'recording-loss', severity: 'error',
+            message: 'terminal counts report dropped or unpersisted events',
           }],
         };
       },
@@ -422,13 +422,13 @@
     await blockedApp.stop();
     equal(blockedApp.state().phase, 'actions-blocked', 'saved blocked actions were not retained');
     equal(blockedApp.state().error, null, 'actions readiness was incorrectly promoted to a Runtime error');
-    assert(blockedApp.state().detail.includes('drag-unsupported [e000000000371]'), blockedApp.state().detail);
+    assert(blockedApp.state().detail.includes('recording-loss'), blockedApp.state().detail);
     assert((await blockedApp.tray().control('trayState').getState()).classes.includes('is-warning'), 'blocked readiness did not use warning styling');
-    assert((await blockedApp.tray().control('trayDetail').getState()).text.includes('drag-unsupported'), 'tray omitted the structured action issue');
+    assert((await blockedApp.tray().control('trayDetail').getState()).text.includes('recording-loss'), 'tray omitted the structured package issue');
     const blockedDetails = await blockedApp.showDetails();
     const issueState = await blockedDetails.control('actionIssues').getState();
-    assert(issueState.visible && issueState.text.includes('drag-unsupported [e000000000371]'), JSON.stringify(issueState));
-    assert(issueState.text.includes('bounded click-jitter envelope'), issueState.text);
+    assert(issueState.visible && issueState.text.includes('recording-loss'), JSON.stringify(issueState));
+    assert(issueState.text.includes('dropped or unpersisted events'), issueState.text);
     assert((await blockedDetails.control('generate').getState()).disabled, 'blocked actions enabled generation');
     const blockedDetailsState = await blockedDetails.getState();
     await screenshot('details-saved-actions-blocked', blockedDetailsState);
@@ -436,6 +436,63 @@
     equal(blockedCalls.build, 1);
     equal(blockedCalls.generate, 0);
     await blockedApp.close('test-blocked', false);
+
+    const reviewCalls = {stop: 0, build: 0, generate: 0, run: 0};
+    const reviewSaved = {
+      recordingId: 'rec-ui-needs-review', recordingDir: '.runtime/recordings/rec-ui-needs-review',
+      rawFile: '.runtime/recordings/rec-ui-needs-review/raw/events.ndjson',
+      manifestFile: '.runtime/recordings/rec-ui-needs-review/manifest.json',
+      captureState: 'stopped', storageState: 'saved', counts, issues: [],
+    };
+    const reviewFlow = OpenDeskRecordingConsole.createFlow({
+      getActiveWindow: async () => ({pid: 4441, title: 'Needs Review Fixture'}),
+      readGeneratedScript: () => generatedSource,
+      executeGeneratedScript: async () => {
+        reviewCalls.run += 1;
+        return {exitCode: 0, stdout: 'partial fixture stdout', stderr: '', command: expectedBinary};
+      },
+      recorder: {
+        getCapabilities: recorder.getCapabilities,
+        start: async () => ({
+          status: () => ({...reviewSaved, captureState: 'recording', storageState: 'open'}),
+          stop: async () => { reviewCalls.stop += 1; return reviewSaved; },
+        }),
+        buildActions: async recordingDir => {
+          reviewCalls.build += 1;
+          return {
+            actionsFile: recordingDir + '/actions.json', revision: 1, actionCount: 1,
+            readiness: 'needs-review', issues: [{
+              code: 'drag-unsupported', severity: 'warning', eventId: 'e000000000371',
+              message: 'unsupported drag was omitted',
+            }],
+          };
+        },
+        generateScript: async () => {
+          reviewCalls.generate += 1;
+          return {
+            scriptFile: generatedScriptPath,
+            candidateFile: '.runtime/recordings/rec-ui-needs-review/generated/basic.candidate.json',
+            actionsSha256: 'review-actions', scriptSha256: 'review-script',
+            constraints: ['partial candidate: one raw event was omitted'], verification: 'not-run',
+          };
+        },
+      },
+    });
+    await reviewFlow.start();
+    await reviewFlow.stop();
+    equal(reviewFlow.state().phase, 'actions-ready', 'needs-review actions must remain generatable');
+    equal(reviewFlow.state().actions.readiness, 'needs-review');
+    assert(reviewFlow.state().detail.includes('可生成并运行 partial candidate'), reviewFlow.state().detail);
+    await reviewFlow.generate();
+    equal(reviewFlow.state().phase, 'generated', 'needs-review generation phase');
+    assert(reviewFlow.state().detail.includes('Partial candidate'), reviewFlow.state().detail);
+    await reviewFlow.runGenerated();
+    equal(reviewFlow.state().phase, 'run-succeeded', 'needs-review candidate explicit run phase');
+    equal(reviewCalls.stop, 1);
+    equal(reviewCalls.build, 1);
+    equal(reviewCalls.generate, 1);
+    equal(reviewCalls.run, 1);
+    await reviewFlow.close();
 
     const recoveryCalls = {start: 0, failedStop: 0, nextStop: 0, build: 0, generate: 0};
     let recoveryCaptureState = 'recording';
@@ -619,7 +676,7 @@
     const recordingEvidence = {
       status: 'passed', syntheticRecorder: true, syntheticRun: true,
       liveCapture: 'not-run', liveReplay: 'not-run',
-      calls, commandCalls, partialCalls, blockedCalls, recoveryCalls, cancelCalls, closeCalls, closeRunCalls, screenshots,
+      calls, commandCalls, partialCalls, blockedCalls, reviewCalls, recoveryCalls, cancelCalls, closeCalls, closeRunCalls, screenshots,
     };
     helper.evidence.routes.recordingConsole = recordingEvidence;
     helper.persist();

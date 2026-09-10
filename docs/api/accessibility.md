@@ -298,7 +298,7 @@ Accessibility.perform(
 
 **行为与错误**
 
-执行前重新验证 ref、identity、enabled/readonly 状态和实际原生能力。`setChecked` 已满足目标值时可返回 `not_needed`。不支持动作时抛 `ACTION_NOT_SUPPORTED`；无法可靠读取当前状态时可抛 `STATE_UNKNOWN`。一旦动作可能已经提交，错误必须通过 `actionState: 'unknown'` 表达，调用方不得自动重做。
+执行前重新验证 ref、identity、enabled/readonly 状态和实际原生能力。macOS 的标准可写 `AXTextArea` 可能不提供 `AXEnabled`；对 `setValue`，此时以非安全元素且 `AXValue` 可写作为能力证明，显式 `AXEnabled: false` 仍抛 `ELEMENT_DISABLED`，只读值仍抛 `ACTION_NOT_SUPPORTED`。`setChecked` 已满足目标值时可返回 `not_needed`。其他动作无法可靠读取必需状态时可抛 `STATE_UNKNOWN`。一旦动作可能已经提交，错误必须通过 `actionState: 'unknown'` 表达，调用方不得自动重做。
 
 **示例**
 

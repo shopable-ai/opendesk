@@ -87,7 +87,7 @@ RuntimeAPITest.load('tests/runtime-api/manifest.js');
     return [
       mouse(1, 'MOUSE_PRESSED', {}, times[0]), mouse(2, 'MOUSE_RELEASED', {}, times[1]), mouse(3, 'MOUSE_CLICKED', {}, times[2]),
       event(4, 'KEY_PRESSED', {keycode: 30, rawcode: 65, keychar: 65535}, times[3]),
-      event(5, 'KEY_TYPED', {keycode: 0, rawcode: 65, keychar: 97, gaps: ['key-typed-is-not-an-ime-commit']}, times[4]),
+      event(5, 'KEY_TYPED', {keycode: 0, rawcode: 65, keychar: 97, textInputSource: 'keyboard-layout'}, times[4]),
       event(6, 'KEY_RELEASED', {keycode: 30, rawcode: 65, keychar: 65535}, times[5]),
     ];
   }
