@@ -1,11 +1,2 @@
-
-// 使用全局 notify
-await notify({
-    title: "TestMonkey",
-    message: "This is a test notification",
-    sound: true,
-    timeout: 3000
-});
-
-await sleep(3000);
-notify('测试通知')
+// Compatibility entry only; canonical example: examples/notifications/send.js.
+await (0, eval)('(async () => {\n' + File.read('examples/notifications/send.js') + '\n})()\n//# sourceURL=examples/notifications/send.js');
