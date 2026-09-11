@@ -46,6 +46,12 @@ order: 1
 
 直接复制运行仓库示例、正式 scripts 或排查旧命令时，打开 [Examples 快速索引](examples/README.md)。
 
+### 发布为可双击桌面应用
+
+已经有可运行的 OpenDesk JavaScript，希望增加 `opendesk.app.json`、App Shell、Tray/Menu Bar、Single Instance，或装入 macOS `.app` / Windows portable distribution 时，使用 [Script App Packaging](script-app-packaging.md)。
+
+该页说明 App Mode package 目录、开发态 `-app` 入口、macOS/Windows staging 和验证边界；App 内 `automation.app` 的方法 Reference 仍在 [automation.app](app-shell.md)。Script App Packaging 不等于 `.odpkg` 源码保护，也不在 Manifest 中发明未实现的端口或 installer 配置。
+
 ### 发布受保护包
 
 把已经写好的 JavaScript 打包为 `.odpkg`、检查/验签，或交接 P1 device License 与 P2 online activation 时，
@@ -74,28 +80,29 @@ order: 1
 13. `events.md`：外部窗口、应用、剪贴板与显示器状态变化 watcher
 14. `app.md`：按 stable identity 启动、等待、终止与重启外部桌面应用
 15. `app-shell.md`：App Mode 的 `automation.app`、tray action、菜单状态与退出
-16. `vision.md`：OCR、UI 文本识别、provider
-17. `image-color.md`：模板匹配、颜色与图像辅助能力
-18. `screen.md`：显示器、像素、截图别名、区域选择与录屏
-19. `audio.md`：系统音频控制、设备发现与 capability-gated 固定声音模式匹配
-20. `sound.md`：提示音和本地音频播放
-21. `notify.md`：系统通知 `notify()`
-22. `notifications.md`：观察、等待与移除 OpenDesk 自身已投递系统通知（Experimental）
-23. `dialog.md`：异步 alert / confirm / prompt
-24. `clipboard.md`：系统剪贴板
-25. `global-apis.md`：无需 import 的全局接口、console、等待、计时器和参数工具
-26. `sqlite.md`：第一方本地 SQLite
-27. `environment.md`：环境变量、`.env`、输出配置与优先级
-28. `execution.md`：Execution ID、结构化输入、工作目录、来源和 artifact 上下文
-29. `path.md`：平台原生路径字符串处理
-30. `runtime.md`：JavaScript 执行、异步生命周期与兼容边界
-31. `command.md`：本地命令执行、输出、错误与 execution-owned 清理
-32. `native-extension.md`：Native Extension Plugin V1
-33. `cookbook.md`：可直接改造的脚本范例
-34. `scheduler.md`：Scheduler 功能、生命周期、持久化与本地管理页
-35. `scheduler-api.md`：Scheduler 独立 HTTP 协议契约
-36. `protected-packages.md`：`.odpkg` packaging、P1/P2 License CLI、执行、安全边界与平台资格
-37. 其余专题页按需查阅
+16. `script-app-packaging.md`：已有 JavaScript → App Mode package → macOS/Windows 桌面发布产物
+17. `vision.md`：OCR、UI 文本识别、provider
+18. `image-color.md`：模板匹配、颜色与图像辅助能力
+19. `screen.md`：显示器、像素、截图别名、区域选择与录屏
+20. `audio.md`：系统音频控制、设备发现与 capability-gated 固定声音模式匹配
+21. `sound.md`：提示音和本地音频播放
+22. `notify.md`：系统通知 `notify()`
+23. `notifications.md`：观察、等待与移除 OpenDesk 自身已投递系统通知（Experimental）
+24. `dialog.md`：异步 alert / confirm / prompt
+25. `clipboard.md`：系统剪贴板
+26. `global-apis.md`：无需 import 的全局接口、console、等待、计时器和参数工具
+27. `sqlite.md`：第一方本地 SQLite
+28. `environment.md`：环境变量、`.env`、输出配置与优先级
+29. `execution.md`：Execution ID、结构化输入、工作目录、来源和 artifact 上下文
+30. `path.md`：平台原生路径字符串处理
+31. `runtime.md`：JavaScript 执行、异步生命周期与兼容边界
+32. `command.md`：本地命令执行、输出、错误与 execution-owned 清理
+33. `native-extension.md`：Native Extension Plugin V1
+34. `cookbook.md`：可直接改造的脚本范例
+35. `scheduler.md`：Scheduler 功能、生命周期、持久化与本地管理页
+36. `scheduler-api.md`：Scheduler 独立 HTTP 协议契约
+37. `protected-packages.md`：`.odpkg` packaging、P1/P2 License CLI、执行、安全边界与平台资格
+38. 其余专题页按需查阅
 
 ## 文档分层
 
@@ -105,7 +112,7 @@ order: 1
 - **系统与数据**：`system.md`、`command.md`、`path.md`、`file.md`、`sqlite.md`、`storage.md`、`clipboard.md`
 - **网络与服务**：`http.md`、`http-server.md`、`scheduler.md`、`scheduler-api.md`
 - **运行时**：`environment.md`、`execution.md`、`runtime.md`、`global-apis.md`、`libs.md`、`native-extension.md`
-- **发布与交付**：`protected-packages.md`
+- **发布与交付**：`script-app-packaging.md`、`protected-packages.md`
 - **实践范例**：`cookbook.md`、`examples/`
 
 ## 哪些文件应该合并，哪些应该独立
@@ -117,6 +124,7 @@ order: 1
 - 系统通知 `notify()` 属于 `notify.md`；不要因为 `ui.toast()` 也是“提示”就把小写 `ui` 的完整 Reference 拆到通知文档。
 - 不同运行方向可以独立。例如 `http.md` 是脚本发起 HTTP 请求，`http-server.md` 是外部调用 OpenDesk 的服务协议。
 - 独立协议可以独立。例如 `scheduler-api.md` 是 Scheduler HTTP API，而 `scheduler.md` 说明 Scheduler 产品能力和生命周期。
+- 面向用户的独立发布流程可以有独立入口页，但不能重复同一 Runtime 对象的完整方法 Reference。例如 `script-app-packaging.md` 说明 App Mode package 与平台发布流程，`automation.app` 方法仍只在 `app-shell.md` 维护。
 
 ## 这个目录的边界
 
