@@ -69,8 +69,8 @@ jobs:
         run: go test ./pkg/customui/...
       - name: Test test-architecture invariants
         run: node scripts/audit_test_architecture.js
-      - name: Test Script Runner controller
-        run: node --test tests/custom-ui/script-runner-simple.test.js
+      - name: Test Script Runner controller and product composition
+        run: node --test tests/custom-ui/script-runner-simple.test.js tests/custom-ui/product-script-runner.test.js
       - name: Build macOS native UI host
         if: runner.os == 'macOS'
         run: go build -o dist/opendesk-ui-host ./cmd/opendesk-ui-host
