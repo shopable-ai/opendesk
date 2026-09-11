@@ -90,11 +90,21 @@ test('history UI adapter keeps built-in icon metadata and supplies visible fallb
   await window.control('rename0').update({icon: 'pencil', text: ''});
   await window.control('open0').update({icon: 'folder.fill', text: ''});
   await window.control('delete0').update({icon: 'trash.fill', text: ''});
+  await window.control('firstHistory').update({icon: 'backward.end.fill', text: ''});
+  await window.control('prevHistory').update({icon: 'backward.fill', text: ''});
+  await window.control('nextHistory').update({icon: 'forward.fill', text: ''});
+  await window.control('lastHistory').update({icon: 'forward.end.fill', text: ''});
+  await window.control('refreshHistory').update({icon: 'arrow.clockwise', text: ''});
 
   assert.deepEqual(patches.get('run0'), {icon: 'play.fill', text: '▶'});
   assert.deepEqual(patches.get('rename0'), {icon: 'pencil', text: '✎'});
   assert.deepEqual(patches.get('open0'), {icon: 'folder.fill', text: '📁'});
   assert.deepEqual(patches.get('delete0'), {icon: 'trash.fill', text: '🗑'});
+  assert.deepEqual(patches.get('firstHistory'), {icon: 'backward.end.fill', text: '│◀'});
+  assert.deepEqual(patches.get('prevHistory'), {icon: 'backward.fill', text: '◀'});
+  assert.deepEqual(patches.get('nextHistory'), {icon: 'forward.fill', text: '▶'});
+  assert.deepEqual(patches.get('lastHistory'), {icon: 'forward.end.fill', text: '▶│'});
+  assert.deepEqual(patches.get('refreshHistory'), {icon: 'arrow.clockwise', text: '↻'});
 });
 
 test('history UI adapter does not replace explicit labels or unknown icons', async () => {

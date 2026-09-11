@@ -142,6 +142,16 @@ test('page navigation reuses one window and slot actions resolve the current pag
     assert.deepEqual(f.manager.pageState().recordingIds.slice(0, 2), ['rec-24', 'rec-23']);
     assert.equal(window.controls.get('recordingName0').patch.text, 'rec-24');
 
+    await click(window, 'lastHistory');
+    assert.equal(f.manager.pageState().pageNumber, 3);
+    assert.equal(window.controls.get('recordingName0').patch.text, 'rec-04');
+    assert.equal(window.controls.get('lastHistory').patch.disabled, true);
+
+    await click(window, 'firstHistory');
+    assert.equal(f.manager.pageState().pageNumber, 1);
+    assert.equal(window.controls.get('recordingName0').patch.text, 'rec-24');
+    assert.equal(window.controls.get('firstHistory').patch.disabled, true);
+
     await click(window, 'nextHistory');
     assert.equal(f.ui.windows.length, 1, 'page turn must not recreate the History window');
     assert.equal(f.manager.pageState().pageNumber, 2);
@@ -180,8 +190,10 @@ test('HTML and action controls are bounded to ten reusable slots', () => {
     scriptFile: '/tmp/basic.recipe.js',
   }));
   const html = History.buildWindowHTML(rows);
+  assert.match(html, /id="firstHistory"[^>]*title="首页"[^>]*aria-label="首页"/);
   assert.match(html, /id="prevHistory"/);
   assert.match(html, /id="nextHistory"/);
+  assert.match(html, /id="lastHistory"[^>]*title="尾页"[^>]*aria-label="尾页"/);
   assert.match(html, /第 1 \/ 10 页 · 共 100 条/);
   assert.match(html, /id="run9"/);
   assert.doesNotMatch(html, /id="run10"/);
