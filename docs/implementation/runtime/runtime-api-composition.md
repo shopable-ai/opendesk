@@ -33,7 +33,9 @@ Go native method 到 Goja function 的反射、参数/返回/错误投影，以�
    始终 fail-closed 的 `Dialog`。
 3. 创建 `mouse`、`keyboard`、`touchscreen`、`page`，以及原始 `browser` / `context` 对象，
    并在加载 polyfill 前提供 notify bridge。
-4. 按文件名顺序加载 `polyfills/*.js`，再加载 `jslibs/*.js`。
+4. 按文件名顺序加载 `polyfills/*.js`，再加载 `jslibs/*.js`。Custom UI 的 native `ui.notify()`
+   已在此之前注册，因此 `polyfills/000-ui.js` 只把同一 owner 映射为首选的 `ui.toast()`，不会创建
+   第二套 native surface 或 driver。
 5. 接入运行期 console event sink，注入 `Screen`，并把 `Screen.screenshot` 绑定到
    `page.screenshot`。
 
@@ -44,6 +46,10 @@ Go native method 到 Goja function 的反射、参数/返回/错误投影，以�
 
 - native binding 提供底层桌面、系统、输入、视觉和文件能力；对应用户语义应写在 API 页面。
 - polyfill 负责用户层组合与别名，例如等待、权限辅助、`axios`、全局 Promise / timer 能力。
+- `ui.toast()` 是一个有意保持很薄的 public facade：`polyfills/000-ui.js` 复用现有 Custom UI
+  notification owner，增加 Toast 命名、`state.toast` 与 `window.toast` capability 视图；历史
+  `ui.notify()`、`state.notification` 和底层 notification protocol 在兼容期继续存在。系统级
+  `notify()` 仍属于完全不同的 OS notification bridge。
 - `Sound` 与 `Audio` 当前是 first-party native Runtime globals，不是 `polyfills/` 文件提供的接口：
   `automation/utils.go` 在统一 Runtime Builder 中分别调用 `registerSound` / `registerAudio`。
   `Sound` 因为包含 execution-scoped playback handle 和 EventLoop completion bridge，必须由 native
@@ -71,7 +77,8 @@ Go native method 到 Goja function 的反射、参数/返回/错误投影，以�
 | `000-dialog.js` | `alert` / `confirm` / `prompt` | 单一 native `Dialog` 的异步别名 |
 | `000-global.js` | `copyToClipboard` / `getClipboard` | `clipboard` 的全局便捷函数 |
 | `000-page.js` | `page` | page raw binding 的截图、权限和兼容包装 |
-| `000-systemBase.js` | `notify` | native notify bridge 的参数校验包装 |
+| `000-systemBase.js` | `notify` | native OS notify bridge 的参数校验包装 |
+| `000-ui.js` | `ui.toast()`、`ui.notify()` compatibility | 复用 native Custom UI notification owner，提供 Toast 首选命名、句柄状态与 capability 别名 |
 | `001-promise.js` | `Promise`（仅缺失时） | 兼容性 fallback |
 | `001-timers.js` | `requestAnimationFrame` / `cancelAnimationFrame` | timer 之上的 JS 兼容函数 |
 | `002-sleep.js` | `sleep` / `delay` / `sleepSeconds` | timer 之上的等待别名 |
@@ -109,6 +116,17 @@ Go native method 到 Goja function 的反射、参数/返回/错误投影，以�
 内部组成变化如果改变用户可见能力、参数、返回、注入条件或默认行为，必须同步更新用户 API
 页面、`runtime-api.ai.json`、`types/*.d.ts` 和相应 JavaScript Runtime API 测试。具体治理流程
 见 [Runtime API development workflow](./runtime-api-development-workflow.md) 与 [API documentation maintenance](../../maintenance/docs-user-api-editme-toc-maintenance.md)。
+
+`ui.toast()` 这种薄 facade 的同步闭环是：
+
+```text
+automation/custom_ui_notify.go + pkg/customui notification owner
+→ polyfills/000-ui.js
+→ docs/api/notify.md（用户主入口）+ docs/api/custom-ui.md（namespace/兼容入口）
+→ types/custom-ui.d.ts
+→ docs/api/runtime-api.ai.json
+→ tests/runtime-api/manifest.js + custom-ui tests
+```
 
 Sound / Audio / Command / SQLite 这类 native global 的同步闭环是：
 
