@@ -22,10 +22,20 @@ The application:
 - exposes `manual` entries for source/prerequisite discovery without enabling one-click Run;
 - runs safe examples in a separate OpenDesk process through `Command.run()`;
 - supports Stop through `AbortController`;
+- provides Copy Run Command beside Run and Stop for the currently selected example's terminal command;
 - shows source and completed stdout/stderr in the UI and mirrors completed output to the launching terminal;
 - checks a lightweight examples directory signature every five seconds and refreshes the curated model when files change.
 
 `Command.run()` currently returns output when the child process finishes; this application therefore does not claim streaming console support.
+
+## UI theme
+
+Custom UI currently provides the built-in `system` and `dark` window themes. The
+Explorer uses `theme: "dark"` and keeps its visual tokens in `styles.css`, so
+the page surface, fields, buttons, focus rings, and select control stay
+consistent without depending on a remote or third-party stylesheet. The
+category menu remains a native `<select>` for keyboard and accessibility
+behavior; its closed field is styled by the local theme.
 
 ## Ownership boundaries
 

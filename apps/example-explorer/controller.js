@@ -4,6 +4,7 @@
   function createApp(options) {
     const file = options.file;
     const ui = options.ui;
+    const execution = options.execution;
     const catalogApi = global.OpenDeskExampleCatalog;
     const viewApi = global.OpenDeskExampleView;
     const runner = global.OpenDeskExampleRunner.createRunner(options);
@@ -74,6 +75,19 @@
       return ['badge', entry && entry.runnable ? 'safe' : 'unregistered'];
     }
 
+    function shellQuote(value) {
+      const text = String(value == null ? '' : value);
+      if (/^[A-Za-z0-9_./-]+$/.test(text)) return text;
+      return "'" + text.replace(/'/g, "'\\''") + "'";
+    }
+
+    function runCommandFor(entry) {
+      if (!entry) return '';
+      const scriptPath = path.relative(execution.workdir, entry.absolutePath).replace(/\\/g, '/');
+      return ['./dist/opendesk', '-script', scriptPath, '-console-mode', 'script']
+        .map(shellQuote).join(' ');
+    }
+
     async function syncListAndDetail() {
       if (!window) return;
       const state = model();
@@ -108,6 +122,7 @@
       await safeUpdate('runHint', {text: entry && entry.runnable ? 'Approved for one-click run' : 'Review prerequisites and run manually'});
       await safeUpdate('run', {disabled: !entry || !entry.runnable || runner.isRunning()});
       await safeUpdate('stop', {disabled: !runner.isRunning()});
+      await safeUpdate('copyRunCommand', {disabled: !entry});
       await syncTab();
     }
 
@@ -224,6 +239,13 @@
           status = 'Stopping current example…';
           await syncListAndDetail();
         }
+      });
+      bind('copyRunCommand', 'click', async () => {
+        const entry = current();
+        if (!entry) return;
+        copyToClipboard(runCommandFor(entry));
+        status = `Run command copied for ${entry.relativePath}.`;
+        await syncListAndDetail();
       });
       for (let index = 0; index < viewApi.PAGE_SIZE; index++) bind(`example${index}`, 'click', () => selectIndex(index));
 

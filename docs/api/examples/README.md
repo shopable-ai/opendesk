@@ -25,7 +25,7 @@ order: 3
 
 目录或扩展名本身不会授予执行权限。鼠标/键盘输入、截图/录屏、OCR、音频、通知、原生 UI、持久化或其他具有明显前置条件的示例默认保持 `manual`。
 
-每个 safe Run 使用独立 OpenDesk 子进程，Stop 通过 `AbortController` 取消子进程。当前 `Command.run()` 在子进程结束时一次性返回 stdout/stderr，因此 Output 是完成后的有界输出，不是实时 PTY。Example 成功也不等于正式 Runtime API 测试通过。
+每个 Run 都通过独立 OpenDesk 子进程执行，Stop 使用 `AbortController` 取消该子进程；Run 和 Stop 右侧的 Copy Run Command 会把当前选中示例对应的终端命令复制到剪贴板，例如选中 `examples/runtime/console.js` 时复制 `./dist/opendesk -script examples/runtime/console.js -console-mode script`。当前 `Command.run()` 在子进程结束时一次性返回 stdout/stderr，因此界面显示的是完成后的有界输出，不声称实时流式终端。Example 成功也不等于正式 Runtime API 测试通过；正确性 gate 仍以 `tests/` 和对应质量文档为准。
 
 ## 基础 Runtime 与数据
 
