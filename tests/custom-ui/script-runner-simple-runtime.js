@@ -76,11 +76,12 @@ async function runScenario(name, stopImmediately) {
 
   const app = OpenDeskScriptRunnerSimple.createApp({
     scriptRoot: recipes,
+    openListOnStart: false,
     file: File,
     command: Command,
     execution: Execution,
     system: System,
-    ui: {async createWindow() { throw new Error('list window is not used by this runtime test'); }},
+    ui: {async createWindow() { throw new Error('list window is disabled by this runtime test'); }},
     FloatingWindow: FakeToolbar,
     AbortController,
     logger: console,
