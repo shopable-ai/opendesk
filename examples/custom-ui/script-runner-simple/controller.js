@@ -471,8 +471,7 @@
         setListStatus('没有可运行的脚本。');
         return Promise.resolve({status: 'empty', completed: 0, total: 0});
       }
-      runPromise = Promise.resolve()
-        .then(() => executeQueue(queue, source))
+      runPromise = executeQueue(queue, source)
         .catch(error => {
           const normalized = logError(error, 'ScriptRunner.executeQueue', {source});
           return setListStatus(`运行失败：${normalized.message}`).then(() => ({status: 'failed', completed: 0, total: queue.length, error: normalized}));

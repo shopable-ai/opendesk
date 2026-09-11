@@ -39,6 +39,8 @@ jobs:
         run: go test ./pkg/customui/...
       - name: Test test-architecture invariants
         run: node scripts/audit_test_architecture.js
+      - name: Test Script Runner controller
+        run: node --test tests/custom-ui/script-runner-simple.test.js
       - name: Build macOS native UI host
         if: runner.os == 'macOS'
         run: go build -o dist/opendesk-ui-host ./cmd/opendesk-ui-host
@@ -61,6 +63,12 @@ jobs:
           else
             go build -o dist/opendesk ./cmd/opendesk
           fi
+      - name: Script Runner real child stop lifecycle
+        if: runner.os != 'Linux'
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = Windows ]; then bin=./dist/opendesk.exe; else bin=./dist/opendesk; fi
+          "$bin" -script tests/custom-ui/script-runner-simple-runtime.js -console-mode script -log-dir .runtime/tests/script-runner-simple/runtime-parent
       - name: Public Runtime notification contract
         if: runner.os != 'Linux'
         shell: bash
@@ -72,6 +80,8 @@ jobs:
         if: always()
         with:
           name: native-ui-checks-${{ runner.os }}
-          path: .runtime/tests/native-ui
+          path: |
+            .runtime/tests/native-ui
+            .runtime/tests/script-runner-simple
           if-no-files-found: ignore
           retention-days: 7
