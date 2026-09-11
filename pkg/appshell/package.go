@@ -10,8 +10,6 @@ import (
 	"strings"
 )
 
-const ManifestFileName = "opendesk.app.json"
-
 // Package is the filesystem-validated form of an App package. ParseManifest
 // intentionally remains filesystem-free so manifest structure can be tested in
 // memory; ResolvePackage owns existence, symlink, and package-boundary checks.

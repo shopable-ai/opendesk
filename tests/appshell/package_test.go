@@ -1,4 +1,4 @@
-package appshell
+package appshell_test
 
 import (
 	"os"
@@ -6,6 +6,8 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"opendesk/pkg/appshell"
 )
 
 func writePackageFixture(t *testing.T, root, manifest string) {
@@ -19,7 +21,7 @@ func writePackageFixture(t *testing.T, root, manifest string) {
 	if err := os.WriteFile(filepath.Join(root, "assets", "tray.ico"), []byte("icon"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(root, ManifestFileName), []byte(manifest), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, appshell.ManifestFileName), []byte(manifest), 0o644); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -31,7 +33,7 @@ func packageManifest(entry, icon string) string {
 func TestResolvePackageValidatesFilesystemSeparately(t *testing.T) {
 	root := t.TempDir()
 	writePackageFixture(t, root, packageManifest("main.js", "assets/tray.ico"))
-	pkg, err := ResolvePackage(root)
+	pkg, err := appshell.ResolvePackage(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,11 +48,11 @@ func TestResolvePackageValidatesFilesystemSeparately(t *testing.T) {
 func TestResolvePackageRejectsMissingFiles(t *testing.T) {
 	root := t.TempDir()
 	writePackageFixture(t, root, packageManifest("missing.js", "assets/tray.ico"))
-	if _, err := ResolvePackage(root); err == nil || !strings.Contains(err.Error(), "entry") {
+	if _, err := appshell.ResolvePackage(root); err == nil || !strings.Contains(err.Error(), "entry") {
 		t.Fatalf("expected missing entry, got %v", err)
 	}
 	writePackageFixture(t, root, packageManifest("main.js", "assets/missing.ico"))
-	if _, err := ResolvePackage(root); err == nil || !strings.Contains(err.Error(), "tray.icon") {
+	if _, err := appshell.ResolvePackage(root); err == nil || !strings.Contains(err.Error(), "tray.icon") {
 		t.Fatalf("expected missing icon, got %v", err)
 	}
 }
@@ -67,10 +69,10 @@ func TestResolvePackageRejectsSymlinkEscape(t *testing.T) {
 	if err := os.Symlink(outside, filepath.Join(root, "main.js")); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(root, ManifestFileName), []byte(packageManifest("main.js", "")), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, appshell.ManifestFileName), []byte(packageManifest("main.js", "")), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := ResolvePackage(root); err == nil || !strings.Contains(err.Error(), "escapes") {
+	if _, err := appshell.ResolvePackage(root); err == nil || !strings.Contains(err.Error(), "escapes") {
 		t.Fatalf("expected symlink escape, got %v", err)
 	}
 }
@@ -78,21 +80,21 @@ func TestResolvePackageRejectsSymlinkEscape(t *testing.T) {
 func TestPackageIdentityCanonicalizesAliasesAndIgnoresManifestEdits(t *testing.T) {
 	root := t.TempDir()
 	writePackageFixture(t, root, packageManifest("main.js", "assets/tray.ico"))
-	first, err := PackageIdentity(root)
+	first, err := appshell.PackageIdentity(root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	alias, err := PackageIdentity(filepath.Join(root, ".", "assets", ".."))
+	alias, err := appshell.PackageIdentity(filepath.Join(root, ".", "assets", ".."))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if first != alias {
 		t.Fatalf("identity differs for same package: %q != %q", first, alias)
 	}
-	if err := os.WriteFile(filepath.Join(root, ManifestFileName), []byte(packageManifest("main.js", "assets/tray.ico")+"\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, appshell.ManifestFileName), []byte(packageManifest("main.js", "assets/tray.ico")+"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	second, err := PackageIdentity(root)
+	second, err := appshell.PackageIdentity(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +103,7 @@ func TestPackageIdentityCanonicalizesAliasesAndIgnoresManifestEdits(t *testing.T
 	}
 	other := t.TempDir()
 	writePackageFixture(t, other, packageManifest("main.js", "assets/tray.ico"))
-	third, err := PackageIdentity(other)
+	third, err := appshell.PackageIdentity(other)
 	if err != nil {
 		t.Fatal(err)
 	}
