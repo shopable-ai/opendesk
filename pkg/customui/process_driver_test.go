@@ -97,6 +97,22 @@ func TestProcessDriverGlobalNativeSessionLease(t *testing.T) {
 	}
 }
 
+func TestProcessDriverResourceCountsAreScopedToSession(t *testing.T) {
+	driver := NewProcessDriver(ProcessDriverOptions{Platform: "darwin"})
+	driver.sinks["app-session/main"] = nil
+	driver.sinks["recorder-session/recording-console"] = nil
+
+	if counts := driver.ResourceCountsForSession("app-session"); counts.Sinks != 1 {
+		t.Fatalf("app session counts = %#v", counts)
+	}
+	if counts := driver.ResourceCountsForSession("recorder-session"); counts.Sinks != 1 {
+		t.Fatalf("recorder session counts = %#v", counts)
+	}
+	if counts := driver.ResourceCountsForSession("other-session"); counts.Sinks != 0 || counts.HostProcesses != 0 {
+		t.Fatalf("unrelated session counts = %#v", counts)
+	}
+}
+
 func TestProcessDriverFailsFastWhenHostExitsBeforeHello(t *testing.T) {
 	driver := newFailureProcessDriver("exit-before-hello")
 	defer driver.Close()

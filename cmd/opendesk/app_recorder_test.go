@@ -80,6 +80,68 @@ func TestAppRecorderOpenLaunchesOnceAndShowsExistingWindow(t *testing.T) {
 	recorder.Cancel()
 }
 
+func TestAppRecorderEarlyRepeatedOpenWaitsForTheSameWindow(t *testing.T) {
+	shell, appPackage := testAppRecorderShell(t)
+	driver := customui.NewMemoryDriver()
+	recorder := newAppRecorder(shell, appPackage, appRecorderConfig{}, runtimeenv.Result{Values: map[string]string{}}, driver)
+	started := make(chan struct{})
+	release := make(chan struct{})
+	var launches atomic.Int32
+	recorder.run = func(req pkgExecution.Request) (pkgExecution.ExecutionResult, pkgExecution.AgentSummary, error) {
+		launches.Add(1)
+		close(started)
+		<-release
+		session, err := customui.NewSession(req.ExecutionID, filepath.Dir(req.ScriptPath), req.CustomUIDriver, nil)
+		if err != nil {
+			return pkgExecution.ExecutionResult{}, pkgExecution.AgentSummary{}, err
+		}
+		if _, err := session.Create(context.Background(), customui.WindowSpec{
+			ID:      recordingconsole.RecorderWindowID,
+			Bounds:  customui.Bounds{X: 10, Y: 20, Width: 320, Height: 180},
+			Content: customui.ContentSpec{HTML: `<button id="capture">Start</button>`},
+		}); err != nil {
+			return pkgExecution.ExecutionResult{}, pkgExecution.AgentSummary{}, err
+		}
+		req.OnCustomUISession(session)
+		<-req.Context.Done()
+		_ = session.Close(context.Background())
+		return pkgExecution.ExecutionResult{}, pkgExecution.AgentSummary{}, req.Context.Err()
+	}
+
+	if err := recorder.Open(context.Background(), "tray-menu"); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("recorder did not launch")
+	}
+	if err := recorder.Open(context.Background(), "tray-menu"); err != nil {
+		t.Fatal(err)
+	}
+	if launches.Load() != 1 {
+		t.Fatalf("early repeated open launched %d executions", launches.Load())
+	}
+	close(release)
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		recorder.mu.Lock()
+		session := recorder.session
+		recorder.mu.Unlock()
+		if session != nil {
+			if window, ok := session.Window(recordingconsole.RecorderWindowID); ok {
+				if state, err := window.State(context.Background()); err == nil && state.Visible {
+					recorder.Cancel()
+					return
+				}
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	recorder.Cancel()
+	t.Fatal("early repeated open did not show the recorder window")
+}
+
 func TestAppRecorderExitResetsStateAndAllowsReopen(t *testing.T) {
 	shell, appPackage := testAppRecorderShell(t)
 	driver := customui.NewMemoryDriver()

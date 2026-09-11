@@ -106,6 +106,13 @@ type DriverResourceReporter interface {
 	ResourceCounts() DriverResourceCounts
 }
 
+// SessionDriverResourceReporter reports resources owned by one execution
+// session. A native host may be shared by several execution-scoped drivers,
+// so lifecycle cleanup must not count another session's windows or host.
+type SessionDriverResourceReporter interface {
+	ResourceCountsForSession(sessionID string) DriverResourceCounts
+}
+
 type WindowState struct {
 	ID             string             `json:"id"`
 	SessionID      string             `json:"sessionId"`
