@@ -73,6 +73,7 @@
 }
 
 - (void)refreshInspectorStatus {
+    if (self.inspectorControlToken.length == 0 || self.inspectorControlURL == nil) return;
     NSError *error = nil;
     NSDictionary *status = [self inspectorControlWithMethod:@"GET" allowLAN:nil error:&error];
     if (status != nil) [self applyInspectorStatus:status];
@@ -127,10 +128,12 @@ void OpenDeskRunStatusItem(int parent_pid, const char *status_url, const char *s
 
         OpenDeskStatusController *controller = [OpenDeskStatusController new];
         controller.parentPID = (pid_t)parent_pid;
-        controller.statusURL = [NSURL URLWithString:OpenDeskString(status_url, @"http://127.0.0.1:60844/status")];
-        controller.schedulerURL = [NSURL URLWithString:OpenDeskString(scheduler_url, @"http://127.0.0.1:60844/scheduler")];
-        controller.inspectorURL = [NSURL URLWithString:OpenDeskString(inspector_url, @"http://127.0.0.1:60844/accessibility-workbench/")];
-        controller.inspectorControlURL = [NSURL URLWithString:OpenDeskString(inspector_control_url, @"http://127.0.0.1:60844/api/accessibility-workbench/v1/internal/lan")];
+        // Endpoint URLs are runtime state supplied by the parent. The helper
+        // deliberately has no fixed-port fallback and never scans localhost.
+        controller.statusURL = [NSURL URLWithString:OpenDeskString(status_url, @"")];
+        controller.schedulerURL = [NSURL URLWithString:OpenDeskString(scheduler_url, @"")];
+        controller.inspectorURL = [NSURL URLWithString:OpenDeskString(inspector_url, @"")];
+        controller.inspectorControlURL = [NSURL URLWithString:OpenDeskString(inspector_control_url, @"")];
         controller.inspectorControlToken = OpenDeskString(inspector_control_token, @"");
 
         controller.statusItem = [[NSStatusBar systemStatusBar] statusItemWithLength:NSVariableStatusItemLength];
@@ -163,12 +166,16 @@ void OpenDeskRunStatusItem(int parent_pid, const char *status_url, const char *s
         scheduler.target = controller;
         scheduler.representedObject = controller.schedulerURL;
         [menu addItem:scheduler];
+
+        // The local Inspector follows the actual Runtime endpoint and remains
+        // available on loopback-only auto allocation. LAN controls are only
+        // shown when the parent explicitly provisioned the per-session token.
+        NSMenu *developerMenu = [NSMenu new];
+        NSMenuItem *openInspector = [[NSMenuItem alloc] initWithTitle:@"Open Inspector" action:@selector(openURL:) keyEquivalent:@""];
+        openInspector.target = controller;
+        openInspector.representedObject = controller.inspectorURL;
+        [developerMenu addItem:openInspector];
         if (controller.inspectorControlToken.length > 0) {
-            NSMenu *developerMenu = [NSMenu new];
-            NSMenuItem *openInspector = [[NSMenuItem alloc] initWithTitle:@"Open Inspector" action:@selector(openURL:) keyEquivalent:@""];
-            openInspector.target = controller;
-            openInspector.representedObject = controller.inspectorURL;
-            [developerMenu addItem:openInspector];
             controller.allowInspectorLANItem = [[NSMenuItem alloc] initWithTitle:@"Allow Inspector from LAN" action:@selector(toggleInspectorLAN:) keyEquivalent:@""];
             controller.allowInspectorLANItem.target = controller;
             controller.allowInspectorLANItem.state = NSControlStateValueOff;
@@ -177,10 +184,11 @@ void OpenDeskRunStatusItem(int parent_pid, const char *status_url, const char *s
             controller.inspectorLANCopyItem.target = controller;
             controller.inspectorLANCopyItem.enabled = NO;
             [developerMenu addItem:controller.inspectorLANCopyItem];
-            NSMenuItem *developer = [[NSMenuItem alloc] initWithTitle:@"Developer" action:nil keyEquivalent:@""];
-            developer.submenu = developerMenu;
-            [menu addItem:developer];
         }
+        NSMenuItem *developer = [[NSMenuItem alloc] initWithTitle:@"Developer" action:nil keyEquivalent:@""];
+        developer.submenu = developerMenu;
+        [menu addItem:developer];
+
         [menu addItem:[NSMenuItem separatorItem]];
         NSMenuItem *quit = [[NSMenuItem alloc] initWithTitle:@"Quit OpenDesk" action:@selector(quitOpenDesk:) keyEquivalent:@"q"];
         quit.target = controller;
@@ -201,7 +209,7 @@ void OpenDeskShowStartupError(const char *message) {
         NSAlert *alert = [NSAlert new];
         alert.alertStyle = NSAlertStyleCritical;
         alert.messageText = @"OpenDesk did not start";
-        alert.informativeText = OpenDeskString(message, @"The service could not start. Check whether port 60844 is already in use.");
+        alert.informativeText = OpenDeskString(message, @"The service could not start. Check the OpenDesk startup error for details.");
         [alert addButtonWithTitle:@"OK"];
         [alert runModal];
     }
