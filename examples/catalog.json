@@ -461,6 +461,56 @@
       "prerequisites": ["Shows and dismisses a real system notification."],
       "expected": "Delivery metadata is observed and the notification is dismissed.",
       "tags": ["notification", "wait", "dismiss"]
+    },
+    "app/running-apps.js": {
+      "title": "Running Applications Overview",
+      "description": "Read the window list and summarize several common desktop applications without changing them.",
+      "category": "Applications",
+      "level": "beginner",
+      "runPolicy": "manual",
+      "aliases": ["check_all_apps.js"],
+      "platforms": ["darwin", "windows"],
+      "prerequisites": ["Window titles can contain user information; review output before sharing logs."],
+      "expected": "Matching application windows and their dimensions are printed.",
+      "tags": ["application", "window", "inspect"]
+    },
+    "app/wechat-window-inspect.js": {
+      "title": "WeChat Window Inspect",
+      "description": "Find WeChat windows without changing application state.",
+      "category": "Applications",
+      "level": "beginner",
+      "runPolicy": "manual",
+      "aliases": ["check_wechat.js"],
+      "platforms": ["darwin", "windows"],
+      "prerequisites": ["Window titles can contain user information; review output before sharing logs."],
+      "expected": "Detected WeChat windows and their dimensions are printed.",
+      "tags": ["wechat", "window", "inspect"]
+    },
+    "app/open-calculator-by-name.js": {
+      "title": "Open Calculator by Name",
+      "description": "Launch or activate macOS Calculator by its native application name and print the observed identity.",
+      "category": "Applications",
+      "level": "beginner",
+      "runPolicy": "manual",
+      "aliases": ["open-calculator-by-name.js"],
+      "docs": "docs/api/app.md",
+      "platforms": ["darwin"],
+      "prerequisites": ["Launches or activates the real Calculator application."],
+      "expected": "Calculator becomes available and its native identity is printed.",
+      "tags": ["app", "calculator", "launch", "macos"]
+    },
+    "app/lifecycle-calculator.js": {
+      "title": "Calculator App Lifecycle",
+      "description": "Launch, restart, terminate and verify macOS Calculator when no operator instance is already running.",
+      "category": "Applications",
+      "level": "advanced",
+      "runPolicy": "manual",
+      "aliases": ["app-lifecycle.js"],
+      "docs": "docs/api/app.md",
+      "platforms": ["darwin"],
+      "prerequisites": ["Calculator must not already be running; the example launches, restarts and terminates the real application."],
+      "expected": "Lifecycle evidence is written under .runtime/examples/app/lifecycle-calculator/ and Calculator is not left running by the example.",
+      "tags": ["app", "lifecycle", "calculator", "macos"]
     }
   }
 }
