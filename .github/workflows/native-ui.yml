@@ -11,6 +11,7 @@ on:
       - 'pkg/execution/**'
       - 'pkg/runtimeconfig/**'
       - 'pkg/customui/**'
+      - 'pkg/appshell/**'
       - 'automation/custom_ui*'
       - 'automation/floating_window*'
       - 'automation/page.go'
@@ -54,6 +55,12 @@ jobs:
           else
             go build -o dist/opendesk ./cmd/opendesk
           fi
+      - name: Test Runtime endpoint allocation seams
+        if: runner.os != 'Linux'
+        run: go test ./cmd/opendesk -run 'Test(FrameworkHTTPAutoAllocation|ExplicitEndpoint|RuntimeEndpoint|FrameworkHTTPExplicit)' -count=1
+      - name: Test App Shell single-instance seams
+        if: runner.os != 'Linux'
+        run: go test ./pkg/appshell -run 'SingleInstance' -count=1
       - name: Test native UI internal seams
         run: go test ./pkg/customui/...
       - name: Test test-architecture invariants
