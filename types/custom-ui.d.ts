@@ -144,8 +144,10 @@ declare global {
   }
 
   interface ClawdeskUIWindowState {
-    /** Native notification state; its bounds use a measured 280–480pt/DIP width and 52–124pt/DIP height before platform screen scaling. */
-    notification?: ClawdeskUINotificationState;
+    /** Preferred Toast view of an OpenDesk-owned transient feedback surface. */
+    toast?: ClawdeskUIToastState;
+    /** @deprecated Compatibility alias for older ui.notify() callers. Prefer toast. */
+    notification?: ClawdeskUIToastState;
     id: string;
     sessionId: string;
     status: ClawdeskUIWindowStatus;
@@ -228,7 +230,7 @@ declare global {
     platform: string;
     driver: string;
     maxSessions: number;
-    window: Record<"position" | "placement" | "size" | "alwaysOnTop" | "draggable" | "nativeIdentity", boolean>;
+    window: Record<"position" | "placement" | "size" | "alwaysOnTop" | "draggable" | "nativeIdentity" | "toast" | "notify", boolean>;
     controls: ClawdeskUIControlType[];
     reason?: string;
   }
@@ -273,6 +275,9 @@ declare global {
   }
 
   interface ClawdeskUI {
+    /** Preferred OpenDesk-owned transient feedback API. */
+    toast(messageOrOptions: string | ClawdeskUIToastOptions): Promise<ClawdeskUIToastHandle>;
+    /** @deprecated Use ui.toast(). */
     notify(messageOrOptions: string | ClawdeskUINotificationOptions): Promise<ClawdeskUINotificationHandle>;
     getCapabilities(): ClawdeskUICapabilities;
     createWindow(spec: ClawdeskUIWindowSpec): Promise<ClawdeskUIWindowHandle>;
@@ -283,36 +288,47 @@ declare global {
   /** Always injected; dormant calls reject with UI_DISABLED until explicitly authorized. */
   var ui: ClawdeskUI;
 
-  type ClawdeskUINotificationPosition =
+  type ClawdeskUIToastPosition =
     | { mode: "auto" }
     | { mode: "absolute"; x: number; y: number }
     | { mode: "anchor"; horizontal: ClawdeskUIHorizontalPlacement; vertical: ClawdeskUIVerticalPlacement; margin?: number; display?: ClawdeskUIInitialPlacementDisplay }
     | { mode: "relative"; target: FloatingWindow | string; side?: "top" | "bottom" | "left" | "right"; align?: "start" | "center" | "end"; gap?: number; follow?: boolean };
-  interface ClawdeskUINotificationProgress { min?: number; max?: number; value?: number; indeterminate?: boolean; }
-  interface ClawdeskUINotificationOptions {
+  interface ClawdeskUIToastProgress { min?: number; max?: number; value?: number; indeterminate?: boolean; }
+  interface ClawdeskUIToastOptions {
     message: string;
     caption?: string;
     level?: "info" | "success" | "warning" | "error";
     /** Integer milliseconds. Default 3000; 0 persists and always exposes a native close button. */
     timeoutMs?: number;
     timeoutProgress?: boolean;
-    /** Default false for timed hints. timeoutMs:0 forces true; closing the hint never cancels the task. */
+    /** Default false for timed hints. timeoutMs:0 forces true; closing the toast never cancels the task. */
     closable?: boolean;
-    progress?: ClawdeskUINotificationProgress | null;
-    position?: ClawdeskUINotificationPosition;
+    progress?: ClawdeskUIToastProgress | null;
+    position?: ClawdeskUIToastPosition;
   }
-  interface ClawdeskUINotificationState extends ClawdeskUINotificationOptions {
+  interface ClawdeskUIToastState extends ClawdeskUIToastOptions {
     remainingMs: number;
     positionAdjustment?: string;
     closeReason?: string;
   }
-  interface ClawdeskUINotificationHandle {
+  interface ClawdeskUIToastHandle {
     readonly id: string;
-    update(patch: Partial<ClawdeskUINotificationOptions>): Promise<{ applied: boolean; reason?: "closed"; state: ClawdeskUIWindowState }>;
+    update(patch: Partial<ClawdeskUIToastOptions>): Promise<{ applied: boolean; reason?: "closed"; state: ClawdeskUIWindowState }>;
     close(): Promise<ClawdeskUIWindowState>;
     getState(): Promise<ClawdeskUIWindowState>;
-    /** Explicitly observed waits keep this execution alive; simply showing a notification does not. */
+    /** Explicitly observed waits keep this execution alive; simply showing a toast does not. */
     waitUntilClosed(): Promise<ClawdeskUIWindowState>;
   }
+
+  /** @deprecated Use ClawdeskUIToastPosition. */
+  type ClawdeskUINotificationPosition = ClawdeskUIToastPosition;
+  /** @deprecated Use ClawdeskUIToastProgress. */
+  type ClawdeskUINotificationProgress = ClawdeskUIToastProgress;
+  /** @deprecated Use ClawdeskUIToastOptions. */
+  type ClawdeskUINotificationOptions = ClawdeskUIToastOptions;
+  /** @deprecated Use ClawdeskUIToastState. */
+  type ClawdeskUINotificationState = ClawdeskUIToastState;
+  /** @deprecated Use ClawdeskUIToastHandle. */
+  type ClawdeskUINotificationHandle = ClawdeskUIToastHandle;
 
 }
