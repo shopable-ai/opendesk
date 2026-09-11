@@ -21,13 +21,17 @@ import (
 )
 
 const (
-	FormatName          = "opendesk-device-identity"
-	FormatVersion       = 1
-	KeyAlgorithmP256    = "P-256"
-	privateKeyStoreName = "device-p256-v1"
-	secureNamespace     = "ai.shopable.opendesk.deviceidentity"
-	maxIdentitySize     = 16 * 1024
+	FormatName       = "opendesk-device-identity"
+	FormatVersion    = 1
+	KeyAlgorithmP256 = "P-256"
+	secureNamespace  = "ai.shopable.opendesk.deviceidentity"
+	maxIdentitySize  = 16 * 1024
 )
+
+// privateKeyStoreName is a variable only so matching-source acceptance builds
+// can select an isolated Keychain account with -ldflags -X. Release builds do
+// not override it and retain the frozen P1 account name.
+var privateKeyStoreName = "device-p256-v1"
 
 var deviceIDDomain = []byte("OpenDeskDeviceIdentity/v1\x00")
 

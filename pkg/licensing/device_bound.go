@@ -51,31 +51,38 @@ func (verifier DeviceLicenseVerifier) Verify(ctx context.Context, manifest scrip
 	if err != nil {
 		return nil, err
 	}
+	now := time.Now
+	if verifier.Now != nil {
+		now = verifier.Now
+	}
+	return verifyDeviceLicense(ctx, manifest, license, issuerKey, verifier.Device, now().UTC())
+}
+
+func verifyDeviceLicense(ctx context.Context, manifest scriptpackage.Manifest, license *OfflineLicense, issuerKey ed25519.PublicKey, device DeviceIdentityProvider, current time.Time) (*Entitlement, error) {
 	if err := VerifyOfflineLicense(license, issuerKey); err != nil {
 		return nil, err
 	}
-	claims := license.Claims
+	return verifyDeviceClaims(ctx, manifest, license.Claims, device, current)
+}
+
+func verifyDeviceClaims(ctx context.Context, manifest scriptpackage.Manifest, claims LicenseClaims, device DeviceIdentityProvider, current time.Time) (*Entitlement, error) {
 	if claims.PublisherID != manifest.PublisherID ||
 		claims.ProductID != manifest.ProductID ||
 		claims.PackageID != manifest.PackageID ||
 		claims.ContentKeyID != manifest.Encryption.KeyID {
 		return nil, NewError(CodeLicenseDenied, "license does not match package publisher, product, package, or content key", nil)
 	}
-	if verifier.Device == nil {
+	if device == nil {
 		return nil, NewError(CodeDeviceKeyUnavailable, "device identity provider is not configured", nil)
 	}
-	identity, err := verifier.Device.Ensure(ctx)
+	identity, err := device.Ensure(ctx)
 	if err != nil {
 		return nil, mapDeviceIdentityError(err)
 	}
 	if identity.DeviceID != claims.DeviceID || identity.KeyAlgorithm != claims.DeviceKeyAlgorithm {
 		return nil, NewError(CodeWrongDevice, "license is bound to another device", nil)
 	}
-	now := time.Now
-	if verifier.Now != nil {
-		now = verifier.Now
-	}
-	current := now().UTC()
+	current = current.UTC()
 	if current.Before(claims.IssuedTime()) {
 		return nil, NewError(CodeLicenseNotYetValid, "license is not yet valid", nil)
 	}
@@ -171,6 +178,19 @@ func (store FileInstallationStore) Load(ctx context.Context, manifest scriptpack
 	return ReadOfflineLicense(store.licensePath(manifest))
 }
 
+func (store FileInstallationStore) LoadOnlineCache(ctx context.Context, manifest scriptpackage.Manifest) (*OnlineCache, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err := manifest.Validate(); err != nil {
+		return nil, NewError(CodeInvalidOnlineCache, "protected package manifest is invalid", err)
+	}
+	if err := store.validateRoot(); err != nil {
+		return nil, err
+	}
+	return ReadOnlineCache(store.onlineCachePath(manifest))
+}
+
 func (store FileInstallationStore) ResolvePublisherKey(ctx context.Context, manifest scriptpackage.Manifest) (ed25519.PublicKey, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -246,6 +266,59 @@ func (store FileInstallationStore) Install(manifest scriptpackage.Manifest, lice
 	return writeAtomic(store.licensePath(manifest), licenseData, true)
 }
 
+// InstallOnlineCache pins the same package/issuer public keys used by P1 and
+// installs a signed online cache. Device binding, DEK accessibility and replay
+// state are validated by the activation CLI before this storage step.
+func (store FileInstallationStore) InstallOnlineCache(manifest scriptpackage.Manifest, cacheData []byte, packageKey, issuerKey ed25519.PublicKey) error {
+	if len(packageKey) != ed25519.PublicKeySize || len(issuerKey) != ed25519.PublicKeySize {
+		return NewError(CodeInvalidOnlineCache, "online entitlement trust pins must be Ed25519 public keys", nil)
+	}
+	if err := store.validateOnlineCache(manifest, cacheData, issuerKey); err != nil {
+		return err
+	}
+	cache, _ := ParseOnlineCache(cacheData)
+	if err := store.writePin(store.packageKeyPath(manifest.PublisherID, manifest.PublisherKeyID), packageKey); err != nil {
+		return err
+	}
+	if err := store.writePin(store.licenseKeyPath(cache.Claims.License.PublisherID, cache.Claims.License.PublisherKeyID), issuerKey); err != nil {
+		return err
+	}
+	return writeAtomic(store.onlineCachePath(manifest), cacheData, true)
+}
+
+func (store FileInstallationStore) SaveOnlineCache(manifest scriptpackage.Manifest, cacheData []byte, issuerKey ed25519.PublicKey) error {
+	if len(issuerKey) != ed25519.PublicKeySize {
+		return NewError(CodeInvalidOnlineCache, "online entitlement issuer key must be Ed25519", nil)
+	}
+	if err := store.validateOnlineCache(manifest, cacheData, issuerKey); err != nil {
+		return err
+	}
+	return writeAtomic(store.onlineCachePath(manifest), cacheData, true)
+}
+
+func (store FileInstallationStore) validateOnlineCache(manifest scriptpackage.Manifest, cacheData []byte, issuerKey ed25519.PublicKey) error {
+	if err := store.validateRoot(); err != nil {
+		return err
+	}
+	cache, err := ParseOnlineCache(cacheData)
+	if err != nil {
+		return err
+	}
+	if err := VerifyOnlineCache(cache, issuerKey); err != nil {
+		return err
+	}
+	claims := cache.Claims
+	licenseClaims := claims.License
+	if licenseClaims.PublisherID != manifest.PublisherID ||
+		claims.PackagePublisherKeyID != manifest.PublisherKeyID ||
+		licenseClaims.ProductID != manifest.ProductID ||
+		licenseClaims.PackageID != manifest.PackageID ||
+		licenseClaims.ContentKeyID != manifest.Encryption.KeyID {
+		return NewError(CodeLicenseDenied, "online entitlement cannot be installed for a different package", nil)
+	}
+	return nil
+}
+
 func (store FileInstallationStore) writePin(path string, key []byte) error {
 	existing, err := readInstalledFile(path, 16*1024)
 	if err == nil {
@@ -273,6 +346,10 @@ func (store FileInstallationStore) validateRoot() error {
 
 func (store FileInstallationStore) licensePath(manifest scriptpackage.Manifest) string {
 	return filepath.Join(store.Root, "licenses", installationPathToken("license", manifest.PublisherID, manifest.ProductID, manifest.PackageID, manifest.Encryption.KeyID)+OfflineLicenseExtension)
+}
+
+func (store FileInstallationStore) onlineCachePath(manifest scriptpackage.Manifest) string {
+	return filepath.Join(store.Root, "online-entitlements", installationPathToken("online-cache", manifest.PublisherID, manifest.ProductID, manifest.PackageID, manifest.Encryption.KeyID)+".json")
 }
 
 func (store FileInstallationStore) packageKeyPath(publisherID, keyID string) string {
@@ -391,6 +468,20 @@ type staticFailureProviders struct {
 	err error
 }
 
+type unavailableOnlineReplayGuard struct{ err error }
+
+func (guard unavailableOnlineReplayGuard) Check(context.Context, scriptpackage.Manifest, *OnlineCache) error {
+	return NewError(CodeOnlineReplay, "OS-protected replay state is unavailable", guard.err)
+}
+
+func (guard unavailableOnlineReplayGuard) Commit(context.Context, scriptpackage.Manifest, *OnlineCache) error {
+	return NewError(CodeOnlineReplay, "OS-protected replay state is unavailable", guard.err)
+}
+
+func (unavailableOnlineReplayGuard) RequiresOnline(context.Context, scriptpackage.Manifest) (bool, error) {
+	return false, nil
+}
+
 func (provider staticFailureProviders) ResolvePublisherKey(context.Context, scriptpackage.Manifest) (ed25519.PublicKey, error) {
 	return nil, provider.err
 }
@@ -418,10 +509,16 @@ func NewProductionProviders() (PublisherKeyProvider, LicenseVerifier, ContentKey
 		return failure, failure, failure
 	}
 	store := FileInstallationStore{Root: root}
-	return store, DeviceLicenseVerifier{
+	offline := DeviceLicenseVerifier{
 		Licenses:   store,
 		IssuerKeys: store,
 		Device:     device,
 		Now:        time.Now,
-	}, DeviceBoundContentKeyProvider{Device: device}
+	}
+	replay, replayErr := NewPlatformOnlineReplayGuard()
+	if replayErr != nil {
+		replay = unavailableOnlineReplayGuard{err: replayErr}
+	}
+	online := OnlineLicenseVerifier{Caches: store, IssuerKeys: store, Device: device, Replay: replay, Now: time.Now}
+	return store, PreferOnlineLicenseVerifier{Online: online, Offline: offline}, DeviceBoundContentKeyProvider{Device: device}
 }

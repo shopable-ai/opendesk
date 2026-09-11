@@ -13,16 +13,24 @@ import (
 type ErrorCode string
 
 const (
-	CodeUnknownPublisher      ErrorCode = "unknown_publisher"
-	CodeLicenseRequired       ErrorCode = "license_required"
-	CodeLicenseDenied         ErrorCode = "license_denied"
-	CodeLicenseExpired        ErrorCode = "license_expired"
-	CodeLicenseNotYetValid    ErrorCode = "license_not_yet_valid"
-	CodeInvalidLicense        ErrorCode = "invalid_license"
-	CodeInvalidLicenseSign    ErrorCode = "invalid_license_signature"
-	CodeWrongDevice           ErrorCode = "wrong_device"
-	CodeContentKeyUnavailable ErrorCode = "content_key_unavailable"
-	CodeDeviceKeyUnavailable  ErrorCode = "device_key_unavailable"
+	CodeUnknownPublisher       ErrorCode = "unknown_publisher"
+	CodeLicenseRequired        ErrorCode = "license_required"
+	CodeLicenseDenied          ErrorCode = "license_denied"
+	CodeLicenseExpired         ErrorCode = "license_expired"
+	CodeLicenseNotYetValid     ErrorCode = "license_not_yet_valid"
+	CodeInvalidLicense         ErrorCode = "invalid_license"
+	CodeInvalidLicenseSign     ErrorCode = "invalid_license_signature"
+	CodeWrongDevice            ErrorCode = "wrong_device"
+	CodeContentKeyUnavailable  ErrorCode = "content_key_unavailable"
+	CodeDeviceKeyUnavailable   ErrorCode = "device_key_unavailable"
+	CodeDeviceLimitExceeded    ErrorCode = "device_limit_exceeded"
+	CodeLicenseRevoked         ErrorCode = "license_revoked"
+	CodeOfflineGraceExpired    ErrorCode = "offline_grace_expired"
+	CodeInvalidOnlineCache     ErrorCode = "invalid_entitlement_cache"
+	CodeInvalidOnlineSignature ErrorCode = "invalid_entitlement_signature"
+	CodeOnlineReplay           ErrorCode = "entitlement_replay_detected"
+	CodeServiceUnavailable     ErrorCode = "entitlement_service_unavailable"
+	CodeAuthenticationRequired ErrorCode = "entitlement_authentication_required"
 )
 
 type Error struct {

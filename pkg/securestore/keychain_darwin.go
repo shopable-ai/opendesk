@@ -100,6 +100,43 @@ static OSStatus odKeychainCreate(
 	CFRelease(attributes);
 	return status;
 }
+
+static OSStatus odKeychainSave(
+	const char *serviceValue, size_t serviceLength,
+	const char *accountValue, size_t accountLength,
+	const unsigned char *value, size_t valueLength
+) {
+	CFStringRef service = odString(serviceValue, serviceLength);
+	CFStringRef account = odString(accountValue, accountLength);
+	CFDataRef data = CFDataCreate(kCFAllocatorDefault, value, (CFIndex)valueLength);
+	if (service == NULL || account == NULL || data == NULL) {
+		if (service != NULL) CFRelease(service);
+		if (account != NULL) CFRelease(account);
+		if (data != NULL) CFRelease(data);
+		return errSecAllocate;
+	}
+	const void *queryKeys[] = {kSecClass, kSecAttrService, kSecAttrAccount};
+	const void *queryValues[] = {kSecClassGenericPassword, service, account};
+	CFDictionaryRef query = CFDictionaryCreate(kCFAllocatorDefault, queryKeys, queryValues, 3,
+		&kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+	const void *attributeKeys[] = {kSecValueData};
+	const void *attributeValues[] = {data};
+	CFDictionaryRef attributes = CFDictionaryCreate(kCFAllocatorDefault, attributeKeys, attributeValues, 1,
+		&kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+	CFRelease(service);
+	CFRelease(account);
+	CFRelease(data);
+	if (query == NULL || attributes == NULL) {
+		if (query != NULL) CFRelease(query);
+		if (attributes != NULL) CFRelease(attributes);
+		return errSecAllocate;
+	}
+	OSStatus status = SecItemUpdate(query, attributes);
+	CFRelease(query);
+	CFRelease(attributes);
+	if (status != errSecItemNotFound) return status;
+	return odKeychainCreate(serviceValue, serviceLength, accountValue, accountLength, value, valueLength);
+}
 */
 import "C"
 
@@ -168,6 +205,31 @@ func (store *keychainStore) Create(ctx context.Context, name string, value []byt
 	}
 	if status != C.errSecSuccess {
 		return fmt.Errorf("create macOS Keychain item: status %d", int32(status))
+	}
+	return nil
+}
+
+func (store *keychainStore) Save(ctx context.Context, name string, value []byte) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := validateName(name); err != nil {
+		return err
+	}
+	if len(value) == 0 || len(value) > MaxValueSize {
+		return fmt.Errorf("secure store value size is invalid")
+	}
+	service := C.CString(store.namespace)
+	account := C.CString(name)
+	defer C.free(unsafe.Pointer(service))
+	defer C.free(unsafe.Pointer(account))
+	status := C.odKeychainSave(
+		service, C.size_t(len(store.namespace)),
+		account, C.size_t(len(name)),
+		(*C.uchar)(unsafe.Pointer(&value[0])), C.size_t(len(value)),
+	)
+	if status != C.errSecSuccess {
+		return fmt.Errorf("save macOS Keychain item: status %d", int32(status))
 	}
 	return nil
 }

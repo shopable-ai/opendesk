@@ -787,6 +787,40 @@ P1 的 `license install` 要求操作者显式提供 package publisher public ke
 自带的 key。P1 pin 只解决单 key 的离线信任入口；registry、rotation、retirement 和 compromise governance
 仍由 P3 负责。
 
+### 16.2 P2 Online Entitlement 冻结实现
+
+P2 不让 network client 或 entitlement service 进入 loader/execution。在线链路只在 License CLI 中刷新一个
+可验证的本地授权结果，Runtime 继续消费 `LicenseVerifier`，DEK 继续只由 P1
+`DeviceBoundContentKeyProvider` 取得：
+
+```text
+license activate / refresh / deactivate
+→ authenticated HTTPS entitlement service
+→ signed online cache (active / revoked, monotonic sequence, request nonce)
+→ OS-protected authoritative activation marker + replay watermark
+→ OnlineLicenseVerifier
+→ existing DeviceBoundContentKeyProvider
+→ existing ProtectedPackageLoader / pkg/execution.Run()
+```
+
+在线 cache 使用独立的 `OpenDeskOnlineEntitlementCache/v1` Ed25519 domain，签名覆盖 activation、entitlement、
+package publisher key、request nonce、sequence、state、issued/refresh/offline 时间以及 P1 device-bound claims/key
+envelope。它故意不嵌入一个拥有独立 P1 `.odlicense` signature 的文件，避免客户从 cache 抽取可脱离 online revoke
+状态运行的离线 License。online verifier 验证 outer signature 后，才把同一套 P1 claims 转换为内部 verified
+capability，交给既有 content-key provider。
+
+本地 replay state 与 device private key 使用不同 secure-store namespace；device key 仍保持 create-only，只有
+online sequence/digest/activation marker 使用窄 `MutableStore`。cache 回滚、同 sequence 不同内容、revoked
+resurrection、删除已激活 cache 都 fail closed。只有从未建立 online authoritative marker 的 package 才允许继续
+使用独立 P1 offline License。
+
+客户端拒绝超过 7 天的 offline grace。已取得的 active cache 只在 signed `offlineUntil` 之前有效；online refresh
+成功取得 revoked state 后立即拒绝，持续离线时远端 revoke 最迟在旧 cache 的 hard deadline 生效。更强的可信时间、
+管理员级 secure-store 删除与系统回滚恢复属于 P4，不在 P2 夸大为绝对防护。
+
+传输固定为 HTTPS 且客户端要求 TLS 1.2 或更高版本；私有部署可显式提供额外 CA PEM 来扩展系统 root pool，
+但不得关闭证书链或 hostname 验证，也不得跟随会转发 bearer credential 的 redirect。
+
 ---
 
 ## 17. Definition of Done

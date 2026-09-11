@@ -1,6 +1,6 @@
-// Package licensecli implements the publisher/customer offline license command
-// surface. It emits structured JSON and never prints private keys or plaintext
-// content keys.
+// Package licensecli implements the publisher/customer license command surface.
+// It emits structured JSON and never prints credentials, private keys, wrapped
+// key envelopes, or plaintext content keys.
 package licensecli
 
 import (
@@ -17,6 +17,7 @@ import (
 	"unicode/utf8"
 
 	"opendesk/pkg/deviceidentity"
+	"opendesk/pkg/entitlement"
 	"opendesk/pkg/licensing"
 	"opendesk/pkg/scriptpackage"
 )
@@ -35,6 +36,8 @@ type envelope struct {
 
 type Dependencies struct {
 	NewDevice        func() (licensing.DeviceIdentityProvider, error)
+	NewOnlineClient  func(service string, additionalRoots []byte) (entitlement.Client, error)
+	NewReplayGuard   func() (licensing.OnlineReplayGuard, error)
 	InstallationRoot func() (string, error)
 	Now              func() time.Time
 }
@@ -44,6 +47,10 @@ func defaultDependencies() Dependencies {
 		NewDevice: func() (licensing.DeviceIdentityProvider, error) {
 			return deviceidentity.NewPlatformManager()
 		},
+		NewOnlineClient: func(service string, additionalRoots []byte) (entitlement.Client, error) {
+			return entitlement.NewHTTPClient(service, additionalRoots)
+		},
+		NewReplayGuard:   licensing.NewPlatformOnlineReplayGuard,
 		InstallationRoot: licensing.DefaultInstallationRoot,
 		Now:              time.Now,
 	}
@@ -60,9 +67,17 @@ func Execute(args []string, stdout, stderr io.Writer) int {
 func ExecuteWithDependencies(args []string, stdout, stderr io.Writer, dependencies Dependencies) int {
 	_ = stderr
 	if len(args) < 2 || args[0] != "license" {
-		return writeError(stdout, "license", "invalid_command", "license requires device, issue, install, inspect, or verify", 2)
+		return writeError(stdout, "license", "invalid_command", "license requires activate, status, refresh, deactivate, device, issue, install, inspect, or verify", 2)
 	}
 	switch args[1] {
+	case "activate":
+		return activate(args[2:], stdout, dependencies)
+	case "status":
+		return onlineStatus(args[2:], stdout, dependencies)
+	case "refresh":
+		return refresh(args[2:], stdout, dependencies)
+	case "deactivate":
+		return deactivate(args[2:], stdout, dependencies)
 	case "device":
 		return device(args[2:], stdout, dependencies)
 	case "issue":

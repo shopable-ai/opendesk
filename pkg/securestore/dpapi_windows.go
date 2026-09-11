@@ -121,6 +121,55 @@ func (store *dpapiStore) Create(ctx context.Context, name string, value []byte) 
 	return nil
 }
 
+func (store *dpapiStore) Save(ctx context.Context, name string, value []byte) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := validateName(name); err != nil {
+		return err
+	}
+	if len(value) == 0 || len(value) > MaxValueSize {
+		return fmt.Errorf("secure store value size is invalid")
+	}
+	ciphertext, err := dpapiProtect(value, []byte(store.namespace+"\x00"+name))
+	if err != nil {
+		return fmt.Errorf("protect DPAPI item: %w", err)
+	}
+	defer zero(ciphertext)
+	if err := os.MkdirAll(store.directory, 0o700); err != nil {
+		return fmt.Errorf("create DPAPI store directory: %w", err)
+	}
+	temporary, err := os.CreateTemp(store.directory, ".save-*")
+	if err != nil {
+		return fmt.Errorf("create temporary DPAPI item: %w", err)
+	}
+	temporaryPath := temporary.Name()
+	remove := true
+	defer func() {
+		_ = temporary.Close()
+		if remove {
+			_ = os.Remove(temporaryPath)
+		}
+	}()
+	if err := temporary.Chmod(0o600); err != nil {
+		return fmt.Errorf("protect temporary DPAPI item: %w", err)
+	}
+	if _, err := temporary.Write(ciphertext); err != nil {
+		return fmt.Errorf("write temporary DPAPI item: %w", err)
+	}
+	if err := temporary.Sync(); err != nil {
+		return fmt.Errorf("sync temporary DPAPI item: %w", err)
+	}
+	if err := temporary.Close(); err != nil {
+		return fmt.Errorf("close temporary DPAPI item: %w", err)
+	}
+	if err := os.Rename(temporaryPath, store.path(name)); err != nil {
+		return fmt.Errorf("replace DPAPI item: %w", err)
+	}
+	remove = false
+	return nil
+}
+
 func (store *dpapiStore) path(name string) string {
 	return filepath.Join(store.directory, name+".bin")
 }

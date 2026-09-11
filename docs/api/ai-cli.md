@@ -50,8 +50,11 @@ Workflow 把 Goal、Success Criteria、业务步骤与验证写在脚本中；�
 `unsupported_format`、`invalid_package`、`package_too_large`、`invalid_manifest`、
 `invalid_signature`、`unknown_publisher`、`license_required`、`license_denied`、`license_expired`、
 `license_not_yet_valid`、`invalid_license`、`invalid_license_signature`、`wrong_device`、
-`device_key_unavailable`、`content_key_unavailable`、`decryption_failed`、`payload_invalid`、`unsupported_payload` 和
-`protected_source_export_denied`。退出码为 0（成功）、2（输入/命令错误）、3（平台/能力不可用）、
+`device_key_unavailable`、`content_key_unavailable`、`device_limit_exceeded`、`license_revoked`、
+`offline_grace_expired`、`invalid_entitlement_cache`、`invalid_entitlement_signature`、
+`entitlement_replay_detected`、`entitlement_service_unavailable`、`entitlement_authentication_required`、
+`decryption_failed`、`payload_invalid`、`unsupported_payload` 和 `protected_source_export_denied`。退出码为
+0（成功）、2（输入/命令错误）、3（平台/能力不可用）、
 4（权限）、5（执行目标失败）或 1（内部错误或受保护包准入失败）。
 
 ## ai run 与 -script
@@ -146,7 +149,40 @@ metadata 一致性以及恢复出的 DEK 能解密该 package，然后安装精�
 不会自动信任 package/License 自带的 public key。默认安装目录来自当前用户配置目录；隔离部署可以把
 `OPENDESK_PROTECTED_RECIPE_ROOT` 设置为绝对、非根目录路径，这只移动 License/public pins，设备私钥仍固定
 由 Keychain/DPAPI 持有。P1 是离线单设备授权 MVP；在线 activation、refresh、
-revoke 与 device-count 属于 P2，key rotation/retirement 属于 P3。
+revoke 与 device-count 由 P2 提供，key rotation/retirement 属于 P3。
+
+Online Entitlement 在 P1 device binding 之上增加 authenticated HTTPS activation、服务端 device limit、
+signed refresh/revoke state 和有界本地 cache。以下命令从仓库根目录执行；activation credential 只从
+有界 regular file 读取，不支持明文 token flag，也不会写入 CLI JSON、cache、artifact 或 Runtime env：
+
+```bash
+./dist/opendesk license activate recipe.odpkg --service https://licenses.example.com --token-file activation.token --package-publisher-key publisher-public.pem --issuer-key license-issuer-public.pem
+./dist/opendesk license status recipe.odpkg
+./dist/opendesk license refresh recipe.odpkg --service https://licenses.example.com --token-file activation.token
+./dist/opendesk license deactivate recipe.odpkg --service https://licenses.example.com --token-file activation.token
+```
+
+`activate` 仍要求操作者显式提供 package publisher 与 entitlement issuer public key。客户端先验证 package
+signature，再验证服务响应的独立 Ed25519 signature、request nonce、device/package binding 和有效期，随后通过
+既有 `DeviceBoundContentKeyProvider` unwrap DEK 并证明它能解密当前 package，最后才安装 cache 与精确 key
+pins。在线 cache 只包含被在线签名覆盖的 P1 device-bound claims/key envelope，不包含可被单独安装为
+`.odlicense` 的签名离线 License，因此不能从 cache 抽出一张 License 绕过在线 revoke。
+
+连接使用公开 CA 时无需额外参数。私有或企业 CA 可以在 `activate`、`refresh`、`deactivate` 命令末尾追加
+`--ca-file private-ca.pem`；该 PEM 只扩展系统 root pool，不会关闭证书链或 hostname 验证，客户端仍要求
+TLS 1.2 或更高版本。`status` 不访问网络，因此不接受该参数。
+
+`status` 只读取并验证本地 package、cache、device binding 与 OS-protected replay watermark，不访问网络；
+输出只包含 state、sequence、activation/product/device 标识与时间窗口等非敏感 metadata。`refresh` 要求服务返回
+相同 activation 的更高 sequence；`deactivate` 只有在收到 signed revoked state 后才成功。旧 sequence、同 sequence
+不同内容、revoked 后恢复 active、cache bit tamper、wrong device 或删除已激活 package 的 cache 均 fail closed，
+不会 fallback 到旁置的 P1 offline License。
+
+服务下发的 `offlineUntil` 是硬截止时间，客户端另外固定最多 7 天；当前参考服务默认 24 小时并在窗口中点提示
+refresh。服务不可用不会延长 cache：已有 active cache 可在 `offlineUntil` 之前继续运行，到达该时间即返回
+`offline_grace_expired`。远端 revoke 在下一次成功 refresh 后以 signed revoked state 立即生效；设备持续离线时，
+最迟在先前 signed `offlineUntil` 失效。TLS/auth/signature/nonce/响应格式错误不会被当作新的授权，也不会覆盖
+已验证状态。客户端只接受 HTTPS endpoint，禁止 URL credentials/query/fragment 和 HTTP redirect。
 
 P0 没有给 HTTP、MCP 或 Scheduler 增加受保护文件输入：HTTP 仍是 inline JavaScript，MCP 没有脚本
 文件执行工具，Scheduler 明确只接受 `.js`。这些入口不会把 `.odpkg` fallback 成普通文本。
