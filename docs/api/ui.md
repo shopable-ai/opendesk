@@ -1,0 +1,1680 @@
+---
+title: Custom UI
+description: 使用 FloatingWindow 或受限 HTML/CSS 创建受控桌面界面。
+order: 13
+---
+
+# Custom UI
+
+> `ui`（小写）仅用于创建和管理 OpenDesk 自己的 Custom UI。它不是外部桌面应用的查找或点击 API；
+> 请使用大写 [UI](desktop-ui.md) 做 OCR/模板匹配、等待和激活外部可见目标。两者没有别名，
+> JavaScript 大小写敏感。
+
+Custom UI 由当前 JavaScript Runtime 控制受控桌面窗口。`FloatingWindow` 直接声明
+带短状态文字、紧凑设置控件和进度的简单工具栏；`ui.createWindow()` 用受限 HTML/CSS 声明视图。这里的 “Custom” 指脚本
+作者可以声明自己的工具栏或受限视图；“native” 是底层平台 UI / host 的实现方式。HTML 不能直接取得
+`mouse`、`File`、`http` 等全局能力；业务接口仍由 JavaScript listener 调用。
+
+macOS host 使用 AppKit，受限 HTML surface 使用 WKWebView；Windows host 使用 WinForms，受限 HTML surface 使用 Microsoft Edge WebView2。Windows 的 `FloatingWindow` 与 `ui.notify()` 不依赖 WebView2 Runtime，`ui.createWindow()` 与 Dialog 需要系统已安装 WebView2 Runtime，缺失时明确抛出 `UNSUPPORTED_CAPABILITY`。Linux 仍报告 `available: false`，创建窗口抛出 `UNSUPPORTED_PLATFORM`，不会静默成功。Windows 后端为 Experimental：构建、协议测试与交互/视觉验收是独立层次，详见 [实现与验收范围](../architecture/custom-ui-notifications.md)。需要固定的一次性确认/输入窗口时使用 [Dialog API](dialog.md)：Dialog 由 host 根据结构化参数生成，不能提交 HTML/CSS，也不会成为 Custom UI 的第二套 controller。
+
+## 选择 UI API
+
+| 需求 | 使用 API | 不适用的情况 |
+| --- | --- | --- |
+| 一次性的确认、取消或短文本输入 | [Dialog API](dialog.md) | 任意布局、持续交互或复杂表单 |
+| 最多 32 个紧凑 Button / Label / 原生控件内容项，以及少量分隔结构 | `new FloatingWindow(options)` | 需要多行表单、任意 HTML/CSS、滚动区或动态控件树 |
+| 表单、受限 HTML/CSS 或动态控件树 | `ui.createWindow(spec)` | 仅需图标工具栏 |
+
+## Custom UI：命令行 -ui 与启用方式
+
+`-ui` 是不带值的布尔开关：它只为**本次 CLI JavaScript execution** 授予 Custom UI
+能力；配合 `-http` 时，它只允许服务器接受后续可能请求 UI 的 execution。它本身不会创建窗口、
+不会启动一个图形化 shell，也不会替脚本调用 `ui.createWindow()` 或 `new FloatingWindow()`。
+脚本仍必须显式创建并显示窗口。
+
+`ui` 全局始终存在，但默认 dormant。未授权的 `notify()`、`createWindow()`、`closeAll()` 或 `on()` 会抛出 `UI_DISABLED`。
+`-ui` 让 `ui`、`FloatingWindow` 和 Dialog 获得当前 execution 的授权；是否真的可创建原生窗口
+还取决于平台和 UI host，可通过 `ui.getCapabilities()` 区分 `enabled` 与 `available`。
+
+普通项目推荐把下面文件放在 JavaScript 脚本同目录，文件名固定为 `clawdesk.runtime.json`：
+
+```json
+{
+  "schemaVersion": 1,
+  "runtime": {
+    "capabilities": ["ui"]
+  }
+}
+```
+
+配置采用严格 schema：未知字段、未知 capability、重复 capability、错误类型和不支持的 schemaVersion 都会让执行失败。项目配置不能提供 UI host 路径。
+
+配置错误使用 `RUNTIME_CONFIG_INVALID`、`RUNTIME_CONFIG_NOT_FOUND` 或 `RUNTIME_CONFIG_UNSUPPORTED`，并在 CLI stderr 中包含配置路径和原因。
+
+从仓库根目录运行，最直接的方式是把 `-ui` 与脚本一起传入：
+
+```bash
+# 为当前脚本明确启用 Custom UI
+./opendesk -ui -script examples/custom-ui/panel.js -console-mode script
+
+# 启动 HTTP server；每一条 UI 请求还要声明 capabilities，并且必须来自 loopback
+./opendesk -http -ui -port 60844
+
+# 明确禁用，优先于所有其他来源
+./opendesk -no-ui -script examples/custom-ui/panel.js -console-mode script
+
+# 从指定项目配置决定是否启用 UI
+./opendesk -config examples/custom-ui/clawdesk.runtime.json -script examples/custom-ui/panel.js -console-mode script
+```
+
+Windows 发布目录必须同时包含 `opendesk.exe` 和 `ui-host/opendesk-ui-host.exe` 的完整 self-contained publish closure。从仓库根目录启动相同示例：
+
+```powershell
+.\dist\opendesk.exe -ui -script examples/custom-ui/panel.js -console-mode script
+```
+
+维护者在 Windows 上可先运行 `pwsh -File scripts/build_windows_app.ps1` 构建这对产物；只构建或交叉发布 sidecar 时使用 `pwsh -File scripts/build_windows_ui.ps1`。发布脚本不会把 `bin/`、`obj/` 或临时 profile 写入源码目录。
+
+| 开关或配置 | 是否带值 | 作用 |
+| --- | --- | --- |
+| `-ui` | 否 | 强制授予本次 CLI execution 的 UI 能力；也可使 HTTP server 具备接受 UI 请求的前提。它优先于项目配置。 |
+| `-no-ui` | 否 | 强制禁用 UI，优先于 `-ui` 和所有项目配置。 |
+| `-config <path>` | 是 | 只从指定的严格 schema 配置读取 `runtime.capabilities`；文件不存在或不合法会终止启动。 |
+| `-ui-host <path>` | 是 | 内部开发/验收用的 native host 覆盖项，不是项目配置字段，也不是发行版用户 API。 |
+
+当 `-ui` 或 `-no-ui` 已生效时，UI 的启用判断不会再读取 `-config` 或自动发现的项目配置；
+不要把它们当作“先读取配置、再叠加一个 UI 值”。若需要由配置做决定，不要传这两个强制开关。
+
+优先级从高到低为：
+
+1. `-no-ui`
+2. `-ui`
+3. `-config <path>`
+4. 本地脚本同目录的 `clawdesk.runtime.json`
+5. 默认禁用
+
+普通 `-script` 执行会在脚本同目录自动查找 `clawdesk.runtime.json`。在迁移期间，只有当它不存在时，
+才会退回查找同目录的 `opendesk.runtime.json`；两者同时存在时始终使用前者。双击 / `tm.config.js`
+模式改为从工作目录查找这两个固定文件名。若配置的 `capabilities` 是空数组，则它明确保持 UI 禁用。
+
+HTTP UI 还需要第二层按请求授权：服务器已通过 `-ui` 或 `-config` 启用后，单次请求仍必须带
+`"capabilities":["ui"]`，并从 `127.0.0.1` 或 `::1` 的 loopback socket 发出。否则该 execution
+仍是 dormant，并返回 403；详见 [HTTP Server API](http-server.md)。
+
+可以同时从两个位置观察启用来源：
+
+```js
+console.log(ui.getCapabilities().activationSource);
+console.log(Execution.activationSource);
+```
+
+值为 `disabled`、`cli`、`projectConfig` 或 `httpRequest`。
+
+## FloatingWindow：浮动工具栏
+
+**状态：Conditional / Native**
+
+`FloatingWindow` 是 compact native action toolbar：它通过结构化、版本化的
+`ToolbarSpec.Items[]`（`Button` / `Label` / `Switch` / `Checkbox` / `Input` / `Select` / `Slider` /
+`SegmentedControl` / `Progress` / `Separator` / `Spacer`）直接创建平台原生 toolbar，
+不生成 HTML/CSS 或 WebView。复杂多行表单、长文本、可见标题分区、任意受限 HTML/CSS、滚动区或
+动态控件树仍使用本页的 `ui.createWindow()`。两者共享 native driver、事件队列、
+`EventLoop.RunOnLoop`、统一 `WindowState`、结构化错误和生命周期清理，不引用或初始化 Fyne。
+只有 execution 已显式授权 UI 时才注入 `FloatingWindow`。
+
+每个工具栏都通过 `new FloatingWindow(options?)` 创建；后续 item、状态和生命周期方法只在该实例上调用：
+
+```js
+const toolbar = new FloatingWindow({
+  position: { mode: "absolute", x: 100, y: 100 },
+  theme: "dark"
+});
+```
+
+## new FloatingWindow(options?)
+
+| 参数 | 类型 | 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `position` | discriminated union | 未设置 | 推荐的初始位置声明。只能是 `{ mode:"absolute", x, y }` 或 `{ mode:"anchor", horizontal, vertical, margin?, display? }`，两种成员不能混合。 |
+| `x` / `y` | number | `100` / `100` | 已有绝对定位兼容写法；必须成对提供，不能和 `position` 混用。新代码使用 `position.mode:"absolute"`。 |
+| `theme` | `"dark"` | `"dark"` | 当前仅支持 dark；其他值返回 `INVALID_SPEC`。 |
+| `title` | string | `"Toolbar"` | 原生窗口标题，最多 128 个 Unicode 字符。 |
+| `alwaysOnTop` | boolean | `true` | 是否使用原生置顶层级。 |
+| `draggable` | boolean | `true` | 是否允许拖动原生窗口。 |
+| `orientation` | `"horizontal"` / `"vertical"` | `"horizontal"` | horizontal 最多 32 个内容项；vertical 最多 5 个。Separator / Spacer 不占内容 quota。 |
+| `toolbar` | object | 未设置 | horizontal 工具栏的换行约束；见下表。vertical 保持兼容的一列布局，不接受此对象中的约束。 |
+
+`toolbar` 采用“**宽度或轨道上限 + 自动换行**”模型：Button、Label 和原生 control 的 content item 外框统一为 40pt 高；Button 宽 40pt，Label 与 control 使用各自不可变的声明宽度。item 之间及换行之间均为 8pt 间隔，外层保持 10pt 水平 padding 与 8pt 垂直 padding。native host 按声明顺序和实际 item 宽度从左到右填充，达到有效列数或宽度上限后换到下一行，不缩放 item，也不要求调用方预先计算窗口 frame。`alignment`、`verticalAlignment`、文字 peer 与 `renderedTextBounds` 只属于 Label；Switch、Checkbox、Input、Select、Slider、SegmentedControl 和 Progress 不接受这些选项。dark toolbar 在 macOS 使用 Dark Aqua，在 Windows 使用固定深色窗口与系统原生控件状态色。
+
+| `toolbar` 字段 | 类型 | 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `maxWidth` | number | `960` | 最大外部宽度，单位 pt，范围 `60–960`。host 先用历史 40pt 轨道估算列数，再按每个 content item 的实际声明宽度严格规划；最后一行或内容较少时窗口自动收紧。 |
+| `maxColumns` | integer | `19` | 每行最多内容项数，范围 `1–19`。与 `maxWidth` 同时设置时使用较窄的限制。设置 `2` 即每行至多两项。 |
+| `maxRows` | integer | 自动 | 最多行数，范围 `1–32`。host 为当前内容项数选取刚好满足该行数的紧凑列数；增加任何 Button、Label 或原生 control 超出容量时返回 `INVALID_SPEC`。 |
+
+例如，五个按钮每行最多两列：
+
+```js
+const toolbar = new FloatingWindow({
+  x: 100,
+  y: 100,
+  toolbar: { maxColumns: 2 }, // 2 + 2 + 1，自动换成三行
+});
+```
+
+如果按钮数量会变化，但希望最多两行，让 `maxRows` 自适应决定需要的列数：
+
+```js
+const toolbar = new FloatingWindow({
+  x: 100,
+  y: 100,
+  toolbar: { maxRows: 2 }, // 7 个按钮时为 4 列 + 3 列
+});
+```
+
+如果设计稿直接给出宽度，就只使用 `maxWidth`；例如 `toolbar: { maxWidth: 252 }` 恰好可放五个 40pt 按钮，新增第六个按钮会自动开始第二行。`orientation: "vertical"` 继续是固定单列、最多五个 content item 的兼容模式；需要任意二维控件布局、滚动或多行长文本时应使用 `ui.createWindow()`。
+
+首次 `show()` 前必须按声明顺序添加 toolbar item。未提供 `toolbar` 时，horizontal 的安全宽度上限仍为 960pt；vertical 在单列中从上至下排列，外宽按最宽 content item 加 20pt 水平 padding 收紧。只有 Button 的单列外宽为 60pt；五个 40×40pt Button 时高 273pt（含原生标题栏）。初始定位必须只选择一种模式：推荐的 `position.mode` 明确描述该模式；不提供任何位置时保留已有 `100/100` 默认绝对位置。顶层 `placement` 是已废弃的草案形式，会返回 `INVALID_SPEC` 并提示迁移，绝不采用隐式优先级。
+
+## 窗口停靠与对齐（框架能力）
+
+这里的 *anchor placement* 属于顶层窗口能力，不属于 toolbar 内部布局，也不要求业务示例读取屏幕尺寸后手算坐标。它不是 CSS `place-items`、flex/grid 对齐或 DOM anchor positioning：那些只布局窗口**内容**，不会移动 native top-level window。`FloatingWindow` 构造参数与 `ui.createWindow()` 的 `WindowSpec` 都用 `position.mode:"anchor"` 声明初始位置；窗口创建后可调用 `setPlacement()`。原生 driver 以选中显示器的可用工作区定位，自动避开菜单栏和 Dock。
+
+公开声明没有“谁覆盖谁”的隐式规则，而是判别联合：
+
+- `FloatingWindow`：`position: { mode:"absolute", x, y }` 或 `position: { mode:"anchor", horizontal, vertical, ... }`；
+- `ui.createWindow()`：`position: { mode:"absolute", bounds }` 或 `position: { mode:"anchor", size, horizontal, vertical, ... }`。`size` 只描述宽高，避免在 anchor 模式中伪造无效的 `x/y`。
+
+```js
+const toolbar = new FloatingWindow({
+  orientation: "vertical",
+  position: {
+    mode: "anchor",
+    horizontal: "right",
+    vertical: "center",
+    margin: 16,
+    display: "active"
+  }
+});
+```
+
+通用 Custom UI 窗口将 `size` 放在同一个 anchor union 成员中：
+
+```js
+const panel = await ui.createWindow({
+  id: "statusPanel",
+  position: {
+    mode: "anchor", size: { width: 420, height: 180 },
+    horizontal: "left", vertical: "bottom", margin: 16
+  },
+  content: { html: '<span id="status">Ready</span>' }
+});
+```
+
+| 字段 | 值 | 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `horizontal` | `"left"` / `"center"` / `"right"` | 必填 | 工作区横轴对齐。 |
+| `vertical` | `"top"` / `"center"` / `"bottom"` | 必填 | 工作区纵轴对齐。 |
+| `margin` | 非负有限 number | `0` | 单位 pt；对齐到边缘的轴与工作区保留此距离，居中轴不偏移。 |
+| `display` | `"active"` / `"current"` / `"primary"` | `"active"` | `active` 是指针所在显示器；`primary` 是系统主显示器。`current` 是窗口当前显示器，仅能在窗口已创建后调用 `setPlacement()` 时使用，初始 `position` 或首次 `show()` 前使用会返回 `INVALID_SPEC`。 |
+
+横轴和纵轴正交组合，共覆盖九个稳定位置：左上、左中、左下、中上、正中、中下、右上、右中、右下。窗口或边距放不进目标工作区时返回结构化 `INVALID_SPEC`，不会裁切窗口、缩小窗口或静默越过边界。动态方法允许切换模式：成功的 `setPosition(x, y)` / `setBounds(...)` / `setSize(...)` 使当前 frame 成为绝对结果；成功的 `setPlacement(...)` 重新从当时的 outer frame 按工作区锚定；最后一次**成功**调用决定当前位置。失败不会改变本地保存的 mode 或 frame。
+
+Anchor 是一次明确的重定位动作，不是持续约束。用户拖动、`setSize()`、手动 resize 或工作区/DPI/显示器拓扑变化后，窗口保持系统给出的实际 frame；不会悄悄自动重锚或跳回边缘。若窗口必须再次贴边，调用 `setPlacement()`；`active` 在每次调用时重新读取指针所在显示器，`current` 读取此窗口当前所在显示器，`primary` 读取当前系统主显示器。拔掉当前显示器后由系统先把窗口迁移到可用屏幕，随后一次 `setPlacement({display:"current",...})` 会在迁移后的工作区计算。坐标和 margin 是 logical desktop points；原生 host 用每屏 DPI/Retina scale 处理像素转换，`getState().bounds` 返回同一 logical frame 空间，允许负坐标。
+
+迁移：已发布的绝对 `FloatingWindow({x,y})` 与 `ui.createWindow({bounds})` 继续有效；新代码应改用 `position`。尚未稳定的顶层 `{placement}` 或 `{size,placement}` 草案不再接受，必须分别移到 `position:{mode:"anchor",...}`，以避免“谁覆盖谁”的兼容陷阱。
+
+## toolbar.addButton(id, label, icon, callback?)
+
+| 参数 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | string | 必填；匹配 `[A-Za-z][A-Za-z0-9_-]{0,63}`，同一工具栏内唯一。 |
+| `label` | string | 必填，1–60 个 Unicode 字符；作为 tooltip、原生 Accessibility name 和调试证据，不显示在图标按钮正文。 |
+| `icon` | string \| `{path, renderingMode?}` | 必填；可传 160 个经过审核的内置图标键，或脚本目录内的本地 PNG/JPEG。`renderingMode` 为 `original`（默认）或 `template`。 |
+| `callback` | `(event) => unknown \| Promise<unknown>` | 可选；接收 `click` 事件，可同步返回或返回 Promise。 |
+
+按钮只能在首次 `show()` 前增加或删除。重复 id 返回 `DUPLICATE_ID`；无效 id、label、icon、callback 或超出按钮数返回 `INVALID_SPEC`。
+
+## toolbar.addLabel(id, text, options?)
+
+在紧凑工具栏中增加可见的原生静态文字，适合短状态、计数、计时和当前步骤。
+
+**签名**
+
+```ts
+addLabel(id: string, text: string, options?: {
+  width?: number;
+  alignment?: "leading" | "center" | "trailing";
+  verticalAlignment?: "top" | "center" | "bottom";
+  tone?: "primary" | "secondary" | "success" | "warning" | "error";
+}): void
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `id` | string | 是 | 无 | 匹配 `[A-Za-z][A-Za-z0-9_-]{0,63}`，与所有 toolbar item 共用唯一命名空间。 |
+| `text` | string | 是 | 无 | 1–120 个 Unicode 字符；同时是可见文字与 native Accessibility name。 |
+| `options.width` | number | 否 | `120` | 固定宽度，范围 `48–240` pt；显示后不可修改。 |
+| `options.alignment` | string | 否 | `"leading"` | 水平对齐：`leading`、`center` 或 `trailing`。 |
+| `options.verticalAlignment` | string | 否 | `"center"` | 40pt 固定高度内的显式垂直对齐：`top`、`center` 或 `bottom`。 |
+| `options.tone` | string | 否 | `"primary"` | 语义文字色：`primary`、`secondary`、`success`、`warning` 或 `error`。 |
+
+**返回值**
+
+`undefined`。
+
+**行为与错误**
+
+Label 高度固定为 40pt。`alignment` 是水平轴，默认 `leading`，其中 `center` 由平台原生单行 Label 的实际布局和 readback 保证；`verticalAlignment` 是独立的垂直轴，默认 `center`，不依赖控件在 40pt 外框中的默认绘制偏移。文字过长时 native view 使用末尾截断，但 `text`、`renderedText`、Accessibility name 和 Accessibility value 都保留完整内容，`getLabelState().truncated` 报告是否发生视觉截断，`renderedTextBounds` 返回 native 实际文字布局的 toolbar-local bounds。固定外框使运行中的文字、水平/垂直对齐和 tone 更新都不会移动窗口或相邻按钮。Label 只能在首次 `show()` 前增加；重复 id 返回 `DUPLICATE_ID`，无效文字、宽度、对齐、tone、未知 option 或内容项溢出返回 `INVALID_SPEC`。Label 只暴露一个不可聚焦的 native `staticText` Accessibility element；macOS 的内部 `NSTextField` peer 不单独进入 Accessibility tree。readback 中 `accessibilityRole` 固定为 `staticText`，`accessibilityName` 和 `accessibilityValue` 都是完整文字。Label 没有 callback、focus、busy、active 或 error 状态。
+
+FloatingWindow 可以混排上述固定几何内容。horizontal 最多 32 个内容项，vertical 最多 5 个；Button 自身仍不能超过原有配额。复杂排版、多行表单、长段落、动态 option tree 或可自由改变尺寸的内容使用 `ui.createWindow()`。
+
+**示例**
+
+从仓库根目录运行 `./opendesk -ui -script examples/custom-ui/floating-toolbar-status-label.js -console-mode script`。最小声明为：
+
+```js
+const toolbar = new FloatingWindow({ x: 100, y: 100 });
+toolbar.addLabel("status", "Ready", {
+  width: 144,
+  alignment: "center",
+  verticalAlignment: "center",
+  tone: "secondary"
+});
+toolbar.addButton("run", "运行", "automation.run");
+await toolbar.show();
+await toolbar.updateLabel("status", { text: "Completed", tone: "success" });
+```
+
+## toolbar.addSwitch(id, label, options?, callback?)
+
+增加表示“立即生效开关”的原生 Switch。
+
+**签名**
+
+```ts
+addSwitch(id: string, label: string, options?: {
+  value?: boolean; disabled?: boolean; width?: number;
+}, callback?: (event) => unknown | Promise<unknown>): void
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `id` | string | 是 | 无 | 严格且全 toolbar 唯一的 item id。 |
+| `label` | string | 是 | 无 | 1–60 个 Unicode 字符；作为语义标签、tooltip 与 Accessibility name；紧凑模式不绘制该文字。 |
+| `options.value` | boolean | 否 | `false` | 初始开关值。 |
+| `options.disabled` | boolean | 否 | `false` | 是否禁止用户切换。 |
+| `options.width` | number | 否 | `140` | 固定宽度，范围 `48–360` pt；`48–79` 为只显示滑块的紧凑模式。 |
+| `callback` | function | 否 | 无 | 接收带 `type:"change"`、`checked` 与 `value` 的事件。 |
+
+**返回值**
+
+`undefined`。
+
+**行为与错误**
+
+Switch 表示会立即改变行为的 on/off 设置，不替代 Checkbox 的“是否纳入”语义。紧凑模式隐藏可见 label，但仍保留完整 tooltip 与 Accessibility name。macOS 非激活悬浮工具条同样接受首击；开启使用蓝色轨道、关闭使用中性灰色，禁用态再降低透明度。只能在首次 `show()` 前增加；无效字段、宽度、callback 或重复 id 分别返回 `INVALID_SPEC` / `DUPLICATE_ID`。
+
+**示例**
+
+```js
+toolbar.addSwitch("liveSync", "实时同步", { value: true }, event => {
+  console.log(event.checked);
+});
+```
+
+## toolbar.addCheckbox(id, label, options?, callback?)
+
+增加表示独立选择或纳入状态的原生 Checkbox。
+
+**签名**
+
+```ts
+addCheckbox(id: string, label: string, options?: {
+  value?: boolean; disabled?: boolean; width?: number;
+}, callback?: (event) => unknown | Promise<unknown>): void
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `id` | string | 是 | 无 | 严格且全 toolbar 唯一的 item id。 |
+| `label` | string | 是 | 无 | 1–60 个 Unicode 字符；可见语义标签及 Accessibility name。 |
+| `options.value` | boolean | 否 | `false` | 初始勾选值。 |
+| `options.disabled` | boolean | 否 | `false` | 是否禁止用户修改。 |
+| `options.width` | number | 否 | `140` | 固定宽度，范围 `80–360` pt。 |
+| `callback` | function | 否 | 无 | 接收带 `type:"change"`、`checked` 与 `value` 的事件。 |
+
+**返回值**
+
+`undefined`。
+
+**行为与错误**
+
+Checkbox 表示“选择/纳入”，不会与相邻 Checkbox 自动互斥。需要互斥选项时使用 `addSegmentedControl()`。声明时的严格 id、固定宽度、资源配额和错误规则与 Switch 相同。
+
+**示例**
+
+```js
+toolbar.addCheckbox("includeLogs", "包含日志", { value: true });
+```
+
+## toolbar.addInput(id, label, options?, callback?)
+
+增加一个有界的单行原生 Input。
+
+**签名**
+
+```ts
+addInput(id: string, label: string, options?: {
+  value?: string; placeholder?: string; maxLength?: number;
+  disabled?: boolean; width?: number;
+}, callback?: (event) => unknown | Promise<unknown>): void
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `id` | string | 是 | 无 | 严格且唯一的 item id。 |
+| `label` | string | 是 | 无 | 1–60 个 Unicode 字符；作为 tooltip 和 Accessibility name。 |
+| `options.value` | string | 否 | `""` | 初始单行值。 |
+| `options.placeholder` | string | 否 | `""` | 最多 120 个 Unicode 字符。 |
+| `options.maxLength` | integer | 否 | `256` | 范围 `1–256`；native peer 与 EventLoop owner 都执行上限。 |
+| `options.disabled` | boolean | 否 | `false` | 是否禁止编辑。 |
+| `options.width` | number | 否 | `180` | 固定宽度，范围 `80–360` pt。 |
+| `callback` | function | 否 | 无 | 接收可合并的 `type:"input"` 事件，`value` 为当前 string。 |
+
+**返回值**
+
+`undefined`。
+
+**行为与错误**
+
+Input 使用明确的 activation/focus 契约：`show()` 仍通过 `orderFrontRegardless` 显示，不激活应用、不取得键盘焦点；只有用户直接点击可用的真实 native 输入框时，UI host 才激活并让该字段成为 first responder。API 不提供 `focus()` / `autofocus`，因此脚本和普通状态更新不能在后台抢走键盘。含 Input 的 panel 可以在这次用户动作后成为 key window；隐藏、失去活动键盘上下文或关闭窗口后，readback 的 `focused` 为 `false`。多行输入、验证提示、提交按钮编排和复杂表单使用 `ui.createWindow()` 或 Dialog。
+
+无效类型、超长 value/placeholder、越界 maxLength/width、未知字段或 callback 返回 `INVALID_SPEC`。
+
+**示例**
+
+```js
+toolbar.addInput("query", "搜索", {
+  placeholder: "输入关键词", maxLength: 64, width: 200
+}, event => console.log(event.value));
+```
+
+## toolbar.addSelect(id, label, options, callback?)
+
+增加一个从固定有界选项中选择单值的原生 Select。
+
+**签名**
+
+```ts
+addSelect(id: string, label: string, options: {
+  options: Array<{ value: string; label: string }>;
+  value?: string; disabled?: boolean; width?: number;
+}, callback?: (event) => unknown | Promise<unknown>): void
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `id` | string | 是 | 无 | 严格且全 toolbar 唯一的 item id。 |
+| `label` | string | 是 | 无 | 1–60 个 Unicode 字符；作为 tooltip 与 Accessibility name。 |
+| `options.options` | Array | 是 | 无 | 2–12 个 `{value,label}`；value 唯一，value/label 各 1–40 个 Unicode 字符。 |
+| `options.value` | string | 否 | 首项 value | 必须匹配一个已声明 option value。 |
+| `options.disabled` | boolean | 否 | `false` | 是否禁止用户选择。 |
+| `options.width` | number | 否 | `160` | 固定宽度，范围 `80–360` pt。 |
+| `callback` | function | 否 | 无 | 接收带 `type:"change"` 与当前 `value` 的事件。 |
+
+**返回值**
+
+`undefined`。
+
+**行为与错误**
+
+选项集合和宽度在声明后不可变；运行时只更新 value/disabled。无匹配 value、重复/越界选项、未知字段或 callback 返回 `INVALID_SPEC`。
+
+**示例**
+
+```js
+toolbar.addSelect("quality", "质量", {
+  options: [{ value: "fast", label: "快速" }, { value: "best", label: "最佳" }],
+  value: "best"
+});
+```
+
+## toolbar.addSlider(id, label, options?, callback?)
+
+增加有界数值范围的原生 Slider。
+
+**签名**
+
+```ts
+addSlider(id: string, label: string, options?: {
+  min?: number; max?: number; value?: number; step?: number;
+  disabled?: boolean; width?: number;
+}, callback?: (event) => unknown | Promise<unknown>): void
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `id` | string | 是 | 无 | 严格且全 toolbar 唯一的 item id。 |
+| `label` | string | 是 | 无 | 1–60 个 Unicode 字符；作为 tooltip 与 Accessibility name。 |
+| `options.min` | finite number | 否 | `0` | 范围下界，必须小于 max。 |
+| `options.max` | finite number | 否 | `100` | 范围上界，必须大于 min。 |
+| `options.value` | finite number | 否 | min | 初始值，必须位于闭区间内。 |
+| `options.step` | finite number | 否 | `1` | 必须满足 `0 < step <= max-min`。 |
+| `options.disabled` | boolean | 否 | `false` | 是否禁止用户调整。 |
+| `options.width` | number | 否 | `180` | 固定宽度，范围 `80–360` pt。 |
+| `callback` | function | 否 | 无 | 接收带 `type:"change"` 与吸附后 `value` 的事件。 |
+
+**返回值**
+
+`undefined`。
+
+**行为与错误**
+
+native peer 把用户变化吸附到声明的 step 后发送 `change`；范围、step 和宽度不可更新。无效范围或未知字段返回 `INVALID_SPEC`。
+
+**示例**
+
+```js
+toolbar.addSlider("volume", "音量", { min: 0, max: 10, value: 4, step: 1 });
+```
+
+## toolbar.addSegmentedControl(id, label, options, callback?)
+
+增加一组 first-class、互斥的原生分段选项。
+
+**签名**
+
+```ts
+addSegmentedControl(id: string, label: string, options: {
+  options: Array<{ value: string; label: string }>;
+  value?: string; disabled?: boolean; width?: number;
+}, callback?: (event) => unknown | Promise<unknown>): void
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `id` | string | 是 | 无 | 严格且全 toolbar 唯一的 item id。 |
+| `label` | string | 是 | 无 | 1–60 个 Unicode 字符；作为组的 Accessibility name。 |
+| `options.options` | Array | 是 | 无 | 2–12 个 `{value,label}`；value 唯一，value/label 各 1–40 个 Unicode 字符。 |
+| `options.value` | string | 否 | 首项 value | 必须匹配一个已声明 option value。 |
+| `options.disabled` | boolean | 否 | `false` | 是否禁止用户选择。 |
+| `options.width` | number | 否 | `200` | 固定宽度，范围 `80–360` pt。 |
+| `callback` | function | 否 | 无 | 接收带 `type:"change"` 与单一当前 `value` 的事件。 |
+
+**返回值**
+
+`undefined`。
+
+**行为与错误**
+
+这是 FloatingWindow 的互斥选择语义，native readback 使用 group/radio-group Accessibility role，并发送单一 value 的 `change`。不提供零散 Radio，也不提供无语义 ButtonGroup container；普通 Button 的视觉分组继续使用 Separator / Spacer。错误规则与 Select 相同。
+
+**示例**
+
+```js
+toolbar.addSegmentedControl("scope", "范围", {
+  options: [{ value: "page", label: "页面" }, { value: "app", label: "应用" }]
+});
+```
+
+## toolbar.addProgress(id, label, options?)
+
+增加独立的原生 Progress item。
+
+**签名**
+
+```ts
+addProgress(id: string, label: string, options?: {
+  min?: number; max?: number; value?: number;
+  indeterminate?: boolean; width?: number;
+}): void
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `id` | string | 是 | 无 | 严格且全 toolbar 唯一的 item id。 |
+| `label` | string | 是 | 无 | 1–60 个 Unicode 字符；作为 tooltip 与 Accessibility name。 |
+| `options.min` | finite number | 否 | `0` | 确定进度的范围下界，必须小于 max。 |
+| `options.max` | finite number | 否 | `1` | 确定进度的范围上界，必须大于 min。 |
+| `options.value` | finite number | 否 | min | 当前值，必须位于闭区间内。 |
+| `options.indeterminate` | boolean | 否 | `false` | 是否呈现为不确定进度。 |
+| `options.width` | number | 否 | `160` | 固定宽度，范围 `80–360` pt。 |
+
+**返回值**
+
+`undefined`。
+
+**行为与错误**
+
+Progress 不可交互、没有 callback，也不占 Button 的 busy 状态；确定和不确定模式可通过 `updateControl()` 切换，固定外框确保更新不改变窗口几何。无效范围、未知字段或资源溢出返回 `INVALID_SPEC`。
+
+**示例**
+
+```js
+toolbar.addProgress("upload", "上传进度", { value: 0.25 });
+```
+
+## toolbar.removeControl(id)
+
+在首次显示前删除一个 Switch、Checkbox、Input、Select、Slider、SegmentedControl 或 Progress。
+
+**签名**
+
+```ts
+removeControl(id: string): void
+```
+
+**参数**
+
+`id`：已声明的 native control id。
+
+**返回值**
+
+`undefined`。
+
+**行为与错误**
+
+同时清理相邻 Separator / Spacer。不存在或属于 Button/Label/结构项的 id 返回 `NOT_FOUND`；首次 `show()` 开始后返回 `INVALID_STATE`。
+
+**示例**
+
+```js
+toolbar.removeControl("temporaryFilter");
+```
+
+## toolbar.updateControl(id, patch)
+
+更新原生控件的值或允许变化的呈现状态。
+
+**签名**
+
+```ts
+updateControl(id: string, patch: object): Promise<ControlState>
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `id` | string | 是 | 已存在的 native control id。 |
+| `patch` | object | 是 | 至少包含下面按 kind 允许的一个字段。 |
+
+| 控件 | 可更新字段 |
+| --- | --- |
+| Switch / Checkbox | `checked: boolean`、`disabled: boolean` |
+| Input | `value: string`、`placeholder: string`、`disabled: boolean` |
+| Select / SegmentedControl | `value: string`、`disabled: boolean` |
+| Slider | `value: number`、`disabled: boolean` |
+| Progress | `value: number`、`indeterminate: boolean` |
+
+**返回值**
+
+`Promise<ControlState>`，包含 EventLoop owner 状态与 native applied readback。
+
+**行为与错误**
+
+patch 至少有一个字段。`width`、choice options、数值范围/step 和 Input maxLength 固定，更新它们或传未知字段返回 `INVALID_SPEC`。显示前后均可更新；创建中返回 `BUSY`，关闭后返回 `INVALID_STATE`，不存在或非 control id 返回 `NOT_FOUND`。每次有效更新推进全 toolbar 单调 revision；native host 忽略陈旧 revision。
+
+**示例**
+
+```js
+await toolbar.updateControl("upload", { value: 0.6 });
+await toolbar.updateControl("quality", { value: "fast" });
+```
+
+## toolbar.getControlState(id)
+
+读取一个原生控件的逻辑值、native value、Accessibility 和 bounds。
+
+**签名**
+
+```ts
+getControlState(id: string): Promise<ControlState>
+```
+
+**参数**
+
+`id`：已声明的 native control id。
+
+**返回值**
+
+所有状态包含 `id`、`type`、`label`、`width`、`disabled`、`revision`、`renderedValue`、`accessibilityName`、`accessibilityRole`、`accessibilitySubrole`、`accessibilityValue`、`focused`、`localBounds` 与 `screenBounds`。Switch 使用 `AXCheckBox` role 加 `AXSwitch` subrole，与没有 subrole 的 Checkbox 保持明确语义差异；SegmentedControl 使用 `AXRadioGroup`。此外 Toggle 返回 boolean `value`；Input 返回 string `value`、placeholder/maxLength；Choice 返回 string `value` 与 options；Slider 返回 number value/min/max/step；Progress 返回 value/min/max/indeterminate，indeterminate 时 `renderedValue` 为 `null`、Accessibility value 为 `"indeterminate"`。
+
+**行为与错误**
+
+显示前 native-only bounds 为零；显示后来自真实平台 peer。不存在或其他 item 类型返回带 `capability:"control"` 的 `NOT_FOUND`。
+
+**示例**
+
+```js
+const state = await toolbar.getControlState("scope");
+console.log(state.type, state.value, state.accessibilityRole);
+```
+
+## toolbar.onControlChange(id, callback)
+
+为已声明的交互控件绑定或替换 EventLoop-owned callback。
+
+**签名**
+
+```ts
+onControlChange(id: string, callback: (event) => unknown | Promise<unknown>): void
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `id` | string | 是 | Switch、Checkbox、Input、Select、Slider 或 SegmentedControl id。 |
+| `callback` | function | 是 | 接收原生事件；Input 为 `input`，其余为 `change`。 |
+
+**返回值**
+
+`undefined`。
+
+**行为与错误**
+
+Progress 不可绑定。callback 只在所属 Goja EventLoop owner 上执行；同步值和 Promise 都被观察，失败进入 Runtime async error 通道。无效 id、Progress 或非函数 callback 返回 `NOT_FOUND` / `INVALID_SPEC`。
+
+**示例**
+
+```js
+toolbar.onControlChange("liveSync", event => console.log(event.checked));
+```
+
+## toolbar.addSeparator(id)
+
+增加一条只可在首次显示前声明的 1pt 原生分割线。horizontal 为竖线，vertical 为横线；它只允许位于两个内容项之间。
+
+**签名**
+
+```ts
+addSeparator(id: string): void
+```
+
+**参数**
+
+`id`：严格 toolbar item id，与其他 item 共用命名空间。
+
+**返回值**
+
+`undefined`。
+
+**行为与错误**
+
+首位、末位、连续结构项和重复 id 不合法。分割线没有 callback、状态、tooltip、focus 或 Accessibility element。
+
+**示例**
+
+```js
+toolbar.addButton("reply", "回复", "arrowshape.turn.up.left.fill", reply);
+toolbar.addSeparator("reply-status-divider");
+toolbar.addLabel("status", "Ready");
+```
+
+## toolbar.addSpacer(id)
+
+增加一个只可在首次显示前声明的固定 8pt 原生分组间距；它不是 flexible space。
+
+**签名**
+
+```ts
+addSpacer(id: string): void
+```
+
+**参数**
+
+`id`：严格 toolbar item id，与其他 item 共用命名空间。
+
+**返回值**
+
+`undefined`。
+
+**行为与错误**
+
+首位、末位、连续结构项和重复 id 不合法。Spacer 没有 callback、状态、tooltip、focus 或 Accessibility element。
+
+**示例**
+
+```js
+toolbar.addLabel("status", "3 tasks ready");
+toolbar.addSpacer("status-help-space");
+toolbar.addButton("help", "帮助", "questionmark.circle.fill", help);
+```
+
+Separator 与 Spacer 都是真实 native structure primitive，不是 disabled Button：
+
+```js
+toolbar.addButton("reply", "回复", "arrowshape.turn.up.left.fill", reply);
+toolbar.addSeparator("reply-order-divider");
+toolbar.addButton("order", "订单", "doc.text.fill", openOrder);
+toolbar.addSpacer("order-help-space");
+toolbar.addButton("help", "帮助", "questionmark.circle.fill", help);
+```
+
+- `Separator` 是 1pt native line；horizontal 为竖线，vertical 为横线。它在两侧各保留一个标准 8pt gap，因此是紧凑、可见的 17pt group boundary，而不是孤立的空白区域。
+- `Spacer` 是固定、无绘制的 8pt group gap（一个标准 Button gap）；host 不会在它后面再叠加第二个 stack gap，也不会额外占用 intrinsic 8pt track。它不是 arbitrary width、flexible space、percentage 或负间距。
+- 两者都没有 callback、busy、active、error、tooltip、focus target 或 Accessibility element；它们不会出现在任何 state readback 中。
+- 所有 item 的 `id` 共用一个严格命名空间，匹配 Button id 规则，重复返回 `DUPLICATE_ID`。这只用于稳定证据、调试和 strict validation，不会成为业务控件。
+
+结构项只能表达相邻内容组的边界：不能在首位或末位，不能连续；构建期间可暂时以 Separator / Spacer 结尾来继续添加下一个内容项，但在 `show()` / 未显示的 `getState()` 时仍未闭合的结构会返回 `INVALID_SPEC`。show 后不能 add/remove 任何内容项或结构项。
+
+horizontal planner 按内容项 capacity、`maxWidth` 和 `maxRows` 计算行；Separator / Spacer 不占内容 quota，但会占真实视觉空间。如果 boundary 与自然换行恰好重合，host 不绘制该 boundary，而让换行本身承担分组，因此不会产生空行、行首 / 行尾 separator 或错误窗口尺寸。
+
+资源限制分别计算：horizontal 最多 32 个内容项、63 个 total item；vertical 最多 5 个内容项、9 个 total item。Choice options 每项最多 12 个，Input 最多 256 个字符，所有 control 固定宽度不超过 360pt。63 与 9 分别来自 `2 × MaxContentItems - 1`，不能通过任何 control 或无限 Separator / Spacer 绕过 compact toolbar 限制。
+
+没有 `addGroup(title)`：调用方只需用顺序和 Separator / Spacer 表达视觉边界。互斥语义使用一个 `SegmentedControl`；不会把零散 Radio 或普通 Button 包进伪 group。Label 是单行短状态，Progress 是独立固定几何进度；Button 内部短任务反馈仍可使用 `busy`。Badge 是 Button 的附属状态，不是重复 Label 的独立 item。
+
+`FloatingWindow` 的按钮正文始终只有图标，因此 `label` 是按钮文字的单一来源：每个按钮都会把它显示为原生 tooltip，并同时用作平台 Accessibility name。无需再传一份容易与 `label` 不一致的 tooltip 文案；需要修改提示时调用 `updateButton(id, { label })`，原生 tooltip 与 Accessibility name 会在同一次更新中同步变化。`ui.createWindow()` 中自行声明的 HTML 按钮不走这套映射，可按 HTML 标准分别使用可见文字、`title` tooltip 与 `aria-label`。
+
+内置图标注册表当前提供 **160** 个常用图标键，覆盖播放/导航、通信/人员、媒体/编辑、文件/数据和设备/状态。除了沿用稳定的 SF Symbol 风格键名（例如 `arrow.clockwise`、`envelope.fill`、`camera.fill`、`doc.text.fill`、`chart.line.uptrend.xyaxis` 或 `wifi`），还提供十个面向主流工作流的语义键：`ai.*` 处理 AI 协作，`automation.*` 处理无人值守与人工介入流程。编辑器会通过 `ClawdeskFloatingIconKey` 提供完整补全。完整名称清单由同一注册表生成类型与 host 映射；macOS 使用审核过的 SF Symbol recipe，Windows 使用审核过的 Segoe UI Symbol glyph。远程 URL、`javascript:`、越出脚本目录的路径及未注册内置名称一律以带 `capability: "icon"` 的 `INVALID_SPEC` 拒绝。
+
+### 按主流场景选择默认图标
+
+| 场景 | 首选键 | 当前审核的 macOS SF Symbol | 适用边界 |
+| --- | --- | --- | --- |
+| AI 助手 / Agent 入口 | `ai.assistant` | `brain` | 打开助手、对话或 Agent 面板；不表示已经执行。 |
+| AI 生成 / 改写 | `ai.generate` | `wand.and.rays` | 生成、摘要、润色或转换内容。 |
+| AI 分析 / 文档理解 | `ai.analyze` | `doc.text.magnifyingglass` | 分析文档、提取结构或解释内容。 |
+| AI 检索 / 问答 | `ai.search` | `text.magnifyingglass` | 语义搜索、提问和资料定位。 |
+| 全自动运行 | `automation.run` | `arrow.triangle.2.circlepath` | 已配置、可无人值守的工作流；开始/停止仍应给出独立状态。 |
+| 定时自动化 | `automation.schedule` | `clock.arrow.circlepath` | 计划任务、轮询和周期执行。 |
+| 自动化触发 | `automation.trigger` | `bolt.circle.fill` | 事件触发、Webhook 或快捷启动。 |
+| 自动化配置 | `automation.configure` | `gearshape.2.fill` | 编辑工作流或规则，不表示执行。 |
+| 半自动：人工审阅 | `automation.review` | `rectangle.and.hand.point.up.left.fill` | 自动处理到人工检查点；避免误用为“自动批准”。 |
+| 半自动：人工批准 | `automation.approve` | `hand.tap.fill` | 明确需要用户确认后才能继续的步骤。 |
+
+语义键是受控的产品级别别名，在各平台稳定映射到审核过的系统图形；表中列出 macOS recipe，Windows host 使用对应的 Segoe glyph。它们让业务代码表达意图，而不是让用户从近似的图形里猜测。`label` 仍必须写清真实动作，例如“运行日报工作流”“等待人工批准”，不能只写“自动化”。
+
+### 查找和试用全部内置图标
+
+从仓库根目录运行图标目录示例：
+
+```bash
+./opendesk -ui -script examples/custom-ui/icon-list.js -console-mode script -log-dir .runtime/examples/custom-ui/icon-list
+```
+
+示例直接读取唯一注册表 `pkg/customui/assets/toolbar-icons-v1.json`，不会维护第二份图标名称。它使用 `ui.createWindow()` 打开一个受限、可滚动的真实 Runtime 窗口，初始位于左上安全区域且仍可拖动；配套的 `examples/custom-ui/icon-list.html` 在同一个控件树中一次声明全部 160 个图标按钮，固定按每行 10 个、共 16 行排列，不存在翻页，也不再用 30/32 个 `FloatingWindow` 槽位冒充完整目录。controller 会在显示前检查 `panel.controls()` 中恰好存在 160 个、顺序与注册表一致的 button。
+
+这里使用 `ui.createWindow()` 是因为 `FloatingWindow` 的 32 按钮上限属于简单原生工具栏的安全契约，不应为了目录场景放宽。目录图片由当前 macOS 根据注册表中的同一 SF Symbol recipe 生成，并作为受限 base64 PNG 内嵌；HTML 不包含业务 `<script>`，160 个 click listener、剪贴板调用和可见状态更新仍全部由 `icon-list.js` 的 Runtime controller 持有。
+
+每个按钮都以紧凑卡片显示较小图标与名称；编号和“点击复制代码”不重复铺在每张卡片上，而是保留在 DOM 的稳定 id / index 与完整 `title` / `aria-label` 中。完整提示仍使用“`图标名 · 点击复制按钮代码`”，实际 host 还会为 WebView button 同步原生 Accessibility button peer。点击图标会直接把以下一行代码写入系统剪贴板，将当前卡片显示为绿色选中状态，并在固定状态栏显示“已复制”作为成功反馈：
+
+```js
+toolbar.addButton("icon-camera-fill", "动作说明", "camera.fill", () => {});
+```
+
+复制使用稳定的 [clipboard.copy()](clipboard.md#clipboardcopytext写入文本)。控制台还会输出 `CUSTOM_UI_ICON_COPIED`，分别保留唯一 `id`、`icon`、`usage`、注册表序号和总数，便于自动化或日志检查。剪贴板写入失败时，固定状态栏和 `CUSTOM_UI_ICON_LIST_ERROR` 会显示失败，不会打印虚假的成功记录。
+
+如果主要目的是查找、复制或保存图标名称，直接打开仓库内长期保存的自包含图鉴：
+
+[打开 docs/custom-ui/icon-list.html](../custom-ui/icon-list.html)。
+
+它默认以大图模式显示，支持切换紧凑模式、名称搜索、点击复制图标名、复制完整 `addButton()` 用法、复制全部名称以及保存 JSON。HTML 内的 160 个图像由 macOS 根据同一注册表生成并以内联 data image 保存，因此移动单个 HTML 文件也能离线使用，不依赖 `.runtime/` 或另外 160 张图片。
+
+维护者需要重新渲染和检查时，从仓库根目录运行：
+
+```bash
+bash scripts/render_custom_ui_icon_catalog.sh
+```
+
+临时结果位于 `.runtime/tests/custom-ui/icon-list/`：`index.html` 是浏览器图鉴，`runtime-window.html` 是无业务脚本的受限 Runtime 视图，`contact-sheet.png` 用于快速视觉检查，`manifest.json` 记录系统版本和实际渲染数量。确认 160 个图标都正确后，再显式发布正式 HTML：
+
+```bash
+bash scripts/render_custom_ui_icon_catalog.sh --publish
+```
+
+命令会同时更新 `docs/custom-ui/icon-list.html` 和 `examples/custom-ui/icon-list.html`；两者都是生成并提交的资产，名称仍来自唯一注册表，没有第二份手写清单。`.runtime/` 只是可随时删除和重新生成的维护证据。
+
+`docs/custom-ui/icon-list.html` 是浏览器选型工具；`examples/custom-ui/icon-list.html` 只有通过 `icon-list.js` 加载时才构成真实 Runtime Custom UI。浏览器 HTML 成功不能替代 Runtime callback、Accessibility、剪贴板、滚动和窗口生命周期验收。
+
+最小使用方式仍然是直接传入内置名称：
+
+```js
+const toolbar = new FloatingWindow({ x: 100, y: 100 });
+toolbar.addButton("save", "保存", "tray.and.arrow.down.fill", () => {
+  console.log("save");
+});
+await toolbar.show();
+await toolbar.waitUntilClosed();
+```
+
+### 用户自定义按钮图标
+
+`FloatingWindow.addButton()` 和 `updateButton()` 可通过 `{path, renderingMode?}` 接收脚本目录内的 PNG/JPEG 路径。string 始终保留给内置图标键，所以不要把 `"./icon.png"` 当成 icon string；应传 `{path:"./icon.png"}`，这样不会把文件路径和未来新增的内置名称混为一谈。相对路径以**执行中的 `.js` 文件所在目录**为根；绝对路径也必须解析到这个目录之内。推荐使用相对路径，示例从仓库根目录直接运行时仍按脚本位置解析：
+
+```js
+const toolbar = new FloatingWindow({
+  position: { mode: "anchor", horizontal: "right", vertical: "center", margin: 16 }
+});
+
+// original（默认）保留品牌图片原色。
+toolbar.addButton("brand", "打开品牌助手", {
+  path: "./icons/brand-assistant.png"
+}, () => console.log("brand assistant"));
+
+// template 使用图片 alpha 轮廓，并跟随 disabled/error 等原生状态着色。
+toolbar.addButton("approve", "人工批准", {
+  path: "./icons/approve.png",
+  renderingMode: "template"
+}, () => console.log("approve"));
+
+// 内置图标名称仍保持兼容，也可在显示前后切换图标来源。
+toolbar.addButton("settings", "设置", "gearshape.fill");
+await toolbar.updateButton("settings", {
+  icon: { path: "./icons/settings.png", renderingMode: "template" }
+});
+
+await toolbar.show();
+await toolbar.waitUntilClosed();
+```
+
+安全与资源边界：
+
+- 只接受扩展名和真实内容一致的 `.png`、`.jpg`、`.jpeg`；不接受 SVG、GIF、WebP、BMP、ICO、data URL、`file:` URL 或远程 URL。
+- 单张图片为 1–524288 bytes，宽高各为 1–1024 pixels；一个工具栏的自定义图片数据合计不超过 4194304 bytes。
+- `..` 目录穿越和解析后逃出脚本目录的符号链接会被拒绝。Runtime 读取并验证图片后，只把受限的 base64 raster payload 交给 native host；原始路径不会跨进程传递，host 还会独立校验格式、尺寸和总量。
+- `original` 保留原色，disabled 时降低透明度；`template` 适合单色 alpha mask，会使用与内置图标一致的 disabled/error tint。所有图片仍在固定 40×40pt 按钮中等比缩放到最多 22×22pt，不会改变工具栏布局。
+
+若需要 GIF/WebP、可见文字、不同图片尺寸或更自由的组合布局，继续使用 `ui.createWindow()` 中受限的 `img`；它的本地图片仍必须位于脚本目录 / `content.basePath` 内。
+
+## toolbar.removeLabel(id)
+
+在首次显示前删除一个 Label，并清理它相邻的 Separator / Spacer，避免留下非法边界。
+
+**签名**
+
+```ts
+removeLabel(id: string): void
+```
+
+**参数**
+
+`id`：已经声明的 Label id。
+
+**返回值**
+
+`undefined`。
+
+**行为与错误**
+
+不存在的 id 或其他 item 类型返回 `NOT_FOUND`；首次 `show()` 开始后返回 `INVALID_STATE`。
+
+**示例**
+
+```js
+toolbar.removeLabel("temporary-status");
+```
+
+## toolbar.updateLabel(id, patch)
+
+更新 Label 的文字、水平/垂直对齐或语义色，不改变声明宽度、40pt 高度和窗口几何。
+
+**签名**
+
+```ts
+updateLabel(id: string, patch: {
+  text?: string;
+  alignment?: "leading" | "center" | "trailing";
+  verticalAlignment?: "top" | "center" | "bottom";
+  tone?: "primary" | "secondary" | "success" | "warning" | "error";
+}): Promise<LabelState>
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `id` | string | 是 | 无 | 已声明的 Label id。 |
+| `patch.text` | string | 否 | 保持当前值 | 1–120 个 Unicode 字符。 |
+| `patch.alignment` | string | 否 | 保持当前值 | 水平对齐：`leading`、`center` 或 `trailing`。 |
+| `patch.verticalAlignment` | string | 否 | 保持当前值 | 垂直对齐：`top`、`center` 或 `bottom`。 |
+| `patch.tone` | string | 否 | 保持当前值 | `primary`、`secondary`、`success`、`warning` 或 `error`。 |
+
+**返回值**
+
+`Promise<LabelState>`，返回 EventLoop 逻辑状态和 native host 实际应用的 readback。
+
+**行为与错误**
+
+显示前后都可调用。patch 必须至少包含一个支持字段；`width` 与未知字段返回 `INVALID_SPEC`。不存在的 id 返回 `NOT_FOUND`，创建进行中返回 `BUSY`，窗口关闭后返回 `INVALID_STATE`。每次有效更新推进单调递增的 `revision`。
+
+**示例**
+
+```js
+await toolbar.updateLabel("status", {
+  text: "Recording 00:12",
+  alignment: "center",
+  verticalAlignment: "top",
+  tone: "warning"
+});
+```
+
+## toolbar.getLabelState(id)
+
+读取 Label 的逻辑状态、native 静态文字状态、Accessibility name 与实际外框/文字边界。
+
+**签名**
+
+```ts
+getLabelState(id: string): Promise<LabelState>
+```
+
+**参数**
+
+`id`：已声明的 Label id。
+
+**返回值**
+
+`LabelState` 包含 `id`、`text`、`width`、`alignment`、`verticalAlignment`、`tone`、`revision`、`renderedText`、`truncated`、`accessibilityName`、`accessibilityRole`、`accessibilityValue`、`renderedTextBounds`、`localBounds` 与 `screenBounds`。显示前 bounds 为零值；显示后全部展示属性来自 native host 的实际应用结果。`renderedText`、`accessibilityName` 与 `accessibilityValue` 保留完整文字，`accessibilityRole` 固定为 `staticText`，`truncated` 只描述视觉上的末尾截断。`renderedTextBounds` 与 `localBounds` 使用同一 toolbar-local 坐标空间，可验证水平或垂直中心是否真正落在固定 Label 外框中心。
+
+**行为与错误**
+
+不存在的 Label 或传入 Button / 结构项 id 时返回带 `capability: "label"` 的 `NOT_FOUND`。
+
+**示例**
+
+```js
+const state = await toolbar.getLabelState("status");
+console.log(state.alignment, state.verticalAlignment, state.renderedTextBounds);
+```
+
+## toolbar：状态、事件与生命周期
+
+| 方法 | 参数 | 返回 | 说明 |
+| --- | --- | --- | --- |
+| `addButton(id, label, icon, callback?)` | 见上表 | `void` | 增加有序图标按钮。 |
+| `addLabel(id, text, options?)` | 见上文 | `void` | 增加固定宽度、40pt 高的可见 native Label。 |
+| `addSwitch(id, label, options?, callback?)` | 见上文 | `void` | 增加立即生效的 on/off 开关。 |
+| `addCheckbox(id, label, options?, callback?)` | 见上文 | `void` | 增加独立选择项。 |
+| `addInput(id, label, options?, callback?)` | 见上文 | `void` | 增加有界单行输入；只在用户直接进入时激活键盘。 |
+| `addSelect(id, label, options, callback?)` | 见上文 | `void` | 增加固定 options 的单值选择。 |
+| `addSlider(id, label, options?, callback?)` | 见上文 | `void` | 增加有界、按 step 吸附的数值滑杆。 |
+| `addSegmentedControl(id, label, options, callback?)` | 见上文 | `void` | 增加 first-class 互斥选项组。 |
+| `addProgress(id, label, options?)` | 见上文 | `void` | 增加确定或不确定的独立进度。 |
+| `addSeparator(id)` | 严格 item id | `void` | 增加非交互的 native 分割线；只允许在相邻内容组之间。 |
+| `addSpacer(id)` | 严格 item id | `void` | 增加固定 8pt group gap；不是 flexible space。 |
+| `removeButton(id)` | `id: string` | `void` | 在首次 `show()` 前删除按钮及其相邻 separator/spacer，避免留下无效边界；不存在时返回 `NOT_FOUND`。 |
+| `removeLabel(id)` | `id: string` | `void` | 在首次 `show()` 前删除 Label 及其相邻结构边界。 |
+| `removeControl(id)` | `id: string` | `void` | 在首次 `show()` 前删除一个 control 及相邻结构边界。 |
+| `updateButton(id, patch)` | `id: string`、见下表 | `Promise<ButtonState>` | 更新非结构状态；显示前后都可调用。 |
+| `updateLabel(id, patch)` | `id: string`、见上文 | `Promise<LabelState>` | 更新文字、水平/垂直对齐或 tone；固定几何不变。 |
+| `updateControl(id, patch)` | `id: string`、见上文 | `Promise<ControlState>` | 按 control kind 更新允许的值/状态；固定几何不变。 |
+| `getButtonState(id)` | `id: string` | `Promise<ButtonState>` | 返回逻辑状态及 local/screen bounds。 |
+| `getLabelState(id)` | `id: string` | `Promise<LabelState>` | 返回 native 对齐、完整文字、截断状态、Accessibility name 及外框/文字 bounds。 |
+| `getControlState(id)` | `id: string` | `Promise<ControlState>` | 返回 discriminated value、native/AX readback 与 bounds。 |
+| `onButtonClick(id, callback)` | `id: string`、callback | `void` | 为已声明按钮绑定或替换 callback。 |
+| `onControlChange(id, callback)` | `id: string`、callback | `void` | 绑定 control callback；Input 发 `input`，其余交互 control 发 `change`。 |
+| `onError(callback)` | `(error) => unknown \| Promise<unknown>` | `void` | 接收 callback 失败的结构化错误。 |
+| `show()` | 无 | `Promise<WindowState>` | 创建或显示原生工具栏；至少需要一个内容项。 |
+| `hide()` | 无 | `Promise<WindowState \| null>` | 隐藏工具栏。 |
+| `close()` | 无 | `Promise<WindowState \| null>` | 关闭工具栏并释放资源。 |
+| `getState()` | 无 | `Promise<WindowState>` | 读取统一 WindowState；首次 show 前返回完整、已闭合声明的 hidden state。 |
+| `setPosition(x, y)` | 两个有限 number | `Promise<Bounds \| WindowState>` | 移动原生顶层窗口。 |
+| `setPlacement(placement)` | 见“窗口停靠与对齐” | `Promise<Placement \| WindowState>` | 创建前可保存 `active` / `primary` anchor；创建后按目标显示器工作区重新定位，`current` 仅在此时可用。 |
+| `setAlwaysOnTop(enabled)` | `enabled: boolean` | `Promise<boolean \| WindowState>` | 设置真实原生窗口层级。 |
+| `setDraggable(enabled)` | `enabled: boolean` | `Promise<WindowState>` | 运行时切换真实 native dragging，并返回 host readback。 |
+| `on("move" \| "close", listener)` | listener | `() => void` | 监听 toolbars 的最小 lifecycle；返回取消订阅函数。 |
+| `waitUntilClosed()` | 无 | `Promise<WindowState>` | 保持 Runtime 存活直到工具栏关闭。 |
+| `run()` | 无 | `Promise<WindowState>` | 与 `waitUntilClosed()` 相同。 |
+
+## toolbar.updateButton(id, patch)
+
+更新 Button 的 icon、语义标签、业务状态、错误或附属 badge，不改变 40×40pt 外框。
+
+**签名**
+
+```ts
+updateButton(id: string, patch: ButtonPatch): Promise<ButtonState>
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `id` | string | 是 | 已声明的 Button id。 |
+| `patch` | object | 是 | 至少包含下列一个字段；不接受未知字段。 |
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `icon` | 内置 icon 名称或 `{path, renderingMode?}` | 替换图标；自定义图片遵循上面的脚本目录、格式和资源限制。 |
+| `label` | string | 按 `addButton()` 的 label 规则更新 tooltip 与 Accessibility name。 |
+| `active` | boolean | 更新持久业务选中态。 |
+| `disabled` | boolean | 更新是否禁止交互。 |
+| `busy` | boolean | 更新原生 busy spinner；busy 时 badge 暂时隐藏。 |
+| `error` | string / `null` | 设置错误状态；`null` 清除，字符串最多 2048 bytes。 |
+| `badge` | string / integer / `null` | 附属 badge；string 为 1–4 个紧凑 Unicode 字符，integer 为 0–999，`null` 清除。 |
+
+**返回值**
+
+`Promise<ButtonState>`，包含规范化 owner 状态与 native readback。
+
+**行为与错误**
+
+`addButton()` 默认创建瞬时普通按钮，点击不会自动写入 `active`。只有“录制中”“当前模式”等需要持续表达的业务状态才应显式设置 `active: true`；复制、发送、刷新等一次性动作保留默认的 `active: false`，使用原生 pressed 和 callback 期间的 busy 反馈即可。
+
+Badge 的空字符串无效，必须用 `null` 清除；native host 会再次检查 1–4 字符上限。Badge 为空时不绘制；非空时由同一个 40×40pt Button 内的原生附属 pill 显示，不增加 content quota、不改变几何，busy 时暂时隐藏以保留 spinner，Accessibility value 同时宣布 active/inactive 与 badge。无效 badge、未知字段或错误类型返回 `INVALID_SPEC`；关闭后返回 `INVALID_STATE`。
+
+**示例**
+
+```js
+await toolbar.updateButton("inbox", { badge: 12, active: true });
+await toolbar.updateButton("inbox", { badge: null });
+```
+
+## toolbar.getButtonState(id)
+
+读取一个 Button 的逻辑状态、native 呈现、Accessibility 和 bounds。
+
+**签名**
+
+```ts
+getButtonState(id: string): Promise<ButtonState>
+```
+
+**参数**
+
+`id`：已声明的 Button id。
+
+**返回值**
+
+`ButtonState` 包含 `id`、`label`、`icon`、`active`、`disabled`、`busy`、`error`、`badge`、`revision`、`renderedText`、`tooltip`、`tooltipVisible`、`iconPresentation`、`accessibilityName`、`accessibilityValue`、`localBounds` 与 `screenBounds`。`icon` 按原声明读回：内置图标为 string，自定义图标为不含图片 bytes 的 `{path, renderingMode}`；`iconPresentation.kind` 在 macOS 内置图标上为 `builtIn`，在 Windows 内置图标上为 `windowsGlyph`，自定义图片为 `image`。Button 正文仍是 icon-only，`renderedText` 为空字符串；`tooltip` 与 `label` 一致。
+
+**行为与错误**
+
+显示前 native-only bounds 为零；显示后返回真实平台 peer 的 readback。不存在或非 Button id 返回带 `capability:"button"` 的 `NOT_FOUND`。
+
+**示例**
+
+```js
+const button = await toolbar.getButtonState("inbox");
+console.log(button.badge, button.accessibilityValue);
+```
+
+`getState()` 与 `ui.createWindow()` 的 `WindowHandle.getState()` 返回相同 `WindowState`：`status`、`visible`、`bounds`、`alwaysOnTop`、`draggable`、`revision`、`lastSequence`，以及 host 存在时的 `hostPid` / `nativeWindowId`、`onScreen`、`layer`、`alpha`。未 show 的 toolbar 没有 native identity，因此这些 host-only 字段为零值；anchor 初始位置也须等 native host 创建后才有实际屏幕坐标。
+
+`move` 由 `setPosition()`、`setPlacement()` 或用户真实拖动后的 native window movement 发出；事件带实际 `bounds`。`close` 由 script close、native title-bar close 或 teardown 的终结路径最多发出一次，带 `reason: "script"` 或 `"user"`。Toolbar 不会把 position 自动写入 `AppStorage`：是否保存 / 恢复位置是应用层策略。
+
+示例：
+
+```js
+const toolbar = new FloatingWindow({ x: 100, y: 100, theme: "dark" });
+let running = false;
+
+toolbar.addButton("startPause", "开始", "play.fill", async () => {
+  if (running) await userActions.pause();
+  else await userActions.start();
+  running = !running;
+  await toolbar.updateButton("startPause", running
+    ? { icon: "pause.fill", label: "暂停", active: true }
+    : { icon: "play.fill", label: "开始", active: false });
+});
+
+toolbar.addButton("stop", "停止", "stop.fill", async () => {
+  await userActions.stop();
+  running = false;
+  await toolbar.updateButton("startPause", {
+    icon: "play.fill", label: "开始", active: false
+  });
+});
+
+toolbar.onError(error => console.error(error.code, error.targetId, error.message));
+await toolbar.show();
+await toolbar.waitUntilClosed();
+```
+
+每个按钮默认 single-flight：callback 未完成时进入 busy，同一按钮的重复点击不会再次启动，其他按钮仍可响应。callback 的同步返回值与 Promise 都会被等待；成功清除 busy。失败会先清除 busy、设置 error 视觉状态，再产生 `UI_CALLBACK_FAILED`，包含 `operation`、`windowId`、`targetId` 和 `capability`。用 `onError` 显式处理；用 `updateButton(id, { error: null })` 清除错误状态。normal、hover、pressed、active、disabled、busy、error 始终使用相同的 40×40pt 外盒。
+
+## ui.createWindow：最小示例
+
+```js
+async function main() {
+  const panel = await ui.createWindow({
+    id: "helloPanel",
+    kind: "floating",
+    title: "Hello",
+    bounds: { x: 160, y: 160, width: 440, height: 180 },
+    alwaysOnTop: true,
+    draggable: true,
+    content: {
+      html: `<!doctype html><html><head><meta charset="utf-8"></head><body>
+        <header id="drag" data-clawdesk-drag>Custom UI</header>
+        <button id="refresh">Refresh</button>
+        <p id="status">Ready</p>
+      </body></html>`,
+      css: `body{font:14px -apple-system,sans-serif}button{padding:8px 12px}`
+    }
+  });
+
+  panel.control("refresh").on("click", async () => {
+    const info = System.getSystemInfo();
+    await panel.control("status").update({ text: JSON.stringify(info) });
+  });
+
+  await panel.show();
+  await panel.waitUntilClosed();
+}
+
+await main();
+```
+
+必须等待 `show()`。需要窗口继续存活时，再等待 `waitUntilClosed()`；不要用长时间 timer 或 sleep 维持示例。
+
+## ui.createWindow：窗口声明
+
+`ui.createWindow(spec)` 返回 `Promise<WindowHandle>`。声明的未知字段会被拒绝。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | string | 必填；同一 execution 内唯一，匹配 `[A-Za-z][A-Za-z0-9_-]{0,63}` |
+| `kind` | `normal` / `floating` | 默认 `normal` |
+| `title` | string | 原生窗口标题；当 HTML 已提供可见标题时可传空字符串，避免重复文本（原生窗体按钮与边框仍保留）。 |
+| `position` | discriminated union | 推荐且唯一的新声明形式：`{mode:"absolute",bounds}` 或 `{mode:"anchor",size,horizontal,vertical,margin?,display?}`。两个成员及顶层旧字段不能混用。 |
+| `bounds` | `{x,y,width,height}` | 已发布绝对窗口 API 的兼容写法；不能和 `position`、`size` 或 `placement` 同时声明。新代码使用 `position.mode:"absolute"`。 |
+| `size` | — | 顶层 `size` 已是废弃草案；移到 `position.mode:"anchor"` 内。 |
+| `alwaysOnTop` | boolean | 是否使用真实置顶层级 |
+| `draggable` | boolean | 是否启用带 `data-clawdesk-drag` 的拖动区；拖动区必须是带稳定 `id` 的受支持容器 |
+| `placement` | — | 顶层 `placement` 已是废弃草案；移到 `position.mode:"anchor"` 内。初始 `display` 只接受 `active` / `primary`。 |
+| `theme` | `system` / `dark` | 默认 `system`；FloatingWindow 固定使用 `dark` |
+| `content` | object | 必填；受限 HTML/CSS、局部资源根目录与本地文件入口。字段、互斥规则见下表。 |
+
+### content 参数
+
+`content` 只能使用下列五个字段；未知字段不会被忽略，而是以 `INVALID_SPEC` 拒绝。表格按推荐的
+`file`-first 写法排列：`file` 是清晰的首选文件入口，`html` 是内联内容或简写入口；二者是**互斥的
+内容来源**，不是“同时提供时由 `file` 覆盖 `html`”的优先级关系。
+
+| 字段 | 类型 | 是否必填 | 默认值 | 规则 |
+| --- | --- | --- | --- | --- |
+| `file` | string | 与 `html` 二选一 | — | **首选的显式文件入口**：只接受 HTML 路径字符串。路径可相对或绝对，但解析后的常规文件必须留在脚本目录内；文件内可写受限 `<style>`，也可使用同级 `css` 或 `cssFile`。 |
+| `html` | string | 与 `file` 二选一 | — | 与 `css` 成对书写时的受限内联 HTML；也可简写为相对于**脚本目录**的 `.html` / `.htm` 文件路径。 |
+| `css` | string | 否 | 空字符串 | 受限的内联 CSS。可与 `cssFile` 同时使用。 |
+| `cssFile` | string | 否 | 无 | 从脚本目录内读取一份本地 CSS 文件；可相对或绝对，但必须是目录内的常规文件。 |
+| `basePath` | string | 否 | 见下文 | 本地 `img src` 与 `control.update({source})` 的资源根目录；必须是脚本目录内已存在的目录。 |
+
+以下结构无论名称看起来多像 Web API 都不是当前契约：`content.children`、`content.assets`、
+`content.url`、`content.src` 以及任何远程资源字段。不要期望它们被兼容或静默忽略；应改用
+`html` / `file`、`css` / `cssFile` 与受控的 `basePath`。
+
+最小的内联内容写法如下。`html` 不是浏览器页面入口；其中不能写业务 `<script>` 或 inline
+event handler，交互逻辑仍在外层 JavaScript 中通过 `panel.control(id).on(...)` 注册。
+
+```js
+const panel = await ui.createWindow({
+  id: "inlinePanel",
+  bounds: { x: 160, y: 160, width: 440, height: 220 },
+  content: {
+    html: `<!doctype html><html><head><meta charset="utf-8"></head><body>
+      <main id="main"><button id="save">Save</button><span id="status">Ready</span></main>
+    </body></html>`,
+    css: `html,body{margin:0}main{padding:20px}button{padding:8px 12px}`
+  }
+});
+```
+
+文件内容推荐显式使用 `file`。**文件中的 HTML 自己就支持受限 `<style>`**，并且仍可叠加同级
+`css` 与 `cssFile`；这三种 CSS 来源不是只为 `html` 字符串提供的字段。脚本与
+`views/panel.html` 位于同一项目目录时，可以直接写：
+
+```js
+const panel = await ui.createWindow({
+  id: "filePanel",
+  title: "File-backed panel",
+  bounds: { x: 160, y: 160, width: 440, height: 220 },
+  content: {
+    file: "./views/panel.html",
+    css: `#status{font-weight:600}`,
+    cssFile: "./views/panel.css"
+  }
+});
+```
+
+例如 `views/panel.html` 本身可以包含：
+
+```html
+<!doctype html>
+<html><head><meta charset="utf-8">
+  <style>#status { color: seagreen; }</style>
+</head><body><main id="main"><span id="status">Ready</span></main></body></html>
+```
+
+因此 `file` 的 CSS 有三种来源：文件 HTML 的 `<style>`、同级 `content.css` 与同级
+`content.cssFile`。这是和内联 `html` 完全相同的模型；最终层叠顺序为 `<style>` → `css` →
+`cssFile`。不支持 `<link rel="stylesheet">`、CSS `@import` 或 CSS `url()`。
+
+这里“`file` 支持 CSS”的准确含义不是把 CSS 嵌套进 `file` 对象：
+
+```js
+// 支持
+content: { file: "./views/panel.html", css: "#status{color:green}" }
+
+// 不支持：file 必须是路径字符串
+content: { file: { html: "./views/panel.html", css: "#status{color:green}" } }
+```
+
+`file` 读到的字符串会先成为内部 `content.html`，再与内联 `html` 走完全相同的流程：解析受限
+HTML、检查稳定 id 和本地资源、提取 `<style>`、合并 `css` / `cssFile`、校验 CSS，并生成稳定的
+`controls()` 顺序。因此 `file` + `css`、`file` + `cssFile` 与 `file` + 两者同时存在都受支持。
+
+若代码已经用相对 `.html` 路径表示内容来源，也可使用简写；在下例中，后续处理与上面的 `file`
+写法相同：
+
+```js
+content: {
+  html: "./views/panel.html",
+  css: "#status{font-weight:600}",
+  cssFile: "./views/panel.css"
+}
+```
+
+仅“不含 `<` / `>` / 换行”且以 `.html` 或 `.htm` 结尾的**相对** `html` 值才会被当作文件路径读取；
+`html: "/absolute/path/panel.html"` 不是文件简写。包含 HTML 标记的值始终是内联 HTML。要显示字面量
+`panel.html`，请写 `<p>panel.html</p>`。`html` 与 `file` 同时提供、两者都缺失、空白字符串、文件不存在、
+非普通文件、`..` 越界或 symlink 越界都会返回 `INVALID_SPEC`。
+
+`basePath` 的默认值取决于内容来源：从 `html` 文件路径或 `file` 读取时，默认是该 HTML 文件所在目录；
+内联 HTML 默认是脚本目录。显式 `basePath` 覆盖这一默认值。因此下例的图片解析为
+`./views/images/ready.png`，而不是相对于当前工作目录：
+
+```js
+content: {
+  html: '<main id="main"><img id="readyIcon" src="images/ready.png"><span id="status">Ready</span></main>',
+  basePath: './views'
+}
+```
+
+`<style>` 中的规则、`css` 与 `cssFile` 可以同时存在。创建时会先校验 HTML，再把 HTML 内的
+`<style>` 提取到受限样式通道；最终层叠顺序为：HTML `<style>` → `css` → `cssFile`，因此相同选择器中
+较后的来源可以覆盖较前的规则。所有三处 CSS 都拒绝 `url()`、`image-set()`、`@import`、CSS escape
+和 `</style` 注入；不要用 CSS 加载图片。
+
+本地图片只能通过 `img src` 或 `update({source})` 使用 `basePath` 内的 PNG、JPEG、GIF、WebP、BMP
+或 ICO 文件。另可直接传入 base64 的 PNG、JPEG、GIF 或 WebP data image；远程 URL、`file:`、
+`javascript:`、协议相对 URL、`srcset` 与文档导航均会被拒绝。
+
+## ui.createWindow：HTML 与资源边界
+
+允许的主要元素包括布局容器、文本、`button`、`input`、`select`、`option` 和 `img`。所有交互元素必须有稳定 `id`；可公开为七类控件的带 ID 元素按 DOM 前序形成稳定 `controls()` 顺序，重复 ID 返回 `DUPLICATE_ID`。`style`、`meta`、`option` 等非公开节点不能借 `id` 进入控件树。
+
+公开拖动区使用 `data-clawdesk-drag`，且只能声明在带稳定 `id` 的 `div`、`section`、`main`、`header` 或 `footer` 容器上；属性值只能为空或 `true`。按钮、输入框等交互控件不能兼作拖动区。
+
+当前明确禁止：
+
+- `<script>` 和 HTML 内业务 JavaScript；
+- `onclick` 等 inline event handler；
+- `autofocus`；
+- meta refresh 和除 `<meta charset="utf-8">` 以外的 meta；
+- 后续 document navigation；
+- 远程 URL、`file:`、`javascript:`、协议相对 URL；
+- CSS `url()`、`image-set()`、`@import`、CSS escape 和 `</style` 注入；
+- `srcset`；
+- file/color/date 等未纳入支持范围的 input type，以及 multiple select；
+- 脚本目录 / `basePath` 之外的本地资源。
+
+图片可使用 `basePath` 内存在的 PNG、JPEG、GIF、WebP、BMP、ICO，或受限的 base64 raster data image。动态 `update({source})` 采用相同策略。
+
+## ui：全局对象
+
+| 方法 | 参数 | 返回 | 说明 |
+| --- | --- | --- | --- |
+| `ui.notify(messageOrOptions)` | 字符串或 `NotificationOptions` | `Promise<NotificationHandle>` | 创建并显示 execution-owned 原生提示，返回可更新句柄。 |
+| `ui.getCapabilities()` | 无 | `Capabilities` | 同步读取当前 execution 的启用、平台、driver 和可用控件能力。 |
+| `ui.createWindow(spec)` | `spec: WindowSpec` | `Promise<WindowHandle>` | 校验窗口声明并创建隐藏窗口。`WindowSpec` 见上文。 |
+| `ui.closeAll()` | 无 | `Promise<void>` | 幂等关闭当前 execution 的所有窗口。 |
+| `ui.on(type, listener)` | `type: EventType \| "*"`、`listener: (event) => void \| Promise<void>` | `() => void` | 监听当前 execution 的所有 Custom UI 事件；返回取消订阅函数。 |
+
+`Capabilities` 的关键字段为：
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `enabled` / `available` | boolean | 是否被当前 execution 授权、当前平台/host 是否可用。 |
+| `activationSource` | `disabled` / `cli` / `projectConfig` / `httpRequest` | 授权来源。 |
+| `platform` / `driver` | string | 当前平台和原生 driver。 |
+| `window` | object | `position`、`placement`、`size`、`alwaysOnTop`、`draggable`、`nativeIdentity`、`notify` 的支持情况。 |
+| `controls` | string[] | `ui.createWindow()` 受限 HTML surface 的公开控件类型；FloatingWindow 是独立的 typed native-toolbar surface，由本页列出的实例方法声明能力。 |
+| `reason` | string | 可选；不可用或未授权的原因。 |
+
+macOS 与 Windows 上 `available` 还要求配套 UI host 可发现；Windows 会依次查找 Runtime 同目录的 `clawdesk-ui-host.exe`、`opendesk-ui-host.exe` 以及 `ui-host/opendesk-ui-host.exe`。缺失时创建窗口抛出 `UI_HOST_NOT_FOUND`。Windows 的 HTML surface 在 host 启动后还会单独检查 WebView2 Runtime；该依赖不影响纯 `FloatingWindow` 或 `ui.notify()`。
+
+## WindowHandle：窗口句柄
+
+| 方法 | 参数 | 返回 | 说明 |
+| --- | --- | --- | --- |
+| `controls()` | 无 | `{id,type,order}[]` | 返回稳定的公开控件顺序。 |
+| `show()` / `hide()` / `close()` | 无 | `Promise<WindowState>` | 显示、隐藏或关闭原生窗口。 |
+| `getState()` | 无 | `Promise<WindowState>` | 读取实际窗口状态。 |
+| `setBounds(bounds)` | `bounds: {x,y,width,height}` | `Promise<WindowState>` | 同时设置位置和尺寸；宽高必须为正数。 |
+| `setPosition(x, y)` | 两个有限 number | `Promise<WindowState>` | 设置窗口位置。 |
+| `setPlacement(placement)` | 见“窗口停靠与对齐” | `Promise<WindowState>` | 按选中显示器的可用工作区重新停靠窗口。 |
+| `setSize(width, height)` | 两个正 number | `Promise<WindowState>` | 设置窗口尺寸。 |
+| `setAlwaysOnTop(enabled)` | `enabled: boolean` | `Promise<WindowState>` | 改变真实原生层级。 |
+| `setDraggable(enabled)` | `enabled: boolean` | `Promise<WindowState>` | 动态启用或禁用拖动。 |
+| `waitUntilClosed()` | 无 | `Promise<WindowState>` | 保持 Runtime 生命周期，直到用户或 controller 关闭窗口。 |
+| `control(id)` | `id: string` | `ControlHandle` | 获取控件句柄；未知 id 返回 `NOT_FOUND`。 |
+| `on(type, listener)` | `type: EventType \| "*"`、`listener` | `() => void` | 仅监听此窗口的事件；返回取消订阅函数。 |
+
+`floating` 窗口使用 nonactivating panel。`show()` 只有在 WindowServer 报告 `onScreen=true` 且 `alpha>0` 后 resolve，并且不会主动取得键盘焦点。`setBounds()` 与 `setPlacement()` 都只有在 WindowServer 的实际边界匹配后 resolve。
+
+`close()` 是终止操作：关闭后不得再通过原 `WindowHandle` 或其
+`ControlHandle` 调用 `show()`、`update()` 等方法；它们会返回 `NOT_FOUND` 或
+`INVALID_STATE`。需要在同一 execution 中再次打开独立工作台时，应在 `close`
+事件中清除保存的句柄，然后用新的 window id 调用 `ui.createWindow()` 创建新的
+窗口。window id 在同一 execution 内始终唯一，已经 `close()` 的 id 也不能复用；
+复用会返回 `DUPLICATE_ID`。`hide()` 不终止窗口，适用于稍后以相同句柄 `show()`
+的暂时收起场景。
+
+`WindowState` 包含 `id`、`sessionId`、`status`（`creating` / `hidden` / `visible` / `closing` / `closed` / `failed`）、`visible`、`bounds`、`alwaysOnTop`、`draggable`、可选的 `hostPid` / `nativeWindowId`、以及 `onScreen`、`layer`、`alpha`、`revision`、`lastSequence`。
+
+## ControlHandle：控件句柄
+
+```js
+const save = panel.control("save");
+const state = await save.getState();
+await save.update({ text: "Saving...", disabled: true });
+const unsubscribe = save.on("click", event => console.log(event));
+unsubscribe();
+```
+
+| 方法 | 参数 | 返回 | 说明 |
+| --- | --- | --- | --- |
+| `getState()` | 无 | `Promise<ControlState>` | 返回控件 id、type、状态、bounds 和类型相关值。 |
+| `update(patch)` | `patch: ControlPatch` | `Promise<ControlState>` | 更新声明允许的非结构状态。 |
+| `on(type, listener)` | `type: EventType \| "*"`、`listener` | `() => void` | 监听这个控件的事件；返回取消订阅函数。 |
+
+`ControlPatch` 支持：
+
+| 字段 | 类型 | 允许的控件 | 说明 |
+| --- | --- | --- | --- |
+| `text` | string | button / text | 容器文本更新会破坏稳定控件树，因此不支持。 |
+| `icon` | 内置 icon 名称 | button | 低层 `ControlHandle.update()` 只接受 160 个内置键；`FloatingWindow` 请使用 `updateButton()`，它也接受受限图片对象。 |
+| `active` / `busy` | boolean | button | 同步更新 Accessibility 属性和视觉状态。 |
+| `error` | string | button | 空字符串清除错误状态。 |
+| `value` | unknown | input / select | 设置当前值。 |
+| `checked` | boolean | checkbox input / switch | 设置选中状态。 |
+| `disabled` | boolean | button / input / select / switch | 禁用或启用控件。 |
+| `visible` | boolean | 公开控件 | 显示或隐藏控件。 |
+| `classes` | string[] | 公开控件 | 更新受限样式 class。 |
+| `source` | string | img | 只能解析 `content.basePath` 内的本地资源。 |
+| `options` | `{value,label}[]` | select | 替换选择项。 |
+
+空 patch、未知字段或控件类型不支持的字段不会静默忽略；会返回 `INVALID_SPEC` 或 `UNSUPPORTED_CAPABILITY`。
+
+## ui.on：事件
+
+公开事件为 `click`、`change`、`input`、`move`、`resize`、`close`，监听器也可以用 `*`。未知拼写会立即返回 `INVALID_SPEC`。
+
+事件包含 `sessionId`、`windowId`、可选 `targetId`、`type`、单调 `sequence`、`timestamp`，以及相应的 `value`、`checked`、`bounds` 或 `reason`。宿主为控件 `click` 事件附带被点击控件的 screen-logical `bounds`；move／resize 的 `bounds` 仍表示窗口范围。
+
+事件队列有界。只有 `input`、`move`、`resize` 可以在不跨越 click/change/close 屏障时合并；click/change/close 不会静默丢失。队列满时 execution 以 `UI_EVENT_QUEUE_OVERFLOW` 失败。
+
+## Custom UI：错误
+
+Custom UI 错误保留下列字段：
+
+```js
+try {
+  await panel.control("photo").update({ source: "https://example.com/a.png" });
+} catch (error) {
+  console.error(JSON.stringify({
+    code: error.code,
+    operation: error.operation,
+    windowId: error.windowId,
+    targetId: error.targetId,
+    capability: error.capability,
+    message: error.message
+  }));
+}
+```
+
+| 错误码 | 常见原因 |
+| --- | --- |
+| `UI_DISABLED` | execution 没有 UI 授权。 |
+| `UNSUPPORTED_PLATFORM` / `UNSUPPORTED_CAPABILITY` | 当前平台、host 或控件能力不支持请求。 |
+| `INVALID_SPEC` | `FloatingWindow` 构造、Button / Label / control 声明、badge、`createWindow` 或 update 参数不合法。 |
+| `DUPLICATE_ID` / `NOT_FOUND` | 重复声明 id（包括同一 execution 中已关闭窗口的 id），或请求不存在的窗口/控件/按钮。 |
+| `INVALID_STATE` / `UI_BUSY` / `UI_CANCELED` | 在错误生命周期阶段操作、创建进行中或 execution 被取消。 |
+| `UI_EVENT_QUEUE_OVERFLOW` / `UI_DRIVER_FAILURE` / `UI_HOST_NOT_FOUND` | 事件队列、native driver 或原生 host 失败。 |
+| `UI_CALLBACK_FAILED` | Button 或交互 control callback 抛错或拒绝；注册 `toolbar.onError()` 可处理。 |
+
+## ui / WindowHandle：生命周期
+
+- 所有 JavaScript callback 只在 EventLoop owner 上调用；原生 / driver goroutine 不直接触碰 Goja。
+- FloatingWindow callback 的同步值和 Promise 都在 owner loop 中接续；每个 Button 有独立 single-flight，其他 Button 不会被锁住。Control 事件先更新 owner 状态，再调用所属 callback。
+- `waitUntilClosed()` 会保持 execution 存活。
+- 脚本异常、timeout、HTTP cancel、server shutdown 和未等待的脚本结束都会清理窗口、listener、pending callback 与 host process。
+- `close()`、`closeAll()` 和 execution teardown 是幂等的。
+
+## ui：HTTP 模式
+
+HTTP UI 必须同时满足：服务器用 `-ui` 或可信本地配置启用、单次请求包含 `"capabilities":["ui"]`、请求来自 loopback。任一条件失败都会返回明确 403；`X-Forwarded-For` 不会绕过 socket 来源检查。详见 [HTTP Server API](http-server.md)。
+
+## ui：示例
+
+- `examples/custom-ui/panel.js`
+- `examples/custom-ui/form.js`
+- `examples/custom-ui/recording-console.js`：同一个 [Recorder Runtime](recorder-runtime.md) 的原生控制面。小型 `recording-console/tray.html` 托盘和按需打开的 `recording-console/recorder.html` 详情页共享 `controller.js` 状态；开始按钮授权后留出 3 秒供用户聚焦目标，再冻结该窗口的 PID＋title。录制期间每个 Custom UI button click 先把原始事件交给 `session.excludeControlClick(event)` 写入显式 raw 排除边界；暂停／继续分别调用明确的 `session.pause()`／`session.resume()`，停止后调用已有 `buildActions()`，只有独立的生成按钮才调用 `generateScript()`。blocked Actions 使用 warning 状态，托盘显示首个结构化 issue，详情页显示 `code`、`eventId` 和 message，生成保持禁用。生成后详情页以受限 `p` 文本控件显示实际脚本并由 Runtime controller 提供复制；不会使用不受支持的 `textarea` 或页面脚本。详情页显示时暂时隐藏置顶托盘，收起或关闭详情后恢复托盘而不重置流程，避免两窗覆盖。生成成功后同一按钮可再次明确“重新生成”，从 ready actions 重走生成与读取并清理旧的内存候选／运行结果。另一次明确的“重放”才通过 [Command.run()](command.md#commandruncommand-args-options) 启动 `./dist/opendesk -script <scriptFile>` Fresh Run，取消／主窗口关闭用 `AbortSignal` 清理同一受管进程；不 `eval`、不解释 actions、也不自动重放。重置清除 controller 候选/actions/run 状态但保留磁盘事实。HTML 只声明受限结构和稳定 id。窗口关闭、脚本异常与 execution teardown 仍由 Runtime owner 终结活动 session 和在途 run。运行命令和安全前提见 `examples/custom-ui/README.md`。
+- `examples/custom-ui/floating-recording-toolbar.js`：兼容入口，复用同一个 recording-console controller 和 Runtime 对象，不维护模拟录制状态。
+- `examples/custom-ui/floating-toolbar-primitives.js`：Button + Separator + fixed Spacer、统一 `getState()` 与 `move` / `close` lifecycle 的最小 native toolbar 示例；不保存位置，也不拥有 global shortcut。
+- `examples/custom-ui/floating-toolbar-status-label.js`：固定宽度 native Label 与 Button 混排；展示默认垂直居中、显式水平居中、动态 `text` / `alignment` / `verticalAlignment` / `tone` 更新、native `renderedTextBounds` readback 及不变的窗口几何。从仓库根目录执行 `./opendesk -ui -script examples/custom-ui/floating-toolbar-status-label.js -console-mode script`。
+- `examples/custom-ui/floating-toolbar-controls.js`：在一个窗口中混排 Switch、Checkbox、Input、Select、Slider、SegmentedControl、独立 Progress 与 Button badge；从仓库根目录执行 `./opendesk -ui -script examples/custom-ui/floating-toolbar-controls.js -console-mode script -log-dir .runtime/examples/custom-ui/floating-toolbar-controls`。Input 只会在用户直接进入输入框时激活键盘。
+- `examples/custom-ui/custom-image-icons.js`：同一个 `FloatingWindow` 中组合原色 PNG、template PNG 与内置图标，展示脚本相对路径和动态图标切换。
+- `examples/custom-ui/icon-list.js` 与 `icon-list.html`：在一个可滚动的真实 Runtime 窗口中声明全部 160 个默认图标按钮；其中 `ai.*` 与 `automation.*` 为 AI、全自动和半自动场景提供直接可发现的语义键，悬停查看名称与复制提示，点击直接复制一行 `addButton()` 代码。
+- `docs/custom-ui/icon-list.html`：提交到仓库的自包含浏览器图鉴，可长期查找、复制和离线保存，不依赖 `.runtime/`。
+- `scripts/render_custom_ui_icon_catalog.sh`：从唯一注册表生成浏览器 HTML、受限 Runtime HTML、联系表与渲染 manifest；默认写入 `.runtime/tests/custom-ui/icon-list/` 供检查，只有 `--publish` 才更新两个正式图鉴。
+- `examples/custom-ui/floating-toolbar-wrap-demo.js` 及其 `floating-toolbar-wrap-demo.json`：同时显示 `maxWidth` 自动换行、两列与最多两行的可交互原生工具栏；从仓库根目录运行 `./opendesk -ui -script examples/custom-ui/floating-toolbar-wrap-demo.js -console-mode script -log-dir .runtime/examples/custom-ui/floating-toolbar-wrap-demo`，可编辑 JSON 比较其他限制，点击图标可切换 active 状态，关闭三个窗口结束示例。
+- `examples/custom-ui/five-button-toolbar.js`：推荐的独立 Button-first 五按钮示例，只使用公开的 `new FloatingWindow()`、`addButton()` 和 `updateButton()`；从仓库根目录执行 `./opendesk -ui -script examples/custom-ui/five-button-toolbar.js -console-mode script -log-dir .runtime/examples/custom-ui/five-button-toolbar`。
+- `examples/custom-ui/toolbar-example.js`：横向 actions 示例使用的 `FloatingWindow` controller
+- `examples/custom-ui/toolbar-horizontal-actions.js`：用 JavaScript 变量声明横向按钮和可替换的 action handlers
+- `examples/custom-ui/toolbar-vertical-quick-replies.js`：读取相邻 JSON 数据、使用纵向五按钮快捷回复的 controller
+- `examples/custom-ui/toolbar-vertical-quick-replies.json`：客服回复文案、按钮声明顺序、纵向内部布局和右侧居中窗口 `position.mode:"anchor"` 的数据源
+横向按钮与业务回调见 `examples/custom-ui/toolbar-horizontal-actions.js`；客服纵向快捷回复见 `examples/custom-ui/toolbar-vertical-quick-replies.js` 及其 JSON 数据文件。该示例通过框架 anchor position 在活动显示器工作区右侧垂直居中，并保留 16pt 边距；没有业务坐标计算。快捷回复是普通动作按钮：点击复制文案，但不会进入持久 `active` 选中态。普通用户从仓库根目录执行 `./opendesk -ui -script examples/custom-ui/toolbar-vertical-quick-replies.js -console-mode script -log-dir .runtime/examples/custom-ui/toolbar-vertical-quick-replies`，窗口不会自动关闭，用户可真实点击按钮后关闭。若 callback 未执行，按所运行示例检查 `FIVE_BUTTON_TOOLBAR_ACTION`、`HORIZONTAL_TOOLBAR_ACTION` 或 `VERTICAL_QUICK_REPLY_COPIED` 日志；对应的 `*_ERROR` 会提供 `UI_CALLBACK_FAILED` 的 `operation/windowId/targetId/capability`。原生 single-flight、Accessibility 与截图证据由正式 custom-ui gate 生成。
+
+## ui：实现边界
+
+用户事件按以下内部链路回到所属 JavaScript Runtime：
+
+```text
+DOM / WKWebView / WebView2 event，或平台原生 control event
+  -> native host
+  -> bounded Go event queue
+  -> EventLoop.RunOnLoop
+  -> Goja listener
+  -> OpenDesk Runtime API
+```
+
+该链路用于说明事件所有权和故障排查；普通脚本只应依赖本页列出的 `ui`、
+`WindowHandle` 与 `ControlHandle` 契约。
+
+## ui.notify(messageOrOptions)
+
+在桌面显示可更新的原生提示条；它不是全局 `notify()` 的操作系统通知。
+
+**签名**
+
+```ts
+ui.notify(messageOrOptions: string | NotificationOptions): Promise<NotificationHandle>
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `message` | string | 是 | 无 | 1–1024 个 Unicode 字符，纯文本，不能全空白或包含 NUL。 |
+| `caption` | string | 否 | 空字符串 | 次要说明，最多 2048 个 Unicode 字符。 |
+| `level` | string | 否 | `info` | `info`、`success`、`warning`、`error`。 |
+| `timeoutMs` | integer | 否 | `3000` | 0–86400000 毫秒；0 不自动消失，并强制显示关闭按钮。计时从首次显示开始。 |
+| `timeoutProgress` | boolean | 否 | `false` | 显示剩余展示时间的倒计时条，不代表业务进度。 |
+| `closable` | boolean | 否 | 定时提示为 `false` | 显示关闭按钮；关闭仅关闭提示，不取消业务。`timeoutMs:0` 时始终规范化为 true；仅有自动关闭路径时 false 才是整体鼠标穿透模式。 |
+| `progress` | object or null | 否 | null | `{min?:0,max?:1,value?:min,indeterminate?:false}`；数值有限，min < max，value 在闭区间内。null 清除任务进度。 |
+| `position` | object | 否 | `{mode:"auto"}` | 见下方定位规则。 |
+
+**返回值**
+
+`Promise<NotificationHandle>`。宿主完成创建和显示处理后返回；不是等提示消失，也不是用户可见性确认。
+
+**行为与错误**
+
+沿用 Custom UI 授权：不传 `-ui` 时，脚本目录的 `clawdesk.runtime.json` 可以用 `runtime.capabilities:["ui"]` 授权；完全未授权则抛 `UI_DISABLED`，不会自动启用。`-no-ui` 仍强制禁用。HTTP 请求继续执行原有服务器授权、loopback 与请求 capability 检查。OS `notify()` 不受本接口 UI 授权影响。
+
+提示默认不激活应用、不抢键盘焦点、不播放声音。启用关闭按钮后不再整体鼠标穿透。普通定时提示默认 3 秒自动关闭；任何 `timeoutMs:0` 持久提示都强制提供关闭按钮，不能形成无自动关闭、无手动出口的表面。用户关闭只终结提示，后续 `update()` 返回 `{applied:false,reason:"closed"}`，不取消或改变业务。每个 execution 最多三个同时存在的提示，超出返回 `UI_BUSY`；长任务应更新同一个句柄。
+
+提示宽度由 native host 按实际字体在 280–480pt/DIP 内测量：短文字收紧到 280，较长文字按内容扩展但不超过 480。高度继续在 52–124pt/DIP 内双向自适应。message 最多显示 3 行、caption 最多 2 行，超出后尾部截断；完整文字保留在状态中。进度条只增加有限的底部空间，更新后按同一定位语义原位重排，宽高都可以受控收缩或扩张。普通更新不延长倒计时。消息、进度、任务成功都由业务脚本报告，组件不推测任务结果。
+
+`position` 只能选一种模式，不混合字段。`auto` 在创建时选择本 execution 唯一可见 FloatingWindow，下方居中并跟随；没有或不唯一时使用指针所在显示器下中。`absolute` 要求 `{mode:"absolute",x,y}`。`anchor` 要求 `{mode:"anchor",horizontal,vertical,margin?,display?}`，横轴 left/center/right、纵轴 top/center/bottom、默认 margin 24、display active/primary。`relative` 要求 `{mode:"relative",target,side?,align?,gap?,follow?}`，target 为本 execution 的 FloatingWindow 实例或其 id，默认 bottom/center/8/true；side 可为 top/bottom/left/right，align 可为 start/center/end，gap 为 0–256。不是本 execution 的工具栏返回 `NOT_FOUND` 或 `INVALID_SPEC`。
+
+相对位置放不下时尝试另一侧，再退回同屏下中；目标隐藏/关闭则退回同屏下中。绝对坐标、明确屏幕锚点放不下时返回 `INVALID_SPEC`，不裁切。`getState().notification.positionAdjustment` 报告实际降级原因。普通文字更新不重新选显示器。自动位置的多条提示有限叠放，不积累任务历史。
+
+提示宽度动态限制在 280–480，高度动态限制在 52–124；macOS 单位为 points，Windows 按当前窗口 DPI 缩放内部 DIP。因此 macOS `getState().bounds` 可直接观察上述数值范围；Windows 的全局 bounds 仍使用 Per-Monitor-V2 的 Win32 screen logical 坐标（数值与 physical pixels 一致），在非 96 DPI 显示器上会反映缩放后的实际外框。不要把整张混合 DPI 虚拟桌面统一除以主屏缩放率。工具栏内部 localBounds 仍按控件 DIP/points 表达，screenBounds 为原生屏幕坐标。
+
+提示不会独立延长 execution。脚本结束、取消或宿主关闭时清理；要让末尾短提示展示到期，应显式 `await hint.waitUntilClosed()`。同一进程的 `page.screenshot()` 链路会隐藏自有提示并确认原生状态后再截图，随后恢复；不能保证其他进程、第三方录屏或人工 Recorder 的所有捕获路径自动排除。屏幕提示不替代日志和执行证据。
+
+未知字段、非法类型和非有限数值返回 `INVALID_SPEC`。宿主不可发现/协议不匹配会明确失败，不降级为系统通知。
+
+**示例**
+
+从仓库根目录运行：
+
+```bash
+./dist/opendesk -ui -script examples/custom-ui/notify.js -console-mode script
+```
+
+```js
+const hint = await ui.notify({message: "正在处理…", timeoutMs: 0, closable: true});
+await hint.update({message: "已完成", level: "success", timeoutMs: 1000, timeoutProgress: true});
+await hint.waitUntilClosed();
+```
+
+## NotificationHandle.update(patch)
+
+原位更新提示，不创建新窗口。
+
+**签名**
+
+```ts
+hint.update(patch: Partial<NotificationOptions>): Promise<{applied: boolean; reason?: "closed"; state: WindowState}>
+```
+
+**参数**
+
+`patch`：仅包含需要更新的 ui.notify 选项。`progress`、`position` 是完整替换，不做深层合并；`progress:null` 清除进度。
+
+**返回值**
+
+成功为 `{applied:true,state}`；已关闭为 `{applied:false,reason:"closed",state}`。
+
+**行为与错误**
+
+明确提供 `timeoutMs` 才重新计时，0 取消倒计时。正常关闭与迟到更新的竞争不会重新弹窗，也不会中断业务。非法 patch 仍会报错，即使提示已经关闭。所有 mutation 在当前句柄内序列化；失败不改变已提交状态。多个并发异步调用不应用作业务步骤顺序证明，业务脚本应 await 更新。
+
+**示例**
+
+```js
+const hint = await ui.notify({message: "准备", timeoutMs: 0, closable: true});
+await hint.update({message: "第 3 / 12 步", progress: {min: 0, max: 12, value: 2}});
+await hint.close();
+```
+
+## NotificationHandle.close()
+
+幂等关闭提示，不取消业务任务。
+
+**签名**
+
+```ts
+hint.close(): Promise<WindowState>
+```
+
+**参数**
+
+无。
+
+**返回值**
+
+关闭后的 `WindowState`。
+
+**行为与错误**
+
+重复关闭不报“窗口不存在”。与超时/用户关闭竞争时返回终态；真实驱动故障仍明确报错。
+
+**示例**
+
+```js
+const hint = await ui.notify("准备完成");
+await hint.close();
+```
+
+## NotificationHandle.getState()
+
+读取提示内容、剩余时长与原生窗口状态。
+
+**签名**
+
+```ts
+hint.getState(): Promise<WindowState & {notification?: NotificationState}>
+```
+
+**参数**
+
+无。
+
+**返回值**
+
+`WindowState`，另含 `notification` 选项、`remainingMs`、可选 `positionAdjustment` 和 `closeReason`。0 表示无倒计时或已到期，结合 `timeoutMs`、`status` 判断。终态是最后确认的原生快照，不继续查询已销毁的 HWND/NSWindow。
+
+**行为与错误**
+
+原生可见状态不是用户已阅读的证明；计时存在系统调度粒度。驱动失败按 Custom UI 错误规则返回。
+
+**示例**
+
+```js
+const hint = await ui.notify("检查状态");
+console.log(await hint.getState());
+await hint.close();
+```
+
+## NotificationHandle.waitUntilClosed()
+
+显式等待超时、用户关闭或脚本关闭。
+
+**签名**
+
+```ts
+hint.waitUntilClosed(): Promise<WindowState>
+```
+
+**参数**
+
+无。
+
+**返回值**
+
+关闭终态；execution 被取消时拒绝并清理原生资源。
+
+**行为与错误**
+
+明确 await/then 观察此 Promise 才保留等待工作；持久提示始终有关闭按钮，脚本仍可用 `close()` 结束它。该方法不会启动新的 execution。
+
+**示例**
+
+```js
+const hint = await ui.notify({message: "已完成", timeoutMs: 1500});
+await hint.waitUntilClosed();
+```
