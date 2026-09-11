@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "entries": {
+    "console.js": {
+      "title": "Console Output",
+      "description": "Print log, info, warning, error, object, group, and timing output without changing the desktop.",
+      "category": "Getting Started",
+      "level": "beginner",
+      "runPolicy": "safe",
+      "platforms": ["darwin", "windows"],
+      "prerequisites": [],
+      "expected": "The child execution exits successfully and prints representative console output.",
+      "tags": ["console", "log", "debug"]
+    },
+    "runtime/api-quickstart.js": {
+      "title": "Runtime API Quickstart",
+      "description": "A compact introduction to common OpenDesk Runtime globals and execution context.",
+      "category": "Getting Started",
+      "level": "beginner",
+      "runPolicy": "safe",
+      "platforms": ["darwin", "windows"],
+      "prerequisites": [],
+      "expected": "The script prints its quickstart values and exits successfully.",
+      "tags": ["runtime", "quickstart", "execution"]
+    },
+    "runtime/environment.js": {
+      "title": "Environment",
+      "description": "Read selected execution environment information without dumping the complete process environment.",
+      "category": "Runtime",
+      "level": "beginner",
+      "runPolicy": "safe",
+      "platforms": ["darwin", "windows"],
+      "prerequisites": [],
+      "expected": "Selected environment values and execution context are printed.",
+      "tags": ["environment", "runtime"]
+    },
+    "runtime/path.js": {
+      "title": "Paths and Script Context",
+      "description": "Inspect path helpers together with Execution.scriptPath and Execution.scriptDir.",
+      "category": "Runtime",
+      "level": "beginner",
+      "runPolicy": "safe",
+      "docs": "docs/api/path.md",
+      "platforms": ["darwin", "windows"],
+      "prerequisites": [],
+      "expected": "Normalized repository and script-context paths are printed.",
+      "tags": ["path", "execution", "scriptDir"]
+    },
+    "runtime/file.js": {
+      "title": "File Operations",
+      "description": "Create, read, copy, move, and validate files inside the example artifact area.",
+      "category": "Runtime",
+      "level": "beginner",
+      "runPolicy": "safe",
+      "docs": "docs/api/file.md",
+      "platforms": ["darwin", "windows"],
+      "prerequisites": [],
+      "expected": "The example validates its isolated file operations and exits successfully.",
+      "tags": ["file", "filesystem", "artifact"]
+    },
+    "runtime/file-json.js": {
+      "title": "JSON Files",
+      "description": "Read and write JSON through the OpenDesk File API using execution-owned async operations.",
+      "category": "Runtime",
+      "level": "beginner",
+      "runPolicy": "safe",
+      "docs": "docs/api/file.md",
+      "platforms": ["darwin", "windows"],
+      "prerequisites": [],
+      "expected": "JSON data is written, read back, and printed from the execution artifact area.",
+      "tags": ["file", "json", "readJSON", "writeJSON"]
+    },
+    "runtime/command.js": {
+      "title": "Command",
+      "description": "Run the platform's fixed echo command through Command.run() and validate the bounded result.",
+      "category": "Runtime",
+      "level": "beginner",
+      "runPolicy": "safe",
+      "docs": "docs/api/command.md",
+      "platforms": ["darwin", "windows"],
+      "prerequisites": [],
+      "expected": "A fixed echo child process succeeds and its bounded output is validated.",
+      "tags": ["command", "process", "child process"]
+    }
+  }
+}
