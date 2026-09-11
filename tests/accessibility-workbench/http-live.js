@@ -12,7 +12,7 @@ const pairParameters = new URLSearchParams(launch.hash.replace(/^#/, ''));
 let pairCode = pairParameters.get('pair') || '';
 assert.ok(pairCode, 'trusted launch URL is missing its pair fragment');
 assert.equal(pairParameters.get('api'), null, 'Workbench must not return a separate API origin');
-assert.equal(launch.port, '60844', 'Workbench must use the fixed 60844 listener');
+assert.ok(Number(launch.port) > 0, 'Workbench URL must include the actual Runtime port');
 const frontendOrigin = launch.origin;
 launch.hash = '';
 const base = launch.origin;

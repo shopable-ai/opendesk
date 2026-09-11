@@ -36,6 +36,24 @@ func TestFrameworkHTTPAutoAllocationAllowsParallelRuntimes(t *testing.T) {
 	if firstInfo.Host != "127.0.0.1" || secondInfo.Host != "127.0.0.1" {
 		t.Fatalf("auto endpoints must remain loopback-only: %+v %+v", firstInfo, secondInfo)
 	}
+	if firstInfo.ActualAddress != first.Listener().Addr().String() || secondInfo.ActualAddress != second.Listener().Addr().String() {
+		t.Fatalf("actual address must come from the listener: first=%+v second=%+v", firstInfo, secondInfo)
+	}
+}
+
+func TestRuntimeEndpointAutoModeRejectsNonLoopbackHost(t *testing.T) {
+	endpoint, err := listenRuntimeEndpoint(endpointConfig{
+		Owner: "framework runtime",
+		Host:  "0.0.0.0",
+		Mode:  endpointModeAuto,
+	})
+	if endpoint != nil {
+		_ = endpoint.Close()
+		t.Fatal("auto endpoint unexpectedly accepted a non-loopback host")
+	}
+	if err == nil || !strings.Contains(err.Error(), "loopback") {
+		t.Fatalf("unexpected auto host validation error: %v", err)
+	}
 }
 
 func TestExplicitEndpointUsesRequestedPort(t *testing.T) {
@@ -121,6 +139,33 @@ func TestRuntimeEndpointCloseReleasesListener(t *testing.T) {
 	if err == nil {
 		_ = connection.Close()
 		t.Fatalf("listener still accepts connections after close: %s", address)
+	}
+	rebound, err := net.Listen("tcp", address)
+	if err != nil {
+		t.Fatalf("released endpoint could not be rebound: %v", err)
+	}
+	_ = rebound.Close()
+}
+
+func TestResolveRuntimeEndpointConfigSelectsProductionMode(t *testing.T) {
+	config, err := resolveRuntimeEndpointConfig(&Config{Port: "60844"}, runtimeStartupModeDesktop)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.Mode != endpointModeAuto || config.Host != "127.0.0.1" || config.RequestedPort != "0" {
+		t.Fatalf("desktop mode config = %+v", config)
+	}
+
+	config, err = resolveRuntimeEndpointConfig(&Config{Port: "43127"}, runtimeStartupModeExplicitHTTP)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.Mode != endpointModeExplicit || config.Host != "0.0.0.0" || config.RequestedPort != "43127" {
+		t.Fatalf("explicit HTTP mode config = %+v", config)
+	}
+
+	if _, err := resolveRuntimeEndpointConfig(nil, runtimeStartupMode("invalid")); err == nil {
+		t.Fatal("invalid runtime startup mode unexpectedly succeeded")
 	}
 }
 

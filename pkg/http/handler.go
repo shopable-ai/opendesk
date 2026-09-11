@@ -28,7 +28,7 @@ type Handler struct {
 	inspectorOnIdle   func()
 	// inspectorHost and inspectorFrontendOrigin remain test seams for the
 	// isolated handler contract. The product server uses inspectorPolicy and a
-	// fixed same-origin route set on its existing 60844 listener.
+	// same-origin route set on its owner-provided Framework listener.
 	inspectorFrontendOrigin string
 	inspectorHost           string
 }

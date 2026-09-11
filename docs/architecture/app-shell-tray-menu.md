@@ -1,7 +1,7 @@
 # App Shell、Tray / Menu Bar 与 Single-Instance 设计
 
-> 状态：P0 Implemented / macOS Live Verified / Windows Cross-Build Verified
-> 冻结点：`a4ebd5ffa5522284fb9fdba160fb234464aa1668`；最新远端基线：`origin/master@816e423d36bfeca7bb03d5373b1ae9339cfdc64c`；验证源码：`HEAD@380856f6ac999f860af4abed5c40f7f5853c05a5` 加当前工作树 P0 实现
+> 状态：App Shell P0 implemented / macOS local evidence verified / Windows main Runtime cross-build and live verification are not claimed in this workspace
+> Verification boundary：App Mode 单实例仍由平台 lease / activation transport 负责；Framework Runtime endpoint 分配与传播见 [Runtime Endpoint Allocation](runtime-endpoint-allocation.md)。
 > 日期：2026-09-11
 > 范围：OpenDesk 可分发桌面脚本应用（App Mode）的 App Shell、系统托盘 / 菜单栏、菜单 Action、窗口关闭行为与单实例生命周期。  
 > 兼容性：现有普通 JavaScript / CLI 执行路径必须保持不变。
@@ -18,7 +18,7 @@ OpenDesk 继续保留现有脚本运行方式，同时新增可打包、可双�
 这里的 App Mode tray owner 与普通 `OpenDesk.app` HTTP 服务的 `cmd/opendesk-status` helper 不同。普通 macOS 服务状态项固定包含
 Status、Scheduler、Developer 和 Quit；Developer 子菜单提供 **Open Inspector**、进程内 **Allow Inspector from LAN** checkbox
 和 **Copy Inspector LAN URL**。helper 不持有 Inspector bearer/session，也不直接修改 server 内存；主进程启动时生成随机 control
-token，仅通过 helper argv 传入，helper 经 `127.0.0.1:60844` 的内部 endpoint 查询／切换状态。LAN 选项不持久化，OpenDesk 重启
+token，仅通过 helper argv 传入，helper 经 parent 注入的 Framework loopback endpoint 查询／切换状态。LAN 选项不持久化，OpenDesk 重启
 恢复关闭。这组框架 Developer 动作不进入 App Mode manifest/action namespace。
 
 ```text

@@ -16,8 +16,8 @@ OpenDesk（不是 `opendesc`）不是被操作的微信、Safari、Finder 等目
 1. **固定的 macOS 应用身份**：桌面自动化需要“辅助功能”“屏幕录制”和按场景需要的
    “自动化”权限。长期使用固定的 App 身份，比反复从 `go run`、Terminal 或临时二进制
    启动更容易保持权限稳定。
-2. **常驻的本机服务入口**：无参数双击启动时，App 默认启动 HTTP 服务，监听
-   `60844` 端口，供本机脚本、其他程序或管理页面调用。
+2. **常驻的本机服务入口**：无参数双击启动时，App 默认启动 loopback Framework Runtime，
+   自动分配实际端口，供本机脚本、其他程序或管理页面调用；显式 `-http` 才使用 legacy `60844` 默认端口。
 3. **持久化定时任务**：HTTP 模式内置 Scheduler，任务保存在
    `~/.opendesk/opendesk/scheduler.db`，重启 OpenDesk 后可以恢复任务状态。
 
@@ -28,7 +28,7 @@ OpenDesk（不是 `opendesc`）不是被操作的微信、Safari、Finder 等目
 - 不会替代微信、Safari、Finder 等目标应用；
 - 当前版本不会自动安装 launchd、systemd 或 Windows Task Scheduler，也不负责崩溃后自动
   重启；
-- 它的 HTTP 服务不是登录型云服务。默认监听 `:60844`，不要把它直接暴露到互联网或不
+- 它的 HTTP 服务不是登录型云服务。显式 `-http` 默认监听 `:60844`，不要把它直接暴露到互联网或不
   可信局域网；Scheduler 管理页和 Scheduler API 只允许 loopback 请求。
 
 ### “长时间运行”具体指什么
@@ -54,27 +54,26 @@ OpenDesk（不是 `opendesc`）不是被操作的微信、Safari、Finder 等目
 
 1. 在 Finder 中把 `OpenDesk.app` 拖到“应用程序”目录。只保留并长期使用一个固定副本，
    例如 `/Applications/OpenDesk.app`。
-2. 双击这个 App。它的主要入口不是业务操作窗口，而是本机 HTTP 服务。HTTP socket 和
-   Scheduler 都就绪后，菜单栏右上角会出现一个 OpenDesk 图标；点击它可以
+2. 双击这个 App。它的主要入口不是业务操作窗口，而是本机 Framework Runtime 服务。Runtime
+   会绑定 loopback 自动端口；HTTP socket 和 Scheduler 都就绪后，菜单栏右上角会出现一个 OpenDesk 图标；点击它可以
    打开状态页、Scheduler 或退出服务。这个状态项出现才表示启动完成：App 不会保留 Dock
    图标，也不会打开业务窗口，这是常驻后台服务的正常行为，不是卡死。
 
-   状态页是：
+   启动日志的 `OpenDesk ready` 行会给出状态页实际地址，例如：
 
    ```text
-   http://127.0.0.1:60844/status
+   http://127.0.0.1:<actual-port>/status
    ```
 
    能返回 `"status":"ok"` 且 `"scheduler":true` 的 JSON 就表示服务已启动。定时任务管理页是：
 
    ```text
-   http://127.0.0.1:60844/scheduler
+   http://127.0.0.1:<actual-port>/scheduler
    ```
 
-   正常再次双击会复用已运行的 OpenDesk，不会再启动第二个 HTTP 服务。若仍弹出
-   “OpenDesk did not start”，说明端口由未知或不健康的进程占用；可先检查
-   `http://127.0.0.1:60844/status`，再从菜单栏选择 **Quit OpenDesk** 或改用其他端口。
-   不要把无窗口或无 Dock 图标当成失败。
+   每次无参数启动都会自动选择新的 loopback endpoint，因此多个普通 Runtime 不会因默认端口
+   直接冲突；不要猜测端口或把内部 Runtime 当作固定 `60844` 服务。不要把无窗口或无 Dock
+   图标当成失败。
 
 3. 第一次执行截图或控制其他应用时，按 macOS 提示授予“辅助功能”“屏幕录制”和需要的
    “自动化”权限。权限应授予固定的 `/Applications/OpenDesk.app`（Bundle ID
@@ -105,11 +104,12 @@ APP_BUNDLE=/Applications/OpenDesk.app bash scripts/test_app_icons.sh
 
 ### 使用 OpenDesk Inspector
 
-Inspector 的页面、启动控制和只读数据 API 均由同一个当前版 OpenDesk 进程在固定 `60844` 端口同源提供。
-启动 `/Applications/OpenDesk.app` 后，从菜单栏选择 **Developer → Open Inspector**，或直接打开：
+Inspector 的页面、启动控制和只读数据 API 均由同一个当前版 OpenDesk 进程在实际 Framework Runtime
+endpoint 同源提供。启动 `/Applications/OpenDesk.app` 后，从菜单栏选择 **Developer → Open Inspector**，
+或打开启动日志 `OpenDesk ready` 行中的地址：
 
 ```text
-http://127.0.0.1:60844/accessibility-workbench/
+http://127.0.0.1:<actual-port>/accessibility-workbench/
 ```
 
 先另开目标应用；检查网页时，把目标 tab 放进另一个原生浏览器窗口。回到 Inspector，依次点击
@@ -212,10 +212,8 @@ Scheduler 只在 OpenDesk 进程运行时实际调度；退出 App 后不会继�
 
 - 不需要服务时，点击菜单栏的 OpenDesk 图标，再选择 **Quit OpenDesk**。它会向主进程发送正常的
   终止信号并停止 HTTP 和 Scheduler；正在运行的执行会进入关闭流程。
-- HTTP 端口默认是 `60844`。正常再次双击会复用现有 OpenDesk；如果端口由未知进程占用，
-  使用 Inspector 时必须先检查并停止该进程，让当前 OpenDesk 占用固定 `60844`。自定义 `-port` 只保留普通 HTTP 服务，
-  不挂载 Inspector，也不显示托盘 Developer 子菜单。
-- 不要把 `0.0.0.0:60844` 当成可直接提供给公网或不可信设备的 API；当前 HTTP 接口没有
+- 显式 `-http` 模式默认仍是 legacy `60844`，请求端口被占用时会直接失败，不会静默切换；桌面/内部 Runtime 不使用这个默认值。
+- 不要把任何 `0.0.0.0:<port>` HTTP server 当成可直接提供给公网或不可信设备的 API；当前 HTTP 接口没有
   用户登录认证。
 
 ## 2. 构建

@@ -115,9 +115,11 @@ func TestAccessibilityWorkbenchServesOnlyFixedSameOriginFrontendAssets(t *testin
 	}
 }
 
-func TestAccessibilityWorkbenchLaunchPairsOnTheSame60844Origin(t *testing.T) {
+func TestAccessibilityWorkbenchLaunchPairsOnTheOwnerProvidedOrigin(t *testing.T) {
+	const ownerPort = "53127"
 	handler := newAccessibilityWorkbenchTestHandler(t)
-	request := newAccessibilityWorkbenchControlRequest("127.0.0.1:41000", "127.0.0.1:60844")
+	handler.inspectorPolicy.setPort(ownerPort)
+	request := newAccessibilityWorkbenchControlRequest("127.0.0.1:41000", "127.0.0.1:"+ownerPort)
 	response := httptest.NewRecorder()
 	setupRoutes(handler).ServeHTTP(response, request)
 	if response.Code != stdhttp.StatusOK {
@@ -138,13 +140,13 @@ func TestAccessibilityWorkbenchLaunchPairsOnTheSame60844Origin(t *testing.T) {
 	if err != nil || fragment.Get("pair") == "" {
 		t.Fatalf("launch fragment = %q", launchURL.Fragment)
 	}
-	if fragment.Get("api") != "" || launchURL.Scheme+"://"+launchURL.Host != "http://127.0.0.1:60844" ||
-		launchURL.Path != "/accessibility-workbench/" || envelope.Data.Listener != "127.0.0.1:60844" ||
+	if fragment.Get("api") != "" || launchURL.Scheme+"://"+launchURL.Host != "http://127.0.0.1:"+ownerPort ||
+		launchURL.Path != "/accessibility-workbench/" || envelope.Data.Listener != "127.0.0.1:"+ownerPort ||
 		envelope.Data.Mode != "local-only" {
 		t.Fatalf("same-origin launch = %#v URL=%s", envelope.Data, launchURL)
 	}
 
-	pairRequest := inspectorPolicyRequest(t, stdhttp.MethodPost, "/pair", "127.0.0.1:60844", "127.0.0.1:41000", map[string]any{"code": fragment.Get("pair")})
+	pairRequest := inspectorPolicyRequest(t, stdhttp.MethodPost, "/pair", "127.0.0.1:"+ownerPort, "127.0.0.1:41000", map[string]any{"code": fragment.Get("pair")})
 	pairResponse := httptest.NewRecorder()
 	setupRoutes(handler).ServeHTTP(pairResponse, pairRequest)
 	if pairResponse.Code != stdhttp.StatusOK {
@@ -159,12 +161,12 @@ func TestAccessibilityWorkbenchLaunchPairsOnTheSame60844Origin(t *testing.T) {
 		t.Fatalf("pair response = %s, %v", pairResponse.Body.String(), err)
 	}
 	replayResponse := httptest.NewRecorder()
-	setupRoutes(handler).ServeHTTP(replayResponse, inspectorPolicyRequest(t, stdhttp.MethodPost, "/pair", "127.0.0.1:60844", "127.0.0.1:41000", map[string]any{"code": fragment.Get("pair")}))
+	setupRoutes(handler).ServeHTTP(replayResponse, inspectorPolicyRequest(t, stdhttp.MethodPost, "/pair", "127.0.0.1:"+ownerPort, "127.0.0.1:41000", map[string]any{"code": fragment.Get("pair")}))
 	if replayResponse.Code != stdhttp.StatusUnauthorized {
 		t.Fatalf("pair replay status = %d, want 401", replayResponse.Code)
 	}
 
-	revoke := inspectorPolicyRequest(t, stdhttp.MethodDelete, "/authorization", "127.0.0.1:60844", "127.0.0.1:41000", nil)
+	revoke := inspectorPolicyRequest(t, stdhttp.MethodDelete, "/authorization", "127.0.0.1:"+ownerPort, "127.0.0.1:41000", nil)
 	revoke.Header.Set("Authorization", "Bearer "+pairEnvelope.Data.Token)
 	revokeResponse := httptest.NewRecorder()
 	setupRoutes(handler).ServeHTTP(revokeResponse, revoke)
@@ -179,7 +181,7 @@ func TestAccessibilityWorkbenchLaunchPairsOnTheSame60844Origin(t *testing.T) {
 		t.Fatal("revoked Workbench generation remained active")
 	}
 	inactive := httptest.NewRecorder()
-	setupRoutes(handler).ServeHTTP(inactive, inspectorPolicyRequest(t, stdhttp.MethodGet, "/capabilities", "127.0.0.1:60844", "127.0.0.1:41000", nil))
+	setupRoutes(handler).ServeHTTP(inactive, inspectorPolicyRequest(t, stdhttp.MethodGet, "/capabilities", "127.0.0.1:"+ownerPort, "127.0.0.1:41000", nil))
 	if inactive.Code != stdhttp.StatusNotFound {
 		t.Fatalf("inactive Inspector API status = %d, want 404", inactive.Code)
 	}
@@ -189,12 +191,12 @@ func TestInspectorNetworkPolicyLocalDefaultTrustedLANAndRejections(t *testing.T)
 	handler := newAccessibilityWorkbenchTestHandler(t)
 	policy := handler.inspectorPolicy
 	tests := []struct {
-		name   string
-		host   string
-		remote string
-		origin string
-		mutate func(*stdhttp.Request)
-		want   bool
+		name    string
+		host    string
+		remote  string
+		origin  string
+		mutate  func(*stdhttp.Request)
+		want    bool
 		wantLAN bool
 	}{
 		{name: "loopback default", host: "127.0.0.1:60844", remote: "127.0.0.1:41000", origin: "http://127.0.0.1:60844", want: true, wantLAN: true},
@@ -228,7 +230,9 @@ func TestInspectorNetworkPolicyLocalDefaultTrustedLANAndRejections(t *testing.T)
 			request := httptest.NewRequest(stdhttp.MethodPost, "http://"+test.host+accessibilityWorkbenchControlPath, strings.NewReader("{}"))
 			request.Host, request.RemoteAddr = test.host, test.remote
 			request.Header.Set("Origin", test.origin)
-			if test.mutate != nil { test.mutate(request) }
+			if test.mutate != nil {
+				test.mutate(request)
+			}
 			err := policy.authorizeSameOrigin(request, true)
 			if (err == nil) != test.wantLAN {
 				t.Fatalf("authorize = %v, want allowed=%v", err, test.wantLAN)
@@ -265,6 +269,31 @@ func TestInspectorNetworkPolicyLocalDefaultTrustedLANAndRejections(t *testing.T)
 	restarted := newInspectorNetworkPolicy("60844")
 	if restarted.status().AllowLAN {
 		t.Fatal("a new process policy inherited trusted-LAN state")
+	}
+}
+
+func TestInspectorNetworkPolicyUsesOwnerProvidedRuntimePort(t *testing.T) {
+	const port = "53127"
+	policy := newInspectorNetworkPolicy(port)
+	request := httptest.NewRequest(stdhttp.MethodGet, "http://127.0.0.1:"+port+accessibilityWorkbenchPagePath+"/", nil)
+	request.Host = "127.0.0.1:" + port
+	request.RemoteAddr = "127.0.0.1:41000"
+	request.Header.Set("Origin", "http://127.0.0.1:"+port)
+
+	if err := policy.authorizeSameOrigin(request, false); err != nil {
+		t.Fatalf("owner-provided runtime port was rejected: %v", err)
+	}
+	status := policy.status()
+	if status.LocalURL != "http://127.0.0.1:"+port+accessibilityWorkbenchPagePath+"/" {
+		t.Fatalf("local URL = %q, want actual runtime port", status.LocalURL)
+	}
+
+	missing := newInspectorNetworkPolicy("")
+	if missing.status().Mode != "unavailable" {
+		t.Fatalf("unconfigured policy status = %#v, want unavailable", missing.status())
+	}
+	if err := missing.authorizeSameOrigin(request, false); err == nil {
+		t.Fatal("unconfigured policy accepted a request using an unrelated port")
 	}
 }
 

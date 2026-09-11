@@ -1774,10 +1774,6 @@ func exitHTTPStartupFailure(err error, port string) {
 	if err == nil {
 		return
 	}
-	if reuseRunningOpenDesk(err, port) {
-		terminalPrintf(os.Stdout, "[META] [INFO] OpenDesk is already running at http://127.0.0.1:%s; reusing the existing desktop service.\n", port)
-		return
-	}
 	terminalPrintf(os.Stderr, "[ERROR] OpenDesk did not start: %v\n", err)
 	reportMacOSAppStartupFailure(err)
 	os.Exit(1)
@@ -1793,7 +1789,15 @@ func startContainerBasedServer(port string, appConfig *Config) error {
 	// Reserve exactly one owner-managed endpoint before starting the Scheduler.
 	// The default desktop/framework runtime is loopback-only and lets the OS
 	// choose a free port. Explicit HTTP mode keeps the caller's fixed port.
-	endpoint, err := listenRuntimeEndpoint(frameworkHTTPConfig(isAutoRunJs, port))
+	startupMode := runtimeStartupModeExplicitHTTP
+	if isAutoRunJs {
+		startupMode = runtimeStartupModeDesktop
+	}
+	endpointConfig, err := resolveRuntimeEndpointConfig(&Config{Port: port}, startupMode)
+	if err != nil {
+		return err
+	}
+	endpoint, err := listenRuntimeEndpoint(endpointConfig)
 	if err != nil {
 		return err
 	}
@@ -1850,7 +1854,7 @@ func startContainerBasedServer(port string, appConfig *Config) error {
 
 	server := pkgHttp.NewServerWithScheduler(container, port, schedulerService)
 	workbenchControlToken := ""
-	if accessibilityWorkbenchEnabledOnPort(port) {
+	if accessibilityWorkbenchEnabled(isAutoRunJs, port) {
 		workbenchArtifactRoot, rootErr := accessibilityWorkbenchArtifactRoot()
 		if rootErr != nil {
 			return fmt.Errorf("resolve on-demand Accessibility Workbench artifact root: %w", rootErr)
@@ -1893,7 +1897,7 @@ func startContainerBasedServer(port string, appConfig *Config) error {
 	fmt.Printf("OpenDesk ready: http://127.0.0.1:%s/status (pid %d)\n", port, os.Getpid())
 	fmt.Println("服务器已启动 (Container Mode)，按 Ctrl+C 关闭")
 	if isAutoRunJs {
-		startMacOSAppStatusItem(port, workbenchControlToken)
+		startMacOSAppStatusItem(endpointInfo.ActualAddress, workbenchControlToken)
 	}
 	// Run the server behind an explicit shutdown boundary so SIGINT/SIGTERM
 	// cancel active JavaScript and drain native UI hosts before the process exits.
@@ -1954,8 +1958,12 @@ func accessibilityWorkbenchArtifactRoot() (string, error) {
 	return resolveAccessibilityWorkbenchArtifactRoot(workingDirectory, userConfigDirectory, false), nil
 }
 
+func accessibilityWorkbenchEnabled(autoRuntime bool, port string) bool {
+	return autoRuntime || strings.TrimSpace(port) == "60844"
+}
+
 func accessibilityWorkbenchEnabledOnPort(port string) bool {
-	return isAutoRunJs || strings.TrimSpace(port) == "60844"
+	return accessibilityWorkbenchEnabled(false, port)
 }
 
 func resolveAccessibilityWorkbenchArtifactRoot(workingDirectory, userConfigDirectory string, developmentTree bool) string {

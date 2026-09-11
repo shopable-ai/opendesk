@@ -586,17 +586,17 @@ test('browser UI uses text-only rendering, memory credentials, current routes, a
   assert.equal(/<script(?!\s+src=)/i.test(html), false, 'inline script bypasses static CSP');
 });
 
-test('user documentation describes the fixed same-origin local and trusted-LAN workflow', () => {
+test('user documentation describes the current same-origin local and trusted-LAN workflow', () => {
   const readme = fs.readFileSync(path.join(webRoot, 'README.md'), 'utf8');
   const integration = fs.readFileSync(path.join(repoRoot, 'docs/integrations/desktop-agent.md'), 'utf8');
   const quickstart = fs.readFileSync(path.join(repoRoot, 'QUICKSTART.md'), 'utf8');
   for (const document of [readme, integration, quickstart]) {
-    assert.match(document, /http:\/\/127\.0\.0\.1:60844\/accessibility-workbench\//);
+    assert.match(document, /OpenDesk ready|actual-port|实际地址|实际.*端口/i);
     assert.match(document, /trusted-LAN|可信.*局域网/i);
     assert.doesNotMatch(document, /python3 -m http\.server 60845/);
   }
   assert.match(readme, /same-origin/i);
-  assert.match(integration, /60844/);
+  assert.match(integration, /legacy `60844`|legacy.*60844/i);
   assert.match(quickstart, /Allow Inspector from\s+LAN/);
 });
 
@@ -650,9 +650,9 @@ test('macOS Developer tray uses only the loopback token control bridge', () => {
   assert.match(helper, /initWithTitle:@"Copy Inspector LAN URL"/);
   assert.match(helper, /inspectorControlToken\.length > 0/);
   assert.match(helper, /X-OpenDesk-Inspector-Control/);
-  assert.match(compositionRoot, /accessibilityWorkbenchEnabledOnPort\(port\)/);
-  assert.match(compositionRoot, /TrimSpace\(port\) == "60844"/);
-  assert.match(launcher, /127\.0\.0\.1.*accessibility-workbench/);
+  assert.match(compositionRoot, /accessibilityWorkbenchEnabled\(isAutoRunJs, port\)/);
+  assert.match(compositionRoot, /autoRuntime \|\| strings\.TrimSpace\(port\) == "60844"/);
+  assert.match(launcher, /endpointAddress.*accessibility-workbench|baseURL.*accessibility-workbench/);
   assert.match(launcher, /inspectorControlToken/);
   assert.match(control, /authorizeInternal/);
   assert.match(control, /subtle\.ConstantTimeCompare/);

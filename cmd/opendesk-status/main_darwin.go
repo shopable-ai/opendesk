@@ -14,9 +14,11 @@ import "C"
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"runtime"
 	"strconv"
+	"strings"
 	"unsafe"
 )
 
@@ -38,6 +40,19 @@ func main() {
 	if err != nil || parentPID <= 0 {
 		fmt.Fprintln(os.Stderr, "opendesk-status: parent PID must be positive")
 		os.Exit(2)
+	}
+	for index, name := range map[int]string{2: "status-url", 3: "scheduler-url", 4: "icon-path", 5: "inspector-url", 6: "inspector-control-url"} {
+		if strings.TrimSpace(os.Args[index]) == "" {
+			fmt.Fprintf(os.Stderr, "opendesk-status: %s must not be empty\n", name)
+			os.Exit(2)
+		}
+	}
+	for index, name := range map[int]string{2: "status-url", 3: "scheduler-url", 5: "inspector-url", 6: "inspector-control-url"} {
+		parsed, parseErr := url.Parse(os.Args[index])
+		if parseErr != nil || parsed.Scheme != "http" || parsed.Host == "" {
+			fmt.Fprintf(os.Stderr, "opendesk-status: %s must be an absolute http URL\n", name)
+			os.Exit(2)
+		}
 	}
 	runStatusItem(parentPID, os.Args[2], os.Args[3], os.Args[4], os.Args[5], os.Args[6], os.Args[7])
 }

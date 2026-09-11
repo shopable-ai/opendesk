@@ -12,6 +12,7 @@ on:
       - 'pkg/runtimeconfig/**'
       - 'pkg/customui/**'
       - 'pkg/appshell/**'
+      - 'pkg/http/**'
       - 'automation/custom_ui*'
       - 'automation/floating_window*'
       - 'automation/page.go'
@@ -57,7 +58,10 @@ jobs:
           fi
       - name: Test Runtime endpoint allocation seams
         if: runner.os != 'Linux'
-        run: go test ./cmd/opendesk -run 'Test(FrameworkHTTPAutoAllocation|ExplicitEndpoint|RuntimeEndpoint|FrameworkHTTPExplicit)' -count=1
+        run: go test ./cmd/opendesk -run 'Test(FrameworkHTTPAutoAllocation|ExplicitEndpoint|RuntimeEndpoint|FrameworkHTTPExplicit|ResolveRuntimeEndpointConfig)' -count=1
+      - name: Test Inspector runtime endpoint propagation
+        if: runner.os != 'Linux'
+        run: go test ./pkg/http -run 'TestInspectorNetworkPolicyUsesOwnerProvidedRuntimePort' -count=1
       - name: Test App Shell single-instance seams
         if: runner.os != 'Linux'
         run: go test ./pkg/appshell -run 'SingleInstance' -count=1

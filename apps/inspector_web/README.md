@@ -7,23 +7,24 @@ these source files directly; `scripts/build_macos_app.sh` copies the same files
 into `OpenDesk.app/Contents/Resources/inspector_web` so the app and UI always
 come from one build.
 
-The single local entry is:
+The single local entry is the current loopback Runtime URL printed by OpenDesk,
+followed by:
 
 ```text
-http://127.0.0.1:60844/accessibility-workbench/
+/accessibility-workbench/
 ```
 
 Open it from the macOS tray menu under **Developer → Open Inspector**, or enter
-the URL directly, then click **Connect**. Page, launch control
+the current URL from the `OpenDesk ready` log line, then click **Connect**. Page, launch control
 (`POST /api/accessibility-workbench/v1/launch`), and data
-(`/api/accessibility-inspector/v1/*`) use the same `60844` origin. There is no
+(`/api/accessibility-inspector/v1/*`) use the same Framework Runtime origin. There is no
 Python `60845` server, `control` query parameter, CORS bridge, or random API
 listener in the normal workflow.
 
 LAN access is an explicit trusted developer-network mode. It starts off on every
 OpenDesk process launch and is enabled only from **Developer → Allow Inspector
 from LAN**. **Copy Inspector LAN URL** copies
-`http://<local-private-IP>:60844/accessibility-workbench/`. The LAN page displays
+`http://<local-private-IP>:<actual-port>/accessibility-workbench/`. The LAN page displays
 a persistent plaintext-HTTP warning. Use this only on a private network you
 trust; do not expose or forward the port to the public internet.
 
@@ -39,7 +40,7 @@ The Inspector API remains read-only and narrowly routed. It does not grant or
 proxy script execution, Scheduler, MCP, generic Runtime, arbitrary files, or UI
 actions. The frontend source remains here for development and tests, while the
 OpenDesk server exposes only `index.html`, `app.css`, `app.js`, and `model.js`
-under the fixed page path.
+under the fixed page path on the current Runtime listener.
 
 The UI tree opens in a compact view: empty leaves are hidden and single-child
 structural chains are folded without removing named, identified, actionable, or

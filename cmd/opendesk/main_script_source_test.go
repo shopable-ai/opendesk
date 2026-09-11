@@ -279,9 +279,12 @@ func TestResolveAccessibilityWorkbenchArtifactRoot(t *testing.T) {
 	}
 }
 
-func TestAccessibilityWorkbenchUsesOnlyFixedProductPort(t *testing.T) {
+func TestAccessibilityWorkbenchUsesActualRuntimePortOrLegacyFixedPort(t *testing.T) {
 	if !accessibilityWorkbenchEnabledOnPort("60844") {
 		t.Fatal("fixed Inspector product port was disabled")
+	}
+	if !accessibilityWorkbenchEnabled(true, "53127") {
+		t.Fatal("auto framework runtime did not enable local Inspector on its actual port")
 	}
 	for _, port := range []string{"60845", "0", "", "localhost:60844"} {
 		if accessibilityWorkbenchEnabledOnPort(port) {

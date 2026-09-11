@@ -50,7 +50,8 @@ type accessibilityWorkbenchLANStatus struct {
 }
 
 // inspectorNetworkPolicy is the explicit network boundary for Workbench-only
-// routes. It does not wrap or modify any other route on the 60844 mux.
+// routes. It does not wrap or modify any other route on the owner-provided
+// Framework listener.
 type inspectorNetworkPolicy struct {
 	mu                   sync.RWMutex
 	port                 string
@@ -148,7 +149,7 @@ func (p *inspectorNetworkPolicy) status() accessibilityWorkbenchLANStatus {
 	defer p.mu.RUnlock()
 	port := p.port
 	if port == "" {
-		port = "60844"
+		return accessibilityWorkbenchLANStatus{Mode: "unavailable"}
 	}
 	status := accessibilityWorkbenchLANStatus{
 		AllowLAN: p.allowLAN,
@@ -159,7 +160,7 @@ func (p *inspectorNetworkPolicy) status() accessibilityWorkbenchLANStatus {
 		status.Mode = "trusted-lan"
 		status.Warning = "Trusted-LAN Inspector traffic uses plaintext HTTP. Enable it only on a private developer network."
 	}
-	if p.primaryLAN.IsValid() {
+	if p.allowLAN && p.primaryLAN.IsValid() {
 		status.LANURL = "http://" + net.JoinHostPort(p.primaryLAN.String(), port) + accessibilityWorkbenchPagePath + "/"
 	}
 	return status
@@ -213,7 +214,7 @@ func (p *inspectorNetworkPolicy) authorizeNetwork(r *stdhttp.Request) error {
 	_, localPrivateHost := p.privateHosts[hostAddress]
 	p.mu.RUnlock()
 	if configuredPort == "" {
-		configuredPort = "60844"
+		return errors.New("Workbench listener port is unavailable")
 	}
 	if port != configuredPort {
 		return errors.New("Workbench Host does not match the OpenDesk listener")
@@ -276,7 +277,7 @@ func (p *inspectorNetworkPolicy) authorizeInternal(r *stdhttp.Request) error {
 	configuredPort := p.port
 	p.mu.RUnlock()
 	if configuredPort == "" {
-		configuredPort = "60844"
+		return errors.New("internal Inspector control listener port is unavailable")
 	}
 	if port != configuredPort || strings.TrimSpace(r.Header.Get("Origin")) != "" {
 		return errors.New("internal Inspector control Host or Origin is not allowed")
@@ -285,7 +286,8 @@ func (p *inspectorNetworkPolicy) authorizeInternal(r *stdhttp.Request) error {
 }
 
 // accessibilityWorkbenchController owns the short-lived authorization state,
-// but never creates another listener. Page, control, and data stay on 60844.
+// but never creates another listener. Page, control, and data stay on the
+// owner-provided Framework listener.
 type accessibilityWorkbenchController struct {
 	operationMu     sync.Mutex
 	mu              sync.Mutex

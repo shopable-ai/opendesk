@@ -144,7 +144,7 @@ app-mode\
 
 尤其不要把固定本地服务端口作为 Script App identity。当前公开 `opendesk.app.json` 契约没有用于给每个 App Mode package 声明 Runtime service port 的字段。如果 Runtime 后续增加端口或 endpoint override，应先在实现、测试和 [Environment API](environment.md) / 对应 Runtime 文档中形成公开契约，再由本页引用；不要先在 package 文档中发明 `port`、`OPENDESK_APP_PORT` 等尚未实现的配置。
 
-多 OpenDesk / 多 Script App 的 localhost endpoint 隔离、默认 auto port、显式 override、Single Instance 启动顺序及 legacy `60844` 迁移已经冻结在 [Runtime Endpoint Allocation 与 App Instance Isolation 设计](../architecture/runtime-endpoint-allocation.md)。该文档当前是后续 Runtime 实施基线，不表示新的端口环境变量或 CLI 已经可用。
+多 OpenDesk / 多 Script App 的 localhost endpoint 隔离、默认 auto port、显式 override、Single Instance 启动顺序及 legacy `60844` 迁移已经落地，详见 [Runtime Endpoint Allocation 与 App Instance Isolation 设计](../architecture/runtime-endpoint-allocation.md)。当前没有新的端口环境变量；App Mode 也不创建 TCP endpoint。
 
 ## 验证清单
 
@@ -163,6 +163,6 @@ app-mode\
 - [automation.app](app-shell.md)：App Mode lifecycle、tray/menu 与 Manifest Runtime 语义。
 - [Examples: App Mode](../../examples/app-mode/README.md)：最小可运行示例。
 - [App Mode desktop launch contract](../architecture/app-mode-desktop-launch.md)：开发与 release staging 的架构边界及验证证据。
-- [Runtime Endpoint Allocation 与 App Instance Isolation](../architecture/runtime-endpoint-allocation.md)：多实例 endpoint 所有权、自动分配、显式覆盖、Single Instance 协同与 60844 迁移基线。
+- [Runtime Endpoint Allocation 与 App Instance Isolation](../architecture/runtime-endpoint-allocation.md)：多实例 endpoint 所有权、自动分配、显式覆盖、Single Instance 协同与 60844 兼容迁移。
 - [受保护包 CLI](protected-packages.md)：`.js` → `.odpkg` 的源码保护与 License 流程。
 - [`$build-script-app`](../../workflows/script-app-packaging/skills/build-script-app/SKILL.md)：面向开发者和 Agent 的 Script App Packaging 作业 Skill。

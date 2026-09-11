@@ -1,6 +1,6 @@
 # Runtime Endpoint Allocation 与 App Instance Isolation 设计
 
-> 状态：Design Baseline / 待 Runtime 实施与验证  
+> 状态：P0 Implemented / macOS local verified / Windows main Runtime cross-build blocked by an existing robotgo dependency / Windows live not performed
 > 日期：2026-09-12  
 > 范围：OpenDesk 本地 Runtime / App Shell / Script App Packaging 在 localhost endpoint、固定端口兼容、多应用并行与 single-instance 下的端点所有权、分配、发现、覆盖和迁移规则。  
 > 目标：消除多个 OpenDesk / Script App 因共享固定 localhost 端口而产生的天然冲突，同时不把 Runtime 实现细节错误塞入 `opendesk.app.json`。
@@ -61,7 +61,7 @@ OPENDESK_PORT=xxxxx
 
 ## 3. Endpoint Owner 必须先分类
 
-当前架构资料中已经存在 `127.0.0.1:60844`：普通 OpenDesk service 的 `cmd/opendesk-status` helper 通过该内部 endpoint 与主进程交互。它与 `opendesk.app.json` 的 App identity 不是同一概念。
+历史架构资料中曾使用 `127.0.0.1:60844`：普通 OpenDesk service 的 `cmd/opendesk-status` helper 通过内部 Framework endpoint 与主进程交互。当前 helper 改为接收 parent 注入的实际地址；它与 `opendesk.app.json` 的 App identity 不是同一概念。
 
 实施前必须先把每个 localhost listener 归属到明确 owner，不允许继续用一个无语义的“OpenDesk port”覆盖所有用途：
 
@@ -73,6 +73,19 @@ OPENDESK_PORT=xxxxx
 | Test / development fixture | 测试、调试、临时 host | 可以 | 优先 auto，测试按需注入固定端口 |
 
 如果一个 listener 实际属于 Framework service，就不能仅因为 Script App Packaging 遇到冲突而把它重命名成 `APP_PORT`。
+
+### 当前实现的 Endpoint Owner Inventory
+
+| Endpoint / listener | Owner / 创建位置 | listen address | 连接者 | 生命周期 | 多实例 | 60844 状态 | 当前迁移方式 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Framework Runtime HTTP | `cmd/opendesk/startContainerBasedServer` → `runtimeEndpoint` | desktop/internal：`127.0.0.1:0`；显式 HTTP：`0.0.0.0:<port>` | status/helper、Scheduler、Inspector、HTTP clients | 主进程 Runtime | desktop/internal 可并行；显式端口按用户合同 | 只保留为显式 HTTP 默认值 | listener 直接返回 `actualAddress` / `actualPort`，所有内部 URL 从实际值构造 |
+| `opendesk-status` | `cmd/opendesk-status` helper | 不 listen | parent 注入的完整 status/scheduler/Inspector URL 与可选 token | helper 进程跟随 parent | 每个 parent 独立 | 不猜、不扫描 | argv 显式接收 actual endpoint |
+| App Mode instance control | `pkg/appshell/instance_darwin.go` / `instance_windows.go` | macOS Unix socket；Windows named pipe | 同 `appId` 的 secondary 启动 | App Shell primary lease | 同 appId 仲裁；不同 appId 独立 | 不使用 | 先 `AcquireSingleInstance`，secondary 激活后退出 |
+| Inspector / Developer control | `pkg/http`，复用 Framework HTTP listener | 与 Framework listener 相同 | Workbench 页面、parent helper | Framework Server | 随 Runtime 实例 | 显式 legacy HTTP 才可能是 60844 | policy 使用 owner 注入的实际端口；auto loopback 不启用 LAN token |
+| MCP | `cmd/opendesk-mcp` / `pkg/mcpserver` | stdio，无 TCP listener | MCP client 的 stdin/stdout | MCP 进程 | 由进程启动 | 不使用 | 保持 stdio |
+| Script execution coordination | `cmd/opendesk/script_instance.go` | `127.0.0.1:0` 临时 loopback socket | 同一脚本实例协调者 | 脚本 execution | execution-scoped | 不使用 | 与 Framework HTTP endpoint 分离 |
+
+App Mode 当前没有 TCP endpoint；不要为 `opendesk.app.json` 增加 `port`、`runtimePort` 或 endpoint discovery 字段。
 
 ## 4. 默认端口策略
 
@@ -489,15 +502,17 @@ Script App Packaging
 
 ## 16. 当前实现状态声明
 
-本文件是后续 Runtime 改造的设计基线，不表示以下能力已经实现：
+P0 已在当前 Runtime 落地：
 
 ```text
-auto runtime port
-任何新的 OPENDESK_*_PORT 环境变量
-新的 --port CLI
-endpoint discovery file
-per-session endpoint auth
-60844 migration
+desktop/internal runtime -> 127.0.0.1:0 -> actual listener address
+explicit -http -> explicit port -> occupied port fails clearly
+status helper -> parent-injected actual URLs; no fixed-port fallback
+Inspector -> actual Framework port; auto loopback is local-only
+App Mode -> no TCP endpoint; single-instance uses platform IPC/lock
+no new OPENDESK_*_PORT environment variable
+no runtime endpoint discovery file
 ```
 
-在源码、测试与公开 API Reference 同步落地之前，Skill、Manifest 和用户文档不得把这些目标设计写成已可调用能力。
+仍保留的兼容合同是显式 `-http` 的 `-port` 参数，默认值为 legacy `60844`；这不表示 desktop/internal Runtime 使用该端口。
+macOS local live、Windows cross-build 与 Windows live 的最终状态必须以本轮验证证据为准，不能把 cross-build 写成 Windows live。

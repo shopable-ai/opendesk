@@ -2,8 +2,8 @@
 
 const assert = require("node:assert/strict");
 
-const pageValue = process.env.OPENDESK_WORKBENCH_URL ||
-  "http://127.0.0.1:60844/accessibility-workbench/";
+const pageValue = process.env.OPENDESK_WORKBENCH_URL;
+if (!pageValue) throw new Error('OPENDESK_WORKBENCH_URL must be the current Runtime Workbench URL');
 const pageURL = new URL(pageValue);
 assert.equal(pageURL.pathname, "/accessibility-workbench/");
 const origin = pageURL.origin;
@@ -120,7 +120,7 @@ async function main() {
 
   process.stdout.write(JSON.stringify({
     ok: true,
-    fixedPort: pageURL.port === "60844",
+    actualRuntimePort: pageURL.port,
     sameOriginPageControlAndData: true,
     frontendAssetsAvailable: true,
     arbitraryAssetsRejected: true,
@@ -129,7 +129,7 @@ async function main() {
     duplicateLaunchRejected: true,
     pairReplayRejected: true,
     mutatingInspectorRouteRejected: true,
-    authorizationRevokedWithoutClosing60844: true,
+    authorizationRevokedWithoutClosingRuntime: true,
   }) + "\n");
 }
 

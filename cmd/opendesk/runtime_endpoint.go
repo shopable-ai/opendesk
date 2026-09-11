@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -13,6 +14,13 @@ type endpointMode string
 const (
 	endpointModeAuto     endpointMode = "auto"
 	endpointModeExplicit endpointMode = "explicit"
+)
+
+type runtimeStartupMode string
+
+const (
+	runtimeStartupModeDesktop      runtimeStartupMode = "desktop"
+	runtimeStartupModeExplicitHTTP runtimeStartupMode = "explicit-http"
 )
 
 type endpointConfig struct {
@@ -51,6 +59,9 @@ func listenRuntimeEndpoint(config endpointConfig) (*runtimeEndpoint, error) {
 	case endpointModeAuto:
 		if host == "" {
 			host = "127.0.0.1"
+		}
+		if ip := net.ParseIP(host); ip == nil || !ip.IsLoopback() {
+			return nil, fmt.Errorf("%s endpoint auto mode must bind a loopback host; got %q", owner, host)
 		}
 		requestedPort = "0"
 	case endpointModeExplicit:
@@ -111,9 +122,27 @@ func (endpoint *runtimeEndpoint) Close() error {
 	endpoint.closeMu.Do(func() {
 		if endpoint.listener != nil {
 			endpoint.closeErr = endpoint.listener.Close()
+			if errors.Is(endpoint.closeErr, net.ErrClosed) {
+				endpoint.closeErr = nil
+			}
 		}
 	})
 	return endpoint.closeErr
+}
+
+func resolveRuntimeEndpointConfig(config *Config, mode runtimeStartupMode) (endpointConfig, error) {
+	requestedPort := ""
+	if config != nil {
+		requestedPort = config.Port
+	}
+	switch mode {
+	case runtimeStartupModeDesktop:
+		return frameworkHTTPConfig(true, ""), nil
+	case runtimeStartupModeExplicitHTTP:
+		return frameworkHTTPConfig(false, requestedPort), nil
+	default:
+		return endpointConfig{}, fmt.Errorf("runtime startup mode %q is invalid", mode)
+	}
 }
 
 func frameworkHTTPConfig(autoRuntime bool, requestedPort string) endpointConfig {

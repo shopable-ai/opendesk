@@ -13,6 +13,9 @@ with no user arguments; an artifact without the package keeps its historical no-
 
 `examples/app-mode/basic` is a development fixture and must not be described as the product released to end users.
 
+App Mode does not create a TCP Runtime endpoint. Its `singleInstance` control uses the platform App Shell lease (Unix socket on
+macOS, named mutex/named pipe on Windows); Runtime HTTP endpoint allocation belongs to the separate Framework/HTTP startup path.
+
 ## Development launch
 
 Run these commands from the repository root after `make build`:

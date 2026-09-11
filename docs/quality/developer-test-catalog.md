@@ -135,12 +135,12 @@ node --test tests/accessibility-workbench/model.test.js
 跨进程验证时，先启动当前构建的 OpenDesk，然后运行：
 
 ```text
-OPENDESK_WORKBENCH_URL='http://127.0.0.1:60844/accessibility-workbench/' node tests/accessibility-workbench/control-launch.js
+OPENDESK_WORKBENCH_URL='http://127.0.0.1:<actual-port>/accessibility-workbench/' node tests/accessibility-workbench/control-launch.js
 ```
 
-该脚本不会读取窗口或执行 Accessibility 动作；它验证页面／控制／数据固定 60844 同源、资源 allowlist、无 CORS／随机 API
-origin、并发第二次启动拒绝、一次性配对、只读 route isolation，以及撤销后普通 60844 listener 继续存活。运行前必须确认
-60844 属于本轮当前构建，不要连接来源不明或用户正在使用的旧服务。
+该脚本不会读取窗口或执行 Accessibility 动作；它验证页面／控制／数据共享当前 Runtime 同源、资源 allowlist、无 CORS／第二个 API
+origin、并发第二次启动拒绝、一次性配对、只读 route isolation，以及撤销后普通 Runtime listener 继续存活。运行前必须确认
+URL 来自本轮当前构建，不要连接来源不明或用户正在使用的旧服务。
 
 `tests/accessibility-workbench/http-live.js` 仍可由更高层测试 harness 在内存中传入控制接口返回的一次性 URL，用于真实创建会话、
 重复观察和核对树字段；它不是用户启动入口。完整的人工启动与权限前提见

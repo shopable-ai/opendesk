@@ -66,7 +66,7 @@ func samePath(left, right string) bool {
 	if leftErr != nil || rightErr != nil {
 		return false
 	}
-leftAbs = filepath.Clean(leftAbs)
+	leftAbs = filepath.Clean(leftAbs)
 	rightAbs = filepath.Clean(rightAbs)
 	if runtime.GOOS == "windows" {
 		return strings.EqualFold(leftAbs, rightAbs)

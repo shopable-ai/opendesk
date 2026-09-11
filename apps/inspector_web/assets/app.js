@@ -148,8 +148,8 @@
         step: "preview", progress: "Preview only", title: "Continue on the computer running OpenDesk",
         detail: "This address is outside the local-only or explicitly enabled trusted-LAN Inspector boundary.",
         hint: copyAvailable
-          ? "Use the fixed 127.0.0.1:60844 URL on the OpenDesk computer. LAN access must first be enabled from the Developer tray menu."
-          : "Open the fixed Inspector URL from the OpenDesk Developer tray menu.",
+          ? "Use the loopback URL printed by OpenDesk on that computer. LAN access must first be enabled from the Developer tray menu."
+          : "Open the current Inspector URL from the OpenDesk Developer tray menu.",
         action: "copy-loopback", label: copyAvailable ? "Copy loopback URL" : "Preview only", disabled: !copyAvailable
       };
     }
@@ -289,7 +289,7 @@
 
   function normalizedControlError(error) {
     if (error && error.name === "TypeError") {
-      return new Error("No compatible same-origin Workbench response came from OpenDesk on port 60844. Start, update, or restart that single OpenDesk.app.");
+      return new Error("No compatible same-origin Workbench response came from the current OpenDesk runtime. Start, update, or restart that single OpenDesk.app.");
     }
     return error instanceof Error ? error : new Error(String(error));
   }
@@ -425,7 +425,7 @@
       const launchFrontendURL = new URL(launchURL.href);
       launchFrontendURL.hash = "";
       if (launchFrontendURL.href !== frontendURL || launchURL.origin !== location.origin || !launchURL.hash) {
-        throw new Error("OpenDesk returned a Workbench pairing URL outside this 60844 origin.");
+        throw new Error("OpenDesk returned a Workbench pairing URL outside this runtime's origin.");
       }
       // The trusted URL differs from the current page only by its fragment, so
       // location.replace() would be a same-document navigation and would not
@@ -1503,7 +1503,7 @@
     document.body.classList.add(state.pageAccess.mode === "trusted-lan" ? "page-lan" : (state.pageAccess.canConnect ? "page-local" : "page-preview"));
     elements["origin-route"].hidden = state.pageAccess.mode === "local";
     elements["current-page-url"].textContent = state.pageAccess.currentURL;
-    elements["required-page-url"].textContent = state.pageAccess.loopbackURL || "http://127.0.0.1:60844/accessibility-workbench/";
+    elements["required-page-url"].textContent = state.pageAccess.loopbackURL || "OpenDesk's current loopback Inspector URL";
     if (!state.pageAccess.canConnect) {
       elements["interface-preview"].open = false;
       elements["interface-preview-detail"].textContent = "Inactive controls are available only as a visual preview on this device.";
@@ -1529,7 +1529,7 @@
           : "OpenDesk stays local-only. Connect only when you want a short-lived inspection session.",
         state.pageAccess.mode === "trusted-lan" ? "warning" : "info");
       } else {
-        message("This address is outside the Inspector access boundary. Use the tray menu's fixed local URL or explicitly enable trusted-LAN access.", "warning");
+        message("This address is outside the Inspector access boundary. Use the tray menu's current local URL or explicitly enable trusted-LAN access.", "warning");
       }
       updateButtons();
     }

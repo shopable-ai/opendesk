@@ -9,7 +9,11 @@ order: 11
 当前项目支持 HTTP 服务模式：
 
 - `opendesk -http`
-- 默认端口：60844
+- 显式 HTTP Server 的 legacy 默认端口：`60844`
+
+这里的 `-http` 是用户明确启动的公开 HTTP Server，保持固定 `-port` 合同；它不同于无参数桌面/Framework 启动使用的
+内部 Runtime endpoint。桌面/Framework 启动默认绑定 loopback 并由操作系统自动分配端口，实际地址会在启动日志的
+`OpenDesk ready` 行公布。
 
 路由以 `pkg/http/handler.go` 为准。
 
@@ -373,7 +377,8 @@ curl -X POST http://127.0.0.1:60844/vision/detect-ui \
 
 ## POST /api/accessibility-workbench/v1/launch
 
-当前 OpenDesk 同源页面请求一个短期 Accessibility Workbench 授权 generation。页面、控制和数据均位于固定 `60844` listener。
+当前 OpenDesk 同源页面请求一个短期 Accessibility Workbench 授权 generation。页面、控制和数据均位于当前 Framework
+HTTP listener；显式 `-http` 示例可能是 `60844`，desktop/internal Runtime 使用启动时实际分配的端口。
 
 **签名**
 
@@ -387,7 +392,7 @@ POST /api/accessibility-workbench/v1/launch
 
 **返回值**
 
-统一 envelope 的 `data` 包含：`url`（同一页面 URL 加一次性 `pair` fragment）、固定 listener authority、`mode`
+统一 envelope 的 `data` 包含：`url`（同一页面 URL 加一次性 `pair` fragment）、当前 listener authority、`mode`
 （`local-only` 或 `trusted-lan`）和 `boundary`。`url` 不含 `api` fragment 参数，不得记录、持久化或把 pairing secret 移入查询参数。
 
 **行为与错误**
@@ -402,7 +407,8 @@ loopback socket、loopback IP Host 和完全匹配的 Origin。macOS tray 显式
 
 **示例**
 
-浏览器页面通常直接完成此请求。以下命令只用于本机维护诊断，会把一次性 URL 输出到终端；不要保存响应：
+浏览器页面通常直接完成此请求。以下命令假定先以显式 legacy HTTP 模式启动
+`opendesk -http -port 60844`，只用于本机维护诊断，会把一次性 URL 输出到终端；不要保存响应：
 
 ```bash
 curl --noproxy '*' -fsS http://127.0.0.1:60844/api/accessibility-workbench/v1/launch \
@@ -415,9 +421,9 @@ curl --noproxy '*' -fsS http://127.0.0.1:60844/api/accessibility-workbench/v1/la
 
 ## Accessibility Workbench transport contract
 
-OpenDesk 在 `60844` 同源提供 `/accessibility-workbench/`、launch control 和下列数据 API。Inspector 的 bearer/session 只授权
-这些只读数据 handler，不是 `/SCRIPT_RUN`、`/executions`、Scheduler、MCP、Vision 或通用 Runtime 的 capability。增加 Inspector
-路由与 trusted-LAN 策略不会改写或扩大其他 `60844` 路由的既有授权。
+OpenDesk 在当前 Framework listener 同源提供 `/accessibility-workbench/`、launch control 和下列数据 API。Inspector 的
+bearer/session 只授权这些只读数据 handler，不是 `/SCRIPT_RUN`、`/executions`、Scheduler、MCP、Vision 或通用 Runtime 的
+capability。增加 Inspector 路由与 trusted-LAN 策略不会改写或扩大其他 Framework 路由的既有授权。
 
 `apps/inspector_web/` 保留纯 HTML/CSS/JavaScript 源码；开发 checkout 直接从该目录提供允许清单中的四项资源，macOS build 把
 同一资源复制到 app bundle。服务器不提供任意静态文件路径。
@@ -472,7 +478,7 @@ POST /api/accessibility-inspector/v1/pair
 **行为与错误**
 
 页面在请求前清除 fragment。重复、错误或过期 code 返回 401；请求体错误返回 400。配对值只来自控制接口返回 URL 的
-fragment；页面与 API 始终来自当前 `60844` 同源入口。
+fragment；页面与 API 始终来自当前 Framework listener 的同源入口。
 
 **示例**
 
@@ -943,7 +949,7 @@ DOM、selector、tab、page realm、真实 cookie 或 storage 语义。它们不
 - 请求声明 `capabilities: ["ui"]`，但服务器没有通过 `-ui` 或可信本地配置启用 UI
 - UI 请求不是来自 `127.0.0.1` / `::1` loopback socket
 
-Custom UI 与 [Dialog API](dialog.md) 的 HTTP 授权为三重门槛：服务器启用、单次请求声明、loopback 来源。只启用服务器但请求不声明时，该 execution 中的 `ui` 与 `Dialog` 仍为 dormant；来源成功时 `ui.getCapabilities().activationSource`、`Dialog.getCapabilities().activationSource` 与 `Execution.activationSource` 都是 `httpRequest`。`X-Forwarded-For`、任意 Host/Origin header 和 CORS 都不会绕过 socket loopback 检查；服务不会设置 `Access-Control-Allow-Origin: *`。完整窗口 API 见 [Custom UI](custom-ui.md)，Dialog 行为见 [Dialog API](dialog.md)。
+Custom UI 与 [Dialog API](dialog.md) 的 HTTP 授权为三重门槛：服务器启用、单次请求声明、loopback 来源。只启用服务器但请求不声明时，该 execution 中的 `ui` 与 `Dialog` 仍为 dormant；来源成功时 `ui.getCapabilities().activationSource`、`Dialog.getCapabilities().activationSource` 与 `Execution.activationSource` 都是 `httpRequest`。`X-Forwarded-For`、任意 Host/Origin header 和 CORS 都不会绕过 socket loopback 检查；服务不会设置 `Access-Control-Allow-Origin: *`。完整窗口 API 见 [Custom UI](ui.md)，Dialog 行为见 [Dialog API](dialog.md)。
 
 常见 404
 - execution id 不存在

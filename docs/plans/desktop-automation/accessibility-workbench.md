@@ -6,7 +6,7 @@ description: 原生 Accessibility 驱动的 Agent 自动化与可选本机 Web �
 # Accessibility Workbench：Agent 直接执行，人通过网页协作
 
 日期：2026-09-10。
-状态：**第一批只读 Web 闭环已实现，当前产品合同收敛为固定 `60844` 单端口同源页面／控制／数据。local-only 默认只接受 loopback；macOS tray 的 Developer 菜单可为当前进程显式开启 trusted-LAN，重启恢复关闭。LAN 仍要求私有 socket、本机精确私有 IP Host／Origin、一次性 pairing、Bearer/session token、单客户端和既有 TTL，并显示 HTTP 明文警告。前端源码位于 `apps/inspector_web/`，当前 macOS bundle 携带同次构建资源。Inspector 仍只读且不授予 execution、Scheduler、MCP 或通用 Runtime。真实 macOS AX、前端模型、Runtime catalog、native gate、direct Playwright Chromium 实窗矩阵和显式短期 exact-window visual capture 已有既往证据；本次 60844 本机与 LAN 页面必须重新用 Browser Skill 验收，不能转移旧视觉资格。Windows UIA live 仍未运行。**
+状态：**第一批只读 Web 闭环已实现；桌面/内部 Runtime 使用 loopback 自动 endpoint，页面／控制／数据共享当前实际 listener origin，显式 `-http` 才保留 legacy `60844`。local-only 默认只接受 loopback；macOS tray 的 Developer 菜单可在真实公开 listener 上为当前进程显式开启 trusted-LAN，重启恢复关闭。LAN 仍要求私有 socket、本机精确私有 IP Host／Origin、一次性 pairing、Bearer/session token、单客户端和既有 TTL，并显示 HTTP 明文警告。前端源码位于 `apps/inspector_web/`，当前 macOS bundle 携带同次构建资源。Inspector 仍只读且不授予 execution、Scheduler、MCP 或通用 Runtime。真实 macOS AX、前端模型、Runtime catalog、native gate、direct Playwright Chromium 实窗矩阵和显式短期 exact-window visual capture 已有既往证据；Windows UIA live 仍未运行。**
 初始核查：`1d5404e89bb4c1587566b11382b7dff8aed71d7d`；写入前复核：`0f5b13ac0271da6b5173adb36ee2bd0b8552dd12`。实施时读取当前分支及工作树，不回退这些提交。
 执行入口：[本地 Codex Goal](../../../prompts/runtime/accessibility-workbench-goal.md)。本文是方案主文档，Goal 负责实施顺序，不另建同主题正文。
 
@@ -85,7 +85,7 @@ AI 拿到树后可以直接推进支持范围内的业务，但树不等于任�
 | 仅启用了普通 HTTP／其他功能 | 当前 App 同源提供固定页面；用户点击后通过同源控制接口创建短期 authorization generation，不创建新 listener |
 | 版本不含功能、未监听或无法安全热启用 | 给出准确更新／启动说明；不谎报 URL，不启动重复实例，不中断其他任务 |
 
-App 的唯一正常入口是 `http://127.0.0.1:60844/accessibility-workbench/`。页面仅在用户点击 **Connect** 后通过同源控制合同
+App 的唯一正常入口是当前 OpenDesk `OpenDesk ready` 日志中的 loopback 地址加 `/accessibility-workbench/`。页面仅在用户点击 **Connect** 后通过同源控制合同
 申请短期 authorization generation；不存在 Python `60845`、`control` 查询参数或随机 API 端口。macOS tray 提供 Developer →
 Open Inspector、Allow Inspector from LAN 与 Copy Inspector LAN URL。LAN 默认关闭，只在显式开启后的当前进程接受可信私网
 页面／控制／数据，重启恢复关闭。正式入口和安全说明见
@@ -158,7 +158,7 @@ native owner 边界补足必要的**内部只读和 scope 策略**，拒绝 perf
 
 ### 部署与来源
 
-复用 OpenDesk 进程和既有 `60844` listener，但只在普通 mux 增加 `/accessibility-workbench/`、launch control 和
+复用 OpenDesk 进程和其当前 Framework listener，但只在普通 mux 增加 `/accessibility-workbench/`、launch control 和
 `/api/accessibility-inspector/v1/*`。trusted-LAN 策略仅包裹这些 Workbench 路由，不扩大或重构 execution、Scheduler、MCP、
 Vision 等既有路由。数据 handler 仍只暴露 Inspector 固定只读操作，不把 bearer 当成通用 capability。
 
@@ -260,7 +260,7 @@ trusted-LAN 是明确的可信开发网络模式，页面必须显示明文 HTTP
 | 本文 | 唯一方案、取舍、范围与验收，实施后更新状态 |
 | prompts/runtime/accessibility-workbench-goal.md | 本地执行目标，不复制全部方案 |
 | apps/inspector_web/ | 纯 HTML/CSS/JavaScript 源码入口；无 backend、授权或原生取数逻辑，由当前 checkout 或 bundle 资源提供 |
-| pkg/http/ 下同主题 handler／controller | 固定 60844 页面允许清单、同源控制／数据、local-only／trusted-LAN 策略、配对与生命周期 |
+| pkg/http/ 下同主题 handler／controller | 当前 Framework listener 上的页面允许清单、同源控制／数据、local-only／trusted-LAN 策略、配对与生命周期 |
 | cmd/opendesk/ | 普通服务组合根；解析源码或 bundle 前端资源，生成仅传 helper argv 的内部控制 token |
 | cmd/opendesk-status/ | macOS Developer 菜单、打开本机入口、进程内 LAN 开关与 LAN URL 复制 |
 | automation/ 与现有 execution 集成 | 最小内部只读／scope 策略和 owner 适配，非第二套后端 |
@@ -389,7 +389,7 @@ Playwright 视觉证据早于本次入口改动，不能转移为本次视觉通
 
 该轮曾以独立静态服务器作为过渡方案；这一操作口径现已退役，不得继续启动 Python 静态服务或使用第二个端口。仍然有效的
 结论只有：发现 `/status` 正常而 Inspector control 为 404 时，应退出旧 App、替换为当前 bundle 后再启动，不能用第二进程掩盖
-版本不一致。当前入口和安全边界只以后文“固定 60844 同源与 trusted-LAN 收敛”为准。
+版本不一致。当前入口和安全边界只以后文“当前 Runtime origin 同源与 trusted-LAN 收敛”为准。
 
 当前 bundle 的正式构建、临时签名、主程序／UI host 配对和 App 图标 bundle 合同均通过；目标相关的
 `TestResolveAccessibilityWorkbenchArtifactRoot` 也通过。扩大到整个 `go test ./cmd/opendesk` 时，现有并行 App Mode 改动中的
@@ -399,10 +399,10 @@ Playwright 视觉证据早于本次入口改动，不能转移为本次视觉通
 本次又按 Browser Skill 尝试当前 loopback 页面，但 `browsers.list()` 仍为 `[]`，因此没有为这次单 App 文案与首屏变化补出新的
 实页点击或截图资格；此缺口继续单独保留，未用 curl、HTTP 合同测试或旧视觉证据冒充。
 
-### 2026-09-11 固定 60844 同源与 trusted-LAN 收敛
+### 2026-09-11 同源与 trusted-LAN 收敛
 
 本节取代上面的 2026-09-11 独立静态服务器／随机 listener 操作口径；旧段落仅保留为变更历史，不能作为当前命令或资格。
-当前页面为 `http://127.0.0.1:60844/accessibility-workbench/`，launch 和 Inspector data 同源。macOS tray 增加 Developer
+当前页面使用当前 Framework listener 的实际 loopback origin，launch 和 Inspector data 同源。macOS tray 增加 Developer
 子菜单；LAN 开关只存在于主进程内存，status helper 通过 loopback-only internal endpoint 与启动时随机 argv token 控制。
 
 验收必须分别报告：local-only 默认拒绝 LAN；显式启用后私网同源页面与认证 API 可用；关闭和新进程恢复默认；错误 Origin、

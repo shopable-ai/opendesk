@@ -167,7 +167,7 @@ func (s *inspectorService) close() {
 }
 
 // resetPairing starts one fresh, single-client authorization generation on
-// the fixed OpenDesk listener. Existing credentials and sessions are revoked
+// the current Framework listener. Existing credentials and sessions are revoked
 // before the new one-time code becomes available.
 func (s *inspectorService) resetPairing(ttl time.Duration) error {
 	if s == nil {
@@ -1598,8 +1598,9 @@ func (h *Handler) validateInspectorTransport(r *http.Request) error {
 
 func (h *Handler) configureInspectorCORS(w http.ResponseWriter, r *http.Request) (bool, error) {
 	if h != nil && h.inspectorPolicy != nil {
-		// Product Workbench traffic is same-origin on 60844. Never emit CORS
-		// access headers or reintroduce an independently served frontend.
+		// Product Workbench traffic is same-origin on the owner-provided
+		// Framework listener. Never emit CORS access headers or reintroduce an
+		// independently served frontend.
 		return false, nil
 	}
 	if h == nil || h.inspectorFrontendOrigin == "" {

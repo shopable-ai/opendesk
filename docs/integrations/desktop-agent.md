@@ -6,7 +6,7 @@ order: 4
 
 # Desktop Agent 与 Accessibility Workbench
 
-Accessibility Workbench 由 OpenDesk 在固定 `60844` 端口同源提供的浏览器前端和短期只读原生 API 组成。它让人查看一个明确窗口的真实 AX／UIA
+Accessibility Workbench 由 OpenDesk 在当前 Framework Runtime endpoint 上同源提供的浏览器前端和短期只读原生 API 组成。桌面/内部启动使用 loopback 自动端口；显式 `-http` 才保留 legacy `60844` 默认。它让人查看一个明确窗口的真实 AX／UIA
 语义树、修订定位候选、重新验证并导出 handoff；它本身不会点击、输入、聚焦或运行网页提供的 JavaScript。完成业务动作时，
 Agent 应消费 handoff，生成普通 OpenDesk JavaScript，再通过用户已经信任的 CLI execution 独立运行和验证。
 
@@ -15,11 +15,11 @@ Agent 应消费 handoff，生成普通 OpenDesk JavaScript，再通过用户已�
 正常启动当前 `OpenDesk.app` 后，从 macOS 托盘选择 **Developer → Open Inspector**，或直接打开：
 
 ```text
-http://127.0.0.1:60844/accessibility-workbench/
+`OpenDesk ready` 日志中的实际地址 + `/accessibility-workbench/`
 ```
 
 页面、`POST /api/accessibility-workbench/v1/launch` 和 `/api/accessibility-inspector/v1/*` 使用完全相同的
-Host、Origin 和端口。不需要额外静态服务器、`60845`、`control` 查询参数或随机 API listener。开发 checkout 直接读取
+Host、Origin 和实际端口。不需要额外静态服务器、`60845`、`control` 查询参数或第二个 API listener。开发 checkout 直接读取
 `apps/inspector_web/`；构建脚本把同一资源复制进 `OpenDesk.app/Contents/Resources/inspector_web`，避免主程序与 UI 来源漂移。
 
 页面只在点击 **Connect** 后生成短期一次性 pairing。fragment 随即从地址栏清除，Bearer 和 session token 仅留在页面内存；
@@ -44,7 +44,7 @@ Origin、pair 重放、跨 session token 和过期凭据均拒绝。精确字段
 
 默认 `local-only` 策略只接受 loopback socket 和 loopback IP Host。需要可信局域网时，在 macOS 托盘选择
 **Developer → Allow Inspector from LAN**，再用 **Copy Inspector LAN URL** 取得
-`http://<本机私有-IP>:60844/accessibility-workbench/`。这是仅当前进程有效的 trusted-LAN 开关，重启必定恢复关闭。
+`http://<本机私有-IP>:<actual-port>/accessibility-workbench/`。这是仅当前进程有效的 trusted-LAN 开关，重启必定恢复关闭；只有真实公开 listener 模式才适合启用 LAN。
 
 trusted-LAN 仍只允许 RFC 私有网段 socket、本机实际私有 IP 的精确 Host 和相同 HTTP Origin；公网 RemoteAddr、伪造私有 Host、
 forwarded headers 和跨源请求继续拒绝。页面会持续显示“plaintext HTTP”警告。只应在可信开发网络短期开启，不得通过公网路由、
@@ -109,7 +109,7 @@ Workbench 页面不要求模型。没有已配置 Agent 时，树、属性、结
 所选窗口、UI tree 和刷新动作。四步说明与未连接工作区默认收起，连接成功后工作区自动展开；首次使用只需跟随这个按钮，
 不会在顶部状态区再看到重复 Connect。树出现后点击任意一行即可查看属性，Validate、review 和 handoff 都是可选的后续用途。
 
-1. 打开 `http://127.0.0.1:60844/accessibility-workbench/` 并点 **Connect**，确认页面显示 `Connected` 和实际 backend 状态。
+1. 打开 `OpenDesk ready` 日志中实际地址的 `/accessibility-workbench/` 并点 **Connect**，确认页面显示 `Connected` 和实际 backend 状态。
 2. 在窗口列表中按 application、精确标题、PID、bounds 和 picker identity 选择目标，再点 `Open scope`。页面不会默认观察活动
    窗口，也不会以模糊标题选择同名第一项。
 3. 检查 UI Tree、只读原始属性和 Layout Preview。Preview 只是逻辑 bounds 的结构示意，不是截图或点击坐标。

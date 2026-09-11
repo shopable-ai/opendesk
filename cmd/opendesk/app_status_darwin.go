@@ -3,10 +3,12 @@
 package main
 
 import (
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 )
 
 // openDeskAppPaths returns paths only when this process is the main executable
@@ -40,15 +42,21 @@ func openDeskAppPaths() (helper, icon string, ok bool) {
 
 // startMacOSAppStatusItem creates the visible completion state for a Finder
 // launch only after the HTTP socket has been bound successfully.
-func startMacOSAppStatusItem(port, inspectorControlToken string) {
+func startMacOSAppStatusItem(endpointAddress, inspectorControlToken string) {
 	helper, icon, ok := openDeskAppPaths()
 	if !ok {
 		return
 	}
-	statusURL := "http://127.0.0.1:" + port + "/status"
-	schedulerURL := "http://127.0.0.1:" + port + "/scheduler"
-	inspectorURL := "http://127.0.0.1:" + port + "/accessibility-workbench/"
-	inspectorControlURL := "http://127.0.0.1:" + port + "/api/accessibility-workbench/v1/internal/lan"
+	endpointAddress = strings.TrimSpace(endpointAddress)
+	if _, _, err := net.SplitHostPort(endpointAddress); err != nil {
+		terminalPrintf(os.Stderr, "[FRAMEWORK] [WARN] OpenDesk is ready, but the macOS status item endpoint is invalid: %v\n", err)
+		return
+	}
+	baseURL := "http://" + endpointAddress
+	statusURL := baseURL + "/status"
+	schedulerURL := baseURL + "/scheduler"
+	inspectorURL := baseURL + "/accessibility-workbench/"
+	inspectorControlURL := baseURL + "/api/accessibility-workbench/v1/internal/lan"
 	command := exec.Command(helper, strconv.Itoa(os.Getpid()), statusURL, schedulerURL, icon, inspectorURL, inspectorControlURL, inspectorControlToken)
 	if err := command.Start(); err != nil {
 		terminalPrintf(os.Stderr, "[FRAMEWORK] [WARN] OpenDesk is ready, but the macOS status item could not start: %v\n", err)
