@@ -104,9 +104,14 @@ function inspectBundle(scriptInput, options = {}) {
   const candidatePath = path.join(path.dirname(scriptPath), candidateName(path.basename(scriptPath)));
   const candidateBytes = readRegular(candidatePath, 'candidateFile');
   const candidate = parseJSON(candidateBytes, 'candidateFile');
-  assert(candidate.formatVersion === 'opendesk.recorder.basic-candidate/v3'
+  assert((candidate.formatVersion === 'opendesk.recorder.basic-candidate/v3'
+      || candidate.formatVersion === 'opendesk.recorder.basic-candidate/v4')
     && candidate.mode === 'basic' && candidate.recordingId === recordingId,
   'CANDIDATE_IDENTITY_MISMATCH', 'candidate identity does not match the script package');
+  if (candidate.formatVersion === 'opendesk.recorder.basic-candidate/v4') {
+    assert(candidate.pointerMotion === 'instant' || candidate.pointerMotion === 'smooth',
+      'INVALID_CANDIDATE', 'candidate pointer motion policy is invalid');
+  }
   assert(candidate.script && SHA256.test(String(candidate.script.sha256 || '')),
     'INVALID_CANDIDATE', 'candidate script reference is invalid');
   assert(embeddedBasename(candidate.script.file, 'candidate.script.file') === path.basename(scriptPath),
@@ -141,7 +146,8 @@ function inspectBundle(scriptInput, options = {}) {
     'RAW_MISMATCH', 'actual raw bytes do not match actions');
 
   const manifestPath = path.join(recordingDir, 'manifest.json');
-  const manifest = parseJSON(readRegular(manifestPath, 'manifestFile'), 'manifestFile');
+  const manifestBytes = readRegular(manifestPath, 'manifestFile');
+  const manifest = parseJSON(manifestBytes, 'manifestFile');
   assert(manifest.recordingId === recordingId && manifest.storage && manifest.storage.state === 'saved'
     && manifest.storage.rawFile === 'raw/events.ndjson'
     && manifest.storage.rawBytes === rawBytes.length
@@ -153,11 +159,16 @@ function inspectBundle(scriptInput, options = {}) {
   assert(actionIds.length > 0 && actionIds.every(id => typeof id === 'string' && id.length > 0)
     && new Set(actionIds).size === actionIds.length,
   'INVALID_ACTION_IDS', 'actions must contain unique non-empty IDs');
-  const mappingIds = Array.isArray(candidate.mappings)
-    ? candidate.mappings.map(mapping => mapping && mapping.actionId) : [];
+  const mappings = Array.isArray(candidate.mappings) ? candidate.mappings : [];
+  const mappingIds = mappings.map(mapping => mapping && mapping.actionId);
   assert(mappingIds.length === actionIds.length
     && mappingIds.every((id, index) => id === actionIds[index]),
   'ACTION_MAPPING_MISMATCH', 'candidate mappings do not cover actions exactly once in order');
+  const scriptLineCount = scriptBytes.toString('utf8').split(/\r?\n/).length;
+  assert(mappings.every((mapping, index) => Number.isInteger(mapping.line)
+    && mapping.line > 0 && mapping.line <= scriptLineCount
+    && (index === 0 || mapping.line > mappings[index - 1].line)),
+  'ACTION_MAPPING_MISMATCH', 'candidate mapping lines must be positive, ordered, and inside the source script');
 
   return {
     valid: true,
@@ -168,7 +179,7 @@ function inspectBundle(scriptInput, options = {}) {
       file: relative(repoRoot, actionsPath), sha256: candidate.actions.sha256,
       revision: actions.revision, readiness: actions.readiness, actionIds,
     },
-    manifest: {file: relative(repoRoot, manifestPath)},
+    manifest: {file: relative(repoRoot, manifestPath), sha256: hash(manifestBytes)},
     raw: {file: relative(repoRoot, rawPath), sha256: actions.raw.sha256, bytes: rawBytes.length},
   };
 }
