@@ -437,10 +437,8 @@ func main() {
 			}
 			config.ScriptPath = scriptFile
 
-			// The script starts only after the App has reserved its HTTP socket
-			// and completed service startup. That prevents a duplicate Finder
-			// launch from running tm.config.js before it discovers the existing
-			// OpenDesk service.
+			// The script starts only after the framework service owns its
+			// runtime endpoint and has completed service startup.
 		}
 
 		// 启动 HTTP 服务器（默认行为）
@@ -1792,19 +1790,17 @@ func startContainerBasedServer(port string, appConfig *Config) error {
 		return fmt.Errorf("custom UI configuration failed: %w", err)
 	}
 
-	// Reserve the socket before starting the Scheduler. A duplicate Finder
-	// launch must fail at the ownership boundary, rather than briefly creating
-	// a second Scheduler against the same persisted task database.
-	listener, err := net.Listen("tcp", ":"+port)
+	// Reserve exactly one owner-managed endpoint before starting the Scheduler.
+	// The default desktop/framework runtime is loopback-only and lets the OS
+	// choose a free port. Explicit HTTP mode keeps the caller's fixed port.
+	endpoint, err := listenRuntimeEndpoint(frameworkHTTPConfig(isAutoRunJs, port))
 	if err != nil {
-		return fmt.Errorf("listen on port %s: %w", port, err)
+		return err
 	}
-	listenerOwned := true
-	defer func() {
-		if listenerOwned {
-			_ = listener.Close()
-		}
-	}()
+	defer func() { _ = endpoint.Close() }()
+	listener := endpoint.Listener()
+	endpointInfo := endpoint.Info()
+	port = endpointInfo.PortString()
 
 	// Create container
 	cfg := &pkgContainer.Config{
@@ -1863,9 +1859,14 @@ func startContainerBasedServer(port string, appConfig *Config) error {
 		if rootErr != nil {
 			return fmt.Errorf("resolve Accessibility Workbench frontend root: %w", rootErr)
 		}
-		workbenchControlToken, rootErr = randomAccessibilityWorkbenchControlToken()
-		if rootErr != nil {
-			return fmt.Errorf("create Accessibility Workbench helper token: %w", rootErr)
+		// Auto framework endpoints are loopback-only, so they deliberately do
+		// not provision the privileged trusted-LAN control token. Explicit
+		// legacy HTTP on 60844 retains the existing LAN opt-in behavior.
+		if !isAutoRunJs {
+			workbenchControlToken, rootErr = randomAccessibilityWorkbenchControlToken()
+			if rootErr != nil {
+				return fmt.Errorf("create Accessibility Workbench helper token: %w", rootErr)
+			}
 		}
 		_, controlPort, splitErr := net.SplitHostPort(listener.Addr().String())
 		if splitErr != nil {
@@ -1874,15 +1875,18 @@ func startContainerBasedServer(port string, appConfig *Config) error {
 		server.EnableOnDemandAccessibilityWorkbench(workbenchArtifactRoot, workbenchFrontendRoot, controlPort, workbenchControlToken)
 	}
 
-	// Only advertise readiness after the scheduler is running and the socket is
-	// reserved. This is the startup boundary used by the macOS status item.
-	// 获取并打印本机IP地址
-	ips := getLocalIPs()
+	// Only advertise readiness after the Scheduler is running and the socket is
+	// reserved. Every consumer below receives the listener's actual port.
 	fmt.Println("\n可用的服务地址:")
-	for _, ip := range ips {
-		fmt.Printf("http://%s:%s\n", ip, port)
+	if isAutoRunJs {
+		fmt.Printf("http://127.0.0.1:%s\n", port)
+	} else {
+		for _, ip := range getLocalIPs() {
+			fmt.Printf("http://%s:%s\n", ip, port)
+		}
+		fmt.Printf("http://localhost:%s\n", port)
 	}
-	fmt.Printf("http://localhost:%s\n", port)
+	fmt.Printf("Runtime endpoint: %s\n", endpointInfo.ActualAddress)
 	fmt.Printf("Scheduler: http://127.0.0.1:%s/scheduler\n", port)
 	fmt.Printf("Scheduler database: %s\n", schedulerStore.Path())
 	fmt.Println("----------------------------------------")
@@ -1894,7 +1898,6 @@ func startContainerBasedServer(port string, appConfig *Config) error {
 	// Run the server behind an explicit shutdown boundary so SIGINT/SIGTERM
 	// cancel active JavaScript and drain native UI hosts before the process exits.
 	serverDone := make(chan error, 1)
-	listenerOwned = false
 	go func() { serverDone <- server.Serve(listener) }()
 	if isAutoRunJs && appConfig != nil && appConfig.ScriptPath != "" {
 		go func() {
@@ -1952,7 +1955,7 @@ func accessibilityWorkbenchArtifactRoot() (string, error) {
 }
 
 func accessibilityWorkbenchEnabledOnPort(port string) bool {
-	return strings.TrimSpace(port) == "60844"
+	return isAutoRunJs || strings.TrimSpace(port) == "60844"
 }
 
 func resolveAccessibilityWorkbenchArtifactRoot(workingDirectory, userConfigDirectory string, developmentTree bool) string {
