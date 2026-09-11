@@ -6,6 +6,22 @@ OpenDesk 的公开自动化示例使用 JavaScript，并以 [`docs/api/`](../doc
 [`docs/api/examples/`](../docs/api/examples/README.md)。本文保留示例目录中较详细
 的专题说明。
 
+## 图形化 Examples 浏览器
+
+`examples/` 只保存用户可阅读和运行的示例，不再把“用于浏览 examples 的工具”反向放入本目录。
+图形化浏览、源码查看、分类分页、安全一键运行和完成后 stdout/stderr 查看由独立应用
+[`apps/example-explorer/`](../apps/example-explorer/README.md) 提供。
+
+从仓库根目录启动：
+
+```bash
+./dist/opendesk -ui -script apps/example-explorer/main.js -console-mode script -log-dir .runtime/apps/example-explorer
+```
+
+Explorer 会自动发现本目录中的 JavaScript，但只有已经在 [`catalog.json`](catalog.json) 中显式审核为
+`runPolicy: "safe"` 的条目才允许一键执行。未登记脚本仍可查看，不会因为扩展名为 `.js` 就被自动执行。
+这条边界用于保留输入、窗口变更、真实应用、OCR、音频、权限准备和其他有前置条件示例的安全语义。
+
 ## 第一批规范目录
 
 基础 Runtime 示例现位于 [`runtime/`](runtime/README.md)，包含 quickstart、环境、路径和 JSON
