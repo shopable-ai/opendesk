@@ -69,7 +69,7 @@ try {
         artifact = 'opendesk-native-ui-host'
         sourceCommit = $sha
         sourceDirty = $dirty
-        protocolVersion = '1.8.0'
+        protocolVersion = '1.9.0'
         runtime = $Runtime
         hostOnly = $true
         wholeApplicationSupport = if ($Runtime -eq 'win-x64') { 'verified-via-windows-distribution-gate' } else { 'unverified' }
