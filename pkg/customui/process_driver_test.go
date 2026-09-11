@@ -140,6 +140,17 @@ func TestProtocolFailurePreservesTransportCause(t *testing.T) {
 	}
 }
 
+func TestProtocolEventAcceptsEscapedRFC3339Offset(t *testing.T) {
+	var frame protocolFrame
+	err := json.Unmarshal([]byte(`{"version":"1.9.0","kind":"event","event":{"sessionId":"portable","windowId":"panel","type":"close","sequence":1,"timestamp":"2026-09-11T11:41:03.7059140\u002B00:00","reason":"script"}}`), &frame)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if frame.Event == nil || frame.Event.Timestamp.IsZero() || frame.Event.Timestamp.UTC().Format(time.RFC3339Nano) != "2026-09-11T11:41:03.705914Z" {
+		t.Fatalf("event = %#v", frame.Event)
+	}
+}
+
 func TestResolveUIHostPathRejectsMissingAndNonExecutableOverride(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "missing")
 	nonExecutable := filepath.Join(t.TempDir(), "not-executable")
