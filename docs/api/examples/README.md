@@ -8,6 +8,20 @@ order: 3
 
 直接运行 `examples/` 中的脚本，查看终端输出或实际窗口效果。从仓库根目录运行，常用命令见[单项示例运行](single-tests.md)。
 
+## OpenDesk Examples 图形入口
+
+仓库内置 `apps/example-explorer/` 作为面向新手和开发者的 Examples 浏览与运行工具。它不属于 `examples/` 本身，而是读取 `examples/`、`examples/catalog.json` 和本 API 文档索引的独立开发者应用。
+
+从仓库根目录启动：
+
+```bash
+./dist/opendesk -ui -script apps/example-explorer/main.js -console-mode script -log-dir .runtime/apps/example-explorer
+```
+
+界面会递归发现 `examples/` 中的 JavaScript、按分类分页显示、查看源码和运行元数据，并允许直接运行已经在 `examples/catalog.json` 中显式审核为 `runPolicy: "safe"` 的条目。新发现但未登记的 `.js` 仍可查看源码，但默认不可一键运行；这避免把桌面输入、真实应用操作、音频、OCR、权限准备或其他带前置条件的示例因为文件扩展名相同而误当成安全脚本。
+
+每个 Run 都通过独立 OpenDesk 子进程执行，Stop 使用 `AbortController` 取消该子进程。当前 `Command.run()` 在子进程结束时一次性返回 stdout/stderr，因此界面显示的是完成后的有界输出，不声称实时流式终端。Example 成功也不等于正式 Runtime API 测试通过；正确性 gate 仍以 `tests/` 和对应质量文档为准。
+
 ## 基础 Runtime 与数据
 
 - [入门、环境、文件、JSON、路径、命令与 HTTP](../../../examples/runtime/README.md)
