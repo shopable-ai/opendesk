@@ -267,6 +267,8 @@ console.log("OPENDESK_DISTRIBUTION_UI_OK");
 } catch {
     $evidence.status = 'failed'
     $evidence.error = $_.Exception.Message
+    $annotationMessage = $_.Exception.Message.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+    Write-Host "::error title=Windows portable distribution contract failed::$annotationMessage"
     throw
 } finally {
     $evidence.recordedAt = [DateTimeOffset]::UtcNow.ToString('O')
