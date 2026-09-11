@@ -1,7 +1,7 @@
 ---
 title: System API
 description: 系统信息、进程、网络、目录、用户与系统状态查询。
-order: 6
+order: 380
 ---
 
 # System

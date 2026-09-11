@@ -1,7 +1,7 @@
 ---
 title: Custom UI
 description: 使用 FloatingWindow 或受限 HTML/CSS 创建受控桌面界面。
-order: 13
+order: 130
 ---
 
 # Custom UI

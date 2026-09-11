@@ -1,7 +1,7 @@
 ---
 title: Desktop UI API
 description: 使用 OCR、模板匹配、屏幕坐标与原生 Accessibility 查找和操作外部桌面应用 UI。
-order: 11
+order: 50
 ---
 
 # UI

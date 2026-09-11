@@ -1,7 +1,7 @@
 ---
 title: JavaScript Runtime
 description: OpenDesk 脚本运行入口、异步生命周期、默认执行模式与历史兼容边界。
-order: 14
+order: 310
 ---
 
 # JavaScript Runtime

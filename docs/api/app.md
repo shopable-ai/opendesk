@@ -1,7 +1,7 @@
 ---
 title: App API
 description: Launch, find, wait for, terminate, and restart desktop applications by stable identity.
-order: 14
+order: 200
 ---
 
 # App

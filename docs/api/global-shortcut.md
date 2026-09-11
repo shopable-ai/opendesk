@@ -1,7 +1,7 @@
 ---
 title: Global Shortcut API
 description: macOS 与 Windows 系统级 globalShortcut 注册、回调与生命周期。
-order: 14
+order: 180
 ---
 
 # globalShortcut

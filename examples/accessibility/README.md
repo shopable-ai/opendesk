@@ -2,7 +2,7 @@
 
 本目录展示可信本地 JavaScript execution 中的原生 Accessibility 与大写 `UI` 菜单接口。公开合同见
 [`docs/api/accessibility.md`](../../docs/api/accessibility.md) 和
-[`docs/api/desktop-ui-menu.md`](../../docs/api/desktop-ui-menu.md)。所有命令都从仓库根目录运行，并使用
+[`Desktop UI API`](../../docs/api/desktop-ui.md#原生菜单选项)。所有命令都从仓库根目录运行，并使用
 与当前源码配套构建的 `./dist/opendesk`。
 
 ## 公开示例源码

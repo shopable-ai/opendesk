@@ -1,7 +1,7 @@
 ---
 title: HTTP and Axios
 description: 使用全局 axios 或底层 http 发起 HTTP 请求，并处理参数、响应、错误与取消。
-order: 9
+order: 500
 ---
 
 # http / axios：HTTP 请求

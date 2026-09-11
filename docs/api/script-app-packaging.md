@@ -1,7 +1,7 @@
 ---
 title: Script App Packaging
 description: 把已有 OpenDesk JavaScript 与 opendesk.app.json 组织为 App Mode package，并生成可从 Finder、Launchpad 或 Windows Explorer 启动的桌面发布产物。
-order: 32
+order: 600
 ---
 
 # Script App Packaging

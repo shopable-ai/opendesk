@@ -1,7 +1,7 @@
 ---
 title: File API
 description: File 对象提供面向脚本的文件系统读写、移动、复制、删除与路径处理能力。
-order: 7
+order: 350
 ---
 
 # File

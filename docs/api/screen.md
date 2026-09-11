@@ -1,7 +1,7 @@
 ---
 title: Screen API
 description: 屏幕信息、显示器枚举、像素读取、截图，以及实验性的 macOS 区域选择与录屏。
-order: 5
+order: 90
 ---
 
 # Screen

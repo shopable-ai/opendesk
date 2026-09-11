@@ -1,7 +1,7 @@
 ---
 title: JS Libraries
 description: 运行时自动加载的 jslibs 目录第三方 JS 库。
-order: 13
+order: 400
 ---
 
 # jslibs

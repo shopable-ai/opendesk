@@ -1,7 +1,7 @@
 ---
 title: Cookbook
 description: 高频用户脚本范例：截图、窗口控制、OCR 找字点击、HTTP 请求、权限处理、多显示器等。
-order: 15
+order: 700
 ---
 
 # cookbook

@@ -1,7 +1,7 @@
 ---
 title: Recorder Runtime API
 description: 本地人工输入采集、动作制作与最简普通 JavaScript 生成。
-order: 33
+order: 220
 ---
 
 # Recorder

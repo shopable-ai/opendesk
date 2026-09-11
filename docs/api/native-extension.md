@@ -1,7 +1,7 @@
 ---
 title: Native Extension Plugin
 description: 严格 manifest 自动发现、Host 生成不可变 JavaScript Binding，并按调用启动 one-shot native process。
-order: 15
+order: 410
 ---
 
 # Native Extension Plugin
@@ -124,8 +124,7 @@ fixture [`opendesk-ocr-123.png`](../../tests/extensions/native-process/fixtures/
 其预期文字是 `OPENDESK OCR 123\n你好 456`。业务脚本是
 [`ocr-quickstart.js`](../../examples/native-extensions/ocr-quickstart.js)。
 
-仓库还提供了一个可选的调用方 JPEG 输入
-[`ocr-test.jpg`](../../examples/native-extensions/ocr-test.jpg)。`ocr-quickstart.js`
+调用方也可以自行提供一个 JPEG 输入 `ocr-test.jpg`。`ocr-quickstart.js`
 会优先使用程序目录中的 `ocr-test.jpg`，没有时回退到正式 gate 使用的
 `ocr-test.png`；两者都不属于 extension bundle。
 
@@ -159,9 +158,8 @@ cp "$ROOT/examples/native-extensions/ocr-quickstart.js" "$PROGRAM_DIR/ocr-quicks
 ./dist/opendesk -script ./dist/ocr-quickstart.js -console-mode script
 ```
 
-如果仓库源文件 `examples/native-extensions/ocr-test.jpg` 存在而 `dist/ocr-test.jpg`
-尚不存在，脚本会在上述运行中通过 `File.exists`/`File.copy` 自动复制一次；不需要手动切换
-工作目录或预先复制图片。
+如果调用方已经准备了 `ocr-test.jpg`，脚本会在上述运行中通过
+`File.exists`/`File.copy` 自动复制一次；不需要手动切换工作目录或预先复制图片。
 
 声明的 OCR 工作目录仍是 `<program-directory>`。从其中原样执行：
 

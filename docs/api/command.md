@@ -1,7 +1,7 @@
 ---
 title: Command API
 description: 在本地 JavaScript execution 中运行命令行程序并读取结果。
-order: 7
+order: 390
 ---
 
 # Command

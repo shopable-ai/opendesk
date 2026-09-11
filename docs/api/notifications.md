@@ -1,7 +1,7 @@
 ---
 title: Notifications API
 description: 观察和移除 OpenDesk 自身已投递通知的 macOS Experimental API。
-order: 44
+order: 160
 ---
 
 # Notifications：自身通知交互

@@ -1,7 +1,7 @@
 ---
 title: Environment Configuration
 description: OpenDesk 本地 Execution.env、项目级 .env、.opendesk.env、输出配置与优先级。
-order: 15
+order: 330
 ---
 
 # 环境配置（Environment Configuration）
@@ -98,11 +98,11 @@ const isCI = System.hasEnv('CI');
 home 只报告是否存在，也不会打印完整环境内容。从仓库根目录直接运行：
 
 ```bash
-./opendesk -script examples/environment.js
+./opendesk -script examples/runtime/environment.js
 ```
 
 可在 shell 或环境文件中设置 `OPENDESK_EXAMPLE_MODE`，观察项目变量进入同一个快照；不设置时示例
-使用 `default`。源码见 [`examples/environment.js`](../../examples/environment.js)。
+使用 `default`。源码见 [`examples/runtime/environment.js`](../../examples/runtime/environment.js)。
 
 通过 `opendesk ai run` 执行时，终端 stdout 必须保持为一个 JSON envelope，因此 recipe 的
 `console.log()` 不会直接混入终端输出；请读取返回结果中的 `result.artifacts.stdoutPath`。这只影响
@@ -181,11 +181,11 @@ Runtime 初始化、资源探测和 polyfill 装载属于 framework；其正常�
 
 ```bash
 # 日常交互：自动判断 TTY。
-./opendesk -script examples/environment.js
+./opendesk -script examples/runtime/environment.js
 
 # 一次性关闭或强制开启。
-./opendesk -script examples/environment.js -color never
-./opendesk -script examples/environment.js -color always
+./opendesk -script examples/runtime/environment.js -color never
+./opendesk -script examples/runtime/environment.js -color always
 ```
 
 `agent` / `-output-format json` 属于机器协议，即使指定 `always` 也不会加入颜色。OpenDesk 只在最终

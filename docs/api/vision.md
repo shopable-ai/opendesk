@@ -1,7 +1,7 @@
 ---
 title: Vision API
 description: OCR、UI 文本检测、provider capabilities、布局分析与旧 OCR 对象。
-order: 10
+order: 110
 ---
 
 # Vision

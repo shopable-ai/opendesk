@@ -1,7 +1,7 @@
 ---
 title: Custom UI 文档已迁移
 description: 旧 Custom UI API 文档入口；小写 ui 的正式 Reference 已迁移到 ui.md。
-order: 99
+order: 900
 ---
 
 # Custom UI 文档已迁移

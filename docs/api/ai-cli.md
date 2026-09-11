@@ -1,7 +1,7 @@
 ---
 title: AI CLI
 description: 面向 Codex、Claude Code 与 shell Coding Agent 的低 Token OpenDesk 桌面工具接口。
-order: 3
+order: 20
 ---
 
 # AI CLI
@@ -309,7 +309,7 @@ recipe 可通过 `Execution.env` 读取启动时的项目环境。默认合并�
 同样，本地 `ai run` 可显式启用 Experimental `Accessibility` 和 `UI` 菜单方法，远程 HTTP、MCP 与
 Scheduler execution 当前关闭，只能看到禁用 capability 且不会读取原生目标。AI CLI 没有为此新增一套
 平行 menu 命令、HTTP route 或 MCP tool；调用契约见 [Accessibility API](accessibility.md) 与
-[Desktop UI Menu API](desktop-ui-menu.md)。这个 execution 准入开关不是完整 Runtime 沙箱。
+[Desktop UI API](desktop-ui.md#原生菜单选项)。这个 execution 准入开关不是完整 Runtime 沙箱。
 
 Workflow 和 recipe 都会收到 [Execution Context](execution.md)；常用字段包括：
 

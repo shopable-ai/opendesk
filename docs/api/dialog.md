@@ -1,7 +1,7 @@
 ---
 title: Dialog API
 description: OpenDesk 的异步原生 alert、confirm 与 prompt。
-order: 10
+order: 140
 ---
 
 # Dialog

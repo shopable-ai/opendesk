@@ -39,3 +39,6 @@ scratch/
 **/*.draft.md
 **/*.bak.md
 **/*.tmp.md
+
+# The API landing page is index.md; keep README.md as a maintainer entrypoint.
+docs/api/README.md

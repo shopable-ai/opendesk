@@ -1,7 +1,7 @@
 ---
 title: Window API
 description: window 对象用于读取当前窗口信息，并进行聚焦、移动、缩放、置顶等桌面窗口控制。
-order: 4
+order: 80
 ---
 
 # window

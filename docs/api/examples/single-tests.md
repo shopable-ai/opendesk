@@ -1,7 +1,7 @@
 ---
 title: 单项示例运行
 description: 直接运行 examples 中的示例，查看输出和使用方法。
-order: 4
+order: 720
 ---
 
 # 单项示例运行
@@ -16,10 +16,10 @@ order: 4
 - [文件读写、复制与移动](../../../examples/runtime/file.js)：`./opendesk -script examples/runtime/file.js -console-mode script`
 - [JSON 读写](../../../examples/runtime/file-json.js)：`./opendesk -script examples/runtime/file-json.js -console-mode script`
 - [运行命令并打印结果](../../../examples/runtime/command.js)：`./dist/opendesk -script examples/runtime/command.js -console-mode script`
-- [控制台打印](../../../examples/console.js)：`./opendesk -script examples/console.js -console-mode script`
-- [Promise](../../../examples/promise.js)：`./opendesk -script examples/promise.js -console-mode script`
-- [等待](../../../examples/sleep.js)：`./opendesk -script examples/sleep.js -console-mode script`
-- [定时器](../../../examples/timer.js)：`./opendesk -script examples/timer.js -console-mode script`
+- [控制台打印](../../../examples/runtime/console.js)：`./opendesk -script examples/runtime/console.js -console-mode script`
+- [Promise](../../../examples/runtime/promise.js)：`./opendesk -script examples/runtime/promise.js -console-mode script`
+- [等待](../../../examples/runtime/sleep.js)：`./opendesk -script examples/runtime/sleep.js -console-mode script`
+- [定时器](../../../examples/runtime/timer.js)：`./opendesk -script examples/runtime/timer.js -console-mode script`
 
 ## HTTP 请求
 
@@ -37,8 +37,8 @@ order: 4
 
 现有 `page.js` 会按固定坐标点击桌面。先查看代码、调整坐标，再在测试桌面运行，并授予截图权限。
 
-- [Page 点击与截图](../../../examples/page.js)：`./opendesk -script examples/page.js -console-mode script`
-- [Page 等待 quickstart](../../../examples/page.waitfor.js)：`./dist/opendesk -script examples/page.waitfor.js -console-mode script`
+- [Page 点击与截图](../../../examples/desktop/page-click.js)：`./opendesk -script examples/desktop/page-click.js -console-mode script`
+- [Page 等待 quickstart](../../../examples/runtime/page-wait.js)：`./dist/opendesk -script examples/runtime/page-wait.js -console-mode script`
 - [Page 等待共享用例 smoke](../../../examples/runtime/page-wait.test.js)：`./dist/opendesk -script examples/runtime/page-wait.test.js -console-mode script`
 
 Page 等待 smoke 复用正式 Page family 的共享行为用例，要求必需分组与四个方法全部执行，并报告 `failed: 0`、`skipped: 0`。
@@ -46,7 +46,7 @@ Page 等待 smoke 复用正式 Page family 的共享行为用例，要求必需�
 Windows PowerShell 的对应待验收命令：
 
 ```powershell
-.\dist\opendesk.exe -script examples/page.waitfor.js -console-mode script
+.\dist\opendesk.exe -script examples/runtime/page-wait.js -console-mode script
 .\dist\opendesk.exe -script examples/runtime/page-wait.test.js -console-mode script
 ```
 
@@ -57,7 +57,7 @@ Windows PowerShell 的对应待验收命令：
 查询无需修改窗口。输入和移动示例需将标题、PID 替换为可丢弃测试窗口的实际值，并按系统提示授予权限。
 
 - [查询窗口](../../../examples/desktop/window-inspect.js)：`./opendesk -script examples/desktop/window-inspect.js -console-mode script`
-- [检查窗口能力](../../../examples/window-capabilities.js)：`./opendesk -script examples/window-capabilities.js -console-mode script`
+- [窗口与输入示例说明](../../../examples/desktop/README.md)
 - [向指定窗口输入一行文字](../../../examples/desktop/keyboard.js)：`OPENDESK_EXAMPLE_WINDOW_TITLE='OpenDesk input test' OPENDESK_EXAMPLE_WINDOW_PID=12345 OPENDESK_EXAMPLE_ALLOW_INPUT=1 ./opendesk -script examples/desktop/keyboard.js -console-mode script`
 - [移动指定窗口并恢复位置](../../../examples/desktop/window-controls.js)：`OPENDESK_EXAMPLE_WINDOW_TITLE='OpenDesk window test' OPENDESK_EXAMPLE_WINDOW_PID=12345 OPENDESK_EXAMPLE_ALLOW_WINDOW_CHANGE=1 ./opendesk -script examples/desktop/window-controls.js -console-mode script`
 
@@ -90,10 +90,11 @@ Windows PowerShell 的对应待验收命令：
 
 主程序及配套 `opendesk-ui-host` 就绪后，运行一条命令，在打开的窗口中操作。
 
-- [Dialog：async/await](../../../examples/dialog.js)：`./opendesk -ui -script examples/dialog.js -console-mode script`
-- [Dialog：Promise 链](../../../examples/dialog-promise-chain.js)：`./opendesk -ui -script examples/dialog-promise-chain.js -console-mode script`
+- [Dialog：async/await](../../../examples/dialog/async-await.js)：`./opendesk -ui -script examples/dialog/async-await.js -console-mode script`
+- [Dialog：Promise 链](../../../examples/dialog/promise-chain.js)：`./opendesk -ui -script examples/dialog/promise-chain.js -console-mode script`
 - [按钮面板](../../../examples/custom-ui/panel.js)：`./opendesk -ui -script examples/custom-ui/panel.js -console-mode script`
 - [表单](../../../examples/custom-ui/form.js)：`./opendesk -ui -script examples/custom-ui/form.js -console-mode script`
+- [可复用组件状态画廊](../../../examples/custom-ui/ui-components.js)：`./opendesk -ui -script examples/custom-ui/ui-components.js -console-mode script -log-dir .runtime/examples/custom-ui/ui-components`
 - [浮动工具栏](../../../examples/custom-ui/five-button-toolbar.js)：`./opendesk -ui -script examples/custom-ui/five-button-toolbar.js -console-mode script`
 - [图标列表](../../../examples/custom-ui/icon-list.js)：`./opendesk -ui -script examples/custom-ui/icon-list.js -console-mode script`
 

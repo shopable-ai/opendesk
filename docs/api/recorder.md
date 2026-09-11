@@ -1,7 +1,7 @@
 ---
 title: Agent-first Recorder MCP API
 description: 显式录制会话、动作关联、证据验证、确定性提炼与 JavaScript 编译。
-order: 16
+order: 230
 ---
 
 # Agent-first Recorder

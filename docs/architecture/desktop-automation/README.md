@@ -75,7 +75,7 @@ Recipe 再根据这些业务对象决定下一步怎么做。
 
 ## 与实际接口和验证的边界
 
-实际调用以 [Desktop UI API](../../api/desktop-ui.md)、[Accessibility API](../../api/accessibility.md)、[Desktop UI Menu API](../../api/desktop-ui-menu.md)、[Geometry API](../../api/geometry.md) 及对应当前源码、类型与测试为准。
+实际调用以 [Desktop UI API](../../api/desktop-ui.md)、[Accessibility API](../../api/accessibility.md)、[Desktop UI API](../../api/desktop-ui.md#原生菜单选项)、[Geometry API](../../api/geometry.md) 及对应当前源码、类型与测试为准。
 
 设计文档里的 `ObservationBundle`、`CollectionProfile`、`CollectionItem`、`SemanticVisionProvider` 或 `UI.readCollection()` 等名称不自动代表已发布 API。当前结构化集合读取先进行合同、fixture 和 JavaScript 原型验证，再决定是否值得晋级公共 API。
 

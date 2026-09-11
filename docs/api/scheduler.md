@@ -1,7 +1,7 @@
 ---
 title: Scheduler
 description: 内置 JavaScript 定时任务、SQLite 持久化、本地管理页与 HTTP API。
-order: 12
+order: 520
 ---
 
 # Scheduler

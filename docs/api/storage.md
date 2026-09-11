@@ -1,7 +1,7 @@
 ---
 title: AppStorage
 description: OpenDesk 脚本内置的轻量持久化键值存储。
-order: 8
+order: 360
 ---
 
 # AppStorage

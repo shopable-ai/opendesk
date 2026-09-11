@@ -1,7 +1,7 @@
 ---
 title: 通知与提示
 description: OpenDesk 的轻量 Toast、系统通知与通知查询入口。
-order: 5
+order: 150
 ---
 
 # 通知与提示

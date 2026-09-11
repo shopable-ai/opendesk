@@ -1,7 +1,7 @@
 ---
 title: HTTP Server API
 description: 内置 HTTP 服务的脚本执行、状态查询、SSE 事件流、视觉接口与隔离的 Accessibility Workbench 合同。
-order: 11
+order: 510
 ---
 
 # HTTP server API

@@ -1,7 +1,7 @@
 ---
 title: 受保护包 CLI
 description: OpenDesk .odpkg 打包、验签、设备 License、在线 activation 与执行入口的公开命令行契约。
-order: 4
+order: 610
 ---
 
 # 受保护包 CLI

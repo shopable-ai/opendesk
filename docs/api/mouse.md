@@ -1,7 +1,7 @@
 ---
 title: Mouse API
 description: OpenDesk JavaScript Runtime 的全局鼠标移动、点击、拖拽、位置读取与滚轮接口。
-order: 3
+order: 60
 ---
 
 # mouse

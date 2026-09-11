@@ -1,7 +1,7 @@
 ---
 title: Input APIs
 description: OpenDesk JavaScript Runtime 的键盘和轻量触屏输入接口。
-order: 3
+order: 70
 ---
 
 # Input APIs

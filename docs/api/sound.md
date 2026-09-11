@@ -1,7 +1,7 @@
 ---
 title: Sound API
 description: 播放并控制内置提示音或本地音频文件。
-order: 14
+order: 250
 ---
 
 # Sound API

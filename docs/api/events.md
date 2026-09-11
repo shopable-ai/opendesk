@@ -1,7 +1,7 @@
 ---
 title: Desktop Events API
 description: Subscribe to external window, application, clipboard, and display state changes from JavaScript.
-order: 13
+order: 190
 ---
 
 # Events

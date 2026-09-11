@@ -1,7 +1,7 @@
 ---
 title: Page API
 description: page 是 OpenDesk 脚本最常用的桌面入口，负责截图、打开 URL/App、等待与权限处理。
-order: 2
+order: 30
 ---
 
 # page

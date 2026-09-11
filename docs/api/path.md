@@ -1,7 +1,7 @@
 ---
 title: Path API
 description: 以当前平台规则组合、规范化和比较路径字符串，不访问文件系统。
-order: 15
+order: 340
 ---
 
 # path

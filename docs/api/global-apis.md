@@ -1,7 +1,7 @@
 ---
 title: Global APIs
 description: OpenDesk JavaScript Runtime 中无需 import 即可直接使用的全局接口。
-order: 12
+order: 320
 ---
 
 # 全局接口（Global APIs）
@@ -362,7 +362,7 @@ runTask();
 - `alert()`、`confirm()`、`prompt()`：见 [Dialog API](dialog.md)。
 - 本地命令行执行对象 `Command`：见 [Command API](command.md)。
 - 第一方、本地 execution-owned 的 `SQLite`：见 [SQLite API](sqlite.md)。
-- 第一方、execution-owned 的 `Accessibility`：见 [Accessibility API](accessibility.md)；大写 `UI` 的原生菜单组合见 [Desktop UI Menu API](desktop-ui-menu.md)。
+- 第一方、execution-owned 的 `Accessibility`：见 [Accessibility API](accessibility.md)；大写 `UI` 的原生菜单组合见 [Desktop UI API](desktop-ui.md#原生菜单选项)。
 - `Sound`：见 [Sound API](sound.md)；`FloatingWindow` 与 `ui`：见 [Custom UI](custom-ui.md)。
 
 ## 全局接口的实现来源与维护边界
@@ -396,7 +396,7 @@ runTask();
 - [Command API](command.md)：本地 CLI 默认提供、execution-owned 的命令行执行；HTTP、MCP 与 Scheduler 关闭。
 - [SQLite API](sqlite.md)：本地可信 execution 的第一方异步数据库句柄；HTTP、MCP 与 Scheduler 不注入。
 - [Accessibility API](accessibility.md)：本地可信 execution 的第一方 AX/UIA 元素；禁用入口只能读取 capability 摘要。
-- [Desktop UI Menu API](desktop-ui-menu.md)：现有大写 `UI` 上、与 Accessibility 共享 owner 的原生菜单组合。
+- [Desktop UI API](desktop-ui.md#原生菜单选项)：现有大写 `UI` 上、与 Accessibility 共享 owner 的原生菜单组合。
 - [System API](system.md)：包含 `System.getEnv()` / `System.hasEnv()` 等按键环境读取和系统信息能力。
 - [Execution Context](execution.md)：本次运行的 ID、输入、只读环境快照、工作目录和 artifact 路径。
 - [JavaScript Runtime](runtime.md)：异步完成、取消、输出和历史兼容边界。

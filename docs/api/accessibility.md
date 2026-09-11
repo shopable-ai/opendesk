@@ -1,7 +1,7 @@
 ---
 title: Accessibility API
 description: 通过 execution-owned 的 macOS AX / Windows UI Automation 后端观察并操作外部桌面应用的语义元素。
-order: 12
+order: 100
 ---
 
 # Accessibility

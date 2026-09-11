@@ -1,7 +1,7 @@
 ---
 title: Clipboard API
 description: OpenDesk JavaScript Runtime 的文本与富格式系统剪贴板 API。
-order: 8
+order: 170
 ---
 
 # clipboard

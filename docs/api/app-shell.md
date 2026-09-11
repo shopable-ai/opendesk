@@ -1,7 +1,7 @@
 ---
 title: automation.app API
 description: App Mode lifecycle, tray actions, menu state, and graceful application shutdown.
-order: 31
+order: 210
 ---
 
 # automation.app

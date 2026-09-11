@@ -1,7 +1,7 @@
 ---
 title: ImageColor API
 description: 同尺寸图像差异、模板匹配、颜色判断、裁剪、缩放与图像辅助分析。
-order: 10
+order: 120
 ---
 
 # ImageColor

@@ -2,7 +2,7 @@
 
 本文定义 OpenDesk Accessibility V1 的原生 owner、身份、线程、菜单组合与 teardown 合同。用户调用
 schema 以 [Accessibility API](../../api/accessibility.md) 和
-[Desktop UI Menu API](../../api/desktop-ui-menu.md) 为准；本文不是另一个公共自动化框架。
+[Desktop UI API](../../api/desktop-ui.md#原生菜单选项) 为准；本文不是另一个公共自动化框架。
 
 ## 单一链路与责任边界
 
