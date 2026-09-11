@@ -41,7 +41,7 @@ function call(operation,payload,windowId='toolbar'){
   return new Promise((resolve,reject)=>{
     const timer=setTimeout(()=>{pending.delete(requestId);reject(new Error('host timeout '+operation+' '+stderr));},20000);
     pending.set(requestId,{resolve,reject,timer});
-    child.stdin.write(JSON.stringify({version:'1.8.0',kind:'request',requestId,sessionId:'smoke',windowId,operation,payload})+'\n');
+    child.stdin.write(JSON.stringify({version:'1.9.0',kind:'request',requestId,sessionId:'smoke',windowId,operation,payload})+'\n');
   });
 }
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -52,7 +52,7 @@ const toolbar={schemaVersion:4,revision:1,orientation:'horizontal',maxWidth:960,
 const notice={message:'正在执行 · Native UI smoke',caption:'Task progress and expiry are distinct',level:'info',timeoutMs:0,timeoutProgress:false,closable:true,progress:{min:0,max:5,value:1,indeterminate:false},position:{mode:'relative',target:'toolbar',side:'bottom',align:'center',gap:8,follow:true}};
 (async()=>{
   const helloTimer=setTimeout(()=>helloReject(new Error('host did not send hello '+stderr)),10000);
-  const greet=await hello;clearTimeout(helloTimer);assert.equal(greet.version,'1.8.0');
+  const greet=await hello;clearTimeout(helloTimer);assert.equal(greet.version,'1.9.0');
   await call('create',{id:'toolbar',kind:'floating',title:'Native UI smoke',bounds:{x:100,y:100,width:376,height:81},alwaysOnTop:true,draggable:true,theme:'dark',toolbar,controls:[{id:'run',type:'button',order:0}]},'toolbar');
   const tools=await call('show',{},'toolbar');assert.equal(tools.visible,true);assert(tools.nativeWindowId>0);
   const text=await call('getToolbarLabelState',{id:'status'},'toolbar');assert.equal(text.renderedText,'Ready');

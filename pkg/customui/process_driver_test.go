@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 )
@@ -123,6 +124,30 @@ func TestProcessDriverTreatsStdoutPollutionAsFatal(t *testing.T) {
 	var uiErr *Error
 	if !errors.As(err, &uiErr) || uiErr.Code != CodeDriverFailure || uiErr.Operation != "readHost" {
 		t.Fatalf("stdout pollution error = %#v", err)
+	}
+	if !strings.Contains(err.Error(), "invalid character") {
+		t.Fatalf("stdout pollution parser diagnostic was lost: %#v", uiErr)
+	}
+}
+
+func TestProtocolFailurePreservesTransportCause(t *testing.T) {
+	frame := protocolFailure(&Error{
+		Code: CodeDriverFailure, Message: "native UI host emitted invalid JSON",
+		Operation: "readHost", Cause: errors.New("invalid character after top-level value"),
+	})
+	if frame == nil || !strings.Contains(frame.Message, "invalid character after top-level value") {
+		t.Fatalf("protocol failure = %#v", frame)
+	}
+}
+
+func TestProtocolEventAcceptsEscapedRFC3339Offset(t *testing.T) {
+	var frame protocolFrame
+	err := json.Unmarshal([]byte(`{"version":"1.9.0","kind":"event","event":{"sessionId":"portable","windowId":"panel","type":"close","sequence":1,"timestamp":"2026-09-11T11:41:03.7059140\u002B00:00","reason":"script"}}`), &frame)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if frame.Event == nil || frame.Event.Timestamp.IsZero() || frame.Event.Timestamp.UTC().Format(time.RFC3339Nano) != "2026-09-11T11:41:03.705914Z" {
+		t.Fatalf("event = %#v", frame.Event)
 	}
 }
 

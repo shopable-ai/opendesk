@@ -42,6 +42,8 @@ order: 1
 
 需要 OCR、图片定位或完整原生菜单路径时都从 [Desktop UI API](desktop-ui.md) 进入；需要底层原生语义元素 snapshot/find/read/perform 时再读 [Accessibility API](accessibility.md)。
 
+需要给用户反馈时按任务选择：短暂成功/失败/进度提示使用 [`ui.toast()`](notify.md#uitoast轻量原生提示)，操作系统通知使用 [`notify()`](notify.md#notify系统通知)，需要明确确认或输入时使用 [Dialog API](dialog.md)。创建完整自定义窗口或浮动工具栏再进入 [Custom UI](custom-ui.md)。
+
 直接复制运行仓库示例、正式 scripts 或排查旧命令时，打开 [Examples 快速索引](examples/README.md)。
 
 ### 从其他程序触发 OpenDesk
@@ -69,8 +71,8 @@ order: 1
 17. `screen.md`：显示器、像素、截图别名、区域选择与录屏
 18. `audio.md`：系统音频控制、设备发现与 capability-gated 固定声音模式匹配
 19. `sound.md`：提示音和本地音频播放
-20. `notify.md`：发送系统通知
-21. `notifications.md`：观察、等待与移除 OpenDesk 自身通知
+20. `notify.md`：`ui.toast()` 轻量提示与 `notify()` 系统通知
+21. `notifications.md`：观察、等待与移除 OpenDesk 自身已投递系统通知（Experimental）
 22. `dialog.md`：异步 alert / confirm / prompt
 23. `clipboard.md`：系统剪贴板
 24. `global-apis.md`：无需 import 的全局接口、console、等待、计时器和参数工具
@@ -80,7 +82,7 @@ order: 1
 28. `path.md`：平台原生路径字符串处理
 29. `runtime.md`：JavaScript 执行、异步生命周期与兼容边界
 30. `command.md`：本地命令执行、输出、错误与 execution-owned 清理
-31. `custom-ui.md`：OpenDesk 自己的 Dialog、FloatingWindow 与受限 HTML/CSS 原生窗口
+31. `custom-ui.md`：`ui.createWindow()`、`FloatingWindow` 与受限 HTML/CSS 原生窗口
 32. `native-extension.md`：Native Extension Plugin V1
 33. `cookbook.md`：可直接改造的脚本范例
 34. `scheduler.md`：Scheduler 功能、生命周期、持久化与本地管理页
@@ -98,12 +100,13 @@ order: 1
 
 ## 哪些文件应该合并，哪些应该独立
 
-文档是否拆分以**公开边界**为准，而不是以篇幅为准：
+文档是否拆分以**公开边界和用户查找任务**为准，而不是以篇幅或内部类数量为准：
 
 - 同一对象/namespace 的方法：优先同一文件。例如 `UI.findText()`、`UI.tapImage()`、`UI.tapMenuItem()` 都属于 `UI`，统一在 `desktop-ui.md`。
-- 不同公开对象：可以独立。例如 `Audio` 与 `Sound`、`notify()` 与 `Notifications`。
-- 不同运行方向：可以独立。例如 `http.md` 是脚本发起 HTTP 请求，`http-server.md` 是外部调用 OpenDesk 的服务协议。
-- 独立协议契约：可以独立。例如 `scheduler-api.md` 是 Scheduler 的 HTTP API，而 `scheduler.md` 说明 Scheduler 产品能力和生命周期。
+- 高频且容易混淆的同一用户任务可以共用一个主入口。例如 `ui.toast()` 与系统 `notify()` 实现边界不同，但用户查找时都属于“通知与提示”，统一从 `notify.md` 进入；`custom-ui.md` 仍负责 `ui` 的自定义窗口能力。
+- 不同公开对象在用户任务明显不同时可以独立。例如 `Audio` 与 `Sound`。
+- 不同运行方向可以独立。例如 `http.md` 是脚本发起 HTTP 请求，`http-server.md` 是外部调用 OpenDesk 的服务协议。
+- 独立协议可以独立。例如 `scheduler-api.md` 是 Scheduler HTTP API，而 `scheduler.md` 说明 Scheduler 产品能力和生命周期。
 
 ## 这个目录的边界
 

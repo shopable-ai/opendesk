@@ -139,7 +139,16 @@ globalThis.RuntimeAPIObjects = {
     'getInputDevices', 'getDefaultOutput', 'getDefaultInput', 'watchSound', 'waitForSound', 'getCapabilities',
   ] },
   Dialog: { docs: 'docs/api/dialog.md', types: 'types/dialog.d.ts', source: 'automation/dialog.go', status: 'conditional', platforms: ['darwin', 'linux', 'windows'], methods: ['alert', 'confirm', 'prompt', 'getCapabilities'] },
-  ui: { docs: 'docs/api/custom-ui.md', types: 'types/custom-ui.d.ts', source: 'automation/custom_ui.go + automation/custom_ui_notify.go', status: 'conditional', platforms: ['darwin', 'linux', 'windows'], methods: ['notify', 'getCapabilities', 'createWindow', 'closeAll', 'on'] },
+  ui: {
+    docs: 'docs/api/custom-ui.md', types: 'types/custom-ui.d.ts',
+    source: 'automation/custom_ui.go + automation/custom_ui_notify.go + polyfills/000-ui.js',
+    status: 'conditional', platforms: ['darwin', 'linux', 'windows'],
+    methods: ['toast', 'notify', 'getCapabilities', 'createWindow', 'closeAll', 'on'],
+    methodMetadata: {
+      toast: { source: 'polyfills/000-ui.js + automation/custom_ui_notify.go', docs: 'docs/api/notify.md' },
+      notify: { docs: 'docs/api/notify.md', status: 'compatibility' },
+    },
+  },
   FloatingWindow: { docs: 'docs/api/custom-ui.md', types: 'types/FloatingWindow.d.ts', source: 'automation/floating_window.go + automation/floating_window_controls.go', status: 'conditional', platforms: ['darwin', 'linux', 'windows'], optional: true, methods: ['constructor', 'addButton', 'addLabel', 'addSwitch', 'addCheckbox', 'addInput', 'addSelect', 'addSlider', 'addSegmentedControl', 'addProgress', 'addSeparator', 'addSpacer', 'removeButton', 'removeLabel', 'removeControl', 'updateButton', 'updateLabel', 'updateControl', 'getButtonState', 'getLabelState', 'getControlState', 'getState', 'show', 'hide', 'close', 'setPosition', 'setPlacement', 'onButtonClick', 'onControlChange', 'onError', 'setAlwaysOnTop', 'setDraggable', 'on', 'waitUntilClosed', 'run'], labelOptions: ['width', 'alignment', 'verticalAlignment', 'tone'], labelStateFields: ['id', 'text', 'width', 'alignment', 'verticalAlignment', 'tone', 'revision', 'renderedText', 'truncated', 'accessibilityName', 'accessibilityRole', 'accessibilityValue', 'renderedTextBounds', 'localBounds', 'screenBounds'] },
   global: { docs: 'docs/api/global-apis.md', types: 'types/global.d.ts', source: 'polyfills', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: [
     'notify', 'alert', 'confirm', 'prompt', 'copyToClipboard', 'getClipboard', 'AbortController', 'setTimeout', 'clearTimeout',
@@ -449,6 +458,6 @@ globalThis.RuntimeAPITestFiles = {
 
 globalThis.RuntimeAPICatalog = {
   schemaVersion: '1.0.0',
-  catalogVersion: '2026-09-10',
+  catalogVersion: '2026-09-11',
   entries: RuntimeAPIManifest,
 };

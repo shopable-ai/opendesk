@@ -3,6 +3,7 @@ package customui
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 )
 
 const (
@@ -35,13 +36,38 @@ type protocolError struct {
 	Capability string `json:"capability,omitempty"`
 }
 
+func (event *Event) UnmarshalJSON(data []byte) error {
+	type eventAlias Event
+	alias := eventAlias(*event)
+	wire := struct {
+		*eventAlias
+		Timestamp string `json:"timestamp"`
+	}{eventAlias: &alias}
+	if err := json.Unmarshal(data, &wire); err != nil {
+		return err
+	}
+	if wire.Timestamp != "" {
+		timestamp, err := time.Parse(time.RFC3339Nano, wire.Timestamp)
+		if err != nil {
+			return fmt.Errorf("parse custom UI event timestamp: %w", err)
+		}
+		alias.Timestamp = timestamp
+	}
+	*event = Event(alias)
+	return nil
+}
+
 func protocolFailure(err error) *protocolError {
 	if err == nil {
 		return nil
 	}
 	if uiErr, ok := err.(*Error); ok {
+		message := uiErr.Message
+		if uiErr.Cause != nil {
+			message += ": " + uiErr.Cause.Error()
+		}
 		return &protocolError{
-			Code: uiErr.Code, Message: uiErr.Message, Operation: uiErr.Operation,
+			Code: uiErr.Code, Message: message, Operation: uiErr.Operation,
 			WindowID: uiErr.WindowID, TargetID: uiErr.TargetID, Capability: uiErr.Capability,
 		}
 	}

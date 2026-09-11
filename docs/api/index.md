@@ -21,6 +21,10 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先确定应用
 | 查找屏幕文本、按钮或图片 | [Desktop UI API](desktop-ui.md) 的文本/图片接口 |
 | 观察或执行完整原生菜单路径 | [Desktop UI API](desktop-ui.md#原生菜单-api) 的 `UI.getMenuItems()` / `UI.findMenuItem()` / `UI.tapMenuItem()` |
 | 直接操作原生语义元素 | [Accessibility API](accessibility.md) |
+| 显示几秒后自动消失的成功/失败/进度提示 | [`ui.toast()`](notify.md#uitoast轻量原生提示) |
+| 发送操作系统通知 | [`notify()`](notify.md#notify系统通知) |
+| 创建 OpenDesk 自己的窗口或浮动工具栏 | [Custom UI](custom-ui.md) |
+| 让用户确认、取消或输入短文本 | [Dialog API](dialog.md) |
 | 从服务或其他程序触发任务 | [HTTP Server API](http-server.md) 或 MCP |
 | 把已探索流程重复执行 | 保存 recipe，再使用 [AI CLI](ai-cli.md) 的 `run` |
 | 人工录制非敏感测试操作并生成基础 JS | [Recorder Runtime API](recorder-runtime.md) |
@@ -34,6 +38,9 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先确定应用
 - 做模板匹配：[Desktop UI API](desktop-ui.md#图片-api)；底层图像能力见 [ImageColor API](image-color.md)
 - 做完整菜单路径：[Desktop UI API](desktop-ui.md#原生菜单-api)（Experimental）
 - 做底层 Accessibility snapshot/find/read/perform：[Accessibility API](accessibility.md)（Experimental；可信本地 execution）
+- 给用户短暂状态/进度反馈：[`ui.toast()`](notify.md#uitoast轻量原生提示)
+- 给操作系统通知中心发送提醒：[`notify()`](notify.md#notify系统通知)
+- 创建完整自定义窗口或浮动工具栏：[Custom UI](custom-ui.md)
 - 做同尺寸图像差异、模板或颜色判断：[ImageColor API](image-color.md)
 - 做系统、路径与文件操作：[System API](system.md)、[Path API](path.md)、[File API](file.md)、[SQLite API](sqlite.md)、[AppStorage](storage.md)
 - 在本地 JavaScript execution 中运行命令行程序：[Command API](command.md)
@@ -46,12 +53,10 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先确定应用
 - 读取显示器、选择区域或录屏：[Screen API](screen.md)
 - 在脚本中发起网络请求：[HTTP and Axios](http.md)
 - 从外部程序调用 OpenDesk：[HTTP Server API](http-server.md)
-- 发送系统通知：[notify](notify.md)
 - 观察 OpenDesk 自身已投递通知：[Notifications API](notifications.md)
 - 显示需用户确认的异步原生窗口：[Dialog API](dialog.md)
 - 使用 console、计时器、等待等全局能力：[Global APIs](global-apis.md)
 - 调用、安装或编写 manifest 插件：[Native Extension Plugin](native-extension.md)
-- 创建 OpenDesk 自己的窗口/面板：[Custom UI](custom-ui.md)
 - 定时执行 JavaScript：[Scheduler](scheduler.md)；外部管理协议见 [Scheduler HTTP API](scheduler-api.md)
 - 人工采集输入、制作 actions 并生成 basic JS：[Recorder Runtime API](recorder-runtime.md)
 - 记录 Agent 工具动作并提炼 Flow：[Agent-first Recorder MCP API](recorder.md)
@@ -95,10 +100,11 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先确定应用
 | `http` / `axios` | JavaScript Runtime | Stable | 脚本内 HTTP 客户端 | [HTTP and Axios](http.md) |
 | HTTP Server | 外部调用入口 | Stable | 创建、查询、取消 OpenDesk execution | [HTTP Server API](http-server.md) |
 | `NativeExtensions` | 本机 CLI | Experimental | 发现并调用本地 manifest plugin | [Native Extension Plugin](native-extension.md) |
-| `notify()` | JavaScript Runtime | Secondary | 发送系统通知 | [notify](notify.md) |
-| `Notifications` | JavaScript Runtime | Experimental（macOS own-app） | 观察和移除 OpenDesk 自身通知 | [Notifications API](notifications.md) |
+| `ui.toast()` | JavaScript Runtime（需 UI capability） | Conditional | OpenDesk 自己的轻量成功/失败/进度反馈 | [通知与提示](notify.md) |
+| `notify()` | JavaScript Runtime | Secondary | 发送系统通知 | [通知与提示](notify.md) |
+| `Notifications` | JavaScript Runtime | Experimental（macOS own-app） | 观察和移除 OpenDesk 自身已投递系统通知 | [Notifications API](notifications.md) |
 | `Dialog` / `alert()` / `confirm()` / `prompt()` | JavaScript Runtime | Conditional | 异步原生模态提示与输入 | [Dialog API](dialog.md) |
-| `ui` / `FloatingWindow` | JavaScript Runtime | Conditional | OpenDesk 自己的受限 HTML/CSS 原生窗口 | [Custom UI](custom-ui.md) |
+| `ui` / `FloatingWindow` | JavaScript Runtime | Conditional | `ui.createWindow()` 与 OpenDesk 自己的自定义窗口/浮动工具栏 | [Custom UI](custom-ui.md) |
 | Global APIs | JavaScript Runtime | Stable | 计时器、等待、console、取消与参数工具 | [Global APIs](global-apis.md) |
 | lodash / moment / query-string / cheerio / beautify | JavaScript Runtime | Secondary | 脚本辅助库 | [JS Libraries](libs.md) |
 | `opendesk ai` | CLI | Stable | Coding Agent JSON desktop-tool surface 与 recipe 入口 | [AI CLI](ai-cli.md) |
@@ -106,12 +112,13 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先确定应用
 
 ## 文档组织原则
 
-`docs/api/` 以用户真正看到的公开边界组织，而不是按实现文件数量或章节长度拆页：
+`docs/api/` 以用户真正看到的公开边界和实际查找任务组织，而不是按实现文件数量或章节长度拆页：
 
 1. **同一公开对象/namespace，优先一个主文档。** `UI` 的文本、图片和菜单方法统一在 `desktop-ui.md`。
-2. **不同对象可以独立。** `Audio` 与 `Sound`、`notify()` 与 `Notifications` 的职责和调用对象不同。
-3. **不同运行方向可以独立。** `http.md` 是脚本发起请求，`http-server.md` 是外部客户端调用 OpenDesk。
-4. **独立协议可以独立。** `scheduler-api.md` 是 Scheduler HTTP 协议契约，不是把同一个 JavaScript 类硬拆成两页。
+2. **同一高频用户任务可以共用主入口。** `ui.toast()` 与系统 `notify()` 实现不同，但用户通常按“提示/通知”寻找，因此都从 `notify.md` 进入；自定义窗口仍留在 `custom-ui.md`。
+3. **不同对象在任务明显不同时可以独立。** `Audio` 与 `Sound`、`notify()` 与低频 Experimental 的 `Notifications` 管理能力仍可保持独立契约。
+4. **不同运行方向可以独立。** `http.md` 是脚本发起请求，`http-server.md` 是外部客户端调用 OpenDesk。
+5. **独立协议可以独立。** `scheduler-api.md` 是 Scheduler HTTP 协议契约，不是把同一个 JavaScript 类硬拆成两页。
 
 篇幅不是拆文件的理由。共享参数可以集中说明，但每个公开方法应有独立方法小节，方便阅读、链接和 Agent 检索。
 
