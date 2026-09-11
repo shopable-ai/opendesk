@@ -4,6 +4,7 @@
   const CONFIG_MAGIC = 'ODCFG1';
   const CONFIG_SCHEMA_VERSION = 1;
   const OBFUSCATION_KEY = 'OpenDeskOfficialShell/v1';
+  const HTTPS_URL_PATTERN = /^https:\/\/[^\s/?#\\]+(?:[/?#][^\s]*)?$/;
   const CORE_ACTIONS = Object.freeze(['help', 'customize']);
   const ACTION_DEFINITIONS = Object.freeze({
     help: Object.freeze({
@@ -85,7 +86,7 @@
         throw new Error(`official shell action is invalid: ${name}`);
       }
       const url = action.url.trim();
-      if (url && !url.startsWith('https://')) {
+      if (url && !HTTPS_URL_PATTERN.test(url)) {
         throw new Error(`official shell action only accepts https URL: ${name}`);
       }
       if (CORE_ACTIONS.includes(name) && action.visible !== true) {
@@ -177,7 +178,7 @@
 
     async function openExternal(url) {
       const target = String(url || '').trim();
-      if (!target.startsWith('https://')) throw new Error('official shell only opens https URLs');
+      if (!HTTPS_URL_PATTERN.test(target)) throw new Error('official shell only opens https URLs');
       const platform = system.getPlatformInfo().os;
       const options = {cwd: execution.workdir, timeout: 10000, maxOutputBytes: 256 * 1024};
       if (platform === 'windows') return command.run('explorer.exe', [target], options);

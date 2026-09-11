@@ -132,7 +132,7 @@
       <main>
         <header>
           <div>
-            <h1>Script Runner</h1>
+            <strong class="title">Script Runner</strong>
             <p id="rootStatus" class="subtle">${escapeHTML(configText)}</p>
           </div>
           <p id="scriptCount" class="count">${scripts.length} 个脚本</p>
@@ -175,7 +175,7 @@
   const LIST_CSS = `
     html,body{margin:0;padding:0;background:#171717;color:#f4f4f4;font:14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
     *{box-sizing:border-box} main{height:100vh;padding:18px;display:flex;flex-direction:column;gap:10px;overflow:hidden}
-    header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px} h1{font-size:20px;margin:0 0 5px}.subtle{margin:0;color:#a8a8a8;font-size:12px;max-width:620px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.count{margin:0;color:#b9b9b9;white-space:nowrap}
+    header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px} .title{display:block;font-size:20px;margin:0 0 5px}.subtle{margin:0;color:#a8a8a8;font-size:12px;max-width:620px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.count{margin:0;color:#b9b9b9;white-space:nowrap}
     .status{margin:0;padding:9px 10px;border:1px solid #3a3a3a;border-radius:7px;background:#202020;color:#d7d7d7;font-size:12px;min-height:36px}
     .state-title{margin:54px 0 0;text-align:center;font-size:18px;font-weight:700}.state-help{margin:0 auto;text-align:center;color:#aaa;max-width:520px;line-height:1.5}.state-action{align-self:center;min-width:140px}.error-title{color:#ffb7b7}.error-message{color:#d9a2a2}
     .list-grid{flex:1;min-height:0;overflow-y:auto;display:grid;grid-template-columns:34px 36px minmax(0,1fr) 72px 34px 34px;gap:0 8px;align-content:start;align-items:center}.column-head{margin:0;padding:0 0 6px;color:#8e8e8e;font-size:11px;border-bottom:1px solid #373737}.select{width:16px;height:16px;margin:16px 0 16px 8px}.index,.name{margin:0;min-height:48px;display:flex;align-items:center;border-bottom:1px solid #303030}.index{color:#aaa}.name{font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.run,.order{margin:7px 0}.order{width:34px;padding:6px 0}

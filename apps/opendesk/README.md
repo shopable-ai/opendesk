@@ -50,6 +50,15 @@ without rebuilding the desktop product. See
 `docs/architecture/official-shell-commercial-entrypoints.md` for the ownership,
 commercialization and future signed-config/OEM boundaries.
 
+## P0 status
+
+Implemented and locally verified on macOS: the main App Mode window keeps Help
+and Customize visible with pending feedback when URLs are empty, Script Runner
+can be opened, closed, and reopened, and the Quit action ends the OpenDesk
+process. Marketplace, Pro, signed remote configuration, `Shell.openExternal()`,
+and OEM/white-label behavior remain reserved or future work; Windows live UI is
+not claimed by this repository.
+
 ## Writable data
 
 Released bundles are read-only application assets. Product recipes, Runner

@@ -38,7 +38,7 @@ const panel = await ui.createWindow({
   title: 'OpenDesk',
   position: {
     mode: 'anchor',
-    size: {width: 480, height: 320},
+    size: {width: 480, height: 360},
     horizontal: 'center',
     vertical: 'center',
     display: 'primary',

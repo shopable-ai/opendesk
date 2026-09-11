@@ -1,6 +1,6 @@
 # OpenDesk Official Shell 与商业入口
 
-> 状态：P0 implemented baseline  
+> 状态：P0 implemented；本地 macOS App Mode 已验证
 > 日期：2026-09-12  
 > 适用范围：`apps/opendesk` 官方 App Mode 产品包  
 > 相关设计：`docs/architecture/app-shell-tray-menu.md`、`docs/architecture/execution/protected-recipe-package.md`
@@ -295,3 +295,27 @@ P0 完成必须满足：
 - 非空 URL 必须为 HTTPS；
 - 用户 Recipe 排序配置 `.opendesk-runner.json` 与 Official Shell 配置完全分离；
 - 不声称轻量配置能够抵抗逆向或替代 `.odpkg` / License 体系。
+
+## 12. 当前状态边界
+
+```text
+Implemented
+- 官方主窗口与 OpenDesk 服务区
+- opendesk.help / opendesk.customize 核心入口
+- .odcfg 读取、校验、fallback 与 pending 占位反馈
+- HTTPS URL 的平台 handler 调用
+
+Verified
+- 配置解析与失败安全自动化测试
+- macOS App Mode 主窗口、Help/Customize pending、Script Runner 打开/关闭/重开
+- 退出动作后 OpenDesk 主进程与 UI host 结束
+
+Reserved
+- opendesk.marketplace / opendesk.upgrade（当前 visible=false）
+
+Future
+- signed remote config、Shell.openExternal() Runtime API、Marketplace/Pro、OEM/white-label
+```
+
+上述 `Verified` 仅表示当前本地构建的 macOS 证据；不等同于 Windows 真机 UI 验证，也不改变
+未来能力的状态。
