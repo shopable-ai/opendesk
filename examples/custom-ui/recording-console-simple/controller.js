@@ -11,6 +11,13 @@
     throw new Error('recording-console-simple history wrapper requires File and Execution.scriptDir');
   }
 
+  const HISTORY_ICON_GLYPHS = Object.freeze({
+    'play.fill': '▶',
+    pencil: '✎',
+    'folder.fill': '📁',
+    'trash.fill': '▥',
+  });
+
   const baseDir = file.join(execution.scriptDir, 'recording-console-simple');
   const coreFile = file.join(baseDir, 'controller-core.js');
   const historyFile = file.join(baseDir, 'recording-history.js');
@@ -25,6 +32,47 @@
   const historyAPI = global.OpenDeskRecordingHistory;
   if (!historyAPI || typeof historyAPI.createManager !== 'function') {
     throw new Error('recording-console-simple history controller did not load');
+  }
+
+  function createHistoryUIAdapter(baseUI) {
+    if (!baseUI || typeof baseUI.createWindow !== 'function') {
+      throw new Error('recording-console-simple history requires ui.createWindow()');
+    }
+
+    return Object.freeze({
+      async createWindow(spec) {
+        const inner = await baseUI.createWindow(spec);
+        if (!inner || typeof inner.control !== 'function') return inner;
+
+        const wrapper = {};
+        for (const name of ['on', 'show', 'hide', 'close', 'focus', 'getState', 'waitUntilClosed']) {
+          if (typeof inner[name] === 'function') wrapper[name] = inner[name].bind(inner);
+        }
+        Object.defineProperty(wrapper, 'id', {
+          enumerable: true,
+          configurable: false,
+          get() { return inner.id; },
+        });
+        wrapper.control = function control(id) {
+          const target = inner.control(id);
+          if (!target || typeof target.update !== 'function') return target;
+          const controlWrapper = {};
+          for (const name of ['on', 'getState', 'focus']) {
+            if (typeof target[name] === 'function') controlWrapper[name] = target[name].bind(target);
+          }
+          controlWrapper.update = function update(patch) {
+            const next = patch && typeof patch === 'object' ? {...patch} : patch;
+            if (next && next.text === '' && typeof next.icon === 'string') {
+              const glyph = HISTORY_ICON_GLYPHS[next.icon];
+              if (glyph) next.text = glyph;
+            }
+            return target.update(next);
+          };
+          return controlWrapper;
+        };
+        return wrapper;
+      },
+    });
   }
 
   function createToolbarAdapter(BaseFloatingWindow, managerRef) {
@@ -86,10 +134,11 @@
     const BaseFloatingWindow = settings.FloatingWindow || global.FloatingWindow;
     const HistoryAwareFloatingWindow = createToolbarAdapter(BaseFloatingWindow, managerRef);
     const coreApp = coreAPI.createApp({...settings, FloatingWindow: HistoryAwareFloatingWindow});
+    const historyUI = createHistoryUIAdapter(settings.ui || global.ui);
 
     const history = historyAPI.createManager({
       file: settings.file || global.File,
-      ui: settings.ui || global.ui,
+      ui: historyUI,
       dialog: settings.dialog || global.Dialog,
       command: settings.command || global.Command,
       execution: settings.execution || global.Execution,
