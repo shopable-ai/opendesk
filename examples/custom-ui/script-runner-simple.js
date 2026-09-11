@@ -10,12 +10,14 @@ if (!globalThis.OpenDeskScriptRunnerSimple || typeof OpenDeskScriptRunnerSimple.
 }
 
 const configuredRoot = System.getEnv('OPENDESK_SCRIPT_RUNNER_DIR');
-const scriptRoot = configuredRoot && configuredRoot.trim()
+const hasConfiguredRoot = !!(configuredRoot && configuredRoot.trim());
+const scriptRoot = hasConfiguredRoot
   ? File.path(configuredRoot.trim())
   : File.join(Execution.workdir, 'recipes');
 
 const runner = OpenDeskScriptRunnerSimple.createApp({
   scriptRoot,
+  managedScriptRoot: !hasConfiguredRoot,
   file: File,
   command: Command,
   execution: Execution,
