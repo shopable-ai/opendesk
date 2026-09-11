@@ -1,0 +1,304 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://opendesk.dev/schemas/automation/collection-profile-v1.schema.json",
+  "title": "Structured UI Collection Profile v1",
+  "description": "Current-viewport structural rules for recognizing one generic collection item. Traversal and business mapping are intentionally out of scope.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "id",
+    "revision",
+    "applicability",
+    "collectionKind",
+    "axis",
+    "region",
+    "nativeRoleHints",
+    "itemGeometry",
+    "repeatPattern",
+    "spacing",
+    "layoutConstraints",
+    "validation"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "opendesk/collection-profile/v1"
+    },
+    "id": {
+      "$ref": "#/$defs/nonEmptyString"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "applicability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["apps", "pages", "layouts"],
+      "properties": {
+        "apps": {
+          "$ref": "#/$defs/stringList"
+        },
+        "pages": {
+          "$ref": "#/$defs/stringList"
+        },
+        "layouts": {
+          "$ref": "#/$defs/stringList"
+        }
+      }
+    },
+    "collectionKind": {
+      "enum": ["list", "table", "timeline", "grid", "cards", "tree"]
+    },
+    "axis": {
+      "enum": ["vertical", "horizontal"]
+    },
+    "region": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bounds"],
+      "properties": {
+        "bounds": {
+          "$ref": "#/$defs/rectangle"
+        }
+      }
+    },
+    "nativeRoleHints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["containerRoles", "itemRoles"],
+      "properties": {
+        "containerRoles": {
+          "$ref": "#/$defs/stringList"
+        },
+        "itemRoles": {
+          "$ref": "#/$defs/stringList"
+        }
+      }
+    },
+    "itemGeometry": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "minPrimarySize": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "maxPrimarySize": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "minCrossSize": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "maxCrossSize": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "minCrossAxisOverlapRatio": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "repeatPattern": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["strategy", "minOccurrences"],
+      "properties": {
+        "strategy": {
+          "enum": ["native-roots", "anchor-bounds", "separator-bands"]
+        },
+        "anchor": {
+          "$ref": "#/$defs/observationSelector"
+        },
+        "minOccurrences": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "separator": {
+      "$ref": "#/$defs/observationSelector"
+    },
+    "spacing": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "min": {
+          "type": "number",
+          "minimum": 0
+        },
+        "max": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "layoutConstraints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowVariablePrimarySize", "requiredObservationKinds"],
+      "properties": {
+        "allowVariablePrimarySize": {
+          "type": "boolean"
+        },
+        "requiredObservationKinds": {
+          "$ref": "#/$defs/stringList"
+        }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "minItems",
+        "requiredPerItem",
+        "prohibitObservationReuse",
+        "compareCompleteStructuralSources",
+        "conflictPolicy",
+        "coverage"
+      ],
+      "properties": {
+        "minItems": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "requiredPerItem": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["min"],
+            "properties": {
+              "source": {
+                "$ref": "#/$defs/source"
+              },
+              "kind": {
+                "$ref": "#/$defs/nonEmptyString"
+              },
+              "role": {
+                "$ref": "#/$defs/nonEmptyString"
+              },
+              "min": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "anyOf": [
+              {
+                "required": ["source"]
+              },
+              {
+                "required": ["kind"]
+              },
+              {
+                "required": ["role"]
+              }
+            ]
+          }
+        },
+        "prohibitObservationReuse": {
+          "const": true
+        },
+        "compareCompleteStructuralSources": {
+          "type": "boolean"
+        },
+        "conflictPolicy": {
+          "const": "uncertain"
+        },
+        "coverage": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["completeSources"],
+          "properties": {
+            "completeSources": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/source"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "stringList": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/nonEmptyString"
+      }
+    },
+    "source": {
+      "enum": [
+        "accessibility",
+        "ocr",
+        "layout",
+        "image",
+        "semantic-vision",
+        "manual"
+      ]
+    },
+    "rectangle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y", "width", "height", "coordinateSpace"],
+      "properties": {
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "width": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "height": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "coordinateSpace": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      }
+    },
+    "observationSelector": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/source"
+          }
+        },
+        "kinds": {
+          "$ref": "#/$defs/stringList"
+        },
+        "roles": {
+          "$ref": "#/$defs/stringList"
+        }
+      },
+      "anyOf": [
+        {
+          "required": ["sources"]
+        },
+        {
+          "required": ["kinds"]
+        },
+        {
+          "required": ["roles"]
+        }
+      ]
+    }
+  }
+}

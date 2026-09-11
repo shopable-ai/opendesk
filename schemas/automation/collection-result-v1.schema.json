@@ -1,0 +1,418 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://opendesk.dev/schemas/automation/collection-result-v1.schema.json",
+  "title": "Structured UI Current-Viewport Collection Result v1",
+  "description": "Validated generic collection items and current-viewport-only coverage.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "items", "coverage", "issues", "valid"],
+  "properties": {
+    "schemaVersion": {
+      "const": "opendesk/collection-result/v1"
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/collectionItem"
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scope", "status", "sourceStatus", "reasons"],
+      "properties": {
+        "scope": {
+          "const": "current-viewport"
+        },
+        "status": {
+          "enum": ["complete", "partial", "uncertain"]
+        },
+        "sourceStatus": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["source", "status"],
+            "properties": {
+              "source": {
+                "$ref": "#/$defs/source"
+              },
+              "status": {
+                "enum": ["complete", "partial", "unavailable", "uncertain"]
+              },
+              "reason": {
+                "$ref": "#/$defs/nonEmptyString"
+              }
+            }
+          }
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/nonEmptyString"
+          }
+        }
+      }
+    },
+    "issues": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/issue"
+      }
+    },
+    "valid": {
+      "type": "boolean"
+    }
+  },
+  "$defs": {
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source": {
+      "enum": [
+        "accessibility",
+        "ocr",
+        "layout",
+        "image",
+        "semantic-vision",
+        "manual"
+      ]
+    },
+    "referenceList": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/nonEmptyString"
+      }
+    },
+    "rectangle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y", "width", "height", "coordinateSpace"],
+      "properties": {
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "width": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "height": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "coordinateSpace": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      }
+    },
+    "observationState": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "status", "value"],
+          "properties": {
+            "name": {
+              "$ref": "#/$defs/nonEmptyString"
+            },
+            "status": {
+              "const": "known"
+            },
+            "value": {}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "status", "reason"],
+          "properties": {
+            "name": {
+              "$ref": "#/$defs/nonEmptyString"
+            },
+            "status": {
+              "const": "unknown"
+            },
+            "reason": {
+              "$ref": "#/$defs/nonEmptyString"
+            }
+          }
+        }
+      ]
+    },
+    "observationUnknown": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field", "reason"],
+      "properties": {
+        "field": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "reason": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      }
+    },
+    "conflict": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field", "withObservationId", "reason"],
+      "properties": {
+        "field": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "withObservationId": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "reason": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      }
+    },
+    "state": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "status", "value", "observationId"],
+          "properties": {
+            "name": {
+              "$ref": "#/$defs/nonEmptyString"
+            },
+            "status": {
+              "const": "known"
+            },
+            "value": {},
+            "observationId": {
+              "$ref": "#/$defs/nonEmptyString"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "status", "reason", "observationId"],
+          "properties": {
+            "name": {
+              "$ref": "#/$defs/nonEmptyString"
+            },
+            "status": {
+              "const": "unknown"
+            },
+            "reason": {
+              "$ref": "#/$defs/nonEmptyString"
+            },
+            "observationId": {
+              "$ref": "#/$defs/nonEmptyString"
+            }
+          }
+        }
+      ]
+    },
+    "unknown": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field", "reason", "observationId"],
+      "properties": {
+        "field": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "reason": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "observationId": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      }
+    },
+    "element": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "observationId",
+        "source",
+        "kind",
+        "states",
+        "evidenceRefs",
+        "unknowns",
+        "conflicts"
+      ],
+      "properties": {
+        "observationId": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "source": {
+          "$ref": "#/$defs/source"
+        },
+        "kind": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "role": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "text": {
+          "type": "string"
+        },
+        "value": {},
+        "bounds": {
+          "$ref": "#/$defs/rectangle"
+        },
+        "states": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/observationState"
+          }
+        },
+        "confidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["value", "scale", "provider", "evidenceRef"],
+          "properties": {
+            "value": {
+              "type": "number"
+            },
+            "scale": {
+              "const": "provider-specific"
+            },
+            "provider": {
+              "$ref": "#/$defs/nonEmptyString"
+            },
+            "evidenceRef": {
+              "$ref": "#/$defs/nonEmptyString"
+            }
+          }
+        },
+        "native": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "role": {
+              "$ref": "#/$defs/nonEmptyString"
+            },
+            "parentId": {
+              "$ref": "#/$defs/nonEmptyString"
+            },
+            "backend": {
+              "enum": ["ax", "uia", "atspi", "other"]
+            },
+            "metadata": {
+              "type": "object"
+            }
+          }
+        },
+        "metadata": {
+          "type": "object"
+        },
+        "evidenceRefs": {
+          "$ref": "#/$defs/referenceList"
+        },
+        "unknowns": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/observationUnknown"
+          }
+        },
+        "conflicts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/conflict"
+          }
+        }
+      }
+    },
+    "collectionItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "index",
+        "bounds",
+        "elements",
+        "nativeStructure",
+        "states",
+        "evidenceRefs",
+        "warnings",
+        "unknowns"
+      ],
+      "properties": {
+        "index": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Zero-based order within this current-viewport result; never a stable identity."
+        },
+        "bounds": {
+          "$ref": "#/$defs/rectangle"
+        },
+        "elements": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/element"
+          }
+        },
+        "nativeStructure": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["rootObservationIds", "observationIds"],
+          "properties": {
+            "rootObservationIds": {
+              "$ref": "#/$defs/referenceList"
+            },
+            "observationIds": {
+              "$ref": "#/$defs/referenceList"
+            }
+          }
+        },
+        "states": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/state"
+          }
+        },
+        "evidenceRefs": {
+          "$ref": "#/$defs/referenceList"
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/nonEmptyString"
+          }
+        },
+        "unknowns": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/unknown"
+          }
+        }
+      }
+    },
+    "issue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "severity", "message"],
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "severity": {
+          "enum": ["warning", "error"]
+        },
+        "message": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "observationIds": {
+          "$ref": "#/$defs/referenceList"
+        },
+        "itemIndexes": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    }
+  }
+}

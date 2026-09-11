@@ -1,0 +1,398 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://opendesk.dev/schemas/automation/observation-bundle-v1.schema.json",
+  "title": "Structured UI Observation Bundle v1",
+  "description": "Serializable, source-preserving observations for one explicitly bounded UI region.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "id",
+    "scope",
+    "coordinateSpaces",
+    "sourceCoverage",
+    "evidence",
+    "observations"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "opendesk/observation-bundle/v1"
+    },
+    "id": {
+      "$ref": "#/$defs/nonEmptyString"
+    },
+    "capturedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "bounds"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "kind": {
+          "enum": ["window", "region", "image"]
+        },
+        "bounds": {
+          "$ref": "#/$defs/rectangle"
+        }
+      }
+    },
+    "coordinateSpaces": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/coordinateSpace"
+      }
+    },
+    "sourceCoverage": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/sourceCoverage"
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/evidence"
+      }
+    },
+    "observations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/observation"
+      }
+    }
+  },
+  "$defs": {
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source": {
+      "enum": [
+        "accessibility",
+        "ocr",
+        "layout",
+        "image",
+        "semantic-vision",
+        "manual"
+      ]
+    },
+    "rectangle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y", "width", "height", "coordinateSpace"],
+      "properties": {
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "width": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "height": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "coordinateSpace": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      }
+    },
+    "coordinateSpace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "kind": {
+          "enum": [
+            "screen-logical",
+            "screen-physical",
+            "window-logical",
+            "image-pixel"
+          ]
+        },
+        "imageSize": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["width", "height"],
+          "properties": {
+            "width": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "height": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
+          }
+        },
+        "transformTo": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["coordinateSpace", "scale", "offset", "evidenceRefs"],
+          "properties": {
+            "coordinateSpace": {
+              "$ref": "#/$defs/nonEmptyString"
+            },
+            "scale": {
+              "$ref": "#/$defs/vector"
+            },
+            "offset": {
+              "$ref": "#/$defs/vector"
+            },
+            "evidenceRefs": {
+              "$ref": "#/$defs/referenceList"
+            }
+          }
+        }
+      }
+    },
+    "vector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y"],
+      "properties": {
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        }
+      }
+    },
+    "referenceList": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/nonEmptyString"
+      }
+    },
+    "sourceCoverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "status", "evidenceRefs"],
+      "properties": {
+        "source": {
+          "$ref": "#/$defs/source"
+        },
+        "status": {
+          "enum": ["complete", "partial", "unavailable", "uncertain"]
+        },
+        "reason": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "evidenceRefs": {
+          "$ref": "#/$defs/referenceList"
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "source", "kind", "description"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "source": {
+          "$ref": "#/$defs/source"
+        },
+        "kind": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "description": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "artifact": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path"],
+          "properties": {
+            "path": {
+              "$ref": "#/$defs/nonEmptyString"
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          }
+        },
+        "metadata": {
+          "type": "object"
+        }
+      }
+    },
+    "observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "source",
+        "kind",
+        "states",
+        "evidenceRefs",
+        "unknowns",
+        "conflicts"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "source": {
+          "$ref": "#/$defs/source"
+        },
+        "kind": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "role": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "text": {
+          "type": "string"
+        },
+        "value": {},
+        "bounds": {
+          "$ref": "#/$defs/rectangle"
+        },
+        "states": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/state"
+          }
+        },
+        "confidence": {
+          "$ref": "#/$defs/confidence"
+        },
+        "native": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "role": {
+              "$ref": "#/$defs/nonEmptyString"
+            },
+            "parentId": {
+              "$ref": "#/$defs/nonEmptyString"
+            },
+            "backend": {
+              "enum": ["ax", "uia", "atspi", "other"]
+            },
+            "metadata": {
+              "type": "object"
+            }
+          }
+        },
+        "metadata": {
+          "type": "object"
+        },
+        "evidenceRefs": {
+          "$ref": "#/$defs/referenceList"
+        },
+        "unknowns": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/unknown"
+          }
+        },
+        "conflicts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/conflict"
+          }
+        }
+      }
+    },
+    "state": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "status", "value"],
+          "properties": {
+            "name": {
+              "$ref": "#/$defs/nonEmptyString"
+            },
+            "status": {
+              "const": "known"
+            },
+            "value": {}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "status", "reason"],
+          "properties": {
+            "name": {
+              "$ref": "#/$defs/nonEmptyString"
+            },
+            "status": {
+              "const": "unknown"
+            },
+            "reason": {
+              "$ref": "#/$defs/nonEmptyString"
+            }
+          }
+        }
+      ]
+    },
+    "confidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "scale", "provider", "evidenceRef"],
+      "properties": {
+        "value": {
+          "type": "number"
+        },
+        "scale": {
+          "const": "provider-specific"
+        },
+        "provider": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "evidenceRef": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      }
+    },
+    "unknown": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field", "reason"],
+      "properties": {
+        "field": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "reason": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      }
+    },
+    "conflict": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field", "withObservationId", "reason"],
+      "properties": {
+        "field": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "withObservationId": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "reason": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      }
+    }
+  }
+}
