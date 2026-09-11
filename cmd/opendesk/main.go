@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -1760,15 +1761,26 @@ func startContainerBasedServer(port string, appConfig *Config) error {
 	}()
 
 	server := pkgHttp.NewServerWithScheduler(container, port, schedulerService)
-	workbenchArtifactRoot, err := accessibilityWorkbenchArtifactRoot()
-	if err != nil {
-		return fmt.Errorf("resolve on-demand Accessibility Workbench artifact root: %w", err)
+	workbenchControlToken := ""
+	if accessibilityWorkbenchEnabledOnPort(port) {
+		workbenchArtifactRoot, rootErr := accessibilityWorkbenchArtifactRoot()
+		if rootErr != nil {
+			return fmt.Errorf("resolve on-demand Accessibility Workbench artifact root: %w", rootErr)
+		}
+		workbenchFrontendRoot, rootErr := accessibilityWorkbenchFrontendRoot()
+		if rootErr != nil {
+			return fmt.Errorf("resolve Accessibility Workbench frontend root: %w", rootErr)
+		}
+		workbenchControlToken, rootErr = randomAccessibilityWorkbenchControlToken()
+		if rootErr != nil {
+			return fmt.Errorf("create Accessibility Workbench helper token: %w", rootErr)
+		}
+		_, controlPort, splitErr := net.SplitHostPort(listener.Addr().String())
+		if splitErr != nil {
+			return fmt.Errorf("resolve on-demand Accessibility Workbench control port: %w", splitErr)
+		}
+		server.EnableOnDemandAccessibilityWorkbench(workbenchArtifactRoot, workbenchFrontendRoot, controlPort, workbenchControlToken)
 	}
-	_, controlPort, splitErr := net.SplitHostPort(listener.Addr().String())
-	if splitErr != nil {
-		return fmt.Errorf("resolve on-demand Accessibility Workbench control port: %w", splitErr)
-	}
-	server.EnableOnDemandAccessibilityWorkbench(workbenchArtifactRoot, controlPort)
 
 	// Only advertise readiness after the scheduler is running and the socket is
 	// reserved. This is the startup boundary used by the macOS status item.
@@ -1785,7 +1797,7 @@ func startContainerBasedServer(port string, appConfig *Config) error {
 	fmt.Printf("OpenDesk ready: http://127.0.0.1:%s/status (pid %d)\n", port, os.Getpid())
 	fmt.Println("服务器已启动 (Container Mode)，按 Ctrl+C 关闭")
 	if isAutoRunJs {
-		startMacOSAppStatusItem(port)
+		startMacOSAppStatusItem(port, workbenchControlToken)
 	}
 	// Run the server behind an explicit shutdown boundary so SIGINT/SIGTERM
 	// cancel active JavaScript and drain native UI hosts before the process exits.
@@ -1847,11 +1859,54 @@ func accessibilityWorkbenchArtifactRoot() (string, error) {
 	return resolveAccessibilityWorkbenchArtifactRoot(workingDirectory, userConfigDirectory, false), nil
 }
 
+func accessibilityWorkbenchEnabledOnPort(port string) bool {
+	return strings.TrimSpace(port) == "60844"
+}
+
 func resolveAccessibilityWorkbenchArtifactRoot(workingDirectory, userConfigDirectory string, developmentTree bool) string {
 	if developmentTree {
 		return filepath.Join(workingDirectory, ".runtime", "accessibility-inspector")
 	}
 	return filepath.Join(userConfigDirectory, "opendesk", "accessibility-inspector")
+}
+
+func accessibilityWorkbenchFrontendRoot() (string, error) {
+	workingDirectory, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	developmentRoot := filepath.Join(workingDirectory, "apps", "inspector_web")
+	if pathExists(filepath.Join(workingDirectory, "go.mod")) && pathExists(filepath.Join(developmentRoot, "index.html")) {
+		return validateAccessibilityWorkbenchFrontendRoot(developmentRoot)
+	}
+	executable, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+	if resolved, resolveErr := filepath.EvalSymlinks(executable); resolveErr == nil {
+		executable = resolved
+	}
+	bundleRoot := filepath.Join(filepath.Dir(filepath.Dir(executable)), "Resources", "inspector_web")
+	return validateAccessibilityWorkbenchFrontendRoot(bundleRoot)
+}
+
+func validateAccessibilityWorkbenchFrontendRoot(root string) (string, error) {
+	root = filepath.Clean(strings.TrimSpace(root))
+	for _, relative := range []string{"index.html", filepath.Join("assets", "app.css"), filepath.Join("assets", "app.js"), filepath.Join("assets", "model.js")} {
+		info, err := os.Stat(filepath.Join(root, relative))
+		if err != nil || !info.Mode().IsRegular() {
+			return "", fmt.Errorf("required Inspector frontend asset is missing: %s", filepath.Join(root, relative))
+		}
+	}
+	return root, nil
+}
+
+func randomAccessibilityWorkbenchControlToken() (string, error) {
+	value := make([]byte, 32)
+	if _, err := rand.Read(value); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(value), nil
 }
 
 func pathExists(path string) bool {

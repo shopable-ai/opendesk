@@ -278,3 +278,42 @@ func TestResolveAccessibilityWorkbenchArtifactRoot(t *testing.T) {
 		t.Fatalf("installed artifact root = %q, want %q", installed, wantInstalled)
 	}
 }
+
+func TestAccessibilityWorkbenchUsesOnlyFixedProductPort(t *testing.T) {
+	if !accessibilityWorkbenchEnabledOnPort("60844") {
+		t.Fatal("fixed Inspector product port was disabled")
+	}
+	for _, port := range []string{"60845", "0", "", "localhost:60844"} {
+		if accessibilityWorkbenchEnabledOnPort(port) {
+			t.Fatalf("Inspector unexpectedly enabled on non-product port %q", port)
+		}
+	}
+}
+
+func TestValidateAccessibilityWorkbenchFrontendRoot(t *testing.T) {
+	root := t.TempDir()
+	if _, err := validateAccessibilityWorkbenchFrontendRoot(root); err == nil {
+		t.Fatal("empty frontend root was accepted")
+	}
+	for _, relative := range []string{"index.html", filepath.Join("assets", "app.css"), filepath.Join("assets", "app.js"), filepath.Join("assets", "model.js")} {
+		path := filepath.Join(root, relative)
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(relative), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	validated, err := validateAccessibilityWorkbenchFrontendRoot(root)
+	if err != nil || validated != filepath.Clean(root) {
+		t.Fatalf("validated frontend root = %q, %v", validated, err)
+	}
+	first, err := randomAccessibilityWorkbenchControlToken()
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := randomAccessibilityWorkbenchControlToken()
+	if err != nil || len(first) != 64 || len(second) != 64 || first == second {
+		t.Fatalf("control tokens are not independent 256-bit values: %q %q, %v", first, second, err)
+	}
+}

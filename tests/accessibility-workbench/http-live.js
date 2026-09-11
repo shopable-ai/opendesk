@@ -11,6 +11,9 @@ assert.equal(launch.hostname, expectedHost);
 const pairParameters = new URLSearchParams(launch.hash.replace(/^#/, ''));
 let pairCode = pairParameters.get('pair') || '';
 assert.ok(pairCode, 'trusted launch URL is missing its pair fragment');
+assert.equal(pairParameters.get('api'), null, 'Workbench must not return a separate API origin');
+assert.equal(launch.port, '60844', 'Workbench must use the fixed 60844 listener');
+const frontendOrigin = launch.origin;
 launch.hash = '';
 const base = launch.origin;
 
@@ -18,6 +21,7 @@ let bearer = '';
 let sessionId = '';
 let sessionToken = '';
 const commonHeaders = {
+  Origin: frontendOrigin,
   'X-OpenDesk-Inspector': '1',
   'X-OpenDesk-Inspector-Client': 'non-browser',
 };
@@ -143,15 +147,32 @@ function runFixtureScript(relativePath) {
   return result;
 }
 
+function clickFixtureButton(pid, buttonName) {
+  const result = spawnSync('/usr/bin/osascript', [
+    '-e', 'tell application "System Events"',
+    '-e', `tell first process whose unix id is ${Number(pid)}`,
+    '-e', `click button ${JSON.stringify(buttonName)} of window "OpenDesk Accessibility Fixture"`,
+    '-e', 'end tell',
+    '-e', 'end tell',
+  ], { cwd: process.cwd(), encoding: 'utf8', timeout: 10000 });
+  assert.equal(result.status, 0, `failed to click fixture button ${buttonName}: ${result.stderr || result.stdout}`);
+}
+
+function delay(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
 async function main() {
   const page = await fetch(launch.href);
   assert.equal(page.status, 200);
-  assert.match(page.headers.get('content-security-policy') || '', /frame-ancestors 'none'/);
-  assert.equal(page.headers.get('cache-control'), 'no-store');
-  assert.match(await page.text(), /Accessibility Workbench/);
+  const pageSource = await page.text();
+  assert.match(pageSource, /<title>OpenDesk Inspector<\/title>/);
+  assert.match(pageSource, /http-equiv="Content-Security-Policy"/);
+  assert.match(pageSource, /<meta name="referrer" content="no-referrer">/);
 
-  const isolated = await fetch(`${base}/status`);
-  assert.equal(isolated.status, 404);
+  const ordinaryStatus = await fetch(`${base}/status`);
+  assert.equal(ordinaryStatus.status, 200, 'same listener must remain the ordinary OpenDesk server');
+  await ordinaryStatus.arrayBuffer();
 
   const paired = await api('/pair', { method: 'POST', body: { code: pairCode } });
   pairCode = '';
@@ -209,6 +230,30 @@ async function main() {
     method: 'POST', body: {},
   });
   assertObservationTree(currentObservation, fixtureReceipt);
+
+  const visual = await api(`/sessions/${encodeURIComponent(sessionId)}/visual-captures`, {
+    method: 'POST',
+    body: { observationId: currentObservation.observationId, generation: currentObservation.generation },
+  });
+  assert.equal(visual.schemaVersion, 'opendesk.inspector.visual-capture/v1');
+  assert.equal(visual.sessionId, sessionId);
+  assert.equal(visual.observationId, currentObservation.observationId);
+  assert.equal(visual.generation, currentObservation.generation);
+  assert.equal(visual.image.mimeType, 'image/png');
+  assert.match(visual.image.dataUrl, /^data:image\/png;base64,/);
+  assert.ok(visual.image.sizeBytes > 0 && visual.image.sizeBytes <= 5 * 1024 * 1024);
+  assert.ok(visual.image.width > 0 && visual.image.height > 0);
+  const visualBytes = Buffer.from(visual.image.dataUrl.slice('data:image/png;base64,'.length), 'base64');
+  assert.equal(visualBytes.length, visual.image.sizeBytes);
+  assert.equal(visual.captureProvenance.focusChanged, false);
+  assert.equal(visual.captureProvenance.persisted, false);
+  assert.equal(typeof visual.captureProvenance.foregroundVerified, 'boolean');
+  assert.equal(typeof visual.captureProvenance.occlusionRisk, 'boolean');
+  assert.ok(['exact-window', 'visible-bounds'].includes(visual.captureProvenance.scope));
+  assert.deepEqual(
+    [visual.window.x, visual.window.y, visual.window.width, visual.window.height],
+    [currentObservation.window.x, currentObservation.window.y, currentObservation.window.width, currentObservation.window.height],
+  );
 
   const invokeNode = findNode(currentObservation.root, (node) => node.identifier === 'fixture.invoke');
   assert.ok(invokeNode, 'fixture.invoke is missing from the live observation');
@@ -308,8 +353,54 @@ async function main() {
     validationStatus: validation.status,
     performedAction: validation.performedAction,
     importedValidationStatus: importedResult.validationStatus,
+    visual: {
+      captureId: visual.captureId,
+      pixels: `${visual.image.width}x${visual.image.height}`,
+      sizeBytes: visual.image.sizeBytes,
+      scope: visual.captureProvenance.scope,
+      method: visual.captureProvenance.method,
+      foregroundVerified: visual.captureProvenance.foregroundVerified,
+      occlusionRisk: visual.captureProvenance.occlusionRisk,
+      persisted: visual.captureProvenance.persisted,
+    },
     handoffPath: saved.artifactPath,
   };
+
+  if (process.env.OPENDESK_WORKBENCH_DYNAMIC === '1') {
+    clickFixtureButton(fixtureReceipt.pid, 'Reveal Dynamic Control');
+    await delay(500);
+    const materialized = await api(`/sessions/${encodeURIComponent(sessionId)}/observations`, {
+      method: 'POST', body: {},
+    });
+    assertObservationTree(materialized, fixtureReceipt);
+    assert.ok(materialized.stats.maxDepth >= 3);
+    assert.ok(findNode(materialized.root, (node) => node.identifier === 'fixture.dynamic.child'));
+
+    clickFixtureButton(fixtureReceipt.pid, 'Reveal Dynamic Control');
+    await delay(100);
+    const partial = await api(`/sessions/${encodeURIComponent(sessionId)}/observations`, {
+      method: 'POST', body: {},
+    });
+    assert.equal(partial.complete, false);
+    assert.equal(partial.truncated, false);
+    assert.equal(partial.reason, 'unmaterialized');
+    assert.ok(partial.root, 'partial observation must retain its real root');
+    assert.ok(findNode(partial.root, (node) => node.identifier === 'fixture.dynamic.container'));
+    assert.equal(findNode(partial.root, (node) => node.identifier === 'fixture.dynamic.child'), null);
+
+    clickFixtureButton(fixtureReceipt.pid, 'Reveal Dynamic Control');
+    await delay(500);
+    const rematerialized = await api(`/sessions/${encodeURIComponent(sessionId)}/observations`, {
+      method: 'POST', body: {},
+    });
+    assertObservationTree(rematerialized, fixtureReceipt);
+    assert.ok(findNode(rematerialized.root, (node) => node.identifier === 'fixture.dynamic.child'));
+    summary.dynamic = {
+      materialized: { complete: materialized.complete, nodes: materialized.stats.nodes, maxDepth: materialized.stats.maxDepth },
+      partial: { complete: partial.complete, truncated: partial.truncated, reason: partial.reason, nodes: partial.stats.nodes, maxDepth: partial.stats.maxDepth },
+      rematerialized: { complete: rematerialized.complete, nodes: rematerialized.stats.nodes, maxDepth: rematerialized.stats.maxDepth },
+    };
+  }
 
   if (process.env.OPENDESK_WORKBENCH_LIFECYCLE === '1') {
     const originalPID = fixtureReceipt.pid;
@@ -356,6 +447,17 @@ async function main() {
       staleReason: staleStatus.latestObservation.staleReason,
       oldWindowIdRejected: true, reopenedTreeNodes: reopenedObservation.stats.nodes,
     };
+  }
+
+  const evidenceDirectory = process.env.OPENDESK_WORKBENCH_EVIDENCE_DIR;
+  if (evidenceDirectory) {
+    const resolvedEvidenceDirectory = path.resolve(evidenceDirectory);
+    fs.mkdirSync(resolvedEvidenceDirectory, { recursive: true, mode: 0o700 });
+    const visualPath = path.join(resolvedEvidenceDirectory, 'target-window.png');
+    const summaryPath = path.join(resolvedEvidenceDirectory, 'http-live-summary.json');
+    fs.writeFileSync(visualPath, visualBytes, { mode: 0o600 });
+    fs.writeFileSync(summaryPath, `${JSON.stringify(summary, null, 2)}\n`, { mode: 0o600 });
+    summary.localTestEvidence = { visualPath, summaryPath };
   }
 
   await api(`/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE' });

@@ -24,6 +24,61 @@
     return value === null || value === undefined ? "" : String(value);
   }
 
+  function isLoopbackHostname(value) {
+    const hostname = text(value).trim().toLocaleLowerCase();
+    if (hostname === "localhost" || hostname === "::1" || hostname === "[::1]") return true;
+    const match = hostname.match(/^127\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+    return Boolean(match && match.slice(1).every(part => Number(part) >= 0 && Number(part) <= 255));
+  }
+
+  function isPrivateHostname(value) {
+    const hostname = text(value).trim().toLocaleLowerCase().replace(/^\[|\]$/g, "");
+    const octets = hostname.split(".").map(Number);
+    if (octets.length === 4 && octets.every(part => Number.isInteger(part) && part >= 0 && part <= 255)) {
+      return octets[0] === 10 ||
+        (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) ||
+        (octets[0] === 192 && octets[1] === 168);
+    }
+    return hostname.startsWith("fc") || hostname.startsWith("fd");
+  }
+
+  function pageAccess(value) {
+    let candidate;
+    try {
+      candidate = new URL(text(value));
+    } catch (_) {
+      return {
+        mode: "preview", canConnect: false, reason: "invalid-page-url",
+        currentURL: text(value), loopbackURL: "", plaintextWarning: false
+      };
+    }
+    const current = new URL(candidate.href);
+    current.hash = "";
+    const plainHTTP = current.protocol === "http:";
+    const loopback = isLoopbackHostname(current.hostname);
+    const privateNetwork = isPrivateHostname(current.hostname);
+    const safeAuthority = !current.username && !current.password && current.origin !== "null";
+    const canConnect = plainHTTP && (loopback || privateNetwork) && safeAuthority;
+    let loopbackURL = "";
+    if ((current.protocol === "http:" || current.protocol === "https:") && current.host && safeAuthority) {
+      const local = new URL(current.href);
+      local.protocol = "http:";
+      local.hostname = "127.0.0.1";
+      local.hash = "";
+      loopbackURL = local.href;
+    }
+    return {
+      mode: loopback && canConnect ? "local" : (privateNetwork && canConnect ? "trusted-lan" : "preview"),
+      canConnect,
+      reason: loopback && canConnect ? "plain-http-loopback" :
+        (privateNetwork && canConnect ? "plain-http-private-network" :
+          (!plainHTTP ? "requires-http" : "outside-trusted-network")),
+      currentURL: current.href,
+      loopbackURL,
+      plaintextWarning: privateNetwork && canConnect
+    };
+  }
+
   function searchableText(node) {
     return [node && node.role, node && node.nativeRole, node && node.nativeSubrole,
       node && node.name, node && node.identifier]
@@ -115,17 +170,266 @@
     return { node: null, status: "stale" };
   }
 
-  function nodeFlags(node) {
-    if (!node) return [];
-    const flags = [];
-    for (const key of ["enabled", "focused", "selected", "checked", "expanded"]) {
-      if (Object.prototype.hasOwnProperty.call(node, key) && node[key] !== null) {
-        flags.push(key + "=" + String(node[key]));
-      }
+  function selectionContext(observation, selected) {
+    if (!observation || !selected || !text(observation.observationId) || !text(selected.nodeId)) return null;
+    return {
+      observationId: text(observation.observationId),
+      nodeId: text(selected.nodeId),
+      fingerprint: nodeFingerprint(selected)
+    };
+  }
+
+  function refreshSelectionAnchor(root, selected, cachedAnchor) {
+    return selectionAnchor(root, selected) || cachedAnchor || null;
+  }
+
+  function sameSelectionContext(context, observation, selected) {
+    const current = selectionContext(observation, selected);
+    return Boolean(context && current &&
+      context.observationId === current.observationId &&
+      context.nodeId === current.nodeId &&
+      context.fingerprint === current.fingerprint);
+  }
+
+  function normalizedRole(role) {
+    return text(role).toLocaleLowerCase().replace(/[^a-z0-9]/g, "");
+  }
+
+  const roleIcons = Object.freeze({
+    application: "A", browser: "B", button: "↵", checkbox: "□", cell: "·",
+    combobox: "⌄", dialog: "D", generic: "·", group: "G", heading: "H", image: "▧",
+    link: "↗", list: "≡", listitem: "•", menu: "M", menubar: "M", menuitem: "·",
+    option: "•", popupbutton: "⌄", radio: "○", radiobutton: "○", row: "—",
+    scrollarea: "↕", scrollbar: "↕", searchfield: "I", securetextfield: "I",
+    slider: "━", spinbutton: "↕", statictext: "T", switch: "◐", tab: "▱",
+    table: "▦", text: "T", textarea: "¶", textfield: "I", togglebutton: "↵",
+    toolbar: "⋯", tree: "Y", treeitem: "•", unknown: "·", webarea: "W", window: "W"
+  });
+
+  const interactiveRoles = new Set([
+    "button", "checkbox", "colorwell", "combobox", "disclosuretriangle", "link", "menuitem",
+    "menuitemcheckbox", "menuitemradio", "option", "popupbutton", "radio", "radiobutton",
+    "scrollbar", "searchfield", "securetextfield", "slider", "spinbutton", "stepper", "switch",
+    "tab", "textarea", "textfield", "togglebutton", "treeitem"
+  ]);
+
+  const containerRoles = new Set([
+    "application", "browser", "cell", "complementary", "dialog", "form", "generic", "group",
+    "list", "listitem", "main", "menubar", "menu", "navigation", "outline", "radiogroup",
+    "row", "scrollarea", "section", "splitgroup", "table", "tabgroup", "tablist", "tabpanel",
+    "toolbar", "tree", "unknown", "webarea", "window"
+  ]);
+
+  function roleLabel(role) {
+    const value = text(role).trim() || "unknown";
+    return value
+      .replace(/[_-]+/g, " ")
+      .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+      .replace(/^./, character => character.toLocaleUpperCase());
+  }
+
+  function keyStates(node) {
+    if (!node || typeof node !== "object") return [];
+    const states = [];
+    if (node.focused === true) states.push({ key: "focused", symbol: "⌾", label: "Focused" });
+    if (node.enabled === false) states.push({ key: "disabled", symbol: "×", label: "Disabled" });
+    if (node.selected === true) states.push({ key: "selected", symbol: "◆", label: "Selected" });
+    if (node.checked === true) states.push({ key: "checked", symbol: "✓", label: "Checked" });
+    else if (node.checked === false) states.push({ key: "unchecked", symbol: "○", label: "Not checked" });
+    if (node.expanded === true) states.push({ key: "expanded", symbol: "−", label: "Expanded" });
+    else if (node.expanded === false) states.push({ key: "collapsed", symbol: "+", label: "Collapsed" });
+    return states;
+  }
+
+  function nodeValue(node, options) {
+    if (!node || typeof node !== "object") {
+      return {
+        level: "noise", keepDefault: false, isContainer: false, hasName: false,
+        hasIdentifier: false, hasActions: false, isInteractive: false, states: []
+      };
     }
-    const actions = Array.isArray(node.actions) ? node.actions.filter(Boolean) : [];
-    if (actions.length) flags.push("actions=" + actions.join(","));
-    return flags;
+    const settings = options || {};
+    const role = normalizedRole(node.role);
+    const children = childrenOf(node);
+    const hasName = Boolean(text(node.name).trim());
+    const hasIdentifier = Boolean(text(node.identifier).trim());
+    const states = keyStates(node);
+    const hasActions = Array.isArray(node.actions) && node.actions.some(action => Boolean(text(action).trim()));
+    const isInteractive = interactiveRoles.has(role);
+    const isContainer = containerRoles.has(role);
+    let level = "noise";
+    if (settings.root) level = "root";
+    else if (hasName) level = "content";
+    else if (hasIdentifier) level = "identified";
+    else if (states.length) level = "stateful";
+    else if (hasActions || isInteractive) level = "actionable";
+    else if (children.length) level = "structure";
+    return {
+      level,
+      keepDefault: level !== "structure" && level !== "noise",
+      isContainer,
+      hasName,
+      hasIdentifier,
+      hasActions,
+      isInteractive,
+      states
+    };
+  }
+
+  function buildTreeView(root, options) {
+    if (!root || typeof root !== "object") {
+      return {
+        root: null,
+        stats: { totalNodes: 0, visibleNodes: 0, hiddenStructure: 0, hiddenLeaves: 0 },
+        hiddenById: {},
+        hiddenNodes: []
+      };
+    }
+    const settings = options || {};
+    const showStructureNodes = settings.showStructureNodes === true;
+    const preserveNodeIds = new Set((settings.preserveNodeIds || []).map(text).filter(Boolean));
+    const preserveNodes = new Set((settings.preserveNodes || []).filter(node => node && typeof node === "object"));
+
+    function build(node, path, isRoot) {
+      if (!node || typeof node !== "object") return null;
+      const value = nodeValue(node, { root: isRoot });
+      const rawChildren = childrenOf(node);
+      const children = [];
+      rawChildren.forEach((child, index) => {
+        const view = build(child, path.concat(index), false);
+        if (view) children.push(view);
+      });
+      const preserved = preserveNodes.has(node) || preserveNodeIds.has(text(node.nodeId));
+      const visibleByValue = value.keepDefault || isRoot || preserved;
+      if (!showStructureNodes && !visibleByValue) {
+        if (value.level === "noise" || children.length === 0) return null;
+        if (children.length === 1) {
+          children[0].compressedAncestors.unshift({
+            nodeId: text(node.nodeId), role: text(node.role) || "unknown"
+          });
+          return children[0];
+        }
+      }
+      let visualKind = "content";
+      if (value.level === "structure" || value.level === "noise") visualKind = "structure";
+      else if (value.isContainer) visualKind = "container";
+      return {
+        node,
+        viewKey: text(node.nodeId) || "path-" + path.join("-"),
+        visualKind,
+        structuralSummary: !showStructureNodes && !visibleByValue,
+        compressedAncestors: [],
+        rawChildCount: rawChildren.length,
+        children
+      };
+    }
+
+    const viewRoot = build(root, [], true);
+    const all = flattenTree(root);
+    const visibleNodes = new Set();
+    (function collect(view) {
+      if (!view) return;
+      visibleNodes.add(view.node);
+      for (const child of view.children) collect(child);
+    })(viewRoot);
+    const hiddenById = {};
+    const hiddenNodes = [];
+    let hiddenStructure = 0;
+    let hiddenLeaves = 0;
+    for (const { node } of all) {
+      if (visibleNodes.has(node)) continue;
+      const value = nodeValue(node);
+      const reason = value.level === "noise" ? "empty-leaf" : "structure";
+      if (reason === "empty-leaf") hiddenLeaves += 1;
+      else hiddenStructure += 1;
+      hiddenNodes.push({ node, reason });
+      if (text(node.nodeId)) hiddenById[text(node.nodeId)] = reason;
+    }
+    return {
+      root: viewRoot,
+      stats: {
+        totalNodes: all.length,
+        visibleNodes: visibleNodes.size,
+        hiddenStructure,
+        hiddenLeaves
+      },
+      hiddenById,
+      hiddenNodes
+    };
+  }
+
+  function hiddenReason(treeView, node) {
+    if (!treeView || !node || typeof node !== "object") return "";
+    const byReference = Array.isArray(treeView.hiddenNodes)
+      ? treeView.hiddenNodes.find(entry => entry && entry.node === node)
+      : null;
+    if (byReference) return text(byReference.reason);
+    const nodeId = text(node.nodeId);
+    return nodeId && treeView.hiddenById ? text(treeView.hiddenById[nodeId]) : "";
+  }
+
+  function nodePresentation(node, options) {
+    if (!node || typeof node !== "object") {
+      return { role: "unknown", icon: "?", primary: "Unknown", unnamed: true, states: [], accessibleLabel: "Unknown element" };
+    }
+    const settings = options || {};
+    const value = nodeValue(node, settings);
+    const role = text(node.role) || "unknown";
+    const label = roleLabel(role);
+    const name = text(node.name).trim();
+    const identifier = text(node.identifier).trim();
+    const primary = name || (identifier ? "#" + identifier : label);
+    const accessibleParts = [name || ("Unnamed " + label.toLocaleLowerCase())];
+    if (name) accessibleParts.push(label);
+    if (identifier) accessibleParts.push("ID " + identifier);
+    if (value.hasActions || value.isInteractive) accessibleParts.push("Actionable");
+    accessibleParts.push.apply(accessibleParts, value.states.map(state => state.label));
+    if (settings.visualKind === "structure") {
+      accessibleParts.push(settings.structuralSummary ? "Structural branch summary" :
+        (value.level === "noise" ? "Empty leaf" : "Structural container"));
+    }
+    return {
+      role,
+      icon: roleIcons[normalizedRole(role)] || "◇",
+      primary,
+      identifier,
+      unnamed: !name,
+      fallback: !name,
+      states: value.states,
+      accessibleLabel: accessibleParts.join(", ")
+    };
+  }
+
+  function windowPresentation(candidate, inspectorTitle) {
+    if (!candidate || typeof candidate !== "object") {
+      return {
+        application: "Unknown application", title: "No target selected", pid: "unknown",
+        pickerId: "", label: "No target selected", meta: "Choose a window from the refreshed list.",
+        possibleInspector: false
+      };
+    }
+    const application = text(candidate.application).trim() || "Unknown application";
+    const title = text(candidate.title) || "Untitled window";
+    const numericPID = Number(candidate.pid);
+    const pid = Number.isInteger(numericPID) && numericPID > 0 ? String(numericPID) : "unknown";
+    const pickerId = text(candidate.windowId);
+    const bounds = finiteBounds(candidate.bounds);
+    const geometry = bounds
+      ? Math.round(bounds.width) + "×" + Math.round(bounds.height) + " @ " + Math.round(bounds.x) + "," + Math.round(bounds.y)
+      : "bounds unavailable";
+    const pickerIdentity = pickerId ? "picker " + pickerId : "picker identity unavailable";
+    return {
+      application,
+      title,
+      pid,
+      pickerId,
+      label: application + " · “" + title + "” · PID " + pid + " · " + geometry + (pickerId ? " · " + pickerId : ""),
+      meta: "PID " + pid + " · " + geometry + " · " + pickerIdentity,
+      // Browser JavaScript cannot read its native OS window identity. An exact
+      // page-title match is therefore a warning signal, never an automatic
+      // title-based selection or a claim that this must be the same window.
+      possibleInspector: Boolean(text(inspectorTitle) && text(candidate.title) === text(inspectorTitle))
+    };
   }
 
   function finiteBounds(value) {
@@ -153,15 +457,29 @@
   }
 
   function layoutMapping(observation, viewportWidth, viewportHeight) {
-    const windowBounds = observationWindowBounds(observation);
     const width = Number(viewportWidth);
     const height = Number(viewportHeight);
-    if (!windowBounds || !Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
       return { available: false, reason: "trusted-window-bounds-unavailable", boxes: [] };
     }
     const candidates = flattenTree(observation && observation.root);
-    const bounded = candidates.filter(({ node }) => finiteBounds(node.bounds));
-    if (!bounded.length) return { available: false, reason: "logical-element-bounds-unavailable", boxes: [] };
+    const logicalWindow = observationWindowBounds(observation);
+    const logical = logicalWindow && candidates.filter(({ node }) => finiteBounds(node.bounds));
+    const nativeWindow = finiteBounds(observation && observation.root && observation.root.nativeBounds);
+    const nativeSpace = nativeWindow && nativeWindow.coordinateSpace;
+    const native = nativeSpace && candidates.filter(({ node }) => {
+      const bounds = finiteBounds(node.nativeBounds);
+      return bounds && bounds.coordinateSpace === nativeSpace;
+    });
+    const useNative = !(logical && logical.length) && Boolean(native && native.length);
+    const windowBounds = useNative ? nativeWindow : logicalWindow;
+    const bounded = useNative ? native : logical;
+    if (!windowBounds) {
+      return { available: false, reason: "trusted-window-bounds-unavailable", boxes: [] };
+    }
+    if (!bounded || !bounded.length) {
+      return { available: false, reason: "compatible-element-bounds-unavailable", boxes: [] };
+    }
     const scale = Math.min(width / windowBounds.width, height / windowBounds.height);
     const drawWidth = windowBounds.width * scale;
     const drawHeight = windowBounds.height * scale;
@@ -169,17 +487,18 @@
     const offsetY = (height - drawHeight) / 2;
     const boxes = [];
     for (const { node, depth } of bounded) {
-      const bounds = finiteBounds(node.bounds);
+      const bounds = finiteBounds(useNative ? node.nativeBounds : node.bounds);
       const left = offsetX + (bounds.x - windowBounds.x) * scale;
       const top = offsetY + (bounds.y - windowBounds.y) * scale;
       const boxWidth = bounds.width * scale;
       const boxHeight = bounds.height * scale;
       if (left + boxWidth < 0 || top + boxHeight < 0 || left > width || top > height) continue;
-	  const clippedLeft = Math.max(0, left);
-	  const clippedTop = Math.max(0, top);
-	  const clippedRight = Math.min(width, left + boxWidth);
-	  const clippedBottom = Math.min(height, top + boxHeight);
+      const clippedLeft = Math.max(0, left);
+      const clippedTop = Math.max(0, top);
+      const clippedRight = Math.min(width, left + boxWidth);
+      const clippedBottom = Math.min(height, top + boxHeight);
       boxes.push({
+        node,
         nodeId: node.nodeId,
         label: nodeSummary(node), depth,
         left: clippedLeft, top: clippedTop,
@@ -190,9 +509,145 @@
     }
     return {
       available: boxes.length > 0,
-      reason: boxes.length ? "logical-bounds-mapped" : "logical-bounds-outside-window",
+      reason: boxes.length ? (useNative ? "compatible-native-bounds-mapped" : "logical-bounds-mapped") :
+        (useNative ? "compatible-native-bounds-outside-window" : "logical-bounds-outside-window"),
+      coordinateSource: useNative ? "nativeBounds" : "bounds",
+      coordinateSpace: useNative ? nativeSpace : windowBounds.coordinateSpace,
       scale, offsetX, offsetY, windowBounds, boxes
     };
+  }
+
+  function sameBounds(left, right) {
+    const a = finiteBounds(left);
+    const b = finiteBounds(right);
+    return Boolean(a && b && a.x === b.x && a.y === b.y &&
+      a.width === b.width && a.height === b.height);
+  }
+
+  function visualDataSize(dataUrl) {
+    const prefix = "data:image/png;base64,";
+    const value = text(dataUrl);
+    if (!value.startsWith(prefix)) return -1;
+    const encoded = value.slice(prefix.length);
+    if (!encoded || encoded.length > 6990508 || encoded.length % 4 !== 0 ||
+        !/^[A-Za-z0-9+/]+={0,2}$/.test(encoded) || !encoded.startsWith("iVBORw0KGgo")) return -1;
+    const padding = encoded.endsWith("==") ? 2 : (encoded.endsWith("=") ? 1 : 0);
+    return encoded.length / 4 * 3 - padding;
+  }
+
+  function sameVisualWindowIdentity(captureWindow, observedWindow) {
+    if (!captureWindow || !observedWindow) return false;
+    const windowId = text(captureWindow.windowId);
+    return Boolean(windowId) && windowId === text(observedWindow.windowId) &&
+      text(captureWindow.title) === text(observedWindow.title) &&
+      text(captureWindow.application) === text(observedWindow.application) &&
+      Number.isSafeInteger(Number(captureWindow.pid)) &&
+      Number(captureWindow.pid) === Number(observedWindow.pid);
+  }
+
+  function visualCaptureState(capture, observation, sessionId, generation, nowValue) {
+    if (!capture || typeof capture !== "object") {
+      return { current: false, usable: false, reason: "not-captured" };
+    }
+    if (!observation || observation.freshness === "stale") {
+      return { current: false, usable: false, reason: "observation-stale" };
+    }
+    if (text(capture.schemaVersion) !== "opendesk.inspector.visual-capture/v1" ||
+        !text(capture.captureId) ||
+        text(capture.sessionId) !== text(sessionId) ||
+        text(capture.observationId) !== text(observation.observationId) ||
+        Number(capture.generation) !== Number(generation) ||
+        Number(capture.generation) !== Number(observation.generation)) {
+      return { current: false, usable: false, reason: "capture-binding-mismatch" };
+    }
+    const capturedAt = Date.parse(text(capture.capturedAt));
+    const expiresAt = Date.parse(text(capture.expiresAt));
+    const now = nowValue === undefined ? Date.now() : Number(nowValue);
+    if (!Number.isFinite(capturedAt) || !Number.isFinite(expiresAt) || !Number.isFinite(now) ||
+        expiresAt <= capturedAt || expiresAt - capturedAt > 31000 || capturedAt > now + 1000 || now >= expiresAt) {
+      return { current: false, usable: false, reason: "capture-expired" };
+    }
+    const image = capture.image || {};
+    const dataSize = visualDataSize(image.dataUrl);
+    const pixelWidth = Number(image.width);
+    const pixelHeight = Number(image.height);
+    if (text(image.mimeType) !== "image/png" || dataSize <= 0 || dataSize > 5 * 1024 * 1024 ||
+        !Number.isSafeInteger(Number(image.sizeBytes)) || Number(image.sizeBytes) !== dataSize ||
+        !Number.isSafeInteger(pixelWidth) || pixelWidth <= 0 || pixelWidth > 8192 ||
+        !Number.isSafeInteger(pixelHeight) || pixelHeight <= 0 || pixelHeight > 8192 ||
+        pixelWidth > 16777216 / pixelHeight) {
+      return { current: false, usable: false, reason: "capture-image-invalid" };
+    }
+    if (!sameVisualWindowIdentity(capture.window, observation.window)) {
+      return { current: false, usable: false, reason: "capture-window-mismatch" };
+    }
+    const captureBounds = observationWindowBounds({ window: capture.window });
+    const observedBounds = observationWindowBounds(observation);
+    if (!sameBounds(captureBounds, observedBounds)) {
+      return { current: false, usable: false, reason: "capture-bounds-mismatch" };
+    }
+    const logicalAspect = observedBounds.width / observedBounds.height;
+    const pixelAspect = pixelWidth / pixelHeight;
+    if (!Number.isFinite(logicalAspect) || logicalAspect <= 0 ||
+        Math.abs(logicalAspect - pixelAspect) / logicalAspect > 0.01) {
+      return { current: false, usable: false, reason: "capture-image-fit-mismatch" };
+    }
+    const provenance = capture.captureProvenance || {};
+    const scope = text(provenance.scope);
+    if (!text(provenance.method) || provenance.persisted !== false || provenance.focusChanged !== false ||
+        typeof provenance.foregroundVerified !== "boolean" || typeof provenance.occlusionRisk !== "boolean" ||
+        (scope !== "exact-window" && scope !== "visible-bounds") ||
+        (scope === "exact-window" && provenance.occlusionRisk !== false) ||
+        (scope === "visible-bounds" && provenance.occlusionRisk !== true)) {
+      return { current: false, usable: false, reason: "capture-provenance-invalid" };
+    }
+    if (scope === "visible-bounds") {
+      return {
+        current: true, usable: false, reason: "occlusion-risk",
+        label: "Visible bounds / may be occluded", tone: "warn"
+      };
+    }
+    return { current: true, usable: true, reason: "exact-window", label: "Exact window", tone: "good" };
+  }
+
+  function visualFailureState(status) {
+    if (status === 403) return {
+      title: "Screen capture permission denied",
+      detail: "Allow Screen Recording for OpenDesk, then choose Capture visual again. Logical Layout remains available.",
+      tone: "bad"
+    };
+    if (status === 409) return {
+      title: "Target changed",
+      detail: "The window identity or bounds no longer match this observation. Refresh the UI tree before capturing again.",
+      tone: "bad"
+    };
+    if (status === 503) return {
+      title: "Visual capture unavailable",
+      detail: "This system cannot provide trusted target pixels. Continue with Logical Layout or retry after permissions change.",
+      tone: "warn"
+    };
+    if (status === 429) return {
+      title: "Capture is busy",
+      detail: "Wait for the current read-only operation to finish, then choose Capture visual again.",
+      tone: "warn"
+    };
+    return {
+      title: "Visual capture failed",
+      detail: "No pixels were kept. Logical Layout remains available; choose Capture visual to retry.",
+      tone: "warn"
+    };
+  }
+
+  function overlayBoxes(mapping, selected, mode) {
+    if (!mapping || !mapping.available || !Array.isArray(mapping.boxes)) return [];
+    const selectedId = selected && text(selected.nodeId);
+    const isSelected = box => Boolean(box && box.node && selected &&
+      (box.node === selected || (selectedId && text(box.nodeId) === selectedId)));
+    if (mode !== "all") {
+      const selectedBox = mapping.boxes.find(isSelected);
+      return selectedBox ? [Object.assign({}, selectedBox, { selected: true })] : [];
+    }
+    return mapping.boxes.map(box => Object.assign({}, box, { selected: isSelected(box) }));
   }
 
   function pointer(value) {
@@ -274,9 +729,13 @@
   }
 
   return {
-    flattenTree, searchSnapshot, nodeSummary, nodeDetails, nodeFlags, nodeFingerprint,
-    selectionAnchor, restoreSelection, observationState, finiteBounds,
-    observationWindowBounds, layoutMapping, locatorFromNode, normalizeLocator,
+    isLoopbackHostname, isPrivateHostname, pageAccess,
+    flattenTree, searchSnapshot, nodeSummary, nodeDetails, nodeFingerprint,
+    selectionAnchor, restoreSelection, refreshSelectionAnchor, selectionContext, sameSelectionContext,
+    nodeValue, buildTreeView, hiddenReason, nodePresentation, windowPresentation,
+    observationState, finiteBounds,
+    observationWindowBounds, layoutMapping, sameBounds, visualCaptureState, visualFailureState, overlayBoxes,
+    locatorFromNode, normalizeLocator,
     sameLocator, completeness, validationTone, agentPrompt, jsSnippet
   };
 });

@@ -28,7 +28,8 @@ order: 11
 | POST | /vision/detect-ui | UI 文本检测 HTTP 接口 |
 | GET | /scheduler | 本机 Scheduler 管理页 |
 | GET/POST | /api/scheduler/jobs | 列出或创建定时任务 |
-| POST | /api/accessibility-workbench/v1/launch | 独立 loopback 静态前端请求已运行的本机 App 创建短期只读 Workbench API |
+| GET | /accessibility-workbench/ | 打开由当前 OpenDesk 构建提供的同源 Inspector 页面 |
+| POST | /api/accessibility-workbench/v1/launch | 当前同源页面创建短期只读 Workbench 授权 generation |
 
 统一响应包装
 
@@ -284,7 +285,7 @@ GET /status
 
 **行为与错误**
 
-桌面 App 只用 `service` 与其他健康字段识别可复用的本机 OpenDesk；此路由不出现在 Workbench 专用 listener。
+桌面 App 只用 `service` 与其他健康字段识别可复用的本机 OpenDesk；Inspector 凭据不会授权或改变此路由。
 
 **示例**
 
@@ -372,8 +373,7 @@ curl -X POST http://127.0.0.1:60844/vision/detect-ui \
 
 ## POST /api/accessibility-workbench/v1/launch
 
-独立静态前端请求已经运行的 OpenDesk 服务按需创建隔离的 loopback Accessibility Workbench API listener。正常
-`OpenDesk.app` 启动不会预先创建该 listener，也不包含、托管或启动前端资源。
+当前 OpenDesk 同源页面请求一个短期 Accessibility Workbench 授权 generation。页面、控制和数据均位于固定 `60844` listener。
 
 **签名**
 
@@ -383,53 +383,44 @@ POST /api/accessibility-workbench/v1/launch
 
 **参数**
 
-| 参数 | 类型 | 必填 | 默认值 | 说明 |
-| --- | --- | --- | --- | --- |
-| `frontendUrl` | string | 是 | 无 | 独立发布的静态页面 URL；只接受无 fragment 的 HTTP loopback／localhost 地址 |
-
-空对象会返回 400。前端端口完全归外部静态服务器所有；OpenDesk 为原生 API 分配随机 loopback 端口，并只授权
-`frontendUrl` 的精确 Origin。本接口不能启用 LAN 模式。
+请求体必须是空 JSON 对象 `{}`；未知字段返回 400。页面不能指定 frontend URL、API origin、端口或网络策略。
 
 **返回值**
 
-统一 envelope 的 `data` 包含：`url`（带一次性 fragment 配对值）、`listener`、`mode: "loopback"` 和 `boundary`。`url` 指向
-`frontendUrl`，fragment 还包含页面实际调用的短期 `api` origin；`listener` 始终描述 OpenDesk API socket，
-不是外部静态服务器。调用方必须直接把 `url` 交给操作系统浏览器，不得记录或持久化。
+统一 envelope 的 `data` 包含：`url`（同一页面 URL 加一次性 `pair` fragment）、固定 listener authority、`mode`
+（`local-only` 或 `trusted-lan`）和 `boundary`。`url` 不含 `api` fragment 参数，不得记录、持久化或把 pairing secret 移入查询参数。
 
 **行为与错误**
 
-请求必须来自真实 loopback socket，`Host` 必须是同一 OpenDesk 普通 listener 的 loopback IP 和端口，并携带
-`X-OpenDesk-Workbench-Control: 1`。接口始终拒绝无 Origin、`Forwarded` 和 `X-Forwarded-*`。请求只接受 plain-HTTP
-loopback 页面 Origin，并通过严格 CORS 预检；`frontendUrl` 必须存在、其 Origin 与请求 Origin 完全相同。远程网页、
-`null`／HTTPS Origin、Origin 冒用及非法／非 loopback `frontendUrl` 均被拒绝。已有 Workbench
-活跃时返回 409，不中断现有审阅。
+请求必须携带 `X-OpenDesk-Workbench-Control: 1`、精确 HTTP Origin，并满足当前显式网络策略。默认 `local-only` 只接受真实
+loopback socket、loopback IP Host 和完全匹配的 Origin。macOS tray 显式启用 `trusted-lan` 后，额外接受私有网段 socket、
+当前机器实际私有 IP Host 和完全匹配的 HTTP Origin。公网来源、伪造私有 Host、`Origin: null`、跨源以及 `Forwarded`／
+`X-Forwarded-*` 始终拒绝；接口不发 CORS access headers。
 
-未配对 listener 在 5 分钟后自动关闭；配对后最长保留到 30 分钟 bearer 到期；页面撤销 authorization 时立即关闭。
-普通 OpenDesk 服务关闭时也会关闭在途 Workbench。该接口不是原生启动器或 CLI 入口。
+每个 OpenDesk 进程同一时刻只有一个 Workbench generation；第二次 launch 返回 409。未配对 generation 在 5 分钟后失效；
+配对后最长保留到 30 分钟 bearer 到期；撤销 authorization 时立即停用。LAN 开关只存在于当前进程内存，重启恢复关闭。
 
 **示例**
 
-独立静态前端示例；`60845` 由调用方选择的静态服务器占用，OpenDesk 不会绑定它。浏览器页面通常直接完成此请求；下列命令
-仅用于本机维护诊断，会把一次性 URL 输出到终端：
+浏览器页面通常直接完成此请求。以下命令只用于本机维护诊断，会把一次性 URL 输出到终端；不要保存响应：
 
 ```bash
 curl --noproxy '*' -fsS http://127.0.0.1:60844/api/accessibility-workbench/v1/launch \
   -X POST \
-  -H 'Origin: http://127.0.0.1:60845' \
+  -H 'Origin: http://127.0.0.1:60844' \
   -H 'Content-Type: application/json' \
   -H 'X-OpenDesk-Workbench-Control: 1' \
-  --data '{"frontendUrl":"http://127.0.0.1:60845/"}'
+  --data '{}'
 ```
 
 ## Accessibility Workbench transport contract
 
-Accessibility Workbench 前端独立发布。OpenDesk 的普通 listener 只提供上述本机启动控制接口；原生数据 API 位于按需创建的
-专用 listener，不会挂到通用 execution 路由。`apps/inspector_web/` 是纯 HTML/CSS/JavaScript，不含 Go、Node 启动器或
-HTTP 后端，也不编译进 OpenDesk。当前合同只允许同一台电脑上的 loopback 前端。
+OpenDesk 在 `60844` 同源提供 `/accessibility-workbench/`、launch control 和下列数据 API。Inspector 的 bearer/session 只授权
+这些只读数据 handler，不是 `/SCRIPT_RUN`、`/executions`、Scheduler、MCP、Vision 或通用 Runtime 的 capability。增加 Inspector
+路由与 trusted-LAN 策略不会改写或扩大其他 `60844` 路由的既有授权。
 
-此专用 listener 只注册下列 API，不注册页面或静态资源；
-`/SCRIPT_RUN`、`/executions`、`/status`、`/scheduler`、`/vision/*` 均不存在。普通 `-http` listener 也不注册
-这些页面或数据路由，只注册不返回 AX／UIA 数据的本机启动控制接口。
+`apps/inspector_web/` 保留纯 HTML/CSS/JavaScript 源码；开发 checkout 直接从该目录提供允许清单中的四项资源，macOS build 把
+同一资源复制到 app bundle。服务器不提供任意静态文件路径。
 
 | 方法 | 路径 | 用途 |
 | --- | --- | --- |
@@ -441,15 +432,16 @@ HTTP 后端，也不编译进 OpenDesk。当前合同只允许同一台电脑上
 | GET | `/api/accessibility-inspector/v1/sessions/{sessionId}` | 读取 session 状态 |
 | DELETE | `/api/accessibility-inspector/v1/sessions/{sessionId}` | 停止并撤销 session |
 | POST | `/api/accessibility-inspector/v1/sessions/{sessionId}/observations` | 获取有界真实树 |
+| POST | `/api/accessibility-inspector/v1/sessions/{sessionId}/visual-captures` | 显式获取当前 observation 的短期窗口像素参考 |
 | POST | `/api/accessibility-inspector/v1/sessions/{sessionId}/validate` | 只读实时定位校验 |
 | PUT | `/api/accessibility-inspector/v1/sessions/{sessionId}/review` | 保存人工修订和 handoff |
 | POST | `/api/accessibility-inspector/v1/sessions/{sessionId}/import` | 以不可信数据导入人工修订 |
 | GET | `/api/accessibility-inspector/v1/sessions/{sessionId}/handoff` | 导出安全交接包 |
 
-API 请求必须同时满足：真实 loopback socket、`Host` 精确匹配实际 listener、`X-OpenDesk-Inspector: 1` 以及浏览器来源规则。
-每个浏览器请求都必须携带与启动时 `frontendUrl` 完全一致的 Origin，只对该 Origin 返回
-CORS，并且 preflight 方法／header 必须位于固定白名单。所有模式都拒绝 `Origin: null`、错误 Origin、`Forwarded` 和任何
-`X-Forwarded-*`。非浏览器维护工具还必须发送 `X-OpenDesk-Inspector-Client: non-browser`；这不替代 bearer 和 session 凭据。
+API 请求必须同时满足当前 local-only／trusted-LAN socket 与 Host 策略、`X-OpenDesk-Inspector: 1` 和同源浏览器规则。带 Origin
+时必须与 `http://<Host>` 完全一致；同源 GET 可使用浏览器 Fetch Metadata。所有模式拒绝 `Origin: null`、错误 Origin、
+`Forwarded` 和任何 `X-Forwarded-*`，并且不启用 CORS。非浏览器维护工具还必须发送
+`X-OpenDesk-Inspector-Client: non-browser`；这不替代 bearer 和 session 凭据。
 
 API 响应都设置 `Cache-Control: no-store`。一次性配对码有效 5 分钟且只能兑换一次；client bearer
 有效 30 分钟；session token 有效 15 分钟。bearer 使用 `Authorization: Bearer <token>`，session 路由还需要
@@ -480,7 +472,7 @@ POST /api/accessibility-inspector/v1/pair
 **行为与错误**
 
 页面在请求前清除 fragment。重复、错误或过期 code 返回 401；请求体错误返回 400。配对值只来自控制接口返回 URL 的
-fragment；API listener 本身不提供可打开的 Workbench 页面。
+fragment；页面与 API 始终来自当前 `60844` 同源入口。
 
 **示例**
 
@@ -569,7 +561,9 @@ GET /api/accessibility-inspector/v1/windows
 
 **行为与错误**
 
-用户主动刷新时才枚举；超过全局并发额度返回 429，窗口 backend 错误按结构化错误返回。
+用户主动刷新时才枚举；服务不会选择活动窗口、按模糊标题匹配或取同名第一项。同名窗口仍是带不同 `windowId` 的独立行，
+调用方应同时展示 application、原样标题、PID、bounds 和 picker identity 供人核对。刷新整个列表会替换该 client 的 picker
+catalog，因此旧 `windowId` 随即 stale。超过全局并发额度返回 429，窗口 backend 错误按结构化错误返回。
 
 **示例**
 
@@ -600,7 +594,9 @@ POST /api/accessibility-inspector/v1/sessions
 
 **行为与错误**
 
-后续 snapshot/find 每次都重新解析该窗口，并由 native Accessibility owner 校验精确 window id；不能扩大到其他窗口。
+服务只使用请求中的 `windowId` 查找当前 bearer 最近一次窗口 catalog 中的那一项；`title`、`pid` 或 `application` 不参与
+替代选择。后续 snapshot/find 每次都重新解析该项保存的精确 native window identity，并由 native Accessibility owner 校验
+同一 window id；不能扩大到其他窗口。返回的安全窗口投影使前端可以继续显示已绑定目标，而不必从标题反推 scope。
 过期窗口列表返回 409，quota 返回 429，输入错误返回 400。
 
 **示例**
@@ -721,6 +717,57 @@ observation 复用；网页只会用 role/name/identifier 等受限语义锚点�
     "maxDepth": 8,
     "maxNodes": 800
   }
+}
+```
+
+## POST /api/accessibility-inspector/v1/sessions/{sessionId}/visual-captures
+
+在用户显式请求时，为当前 observation 获取一份短期、只在响应内存中返回的窗口像素参考。该接口属于 Inspector 专用
+listener，不扩展公开 `page.screenshot`，也不接受客户端指定的路径、clip、格式或其他窗口。
+
+**签名**
+
+```text
+POST /api/accessibility-inspector/v1/sessions/{sessionId}/visual-captures
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `sessionId` | string | 是 | 无 | 路径参数；还需 bearer 和对应 session header |
+| `observationId` | string | 是 | 无 | 当前且 freshness 为 `current` 的 observation ID |
+| `generation` | number | 是 | 无 | 当前 session generation，必须为正整数 |
+
+请求体只允许上述 `observationId` 和 `generation`；未知字段按非法输入拒绝。
+
+**返回值**
+
+统一 envelope 的 `data` 使用 `opendesk.inspector.visual-capture/v1`，包含：
+
+- `captureId`、`sessionId`、`observationId`、`generation`、`capturedAt`、`expiresAt`；
+- 与当前 observation 绑定的安全窗口身份及 bounds；
+- `image`：固定 PNG `dataUrl`、`mimeType`、像素 `width`／`height` 与 `sizeBytes`；
+- `captureProvenance`：`method`、`scope`、`foregroundVerified`、`occlusionRisk`，以及固定
+  `focusChanged: false`、`persisted: false`。
+
+**行为与错误**
+
+服务在截图前后重新解析并核对同一 native window identity、PID、原样标题、应用、bounds 和可用 native handle；不会聚焦、
+前置、移动或操作目标。macOS 优先使用 exact-window CGWindow capture；只能使用可见屏幕 bounds 的 fallback 会把
+`scope`／`occlusionRisk` 如实返回。前后身份或 bounds 改变时返回 409 并将 observation 标 stale。
+
+像素不写入 Inspector artifact，PNG 上限 5 MiB，总响应仍受 8 MiB 限制，浏览器资格 30 秒后过期。新 observation、session／
+generation 改变、关闭、stale、过期或来源校验失败时，前端必须立即清除旧图。缺 bearer 返回 401，错误 session token 返回
+404，缺当前 observation、stale observation 或 generation 不匹配返回 409，非法 ID／generation／额外字段返回 400，截图权限
+拒绝返回 403，不支持或 backend 失败返回 503，timeout／cancel 返回 504。所有响应仍为 `no-store`。
+
+**示例**
+
+```json
+{
+  "observationId": "observation-...",
+  "generation": 1
 }
 ```
 

@@ -2,6 +2,6 @@
 
 package main
 
-func startMacOSAppStatusItem(string) {}
+func startMacOSAppStatusItem(string, string) {}
 
 func reportMacOSAppStartupFailure(error) {}

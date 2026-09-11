@@ -1,6 +1,7 @@
 package http
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
@@ -9,7 +10,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image"
+	_ "image/png"
 	"io"
+	"math"
 	"net"
 	"net/http"
 	"net/netip"
@@ -36,6 +40,8 @@ const (
 	inspectorSessionsPerClient = 4
 	inspectorMaximumWindows    = 256
 	inspectorMaximumReceipts   = 100
+	inspectorVisualPNGMaxBytes = 5 << 20
+	inspectorVisualTTL         = 30 * time.Second
 )
 
 var (
@@ -160,6 +166,55 @@ func (s *inspectorService) close() {
 	s.wg.Wait()
 }
 
+// resetPairing starts one fresh, single-client authorization generation on
+// the fixed OpenDesk listener. Existing credentials and sessions are revoked
+// before the new one-time code becomes available.
+func (s *inspectorService) resetPairing(ttl time.Duration) error {
+	if s == nil {
+		return errors.New("accessibility workbench is unavailable")
+	}
+	code, err := inspectorRandomToken(24)
+	if err != nil {
+		return fmt.Errorf("initialize inspector pairing: %w", err)
+	}
+	if ttl <= 0 {
+		ttl = inspectorPairTTL
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, session := range s.sessions {
+		if session.Cancel != nil {
+			session.Cancel()
+		}
+	}
+	s.sessions = map[string]*inspectorSession{}
+	s.clients = map[[32]byte]*inspectorClient{}
+	s.pairCode = code
+	s.pairHash = sha256.Sum256([]byte(code))
+	s.pairExpiresAt = s.now().Add(ttl)
+	s.pairRedeemed = false
+	s.initializationErr = nil
+	return nil
+}
+
+func (s *inspectorService) invalidateAuthorization() {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, session := range s.sessions {
+		if session.Cancel != nil {
+			session.Cancel()
+		}
+	}
+	s.sessions = map[string]*inspectorSession{}
+	s.clients = map[[32]byte]*inspectorClient{}
+	s.pairCode = ""
+	s.pairHash = [32]byte{}
+	s.pairRedeemed = true
+}
+
 func (s *inspectorService) cleanupExpired() {
 	now := s.now()
 	s.mu.Lock()
@@ -183,14 +238,18 @@ func (s *inspectorService) pairingURL(authority string) (string, error) {
 	if s == nil {
 		return "", errors.New("accessibility workbench is disabled")
 	}
-	if s.initializationErr != nil {
-		return "", s.initializationErr
+	s.mu.Lock()
+	initializationErr := s.initializationErr
+	pairCode := s.pairCode
+	s.mu.Unlock()
+	if initializationErr != nil {
+		return "", initializationErr
 	}
 	parsed, err := url.Parse("http://" + strings.TrimSpace(authority))
 	if err != nil || parsed.User != nil || parsed.Host == "" || parsed.Host != strings.TrimSpace(authority) {
 		return "", errors.New("accessibility workbench listener authority is invalid")
 	}
-	return parsed.String() + "/#pair=" + url.QueryEscape(s.pairCode), nil
+	return parsed.String() + "/#pair=" + url.QueryEscape(pairCode), nil
 }
 
 func (s *inspectorService) pair(code string) (map[string]any, error) {
@@ -488,6 +547,166 @@ func (s *inspectorService) observe(ctx context.Context, clientID, sessionID, tok
 	current.Validations = nil
 	s.mu.Unlock()
 	return observation, nil
+}
+
+func (s *inspectorService) captureVisual(ctx context.Context, clientID, sessionID, token string, input inspectorVisualCaptureInput) (map[string]any, error) {
+	session, operationContext, finish, err := s.beginSessionOperation(ctx, clientID, sessionID, token)
+	if err != nil {
+		return nil, err
+	}
+	defer finish()
+	if session.Observation == nil {
+		return nil, fmt.Errorf("%w: take an observation before capturing a visual", errInspectorPrecondition)
+	}
+	observationID, _ := session.Observation["observationId"].(string)
+	freshness, _ := session.Observation["freshness"].(string)
+	if freshness != "current" || input.ObservationID != observationID || input.Generation != session.Generation {
+		return nil, fmt.Errorf("%w: visual capture requires the current observation and generation", errInspectorPrecondition)
+	}
+	expected, err := inspectorVisualWindow(session)
+	if err != nil {
+		return nil, err
+	}
+	var result inspector.VisualCaptureResult
+	err = s.withOperation(operationContext, func(runContext context.Context) error {
+		var runErr error
+		result, runErr = s.runner.CaptureVisual(runContext, expected)
+		return runErr
+	})
+	if err != nil {
+		if inspectorVisualTargetStale(err) {
+			s.markObservationStale(session.ID, session.Generation, err)
+		}
+		return nil, err
+	}
+	if result.Bounds != expected.Bounds {
+		err = &inspector.RuntimeError{Code: "STALE_TARGET", Stage: "window", ActionState: "not_started"}
+		s.markObservationStale(session.ID, session.Generation, err)
+		return nil, err
+	}
+	s.mu.Lock()
+	current := s.sessions[session.ID]
+	currentObservationID := ""
+	currentFreshness := ""
+	if current != nil && current.Observation != nil {
+		currentObservationID, _ = current.Observation["observationId"].(string)
+		currentFreshness, _ = current.Observation["freshness"].(string)
+	}
+	stillCurrent := current != nil && current.Generation == session.Generation &&
+		current.ClientID == session.ClientID && s.now().Before(current.ExpiresAt) &&
+		s.clientByIDLocked(current.ClientID) != nil && currentObservationID == observationID &&
+		currentFreshness == "current"
+	s.mu.Unlock()
+	if !stillCurrent {
+		return nil, fmt.Errorf("%w: visual capture target became stale", errInspectorPrecondition)
+	}
+	if len(result.PNG) == 0 || len(result.PNG) > inspectorVisualPNGMaxBytes {
+		return nil, errors.New("inspector visual capture exceeds its in-memory payload limit")
+	}
+	if strings.TrimSpace(result.Method) == "" ||
+		(result.Scope != "exact-window" && result.Scope != "visible-bounds") ||
+		(result.Scope == "exact-window" && result.OcclusionRisk) ||
+		(result.Scope == "visible-bounds" && !result.OcclusionRisk) {
+		return nil, errors.New("inspector visual capture returned invalid provenance")
+	}
+	config, _, err := image.DecodeConfig(bytes.NewReader(result.PNG))
+	if err != nil || config.Width != result.PixelWidth || config.Height != result.PixelHeight ||
+		config.Width <= 0 || config.Height <= 0 {
+		return nil, errors.New("inspector visual capture returned invalid PNG metadata")
+	}
+	captureID, err := inspectorRandomID("capture")
+	if err != nil {
+		return nil, err
+	}
+	verifiedAt := s.now().UTC()
+	capturedAt := result.CapturedAt.UTC()
+	if capturedAt.IsZero() || capturedAt.After(verifiedAt.Add(time.Second)) || verifiedAt.Sub(capturedAt) > 5*time.Second {
+		capturedAt = verifiedAt
+	}
+	// Bind the short-lived payload to the instant its pixels were captured.
+	// Post-capture identity verification can take long enough that starting the
+	// TTL at verifiedAt makes the advertised lifetime exceed the UI contract.
+	expiresAt := capturedAt.Add(inspectorVisualTTL)
+	encodedImage := base64.StdEncoding.EncodeToString(result.PNG)
+	payload := map[string]any{
+		"schemaVersion": "opendesk.inspector.visual-capture/v1",
+		"captureId":     captureID, "sessionId": session.ID,
+		"observationId": observationID, "generation": session.Generation,
+		"capturedAt": capturedAt.Format(time.RFC3339Nano),
+		"expiresAt":  expiresAt.Format(time.RFC3339Nano),
+		"window":     safeWindowWithBounds(session.WindowID, expected),
+		"image": map[string]any{
+			"dataUrl":  "data:image/png;base64," + encodedImage,
+			"mimeType": "image/png", "width": result.PixelWidth,
+			"height": result.PixelHeight, "sizeBytes": len(result.PNG),
+		},
+		"captureProvenance": map[string]any{
+			"method": result.Method, "scope": result.Scope,
+			"foregroundVerified": result.ForegroundVerified,
+			"occlusionRisk":      result.OcclusionRisk,
+			"focusChanged":       false, "persisted": false,
+		},
+	}
+	encoded, err := json.Marshal(payload)
+	if err != nil || len(encoded)+256 > inspectorResponseLimit {
+		return nil, errors.New("inspector visual capture exceeds its response limit")
+	}
+	return payload, nil
+}
+
+func inspectorVisualWindow(session *inspectorSession) (inspector.WindowCandidate, error) {
+	if session == nil || session.Observation == nil {
+		return inspector.WindowCandidate{}, fmt.Errorf("%w: current observation is unavailable", errInspectorPrecondition)
+	}
+	window, _ := session.Observation["window"].(map[string]any)
+	if window == nil || stringValueFromMap(window, "windowId") != session.WindowID {
+		return inspector.WindowCandidate{}, fmt.Errorf("%w: observed window identity is unavailable", errInspectorPrecondition)
+	}
+	result := session.Window
+	if title, ok := window["title"].(string); ok {
+		result.Title = title
+	}
+	if pid, ok := inspectorFiniteNumber(window["pid"]); ok && pid == float64(int64(pid)) {
+		result.PID = int64(pid)
+	}
+	x, xOK := inspectorFiniteNumber(window["x"])
+	y, yOK := inspectorFiniteNumber(window["y"])
+	width, widthOK := inspectorFiniteNumber(window["width"])
+	height, heightOK := inspectorFiniteNumber(window["height"])
+	if !xOK || !yOK || !widthOK || !heightOK || width <= 0 || height <= 0 {
+		return inspector.WindowCandidate{}, fmt.Errorf("%w: observed window bounds are unavailable", errInspectorPrecondition)
+	}
+	result.Bounds = inspector.Bounds{X: x, Y: y, Width: width, Height: height}
+	return result, nil
+}
+
+func inspectorFiniteNumber(value any) (float64, bool) {
+	var number float64
+	switch typed := value.(type) {
+	case float64:
+		number = typed
+	case float32:
+		number = float64(typed)
+	case int:
+		number = float64(typed)
+	case int64:
+		number = float64(typed)
+	case json.Number:
+		parsed, err := typed.Float64()
+		if err != nil {
+			return 0, false
+		}
+		number = parsed
+	default:
+		return 0, false
+	}
+	return number, !math.IsNaN(number) && !math.IsInf(number, 0)
+}
+
+func inspectorVisualTargetStale(err error) bool {
+	var runtimeErr *inspector.RuntimeError
+	return errors.As(err, &runtimeErr) && runtimeErr.Stage == "window" &&
+		(runtimeErr.Code == "STALE_TARGET" || runtimeErr.Code == "TARGET_NOT_FOUND" || runtimeErr.Code == "AMBIGUOUS_TARGET")
 }
 
 func (s *inspectorService) markObservationStale(sessionID string, generation int64, cause error) {
@@ -935,6 +1154,11 @@ type inspectorObservationInput struct {
 	Limits *inspector.Limits `json:"limits,omitempty"`
 }
 
+type inspectorVisualCaptureInput struct {
+	ObservationID string `json:"observationId"`
+	Generation    int64  `json:"generation"`
+}
+
 type inspectorValidationInput struct {
 	Locator inspector.Locator `json:"locator"`
 	Limits  *inspector.Limits `json:"limits,omitempty"`
@@ -960,6 +1184,10 @@ func (h *Handler) HandleInspectorAPI(w http.ResponseWriter, r *http.Request) {
 	setInspectorSecurityHeaders(w)
 	if !h.inspectorEnabled() {
 		h.sendError(w, http.StatusNotFound, "accessibility workbench is not enabled")
+		return
+	}
+	if h.workbench != nil && !h.workbench.hasActive() {
+		h.sendError(w, http.StatusNotFound, "accessibility workbench is not active")
 		return
 	}
 	if err := h.validateInspectorNetwork(r); err != nil {
@@ -1133,6 +1361,26 @@ func (h *Handler) handleInspectorSessionRoute(w http.ResponseWriter, r *http.Req
 			return
 		}
 		h.sendSuccess(w, value)
+	case "visual-captures":
+		if r.Method != http.MethodPost {
+			h.sendError(w, http.StatusMethodNotAllowed, "method not allowed")
+			return
+		}
+		var input inspectorVisualCaptureInput
+		if err := decodeInspectorJSON(w, r, &input); err != nil {
+			h.sendError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		if !validShortID(input.ObservationID, "observation") || input.Generation <= 0 {
+			h.sendError(w, http.StatusBadRequest, "observationId or generation is invalid")
+			return
+		}
+		value, err := h.inspector.captureVisual(r.Context(), client.ID, sessionID, sessionToken, input)
+		if err != nil {
+			h.sendInspectorError(w, err)
+			return
+		}
+		h.sendSuccess(w, value)
 	case "validate":
 		if r.Method != http.MethodPost {
 			h.sendError(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -1251,10 +1499,22 @@ func (h *Handler) sendInspectorError(w http.ResponseWriter, err error) {
 }
 
 func (h *Handler) inspectorHostAllowed(value string) bool {
+	if h != nil && h.inspectorPolicy != nil {
+		request := &http.Request{Host: value, RemoteAddr: "127.0.0.1:1", Header: make(http.Header)}
+		return h.inspectorPolicy.authorizeNetwork(request) == nil
+	}
 	return h != nil && strings.EqualFold(strings.TrimSpace(value), strings.TrimSpace(h.inspectorHost))
 }
 
 func (h *Handler) inspectorRemoteAllowed(remoteAddress string) bool {
+	if h != nil && h.inspectorPolicy != nil {
+		address, err := inspectorSocketAddress(remoteAddress)
+		if err != nil {
+			return false
+		}
+		status := h.inspectorPolicy.status()
+		return address.IsLoopback() || (status.AllowLAN && address.IsPrivate())
+	}
 	host, _, err := net.SplitHostPort(strings.TrimSpace(remoteAddress))
 	if err != nil {
 		host = strings.TrimSpace(remoteAddress)
@@ -1267,6 +1527,9 @@ func (h *Handler) inspectorRemoteAllowed(remoteAddress string) bool {
 }
 
 func (h *Handler) validateInspectorNetwork(r *http.Request) error {
+	if h != nil && h.inspectorPolicy != nil {
+		return h.inspectorPolicy.authorizeNetwork(r)
+	}
 	if r == nil || !h.inspectorRemoteAllowed(r.RemoteAddr) || !h.inspectorHostAllowed(r.Host) {
 		return errors.New("accessibility workbench socket source or Host is outside the configured access boundary")
 	}
@@ -1284,6 +1547,19 @@ func (h *Handler) validateInspectorTransport(r *http.Request) error {
 	}
 	if r.Header.Get("X-OpenDesk-Inspector") != "1" {
 		return errors.New("inspector request marker is required")
+	}
+	if h != nil && h.inspectorPolicy != nil {
+		origin := strings.TrimSpace(r.Header.Get("Origin"))
+		if origin != "" {
+			return h.inspectorPolicy.authorizeSameOrigin(r, false)
+		}
+		if r.Header.Get("Sec-Fetch-Site") == "same-origin" && r.Header.Get("Sec-Fetch-Mode") == "cors" {
+			return nil
+		}
+		if r.Header.Get("X-OpenDesk-Inspector-Client") == "non-browser" {
+			return nil
+		}
+		return errors.New("inspector request source metadata is required")
 	}
 	origin := strings.TrimSpace(r.Header.Get("Origin"))
 	if origin == "null" {
@@ -1321,6 +1597,11 @@ func (h *Handler) validateInspectorTransport(r *http.Request) error {
 }
 
 func (h *Handler) configureInspectorCORS(w http.ResponseWriter, r *http.Request) (bool, error) {
+	if h != nil && h.inspectorPolicy != nil {
+		// Product Workbench traffic is same-origin on 60844. Never emit CORS
+		// access headers or reintroduce an independently served frontend.
+		return false, nil
+	}
 	if h == nil || h.inspectorFrontendOrigin == "" {
 		return false, nil
 	}
@@ -1511,6 +1792,15 @@ func safeWindow(windowID string, window inspector.WindowCandidate) map[string]an
 		"application": window.Application, "bounds": window.Bounds,
 		"windowTarget": handoffWindowTarget(window),
 	}
+}
+
+func safeWindowWithBounds(windowID string, window inspector.WindowCandidate) map[string]any {
+	result := safeWindow(windowID, window)
+	result["x"] = window.Bounds.X
+	result["y"] = window.Bounds.Y
+	result["width"] = window.Bounds.Width
+	result["height"] = window.Bounds.Height
+	return result
 }
 
 func safeObservedWindow(windowID string, selected inspector.WindowCandidate, observed map[string]any) map[string]any {

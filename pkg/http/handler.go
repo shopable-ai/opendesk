@@ -18,23 +18,19 @@ import (
 
 // Handler 负责处理 HTTP 请求。
 type Handler struct {
-	container *container.Container
-	manager   *pkgExecution.Manager
-	scheduler *pkgScheduler.Service
-	inspector *inspectorService
-	workbench *accessibilityWorkbenchController
-	// workbenchControlPort is the ordinary OpenDesk listener port. The control
-	// route accepts only a real loopback peer and loopback Host on this port.
-	workbenchControlPort string
-	inspectorOnPaired    func()
-	inspectorOnIdle      func()
-	// inspectorFrontendOrigin is set only when a trusted local launcher names
-	// an independently served loopback UI. It is the sole CORS origin accepted
-	// by that time-bounded Workbench API listener.
+	container         *container.Container
+	manager           *pkgExecution.Manager
+	scheduler         *pkgScheduler.Service
+	inspector         *inspectorService
+	workbench         *accessibilityWorkbenchController
+	inspectorPolicy   *inspectorNetworkPolicy
+	inspectorOnPaired func()
+	inspectorOnIdle   func()
+	// inspectorHost and inspectorFrontendOrigin remain test seams for the
+	// isolated handler contract. The product server uses inspectorPolicy and a
+	// fixed same-origin route set on its existing 60844 listener.
 	inspectorFrontendOrigin string
-	// inspectorHost is the one Host value actually bound by the dedicated
-	// listener. Inspector routes never share the general HTTP mux.
-	inspectorHost string
+	inspectorHost           string
 }
 
 // NewHandler 创建 HTTP 处理器。
@@ -309,7 +305,11 @@ func setupRoutes(handler *Handler) *http.ServeMux {
 	mux.HandleFunc("/executions/", handler.HandleExecutionRoutes)
 	mux.HandleFunc("/vision/ocr", handler.HandleVisionOCR)
 	mux.HandleFunc("/vision/detect-ui", handler.HandleVisionDetectUI)
+	mux.HandleFunc(accessibilityWorkbenchPagePath, handler.handleAccessibilityWorkbenchPage)
+	mux.HandleFunc(accessibilityWorkbenchPagePath+"/", handler.handleAccessibilityWorkbenchPage)
 	mux.HandleFunc(accessibilityWorkbenchControlPath, handler.handleAccessibilityWorkbenchControl)
+	mux.HandleFunc(accessibilityWorkbenchInternalLANPath, handler.handleAccessibilityWorkbenchInternalLAN)
+	mux.HandleFunc(inspectorAPIPrefix+"/", handler.HandleInspectorAPI)
 	if handler.scheduler != nil {
 		mux.HandleFunc("/scheduler", handler.schedulerLocalOnly(handler.HandleSchedulerPage))
 		mux.HandleFunc("/scheduler/", handler.schedulerLocalOnly(handler.HandleSchedulerPage))
@@ -356,14 +356,23 @@ func NewServerWithScheduler(container *container.Container, port string, schedul
 	}
 }
 
-// EnableOnDemandAccessibilityWorkbench enables the local control plane for an
-// independently served frontend. It does not bind or serve frontend assets.
-func (s *Server) EnableOnDemandAccessibilityWorkbench(artifactRoot, controlPort string) {
+// EnableOnDemandAccessibilityWorkbench adds only the Workbench page, control,
+// and read-only Inspector API to the existing OpenDesk listener. trusted-LAN
+// is process-local and starts disabled on every launch.
+func (s *Server) EnableOnDemandAccessibilityWorkbench(artifactRoot, frontendRoot, controlPort, internalControlToken string) {
 	if s == nil || s.handler == nil {
 		return
 	}
-	s.handler.workbench = newAccessibilityWorkbenchController(artifactRoot)
-	s.handler.workbenchControlPort = strings.TrimSpace(controlPort)
+	s.handler.inspector = newAccessibilityWorkbenchInspectorService(artifactRoot)
+	s.handler.inspectorPolicy = newInspectorNetworkPolicy(controlPort)
+	s.handler.workbench = newAccessibilityWorkbenchController(
+		s.handler.inspector,
+		s.handler.inspectorPolicy,
+		frontendRoot,
+		internalControlToken,
+	)
+	s.handler.inspectorOnPaired = s.handler.workbench.onPaired
+	s.handler.inspectorOnIdle = s.handler.workbench.onIdle
 }
 
 // Listen reserves the HTTP port before the caller reports the service as
@@ -372,11 +381,11 @@ func (s *Server) EnableOnDemandAccessibilityWorkbench(artifactRoot, controlPort 
 func (s *Server) Listen() (net.Listener, error) {
 	listener, err := net.Listen("tcp", s.server.Addr)
 	if err == nil && s.handler != nil {
-		if s.handler.inspector != nil {
-			s.handler.inspectorHost = listener.Addr().String()
-		}
-		if s.handler.workbench != nil {
-			_, s.handler.workbenchControlPort, _ = net.SplitHostPort(listener.Addr().String())
+		if s.handler.inspectorPolicy != nil {
+			_, port, splitErr := net.SplitHostPort(listener.Addr().String())
+			if splitErr == nil {
+				s.handler.inspectorPolicy.setPort(port)
+			}
 		}
 	}
 	return listener, err

@@ -2,34 +2,34 @@ package http
 
 import (
 	"context"
+	"crypto/sha256"
+	"crypto/subtle"
 	"errors"
-	"fmt"
 	"net"
 	stdhttp "net/http"
 	"net/netip"
 	"net/url"
+	"os"
+	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
+
+	"opendesk/pkg/inspector"
 )
 
 const (
-	// accessibilityWorkbenchControlPath is the local control route used by the
-	// independently served loopback page to ask an already-running OpenDesk
-	// service to start the isolated API
-	// listener. It never serves frontend assets or Inspector data itself.
-	accessibilityWorkbenchControlPath       = "/api/accessibility-workbench/v1/launch"
-	accessibilityWorkbenchControlMark       = "X-OpenDesk-Workbench-Control"
-	accessibilityWorkbenchPairShutdownGrace = 250 * time.Millisecond
+	accessibilityWorkbenchPagePath            = "/accessibility-workbench"
+	accessibilityWorkbenchControlPath         = "/api/accessibility-workbench/v1/launch"
+	accessibilityWorkbenchControlMark         = "X-OpenDesk-Workbench-Control"
+	accessibilityWorkbenchInternalLANPath     = "/api/accessibility-workbench/v1/internal/lan"
+	accessibilityWorkbenchInternalControlMark = "X-OpenDesk-Inspector-Control"
+	accessibilityWorkbenchPairShutdownGrace   = 250 * time.Millisecond
 )
 
-type accessibilityWorkbenchLaunchRequest struct {
-	FrontendURL string `json:"frontendUrl"`
-}
+type accessibilityWorkbenchLaunchRequest struct{}
 
-// accessibilityWorkbenchLaunch describes one newly-created, time-bounded
-// Workbench API listener. URL targets the caller-owned static frontend and
-// contains a one-time pairing secret; it must not be logged or persisted.
 type accessibilityWorkbenchLaunch struct {
 	URL      string `json:"url"`
 	Listener string `json:"listener"`
@@ -37,222 +37,466 @@ type accessibilityWorkbenchLaunch struct {
 	Boundary string `json:"boundary"`
 }
 
-// accessibilityWorkbenchController owns an optional child API listener inside
-// the already-running OpenDesk process. A caller-owned static frontend remains
-// independent while the API listener is created and revoked.
+type accessibilityWorkbenchLANRequest struct {
+	Allow bool `json:"allow"`
+}
+
+type accessibilityWorkbenchLANStatus struct {
+	AllowLAN bool   `json:"allowLAN"`
+	Mode     string `json:"mode"`
+	LocalURL string `json:"localUrl"`
+	LANURL   string `json:"lanUrl,omitempty"`
+	Warning  string `json:"warning,omitempty"`
+}
+
+// inspectorNetworkPolicy is the explicit network boundary for Workbench-only
+// routes. It does not wrap or modify any other route on the 60844 mux.
+type inspectorNetworkPolicy struct {
+	mu                   sync.RWMutex
+	port                 string
+	allowLAN             bool
+	privateHosts         map[netip.Addr]struct{}
+	primaryLAN           netip.Addr
+	discoverPrivateHosts func() []netip.Addr
+}
+
+func newInspectorNetworkPolicy(port string) *inspectorNetworkPolicy {
+	policy := &inspectorNetworkPolicy{port: strings.TrimSpace(port), discoverPrivateHosts: localPrivateInspectorAddresses}
+	policy.refreshPrivateHosts()
+	return policy
+}
+
+func localPrivateInspectorAddresses() []netip.Addr {
+	var result []netip.Addr
+	addresses, _ := net.InterfaceAddrs()
+	for _, value := range addresses {
+		prefix, err := netip.ParsePrefix(value.String())
+		if err != nil {
+			continue
+		}
+		address := prefix.Addr().Unmap()
+		if address.IsPrivate() {
+			result = append(result, address)
+		}
+	}
+	return result
+}
+
+func (p *inspectorNetworkPolicy) setPort(port string) {
+	if p == nil {
+		return
+	}
+	p.mu.Lock()
+	p.port = strings.TrimSpace(port)
+	p.mu.Unlock()
+}
+
+func (p *inspectorNetworkPolicy) refreshPrivateHosts() {
+	if p == nil {
+		return
+	}
+	p.mu.RLock()
+	discover := p.discoverPrivateHosts
+	p.mu.RUnlock()
+	hosts := make(map[netip.Addr]struct{})
+	if discover == nil {
+		discover = localPrivateInspectorAddresses
+	}
+	for _, address := range discover() {
+		address = address.Unmap()
+		if address.IsPrivate() {
+			hosts[address] = struct{}{}
+		}
+	}
+	ordered := make([]netip.Addr, 0, len(hosts))
+	for address := range hosts {
+		ordered = append(ordered, address)
+	}
+	sort.Slice(ordered, func(i, j int) bool {
+		if ordered[i].Is4() != ordered[j].Is4() {
+			return ordered[i].Is4()
+		}
+		return ordered[i].Less(ordered[j])
+	})
+	p.mu.Lock()
+	p.privateHosts = hosts
+	p.primaryLAN = netip.Addr{}
+	if len(ordered) > 0 {
+		p.primaryLAN = ordered[0]
+	}
+	p.mu.Unlock()
+}
+
+func (p *inspectorNetworkPolicy) setLAN(allow bool) accessibilityWorkbenchLANStatus {
+	if p == nil {
+		return accessibilityWorkbenchLANStatus{}
+	}
+	if allow {
+		p.refreshPrivateHosts()
+	}
+	p.mu.Lock()
+	p.allowLAN = allow
+	p.mu.Unlock()
+	return p.status()
+}
+
+func (p *inspectorNetworkPolicy) status() accessibilityWorkbenchLANStatus {
+	if p == nil {
+		return accessibilityWorkbenchLANStatus{}
+	}
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	port := p.port
+	if port == "" {
+		port = "60844"
+	}
+	status := accessibilityWorkbenchLANStatus{
+		AllowLAN: p.allowLAN,
+		Mode:     "local-only",
+		LocalURL: "http://" + net.JoinHostPort("127.0.0.1", port) + accessibilityWorkbenchPagePath + "/",
+	}
+	if p.allowLAN {
+		status.Mode = "trusted-lan"
+		status.Warning = "Trusted-LAN Inspector traffic uses plaintext HTTP. Enable it only on a private developer network."
+	}
+	if p.primaryLAN.IsValid() {
+		status.LANURL = "http://" + net.JoinHostPort(p.primaryLAN.String(), port) + accessibilityWorkbenchPagePath + "/"
+	}
+	return status
+}
+
+func inspectorSocketAddress(value string) (netip.Addr, error) {
+	host, _, err := net.SplitHostPort(strings.TrimSpace(value))
+	if err != nil {
+		return netip.Addr{}, err
+	}
+	address, err := netip.ParseAddr(strings.Trim(host, "[]"))
+	if err != nil {
+		return netip.Addr{}, err
+	}
+	return address.Unmap(), nil
+}
+
+func hasForwardedHeaders(header stdhttp.Header) bool {
+	for name := range header {
+		if strings.HasPrefix(strings.ToLower(name), "x-forwarded-") || strings.EqualFold(name, "Forwarded") {
+			return true
+		}
+	}
+	return false
+}
+
+func (p *inspectorNetworkPolicy) authorizeNetwork(r *stdhttp.Request) error {
+	if p == nil || r == nil {
+		return errors.New("accessibility workbench network policy is unavailable")
+	}
+	if hasForwardedHeaders(r.Header) {
+		return errors.New("forwarded Workbench requests are not allowed")
+	}
+	remote, err := inspectorSocketAddress(r.RemoteAddr)
+	if err != nil {
+		return errors.New("Workbench request has an invalid socket source")
+	}
+	host, port, err := net.SplitHostPort(strings.TrimSpace(r.Host))
+	if err != nil {
+		return errors.New("Workbench Host must be an exact IP address and port")
+	}
+	hostAddress, err := netip.ParseAddr(strings.Trim(host, "[]"))
+	if err != nil {
+		return errors.New("Workbench Host must be an exact IP address")
+	}
+	hostAddress = hostAddress.Unmap()
+
+	p.mu.RLock()
+	configuredPort := p.port
+	allowLAN := p.allowLAN
+	_, localPrivateHost := p.privateHosts[hostAddress]
+	p.mu.RUnlock()
+	if configuredPort == "" {
+		configuredPort = "60844"
+	}
+	if port != configuredPort {
+		return errors.New("Workbench Host does not match the OpenDesk listener")
+	}
+	if remote.IsLoopback() && hostAddress.IsLoopback() {
+		return nil
+	}
+	if !allowLAN {
+		return errors.New("Inspector trusted-LAN access is disabled")
+	}
+	if (!remote.IsLoopback() && !remote.IsPrivate()) || !hostAddress.IsPrivate() || !localPrivateHost {
+		return errors.New("Workbench socket source or Host is outside the trusted private network boundary")
+	}
+	return nil
+}
+
+func (p *inspectorNetworkPolicy) authorizeSameOrigin(r *stdhttp.Request, requireOrigin bool) error {
+	if err := p.authorizeNetwork(r); err != nil {
+		return err
+	}
+	if site := strings.TrimSpace(r.Header.Get("Sec-Fetch-Site")); site != "" && site != "same-origin" {
+		return errors.New("cross-site Workbench requests are not allowed")
+	}
+	origin := strings.TrimSpace(r.Header.Get("Origin"))
+	if origin == "null" {
+		return errors.New("null Origin is not allowed")
+	}
+	if origin == "" {
+		if requireOrigin {
+			return errors.New("Workbench control requires a same-origin browser request")
+		}
+		return nil
+	}
+	expected := "http://" + strings.TrimSpace(r.Host)
+	parsed, err := url.Parse(origin)
+	if err != nil || origin != expected || parsed.Scheme != "http" || parsed.User != nil || parsed.Host != r.Host ||
+		parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return errors.New("Workbench request Origin does not exactly match Host")
+	}
+	return nil
+}
+
+func (p *inspectorNetworkPolicy) authorizeInternal(r *stdhttp.Request) error {
+	if p == nil || r == nil || hasForwardedHeaders(r.Header) {
+		return errors.New("internal Inspector control is local-only")
+	}
+	remote, err := inspectorSocketAddress(r.RemoteAddr)
+	if err != nil || !remote.IsLoopback() {
+		return errors.New("internal Inspector control requires a loopback socket peer")
+	}
+	host, port, err := net.SplitHostPort(strings.TrimSpace(r.Host))
+	if err != nil {
+		return errors.New("internal Inspector control requires an exact loopback Host")
+	}
+	address, err := netip.ParseAddr(strings.Trim(host, "[]"))
+	if err != nil || !address.Unmap().IsLoopback() {
+		return errors.New("internal Inspector control requires an exact loopback Host")
+	}
+	p.mu.RLock()
+	configuredPort := p.port
+	p.mu.RUnlock()
+	if configuredPort == "" {
+		configuredPort = "60844"
+	}
+	if port != configuredPort || strings.TrimSpace(r.Header.Get("Origin")) != "" {
+		return errors.New("internal Inspector control Host or Origin is not allowed")
+	}
+	return nil
+}
+
+// accessibilityWorkbenchController owns the short-lived authorization state,
+// but never creates another listener. Page, control, and data stay on 60844.
 type accessibilityWorkbenchController struct {
-	operationMu  sync.Mutex
-	mu           sync.Mutex
-	artifactRoot string
-	pairTTL      time.Duration
-	clientTTL    time.Duration
-	generation   uint64
-	server       *Server
-	done         chan error
-	timer        *time.Timer
+	operationMu     sync.Mutex
+	mu              sync.Mutex
+	service         *inspectorService
+	policy          *inspectorNetworkPolicy
+	frontendRoot    string
+	controlHash     [32]byte
+	hasControlToken bool
+	pairTTL         time.Duration
+	clientTTL       time.Duration
+	generation      uint64
+	active          bool
+	timer           *time.Timer
 }
 
-func newAccessibilityWorkbenchController(artifactRoot string) *accessibilityWorkbenchController {
-	return &accessibilityWorkbenchController{
-		artifactRoot: strings.TrimSpace(artifactRoot),
-		pairTTL:      inspectorPairTTL,
-		clientTTL:    inspectorClientTTL,
+func newAccessibilityWorkbenchInspectorService(artifactRoot string) *inspectorService {
+	return newInspectorService(inspector.NewRuntimeRunner(), artifactRoot)
+}
+
+func newAccessibilityWorkbenchController(service *inspectorService, policy *inspectorNetworkPolicy, frontendRoot, controlToken string) *accessibilityWorkbenchController {
+	controller := &accessibilityWorkbenchController{
+		service: service, policy: policy, frontendRoot: strings.TrimSpace(frontendRoot),
+		pairTTL: inspectorPairTTL, clientTTL: inspectorClientTTL,
 	}
+	if controlToken = strings.TrimSpace(controlToken); controlToken != "" {
+		controller.controlHash = sha256.Sum256([]byte(controlToken))
+		controller.hasControlToken = true
+	}
+	return controller
 }
 
-func (c *accessibilityWorkbenchController) launch(frontendURL *url.URL) (accessibilityWorkbenchLaunch, error) {
-	if c == nil {
+func (c *accessibilityWorkbenchController) launch(authority string) (accessibilityWorkbenchLaunch, error) {
+	if c == nil || c.service == nil || c.policy == nil {
 		return accessibilityWorkbenchLaunch{}, errors.New("Accessibility Workbench control is unavailable")
-	}
-	if frontendURL == nil {
-		return accessibilityWorkbenchLaunch{}, errors.New("frontendUrl is required; OpenDesk does not serve Workbench frontend assets")
 	}
 	c.operationMu.Lock()
 	defer c.operationMu.Unlock()
-
 	if c.hasActive() {
 		return accessibilityWorkbenchLaunch{}, errors.New("Accessibility Workbench is already active; close its browser page before opening another session")
 	}
+	if err := c.service.resetPairing(c.pairTTL); err != nil {
+		return accessibilityWorkbenchLaunch{}, err
+	}
+	pairURL, err := c.service.pairingURL(authority)
+	if err != nil {
+		return accessibilityWorkbenchLaunch{}, err
+	}
+	parsed, err := url.Parse(pairURL)
+	if err != nil {
+		return accessibilityWorkbenchLaunch{}, err
+	}
+	parsed.Path = accessibilityWorkbenchPagePath + "/"
 
-	// The frontend owns its static-page listener. Reserve an ephemeral port for
-	// the authenticated native API so OpenDesk never competes for it.
-	server := newAccessibilityWorkbenchServer("0", c.artifactRoot)
-	listener, err := server.Listen()
-	if err != nil {
-		return accessibilityWorkbenchLaunch{}, fmt.Errorf("reserve Accessibility Workbench listener: %w", err)
-	}
-	launchURL, err := server.accessibilityWorkbenchPairingURL(listener)
-	if err != nil {
-		_ = listener.Close()
-		server.handler.inspector.close()
-		return accessibilityWorkbenchLaunch{}, err
-	}
-	server.handler.inspectorFrontendOrigin = frontendURL.Scheme + "://" + frontendURL.Host
-	launchURL, err = externalAccessibilityWorkbenchURL(frontendURL, launchURL)
-	if err != nil {
-		_ = listener.Close()
-		server.handler.inspector.close()
-		return accessibilityWorkbenchLaunch{}, err
-	}
 	c.mu.Lock()
 	c.generation++
 	generation := c.generation
-	done := make(chan error, 1)
-	c.server = server
-	c.done = done
+	c.active = true
 	c.timer = time.AfterFunc(c.pairTTL+accessibilityWorkbenchPairShutdownGrace, func() { c.stopGeneration(generation) })
 	c.mu.Unlock()
 
-	server.handler.inspectorOnPaired = func() { c.extendGeneration(generation, c.clientTTL) }
-	server.handler.inspectorOnIdle = func() { c.stopGeneration(generation) }
-	go func() {
-		done <- server.Serve(listener)
-		c.clearGeneration(generation)
-	}()
-
+	status := c.policy.status()
+	boundary := "loopback socket and exact loopback Host/Origin"
+	if status.AllowLAN {
+		boundary = "loopback or private socket, exact local private Host/Origin, single client"
+	}
 	return accessibilityWorkbenchLaunch{
-		URL: launchURL, Listener: listener.Addr().String(), Mode: "loopback", Boundary: "127.0.0.0/8 and ::1",
+		URL: parsed.String(), Listener: authority, Mode: status.Mode, Boundary: boundary,
 	}, nil
 }
 
-func parseAccessibilityWorkbenchFrontendURL(value string) (*url.URL, error) {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return nil, errors.New("frontendUrl is required; serve inspector_web independently")
-	}
-	parsed, err := url.Parse(value)
-	if err != nil || parsed.Scheme != "http" || parsed.Host == "" || parsed.User != nil || parsed.Fragment != "" {
-		return nil, errors.New("frontendUrl must be an HTTP URL served from a loopback address")
-	}
-	host := strings.TrimSpace(parsed.Hostname())
-	loopback := strings.EqualFold(host, "localhost")
-	if address, parseErr := netip.ParseAddr(host); parseErr == nil {
-		loopback = address.Unmap().IsLoopback()
-	}
-	if !loopback {
-		return nil, errors.New("frontendUrl must use localhost or a loopback IP address")
-	}
-	if parsed.Path == "" {
-		parsed.Path = "/"
-	}
-	return parsed, nil
-}
-
-func externalAccessibilityWorkbenchURL(frontendURL *url.URL, backendLaunchURL string) (string, error) {
-	backend, err := url.Parse(backendLaunchURL)
-	if err != nil {
-		return "", fmt.Errorf("parse Workbench API launch URL: %w", err)
-	}
-	backendFragment, err := url.ParseQuery(backend.Fragment)
-	if err != nil || backendFragment.Get("pair") == "" {
-		return "", errors.New("Workbench API launch URL has no pairing code")
-	}
-	result := *frontendURL
-	// Fragment escaping is handled by url.URL.String. Storing an already
-	// query-escaped string here would double-escape the API origin for browsers.
-	result.Fragment = "api=" + backend.Scheme + "://" + backend.Host + "&pair=" + backendFragment.Get("pair")
-	return result.String(), nil
-}
-
 func (c *accessibilityWorkbenchController) hasActive() bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.server != nil
-}
-
-func (c *accessibilityWorkbenchController) extendGeneration(generation uint64, duration time.Duration) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.generation == generation && c.server != nil && c.timer != nil {
-		c.timer.Reset(duration)
+	if c == nil {
+		return false
 	}
-}
-
-func (c *accessibilityWorkbenchController) clearGeneration(generation uint64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.generation != generation {
+	return c.active
+}
+
+func (c *accessibilityWorkbenchController) onPaired() {
+	if c == nil {
 		return
 	}
-	if c.timer != nil {
-		c.timer.Stop()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.active && c.timer != nil {
+		c.timer.Reset(c.clientTTL)
 	}
-	c.server = nil
-	c.done = nil
-	c.timer = nil
+}
+
+func (c *accessibilityWorkbenchController) onIdle() {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	generation := c.generation
+	c.mu.Unlock()
+	c.stopGeneration(generation)
 }
 
 func (c *accessibilityWorkbenchController) stopGeneration(generation uint64) {
+	if c == nil {
+		return
+	}
 	c.operationMu.Lock()
 	defer c.operationMu.Unlock()
 	c.mu.Lock()
-	current := c.generation == generation && c.server != nil
-	c.mu.Unlock()
-	if !current {
+	if c.generation != generation || !c.active {
+		c.mu.Unlock()
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_ = c.stopCurrent(ctx)
-}
-
-func (c *accessibilityWorkbenchController) stopCurrent(ctx context.Context) error {
-	c.mu.Lock()
-	server := c.server
-	done := c.done
+	c.active = false
 	if c.timer != nil {
 		c.timer.Stop()
 	}
-	c.server = nil
-	c.done = nil
 	c.timer = nil
 	c.mu.Unlock()
-	if server == nil {
-		return nil
-	}
-
-	err := server.Shutdown(ctx)
-	if done != nil {
-		select {
-		case serveErr := <-done:
-			if serveErr != nil && !errors.Is(serveErr, stdhttp.ErrServerClosed) && err == nil {
-				err = serveErr
-			}
-		case <-ctx.Done():
-			if err == nil {
-				err = ctx.Err()
-			}
-		}
-	}
-	return err
+	c.service.invalidateAuthorization()
 }
 
-func (c *accessibilityWorkbenchController) shutdown(ctx context.Context) error {
+func (c *accessibilityWorkbenchController) shutdown(context.Context) error {
 	if c == nil {
 		return nil
 	}
 	c.operationMu.Lock()
 	defer c.operationMu.Unlock()
-	return c.stopCurrent(ctx)
+	c.mu.Lock()
+	c.active = false
+	if c.timer != nil {
+		c.timer.Stop()
+	}
+	c.timer = nil
+	c.mu.Unlock()
+	return nil
+}
+
+func (c *accessibilityWorkbenchController) authorizeInternalToken(value string) bool {
+	if c == nil || !c.hasControlToken {
+		return false
+	}
+	presented := sha256.Sum256([]byte(strings.TrimSpace(value)))
+	return subtle.ConstantTimeCompare(presented[:], c.controlHash[:]) == 1
+}
+
+func (h *Handler) handleAccessibilityWorkbenchPage(w stdhttp.ResponseWriter, r *stdhttp.Request) {
+	if h == nil || h.workbench == nil || h.inspectorPolicy == nil {
+		stdhttp.NotFound(w, r)
+		return
+	}
+	setAccessibilityWorkbenchPageHeaders(w)
+	if err := h.inspectorPolicy.authorizeSameOrigin(r, false); err != nil {
+		h.sendError(w, stdhttp.StatusForbidden, err.Error())
+		return
+	}
+	if r.Method != stdhttp.MethodGet && r.Method != stdhttp.MethodHead {
+		h.sendError(w, stdhttp.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	if r.URL.Path == accessibilityWorkbenchPagePath {
+		location := accessibilityWorkbenchPagePath + "/"
+		if r.URL.RawQuery != "" {
+			location += "?" + r.URL.RawQuery
+		}
+		stdhttp.Redirect(w, r, location, stdhttp.StatusTemporaryRedirect)
+		return
+	}
+	files := map[string]string{
+		accessibilityWorkbenchPagePath + "/":                "index.html",
+		accessibilityWorkbenchPagePath + "/assets/app.css":  filepath.Join("assets", "app.css"),
+		accessibilityWorkbenchPagePath + "/assets/app.js":   filepath.Join("assets", "app.js"),
+		accessibilityWorkbenchPagePath + "/assets/model.js": filepath.Join("assets", "model.js"),
+	}
+	relative, ok := files[r.URL.Path]
+	if !ok || h.workbench.frontendRoot == "" {
+		stdhttp.NotFound(w, r)
+		return
+	}
+	path := filepath.Join(h.workbench.frontendRoot, relative)
+	info, err := os.Stat(path)
+	if err != nil || !info.Mode().IsRegular() {
+		stdhttp.NotFound(w, r)
+		return
+	}
+	stdhttp.ServeFile(w, r, path)
+}
+
+func setAccessibilityWorkbenchPageHeaders(w stdhttp.ResponseWriter) {
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Content-Security-Policy", "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'")
+	w.Header().Set("Referrer-Policy", "no-referrer")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("X-Frame-Options", "DENY")
+	w.Header().Set("Cross-Origin-Resource-Policy", "same-origin")
 }
 
 func (h *Handler) handleAccessibilityWorkbenchControl(w stdhttp.ResponseWriter, r *stdhttp.Request) {
 	setInspectorSecurityHeaders(w)
-	if h.workbench == nil {
+	if h == nil || h.workbench == nil || h.inspectorPolicy == nil {
 		h.sendError(w, stdhttp.StatusNotFound, "Accessibility Workbench control is not enabled")
 		return
 	}
-	browserOrigin, preflight, err := h.authorizeAccessibilityWorkbenchControl(w, r)
-	if err != nil {
+	if err := h.inspectorPolicy.authorizeSameOrigin(r, true); err != nil {
 		h.sendError(w, stdhttp.StatusForbidden, err.Error())
-		return
-	}
-	if preflight {
-		w.WriteHeader(stdhttp.StatusNoContent)
 		return
 	}
 	if r.Method != stdhttp.MethodPost {
 		h.sendError(w, stdhttp.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	if r.Header.Get(accessibilityWorkbenchControlMark) != "1" {
+		h.sendError(w, stdhttp.StatusForbidden, "explicit OpenDesk control marker is required")
 		return
 	}
 	var input accessibilityWorkbenchLaunchRequest
@@ -260,16 +504,7 @@ func (h *Handler) handleAccessibilityWorkbenchControl(w stdhttp.ResponseWriter, 
 		h.sendError(w, stdhttp.StatusBadRequest, err.Error())
 		return
 	}
-	frontendURL, err := parseAccessibilityWorkbenchFrontendURL(input.FrontendURL)
-	if err != nil {
-		h.sendError(w, stdhttp.StatusBadRequest, err.Error())
-		return
-	}
-	if browserOrigin != "" && (frontendURL == nil || accessibilityWorkbenchOrigin(frontendURL) != browserOrigin) {
-		h.sendError(w, stdhttp.StatusBadRequest, "frontendUrl origin must match the requesting loopback page")
-		return
-	}
-	launch, err := h.workbench.launch(frontendURL)
+	launch, err := h.workbench.launch(strings.TrimSpace(r.Host))
 	if err != nil {
 		h.sendError(w, stdhttp.StatusConflict, err.Error())
 		return
@@ -277,88 +512,28 @@ func (h *Handler) handleAccessibilityWorkbenchControl(w stdhttp.ResponseWriter, 
 	h.sendSuccess(w, launch)
 }
 
-func accessibilityWorkbenchOrigin(value *url.URL) string {
-	if value == nil {
-		return ""
+func (h *Handler) handleAccessibilityWorkbenchInternalLAN(w stdhttp.ResponseWriter, r *stdhttp.Request) {
+	setInspectorSecurityHeaders(w)
+	if h == nil || h.workbench == nil || h.inspectorPolicy == nil || !h.workbench.hasControlToken {
+		h.sendError(w, stdhttp.StatusNotFound, "Inspector internal control is not enabled")
+		return
 	}
-	return value.Scheme + "://" + value.Host
-}
-
-func parseAccessibilityWorkbenchControlOrigin(value string) (string, error) {
-	value = strings.TrimSpace(value)
-	parsed, err := url.Parse(value)
-	if err != nil || parsed.Scheme != "http" || parsed.Host == "" || parsed.User != nil ||
-		parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
-		return "", errors.New("Workbench browser control requires a plain HTTP loopback Origin")
+	if err := h.inspectorPolicy.authorizeInternal(r); err != nil ||
+		!h.workbench.authorizeInternalToken(r.Header.Get(accessibilityWorkbenchInternalControlMark)) {
+		h.sendError(w, stdhttp.StatusForbidden, "Inspector internal control authorization failed")
+		return
 	}
-	host := strings.TrimSpace(parsed.Hostname())
-	loopback := strings.EqualFold(host, "localhost")
-	if address, parseErr := netip.ParseAddr(host); parseErr == nil {
-		loopback = address.Unmap().IsLoopback()
-	}
-	if !loopback || accessibilityWorkbenchOrigin(parsed) != value {
-		return "", errors.New("Workbench browser control requires a plain HTTP loopback Origin")
-	}
-	return value, nil
-}
-
-func (h *Handler) authorizeAccessibilityWorkbenchControl(w stdhttp.ResponseWriter, r *stdhttp.Request) (string, bool, error) {
-	if r == nil {
-		return "", false, errors.New("Workbench control request is required")
-	}
-	for name := range r.Header {
-		if strings.HasPrefix(strings.ToLower(name), "x-forwarded-") || strings.EqualFold(name, "Forwarded") {
-			return "", false, errors.New("forwarded Workbench control requests are not allowed")
+	switch r.Method {
+	case stdhttp.MethodGet:
+		h.sendSuccess(w, h.inspectorPolicy.status())
+	case stdhttp.MethodPost:
+		var input accessibilityWorkbenchLANRequest
+		if err := decodeInspectorJSON(w, r, &input); err != nil {
+			h.sendError(w, stdhttp.StatusBadRequest, err.Error())
+			return
 		}
+		h.sendSuccess(w, h.inspectorPolicy.setLAN(input.Allow))
+	default:
+		h.sendError(w, stdhttp.StatusMethodNotAllowed, "method not allowed")
 	}
-	remoteHost, _, err := net.SplitHostPort(strings.TrimSpace(r.RemoteAddr))
-	if err != nil {
-		return "", false, errors.New("Workbench control requires a loopback socket peer")
-	}
-	remote, err := netip.ParseAddr(strings.Trim(remoteHost, "[]"))
-	if err != nil || !remote.Unmap().IsLoopback() {
-		return "", false, errors.New("Workbench control requires a loopback socket peer")
-	}
-	host, port, err := net.SplitHostPort(strings.TrimSpace(r.Host))
-	if err != nil || port != h.workbenchControlPort {
-		return "", false, errors.New("Workbench control Host does not match the OpenDesk listener")
-	}
-	address, err := netip.ParseAddr(strings.Trim(host, "[]"))
-	if err != nil || !address.Unmap().IsLoopback() {
-		return "", false, errors.New("Workbench control Host must be a loopback IP address")
-	}
-
-	originHeader := strings.TrimSpace(r.Header.Get("Origin"))
-	if originHeader == "" {
-		return "", false, errors.New("Workbench control requires a loopback page Origin")
-	}
-
-	origin, err := parseAccessibilityWorkbenchControlOrigin(originHeader)
-	if err != nil {
-		return "", false, err
-	}
-	w.Header().Set("Access-Control-Allow-Origin", origin)
-	w.Header().Set("Access-Control-Allow-Methods", stdhttp.MethodPost+", "+stdhttp.MethodOptions)
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, "+accessibilityWorkbenchControlMark)
-	w.Header().Set("Cross-Origin-Resource-Policy", "cross-origin")
-	w.Header().Add("Vary", "Origin")
-	if r.Method == stdhttp.MethodOptions {
-		if strings.TrimSpace(r.Header.Get("Access-Control-Request-Method")) != stdhttp.MethodPost {
-			return "", false, errors.New("Workbench control CORS preflight method is not allowed")
-		}
-		allowedHeaders := map[string]bool{
-			"content-type": true, strings.ToLower(accessibilityWorkbenchControlMark): true,
-		}
-		for _, name := range strings.Split(r.Header.Get("Access-Control-Request-Headers"), ",") {
-			name = strings.ToLower(strings.TrimSpace(name))
-			if name != "" && !allowedHeaders[name] {
-				return "", false, errors.New("Workbench control CORS preflight header is not allowed")
-			}
-		}
-		return origin, true, nil
-	}
-	if r.Header.Get(accessibilityWorkbenchControlMark) != "1" {
-		return "", false, errors.New("explicit OpenDesk control marker is required")
-	}
-	return origin, false, nil
 }

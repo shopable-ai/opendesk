@@ -103,6 +103,28 @@ App 图标。构建者还可以从仓库根目录验证已安装 bundle 的图�
 APP_BUNDLE=/Applications/OpenDesk.app bash scripts/test_app_icons.sh
 ```
 
+### 使用 OpenDesk Inspector
+
+Inspector 的页面、启动控制和只读数据 API 均由同一个当前版 OpenDesk 进程在固定 `60844` 端口同源提供。
+启动 `/Applications/OpenDesk.app` 后，从菜单栏选择 **Developer → Open Inspector**，或直接打开：
+
+```text
+http://127.0.0.1:60844/accessibility-workbench/
+```
+
+先另开目标应用；检查网页时，把目标 tab 放进另一个原生浏览器窗口。回到 Inspector，依次点击
+**Connect to OpenDesk**、选择目标窗口、**Open scope**，再点击 UI tree 中的行查看属性。
+
+需要从可信局域网中的另一台设备检查时，先在 macOS 菜单栏选择 **Developer → Allow Inspector from
+LAN**，再选择 **Copy Inspector LAN URL**。这是显式的 trusted-LAN 开发模式：页面会显示 HTTP 明文警告，
+只接受私有网段 socket 来源、当前机器的精确私有 IP `Host` 和同源 `Origin`。不要使用反向代理、Host 改写、
+端口转发或公网地址。关闭选项后立即恢复 local-only；OpenDesk 重启后也总是恢复关闭。
+
+连接仍需一次性 pairing、内存 Bearer token、session token、单客户端和既有 TTL。Inspector 不授予脚本执行、
+Scheduler、MCP 或通用 Runtime 权限。当前 App bundle 会携带与主程序同次构建的前端资源，源码开发入口保留在
+`apps/inspector_web/`。不再需要 Python `60845`、`control` 查询参数或随机 API 端口。更完整的安全边界见
+[`docs/integrations/desktop-agent.md`](docs/integrations/desktop-agent.md)。
+
 ### 一次性运行脚本
 
 一次性脚本使用绝对路径最稳妥。下面命令会使用固定 App 身份执行脚本，执行完成后退出，
@@ -191,7 +213,8 @@ Scheduler 只在 OpenDesk 进程运行时实际调度；退出 App 后不会继�
 - 不需要服务时，点击菜单栏的 OpenDesk 图标，再选择 **Quit OpenDesk**。它会向主进程发送正常的
   终止信号并停止 HTTP 和 Scheduler；正在运行的执行会进入关闭流程。
 - HTTP 端口默认是 `60844`。正常再次双击会复用现有 OpenDesk；如果端口由未知进程占用，
-  请先检查并停止该进程，或用其他端口启动：`open -n /Applications/OpenDesk.app --args -http -port 60845`。
+  使用 Inspector 时必须先检查并停止该进程，让当前 OpenDesk 占用固定 `60844`。自定义 `-port` 只保留普通 HTTP 服务，
+  不挂载 Inspector，也不显示托盘 Developer 子菜单。
 - 不要把 `0.0.0.0:60844` 当成可直接提供给公网或不可信设备的 API；当前 HTTP 接口没有
   用户登录认证。
 

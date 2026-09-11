@@ -6,51 +6,84 @@ order: 4
 
 # Desktop Agent 与 Accessibility Workbench
 
-Accessibility Workbench 由独立静态浏览器前端和 OpenDesk 的短期只读原生 API 组成。它让人查看一个明确窗口的真实 AX／UIA
+Accessibility Workbench 由 OpenDesk 在固定 `60844` 端口同源提供的浏览器前端和短期只读原生 API 组成。它让人查看一个明确窗口的真实 AX／UIA
 语义树、修订定位候选、重新验证并导出 handoff；它本身不会点击、输入、聚焦或运行网页提供的 JavaScript。完成业务动作时，
 Agent 应消费 handoff，生成普通 OpenDesk JavaScript，再通过用户已经信任的 CLI execution 独立运行和验证。
 
 ## 启动
 
-正常启动 `OpenDesk.app` 不会启动前端端口，也不会初始化 Workbench 的原生观察服务。`inspector_web` 不编译进 OpenDesk，
-不由 OpenDesk 菜单或 CLI 启动，也没有 Go embed 适配器。需要使用时，开发者只选择一个 `serve`、`anywhere`、Python 或其他
-静态文件服务器，直接发布 `apps/inspector_web/`。例如从仓库根目录执行：
+正常启动当前 `OpenDesk.app` 后，从 macOS 托盘选择 **Developer → Open Inspector**，或直接打开：
 
-```bash
-python3 -m http.server 60845 --bind 127.0.0.1 --directory apps/inspector_web
+```text
+http://127.0.0.1:60844/accessibility-workbench/
 ```
 
-打开 `http://127.0.0.1:60845/`，按 **Connect OpenDesk** 即可连接已经运行于 `127.0.0.1:60844` 的 OpenDesk；无需再运行
-Node 启动器。静态服务器拥有 `60845`，OpenDesk 不会绑定或关闭这个端口。OpenDesk 另行分配随机 loopback 端口作为短期原生
-API listener，只对发起连接的精确前端 Origin 设置 CORS，并把 API origin 与一次性配对码放在页面 fragment 中。页面配对后
-立即清除 fragment，凭据只保存在内存。普通服务使用非默认端口时，可通过页面的 `control` 查询参数明确指定完整 loopback
-控制 URL。前端页面本身提供 **Connect OpenDesk**，不存在第二个启动器命令或内嵌兼容入口。
+页面、`POST /api/accessibility-workbench/v1/launch` 和 `/api/accessibility-inspector/v1/*` 使用完全相同的
+Host、Origin 和端口。不需要额外静态服务器、`60845`、`control` 查询参数或随机 API listener。开发 checkout 直接读取
+`apps/inspector_web/`；构建脚本把同一资源复制进 `OpenDesk.app/Contents/Resources/inspector_web`，避免主程序与 UI 来源漂移。
 
-OpenDesk 只在用户点击连接后分配随机 loopback API 端口；静态服务器的端口始终由开发者选择的工具拥有。关闭页面会尽力
-撤销 session 和 bearer，未兑换配对码和已配对 API listener 也按 TTL 自动回收。
+页面只在点击 **Connect** 后生成短期一次性 pairing。fragment 随即从地址栏清除，Bearer 和 session token 仅留在页面内存；
+关闭页面会尽力撤销 session 与 client，pair/client/session/visual 仍按既有 TTL 回收。开发树把审阅包写到
+`.runtime/accessibility-inspector/<sessionId>/`；安装版写到用户配置目录的
+`opendesk/accessibility-inspector/<sessionId>/`。这些都是本地运行证据，不应提交到 Git。
 
 开发树把审阅包写到 `.runtime/accessibility-inspector/<sessionId>/`。安装版写到操作系统用户配置目录的
 `opendesk/accessibility-inspector/<sessionId>/`。这些目录是本地运行证据，不应提交到 Git。
 
 ### 页面连接合同
 
-独立页面连接前应确认 `http://127.0.0.1:60844/status` 已就绪。控制请求只能来自真实 loopback socket 和 plain-HTTP
-loopback 页面 Origin，必须使用 loopback IP Host 与 `X-OpenDesk-Workbench-Control: 1`，并拒绝无 Origin、转发请求和远程来源。
-请求中的 `frontendUrl` Origin 必须与页面 Origin 完全一致。
+控制请求发送空 JSON 对象，要求真实允许的 socket peer、精确 IP `Host`、完全相同的 plain-HTTP `Origin`、
+`X-OpenDesk-Workbench-Control: 1`，并拒绝 forwarded headers。响应的 `data.url` 只比当前同源页面多一次性 `pair` fragment；
+不得出现第二个 API origin。已有活跃 Workbench 会拒绝第二次 launch，直到 client 撤销或 TTL 到期。
 
-调用方必须发送 `{"frontendUrl":"http://127.0.0.1:<port>/..."}` 指向自己管理的静态页面；空对象会被拒绝。`frontendUrl`
-仅接受 HTTP loopback／localhost 地址，不接受已有 fragment。页面应在内存中读取返回的 `data.url` 并立即跳转，不得记录或
-持久化。`data.listener` 是 OpenDesk 随机分配的
-API listener，不是静态页面地址，也不会占用调用方选定的端口。
-
-已有 Workbench 活跃时会拒绝第二次启动，避免撤销正在进行的人工审阅。精确请求和返回合同见
-[HTTP Server API](../api/http-server.md#post-apiaccessibility-workbenchv1launch)。静态文件服务器只负责 HTML／CSS／JS；真实
-Accessibility 仍来自已运行 OpenDesk 的有界 API，不能由静态页面或 mock 代替。
+数据请求继续要求 `X-OpenDesk-Inspector: 1`、Bearer、需要时的 session token，以及浏览器同源元数据。错 Host／Origin、null
+Origin、pair 重放、跨 session token 和过期凭据均拒绝。精确字段见
+[HTTP Server API](../api/http-server.md#post-apiaccessibility-workbenchv1launch)。
 
 ### 网络范围
 
-当前独立前端合同只允许本机 HTTP loopback 页面和本机 OpenDesk 服务。没有内嵌页面、专用 CLI 或 LAN 页面模式；不要把静态
-站点或短期 API 端口转发到局域网或公网。
+默认 `local-only` 策略只接受 loopback socket 和 loopback IP Host。需要可信局域网时，在 macOS 托盘选择
+**Developer → Allow Inspector from LAN**，再用 **Copy Inspector LAN URL** 取得
+`http://<本机私有-IP>:60844/accessibility-workbench/`。这是仅当前进程有效的 trusted-LAN 开关，重启必定恢复关闭。
+
+trusted-LAN 仍只允许 RFC 私有网段 socket、本机实际私有 IP 的精确 Host 和相同 HTTP Origin；公网 RemoteAddr、伪造私有 Host、
+forwarded headers 和跨源请求继续拒绝。页面会持续显示“plaintext HTTP”警告。只应在可信开发网络短期开启，不得通过公网路由、
+反向代理或端口转发扩大。helper 只能经 loopback 内部 endpoint 和启动时随机 argv token 查询或切换该状态。
+
+## 同机并行、目标窗口与网页目标
+
+正常推荐状态就是同一台电脑同时运行 OpenDesk、同源 Inspector 页面和目标应用。三者不会因为“都在本机”而自动争用同一窗口：
+前端只在用户点击 **Connect** 后申请短期配对，窗口列表只在用户主动刷新时读取，创建 scope 时使用该列表中所选
+行的短期 `windowId`，后台再绑定它携带的精确 native window identity。标题、应用名、PID 和 bounds 用于让人核对，不是按标题
+模糊查找或“取同名第一项”的降级路径；同名窗口会保留为不同选择项。
+
+并发边界是：**一个 OpenDesk 进程同一时刻只允许一个已启动的 Workbench 授权 generation／已连接前端**。第二个 Inspector 页面
+可以照常加载静态资源，但它点击 Connect 会得到 409 conflict，直到第一个页面撤销 authorization、关闭后尽力撤销，或短期
+授权到期。单个现有页面的产品 UI 同时只打开一个 target scope；HTTP controller 的每 session 单操作互斥和全局有界额度仍
+负责阻止观察风暴。普通 OpenDesk HTTP／MCP／Scheduler 的 Accessibility 授权不会因 Workbench 连接而打开。
+
+页面会同时显示“Inspector page”和“Target window”。目标行显示 application、**原样精确标题**、PID、bounds 和短期 picker
+identity，scope 建立后继续显示已绑定目标与 session generation。浏览器沙箱不能读取本页自己的 native OS window ID，因此
+前端不能绝对证明哪一项是自己；当候选标题与本页标题完全相同时，它会明确提示可能误选并要求人工确认，而不是静默排除或
+按近似标题猜测。确实需要观察 Inspector 自身时仍可有意继续。
+
+窗口遮挡与焦点不是 snapshot 的取数条件：当前 `Accessibility.snapshot()`／`find()` 解析 window scope 时传入
+`requireForeground=false`，macOS 后端通过 PID、当前 window identity 和 AX window hierarchy 重新核对目标；它不截图、OCR、
+命中测试或要求目标像素无遮挡。因此 Inspector 可以盖住目标，切回 Inspector 也不会仅因失焦而使已选原生窗口不可读。目标
+关闭／重建、identity 变化、最小化或移到当前 backend 不再枚举的桌面范围时仍会失败或变 stale；焦点变化也可能让目标应用自身
+改变内容，新的 observation 会如实反映改变后的状态。
+
+网页目标应这样安排：
+
+1. 把目标网页放到一个**单独的原生浏览器窗口**，让目标 tab 保持为该窗口的活动 tab；同一浏览器进程没有问题。
+2. 在另一个浏览器窗口打开 Inspector。若标题／PID 仍容易混淆，可再使用单独浏览器实例或 profile，但这不是协议要求。
+3. Connect 后按 application、精确标题、PID、bounds 和 picker identity 选择目标浏览器窗口，再 Open scope。
+4. 查看或刷新树；不要期待窗口 picker 能把同一 native browser window 内的后台 tab 当成另一扇窗口。
+
+OpenDesk 读取的是 Chrome 等浏览器通过 macOS AX／Windows UIA 暴露的平台 accessibility tree，而不是 DOM 或 DevTools tree。
+Chromium 的 accessibility 支持按需启用，并由 renderer 将网页 AX 数据发送到浏览器进程后通过平台原生 API 暴露；如果该浏览器
+禁用了 renderer accessibility，或页面依赖未暴露语义的 canvas、远程桌面、虚拟化节点等内容，Workbench 不能凭视觉外观补出
+节点。Chromium 的实现边界见其官方 [Accessibility overview](https://chromium.googlesource.com/chromium/src/+/master/docs/accessibility/overview.md)。
 
 ## 权限和可用性
 
@@ -72,8 +105,13 @@ Workbench 页面不要求模型。没有已配置 Agent 时，树、属性、结
 
 ## 人工审阅闭环
 
-1. 从可信启动 URL 配对，确认页面显示 `Paired` 和实际 backend 状态。
-2. 在窗口列表中选择明确的应用／窗口，再点 `Open scope`。页面不会默认观察活动窗口。
+页面顶部的 **Start here** 是状态驱动导航，不是静态说明：唯一的 **Do this now** 按钮会依次执行或聚焦 Connect、目标列表、
+所选窗口、UI tree 和刷新动作。四步说明与未连接工作区默认收起，连接成功后工作区自动展开；首次使用只需跟随这个按钮，
+不会在顶部状态区再看到重复 Connect。树出现后点击任意一行即可查看属性，Validate、review 和 handoff 都是可选的后续用途。
+
+1. 打开 `http://127.0.0.1:60844/accessibility-workbench/` 并点 **Connect**，确认页面显示 `Connected` 和实际 backend 状态。
+2. 在窗口列表中按 application、精确标题、PID、bounds 和 picker identity 选择目标，再点 `Open scope`。页面不会默认观察活动
+   窗口，也不会以模糊标题选择同名第一项。
 3. 检查 UI Tree、只读原始属性和 Layout Preview。Preview 只是逻辑 bounds 的结构示意，不是截图或点击坐标。
 4. 选择正确节点。可以填写业务别名、用途和备注，也可以编辑 role/name/identifier 候选；不能修改原始事实。
 5. 点 `Validate on live app`。验证会在新 execution 中重新解析相同窗口，只调用 find/read/release，结果不会触发控件。

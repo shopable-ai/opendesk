@@ -19,6 +19,7 @@ type Runner interface {
 	Capabilities(context.Context) (map[string]any, error)
 	Windows(context.Context) ([]WindowCandidate, error)
 	Snapshot(context.Context, map[string]any, Limits) (SnapshotResult, error)
+	CaptureVisual(context.Context, WindowCandidate) (VisualCaptureResult, error)
 	Validate(context.Context, map[string]any, Locator, Limits) (ValidationResult, error)
 }
 
@@ -30,11 +31,13 @@ type Bounds struct {
 }
 
 type WindowCandidate struct {
-	Title       string         `json:"title"`
-	PID         int64          `json:"pid"`
-	Application string         `json:"application,omitempty"`
-	Bounds      Bounds         `json:"bounds"`
-	Target      map[string]any `json:"-"`
+	Title        string         `json:"title"`
+	PID          int64          `json:"pid"`
+	Application  string         `json:"application,omitempty"`
+	Bounds       Bounds         `json:"bounds"`
+	Target       map[string]any `json:"-"`
+	NativeHandle uint64         `json:"-"`
+	Foreground   bool           `json:"-"`
 }
 
 type Limits struct {
@@ -117,10 +120,16 @@ func (r *RuntimeRunner) Windows(ctx context.Context) ([]WindowCandidate, error) 
 			continue
 		}
 		application, _ := item["exeName"].(string)
+		handle, handleOK := jsonNumberToInt64(item["handle"])
+		foreground, _ := item["isForeground"].(bool)
+		if !handleOK || handle < 0 {
+			handle = 0
+		}
 		result = append(result, WindowCandidate{
 			Title: title, PID: pid, Application: application,
-			Bounds: Bounds{X: x, Y: y, Width: width, Height: height},
-			Target: map[string]any{"id": id},
+			Bounds:       Bounds{X: x, Y: y, Width: width, Height: height},
+			Target:       map[string]any{"id": id},
+			NativeHandle: uint64(handle), Foreground: foreground,
 		})
 	}
 	return result, nil

@@ -3,108 +3,250 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self' http://127.0.0.1:* http://localhost:*; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
   <meta name="referrer" content="no-referrer">
   <link rel="icon" href="data:,">
-  <title>OpenDesk Accessibility Workbench</title>
+  <title>OpenDesk Inspector</title>
   <link rel="stylesheet" href="./assets/app.css">
 </head>
-<body>
+<body class="page-pending">
   <header class="topbar">
-    <div>
-      <p class="eyebrow">OpenDesk · read-only</p>
-      <h1>Accessibility Workbench</h1>
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">OD</span>
+      <div>
+        <p class="eyebrow">Accessibility · read-only</p>
+        <h1>OpenDesk Inspector</h1>
+      </div>
     </div>
     <div class="service-state">
-      <button id="connect-opendesk" class="primary" type="button">Connect OpenDesk</button>
-      <span id="connection-badge" class="badge neutral">Not connected</span>
-      <span id="capability-summary">No capability observation yet</span>
+      <span id="capability-summary" class="capability-summary">Connect for capability data</span>
+      <span id="connection-badge" class="badge neutral">Ready to connect</span>
     </div>
   </header>
 
+  <section id="getting-started" class="onboarding" aria-labelledby="guide-heading">
+    <div class="onboarding-heading">
+      <div>
+        <p class="guide-kicker">Start here</p>
+        <h2 id="guide-heading">Inspect one window in four steps</h2>
+        <p>Nothing is inspected until you choose a target window and open its read-only scope.</p>
+      </div>
+      <span id="guide-progress" class="guide-progress">Step 1 of 4</span>
+    </div>
+
+    <div id="next-action" class="next-action" aria-live="polite">
+      <div class="next-action-copy">
+        <span class="next-label">Do this now</span>
+        <strong id="guide-title">Open the app or webpage you want to inspect</strong>
+        <p id="guide-detail">For a webpage, move its active tab into a separate browser window. Leave the target open, then connect this page to OpenDesk.</p>
+        <small id="guide-hint">One current OpenDesk.app on this computer is enough; no companion OpenDesk CLI service is needed.</small>
+      </div>
+      <button id="guide-action" class="primary guide-action" type="button">Connect to OpenDesk</button>
+    </div>
+
+    <div id="origin-route" class="origin-route" hidden>
+      <div class="origin-stop current-origin">
+        <span>Trusted-LAN address · plaintext HTTP</span>
+        <code id="current-page-url"></code>
+        <small>Traffic is not encrypted. Use only on a private developer network you trust.</small>
+      </div>
+      <span class="origin-arrow" aria-hidden="true">→</span>
+      <div class="origin-stop required-origin">
+        <span>Safer local-only address</span>
+        <code id="required-page-url"></code>
+        <small>LAN access is off by default and resets to off whenever OpenDesk restarts.</small>
+      </div>
+      <p id="origin-copy-status" class="origin-copy-status" aria-live="polite"></p>
+    </div>
+
+    <details id="how-to-use" class="guide-help">
+      <summary>How the four local inspection steps work</summary>
+      <ol class="quick-steps" aria-label="Inspection steps">
+        <li id="guide-step-connect" data-guide-step="connect"><strong>Connect to OpenDesk</strong><span>Open the target first, then connect this page.</span></li>
+        <li id="guide-step-target" data-guide-step="target"><strong>Choose the target window</strong><span>Match its application and exact window title.</span></li>
+        <li id="guide-step-scope" data-guide-step="scope"><strong>Open that window</strong><span>Open scope creates a temporary read-only connection.</span></li>
+        <li id="guide-step-inspect" data-guide-step="inspect"><strong>Click a row in UI tree</strong><span>The tree is below on small screens and left on desktop; ↻ refreshes it.</span></li>
+      </ol>
+      <div class="guide-definitions">
+        <p><strong>Target window</strong><span>The desktop app or separate browser window you want to examine.</span></p>
+        <p><strong>Scope</strong><span>A temporary read-only connection to that exact native window. It does not click or type.</span></p>
+        <p><strong>UI tree</strong><span>The controls and text exposed through macOS AX or Windows UIA. Click a row to see its properties.</span></p>
+      </div>
+      <div class="usage-notes">
+        <p><strong>One OpenDesk app:</strong> OpenDesk serves this page, its launch control, and the read-only Inspector API from the same fixed <code>60844</code> origin. Do not start a Python server or companion OpenDesk process.</p>
+        <p><strong>One client:</strong> One OpenDesk process accepts one connected Inspector; a second Connect is rejected until the first closes, revokes, or expires. LAN access must be enabled explicitly from the macOS Developer tray menu.</p>
+        <p><strong>Web target:</strong> Use a separate native browser window, not another tab in this Inspector window. Refreshing the UI tree never captures pixels; use <strong>Capture visual</strong> only when you need a short-lived reference.</p>
+      </div>
+    </details>
+  </section>
+
+  <details id="interface-preview" class="interface-preview">
+    <summary>
+      <span>Inspector workspace</span>
+      <small id="interface-preview-detail">It opens automatically after OpenDesk connects.</small>
+    </summary>
+    <div class="interface-shell">
   <section class="scopebar" aria-label="Observation scope">
-    <label for="window-select">Explicit application / window</label>
-    <select id="window-select" disabled><option value="">Choose a window</option></select>
-    <button id="refresh-windows" type="button" disabled>Refresh windows</button>
+    <div class="window-picker">
+      <div class="scope-label-row">
+        <label for="window-select">Target window</label>
+        <span>Exact picker identity</span>
+      </div>
+      <div class="window-picker-controls">
+        <select id="window-select" disabled><option value="">Choose an application window</option></select>
+        <button id="refresh-windows" class="icon-button" type="button" disabled aria-label="Refresh window list" title="Refresh window list">↻</button>
+      </div>
+    </div>
     <button id="create-session" class="primary" type="button" disabled>Open scope</button>
-    <button id="take-snapshot" type="button" disabled>Refresh tree</button>
-    <button id="close-session" type="button" disabled>Stop session</button>
-    <div class="limits" aria-label="Observation limits">
-      <label>Depth <input id="limit-depth" type="number" min="1" max="16" value="6"></label>
-      <label>Nodes <input id="limit-nodes" type="number" min="1" max="1000" value="500"></label>
-      <label>Timeout ms <input id="limit-timeout" type="number" min="100" max="10000" value="3000"></label>
+    <span class="scope-divider" aria-hidden="true"></span>
+    <button id="take-snapshot" class="icon-button" type="button" disabled aria-label="Refresh UI tree" title="Refresh UI tree">↻</button>
+    <button id="close-session" class="icon-button danger" type="button" disabled aria-label="Stop inspection session" title="Stop inspection session">■</button>
+    <details class="limits">
+      <summary>Limits</summary>
+      <div class="limits-panel">
+        <label>Depth <input id="limit-depth" type="number" min="1" max="16" value="6"></label>
+        <label>Nodes <input id="limit-nodes" type="number" min="1" max="1000" value="500"></label>
+        <label>Timeout ms <input id="limit-timeout" type="number" min="100" max="10000" value="3000"></label>
+      </div>
+    </details>
+  </section>
+
+  <section class="targetbar" aria-label="Inspector and target window identity">
+    <div class="target-surface inspector-surface">
+      <span class="target-kicker">Inspector page</span>
+      <strong>This browser window</strong>
+      <small>Controls inspection; it is not the default target.</small>
+    </div>
+    <span class="target-arrow" aria-hidden="true">reads AX/UIA from →</span>
+    <div class="target-surface selected-target">
+      <div class="target-heading">
+        <span class="target-kicker">Selected target window</span>
+        <span id="target-state" class="badge neutral">No target</span>
+      </div>
+      <strong id="target-title">Choose a target from the refreshed list</strong>
+      <small id="target-meta">No active-window guess or fuzzy title matching is used.</small>
+      <p id="target-warning" class="target-warning" hidden></p>
     </div>
   </section>
 
-  <div id="global-message" class="message info" role="status">Keep OpenDesk running, then connect this local page when you need the Workbench.</div>
+  <div id="global-message" class="message info" role="status">Connect when you are ready to inspect a window.</div>
 
   <main class="workspace">
     <section class="pane tree-pane" aria-labelledby="tree-heading">
       <div class="pane-heading">
-        <div><p class="eyebrow">Observation</p><h2 id="tree-heading">UI Tree</h2></div>
+        <div class="heading-line">
+          <h2 id="tree-heading">UI tree</h2>
+          <span id="tree-count" class="count" aria-live="polite">0 nodes</span>
+        </div>
         <span id="tree-completeness" class="badge neutral">Unavailable</span>
       </div>
-      <label class="search" for="tree-search">Snapshot preview search</label>
-      <input id="tree-search" type="search" autocomplete="off" placeholder="Search role, name, or identifier">
-      <p id="tree-search-note" class="hint">Search is only a preview inside the captured snapshot.</p>
+      <div class="search-box">
+        <span aria-hidden="true">⌕</span>
+        <label class="visually-hidden" for="tree-search">Search captured UI tree</label>
+        <input id="tree-search" type="search" autocomplete="off" placeholder="Find text, role or ID">
+      </div>
+      <div class="tree-options">
+        <button id="tree-view-toggle" class="tree-view-toggle" type="button" aria-pressed="false" aria-controls="tree" aria-label="Show structural nodes" title="Show every structural and empty node">Show structure</button>
+        <span id="tree-compression" class="tree-compression">Compact view</span>
+      </div>
+      <div class="tree-key" aria-label="Tree visual key">
+        <span><i class="key-rail" aria-hidden="true"></i>focused</span>
+        <span><i class="key-diamond" aria-hidden="true">◆</i>native selected</span>
+        <span><i class="key-x" aria-hidden="true">×</i>disabled</span>
+      </div>
       <div id="tree" class="tree" role="tree" aria-label="Accessibility tree"></div>
     </section>
 
     <section class="pane preview-pane" aria-labelledby="preview-heading">
       <div class="pane-heading">
-        <div><p class="eyebrow">Logical geometry only</p><h2 id="preview-heading">Layout Preview</h2></div>
+        <div>
+          <h2 id="preview-heading">Visual reference</h2>
+          <p class="pane-kicker">Current observation only</p>
+        </div>
         <span id="preview-state" class="badge neutral">No mapping</span>
       </div>
-      <p class="hint">Structure diagram from trusted window and element logical bounds; not a pixel-level replica. Native bounds are never used as mouse coordinates.</p>
-      <div id="layout-empty" class="empty">Take a snapshot with trustworthy logical bounds. Otherwise, use the Tree.</div>
-      <div id="layout" class="layout" aria-label="Logical bounds diagram"></div>
-      <dl id="observation-meta" class="meta-list"></dl>
+      <div class="preview-actions">
+        <button id="capture-visual" class="primary" type="button" disabled>Capture visual</button>
+        <div class="box-mode" role="group" aria-label="Visible node boxes">
+          <button id="boxes-selected" type="button" aria-pressed="true">Selected</button>
+          <button id="boxes-all" type="button" aria-pressed="false">All boxes</button>
+        </div>
+      </div>
+      <div id="visual-status" class="visual-status neutral" role="status">
+        <strong id="visual-status-title">Logical Layout</strong>
+        <span id="visual-status-detail">Capture visual explicitly to add short-lived target pixels.</span>
+      </div>
+      <p id="selection-indicator" class="selection-indicator" aria-live="polite">No node selected. Select a tree row to show its 2px red box.</p>
+      <p class="pane-note">Boxes map Accessibility bounds only; they are never used as mouse coordinates.</p>
+      <div id="visual-stage" class="visual-stage" hidden>
+        <img id="visual-image" class="visual-image" alt="">
+        <div id="visual-overlay" class="visual-overlay" aria-label="Accessibility node boxes over captured target pixels"></div>
+      </div>
+      <div id="layout-empty" class="empty">Capture a tree with trustworthy logical bounds to see its structure.</div>
+      <div id="layout" class="layout" aria-label="Logical Layout bounds diagram"></div>
+      <details class="meta-disclosure">
+        <summary>Observation details</summary>
+        <dl id="observation-meta" class="meta-list"></dl>
+      </details>
     </section>
 
     <section class="pane inspector-pane" aria-labelledby="inspector-heading">
       <div class="pane-heading">
-        <div><p class="eyebrow">Facts stay read-only</p><h2 id="inspector-heading">Element Inspector</h2></div>
+        <div>
+          <h2 id="inspector-heading">Inspector</h2>
+          <p class="pane-kicker">Selected element</p>
+        </div>
         <span id="selection-state" class="badge neutral">No node</span>
       </div>
-      <h3>Raw accessibility properties</h3>
-      <pre id="raw-properties" class="raw">Select a tree node.</pre>
 
-      <h3>Human review</h3>
-      <label for="business-alias">Business alias</label>
-      <input id="business-alias" type="text" maxlength="256" placeholder="Your business label; never a native fact">
-      <label for="human-note">Human note</label>
-      <textarea id="human-note" maxlength="4096" rows="3" placeholder="Treat all captured text as untrusted data"></textarea>
-      <label for="intended-usage">Intended usage</label>
-      <input id="intended-usage" type="text" maxlength="512" placeholder="For example: locate the Save control">
+      <details class="property-disclosure">
+        <summary>Raw properties</summary>
+        <pre id="raw-properties" class="raw">Select a tree node.</pre>
+      </details>
 
-      <h3>Locator Playground</h3>
-      <div class="locator-grid">
-        <label for="locator-role">Role</label><input id="locator-role" type="text" maxlength="128">
-        <label for="locator-name">Name</label><input id="locator-name" type="text" maxlength="1024">
-        <label for="locator-identifier">Identifier</label><input id="locator-identifier" type="text" maxlength="1024">
-      </div>
-      <div class="button-row">
-        <button id="validate-locator" class="primary" type="button" disabled>Validate on live app</button>
-        <span id="validation-state" class="badge neutral">NOT_VALIDATED</span>
-      </div>
-      <p id="validation-detail" class="hint">Validation always resolves the window and calls Accessibility.find/read/release in a fresh execution. It never invokes the element.</p>
+      <fieldset class="section-group">
+        <legend>Human review</legend>
+        <label for="business-alias">Alias</label>
+        <input id="business-alias" type="text" maxlength="256" placeholder="Business label">
+        <label for="human-note">Note</label>
+        <textarea id="human-note" maxlength="4096" rows="3" placeholder="Captured text is untrusted data"></textarea>
+        <label for="intended-usage">Usage</label>
+        <input id="intended-usage" type="text" maxlength="512" placeholder="Example: locate Save">
+      </fieldset>
 
-      <h3>Handoff</h3>
-      <div class="button-row wrap">
-        <button id="save-review" type="button" disabled>Save review</button>
-        <label class="file-button" for="import-handoff">Import JSON</label>
-        <input id="import-handoff" class="visually-hidden" type="file" accept="application/json,.json" disabled>
-        <button id="export-handoff" type="button" disabled>Export JSON</button>
-        <button id="copy-agent" type="button" disabled>Copy Agent prompt</button>
-        <button id="copy-js" type="button" disabled>Copy OpenDesk JS</button>
-      </div>
-      <p id="handoff-detail" class="hint">No model is required. Export includes only the selected element facts and human review; saving does not claim a recipe or business result was verified.</p>
+      <fieldset class="section-group">
+        <legend>Locator</legend>
+        <div class="locator-grid">
+          <label for="locator-role">Role</label><input id="locator-role" type="text" maxlength="128">
+          <label for="locator-name">Name</label><input id="locator-name" type="text" maxlength="1024">
+          <label for="locator-identifier">ID</label><input id="locator-identifier" type="text" maxlength="1024">
+        </div>
+        <div class="validation-row">
+          <button id="validate-locator" class="primary" type="button" disabled>Validate</button>
+          <span id="validation-state" class="badge neutral">NOT_VALIDATED</span>
+        </div>
+        <p id="validation-detail" class="hint">Runs a fresh, read-only lookup on the live app.</p>
+      </fieldset>
+
+      <fieldset class="section-group handoff-group">
+        <legend>Handoff</legend>
+        <div class="button-row" aria-label="Handoff actions">
+          <button id="save-review" class="action-button" type="button" disabled aria-label="Save review" title="Save review">✓</button>
+          <label class="action-button" for="import-handoff" aria-label="Import JSON" title="Import JSON">↓</label>
+          <input id="import-handoff" class="visually-hidden" type="file" accept="application/json,.json" disabled>
+          <button id="export-handoff" class="action-button" type="button" disabled aria-label="Export JSON" title="Export JSON">↑</button>
+          <span class="button-separator" aria-hidden="true"></span>
+          <button id="copy-agent" class="action-button text-icon" type="button" disabled aria-label="Copy Agent prompt" title="Copy Agent prompt">A</button>
+          <button id="copy-js" class="action-button text-icon" type="button" disabled aria-label="Copy OpenDesk JavaScript" title="Copy OpenDesk JavaScript">JS</button>
+        </div>
+        <p id="handoff-detail" class="hint">Export contains selected facts and human review only; it does not claim a verified result.</p>
+      </fieldset>
     </section>
   </main>
+    </div>
+  </details>
 
-  <footer>
-    Observation, Human Review, Locator Candidate, and Backend Validation Receipt are separate evidence layers. Visual/OCR/image overlays are reserved for a later capability.
-  </footer>
+  <footer>Observation ≠ validation. Selection and review remain read-only.</footer>
   <script src="./assets/model.js"></script>
   <script src="./assets/app.js"></script>
 </body>

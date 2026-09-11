@@ -20,6 +20,8 @@ EXECUTABLE_STAGE="${DIST_DIR}/.opendesk-build.$$"
 UI_HOST_PATH="${HELPERS_DIR}/opendesk-ui-host"
 CLAWDESK_UI_HOST_PATH="${HELPERS_DIR}/clawdesk-ui-host"
 STATUS_HELPER_PATH="${HELPERS_DIR}/opendesk-status"
+INSPECTOR_WEB_SOURCE="${ROOT_DIR}/apps/inspector_web"
+INSPECTOR_WEB_PATH="${RESOURCES_DIR}/inspector_web"
 PLIST_PATH="${CONTENTS_DIR}/Info.plist"
 APP_ICON_SOURCE="${ROOT_DIR}/public/icons/opendesk.icns"
 APP_ICON_NAME="OpenDesk.icns"
@@ -72,6 +74,12 @@ if [[ ! -f "${APP_ICON_SOURCE}" ]]; then
   printf 'App icon is missing: %s\nRun scripts/generate_app_icons.sh first.\n' "${APP_ICON_SOURCE}" >&2
   exit 1
 fi
+for inspector_asset in index.html assets/app.css assets/app.js assets/model.js; do
+  if [[ ! -f "${INSPECTOR_WEB_SOURCE}/${inspector_asset}" ]]; then
+    printf 'Inspector frontend asset is missing: %s\n' "${INSPECTOR_WEB_SOURCE}/${inspector_asset}" >&2
+    exit 1
+  fi
+done
 
 rm -rf "${APP_ROOT}"
 mkdir -p "${MACOS_DIR}" "${HELPERS_DIR}" "${RESOURCES_DIR}"
@@ -81,6 +89,8 @@ cp "${DIST_DIR}/opendesk-ui-host" "${UI_HOST_PATH}"
 cp "${DIST_DIR}/opendesk-ui-host" "${CLAWDESK_UI_HOST_PATH}"
 cp "${DIST_DIR}/opendesk-status" "${STATUS_HELPER_PATH}"
 cp "${APP_ICON_SOURCE}" "${RESOURCES_DIR}/${APP_ICON_NAME}"
+mkdir -p "${INSPECTOR_WEB_PATH}"
+rsync -a --delete --exclude README.md --exclude accessibility-workbench "${INSPECTOR_WEB_SOURCE}/" "${INSPECTOR_WEB_PATH}/"
 shasum -a 256 "${EXECUTABLE_PATH}" >"${RESOURCES_DIR}/opendesk-payload.sha256"
 rsync -a --delete "${ROOT_DIR}/polyfills/" "${MACOS_DIR}/polyfills/"
 rsync -a --delete "${ROOT_DIR}/jslibs/" "${MACOS_DIR}/jslibs/"
@@ -199,6 +209,7 @@ printf 'Built binary: %s\n' "${DIST_DIR}/opendesk"
 printf 'Built custom UI host: %s\n' "${UI_HOST_PATH}"
 printf 'Built Clawdesk compatibility host: %s\n' "${CLAWDESK_UI_HOST_PATH}"
 printf 'Built macOS status helper: %s\n' "${STATUS_HELPER_PATH}"
+printf 'Bundled Inspector frontend: %s\n' "${INSPECTOR_WEB_PATH}"
 printf 'Built app: %s\n' "${APP_ROOT}"
 printf 'Bundle id: %s\n' "${BUNDLE_ID}"
 if [[ "${SKIP_CODESIGN:-0}" == "1" ]]; then

@@ -14,6 +14,12 @@
 
 OpenDesk 继续保留现有脚本运行方式，同时新增可打包、可双击启动的 App Mode。App Mode 不是第二套 JavaScript Runtime，而是在现有 Execution 外增加一个轻量 App Shell，负责操作系统级应用生命周期和入口。
 
+这里的 App Mode tray owner 与普通 `OpenDesk.app` HTTP 服务的 `cmd/opendesk-status` helper 不同。普通 macOS 服务状态项固定包含
+Status、Scheduler、Developer 和 Quit；Developer 子菜单提供 **Open Inspector**、进程内 **Allow Inspector from LAN** checkbox
+和 **Copy Inspector LAN URL**。helper 不持有 Inspector bearer/session，也不直接修改 server 内存；主进程启动时生成随机 control
+token，仅通过 helper argv 传入，helper 经 `127.0.0.1:60844` 的内部 endpoint 查询／切换状态。LAN 选项不持久化，OpenDesk 重启
+恢复关闭。这组框架 Developer 动作不进入 App Mode manifest/action namespace。
+
 ```text
 OpenDesk App / executable
         |

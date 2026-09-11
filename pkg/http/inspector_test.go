@@ -5,8 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"image"
+	"image/color"
+	"image/png"
 	"io"
-	"net"
 	stdhttp "net/http"
 	"net/http/httptest"
 	"os"
@@ -20,15 +22,19 @@ import (
 )
 
 type inspectorFakeRunner struct {
-	mu              sync.Mutex
-	windows         []inspector.WindowCandidate
-	blockSnapshot   chan struct{}
-	releaseSnapshot chan struct{}
-	ignoreCancel    bool
-	snapshotErr     error
-	snapshotCalls   int
-	validationCalls int
-	lastLocator     inspector.Locator
+	mu                sync.Mutex
+	windows           []inspector.WindowCandidate
+	blockSnapshot     chan struct{}
+	releaseSnapshot   chan struct{}
+	ignoreCancel      bool
+	snapshotErr       error
+	snapshotCalls     int
+	validationCalls   int
+	captureCalls      int
+	lastLocator       inspector.Locator
+	lastCaptureWindow inspector.WindowCandidate
+	captureErr        error
+	captureResult     *inspector.VisualCaptureResult
 }
 
 func newInspectorFakeRunner() *inspectorFakeRunner {
@@ -94,6 +100,40 @@ func (f *inspectorFakeRunner) Snapshot(ctx context.Context, _ map[string]any, _ 
 	}, nil
 }
 
+func (f *inspectorFakeRunner) CaptureVisual(_ context.Context, window inspector.WindowCandidate) (inspector.VisualCaptureResult, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.captureCalls++
+	f.lastCaptureWindow = window
+	if f.captureErr != nil {
+		return inspector.VisualCaptureResult{}, f.captureErr
+	}
+	if f.captureResult != nil {
+		result := *f.captureResult
+		result.PNG = append([]byte(nil), f.captureResult.PNG...)
+		return result, nil
+	}
+	pngBytes := inspectorTestPNG(4, 3)
+	return inspector.VisualCaptureResult{
+		PNG: pngBytes, PixelWidth: 4, PixelHeight: 3,
+		Bounds: window.Bounds, CapturedAt: time.Now().UTC(),
+		Method: "fake-window-id", Scope: "exact-window",
+		ForegroundVerified: true, OcclusionRisk: false,
+	}, nil
+}
+
+func inspectorTestPNG(width, height int) []byte {
+	value := image.NewRGBA(image.Rect(0, 0, width, height))
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			value.SetRGBA(x, y, color.RGBA{R: uint8(20 + x), G: uint8(40 + y), B: 80, A: 255})
+		}
+	}
+	var output bytes.Buffer
+	_ = png.Encode(&output, value)
+	return output.Bytes()
+}
+
 func (f *inspectorFakeRunner) Validate(_ context.Context, _ map[string]any, locator inspector.Locator, _ inspector.Limits) (inspector.ValidationResult, error) {
 	f.mu.Lock()
 	f.validationCalls++
@@ -105,69 +145,21 @@ func (f *inspectorFakeRunner) Validate(_ context.Context, _ map[string]any, loca
 	}, nil
 }
 
-func TestAccessibilityWorkbenchDedicatedAPIServerIsLoopbackAndRouteIsolated(t *testing.T) {
-	server := newAccessibilityWorkbenchServer("0", t.TempDir())
-	listener, err := server.Listen()
-	if err != nil {
-		t.Fatal(err)
-	}
-	address := listener.Addr().(*net.TCPAddr)
-	if !address.IP.IsLoopback() || !address.IP.Equal(net.ParseIP("127.0.0.1")) {
-		t.Fatalf("Workbench listener = %s, want IPv4 loopback", listener.Addr())
-	}
-	done := make(chan error, 1)
-	go func() { done <- server.Serve(listener) }()
-	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-		defer cancel()
-		_ = server.Shutdown(ctx)
-		<-done
-	})
-
-	base := "http://" + listener.Addr().String()
-	for _, path := range []string{"/accessibility-workbench", "/accessibility-workbench/assets/app.js", "/status", "/executions", "/scheduler", "/vision/ocr"} {
-		response, err := stdhttp.Get(base + path)
-		if err != nil {
-			t.Fatal(err)
-		}
-		response.Body.Close()
-		if response.StatusCode != stdhttp.StatusNotFound {
-			t.Errorf("isolated route %s status = %d, want 404", path, response.StatusCode)
+func TestInspectorUnitMuxContainsOnlyReadOnlyInspectorRoutes(t *testing.T) {
+	handler := newInspectorHTTPTestHandler(t, newInspectorFakeRunner())
+	for _, path := range []string{"/accessibility-workbench/", "/status", "/executions", "/scheduler", "/vision/ocr", "/api/mcp"} {
+		request := httptest.NewRequest(stdhttp.MethodGet, "http://127.0.0.1:60844"+path, nil)
+		request.RemoteAddr = "127.0.0.1:41000"
+		response := httptest.NewRecorder()
+		setupInspectorRoutes(handler).ServeHTTP(response, request)
+		if response.Code != stdhttp.StatusNotFound {
+			t.Errorf("isolated Inspector unit route %s status = %d, want 404", path, response.Code)
 		}
 	}
-	launchURL, err := server.accessibilityWorkbenchPairingURL(listener)
-	if err != nil || !strings.HasPrefix(launchURL, base+"/#pair=") {
-		t.Fatalf("launch URL = %q, %v", launchURL, err)
+	perform := inspectorDo(t, handler, stdhttp.MethodPost, "/sessions/not-a-session/perform", map[string]any{"action": "invoke"}, nil)
+	if perform.Code != stdhttp.StatusUnauthorized && perform.Code != stdhttp.StatusNotFound {
+		t.Fatalf("mutating Inspector route status = %d", perform.Code)
 	}
-}
-
-func TestAccessibilityWorkbenchShutdownReleasesPort(t *testing.T) {
-	server := newAccessibilityWorkbenchServer("0", t.TempDir())
-	listener, err := server.Listen()
-	if err != nil {
-		t.Fatal(err)
-	}
-	address := listener.Addr().String()
-	done := make(chan error, 1)
-	go func() { done <- server.Serve(listener) }()
-	response, err := stdhttp.Get("http://" + address + "/accessibility-workbench")
-	if err != nil {
-		t.Fatal(err)
-	}
-	response.Body.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	if err := server.Shutdown(ctx); err != nil {
-		t.Fatal(err)
-	}
-	if err := <-done; err != nil && !errors.Is(err, stdhttp.ErrServerClosed) {
-		t.Fatal(err)
-	}
-	replacement, err := net.Listen("tcp", address)
-	if err != nil {
-		t.Fatalf("Workbench port was not released: %v", err)
-	}
-	_ = replacement.Close()
 }
 
 func TestInspectorTransportPairingAndSourceGuards(t *testing.T) {
@@ -182,14 +174,14 @@ func TestInspectorTransportPairingAndSourceGuards(t *testing.T) {
 		forwarded  bool
 		want       int
 	}{
-		{name: "non-browser explicit", host: "127.0.0.1:60845", remote: "127.0.0.1:41000", clientKind: "non-browser", want: 200},
-		{name: "browser same origin", host: "127.0.0.1:60845", remote: "[::1]:41000", origin: "http://127.0.0.1:60845", fetchSite: "same-origin", fetchMode: "cors", want: 200},
-		{name: "missing source metadata", host: "127.0.0.1:60845", remote: "127.0.0.1:41000", want: 403},
-		{name: "remote socket", host: "127.0.0.1:60845", remote: "192.0.2.10:41000", clientKind: "non-browser", want: 403},
-		{name: "forged host", host: "localhost:60845", remote: "127.0.0.1:41000", clientKind: "non-browser", want: 403},
-		{name: "cross origin", host: "127.0.0.1:60845", remote: "127.0.0.1:41000", origin: "http://evil.invalid", fetchSite: "cross-site", want: 403},
-		{name: "null origin", host: "127.0.0.1:60845", remote: "127.0.0.1:41000", origin: "null", want: 403},
-		{name: "forwarded", host: "127.0.0.1:60845", remote: "127.0.0.1:41000", clientKind: "non-browser", forwarded: true, want: 403},
+		{name: "non-browser explicit", host: "127.0.0.1:60844", remote: "127.0.0.1:41000", clientKind: "non-browser", want: 200},
+		{name: "browser same origin", host: "127.0.0.1:60844", remote: "[::1]:41000", origin: "http://127.0.0.1:60844", fetchSite: "same-origin", fetchMode: "cors", want: 200},
+		{name: "missing source metadata", host: "127.0.0.1:60844", remote: "127.0.0.1:41000", want: 403},
+		{name: "remote socket", host: "127.0.0.1:60844", remote: "192.0.2.10:41000", clientKind: "non-browser", want: 403},
+		{name: "forged host", host: "localhost:60844", remote: "127.0.0.1:41000", clientKind: "non-browser", want: 403},
+		{name: "cross origin", host: "127.0.0.1:60844", remote: "127.0.0.1:41000", origin: "http://evil.invalid", fetchSite: "cross-site", want: 403},
+		{name: "null origin", host: "127.0.0.1:60844", remote: "127.0.0.1:41000", origin: "null", want: 403},
+		{name: "forwarded", host: "127.0.0.1:60844", remote: "127.0.0.1:41000", clientKind: "non-browser", forwarded: true, want: 403},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -314,6 +306,167 @@ func TestInspectorInputAndResponseLimits(t *testing.T) {
 	}
 }
 
+func TestInspectorVisualCaptureAuthenticationFreshnessAndPayloadBoundary(t *testing.T) {
+	runner := newInspectorFakeRunner()
+	handler := newInspectorHTTPTestHandler(t, runner)
+	pair := inspectorDo(t, handler, stdhttp.MethodPost, "/pair", map[string]any{"code": handler.inspector.pairCode}, nil)
+	bearer := inspectorDataString(t, pair, "token")
+	auth := map[string]string{"Authorization": "Bearer " + bearer}
+	windows := inspectorEnvelopeData(t, inspectorDo(t, handler, stdhttp.MethodGet, "/windows", nil, auth)).([]any)
+	windowID := windows[0].(map[string]any)["windowId"].(string)
+	created := inspectorEnvelopeData(t, inspectorDo(t, handler, stdhttp.MethodPost, "/sessions", map[string]any{
+		"windowId": windowID,
+	}, auth)).(map[string]any)
+	sessionID := created["sessionId"].(string)
+	sessionToken := created["sessionToken"].(string)
+	sessionAuth := map[string]string{
+		"Authorization": "Bearer " + bearer, "X-OpenDesk-Inspector-Session": sessionToken,
+	}
+	observed := inspectorEnvelopeData(t, inspectorDo(t, handler, stdhttp.MethodPost,
+		"/sessions/"+sessionID+"/observations", map[string]any{}, sessionAuth)).(map[string]any)
+	observationID := observed["observationId"].(string)
+	generation := int64(observed["generation"].(float64))
+	path := "/sessions/" + sessionID + "/visual-captures"
+	input := map[string]any{"observationId": observationID, "generation": generation}
+
+	if response := inspectorDo(t, handler, stdhttp.MethodPost, path, input, nil); response.Code != stdhttp.StatusUnauthorized {
+		t.Fatalf("unauthorized visual capture = %d, want 401", response.Code)
+	}
+	if response := inspectorDo(t, handler, stdhttp.MethodPost, path, input, map[string]string{
+		"Authorization": "Bearer " + bearer, "X-OpenDesk-Inspector-Session": "wrong",
+	}); response.Code != stdhttp.StatusNotFound {
+		t.Fatalf("wrong-session visual capture = %d, want 404", response.Code)
+	}
+	for _, forbidden := range []map[string]any{
+		{"observationId": observationID, "generation": generation, "path": "/tmp/leak.png"},
+		{"observationId": observationID, "generation": generation, "clip": map[string]any{"x": 0, "y": 0, "width": 10, "height": 10}},
+	} {
+		if response := inspectorDo(t, handler, stdhttp.MethodPost, path, forbidden, sessionAuth); response.Code != stdhttp.StatusBadRequest {
+			t.Fatalf("forbidden visual input %#v = %d, want 400", forbidden, response.Code)
+		}
+	}
+	if response := inspectorDo(t, handler, stdhttp.MethodPost, path, map[string]any{
+		"observationId": "observation-other", "generation": generation,
+	}, sessionAuth); response.Code != stdhttp.StatusConflict {
+		t.Fatalf("stale observation visual capture = %d, want 409", response.Code)
+	}
+	if response := inspectorDo(t, handler, stdhttp.MethodPost, path, map[string]any{
+		"observationId": observationID, "generation": generation + 1,
+	}, sessionAuth); response.Code != stdhttp.StatusConflict {
+		t.Fatalf("stale generation visual capture = %d, want 409", response.Code)
+	}
+
+	response := inspectorDo(t, handler, stdhttp.MethodPost, path, input, sessionAuth)
+	if response.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("visual capture Cache-Control = %q", response.Header().Get("Cache-Control"))
+	}
+	capture := inspectorEnvelopeData(t, response).(map[string]any)
+	if capture["schemaVersion"] != "opendesk.inspector.visual-capture/v1" ||
+		capture["sessionId"] != sessionID || capture["observationId"] != observationID ||
+		capture["generation"] != float64(generation) {
+		t.Fatalf("visual capture binding = %#v", capture)
+	}
+	imageValue := capture["image"].(map[string]any)
+	if dataURL, _ := imageValue["dataUrl"].(string); !strings.HasPrefix(dataURL, "data:image/png;base64,") {
+		t.Fatalf("visual image data URL = %q", dataURL)
+	}
+	provenance := capture["captureProvenance"].(map[string]any)
+	if provenance["method"] != "fake-window" && provenance["method"] != "fake" && provenance["method"] != "fake-window-id" {
+		t.Fatalf("visual provenance = %#v", provenance)
+	}
+	if provenance["scope"] != "exact-window" || provenance["occlusionRisk"] != false ||
+		provenance["foregroundVerified"] != true || provenance["focusChanged"] != false || provenance["persisted"] != false {
+		t.Fatalf("visual provenance = %#v", provenance)
+	}
+	capturedAt, err := time.Parse(time.RFC3339Nano, capture["capturedAt"].(string))
+	if err != nil {
+		t.Fatal(err)
+	}
+	expiresAt, err := time.Parse(time.RFC3339Nano, capture["expiresAt"].(string))
+	if err != nil || !expiresAt.After(time.Now()) {
+		t.Fatalf("visual expiresAt = %v, %v", expiresAt, err)
+	}
+	if lifetime := expiresAt.Sub(capturedAt); lifetime != inspectorVisualTTL {
+		t.Fatalf("visual lifetime = %v, want %v", lifetime, inspectorVisualTTL)
+	}
+	runner.mu.Lock()
+	lastWindow := runner.lastCaptureWindow
+	captureCalls := runner.captureCalls
+	runner.mu.Unlock()
+	if captureCalls != 1 || lastWindow.Target["id"] != "darwin:4242:native:77" ||
+		lastWindow.Bounds != (inspector.Bounds{X: -120, Y: 40, Width: 640, Height: 480}) {
+		t.Fatalf("capture window = %#v, calls=%d", lastWindow, captureCalls)
+	}
+	if err := filepath.Walk(handler.inspector.artifactRoot, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() && strings.EqualFold(filepath.Ext(path), ".png") {
+			t.Fatalf("visual capture was persisted at %s", path)
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	validPNG := inspectorTestPNG(4, 3)
+	runner.mu.Lock()
+	runner.captureResult = &inspector.VisualCaptureResult{
+		PNG: validPNG, PixelWidth: 4, PixelHeight: 3,
+		Bounds: inspector.Bounds{X: -120, Y: 40, Width: 640, Height: 480},
+		Scope:  "exact-window",
+	}
+	runner.mu.Unlock()
+	if response := inspectorDo(t, handler, stdhttp.MethodPost, path, input, sessionAuth); response.Code != stdhttp.StatusInternalServerError || !strings.Contains(response.Body.String(), "invalid provenance") {
+		t.Fatalf("invalid-provenance visual capture = %d %s", response.Code, response.Body.String())
+	}
+
+	runner.mu.Lock()
+	runner.captureResult = &inspector.VisualCaptureResult{
+		PNG: validPNG, PixelWidth: 4, PixelHeight: 3,
+		Bounds:     inspector.Bounds{X: -119, Y: 40, Width: 640, Height: 480},
+		CapturedAt: time.Now().UTC(), Method: "fake-window-id", Scope: "exact-window",
+	}
+	runner.mu.Unlock()
+	if response := inspectorDo(t, handler, stdhttp.MethodPost, path, input, sessionAuth); response.Code != stdhttp.StatusConflict {
+		t.Fatalf("changed-bounds visual capture = %d, want 409: %s", response.Code, response.Body.String())
+	}
+	status := inspectorEnvelopeData(t, inspectorDo(t, handler, stdhttp.MethodGet, "/sessions/"+sessionID, nil, sessionAuth)).(map[string]any)
+	latest := status["latestObservation"].(map[string]any)
+	if latest["freshness"] != "stale" || latest["staleReason"] != "STALE_TARGET" {
+		t.Fatalf("changed-bounds observation state = %#v", latest)
+	}
+
+	largeRunner := newInspectorFakeRunner()
+	largeRunner.captureResult = &inspector.VisualCaptureResult{
+		PNG: make([]byte, inspectorVisualPNGMaxBytes+1), PixelWidth: 1, PixelHeight: 1,
+		Bounds:     inspector.Bounds{X: -120, Y: 40, Width: 640, Height: 480},
+		CapturedAt: time.Now().UTC(), Method: "fake-window-id", Scope: "exact-window",
+	}
+	largeHandler := newInspectorHTTPTestHandler(t, largeRunner)
+	largePair := inspectorDo(t, largeHandler, stdhttp.MethodPost, "/pair", map[string]any{"code": largeHandler.inspector.pairCode}, nil)
+	largeBearer := inspectorDataString(t, largePair, "token")
+	largeAuth := map[string]string{"Authorization": "Bearer " + largeBearer}
+	largeWindows := inspectorEnvelopeData(t, inspectorDo(t, largeHandler, stdhttp.MethodGet, "/windows", nil, largeAuth)).([]any)
+	largeWindowID := largeWindows[0].(map[string]any)["windowId"].(string)
+	largeCreated := inspectorEnvelopeData(t, inspectorDo(t, largeHandler, stdhttp.MethodPost, "/sessions", map[string]any{
+		"windowId": largeWindowID,
+	}, largeAuth)).(map[string]any)
+	largeSessionID := largeCreated["sessionId"].(string)
+	largeSessionAuth := map[string]string{
+		"Authorization":                "Bearer " + largeBearer,
+		"X-OpenDesk-Inspector-Session": largeCreated["sessionToken"].(string),
+	}
+	largeObserved := inspectorEnvelopeData(t, inspectorDo(t, largeHandler, stdhttp.MethodPost,
+		"/sessions/"+largeSessionID+"/observations", map[string]any{}, largeSessionAuth)).(map[string]any)
+	largeResponse := inspectorDo(t, largeHandler, stdhttp.MethodPost, "/sessions/"+largeSessionID+"/visual-captures", map[string]any{
+		"observationId": largeObserved["observationId"], "generation": largeObserved["generation"],
+	}, largeSessionAuth)
+	if largeResponse.Code != stdhttp.StatusInternalServerError || strings.Contains(largeResponse.Body.String(), "data:image") {
+		t.Fatalf("oversize visual capture = %d %s", largeResponse.Code, largeResponse.Body.String())
+	}
+}
+
 func TestInspectorHTTPReadOnlyReviewImportAndHandoff(t *testing.T) {
 	runner := newInspectorFakeRunner()
 	handler := newInspectorHTTPTestHandler(t, runner)
@@ -370,8 +523,8 @@ func TestInspectorHTTPReadOnlyReviewImportAndHandoff(t *testing.T) {
 		t.Fatalf("value request status = %d, want 400", response.Code)
 	}
 	for _, path := range []string{"/executions", "/SCRIPT_RUN", "/status"} {
-		request := httptest.NewRequest(stdhttp.MethodGet, "http://127.0.0.1:60845"+path, nil)
-		request.Host, request.RemoteAddr = "127.0.0.1:60845", "127.0.0.1:41000"
+		request := httptest.NewRequest(stdhttp.MethodGet, "http://127.0.0.1:60844"+path, nil)
+		request.Host, request.RemoteAddr = "127.0.0.1:60844", "127.0.0.1:41000"
 		response := httptest.NewRecorder()
 		setupInspectorRoutes(handler).ServeHTTP(response, request)
 		if response.Code != stdhttp.StatusNotFound {
@@ -460,9 +613,16 @@ func TestInspectorHTTPReadOnlyReviewImportAndHandoff(t *testing.T) {
 	if importReview["evidenceSource"] != "human-review-import" || !strings.HasPrefix(importReview["importSourceHash"].(string), "sha256:") {
 		t.Fatalf("import provenance = %#v", importReview)
 	}
+	if importReview["selectedNodeId"] != "node-2" {
+		t.Fatalf("import changed the selected node: %#v", importReview)
+	}
 	importHandoff := importData["handoff"].(map[string]any)
 	if importHandoff["locatorCandidate"].(map[string]any)["validationStatus"] != "NOT_VALIDATED" {
 		t.Fatalf("imported handoff trusted stale validation: %#v", importHandoff)
+	}
+	selectedFacts := importHandoff["observation"].(map[string]any)["selectedElementFacts"].(map[string]any)
+	if selectedFacts["identifier"] != "fixture.save" {
+		t.Fatalf("imported handoff changed selected element facts: %#v", selectedFacts)
 	}
 
 	if runner.snapshotCalls != 1 || runner.validationCalls != 1 {
@@ -772,7 +932,7 @@ func newInspectorHTTPTestHandler(t *testing.T, runner inspector.Runner) *Handler
 	t.Helper()
 	handler := &Handler{
 		inspector:     newInspectorService(runner, t.TempDir()),
-		inspectorHost: "127.0.0.1:60845",
+		inspectorHost: "127.0.0.1:60844",
 	}
 	t.Cleanup(handler.inspector.close)
 	return handler
@@ -788,9 +948,9 @@ func inspectorHTTPRequest(t *testing.T, method, path string, body any) *stdhttp.
 		}
 		reader = bytes.NewReader(encoded)
 	}
-	request := httptest.NewRequest(method, "http://127.0.0.1:60845"+inspectorAPIPrefix+path, reader)
+	request := httptest.NewRequest(method, "http://127.0.0.1:60844"+inspectorAPIPrefix+path, reader)
 	request.RemoteAddr = "127.0.0.1:41000"
-	request.Host = "127.0.0.1:60845"
+	request.Host = "127.0.0.1:60844"
 	request.Header.Set("X-OpenDesk-Inspector", "1")
 	request.Header.Set("X-OpenDesk-Inspector-Client", "non-browser")
 	if body != nil {
