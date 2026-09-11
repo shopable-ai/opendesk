@@ -66,12 +66,72 @@ try {
         throw "OpenDesk Windows application build failed ($LASTEXITCODE)."
     }
 
+    # Keep the Runtime-owned asset closure here, beside the canonical
+    # distribution assembly step. The Runtime resolves polyfills/jslibs from
+    # the executable directory, the notification icon from resources/, and
+    # predefined sounds from sounds/public/.
+    $runtimeAssetManifest = [Collections.Generic.List[object]]::new()
+    foreach ($assetDirectoryName in @('polyfills', 'jslibs')) {
+        $sourceAssetDirectory = Join-Path $root $assetDirectoryName
+        if (-not (Test-Path -LiteralPath $sourceAssetDirectory -PathType Container)) {
+            throw "Runtime asset source directory is missing: $sourceAssetDirectory"
+        }
+        $sourceAssetFiles = @(Get-ChildItem -LiteralPath $sourceAssetDirectory -File |
+            Where-Object { $_.Extension -eq '.js' } |
+            Sort-Object -Property Name)
+        if ($sourceAssetFiles.Count -eq 0) {
+            throw "Runtime asset source directory contains no JavaScript files: $sourceAssetDirectory"
+        }
+        $destinationAssetDirectory = Join-Path $OutputDirectory $assetDirectoryName
+        New-Item -ItemType Directory -Force -Path $destinationAssetDirectory | Out-Null
+        foreach ($sourceAssetFile in $sourceAssetFiles) {
+            $destinationAssetPath = Join-Path $destinationAssetDirectory $sourceAssetFile.Name
+            Copy-Item -LiteralPath $sourceAssetFile.FullName -Destination $destinationAssetPath -Force
+            $sourceHash = (Get-FileHash -LiteralPath $sourceAssetFile.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            $destinationHash = (Get-FileHash -LiteralPath $destinationAssetPath -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($destinationHash -ne $sourceHash) {
+                throw "Runtime asset hash mismatch after staging: $destinationAssetPath"
+            }
+            $runtimeAssetManifest.Add([ordered]@{
+                path = ($assetDirectoryName + '/' + $sourceAssetFile.Name)
+                sha256 = $destinationHash
+            })
+        }
+    }
+
+    $runtimeAssetFiles = @(
+        [ordered]@{ source = 'public/icons/opendesk-notification.png'; destination = 'resources/opendesk-notification.png' },
+        [ordered]@{ source = 'public/done.mp3'; destination = 'sounds/public/done.mp3' },
+        [ordered]@{ source = 'public/fail.mp3'; destination = 'sounds/public/fail.mp3' },
+        [ordered]@{ source = 'public/warn.mp3'; destination = 'sounds/public/warn.mp3' },
+        [ordered]@{ source = 'public/captcha.mp3'; destination = 'sounds/public/captcha.mp3' }
+    )
+    foreach ($asset in $runtimeAssetFiles) {
+        $sourceAssetPath = Join-Path $root $asset.source
+        if (-not (Test-Path -LiteralPath $sourceAssetPath -PathType Leaf)) {
+            throw "Runtime asset source file is missing: $sourceAssetPath"
+        }
+        $destinationAssetPath = Join-Path $OutputDirectory $asset.destination
+        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $destinationAssetPath) | Out-Null
+        Copy-Item -LiteralPath $sourceAssetPath -Destination $destinationAssetPath -Force
+        $sourceHash = (Get-FileHash -LiteralPath $sourceAssetPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        $destinationHash = (Get-FileHash -LiteralPath $destinationAssetPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($destinationHash -ne $sourceHash) {
+            throw "Runtime asset hash mismatch after staging: $destinationAssetPath"
+        }
+        $runtimeAssetManifest.Add([ordered]@{
+            path = $asset.destination
+            sha256 = $destinationHash
+        })
+    }
+
     $runtimePath = Join-Path $OutputDirectory 'opendesk.exe'
     $uiHostDirectory = Join-Path $OutputDirectory 'ui-host'
     $uiHostPath = Join-Path $uiHostDirectory 'opendesk-ui-host.exe'
     $uiHostProvenancePath = Join-Path $uiHostDirectory 'build-provenance.json'
 
-    foreach ($required in @($runtimePath, $uiHostPath, $uiHostProvenancePath)) {
+    $requiredRuntimeAssets = @($runtimeAssetManifest | ForEach-Object { Join-Path $OutputDirectory $_.path })
+    foreach ($required in @($runtimePath, $uiHostPath, $uiHostProvenancePath) + $requiredRuntimeAssets) {
         if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
             throw "Portable distribution is missing required file: $required"
         }
@@ -101,7 +161,7 @@ try {
     $uiHostFileCount = @(Get-ChildItem -LiteralPath $uiHostDirectory -File -Recurse).Count
 
     [ordered]@{
-        schemaVersion = 1
+        schemaVersion = 2
         artifact = 'opendesk-windows-portable-distribution'
         sourceCommit = $sourceCommit
         sourceDirty = $sourceDirty
@@ -114,6 +174,12 @@ try {
             runtime = 'opendesk.exe'
             nativeUIHost = 'ui-host/opendesk-ui-host.exe'
             nativeUIHostClosure = 'ui-host/'
+            runtimeAssets = [ordered]@{
+                polyfills = 'polyfills/'
+                javascriptLibraries = 'jslibs/'
+                notificationIcon = 'resources/opendesk-notification.png'
+                predefinedSounds = 'sounds/public/'
+            }
         }
         files = [ordered]@{
             runtime = [ordered]@{
@@ -127,6 +193,7 @@ try {
                 peMachine = ('0x{0:X4}' -f $uiHostMachine)
                 closureFileCount = $uiHostFileCount
             }
+            runtimeAssets = @($runtimeAssetManifest)
         }
         toolchain = [ordered]@{
             go = $goVersion

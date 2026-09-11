@@ -38,6 +38,15 @@ The canonical P0 layout follows the Runtime's existing Native UI Host discovery 
 dist/windows/win-x64/
 ├── opendesk.exe
 ├── distribution-provenance.json
+├── polyfills/
+│   └── ... Runtime bootstrap and compatibility JavaScript ...
+├── jslibs/
+│   └── ... Runtime JavaScript library closure ...
+├── resources/
+│   └── opendesk-notification.png
+├── sounds/
+│   └── public/
+│       └── ... predefined Runtime sounds ...
 └── ui-host/
     ├── opendesk-ui-host.exe
     ├── build-provenance.json
@@ -45,6 +54,8 @@ dist/windows/win-x64/
 ```
 
 `pkg/customui/process_driver.go` already looks for `ui-host/opendesk-ui-host.exe` relative to the running Runtime executable on Windows. The production bundle therefore needs no repository-relative fallback and no development-machine absolute path.
+
+`automation/utils.go` likewise resolves `polyfills/` and `jslibs/` from the Runtime executable before using repository/development fallbacks. The distribution builder owns the matching asset layout and records every staged Runtime asset with its SHA-256 digest. Default notification and sound resources follow their existing executable-relative discovery paths; application scripts, project Custom UI files, Native Extensions, and App Mode package assets remain application/user inputs and are not copied from the source tree.
 
 The UI host publish directory is replaced, not merged, on every build so stale files from another RID cannot survive into the bundle.
 
@@ -66,7 +77,7 @@ For the complete P0 application:
 
 ## Distribution provenance
 
-`distribution-provenance.json` records the source commit, dirty flag, target/runtime architecture, executable SHA-256 hashes, PE machine values, UI host closure count, Go/.NET toolchain versions, canonical build command, and build timestamp.
+`distribution-provenance.json` records the source commit, dirty flag, target/runtime architecture, executable SHA-256 hashes, PE machine values, UI host closure count, every Runtime asset path and SHA-256 digest, Go/.NET toolchain versions, canonical build command, and build timestamp.
 
 This is build provenance for the portable directory. It is not code signing or an installer trust chain.
 
@@ -79,6 +90,8 @@ The Windows Core workflow consumes the final staging directory for:
 - hosted-deterministic Native UI Host protocol smoke;
 - portable Runtime launch from a copied Unicode + space path;
 - non-repository current working directory;
+- manifest/hash closure for packaged polyfills, JavaScript libraries, notification icon, and predefined sounds;
+- real initialization of both the UI polyfill and a bundled JavaScript library;
 - Runtime-to-Native-UI-Host discovery through the bundled `ui-host/` path;
 - explicit failure after the bundled host is removed;
 - x64 PE/provenance consistency.
