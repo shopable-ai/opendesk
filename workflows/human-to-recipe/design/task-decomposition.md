@@ -8,13 +8,15 @@ order: 20
 
 **目标：从用户真实示范出发，形成有来源、可审阅、可验证并可维护的普通 OpenDesk JS；仅在确有必要时保留 Agent 判断。**
 
-状态：H1—H8 作业树基线，2026-09-10。H2/H3 已同步 Recorder v2 的观察事实；H4/H6 现有仓库内 `human-to-recipe` 与 behavior-preserving `recorder-script-refiner` Skill、最小 `SemanticBuildPlan` schema／validator 和单行任务交接，renderer 仍未实现。H5.2 已补齐点击目标的 Native／OCR／Visual／Geometry／Context 多源证据、文字绑定、语义化与重新定位要求；本次将 AX／UIA 的原生目标采集、重新定位、操作选择与独立验收要求整合进 H1—H8；这是作业要求的整合，不赋予新增接口、Windows Recorder 接线或端到端回放任何实现／通过资格。树中其他子作业不代表接口或工具已全部实现。返回[工作流入口](../README.md)；规范性 DQ 合同见 [Recorder 工程设计](recorder-design.md)，真实完成、证据与未运行项见[实施与验收计划](implementation-plan.md)。
+状态：H1—H8 作业树基线，2026-09-11。H2/H3 已同步 Recorder v2 的观察事实；H4/H6 现有仓库内 `human-to-recipe` 与 behavior-preserving `recorder-script-refiner` Skill、最小 `SemanticBuildPlan` schema／validator 和单行任务交接，renderer 仍未实现。H5.2 已补齐点击目标的 Native／OCR／Visual／Geometry／Context 多源证据、文字绑定、语义化与重新定位要求；AX／UIA 的原生目标采集、重新定位、操作选择与独立验收要求已整合进 H1—H8。本次仅补充 Human 来源与 Agent-to-Recipe 共享专业方法的映射：H1—H4 继续负责人工录制来源，H5 是按需组合共享 application-engineer、目标 trace-distill 与 procedure-synthesize 的阶段，不新增第二套专业实现。该映射不赋予 `trace-distill` 新 Skill、Windows Recorder 接线或端到端回放任何实现／通过资格。返回[工作流入口](../README.md)；规范性 DQ 合同见 [Recorder 工程设计](recorder-design.md)，真实完成、证据与未运行项见[实施与验收计划](implementation-plan.md)。
 
 ## 阅读方法
 
 H 编号只用于人工录制作业，不改写 Agent-to-Recipe 的 S 编号。树回答完整需要做什么；实际执行按工作包选择必要分支。一个叶子不等于一个文件、类、Skill 或 Agent。
 
 H2 采集事实，H3 整理事实，H5 理解与工程化；分析不阻塞采集。H4 与 H5 可循环，H7 按失败原因定向返回。简单坐标任务可跳过 H5 的深度分析；关键歧义、缺失、权限及不支持动作仍须说明和处理。缺口只阻塞依赖它的工作。
+
+Human Recorder 与 Agent-first 是两条不同来源链：人工路线的原始事实来自用户输入事件、窗口／控件／画面及 H3/H4 审阅；Agent-first 的事实来自 Agent 本次真实执行与 Dossier。两者在事实足够可消费后可以复用相同的应用工程、必要路径提炼、过程提炼、代码构建和资格方法，但不能把人工录制追认为 Agent 示范，也不能要求 Agent 路线先产生 Human Recorder 文件。
 
 点击目标理解不再分成“普通按钮”和“无文字图标”两套互不相干的链。只要本步骤需要语义增强，就统一检查可取得的 Native、OCR、Visual、Geometry 和 Context；有文字按钮优先利用可靠文字证据，无文字图标允许 OCR 为空并转由图形与上下文承担，不得把 OCR、AX 或模型任一单源当作天然真值。
 
@@ -183,7 +185,7 @@ H4. 审阅、纠错与补充示范
 │
 └─ H4.5 确认本次可继续的范围
    ├─ 保留修改前后版本、理由和来源
-   ├─ 标记已确认内容与仍然未知的内容，形成可交给 H5 的定位问题或可直接交给 H6 的受控步骤
+   ├─ 标记已确认内容与仍然未知的内容，形成 reviewed recording steps；可交 H5 做增强专业作业，或由简单受控路径直接交 H6
    └─ 未知项只阻塞依赖它的工作，不一律要求全部重录
 ```
 
@@ -277,8 +279,9 @@ H5. Agent 理解、过程提炼与操作工程化【按需增强】
 │  ├─ 开关／复选框：当前状态与期望状态
 │  └─ 窗口／应用切换：对象身份、焦点和数据交接
 │
-├─ H5.4 提炼业务过程与数据关系
-│  ├─ 将低层动作组织为有目的的业务步骤
+├─ H5.4 提炼必要路径、业务过程与数据关系
+│  ├─ 对需要增强的 reviewed recording steps，先按共享 trace-distill 方法形成有来源的必要路径；不修改原始 recording/actions
+│  ├─ 将必要操作组织为有目的的业务步骤；动作 retain／merge／omit／recovery 主责不在过程层维护第二套真相
 │  ├─ 保留必要准备、读取、等待与验证
 │  ├─ 区分常量、输入参数、运行时读值和敏感信息
 │  ├─ 明确步骤之间的数据来源与消费者
@@ -303,14 +306,22 @@ H5. Agent 理解、过程提炼与操作工程化【按需增强】
    ├─ 哪些判断需要 Agent，哪些需要人工授权
    ├─ 支持哪些输入、布局、主题、缩放和应用状态
    ├─ 哪些认识只是候选，哪些规则已有测试依据
-   └─ 将已确认过程、locator 来源／验证记录、动作策略、后置条件及未知项交给代码生成
+   └─ 将已确认 DistilledSteps／SemanticProcedure、locator 来源／验证记录、动作策略、后置条件及未知项交给代码生成
 ```
 
 ### H5 的职责边界
 
 Agent 主导陌生界面的布局、组件、语义和关系分析；程序承担有界原生查询、唯一性与状态检查、材料组织、OCR 调度与来源记录、坐标映射、结构校验、确定性视图和已验证规则执行；人工处理必要纠错与授权。不是固定先跑完传统规则，全部失败才问模型；也不是每次点击都重新调用模型。
 
-界面结构、图标归属、定位和应用操作复用 [application-engineer](../../agent-to-recipe/skills/application-engineer/SKILL.md) 及[应用操作专业正文](../../agent-to-recipe/design/application-operations.md)。业务步骤、参数、循环和数据流属于过程提炼；代码构建与独立验收不归应用工程。一个 Agent 可以连续承担这些专业作业，不能据职责名称宣称相应 Skill 全部已实现。
+H5 是 Human Recorder 来源工作流中的**共享专业方法组合阶段**，不是一个新的巨型 Skill，也不维护第二套平行专业正文：
+
+- H1—H4 负责 Human 来源特有的任务范围、人工事件采集、动作正规化、reviewed recording steps 与人工／Agent 审阅；这些来源继续由 human-to-recipe 合同维护。
+- 界面结构、图标归属、定位和应用操作复用 [application-engineer](../../agent-to-recipe/skills/application-engineer/SKILL.md) 及[应用操作专业正文](../../agent-to-recipe/design/application-operations.md)。
+- 对需要增强的录制，原始／reviewed actions 到必要路径的 retain／merge／omit／recovery／unresolved 取舍复用目标 `trace-distill` 方法；当前它只是 Agent-to-Recipe 中已冻结的目标职责和 DistilledSteps 合同，尚无正式 SKILL.md 或宿主加载资格。
+- Business Step、参数、数据流、分支／循环和复用范围复用 `procedure-synthesize` 的 S8—S9 责任；代码构建与独立验收不归 H5 应用工程，也不在本文件复制专业实现。
+- 简单受控坐标路线允许从 H4 reviewed steps 直接进入 H6，不强制生成深度 DistilledSteps／SemanticProcedure；增强路径才按实际缺口消费上述共享专业方法。
+
+一个 Agent 可以连续承担这些专业作业，不能据职责名称宣称相应 Skill 全部已实现，也不能把 Human 录制事实追认为 Agent 示范。
 
 ### 点击分析的执行约定
 
@@ -355,7 +366,7 @@ Agent 主导陌生界面的布局、组件、语义和关系分析；程序承�
 H6. 生成普通 OpenDesk JavaScript
 │
 ├─ H6.1 固定本次生成依据
-│  ├─ 已整理／确认的步骤版本
+│  ├─ 已整理／确认的步骤版本；增强路线引用实际 DistilledSteps／SemanticProcedure 版本，简单受控路线引用 H4 reviewed steps
 │  ├─ 选定的目标规则与适用条件，分开冻结观察证据、locator、动作策略和结果规则
 │  ├─ 输入、配置、数据流和成功标准
 │  ├─ 每个 action 的唯一 disposition 和 source map
@@ -403,7 +414,7 @@ H6. 生成普通 OpenDesk JavaScript
 
 原生路径先复用 H5 验证过的 selector 与 `within`，能够先找容器再找目标时不增加复杂查询语法。新增证据或策略若超出现有 actions／plan／validator 的可表达范围，先在 Recorder 工程设计明确最小合同差异，再同步实现、schema、类型、validator 和兼容测试；不能把本任务树的要求当作当前 schema 已接受的字段。旧包缺证据时保留既有受控路径或明确阻塞语义生成，不补造字段，也不放宽 strict validation。原生动作替换须有 H5／H7 的等价性依据，不能由 behavior-preserving `recorder-script-refiner` 静默执行。
 
-代码生成开始前冻结最小 build plan。当前机器合同是 [`semantic-build-plan.schema.json`](../skills/human-to-recipe/references/semantic-build-plan.schema.json)，并由 [`validate-semantic-build-plan.js`](../skills/human-to-recipe/scripts/validate-semantic-build-plan.js) 检查；它不是 Runtime API 或通用 Compiler。plan 必须包含 actions 实际文件／revision／hash、逐动作 `business | runtime-guard | qualification | evidence | excluded | unknown` disposition、Business Episode 名称与顺序、参数和常量分类、Target/Locator/Geometry、动作策略、运行门禁、恢复规则、qualification claims 以及 action→episode→代码位置的 source map。一个 action 只能有一个主 disposition；任何 `unknown`、遗漏、重复消费或相互冲突都使 H6 fail closed。
+代码生成开始前冻结最小 build plan。当前机器合同是 [`semantic-build-plan.schema.json`](../skills/human-to-recipe/references/semantic-build-plan.schema.json)，并由 [`validate-semantic-build-plan.js`](../skills/human-to-recipe/scripts/validate-semantic-build-plan.js) 检查；它不是 Runtime API 或通用 Compiler。plan 必须包含 actions 实际文件／revision／hash、逐动作 `business | runtime-guard | qualification | evidence | excluded | unknown` disposition、Business Episode 名称与顺序、参数和常量分类、Target/Locator/Geometry、动作策略、运行门禁、恢复规则、qualification claims 以及 action→episode→代码位置的 source map。一个 action 只能有一个主 disposition；任何 `unknown`、遗漏、重复消费或相互冲突都使 H6 fail closed。增强路线若已发布 DistilledSteps／SemanticProcedure，应由 build plan 引用实际版本，不再从原 actions 隐式重新决定业务取舍。
 
 simple console 的“复制 Agent 优化脚本”只把仓库相对 generated script 写成一句话，不携带 Skill 路径、机器 workdir、业务问卷、动作正文、派生元数据或流程说明。仓库 `AGENTS.md` 把这类请求路由到 `recorder-script-refiner`；按钮仅在脚本存在且没有真实重放时启用，Skill 在当前包内核对完整 lineage，默认行为保持优化且不提问。业务目标、动作取舍、参数化和结果 Oracle 仍属于独立的 `human-to-recipe` 生产化入口，不能因删掉提示词字段而猜测。
 
@@ -466,9 +477,10 @@ H7. 实际运行、验收与定向维修
 │
 ├─ H7.6 按失败原因返回正确位置
 │  ├─ 原始动作或现场不足 → H2 定向补采
-│  ├─ 动作合并或拆分错误 → H3 修正整理
-│  ├─ 需求、意图或可变规则不清 → H4 补充确认
-│  ├─ 目标、文字绑定、关系或定位错误 → H5 定向补强
+│  ├─ 动作正规化或 reviewed steps 错误 → H3／H4 修正来源整理
+│  ├─ 必要路径 retain／merge／omit／recovery 错误 → H5 中共享 trace-distill 职责修订 DistilledSteps
+│  ├─ 业务语义、参数或可变规则不清 → H5 中共享 procedure-synthesize 职责修订
+│  ├─ 目标、文字绑定、关系或定位错误 → H5 application-engineer 定向补强
 │  ├─ 代码、调用或执行顺序错误 → H6 修复
 │  └─ 授权、对象或成功标准改变 → H1 重新限定范围
 │
@@ -496,20 +508,20 @@ H8. 保存、交付和持续维护
 │  └─ 明确应用、环境、权限和适用条件
 │
 ├─ H8.2 保存可追溯依据
-│  ├─ 来源录制、过程版本与所用应用规则
+│  ├─ 来源录制、reviewed steps、必要 DistilledSteps／SemanticProcedure 与所用应用规则
 │  ├─ 关联控件观察、locator 与动作策略版本、应用环境和分平台证据，不保存可复用原生句柄
 │  ├─ 真实验收结果与已知限制
 │  └─ 敏感录制证据不默认跟随脚本对外发布
 │
 ├─ H8.3 支持继续完善
 │  ├─ 局部补录、修正步骤、调整输入或升级定位
-│  ├─ 找到受修改影响的规则、代码和验证
+│  ├─ 找到受修改影响的规则、过程、代码和验证
 │  └─ 保留有效部分，避免每次从头研究应用
 │
 └─ H8.4 处理后续运行中的变化
    ├─ 保存获准的失败现场与所用版本
-   ├─ 区分环境变化、规则失效、代码错误和业务变化
-   ├─ 定向回到相应阶段维修
+   ├─ 区分来源事实缺口、必要路径错误、业务规则变化、定位失效和代码错误
+   ├─ 定向回到相应阶段／共享专业职责维修
    └─ 经重新验收后发布新版本
 ```
 
@@ -517,11 +529,11 @@ H8. 保存、交付和持续维护
 
 | 要求 | 具体含义 |
 | --- | --- |
-| 事实与解释分开 | 原始点击、截图、Native 属性、OCR 派生观察、模型判断、人工修订、已验证规则分开；不能把失败历史改写成成功示范 |
+| 事实与解释分开 | 原始点击、截图、Native 属性、OCR 派生观察、模型判断、人工修订、DistilledSteps、业务规则和已验证定位分开；不能把失败历史改写成成功示范 |
 | 权限持续有效 | 录制、保存、外发、分析、试点击、维修和重复提交分别受授权约束；第三方界面内容不成为新指令 |
 | 用户控制优先 | 分析不干扰正在发生的人工操作；取消不意味着撤销此前真实副作用 |
 | 复用与预算 | 有效知识直接复用；补采、OCR 和模型分析只针对缺口；没有新证据不无限重试 |
-| 影响可追踪 | 目标、文字绑定、规则、数据或代码变化后，明确哪些消费者和测试受影响；依赖不明时不能默认无影响 |
+| 影响可追踪 | reviewed steps、DistilledSteps、目标、文字绑定、规则、数据或代码变化后，明确哪些消费者和测试受影响；依赖不明时不能默认无影响 |
 | 能力与资格分开 | 后端存在、Recorder 接线、生成可用、真实回放和结果通过分开；macOS／Windows 不互借资格 |
 | 不确定性不扩大副作用 | 搜索不完整不证明唯一；观察晚到不证明原目标；动作可能已提交时不自动重做或回退旧坐标 |
 | 采集最小化 | 不因加入原生控件而默认抓整树、value 或连续画面；已有敏感输入、脱敏、保留期限与外发授权仍有效 |
@@ -530,21 +542,52 @@ H8. 保存、交付和持续维护
 
 ## 阶段输入、输出与接续
 
-下表是现有工作包的交付职责，不要求逐阶段新增文件或第二套 schema。各阶段复用已有 recording／actions／plan／Recipe／Gate 及证据引用；每份交付固定来源版本，保留适用条件、未知项和下一消费者。
+下表是现有工作包的交付职责，不要求逐阶段新增文件或第二套 schema。各阶段复用已有 recording／actions／plan／Recipe／Gate 及共享合同中的必要成果引用；每份交付固定来源版本，保留适用条件、未知项和下一消费者。
 
 | 阶段 | 主要输入 | 应保存的输出 | 下一消费者／缺口返回 |
 | --- | --- | --- | --- |
 | H1 | 用户目标、已有资产、实际宿主与平台能力 | 任务范围、起点／结果、授权、采集选择、能力与限制 | H2；后续授权或成功标准改变回 H1 |
 | H2 | 已确认采集范围、真实操作及获准观察 | 原始事件、窗口／控件／图像来源、时间关联、完整性与缺口 | H3；仅补影响交付的片段，不重造历史 |
-| H3 | 固定录制包与事件／观察关联 | 可审阅步骤、唯一来源消费、目标说明、动作支持与待审问题 | H4；归组问题在 H3 修正，缺现场回 H2 |
-| H4 | 步骤与多源证据、用户补充 | 审阅修订、确认／未知、补采需求、可继续范围 | 需增强交 H5；受控步骤可交 H6；缺证据回 H2 |
-| H5 | 已确认步骤、应用认识、当前观察与实际 API | locator 候选及验证记录、动作策略、前后条件、过程／数据关系、未知项 | H6；歧义回 H4，现场不足回 H2 |
-| H6 | 固定步骤／plan、已验证规则、输入与适用条件 | 普通 JS candidate、来源映射、必要资源、正常入口与独立 Gate 要求 | H7；规则不足回 H5，不静默替换策略 |
-| H7 | 固定候选、规则、测试范围与获准起点 | 分平台的静态／合成／真实采集／回放／结果证据、版本与失败定位 | H8；按 H7.6 定向返回，不沿用旧 hash 资格 |
-| H8 | 已验收成果与明确限制 | 可交付 JS／资源／使用说明、规则版本与证据索引、维护入口 | 日常运行；变化或失效只回到受影响阶段 |
+| H3 | 固定录制包与事件／观察关联 | normalized actions、可审阅步骤、唯一来源消费、目标说明、动作支持与待审问题 | H4；归组问题在 H3 修正，缺现场回 H2 |
+| H4 | 步骤与多源证据、用户补充 | reviewed recording steps、审阅修订、确认／未知、补采需求、可继续范围 | 增强路线交 H5；简单受控步骤可交 H6；缺证据回 H2 |
+| H5 | reviewed steps、应用认识、当前观察与实际 API | 按需 DistilledSteps、SemanticProcedure、AppProfile／locator 候选及验证记录、动作策略、前后条件、未知项 | H6；来源整理错回 H3/H4，路径取舍错修 DistilledSteps，业务规则错修 Procedure，定位歧义回应用工程，现场不足回 H2 |
+| H6 | 固定 reviewed steps 或 DistilledSteps／Procedure、已验证规则、输入与适用条件 | 普通 JS candidate、来源映射、必要资源、正常入口与独立 Gate 要求 | H7；规则不足回 H5，不静默替换策略 |
+| H7 | 固定候选、规则、测试范围与获准起点 | 分平台的静态／合成／真实采集／回放／结果证据、资格结论、版本与失败定位 | H8；按 H7.6 定向返回，不沿用旧 hash 资格 |
+| H8 | 已验收成果与明确限制 | 可交付 JS／资源／使用说明、来源过程／规则版本与证据索引、维护入口 | 日常运行；变化或失效只回到受影响阶段／专业职责 |
 
 ## 表达与执行的对应
 
-文档保留完整树以检查遗漏；实施按能独立验收的工作包切分，而不是继续把所有叶子拆成零散事项。每个工作包必须写清：问题、H 节点、实际输入、处理与分支、输出、验收、失败返回、现有能力和所需变更。
+文档保留完整 H1—H8 以检查来源流程遗漏；实施按能独立验收的工作包切分，而不是继续把所有叶子拆成零散事项。每个工作包必须写清：问题、H 节点、实际输入、处理与分支、输出、验收、失败返回、现有能力和所需变更。
+
+Human 来源和 Agent 来源在共享专业方法处的最低接线关系是：
+
+```text
+Human：recording/raw events → H3 normalized actions → H4 reviewed recording steps
+                                                       ↓
+Agent：TaskContract/WorkPlan → Dossier/Raw Trace ───────┤
+                                                       ↓
+                                         [trace-distill as needed]
+                                                       ↓
+                                             DistilledSteps
+                                                       ↓
+                                        procedure-synthesize
+                                                       ↓
+                                            SemanticProcedure
+                                                       ↓
+                                      application-engineer harden
+                                                       ↓
+                                               recipe-build
+                                                       ↓
+                                      [code-rebuild if needed]
+                                                       ↓
+                                              recipe-qualify
+```
+
+这不是要求简单 Human 坐标脚本必须完整走共享链；H4 已确认且本次只要求受控坐标复刻时仍可直接进入 H6。增强路线才要求相应共享专业成果充分。
 
 优先完成两个闭环：基础录制到普通坐标 JS 的独立闭环，以及点击目标从可信多源证据、文字／图标／上下文语义化到新条件下回放的增强闭环。原生按钮是增强链路的首个最小实施子集：复用 AX／UIA 后端补采集接线，验证 locator 与动作，再接入现有普通 JS 生成和独立 Gate；其他动作按既有合同保留，不为该子集强建通用 renderer。无文字图标是增强闭环的重要场景，但不再代表整个点击目标理解。具体执行时序、角色交接、候选方法和 95 分设计目标的评分门槛在[实施与验收计划](implementation-plan.md)统一维护，不在此复制。
+
+## 修订记录
+
+- 2026-09-10：将 AX／UIA 原生目标采集、重新定位、原生动作选择和分平台资格要求整合进 H1—H8，不增加专用 Replay Runtime。
+- 2026-09-11：保持 H1—H8 与 AX／UIA 主体不变，补 Human 来源与共享专业方法映射；明确 H3/H4 reviewed recording steps、H5 按需 DistilledSteps／SemanticProcedure／AppProfile 交付，以及目标 `trace-distill` 尚未成为已安装 Skill。

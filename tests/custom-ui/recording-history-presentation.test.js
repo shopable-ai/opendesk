@@ -91,7 +91,7 @@ function createRecording(root, id) {
   fs.writeFileSync(path.join(dir, 'generated', 'basic.recipe.js'), '// recipe\n');
 }
 
-test('history presentation is one horizontal row with icon-only actions', async () => {
+test('history presentation keeps one horizontal row shape and adds bounded paging controls', async () => {
   const html = History.buildWindowHTML([{
     recordingId: 'rec-demo', displayName: '计算器任务', targetTitle: 'Calculator',
     startedAt: '2026-09-10T10:20:30Z', scriptFile: '/tmp/basic.recipe.js',
@@ -99,8 +99,13 @@ test('history presentation is one horizontal row with icon-only actions', async 
   assert.match(html, /id="recordingName0"/);
   assert.match(html, /id="recordingTime0"/);
   assert.match(html, /id="recordingActions0"/);
+  assert.match(html, /id="prevHistory"/);
+  assert.match(html, /id="pageIndicator"/);
+  assert.match(html, /id="nextHistory"/);
   assert.doesNotMatch(html, /id="recordingMeta0"/);
   assert.doesNotMatch(html, /id="recordingId0"/);
+  assert.match(html, /id="run9"/);
+  assert.doesNotMatch(html, /id="run10"/);
 
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'opendesk-history-ui-'));
   const root = path.join(temp, '.runtime', 'recordings');
@@ -124,10 +129,14 @@ test('history presentation is one horizontal row with icon-only actions', async 
   await manager.open();
   const window = ui.windows[0];
   assert.equal(window.spec.position.size.width, 860);
-  assert.deepEqual(window.controls.get('run0').patch, {icon: 'play.fill', text: ''});
-  assert.deepEqual(window.controls.get('rename0').patch, {icon: 'pencil', text: ''});
-  assert.deepEqual(window.controls.get('open0').patch, {icon: 'folder.fill', text: ''});
-  assert.deepEqual(window.controls.get('delete0').patch, {icon: 'trash.fill', text: ''});
+  assert.equal(window.controls.get('run0').patch.icon, 'play.fill');
+  assert.equal(window.controls.get('run0').patch.text, '');
+  assert.equal(window.controls.get('rename0').patch.icon, 'pencil');
+  assert.equal(window.controls.get('open0').patch.icon, 'folder.fill');
+  assert.equal(window.controls.get('delete0').patch.icon, 'trash.fill');
+  assert.equal(window.controls.get('prevHistory').patch.disabled, true);
+  assert.equal(window.controls.get('nextHistory').patch.disabled, true);
+  assert.equal(window.controls.get('pageIndicator').patch.text, '第 1 / 1 页 · 共 1 条');
   assert.deepEqual(History.actionIcons(), {run: 'play.fill', rename: 'pencil', open: 'folder.fill', delete: 'trash.fill'});
 
   fs.rmSync(temp, {recursive: true, force: true});
