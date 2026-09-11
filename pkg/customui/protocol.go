@@ -40,8 +40,12 @@ func protocolFailure(err error) *protocolError {
 		return nil
 	}
 	if uiErr, ok := err.(*Error); ok {
+		message := uiErr.Message
+		if uiErr.Cause != nil {
+			message += ": " + uiErr.Cause.Error()
+		}
 		return &protocolError{
-			Code: uiErr.Code, Message: uiErr.Message, Operation: uiErr.Operation,
+			Code: uiErr.Code, Message: message, Operation: uiErr.Operation,
 			WindowID: uiErr.WindowID, TargetID: uiErr.TargetID, Capability: uiErr.Capability,
 		}
 	}

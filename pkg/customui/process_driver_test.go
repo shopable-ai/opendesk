@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 )
@@ -123,6 +124,19 @@ func TestProcessDriverTreatsStdoutPollutionAsFatal(t *testing.T) {
 	var uiErr *Error
 	if !errors.As(err, &uiErr) || uiErr.Code != CodeDriverFailure || uiErr.Operation != "readHost" {
 		t.Fatalf("stdout pollution error = %#v", err)
+	}
+	if !strings.Contains(err.Error(), "invalid character") {
+		t.Fatalf("stdout pollution parser diagnostic was lost: %#v", uiErr)
+	}
+}
+
+func TestProtocolFailurePreservesTransportCause(t *testing.T) {
+	frame := protocolFailure(&Error{
+		Code: CodeDriverFailure, Message: "native UI host emitted invalid JSON",
+		Operation: "readHost", Cause: errors.New("invalid character after top-level value"),
+	})
+	if frame == nil || !strings.Contains(frame.Message, "invalid character after top-level value") {
+		t.Fatalf("protocol failure = %#v", frame)
 	}
 }
 
