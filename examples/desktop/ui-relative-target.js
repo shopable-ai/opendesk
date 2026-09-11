@@ -1,5 +1,5 @@
 // Run from the OpenDesk repository root:
-//   ./opendesk -script examples/ui-relative-target.js
+// ./dist/opendesk -script examples/desktop/ui-relative-target.js -console-mode script
 //
 // Before running, focus a disposable test window containing two separate rows:
 //   OpenDesk 测试行 A    编辑

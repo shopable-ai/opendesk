@@ -1,5 +1,5 @@
 // Run from the repository root after `make build`:
-// ./dist/opendesk -script examples/global-shortcut-permission-setup.js -console-mode script
+// ./dist/opendesk -script examples/events/global-shortcut-permission-setup.js -console-mode script
 //
 // This is a first-run / settings action, not a prerequisite to run on every
 // application launch. It preflights both macOS permissions, opens only the

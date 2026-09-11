@@ -233,6 +233,19 @@
       "expected": "The target bounds are changed, verified, and restored.",
       "tags": ["window", "bounds", "move"]
     },
+    "desktop/ui-relative-target.js": {
+      "title": "UI Relative Text Target",
+      "description": "Resolve one text target relative to another text inside the active disposable window and click it once.",
+      "category": "Desktop",
+      "level": "advanced",
+      "runPolicy": "manual",
+      "aliases": ["ui-relative-target.js"],
+      "docs": "docs/api/desktop-ui.md",
+      "platforms": ["darwin", "windows"],
+      "prerequisites": ["Requires a disposable window containing the documented two-row text fixture and performs one real click."],
+      "expected": "The Edit text to the right of the reviewed anchor row is clicked once.",
+      "tags": ["UI", "relativeTo", "tapText", "desktop"]
+    },
     "desktop/mouse.js": {
       "title": "Mouse Input",
       "description": "Demonstrate pointer position, fixed-coordinate click, move, wheel, and right-click APIs.",
@@ -461,6 +474,32 @@
       "prerequisites": ["Shows and dismisses a real system notification."],
       "expected": "Delivery metadata is observed and the notification is dismissed.",
       "tags": ["notification", "wait", "dismiss"]
+    },
+    "events/global-shortcut-permission-setup.js": {
+      "title": "Global Shortcut Permission Setup",
+      "description": "Preflight macOS global-shortcut permissions and open only the missing System Settings privacy pages.",
+      "category": "Events",
+      "level": "intermediate",
+      "runPolicy": "manual",
+      "aliases": ["global-shortcut-permission-setup.js"],
+      "docs": "docs/api/global-shortcut.md",
+      "platforms": ["darwin"],
+      "prerequisites": ["May open macOS System Settings to the missing Accessibility or Input Monitoring permission."],
+      "expected": "The required global-shortcut permissions are reported as ready or the missing settings page is opened.",
+      "tags": ["globalShortcut", "permission", "events", "macos"]
+    },
+    "events/global-shortcut.js": {
+      "title": "Global Shortcut",
+      "description": "Register a global keyboard shortcut owned by the current execution and handle it with a JavaScript callback.",
+      "category": "Events",
+      "level": "intermediate",
+      "runPolicy": "manual",
+      "aliases": ["global-shortcut.js"],
+      "docs": "docs/api/global-shortcut.md",
+      "platforms": ["darwin", "windows"],
+      "prerequisites": ["Registers CommandOrControl+Shift+q globally; on macOS configure permissions first; triggering it writes fixed example text to the clipboard."],
+      "expected": "The shortcut stays registered for this execution and the callback runs when the user presses it.",
+      "tags": ["globalShortcut", "keyboard", "event", "clipboard"]
     },
     "app/running-apps.js": {
       "title": "Running Applications Overview",
