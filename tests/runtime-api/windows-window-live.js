@@ -7,7 +7,6 @@
   const pid = Number(System.getEnv('OPENDESK_WINDOW_FIXTURE_PID'));
   const hungTitle = System.getEnv('OPENDESK_WINDOW_HUNG_TITLE');
   const hungPID = Number(System.getEnv('OPENDESK_WINDOW_HUNG_PID'));
-  const evidencePath = '.runtime/tests/windows-compat/window-fixture-result.json';
   const checks = [];
 
   function assert(condition, message, details) {
@@ -19,34 +18,46 @@
   }
 
   function pass(name, details) {
-    checks.push({ name, status: 'passed', ...(details || {}) });
+    const check = { name, status: 'passed', ...(details || {}) };
+    checks.push(check);
+    console.log('WINDOW_MANAGER_CHECK ' + JSON.stringify(check));
   }
 
   async function expectCode(name, expected, action) {
     try {
       await action();
     } catch (error) {
-      assert(error && error.code === expected,
-        `${name}: expected ${expected}, got ${error && error.code}`,
+      const actual = error && error.code || '';
+      console.log('WINDOW_MANAGER_EXPECTED_ERROR ' + JSON.stringify({
+        name,
+        expected,
+        actual,
+        message: String(error && error.message || error),
+      }));
+      assert(actual === expected,
+        `${name}: expected ${expected}, got ${actual}`,
         { message: String(error && error.message || error) });
-      pass(name, { code: error.code });
+      pass(name, { code: actual });
       return error;
     }
     throw new Error(`${name}: expected ${expected}, operation succeeded`);
   }
 
-  async function persist(status, error) {
-    File.ensureDir('.runtime/tests/windows-compat');
-    await File.writeJSON(evidencePath, {
+  function evidence(status, error) {
+    return {
       schemaVersion: 1,
       suite: 'windows-window-manager-live',
       status,
       platform: System.getPlatformInfo(),
       fixture: { title, pid, hungTitle, hungPID },
       checks,
-      error: error ? { message: String(error.message || error), code: error.code || '' } : null,
+      error: error ? {
+        message: String(error.message || error),
+        code: error.code || '',
+        details: error.details || null,
+      } : null,
       recordedAt: new Date().toISOString(),
-    });
+    };
   }
 
   try {
@@ -71,7 +82,9 @@
     assert(byTarget.id === initial.id, 'window.get did not preserve current HWND identity', { initial: initial.id, current: byTarget.id });
     pass('window.get unique target', { id: byTarget.id });
 
-    await expectCode('window.get not found', 'NOT_FOUND', () => window.get({ title: `${title}__missing__` }));
+    const missingTitle = `${title}__missing__`;
+    await expectCode('window.get not found', 'NOT_FOUND', () => window.get({ title: missingTitle }));
+    await expectCode('window.wait missing timeout', 'TIMEOUT', () => window.wait({ title: missingTitle }, { timeout: 120, polling: 20 }));
 
     await window.focus(title);
     const active = await window.getActiveWindow();
@@ -130,11 +143,13 @@
     await expectCode('already closed title unavailable', 'NOT_FOUND', () => window.closeWindow(title));
     pass('normal close verified');
 
-    await persist('passed');
+    console.log('WINDOW_MANAGER_EVIDENCE ' + JSON.stringify(evidence('passed')));
     console.log('WINDOW_MANAGER_LIVE_PASS');
   } catch (error) {
-    try { await persist('failed', error); } catch (_) { /* preserve primary failure */ }
-    console.error('WINDOW_MANAGER_LIVE_FAIL', error && error.stack || error);
-    throw error;
+    const payload = evidence('failed', error);
+    console.log('WINDOW_MANAGER_EVIDENCE ' + JSON.stringify(payload));
+    const code = error && error.code || '';
+    const message = String(error && error.message || error);
+    throw new Error(`WINDOW_MANAGER_LIVE_FAIL code=${code} message=${message}`);
   }
 })();
