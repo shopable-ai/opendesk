@@ -1,7 +1,46 @@
 # 应用场景示例
 
-本目录保存应用特定的公开示例，不是通用 Runtime API 的实现层。
-本轮只增加从通用窗口示例分离的千牛窗口场景；其余历史应用脚本尚未因此完成审查。
+本目录保存面向真实桌面应用的 canonical public examples。与 `examples/desktop/` 的通用窗口/输入 API 不同，这里的脚本包含具体应用名称、平台或业务上下文，因此统一在 Example Explorer 中作为 `Applications` 分类展示，并默认保持 `manual`。
+
+## Running Applications Overview
+
+```bash
+./dist/opendesk -script examples/app/running-apps.js -console-mode script
+```
+
+只读 `window.list()`，按固定关键字汇总 WeChat、VS Code、Chrome、Safari、Finder 等窗口。它不修改应用状态，但窗口标题可能包含用户信息，因此运行输出不应直接公开分享。
+
+旧 `examples/check_all_apps.js` 只是兼容入口。
+
+## WeChat Window Inspect
+
+```bash
+./dist/opendesk -script examples/app/wechat-window-inspect.js -console-mode script
+```
+
+只查找 WeChat/微信窗口并打印标题与尺寸，不点击、不输入、不切换状态。标题仍可能含隐私，所以 Catalog 保持 `manual`。
+
+旧 `examples/check_wechat.js` 只是兼容入口。
+
+## Open Calculator by Name（macOS）
+
+```bash
+./dist/opendesk ai run examples/app/open-calculator-by-name.js
+```
+
+调用 `App.launch('计算器', { waitUntilReady: 'window', timeout: 10000 })` 启动或激活系统 Calculator，并打印真实 identity。不会输入、清空、restart 或 terminate 已存在实例。
+
+旧 `examples/open-calculator-by-name.js` 只是兼容入口。
+
+## Calculator App Lifecycle（macOS）
+
+```bash
+./dist/opendesk -script examples/app/lifecycle-calculator.js -console-mode script
+```
+
+这是有明显副作用的生命周期示例：只有检测到 Calculator 当前未运行时才继续，然后 launch → restart → terminate → waitForExit；最终结果写到 `.runtime/examples/app/lifecycle-calculator/result.json`。`finally` 会尽力清理本示例创建的实例。
+
+旧 `examples/app-lifecycle.js` 只是兼容入口。该示例必须人工运行，不能由 Example Explorer 一键触发。
 
 ## 千牛窗口（Windows）
 
@@ -11,11 +50,9 @@
 .\dist\opendesk.exe -script examples/app/qianniu-window.js -console-mode script
 ```
 
-按 `exeName === AliWorkbench.exe`（大小写不敏感）筛选，仅输出 ID/PID。不会读取聊天、
-商品或窗口内容。需要标题时先设置 `$env:OPENDESK_EXAMPLE_SHOW_TITLES = '1'`，用毕移除。
-macOS 上明确失败，不借用其他应用窗口冒充千牛。
+按 `exeName === AliWorkbench.exe`（大小写不敏感）筛选，仅输出 ID/PID。不会读取聊天、商品或窗口内容。需要标题时先设置 `$env:OPENDESK_EXAMPLE_SHOW_TITLES = '1'`，用毕移除。
 
-设置置顶必须明确输入实际标题与 PID，以及 on/off 和授权。例如以下变量值需替换为自己的测试窗口：
+设置置顶必须明确输入实际标题与 PID、on/off 和授权。例如：
 
 ```powershell
 $env:OPENDESK_EXAMPLE_WINDOW_TITLE = '你的千牛测试窗口完整标题'
@@ -28,7 +65,10 @@ finally {
 }
 ```
 
-没有 mode 时只读；非法 mode 或未授权时失败。动作前核对唯一标题、PID、稳定身份、可用能力和
-可执行文件名。这里没有读取旧置顶状态的公开接口，不自动关闭置顶、不假装恢复；on/off 都是
-用户明确选择的状态变更。API 返回后还需视觉确认效果，不能只凭日志宣布视觉通过。
-旧通用 `examples/window.js` 不再自动执行这里的动作。
+没有 mode 时只读；非法 mode 或未授权时失败。动作前核对唯一标题、PID、稳定身份和能力。API 返回后仍需视觉确认，不能只凭日志宣布业务或视觉结果通过。
+
+## 其他历史应用脚本
+
+本目录还包含千牛、拼多多、CSDN 等历史应用脚本。它们不会因为位于 `examples/app/` 就自动成为 Explorer 普通入口；只有完成用途、副作用、平台和前置条件审查并登记到 `examples/catalog.json` 后才进入 curated list。
+
+真实应用示例不是正式测试。API contract、跨平台状态和业务结果验证仍由对应 `tests/`、工作流或人工验收承担。
