@@ -6,7 +6,7 @@ order: 20
 
 # Agent-first Recorder｜需求发现与需求基线
 
-状态：需求设计基线 v0.5，2026-09-10。本文先继承 OpenDesk 项目背景，再约束“自动化开发工作流与多个 Skill 应具备什么”，不是某次计算器运行的 TaskContract；用户批准本轮方案写入，不表示技术假设、宿主能力或桌面结果已确认。返回[设计总纲](README.md)，后续进入[任务树](task-decomposition.md)、[链路设计](chain-design.md)和[验证计划](validation-plan.md)。Structured UI Collection Reading 的 Runtime/VLM/Traversal 详细技术合同只维护在[专项架构](../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)，本文只保存工作流需求基线。
+状态：需求设计基线 v0.6，2026-09-11。本文先继承 OpenDesk 项目背景，再约束“自动化开发工作流与多个 Skill 应具备什么”，不是某次计算器运行的 TaskContract；用户批准本轮方案写入，不表示技术假设、宿主能力或桌面结果已确认。返回[设计总纲](README.md)，后续进入[任务树](task-decomposition.md)、[链路设计](chain-design.md)和[验证计划](validation-plan.md)。Structured UI Collection Reading 的 Runtime/VLM/Traversal 详细技术合同只维护在[专项架构](../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)，本文只保存工作流需求基线。
 
 ## 项目背景与本工作流的职责
 
@@ -33,6 +33,11 @@ Agent-to-Recipe 是生产和完善这些成果的一条开发路径，可以从�
 - 本轮工作流建设要求（不替代上面的项目背景）。
   - 保留完整 Agent-first Recorder 工作流任务分解树，作为阶段性框架分析，不冒充最终 WORKFLOW.md。
   - 在生成 Skill 前明确链路、输入输出和独立边界；业务任务按需求语义拆分，不按技术对象数量拆分。
+  - 用户继续以自然语言、截图、样例或已有资产提出任务；TaskContract／WorkPlan 是 Agent／宿主根据这些来源形成的内部结构化成果，不要求使用者先编写 JSON，也不能因为内容进入 JSON 就自动视为已确认事实。
+  - Agent 在较长桌面执行前应形成可审阅的业务操作计划：说明当前准备处理的对象、主要动作、输入来源、预期结果和关键检查点；该计划不是 Skill 调用表，也不要求在未知现场下预编造全部点击或坐标。
+  - 优先核实最可能推翻整条路线的高影响未知，例如后续大量步骤依赖某个运行时读值时，应在依赖动作扩展前先验证该读值是否能够可靠取得。非阻断未知可保留并继续不依赖它的工作。
+  - 执行期间维持“planned step → actual action → actual observation → verification → plan delta”的对应；现场事实可以修订后续计划，但不能反向把未执行的计划写成事实，也不能因为动作不在初始计划中就自动当作噪音。
+  - 示范事实与可复用过程之间保留独立的关键步骤成果：S7 从 Dossier／Raw Trace 形成有来源的 DistilledSteps；S8—S9 再将其转为业务语义、参数和复用规格。动作保留／合并／排除的主责不在后续重复维护第二套真相。
   - 真实任务、人工开发目标、已有资产都可作为起点；已有低质量代码可单独改进，简单脚本可不做深度优化。
   - 普通 OpenDesk JS 按脚本方式组织，优先直接复用框架 API；必要的应用操作封装使用普通函数，例如由脚本定义并调用 `tapButton(...)`，不新增 `calc.tapButton(...)` 这样的应用对象方法层。这里不限制框架既有 API 的调用形式。
   - 应用矩阵定位只是候选思路，须依据实际布局和定位证据决定，与脚本的函数组织方式分开判断。
@@ -58,6 +63,12 @@ Agent-to-Recipe 是生产和完善这些成果的一条开发路径，可以从�
 
 本次采纳：公共结构链冻结为 `Observation[] → CollectionProfile → CollectionItem[]`，之后才由 App Adapter／Recipe／普通 JavaScript parser 转为 `Conversation[]`、`Message[]`、`Order[]` 等业务对象。current viewport 读取与有 UI 副作用的 traversal 分开；VLM 作为受约束 proposal/evidence，默认作者期使用，runtime assist 默认关闭。工作流消费该专项架构，不创建第二个 collection/VLM Skill，也不因工作名存在就修改 Stable API reference。
 
+### 2026-09-11 计划—事实—关键步骤交接需求来源与决策
+
+用户进一步要求避免长时间执行后才发现路线错误，并要求从保存关键文件和专业 Skill 边界重新审视整链。用户输入仍是自然语言；结构化合同由 Agent 产生并保留来源。执行前需要可审阅操作计划和关键检查点，执行中保存 planned／actual 差异，执行后先从事实提炼必要操作路径，再做业务语义和泛化。
+
+本次采纳：不新增 S13，不把每个检查点拆成独立 Skill；将 `trace-distill` 作为目标专业职责承担 S7，输出 DistilledSteps；将 `procedure-synthesize` 收窄为 S8—S9。`trace-distill` 尚未因此成为已安装 Skill，正式宿主接入和独立测试仍需后续实施。Human Recorder 保留 H1—H8 来源工作流，满足输入条件后复用共享专业方法，不复制第二套专业实现。
+
 ## 二、人类需求发现入口
 
 - 从原始要求与背景事实理解业务问题。
@@ -71,6 +82,7 @@ Agent-to-Recipe 是生产和完善这些成果的一条开发路径，可以从�
   - 能从仓库和获准现场核实的技术事实先核实；重大业务选择和授权由有权人确认。
 - 形成业务确认记录。
   - 记录确认者／授权来源、版本、范围、修改点和保留问题；不要求为已有明确要求重复提问。
+  - 对需要人类快速检查的任务理解和操作计划，可生成同版可读视图；可读视图不成为第二份权威合同，用户用自然语言纠正含义后由 Agent 更新结构化成果。
   - 技术事实不足可以阻塞对应工作；写文件、生成代码和业务批准是不同事实。
 
 ## 三、受控业务需求推导链
@@ -165,6 +177,10 @@ Agent-to-Recipe 是生产和完善这些成果的一条开发路径，可以从�
 - **DREQ-27｜Collection 与 Traversal 分离**：current viewport item recognition 与跨 viewport scroll traversal 分开；virtualized visible count 不等于 whole collection count。scroll 必须有 overlap、continuity、merge、end、budget 与 side-effect 语义，禁止 text-only/index-only dedupe。
 - **DREQ-28｜VLM 作者期优先与运行期受限**：application-engineer 默认用最小 ROI + native/OCR/layout observations 生成/修订 CollectionProfile；runtime assist 默认 off，只在 uncertain 时有界调用 Semantic Vision provider，输出作为 proposal 经 deterministic validator 复核，不通过 `opendesk ai` 嵌套 Agent。
 - **DREQ-29｜集合动态变化与部分完成**：读取期间新增/删除/重排、continuity 无法证明、maxSteps/maxItems/timeout/cancel 必须显式停止并保留 partial/evidence；不得把两个时间状态静默拼成“完整数组”。pagination/load-more 在跨应用合同未证明前由 Recipe/App Adapter 负责。
+- **DREQ-30｜自然语言入口与内部结构化合同**：用户不需要提供 TaskContract JSON；Agent 必须保留原始自然语言来源，将结构化任务理解标成内部解释，并提供可读视图供业务含义纠正。可读视图和 JSON 不得形成两份相互漂移的需求真相。
+- **DREQ-31｜执行前操作计划与早期否证**：较长真实任务执行前形成业务操作计划和关键检查点；优先验证高影响未知，使错误路线尽早暴露。未知现场不编造动作细节，计划允许基于新事实受控修订。
+- **DREQ-32｜计划与事实分离及偏差接续**：S3—S5 维护计划步骤与实际动作／观察／验证的对应；计划外必要动作保存原因并进入计划修订，未执行计划不能补成事实，执行事实也不能因为与计划不一致被删掉。
+- **DREQ-33｜DistilledSteps 与专业职责边界**：S7 从 Dossier／Raw Trace 发布可追溯 DistilledSteps，负责动作重建、分段及 retain／merge／omit／recovery／unresolved 取舍；S8—S9 消费该成果形成业务步骤与复用规格，不重复维护第二套原始 action disposition。
 
 ## 七、用途、风险与验收强度
 
@@ -177,7 +193,7 @@ Agent-to-Recipe 是生产和完善这些成果的一条开发路径，可以从�
 
 ## 八、需求基线与变更
 
-- 本文为需求设计基线 v0.5；本轮 Structured Collection Reading 架构及工作流接线获准写入，Runtime working names、VLM provider 和 scroll collector 仍是设计候选，不能据此声明当前 API 已实现。
+- 本文为需求设计基线 v0.6；保留 v0.5 Structured Collection Reading 决策，并加入自然语言入口、执行前可审阅操作计划、planned／actual 对应和 DistilledSteps 交接要求。`trace-distill` 是目标专业职责，不因本次设计写入自动成为已安装 Skill。
 - 确认时记录版本、责任人或确认来源、范围、成功标准、阻断未知及决议；不伪填真实业务审批。
 - 业务运行另立本次 TaskContract；不能将本案例的按钮输入、正整数和期望答案变成所有任务的强制限制。
 - 修改后沿“需求 → 行为案例 → 任务节点 → 责任 Skill／JS／API → 测试与证据”确定影响；仅重做受影响工作，但未测范围仍为未知。
@@ -185,7 +201,7 @@ Agent-to-Recipe 是生产和完善这些成果的一条开发路径，可以从�
 ## 九、当前未知与处理方向
 
 - 宿主 Skill 加载路径、权限隔离、上下文隔离与停止能力：实施前核对实际宿主；影响安装和独立性声明，不阻止本轮写设计。新方法文件不证明当前可自动调用。
-- 独立 code-rebuild 和人工开发的正式调用／交接：依据[共享合同](../../../docs/frameworks/agent-to-recipe-skill-contract.md)后续设计兼容迁移，本次仅定义 AppProfile 应用工程增量，不冒充其他新调用已合法。
+- `trace-distill`、独立 code-rebuild 和人工开发的正式调用／交接：依据[共享合同](../../../docs/frameworks/agent-to-recipe-skill-contract.md)设计兼容迁移；本轮更新目标合同和职责，不冒充这些新调用已经由宿主加载或通过独立测试。
 - 计算器 OS、版本、布局、C／AC 语义、结果组件、旧脚本与证据：在授权下定向核查，记录到[案例](../cases/calculator.md)和本次任务包，不在这里猜测。
 - 聊天应用、联系人身份依据、历史读取范围、回复标准、发送授权、模型接入及结果证明：由实际任务合同与获准观察确认；本轮只设计案例，不授权联系真实用户。
 - 跨应用组合、共享许可与支持环境、复用者的配置及维护责任：交付前按声明范围确认；不预设统一平台、分发协议或商业规则。
@@ -207,3 +223,5 @@ Agent-to-Recipe 是生产和完善这些成果的一条开发路径，可以从�
 2026-09-08，v0.4：记录用户的应用工程深化、同一 Agent 连续推进及参考作业树来源，新增 DREQ-21—DREQ-24；实际方法、链路和测试分别写回原唯一正文。授权限于本轮方案写入，不据此制造人审、模型提取或业务成功记录。
 
 2026-09-10，v0.5：加入 Structured UI Collection Reading 需求基线，新增 DREQ-25—DREQ-29；冻结 generic collection/business mapping、multi-source Observation、Collection/Traversal、VLM provider 和 mutation/partial completion 边界。详细 Runtime 算法只链接专项架构，不新增 S13、独立 collection Skill 或 Stable API 声明。
+
+2026-09-11，v0.6：补入自然语言任务入口与内部结构化合同边界、执行前用户可审阅操作计划、关键未知优先验证、planned／actual 偏差接续，以及 S7 DistilledSteps／`trace-distill` 与 S8—S9 `procedure-synthesize` 的职责边界。未新增阶段、Runtime 或已安装 Skill 声明。
