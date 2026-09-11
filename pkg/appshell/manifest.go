@@ -2,6 +2,8 @@ package appshell
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,33 +17,37 @@ import (
 
 const ManifestFileName = "opendesk.app.json"
 
-var actionIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
+var (
+	actionIDPattern  = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
+	packageIDPattern = regexp.MustCompile(`^[a-z](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$`)
+	windowIDPattern  = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]{0,63}$`)
+)
 
 type Manifest struct {
+	ID             string         `json:"id"`
 	Entry          string         `json:"entry"`
 	SingleInstance bool           `json:"singleInstance"`
-	Window         WindowManifest `json:"window,omitempty"`
-	Tray           TrayManifest   `json:"tray,omitempty"`
-}
-
-type manifestJSON struct {
-	Entry          string         `json:"entry"`
-	SingleInstance *bool          `json:"singleInstance"`
-	Window         WindowManifest `json:"window,omitempty"`
-	Tray           TrayManifest   `json:"tray,omitempty"`
+	Window         WindowManifest `json:"window"`
+	Tray           TrayManifest   `json:"tray"`
 }
 
 type WindowManifest struct {
+	MainID        string `json:"mainId"`
 	CloseBehavior string `json:"closeBehavior,omitempty"`
 }
 
 type TrayManifest struct {
 	Enabled       bool       `json:"enabled"`
-	Icon          string     `json:"icon,omitempty"`
+	Icons         TrayIcons  `json:"icons,omitempty"`
 	Tooltip       string     `json:"tooltip,omitempty"`
 	PrimaryAction string     `json:"primaryAction,omitempty"`
 	MenuMode      string     `json:"menuMode,omitempty"`
 	Menu          []MenuItem `json:"menu,omitempty"`
+}
+
+type TrayIcons struct {
+	Windows string `json:"windows,omitempty"`
+	MacOS   string `json:"macos,omitempty"`
 }
 
 type MenuItem struct {
@@ -53,38 +59,86 @@ type MenuItem struct {
 	Visible *bool  `json:"visible,omitempty"`
 }
 
+// Package is the fully resolved, startup-safe App Mode package. Every path is
+// canonical and contained by Root; callers never re-resolve manifest paths
+// against the process working directory.
+type Package struct {
+	Root            string
+	ManifestPath    string
+	EntryPath       string
+	WindowsIconPath string
+	MacOSIconPath   string
+	Manifest        Manifest
+}
+
 func LoadManifest(packageDir string) (Manifest, error) {
-	data, err := os.ReadFile(filepath.Join(packageDir, ManifestFileName))
+	appPackage, err := LoadPackage(packageDir)
 	if err != nil {
 		return Manifest{}, err
+	}
+	return appPackage.Manifest, nil
+}
+
+func LoadPackage(packageDir string) (*Package, error) {
+	root, err := canonicalPackageRoot(packageDir)
+	if err != nil {
+		return nil, err
+	}
+	manifestPath := filepath.Join(root, ManifestFileName)
+	data, err := os.ReadFile(manifestPath)
+	if err != nil {
+		return nil, fmt.Errorf("read %s: %w", manifestPath, err)
 	}
 	manifest, err := ParseManifest(data)
 	if err != nil {
-		return Manifest{}, err
+		return nil, err
 	}
-	return manifest, nil
+	entryPath, err := resolvePackageFile(root, "entry", manifest.Entry)
+	if err != nil {
+		return nil, err
+	}
+	appPackage := &Package{Root: root, ManifestPath: manifestPath, EntryPath: entryPath, Manifest: manifest}
+	if manifest.Tray.Enabled {
+		appPackage.WindowsIconPath, err = resolvePackageFile(root, "tray.icons.windows", manifest.Tray.Icons.Windows)
+		if err != nil {
+			return nil, err
+		}
+		if err := validateWindowsTrayIcon(appPackage.WindowsIconPath); err != nil {
+			return nil, fmt.Errorf("validate tray.icons.windows %s: %w", appPackage.WindowsIconPath, err)
+		}
+		appPackage.MacOSIconPath, err = resolvePackageFile(root, "tray.icons.macos", manifest.Tray.Icons.MacOS)
+		if err != nil {
+			return nil, err
+		}
+		if err := validateMacOSTemplateIcon(appPackage.MacOSIconPath); err != nil {
+			return nil, fmt.Errorf("validate tray.icons.macos %s: %w", appPackage.MacOSIconPath, err)
+		}
+	}
+	return appPackage, nil
 }
 
 func ParseManifest(data []byte) (Manifest, error) {
-	var raw manifestJSON
+	type manifestWire struct {
+		ID             string         `json:"id"`
+		Entry          string         `json:"entry"`
+		SingleInstance *bool          `json:"singleInstance"`
+		Window         WindowManifest `json:"window"`
+		Tray           TrayManifest   `json:"tray"`
+	}
+	var wire manifestWire
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&raw); err != nil {
+	if err := decoder.Decode(&wire); err != nil {
 		return Manifest{}, fmt.Errorf("invalid %s: %w", ManifestFileName, err)
 	}
 	if err := ensureJSONEOF(decoder); err != nil {
 		return Manifest{}, fmt.Errorf("invalid %s: %w", ManifestFileName, err)
 	}
-
-	manifest := Manifest{
-		Entry:          raw.Entry,
-		SingleInstance: true,
-		Window:         raw.Window,
-		Tray:           raw.Tray,
+	singleInstance := true
+	if wire.SingleInstance != nil {
+		singleInstance = *wire.SingleInstance
 	}
-	if raw.SingleInstance != nil {
-		manifest.SingleInstance = *raw.SingleInstance
-	}
+	manifest := Manifest{ID: wire.ID, Entry: wire.Entry, SingleInstance: singleInstance, Window: wire.Window, Tray: wire.Tray}
 	if err := manifest.Validate(); err != nil {
 		return Manifest{}, err
 	}
@@ -102,12 +156,20 @@ func ensureJSONEOF(decoder *json.Decoder) error {
 }
 
 func (m *Manifest) Validate() error {
+	m.ID = strings.TrimSpace(m.ID)
+	if !packageIDPattern.MatchString(m.ID) {
+		return fmt.Errorf("id %q is invalid: expected a lowercase reverse-DNS package identity", m.ID)
+	}
 	entry, err := validateSafeRelativePath("entry", m.Entry, true)
 	if err != nil {
 		return err
 	}
 	m.Entry = entry
 
+	m.Window.MainID = strings.TrimSpace(m.Window.MainID)
+	if !windowIDPattern.MatchString(m.Window.MainID) {
+		return fmt.Errorf("window.mainId %q is invalid: expected a stable Custom UI window id", m.Window.MainID)
+	}
 	if m.Window.CloseBehavior == "" {
 		m.Window.CloseBehavior = "quit"
 	}
@@ -123,22 +185,28 @@ func (m *Manifest) Validate() error {
 	if m.Tray.MenuMode != "merge" {
 		return fmt.Errorf("invalid tray.menuMode %q: P0 supports only merge", m.Tray.MenuMode)
 	}
-	if m.Tray.Icon != "" {
-		icon, err := validateSafeRelativePath("tray.icon", m.Tray.Icon, false)
+	if m.Tray.Enabled {
+		windowsIcon, err := validateSafeRelativePath("tray.icons.windows", m.Tray.Icons.Windows, true)
 		if err != nil {
 			return err
 		}
-		m.Tray.Icon = icon
-	}
-	if m.Tray.PrimaryAction != "" {
-		if err := validateActionID("tray.primaryAction", m.Tray.PrimaryAction, true); err != nil {
+		if !strings.EqualFold(filepath.Ext(windowsIcon), ".ico") {
+			return errors.New("tray.icons.windows must reference an .ico file")
+		}
+		macOSIcon, err := validateSafeRelativePath("tray.icons.macos", m.Tray.Icons.MacOS, true)
+		if err != nil {
 			return err
 		}
-	}
-	if m.Window.CloseBehavior == "hide" && !m.Tray.Enabled {
-		return errors.New("window.closeBehavior=hide requires tray.enabled=true so the hidden window has a reliable reopen path")
+		if !strings.EqualFold(filepath.Ext(macOSIcon), ".png") {
+			return errors.New("tray.icons.macos must reference a .png template image")
+		}
+		m.Tray.Icons.Windows = windowsIcon
+		m.Tray.Icons.MacOS = macOSIcon
+	} else if m.Tray.Icons.Windows != "" || m.Tray.Icons.MacOS != "" || m.Tray.Tooltip != "" || m.Tray.PrimaryAction != "" || len(m.Tray.Menu) != 0 {
+		return errors.New("tray configuration requires tray.enabled=true")
 	}
 
+	actions := make(map[string]struct{})
 	ids := make(map[string]struct{}, len(m.Tray.Menu))
 	for i := range m.Tray.Menu {
 		item := &m.Tray.Menu[i]
@@ -146,34 +214,84 @@ func (m *Manifest) Validate() error {
 		switch item.Type {
 		case "separator":
 			if item.ID != "" || item.Label != "" || item.Action != "" || item.Enabled != nil || item.Visible != nil {
-				return fmt.Errorf("%s: separator cannot define id, label, action, enabled, or visible", field)
+				return fmt.Errorf("%s: separator must be exactly {\"type\":\"separator\"}", field)
 			}
 		case "":
-			if strings.TrimSpace(item.ID) == "" {
+			item.ID = strings.TrimSpace(item.ID)
+			item.Label = strings.TrimSpace(item.Label)
+			item.Action = strings.TrimSpace(item.Action)
+			if item.ID == "" {
 				return fmt.Errorf("%s.id is required", field)
 			}
-			if strings.TrimSpace(item.Label) == "" {
+			if item.Label == "" {
 				return fmt.Errorf("%s.label is required", field)
 			}
 			if err := validateActionID(field+".id", item.ID, false); err != nil {
-				return err
-			}
-			if strings.TrimSpace(item.Action) == "" {
-				if item.Enabled == nil || *item.Enabled {
-					return fmt.Errorf("%s.action is required unless enabled=false", field)
-				}
-			} else if err := validateActionID(field+".action", item.Action, false); err != nil {
 				return err
 			}
 			if _, exists := ids[item.ID]; exists {
 				return fmt.Errorf("duplicate tray menu item id %q", item.ID)
 			}
 			ids[item.ID] = struct{}{}
+			if item.Action == "" {
+				if item.Enabled == nil || *item.Enabled {
+					return fmt.Errorf("%s without action must be permanently disabled", field)
+				}
+			} else {
+				if err := validateActionID(field+".action", item.Action, false); err != nil {
+					return err
+				}
+				actions[item.Action] = struct{}{}
+			}
 		default:
 			return fmt.Errorf("%s.type %q is invalid: expected separator or omitted", field, item.Type)
 		}
 	}
+
+	m.Tray.PrimaryAction = strings.TrimSpace(m.Tray.PrimaryAction)
+	if m.Tray.Enabled {
+		if m.Tray.PrimaryAction == "" {
+			return errors.New("tray.primaryAction is required when tray is enabled")
+		}
+		if err := validateActionID("tray.primaryAction", m.Tray.PrimaryAction, true); err != nil {
+			return err
+		}
+		if m.Tray.PrimaryAction == "opendesk.quit" {
+			return errors.New("tray.primaryAction cannot be opendesk.quit")
+		}
+		if m.Tray.PrimaryAction != "opendesk.open" {
+			if _, ok := actions[m.Tray.PrimaryAction]; !ok {
+				return fmt.Errorf("tray.primaryAction %q does not reference a declared business action", m.Tray.PrimaryAction)
+			}
+		}
+	}
+	if m.Window.CloseBehavior == "hide" && (!m.Tray.Enabled || m.Tray.PrimaryAction != "opendesk.open") {
+		return errors.New("window.closeBehavior=hide requires tray.enabled=true and tray.primaryAction=opendesk.open")
+	}
 	return nil
+}
+
+func (m Manifest) InstanceKey() string {
+	sum := sha256.Sum256([]byte(m.ID))
+	return hex.EncodeToString(sum[:])
+}
+
+func (m Manifest) MenuAction(itemID string) (string, bool) {
+	for _, item := range m.Tray.Menu {
+		if item.Type == "" && item.ID == itemID {
+			return item.Action, item.Action != ""
+		}
+	}
+	return "", false
+}
+
+func (m Manifest) StatusOnlyMenuItem(itemID string) bool {
+	for _, item := range m.Tray.Menu {
+		if item.Type == "" && item.ID == itemID {
+			return item.Action == ""
+		}
+	}
+	return false
 }
 
 func validateActionID(field, value string, allowBuiltins bool) error {
@@ -201,7 +319,6 @@ func validateSafeRelativePath(field, value string, required bool) (string, error
 	if strings.ContainsRune(value, '\x00') {
 		return "", fmt.Errorf("%s contains NUL", field)
 	}
-
 	portable := strings.ReplaceAll(value, "\\", "/")
 	if path.IsAbs(portable) || filepath.IsAbs(value) || filepath.VolumeName(value) != "" || looksLikeWindowsDrivePath(portable) {
 		return "", fmt.Errorf("%s must be a relative package path", field)
@@ -211,6 +328,49 @@ func validateSafeRelativePath(field, value string, required bool) (string, error
 		return "", fmt.Errorf("%s escapes the app package", field)
 	}
 	return clean, nil
+}
+
+func canonicalPackageRoot(packageDir string) (string, error) {
+	value := strings.TrimSpace(packageDir)
+	if value == "" {
+		return "", errors.New("-app directory is required")
+	}
+	abs, err := filepath.Abs(value)
+	if err != nil {
+		return "", fmt.Errorf("resolve app package root: %w", err)
+	}
+	root, err := filepath.EvalSymlinks(abs)
+	if err != nil {
+		return "", fmt.Errorf("resolve app package root symlinks: %w", err)
+	}
+	info, err := os.Stat(root)
+	if err != nil {
+		return "", fmt.Errorf("stat app package root: %w", err)
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("app package root is not a directory: %s", root)
+	}
+	return filepath.Clean(root), nil
+}
+
+func resolvePackageFile(root, field, relative string) (string, error) {
+	joined := filepath.Join(root, filepath.FromSlash(relative))
+	resolved, err := filepath.EvalSymlinks(joined)
+	if err != nil {
+		return "", fmt.Errorf("resolve %s: %w", field, err)
+	}
+	contained, err := filepath.Rel(root, resolved)
+	if err != nil || contained == ".." || strings.HasPrefix(contained, ".."+string(filepath.Separator)) || filepath.IsAbs(contained) {
+		return "", fmt.Errorf("%s escapes the app package through a symlink", field)
+	}
+	info, err := os.Stat(resolved)
+	if err != nil {
+		return "", fmt.Errorf("stat %s: %w", field, err)
+	}
+	if !info.Mode().IsRegular() {
+		return "", fmt.Errorf("%s must reference a regular file", field)
+	}
+	return filepath.Clean(resolved), nil
 }
 
 func looksLikeWindowsDrivePath(value string) bool {

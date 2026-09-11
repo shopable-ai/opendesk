@@ -15,6 +15,7 @@
 - `global-shortcut`：`./dist/opendesk -script tests/runtime-api/single/global-shortcut.js -console-mode script`
 - `events`：`./dist/opendesk -script tests/runtime-api/single/events.js -console-mode script`
 - `app`：`./dist/opendesk -script tests/runtime-api/single/app.js -console-mode script`
+- `automation-app`：`./dist/opendesk -script tests/runtime-api/single/automation-app.js -console-mode script`
 - `notifications`：`./dist/opendesk -script tests/runtime-api/single/notifications.js -console-mode script`
 - `touchscreen`：`./dist/opendesk -script tests/runtime-api/single/touchscreen.js -console-mode script`
 - `window`：`./dist/opendesk -script tests/runtime-api/single/window.js -console-mode script`

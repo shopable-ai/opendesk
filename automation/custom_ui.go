@@ -186,6 +186,7 @@ type CustomUIRuntime struct {
 	floatingToolbars   map[string]*floatingWindow // event-loop owner only
 	nextToolbarID      uint64                     // event-loop owner only
 	nextNotificationID uint64                     // event-loop owner only
+	appShell           *AppShellRuntime           // event-loop owner only
 }
 
 type customUIWorkers struct {
@@ -344,10 +345,20 @@ func (u *CustomUIRuntime) jsUIObject() map[string]any {
 			if err != nil {
 				panic(customUIJSError(u.runtime, err))
 			}
+			if u.appShell != nil {
+				manifest := u.appShell.shell.Manifest()
+				if spec.ID == manifest.Window.MainID {
+					spec.AppCloseBehavior = manifest.Window.CloseBehavior
+				}
+			}
 			return u.startAsync("createWindow", func(ctx context.Context) (any, error) {
 				return u.session.Create(ctx, spec)
 			}, func(value any) goja.Value {
-				return u.runtime.ToValue(u.jsWindowObject(value.(*customui.Window)))
+				window := value.(*customui.Window)
+				if u.appShell != nil && window.ID() == u.appShell.shell.Manifest().Window.MainID {
+					u.appShell.mainWindowReady()
+				}
+				return u.runtime.ToValue(u.jsWindowObject(window))
 			})
 		},
 		"closeAll": func(goja.FunctionCall) goja.Value {
@@ -628,6 +639,9 @@ func (u *CustomUIRuntime) enqueueEvent(event customui.Event) {
 
 func (u *CustomUIRuntime) drainEvents(runtime *goja.Runtime) {
 	for _, event := range u.queue.Drain() {
+		if u.appShell != nil {
+			u.appShell.mainWindowEvent(customUIAppWindowEvent{WindowID: event.WindowID, Type: event.Type, Reason: event.Reason})
+		}
 		argument := runtime.ToValue(jsonCompatible(event))
 		listenerIDs := make([]int, 0, len(u.listeners))
 		for id := range u.listeners {
@@ -663,6 +677,29 @@ func (u *CustomUIRuntime) drainEvents(runtime *goja.Runtime) {
 	if u.queue.Len() > 0 && u.eventScheduled.CompareAndSwap(false, true) {
 		u.loop.RunOnLoop(func(runtime *goja.Runtime) { u.drainEvents(runtime) })
 	}
+}
+
+func (u *CustomUIRuntime) appMainWindowReady(id string) bool {
+	if u == nil || u.session == nil {
+		return false
+	}
+	window, ok := u.session.Window(id)
+	return ok && window.Status() != customui.StatusClosed && window.Status() != customui.StatusFailed
+}
+
+func (u *CustomUIRuntime) showAppMainWindow(ctx context.Context, id string) error {
+	if u == nil || u.session == nil {
+		return fmt.Errorf("Custom UI is unavailable for App Mode main window %q", id)
+	}
+	window, ok := u.session.Window(id)
+	if !ok {
+		return fmt.Errorf("App Mode main window %q has not been created", id)
+	}
+	if window.Status() == customui.StatusClosed || window.Status() == customui.StatusFailed {
+		return fmt.Errorf("App Mode main window %q is permanently closed", id)
+	}
+	_, err := window.Show(ctx)
+	return err
 }
 
 func (u *CustomUIRuntime) reportAsyncError(err error) {

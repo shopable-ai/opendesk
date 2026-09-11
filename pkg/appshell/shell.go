@@ -8,20 +8,21 @@ import (
 	"sync"
 )
 
+const pendingEventCapacity = 256
+
 type State string
 
 const (
 	StateRunning  State = "RUNNING"
 	StateQuitting State = "QUITTING"
 	StateStopped  State = "STOPPED"
-
-	defaultPendingActionCapacity = 256
 )
 
 var (
 	ErrNotRunning = errors.New("app shell is not running")
 	ErrTornDown   = errors.New("app shell is torn down")
-	ErrQueueFull  = errors.New("app shell action queue is full")
+	ErrQueueFull  = errors.New("app shell event queue is full")
+	ErrNotStarted = errors.New("app shell native host is not started")
 )
 
 type ActionEvent struct {
@@ -35,27 +36,41 @@ type MenuItemPatch struct {
 	Visible *bool   `json:"visible,omitempty"`
 }
 
+// NativeHost is owned by the opendesk process. Implementations exchange only
+// plain Go data with Shell and never retain Goja values.
 type NativeHost interface {
+	Start(context.Context, func(itemID, source string)) error
 	Activate(context.Context) error
 	UpdateMenuItem(context.Context, string, MenuItemPatch) error
 	Teardown(context.Context) error
+	Wait()
+}
+
+// MainThreadHost is implemented by backends such as AppKit whose OS event loop
+// must occupy the primordial process thread while the Execution runs elsewhere.
+type MainThreadHost interface {
+	RunMain(context.Context) error
 }
 
 type ActionSink func(ActionEvent) error
 
 type Shell struct {
-	mu         sync.Mutex
-	dispatchMu sync.Mutex
-	state      State
-	manifest   Manifest
-	native     NativeHost
-	sink       ActionSink
-	pending    []ActionEvent
-	menuState  map[string]MenuItemPatch
-	teardown   bool
-	teardownMu sync.Once
-	quitOnce   sync.Once
-	onQuit     func()
+	mu          sync.Mutex
+	startMu     sync.Mutex
+	dispatchMu  sync.Mutex
+	menuMu      sync.Mutex
+	state       State
+	manifest    Manifest
+	native      NativeHost
+	sink        ActionSink
+	pending     []ActionEvent
+	menuState   map[string]MenuItemPatch
+	started     bool
+	teardown    bool
+	quitOnce    sync.Once
+	closeOnce   sync.Once
+	onQuit      func()
+	terminalErr error
 }
 
 func New(manifest Manifest, native NativeHost) (*Shell, error) {
@@ -78,10 +93,59 @@ func New(manifest Manifest, native NativeHost) (*Shell, error) {
 		}
 		menuState[item.ID] = MenuItemPatch{Label: &label, Enabled: &enabled, Visible: &visible}
 	}
-	return &Shell{
-		state: StateRunning, manifest: manifest, native: native,
-		pending: make([]ActionEvent, 0, 8), menuState: menuState,
-	}, nil
+	return &Shell{state: StateRunning, manifest: manifest, native: native, menuState: menuState}, nil
+}
+
+func (s *Shell) Start(ctx context.Context) error {
+	s.startMu.Lock()
+	defer s.startMu.Unlock()
+	s.mu.Lock()
+	if s.teardown || s.state != StateRunning {
+		s.mu.Unlock()
+		return ErrNotRunning
+	}
+	if s.started {
+		s.mu.Unlock()
+		return nil
+	}
+	native := s.native
+	s.mu.Unlock()
+	if native == nil || !s.manifest.Tray.Enabled {
+		return s.completeStartLocked()
+	}
+	if err := native.Start(ctx, s.DispatchMenuItem); err != nil {
+		return err
+	}
+	return s.completeStartLocked()
+}
+
+// completeStartLocked runs while startMu is held. If shutdown won the race
+// after the native host started, this path owns the one native teardown rather
+// than allowing Start and CancelAsync to tear the same host down concurrently.
+func (s *Shell) completeStartLocked() error {
+	s.mu.Lock()
+	if s.teardown || s.state != StateRunning {
+		s.mu.Unlock()
+		s.cancelAsyncLocked()
+		return ErrNotRunning
+	}
+	s.started = true
+	s.mu.Unlock()
+	return nil
+}
+
+func (s *Shell) RunMain(ctx context.Context) error {
+	s.mu.Lock()
+	native := s.native
+	started := s.started
+	s.mu.Unlock()
+	if !started {
+		return ErrNotStarted
+	}
+	if host, ok := native.(MainThreadHost); ok {
+		return host.RunMain(ctx)
+	}
+	return nil
 }
 
 func (s *Shell) State() State {
@@ -96,24 +160,12 @@ func (s *Shell) Manifest() Manifest {
 	return s.manifest
 }
 
-func (s *Shell) IsActive() bool {
-	state := s.State()
-	return state == StateRunning || state == StateQuitting
-}
-
-func (s *Shell) PendingActionCount() int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return len(s.pending)
-}
-
 func (s *Shell) BindActionSink(sink ActionSink) error {
 	if sink == nil {
 		return errors.New("action sink is required")
 	}
 	s.dispatchMu.Lock()
 	defer s.dispatchMu.Unlock()
-
 	s.mu.Lock()
 	if s.teardown {
 		s.mu.Unlock()
@@ -131,9 +183,12 @@ func (s *Shell) BindActionSink(sink ActionSink) error {
 	pending := append([]ActionEvent(nil), s.pending...)
 	s.pending = nil
 	s.mu.Unlock()
-
 	for _, event := range pending {
 		if err := sink(event); err != nil {
+			s.mu.Lock()
+			s.sink = nil
+			s.pending = nil
+			s.mu.Unlock()
 			return err
 		}
 	}
@@ -157,8 +212,45 @@ func (s *Shell) SetQuitHook(hook func()) {
 	}
 }
 
-// DispatchAction serializes every native source before it can enter the
-// execution-owned Runtime queue. Built-in Open/Quit actions converge here too.
+// DispatchMenuItem maps the native menu item identity to its business action.
+// Native backends never decide the JavaScript event identity themselves.
+func (s *Shell) DispatchMenuItem(itemID, source string) {
+	var err error
+	if itemID == "opendesk.open" || itemID == "opendesk.quit" {
+		err = s.DispatchAction(itemID, source)
+	} else if action, ok := s.manifest.MenuAction(itemID); ok {
+		err = s.DispatchAction(action, source)
+	}
+	if err == nil || errors.Is(err, ErrNotRunning) || errors.Is(err, ErrTornDown) {
+		return
+	}
+	// Native callbacks have no synchronous JavaScript caller to receive an
+	// overflow/scheduling error. Record it and enter the one shutdown path so
+	// an event is never silently dropped while the app continues as healthy.
+	s.recordTerminalError(fmt.Errorf("native App Shell action dispatch failed: %w", err))
+	_ = s.RequestQuit()
+}
+
+func (s *Shell) recordTerminalError(err error) {
+	if s == nil || err == nil {
+		return
+	}
+	s.mu.Lock()
+	if s.terminalErr == nil {
+		s.terminalErr = err
+	}
+	s.mu.Unlock()
+}
+
+func (s *Shell) TerminalError() error {
+	if s == nil {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.terminalErr
+}
+
 func (s *Shell) DispatchAction(id, source string) error {
 	id = strings.TrimSpace(id)
 	source = strings.TrimSpace(source)
@@ -168,32 +260,18 @@ func (s *Shell) DispatchAction(id, source string) error {
 	if source == "" {
 		return errors.New("action source is required")
 	}
-
-	s.dispatchMu.Lock()
-	defer s.dispatchMu.Unlock()
-
-	s.mu.Lock()
-	if s.teardown {
-		s.mu.Unlock()
-		return ErrTornDown
+	if id == "opendesk.quit" {
+		return s.RequestQuit()
 	}
-	if s.state != StateRunning {
-		s.mu.Unlock()
-		return ErrNotRunning
+	if id == "opendesk.open" {
+		return s.Activate(source)
 	}
-	s.mu.Unlock()
-
-	switch id {
-	case "opendesk.open":
-		return s.activateLocked(source)
-	case "opendesk.quit":
-		return s.requestQuitLocked()
-	default:
-		return s.dispatchLocked(ActionEvent{ID: id, Source: source})
-	}
+	return s.enqueue(ActionEvent{ID: id, Source: source})
 }
 
-func (s *Shell) dispatchLocked(event ActionEvent) error {
+func (s *Shell) enqueue(event ActionEvent) error {
+	s.dispatchMu.Lock()
+	defer s.dispatchMu.Unlock()
 	s.mu.Lock()
 	if s.teardown {
 		s.mu.Unlock()
@@ -204,7 +282,7 @@ func (s *Shell) dispatchLocked(event ActionEvent) error {
 		return ErrNotRunning
 	}
 	if s.sink == nil {
-		if len(s.pending) >= defaultPendingActionCapacity {
+		if len(s.pending) >= pendingEventCapacity {
 			s.mu.Unlock()
 			return ErrQueueFull
 		}
@@ -218,12 +296,6 @@ func (s *Shell) dispatchLocked(event ActionEvent) error {
 }
 
 func (s *Shell) Activate(source string) error {
-	s.dispatchMu.Lock()
-	defer s.dispatchMu.Unlock()
-	return s.activateLocked(normalizedOpenSource(source))
-}
-
-func (s *Shell) activateLocked(source string) error {
 	s.mu.Lock()
 	if s.teardown {
 		s.mu.Unlock()
@@ -234,13 +306,14 @@ func (s *Shell) activateLocked(source string) error {
 		return ErrNotRunning
 	}
 	native := s.native
+	started := s.started
 	s.mu.Unlock()
-	if native != nil {
+	if native != nil && started {
 		if err := native.Activate(context.Background()); err != nil {
 			return err
 		}
 	}
-	return s.dispatchLocked(ActionEvent{ID: "app.open", Source: normalizedOpenSource(source)})
+	return s.enqueue(ActionEvent{ID: "opendesk.open", Source: normalizedOpenSource(source)})
 }
 
 func normalizedOpenSource(source string) string {
@@ -251,7 +324,9 @@ func normalizedOpenSource(source string) string {
 	return source
 }
 
-func (s *Shell) UpdateMenuItem(id string, patch MenuItemPatch) error {
+func (s *Shell) UpdateMenuItem(ctx context.Context, id string, patch MenuItemPatch) error {
+	s.menuMu.Lock()
+	defer s.menuMu.Unlock()
 	id = strings.TrimSpace(id)
 	if id == "" {
 		return errors.New("menu item id is required")
@@ -259,7 +334,6 @@ func (s *Shell) UpdateMenuItem(id string, patch MenuItemPatch) error {
 	if patch.Label == nil && patch.Enabled == nil && patch.Visible == nil {
 		return errors.New("menu item patch is empty")
 	}
-
 	s.mu.Lock()
 	if s.teardown {
 		s.mu.Unlock()
@@ -273,6 +347,10 @@ func (s *Shell) UpdateMenuItem(id string, patch MenuItemPatch) error {
 	if !ok {
 		s.mu.Unlock()
 		return fmt.Errorf("unknown menu item %q", id)
+	}
+	if s.manifest.StatusOnlyMenuItem(id) && patch.Enabled != nil && *patch.Enabled {
+		s.mu.Unlock()
+		return fmt.Errorf("status-only menu item %q is permanently disabled", id)
 	}
 	if patch.Label != nil {
 		label := strings.TrimSpace(*patch.Label)
@@ -292,10 +370,10 @@ func (s *Shell) UpdateMenuItem(id string, patch MenuItemPatch) error {
 		current.Visible = &value
 	}
 	native := s.native
+	started := s.started
 	s.mu.Unlock()
-
-	if native != nil {
-		if err := native.UpdateMenuItem(context.Background(), id, patch); err != nil {
+	if native != nil && started {
+		if err := native.UpdateMenuItem(ctx, id, patch); err != nil {
 			return err
 		}
 	}
@@ -315,36 +393,34 @@ func (s *Shell) MenuItemState(id string) (MenuItemPatch, bool) {
 }
 
 func (s *Shell) BeginShutdown() bool {
+	s.dispatchMu.Lock()
+	defer s.dispatchMu.Unlock()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.teardown || s.state != StateRunning {
 		return false
 	}
 	s.state = StateQuitting
+	s.sink = nil
+	s.pending = nil
 	return true
 }
 
-// RequestQuit only requests cancellation of the current execution. Native
-// teardown is owned by Teardown, so every quit source converges through the
-// same Runtime lifecycle instead of racing five independent shutdown paths.
+// RequestQuit only transitions state and cancels the owning App Mode context.
+// RuntimeLifecycle.CancelAsync owns native teardown so there is one shutdown
+// path and callbacks cannot outlive the current Execution.
 func (s *Shell) RequestQuit() error {
-	s.dispatchMu.Lock()
-	defer s.dispatchMu.Unlock()
-	return s.requestQuitLocked()
-}
-
-func (s *Shell) requestQuitLocked() error {
-	s.mu.Lock()
-	if s.teardown || s.state == StateStopped {
-		s.mu.Unlock()
-		return nil
+	if !s.BeginShutdown() {
+		state := s.State()
+		if state == StateQuitting || state == StateStopped {
+			return nil
+		}
+		return ErrNotRunning
 	}
-	if s.state == StateRunning {
-		s.state = StateQuitting
-	}
-	hook := s.onQuit
-	s.mu.Unlock()
 	s.quitOnce.Do(func() {
+		s.mu.Lock()
+		hook := s.onQuit
+		s.mu.Unlock()
 		if hook != nil {
 			hook()
 		}
@@ -352,28 +428,79 @@ func (s *Shell) requestQuitLocked() error {
 	return nil
 }
 
-// Teardown is idempotent and should be called by the current execution's
-// lifecycle cleanup after cancellation.
-func (s *Shell) Teardown() error {
-	var teardownErr error
-	s.teardownMu.Do(func() {
-		s.mu.Lock()
-		if s.state == StateRunning {
-			s.state = StateQuitting
+// CancelAsync is called by RuntimeLifecycle on the Goja owner after the App
+// Mode context is canceled. It is safe to repeat and never invokes JavaScript.
+func (s *Shell) CancelAsync() {
+	if s == nil {
+		return
+	}
+	if s.State() == StateRunning {
+		_ = s.RequestQuit()
+	}
+	// Native Start and Teardown must never overlap. Start uses the same gate
+	// and performs cleanup itself if shutdown wins its completion check.
+	s.startMu.Lock()
+	defer s.startMu.Unlock()
+	s.cancelAsyncLocked()
+}
+
+func (s *Shell) cancelAsyncLocked() {
+	s.closeOnce.Do(func() {
+		if s.State() == StateRunning {
+			_ = s.RequestQuit()
 		}
-		native := s.native
-		s.mu.Unlock()
-		if native != nil {
-			teardownErr = native.Teardown(context.Background())
-		}
+		s.dispatchMu.Lock()
 		s.mu.Lock()
 		s.sink = nil
 		s.pending = nil
-		s.native = nil
-		s.onQuit = nil
+		native := s.native
+		s.mu.Unlock()
+		s.dispatchMu.Unlock()
+		if native != nil {
+			ctx, cancel := context.WithCancel(context.Background())
+			if err := native.Teardown(ctx); err != nil {
+				s.recordTerminalError(fmt.Errorf("teardown native App Shell host: %w", err))
+			}
+			cancel()
+		}
+		s.mu.Lock()
 		s.teardown = true
+		s.onQuit = nil
 		s.state = StateStopped
 		s.mu.Unlock()
 	})
-	return teardownErr
+}
+
+func (s *Shell) Wait() {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	native := s.native
+	s.mu.Unlock()
+	if native != nil {
+		native.Wait()
+	}
+}
+
+func (s *Shell) ResourceCounts() (running int, queued int) {
+	if s == nil {
+		return 0, 0
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.teardown && s.state == StateRunning {
+		running = 1
+	}
+	return running, len(s.pending)
+}
+
+func (s *Shell) Teardown() error {
+	if s == nil {
+		return nil
+	}
+	_ = s.RequestQuit()
+	s.CancelAsync()
+	s.Wait()
+	return s.TerminalError()
 }

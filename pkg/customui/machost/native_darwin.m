@@ -10,7 +10,7 @@
 #import "floating_toolbar_darwin.h"
 #import "notification_darwin.h"
 
-static NSString *const CDProtocolVersion = @"1.8.0";
+static NSString *const CDProtocolVersion = @"1.9.0";
 static NSMutableDictionary<NSString *, id> *CDWindows;
 static NSMutableDictionary<NSString *, NSDictionary *> *CDClosedNotifications;
 
@@ -579,6 +579,7 @@ static NSString *CDBridgeSource(NSArray *controls, NSString *css, BOOL draggable
 @property(nonatomic) BOOL draggable;
 @property(nonatomic) BOOL closed;
 @property(nonatomic) BOOL programmaticClose;
+@property(nonatomic, copy) NSString *appCloseBehavior;
 @property(nonatomic) BOOL dragActive;
 @property(nonatomic) BOOL navigationFinished;
 @property(nonatomic) BOOL bridgeReady;
@@ -916,6 +917,15 @@ static void CDFinalizeClosedWindow(CDWindowController *controller, NSUInteger at
 	dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 10 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
 		CDFinalizeClosedWindow(self, 0);
 	});
+}
+
+- (BOOL)windowShouldClose:(NSWindow *)sender {
+	if (self.programmaticClose || ![self.appCloseBehavior isEqualToString:@"hide"]) return YES;
+	// A user X in App Mode hide policy keeps this exact NSWindow and its WKWebView
+	// alive. Programmatic/session close paths set programmaticClose and bypass it.
+	[sender orderOut:nil];
+	self.revision += 1;
+	return NO;
 }
 
 - (void)webView:(WKWebView *)webView didFinishNavigation:(WKNavigation *)navigation {
@@ -1314,7 +1324,8 @@ static void CDHandleCreate(NSDictionary *request, NSString *requestID) {
 	CDWindowController *controller = [CDWindowController new];
     controller.sessionID = sessionID;
     controller.windowID = windowID;
-    controller.kind = kind;
+	controller.kind = kind;
+	controller.appCloseBehavior = [spec[@"appCloseBehavior"] isKindOfClass:NSString.class] ? spec[@"appCloseBehavior"] : @"";
     controller.window = window;
 	controller.nativeWindowID = (CGWindowID)window.windowNumber;
     controller.alwaysOnTop = [spec[@"alwaysOnTop"] boolValue];

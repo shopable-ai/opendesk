@@ -115,9 +115,10 @@ func normalizeMacOSBundleLaunchWorkingDirectory() {
 
 func init() {
 	args := commandLineArgs()
-	if automation.MacOSRegionSelectorHelperRequested(args) {
+	if automation.MacOSRegionSelectorHelperRequested(args) || appModeRequested(args) {
 		// Pin the primordial process thread before Go can schedule main
-		// elsewhere. AppKit must own that thread for the selector lifetime.
+		// elsewhere. AppKit must own that thread for selector and App Mode
+		// status-item lifetimes.
 		runtime.LockOSThread()
 		return
 	}
@@ -126,8 +127,21 @@ func init() {
 	}
 }
 
+func appModeRequested(args []string) bool {
+	for _, arg := range args {
+		if arg == "--" {
+			return false
+		}
+		if arg == "-app" || strings.HasPrefix(arg, "-app=") {
+			return true
+		}
+	}
+	return false
+}
+
 // Config holds the application configuration
 type Config struct {
+	AppPath                               string
 	ScriptPath                            string
 	ScriptText                            string
 	ScriptStdin                           bool
@@ -176,6 +190,7 @@ type Config struct {
 func parseFlags() *Config {
 	config := &Config{}
 
+	flag.StringVar(&config.AppPath, "app", "", "Run an OpenDesk App Mode package directory")
 	flag.StringVar(&config.ScriptPath, "script", "", "Script file path (.txt, .js, or .odpkg)")
 	flag.StringVar(&config.ScriptText, "script-text", "", "Execute JavaScript source directly from the command line")
 	flag.StringVar(&config.StackMode, "stack", "legacy", "Legacy compatibility selector; new scripts should omit this flag")
@@ -275,6 +290,10 @@ func main() {
 	if aicli.IsCommand(args) {
 		os.Exit(aicli.Execute(args, os.Stdout, os.Stderr))
 	}
+	if err := validateAppModeHelperConflict(args); err != nil {
+		terminalPrintf(os.Stderr, "[ERROR] %v\n", err)
+		os.Exit(2)
+	}
 	if automation.MacOSNotificationHelperRequested(os.Args[1:]) {
 		os.Exit(automation.RunMacOSNotificationHelper(os.Stdin, os.Stdout, os.Stderr))
 	}
@@ -303,6 +322,10 @@ func main() {
 	}()
 
 	config := parseFlags()
+	if err := validateAppModeConfig(config); err != nil {
+		terminalPrintf(os.Stderr, "[ERROR] %v\n", err)
+		os.Exit(2)
+	}
 	if nativeMode {
 		host := nativeextension.NewHost()
 		os.Exit(executeNativeExtensionCLI(context.Background(), config, os.Stdout, os.Stderr, host))
@@ -321,6 +344,13 @@ func main() {
 		terminalPrintln(os.Stdout, "[FRAMEWORK] [DEBUG] Program starting...")
 	}
 	// Note: initRuntime is now only called in legacy mode when needed
+	if config.AppPath != "" {
+		if err := executeAppMode(config); err != nil {
+			terminalPrintf(os.Stderr, "[ERROR] App Mode failed: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
 
 	// 检查是否是双击启动（无参数启动）
 	if len(os.Args) == 1 {

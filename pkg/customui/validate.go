@@ -53,6 +53,9 @@ func Normalize(spec WindowSpec, baseDir string) (WindowSpec, error) {
 	if spec.Controls != nil {
 		return WindowSpec{}, invalidSpec("controls is derived and cannot be declared")
 	}
+	if spec.AppCloseBehavior != "" && spec.AppCloseBehavior != "hide" && spec.AppCloseBehavior != "quit" {
+		return WindowSpec{}, invalidSpec("app close behavior must be hide, quit, or omitted")
+	}
 	if spec.Placement != nil {
 		placement, err := NormalizeInitialWindowPlacement(*spec.Placement)
 		if err != nil {

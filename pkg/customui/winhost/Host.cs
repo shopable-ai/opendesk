@@ -75,6 +75,14 @@ internal abstract class Surface : IDisposable
         Form.BackColor=J.S(spec,"theme")=="dark"?Color.FromArgb(25,25,28):SystemColors.Window;
         Form.ForeColor=J.S(spec,"theme")=="dark"?Color.White:SystemColors.WindowText;
         Form.NonActivating=J.S(spec,"kind")=="floating";
+		Form.FormClosing+=(_,eventArgs)=>{
+			// User close is the only origin eligible for App Mode hide. Script,
+			// session, and shutdown paths set CloseReason before Form.Close and must
+			// destroy the native window so teardown cannot retain it accidentally.
+			if(!Closed&&CloseReason.Length==0&&J.S(Spec,"appCloseBehavior")=="hide") {
+				eventArgs.Cancel=true;Form.Hide();Revision++;Native.DwmFlush();
+			}
+		};
         Form.FormClosed+=(_,_)=>OnClosed();
         Form.Move+=(_,_)=>{if(Registered&&!Closed){Revision++;Emit("move",null,null,null,J.Rect(Native.Bounds(Form.Handle)));}};
         Form.Resize+=(_,_)=>{if(Registered&&!Closed){Revision++;Emit("resize",null,null,null,J.Rect(Native.Bounds(Form.Handle)));}};

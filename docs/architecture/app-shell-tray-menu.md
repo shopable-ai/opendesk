@@ -1,10 +1,11 @@
 # App Shell、Tray / Menu Bar 与 Single-Instance 设计
 
-> 状态：Design Baseline / Implementation Pending  
-> 基线：`master@38ba981f11a87dcdd059d106e1663c2aeb9fee99`  
-> 日期：2026-09-10  
+> 状态：P0 Implemented / macOS Live Verified / Windows Cross-Build Verified
+> 冻结点：`a4ebd5ffa5522284fb9fdba160fb234464aa1668`；最新远端基线：`origin/master@816e423d36bfeca7bb03d5373b1ae9339cfdc64c`；验证源码：`HEAD@380856f6ac999f860af4abed5c40f7f5853c05a5` 加当前工作树 P0 实现
+> 日期：2026-09-11
 > 范围：OpenDesk 可分发桌面脚本应用（App Mode）的 App Shell、系统托盘 / 菜单栏、菜单 Action、窗口关闭行为与单实例生命周期。  
 > 兼容性：现有普通 JavaScript / CLI 执行路径必须保持不变。
+> 验证边界：macOS 已完成真实 Menu Bar、窗口与 single-instance live；Windows 原生 Tray / IPC 已完成目标系统测试二进制 cross-build，真机 live 留待具备 Windows 设备时执行。
 
 ## 1. 结论
 
@@ -66,7 +67,7 @@ P0 目标：
 - 在 Windows Notification Area 与 macOS Menu Bar 提供一致的 App Shell 业务语义；
 - 使用应用 Manifest 描述入口脚本、托盘初始菜单、窗口关闭行为与单实例策略；
 - 菜单点击以稳定 `actionId` 分发给当前 Execution；
-- Runtime 能按稳定菜单 ID 更新 label / enabled / visible / checked 等受支持状态；
+- Runtime 能按稳定菜单 ID 更新 P0 共同能力 `label` / `enabled` / `visible`；
 - `closeBehavior=hide` 时关闭窗口不等于退出应用；
 - `singleInstance=true` 时第二次启动只激活已有实例，不再次运行 `main.js`；
 - 应用退出时安全停止 Action 分发、销毁 Tray / Menu、关闭 Native UI，并进入已有 Execution 取消 / 退出路径；
@@ -90,11 +91,11 @@ P0 不解决：
 
 ## 5. 与当前仓库能力的关系
 
-当前 Custom UI 已提供 `automation.ui.createWindow()`、`show()`、`hide()`、`close()` 等窗口能力，并在 Windows 使用 WebView2、macOS 使用 WKWebView。页面 JavaScript 与 OpenDesk 自动化 Runtime 保持隔离。
+当前 Custom UI 已提供 `ui.createWindow()`、`show()`、`hide()`、`close()` 等窗口能力，并在 Windows 使用 WebView2、macOS 使用 WKWebView。页面 JavaScript 与 OpenDesk 自动化 Runtime 保持隔离。
 
 本设计不复制这些窗口 API。App Shell 只决定应用级行为，例如窗口关闭后是隐藏还是退出；具体窗口仍由现有 `automation.ui` 管理。
 
-按照仓库约束，原生 GUI / OS integration 应进入原生自动化宿主的适当模块（优先遵循现有 `src/automation/*` 拆分方式），而不是为了 JS 可调用就增加仓库专用 polyfill。
+按照仓库约束，原生 GUI / OS integration 由 Go `automation/` 与平台 native owner 持有，而不是为了 JS 可调用就在 `polyfills/` 复制同名 native global。
 
 ## 6. 三层菜单模型
 
@@ -133,16 +134,21 @@ P0 Manifest 示例：
 
 ```json
 {
+  "id": "com.example.sync-helper",
   "entry": "main.js",
   "singleInstance": true,
   "window": {
+    "mainId": "main",
     "closeBehavior": "hide"
   },
   "tray": {
     "enabled": true,
-    "icon": "assets/tray.png",
+    "icons": {
+      "windows": "assets/tray.ico",
+      "macos": "assets/tray-template.png"
+    },
     "tooltip": "Example App",
-    "primaryAction": "app.open",
+    "primaryAction": "opendesk.open",
     "menuMode": "merge",
     "menu": [
       {
@@ -165,6 +171,10 @@ P0 Manifest 示例：
 
 ### 7.1 顶层字段
 
+- `id: string`
+  - 必填、稳定的 package identity；P0 使用小写 reverse-DNS 形式，例如 `com.example.sync-helper`；
+  - single-instance key 只来自规范化后的 `id` 的 SHA-256，不使用绝对 `entry` 路径或当前工作目录；
+  - `id` 改变表示另一个应用身份。
 - `entry: string`
   - App Mode 的 JavaScript 入口；
   - P0 默认可为 `main.js`，但实现必须显式解析并验证；
@@ -175,13 +185,17 @@ P0 Manifest 示例：
 - `window.closeBehavior: "hide" | "quit"`
   - `hide`：关闭主窗口仅隐藏，App Shell 保持运行；
   - `quit`：关闭行为进入应用退出流程。
+- `window.mainId: string`
+  - 必填；必须与入口脚本传给 `automation.ui.createWindow()` 的稳定 Custom UI window `id` 一致；
+  - 系统动作 `opendesk.open` 显示并聚焦这个现有窗口；不会新建窗口，也不会向业务层改写成另一个 action。
 - `tray`
   - 托盘 / 菜单栏配置。
 
 ### 7.2 Tray 字段
 
 - `enabled: boolean`：是否创建系统托盘 / 菜单栏入口；
-- `icon: string`：相对于应用包的资源路径；
+- `icons.windows: string`：Windows Notification Area 使用的真实 `.ico` 包内相对路径；tray 启用时必填；ICO directory/frame 在所有 host 上启动前验证，native loader 按当前 DPI 的 small-icon metrics 选择 frame；推荐包含 16/20/24/32/48/256 px，但 P0 不把固定帧集合设为硬要求；
+- `icons.macos: string`：macOS Menu Bar 使用的真实正方形 PNG 包内相对路径；tray 启用时必填，必须同时含可见与透明 alpha，作为 18-point template image 按比例渲染；推荐 36×36 px；
 - `tooltip: string`：平台支持时显示；
 - `primaryAction: string`：托盘主激活动作对应的业务 Action ID；
 - `menuMode: "merge"`：P0 只冻结 `merge`；
@@ -210,17 +224,37 @@ P0 Manifest 示例：
 设计要求：
 
 - 可被 Runtime 更新的菜单项必须具有稳定且唯一的 `id`；
+- 普通 menu item 的 `id` 在整个 menu 中全局唯一；`action` 可以由多个 item 复用；native item `id` 只用于更新定位，发给 JavaScript 的 `event.id` 始终是 `action`；
 - `action` 是业务 Action ID，不是文件名、JS 代码或 shell command；
+- 没有 `action` 的 status-only item 只允许显式且永久 `enabled:false`；Runtime 不得把它重新启用；
+- separator 的唯一合法结构是 `{ "type": "separator" }`；
 - `id` / `action` 不允许使用保留的 `opendesk.*` 前缀；
 - 重复 ID、无效类型、非法资源路径必须在应用启动阶段尽早失败；
-- `primaryAction` 必须引用有效的业务 Action 或受支持的系统 Action；
-- `closeBehavior=hide` 时必须存在可靠的重新打开入口。P0 推荐要求 `tray.enabled=true`，否则启动校验失败。
+- `primaryAction` 必须引用已声明的业务 Action 或系统动作 `opendesk.open`；`opendesk.quit` 只保留给系统 Quit menu，不允许作为 primary action；
+- `closeBehavior=hide` 时必须有 `tray.enabled=true`，且 `primaryAction` 必须是 `opendesk.open`，否则启动校验失败。
+
+### 7.4 Package root 与资源边界
+
+- package root 是 `realpath(-app directory)`；启动前必须确认它是目录；
+- `entry` 与两端 icon 都必须是 package root 内的相对路径，拒绝绝对路径、`..` 逃逸、缺失文件、目录和 symlink escape；
+- 路径校验使用解析 symlink 后的真实目标，而不是只做字符串前缀比较；
+- 两端 icon 都在创建 Execution/native host 前验证且单文件限制为 16 MiB：macOS PNG 边长 16–1024 px，必须完整解码；Windows ICO 每帧为 16–256 px 正方形，验证 frame count、offset/range/overlap 与尺寸，嵌入 PNG 完整解码，传统 DIB 验证 header 与常见未压缩 payload；
+- 两个图标字段没有平台 fallback；P0 不承诺把任意单一 PNG 自动转换为 Windows ICO 或 macOS template image，manifest 必须分别提供上述平台资源；
+- Windows backend 在 message-loop owner 上加载一个 `HICON`，Explorer taskbar 重建复用该 handle，统一 teardown 先 `NIM_DELETE` 再 `DestroyIcon`；macOS backend 显式使用 proportional-down scaling，避免高分辨率源被当作同等 point size 拉宽或裁切。
+
+### 7.5 App Mode CLI 边界
+
+- 唯一入口是 `-app <directory>`；它在 helper/native/flags/console 处理后、无参数 HTTP、vision、direct script 与 HTTP 分支前进入独立 startup pipeline；
+- `-app` 与 `-script`、`-script-text`、`-script-stdin`、`-http`、vision/native/helper 模式严格互斥；
+- 普通 Script、inline、stdin 和 HTTP 模式不读取或自动发现 `opendesk.app.json`；
+- App Mode 创建独立 `execution.Request`，不使用 direct-script replacement lease、不修改 process cwd、默认没有 30 分钟 deadline；`WorkDir` 与 `CustomUIBaseDir` 都是 package root；
+- single-instance 必须在 `execution.Run` 前完成 acquire/activation ACK 决策。
 
 ## 8. App Runtime API
 
 最终 API 名称必须在实现时先对照当前 native binding 风格确认；以下名称冻结的是**业务语义**，不是要求无视仓库风格硬加名称。
 
-推荐归属：`automation.app`。
+正式归属：native `automation.app`。现有 global `App` 继续表示外部桌面应用控制，保持兼容；生命周期结构字段命名 `AppShell`，不得与该 `App` 混用。普通 Script Mode 可以看到 disabled capability，但不会读取 manifest、创建 tray 或获得常驻语义。
 
 ### 8.1 Action 订阅
 
@@ -258,12 +292,13 @@ await automation.app.updateMenuItem("status", {
 
 核心原则：**使用稳定菜单 ID 更新局部状态，不要求业务状态每次变化都重建整棵菜单树。**
 
-P0 可支持的 patch 字段按平台共同能力裁剪，至少考虑：
+P0 patch 字段按平台共同能力冻结为：
 
 - `label`
 - `enabled`
 - `visible`
-- `checked`（只有两端实现都稳定时进入 P0，否则下放 P1）
+
+`checked`、radio、submenu、accelerator、badge 与 arbitrary reorder 均不进入 P0。
 
 未知字段必须返回明确错误，不静默忽略。
 
@@ -315,10 +350,10 @@ main.js registered handler
 例如：
 
 ```json
-"primaryAction": "app.open"
+"primaryAction": "opendesk.open"
 ```
 
-对应应用可以在当前 Execution 中调用既有 `automation.ui.show(windowId)`。
+`opendesk.open` 是 App Shell 保留的系统动作：它先显示并聚焦 `window.mainId` 对应的现有 Custom UI window，再把同一个 `{id:"opendesk.open", source}` event 投递给当前 Runtime，使业务能够观测 tray primary click 与 second-instance activation，但不能覆盖系统 reopen 行为。业务 `primaryAction` 则按普通 action 分发。
 
 平台实现可映射为：
 
@@ -389,7 +424,12 @@ Primary instance
 
 平台锁 / IPC 机制可以不同，但产品语义必须相同。
 
-实例 identity 应来源于稳定的应用包身份，而不是仅依赖入口文件的临时绝对路径。P0 实现时应结合当前打包 / 启动结构选择最小可靠 identity，并记录在实现文档和测试中。
+实例 identity 固定来自规范化 manifest `id` 的 SHA-256：
+
+- Windows：每用户 `Local\\OpenDesk.App.<hash>` named mutex + current-user-only ACL named pipe；
+- macOS：用户私有状态目录中的 `flock` lease + Unix domain socket，目录、lock、socket 均拒绝扩大到其他用户；
+- primary 必须先取得 identity，随后且只创建一次业务 Execution；secondary 发送 activation 并收到 ACK 后，在 `execution.Run` 之前退出；
+- primary 进入 `QUITTING` 后拒绝并 NACK activation，绝不复活或重建 Runtime。
 
 ## 13. Shutdown 顺序
 
@@ -410,7 +450,20 @@ QUITTING
 STOPPED
 ```
 
-实现应尽量接入现有 OpenDesk shutdown / cancellation 路径，不能在 App Shell 内复制一套任务终止系统。
+正式 shutdown 只使用现有 Execution 生命周期：
+
+```text
+AppShell.RequestQuit
+  -> CAS RUNNING -> QUITTING；拒绝 action / activation
+  -> cancel App Mode parent context
+  -> RuntimeLifecycle.CancelAsync（含 AppShell listener/queue、Custom UI、native tray teardown）
+  -> EventLoop.Terminate
+  -> RuntimeLifecycle.Wait join workers
+  -> release single-instance IPC / lease
+  -> process exit
+```
+
+AppShell 是 `RuntimeLifecycle` 的正式资源，必须进入 `AsyncCounts`、`ResourceCounts`、`CancelAsync` 与 `Wait`。监听器本身使 App Mode 顶层脚本完成后继续存活；资源变化必须通过 completion wake/gate 通知 runner 重新检查，禁止永久 `setInterval`、sleep loop 或 1ms polling。不能在 App Shell 内复制一套任务终止系统。
 
 至少保证：
 
@@ -435,6 +488,7 @@ P0 至少检查：
 - `closeBehavior` 不受支持；
 - `closeBehavior=hide` 但没有可靠 reopen 路径；
 - tray icon 路径逃逸应用包或资源不存在；
+- tray icon 空文件、错格式、损坏内容、非法尺寸/透明度或 ICO frame range；
 - 平台创建 Tray / Menu 失败。
 
 不要把结构性配置错误静默降级成“没有菜单”。
@@ -485,9 +539,11 @@ P0 至少检查：
 
 ## 17. 平台实现原则
 
+P0 不使用当前 `fyne.io/systray v1.11.0` indirect legacy dependency：其 primary-click、错误传播、丢事件和全局 loop/delegate 契约无法满足本设计。两端使用平台原生 backend。
+
 ### Windows
 
-建议使用现有 native Windows host 技术栈实现 Notification Area icon 与 native menu，并与当前 GUI / message loop 做最小集成。
+由 `opendesk` 主 Go process 的 App Shell 持有 Notification Area icon、menu 和 single-instance，而不是 Custom UI sidecar 或 `cmd/opendesk-status`。backend 使用专属 Windows message-loop owner；窗口 user close 在 `FormClosing` / `NativeForm.OnFormClosing` 阶段拦截，`hide` 时设 `Cancel=true` 并隐藏原窗口。script/session/programmatic close 带明确 origin 并真正关闭。
 
 必须验证：
 
@@ -498,7 +554,7 @@ P0 至少检查：
 
 ### macOS
 
-建议基于 Cocoa `NSStatusItem` / `NSMenu` 实现，并复用当前需要的主线程 / Cocoa 生命周期。
+由 `opendesk` 主 Go process 的 App Shell 持有 `NSStatusItem` / `NSMenu` 与 single-instance，不依赖 Custom UI sidecar。AppKit 状态栏和 UI mutation 必须位于 primordial main thread，Execution 可在 goroutine。窗口在 `windowShouldClose` 区分 origin：用户关闭且 `hide` 时 `orderOut` 并返回 `NO`；programmatic/session close 返回 `YES`；`windowWillClose` 只负责最终清理。
 
 必须验证：
 
@@ -525,6 +581,10 @@ P0 至少检查：
 | 退出中的菜单点击 | Yes | Yes | 被拒绝 / 忽略且不崩溃 |
 | 重复 quit | Yes | Yes | 幂等 |
 | Custom UI coexistence | Yes | Yes | UI 与 Tray 生命周期无死锁 |
+| icon missing / empty / wrong-format / corrupt | Yes | Yes | Execution 创建前指出具体 `tray.icons.*` 字段并失败 |
+| icon traversal / symlink escape | Yes | Yes | 解析真实路径后拒绝 package 越界 |
+| icon scaling / template tint | N/A | Yes | 18-point 比例缩放；真实浅色/深色菜单栏截图检查清晰、留白与无裁切 |
+| ICO common DPI frames | Yes | N/A | portable 结构/解码测试；真机检查 Windows 实际 DPI 选择与显示 |
 
 测试必须覆盖“Action 执行次数 / Runtime 实例数量”，不能只验证图标是否出现。
 
@@ -606,20 +666,21 @@ Windows/macOS validation + CLI regression
 
 P0 完成必须同时满足：
 
-- [ ] Windows 与 macOS 都有真实 native Tray / Menu Bar 实现；
-- [ ] App Manifest 能声明入口、single instance、close behavior、tray/menu；
-- [ ] 配置错误有明确、可测试的失败；
-- [ ] 默认系统菜单不能被错误配置移除 Quit；
-- [ ] 菜单 Action 进入当前 Execution，而不是启动第二个 Runtime；
-- [ ] `main.js` 在 single-instance 重复启动时不会再次运行；
-- [ ] Runtime 可以通过稳定 menu ID 更新已有菜单项；
-- [ ] `closeBehavior=hide` 能通过 Tray 可靠恢复窗口；
-- [ ] `closeBehavior=quit` 和 `automation.app.quit()` 汇入同一 shutdown；
-- [ ] shutdown 后没有 native callback 继续访问已销毁 Runtime；
-- [ ] 普通 `-script` 路径回归通过；
-- [ ] 至少有一个最小可运行 App Mode example；
-- [ ] 正式 API / Manifest 文档与实现一致；
-- [ ] 平台相关测试、静态构建检查和可执行 smoke test 结果被记录。
+- [x] Windows 与 macOS 都有真实 native Tray / Menu Bar 实现；
+- [x] App Manifest 能声明入口、single instance、close behavior、tray/menu；
+- [x] 配置错误有明确、可测试的失败；
+- [x] 两端图标在 native host 启动前完成路径、格式、尺寸与损坏校验；
+- [x] 默认系统菜单不能被错误配置移除 Quit；
+- [x] 菜单 Action 进入当前 Execution，而不是启动第二个 Runtime；
+- [x] `main.js` 在 single-instance 重复启动时不会再次运行；
+- [x] Runtime 可以通过稳定 menu ID 更新已有菜单项；
+- [x] `closeBehavior=hide` 能通过 Tray 可靠恢复窗口；
+- [x] `closeBehavior=quit` 和 `automation.app.quit()` 汇入同一 shutdown；
+- [x] shutdown 后没有 native callback 继续访问已销毁 Runtime；
+- [x] 普通 `-script` 路径回归通过；
+- [x] 至少有一个最小可运行 App Mode example；
+- [x] 正式 API / Manifest 文档与实现一致；
+- [x] 平台相关测试、静态构建检查和可执行 smoke test 结果被记录。
 
 ## 22. 冻结决定
 

@@ -14,6 +14,7 @@ import (
 
 	"github.com/dop251/goja"
 	"github.com/dop251/goja_nodejs/eventloop"
+	"opendesk/pkg/appshell"
 	"opendesk/pkg/customui"
 	"opendesk/pkg/nativeextension"
 	"opendesk/pkg/terminalstyle"
@@ -113,7 +114,10 @@ type InitJSOptions struct {
 	// host owner (for example a configured Scheduler store). Paths are resolved
 	// with the same WorkDir rules as SQLite.open before the global is injected.
 	SQLiteProtectedPaths []string
-	OnReady              func(*RuntimeLifecycle)
+	// AppShell is set only by the explicit -app pipeline. It preserves the
+	// existing global App while enabling native automation.app in this Execution.
+	AppShell *appshell.Shell
+	OnReady  func(*RuntimeLifecycle)
 }
 
 // RuntimeLifecycle exposes only teardown-safe resources to the runtime owner.
@@ -128,6 +132,7 @@ type RuntimeLifecycle struct {
 	Events         *DesktopEventsRuntime
 	ScreenCapture  *ScreenCaptureRuntime
 	App            *AppRuntime
+	AppShell       *AppShellRuntime
 	Accessibility  *AccessibilityRuntime
 	Notifications  *NotificationsRuntime
 	Command        *CommandRuntime
@@ -149,6 +154,9 @@ func (l *RuntimeLifecycle) Wait() {
 	}
 	if l != nil && l.UI != nil {
 		l.UI.Wait()
+	}
+	if l != nil && l.AppShell != nil {
+		l.AppShell.Wait()
 	}
 	if l != nil && l.Events != nil {
 		l.Events.Wait()
@@ -185,6 +193,9 @@ func (l *RuntimeLifecycle) Wait() {
 // CancelAsync discards pending host callbacks after the execution context is
 // cancelled. It is called by the runtime owner before EventLoop.Terminate.
 func (l *RuntimeLifecycle) CancelAsync() {
+	if l != nil && l.AppShell != nil {
+		l.AppShell.BeginCancel()
+	}
 	if l != nil && l.HTTP != nil {
 		l.HTTP.CancelPending()
 	}
@@ -230,6 +241,9 @@ func (l *RuntimeLifecycle) CancelAsync() {
 	if l != nil && l.Recorder != nil {
 		l.Recorder.Close()
 	}
+	if l != nil && l.AppShell != nil {
+		l.AppShell.FinishCancel()
+	}
 }
 
 // AsyncCounts is a teardown diagnostic owned by the execution runtime.
@@ -270,6 +284,11 @@ func (l *RuntimeLifecycle) AsyncCounts() (timers int, workers int64, callbacks i
 		appWorkers, appPending := l.App.ResourceCounts()
 		workers += appWorkers
 		callbacks += appPending
+	}
+	if l.AppShell != nil {
+		appShellWorkers, appShellCallbacks := l.AppShell.AsyncCounts()
+		workers += appShellWorkers
+		callbacks += appShellCallbacks
 	}
 	if l.Accessibility != nil {
 		accessibilityWorkers, accessibilityCallbacks := l.Accessibility.AsyncCounts()
@@ -330,6 +349,11 @@ type RuntimeResourceCounts struct {
 	CaptureSessions       int
 	AppWorkers            int64
 	AppPending            int
+	AppShellRunning       int
+	AppShellWorkers       int64
+	AppShellPending       int
+	AppShellQueued        int
+	AppShellListeners     int
 	SoundWorkers          int64
 	SoundPending          int
 	SoundPlaybacks        int
@@ -397,6 +421,9 @@ func (l *RuntimeLifecycle) ResourceCounts() RuntimeResourceCounts {
 	if l.App != nil {
 		counts.AppWorkers, counts.AppPending = l.App.ResourceCounts()
 	}
+	if l.AppShell != nil {
+		counts.AppShellRunning, counts.AppShellWorkers, counts.AppShellPending, counts.AppShellQueued, counts.AppShellListeners = l.AppShell.ResourceCounts()
+	}
 	if l.Accessibility != nil {
 		accessibility := l.Accessibility.ResourceCounts()
 		counts.AccessibilityWorkers = accessibility.Workers
@@ -439,7 +466,8 @@ func (c RuntimeResourceCounts) IsZero() bool {
 		c.ShortcutBindings == 0 && c.ShortcutPending == 0 &&
 		c.EventSubscriptions == 0 && c.EventPending == 0 &&
 		c.CaptureWorkers == 0 && c.CapturePending == 0 && c.CaptureSessions == 0 &&
-		c.AppWorkers == 0 && c.AppPending == 0 &&
+		c.AppWorkers == 0 && c.AppPending == 0 && c.AppShellRunning == 0 && c.AppShellWorkers == 0 &&
+		c.AppShellPending == 0 && c.AppShellQueued == 0 && c.AppShellListeners == 0 &&
 		c.AccessibilityWorkers == 0 && c.AccessibilityPending == 0 && c.AccessibilityQueued == 0 &&
 		c.AccessibilityRefs == 0 && c.AccessibilityNativeResources == 0 &&
 		c.SoundWorkers == 0 && c.SoundPending == 0 && c.SoundPlaybacks == 0 &&
@@ -452,11 +480,12 @@ func (c RuntimeResourceCounts) IsZero() bool {
 }
 
 func (c RuntimeResourceCounts) String() string {
-	return fmt.Sprintf("timers=%d httpWorkers=%d httpCallbacks=%d httpTemps=%d uiWorkers=%d uiPending=%d uiQueued=%d uiWindows=%d uiListeners=%d uiDriverSinks=%d uiHostProcesses=%d shortcutBindings=%d shortcutPending=%d eventSubscriptions=%d eventPending=%d captureWorkers=%d capturePending=%d captureSessions=%d appWorkers=%d appPending=%d accessibilityWorkers=%d accessibilityPending=%d accessibilityQueued=%d accessibilityRefs=%d accessibilityNativeResources=%d soundWorkers=%d soundPending=%d soundPlaybacks=%d notificationWorkers=%d notificationPending=%d commandWorkers=%d commandCallbacks=%d commandProcesses=%d audioPatternWorkers=%d audioPatternPending=%d audioPatternWatches=%d audioPatternSessions=%d fileJSONWorkers=%d fileJSONCallbacks=%d fileJSONTemps=%d fileHandles=%d sqliteWorkers=%d sqliteCallbacks=%d sqliteHandles=%d recorderWorkers=%d recorderPending=%d recorderSessions=%d recorderBackendLeases=%d recorderWriters=%d",
+	return fmt.Sprintf("timers=%d httpWorkers=%d httpCallbacks=%d httpTemps=%d uiWorkers=%d uiPending=%d uiQueued=%d uiWindows=%d uiListeners=%d uiDriverSinks=%d uiHostProcesses=%d shortcutBindings=%d shortcutPending=%d eventSubscriptions=%d eventPending=%d captureWorkers=%d capturePending=%d captureSessions=%d appWorkers=%d appPending=%d appShellRunning=%d appShellWorkers=%d appShellPending=%d appShellQueued=%d appShellListeners=%d accessibilityWorkers=%d accessibilityPending=%d accessibilityQueued=%d accessibilityRefs=%d accessibilityNativeResources=%d soundWorkers=%d soundPending=%d soundPlaybacks=%d notificationWorkers=%d notificationPending=%d commandWorkers=%d commandCallbacks=%d commandProcesses=%d audioPatternWorkers=%d audioPatternPending=%d audioPatternWatches=%d audioPatternSessions=%d fileJSONWorkers=%d fileJSONCallbacks=%d fileJSONTemps=%d fileHandles=%d sqliteWorkers=%d sqliteCallbacks=%d sqliteHandles=%d recorderWorkers=%d recorderPending=%d recorderSessions=%d recorderBackendLeases=%d recorderWriters=%d",
 		c.Timers, c.HTTPWorkers, c.HTTPCallbacks, c.HTTPTemps, c.UIWorkers, c.UIPending, c.UIQueued,
 		c.UIWindows, c.UIListeners, c.UIDriverSinks, c.UIHostProcesses, c.ShortcutBindings, c.ShortcutPending,
 		c.EventSubscriptions, c.EventPending, c.CaptureWorkers, c.CapturePending, c.CaptureSessions,
-		c.AppWorkers, c.AppPending, c.AccessibilityWorkers, c.AccessibilityPending, c.AccessibilityQueued,
+		c.AppWorkers, c.AppPending, c.AppShellRunning, c.AppShellWorkers, c.AppShellPending, c.AppShellQueued, c.AppShellListeners,
+		c.AccessibilityWorkers, c.AccessibilityPending, c.AccessibilityQueued,
 		c.AccessibilityRefs, c.AccessibilityNativeResources, c.SoundWorkers, c.SoundPending, c.SoundPlaybacks,
 		c.NotificationWorkers, c.NotificationPending, c.CommandWorkers, c.CommandCallbacks, c.CommandProcesses,
 		c.AudioPatternWorkers, c.AudioPatternPending, c.AudioPatternWatches, c.AudioPatternSessions,
@@ -1121,8 +1150,12 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 		accessibilityRuntime.Wait()
 		return fmt.Errorf("failed to attach UI menu methods: %w", err)
 	}
+	appShellRuntime, err := registerAppShell(runtime, opts, uiRuntime)
+	if err != nil {
+		return fmt.Errorf("failed to register automation.app: %w", err)
+	}
 	if opts.OnReady != nil {
-		opts.OnReady(&RuntimeLifecycle{Timers: timer, HTTP: httpClient, Sound: sound, UI: uiRuntime, GlobalShortcut: globalShortcut, Events: events, ScreenCapture: screenCapture, App: appRuntime, Accessibility: accessibilityRuntime, Notifications: notificationsRuntime, Command: commandRuntime, AudioPatterns: audioPatterns, FileJSON: fileJSON, FileSystem: fileSystem, SQLite: sqliteRuntime, Recorder: recorderRuntime})
+		opts.OnReady(&RuntimeLifecycle{Timers: timer, HTTP: httpClient, Sound: sound, UI: uiRuntime, GlobalShortcut: globalShortcut, Events: events, ScreenCapture: screenCapture, App: appRuntime, AppShell: appShellRuntime, Accessibility: accessibilityRuntime, Notifications: notificationsRuntime, Command: commandRuntime, AudioPatterns: audioPatterns, FileJSON: fileJSON, FileSystem: fileSystem, SQLite: sqliteRuntime, Recorder: recorderRuntime})
 	}
 	recorderReady = true
 	return nil

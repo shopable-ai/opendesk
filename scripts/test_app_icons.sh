@@ -13,6 +13,7 @@ LOGO="${ROOT_DIR}/public/logo.png"
 MACOS_ICON="${ROOT_DIR}/public/icons/opendesk.icns"
 WINDOWS_ICON="${ROOT_DIR}/public/icons/opendesk.ico"
 NOTIFICATION_ICON="${ROOT_DIR}/public/icons/opendesk-notification.png"
+MENUBAR_TEMPLATE="${ROOT_DIR}/public/icons/opendesk-menubar-template.png"
 APP_BUNDLE="${APP_BUNDLE:-}"
 
 if command -v magick >/dev/null 2>&1; then
@@ -51,7 +52,7 @@ rm -rf "${RUNTIME_DIR}"
 mkdir -p "${RUNTIME_DIR}"
 
 asset_hashes() {
-  shasum -a 256 "${LOGO}" "${MACOS_ICON}" "${WINDOWS_ICON}" "${NOTIFICATION_ICON}"
+  shasum -a 256 "${LOGO}" "${MACOS_ICON}" "${WINDOWS_ICON}" "${NOTIFICATION_ICON}" "${MENUBAR_TEMPLATE}"
 }
 
 before="$(asset_hashes)"
@@ -91,6 +92,7 @@ PY
 
 assert_png "${LOGO}" "1024x1024"
 assert_png "${NOTIFICATION_ICON}" "256x256"
+assert_png "${MENUBAR_TEMPLATE}" "36x36"
 
 if [[ "${USE_MAGICK}" -eq 1 ]]; then
   alpha_range="$(magick "${LOGO}" -alpha extract -format '%[fx:minima] %[fx:maxima]' info:)"
@@ -109,6 +111,25 @@ PY
 fi
 if [[ "${alpha_range}" != "0 1" ]]; then
   printf 'Canonical logo must contain transparent and opaque pixels, got alpha range %s\n' "${alpha_range}" >&2
+  exit 1
+fi
+
+if [[ "${USE_MAGICK}" -eq 1 ]]; then
+  template_alpha_range="$(magick "${MENUBAR_TEMPLATE}" -alpha extract -format '%[fx:minima] %[fx:maxima]' info:)"
+else
+  template_alpha_range="$(python3 - "${MENUBAR_TEMPLATE}" <<'PY'
+from PIL import Image
+import sys
+with Image.open(sys.argv[1]).convert("RGBA") as image:
+    extrema = image.getchannel("A").getextrema()
+    if extrema != (0, 255):
+        raise SystemExit(f"unexpected alpha extrema: {extrema}")
+    print("0 1")
+PY
+)"
+fi
+if [[ "${template_alpha_range}" != "0 1" ]]; then
+  printf 'Menu bar template must contain transparent and opaque pixels, got alpha range %s\n' "${template_alpha_range}" >&2
   exit 1
 fi
 
@@ -133,6 +154,23 @@ if [[ "${ico_sizes}" != "${expected_ico_sizes}" ]]; then
   printf 'Unexpected Windows ICO frames:\n%s\n' "${ico_sizes}" >&2
   exit 1
 fi
+
+# The public App Mode example and the macOS live fixture intentionally reuse
+# the canonical, deterministic icon outputs. This prevents a visually tested
+# fixture from drifting away from the resource users copy from the example.
+for package_dir in \
+  "${ROOT_DIR}/examples/app-mode/basic" \
+  "${ROOT_DIR}/tests/runtime-api/app-shell-macos"; do
+  cmp "${MENUBAR_TEMPLATE}" "${package_dir}/assets/tray-template.png"
+  cmp "${WINDOWS_ICON}" "${package_dir}/assets/tray.ico"
+done
+
+(
+  cd "${ROOT_DIR}"
+  "${GO_BIN}" test ./pkg/appshell \
+    -run 'Test(LoadPackageRejectsMissingAndInvalidIconResources|MacOSTemplateIconDimensionsAndTransparency|WindowsTrayIconStructureAndFrameDecode)' \
+    -count=1
+) >"${RUNTIME_DIR}/app-shell-icon-contract.log"
 
 VERIFIED_ICONSET="${RUNTIME_DIR}/verified.iconset"
 iconutil -c iconset "${MACOS_ICON}" -o "${VERIFIED_ICONSET}"
@@ -172,10 +210,26 @@ EOF
 
 PACKAGE_DIST="${RUNTIME_DIR}/package-dist"
 mkdir -p "${PACKAGE_DIST}"
-cp /usr/bin/true "${PACKAGE_DIST}/opendesk"
-cp /usr/bin/true "${PACKAGE_DIST}/opendesk-ui-host"
-cp /usr/bin/true "${PACKAGE_DIST}/opendesk-status"
-GO_BIN=/usr/bin/true SKIP_CODESIGN=1 DIST_DIR="${PACKAGE_DIST}" \
+FAKE_GO="${RUNTIME_DIR}/fake-go"
+cat >"${FAKE_GO}" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+output=""
+while [[ "$#" -gt 0 ]]; do
+  if [[ "$1" == "-o" ]]; then
+    shift
+    output="${1:-}"
+  fi
+  shift
+done
+[[ -n "${output}" ]] || {
+  printf 'fake go requires an output path\n' >&2
+  exit 1
+}
+cp /usr/bin/true "${output}"
+EOF
+chmod 700 "${FAKE_GO}"
+GO_BIN="${FAKE_GO}" SKIP_CODESIGN=1 DIST_DIR="${PACKAGE_DIST}" \
   "${ROOT_DIR}/scripts/build_macos_app.sh" >"${RUNTIME_DIR}/package.log"
 
 bundle_icon_name="$(plutil -extract CFBundleIconFile raw "${PACKAGE_DIST}/OpenDesk.app/Contents/Info.plist")"
@@ -228,7 +282,8 @@ if [[ -n "${APP_BUNDLE}" ]]; then
   assert_app_bundle "${APP_BUNDLE}"
 fi
 
-printf 'App icon assets passed deterministic generation, format, resolver, and bundle tests.\n'
+printf 'App icon assets passed deterministic generation, format, resolver, App Shell fixture, and bundle tests.\n'
+printf 'Boundary: this macOS-only gate validates ICO structure/frames portably; it is not Windows Notification Area live evidence.\n'
 if [[ -n "${APP_BUNDLE}" ]]; then
   printf 'Installed app bundle contract passed: %s\n' "${APP_BUNDLE}"
 fi

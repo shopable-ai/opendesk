@@ -8,7 +8,7 @@ import (
 
 // ProtocolVersion advances with native toolbar schema changes so an older host
 // cannot silently accept a newer FloatingWindow declaration or mutation.
-const ProtocolVersion = "1.8.0"
+const ProtocolVersion = "1.9.0"
 
 type ActivationSource string
 
@@ -73,6 +73,9 @@ type WindowSpec struct {
 	Toolbar               *toolbar.ToolbarSpec `json:"toolbar,omitempty"`
 	Controls              []Control            `json:"controls,omitempty"`
 	Notification          *NotificationSpec    `json:"notification,omitempty"`
+	// AppCloseBehavior is host-owned App Mode policy. It is absent from the
+	// public JavaScript declaration and is injected only for window.mainId.
+	AppCloseBehavior string `json:"appCloseBehavior,omitempty"`
 }
 
 type Control struct {

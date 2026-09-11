@@ -25,6 +25,13 @@ globalThis.RuntimeAPIObjects = {
   App: { docs: 'docs/api/app.md', types: 'types/App.d.ts', source: 'automation/app.go + automation/app_name.go + automation/app_backend*.go', status: 'experimental', platforms: ['darwin', 'linux', 'windows'], methods: [
     'launch', 'get', 'list', 'isRunning', 'waitForLaunch', 'waitForExit', 'terminate', 'restart', 'getCapabilities',
   ] },
+	// automation.app is an App Mode capability handle, not the existing App
+	// global that controls external desktop applications.
+	automation: {
+		docs: 'docs/api/app-shell.md', types: 'types/automation-app.d.ts', source: 'automation/app_shell.go + pkg/appshell',
+		status: 'app-mode', platforms: ['darwin', 'windows'], methods: [], properties: ['app'],
+		handle: { family: 'automation.app', typeName: 'OpenDeskAutomationApp', methods: ['getCapabilities', 'onAction', 'updateMenuItem', 'quit'] },
+	},
   Accessibility: {
     docs: 'docs/api/accessibility.md', types: 'types/Accessibility.d.ts',
     source: 'automation/accessibility.go + automation/accessibility_runtime.go + automation/accessibility_backend*.go',
@@ -148,6 +155,8 @@ const unitBehavior = new Set([
   ...RuntimeAPIObjects.Recorder.methods.map((method) => 'Recorder.' + method),
   ...RuntimeAPIObjects.Events.methods.map((method) => 'Events.' + method),
   ...RuntimeAPIObjects.App.methods.map((method) => 'App.' + method),
+	'automation.app',
+	...RuntimeAPIObjects.automation.handle.methods.map((method) => 'automation.app.' + method),
   ...RuntimeAPIObjects.Accessibility.methods.map((method) => 'Accessibility.' + method),
   ...RuntimeAPIObjects.Notifications.methods.map((method) => 'Notifications.' + method),
   'window.getCapabilities', 'window.list', 'window.get', 'window.wait', 'window.setAlwaysOnTop', 'window.unsetTopMost', 'window.js_beautify',
@@ -377,7 +386,8 @@ globalThis.RuntimeAPITestFiles = {
     'tests/runtime-api/unit/recorder.test.js',
     'tests/runtime-api/unit/global-shortcut.test.js',
     'tests/runtime-api/unit/events.test.js',
-    'tests/runtime-api/unit/app.test.js',
+	'tests/runtime-api/unit/app.test.js',
+	'tests/runtime-api/unit/automation-app.test.js',
     'tests/runtime-api/unit/notifications.test.js',
     'tests/runtime-api/unit/touchscreen.test.js',
     'tests/runtime-api/unit/window.test.js',

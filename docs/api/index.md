@@ -24,6 +24,7 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先确定应用
 | 从服务或其他程序触发任务 | [HTTP Server API](http-server.md) 或 MCP |
 | 把已探索流程重复执行 | 保存 recipe，再使用 [AI CLI](ai-cli.md) 的 `run` |
 | 人工录制非敏感测试操作并生成基础 JS | [Recorder Runtime API](recorder-runtime.md) |
+| 运行带 tray / menu bar 的单实例桌面脚本应用 | [automation.app API](app-shell.md) |
 | 管理环境变量和默认输出 | [Environment Configuration](environment.md) |
 
 ## 推荐阅读路径
@@ -39,6 +40,7 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先确定应用
 - 读写系统剪贴板：[Clipboard API](clipboard.md)
 - 订阅窗口、应用、剪贴板和显示器变化：[Desktop Events API](events.md)
 - 启动、等待、终止与重启应用：[App Lifecycle API](app.md)
+- 控制当前 App Mode tray、菜单与退出：[automation.app API](app-shell.md)
 - 控制系统音频与发现设备：[Audio API](audio.md)
 - 播放提示音或本地音频：[Sound API](sound.md)
 - 读取显示器、选择区域或录屏：[Screen API](screen.md)
@@ -73,6 +75,7 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先确定应用
 | `Recorder` | 可信本地 JavaScript Runtime | Experimental | 人工输入采集、actions 制作与 basic 普通 JS 生成 | [Recorder Runtime API](recorder-runtime.md) |
 | `Events` | JavaScript Runtime | Experimental | 外部桌面状态 watcher | [Desktop Events API](events.md) |
 | `App` | JavaScript Runtime | Experimental | 按稳定 identity 启动、等待、终止与重启应用 | [App Lifecycle API](app.md) |
+| `automation.app` | 显式 App Mode Runtime | P0 macOS / Windows | 当前应用 tray action、菜单状态、reopen 与退出 | [automation.app API](app-shell.md) |
 | `window` | JavaScript Runtime | Stable reads / platform-partial actions | 窗口读取、能力矩阵与控制 | [Window API](window.md) |
 | `Screen` | JavaScript Runtime | Stable；部分 macOS Experimental | 显示器、像素、区域选择与录屏 | [Screen API](screen.md) |
 | `Vision` | JavaScript Runtime | Stable | OCR、UI 文本检测、provider | [Vision API](vision.md) |

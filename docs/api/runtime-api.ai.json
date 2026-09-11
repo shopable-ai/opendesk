@@ -9,7 +9,8 @@
     "rule": "When documentation conflicts with current source/runtime behavior, current source wins."
   },
   "entrypoints": {
-    "cli": {"file": "opendesk -script <file.js>", "inline": "opendesk -script-text \"...\"", "stdin": "opendesk -script-stdin", "runtimeMode": "Use the default JavaScript Runtime. Do not add the compatibility-only -stack flag to new commands."},
+		"cli": {"file": "opendesk -script <file.js>", "inline": "opendesk -script-text \"...\"", "stdin": "opendesk -script-stdin", "runtimeMode": "Use the default JavaScript Runtime. Do not add the compatibility-only -stack flag to new commands."},
+		"appMode": {"command": "opendesk -app <directory>", "manifest": "opendesk.app.json", "docs": "docs/api/app-shell.md", "runtimeMode": "One execution-owned App Shell and one existing Goja Runtime; no default deadline."},
     "aiCli": {"command": "opendesk ai schema", "docs": "docs/api/ai-cli.md", "stdout": "single JSON envelope only", "purpose": "Low-token desktop tool surface for coding agents; reuses Stable Runtime services and Execution evidence."},
     "httpServer": {"command": "opendesk -http", "defaultPort": 60844},
     "mcp": {"command": "opendesk-mcp", "docs": "docs/mcp/README.md"}
@@ -25,6 +26,7 @@
     "NativeExtensions is an Experimental manifest-discovered immutable binding. Normal local CLI calls use NativeExtensions.<namespace>.<method>(businessParams) with routes fixed by the Host; it discovers only the program-relative bundle directory by default. HTTP and MCP cannot enable or call it. The low-level NativeExtension.call compatibility surface requires the separate -experimental-unsafe-native-extension-call local diagnostic gate.",
     "Accessibility is an execution-owned Experimental local Runtime API. Trusted local script and AI CLI entrypoints explicitly enable it; HTTP, MCP, Scheduler, and generic Runtime initialization leave it disabled. Every traversal requires an explicit window, execution-owned element ref, or App target scope. It never silently falls back to OCR or mouse input.",
     "Uppercase UI operates visible targets in external desktop apps. Lowercase ui is always present but dormant by default and creates OpenDesk Custom UI; enable it with -ui or strict clawdesk.runtime.json. They have no aliases.",
+		"Uppercase App controls external desktop applications. automation.app controls only the current explicit -app execution, remains fail-closed in ordinary Script/HTTP/MCP/Scheduler modes, and never starts a second Runtime for tray actions or activation.",
     "Dialog is always present but fail-closed without the ui capability. Its alert, confirm, and prompt methods are asynchronous native modal dialogs; global alert/confirm/prompt are thin polyfill aliases, never browser-style blocking calls.",
     "Omit -stack for new scripts. The old upgraded/playwright values and browser/context-shaped globals are implementation compatibility residue, not maintained user APIs or a browser engine.",
     "Use the frozen Execution.env snapshot for local project and inherited OS environment values. Local executions merge .env, .opendesk.env, then the environment supplied when the OpenDesk process started; they do not parse shell startup files. Windows names are uppercase. Remote and scheduled executions do not inherit host environment secrets.",
@@ -131,6 +133,14 @@
       "platformBehavior": "macOS+cgo uses NSWorkspace/Open/NSRunningApplication and recognizes the documented Calculator aliases through the existing bundle-ID launcher; macOS without cgo and Windows/Linux retain existing name/path behavior without those aliases. Windows/Linux use explicit partial process fallbacks and are not live verified",
       "surface": "JavaScript Runtime only in this phase; no HTTP or MCP method was added"
     },
+		{
+			"name": "automation", "source": "execution-owned App Shell native bridge", "status": "app-mode", "platforms": ["darwin", "windows"], "doc": "app-shell.md", "types": "types/automation-app.d.ts",
+			"keyMethods": [], "handleType": "OpenDeskAutomationApp", "handleMethods": ["getCapabilities", "onAction", "updateMenuItem", "quit"],
+			"scope": "automation.app controls only the current explicit -app execution; the existing App global continues to control external desktop applications.",
+			"lifecycle": "Native events carry plain data through a bounded queue into the current EventLoop. AppShell contributes AsyncCounts/ResourceCounts/CancelAsync/Wait and releases native UI before the single-instance lease.",
+			"singleInstance": "Identity is SHA-256 of the required normalized reverse-DNS manifest id. A secondary sends activation and exits after primary ACK without creating a business Execution.",
+			"platformBehavior": "macOS uses NSStatusItem/NSMenu and per-user flock plus authenticated Unix socket; Windows uses a dedicated Notification Area message loop and per-user ACL named mutex/pipe. Windows GUI/live is not implied by cross-build."
+		},
     {
       "name": "Notifications", "source": "execution-owned Runtime wrapper + macOS UserNotifications own-app model", "status": "experimental", "platforms": ["darwin"], "doc": "notifications.md", "types": "types/Notifications.d.ts", "keyMethods": ["list", "waitFor", "dismiss", "getCapabilities"],
       "scope": "macOS lists and removes only notifications delivered by the OpenDesk app identity; arbitrary application notifications are not exposed",

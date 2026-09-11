@@ -5,15 +5,40 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 type fakeNative struct {
-	mu       sync.Mutex
-	activate int
-	updates  []string
-	teardown int
+	mu          sync.Mutex
+	started     int
+	handler     func(string, string)
+	activate    int
+	updates     []string
+	teardown    int
+	teardownErr error
+}
+
+type blockingStartNative struct {
+	fakeNative
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (f *blockingStartNative) Start(ctx context.Context, handler func(string, string)) error {
+	close(f.entered)
+	<-f.release
+	return f.fakeNative.Start(ctx, handler)
+}
+
+func (f *fakeNative) Start(_ context.Context, handler func(string, string)) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.started++
+	f.handler = handler
+	return nil
 }
 
 func (f *fakeNative) Activate(context.Context) error {
@@ -32,8 +57,9 @@ func (f *fakeNative) Teardown(context.Context) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.teardown++
-	return nil
+	return f.teardownErr
 }
+func (f *fakeNative) Wait() {}
 
 func shellFixture(t *testing.T) (*Shell, *fakeNative) {
 	t.Helper()
@@ -46,11 +72,17 @@ func shellFixture(t *testing.T) (*Shell, *fakeNative) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := shell.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
 	return shell, native
 }
 
-func TestShellQuitConvergesThroughLifecycleTeardown(t *testing.T) {
+func TestShellStateAndRepeatedQuit(t *testing.T) {
 	shell, native := shellFixture(t)
+	if got := shell.State(); got != StateRunning {
+		t.Fatalf("state=%s", got)
+	}
 	var quitCount int
 	shell.SetQuitHook(func() { quitCount++ })
 	if err := shell.RequestQuit(); err != nil {
@@ -59,20 +91,18 @@ func TestShellQuitConvergesThroughLifecycleTeardown(t *testing.T) {
 	if got := shell.State(); got != StateQuitting {
 		t.Fatalf("state=%s", got)
 	}
-	if native.teardown != 0 || quitCount != 1 {
-		t.Fatalf("before lifecycle teardown: native=%d quitHook=%d", native.teardown, quitCount)
-	}
 	if err := shell.RequestQuit(); err != nil {
 		t.Fatal(err)
 	}
-	if err := shell.Teardown(); err != nil {
-		t.Fatal(err)
+	if native.teardown != 0 || quitCount != 1 {
+		t.Fatalf("teardown=%d quitHook=%d", native.teardown, quitCount)
+	}
+	shell.CancelAsync()
+	if native.teardown != 1 || shell.State() != StateStopped {
+		t.Fatalf("teardown=%d state=%s", native.teardown, shell.State())
 	}
 	if err := shell.Teardown(); err != nil {
 		t.Fatal(err)
-	}
-	if got := shell.State(); got != StateStopped {
-		t.Fatalf("state=%s", got)
 	}
 	if native.teardown != 1 || quitCount != 1 {
 		t.Fatalf("teardown=%d quitHook=%d", native.teardown, quitCount)
@@ -98,6 +128,86 @@ func TestShellActionsAreOrderedIncludingPreBindQueue(t *testing.T) {
 	}
 	if want := []string{"a", "b", "c"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %v want %v", got, want)
+	}
+}
+
+func TestShellConcurrentStartInitializesNativeHostOnce(t *testing.T) {
+	manifest, err := ParseManifest([]byte(validManifestJSON()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	native := &fakeNative{}
+	shell, err := New(manifest, native)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wg sync.WaitGroup
+	for i := 0; i < 32; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := shell.Start(context.Background()); err != nil {
+				t.Errorf("start: %v", err)
+			}
+		}()
+	}
+	wg.Wait()
+	native.mu.Lock()
+	started := native.started
+	native.mu.Unlock()
+	if started != 1 {
+		t.Fatalf("native start count=%d", started)
+	}
+}
+
+func TestShellStartVersusShutdownTeardownNativeOnce(t *testing.T) {
+	manifest, err := ParseManifest([]byte(validManifestJSON()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	native := &blockingStartNative{entered: make(chan struct{}), release: make(chan struct{})}
+	shell, err := New(manifest, native)
+	if err != nil {
+		t.Fatal(err)
+	}
+	quit := make(chan struct{})
+	shell.SetQuitHook(func() { close(quit) })
+	startResult := make(chan error, 1)
+	go func() { startResult <- shell.Start(context.Background()) }()
+	select {
+	case <-native.entered:
+	case <-time.After(time.Second):
+		t.Fatal("native Start did not enter")
+	}
+	cancelDone := make(chan struct{})
+	go func() {
+		shell.CancelAsync()
+		close(cancelDone)
+	}()
+	select {
+	case <-quit:
+	case <-time.After(time.Second):
+		t.Fatal("shutdown did not transition while native Start was blocked")
+	}
+	close(native.release)
+	select {
+	case err := <-startResult:
+		if !errors.Is(err, ErrNotRunning) {
+			t.Fatalf("Start error=%v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Start did not return after shutdown")
+	}
+	select {
+	case <-cancelDone:
+	case <-time.After(time.Second):
+		t.Fatal("CancelAsync did not finish")
+	}
+	native.mu.Lock()
+	started, teardown := native.started, native.teardown
+	native.mu.Unlock()
+	if started != 1 || teardown != 1 || shell.State() != StateStopped {
+		t.Fatalf("started=%d teardown=%d state=%s", started, teardown, shell.State())
 	}
 }
 
@@ -137,15 +247,28 @@ func TestShellConcurrentDispatchIsSerialized(t *testing.T) {
 	}
 }
 
-func TestShellPreHandlerQueueIsBounded(t *testing.T) {
+func TestShellPreBindActionQueueIsBounded(t *testing.T) {
 	shell, _ := shellFixture(t)
-	for i := 0; i < defaultPendingActionCapacity; i++ {
-		if err := shell.DispatchAction(fmt.Sprintf("queued.%03d", i), "tray-menu"); err != nil {
-			t.Fatal(err)
+	for index := 0; index < pendingEventCapacity; index++ {
+		if err := shell.DispatchAction(fmt.Sprintf("queued.%03d", index), "tray-menu"); err != nil {
+			t.Fatalf("enqueue %d: %v", index, err)
 		}
 	}
 	if err := shell.DispatchAction("overflow", "tray-menu"); !errors.Is(err, ErrQueueFull) {
-		t.Fatalf("expected ErrQueueFull, got %v", err)
+		t.Fatalf("overflow error=%v", err)
+	}
+}
+
+func TestShellNativeQueueOverflowIsTerminalInsteadOfSilentlyDropped(t *testing.T) {
+	shell, native := shellFixture(t)
+	for index := 0; index <= pendingEventCapacity; index++ {
+		native.handler("sync.now", "tray-menu")
+	}
+	if shell.State() != StateQuitting {
+		t.Fatalf("state=%s", shell.State())
+	}
+	if !errors.Is(shell.TerminalError(), ErrQueueFull) {
+		t.Fatalf("terminal error=%v", shell.TerminalError())
 	}
 }
 
@@ -164,7 +287,7 @@ func TestShellMenuUpdates(t *testing.T) {
 	label := "Sync immediately"
 	enabled := false
 	visible := false
-	if err := shell.UpdateMenuItem("sync.now", MenuItemPatch{Label: &label, Enabled: &enabled, Visible: &visible}); err != nil {
+	if err := shell.UpdateMenuItem(context.Background(), "sync.now", MenuItemPatch{Label: &label, Enabled: &enabled, Visible: &visible}); err != nil {
 		t.Fatal(err)
 	}
 	state, ok := shell.MenuItemState("sync.now")
@@ -174,7 +297,7 @@ func TestShellMenuUpdates(t *testing.T) {
 	if len(native.updates) != 1 || native.updates[0] != "sync.now" {
 		t.Fatalf("updates=%v", native.updates)
 	}
-	if err := shell.UpdateMenuItem("missing", MenuItemPatch{Enabled: &enabled}); err == nil {
+	if err := shell.UpdateMenuItem(context.Background(), "missing", MenuItemPatch{Enabled: &enabled}); err == nil {
 		t.Fatal("expected unknown menu error")
 	}
 }
@@ -192,6 +315,18 @@ func TestShellCallbackAfterTeardownRejected(t *testing.T) {
 	}
 }
 
+func TestShellTeardownPreservesNativeFailure(t *testing.T) {
+	shell, native := shellFixture(t)
+	native.teardownErr = errors.New("forced native teardown failure")
+	err := shell.Teardown()
+	if err == nil || !strings.Contains(err.Error(), "forced native teardown failure") {
+		t.Fatalf("teardown error=%v", err)
+	}
+	if shell.State() != StateStopped || shell.TerminalError() == nil {
+		t.Fatalf("state=%s terminal=%v", shell.State(), shell.TerminalError())
+	}
+}
+
 func TestShellActivateUsesSameHostAndDispatchesOpen(t *testing.T) {
 	shell, native := shellFixture(t)
 	var got ActionEvent
@@ -201,7 +336,120 @@ func TestShellActivateUsesSameHostAndDispatchesOpen(t *testing.T) {
 	if err := shell.Activate("single-instance"); err != nil {
 		t.Fatal(err)
 	}
-	if native.activate != 1 || got.ID != "app.open" || got.Source != "single-instance" {
+	if native.activate != 1 || got.ID != "opendesk.open" || got.Source != "single-instance" {
 		t.Fatalf("activate=%d event=%+v", native.activate, got)
+	}
+}
+
+func TestShellMapsNativeItemIDToReusableBusinessAction(t *testing.T) {
+	shell, native := shellFixture(t)
+	var got ActionEvent
+	if err := shell.BindActionSink(func(event ActionEvent) error { got = event; return nil }); err != nil {
+		t.Fatal(err)
+	}
+	native.handler("sync.now", "tray-menu")
+	if got.ID != "sync.now" || got.Source != "tray-menu" {
+		t.Fatalf("event=%+v", got)
+	}
+}
+
+func TestShellActionVersusQuitHasNoCallbackAfterTransition(t *testing.T) {
+	shell, _ := shellFixture(t)
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	if err := shell.BindActionSink(func(ActionEvent) error {
+		close(entered)
+		<-release
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	dispatched := make(chan error, 1)
+	go func() { dispatched <- shell.DispatchAction("sync.now", "tray-menu") }()
+	<-entered
+	quit := make(chan error, 1)
+	go func() { quit <- shell.RequestQuit() }()
+	select {
+	case err := <-quit:
+		t.Fatalf("quit passed an in-flight callback: %v", err)
+	default:
+	}
+	close(release)
+	if err := <-dispatched; err != nil {
+		t.Fatal(err)
+	}
+	if err := <-quit; err != nil {
+		t.Fatal(err)
+	}
+	if shell.State() != StateQuitting {
+		t.Fatalf("state=%s", shell.State())
+	}
+	if err := shell.DispatchAction("sync.now", "tray-menu"); !errors.Is(err, ErrNotRunning) {
+		t.Fatalf("late callback error=%v", err)
+	}
+}
+
+type blockingActivationNative struct {
+	*fakeNative
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (native *blockingActivationNative) Activate(context.Context) error {
+	close(native.entered)
+	<-native.release
+	return nil
+}
+
+func TestShellActivationVersusQuitRejectsLateOpen(t *testing.T) {
+	manifest, err := ParseManifest([]byte(validManifestJSON()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	native := &blockingActivationNative{
+		fakeNative: &fakeNative{}, entered: make(chan struct{}), release: make(chan struct{}),
+	}
+	shell, err := New(manifest, native)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := shell.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	var callbacks int
+	if err := shell.BindActionSink(func(ActionEvent) error { callbacks++; return nil }); err != nil {
+		t.Fatal(err)
+	}
+	activation := make(chan error, 1)
+	go func() { activation <- shell.Activate("second-instance") }()
+	<-native.entered
+	if err := shell.RequestQuit(); err != nil {
+		t.Fatal(err)
+	}
+	close(native.release)
+	if err := <-activation; !errors.Is(err, ErrNotRunning) {
+		t.Fatalf("activation error=%v", err)
+	}
+	if callbacks != 0 {
+		t.Fatalf("activation reached callback after quit: %d", callbacks)
+	}
+}
+
+func TestShellStatusOnlyItemCannotBeEnabled(t *testing.T) {
+	manifestJSON := strings.Replace(validManifestJSON(),
+		`{"id":"sync.pause","label":"Pause","action":"sync.pause","enabled":true,"visible":true}`,
+		`{"id":"status","label":"Idle","enabled":false,"visible":true}`,
+		1)
+	manifest, err := ParseManifest([]byte(manifestJSON))
+	if err != nil {
+		t.Fatal(err)
+	}
+	shell, err := New(manifest, &fakeNative{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	enabled := true
+	if err := shell.UpdateMenuItem(context.Background(), "status", MenuItemPatch{Enabled: &enabled}); err == nil || !strings.Contains(err.Error(), "permanently disabled") {
+		t.Fatalf("expected permanent disable rejection, got %v", err)
 	}
 }

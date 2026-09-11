@@ -14,6 +14,7 @@ CANONICAL_LOGO="${ROOT_DIR}/public/logo.png"
 MACOS_ICON="${ROOT_DIR}/public/icons/opendesk.icns"
 WINDOWS_ICON="${ROOT_DIR}/public/icons/opendesk.ico"
 NOTIFICATION_ICON="${ROOT_DIR}/public/icons/opendesk-notification.png"
+MENUBAR_TEMPLATE="${ROOT_DIR}/public/icons/opendesk-menubar-template.png"
 
 if command -v magick >/dev/null 2>&1; then
   USE_MAGICK=1
@@ -63,7 +64,8 @@ mkdir -p \
   "$(dirname "${CANONICAL_LOGO}")" \
   "$(dirname "${MACOS_ICON}")" \
   "$(dirname "${WINDOWS_ICON}")" \
-  "$(dirname "${NOTIFICATION_ICON}")"
+  "$(dirname "${NOTIFICATION_ICON}")" \
+  "$(dirname "${MENUBAR_TEMPLATE}")"
 
 # Keep the authored canvas and transparent margin intact. The source is square,
 # so normalization is a pure high-quality resample rather than an implicit crop.
@@ -160,6 +162,37 @@ fi
 
 make_png 256 "${NOTIFICATION_ICON}"
 
+# AppKit template images use alpha as the visible shape; the colorful app icon
+# would collapse to an opaque rounded square. Render a dedicated check-in-ring
+# mask at 4x, then downsample to the recommended 18 pt @2x resource.
+if [[ "${USE_MAGICK}" -eq 1 ]]; then
+  magick -size 144x144 xc:none \
+    -fill none -stroke black -strokewidth 12 \
+    -draw 'circle 72,72 72,20 polyline 40,72 64,96 108,48' \
+    -filter Lanczos -resize 36x36 \
+    -strip -define png:exclude-chunk=date,time -define png:color-type=6 \
+    "${MENUBAR_TEMPLATE}"
+else
+  python3 - "${MENUBAR_TEMPLATE}" <<'PY'
+from PIL import Image, ImageDraw
+import sys
+
+scale = 4
+image = Image.new("RGBA", (36 * scale, 36 * scale), (0, 0, 0, 0))
+draw = ImageDraw.Draw(image)
+draw.ellipse((5 * scale, 5 * scale, 31 * scale, 31 * scale), outline=(0, 0, 0, 255), width=3 * scale)
+draw.line(
+    ((10 * scale, 18 * scale), (16 * scale, 24 * scale), (27 * scale, 12 * scale)),
+    fill=(0, 0, 0, 255),
+    width=3 * scale,
+    joint="curve",
+)
+image.resize((36, 36), Image.Resampling.LANCZOS).save(
+    sys.argv[1], format="PNG", optimize=False, compress_level=9
+)
+PY
+fi
+
 # Produce a disposable QA strip without changing any shipped asset.
 preview_cells=()
 for size in 16 32 48 64 128 256; do
@@ -201,4 +234,5 @@ printf 'Canonical logo: %s\n' "${CANONICAL_LOGO}"
 printf 'macOS icon: %s\n' "${MACOS_ICON}"
 printf 'Windows icon: %s\n' "${WINDOWS_ICON}"
 printf 'Notification icon: %s\n' "${NOTIFICATION_ICON}"
+printf 'macOS menu bar template: %s\n' "${MENUBAR_TEMPLATE}"
 printf 'QA preview: %s\n' "${RUNTIME_DIR}/size-preview.png"

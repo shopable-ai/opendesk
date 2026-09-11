@@ -79,9 +79,13 @@ globalThis.RuntimeAPICatalogValidation = (() => {
     return owner.handle;
   }
 
+  function entryMember(entry) {
+    return entry.id.slice(entry.family.length + 1);
+  }
+
   function typeContains(entry) {
     const source = File.read(File.join(root, entry.source.types));
-    const method = entry.id.slice(entry.id.indexOf('.') + 1);
+    const method = entryMember(entry);
     if (entry.kind === 'handle-method') {
       const handle = handleDefinition(entry);
       if (!handle || handle.typeName !== entry.handleType) return false;
@@ -157,7 +161,7 @@ globalThis.RuntimeAPICatalogValidation = (() => {
     for (const entry of catalog) {
       if (entry.kind === 'handle-method') {
         const handle = handleDefinition(entry);
-        const member = entry.id.slice(entry.id.indexOf('.') + 1);
+        const member = entryMember(entry);
         if (!entry.ownerFamily || !entry.handleType) {
           errors.push('catalog handle entry lacks owner/type metadata: ' + entry.id);
         }
@@ -167,7 +171,7 @@ globalThis.RuntimeAPICatalogValidation = (() => {
         continue;
       }
       const definition = RuntimeAPIObjects[entry.family];
-      if (!definition || !declaredMembers(definition).includes(entry.id.slice(entry.id.indexOf('.') + 1))) errors.push('catalog contains unknown ID: ' + entry.id);
+      if (!definition || !declaredMembers(definition).includes(entryMember(entry))) errors.push('catalog contains unknown ID: ' + entry.id);
     }
     for (const family of publicObjectNames()) {
       const actualFamily = actual.objects[family];

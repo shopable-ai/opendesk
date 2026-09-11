@@ -1,0 +1,26 @@
+{
+  "id": "com.opendesk.runtime-api.app-shell",
+  "entry": "main.js",
+  "singleInstance": true,
+  "window": {
+    "mainId": "main",
+    "closeBehavior": "hide"
+  },
+  "tray": {
+    "enabled": true,
+    "icons": {
+      "windows": "assets/tray.ico",
+      "macos": "assets/tray-template.png"
+    },
+    "tooltip": "OpenDesk App Shell Runtime Test",
+    "primaryAction": "opendesk.open",
+    "menuMode": "merge",
+    "menu": [
+      { "id": "test.dynamic", "label": "Run same-runtime action", "action": "test.dynamic" },
+      { "id": "test.visibility", "label": "Toggle action visibility", "action": "test.visibility" },
+      { "id": "test.close", "label": "Programmatic close and quit", "action": "test.close" },
+      { "type": "separator" },
+      { "id": "test.status", "label": "Status: ready", "enabled": false }
+    ]
+  }
+}

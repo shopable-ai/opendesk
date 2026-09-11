@@ -3,6 +3,7 @@ package execution
 import (
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"math"
 	"os"
 	"path/filepath"
@@ -11,7 +12,120 @@ import (
 	"time"
 
 	"opendesk/automation"
+	"opendesk/pkg/appshell"
+	"opendesk/pkg/customui"
 )
+
+func TestRunJavaScriptAppShellKeepsOneExecutionAliveUntilUnifiedQuit(t *testing.T) {
+	manifest, err := appshell.ParseManifest([]byte(`{
+		"id":"com.opendesk.runner-lifecycle",
+		"entry":"main.js",
+		"singleInstance":false,
+		"window":{"mainId":"main","closeBehavior":"quit"},
+		"tray":{"enabled":false}
+	}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	shell, err := appshell.New(manifest, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	shell.SetQuitHook(cancel)
+	if err := shell.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	scriptPath := filepath.Join("..", "..", "tests", "runtime-api", "seams", "app-shell-lifecycle.js")
+	scriptContent, err := os.ReadFile(scriptPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	type message struct {
+		Kind        string               `json:"kind"`
+		ExecutionID string               `json:"executionId"`
+		Event       appshell.ActionEvent `json:"event"`
+	}
+	messages := make(chan message, 2)
+	executionID := NewExecutionID("app-shell-lifecycle")
+	driver := customui.NewMemoryDriver()
+	workDir := t.TempDir()
+	type outcome struct {
+		status ExecutionStatus
+		err    error
+	}
+	finished := make(chan outcome, 1)
+	go func() {
+		result, _, runErr := Run(Request{
+			Context: ctx, ExecutionID: executionID, SourceLabel: "App Shell runner lifecycle seam",
+			ScriptContent: scriptContent, Ext: ".js", WorkDir: workDir,
+			EnableCustomUI: true, CustomUIDriver: driver, AppShell: shell,
+			GracefulCancellation: func() bool {
+				state := shell.State()
+				return shell.TerminalError() == nil && (state == appshell.StateQuitting || state == appshell.StateStopped)
+			},
+			InternalResultSink: func(value []byte) error {
+				var decoded message
+				if err := json.Unmarshal(value, &decoded); err != nil {
+					return err
+				}
+				messages <- decoded
+				return nil
+			},
+			Selection: TerminalSelection{Mode: "quiet", Categories: map[string]bool{}},
+		})
+		finished <- outcome{status: result.Status, err: runErr}
+	}()
+
+	var ready message
+	select {
+	case ready = <-messages:
+	case got := <-finished:
+		t.Fatalf("execution ended before App Shell became ready: status=%s error=%v", got.status, got.err)
+	case <-time.After(3 * time.Second):
+		t.Fatal("App Shell entry did not become ready")
+	}
+	if ready.Kind != "ready" || ready.ExecutionID != executionID {
+		t.Fatalf("ready message=%+v", ready)
+	}
+	select {
+	case got := <-finished:
+		t.Fatalf("top-level completion ended the App Shell: status=%s error=%v", got.status, got.err)
+	default:
+	}
+	if err := shell.DispatchAction("test.same-execution", "tray-menu"); err != nil {
+		t.Fatal(err)
+	}
+
+	var action message
+	select {
+	case action = <-messages:
+	case got := <-finished:
+		t.Fatalf("execution ended before action dispatch: status=%s error=%v", got.status, got.err)
+	case <-time.After(3 * time.Second):
+		t.Fatal("App Shell action was not dispatched")
+	}
+	if action.Kind != "action" || action.ExecutionID != executionID || action.Event.ID != "test.same-execution" || action.Event.Source != "tray-menu" {
+		t.Fatalf("action message=%+v", action)
+	}
+
+	select {
+	case got := <-finished:
+		if got.err != nil || got.status != ExecutionStatusSucceeded {
+			t.Fatalf("unified quit status=%s error=%v", got.status, got.err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("unified App Shell quit did not finish")
+	}
+	if shell.State() != appshell.StateStopped {
+		t.Fatalf("App Shell state after lifecycle cleanup=%s", shell.State())
+	}
+	if state, ok := driver.WindowState(executionID, "main"); !ok || state.Status != customui.StatusClosed || state.Visible {
+		t.Fatalf("Custom UI main window was not closed by App Shell lifecycle cleanup: state=%+v present=%v", state, ok)
+	}
+}
 
 func TestRunJavaScriptTeardownInterruptsWatchWaitRejectionHandler(t *testing.T) {
 	workDir := t.TempDir()

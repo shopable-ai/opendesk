@@ -1,0 +1,24 @@
+{
+  "id": "com.opendesk.example.basic",
+  "entry": "main.js",
+  "singleInstance": true,
+  "window": {
+    "mainId": "main",
+    "closeBehavior": "hide"
+  },
+  "tray": {
+    "enabled": true,
+    "icons": {
+      "windows": "assets/tray.ico",
+      "macos": "assets/tray-template.png"
+    },
+    "tooltip": "OpenDesk App Mode Example",
+    "primaryAction": "opendesk.open",
+    "menuMode": "merge",
+    "menu": [
+      { "id": "sample.run", "label": "Run sample action", "action": "sample.run" },
+      { "type": "separator" },
+      { "id": "sample.status", "label": "Status: ready", "enabled": false }
+    ]
+  }
+}

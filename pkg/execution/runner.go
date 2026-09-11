@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"opendesk/automation"
+	"opendesk/pkg/appshell"
 	"opendesk/pkg/customui"
 	"opendesk/pkg/nativeextension"
 	"opendesk/pkg/runtimeenv"
@@ -47,6 +48,10 @@ type Request struct {
 	// invocation replacing the same script). It does not change the result
 	// status, but prevents the transition from being emitted as a runtime error.
 	ExpectedCancellation func() bool
+	// GracefulCancellation identifies an App-owned cancellation that completed
+	// the normal shutdown path. Unlike replacement cancellation, this is
+	// finalized as a successful execution.
+	GracefulCancellation func() bool
 	ExecutionID          string
 	SourceLabel          string
 	// ScriptPath is trusted caller metadata for file-backed executions. It is
@@ -111,6 +116,9 @@ type Request struct {
 	CustomUIActivationSource customui.ActivationSource
 	CustomUIHostPath         string
 	CustomUIBaseDir          string
+	// AppShell is the execution-scoped owner used only by the explicit -app
+	// pipeline. Ordinary Script/HTTP requests leave it nil.
+	AppShell *appshell.Shell
 	// CustomUIDriver is an internal dependency seam used by Runtime API tests.
 	CustomUIDriver customui.Driver
 	// GlobalShortcutBackendFactory is an internal test seam. Product executions
@@ -205,6 +213,9 @@ func RunWithEmitter(req Request, emitter *Emitter) (ExecutionResult, AgentSummar
 	emitter.Emit(EventCategoryMeta, EventLevelInfo, EventSourceSystem, "meta", "script hash: "+req.ScriptHash, nil)
 
 	execErr := runScript(req, emitter)
+	if errors.Is(execErr, context.Canceled) && req.GracefulCancellation != nil && req.GracefulCancellation() {
+		execErr = nil
+	}
 	status := ExecutionStatusSucceeded
 	if execErr != nil {
 		expectedCancellation := errors.Is(execErr, context.Canceled) && req.ExpectedCancellation != nil && req.ExpectedCancellation()
@@ -280,21 +291,22 @@ func runJavaScript(req Request, emitter *Emitter) error {
 
 	go func() {
 		var (
-			runtimeErr      error
-			asyncErr        error
-			scriptErr       string
-			lifecycle       *automation.RuntimeLifecycle
-			stopWatchdog    func() bool
-			watchdogDone    chan struct{}
-			watchdogRelease chan struct{}
-			keepAlive       *eventloop.Interval
-			runtimeValue    *goja.Runtime
-			scriptDone      bool
-			checkDone       func()
-			unhandled       = map[*goja.Promise]string{}
+			runtimeErr                   error
+			asyncErr                     error
+			cleanupErr                   error
+			scriptErr                    string
+			lifecycle                    *automation.RuntimeLifecycle
+			stopWatchdog                 func() bool
+			watchdogDone                 chan struct{}
+			watchdogRelease              chan struct{}
+			runtimeValue                 *goja.Runtime
+			scriptDone                   bool
+			parentCanceledBeforeTeardown bool
+			checkDone                    func()
+			unhandled                    = map[*goja.Promise]string{}
 		)
 
-		loop.Run(func(rt *goja.Runtime) {
+		if !loop.RunOnLoop(func(rt *goja.Runtime) {
 			runtimeValue = rt
 			// A runtime may be touched only by this event-loop owner. Interrupt is
 			// the one documented Goja exception: this context watcher may call it
@@ -321,10 +333,6 @@ func runJavaScript(req Request, emitter *Emitter) error {
 				rt.Interrupt(reason)
 				loop.StopNoWait()
 			})
-			// Keep the loop alive until the wrapper's finally block reports that
-			// all awaited work has settled. This prevents a Promise-only script
-			// from racing loop shutdown before an HTTP callback is queued.
-			keepAlive = loop.SetInterval(func(*goja.Runtime) {}, 24*time.Hour)
 			rt.SetPromiseRejectionTracker(func(promise *goja.Promise, operation goja.PromiseRejectionOperation) {
 				switch operation {
 				case goja.PromiseRejectionHandle:
@@ -377,6 +385,7 @@ func runJavaScript(req Request, emitter *Emitter) error {
 				CustomUIHostPath:                req.CustomUIHostPath,
 				CustomUISessionID:               req.ExecutionID,
 				CustomUIBaseDir:                 customUIBaseDir(req),
+				AppShell:                        req.AppShell,
 				GlobalShortcutBackendFactory:    req.GlobalShortcutBackendFactory,
 				DesktopEventBackendFactory:      req.DesktopEventBackendFactory,
 				AudioCaptureBackendFactory:      req.AudioCaptureBackendFactory,
@@ -410,9 +419,21 @@ func runJavaScript(req Request, emitter *Emitter) error {
 				if !scriptDone || lifecycle == nil {
 					return
 				}
+				// A failed top-level entry is terminal even when an App Shell owns a
+				// long-lived native resource. Keeping the shell alive here would hide
+				// the JavaScript error and strand the AppKit/message loop forever.
+				if scriptErr != "" || runtimeErr != nil || asyncErr != nil {
+					loop.StopNoWait()
+					return
+				}
 				timers, workers, callbacks := lifecycle.AsyncCounts()
 				if timers == 0 && workers == 0 && callbacks == 0 && len(unhandled) == 0 {
 					loop.StopNoWait()
+					return
+				}
+				// A running App Shell is an event-driven lifecycle resource. Its quit
+				// transition cancels ctx and wakes the watchdog; never poll it forever.
+				if lifecycle.AppShell != nil && lifecycle.AppShell.KeepsAlive() {
 					return
 				}
 				// A script may leave a timeout or an HTTP request unawaited. Match
@@ -423,6 +444,11 @@ func runJavaScript(req Request, emitter *Emitter) error {
 			if err := rt.Set("__opendeskComplete", func(call goja.FunctionCall) goja.Value {
 				scriptErr = toScriptError(call.Argument(0))
 				scriptDone = true
+				if scriptErr == "" && lifecycle != nil && lifecycle.AppShell != nil && !lifecycle.AppShell.MainWindowReady() {
+					runtimeErr = fmt.Errorf("App Mode entry completed without creating window.mainId %q", req.AppShell.Manifest().Window.MainID)
+					loop.StopNoWait()
+					return goja.Undefined()
+				}
 				checkDone()
 				return goja.Undefined()
 			}); err != nil {
@@ -434,11 +460,14 @@ func runJavaScript(req Request, emitter *Emitter) error {
 				runtimeErr = fmt.Errorf("script execution failed: %w", err)
 				loop.StopNoWait()
 			}
-		})
-
-		if keepAlive != nil {
-			loop.ClearInterval(keepAlive)
+		}) {
+			done <- errors.New("start JavaScript event loop: event loop is terminated")
+			return
 		}
+		// A foreground loop supplies an event-driven completion gate. It stays
+		// dormant while App Mode owns only native resources and is woken by
+		loop.StartInForeground()
+		parentCanceledBeforeTeardown = parentContext.Err() != nil
 
 		// Teardown remains on the runtime-owner goroutine. Keep the interrupt
 		// watchdog armed while lifecycle owners reject retained Promises: user
@@ -496,13 +525,19 @@ func runJavaScript(req Request, emitter *Emitter) error {
 				"captureWorkers": resources.CaptureWorkers, "capturePending": resources.CapturePending,
 				"captureSessions": resources.CaptureSessions,
 				"appWorkers":      resources.AppWorkers, "appPending": resources.AppPending,
+				"appShellRunning": resources.AppShellRunning, "appShellWorkers": resources.AppShellWorkers,
+				"appShellPending": resources.AppShellPending, "appShellQueued": resources.AppShellQueued,
+				"appShellListeners":    resources.AppShellListeners,
 				"accessibilityWorkers": resources.AccessibilityWorkers, "accessibilityPending": resources.AccessibilityPending,
 				"accessibilityQueued": resources.AccessibilityQueued, "accessibilityRefs": resources.AccessibilityRefs,
 				"accessibilityNativeResources": resources.AccessibilityNativeResources,
 			})
-			if !resources.IsZero() && runtimeErr == nil {
-				runtimeErr = fmt.Errorf("runtime cleanup left resources: %s", resources.String())
+			if !resources.IsZero() {
+				cleanupErr = fmt.Errorf("runtime cleanup left resources: %s", resources.String())
 			}
+		}
+		if req.AppShell != nil && req.AppShell.TerminalError() != nil {
+			cleanupErr = errors.Join(cleanupErr, req.AppShell.TerminalError())
 		}
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			if deadline <= 0 {
@@ -510,6 +545,22 @@ func runJavaScript(req Request, emitter *Emitter) error {
 				return
 			}
 			done <- fmt.Errorf("script execution timed out after %s", deadline)
+			return
+		}
+		if cleanupErr != nil {
+			done <- cleanupErr
+			return
+		}
+		if runtimeErr != nil && !parentCanceledBeforeTeardown {
+			done <- runtimeErr
+			return
+		}
+		if asyncErr != nil && !parentCanceledBeforeTeardown {
+			done <- fmt.Errorf("script asynchronous callback failed: %w", asyncErr)
+			return
+		}
+		if scriptErr != "" && !parentCanceledBeforeTeardown {
+			done <- fmt.Errorf("script execution failed: %s", scriptErr)
 			return
 		}
 		if errors.Is(ctx.Err(), context.Canceled) && parentContext.Err() != nil {
