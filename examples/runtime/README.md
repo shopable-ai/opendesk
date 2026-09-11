@@ -1,73 +1,70 @@
 # 基础 Runtime 示例
 
-所有命令从仓库根目录运行，使用当前 OpenDesk 构建，不用 Node 执行示例。
-本目录保留第一批 quickstart、环境、路径、JSON 示例，并接收修复后的文件、命令和 HTTP 示例。
+所有命令从仓库根目录运行，使用 OpenDesk Runtime 执行，不使用 Node 运行公开示例。
+本目录是基础 JavaScript / Execution / File / Command / System 能力的 canonical 位置；根目录历史路径只用于兼容。
 
-| 示例 | 根目录直接运行命令 | 输入、输出及副作用 |
+## 入门与 JavaScript Runtime
+
+| 示例 | 直接运行 | 说明 |
 | --- | --- | --- |
-| [api-quickstart.js](api-quickstart.js) | `./opendesk -script examples/runtime/api-quickstart.js -console-mode script` | 无业务输入；短暂等待后打印说明，不点击桌面。 |
-| [environment.js](environment.js) | `./opendesk -script examples/runtime/environment.js -console-mode script` | 按需读取平台及环境键；只打印白名单环境摘要，不输出完整环境或凭据。 |
-| [path.js](path.js) | `./dist/opendesk -script examples/runtime/path.js -console-mode script` | 读取当前 Execution 来源；在 `Execution.artifactDir` 写入 `path-example.json`。 |
-| [file-json.js](file-json.js) | `./opendesk -script examples/runtime/file-json.js -console-mode script` | 相对工作目录读取可选 `config/settings.json`，写入 `Execution.artifactDir/file-json-example/`；平台限制见下文。 |
-| [file.js](file.js) | `./opendesk -script examples/runtime/file.js -console-mode script` | 只创建本次 `Execution.artifactDir/file-demo/`；核对读写、复制、移动、JSON 文本和目录结果；拒绝覆盖已有示例目录。 |
-| [command.js](command.js) | `./dist/opendesk -script examples/runtime/command.js -console-mode script` | 固定 echo 程序，5000 ms 超时、4096 字节输出上限；核对退出码和输出；没有用户可插入的 shell 文本。 |
-| [http.js](http.js) | `OPENDESK_EXAMPLE_HTTP_URL=http://127.0.0.1:8080/echo ./opendesk -script examples/runtime/http.js -console-mode script` | 先准备自己控制的测试服务并替换地址；默认只有 GET，不存在内置局域网地址或服务端。 |
-| [page.waitfor.js](../page.waitfor.js) | `./dist/opendesk -script examples/page.waitfor.js -console-mode script` | Page 等待 quickstart；真实断言 0ms 异步、条件轮询、single-flight、取消与结果顺序。 |
-| [page-wait.test.js](page-wait.test.js) | `./dist/opendesk -script examples/runtime/page-wait.test.js -console-mode script` | 公开 Page 等待 smoke；复用正式 Page family 的共享行为用例，不使用私有注入。 |
+| [api-quickstart.js](api-quickstart.js) | `./dist/opendesk -script examples/runtime/api-quickstart.js -console-mode script` | Runtime 快速入口。 |
+| [console.js](console.js) | `./dist/opendesk -script examples/runtime/console.js -console-mode script` | `console.log/info/warn/error/debug/group/time`。 |
+| [global-this.js](global-this.js) | `./dist/opendesk -script examples/runtime/global-this.js -console-mode script` | `globalThis` 临时属性与函数。 |
+| [promise.js](promise.js) | `./dist/opendesk -script examples/runtime/promise.js -console-mode script` | `await`、`Promise.all`、rejection、`Promise.race`。 |
+| [sleep.js](sleep.js) | `./dist/opendesk -script examples/runtime/sleep.js -console-mode script` | `sleep()` / `sleepSeconds()`。 |
+| [timer.js](timer.js) | `./dist/opendesk -script examples/runtime/timer.js -console-mode script` | `setTimeout` / `setInterval` 及清理。 |
+| [page-wait.js](page-wait.js) | `./dist/opendesk -script examples/runtime/page-wait.js -console-mode script` | 固定等待、条件轮询、取消与 `waitForAll`。 |
 
-## HTTP 输入与结果
+这些条目在 `examples/catalog.json` 中标记为 `safe`，适合 Example Explorer 的一键运行。
 
-`OPENDESK_EXAMPLE_HTTP_URL` 必填，必须是 HTTP(S)，不接受 URL 内的用户名、密码或 fragment。
-GET 示例通过 params 发送固定示例参数；每次执行只发一个请求，5000 ms 超时，不输出 URL、
-响应正文或完整错误对象。状态 `request-completed` 仅表示收到 2xx，不表示服务端持久化或业务成功。
-测试地址的重定向和实际副作用由你控制；GET 也不等于一个不可信服务必然只读。
+## Execution、文件和命令
 
-POST、PUT、PATCH、DELETE 需要同时设置 `OPENDESK_EXAMPLE_HTTP_METHOD` 和
-`OPENDESK_EXAMPLE_ALLOW_WRITE=1`；只能使用允许修改的测试数据。例如：
+| 示例 | 直接运行 | 说明 |
+| --- | --- | --- |
+| [environment.js](environment.js) | `./dist/opendesk -script examples/runtime/environment.js -console-mode script` | 只打印白名单环境摘要。 |
+| [path.js](path.js) | `./dist/opendesk -script examples/runtime/path.js -console-mode script` | 路径、`Execution.scriptPath` / `scriptDir`。 |
+| [file.js](file.js) | `./dist/opendesk -script examples/runtime/file.js -console-mode script` | 隔离的文本文件读写、复制、移动与目录操作。 |
+| [file-json.js](file-json.js) | `./dist/opendesk -script examples/runtime/file-json.js -console-mode script` | `File.readJSON()` / `writeJSON()`。 |
+| [command.js](command.js) | `./dist/opendesk -script examples/runtime/command.js -console-mode script` | 固定 echo 子进程；没有用户可注入 shell 文本。 |
 
-```bash
-OPENDESK_EXAMPLE_HTTP_URL=http://127.0.0.1:8080/echo OPENDESK_EXAMPLE_HTTP_METHOD=POST OPENDESK_EXAMPLE_ALLOW_WRITE=1 ./opendesk -script examples/runtime/http.js -console-mode script
+HTTP 仍由 [http.js](http.js) 展示，因为它有外部测试服务前置条件，不是 Explorer 的默认 safe quickstart。
+
+## 本地持久化与 System
+
+| 示例 | Explorer | 说明 |
+| --- | --- | --- |
+| [app-storage.js](app-storage.js) | `manual` | 写持久化 AppStorage；键使用本次 `Execution.id` 前缀。 |
+| [system-info.js](system-info.js) | `manual` | 输出 process/network/user/fingerprint 等详细本机信息；分享日志前必须审阅。 |
+| [system-session-state.js](system-session-state.js) | `safe` | 只读 session capabilities/state。 |
+
+`manual` 表示 Explorer 可搜索并显示源码/前置条件，但不会提供一键 Run。
+
+## 兼容入口
+
+以下历史路径仍可运行，但不再是推荐位置，Explorer 也不会重复显示：
+
+```text
+examples/api-quickstart.js     -> examples/runtime/api-quickstart.js
+examples/environment.js        -> examples/runtime/environment.js
+examples/path.js               -> examples/runtime/path.js
+examples/file.js               -> examples/runtime/file.js
+examples/file-json.js          -> examples/runtime/file-json.js
+examples/command.js            -> examples/runtime/command.js
+examples/console.js            -> examples/runtime/console.js
+examples/globalThis.js         -> examples/runtime/global-this.js
+examples/promise.js            -> examples/runtime/promise.js
+examples/sleep.js              -> examples/runtime/sleep.js
+examples/timer.js              -> examples/runtime/timer.js
+examples/appStorage.js         -> examples/runtime/app-storage.js
+examples/system.js             -> examples/runtime/system-info.js
+examples/system-session-state.js -> examples/runtime/system-session-state.js
+examples/page.waitfor.js       -> examples/runtime/page-wait.js
 ```
 
-POST 默认发送 JSON；再设置 `OPENDESK_EXAMPLE_HTTP_FORM=1` 演示 URLSearchParams 表单。
-PUT/PATCH 发送固定 JSON；DELETE 直接使用配置的测试资源 URL。不会自动连续修改、删除资源。
-配置缺失、拒绝写入、请求失败和非 2xx 都失败退出，不把“代码到结尾”当作成功。
+兼容入口只负责转发到唯一 canonical 实现。新文档、新 Catalog 和新代码必须使用 `examples/runtime/...`。
 
-## 平台与验证
+## Example 与 Test 的边界
 
-Windows PowerShell 的当前 dist 构建可直接运行 File 和 Command 示例：
+`examples/runtime/page-wait.test.js` 等已有 smoke/test 风格文件不属于 Explorer 的普通 curated 列表；正式 Runtime contract 继续由 `tests/runtime-api/` 承担。不要因为某个公开 Example 成功执行，就把对应 API 或跨平台行为标记为正式测试通过。
 
-```powershell
-.\dist\opendesk.exe -script examples/runtime/file.js -console-mode script
-.\dist\opendesk.exe -script examples/runtime/command.js -console-mode script
-```
-
-其他基础 Runtime 与 Page 等待示例的 PowerShell 入口：
-
-```powershell
-.\dist\opendesk.exe -script examples/runtime/api-quickstart.js -console-mode script
-.\dist\opendesk.exe -script examples/runtime/environment.js -console-mode script
-.\dist\opendesk.exe -script examples/runtime/path.js -console-mode script
-.\dist\opendesk.exe -script examples/runtime/file-json.js -console-mode script
-.\dist\opendesk.exe -script examples/page.waitfor.js -console-mode script
-.\dist\opendesk.exe -script examples/runtime/page-wait.test.js -console-mode script
-```
-
-其他带环境变量的示例先通过 `$env:变量名 = '值'` 设置并在运行后清除，只替换可执行文件路径。
-这些是用法，不是 Windows 实机已通过的声明。特别是 File JSON 的 `writeJSON`，当前
-[File 契约](../../docs/api/file.md)在 Windows 返回 `ATOMIC_REPLACE_UNSUPPORTED`，不能用普通
-文本写入悄悄替代它的原子写契约。基础 File 示例仅使用同步文本接口，未修改 JSON API。
-
-上述两条 Page 等待 PowerShell 命令是 Windows 本机后续验收入口。本轮没有 Windows 真机
-Runtime evidence，因此 Windows 状态是 **NOT_EVALUATED**，不能把命令已登记表述为 Windows PASS。
-
-Page 等待 smoke 与正式 unit family 共用
-[`tests/runtime-api/page-wait-cases.js`](../../tests/runtime-api/page-wait-cases.js)，不维护第二套断言。
-
-相关单项测试：`tests/runtime-api/single/file.js`、`single/command.js`、`single/http-axios.js`。
-运行命令和前置条件见 [Runtime API 单项入口](../../tests/runtime-api/single/README.md)；单项测试通过不等于
-示例已运行。示例自检、HTTP 服务端观察和正式 Runtime gate 要分别报告。
-
-旧的根目录路径暂时只做兼容转发；新旧入口都使用相同前置条件。Execution 来源保持真实入口，
-不会伪造为目标文件。退出兼容入口前必须查明调用者并验证命令，见
-[目录与迁移规则](../../docs/quality/example-test-layout.md)。
+平台限制和精确 API 契约分别以 [`docs/api/`](../../docs/api/README.md) 中的对应 Reference 为准。
