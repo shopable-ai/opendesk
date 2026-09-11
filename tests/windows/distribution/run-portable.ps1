@@ -59,7 +59,7 @@ function Invoke-OpenDesk {
 }
 
 $evidence = [ordered]@{
-    schemaVersion = 1
+    schemaVersion = 2
     suite = 'windows-portable-distribution'
     status = 'running'
     distribution = $DistributionDirectory
@@ -67,6 +67,7 @@ $evidence = [ordered]@{
         requiredFiles = $false
         architecture = $false
         provenance = $false
+        runtimeAssetClosure = $false
         unicodeAndSpacePath = $false
         nonRepositoryWorkingDirectory = $false
         runtimeLaunch = $false
@@ -104,7 +105,8 @@ try {
 
     $distributionProvenance = Get-Content -LiteralPath $distributionProvenancePath -Raw | ConvertFrom-Json
     $uiHostProvenance = Get-Content -LiteralPath $uiHostProvenancePath -Raw | ConvertFrom-Json
-    if ($distributionProvenance.runtime -ne 'win-x64' -or
+    if ($distributionProvenance.schemaVersion -ne 2 -or
+        $distributionProvenance.runtime -ne 'win-x64' -or
         $distributionProvenance.runtimeGOARCH -ne 'amd64' -or
         $distributionProvenance.uiHostRuntime -ne 'win-x64' -or
         $uiHostProvenance.runtime -ne 'win-x64') {
@@ -114,6 +116,48 @@ try {
         throw "Distribution provenance sourceCommit '$($distributionProvenance.sourceCommit)' does not match GITHUB_SHA '$env:GITHUB_SHA'."
     }
     $evidence.checks.provenance = $true
+
+    $runtimeAssets = @($distributionProvenance.files.runtimeAssets)
+    if ($runtimeAssets.Count -eq 0) {
+        throw 'Distribution provenance does not declare its Runtime asset closure.'
+    }
+    $requiredRuntimeAssetPaths = @(
+        'polyfills/000-global.js',
+        'polyfills/006-ui.js',
+        'jslibs/lodash.min.js',
+        'resources/opendesk-notification.png',
+        'sounds/public/done.mp3',
+        'sounds/public/fail.mp3',
+        'sounds/public/warn.mp3',
+        'sounds/public/captcha.mp3'
+    )
+    $manifestAssetPaths = @($runtimeAssets | ForEach-Object { [string]$_.path })
+    foreach ($requiredAssetPath in $requiredRuntimeAssetPaths) {
+        if ($manifestAssetPaths -notcontains $requiredAssetPath) {
+            throw "Distribution Runtime asset manifest is missing: $requiredAssetPath"
+        }
+    }
+    $distributionPrefix = $DistributionDirectory.TrimEnd('\') + '\'
+    foreach ($asset in $runtimeAssets) {
+        $relativeAssetPath = [string]$asset.path
+        $expectedAssetHash = [string]$asset.sha256
+        if ([string]::IsNullOrWhiteSpace($relativeAssetPath) -or [IO.Path]::IsPathRooted($relativeAssetPath)) {
+            throw "Distribution Runtime asset path is not a safe relative path: $relativeAssetPath"
+        }
+        $assetPath = [IO.Path]::GetFullPath((Join-Path $DistributionDirectory $relativeAssetPath))
+        if (-not $assetPath.StartsWith($distributionPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+            throw "Distribution Runtime asset escapes the distribution directory: $relativeAssetPath"
+        }
+        if (-not (Test-Path -LiteralPath $assetPath -PathType Leaf)) {
+            throw "Distribution Runtime asset is missing: $relativeAssetPath"
+        }
+        $actualAssetHash = (Get-FileHash -LiteralPath $assetPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ([string]::IsNullOrWhiteSpace($expectedAssetHash) -or $actualAssetHash -ne $expectedAssetHash.ToLowerInvariant()) {
+            throw "Distribution Runtime asset hash mismatch: $relativeAssetPath"
+        }
+    }
+    $evidence.runtimeAssetCount = $runtimeAssets.Count
+    $evidence.checks.runtimeAssetClosure = $true
 
     $tempRoot = Join-Path ([IO.Path]::GetTempPath()) ('OpenDesk portable 验证 ' + [Guid]::NewGuid().ToString('N'))
     $copiedDistribution = Join-Path $tempRoot 'OpenDesk 应用 with spaces'
@@ -128,9 +172,22 @@ try {
         -not (Test-Path -LiteralPath (Join-Path $copiedHostDirectory 'opendesk-ui-host.exe') -PathType Leaf)) {
         throw 'Unicode/space-path distribution copy is incomplete.'
     }
+    foreach ($asset in $runtimeAssets) {
+        if (-not (Test-Path -LiteralPath (Join-Path $copiedDistribution ([string]$asset.path)) -PathType Leaf)) {
+            throw "Unicode/space-path distribution copy is missing Runtime asset: $($asset.path)"
+        }
+    }
     $evidence.checks.unicodeAndSpacePath = $true
 
-    $runtimeProbe = 'console.log("OPENDESK_DISTRIBUTION_RUNTIME_OK");'
+    $runtimeProbe = @'
+if (typeof ui !== "object" || typeof ui.getCapabilities !== "function") {
+  throw new Error("UI_POLYFILL_NOT_INITIALIZED");
+}
+if (typeof _ !== "function" || _.VERSION !== "4.17.21") {
+  throw new Error("JSLIBS_NOT_INITIALIZED");
+}
+console.log("OPENDESK_DISTRIBUTION_RUNTIME_OK");
+'@
     $customUIProbe = @'
 const capabilities = ui.getCapabilities();
 if (!capabilities.enabled || !capabilities.available) {
