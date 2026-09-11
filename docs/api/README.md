@@ -46,9 +46,16 @@ order: 1
 
 直接复制运行仓库示例、正式 scripts 或排查旧命令时，打开 [Examples 快速索引](examples/README.md)。
 
+### 发布受保护包
+
+把已经写好的 JavaScript 打包为 `.odpkg`、检查/验签，或交接 P1 device License 与 P2 online activation 时，
+使用 [受保护包 CLI](protected-packages.md)。该页把作者工作流、Publisher 材料、客户授权和最终执行分开说明，
+同时给出秘密文件边界和 macOS/Windows 资格矩阵；普通
+`.js` 执行不需要 package 或 License。
+
 ### 从其他程序触发 OpenDesk
 
-使用 [HTTP Server API](http-server.md) 或 [MCP 文档](../integrations/mcp/README.md)。它们是外部调用入口，不等于脚本内的 [`http` / `axios`](http.md)，也不等于浏览器 DOM 自动化。
+使用 [HTTP Server API](http-server.md) 或 [MCP 文档](../integrations/mcp/README.md)。它们是外部调用入口，不等于脚本内的 [HTTP API](http.md)，也不等于浏览器 DOM 自动化。
 
 ## 推荐阅读顺序
 
@@ -87,7 +94,8 @@ order: 1
 33. `cookbook.md`：可直接改造的脚本范例
 34. `scheduler.md`：Scheduler 功能、生命周期、持久化与本地管理页
 35. `scheduler-api.md`：Scheduler 独立 HTTP 协议契约
-36. 其余专题页按需查阅
+36. `protected-packages.md`：`.odpkg` packaging、P1/P2 License CLI、执行、安全边界与平台资格
+37. 其余专题页按需查阅
 
 ## 文档分层
 
@@ -97,6 +105,7 @@ order: 1
 - **系统与数据**：`system.md`、`command.md`、`path.md`、`file.md`、`sqlite.md`、`storage.md`、`clipboard.md`
 - **网络与服务**：`http.md`、`http-server.md`、`scheduler.md`、`scheduler-api.md`
 - **运行时**：`environment.md`、`execution.md`、`runtime.md`、`global-apis.md`、`libs.md`、`native-extension.md`
+- **发布与交付**：`protected-packages.md`
 - **实践范例**：`cookbook.md`、`examples/`
 
 ## 哪些文件应该合并，哪些应该独立

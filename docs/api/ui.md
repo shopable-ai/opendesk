@@ -1535,7 +1535,7 @@ ui.notify(messageOrOptions: string | NotificationOptions): Promise<NotificationH
 
 提示默认不激活应用、不抢键盘焦点、不播放声音。启用关闭按钮后不再整体鼠标穿透。普通定时提示默认 3 秒自动关闭；任何 `timeoutMs:0` 持久提示都强制提供关闭按钮，不能形成无自动关闭、无手动出口的表面。用户关闭只终结提示，后续 `update()` 返回 `{applied:false,reason:"closed"}`，不取消或改变业务。每个 execution 最多三个同时存在的提示，超出返回 `UI_BUSY`；长任务应更新同一个句柄。
 
-提示宽度由 native host 按实际字体在 280–480pt/DIP 内测量：短文字收紧到 280，较长文字按内容扩展但不超过 480。高度继续在 52–124pt/DIP 内双向自适应。message 最多显示 3 行、caption 最多 2 行，超出后尾部截断；完整文字保留在状态中。进度条只增加有限的底部空间，更新后按同一定位语义原位重排，宽高都可以受控收缩或扩张。普通更新不延长倒计时。消息、进度、任务成功都由业务脚本报告，组件不推测任务结果。
+提示宽度由 native host 按实际字体在 280–480pt/DIP 内测量：短文字收紧到 280，较长文字按内容扩展但不超过 480。高度继续在 52–124pt/DIP 内双向自适应。message 最多显示 3 行、caption 最多 2 行，超出后尾部截断；完整文字保留在状态中。没有 caption 和进度条的单行提示会在 52pt/DIP 最小高度内垂直居中；多行或带次要内容时仍使用紧凑的顶部信息栈。进度条只增加有限的底部空间，更新后按同一定位语义原位重排，宽高都可以受控收缩或扩张。普通更新不延长倒计时。消息、进度、任务成功都由业务脚本报告，组件不推测任务结果。
 
 `position` 只能选一种模式，不混合字段。`auto` 在创建时选择本 execution 唯一可见 FloatingWindow，下方居中并跟随；没有或不唯一时使用指针所在显示器下中。`absolute` 要求 `{mode:"absolute",x,y}`。`anchor` 要求 `{mode:"anchor",horizontal,vertical,margin?,display?}`，横轴 left/center/right、纵轴 top/center/bottom、默认 margin 24、display active/primary。`relative` 要求 `{mode:"relative",target,side?,align?,gap?,follow?}`，target 为本 execution 的 FloatingWindow 实例或其 id，默认 bottom/center/8/true；side 可为 top/bottom/left/right，align 可为 start/center/end，gap 为 0–256。不是本 execution 的工具栏返回 `NOT_FOUND` 或 `INVALID_SPEC`。
 
