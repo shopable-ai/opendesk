@@ -42,7 +42,7 @@ examples/
 ├── accessibility/
 ├── http/
 ├── sqlite/
-├── app/
+├── app/              # 具体桌面应用发现、启动和生命周期示例
 ├── app-mode/
 ├── ai-cli/
 ├── native-extensions/
@@ -63,30 +63,35 @@ examples/
 基础 Runtime 位于 [`runtime/`](runtime/README.md)，包括 quickstart、console、Promise、等待、timer、环境、路径、
 File/JSON、Command、AppStorage、System 和 Page wait。桌面能力位于 [`desktop/`](desktop/README.md)，包括已有的
 keyboard/window 示例和本轮归位的 mouse、page click、screen、screenshot、display modes、screen recording。
+具体应用场景位于 [`app/`](app/README.md)，包括只读应用发现、WeChat 窗口检查以及 macOS Calculator 的启动/生命周期示例。
 
 散落在根目录的历史入口例如：
 
 ```text
-console.js                 -> runtime/console.js
-globalThis.js              -> runtime/global-this.js
-promise.js                 -> runtime/promise.js
-appStorage.js              -> runtime/app-storage.js
-page.waitfor.js            -> runtime/page-wait.js
-mouse.js                   -> desktop/mouse.js
-page.js                    -> desktop/page-click.js
-screen.js                  -> desktop/screen-info.js
-screenshot.js              -> desktop/screenshot.js
-screenshot_bytes_smoke.js  -> desktop/screenshot-bytes.js
-display-modes.js           -> desktop/display-modes.js
-screen-record-region.js    -> desktop/screen-record-region.js
-vision.ocr.js              -> vision/ocr.js
-vision_bytes_roundtrip.js  -> vision/bytes-roundtrip.js
-sound.js                   -> audio/play.js
-sound-playback.js          -> audio/playback-control.js
-dialog.js                  -> dialog/async-await.js
-dialog-promise-chain.js    -> dialog/promise-chain.js
-notify.js                  -> notifications/send.js
-notifications.js           -> notifications/lifecycle.js
+console.js                    -> runtime/console.js
+globalThis.js                 -> runtime/global-this.js
+promise.js                    -> runtime/promise.js
+appStorage.js                 -> runtime/app-storage.js
+page.waitfor.js               -> runtime/page-wait.js
+mouse.js                      -> desktop/mouse.js
+page.js                       -> desktop/page-click.js
+screen.js                     -> desktop/screen-info.js
+screenshot.js                 -> desktop/screenshot.js
+screenshot_bytes_smoke.js     -> desktop/screenshot-bytes.js
+display-modes.js              -> desktop/display-modes.js
+screen-record-region.js       -> desktop/screen-record-region.js
+vision.ocr.js                 -> vision/ocr.js
+vision_bytes_roundtrip.js     -> vision/bytes-roundtrip.js
+sound.js                      -> audio/play.js
+sound-playback.js             -> audio/playback-control.js
+dialog.js                     -> dialog/async-await.js
+dialog-promise-chain.js       -> dialog/promise-chain.js
+notify.js                     -> notifications/send.js
+notifications.js              -> notifications/lifecycle.js
+check_all_apps.js             -> app/running-apps.js
+check_wechat.js               -> app/wechat-window-inspect.js
+open-calculator-by-name.js    -> app/open-calculator-by-name.js
+app-lifecycle.js              -> app/lifecycle-calculator.js
 ```
 
 旧路径暂时继续工作，但文档和 Explorer 应推荐右侧 canonical 路径。
@@ -95,7 +100,7 @@ notifications.js           -> notifications/lifecycle.js
 
 文件、固定命令与显式测试服务请求见 [runtime/](runtime/README.md)；剪贴板文本见
 [clipboard/](clipboard/README.md)；只读窗口查询、指定窗口输入和 bounds 控制见
-[desktop/](desktop/README.md)。千牛特定动作独立在 [app/](app/README.md)，不再混入窗口查询。
+[desktop/](desktop/README.md)。具体应用示例独立在 [app/](app/README.md)，不再混入通用窗口示例。
 
 原生语义元素和菜单示例位于 [`accessibility/`](accessibility/README.md)。它们只面向可信本地 execution，
 要求明确、可验证且可安全清理的目标；运行产物统一写入 `.runtime/tests/accessibility/`。
@@ -108,15 +113,15 @@ notifications.js           -> notifications/lifecycle.js
 
 ## macOS：按名称打开系统计算器
 
-从仓库根目录运行：
+从仓库根目录运行 canonical 示例：
 
 ```bash
-./dist/opendesk ai run examples/open-calculator-by-name.js
+./dist/opendesk ai run examples/app/open-calculator-by-name.js
 ```
 
 示例使用 `App.launch('计算器', { waitUntilReady: 'window', timeout: 10000 })`，只启动或激活 Calculator、
-确认其实际 identity 并打印结果；它不会输入、清空、restart 或 terminate 已有实例。完整契约见
-[`docs/api/app.md`](../docs/api/app.md)。
+确认其实际 identity 并打印结果；它不会输入、清空、restart 或 terminate 已有实例。旧
+`examples/open-calculator-by-name.js` 只是兼容入口。完整契约见 [`docs/api/app.md`](../docs/api/app.md)。
 
 ## 路径与源码上下文
 
@@ -132,7 +137,7 @@ notifications.js           -> notifications/lifecycle.js
 Dialog 的两个 canonical 示例现在位于：
 
 - [`dialog/async-await.js`](dialog/async-await.js)：直接使用 `async` / `await`；
-- [`dialog/promise-chain.js`](dialog/promise-chain.js)：使用 `.then()` / `.finally()`。
+- [`dialog/promise-chain.js`](dialog/promise-chain.js)：使用 `.then()` / `.catch()` / `.finally()`。
 
 从仓库根目录运行：
 
