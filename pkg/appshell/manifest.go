@@ -17,6 +17,14 @@ import (
 
 const ManifestFileName = "opendesk.app.json"
 
+const (
+	ActionOpen     = "opendesk.open"
+	ActionRecorder = "opendesk.recorder"
+	ActionQuit     = "opendesk.quit"
+
+	RecorderMenuLabel = "打开 Recorder"
+)
+
 var (
 	actionIDPattern  = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
 	packageIDPattern = regexp.MustCompile(`^[a-z](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$`)
@@ -57,6 +65,8 @@ type MenuItem struct {
 	Action  string `json:"action,omitempty"`
 	Enabled *bool  `json:"enabled,omitempty"`
 	Visible *bool  `json:"visible,omitempty"`
+
+	system bool
 }
 
 // Package is the fully resolved, startup-safe App Mode package. Every path is
@@ -226,7 +236,7 @@ func (m *Manifest) Validate() error {
 			if item.Label == "" {
 				return fmt.Errorf("%s.label is required", field)
 			}
-			if err := validateActionID(field+".id", item.ID, false); err != nil {
+			if err := validateActionID(field+".id", item.ID, item.system); err != nil {
 				return err
 			}
 			if _, exists := ids[item.ID]; exists {
@@ -238,7 +248,7 @@ func (m *Manifest) Validate() error {
 					return fmt.Errorf("%s without action must be permanently disabled", field)
 				}
 			} else {
-				if err := validateActionID(field+".action", item.Action, false); err != nil {
+				if err := validateActionID(field+".action", item.Action, item.system); err != nil {
 					return err
 				}
 				actions[item.Action] = struct{}{}
@@ -256,17 +266,17 @@ func (m *Manifest) Validate() error {
 		if err := validateActionID("tray.primaryAction", m.Tray.PrimaryAction, true); err != nil {
 			return err
 		}
-		if m.Tray.PrimaryAction == "opendesk.quit" {
-			return errors.New("tray.primaryAction cannot be opendesk.quit")
+		if m.Tray.PrimaryAction == ActionQuit {
+			return fmt.Errorf("tray.primaryAction cannot be %s", ActionQuit)
 		}
-		if m.Tray.PrimaryAction != "opendesk.open" {
+		if m.Tray.PrimaryAction != ActionOpen {
 			if _, ok := actions[m.Tray.PrimaryAction]; !ok {
 				return fmt.Errorf("tray.primaryAction %q does not reference a declared business action", m.Tray.PrimaryAction)
 			}
 		}
 	}
-	if m.Window.CloseBehavior == "hide" && (!m.Tray.Enabled || m.Tray.PrimaryAction != "opendesk.open") {
-		return errors.New("window.closeBehavior=hide requires tray.enabled=true and tray.primaryAction=opendesk.open")
+	if m.Window.CloseBehavior == "hide" && (!m.Tray.Enabled || m.Tray.PrimaryAction != ActionOpen) {
+		return fmt.Errorf("window.closeBehavior=hide requires tray.enabled=true and tray.primaryAction=%s", ActionOpen)
 	}
 	return nil
 }
@@ -294,18 +304,51 @@ func (m Manifest) StatusOnlyMenuItem(itemID string) bool {
 	return false
 }
 
+func EnsureRecorderMenu(manifest Manifest) Manifest {
+	if !manifest.Tray.Enabled {
+		return manifest
+	}
+	for _, item := range manifest.Tray.Menu {
+		if item.Type == "" && item.ID == ActionRecorder {
+			return manifest
+		}
+	}
+	recorder := MenuItem{ID: ActionRecorder, Label: RecorderMenuLabel, Action: ActionRecorder, system: true}
+	if len(manifest.Tray.Menu) == 0 {
+		manifest.Tray.Menu = []MenuItem{recorder}
+		return manifest
+	}
+	menu := make([]MenuItem, 0, len(manifest.Tray.Menu)+2)
+	menu = append(menu, recorder)
+	if manifest.Tray.Menu[0].Type != "separator" {
+		menu = append(menu, MenuItem{Type: "separator"})
+	}
+	menu = append(menu, manifest.Tray.Menu...)
+	manifest.Tray.Menu = menu
+	return manifest
+}
+
 func validateActionID(field, value string, allowBuiltins bool) error {
 	value = strings.TrimSpace(value)
 	if !actionIDPattern.MatchString(value) {
 		return fmt.Errorf("%s %q is invalid", field, value)
 	}
 	if strings.HasPrefix(strings.ToLower(value), "opendesk.") {
-		if allowBuiltins && (value == "opendesk.open" || value == "opendesk.quit") {
+		if allowBuiltins && isBuiltinAction(value) {
 			return nil
 		}
 		return fmt.Errorf("%s %q uses reserved opendesk.* namespace", field, value)
 	}
 	return nil
+}
+
+func isBuiltinAction(value string) bool {
+	switch value {
+	case ActionOpen, ActionRecorder, ActionQuit:
+		return true
+	default:
+		return false
+	}
 }
 
 func validateSafeRelativePath(field, value string, required bool) (string, error) {

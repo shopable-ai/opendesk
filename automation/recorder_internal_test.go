@@ -1320,6 +1320,15 @@ func TestRecorderTextSampleBeforeSurvivesAnAXPollCrossingTheInputBoundary(t *tes
 	}
 }
 
+func TestRecorderResourceCountsDoesNotClearStarting(t *testing.T) {
+	owner := recorderTestOwner(t.TempDir(), nil)
+	owner.starting = true
+	owner.ResourceCounts()
+	if !owner.starting {
+		t.Fatal("ResourceCounts cleared starting state")
+	}
+}
+
 func recorderTestOwner(workDir string, backend RecorderInputBackend) *RecorderRuntime {
 	return &RecorderRuntime{
 		context: context.Background(), workDir: workDir, executionID: "test-execution",

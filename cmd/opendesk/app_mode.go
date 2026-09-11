@@ -72,6 +72,7 @@ func executeAppMode(config *Config) error {
 	if err != nil {
 		return err
 	}
+	appPackage.Manifest = appshell.EnsureRecorderMenu(appPackage.Manifest)
 	content, err := os.ReadFile(appPackage.EntryPath)
 	if err != nil {
 		return fmt.Errorf("read App Mode entry: %w", err)
@@ -92,6 +93,8 @@ func executeAppMode(config *Config) error {
 	if err != nil {
 		return err
 	}
+	sharedUIDriver := customui.NewProcessDriver(customui.ProcessDriverOptions{HostPath: config.CustomUIHostPath})
+	defer sharedUIDriver.Close()
 
 	signalContext, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stopSignals()
@@ -117,6 +120,19 @@ func executeAppMode(config *Config) error {
 			lease.Wait()
 		}
 	}()
+	recorder := newAppRecorder(shell, appPackage, appRecorderConfig{
+		LogDir:                                config.LogDir,
+		StackMode:                             config.StackMode,
+		AllowRecorderCapture:                  config.AllowRecorderCapture,
+		ExperimentalUnsafeNativeExtensionCall: config.ExperimentalUnsafeNativeExtensionCall,
+		CustomUIHostPath:                      config.CustomUIHostPath,
+	}, environment, sharedUIDriver)
+	if err := shell.BindRecorderAction(func(event appshell.ActionEvent) error {
+		return recorder.Open(appContext, event.Source)
+	}); err != nil {
+		return err
+	}
+	defer recorder.Cancel()
 	if err := shell.Start(appContext); err != nil {
 		return fmt.Errorf("start App Shell: %w", err)
 	}
@@ -153,6 +169,7 @@ func executeAppMode(config *Config) error {
 		EnableCustomUI:                  true,
 		CustomUIActivationSource:        customui.ActivationCLI,
 		CustomUIHostPath:                config.CustomUIHostPath,
+		CustomUIDriver:                  customui.NewSessionScopedDriver(sharedUIDriver),
 		CustomUIBaseDir:                 appPackage.Root,
 		AppShell:                        shell,
 		GracefulCancellation: func() bool {

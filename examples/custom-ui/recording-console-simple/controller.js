@@ -23,7 +23,11 @@
     'arrow.clockwise': '↻',
   });
 
-  const baseDir = file.join(execution.scriptDir, 'recording-console-simple');
+  let baseDir = file.join(execution.scriptDir, 'recording-console-simple');
+  if (typeof file.isFile === 'function' && !file.isFile(file.join(baseDir, 'controller-core.js'))
+    && execution.workdir) {
+    baseDir = file.join(execution.workdir, 'examples', 'custom-ui', 'recording-console-simple');
+  }
   const coreFile = file.join(baseDir, 'controller-core.js');
   const historyFile = file.join(baseDir, 'recording-history.js');
 
@@ -109,7 +113,7 @@
       throw new Error('recording-console-simple history requires ui.createWindow()');
     }
 
-    return Object.freeze({
+    const wrapper = {
       async createWindow(spec) {
         const inner = await baseUI.createWindow(spec);
         if (!inner || typeof inner.control !== 'function') return inner;
@@ -142,7 +146,15 @@
         };
         return wrapper;
       },
-    });
+    };
+
+    if (typeof baseUI.toast === 'function') {
+      wrapper.toast = baseUI.toast.bind(baseUI);
+    } else if (typeof baseUI.notify === 'function') {
+      // Keep compatibility with runtimes that expose only the historical name.
+      wrapper.toast = baseUI.notify.bind(baseUI);
+    }
+    return Object.freeze(wrapper);
   }
 
   function createToolbarAdapter(BaseFloatingWindow, managerRef) {
@@ -200,12 +212,18 @@
 
   function createApp(options) {
     const settings = options || {};
+    const dialog = settings.dialog || global.Dialog;
+    const ui = settings.ui || global.ui;
+    if (!dialog || typeof dialog.confirm !== 'function' || typeof dialog.prompt !== 'function'
+      || !ui || typeof ui.createWindow !== 'function') {
+      return coreAPI.createApp(settings);
+    }
     const managerRef = {current: null};
     const BaseFloatingWindow = settings.FloatingWindow || global.FloatingWindow;
     const HistoryAwareFloatingWindow = createToolbarAdapter(BaseFloatingWindow, managerRef);
-    const sharedDialog = createDialogCoordinator(settings.dialog || global.Dialog, settings.logger || global.console);
+    const sharedDialog = createDialogCoordinator(dialog, settings.logger || global.console);
     const coreApp = coreAPI.createApp({...settings, dialog: sharedDialog, FloatingWindow: HistoryAwareFloatingWindow});
-    const historyUI = createHistoryUIAdapter(settings.ui || global.ui);
+    const historyUI = createHistoryUIAdapter(ui);
 
     const history = historyAPI.createManager({
       file: settings.file || global.File,

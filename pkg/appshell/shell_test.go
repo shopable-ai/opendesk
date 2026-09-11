@@ -131,6 +131,94 @@ func TestShellActionsAreOrderedIncludingPreBindQueue(t *testing.T) {
 	}
 }
 
+func TestShellRecorderActionUsesFrameworkSinkOnly(t *testing.T) {
+	shell, _ := shellFixture(t)
+	var business []ActionEvent
+	if err := shell.BindActionSink(func(event ActionEvent) error {
+		business = append(business, event)
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var recorder []ActionEvent
+	if err := shell.BindRecorderAction(func(event ActionEvent) error {
+		recorder = append(recorder, event)
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := shell.DispatchAction(ActionRecorder, "tray-menu"); err != nil {
+		t.Fatal(err)
+	}
+	if len(recorder) != 1 || recorder[0].ID != ActionRecorder || recorder[0].Source != "tray-menu" {
+		t.Fatalf("recorder events=%+v", recorder)
+	}
+	if len(business) != 0 {
+		t.Fatalf("recorder action reached business sink: %+v", business)
+	}
+	if err := shell.DispatchAction("sync.now", "tray-menu"); err != nil {
+		t.Fatal(err)
+	}
+	if len(business) != 1 || business[0].ID != "sync.now" {
+		t.Fatalf("business events=%+v", business)
+	}
+}
+
+func TestShellRecorderActionRejectedAfterShutdown(t *testing.T) {
+	shell, _ := shellFixture(t)
+	var called int
+	if err := shell.BindRecorderAction(func(ActionEvent) error {
+		called++
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := shell.RequestQuit(); err != nil {
+		t.Fatal(err)
+	}
+	if err := shell.DispatchAction(ActionRecorder, "tray-menu"); !errors.Is(err, ErrNotRunning) {
+		t.Fatalf("recorder during quitting error=%v", err)
+	}
+	if called != 0 {
+		t.Fatalf("recorder callback called while quitting")
+	}
+	shell.CancelAsync()
+	if err := shell.DispatchAction(ActionRecorder, "tray-menu"); !errors.Is(err, ErrTornDown) {
+		t.Fatalf("recorder after stop error=%v", err)
+	}
+}
+
+func TestShellOpenAndQuitBuiltinsStillWork(t *testing.T) {
+	shell, native := shellFixture(t)
+	var got []ActionEvent
+	if err := shell.BindActionSink(func(event ActionEvent) error {
+		got = append(got, event)
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := shell.DispatchAction(ActionOpen, "tray-primary"); err != nil {
+		t.Fatal(err)
+	}
+	native.mu.Lock()
+	activate := native.activate
+	native.mu.Unlock()
+	if activate != 1 {
+		t.Fatalf("native activate=%d", activate)
+	}
+	if len(got) != 1 || got[0].ID != ActionOpen || got[0].Source != "tray-primary" {
+		t.Fatalf("open events=%+v", got)
+	}
+	var quit int
+	shell.SetQuitHook(func() { quit++ })
+	if err := shell.DispatchAction(ActionQuit, "tray-menu"); err != nil {
+		t.Fatal(err)
+	}
+	if quit != 1 || shell.State() != StateQuitting {
+		t.Fatalf("quit=%d state=%s", quit, shell.State())
+	}
+}
+
 func TestShellConcurrentStartInitializesNativeHostOnce(t *testing.T) {
 	manifest, err := ParseManifest([]byte(validManifestJSON()))
 	if err != nil {

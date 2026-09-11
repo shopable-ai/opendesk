@@ -242,6 +242,58 @@ func TestManifestRejectsDuplicateAndReservedIDs(t *testing.T) {
 	}
 }
 
+func TestEnsureRecorderMenuInjectsRecorderOnce(t *testing.T) {
+	manifest, err := ParseManifest([]byte(validManifestJSON()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	withRecorder := EnsureRecorderMenu(manifest)
+	withRecorder = EnsureRecorderMenu(withRecorder)
+	var recorderCount int
+	for _, item := range withRecorder.Tray.Menu {
+		if item.ID == ActionRecorder {
+			recorderCount++
+			if item.Label != RecorderMenuLabel || item.Action != ActionRecorder {
+				t.Fatalf("unexpected recorder item: %+v", item)
+			}
+		}
+		forbidden := map[string]bool{
+			"历史录制": true,
+			"录制详情": true,
+			"重放":   true,
+			"生成脚本": true,
+			"打开目录": true,
+		}
+		if forbidden[item.Label] {
+			t.Fatalf("unexpected recorder-owned tray item %q", item.Label)
+		}
+	}
+	if recorderCount != 1 {
+		t.Fatalf("recorder menu count=%d menu=%+v", recorderCount, withRecorder.Tray.Menu)
+	}
+	if len(withRecorder.Tray.Menu) < 4 ||
+		withRecorder.Tray.Menu[0].ID != ActionRecorder ||
+		withRecorder.Tray.Menu[1].Type != "separator" ||
+		withRecorder.Tray.Menu[2].ID != manifest.Tray.Menu[0].ID ||
+		withRecorder.Tray.Menu[3].Type != "separator" {
+		t.Fatalf("business menu was not preserved after recorder injection: %+v", withRecorder.Tray.Menu)
+	}
+	if err := withRecorder.Validate(); err != nil {
+		t.Fatalf("injected manifest should validate: %v", err)
+	}
+}
+
+func TestEnsureRecorderMenuLeavesDisabledTrayAlone(t *testing.T) {
+	manifest, err := ParseManifest([]byte(`{"id":"com.opendesk.minimal","entry":"main.js","window":{"mainId":"main"},"tray":{"enabled":false}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	withRecorder := EnsureRecorderMenu(manifest)
+	if len(withRecorder.Tray.Menu) != 0 {
+		t.Fatalf("disabled tray should not receive recorder item: %+v", withRecorder.Tray.Menu)
+	}
+}
+
 func TestManifestRejectsInvalidMenuModeCloseBehaviorAndSeparator(t *testing.T) {
 	badMode := strings.Replace(validManifestJSON(), `"menuMode": "merge"`, `"menuMode": "replace"`, 1)
 	if _, err := ParseManifest([]byte(badMode)); err == nil {

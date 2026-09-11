@@ -70,6 +70,7 @@ type floatingLifecycleListener struct {
 }
 
 type floatingWindowOptionsDeclaration struct {
+	ID          string                             `json:"id,omitempty"`
 	X           *float64                           `json:"x,omitempty"`
 	Y           *float64                           `json:"y,omitempty"`
 	Position    *floatingWindowPositionDeclaration `json:"position,omitempty"`
@@ -208,8 +209,14 @@ func (u *CustomUIRuntime) jsFloatingWindowConstructor() *goja.Object {
 		if err != nil {
 			panic(customUIJSError(u.runtime, err))
 		}
-		u.nextToolbarID++
-		windowID := fmt.Sprintf("floating-toolbar-%d", u.nextToolbarID)
+		windowID := options.ID
+		if windowID == "" {
+			u.nextToolbarID++
+			windowID = fmt.Sprintf("floating-toolbar-%d", u.nextToolbarID)
+		}
+		if _, exists := u.floatingToolbars[windowID]; exists {
+			panic(customUIJSError(u.runtime, &customui.Error{Code: customui.CodeDuplicateID, Operation: "FloatingWindow.constructor", WindowID: windowID, Capability: "id", Message: "floating toolbar id already exists"}))
+		}
 		value := newFloatingToolbar(u, windowID, options)
 		u.floatingToolbars[windowID] = value
 		return value.jsObject()
@@ -233,6 +240,10 @@ func (u *CustomUIRuntime) parseFloatingWindowOptions(value goja.Value) (floating
 		if err := exportCustomUIValue(value, &options); err != nil {
 			return options, &customui.Error{Code: customui.CodeInvalidSpec, Operation: "FloatingWindow.constructor", Capability: "ui", Message: "toolbar options are invalid", Cause: err}
 		}
+	}
+	options.ID = strings.TrimSpace(options.ID)
+	if options.ID != "" && !floatingButtonIDPattern.MatchString(options.ID) {
+		return options, &customui.Error{Code: customui.CodeInvalidSpec, Operation: "FloatingWindow.constructor", Capability: "id", Message: "toolbar id is invalid"}
 	}
 	if options.Position != nil {
 		if options.X != nil || options.Y != nil || options.Placement != nil {

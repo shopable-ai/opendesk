@@ -773,6 +773,13 @@ func (u *CustomUIRuntime) Wait() {
 	}
 }
 
+func (u *CustomUIRuntime) Session() *customui.Session {
+	if u == nil {
+		return nil
+	}
+	return u.session
+}
+
 func (u *CustomUIRuntime) AsyncCounts() (workers int64, callbacks int) {
 	if u == nil {
 		return 0, 0
