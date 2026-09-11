@@ -49,9 +49,9 @@ jobs:
       - name: macOS native host protocol smoke
         if: runner.os == 'macOS'
         run: node tests/custom-ui/tools/native-host-smoke.cjs dist/opendesk-ui-host
-      - name: Windows native host protocol smoke
+      - name: Windows hosted-deterministic native host protocol smoke
         if: runner.os == 'Windows'
-        run: node tests/custom-ui/tools/native-host-smoke.cjs dist/ui-host/opendesk-ui-host.exe
+        run: node tests/custom-ui/tools/native-host-smoke.cjs dist/ui-host/opendesk-ui-host.exe --profile=hosted-deterministic
       - name: Build paired Runtime
         if: runner.os != 'Linux'
         shell: bash
