@@ -63,6 +63,7 @@ type Shell struct {
 	manifest    Manifest
 	native      NativeHost
 	sink        ActionSink
+	recorder    ActionSink
 	pending     []ActionEvent
 	menuState   map[string]MenuItemPatch
 	started     bool
@@ -204,6 +205,31 @@ func (s *Shell) UnbindActionSink() {
 	s.mu.Unlock()
 }
 
+func (s *Shell) BindRecorderAction(sink ActionSink) error {
+	if sink == nil {
+		return errors.New("recorder action sink is required")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.teardown {
+		return ErrTornDown
+	}
+	if s.state != StateRunning {
+		return ErrNotRunning
+	}
+	if s.recorder != nil {
+		return errors.New("recorder action sink already bound")
+	}
+	s.recorder = sink
+	return nil
+}
+
+func (s *Shell) UnbindRecorderAction() {
+	s.mu.Lock()
+	s.recorder = nil
+	s.mu.Unlock()
+}
+
 func (s *Shell) SetQuitHook(hook func()) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -216,7 +242,7 @@ func (s *Shell) SetQuitHook(hook func()) {
 // Native backends never decide the JavaScript event identity themselves.
 func (s *Shell) DispatchMenuItem(itemID, source string) {
 	var err error
-	if itemID == "opendesk.open" || itemID == "opendesk.quit" {
+	if isBuiltinAction(itemID) {
 		err = s.DispatchAction(itemID, source)
 	} else if action, ok := s.manifest.MenuAction(itemID); ok {
 		err = s.DispatchAction(action, source)
@@ -260,13 +286,34 @@ func (s *Shell) DispatchAction(id, source string) error {
 	if source == "" {
 		return errors.New("action source is required")
 	}
-	if id == "opendesk.quit" {
+	if id == ActionQuit {
 		return s.RequestQuit()
 	}
-	if id == "opendesk.open" {
+	if id == ActionOpen {
 		return s.Activate(source)
 	}
+	if id == ActionRecorder {
+		return s.dispatchRecorder(ActionEvent{ID: id, Source: source})
+	}
 	return s.enqueue(ActionEvent{ID: id, Source: source})
+}
+
+func (s *Shell) dispatchRecorder(event ActionEvent) error {
+	s.mu.Lock()
+	if s.teardown {
+		s.mu.Unlock()
+		return ErrTornDown
+	}
+	if s.state != StateRunning {
+		s.mu.Unlock()
+		return ErrNotRunning
+	}
+	sink := s.recorder
+	s.mu.Unlock()
+	if sink == nil {
+		return nil
+	}
+	return sink(event)
 }
 
 func (s *Shell) enqueue(event ActionEvent) error {
@@ -313,7 +360,7 @@ func (s *Shell) Activate(source string) error {
 			return err
 		}
 	}
-	return s.enqueue(ActionEvent{ID: "opendesk.open", Source: normalizedOpenSource(source)})
+	return s.enqueue(ActionEvent{ID: ActionOpen, Source: normalizedOpenSource(source)})
 }
 
 func normalizedOpenSource(source string) string {
@@ -402,6 +449,7 @@ func (s *Shell) BeginShutdown() bool {
 	}
 	s.state = StateQuitting
 	s.sink = nil
+	s.recorder = nil
 	s.pending = nil
 	return true
 }
@@ -452,6 +500,7 @@ func (s *Shell) cancelAsyncLocked() {
 		s.dispatchMu.Lock()
 		s.mu.Lock()
 		s.sink = nil
+		s.recorder = nil
 		s.pending = nil
 		native := s.native
 		s.mu.Unlock()

@@ -109,6 +109,9 @@ type Request struct {
 	// access: only an explicit trusted local CLI invocation may start global
 	// input capture. Saved-file Recorder production remains available otherwise.
 	EnableRecorderCapture bool
+	// RecorderStartGate is an execution-scoped host policy hook. Returning an
+	// error rejects Recorder.start without changing any other execution.
+	RecorderStartGate func() error
 	// SQLiteProtectedPaths supplies additional internal database files that a
 	// local SQLite Runtime must not open (for example a configured Scheduler
 	// store). The automation owner also protects the default Scheduler path.
@@ -121,6 +124,10 @@ type Request struct {
 	AppShell *appshell.Shell
 	// CustomUIDriver is an internal dependency seam used by Runtime API tests.
 	CustomUIDriver customui.Driver
+	// OnCustomUISession is an internal lifecycle hook for App Mode owners that
+	// need to show an existing secondary window without creating another
+	// execution. Ordinary transports leave it nil.
+	OnCustomUISession func(*customui.Session)
 	// GlobalShortcutBackendFactory is an internal test seam. Product executions
 	// use the platform backend selected by automation.InitJSWithOptions.
 	GlobalShortcutBackendFactory automation.GlobalShortcutBackendFactory
@@ -378,6 +385,7 @@ func runJavaScript(req Request, emitter *Emitter) error {
 				AccessibilityPolicy:             req.AccessibilityPolicy,
 				EnableSQLite:                    req.EnableSQLite,
 				EnableRecorderCapture:           req.EnableRecorderCapture,
+				RecorderStartGate:               req.RecorderStartGate,
 				ExecutionID:                     req.ExecutionID,
 				SQLiteProtectedPaths:            req.SQLiteProtectedPaths,
 				CustomUIActivationSource:        normalizeCustomUIActivationSource(req),
@@ -394,7 +402,12 @@ func runJavaScript(req Request, emitter *Emitter) error {
 				RecorderWindowProbe:             req.RecorderWindowProbe,
 				ScreenCaptureDisplayResolver:    req.RecorderDisplayResolver,
 				OnAsyncError:                    onAsyncError,
-				OnReady:                         func(resources *automation.RuntimeLifecycle) { lifecycle = resources },
+				OnReady: func(resources *automation.RuntimeLifecycle) {
+					lifecycle = resources
+					if req.OnCustomUISession != nil && resources != nil && resources.UI != nil {
+						req.OnCustomUISession(resources.UI.Session())
+					}
+				},
 			}); err != nil {
 				runtimeErr = err
 				loop.StopNoWait()

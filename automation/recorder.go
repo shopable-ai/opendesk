@@ -518,6 +518,7 @@ type RecorderRuntime struct {
 	textProbe       recorderTextProbe
 	displayResolver func() []DisplayInfo
 	onAsyncError    func(error)
+	startGate       func() error
 
 	closing atomic.Bool
 	workers atomic.Int64
@@ -619,7 +620,7 @@ func registerRecorder(runtimeValue *goja.Runtime, opts InitJSOptions) (*Recorder
 		workDir: workDir, executionID: opts.ExecutionID,
 		enableCapture:  opts.EnableRecorderCapture,
 		backendFactory: factory, windowProbe: probe, targetProbe: targetProbe, textProbe: textProbe, displayResolver: resolver,
-		onAsyncError: opts.OnAsyncError,
+		onAsyncError: opts.OnAsyncError, startGate: opts.RecorderStartGate,
 	}
 	object := runtimeValue.NewObject()
 	if err := object.Set("getCapabilities", func(goja.FunctionCall) goja.Value {
@@ -693,6 +694,12 @@ func (r *RecorderRuntime) start(call goja.FunctionCall) (value goja.Value) {
 	if !r.enableCapture {
 		_ = reject(recorderJSError(r.runtime, recorderError(RecorderCaptureDenied, "Recorder.start", "capture is disabled for this execution; use the trusted local -allow-recorder-capture entrypoint", nil)))
 		return promiseValue
+	}
+	if r.startGate != nil {
+		if err := r.startGate(); err != nil {
+			_ = reject(recorderJSError(r.runtime, recorderError(RecorderCaptureOccupied, "Recorder.start", err.Error(), err)))
+			return promiseValue
+		}
 	}
 	r.mu.Lock()
 	if r.starting || (r.session != nil && !r.session.finished()) {
@@ -2009,7 +2016,6 @@ func (r *RecorderRuntime) ResourceCounts() (workers int64, pending, sessions, ba
 	pending = r.pending
 	r.mu.Lock()
 	session := r.session
-	r.starting = false
 	r.mu.Unlock()
 	if session != nil {
 		if !session.finished() {

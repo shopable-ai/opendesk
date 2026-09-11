@@ -103,6 +103,10 @@ type InitJSOptions struct {
 	// supplies -allow-recorder-capture. File-only buildActions/generateScript
 	// remain available when it is false.
 	EnableRecorderCapture bool
+	// RecorderStartGate is an execution-scoped host policy hook. Returning an
+	// error rejects Recorder.start without stopping, pausing, or queueing any
+	// other execution.
+	RecorderStartGate func() error
 	// ExecutionID binds a capture session and its manifest to this Runtime.
 	ExecutionID string
 	// RecorderBackendFactory and RecorderWindowProbe are internal seams for

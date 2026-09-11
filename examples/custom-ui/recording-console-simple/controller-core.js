@@ -95,6 +95,9 @@
         : null;
     const logger = settings.logger || global.console;
     const wait = settings.sleep || sleepWithTimer;
+    const beforeStart = typeof settings.beforeStart === 'function'
+      ? settings.beforeStart
+      : null;
     const countdownStepMs = Number.isFinite(settings.countdownStepMs)
       ? Math.max(0, Math.trunc(settings.countdownStepMs)) : 1000;
 
@@ -167,6 +170,7 @@
     let toolbarClosed = false;
 
     const toolbar = new FloatingWindowAPI({
+      id: settings.windowID || 'recording-console',
       position: {
         mode: 'anchor', horizontal: 'center', vertical: 'bottom', margin: 24, display: 'active',
       },
@@ -384,6 +388,21 @@
       return text.length <= limit ? text : text.slice(0, limit) + '\n…（完整内容见对应文件）';
     }
 
+    async function alertIfConflict(error) {
+      const message = String(error && error.message || '');
+      const conflicts = [
+        '请先停止其他运行中的脚本，再开始录制。',
+        '当前正在录制，请先停止录制再运行脚本。',
+        '已有脚本正在运行，请先停止后再运行。',
+      ];
+      const text = conflicts.find(value => message.includes(value));
+      if (!text) return false;
+      try {
+        await dialog.alert({title: 'Recorder', message: text, level: 'warning', okText: '关闭'});
+      } catch (_) {}
+      return true;
+    }
+
     function runDetails() {
       if (!state.run) return '无';
       return JSON.stringify({
@@ -482,6 +501,12 @@
 
       stopRequested = false;
       startPromise = (async () => {
+        if (beforeStart) {
+          const allowed = await beforeStart(snapshot());
+          if (allowed === false) {
+            return snapshot();
+          }
+        }
         state.target = null;
         state.nativeStatus = null;
         state.saved = null;
@@ -532,6 +557,7 @@
           }
         } catch (error) {
           session = null;
+          await alertIfConflict(error);
           if (!closeRequested) await fail(error, 'capture', 'error', '开始录制失败');
         }
         return snapshot();
