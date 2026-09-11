@@ -18,6 +18,17 @@ func TestWindowsTrayEventCodeSupportsVersion4Packing(t *testing.T) {
 	}
 }
 
+func TestWindowsLeftClickUsesTrayMenu(t *testing.T) {
+	for _, event := range []uint32{win.WM_LBUTTONUP, win.NIN_SELECT, win.WM_RBUTTONUP, win.WM_CONTEXTMENU} {
+		if !windowsTrayEventOpensMenu(event) {
+			t.Fatalf("event=%#x should open the tray menu", event)
+		}
+	}
+	if windowsTrayEventOpensMenu(win.NIN_KEYSELECT) {
+		t.Fatal("keyboard selection should retain primary activation")
+	}
+}
+
 func TestWindowsNativeHostMapsReusablePrimaryActionToItemIdentity(t *testing.T) {
 	manifest, err := ParseManifest([]byte(validManifestJSON()))
 	if err != nil {

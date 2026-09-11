@@ -192,11 +192,12 @@ func windowsAppShellWndProc(hwnd win.HWND, message uint32, wParam, lParam uintpt
 		// NOTIFYICON_VERSION_4 packs the notification in LOWORD(lParam)
 		// and the icon id in HIWORD(lParam). Older shells pass only the
 		// notification value, so LOWORD works for both contracts.
-		switch windowsTrayEventCode(lParam) {
-		case win.WM_LBUTTONUP, win.NIN_SELECT, win.NIN_KEYSELECT:
-			h.dispatch(h.primaryItemID, "tray-primary")
-		case win.WM_RBUTTONUP, win.WM_CONTEXTMENU:
+		event := windowsTrayEventCode(lParam)
+		switch {
+		case windowsTrayEventOpensMenu(event):
 			h.showMenu()
+		case event == win.NIN_KEYSELECT:
+			h.dispatch(h.primaryItemID, "tray-primary")
 		}
 		return 0
 	case win.WM_DESTROY:
@@ -269,6 +270,15 @@ func (h *windowsNativeHost) showMenu() {
 }
 
 func windowsTrayEventCode(lParam uintptr) uint32 { return uint32(lParam & 0xffff) }
+
+func windowsTrayEventOpensMenu(event uint32) bool {
+	switch event {
+	case win.WM_LBUTTONUP, win.NIN_SELECT, win.WM_RBUTTONUP, win.WM_CONTEXTMENU:
+		return true
+	default:
+		return false
+	}
+}
 
 func windowsTrayIconSize(hwnd win.HWND) (int32, int32) {
 	dpi := win.GetDpiForWindow(hwnd)

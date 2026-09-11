@@ -39,12 +39,10 @@ static BOOL ODOnMainThread(void (^block)(void)) {
 }
 
 - (void)statusPressed:(id)sender {
-    NSEvent *event = NSApp.currentEvent;
-    if (event.type == NSEventTypeRightMouseUp || (event.modifierFlags & NSEventModifierFlagControl)) {
-        [self.statusItem popUpStatusItemMenu:self.menu];
-        return;
-    }
-    [self emitItemID:self.primaryAction source:@"tray-primary"];
+    // A normal click opens the same merged menu as the context gesture. The
+    // first menu item remains the explicit Open / Show action, so users do not
+    // need to remember a platform-specific primary-click behavior.
+    [self.statusItem popUpStatusItemMenu:self.menu];
 }
 
 - (void)menuPressed:(NSMenuItem *)sender {
@@ -99,8 +97,9 @@ int ODAppShellStart(const char *iconPath, const char *tooltip, const char *prima
             controller.statusItem.button.toolTip = tooltip ? [NSString stringWithUTF8String:tooltip] : @"";
             controller.statusItem.button.target = controller;
             controller.statusItem.button.action = @selector(statusPressed:);
-            // Dispatch the primary action before NSStatusBarButton enters any
-            // menu tracking loop; the context menu remains a right mouse-up.
+            // Left-click is the primary menu gesture. Right-click remains a
+            // compatible context gesture and Control-click is handled by
+            // AppKit as the equivalent macOS context action.
             [controller.statusItem.button sendActionOn:(NSEventMaskLeftMouseDown | NSEventMaskRightMouseUp)];
             controller.menu = [NSMenu new];
             controller.menu.autoenablesItems = NO;

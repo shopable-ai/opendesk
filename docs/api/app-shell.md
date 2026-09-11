@@ -62,8 +62,8 @@ package root 是 `realpath(-app directory)`。Manifest 的 `entry` 和两个图�
 
 | 操作 | macOS | Windows |
 | --- | --- | --- |
-| 主激活 | 左键执行 `primaryAction`；`opendesk.open` 显示并聚焦同一主窗口。 | 左键、键盘选择或系统 primary activation 执行 `primaryAction`；`opendesk.open` 显示并聚焦同一主窗口。 |
-| 打开菜单 | 右键或 Control-click。 | 右键或 context-menu gesture。 |
+| 主窗口入口 | 菜单中的 `Open / Show` 执行 `opendesk.open`，显示并聚焦同一主窗口。 | 同左。 |
+| 打开菜单 | 左键打开；右键或 Control-click 继续兼容。 | 左键打开；右键或 context-menu gesture 继续兼容。 |
 | 业务菜单 | 点击后按 Manifest item `action` 向当前 Execution 分发 `tray-menu` event。 | 同左；不会启动第二个 Runtime。 |
 | 动态更新 | `updateMenuItem()` 在 AppKit main thread 更新既有 item。 | `updateMenuItem()` 投递到专属 Win32 message loop 更新既有 item。 |
 | 用户关闭 | `closeBehavior: "hide"` 隐藏原窗口；系统 Open 或第二实例重新显示同一窗口。 | 同一语义；用户 X 被拦截后隐藏原窗口。 |
