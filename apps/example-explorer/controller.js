@@ -3,7 +3,6 @@
 
   function createApp(options) {
     const file = options.file;
-    const execution = options.execution;
     const ui = options.ui;
     const catalogApi = global.OpenDeskExampleCatalog;
     const viewApi = global.OpenDeskExampleView;
@@ -11,7 +10,7 @@
     const examplesRoot = options.examplesRoot;
     const catalogPath = file.join(examplesRoot, 'catalog.json');
     const css = file.read(options.stylesPath);
-    let scanResult = {entries: [], missing: []};
+    let scanResult = {entries: [], missing: [], unregistered: []};
     let signature = '';
     let window = null;
     let query = '';
@@ -47,7 +46,19 @@
         selected = pageEntries[0] || null;
         selectedPath = selected ? selected.relativePath : '';
       }
-      return {allEntries: scanResult.entries, missing: scanResult.missing, filtered, pageEntries, page, pageCount, selected, query, category, status};
+      return {
+        allEntries: scanResult.entries,
+        missing: scanResult.missing,
+        unregistered: scanResult.unregistered,
+        filtered,
+        pageEntries,
+        page,
+        pageCount,
+        selected,
+        query,
+        category,
+        status,
+      };
     }
 
     function current() {
@@ -71,8 +82,8 @@
       await safeUpdate('previousPage', {disabled: state.page <= 0});
       await safeUpdate('nextPage', {disabled: state.page >= state.pageCount - 1});
       await safeUpdate('emptyList', {visible: state.filtered.length === 0, classes: ['empty']});
-      await safeUpdate('missingCount', {text: `${state.missing.length} missing catalog entries`});
-      await safeUpdate('totalCount', {text: `${state.allEntries.length} discovered`});
+      await safeUpdate('catalogHealth', {text: `${state.missing.length} missing · ${state.unregistered.length} hidden internal/unregistered`});
+      await safeUpdate('totalCount', {text: `${state.allEntries.length} catalog examples`});
       await safeUpdate('status', {text: status});
 
       for (let index = 0; index < viewApi.PAGE_SIZE; index++) {
@@ -81,20 +92,20 @@
         await safeUpdate(`example${index}`, {visible: !!entry, disabled: !entry, classes: active ? ['example-row', 'is-active'] : ['example-row']});
         await safeUpdate(`exampleTitle${index}`, {text: entry ? entry.title : ''});
         await safeUpdate(`examplePath${index}`, {text: entry ? entry.relativePath : ''});
-        await safeUpdate(`exampleBadge${index}`, {text: entry ? (entry.runnable ? 'safe' : entry.runPolicy) : '', classes: policyClass(entry)});
+        await safeUpdate(`exampleBadge${index}`, {text: entry ? entry.runPolicy : '', classes: policyClass(entry)});
       }
 
       const entry = state.selected;
       await safeUpdate('detailTitle', {text: entry ? entry.title : 'Select an example'});
-      await safeUpdate('detailDescription', {text: entry ? entry.description : 'Choose an example from the list to inspect source and execution metadata.'});
-      await safeUpdate('detailPolicy', {text: entry ? (entry.runnable ? 'safe' : entry.runPolicy) : '', classes: policyClass(entry)});
+      await safeUpdate('detailDescription', {text: entry ? entry.description : 'Choose a curated example from the list.'});
+      await safeUpdate('detailPolicy', {text: entry ? entry.runPolicy : '', classes: policyClass(entry)});
       await safeUpdate('detailPath', {text: entry ? entry.relativePath : '—'});
       await safeUpdate('detailCategory', {text: entry ? entry.category : '—'});
       await safeUpdate('detailLevel', {text: entry ? entry.level : '—'});
-      await safeUpdate('overviewDocs', {text: entry && entry.docs ? entry.docs : 'Not registered'});
+      await safeUpdate('overviewDocs', {text: entry && entry.docs ? entry.docs : 'No API link registered'});
       await safeUpdate('overviewPrerequisites', {text: entry && entry.prerequisites.length ? entry.prerequisites.join('\n') : 'None declared'});
       await safeUpdate('overviewExpected', {text: entry && entry.expected ? entry.expected : 'Not declared'});
-      await safeUpdate('runHint', {text: entry && entry.runnable ? 'Approved safe example' : 'Read-only until catalog approval'});
+      await safeUpdate('runHint', {text: entry && entry.runnable ? 'Approved for one-click run' : 'Review prerequisites and run manually'});
       await safeUpdate('run', {disabled: !entry || !entry.runnable || runner.isRunning()});
       await safeUpdate('stop', {disabled: !runner.isRunning()});
       await syncTab();
@@ -121,7 +132,8 @@
     function rescan() {
       scanResult = catalogApi.scan({file, examplesRoot, catalogPath});
       signature = catalogApi.signature(file, examplesRoot);
-      status = `Loaded ${scanResult.entries.length} JavaScript examples; ${scanResult.entries.filter(entry => entry.runnable).length} approved for one-click run.`;
+      const safeCount = scanResult.entries.filter(entry => entry.runnable).length;
+      status = `Loaded ${scanResult.entries.length} curated examples; ${safeCount} approved for one-click run; ${scanResult.unregistered.length} internal/unregistered scripts hidden.`;
     }
 
     async function applyFilters() {
@@ -229,7 +241,7 @@
           const next = catalogApi.signature(file, examplesRoot);
           if (next !== signature) {
             rescan();
-            status = 'Examples changed on disk; list refreshed automatically.';
+            status = 'Examples changed on disk; curated list refreshed automatically.';
             await syncListAndDetail();
           }
         } catch (error) {

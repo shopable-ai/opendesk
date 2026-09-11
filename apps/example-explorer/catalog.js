@@ -7,9 +7,7 @@
 
   function isExampleJavaScript(name) {
     const value = String(name || '');
-    return value.length > 3
-      && value.toLowerCase().endsWith('.js')
-      && !value.startsWith('.');
+    return value.length > 3 && value.toLowerCase().endsWith('.js') && !value.startsWith('.');
   }
 
   function readCatalog(file, catalogPath) {
@@ -36,53 +34,32 @@
       }
       if (stat.type !== 'file' || !isExampleJavaScript(name)) continue;
       const prefix = normalizeSlash(root).replace(/\/$/, '') + '/';
-      const relative = normalizeSlash(absolute).startsWith(prefix)
-        ? normalizeSlash(absolute).slice(prefix.length)
-        : normalizeSlash(name);
-      output.push({
-        relativePath: relative,
-        absolutePath: absolute,
-        size: stat.size,
-        modifiedAt: stat.modifiedAt,
-      });
+      const normalized = normalizeSlash(absolute);
+      const relative = normalized.startsWith(prefix) ? normalized.slice(prefix.length) : normalizeSlash(name);
+      output.push({relativePath: relative, absolutePath: absolute, size: stat.size, modifiedAt: stat.modifiedAt});
     }
-  }
-
-  function deriveCategory(relativePath) {
-    const parts = normalizeSlash(relativePath).split('/');
-    if (parts.length > 1) {
-      const first = parts[0];
-      return first.replace(/[-_]+/g, ' ').replace(/\b\w/g, ch => ch.toUpperCase());
-    }
-    return 'General';
-  }
-
-  function deriveTitle(relativePath) {
-    const parts = normalizeSlash(relativePath).split('/');
-    const name = parts[parts.length - 1].replace(/\.js$/i, '');
-    return name.replace(/[-_.]+/g, ' ').replace(/\b\w/g, ch => ch.toUpperCase());
   }
 
   function normalizeEntry(discovered, metadata) {
-    const meta = metadata && typeof metadata === 'object' ? metadata : null;
-    const registered = !!meta;
-    const runPolicy = registered && typeof meta.runPolicy === 'string' ? meta.runPolicy : 'unregistered';
+    const meta = metadata && typeof metadata === 'object' ? metadata : {};
+    const runPolicy = typeof meta.runPolicy === 'string' ? meta.runPolicy : 'manual';
     return {
       relativePath: discovered.relativePath,
       absolutePath: discovered.absolutePath,
       size: discovered.size,
       modifiedAt: discovered.modifiedAt,
-      registered,
-      title: registered && meta.title ? String(meta.title) : deriveTitle(discovered.relativePath),
-      description: registered && meta.description ? String(meta.description) : 'Discovered JavaScript example; metadata has not been reviewed yet.',
-      category: registered && meta.category ? String(meta.category) : deriveCategory(discovered.relativePath),
-      level: registered && meta.level ? String(meta.level) : 'unregistered',
+      registered: true,
+      title: meta.title ? String(meta.title) : discovered.relativePath,
+      description: meta.description ? String(meta.description) : '',
+      category: meta.category ? String(meta.category) : 'Other',
+      level: meta.level ? String(meta.level) : 'intermediate',
       runPolicy,
-      docs: registered && meta.docs ? String(meta.docs) : '',
-      platforms: registered && Array.isArray(meta.platforms) ? meta.platforms.map(String) : [],
-      prerequisites: registered && Array.isArray(meta.prerequisites) ? meta.prerequisites.map(String) : [],
-      expected: registered && meta.expected ? String(meta.expected) : '',
-      tags: registered && Array.isArray(meta.tags) ? meta.tags.map(String) : [],
+      aliases: Array.isArray(meta.aliases) ? meta.aliases.map(normalizeSlash) : [],
+      docs: meta.docs ? String(meta.docs) : '',
+      platforms: Array.isArray(meta.platforms) ? meta.platforms.map(String) : [],
+      prerequisites: Array.isArray(meta.prerequisites) ? meta.prerequisites.map(String) : [],
+      expected: meta.expected ? String(meta.expected) : '',
+      tags: Array.isArray(meta.tags) ? meta.tags.map(String) : [],
       runnable: runPolicy === 'safe',
     };
   }
@@ -92,32 +69,39 @@
     const examplesRoot = options.examplesRoot;
     const catalogPath = options.catalogPath;
     const rootStat = file.stat(examplesRoot);
-    if (!rootStat || rootStat.type !== 'directory') {
-      throw new Error('examples root is not available: ' + examplesRoot);
-    }
+    if (!rootStat || rootStat.type !== 'directory') throw new Error('examples root is not available: ' + examplesRoot);
 
     const catalog = readCatalog(file, catalogPath);
     const discovered = [];
     walkJavaScript(file, examplesRoot, examplesRoot, discovered);
-    const seen = new Set();
-    const entries = discovered.map(item => {
-      seen.add(item.relativePath);
-      return normalizeEntry(item, catalog.entries[item.relativePath]);
-    });
-
+    const byPath = new Map(discovered.map(item => [item.relativePath, item]));
+    const aliases = new Set();
+    const entries = [];
     const missing = [];
-    for (const path of Object.keys(catalog.entries).sort()) {
-      if (!seen.has(path)) missing.push({relativePath: path, metadata: catalog.entries[path]});
+
+    for (const relativePath of Object.keys(catalog.entries).sort()) {
+      const metadata = catalog.entries[relativePath];
+      if (metadata && Array.isArray(metadata.aliases)) {
+        for (const alias of metadata.aliases) aliases.add(normalizeSlash(alias));
+      }
+      const item = byPath.get(relativePath);
+      if (!item) {
+        missing.push({relativePath, metadata});
+        continue;
+      }
+      entries.push(normalizeEntry(item, metadata));
     }
 
+    const canonical = new Set(Object.keys(catalog.entries));
+    const unregistered = discovered.filter(item => !canonical.has(item.relativePath) && !aliases.has(item.relativePath));
+
     entries.sort((left, right) => {
-      if (left.registered !== right.registered) return left.registered ? -1 : 1;
       const byCategory = left.category.localeCompare(right.category);
       if (byCategory) return byCategory;
       return left.title.localeCompare(right.title);
     });
 
-    return {entries, missing, catalog};
+    return {entries, missing, unregistered, catalog};
   }
 
   function signature(file, examplesRoot) {
@@ -129,9 +113,8 @@
         const absolute = file.join(dir, name);
         const stat = file.stat(absolute);
         if (!stat) continue;
-        if (stat.type === 'directory') {
-          walk(absolute);
-        } else if (stat.type === 'file' && (isExampleJavaScript(name) || name === 'catalog.json')) {
+        if (stat.type === 'directory') walk(absolute);
+        else if (stat.type === 'file' && (isExampleJavaScript(name) || name === 'catalog.json')) {
           rows.push(normalizeSlash(absolute) + '|' + String(stat.size) + '|' + String(stat.modifiedAt));
         }
       }
