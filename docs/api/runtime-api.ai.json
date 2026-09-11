@@ -25,7 +25,7 @@
     "Prefer axios for normal script HTTP requests; axios is a polyfill backed by http.request. Use http.download only for host-authorized native streaming GET downloads; local CLI and ai run enable it, while HTTP, MCP, Scheduler, generic Runtime, JavaScript options, and environment variables cannot grant it.",
     "NativeExtensions is an Experimental manifest-discovered immutable binding. Normal local CLI calls use NativeExtensions.<namespace>.<method>(businessParams) with routes fixed by the Host; it discovers only the program-relative bundle directory by default. HTTP and MCP cannot enable or call it. The low-level NativeExtension.call compatibility surface requires the separate -experimental-unsafe-native-extension-call local diagnostic gate.",
     "Accessibility is an execution-owned Experimental local Runtime API. Trusted local script and AI CLI entrypoints explicitly enable it; HTTP, MCP, Scheduler, and generic Runtime initialization leave it disabled. Every traversal requires an explicit window, execution-owned element ref, or App target scope. It never silently falls back to OCR or mouse input.",
-    "Uppercase UI operates visible targets in external desktop apps. Lowercase ui is always present but dormant by default and creates OpenDesk Custom UI; enable it with -ui or strict clawdesk.runtime.json. They have no aliases.",
+    "Uppercase UI operates visible targets in external desktop apps. Lowercase ui owns OpenDesk-created surfaces and is dormant by default; enable it with -ui or strict clawdesk.runtime.json. Prefer ui.toast for transient feedback and ui.createWindow for custom windows. ui.notify is a compatibility alias for ui.toast, while the global notify() function sends operating-system notifications.",
 		"Uppercase App controls external desktop applications. automation.app controls only the current explicit -app execution, remains fail-closed in ordinary Script/HTTP/MCP/Scheduler modes, and never starts a second Runtime for tray actions or activation.",
     "Dialog is always present but fail-closed without the ui capability. Its alert, confirm, and prompt methods are asynchronous native modal dialogs; global alert/confirm/prompt are thin polyfill aliases, never browser-style blocking calls.",
     "Omit -stack for new scripts. The old upgraded/playwright values and browser/context-shaped globals are implementation compatibility residue, not maintained user APIs or a browser engine.",
@@ -280,10 +280,15 @@
     },
     {"name": "Sound", "source": "native", "status": "secondary", "doc": "sound.md", "keyMethods": ["playSuccess", "playFail", "playWarning", "playError", "playCaptcha", "playSound", "play", "start", "playAsync", "stop", "stopAll", "getActive"]},
     {
-      "name": "ui", "source": "native process driver plus EventLoop bridge", "status": "conditional", "doc": "custom-ui.md",
+      "name": "ui", "source": "native process driver plus EventLoop bridge plus polyfills/000-ui.js toast facade", "status": "conditional", "doc": "custom-ui.md", "toastDoc": "notify.md",
       "condition": "always present but dormant by default; local CLI or strict project config authorization is required, while HTTP additionally requires server opt-in, per-request capability declaration, and a loopback peer; new initial positioning is the discriminated position union {mode:absolute,bounds} or {mode:anchor,size,horizontal,vertical}; established absolute bounds remains a compatibility spelling, while the retired top-level size plus placement draft is rejected; WindowHandle placement composes left/center/right with top/center/bottom inside the selected display work area",
-      "platformBehavior": "macOS AppKit/WebKit host; Windows and Linux report available=false and createWindow rejects UNSUPPORTED_PLATFORM",
-      "keyMethods": ["getCapabilities", "createWindow", "closeAll", "on"], "activationSources": ["disabled", "cli", "projectConfig", "httpRequest"]
+      "platformBehavior": "macOS uses the AppKit native host; Windows uses the experimental WinForms/Win32 sidecar, with WebView2 required only for the restricted HTML surface and Dialog, not FloatingWindow or toast; Linux reports available=false and UI creation rejects UNSUPPORTED_PLATFORM",
+      "keyMethods": ["toast", "notify", "getCapabilities", "createWindow", "closeAll", "on"],
+      "preferredFeedback": "ui.toast(messageOrOptions) is the preferred OpenDesk-owned transient feedback API. It supports level, timeout, progress, position and returns a ToastHandle.",
+      "toastHandleMethods": ["update", "close", "getState", "waitUntilClosed"],
+      "compatibility": "ui.notify(messageOrOptions) remains a deprecated compatibility alias for ui.toast; it is not the operating-system notify() API. Toast callers get state.toast while the historical state.notification field remains available.",
+      "capabilities": "ui.getCapabilities().window.toast mirrors the existing native window.notify backend capability during the compatibility period.",
+      "activationSources": ["disabled", "cli", "projectConfig", "httpRequest"]
     },
     {
       "name": "FloatingWindow", "source": "compact native action-toolbar facade over the Custom UI driver", "status": "conditional", "doc": "custom-ui.md",
