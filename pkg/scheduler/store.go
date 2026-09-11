@@ -155,6 +155,7 @@ CREATE INDEX IF NOT EXISTS idx_job_runs_job_scheduled
 			if _, err := s.db.ExecContext(ctx, statement); err != nil {
 				return fmt.Errorf("migrate scheduler database column %s: %w", migration.name, err)
 			}
+		}
 	}
 	return nil
 }
