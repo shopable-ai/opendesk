@@ -1,6 +1,6 @@
 # OpenDesk 商业化研究
 
-更新时间：2026-09-11
+更新时间：2026-09-12
 
 本目录保存 OpenDesk 的**市场、竞品、收费方式、行业机会和商业模式研究**。
 
@@ -64,6 +64,15 @@
    - 汇总 Untwice、NotTwice、NonBis、Buer 等路线的域名资产、语义和国际传播判断；
    - 保存 2026-09-11 的实时域名可注册状态快照，并明确域名状态与评分均需在最终品牌冻结前重新核验；
    - 当前优先候选为 `untwice.com`、`notwice.ai`、`nonbis.com`，Naming Research 不自动触发现有 OpenDesk Runtime 品牌迁移。
+
+9. [`opendesk-global-executable-experience-network.md`](opendesk-global-executable-experience-network.md)
+   - 将 OpenDesk 的 Super-Big Strategy（超级愿景战略）整理为 `1 条主演化轴 + 7 条战略辅轴 + 1 条时间轴`；
+   - 将长期终局定义为 Global Executable Experience Network（全球可执行经验网络），强调“第一次高智能学习、后续低成本重复执行”；
+   - 建立 Automation、Procedure、Recipe、App Profile / Adapter、Verification、Compatibility、Package、Execution Evidence 等平台核心对象候选；
+   - 描述 Consumer / Creator / Maintainer / Verifier / Organization Publisher / Platform 的多角色关系；
+   - 给出“创建 → 验证 → 提炼 → 打包 → 发布 → 发现 → 安装 → 适配 → 执行 → 反馈 → 修复 → 收益”的平台生命周期；
+   - 定义 Creator Flywheel（创作者飞轮）、Execution Flywheel（执行飞轮）和 Economic Flywheel（经济飞轮），并明确共享经验与私有业务数据 / Secret 必须隔离；
+   - 当前只作为平台战略假设与后续设计入口，不表示 Marketplace、云端 Registry、计费或全球共享已经进入正式 Roadmap。
 
 ## 商业 Research 的两条过滤轴
 
@@ -208,4 +217,5 @@ Action / Automation 本体
 → 真实用户 / 真实付费验证
 → 端到端 Business Agent 闭环
 → 再决定是否扩大 Creator / Marketplace / Team / Enterprise Platform
+→ 若复用、适配、Creator 供给与经济激励成立，再验证 Global Executable Experience Network
 ```
