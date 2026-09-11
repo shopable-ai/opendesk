@@ -1,6 +1,6 @@
 # 工作流入口
 
-本目录保存 Agent-first Recorder／Agent-to-Recipe 与人工 Recorder／Human-to-Recipe 的需求、设计、方法入口与案例。两种来源独立录制，应用认识、过程工程化、普通 JS 生成和验收按实际合同复用。文档存在不表示 Skill 已加载、整体调度已实现或桌面任务已通过；这些开发链不代表 OpenDesk 的全部产品范围。
+本目录保存 Agent-first Recorder／Agent-to-Recipe、人工 Recorder／Human-to-Recipe，以及受保护包发布和 Script App Packaging 等面向开发、发布与交付的工作流、Skill、设计与案例。文档存在不表示 Skill 已加载、整体调度已实现或桌面任务已通过；这些工作流也不代表 OpenDesk 的全部产品范围。
 
 ## 受保护包发布：从这里开始
 
@@ -10,6 +10,15 @@
 - Agent-to-Recipe / Human-to-Recipe 是普通 `.js` 的作者链；受保护包发布从它们的完成产物之后开始，不优化
   Recorder generated script，不接管普通
   archive/app packaging，也不实现 P3 Publisher key lifecycle。
+
+## Script App Packaging：从这里开始
+
+- 阅读 [Script App Packaging 工作流](script-app-packaging/README.md)，或使用
+  [`build-script-app`](script-app-packaging/skills/build-script-app/SKILL.md) 把已经写好并验证过的 OpenDesk JavaScript
+  组织为 App Mode package，建立或检查 `opendesk.app.json`，再按需装入 macOS `.app` 或 Windows portable distribution。
+- 普通用户和开发者查看公开目录结构、`-app` 命令、Manifest、平台 staging 与验证边界时，阅读
+  [Script App Packaging 用户文档](../docs/api/script-app-packaging.md)；App Mode 内的 `automation.app` 方法、Tray/Menu、Single Instance 与退出语义仍以 [automation.app API](../docs/api/app-shell.md) 为准。
+- Script App Packaging 解决桌面交付形态，不等于 `.odpkg` 源码保护或 License，也不把当前未实现的 MSI/MSIX、自动快捷方式、文件关联或固定端口字段写成已支持能力。
 
 ## 人工 Recorder：从这里开始
 
@@ -32,7 +41,7 @@
 
 - `design/` 保存为什么这样拆、需要什么、怎样交接和怎样验证，不是最终运行指令。
 - [agent-to-recipe/WORKFLOW.md](agent-to-recipe/WORKFLOW.md)负责当前工作流导航和已存在的方法入口；未实现的整体调度不冒充可运行能力。
-- `agent-to-recipe/skills/` 保存已经实际建立的方法入口；规划中的职责只有在对应文件和宿主能力实际落地后才视为可用。
+- 各工作流下的 `skills/` 保存已经实际建立的方法入口；规划中的职责只有在对应文件和宿主能力实际落地后才视为可用。
 - 生成与代码改进分开：recipe-build 保留生成职责，code-rebuild 为拟新增的独立可选改进；简单脚本可以跳过深度优化，但不能跳过必要正确性与安全检查。
 - 不新增与 Skill 平行的 `chains/` 目录，不按每个任务节点创建文件或 Skill。计算器是贯穿案例，不另建计算器产品或专用工作流。
 - 已归入 `agent-to-recipe/design/` 的专业正文只保留唯一现行文件，不再为未投入使用的旧路径维护迁移入口或兼容壳。
