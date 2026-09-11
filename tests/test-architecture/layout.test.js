@@ -8,7 +8,7 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 const {
-  migrations, protectedPaths, compatibilitySource, auditExampleTestLayout,
+  migrations, protectedPaths, auditExampleTestLayout,
   historicalCounts, validateGoCounts,
 } = require('../../scripts/lib/test-architecture-layout');
 const { entrySource, documentationTable, guide } = require('../../scripts/lib/runtime-api-entrypoints');
@@ -24,10 +24,7 @@ function fixture(t) {
     fs.mkdirSync(path.dirname(absolute), { recursive: true });
     fs.writeFileSync(absolute, content);
   }
-  for (const item of migrations) {
-    write(item.to, '// canonical implementation\n');
-    write(item.from, compatibilitySource(item.to, item.mode));
-  }
+  for (const item of migrations) write(item.to, '// canonical implementation\n');
   for (const file of protectedPaths) write(file, '// protected fixture\n');
   for (const file of ['tests/runtime-api/unit/sqlite.test.js', 'tests/runtime-api/sqlite-smoke.js']) {
     write(file, "load('tests/runtime-api/support/sqlite-smoke-cases.js');\n");
@@ -46,10 +43,9 @@ for (const [name, mutate, expected] of [
   ['complete layout', () => {}, null],
   ['missing canonical file', f => fs.unlinkSync(path.join(f.directory, migrations[0].to)), /required file unavailable/],
   ['empty canonical file', f => f.write(migrations[0].to, ''), /empty implementation/],
-  ['copied implementation in legacy entry', f => f.write(migrations[0].from, 'runAnotherImplementation();'), /thin compatibility/],
+  ['retired legacy path reappears', f => f.write(migrations[0].from, '// old wrapper'), /retired path must not exist/],
   ['lost build asset', f => fs.unlinkSync(path.join(f.directory, protectedPaths[0])), /required file unavailable/],
   ['formal SQLite gate loads examples', f => f.write('tests/runtime-api/unit/sqlite.test.js', "load('examples/sqlite/smoke-cases.js');"), /canonical shared assertions/],
-  ['CRLF compatibility entry', f => f.write(migrations[0].from, compatibilitySource(migrations[0].to).replace(/\n/g, '\r\n')), null],
 ]) {
   test('layout guard: ' + name, t => {
     const f = fixture(t);
@@ -60,48 +56,31 @@ for (const [name, mutate, expected] of [
   });
 }
 
+const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 function evaluate(source, context) {
   return vm.runInNewContext('(async () => {\n' + source + '\n})()', context);
 }
-const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 
-test('compatibility templates match every committed legacy entry', () => {
-  for (const item of migrations) assert.equal(read(item.from), compatibilitySource(item.to, item.mode));
-});
-
-test('async forwarding awaits completion and propagates rejection', async () => {
-  const item = migrations[0];
-  const context = { File: { read: () => 'await Promise.resolve(); globalThis.completed = true;' } };
-  await evaluate(read(item.from), context);
-  assert.equal(context.completed, true);
-  await assert.rejects(evaluate(read(item.from), {
-    File: { read: () => "await Promise.reject(new Error('forwarded failure'));" },
-  }), /forwarded failure/);
-  await assert.rejects(evaluate(read(item.from), {
-    File: { read: () => { throw new Error('missing canonical'); } },
-  }), /missing canonical/);
-});
-
-test('SQLite compatibility helper registers synchronously', () => {
-  const context = { File: { read: () => 'globalThis.SQLiteSmokeCases = { sentinel: 1 };' } };
-  vm.runInNewContext(read('examples/sqlite/smoke-cases.js'), context);
-  assert.equal(context.SQLiteSmokeCases.sentinel, 1);
-});
-
-test('path forwarding preserves caller source metadata instead of impersonating the target', async () => {
-  for (const entry of ['examples/path.js', 'examples/runtime/path.js']) {
-    const scriptPath = path.join(root, entry);
-    let report;
-    await evaluate(read(entry), {
-      path,
-      Execution: { workdir: root, scriptPath, scriptDir: path.dirname(scriptPath), artifactDir: output },
-      File: { read, cwd: () => root, write: (_file, text) => { report = JSON.parse(text); } },
-      console: { log() {} },
-    });
-    assert.equal(report.scriptPath, scriptPath);
-    assert.equal(report.scriptDir, path.dirname(scriptPath));
-    assert.equal(report.sourceFile, 'path.js');
+test('all reviewed legacy paths are retired in the committed repository', () => {
+  for (const item of migrations) {
+    assert.equal(fs.existsSync(path.join(root, item.from)), false, item.from + ' must stay deleted');
+    assert.equal(fs.existsSync(path.join(root, item.to)), true, item.to + ' canonical target must exist');
   }
+});
+
+test('path canonical entry preserves its real source metadata', async () => {
+  const entry = 'examples/runtime/path.js';
+  const scriptPath = path.join(root, entry);
+  let report;
+  await evaluate(read(entry), {
+    path,
+    Execution: { workdir: root, scriptPath, scriptDir: path.dirname(scriptPath), artifactDir: output },
+    File: { cwd: () => root, write: (_file, text) => { report = JSON.parse(text); } },
+    console: { log() {} },
+  });
+  assert.equal(report.scriptPath, scriptPath);
+  assert.equal(report.scriptDir, path.dirname(scriptPath));
+  assert.equal(report.sourceFile, 'path.js');
 });
 
 test('SQLite standalone entry records and throws failures supplied by the shared suite', async () => {

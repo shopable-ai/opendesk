@@ -6,7 +6,6 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const { migrations, compatibilitySource } = require('../../scripts/lib/test-architecture-layout');
 const root = path.resolve(__dirname, '../..');
 const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 const plain = value => JSON.parse(JSON.stringify(value));
@@ -51,32 +50,31 @@ function desktop(options = {}) {
   return { window, actions, info: () => info };
 }
 
-for (const name of ['examples/runtime/file.js', 'examples/file.js']) {
-  test('File roundtrip uses only its own files: ' + name, async t => {
-    const parent = path.join(root, '.runtime/tests/test-architecture/example-unit');
-    fs.mkdirSync(parent, { recursive: true });
-    const dir = fs.mkdtempSync(path.join(parent, 'file-'));
-    t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-    const accesses = [];
-    const checked = file => {
-      assert(path.resolve(file).startsWith(dir + path.sep), 'I/O must stay in the per-run directory');
-      accesses.push(file); return file;
-    };
-    const File = { cwd: () => root, join: path.join, exists: p => fs.existsSync(checked(p)),
-      ensureDir: p => fs.mkdirSync(checked(p), { recursive: true }), create: p => fs.writeFileSync(checked(p), ''),
-      write: (p, s) => fs.writeFileSync(checked(p), s),
-      read: p => p.startsWith('examples/') ? read(p) : fs.readFileSync(checked(p), 'utf8'),
-      isDir: p => fs.statSync(checked(p)).isDirectory(), isFile: p => fs.statSync(checked(p)).isFile(),
-      copy: (a, b) => fs.copyFileSync(checked(a), checked(b)), move: (a, b) => fs.renameSync(checked(a), checked(b)),
-      listDir: p => fs.readdirSync(checked(p)),
-    };
-    await script(name, {}, { File, Execution: { env: {}, artifactDir: dir } });
-    assert.deepEqual(fs.readdirSync(dir), ['file-demo']);
-    assert.deepEqual(fs.readdirSync(path.join(dir, 'file-demo')).sort(), ['demo.json', 'input.txt', 'moved.txt']);
-    await assert.rejects(script(name, {}, { File, Execution: { env: {}, artifactDir: dir } }), /already exists/);
-    assert(accesses.length > 0);
-  });
-}
+test('File roundtrip uses only its own files', async t => {
+  const name = 'examples/runtime/file.js';
+  const parent = path.join(root, '.runtime/tests/test-architecture/example-unit');
+  fs.mkdirSync(parent, { recursive: true });
+  const dir = fs.mkdtempSync(path.join(parent, 'file-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const accesses = [];
+  const checked = file => {
+    assert(path.resolve(file).startsWith(dir + path.sep), 'I/O must stay in the per-run directory');
+    accesses.push(file); return file;
+  };
+  const File = { cwd: () => root, join: path.join, exists: p => fs.existsSync(checked(p)),
+    ensureDir: p => fs.mkdirSync(checked(p), { recursive: true }), create: p => fs.writeFileSync(checked(p), ''),
+    write: (p, s) => fs.writeFileSync(checked(p), s),
+    read: p => p.startsWith('examples/') ? read(p) : fs.readFileSync(checked(p), 'utf8'),
+    isDir: p => fs.statSync(checked(p)).isDirectory(), isFile: p => fs.statSync(checked(p)).isFile(),
+    copy: (a, b) => fs.copyFileSync(checked(a), checked(b)), move: (a, b) => fs.renameSync(checked(a), checked(b)),
+    listDir: p => fs.readdirSync(checked(p)),
+  };
+  await script(name, {}, { File, Execution: { env: {}, artifactDir: dir } });
+  assert.deepEqual(fs.readdirSync(dir), ['file-demo']);
+  assert.deepEqual(fs.readdirSync(path.join(dir, 'file-demo')).sort(), ['demo.json', 'input.txt', 'moved.txt']);
+  await assert.rejects(script(name, {}, { File, Execution: { env: {}, artifactDir: dir } }), /already exists/);
+  assert(accesses.length > 0);
+});
 for (const broken of ['read', 'copy', 'move', 'listing']) {
   test('File rejects incorrect ' + broken + ' result', async () => {
     const storage = new Map();
@@ -634,7 +632,7 @@ test('Accessibility menu example requires the reviewed foreground window and ver
 async function stress(env = {}, options = {}) {
   const outputs = []; const writes = []; let value; let last;
   const File = { join: path.posix.join, exists: () => false, ensureDir() {}, write: (_file, text) => { last = JSON.parse(text); outputs.push(last); } };
-  const clipboard = { copy: text => { writes.push(text); if (options.writeFailure) throw new Error('PRIVATE_ERROR'); value = text; }, paste: () => options.mismatch ? 'PRIVATE_CLIPBOARD' : value, clear: () => assert.fail('must not clear') };
+  const clipboard = { copy: text => { writes.push(text); value = text; if (options.writeFailure) throw new Error('PRIVATE_ERROR'); }, paste: () => options.mismatch ? 'PRIVATE_CLIPBOARD' : value, clear: () => assert.fail('must not clear') };
   let error;
   try { await script('tests/runtime-api/clipboard-stress.js', env, { File, clipboard }); } catch (e) { error = e; }
   return { outputs, writes, report: last, error };
@@ -656,14 +654,12 @@ test('clipboard stress uses reproducible inputs and fails on mismatch or write f
   }
 });
 
-test('documented legacy entries remain exact delegations to the reviewed canonical examples', () => {
-  const targets = ['examples/runtime/file.js', 'examples/runtime/command.js', 'examples/runtime/http.js', 'examples/clipboard/text.js',
-    'examples/desktop/window-inspect.js', 'examples/desktop/window-controls.js', 'examples/desktop/keyboard.js', 'tests/runtime-api/clipboard-stress.js'];
-  for (const to of targets) {
-    const entry = migrations.find(item => item.to === to); assert(entry, 'missing migration: ' + to);
-    assert.equal(read(entry.from), compatibilitySource(entry.to, entry.mode));
-    assert(read(to).trim().length > 0);
-  }
+test('retired root example paths stay deleted after canonical migration', () => {
+  const retired = [
+    'examples/file.js', 'examples/command.js', 'examples/http.js', 'examples/clipboard.js',
+    'examples/keyboard.js', 'examples/window.js', 'examples/window-more.js', 'examples/clipboard.test.js',
+  ];
+  for (const file of retired) assert.equal(fs.existsSync(path.join(root, file)), false, file);
 });
 
 test('example index uses canonical paths and explicit input/clipboard opt-ins', () => {

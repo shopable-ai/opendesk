@@ -81,26 +81,13 @@ OPENDESK_EXAMPLE_WINDOW_TITLE='OpenDesk window test' OPENDESK_EXAMPLE_WINDOW_PID
 
 用户先选择区域，随后录制约 1.5 秒，结果写入 `.runtime/examples/desktop/screen-record-region/`。需要对应系统录屏权限，并会真实捕获所选区域的像素。
 
-## Canonical 与兼容路径
+## Canonical-only
 
-推荐路径统一使用本目录：
+通用桌面示例只使用本目录中的 canonical 路径。过去位于 `examples/` 根目录的 `window.js`、`window-more.js`、`keyboard.js`、`mouse.js`、`page.js`、`screen.js`、`screenshot.js`、`screenshot_bytes_smoke.js`、`display-modes.js`、`screen-record-region.js` 已退休并删除。
 
-```text
-examples/window.js                 -> examples/desktop/window-inspect.js
-examples/window-more.js            -> examples/desktop/window-controls.js
-examples/keyboard.js               -> examples/desktop/keyboard.js
-examples/mouse.js                  -> examples/desktop/mouse.js
-examples/page.js                   -> examples/desktop/page-click.js
-examples/screen.js                 -> examples/desktop/screen-info.js
-examples/screenshot.js             -> examples/desktop/screenshot.js
-examples/screenshot_bytes_smoke.js -> examples/desktop/screenshot-bytes.js
-examples/display-modes.js          -> examples/desktop/display-modes.js
-examples/screen-record-region.js   -> examples/desktop/screen-record-region.js
-```
+Catalog 的 `aliases` 仅保留历史名称/搜索上下文，不代表这些旧文件仍存在。
 
-旧路径只是兼容入口；`examples/catalog.json` 通过 `aliases` 关联，不会在 Example Explorer 中显示为第二份示例。
-
-`support/` 仍只保存多个桌面示例共享的目标核对逻辑，不是可运行入口，不进入 Explorer 普通列表。
+`support/` 只保存多个桌面示例共享的目标核对逻辑，不是可运行入口，不进入 Explorer 普通列表。
 
 ## 验证与平台
 

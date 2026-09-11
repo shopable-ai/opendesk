@@ -20,15 +20,10 @@
 
 使用 `.then()` / `.catch()` / `.finally()` 表达同一类流程，不通过开关隐藏 async/await 版本。
 
-## Explorer 与兼容路径
+## Explorer
 
 两份 Dialog 都需要真实用户交互，因此 `examples/catalog.json` 标记为 `manual`：Example Explorer 可以搜索、阅读源码和前置条件，但不会一键运行。
 
-旧路径继续作为兼容入口：
+旧根路径 `examples/dialog.js` 与 `examples/dialog-promise-chain.js` 已退休并删除。Catalog `aliases` 只用于历史名称/搜索上下文。
 
-```text
-examples/dialog.js               -> examples/dialog/async-await.js
-examples/dialog-promise-chain.js -> examples/dialog/promise-chain.js
-```
-
-新文档和新代码应使用 canonical 路径。完整接口契约见 [`docs/api/dialog.md`](../../docs/api/dialog.md)。功能成功不等于原生视觉验收通过；正式视觉、生命周期和资源清理验收属于相应测试 gate。
+完整接口契约见 [`docs/api/dialog.md`](../../docs/api/dialog.md)。功能成功不等于原生视觉验收通过；正式视觉、生命周期和资源清理验收属于相应测试 gate。

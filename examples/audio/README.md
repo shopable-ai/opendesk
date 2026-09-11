@@ -10,8 +10,6 @@
 
 依次演示已有同步 Sound 播放方法。它会真实使用系统音频输出并播放多段声音，因此 Catalog 标记为 `manual`。
 
-旧 `examples/sound.js` 只是兼容入口。
-
 ## Playback Control
 
 ```bash
@@ -20,7 +18,9 @@
 
 启动循环播放，依次演示 pause、resume、stop 和 wait，并确认结束后没有遗留 active playback。它同样会使用真实音频设备，Catalog 保持 `manual`。
 
-旧 `examples/sound-playback.js` 只是兼容入口。
+## 旧路径已退休
+
+根目录 `examples/sound.js` 与 `examples/sound-playback.js` 已删除。新命令只使用本目录的 canonical 文件；Catalog `aliases` 只保留历史名称/搜索上下文。
 
 ## 其他文件
 

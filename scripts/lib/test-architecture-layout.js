@@ -3,24 +3,25 @@
 const fs = require('fs');
 const path = require('path');
 
-// Only reviewed migrations are enforced. This is not a deletion list for other files.
+// Reviewed migrations. `from` paths are retired and must stay absent; `to` is the
+// single canonical implementation. This list is also the cleanup/audit contract.
 const migrations = [
-  ['examples/api-quickstart.js', 'examples/runtime/api-quickstart.js', 'example', 'async'],
-  ['examples/environment.js', 'examples/runtime/environment.js', 'example', 'async'],
-  ['examples/path.js', 'examples/runtime/path.js', 'example', 'async'],
-  ['examples/file-json.js', 'examples/runtime/file-json.js', 'example', 'async'],
-  ['examples/sqlite/smoke-cases.js', 'tests/runtime-api/support/sqlite-smoke-cases.js', 'test-support', 'sync'],
-  ['examples/sqlite/smoke.test.js', 'tests/runtime-api/sqlite-smoke.js', 'test-entry', 'async'],
-  ['examples/analyze_progressive_tests.js', 'tests/automation/tools/image-layout-lab/analyze-progressive.js', 'diagnostic-tool', 'async'],
-  ['examples/file.js', 'examples/runtime/file.js', 'example', 'async'],
-  ['examples/command.js', 'examples/runtime/command.js', 'example', 'async'],
-  ['examples/http.js', 'examples/runtime/http.js', 'example', 'async'],
-  ['examples/clipboard.js', 'examples/clipboard/text.js', 'example', 'async'],
-  ['examples/keyboard.js', 'examples/desktop/keyboard.js', 'example', 'async'],
-  ['examples/window.js', 'examples/desktop/window-inspect.js', 'example', 'async'],
-  ['examples/window-more.js', 'examples/desktop/window-controls.js', 'example', 'async'],
-  ['examples/clipboard.test.js', 'tests/runtime-api/clipboard-stress.js', 'test-entry', 'async'],
-].map(([from, to, role, mode]) => ({ from, to, role, mode }));
+  ['examples/api-quickstart.js', 'examples/runtime/api-quickstart.js', 'example'],
+  ['examples/environment.js', 'examples/runtime/environment.js', 'example'],
+  ['examples/path.js', 'examples/runtime/path.js', 'example'],
+  ['examples/file-json.js', 'examples/runtime/file-json.js', 'example'],
+  ['examples/sqlite/smoke-cases.js', 'tests/runtime-api/support/sqlite-smoke-cases.js', 'test-support'],
+  ['examples/sqlite/smoke.test.js', 'tests/runtime-api/sqlite-smoke.js', 'test-entry'],
+  ['examples/analyze_progressive_tests.js', 'tests/automation/tools/image-layout-lab/analyze-progressive.js', 'diagnostic-tool'],
+  ['examples/file.js', 'examples/runtime/file.js', 'example'],
+  ['examples/command.js', 'examples/runtime/command.js', 'example'],
+  ['examples/http.js', 'examples/runtime/http.js', 'example'],
+  ['examples/clipboard.js', 'examples/clipboard/text.js', 'example'],
+  ['examples/keyboard.js', 'examples/desktop/keyboard.js', 'example'],
+  ['examples/window.js', 'examples/desktop/window-inspect.js', 'example'],
+  ['examples/window-more.js', 'examples/desktop/window-controls.js', 'example'],
+  ['examples/clipboard.test.js', 'tests/runtime-api/clipboard-stress.js', 'test-entry'],
+].map(([from, to, role]) => ({ from, to, role }));
 
 const protectedPaths = [
   'examples/native-extensions/macos-vision/main.swift',
@@ -32,16 +33,6 @@ const protectedPaths = [
   'examples/desktop/support/target-window.js',
   'examples/app/qianniu-window.js',
 ];
-
-function compatibilitySource(target, mode = 'async') {
-  const header = '// Compatibility entry only; implementation lives at ' + target + '.\n'
-    + '// Run from the repository root. See docs/quality/example-test-layout.md.\n';
-  if (mode === 'sync') {
-    return header + "(0, eval)(File.read('" + target + "') + '\\n//# sourceURL=" + target + "');\n";
-  }
-  return header + "await (0, eval)('(async () => {\\n' + File.read('" + target
-    + "') + '\\n})()\\n//# sourceURL=" + target + "');\n";
-}
 
 function auditExampleTestLayout(root) {
   const errors = [];
@@ -55,15 +46,20 @@ function auditExampleTestLayout(root) {
       return null;
     }
   }
+
   for (const entry of migrations) {
     const canonical = read(entry.to);
-    if (canonical !== null && canonical.trim().length === 0) errors.push(`layout empty implementation: ${entry.to}`);
-    const legacy = read(entry.from);
-    if (legacy !== null && legacy !== compatibilitySource(entry.to, entry.mode)) {
-      errors.push(`layout legacy path must be a thin compatibility entry: ${entry.from}`);
+    if (canonical !== null && canonical.trim().length === 0) {
+      errors.push(`layout empty implementation: ${entry.to}`);
+    }
+    const retired = path.join(root, entry.from);
+    if (fs.existsSync(retired)) {
+      errors.push(`layout retired path must not exist: ${entry.from}`);
     }
   }
+
   for (const relative of protectedPaths) read(relative);
+
   const helper = 'tests/runtime-api/support/sqlite-smoke-cases.js';
   for (const relative of ['tests/runtime-api/unit/sqlite.test.js', 'tests/runtime-api/sqlite-smoke.js']) {
     const source = read(relative);
@@ -72,9 +68,16 @@ function auditExampleTestLayout(root) {
       errors.push(`layout SQLite consumer must load canonical shared assertions: ${relative}`);
     }
   }
+
   const singleEntries = require('./runtime-api-entrypoints').auditRuntimeSingleEntries(root);
   errors.push(...singleEntries.errors);
-  return { scope: 'reviewed-example-batches-and-unit-entrypoints', errors, migrations, protectedPaths, singleEntries };
+  return {
+    scope: 'reviewed-example-migrations-with-retired-legacy-paths',
+    errors,
+    migrations,
+    protectedPaths,
+    singleEntries,
+  };
 }
 
 const historicalCounts = Object.freeze({
@@ -114,4 +117,4 @@ function validateGoCounts(classifications, currentCount, incrementalFiles = new 
   };
 }
 
-module.exports = { migrations, protectedPaths, compatibilitySource, auditExampleTestLayout, historicalCounts, validateGoCounts };
+module.exports = { migrations, protectedPaths, auditExampleTestLayout, historicalCounts, validateGoCounts };

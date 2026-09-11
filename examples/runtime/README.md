@@ -1,7 +1,6 @@
 # 基础 Runtime 示例
 
-所有命令从仓库根目录运行，使用 OpenDesk Runtime 执行，不使用 Node 运行公开示例。
-本目录是基础 JavaScript / Execution / File / Command / System 能力的 canonical 位置；根目录历史路径只用于兼容。
+所有命令从仓库根目录运行，使用 OpenDesk Runtime 执行，不使用 Node 运行公开示例。本目录是基础 JavaScript / Execution / File / Command / System 能力的唯一 canonical 位置。
 
 ## 入门与 JavaScript Runtime
 
@@ -15,7 +14,7 @@
 | [timer.js](timer.js) | `./dist/opendesk -script examples/runtime/timer.js -console-mode script` | `setTimeout` / `setInterval` 及清理。 |
 | [page-wait.js](page-wait.js) | `./dist/opendesk -script examples/runtime/page-wait.js -console-mode script` | 固定等待、条件轮询、取消与 `waitForAll`。 |
 
-这些条目在 `examples/catalog.json` 中标记为 `safe`，适合 Example Explorer 的一键运行。
+这些条目在 `examples/catalog.json` 中标记为 `safe`，适合 Example Explorer 一键运行。
 
 ## Execution、文件和命令
 
@@ -27,7 +26,7 @@
 | [file-json.js](file-json.js) | `./dist/opendesk -script examples/runtime/file-json.js -console-mode script` | `File.readJSON()` / `writeJSON()`。 |
 | [command.js](command.js) | `./dist/opendesk -script examples/runtime/command.js -console-mode script` | 固定 echo 子进程；没有用户可注入 shell 文本。 |
 
-HTTP 仍由 [http.js](http.js) 展示，因为它有外部测试服务前置条件，不是 Explorer 的默认 safe quickstart。
+HTTP 由 [http.js](http.js) 展示，因为它有外部测试服务前置条件，不是 Explorer 默认 safe quickstart。
 
 ## 本地持久化与 System
 
@@ -39,29 +38,9 @@ HTTP 仍由 [http.js](http.js) 展示，因为它有外部测试服务前置条�
 
 `manual` 表示 Explorer 可搜索并显示源码/前置条件，但不会提供一键 Run。
 
-## 兼容入口
+## 旧路径已退休
 
-以下历史路径仍可运行，但不再是推荐位置，Explorer 也不会重复显示：
-
-```text
-examples/api-quickstart.js     -> examples/runtime/api-quickstart.js
-examples/environment.js        -> examples/runtime/environment.js
-examples/path.js               -> examples/runtime/path.js
-examples/file.js               -> examples/runtime/file.js
-examples/file-json.js          -> examples/runtime/file-json.js
-examples/command.js            -> examples/runtime/command.js
-examples/console.js            -> examples/runtime/console.js
-examples/globalThis.js         -> examples/runtime/global-this.js
-examples/promise.js            -> examples/runtime/promise.js
-examples/sleep.js              -> examples/runtime/sleep.js
-examples/timer.js              -> examples/runtime/timer.js
-examples/appStorage.js         -> examples/runtime/app-storage.js
-examples/system.js             -> examples/runtime/system-info.js
-examples/system-session-state.js -> examples/runtime/system-session-state.js
-examples/page.waitfor.js       -> examples/runtime/page-wait.js
-```
-
-兼容入口只负责转发到唯一 canonical 实现。新文档、新 Catalog 和新代码必须使用 `examples/runtime/...`。
+过去位于 `examples/` 根目录的 Runtime 入口已经删除。新代码、文档和命令只使用 `examples/runtime/...`。Catalog 中如保留 `aliases`，只用于历史名称和搜索上下文，不表示旧文件仍可执行。
 
 ## Example 与 Test 的边界
 

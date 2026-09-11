@@ -1,6 +1,6 @@
 # Vision 示例
 
-本目录保存 OCR、截图字节和基础视觉处理的 canonical user examples。已有独立 README/fixtures 的 `examples/image-color/` 专题套件暂时保留原目录，不为了目录外观进行破坏性搬迁；Example Explorer 通过 Catalog 的 `Vision` 分类把相关公开入口统一呈现。
+本目录保存 OCR、截图字节和基础视觉处理的 canonical user examples。已有独立 README/fixtures 的 `examples/image-color/` 专题套件保留原目录；Example Explorer 通过 Catalog 的 `Vision` 分类统一呈现已审核入口。
 
 ## ImageColor Basics
 
@@ -20,8 +20,6 @@ VISION_OCR_PROVIDER=paddle PADDLE_OCR_ENDPOINT=http://127.0.0.1:8868/predict/ocr
 
 捕获活动窗口 bytes，写入 `.runtime/examples/vision/bytes-roundtrip/active-window.png`，并把同一份 bytes 提交给 OCR。需要用户自己准备 OCR provider，且会捕获真实窗口像素，因此是 `manual`。
 
-旧 `examples/vision_bytes_roundtrip.js` 只是兼容入口。
-
 ## OCR and Text Target
 
 ```bash
@@ -30,7 +28,9 @@ VISION_OCR_PROVIDER=paddle PADDLE_OCR_ENDPOINT=http://127.0.0.1:8868/predict/ocr
 
 该示例运行 OCR，并通过 `UI.findText()` 解析文本目标；找到目标后会真实点击，因此必须先检查目标应用和桌面状态。Catalog 标记为 `manual`，Example Explorer 不提供一键 Run。
 
-旧 `examples/vision.ocr.js` 只是兼容入口。
+## 旧路径已退休
+
+过去的 `examples/vision.ocr.js`、`examples/vision_bytes_roundtrip.js` 和根目录 `imageColor.js` 已删除。只使用本目录和 `examples/image-color/` 的 canonical 路径。Catalog `aliases` 仅保存历史名称/搜索上下文。
 
 ## 边界
 

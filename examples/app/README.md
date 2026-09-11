@@ -10,8 +10,6 @@
 
 只读 `window.list()`，按固定关键字汇总 WeChat、VS Code、Chrome、Safari、Finder 等窗口。它不修改应用状态，但窗口标题可能包含用户信息，因此运行输出不应直接公开分享。
 
-旧 `examples/check_all_apps.js` 只是兼容入口。
-
 ## WeChat Window Inspect
 
 ```bash
@@ -19,8 +17,6 @@
 ```
 
 只查找 WeChat/微信窗口并打印标题与尺寸，不点击、不输入、不切换状态。标题仍可能含隐私，所以 Catalog 保持 `manual`。
-
-旧 `examples/check_wechat.js` 只是兼容入口。
 
 ## Open Calculator by Name（macOS）
 
@@ -30,17 +26,13 @@
 
 调用 `App.launch('计算器', { waitUntilReady: 'window', timeout: 10000 })` 启动或激活系统 Calculator，并打印真实 identity。不会输入、清空、restart 或 terminate 已存在实例。
 
-旧 `examples/open-calculator-by-name.js` 只是兼容入口。
-
 ## Calculator App Lifecycle（macOS）
 
 ```bash
 ./dist/opendesk -script examples/app/lifecycle-calculator.js -console-mode script
 ```
 
-这是有明显副作用的生命周期示例：只有检测到 Calculator 当前未运行时才继续，然后 launch → restart → terminate → waitForExit；最终结果写到 `.runtime/examples/app/lifecycle-calculator/result.json`。`finally` 会尽力清理本示例创建的实例。
-
-旧 `examples/app-lifecycle.js` 只是兼容入口。该示例必须人工运行，不能由 Example Explorer 一键触发。
+这是有明显副作用的生命周期示例：只有检测到 Calculator 当前未运行时才继续，然后 launch → restart → terminate → waitForExit；最终结果写到 `.runtime/examples/app/lifecycle-calculator/result.json`。`finally` 会尽力清理本示例创建的实例。该示例必须人工运行，不能由 Example Explorer 一键触发。
 
 ## 千牛窗口（Windows）
 
@@ -66,6 +58,10 @@ finally {
 ```
 
 没有 mode 时只读；非法 mode 或未授权时失败。动作前核对唯一标题、PID、稳定身份和能力。API 返回后仍需视觉确认，不能只凭日志宣布业务或视觉结果通过。
+
+## 旧路径已退休
+
+根目录 `examples/check_all_apps.js`、`examples/check_wechat.js`、`examples/open-calculator-by-name.js`、`examples/app-lifecycle.js` 已删除。只使用本目录 canonical 路径；Catalog `aliases` 仅用于历史名称/搜索上下文。
 
 ## 其他历史应用脚本
 
