@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 )
 
 const (
@@ -96,6 +97,14 @@ func (r *appRecorder) request(ctx context.Context, executionID string) (pkgExecu
 		return pkgExecution.Request{}, err
 	}
 	uiRoot := filepath.Join(artifacts.RunDir, "ui")
+	// App Mode changes the execution WorkDir to the app package root. Keep the
+	// embedded Recorder entry absolute so Execution.scriptDir still points at
+	// the artifact directory when the App Mode log directory was supplied as a
+	// relative path from the repository or launcher directory.
+	uiRoot, err = filepath.Abs(uiRoot)
+	if err != nil {
+		return pkgExecution.Request{}, fmt.Errorf("resolve built-in Recorder UI path: %w", err)
+	}
 	entryPath, err := recordingconsole.WriteToDir(uiRoot)
 	if err != nil {
 		return pkgExecution.Request{}, fmt.Errorf("prepare built-in Recorder UI: %w", err)
@@ -134,7 +143,7 @@ func (r *appRecorder) request(ctx context.Context, executionID string) (pkgExecu
 		EnableCustomUI:                  true,
 		CustomUIActivationSource:        customui.ActivationCLI,
 		CustomUIHostPath:                r.config.CustomUIHostPath,
-		CustomUIDriver:                  customui.NewSessionScopedDriver(r.driver),
+		CustomUIDriver:                  customui.NewSessionScopedDriverForSession(r.driver, executionID),
 		OnCustomUISession:               func(session *customui.Session) { r.setSession(executionID, session) },
 		Artifacts:                       artifacts,
 		Selection: pkgExecution.TerminalSelection{
@@ -153,7 +162,22 @@ func (r *appRecorder) canStartRecording() error {
 
 func (r *appRecorder) runRecorder(request pkgExecution.Request, executionID string, done chan struct{}) {
 	defer close(done)
+	uiReady := make(chan struct{})
+	go func() {
+		defer close(uiReady)
+		_ = waitAndShowRecorderWindow(request.Context, r, executionID)
+	}()
 	_, _, _ = r.run(request)
+	r.mu.Lock()
+	cancel := context.CancelFunc(nil)
+	if r.executionID == executionID && r.running {
+		cancel = r.cancel
+	}
+	r.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+	<-uiReady
 	r.clear(executionID)
 }
 
@@ -205,6 +229,41 @@ func showRecorderSession(ctx context.Context, session *customui.Session) error {
 		return context.Canceled
 	}
 	return err
+}
+
+// waitAndShowRecorderWindow closes the race between the native Tray callback
+// and the Recorder controller's asynchronous FloatingWindow.create/show path.
+// The controller remains the single owner of the Recorder UI; this only makes
+// the already-created window visible once the same execution has registered it.
+func waitAndShowRecorderWindow(ctx context.Context, recorder *appRecorder, executionID string) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		recorder.mu.Lock()
+		if recorder.executionID != executionID || !recorder.running {
+			recorder.mu.Unlock()
+			return nil
+		}
+		session := recorder.session
+		recorder.mu.Unlock()
+		if session != nil {
+			if window, ok := session.Window(recordingconsole.RecorderWindowID); ok {
+				_, err := window.Show(ctx)
+				return err
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+		}
+	}
 }
 
 func readFileBytes(path string) ([]byte, error) {

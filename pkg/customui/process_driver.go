@@ -99,11 +99,33 @@ func (d *ProcessDriver) Capabilities(context.Context) Capabilities {
 
 func (d *ProcessDriver) ResourceCounts() DriverResourceCounts {
 	d.mu.RLock()
-	counts := DriverResourceCounts{Sinks: len(d.sinks)}
+	counts := d.resourceCountsLocked("")
+	d.mu.RUnlock()
+	return counts
+}
+
+func (d *ProcessDriver) ResourceCountsForSession(sessionID string) DriverResourceCounts {
+	d.mu.RLock()
+	counts := d.resourceCountsLocked(sessionID)
+	d.mu.RUnlock()
+	return counts
+}
+
+func (d *ProcessDriver) resourceCountsLocked(sessionID string) DriverResourceCounts {
+	sinks := len(d.sinks)
+	if sessionID != "" {
+		sinks = 0
+		prefix := sessionID + "/"
+		for key := range d.sinks {
+			if strings.HasPrefix(key, prefix) {
+				sinks++
+			}
+		}
+	}
+	counts := DriverResourceCounts{Sinks: sinks}
 	started := d.cmd != nil && d.cmd.Process != nil
 	exited := d.exited
-	d.mu.RUnlock()
-	if started {
+	if started && (sessionID == "" || sinks > 0) {
 		if exited == nil {
 			counts.HostProcesses = 1
 		} else {

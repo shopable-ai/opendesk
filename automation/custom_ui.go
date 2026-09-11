@@ -160,6 +160,7 @@ type CustomUIRuntime struct {
 	loop             *eventloop.EventLoop
 	context          context.Context
 	driver           customui.Driver
+	sessionID        string
 	baseDir          string
 	activationSource customui.ActivationSource
 	session          *customui.Session
@@ -261,6 +262,7 @@ func newCustomUIRuntime(opts customUIRuntimeOptions) (*CustomUIRuntime, error) {
 	}
 	bridge := &CustomUIRuntime{
 		runtime: opts.runtime, loop: opts.loop, context: opts.context, driver: opts.driver, baseDir: opts.baseDir,
+		sessionID:        opts.sessionID,
 		activationSource: normalizeCustomUIActivationSource(opts.activationSource, true),
 		queue:            customui.NewEventQueue(customUIEventQueueCapacity), onAsyncError: opts.onAsyncError,
 		pending: map[uint64]pendingCustomUI{}, listeners: map[uint64]customUIListener{},
@@ -816,8 +818,13 @@ func (u *CustomUIRuntime) ResourceCounts() CustomUIResourceCounts {
 	for _, toolbar := range u.floatingToolbars {
 		counts.Listeners += toolbar.listenerCount()
 	}
-	if reporter, ok := u.driver.(customui.DriverResourceReporter); ok {
-		driverCounts := reporter.ResourceCounts()
+	var driverCounts customui.DriverResourceCounts
+	if reporter, ok := u.driver.(customui.SessionDriverResourceReporter); ok {
+		driverCounts = reporter.ResourceCountsForSession(u.sessionID)
+	} else if reporter, ok := u.driver.(customui.DriverResourceReporter); ok {
+		driverCounts = reporter.ResourceCounts()
+	}
+	if driverCounts != (customui.DriverResourceCounts{}) {
 		counts.DriverSinks = driverCounts.Sinks
 		counts.HostProcesses = driverCounts.HostProcesses
 	}

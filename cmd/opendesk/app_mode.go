@@ -169,7 +169,7 @@ func executeAppMode(config *Config) error {
 		EnableCustomUI:                  true,
 		CustomUIActivationSource:        customui.ActivationCLI,
 		CustomUIHostPath:                config.CustomUIHostPath,
-		CustomUIDriver:                  customui.NewSessionScopedDriver(sharedUIDriver),
+		CustomUIDriver:                  customui.NewSessionScopedDriverForSession(sharedUIDriver, executionID),
 		CustomUIBaseDir:                 appPackage.Root,
 		AppShell:                        shell,
 		GracefulCancellation: func() bool {

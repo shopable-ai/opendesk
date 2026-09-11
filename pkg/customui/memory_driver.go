@@ -32,9 +32,20 @@ func (d *MemoryDriver) Capabilities(context.Context) Capabilities {
 }
 
 func (d *MemoryDriver) ResourceCounts() DriverResourceCounts {
+	return d.resourceCountsForSession("")
+}
+
+func (d *MemoryDriver) ResourceCountsForSession(sessionID string) DriverResourceCounts {
+	return d.resourceCountsForSession(sessionID)
+}
+
+func (d *MemoryDriver) resourceCountsForSession(sessionID string) DriverResourceCounts {
 	d.mu.RLock()
 	windows := make([]*memoryWindow, 0, len(d.windows))
 	for _, window := range d.windows {
+		if sessionID != "" && window.sessionID != sessionID {
+			continue
+		}
 		windows = append(windows, window)
 	}
 	d.mu.RUnlock()
