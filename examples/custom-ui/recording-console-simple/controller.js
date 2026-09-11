@@ -16,6 +16,11 @@
     pencil: '✎',
     'folder.fill': '📁',
     'trash.fill': '🗑',
+    'backward.end.fill': '│◀',
+    'backward.fill': '◀',
+    'forward.fill': '▶',
+    'forward.end.fill': '▶│',
+    'arrow.clockwise': '↻',
   });
 
   const baseDir = file.join(execution.scriptDir, 'recording-console-simple');

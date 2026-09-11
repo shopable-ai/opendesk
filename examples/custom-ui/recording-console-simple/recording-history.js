@@ -14,6 +14,13 @@
     open: 'folder.fill',
     delete: 'trash.fill',
   });
+  const PAGER_ICONS = Object.freeze({
+    first: 'backward.end.fill',
+    previous: 'backward.fill',
+    next: 'forward.fill',
+    last: 'forward.end.fill',
+    refresh: 'arrow.clockwise',
+  });
   const ACTIVE_CORE_PHASES = new Set([
     'countdown', 'starting', 'stop-requested', 'recording', 'pausing', 'paused',
     'resuming', 'stopping', 'building-actions', 'generating', 'run-countdown', 'running', 'closing', 'closed',
@@ -222,8 +229,8 @@
       const title = row ? displayTitle(row) : '';
       slots.push(`
         <section id="recording${index}" class="recording">
-          <div id="recordingName${index}" class="name">${escapeHTML(title)}</div>
-          <div id="recordingTime${index}" class="time">${row ? escapeHTML(displayTimestamp(row.startedAt)) : ''}</div>
+          <span id="recordingName${index}" class="name">${escapeHTML(title)}</span>
+          <span id="recordingTime${index}" class="time">${row ? escapeHTML(displayTimestamp(row.startedAt)) : ''}</span>
           <div id="recordingActions${index}" class="actions">
             <button id="run${index}" class="icon-action" title="运行" aria-label="运行"${row && row.scriptFile ? '' : ' disabled'}>运行</button>
             <button id="rename${index}" class="icon-action" title="改名" aria-label="改名"${row ? '' : ' disabled'}>改名</button>
@@ -247,10 +254,17 @@
         <div id="historyList" class="list">${slots.join('')}</div>
         <p id="emptyHistory" class="empty">还没有可显示的 Recorder 录制。</p>
         <div id="historyPager" class="pager">
-          <button id="prevHistory">上一页</button>
-          <span id="pageIndicator">第 ${page.pageIndex + 1} / ${page.pageCount} 页 · 共 ${page.totalRows} 条</span>
-          <button id="nextHistory">下一页</button>
-          <button id="refreshHistory">刷新</button>
+          <div class="pager-spacer"></div>
+          <div class="pager-navigation">
+            <button id="firstHistory" class="pager-action" title="首页" aria-label="首页">首页</button>
+            <button id="prevHistory" class="pager-action" title="上一页" aria-label="上一页">上一页</button>
+            <span id="pageIndicator">第 ${page.pageIndex + 1} / ${page.pageCount} 页 · 共 ${page.totalRows} 条</span>
+            <button id="nextHistory" class="pager-action" title="下一页" aria-label="下一页">下一页</button>
+            <button id="lastHistory" class="pager-action" title="尾页" aria-label="尾页">尾页</button>
+          </div>
+          <div class="pager-tools">
+            <button id="refreshHistory" class="pager-action" title="刷新" aria-label="刷新">刷新</button>
+          </div>
         </div>
       </main>`;
   }
@@ -269,11 +283,15 @@
     .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 600; }
     .time { color: #b9b9b9; font-size: 12px; white-space: nowrap; }
     .actions { display: flex; flex-wrap: nowrap; align-items: center; justify-content: flex-start; gap: 6px; }
-    .pager { min-height: 38px; display: flex; align-items: center; justify-content: center; gap: 8px; padding-top: 10px; border-top: 1px solid #333; }
+    .pager { min-height: 38px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; padding-top: 10px; border-top: 1px solid #333; }
+    .pager-navigation, .pager-tools { display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; }
+    .pager-navigation { grid-column: 2; }
+    .pager-tools { grid-column: 3; justify-self: end; }
     #pageIndicator { min-width: 170px; color: #b9b9b9; font-size: 12px; text-align: center; }
     button { min-height: 30px; padding: 0 10px; border: 1px solid #505050; border-radius: 7px; background: #303030; color: #f4f4f4; font-size: 13px; }
     button:not(:disabled) { cursor: pointer; }
     .icon-action { box-sizing: border-box; width: 32px; height: 32px; min-width: 32px; padding: 0; }
+    .pager-action { box-sizing: border-box; width: 32px; height: 32px; min-width: 32px; padding: 0; }
     .icon-action:hover:not(:disabled), .pager button:hover:not(:disabled) { background: #3a3a3a; border-color: #6a6a6a; }
     button:disabled { opacity: 0.38; cursor: default; }
     .danger { border-color: #754545; }
@@ -325,7 +343,7 @@
     let closed = false;
     const pendingRows = new Set();
 
-    function deleteTrace(stage, recordingId, controlId, extra) {
+    function historyTrace(stage, recordingId, controlId, extra) {
       if (!logger || typeof logger.log !== 'function') return;
       let dialogState = null;
       try {
@@ -344,6 +362,8 @@
       };
       try { logger.log(`[recording-history] ${stage} ${JSON.stringify(fields)}`); } catch (_) {}
     }
+
+    const deleteTrace = historyTrace;
 
     function coreBusy() {
       const state = app.state();
@@ -383,13 +403,32 @@
       return Number.isInteger(index) && index >= 0 && index < visibleRows.length ? visibleRows[index] : null;
     }
 
-    async function safeUpdate(window, id, patch) {
+    async function updateControl(window, id, patch, required) {
       if (!window) return null;
       try {
         return await window.control(id).update(patch);
-      } catch (_) {
+      } catch (error) {
+        const normalized = normalizeError(error, 'RecordingHistory.updateControl');
+        if (logger && typeof logger.error === 'function') {
+          try {
+            logger.error(`[recording-history] HISTORY_CONTROL_UPDATE_FAILED ${JSON.stringify({
+              controlId: id,
+              code: normalized.code,
+              operation: normalized.operation,
+            })}`);
+          } catch (_) {}
+        }
+        if (required) throw error;
         return null;
       }
+    }
+
+    function safeUpdate(window, id, patch) {
+      return updateControl(window, id, patch, false);
+    }
+
+    function requiredUpdate(window, id, patch) {
+      return updateControl(window, id, patch, true);
     }
 
     async function setHistoryStatus(message) {
@@ -407,36 +446,73 @@
       }
     }
 
-    async function renderPage(message) {
+    async function renderPage(message, traceContext) {
       const window = historyWindow;
       if (!window) return null;
 
       const page = paginateRows(currentRows, pageIndex, PAGE_SIZE);
       pageIndex = page.pageIndex;
       visibleRows = hydrateVisibleRows(page.rows);
+      const renderedRecordingIds = visibleRows.map(row => row.recordingId);
       const locked = coreBusy() || isRunActive() || pendingRows.size > 0;
+      if (traceContext) {
+        historyTrace('HISTORY_REFRESH_RENDER_START', traceContext.recordingId || '', traceContext.controlId || '', {
+          action: traceContext.action || 'refresh',
+          rowCount: currentRows.length,
+          pageIndex,
+          renderedRecordingIds,
+        });
+      }
       const tasks = [
-        safeUpdate(window, 'historyStatus', {text: String(message || `共 ${page.totalRows} 条录制；运行始终需要显式点击。`)}),
-        safeUpdate(window, 'pageIndicator', {text: `第 ${page.pageIndex + 1} / ${page.pageCount} 页 · 共 ${page.totalRows} 条`}),
-        safeUpdate(window, 'prevHistory', {disabled: locked || page.totalRows === 0 || page.pageIndex === 0}),
-        safeUpdate(window, 'nextHistory', {disabled: locked || page.totalRows === 0 || page.pageIndex >= page.pageCount - 1}),
-        safeUpdate(window, 'refreshHistory', {disabled: locked}),
-        safeUpdate(window, 'emptyHistory', {visible: page.totalRows === 0}),
-        safeUpdate(window, 'historyColumns', {visible: page.totalRows > 0}),
-        safeUpdate(window, 'historyList', {visible: page.totalRows > 0}),
+        requiredUpdate(window, 'historyStatus', {text: String(message || `共 ${page.totalRows} 条录制；运行始终需要显式点击。`)}),
+        requiredUpdate(window, 'pageIndicator', {text: `第 ${page.pageIndex + 1} / ${page.pageCount} 页 · 共 ${page.totalRows} 条`}),
+        requiredUpdate(window, 'firstHistory', {disabled: locked || page.totalRows === 0 || page.pageIndex === 0}),
+        requiredUpdate(window, 'prevHistory', {disabled: locked || page.totalRows === 0 || page.pageIndex === 0}),
+        requiredUpdate(window, 'nextHistory', {disabled: locked || page.totalRows === 0 || page.pageIndex >= page.pageCount - 1}),
+        requiredUpdate(window, 'lastHistory', {disabled: locked || page.totalRows === 0 || page.pageIndex >= page.pageCount - 1}),
+        requiredUpdate(window, 'refreshHistory', {disabled: locked}),
+        requiredUpdate(window, 'emptyHistory', {visible: page.totalRows === 0}),
+        requiredUpdate(window, 'historyColumns', {visible: page.totalRows > 0}),
+        requiredUpdate(window, 'historyList', {visible: page.totalRows > 0}),
       ];
 
       for (let index = 0; index < PAGE_SIZE; index++) {
         const row = visibleRows[index] || null;
-        tasks.push(safeUpdate(window, `recording${index}`, {visible: !!row}));
-        tasks.push(safeUpdate(window, `recordingName${index}`, {text: row ? displayTitle(row) : ''}));
-        tasks.push(safeUpdate(window, `recordingTime${index}`, {text: row ? displayTimestamp(row.startedAt) : ''}));
-        tasks.push(safeUpdate(window, `run${index}`, {disabled: locked || !row || !row.scriptFile}));
+        const expectedName = row ? displayTitle(row) : '';
+        const expectedTime = row ? displayTimestamp(row.startedAt) : '';
+        tasks.push(requiredUpdate(window, `recording${index}`, {visible: !!row}));
+        tasks.push(requiredUpdate(window, `recordingName${index}`, {text: expectedName}).then(state => {
+          if (!state || state.text !== expectedName) {
+            const error = new Error(`recordingName${index} 更新后读回不一致`);
+            error.code = 'UI_DRIVER_FAILURE';
+            error.operation = 'RecordingHistory.renderPage';
+            throw error;
+          }
+          return state;
+        }));
+        tasks.push(requiredUpdate(window, `recordingTime${index}`, {text: expectedTime}).then(state => {
+          if (!state || state.text !== expectedTime) {
+            const error = new Error(`recordingTime${index} 更新后读回不一致`);
+            error.code = 'UI_DRIVER_FAILURE';
+            error.operation = 'RecordingHistory.renderPage';
+            throw error;
+          }
+          return state;
+        }));
+        tasks.push(requiredUpdate(window, `run${index}`, {disabled: locked || !row || !row.scriptFile}));
         for (const action of ['rename', 'open', 'delete']) {
-          tasks.push(safeUpdate(window, `${action}${index}`, {disabled: locked || !row}));
+          tasks.push(requiredUpdate(window, `${action}${index}`, {disabled: locked || !row}));
         }
       }
       await Promise.all(tasks);
+      if (traceContext) {
+        historyTrace('HISTORY_REFRESH_RENDER_DONE', traceContext.recordingId || '', traceContext.controlId || '', {
+          action: traceContext.action || 'refresh',
+          rowCount: currentRows.length,
+          pageIndex,
+          renderedRecordingIds,
+        });
+      }
       return pageState();
     }
 
@@ -448,8 +524,10 @@
       const locked = !!disabled || pendingRows.size > 0;
       const tasks = [
         safeUpdate(window, 'refreshHistory', {disabled: locked}),
+        safeUpdate(window, 'firstHistory', {disabled: locked || page.totalRows === 0 || page.pageIndex === 0}),
         safeUpdate(window, 'prevHistory', {disabled: locked || page.totalRows === 0 || page.pageIndex === 0}),
         safeUpdate(window, 'nextHistory', {disabled: locked || page.totalRows === 0 || page.pageIndex >= page.pageCount - 1}),
+        safeUpdate(window, 'lastHistory', {disabled: locked || page.totalRows === 0 || page.pageIndex >= page.pageCount - 1}),
       ];
       for (let index = 0; index < PAGE_SIZE; index++) {
         const row = visibleRows[index] || null;
@@ -495,12 +573,13 @@
       return row;
     }
 
-    async function rename(recordingId) {
+    async function rename(recordingId, controlId) {
       if (isRunActive() || pendingRows.has(recordingId)) return null;
       pendingRows.add(recordingId);
       await syncPageControls();
       try {
         const row = assertMutableRecording(recordingId);
+        historyTrace('HISTORY_RENAME_DIALOG_REQUEST', recordingId, controlId);
         const next = await dialog.prompt({
           title: '重命名录制',
           message: '只修改历史列表显示名称，不修改 recordingId、目录或 Recorder 原始事实。',
@@ -510,6 +589,7 @@
           cancelText: '取消',
           maxLength: 80,
         });
+        historyTrace('HISTORY_RENAME_DIALOG_RESULT', recordingId, controlId, {accepted: next !== null});
         if (next === null) return null;
         const displayName = validateDisplayName(next);
         const latest = assertMutableRecording(recordingId);
@@ -519,7 +599,14 @@
           displayName,
           updatedAt: new Date().toISOString(),
         }, null, 2) + '\n');
-        await refresh(`已将 ${recordingId} 显示为“${displayName}”`);
+        historyTrace('HISTORY_RENAME_WRITE_DONE', recordingId, controlId);
+        await refresh(`已将 ${recordingId} 显示为“${displayName}”`, {
+          action: 'rename', recordingId, controlId,
+        });
+        historyTrace('HISTORY_RENAME_REFRESH_DONE', recordingId, controlId, {
+          rowCount: currentRows.length,
+          pageRecordingIds: pageState().recordingIds,
+        });
         return displayName;
       } finally {
         pendingRows.delete(recordingId);
@@ -556,7 +643,7 @@
           throw error;
         }
         deleteTrace('HISTORY_DELETE_REMOVE_DONE', recordingId, controlId);
-        await refresh(`已删除 ${recordingId}`);
+        await refresh(`已删除 ${recordingId}`, {action: 'delete', recordingId, controlId});
         deleteTrace('HISTORY_DELETE_REFRESH_DONE', recordingId, controlId);
         return true;
       } finally {
@@ -719,6 +806,11 @@
         tasks.push(safeUpdate(window, `open${index}`, {icon: ACTION_ICONS.open, text: ''}));
         tasks.push(safeUpdate(window, `delete${index}`, {icon: ACTION_ICONS.delete, text: ''}));
       }
+      tasks.push(requiredUpdate(window, 'firstHistory', {icon: PAGER_ICONS.first, text: ''}));
+      tasks.push(requiredUpdate(window, 'prevHistory', {icon: PAGER_ICONS.previous, text: ''}));
+      tasks.push(requiredUpdate(window, 'nextHistory', {icon: PAGER_ICONS.next, text: ''}));
+      tasks.push(requiredUpdate(window, 'lastHistory', {icon: PAGER_ICONS.last, text: ''}));
+      tasks.push(requiredUpdate(window, 'refreshHistory', {icon: PAGER_ICONS.refresh, text: ''}));
       await Promise.all(tasks);
     }
 
@@ -750,11 +842,20 @@
 
     async function bindWindow(window) {
       bindAction(window, 'refreshHistory', '刷新', () => refresh());
+      bindAction(window, 'firstHistory', '首页', () => setPage(0));
       bindAction(window, 'prevHistory', '上一页', () => setPage(pageIndex - 1));
       bindAction(window, 'nextHistory', '下一页', () => setPage(pageIndex + 1));
+      bindAction(window, 'lastHistory', '尾页', () => setPage(pageState().pageCount - 1));
       for (let index = 0; index < PAGE_SIZE; index++) {
         bindSlotAction(window, `run${index}`, '运行', index, recordingId => runRecording(recordingId));
-        bindSlotAction(window, `rename${index}`, '改名', index, recordingId => rename(recordingId));
+        const renameControlId = `rename${index}`;
+        bindSlotAction(window, renameControlId, '改名', index, (recordingId, _row, event) => {
+          historyTrace('HISTORY_RENAME_CLICK', recordingId, renameControlId, {
+            eventType: event && event.type ? String(event.type) : '',
+            eventHasBounds: !!(event && event.bounds),
+          });
+          return rename(recordingId, renameControlId);
+        });
         bindSlotAction(window, `open${index}`, '打开目录', index, recordingId => openDirectory(recordingId));
         const deleteControlId = `delete${index}`;
         bindSlotAction(window, deleteControlId, '删除', index, (recordingId, _row, event) => {
@@ -827,13 +928,20 @@
       return window;
     }
 
-    async function refresh(message) {
+    async function refresh(message, traceContext) {
       if (closed) return null;
       if (!historyWindow) return open(message);
       currentRows = loadHistoryRows();
       const next = paginateRows(currentRows, pageIndex, PAGE_SIZE);
       pageIndex = next.pageIndex;
-      await renderPage(message);
+      const context = traceContext || {action: 'refresh', recordingId: '', controlId: 'refreshHistory'};
+      historyTrace('HISTORY_REFRESH_SCAN_DONE', context.recordingId || '', context.controlId || '', {
+        action: context.action || 'refresh',
+        rowCount: currentRows.length,
+        pageIndex,
+        scannedRecordingIds: next.rows.map(row => row.recordingId),
+      });
+      await renderPage(message, context);
       await syncAvailability();
       return historyWindow;
     }
@@ -882,5 +990,6 @@
     buildWindowHTML,
     pageSize: () => PAGE_SIZE,
     actionIcons: () => clone(ACTION_ICONS),
+    pagerIcons: () => clone(PAGER_ICONS),
   });
 })(globalThis);

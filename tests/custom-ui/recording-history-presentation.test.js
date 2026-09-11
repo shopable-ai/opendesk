@@ -96,12 +96,14 @@ test('history presentation keeps one horizontal row shape and adds bounded pagin
     recordingId: 'rec-demo', displayName: '计算器任务', targetTitle: 'Calculator',
     startedAt: '2026-09-10T10:20:30Z', scriptFile: '/tmp/basic.recipe.js',
   }], '1 条');
-  assert.match(html, /id="recordingName0"/);
-  assert.match(html, /id="recordingTime0"/);
+  assert.match(html, /<span id="recordingName0"/);
+  assert.match(html, /<span id="recordingTime0"/);
   assert.match(html, /id="recordingActions0"/);
+  assert.match(html, /id="firstHistory"/);
   assert.match(html, /id="prevHistory"/);
   assert.match(html, /id="pageIndicator"/);
   assert.match(html, /id="nextHistory"/);
+  assert.match(html, /id="lastHistory"/);
   assert.doesNotMatch(html, /id="recordingMeta0"/);
   assert.doesNotMatch(html, /id="recordingId0"/);
   assert.match(html, /id="run9"/);
@@ -134,10 +136,20 @@ test('history presentation keeps one horizontal row shape and adds bounded pagin
   assert.equal(window.controls.get('rename0').patch.icon, 'pencil');
   assert.equal(window.controls.get('open0').patch.icon, 'folder.fill');
   assert.equal(window.controls.get('delete0').patch.icon, 'trash.fill');
+  assert.equal(window.controls.get('firstHistory').patch.icon, 'backward.end.fill');
+  assert.equal(window.controls.get('firstHistory').patch.text, '');
+  assert.equal(window.controls.get('prevHistory').patch.icon, 'backward.fill');
+  assert.equal(window.controls.get('nextHistory').patch.icon, 'forward.fill');
+  assert.equal(window.controls.get('lastHistory').patch.icon, 'forward.end.fill');
+  assert.equal(window.controls.get('refreshHistory').patch.icon, 'arrow.clockwise');
   assert.equal(window.controls.get('prevHistory').patch.disabled, true);
   assert.equal(window.controls.get('nextHistory').patch.disabled, true);
   assert.equal(window.controls.get('pageIndicator').patch.text, '第 1 / 1 页 · 共 1 条');
   assert.deepEqual(History.actionIcons(), {run: 'play.fill', rename: 'pencil', open: 'folder.fill', delete: 'trash.fill'});
+  assert.deepEqual(History.pagerIcons(), {
+    first: 'backward.end.fill', previous: 'backward.fill', next: 'forward.fill',
+    last: 'forward.end.fill', refresh: 'arrow.clockwise',
+  });
 
   fs.rmSync(temp, {recursive: true, force: true});
 });
