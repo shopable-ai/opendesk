@@ -74,6 +74,10 @@
     return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())} ${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
   }
 
+  function displayTitle(row) {
+    return row.displayName || row.targetTitle || row.recordingId;
+  }
+
   function readJSON(file, path) {
     try {
       return JSON.parse(String(file.read(path)));
@@ -208,7 +212,7 @@
           <div id="historyActionsColumn">操作</div>
         </div>`;
     const body = rows.map((row, index) => {
-      const title = row.displayName || row.targetTitle || row.recordingId;
+      const title = displayTitle(row);
       return `
         <section id="recording${index}" class="recording">
           <div id="recordingName${index}" class="name" title="${escapeHTML(title)}">${escapeHTML(title)}</div>
@@ -239,9 +243,12 @@
     .time { color: #b9b9b9; font-size: 12px; white-space: nowrap; }
     .actions { display: flex; flex-wrap: nowrap; align-items: center; justify-content: flex-start; gap: 6px; }
     button { border: 1px solid #505050; border-radius: 7px; background: #303030; color: #f4f4f4; font-size: 13px; }
+    button:not(:disabled) { cursor: pointer; }
     .icon-action { box-sizing: border-box; width: 32px; height: 32px; min-width: 32px; padding: 0; }
-    button:disabled { opacity: 0.38; }
+    .icon-action:hover:not(:disabled) { background: #3a3a3a; border-color: #6a6a6a; }
+    button:disabled { opacity: 0.38; cursor: default; }
     .danger { border-color: #754545; }
+    .danger:hover:not(:disabled) { background: #4a2525; border-color: #a65a5a; }
     .empty { color: #a8a8a8; padding: 24px 0; }
   `;
 
@@ -280,10 +287,12 @@
     const openDeskBinary = settings.openDeskBinary
       || file.join(execution.workdir, 'dist', os === 'windows' ? 'opendesk.exe' : 'opendesk');
     let historyWindow = null;
+    let currentRows = [];
     let windowSequence = 0;
     let activeRun = null;
     let lastRun = null;
     let closed = false;
+    const pendingRows = new Set();
 
     function coreBusy() {
       const state = app.state();
@@ -313,6 +322,36 @@
       }
     }
 
+    async function setHistoryActionsDisabled(disabled) {
+      const window = historyWindow;
+      if (!window) return;
+      try { await window.control('refreshHistory').update({disabled: !!disabled}); } catch (_) {}
+      for (let index = 0; index < currentRows.length; index++) {
+        const row = currentRows[index];
+        try { await window.control(`run${index}`).update({disabled: !!disabled || !row.scriptFile}); } catch (_) {}
+        for (const action of ['rename', 'open', 'delete']) {
+          try { await window.control(`${action}${index}`).update({disabled: !!disabled}); } catch (_) {}
+        }
+      }
+    }
+
+    async function reportActionFailure(label, error) {
+      const normalized = normalizeError(error, `RecordingHistory.${label}`);
+      if (logger && typeof logger.error === 'function') {
+        try { logger.error(`[recording-history] ${label}: ${normalized.message}`); } catch (_) {}
+      }
+      await setHistoryStatus(`${label}失败：${normalized.message}`);
+      try {
+        await dialog.alert({
+          title: `${label}失败`,
+          message: normalized.message,
+          level: 'error',
+          okText: '关闭',
+        });
+      } catch (_) {}
+      return null;
+    }
+
     function assertMutableRecording(recordingId) {
       const row = inspectRecording(file, root, recordingId);
       if (!row) {
@@ -325,63 +364,82 @@
     }
 
     async function rename(recordingId) {
-      if (isRunActive()) return;
-      const row = assertMutableRecording(recordingId);
-      const next = await dialog.prompt({
-        title: '重命名录制',
-        message: '只修改历史列表显示名称，不修改 recordingId、目录或 Recorder 原始事实。',
-        defaultValue: row.displayName || row.targetTitle || '',
-        placeholder: '例如：计算器 25×4+10',
-        confirmText: '保存',
-        cancelText: '取消',
-        maxLength: 80,
-      });
-      if (next === null) return;
-      const displayName = validateDisplayName(next);
-      const latest = assertMutableRecording(recordingId);
-      file.write(latest.metadataPath, JSON.stringify({
-        schemaVersion: 1,
-        recordingId,
-        displayName,
-        updatedAt: new Date().toISOString(),
-      }, null, 2) + '\n');
-      await refresh(`已将 ${recordingId} 显示为“${displayName}”`);
+      if (isRunActive() || pendingRows.has(recordingId)) return null;
+      pendingRows.add(recordingId);
+      try {
+        const row = assertMutableRecording(recordingId);
+        const next = await dialog.prompt({
+          title: '重命名录制',
+          message: '只修改历史列表显示名称，不修改 recordingId、目录或 Recorder 原始事实。',
+          defaultValue: displayTitle(row),
+          placeholder: '例如：计算器 25×4+10',
+          confirmText: '保存',
+          cancelText: '取消',
+          maxLength: 80,
+        });
+        if (next === null) return null;
+        const displayName = validateDisplayName(next);
+        const latest = assertMutableRecording(recordingId);
+        file.write(latest.metadataPath, JSON.stringify({
+          schemaVersion: 1,
+          recordingId,
+          displayName,
+          updatedAt: new Date().toISOString(),
+        }, null, 2) + '\n');
+        await refresh(`已将 ${recordingId} 显示为“${displayName}”`);
+        return displayName;
+      } finally {
+        pendingRows.delete(recordingId);
+      }
     }
 
     async function remove(recordingId) {
-      if (isRunActive()) return;
-      const row = assertMutableRecording(recordingId);
-      const accepted = await dialog.confirm({
-        title: '删除历史录制',
-        message: `将永久删除录制目录：\n${row.recordingId}\n\n包括 raw、manifest、actions、generated 和本地显示元数据。此操作不能撤销。`,
-        level: 'warning',
-        confirmText: '永久删除',
-        cancelText: '取消',
-        defaultAction: 'cancel',
-      });
-      if (!accepted) return;
-      const latest = assertMutableRecording(recordingId);
-      file.removeDir(latest.recordingDir);
-      if (file.stat(latest.recordingDir) !== null) {
-        const error = new Error('删除后录制目录仍然存在');
-        error.code = 'IO_FAILED';
-        error.operation = 'RecordingHistory.delete';
-        throw error;
+      if (isRunActive() || pendingRows.has(recordingId)) return false;
+      pendingRows.add(recordingId);
+      try {
+        const row = assertMutableRecording(recordingId);
+        const accepted = await dialog.confirm({
+          title: '删除历史录制',
+          message: `将永久删除整个 Recording package：\n名称：${displayTitle(row)}\nrecordingId：${row.recordingId}\n\n将删除 raw、manifest、actions、generated、evidence 和 ui-metadata。此操作不能撤销。`,
+          level: 'warning',
+          confirmText: '永久删除',
+          cancelText: '取消',
+          defaultAction: 'cancel',
+        });
+        if (!accepted) return false;
+        const latest = assertMutableRecording(recordingId);
+        file.removeDir(latest.recordingDir);
+        if (file.stat(latest.recordingDir) !== null) {
+          const error = new Error('删除后录制目录仍然存在');
+          error.code = 'IO_FAILED';
+          error.operation = 'RecordingHistory.delete';
+          throw error;
+        }
+        await refresh(`已删除 ${recordingId}`);
+        return true;
+      } finally {
+        pendingRows.delete(recordingId);
       }
-      await refresh(`已删除 ${recordingId}`);
     }
 
     async function openDirectory(recordingId) {
-      if (isRunActive()) return;
-      const row = assertMutableRecording(recordingId);
-      if (os === 'windows') {
-        await command.run('explorer.exe', [row.recordingDir], {cwd: execution.workdir, timeout: 10000, maxOutputBytes: 1024 * 1024});
-      } else if (os === 'darwin') {
-        await command.run('/usr/bin/open', [row.recordingDir], {cwd: execution.workdir, timeout: 10000, maxOutputBytes: 1024 * 1024});
-      } else {
-        await command.run('xdg-open', [row.recordingDir], {cwd: execution.workdir, timeout: 10000, maxOutputBytes: 1024 * 1024});
+      if (isRunActive() || pendingRows.has(recordingId)) return null;
+      pendingRows.add(recordingId);
+      try {
+        const row = assertMutableRecording(recordingId);
+        let result;
+        if (os === 'windows') {
+          result = await command.run('explorer.exe', [row.recordingDir], {cwd: execution.workdir, timeout: 10000, maxOutputBytes: 1024 * 1024});
+        } else if (os === 'darwin') {
+          result = await command.run('/usr/bin/open', [row.recordingDir], {cwd: execution.workdir, timeout: 10000, maxOutputBytes: 1024 * 1024});
+        } else {
+          result = await command.run('xdg-open', [row.recordingDir], {cwd: execution.workdir, timeout: 10000, maxOutputBytes: 1024 * 1024});
+        }
+        await setHistoryStatus(`已打开 ${recordingId} 的目录`);
+        return result;
+      } finally {
+        pendingRows.delete(recordingId);
       }
-      await setHistoryStatus(`已打开 ${recordingId} 的目录`);
     }
 
     async function captureToolbarRunState() {
@@ -429,11 +487,12 @@
     }
 
     async function runRecording(recordingId) {
-      if (activeRun || coreBusy()) return lastRun;
+      if (activeRun || coreBusy() || pendingRows.size) return lastRun;
       const row = assertMutableRecording(recordingId);
       const scriptFile = resolveGeneratedScript(file, row.recordingDir);
       if (!scriptFile) {
         await dialog.alert({title: '无法运行', message: '该录制还没有 generated/*.recipe.js。', level: 'warning', okText: '关闭'});
+        await refresh(`无法运行 ${recordingId}：generated recipe 已不存在。`);
         return null;
       }
       const scriptInfo = file.stat(scriptFile);
@@ -447,13 +506,15 @@
         'history-runs', recordingId, startedAt.replace(/[:.]/g, '-'),
       );
       file.ensureDir(runLogDir);
-      const savedPresentation = await captureToolbarRunState();
       activeRun = {recordingId, scriptFile, controller, startedAt, runLogDir};
-      await lockToolbarForHistoryRun(savedPresentation);
+      let savedPresentation = null;
 
       try {
+        await setHistoryActionsDisabled(true);
+        savedPresentation = await captureToolbarRunState();
+        await lockToolbarForHistoryRun(savedPresentation);
         for (const value of [3, 2, 1]) {
-          await setHistoryStatus(`将在 ${value} 秒后运行“${row.displayName || row.targetTitle || recordingId}”；请恢复预期起始桌面。主工具条 Stop 可取消。`);
+          await setHistoryStatus(`将在 ${value} 秒后运行“${displayTitle(row)}”；请恢复预期起始桌面。主工具条 Stop 可取消。`);
           await sleep(runCountdownStepMs);
           if (controller.signal.aborted) {
             lastRun = {status: 'canceled', recordingId, scriptFile, startedAt, finishedAt: new Date().toISOString(), logDir: runLogDir};
@@ -492,7 +553,9 @@
         return clone(lastRun);
       } finally {
         activeRun = null;
-        await restoreToolbarAfterHistoryRun(savedPresentation);
+        await setHistoryActionsDisabled(false);
+        if (savedPresentation) await restoreToolbarAfterHistoryRun(savedPresentation);
+        else await syncAvailability();
       }
     }
 
@@ -512,17 +575,31 @@
       }
     }
 
+    function bindAction(window, controlId, label, action) {
+      window.control(controlId).on('click', async () => {
+        try {
+          return await action();
+        } catch (error) {
+          return reportActionFailure(label, error);
+        }
+      });
+    }
+
     async function bindWindow(window, rows) {
-      window.control('refreshHistory').on('click', () => refresh());
+      bindAction(window, 'refreshHistory', '刷新', () => refresh());
       rows.forEach((row, index) => {
-        if (row.scriptFile) window.control(`run${index}`).on('click', () => runRecording(row.recordingId));
-        window.control(`rename${index}`).on('click', () => rename(row.recordingId));
-        window.control(`open${index}`).on('click', () => openDirectory(row.recordingId));
-        window.control(`delete${index}`).on('click', () => remove(row.recordingId));
+        if (row.scriptFile) bindAction(window, `run${index}`, '运行', () => runRecording(row.recordingId));
+        bindAction(window, `rename${index}`, '改名', () => rename(row.recordingId));
+        bindAction(window, `open${index}`, '打开目录', () => openDirectory(row.recordingId));
+        bindAction(window, `delete${index}`, '删除', () => remove(row.recordingId));
       });
       await applyActionIcons(window, rows);
       window.on('close', () => {
-        if (historyWindow === window) historyWindow = null;
+        if (historyWindow === window) {
+          historyWindow = null;
+          currentRows = [];
+        }
+        if (activeRun) activeRun.controller.abort('recording history window closed');
         void syncAvailability();
       });
     }
@@ -537,6 +614,7 @@
           return historyWindow;
         } catch (_) {
           historyWindow = null;
+          currentRows = [];
         }
       }
       const rows = scanRecordings(file, root);
@@ -562,7 +640,9 @@
         },
       });
       historyWindow = window;
+      currentRows = rows;
       await bindWindow(window, rows);
+      if (activeRun) await setHistoryActionsDisabled(true);
       await window.show();
       await syncAvailability();
       return window;
@@ -571,6 +651,7 @@
     async function refresh(message) {
       const prior = historyWindow;
       historyWindow = null;
+      currentRows = [];
       if (prior) {
         try { await prior.close(); } catch (_) {}
       }
@@ -582,6 +663,7 @@
       if (activeRun) activeRun.controller.abort('recording history closed');
       const prior = historyWindow;
       historyWindow = null;
+      currentRows = [];
       if (prior) {
         try { await prior.close(); } catch (_) {}
       }
