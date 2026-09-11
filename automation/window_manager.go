@@ -5,6 +5,7 @@ package automation
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -13,77 +14,115 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// windowsWindowManager handles window-related operations on Windows.
-type windowsWindowManager struct {
-	user32 *windows.LazyDLL
-}
+// windowsWindowManager is the Win32 owner behind the public window facade.
+// Native actions are always followed by a read-back of the actual HWND state;
+// Win32 APIs whose return value describes prior state (not operation success)
+// are never treated as success or failure signals.
+type windowsWindowManager struct{}
 
-func newPlatformWindowManager() windowManagerPlatform {
-	return &windowsWindowManager{
-		user32: windows.NewLazySystemDLL("user32.dll"),
-	}
-}
+func newPlatformWindowManager() windowManagerPlatform { return &windowsWindowManager{} }
 
-// 系统指标常量
 const (
-	SM_CXSCREEN               = 0
-	SM_CYSCREEN               = 1
-	PROCESS_QUERY_INFORMATION = 0x0400
-	PROCESS_VM_READ           = 0x0010
+	SM_CXSCREEN = 0
+	SM_CYSCREEN = 1
 
-	GWL_STYLE    = -16
-	GWL_STYLE_32 = -16
-	GWL_EXSTYLE  = -20
+	PROCESS_QUERY_INFORMATION              = 0x0400
+	PROCESS_VM_READ                        = 0x0010
+	processQueryLimitedInformation         = 0x1000
+	processTerminate                       = 0x0001
+	GWL_STYLE                              = -16
+	GWL_STYLE_32                           = -16
+	GWL_EXSTYLE                            = -20
+	WS_EX_TOOLWINDOW               uintptr = 0x00000080
+	wsExTopmost                    uintptr = 0x00000008
+	WS_CHILD                       uintptr = 0x40000000
+	WS_POPUP                       uintptr = 0x80000000
 
-	// 扩展窗口风格
-	WS_EX_TOOLWINDOW = 0x00000080
+	SW_HIDE          = 0
+	SW_NORMAL        = 1
+	SW_SHOWMINIMIZED = 2
+	SW_MAXIMIZE      = 3
+	SW_SHOW          = 5
+	SW_MINIMIZE      = 6
+	SW_RESTORE       = 9
 
-	// 窗口风格
-	WS_CHILD = 0x40000000
+	WM_CLOSE         = 0x0010
+	WM_GETTEXT       = 0x000D
+	WM_GETTEXTLENGTH = 0x000E
+	EM_GETTEXT       = WM_GETTEXT
+	EM_GETTEXTLENGTH = WM_GETTEXTLENGTH
+
+	HWND_TOP              = 0
+	HWND_TOPMOST   uint32 = 0xFFFFFFFF
+	HWND_NOTOPMOST uint32 = 0xFFFFFFFE
+
+	SWP_NOSIZE               = 0x0001
+	SWP_NOMOVE               = 0x0002
+	swpNoActivate            = 0x0010
+	SWP_SHOWWINDOW           = 0x0040
+	GW_HWNDNEXT              = 2
+	gaRoot                   = 2
+	smtoBlock                = 0x0001
+	smtoAbortIfHung          = 0x0002
+	smtoErrorOnExit          = 0x0020
+	errorAccessDenied        = syscall.Errno(5)
+	errorInvalidHandle       = syscall.Errno(6)
+	errorInsufficientBuffer  = syscall.Errno(122)
+	errorInvalidWindowHandle = syscall.Errno(1400)
+	errorTimeout             = syscall.Errno(1460)
+)
+
+const (
+	windowsMutationTimeout    = 2 * time.Second
+	windowsMutationPoll       = 20 * time.Millisecond
+	windowsCloseSendTimeout   = 1200 * time.Millisecond
+	windowsCloseVerifyTimeout = 2 * time.Second
+	windowsTextTimeout        = 250 * time.Millisecond
 )
 
 var (
-	procGetWindowTextW           = windows.NewLazySystemDLL("user32.dll").NewProc("GetWindowTextW")
-	procGetWindowTextLengthW     = windows.NewLazySystemDLL("user32.dll").NewProc("GetWindowTextLengthW")
-	procGetCurrentThreadId       = user32.NewProc("GetCurrentThreadId")
-	procGetWindowRect            = windows.NewLazySystemDLL("user32.dll").NewProc("GetWindowRect")
-	procFindWindowW              = windows.NewLazySystemDLL("user32.dll").NewProc("FindWindowW")
-	procGetForegroundWindow      = windows.NewLazySystemDLL("user32.dll").NewProc("GetForegroundWindow")
-	procSetForegroundWindow      = windows.NewLazySystemDLL("user32.dll").NewProc("SetForegroundWindow")
-	procShowWindow               = windows.NewLazySystemDLL("user32.dll").NewProc("ShowWindow")
-	procMoveWindow               = windows.NewLazySystemDLL("user32.dll").NewProc("MoveWindow")
-	procGetWindowThreadProcessId = windows.NewLazySystemDLL("user32.dll").NewProc("GetWindowThreadProcessId")
-	kernel32                     = windows.NewLazySystemDLL("kernel32.dll")
-	psapi                        = windows.NewLazySystemDLL("psapi.dll")
-	procGetModuleFileNameEx      = psapi.NewProc("GetModuleFileNameExW")
-	procOpenProcess              = kernel32.NewProc("OpenProcess")
-	procPostMessageW             = windows.NewLazySystemDLL("user32.dll").NewProc("PostMessageW")
-	procEnumWindows              = windows.NewLazySystemDLL("user32.dll").NewProc("EnumWindows")
-	procSendMessageW             = windows.NewLazySystemDLL("user32.dll").NewProc("SendMessageW")
-	procTerminateProcess         = kernel32.NewProc("TerminateProcess")
-	procGetWindowDC              = windows.NewLazySystemDLL("user32.dll").NewProc("GetWindowDC")
-	procGetClientRect            = windows.NewLazySystemDLL("user32.dll").NewProc("GetClientRect")
-	procGetDC                    = windows.NewLazySystemDLL("user32.dll").NewProc("GetDC")
-	procReleaseDC                = windows.NewLazySystemDLL("user32.dll").NewProc("ReleaseDC")
-	procEnumChildWindows         = windows.NewLazySystemDLL("user32.dll").NewProc("EnumChildWindows")
-	procGetClassName             = windows.NewLazySystemDLL("user32.dll").NewProc("GetClassNameW")
-	procGetWindow                = windows.NewLazySystemDLL("user32.dll").NewProc("GetWindow")
-	procGetGUIThreadInfo         = windows.NewLazySystemDLL("user32.dll").NewProc("GetGUIThreadInfo")
-	procIsWindow                 = user32.NewProc("IsWindow")
-	procGetDesktopWindow         = user32.NewProc("GetDesktopWindow")
-	// 用于获取编辑框内容
-	EM_GETTEXT       = 0x000D
-	EM_GETTEXTLENGTH = 0x000E
-	// 用于获取富文本框内容
-	WM_GETTEXT          = 0x000D
-	WM_GETTEXTLENGTH    = 0x000E
-	procIsWindowVisible = windows.NewLazySystemDLL("user32.dll").NewProc("IsWindowVisible")
-	procGetWindowLongW  = windows.NewLazySystemDLL("user32.dll").NewProc("GetWindowLongW")
-)
+	user32   = syscall.NewLazyDLL("user32.dll")
+	kernel32 = windows.NewLazySystemDLL("kernel32.dll")
+	psapi    = windows.NewLazySystemDLL("psapi.dll")
 
-// 添加新的系统调用
-var (
-	user32                = syscall.NewLazyDLL("user32.dll")
+	procGetWindowTextW             = windows.NewLazySystemDLL("user32.dll").NewProc("GetWindowTextW")
+	procGetWindowTextLengthW       = windows.NewLazySystemDLL("user32.dll").NewProc("GetWindowTextLengthW")
+	procGetCurrentThreadId         = user32.NewProc("GetCurrentThreadId")
+	procGetWindowRect              = windows.NewLazySystemDLL("user32.dll").NewProc("GetWindowRect")
+	procFindWindowW                = windows.NewLazySystemDLL("user32.dll").NewProc("FindWindowW")
+	procGetForegroundWindow        = windows.NewLazySystemDLL("user32.dll").NewProc("GetForegroundWindow")
+	procSetForegroundWindow        = windows.NewLazySystemDLL("user32.dll").NewProc("SetForegroundWindow")
+	procBringWindowToTop           = windows.NewLazySystemDLL("user32.dll").NewProc("BringWindowToTop")
+	procShowWindow                 = windows.NewLazySystemDLL("user32.dll").NewProc("ShowWindow")
+	procMoveWindow                 = windows.NewLazySystemDLL("user32.dll").NewProc("MoveWindow")
+	procGetWindowThreadProcessId   = windows.NewLazySystemDLL("user32.dll").NewProc("GetWindowThreadProcessId")
+	procOpenProcess                = kernel32.NewProc("OpenProcess")
+	procTerminateProcess           = kernel32.NewProc("TerminateProcess")
+	procQueryFullProcessImageNameW = kernel32.NewProc("QueryFullProcessImageNameW")
+	procGetModuleFileNameEx        = psapi.NewProc("GetModuleFileNameExW") // retained for package compatibility; no longer used for metadata.
+	procPostMessageW               = windows.NewLazySystemDLL("user32.dll").NewProc("PostMessageW")
+	procEnumWindows                = windows.NewLazySystemDLL("user32.dll").NewProc("EnumWindows")
+	procEnumChildWindows           = windows.NewLazySystemDLL("user32.dll").NewProc("EnumChildWindows")
+	procSendMessageW               = windows.NewLazySystemDLL("user32.dll").NewProc("SendMessageW")
+	procSendMessageTimeoutW        = windows.NewLazySystemDLL("user32.dll").NewProc("SendMessageTimeoutW")
+	procGetWindowDC                = windows.NewLazySystemDLL("user32.dll").NewProc("GetWindowDC")
+	procGetClientRect              = windows.NewLazySystemDLL("user32.dll").NewProc("GetClientRect")
+	procGetDC                      = windows.NewLazySystemDLL("user32.dll").NewProc("GetDC")
+	procReleaseDC                  = windows.NewLazySystemDLL("user32.dll").NewProc("ReleaseDC")
+	procGetClassName               = windows.NewLazySystemDLL("user32.dll").NewProc("GetClassNameW")
+	procGetWindow                  = windows.NewLazySystemDLL("user32.dll").NewProc("GetWindow")
+	procGetGUIThreadInfo           = windows.NewLazySystemDLL("user32.dll").NewProc("GetGUIThreadInfo")
+	procIsWindow                   = user32.NewProc("IsWindow")
+	procGetDesktopWindow           = user32.NewProc("GetDesktopWindow")
+	procIsWindowVisible            = windows.NewLazySystemDLL("user32.dll").NewProc("IsWindowVisible")
+	procIsIconic                   = windows.NewLazySystemDLL("user32.dll").NewProc("IsIconic")
+	procIsZoomed                   = windows.NewLazySystemDLL("user32.dll").NewProc("IsZoomed")
+	procGetWindowPlacement         = windows.NewLazySystemDLL("user32.dll").NewProc("GetWindowPlacement")
+	procSetWindowPos               = windows.NewLazySystemDLL("user32.dll").NewProc("SetWindowPos")
+	procGetAncestor                = windows.NewLazySystemDLL("user32.dll").NewProc("GetAncestor")
+	procGetSystemMetrics           = windows.NewLazySystemDLL("user32.dll").NewProc("GetSystemMetrics")
+	procGetWindowLongW             = windows.NewLazySystemDLL("user32.dll").NewProc("GetWindowLongW")
+
 	procGetWindowLong     = user32.NewProc("GetWindowLongW")
 	procGetClassNameW     = user32.NewProc("GetClassNameW")
 	procGetWindowLongPtrW = user32.NewProc("GetWindowLongPtrW")
@@ -101,38 +140,9 @@ type GUITHREADINFO struct {
 	RcCaret       windows.Rect
 }
 
-const (
-	SW_HIDE          = 0
-	SW_NORMAL        = 1
-	SW_MINIMIZE      = 6
-	SW_MAXIMIZE      = 3
-	SW_RESTORE       = 9
-	WS_POPUP         = 0x80000000
-	WM_CLOSE         = 0x0010
-	SW_SHOW          = 5
-	SW_SHOWMINIMIZED = 2
-	// 新增常量
-	HWND_TOP              = 0
-	HWND_TOPMOST   uint32 = 0xFFFFFFFF // -1 的无符号表示
-	HWND_NOTOPMOST uint32 = 0xFFFFFFFE // -2 的无符号表示
+type POINT struct{ X, Y int32 }
+type RECT struct{ Left, Top, Right, Bottom int32 }
 
-	SWP_NOMOVE     = 0x0002
-	SWP_NOSIZE     = 0x0001
-	SWP_SHOWWINDOW = 0x0040
-	GW_HWNDNEXT    = 2
-)
-
-// POINT 定义了一个点的坐标
-type POINT struct {
-	X, Y int32
-}
-
-// RECT 定义了一个矩形的坐标
-type RECT struct {
-	Left, Top, Right, Bottom int32
-}
-
-// WINDOWPLACEMENT 结构体定义
 type WINDOWPLACEMENT struct {
 	Length           uint32
 	Flags            uint32
@@ -142,1604 +152,906 @@ type WINDOWPLACEMENT struct {
 	RcNormalPosition RECT
 }
 
-func getWindowTitle(hwnd windows.Handle) string {
-	textLength, _, _ := procGetWindowTextLengthW.Call(uintptr(hwnd))
-	buf := make([]uint16, textLength+1)
-	procGetWindowTextW.Call(
-		uintptr(hwnd),
-		uintptr(unsafe.Pointer(&buf[0])),
-		uintptr(len(buf)),
-	)
-	return windows.UTF16ToString(buf)
+type windowsWindowObservation struct {
+	Exists  bool
+	Visible bool
+	Iconic  bool
+	Zoomed  bool
+	Topmost bool
+	ShowCmd uint32
 }
 
-func getWindowRect(hwnd windows.Handle) (x, y, width, height int32) {
-	var rect windows.Rect
-	procGetWindowRect.Call(
-		uintptr(hwnd),
-		uintptr(unsafe.Pointer(&rect)),
-	)
-	return rect.Left, rect.Top, rect.Right - rect.Left, rect.Bottom - rect.Top
+type windowsExpectedState uint8
+
+const (
+	windowsStateVisible windowsExpectedState = iota + 1
+	windowsStateMinimized
+	windowsStateMaximized
+	windowsStateRestored
+	windowsStateTopmost
+	windowsStateNotTopmost
+)
+
+// Function seams keep the two error-prone Win32 identity calls directly testable.
+var windowsGetWindowThreadProcessID = func(hwnd uintptr, pid *uint32) uint32 {
+	threadID, _, _ := procGetWindowThreadProcessId.Call(hwnd, uintptr(unsafe.Pointer(pid)))
+	return uint32(threadID)
 }
 
-func getWindowProcessId(hwnd windows.Handle) uint32 {
-	var processId uint32
-	procGetWindowThreadProcessId.Call(
-		uintptr(hwnd),
-		uintptr(unsafe.Pointer(&processId)),
-	)
-	return processId
+var windowsGetGUIThreadInfo = func(threadID uint32, info *GUITHREADINFO) error {
+	result, _, callErr := procGetGUIThreadInfo.Call(uintptr(threadID), uintptr(unsafe.Pointer(info)))
+	if result == 0 {
+		return win32CallError(callErr)
+	}
+	return nil
 }
 
-// 获取系统指标函数
-func getSystemMetrics(nIndex int) int32 {
-	ret, _, _ := user32.NewProc("GetSystemMetrics").Call(uintptr(nIndex))
-	return int32(ret)
+func win32CallError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if errno, ok := err.(syscall.Errno); ok && errno == 0 {
+		return nil
+	}
+	return err
 }
 
-// GetActiveWindow 获取当前活动窗口信息
-func (w *windowsWindowManager) GetActiveWindow() (*WindowInfo, error) {
-	hwnd, _, _ := procGetForegroundWindow.Call()
+func windowsBackendError(code WindowErrorCode, message string, cause error) error {
+	return &WindowError{Code: code, Platform: "windows", Message: message, Cause: cause}
+}
 
-	// fmt.Printf("GetForegroundWindow返回句柄: 0x%x\n", hwnd)
+func windowsErrorFromCall(message string, callErr error) error {
+	callErr = win32CallError(callErr)
+	if errno, ok := callErr.(syscall.Errno); ok {
+		switch errno {
+		case errorAccessDenied:
+			return windowsBackendError(WindowPermissionDenied, message, callErr)
+		case errorInvalidHandle, errorInvalidWindowHandle:
+			return windowsBackendError(WindowStaleTarget, message, callErr)
+		case errorTimeout:
+			return windowsBackendError(WindowTimeout, message, callErr)
+		}
+	}
+	return windowsBackendError(WindowBackendFailed, message, callErr)
+}
 
+func isValidWindow(hwnd uintptr) bool {
 	if hwnd == 0 {
-		// fmt.Println("警告: GetForegroundWindow返回了0句柄")
-
-		// 尝试获取顶层可见窗口作为备选
-		topHwnd := w.getTopWindow()
-		if topHwnd != 0 {
-			// fmt.Printf("使用顶层可见窗口代替: 0x%x\n", topHwnd)
-			hwnd = topHwnd
-		} else {
-			// 如果找不到顶层窗口，最后才使用桌面窗口
-			hwnd, _, _ = procGetDesktopWindow.Call()
-			// fmt.Printf("使用桌面窗口代替: 0x%x\n", hwnd)
-
-			if hwnd == 0 {
-				// fmt.Println("极端情况: 无法获取桌面窗口")
-				// 返回默认信息
-				return &WindowInfo{
-					Title:     "系统桌面",
-					ProcessID: 0,
-					X:         0,
-					Y:         0,
-					Width:     getSystemMetrics(SM_CXSCREEN),
-					Height:    getSystemMetrics(SM_CYSCREEN),
-					ExeName:   "explorer.exe",
-					ExePath:   "",
-				}, nil
-			}
-		}
+		return false
 	}
-
-	// 安全地获取窗口信息
-	var title string
-	var x, y, width, height int32
-	var processId uint32
-	var exeName, exePath string
-
-	// 使用recover防止任何可能的panic
-	func() {
-		defer func() {
-			if r := recover(); r != nil {
-				fmt.Printf("获取窗口标题时发生panic: %v\n", r)
-			}
-		}()
-
-		title = getWindowTitle(windows.Handle(hwnd))
-	}()
-
-	func() {
-		defer func() {
-			if r := recover(); r != nil {
-				fmt.Printf("获取窗口位置时发生panic: %v\n", r)
-			}
-		}()
-
-		x, y, width, height = getWindowRect(windows.Handle(hwnd))
-	}()
-
-	func() {
-		defer func() {
-			if r := recover(); r != nil {
-				fmt.Printf("获取进程ID时发生panic: %v\n", r)
-			}
-		}()
-
-		processId = getWindowProcessId(windows.Handle(hwnd))
-	}()
-
-	// 仅在获取到有效进程ID时尝试获取可执行文件信息
-	if processId > 0 {
-		func() {
-			defer func() {
-				if r := recover(); r != nil {
-					fmt.Printf("获取进程可执行文件信息时发生panic: %v\n", r)
-				}
-			}()
-
-			exeName, exePath, _ = getProcessExecutableInfo(processId)
-		}()
-	}
-
-	return &WindowInfo{
-		Title:        title,
-		ProcessID:    processId,
-		X:            x,
-		Y:            y,
-		Width:        width,
-		Height:       height,
-		ExeName:      exeName,
-		ExePath:      exePath,
-		IsForeground: true,
-		HasFocus:     true,
-		Handle:       uint64(hwnd),
-	}, nil
+	result, _, _ := procIsWindow.Call(hwnd)
+	return result != 0
 }
 
-// getTopWindow 获取Z顺序中的顶层可见窗口
-func (w *windowsWindowManager) getTopWindow() uintptr {
-	var result uintptr = 0
+func requireValidWindow(hwnd uintptr) error {
+	if !isValidWindow(hwnd) {
+		return windowsBackendError(WindowStaleTarget, "native window handle is no longer valid", nil)
+	}
+	return nil
+}
 
-	// 枚举所有顶级窗口的函数
-	enumFunc := syscall.NewCallback(func(hwnd uintptr, lParam uintptr) uintptr {
-		// 忽略不可见窗口
-		isVisible, _, _ := procIsWindowVisible.Call(hwnd)
-		if isVisible == 0 {
-			return 1 // 继续枚举
-		}
+func isWindowVisible(hwnd uintptr) bool {
+	result, _, _ := procIsWindowVisible.Call(hwnd)
+	return result != 0
+}
 
-		// 忽略无标题窗口
-		length, _, _ := procGetWindowTextLengthW.Call(hwnd)
-		if length == 0 {
-			return 1 // 继续枚举
-		}
+func isWindowIconic(hwnd uintptr) bool {
+	result, _, _ := procIsIconic.Call(hwnd)
+	return result != 0
+}
 
-		// 检查窗口是否为工具窗口或子窗口
-		// style, _, _ := procGetWindowLongPtrW.Call(uintptr(hwnd), uintptr(uint(GWL_STYLE)))
-		// exStyle, _, _ := procGetWindowLongPtrW.Call(uintptr(hwnd), uintptr(uint(GWL_EXSTYLE)))
-		// style, _, _ := procGetWindowLongPtrW.Call(uintptr(hwnd), uintptr(GWL_STYLE))
-		// exStyle, _, _ := procGetWindowLongPtrW.Call(uintptr(hwnd), uintptr(GWL_EXSTYLE))
-		// For 32-bit systems, use the following approach
-		style, _, _ := procGetWindowLongPtrW.Call(hwnd, ^uintptr(15))   // equivalent to -16
-		exStyle, _, _ := procGetWindowLongPtrW.Call(hwnd, ^uintptr(19)) // equivalent to -20
+func isWindowZoomed(hwnd uintptr) bool {
+	result, _, _ := procIsZoomed.Call(hwnd)
+	return result != 0
+}
 
-		// 忽略工具窗口
-		if (exStyle & WS_EX_TOOLWINDOW) != 0 {
-			return 1
-		}
-
-		// 忽略子窗口
-		if (style & WS_CHILD) != 0 {
-			return 1
-		}
-
-		// 忽略任务栏
-		className := make([]uint16, 256)
-		procGetClassNameW.Call(
-			hwnd,
-			uintptr(unsafe.Pointer(&className[0])),
-			256,
-		)
-		classNameStr := windows.UTF16ToString(className)
-
-		if classNameStr == "Shell_TrayWnd" || classNameStr == "Shell_SecondaryTrayWnd" {
-			return 1
-		}
-
-		// 找到了有效窗口，存储并停止枚举
-		result = hwnd
-		return 0 // 停止枚举
-	})
-
-	// 开始枚举顶级窗口
-	procEnumWindows.Call(enumFunc, 0)
-
+func getWindowLong(hwnd uintptr, index int32) uintptr {
+	result, _, _ := procGetWindowLongW.Call(hwnd, uintptr(int64(index)))
 	return result
 }
 
-// 修改 GetWindowByTitle 方法
-func (w *windowsWindowManager) GetWindowByTitle(title string) (*WindowInfo, error) {
-	if strings.TrimSpace(title) == "" {
-		return nil, fmt.Errorf("window title cannot be empty")
+func getWindowStyle(hwnd syscall.Handle) uint32 {
+	return uint32(getWindowLong(uintptr(hwnd), GWL_STYLE))
+}
+
+func getWindowTitle(hwnd windows.Handle) string {
+	if hwnd == 0 {
+		return ""
 	}
-	var matches []uintptr
-	callback := syscall.NewCallback(func(hwnd uintptr, _ uintptr) uintptr {
-		if getWindowTitle(windows.Handle(hwnd)) == title {
-			matches = append(matches, hwnd)
+	textLength, _, _ := procGetWindowTextLengthW.Call(uintptr(hwnd))
+	if textLength == 0 {
+		return ""
+	}
+	buffer := make([]uint16, int(textLength)+1)
+	copied, _, _ := procGetWindowTextW.Call(uintptr(hwnd), uintptr(unsafe.Pointer(&buffer[0])), uintptr(len(buffer)))
+	if copied == 0 {
+		return ""
+	}
+	return windows.UTF16ToString(buffer[:int(copied)])
+}
+
+func queryWindowRect(hwnd uintptr) (RECT, error) {
+	if err := requireValidWindow(hwnd); err != nil {
+		return RECT{}, err
+	}
+	var rect RECT
+	result, _, callErr := procGetWindowRect.Call(hwnd, uintptr(unsafe.Pointer(&rect)))
+	if result == 0 {
+		return RECT{}, windowsErrorFromCall("GetWindowRect failed", callErr)
+	}
+	return rect, nil
+}
+
+func getWindowRect(hwnd windows.Handle) (x, y, width, height int32) {
+	rect, err := queryWindowRect(uintptr(hwnd))
+	if err != nil {
+		return 0, 0, 0, 0
+	}
+	return rect.Left, rect.Top, rect.Right - rect.Left, rect.Bottom - rect.Top
+}
+
+func getWindowThreadProcessID(hwnd uintptr) (uint32, uint32, error) {
+	if err := requireValidWindow(hwnd); err != nil {
+		return 0, 0, err
+	}
+	var pid uint32
+	threadID := windowsGetWindowThreadProcessID(hwnd, &pid)
+	if threadID == 0 {
+		return 0, pid, windowsBackendError(WindowBackendFailed, "GetWindowThreadProcessId returned no thread identity", nil)
+	}
+	return threadID, pid, nil
+}
+
+func getWindowProcessId(hwnd windows.Handle) uint32 {
+	_, pid, err := getWindowThreadProcessID(uintptr(hwnd))
+	if err != nil {
+		return 0
+	}
+	return pid
+}
+
+func getSystemMetrics(index int) int32 {
+	result, _, _ := procGetSystemMetrics.Call(uintptr(index))
+	return int32(result)
+}
+
+func getClassName(hwnd uintptr) string {
+	if hwnd == 0 {
+		return ""
+	}
+	buffer := make([]uint16, 256)
+	copied, _, _ := procGetClassNameW.Call(hwnd, uintptr(unsafe.Pointer(&buffer[0])), uintptr(len(buffer)))
+	if copied == 0 {
+		return ""
+	}
+	return windows.UTF16ToString(buffer[:int(copied)])
+}
+
+func queryWindowPlacement(hwnd uintptr) (WINDOWPLACEMENT, error) {
+	var placement WINDOWPLACEMENT
+	placement.Length = uint32(unsafe.Sizeof(placement))
+	result, _, callErr := procGetWindowPlacement.Call(hwnd, uintptr(unsafe.Pointer(&placement)))
+	if result == 0 {
+		return placement, windowsErrorFromCall("GetWindowPlacement failed", callErr)
+	}
+	return placement, nil
+}
+
+func observeWindowsWindow(hwnd uintptr) (windowsWindowObservation, error) {
+	if !isValidWindow(hwnd) {
+		return windowsWindowObservation{}, windowsBackendError(WindowStaleTarget, "native window handle is no longer valid", nil)
+	}
+	placement, err := queryWindowPlacement(hwnd)
+	if err != nil {
+		return windowsWindowObservation{}, err
+	}
+	exStyle := getWindowLong(hwnd, GWL_EXSTYLE)
+	return windowsWindowObservation{
+		Exists:  true,
+		Visible: isWindowVisible(hwnd),
+		Iconic:  isWindowIconic(hwnd),
+		Zoomed:  isWindowZoomed(hwnd),
+		Topmost: exStyle&wsExTopmost != 0,
+		ShowCmd: placement.ShowCmd,
+	}, nil
+}
+
+func windowsStateSatisfied(expected windowsExpectedState, observation windowsWindowObservation) bool {
+	if !observation.Exists {
+		return false
+	}
+	switch expected {
+	case windowsStateVisible:
+		return observation.Visible
+	case windowsStateMinimized:
+		return observation.Iconic
+	case windowsStateMaximized:
+		return observation.Zoomed && observation.Visible
+	case windowsStateRestored:
+		return observation.Visible && !observation.Iconic && !observation.Zoomed
+	case windowsStateTopmost:
+		return observation.Topmost
+	case windowsStateNotTopmost:
+		return !observation.Topmost
+	default:
+		return false
+	}
+}
+
+func waitForWindowsState(hwnd uintptr, expected windowsExpectedState, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	var last windowsWindowObservation
+	for {
+		observation, err := observeWindowsWindow(hwnd)
+		if err != nil {
+			return err
 		}
+		last = observation
+		if windowsStateSatisfied(expected, observation) {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return windowsBackendError(
+				WindowVerificationFailed,
+				fmt.Sprintf("window post-condition was not observed (visible=%t iconic=%t zoomed=%t topmost=%t showCmd=%d)", last.Visible, last.Iconic, last.Zoomed, last.Topmost, last.ShowCmd),
+				nil,
+			)
+		}
+		time.Sleep(windowsMutationPoll)
+	}
+}
+
+func showWindowAndVerify(hwnd uintptr, command int, expected windowsExpectedState) error {
+	if err := requireValidWindow(hwnd); err != nil {
+		return err
+	}
+	// ShowWindow returns the previous visibility state. Its return value is not
+	// an operation-success flag and is intentionally ignored.
+	procShowWindow.Call(hwnd, uintptr(command))
+	return waitForWindowsState(hwnd, expected, windowsMutationTimeout)
+}
+
+func windowRoot(hwnd uintptr) uintptr {
+	if hwnd == 0 {
+		return 0
+	}
+	root, _, _ := procGetAncestor.Call(hwnd, gaRoot)
+	if root == 0 {
+		return hwnd
+	}
+	return root
+}
+
+func guiThreadInfoForWindow(hwnd uintptr) (threadID uint32, processID uint32, info GUITHREADINFO, err error) {
+	if err := requireValidWindow(hwnd); err != nil {
+		return 0, 0, info, err
+	}
+	threadID, processID, err = getWindowThreadProcessID(hwnd)
+	if err != nil {
+		return 0, processID, info, err
+	}
+	info.CbSize = uint32(unsafe.Sizeof(info))
+	// GetGUIThreadInfo consumes the thread ID returned by
+	// GetWindowThreadProcessId, never the process ID written to its out param.
+	if err := windowsGetGUIThreadInfo(threadID, &info); err != nil {
+		return 0, processID, info, windowsErrorFromCall("GetGUIThreadInfo failed", err)
+	}
+	return threadID, processID, info, nil
+}
+
+func foregroundAndFocus() (foreground uintptr, active uintptr, focus uintptr, err error) {
+	foreground, _, _ = procGetForegroundWindow.Call()
+	if foreground == 0 {
+		return 0, 0, 0, windowsBackendError(WindowNotFound, "no active foreground window", nil)
+	}
+	_, _, info, threadErr := guiThreadInfoForWindow(foreground)
+	if threadErr != nil {
+		return 0, 0, 0, threadErr
+	}
+	return foreground, uintptr(info.HwndActive), uintptr(info.HwndFocus), nil
+}
+
+func getProcessExecutableInfo(processID uint32) (string, string, error) {
+	if processID == 0 {
+		return "", "", windowsBackendError(WindowInvalidArgument, "process id must be positive", nil)
+	}
+	handle, _, callErr := procOpenProcess.Call(processQueryLimitedInformation, 0, uintptr(processID))
+	if handle == 0 {
+		return "", "", windowsErrorFromCall("OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION) failed", callErr)
+	}
+	defer windows.CloseHandle(windows.Handle(handle))
+
+	for capacity := 512; capacity <= 32768; capacity *= 2 {
+		buffer := make([]uint16, capacity)
+		size := uint32(len(buffer))
+		result, _, queryErr := procQueryFullProcessImageNameW.Call(
+			handle,
+			0,
+			uintptr(unsafe.Pointer(&buffer[0])),
+			uintptr(unsafe.Pointer(&size)),
+		)
+		if result != 0 {
+			path := windows.UTF16ToString(buffer[:int(size)])
+			return filepath.Base(path), path, nil
+		}
+		normalized := win32CallError(queryErr)
+		if errno, ok := normalized.(syscall.Errno); !ok || errno != errorInsufficientBuffer {
+			return "", "", windowsErrorFromCall("QueryFullProcessImageNameW failed", queryErr)
+		}
+	}
+	return "", "", windowsBackendError(WindowBackendFailed, "process executable path exceeded supported Windows path capacity", nil)
+}
+
+func enumerateTopLevelWindows(includeHidden bool) []uintptr {
+	windowsList := make([]uintptr, 0, 32)
+	callback := syscall.NewCallback(func(hwnd uintptr, _ uintptr) uintptr {
+		if !isValidWindow(hwnd) {
+			return 1
+		}
+		if !includeHidden && !isWindowVisible(hwnd) {
+			return 1
+		}
+		className := getClassName(hwnd)
+		if className == "Shell_TrayWnd" || className == "Shell_SecondaryTrayWnd" {
+			return 1
+		}
+		windowsList = append(windowsList, hwnd)
 		return 1
 	})
 	procEnumWindows.Call(callback, 0)
-	if len(matches) == 0 {
-		return nil, fmt.Errorf("window with title '%s' not found", title)
+	return windowsList
+}
+
+func findUniqueWindowByTitle(title string) (uintptr, error) {
+	if strings.TrimSpace(title) == "" {
+		return 0, windowsBackendError(WindowInvalidArgument, "window title cannot be empty", nil)
 	}
-	if len(matches) > 1 {
-		return nil, &WindowError{Code: WindowAmbiguousTarget, Message: "multiple windows have the requested title"}
+	matches := make([]uintptr, 0, 2)
+	for _, hwnd := range enumerateTopLevelWindows(true) {
+		if getWindowTitle(windows.Handle(hwnd)) == title {
+			matches = append(matches, hwnd)
+		}
 	}
-	hwnd := matches[0]
+	switch len(matches) {
+	case 0:
+		return 0, windowsBackendError(WindowNotFound, "window not found", nil)
+	case 1:
+		return matches[0], nil
+	default:
+		return 0, windowsBackendError(WindowAmbiguousTarget, "multiple windows have the requested title", nil)
+	}
+}
 
-	x, y, width, height := getWindowRect(windows.Handle(hwnd))
-	processId := getWindowProcessId(windows.Handle(hwnd))
+func findWindowByPID(pid uint32) (uintptr, error) {
+	if pid == 0 {
+		return 0, windowsBackendError(WindowInvalidArgument, "pid must be positive", nil)
+	}
+	for _, hwnd := range enumerateTopLevelWindows(true) {
+		_, candidatePID, err := getWindowThreadProcessID(hwnd)
+		if err != nil || candidatePID != pid {
+			continue
+		}
+		style := getWindowLong(hwnd, GWL_STYLE)
+		if style&WS_CHILD != 0 {
+			continue
+		}
+		if getWindowTitle(windows.Handle(hwnd)) == "" {
+			continue
+		}
+		return hwnd, nil
+	}
+	return 0, windowsBackendError(WindowNotFound, "no suitable window found for process", nil)
+}
 
-	// 获取可执行文件信息
-	exeName, exePath, _ := getProcessExecutableInfo(processId)
-
+func buildWindowInfo(hwnd uintptr, index int, foreground uintptr, focus uintptr) (*WindowInfo, error) {
+	if err := requireValidWindow(hwnd); err != nil {
+		return nil, err
+	}
+	rect, err := queryWindowRect(hwnd)
+	if err != nil {
+		return nil, err
+	}
+	_, pid, err := getWindowThreadProcessID(hwnd)
+	if err != nil {
+		return nil, err
+	}
+	exeName, exePath, _ := getProcessExecutableInfo(pid) // metadata is best-effort by contract.
+	style := getWindowLong(hwnd, GWL_STYLE)
+	focusRoot := windowRoot(focus)
 	return &WindowInfo{
-		Title:        title,
-		ProcessID:    processId,
-		X:            x,
-		Y:            y,
-		Width:        width,
-		Height:       height,
+		Title:        getWindowTitle(windows.Handle(hwnd)),
+		ProcessID:    pid,
+		X:            rect.Left,
+		Y:            rect.Top,
+		Width:        rect.Right - rect.Left,
+		Height:       rect.Bottom - rect.Top,
 		ExeName:      exeName,
 		ExePath:      exePath,
-		IsForeground: hwnd == foregroundWindowHandle(),
-		HasFocus:     hwnd == foregroundWindowHandle(),
+		IsForeground: hwnd == foreground,
+		HasFocus:     hwnd == focus || (focus != 0 && focusRoot == hwnd),
 		Handle:       uint64(hwnd),
+		IsPopup:      style&WS_POPUP != 0,
+		Index:        index,
 	}, nil
 }
 
-func foregroundWindowHandle() uintptr {
-	hwnd, _, _ := procGetForegroundWindow.Call()
-	return hwnd
+func (w *windowsWindowManager) GetActiveWindow() (*WindowInfo, error) {
+	foreground, _, focus, err := foregroundAndFocus()
+	if err != nil {
+		return nil, err
+	}
+	return buildWindowInfo(foreground, 0, foreground, focus)
 }
 
-// 获取进程可执行文件信息的函数
-func getProcessExecutableInfo(processId uint32) (exeName, exePath string, err error) {
-	const PROCESS_QUERY_INFORMATION = 0x0400
-	const PROCESS_VM_READ = 0x0010
-
-	// 打开进程句柄
-	handle, _, _ := procOpenProcess.Call(
-		uintptr(PROCESS_QUERY_INFORMATION|PROCESS_VM_READ),
-		0,
-		uintptr(processId),
-	)
-	if handle == 0 {
-		return "", "", fmt.Errorf("failed to open process")
+func (w *windowsWindowManager) GetFocusWindow() (*WindowInfo, error) {
+	foreground, _, focus, err := foregroundAndFocus()
+	if err != nil {
+		return nil, err
 	}
-	defer windows.CloseHandle(windows.Handle(handle))
-
-	// 获取进程可执行文件路径
-	buffer := make([]uint16, windows.MAX_PATH)
-	ret, _, _ := procGetModuleFileNameEx.Call(
-		handle,
-		0,
-		uintptr(unsafe.Pointer(&buffer[0])),
-		uintptr(len(buffer)),
-	)
-	if ret == 0 {
-		return "", "", fmt.Errorf("failed to get process path")
+	if focus == 0 {
+		return nil, windowsBackendError(WindowNotFound, "active GUI thread has no focused child window", nil)
 	}
-
-	filePath := windows.UTF16ToString(buffer)
-
-	// 从路径中提取文件名
-	parts := strings.Split(filePath, "\\")
-	fileName := parts[len(parts)-1]
-
-	return fileName, filePath, nil
+	info, err := buildWindowInfo(focus, 0, foreground, focus)
+	if err != nil {
+		return nil, err
+	}
+	info.HasFocus = true
+	return info, nil
 }
 
-// Focus activates and brings the specified window to the front
+func (w *windowsWindowManager) GetWindowByTitle(title string) (*WindowInfo, error) {
+	hwnd, err := findUniqueWindowByTitle(title)
+	if err != nil {
+		return nil, err
+	}
+	foreground, _, focus, _ := foregroundAndFocus()
+	return buildWindowInfo(hwnd, 0, foreground, focus)
+}
+
 func (w *windowsWindowManager) Focus(title string) error {
-	titlePtr, _ := windows.UTF16PtrFromString(title)
-	hwnd, _, _ := procFindWindowW.Call(
-		0,
-		uintptr(unsafe.Pointer(titlePtr)),
-	)
-
-	if hwnd == 0 {
-		return fmt.Errorf("window not found")
+	hwnd, err := findUniqueWindowByTitle(title)
+	if err != nil {
+		return err
 	}
-
-	if result, _, _ := procSetForegroundWindow.Call(hwnd); result == 0 {
-		return fmt.Errorf("SetForegroundWindow rejected the focus request")
+	if !isWindowVisible(hwnd) {
+		if err := showWindowAndVerify(hwnd, SW_SHOW, windowsStateVisible); err != nil {
+			return err
+		}
 	}
-	return nil
+	if isWindowIconic(hwnd) {
+		if err := showWindowAndVerify(hwnd, SW_RESTORE, windowsStateRestored); err != nil {
+			return err
+		}
+	}
+	procBringWindowToTop.Call(hwnd)
+	procSetForegroundWindow.Call(hwnd)
+	deadline := time.Now().Add(windowsMutationTimeout)
+	for {
+		foreground, _, _ := procGetForegroundWindow.Call()
+		if foreground == hwnd {
+			return nil
+		}
+		if !isValidWindow(hwnd) {
+			return windowsBackendError(WindowStaleTarget, "window disappeared while activation was pending", nil)
+		}
+		if time.Now().After(deadline) {
+			return windowsBackendError(WindowVerificationFailed, "Windows foreground policy rejected window activation", nil)
+		}
+		time.Sleep(windowsMutationPoll)
+	}
 }
 
-// SetWindowBounds sets the position and size of a window
 func (w *windowsWindowManager) SetWindowBounds(title string, x, y, width, height int) error {
-	titlePtr, _ := windows.UTF16PtrFromString(title)
-	hwnd, _, _ := procFindWindowW.Call(
-		0,
-		uintptr(unsafe.Pointer(titlePtr)),
-	)
-
-	if hwnd == 0 {
-		return fmt.Errorf("window not found")
+	hwnd, err := findUniqueWindowByTitle(title)
+	if err != nil {
+		return err
 	}
-
-	if result, _, err := procMoveWindow.Call(
-		hwnd,
-		uintptr(x),
-		uintptr(y),
-		uintptr(width),
-		uintptr(height),
-		1, // repaint
-	); result == 0 {
-		return fmt.Errorf("MoveWindow failed: %v", err)
+	if err := requireValidWindow(hwnd); err != nil {
+		return err
+	}
+	result, _, callErr := procMoveWindow.Call(hwnd, uintptr(x), uintptr(y), uintptr(width), uintptr(height), 1)
+	if result == 0 {
+		if !isValidWindow(hwnd) {
+			return windowsBackendError(WindowStaleTarget, "window disappeared before bounds update completed", nil)
+		}
+		return windowsErrorFromCall("MoveWindow failed", callErr)
+	}
+	rect, err := queryWindowRect(hwnd)
+	if err != nil {
+		return err
+	}
+	if rect.Left != int32(x) || rect.Top != int32(y) || rect.Right-rect.Left != int32(width) || rect.Bottom-rect.Top != int32(height) {
+		return windowsBackendError(WindowVerificationFailed, "window bounds readback did not match the requested bounds", nil)
 	}
 	return nil
 }
 
-// SetWidth sets only the width of a window while maintaining its current position and height
 func (w *windowsWindowManager) SetWidth(title string, width int) error {
-	titlePtr, _ := windows.UTF16PtrFromString(title)
-
-	// Find the window
-	hwnd, _, _ := procFindWindowW.Call(
-		0,
-		uintptr(unsafe.Pointer(titlePtr)),
-	)
-
-	if hwnd == 0 {
-		return fmt.Errorf("window not found")
+	hwnd, err := findUniqueWindowByTitle(title)
+	if err != nil {
+		return err
 	}
-
-	// Get the current window position and size
-	var rect RECT
-	if result, _, err := procGetWindowRect.Call(
-		hwnd,
-		uintptr(unsafe.Pointer(&rect)),
-	); result == 0 {
-		return fmt.Errorf("GetWindowRect failed: %v", err)
+	rect, err := queryWindowRect(hwnd)
+	if err != nil {
+		return err
 	}
-
-	// Set the window width while maintaining its position and height
-	if result, _, err := procMoveWindow.Call(
-		hwnd,
-		uintptr(rect.Left),
-		uintptr(rect.Top),
-		uintptr(width),
-		uintptr(rect.Bottom-rect.Top),
-		1, // repaint
-	); result == 0 {
-		return fmt.Errorf("MoveWindow failed: %v", err)
-	}
-
-	return nil
+	return w.SetWindowBounds(title, int(rect.Left), int(rect.Top), width, int(rect.Bottom-rect.Top))
 }
 
-// SetHeight sets only the height of a window while maintaining its current position and width
 func (w *windowsWindowManager) SetHeight(title string, height int) error {
-	titlePtr, _ := windows.UTF16PtrFromString(title)
-
-	// Find the window
-	hwnd, _, _ := procFindWindowW.Call(
-		0,
-		uintptr(unsafe.Pointer(titlePtr)),
-	)
-
-	if hwnd == 0 {
-		return fmt.Errorf("window not found")
+	hwnd, err := findUniqueWindowByTitle(title)
+	if err != nil {
+		return err
 	}
-
-	// Get the current window position and size
-	var rect RECT
-	if result, _, err := procGetWindowRect.Call(
-		hwnd,
-		uintptr(unsafe.Pointer(&rect)),
-	); result == 0 {
-		return fmt.Errorf("GetWindowRect failed: %v", err)
+	rect, err := queryWindowRect(hwnd)
+	if err != nil {
+		return err
 	}
-
-	// Set the window height while maintaining its position and width
-	if result, _, err := procMoveWindow.Call(
-		hwnd,
-		uintptr(rect.Left),
-		uintptr(rect.Top),
-		uintptr(rect.Right-rect.Left),
-		uintptr(height),
-		1, // repaint
-	); result == 0 {
-		return fmt.Errorf("MoveWindow failed: %v", err)
-	}
-
-	return nil
+	return w.SetWindowBounds(title, int(rect.Left), int(rect.Top), int(rect.Right-rect.Left), height)
 }
 
-// Maximize maximizes the specified window
 func (w *windowsWindowManager) Maximize(title string) error {
-	titlePtr, _ := windows.UTF16PtrFromString(title)
-	hwnd, _, _ := procFindWindowW.Call(
-		0,
-		uintptr(unsafe.Pointer(titlePtr)),
-	)
-
-	if hwnd == 0 {
-		return fmt.Errorf("window not found")
+	hwnd, err := findUniqueWindowByTitle(title)
+	if err != nil {
+		return err
 	}
-
-	procShowWindow.Call(hwnd, uintptr(SW_MAXIMIZE))
-	return nil
+	return showWindowAndVerify(hwnd, SW_MAXIMIZE, windowsStateMaximized)
 }
 
-// Minimize minimizes the specified window
 func (w *windowsWindowManager) Minimize(title string) error {
-	titlePtr, _ := windows.UTF16PtrFromString(title)
-	hwnd, _, _ := procFindWindowW.Call(
-		0,
-		uintptr(unsafe.Pointer(titlePtr)),
-	)
-
-	if hwnd == 0 {
-		return fmt.Errorf("window not found")
+	hwnd, err := findUniqueWindowByTitle(title)
+	if err != nil {
+		return err
 	}
-
-	procShowWindow.Call(hwnd, uintptr(SW_MINIMIZE))
-	return nil
+	return showWindowAndVerify(hwnd, SW_MINIMIZE, windowsStateMinimized)
 }
 
-// Restore restores a minimized or maximized window to its normal state
 func (w *windowsWindowManager) Restore(title string) error {
-	titlePtr, _ := windows.UTF16PtrFromString(title)
-	hwnd, _, _ := procFindWindowW.Call(
-		0,
-		uintptr(unsafe.Pointer(titlePtr)),
-	)
-
-	if hwnd == 0 {
-		return fmt.Errorf("window not found")
+	hwnd, err := findUniqueWindowByTitle(title)
+	if err != nil {
+		return err
 	}
-
-	procShowWindow.Call(hwnd, uintptr(SW_RESTORE))
-	return nil
+	return showWindowAndVerify(hwnd, SW_RESTORE, windowsStateRestored)
 }
 
 func (w *windowsWindowManager) RestoreByPID(pid uint32) error {
-	var targetHwnd uintptr
-	var foundWindow bool
-
-	// Define window enumeration callback
-	enumWindows := func(hwnd syscall.Handle, lparam uintptr) uintptr {
-		var windowPID uint32
-		procGetWindowThreadProcessId.Call(
-			uintptr(hwnd),
-			uintptr(unsafe.Pointer(&windowPID)),
-		)
-
-		if windowPID == pid {
-			// Get window info for logging
-			title := getWindowTitle(windows.Handle(hwnd))
-			style := getWindowStyle(hwnd)
-			isVisible, _, _ := procIsWindowVisible.Call(uintptr(hwnd))
-
-			// Log window details for debugging
-			fmt.Printf("Found window - PID: %d, Title: %s, Style: %x, Visible: %v\n",
-				pid, title, style, isVisible != 0)
-
-			// Not a child window and has title - likely main window
-			if style&0x40000000 == 0 && title != "" {
-				targetHwnd = uintptr(hwnd)
-				foundWindow = true
-				return 0
-			}
-		}
-		return 1
+	hwnd, err := findWindowByPID(pid)
+	if err != nil {
+		return err
 	}
-
-	// Enumerate windows
-	cb := syscall.NewCallback(enumWindows)
-	procEnumWindows.Call(cb, 0)
-
-	if !foundWindow {
-		return fmt.Errorf("no suitable window found for process ID %d", pid)
-	}
-
-	// Get current window placement
-	var placement WINDOWPLACEMENT
-	placement.Length = uint32(unsafe.Sizeof(placement))
-	ret, _, err := windows.NewLazySystemDLL("user32.dll").NewProc("GetWindowPlacement").Call(
-		targetHwnd,
-		uintptr(unsafe.Pointer(&placement)),
-	)
-
-	if ret == 0 {
-		return fmt.Errorf("failed to get window placement for PID %d: %v", pid, err)
-	}
-
-	// Log current window state
-	fmt.Printf("Current window state - ShowCmd: %d, Flags: %d\n",
-		placement.ShowCmd, placement.Flags)
-
-	// Try multiple restore approaches
-	restoreApproaches := []struct {
-		name string
-		fn   func() error
-	}{
-		{"normal restore", func() error {
-			ret, _, err := procShowWindow.Call(targetHwnd, uintptr(SW_RESTORE))
-			if ret == 0 {
-				return fmt.Errorf("ShowWindow(SW_RESTORE) failed: %v", err)
-			}
-			return nil
-		}},
-		{"hide-show cycle", func() error {
-			if ret, _, err := procShowWindow.Call(targetHwnd, uintptr(SW_HIDE)); ret == 0 {
-				return fmt.Errorf("ShowWindow(SW_HIDE) failed: %v", err)
-			}
-			time.Sleep(100 * time.Millisecond)
-			if ret, _, err := procShowWindow.Call(targetHwnd, uintptr(SW_SHOW)); ret == 0 {
-				return fmt.Errorf("ShowWindow(SW_SHOW) failed: %v", err)
-			}
-			return nil
-		}},
-		{"force normal state", func() error {
-			if ret, _, err := procShowWindow.Call(targetHwnd, uintptr(SW_NORMAL)); ret == 0 {
-				return fmt.Errorf("ShowWindow(SW_NORMAL) failed: %v", err)
-			}
-			return nil
-		}},
-	}
-
-	var lastError error
-	for _, approach := range restoreApproaches {
-		fmt.Printf("Trying %s approach...\n", approach.name)
-		if err := approach.fn(); err != nil {
-			fmt.Printf("Failed with %s approach: %v\n", approach.name, err)
-			lastError = err
-			continue
-		}
-
-		// Verify window is now visible
-		if visible, _, _ := procIsWindowVisible.Call(targetHwnd); visible != 0 {
-			fmt.Printf("Successfully restored window using %s approach\n", approach.name)
-
-			// Ensure window is in visible area
-			var rect windows.Rect
-			if ret, _, _ := procGetWindowRect.Call(targetHwnd, uintptr(unsafe.Pointer(&rect))); ret != 0 {
-				if rect.Left <= -32000 || rect.Top <= -32000 {
-					procMoveWindow.Call(
-						targetHwnd,
-						100,
-						100,
-						uintptr(rect.Right-rect.Left),
-						uintptr(rect.Bottom-rect.Top),
-						1,
-					)
-				}
-			}
-
-			// Bring window to front
-			procSetForegroundWindow.Call(targetHwnd)
-			return nil
-		}
-	}
-
-	return fmt.Errorf("all restore approaches failed for PID %d - last error: %v", pid, lastError)
+	return showWindowAndVerify(hwnd, SW_RESTORE, windowsStateRestored)
 }
 
-// MinimizeByPID 通过进程ID最小化窗口
 func (w *windowsWindowManager) MinimizeByPID(pid uint32) error {
-	var targetHwnd uintptr
-	var foundWindow bool
-
-	// 定义枚举窗口的回调函数
-	enumWindows := func(hwnd syscall.Handle, lparam uintptr) uintptr {
-		var windowPID uint32
-		procGetWindowThreadProcessId.Call(
-			uintptr(hwnd),
-			uintptr(unsafe.Pointer(&windowPID)),
-		)
-
-		if windowPID == pid {
-			title := getWindowTitle(windows.Handle(hwnd))
-			style := getWindowStyle(hwnd)
-
-			// 不是子窗口且有标题的窗口很可能是主窗口
-			if style&0x40000000 == 0 && title != "" {
-				targetHwnd = uintptr(hwnd)
-				foundWindow = true
-				return 0
-			}
-		}
-		return 1
+	hwnd, err := findWindowByPID(pid)
+	if err != nil {
+		return err
 	}
-
-	// 枚举所有窗口
-	cb := syscall.NewCallback(enumWindows)
-	procEnumWindows.Call(cb, 0)
-
-	if !foundWindow {
-		return fmt.Errorf("no suitable window found for process ID %d", pid)
-	}
-
-	// 获取当前窗口状态
-	var placement WINDOWPLACEMENT
-	placement.Length = uint32(unsafe.Sizeof(placement))
-	ret, _, _ := windows.NewLazySystemDLL("user32.dll").NewProc("GetWindowPlacement").Call(
-		targetHwnd,
-		uintptr(unsafe.Pointer(&placement)),
-	)
-
-	if ret == 0 {
-		return fmt.Errorf("failed to get window placement for PID %d", pid)
-	}
-
-	// 如果窗口已经最小化，直接返回
-	if placement.ShowCmd == SW_SHOWMINIMIZED {
-		return nil
-	}
-
-	// 最小化窗口
-	ret, _, _ = procShowWindow.Call(targetHwnd, uintptr(SW_MINIMIZE))
-	if ret == 0 {
-		return fmt.Errorf("failed to minimize window for PID %d", pid)
-	}
-
-	return nil
+	return showWindowAndVerify(hwnd, SW_MINIMIZE, windowsStateMinimized)
 }
 
-// MaximizeByPID 通过进程ID最大化对应的窗口
 func (w *windowsWindowManager) MaximizeByPID(pid uint32) error {
-	var targetHwnd uintptr
-	var foundWindow bool
-
-	// 定义枚举窗口的回调函数
-	enumWindows := func(hwnd syscall.Handle, lparam uintptr) uintptr {
-		// 获取窗口的进程ID
-		var windowPID uint32
-		procGetWindowThreadProcessId.Call(
-			uintptr(hwnd),
-			uintptr(unsafe.Pointer(&windowPID)),
-		)
-
-		// 如果找到匹配的进程ID
-		if windowPID == pid {
-			// 获取窗口标题
-			title := getWindowTitle(windows.Handle(hwnd))
-
-			// 获取窗口样式
-			style := getWindowStyle(hwnd)
-
-			// 不是子窗口且有标题的窗口很可能是主窗口
-			if style&0x40000000 == 0 && title != "" { // WS_CHILD = 0x40000000
-				targetHwnd = uintptr(hwnd)
-				foundWindow = true
-				return 0 // 停止枚举
-			}
-		}
-
-		return 1 // 继续枚举
+	hwnd, err := findWindowByPID(pid)
+	if err != nil {
+		return err
 	}
-
-	// 枚举所有窗口
-	cb := syscall.NewCallback(enumWindows)
-	procEnumWindows.Call(cb, 0)
-
-	if !foundWindow {
-		return fmt.Errorf("no suitable window found for process ID %d", pid)
-	}
-
-	// 获取窗口位置和大小
-	var rect windows.Rect
-	ret, _, err := procGetWindowRect.Call(
-		targetHwnd,
-		uintptr(unsafe.Pointer(&rect)),
-	)
-	if ret == 0 {
-		lastErr := syscall.GetLastError()
-		return fmt.Errorf("GetWindowRect failed for PID %d: %v", pid, lastErr)
-	}
-
-	// 检查窗口是否最小化
-	if rect.Left <= -32000 || rect.Top <= -32000 {
-		// 先恢复窗口
-		ret, _, err = procShowWindow.Call(
-			targetHwnd,
-			uintptr(SW_RESTORE),
-		)
-		if ret == 0 {
-			fmt.Printf("Warning: ShowWindow (restore) failed for PID %d: %v\n", pid, err)
-		}
-
-		// 等待窗口恢复
-		time.Sleep(100 * time.Millisecond)
-	}
-
-	// 将窗口设置为前台
-	ret, _, err = procSetForegroundWindow.Call(targetHwnd)
-	if ret == 0 {
-		fmt.Printf("Warning: SetForegroundWindow failed for PID %d: %v\n", pid, err)
-	}
-
-	// 最大化窗口
-	ret, _, err = procShowWindow.Call(
-		targetHwnd,
-		uintptr(SW_MAXIMIZE),
-	)
-
-	if ret == 0 {
-		lastErr := syscall.GetLastError()
-		return fmt.Errorf("ShowWindow (maximize) failed for PID %d: %v", pid, lastErr)
-	}
-
-	// 确保窗口在最前
-	ret, _, err = procSetWindowPos.Call(
-		targetHwnd,
-		0,          // HWND_TOP
-		0, 0, 0, 0, // 位置和大小不变
-		uintptr(SWP_NOMOVE|SWP_NOSIZE|SWP_SHOWWINDOW),
-	)
-
-	if ret == 0 {
-		lastErr := syscall.GetLastError()
-		return fmt.Errorf("SetWindowPos failed for PID %d: %v", pid, lastErr)
-	}
-
-	return nil
+	return showWindowAndVerify(hwnd, SW_MAXIMIZE, windowsStateMaximized)
 }
 
-// CloseWindow 关闭指定标题的窗口
-func (w *windowsWindowManager) CloseWindow(title string) error {
-	fmt.Printf("尝试关闭窗口: %s\n", title)
-
-	titlePtr, _ := windows.UTF16PtrFromString(title)
-	hwnd, _, _ := procFindWindowW.Call(
-		0,
-		uintptr(unsafe.Pointer(titlePtr)),
-	)
-
-	if hwnd == 0 {
-		fmt.Printf("未找到窗口: %s\n", title)
-		return fmt.Errorf("window not found")
+func requestCloseWindow(hwnd uintptr) error {
+	if err := requireValidWindow(hwnd); err != nil {
+		return err
 	}
-
-	fmt.Printf("找到窗口句柄: 0x%x\n", hwnd)
-
-	// 先尝试激活窗口，确保它可以接收消息
-	procSetForegroundWindow.Call(hwnd)
-	time.Sleep(100 * time.Millisecond) // 给窗口一点时间来响应
-
-	// 方案1: 使用PostMessage代替SendMessage (异步，不阻塞)
-	success, _, err := procPostMessageW.Call(
+	var messageResult uintptr
+	delivered, _, callErr := procSendMessageTimeoutW.Call(
 		hwnd,
-		uintptr(WM_CLOSE),
+		WM_CLOSE,
 		0,
 		0,
+		smtoBlock|smtoAbortIfHung|smtoErrorOnExit,
+		uintptr(windowsCloseSendTimeout/time.Millisecond),
+		uintptr(unsafe.Pointer(&messageResult)),
 	)
-
-	if success == 0 {
-		fmt.Printf("PostMessage发送关闭消息失败: %v\n", err)
-
-		// 方案2: 如果PostMessage失败，尝试使用SendMessage
-		fmt.Printf("尝试使用SendMessage关闭窗口...\n")
-		_, _, err = procSendMessageW.Call(
-			hwnd,
-			uintptr(WM_CLOSE),
-			0,
-			0,
-		)
-
-		if err != nil && err != windows.ERROR_SUCCESS {
-			fmt.Printf("SendMessage也失败了: %v\n", err)
-			return fmt.Errorf("关闭窗口失败: %v", err)
-		}
-	}
-
-	// 验证窗口是否真的关闭
-	// 有些窗口可能需要更多时间来处理关闭请求
-	for i := 0; i < 5; i++ {
-		time.Sleep(200 * time.Millisecond)
-		isWindowVisible, _, _ := procIsWindow.Call(hwnd)
-		if isWindowVisible == 0 {
-			fmt.Printf("窗口已成功关闭\n")
+	if delivered == 0 {
+		if !isValidWindow(hwnd) {
 			return nil
 		}
+		normalized := win32CallError(callErr)
+		if errno, ok := normalized.(syscall.Errno); ok {
+			switch errno {
+			case errorAccessDenied:
+				return windowsBackendError(WindowPermissionDenied, "WM_CLOSE request was denied", normalized)
+			case errorInvalidHandle, errorInvalidWindowHandle:
+				return windowsBackendError(WindowStaleTarget, "window disappeared before WM_CLOSE could be delivered", normalized)
+			case errorTimeout:
+				return windowsBackendError(WindowTimeout, "WM_CLOSE delivery timed out because the window did not process messages", normalized)
+			}
+		}
+		// SendMessageTimeout may leave last-error at zero on timeout. A still
+		// valid HWND after a zero return is therefore treated as a bounded timeout.
+		return windowsBackendError(WindowTimeout, "WM_CLOSE delivery timed out because the window did not process messages", normalized)
 	}
 
-	fmt.Printf("警告：发送了关闭消息，但窗口似乎没有关闭\n")
-	return fmt.Errorf("窗口可能拒绝了关闭请求")
+	deadline := time.Now().Add(windowsCloseVerifyTimeout)
+	for isValidWindow(hwnd) {
+		if time.Now().After(deadline) {
+			return windowsBackendError(WindowVerificationFailed, "WM_CLOSE was delivered but the window remained open", nil)
+		}
+		time.Sleep(windowsMutationPoll)
+	}
+	return nil
 }
 
-// CloseActiveWindow 关闭当前活动窗口
+func (w *windowsWindowManager) CloseWindow(title string) error {
+	hwnd, err := findUniqueWindowByTitle(title)
+	if err != nil {
+		return err
+	}
+	return requestCloseWindow(hwnd)
+}
+
 func (w *windowsWindowManager) CloseActiveWindow() error {
 	hwnd, _, _ := procGetForegroundWindow.Call()
 	if hwnd == 0 {
-		return fmt.Errorf("no active window found")
+		return windowsBackendError(WindowNotFound, "no active foreground window", nil)
 	}
-
-	// 发送 WM_CLOSE 消息给活动窗口
-	procSendMessageW.Call(
-		hwnd,
-		uintptr(WM_CLOSE),
-		0,
-		0,
-	)
-	return nil
+	return requestCloseWindow(hwnd)
 }
 
-// Kill 终止指定的进程
 func (w *windowsWindowManager) Kill(processId uint32) error {
-	const PROCESS_TERMINATE = 0x0001
-
-	handle, _, _ := procOpenProcess.Call(
-		uintptr(PROCESS_TERMINATE),
-		0,
-		uintptr(processId),
-	)
+	handle, _, callErr := procOpenProcess.Call(processTerminate, 0, uintptr(processId))
 	if handle == 0 {
-		return fmt.Errorf("failed to open process")
+		return windowsErrorFromCall("OpenProcess(PROCESS_TERMINATE) failed", callErr)
 	}
 	defer windows.CloseHandle(windows.Handle(handle))
-
-	ret, _, _ := procTerminateProcess.Call(
-		handle,
-		0,
-	)
-	if ret == 0 {
-		return fmt.Errorf("failed to kill process")
+	result, _, terminateErr := procTerminateProcess.Call(handle, 1)
+	if result == 0 {
+		return windowsErrorFromCall("TerminateProcess failed", terminateErr)
 	}
-
 	return nil
 }
 
-// Title 获取当前活动窗口的标题
 func (w *windowsWindowManager) Title() (string, error) {
-	hwnd, _, _ := procGetForegroundWindow.Call()
-	if hwnd == 0 {
-		return "", fmt.Errorf("no active window found")
-	}
-	return getWindowTitle(windows.Handle(hwnd)), nil
-}
-
-// GetTitle 获取指定窗口的标题
-func (w *windowsWindowManager) GetTitle(selector string) (string, error) {
-	titlePtr, err := windows.UTF16PtrFromString(selector)
+	info, err := w.GetActiveWindow()
 	if err != nil {
-		return "", fmt.Errorf("invalid selector: %v", err)
+		return "", err
 	}
-
-	hwnd, _, _ := procFindWindowW.Call(
-		0,
-		uintptr(unsafe.Pointer(titlePtr)),
-	)
-
-	if hwnd == 0 {
-		return "", fmt.Errorf("window with selector '%s' not found", selector)
-	}
-
-	return getWindowTitle(windows.Handle(hwnd)), nil
+	return info.Title, nil
 }
 
-// Content 获取当前活动窗口的内容
+func (w *windowsWindowManager) GetTitle(selector string) (string, error) {
+	info, err := w.GetWindowByTitle(selector)
+	if err != nil {
+		return "", err
+	}
+	return info.Title, nil
+}
+
+func boundedWindowText(hwnd uintptr) string {
+	if !isValidWindow(hwnd) {
+		return ""
+	}
+	var lengthResult uintptr
+	ok, _, _ := procSendMessageTimeoutW.Call(
+		hwnd,
+		WM_GETTEXTLENGTH,
+		0,
+		0,
+		smtoBlock|smtoAbortIfHung|smtoErrorOnExit,
+		uintptr(windowsTextTimeout/time.Millisecond),
+		uintptr(unsafe.Pointer(&lengthResult)),
+	)
+	if ok == 0 || lengthResult == 0 || lengthResult > 1<<20 {
+		return ""
+	}
+	buffer := make([]uint16, int(lengthResult)+1)
+	var copied uintptr
+	ok, _, _ = procSendMessageTimeoutW.Call(
+		hwnd,
+		WM_GETTEXT,
+		uintptr(len(buffer)),
+		uintptr(unsafe.Pointer(&buffer[0])),
+		smtoBlock|smtoAbortIfHung|smtoErrorOnExit,
+		uintptr(windowsTextTimeout/time.Millisecond),
+		uintptr(unsafe.Pointer(&copied)),
+	)
+	if ok == 0 || copied == 0 {
+		return ""
+	}
+	return windows.UTF16ToString(buffer)
+}
+
+func collectWindowContent(hwnd uintptr) (string, error) {
+	if err := requireValidWindow(hwnd); err != nil {
+		return "", err
+	}
+	values := make([]string, 0, 16)
+	seen := make(map[string]struct{})
+	add := func(value string) {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			return
+		}
+		if _, ok := seen[value]; ok {
+			return
+		}
+		seen[value] = struct{}{}
+		values = append(values, value)
+	}
+	add(getWindowTitle(windows.Handle(hwnd)))
+	callback := syscall.NewCallback(func(child uintptr, _ uintptr) uintptr {
+		add(boundedWindowText(child))
+		if text := getWindowTitle(windows.Handle(child)); text != "" {
+			add(text)
+		}
+		return 1
+	})
+	procEnumChildWindows.Call(hwnd, callback, 0)
+	return strings.Join(values, "\n"), nil
+}
+
 func (w *windowsWindowManager) Content() (string, error) {
 	hwnd, _, _ := procGetForegroundWindow.Call()
 	if hwnd == 0 {
-		return "", fmt.Errorf("no active window found")
+		return "", windowsBackendError(WindowNotFound, "no active foreground window", nil)
 	}
-	return w.getWindowContent(windows.Handle(hwnd)), nil
+	return collectWindowContent(hwnd)
 }
 
-// GetContent 获取指定窗口的内容
 func (w *windowsWindowManager) GetContent(selector string) (string, error) {
-	titlePtr, err := windows.UTF16PtrFromString(selector)
+	hwnd, err := findUniqueWindowByTitle(selector)
 	if err != nil {
-		return "", fmt.Errorf("invalid selector: %v", err)
+		return "", err
 	}
-
-	hwnd, _, _ := procFindWindowW.Call(
-		0,
-		uintptr(unsafe.Pointer(titlePtr)),
-	)
-
-	if hwnd == 0 {
-		return "", fmt.Errorf("window with selector '%s' not found", selector)
-	}
-
-	return w.getWindowContent(windows.Handle(hwnd)), nil
+	return collectWindowContent(hwnd)
 }
 
-// getWindowContent 增强版获取窗口的完整内容
-func (w *windowsWindowManager) getWindowContent(hwnd windows.Handle) string {
-	var content strings.Builder
-
-	// 1. 获取主窗口基本内容
-	mainText := getWindowText(hwnd)
-	if mainText != "" {
-		content.WriteString(mainText)
-		content.WriteString("\n")
-	}
-
-	// 2. 获取窗口类名
-	className := getWindowClass(hwnd)
-
-	// 3. 特殊处理不同类型的控件
-	switch className {
-	case "Edit", "RichEdit", "RichEdit20W", "RICHEDIT50W":
-		if text := getRichEditContent(hwnd); text != "" {
-			content.WriteString(text)
-			content.WriteString("\n")
-		}
-	}
-
-	// 4. 获取所有子窗口内容
-	var getChildContent func(hwnd windows.Handle)
-	getChildContent = func(hwnd windows.Handle) {
-		// 获取子窗口类名
-		childClass := getWindowClass(hwnd)
-
-		// 根据不同类型的控件获取内容
-		var childText string
-		switch childClass {
-		case "Edit", "RichEdit", "RichEdit20W", "RICHEDIT50W":
-			childText = getRichEditContent(hwnd)
-		default:
-			childText = getWindowText(hwnd)
-		}
-
-		if childText != "" {
-			content.WriteString(childText)
-			content.WriteString("\n")
-		}
-
-		// 递归获取子窗口的内容
-		callback := func(childHwnd windows.Handle, lparam uintptr) uintptr {
-			getChildContent(childHwnd)
-			return 1
-		}
-
-		procEnumChildWindows.Call(
-			uintptr(hwnd),
-			windows.NewCallback(callback),
-			0,
-		)
-	}
-
-	// 5. 获取焦点窗口的内容
-	if focusHwnd := getFocusWindow(hwnd); focusHwnd != 0 {
-		if focusText := getWindowText(windows.Handle(focusHwnd)); focusText != "" {
-			content.WriteString(focusText)
-			content.WriteString("\n")
-		}
-	}
-
-	// 开始获取子窗口内容
-	getChildContent(hwnd)
-
-	return content.String()
-}
-
-// getRichEditContent 获取富文本框内容
-func getRichEditContent(hwnd windows.Handle) string {
-	// 获取文本长度
-	length, _, _ := procSendMessageW.Call(
-		uintptr(hwnd),
-		uintptr(WM_GETTEXTLENGTH),
-		0,
-		0,
-	)
-
-	if length == 0 {
-		return ""
-	}
-
-	// 分配缓冲区
-	buffer := make([]uint16, length+1)
-
-	// 获取文本内容
-	procSendMessageW.Call(
-		uintptr(hwnd),
-		uintptr(WM_GETTEXT),
-		uintptr(length+1),
-		uintptr(unsafe.Pointer(&buffer[0])),
-	)
-
-	return windows.UTF16ToString(buffer)
-}
-
-// getWindowText 获取窗口的文本内容
-func getWindowText(hwnd windows.Handle) string {
-	textLen, _, _ := procGetWindowTextLengthW.Call(uintptr(hwnd))
-	if textLen == 0 {
-		return ""
-	}
-
-	buffer := make([]uint16, textLen+1)
-	procGetWindowTextW.Call(
-		uintptr(hwnd),
-		uintptr(unsafe.Pointer(&buffer[0])),
-		uintptr(len(buffer)),
-	)
-
-	return windows.UTF16ToString(buffer)
-}
-
-// List returns window information in a format suitable for JavaScript
 func (w *windowsWindowManager) List() ([]map[string]interface{}, error) {
-	// 首先获取所有窗口
-	var allWindows []syscall.Handle
-	enumWindows := func(hwnd syscall.Handle, lparam uintptr) uintptr {
-		isVisible, _, _ := procIsWindowVisible.Call(uintptr(hwnd))
-		if isVisible != 0 {
-			title := getWindowTitle(windows.Handle(hwnd))
-			if title != "" {
-				allWindows = append(allWindows, hwnd)
+	foreground, _, focus, _ := foregroundAndFocus()
+	handles := enumerateTopLevelWindows(false)
+	rows := make([]map[string]interface{}, 0, len(handles))
+	for i, hwnd := range handles {
+		if getWindowTitle(windows.Handle(hwnd)) == "" {
+			continue
+		}
+		info, err := buildWindowInfo(hwnd, len(handles)-i, foreground, focus)
+		if err != nil {
+			// Window enumeration races are expected. A row that goes stale is
+			// omitted; metadata failures never make a valid row disappear.
+			if windowErr, ok := err.(*WindowError); ok && windowErr.Code == WindowStaleTarget {
+				continue
 			}
+			continue
 		}
-		return 1
+		rows = append(rows, map[string]interface{}{
+			"title":        info.Title,
+			"pid":          info.ProcessID,
+			"processId":    info.ProcessID,
+			"x":            info.X,
+			"y":            info.Y,
+			"width":        info.Width,
+			"height":       info.Height,
+			"exeName":      info.ExeName,
+			"exePath":      info.ExePath,
+			"isForeground": info.IsForeground,
+			"hasFocus":     info.HasFocus,
+			"isPopup":      info.IsPopup,
+			"handle":       info.Handle,
+			"index":        info.Index,
+		})
 	}
-
-	cb := syscall.NewCallback(enumWindows)
-	procEnumWindows.Call(cb, 0)
-
-	// 获取前台窗口
-	foregroundHwnd, _, _ := procGetForegroundWindow.Call()
-
-	// 构建窗口Z顺序链（从顶到底）
-	var orderedWindows []syscall.Handle
-
-	// 1. 把前台窗口放在第一位
-	if foregroundHwnd != 0 {
-		for i, hwnd := range allWindows {
-			if uintptr(hwnd) == foregroundHwnd {
-				orderedWindows = append(orderedWindows, hwnd)
-				allWindows = append(allWindows[:i], allWindows[i+1:]...)
-				break
-			}
-		}
-	}
-
-	// 2. 使用GetWindow + GW_HWNDNEXT构建Z顺序
-	currentHwnd := foregroundHwnd
-	for currentHwnd != 0 && len(orderedWindows) < len(allWindows)+1 {
-		nextHwnd, _, _ := procGetWindow.Call(currentHwnd, GW_HWNDNEXT)
-		if nextHwnd != 0 {
-			// 检查这个窗口是否在我们的列表中
-			for i, hwnd := range allWindows {
-				if uintptr(hwnd) == nextHwnd {
-					orderedWindows = append(orderedWindows, hwnd)
-					allWindows = append(allWindows[:i], allWindows[i+1:]...)
-					break
-				}
-			}
-		}
-		currentHwnd = nextHwnd
-		if currentHwnd == 0 {
-			break
-		}
-	}
-
-	// 3. 添加剩余的窗口（如果有的话）
-	orderedWindows = append(orderedWindows, allWindows...)
-
-	// 创建最终的窗口信息列表，但使用map[string]interface{}格式
-	var windowsList []map[string]interface{}
-	windowCount := len(orderedWindows)
-
-	for i, hwnd := range orderedWindows {
-		// 获取窗口信息，与之前相同
-		title := getWindowTitle(windows.Handle(hwnd))
-		x, y, width, height := getWindowRect(windows.Handle(hwnd))
-		processId := getWindowProcessId(windows.Handle(hwnd))
-		exeName, exePath, _ := getProcessExecutableInfo(processId)
-
-		isForeground := uintptr(hwnd) == foregroundHwnd
-
-		hasFocus := false
-		focusHwnd := getForegroundWindow()
-		if focusHwnd != 0 {
-			focusHandle := windows.Handle(focusHwnd)
-			threadFocus := getFocusWindow(focusHandle)
-			hasFocus = uintptr(hwnd) == threadFocus
-		}
-
-		style := getWindowStyle(hwnd)
-		isPopup := (style & WS_POPUP) == WS_POPUP
-
-		// 使用map[string]interface{}代替结构体
-		// 修改索引值，使其类似于HTML的z-index：数字越大，显示层级越高
-		zIndex := windowCount - i - 1
-
-		windowInfo := map[string]interface{}{
-			"title":        title,
-			"pid":          processId,
-			"processId":    processId,
-			"x":            x,
-			"y":            y,
-			"width":        width,
-			"height":       height,
-			"exeName":      exeName,
-			"exePath":      exePath,
-			"isForeground": isForeground,
-			"hasFocus":     hasFocus,
-			"isPopup":      isPopup,
-			"handle":       uintptr(hwnd),
-			"index":        zIndex, // 数字越大，显示层级越高，类似HTML的z-index
-		}
-
-		windowsList = append(windowsList, windowInfo)
-	}
-
-	return windowsList, nil
+	return rows, nil
 }
 
-func getWindowStyle(hwnd syscall.Handle) uint32 {
-	ret, _, _ := procGetWindowLongW.Call(
-		uintptr(hwnd),
-		^uintptr(15), // This is equivalent to -16 but avoids the overflow
-	)
-	return uint32(ret)
-}
-
-// Add these to your console.go or appropriate logging file:
-func (c *Console) formatWindowInfo(info *WindowInfo) string {
-	if info == nil {
-		return "null"
+func setWindowTopmost(hwnd uintptr, topmost bool) error {
+	if err := requireValidWindow(hwnd); err != nil {
+		return err
 	}
-	return fmt.Sprintf(
-		"{title: %q, processId: %d, exeName: %q, isForeground: %v, hasFocus: %v, isPopup: %v, handle: %d, dimensions: {x: %d, y: %d, width: %d, height: %d}}",
-		info.Title,
-		info.ProcessID,
-		info.ExeName,
-		info.IsForeground,
-		info.HasFocus,
-		info.IsPopup,
-		info.Handle,
-		info.X,
-		info.Y,
-		info.Width,
-		info.Height,
-	)
-}
-
-// Keep only one version of getWindowClass
-func getWindowClass(hwnd windows.Handle) string {
-	buf := make([]uint16, 256)
-	ret, _, _ := procGetClassName.Call(
-		uintptr(hwnd),
-		uintptr(unsafe.Pointer(&buf[0])),
-		uintptr(len(buf)),
-	)
-	if ret == 0 {
-		return ""
+	insertAfter := ^uintptr(0) // HWND_TOPMOST (-1)
+	expected := windowsStateTopmost
+	if !topmost {
+		insertAfter = ^uintptr(1) // HWND_NOTOPMOST (-2)
+		expected = windowsStateNotTopmost
 	}
-	return windows.UTF16ToString(buf)
-}
-
-// isWindowVisible 判断窗口是否可见
-func isWindowVisible(hwnd syscall.Handle) bool {
-	ret, _, _ := windows.NewLazySystemDLL("user32.dll").NewProc("IsWindowVisible").Call(uintptr(hwnd))
-	return ret != 0
-}
-
-// getForegroundWindow 获取前台窗口句柄
-func getForegroundWindow() uintptr {
-	hwnd, _, _ := procGetForegroundWindow.Call()
-	return hwnd
-}
-
-// Function to get focused window of a thread
-func getFocusWindowHandle(hwnd windows.Handle) uintptr {
-	var threadId uint32
-	procGetWindowThreadProcessId.Call(
-		uintptr(hwnd),
-		uintptr(unsafe.Pointer(&threadId)),
-	)
-
-	var gui GUITHREADINFO
-	gui.CbSize = uint32(unsafe.Sizeof(gui))
-
-	procGetGUIThreadInfo.Call(
-		uintptr(threadId),
-		uintptr(unsafe.Pointer(&gui)),
-	)
-
-	return uintptr(gui.HwndFocus)
-}
-
-// Add this to your automation/window.go file
-
-// GetFocusWindow returns information about the currently focused window
-func (w *windowsWindowManager) GetFocusWindow() (*WindowInfo, error) {
-	// Get the foreground window first
-	hwnd, _, _ := procGetForegroundWindow.Call()
-	if hwnd == 0 {
-		// If no foreground window, return null without error
-		return nil, nil
-	}
-
-	// Get the focused window handle
-	focusHwnd := getFocusWindow(windows.Handle(hwnd))
-	if focusHwnd == 0 {
-		// If no focus window, fall back to foreground window
-		focusHwnd = hwnd
-	}
-
-	// Get window properties
-	title := getWindowTitle(windows.Handle(focusHwnd))
-	x, y, width, height := getWindowRect(windows.Handle(focusHwnd))
-	processId := getWindowProcessId(windows.Handle(focusHwnd))
-
-	// Get executable information
-	exeName, exePath, _ := getProcessExecutableInfo(processId)
-
-	// Check if window is foreground
-	foregroundHwnd, _, _ := procGetForegroundWindow.Call()
-	isForeground := focusHwnd == foregroundHwnd
-
-	// Get window style to check if it's a popup
-	style := getWindowStyle(syscall.Handle(focusHwnd))
-	isPopup := (style & WS_POPUP) == WS_POPUP
-
-	return &WindowInfo{
-		Title:        title,
-		ProcessID:    processId,
-		X:            x,
-		Y:            y,
-		Width:        width,
-		Height:       height,
-		ExeName:      exeName,
-		ExePath:      exePath,
-		IsForeground: isForeground,
-		HasFocus:     focusHwnd == hwnd,
-		Handle:       uint64(focusHwnd),
-		IsPopup:      isPopup,
-	}, nil
-}
-
-// Modify getFocusWindow to be more robust
-func getFocusWindow(hwnd windows.Handle) uintptr {
-	var threadId uint32
-	procGetWindowThreadProcessId.Call(
-		uintptr(hwnd),
-		uintptr(unsafe.Pointer(&threadId)),
-	)
-
-	var gui GUITHREADINFO
-	gui.CbSize = uint32(unsafe.Sizeof(gui))
-
-	ret, _, _ := procGetGUIThreadInfo.Call(
-		uintptr(threadId),
-		uintptr(unsafe.Pointer(&gui)),
-	)
-
-	if ret == 0 || gui.HwndFocus == 0 {
-		// If we can't get focus info or there's no focus window,
-		// return the original window handle
-		return uintptr(hwnd)
-	}
-
-	return uintptr(gui.HwndFocus)
-}
-
-// 添加新的Windows API调用
-var (
-	// 已有的变量声明
-	procSetWindowPos = windows.NewLazySystemDLL("user32.dll").NewProc("SetWindowPos")
-)
-
-// SetAlwaysOnTop 设置窗口始终置顶
-func (w *windowsWindowManager) SetAlwaysOnTop(title string, alwaysOnTop bool) error {
-	if title == "" {
-		return fmt.Errorf("window title cannot be empty")
-	}
-
-	titlePtr, err := windows.UTF16PtrFromString(title)
-	if err != nil {
-		return fmt.Errorf("invalid title: %v", err)
-	}
-
-	hwnd, _, err := procFindWindowW.Call(
+	result, _, callErr := procSetWindowPos.Call(
+		hwnd,
+		insertAfter,
 		0,
-		uintptr(unsafe.Pointer(titlePtr)),
+		0,
+		0,
+		0,
+		SWP_NOMOVE|SWP_NOSIZE|swpNoActivate,
 	)
-
-	if hwnd == 0 {
-		lastErr := syscall.GetLastError()
-		return fmt.Errorf("FindWindow failed for '%s': %v", title, lastErr)
-	}
-
-	// 确保窗口可见
-	visible, _, _ := procIsWindowVisible.Call(hwnd)
-	if visible == 0 {
-		lastErr := syscall.GetLastError()
-		return fmt.Errorf("window '%s' is not visible: %v", title, lastErr)
-	}
-
-	// 记录原始窗口位置和大小
-	var rect windows.Rect
-	ret, _, err := procGetWindowRect.Call(
-		hwnd,
-		uintptr(unsafe.Pointer(&rect)),
-	)
-	if ret == 0 {
-		lastErr := syscall.GetLastError()
-		return fmt.Errorf("GetWindowRect failed for '%s': %v", title, lastErr)
-	}
-
-	// 如果窗口在屏幕外，先移动到可见区域
-	if rect.Left < -10000 || rect.Top < -10000 {
-		ret, _, err = procMoveWindow.Call(
-			hwnd,
-			100,
-			100,
-			uintptr(rect.Right-rect.Left),
-			uintptr(rect.Bottom-rect.Top),
-			1,
-		)
-		if ret == 0 {
-			lastErr := syscall.GetLastError()
-			return fmt.Errorf("MoveWindow failed for '%s': %v", title, lastErr)
+	if result == 0 {
+		if !isValidWindow(hwnd) {
+			return windowsBackendError(WindowStaleTarget, "window disappeared before topmost update completed", nil)
 		}
+		return windowsErrorFromCall("SetWindowPos failed", callErr)
 	}
-
-	// 先尝试激活窗口
-	ret, _, err = procSetForegroundWindow.Call(hwnd)
-	if ret == 0 {
-		// 记录错误但继续执行
-		fmt.Printf("Warning: SetForegroundWindow failed for '%s': %v\n", title, err)
-	}
-
-	// 设置窗口位置
-	var flag uintptr
-	if alwaysOnTop {
-		flag = ^uintptr(0) // HWND_TOPMOST (-1)
-	} else {
-		flag = ^uintptr(1) // HWND_NOTOPMOST (-2)
-	}
-
-	ret, _, err = procSetWindowPos.Call(
-		hwnd,
-		flag,
-		uintptr(rect.Left),
-		uintptr(rect.Top),
-		uintptr(rect.Right-rect.Left),
-		uintptr(rect.Bottom-rect.Top),
-		uintptr(SWP_SHOWWINDOW),
-	)
-
-	if ret == 0 {
-		lastErr := syscall.GetLastError()
-		return fmt.Errorf("SetWindowPos failed for '%s': %v", title, lastErr)
-	}
-
-	return nil
+	return waitForWindowsState(hwnd, expected, windowsMutationTimeout)
 }
 
-// UnsetTopMost 取消窗口的置顶状态
-func (w *windowsWindowManager) UnsetTopMost(title string) error {
-	if title == "" {
-		return fmt.Errorf("window title cannot be empty")
+func (w *windowsWindowManager) SetAlwaysOnTop(title string, alwaysOnTop bool) error {
+	hwnd, err := findUniqueWindowByTitle(title)
+	if err != nil {
+		return err
 	}
+	return setWindowTopmost(hwnd, alwaysOnTop)
+}
+
+func (w *windowsWindowManager) UnsetTopMost(title string) error {
 	return w.SetAlwaysOnTop(title, false)
 }
 
-// WindowManager 的方法之一
-func (w *windowsWindowManager) attachThreadInput(idAttach, idAttachTo uint32, attach bool) error {
-	var attachVal uintptr
-	if attach {
-		attachVal = 1
+func pidFromInterface(value interface{}) (uint32, bool) {
+	switch typed := value.(type) {
+	case uint32:
+		return typed, typed > 0
+	case uint64:
+		if typed > 0 && typed <= uint64(^uint32(0)) {
+			return uint32(typed), true
+		}
+	case uint:
+		if uint64(typed) > 0 && uint64(typed) <= uint64(^uint32(0)) {
+			return uint32(typed), true
+		}
+	case int:
+		if typed > 0 && uint64(typed) <= uint64(^uint32(0)) {
+			return uint32(typed), true
+		}
+	case int32:
+		if typed > 0 {
+			return uint32(typed), true
+		}
+	case int64:
+		if typed > 0 && uint64(typed) <= uint64(^uint32(0)) {
+			return uint32(typed), true
+		}
+	case float64:
+		if typed > 0 && typed <= float64(^uint32(0)) && typed == float64(uint32(typed)) {
+			return uint32(typed), true
+		}
 	}
-
-	ret, _, err := windows.NewLazySystemDLL("user32.dll").NewProc("AttachThreadInput").Call(
-		uintptr(idAttach),
-		uintptr(idAttachTo),
-		attachVal,
-	)
-
-	if ret == 0 {
-		return fmt.Errorf("AttachThreadInput failed: %v", err)
-	}
-	return nil
+	return 0, false
 }
 
 func (w *windowsWindowManager) BringToTop(title string, pid interface{}) error {
-	if title == "" {
-		return fmt.Errorf("window title cannot be empty")
+	var hwnd uintptr
+	var err error
+	if strings.TrimSpace(title) != "" {
+		hwnd, err = findUniqueWindowByTitle(title)
+	} else if processID, ok := pidFromInterface(pid); ok {
+		hwnd, err = findWindowByPID(processID)
+	} else {
+		return windowsBackendError(WindowInvalidArgument, "bringToTop requires a title or positive pid", nil)
 	}
-
-	// fmt.Printf("BringToTop called with title: '%s'\n", title)
-	// fmt.Printf("PID parameter type: %T, value: %v\n", pid, pid)
-
-	targetPID := uint32(jsToInt(pid))
-	// fmt.Printf("Converted target PID: %d\n", targetPID)
-
-	// 直接尝试通过标题查找窗口
-	titlePtr, err := syscall.UTF16PtrFromString(title)
 	if err != nil {
-		return fmt.Errorf("invalid title: %v", err)
+		return err
 	}
-
-	// 尝试直接找到窗口句柄
-	hwnd, _, _ := procFindWindowW.Call(
-		0,
-		uintptr(unsafe.Pointer(titlePtr)),
-	)
-
-	if hwnd == 0 {
-		fmt.Printf("FindWindow failed, trying EnumWindows...\n")
-		// 如果直接查找失败，则使用EnumWindows
-		type WindowInfo struct {
-			hwnd  uintptr
-			pid   uint32
-			title string
-		}
-
-		var foundWindow WindowInfo
-		var found bool
-
-		enumFunc := syscall.NewCallback(func(hwnd syscall.Handle, lparam uintptr) uintptr {
-			// 获取窗口标题
-			length, _, _ := procGetWindowTextLengthW.Call(uintptr(hwnd))
-			if length == 0 {
-				return 1
-			}
-
-			buf := make([]uint16, length+1)
-			_, _, _ = procGetWindowTextW.Call(
-				uintptr(hwnd),
-				uintptr(unsafe.Pointer(&buf[0])),
-				uintptr(len(buf)),
-			)
-
-			windowTitle := syscall.UTF16ToString(buf)
-
-			// 获取窗口PID
-			var windowPID uint32
-			_, _, _ = procGetWindowThreadProcessId.Call(
-				uintptr(hwnd),
-				uintptr(unsafe.Pointer(&windowPID)),
-			)
-
-			// fmt.Printf("Checking window - Title: '%s', PID: %d\n", windowTitle, windowPID)
-
-			if windowTitle == title {
-				if targetPID != 0 {
-					if windowPID == targetPID {
-						foundWindow = WindowInfo{
-							hwnd:  uintptr(hwnd),
-							pid:   windowPID,
-							title: windowTitle,
-						}
-						found = true
-						return 0 // 停止枚举
-					}
-				} else {
-					foundWindow = WindowInfo{
-						hwnd:  uintptr(hwnd),
-						pid:   windowPID,
-						title: windowTitle,
-					}
-					found = true
-					return 0 // 停止枚举
-				}
-			} else if strings.Contains(windowTitle, title) {
-				// 保存模糊匹配的结果，但继续搜索精确匹配
-				if !found {
-					foundWindow = WindowInfo{
-						hwnd:  uintptr(hwnd),
-						pid:   windowPID,
-						title: windowTitle,
-					}
-				}
-			}
-			return 1
-		})
-
-		// 执行窗口枚举
-		procEnumWindows.Call(uintptr(enumFunc), 0)
-
-		if found {
-			hwnd = foundWindow.hwnd
-			fmt.Printf("Found window through enumeration - Title: '%s', PID: %d\n",
-				foundWindow.title, foundWindow.pid)
+	if !isWindowVisible(hwnd) {
+		if err := showWindowAndVerify(hwnd, SW_SHOW, windowsStateVisible); err != nil {
+			return err
 		}
 	}
-
-	if hwnd == 0 {
-		return fmt.Errorf("no window found with title '%s'", title)
-	}
-
-	// fmt.Printf("Found target window with handle: %v\n", hwnd)
-
-	// 获取窗口位置
-	var rect RECT
-	ret, _, _ := procGetWindowRect.Call(
-		hwnd,
-		uintptr(unsafe.Pointer(&rect)),
-	)
-	if ret == 0 {
-		return fmt.Errorf("GetWindowRect failed")
-	}
-
-	// 确保窗口可见
-	visible, _, _ := procIsWindowVisible.Call(hwnd)
-	if visible == 0 {
-		// fmt.Printf("Window is not visible, attempting to show\n")
-		commands := []int{SW_RESTORE, SW_SHOW, SW_NORMAL}
-		for _, cmd := range commands {
-			_, _, _ = procShowWindow.Call(hwnd, uintptr(cmd))
-			time.Sleep(50 * time.Millisecond)
+	if isWindowIconic(hwnd) {
+		if err := showWindowAndVerify(hwnd, SW_RESTORE, windowsStateRestored); err != nil {
+			return err
 		}
 	}
-
-	// 如果窗口在屏幕外，移动到可见区域
-	if rect.Left < -10000 || rect.Top < -10000 {
-		// fmt.Printf("Moving window to visible area\n")
-		_, _, _ = procMoveWindow.Call(
-			hwnd,
-			100,
-			100,
-			uintptr(rect.Right-rect.Left),
-			uintptr(rect.Bottom-rect.Top),
-			1,
-		)
+	procBringWindowToTop.Call(hwnd)
+	procSetForegroundWindow.Call(hwnd)
+	deadline := time.Now().Add(windowsMutationTimeout)
+	for {
+		foreground, _, _ := procGetForegroundWindow.Call()
+		if foreground == hwnd {
+			return nil
+		}
+		if !isValidWindow(hwnd) {
+			return windowsBackendError(WindowStaleTarget, "window disappeared while bringToTop was pending", nil)
+		}
+		if time.Now().After(deadline) {
+			return windowsBackendError(WindowVerificationFailed, "Windows foreground policy rejected bringToTop", nil)
+		}
+		time.Sleep(windowsMutationPoll)
 	}
-
-	// 尝试设置为前台窗口
-	// fmt.Printf("Setting window as foreground\n")
-	_, _, _ = procSetForegroundWindow.Call(hwnd)
-
-	// 确保窗口在最前
-	// fmt.Printf("Setting window position to topmost\n")
-	_, _, _ = procSetWindowPos.Call(
-		hwnd,
-		uintptr(HWND_TOPMOST),
-		uintptr(rect.Left),
-		uintptr(rect.Top),
-		uintptr(rect.Right-rect.Left),
-		uintptr(rect.Bottom-rect.Top),
-		uintptr(SWP_SHOWWINDOW),
-	)
-
-	time.Sleep(50 * time.Millisecond)
-
-	// 恢复正常层级
-	// fmt.Printf("Resetting window position to notopmost\n")
-	_, _, _ = procSetWindowPos.Call(
-		hwnd,
-		uintptr(HWND_NOTOPMOST),
-		uintptr(rect.Left),
-		uintptr(rect.Top),
-		uintptr(rect.Right-rect.Left),
-		uintptr(rect.Bottom-rect.Top),
-		uintptr(SWP_SHOWWINDOW),
-	)
-
-	// fmt.Printf("BringToTop completed successfully\n")
-	return nil
-}
-
-// isMainWindow 检查是否是主窗口
-func isMainWindow(hwnd syscall.Handle) bool {
-	// 检查窗口是否有父窗口
-	parent, _, _ := procGetParent.Call(uintptr(hwnd))
-	if parent != 0 {
-		return false
-	}
-
-	// 检查窗口样式
-	style, _, _ := procGetWindowLongW.Call(uintptr(hwnd), ^uintptr(0x0f))
-	if (style & WS_VISIBLE) == 0 {
-		return false
-	}
-
-	return true
-}
-
-// 系统调用定义
-var (
-	procGetParent          = windows.NewLazySystemDLL("user32.dll").NewProc("GetParent")
-	procGetMonitorInfo     = windows.NewLazySystemDLL("user32.dll").NewProc("GetMonitorInfo")
-	procMonitorFromWindow  = windows.NewLazySystemDLL("user32.dll").NewProc("MonitorFromWindow")
-	procGetWindowPlacement = windows.NewLazySystemDLL("user32.dll").NewProc("GetWindowPlacement")
-)
-
-// 需要添加的常量
-const (
-	MONITOR_DEFAULTTOPRIMARY = 1
-	WS_VISIBLE               = 0x10000000
-)
-
-// MONITORINFO 结构体
-type MONITORINFO struct {
-	CbSize    uint32
-	RcMonitor RECT
-	RcWork    RECT
-	DwFlags   uint32
 }
