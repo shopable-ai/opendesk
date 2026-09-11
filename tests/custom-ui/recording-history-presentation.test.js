@@ -108,6 +108,8 @@ test('history presentation keeps one horizontal row shape and adds bounded pagin
   assert.doesNotMatch(html, /id="recordingId0"/);
   assert.match(html, /id="run9"/);
   assert.doesNotMatch(html, /id="run10"/);
+  assert.match(html, /id="recording1"[^>]* hidden/);
+  assert.match(html, /id="run1"[^>]* hidden/);
 
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'opendesk-history-ui-'));
   const root = path.join(temp, '.runtime', 'recordings');
@@ -145,6 +147,11 @@ test('history presentation keeps one horizontal row shape and adds bounded pagin
   assert.equal(window.controls.get('prevHistory').patch.disabled, true);
   assert.equal(window.controls.get('nextHistory').patch.disabled, true);
   assert.equal(window.controls.get('pageIndicator').patch.text, '第 1 / 1 页 · 共 1 条');
+  assert.equal(window.controls.get('recording0').patch.visible, true);
+  assert.equal(window.controls.get('recording1').patch.visible, false);
+  for (const id of ['run1', 'rename1', 'open1', 'delete1']) {
+    assert.equal(window.controls.get(id).patch.visible, false, `${id} must be hidden for an empty slot`);
+  }
   assert.deepEqual(History.actionIcons(), {run: 'play.fill', rename: 'pencil', open: 'folder.fill', delete: 'trash.fill'});
   assert.deepEqual(History.pagerIcons(), {
     first: 'backward.end.fill', previous: 'backward.fill', next: 'forward.fill',

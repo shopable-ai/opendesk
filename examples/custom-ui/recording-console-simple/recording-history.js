@@ -227,15 +227,16 @@
     for (let index = 0; index < page.pageSize; index++) {
       const row = page.rows[index] || null;
       const title = row ? displayTitle(row) : '';
+      const hidden = row ? '' : ' hidden';
       slots.push(`
-        <section id="recording${index}" class="recording">
+        <section id="recording${index}" class="recording"${hidden}>
           <span id="recordingName${index}" class="name">${escapeHTML(title)}</span>
           <span id="recordingTime${index}" class="time">${row ? escapeHTML(displayTimestamp(row.startedAt)) : ''}</span>
           <div id="recordingActions${index}" class="actions">
-            <button id="run${index}" class="icon-action" title="运行" aria-label="运行"${row && row.scriptFile ? '' : ' disabled'}>运行</button>
-            <button id="rename${index}" class="icon-action" title="改名" aria-label="改名"${row ? '' : ' disabled'}>改名</button>
-            <button id="open${index}" class="icon-action" title="打开目录" aria-label="打开目录"${row ? '' : ' disabled'}>打开目录</button>
-            <button id="delete${index}" class="icon-action danger" title="删除" aria-label="删除"${row ? '' : ' disabled'}>删除</button>
+            <button id="run${index}" class="icon-action" title="运行" aria-label="运行"${row && row.scriptFile ? '' : ' disabled'}${hidden}>运行</button>
+            <button id="rename${index}" class="icon-action" title="改名" aria-label="改名"${row ? '' : ' disabled'}${hidden}>改名</button>
+            <button id="open${index}" class="icon-action" title="打开目录" aria-label="打开目录"${row ? '' : ' disabled'}${hidden}>打开目录</button>
+            <button id="delete${index}" class="icon-action danger" title="删除" aria-label="删除"${row ? '' : ' disabled'}${hidden}>删除</button>
           </div>
         </section>`);
     }
@@ -499,9 +500,15 @@
           }
           return state;
         }));
-        tasks.push(requiredUpdate(window, `run${index}`, {disabled: locked || !row || !row.scriptFile}));
+        tasks.push(requiredUpdate(window, `run${index}`, {
+          visible: !!row,
+          disabled: locked || !row || !row.scriptFile,
+        }));
         for (const action of ['rename', 'open', 'delete']) {
-          tasks.push(requiredUpdate(window, `${action}${index}`, {disabled: locked || !row}));
+          tasks.push(requiredUpdate(window, `${action}${index}`, {
+            visible: !!row,
+            disabled: locked || !row,
+          }));
         }
       }
       await Promise.all(tasks);
@@ -531,9 +538,15 @@
       ];
       for (let index = 0; index < PAGE_SIZE; index++) {
         const row = visibleRows[index] || null;
-        tasks.push(safeUpdate(window, `run${index}`, {disabled: locked || !row || !row.scriptFile}));
+        tasks.push(safeUpdate(window, `run${index}`, {
+          visible: !!row,
+          disabled: locked || !row || !row.scriptFile,
+        }));
         for (const action of ['rename', 'open', 'delete']) {
-          tasks.push(safeUpdate(window, `${action}${index}`, {disabled: locked || !row}));
+          tasks.push(safeUpdate(window, `${action}${index}`, {
+            visible: !!row,
+            disabled: locked || !row,
+          }));
         }
       }
       await Promise.all(tasks);
