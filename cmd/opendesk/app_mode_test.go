@@ -1,9 +1,41 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestBundledAppModePathIsOptInForDesktopEntries(t *testing.T) {
+	root := t.TempDir()
+	macExecutable := filepath.Join(root, "OpenDesk.app", "Contents", "MacOS", "opendesk")
+	macPackage := filepath.Join(root, "OpenDesk.app", "Contents", "Resources", "AppMode")
+	if err := os.MkdirAll(macPackage, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(macPackage, "opendesk.app.json"), []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := bundledAppModePathForExecutable(macExecutable, "darwin"); got != macPackage {
+		t.Fatalf("macOS bundled package = %q, want %q", got, macPackage)
+	}
+
+	windowsExecutable := filepath.Join(root, "opendesk.exe")
+	windowsPackage := filepath.Join(root, "app-mode")
+	if err := os.MkdirAll(windowsPackage, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(windowsPackage, "opendesk.app.json"), []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := bundledAppModePathForExecutable(windowsExecutable, "windows"); got != windowsPackage {
+		t.Fatalf("Windows bundled package = %q, want %q", got, windowsPackage)
+	}
+	if got := bundledAppModePathForExecutable(filepath.Join(root, "plain"), "darwin"); got != "" {
+		t.Fatalf("plain executable unexpectedly selected package %q", got)
+	}
+}
 
 func TestAppModeRequestedRecognizesFlagWithoutInspectingScriptArguments(t *testing.T) {
 	for _, args := range [][]string{{"-app", "example"}, {"-app=example"}, {"-console-mode", "script", "-app", "example"}} {

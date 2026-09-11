@@ -11,6 +11,7 @@ import (
 	"opendesk/pkg/runtimeenv"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 )
@@ -68,6 +69,7 @@ type appModeExecutionResult struct {
 }
 
 func executeAppMode(config *Config) error {
+	recorderCaptureAllowed := appModeRecorderCaptureAllowed(config)
 	appPackage, err := appshell.LoadPackage(config.AppPath)
 	if err != nil {
 		return err
@@ -123,7 +125,7 @@ func executeAppMode(config *Config) error {
 	recorder := newAppRecorder(shell, appPackage, appRecorderConfig{
 		LogDir:                                config.LogDir,
 		StackMode:                             config.StackMode,
-		AllowRecorderCapture:                  config.AllowRecorderCapture,
+		AllowRecorderCapture:                  recorderCaptureAllowed,
 		ExperimentalUnsafeNativeExtensionCall: config.ExperimentalUnsafeNativeExtensionCall,
 		CustomUIHostPath:                      config.CustomUIHostPath,
 	}, environment, sharedUIDriver)
@@ -164,7 +166,7 @@ func executeAppMode(config *Config) error {
 		EnableDownload:                  true,
 		EnableAccessibility:             true,
 		EnableSQLite:                    true,
-		EnableRecorderCapture:           config.AllowRecorderCapture,
+		EnableRecorderCapture:           recorderCaptureAllowed,
 		SQLiteProtectedPaths:            sqliteProtectedPaths(config),
 		EnableCustomUI:                  true,
 		CustomUIActivationSource:        customui.ActivationCLI,
@@ -211,4 +213,22 @@ func executeAppMode(config *Config) error {
 		printExecutionSummary(selection, outcome.result)
 	}
 	return errors.Join(mainErr, outcome.err, leaseErr)
+}
+
+func appModeRecorderCaptureAllowed(config *Config) bool {
+	if config == nil {
+		return false
+	}
+	if config.AllowRecorderCapture {
+		return true
+	}
+	defaultPackage := bundledAppModePath()
+	if defaultPackage == "" || strings.TrimSpace(config.AppPath) == "" {
+		return false
+	}
+	requested, err := filepath.Abs(config.AppPath)
+	if err != nil {
+		return false
+	}
+	return filepath.Clean(requested) == filepath.Clean(defaultPackage)
 }

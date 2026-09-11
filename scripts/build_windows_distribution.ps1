@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [ValidateSet('win-x64','win-arm64')][string]$Runtime = 'win-x64',
-    [string]$OutputDirectory = ''
+    [string]$OutputDirectory = '',
+    [string]$AppModePackage = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -57,11 +58,16 @@ function Get-PEMachine {
 if (Test-Path -LiteralPath $OutputDirectory) {
     Remove-Item -LiteralPath $OutputDirectory -Recurse -Force
 }
+$appModeStaged = [bool]$AppModePackage
 New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
 
 Push-Location $root
 try {
-    & ./scripts/build_windows_app.ps1 -Runtime 'win-x64' -OutputDirectory $OutputDirectory
+    $appBuildArguments = @('-Runtime', 'win-x64', '-OutputDirectory', $OutputDirectory)
+    if ($AppModePackage) {
+        $appBuildArguments += @('-AppModePackage', $AppModePackage)
+    }
+    & ./scripts/build_windows_app.ps1 @appBuildArguments
     if ($LASTEXITCODE -ne 0) {
         throw "OpenDesk Windows application build failed ($LASTEXITCODE)."
     }
@@ -180,6 +186,7 @@ try {
                 notificationIcon = 'resources/opendesk-notification.png'
                 predefinedSounds = 'sounds/public/'
             }
+            appModePackage = if ($appModeStaged) { 'app-mode/' } else { $null }
         }
         files = [ordered]@{
             runtime = [ordered]@{

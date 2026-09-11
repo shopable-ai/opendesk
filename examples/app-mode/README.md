@@ -10,6 +10,15 @@
 ./dist/opendesk -app examples/app-mode/basic -console-mode script
 ```
 
+若要从该 App Mode 菜单打开并实际录制 Recorder，请在受信任的本机验收命令中显式加入全局输入采集授权：
+
+```bash
+./dist/opendesk -app examples/app-mode/basic -allow-recorder-capture -console-mode script
+```
+
+这条命令是开发态示例入口；`examples/app-mode/basic` 不是发布应用。Finder / Launchpad、Windows 开始菜单及
+可选默认 App Mode 包的发布入口见 [App Mode desktop launch contract](../../docs/architecture/app-mode-desktop-launch.md)。
+
 左键点击 tray / menu bar icon 会执行系统 `opendesk.open`；右键（macOS 也可 Control-click）显示合并菜单。选择 “Run sample action” 会在当前 Runtime 更新 status item；选择系统 Quit 或窗口内 “Quit app” 会进入统一 shutdown。
 
 普通 Script Mode 不会读取这个目录的 Manifest，也不会自动进入 App Mode。

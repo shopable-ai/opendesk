@@ -30,6 +30,7 @@ APP_NAME="${APP_NAME:-OpenDesk}"
 VERSION="${VERSION:-0.1.0}"
 CODESIGN_IDENTITY="${CODESIGN_IDENTITY:--}"
 NATIVE_EXTENSIONS_SOURCE="${NATIVE_EXTENSIONS_SOURCE:-}"
+APP_MODE_PACKAGE="${APP_MODE_PACKAGE:-}"
 APPLE_VISION_SOURCE="${ROOT_DIR}/examples/native-extensions/macos-vision"
 MACOS_DEPLOYMENT_TARGET="${MACOS_DEPLOYMENT_TARGET:-12.0}"
 if [[ ! "${MACOS_DEPLOYMENT_TARGET}" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]]; then
@@ -94,6 +95,29 @@ rsync -a --delete --exclude README.md --exclude accessibility-workbench "${INSPE
 shasum -a 256 "${EXECUTABLE_PATH}" >"${RESOURCES_DIR}/opendesk-payload.sha256"
 rsync -a --delete "${ROOT_DIR}/polyfills/" "${MACOS_DIR}/polyfills/"
 rsync -a --delete "${ROOT_DIR}/jslibs/" "${MACOS_DIR}/jslibs/"
+
+if [[ -n "${APP_MODE_PACKAGE}" ]]; then
+  if [[ "${APP_MODE_PACKAGE}" != /* ]]; then
+    printf 'APP_MODE_PACKAGE must be an absolute path: %s\n' "${APP_MODE_PACKAGE}" >&2
+    exit 1
+  fi
+  if [[ -L "${APP_MODE_PACKAGE}" || ! -d "${APP_MODE_PACKAGE}" ]]; then
+    printf 'APP_MODE_PACKAGE must be a real directory, not a symlink: %s\n' "${APP_MODE_PACKAGE}" >&2
+    exit 1
+  fi
+  if [[ ! -f "${APP_MODE_PACKAGE}/opendesk.app.json" ]]; then
+    printf 'APP_MODE_PACKAGE must contain opendesk.app.json: %s\n' "${APP_MODE_PACKAGE}" >&2
+    exit 1
+  fi
+  if [[ -n "$(find "${APP_MODE_PACKAGE}" -type l -print -quit)" ]]; then
+    printf 'APP_MODE_PACKAGE staging rejects symlinks: %s\n' "${APP_MODE_PACKAGE}" >&2
+    exit 1
+  fi
+  mkdir -p "${RESOURCES_DIR}/AppMode"
+  rsync -a --delete "${APP_MODE_PACKAGE}/" "${RESOURCES_DIR}/AppMode/"
+  chmod -R go-w "${RESOURCES_DIR}/AppMode"
+  printf 'Staged default App Mode package: %s\n' "${RESOURCES_DIR}/AppMode"
+fi
 
 if [[ -n "${NATIVE_EXTENSIONS_SOURCE}" ]]; then
   if [[ "${NATIVE_EXTENSIONS_SOURCE}" != /* ]]; then
@@ -218,3 +242,8 @@ else
   printf 'Codesign identity: %s\n' "${CODESIGN_IDENTITY}"
 fi
 printf 'Launch with: open "%s"\n' "${APP_ROOT}"
+if [[ -n "${APP_MODE_PACKAGE}" ]]; then
+  printf 'Finder/Launchpad launch mode: default App Mode package in Contents/Resources/AppMode\n'
+else
+  printf 'Finder/Launchpad launch mode: legacy no-argument HTTP service (no App Mode package staged)\n'
+fi

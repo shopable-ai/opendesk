@@ -113,9 +113,61 @@ func normalizeMacOSBundleLaunchWorkingDirectory() {
 	_ = os.Chdir(home)
 }
 
+// bundledAppModePath returns the optional App Mode package shipped alongside
+// a released desktop entry point. A package is opt-in: a plain OpenDesk.app or
+// portable opendesk.exe keeps its historical no-argument behavior when this
+// directory is absent.
+func bundledAppModePath() string {
+	if runtime.GOOS != "darwin" && runtime.GOOS != "windows" {
+		return ""
+	}
+	executable, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	return bundledAppModePathForExecutable(executable, runtime.GOOS)
+}
+
+func bundledAppModePathForExecutable(executable, platform string) string {
+	if strings.TrimSpace(executable) == "" {
+		return ""
+	}
+	resolved := executable
+	if evaluated, err := filepath.EvalSymlinks(executable); err == nil {
+		resolved = evaluated
+	}
+	resolved, err := filepath.Abs(resolved)
+	if err != nil {
+		return ""
+	}
+
+	var packageRoot string
+	switch platform {
+	case "darwin":
+		clean := filepath.ToSlash(filepath.Clean(resolved))
+		marker := ".app/Contents/MacOS/"
+		if !strings.Contains(clean, marker) {
+			return ""
+		}
+		packageRoot = filepath.Join(filepath.Dir(filepath.Dir(resolved)), "Resources", "AppMode")
+	case "windows":
+		packageRoot = filepath.Join(filepath.Dir(resolved), "app-mode")
+	default:
+		return ""
+	}
+	manifest := filepath.Join(packageRoot, "opendesk.app.json")
+	if info, err := os.Stat(packageRoot); err != nil || !info.IsDir() {
+		return ""
+	}
+	if info, err := os.Stat(manifest); err != nil || !info.Mode().IsRegular() {
+		return ""
+	}
+	return packageRoot
+}
+
 func init() {
 	args := commandLineArgs()
-	if automation.MacOSRegionSelectorHelperRequested(args) || appModeRequested(args) {
+	if automation.MacOSRegionSelectorHelperRequested(args) || appModeRequested(args) || bundledAppModePath() != "" {
 		// Pin the primordial process thread before Go can schedule main
 		// elsewhere. AppKit must own that thread for selector and App Mode
 		// status-item lifetimes.
@@ -322,6 +374,16 @@ func main() {
 	}()
 
 	config := parseFlags()
+	if config.AppPath == "" && len(commandLineArgs()) == 0 {
+		if defaultAppMode := bundledAppModePath(); defaultAppMode != "" {
+			config.AppPath = defaultAppMode
+			// A staged App Mode package is the trusted desktop entry point. Keep
+			// its integrated Recorder usable when LaunchServices/Start Menu
+			// cannot pass the explicit CLI capture flag. The OS-level input
+			// permission gate remains enforced by the Recorder backend.
+			config.AllowRecorderCapture = true
+		}
+	}
 	if err := validateAppModeConfig(config); err != nil {
 		terminalPrintf(os.Stderr, "[ERROR] %v\n", err)
 		os.Exit(2)
@@ -353,7 +415,7 @@ func main() {
 	}
 
 	// 检查是否是双击启动（无参数启动）
-	if len(os.Args) == 1 {
+	if len(commandLineArgs()) == 0 {
 		isAutoRunJs = true
 		config.HttpMode = true // 双击启动时默认启用 HTTP 模式
 		if shouldEchoStartupCategory("framework", selection) {

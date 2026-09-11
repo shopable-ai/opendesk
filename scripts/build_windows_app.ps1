@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [ValidateSet('win-x64','win-arm64')][string]$Runtime = 'win-x64',
-    [string]$OutputDirectory = ''
+    [string]$OutputDirectory = '',
+    [string]$AppModePackage = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -57,6 +58,24 @@ try {
     $uiHostPath = Join-Path $uiOutputDirectory 'opendesk-ui-host.exe'
     if (-not (Test-Path -LiteralPath $uiHostPath -PathType Leaf)) {
         throw "OpenDesk UI host was not produced at $uiHostPath"
+    }
+
+    if ($AppModePackage) {
+        if (![IO.Path]::IsPathRooted($AppModePackage)) {
+            $AppModePackage = Join-Path $root $AppModePackage
+        }
+        $AppModePackage = [IO.Path]::GetFullPath($AppModePackage)
+        if (-not (Test-Path -LiteralPath $AppModePackage -PathType Container)) {
+            throw "App Mode package directory does not exist: $AppModePackage"
+        }
+        $appManifest = Join-Path $AppModePackage 'opendesk.app.json'
+        if (-not (Test-Path -LiteralPath $appManifest -PathType Leaf)) {
+            throw "App Mode package must contain opendesk.app.json: $AppModePackage"
+        }
+        $appModeOutput = Join-Path $OutputDirectory 'app-mode'
+        New-Item -ItemType Directory -Force -Path $appModeOutput | Out-Null
+        Copy-Item -Path (Join-Path $AppModePackage '*') -Destination $appModeOutput -Recurse -Force
+        Write-Host "Staged default App Mode package: $appModeOutput"
     }
 
     Write-Host "OpenDesk Windows runtime: $runtimePath"
