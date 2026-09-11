@@ -3,6 +3,7 @@ package appshell
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"sync"
 	"testing"
@@ -48,21 +49,30 @@ func shellFixture(t *testing.T) (*Shell, *fakeNative) {
 	return shell, native
 }
 
-func TestShellStateAndRepeatedQuit(t *testing.T) {
+func TestShellQuitConvergesThroughLifecycleTeardown(t *testing.T) {
 	shell, native := shellFixture(t)
-	if got := shell.State(); got != StateRunning {
-		t.Fatalf("state=%s", got)
-	}
 	var quitCount int
 	shell.SetQuitHook(func() { quitCount++ })
 	if err := shell.RequestQuit(); err != nil {
 		t.Fatal(err)
 	}
-	if got := shell.State(); got != StateStopped {
+	if got := shell.State(); got != StateQuitting {
 		t.Fatalf("state=%s", got)
+	}
+	if native.teardown != 0 || quitCount != 1 {
+		t.Fatalf("before lifecycle teardown: native=%d quitHook=%d", native.teardown, quitCount)
 	}
 	if err := shell.RequestQuit(); err != nil {
 		t.Fatal(err)
+	}
+	if err := shell.Teardown(); err != nil {
+		t.Fatal(err)
+	}
+	if err := shell.Teardown(); err != nil {
+		t.Fatal(err)
+	}
+	if got := shell.State(); got != StateStopped {
+		t.Fatalf("state=%s", got)
 	}
 	if native.teardown != 1 || quitCount != 1 {
 		t.Fatalf("teardown=%d quitHook=%d", native.teardown, quitCount)
@@ -91,6 +101,54 @@ func TestShellActionsAreOrderedIncludingPreBindQueue(t *testing.T) {
 	}
 }
 
+func TestShellConcurrentDispatchIsSerialized(t *testing.T) {
+	shell, _ := shellFixture(t)
+	var mu sync.Mutex
+	got := make([]string, 0, 64)
+	if err := shell.BindActionSink(func(event ActionEvent) error {
+		mu.Lock()
+		got = append(got, event.ID)
+		mu.Unlock()
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var wg sync.WaitGroup
+	for i := 0; i < 64; i++ {
+		i := i
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := shell.DispatchAction(fmt.Sprintf("item.%02d", i), "tray-menu"); err != nil {
+				t.Errorf("dispatch: %v", err)
+			}
+		}()
+	}
+	wg.Wait()
+	if len(got) != 64 {
+		t.Fatalf("got %d actions", len(got))
+	}
+	seen := map[string]bool{}
+	for _, id := range got {
+		if seen[id] {
+			t.Fatalf("duplicate action %q", id)
+		}
+		seen[id] = true
+	}
+}
+
+func TestShellPreHandlerQueueIsBounded(t *testing.T) {
+	shell, _ := shellFixture(t)
+	for i := 0; i < defaultPendingActionCapacity; i++ {
+		if err := shell.DispatchAction(fmt.Sprintf("queued.%03d", i), "tray-menu"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := shell.DispatchAction("overflow", "tray-menu"); !errors.Is(err, ErrQueueFull) {
+		t.Fatalf("expected ErrQueueFull, got %v", err)
+	}
+}
+
 func TestShellRejectsActionAfterShutdown(t *testing.T) {
 	shell, _ := shellFixture(t)
 	if !shell.BeginShutdown() {
@@ -115,6 +173,9 @@ func TestShellMenuUpdates(t *testing.T) {
 	}
 	if len(native.updates) != 1 || native.updates[0] != "sync.now" {
 		t.Fatalf("updates=%v", native.updates)
+	}
+	if err := shell.UpdateMenuItem("missing", MenuItemPatch{Enabled: &enabled}); err == nil {
+		t.Fatal("expected unknown menu error")
 	}
 }
 

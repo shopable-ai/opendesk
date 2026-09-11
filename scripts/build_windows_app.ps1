@@ -1,13 +1,76 @@
 [CmdletBinding()]
-param([ValidateSet('win-x64','win-arm64')][string]$Runtime='win-x64')
-$ErrorActionPreference='Stop'
-$root=Split-Path -Parent $PSScriptRoot
-if (!$IsWindows) { throw 'Build on Windows with Go, its native C toolchain, and .NET 8 SDK.' }
+param(
+    [ValidateSet('win-x64','win-arm64')][string]$Runtime = 'win-x64',
+    [string]$OutputDirectory = ''
+)
+
+$ErrorActionPreference = 'Stop'
+$root = Split-Path -Parent $PSScriptRoot
+
+if (!$IsWindows) {
+    throw 'Build the complete OpenDesk Windows application on Windows with Go, its native C toolchain, and the .NET 8 SDK.'
+}
+if ($Runtime -ne 'win-x64') {
+    throw 'The complete OpenDesk Windows application is currently supported and verified only for win-x64. build_windows_ui.ps1 may publish the UI host alone for win-arm64 experiments, but that does not establish whole-application ARM64 support.'
+}
+if ([Runtime.InteropServices.RuntimeInformation]::OSArchitecture -ne [Runtime.InteropServices.Architecture]::X64) {
+    throw 'The verified win-x64 application build currently requires an x64 Windows builder so Go/CGO/native dependencies cannot be mixed across architectures.'
+}
+
+if (!$OutputDirectory) {
+    $OutputDirectory = Join-Path $root 'dist'
+} elseif (![IO.Path]::IsPathRooted($OutputDirectory)) {
+    $OutputDirectory = Join-Path $root $OutputDirectory
+}
+$OutputDirectory = [IO.Path]::GetFullPath($OutputDirectory)
+$driveRoot = [IO.Path]::GetPathRoot($OutputDirectory)
+if ($OutputDirectory.TrimEnd('\') -eq [IO.Path]::GetFullPath($root).TrimEnd('\') -or
+    $OutputDirectory.TrimEnd('\') -eq $driveRoot.TrimEnd('\')) {
+    throw "Refusing unsafe Windows build output directory: $OutputDirectory"
+}
+
+$runtimePath = Join-Path $OutputDirectory 'opendesk.exe'
+$uiOutputDirectory = Join-Path $OutputDirectory 'ui-host'
+New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
+
+$previousGOOS = $env:GOOS
+$previousGOARCH = $env:GOARCH
+
 Push-Location $root
 try {
-    New-Item -ItemType Directory -Force dist | Out-Null
-    & go build -o dist/opendesk.exe ./cmd/opendesk
-    if ($LASTEXITCODE -ne 0) { throw 'OpenDesk main build failed.' }
-    & ./scripts/build_windows_ui.ps1 -Runtime $Runtime
-    if ($LASTEXITCODE -ne 0) { throw 'OpenDesk UI host build failed.' }
-} finally { Pop-Location }
+    $env:GOOS = 'windows'
+    $env:GOARCH = 'amd64'
+
+    & go build -trimpath -o $runtimePath ./cmd/opendesk
+    if ($LASTEXITCODE -ne 0) {
+        throw "OpenDesk main Windows build failed ($LASTEXITCODE)."
+    }
+    if (-not (Test-Path -LiteralPath $runtimePath -PathType Leaf)) {
+        throw "OpenDesk runtime was not produced at $runtimePath"
+    }
+
+    & ./scripts/build_windows_ui.ps1 -Runtime 'win-x64' -OutputDirectory $uiOutputDirectory
+    if ($LASTEXITCODE -ne 0) {
+        throw "OpenDesk UI host build failed ($LASTEXITCODE)."
+    }
+
+    $uiHostPath = Join-Path $uiOutputDirectory 'opendesk-ui-host.exe'
+    if (-not (Test-Path -LiteralPath $uiHostPath -PathType Leaf)) {
+        throw "OpenDesk UI host was not produced at $uiHostPath"
+    }
+
+    Write-Host "OpenDesk Windows runtime: $runtimePath"
+    Write-Host "OpenDesk Windows UI host: $uiHostPath"
+} finally {
+    if ($null -eq $previousGOOS) {
+        Remove-Item Env:GOOS -ErrorAction SilentlyContinue
+    } else {
+        $env:GOOS = $previousGOOS
+    }
+    if ($null -eq $previousGOARCH) {
+        Remove-Item Env:GOARCH -ErrorAction SilentlyContinue
+    } else {
+        $env:GOARCH = $previousGOARCH
+    }
+    Pop-Location
+}

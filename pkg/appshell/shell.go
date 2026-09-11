@@ -14,11 +14,14 @@ const (
 	StateRunning  State = "RUNNING"
 	StateQuitting State = "QUITTING"
 	StateStopped  State = "STOPPED"
+
+	defaultPendingActionCapacity = 256
 )
 
 var (
 	ErrNotRunning = errors.New("app shell is not running")
 	ErrTornDown   = errors.New("app shell is torn down")
+	ErrQueueFull  = errors.New("app shell action queue is full")
 )
 
 type ActionEvent struct {
@@ -50,6 +53,7 @@ type Shell struct {
 	pending    []ActionEvent
 	menuState  map[string]MenuItemPatch
 	teardown   bool
+	teardownMu sync.Once
 	quitOnce   sync.Once
 	onQuit     func()
 }
@@ -75,10 +79,8 @@ func New(manifest Manifest, native NativeHost) (*Shell, error) {
 		menuState[item.ID] = MenuItemPatch{Label: &label, Enabled: &enabled, Visible: &visible}
 	}
 	return &Shell{
-		state:     StateRunning,
-		manifest:  manifest,
-		native:    native,
-		menuState: menuState,
+		state: StateRunning, manifest: manifest, native: native,
+		pending: make([]ActionEvent, 0, 8), menuState: menuState,
 	}, nil
 }
 
@@ -92,6 +94,17 @@ func (s *Shell) Manifest() Manifest {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.manifest
+}
+
+func (s *Shell) IsActive() bool {
+	state := s.State()
+	return state == StateRunning || state == StateQuitting
+}
+
+func (s *Shell) PendingActionCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.pending)
 }
 
 func (s *Shell) BindActionSink(sink ActionSink) error {
@@ -144,6 +157,8 @@ func (s *Shell) SetQuitHook(hook func()) {
 	}
 }
 
+// DispatchAction serializes every native source before it can enter the
+// execution-owned Runtime queue. Built-in Open/Quit actions converge here too.
 func (s *Shell) DispatchAction(id, source string) error {
 	id = strings.TrimSpace(id)
 	source = strings.TrimSpace(source)
@@ -152,13 +167,6 @@ func (s *Shell) DispatchAction(id, source string) error {
 	}
 	if source == "" {
 		return errors.New("action source is required")
-	}
-
-	if id == "opendesk.open" {
-		return s.Activate(source)
-	}
-	if id == "opendesk.quit" {
-		return s.RequestQuit()
 	}
 
 	s.dispatchMu.Lock()
@@ -173,8 +181,33 @@ func (s *Shell) DispatchAction(id, source string) error {
 		s.mu.Unlock()
 		return ErrNotRunning
 	}
-	event := ActionEvent{ID: id, Source: source}
+	s.mu.Unlock()
+
+	switch id {
+	case "opendesk.open":
+		return s.activateLocked(source)
+	case "opendesk.quit":
+		return s.requestQuitLocked()
+	default:
+		return s.dispatchLocked(ActionEvent{ID: id, Source: source})
+	}
+}
+
+func (s *Shell) dispatchLocked(event ActionEvent) error {
+	s.mu.Lock()
+	if s.teardown {
+		s.mu.Unlock()
+		return ErrTornDown
+	}
+	if s.state != StateRunning {
+		s.mu.Unlock()
+		return ErrNotRunning
+	}
 	if s.sink == nil {
+		if len(s.pending) >= defaultPendingActionCapacity {
+			s.mu.Unlock()
+			return ErrQueueFull
+		}
 		s.pending = append(s.pending, event)
 		s.mu.Unlock()
 		return nil
@@ -185,6 +218,12 @@ func (s *Shell) DispatchAction(id, source string) error {
 }
 
 func (s *Shell) Activate(source string) error {
+	s.dispatchMu.Lock()
+	defer s.dispatchMu.Unlock()
+	return s.activateLocked(normalizedOpenSource(source))
+}
+
+func (s *Shell) activateLocked(source string) error {
 	s.mu.Lock()
 	if s.teardown {
 		s.mu.Unlock()
@@ -196,13 +235,12 @@ func (s *Shell) Activate(source string) error {
 	}
 	native := s.native
 	s.mu.Unlock()
-
 	if native != nil {
 		if err := native.Activate(context.Background()); err != nil {
 			return err
 		}
 	}
-	return s.DispatchAction("app.open", normalizedOpenSource(source))
+	return s.dispatchLocked(ActionEvent{ID: "app.open", Source: normalizedOpenSource(source)})
 }
 
 func normalizedOpenSource(source string) string {
@@ -286,40 +324,56 @@ func (s *Shell) BeginShutdown() bool {
 	return true
 }
 
+// RequestQuit only requests cancellation of the current execution. Native
+// teardown is owned by Teardown, so every quit source converges through the
+// same Runtime lifecycle instead of racing five independent shutdown paths.
 func (s *Shell) RequestQuit() error {
-	if !s.BeginShutdown() {
-		state := s.State()
-		if state == StateQuitting || state == StateStopped {
-			return nil
-		}
-		return ErrNotRunning
-	}
+	s.dispatchMu.Lock()
+	defer s.dispatchMu.Unlock()
+	return s.requestQuitLocked()
+}
 
-	var teardownErr error
-	s.quitOnce.Do(func() {
-		s.mu.Lock()
-		native := s.native
-		hook := s.onQuit
-		s.sink = nil
-		s.pending = nil
+func (s *Shell) requestQuitLocked() error {
+	s.mu.Lock()
+	if s.teardown || s.state == StateStopped {
 		s.mu.Unlock()
-
-		if native != nil {
-			teardownErr = native.Teardown(context.Background())
-		}
+		return nil
+	}
+	if s.state == StateRunning {
+		s.state = StateQuitting
+	}
+	hook := s.onQuit
+	s.mu.Unlock()
+	s.quitOnce.Do(func() {
 		if hook != nil {
 			hook()
 		}
+	})
+	return nil
+}
+
+// Teardown is idempotent and should be called by the current execution's
+// lifecycle cleanup after cancellation.
+func (s *Shell) Teardown() error {
+	var teardownErr error
+	s.teardownMu.Do(func() {
 		s.mu.Lock()
-		s.teardown = true
+		if s.state == StateRunning {
+			s.state = StateQuitting
+		}
+		native := s.native
+		s.mu.Unlock()
+		if native != nil {
+			teardownErr = native.Teardown(context.Background())
+		}
+		s.mu.Lock()
+		s.sink = nil
+		s.pending = nil
 		s.native = nil
 		s.onQuit = nil
+		s.teardown = true
 		s.state = StateStopped
 		s.mu.Unlock()
 	})
 	return teardownErr
-}
-
-func (s *Shell) Teardown() error {
-	return s.RequestQuit()
 }
