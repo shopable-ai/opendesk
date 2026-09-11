@@ -6,7 +6,7 @@ order: 40
 
 # Agent-first Recorder｜链路、职责与成果交接设计
 
-状态：链路设计 v0.5，2026-09-10。本文把[需求](requirements.md)与[完整任务树](task-decomposition.md)转成环节关系；当前只落地 application-engineer 方法入口及设计接线，不是完整运行调度器，也不新增可执行 IR。Structured UI Collection Reading 的 Runtime/VLM/Traversal 详细合同只维护在[专项架构](../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)。返回[设计总纲](README.md)。
+状态：链路设计 v0.6，2026-09-11。本文把[需求](requirements.md)与[完整任务树](task-decomposition.md)转成环节关系；当前只落地 application-engineer 方法入口及设计接线，不是完整运行调度器，也不新增可执行 IR。Structured UI Collection Reading 的 Runtime/VLM/Traversal 详细合同只维护在[专项架构](../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)。返回[设计总纲](README.md)。
 
 ## 一、三层怎样配合
 
@@ -14,30 +14,33 @@ order: 40
 - 链路设计分配职责、输入输出、路由与控制，明确哪里可以独立进入或跳过；一个工作包可以跨多个阶段。
 - 正式 WORKFLOW 按本次范围组合专业方法；每个 SKILL.md 只负责自己的步骤，长细节按需参考，不复制三套完整指令。
 - 需求 Function、业务 Capability、Agent Skill 与 JS 函数不一一对应；先选已有 API／普通 JS／Agent／人工，再决定是否需要独立 Skill。
-- S1—S12 沿用原方法和合同；R1—R13 只是任务树中保留的讨论视图；七项职责不是新编号的运行阶段。
-- Structured Collection Reading 作为既有职责间的数据/能力链，不增加第八个开发职责或新的 S13：application-engineer 生产结构知识，Runtime working primitive 读取 generic item，Recipe/Adapter 做业务 Mapping，recipe-qualify 分层验收。
+- S1—S12 沿用原方法和合同；R1—R13 只是任务树中保留的讨论视图；八项目标专业职责不是新编号的运行阶段，也不表示八个 SKILL.md 已经存在。
+- Structured Collection Reading 作为既有职责间的数据/能力链，不增加第九个开发职责或新的 S13：application-engineer 生产结构知识，Runtime working primitive 读取 generic item，Recipe/Adapter 做业务 Mapping，recipe-qualify 分层验收。
 - 默认同一个 Agent 按工作流连续推进；协调、专业作业、生成和检查是职责，不强制创建多个 Agent 或隔离上下文。独立评测是另外的验证条件，不能混为正常运行前提。
 
-## 二、七项独立职责及状态
+## 二、八项目标专业职责及状态
 
-历史六个 Skill 的目录已在 `17ccb9258dd34ce8b7c21296339a17f0c46e6586` 删除。本次只创建 [application-engineer/SKILL.md](../skills/application-engineer/SKILL.md)，其他名称仍为设计职责。文件已写入、工具已实现、宿主可加载、独立测试和业务通过分别判断，不恢复旧目录，不假设全部可调用。
+历史六个 Skill 的目录已在 `17ccb9258dd34ce8b7c21296339a17f0c46e6586` 删除。当前只创建 [application-engineer/SKILL.md](../skills/application-engineer/SKILL.md)；`trace-distill` 与 `code-rebuild` 是目标专业职责，其正式 Skill、宿主接入和独立验收尚未完成。文件已写入、工具已实现、宿主可加载、独立测试和业务通过分别判断，不因设计名称存在就假设全部可调用。
 
 | 环节与拟责任 | 对应任务节点 | 主要消费 | 主交付与消费者 |
 | --- | --- | --- | --- |
-| 明确需求与范围：automation-plan | S1 | 用户要求、来源、权限、预算、已有资产 | TaskContract／WorkPlan、业务任务树与未知项；供所有相关环节使用 |
+| 明确需求、操作计划与范围：automation-plan | S1 | 用户自然语言／样例／已有资产、来源、权限、预算 | TaskContract／WorkPlan、业务任务树、可读任务／操作计划、关键检查点与未知项；供所有相关环节使用 |
 | 认识和补强应用：application-engineer | S2／S10 | 所需操作、当前观察、已有 AppProfile；harden 再加确认过程，repair 再加失败依据 | AppProfile、同版审阅／验证、必要 CollectionProfile、helper、操作合同、范围与证据；供示范、提炼、生成和验收按范围使用 |
-| 真实尝试与同步留证：task-demonstrate | S3—S6 | 合同、计划、最小应用认识、实际输入和桌面操作授权 | 节点事实、实际值及消费者、viewport/scroll 等真实副作用、完整或限定范围 Dossier；供提炼或诊断使用 |
-| 解释与泛化过程：procedure-synthesize | S7—S9 | 合同、可消费的 Dossier、应用资料；接续须限定来源作用 | SemanticProcedure、参数、generic→business 数据依赖、traversal need、来源与未决项；供应用补强和生成使用 |
+| 真实尝试与同步留证：task-demonstrate | S3—S6 | 合同、操作计划、最小应用认识、实际输入和桌面操作授权 | planned／actual 对应、节点事实、实际值及消费者、viewport/scroll 等真实副作用、完整或限定范围 Dossier；供提炼或诊断使用 |
+| 重建与提炼必要路径：trace-distill（待实现） | S7 | 冻结合同／计划、Dossier／Raw Trace、必要 AppProfile 和证据 | DistilledSteps、action retain／merge／omit／recovery／unresolved 取舍与来源；供过程提炼、步骤试执行或诊断使用 |
+| 语义化与泛化过程：procedure-synthesize | S8—S9 | DistilledSteps、合同、应用资料和补证结果 | SemanticProcedure、Business Step、参数、generic→business 数据依赖、traversal need、来源与未决项；供应用补强和生成使用 |
 | 生成或登记普通 JS：recipe-build | S11 | 已确认过程、所需操作、实际 API；原样接续按旧合同例外处理 | 实际 JS 与 CandidateManifest；只使用当前真实 API，交按需改进或独立验收 |
 | 独立改善已有代码：code-rebuild（待实现） | S11 内可选工作／独立入口 | 代码基线、明确需求与改进目标、相关应用规则、允许变更范围 | 原样保留结论，或新候选、变更理由、检查结果和重验范围；交独立验收 |
 | 独立资格验收：recipe-qualify | S12 | 冻结候选及依赖、成功标准、获准场景、真实运行条件 | QualificationRecord、collection/runtime/business 分层证据和修复请求；交协调者或交付者 |
 
-- 应用发现不要求先取得完整 SemanticProcedure，否则新任务会陷入循环依赖；应用补强只在需要时消费提炼后的业务过程。
-- task-demonstrate 的 Capture 与动作、观察、验证同时进行，不新增一个事后追记 Skill。执行中局部验证不能推迟到最终验收。
-- procedure-synthesize 可分次完成重建、归因、分段和泛化，保留各次分析；只有达到约定范围的过程才发布供正常生成消费。
+- automation-plan 先把用户自然语言及来源转成结构化合同和可审阅业务操作计划；用户纠正的是业务含义，不要求编辑 JSON。未知现场只写问题和检查点，不预编造点击坐标。
+- 应用发现不要求先取得完整 SemanticProcedure，否则新任务会陷入循环依赖；S2 还应优先核实会阻断后续计划的关键能力，并把新事实形成 plan delta，而不是重新规划整个项目。
+- task-demonstrate 的 Capture 与动作、观察、验证同时进行，并保留 planned step → actual action → actual observation → verification → plan delta 对应；不新增一个事后追记 Skill。执行中局部验证不能推迟到最终验收。
+- trace-distill 只消费已经冻结的事实和计划，负责 S7 的重建、操作分段、必要路径取舍及来源映射；它不改变 Raw Trace，也不承担 S8—S9 的业务参数化和泛化。
+- procedure-synthesize 从 DistilledSteps 开始完成 S8—S9；若发现上游 action disposition 错误，提出 S7 修订，不维护第二套原始动作取舍真相。只有达到约定范围的过程才发布供正常生成消费。
 - recipe-build 自身负责基本正确性、必要结构和失败处理；它不是低质量代码生产器。其交付前局部修正不必另调用一次优化。
-- code-rebuild 是已有代码需要独立改善时的专业任务，允许不改。应用规则缺失返回应用工程，业务解释缺失返回提炼，不自行猜测上游。
-- 正式验收不修改候选或降低标准。定位单元检查、生成者自检和独立验收可检查同一重要事实，但合同只维护一处。
+- code-rebuild 是已有代码需要独立改善时的专业任务，允许不改。应用规则缺失返回应用工程，关键步骤错误返回 trace-distill，业务解释缺失返回 procedure-synthesize，不自行猜测上游。
+- 正式验收不修改候选或降低标准。步骤试执行、定位单元检查、生成者自检和独立候选验收可以检查相邻事实，但必须明确被验证对象，不以一个层面的通过替代另一个层面。
 
 ### application-engineer 的内部边界
 
@@ -50,7 +53,7 @@ order: 40
 
 `ui-understanding` 仅指内部认识子作业，不新增独立 Skill。Structured Collection 同样不创建第二个 VLM/collection Skill。工作包可只要求认识与审阅，不增加第四种模式。任务驱动与能力建设是范围选择，不改变职责数量。
 
-S9 由过程提炼明确业务步骤、参数、数据流、所需应用操作及复用条件；S2 可以提供初步定位/CollectionProfile 候选，S10 将确认要求落实为有依据的应用规则。应用定位与 collection profile 知识唯一维护在 AppProfile／必要 helper，不在 S9 复制第二套规则。
+S8／S9 由过程提炼明确业务步骤、参数、数据流、所需应用操作及复用条件；S2 可以提供初步定位/CollectionProfile 候选，S10 将确认要求落实为有依据的应用规则。应用定位与 collection profile 知识唯一维护在 AppProfile／必要 helper，不在 S9 复制第二套规则。
 
 ### Structured Collection 的消费链
 
@@ -77,7 +80,7 @@ UI.readCollection(current viewport)
 
 ### 下游消费的边界
 
-示范可以消费最小认识，执行中仍核对现场并同步留证；提炼消费应用术语和关系，过程事实必须依据 Dossier；生成消费已经落实的操作规则和实际 API，只有认识材料时不能伪装成已有可执行操作；资格验收消费冻结候选及依赖，不继承生产者自报通过。未调用环节不是已通过，局部包不能冒充完整成功示范。
+示范可以消费最小认识，执行中仍核对现场并同步留证；trace-distill 消费冻结的计划、Dossier／Raw Trace 和应用术语，只发布有来源的必要路径；procedure-synthesize 消费 DistilledSteps 形成 Business Step 与复用规则；生成消费已经落实的操作规则和实际 API，只有认识材料或关键步骤草案时不能伪装成已有可执行操作；资格验收消费冻结候选及依赖，不继承生产者自报通过。未调用环节不是已通过，局部包不能冒充完整成功示范。
 
 对 collection，`CollectionItem[]` 与 `Conversation[]`／`Message[]`／`Order[]` 等业务对象是两个接口层。业务 parser 的字段命名、规则和失败不回写成 Runtime segmentation truth；Runtime evidence/conflict 也不能被 parser 静默覆盖。
 
@@ -86,20 +89,20 @@ UI.readCollection(current viewport)
 开发入口与交付形态分别选择：以下入口都可在条件满足时产出普通 JS 组合能力或 JS／Agent 混合流程；不是只有完整新示范才能复用能力，也不是混合任务就必须新增一套开发 Skill。运行时业务粒度见[聊天示例](application-operations.md#聊天业务的粒度与组合示例)。
 
 - **完整 Agent 新示范与新生成**
-  - 明确需求与授权 → 最小应用发现 → 真实执行与同步采集 → 任务级示范收口 → 过程提炼与规则确认。
+  - 理解自然语言目标并形成可审阅操作计划 → 最小应用发现与关键可行性核查 → 按计划真实执行与同步采集 → 任务级示范收口 → S7 必要路径提炼 → S8—S9 业务语义与复用规则确认。
   - 按缺口补强应用操作 → 生成合格基础代码 → 判断是否需要独立代码改进 → 冻结实际候选 → 独立验收。
-  - 请求完整新生成时不能借接续例外绕过成功示范和完整数据关系；发生失败按原因定向返回。
+  - 请求完整新生成时不能借接续例外绕过成功示范、DistilledSteps／SemanticProcedure 和完整数据关系；发生失败按原因定向返回。
 - **人工正向开发**
   - 同一业务合同约束应用试验、行为案例和代码；观察与试运行提供证据。
   - 可在已确认做法下直接形成代码，按需优化并验收，不追认为 Agent 示范。
   - 来源标记与现有 schema 不相容时先补合同设计；在未实现前不能伪填 new-generation-chain。
 - **已有资产接续**
   - 冻结来源、需求、范围及实际字节 → 核对现有证据与可变现场 → 原样采用、定向补证或有据修复 → 验收实际候选。
-  - 既有知识有效时不从零截图探索；未改部分不是自动获得新资格，未调用环节不是已通过。
+  - 已有 DistilledSteps／SemanticProcedure／AppProfile 有效时直接复用，不从零重新截图或分析 Raw Trace；未改部分不是自动获得新资格，未调用环节不是已通过。
 - **已有低质量代码独立改进**
   - 读取已存在的需求与基线，缺少关键目标时只补必要澄清，不重新规划整个项目。
   - 独立改进 → 保留基线或发布新候选 → 受影响范围与声明回归验收。
-  - 找不到真实数据来源或应用规则时返回责任环节；不以“保持旧行为”保留已知业务错误。
+  - 找不到真实数据来源、关键步骤或应用规则时返回责任环节；不以“保持旧行为”保留已知业务错误。
 - **简单受控使用或代码已经合格**
   - 确认本次目标与现场 → 复用已有操作或脚本 → 必要验证 → 限定范围使用。
   - 可不调用深度优化，也不要求为了一个短脚本建立全部应用模型或完整多 Skill 包；仍按所选合同保存必要依据。
@@ -112,18 +115,20 @@ UI.readCollection(current viewport)
 ### 同一 Agent 的正常与异常路线
 
 ```text
-读取当前任务、资料和规则
+读取当前任务、操作计划、资料和规则
 → 已有认识覆盖且当前必要前提成立？
   → 是：复用并继续当前工作
   → 否：定向进入 application-engineer 的相关子作业
-→ 获准动作与同步关键留证
+→ 按当前 planned step 执行获准动作并同步关键留证
 → 检查实际结果
-  → 满足必要后置：继续，不追加无关诊断
+  → 满足必要后置：继续
+  → 计划需要调整但目标不变：记录 plan delta 后继续
   → 不满足或不明：保留现场，按问题归属处理
 ```
 
 | 情况 | 路由／停止条件 |
 | --- | --- |
+| 操作计划的目标、输入来源、主要顺序或成功条件错误 | automation-plan 修订 S1；已发生事实不被计划更新覆盖 |
 | 已认识页面、窗口平移或数据变化仍在已验证规则内 | 刷新现场／重算当前位置，不必模型重新理解全屏 |
 | 已知加载条件未完成 | 依原规则有界等待，不能仅见 Tab 高亮就放行内容读取 |
 | 未覆盖的新页面、布局冲突、控件／记录关系歧义、CollectionProfile drift | 返回认识与审阅子作业，仅补必要范围 |
@@ -133,7 +138,8 @@ UI.readCollection(current viewport)
 | scroll 后 continuity 无法证明 | collector/Runtime path 停止并保留 partial；不 text-only dedupe 后继续 |
 | collection 在读取期间新增/删除/重排 | `COLLECTION_MUTATED` 或等价结构状态；停止拼接并保留 partial/evidence |
 | 关键动作、读值或过去状态缺证据 | task-demonstrate 定向补采；新观察不能冒充过去现场 |
-| business mapping、业务因果、参数或分段错误 | procedure-synthesize／应用业务 parser 责任；不修改 Runtime profile 掩盖错误 |
+| 原始动作取舍、合并、必要路径或 recovery 分类错误 | trace-distill 修订 DistilledSteps；不在 procedure-synthesize 静默重做一份 |
+| business mapping、业务因果、Business Step、参数或复用规则错误 | procedure-synthesize／应用业务 parser 责任；不修改 Runtime profile 或 DistilledSteps 掩盖错误 |
 | JS 调用、顺序或错误处理错误 | recipe-build |
 | 验收 Oracle 或测试设置错误 | recipe-qualify，不改标准掩盖失败 |
 | 目标、权限或成功条件变化 | 停止依赖动作，返回需求负责人 |
@@ -146,11 +152,12 @@ UI.readCollection(current viewport)
 沿用[共享合同](../../../docs/frameworks/agent-to-recipe-skill-contract.md)的 request、handoff 和主产物。下面解释交接含义，不复制字段定义。
 
 - 派发前确定子目标、实际输入版本、允许操作、现场前提、预期成果、验证条件、预算和恢复边界。
-- 初次规划把来源与 Unknown 转成合同和粗计划；远期未知显式保留，临近工作包再细化，不凭空填满点击序列。
+- 初次规划把用户自然语言来源与 Unknown 转成合同、粗计划和可读操作计划；远期未知显式保留，临近工作包再细化，不凭空填满点击序列。
 - 应用工程发布当前所需 states、regions、targets、geometryRules、operations、verifiers 与成熟度；本次观察、界面认识、候选规则、审阅／验证分开。需要重复 UI 结构时在同一 AppProfile 知识层发布 versioned CollectionProfile，当前优先级仍在工作包，不能写成应用永久属性。
 - 认识输出使用共享合同定义的 AppProfile 增量版本；新消费者对旧资料缺失项保持未知，旧消费者不认识新版本时拒绝消费，不静默丢失约束。CollectionProfile 是结构知识，不是新增公共 Runtime schema 或第二份 AppProfile。
-- 示范过程中逐节点保存真实读值、来源、消费者、前后状态和副作用；collection scroll 还保存 viewport/continuity/mutation 事实；S6 才发布完整 Dossier。失败或局部包可以诊断，但不能作为成功全链输入。
-- 提炼保留分析与草案，S9 发布完整的 procedure.json 及同版可读视图；视图不成为第二份可执行规格，版本冲突则阻塞消费。
+- 示范过程中逐节点保存 planned step、真实动作、实际读值、来源、消费者、前后状态、验证和副作用；collection scroll 还保存 viewport/continuity/mutation 事实；S6 才发布完整 Dossier。失败或局部包可以诊断，但不能作为成功全链输入。
+- S7 发布 versioned DistilledSteps 及同版可读视图：记录必要步骤、sourceActionRefs、依赖、retain／merge／omit／recovery／unresolved 取舍和证据。原始 Dossier／Raw Trace 不被修改；步骤试执行产生新的 execution 事实，不反写成旧示范。
+- S8—S9 保留 Business Step、泛化分析与草案，最终发布完整的 procedure.json 及同版可读视图；Procedure 引用实际消费的 DistilledSteps 版本，视图不成为第二份可执行规格，版本冲突则阻塞消费。
 - 生成发布实际 JS、入口、工作目录、依赖、支持范围、来源映射和 candidate.json；接口或依赖不存在就返回缺口，不保留貌似可执行的 `UI.readCollection()`/`UI.collectCollection()` 占位调用。
 - 代码改进消费候选 A；无需改动继续引用 A，有修改发布候选 B 及差异理由，验收引用 B。不能 B 的代码搭配 A 的 helper hash 或旧资格。
 - 验收发布指定候选的场景、实际命令、环境、观察、证据、pass／fail／not-run／blocked 和修复请求；collection 结构读取、collector 和业务 parser 的结论分别记录；正确拒绝的测试通过不能改写业务失败事实。
@@ -162,7 +169,7 @@ UI.readCollection(current viewport)
 
 上面的 request／handoff 是生产自动化时的工作包交接；生成后每次“读取历史 → 判断 → 发送”的数据交接可以是普通函数参数与返回对象，不强制每次业务调用重建整个开发任务包。
 
-- S1 声明本次需要单项操作、组合能力还是完整流程，以及纯 JS 或混合交付目标；S8／S9 确定可复用子目标与真实数据依赖；S11 明示实际调用与接线；S12 验证声明的业务范围。
+- S1 声明本次需要单项操作、组合能力还是完整流程，以及纯 JS 或混合交付目标；S7 固定必要路径，S8／S9 确定可复用子目标与真实数据依赖；S11 明示实际调用与接线；S12 验证声明的业务范围。
 - collection 业务运行至少交清：validated generic `CollectionItem[]` + coverage/evidence → App Adapter／Recipe parser → business objects + parser validation → downstream consumer。不能直接让 Runtime/VLM 根据任意业务 schema 生成最终对象。
 - 混合运行至少交清：JS 读取的实际业务数据及对象绑定 → Agent 的必要输入、业务规则和预算 → 可校验的判断与候选内容 → 授权及新鲜度复核 → 获准 JS 动作 → 实际结果。每一箭头有消费者、允许数据和失败出口。
 - provider／宿主未接入、输入不足、判断非法、预算耗尽或上下文过期时，停止依赖动作或按已授权策略转人工；不能用 mock、默认文案或上次判断掩盖缺口。JS 逻辑、判断质量、接入和端到端业务分别验证。
@@ -185,8 +192,8 @@ UI.readCollection(current viewport)
 
 ## 五、数据线、控制线与权限
 
-- **数据线**：来源／合同 → Observation/实际值 → AppProfile/CollectionProfile → generic items → business mapping/语义过程 → 候选 → 验收与运行证据；每项标生产者、消费者、版本、来源和失效条件。
-- **控制线**：协调者读取合同、当前进度和输入就绪条件 → 派发当前工作包 → 检查成果及 Gate → 更新唯一进度 → 继续、补证、恢复或停止。
+- **数据线**：用户原始来源 → TaskContract／WorkPlan → Observation／实际值 → AppProfile/CollectionProfile → Dossier／Raw Trace → DistilledSteps → SemanticProcedure／business mapping → 候选 → 验收与运行证据；每项标生产者、消费者、版本、来源和失效条件。
+- **控制线**：协调者读取合同、当前计划、当前进度和输入就绪条件 → 派发当前工作包 → 检查成果及 Gate → 更新唯一进度 → 继续、修订计划、补证、恢复或停止。
 - 同一任务一个进度写入者，同一桌面同一时刻一个操作拥有者；离线分析可以并行，点击、scroll 和输入不并行抢占。
 - 同一 helper/Profile 版本由一个被授权的工作包修改；语义或定位规则改变同步 AppProfile 与候选依赖，其他环节只消费冻结版本或提出变更请求。
 - 只传必要业务数据和获准证据根；屏幕文字、检索材料、API 返回和模型建议都不自行扩大授权。Semantic Vision 默认只接收必要最小 ROI 与结构化 observations，provider 失败不扩大上传范围。
@@ -213,7 +220,7 @@ UI.readCollection(current viewport)
 - 授权和业务偏好不能由研究者自行决定；已有明确答案不重复问，真正未决交有权人确认。
 - 未知有足够证据即返回原节点；预算耗尽仍未知，阻塞依赖范围或经授权缩小交付，不猜测继续。
 - 重大接口、职责、兼容性或架构选择记录 ADR 的备选、理由、后果与复审条件，先放对应设计决策小节；普通函数不强制独立 ADR 文件。
-- 需求变化先修订需求及行为案例，再追踪应用规则、任务、Skill、代码、依赖和测试；不能在验收末端降低期望。
+- 需求变化先修订需求及行为案例，再追踪操作计划、应用规则、DistilledSteps、SemanticProcedure、Skill、代码、依赖和测试；不能在验收末端降低期望。
 - 稳定业务恢复不是代码自我改写；生产失败先留证与安全停止，修复回开发链，新候选重新验证。
 
 ## 八、需求覆盖与责任映射
@@ -225,9 +232,9 @@ UI.readCollection(current viewport)
 | DREQ-01 来源与未知 | S1、S3—S9；规划、示范、提炼 | BC-01、BC-07、BC-12 |
 | DREQ-02 多入口与语义 | S1；本页路由、任务树三入口 | BC-01、BC-02、BC-03 |
 | DREQ-03 完整方法 | S1—S12、R1—R13、三个循环 | BC-01、BC-07、设计完整性检查 |
-| DREQ-04 独立交接 | 七项职责、本页交接与控制 | BC-08、BC-09、BC-15 |
+| DREQ-04 独立交接 | 八项目标职责、本页交接与控制 | BC-08、BC-09、BC-15 |
 | DREQ-05 可选改进 | S11；生成与 code-rebuild 分工 | BC-02、BC-03、BC-11 |
-| DREQ-06 真实数据 | S3—S11；示范、提炼、生成和优化 | BC-04、BC-05、BC-18、BC-19 |
+| DREQ-06 真实数据 | S3—S11；示范、DistilledSteps、提炼、生成和优化 | BC-04、BC-05、BC-18、BC-19 |
 | DREQ-07 应用与 API | S2／S10；应用分析与当前 API | BC-06、BC-11 |
 | DREQ-08 有界安全 | S1、S3—S6、S10—S12；执行／宿主 | BC-05、BC-09、BC-13、BC-17、BC-18 |
 | DREQ-09 成本与范围 | S1、S11、S12；用途和风险裁剪 | BC-03、BC-10、BC-13、BC-17 |
@@ -251,6 +258,10 @@ UI.readCollection(current viewport)
 | DREQ-27 Collection/Traversal 分离 | S1／S3—S5／S9／S10；future read/collector | Collection G–N |
 | DREQ-28 VLM 作者期优先/运行期受限 | S2／S9／S10；SemanticVisionProvider boundary | Collection D–F/O、隐私/预算检查 |
 | DREQ-29 mutation/partial completion | S3—S6／S12；collector + qualification | Collection J–N |
+| DREQ-30 自然语言入口／内部合同 | S1 automation-plan；原始用户来源与可读视图 | BC-26、BC-12 |
+| DREQ-31 操作计划／早期否证 | S1／S2；automation-plan + application-engineer | BC-27、BC-24 |
+| DREQ-32 planned／actual 偏差 | S3—S6；task-demonstrate + plan delta | BC-28、BC-09 |
+| DREQ-33 DistilledSteps 边界 | S7 trace-distill → S8—S9 procedure-synthesize | BC-29、BC-30、BC-31 |
 
 正向检查每项需求有负责环节、成果和测试；反向检查每个新增环节都有需求依据。实际执行后补真实证据引用，不在此写预制通过状态。
 
@@ -258,7 +269,8 @@ UI.readCollection(current viewport)
 
 - 每个 Skill 需要明确适用触发、前提、输入合同、专业步骤、输出及消费者、错误和停止条件、允许工具、验证场景及未支持范围。
 - 核心步骤进入 SKILL.md，长示例和专项分析按需引用已有唯一正文；不是每阶段一个 Skill，也不重新建设平行 chains 正文。
-- WORKFLOW 保持范围与路由入口，不重复专业方法。本次只创建 application-engineer；Structured Collection 的 profile authoring 进入该既有 Skill，不拆第二个 collection/VLM Skill。
+- WORKFLOW 保持范围与路由入口，不重复专业方法。当前只创建 application-engineer；`trace-distill` 与 code-rebuild 仍是待实现目标职责，Structured Collection 的 profile authoring 进入既有 application-engineer，不拆第二个 collection/VLM Skill。
+- `trace-distill` 实施时必须能够只凭固定 TaskContract／WorkPlan、Dossier／Raw Trace、必要 AppProfile 和证据发布 DistilledSteps 或准确指出缺口；不能依赖复制完整聊天。`procedure-synthesize` 的独立接续测试则从 DistilledSteps 开始，不以重新分析 Raw Trace 掩盖交接缺陷。
 - `UI.readCollection()`／`UI.collectCollection()` 必须按专项 Phase 1–7 经 Runtime/type/API/docs/test 闭环后才能分别进入 Experimental；工作流文档先接线不构成实现。
 - 核实实际实现与宿主加载路径，建立与本设计一致的入口；旧目录已删除，不将历史索引或 stages 路径作为当前依赖，不恢复重复阶段卡。
 - 独立 code-rebuild、超出 minimal-repair 的获准优化、人工开发来源及质量裁剪仍须各自兼容设计。本次不悄悄新增这些 JSON 枚举，不把代码改进伪称新示范。
@@ -271,3 +283,5 @@ UI.readCollection(current viewport)
 2026-09-08，v0.4：依据用户写入授权，补同一 Agent 正常／异常路线、界面认识限定出口、S9／S10 分工、AppProfile 增量兼容与 DREQ-21—DREQ-24 映射。没有批量生成其他 Skill，也没有执行真实桌面业务。
 
 2026-09-10，v0.5：接入 Structured UI Collection Reading：application-engineer → CollectionProfile → recipe-build/future readCollection → generic CollectionItem[] → App Adapter/Recipe business mapping → qualification；跨 viewport 另经过 side-effecting scroll collector。新增 profile drift、evidence conflict、VLM unavailable、continuity unproven、collection mutation 五类定向返回，并接入 DREQ-25—DREQ-29；不新增 S13、Skill、稳定 API 或分页内建策略。
+
+2026-09-11，v0.6：新增自然语言入口后的可审阅业务操作计划、关键未知优先核实和 planned／actual／planDelta 交接；将 S7 明确为 DistilledSteps 生产环节和目标 `trace-distill` 职责，将 `procedure-synthesize` 收窄为 S8—S9，并接入 DREQ-30—DREQ-33。未新增阶段、Runtime 或已安装 Skill 声明。
