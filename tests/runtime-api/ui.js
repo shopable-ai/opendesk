@@ -262,6 +262,252 @@
     });
   });
 
+  test({ name: 'UI string text matchers share exact normalization and preserve strict disambiguation', tier: 'unit', covers: ['UI.findTexts', 'UI.findText', 'UI.hasText', 'UI.tapText', 'UI.tapTexts', 'UI.waitText', 'UI.waitTextGone'] }, async () => {
+    const lines = [
+      { text: '  Order 12345  ', confidence: 0.9, bbox: { x: 300, y: 100, width: 140, height: 20 } },
+      { text: 'order 12345', confidence: 0.8, bbox: { x: 100, y: 100, width: 140, height: 20 } },
+      { text: '订单号：12345678', confidence: 0.95, bbox: { x: 100, y: 160, width: 180, height: 20 } },
+      { text: '状态 😀 已完成', confidence: 0.96, bbox: { x: 100, y: 220, width: 180, height: 20 } },
+    ];
+    await withStubs({ runOCR: function () { return { provider: 'fixture', lines: lines }; } }, async function (records) {
+      equal((await UI.findTexts('ORDER 12345', { within: windowInfo(), match: 'exact' })).length, 2, 'exact normalized matches');
+      equal((await UI.findTexts('der 123', { within: windowInfo(), match: 'contains' })).length, 2, 'contains matches');
+      equal((await UI.findTexts('ord', { within: windowInfo(), match: 'startsWith' })).length, 2, 'startsWith matches');
+      equal((await UI.findTexts('12345', { within: windowInfo(), match: 'endsWith' })).length, 2, 'endsWith matches');
+      equal((await UI.findTexts('订单号：', { within: windowInfo(), match: 'startsWith' })).length, 1, 'Chinese startsWith');
+      equal((await UI.findTexts('12345678', { within: windowInfo(), match: 'endsWith' })).length, 1, 'numeric endsWith');
+      equal((await UI.findTexts('😀 已', { within: windowInfo(), match: 'contains' })).length, 1, 'Unicode contains');
+      equal((await UI.findTexts('Order', { within: windowInfo(), match: 'startsWith', caseSensitive: true })).length, 1, 'case-sensitive startsWith');
+      equal((await UI.findTexts('ORDER', { within: windowInfo(), match: 'startsWith', caseSensitive: true })).length, 0, 'case-sensitive mismatch');
+      equal((await UI.findTexts('Order 12345', { within: windowInfo(), normalizeWhitespace: false, caseSensitive: true })).length, 0, 'raw whitespace exact mismatch');
+      equal((await UI.findTexts('  Order 12345  ', { within: windowInfo(), normalizeWhitespace: false, caseSensitive: true })).length, 1, 'raw whitespace exact match');
+
+      const ambiguous = await expectCode(() => UI.findText('ord', {
+        within: windowInfo(), match: 'startsWith',
+      }), 'AMBIGUOUS_TARGET', 'UI.findText');
+      equal(ambiguous.candidateCount, 2, 'startsWith ambiguity');
+      const indexed = await UI.findText('ord', { within: windowInfo(), match: 'startsWith', index: 1 });
+      equal(indexed.text, '  Order 12345  ', 'startsWith index follows reading order');
+      await expectCode(() => UI.findText('ord', {
+        within: windowInfo(), match: 'startsWith', index: 2,
+      }), 'TARGET_NOT_FOUND', 'UI.findText');
+      equal(await UI.hasText('已完成', { within: windowInfo(), match: 'endsWith' }), true, 'hasText endsWith');
+
+      const beforeInvalid = records.screenshots.length;
+      await expectCode(() => UI.findText('', { within: windowInfo() }), 'INVALID_ARGUMENT', 'UI.findText');
+      await expectCode(() => UI.findText('Order', { within: windowInfo(), match: 'prefix' }), 'INVALID_ARGUMENT', 'UI.findText');
+      equal(records.screenshots.length, beforeInvalid, 'invalid string matchers fail before screenshot');
+    });
+
+    const win = windowInfo();
+    await withStubs({
+      window: win,
+      getSize: unitCaptureSize,
+      runOCR: function (_, index, records) {
+        return { provider: 'fixture', lines: [
+          screenLine('订单 A', region(300, 350, 80, 30), index, records),
+          screenLine('金额：100元', region(390, 350, 100, 30), index, records),
+        ] };
+      },
+    }, async function (records) {
+      const target = await UI.findText('金额：', {
+        within: win,
+        region: function (current) { return region(current.x, current.y, current.width, current.height); },
+        relativeTo: { text: '订单 A', direction: 'right', maxGap: 10 },
+        match: 'startsWith',
+      });
+      assert(target && target.text === '金额：100元', JSON.stringify(target));
+      assertObservationCounts(records, 1, 1, 0, 'startsWith positioned lookup');
+    });
+
+    await withStubs({
+      runOCR: function (_, index) {
+        return { provider: 'fixture', lines: [{
+          text: index === 0 ? '请点击确认' : (index === 1 ? '等待完成' : ''),
+          confidence: 1,
+          bbox: { x: 100, y: 100, width: 180, height: 30 },
+        }] };
+      },
+    }, async function (records) {
+      const tapped = await UI.tapText('确认', { within: windowInfo(), match: 'endsWith' });
+      equal(tapped.target.text, '请点击确认', 'tapText uses endsWith matcher');
+      const waited = await UI.waitText('等待', { within: windowInfo(), match: 'startsWith', timeout: 20, polling: 1 });
+      equal(waited.text, '等待完成', 'waitText uses startsWith matcher');
+      equal(await UI.waitTextGone('不存在', { within: windowInfo(), match: 'endsWith', timeout: 20, polling: 1 }), true, 'waitTextGone uses endsWith matcher');
+      equal(records.clicks.length, 1, 'string matcher tap submits once');
+    });
+
+    await withStubs({
+      runOCR: function (_, index) {
+        return { provider: 'fixture', lines: [{
+          text: index === 0 ? '第一步 ready' : '第二步 ready',
+          confidence: 1,
+          bbox: { x: 100, y: 100, width: 160, height: 30 },
+        }] };
+      },
+    }, async function (records) {
+      const result = await UI.tapTexts(['第一步', '第二步'], {
+        within: windowInfo(), match: 'startsWith', waitForEach: false, intervalMs: 0,
+      });
+      equal(result.completed.length, 2, 'tapTexts global startsWith matcher');
+      equal(records.clicks.length, 2, 'tapTexts submits once per unique step');
+    });
+  });
+
+  test({ name: 'UI RegExp queries use raw single-line text and fail closed without mutating caller state', tier: 'unit', covers: ['UI.findTexts', 'UI.findText', 'UI.hasText', 'UI.tapText', 'UI.waitText', 'UI.waitTextGone'] }, async () => {
+    const lines = [
+      { text: '订单号：12345678', confidence: 0.99, bbox: { x: 100, y: 100, width: 180, height: 20 } },
+      { text: '订单号：1234', confidence: 0.98, bbox: { x: 100, y: 140, width: 160, height: 20 } },
+      { text: 'STATUS: Done', confidence: 0.97, bbox: { x: 100, y: 180, width: 160, height: 20 } },
+      { text: '😀 已完成', confidence: 0.96, bbox: { x: 100, y: 220, width: 140, height: 20 } },
+      { text: 'foo\nbar', confidence: 0.95, bbox: { x: 100, y: 260, width: 140, height: 20 } },
+    ];
+    await withStubs({ runOCR: function () { return { provider: 'fixture', lines: lines }; } }, async function (records) {
+      equal((await UI.findTexts(/^订单号：\d{8,20}$/u, { within: windowInfo() })).length, 1, 'anchored digit range');
+      equal((await UI.findTexts(/Done$/, { within: windowInfo() })).length, 1, 'end anchor');
+      equal((await UI.findTexts(/^status: done$/i, { within: windowInfo() })).length, 1, 'i flag');
+      equal((await UI.findTexts(/^😀/u, { within: windowInfo() })).length, 1, 'Unicode flag');
+      equal((await UI.findTexts(/^bar$/m, { within: windowInfo() })).length, 1, 'm flag on one raw OCR line string');
+      equal((await UI.findTexts(/^foo.bar$/s, { within: windowInfo() })).length, 1, 's flag on one raw OCR line string');
+      equal((await UI.findTexts(/^/u, { within: windowInfo() })).length, lines.length, 'zero-width success counts as a match');
+      equal(await UI.hasText(/^missing$/u, { within: windowInfo() }), false, 'regex zero candidates are not OCR failure');
+
+      const owned = /^订单号：\d{8,20}$/u;
+      owned.lastIndex = 7;
+      const found = await UI.findText(owned, { within: windowInfo() });
+      assert(found && found.text === '订单号：12345678', JSON.stringify(found));
+      equal(owned.lastIndex, 7, 'caller RegExp.lastIndex');
+
+      const beforeInvalid = records.screenshots.length;
+      for (const pattern of [/Done/g, /Done/y]) {
+        pattern.lastIndex = 2;
+        await expectCode(() => UI.findTexts(pattern, { within: windowInfo() }), 'INVALID_ARGUMENT', 'UI.findTexts');
+        equal(pattern.lastIndex, 2, 'rejected stateful RegExp.lastIndex');
+      }
+      for (const options of [
+        { within: windowInfo(), match: 'exact' },
+        { within: windowInfo(), caseSensitive: false },
+        { within: windowInfo(), normalizeWhitespace: false },
+      ]) {
+        await expectCode(() => UI.findTexts(/Done$/, options), 'INVALID_ARGUMENT', 'UI.findTexts');
+      }
+      equal(records.screenshots.length, beforeInvalid, 'invalid RegExp calls fail before screenshot/OCR');
+    });
+
+    await withStubs({
+      runOCR: function () { return { provider: 'fixture', lines: [
+        { text: '删除 1', confidence: 1, bbox: { x: 100, y: 100, width: 100, height: 20 } },
+        { text: '删除 2', confidence: 1, bbox: { x: 100, y: 140, width: 100, height: 20 } },
+      ] }; },
+    }, async function (records) {
+      const error = await expectCode(() => UI.tapText(/^删除 \d$/u, { within: windowInfo() }), 'AMBIGUOUS_TARGET', 'UI.tapText');
+      equal(error.candidateCount, 2, 'regex tap ambiguity');
+      equal(records.clicks.length, 0, 'ambiguous regex tap sends no input');
+      const result = await UI.tapText(/^删除 2$/u, { within: windowInfo() });
+      equal(result.target.text, '删除 2', 'unique regex tap');
+      equal(records.clicks.length, 1, 'unique regex tap submits once');
+    });
+
+    await withStubs({
+      runOCR: function (_, index) {
+        return { provider: 'fixture', lines: index === 0
+          ? [{ text: 'loading 42%', confidence: 1, bbox: { x: 100, y: 100, width: 120, height: 20 } }]
+          : [{ text: '完成 100%', confidence: 1, bbox: { x: 100, y: 100, width: 120, height: 20 } }] };
+      },
+    }, async function (records) {
+      const appeared = await UI.waitText(/^完成 \d+%$/u, { within: windowInfo(), timeout: 20, polling: 1 });
+      equal(appeared.text, '完成 100%', 'regex waitText');
+      equal(await UI.waitTextGone(/^loading/u, { within: windowInfo(), timeout: 20, polling: 1 }), true, 'regex waitTextGone');
+      equal(records.clicks.length, 0, 'regex waits never send input');
+    });
+
+    let indicesRejected = 0;
+    for (const flag of ['d', 'v']) {
+      try {
+        new RegExp('x', flag);
+      } catch (_) {
+        indicesRejected += 1;
+      }
+    }
+    equal(indicesRejected, 2, 'OpenDesk Runtime rejects uncommitted d and v flags');
+  });
+
+  test({ name: 'UI.findTextMatches evaluates bounded query groups from exactly one observation', tier: 'unit', covers: ['UI.findTextMatches'] }, async () => {
+    const lines = [
+      { text: '订单号：12345678', confidence: 0.99, bbox: { x: 200, y: 200, width: 180, height: 20 } },
+      { text: '金额：100元', confidence: 0.98, bbox: { x: 200, y: 240, width: 140, height: 20 } },
+      { text: '状态：已完成', confidence: 0.97, bbox: { x: 200, y: 280, width: 140, height: 20 } },
+    ];
+    await withStubs({ runOCR: function () { return { provider: 'fixture', lines: lines }; } }, async function (records) {
+      const owned = /^订单号：\d{8,20}$/u;
+      owned.lastIndex = 4;
+      const groups = await UI.findTextMatches([
+        '订单号：12345678',
+        /^订单号：\d{8,20}$/u,
+        /100元$/u,
+        /^missing$/u,
+        /^订单/u,
+      ], { within: windowInfo() });
+      equal(groups.length, 5, 'one group per input query');
+      equal(groups.map(function (group) { return group.queryIndex; }).join(','), '0,1,2,3,4', 'input query order');
+      equal(groups.map(function (group) { return group.matches.length; }).join(','), '1,1,1,0,1', 'independent group matches');
+      equal(groups[0].matches[0].text, groups[1].matches[0].text, 'one OCR line may enter multiple groups');
+      equal(owned.lastIndex, 4, 'unsubmitted caller regex remains untouched');
+      assertObservationCounts(records, 1, 1, 0, 'batch mixed matchers');
+      equal(records.events.filter(function (event) { return event.type === 'click'; }).length, 0, 'batch is read-only');
+    });
+
+    await withStubs({ runOCR: function () { return { provider: 'fixture', lines: lines }; } }, async function (records) {
+      const groups = await UI.findTextMatches(['missing', /^absent$/u], { within: windowInfo() });
+      equal(groups.map(function (group) { return group.matches.length; }).join(','), '0,0', 'all-empty batch groups');
+      assertObservationCounts(records, 1, 1, 0, 'all-empty batch');
+    });
+
+    await withStubs({ runOCR: async function () { throw new Error('fixture OCR failure'); } }, async function (records) {
+      await expectCode(() => UI.findTextMatches(['a', 'b'], { within: windowInfo() }), 'OCR_FAILED', 'UI.findTextMatches');
+      assertObservationCounts(records, 1, 1, 0, 'batch OCR failure');
+    });
+
+    const initial = windowInfo();
+    const replacement = windowInfo({ id: 'darwin:43:native:100', pid: 43, processId: 43, handle: 100, title: 'Replacement' });
+    await withStubs({
+      getActiveWindow: function (index) { return index === 0 ? initial : replacement; },
+      runOCR: function () { return { provider: 'fixture', lines: lines }; },
+    }, async function (records) {
+      await expectCode(() => UI.findTextMatches(['订单号：12345678']), 'STALE_TARGET', 'UI.findTextMatches');
+      assertObservationCounts(records, 1, 1, 0, 'batch stale scope');
+    });
+
+    await withStubs({}, async function (records) {
+      const invalidInvocations = [
+        function () { return UI.findTextMatches([]); },
+        function () { return UI.findTextMatches(new Array(33).fill('x')); },
+        function () { return UI.findTextMatches(['ok', '']); },
+        function () { return UI.findTextMatches(['ok', /x/g]); },
+        function () { return UI.findTextMatches([/x/], { match: 'contains' }); },
+        function () { return UI.findTextMatches(['x'], { index: 0 }); },
+        function () { return UI.findTextMatches(['x'], { click: {} }); },
+        function () { return UI.findTextMatches(['x'], { relativeTo: { text: 'a', direction: 'right', maxGap: 1 } }); },
+      ];
+      const symbolOptions = {};
+      symbolOptions[Symbol('hidden')] = true;
+      invalidInvocations.push(function () { return UI.findTextMatches(['x'], symbolOptions); });
+      for (const invoke of invalidInvocations) {
+        await expectCode(invoke, 'INVALID_ARGUMENT', 'UI.findTextMatches');
+      }
+      equal(records.screenshots.length, 0, 'invalid batch calls fail before screenshot');
+      equal(records.ocrRequests.length, 0, 'invalid batch calls fail before OCR');
+      equal(records.clicks.length, 0, 'invalid batch calls never send input');
+    });
+
+    await withStubs({ runOCR: function () { return { provider: 'fixture', lines: lines }; } }, async function (records) {
+      const groups = await UI.findTextMatches(new Array(32).fill('状态：已完成'), { within: windowInfo() });
+      equal(groups.length, 32, 'documented batch maximum is accepted');
+      assert(groups.every(function (group) { return group.matches.length === 1; }), 'every maximum-size group must be evaluated');
+      assertObservationCounts(records, 1, 1, 0, 'maximum-size batch');
+    });
+  });
+
   test({ name: 'UI uses visible intersection and rejects a mixed-DPI capture scope', tier: 'unit', covers: ['UI.findText'] }, async () => {
     await withStubs({
       window: windowInfo({ x: -200, y: 100, width: 400, height: 300 }),

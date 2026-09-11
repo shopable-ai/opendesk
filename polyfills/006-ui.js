@@ -10,6 +10,8 @@
   const VALUE_DEFAULT_TIMEOUT = 3000;
   const VALUE_MAX_TIMEOUT = 30000;
   const DISPLAY_SCALE_EPSILON = 0.01;
+  const MAX_TEXT_QUERIES = 32;
+  const MAX_REGEXP_SOURCE_LENGTH = 1024;
 
   function fail(code, operation, message, details) {
     const error = new Error(message);
@@ -279,11 +281,38 @@
     return normalized;
   }
 
-  function validateText(text, operation) {
-    if (typeof text !== 'string' || text.length === 0) {
-      fail('INVALID_ARGUMENT', operation, 'text must be a non-empty string');
+  function isRegExp(value) {
+    return Object.prototype.toString.call(value) === '[object RegExp]';
+  }
+
+  function validateTextQuery(query, operation) {
+    if (typeof query === 'string') {
+      if (query.length === 0) fail('INVALID_ARGUMENT', operation, 'query must be a non-empty string or RegExp');
+      return query;
     }
-    return text;
+    if (!isRegExp(query)) {
+      fail('INVALID_ARGUMENT', operation, 'query must be a non-empty string or RegExp');
+    }
+    return query;
+  }
+
+  function validateTextQueries(rawQueries, operation) {
+    if (!Array.isArray(rawQueries) || rawQueries.length === 0) {
+      fail('INVALID_ARGUMENT', operation, 'queries must be a non-empty array');
+    }
+    if (rawQueries.length > MAX_TEXT_QUERIES) {
+      fail('INVALID_ARGUMENT', operation, 'queries must contain at most ' + MAX_TEXT_QUERIES + ' entries');
+    }
+    const queries = Array.from(rawQueries);
+    for (let index = 0; index < queries.length; index += 1) {
+      try {
+        validateTextQuery(queries[index], operation);
+      } catch (error) {
+        if (error && error.code === 'INVALID_ARGUMENT') error.queryIndex = index;
+        throw error;
+      }
+    }
+    return queries;
   }
 
   function validateIndex(value, operation) {
@@ -403,8 +432,9 @@
 
     if (kind === 'text') {
       options.match = raw.match === undefined ? 'exact' : raw.match;
-      if (options.match !== 'exact' && options.match !== 'contains') {
-        fail('INVALID_ARGUMENT', operation, 'match must be "exact" or "contains"');
+      if (options.match !== 'exact' && options.match !== 'contains' &&
+          options.match !== 'startsWith' && options.match !== 'endsWith') {
+        fail('INVALID_ARGUMENT', operation, 'match must be "exact", "contains", "startsWith", or "endsWith"');
       }
       options.caseSensitive = raw.caseSensitive === undefined ? false : raw.caseSensitive;
       options.normalizeWhitespace = raw.normalizeWhitespace === undefined ? true : raw.normalizeWhitespace;
@@ -446,6 +476,18 @@
     }
     validatePositioningOptions(raw, options, operation, positioningSupported === true);
     return options;
+  }
+
+  function validateTextBatchOptions(rawOptions, operation) {
+    const raw = rawOptions === undefined ? {} : requireObject(rawOptions, 'options', operation);
+    rejectUnknownFields(raw, [
+      'within', 'match', 'caseSensitive', 'normalizeWhitespace',
+      'minConfidence', 'provider', 'providerChain', 'lang', 'region',
+    ], 'options', operation);
+    if (Object.getOwnPropertySymbols(raw).length > 0) {
+      fail('INVALID_ARGUMENT', operation, 'options must not contain symbol fields');
+    }
+    return validateOptions(raw, operation, 'text', true);
   }
 
   function identitySnapshot(win) {
@@ -736,11 +778,69 @@
     return image;
   }
 
-  function textMatches(lineText, query, options, matchOverride) {
-    const actual = normalizeText(lineText, options);
+  function compileStringMatcher(query, options, matchOverride) {
     const wanted = normalizeText(query, options);
     const match = matchOverride || options.match;
-    return match === 'exact' ? actual === wanted : actual.indexOf(wanted) >= 0;
+    return {
+      kind: 'string',
+      matches: function (lineText) {
+        const actual = normalizeText(lineText, options);
+        if (match === 'exact') return actual === wanted;
+        if (match === 'contains') return actual.indexOf(wanted) >= 0;
+        if (match === 'startsWith') return actual.startsWith(wanted);
+        return actual.endsWith(wanted);
+      },
+    };
+  }
+
+  function compileRegExpMatcher(query, rawOptions, operation) {
+    const raw = rawOptions === undefined ? {} : rawOptions;
+    const stringOnlyFields = ['match', 'caseSensitive', 'normalizeWhitespace'].filter(function (key) {
+      return hasOwn(raw, key);
+    });
+    if (stringOnlyFields.length > 0) {
+      fail('INVALID_ARGUMENT', operation, 'RegExp queries do not accept string matcher option' +
+        (stringOnlyFields.length === 1 ? '' : 's') + ': ' + stringOnlyFields.join(', '));
+    }
+
+    let source;
+    let flags;
+    try {
+      source = query.source;
+      flags = query.flags;
+    } catch (error) {
+      fail('INVALID_ARGUMENT', operation, 'could not read RegExp source and flags', { cause: errorSummary(error) });
+    }
+    if (typeof source !== 'string' || source.length > MAX_REGEXP_SOURCE_LENGTH) {
+      fail('INVALID_ARGUMENT', operation, 'RegExp source must contain at most ' + MAX_REGEXP_SOURCE_LENGTH + ' characters');
+    }
+    if (flags.indexOf('g') >= 0 || flags.indexOf('y') >= 0) {
+      fail('INVALID_ARGUMENT', operation, 'RegExp flags g and y are stateful and are not supported');
+    }
+    if (/[^imsu]/.test(flags)) {
+      fail('INVALID_ARGUMENT', operation, 'RegExp flags are limited to i, m, s, and u');
+    }
+
+    let pattern;
+    try {
+      pattern = new RegExp(source, flags);
+    } catch (error) {
+      fail('INVALID_ARGUMENT', operation, 'RegExp is not supported by this Runtime', { cause: errorSummary(error) });
+    }
+    return {
+      kind: 'regexp',
+      matches: function (lineText) {
+        pattern.lastIndex = 0;
+        return pattern.test(lineText);
+      },
+    };
+  }
+
+  function compileTextMatcher(query, options, rawOptions, operation) {
+    validateTextQuery(query, operation);
+    return typeof query === 'string'
+      ? compileStringMatcher(query, options)
+      : compileRegExpMatcher(query, rawOptions, operation);
   }
 
   function sortReadingOrder(candidates) {
@@ -777,18 +877,19 @@
     return { capture: capture, result: result };
   }
 
-  function collectTextMatches(observation, text, options, operation) {
-    const targetRows = [];
+  function collectTextMatchGroups(observation, matchers, options, operation) {
+    const targetRowGroups = matchers.map(function () { return []; });
     const anchorRows = [];
     const relative = options.positioning && options.positioning.relativeTo;
+    const anchorMatcher = relative ? compileStringMatcher(relative.text, options, 'exact') : null;
     for (let lineIndex = 0; lineIndex < observation.result.lines.length; lineIndex += 1) {
       const line = observation.result.lines[lineIndex];
       if (!line || typeof line.text !== 'string' || !line.bbox) continue;
       const confidence = isFiniteNumber(line.confidence) ? line.confidence : 0;
       if (options.minConfidence !== undefined && confidence < options.minConfidence) continue;
-      const targetMatch = textMatches(line.text, text, options);
-      const anchorMatch = !!relative && textMatches(line.text, relative.text, options, 'exact');
-      if (!targetMatch && !anchorMatch) continue;
+      const targetMatches = matchers.map(function (matcher) { return matcher.matches(line.text); });
+      const anchorMatch = !!anchorMatcher && anchorMatcher.matches(line.text);
+      if (!anchorMatch && !targetMatches.some(function (matched) { return matched; })) continue;
       let rawBounds;
       let bounds;
       let spatialEdges;
@@ -817,18 +918,28 @@
         imageEdges: imageEdges(rawBounds),
         spatialEdges: spatialEdges,
       };
-      if (targetMatch) targetRows.push(row);
+      for (let matcherIndex = 0; matcherIndex < targetMatches.length; matcherIndex += 1) {
+        if (targetMatches[matcherIndex]) targetRowGroups[matcherIndex].push(row);
+      }
       if (anchorMatch) anchorRows.push(row);
     }
     return {
-      targetRows: sortCandidateRows(targetRows),
+      targetRowGroups: targetRowGroups.map(sortCandidateRows),
       anchorRows: sortCandidateRows(anchorRows),
     };
   }
 
-  async function discoverTexts(text, options, operation, targetOverride, requestedOverride) {
+  function collectTextMatches(observation, matcher, options, operation) {
+    const matches = collectTextMatchGroups(observation, [matcher], options, operation);
+    return {
+      targetRows: matches.targetRowGroups[0],
+      anchorRows: matches.anchorRows,
+    };
+  }
+
+  async function discoverTexts(matcher, options, operation, targetOverride, requestedOverride) {
     const observation = await runTextObservation(options, operation, targetOverride, requestedOverride);
-    const matches = collectTextMatches(observation, text, options, operation);
+    const matches = collectTextMatches(observation, matcher, options, operation);
     return {
       capture: observation.capture,
       candidates: matches.targetRows.map(function (row) { return row.candidate; }),
@@ -1108,7 +1219,7 @@
     }).map(function (row) { return row.candidate; });
   }
 
-  async function discoverPositionedTexts(text, options, operation, missingAnchorIsError) {
+  async function discoverPositionedTexts(matcher, options, operation, missingAnchorIsError) {
     const positioning = options.positioning;
     let retryWindow;
     for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -1119,7 +1230,7 @@
       const currentSnapshot = assertExpectedWindow(positioning.expectedWindow, current, operation);
       const requestedScope = positionedOuterScope(options, current, currentSnapshot, operation);
       const observation = await runTextObservation(options, operation, current, requestedScope);
-      const matches = collectTextMatches(observation, text, options, operation);
+      const matches = collectTextMatches(observation, matcher, options, operation);
       const candidates = positioning.relativeTo
         ? relativeTextCandidates(matches, observation, options, operation)
         : matches.targetRows.map(function (row) { return row.candidate; });
@@ -1159,6 +1270,48 @@
       return { capture: observation.capture, candidates: candidates };
     }
     fail('STALE_TARGET', operation, 'window bounds changed while resolving the target');
+  }
+
+  function textMatchGroupsFromObservation(observation, matchers, options, operation) {
+    const matches = collectTextMatchGroups(observation, matchers, options, operation);
+    return matches.targetRowGroups.map(function (rows, queryIndex) {
+      return {
+        queryIndex: queryIndex,
+        matches: rows.map(function (row) { return row.candidate; }),
+      };
+    });
+  }
+
+  async function discoverTextMatchGroups(matchers, options, operation) {
+    let observation;
+    if (options.positioning) {
+      const current = await currentPositionedWindow(operation);
+      const currentSnapshot = assertExpectedWindow(options.positioning.expectedWindow, current, operation);
+      const requestedScope = positionedOuterScope(options, current, currentSnapshot, operation);
+      observation = await runTextObservation(options, operation, current, requestedScope);
+      const check = await checkWindowScope(observation.capture, operation, 'before returning batch matches', true);
+      if (check.retry) {
+        fail('STALE_TARGET', operation, 'window bounds changed during the batch observation', {
+          expected: observation.capture.scope.windowSnapshot,
+          actual: identitySnapshot(check.current),
+        });
+      }
+    } else {
+      observation = await runTextObservation(options, operation);
+      // An omitted scope is resolved from the active window. Revalidate that
+      // same observation owner once; unlike click discovery, a batch never
+      // retries with a second frame.
+      if (options.within === undefined && observation.capture.scope.windowSnapshot) {
+        const check = await checkWindowScope(observation.capture, operation, 'before returning batch matches');
+        if (check.retry) {
+          fail('STALE_TARGET', operation, 'active window bounds changed during the batch observation', {
+            expected: observation.capture.scope.windowSnapshot,
+            actual: identitySnapshot(check.current),
+          });
+        }
+      }
+    }
+    return textMatchGroupsFromObservation(observation, matchers, options, operation);
   }
 
   async function tapWithDiscovery(discover, value, options, operation, action, beforeInput) {
@@ -1398,41 +1551,55 @@
       }
     },
 
-    findTexts: async function (text, rawOptions) {
+    findTexts: async function (query, rawOptions) {
       const operation = 'UI.findTexts';
-      validateText(text, operation);
+      validateTextQuery(query, operation);
       const options = validateOptions(rawOptions, operation, 'text', true);
+      const matcher = compileTextMatcher(query, options, rawOptions, operation);
       return (await (options.positioning
-        ? discoverPositionedTexts(text, options, operation, false)
-        : discoverTexts(text, options, operation))).candidates;
+        ? discoverPositionedTexts(matcher, options, operation, false)
+        : discoverTexts(matcher, options, operation))).candidates;
     },
 
-    findText: async function (text, rawOptions) {
+    findTextMatches: async function (rawQueries, rawOptions) {
+      const operation = 'UI.findTextMatches';
+      const queries = validateTextQueries(rawQueries, operation);
+      const options = validateTextBatchOptions(rawOptions, operation);
+      const matchers = queries.map(function (query) {
+        return compileTextMatcher(query, options, rawOptions, operation);
+      });
+      return discoverTextMatchGroups(matchers, options, operation);
+    },
+
+    findText: async function (query, rawOptions) {
       const operation = 'UI.findText';
-      validateText(text, operation);
+      validateTextQuery(query, operation);
       const options = validateOptions(rawOptions, operation, 'text', true);
+      const matcher = compileTextMatcher(query, options, rawOptions, operation);
       const found = options.positioning
-        ? await discoverPositionedTexts(text, options, operation, false)
-        : await discoverTexts(text, options, operation);
+        ? await discoverPositionedTexts(matcher, options, operation, false)
+        : await discoverTexts(matcher, options, operation);
       return chooseCandidate(found.candidates, options, operation);
     },
 
-    hasText: async function (text, rawOptions) {
+    hasText: async function (query, rawOptions) {
       const operation = 'UI.hasText';
-      validateText(text, operation);
+      validateTextQuery(query, operation);
       const options = validateOptions(rawOptions, operation, 'text', true);
+      const matcher = compileTextMatcher(query, options, rawOptions, operation);
       return (await (options.positioning
-        ? discoverPositionedTexts(text, options, operation, false)
-        : discoverTexts(text, options, operation))).candidates.length > 0;
+        ? discoverPositionedTexts(matcher, options, operation, false)
+        : discoverTexts(matcher, options, operation))).candidates.length > 0;
     },
 
-    tapText: async function (text, rawOptions) {
+    tapText: async function (query, rawOptions) {
       const operation = 'UI.tapText';
-      validateText(text, operation);
+      validateTextQuery(query, operation);
       const options = validateOptions(rawOptions, operation, 'text', true);
+      const matcher = compileTextMatcher(query, options, rawOptions, operation);
       return options.positioning
-        ? tapPositionedText(text, options, operation)
-        : tapWithDiscovery(discoverTexts, text, options, operation, 'tapText');
+        ? tapPositionedText(matcher, options, operation)
+        : tapWithDiscovery(discoverTexts, matcher, options, operation, 'tapText');
     },
 
     tapTexts: async function (texts, rawOptions) {
@@ -1472,6 +1639,9 @@
       if (waitForEach && options.within !== undefined && !hasReliableWindowIdentity(options.within)) {
         fail('INVALID_ARGUMENT', operation, 'waitForEach requires a resolved WindowInfo or an omitted within');
       }
+      const sequenceMatchers = sequence.map(function (text) {
+        return compileTextMatcher(text, options, rawOptions, operation);
+      });
       let expectedWindow = waitForEach && options.within !== undefined ? identitySnapshot(options.within) : null;
       if (options.providerChain) options.providerChain = options.providerChain.slice();
       if (options.click && typeof options.click === 'object') options.click = Object.assign({}, options.click);
@@ -1529,8 +1699,8 @@
           phase = 'locate';
           if (waitForEach) deadline = Date.now() + options.timeout;
           const result = await (options.positioning
-            ? tapPositionedText(sequence[index], options, operation, beforeInput, discoverForStep)
-            : tapWithDiscovery(discoverForStep, sequence[index], options, operation, 'tapText', beforeInput));
+            ? tapPositionedText(sequenceMatchers[index], options, operation, beforeInput, discoverForStep)
+            : tapWithDiscovery(discoverForStep, sequenceMatchers[index], options, operation, 'tapText', beforeInput));
           completed.push(result);
           // Never drop a completed input when cancellation arrives during that
           // input. Report the prefix and stop instead of submitting another.
@@ -1554,16 +1724,17 @@
       return { ok: true, action: 'tapTexts', completed: completed };
     },
 
-    waitText: async function (text, rawOptions) {
+    waitText: async function (query, rawOptions) {
       const operation = 'UI.waitText';
-      validateText(text, operation);
+      validateTextQuery(query, operation);
       const options = validateOptions(rawOptions, operation, 'text');
+      const matcher = compileTextMatcher(query, options, rawOptions, operation);
       const started = Date.now();
       let lastObservation = null;
       let lastError = null;
       while (Date.now() - started <= options.timeout) {
         try {
-          const found = await discoverTexts(text, options, operation);
+          const found = await discoverTexts(matcher, options, operation);
           lastObservation = { candidateCount: found.candidates.length, candidates: found.candidates };
           const candidate = chooseCandidate(found.candidates, options, operation);
           if (candidate) return candidate;
@@ -1576,22 +1747,23 @@
       }
       fail('TIMEOUT', operation, 'timed out waiting for text to appear', {
         timeout: options.timeout,
-        text: text,
+        text: query,
         lastObservation: lastObservation,
         lastError: lastError,
       });
     },
 
-    waitTextGone: async function (text, rawOptions) {
+    waitTextGone: async function (query, rawOptions) {
       const operation = 'UI.waitTextGone';
-      validateText(text, operation);
+      validateTextQuery(query, operation);
       const options = validateOptions(rawOptions, operation, 'text');
+      const matcher = compileTextMatcher(query, options, rawOptions, operation);
       const started = Date.now();
       let lastObservation = null;
       let lastError = null;
       while (Date.now() - started <= options.timeout) {
         try {
-          const found = await discoverTexts(text, options, operation);
+          const found = await discoverTexts(matcher, options, operation);
           lastObservation = { candidateCount: found.candidates.length, candidates: found.candidates };
           if (found.candidates.length === 0) return true;
         } catch (error) {
@@ -1602,7 +1774,7 @@
       }
       fail('TIMEOUT', operation, 'timed out waiting for text to disappear', {
         timeout: options.timeout,
-        text: text,
+        text: query,
         lastObservation: lastObservation,
         lastError: lastError,
       });
