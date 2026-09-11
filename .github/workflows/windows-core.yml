@@ -17,7 +17,7 @@ jobs:
   core:
     name: Windows Core Compatibility
     runs-on: windows-latest
-    timeout-minutes: 35
+    timeout-minutes: 40
 
     steps:
       - name: Checkout
@@ -50,25 +50,21 @@ jobs:
         shell: pwsh
         run: go test ./automation -run '^TestWindowsWindowManager' -count=1
 
-      - name: Build OpenDesk Windows runtime
+      - name: Build portable Windows distribution
         shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path dist | Out-Null
-          go build -o dist/opendesk.exe ./cmd/opendesk
-          if (-not (Test-Path -LiteralPath "dist/opendesk.exe")) {
-            throw "dist/opendesk.exe was not produced"
-          }
+        run: pwsh -NoProfile -File scripts/build_windows_distribution.ps1 -Runtime win-x64
 
-      - name: Run public Runtime window contract
+      - name: Run public Runtime window contract from distribution
         shell: pwsh
         run: |
-          & .\dist\opendesk.exe -script "tests/runtime-api/window-target.js" -console-mode script *>&1 | Tee-Object -FilePath ".runtime/tests/windows-compat/window-runtime-contract.log"
+          $runtime = ".\dist\windows\win-x64\opendesk.exe"
+          & $runtime -script "tests/runtime-api/window-target.js" -console-mode script *>&1 | Tee-Object -FilePath ".runtime/tests/windows-compat/window-runtime-contract.log"
           $exitCode = $LASTEXITCODE
           [ordered]@{
             schemaVersion = 1
             suite = "runtime-window-contract"
             status = if ($exitCode -eq 0) { "passed" } else { "failed" }
-            command = ".\\dist\\opendesk.exe -script tests/runtime-api/window-target.js -console-mode script"
+            command = ".\\dist\\windows\\win-x64\\opendesk.exe -script tests/runtime-api/window-target.js -console-mode script"
             githubSHA = $env:GITHUB_SHA
             osVersion = [Environment]::OSVersion.VersionString
             architecture = $env:PROCESSOR_ARCHITECTURE
@@ -84,18 +80,14 @@ jobs:
             throw "repository-owned Windows window fixture was not produced"
           }
 
-      - name: Run hosted live Window Manager fixture contract
+      - name: Run hosted live Window Manager fixture contract from distribution
         shell: pwsh
-        run: pwsh -NoProfile -File tests/windows/window-manager/run-live.ps1 -OpenDeskPath .\dist\opendesk.exe -FixturePath .\.runtime\tests\windows-compat\window-fixture.exe
+        run: pwsh -NoProfile -File tests/windows/window-manager/run-live.ps1 -OpenDeskPath .\dist\windows\win-x64\opendesk.exe -FixturePath .\.runtime\tests\windows-compat\window-fixture.exe
 
-      - name: Build complete Windows app pair
-        shell: pwsh
-        run: pwsh -NoProfile -File scripts/build_windows_app.ps1
-
-      - name: Windows hosted-deterministic native host protocol smoke
+      - name: Windows hosted-deterministic native host protocol smoke from distribution
         shell: pwsh
         run: |
-          $hostPath = ".\dist\ui-host\opendesk-ui-host.exe"
+          $hostPath = ".\dist\windows\win-x64\ui-host\opendesk-ui-host.exe"
           if (-not (Test-Path -LiteralPath $hostPath)) {
             throw "Windows native UI host was not produced at $hostPath"
           }
@@ -110,6 +102,10 @@ jobs:
           if ($exitCode -ne 0) {
             exit $exitCode
           }
+
+      - name: Validate portable distribution contract
+        shell: pwsh
+        run: pwsh -NoProfile -File tests/windows/distribution/run-portable.ps1 -DistributionDirectory dist/windows/win-x64 -EvidenceDirectory .runtime/tests/windows-compat
 
       - name: Audit test architecture
         if: always()
