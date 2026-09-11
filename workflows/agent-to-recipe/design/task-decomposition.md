@@ -6,14 +6,14 @@ order: 30
 
 # Agent-first Recorder｜工作流任务分解树
 
-从真实任务／人工开发目标／已有自动化资产出发，形成有依据、可验证并能维护的普通 OpenDesk JavaScript 与必要组合能力；有必要判断时明确交付 JS／Agent 混合流程及真实接入条件。状态：框架分析 v0.5，2026-09-10，不是已运行通过报告。返回[设计总纲](README.md)；贯穿案例见[计算器](../cases/calculator.md)，组合业务示意见[聊天案例](application-operations.md#聊天业务的粒度与组合示例)。Structured UI Collection Reading 的详细 Runtime/VLM/Traversal 设计只维护在[专项架构](../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)。
+从真实任务／人工开发目标／已有自动化资产出发，形成有依据、可验证并能维护的普通 OpenDesk JavaScript 与必要组合能力；有必要判断时明确交付 JS／Agent 混合流程及真实接入条件。状态：框架分析 v0.6，2026-09-11，不是已运行通过报告。返回[设计总纲](README.md)；贯穿案例见[计算器](../cases/calculator.md)，组合业务示意见[聊天案例](application-operations.md#聊天业务的粒度与组合示例)。Structured UI Collection Reading 的详细 Runtime/VLM/Traversal 设计只维护在[专项架构](../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)。
 
 ## 使用依据与编号
 
 - 以[主方法](../../../docs/frameworks/demonstration-to-automation-pipeline.md)第 0 节十二阶段总表、[共享合同](../../../docs/frameworks/agent-to-recipe-skill-contract.md)的 S1—S12 映射为主编号；业务分解依据[任务求解方法](../../../docs/frameworks/automation-problem-solving-framework.md)。
 - 本文保留五个需求结果层次，下面写实际要完成的大任务和小任务；阶段是开发自动化的方法，不是生成后每次业务运行都要重走的步骤。
 - 讨论中的十三节点视图也保留在后文，但用 R1—R13 标识其原节点，防止“讨论 S4＝状态重建”与“合同 S4＝动作后验证”混用。这是来源对照，不是新增运行阶段或悄悄修订上游文档。
-- 应用操作细化见[应用操作建模与封装](application-operations.md)；S11 的按需质量改进见[code-rebuild](code-rebuild.md)。本次只创建 [application-engineer 方法入口](../skills/application-engineer/SKILL.md)，不声明对应新 API、自动调度或其他 Skill 已实现。
+- 应用操作细化见[应用操作建模与封装](application-operations.md)；S11 的按需质量改进见[code-rebuild](code-rebuild.md)。当前只创建 [application-engineer 方法入口](../skills/application-engineer/SKILL.md)；`trace-distill` 是本轮明确的目标专业职责，但尚未创建 SKILL.md、宿主调用或独立验收，不声明其已可用。
 - Structured Collection Reading 作为 S1—S12 内的跨应用数据读取能力整合，**不新增 S13，也不新增 collection/ui-understanding/VLM Skill**。`UI.readCollection()`／`UI.collectCollection()` 当前只是在专项架构冻结的 Working Contract，真正实现前生成代码只能使用当前 API。
 - 本文回答完整需要做什么；[requirements.md](requirements.md)明确来源和需求基线，[chain-design.md](chain-design.md)明确环节、输入输出和组合，[validation-plan.md](validation-plan.md)明确凭什么通过。不在任务树复制完整专业方法和数据合同。
 
@@ -21,7 +21,7 @@ order: 30
 
 - 先按需求语义拆分业务任务。
   - 从业务对象、期望结果、必要子目标和数据依赖出发，不从 Agent 分工、文件数量或 API 名称反推需求。
-  - S1 建立初步业务任务树；S3—S6 用事实修订认识；S7—S9 校正步骤、依赖和复用范围，始终保留对应关系与修订理由。
+  - S1 建立初步业务任务树与执行前操作计划；S3—S6 用事实修订认识和后续计划；S7—S9 校正必要步骤、业务语义、数据依赖和复用范围，始终保留对应关系与修订理由。
   - 应用语义操作、组合业务能力、完整业务流程是不同粒度；一次点击不自动成为一个独立业务 Skill。
 - 选择最小必要实现方式。
   - 已明确且能验证的步骤用普通 JS 执行；必要的内容理解和动态判断交给 Agent，授权决策交人工。
@@ -41,7 +41,11 @@ order: 30
 
 - **真实任务／人工开发目标／已有自动化资产**
   - **Ⅰ. 从任务要求到可信执行依据**
-    - **S1｜确定业务合同、任务树和本次工作范围**
+    - **S1｜确定业务合同、任务树、操作计划和本次工作范围**
+      - 从用户原始表达建立任务理解。
+        - 用户可以用自然语言、截图、样例或已有资产提出任务，不要求先提供 TaskContract JSON。
+        - 将用户明确要求、已核实事实、Agent 提议、Expected Outcome 与 Unknown 分开；结构化合同是 Agent／宿主生成的内部成果，不因写入文件自动升级为用户确认事实。
+        - 需要用户快速检查时生成同版可读任务说明；用户用自然语言纠正业务含义后更新结构化成果，可读视图不成为第二份权威合同。
       - 明确要处理的业务对象与目标结果。
         - 确认应用、账号、文档／会话／订单等上下文，区分目标身份和外观线索。
         - 定义业务输入、候选变量、配置、最终输出，以及不能发生的错误。
@@ -55,11 +59,16 @@ order: 30
         - 区分只读、可安全重试与有不可逆副作用的操作；界面文字和外部返回不是新授权。
         - 明确截图／人工图片的观察范围、允许保存和上传的内容、自动核验／人工审阅方式；能力建设另有页面、状态和预算边界。
         - 若允许跨 viewport 收集，显式授权 scroll side effect 与最大步数／条数／时限；若只允许观察，则不得通过隐藏的 `scroll:true` 改变用户位置。
-      - 盘点现有成果并建立粗粒度任务树。
+      - 盘点现有成果并建立粗粒度业务任务树。
         - 核对图片、脚本及内容版本、应用知识、任务包、交接和实际证据，不把聊天描述当可执行资产。
         - 按业务子目标与数据依赖拆工作包，写清完成结果、先后关系和待确认项，不预编造全部点击。
         - 记录本次是文档审查、基本测试、接续修复、定向补采还是完整新生成；不同范围的通过不能互相替代。
         - 区分来源事实、未知、假设、参考方案和期望；以行为案例和必要质量要求校准本次基线，不把矩阵建议当观测事实。
+      - 形成执行前可审阅的业务操作计划。
+        - 对较长真实任务，按业务顺序说明当前准备处理的对象、主要动作、输入来源、预期结果和检查方式；该计划不是 Skill 调用表。
+        - 整体业务顺序先明确，近期动作在已有知识和必要观察支持下细化；未知现场、坐标和对象关系不提前编造。
+        - 标出关键检查点和会阻断后续依赖的高影响 Unknown；优先选择成本较低、能够尽早否定错误路线的核查动作。
+        - 计划允许后续根据真实现场受控修订；修订保留原因和受影响步骤，不覆盖已经发生的执行事实。
       - 选择入口并保持来源真实。
         - Agent 新示范：完成获准真实任务，形成可用于新生成的成功示范。
         - 人工正向开发：用同一业务合同约束试验、程序草稿和验收，以受控试验及实际运行建立依据；人工编写或试运行不能追认为 Agent 示范。
@@ -70,6 +79,7 @@ order: 30
         - 核对当前系统、窗口／Surface、账号与业务对象、权限、焦点、弹窗和可见性；不把 S2 缩成只理解图片。
         - 检查当前程序、配套依赖、接口文档与构建来源；不能从工具名字猜测 JS 能力。
         - 有效知识直接复用，不重复研究整个软件；发现阶段不要求先有完整 SemanticProcedure。
+        - 对 S1 操作计划中最可能阻断后续的近期步骤先做必要可行性核查，例如关键结果必须被后续消费时先确认可可靠读取，而不是先执行大量依赖动作。
       - 界面认识与审阅子作业（ui-understanding 仅为工作标签，不新增独立 Skill）。
         - 明确本次需要回答的页面、区域、控件和状态问题，核心目标、必要依赖和可延后对象分别记录。
         - 取得工具截图、人工截图或已有获准图片，按需加入局部图、OCR／原生属性及完整性信息。
@@ -83,31 +93,35 @@ order: 30
         - 按约定自动核验或人工审阅关键认识。结构合法不等于语义正确，VLM proposal 不等于 Truth，未发生的人审不写通过；关键授权和明确要求的人审不能绕过。
         - 修订类型、名称、矩形、父区域、关系、CollectionProfile 或未知项后保留原证据和旧版，记录原因及范围，重生视图并标出受影响规则、操作与验证。
         - 发布当前可消费的限定认识、版本、候选、必需缺口和次要延后项；仅认识包可结束，定位／操作／collection runtime／业务未测保持未测。
-      - 只消除影响下一步的未知。
+      - 只消除影响下一步的未知并回填近期计划。
         - 不足时进行有问题、有预算、有退出条件的探测，标记事实、解释和假设。
         - 只做获准的状态准备，重新观察确认，不擅自清空用户数据或关闭未保存内容。
         - 缓存保存有效知识与条件，不保存永久坐标；不知道真实控件或逻辑集合总数时不声称全量识别。
-    - **S3 ↔ S4 ↔ S5｜操作、观察验证与分类决策的微循环；同步采集伴随执行**
-      - S3：确认对象与前提，执行当前获准动作。
-        - 动作前记录简短子目标、目标依据、预期状态变化和风险。
+        - 发现会改变后续业务路线、目标或检查点的新事实时，产生明确 plan delta；不重新生成整棵任务树，也不修改过去的原始用户要求。
+    - **S3 ↔ S4 ↔ S5｜按计划操作、观察验证与分类决策的微循环；同步采集伴随执行**
+      - S3：确认计划步骤、对象与前提，执行当前获准动作。
+        - 动作前记录本次对应的 planned step／子目标、目标依据、预期状态变化和风险；探索或计划外必要动作也必须保留实际来源与原因。
         - 允许有限探索、已有脚本调用、人工接管或替代路径，明确真实执行者及范围。
         - 同步记录动作请求与返回、前后观察、时间、窗口身份及证据引用，不在结束后补造事实。
         - 即时保存关键读取值、来源、实际消费者、数据有效条件与已发生或不确定的副作用；必要图片实际可读，不用示例路径顶替。
         - collection scroll 属于 UI 输入副作用；若任务实际执行该动作，同样记录 scroll 前后 viewport、方向/幅度、观察变化和 continuity 证据，不能把它记成纯读取。
       - S4：重新观察并判断实际效果。
         - 区分动作返回、目标命中、界面变化和业务结果；独立保存期望与实际值。
+        - 对照当前 planned step 的 expected outcome 与实际观察，记录满足、失败或 uncertain；不能用“计划里应该出现”的值补实际观察。
         - 检查变化是否属于同一对象，排查加载延迟、其他操作和外部变化；时间相邻不等于因果已证实。
         - 将关键步骤记为 pass、fail 或 uncertain，保留验证来源和不足，不用“应该读到的值”补观察。
         - 没有读到状态不等于 false；Tab 高亮不等于内容就绪，需检查实际内容身份与加载条件。
         - 对 collection traversal 区分“viewport 已改变”“两屏 continuity 已证明”“逻辑集合到达末尾”三件事；新消息/删除/重排等 mutation 不能误判为正常 scroll 连续性。
-      - S5：标记路径性质并决定安全下一步。
+      - S5：标记路径性质、计划偏差并决定安全下一步。
         - 区分正常业务、setup／状态准备、verification、exploration、off-task、error、retry 和 recovery。
         - 保留必要的读取、准备和验证；失败动作可以有恢复价值，成功动作也可能是无关探索。
+        - 计划外但事实证明必要的状态准备、读取或导航，记录原因并修订后续计划；不能因为“不在原计划”在后续去噪时自动删除。
+        - 未执行的计划步骤不补成事实；如果目标、输入来源、主要路线或检查点发生变化，发布 plan delta 并标明受影响的未执行步骤。
         - 短暂等待或安全重试有界执行，恢复后再次验证，不能把重试误作业务循环。
         - 发送、提交等结果不明时先核对副作用，不换路再做一次；身份歧义、越权或预算耗尽时停止。
         - continuity 无法证明、collection mutation、profile drift 或模型/多源 evidence 冲突时停止依赖该结果的后续写操作，按责任返回；不能静默拼接或 text-only 去重后继续。
       - 保存可追溯的 Experience Unit。
-        - 关联 BeforeState、子目标／意图、Target 假设与依据、Action、ExpectedTransition、AfterState、ActualEffect、Verification、Evidence、Classification 和恢复关联。
+        - 关联 planned step、BeforeState、子目标／意图、Target 假设与依据、Action、ExpectedTransition、AfterState、ActualEffect、Verification、Evidence、Classification、planDelta 和恢复关联。
         - Raw Trace 只追加；后续去噪不能改写原事件、覆盖失败证据或把解释提升为事实。
         - 根据问题选择局部截图、结构化读取或补观察，不强制每步采集全屏、OCR、视频和全部模态。
       - 根据缺口返回正确位置。
@@ -115,41 +129,46 @@ order: 30
         - 已知加载依原规则有界等待；应用规则失效返回 S2／S10；代码错误返回 S11；缺观察定向补采。
         - 目标或授权改变返回 S1；关键结果未知先核对／停止，不继续依赖它的写操作。
     - **S6｜用任务级证据关闭本次示范或指定范围的补采**
-      - 汇总任务合同、原始事实、Experience Unit、实际数据流、初始／最终状态、环境和证据索引；检查关键图片及引用真实可读。
+      - 汇总任务合同、原始计划及修订、原始事实、Experience Unit、实际数据流、初始／最终状态、环境和证据索引；检查关键图片及引用真实可读。
       - 核对最终业务对象、结果、副作用和证明强度；不能用“所有步骤走完”替代任务完成。
       - 封存 Demonstration Dossier，明确完整成功、失败、局部完成或 inconclusive，以及未决问题。
       - collection 证据若只覆盖 current viewport，Dossier 必须保留该范围；只有实际 traversal/end-detection 支持时才能声明相应逻辑集合范围，不能从 native snapshot item count 推断全量。
       - 完整成功示范可进入完整新生成路径；失败包／局部补证包只支持诊断或同范围接续，不能冒充完整示范。
       - 人工开发及已有资产按实际来源交接代码、试验和证据；不伪造缺失示范，不能将接续资格升级为完整 Agent 新生成资格。
-  - **Ⅱ. 从执行经历到可解释的业务过程**
-    - **S7｜重建 → 解释 → 分类 → 因果提炼 → 状态化**
-      - 结合关键图片与事件重建当时的输入、窗口、状态、目标、动作和结果，区分观察事实、当时判断与事后解释。
-      - 合并确有必要的低层事件，关联状态转换和数据依赖；已有明确工具动作不必重新制造鼠标事件流。
-      - 解释哪些步骤为何必要、哪些提供数据或建立前提、哪些只是绕路或实现偶然。
+      - 本次真实业务任务完成与“可复用自动化资产已经生成并资格化”是两个里程碑；当本次交付明确包含自动化沉淀时，S6 关闭示范但不结束 S7—S12。
+  - **Ⅱ. 从执行经历到可解释的必要路径与业务过程**
+    - **S7｜重建 → 分段 → 取舍 → 因果提炼 → 发布 DistilledSteps**
+      - 结合任务合同、当时操作计划、关键图片与事件重建当时的输入、窗口、状态、目标、动作和结果，区分观察事实、当时判断与事后解释。
+      - 合并确有必要的低层事件，形成可理解的操作片段并关联状态转换和数据依赖；已有明确工具动作不必重新制造鼠标事件流。
+      - 解释哪些动作为何必要、哪些提供数据或建立前提、哪些只是绕路或实现偶然。
       - 复核运行时分类，保留必要读取、状态准备、等待和验证；正常路径与异常经验分开。
-      - 每个保留／排除决定关联原始观察与证据，保留 Omission Log、Recovery Candidates 和未决项。
+      - 对每个原始 action／片段给出 retain／merge／omit／recovery／unresolved 取舍及理由，并关联原始观察与证据；机械重复不能直接等同噪音，例如连续相同数字可能是合法业务输入。
+      - 保留 Omission Log、Recovery Candidates 和未决项；原始 Trace／Dossier 不被修改，去噪只产生新版本的派生成果。
       - 对 collection 过程分别解释 viewport 观察、scroll 输入、continuity/merge 与业务 parser；不能把业务字段推断倒灌成“Runtime 当时观察到了该字段”。
       - 不足时补读相关时间段与局部关键帧；仍无法确认则提出定向补采，不凭语言自信补齐隐藏步骤。新观察不能事后伪装成原现场。
-    - **S8｜语义落地 → 业务分段 → 命名 → 数据交接**
+      - 发布 versioned DistilledSteps，至少保留稳定 stepId、目的、sourceActionRefs、顺序／依赖、实际输入输出、前后条件、验证、取舍依据、recovery／unresolved 与 evidenceRefs；同版可读视图用于审阅，不成为第二份权威规格。
+      - 指定步骤需要试执行时复用 task-demonstrate 的执行／观察方法并保存新事实；执行者临时补了未声明动作才成功，表示 DistilledSteps 需要修订，不得宣称原步骤已经通过。
+    - **S8｜消费 DistilledSteps → 语义落地 → 业务分段 → 命名 → 建立交接**
+      - 将 DistilledSteps 中的必要操作片段转成有业务含义的 Business Step；如果上游 action disposition 本身错误，提出 S7 修订，不在本阶段维护第二套原始动作取舍真相。
       - 将 Where／What 绑定到正确窗口、区域和业务对象，将 Why／Effect 绑定到子目标、实际变化及证据。
       - 按可独立解释、验证和接续的业务子目标形成 Business Step，不按点击次数或函数长度分段。
       - 明确每步输入输出、来源、消费者、前后条件、有效期、副作用、失败重入边界及验证。
-      - 区分应用语义操作、组合业务能力和完整业务流程；为步骤保持稳定标识和到原始操作的映射。
+      - 区分应用语义操作、组合业务能力和完整业务流程；为步骤保持稳定标识和到 DistilledSteps／原始操作的映射。
       - 对照[聊天业务示例](application-operations.md#聊天业务的粒度与组合示例)提取可复用操作与组合合同：发送确定内容不必读取历史或生成回复；基于历史回复可以复用同一发送能力，不按业务动作新增开发 Skill。
       - 跨应用步骤明确源对象到目标对象的对应关系、实际数据与转换规则；切换窗口或剪贴板值本身不证明数据交接正确。
       - 对重复记录读取明确两段数据合同：`CollectionItem[]` 是结构观察，随后才由 App Adapter／Recipe parser 映射为 `Conversation[]`／`Message[]`／`Order[]` 等业务对象；业务 parser 的字段规则、错误与验证不写入 CollectionProfile。
       - 用业务命名和注释伪代码表达过程，实现层的等待与定位放在相应步骤内部。
       - 标记确定执行、内容判断、人工确认及能力缺口；初步划分不代表这些集成已实现。
       - 过程解释不成立返回 S7，业务目标不清返回 S1，事实不足返回 S3—S6 定向补采。
-  - **Ⅲ. 从单次过程到有依据的复用规格**
+  - **Ⅲ. 从单次业务过程到有依据的复用规格**
     - **S9｜泛化 → 补证 → 确定执行方式 → 批准**
       - 再次确认关键值的角色。
         - 区分输入、输出、运行时值、配置、状态、Secret、不变量、派生值和偶然值。
         - 为运行时值明确真实来源、消费者、有效条件与 Fresh Run 重新获取要求，不把示范答案转成常量。
         - 对有单位、精度、身份或格式要求的数据保留语义；规范化不能掩盖读取失败。
-      - 从实例提炼规则，而不是照抄操作次数。
+      - 从 Business Step 提炼规则，而不是重新从 Raw Trace 决定 action 去留。
         - 将具体对象提升为选择规则、固定文本变参数、历史坐标变语义目标、单屏变状态模式。
-        - 将零散动作提升为有合同的应用操作或业务能力，将序列组织成状态转换。
+        - 将业务步骤组织成状态转换和可复用过程，保留到 DistilledSteps／原始证据的来源链。
         - 按业务步骤与状态对齐多次示范，不按鼠标事件序号对齐。
         - 提出顺序、条件、分支、循环、前后条件、Recovery、Completion、Retry 和 Checkpoint 候选，并限制支持范围。
         - 本阶段确认业务复用要求和所需应用操作；AppProfile 已有定位候选不复制重建，S10 只将确认需求落实为应用规则及验证。
@@ -167,6 +186,7 @@ order: 30
         - 确有能力缺口则单独列出，不假设宿主自动暂停、恢复或调用未接通服务。
       - 发布已确认的 SemanticProcedure。
         - procedure.json 是过程主产物，procedure.md 是同版本可读视图，不成为第二份可执行规格。
+        - Procedure 引用其实际消费的 DistilledSteps 版本；retained／omitted 摘要可以用于可读性和兼容，但原始 action disposition 的权威结果属于 DistilledSteps，不维护第二套互相漂移的真相。
         - 视图注明源版本、范围及原始 JSON 字节 hash；分别保存两者自身 hash，禁止自引用 hash。
         - 版本或范围不一致阻塞相关生成；已确认过程仍须满足所选合同，不能用局部草案绕过完整路径要求。
   - **Ⅳ. 从规格到可独立运行的普通程序**
@@ -232,10 +252,10 @@ order: 30
         - 只有达到所需证据与验证矩阵才晋级；能跑一次不能当作通用可靠性证明，平均分不能抵消关键缺口。
         - 交付代码、必要 helper、配置与 Secret 引用说明、普通入口、停止方式、在线条件、维护人与未测项。
     - **验收失败后的定向返回**
-      - 目标／授权／成功标准错误返回 S1。
+      - 目标／授权／成功标准或操作计划错误返回 S1。
       - 应用、定位、布局、Geometry、CollectionProfile drift 或等待错误返回 S2／S10。
       - 缺真实事实返回 S3—S6 定向补采。
-      - 因果、语义、业务分段、参数、business mapping 或数据依赖错误返回 S7—S9。
+      - 原始动作取舍、操作分段或必要路径错误返回 S7；业务语义、分段、参数、business mapping 或复用规则错误返回 S8—S9。
       - JS 实现错误返回 S11，形成新候选与新资格记录。
       - Runtime collection segmentation/continuity/collector 本身缺陷进入独立 Runtime 能力任务，不要求 application-engineer 用业务规则掩盖；Semantic Vision provider unavailable 按其是否为必要 evidence 决定阻塞或退回 deterministic 结果。
       - Oracle／测试设置错误修正验收方案并重验，不能降低业务标准或冒称原候选已通过。
@@ -250,31 +270,31 @@ order: 30
 ## 三个循环与工件关系
 
 - Execution Loop｜执行闭环。
-  - Observe → Understand → Act → Verify → Recover／Stop；定位和当前 Geometry 服务于动作。
-  - S3—S5 持续循环，Capture 同步进行，S6 用任务级证据收口，不把采集放到执行结束之后。
+  - Plan／Observe → Understand → Act → Verify → Recover／Revise／Stop；定位和当前 Geometry 服务于动作。
+  - S1 提供可审阅操作计划，S2 补足近期可行性，S3—S5 持续维护 planned／actual 对应，Capture 同步进行，S6 用任务级证据收口。
 - Learning Loop｜学习闭环。
-  - Capture → Reconstruct → Ground → Attribute → Abstract → Synthesize；S7—S9 复盘、分段和泛化。
+  - Capture → Reconstruct／Distill → Ground → Attribute → Abstract → Synthesize；S7 先发布 DistilledSteps，S8—S9 再形成业务过程与复用规格。
   - 缺依据就定向补采或修订已知条件，不能直接 Trace → JS，也不能用长解释代替证据。
 - Reliability Loop｜可靠性闭环。
   - Generate／Compile → Freeze → Replay → Verify → Diagnose → Repair → Revalidate → Promote。
   - 普通路线 Generate 为普通代码生成／按需改进；完整 Recorder 路线才要求实际 Compiler。
 - 沿用工件生命周期而不复制 schema。
-  - TaskContract／WorkPlan、AppProfile、Raw Trace／Experience Unit／Evidence、Dossier、SemanticProcedure、CandidateManifest、QualificationRecord 逐级关联。
+  - 原始用户来源 → TaskContract／WorkPlan（及可读任务／操作计划视图）→ AppProfile → Raw Trace／Experience Unit／Evidence → Dossier → DistilledSteps → SemanticProcedure → CandidateManifest → QualificationRecord 逐级关联。
   - `CollectionProfile` 是 AppProfile 中可版本化的结构知识，不另建第二套 AppProfile；`Observation[]`/CollectionPage 是观察证据，generic item 与业务对象不是同一工件层。
-  - 原始事实不可美化覆盖；意图是解释主张；过程主产物与可读视图保持同版；代码和资格分别冻结。
+  - 计划、事实、关键步骤、业务规格、代码和资格是不同证明层；原始事实不可美化覆盖，过程主产物与可读视图保持同版，代码和资格分别冻结。
   - Runtime Evidence、Repair Patch 和新资格记录支持后续修复；知识、候选和资格不是同一种资产。
 
 ## 讨论十三节点视图的保留与对照
 
 下列 R 编号只指讨论中原称 S1—S13 的十三节点视图；保留其名称与职责，不替换上面及共享合同的 S 编号。计算器案例逐项展开此视图。
 
-- R1｜Goal & Task Contract：目标与约束，对应主树 S1。
+- R1｜Goal & Task Contract：目标、约束与操作计划，对应主树 S1。
 - R2｜Execution Attempt / Discover：发现并真实尝试，对应 S2—S6；其中局部观察与验证发生在动作循环中。
 - R3｜Synchronized Evidence Capture：与 R2 同步采集，对应 S2—S6 的旁路记录，不是事后补述。
 - R4｜State Reconstruction：还原输入、状态和结果，对应 S7；S2／S4 已在执行中提供状态观察。
-- R5｜Action Segmentation：把事件与操作分段，对应 S7／S8，并利用 S5 分类。
-- R6｜Semantic Grounding：将 Where／What／Why／Effect 绑定证据，对应 S7／S8；效果归因保留在 S4／S7，不遗漏 Attribute。
-- R7｜Behavior Abstraction：参数、规则与能力抽象，对应 S9；先利用 S7／S8 已校正的语义过程。
+- R5｜Action Segmentation：把事件与操作分段、取舍并形成 DistilledSteps，对应 S7，并利用 S5 分类。
+- R6｜Semantic Grounding：将 Where／What／Why／Effect 绑定证据并形成 Business Step，对应 S8；效果归因仍可引用 S4／S7 事实。
+- R7｜Behavior Abstraction：参数、规则与能力抽象，对应 S9；先利用 S8 已校正的业务过程。
 - R8｜Workflow Synthesis：组织状态、数据依赖、分支与完成条件，对应 S8／S9。
 - R9｜Robustness Engineering：目标定位、等待、验证和恢复，对应 S10；collection 场景在此工程化 Profile 与 traversal 约束，不新增节点。
 - R10｜Automation Specification：确认可执行做法及来源，对应 S9—S11 的规格核对；普通路线不是新的可执行 IR。
@@ -284,9 +304,11 @@ order: 30
 
 ## 专业责任、交接与长任务接续
 
-- 保留历史六项专业职责的设计依据，目标职责以[链路设计](chain-design.md)为准；旧 Skill 目录已删除，不作为当前可调用入口。本次新建 application-engineer 方法文件，其余实现状态不被升级。
+- 保留历史六项专业职责的设计依据，目标职责以[链路设计](chain-design.md)为准；旧 Skill 目录已删除，不作为当前可调用入口。本次仅已有 application-engineer 正式方法文件，其他目标职责的实现状态不被设计文本升级。
   - automation-plan 负责 S1；application-engineer 负责 S2／S10；task-demonstrate 负责 S3—S6。
-  - procedure-synthesize 负责 S7—S9；recipe-build 负责 S11 的生成／登记；recipe-qualify 负责 S12。
+  - **trace-distill 目标职责负责 S7**：消费冻结的合同／计划、Dossier／Raw Trace、必要 AppProfile 和证据，发布 DistilledSteps；尚未创建正式 Skill 或宿主调用。
+  - **procedure-synthesize 负责 S8—S9**：消费 DistilledSteps，将必要路径转成 Business Step、参数、数据依赖和复用规则，不重新维护第二套原始 action disposition。
+  - recipe-build 负责 S11 的生成／登记；recipe-qualify 负责 S12。
   - Structured Collection 不增加一个 Skill：CollectionProfile 由 application-engineer 的既有认识/工程化职责生产，Runtime working primitive/collector 由后续能力任务实现，business mapping 属于过程/Recipe，资格仍由 recipe-qualify。
   - 拟新增 code-rebuild 负责独立按需质量改进，不复制另一套代码生成责任；详细 Skill 与正式合同兼容尚未实施，不能把设计名称当作已安装能力。
 - 将工作包与阶段、文件、Agent 区分开。
@@ -316,3 +338,4 @@ order: 30
 - 2026-09-07，v0.3：将用户补充的项目目标落实到 S1 的交付范围、S8／S9 的组合与混合选择、S11 的可调用交付及 S12 的业务／复用验证，对应 DREQ-17—DREQ-20；修正已删除 Skill 的状态，不增加阶段、不重写原计算器方法、不声明任何新增业务已通过。
 - 2026-09-08，v0.4：在原完整树内补 S1 范围、S2 界面认识子作业、执行中定向回访、S7 证据边界、S9／S10 分工及分层验证；不以用户提供的简化树覆盖原树，不新增 ui-understanding Skill。
 - 2026-09-10，v0.5：把 Structured UI Collection Reading 分散整合进既有 S1—S12：S1 冻结 viewport/whole 与 scroll 授权，S2/S10 作者与维修 CollectionProfile，S8/S9 分离 generic item/business mapping 与 traversal 决策，S3—S6 保留 scroll/continuity/mutation 事实，S11 守住 Working API 状态，S12 验证 virtualized/overlap/merge/provider failure。未新增 S13、collection/VLM Skill、IR 或 Stable API。
+- 2026-09-11，v0.6：补入自然语言入口、执行前可审阅业务操作计划、高影响未知优先核实、S3—S5 planned／actual／planDelta 对应；S7 发布 DistilledSteps 并将目标专业职责明确为 `trace-distill`，`procedure-synthesize` 收窄为 S8—S9。未新增 S13、Runtime 或已安装 Skill 声明。
