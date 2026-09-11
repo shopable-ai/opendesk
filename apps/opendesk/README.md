@@ -11,12 +11,43 @@ fixtures under `examples/`.
   contains the canonical JavaScript Recorder UI. The Go code only embeds and
   materializes those assets; it does not replace the JS implementation. `opendesk.recorder` is injected by the framework and is therefore
   not declared in this package manifest.
-- `apps/opendesk`: product window, Script Runner and product menu actions.
+- `apps/opendesk`: product window, Official Shell, Script Runner and product menu actions.
 
 The Script Runner UI executes in the main App Mode execution, but every normal
 recipe remains a child OpenDesk process launched through `Command.run()` with
 `System.getExecutablePath()` and `-script`. The package does not claim that
 recipe execution is in-process.
+
+## Official Shell
+
+The release-owned main window contains a small Official Shell service area.
+P0 keeps two core actions visible:
+
+- `opendesk.help` -> **帮助**
+- `opendesk.customize` -> **定制**
+
+`opendesk.marketplace` and `opendesk.upgrade` are reserved for future product
+stages and remain hidden until there is a real marketplace or Premium feature
+set. The Official Shell is intentionally separate from user Recipe ordering and
+from `examples/custom-ui/script-runner-simple.js`.
+
+Configuration is loaded from:
+
+```text
+apps/opendesk/assets/official-shell.odcfg
+```
+
+The P0 file is a low-cost obfuscated, checksummed product configuration. It is
+not a secret store or DRM boundary. If it is missing, corrupt, or attempts to
+hide a core action, `official-shell.js` falls back to built-in defaults. The
+current URLs are empty placeholders, so Help/Customize clicks report **待开放**
+instead of opening a fake site.
+
+When production URLs are configured, Official Shell accepts HTTPS targets only.
+Prefer stable server-side redirect entrypoints so destination pages can change
+without rebuilding the desktop product. See
+`docs/architecture/official-shell-commercial-entrypoints.md` for the ownership,
+commercialization and future signed-config/OEM boundaries.
 
 ## Writable data
 
@@ -77,6 +108,6 @@ Store local acceptance artifacts outside Git-tracked source, for example:
 
 Acceptance should cover one `opendesk` App Mode process/App Shell/Tray,
 primary-click menu opening, built-in Recorder open/reopen, Recorder History and
-generation actions, product `runner.open`, Runner recipe Run/Stop, and
-screenshots plus console/runtime logs. `.runtime` evidence must not be
-committed.
+generation actions, product `runner.open`, Runner recipe Run/Stop, Official Shell
+Help/Customize placeholder behavior, and screenshots plus console/runtime logs.
+`.runtime` evidence must not be committed.
