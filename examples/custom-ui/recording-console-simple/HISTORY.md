@@ -25,6 +25,11 @@ If a History recipe is currently running, closing its History window cancels tha
 cannot continue without its row-level control surface. Reopening creates a new Custom UI window id because closed window
 ids cannot be reused within one execution.
 
+The list does not repeat the window title or a second catalog-count line. The footer's page indicator is the single
+persistent count surface. Transient operation feedback (run countdown, completion, cancellation, rename/delete result, and
+errors) uses one reusable `ui.toast()` handle so the list layout stays stable; the historical `ui.notify()` name remains
+accepted as a runtime compatibility fallback.
+
 ## Discovery and naming
 
 Only immediate children matching `rec-[A-Za-z0-9][A-Za-z0-9._-]*` under `.runtime/recordings` are considered. A parsed

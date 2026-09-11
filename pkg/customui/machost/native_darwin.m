@@ -1204,6 +1204,7 @@ static BOOL CDPlaceNotification(CDWindowController *c, NSDictionary *p, BOOL res
 
 static void CDCreateNotification(NSDictionary *request, NSString *requestID) {
     NSDictionary *spec=request[@"payload"], *notice=spec[@"notification"];
+    NSSize preferredSize = [CDNotificationView preferredSizeForSpec:notice];
     CDWindowController *c=[CDWindowController new];
     c.sessionID=request[@"sessionId"]; c.windowID=request[@"windowId"]; c.kind=@"notification";
     c.alwaysOnTop=YES; c.draggable=NO; c.revision=1; c.controlIDs=[NSSet set];
@@ -1212,18 +1213,17 @@ static void CDCreateNotification(NSDictionary *request, NSString *requestID) {
     NSInteger slot=0;while([used containsIndex:slot])slot++;
     if(slot>=3){CDFail(requestID,@"UI_BUSY",@"create",c.windowID,nil,@"at most three notifications may be open");return;}
     c.notificationSlot=slot;
-    NSSize preferredSize = [CDNotificationView preferredSizeForSpec:notice];
     NSPanel *panel=[[NSPanel alloc] initWithContentRect:NSMakeRect(0,0,preferredSize.width,preferredSize.height)
         styleMask:NSWindowStyleMaskBorderless|NSWindowStyleMaskNonactivatingPanel backing:NSBackingStoreBuffered defer:NO];
     panel.releasedWhenClosed=NO; panel.hidesOnDeactivate=NO; panel.floatingPanel=YES;
-    panel.becomesKeyOnlyIfNeeded=YES; panel.level=NSFloatingWindowLevel;
+    panel.becomesKeyOnlyIfNeeded=YES; panel.level=NSStatusWindowLevel;
     panel.collectionBehavior=NSWindowCollectionBehaviorCanJoinAllSpaces|NSWindowCollectionBehaviorFullScreenAuxiliary;
     // Treat the transparent frame as composited even when the panel is wholly
     // click-through. Otherwise WindowServer may omit a compact passive panel's
     // content layer from capture; the layer still owns the rounded alpha mask.
     panel.opaque=YES; panel.backgroundColor=NSColor.clearColor; panel.hasShadow=YES;
     panel.appearance=[NSAppearance appearanceNamed:NSAppearanceNameDarkAqua];
-    panel.ignoresMouseEvents=NO;
+    panel.ignoresMouseEvents=![notice[@"closable"] boolValue];
     c.window=panel; c.nativeWindowID=(CGWindowID)panel.windowNumber;
     c.notificationView=[[CDNotificationView alloc] initWithSpec:notice]; panel.contentView=c.notificationView;
     NSString *placementError=nil;
@@ -1337,7 +1337,10 @@ static void CDHandleCreate(NSDictionary *request, NSString *requestID) {
 	}
 	controller.controlIDs = controlIDs.copy;
     controller.revision = 1;
-	window.level = controller.alwaysOnTop ? NSFloatingWindowLevel : NSNormalWindowLevel;
+	// Host-owned Dialogs must remain visible above always-on-top Custom UI
+	// surfaces from the same execution. A normal-level confirm can otherwise be
+	// fully covered by the floating History window that requested it.
+	window.level = isHostDialog ? NSModalPanelWindowLevel : (controller.alwaysOnTop ? NSFloatingWindowLevel : NSNormalWindowLevel);
 	window.movableByWindowBackground = NO;
 	window.delegate = controller;
 	if (isNativeToolbar) {
@@ -1670,6 +1673,7 @@ static void CDHandleRequest(NSDictionary *request) {
         }
         NSDictionary *expected = CDBoundsFromNativeRect(controller.window.frame);
         [controller.notificationView applySpec:next resetTimeout:[payload[@"resetTimeout"] boolValue]];
+        controller.window.ignoresMouseEvents=![next[@"closable"] boolValue];
         controller.revision+=1;
         CDRespondWhenBoundsMatch(controller,requestID,operation,expected,0);
     } else if ([operation isEqualToString:@"getState"]) {

@@ -6,6 +6,22 @@
 // capability. Do not add option callbacks: Dialog is Promise-only.
 
 async function main() {
+  const topmostParent = await ui.createWindow({
+    id: 'dialogTopmostParent',
+    kind: 'floating',
+    title: 'Dialog topmost parent',
+    bounds: {x: 560, y: 250, width: 800, height: 520},
+    alwaysOnTop: true,
+    draggable: false,
+    content: {
+      html: '<main id="dialogTopmostParentContent">Always-on-top parent behind the native Dialog.</main>',
+      css: 'html,body{margin:0;width:100%;height:100%;background:#171717;color:#f4f4f4;font:16px -apple-system,sans-serif}main{box-sizing:border-box;padding:28px}',
+    },
+  });
+  const topmostState = await topmostParent.show();
+  if (!topmostState.onScreen || topmostState.layer <= 0) {
+    throw new Error('Dialog topmost parent did not reach an always-on-top native layer');
+  }
   const settlementCounts = Object.create(null);
   const finallyCounts = Object.create(null);
   const track = (label, promise, flow) => {
@@ -148,9 +164,11 @@ async function main() {
       throw new Error(`Dialog ${label} did not settle/finalize exactly once: ${settlementCounts[label]}/${finallyCounts[label]}`);
     }
   }
+  await topmostParent.close();
 
   console.log(JSON.stringify({
     dialogLifecycle: 'passed',
+    topmostParentLayer: topmostState.layer,
     typedValue: enteredValue,
     promptCanceled: canceledPrompt,
     nonBlockingOrder: order,

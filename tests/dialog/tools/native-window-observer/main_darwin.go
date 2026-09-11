@@ -27,8 +27,10 @@ static int copy_bool(CFDictionaryRef dictionary, CFStringRef key, int *out) {
 	return 1;
 }
 
+static int ax_string_equals(CFTypeRef value, const char *wanted);
+
 static int dialog_window_evidence(
-	int pid, int64_t wanted_window_id,
+	int pid, int64_t wanted_window_id, const char *wanted_window_name,
 	int64_t *window_id, int64_t *owner_pid, int64_t *layer, int *on_screen,
 	double *alpha, double *x, double *y, double *width, double *height,
 	int64_t *display_id, double *display_x, double *display_y,
@@ -47,6 +49,8 @@ static int dialog_window_evidence(
 		if (!copy_number(row, kCGWindowOwnerPID, &found_pid) || found_pid != pid) continue;
 		if (!copy_number(row, kCGWindowNumber, &found_window_id) || found_window_id <= 0) continue;
 		if (wanted_window_id > 0 && found_window_id != wanted_window_id) continue;
+		if (wanted_window_name != NULL && wanted_window_name[0] != '\0' &&
+			!ax_string_equals(CFDictionaryGetValue(row, kCGWindowName), wanted_window_name)) continue;
 		if (!copy_number(row, kCGWindowLayer, &found_layer)) continue;
 		CFDictionaryRef raw_bounds = (CFDictionaryRef)CFDictionaryGetValue(row, kCGWindowBounds);
 		CGRect bounds = CGRectZero;
@@ -246,7 +250,12 @@ func main() {
 	var displayID C.int64_t
 	var alpha, x, y, width, height C.double
 	var displayX, displayY, displayWidth, displayHeight C.double
-	if C.dialog_window_evidence(C.int(*pid), C.int64_t(*nativeWindowID), &id, &ownerPID, &layer, &onScreen, &alpha, &x, &y, &width, &height, &displayID, &displayX, &displayY, &displayWidth, &displayHeight) == 0 {
+	var cWindowName *C.char
+	if *title != "" {
+		cWindowName = C.CString(*title)
+		defer C.free(unsafe.Pointer(cWindowName))
+	}
+	if C.dialog_window_evidence(C.int(*pid), C.int64_t(*nativeWindowID), cWindowName, &id, &ownerPID, &layer, &onScreen, &alpha, &x, &y, &width, &height, &displayID, &displayX, &displayY, &displayWidth, &displayHeight) == 0 {
 		fmt.Fprintln(os.Stderr, "no matching on-screen WindowServer window")
 		os.Exit(1)
 	}

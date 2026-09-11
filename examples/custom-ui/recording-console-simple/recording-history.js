@@ -220,7 +220,7 @@
     }
   }
 
-  function buildWindowHTML(rows, status, options) {
+  function buildWindowHTML(rows, _status, options) {
     const settings = options || {};
     const page = paginateRows(rows, settings.pageIndex, settings.pageSize || PAGE_SIZE);
     const slots = [];
@@ -243,10 +243,6 @@
 
     return `
       <main id="historyMain">
-        <div id="historyHeader" class="header">
-          <div id="historyTitle" class="title">历史录制</div>
-        </div>
-        <p id="historyStatus" class="status">${escapeHTML(status || `共 ${page.totalRows} 条录制`)}</p>
         <div id="historyColumns" class="columns">
           <div id="historyNameColumn">名称</div>
           <div id="historyTimeColumn">时间</div>
@@ -272,13 +268,10 @@
 
   const HISTORY_CSS = `
     html, body { margin: 0; padding: 0; background: #171717; color: #f4f4f4; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-    #historyMain { box-sizing: border-box; height: 100vh; padding: 18px; overflow: hidden; }
-    .header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-    .title { font-size: 20px; font-weight: 700; }
-    .status { margin: 8px 0 12px; color: #b9b9b9; font-size: 13px; }
+    #historyMain { box-sizing: border-box; height: 100vh; padding: 18px; display: flex; flex-direction: column; overflow: hidden; }
     .columns, .recording { display: grid; grid-template-columns: minmax(0, 1fr) 160px 156px; align-items: center; column-gap: 12px; }
     .columns { padding: 0 10px 7px; color: #8f8f8f; font-size: 11px; border-bottom: 1px solid #3b3b3b; }
-    .list { height: calc(100vh - 162px); overflow-y: auto; padding-right: 4px; }
+    .list { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-right: 4px; }
     .recording { min-height: 48px; padding: 0 10px; border-bottom: 1px solid #333; }
     .recording:hover { background: #202020; }
     .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 600; }
@@ -312,6 +305,13 @@
     const app = settings.app;
     const logger = settings.logger || global.console;
     const sleep = settings.sleep || (delay => new Promise(resolve => setTimeout(resolve, delay)));
+    const toast = typeof settings.toast === 'function'
+      ? settings.toast
+      : ui && typeof ui.toast === 'function'
+        ? ui.toast.bind(ui)
+        : ui && typeof ui.notify === 'function'
+          ? ui.notify.bind(ui)
+          : null;
     const runCountdownStepMs = Number.isFinite(settings.runCountdownStepMs)
       ? Math.max(0, Math.trunc(settings.runCountdownStepMs)) : 1000;
     const runTimeoutMs = Number.isFinite(settings.runTimeoutMs)
@@ -342,6 +342,7 @@
     let activeRun = null;
     let lastRun = null;
     let closed = false;
+    let feedbackToast = null;
     const pendingRows = new Set();
 
     function historyTrace(stage, recordingId, controlId, extra) {
@@ -432,9 +433,42 @@
       return updateControl(window, id, patch, true);
     }
 
-    async function setHistoryStatus(message) {
-      if (!historyWindow) return;
-      await safeUpdate(historyWindow, 'historyStatus', {text: String(message)});
+    async function showFeedback(message, options) {
+      if (!historyWindow || !toast || !message) return null;
+      const settings = options || {};
+      const payload = {
+        message: String(message),
+        level: settings.level || 'info',
+        timeoutMs: Number.isInteger(settings.timeoutMs) ? settings.timeoutMs : 2800,
+        closable: settings.closable !== false,
+      };
+
+      if (feedbackToast && typeof feedbackToast.update === 'function') {
+        try {
+          const result = await feedbackToast.update(payload);
+          if (!result || result.applied !== false) return result;
+        } catch (_) {
+          // The timed-out native toast can no longer be updated; create a fresh one below.
+        }
+        feedbackToast = null;
+      }
+
+      try {
+        feedbackToast = await toast(payload);
+        return feedbackToast;
+      } catch (_) {
+        // Toasts are secondary feedback. Dialogs and the persisted operation result remain authoritative.
+        feedbackToast = null;
+        return null;
+      }
+    }
+
+    async function closeFeedbackToast() {
+      const prior = feedbackToast;
+      feedbackToast = null;
+      if (prior && typeof prior.close === 'function') {
+        try { await prior.close(); } catch (_) {}
+      }
     }
 
     async function syncAvailability() {
@@ -447,7 +481,7 @@
       }
     }
 
-    async function renderPage(message, traceContext) {
+    async function renderPage(_message, traceContext) {
       const window = historyWindow;
       if (!window) return null;
 
@@ -465,7 +499,6 @@
         });
       }
       const tasks = [
-        requiredUpdate(window, 'historyStatus', {text: String(message || `共 ${page.totalRows} 条录制；运行始终需要显式点击。`)}),
         requiredUpdate(window, 'pageIndicator', {text: `第 ${page.pageIndex + 1} / ${page.pageCount} 页 · 共 ${page.totalRows} 条`}),
         requiredUpdate(window, 'firstHistory', {disabled: locked || page.totalRows === 0 || page.pageIndex === 0}),
         requiredUpdate(window, 'prevHistory', {disabled: locked || page.totalRows === 0 || page.pageIndex === 0}),
@@ -563,7 +596,7 @@
       if (logger && typeof logger.error === 'function') {
         try { logger.error(`[recording-history] ${label}: ${normalized.message}`); } catch (_) {}
       }
-      await setHistoryStatus(`${label}失败：${normalized.message}`);
+      await showFeedback(`${label}失败：${normalized.message}`, {level: 'error', timeoutMs: 5000});
       try {
         await dialog.alert({
           title: `${label}失败`,
@@ -679,7 +712,7 @@
         } else {
           result = await command.run('xdg-open', [row.recordingDir], {cwd: execution.workdir, timeout: 10000, maxOutputBytes: 1024 * 1024});
         }
-        await setHistoryStatus(`已打开 ${recordingId} 的目录`);
+        await showFeedback(`已打开 ${recordingId} 的目录`, {level: 'success'});
         return result;
       } finally {
         pendingRows.delete(recordingId);
@@ -759,15 +792,18 @@
         savedPresentation = await captureToolbarRunState();
         await lockToolbarForHistoryRun(savedPresentation);
         for (const value of [3, 2, 1]) {
-          await setHistoryStatus(`将在 ${value} 秒后运行“${displayTitle(row)}”；请恢复预期起始桌面。主工具条 Stop 可取消。`);
+          await showFeedback(`将在 ${value} 秒后运行“${displayTitle(row)}”；请恢复预期起始桌面。主工具条 Stop 可取消。`, {
+            timeoutMs: 0,
+            closable: true,
+          });
           await sleep(runCountdownStepMs);
           if (controller.signal.aborted) {
             lastRun = {status: 'canceled', recordingId, scriptFile, startedAt, finishedAt: new Date().toISOString(), logDir: runLogDir};
-            await setHistoryStatus('历史重放已取消；录制和生成脚本保持不变。');
+            await showFeedback('历史重放已取消；录制和生成脚本保持不变。', {level: 'warning'});
             return clone(lastRun);
           }
         }
-        await setHistoryStatus(`正在运行 ${recordingId} …`);
+        await showFeedback(`正在运行 ${recordingId} …`, {timeoutMs: 0, closable: true});
         const result = await command.run(openDeskBinary, [
           '-script', scriptFile,
           '-console-mode', 'script',
@@ -782,7 +818,10 @@
           status: 'succeeded', recordingId, scriptFile, startedAt, finishedAt: new Date().toISOString(),
           exitCode: result.exitCode, stdout: result.stdout || '', stderr: result.stderr || '', logDir: runLogDir,
         };
-        await setHistoryStatus(`运行完成：${recordingId}，exit code ${result.exitCode}。业务结果仍需独立确认。`);
+        await showFeedback(`运行完成：${recordingId}，exit code ${result.exitCode}。业务结果仍需独立确认。`, {
+          level: 'success',
+          timeoutMs: 4000,
+        });
         return clone(lastRun);
       } catch (error) {
         const normalized = normalizeError(error, 'Command.run');
@@ -792,9 +831,12 @@
           exitCode: normalized.exitCode, stdout: normalized.stdout, stderr: normalized.stderr, logDir: runLogDir,
           error: canceled ? null : normalized,
         };
-        await setHistoryStatus(canceled
+        await showFeedback(canceled
           ? '历史重放已取消；录制和生成脚本保持不变。'
-          : `历史重放失败：${normalized.message}`);
+          : `历史重放失败：${normalized.message}`, {
+            level: canceled ? 'warning' : 'error',
+            timeoutMs: canceled ? 2800 : 5000,
+          });
         return clone(lastRun);
       } finally {
         activeRun = null;
@@ -807,7 +849,7 @@
     async function cancelRun() {
       if (!activeRun) return lastRun;
       activeRun.controller.abort('recording-console-simple history run canceled');
-      await setHistoryStatus('正在取消历史重放…');
+      await showFeedback('正在取消历史重放…', {timeoutMs: 0, closable: true});
       return lastRun;
     }
 
@@ -888,6 +930,7 @@
           pageIndex = 0;
         }
         if (activeRun) activeRun.controller.abort('recording history window closed');
+        void closeFeedbackToast();
         void syncAvailability();
       });
     }
@@ -897,7 +940,7 @@
       if (historyWindow) {
         try {
           await historyWindow.show();
-          if (message) await setHistoryStatus(message);
+          if (message) await showFeedback(message);
           await syncAvailability();
           return historyWindow;
         } catch (_) {
@@ -928,15 +971,16 @@
         draggable: true,
         theme: 'dark',
         content: {
-          html: buildWindowHTML(currentRows, message || `共 ${currentRows.length} 条录制；运行始终需要显式点击。`, {pageIndex, pageSize: PAGE_SIZE}),
+          html: buildWindowHTML(currentRows, null, {pageIndex, pageSize: PAGE_SIZE}),
           css: HISTORY_CSS,
         },
       });
       historyWindow = window;
       await bindWindow(window);
-      await renderPage(message || `共 ${currentRows.length} 条录制；运行始终需要显式点击。`);
+      await renderPage();
       if (activeRun) await setHistoryActionsDisabled(true);
       await window.show();
+      if (message) await showFeedback(message);
       await syncAvailability();
       return window;
     }
@@ -954,7 +998,8 @@
         pageIndex,
         scannedRecordingIds: next.rows.map(row => row.recordingId),
       });
-      await renderPage(message, context);
+      await renderPage(undefined, context);
+      if (message) await showFeedback(message);
       await syncAvailability();
       return historyWindow;
     }
@@ -970,6 +1015,7 @@
       if (prior) {
         try { await prior.close(); } catch (_) {}
       }
+      await closeFeedbackToast();
     }
 
     toolbar.addButton('history', '历史录制', 'list.bullet', () => open());

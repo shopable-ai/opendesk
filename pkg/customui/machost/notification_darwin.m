@@ -39,7 +39,6 @@ static CGFloat CDNotificationTextWidth(NSString *text, NSFont *font) {
 @property(nonatomic, strong) NSTimer *timer;
 @property(nonatomic) NSTimeInterval deadline;
 @property(nonatomic) BOOL started;
-@property(nonatomic) BOOL firstDisplayPending;
 @end
 
 @implementation CDNotificationView
@@ -68,7 +67,6 @@ static CGFloat CDNotificationTextWidth(NSString *text, NSFont *font) {
     self.layer.backgroundColor = [NSColor colorWithWhite:0.10 alpha:0.97].CGColor;
     self.layer.cornerRadius = 10;
     self.layer.masksToBounds = YES;
-    self.firstDisplayPending = YES;
     self.messageLabel = [NSTextField wrappingLabelWithString:spec[@"message"] ?: @""];
     self.messageLabel.font = [NSFont systemFontOfSize:14 weight:NSFontWeightMedium];
     self.messageLabel.textColor = NSColor.whiteColor;
@@ -105,22 +103,25 @@ static CGFloat CDNotificationTextWidth(NSString *text, NSFont *font) {
 - (void)applySpec:(NSDictionary *)spec resetTimeout:(BOOL)reset {
     self.spec = [spec copy];
     BOOL closable = [spec[@"closable"] boolValue];
-    if (!self.firstDisplayPending) self.window.ignoresMouseEvents = !closable;
+    BOOL hasProgress = [spec[@"progress"] isKindOfClass:NSDictionary.class];
     self.messageLabel.stringValue = spec[@"message"] ?: @"";
     self.messageLabel.accessibilityLabel = self.messageLabel.stringValue;
     CGFloat textWidth = NSWidth(self.bounds) - (closable ? 60 : 32);
     CGFloat messageHeight = CDNotificationTextHeight(self.messageLabel.stringValue, self.messageLabel.font, textWidth, CDNotificationMessageLines);
-    self.messageLabel.frame = NSMakeRect(16, 10, textWidth, messageHeight);
     self.captionLabel.stringValue = spec[@"caption"] ?: @"";
     self.captionLabel.accessibilityLabel = self.captionLabel.stringValue;
     CGFloat captionHeight = self.captionLabel.stringValue.length
         ? CDNotificationTextHeight(self.captionLabel.stringValue, self.captionLabel.font, textWidth, CDNotificationCaptionLines) : 0;
+    CGFloat contentHeight = messageHeight + (captionHeight > 0 ? 3 + captionHeight : 0);
+    CGFloat contentAreaHeight = NSHeight(self.bounds) - (hasProgress ? 10 : 0);
+    CGFloat contentTop = MAX(10, floor((contentAreaHeight - contentHeight) / 2));
+    self.messageLabel.frame = NSMakeRect(16, contentTop, textWidth, messageHeight);
     self.captionLabel.frame = NSMakeRect(16, NSMaxY(self.messageLabel.frame) + 3, textWidth, captionHeight);
     self.captionLabel.hidden = !self.captionLabel.stringValue.length;
-    self.closeButton.frame = NSMakeRect(NSWidth(self.bounds) - 36, 8, 26, 26);
-    self.closeButton.hidden = NO;
-    self.closeButton.alphaValue = closable ? 1 : 0.001;
-    self.closeButton.enabled = closable;
+    BOOL compactSingleLine = captionHeight == 0 && !hasProgress && contentTop > 10;
+    CGFloat closeTop = compactSingleLine ? floor((NSHeight(self.bounds) - 26) / 2) : 8;
+    self.closeButton.frame = NSMakeRect(NSWidth(self.bounds) - 36, closeTop, 26, 26);
+    self.closeButton.hidden = !closable;
     self.toolTip = self.messageLabel.stringValue;
     if (reset) self.deadline = self.started && [spec[@"timeoutMs"] doubleValue] > 0
         ? NSProcessInfo.processInfo.systemUptime + [spec[@"timeoutMs"] doubleValue] / 1000.0 : 0;
@@ -132,12 +133,6 @@ static CGFloat CDNotificationTextWidth(NSString *text, NSFont *font) {
     [self applySpec:self.spec resetTimeout:YES];
     [self displayIfNeeded];
     [self.window displayIfNeeded];
-    self.firstDisplayPending = NO;
-    __weak CDNotificationView *weakView = self;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3000 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
-        CDNotificationView *view = weakView;
-        if (view.window) view.window.ignoresMouseEvents = ![view.spec[@"closable"] boolValue];
-    });
     __weak CDNotificationView *weakSelf = self;
     self.timer = [NSTimer timerWithTimeInterval:0.1 repeats:YES block:^(NSTimer *timer) {
         CDNotificationView *view = weakSelf;

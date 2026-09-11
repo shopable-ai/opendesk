@@ -204,11 +204,17 @@ internal readonly record struct NoticeLayout(Size ClientSize,Rectangle Message,R
         int messageHeight=Lines(graphics,J.S(notice,"message"),main,textWidth,MessageLines);
         string captionText=J.S(notice,"caption");
         int captionHeight=captionText.Length==0?0:Lines(graphics,captionText,small,textWidth,CaptionLines);
-        int height=P(10)+messageHeight+P(10)+(captionHeight>0?P(3)+captionHeight:0)+(notice["progress"] is JsonObject?P(10):0);
+        bool hasProgress=notice["progress"] is JsonObject;
+        int height=P(10)+messageHeight+P(10)+(captionHeight>0?P(3)+captionHeight:0)+(hasProgress?P(10):0);
         height=Math.Clamp(height,P(MinimumHeight),P(MaximumHeight));
-        var message=new Rectangle(P(16),P(10),textWidth,messageHeight);
+        int contentHeight=messageHeight+(captionHeight>0?P(3)+captionHeight:0);
+        int contentAreaHeight=height-(hasProgress?P(10):0);
+        int contentTop=Math.Max(P(10),(contentAreaHeight-contentHeight)/2);
+        var message=new Rectangle(P(16),contentTop,textWidth,messageHeight);
         var caption=new Rectangle(P(16),message.Bottom+P(3),textWidth,captionHeight);
         var progress=new Rectangle(P(16),height-P(10),width-P(32),P(4));
-        return new NoticeLayout(new Size(width,height),message,caption,new Rectangle(width-P(36),P(8),P(26),P(26)),progress,P(2));
+        bool compactSingleLine=captionHeight==0&&!hasProgress&&contentTop>P(10);
+        int closeTop=compactSingleLine?(height-P(26))/2:P(8);
+        return new NoticeLayout(new Size(width,height),message,caption,new Rectangle(width-P(36),closeTop,P(26),P(26)),progress,P(2));
     }
 }

@@ -71,7 +71,9 @@ internal abstract class Surface : IDisposable
     protected Surface(Host host,string session,string id,JsonObject spec)
     {
         Host=host;Session=session;ID=id;Spec=J.Copy(spec);
-        Form=new NativeForm { Text=J.S(spec,"title"),TopMost=J.B(spec,"alwaysOnTop"),BackgroundDraggable=J.B(spec,"draggable") };
+        // centerOnActiveDisplay is reserved for host-owned Dialog surfaces. Keep
+        // those above an always-on-top Custom UI window that requested them.
+        Form=new NativeForm { Text=J.S(spec,"title"),TopMost=J.B(spec,"alwaysOnTop")||J.B(spec,"centerOnActiveDisplay"),BackgroundDraggable=J.B(spec,"draggable") };
         Form.BackColor=J.S(spec,"theme")=="dark"?Color.FromArgb(25,25,28):SystemColors.Window;
         Form.ForeColor=J.S(spec,"theme")=="dark"?Color.White:SystemColors.WindowText;
         Form.NonActivating=J.S(spec,"kind")=="floating";

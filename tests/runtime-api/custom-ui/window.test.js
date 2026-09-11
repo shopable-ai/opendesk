@@ -283,4 +283,140 @@
     equal((await tray.waitUntilClosed()).onScreen, false);
     await ui.closeAll();
   });
+
+  test({
+    name: 'Recorder History native Rename/Delete clicks refresh visible slots in place',
+    tier: 'custom-ui',
+    covers: [
+      'ui.createWindow', 'WindowHandle.show', 'WindowHandle.control', 'ControlHandle.on',
+      'ControlHandle.getState', 'mouse.click', 'File.removeDir',
+    ],
+  }, async () => {
+    const historyPath = File.join(File.cwd(), 'examples', 'custom-ui', 'recording-console-simple', 'recording-history.js');
+    (0, eval)(File.read(historyPath) + '\n//# sourceURL=' + historyPath);
+    assert(OpenDeskRecordingHistory && typeof OpenDeskRecordingHistory.createManager === 'function');
+
+    const root = File.join(RuntimeAPITest.context.runDir, 'generated', 'recording-history-native');
+    const recordingId = 'rec-native-history-delete';
+    const keepRecordingId = 'rec-native-history-keep';
+    const recordingDir = File.join(root, recordingId);
+    const keepRecordingDir = File.join(root, keepRecordingId);
+    File.ensureDir(File.join(recordingDir, 'generated'));
+    File.ensureDir(File.join(keepRecordingDir, 'generated'));
+    File.write(File.join(recordingDir, 'manifest.json'), JSON.stringify({
+      recordingId,
+      state: 'stopped',
+      startedAt: '2026-09-11T12:00:00Z',
+      within: {processId: 7, title: 'Native Delete Fixture'},
+      storage: {state: 'saved'},
+      issues: [],
+    }));
+    File.write(File.join(recordingDir, 'generated', 'basic.recipe.js'), '// native History fixture\n');
+    File.write(File.join(keepRecordingDir, 'manifest.json'), JSON.stringify({
+      recordingId: keepRecordingId,
+      state: 'stopped',
+      startedAt: '2026-09-11T11:00:00Z',
+      within: {processId: 7, title: 'Native Keep Fixture'},
+      storage: {state: 'saved'},
+      issues: [],
+    }));
+    File.write(File.join(keepRecordingDir, 'generated', 'basic.recipe.js'), '// native History keep fixture\n');
+
+    const toolbar = {
+      addButton() {},
+      async updateButton() {},
+    };
+    const confirms = [];
+    const prompts = [];
+    const logs = [];
+    let accepted = false;
+    const manager = OpenDeskRecordingHistory.createManager({
+      file: File,
+      ui,
+      dialog: {
+        async alert() {},
+        async prompt(spec) { prompts.push(spec); return 'Native Renamed Fixture'; },
+        async confirm(spec) { confirms.push(spec); return accepted; },
+      },
+      command: {async run() { return {exitCode: 0, stdout: '', stderr: ''}; }},
+      execution: Execution,
+      system: System,
+      toolbar,
+      app: {state: () => ({phase: 'ready'})},
+      recordingsRoot: root,
+      runCountdownStepMs: 0,
+      logger: {log: value => logs.push(String(value)), error: value => logs.push(String(value))},
+    });
+
+    try {
+      const firstWindow = await manager.open();
+      const firstState = await firstWindow.getState();
+      const firstRename = await firstWindow.control('rename0').getState();
+      const firstDelete = await firstWindow.control('delete0').getState();
+      for (const id of ['run1', 'rename1', 'open1', 'delete1']) {
+        assert(!(await firstWindow.control(id).getState()).visible,
+          `${id} remained visible for an empty History slot`);
+      }
+      assert(firstState.onScreen && firstState.layer > 0, 'History did not reach its always-on-top native layer');
+      assert(firstDelete.screenBounds.width > 0 && firstDelete.screenBounds.height > 0, 'History Delete has no native hit target');
+      const evidenceDir = File.join(FloatingToolbarTest.root, 'recording-history-native');
+      await File.ensureDir(evidenceDir);
+      const beforePath = File.join(evidenceDir, 'before-delete.png');
+      const before = await Screen.screenshot({clip: firstState.bounds, path: beforePath, returnType: 'object'});
+      assert(before.sizeBytes > 100 && await File.exists(beforePath), 'History before-delete screenshot was not written');
+
+      await mouse.click(
+        firstRename.screenBounds.x + firstRename.screenBounds.width / 2,
+        firstRename.screenBounds.y + firstRename.screenBounds.height / 2,
+      );
+      await FloatingToolbarTest.waitFor(
+        () => prompts.length === 1 && logs.some(line => line.includes('HISTORY_RENAME_REFRESH_DONE')),
+        'physical History Rename click did not complete the in-place refresh',
+      );
+      equal((await firstWindow.control('recordingName0').getState()).text, 'Native Renamed Fixture',
+        'renamed History slot did not update its visible native text');
+      assert(logs.some(line => line.includes('HISTORY_RENAME_CLICK')
+        && line.includes('"controlId":"rename0"') && line.includes('"eventHasBounds":true')),
+      'native History rename click did not carry the reviewed control id and bounds');
+
+      await mouse.click(
+        firstDelete.screenBounds.x + firstDelete.screenBounds.width / 2,
+        firstDelete.screenBounds.y + firstDelete.screenBounds.height / 2,
+      );
+      await FloatingToolbarTest.waitFor(
+        () => confirms.length === 1 && logs.some(line => line.includes('HISTORY_DELETE_DIALOG_RESULT')),
+        'physical History Delete click did not reach the JavaScript listener',
+      );
+      assert(File.stat(recordingDir) !== null, 'Cancel removed the native History fixture');
+      assert(logs.some(line => line.includes('HISTORY_DELETE_CLICK')
+        && line.includes('"controlId":"delete0"') && line.includes('"eventHasBounds":true')),
+      'native History click did not carry the reviewed control id and bounds');
+
+      accepted = true;
+      const secondDelete = await firstWindow.control('delete0').getState();
+      await mouse.click(
+        secondDelete.screenBounds.x + secondDelete.screenBounds.width / 2,
+        secondDelete.screenBounds.y + secondDelete.screenBounds.height / 2,
+      );
+      await FloatingToolbarTest.waitFor(
+        () => File.stat(recordingDir) === null && confirms.length === 2
+          && logs.some(line => line.includes('HISTORY_DELETE_REFRESH_DONE')),
+        'confirmed native History Delete did not remove the recording',
+      );
+      const refreshedWindow = await manager.open();
+      const refreshedDelete = await refreshedWindow.control('delete0').getState();
+      const refreshedRow = await refreshedWindow.control('recording0').getState();
+      const refreshedName = await refreshedWindow.control('recordingName0').getState();
+      assert(!refreshedDelete.disabled && refreshedRow.visible, 'remaining History row is not actionable or visible');
+      equal(refreshedName.text, 'Native Keep Fixture', 'deleted slot kept stale text instead of the next recording');
+      const emptyState = await refreshedWindow.getState();
+      const afterPath = File.join(evidenceDir, 'after-delete.png');
+      const after = await Screen.screenshot({clip: emptyState.bounds, path: afterPath, returnType: 'object'});
+      assert(after.sizeBytes > 100 && await File.exists(afterPath), 'History after-delete screenshot was not written');
+    } finally {
+      await manager.close();
+      if (File.stat(root) !== null) File.removeDir(root);
+      await ui.closeAll();
+    }
+  });
 })();

@@ -134,7 +134,11 @@ type WindowState struct {
 type ControlState struct {
 	ID   string `json:"id"`
 	Type string `json:"type"`
-	Text string `json:"text,omitempty"`
+	// Text is intentionally present even when empty. Custom UI callers use an
+	// empty text readback to clear reusable controls (for example, empty slots
+	// in the Recorder history window); omitting it turns a successful clear into
+	// an indistinguishable undefined value in JavaScript.
+	Text string `json:"text"`
 	Icon string `json:"icon,omitempty"`
 	// IconPresentation is present only for FloatingWindow buttons. It records
 	// the reviewed built-in symbol recipe or validated raster metadata; caller

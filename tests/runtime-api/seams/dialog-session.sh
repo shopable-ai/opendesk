@@ -163,6 +163,8 @@ ax = value.get("accessibility") or {}
 bounds = ax.get("bounds") or {}
 if value.get("hostPid", 0) <= 0 or not value.get("onScreen") or value.get("alpha", 0) <= 0:
     raise SystemExit("native dialog WindowServer state is not visible")
+if value.get("layer", 0) <= 3:
+    raise SystemExit("native Dialog is not above always-on-top Custom UI windows")
 if ax.get("windowTitle") != wanted_title or ax.get("buttonTitle") != wanted_button or not ax.get("supportsPress"):
     raise SystemExit("native dialog AX identity or AXPress capability changed")
 x = bounds.get("x", 0) + bounds.get("width", 0) / 2

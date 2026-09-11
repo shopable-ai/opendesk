@@ -104,6 +104,8 @@ test('history presentation keeps one horizontal row shape and adds bounded pagin
   assert.match(html, /id="pageIndicator"/);
   assert.match(html, /id="nextHistory"/);
   assert.match(html, /id="lastHistory"/);
+  assert.doesNotMatch(html, /历史录制/);
+  assert.doesNotMatch(html, /historyStatus/);
   assert.doesNotMatch(html, /id="recordingMeta0"/);
   assert.doesNotMatch(html, /id="recordingId0"/);
   assert.match(html, /id="run9"/);
@@ -133,6 +135,8 @@ test('history presentation keeps one horizontal row shape and adds bounded pagin
   await manager.open();
   const window = ui.windows[0];
   assert.equal(window.spec.position.size.width, 860);
+  assert.match(window.spec.content.css, /display: flex/);
+  assert.match(window.spec.content.css, /flex: 1 1 auto/);
   assert.equal(window.controls.get('run0').patch.icon, 'play.fill');
   assert.equal(window.controls.get('run0').patch.text, '');
   assert.equal(window.controls.get('rename0').patch.icon, 'pencil');

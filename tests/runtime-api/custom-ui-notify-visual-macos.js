@@ -73,6 +73,9 @@ async function waitFor(predicate, message, timeoutMs = 5000) {
 const baselineActive = identity(await window.getActiveWindow());
 
 async function checkpoint(name, hint, extra = {}) {
+  // Native state can become observable just before WindowServer commits the
+  // first nonactivating panel frame. Let visual evidence follow that frame.
+  await sleep(200);
   const state = await hint.getState();
   const active = identity(await window.getActiveWindow());
   if (!sameIdentity(active, baselineActive)) result.focusStable = false;

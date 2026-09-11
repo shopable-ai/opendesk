@@ -129,6 +129,21 @@ test('history UI adapter does not replace explicit labels or unknown icons', asy
   assert.deepEqual(patches[1], {icon: 'unknown.icon', text: ''});
 });
 
+test('history UI adapter forwards the preferred toast surface', async () => {
+  const calls = [];
+  const toast = async value => { calls.push(value); return {id: 'history-feedback'}; };
+  const baseUI = {
+    toast,
+    async createWindow() { return {control() { return null; }}; },
+  };
+
+  const {historyUI} = loadController(baseUI);
+  assert.equal(typeof historyUI.toast, 'function');
+  const payload = {message: '正在运行', timeoutMs: 0, closable: true};
+  assert.deepEqual(await historyUI.toast(payload), {id: 'history-feedback'});
+  assert.deepEqual(calls, [payload]);
+});
+
 test('shared Dialog coordinator reports modal overlap and recovers after DIALOG_BUSY', async () => {
   let resolveFirstConfirm;
   const calls = [];
