@@ -34,13 +34,21 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
+      - name: Prepare Windows evidence directory
+        shell: pwsh
+        run: New-Item -ItemType Directory -Force -Path .runtime/tests/windows-compat | Out-Null
+
       - name: Compile maintained Go source
         shell: pwsh
         run: go build ./...
 
-      - name: Run deterministic Windows internal seams
+      - name: Run deterministic Custom UI seams
         shell: pwsh
         run: go test ./pkg/customui/...
+
+      - name: Run deterministic Window Manager seams
+        shell: pwsh
+        run: go test ./automation -run '^TestWindowsWindowManager' -count=1
 
       - name: Build OpenDesk Windows runtime
         shell: pwsh
@@ -53,16 +61,40 @@ jobs:
 
       - name: Run public Runtime window contract
         shell: pwsh
-        run: .\dist\opendesk.exe -script "tests/runtime-api/window-target.js" -console-mode script
+        run: |
+          & .\dist\opendesk.exe -script "tests/runtime-api/window-target.js" -console-mode script *>&1 | Tee-Object -FilePath ".runtime/tests/windows-compat/window-runtime-contract.log"
+          $exitCode = $LASTEXITCODE
+          [ordered]@{
+            schemaVersion = 1
+            suite = "runtime-window-contract"
+            status = if ($exitCode -eq 0) { "passed" } else { "failed" }
+            command = ".\\dist\\opendesk.exe -script tests/runtime-api/window-target.js -console-mode script"
+            githubSHA = $env:GITHUB_SHA
+            osVersion = [Environment]::OSVersion.VersionString
+            architecture = $env:PROCESSOR_ARCHITECTURE
+            recordedAt = [DateTime]::UtcNow.ToString("o")
+          } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath ".runtime/tests/windows-compat/window-runtime-contract.json" -Encoding UTF8
+          if ($exitCode -ne 0) { exit $exitCode }
+
+      - name: Build repository-owned Windows window fixture
+        shell: pwsh
+        run: |
+          go build -o .runtime/tests/windows-compat/window-fixture.exe ./tests/windows/window-fixture
+          if (-not (Test-Path -LiteralPath ".runtime/tests/windows-compat/window-fixture.exe")) {
+            throw "repository-owned Windows window fixture was not produced"
+          }
+
+      - name: Run hosted live Window Manager fixture contract
+        shell: pwsh
+        run: pwsh -NoProfile -File tests/windows/window-manager/run-live.ps1 -OpenDeskPath .\dist\opendesk.exe -FixturePath .\.runtime\tests\windows-compat\window-fixture.exe
 
       - name: Build complete Windows app pair
         shell: pwsh
         run: pwsh -NoProfile -File scripts/build_windows_app.ps1
 
-      - name: Windows native host protocol smoke
+      - name: Windows hosted-deterministic native host protocol smoke
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path .runtime/tests/windows-compat | Out-Null
           $hostPath = ".\dist\ui-host\opendesk-ui-host.exe"
           if (-not (Test-Path -LiteralPath $hostPath)) {
             throw "Windows native UI host was not produced at $hostPath"
