@@ -15,12 +15,6 @@
     "tooltip": "OpenDesk",
     "primaryAction": "opendesk.open",
     "menuMode": "merge",
-    "menu": [
-      {
-        "id": "runner.open",
-        "label": "打开 Script Runner",
-        "action": "runner.open"
-      }
-    ]
+    "menu": []
   }
 }

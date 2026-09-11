@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"opendesk/internal/processlock"
+
 	_ "modernc.org/sqlite"
 )
 
@@ -46,6 +48,15 @@ func OpenStore(path string) (*Store, error) {
 	if err := os.MkdirAll(filepath.Dir(absPath), 0o755); err != nil {
 		return nil, fmt.Errorf("create scheduler data directory: %w", err)
 	}
+
+	migrationCtx, migrationCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	migrationLease, err := processlock.Acquire(migrationCtx, absPath+".migration.lock", 25*time.Millisecond)
+	migrationCancel()
+	if err != nil {
+		return nil, fmt.Errorf("acquire Scheduler migration ownership: %w", err)
+	}
+	defer migrationLease.Close()
+
 	db, err := sql.Open("sqlite", absPath)
 	if err != nil {
 		return nil, fmt.Errorf("open scheduler database: %w", err)
@@ -65,6 +76,13 @@ func (s *Store) Path() string {
 		return ""
 	}
 	return s.path
+}
+
+func (s *Store) RunnerLockPath() string {
+	if s == nil || strings.TrimSpace(s.path) == "" {
+		return ""
+	}
+	return s.path + ".runner.lock"
 }
 
 func (s *Store) Close() error {
@@ -137,7 +155,6 @@ CREATE INDEX IF NOT EXISTS idx_job_runs_job_scheduled
 			if _, err := s.db.ExecContext(ctx, statement); err != nil {
 				return fmt.Errorf("migrate scheduler database column %s: %w", migration.name, err)
 			}
-		}
 	}
 	return nil
 }

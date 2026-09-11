@@ -42,6 +42,14 @@ jobs:
         shell: pwsh
         run: go build ./...
 
+      - name: Run Scheduler store concurrency tests
+        shell: pwsh
+        run: go test ./pkg/scheduler ./tests/scheduler -count=1
+
+      - name: Run Scheduler multi-runtime ownership harness
+        shell: pwsh
+        run: go run ./tests/scheduler/tools/multiruntime
+
       - name: Run deterministic Custom UI seams
         shell: pwsh
         run: go test ./pkg/customui/...

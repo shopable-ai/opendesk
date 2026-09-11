@@ -4,7 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 )
@@ -162,6 +164,117 @@ CREATE TABLE job_runs (
 		if err := store.Close(); err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+func TestOpenStoreSerializesConcurrentLegacyMigration(t *testing.T) {
+	databasePath := filepath.Join(t.TempDir(), "legacy-concurrent.db")
+	db, err := sql.Open("sqlite", databasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`
+CREATE TABLE scheduled_jobs (
+ id TEXT PRIMARY KEY, name TEXT NOT NULL, enabled INTEGER NOT NULL,
+ schedule_type TEXT NOT NULL, schedule_expression TEXT NOT NULL,
+ timezone TEXT NOT NULL, misfire_policy TEXT NOT NULL, task_type TEXT NOT NULL,
+ script_path TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+ last_run_at TEXT, next_run_at TEXT
+);
+CREATE TABLE job_runs (
+ id TEXT PRIMARY KEY, job_id TEXT NOT NULL, scheduled_at TEXT NOT NULL,
+ started_at TEXT, finished_at TEXT, status TEXT NOT NULL,
+ error TEXT NOT NULL DEFAULT '', execution_id TEXT NOT NULL DEFAULT ''
+);`); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	const workers = 8
+	start := make(chan struct{})
+	errs := make(chan error, workers)
+	var wg sync.WaitGroup
+	for index := 0; index < workers; index++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			store, err := OpenStore(databasePath)
+			if err == nil {
+				err = store.Close()
+			}
+			errs <- err
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatalf("concurrent migration failed: %v", err)
+		}
+	}
+
+	store, err := OpenStore(databasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	for _, column := range []string{"source_type", "inline_script"} {
+		exists, err := store.scheduledJobsColumnExists(context.Background(), column)
+		if err != nil || !exists {
+			t.Fatalf("column %s missing after concurrent migration: exists=%v err=%v", column, exists, err)
+		}
+	}
+}
+
+func TestSharedStoreConcurrentWritesUseBusyTimeoutAndWAL(t *testing.T) {
+	databasePath := filepath.Join(t.TempDir(), "shared.db")
+	storeA, err := OpenStore(databasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer storeA.Close()
+	storeB, err := OpenStore(databasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer storeB.Close()
+
+	ctx := context.Background()
+	now := time.Now().UTC()
+	errs := make(chan error, 40)
+	var wg sync.WaitGroup
+	for worker, store := range []*Store{storeA, storeB} {
+		worker := worker
+		store := store
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for index := 0; index < 20; index++ {
+				job := storedTestJob(fmt.Sprintf("job-%d-%d", worker, index), now)
+				if err := store.CreateJob(ctx, job); err != nil {
+					errs <- err
+					return
+				}
+			}
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatalf("shared DB concurrent write failed: %v", err)
+		}
+	}
+	jobs, err := storeA.ListJobs(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(jobs) != 40 {
+		t.Fatalf("shared DB job count=%d want=40", len(jobs))
 	}
 }
 

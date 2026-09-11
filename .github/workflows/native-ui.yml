@@ -8,11 +8,13 @@ on:
       - 'go.sum'
       - 'cmd/opendesk/**'
       - 'cmd/opendesk-ui-host/**'
+      - 'internal/processlock/**'
       - 'pkg/execution/**'
       - 'pkg/runtimeconfig/**'
       - 'pkg/customui/**'
       - 'pkg/appshell/**'
       - 'pkg/http/**'
+      - 'pkg/scheduler/**'
       - 'automation/custom_ui*'
       - 'automation/floating_window*'
       - 'automation/page.go'
@@ -20,9 +22,11 @@ on:
       - 'automation/command*'
       - 'tests/runtime-api/custom-ui*'
       - 'tests/custom-ui/**'
+      - 'tests/scheduler/**'
       - 'examples/custom-ui/**'
       - 'scripts/build_windows*'
       - 'scripts/build_macos_app.sh'
+      - 'docs/architecture/scheduler-runtime-concurrency.md'
   pull_request:
   workflow_dispatch:
 
@@ -62,6 +66,15 @@ jobs:
       - name: Test Inspector runtime endpoint propagation
         if: runner.os != 'Linux'
         run: go test ./pkg/http -run 'TestInspectorNetworkPolicyUsesOwnerProvidedRuntimePort' -count=1
+      - name: Test Scheduler store concurrency
+        if: runner.os != 'Linux'
+        run: go test ./pkg/scheduler ./tests/scheduler -count=1
+      - name: Run Scheduler multi-runtime ownership harness
+        if: runner.os != 'Linux'
+        run: go run ./tests/scheduler/tools/multiruntime
+      - name: Race-test Scheduler ownership harness on macOS
+        if: runner.os == 'macOS'
+        run: go run -race ./tests/scheduler/tools/multiruntime
       - name: Test App Shell single-instance seams
         if: runner.os != 'Linux'
         run: go test ./pkg/appshell -run 'SingleInstance' -count=1
@@ -69,8 +82,8 @@ jobs:
         run: go test ./pkg/customui/...
       - name: Test test-architecture invariants
         run: node scripts/audit_test_architecture.js
-      - name: Test Script Runner controller
-        run: node --test tests/custom-ui/script-runner-simple.test.js
+      - name: Test Script Runner controller and product composition
+        run: node --test tests/custom-ui/script-runner-simple.test.js tests/custom-ui/product-script-runner.test.js
       - name: Build macOS native UI host
         if: runner.os == 'macOS'
         run: go build -o dist/opendesk-ui-host ./cmd/opendesk-ui-host

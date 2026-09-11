@@ -4,33 +4,74 @@
 separate from framework infrastructure in `pkg/appshell` and from developer
 fixtures under `examples/`.
 
+## Product composition
+
+OpenDesk no longer adds a Demo/welcome window in front of the Script Runner.
+The product relationship is:
+
+```text
+OpenDesk App Mode
+        |
+        v
+Product Script Runner                 <- official default user UI
+- Run / Stop
+- current script
+- script list (`window.id = "main"`)
+        |
+        +-- Official Shell secondary actions
+            - Customize
+            - Help
+```
+
+`apps/opendesk/main.js` is only the composition root: it loads Official Shell,
+creates the Product Script Runner, opens the Runner list at startup and then
+waits for the Runner lifecycle. It does not create another product window.
+
+The public `examples/custom-ui/script-runner-simple.js` remains a generic
+learning/API example. It uses the same shared Runner controller but does not
+receive OpenDesk commercial/official actions.
+
 ## Ownership
 
-- `pkg/appshell`: native tray/menu, manifest dispatch, App Shell lifecycle.
-- `internal/recorderbundle`: framework-internal Go bundler whose `ui/` subtree
-  contains the canonical JavaScript Recorder UI. The Go code only embeds and
-  materializes those assets; it does not replace the JS implementation. `opendesk.recorder` is injected by the framework and is therefore
-  not declared in this package manifest.
-- `apps/opendesk`: product window, Official Shell, Script Runner and product menu actions.
+- `pkg/appshell`: native tray/menu, manifest dispatch, main-window lifecycle and
+  single-instance behavior.
+- `internal/recorderbundle`: framework-internal Recorder bundle. The built-in
+  `opendesk.recorder` action is injected by the framework and is not declared in
+  this package manifest.
+- `apps/opendesk/script-runner/controller.js`: shared generic Script Runner
+  behavior (discovery, ordering, Run/Stop, list/empty/error state and child
+  recipe execution).
+- `apps/opendesk/script-runner-simple.js`: product composition seam. It maps the
+  Runner list to App Mode `main`, keeps one Runner/toolbar instance, and appends
+  Official Shell secondary actions to the same FloatingWindow.
+- `apps/opendesk/official-shell.js`: Help/Customize metadata, protected product
+  configuration, HTTPS-only navigation and future hidden commercial actions.
+- `apps/opendesk/main.js`: composition root only.
 
 The Script Runner UI executes in the main App Mode execution, but every normal
 recipe remains a child OpenDesk process launched through `Command.run()` with
 `System.getExecutablePath()` and `-script`. The package does not claim that
-recipe execution is in-process. The older Custom UI launcher remains available
-as a separate compatibility example; it is not a release dependency.
+recipe execution is in-process.
 
 ## Official Shell
 
-The release-owned main window contains a small Official Shell service area.
-P0 keeps two core actions visible:
+P0 keeps two core secondary actions visible on the right side of the Product
+Script Runner toolbar:
 
-- `opendesk.help` -> **帮助**
 - `opendesk.customize` -> **定制**
+- `opendesk.help` -> **帮助**
+
+The core Runner controls remain primary. The actual FloatingWindow is one
+shared toolbar, conceptually:
+
+```text
+[Run] [Stop] [current script] [List] | [Customize] [Help]
+```
 
 `opendesk.marketplace` and `opendesk.upgrade` are reserved for future product
 stages and remain hidden until there is a real marketplace or Premium feature
-set. The Official Shell is intentionally separate from user Recipe ordering and
-from the older Custom UI compatibility launcher.
+set. Official actions are independent of recipe execution state, so Help and
+Customize remain usable while a recipe is running.
 
 Configuration is loaded from:
 
@@ -40,14 +81,22 @@ apps/opendesk/assets/official-shell.odcfg
 
 The P0 file is a low-cost obfuscated, checksummed product configuration. It is
 not a secret store or DRM boundary. If it is missing, corrupt, or attempts to
-hide a core action, `official-shell.js` falls back to built-in defaults. The
-current URLs are empty placeholders, so Help/Customize clicks report **待开放**
-instead of opening a fake site.
+hide a core action, `official-shell.js` falls back to built-in defaults.
 
-When production URLs are configured, Official Shell accepts HTTPS targets only.
-Prefer stable server-side redirect entrypoints so destination pages can change
-without rebuilding the desktop product. See
-`docs/architecture/official-shell-commercial-entrypoints.md` for the ownership,
+The current URLs are empty placeholders. In that state Product Runner calls the
+formal `ui.notify()` API and shows:
+
+```text
+帮助中心待开放。
+定制自动化服务待开放。
+```
+
+It does not create a window just to display those messages. If notification
+presentation itself fails, Product Runner falls back to its existing list/status
+surface. When production URLs are configured, Official Shell accepts HTTPS
+targets only.
+
+See `docs/architecture/official-shell-commercial-entrypoints.md` for ownership,
 commercialization and future signed-config/OEM boundaries.
 
 ## P0 status
@@ -58,6 +107,24 @@ can be opened, closed, and reopened, and the Quit action ends the OpenDesk
 process. Marketplace, Pro, signed remote configuration, `Shell.openExternal()`,
 and OEM/white-label behavior remain reserved or future work; Windows live UI is
 not claimed by this repository.
+
+## Main window and Tray lifecycle
+
+`opendesk.app.json` keeps:
+
+```text
+window.mainId = "main"
+window.closeBehavior = "hide"
+tray.primaryAction = "opendesk.open"
+```
+
+The Product Script Runner list is the window with ID `main`. Therefore the App
+Shell built-in Open/Show action shows and focuses the existing Runner list. It
+does not start another Execution, another Runner or another toolbar.
+
+There is no custom `runner.open` tray item anymore. With `menuMode = "merge"`,
+the system-owned Open/Show, Recorder and Quit behavior stays with App Shell,
+while the package does not add a duplicate “打开 Script Runner” row.
 
 ## Writable data
 
@@ -79,6 +146,9 @@ Run the package explicitly from the repository root:
 ```bash
 ./dist/opendesk -app apps/opendesk -console-mode script
 ```
+
+Expected startup UI is Product Script Runner itself: its Floating toolbar plus
+its list main window. No intermediate welcome/Demo panel should appear.
 
 The built-in Recorder is a trusted framework action. For an explicit source
 package invocation that needs capture during development, keep using the
@@ -108,7 +178,7 @@ The package is staged at `app-mode/` beside `opendesk.exe`. This is a portable
 distribution; the repository does not claim an MSI/MSIX installer or Windows
 live verification from non-Windows cross-build evidence.
 
-## macOS live acceptance evidence
+## Live acceptance evidence
 
 Store local acceptance artifacts outside Git-tracked source, for example:
 
@@ -117,7 +187,7 @@ Store local acceptance artifacts outside Git-tracked source, for example:
 ```
 
 Acceptance should cover one `opendesk` App Mode process/App Shell/Tray,
-primary-click menu opening, built-in Recorder open/reopen, Recorder History and
-generation actions, product `runner.open`, Runner recipe Run/Stop, Official Shell
-Help/Customize placeholder behavior, and screenshots plus console/runtime logs.
-`.runtime` evidence must not be committed.
+startup directly into Runner toolbar + list, Run/Stop, Help/Customize notify,
+OS close-to-hide followed by system Open/Show restoring the same `main` window,
+no duplicate toolbar/Execution, built-in Recorder coexistence, Quit and
+single-instance activation. `.runtime` evidence must not be committed.

@@ -9,32 +9,50 @@ import (
 	"sync"
 	"time"
 
+	"opendesk/internal/processlock"
 	pkgExecution "opendesk/pkg/execution"
 )
 
+var ErrRunnerStandby = errors.New("scheduler runner is standby")
+
+type RunnerState string
+
+const (
+	RunnerStateActive   RunnerState = "active"
+	RunnerStateStandby  RunnerState = "standby"
+	RunnerStateStopping RunnerState = "stopping"
+	RunnerStateStopped  RunnerState = "stopped"
+)
+
 type Options struct {
-	ScriptRoot   string
-	PollInterval time.Duration
-	QueueSize    int
-	Now          func() time.Time
-	Logf         func(string, ...any)
+	ScriptRoot             string
+	PollInterval           time.Duration
+	QueueSize              int
+	OwnershipRetryInterval time.Duration
+	Now                    func() time.Time
+	Logf                   func(string, ...any)
 }
 
 type Service struct {
-	store        *Store
-	executor     Executor
-	scriptRoot   string
-	pollInterval time.Duration
-	now          func() time.Time
-	logf         func(string, ...any)
-	queue        chan dispatchRequest
-	wake         chan struct{}
+	store                  *Store
+	executor               Executor
+	scriptRoot             string
+	pollInterval           time.Duration
+	ownershipRetryInterval time.Duration
+	now                    func() time.Time
+	logf                   func(string, ...any)
+	queue                  chan dispatchRequest
+	wake                   chan struct{}
 
-	mu      sync.Mutex
-	started bool
-	ctx     context.Context
-	cancel  context.CancelFunc
-	wg      sync.WaitGroup
+	mu          sync.Mutex
+	started     bool
+	state       RunnerState
+	ctx         context.Context
+	cancel      context.CancelFunc
+	runnerLease *processlock.Lease
+	closeDone   chan struct{}
+	closeErr    error
+	wg          sync.WaitGroup
 }
 
 type dispatchRequest struct {
@@ -60,6 +78,9 @@ func NewService(store *Store, executor Executor, options Options) (*Service, err
 	if options.QueueSize <= 0 {
 		options.QueueSize = 128
 	}
+	if options.OwnershipRetryInterval <= 0 {
+		options.OwnershipRetryInterval = 500 * time.Millisecond
+	}
 	if options.Now == nil {
 		options.Now = time.Now
 	}
@@ -67,14 +88,16 @@ func NewService(store *Store, executor Executor, options Options) (*Service, err
 		options.Logf = log.Printf
 	}
 	return &Service{
-		store:        store,
-		executor:     executor,
-		scriptRoot:   root,
-		pollInterval: options.PollInterval,
-		now:          options.Now,
-		logf:         options.Logf,
-		queue:        make(chan dispatchRequest, options.QueueSize),
-		wake:         make(chan struct{}, 1),
+		store:                  store,
+		executor:               executor,
+		scriptRoot:             root,
+		pollInterval:           options.PollInterval,
+		ownershipRetryInterval: options.OwnershipRetryInterval,
+		now:                    options.Now,
+		logf:                   options.Logf,
+		queue:                  make(chan dispatchRequest, options.QueueSize),
+		wake:                   make(chan struct{}, 1),
+		state:                  RunnerStateStopped,
 	}, nil
 }
 
@@ -87,44 +110,183 @@ func (s *Service) Start(parent context.Context) error {
 	if parent == nil {
 		parent = context.Background()
 	}
-	if err := s.recover(parent, s.now().UTC()); err != nil {
-		return err
-	}
 	s.ctx, s.cancel = context.WithCancel(parent)
 	s.started = true
-	s.wg.Add(2)
-	go s.runEngine()
-	go s.runWorker()
-	s.signal()
+	s.state = RunnerStateStandby
+	s.closeDone = nil
+	s.closeErr = nil
+
+	lease, acquired, err := processlock.TryAcquire(s.store.RunnerLockPath())
+	if err != nil {
+		s.resetStartLocked()
+		return fmt.Errorf("acquire Scheduler ownership: %w", err)
+	}
+	if acquired {
+		if err := s.recover(s.ctx, s.now().UTC()); err != nil {
+			_ = lease.Close()
+			s.resetStartLocked()
+			return err
+		}
+		s.runnerLease = lease
+		s.state = RunnerStateActive
+		s.startRunnerLocked()
+		s.logf("scheduler: ownership acquired; runner active")
+		s.signal()
+		return nil
+	}
+
+	s.wg.Add(1)
+	go s.runOwnershipCoordinator()
+	s.logf("scheduler: ownership unavailable; standby")
 	return nil
 }
 
-func (s *Service) Close(ctx context.Context) error {
+func (s *Service) resetStartLocked() {
+	if s.cancel != nil {
+		s.cancel()
+	}
+	s.started = false
+	s.state = RunnerStateStopped
+	s.ctx = nil
+	s.cancel = nil
+	s.runnerLease = nil
+}
+
+func (s *Service) startRunnerLocked() {
+	s.wg.Add(2)
+	go s.runEngine()
+	go s.runWorker()
+}
+
+func (s *Service) runOwnershipCoordinator() {
+	defer s.wg.Done()
+	ticker := time.NewTicker(s.ownershipRetryInterval)
+	defer ticker.Stop()
+	lastError := ""
+	for {
+		select {
+		case <-s.ctx.Done():
+			return
+		case <-ticker.C:
+		}
+
+		lease, acquired, err := processlock.TryAcquire(s.store.RunnerLockPath())
+		if err != nil {
+			message := err.Error()
+			if message != lastError {
+				s.logf("scheduler: ownership retry failed: %v", err)
+				lastError = message
+			}
+			continue
+		}
+		lastError = ""
+		if !acquired {
+			continue
+		}
+
+		s.mu.Lock()
+		if !s.started || s.ctx == nil || s.ctx.Err() != nil {
+			s.mu.Unlock()
+			_ = lease.Close()
+			return
+		}
+		if err := s.recover(s.ctx, s.now().UTC()); err != nil {
+			s.mu.Unlock()
+			_ = lease.Close()
+			s.logf("scheduler: ownership acquired but recovery failed: %v", err)
+			continue
+		}
+		s.runnerLease = lease
+		s.state = RunnerStateActive
+		s.startRunnerLocked()
+		s.mu.Unlock()
+		s.logf("scheduler: ownership transferred/acquired; runner active")
+		s.signal()
+		return
+	}
+}
+
+func (s *Service) RunnerState() RunnerState {
+	if s == nil {
+		return RunnerStateStopped
+	}
 	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.state
+}
+
+func (s *Service) Close(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	s.mu.Lock()
+	if s.state == RunnerStateStopped && !s.started {
+		err := s.closeErr
+		s.mu.Unlock()
+		return err
+	}
+	if s.state == RunnerStateStopping {
+		done := s.closeDone
+		s.mu.Unlock()
+		return s.waitForClose(ctx, done)
+	}
 	if !s.started {
 		s.mu.Unlock()
 		return nil
 	}
-	cancel := s.cancel
-	s.started = false
-	s.mu.Unlock()
-	cancel()
 
+	s.started = false
+	s.state = RunnerStateStopping
 	done := make(chan struct{})
-	go func() {
-		s.wg.Wait()
-		close(done)
-	}()
-	if ctx == nil {
-		ctx = context.Background()
+	s.closeDone = done
+	cancel := s.cancel
+	s.mu.Unlock()
+
+	if cancel != nil {
+		cancel()
 	}
+	go s.finishClose(done)
+	return s.waitForClose(ctx, done)
+}
+
+func (s *Service) waitForClose(ctx context.Context, done <-chan struct{}) error {
 	select {
 	case <-done:
-		recoverCtx, recoverCancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer recoverCancel()
-		return s.store.RecoverInterruptedRuns(recoverCtx, s.now().UTC())
+		s.mu.Lock()
+		err := s.closeErr
+		s.mu.Unlock()
+		return err
 	case <-ctx.Done():
 		return ctx.Err()
+	}
+}
+
+func (s *Service) finishClose(done chan struct{}) {
+	s.wg.Wait()
+
+	s.mu.Lock()
+	lease := s.runnerLease
+	s.mu.Unlock()
+
+	var finishErr error
+	if lease != nil {
+		recoverCtx, recoverCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		recoverErr := s.store.RecoverInterruptedRuns(recoverCtx, s.now().UTC())
+		recoverCancel()
+		finishErr = errors.Join(recoverErr, lease.Close())
+	}
+
+	s.mu.Lock()
+	s.runnerLease = nil
+	s.ctx = nil
+	s.cancel = nil
+	s.state = RunnerStateStopped
+	s.closeErr = finishErr
+	close(done)
+	s.mu.Unlock()
+	if lease != nil {
+		s.logf("scheduler: ownership released; runner stopped")
 	}
 }
 
@@ -261,6 +423,9 @@ func (s *Service) Delete(ctx context.Context, id string) error {
 }
 
 func (s *Service) RunNow(ctx context.Context, id string) (JobRun, error) {
+	if s.RunnerState() != RunnerStateActive {
+		return JobRun{}, ErrRunnerStandby
+	}
 	job, err := s.store.GetJob(ctx, id)
 	if err != nil {
 		return JobRun{}, err
@@ -377,10 +542,11 @@ func (s *Service) execute(request dispatchRequest) {
 func (s *Service) enqueue(ctx context.Context, request dispatchRequest) error {
 	s.mu.Lock()
 	started := s.started
+	state := s.state
 	serviceCtx := s.ctx
 	s.mu.Unlock()
-	if !started || serviceCtx == nil {
-		return fmt.Errorf("scheduler is not running")
+	if !started || state != RunnerStateActive || serviceCtx == nil {
+		return ErrRunnerStandby
 	}
 	select {
 	case s.queue <- request:
