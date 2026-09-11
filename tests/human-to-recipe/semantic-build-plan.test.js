@@ -40,10 +40,38 @@ test('SemanticBuildPlan schema is a strict machine-readable v1 contract', () => 
   assert.ok(schema.required.includes('actionDispositions'));
   assert.ok(schema.required.includes('businessEpisodes'));
   assert.ok(schema.required.includes('sourceMap'));
+  assert.equal(schema.properties.intent.properties.resolution.$ref, '#/$defs/intentResolution');
   assert.deepEqual(
     schema.$defs.actionDisposition.properties.disposition.enum,
     ['business', 'runtime-guard', 'qualification', 'evidence', 'excluded', 'unknown'],
   );
+});
+
+test('explicit unknown intent remains structurally valid and blocks production', () => {
+  const plan = clone(readJSON(goldenPath));
+  plan.intent.resolution = {
+    businessGoal: {
+      status: 'unknown',
+      sourceRefs: ['source.actionsFile'],
+      reason: 'the recording does not establish business purpose',
+    },
+    successConditions: {
+      status: 'unknown',
+      sourceRefs: ['source.actionsFile'],
+      reason: 'no authorized business-result Oracle was supplied',
+    },
+    sideEffects: {
+      status: 'unknown',
+      sourceRefs: ['source.actionsFile'],
+      reason: 'production side effects were not authorized',
+    },
+  };
+  const result = validateSemanticBuildPlan(plan, {cwd: repositoryRoot});
+  assert.equal(result.valid, true, JSON.stringify(result.errors));
+  assert.equal(result.productionReady, false);
+  assert.ok(codes(result.blockers).includes('UNRESOLVED_BUSINESS_GOAL'));
+  assert.ok(codes(result.blockers).includes('UNRESOLVED_SUCCESS_CONDITIONS'));
+  assert.ok(codes(result.blockers).includes('UNRESOLVED_SIDE_EFFECT_AUTHORIZATION'));
 });
 
 test('Calculator golden is production-ready under static validation', () => {

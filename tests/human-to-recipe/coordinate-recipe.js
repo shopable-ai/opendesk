@@ -109,15 +109,20 @@ RuntimeAPITest.load('tests/runtime-api/manifest.js');
       && recipe.includes('Geometry.contains(Geometry.rect(active), point)')
       && recipe.includes('mouse.clickForPID(Number(active.pid), point.x, point.y)'), recipe);
     assert(!recipe.includes('active.x + offset.x') && !recipe.includes('active.y + offset.y'), recipe);
-    for (const forbidden of ['Accessibility.snapshot', 'expectedDisplay', 'finalDisplay', 'page.screenshot', 'File.writeJSON', '[PASS]']) {
+    for (const forbidden of ['expectedDisplay', 'finalDisplay', 'page.screenshot', 'File.writeJSON', '[PASS]']) {
       assert(!recipe.includes(forbidden), `production recipe contains qualification-only code: ${forbidden}`);
     }
+    assert(recipe.includes('Accessibility.snapshot({'),
+      'production recipe must observe the confirmed final business result before reporting success');
 
     (0, eval)(File.read(File.join(Execution.workdir, 'tests', 'runtime-api', 'crypto.js')));
     const recipeSha256 = RuntimeAPICrypto.hashFile(recipePath);
     const gate = File.read(gatePath);
     assert(gate.includes(`const RECIPE_SHA256 = '${recipeSha256}';`), 'qualification gate does not freeze the current production recipe hash');
-    assert(gate.includes('runQualifiedRecipe(target, qualifiedSource.recipeSource, result.observations)'), 'qualification gate does not execute the frozen production source');
+    assert(gate.includes('runQualifiedRecipe(')
+      && gate.includes('qualifiedSource.recipeSource')
+      && gate.includes('result.notificationTrace'),
+    'qualification gate does not execute and observe the frozen production source');
     assert(gate.includes('await (0, eval)(`(async () => {'), 'qualification gate does not evaluate the exact production bytes in its harness');
   });
 

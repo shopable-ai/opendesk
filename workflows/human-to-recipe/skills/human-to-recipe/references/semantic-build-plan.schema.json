@@ -68,7 +68,8 @@
         "businessGoal": {"$ref": "#/$defs/nonPlaceholderString"},
         "successConditions": {"$ref": "#/$defs/nonEmptyStringArray"},
         "allowedSideEffects": {"$ref": "#/$defs/stringArray"},
-        "forbiddenObjects": {"$ref": "#/$defs/stringArray"}
+        "forbiddenObjects": {"$ref": "#/$defs/stringArray"},
+        "resolution": {"$ref": "#/$defs/intentResolution"}
       }
     },
     "environment": {
@@ -256,6 +257,26 @@
         "file": {"$ref": "#/$defs/nonEmptyString"},
         "sha256": {"$ref": "#/$defs/sha256"},
         "bytes": {"type": "integer", "minimum": 1}
+      }
+    },
+    "intentResolutionItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "sourceRefs"],
+      "properties": {
+        "status": {"enum": ["confirmed", "unknown"]},
+        "sourceRefs": {"$ref": "#/$defs/sourceRefs"},
+        "reason": {"$ref": "#/$defs/nonEmptyString"}
+      }
+    },
+    "intentResolution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["businessGoal", "successConditions", "sideEffects"],
+      "properties": {
+        "businessGoal": {"$ref": "#/$defs/intentResolutionItem"},
+        "successConditions": {"$ref": "#/$defs/intentResolutionItem"},
+        "sideEffects": {"$ref": "#/$defs/intentResolutionItem"}
       }
     },
     "artifact": {

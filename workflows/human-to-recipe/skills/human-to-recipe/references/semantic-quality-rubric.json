@@ -1,0 +1,138 @@
+{
+  "formatVersion": "human-to-recipe.semantic-quality-rubric/v1",
+  "passThreshold": 95,
+  "hardGates": [
+    "HG-01-valid-schema",
+    "HG-02-source-bytes",
+    "HG-03-action-trace",
+    "HG-04-resolved-intent",
+    "HG-05-authorized-side-effects",
+    "HG-06-no-production-unknowns",
+    "HG-07-layer-separation",
+    "HG-08-legal-primitives",
+    "HG-09-artifact-integrity"
+  ],
+  "dimensions": [
+    {
+      "id": "semantic-fidelity-and-business-abstraction",
+      "maxPoints": 25,
+      "minimumPoints": 24,
+      "checks": [
+        {"id": "SQ-SEM-01-resolved-business-goal", "points": 5},
+        {"id": "SQ-SEM-02-resolved-success-conditions", "points": 5},
+        {"id": "SQ-SEM-03-unique-action-dispositions", "points": 5},
+        {"id": "SQ-SEM-04-business-episode-coverage", "points": 5},
+        {"id": "SQ-SEM-05-provenanced-knowledge", "points": 5}
+      ]
+    },
+    {
+      "id": "source-traceability",
+      "maxPoints": 20,
+      "minimumPoints": 19,
+      "checks": [
+        {"id": "SQ-TRACE-01-frozen-source-metadata", "points": 4},
+        {"id": "SQ-TRACE-02-actual-source-bytes", "points": 5},
+        {"id": "SQ-TRACE-03-source-event-fidelity", "points": 4},
+        {"id": "SQ-TRACE-04-one-source-map-per-action", "points": 4},
+        {"id": "SQ-TRACE-05-resolved-consumers", "points": 3}
+      ]
+    },
+    {
+      "id": "episode-and-production-contract-structure",
+      "maxPoints": 15,
+      "minimumPoints": 14,
+      "checks": [
+        {"id": "SQ-STRUCT-01-episode-structure", "points": 5},
+        {"id": "SQ-STRUCT-02-episode-source-map", "points": 3},
+        {"id": "SQ-STRUCT-03-target-strategy-links", "points": 3},
+        {"id": "SQ-STRUCT-04-output-contract", "points": 2},
+        {"id": "SQ-STRUCT-05-renderer-contract", "points": 2}
+      ]
+    },
+    {
+      "id": "target-guard-and-recovery-robustness",
+      "maxPoints": 20,
+      "minimumPoints": 19,
+      "checks": [
+        {"id": "SQ-ROBUST-01-resolved-targets", "points": 5},
+        {"id": "SQ-ROBUST-02-no-implicit-fallback", "points": 4},
+        {"id": "SQ-ROBUST-03-legal-geometry", "points": 4},
+        {"id": "SQ-ROBUST-04-provenanced-runtime-guards", "points": 4},
+        {"id": "SQ-ROBUST-05-bounded-recovery", "points": 3}
+      ]
+    },
+    {
+      "id": "oracle-gate-and-evidence-separation",
+      "maxPoints": 15,
+      "minimumPoints": 14,
+      "checks": [
+        {"id": "SQ-LAYER-01-provenanced-claims", "points": 3},
+        {"id": "SQ-LAYER-02-exact-gate-binding", "points": 4},
+        {"id": "SQ-LAYER-03-distinct-artifact-layers", "points": 3},
+        {"id": "SQ-LAYER-04-production-api-surface", "points": 3},
+        {"id": "SQ-LAYER-05-verification-state", "points": 2}
+      ]
+    },
+    {
+      "id": "maintainability",
+      "maxPoints": 5,
+      "minimumPoints": 4,
+      "checks": [
+        {"id": "SQ-MAINT-01-unique-domain-ids", "points": 1},
+        {"id": "SQ-MAINT-02-structured-source-refs", "points": 1},
+        {"id": "SQ-MAINT-03-versioned-api-catalog", "points": 1},
+        {"id": "SQ-MAINT-04-explicit-intent-resolution", "points": 1},
+        {"id": "SQ-MAINT-05-deterministic-rubric", "points": 1}
+      ]
+    }
+  ],
+  "runtimeApiPolicy": {
+    "authoritativeSources": [
+      "docs/api/accessibility.md",
+      "docs/api/app.md",
+      "docs/api/custom-ui.md",
+      "docs/api/geometry.md",
+      "docs/api/input.md",
+      "docs/api/mouse.md",
+      "docs/api/screen.md",
+      "docs/api/system.md",
+      "docs/api/window.md"
+    ],
+    "recognizedRoots": ["Accessibility", "App", "Dialog", "File", "Geometry", "Recorder", "Screen", "System", "keyboard", "mouse", "page", "ui", "window"],
+    "primitives": [
+      {"name": "System.getPlatformInfo", "productionPolicy": "allowed"},
+      {"name": "App.launch", "productionPolicy": "allowed"},
+      {"name": "window.get", "productionPolicy": "allowed"},
+      {"name": "window.wait", "productionPolicy": "allowed"},
+      {"name": "window.list", "productionPolicy": "allowed"},
+      {"name": "window.getActiveWindow", "productionPolicy": "allowed"},
+      {"name": "window.bringToTop", "productionPolicy": "allowed"},
+      {"name": "Geometry.rect", "productionPolicy": "allowed"},
+      {"name": "Geometry.pointOffset", "productionPolicy": "allowed"},
+      {"name": "Geometry.pointPercent", "productionPolicy": "allowed"},
+      {"name": "Geometry.contains", "productionPolicy": "allowed"},
+      {"name": "mouse.click", "productionPolicy": "allowed"},
+      {"name": "mouse.clickPoint", "productionPolicy": "allowed"},
+      {"name": "mouse.clickForPID", "productionPolicy": "allowed"},
+      {"name": "mouse.move", "productionPolicy": "allowed"},
+      {"name": "mouse.down", "productionPolicy": "allowed"},
+      {"name": "mouse.up", "productionPolicy": "allowed"},
+      {"name": "mouse.wheel", "productionPolicy": "allowed"},
+      {"name": "keyboard.type", "productionPolicy": "allowed"},
+      {"name": "keyboard.press", "productionPolicy": "allowed"},
+      {"name": "keyboard.combination", "productionPolicy": "allowed"},
+      {"name": "Accessibility.getCapabilities", "productionPolicy": "allowed"},
+      {"name": "Accessibility.find", "productionPolicy": "requires-plan-declaration"},
+      {"name": "Accessibility.read", "productionPolicy": "requires-plan-declaration"},
+      {"name": "Accessibility.perform", "productionPolicy": "requires-plan-declaration"},
+      {"name": "Accessibility.release", "productionPolicy": "requires-plan-declaration"},
+      {"name": "Accessibility.snapshot", "productionPolicy": "requires-plan-declaration"},
+      {"name": "Screen.getDisplays", "productionPolicy": "allowed"},
+      {"name": "Screen.screenshot", "productionPolicy": "forbidden"},
+      {"name": "page.screenshot", "productionPolicy": "forbidden"},
+      {"name": "ui.getCapabilities", "productionPolicy": "allowed-presentation"},
+      {"name": "ui.notify", "productionPolicy": "allowed-presentation"},
+      {"name": "Recorder.start", "productionPolicy": "forbidden"}
+    ]
+  }
+}

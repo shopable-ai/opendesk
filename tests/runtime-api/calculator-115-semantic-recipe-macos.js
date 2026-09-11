@@ -3,13 +3,13 @@
 //
 // Run from the OpenDesk repository root:
 // OPENDESK_CALCULATOR_115_CONFIRM=authorized-calculator-fixture \
-// ./dist/opendesk -script tests/runtime-api/calculator-115-semantic-recipe-macos.js -console-mode script
+// ./dist/opendesk -ui -script tests/runtime-api/calculator-115-semantic-recipe-macos.js -console-mode script
 
 'use strict';
 
 const CONFIRM_TOKEN = 'authorized-calculator-fixture';
 const SOURCE_SHA256 = '9238fad978581a6f6308b931dd91cd5ced76ad2d2f892f5ebf0965b3143c9574';
-const RECIPE_SHA256 = '751d25b682c9d1591507cddacee298a51d298ef9658d6c8b03e96a996c8a7e96';
+const RECIPE_SHA256 = '5e5fdefe328ce54dead9093a60019b977e0699ba9c7c36a585b3dd959aae5040';
 const CALCULATOR = Object.freeze({
   bundleId: 'com.apple.calculator',
   executablePath: '/System/Applications/Calculator.app/Contents/MacOS/Calculator',
@@ -221,8 +221,9 @@ async function inspectStepTarget(target, step) {
   }
 }
 
-async function runQualifiedRecipe(target, recipeSource, observations) {
+async function runQualifiedRecipe(target, recipeSource, observations, notificationTrace) {
   const originalClickForPID = mouse.clickForPID;
+  const originalNotify = ui.notify;
   let nextStep = 0;
   mouse.clickForPID = async (processID, x, y) => {
     const step = QUALIFICATION_STEPS[nextStep];
@@ -254,6 +255,30 @@ async function runQualifiedRecipe(target, recipeSource, observations) {
     });
     nextStep += 1;
   };
+  ui.notify = async (options) => {
+    const handle = await originalNotify(options);
+    const id = String(handle.id || '');
+    notificationTrace.push({operation: 'create', id, options: JSON.parse(JSON.stringify(options))});
+    return Object.freeze({
+      id,
+      async update(patch) {
+        notificationTrace.push({operation: 'update', id, patch: JSON.parse(JSON.stringify(patch))});
+        return handle.update(patch);
+      },
+      async close() {
+        notificationTrace.push({operation: 'close', id});
+        return handle.close();
+      },
+      async getState() {
+        notificationTrace.push({operation: 'getState', id});
+        return handle.getState();
+      },
+      async waitUntilClosed() {
+        notificationTrace.push({operation: 'waitUntilClosed', id});
+        return handle.waitUntilClosed();
+      },
+    });
+  };
 
   try {
     // Execute the exact frozen production bytes. The harness only instruments
@@ -262,12 +287,28 @@ async function runQualifiedRecipe(target, recipeSource, observations) {
     await (0, eval)(`(async () => {\n${recipeSource}\n})()`);
   } finally {
     mouse.clickForPID = originalClickForPID;
+    ui.notify = originalNotify;
   }
   assert(nextStep === QUALIFICATION_STEPS.length,
     'production recipe emitted fewer actions than the qualification contract', {
       expected: QUALIFICATION_STEPS.length,
       actual: nextStep,
     });
+  const presentations = notificationTrace.filter((item) =>
+    item.operation === 'create' || item.operation === 'update');
+  assert(presentations.length === 4,
+    'recipe must create one notification and update it for later semantic stages and success',
+    notificationTrace);
+  const messages = presentations.map((item) =>
+    String(item.options && item.options.message || item.patch && item.patch.message || ''));
+  assert(JSON.stringify(messages) === JSON.stringify([
+    '计算 25 乘以 4',
+    '在当前结果上加 20',
+    '从当前结果减去 5',
+    '任务完成',
+  ]), 'notification messages must come from the reviewed Business Episodes', messages);
+  assert(new Set(presentations.map((item) => item.id)).size === 1,
+    'semantic stages created more than one notification handle', notificationTrace);
 }
 
 async function qualifySource() {
@@ -330,7 +371,7 @@ async function qualifySource() {
     expected: RECIPE_SHA256,
     actual: recipeSha256,
   });
-  for (const forbidden of ['Accessibility.snapshot', 'expectedDisplay', 'finalDisplay', 'File.writeJSON', '[PASS]']) {
+  for (const forbidden of ['expectedDisplay', 'finalDisplay', 'File.writeJSON', '[PASS]']) {
     assert(!recipeSource.includes(forbidden),
       `production recipe crossed the qualification boundary: ${forbidden}`);
   }
@@ -365,6 +406,7 @@ const result = {
   source: null,
   screenshots: {},
   observations: [],
+  notificationTrace: [],
   finalDisplay: null,
   error: null,
 };
@@ -385,7 +427,12 @@ try {
     height: target.height,
   };
   result.screenshots.before = await capture('before.png');
-  await runQualifiedRecipe(target, qualifiedSource.recipeSource, result.observations);
+  await runQualifiedRecipe(
+    target,
+    qualifiedSource.recipeSource,
+    result.observations,
+    result.notificationTrace,
+  );
   result.finalDisplay = await readDisplay(target);
   assert(result.finalDisplay === '115', 'final Calculator business oracle failed', {
     expected: '115',

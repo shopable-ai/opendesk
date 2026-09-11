@@ -5,7 +5,7 @@ description: 将 OpenDesk Recorder 的固定 actions 包加工为可读生产 Re
 
 # human-to-recipe
 
-版本：0.2，2026-09-10。当前仓库提供 Skill 源码、`SemanticBuildPlan` schema、validator 和 Calculator golden；通用 renderer 尚未实现。Skill 源码存在不表示已安装到当前 Codex 的用户级 Skill 目录，也不表示任何生成物已经 live verified 或 qualified。
+版本：0.4，2026-09-10。当前仓库提供 Skill 源码、`SemanticBuildPlan` schema、validator、静态质量 scorer 和 Calculator golden；通用 renderer 尚未实现。Skill 源码存在不表示已安装到当前 Codex 的用户级 Skill 目录，也不表示任何生成物已经 live verified 或 qualified。
 
 ## 输入与停止条件
 
@@ -19,26 +19,29 @@ description: 将 OpenDesk Recorder 的固定 actions 包加工为可读生产 Re
 - 应用、语言、布局和环境约束；
 - 当前 `semanticStatus`、`semanticReason` 和 issues 的结构化摘要。
 
-业务目标或成功条件缺失时，先提出分别针对目标和结果 Oracle 的具体问题；在用户回答前可以审计事实和列缺口，但不得生成生产 Recipe。没有动作授权时只做静态工作，不运行 Recorder、candidate、生产 Recipe、资格 Gate或任何真实桌面输入。
+业务目标、成功条件或副作用授权缺失时，分别记录为结构化 `intent.resolution: unknown` 并报告具体问题；在用户回答前可以审计事实和交付 blocked plan，但不得生成生产 Recipe。没有动作授权时只做静态工作，不运行 Recorder、candidate、生产 Recipe、资格 Gate或任何真实桌面输入。
 
 ## 固定工作流
 
-1. 阅读仓库 `AGENTS.md`、本 Skill、相关工作流文档和将要调用的 `docs/api/` 当前 API Reference。修改前核对工作树，保留既有和并行修改。
+1. 阅读仓库 `AGENTS.md`、本 Skill、相关工作流文档和将要调用的 `docs/api/` 当前 API Reference。需要从 golden 恢复语义决定、形成/审阅 SemanticBuildPlan 或评估 production 质量时，完整读取 [金标方法论](../../design/golden-methodology.md)，先按其中 Calculator 案例与蒸馏闭环理解“为什么”，再查规则和工程门禁；详细方法只在该文件维护。修改前核对工作树，保留既有和并行修改。
 2. 从磁盘读取 `actionsFile` 的实际字节，不信任 UI 内存摘要。计算 SHA-256；核对 revision、readiness、raw file/hash/bytes、action ID 和 source event ID。把 repository/workdir、recordingDir、actions 路径、hash 与可选 candidate 路径写入 plan。
-3. 每个 action 恰好归入一个 disposition：`business`、`runtime-guard`、`qualification`、`evidence`、`excluded` 或 `unknown`。建立 action → raw event → consumer 的 source map。遗漏、重复消费、冲突或任何 `unknown` 都是 production blocker。
-4. 将连续低层业务动作整理为有业务目的和可观察状态转换的 Business Episode。名称使用用户业务语言；禁止以 `a0001`、`click1`、`action2` 等事件编号命名业务函数。单次示范不能证明的参数、分支、循环和业务规则保持 unknown。Business Episode 名称同时是运行时阶段提示的唯一业务语义来源，不再维护另一套手写“步骤文案”。
-5. 分开记录：应用知识／业务规则；Target／Locator／Geometry；动作策略；运行时安全门禁；Qualification Oracle；Evidence。生产 Recipe 只消费已解决的生产输入。
-6. 当应用认识或 locator 需要加固时，完整读取并遵循 `workflows/agent-to-recipe/skills/application-engineer/SKILL.md`。只接收其 `target`、`locator`、`geometry`、`actionStrategy`、`runtimeGuards`、`recoveryRule`、`qualificationClaims`、`sourceRefs` 和 `unknowns`；最终 plan、Recipe 和 Gate 仍由本 Skill 负责。
-7. 先形成 `SemanticBuildPlan`，再运行 validator。schema 位于 [references/semantic-build-plan.schema.json](references/semantic-build-plan.schema.json)，validator 位于 [scripts/validate-semantic-build-plan.js](scripts/validate-semantic-build-plan.js)。从仓库根目录执行：
+3. 填写 JSON 前先写一份人类可读的“语义草图”：一句话目标、按控件/业务语言重述的动作序列、建议的 Episode 及前后状态、相对机械回放需要增加/删除/合并/改写的决定、尚未确认的问题。每项都要能指出来源。若离开 action ID 和 schema 字段就无法解释某个分组，不得用工程字段包装它，应保留 unknown。蒸馏 golden 时，先完成“actions 事实 → 设计问题 → plan 决定 → Recipe 消费者 → 验证方式”的账本，再修改 Skill/schema/scorer。
+4. 每个 action 恰好归入一个 disposition：`business`、`runtime-guard`、`qualification`、`evidence`、`excluded` 或 `unknown`。建立 action → raw event → consumer 的 source map。遗漏、重复消费、冲突或任何 `unknown` 都是 production blocker。
+5. 将连续低层业务动作整理为有业务目的和可观察状态转换的 Business Episode。名称使用用户业务语言；禁止以 `a0001`、`click1`、`action2` 等事件编号命名业务函数。单次示范不能证明的参数、分支、循环和业务规则保持 unknown。Business Episode 名称同时是运行时阶段提示的唯一业务语义来源，不再维护另一套手写“步骤文案”。
+6. 分开记录：应用知识／业务规则；Target／Locator／Geometry；动作策略；运行时安全门禁；Qualification Oracle；Evidence。生产 Recipe 只消费已解决的生产输入。
+7. 当应用认识或 locator 需要加固时，完整读取并遵循 `workflows/agent-to-recipe/skills/application-engineer/SKILL.md`。只接收其 `target`、`locator`、`geometry`、`actionStrategy`、`runtimeGuards`、`recoveryRule`、`qualificationClaims`、`sourceRefs` 和 `unknowns`；最终 plan、Recipe 和 Gate 仍由本 Skill 负责。
+8. 先 exclusive-create `SemanticBuildPlan`，再依次运行 validator 和静态质量 scorer。schema 位于 [references/semantic-build-plan.schema.json](references/semantic-build-plan.schema.json)，validator 位于 [scripts/validate-semantic-build-plan.js](scripts/validate-semantic-build-plan.js)，100 分 rubric 与 scorer 分别位于 [references/semantic-quality-rubric.json](references/semantic-quality-rubric.json) 和 [scripts/score-semantic-build-plan.js](scripts/score-semantic-build-plan.js)。从仓库根目录执行：
 
    ```bash
    node workflows/human-to-recipe/skills/human-to-recipe/scripts/validate-semantic-build-plan.js <plan.json> --check-source
+   node workflows/human-to-recipe/skills/human-to-recipe/scripts/score-semantic-build-plan.js <plan.json> [--output <exclusive-report.json>]
    ```
 
-   只有 `valid: true` 且 `productionReady: true` 才能进入生产生成。Calculator 校准输入见 `workflows/human-to-recipe/golden-samples/calculator-115.semantic-build-plan.json`。
-8. 通用 renderer 尚未实现。当前由 Agent 严格按同一 plan 生成：来源和正常命令注释 → 应用／布局常量 → 目标或控件表 → 安全 helper → 可选的非阻塞运行阶段提示 helper → 业务 Episode → 顶层业务顺序 → 简明完成结果。生成期间不得重新解释业务、补写 unknown、引入新 fallback 或覆盖已有文件；有冲突先停下并报告。
-9. 生产 Recipe 只保留业务步骤、决定本次控制流的状态判断、防止误操作所需的目标／权限／布局／边界门禁，以及不改变业务结果的运行可观察性。来源 hash、逐步固定 Oracle、截图矩阵和 evidence 写入独立 Gate／Evidence。
-10. Qualification Gate 必须固定 production path/hash，并读取和执行该文件的实际源码；允许 instrument 现有动作边界以观察结果，不得维护第二份隐藏业务动作实现。候选变化后旧资格失效。
+   只有 `valid: true`、`productionReady: true`、所有 hard gates 通过、总分 `>=95` 且每个关键维度达到最低分，才能进入生产生成。每个得分必须来自 scorer 返回的结构化 evidence；不得人工加分。Calculator 校准输入见 `workflows/human-to-recipe/golden-samples/calculator-115.semantic-build-plan.json`。
+9. 通用 renderer 尚未实现。当前由 Agent 严格按同一 plan 生成：来源和正常命令注释 → 应用／布局常量 → 目标或控件表 → 安全 helper → 可选的非阻塞运行阶段提示 helper → 业务 Episode → 顶层业务顺序 → 简明完成结果。生成期间不得重新解释业务、补写 unknown、引入新 fallback 或覆盖已有文件；有冲突先停下并报告。
+10. 前向样本与 golden 有差距时，按方法论的差距归因表决定修复位置：业务解释错误修方法/plan，规则未执行修 Skill 路由，plan 正确但代码漂移修 renderer，结构和来源错误修 validator，真实环境失败留给 application rule/qualification。不得把所有低分都转化成更多 schema 字段或 scorer 关键词。
+11. 生产 Recipe 只保留业务步骤、决定本次控制流的状态判断、防止误操作所需的目标／权限／布局／边界门禁，以及不改变业务结果的运行可观察性。来源 hash、逐步固定 Oracle、截图矩阵和 evidence 写入独立 Gate／Evidence。
+12. Qualification Gate 必须固定 production path/hash，并读取和执行该文件的实际源码；允许 instrument 现有动作边界以观察结果，不得维护第二份隐藏业务动作实现。候选变化后旧资格失效。
 
 ## 运行时语义阶段提示
 

@@ -189,6 +189,8 @@ function resolveActionsPath(source, cwd) {
 
 function checkActualSource(plan, result, options) {
   const {errors, blockers} = result;
+  const initialErrorCount = errors.length;
+  const initialBlockerCount = blockers.length;
   const source = plan.source;
   if (!isObject(source) || !isNonEmptyString(source.actionsFile)) return;
   const actionsPath = resolveActionsPath(source, options.cwd || process.cwd());
@@ -254,7 +256,9 @@ function checkActualSource(plan, result, options) {
     push(blockers, 'RAW_REFERENCE_MISMATCH', 'source.rawReference', 'actual actions raw reference changed');
   }
 
-  if (errors.length === 0 && blockers.length === 0) result.sourceChecked = true;
+  if (errors.length === initialErrorCount && blockers.length === initialBlockerCount) {
+    result.sourceChecked = true;
+  }
 }
 
 function validateSemanticBuildPlan(plan, options = {}) {
@@ -320,6 +324,33 @@ function validateSemanticBuildPlan(plan, options = {}) {
     for (const key of ['allowedSideEffects', 'forbiddenObjects']) {
       if (!isStringArray(plan.intent[key])) {
         push(errors, 'INVALID_STRING_ARRAY', `intent.${key}`, 'expected unique strings');
+      }
+    }
+    if (Object.prototype.hasOwnProperty.call(plan.intent, 'resolution')) {
+      if (requireObject(plan.intent.resolution, 'intent.resolution', errors)) {
+        const resolutionBlockers = {
+          businessGoal: 'UNRESOLVED_BUSINESS_GOAL',
+          successConditions: 'UNRESOLVED_SUCCESS_CONDITIONS',
+          sideEffects: 'UNRESOLVED_SIDE_EFFECT_AUTHORIZATION',
+        };
+        for (const [key, blockerCode] of Object.entries(resolutionBlockers)) {
+          const itemPath = `intent.resolution.${key}`;
+          const item = plan.intent.resolution[key];
+          if (!requireObject(item, itemPath, errors)) continue;
+          if (!['confirmed', 'unknown'].includes(item.status)) {
+            push(errors, 'INVALID_INTENT_RESOLUTION', `${itemPath}.status`,
+              'expected confirmed or unknown');
+          }
+          if (!isStringArray(item.sourceRefs, true)) {
+            push(errors, 'INVALID_SOURCE_REFS', `${itemPath}.sourceRefs`,
+              'intent resolution needs explicit source references');
+          }
+          if (item.status === 'unknown') {
+            requireString(item.reason, `${itemPath}.reason`, errors);
+            push(blockers, blockerCode, `${itemPath}.status`,
+              'unknown intent resolution stops production generation');
+          }
+        }
       }
     }
   }

@@ -43,7 +43,21 @@
     "forbiddenObjects": [
       "Calculator 以外的应用和窗口",
       "不满足 232×321 合格布局的 Calculator 窗口"
-    ]
+    ],
+    "resolution": {
+      "businessGoal": {
+        "status": "confirmed",
+        "sourceRefs": ["intent.businessGoal", "calculator-business-rule"]
+      },
+      "successConditions": {
+        "status": "confirmed",
+        "sourceRefs": ["intent.successConditions", "tests/runtime-api/calculator-115-semantic-recipe-macos.js"]
+      },
+      "sideEffects": {
+        "status": "confirmed",
+        "sourceRefs": ["intent.allowedSideEffects"]
+      }
+    }
   },
   "environment": {
     "applications": [
@@ -253,6 +267,14 @@
       ],
       "noImplicitFallback": true,
       "sourceRefs": ["actions:a0001-a0012", "docs/api/geometry.md", "docs/api/mouse.md"]
+    },
+    {
+      "id": "observe-calculator-result",
+      "targetId": "calculator-window",
+      "method": "读取唯一的 Calculator 数值 staticText，只有确认最终业务结果为 115 后才发布完成状态",
+      "apiCalls": ["Accessibility.snapshot"],
+      "noImplicitFallback": true,
+      "sourceRefs": ["intent.successConditions", "docs/api/accessibility.md"]
     }
   ],
   "runtimeGuards": [
@@ -312,7 +334,7 @@
       "path": "tests/runtime-api/calculator-115-semantic-recipe-macos.js",
       "productionSource": {
         "path": "examples/human-to-recipe/calculator-115.semantic.recipe.js",
-        "sha256": "751d25b682c9d1591507cddacee298a51d298ef9658d6c8b03e96a996c8a7e96"
+        "sha256": "5e5fdefe328ce54dead9093a60019b977e0699ba9c7c36a585b3dd959aae5040"
       },
       "executionMode": "freeze-and-execute-production-source"
     }
@@ -402,7 +424,7 @@
   "outputs": {
     "productionRecipe": {
       "path": "examples/human-to-recipe/calculator-115.semantic.recipe.js",
-      "sha256": "751d25b682c9d1591507cddacee298a51d298ef9658d6c8b03e96a996c8a7e96"
+      "sha256": "5e5fdefe328ce54dead9093a60019b977e0699ba9c7c36a585b3dd959aae5040"
     },
     "qualificationGate": {
       "path": "tests/runtime-api/calculator-115-semantic-recipe-macos.js"
