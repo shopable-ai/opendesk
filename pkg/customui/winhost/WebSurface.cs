@@ -41,14 +41,9 @@ internal sealed class WebSurface : Surface
         core.PermissionRequested+=(_,e)=>e.State=CoreWebView2PermissionState.Deny;
         core.NewWindowRequested+=(_,e)=>e.Handled=true;
         core.DownloadStarting+=(_,e)=>e.Cancel=true;
-        ulong documentNavigationId=0;
-        bool documentNavigationPending=false;
+        bool documentReady=false;
         core.NavigationStarting+=(_,e)=>{
-            if(documentNavigationPending && e.Uri=="about:blank") {
-                if(documentNavigationId==0)documentNavigationId=e.NavigationId;
-                if(e.NavigationId==documentNavigationId)return;
-            }
-            e.Cancel=true;
+            if(documentReady || e.Uri!="about:blank")e.Cancel=true;
         };
         core.FrameNavigationStarting+=(_,e)=>e.Cancel=true;
         core.AddWebResourceRequestedFilter("*",CoreWebView2WebResourceContext.All);
@@ -58,16 +53,15 @@ internal sealed class WebSurface : Surface
         EventHandler<CoreWebView2NavigationCompletedEventArgs>? complete=null;
         complete=(_,e)=>{
             // NavigateToString may replace WebView2's still-finishing initial
-            // about:blank navigation. Ignore that cancelled completion and
-            // resolve only the navigation started for our fixed document.
-            if(documentNavigationId==0 || e.NavigationId!=documentNavigationId)return;
-            core.NavigationCompleted-=complete;documentNavigationPending=false;
-            if(e.IsSuccess)navigation.TrySetResult();else navigation.TrySetException(new HostError("UI_DRIVER_FAILURE","Custom UI navigation failed: "+e.WebErrorStatus));
+            // about:blank navigation. Its cancelled completion is expected;
+            // wait for the fixed document to finish instead.
+            if(!e.IsSuccess && e.WebErrorStatus==CoreWebView2WebErrorStatus.OperationCanceled)return;
+            core.NavigationCompleted-=complete;
+            if(e.IsSuccess){documentReady=true;navigation.TrySetResult();}else navigation.TrySetException(new HostError("UI_DRIVER_FAILURE","Custom UI navigation failed: "+e.WebErrorStatus));
         };
         core.NavigationCompleted+=complete;
         var content=J.O(Spec,"content");
         string document="<!doctype html><meta charset='utf-8'><meta http-equiv='Content-Security-Policy' content=\"default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; img-src data: https://opendesk.invalid; base-uri https://opendesk.invalid; form-action 'none'; frame-src 'none'\"><base href='https://opendesk.invalid/'>"+J.S(content,"html");
-        documentNavigationPending=true;
         core.NavigateToString(document);
         await navigation.Task.WaitAsync(TimeSpan.FromSeconds(10));
         var types=new JsonObject();var array=new JsonArray();
