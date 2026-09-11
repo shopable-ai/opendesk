@@ -9,7 +9,15 @@ const vm = require('node:vm');
 const controllerPath = path.resolve(__dirname, '../../examples/custom-ui/recording-console-simple/controller.js');
 const controllerSource = fs.readFileSync(controllerPath, 'utf8');
 
-function loadController(baseUI) {
+function defaultDialog() {
+  return {
+    async alert() {},
+    async confirm() { return false; },
+    async prompt() { return null; },
+  };
+}
+
+function loadController(baseUI, rawDialog = defaultDialog()) {
   const toolbar = {};
   const coreApp = {
     async show() {}, async run() {}, async close() {}, async stop() {},
@@ -26,7 +34,7 @@ function loadController(baseUI) {
       join: (...parts) => parts.join('/').replace(/\/+/g, '/'),
       read(file) {
         if (file.endsWith('/controller-core.js')) {
-          return `globalThis.OpenDeskSimpleRecordingConsole = { createApp() { return globalThis.__coreApp; } };`;
+          return `globalThis.OpenDeskSimpleRecordingConsole = { createApp(options) { globalThis.__coreOptions = options; return globalThis.__coreApp; } };`;
         }
         if (file.endsWith('/recording-history.js')) {
           return `globalThis.OpenDeskRecordingHistory = { createManager(options) { globalThis.__historyOptions = options; return globalThis.__history; } };`;
@@ -36,14 +44,23 @@ function loadController(baseUI) {
     },
     Execution: {scriptDir: '/scripts'},
     FloatingWindow: function FloatingWindow() {},
+    Dialog: rawDialog,
     __coreApp: coreApp,
     __history: history,
   };
   sandbox.globalThis = sandbox;
   vm.createContext(sandbox);
   vm.runInContext(controllerSource, sandbox, {filename: 'controller.js'});
-  sandbox.OpenDeskSimpleRecordingConsole.createApp({ui: baseUI, FloatingWindow: sandbox.FloatingWindow});
-  return sandbox.__historyOptions.ui;
+  sandbox.OpenDeskSimpleRecordingConsole.createApp({
+    ui: baseUI,
+    FloatingWindow: sandbox.FloatingWindow,
+    dialog: rawDialog,
+  });
+  return {
+    historyUI: sandbox.__historyOptions.ui,
+    coreDialog: sandbox.__coreOptions.dialog,
+    historyDialog: sandbox.__historyOptions.dialog,
+  };
 }
 
 test('history UI adapter keeps built-in icon metadata and supplies visible fallback glyphs', async () => {
@@ -66,7 +83,7 @@ test('history UI adapter keeps built-in icon metadata and supplies visible fallb
     },
   };
 
-  const historyUI = loadController(baseUI);
+  const {historyUI} = loadController(baseUI);
   const window = await historyUI.createWindow({id: 'history'});
 
   await window.control('run0').update({icon: 'play.fill', text: ''});
@@ -77,7 +94,7 @@ test('history UI adapter keeps built-in icon metadata and supplies visible fallb
   assert.deepEqual(patches.get('run0'), {icon: 'play.fill', text: '▶'});
   assert.deepEqual(patches.get('rename0'), {icon: 'pencil', text: '✎'});
   assert.deepEqual(patches.get('open0'), {icon: 'folder.fill', text: '📁'});
-  assert.deepEqual(patches.get('delete0'), {icon: 'trash.fill', text: '▥'});
+  assert.deepEqual(patches.get('delete0'), {icon: 'trash.fill', text: '🗑'});
 });
 
 test('history UI adapter does not replace explicit labels or unknown icons', async () => {
@@ -93,11 +110,50 @@ test('history UI adapter does not replace explicit labels or unknown icons', asy
     },
   };
 
-  const historyUI = loadController(baseUI);
+  const {historyUI} = loadController(baseUI);
   const window = await historyUI.createWindow({id: 'history'});
   await window.control('refreshHistory').update({icon: 'play.fill', text: '刷新'});
   await window.control('futureAction').update({icon: 'unknown.icon', text: ''});
 
   assert.deepEqual(patches[0], {icon: 'play.fill', text: '刷新'});
   assert.deepEqual(patches[1], {icon: 'unknown.icon', text: ''});
+});
+
+test('shared Dialog coordinator prevents modal overlap and neutralizes native DIALOG_BUSY', async () => {
+  let resolveFirstConfirm;
+  const calls = [];
+  const rawDialog = {
+    async alert(spec) { calls.push(['alert', spec]); },
+    confirm(spec) {
+      calls.push(['confirm', spec]);
+      return new Promise(resolve => { resolveFirstConfirm = resolve; });
+    },
+    async prompt(spec) { calls.push(['prompt', spec]); return 'value'; },
+    getCapabilities() { return {supported: true}; },
+  };
+  const baseUI = {async createWindow() { return {control() { return null; }}; }};
+  const {coreDialog, historyDialog} = loadController(baseUI, rawDialog);
+
+  assert.equal(coreDialog, historyDialog, 'core and History must share one modal gate');
+  assert.deepEqual(coreDialog.getCapabilities(), {supported: true});
+
+  const first = coreDialog.confirm({title: 'first'});
+  assert.equal(await historyDialog.confirm({title: 'second'}), false);
+  assert.equal(await historyDialog.prompt({title: 'rename'}), null);
+  assert.equal(await historyDialog.alert({title: 'error'}), undefined);
+  assert.equal(calls.length, 1, 'overlapping modal calls must not reach native Dialog');
+  resolveFirstConfirm(true);
+  assert.equal(await first, true);
+
+  rawDialog.confirm = async () => {
+    const error = new Error('Dialog.confirm: DIALOG_BUSY: only one modal dialog may be active in an execution');
+    error.code = 'DIALOG_BUSY';
+    throw error;
+  };
+  assert.equal(await historyDialog.confirm({title: 'delete'}), false, 'native DIALOG_BUSY is a safe cancel');
+
+  rawDialog.prompt = async () => {
+    throw new Error('Dialog.prompt: DIALOG_BUSY: only one modal dialog may be active in an execution');
+  };
+  assert.equal(await coreDialog.prompt({title: 'rename'}), null, 'message-only DIALOG_BUSY is also a safe cancel');
 });

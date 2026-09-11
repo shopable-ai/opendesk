@@ -15,7 +15,7 @@
     'play.fill': '▶',
     pencil: '✎',
     'folder.fill': '📁',
-    'trash.fill': '▥',
+    'trash.fill': '🗑',
   });
 
   const baseDir = file.join(execution.scriptDir, 'recording-console-simple');
@@ -32,6 +32,50 @@
   const historyAPI = global.OpenDeskRecordingHistory;
   if (!historyAPI || typeof historyAPI.createManager !== 'function') {
     throw new Error('recording-console-simple history controller did not load');
+  }
+
+  function isDialogBusy(error) {
+    const code = error && error.code ? String(error.code) : '';
+    const message = error && error.message ? String(error.message) : String(error || '');
+    return code === 'DIALOG_BUSY' || /(^|\s|:)DIALOG_BUSY(?=\s|:|$)/.test(message);
+  }
+
+  function createDialogCoordinator(baseDialog) {
+    if (!baseDialog || typeof baseDialog.alert !== 'function'
+      || typeof baseDialog.confirm !== 'function' || typeof baseDialog.prompt !== 'function') {
+      throw new Error('recording-console-simple requires Dialog alert/confirm/prompt');
+    }
+
+    let activeModal = false;
+
+    async function invoke(method, spec, busyResult) {
+      // Dialog is intentionally single-modal per script execution. Do not queue a
+      // destructive confirmation: a delayed Delete dialog could appear after the
+      // user's original click context has changed. Treat overlap as cancellation.
+      if (activeModal) return busyResult;
+      activeModal = true;
+      try {
+        return await baseDialog[method](spec);
+      } catch (error) {
+        // A modal created outside this adapter can still race with us. The native
+        // Dialog contract reports that case as DIALOG_BUSY; it is not fatal to the
+        // Recorder and is equivalent to the user canceling the pending action.
+        if (isDialogBusy(error)) return busyResult;
+        throw error;
+      } finally {
+        activeModal = false;
+      }
+    }
+
+    const coordinated = {
+      alert(spec) { return invoke('alert', spec, undefined); },
+      confirm(spec) { return invoke('confirm', spec, false); },
+      prompt(spec) { return invoke('prompt', spec, null); },
+    };
+    if (typeof baseDialog.getCapabilities === 'function') {
+      coordinated.getCapabilities = baseDialog.getCapabilities.bind(baseDialog);
+    }
+    return Object.freeze(coordinated);
   }
 
   function createHistoryUIAdapter(baseUI) {
@@ -133,13 +177,14 @@
     const managerRef = {current: null};
     const BaseFloatingWindow = settings.FloatingWindow || global.FloatingWindow;
     const HistoryAwareFloatingWindow = createToolbarAdapter(BaseFloatingWindow, managerRef);
-    const coreApp = coreAPI.createApp({...settings, FloatingWindow: HistoryAwareFloatingWindow});
+    const sharedDialog = createDialogCoordinator(settings.dialog || global.Dialog);
+    const coreApp = coreAPI.createApp({...settings, dialog: sharedDialog, FloatingWindow: HistoryAwareFloatingWindow});
     const historyUI = createHistoryUIAdapter(settings.ui || global.ui);
 
     const history = historyAPI.createManager({
       file: settings.file || global.File,
       ui: historyUI,
-      dialog: settings.dialog || global.Dialog,
+      dialog: sharedDialog,
       command: settings.command || global.Command,
       execution: settings.execution || global.Execution,
       system: settings.system || global.System,
