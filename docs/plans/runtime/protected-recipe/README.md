@@ -6,6 +6,10 @@
 
 它不是 API Reference，也不替代长期架构设计。长期安全边界以 [`docs/architecture/execution/protected-recipe-package.md`](../../../architecture/execution/protected-recipe-package.md) 为准；当前真实能力必须以源码、可重复测试和用户文档为准。
 
+`Protected Recipe` 在这里是既有路线与目录的兼容名称；面向用户的 `.odpkg` 统一称为“受保护包”。公共命令、
+职责分层与平台矩阵见 [`docs/api/protected-packages.md`](../../../api/protected-packages.md)，命名决策见
+[`protected-package-terminology.md`](../../../architecture/execution/protected-package-terminology.md)。
+
 ```text
 长期架构
 → 本目录阶段计划

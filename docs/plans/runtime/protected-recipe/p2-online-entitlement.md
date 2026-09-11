@@ -141,8 +141,10 @@ Runtime 仍只消费稳定的授权结果与内容密钥边界。不要让 HTTP 
   `git diff --check` 通过。
 - Windows/amd64 `CGO_ENABLED=0` owner cross-build 为 `pkg/licensing`、`pkg/deviceidentity`、`pkg/entitlement`、
   `pkg/entitlementservice`、`pkg/scriptloader`、`internal/licensecli`、`internal/packagecli` 与 entitlement server
-  生成 PE32+ x86-64 产物。Windows 真机/live 与完整应用打包未执行；完整 `opendesk` / `internal/protectedcli`
-  交叉构建仍止于既有 RobotGo `Bitmap` / `Rect` / native symbol 缺失，不属于 P2 owner failure。
+  生成 PE32+ x86-64 产物。这只证明 owner 编译边界；Windows DPAPI live、
+  `package protect/inspect/verify`、P1/P2 package/license/install/activation Runtime、完整 app package/installer 与
+  安装后运行均未取得真机资格。完整 `opendesk` / `internal/protectedcli` 交叉构建仍止于既有 RobotGo
+  `Bitmap` / `Rect` / native symbol 缺失，不属于 P2 owner failure。
 - 额外执行了正式 Runtime API smoke 入口；它在 P2 case 之前被共享工作树中并行的 App Shell/UI catalog/type drift
   拒绝，因此不计为 P2 通过证据。P2 没有新增 JavaScript Runtime API；本阶段要求的 plain Direct/AI 与唯一
   protected Runtime 回归已由上述独立证据满足，不把该次失败表述为 catalog 通过。
@@ -151,7 +153,8 @@ Runtime 仍只消费稳定的授权结果与内容密钥边界。不要让 HTTP 
 
 P2 Acceptance Gates 无剩余项。以下限制已明确保留，不扩大为 P2 能力：
 
-- Windows 真机/live 与完整 app packaging 待具备对应环境后独立验证。
+- Windows DPAPI、package/license/install/activation Runtime 与完整 app package/installer 的真机 live 待具备对应
+  环境后独立验证；owner cross-build 不替代这些证据。
 - 旧 unsigned development build 创建的默认 P1 Keychain item 在 binary rebuild 后返回 `errSecAuthFailed (-25293)`；
   验收未删除或更新该 item，而是使用上述隔离 account。稳定签名/升级 ACL 属于发布工程环境治理。
 - 系统时钟回滚、管理员级 secure-store 删除/系统恢复和更强 trusted-time policy 属于 P4；本阶段只声明 signed

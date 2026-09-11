@@ -1,0 +1,7 @@
+{
+  "orderId": "ORDER-ODPKG-42",
+  "unitPriceCents": 1299,
+  "quantity": 4,
+  "discountBps": 1250,
+  "expectedTotalCents": 4547
+}

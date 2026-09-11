@@ -89,9 +89,10 @@ recipe.odpkg -> ProtectedPackageLoader -> verify -> authorize -> key -> decrypt 
 `-script`。需要同时支持两个入口的异步脚本应使用顶层 `await`，并在脚本内明确处理
 `Execution.input` 为 `{}` 的情况。
 
-## Protected Recipe 与 Device-bound Offline License
+## odpkg 受保护包执行语义
 
-Protected Recipe Package P0 冻结 `.odpkg` v1 的基础保护链路。受保护执行的 `Execution.scriptHash`、
+“Protected Recipe Package P0”是既有架构/阶段名称；面向用户，本页把 `.odpkg` 称为受保护包，以免与普通
+JavaScript Recipe 的作者流程混淆。P0 冻结 `.odpkg` v1 的基础保护链路。受保护执行的 `Execution.scriptHash`、
 result `scriptHash` 和 summary `scriptHash` 都是原始 `.odpkg` 字节的 SHA-256 package digest，
 不是解密后 JavaScript 的 hash。`Execution.scriptPath` / `scriptDir` 为空，artifact 中的
 `scriptSnapshotPath` 也为空；不会创建 `script_snapshot.js` 或临时明文 `.js`。
@@ -111,78 +112,10 @@ device-bound offline provider。未安装信任 pin 与 License 时，`.odpkg` �
 publisher pin、License issuer pin 与 `.odlicense`，从 OS secure storage 取得设备私钥，在内存中恢复
 package DEK。普通 `.js` 不访问这些组件，也不要求 `license device` 或 License。
 
-Publisher 侧命令也由同一个二进制提供。以下命令均从仓库根目录执行；private signing key 和 DEK
-只通过文件传入。自动生成 DEK 时必须指定 `--key-out`，且新文件以 0600 创建：
-
-```bash
-./dist/opendesk package protect recipe.js -o recipe.odpkg --package-id pkg-example --product-id product-example --publisher-id publisher-example --publisher-key-id publisher-key-example --content-key-id content-key-example --minimum-runtime-version 0.0.0 --signing-key publisher-private.pem --key-out recipe.key
-./dist/opendesk package inspect recipe.odpkg
-./dist/opendesk package verify recipe.odpkg --public-key publisher-public.pem
-```
-
-`inspect` 只显示公开 manifest 与 package digest，不解密、不显示源码或 DEK。`verify` 验证包结构、
-格式和 publisher signature；验签成功不代表 License 已授权。P0 对 `minimumRuntimeVersion` 执行严格
-SemVer 语法校验，但当前没有可作为兼容比较依据的 canonical Runtime version source，因此不做
-运行时版本高低比较；该 compatibility gate 留给后续版本来源冻结后的阶段。
-
-Device-bound Offline License 使用独立的 P-256 设备密钥和 Ed25519 License signature。以下命令同样从
-仓库根目录执行。第一条只导出 public identity；设备私钥由 macOS Keychain 或 Windows DPAPI owner
-保存，不写入输出文件：
-
-```bash
-./dist/opendesk license device -o device-public.json
-./dist/opendesk license issue recipe.odpkg --device device-public.json --content-key recipe.key --signing-key license-issuer-private.pem --license-id license-example --subject-id customer-example --issuer-key-id license-key-example --expires-at 2027-01-01T00:00:00Z -o recipe.odlicense
-./dist/opendesk license inspect recipe.odlicense
-./dist/opendesk license verify recipe.odlicense --issuer-key license-issuer-public.pem
-./dist/opendesk license install recipe.odlicense --package recipe.odpkg --package-publisher-key publisher-public.pem --issuer-key license-issuer-public.pem
-./dist/opendesk -script recipe.odpkg
-./dist/opendesk ai run recipe.odpkg
-```
-
-`issue` 在 publisher 侧先验证传入 DEK 确实能解密目标 package，再为设备 public key 生成
-P-256/HKDF-SHA256/AES-256-GCM envelope 并签发 `.odlicense`；输出文件以 0600 独占创建。package signing
-key 与 License signing key 应按用途分离，即使 P1 格式允许二者都采用 Ed25519。
-
-`inspect` 只投影非敏感 License metadata，不显示 wrapped ciphertext；`verify` 验证签名、时间、当前设备
-绑定并证明当前设备能 unwrap DEK，但不输出 DEK。`install` 还验证 package signature、package/license
-metadata 一致性以及恢复出的 DEK 能解密该 package，然后安装精确 public-key pins 与 License。Runtime
-不会自动信任 package/License 自带的 public key。默认安装目录来自当前用户配置目录；隔离部署可以把
-`OPENDESK_PROTECTED_RECIPE_ROOT` 设置为绝对、非根目录路径，这只移动 License/public pins，设备私钥仍固定
-由 Keychain/DPAPI 持有。P1 是离线单设备授权 MVP；在线 activation、refresh、
-revoke 与 device-count 由 P2 提供，key rotation/retirement 属于 P3。
-
-Online Entitlement 在 P1 device binding 之上增加 authenticated HTTPS activation、服务端 device limit、
-signed refresh/revoke state 和有界本地 cache。以下命令从仓库根目录执行；activation credential 只从
-有界 regular file 读取，不支持明文 token flag，也不会写入 CLI JSON、cache、artifact 或 Runtime env：
-
-```bash
-./dist/opendesk license activate recipe.odpkg --service https://licenses.example.com --token-file activation.token --package-publisher-key publisher-public.pem --issuer-key license-issuer-public.pem
-./dist/opendesk license status recipe.odpkg
-./dist/opendesk license refresh recipe.odpkg --service https://licenses.example.com --token-file activation.token
-./dist/opendesk license deactivate recipe.odpkg --service https://licenses.example.com --token-file activation.token
-```
-
-`activate` 仍要求操作者显式提供 package publisher 与 entitlement issuer public key。客户端先验证 package
-signature，再验证服务响应的独立 Ed25519 signature、request nonce、device/package binding 和有效期，随后通过
-既有 `DeviceBoundContentKeyProvider` unwrap DEK 并证明它能解密当前 package，最后才安装 cache 与精确 key
-pins。在线 cache 只包含被在线签名覆盖的 P1 device-bound claims/key envelope，不包含可被单独安装为
-`.odlicense` 的签名离线 License，因此不能从 cache 抽出一张 License 绕过在线 revoke。
-
-连接使用公开 CA 时无需额外参数。私有或企业 CA 可以在 `activate`、`refresh`、`deactivate` 命令末尾追加
-`--ca-file private-ca.pem`；该 PEM 只扩展系统 root pool，不会关闭证书链或 hostname 验证，客户端仍要求
-TLS 1.2 或更高版本。`status` 不访问网络，因此不接受该参数。
-
-`status` 只读取并验证本地 package、cache、device binding 与 OS-protected replay watermark，不访问网络；
-输出只包含 state、sequence、activation/product/device 标识与时间窗口等非敏感 metadata。`refresh` 要求服务返回
-相同 activation 的更高 sequence；`deactivate` 只有在收到 signed revoked state 后才成功。旧 sequence、同 sequence
-不同内容、revoked 后恢复 active、cache bit tamper、wrong device 或删除已激活 package 的 cache 均 fail closed，
-不会 fallback 到旁置的 P1 offline License。
-
-服务下发的 `offlineUntil` 是硬截止时间，客户端另外固定最多 7 天；当前参考服务默认 24 小时并在窗口中点提示
-refresh。服务不可用不会延长 cache：已有 active cache 可在 `offlineUntil` 之前继续运行，到达该时间即返回
-`offline_grace_expired`。远端 revoke 在下一次成功 refresh 后以 signed revoked state 立即生效；设备持续离线时，
-最迟在先前 signed `offlineUntil` 失效。TLS/auth/signature/nonce/响应格式错误不会被当作新的授权，也不会覆盖
-已验证状态。客户端只接受 HTTPS endpoint，禁止 URL credentials/query/fragment 和 HTTP redirect。
+Publisher package、P1 device-bound offline License、P2 online activation 的所有公开命令、参数、JSON 结果、
+错误、安全边界和 macOS/Windows 资格矩阵统一见 [受保护包 CLI](protected-packages.md)。该页明确区分
+package signature verification 与 License authorization，并记录 Windows 当前只有 owner cross-build、没有
+DPAPI/full-app/package/install live 资格；这里不重复维护命令清单。
 
 P0 没有给 HTTP、MCP 或 Scheduler 增加受保护文件输入：HTTP 仍是 inline JavaScript，MCP 没有脚本
 文件执行工具，Scheduler 明确只接受 `.js`。这些入口不会把 `.odpkg` fallback 成普通文本。

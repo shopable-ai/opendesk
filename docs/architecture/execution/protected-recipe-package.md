@@ -1,5 +1,9 @@
 # Protected Recipe Package｜商业脚本保护与执行架构
 
+公共文档把 `.odpkg` 称为“受保护包”，以便与普通 JavaScript Recipe 的作者流程分开；本标题、序列化 domain、
+代码标识和阶段路径作为兼容架构名称保留。命名范围与备选评估见
+[受保护包术语与公共信息架构](protected-package-terminology.md)。
+
 ## 1. 目标
 
 OpenDesk 需要同时支持两种脚本交付方式：
@@ -483,6 +487,17 @@ Phase C｜规模化商业授权：
 
 密钥生成、publisher signing key 管理如果第一批没有成熟的安全存储方案，应明确作为开发/发布侧工具，不要仓促做成普通用户 Runtime API。
 
+### 9.4 Repository 受保护包发布 Skill
+
+仓库内可复用 Publisher 作业入口为
+[`build-odpkg`](../../../workflows/protected-packages/skills/build-odpkg/SKILL.md)。它把当前
+CLI 合同组织为 `.js` → `.odpkg` 受保护包、inspect/verify，以及可选 P1/P2 交接；不复制 package parser、crypto 或
+License 实现，也不进入 P3 key lifecycle。
+
+该 Skill 必须保持 package signing key、License/entitlement signing key 与 DEK 的用途分离，只传秘密文件路径，
+并阻止当前非 exclusive `.odpkg` writer 覆盖既有输出。Skill 验证只能报告真实执行的 package、授权和平台证据；
+`package verify` 不等于 License authorized，owner cross-build 不等于目标平台 live。
+
 ---
 
 ## 10. Protected Artifact Policy
@@ -820,6 +835,17 @@ resurrection、删除已激活 cache 都 fail closed。只有从未建立 online
 
 传输固定为 HTTPS 且客户端要求 TLS 1.2 或更高版本；私有部署可显式提供额外 CA PEM 来扩展系统 root pool，
 但不得关闭证书链或 hostname 验证，也不得跟随会转发 bearer credential 的 redirect。
+
+### 16.3 当前 Windows 资格边界
+
+Windows/amd64 当前已验证的是 P1/P2 owner 和 reference entitlement server 的 `CGO_ENABLED=0` cross-build，产物为
+PE32+ x86-64。这证明指定 Go owner 可以为 Windows 编译，不证明真实 Windows 用户环境中的行为。
+
+尚未取得资格的范围包括：DPAPI device private-key create/read/reopen、当前用户范围与 ACL 的 live 证据；
+`package protect/inspect/verify`、P1 issue/verify/install/Direct/AI、P2 activate/status/refresh/deactivate 的 Windows
+真机链路；以及完整 `opendesk`、native UI host、正式 app package、installer 与安装后运行。完整 host 的既有
+RobotGo CGO/native cross-build 限制应单列，既不能归因成 package/license owner failure，也不能被 owner
+cross-build 掩盖。
 
 ---
 

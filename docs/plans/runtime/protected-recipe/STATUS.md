@@ -71,13 +71,14 @@ P3 必须继续保持：
 - 普通 `.js` Direct/AI regression 通过；protected source/token/DEK/private-key disclosure scan 63 files 零命中，
   protected snapshot 数量为 0。
 - source/dependency boundary scan、`node scripts/audit_test_architecture.js` 和 P2-owned `git diff --check` 通过。
-- Windows/amd64 P2/P1 owner 与 entitlement server cross-build 生成 PE32+ x86-64；Windows live/full app 未执行，
-  完整 host 的既有 RobotGo CGO/native 限制保持单列。
+- Windows/amd64 P2/P1 owner 与 entitlement server cross-build 生成 PE32+ x86-64；这只证明 owner 编译边界。
+  Windows DPAPI live、`package protect/inspect/verify`、P1/P2 package/license/install/activation Runtime、完整 app
+  package/installer 与安装后运行均未取得真机资格；完整 host 的既有 RobotGo CGO/native 限制保持单列。
 
 ## 当前阻塞
 
-无 P3 架构阻塞。Windows live/full app、旧 unsigned development Keychain item 的 ACL 环境观察，以及 P4 的
-trusted-time/admin-reset 治理都已在 P2 文档中保留，不阻塞 P3 启动。
+无 P3 架构阻塞。Windows DPAPI/full-app/package/install live、旧 unsigned development Keychain item 的 ACL
+环境观察，以及 P4 的 trusted-time/admin-reset 治理都已在 P2 文档中保留，不阻塞 P3 启动。
 
 ## 恢复时最短指令
 

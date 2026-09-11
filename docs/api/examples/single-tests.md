@@ -77,7 +77,7 @@ Windows PowerShell 的对应待验收命令：
 
 - [UI 原生文本值可读演示](../../../examples/accessibility/value-roundtrip.js)：`./dist/opendesk -script examples/accessibility/value-roundtrip.js -console-mode script -log-dir .runtime/tests/accessibility/public-value-roundtrip`
 
-四个示例各自所需的完整环境变量和可复制命令见 [Accessibility examples](../../../examples/accessibility/README.md)；必须从仓库根目录原样运行对应命令。上面的文本值演示按 `1/5` 到 `5/5` 输出读取、写入状态、严格回读和独立提交次数，适合人工判断；`tests/runtime-api/single/ui-value.js` 是输出机器结果的开发者回归入口，不能替代公开示例。
+四个示例各自所需的完整环境变量和可复制命令见 [Accessibility examples](../../../examples/accessibility/README.md)；必须从仓库根目录原样运行对应命令。上面的文本值演示按 `1/5` 到 `5/5` 输出读取、写入状态、严格回读和独立提交次数，适合人工判断；机器回归入口保留在开发者测试索引中，不能替代公开示例。
 
 ## 剪贴板
 

@@ -2,6 +2,15 @@
 
 本目录保存 Agent-first Recorder／Agent-to-Recipe 与人工 Recorder／Human-to-Recipe 的需求、设计、方法入口与案例。两种来源独立录制，应用认识、过程工程化、普通 JS 生成和验收按实际合同复用。文档存在不表示 Skill 已加载、整体调度已实现或桌面任务已通过；这些开发链不代表 OpenDesk 的全部产品范围。
 
+## 受保护包发布：从这里开始
+
+- 阅读 [受保护包发布工作流](protected-packages/README.md)，或使用
+  [`build-odpkg`](protected-packages/skills/build-odpkg/SKILL.md) 把已经写好的 JavaScript 安全
+  打包为 `.odpkg`、完成 inspect/verify，并按需准备 P1/P2 授权交接和平台资格说明。
+- Agent-to-Recipe / Human-to-Recipe 是普通 `.js` 的作者链；受保护包发布从它们的完成产物之后开始，不优化
+  Recorder generated script，不接管普通
+  archive/app packaging，也不实现 P3 Publisher key lifecycle。
+
 ## 人工 Recorder：从这里开始
 
 - 阅读[Human-to-Recipe 入口](human-to-recipe/README.md)：理解受控坐标、增强普通 JS、JS／Agent 混合出口及其边界。
