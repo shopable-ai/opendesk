@@ -1,6 +1,6 @@
 'use strict';
 
-const controllerFile = File.join(Execution.workdir, 'examples', 'custom-ui', 'script-runner-simple', 'controller.js');
+const controllerFile = File.join(Execution.workdir, 'apps', 'opendesk', 'script-runner', 'controller.js');
 (0, eval)(File.read(controllerFile) + '\n//# sourceURL=' + controllerFile);
 
 if (!globalThis.OpenDeskScriptRunnerSimple || typeof OpenDeskScriptRunnerSimple.createApp !== 'function') {

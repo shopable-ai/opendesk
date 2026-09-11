@@ -8,7 +8,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const repo = path.resolve(__dirname, '..', '..');
-const controllerFile = path.join(repo, 'examples/custom-ui/script-runner-simple/controller.js');
+const controllerFile = path.join(repo, 'apps/opendesk/script-runner/controller.js');
 vm.runInThisContext(fs.readFileSync(controllerFile, 'utf8'), {filename: controllerFile});
 const Runner = globalThis.OpenDeskScriptRunnerSimple;
 

@@ -16,7 +16,8 @@ fixtures under `examples/`.
 The Script Runner UI executes in the main App Mode execution, but every normal
 recipe remains a child OpenDesk process launched through `Command.run()` with
 `System.getExecutablePath()` and `-script`. The package does not claim that
-recipe execution is in-process.
+recipe execution is in-process. The older Custom UI launcher remains available
+as a separate compatibility example; it is not a release dependency.
 
 ## Official Shell
 
@@ -29,7 +30,7 @@ P0 keeps two core actions visible:
 `opendesk.marketplace` and `opendesk.upgrade` are reserved for future product
 stages and remain hidden until there is a real marketplace or Premium feature
 set. The Official Shell is intentionally separate from user Recipe ordering and
-from `examples/custom-ui/script-runner-simple.js`.
+from the older Custom UI compatibility launcher.
 
 Configuration is loaded from:
 

@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-const controllerPath = path.resolve(__dirname, '../../examples/custom-ui/recording-console-simple/controller.js');
+const controllerPath = path.resolve(__dirname, '../../internal/recorderbundle/ui/controller.js');
 const controllerSource = fs.readFileSync(controllerPath, 'utf8');
 
 function defaultDialog() {

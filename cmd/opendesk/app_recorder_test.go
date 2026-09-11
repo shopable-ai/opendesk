@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"errors"
-	recordingconsole "opendesk/examples/custom-ui/recording-console-simple"
+	recorderbundle "opendesk/internal/recorderbundle"
 	"opendesk/pkg/appshell"
 	"opendesk/pkg/customui"
 	pkgExecution "opendesk/pkg/execution"
@@ -43,7 +43,7 @@ func TestAppRecorderOpenLaunchesOnceAndShowsExistingWindow(t *testing.T) {
 			return pkgExecution.ExecutionResult{}, pkgExecution.AgentSummary{}, err
 		}
 		if _, err := session.Create(context.Background(), customui.WindowSpec{
-			ID:      recordingconsole.RecorderWindowID,
+			ID:      recorderbundle.RecorderWindowID,
 			Bounds:  customui.Bounds{X: 10, Y: 20, Width: 320, Height: 180},
 			Content: customui.ContentSpec{HTML: `<button id="capture">Start</button>`},
 		}); err != nil {
@@ -73,7 +73,7 @@ func TestAppRecorderOpenLaunchesOnceAndShowsExistingWindow(t *testing.T) {
 	if launches.Load() != 1 {
 		t.Fatalf("launches=%d", launches.Load())
 	}
-	state, ok := driver.WindowState(req.ExecutionID, recordingconsole.RecorderWindowID)
+	state, ok := driver.WindowState(req.ExecutionID, recorderbundle.RecorderWindowID)
 	if !ok || !state.Visible {
 		t.Fatalf("expected existing recorder window to be shown, state=%+v ok=%v", state, ok)
 	}
@@ -96,7 +96,7 @@ func TestAppRecorderEarlyRepeatedOpenWaitsForTheSameWindow(t *testing.T) {
 			return pkgExecution.ExecutionResult{}, pkgExecution.AgentSummary{}, err
 		}
 		if _, err := session.Create(context.Background(), customui.WindowSpec{
-			ID:      recordingconsole.RecorderWindowID,
+			ID:      recorderbundle.RecorderWindowID,
 			Bounds:  customui.Bounds{X: 10, Y: 20, Width: 320, Height: 180},
 			Content: customui.ContentSpec{HTML: `<button id="capture">Start</button>`},
 		}); err != nil {
@@ -129,7 +129,7 @@ func TestAppRecorderEarlyRepeatedOpenWaitsForTheSameWindow(t *testing.T) {
 		session := recorder.session
 		recorder.mu.Unlock()
 		if session != nil {
-			if window, ok := session.Window(recordingconsole.RecorderWindowID); ok {
+			if window, ok := session.Window(recorderbundle.RecorderWindowID); ok {
 				if state, err := window.State(context.Background()); err == nil && state.Visible {
 					recorder.Cancel()
 					return

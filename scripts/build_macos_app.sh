@@ -67,9 +67,12 @@ if [[ -z "${GO_BIN}" ]]; then
   exit 1
 fi
 
-"${GO_BIN}" build -o "${EXECUTABLE_STAGE}" ./cmd/opendesk
-"${GO_BIN}" build -o "${DIST_DIR}/opendesk-ui-host" ./cmd/opendesk-ui-host
-"${GO_BIN}" build -o "${DIST_DIR}/opendesk-status" ./cmd/opendesk-status
+# Release payloads must not retain this checkout's absolute source paths.
+# Besides making the bundle easier to move, -trimpath keeps provenance audits
+# focused on the staged artifact instead of the build machine.
+"${GO_BIN}" build -trimpath -o "${EXECUTABLE_STAGE}" ./cmd/opendesk
+"${GO_BIN}" build -trimpath -o "${DIST_DIR}/opendesk-ui-host" ./cmd/opendesk-ui-host
+"${GO_BIN}" build -trimpath -o "${DIST_DIR}/opendesk-status" ./cmd/opendesk-status
 
 if [[ ! -f "${APP_ICON_SOURCE}" ]]; then
   printf 'App icon is missing: %s\nRun scripts/generate_app_icons.sh first.\n' "${APP_ICON_SOURCE}" >&2
@@ -92,7 +95,8 @@ cp "${DIST_DIR}/opendesk-status" "${STATUS_HELPER_PATH}"
 cp "${APP_ICON_SOURCE}" "${RESOURCES_DIR}/${APP_ICON_NAME}"
 mkdir -p "${INSPECTOR_WEB_PATH}"
 rsync -a --delete --exclude README.md --exclude accessibility-workbench "${INSPECTOR_WEB_SOURCE}/" "${INSPECTOR_WEB_PATH}/"
-shasum -a 256 "${EXECUTABLE_PATH}" >"${RESOURCES_DIR}/opendesk-payload.sha256"
+# Keep the checksum portable: an absolute checkout path is not release data.
+(cd "${MACOS_DIR}" && shasum -a 256 "$(basename "${EXECUTABLE_PATH}")") >"${RESOURCES_DIR}/opendesk-payload.sha256"
 rsync -a --delete "${ROOT_DIR}/polyfills/" "${MACOS_DIR}/polyfills/"
 rsync -a --delete "${ROOT_DIR}/jslibs/" "${MACOS_DIR}/jslibs/"
 
