@@ -269,7 +269,7 @@
     .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 600; }
     .time { color: #b9b9b9; font-size: 12px; white-space: nowrap; }
     .actions { display: flex; flex-wrap: nowrap; align-items: center; justify-content: flex-start; gap: 6px; }
-    .pager { min-height: 38px; display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding-top: 10px; border-top: 1px solid #333; }
+    .pager { min-height: 38px; display: flex; align-items: center; justify-content: center; gap: 8px; padding-top: 10px; border-top: 1px solid #333; }
     #pageIndicator { min-width: 170px; color: #b9b9b9; font-size: 12px; text-align: center; }
     button { min-height: 30px; padding: 0 10px; border: 1px solid #505050; border-radius: 7px; background: #303030; color: #f4f4f4; font-size: 13px; }
     button:not(:disabled) { cursor: pointer; }
@@ -324,6 +324,26 @@
     let lastRun = null;
     let closed = false;
     const pendingRows = new Set();
+
+    function deleteTrace(stage, recordingId, controlId, extra) {
+      if (!logger || typeof logger.log !== 'function') return;
+      let dialogState = null;
+      try {
+        dialogState = typeof dialog.getState === 'function' ? dialog.getState() : null;
+      } catch (_) {}
+      const coreState = app.state();
+      const fields = {
+        recordingId,
+        controlId: controlId || '',
+        pending: pendingRows.has(recordingId),
+        dialogGateActive: !!(dialogState && dialogState.active),
+        dialogGateMethod: dialogState && dialogState.method ? String(dialogState.method) : '',
+        activeRun: activeRun ? activeRun.recordingId : null,
+        corePhase: coreState && coreState.phase ? String(coreState.phase) : '',
+        ...(extra || {}),
+      };
+      try { logger.log(`[recording-history] ${stage} ${JSON.stringify(fields)}`); } catch (_) {}
+    }
 
     function coreBusy() {
       const state = app.state();
@@ -507,12 +527,16 @@
       }
     }
 
-    async function remove(recordingId) {
-      if (isRunActive() || pendingRows.has(recordingId)) return false;
+    async function remove(recordingId, controlId) {
+      if (isRunActive() || pendingRows.has(recordingId)) {
+        deleteTrace('HISTORY_DELETE_PENDING_CHECK', recordingId, controlId, {blocked: true});
+        return false;
+      }
       pendingRows.add(recordingId);
       await syncPageControls();
       try {
         const row = assertMutableRecording(recordingId);
+        deleteTrace('HISTORY_DELETE_DIALOG_REQUEST', recordingId, controlId);
         const accepted = await dialog.confirm({
           title: '删除历史录制',
           message: `将永久删除整个 Recording package：\n名称：${displayTitle(row)}\nrecordingId：${row.recordingId}\n\n将删除 raw、manifest、actions、generated、evidence 和 ui-metadata。此操作不能撤销。`,
@@ -521,6 +545,7 @@
           cancelText: '取消',
           defaultAction: 'cancel',
         });
+        deleteTrace('HISTORY_DELETE_DIALOG_RESULT', recordingId, controlId, {accepted: !!accepted});
         if (!accepted) return false;
         const latest = assertMutableRecording(recordingId);
         file.removeDir(latest.recordingDir);
@@ -530,7 +555,9 @@
           error.operation = 'RecordingHistory.delete';
           throw error;
         }
+        deleteTrace('HISTORY_DELETE_REMOVE_DONE', recordingId, controlId);
         await refresh(`已删除 ${recordingId}`);
+        deleteTrace('HISTORY_DELETE_REFRESH_DONE', recordingId, controlId);
         return true;
       } finally {
         pendingRows.delete(recordingId);
@@ -696,9 +723,9 @@
     }
 
     function bindAction(window, controlId, label, action) {
-      window.control(controlId).on('click', async () => {
+      window.control(controlId).on('click', async event => {
         try {
-          return await action();
+          return await action(event);
         } catch (error) {
           return reportActionFailure(label, error);
         }
@@ -706,10 +733,10 @@
     }
 
     function bindSlotAction(window, controlId, label, index, action) {
-      bindAction(window, controlId, label, async () => {
+      bindAction(window, controlId, label, async event => {
         const row = resolveSlot(index);
         if (!row) return null;
-        return action(row.recordingId, row);
+        return action(row.recordingId, row, event);
       });
     }
 
@@ -729,7 +756,14 @@
         bindSlotAction(window, `run${index}`, '运行', index, recordingId => runRecording(recordingId));
         bindSlotAction(window, `rename${index}`, '改名', index, recordingId => rename(recordingId));
         bindSlotAction(window, `open${index}`, '打开目录', index, recordingId => openDirectory(recordingId));
-        bindSlotAction(window, `delete${index}`, '删除', index, recordingId => remove(recordingId));
+        const deleteControlId = `delete${index}`;
+        bindSlotAction(window, deleteControlId, '删除', index, (recordingId, _row, event) => {
+          deleteTrace('HISTORY_DELETE_CLICK', recordingId, deleteControlId, {
+            eventType: event && event.type ? String(event.type) : '',
+            eventHasBounds: !!(event && event.bounds),
+          });
+          return remove(recordingId, deleteControlId);
+        });
       }
       await applyActionIcons(window);
       window.on('close', () => {

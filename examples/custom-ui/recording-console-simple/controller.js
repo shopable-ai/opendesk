@@ -40,37 +40,58 @@
     return code === 'DIALOG_BUSY' || /(^|\s|:)DIALOG_BUSY(?=\s|:|$)/.test(message);
   }
 
-  function createDialogCoordinator(baseDialog) {
+  function createDialogCoordinator(baseDialog, logger) {
     if (!baseDialog || typeof baseDialog.alert !== 'function'
       || typeof baseDialog.confirm !== 'function' || typeof baseDialog.prompt !== 'function') {
       throw new Error('recording-console-simple requires Dialog alert/confirm/prompt');
     }
 
-    let activeModal = false;
+    let activeModal = null;
 
-    async function invoke(method, spec, busyResult) {
-      // Dialog is intentionally single-modal per script execution. Do not queue a
-      // destructive confirmation: a delayed Delete dialog could appear after the
-      // user's original click context has changed. Treat overlap as cancellation.
-      if (activeModal) return busyResult;
-      activeModal = true;
+    function busyError(method, active, cause) {
+      const error = cause instanceof Error
+        ? cause
+        : new Error(`Dialog.${method}: DIALOG_BUSY: another ${active.method} dialog is already active`);
+      if (!error.code) error.code = 'DIALOG_BUSY';
+      if (!error.operation) error.operation = `Dialog.${method}`;
+      return error;
+    }
+
+    async function invoke(method, spec) {
+      // Dialog is intentionally single-modal per script execution. A concurrent
+      // request is surfaced as busy; mapping it to a normal cancel would make a
+      // destructive toolbar action look as if its click was ignored.
+      if (activeModal) throw busyError(method, activeModal);
+      const modal = {method, startedAt: new Date().toISOString()};
+      activeModal = modal;
       try {
         return await baseDialog[method](spec);
       } catch (error) {
         // A modal created outside this adapter can still race with us. The native
-        // Dialog contract reports that case as DIALOG_BUSY; it is not fatal to the
-        // Recorder and is equivalent to the user canceling the pending action.
-        if (isDialogBusy(error)) return busyResult;
+        // Dialog contract reports that case as DIALOG_BUSY. Keep the execution
+        // alive, but let the action wrapper render an explicit failure instead of
+        // silently converting the operation into a user cancellation.
+        if (isDialogBusy(error)) {
+          if (logger && typeof logger.warn === 'function') {
+            try { logger.warn(`[recording-history] HISTORY_DIALOG_BUSY ${JSON.stringify({method})}`); } catch (_) {}
+          }
+          throw busyError(method, modal, error);
+        }
         throw error;
       } finally {
-        activeModal = false;
+        if (activeModal === modal) activeModal = null;
       }
     }
 
     const coordinated = {
-      alert(spec) { return invoke('alert', spec, undefined); },
-      confirm(spec) { return invoke('confirm', spec, false); },
-      prompt(spec) { return invoke('prompt', spec, null); },
+      alert(spec) { return invoke('alert', spec); },
+      confirm(spec) { return invoke('confirm', spec); },
+      prompt(spec) { return invoke('prompt', spec); },
+      getState() {
+        return activeModal
+          ? {active: true, method: activeModal.method, startedAt: activeModal.startedAt}
+          : {active: false, method: '', startedAt: ''};
+      },
     };
     if (typeof baseDialog.getCapabilities === 'function') {
       coordinated.getCapabilities = baseDialog.getCapabilities.bind(baseDialog);
@@ -177,7 +198,7 @@
     const managerRef = {current: null};
     const BaseFloatingWindow = settings.FloatingWindow || global.FloatingWindow;
     const HistoryAwareFloatingWindow = createToolbarAdapter(BaseFloatingWindow, managerRef);
-    const sharedDialog = createDialogCoordinator(settings.dialog || global.Dialog);
+    const sharedDialog = createDialogCoordinator(settings.dialog || global.Dialog, settings.logger || global.console);
     const coreApp = coreAPI.createApp({...settings, dialog: sharedDialog, FloatingWindow: HistoryAwareFloatingWindow});
     const historyUI = createHistoryUIAdapter(settings.ui || global.ui);
 

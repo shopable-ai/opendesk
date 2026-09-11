@@ -119,7 +119,7 @@ test('history UI adapter does not replace explicit labels or unknown icons', asy
   assert.deepEqual(patches[1], {icon: 'unknown.icon', text: ''});
 });
 
-test('shared Dialog coordinator prevents modal overlap and neutralizes native DIALOG_BUSY', async () => {
+test('shared Dialog coordinator reports modal overlap and recovers after DIALOG_BUSY', async () => {
   let resolveFirstConfirm;
   const calls = [];
   const rawDialog = {
@@ -138,22 +138,42 @@ test('shared Dialog coordinator prevents modal overlap and neutralizes native DI
   assert.deepEqual(coreDialog.getCapabilities(), {supported: true});
 
   const first = coreDialog.confirm({title: 'first'});
-  assert.equal(await historyDialog.confirm({title: 'second'}), false);
-  assert.equal(await historyDialog.prompt({title: 'rename'}), null);
-  assert.equal(await historyDialog.alert({title: 'error'}), undefined);
+  assert.deepEqual(historyDialog.getState().active, true);
+  for (const [method, spec] of [
+    ['confirm', {title: 'second'}],
+    ['prompt', {title: 'rename'}],
+    ['alert', {title: 'error'}],
+  ]) {
+    await assert.rejects(
+      () => historyDialog[method](spec),
+      error => error.code === 'DIALOG_BUSY' && error.operation === `Dialog.${method}`,
+    );
+  }
   assert.equal(calls.length, 1, 'overlapping modal calls must not reach native Dialog');
   resolveFirstConfirm(true);
   assert.equal(await first, true);
+  assert.equal(historyDialog.getState().active, false);
 
   rawDialog.confirm = async () => {
     const error = new Error('Dialog.confirm: DIALOG_BUSY: only one modal dialog may be active in an execution');
     error.code = 'DIALOG_BUSY';
     throw error;
   };
-  assert.equal(await historyDialog.confirm({title: 'delete'}), false, 'native DIALOG_BUSY is a safe cancel');
+  await assert.rejects(
+    () => historyDialog.confirm({title: 'delete'}),
+    error => error.code === 'DIALOG_BUSY' && error.operation === 'Dialog.confirm',
+    'native DIALOG_BUSY must be explicit rather than imitating user cancel',
+  );
+  assert.equal(historyDialog.getState().active, false, 'native DIALOG_BUSY must release the shared gate');
 
   rawDialog.prompt = async () => {
     throw new Error('Dialog.prompt: DIALOG_BUSY: only one modal dialog may be active in an execution');
   };
-  assert.equal(await coreDialog.prompt({title: 'rename'}), null, 'message-only DIALOG_BUSY is also a safe cancel');
+  await assert.rejects(
+    () => coreDialog.prompt({title: 'rename'}),
+    error => error.code === 'DIALOG_BUSY' && error.operation === 'Dialog.prompt',
+  );
+  rawDialog.confirm = async spec => { calls.push(['confirm-recovered', spec]); return false; };
+  assert.equal(await historyDialog.confirm({title: 'after-busy'}), false);
+  assert.equal(historyDialog.getState().active, false);
 });
