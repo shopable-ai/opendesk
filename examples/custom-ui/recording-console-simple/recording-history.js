@@ -7,6 +7,7 @@
 
   const RECORDING_ID = /^rec-[A-Za-z0-9][A-Za-z0-9._-]*$/;
   const RECIPE_FILE = /^[A-Za-z0-9][A-Za-z0-9._-]*\.recipe\.js$/;
+  const PAGE_SIZE = 10;
   const ACTION_ICONS = Object.freeze({
     run: 'play.fill',
     rename: 'pencil',
@@ -78,6 +79,22 @@
     return row.displayName || row.targetTitle || row.recordingId;
   }
 
+  function paginateRows(rows, requestedPageIndex, pageSize) {
+    const source = Array.isArray(rows) ? rows : [];
+    const size = Number.isInteger(pageSize) && pageSize > 0 ? pageSize : PAGE_SIZE;
+    const pageCount = Math.max(1, Math.ceil(source.length / size));
+    const rawIndex = Number.isFinite(requestedPageIndex) ? Math.trunc(requestedPageIndex) : 0;
+    const pageIndex = Math.min(Math.max(rawIndex, 0), pageCount - 1);
+    const start = pageIndex * size;
+    return {
+      totalRows: source.length,
+      pageSize: size,
+      pageCount,
+      pageIndex,
+      rows: source.slice(start, start + size),
+    };
+  }
+
   function readJSON(file, path) {
     try {
       return JSON.parse(String(file.read(path)));
@@ -120,7 +137,7 @@
     return candidates.length ? candidates[0].path : null;
   }
 
-  function inspectRecording(file, root, recordingId) {
+  function inspectRecording(file, root, recordingId, options) {
     if (!validRecordingID(recordingId)) return null;
     const recordingDir = recordingPath(file, root, recordingId);
     const dirInfo = file.stat(recordingDir);
@@ -144,6 +161,7 @@
       ? String(manifest.storage.state) : '';
     const state = manifest && manifest.state ? String(manifest.state) : (manifest ? 'unknown' : 'invalid');
     const issues = manifest && Array.isArray(manifest.issues) ? manifest.issues.length : 0;
+    const resolveScript = !options || options.resolveScript !== false;
 
     return {
       recordingId,
@@ -156,13 +174,14 @@
       state,
       storageState,
       issueCount: issues,
-      scriptFile: resolveGeneratedScript(file, recordingDir),
+      scriptFile: resolveScript ? resolveGeneratedScript(file, recordingDir) : null,
+      scriptResolved: resolveScript,
       manifestValid: !!manifest,
       modifiedAt: String(dirInfo.modifiedAt || ''),
     };
   }
 
-  function scanRecordings(file, root) {
+  function scanRecordings(file, root, options) {
     const rootInfo = file.stat(root);
     if (!rootInfo) return [];
     if (rootInfo.type !== 'directory') {
@@ -174,7 +193,7 @@
     const rows = [];
     for (const name of file.listDir(root)) {
       if (!validRecordingID(name)) continue;
-      const row = inspectRecording(file, root, name);
+      const row = inspectRecording(file, root, name, options);
       if (row) rows.push(row);
     }
     rows.sort((left, right) => {
@@ -194,38 +213,46 @@
     }
   }
 
-  function buildWindowHTML(rows, status) {
-    const header = `
+  function buildWindowHTML(rows, status, options) {
+    const settings = options || {};
+    const page = paginateRows(rows, settings.pageIndex, settings.pageSize || PAGE_SIZE);
+    const slots = [];
+    for (let index = 0; index < page.pageSize; index++) {
+      const row = page.rows[index] || null;
+      const title = row ? displayTitle(row) : '';
+      slots.push(`
+        <section id="recording${index}" class="recording">
+          <div id="recordingName${index}" class="name">${escapeHTML(title)}</div>
+          <div id="recordingTime${index}" class="time">${row ? escapeHTML(displayTimestamp(row.startedAt)) : ''}</div>
+          <div id="recordingActions${index}" class="actions">
+            <button id="run${index}" class="icon-action" title="运行" aria-label="运行"${row && row.scriptFile ? '' : ' disabled'}>运行</button>
+            <button id="rename${index}" class="icon-action" title="改名" aria-label="改名"${row ? '' : ' disabled'}>改名</button>
+            <button id="open${index}" class="icon-action" title="打开目录" aria-label="打开目录"${row ? '' : ' disabled'}>打开目录</button>
+            <button id="delete${index}" class="icon-action danger" title="删除" aria-label="删除"${row ? '' : ' disabled'}>删除</button>
+          </div>
+        </section>`);
+    }
+
+    return `
       <main id="historyMain">
         <div id="historyHeader" class="header">
           <div id="historyTitle" class="title">历史录制</div>
-          <button id="refreshHistory">刷新</button>
         </div>
-        <p id="historyStatus" class="status">${escapeHTML(status || `共 ${rows.length} 条录制`)}</p>`;
-    if (!rows.length) {
-      return header + '<p id="emptyHistory" class="empty">还没有可显示的 Recorder 录制。</p></main>';
-    }
-    const columnHeader = `
+        <p id="historyStatus" class="status">${escapeHTML(status || `共 ${page.totalRows} 条录制`)}</p>
         <div id="historyColumns" class="columns">
           <div id="historyNameColumn">名称</div>
           <div id="historyTimeColumn">时间</div>
           <div id="historyActionsColumn">操作</div>
-        </div>`;
-    const body = rows.map((row, index) => {
-      const title = displayTitle(row);
-      return `
-        <section id="recording${index}" class="recording">
-          <div id="recordingName${index}" class="name" title="${escapeHTML(title)}">${escapeHTML(title)}</div>
-          <div id="recordingTime${index}" class="time">${escapeHTML(displayTimestamp(row.startedAt))}</div>
-          <div id="recordingActions${index}" class="actions">
-            <button id="run${index}" class="icon-action" title="运行" aria-label="运行"${row.scriptFile ? '' : ' disabled'}>运行</button>
-            <button id="rename${index}" class="icon-action" title="改名" aria-label="改名">改名</button>
-            <button id="open${index}" class="icon-action" title="打开目录" aria-label="打开目录">打开目录</button>
-            <button id="delete${index}" class="icon-action danger" title="删除" aria-label="删除">删除</button>
-          </div>
-        </section>`;
-    }).join('');
-    return header + columnHeader + '<div id="historyList" class="list">' + body + '</div></main>';
+        </div>
+        <div id="historyList" class="list">${slots.join('')}</div>
+        <p id="emptyHistory" class="empty">还没有可显示的 Recorder 录制。</p>
+        <div id="historyPager" class="pager">
+          <button id="prevHistory">上一页</button>
+          <span id="pageIndicator">第 ${page.pageIndex + 1} / ${page.pageCount} 页 · 共 ${page.totalRows} 条</span>
+          <button id="nextHistory">下一页</button>
+          <button id="refreshHistory">刷新</button>
+        </div>
+      </main>`;
   }
 
   const HISTORY_CSS = `
@@ -236,20 +263,22 @@
     .status { margin: 8px 0 12px; color: #b9b9b9; font-size: 13px; }
     .columns, .recording { display: grid; grid-template-columns: minmax(0, 1fr) 160px 156px; align-items: center; column-gap: 12px; }
     .columns { padding: 0 10px 7px; color: #8f8f8f; font-size: 11px; border-bottom: 1px solid #3b3b3b; }
-    .list { height: calc(100vh - 104px); overflow-y: auto; padding-right: 4px; }
+    .list { height: calc(100vh - 162px); overflow-y: auto; padding-right: 4px; }
     .recording { min-height: 48px; padding: 0 10px; border-bottom: 1px solid #333; }
     .recording:hover { background: #202020; }
     .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 600; }
     .time { color: #b9b9b9; font-size: 12px; white-space: nowrap; }
     .actions { display: flex; flex-wrap: nowrap; align-items: center; justify-content: flex-start; gap: 6px; }
-    button { border: 1px solid #505050; border-radius: 7px; background: #303030; color: #f4f4f4; font-size: 13px; }
+    .pager { min-height: 38px; display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding-top: 10px; border-top: 1px solid #333; }
+    #pageIndicator { min-width: 170px; color: #b9b9b9; font-size: 12px; text-align: center; }
+    button { min-height: 30px; padding: 0 10px; border: 1px solid #505050; border-radius: 7px; background: #303030; color: #f4f4f4; font-size: 13px; }
     button:not(:disabled) { cursor: pointer; }
     .icon-action { box-sizing: border-box; width: 32px; height: 32px; min-width: 32px; padding: 0; }
-    .icon-action:hover:not(:disabled) { background: #3a3a3a; border-color: #6a6a6a; }
+    .icon-action:hover:not(:disabled), .pager button:hover:not(:disabled) { background: #3a3a3a; border-color: #6a6a6a; }
     button:disabled { opacity: 0.38; cursor: default; }
     .danger { border-color: #754545; }
     .danger:hover:not(:disabled) { background: #4a2525; border-color: #a65a5a; }
-    .empty { color: #a8a8a8; padding: 24px 0; }
+    .empty { margin: 0; color: #a8a8a8; padding: 24px 0; }
   `;
 
   function createManager(options) {
@@ -288,6 +317,8 @@
       || file.join(execution.workdir, 'dist', os === 'windows' ? 'opendesk.exe' : 'opendesk');
     let historyWindow = null;
     let currentRows = [];
+    let visibleRows = [];
+    let pageIndex = 0;
     let windowSequence = 0;
     let activeRun = null;
     let lastRun = null;
@@ -303,13 +334,47 @@
       return !!activeRun;
     }
 
+    function loadHistoryRows() {
+      return scanRecordings(file, root, {resolveScript: false});
+    }
+
+    function hydrateVisibleRows(rows) {
+      for (const row of rows) {
+        if (row.scriptResolved) continue;
+        row.scriptFile = resolveGeneratedScript(file, row.recordingDir);
+        row.scriptResolved = true;
+      }
+      return rows;
+    }
+
+    function pageState() {
+      const page = paginateRows(currentRows, pageIndex, PAGE_SIZE);
+      return {
+        totalRows: page.totalRows,
+        pageSize: page.pageSize,
+        pageCount: page.pageCount,
+        pageIndex: page.pageIndex,
+        pageNumber: page.pageIndex + 1,
+        recordingIds: page.rows.map(row => row.recordingId),
+      };
+    }
+
+    function resolveSlot(index) {
+      return Number.isInteger(index) && index >= 0 && index < visibleRows.length ? visibleRows[index] : null;
+    }
+
+    async function safeUpdate(window, id, patch) {
+      if (!window) return null;
+      try {
+        return await window.control(id).update(patch);
+      } catch (_) {
+        return null;
+      }
+    }
+
     async function setHistoryStatus(message) {
       if (!historyWindow) return;
-      try {
-        await historyWindow.control('historyStatus').update({text: String(message)});
-      } catch (_) {
-        // The window may have been closed while a run was settling.
-      }
+      await safeUpdate(historyWindow, 'historyStatus', {text: String(message)});
     }
 
     async function syncAvailability() {
@@ -322,17 +387,64 @@
       }
     }
 
+    async function renderPage(message) {
+      const window = historyWindow;
+      if (!window) return null;
+
+      const page = paginateRows(currentRows, pageIndex, PAGE_SIZE);
+      pageIndex = page.pageIndex;
+      visibleRows = hydrateVisibleRows(page.rows);
+      const locked = coreBusy() || isRunActive() || pendingRows.size > 0;
+      const tasks = [
+        safeUpdate(window, 'historyStatus', {text: String(message || `共 ${page.totalRows} 条录制；运行始终需要显式点击。`)}),
+        safeUpdate(window, 'pageIndicator', {text: `第 ${page.pageIndex + 1} / ${page.pageCount} 页 · 共 ${page.totalRows} 条`}),
+        safeUpdate(window, 'prevHistory', {disabled: locked || page.totalRows === 0 || page.pageIndex === 0}),
+        safeUpdate(window, 'nextHistory', {disabled: locked || page.totalRows === 0 || page.pageIndex >= page.pageCount - 1}),
+        safeUpdate(window, 'refreshHistory', {disabled: locked}),
+        safeUpdate(window, 'emptyHistory', {visible: page.totalRows === 0}),
+        safeUpdate(window, 'historyColumns', {visible: page.totalRows > 0}),
+        safeUpdate(window, 'historyList', {visible: page.totalRows > 0}),
+      ];
+
+      for (let index = 0; index < PAGE_SIZE; index++) {
+        const row = visibleRows[index] || null;
+        tasks.push(safeUpdate(window, `recording${index}`, {visible: !!row}));
+        tasks.push(safeUpdate(window, `recordingName${index}`, {text: row ? displayTitle(row) : ''}));
+        tasks.push(safeUpdate(window, `recordingTime${index}`, {text: row ? displayTimestamp(row.startedAt) : ''}));
+        tasks.push(safeUpdate(window, `run${index}`, {disabled: locked || !row || !row.scriptFile}));
+        for (const action of ['rename', 'open', 'delete']) {
+          tasks.push(safeUpdate(window, `${action}${index}`, {disabled: locked || !row}));
+        }
+      }
+      await Promise.all(tasks);
+      return pageState();
+    }
+
     async function setHistoryActionsDisabled(disabled) {
       const window = historyWindow;
       if (!window) return;
-      try { await window.control('refreshHistory').update({disabled: !!disabled}); } catch (_) {}
-      for (let index = 0; index < currentRows.length; index++) {
-        const row = currentRows[index];
-        try { await window.control(`run${index}`).update({disabled: !!disabled || !row.scriptFile}); } catch (_) {}
+      const page = paginateRows(currentRows, pageIndex, PAGE_SIZE);
+      visibleRows = hydrateVisibleRows(page.rows);
+      const locked = !!disabled || pendingRows.size > 0;
+      const tasks = [
+        safeUpdate(window, 'refreshHistory', {disabled: locked}),
+        safeUpdate(window, 'prevHistory', {disabled: locked || page.totalRows === 0 || page.pageIndex === 0}),
+        safeUpdate(window, 'nextHistory', {disabled: locked || page.totalRows === 0 || page.pageIndex >= page.pageCount - 1}),
+      ];
+      for (let index = 0; index < PAGE_SIZE; index++) {
+        const row = visibleRows[index] || null;
+        tasks.push(safeUpdate(window, `run${index}`, {disabled: locked || !row || !row.scriptFile}));
         for (const action of ['rename', 'open', 'delete']) {
-          try { await window.control(`${action}${index}`).update({disabled: !!disabled}); } catch (_) {}
+          tasks.push(safeUpdate(window, `${action}${index}`, {disabled: locked || !row}));
         }
       }
+      await Promise.all(tasks);
+    }
+
+    async function syncPageControls() {
+      if (!historyWindow) return;
+      const locked = coreBusy() || isRunActive() || pendingRows.size > 0;
+      await setHistoryActionsDisabled(locked);
     }
 
     async function reportActionFailure(label, error) {
@@ -366,6 +478,7 @@
     async function rename(recordingId) {
       if (isRunActive() || pendingRows.has(recordingId)) return null;
       pendingRows.add(recordingId);
+      await syncPageControls();
       try {
         const row = assertMutableRecording(recordingId);
         const next = await dialog.prompt({
@@ -390,12 +503,14 @@
         return displayName;
       } finally {
         pendingRows.delete(recordingId);
+        await syncPageControls();
       }
     }
 
     async function remove(recordingId) {
       if (isRunActive() || pendingRows.has(recordingId)) return false;
       pendingRows.add(recordingId);
+      await syncPageControls();
       try {
         const row = assertMutableRecording(recordingId);
         const accepted = await dialog.confirm({
@@ -419,12 +534,14 @@
         return true;
       } finally {
         pendingRows.delete(recordingId);
+        await syncPageControls();
       }
     }
 
     async function openDirectory(recordingId) {
       if (isRunActive() || pendingRows.has(recordingId)) return null;
       pendingRows.add(recordingId);
+      await syncPageControls();
       try {
         const row = assertMutableRecording(recordingId);
         let result;
@@ -439,6 +556,7 @@
         return result;
       } finally {
         pendingRows.delete(recordingId);
+        await syncPageControls();
       }
     }
 
@@ -566,13 +684,15 @@
       return lastRun;
     }
 
-    async function applyActionIcons(window, rows) {
-      for (let index = 0; index < rows.length; index++) {
-        await window.control(`run${index}`).update({icon: ACTION_ICONS.run, text: ''});
-        await window.control(`rename${index}`).update({icon: ACTION_ICONS.rename, text: ''});
-        await window.control(`open${index}`).update({icon: ACTION_ICONS.open, text: ''});
-        await window.control(`delete${index}`).update({icon: ACTION_ICONS.delete, text: ''});
+    async function applyActionIcons(window) {
+      const tasks = [];
+      for (let index = 0; index < PAGE_SIZE; index++) {
+        tasks.push(safeUpdate(window, `run${index}`, {icon: ACTION_ICONS.run, text: ''}));
+        tasks.push(safeUpdate(window, `rename${index}`, {icon: ACTION_ICONS.rename, text: ''}));
+        tasks.push(safeUpdate(window, `open${index}`, {icon: ACTION_ICONS.open, text: ''}));
+        tasks.push(safeUpdate(window, `delete${index}`, {icon: ACTION_ICONS.delete, text: ''}));
       }
+      await Promise.all(tasks);
     }
 
     function bindAction(window, controlId, label, action) {
@@ -585,19 +705,39 @@
       });
     }
 
-    async function bindWindow(window, rows) {
-      bindAction(window, 'refreshHistory', '刷新', () => refresh());
-      rows.forEach((row, index) => {
-        if (row.scriptFile) bindAction(window, `run${index}`, '运行', () => runRecording(row.recordingId));
-        bindAction(window, `rename${index}`, '改名', () => rename(row.recordingId));
-        bindAction(window, `open${index}`, '打开目录', () => openDirectory(row.recordingId));
-        bindAction(window, `delete${index}`, '删除', () => remove(row.recordingId));
+    function bindSlotAction(window, controlId, label, index, action) {
+      bindAction(window, controlId, label, async () => {
+        const row = resolveSlot(index);
+        if (!row) return null;
+        return action(row.recordingId, row);
       });
-      await applyActionIcons(window, rows);
+    }
+
+    async function setPage(nextPageIndex) {
+      if (!historyWindow || coreBusy() || isRunActive() || pendingRows.size) return pageState();
+      const next = paginateRows(currentRows, nextPageIndex, PAGE_SIZE);
+      pageIndex = next.pageIndex;
+      await renderPage();
+      return pageState();
+    }
+
+    async function bindWindow(window) {
+      bindAction(window, 'refreshHistory', '刷新', () => refresh());
+      bindAction(window, 'prevHistory', '上一页', () => setPage(pageIndex - 1));
+      bindAction(window, 'nextHistory', '下一页', () => setPage(pageIndex + 1));
+      for (let index = 0; index < PAGE_SIZE; index++) {
+        bindSlotAction(window, `run${index}`, '运行', index, recordingId => runRecording(recordingId));
+        bindSlotAction(window, `rename${index}`, '改名', index, recordingId => rename(recordingId));
+        bindSlotAction(window, `open${index}`, '打开目录', index, recordingId => openDirectory(recordingId));
+        bindSlotAction(window, `delete${index}`, '删除', index, recordingId => remove(recordingId));
+      }
+      await applyActionIcons(window);
       window.on('close', () => {
         if (historyWindow === window) {
           historyWindow = null;
           currentRows = [];
+          visibleRows = [];
+          pageIndex = 0;
         }
         if (activeRun) activeRun.controller.abort('recording history window closed');
         void syncAvailability();
@@ -615,9 +755,14 @@
         } catch (_) {
           historyWindow = null;
           currentRows = [];
+          visibleRows = [];
+          pageIndex = 0;
         }
       }
-      const rows = scanRecordings(file, root);
+
+      currentRows = loadHistoryRows();
+      pageIndex = 0;
+      visibleRows = paginateRows(currentRows, pageIndex, PAGE_SIZE).rows;
       const id = `recordingHistory${++windowSequence}`;
       const window = await ui.createWindow({
         id,
@@ -625,7 +770,7 @@
         title: '历史录制',
         position: {
           mode: 'anchor',
-          size: {width: 860, height: 520},
+          size: {width: 860, height: 620},
           horizontal: 'center',
           vertical: 'center',
           margin: 0,
@@ -635,13 +780,13 @@
         draggable: true,
         theme: 'dark',
         content: {
-          html: buildWindowHTML(rows, message || `共 ${rows.length} 条录制；运行始终需要显式点击。`),
+          html: buildWindowHTML(currentRows, message || `共 ${currentRows.length} 条录制；运行始终需要显式点击。`, {pageIndex, pageSize: PAGE_SIZE}),
           css: HISTORY_CSS,
         },
       });
       historyWindow = window;
-      currentRows = rows;
-      await bindWindow(window, rows);
+      await bindWindow(window);
+      await renderPage(message || `共 ${currentRows.length} 条录制；运行始终需要显式点击。`);
       if (activeRun) await setHistoryActionsDisabled(true);
       await window.show();
       await syncAvailability();
@@ -649,13 +794,14 @@
     }
 
     async function refresh(message) {
-      const prior = historyWindow;
-      historyWindow = null;
-      currentRows = [];
-      if (prior) {
-        try { await prior.close(); } catch (_) {}
-      }
-      return open(message);
+      if (closed) return null;
+      if (!historyWindow) return open(message);
+      currentRows = loadHistoryRows();
+      const next = paginateRows(currentRows, pageIndex, PAGE_SIZE);
+      pageIndex = next.pageIndex;
+      await renderPage(message);
+      await syncAvailability();
+      return historyWindow;
     }
 
     async function close() {
@@ -664,6 +810,8 @@
       const prior = historyWindow;
       historyWindow = null;
       currentRows = [];
+      visibleRows = [];
+      pageIndex = 0;
       if (prior) {
         try { await prior.close(); } catch (_) {}
       }
@@ -681,6 +829,8 @@
       openDirectory,
       runRecording,
       cancelRun,
+      setPage,
+      pageState,
       syncAvailability,
       isRunActive,
       lastRun: () => clone(lastRun),
@@ -694,7 +844,9 @@
     inspectRecording,
     resolveGeneratedScript,
     validateDisplayName,
+    paginateRows,
     buildWindowHTML,
+    pageSize: () => PAGE_SIZE,
     actionIcons: () => clone(ACTION_ICONS),
   });
 })(globalThis);
