@@ -2,8 +2,14 @@
 // ./dist/opendesk -ui -allow-recorder-capture -script examples/custom-ui/recording-console-simple.js -console-mode script -log-dir .runtime/examples/custom-ui/recording-console-simple
 'use strict';
 
-const simpleControllerFile = File.join(Execution.scriptDir, 'recording-console-simple', 'controller.js');
-(0, eval)(File.read(simpleControllerFile) + '\n//# sourceURL=' + simpleControllerFile);
+const recorderUIRoot = File.join(Execution.workdir, 'internal', 'recorderbundle', 'ui');
+const controllerFile = File.join(recorderUIRoot, 'controller.js');
+globalThis.__OPENDESK_RECORDER_UI_ROOT = recorderUIRoot;
+try {
+  (0, eval)(File.read(controllerFile) + '\n//# sourceURL=' + controllerFile);
+} finally {
+  delete globalThis.__OPENDESK_RECORDER_UI_ROOT;
+}
 
 if (!globalThis.OpenDeskSimpleRecordingConsole || typeof OpenDeskSimpleRecordingConsole.createApp !== 'function') {
   throw new Error('OpenDesk simple recording console controller did not load');

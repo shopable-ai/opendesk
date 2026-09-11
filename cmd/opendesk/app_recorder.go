@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	recordingconsole "opendesk/examples/custom-ui/recording-console-simple"
+	recorderbundle "opendesk/internal/recorderbundle"
 	"opendesk/pkg/appshell"
 	"opendesk/pkg/customui"
 	pkgExecution "opendesk/pkg/execution"
@@ -88,6 +88,10 @@ func (r *appRecorder) Open(parent context.Context, source string) error {
 }
 
 func (r *appRecorder) request(ctx context.Context, executionID string) (pkgExecution.Request, error) {
+	workDir, err := appRecorderWorkDir(r.packageRoot, r.packageID, r.environment)
+	if err != nil {
+		return pkgExecution.Request{}, fmt.Errorf("resolve built-in Recorder workdir: %w", err)
+	}
 	logDir := r.config.LogDir
 	if logDir != "" {
 		logDir = filepath.Join(logDir, "recorder", executionID)
@@ -105,7 +109,7 @@ func (r *appRecorder) request(ctx context.Context, executionID string) (pkgExecu
 	if err != nil {
 		return pkgExecution.Request{}, fmt.Errorf("resolve built-in Recorder UI path: %w", err)
 	}
-	entryPath, err := recordingconsole.WriteToDir(uiRoot)
+	entryPath, err := recorderbundle.WriteToDir(uiRoot)
 	if err != nil {
 		return pkgExecution.Request{}, fmt.Errorf("prepare built-in Recorder UI: %w", err)
 	}
@@ -129,7 +133,7 @@ func (r *appRecorder) request(ctx context.Context, executionID string) (pkgExecu
 		Ext:                             ".js",
 		StackMode:                       r.config.StackMode,
 		ScriptContent:                   content,
-		WorkDir:                         r.packageRoot,
+		WorkDir:                         workDir,
 		Environment:                     env,
 		TimeoutMinutes:                  0,
 		EnableNativeExtensions:          true,
@@ -220,7 +224,7 @@ func showRecorderSession(ctx context.Context, session *customui.Session) error {
 	if session == nil {
 		return nil
 	}
-	window, ok := session.Window(recordingconsole.RecorderWindowID)
+	window, ok := session.Window(recorderbundle.RecorderWindowID)
 	if !ok {
 		return nil
 	}
@@ -253,7 +257,7 @@ func waitAndShowRecorderWindow(ctx context.Context, recorder *appRecorder, execu
 		session := recorder.session
 		recorder.mu.Unlock()
 		if session != nil {
-			if window, ok := session.Window(recordingconsole.RecorderWindowID); ok {
+			if window, ok := session.Window(recorderbundle.RecorderWindowID); ok {
 				_, err := window.Show(ctx)
 				return err
 			}

@@ -1,0 +1,26 @@
+{
+  "id": "com.opendesk.desktop",
+  "entry": "main.js",
+  "singleInstance": true,
+  "window": {
+    "mainId": "main",
+    "closeBehavior": "hide"
+  },
+  "tray": {
+    "enabled": true,
+    "icons": {
+      "windows": "assets/tray.ico",
+      "macos": "assets/tray-template.png"
+    },
+    "tooltip": "OpenDesk",
+    "primaryAction": "opendesk.open",
+    "menuMode": "merge",
+    "menu": [
+      {
+        "id": "runner.open",
+        "label": "打开 Script Runner",
+        "action": "runner.open"
+      }
+    ]
+  }
+}

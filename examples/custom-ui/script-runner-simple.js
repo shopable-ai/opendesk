@@ -2,11 +2,12 @@
 // ./dist/opendesk -ui -script examples/custom-ui/script-runner-simple.js -console-mode script -log-dir .runtime/examples/custom-ui/script-runner-simple
 'use strict';
 
-const controllerFile = File.join(Execution.scriptDir, 'script-runner-simple', 'controller.js');
+const controllerFile = File.join(Execution.workdir, 'apps', 'opendesk', 'script-runner', 'controller.js');
 (0, eval)(File.read(controllerFile) + '\n//# sourceURL=' + controllerFile);
 
-if (!globalThis.OpenDeskScriptRunnerSimple || typeof OpenDeskScriptRunnerSimple.createApp !== 'function') {
-  throw new Error('OpenDesk Script Runner Simple controller did not load');
+if (!globalThis.OpenDeskScriptRunnerSimple
+  || typeof OpenDeskScriptRunnerSimple.createApp !== 'function') {
+  throw new Error('OpenDesk Script Runner controller did not load');
 }
 
 const configuredRoot = System.getEnv('OPENDESK_SCRIPT_RUNNER_DIR');

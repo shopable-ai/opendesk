@@ -1,4 +1,4 @@
-package recordingconsolesimple
+package recorderbundle
 
 import (
 	"embed"
@@ -6,25 +6,30 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 const RecorderWindowID = "recording-console"
 
-//go:embed controller.js controller-core.js recording-history.js icons/countdown-1.png icons/countdown-2.png icons/countdown-3.png
+// The Go package owns only release bundling/materialization. Recorder UI
+// implementation remains JavaScript under ui/.
+//
+//go:embed ui/controller.js ui/controller-core.js ui/recording-history.js ui/icons/countdown-1.png ui/icons/countdown-2.png ui/icons/countdown-3.png
 var assets embed.FS
 
 func WriteToDir(root string) (string, error) {
 	if root == "" {
 		return "", fmt.Errorf("recorder UI root is required")
 	}
-	if err := fs.WalkDir(assets, ".", func(path string, entry fs.DirEntry, walkErr error) error {
+	if err := fs.WalkDir(assets, "ui", func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
-		if path == "." {
+		if path == "ui" {
 			return nil
 		}
-		target := filepath.Join(root, "recording-console-simple", filepath.FromSlash(path))
+		relative := strings.TrimPrefix(filepath.ToSlash(path), "ui/")
+		target := filepath.Join(root, "recording-console-simple", filepath.FromSlash(relative))
 		if entry.IsDir() {
 			return os.MkdirAll(target, 0o755)
 		}
@@ -57,6 +62,7 @@ const recordingConsole = OpenDeskSimpleRecordingConsole.createApp({
   captureKeyboard: Execution.env.OPENDESK_RECORDER_CAPTURE_KEYBOARD === '1',
   controlKeycodes: [],
   windowID: %q,
+  openDeskBinary: System.getExecutablePath(),
 });
 
 await recordingConsole.run();

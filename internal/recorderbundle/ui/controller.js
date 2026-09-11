@@ -1,7 +1,6 @@
-// Thin integration layer for recording-console-simple.
-// The previously validated controller implementation is kept byte-for-byte in
-// controller-core.js; this file adds the History surface without rewriting the
-// Recorder capture/generate/replay state machine.
+// Framework-owned integration layer for the built-in Recorder UI.
+// The core Recorder state machine remains in controller-core.js; this wrapper
+// adds History without coupling the released runtime to the source examples tree.
 (function installOpenDeskSimpleRecordingConsoleWithHistory(global) {
   'use strict';
 
@@ -23,11 +22,10 @@
     'arrow.clockwise': '↻',
   });
 
-  let baseDir = file.join(execution.scriptDir, 'recording-console-simple');
-  if (typeof file.isFile === 'function' && !file.isFile(file.join(baseDir, 'controller-core.js'))
-    && execution.workdir) {
-    baseDir = file.join(execution.workdir, 'examples', 'custom-ui', 'recording-console-simple');
-  }
+  const explicitRoot = typeof global.__OPENDESK_RECORDER_UI_ROOT === 'string'
+    ? global.__OPENDESK_RECORDER_UI_ROOT.trim()
+    : '';
+  const baseDir = explicitRoot || file.join(execution.scriptDir, 'recording-console-simple');
   const coreFile = file.join(baseDir, 'controller-core.js');
   const historyFile = file.join(baseDir, 'recording-history.js');
 
@@ -118,16 +116,16 @@
         const inner = await baseUI.createWindow(spec);
         if (!inner || typeof inner.control !== 'function') return inner;
 
-        const wrapper = {};
+        const windowWrapper = {};
         for (const name of ['on', 'show', 'hide', 'close', 'focus', 'getState', 'waitUntilClosed']) {
-          if (typeof inner[name] === 'function') wrapper[name] = inner[name].bind(inner);
+          if (typeof inner[name] === 'function') windowWrapper[name] = inner[name].bind(inner);
         }
-        Object.defineProperty(wrapper, 'id', {
+        Object.defineProperty(windowWrapper, 'id', {
           enumerable: true,
           configurable: false,
           get() { return inner.id; },
         });
-        wrapper.control = function control(id) {
+        windowWrapper.control = function control(id) {
           const target = inner.control(id);
           if (!target || typeof target.update !== 'function') return target;
           const controlWrapper = {};
@@ -144,7 +142,7 @@
           };
           return controlWrapper;
         };
-        return wrapper;
+        return windowWrapper;
       },
     };
 
