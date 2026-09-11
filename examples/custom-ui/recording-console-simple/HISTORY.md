@@ -102,6 +102,106 @@ the validated `recordingId` under the recordings root, never from `displayName`.
 existing `ui.createWindow()` HTML surface, so the same WebView2 Runtime requirement documented for Custom UI windows
 applies; the native `FloatingWindow` toolbar does not gain that dependency.
 
+## Pagination and large-history performance
+
+The current implementation is intentionally simple but does not scale with the number of recordings: `scanRecordings()`
+inspects every valid recording directory, `buildWindowHTML()` emits every row, `bindWindow()` installs four action controls
+for every row, icon setup crosses the Custom UI bridge for every action, and `refresh()` closes and recreates the complete
+window. Pagination must therefore bound the UI work as well as the amount of data visible on one page; adding only Previous
+and Next buttons while still constructing all rows is not considered a completed performance fix.
+
+This section freezes the target design. It is a design contract until the corresponding JavaScript and interaction tests
+are updated.
+
+### P0 paging contract
+
+- Use a fixed default `PAGE_SIZE = 10`. Do not add a page-size chooser in P0.
+- Keep newest-first ordering unchanged. Opening History starts on page 1.
+- The footer contains **上一页**, `第 X / Y 页 · 共 N 条`, **下一页**, and the existing Refresh action. Previous and Next are
+  disabled at their respective boundaries. With zero rows, the pager is disabled and the existing empty-state message is
+  shown.
+- The History window is created once per open session. Normal page turns do not close or recreate the `ui.createWindow()`
+  instance, so window position, focus, and the active History surface remain stable.
+- Build only ten reusable row slots. The number of list action controls is therefore bounded at 40 plus pager/header
+  controls regardless of the total recording count. The last page hides unused slots.
+- Bind the row-slot handlers once. A handler must resolve `visibleRows[slotIndex]` when the click occurs; it must not close
+  over the row object that happened to occupy the slot when the window was created. This prevents Run/Rename/Open/Delete
+  from targeting a stale recording after a page turn.
+- A page turn updates slot name, time, action availability, visibility, pager text, and Previous/Next disabled state in
+  place. Action icons are installed once for the ten slots instead of being re-applied for every recording on every page.
+- Busy/run state changes only update the currently rendered slots plus pager/Refresh. Runtime work for
+  `setHistoryActionsDisabled()` becomes `O(PAGE_SIZE)` rather than `O(total recordings)`.
+- Refresh and successful Rename preserve the current page when possible. Delete preserves the page and then clamps it to
+  the new last page, so deleting the only item on the final page moves to the preceding page instead of showing an invalid
+  page number.
+- Page navigation is disabled while a History run is active or while a row mutation is pending. Existing Run cancellation,
+  row mutation guards, recording-id validation, generated-script selection, and destructive confirmation rules remain
+  unchanged.
+
+The manager state should be explicit rather than inferred from control ids:
+
+```text
+allRows        = newest-first discovered rows
+pageIndex      = zero-based selected page
+pageSize       = 10
+pageCount      = max(1, ceil(allRows.length / pageSize))
+visibleRows    = allRows.slice(pageIndex * pageSize, (pageIndex + 1) * pageSize)
+```
+
+The intended internal responsibilities are:
+
+```text
+loadHistory()          scan and sort the current catalog
+clampPage()            keep pageIndex inside the catalog bounds
+pageRows()             derive visibleRows from current catalog/pageIndex
+renderPage()           update the ten reusable slots and pager in place
+setPage(nextPage)      clamp + render only; never rescan the filesystem
+refresh(message)       rescan once, clamp, then render in the existing window
+resolveSlot(index)     return the current visible row for an action callback
+```
+
+### First-open scan boundary
+
+UI paging alone makes render/binding work bounded, but the current `scanRecordings()` remains `O(N)` filesystem work. It
+reads each recording's manifest and UI metadata and searches its generated directory before the first page can be shown.
+This is a separate first-open bottleneck and must remain visible in performance reporting instead of being hidden behind the
+word "pagination".
+
+P0 should first land bounded in-place rendering because it removes the unbounded Custom UI element/event/icon cost without
+changing Recorder evidence semantics. If first-open latency remains material with large real histories, the next step is a
+separate catalog-loading optimization with these constraints:
+
+- preserve `manifest.startedAt` (directory `modifiedAt` only as fallback) as the ordering contract;
+- do not infer correctness from the `rec-*` directory name;
+- do not create a second authoritative recording database;
+- if a cache/index is introduced, treat it as rebuildable presentation data and validate entries against the underlying
+  recording directory before Run/Rename/Open/Delete;
+- measure directory discovery, manifest/metadata inspection, generated-script resolution, window creation, and first-page
+  render separately before choosing an index/cache format.
+
+This split prevents a premature history index from silently becoming another source of truth while still leaving a clear
+path to optimize the remaining filesystem scan.
+
+### Required regression coverage
+
+Pagination implementation is not complete until tests cover at least these catalog sizes and transitions:
+
+- 0, 1, 10, 11, and 25 recordings, including correct `pageCount` and newest-first slicing;
+- Previous/Next disabled state on first, middle, and final pages;
+- page turn does not call filesystem scan and does not create a second History window;
+- action callbacks after a page turn target the row currently occupying the slot, not the previous page's row;
+- a recording without a generated script keeps Run disabled after page changes;
+- Rename refresh keeps the user on the same valid page and displays the new name;
+- deleting the final row of the final page clamps to the new last page;
+- active History Run locks Previous/Next/Refresh and visible row actions, and unlocks them after success/failure/cancel;
+- malformed/stale recording entries retain the existing validation behavior;
+- icon setup and action-control count remain bounded by `PAGE_SIZE`, not total recording count.
+
+For performance smoke, create a disposable fixture with at least 100 history directories and report separate timings for
+scan, History window creation, and first-page render. The acceptance criterion for the paging layer is structural: page
+render/binding/icon work must stay approximately constant as N grows. A separate measured target for first-open scan should
+only be frozen after that evidence is collected on macOS and Windows.
+
 ## Tests
 
 From the repository root:
