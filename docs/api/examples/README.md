@@ -6,11 +6,11 @@ order: 3
 
 # Examples 快速索引
 
-直接运行 `examples/` 中的脚本，查看终端输出或实际窗口效果。从仓库根目录运行，常用命令见[单项示例运行](single-tests.md)。
+公开示例的 canonical 实现按领域保存在 `examples/<domain>/`。从仓库根目录运行；旧根目录脚本只作为兼容入口，不再作为新文档推荐路径。
 
 ## OpenDesk Examples 图形入口
 
-仓库内置 `apps/example-explorer/` 作为面向新手和开发者的 Examples 浏览与运行工具。它不属于 `examples/` 本身，而是读取 `examples/`、`examples/catalog.json` 和本 API 文档索引的独立开发者应用。
+仓库内置 `apps/example-explorer/` 作为面向新手和开发者的 Examples 浏览与运行工具。它不属于 `examples/`，而是消费 `examples/catalog.json`、canonical 示例源码和本 API 文档体系。
 
 从仓库根目录启动：
 
@@ -18,61 +18,99 @@ order: 3
 ./dist/opendesk -ui -script apps/example-explorer/main.js -console-mode script -log-dir .runtime/apps/example-explorer
 ```
 
-界面会递归发现 `examples/` 中的 JavaScript、按分类分页显示、查看源码和运行元数据，并允许直接运行已经在 `examples/catalog.json` 中显式审核为 `runPolicy: "safe"` 的条目。新发现但未登记的 `.js` 仍可查看源码，但默认不可一键运行；这避免把桌面输入、真实应用操作、音频、OCR、权限准备或其他带前置条件的示例因为文件扩展名相同而误当成安全脚本。
+普通列表只展示 `examples/catalog.json` 中登记的 canonical examples。`aliases` 记录历史兼容路径，不重复显示；helper、support、test、smoke 和未审核 JavaScript 不进入普通列表。
 
-每个 Run 都通过独立 OpenDesk 子进程执行，Stop 使用 `AbortController` 取消该子进程。当前 `Command.run()` 在子进程结束时一次性返回 stdout/stderr，因此界面显示的是完成后的有界输出，不声称实时流式终端。Example 成功也不等于正式 Runtime API 测试通过；正确性 gate 仍以 `tests/` 和对应质量文档为准。
+- `runPolicy: "safe"`：允许一键 Run；
+- `runPolicy: "manual"`：可以搜索、查看源码、文档和前置条件，但必须手动运行。
+
+目录或扩展名本身不会授予执行权限。鼠标/键盘输入、截图/录屏、OCR、音频、通知、原生 UI、持久化或其他具有明显前置条件的示例默认保持 `manual`。
+
+每个 safe Run 使用独立 OpenDesk 子进程，Stop 通过 `AbortController` 取消子进程。当前 `Command.run()` 在子进程结束时一次性返回 stdout/stderr，因此 Output 是完成后的有界输出，不是实时 PTY。Example 成功也不等于正式 Runtime API 测试通过。
 
 ## 基础 Runtime 与数据
 
-- [入门、环境、文件、JSON、路径、命令与 HTTP](../../../examples/runtime/README.md)
-- [控制台打印](../../../examples/console.js)、[全局对象](../../../examples/globalThis.js)、[Promise](../../../examples/promise.js)、[等待](../../../examples/sleep.js)、[定时器](../../../examples/timer.js)
-- [本地存储](../../../examples/appStorage.js)
-- [Page 等待 quickstart](../../../examples/page.waitfor.js)与[共享用例 smoke](../../../examples/runtime/page-wait.test.js)
+- [Runtime 示例总览](../../../examples/runtime/README.md)
+- [Runtime Quickstart](../../../examples/runtime/api-quickstart.js)
+- [Console](../../../examples/runtime/console.js)、[globalThis](../../../examples/runtime/global-this.js)、[Promise](../../../examples/runtime/promise.js)
+- [Sleep](../../../examples/runtime/sleep.js)、[Timer](../../../examples/runtime/timer.js)、[Page Wait](../../../examples/runtime/page-wait.js)
+- [Environment](../../../examples/runtime/environment.js)、[Path](../../../examples/runtime/path.js)
+- [File](../../../examples/runtime/file.js)、[JSON File](../../../examples/runtime/file-json.js)、[Command](../../../examples/runtime/command.js)
+- [AppStorage](../../../examples/runtime/app-storage.js)、[System Info](../../../examples/runtime/system-info.js)、[Session State](../../../examples/runtime/system-session-state.js)
 
-Page 等待示例以真实断言检查固定等待、条件轮询、single-flight、`AbortSignal` 和组合结果；命令及 Windows 验收状态见[基础 Runtime 示例](../../../examples/runtime/README.md)。
+其中 AppStorage 和详细 System Info 在 Explorer 中为 `manual`；其余是否一键运行以当前 `examples/catalog.json` 为准。
 
 ## SQLite Runtime API
 
 - [建表、写入、查询与跨运行持久化](../../../examples/sqlite/README.md)
 
-## 桌面输入、屏幕、窗口和系统
+## 桌面输入、屏幕和窗口
 
-- [窗口查询、窗口控制与键盘输入](../../../examples/desktop/README.md)
+- [Desktop 示例总览](../../../examples/desktop/README.md)
+- [窗口查询](../../../examples/desktop/window-inspect.js)、[窗口控制](../../../examples/desktop/window-controls.js)、[键盘输入](../../../examples/desktop/keyboard.js)
+- [鼠标输入](../../../examples/desktop/mouse.js)、[Page 固定坐标与截图](../../../examples/desktop/page-click.js)
+- [屏幕信息](../../../examples/desktop/screen-info.js)、[截图](../../../examples/desktop/screenshot.js)、[截图字节](../../../examples/desktop/screenshot-bytes.js)
+- [显示模式](../../../examples/desktop/display-modes.js)、[区域录屏](../../../examples/desktop/screen-record-region.js)
 - [剪贴板](../../../examples/clipboard/README.md)
-- [Page 点击与截图（固定坐标）](../../../examples/page.js)、[等待条件](../../../examples/page.waitfor.js)、[鼠标](../../../examples/mouse.js)
-- [屏幕信息](../../../examples/screen.js)、[截图](../../../examples/screenshot.js)、[截图字节](../../../examples/screenshot_bytes_smoke.js)、[显示模式](../../../examples/display-modes.js)、[区域录屏](../../../examples/screen-record-region.js)
-- [系统信息](../../../examples/system.js)、[会话状态](../../../examples/system-session-state.js)、[发送通知](../../../examples/notify.js)、[读取通知](../../../examples/notifications.js)
-- [千牛窗口](../../../examples/app/README.md)
 - [Native Accessibility、UI 原生文本值与菜单](../../../examples/accessibility/README.md)
+
+键盘、鼠标、窗口修改需要明确目标和显式授权；截图与录屏会捕获真实可见内容。不要批量运行 Desktop 示例。
+
+## Vision、OCR 与图像
+
+- [Vision 示例总览](../../../examples/vision/README.md)
+- [ImageColor 基础](../../../examples/vision/image-color-basic.js)
+- [截图字节与 OCR](../../../examples/vision/bytes-roundtrip.js)
+- [OCR 与文本目标](../../../examples/vision/ocr.js)
+- [ImageColor 专题套件](../../../examples/image-color/README.md)：[模板匹配](../../../examples/image-color/template-match.js)、[图像差异](../../../examples/image-color/diff.js)、[匹配结果可视化](../../../examples/image-color/wechat-template-match-visual.js)
+
+OCR 需要对应 provider；可见像素可能包含敏感信息。`vision/ocr.js` 还会对解析出的目标执行真实点击，因此保持 `manual`。
+
+## Audio
+
+- [Audio 示例总览](../../../examples/audio/README.md)
+- [播放声音](../../../examples/audio/play.js)
+- [播放控制](../../../examples/audio/playback-control.js)
+
+目录中历史 smoke、fixture 生成器和监听实验不会因为位于 `audio/` 就自动进入 Explorer 普通列表。
+
+## Dialog 与 Custom UI
+
+- [Dialog 示例总览](../../../examples/dialog/README.md)
+- [Dialog async/await](../../../examples/dialog/async-await.js)
+- [Dialog Promise chain](../../../examples/dialog/promise-chain.js)
+- [Custom UI 示例源码](../../../examples/custom-ui/)
+- [Custom UI 使用说明](../../custom-ui/README.md)
+
+Dialog 与 Custom UI 需要真实 native UI 交互，因此 Catalog 中保持 `manual`；UI API Reference 见 [Custom UI](../ui.md) 和 [Dialog](../dialog.md)。
+
+## Notifications
+
+- [Notifications 示例总览](../../../examples/notifications/README.md)
+- [发送通知](../../../examples/notifications/send.js)
+- [通知生命周期](../../../examples/notifications/lifecycle.js)
+
+通知会真实显示在操作系统桌面上，可能播放声音，因此保持 `manual`。
+
+## 应用、Recorder 与真实业务场景
+
+- [应用示例](../../../examples/app/README.md)
+- [App Mode](../../../examples/app-mode/)
 - [Recorder：人工录制与独立 basic JS 生成](../../../workflows/human-to-recipe/README.md)
 
-输入、窗口变更和剪贴板写入分别需要显式设置 `OPENDESK_EXAMPLE_ALLOW_INPUT=1`、`OPENDESK_EXAMPLE_ALLOW_WINDOW_CHANGE=1`、`OPENDESK_EXAMPLE_ALLOW_CLIPBOARD_WRITE=1`。输入与窗口变更还需指定目标标题和 PID；剪贴板写入会覆盖原内容。
+应用示例可能操作真实窗口或业务数据。使用可丢弃测试内容，运行前阅读对应 README 和 Catalog 前置条件。
 
-Accessibility 示例默认只从仓库自有 fixture 的 receipt 解析并复核当前 executable identity；运行已审核的非-fixture target 时才必须同时传入精确 PID/window id。它们不会选择“当前/第一个”窗口，也不会在失败后降级到鼠标或发送 Escape。运行证据写入 `.runtime/tests/accessibility/`。
-
-## Vision、OCR、图像和声音
-
-- [OCR](../../../examples/vision.ocr.js)、[图像字节转换](../../../examples/vision_bytes_roundtrip.js)、[图像颜色](../../../examples/imageColor.js)
-- [模板匹配](../../../examples/image-color/template-match.js)、[图像差异](../../../examples/image-color/diff.js)、[匹配结果可视化](../../../examples/image-color/wechat-template-match-visual.js)
-- [播放声音](../../../examples/sound.js)、[播放控制](../../../examples/sound-playback.js)、[音量与声音匹配](../../../examples/audio/)
-
-OCR 需要对应识别服务；录屏和音频操作需按系统提示授权。声音匹配需提供自己的参考音频，示例会实际使用音频设备。
-
-## Dialog 与 Custom UI（macOS）
-
-- [Dialog 的两种写法及运行说明](../../../examples/README.md#原生-dialog)
-- [Custom UI 示例源码](../../../examples/custom-ui/)与[使用说明](../../custom-ui/README.md)
-
-## macOS 权限与真实应用
+## macOS 权限与平台专项
 
 - [快捷键权限准备](../../../examples/global-shortcut-permission-setup.js)、[全局快捷键](../../../examples/global-shortcut.js)
 - [macOS 权限、Safari、微信及计算器示例](../../../examples/mac/)
 
-应用示例会操作真实窗口。使用可丢弃的测试内容，向微信等应用发送内容前须确认目标和内容；不要批量运行整个目录。
+现有 `examples/mac/` 暂时保留；平台目录会在单独迁移中处理，不为 Example Explorer 的结构整理强行制造大规模路径变化。
 
 ## AI recipe
 
-- [向当前窗口输入](../../../examples/ai-cli/write-to-focused-app.js)、[TextEdit](../../../examples/ai-cli/macos-textedit-recipe.js)、[计算器](../../../examples/ai-cli/macos-calculator-recipe.js)
+- [向当前窗口输入](../../../examples/ai-cli/write-to-focused-app.js)
+- [TextEdit](../../../examples/ai-cli/macos-textedit-recipe.js)
+- [计算器](../../../examples/ai-cli/macos-calculator-recipe.js)
 - [Recipe 输入参数](../execution.md#executioninput)
 
 ## Native Extension
@@ -81,4 +119,4 @@ OCR 需要对应识别服务；录屏和音频操作需按系统提示授权。�
 
 ## 正式测试 Scripts
 
-开发者回归测试见[测试说明](../../quality/runtime-api-test-modules.md)和[测试目录](../../quality/developer-test-catalog.md)。
+Examples 用于学习、观察和手动体验，不负责声明公共 API 已通过正式验证。开发者回归测试见[测试说明](../../quality/runtime-api-test-modules.md)和[测试目录](../../quality/developer-test-catalog.md)。
