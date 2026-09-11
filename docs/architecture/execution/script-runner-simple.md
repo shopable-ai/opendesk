@@ -785,3 +785,58 @@ protected .odpkg discovery
 ```
 
 P0 完成以前，不把 P1/P2/P3 功能塞回主工具条。
+
+## 13. Stop 生命周期回归入口
+
+以下命令均从仓库根目录执行。macOS 正式构建入口为 `scripts/build_macos_app.sh`，它同时
+刷新主程序与 native UI host，并将 `dist/opendesk` 链接到签名后的
+`dist/OpenDesk.app/Contents/MacOS/opendesk`。`go build -o dist/opendesk ./cmd/opendesk`
+是现有 CI 的 Runtime compile gate；本机正式交付优先使用 app 构建，避免覆盖签名 payload。
+
+当前 Custom UI canonical 装配为 `automation.registerCustomUI → customui.NewProcessDriver`。
+普通未启用 UI 的 execution 注册 disabled facade；process driver 按需启动独立 host。
+App Mode 复用同一个 process driver，并为 execution 创建 session-scoped driver。
+macOS 的 `darwin && cgo` 约束位于 `cmd/opendesk-ui-host` / `pkg/customui/machost`，
+不控制一个名为 `NewDefaultBackend` 的 factory；当前源码中不存在该旧符号或调用。
+Windows 沿同一个 process driver 发现 WinForms sidecar，不需要恢复旧 backend 入口。
+
+```bash
+scripts/build_macos_app.sh
+node --test tests/custom-ui/script-runner-simple.test.js
+go test ./...
+./dist/opendesk -script tests/custom-ui/script-runner-simple-runtime.js -console-mode script -log-dir .runtime/tests/script-runner-simple/runtime-parent
+```
+
+Windows 在具备 Go/native C 工具链和 .NET 8 的机器上，从仓库根目录执行：
+
+```powershell
+pwsh -File scripts/build_windows_app.ps1
+.\dist\opendesk.exe -script tests/custom-ui/script-runner-simple-runtime.js -console-mode script -log-dir .runtime/tests/script-runner-simple/runtime-parent
+```
+
+Controller 永久测试覆盖同 tick Stop、运行中取消、顺序与独立日志、失败及取消 fail-fast、
+取消后重跑，以及延迟 UI 清理时拒绝重叠 run。`executeQueue` 在首次 await 前建立
+`activeRun`；UI 写入串行化并在执行时读取状态；最终 UI 清理结束后才释放 `runPromise`，
+清理同时检查 run / Promise identity。成功、失败、取消后均恢复 Idle 按钮状态。
+
+Runtime harness 使用注入的展示层和真实 `Command` / `AbortController` / OpenDesk child：
+
+- `normal-child`：成功、marker 存在、child PID 已退出。
+- `immediate-stop`：Stop 接受、canceled、completed=0、无 Command 启动、无原始 marker；
+  再次 Run 成功，并再次确认原始 child 没有延迟启动。
+- `running-child-stop`：选中两个脚本，观察第一个 child marker 与存活 PID 后 Stop；
+  Command 以 `CANCELED` 结束，signal 已 abort，PID 退出、第二个 marker 不产生；随后重跑成功。
+
+成功输出 `SCRIPT_RUNNER_SIMPLE_RUNTIME_OK=`；结果、原始 child 源码快照和 markers 位于
+`.runtime/tests/script-runner-simple/<timestamp>/`，父日志位于上述 `runtime-parent/`。
+child 独立日志路径记录在结果的 `commandCalls[].logDir` 中。Controller 临时 fixture 也写入
+`.runtime/tests/script-runner-simple/controller/`；现有 `.gitignore` 的 `.runtime/` 规则覆盖全部产物。
+
+底层进程组清理复用既有 `OPENDESK_RUNTIME_API_MODE=command` 正式 gate；其证据位于
+`.runtime/tests/runtime-api/<runId>/results/command-cancel-observation.json`，需确认 child 和
+descendant 在取消前存活、取消后均消失，以及 Runtime cleanup 计数归零。
+
+Native UI CI 在 macOS / Windows 首先编译 Runtime，再运行已有 host 和 Script Runner gates；
+触发范围包含 Runtime 入口、execution 装配、Command 与平台构建脚本，并覆盖所有 PR。
+跨编译仅属于编译证据，不能声称 Windows live 通过。本 harness 不创建真实窗口，
+不能作为公开 UI 示例已运行或视觉验收通过的证据。

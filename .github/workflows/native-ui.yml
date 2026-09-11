@@ -4,14 +4,24 @@ on:
   push:
     paths:
       - '.github/workflows/native-ui.yml'
+      - 'go.mod'
+      - 'go.sum'
+      - 'cmd/opendesk/**'
+      - 'cmd/opendesk-ui-host/**'
+      - 'pkg/execution/**'
+      - 'pkg/runtimeconfig/**'
       - 'pkg/customui/**'
       - 'automation/custom_ui*'
       - 'automation/floating_window*'
       - 'automation/page.go'
+      - 'automation/utils.go'
+      - 'automation/command*'
       - 'tests/runtime-api/custom-ui*'
       - 'tests/custom-ui/**'
       - 'examples/custom-ui/**'
       - 'scripts/build_windows*'
+      - 'scripts/build_macos_app.sh'
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -35,6 +45,15 @@ jobs:
         if: runner.os == 'Windows'
         with:
           dotnet-version: '8.0.x'
+      - name: Build paired Runtime (platform assembly compile gate)
+        if: runner.os != 'Linux'
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = Windows ]; then
+            go build -o dist/opendesk.exe ./cmd/opendesk
+          else
+            go build -o dist/opendesk ./cmd/opendesk
+          fi
       - name: Test native UI internal seams
         run: go test ./pkg/customui/...
       - name: Test test-architecture invariants
@@ -54,15 +73,6 @@ jobs:
       - name: Windows hosted-deterministic native host protocol smoke
         if: runner.os == 'Windows'
         run: node tests/custom-ui/tools/native-host-smoke.cjs dist/ui-host/opendesk-ui-host.exe --profile=hosted-deterministic
-      - name: Build paired Runtime
-        if: runner.os != 'Linux'
-        shell: bash
-        run: |
-          if [ "$RUNNER_OS" = Windows ]; then
-            go build -o dist/opendesk.exe ./cmd/opendesk
-          else
-            go build -o dist/opendesk ./cmd/opendesk
-          fi
       - name: Script Runner real child stop lifecycle
         if: runner.os != 'Linux'
         shell: bash

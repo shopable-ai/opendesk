@@ -3,7 +3,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
-const os = require('node:os');
 const path = require('node:path');
 const vm = require('node:vm');
 
@@ -105,7 +104,9 @@ function ToolbarCapture() {
 }
 
 function fixture(options = {}) {
-  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'script-runner-simple-'));
+  const fixtureRoot = path.join(repo, '.runtime/tests/script-runner-simple/controller');
+  fs.mkdirSync(fixtureRoot, {recursive: true});
+  const temp = fs.mkdtempSync(path.join(fixtureRoot, 'run-'));
   const scriptRoot = path.join(temp, 'recipes');
   fs.mkdirSync(scriptRoot, {recursive: true});
   const scriptNames = options.scriptNames || ['a.js'];
@@ -157,6 +158,13 @@ async function selectAllAndRun(f) {
   return click(window, 'runSelected');
 }
 
+function assertIdle(f) {
+  assert.equal(f.app.state().running, false);
+  assert.equal(f.app.state().activeRun, null);
+  assert.equal(f.toolbar.buttons.get('run').disabled, false);
+  assert.equal(f.toolbar.buttons.get('stop').disabled, true);
+}
+
 test('Stop immediately after Run cancels before Command.run can start', async () => {
   const f = fixture();
   try {
@@ -166,7 +174,7 @@ test('Stop immediately after Run cancels before Command.run can start', async ()
     assert.equal(stopped, true);
     assert.deepEqual(outcome, {status: 'canceled', completed: 0, total: 1});
     assert.equal(f.calls.length, 0);
-    assert.equal(f.app.state().running, false);
+    assertIdle(f);
   } finally {
     await f.cleanup();
   }
@@ -190,11 +198,14 @@ test('Stop aborts an in-flight child and prevents the remaining selected queue',
     for (let i = 0; i < 20 && started === 0; i++) await new Promise(resolve => setImmediate(resolve));
     assert.equal(started, 1);
     assert.ok(firstSignal);
+    assert.equal(f.toolbar.buttons.get('run').disabled, true);
+    assert.equal(f.toolbar.buttons.get('stop').disabled, false);
     assert.equal(await f.toolbar.buttons.get('stop').callback(), true);
     const outcome = await pending;
     assert.equal(firstSignal.aborted, true);
     assert.deepEqual(outcome, {status: 'canceled', completed: 0, total: 2});
     assert.equal(started, 1);
+    assertIdle(f);
   } finally {
     await f.cleanup();
   }
@@ -212,6 +223,7 @@ test('Run Selected follows current list order and gives each child a distinct lo
     const firstLog = f.calls[0].args[f.calls[0].args.indexOf('-log-dir') + 1];
     const secondLog = f.calls[1].args[f.calls[1].args.indexOf('-log-dir') + 1];
     assert.notEqual(firstLog, secondLog);
+    assertIdle(f);
   } finally {
     await f.cleanup();
   }
@@ -232,6 +244,7 @@ test('queue is fail-fast after the first child failure', async () => {
     assert.equal(outcome.completed, 0);
     assert.equal(outcome.failedScript, 'a.js');
     assert.equal(calls, 1);
+    assertIdle(f);
   } finally {
     await f.cleanup();
   }
@@ -255,6 +268,49 @@ test('a canceled run fully releases state so a later run can start', async () =>
     assert.deepEqual(second, {status: 'succeeded', completed: 1, total: 1});
     assert.equal(calls, 1);
   } finally {
+    await f.cleanup();
+  }
+});
+
+test('Run stays owned until final UI cleanup settles, then the next run owns Stop', {timeout: 5000}, async () => {
+  const f = fixture();
+  let releaseCleanup;
+  let cleanupEntered;
+  const entered = new Promise(resolve => { cleanupEntered = resolve; });
+  const cleanup = new Promise(resolve => { releaseCleanup = resolve; });
+  try {
+    // Finish initial presentation before delaying the canceled run's idle update.
+    await new Promise(resolve => setImmediate(resolve));
+    const updateButton = f.toolbar.updateButton.bind(f.toolbar);
+    let delayCleanup = true;
+    f.toolbar.updateButton = async (id, patch) => {
+      if (delayCleanup && id === 'run' && !patch.disabled && !f.app.state().activeRun) {
+        delayCleanup = false;
+        cleanupEntered();
+        await cleanup;
+      }
+      return updateButton(id, patch);
+    };
+    const first = f.toolbar.buttons.get('run').callback();
+    const stop = f.app.stopRun();
+    await entered;
+    assert.equal(f.app.state().running, true, 'pending final UI cleanup must retain run ownership');
+    assert.equal(f.toolbar.buttons.get('run').callback(), first, 'a repeated Run must join cleanup');
+    releaseCleanup();
+    assert.equal(await stop, true);
+    assert.equal((await first).status, 'canceled');
+    assert.equal(f.app.state().activeRun, null);
+    assert.equal(f.app.state().running, false);
+    const second = f.toolbar.buttons.get('run').callback();
+    assert.equal(f.app.state().activeRun.canceled, false);
+    assert.equal(await f.app.stopRun(), true);
+    assert.equal((await second).status, 'canceled');
+    assert.deepEqual(await f.toolbar.buttons.get('run').callback(), {status: 'succeeded', completed: 1, total: 1});
+    assert.equal(f.toolbar.buttons.get('run').disabled, false);
+    assert.equal(f.toolbar.buttons.get('stop').disabled, true);
+    assert.equal(await f.app.stopRun(), false);
+  } finally {
+    releaseCleanup();
     await f.cleanup();
   }
 });

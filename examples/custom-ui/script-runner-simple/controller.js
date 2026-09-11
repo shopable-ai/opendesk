@@ -174,6 +174,7 @@
     let activeRun = null;
     let closed = false;
     let configWrite = Promise.resolve();
+    let uiUpdates = Promise.resolve();
 
     const toolbar = new Floating({
       position: {mode: 'anchor', horizontal: 'right', vertical: 'center', margin: 16, display: 'active'},
@@ -284,8 +285,19 @@
       };
     }
 
-    async function safeToolbarUpdate() {
-      const busy = !!runPromise;
+    function queueUIUpdate(update) {
+      // Serialize host writes and read state when each update starts. An older
+      // run's delayed presentation must never overwrite the next run's UI.
+      uiUpdates = uiUpdates.catch(() => {}).then(update);
+      return uiUpdates;
+    }
+
+    function safeToolbarUpdate() {
+      return queueUIUpdate(updateToolbar);
+    }
+
+    async function updateToolbar() {
+      const busy = !!activeRun;
       try {
         await toolbar.updateButton('run', {disabled: busy || !configValid || scripts.length === 0, active: busy});
       } catch (_) {}
@@ -303,15 +315,21 @@
       } catch (_) {}
     }
 
-    async function setListStatus(message) {
+    function setListStatus(message) {
       statusMessage = String(message || '');
-      if (!listWindow) return;
-      try { await listWindow.control('runnerStatus').update({text: statusMessage}); } catch (_) {}
+      return queueUIUpdate(async () => {
+        if (!listWindow) return;
+        try { await listWindow.control('runnerStatus').update({text: statusMessage}); } catch (_) {}
+      });
     }
 
-    async function syncListControls() {
+    function syncListControls() {
+      return queueUIUpdate(updateListControls);
+    }
+
+    async function updateListControls() {
       if (!listWindow) return;
-      const busy = !!runPromise;
+      const busy = !!activeRun;
       for (let index = 0; index < scripts.length; index++) {
         const row = scripts[index];
         try { await listWindow.control(`select${index}`).update({disabled: busy}); } catch (_) {}
@@ -356,7 +374,7 @@
 
     async function executeQueue(queue, source) {
       const controller = new Abort();
-      activeRun = {
+      const run = activeRun = {
         controller,
         source,
         queue: queue.slice(),
@@ -365,12 +383,12 @@
         current: null,
         canceled: false,
       };
-      await syncUI();
       let outcome = {status: 'succeeded', completed: 0, total: queue.length};
 
       try {
+        await syncUI();
         for (let index = 0; index < queue.length; index++) {
-          if (activeRun.canceled || controller.signal.aborted) {
+          if (run.canceled || controller.signal.aborted) {
             outcome = {status: 'canceled', completed: index, total: queue.length};
             break;
           }
@@ -381,8 +399,8 @@
             error.code = 'FILE_NOT_FOUND';
             throw error;
           }
-          activeRun.index = index;
-          activeRun.current = script;
+          run.index = index;
+          run.current = script;
           const logDir = nextRunLogDir(script.name);
           file.ensureDir(logDir);
           await setListStatus(`正在运行 ${index + 1}/${queue.length}：${script.name}`);
@@ -419,8 +437,8 @@
             });
           } catch (error) {
             const normalized = normalizeError(error, 'Command.run');
-            if (normalized.code === 'CANCELED' || controller.signal.aborted || activeRun.canceled) {
-              activeRun.canceled = true;
+            if (normalized.code === 'CANCELED' || controller.signal.aborted || run.canceled) {
+              run.canceled = true;
               outcome = {status: 'canceled', completed: index, total: queue.length};
               logRecord('SCRIPT_RUNNER_RUN_CANCELED', {
                 source,
@@ -455,7 +473,7 @@
         }
         return clone(outcome);
       } finally {
-        activeRun = null;
+        if (activeRun === run) activeRun = null;
       }
     }
 
@@ -471,15 +489,20 @@
         setListStatus('没有可运行的脚本。');
         return Promise.resolve({status: 'empty', completed: 0, total: 0});
       }
-      runPromise = executeQueue(queue, source)
+      // executeQueue establishes activeRun synchronously, before Run returns.
+      const pending = executeQueue(queue, source)
         .catch(error => {
           const normalized = logError(error, 'ScriptRunner.executeQueue', {source});
           return setListStatus(`运行失败：${normalized.message}`).then(() => ({status: 'failed', completed: 0, total: queue.length, error: normalized}));
         })
         .finally(async () => {
-          runPromise = null;
-          await syncUI();
+          try {
+            await syncUI();
+          } finally {
+            if (runPromise === pending) runPromise = null;
+          }
         });
+      runPromise = pending;
       void syncUI();
       return runPromise;
     }
