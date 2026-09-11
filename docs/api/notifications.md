@@ -29,7 +29,7 @@ await Notifications.dismiss(notification.id);
 然后运行一条示例命令：
 
 ```bash
-./dist/opendesk -script examples/notifications.js -console-mode script
+./dist/opendesk -script examples/notifications/lifecycle.js -console-mode script
 ```
 
 示例先启动 bounded wait，再用现有 `notify()` 发送唯一标题，取得默认脱敏 metadata，并按 opaque

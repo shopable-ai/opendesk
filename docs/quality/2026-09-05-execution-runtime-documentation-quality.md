@@ -30,12 +30,12 @@ Runtime API contract/unit evidence。
   继承/覆盖和 HTTP 宿主环境隔离均通过；证据目录
   `.runtime/tests/runtime-api/direct-20260905-192637-305000/`。
 - 刷新根目录二进制后，从仓库根目录原样执行环境文档中的
-  `./opendesk -script examples/environment.js` 通过；输出只报告选定变量是否存在，不泄露其值，
+  `./opendesk -script examples/runtime/environment.js` 通过；输出只报告选定变量是否存在，不泄露其值，
   运行目录为 `.runtime/runs/direct-20260905-185051-225000/`。
 - 从仓库根目录使用当前 `./dist/opendesk` 执行同一示例通过，并观察到本地 `.opendesk.env` 中
   allowlist 的 `OPENDESK_CONSOLE_MODE` 已进入 `Execution.env`；运行目录为
   `.runtime/runs/direct-20260905-185936-104000/`。
-- 使用 `./dist/opendesk ai run examples/environment.js` 通过；JSON envelope 指向的
+- 使用 `./dist/opendesk ai run examples/runtime/environment.js` 通过；JSON envelope 指向的
   `.runtime/ai/ai-20260905-193015-937000/stdout.log` 同样记录了该 `.opendesk.env` 值，验证 AI CLI
   quiet stdout 只改变展示位置、不改变环境解析。
 - 刷新当前源码后的 `./dist/opendesk -script-text "console.log(typeof System.getEnv, typeof System.hasEnv)"`

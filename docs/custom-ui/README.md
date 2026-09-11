@@ -1,5 +1,10 @@
 # Custom UI 图标资源
 
+组件主题、CSS token、select/input/button 状态矩阵和 HTML/native 平台差异见
+[Custom UI 主题与控件规范](theme-guide.md)。可直接运行的状态画廊是
+`examples/custom-ui/ui-components.js`；它使用相邻的受限 HTML/CSS 文件，由 JavaScript
+controller 绑定真实 Runtime 事件。
+
 ## 运行 Custom UI 示例
 
 Custom UI 的 API 契约、`-ui` / `-no-ui` / `-config` 的优先级、配置文件格式，以及 HTTP
@@ -71,7 +76,7 @@ autofocus 或脚本 `focus()`。所有控件的 width、options、range、step �
 从仓库根目录运行真实 Recorder 控制台：
 
 ```bash
-./dist/opendesk -ui -allow-recorder-capture -script examples/custom-ui/recording-console.js -console-mode script -log-dir .runtime/examples/custom-ui/recording-console
+./dist/opendesk -ui -allow-recorder-capture -script workflows/human-to-recipe/recording-console.js -console-mode script -log-dir .runtime/workflows/human-to-recipe/recording-console
 ```
 
 点击“开始录制”会立即授权本次采集，并留出 3 秒供用户聚焦隔离、非敏感、可恢复的目标窗口；
@@ -117,7 +122,7 @@ bash scripts/render_custom_ui_icon_catalog.sh
 bash scripts/render_custom_ui_icon_catalog.sh --publish
 ```
 
-发布会更新本目录的浏览器图鉴和 `examples/custom-ui/icon-list.html` Runtime 视图。离线浏览器 HTML 只负责图标选型与复制；真实 Runtime 控件数量、滚动、callback、Accessibility、剪贴板和生命周期仍使用 `examples/custom-ui/icon-list.js` 验证。
+发布会更新本目录的浏览器图鉴和 `examples/custom-ui/icon-browser/panel.html` Runtime 视图。离线浏览器 HTML 只负责图标选型与复制；真实 Runtime 控件数量、滚动、callback、Accessibility、剪贴板和生命周期仍使用 `examples/custom-ui/icon-browser/main.js` 验证。
 
 ## 设计质量目标
 

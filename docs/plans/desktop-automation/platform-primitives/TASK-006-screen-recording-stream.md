@@ -308,7 +308,7 @@ Final Commit: this task-closing commit
 - `./scripts/test_runtime_apis.sh unit` -> PASS，387/387；证据：
   `.runtime/tests/runtime-api/20260901T194433Z-97360/`。
 - 从仓库根目录按文档构建并原样执行：
-  `./opendesk -script examples/screen-record-region.js -console-mode script` -> PASS；在专用 Runtime API Test
+  `./opendesk -script examples/desktop/screen-record-region.js -console-mode script` -> PASS；在专用 Runtime API Test
   Lab 上选择 600×420 区域，系统 metadata 读回 QuickTime/H.264、600×420、1.7167 秒、106,763 bytes。
 - 原生 selector：create、move、bottom-right resize 与 8 个 handles 逐一 drag -> PASS；最终 readback
   `(90,90,380,300)`。安全 fixture 视觉截图确认遮罩、清晰选区、8 handles、尺寸标签、无裁切；Esc ->
@@ -333,7 +333,7 @@ Final Commit: this task-closing commit
 - 用户契约：`docs/api/screen.md`；API 地图：`docs/api/index.md`。
 - 类型与机器索引：`types/Screen.d.ts`、`docs/api/runtime-api.ai.json`。
 - 正式 conformance：`tests/runtime-api/manifest.js`、`tests/runtime-api/unit/screen.test.js`。
-- 可复制示例：`examples/screen-record-region.js`。
+- 可复制示例：`examples/desktop/screen-record-region.js`。
 
 ### Remaining
 

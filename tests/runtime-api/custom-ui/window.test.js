@@ -292,7 +292,7 @@
       'ControlHandle.getState', 'mouse.click', 'File.removeDir',
     ],
   }, async () => {
-    const historyPath = File.join(File.cwd(), 'examples', 'custom-ui', 'recording-console-simple', 'recording-history.js');
+    const historyPath = File.join(File.cwd(), 'internal', 'recorderbundle', 'ui', 'recording-history.js');
     (0, eval)(File.read(historyPath) + '\n//# sourceURL=' + historyPath);
     assert(OpenDeskRecordingHistory && typeof OpenDeskRecordingHistory.createManager === 'function');
 

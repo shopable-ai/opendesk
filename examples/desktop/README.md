@@ -79,7 +79,7 @@ OPENDESK_EXAMPLE_WINDOW_TITLE='OpenDesk window test' OPENDESK_EXAMPLE_WINDOW_PID
 
 ## Canonical-only
 
-通用桌面示例只使用本目录中的 canonical 路径。过去位于 `examples/` 根目录的 window/keyboard/mouse/page/screen/screenshot/UI 定位脚本已经退休并删除。Catalog 的 `aliases` 仅保留历史名称/搜索上下文，不代表旧文件仍存在。
+通用桌面示例只使用本目录中的 canonical 路径。过去位于 `examples/` 根目录的 window/keyboard/mouse/page/screen/screenshot/UI 定位脚本已经退休并删除。Catalog 的 `legacyNames` 仅保留历史名称/搜索上下文，不代表旧文件仍存在。
 
 `support/` 只保存多个桌面示例共享的目标核对逻辑，不是可运行入口，不进入 Explorer 普通列表。
 

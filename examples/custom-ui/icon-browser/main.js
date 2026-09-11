@@ -1,5 +1,5 @@
 // Run from the repository root with:
-// ./opendesk -ui -script examples/custom-ui/icon-list.js -console-mode script -log-dir .runtime/examples/custom-ui/icon-list
+// ./opendesk -ui -script examples/custom-ui/icon-browser/main.js -console-mode script -log-dir .runtime/examples/custom-ui/icon-browser
 //
 // Scroll one real Custom UI window to browse every default icon in a 10-column
 // grid. The list includes semantic AI and automation IDs alongside common SF
@@ -7,9 +7,9 @@
 // copy one ready-to-paste FloatingWindow.addButton() line. Close the window to
 // finish.
 
-const exampleRoot = File.join(File.cwd(), 'examples/custom-ui');
+const exampleRoot = File.join(File.cwd(), 'examples/custom-ui/icon-browser');
 const registryPath = File.join(File.cwd(), 'pkg/customui/assets/toolbar-icons-v1.json');
-const iconListHTMLPath = File.join(exampleRoot, 'icon-list.html');
+const iconListHTMLPath = File.join(exampleRoot, 'panel.html');
 const registry = JSON.parse(File.read(registryPath));
 if (registry.schemaVersion !== 1 || !Array.isArray(registry.icons) || registry.icons.length < 100 || registry.icons.length > 256) {
   throw new Error('expected the Custom UI v1 registry to contain 100–256 icons');

@@ -13,7 +13,7 @@ API 事实源按优先级为：当前源码和实际 Runtime 行为、`docs/api/
 公开 Dialog 示例的普通体验从仓库根目录只运行一条命令，例如：
 
 ```bash
-./opendesk -ui -script examples/dialog.js -console-mode script
+./opendesk -ui -script examples/dialog/async-await.js -console-mode script
 ```
 
 这条命令必须先由维护者使用当前的一对 `opendesk` / `opendesk-ui-host` 原样验证，并人工观察
@@ -155,7 +155,7 @@ JavaScript 文件验证文档列出的选定 ES2015–ES2023 语法、内建能�
 `environment` 覆盖本地 `Execution.env` 的显式 dotenv 文件、启动时 OS 环境及其覆盖优先级、
 默认 `.env` / `.opendesk.env` 自动发现、系统 `PATH`、冻结快照、`Command.run` 默认继承、
 `ai run --env-file`，以及 HTTP execution 不继承服务端环境；同一 gate 还运行并检查公开的
-`examples/environment.js`：
+`examples/runtime/environment.js`：
 
 ```bash
 OPENDESK_RUNTIME_API_MODE=environment ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
@@ -193,7 +193,7 @@ OPENDESK_RUNTIME_API_BROWSER_APP=Safari
 从仓库根目录执行，并把普通体验、原生 gate 与确定性测试分开记录。
 
 1. **普通手动体验（macOS）**：先运行一次 `make build`，再运行
-   `./dist/opendesk -script examples/global-shortcut.js -console-mode script`。让另一个 App
+   `./dist/opendesk -script examples/events/global-shortcut.js -console-mode script`。让另一个 App
    处于前台，按 `Command+Shift+e`，执行 `pbpaste` 确认剪贴板文本；按 `Ctrl-C` 正常结束以
    清理注册。该宿主须在 **System Settings → Privacy & Security → Accessibility** 与
    **Input Monitoring** 中允许后重启；后者支持 backend 的 HID listener（特别是 `F21`–`F24`）。

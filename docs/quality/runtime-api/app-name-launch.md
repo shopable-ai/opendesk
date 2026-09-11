@@ -43,7 +43,7 @@
 从仓库根目录原样执行：
 
 ```bash
-./dist/opendesk ai run examples/open-calculator-by-name.js
+./dist/opendesk ai run examples/app/open-calculator-by-name.js
 ```
 
 通过。执行 ID 为 `ai-20260905-201812-770000`，耗时 859 ms；摘要为

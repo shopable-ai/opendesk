@@ -121,7 +121,7 @@ Final Commit: this task-closing commit
 ### Evidence
 
 - 从仓库根目录原样执行文档命令：
-  `go run ./cmd/opendesk -script examples/clipboard/rich-smoke.js -console-mode script` -> PASS。
+  `./dist/opendesk -script tests/clipboard/rich-smoke.js -console-mode script` -> PASS。
 - 实机：macOS 12.7.6 / amd64，backend=`nspasteboard`；一次真实 write/read 验证 text、HTML、RTF、
   PNG、file list 五种格式，随后验证真实 clear 与 TASK-003 polling `clipboard.changed`。
 - 原剪贴板在内存中恢复；Evidence 不含正文、base64 bytes 或文件路径：
@@ -133,7 +133,7 @@ Final Commit: this task-closing commit
 - 用户文档：`docs/api/clipboard.md`，同步 `docs/api/index.md`。
 - 机器索引与正式 conformance：`docs/api/runtime-api.ai.json`、`tests/runtime-api/manifest.js`、
   unit/live clipboard tests。
-- 可复制示例：`examples/clipboard/rich-smoke.js`。
+- 测试资产：`tests/clipboard/rich-smoke.js`。
 
 ### Remaining
 
@@ -153,7 +153,7 @@ Final Commit: this task-closing commit
   和 JavaScript unit/live tests 同步。
 - 当前源码验证：clipboard Go 聚焦测试 PASS；Runtime API contract 306/306 PASS；unit 431/431 PASS；
   `OPENDESK_RUNTIME_API_LIVE_FILTER=clipboard.test.js ./scripts/test_runtime_apis.sh live-only` 为 1/1 PASS
-  且 cleanup PASS（覆盖 9 个 clipboard/global helper 方法）；仓库 `rich-smoke.js` 注释中的一行
+且 cleanup PASS（覆盖 9 个 clipboard/global helper 方法）；仓库 `tests/clipboard/rich-smoke.js` 注释中的一行
   当前源码命令原样 PASS，macOS
   `nspasteboard` 实测五种格式、事件、真实 clear 和原剪贴板恢复。
 - `scripts/test_runtime_apis.sh live` 的 clipboard case 通过，但总入口的无关 Custom UI 后置 gate 为

@@ -1,8 +1,8 @@
 // Run from the repository root:
-// ./dist/opendesk -ui -allow-recorder-capture -script examples/custom-ui/recording-console.js -console-mode script -log-dir .runtime/examples/custom-ui/recording-console
+// ./dist/opendesk -ui -allow-recorder-capture -script workflows/human-to-recipe/recording-console.js -console-mode script -log-dir .runtime/workflows/human-to-recipe/recording-console
 //
 // The visible Custom UI is the control surface for the same execution-owned
-// Recorder Runtime used by examples/human-to-recipe/record.js. The UI pause
+// Recorder Runtime used by workflows/human-to-recipe/record.js. The UI pause
 // button dispatches to explicit session.pause()/session.resume() methods.
 // Stopping builds actions and generation requires a separate button press.
 // The generated file is shown before a second explicit user action may launch

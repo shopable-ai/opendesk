@@ -1,5 +1,5 @@
 // Run from the repository root:
-// go run ./cmd/opendesk -script examples/clipboard/rich-smoke.js -console-mode script
+// ./dist/opendesk -script tests/clipboard/rich-smoke.js -console-mode script
 
 const evidenceDirectory = '.runtime/tests/platform-primitives/task-005-clipboard';
 const evidencePath = File.join(evidenceDirectory, 'rich-smoke.json');

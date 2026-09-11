@@ -115,7 +115,7 @@ macOS 使用静态编入的 libuiohook 并需要 Input Monitoring/Accessibility 
 正常交互示例从仓库根目录运行，F8 开始、F9 在 UI 层暂停／继续、F10 停止并制作 actions、F11 显式生成、F12 不生成直接结束：
 
 ```bash
-./dist/opendesk -allow-recorder-capture -script examples/human-to-recipe/record.js -console-mode script
+./dist/opendesk -allow-recorder-capture -script workflows/human-to-recipe/record.js -console-mode script
 ```
 
 该命令不会自动回放生成脚本。
@@ -123,13 +123,13 @@ macOS 使用静态编入的 libuiohook 并需要 Input Monitoring/Accessibility 
 需要可见按钮和阶段反馈时，使用同一 Runtime 对象的 Custom UI 入口：
 
 ```bash
-./dist/opendesk -ui -allow-recorder-capture -script examples/custom-ui/recording-console.js -console-mode script -log-dir .runtime/examples/custom-ui/recording-console
+./dist/opendesk -ui -allow-recorder-capture -script workflows/human-to-recipe/recording-console.js -console-mode script -log-dir .runtime/workflows/human-to-recipe/recording-console
 ```
 
 简化控制台从仓库根目录运行：
 
 ```bash
-./dist/opendesk -ui -allow-recorder-capture -script examples/custom-ui/recording-console-simple.js -console-mode script -log-dir .runtime/examples/custom-ui/recording-console-simple
+./dist/opendesk -ui -allow-recorder-capture -script workflows/human-to-recipe/recording-console-simple.js -console-mode script -log-dir .runtime/workflows/human-to-recipe/recording-console-simple
 ```
 
 开始控制是本次即时采集授权；点击后控制台留出 3 秒供用户聚焦起始窗口，再读取并保存该窗口上下文，
@@ -426,7 +426,7 @@ wheel 同样先解析新鲜窗口或显示器，把录制的首事件坐标投�
 POSIX shell 从仓库根目录独立生成：
 
 ```bash
-OPENDESK_RECORDER_ACTIONS_FILE=.runtime/recordings/<ID>/actions.json ./dist/opendesk -script examples/human-to-recipe/generate.js -console-mode script
+OPENDESK_RECORDER_ACTIONS_FILE=.runtime/recordings/<ID>/actions.json ./dist/opendesk -script workflows/human-to-recipe/generate.js -console-mode script
 ```
 
 PowerShell 从仓库根目录独立生成：

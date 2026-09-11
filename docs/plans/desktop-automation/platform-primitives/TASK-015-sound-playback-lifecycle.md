@@ -67,7 +67,7 @@ Decision: EXTEND
 - `./scripts/test_runtime_apis.sh unit` -> PASS，`433/433`；证据目录：
   `.runtime/tests/runtime-api/20260902T123714Z-18596/`。
 - 从仓库根目录原样执行：
-  `go run ./cmd/opendesk -script examples/sound-playback.js -console-mode script` -> PASS；
+  `go run ./cmd/opendesk -script examples/audio/playback-control.js -console-mode script` -> PASS；
   输出验证 pause/resume/stop/wait 以及 `activeAfterWait=0`，证据目录：
   `.runtime/runs/direct-20260902-203852-692000/`；cleanup event 中 sound 三项均为 `0`。
 - `python3 -m json.tool docs/api/runtime-api.ai.json` 与 `git diff --check` -> PASS。

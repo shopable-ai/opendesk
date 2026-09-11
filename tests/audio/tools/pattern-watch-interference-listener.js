@@ -1,5 +1,5 @@
 // Run from the repository root after generating the fixture:
-// ./dist/opendesk -script examples/audio/pattern-watch-interference-listener.js -console-mode script
+// ./dist/opendesk -script tests/audio/tools/pattern-watch-interference-listener.js -console-mode script
 // Start this listener first, then in another terminal run:
 // afplay .runtime/tests/platform-primitives/task-016-audio-pattern-watcher/fixture/order-interference-20s.wav
 

@@ -1,5 +1,5 @@
 // Run from the repository root:
-// ./dist/opendesk -allow-recorder-capture -script examples/human-to-recipe/record.js -console-mode script
+// ./dist/opendesk -allow-recorder-capture -script workflows/human-to-recipe/record.js -console-mode script
 //
 // F8 starts against the currently active window. F9 is a UI-level pause/resume
 // toggle backed by the explicit session.pause() and session.resume() APIs. F10

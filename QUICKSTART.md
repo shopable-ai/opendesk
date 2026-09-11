@@ -150,7 +150,7 @@ bash scripts/install_macos_cli.sh
 确认 `~/.local/bin` 已在新开的终端 PATH 中后，可从仓库根目录直接运行交互示例：
 
 ```bash
-opendesk -ui -script examples/custom-ui/floating-toolbar-wrap-demo.js -console-mode script -log-dir .runtime/examples/custom-ui/floating-toolbar-wrap-demo
+opendesk -ui -script examples/custom-ui/toolbar-wrap/main.js -console-mode script -log-dir .runtime/examples/custom-ui/toolbar-wrap
 ```
 
 安装器发现已有但不带 OpenDesk 管理标记的 `opendesk` 时会停止，不会覆盖它。指定另一个 App
@@ -240,7 +240,7 @@ go run ./cmd/opendesk <flags>
 ### 文件
 
 ```bash
-go run ./cmd/opendesk -script examples/notify.js
+go run ./cmd/opendesk -script examples/notifications/send.js
 ```
 
 ### Inline source

@@ -9,15 +9,15 @@ OPENDESK_EXAMPLE_ALLOW_CLIPBOARD_WRITE=1 ./opendesk -script examples/clipboard/t
 
 [text.js](text.js) 只写固定示例文本并读回核对，不匹配即抛错；不会打印意外读到的剪贴板正文。
 成功后示例文本留在剪贴板，不像旧根目录示例那样无条件清空。未显式启用时，在首次读写前失败。
-旧 `examples/clipboard.js` 是该文件的薄兼容入口，相同的显式授权也适用。
+旧根目录入口已经退休；当前只使用本目录的 canonical 文件。
 
-已有 [rich-smoke.js](rich-smoke.js) 和 [rich-paste-fixture.js](rich-paste-fixture.js) 不在这轮改写范围。
+公开的 [rich-paste-fixture.js](rich-paste-fixture.js) 用于人工粘贴演示；`tests/clipboard/rich-smoke.js` 是真实设备 smoke，不属于 Examples。
 它们的富格式行为和平台限制继续按 [Clipboard API](../../docs/api/clipboard.md)；不能把纯文本
 复制视为富格式恢复，也不能把所有剪贴板示例批量运行。
 
 ## 压力测试不是示例
 
-原来的 `examples/clipboard.test.js` 已转发到独立真实设备测试，避免在示例目录维护测试矩阵。
+原来的 clipboard 测试已归入独立真实设备测试，避免在示例目录维护测试矩阵。
 从仓库根目录运行：
 
 ```bash

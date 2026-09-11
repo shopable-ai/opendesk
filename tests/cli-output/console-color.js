@@ -40,7 +40,7 @@ function artifactDir(name) {
 
 function environmentArgs(name, ...extra) {
   return [
-    '-script', 'examples/environment.js',
+    '-script', 'examples/runtime/environment.js',
     '-log-dir', artifactDir(name),
     ...extra,
   ];

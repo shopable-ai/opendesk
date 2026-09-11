@@ -37,7 +37,7 @@ P0 首先提供两个始终可见的官方入口：
 
 ## 2. 为什么不是继续修改 example
 
-`examples/custom-ui/script-runner-simple.js` 的职责是公开示例与 API 演示。正式发行产品已经由 `apps/opendesk` 持有 App Mode 主窗口、Script Runner 与产品动作。
+`apps/opendesk/script-runner-simple.js` 的职责是产品启动适配。正式发行产品已经由 `apps/opendesk` 持有 App Mode 主窗口、Script Runner 与产品动作。
 
 因此：
 
@@ -280,7 +280,7 @@ apps/opendesk/
     └── controller.js
 ```
 
-`examples/custom-ui/script-runner-simple.js` 继续作为公开示例，不成为商业入口的 owner。
+`apps/opendesk/script-runner-simple.js` 继续作为产品启动适配器，不成为商业动作与 controller 的 owner。
 
 ## 11. P0 验收
 

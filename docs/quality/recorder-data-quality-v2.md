@@ -67,7 +67,7 @@ node scripts/audit_test_architecture.js
 公开原生 UI 的普通体验命令为：
 
 ```bash
-./dist/opendesk -ui -allow-recorder-capture -script examples/custom-ui/recording-console-simple.js -console-mode script -log-dir .runtime/examples/custom-ui/recording-console-simple
+./dist/opendesk -ui -allow-recorder-capture -script workflows/human-to-recipe/recording-console-simple.js -console-mode script -log-dir .runtime/workflows/human-to-recipe/recording-console-simple
 ```
 
 普通一行命令、正式自动化 gate、真实窗口视觉证据和真实目标应用录制是四类不同证据，报告时不得互相替代。

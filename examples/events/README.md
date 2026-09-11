@@ -20,7 +20,7 @@
 
 两份示例都在 Catalog 中标记为 `manual`：权限准备可能打开系统设置，快捷键示例会注册全局输入并在用户触发时修改剪贴板。
 
-过去位于 `examples/` 根目录的 `global-shortcut.js` 和 `global-shortcut-permission-setup.js` 已退休并删除；Catalog `aliases` 仅保留历史名称/搜索上下文。
+过去位于 `examples/` 根目录的 `global-shortcut.js` 和 `global-shortcut-permission-setup.js` 已退休并删除；Catalog `legacyNames` 仅保留历史名称/搜索上下文。
 
 历史 `clipboard.changed` smoke 已迁出 public Examples，维护者诊断位于 `tests/automation/tools/events/`。
 

@@ -76,7 +76,7 @@ Command.run(<dist/opendesk>, [
 History run logs are written under:
 
 ```text
-.runtime/examples/custom-ui/recording-console-simple/history-runs/<recordingId>/<run timestamp>/
+.runtime/workflows/human-to-recipe/recording-console-simple/history-runs/<recordingId>/<run timestamp>/
 ```
 
 The History manager claims the active run before its first asynchronous UI update, so rapid repeated Run clicks cannot

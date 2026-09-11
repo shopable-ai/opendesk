@@ -228,7 +228,7 @@ func makeHTML(_ icons: [RenderedIcon]) -> String {
         <section id="grid" class="grid" aria-label="内置图标列表">
           \(cards)
         </section>
-        <footer>由 <code>pkg/customui/assets/toolbar-icons-v1.json</code> 在当前 macOS 上生成。此 HTML 用于查找和复制；真实 Runtime 窗口由 <code>examples/custom-ui/icon-list.js</code> 加载同一批生成图像，并在一个可滚动界面中绑定全部 \(count) 个按钮。</footer>
+        <footer>由 <code>pkg/customui/assets/toolbar-icons-v1.json</code> 在当前 macOS 上生成。此 HTML 用于查找和复制；真实 Runtime 窗口由 <code>examples/custom-ui/icon-browser/main.js</code> 加载同一批生成图像，并在一个可滚动界面中绑定全部 \(count) 个按钮。</footer>
       </main>
       <script>
         const cards = [...document.querySelectorAll('.icon-card')];
@@ -297,7 +297,7 @@ func makeRuntimeHTML(_ icons: [RenderedIcon]) -> String {
 
   return """
   <!doctype html>
-  <!-- Generated Runtime-safe view; business behavior stays in icon-list.js. -->
+  <!-- Generated Runtime-safe view; business behavior stays in icon-browser/main.js. -->
   <html lang="zh-CN">
     <head>
       <meta charset="utf-8">

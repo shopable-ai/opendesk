@@ -124,7 +124,7 @@ Final Commit: 本任务的 task-closing commit（实际 SHA 见 Git 历史与连
 - `./scripts/test_runtime_apis.sh unit` -> PASS，398/398；9 个 App contract 与 2 个 App behavior case
   全通过。证据：`.runtime/tests/runtime-api/20260901T204931Z-77316/`。
 - 从仓库根目录原样执行公共示例：
-  `./opendesk -script examples/app-lifecycle.js -console-mode script` -> PASS；示例仅在 Calculator 原本
+  `./opendesk -script examples/app/lifecycle-calculator.js -console-mode script` -> PASS；示例仅在 Calculator 原本
   未运行时启动/restart/清理，并验证最终不运行。
 - `./scripts/test_app_lifecycle.sh` -> PASS；编译并运行 repository-owned AppKit fixture，覆盖 launch、
   PID-window link、second launch、restart、graceful、force 与 waitForExit。
@@ -149,7 +149,7 @@ Final Commit: 本任务的 task-closing commit（实际 SHA 见 Git 历史与连
 - 类型：`types/App.d.ts`；用户文档：`docs/api/app.md`，同步 `docs/api/index.md` 与 `README.md`。
 - 机器索引与 conformance：`docs/api/runtime-api.ai.json`、`tests/runtime-api/manifest.js`、
   `tests/runtime-api/unit/app.test.js`。
-- 可复制用户示例：`examples/app-lifecycle.js`；正式 macOS gate：`scripts/test_app_lifecycle.sh` 与
+- 可复制用户示例：`examples/app/lifecycle-calculator.js`；正式 macOS gate：`scripts/test_app_lifecycle.sh` 与
   `tests/runtime-api/fixtures/app-lifecycle/`。
 
 ### Remaining

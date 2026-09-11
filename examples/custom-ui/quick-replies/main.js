@@ -1,9 +1,9 @@
 // Run from the repository root with:
-// ./opendesk -ui -script examples/custom-ui/toolbar-vertical-quick-replies.js -console-mode script -log-dir .runtime/examples/custom-ui/toolbar-vertical-quick-replies
+// ./opendesk -ui -script examples/custom-ui/quick-replies/main.js -console-mode script -log-dir .runtime/examples/custom-ui/quick-replies
 // Edit the JSON file to change reply copy, button order, or the right-center
 // anchor position on the active display. The FloatingWindow setup stays here so this
 // file remains a complete, readable Runtime API example.
-const configPath = File.join(File.cwd(), 'examples/custom-ui/toolbar-vertical-quick-replies.json');
+const configPath = File.join(File.cwd(), 'examples/custom-ui/quick-replies/config.json');
 const toolbarConfig = JSON.parse(File.read(configPath));
 
 const toolbar = new FloatingWindow(toolbarConfig.toolbar);

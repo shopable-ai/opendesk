@@ -104,7 +104,7 @@ ui/*.js
 = Recorder UI 正式 JavaScript 实现
 ```
 
-不要重新把 `assets.go` 放回 `examples/custom-ui/recording-console-simple/`，也不要把 Recorder JavaScript 改写为 Go。
+不要重新把 `assets.go` 放回 `workflows/human-to-recipe/recording-console-simple/`，也不要把 Recorder JavaScript 改写为 Go。
 
 Recorder process model 继续保持：
 
@@ -124,7 +124,7 @@ main OpenDesk process
 apps/opendesk/script-runner/controller.js
 ```
 
-`examples/custom-ui/script-runner-simple.js` 只应作为 thin example/compatibility entry，不重新拥有业务 controller。
+`apps/opendesk/script-runner-simple.js` 是产品层的启动适配器，不重新拥有 Script Runner 业务 controller；controller owner 仍是 `apps/opendesk/script-runner/`。
 
 Recipe 执行模型继续保持：
 

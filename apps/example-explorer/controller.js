@@ -7,7 +7,12 @@
     const execution = options.execution;
     const catalogApi = global.OpenDeskExampleCatalog;
     const viewApi = global.OpenDeskExampleView;
+    const launchApi = options.launchApi || global.OpenDeskExampleLaunchSpec;
     const runner = global.OpenDeskExampleRunner.createRunner(options);
+    const platformInfo = typeof options.system.getPlatformInfo === 'function' ? options.system.getPlatformInfo() : null;
+    const currentPlatform = platformInfo && (platformInfo.os || platformInfo.platform)
+      ? String(platformInfo.os || platformInfo.platform).toLowerCase()
+      : '';
     const examplesRoot = options.examplesRoot;
     const catalogPath = file.join(examplesRoot, 'catalog.json');
     const css = file.read(options.stylesPath);
@@ -30,7 +35,7 @@
         if (category !== 'All' && entry.category !== category) return false;
         if (!needle) return true;
         const haystack = [entry.title, entry.relativePath, entry.description, entry.category]
-          .concat(entry.tags || []).join(' ').toLowerCase();
+          .concat(entry.tags || [], entry.legacyNames || []).join(' ').toLowerCase();
         return haystack.includes(needle);
       });
     }
@@ -72,20 +77,31 @@
     }
 
     function policyClass(entry) {
-      return ['badge', entry && entry.runnable ? 'safe' : 'unregistered'];
+      return ['badge', entry && entry.runnable ? 'safe' : entry && entry.platformSupported === false ? 'unsupported' : 'unregistered'];
     }
 
-    function shellQuote(value) {
-      const text = String(value == null ? '' : value);
-      if (/^[A-Za-z0-9_./-]+$/.test(text)) return text;
-      return "'" + text.replace(/'/g, "'\\''") + "'";
+    function launchSpecFor(entry) {
+      if (!entry) return null;
+      return launchApi.create(entry, {
+        platform: currentPlatform,
+        workdir: execution.workdir,
+        pathApi: global.path,
+      });
     }
 
     function runCommandFor(entry) {
-      if (!entry) return '';
-      const scriptPath = path.relative(execution.workdir, entry.absolutePath).replace(/\\/g, '/');
-      return ['./dist/opendesk', '-script', scriptPath, '-console-mode', 'script']
-        .map(shellQuote).join(' ');
+      const spec = launchSpecFor(entry);
+      return spec ? spec.buildDisplayCommand() : '';
+    }
+
+    function platformText(entry) {
+      if (!entry) return '—';
+      return entry.platforms.join(', ');
+    }
+
+    function launchText(entry) {
+      if (!entry) return '—';
+      return entry.launch.kind === 'ai-run' ? 'ai run' : 'script';
     }
 
     async function syncListAndDetail() {
@@ -116,11 +132,29 @@
       await safeUpdate('detailPath', {text: entry ? entry.relativePath : '—'});
       await safeUpdate('detailCategory', {text: entry ? entry.category : '—'});
       await safeUpdate('detailLevel', {text: entry ? entry.level : '—'});
+      await safeUpdate('detailPlatform', {text: platformText(entry)});
+      await safeUpdate('detailLaunchMode', {text: launchText(entry)});
+      await safeUpdate('detailUIRequired', {text: entry ? (entry.launch.ui ? 'Yes' : 'No') : '—'});
+      await safeUpdate('platformStatus', {
+        text: entry && !entry.platformSupported ? `Unsupported on ${currentPlatform || 'this platform'}` : (entry ? 'Supported on this platform' : '—'),
+        classes: entry && !entry.platformSupported ? ['platform-status', 'unsupported'] : ['platform-status', 'supported'],
+      });
       await safeUpdate('overviewDocs', {text: entry && entry.docs ? entry.docs : 'No API link registered'});
       await safeUpdate('overviewPrerequisites', {text: entry && entry.prerequisites.length ? entry.prerequisites.join('\n') : 'None declared'});
+      await safeUpdate('overviewRunPolicy', {text: entry ? entry.runPolicy : '—'});
+      await safeUpdate('overviewRequiredEnv', {text: entry && entry.requiredEnv.length ? entry.requiredEnv.join('\n') : 'None declared'});
+      await safeUpdate('overviewCommand', {text: entry ? runCommandFor(entry) : '—'});
+      await safeUpdate('overviewInput', {text: entry && entry.launch.input === 'required' ? 'Required: add --input-file <path-to-input.json>' : 'None'});
       await safeUpdate('overviewExpected', {text: entry && entry.expected ? entry.expected : 'Not declared'});
-      await safeUpdate('runHint', {text: entry && entry.runnable ? 'Approved for one-click run' : 'Review prerequisites and run manually'});
-      await safeUpdate('run', {disabled: !entry || !entry.runnable || runner.isRunning()});
+      const runHint = !entry
+        ? 'Select an example to inspect its launch contract'
+        : !entry.platformSupported
+          ? `Unsupported on ${currentPlatform || 'this platform'}`
+          : entry.runnable
+            ? 'Approved for one-click run'
+            : 'Review prerequisites and run manually';
+      await safeUpdate('runHint', {text: runHint});
+      await safeUpdate('run', {disabled: !entry || !entry.runnable || !entry.platformSupported || runner.isRunning()});
       await safeUpdate('stop', {disabled: !runner.isRunning()});
       await safeUpdate('copyRunCommand', {disabled: !entry});
       await syncTab();
@@ -145,7 +179,7 @@
     }
 
     function rescan() {
-      scanResult = catalogApi.scan({file, examplesRoot, catalogPath});
+      scanResult = catalogApi.scan({file, examplesRoot, catalogPath, currentPlatform});
       signature = catalogApi.signature(file, examplesRoot);
       const safeCount = scanResult.entries.filter(entry => entry.runnable).length;
       status = `Loaded ${scanResult.entries.length} curated examples; ${safeCount} approved for one-click run; ${scanResult.unregistered.length} internal/unregistered scripts hidden.`;
@@ -244,7 +278,7 @@
         const entry = current();
         if (!entry) return;
         copyToClipboard(runCommandFor(entry));
-        status = `Run command copied for ${entry.relativePath}.`;
+        status = `Run command copied for ${entry.relativePath}${entry.platformSupported ? '.' : ' (review platform requirements first).'}`;
         await syncListAndDetail();
       });
       for (let index = 0; index < viewApi.PAGE_SIZE; index++) bind(`example${index}`, 'click', () => selectIndex(index));

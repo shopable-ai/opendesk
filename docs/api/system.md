@@ -118,7 +118,7 @@ API 刻意不提供 `System.getAllEnv()`。环境经常包含 token，读取时�
 从仓库根目录运行只读示例：
 
 ```bash
-./opendesk -script examples/system-session-state.js -console-mode script
+./opendesk -script examples/runtime/system-session-state.js -console-mode script
 ```
 
 ```js

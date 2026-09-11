@@ -16,7 +16,7 @@ fi
 REGISTRY="${ROOT_DIR}/pkg/customui/assets/toolbar-icons-v1.json"
 RENDERER="${ROOT_DIR}/tests/custom-ui/tools/icon-catalog/main.swift"
 PUBLISHED_HTML="${ROOT_DIR}/docs/custom-ui/icon-list.html"
-PUBLISHED_RUNTIME_HTML="${ROOT_DIR}/examples/custom-ui/icon-list.html"
+PUBLISHED_RUNTIME_HTML="${ROOT_DIR}/examples/custom-ui/icon-browser/panel.html"
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
   printf 'Custom UI icon catalog rendering requires macOS and AppKit.\n' >&2

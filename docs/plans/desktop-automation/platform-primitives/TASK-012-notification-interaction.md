@@ -87,7 +87,7 @@ Tests:
 - 正式 JavaScript Runtime API unit gate：411/411 通过；Evidence 位于
   `.runtime/tests/runtime-api/20260901T221838Z-24898/`。
 - 文档一行命令从仓库根目录原样通过：
-  `./dist/opendesk -script examples/notifications.js -console-mode script`。
+  `./dist/opendesk -script examples/notifications/lifecycle.js -console-mode script`。
 - `go test ./...`：本任务相关 `automation`、`pkg/execution`、`pkg/scheduler`、`cmd/opendesk` 等通过；
   全仓仍因既有 `pkg/visionrun` 的 4 个 fixture/runtime-input 缺失失败，与本任务无关。
 - `git diff --check` 通过；`runtime-api.ai.json` 可由 `python3 -m json.tool` 解析。

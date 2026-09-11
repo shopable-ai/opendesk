@@ -133,7 +133,7 @@ relative mode `anchor`, while retaining `setPlacement()` only as an action.
 - The documented command was run unchanged from repository root. Its final
   Runtime log reports `position.mode:"anchor"`, observed outer bounds
   `{x:1844,y:374,width:60,height:273}`, `VERTICAL_QUICK_REPLY_COPIED`, and
-  normal close at `.runtime/examples/custom-ui/toolbar-vertical-quick-replies/`.
+  normal close at `.runtime/examples/custom-ui/quick-replies/`.
   A PID-scoped AXPress copied the welcome reply and captured the real native
   panel before/after at
   `.runtime/tests/custom-ui-placement-public/before-axpress.png` and

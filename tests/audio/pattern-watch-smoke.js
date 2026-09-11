@@ -1,5 +1,5 @@
 // Run from the repository root:
-// OPENDESK_AUDIO_REFERENCE=/absolute/path/to/new-order.wav ./dist/opendesk -script examples/audio/pattern-watch-smoke.js -console-mode script
+// OPENDESK_AUDIO_REFERENCE=/absolute/path/to/new-order.wav ./dist/opendesk -script tests/audio/pattern-watch-smoke.js -console-mode script
 // The script never plays the reference. Trigger the same cue from the target application.
 
 const evidenceDirectory = '.runtime/tests/platform-primitives/task-016-audio-pattern-watcher';

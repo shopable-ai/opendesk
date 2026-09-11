@@ -1,5 +1,5 @@
 // 从仓库根目录使用 OpenDesk GoJS Runtime 运行：
-// ./dist/opendesk -script examples/audio/generate-market-multisentence-fixture.js -console-mode script
+// ./dist/opendesk -script tests/audio/tools/generate-market-multisentence-fixture.js -console-mode script
 //
 // 这个生成器的职责：
 // 1. 在 macOS 上优先使用系统免费内置的 `/usr/bin/say` 默认语音生成 TTS，

@@ -263,7 +263,7 @@ const command = {
 };
 
 const controllerPath = File.join(
-  Execution.workdir, 'examples', 'custom-ui', 'recording-console-simple', 'controller.js',
+  Execution.workdir, 'internal', 'recorderbundle', 'ui', 'controller.js',
 );
 (0, eval)(File.read(controllerPath) + '\n//# sourceURL=' + controllerPath);
 assert(globalThis.OpenDeskSimpleRecordingConsole, 'simple controller did not install its namespace');
@@ -317,7 +317,7 @@ const app = OpenDeskSimpleRecordingConsole.createApp({
   execution: Execution,
   sleep: async () => {},
   countdownStepMs: 0,
-  iconRoot: File.join(Execution.workdir, 'examples', 'custom-ui', 'recording-console-simple', 'icons'),
+  iconRoot: File.join(Execution.workdir, 'internal', 'recorderbundle', 'ui', 'icons'),
   logger: {log() {}, error(message) { throw new Error(message); }},
 });
 

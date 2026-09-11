@@ -40,10 +40,10 @@ HTTP 由 [http.js](http.js) 展示，因为它有外部测试服务前置条件�
 
 ## 旧路径已退休
 
-过去位于 `examples/` 根目录的 Runtime 入口已经删除。新代码、文档和命令只使用 `examples/runtime/...`。Catalog 中如保留 `aliases`，只用于历史名称和搜索上下文，不表示旧文件仍可执行。
+过去位于 `examples/` 根目录的 Runtime 入口已经删除。新代码、文档和命令只使用 `examples/runtime/...`。Catalog 中如保留 `legacyNames`，只用于历史名称和搜索上下文，不表示旧文件仍可执行。
 
 ## Example 与 Test 的边界
 
-`examples/runtime/page-wait.test.js` 等已有 smoke/test 风格文件不属于 Explorer 的普通 curated 列表；正式 Runtime contract 继续由 `tests/runtime-api/` 承担。不要因为某个公开 Example 成功执行，就把对应 API 或跨平台行为标记为正式测试通过。
+带 `.test.js` 或 smoke 语义的实现不属于 Explorer 的普通 curated 列表；正式 Runtime contract 继续由 `tests/runtime-api/` 承担。不要因为某个公开 Example 成功执行，就把对应 API 或跨平台行为标记为正式测试通过。
 
 平台限制和精确 API 契约分别以 [`docs/api/`](../../docs/api/README.md) 中的对应 Reference 为准。

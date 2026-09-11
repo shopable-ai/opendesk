@@ -32,7 +32,7 @@
     tier: 'custom-ui',
     covers: ['FloatingWindow.constructor', 'FloatingWindow.addButton'],
   }, async () => {
-    const demoPath = File.join(File.cwd(), 'examples/custom-ui/floating-toolbar-wrap-demo.json');
+    const demoPath = File.join(File.cwd(), 'examples/custom-ui/toolbar-wrap/config.json');
     const demo = JSON.parse(File.read(demoPath));
     equal(demo.schemaVersion, 1, 'wrap demo schema changed');
     equal(demo.layouts.map(item => item.id).join(','), 'maxWidth,maxColumns,maxRows', 'wrap demo layout order changed');

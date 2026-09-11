@@ -3,7 +3,7 @@
 从仓库根目录运行：
 
 ```bash
-./dist/opendesk -script examples/audio/generate-market-multisentence-fixture.js -console-mode script
+./dist/opendesk -script tests/audio/tools/generate-market-multisentence-fixture.js -console-mode script
 ```
 
 ## 人类可读的生成思路

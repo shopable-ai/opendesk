@@ -129,7 +129,7 @@ Agent 执行 → 工具调用、观察与验证 → 提炼 → Agent 来源的�
 从仓库根目录使用正常入口：
 
 ```bash
-./dist/opendesk -allow-recorder-capture -script examples/human-to-recipe/record.js -console-mode script
+./dist/opendesk -allow-recorder-capture -script workflows/human-to-recipe/record.js -console-mode script
 ```
 
 F8 明确开始，F9 在示例 UI 层暂停／继续，F10 停止并制作 actions，F11 在 `ready` 时显式生成，F12 不生成结束；不会自动回放。
@@ -137,7 +137,7 @@ F8 明确开始，F9 在示例 UI 层暂停／继续，F10 停止并制作 actio
 需要正常可见窗口按钮时，使用同一 `Recorder` Runtime 的 Custom UI 入口：
 
 ```bash
-./dist/opendesk -ui -allow-recorder-capture -script examples/custom-ui/recording-console.js -console-mode script -log-dir .runtime/examples/custom-ui/recording-console
+./dist/opendesk -ui -allow-recorder-capture -script workflows/human-to-recipe/recording-console.js -console-mode script -log-dir .runtime/workflows/human-to-recipe/recording-console
 ```
 
 先聚焦隔离、非敏感、可恢复的目标，再点击“开始录制”。窗口展示准备、录制／暂停、保存、
@@ -147,7 +147,7 @@ actions 与生成状态；停止后制作 actions，生成需要另一次点击�
 简化的单行原生工具条入口同样从仓库根目录运行：
 
 ```bash
-./dist/opendesk -ui -allow-recorder-capture -script examples/custom-ui/recording-console-simple.js -console-mode script -log-dir .runtime/examples/custom-ui/recording-console-simple
+./dist/opendesk -ui -allow-recorder-capture -script workflows/human-to-recipe/recording-console-simple.js -console-mode script -log-dir .runtime/workflows/human-to-recipe/recording-console-simple
 ```
 
 该入口默认请求 `target-semantics`。普通 hover 不进入 raw；每个 release 绑定当时的应用、具体窗口、窗口内坐标和可取得的控件标签。切换应用或同一应用的其他窗口是允许的录制行为，不再触发旧版 `scope-changed` 停止。停止后会制作 actions；`ready` 自动生成完整 basic candidate，`needs-review` 自动生成带省略 warning 的 partial candidate，只有 package-integrity `blocked` 不进入生成。生成结果仍是 `verification: "not-run"`，只有另点“重放”才启动新的 execution。“复制 Agent 优化脚本”只在 `ready` generated script 存在且未运行时启用；`needs-review` 需要先人工修复行为缺口。复制内容只有脚本的仓库相对路径；仓库 `AGENTS.md` 负责路由到 `recorder-script-refiner`。该按钮不启动 Agent、不创建线程、不读取录制正文、不生成、不重放，也不改变录制包。
@@ -155,7 +155,7 @@ actions 与生成状态；停止后制作 actions，生成需要另一次点击�
 独立生成使用：
 
 ```bash
-OPENDESK_RECORDER_ACTIONS_FILE=.runtime/recordings/<ID>/actions.json ./dist/opendesk -script examples/human-to-recipe/generate.js -console-mode script
+OPENDESK_RECORDER_ACTIONS_FILE=.runtime/recordings/<ID>/actions.json ./dist/opendesk -script workflows/human-to-recipe/generate.js -console-mode script
 ```
 
 本次 Calculator 录制经过人工来源核对、语义加固和独立资格验证后的正式优化文件，从仓库根目录运行：

@@ -56,7 +56,7 @@ WP5 的“设计已补齐”不等于功能已经实现。当前 Calculator 通�
 macOS 的交互录制：
 
 ```bash
-./dist/opendesk -allow-recorder-capture -script examples/human-to-recipe/record.js -console-mode script
+./dist/opendesk -allow-recorder-capture -script workflows/human-to-recipe/record.js -console-mode script
 ```
 
 F8 在获准非敏感 fixture 前台时开始；F9 由示例串行 UI 根据状态调用显式 pause/resume；F10 stop 并制作 actions；`ready` 或 `needs-review` 时 F11 生成，后者得到带 warning 的 partial/no-op candidate；F12 不生成结束。关闭 execution 或 Ctrl+C 触发 native owner stop。该命令不回放。
@@ -64,7 +64,7 @@ F8 在获准非敏感 fixture 前台时开始；F9 由示例串行 UI 根据状�
 macOS 的原生窗口录制入口：
 
 ```bash
-./dist/opendesk -ui -allow-recorder-capture -script examples/custom-ui/recording-console.js -console-mode script -log-dir .runtime/examples/custom-ui/recording-console
+./dist/opendesk -ui -allow-recorder-capture -script workflows/human-to-recipe/recording-console.js -console-mode script -log-dir .runtime/workflows/human-to-recipe/recording-console
 ```
 
 点击开始后的倒计时用于选择起始窗口；PID＋title 只保存为 provenance，不会冻结采集范围。
@@ -74,7 +74,7 @@ macOS 的原生窗口录制入口：
 macOS 的简化原生工具条入口：
 
 ```bash
-./dist/opendesk -ui -allow-recorder-capture -script examples/custom-ui/recording-console-simple.js -console-mode script -log-dir .runtime/examples/custom-ui/recording-console-simple
+./dist/opendesk -ui -allow-recorder-capture -script workflows/human-to-recipe/recording-console-simple.js -console-mode script -log-dir .runtime/workflows/human-to-recipe/recording-console-simple
 ```
 
 该入口停止后自动制作 actions 和生成普通 JS，但仍不会自动回放；回放按钮需要独立点击。开始时使用 `target-semantics`，普通 hover 不写 raw，动作可跨应用／窗口并分别解析上下文。
@@ -90,7 +90,7 @@ Linux/X11 native adapter 已接线，但当前 `record.js` 的 F8/F9 控制面�
 独立生成：
 
 ```bash
-OPENDESK_RECORDER_ACTIONS_FILE=.runtime/recordings/<ID>/actions.json ./dist/opendesk -script examples/human-to-recipe/generate.js -console-mode script
+OPENDESK_RECORDER_ACTIONS_FILE=.runtime/recordings/<ID>/actions.json ./dist/opendesk -script workflows/human-to-recipe/generate.js -console-mode script
 ```
 
 ```powershell
@@ -321,7 +321,7 @@ click + event/window context
 | Go／架构 | 通过 | `go test ./automation` 与 `node scripts/audit_test_architecture.js` 均在 current8 收尾轮通过；架构摘要写入 `.runtime/tests/test-architecture/audit.json` |
 | 原公开命令 capture／generate | 通过 | 包 `.runtime/recordings/rec-20260909T220831.234712000Z-d8ee734a1596/`：`stopped/saved`、issues 空、accepted/persisted 44、15 组物理 key press/release 完整、actions `ready` 共 6 项、candidate/script 存在 |
 | keypad／文本／快捷键／IME | 通过 | e2/e3 为 keypad Enter `keycode=3612 (0x0e1c)`／`rawcode=76`；另含 ArrowLeft、`Ada → Adax` 的 `x` patch、完整 Meta+A、`Adax → 中文` 的最终值 patch。manifest 只保存 UTF-16LE SHA-256、长度与 patch `insertText`，不保存完整 before/after 值 |
-| 显式 replay＋独立 oracle | 通过 | 恢复精确初始值 `Ada` 后，`.runtime/examples/custom-ui/recording-console-simple/generated-script-runs/2026-09-09T22-26-13-788Z/` 以 `succeeded` 完成（27968ms）；`.runtime/tests/recorder-keypad-enter/final-current8-20260910-055340/live/replay4-independent-ax-oracle.json` 验证 `recorder-live-text` 为“中文”、selection `(2,0)`、focused=true；失败的前两次 replay 不计通过 |
+| 显式 replay＋独立 oracle | 通过 | 恢复精确初始值 `Ada` 后，`.runtime/workflows/human-to-recipe/recording-console-simple/generated-script-runs/2026-09-09T22-26-13-788Z/` 以 `succeeded` 完成（27968ms）；`.runtime/tests/recorder-keypad-enter/final-current8-20260910-055340/live/replay4-independent-ax-oracle.json` 验证 `recorder-live-text` 为“中文”、selection `(2,0)`、focused=true；失败的前两次 replay 不计通过 |
 | native stop／lease | 通过 | `.runtime/tests/runtime-api/recorder-native-stop-macos/1788993315746-direct-20260910-063515-971000/`；keyboard disabled 过滤 ArrowLeft，enabled 精确保存 press/release 并生成唯一 special-key action；两次 stop click matched，stop 84ms／429ms，连续 lease 复用成功 |
 | Custom UI 功能 | 19/19 通过 | `.runtime/tests/runtime-api/recorder-custom-ui-final-current8-20260910-062938/`；postSuite、lifecycle probes、resource cleanup 与 no residual processes 全通过 |
 | Custom UI 视觉 | 通过 | 同目录 `runtime-logs/custom-ui/recording-console/visible.png` 及 `floating-toolbar/recording-console/` 的 ready、actions-ready、details-run-succeeded 等截图；窗口内容自适应，按钮／输入／状态对齐，无异常拉宽、过高、大面积空白、裁切或错位 |

@@ -30,7 +30,7 @@ VISION_OCR_PROVIDER=paddle PADDLE_OCR_ENDPOINT=http://127.0.0.1:8868/predict/ocr
 
 ## 旧路径已退休
 
-过去的 `examples/vision.ocr.js`、`examples/vision_bytes_roundtrip.js` 和根目录 `imageColor.js` 已删除。只使用本目录和 `examples/image-color/` 的 canonical 路径。Catalog `aliases` 仅保存历史名称/搜索上下文。
+过去的根目录 Vision 入口已删除。只使用本目录和 `examples/image-color/` 的 canonical 路径。Catalog `legacyNames` 仅保存历史名称/搜索上下文。
 
 ## 边界
 

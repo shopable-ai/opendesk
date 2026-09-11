@@ -18,11 +18,38 @@
     const Abort = options.AbortController;
     const logger = options.logger || global.console;
     const executable = system.getExecutablePath();
+    const launchApi = options.launchApi || global.OpenDeskExampleLaunchSpec;
+    const platformInfo = typeof system.getPlatformInfo === 'function' ? system.getPlatformInfo() : null;
+    const currentPlatform = platformInfo && (platformInfo.os || platformInfo.platform)
+      ? String(platformInfo.os || platformInfo.platform).toLowerCase()
+      : '';
     let active = null;
+
+    function launchSpecFor(entry) {
+      if (!launchApi || typeof launchApi.create !== 'function') {
+        throw new Error('Example launch metadata is unavailable');
+      }
+      return launchApi.create(entry, {
+        platform: currentPlatform,
+        workdir: execution.workdir,
+        pathApi: global.path,
+      });
+    }
 
     async function run(entry) {
       if (active) throw new Error('An example is already running');
-      if (!entry || !entry.runnable || entry.runPolicy !== 'safe') {
+      if (!entry) {
+        const error = new Error('No example is selected');
+        error.code = 'EXAMPLE_NOT_RUNNABLE';
+        throw error;
+      }
+      const spec = launchSpecFor(entry);
+      if (!spec.platformSupported) {
+        const error = new Error(`This example is unsupported on ${currentPlatform || 'the current platform'}`);
+        error.code = 'EXAMPLE_UNSUPPORTED_PLATFORM';
+        throw error;
+      }
+      if (!spec.runnable || entry.runPolicy !== 'safe') {
         const error = new Error('This example is not approved for one-click execution');
         error.code = 'EXAMPLE_NOT_RUNNABLE';
         throw error;
@@ -32,10 +59,7 @@
       const startedAt = Date.now();
       active = {controller, entry, startedAt};
       try {
-        const result = await command.run(executable, [
-          '-script', entry.absolutePath,
-          '-console-mode', 'script',
-        ], {
+        const result = await command.run(executable, spec.buildArgs(), {
           cwd: execution.workdir,
           timeout: 0,
           maxOutputBytes: 2 * 1024 * 1024,
@@ -79,7 +103,7 @@
       return !!active;
     }
 
-    return {run, stop, isRunning};
+    return {run, stop, isRunning, launchSpecFor};
   }
 
   global.OpenDeskExampleRunner = {createRunner};

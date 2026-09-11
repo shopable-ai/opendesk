@@ -1,357 +1,345 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "entries": {
-    "runtime/api-quickstart.js": {
-      "title": "Runtime API Quickstart",
-      "description": "A compact introduction to common OpenDesk Runtime globals and execution context.",
-      "category": "Getting Started",
-      "level": "beginner",
-      "runPolicy": "safe",
-      "aliases": ["api-quickstart.js"],
-      "platforms": ["darwin", "windows"],
-      "prerequisites": [],
-      "expected": "The script prints its quickstart values and exits successfully.",
-      "tags": ["runtime", "quickstart", "execution"]
-    },
-    "runtime/console.js": {
-      "title": "Console Output",
-      "description": "Print log, info, warning, error, object, group, and timing output without changing the desktop.",
-      "category": "Getting Started",
-      "level": "beginner",
-      "runPolicy": "safe",
-      "aliases": ["console.js"],
-      "platforms": ["darwin", "windows"],
-      "prerequisites": [],
-      "expected": "Representative console output is printed and the execution exits successfully.",
-      "tags": ["console", "log", "debug"]
-    },
-    "runtime/global-this.js": {
-      "title": "Global Runtime Object",
-      "description": "Inspect globalThis and temporarily attach values and functions within the current execution.",
-      "category": "Getting Started",
-      "level": "beginner",
-      "runPolicy": "safe",
-      "aliases": ["globalThis.js"],
-      "platforms": ["darwin", "windows"],
-      "prerequisites": [],
-      "expected": "Temporary global values are created, read, and removed inside the execution.",
-      "tags": ["globalThis", "javascript", "runtime"]
-    },
-    "runtime/promise.js": {
-      "title": "Promises",
-      "description": "Use await, Promise.all, rejection handling, and Promise.race in OpenDesk JavaScript.",
-      "category": "Getting Started",
-      "level": "beginner",
-      "runPolicy": "safe",
-      "aliases": ["promise.js"],
-      "platforms": ["darwin", "windows"],
-      "prerequisites": [],
-      "expected": "Promise results and the race winner are printed.",
-      "tags": ["promise", "async", "await"]
-    },
-    "runtime/sleep.js": {
-      "title": "Sleep",
-      "description": "Pause an execution with sleep() and sleepSeconds().",
-      "category": "Runtime",
-      "level": "beginner",
-      "runPolicy": "safe",
-      "aliases": ["sleep.js"],
-      "platforms": ["darwin", "windows"],
-      "prerequisites": [],
-      "expected": "The example resumes after bounded waits and completes.",
-      "tags": ["sleep", "wait", "async"]
-    },
-    "runtime/timer.js": {
-      "title": "Timers",
-      "description": "Use setTimeout, setInterval, clearTimeout, and clearInterval.",
-      "category": "Runtime",
-      "level": "beginner",
-      "runPolicy": "safe",
-      "aliases": ["timer.js"],
-      "platforms": ["darwin", "windows"],
-      "prerequisites": [],
-      "expected": "Scheduled callbacks run and the canceled timeout does not run.",
-      "tags": ["timer", "setTimeout", "setInterval"]
-    },
-    "runtime/environment.js": {
-      "title": "Environment",
-      "description": "Read selected execution environment information without dumping the complete process environment.",
-      "category": "Runtime",
-      "level": "beginner",
-      "runPolicy": "safe",
-      "aliases": ["environment.js"],
-      "platforms": ["darwin", "windows"],
-      "prerequisites": [],
-      "expected": "Selected environment values and execution context are printed.",
-      "tags": ["environment", "runtime"]
-    },
-    "runtime/path.js": {
-      "title": "Paths and Script Context",
-      "description": "Inspect path helpers together with Execution.scriptPath and Execution.scriptDir.",
-      "category": "Runtime",
-      "level": "beginner",
-      "runPolicy": "safe",
-      "aliases": ["path.js"],
-      "docs": "docs/api/path.md",
-      "platforms": ["darwin", "windows"],
-      "prerequisites": [],
-      "expected": "Normalized repository and script-context paths are printed.",
-      "tags": ["path", "execution", "scriptDir"]
-    },
-    "runtime/file.js": {
-      "title": "File Operations",
-      "description": "Create, read, copy, move, and validate files inside the example artifact area.",
-      "category": "Runtime",
-      "level": "beginner",
-      "runPolicy": "safe",
-      "aliases": ["file.js"],
-      "docs": "docs/api/file.md",
-      "platforms": ["darwin", "windows"],
-      "prerequisites": [],
-      "expected": "The example validates its isolated file operations and exits successfully.",
-      "tags": ["file", "filesystem", "artifact"]
-    },
-    "runtime/file-json.js": {
-      "title": "JSON Files",
-      "description": "Read and write JSON through the OpenDesk File API using execution-owned async operations.",
-      "category": "Runtime",
-      "level": "beginner",
-      "runPolicy": "safe",
-      "aliases": ["file-json.js"],
-      "docs": "docs/api/file.md",
-      "platforms": ["darwin", "windows"],
-      "prerequisites": [],
-      "expected": "JSON data is written, read back, and printed from the execution artifact area.",
-      "tags": ["file", "json", "readJSON", "writeJSON"]
-    },
-    "runtime/command.js": {
-      "title": "Command",
-      "description": "Run the platform's fixed echo command through Command.run() and validate the bounded result.",
-      "category": "Runtime",
-      "level": "beginner",
-      "runPolicy": "safe",
-      "aliases": ["command.js"],
-      "docs": "docs/api/command.md",
-      "platforms": ["darwin", "windows"],
-      "prerequisites": [],
-      "expected": "A fixed echo child process succeeds and its bounded output is validated.",
-      "tags": ["command", "process", "child process"]
-    },
-    "runtime/page-wait.js": {
-      "title": "Page Wait",
-      "description": "Use fixed waits, condition polling, AbortSignal cancellation, and waitForAll without desktop input.",
-      "category": "Runtime",
-      "level": "intermediate",
-      "runPolicy": "safe",
-      "aliases": ["page.waitfor.js"],
-      "platforms": ["darwin", "windows"],
-      "prerequisites": [],
-      "expected": "Bounded wait examples complete and cancellation is reported.",
-      "tags": ["page", "wait", "polling", "abort"]
-    },
-    "runtime/app-storage.js": {
-      "title": "App Storage",
-      "description": "Store text and JSON strings in persistent application storage using execution-scoped example keys.",
-      "category": "Runtime",
+    "accessibility/inspect-window.js": {
+      "title": "Inspect an Accessible Window",
+      "description": "Inspect a disposable window through the Accessibility API without changing it.",
+      "category": "Accessibility",
       "level": "intermediate",
       "runPolicy": "manual",
-      "aliases": ["appStorage.js"],
-      "platforms": ["darwin", "windows"],
-      "prerequisites": ["Writes persistent AppStorage values using a key prefixed with the current Execution.id."],
-      "expected": "Text and JSON values round-trip successfully.",
-      "tags": ["storage", "persistent", "json"]
+      "legacyNames": [],
+      "docs": "docs/api/accessibility.md",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Requires Accessibility permission and the disposable fixture target."
+      ],
+      "requiredEnv": [],
+      "expected": "The example completes and prints its result.",
+      "tags": [
+        "accessibility",
+        "window",
+        "inspect"
+      ],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
     },
-    "runtime/system-info.js": {
-      "title": "System Information",
-      "description": "Inspect local system, process, network, user, and hardware information.",
-      "category": "System",
+    "accessibility/invoke-control.js": {
+      "title": "Invoke an Accessible Control",
+      "description": "Find and invoke one explicitly identified control in the disposable Accessibility fixture.",
+      "category": "Accessibility",
       "level": "intermediate",
       "runPolicy": "manual",
-      "aliases": ["system.js"],
-      "platforms": ["darwin", "windows"],
-      "prerequisites": ["Review output before sharing logs; it can include host- or user-identifying information."],
-      "expected": "Detailed local system information is printed.",
-      "tags": ["system", "process", "network", "fingerprint"]
+      "legacyNames": [],
+      "docs": "docs/api/accessibility.md",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Requires Accessibility permission and the disposable fixture target."
+      ],
+      "requiredEnv": [],
+      "expected": "The example completes and prints its result.",
+      "tags": [
+        "accessibility",
+        "invoke",
+        "control"
+      ],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
     },
-    "runtime/system-session-state.js": {
-      "title": "System Session State",
-      "description": "Read session capability metadata and the current session state when supported.",
-      "category": "System",
-      "level": "beginner",
-      "runPolicy": "safe",
-      "aliases": ["system-session-state.js"],
-      "platforms": ["darwin", "windows"],
-      "prerequisites": [],
-      "expected": "Capabilities and supported session state are printed.",
-      "tags": ["system", "session", "state"]
-    },
-    "desktop/display-modes.js": {
-      "title": "Display Modes",
-      "description": "Read display capability metadata, current display modes, and available mode counts.",
-      "category": "Desktop",
-      "level": "beginner",
-      "runPolicy": "safe",
-      "aliases": ["display-modes.js"],
-      "platforms": ["darwin", "windows"],
-      "prerequisites": [],
-      "expected": "Read-only display metadata is printed.",
-      "tags": ["screen", "display", "mode"]
-    },
-    "desktop/window-inspect.js": {
-      "title": "Window Inspect",
-      "description": "Inspect desktop windows without changing their state.",
-      "category": "Desktop",
-      "level": "beginner",
-      "runPolicy": "manual",
-      "aliases": ["window.js"],
-      "platforms": ["darwin", "windows"],
-      "prerequisites": ["Window titles or application identity may be sensitive when sharing logs."],
-      "expected": "Read-only window information is printed.",
-      "tags": ["window", "inspect", "desktop"]
-    },
-    "desktop/keyboard.js": {
-      "title": "Keyboard Input",
-      "description": "Send bounded keyboard input to an explicitly configured target window.",
-      "category": "Desktop",
+    "accessibility/menu-command.js": {
+      "title": "Inspect a Menu Command",
+      "description": "Read and invoke a menu command in the disposable Accessibility fixture.",
+      "category": "Accessibility",
       "level": "intermediate",
       "runPolicy": "manual",
-      "aliases": ["keyboard.js"],
-      "platforms": ["darwin", "windows"],
-      "prerequisites": ["Requires the explicit input opt-in and exact target identity documented in examples/desktop/README.md."],
-      "expected": "The configured disposable target receives the bounded input.",
-      "tags": ["keyboard", "input", "window"]
+      "legacyNames": [],
+      "docs": "docs/api/accessibility.md",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Requires Accessibility permission and the disposable fixture target."
+      ],
+      "requiredEnv": [],
+      "expected": "The example completes and prints its result.",
+      "tags": [
+        "accessibility",
+        "menu",
+        "invoke"
+      ],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
     },
-    "desktop/window-controls.js": {
-      "title": "Window Controls",
-      "description": "Move and restore an explicitly configured disposable target window.",
-      "category": "Desktop",
+    "accessibility/value-roundtrip.js": {
+      "title": "Accessible Value Round Trip",
+      "description": "Read and update a value through the Accessibility API, then verify the round trip.",
+      "category": "Accessibility",
       "level": "intermediate",
       "runPolicy": "manual",
-      "aliases": ["window-more.js"],
-      "platforms": ["darwin", "windows"],
-      "prerequisites": ["Requires explicit window-change opt-in and exact target identity."],
-      "expected": "The target bounds are changed, verified, and restored.",
-      "tags": ["window", "bounds", "move"]
+      "legacyNames": [],
+      "docs": "docs/api/accessibility.md",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Requires Accessibility permission and the disposable fixture target."
+      ],
+      "requiredEnv": [],
+      "expected": "The example completes and prints its result.",
+      "tags": [
+        "accessibility",
+        "value",
+        "input"
+      ],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
     },
-    "desktop/ui-relative-target.js": {
-      "title": "UI Relative Text Target",
-      "description": "Resolve one text target relative to another text inside the active disposable window and click it once.",
-      "category": "Desktop",
+    "ai-cli/macos-calculator-recipe.js": {
+      "title": "macos-calculator-recipe",
+      "description": "Run a parameterized AI CLI recipe after reviewing its input and target application.",
+      "category": "AI CLI",
       "level": "advanced",
       "runPolicy": "manual",
-      "aliases": ["ui-relative-target.js"],
-      "docs": "docs/api/desktop-ui.md",
-      "platforms": ["darwin", "windows"],
-      "prerequisites": ["Requires a disposable window containing the documented two-row text fixture and performs one real click."],
-      "expected": "The Edit text to the right of the reviewed anchor row is clicked once.",
-      "tags": ["UI", "relativeTo", "tapText", "desktop"]
+      "legacyNames": [],
+      "docs": "docs/api/ai-cli.md",
+      "platforms": [
+        "darwin"
+      ],
+      "prerequisites": [
+        "Requires a reviewed JSON input file and an explicitly selected target application."
+      ],
+      "requiredEnv": [],
+      "expected": "The example completes and prints its result.",
+      "tags": [
+        "ai-cli",
+        "recipe",
+        "input"
+      ],
+      "launch": {
+        "kind": "ai-run",
+        "ui": false,
+        "input": "required"
+      }
     },
-    "desktop/mouse.js": {
-      "title": "Mouse Input",
-      "description": "Demonstrate pointer position, fixed-coordinate click, move, wheel, and right-click APIs.",
-      "category": "Desktop",
-      "level": "intermediate",
-      "runPolicy": "manual",
-      "aliases": ["mouse.js"],
-      "platforms": ["darwin", "windows"],
-      "prerequisites": ["Performs real desktop input at fixed coordinates; review the script and use a disposable desktop state."],
-      "expected": "Pointer actions are sent to the reviewed coordinates.",
-      "tags": ["mouse", "click", "wheel", "input"]
-    },
-    "desktop/page-click.js": {
-      "title": "Page Click and Screenshot",
-      "description": "Demonstrate fixed-coordinate page.mouse clicks followed by screenshot capture.",
-      "category": "Desktop",
-      "level": "intermediate",
-      "runPolicy": "manual",
-      "aliases": ["page.js"],
-      "platforms": ["darwin", "windows"],
-      "prerequisites": ["Performs real desktop clicks at fixed coordinates and captures visible pixels."],
-      "expected": "Reviewed pointer actions run and screenshots are written under .runtime/examples/desktop/page-click/.",
-      "tags": ["page", "mouse", "screenshot"]
-    },
-    "desktop/screen-info.js": {
-      "title": "Screen Information",
-      "description": "Read screen size and pixel samples, then capture a full-screen image preview.",
-      "category": "Desktop",
-      "level": "intermediate",
-      "runPolicy": "manual",
-      "aliases": ["screen.js"],
-      "platforms": ["darwin", "windows"],
-      "prerequisites": ["Captures visible desktop pixels; close sensitive content before running."],
-      "expected": "Screen geometry, sampled pixels, and a bounded screenshot preview are printed.",
-      "tags": ["screen", "pixel", "screenshot"]
-    },
-    "desktop/screenshot.js": {
-      "title": "Screenshot",
-      "description": "Capture full and clipped screenshots and write artifacts under .runtime/examples/desktop/screenshot/.",
-      "category": "Desktop",
-      "level": "beginner",
-      "runPolicy": "manual",
-      "aliases": ["screenshot.js"],
-      "platforms": ["darwin", "windows"],
-      "prerequisites": ["Captures visible desktop pixels; close sensitive content before running."],
-      "expected": "Screenshot artifacts are written locally and bounded previews are printed.",
-      "tags": ["screenshot", "clip", "image"]
-    },
-    "desktop/screenshot-bytes.js": {
-      "title": "Screenshot Bytes",
-      "description": "Capture the active window as bytes and persist a PNG under .runtime/examples/desktop/screenshot-bytes/.",
-      "category": "Desktop",
-      "level": "intermediate",
-      "runPolicy": "manual",
-      "aliases": ["screenshot_bytes_smoke.js"],
-      "platforms": ["darwin", "windows"],
-      "prerequisites": ["Captures the active window; close sensitive content before running."],
-      "expected": "Byte length, PNG signature bytes, and output path are printed.",
-      "tags": ["screenshot", "bytes", "png"]
-    },
-    "desktop/screen-record-region.js": {
-      "title": "Record Screen Region",
-      "description": "Select a desktop region and record a short local movie artifact.",
-      "category": "Desktop",
-      "level": "intermediate",
-      "runPolicy": "manual",
-      "aliases": ["screen-record-region.js"],
-      "platforms": ["darwin", "windows"],
-      "prerequisites": ["Requires screen-recording permission and captures visible pixels from the selected region."],
-      "expected": "A finalized recording is written under .runtime/examples/desktop/screen-record-region/.",
-      "tags": ["screen", "recording", "region"]
-    },
-    "vision/image-color-basic.js": {
-      "title": "Image Color Basics",
-      "description": "Compare colors and inspect pixels from a captured screenshot without sending desktop input.",
-      "category": "Vision",
-      "level": "intermediate",
-      "runPolicy": "manual",
-      "platforms": ["darwin", "windows"],
-      "prerequisites": ["Captures visible desktop pixels; close sensitive content before running."],
-      "expected": "Color similarity, image size, a sampled pixel, and a bounded color match are printed.",
-      "tags": ["vision", "image", "color", "pixel"]
-    },
-    "vision/bytes-roundtrip.js": {
-      "title": "Vision Bytes Roundtrip",
-      "description": "Capture active-window bytes, persist them, and send the same bytes to OCR.",
-      "category": "Vision",
-      "level": "intermediate",
-      "runPolicy": "manual",
-      "aliases": ["vision_bytes_roundtrip.js"],
-      "platforms": ["darwin", "windows"],
-      "prerequisites": ["Requires the configured Paddle OCR provider and captures active-window pixels."],
-      "expected": "The PNG artifact and OCR metadata are printed.",
-      "tags": ["vision", "ocr", "bytes", "screenshot"]
-    },
-    "vision/ocr.js": {
-      "title": "OCR and Text Target",
-      "description": "Run OCR, resolve visible text through UI.findText(), and click the matched target.",
-      "category": "Vision",
+    "ai-cli/macos-textedit-recipe.js": {
+      "title": "macos-textedit-recipe",
+      "description": "Run a parameterized AI CLI recipe after reviewing its input and target application.",
+      "category": "AI CLI",
       "level": "advanced",
       "runPolicy": "manual",
-      "aliases": ["vision.ocr.js"],
-      "platforms": ["darwin", "windows"],
-      "prerequisites": ["Requires Paddle OCR configuration and performs a real click on the resolved text target."],
-      "expected": "OCR metadata and the resolved text target are printed; if found, the target is clicked.",
-      "tags": ["vision", "ocr", "UI.findText", "click"]
+      "legacyNames": [],
+      "docs": "docs/api/ai-cli.md",
+      "platforms": [
+        "darwin"
+      ],
+      "prerequisites": [
+        "Requires a reviewed JSON input file and an explicitly selected target application."
+      ],
+      "requiredEnv": [],
+      "expected": "The example completes and prints its result.",
+      "tags": [
+        "ai-cli",
+        "recipe",
+        "input"
+      ],
+      "launch": {
+        "kind": "ai-run",
+        "ui": false,
+        "input": "required"
+      }
+    },
+    "ai-cli/write-to-focused-app.js": {
+      "title": "write-to-focused-app",
+      "description": "Run a parameterized AI CLI recipe after reviewing its input and target application.",
+      "category": "AI CLI",
+      "level": "advanced",
+      "runPolicy": "manual",
+      "legacyNames": [],
+      "docs": "docs/api/ai-cli.md",
+      "platforms": [
+        "darwin"
+      ],
+      "prerequisites": [
+        "Requires a reviewed JSON input file and an explicitly selected target application."
+      ],
+      "requiredEnv": [],
+      "expected": "The example completes and prints its result.",
+      "tags": [
+        "ai-cli",
+        "recipe",
+        "input"
+      ],
+      "launch": {
+        "kind": "ai-run",
+        "ui": false,
+        "input": "required"
+      }
+    },
+    "app/lifecycle-calculator.js": {
+      "title": "Calculator App Lifecycle",
+      "description": "Launch, restart, terminate and verify macOS Calculator when no operator instance is already running.",
+      "category": "Applications",
+      "level": "advanced",
+      "runPolicy": "manual",
+      "docs": "docs/api/app.md",
+      "platforms": [
+        "darwin"
+      ],
+      "prerequisites": [
+        "Calculator must not already be running; the example launches, restarts and terminates the real application."
+      ],
+      "expected": "Lifecycle evidence is written under .runtime/examples/app/lifecycle-calculator/ and Calculator is not left running by the example.",
+      "tags": [
+        "app",
+        "lifecycle",
+        "calculator",
+        "macos"
+      ],
+      "legacyNames": [
+        "app-lifecycle.js"
+      ],
+      "requiredEnv": [],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
+    },
+    "app/open-calculator-by-name.js": {
+      "title": "Open Calculator by Name",
+      "description": "Launch or activate macOS Calculator by its native application name and print the observed identity.",
+      "category": "Applications",
+      "level": "beginner",
+      "runPolicy": "manual",
+      "docs": "docs/api/app.md",
+      "platforms": [
+        "darwin"
+      ],
+      "prerequisites": [
+        "Launches or activates the real Calculator application."
+      ],
+      "expected": "Calculator becomes available and its native identity is printed.",
+      "tags": [
+        "app",
+        "calculator",
+        "launch",
+        "macos"
+      ],
+      "legacyNames": [
+        "open-calculator-by-name.js"
+      ],
+      "requiredEnv": [],
+      "launch": {
+        "kind": "ai-run",
+        "ui": false,
+        "input": "none"
+      }
+    },
+    "app/qianniu-window.js": {
+      "title": "Qianniu Window Inventory",
+      "description": "Inspect explicitly identified Qianniu windows and optionally apply a reviewed topmost change.",
+      "category": "Applications",
+      "level": "advanced",
+      "runPolicy": "manual",
+      "legacyNames": [],
+      "docs": "examples/app/README.md",
+      "platforms": [
+        "windows"
+      ],
+      "prerequisites": [
+        "Read the target identity and explicit topmost authorization requirements before running."
+      ],
+      "requiredEnv": [],
+      "expected": "The example completes and prints its result.",
+      "tags": [
+        "app",
+        "window",
+        "qianniu"
+      ],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
+    },
+    "app/running-apps.js": {
+      "title": "Running Applications Overview",
+      "description": "Read the window list and summarize several common desktop applications without changing them.",
+      "category": "Applications",
+      "level": "beginner",
+      "runPolicy": "manual",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Window titles can contain user information; review output before sharing logs."
+      ],
+      "expected": "Matching application windows and their dimensions are printed.",
+      "tags": [
+        "application",
+        "window",
+        "inspect"
+      ],
+      "legacyNames": [
+        "check_all_apps.js"
+      ],
+      "docs": "docs/api/app.md",
+      "requiredEnv": [],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
+    },
+    "app/wechat-window-inspect.js": {
+      "title": "WeChat Window Inspect",
+      "description": "Find WeChat windows without changing application state.",
+      "category": "Applications",
+      "level": "beginner",
+      "runPolicy": "manual",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Window titles can contain user information; review output before sharing logs."
+      ],
+      "expected": "Detected WeChat windows and their dimensions are printed.",
+      "tags": [
+        "wechat",
+        "window",
+        "inspect"
+      ],
+      "legacyNames": [
+        "check_wechat.js"
+      ],
+      "docs": "docs/api/app.md",
+      "requiredEnv": [],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
     },
     "audio/play.js": {
       "title": "Play Sounds",
@@ -359,11 +347,29 @@
       "category": "Audio",
       "level": "beginner",
       "runPolicy": "manual",
-      "aliases": ["sound.js"],
-      "platforms": ["darwin", "windows"],
-      "prerequisites": ["Uses the audio output device and plays several audible sounds."],
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Uses the audio output device and plays several audible sounds."
+      ],
       "expected": "The configured sounds play sequentially.",
-      "tags": ["sound", "audio", "play"]
+      "tags": [
+        "sound",
+        "audio",
+        "play"
+      ],
+      "legacyNames": [
+        "sound.js"
+      ],
+      "docs": "docs/api/sound.md",
+      "requiredEnv": [],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
     },
     "audio/playback-control.js": {
       "title": "Playback Control",
@@ -371,61 +377,173 @@
       "category": "Audio",
       "level": "intermediate",
       "runPolicy": "manual",
-      "aliases": ["sound-playback.js"],
-      "platforms": ["darwin", "windows"],
-      "prerequisites": ["Uses the audio output device."],
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Uses the audio output device."
+      ],
       "expected": "Playback reaches stopped state and no active playback remains.",
-      "tags": ["sound", "playback", "pause", "resume", "stop"]
+      "tags": [
+        "sound",
+        "playback",
+        "pause",
+        "resume",
+        "stop"
+      ],
+      "legacyNames": [
+        "sound-playback.js"
+      ],
+      "docs": "docs/api/sound.md",
+      "requiredEnv": [],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
     },
-    "dialog/async-await.js": {
-      "title": "Dialog with async/await",
-      "description": "Use native alert, confirm, and prompt dialogs with async/await.",
-      "category": "Custom UI",
-      "level": "beginner",
+    "audio/watch-known-sound.js": {
+      "title": "Watch for a Known Sound",
+      "description": "Listen for a configured reference sound and report a bounded pattern match.",
+      "category": "Audio",
+      "level": "intermediate",
       "runPolicy": "manual",
-      "aliases": ["dialog.js"],
-      "docs": "docs/api/dialog.md",
-      "platforms": ["darwin", "windows"],
-      "prerequisites": ["Run with Custom UI enabled; requires a supported native UI host."],
-      "expected": "The user completes or cancels the native dialog flow.",
-      "tags": ["dialog", "alert", "confirm", "prompt"]
+      "legacyNames": [],
+      "docs": "docs/api/audio.md",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Requires an approved reference audio file and a separate playback source."
+      ],
+      "requiredEnv": [],
+      "expected": "The listener reports whether the reference sound was observed.",
+      "tags": [
+        "audio",
+        "watch",
+        "pattern"
+      ],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
     },
-    "dialog/promise-chain.js": {
-      "title": "Dialog with Promise Chain",
-      "description": "Run the same native Dialog flow with Promise chaining instead of async/await.",
+    "audio/watch-market-multisentence.js": {
+      "title": "Watch for Multiple Sound Patterns",
+      "description": "Listen for several ordered audio patterns in a manually generated playback fixture.",
+      "category": "Audio",
+      "level": "intermediate",
+      "runPolicy": "manual",
+      "legacyNames": [],
+      "docs": "docs/api/audio.md",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Generate the fixture with tests/audio/tools/generate-market-multisentence-fixture.js, then play it from a separate process."
+      ],
+      "requiredEnv": [],
+      "expected": "The listener records the expected ordered pattern matches.",
+      "tags": [
+        "audio",
+        "watch",
+        "patterns"
+      ],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
+    },
+    "clipboard/rich-paste-fixture.js": {
+      "title": "Rich Clipboard Fixture",
+      "description": "Write text and HTML formats for a user-controlled paste test.",
+      "category": "Clipboard",
+      "level": "intermediate",
+      "runPolicy": "manual",
+      "legacyNames": [],
+      "docs": "docs/api/clipboard.md",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Use a disposable clipboard and paste manually into a reviewed target. This example does not restore or clear clipboard contents."
+      ],
+      "requiredEnv": [],
+      "expected": "The example completes and prints its result.",
+      "tags": [
+        "clipboard",
+        "html",
+        "paste"
+      ],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
+    },
+    "clipboard/text.js": {
+      "title": "Clipboard Text",
+      "description": "Write one fixed text value to the clipboard and verify the read-back.",
+      "category": "Clipboard",
+      "level": "intermediate",
+      "runPolicy": "manual",
+      "legacyNames": [],
+      "docs": "docs/api/clipboard.md",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Use a disposable clipboard; this example replaces all current clipboard formats and does not restore them."
+      ],
+      "requiredEnv": [
+        "OPENDESK_EXAMPLE_ALLOW_CLIPBOARD_WRITE"
+      ],
+      "expected": "The fixed demo text is read back from the clipboard.",
+      "tags": [
+        "clipboard",
+        "text",
+        "write"
+      ],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
+    },
+    "custom-ui/custom-image-icons.js": {
+      "title": "Custom Image Icons",
+      "description": "Show image-backed icons in a native floating toolbar.",
       "category": "Custom UI",
       "level": "intermediate",
       "runPolicy": "manual",
-      "aliases": ["dialog-promise-chain.js"],
-      "docs": "docs/api/dialog.md",
-      "platforms": ["darwin", "windows"],
-      "prerequisites": ["Run with Custom UI enabled; requires a supported native UI host."],
-      "expected": "The user completes or cancels the native dialog flow.",
-      "tags": ["dialog", "promise", "alert", "prompt"]
-    },
-    "custom-ui/panel.js": {
-      "title": "Custom UI Panel",
-      "description": "Create a structured ui.createWindow() panel with HTML/CSS and Runtime-owned event handlers.",
-      "category": "Custom UI",
-      "level": "intermediate",
-      "runPolicy": "manual",
+      "legacyNames": [],
       "docs": "docs/api/ui.md",
-      "platforms": ["darwin", "windows"],
-      "prerequisites": ["Run with Custom UI enabled; ui.createWindow() requires the supported UI host/WebView capability."],
-      "expected": "A native-hosted Custom UI panel opens and remains interactive until closed.",
-      "tags": ["ui", "panel", "html", "css"]
-    },
-    "custom-ui/form.js": {
-      "title": "Custom UI Form",
-      "description": "Create a form-style Custom UI surface and handle its controls from JavaScript.",
-      "category": "Custom UI",
-      "level": "intermediate",
-      "runPolicy": "manual",
-      "docs": "docs/api/ui.md",
-      "platforms": ["darwin", "windows"],
-      "prerequisites": ["Run with Custom UI enabled."],
-      "expected": "The form opens and JavaScript receives control events.",
-      "tags": ["ui", "form", "controls"]
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Requires the Custom UI capability and a visible desktop session."
+      ],
+      "requiredEnv": [],
+      "expected": "The example completes and prints its result.",
+      "tags": [
+        "icons",
+        "image",
+        "toolbar"
+      ],
+      "launch": {
+        "kind": "script",
+        "ui": true,
+        "consoleMode": "script"
+      }
     },
     "custom-ui/five-button-toolbar.js": {
       "title": "Five Button Toolbar",
@@ -434,10 +552,55 @@
       "level": "beginner",
       "runPolicy": "manual",
       "docs": "docs/api/ui.md",
-      "platforms": ["darwin", "windows"],
-      "prerequisites": ["Run with Custom UI enabled."],
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Run with Custom UI enabled."
+      ],
       "expected": "A five-button native toolbar opens and reports user actions.",
-      "tags": ["ui", "FloatingWindow", "toolbar", "button"]
+      "tags": [
+        "ui",
+        "FloatingWindow",
+        "toolbar",
+        "button"
+      ],
+      "legacyNames": [],
+      "requiredEnv": [],
+      "launch": {
+        "kind": "script",
+        "ui": true,
+        "consoleMode": "script"
+      }
+    },
+    "custom-ui/floating-toolbar-controls.js": {
+      "title": "Floating Toolbar Controls",
+      "description": "Build a native toolbar with switches, checkboxes, inputs, and selects.",
+      "category": "Custom UI",
+      "level": "intermediate",
+      "runPolicy": "manual",
+      "legacyNames": [],
+      "docs": "docs/api/ui.md",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Requires the Custom UI capability and a visible desktop session."
+      ],
+      "requiredEnv": [],
+      "expected": "The example completes and prints its result.",
+      "tags": [
+        "floating-window",
+        "controls",
+        "toolbar"
+      ],
+      "launch": {
+        "kind": "script",
+        "ui": true,
+        "consoleMode": "script"
+      }
     },
     "custom-ui/floating-toolbar-primitives.js": {
       "title": "Floating Toolbar Primitives",
@@ -446,34 +609,709 @@
       "level": "intermediate",
       "runPolicy": "manual",
       "docs": "docs/api/ui.md",
-      "platforms": ["darwin", "windows"],
-      "prerequisites": ["Run with Custom UI enabled."],
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Run with Custom UI enabled."
+      ],
       "expected": "The native toolbar opens and logs its lifecycle and interaction state.",
-      "tags": ["ui", "FloatingWindow", "separator", "spacer"]
+      "tags": [
+        "ui",
+        "FloatingWindow",
+        "separator",
+        "spacer"
+      ],
+      "legacyNames": [],
+      "requiredEnv": [],
+      "launch": {
+        "kind": "script",
+        "ui": true,
+        "consoleMode": "script"
+      }
     },
-    "notifications/send.js": {
-      "title": "Send Notification",
-      "description": "Send short OpenDesk notifications through the Runtime notification API.",
-      "category": "Notifications",
-      "level": "beginner",
-      "runPolicy": "manual",
-      "aliases": ["notify.js"],
-      "platforms": ["darwin", "windows"],
-      "prerequisites": ["Shows real system notifications and may play notification sound."],
-      "expected": "The system displays the example notifications.",
-      "tags": ["notification", "notify", "system"]
-    },
-    "notifications/lifecycle.js": {
-      "title": "Notification Lifecycle",
-      "description": "Wait for an own-app notification, inspect delivery metadata, and dismiss it.",
-      "category": "Notifications",
+    "custom-ui/floating-toolbar-status-label.js": {
+      "title": "Floating Toolbar Status Label",
+      "description": "Update a native toolbar status label from Runtime callbacks.",
+      "category": "Custom UI",
       "level": "intermediate",
       "runPolicy": "manual",
-      "aliases": ["notifications.js"],
-      "platforms": ["darwin", "windows"],
-      "prerequisites": ["Shows and dismisses a real system notification."],
-      "expected": "Delivery metadata is observed and the notification is dismissed.",
-      "tags": ["notification", "wait", "dismiss"]
+      "legacyNames": [],
+      "docs": "docs/api/ui.md",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Requires the Custom UI capability and a visible desktop session."
+      ],
+      "requiredEnv": [],
+      "expected": "The example completes and prints its result.",
+      "tags": [
+        "floating-window",
+        "label",
+        "toolbar"
+      ],
+      "launch": {
+        "kind": "script",
+        "ui": true,
+        "consoleMode": "script"
+      }
+    },
+    "custom-ui/form.js": {
+      "title": "Custom UI Form",
+      "description": "Create a form-style Custom UI surface and handle its controls from JavaScript.",
+      "category": "Custom UI",
+      "level": "intermediate",
+      "runPolicy": "manual",
+      "docs": "docs/api/ui.md",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Run with Custom UI enabled."
+      ],
+      "expected": "The form opens and JavaScript receives control events.",
+      "tags": [
+        "ui",
+        "form",
+        "controls"
+      ],
+      "legacyNames": [],
+      "requiredEnv": [],
+      "launch": {
+        "kind": "script",
+        "ui": true,
+        "consoleMode": "script"
+      }
+    },
+    "custom-ui/icon-browser/main.js": {
+      "title": "Icon Browser",
+      "description": "Render a searchable native icon catalog with a companion HTML panel.",
+      "category": "Custom UI",
+      "level": "intermediate",
+      "runPolicy": "manual",
+      "legacyNames": [],
+      "docs": "docs/api/ui.md",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Requires the Custom UI capability and a visible desktop session."
+      ],
+      "requiredEnv": [],
+      "expected": "The example completes and prints its result.",
+      "tags": [
+        "icons",
+        "html",
+        "custom-ui"
+      ],
+      "launch": {
+        "kind": "script",
+        "ui": true,
+        "consoleMode": "script"
+      }
+    },
+    "custom-ui/native-ui-components.js": {
+      "title": "Native UI Component States",
+      "description": "Compare real FloatingWindow native peers and inspect their supported control states, accessibility readback, and fixed geometry.",
+      "category": "Custom UI",
+      "level": "advanced",
+      "runPolicy": "manual",
+      "docs": "docs/custom-ui/theme-guide.md",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Run with Custom UI enabled; requires a supported native UI host. The demo uses native peers and does not require WebView2."
+      ],
+      "expected": "A native toolbar opens with typed controls, visible busy/error/disabled/badge conventions, and Runtime state readback until the user closes it.",
+      "tags": [
+        "ui",
+        "components",
+        "native",
+        "FloatingWindow",
+        "accessibility",
+        "states"
+      ],
+      "legacyNames": [],
+      "requiredEnv": [],
+      "launch": {
+        "kind": "script",
+        "ui": true,
+        "consoleMode": "script"
+      }
+    },
+    "custom-ui/notify.js": {
+      "title": "Custom UI Toast",
+      "description": "Show a Runtime-owned toast and update its progress and completion state.",
+      "category": "Custom UI",
+      "level": "beginner",
+      "runPolicy": "manual",
+      "legacyNames": [],
+      "docs": "docs/api/ui.md",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Requires the Custom UI capability and a visible desktop session; the example displays a real toast notification."
+      ],
+      "requiredEnv": [],
+      "expected": "A toast reports bounded progress and then closes after showing completion.",
+      "tags": [
+        "ui",
+        "toast",
+        "progress",
+        "notification"
+      ],
+      "launch": {
+        "kind": "script",
+        "ui": true,
+        "consoleMode": "script"
+      }
+    },
+    "custom-ui/panel.js": {
+      "title": "Custom UI Panel",
+      "description": "Create a structured ui.createWindow() panel with HTML/CSS and Runtime-owned event handlers.",
+      "category": "Custom UI",
+      "level": "intermediate",
+      "runPolicy": "manual",
+      "docs": "docs/api/ui.md",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Run with Custom UI enabled; ui.createWindow() requires the supported UI host/WebView capability."
+      ],
+      "expected": "A native-hosted Custom UI panel opens and remains interactive until closed.",
+      "tags": [
+        "ui",
+        "panel",
+        "html",
+        "css"
+      ],
+      "legacyNames": [],
+      "requiredEnv": [],
+      "launch": {
+        "kind": "script",
+        "ui": true,
+        "consoleMode": "script"
+      }
+    },
+    "custom-ui/quick-replies/main.js": {
+      "title": "Vertical Quick Replies",
+      "description": "Build a vertical toolbar from a small JSON configuration and copy a selected reply.",
+      "category": "Custom UI",
+      "level": "intermediate",
+      "runPolicy": "manual",
+      "legacyNames": [],
+      "docs": "docs/api/ui.md",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Requires the Custom UI capability and a visible desktop session."
+      ],
+      "requiredEnv": [],
+      "expected": "The example completes and prints its result.",
+      "tags": [
+        "floating-window",
+        "clipboard",
+        "config"
+      ],
+      "launch": {
+        "kind": "script",
+        "ui": true,
+        "consoleMode": "script"
+      }
+    },
+    "custom-ui/toolbar-horizontal-actions.js": {
+      "title": "Horizontal Toolbar Actions",
+      "description": "Connect a horizontal toolbar configuration to callback handlers.",
+      "category": "Custom UI",
+      "level": "intermediate",
+      "runPolicy": "manual",
+      "legacyNames": [],
+      "docs": "docs/api/ui.md",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Requires the Custom UI capability and a visible desktop session."
+      ],
+      "requiredEnv": [],
+      "expected": "The example completes and prints its result.",
+      "tags": [
+        "floating-window",
+        "actions",
+        "toolbar"
+      ],
+      "launch": {
+        "kind": "script",
+        "ui": true,
+        "consoleMode": "script"
+      }
+    },
+    "custom-ui/toolbar-wrap/main.js": {
+      "title": "Toolbar Wrapping",
+      "description": "Compare maxWidth, maxColumns, and maxRows layout constraints with three native toolbars.",
+      "category": "Custom UI",
+      "level": "intermediate",
+      "runPolicy": "manual",
+      "legacyNames": [],
+      "docs": "docs/api/ui.md",
+      "platforms": [
+        "darwin",
+        "linux",
+        "windows"
+      ],
+      "prerequisites": [
+        "Requires the Custom UI capability and a visible desktop session."
+      ],
+      "requiredEnv": [],
+      "expected": "The example completes and prints its result.",
+      "tags": [
+        "floating-window",
+        "layout",
+        "toolbar"
+      ],
+      "launch": {
+        "kind": "script",
+        "ui": true,
+        "consoleMode": "script"
+      }
+    },
+    "custom-ui/ui-components.js": {
+      "title": "Custom UI Component States",
+      "description": "Reuse a themed HTML/CSS component pattern and inspect select, input, and button states through the Runtime bridge.",
+      "category": "Custom UI",
+      "level": "intermediate",
+      "runPolicy": "manual",
+      "docs": "docs/custom-ui/theme-guide.md",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Run with Custom UI enabled; ui.createWindow() requires the supported UI host/WebView capability."
+      ],
+      "expected": "A component state gallery opens; changing controls updates the visible state and Runtime readback until the user closes it.",
+      "tags": [
+        "ui",
+        "components",
+        "theme",
+        "css",
+        "select",
+        "input",
+        "button"
+      ],
+      "legacyNames": [],
+      "requiredEnv": [],
+      "launch": {
+        "kind": "script",
+        "ui": true,
+        "consoleMode": "script"
+      }
+    },
+    "desktop/display-modes.js": {
+      "title": "Display Modes",
+      "description": "Read display capability metadata, current display modes, and available mode counts.",
+      "category": "Desktop",
+      "level": "beginner",
+      "runPolicy": "safe",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [],
+      "expected": "Read-only display metadata is printed.",
+      "tags": [
+        "screen",
+        "display",
+        "mode"
+      ],
+      "legacyNames": [
+        "display-modes.js"
+      ],
+      "docs": "docs/api/screen.md",
+      "requiredEnv": [],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
+    },
+    "desktop/keyboard.js": {
+      "title": "Keyboard Input",
+      "description": "Send bounded keyboard input to an explicitly configured target window.",
+      "category": "Desktop",
+      "level": "intermediate",
+      "runPolicy": "manual",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Requires the explicit input opt-in and exact target identity documented in examples/desktop/README.md."
+      ],
+      "expected": "The configured disposable target receives the bounded input.",
+      "tags": [
+        "keyboard",
+        "input",
+        "window"
+      ],
+      "legacyNames": [
+        "keyboard.js"
+      ],
+      "docs": "docs/api/input.md",
+      "requiredEnv": [],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
+    },
+    "desktop/mouse.js": {
+      "title": "Mouse Input",
+      "description": "Demonstrate pointer position, fixed-coordinate click, move, wheel, and right-click APIs.",
+      "category": "Desktop",
+      "level": "intermediate",
+      "runPolicy": "manual",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Performs real desktop input at fixed coordinates; review the script and use a disposable desktop state."
+      ],
+      "expected": "Pointer actions are sent to the reviewed coordinates.",
+      "tags": [
+        "mouse",
+        "click",
+        "wheel",
+        "input"
+      ],
+      "legacyNames": [
+        "mouse.js"
+      ],
+      "docs": "docs/api/mouse.md",
+      "requiredEnv": [],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
+    },
+    "desktop/page-click.js": {
+      "title": "Page Click and Screenshot",
+      "description": "Demonstrate fixed-coordinate page.mouse clicks followed by screenshot capture.",
+      "category": "Desktop",
+      "level": "intermediate",
+      "runPolicy": "manual",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Performs real desktop clicks at fixed coordinates and captures visible pixels."
+      ],
+      "expected": "Reviewed pointer actions run and screenshots are written under .runtime/examples/desktop/page-click/.",
+      "tags": [
+        "page",
+        "mouse",
+        "screenshot"
+      ],
+      "legacyNames": [
+        "page.js"
+      ],
+      "docs": "docs/api/page.md",
+      "requiredEnv": [],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
+    },
+    "desktop/screen-info.js": {
+      "title": "Screen Information",
+      "description": "Read screen size and pixel samples, then capture a full-screen image preview.",
+      "category": "Desktop",
+      "level": "intermediate",
+      "runPolicy": "manual",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Captures visible desktop pixels; close sensitive content before running."
+      ],
+      "expected": "Screen geometry, sampled pixels, and a bounded screenshot preview are printed.",
+      "tags": [
+        "screen",
+        "pixel",
+        "screenshot"
+      ],
+      "legacyNames": [
+        "screen.js"
+      ],
+      "docs": "docs/api/screen.md",
+      "requiredEnv": [],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
+    },
+    "desktop/screen-record-region.js": {
+      "title": "Record Screen Region",
+      "description": "Select a desktop region and record a short local movie artifact.",
+      "category": "Desktop",
+      "level": "intermediate",
+      "runPolicy": "manual",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Requires screen-recording permission and captures visible pixels from the selected region."
+      ],
+      "expected": "A finalized recording is written under .runtime/examples/desktop/screen-record-region/.",
+      "tags": [
+        "screen",
+        "recording",
+        "region"
+      ],
+      "legacyNames": [
+        "screen-record-region.js"
+      ],
+      "docs": "docs/api/screen.md",
+      "requiredEnv": [],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
+    },
+    "desktop/screenshot-bytes.js": {
+      "title": "Screenshot Bytes",
+      "description": "Capture the active window as bytes and persist a PNG under .runtime/examples/desktop/screenshot-bytes/.",
+      "category": "Desktop",
+      "level": "intermediate",
+      "runPolicy": "manual",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Captures the active window; close sensitive content before running."
+      ],
+      "expected": "Byte length, PNG signature bytes, and output path are printed.",
+      "tags": [
+        "screenshot",
+        "bytes",
+        "png"
+      ],
+      "legacyNames": [
+        "screenshot_bytes_smoke.js"
+      ],
+      "docs": "docs/api/screen.md",
+      "requiredEnv": [],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
+    },
+    "desktop/screenshot.js": {
+      "title": "Screenshot",
+      "description": "Capture full and clipped screenshots and write artifacts under .runtime/examples/desktop/screenshot/.",
+      "category": "Desktop",
+      "level": "beginner",
+      "runPolicy": "manual",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Captures visible desktop pixels; close sensitive content before running."
+      ],
+      "expected": "Screenshot artifacts are written locally and bounded previews are printed.",
+      "tags": [
+        "screenshot",
+        "clip",
+        "image"
+      ],
+      "legacyNames": [
+        "screenshot.js"
+      ],
+      "docs": "docs/api/screen.md",
+      "requiredEnv": [],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
+    },
+    "desktop/ui-relative-target.js": {
+      "title": "UI Relative Text Target",
+      "description": "Resolve one text target relative to another text inside the active disposable window and click it once.",
+      "category": "Desktop",
+      "level": "advanced",
+      "runPolicy": "manual",
+      "docs": "docs/api/desktop-ui.md",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Requires a disposable window containing the documented two-row text fixture and performs one real click."
+      ],
+      "expected": "The Edit text to the right of the reviewed anchor row is clicked once.",
+      "tags": [
+        "UI",
+        "relativeTo",
+        "tapText",
+        "desktop"
+      ],
+      "legacyNames": [
+        "ui-relative-target.js"
+      ],
+      "requiredEnv": [],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
+    },
+    "desktop/window-controls.js": {
+      "title": "Window Controls",
+      "description": "Move and restore an explicitly configured disposable target window.",
+      "category": "Desktop",
+      "level": "intermediate",
+      "runPolicy": "manual",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Requires explicit window-change opt-in and exact target identity."
+      ],
+      "expected": "The target bounds are changed, verified, and restored.",
+      "tags": [
+        "window",
+        "bounds",
+        "move"
+      ],
+      "legacyNames": [
+        "window-more.js"
+      ],
+      "docs": "docs/api/window.md",
+      "requiredEnv": [],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
+    },
+    "desktop/window-inspect.js": {
+      "title": "Window Inspect",
+      "description": "Inspect desktop windows without changing their state.",
+      "category": "Desktop",
+      "level": "beginner",
+      "runPolicy": "manual",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Window titles or application identity may be sensitive when sharing logs."
+      ],
+      "expected": "Read-only window information is printed.",
+      "tags": [
+        "window",
+        "inspect",
+        "desktop"
+      ],
+      "legacyNames": [
+        "window.js"
+      ],
+      "docs": "docs/api/window.md",
+      "requiredEnv": [],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
+    },
+  "dialog/async-await.js": {
+      "title": "Dialog with async/await",
+      "description": "Use native alert, confirm, and prompt dialogs with async/await.",
+    "category": "Dialog",
+      "level": "beginner",
+      "runPolicy": "manual",
+      "docs": "docs/api/dialog.md",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Run with Custom UI enabled; requires a supported native UI host."
+      ],
+      "expected": "The user completes or cancels the native dialog flow.",
+      "tags": [
+        "dialog",
+        "alert",
+        "confirm",
+        "prompt"
+      ],
+      "legacyNames": [
+        "dialog.js"
+      ],
+      "requiredEnv": [],
+      "launch": {
+        "kind": "script",
+        "ui": true,
+        "consoleMode": "script"
+      }
+    },
+  "dialog/promise-chain.js": {
+      "title": "Dialog with Promise Chain",
+      "description": "Run the same native Dialog flow with Promise chaining instead of async/await.",
+    "category": "Dialog",
+      "level": "intermediate",
+      "runPolicy": "manual",
+      "docs": "docs/api/dialog.md",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Run with Custom UI enabled; requires a supported native UI host."
+      ],
+      "expected": "The user completes or cancels the native dialog flow.",
+      "tags": [
+        "dialog",
+        "promise",
+        "alert",
+        "prompt"
+      ],
+      "legacyNames": [
+        "dialog-promise-chain.js"
+      ],
+      "requiredEnv": [],
+      "launch": {
+        "kind": "script",
+        "ui": true,
+        "consoleMode": "script"
+      }
     },
     "events/global-shortcut-permission-setup.js": {
       "title": "Global Shortcut Permission Setup",
@@ -481,12 +1319,29 @@
       "category": "Events",
       "level": "intermediate",
       "runPolicy": "manual",
-      "aliases": ["global-shortcut-permission-setup.js"],
       "docs": "docs/api/global-shortcut.md",
-      "platforms": ["darwin"],
-      "prerequisites": ["May open macOS System Settings to the missing Accessibility or Input Monitoring permission."],
+      "platforms": [
+        "darwin"
+      ],
+      "prerequisites": [
+        "May open macOS System Settings to the missing Accessibility or Input Monitoring permission."
+      ],
       "expected": "The required global-shortcut permissions are reported as ready or the missing settings page is opened.",
-      "tags": ["globalShortcut", "permission", "events", "macos"]
+      "tags": [
+        "globalShortcut",
+        "permission",
+        "events",
+        "macos"
+      ],
+      "legacyNames": [
+        "global-shortcut-permission-setup.js"
+      ],
+      "requiredEnv": [],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
     },
     "events/global-shortcut.js": {
       "title": "Global Shortcut",
@@ -494,62 +1349,937 @@
       "category": "Events",
       "level": "intermediate",
       "runPolicy": "manual",
-      "aliases": ["global-shortcut.js"],
       "docs": "docs/api/global-shortcut.md",
-      "platforms": ["darwin", "windows"],
-      "prerequisites": ["Registers CommandOrControl+Shift+q globally; on macOS configure permissions first; triggering it writes fixed example text to the clipboard."],
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Registers CommandOrControl+Shift+q globally; on macOS configure permissions first; triggering it writes fixed example text to the clipboard."
+      ],
       "expected": "The shortcut stays registered for this execution and the callback runs when the user presses it.",
-      "tags": ["globalShortcut", "keyboard", "event", "clipboard"]
+      "tags": [
+        "globalShortcut",
+        "keyboard",
+        "event",
+        "clipboard"
+      ],
+      "legacyNames": [
+        "global-shortcut.js"
+      ],
+      "requiredEnv": [],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
     },
-    "app/running-apps.js": {
-      "title": "Running Applications Overview",
-      "description": "Read the window list and summarize several common desktop applications without changing them.",
-      "category": "Applications",
-      "level": "beginner",
+    "http/download.js": {
+      "title": "HTTP Download",
+      "description": "Download a small public document into the run-owned artifact directory.",
+      "category": "HTTP",
+      "level": "intermediate",
       "runPolicy": "manual",
-      "aliases": ["check_all_apps.js"],
-      "platforms": ["darwin", "windows"],
-      "prerequisites": ["Window titles can contain user information; review output before sharing logs."],
-      "expected": "Matching application windows and their dimensions are printed.",
-      "tags": ["application", "window", "inspect"]
+      "legacyNames": [],
+      "docs": "docs/api/http.md",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Requires network access to the documented public test endpoint."
+      ],
+      "requiredEnv": [],
+      "expected": "The example completes and prints its result.",
+      "tags": [
+        "http",
+        "download",
+        "network"
+      ],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
     },
-    "app/wechat-window-inspect.js": {
-      "title": "WeChat Window Inspect",
-      "description": "Find WeChat windows without changing application state.",
-      "category": "Applications",
-      "level": "beginner",
-      "runPolicy": "manual",
-      "aliases": ["check_wechat.js"],
-      "platforms": ["darwin", "windows"],
-      "prerequisites": ["Window titles can contain user information; review output before sharing logs."],
-      "expected": "Detected WeChat windows and their dimensions are printed.",
-      "tags": ["wechat", "window", "inspect"]
-    },
-    "app/open-calculator-by-name.js": {
-      "title": "Open Calculator by Name",
-      "description": "Launch or activate macOS Calculator by its native application name and print the observed identity.",
-      "category": "Applications",
-      "level": "beginner",
-      "runPolicy": "manual",
-      "aliases": ["open-calculator-by-name.js"],
-      "docs": "docs/api/app.md",
-      "platforms": ["darwin"],
-      "prerequisites": ["Launches or activates the real Calculator application."],
-      "expected": "Calculator becomes available and its native identity is printed.",
-      "tags": ["app", "calculator", "launch", "macos"]
-    },
-    "app/lifecycle-calculator.js": {
-      "title": "Calculator App Lifecycle",
-      "description": "Launch, restart, terminate and verify macOS Calculator when no operator instance is already running.",
-      "category": "Applications",
+    "human-to-recipe/calculator-115.semantic.recipe.js": {
+      "title": "Calculator Semantic Recipe",
+      "description": "Run a reviewed, macOS-only Calculator recipe with explicit window and accessibility guards.",
+      "category": "Human to Recipe",
       "level": "advanced",
       "runPolicy": "manual",
-      "aliases": ["app-lifecycle.js"],
-      "docs": "docs/api/app.md",
-      "platforms": ["darwin"],
-      "prerequisites": ["Calculator must not already be running; the example launches, restarts and terminates the real application."],
-      "expected": "Lifecycle evidence is written under .runtime/examples/app/lifecycle-calculator/ and Calculator is not left running by the example.",
-      "tags": ["app", "lifecycle", "calculator", "macos"]
+      "legacyNames": [],
+      "docs": "workflows/human-to-recipe/README.md",
+      "platforms": [
+        "darwin"
+      ],
+      "prerequisites": [
+        "Requires the qualified Calculator fixture and the documented macOS permission/target checks."
+      ],
+      "requiredEnv": [],
+      "expected": "The example completes and prints its result.",
+      "tags": [
+        "recorder",
+        "recipe",
+        "calculator"
+      ],
+      "launch": {
+        "kind": "script",
+        "ui": true,
+        "consoleMode": "script"
+      }
+    },
+    "image-color/diff.js": {
+      "title": "Image Difference",
+      "description": "Compare versioned image fixtures with deterministic ImageColor operations.",
+      "category": "Image and Color",
+      "level": "intermediate",
+      "runPolicy": "manual",
+      "legacyNames": [],
+      "docs": "docs/api/image-color.md",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Uses the versioned fixtures under examples/image-color/fixtures."
+      ],
+      "requiredEnv": [],
+      "expected": "The example completes and prints its result.",
+      "tags": [
+        "image",
+        "color",
+        "vision"
+      ],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
+    },
+    "image-color/template-match.js": {
+      "title": "Template Match",
+      "description": "Compare versioned image fixtures with deterministic ImageColor operations.",
+      "category": "Image and Color",
+      "level": "intermediate",
+      "runPolicy": "manual",
+      "legacyNames": [],
+      "docs": "docs/api/image-color.md",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Uses the versioned fixtures under examples/image-color/fixtures."
+      ],
+      "requiredEnv": [],
+      "expected": "The example completes and prints its result.",
+      "tags": [
+        "image",
+        "color",
+        "vision"
+      ],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
+    },
+    "image-color/wechat-template-match-visual.js": {
+      "title": "Visual Template Match",
+      "description": "Inspect ordered template-match states in a real Custom UI window.",
+      "category": "Image and Color",
+      "level": "intermediate",
+      "runPolicy": "manual",
+      "legacyNames": [],
+      "docs": "docs/api/image-color.md",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Requires a desktop session and the reviewed visual fixture state."
+      ],
+      "requiredEnv": [],
+      "expected": "The example completes and prints its result.",
+      "tags": [
+        "image",
+        "template",
+        "visual"
+      ],
+      "launch": {
+        "kind": "script",
+        "ui": true,
+        "consoleMode": "script"
+      }
+    },
+    "native-extensions/ocr-quickstart.js": {
+      "title": "Native OCR Quickstart",
+      "description": "Run the bundled OCR extension against its local sample image.",
+      "category": "Native Extensions",
+      "level": "intermediate",
+      "runPolicy": "manual",
+      "legacyNames": [],
+      "docs": "examples/native-extensions/README.md",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Requires the bundled OCR extension and its sample image."
+      ],
+      "requiredEnv": [],
+      "expected": "The example completes and prints its result.",
+      "tags": [
+        "native-extensions",
+        "ocr"
+      ],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
+    },
+    "native-extensions/quickstart.js": {
+      "title": "Native Extension Quickstart",
+      "description": "Call the bundled native extension and print a deterministic hello and sum.",
+      "category": "Native Extensions",
+      "level": "intermediate",
+      "runPolicy": "manual",
+      "legacyNames": [],
+      "docs": "examples/native-extensions/README.md",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Requires the bundled native extension to be built for the current platform."
+      ],
+      "requiredEnv": [],
+      "expected": "The example completes and prints its result.",
+      "tags": [
+        "native-extensions",
+        "go",
+        "quickstart"
+      ],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
+    },
+    "notifications/lifecycle.js": {
+      "title": "Notification Lifecycle",
+      "description": "Wait for an own-app notification, inspect delivery metadata, and dismiss it.",
+      "category": "Notifications",
+      "level": "intermediate",
+      "runPolicy": "manual",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Shows and dismisses a real system notification."
+      ],
+      "expected": "Delivery metadata is observed and the notification is dismissed.",
+      "tags": [
+        "notification",
+        "wait",
+        "dismiss"
+      ],
+      "legacyNames": [
+        "notifications.js"
+      ],
+      "docs": "docs/api/notifications.md",
+      "requiredEnv": [],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
+    },
+    "notifications/send.js": {
+      "title": "Send Notification",
+      "description": "Send short OpenDesk notifications through the Runtime notification API.",
+      "category": "Notifications",
+      "level": "beginner",
+      "runPolicy": "manual",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Shows real system notifications and may play notification sound."
+      ],
+      "expected": "The system displays the example notifications.",
+      "tags": [
+        "notification",
+        "notify",
+        "system"
+      ],
+      "legacyNames": [
+        "notify.js"
+      ],
+      "docs": "docs/api/notifications.md",
+      "requiredEnv": [],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
+    },
+    "runtime/api-quickstart.js": {
+      "title": "Runtime API Quickstart",
+      "description": "A compact introduction to common OpenDesk Runtime globals and execution context.",
+      "category": "Getting Started",
+      "level": "beginner",
+      "runPolicy": "safe",
+      "platforms": [
+        "darwin",
+        "linux",
+        "windows"
+      ],
+      "prerequisites": [],
+      "expected": "The script prints its quickstart values and exits successfully.",
+      "tags": [
+        "runtime",
+        "quickstart",
+        "execution"
+      ],
+      "legacyNames": [
+        "api-quickstart.js"
+      ],
+      "docs": "docs/api/runtime.md",
+      "requiredEnv": [],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
+    },
+    "runtime/app-storage.js": {
+      "title": "App Storage",
+      "description": "Store text and JSON strings in persistent application storage using execution-scoped example keys.",
+      "category": "Runtime",
+      "level": "intermediate",
+      "runPolicy": "manual",
+      "platforms": [
+        "darwin",
+        "linux",
+        "windows"
+      ],
+      "prerequisites": [
+        "Writes persistent AppStorage values using a key prefixed with the current Execution.id."
+      ],
+      "expected": "Text and JSON values round-trip successfully.",
+      "tags": [
+        "storage",
+        "persistent",
+        "json"
+      ],
+      "legacyNames": [
+        "appStorage.js"
+      ],
+      "docs": "docs/api/storage.md",
+      "requiredEnv": [],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
+    },
+    "runtime/command.js": {
+      "title": "Command",
+      "description": "Run the platform's fixed echo command through Command.run() and validate the bounded result.",
+      "category": "Runtime",
+      "level": "beginner",
+      "runPolicy": "safe",
+      "docs": "docs/api/command.md",
+      "platforms": [
+        "darwin",
+        "linux",
+        "windows"
+      ],
+      "prerequisites": [],
+      "expected": "A fixed echo child process succeeds and its bounded output is validated.",
+      "tags": [
+        "command",
+        "process",
+        "child process"
+      ],
+      "legacyNames": [
+        "command.js"
+      ],
+      "requiredEnv": [],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
+    },
+    "runtime/console.js": {
+      "title": "Console Output",
+      "description": "Print log, info, warning, error, object, group, and timing output without changing the desktop.",
+      "category": "Getting Started",
+      "level": "beginner",
+      "runPolicy": "safe",
+      "platforms": [
+        "darwin",
+        "linux",
+        "windows"
+      ],
+      "prerequisites": [],
+      "expected": "Representative console output is printed and the execution exits successfully.",
+      "tags": [
+        "console",
+        "log",
+        "debug"
+      ],
+      "legacyNames": [
+        "console.js"
+      ],
+      "docs": "docs/api/runtime.md",
+      "requiredEnv": [],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
+    },
+    "runtime/environment.js": {
+      "title": "Environment",
+      "description": "Read selected execution environment information without dumping the complete process environment.",
+      "category": "Runtime",
+      "level": "beginner",
+      "runPolicy": "safe",
+      "platforms": [
+        "darwin",
+        "linux",
+        "windows"
+      ],
+      "prerequisites": [],
+      "expected": "Selected environment values and execution context are printed.",
+      "tags": [
+        "environment",
+        "runtime"
+      ],
+      "legacyNames": [
+        "environment.js"
+      ],
+      "docs": "docs/api/environment.md",
+      "requiredEnv": [],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
+    },
+    "runtime/file-json.js": {
+      "title": "JSON Files",
+      "description": "Read and write JSON through the OpenDesk File API using execution-owned async operations.",
+      "category": "Runtime",
+      "level": "beginner",
+      "runPolicy": "safe",
+      "docs": "docs/api/file.md",
+      "platforms": [
+        "darwin",
+        "linux",
+        "windows"
+      ],
+      "prerequisites": [],
+      "expected": "JSON data is written, read back, and printed from the execution artifact area.",
+      "tags": [
+        "file",
+        "json",
+        "readJSON",
+        "writeJSON"
+      ],
+      "legacyNames": [
+        "file-json.js"
+      ],
+      "requiredEnv": [],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
+    },
+    "runtime/file.js": {
+      "title": "File Operations",
+      "description": "Create, read, copy, move, and validate files inside the example artifact area.",
+      "category": "Runtime",
+      "level": "beginner",
+      "runPolicy": "safe",
+      "docs": "docs/api/file.md",
+      "platforms": [
+        "darwin",
+        "linux",
+        "windows"
+      ],
+      "prerequisites": [],
+      "expected": "The example validates its isolated file operations and exits successfully.",
+      "tags": [
+        "file",
+        "filesystem",
+        "artifact"
+      ],
+      "legacyNames": [
+        "file.js"
+      ],
+      "requiredEnv": [],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
+    },
+    "runtime/global-this.js": {
+      "title": "Global Runtime Object",
+      "description": "Inspect globalThis and temporarily attach values and functions within the current execution.",
+      "category": "Getting Started",
+      "level": "beginner",
+      "runPolicy": "safe",
+      "platforms": [
+        "darwin",
+        "linux",
+        "windows"
+      ],
+      "prerequisites": [],
+      "expected": "Temporary global values are created, read, and removed inside the execution.",
+      "tags": [
+        "globalThis",
+        "javascript",
+        "runtime"
+      ],
+      "legacyNames": [
+        "globalThis.js"
+      ],
+      "docs": "docs/api/global-apis.md",
+      "requiredEnv": [],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
+    },
+    "runtime/http.js": {
+      "title": "HTTP Requests",
+      "description": "Send an explicitly configured HTTP request to a test endpoint.",
+      "category": "Runtime",
+      "level": "intermediate",
+      "runPolicy": "manual",
+      "legacyNames": [],
+      "docs": "docs/api/http.md",
+      "platforms": [
+        "darwin",
+        "linux",
+        "windows"
+      ],
+      "prerequisites": [
+        "Use a test server you control; write requests also require their explicit opt-in."
+      ],
+      "requiredEnv": [
+        "OPENDESK_EXAMPLE_HTTP_URL"
+      ],
+      "expected": "The example completes and prints its result.",
+      "tags": [
+        "http",
+        "network",
+        "runtime"
+      ],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
+    },
+    "runtime/page-wait.js": {
+      "title": "Page Wait",
+      "description": "Use fixed waits, condition polling, AbortSignal cancellation, and waitForAll without desktop input.",
+      "category": "Runtime",
+      "level": "intermediate",
+      "runPolicy": "safe",
+      "platforms": [
+        "darwin",
+        "linux",
+        "windows"
+      ],
+      "prerequisites": [],
+      "expected": "Bounded wait examples complete and cancellation is reported.",
+      "tags": [
+        "page",
+        "wait",
+        "polling",
+        "abort"
+      ],
+      "legacyNames": [
+        "page.waitfor.js"
+      ],
+      "docs": "docs/api/page.md",
+      "requiredEnv": [],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
+    },
+    "runtime/path.js": {
+      "title": "Paths and Script Context",
+      "description": "Inspect path helpers together with Execution.scriptPath and Execution.scriptDir.",
+      "category": "Runtime",
+      "level": "beginner",
+      "runPolicy": "safe",
+      "docs": "docs/api/path.md",
+      "platforms": [
+        "darwin",
+        "linux",
+        "windows"
+      ],
+      "prerequisites": [],
+      "expected": "Normalized repository and script-context paths are printed.",
+      "tags": [
+        "path",
+        "execution",
+        "scriptDir"
+      ],
+      "legacyNames": [
+        "path.js"
+      ],
+      "requiredEnv": [],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
+    },
+    "runtime/promise.js": {
+      "title": "Promises",
+      "description": "Use await, Promise.all, rejection handling, and Promise.race in OpenDesk JavaScript.",
+      "category": "Getting Started",
+      "level": "beginner",
+      "runPolicy": "safe",
+      "platforms": [
+        "darwin",
+        "linux",
+        "windows"
+      ],
+      "prerequisites": [],
+      "expected": "Promise results and the race winner are printed.",
+      "tags": [
+        "promise",
+        "async",
+        "await"
+      ],
+      "legacyNames": [
+        "promise.js"
+      ],
+      "docs": "docs/api/runtime.md",
+      "requiredEnv": [],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
+    },
+    "runtime/sleep.js": {
+      "title": "Sleep",
+      "description": "Pause an execution with sleep() and sleepSeconds().",
+      "category": "Runtime",
+      "level": "beginner",
+      "runPolicy": "safe",
+      "platforms": [
+        "darwin",
+        "linux",
+        "windows"
+      ],
+      "prerequisites": [],
+      "expected": "The example resumes after bounded waits and completes.",
+      "tags": [
+        "sleep",
+        "wait",
+        "async"
+      ],
+      "legacyNames": [
+        "sleep.js"
+      ],
+      "docs": "docs/api/runtime.md",
+      "requiredEnv": [],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
+    },
+    "runtime/system-info.js": {
+      "title": "System Information",
+      "description": "Inspect local system, process, network, user, and hardware information.",
+      "category": "System",
+      "level": "intermediate",
+      "runPolicy": "manual",
+      "platforms": [
+        "darwin",
+        "linux",
+        "windows"
+      ],
+      "prerequisites": [
+        "Review output before sharing logs; it can include host- or user-identifying information."
+      ],
+      "expected": "Detailed local system information is printed.",
+      "tags": [
+        "system",
+        "process",
+        "network",
+        "fingerprint"
+      ],
+      "legacyNames": [
+        "system.js"
+      ],
+      "docs": "docs/api/system.md",
+      "requiredEnv": [],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
+    },
+    "runtime/system-session-state.js": {
+      "title": "System Session State",
+      "description": "Read session capability metadata and the current session state when supported.",
+      "category": "System",
+      "level": "beginner",
+      "runPolicy": "safe",
+      "platforms": [
+        "darwin",
+        "linux",
+        "windows"
+      ],
+      "prerequisites": [],
+      "expected": "Capabilities and supported session state are printed.",
+      "tags": [
+        "system",
+        "session",
+        "state"
+      ],
+      "legacyNames": [
+        "system-session-state.js"
+      ],
+      "docs": "docs/api/system.md",
+      "requiredEnv": [],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
+    },
+    "runtime/timer.js": {
+      "title": "Timers",
+      "description": "Use setTimeout, setInterval, clearTimeout, and clearInterval.",
+      "category": "Runtime",
+      "level": "beginner",
+      "runPolicy": "safe",
+      "platforms": [
+        "darwin",
+        "linux",
+        "windows"
+      ],
+      "prerequisites": [],
+      "expected": "Scheduled callbacks run and the canceled timeout does not run.",
+      "tags": [
+        "timer",
+        "setTimeout",
+        "setInterval"
+      ],
+      "legacyNames": [
+        "timer.js"
+      ],
+      "docs": "docs/api/runtime.md",
+      "requiredEnv": [],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
+    },
+    "sqlite/persistence-read.js": {
+      "title": "SQLite Persistence Read",
+      "description": "Use SQLite through a run-owned database and verify the result.",
+      "category": "SQLite",
+      "level": "intermediate",
+      "runPolicy": "manual",
+      "legacyNames": [],
+      "docs": "docs/api/sqlite.md",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Writes only below the run-owned .runtime artifact directory."
+      ],
+      "requiredEnv": [],
+      "expected": "The example completes and prints its result.",
+      "tags": [
+        "sqlite",
+        "database",
+        "storage"
+      ],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
+    },
+    "sqlite/persistence-write.js": {
+      "title": "SQLite Persistence Write",
+      "description": "Use SQLite through a run-owned database and verify the result.",
+      "category": "SQLite",
+      "level": "intermediate",
+      "runPolicy": "manual",
+      "legacyNames": [],
+      "docs": "docs/api/sqlite.md",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Writes only below the run-owned .runtime artifact directory."
+      ],
+      "requiredEnv": [],
+      "expected": "The example completes and prints its result.",
+      "tags": [
+        "sqlite",
+        "database",
+        "storage"
+      ],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
+    },
+    "sqlite/quickstart.js": {
+      "title": "SQLite Quickstart",
+      "description": "Use SQLite through a run-owned database and verify the result.",
+      "category": "SQLite",
+      "level": "intermediate",
+      "runPolicy": "manual",
+      "legacyNames": [],
+      "docs": "docs/api/sqlite.md",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Writes only below the run-owned .runtime artifact directory."
+      ],
+      "requiredEnv": [],
+      "expected": "The example completes and prints its result.",
+      "tags": [
+        "sqlite",
+        "database",
+        "storage"
+      ],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
+    },
+    "vision/bytes-roundtrip.js": {
+      "title": "Vision Bytes Roundtrip",
+      "description": "Capture active-window bytes, persist them, and send the same bytes to OCR.",
+      "category": "Vision",
+      "level": "intermediate",
+      "runPolicy": "manual",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Requires the configured Paddle OCR provider and captures active-window pixels."
+      ],
+      "expected": "The PNG artifact and OCR metadata are printed.",
+      "tags": [
+        "vision",
+        "ocr",
+        "bytes",
+        "screenshot"
+      ],
+      "legacyNames": [
+        "vision_bytes_roundtrip.js"
+      ],
+      "docs": "docs/api/vision.md",
+      "requiredEnv": [
+        "VISION_OCR_PROVIDER",
+        "PADDLE_OCR_ENDPOINT"
+      ],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
+    },
+    "vision/image-color-basic.js": {
+      "title": "Image Color Basics",
+      "description": "Compare colors and inspect pixels from a captured screenshot without sending desktop input.",
+      "category": "Vision",
+      "level": "intermediate",
+      "runPolicy": "manual",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Captures visible desktop pixels; close sensitive content before running."
+      ],
+      "expected": "Color similarity, image size, a sampled pixel, and a bounded color match are printed.",
+      "tags": [
+        "vision",
+        "image",
+        "color",
+        "pixel"
+      ],
+      "legacyNames": [],
+      "docs": "docs/api/vision.md",
+      "requiredEnv": [],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
+    },
+    "vision/ocr.js": {
+      "title": "OCR and Text Target",
+      "description": "Run OCR, resolve visible text through UI.findText(), and click the matched target.",
+      "category": "Vision",
+      "level": "advanced",
+      "runPolicy": "manual",
+      "platforms": [
+        "darwin",
+        "windows"
+      ],
+      "prerequisites": [
+        "Requires Paddle OCR configuration and performs a real click on the resolved text target."
+      ],
+      "expected": "OCR metadata and the resolved text target are printed; if found, the target is clicked.",
+      "tags": [
+        "vision",
+        "ocr",
+        "UI.findText",
+        "click"
+      ],
+      "legacyNames": [
+        "vision.ocr.js"
+      ],
+      "docs": "docs/api/vision.md",
+      "requiredEnv": [
+        "VISION_OCR_PROVIDER",
+        "PADDLE_OCR_ENDPOINT"
+      ],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
     }
   }
 }

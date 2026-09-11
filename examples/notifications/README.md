@@ -20,7 +20,7 @@
 
 ## 旧路径已退休
 
-根目录 `examples/notify.js` 与 `examples/notifications.js` 已删除。新命令只使用本目录 canonical 文件；Catalog `aliases` 只保留历史名称/搜索上下文。
+旧根目录通知入口已删除。新命令只使用本目录 canonical 文件；Catalog `legacyNames` 只保留历史名称/搜索上下文。
 
 ## 边界
 

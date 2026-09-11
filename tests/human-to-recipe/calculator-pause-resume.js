@@ -3,7 +3,7 @@
 // Run from the repository root:
 // OPENDESK_RECORDER_CALCULATOR_CONFIRM=authorized-calculator-fixture \
 // ./dist/opendesk -allow-recorder-capture \
-//   -script examples/human-to-recipe/calculator-pause-resume.js \
+//   -script tests/human-to-recipe/calculator-pause-resume.js \
 //   -console-mode script
 //
 // This script launches Calculator and visibly enters 9, 8, and 7. The click on

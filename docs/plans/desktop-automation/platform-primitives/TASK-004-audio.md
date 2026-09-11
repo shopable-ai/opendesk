@@ -161,7 +161,7 @@ Final Commit: this task-closing commit
 ### Evidence
 
 - 从仓库根目录原样执行：
-  `go run ./cmd/opendesk -script examples/audio/control-smoke.js -console-mode script` -> PASS。
+  `./dist/opendesk -script tests/audio/control-smoke.js -console-mode script` -> PASS。
 - 平台：macOS 12.7.6 / amd64；backend：`coreaudio`；枚举到 2 个输出和 2 个输入设备。
 - volume：`0.1875503808259964` -> 请求 `0.2875503808259964` -> 硬件 readback
   `0.28668856620788574` -> 恢复 `0.1875503808259964`。
@@ -176,7 +176,7 @@ Final Commit: this task-closing commit
 - 类型：`types/Audio.d.ts`；旧 `types/Sound.d.ts` 不变。
 - 文档：`docs/api/audio.md`、`docs/api/sound.md` 链接，以及 API README/index。
 - 机器索引：`docs/api/runtime-api.ai.json` 与 `tests/runtime-api/manifest.js`。
-- 可复制示例：`examples/audio/control-smoke.js`。
+- 测试资产：`tests/audio/control-smoke.js`；公开学习入口是 `examples/audio/playback-control.js`。
 
 ### Remaining
 

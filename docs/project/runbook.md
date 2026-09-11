@@ -16,7 +16,7 @@
 入口：
 
 ```bash
-go run ./cmd/opendesk -script examples/notify.js
+go run ./cmd/opendesk -script examples/notifications/send.js
 go run ./cmd/opendesk -script-text "console.log('hello')"
 printf "console.log('stdin')\n" | go run ./cmd/opendesk -script-stdin
 ```

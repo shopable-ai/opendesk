@@ -35,7 +35,7 @@ order: 20
 从 `page`、输入和窗口 API 开始：
 
 ```bash
-./opendesk -script examples/api-quickstart.js
+./opendesk -script examples/runtime/api-quickstart.js
 ```
 
 推荐按 [Page API](page.md) → [Geometry API](geometry.md) → [Desktop UI API](desktop-ui.md) → [Mouse API](mouse.md) → [Input APIs](input.md) → [Window API](window.md) 阅读。

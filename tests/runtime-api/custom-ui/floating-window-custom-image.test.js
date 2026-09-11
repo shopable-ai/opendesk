@@ -8,8 +8,8 @@
     covers: ['FloatingWindow.addButton', 'FloatingWindow.updateButton', 'FloatingWindow.getButtonState'],
   }, async () => {
     const generatedDir = File.join(RuntimeAPITest.context.runDir, 'generated');
-    const sourcePNG = File.join(File.cwd(), 'examples/custom-ui/recording-console/icons/quick-spotlight.png');
-    const sourceJPEG = File.join(File.cwd(), 'examples/custom-ui/recording-console/ApowerREC-more.jpeg');
+    const sourcePNG = File.join(File.cwd(), 'workflows/human-to-recipe/recording-console/icons/quick-spotlight.png');
+    const sourceJPEG = File.join(File.cwd(), 'workflows/human-to-recipe/recording-console/ApowerREC-more.jpeg');
     const iconPath = File.join(generatedDir, 'floating-window-custom-icon.png');
     const jpegPath = File.join(generatedDir, 'floating-window-custom-photo.jpeg');
     const mismatchPath = File.join(generatedDir, 'floating-window-custom-icon.jpg');
@@ -95,7 +95,7 @@
     const rejected = [];
     for (const icon of [
       { path: 'https://example.com/icon.png' },
-      { path: '../../../../../examples/custom-ui/recording-console/icons/quick-spotlight.png' },
+      { path: '../../../../../workflows/human-to-recipe/recording-console/icons/quick-spotlight.png' },
       { path: sourcePNG },
       { path: './floating-window-custom-icon.svg' },
       { path: './floating-window-custom-icon.jpg' },

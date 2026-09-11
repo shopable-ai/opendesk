@@ -344,7 +344,7 @@ File.open(path: string, mode: 'r' | 'w' | 'a'): FileHandle
 **文本示例（从仓库根目录运行）**
 
 ```bash
-./opendesk -script examples/file.js -console-mode script
+./opendesk -script examples/runtime/file.js -console-mode script
 ```
 
 该示例使用跨行模板字符串写入并回读 `.runtime/examples/file-demo/test.txt`。
@@ -352,7 +352,7 @@ File.open(path: string, mode: 'r' | 'w' | 'a'): FileHandle
 **JSON 示例（从仓库根目录运行）**
 
 ```bash
-./dist/opendesk ai run examples/file-json.js
+./dist/opendesk ai run examples/runtime/file-json.js
 ```
 
 该示例只将输出写入本次 `Execution.artifactDir`。

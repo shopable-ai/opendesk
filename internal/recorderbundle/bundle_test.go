@@ -31,7 +31,7 @@ func TestWriteToDirIsSelfContained(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(string(controller), "examples/custom-ui/recording-console-simple") {
+	if strings.Contains(string(controller), "workflows/human-to-recipe/recording-console-simple") {
 		t.Fatal("embedded Recorder UI must not fall back to the source examples tree")
 	}
 

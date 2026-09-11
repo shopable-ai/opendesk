@@ -26,7 +26,7 @@ order: 22
 
 完成迁移后只保留 canonical 实现。**不再为了旧命令在 `examples/` 中保留 wrapper。**
 
-当前审计清单中的旧路径必须不存在，对应 canonical 路径必须存在且非空。旧名字如仍有识别价值，可以留在 `examples/catalog.json` 的 `aliases` 中作为历史名称/搜索元数据，但 alias 不代表磁盘上存在第二个文件。
+当前审计清单中的旧路径必须不存在，对应 canonical 路径必须存在且非空。旧名字如仍有识别价值，可以留在 `examples/catalog.json` 的 `legacyNames` 中作为历史名称/搜索元数据，但 alias 不代表磁盘上存在第二个文件。
 
 已退休的第一、二批路径：
 

@@ -1,5 +1,5 @@
 // Run from the repository root:
-// go run ./cmd/opendesk -script examples/audio/control-smoke.js -console-mode script
+// ./dist/opendesk -script tests/audio/control-smoke.js -console-mode script
 
 const evidenceDirectory = '.runtime/tests/platform-primitives/task-004-audio';
 const evidencePath = File.join(evidenceDirectory, 'control-smoke.json');

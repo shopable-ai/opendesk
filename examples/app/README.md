@@ -61,7 +61,7 @@ finally {
 
 ## 旧路径已退休
 
-根目录 `examples/check_all_apps.js`、`examples/check_wechat.js`、`examples/open-calculator-by-name.js`、`examples/app-lifecycle.js` 已删除。只使用本目录 canonical 路径；Catalog `aliases` 仅用于历史名称/搜索上下文。
+旧根目录应用入口已删除。只使用本目录 canonical 路径；Catalog `legacyNames` 仅用于历史名称/搜索上下文。
 
 ## 其他历史应用脚本
 

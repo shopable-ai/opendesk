@@ -4,7 +4,7 @@
 // ./dist/opendesk -ui -script apps/example-explorer/main.js -console-mode script -log-dir .runtime/apps/example-explorer
 
 const appDir = Execution.scriptDir;
-for (const name of ['catalog.js', 'runner.js', 'view.js', 'controller.js']) {
+for (const name of ['catalog.js', 'launch.js', 'runner.js', 'view.js', 'controller.js']) {
   const modulePath = File.join(appDir, name);
   (0, eval)(File.read(modulePath) + '\n//# sourceURL=' + modulePath);
 }

@@ -13,7 +13,7 @@ OpenDesk 为每次脚本执行创建独立的 JavaScript Runtime，注入当前�
 ## 从仓库根目录运行
 
 ```bash
-./opendesk -script examples/api-quickstart.js
+./opendesk -script examples/runtime/api-quickstart.js
 ```
 
 也可以运行一段短脚本：

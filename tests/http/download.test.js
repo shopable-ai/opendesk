@@ -1,5 +1,5 @@
 // From the repository root:
-// ./dist/opendesk -script examples/http/download.test.js -console-mode script
+// ./dist/opendesk -script tests/http/download.test.js -console-mode script
 //
 // This deterministic self-test owns the existing loopback fixture process;
 // users do not need to start a server. It shares the formal Runtime assertion

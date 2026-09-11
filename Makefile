@@ -4,7 +4,7 @@ GO ?= go
 GOBIN ?= $(HOME)/go/bin
 export PATH := $(GOBIN):$(PATH)
 
-.PHONY: help doctor setup deps fmt vet test test-core test-icons test-runtime-api test-runtime-api-live test-host-api test-host-api-live build build-apple-vision-ocr build-macos smoke
+.PHONY: help doctor setup deps fmt vet test test-core test-icons test-runtime-api test-runtime-api-live test-host-api test-host-api-live check-custom-ui-components build build-apple-vision-ocr build-macos smoke
 
 help:
 	@echo "opendesk development targets:"
@@ -18,6 +18,7 @@ help:
 	@echo "  make test-icons  Validate deterministic app icons and macOS bundle injection"
 	@echo "  make test-runtime-api Run JavaScript Runtime API contract, unit, smoke, and acceptance gates"
 	@echo "  make test-runtime-api-live Run Runtime API tests against the Safari Test Lab"
+	@echo "  make check-custom-ui-components Build and run the HTML/Native UI component gates"
 	@echo "  make test-host-api Deprecated alias for test-runtime-api"
 	@echo "  make test-host-api-live Deprecated alias for test-runtime-api-live"
 	@echo "  make build       Build the opendesk binary"
@@ -70,6 +71,9 @@ test-runtime-api-live: build
 test-host-api: test-runtime-api
 
 test-host-api-live: test-runtime-api-live
+
+check-custom-ui-components: build
+	bash scripts/check_custom_ui_components.sh
 
 build:
 	$(GO) build -o dist/opendesk ./cmd/opendesk

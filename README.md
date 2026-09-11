@@ -11,7 +11,7 @@ OpenDesk 是一个本地桌面自动化运行时。你可以直接运行 JavaScr
 ### 直接运行 JavaScript 文件
 
 ```bash
-./dist/opendesk -script examples/notify.js
+./dist/opendesk -script examples/notifications/send.js
 ```
 
 把路径换成自己的脚本即可：
@@ -25,7 +25,7 @@ OpenDesk 是一个本地桌面自动化运行时。你可以直接运行 JavaScr
 下面这条命令会直接打开原生录制工具栏：
 
 ```bash
-./dist/opendesk -ui -allow-recorder-capture -script examples/custom-ui/recording-console-simple.js
+./dist/opendesk -ui -allow-recorder-capture -script workflows/human-to-recipe/recording-console-simple.js
 ```
 
 ![OpenDesk 原生录制工具栏](docs/assets/readme/recording-console-toolbar.png)
@@ -35,7 +35,7 @@ OpenDesk 是一个本地桌面自动化运行时。你可以直接运行 JavaScr
 键盘录制：
 
 ```bash
-OPENDESK_RECORDER_CAPTURE_KEYBOARD=1 ./dist/opendesk -ui -allow-recorder-capture -script examples/custom-ui/recording-console-simple.js
+OPENDESK_RECORDER_CAPTURE_KEYBOARD=1 ./dist/opendesk -ui -allow-recorder-capture -script workflows/human-to-recipe/recording-console-simple.js
 ```
 
 这里保留的参数都有实际作用：`-ui` 启用原生界面，`-allow-recorder-capture` 授权本次本地进程
@@ -69,7 +69,7 @@ printf "console.log('hello from stdin')\n" | ./dist/opendesk -script-stdin
 从 OpenDesk 目录运行：
 
 ```bash
-./dist/opendesk -script examples/global-shortcut.js
+./dist/opendesk -script examples/events/global-shortcut.js
 ```
 
 在 macOS 按 `Command+Shift+9`，终端会显示 `copied`，并把示例文本写入剪贴板；按
@@ -78,7 +78,7 @@ printf "console.log('hello from stdin')\n" | ./dist/opendesk -script-stdin
 `page.requestPermissions({ section: 'globalShortcut', openSettings: true, strict: false })`）：
 
 ```bash
-./dist/opendesk -script examples/global-shortcut-permission-setup.js
+./dist/opendesk -script examples/events/global-shortcut-permission-setup.js
 ```
 
 它只会为缺少的 Accessibility / Input Monitoring 权限打开设置；两项已授权时不会重复弹窗。
@@ -90,13 +90,13 @@ printf "console.log('hello from stdin')\n" | ./dist/opendesk -script-stdin
 发行包中的 `dist/opendesk` 和 `dist/opendesk-ui-host` 应保持在同一目录，然后直接运行：
 
 ```bash
-./dist/opendesk -ui -script examples/dialog.js
+./dist/opendesk -ui -script examples/dialog/async-await.js
 ```
 
 Promise 链式 `.then()` / `.catch()` / `.finally()` 版本：
 
 ```bash
-./dist/opendesk -ui -script examples/dialog-promise-chain.js
+./dist/opendesk -ui -script examples/dialog/promise-chain.js
 ```
 
 两条命令任选其一。普通体验不需要切换到 `dist/`，也不需要运行 AX/窗口控制工具；完整的
@@ -110,7 +110,7 @@ Promise 链式 `.then()` / `.catch()` / `.finally()` 版本：
 点击按钮即可把不同快捷回复复制到系统剪贴板，关闭窗口后脚本结束：
 
 ```bash
-./dist/opendesk -ui -script examples/custom-ui/toolbar-vertical-quick-replies.js
+./dist/opendesk -ui -script examples/custom-ui/quick-replies/main.js
 ```
 
 vertical 工具栏固定为单列、最多五个按钮，超过上限会以 `INVALID_SPEC` 失败。正式

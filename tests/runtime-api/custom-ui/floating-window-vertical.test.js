@@ -12,7 +12,7 @@
       'clipboard.copy', 'clipboard.paste', 'Screen.getPrimaryDisplay', 'Screen.screenshot',
     ],
   }, async () => {
-    const configPath = File.join(File.cwd(), 'examples/custom-ui/toolbar-vertical-quick-replies.json');
+    const configPath = File.join(File.cwd(), 'examples/custom-ui/quick-replies/config.json');
     const quickReplyConfig = JSON.parse(File.read(configPath));
     equal(quickReplyConfig.schemaVersion, 1, 'quick-reply config schema changed');
     equal(quickReplyConfig.toolbar.orientation, 'vertical', 'quick-reply layout intent is not JS/JSON controlled');

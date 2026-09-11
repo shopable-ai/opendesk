@@ -528,7 +528,7 @@ run #3
 每次运行必须创建独立目录，例如：
 
 ```text
-.runtime/examples/custom-ui/script-runner-simple/runs/
+.runtime/apps/opendesk/script-runner/runs/
 └─ 2026-09-10T15-30-00-000Z-erp/
 ```
 

@@ -123,8 +123,8 @@ Recorder.generateScript(actionsFile, {mode: "native-semantic"})
 | `pkg/execution/runner.go` | `Request.EnableRecorderCapture` | execution 权限、context、异步 drain 和 residual 诊断 |
 | `cmd/opendesk/main.go` | `Config.AllowRecorderCapture` | 只有 direct local CLI 的 `-allow-recorder-capture` 可启用 capture |
 | `types/recorder.d.ts` | `OpenDeskRecorderRuntime` 等 | 在已有小写文件保留 Agent-first exports，并增加 Runtime global；不建大小写副本 |
-| `examples/custom-ui/recording-console.js` | `OpenDeskRecordingConsole.createApp(...)` | 正常原生窗口入口；把同一个 Runtime、前台范围探测和 UI host 接在一起 |
-| `examples/custom-ui/recording-console/controller.js` | `createFlow`、`createApp` | 两个窗口的单一串行状态、按钮路由、错误／部分保存显示和关闭清理；不拥有 listener、builder、generator 或 replay |
+| `workflows/human-to-recipe/recording-console.js` | `OpenDeskRecordingConsole.createApp(...)` | 正常原生窗口入口；把同一个 Runtime、前台范围探测和 UI host 接在一起 |
+| `workflows/human-to-recipe/recording-console/controller.js` | `createFlow`、`createApp` | 两个窗口的单一串行状态、按钮路由、错误／部分保存显示和关闭清理；不拥有 listener、builder、generator 或 replay |
 | `tests/runtime-api/custom-ui/recording-console.test.js` | formal synthetic Recorder fixture | 通过真实 Custom UI 控件点击覆盖准备、暂停／继续、停止、actions、显式生成、single-flight、部分保存和关闭中启动回收；不启动真人 listener |
 
 `pkg/recorder`、`pkg/mcpserver/recorder.go`、`docs/api/recorder.md` 的 Agent-first 行为未修改。基础实现也不反向依赖 `workflows/` 或 Skill。

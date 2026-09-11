@@ -1,10 +1,20 @@
 (function installOpenDeskExampleCatalog(global) {
   'use strict';
 
+  const SCHEMA_VERSION = 2;
   const RUN_POLICIES = new Set(['safe', 'manual']);
+  const LAUNCH_KINDS = new Set(['script', 'ai-run']);
+  const CONSOLE_MODES = new Set(['normal', 'full', 'script', 'meta', 'summary', 'quiet', 'agent']);
+  const PLATFORMS = new Set(['darwin', 'linux', 'windows']);
+  const LEVELS = new Set(['beginner', 'intermediate', 'advanced']);
 
   function normalizeSlash(value) {
     return String(value || '').replace(/\\/g, '/');
+  }
+
+  function normalizePlatform(value) {
+    const platform = String(value || '').trim().toLowerCase();
+    return platform || '';
   }
 
   function isExampleJavaScript(name) {
@@ -30,9 +40,14 @@
     return path;
   }
 
-  function validateOptionalString(value, label) {
-    if (value == null) return '';
-    if (typeof value !== 'string') throw new Error(label + ' must be a string');
+  function validateString(value, label, required = false) {
+    if (value == null && !required) return '';
+    if (typeof value !== 'string' || (required && !value.trim())) {
+      throw new Error(label + ' must be a non-empty string');
+    }
+    if ([...value].some(character => character.charCodeAt(0) < 0x20)) {
+      throw new Error(label + ' must not contain control characters');
+    }
     return value;
   }
 
@@ -43,48 +58,106 @@
       if (typeof item !== 'string' || !item.trim()) {
         throw new Error(`${label}[${index}] must be a non-empty string`);
       }
-      return item;
+      if ([...item].some(character => character.charCodeAt(0) < 0x20)) {
+        throw new Error(`${label}[${index}] must not contain control characters`);
+      }
+      return item.trim();
     });
+  }
+
+  function validatePlatformArray(value, label) {
+    const platforms = validateStringArray(value, label).map(item => item.trim().toLowerCase());
+    if (!platforms.length) throw new Error(label + ' must contain at least one platform');
+    for (const platform of platforms) {
+      if (!PLATFORMS.has(platform)) throw new Error(`${label} contains unsupported platform: ${platform}`);
+    }
+    if (new Set(platforms).size !== platforms.length) throw new Error(label + ' contains duplicate platforms');
+    return platforms;
+  }
+
+  function validateLaunch(relativePath, value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      throw new Error(`${relativePath}.launch must be an object`);
+    }
+    const kind = validateString(value.kind, `${relativePath}.launch.kind`, true).trim();
+    if (!LAUNCH_KINDS.has(kind)) {
+      throw new Error(`${relativePath}.launch.kind must be "script" or "ai-run"`);
+    }
+    if (value.ui !== undefined && typeof value.ui !== 'boolean') {
+      throw new Error(`${relativePath}.launch.ui must be a boolean`);
+    }
+    const ui = value.ui === true;
+    if (kind === 'ai-run' && ui) {
+      throw new Error(`${relativePath}.launch.ui is not supported for ai-run`);
+    }
+    const consoleMode = value.consoleMode == null ? 'script' : validateString(value.consoleMode, `${relativePath}.launch.consoleMode`, true).trim();
+    if (kind === 'script' && !CONSOLE_MODES.has(consoleMode)) {
+      throw new Error(`${relativePath}.launch.consoleMode is not a supported console mode`);
+    }
+    if (kind === 'ai-run' && value.consoleMode != null) {
+      throw new Error(`${relativePath}.launch.consoleMode is only valid for script`);
+    }
+    const input = value.input == null ? 'none' : validateString(value.input, `${relativePath}.launch.input`, true).trim();
+    if (!['none', 'required'].includes(input)) {
+      throw new Error(`${relativePath}.launch.input must be "none" or "required"`);
+    }
+    if (input === 'required' && kind !== 'ai-run') {
+      throw new Error(`${relativePath}.launch.input is only valid for ai-run`);
+    }
+    return {kind, ui, consoleMode: kind === 'script' ? consoleMode : null, input};
   }
 
   function validateMetadata(relativePath, value) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
       throw new Error('catalog metadata must be an object: ' + relativePath);
     }
-    const title = validateOptionalString(value.title, `${relativePath}.title`).trim();
-    const category = validateOptionalString(value.category, `${relativePath}.category`).trim();
-    const level = validateOptionalString(value.level, `${relativePath}.level`).trim();
-    const description = validateOptionalString(value.description, `${relativePath}.description`);
-    const docs = validateOptionalString(value.docs, `${relativePath}.docs`);
-    const expected = validateOptionalString(value.expected, `${relativePath}.expected`);
-    const runPolicy = value.runPolicy == null ? 'manual' : String(value.runPolicy);
+    const title = validateString(value.title, `${relativePath}.title`, true).trim();
+    const category = validateString(value.category, `${relativePath}.category`, true).trim();
+    const level = validateString(value.level, `${relativePath}.level`, true).trim();
+    if (!LEVELS.has(level)) throw new Error(`${relativePath}.level must be beginner, intermediate, or advanced`);
+    const description = validateString(value.description, `${relativePath}.description`, true);
+    const docs = validateString(value.docs, `${relativePath}.docs`);
+    const expected = validateString(value.expected, `${relativePath}.expected`);
+    const runPolicy = validateString(value.runPolicy, `${relativePath}.runPolicy`, true).trim();
     if (!RUN_POLICIES.has(runPolicy)) {
       throw new Error(`${relativePath}.runPolicy must be "safe" or "manual"`);
     }
-    const aliases = validateStringArray(value.aliases, `${relativePath}.aliases`)
-      .map((alias, index) => validateRelativeJavaScriptPath(alias, `${relativePath}.aliases[${index}]`));
-    const aliasSet = new Set(aliases);
-    if (aliasSet.size !== aliases.length) throw new Error('duplicate alias in catalog entry: ' + relativePath);
-    if (aliasSet.has(relativePath)) throw new Error('catalog alias duplicates its canonical path: ' + relativePath);
+    const legacyNames = validateStringArray(value.legacyNames, `${relativePath}.legacyNames`)
+      .map(name => name.trim());
+    const legacyNameSet = new Set(legacyNames);
+    if (legacyNameSet.size !== legacyNames.length) throw new Error('duplicate legacy name in catalog entry: ' + relativePath);
+    if (legacyNameSet.has(relativePath)) throw new Error('legacy name duplicates its canonical path: ' + relativePath);
+
+    const requiredEnv = validateStringArray(value.requiredEnv, `${relativePath}.requiredEnv`);
+    for (const variable of requiredEnv) {
+      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(variable)) {
+        throw new Error(`${relativePath}.requiredEnv contains an invalid environment variable name: ${variable}`);
+      }
+    }
+    if (new Set(requiredEnv).size !== requiredEnv.length) {
+      throw new Error(`${relativePath}.requiredEnv contains duplicate variables`);
+    }
 
     return {
-      title: title || relativePath,
+      title,
       description,
-      category: category || 'Other',
-      level: level || 'intermediate',
+      category,
+      level,
       runPolicy,
-      aliases,
+      legacyNames,
       docs,
-      platforms: validateStringArray(value.platforms, `${relativePath}.platforms`),
+      platforms: validatePlatformArray(value.platforms, `${relativePath}.platforms`),
       prerequisites: validateStringArray(value.prerequisites, `${relativePath}.prerequisites`),
+      requiredEnv,
       expected,
       tags: validateStringArray(value.tags, `${relativePath}.tags`),
+      launch: validateLaunch(relativePath, value.launch),
     };
   }
 
   function validateCatalog(parsed) {
-    if (!parsed || parsed.schemaVersion !== 1 || !parsed.entries || typeof parsed.entries !== 'object' || Array.isArray(parsed.entries)) {
-      throw new Error('examples/catalog.json must contain schemaVersion=1 and an entries object');
+    if (!parsed || parsed.schemaVersion !== SCHEMA_VERSION || !parsed.entries || typeof parsed.entries !== 'object' || Array.isArray(parsed.entries)) {
+      throw new Error(`examples/catalog.json must contain schemaVersion=${SCHEMA_VERSION} and an entries object`);
     }
 
     const entries = {};
@@ -97,26 +170,26 @@
     }
 
     const canonical = new Set(Object.keys(entries));
-    const aliasOwner = new Map();
+    const legacyNameOwner = new Map();
     for (const [relativePath, metadata] of Object.entries(entries)) {
-      for (const alias of metadata.aliases) {
-        if (canonical.has(alias)) {
-          throw new Error(`catalog alias ${alias} conflicts with a canonical path`);
+      for (const legacyName of metadata.legacyNames) {
+        if (canonical.has(legacyName)) {
+          throw new Error(`catalog legacy name ${legacyName} conflicts with a canonical path`);
         }
-        const previous = aliasOwner.get(alias);
+        const previous = legacyNameOwner.get(legacyName);
         if (previous) {
-          throw new Error(`catalog alias ${alias} is owned by both ${previous} and ${relativePath}`);
+          throw new Error(`catalog legacy name ${legacyName} is owned by both ${previous} and ${relativePath}`);
         }
-        aliasOwner.set(alias, relativePath);
+        legacyNameOwner.set(legacyName, relativePath);
       }
     }
 
-    return {schemaVersion: 1, entries};
+    return {schemaVersion: SCHEMA_VERSION, entries};
   }
 
   function readCatalog(file, catalogPath) {
     const info = file.stat(catalogPath);
-    if (!info) return {schemaVersion: 1, entries: {}};
+    if (!info) return {schemaVersion: SCHEMA_VERSION, entries: {}};
     if (info.type !== 'file') throw new Error('examples/catalog.json is not a regular file');
     return validateCatalog(JSON.parse(String(file.read(catalogPath))));
   }
@@ -140,7 +213,8 @@
     }
   }
 
-  function normalizeEntry(discovered, metadata) {
+  function normalizeEntry(discovered, metadata, currentPlatform) {
+    const platformSupported = !currentPlatform || metadata.platforms.includes(currentPlatform);
     return {
       relativePath: discovered.relativePath,
       absolutePath: discovered.absolutePath,
@@ -152,17 +226,21 @@
       category: metadata.category,
       level: metadata.level,
       runPolicy: metadata.runPolicy,
-      aliases: metadata.aliases.slice(),
+      legacyNames: metadata.legacyNames.slice(),
       docs: metadata.docs,
       platforms: metadata.platforms.slice(),
       prerequisites: metadata.prerequisites.slice(),
+      requiredEnv: metadata.requiredEnv.slice(),
       expected: metadata.expected,
       tags: metadata.tags.slice(),
-      runnable: metadata.runPolicy === 'safe',
+      launch: Object.assign({}, metadata.launch),
+      platformSupported,
+      runnable: metadata.runPolicy === 'safe' && platformSupported,
     };
   }
 
   function scan(options) {
+    options = options || {};
     const file = options.file;
     const examplesRoot = options.examplesRoot;
     const catalogPath = options.catalogPath;
@@ -173,23 +251,23 @@
     const discovered = [];
     walkJavaScript(file, examplesRoot, examplesRoot, discovered);
     const byPath = new Map(discovered.map(item => [item.relativePath, item]));
-    const aliases = new Set();
+    const legacyNames = new Set();
     const entries = [];
     const missing = [];
 
     for (const relativePath of Object.keys(catalog.entries).sort()) {
       const metadata = catalog.entries[relativePath];
-      for (const alias of metadata.aliases) aliases.add(alias);
+      for (const name of metadata.legacyNames) legacyNames.add(name);
       const item = byPath.get(relativePath);
       if (!item) {
         missing.push({relativePath, metadata});
         continue;
       }
-      entries.push(normalizeEntry(item, metadata));
+      entries.push(normalizeEntry(item, metadata, normalizePlatform(options.currentPlatform)));
     }
 
     const canonical = new Set(Object.keys(catalog.entries));
-    const unregistered = discovered.filter(item => !canonical.has(item.relativePath) && !aliases.has(item.relativePath));
+    const unregistered = discovered.filter(item => !canonical.has(item.relativePath) && !legacyNames.has(item.relativePath));
 
     entries.sort((left, right) => {
       const byCategory = left.category.localeCompare(right.category);

@@ -36,5 +36,5 @@ console.time('循环计时');
 for (let i = 0; i < 1000000; i++) {}
 console.timeEnd('循环计时');
 
-console.error('参数是null', null);
-console.error('参数是undefined', undefined);
+console.error('参数是null', String(null));
+console.error('参数是undefined', String(undefined));

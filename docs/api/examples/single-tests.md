@@ -39,18 +39,13 @@ order: 720
 
 - [Page 点击与截图](../../../examples/desktop/page-click.js)：`./opendesk -script examples/desktop/page-click.js -console-mode script`
 - [Page 等待 quickstart](../../../examples/runtime/page-wait.js)：`./dist/opendesk -script examples/runtime/page-wait.js -console-mode script`
-- [Page 等待共享用例 smoke](../../../examples/runtime/page-wait.test.js)：`./dist/opendesk -script examples/runtime/page-wait.test.js -console-mode script`
-
-Page 等待 smoke 复用正式 Page family 的共享行为用例，要求必需分组与四个方法全部执行，并报告 `failed: 0`、`skipped: 0`。
-
 Windows PowerShell 的对应待验收命令：
 
 ```powershell
 .\dist\opendesk.exe -script examples/runtime/page-wait.js -console-mode script
-.\dist\opendesk.exe -script examples/runtime/page-wait.test.js -console-mode script
 ```
 
-本轮没有 Windows 真机 Runtime evidence，因此这两条命令是 **NOT_EVALUATED**；登记命令不表示已经运行或通过。
+本轮没有 Windows 真机 Runtime evidence，因此这条命令是 **NOT_EVALUATED**；登记命令不表示已经运行或通过。Page family 的共享 contract test 只从 `tests/runtime-api/` 运行。
 
 ## 窗口与键盘
 
@@ -65,9 +60,9 @@ Windows PowerShell 的对应待验收命令：
 
 人工录制只用于已授权、可恢复、非敏感 fixture。从仓库根目录运行后，F8 明确开始，F9 在示例 UI 层暂停／继续，F10 停止并制作 actions，F11 显式生成但不回放，F12 结束：
 
-- [人工录制](../../../examples/human-to-recipe/record.js)：`./dist/opendesk -allow-recorder-capture -script examples/human-to-recipe/record.js -console-mode script`
-- [计算器暂停／继续自检（macOS）](../../../examples/human-to-recipe/calculator-pause-resume.js)：`OPENDESK_RECORDER_CALCULATOR_CONFIRM=authorized-calculator-fixture ./dist/opendesk -allow-recorder-capture -script examples/human-to-recipe/calculator-pause-resume.js -console-mode script`
-- [从固定 actions 独立生成](../../../examples/human-to-recipe/generate.js)：`OPENDESK_RECORDER_ACTIONS_FILE=.runtime/recordings/<ID>/actions.json ./dist/opendesk -script examples/human-to-recipe/generate.js -console-mode script`
+- [人工录制](../../../workflows/human-to-recipe/record.js)：`./dist/opendesk -allow-recorder-capture -script workflows/human-to-recipe/record.js -console-mode script`
+- [计算器暂停／继续自检（macOS）](../../../tests/human-to-recipe/calculator-pause-resume.js)：`OPENDESK_RECORDER_CALCULATOR_CONFIRM=authorized-calculator-fixture ./dist/opendesk -allow-recorder-capture -script tests/human-to-recipe/calculator-pause-resume.js -console-mode script`
+- [从固定 actions 独立生成](../../../workflows/human-to-recipe/generate.js)：`OPENDESK_RECORDER_ACTIONS_FILE=.runtime/recordings/<ID>/actions.json ./dist/opendesk -script workflows/human-to-recipe/generate.js -console-mode script`
 
 计算器自检会真实输入 `9 →（暂停）8 →（继续）7`；终端应连续输出五行 `[PASS]`，计算器应显示 `987`，而保存的 raw/actions 只能包含 `9`、`7` 两次点击。证据目录中的 `summary.json` 必须为 `"passed": true`，并包含显示 `0`、`98`、`987` 的三张截图。没有 `-allow-recorder-capture` 时，文件制作仍可用但监听拒绝；生成命令不会重新监听或自动回放。
 
@@ -95,8 +90,9 @@ Windows PowerShell 的对应待验收命令：
 - [按钮面板](../../../examples/custom-ui/panel.js)：`./opendesk -ui -script examples/custom-ui/panel.js -console-mode script`
 - [表单](../../../examples/custom-ui/form.js)：`./opendesk -ui -script examples/custom-ui/form.js -console-mode script`
 - [可复用组件状态画廊](../../../examples/custom-ui/ui-components.js)：`./opendesk -ui -script examples/custom-ui/ui-components.js -console-mode script -log-dir .runtime/examples/custom-ui/ui-components`
+- [Native UI 组件状态画廊](../../../examples/custom-ui/native-ui-components.js)：`./opendesk -ui -script examples/custom-ui/native-ui-components.js -console-mode script -log-dir .runtime/examples/custom-ui/native-ui-components`
 - [浮动工具栏](../../../examples/custom-ui/five-button-toolbar.js)：`./opendesk -ui -script examples/custom-ui/five-button-toolbar.js -console-mode script`
-- [图标列表](../../../examples/custom-ui/icon-list.js)：`./opendesk -ui -script examples/custom-ui/icon-list.js -console-mode script`
+- [图标列表](../../../examples/custom-ui/icon-browser/main.js)：`./opendesk -ui -script examples/custom-ui/icon-browser/main.js -console-mode script`
 
 ## 图像与原生扩展
 

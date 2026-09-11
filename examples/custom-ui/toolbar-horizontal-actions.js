@@ -18,7 +18,7 @@ const toolbarConfig = {
   ],
 };
 
-const helperPath = File.join(File.cwd(), 'examples/custom-ui/toolbar-example.js');
+const helperPath = File.join(File.cwd(), 'examples/custom-ui/support/toolbar-example.js');
 (0, eval)(File.read(helperPath) + '\n//# sourceURL=' + helperPath);
 
 let running = false;

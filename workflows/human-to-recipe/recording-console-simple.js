@@ -1,5 +1,5 @@
 // Run from the repository root:
-// ./dist/opendesk -ui -allow-recorder-capture -script examples/custom-ui/recording-console-simple.js -console-mode script -log-dir .runtime/examples/custom-ui/recording-console-simple
+// ./dist/opendesk -ui -allow-recorder-capture -script workflows/human-to-recipe/recording-console-simple.js -console-mode script -log-dir .runtime/workflows/human-to-recipe/recording-console-simple
 'use strict';
 
 const recorderUIRoot = File.join(Execution.workdir, 'internal', 'recorderbundle', 'ui');

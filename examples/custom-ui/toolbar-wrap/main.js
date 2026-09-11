@@ -1,5 +1,5 @@
 // Run from the repository root with:
-// opendesk -ui -script examples/custom-ui/floating-toolbar-wrap-demo.js -console-mode script -log-dir .runtime/examples/custom-ui/floating-toolbar-wrap-demo
+// ./opendesk -ui -script examples/custom-ui/toolbar-wrap/main.js -console-mode script -log-dir .runtime/examples/custom-ui/toolbar-wrap
 //
 // This is an interactive visual demo. It opens three native toolbars at once:
 // maxWidth makes a 5 + 1 wrap, maxColumns makes a 2 + 2 + 1 wrap, and maxRows
@@ -16,7 +16,7 @@ const buttons = [
   { id: 'done', label: '完成', icon: 'checkmark' },
 ];
 
-const configPath = File.join(File.cwd(), 'examples/custom-ui/floating-toolbar-wrap-demo.json');
+const configPath = File.join(File.cwd(), 'examples/custom-ui/toolbar-wrap/config.json');
 const demoConfig = JSON.parse(File.read(configPath));
 if (demoConfig.schemaVersion !== 1 || !Array.isArray(demoConfig.layouts) || demoConfig.layouts.length !== 3) {
   throw new Error('invalid floating toolbar wrap demo configuration');

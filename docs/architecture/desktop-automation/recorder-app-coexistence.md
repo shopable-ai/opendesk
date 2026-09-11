@@ -146,7 +146,7 @@ OpenDesk 不把“普通用户”和“开发者”设计成两个完全分离�
 当前独立命令仍可保留作为开发、调试和回归入口，例如：
 
 ```bash
-OPENDESK_RECORDER_CAPTURE_KEYBOARD=1 ./dist/opendesk -ui -allow-recorder-capture -script examples/custom-ui/recording-console-simple.js -console-mode script -log-dir .runtime/examples/custom-ui/recording-console-simple
+OPENDESK_RECORDER_CAPTURE_KEYBOARD=1 ./dist/opendesk -ui -allow-recorder-capture -script workflows/human-to-recipe/recording-console-simple.js -console-mode script -log-dir .runtime/workflows/human-to-recipe/recording-console-simple
 ```
 
 但正式产品入口应逐步由系统托盘的“打开 Recorder”进入，而不是要求普通用户再次手动启动第二条 OpenDesk 命令。

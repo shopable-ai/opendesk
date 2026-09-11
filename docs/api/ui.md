@@ -25,6 +25,61 @@ macOS host 使用 AppKit，受限 HTML surface 使用 WKWebView；Windows host �
 | 最多 32 个紧凑 Button / Label / 原生控件内容项，以及少量分隔结构 | `new FloatingWindow(options)` | 需要多行表单、任意 HTML/CSS、滚动区或动态控件树 |
 | 表单、受限 HTML/CSS 或动态控件树 | `ui.createWindow(spec)` | 仅需图标工具栏 |
 
+## 主题、CSS 与控件表面
+
+Custom UI 有两种控件表面，主题和可定制程度不同：`ui.createWindow()` 是受限
+HTML/CSS surface，`FloatingWindow` 是不接受 HTML/CSS 的 typed native toolbar。
+不要把一个 surface 的视觉规则复制到另一个 surface。
+
+### theme
+
+`ui.createWindow(spec).theme` 只接受 `system` 或 `dark`，默认是 `system`；
+`FloatingWindow` 固定使用 `dark`。主题在创建时声明，不能通过 `ControlHandle.update()`
+切换；要切换主题，应关闭旧窗口并用新的 window id 创建新窗口。
+
+主题不会替脚本生成设计 token，也不会把任意 CSS 颜色自动改成另一套颜色。HTML/CSS
+surface 的背景、文字、边框、焦点环和状态色必须由脚本自己的 CSS 明确声明。需要稳定截图
+和跨平台示例时，优先使用 `theme: "dark"` 加显式 CSS token；需要跟随操作系统时使用
+`theme: "system"`，同时为浏览器控件声明合适的 `color-scheme` 并测试浅色和深色系统外观。
+
+### CSS 来源与限制
+
+文件型内容的 CSS 层叠顺序固定为 HTML 内的 `<style>`、`content.css`、`content.cssFile`；
+内联 HTML 也遵守相同顺序中实际存在的来源。CSS 只用于当前窗口内容，不是全局样式表。
+
+```js
+const panel = await ui.createWindow({
+  id: "componentGallery",
+  theme: "dark",
+  bounds: { x: 160, y: 160, width: 680, height: 620 },
+  content: {
+    file: "./ui-components/panel.html",
+    cssFile: "./ui-components/panel.css"
+  }
+});
+```
+
+所有 HTML、CSS、图片资源都必须是脚本目录内的受限本地内容。当前不支持 CSS
+`url()`、`image-set()`、`@import`、CSS escape、远程 stylesheet 或远程图片；HTML
+也不能包含 `<script>` 或 inline event handler。交互逻辑统一由外层 JavaScript
+通过 `panel.control(id).on(...)` 注册，避免把业务逻辑复制进 HTML。
+
+### HTML 控件与原生控件
+
+`ui.createWindow()` 中的 `button`、`input` 和 `select` 由 WKWebView 或 WebView2
+绘制，并通过 Custom UI bridge 提供稳定 id、状态 readback 和事件；它们不是
+`FloatingWindow` 的 AppKit/WinForms 控件。HTML CSS 可以控制关闭状态下的外观，
+但下拉展开菜单、字体度量、默认内边距和部分 disabled 绘制仍由浏览器/操作系统决定。
+
+`FloatingWindow` 的 `addButton()`、`addInput()`、`addSelect()` 使用真实平台控件或
+native toolbar 绘制：macOS 使用 AppKit Dark Aqua，Windows 使用 WinForms 深色 host
+与系统控件。它们没有 CSS surface；宽度、选项和状态必须通过对应的声明和
+`updateButton()` / `updateControl()` 更新。FloatingWindow 的 `show()` 不主动抢焦点，
+Input 只有在用户直接点击真实输入框后才激活并获得键盘焦点。
+
+详细的 token、状态矩阵、平台差异和视觉验收清单见
+[Custom UI 主题与控件规范](../custom-ui/theme-guide.md)。
+
 ## Custom UI：命令行 -ui 与启用方式
 
 `-ui` 是不带值的布尔开关：它只为**本次 CLI JavaScript execution** 授予 Custom UI
@@ -808,12 +863,12 @@ horizontal planner 按内容项 capacity、`maxWidth` 和 `maxRows` 计算行；
 从仓库根目录运行图标目录示例：
 
 ```bash
-./opendesk -ui -script examples/custom-ui/icon-list.js -console-mode script -log-dir .runtime/examples/custom-ui/icon-list
+./opendesk -ui -script examples/custom-ui/icon-browser/main.js -console-mode script -log-dir .runtime/examples/custom-ui/icon-browser
 ```
 
-示例直接读取唯一注册表 `pkg/customui/assets/toolbar-icons-v1.json`，不会维护第二份图标名称。它使用 `ui.createWindow()` 打开一个受限、可滚动的真实 Runtime 窗口，初始位于左上安全区域且仍可拖动；配套的 `examples/custom-ui/icon-list.html` 在同一个控件树中一次声明全部 160 个图标按钮，固定按每行 10 个、共 16 行排列，不存在翻页，也不再用 30/32 个 `FloatingWindow` 槽位冒充完整目录。controller 会在显示前检查 `panel.controls()` 中恰好存在 160 个、顺序与注册表一致的 button。
+示例直接读取唯一注册表 `pkg/customui/assets/toolbar-icons-v1.json`，不会维护第二份图标名称。它使用 `ui.createWindow()` 打开一个受限、可滚动的真实 Runtime 窗口，初始位于左上安全区域且仍可拖动；配套的 `examples/custom-ui/icon-browser/panel.html` 在同一个控件树中一次声明全部 160 个图标按钮，固定按每行 10 个、共 16 行排列，不存在翻页，也不再用 30/32 个 `FloatingWindow` 槽位冒充完整目录。controller 会在显示前检查 `panel.controls()` 中恰好存在 160 个、顺序与注册表一致的 button。
 
-这里使用 `ui.createWindow()` 是因为 `FloatingWindow` 的 32 按钮上限属于简单原生工具栏的安全契约，不应为了目录场景放宽。目录图片由当前 macOS 根据注册表中的同一 SF Symbol recipe 生成，并作为受限 base64 PNG 内嵌；HTML 不包含业务 `<script>`，160 个 click listener、剪贴板调用和可见状态更新仍全部由 `icon-list.js` 的 Runtime controller 持有。
+这里使用 `ui.createWindow()` 是因为 `FloatingWindow` 的 32 按钮上限属于简单原生工具栏的安全契约，不应为了目录场景放宽。目录图片由当前 macOS 根据注册表中的同一 SF Symbol recipe 生成，并作为受限 base64 PNG 内嵌；HTML 不包含业务 `<script>`，160 个 click listener、剪贴板调用和可见状态更新仍全部由 `icon-browser/main.js` 的 Runtime controller 持有。
 
 每个按钮都以紧凑卡片显示较小图标与名称；编号和“点击复制代码”不重复铺在每张卡片上，而是保留在 DOM 的稳定 id / index 与完整 `title` / `aria-label` 中。完整提示仍使用“`图标名 · 点击复制按钮代码`”，实际 host 还会为 WebView button 同步原生 Accessibility button peer。点击图标会直接把以下一行代码写入系统剪贴板，将当前卡片显示为绿色选中状态，并在固定状态栏显示“已复制”作为成功反馈：
 
@@ -841,9 +896,9 @@ bash scripts/render_custom_ui_icon_catalog.sh
 bash scripts/render_custom_ui_icon_catalog.sh --publish
 ```
 
-命令会同时更新 `docs/custom-ui/icon-list.html` 和 `examples/custom-ui/icon-list.html`；两者都是生成并提交的资产，名称仍来自唯一注册表，没有第二份手写清单。`.runtime/` 只是可随时删除和重新生成的维护证据。
+命令会同时更新 `docs/custom-ui/icon-list.html` 和 `examples/custom-ui/icon-browser/panel.html`；两者都是生成并提交的资产，名称仍来自唯一注册表，没有第二份手写清单。`.runtime/` 只是可随时删除和重新生成的维护证据。
 
-`docs/custom-ui/icon-list.html` 是浏览器选型工具；`examples/custom-ui/icon-list.html` 只有通过 `icon-list.js` 加载时才构成真实 Runtime Custom UI。浏览器 HTML 成功不能替代 Runtime callback、Accessibility、剪贴板、滚动和窗口生命周期验收。
+`docs/custom-ui/icon-list.html` 是浏览器选型工具；`examples/custom-ui/icon-browser/panel.html` 只有通过 `icon-browser/main.js` 加载时才构成真实 Runtime Custom UI。浏览器 HTML 成功不能替代 Runtime callback、Accessibility、剪贴板、滚动和窗口生命周期验收。
 
 最小使用方式仍然是直接传入内置名称：
 
@@ -1469,22 +1524,22 @@ HTTP UI 必须同时满足：服务器用 `-ui` 或可信本地配置启用、�
 
 - `examples/custom-ui/panel.js`
 - `examples/custom-ui/form.js`
-- `examples/custom-ui/recording-console.js`：同一个 [Recorder Runtime](recorder-runtime.md) 的原生控制面。小型 `recording-console/tray.html` 托盘和按需打开的 `recording-console/recorder.html` 详情页共享 `controller.js` 状态；开始按钮授权后留出 3 秒供用户聚焦目标，再冻结该窗口的 PID＋title。录制期间每个 Custom UI button click 先把原始事件交给 `session.excludeControlClick(event)` 写入显式 raw 排除边界；暂停／继续分别调用明确的 `session.pause()`／`session.resume()`，停止后调用已有 `buildActions()`，只有独立的生成按钮才调用 `generateScript()`。blocked Actions 使用 warning 状态，托盘显示首个结构化 issue，详情页显示 `code`、`eventId` 和 message，生成保持禁用。生成后详情页以受限 `p` 文本控件显示实际脚本并由 Runtime controller 提供复制；不会使用不受支持的 `textarea` 或页面脚本。详情页显示时暂时隐藏置顶托盘，收起或关闭详情后恢复托盘而不重置流程，避免两窗覆盖。生成成功后同一按钮可再次明确“重新生成”，从 ready actions 重走生成与读取并清理旧的内存候选／运行结果。另一次明确的“重放”才通过 [Command.run()](command.md#commandruncommand-args-options) 启动 `./dist/opendesk -script <scriptFile>` Fresh Run，取消／主窗口关闭用 `AbortSignal` 清理同一受管进程；不 `eval`、不解释 actions、也不自动重放。重置清除 controller 候选/actions/run 状态但保留磁盘事实。HTML 只声明受限结构和稳定 id。窗口关闭、脚本异常与 execution teardown 仍由 Runtime owner 终结活动 session 和在途 run。运行命令和安全前提见 `examples/custom-ui/README.md`。
-- `examples/custom-ui/floating-recording-toolbar.js`：兼容入口，复用同一个 recording-console controller 和 Runtime 对象，不维护模拟录制状态。
+- `workflows/human-to-recipe/recording-console.js`：同一个 [Recorder Runtime](recorder-runtime.md) 的原生控制面。小型 `recording-console/tray.html` 托盘和按需打开的 `recording-console/recorder.html` 详情页共享 `controller.js` 状态；开始按钮授权后留出 3 秒供用户聚焦目标，再冻结该窗口的 PID＋title。录制期间每个 Custom UI button click 先把原始事件交给 `session.excludeControlClick(event)` 写入显式 raw 排除边界；暂停／继续分别调用明确的 `session.pause()`／`session.resume()`，停止后调用已有 `buildActions()`，只有独立的生成按钮才调用 `generateScript()`。blocked Actions 使用 warning 状态，托盘显示首个结构化 issue，详情页显示 `code`、`eventId` 和 message，生成保持禁用。生成后详情页以受限 `p` 文本控件显示实际脚本并由 Runtime controller 提供复制；不会使用不受支持的 `textarea` 或页面脚本。详情页显示时暂时隐藏置顶托盘，收起或关闭详情后恢复托盘而不重置流程，避免两窗覆盖。生成成功后同一按钮可再次明确“重新生成”，从 ready actions 重走生成与读取并清理旧的内存候选／运行结果。另一次明确的“重放”才通过 [Command.run()](command.md#commandruncommand-args-options) 启动 `./dist/opendesk -script <scriptFile>` Fresh Run，取消／主窗口关闭用 `AbortSignal` 清理同一受管进程；不 `eval`、不解释 actions、也不自动重放。重置清除 controller 候选/actions/run 状态但保留磁盘事实。HTML 只声明受限结构和稳定 id。窗口关闭、脚本异常与 execution teardown 仍由 Runtime owner 终结活动 session 和在途 run。运行命令和安全前提见 `examples/custom-ui/README.md`。
+- `.archive/examples-custom-ui-floating-recording-toolbar.js`：兼容入口，复用同一个 recording-console controller 和 Runtime 对象，不维护模拟录制状态。
 - `examples/custom-ui/floating-toolbar-primitives.js`：Button + Separator + fixed Spacer、统一 `getState()` 与 `move` / `close` lifecycle 的最小 native toolbar 示例；不保存位置，也不拥有 global shortcut。
 - `examples/custom-ui/floating-toolbar-status-label.js`：固定宽度 native Label 与 Button 混排；展示默认垂直居中、显式水平居中、动态 `text` / `alignment` / `verticalAlignment` / `tone` 更新、native `renderedTextBounds` readback 及不变的窗口几何。从仓库根目录执行 `./opendesk -ui -script examples/custom-ui/floating-toolbar-status-label.js -console-mode script`。
 - `examples/custom-ui/floating-toolbar-controls.js`：在一个窗口中混排 Switch、Checkbox、Input、Select、Slider、SegmentedControl、独立 Progress 与 Button badge；从仓库根目录执行 `./opendesk -ui -script examples/custom-ui/floating-toolbar-controls.js -console-mode script -log-dir .runtime/examples/custom-ui/floating-toolbar-controls`。Input 只会在用户直接进入输入框时激活键盘。
 - `examples/custom-ui/custom-image-icons.js`：同一个 `FloatingWindow` 中组合原色 PNG、template PNG 与内置图标，展示脚本相对路径和动态图标切换。
-- `examples/custom-ui/icon-list.js` 与 `icon-list.html`：在一个可滚动的真实 Runtime 窗口中声明全部 160 个默认图标按钮；其中 `ai.*` 与 `automation.*` 为 AI、全自动和半自动场景提供直接可发现的语义键，悬停查看名称与复制提示，点击直接复制一行 `addButton()` 代码。
+- `examples/custom-ui/icon-browser/main.js` 与 `icon-browser/panel.html`：在一个可滚动的真实 Runtime 窗口中声明全部 160 个默认图标按钮；其中 `ai.*` 与 `automation.*` 为 AI、全自动和半自动场景提供直接可发现的语义键，悬停查看名称与复制提示，点击直接复制一行 `addButton()` 代码。
 - `docs/custom-ui/icon-list.html`：提交到仓库的自包含浏览器图鉴，可长期查找、复制和离线保存，不依赖 `.runtime/`。
 - `scripts/render_custom_ui_icon_catalog.sh`：从唯一注册表生成浏览器 HTML、受限 Runtime HTML、联系表与渲染 manifest；默认写入 `.runtime/tests/custom-ui/icon-list/` 供检查，只有 `--publish` 才更新两个正式图鉴。
-- `examples/custom-ui/floating-toolbar-wrap-demo.js` 及其 `floating-toolbar-wrap-demo.json`：同时显示 `maxWidth` 自动换行、两列与最多两行的可交互原生工具栏；从仓库根目录运行 `./opendesk -ui -script examples/custom-ui/floating-toolbar-wrap-demo.js -console-mode script -log-dir .runtime/examples/custom-ui/floating-toolbar-wrap-demo`，可编辑 JSON 比较其他限制，点击图标可切换 active 状态，关闭三个窗口结束示例。
+- `examples/custom-ui/toolbar-wrap/main.js` 及其 `toolbar-wrap/config.json`：同时显示 `maxWidth` 自动换行、两列与最多两行的可交互原生工具栏；从仓库根目录运行 `./opendesk -ui -script examples/custom-ui/toolbar-wrap/main.js -console-mode script -log-dir .runtime/examples/custom-ui/toolbar-wrap`，可编辑 JSON 比较其他限制，点击图标可切换 active 状态，关闭三个窗口结束示例。
 - `examples/custom-ui/five-button-toolbar.js`：推荐的独立 Button-first 五按钮示例，只使用公开的 `new FloatingWindow()`、`addButton()` 和 `updateButton()`；从仓库根目录执行 `./opendesk -ui -script examples/custom-ui/five-button-toolbar.js -console-mode script -log-dir .runtime/examples/custom-ui/five-button-toolbar`。
-- `examples/custom-ui/toolbar-example.js`：横向 actions 示例使用的 `FloatingWindow` controller
+- `examples/custom-ui/support/toolbar-example.js`：横向 actions 示例使用的 `FloatingWindow` controller
 - `examples/custom-ui/toolbar-horizontal-actions.js`：用 JavaScript 变量声明横向按钮和可替换的 action handlers
-- `examples/custom-ui/toolbar-vertical-quick-replies.js`：读取相邻 JSON 数据、使用纵向五按钮快捷回复的 controller
-- `examples/custom-ui/toolbar-vertical-quick-replies.json`：客服回复文案、按钮声明顺序、纵向内部布局和右侧居中窗口 `position.mode:"anchor"` 的数据源
-横向按钮与业务回调见 `examples/custom-ui/toolbar-horizontal-actions.js`；客服纵向快捷回复见 `examples/custom-ui/toolbar-vertical-quick-replies.js` 及其 JSON 数据文件。该示例通过框架 anchor position 在活动显示器工作区右侧垂直居中，并保留 16pt 边距；没有业务坐标计算。快捷回复是普通动作按钮：点击复制文案，但不会进入持久 `active` 选中态。普通用户从仓库根目录执行 `./opendesk -ui -script examples/custom-ui/toolbar-vertical-quick-replies.js -console-mode script -log-dir .runtime/examples/custom-ui/toolbar-vertical-quick-replies`，窗口不会自动关闭，用户可真实点击按钮后关闭。若 callback 未执行，按所运行示例检查 `FIVE_BUTTON_TOOLBAR_ACTION`、`HORIZONTAL_TOOLBAR_ACTION` 或 `VERTICAL_QUICK_REPLY_COPIED` 日志；对应的 `*_ERROR` 会提供 `UI_CALLBACK_FAILED` 的 `operation/windowId/targetId/capability`。原生 single-flight、Accessibility 与截图证据由正式 custom-ui gate 生成。
+- `examples/custom-ui/quick-replies/main.js`：读取相邻 JSON 数据、使用纵向五按钮快捷回复的 controller
+- `examples/custom-ui/quick-replies/config.json`：客服回复文案、按钮声明顺序、纵向内部布局和右侧居中窗口 `position.mode:"anchor"` 的数据源
+横向按钮与业务回调见 `examples/custom-ui/toolbar-horizontal-actions.js`；客服纵向快捷回复见 `examples/custom-ui/quick-replies/main.js` 及其 JSON 数据文件。该示例通过框架 anchor position 在活动显示器工作区右侧垂直居中，并保留 16pt 边距；没有业务坐标计算。快捷回复是普通动作按钮：点击复制文案，但不会进入持久 `active` 选中态。普通用户从仓库根目录执行 `./opendesk -ui -script examples/custom-ui/quick-replies/main.js -console-mode script -log-dir .runtime/examples/custom-ui/quick-replies`，窗口不会自动关闭，用户可真实点击按钮后关闭。若 callback 未执行，按所运行示例检查 `FIVE_BUTTON_TOOLBAR_ACTION`、`HORIZONTAL_TOOLBAR_ACTION` 或 `VERTICAL_QUICK_REPLY_COPIED` 日志；对应的 `*_ERROR` 会提供 `UI_CALLBACK_FAILED` 的 `operation/windowId/targetId/capability`。原生 single-flight、Accessibility 与截图证据由正式 custom-ui gate 生成。
 
 ## ui：实现边界
 

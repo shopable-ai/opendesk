@@ -24,8 +24,8 @@
     ],
   }, async () => {
     const registryPath = File.join(File.cwd(), 'pkg/customui/assets/toolbar-icons-v1.json');
-    const sourceHTMLPath = File.join(File.cwd(), 'examples/custom-ui/icon-list.html');
-    const sourceControllerPath = File.join(File.cwd(), 'examples/custom-ui/icon-list.js');
+    const sourceHTMLPath = File.join(File.cwd(), 'examples/custom-ui/icon-browser/panel.html');
+    const sourceControllerPath = File.join(File.cwd(), 'examples/custom-ui/icon-browser/main.js');
     const registry = JSON.parse(File.read(registryPath));
     equal(registry.schemaVersion, 1, 'icon registry schema changed');
     const iconCount = registry.icons.length;

@@ -16,7 +16,7 @@
 示例自测同样从根目录运行：
 
 ```bash
-./dist/opendesk -script examples/http/download.test.js -console-mode script
+./dist/opendesk -script tests/http/download.test.js -console-mode script
 ```
 
 自测自动启动并清理仓库已有的仅 loopback fixture，不需要手工启动服务。它下载独立已知二进制向量，

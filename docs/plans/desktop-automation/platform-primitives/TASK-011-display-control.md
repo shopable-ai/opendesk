@@ -84,7 +84,7 @@ Tests:
 - 正式 JavaScript Runtime unit gate：PASS `405/405`，运行目录
   `.runtime/tests/runtime-api/20260901T215339Z-89997/`；覆盖新方法 catalog、lower-camel result、
   identity、capability、current/list agreement 和 invalid mode structured error。
-- 仓库根目录公开命令 PASS：`./opendesk -script examples/display-modes.js -console-mode script`；
+- 仓库根目录公开命令 PASS：`./opendesk -script examples/desktop/display-modes.js -console-mode script`；
   输出保存在 `.runtime/tests/platform-primitives/task-011-display-control/public-example.log`。
 - real macOS setter/readback/restore smoke PASS：对当前唯一 mode 执行真实 CoreGraphics setter、readback
   与 finally-style restore verification；没有声称发生了实际 resolution transition。

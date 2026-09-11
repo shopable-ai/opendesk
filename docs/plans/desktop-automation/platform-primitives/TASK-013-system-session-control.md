@@ -81,7 +81,7 @@ Tests:
   `.runtime/tests/runtime-api/20260901T224026Z-55454/`。gate 只执行只读 state 与 confirmation
   contract，不会触发 session mutation。
 - 文档一行命令从仓库根目录原样通过：
-  `./opendesk -script examples/system-session-state.js -console-mode script`。
+  `./opendesk -script examples/runtime/system-session-state.js -console-mode script`。
 - Windows/Linux backend 的最小源码集合在当前 macOS host 使用对应 `GOOS/GOARCH` + `CGO_ENABLED=0`
   target compile 通过。全 `automation` package 的 Windows cross compile 仍被既有
   `third_party/robotgo` 的 Bitmap/Rect/input cgo surface 阻断，不归本卡引入。

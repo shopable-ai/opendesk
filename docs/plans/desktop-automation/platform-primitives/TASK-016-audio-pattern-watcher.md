@@ -11,10 +11,10 @@ Implementation note: matcher、reference loader、execution lifecycle 与 backen
 `patternWatch` 必须报告 `supported: false, status: 'unsupported'`，公开监听调用必须
 `NOT_SUPPORTED` fail closed，不能把这些基础设施表述为可用的系统声音监听。
 
-当前真实干扰测试资产：`examples/audio/generate-pattern-interference-fixture.js` 生成无语音、可重复的
+当前真实干扰测试资产：`tests/audio/tools/generate-pattern-interference-fixture.js` 生成无语音、可重复的
 20 秒 WAV（同一 `order-created` cue 约 3 秒、12 秒各一次；非目标 payment cue 约 9.2 秒、其他
 声音/confuser 约 7 秒和 16.2 秒，并含背景、噪声、重采样和音量干扰），
-`examples/audio/pattern-watch-interference-listener.js` 提供立即输出公开 match 字段及 stop/wait
+`tests/audio/tools/pattern-watch-interference-listener.js` 提供立即输出公开 match 字段及 stop/wait
 evidence 的 listener。macOS 12.7.6 实跑时以独立 `afplay` 播放并确认 listener 先启动；结果为
 capability unsupported、0 命中，详见
 `.runtime/tests/platform-primitives/task-016-audio-pattern-watcher/interference-live.json`。

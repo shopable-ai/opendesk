@@ -16,6 +16,18 @@ Explorer 会扫描 `examples/` 以发现目录变化，但普通列表只展示 
 
 `runPolicy: "safe"` 表示允许 Explorer 一键运行；`manual` 表示可以搜索、阅读源码和前置条件，但必须由用户根据说明手动运行。目录整理不能把鼠标输入、截图、OCR、录屏、声音、系统通知、全局快捷键或真实应用操作自动升级为 `safe`。
 
+`catalog.json` 是所有正式 public examples 的索引，而不是部分白名单。每条记录都包含 canonical `path`（作为 `entries` 的 key）、`category`、`level`、`platforms`、`runPolicy`、`prerequisites`、`requiredEnv`、`expected` 和结构化 `launch`：
+
+```json
+{
+  "runPolicy": "manual",
+  "platforms": ["darwin"],
+  "launch": {"kind": "script", "ui": true, "consoleMode": "script"}
+}
+```
+
+`launch.kind: "script"` 对应 `-script`，`launch.kind: "ai-run"` 对应 `ai run`；需要输入的 ai-run 只展示 `--input-file <path-to-input.json>` 模板。`requiredEnv` 只列变量名，不保存 secret。`legacyNames` 是 Explorer 实际搜索的历史名称，不代表磁盘上的 wrapper。
+
 ## 目录契约
 
 `examples/` 顶层只允许 `README.md`、`catalog.json` 和领域目录；**不再允许顶层 `.js/.json/.txt` 散件**。
@@ -48,7 +60,7 @@ examples/
 
 - **目录表达领域，文件名表达能力**；新增 public example 使用 `kebab-case.js`。
 - 单文件示例直接放在领域目录；多文件示例使用明确入口，并把 helper / assets / fixtures 与入口区分。
-- 完成迁移的旧根入口直接退休，不保留 compatibility wrapper；Catalog `aliases` 仅保存历史名称/搜索上下文。
+- 完成迁移的旧根入口直接退休，不保留 compatibility wrapper；Catalog `legacyNames` 仅保存历史名称/搜索上下文，并由 Explorer 搜索实际使用。
 - `*.test.js`、`*smoke*`、fixture generator 和诊断脚本归 `tests/`；仅有历史价值的旧实验归 `.archive/`。
 - `tests/` 负责正确性证明；示例中的结果检查不能代替 `tests/runtime-api/` 或领域测试。
 - 执行日志、截图和临时产物写入 `.runtime/`，不提交运行结果。
@@ -58,7 +70,7 @@ examples/
 - [Runtime](runtime/README.md)：quickstart、console、Promise、等待、timer、环境、路径、File/JSON、Command、AppStorage、System、Page wait。
 - [Desktop](desktop/README.md)：window、keyboard、mouse、page click、screen、screenshot、display modes、screen recording、UI 相对定位。
 - [Vision](vision/README.md)：OCR、截图 bytes、基础 ImageColor。
-- [Audio](audio/README.md)：Sound 播放与播放控制。
+- [Audio](audio/README.md)：Sound 播放、播放控制与经过审核的监听示例。
 - [Dialog](dialog/README.md)：async/await 与 Promise chain。
 - [Notifications](notifications/README.md)：发送通知、等待/关闭通知。
 - [Events](events/README.md)：全局快捷键及权限准备。

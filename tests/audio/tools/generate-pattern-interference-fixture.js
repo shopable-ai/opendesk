@@ -1,5 +1,5 @@
 // Run from the repository root with Node.js:
-// node examples/audio/generate-pattern-interference-fixture.js
+// node tests/audio/tools/generate-pattern-interference-fixture.js
 //
 // Creates local, no-copyright, deterministic WAV fixtures under .runtime/.
 // The playback fixture uses an original synthesized music bed (not a downloaded

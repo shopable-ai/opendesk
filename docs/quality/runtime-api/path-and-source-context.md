@@ -19,7 +19,7 @@ Node.js v24.15.0 常用 `node:path` 接口。唯一刻意差异是 `resolve/rela
 
 ```bash
 OPENDESK_RUNTIME_API_MODE=path ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
-./dist/opendesk -script examples/path.js -console-mode script
+./dist/opendesk -script examples/runtime/path.js -console-mode script
 ```
 
 正式 evidence 写入 `.runtime/tests/runtime-api/<run-id>/`；公开示例的 report 写入其

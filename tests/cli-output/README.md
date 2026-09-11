@@ -18,7 +18,7 @@ node tests/cli-output/console-color.js
 macOS 上的真实 PTY 接线验收是独立步骤；先确保 shell 没有请求禁色：
 
 ```bash
-NO_COLOR= TERM=xterm-256color /usr/bin/script -q .runtime/tests/cli-output/tty-auto.log ./dist/opendesk -script examples/environment.js -console-mode full
+NO_COLOR= TERM=xterm-256color /usr/bin/script -q .runtime/tests/cli-output/tty-auto.log ./dist/opendesk -script examples/runtime/environment.js -console-mode full
 ```
 
 `tty-auto.log` 应包含 SGR 前缀；这是正式终端探针，不替代用户从仓库根目录直接执行公开示例。

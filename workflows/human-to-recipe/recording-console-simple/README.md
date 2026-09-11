@@ -3,7 +3,7 @@
 From the repository root, run:
 
 ```bash
-./dist/opendesk -ui -allow-recorder-capture -script examples/custom-ui/recording-console-simple.js
+./dist/opendesk -ui -allow-recorder-capture -script workflows/human-to-recipe/recording-console-simple.js
 ```
 
 The normal console mode and default `.runtime/runs/<executionId>/` artifacts are sufficient for ordinary use;
@@ -22,7 +22,7 @@ Pause, resume, and stop clicks are registered with `RecorderSession.excludeContr
 The six icon buttons use the built-in icon registry: the combined capture control alternates between `play.fill` and `pause.fill`, followed by `stop.fill`, `repeat`, `ai.assistant`, `info.circle`, and `folder.fill`. The native pointer-motion switch is the fourth of seven content items, leaving three icon buttons on either side. The replay position temporarily uses `ai.generate` while automatic generation is running or needs retry. Only the countdown uses three local template PNGs. Re-render those maintained assets on macOS with:
 
 ```bash
-swift examples/custom-ui/recording-console-simple/icons/render-countdown-icons.swift examples/custom-ui/recording-console-simple/icons
+swift workflows/human-to-recipe/recording-console-simple/icons/render-countdown-icons.swift workflows/human-to-recipe/recording-console-simple/icons
 ```
 
 `Recorder.start()` retains the selected PID and title as initial provenance. A second foreground read is best-effort: a startup race is reported as a warning, not a rejection. Capture is desktop-global, so changing a window title, focusing another window, or switching applications does not stop the session or filter subsequent input. Because keyboard capture follows the foreground application when explicitly enabled, keep the entire recorded desktop sequence non-sensitive and pause or stop before unrelated work.
