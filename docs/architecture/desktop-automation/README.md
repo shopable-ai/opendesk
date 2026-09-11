@@ -16,6 +16,7 @@
 | [App Adapter Contract](app-adapter-contract.md) | 通用界面事实怎样解释成某个应用的会话、消息、订单等业务对象？ | 封装应用 helper／adapter 或划分通用与业务职责时 |
 | [App Classification Policy](app-classification-policy.md) | 应用类型怎样影响架构划分与适配范围？ | 选择或设计应用适配方案时 |
 | [Agent-first Recorder](agent-first-recorder.md) | 示范采集、Trace、蒸馏、IR、Compiler 与 Replay 怎样组织？ | 明确研究或实施 Recorder／编译路线时；普通 Recipe 不以此为前置条件 |
+| [Recorder 与应用运行界面的共存规则](recorder-app-coexistence.md) | Recorder、普通应用界面、系统托盘和运行中的自动化脚本怎样共存，什么时候提醒、什么时候必须阻止？ | 集成 Recorder 产品入口、处理多个窗口与运行冲突、设计托盘入口和 Recorder 生命周期时 |
 
 ## 三个容易混淆的问题
 
