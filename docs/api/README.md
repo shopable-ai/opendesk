@@ -42,7 +42,7 @@ order: 1
 
 需要 OCR、图片定位或完整原生菜单路径时都从 [Desktop UI API](desktop-ui.md) 进入；需要底层原生语义元素 snapshot/find/read/perform 时再读 [Accessibility API](accessibility.md)。
 
-需要给用户反馈时按任务选择：短暂成功/失败/进度提示使用 [`ui.toast()`](notify.md#uitoast轻量原生提示)，操作系统通知使用 [`notify()`](notify.md#notify系统通知)，需要明确确认或输入时使用 [Dialog API](dialog.md)。创建完整自定义窗口或浮动工具栏再进入 [Custom UI](custom-ui.md)。
+需要 OpenDesk 自己显示界面或反馈时，直接进入 [ui API](ui.md)：`ui.toast()`、`ui.createWindow()`、`ui.closeAll()`、`ui.on()` 与 `FloatingWindow` 都从这里查。操作系统通知仍使用 [notify()](notify.md)，需要明确确认或输入时使用 [Dialog API](dialog.md)。
 
 直接复制运行仓库示例、正式 scripts 或排查旧命令时，打开 [Examples 快速索引](examples/README.md)。
 
@@ -57,32 +57,32 @@ order: 1
 3. `page.md`：截图、打开 URL / App、等待、权限
 4. `geometry.md`：screen logical coordinate、窗口/显示器区域与可重算定位
 5. `desktop-ui.md`：大写 `UI` 的文本、图片与原生菜单接口
-6. `mouse.md`：鼠标移动、点击、拖拽、位置与滚轮
-7. `input.md`：键盘和触屏
-8. `window.md`：窗口查询与控制
-9. `accessibility.md`：明确 scope 内的第一方 macOS AX / Windows UIA 元素观察与动作（Experimental）
-10. `global-shortcut.md`：macOS / Windows 系统级快捷键与 Runtime callback
-11. `recorder-runtime.md`：显式授权的人工输入采集、actions 与 basic 普通 JS 生成
-12. `events.md`：外部窗口、应用、剪贴板与显示器状态变化 watcher
-13. `app.md`：按 stable identity 启动、等待、终止与重启外部桌面应用
-14. `app-shell.md`：App Mode 的 `automation.app`、tray action、菜单状态与退出
-15. `vision.md`：OCR、UI 文本识别、provider
-16. `image-color.md`：模板匹配、颜色与图像辅助能力
-17. `screen.md`：显示器、像素、截图别名、区域选择与录屏
-18. `audio.md`：系统音频控制、设备发现与 capability-gated 固定声音模式匹配
-19. `sound.md`：提示音和本地音频播放
-20. `notify.md`：`ui.toast()` 轻量提示与 `notify()` 系统通知
-21. `notifications.md`：观察、等待与移除 OpenDesk 自身已投递系统通知（Experimental）
-22. `dialog.md`：异步 alert / confirm / prompt
-23. `clipboard.md`：系统剪贴板
-24. `global-apis.md`：无需 import 的全局接口、console、等待、计时器和参数工具
-25. `sqlite.md`：第一方本地 SQLite
-26. `environment.md`：环境变量、`.env`、输出配置与优先级
-27. `execution.md`：Execution ID、结构化输入、工作目录、来源和 artifact 上下文
-28. `path.md`：平台原生路径字符串处理
-29. `runtime.md`：JavaScript 执行、异步生命周期与兼容边界
-30. `command.md`：本地命令执行、输出、错误与 execution-owned 清理
-31. `custom-ui.md`：`ui.createWindow()`、`FloatingWindow` 与受限 HTML/CSS 原生窗口
+6. `ui.md`：小写 `ui`、Toast、`ui.createWindow()` 与 `FloatingWindow`
+7. `mouse.md`：鼠标移动、点击、拖拽、位置与滚轮
+8. `input.md`：键盘和触屏
+9. `window.md`：窗口查询与控制
+10. `accessibility.md`：明确 scope 内的第一方 macOS AX / Windows UIA 元素观察与动作（Experimental）
+11. `global-shortcut.md`：macOS / Windows 系统级快捷键与 Runtime callback
+12. `recorder-runtime.md`：显式授权的人工输入采集、actions 与 basic 普通 JS 生成
+13. `events.md`：外部窗口、应用、剪贴板与显示器状态变化 watcher
+14. `app.md`：按 stable identity 启动、等待、终止与重启外部桌面应用
+15. `app-shell.md`：App Mode 的 `automation.app`、tray action、菜单状态与退出
+16. `vision.md`：OCR、UI 文本识别、provider
+17. `image-color.md`：模板匹配、颜色与图像辅助能力
+18. `screen.md`：显示器、像素、截图别名、区域选择与录屏
+19. `audio.md`：系统音频控制、设备发现与 capability-gated 固定声音模式匹配
+20. `sound.md`：提示音和本地音频播放
+21. `notify.md`：系统通知 `notify()`
+22. `notifications.md`：观察、等待与移除 OpenDesk 自身已投递系统通知（Experimental）
+23. `dialog.md`：异步 alert / confirm / prompt
+24. `clipboard.md`：系统剪贴板
+25. `global-apis.md`：无需 import 的全局接口、console、等待、计时器和参数工具
+26. `sqlite.md`：第一方本地 SQLite
+27. `environment.md`：环境变量、`.env`、输出配置与优先级
+28. `execution.md`：Execution ID、结构化输入、工作目录、来源和 artifact 上下文
+29. `path.md`：平台原生路径字符串处理
+30. `runtime.md`：JavaScript 执行、异步生命周期与兼容边界
+31. `command.md`：本地命令执行、输出、错误与 execution-owned 清理
 32. `native-extension.md`：Native Extension Plugin V1
 33. `cookbook.md`：可直接改造的脚本范例
 34. `scheduler.md`：Scheduler 功能、生命周期、持久化与本地管理页
@@ -92,19 +92,20 @@ order: 1
 ## 文档分层
 
 - **核心桌面自动化**：`page.md`、`geometry.md`、`desktop-ui.md`、`mouse.md`、`input.md`、`window.md`、`screen.md`、`accessibility.md`、`global-shortcut.md`、`recorder-runtime.md`、`events.md`、`app.md`
+- **OpenDesk 自身 UI 与交互**：`ui.md`、`dialog.md`、`notify.md`、`notifications.md`、`app-shell.md`
 - **识别与媒体**：`vision.md`、`image-color.md`、`audio.md`、`sound.md`
 - **系统与数据**：`system.md`、`command.md`、`path.md`、`file.md`、`sqlite.md`、`storage.md`、`clipboard.md`
 - **网络与服务**：`http.md`、`http-server.md`、`scheduler.md`、`scheduler-api.md`
-- **运行与交互**：`environment.md`、`execution.md`、`runtime.md`、`app-shell.md`、`notify.md`、`notifications.md`、`dialog.md`、`custom-ui.md`、`global-apis.md`、`libs.md`、`native-extension.md`
+- **运行时**：`environment.md`、`execution.md`、`runtime.md`、`global-apis.md`、`libs.md`、`native-extension.md`
 - **实践范例**：`cookbook.md`、`examples/`
 
 ## 哪些文件应该合并，哪些应该独立
 
 文档是否拆分以**公开边界和用户查找任务**为准，而不是以篇幅或内部类数量为准：
 
-- 同一对象/namespace 的方法：优先同一文件。例如 `UI.findText()`、`UI.tapImage()`、`UI.tapMenuItem()` 都属于 `UI`，统一在 `desktop-ui.md`。
-- 高频且容易混淆的同一用户任务可以共用一个主入口。例如 `ui.toast()` 与系统 `notify()` 实现边界不同，但用户查找时都属于“通知与提示”，统一从 `notify.md` 进入；`custom-ui.md` 仍负责 `ui` 的自定义窗口能力。
-- 不同公开对象在用户任务明显不同时可以独立。例如 `Audio` 与 `Sound`。
+- 同一对象/namespace 的方法优先使用同一个主文件。例如 `UI.findText()`、`UI.tapImage()`、`UI.tapMenuItem()` 都属于 `UI`，统一在 `desktop-ui.md`；小写 `ui.*` 统一从 `ui.md` 查找。
+- 大写 `UI` 与小写 `ui` 是两个不同公共入口：`UI` 操作外部桌面应用，`ui` 创建和管理 OpenDesk 自身界面及轻量反馈。文件名直接对应这一区分：`desktop-ui.md` 与 `ui.md`。
+- 系统通知 `notify()` 属于 `notify.md`；不要因为 `ui.toast()` 也是“提示”就把小写 `ui` 的完整 Reference 拆到通知文档。
 - 不同运行方向可以独立。例如 `http.md` 是脚本发起 HTTP 请求，`http-server.md` 是外部调用 OpenDesk 的服务协议。
 - 独立协议可以独立。例如 `scheduler-api.md` 是 Scheduler HTTP API，而 `scheduler.md` 说明 Scheduler 产品能力和生命周期。
 
