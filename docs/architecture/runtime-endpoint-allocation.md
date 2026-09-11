@@ -516,3 +516,22 @@ no runtime endpoint discovery file
 
 仍保留的兼容合同是显式 `-http` 的 `-port` 参数，默认值为 legacy `60844`；这不表示 desktop/internal Runtime 使用该端口。
 macOS local live、Windows cross-build 与 Windows live 的最终状态必须以本轮验证证据为准，不能把 cross-build 写成 Windows live。
+
+## 17. Scheduler shared-state boundary
+
+动态 Runtime endpoint 只解决 transport conflict，不定义 Scheduler 数据归属，也不提供 Scheduler leader election。
+
+当前边界固定为：
+
+```text
+Runtime endpoint
+→ runtime-instance scoped
+
+Scheduler persistent store
+→ OS-user scoped / shared by default
+
+Scheduler runner ownership
+→ one active Runtime per Scheduler Store
+```
+
+因此不得把默认 Scheduler DB 移入 per-runtime 临时目录，也不得用 `actualPort`、appId 或固定 TCP port 作为 Scheduler owner identity。多个 Runtime 对 shared Store 的执行权、standby takeover、SQLite migration concurrency 与 crash semantics 由 [Scheduler 多 Runtime 并发与执行归属](scheduler-runtime-concurrency.md) 负责。
