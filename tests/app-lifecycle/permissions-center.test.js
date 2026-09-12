@@ -31,7 +31,7 @@ function report(overall = 'READY') {
   };
 }
 
-function fixture(initialReport = report()) {
+function fixture(initialReport = report(), options = {}) {
   const calls = {status:0, request:[], settings:[], menu:[], create:0};
   const windows = [];
   let currentReport = initialReport;
@@ -41,18 +41,23 @@ function fixture(initialReport = report()) {
       assert.equal(feature, 'desktop-automation');
       return currentReport;
     },
-    async requestPermission(id) { calls.request.push(id); },
-    async openPermissionSettings(id) { calls.settings.push(id); },
+    async requestPermission(id, requestOptions) { calls.request.push([id, requestOptions]); },
+    async openPermissionSettings(id) {
+      calls.settings.push(id);
+      if (typeof options.openSettingsResult === 'function') return options.openSettingsResult(id);
+      return {opened:true,id,fallback:false};
+    },
     async updateMenuItem(id, patch) { calls.menu.push([id, patch]); },
   };
   const ui = {
-    async createWindow(options) {
+    async createWindow(windowOptions) {
       calls.create++;
+      if (options.createDelay) await new Promise(resolve => setTimeout(resolve, options.createDelay));
       const handlers = new Map();
       const updates = new Map();
       const lifecycle = new Map();
       const win = {
-        options,
+        options: windowOptions,
         showCount: 0,
         control(id) {
           return {
@@ -93,21 +98,35 @@ test('startup preflight is silent and only updates tray status', async () => {
   assert.deepEqual(f.calls.menu.at(-1), ['open-permissions', {label:'权限管理（需要处理）…'}]);
 });
 
-test('Permissions Center reuses an open window and recreates it after close', async () => {
-  const f = fixture(report('READY'));
-  await f.center.open('first');
-  assert.equal(f.calls.create, 1);
-  assert.equal(f.windows[0].showCount, 1);
-  await f.center.open('second');
-  assert.equal(f.calls.create, 1);
-  assert.equal(f.windows[0].showCount, 2);
-  f.windows[0].close();
-  await f.center.open('third');
-  assert.equal(f.calls.create, 2);
-  assert.equal(f.windows[1].showCount, 1);
+test('Permissions Center derives supported rows from the Runtime report', () => {
+  const html = PermissionsCenter.buildHTML({
+    permissions: [{id:'future-permission',displayName:'Future Permission'}],
+  });
+  assert.match(html, /Future Permission/);
+  assert.match(html, /status-future-permission/);
+  assert.doesNotMatch(html, /status-accessibility/);
 });
 
-test('refresh renders product-safe status and explicit actions are the only request/settings path', async () => {
+test('Permissions Center single-flights 100 concurrent opens, reuses, and recreates after close', async () => {
+  const f = fixture(report('READY'), {createDelay:5});
+  await Promise.all(Array.from({length:100}, (_, index) => f.center.open(`open-${index}`)));
+  assert.equal(f.calls.create, 1);
+  assert.equal(f.windows[0].showCount, 1);
+  assert.equal(f.calls.request.length, 0);
+
+  for (let i = 0; i < 100; i++) await f.center.open(`focus-${i}`);
+  assert.equal(f.calls.create, 1);
+  assert.equal(f.windows[0].showCount, 101);
+  assert.equal(f.calls.request.length, 0);
+
+  f.windows[0].close();
+  await f.center.open('recreate');
+  assert.equal(f.calls.create, 2);
+  assert.equal(f.windows[1].showCount, 1);
+  assert.equal(f.calls.request.length, 0);
+});
+
+test('refresh stays pure and explicit repeated request becomes force retry', async () => {
   const f = fixture(report('LIMITED'));
   await f.center.open('test');
   const win = f.windows[0];
@@ -122,10 +141,33 @@ test('refresh renders product-safe status and explicit actions are the only requ
   assert.equal(f.calls.request.length, 0);
   assert.equal(f.calls.settings.length, 0);
 
+  await win.trigger('refresh');
+  assert.equal(f.calls.request.length, 0);
+  assert.equal(f.calls.settings.length, 0);
+
   await win.trigger('request-screen-capture');
-  assert.deepEqual(f.calls.request, ['screen-capture']);
-  await win.trigger('settings-accessibility');
-  assert.deepEqual(f.calls.settings, ['accessibility']);
+  assert.deepEqual(f.calls.request, [['screen-capture', {force:false}]]);
+  assert.equal(win.updates.get('request-screen-capture').text, '重新尝试');
+
+  await win.trigger('request-screen-capture');
+  assert.deepEqual(f.calls.request, [
+    ['screen-capture', {force:false}],
+    ['screen-capture', {force:true}],
+  ]);
+});
+
+test('settings fallback gives manual navigation guidance instead of failing silently', async () => {
+  const f = fixture(report('LIMITED'), {
+    openSettingsResult(id) {
+      return {opened:true,id,fallback:true,guidance:'System Settings > Privacy & Security > Screen Recording'};
+    },
+  });
+  await f.center.open('test');
+  const win = f.windows[0];
+  await win.trigger('settings-screen-capture');
+  assert.deepEqual(f.calls.settings, ['screen-capture']);
+  assert.match(win.updates.get('notice').text, /请手动前往/);
+  assert.match(win.updates.get('notice').text, /Privacy & Security/);
 });
 
 test('product App Mode wires permission action, preflight and release payload', () => {
