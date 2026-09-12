@@ -110,6 +110,7 @@ func disabledAutomationApp(runtime *goja.Runtime) map[string]any {
 		},
 		"onAction":               disabled("onAction"),
 		"updateMenuItem":         disabled("updateMenuItem"),
+		"getPermission":          disabled("getPermission"),
 		"getPermissions":         disabled("getPermissions"),
 		"requestPermission":      disabled("requestPermission"),
 		"openPermissionSettings": disabled("openPermissionSettings"),
@@ -126,6 +127,18 @@ func (a *AppShellRuntime) jsObject() map[string]any {
 				"mainWindowId": manifest.Window.MainID, "closeBehavior": manifest.Window.CloseBehavior,
 			}
 		},
+		"getPermission": func(call goja.FunctionCall) goja.Value {
+			id := strings.TrimSpace(call.Argument(0).String())
+			if id == "" || id == "undefined" {
+				panic(appShellJSError(a.runtime, "INVALID_ARGUMENT", "getPermission", "permission id is required"))
+			}
+			permission, err := CheckPermission(id)
+			if err != nil {
+				panic(appShellJSError(a.runtime, "INVALID_ARGUMENT", "getPermission", err.Error()))
+			}
+			return a.runtime.ToValue(permission)
+		},
+		// getPermissions is retained for the existing aggregate product view.
 		"getPermissions": func(call goja.FunctionCall) goja.Value {
 			feature := "desktop-automation"
 			if len(call.Arguments) > 0 && !goja.IsUndefined(call.Argument(0)) && !goja.IsNull(call.Argument(0)) {
@@ -140,13 +153,17 @@ func (a *AppShellRuntime) jsObject() map[string]any {
 			if id == "" || id == "undefined" {
 				panic(appShellJSError(a.runtime, "INVALID_ARGUMENT", "requestPermission", "permission id is required"))
 			}
+			options, err := decodePermissionRequestOptions(call.Argument(1))
+			if err != nil {
+				panic(appShellJSError(a.runtime, "INVALID_ARGUMENT", "requestPermission", err.Error()))
+			}
 			return a.startAsync("requestPermission", func(ctx context.Context) (any, error) {
 				select {
 				case <-ctx.Done():
 					return nil, ctx.Err()
 				default:
 				}
-				return RequestPermission(id)
+				return RequestPermissionWithOptions(id, options)
 			})
 		},
 		"openPermissionSettings": func(call goja.FunctionCall) goja.Value {
@@ -160,10 +177,7 @@ func (a *AppShellRuntime) jsObject() map[string]any {
 					return nil, ctx.Err()
 				default:
 				}
-				if err := OpenPermissionSettings(id); err != nil {
-					return nil, err
-				}
-				return map[string]any{"opened": true, "id": id}, nil
+				return OpenPermissionSettingsDetailed(id)
 			})
 		},
 		"onAction": func(call goja.FunctionCall) goja.Value {
@@ -221,6 +235,23 @@ func decodeMenuItemPatch(value goja.Value) (appshell.MenuItemPatch, error) {
 		return patch, errors.New("menu item patch is empty")
 	}
 	return patch, nil
+}
+
+func decodePermissionRequestOptions(value goja.Value) (PermissionRequestOptions, error) {
+	var options PermissionRequestOptions
+	if value == nil || goja.IsUndefined(value) || goja.IsNull(value) {
+		return options, nil
+	}
+	data, err := json.Marshal(value.Export())
+	if err != nil {
+		return options, fmt.Errorf("invalid request options: %w", err)
+	}
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&options); err != nil {
+		return options, fmt.Errorf("invalid request options: %w", err)
+	}
+	return options, nil
 }
 
 func (a *AppShellRuntime) enqueue(event appshell.ActionEvent) error {
@@ -315,9 +346,7 @@ func (a *AppShellRuntime) mainWindowReady() {
 	}
 }
 
-func (a *AppShellRuntime) MainWindowReady() bool {
-	return a != nil && a.mainReady
-}
+func (a *AppShellRuntime) MainWindowReady() bool { return a != nil && a.mainReady }
 
 func (a *AppShellRuntime) mainWindowEvent(event customUIAppWindowEvent) {
 	if a == nil || a.closing.Load() {
@@ -427,10 +456,7 @@ func (a *AppShellRuntime) reportAsyncError(err error) {
 	}
 }
 
-func (a *AppShellRuntime) CancelAsync() {
-	a.BeginCancel()
-	a.FinishCancel()
-}
+func (a *AppShellRuntime) CancelAsync() { a.BeginCancel(); a.FinishCancel() }
 
 func (a *AppShellRuntime) BeginCancel() {
 	if a == nil {
