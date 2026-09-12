@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -15,8 +16,8 @@ import (
 )
 
 const (
-	Magic         = "ODCFG1"
-	SchemaVersion = 1
+	Magic          = "ODCFG1"
+	SchemaVersion  = 1
 	obfuscationKey = "OpenDeskOfficialShell/v1"
 )
 
@@ -47,8 +48,12 @@ func ParseSource(data []byte) (Config, error) {
 	if err := decoder.Decode(&config); err != nil {
 		return Config{}, fmt.Errorf("parse official config source: %w", err)
 	}
-	if decoder.More() {
-		return Config{}, fmt.Errorf("parse official config source: trailing JSON values are not allowed")
+	var trailing any
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		if err == nil {
+			return Config{}, fmt.Errorf("parse official config source: trailing JSON values are not allowed")
+		}
+		return Config{}, fmt.Errorf("parse official config source trailing data: %w", err)
 	}
 	if err := Validate(config); err != nil {
 		return Config{}, err
