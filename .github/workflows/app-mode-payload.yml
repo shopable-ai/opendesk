@@ -1,0 +1,162 @@
+name: App Mode Payload
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - '.github/workflows/app-mode-payload.yml'
+      - 'VERSION'
+      - 'go.mod'
+      - 'go.sum'
+      - 'apps/opendesk/**'
+      - 'internal/appmodepayload/**'
+      - 'internal/recorderbundle/**'
+      - 'scripts/build_macos_app.sh'
+      - 'scripts/build_windows_app.ps1'
+      - 'scripts/build_windows_distribution.ps1'
+      - 'scripts/build_windows_ui.ps1'
+      - 'scripts/tools/app-mode-payload/**'
+      - 'cmd/opendesk/**'
+      - 'cmd/opendesk-ui-host/**'
+      - 'docs/architecture/app-mode-desktop-launch.md'
+  pull_request:
+    paths:
+      - '.github/workflows/app-mode-payload.yml'
+      - 'VERSION'
+      - 'go.mod'
+      - 'go.sum'
+      - 'apps/opendesk/**'
+      - 'internal/appmodepayload/**'
+      - 'internal/recorderbundle/**'
+      - 'scripts/build_macos_app.sh'
+      - 'scripts/build_windows_app.ps1'
+      - 'scripts/build_windows_distribution.ps1'
+      - 'scripts/build_windows_ui.ps1'
+      - 'scripts/tools/app-mode-payload/**'
+      - 'cmd/opendesk/**'
+      - 'cmd/opendesk-ui-host/**'
+      - 'docs/architecture/app-mode-desktop-launch.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    name: Payload Contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Test payload staging and Recorder materialization
+        run: go test ./internal/appmodepayload ./internal/recorderbundle -count=1
+      - name: Test Recorder JavaScript contracts
+        run: >-
+          node --test
+          tests/custom-ui/recording-history.test.js
+          tests/custom-ui/recording-history-icon-adapter.test.js
+          tests/custom-ui/recording-history-interaction.test.js
+          tests/custom-ui/recording-history-pagination.test.js
+          tests/custom-ui/recording-history-presentation.test.js
+
+  macos-package:
+    name: macOS App Mode Payload
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Build product app without release signing
+        shell: bash
+        run: APP_MODE_PACKAGE="$PWD/apps/opendesk" SKIP_CODESIGN=1 ./scripts/build_macos_app.sh
+      - name: Verify exact macOS App Mode payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          payload="dist/OpenDesk.app/Contents/Resources/AppMode"
+          policy="apps/opendesk/.release/app-mode-runtime-files.txt"
+          evidence=".runtime/tests/app-mode-payload/macos"
+          mkdir -p "$evidence"
+          awk 'NF && $1 !~ /^#/' "$policy" | LC_ALL=C sort > "$evidence/expected.txt"
+          (cd "$payload" && find . -type f -print | sed 's#^./##' | LC_ALL=C sort) > "$evidence/actual.txt"
+          diff -u "$evidence/expected.txt" "$evidence/actual.txt"
+          for forbidden in README.md recorder/embed.go recorder/icons/render-countdown-icons.swift; do
+            test ! -e "$payload/$forbidden" || { echo "development file leaked into macOS App Mode payload: $forbidden" >&2; exit 1; }
+          done
+          leaked_source="$(find "$payload" -type f \( -name '*.go' -o -name '*.swift' \) -print -quit)"
+          test -z "$leaked_source" || { echo "build-time source leaked into macOS App Mode payload: $leaked_source" >&2; exit 1; }
+          leaked_link="$(find "$payload" -type l -print -quit)"
+          test -z "$leaked_link" || { echo "symlink leaked into macOS App Mode payload: $leaked_link" >&2; exit 1; }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: app-mode-payload-macos
+          path: .runtime/tests/app-mode-payload/macos
+          if-no-files-found: ignore
+          retention-days: 7
+
+  windows-package:
+    name: Windows App Mode Payload
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Build portable product distribution
+        shell: pwsh
+        run: pwsh -NoProfile -File scripts/build_windows_distribution.ps1 -Runtime win-x64 -AppModePackage apps/opendesk
+      - name: Verify exact Windows App Mode payload
+        shell: pwsh
+        run: |
+          $distribution = [IO.Path]::GetFullPath(".\dist\windows\win-x64")
+          $appMode = Join-Path $distribution "app-mode"
+          $policy = ".\apps\opendesk\.release\app-mode-runtime-files.txt"
+          $evidence = ".\.runtime\tests\app-mode-payload\windows"
+          New-Item -ItemType Directory -Force -Path $evidence | Out-Null
+          $expected = @(Get-Content -LiteralPath $policy | ForEach-Object { $_.Trim() } | Where-Object { $_ -and -not $_.StartsWith('#') } | Sort-Object)
+          $actual = @(Get-ChildItem -LiteralPath $appMode -File -Recurse | ForEach-Object { [IO.Path]::GetRelativePath($appMode, $_.FullName).Replace('\', '/') } | Sort-Object)
+          $expected | Set-Content -LiteralPath (Join-Path $evidence "expected.txt") -Encoding utf8
+          $actual | Set-Content -LiteralPath (Join-Path $evidence "actual.txt") -Encoding utf8
+          $difference = @(Compare-Object -ReferenceObject $expected -DifferenceObject $actual)
+          if ($difference.Count -ne 0) {
+            $difference | Format-Table | Out-String | Write-Host
+            throw "Windows App Mode payload does not exactly match the shared release policy."
+          }
+          foreach ($relative in @("README.md", "recorder/embed.go", "recorder/icons/render-countdown-icons.swift")) {
+            if (Test-Path -LiteralPath (Join-Path $appMode $relative)) {
+              throw "Development file leaked into Windows App Mode payload: $relative"
+            }
+          }
+          $leakedSource = @(Get-ChildItem -LiteralPath $appMode -File -Recurse | Where-Object { $_.Extension -in @('.go', '.swift') })
+          if ($leakedSource.Count -ne 0) {
+            throw "Build-time source leaked into Windows App Mode payload: $($leakedSource[0].FullName)"
+          }
+          $leakedLink = @(Get-ChildItem -LiteralPath $appMode -Recurse -Force | Where-Object { $_.Attributes -band [IO.FileAttributes]::ReparsePoint })
+          if ($leakedLink.Count -ne 0) {
+            throw "Reparse point/symlink leaked into Windows App Mode payload: $($leakedLink[0].FullName)"
+          }
+          $provenance = Get-Content -LiteralPath (Join-Path $distribution "distribution-provenance.json") -Raw | ConvertFrom-Json
+          if ($provenance.layout.appModePackage -ne "app-mode/") {
+            throw "Windows distribution provenance does not declare the staged product App Mode package."
+          }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: app-mode-payload-windows
+          path: .runtime/tests/app-mode-payload/windows
+          if-no-files-found: ignore
+          retention-days: 7

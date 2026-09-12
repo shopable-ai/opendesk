@@ -71,6 +71,45 @@ The Windows directory is a portable release artifact, not an installer: current 
 shortcut, register file associations, or claim MSI/MSIX behavior. Windows live desktop interaction, including Recorder
 capture and Start Menu launch, requires a real Windows user session and is not covered by macOS validation.
 
+## Source package and release payload closure
+
+Source ownership, distribution payload, and runtime materialization are separate contracts:
+
+```text
+Source package
+apps/opendesk/**
+        |
+        | repository-internal release policy
+        v
+Distribution payload
+OpenDesk.app/Contents/Resources/AppMode/ | app-mode/
+        |
+        | runtime discovery / Recorder materialization
+        v
+Runtime execution
+```
+
+The repository-owned product package opts into explicit release closure with
+`apps/opendesk/.release/app-mode-runtime-files.txt`. This file is build metadata, not an
+`opendesk.app.json` schema field and not a runtime resource. Both macOS and Windows builders call the same
+`internal/appmodepayload` staging implementation, so the selected runtime files and symlink/path checks cannot drift by platform.
+Packages that do not contain this repository-internal policy keep the existing whole-package staging behavior.
+
+For `apps/opendesk`, the current classification is:
+
+| Class | Files | Release behavior |
+| --- | --- | --- |
+| A. Runtime Required | `opendesk.app.json`, product JS composition, Scheduler JS, `script-runner/controller.js`, tray/product-logo assets, Recorder controller/history JS, countdown PNGs and Recorder logo | explicitly staged |
+| B. Runtime Optional / product configuration | `assets/official-shell.odcfg` | explicitly staged; runtime still has built-in fallback defaults |
+| C. Build-time Only | `recorder/embed.go`, `recorder/icons/render-countdown-icons.swift`, `.release/**` | never staged |
+| D. Documentation / Development Only | `README.md` | never staged |
+| E. Unknown | none after the current runtime-closure audit | must be investigated before adding to the policy |
+
+The policy fails closed if it lists `README.md`, `*.go`, `*.swift`, an absolute/escaping path, a missing/non-regular file, or
+a symlink. The released product App Mode payload therefore remains self-contained without reading `examples/**`, `workflows/**`,
+or the source repository at runtime. Development usage such as `./dist/opendesk -app apps/opendesk ...` continues to use the
+source package directly and is intentionally unaffected by release staging.
+
 ## Verification evidence
 
 For a desktop launch claim, record separately:
