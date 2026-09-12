@@ -86,25 +86,13 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
-	"sync"
 	"unsafe"
 )
 
-func darwinAccessibilityStatus() bool {
-	return bool(C.tm_ax_is_trusted())
-}
-
-func darwinRequestAccessibilityPrompt() bool {
-	return bool(C.tm_ax_request_with_prompt())
-}
-
-func darwinScreenCaptureStatus() bool {
-	return bool(C.tm_screen_preflight())
-}
-
-func darwinRequestScreenCapturePrompt() bool {
-	return bool(C.tm_screen_request())
-}
+func darwinAccessibilityStatus() bool { return bool(C.tm_ax_is_trusted()) }
+func darwinRequestAccessibilityPrompt() bool { return bool(C.tm_ax_request_with_prompt()) }
+func darwinScreenCaptureStatus() bool { return bool(C.tm_screen_preflight()) }
+func darwinRequestScreenCapturePrompt() bool { return bool(C.tm_screen_request()) }
 
 func darwinInputMonitoringStatus() string {
 	switch int(C.tm_input_monitoring_status()) {
@@ -117,9 +105,7 @@ func darwinInputMonitoringStatus() string {
 	}
 }
 
-func darwinRequestInputMonitoringPrompt() bool {
-	return bool(C.tm_input_monitoring_request())
-}
+func darwinRequestInputMonitoringPrompt() bool { return bool(C.tm_input_monitoring_request()) }
 
 func darwinTriggerAppleEventsPrompt(targetApp string) bool {
 	cTarget := C.CString(targetApp)
@@ -133,36 +119,16 @@ func TriggerMacAutomationPermissionHelper(targetApp string) bool {
 
 type macOSPermissionProvider struct{}
 
-var macPermissionRequestGuard = struct {
-	sync.Mutex
-	requested map[string]struct{}
-}{requested: map[string]struct{}{}}
-
-func reserveMacPermissionRequest(id PermissionID, target string) bool {
-	key := string(id)
-	if target != "" {
-		key += ":" + target
-	}
-	macPermissionRequestGuard.Lock()
-	defer macPermissionRequestGuard.Unlock()
-	if _, exists := macPermissionRequestGuard.requested[key]; exists {
-		return false
-	}
-	macPermissionRequestGuard.requested[key] = struct{}{}
-	return true
+var darwinPermissionSettingsURLs = map[PermissionID]string{
+	PermissionAccessibility:   "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
+	PermissionScreenCapture:   "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
+	PermissionInputMonitoring: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent",
+	PermissionAutomation:      "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation",
 }
 
-func permissionRequestAlreadyTriggered(probe permissionProbe) permissionProbe {
-	if probe.Evidence == nil {
-		probe.Evidence = map[string]any{}
-	}
-	probe.Evidence["requestSkipped"] = "already_requested_in_process"
-	return probe
-}
+const darwinPrivacySecuritySettingsURL = "x-apple.systempreferences:com.apple.preference.security"
 
-func newPermissionProvider() permissionProvider {
-	return macOSPermissionProvider{}
-}
+func newPermissionProvider() permissionProvider { return macOSPermissionProvider{} }
 
 func (macOSPermissionProvider) Check(id PermissionID, target string) permissionProbe {
 	switch id {
@@ -219,29 +185,22 @@ func (macOSPermissionProvider) Check(id PermissionID, target string) permissionP
 	}
 }
 
+// Request performs one native request attempt. Cross-call de-duplication belongs
+// to the shared Permission Service, not this platform provider.
 func (p macOSPermissionProvider) Request(id PermissionID, target string) (permissionProbe, error) {
 	switch id {
 	case PermissionAccessibility:
 		if !darwinAccessibilityStatus() {
-			if !reserveMacPermissionRequest(id, target) {
-				return permissionRequestAlreadyTriggered(p.Check(id, target)), nil
-			}
 			_ = darwinRequestAccessibilityPrompt()
 		}
 		return p.Check(id, target), nil
 	case PermissionScreenCapture:
 		if !darwinScreenCaptureStatus() {
-			if !reserveMacPermissionRequest(id, target) {
-				return permissionRequestAlreadyTriggered(p.Check(id, target)), nil
-			}
 			_ = darwinRequestScreenCapturePrompt()
 		}
 		return p.Check(id, target), nil
 	case PermissionInputMonitoring:
 		if darwinInputMonitoringStatus() != "granted" {
-			if !reserveMacPermissionRequest(id, target) {
-				return permissionRequestAlreadyTriggered(p.Check(id, target)), nil
-			}
 			_ = darwinRequestInputMonitoringPrompt()
 		}
 		return p.Check(id, target), nil
@@ -249,9 +208,6 @@ func (p macOSPermissionProvider) Request(id PermissionID, target string) (permis
 		target = strings.TrimSpace(target)
 		if target == "" {
 			return p.Check(id, target), fmt.Errorf("automation permission requires a target application, for example automation:Finder")
-		}
-		if !reserveMacPermissionRequest(id, target) {
-			return permissionRequestAlreadyTriggered(p.Check(id, target)), nil
 		}
 		if darwinTriggerAppleEventsPrompt(target) {
 			return permissionProbe{Status: PermissionGranted, Evidence: map[string]any{
@@ -267,24 +223,25 @@ func (p macOSPermissionProvider) Request(id PermissionID, target string) (permis
 	}
 }
 
-func (macOSPermissionProvider) OpenSettings(id PermissionID) error {
-	urls := map[PermissionID]string{
-		PermissionAccessibility:   "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
-		PermissionScreenCapture:   "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
-		PermissionInputMonitoring: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent",
-		PermissionAutomation:      "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation",
-	}
-	url, ok := urls[id]
+func (macOSPermissionProvider) OpenSettings(id PermissionID) (PermissionSettingsResult, error) {
+	url, ok := darwinPermissionSettingsURLs[id]
 	if !ok {
-		return fmt.Errorf("unknown macOS permission id %q", id)
+		return PermissionSettingsResult{ID: string(id)}, fmt.Errorf("unknown macOS permission id %q", id)
 	}
+	guidance := "Open Privacy & Security and select " + permissionSettingsTarget(id) + "."
 	if err := exec.Command("/usr/bin/open", url).Run(); err == nil {
-		return nil
+		return PermissionSettingsResult{Opened: true, ID: string(id)}, nil
 	} else {
-		fallback := "x-apple.systempreferences:com.apple.preference.security"
-		if fallbackErr := exec.Command("/usr/bin/open", fallback).Run(); fallbackErr != nil {
-			return fmt.Errorf("open macOS permission settings for %q: deep link failed: %v; fallback failed: %w", id, err, fallbackErr)
+		if fallbackErr := exec.Command("/usr/bin/open", darwinPrivacySecuritySettingsURL).Run(); fallbackErr != nil {
+			return PermissionSettingsResult{ID: string(id), Guidance: guidance}, fmt.Errorf("open macOS permission settings for %q: deep link failed: %v; fallback failed: %w", id, err, fallbackErr)
 		}
+		return PermissionSettingsResult{Opened: true, ID: string(id), Fallback: true, Guidance: guidance}, nil
 	}
-	return nil
+}
+
+func permissionSettingsTarget(id PermissionID) string {
+	if definition, ok := findPermissionDefinition(id); ok {
+		return definition.SettingsTarget
+	}
+	return "Privacy & Security"
 }
