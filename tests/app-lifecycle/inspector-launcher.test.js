@@ -26,7 +26,7 @@ function harness(url, os = 'darwin') {
       },
     },
     execution: {workdir: '/tmp/opendesk-app'},
-    ui: {async notify(input) { notifications.push(input); }},
+    ui: {async toast(input) { notifications.push(input); }},
     logger: {error(message) { errors.push(String(message)); }},
   });
   return {launcher, commands, notifications, errors};
@@ -58,5 +58,6 @@ test('rejects missing or non-loopback Inspector URLs without starting another se
     assert.deepEqual(f.commands, []);
     assert.equal(f.notifications.length, 1);
     assert.match(String(f.notifications[0].message), /Inspector/);
+    assert.equal(f.notifications[0].timeoutMs, 5000);
   }
 });

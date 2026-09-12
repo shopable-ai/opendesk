@@ -35,13 +35,16 @@
     }
 
     async function notifyFailure(message) {
-      if (ui && typeof ui.notify === 'function') {
+      const toast = ui && (typeof ui.toast === 'function'
+        ? ui.toast.bind(ui)
+        : (typeof ui.notify === 'function' ? ui.notify.bind(ui) : null));
+      if (toast) {
         try {
-          await ui.notify({message: String(message), type: 'negative', timeout: 5000});
+          await toast({message: String(message), timeoutMs: 5000});
           return;
         } catch (_) {
-          // Notification is best-effort; the structured log below is the
-          // durable fallback and must not hide the original launch failure.
+          // Toast is best-effort; the structured log below is the durable
+          // fallback and must not hide the original launch failure.
         }
       }
       if (logger && typeof logger.error === 'function') {
