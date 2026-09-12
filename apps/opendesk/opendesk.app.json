@@ -1,11 +1,8 @@
 {
   "schemaVersion": 1,
   "id": "com.opendesk.desktop",
-  "version": "0.1.0",
   "name": "OpenDesk",
-  "runtime": {
-    "minVersion": "0.1.0"
-  },
+  "version": "0.1.0",
   "entry": "main.js",
   "singleInstance": true,
   "window": {
@@ -14,18 +11,36 @@
   },
   "tray": {
     "enabled": true,
+    "tooltip": "OpenDesk",
+    "primaryAction": "opendesk.open",
     "icons": {
       "windows": "assets/tray.ico",
       "macos": "assets/tray-template.png"
     },
-    "tooltip": "OpenDesk",
-    "primaryAction": "opendesk.open",
-    "menuMode": "merge",
     "menu": [
-      { "id": "runner.open", "label": "打开 Script Runner", "action": "runner.open" },
-      { "type": "separator" },
-      { "id": "scheduler.open", "label": "计划中心", "action": "scheduler.open" },
-      { "id": "scheduler.new", "label": "新建计划…", "action": "scheduler.new" }
+      {
+        "id": "open-opendesk",
+        "label": "打开 OpenDesk",
+        "action": "runner.open"
+      },
+      {
+        "type": "separator"
+      },
+      {
+        "id": "open-scheduler-center",
+        "label": "计划中心",
+        "action": "scheduler.center"
+      },
+      {
+        "id": "new-schedule",
+        "label": "新建计划…",
+        "action": "scheduler.new"
+      },
+      {
+        "id": "open-runtime-log",
+        "label": "运行日志…",
+        "action": "runtime.log"
+      }
     ]
   }
 }
