@@ -1,6 +1,12 @@
 export {};
 
 declare global {
+  interface OpenDeskProductIdentity {
+    readonly id: string;
+    readonly name: string;
+    readonly website: string;
+  }
+
   interface OpenDeskSystemInfo {
     hostname?: string;
     os?: string;
@@ -100,6 +106,8 @@ declare global {
   }
 
   interface OpenDeskSystem {
+    /** Runtime-owned public product identity. The object and fields are read-only. */
+    readonly product: Readonly<OpenDeskProductIdentity>;
     /** Non-blocking workflow delay. This does not suspend the host operating system. */
     delay(milliseconds?: number): Promise<void>;
     getPlatformInfo(): OpenDeskPlatformInfo;

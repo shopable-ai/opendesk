@@ -13,7 +13,17 @@
     details: 'info.circle',
     finder: 'folder.fill',
   });
-  const OPENDESK_HOMEPAGE_URL = 'https://github.com/shopable-ai/opendesk';
+  const HTTPS_URL_PATTERN = /^https:\/\/[^\s/?#\\]+(?:[/?#][^\s]*)?$/;
+
+  function resolveProductWebsite(system) {
+    const website = system && system.product && typeof system.product.website === 'string'
+      ? system.product.website.trim()
+      : '';
+    if (!HTTPS_URL_PATTERN.test(website)) {
+      throw new Error('recording-console-simple requires System.product.website to be an https URL');
+    }
+    return website;
+  }
 
   const ACTIVE_CAPTURE_PHASES = new Set([
     'countdown', 'starting', 'stop-requested', 'recording', 'pausing', 'paused', 'resuming', 'stopping',
@@ -88,6 +98,7 @@
     const command = settings.command || global.Command;
     const file = settings.file || global.File;
     const execution = settings.execution || global.Execution;
+    const system = settings.system || global.System;
     const page = settings.page || global.page;
     const clipboardAPI = settings.clipboard || global.clipboard;
     const copyText = typeof settings.copyText === 'function'
@@ -128,6 +139,7 @@
     if (!execution || !execution.workdir || !execution.scriptDir) {
       throw new Error('recording-console-simple requires Execution.workdir and Execution.scriptDir');
     }
+    const productWebsite = resolveProductWebsite(system);
 
     const capabilities = clone(recorder.getCapabilities());
     const captureCapabilities = capabilities.capture && typeof capabilities.capture === 'object'
@@ -908,14 +920,14 @@
     async function openHomepage() {
       try {
         if (typeof settings.openHomepage === 'function') {
-          await settings.openHomepage(OPENDESK_HOMEPAGE_URL);
+          await settings.openHomepage(productWebsite);
         } else if (page && typeof page.openURL === 'function') {
-          await page.openURL(OPENDESK_HOMEPAGE_URL);
+          await page.openURL(productWebsite);
         } else {
           throw new Error('page.openURL() is unavailable');
         }
         if (logger && typeof logger.log === 'function') {
-          logger.log('OPENDESK_HOMEPAGE_OPENED=' + JSON.stringify({url: OPENDESK_HOMEPAGE_URL}));
+          logger.log('OPENDESK_HOMEPAGE_OPENED=' + JSON.stringify({url: productWebsite}));
         }
       } catch (error) {
         const normalized = normalizeError(error, 'page.openURL');
@@ -972,7 +984,7 @@
         logger.log('RECORDING_CONSOLE_SIMPLE_READY=' + JSON.stringify({
           windowId: toolbar.id,
           bounds: shown.bounds,
-          homepage: OPENDESK_HOMEPAGE_URL,
+          homepage: productWebsite,
           homepageIcon: homepageIcon.path,
           icons: BUILT_IN_ICONS,
           countdownIcons: [3, 2, 1].map(value => countdownIcon(value).path),
@@ -1005,9 +1017,14 @@
     });
   }
 
-  global.OpenDeskSimpleRecordingConsole = Object.freeze({
+  const publicAPI = {
     createApp,
     buildAgentRefinementPrompt,
-    homepageURL: OPENDESK_HOMEPAGE_URL,
+  };
+  Object.defineProperty(publicAPI, 'homepageURL', {
+    enumerable: true,
+    configurable: false,
+    get() { return resolveProductWebsite(global.System); },
   });
+  global.OpenDeskSimpleRecordingConsole = Object.freeze(publicAPI);
 })(globalThis);

@@ -1,6 +1,12 @@
 # 工作流入口
 
-本目录保存 Agent-first Recorder／Agent-to-Recipe、人工 Recorder／Human-to-Recipe，以及受保护包发布和 Script App Packaging 等面向开发、发布与交付的工作流、Skill、设计与案例。文档存在不表示 Skill 已加载、整体调度已实现或桌面任务已通过；这些工作流也不代表 OpenDesk 的全部产品范围。
+本目录保存 Agent-first Recorder／Agent-to-Recipe、人工 Recorder／Human-to-Recipe、官方产品配置维护，以及受保护包发布和 Script App Packaging 等面向开发、发布与交付的工作流、Skill、设计与案例。文档存在不表示 Skill 已加载、整体调度已实现或桌面任务已通过；这些工作流也不代表 OpenDesk 的全部产品范围。
+
+## Official Product Config：从这里开始
+
+- 阅读 [Official Product Config 工作流](official-product-config/README.md)，或使用 [`manage-official-product-config`](official-product-config/skills/manage-official-product-config/SKILL.md) 维护官网、帮助、定制、商店、专业版等官方产品入口。
+- 官网属于 Runtime-owned `System.product.website`；Script Runner、Recorder 等官方 UI 不得各自硬编码地址。Help / Customize / Marketplace / Upgrade 的维护源是 `configs/official-shell.json`，修改后必须通过 `opendesk config compile` 生成 `apps/opendesk/assets/official-shell.odcfg`。
+- 本工作流解决“产品级单一来源 + 编译 + 发行检查”，不把官方链接放进用户可编辑的 `opendesk.app.json`，也不把 ODCFG1 的轻量混淆描述为 secret、DRM 或密码学签名。
 
 ## 受保护包发布：从这里开始
 

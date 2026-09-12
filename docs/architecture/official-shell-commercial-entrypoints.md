@@ -1,129 +1,204 @@
 # OpenDesk Official Shell 与商业入口
 
-> 状态：P0 implemented；本地 macOS App Mode 已验证
+> 状态：P0 implemented；本地真实 UI 仍以当次验收证据为准  
 > 日期：2026-09-12  
 > 适用范围：`apps/opendesk` 官方 App Mode 产品包  
-> 相关设计：`docs/architecture/app-shell-tray-menu.md`、`docs/architecture/execution/protected-recipe-package.md`
+> 维护入口：`workflows/official-product-config/README.md`
 
 ## 1. 最终产品关系
 
-OpenDesk 当前阶段的正式默认用户 UI 是 **Product Script Runner**，不存在位于它前面的 Demo/欢迎主面板。
+OpenDesk 当前正式默认用户 UI 是 Product Script Runner，不在它前面保留 Demo/欢迎主面板。
 
 ```text
 OpenDesk App Shell / Host
         |
         | opendesk.open -> show/focus window "main"
         v
-Product Script Runner                      <- 默认产品 UI
-- opendesk.home (first-position brand icon)
+Product Script Runner
+- opendesk.home                  <- Runtime-owned product identity
 - Run / Stop
 - current script
-- script list (main window)
+- script list
         |
-        +-- Official Shell secondary actions
+        +-- Official Shell operational actions
             - opendesk.customize
             - opendesk.help
-
-Generic Script Runner                      <- shared behavior / public example
-- no Official Shell policy
-- no marketplace / license / VIP policy
+            - opendesk.marketplace   (reserved/hidden)
+            - opendesk.upgrade       (reserved/hidden)
 ```
 
-P0 显示一个首位品牌入口和两个右侧官方入口：
+P0 对外显示：
 
-- **官网**：点击原色 OpenDesk Logo，打开 canonical public project page；
-- **定制**：定制自动化与商业服务入口；
-- **帮助**：帮助、文档、反馈、支持的统一入口。
+- 官网：首位 OpenDesk Logo；
+- 定制：定制自动化与商业服务入口；
+- 帮助：帮助、文档、反馈、支持入口。
 
-`商店` 与 `专业版` 继续登记为未来动作，但在没有真实商品和 Premium capability 前默认隐藏。
+`商店` 与 `专业版` 已保留 action identity，但在没有真实商品和 Premium capability 前默认隐藏。
 
-## 2. UI ownership 与边界
+## 2. 最重要的单一来源规则
 
-`apps/opendesk/script-runner-simple.js` 的职责是产品启动适配。正式发行产品已经由 `apps/opendesk` 持有 App Mode 主窗口、Script Runner 与产品动作。
+官方产品入口分成两类，不能再混在同一个可编辑配置里。
 
-三类职责必须保持分离：
+### 2.1 官网属于 Runtime-owned product identity
 
-```text
-App Shell
-- Tray / Menu Bar
-- opendesk.open
-- main window lifecycle
-- single instance
-- Recorder / Quit system actions
+统一入口：
 
-Generic Script Runner controller
-- script discovery / ordering
-- Run / Run Selected / Stop
-- list / empty / error state
-- child recipe process
-
-Official Shell
-- first-position homepage brand action
-- official action metadata
-- product URL/config policy
-- placeholder result
-- HTTPS-only external navigation
+```js
+System.product.website
 ```
 
-Product composition 只把 Generic Runner 与 Official Shell 组合在一起。Official Shell 不知道 Run/Stop 状态机；Generic Runner controller 不知道 Marketplace、VIP、License、OEM 或其他商业策略。
+当前 Runtime identity 由 `polyfills/000-systemBase.js` 安装为只读对象：
 
-`examples/custom-ui/script-runner-simple.js` 继续是学习/API 示例，不注入 `opendesk.*` 官方动作。
-
-## 3. Product Runner toolbar
-
-P0 使用 **同一个** FloatingWindow，不创建第二套 toolbar：
-
-```text
-[OpenDesk] │ [运行] [停止] [当前脚本] [列表] │ [定制] [帮助]
+```js
+System.product.id
+System.product.name
+System.product.website
 ```
 
-说明：FloatingWindow 的按钮主体由图标表达，`label` 用于 tooltip/Accessibility；上图表示业务语义与顺序，而不是要求渲染成 HTML 文字按钮。
+`System.product` 以及它的字段均不可由普通脚本替换或修改。
 
 规则：
 
-- Run / Stop / 当前脚本 / 列表是高频核心业务能力；
-- OpenDesk Logo 固定在第一位，作为无额外内边距的原色 image button，在 40pt 点击区内 `aspect-fit` 铺满；
-- Logo 是有 tooltip / Accessibility name / callback 的原生 icon button，不是装饰图片；
-- 定制 / 帮助位于右侧 secondary group；
-- 使用现有 `addSeparator()` 做真实分组；
-- 产品层只小幅提高 toolbar `maxWidth`，不改变通用 Example；
-- Help / Customize 不跟随 recipe running state disabled；
-- Marketplace / Upgrade 不加入当前 toolbar。
+- Script Runner Logo 必须读取 `System.product.website`；
+- Recorder Logo 必须读取 `System.product.website`；
+- 以后新增的官方品牌按钮也必须读取该值；
+- 官网不得重新写入 `opendesk.app.json`；
+- 官网不得写入 `official-shell.odcfg`；
+- 不允许各 UI 自己维护一份 URL literal。
 
-## 4. 主窗口与 App Mode 生命周期
+这是为了让以后换域名只修改产品身份定义和对应测试，而不是寻找散落的 Script Runner / Recorder 常量。
 
-`opendesk.app.json` 的稳定契约为：
+### 2.2 Help / Customize 等属于 publisher-owned operational config
 
-```text
-window.mainId = "main"
-window.closeBehavior = "hide"
-tray.primaryAction = "opendesk.open"
-```
-
-Product Runner 把自己的 Script Runner list 创建为 `id = "main"`。因此系统 `opendesk.open` 直接显示/聚焦现有列表窗口，不需要把 Open 动作重写为业务 `runner.open`，也不会因为点击 Tray 再创建 Runner、Execution 或 toolbar。
-
-Manifest 不再声明重复的 `runner.open / 打开 Script Runner` 菜单项。P0 `menuMode=merge` 下继续由 App Shell 保留系统 Open/Show、Recorder 与 Quit。
-
-产品启动时由 composition root 主动打开 Runner list，所以体验是：
+维护源：
 
 ```text
-launch OpenDesk
--> Product Runner toolbar
-+  Product Runner list/main
+configs/official-shell.json
 ```
 
-而不是：
+当前 schema 只允许：
 
 ```text
-launch
--> Demo panel
--> click "打开 Script Runner"
--> Runner
+help
+customize
+marketplace
+upgrade
 ```
 
-## 5. Official Action namespace
+其中：
 
-官方入口使用：
+- `help`、`customize` 必须保持 `visible=true`；
+- `marketplace`、`upgrade` 可以隐藏；
+- URL 为空表示当前入口保留但业务尚未开放；
+- URL 非空必须是 HTTPS。
+
+`home` 如果出现在这个 source 中必须被 validator 拒绝，因为它已经由 `System.product.website` 持有。
+
+## 3. 配置编译链
+
+维护者只编辑：
+
+```text
+configs/official-shell.json
+```
+
+然后执行：
+
+```bash
+make build
+./dist/opendesk config compile
+```
+
+开发态可直接：
+
+```bash
+go run ./cmd/opendesk config compile
+```
+
+默认输出：
+
+```text
+apps/opendesk/assets/official-shell.odcfg
+```
+
+实现分层：
+
+```text
+internal/configcli
+    -> CLI: opendesk config compile
+
+pkg/officialconfig
+    -> source schema validation
+    -> deterministic ODCFG1 encoding / decoding
+    -> checksum
+    -> file compile
+```
+
+不要手工编辑 ODCFG HEX/checksum。CLI 是唯一正常生成入口。
+
+## 4. ODCFG1 的真实安全边界
+
+当前 ODCFG1 使用：
+
+```text
+version header
++ reversible XOR obfuscation
++ checksum
+```
+
+它的目标是：
+
+- 降低普通用户随手修改官方运营入口的便利性；
+- 检测误编辑和明显损坏；
+- 避免发行资源直接以明文 JSON 呈现。
+
+它不是：
+
+- secret store；
+- publisher signature；
+- DRM；
+- anti-debug；
+- anti-reverse-engineering；
+- License / entitlement system。
+
+因此 `.odcfg` 中不得保存 token、密码、License key、私钥或其他 secret。
+
+未来确实需要抵抗恶意配置替换时，独立升级到 publisher-signed config，例如：
+
+```text
+canonical payload
++ Ed25519 signature
++ embedded public key
++ immutable built-in fallback
+```
+
+不要为了一个 URL 修改提前引入完整 DRM 或远程授权体系。
+
+## 5. Runtime 加载优先级与反降级
+
+`apps/opendesk/official-shell.js` 的加载优先级固定为：
+
+```text
+1. assets/official-shell.odcfg
+2. sibling assets/official-shell.json（只在 .odcfg 不存在时作为开发/诊断入口）
+3. built-in fallback
+```
+
+关键规则：
+
+```text
+.odcfg exists but invalid
+-> fallback
+-> DO NOT silently load sibling plaintext JSON
+```
+
+这样避免“保护文件被破坏后自动降级到更容易替换的明文配置”。
+
+正式 distribution 应包含 `.odcfg`，不应把仓库维护源 `configs/official-shell.json` 一起打入 AppMode payload。
+
+## 6. Official Action namespace
+
+保留 action：
 
 ```text
 opendesk.home
@@ -133,9 +208,9 @@ opendesk.marketplace
 opendesk.upgrade
 ```
 
-`opendesk.*` 是 OpenDesk 保留 namespace。用户业务 action、Recipe action 与未来 extension action 不得借用该 namespace。
+`opendesk.*` 是官方 namespace。业务 App 和 Extension 不得占用。
 
-未来第三方扩展继续建议区分：
+推荐区分：
 
 ```text
 opendesk.*                        official
@@ -143,69 +218,66 @@ app.<package>.*                   application
 extension.<publisher>.<plugin>.* extension
 ```
 
-## 6. 官方配置文件
-
-P0 文件：
+## 7. UI ownership
 
 ```text
-apps/opendesk/assets/official-shell.odcfg
+App Shell
+- Tray / Menu Bar
+- main window lifecycle
+- single instance
+- Recorder / Scheduler / Quit system actions
+
+Generic Script Runner controller
+- script discovery / ordering
+- Run / Stop
+- list / empty / error state
+- child recipe process
+
+Official Shell
+- official action metadata
+- operational config loading
+- HTTPS-only external navigation
+- pending/unavailable result
+- homepage action bridged to System.product.website
 ```
 
-由 `apps/opendesk/official-shell.js` 自动读取。配置只保存少量随发行产品调整的 policy：
+Product composition 把 Generic Runner 与 Official Shell 组合起来。Generic Runner 不应该知道 Marketplace、License、VIP 或 OEM；Official Shell 不应该接管 Run/Stop 状态机。
 
-- action 是否显示；
-- action 的 HTTPS 目标 URL。
+## 8. Product Runner toolbar
 
-显示名称、动作 ID 与核心 fallback 仍由 release-owned code 定义。
-
-### 6.1 P0 保护级别
-
-当前 `.odcfg` 使用：
+P0 使用同一个 FloatingWindow：
 
 ```text
-version header
-+ checksum
-+ reversible payload obfuscation
+[OpenDesk] │ [运行] [停止] [当前脚本] [列表] │ [定制] [帮助]
 ```
 
-目标仅是降低普通复制模板后随手修改官方入口的便利性，并发现误编辑。它不是密码学安全边界，不存储 token、License key、密码、私钥或其他 secret，也不宣称抵抗反编译。
+规则：
 
-需要更强 publisher policy 后再升级为：
+- OpenDesk Logo 固定在第一位；
+- Logo 是真实 native icon button，有 tooltip、Accessibility name 和 callback；
+- Logo 点击只做品牌导航，不改变 recipe running state；
+- 定制 / 帮助是 secondary group；
+- Marketplace / Upgrade 当前不加入 toolbar；
+- Help / Customize 不跟随 recipe running state disabled。
+
+## 9. URL、pending 与外部打开
+
+运营配置只接受：
 
 ```text
-signed official config
-+ embedded public key
-+ immutable built-in fallback
+https://...
 ```
 
-P0 不实施 DRM、anti-tamper、remote entitlement、anti-debug 或 anti-hook。
+拒绝 `file:`、`javascript:`、`shell:` 等协议。
 
-### 6.2 核心入口不可由配置隐藏
-
-`home`、`help` 与 `customize` 在 schema validation 中必须保持
-`visible=true`。配置不存在、损坏、checksum/schema 无效或试图隐藏核心入口时，使用内置 fallback：
+Help/Customize URL 为空时：
 
 ```text
-官网       visible=true, URL="https://github.com/shopable-ai/opendesk"
-帮助       visible=true, URL=""
-定制       visible=true, URL=""
-商店       visible=false, URL=""
-专业版     visible=false, URL=""
-```
-
-## 7. URL、pending 与 notify
-
-P0 的 homepage 使用 canonical public repository；仓库 metadata 尚未声明独立产品官网。Help/Customize URL 可以为空。
-
-URL 为空时：
-
-```text
-click toolbar secondary action
+click
 -> OfficialShell.activate(...)
 -> status = pending
--> Product Runner 调用 ui.notify(message)
+-> ui.notify(message)
 -> 不打开浏览器
--> 不创建额外窗口
 ```
 
 当前 placeholder：
@@ -215,11 +287,7 @@ click toolbar secondary action
 定制自动化服务待开放。
 ```
 
-如果 `ui.notify()` 本身失败，Product Runner 才回落到既有 Runner list/status surface。
-
-配置真实 URL 后只接受 `https://...`，并调用操作系统默认 handler。拒绝 `javascript:`、`file:`、`shell:` 与任意其他 protocol。
-
-正式运营时推荐使用稳定 redirect endpoint，例如：
+正式运营推荐稳定 redirect endpoint，例如：
 
 ```text
 /go/help/desktop
@@ -228,7 +296,9 @@ click toolbar secondary action
 /go/pro/desktop
 ```
 
-## 8. 商业化顺序
+这样最终文档站、CRM、商城或活动页变更不要求重新发布桌面客户端。
+
+## 10. 商业化顺序
 
 ```text
 P0  定制自动化 / 实施 / 支持
@@ -238,7 +308,7 @@ P1  Marketplace
     -> Recipe / Plugin / Template / Service
 
 P2  Pro / Business
-    -> 只有明确 Premium capability 后展示升级入口
+    -> 有明确 Premium capability 后再显示升级入口
 
 P3  OEM / White-label
     -> 品牌、官方入口和发布策略成为可授权能力
@@ -246,102 +316,99 @@ P3  OEM / White-label
 
 暂不优先增加充值/余额/金币。只有出现明确计量型云成本后，再设计 Credits / Billing。
 
-## 9. 与 `.odpkg` 的关系
-
-Official Shell 不承担商业 Recipe 的源码保护和 License。未来 Marketplace 中的商业 Recipe 继续复用 Protected Recipe Package：
-
-```text
-Marketplace purchase / entitlement
-        |
-        v
-.odpkg
-        |
-        v
-existing protected package loader
-        |
-        v
-existing Execution Runtime
-```
+## 11. 与 .odpkg 的关系
 
 Official Shell 只负责产品导航，不复制 `.odpkg` 的加密、签名、License、ContentKeyProvider 或执行逻辑。
 
-## 10. White-label / OEM 边界
-
-未来可以把移除/替换官方品牌定义为明确商业 entitlement：
-
 ```text
-Community / standard distribution
--> Official Shell retained
-
-OEM / white-label entitlement
--> custom brand / links / official-entry policy
+commercial Recipe
+-> protected package (.odpkg)
+-> protected package loader / entitlement
+-> existing Execution Runtime
 ```
 
-P0 只预留这一方向，不实现 License gate，也不把当前轻量 `.odcfg` 描述为 OEM 防绕过方案。
+这与官网/帮助/定制入口配置是两个独立问题。
 
-## 11. 当前文件地图
+## 12. 文件地图
 
 ```text
+polyfills/000-systemBase.js
+└── System.product.{id,name,website}
+
+configs/official-shell.json
+└── publisher-owned plaintext source
+
+pkg/officialconfig/
+└── schema + ODCFG1 compiler/decoder
+
+internal/configcli/
+└── opendesk config compile
+
 apps/opendesk/
 ├── main.js
-│   └── composition root；不创建 Demo UI
 ├── official-shell.js
-│   ├── config + fallback
-│   ├── reserved action metadata
-│   ├── HTTPS URL policy
-│   └── activation
 ├── assets/
 │   └── official-shell.odcfg
 ├── script-runner-simple.js
-│   └── Product Runner composition / main-window mapping / secondary actions
-├── script-runner/
-│   └── controller.js             <- shared generic Runner behavior
-└── opendesk.app.json
+└── recorder/
+
+workflows/official-product-config/
+└── README + manage-official-product-config Skill
 ```
 
-`apps/opendesk/script-runner-simple.js` 继续作为产品启动适配器，不成为商业动作与 controller 的 owner。
+## 13. 固定维护流程
 
-## 12. P0 验收
-
-- 启动 App 后不再出现 Demo/欢迎主面板；
-- Product Runner toolbar 与 list 直接出现；
-- OpenDesk 原色 Logo 是首个 image button，无额外内边距地等比铺满 40pt 点击区；
-- Logo 点击打开 `https://github.com/shopable-ai/opendesk`，且不改变 recipe 状态；
-- Runner list 的稳定 window ID 为 `main`；
-- App Shell `opendesk.open` 显示/聚焦同一个 `main`；
-- Tray 不重复显示“打开 OpenDesk / 打开 Script Runner”；
-- 不因 Open 创建第二 Runner、toolbar 或主 Execution；
-- Help/Customize 是同一 Runner toolbar 的 secondary actions；
-- recipe running 时 Help/Customize 仍可用；
-- URL 为空时通过 `ui.notify()` 显示明确 pending；
-- 非空 URL 必须为 HTTPS；
-- 用户 Recipe 排序配置 `.opendesk-runner.json` 与 Official Shell 配置完全分离；
-- 不声称轻量配置能够抵抗逆向或替代 `.odpkg` / License 体系。
-
-## 13. 当前状态边界
+修改官网：
 
 ```text
-Implemented
-- 官方主窗口与 OpenDesk 服务区
-- opendesk.home / opendesk.help / opendesk.customize 核心入口
-- .odcfg 读取、校验、fallback 与 pending 占位反馈
-- HTTPS URL 的平台 handler 调用
-
-Verified
-- 配置解析与失败安全自动化测试
-- macOS App Mode 主窗口、Help/Customize pending、Script Runner 打开/关闭/重开
-- 退出动作后 OpenDesk 主进程与 UI host 结束
-
-Reserved
-- opendesk.marketplace / opendesk.upgrade（当前 visible=false）
-
-Future
-- signed remote config、Shell.openExternal() Runtime API、Marketplace/Pro、OEM/white-label
+System.product.website
+-> search duplicate literals
+-> Runtime/API tests
+-> Script Runner smoke
+-> Recorder smoke
+-> distribution check
 ```
 
-上述 `Verified` 仅表示当前本地构建的 macOS 证据；不等同于 Windows 真机 UI 验证，也不改变
-未来能力的状态。
+修改 Help / Customize / Marketplace / Upgrade：
 
-- Marketplace / Upgrade 默认隐藏；
-- Generic Runner controller 与 Official Shell policy 分离；
-- Recorder / Quit / single-instance 继续由 App Shell owner 保持。
+```text
+configs/official-shell.json
+-> opendesk config compile
+-> generated .odcfg
+-> parser/compiler tests
+-> AppMode payload check
+-> relevant UI smoke
+```
+
+新增官方 action：
+
+```text
+action definition
++ config schema
++ plaintext source
++ generated payload
++ UI placement
++ tests
++ docs
+```
+
+不允许只改 JSON 或只改某一个 UI。
+
+## 14. P0 验收
+
+至少验证：
+
+- `System.product.website` 可读且不可被脚本替换；
+- Official Shell 的 `opendesk.home` 来自 `System.product.website`；
+- `configs/official-shell.json` 不允许 `home`；
+- `opendesk config compile` 可以确定性生成 `.odcfg`；
+- `.odcfg` checksum/schema 无效时 fail closed；
+- `.odcfg` 存在但无效时不降级到 sibling plaintext；
+- Help/Customize 不能被配置隐藏；
+- URL 非空时只能 HTTPS；
+- Script Runner 与 Recorder 不再分别维护官网 literal；
+- macOS / Windows AppMode payload 都包含需要的 `.odcfg`；
+- distribution 不包含仓库维护用 plaintext source；
+- 真实点击 Logo / Help / Customize 的行为与当前配置一致。
+
+未实际执行的 Windows/macOS live UI 验证必须写 `not run` 或 `not qualified`，不能由单元测试或 cross-build 代替。
