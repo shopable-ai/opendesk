@@ -113,7 +113,7 @@ opendesk -app ./my-app -console-mode script
 ```js
 automation.app.onAction(async event => {
   if (event.id === 'sync.now') {
-    await automation.app.updateMenuItem('sync.now', {
+    await automation.app.updateMenuItem('sync.menu', {
       label: 'Syncing…',
       enabled: false,
     });
@@ -122,6 +122,8 @@ automation.app.onAction(async event => {
   }
 });
 ```
+
+这里故意使用不同的 `action` 与菜单项 `id`：`event.id === 'sync.now'` 来自 Manifest 的 `action`，而 `updateMenuItem('sync.menu', ...)` 使用 Manifest menu item 的稳定 `id`。
 
 需要退出当前应用时调用：
 
