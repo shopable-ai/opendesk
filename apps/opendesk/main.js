@@ -27,20 +27,29 @@ if (!globalThis.OpenDeskProductScriptRunner
 }
 
 const runner = OpenDeskProductScriptRunner.create({officialShell});
-const initialState = await runner.open('startup');
+const unsubscribeAppActions = automation.app.onAction(async event => {
+  if (!event || (event.id !== 'opendesk.open' && event.id !== 'runner.open')) return;
+  await runner.open(event.source || event.id);
+});
 
-console.log('OPENDESK_PRODUCT_APP_READY=' + JSON.stringify({
-  executionId: Execution.id,
-  packageId: capabilities.packageId,
-  packageRoot: Execution.workdir,
-  scriptDir: Execution.scriptDir,
-  executable: System.getExecutablePath(),
-  appDataRoot: globalThis.OpenDeskProductPaths.appDataRoot,
-  scriptRoot: globalThis.OpenDeskProductPaths.scriptRoot,
-  mainWindowId: initialState.mainWindowId,
-  toolbarMaxWidth: initialState.toolbarMaxWidth,
-  recipeProcessModel: 'child-opendesk-process',
-  officialShell: officialShell.state(),
-}));
+try {
+  const initialState = await runner.open('startup');
 
-await runner.waitUntilClosed();
+  console.log('OPENDESK_PRODUCT_APP_READY=' + JSON.stringify({
+    executionId: Execution.id,
+    packageId: capabilities.packageId,
+    packageRoot: Execution.workdir,
+    scriptDir: Execution.scriptDir,
+    executable: System.getExecutablePath(),
+    appDataRoot: globalThis.OpenDeskProductPaths.appDataRoot,
+    scriptRoot: globalThis.OpenDeskProductPaths.scriptRoot,
+    mainWindowId: initialState.mainWindowId,
+    toolbarMaxWidth: initialState.toolbarMaxWidth,
+    recipeProcessModel: 'child-opendesk-process',
+    officialShell: officialShell.state(),
+  }));
+
+  await runner.waitUntilClosed();
+} finally {
+  unsubscribeAppActions();
+}

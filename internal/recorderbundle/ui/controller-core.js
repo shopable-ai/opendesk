@@ -128,6 +128,14 @@
     }
 
     const capabilities = clone(recorder.getCapabilities());
+    const captureCapabilities = capabilities.capture && typeof capabilities.capture === 'object'
+      ? capabilities.capture : {};
+    const captureAvailable = captureCapabilities.available === true;
+    const captureUnavailableDetail = !captureCapabilities.hostAuthorized
+      ? '当前启动命令未授权 Recorder 输入采集。请退出后以包含 -allow-recorder-capture 的命令重新启动。'
+      : captureCapabilities.permission === 'denied'
+        ? 'macOS 未授予 OpenDesk 输入监控权限；请在“系统设置 → 隐私与安全性 → 输入监控”中允许后重新启动。'
+        : '当前系统未提供可用的 Recorder 输入采集。请在“查看详情”中检查采集限制。';
     const iconRoot = settings.iconRoot
       || file.join(execution.scriptDir, 'recording-console-simple', 'icons');
     const openDeskBinary = settings.openDeskBinary
@@ -136,7 +144,7 @@
       ? Math.max(1000, Math.trunc(settings.runTimeoutMs)) : 15 * 60 * 1000;
 
     const state = {
-      phase: capabilities.capture && capabilities.capture.available ? 'ready' : 'unavailable',
+      phase: captureAvailable ? 'ready' : 'unavailable',
       pointerMotion: settings.pointerMotion === 'instant' ? 'instant' : 'smooth',
       countdown: null,
       target: null,
@@ -149,9 +157,9 @@
       promptCopyStatus: 'idle',
       error: null,
       errorButton: '',
-      detail: capabilities.capture && capabilities.capture.available
+      detail: captureAvailable
         ? '点击开始后，在三秒倒计时内聚焦起始窗口；录制中可切换窗口和应用，请确保整个桌面过程不含敏感输入。'
-        : '当前 execution 未获准或系统监听不可用。',
+        : captureUnavailableDetail,
     };
 
     let session = null;
@@ -233,6 +241,7 @@
           icon: countingDown ? countdownIcon(state.countdown)
             : (recording || pausing ? BUILT_IN_ICONS.pause : BUILT_IN_ICONS.play),
           label: countingDown ? `${state.countdown} 秒后开始录制`
+            : phase === 'unavailable' ? '录制需要授权（查看详情）'
             : phase === 'starting' ? '正在开始录制'
             : phase === 'stop-requested' ? '正在取消开始'
             : recording ? '暂停录制'
@@ -804,6 +813,9 @@
       const parts = [
         `状态：${state.phase}`,
         `说明：${state.detail}`,
+        `采集能力：${captureAvailable ? '可用' : '不可用'}；入口授权：${captureCapabilities.hostAuthorized === true ? '已授权' : '未授权'}；系统权限：${captureCapabilities.permission || '未知'}`,
+        `采集限制：${Array.isArray(captureCapabilities.limitations) && captureCapabilities.limitations.length
+          ? captureCapabilities.limitations.join('；') : '无'}`,
         `起始上下文：${state.target ? `${state.target.title}（PID ${state.target.processId}）` : '尚未选择'}`,
         `录制目录：${compactPath(state.saved && state.saved.recordingDir)}`,
         `raw：${artifactPath(state.saved && state.saved.rawFile)}`,

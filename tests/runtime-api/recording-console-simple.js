@@ -265,7 +265,11 @@ const command = {
 const controllerPath = File.join(
   Execution.workdir, 'internal', 'recorderbundle', 'ui', 'controller.js',
 );
+globalThis.__OPENDESK_RECORDER_UI_ROOT = File.join(
+  Execution.workdir, 'internal', 'recorderbundle', 'ui',
+);
 (0, eval)(File.read(controllerPath) + '\n//# sourceURL=' + controllerPath);
+delete globalThis.__OPENDESK_RECORDER_UI_ROOT;
 assert(globalThis.OpenDeskSimpleRecordingConsole, 'simple controller did not install its namespace');
 const deterministicPromptInput = {
   execution: Execution,
@@ -825,6 +829,61 @@ equal(failedApp.state().error.code, 'RECORDER_CAPTURE_UNAVAILABLE', 'Finder reve
 await failedApp.showDetails();
 equal(failedCalls.dialog, 1, 'failed details dialog count');
 await failedApp.close();
+
+const unavailableCalls = {start: 0, dialog: 0};
+const unavailableRecorder = {
+  getCapabilities() {
+    return {
+      capture: {
+        available: false, supported: true, hostAuthorized: false, permission: 'authorized',
+        platform: 'fixture', backend: 'fixture', limitations: [
+          'capture requires the trusted local -allow-recorder-capture entrypoint flag',
+        ],
+      },
+      actions: {available: true, version: 'v1', actionSubset: ['click']},
+      basicGeneration: {available: true, mode: 'basic', version: 'v1'},
+    };
+  },
+  async start() {
+    unavailableCalls.start += 1;
+    throw new Error('disabled capture must never start');
+  },
+  buildActions: recorder.buildActions,
+  generateScript: recorder.generateScript,
+};
+const unavailableApp = OpenDeskSimpleRecordingConsole.createApp({
+  recorder: unavailableRecorder,
+  getActiveWindow: async () => ({pid: 7171, title: 'Unavailable Fixture'}),
+  FloatingWindow: FakeFloatingWindow,
+  dialog: {
+    async alert(options) {
+      unavailableCalls.dialog += 1;
+      assert(options.message.includes('-allow-recorder-capture'),
+        'authorization details must give the exact development launch remedy');
+      assert(options.message.includes('入口授权：未授权'),
+        'authorization details must distinguish the host authorization state');
+    },
+  },
+  command,
+  file: File,
+  execution: Execution,
+  sleep: async () => {},
+  countdownStepMs: 0,
+  logger: {log() {}, error(message) { throw new Error(message); }},
+});
+await unavailableApp.show();
+const unavailableToolbar = FakeFloatingWindow.instance;
+assert(unavailableToolbar.buttons.get('capture').state.disabled,
+  'capture must remain disabled without trusted host authorization');
+equal(unavailableToolbar.buttons.get('capture').state.label, '录制需要授权（查看详情）',
+  'unavailable capture tooltip must direct the user to the remedy');
+assert(!unavailableToolbar.buttons.get('details').state.disabled,
+  'details must remain available while capture is disabled');
+await unavailableApp.showDetails();
+equal(unavailableCalls.start, 0, 'unavailable capture must not call Recorder.start');
+equal(unavailableCalls.dialog, 1, 'unavailable capture details dialog count');
+await unavailableApp.close();
+
 File.removeDir(fixtureRoot);
 
 console.log('RECORDING_CONSOLE_SIMPLE_TEST=' + JSON.stringify({
@@ -836,4 +895,5 @@ console.log('RECORDING_CONSOLE_SIMPLE_TEST=' + JSON.stringify({
   generationRetryCalls: retryCalls,
   needsReviewCalls: reviewCalls,
   failedCaptureCalls: failedCalls,
+  unavailableCalls,
 }));

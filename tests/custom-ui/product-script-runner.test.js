@@ -222,7 +222,7 @@ test('generic example remains independent of Official Shell product actions', ()
   assert.doesNotMatch(source, /OpenDeskOfficialShell|opendesk\.help|opendesk\.customize/);
 });
 
-test('App Mode composition has no Demo panel or duplicate Script Runner tray action', () => {
+test('App Mode composition has no Demo panel and exposes one canonical Script Runner tray action', () => {
   const mainFile = path.join(repo, 'apps', 'opendesk', 'main.js');
   const manifestFile = path.join(repo, 'apps', 'opendesk', 'opendesk.app.json');
   const mainSource = fs.readFileSync(mainFile, 'utf8');
@@ -231,8 +231,11 @@ test('App Mode composition has no Demo panel or duplicate Script Runner tray act
   assert.doesNotMatch(mainSource, /ui\.createWindow\s*\(/, 'main.js must not create a Demo window');
   assert.doesNotMatch(mainSource, /打开 Script Runner|自动化运行中心已就绪|OpenDesk 服务/);
   assert.match(mainSource, /runner\.open\('startup'\)/);
+  assert.match(mainSource, /automation\.app\.onAction/);
   assert.equal(manifest.window.mainId, 'main');
   assert.equal(manifest.window.closeBehavior, 'hide');
   assert.equal(manifest.tray.primaryAction, 'opendesk.open');
-  assert.deepEqual(manifest.tray.menu, []);
+  assert.deepEqual(manifest.tray.menu, [
+    {id: 'runner.open', label: '打开 Script Runner', action: 'runner.open'},
+  ]);
 });

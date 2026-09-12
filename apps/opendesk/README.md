@@ -27,9 +27,9 @@ Product Script Runner                 <- official default user UI
 creates the Product Script Runner, opens the Runner list at startup and then
 waits for the Runner lifecycle. It does not create another product window.
 
-The public `examples/custom-ui/script-runner-simple.js` remains a generic
-learning/API example. It uses the same shared Runner controller but does not
-receive OpenDesk commercial/official actions.
+The generic learning/API compatibility entry remains separate from this
+product package. It uses the same shared Runner controller but does not receive
+OpenDesk commercial/official actions.
 
 ## Ownership
 
@@ -144,15 +144,17 @@ making it Runner-managed.
 Run the package explicitly from the repository root:
 
 ```bash
-./dist/opendesk -app apps/opendesk -console-mode script
+./dist/opendesk -app apps/opendesk -allow-recorder-capture -console-mode script
 ```
 
 Expected startup UI is Product Script Runner itself: its Floating toolbar plus
 its list main window. No intermediate welcome/Demo panel should appear.
 
-The built-in Recorder is a trusted framework action. For an explicit source
-package invocation that needs capture during development, keep using the
-existing Recorder capture authorization rules/flags.
+The built-in Recorder is a trusted framework action. The development command
+above includes `-allow-recorder-capture`, so its **开始录制** control is enabled
+when macOS Input Monitoring permission is available. Do not remove that flag
+when recording is needed; without it the toolbar intentionally keeps capture
+disabled and explains the missing authorization in **查看详情**.
 
 ## macOS release staging
 

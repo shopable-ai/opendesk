@@ -163,6 +163,7 @@
 
         <footer>
           <button id="runSelected">运行选中</button>
+          <button id="stopRun"${state.running ? '' : ' disabled'}>停止</button>
           <button id="openDirectory">打开脚本目录</button>
           <button id="refresh">刷新</button>
           <button id="restoreOrder"${state.configValid ? ' class="is-hidden"' : ''}>恢复默认排序</button>
@@ -499,6 +500,7 @@
       await safeControlUpdate('runSelected', {
         disabled: busy || !!loadError || !configValid || scripts.length === 0 || selectedNames.size === 0,
       });
+      await safeControlUpdate('stopRun', {disabled: !busy});
       await safeControlUpdate('refresh', {disabled: busy});
       await safeControlUpdate('openDirectory', {disabled: busy});
       await safeControlUpdate('emptyRefresh', {disabled: busy});
@@ -786,6 +788,7 @@
         }
         return requestRun(queue, 'selected');
       });
+      bind(window, 'stopRun', stopRun);
       bind(window, 'openDirectory', openScriptDirectory);
       bind(window, 'emptyOpenDirectory', openScriptDirectory);
       bind(window, 'refresh', rescan);

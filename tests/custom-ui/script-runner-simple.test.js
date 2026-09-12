@@ -316,6 +316,31 @@ test('Stop aborts an in-flight child and prevents the remaining selected queue',
   }
 });
 
+test('list keeps Stop visible and wired while its Floating Toolbar is covered', async () => {
+  let started = 0;
+  const command = {
+    run(executable, args, options) {
+      started++;
+      return new Promise((resolve, reject) => {
+        options.signal.addEventListener('abort', () => reject(Object.assign(new Error('canceled'), {code: 'CANCELED'})), {once: true});
+      });
+    },
+  };
+  const f = await fixture({command});
+  try {
+    const window = f.ui.windows[0];
+    const pending = click(window, 'run0');
+    for (let i = 0; i < 20 && started === 0; i++) await new Promise(resolve => setImmediate(resolve));
+    assert.equal(started, 1);
+    assert.equal(window.control('stopRun').state.disabled, false);
+    assert.equal(await click(window, 'stopRun'), true);
+    assert.deepEqual(await pending, {status: 'canceled', completed: 0, total: 1});
+    assert.equal(window.control('stopRun').state.disabled, true);
+  } finally {
+    await f.cleanup();
+  }
+});
+
 test('Run Selected follows current list order and gives each child a distinct log directory', async () => {
   const f = await fixture({scriptNames: ['a.js', 'b.js'], order: ['b.js', 'a.js']});
   try {
