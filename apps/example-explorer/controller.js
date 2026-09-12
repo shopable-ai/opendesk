@@ -77,7 +77,7 @@
     }
 
     function policyClass(entry) {
-      return ['badge', entry && entry.runnable ? 'safe' : entry && entry.platformSupported === false ? 'unsupported' : 'unregistered'];
+      return ['badge', entry && entry.platformSupported === false ? 'unsupported' : entry && entry.runPolicy === 'manual' ? 'manual' : entry && entry.runnable ? 'safe' : 'unregistered'];
     }
 
     function launchSpecFor(entry) {
@@ -102,6 +102,22 @@
     function launchText(entry) {
       if (!entry) return '—';
       return entry.launch.kind === 'ai-run' ? 'ai run' : 'script';
+    }
+
+    function availabilityFor(entry) {
+      if (!entry) {
+        return {
+          state: 'manual',
+          label: 'Select an example',
+          reason: 'Choose an example to inspect its launch contract.',
+        };
+      }
+      const spec = launchSpecFor(entry);
+      return {
+        state: spec.availability,
+        label: spec.availabilityLabel,
+        reason: spec.availabilityReason,
+      };
     }
 
     async function syncListAndDetail() {
@@ -139,6 +155,10 @@
         text: entry && !entry.platformSupported ? `Unsupported on ${currentPlatform || 'this platform'}` : (entry ? 'Supported on this platform' : '—'),
         classes: entry && !entry.platformSupported ? ['platform-status', 'unsupported'] : ['platform-status', 'supported'],
       });
+      const availability = availabilityFor(entry);
+      await safeUpdate('runAvailability', {classes: ['run-availability', availability.state]});
+      await safeUpdate('runAvailabilityLabel', {text: availability.label});
+      await safeUpdate('runAvailabilityReason', {text: availability.reason});
       await safeUpdate('overviewDocs', {text: entry && entry.docs ? entry.docs : 'No API link registered'});
       await safeUpdate('overviewPrerequisites', {text: entry && entry.prerequisites.length ? entry.prerequisites.join('\n') : 'None declared'});
       await safeUpdate('overviewRunPolicy', {text: entry ? entry.runPolicy : '—'});
@@ -146,14 +166,6 @@
       await safeUpdate('overviewCommand', {text: entry ? runCommandFor(entry) : '—'});
       await safeUpdate('overviewInput', {text: entry && entry.launch.input === 'required' ? 'Required: add --input-file <path-to-input.json>' : 'None'});
       await safeUpdate('overviewExpected', {text: entry && entry.expected ? entry.expected : 'Not declared'});
-      const runHint = !entry
-        ? 'Select an example to inspect its launch contract'
-        : !entry.platformSupported
-          ? `Unsupported on ${currentPlatform || 'this platform'}`
-          : entry.runnable
-            ? 'Approved for one-click run'
-            : 'Review prerequisites and run manually';
-      await safeUpdate('runHint', {text: runHint});
       await safeUpdate('run', {disabled: !entry || !entry.runnable || !entry.platformSupported || runner.isRunning()});
       await safeUpdate('stop', {disabled: !runner.isRunning()});
       await safeUpdate('copyRunCommand', {disabled: !entry});
@@ -180,6 +192,14 @@
 
     function rescan() {
       scanResult = catalogApi.scan({file, examplesRoot, catalogPath, currentPlatform});
+      scanResult.entries = scanResult.entries.map(entry => {
+        const availability = availabilityFor(entry);
+        return Object.assign({}, entry, {
+          runAvailability: availability.state,
+          runAvailabilityLabel: availability.label,
+          runAvailabilityReason: availability.reason,
+        });
+      });
       signature = catalogApi.signature(file, examplesRoot);
       const safeCount = scanResult.entries.filter(entry => entry.runnable).length;
       status = `Loaded ${scanResult.entries.length} curated examples; ${safeCount} approved for one-click run; ${scanResult.unregistered.length} internal/unregistered scripts hidden.`;

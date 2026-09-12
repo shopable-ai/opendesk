@@ -119,6 +119,38 @@ test('committed catalog resolves canonical entries and hides legacy names from u
   assert.equal(unregistered.has('open-calculator-by-name.js'), false, 'application legacy name must stay hidden');
 });
 
+test('recursive scan and launch contract preserve nested multi-file main.js examples', () => {
+  const api = loadCatalogApi();
+  const examplesRoot = path.join(root, 'examples');
+  const file = fileApi();
+  const result = api.scan({
+    file,
+    examplesRoot,
+    catalogPath: path.join(examplesRoot, 'catalog.json'),
+    currentPlatform: 'darwin',
+  });
+  const launch = loadLaunchApi();
+
+  for (const item of [
+    {relativePath: 'custom-ui/icon-browser/main.js', companion: 'custom-ui/icon-browser/panel.html'},
+    {relativePath: 'custom-ui/toolbar-wrap/main.js', companion: 'custom-ui/toolbar-wrap/config.json'},
+  ]) {
+    const entry = result.entries.find(candidate => candidate.relativePath === item.relativePath);
+    assert.ok(entry, `${item.relativePath} should be found recursively`);
+    assert.equal(entry.absolutePath, path.join(examplesRoot, item.relativePath));
+    assert.match(String(file.read(entry.absolutePath)), /ui\.createWindow|new FloatingWindow/);
+    assert.equal(fs.existsSync(path.join(examplesRoot, item.companion)), true, `${item.relativePath} companion asset`);
+
+    const spec = launch.create(entry, {platform: 'darwin', workdir: root, pathApi: path});
+    assert.deepEqual(Array.from(spec.buildArgs()), ['-ui', '-script', entry.absolutePath, '-console-mode', 'script']);
+    assert.match(spec.buildDisplayCommand(), new RegExp(`^\\./dist/opendesk -ui -script examples/${item.relativePath.replaceAll('/', '\\/')} -console-mode script$`));
+  }
+
+  const signature = api.signature(file, examplesRoot);
+  assert.match(signature, /custom-ui\/icon-browser\/main\.js\|/);
+  assert.match(signature, /custom-ui\/toolbar-wrap\/main\.js\|/);
+});
+
 test('catalog and public example docs use only canonical paths', () => {
   const examplesRoot = path.join(root, 'examples');
   const catalog = JSON.parse(fs.readFileSync(path.join(examplesRoot, 'catalog.json'), 'utf8'));
@@ -218,6 +250,8 @@ test('launch metadata builds the same script argv and display command semantics'
     workdir: root,
     pathApi: path,
   });
+  assert.equal(spec.availability, 'direct');
+  assert.equal(spec.availabilityLabel, 'Direct run available');
   assert.deepEqual(Array.from(spec.buildArgs()), ['-ui', '-script', entry.absolutePath, '-console-mode', 'script']);
   assert.match(spec.buildDisplayCommand(), /^\.\/dist\/opendesk -ui -script examples\/custom-ui\/panel\.js -console-mode script$/);
 
@@ -246,7 +280,10 @@ test('platform policy disables one-click execution without hiding the copy comma
   const macOnly = result.entries.find(entry => entry.relativePath === 'app/open-calculator-by-name.js');
   assert.equal(macOnly.platformSupported, false);
   assert.equal(macOnly.runnable, false);
-  const command = loadLaunchApi().create(macOnly, {platform: 'windows', workdir: root, pathApi: path}).buildDisplayCommand();
+  const spec = loadLaunchApi().create(macOnly, {platform: 'windows', workdir: root, pathApi: path});
+  assert.equal(spec.availability, 'unsupported');
+  assert.equal(spec.availabilityLabel, 'Unsupported on this platform');
+  const command = spec.buildDisplayCommand();
   assert.match(command, /^\.\\dist\\opendesk\.exe ai run examples\\app\\open-calculator-by-name\.js$/);
 });
 

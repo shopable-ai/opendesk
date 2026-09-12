@@ -4,6 +4,12 @@
   const KINDS = new Set(['script', 'ai-run']);
   const CONSOLE_MODES = new Set(['normal', 'full', 'script', 'meta', 'summary', 'quiet', 'agent']);
 
+  const AVAILABILITY_LABELS = Object.freeze({
+    direct: 'Direct run available',
+    manual: 'Manual run required',
+    unsupported: 'Unsupported on this platform',
+  });
+
   function normalizePlatform(value) {
     return String(value || '').trim().toLowerCase();
   }
@@ -36,6 +42,19 @@
     return String(entry.relativePath || '').replace(/\\/g, '/');
   }
 
+  function availabilityReason(entry, availability, platform) {
+    if (availability === 'direct') {
+      return 'Safe policy and platform support allow one-click execution.';
+    }
+    if (availability === 'unsupported') {
+      const platforms = Array.isArray(entry.platforms) && entry.platforms.length
+        ? entry.platforms.join(', ')
+        : 'the declared platforms';
+      return `Supports ${platforms}; the current platform is ${platform || 'unknown'}. Copy Run Command remains available.`;
+    }
+    return 'This example needs manual review before running; use Copy Run Command to launch it yourself.';
+  }
+
   function createSpec(entry, options) {
     options = options || {};
     if (!entry || typeof entry !== 'object') throw new Error('ExampleLaunchSpec requires an entry');
@@ -54,6 +73,7 @@
     const platformSupported = !platform || !Array.isArray(entry.platforms) || entry.platforms.includes(platform);
     const runPolicy = String(entry.runPolicy || 'manual');
     const runnable = runPolicy === 'safe' && platformSupported;
+    const availability = !platformSupported ? 'unsupported' : runnable ? 'direct' : 'manual';
     const requiredInput = launch.input === 'required';
 
     function buildArgs(buildOptions = {}) {
@@ -94,6 +114,9 @@
       platformSupported,
       runPolicy,
       runnable,
+      availability,
+      availabilityLabel: AVAILABILITY_LABELS[availability],
+      availabilityReason: availabilityReason(entry, availability, platform),
       scriptPath,
       requiredEnv: Array.isArray(entry.requiredEnv) ? entry.requiredEnv.slice() : [],
       requiredInput,
