@@ -5,11 +5,22 @@ import (
 	"fmt"
 	"io"
 	"opendesk/automation"
+	"os"
 	"strings"
 )
 
 var permissionReportForCLI = automation.GetPermissionReport
 var openPermissionSettingsForCLI = automation.OpenPermissionSettings
+
+// permissions is a positional command, while the historical OpenDesk CLI is
+// still flag based. Dispatch it before flag.Parse without teaching the legacy
+// parser a second command grammar.
+func init() {
+	args := commandLineArgs()
+	if permissionsCLIRequested(args) {
+		os.Exit(executePermissionsCLI(args, os.Stdout, os.Stderr))
+	}
+}
 
 func permissionsCLIRequested(args []string) bool {
 	return len(args) > 0 && strings.EqualFold(strings.TrimSpace(args[0]), "permissions")
