@@ -135,6 +135,17 @@ func executeAppMode(config *Config) error {
 		return err
 	}
 	defer recorder.Cancel()
+
+	appScheduler, err := startAppScheduler(appContext, config, appPackage, environment)
+	if err != nil {
+		return fmt.Errorf("start App Scheduler: %w", err)
+	}
+	defer appScheduler.Close()
+	environment.Values = append(environment.Values,
+		"OPENDESK_APP_SCHEDULER_ENDPOINT="+appScheduler.Endpoint(),
+		"OPENDESK_APP_SCHEDULER_TOKEN="+appScheduler.Token(),
+	)
+
 	if err := shell.Start(appContext); err != nil {
 		return fmt.Errorf("start App Shell: %w", err)
 	}
