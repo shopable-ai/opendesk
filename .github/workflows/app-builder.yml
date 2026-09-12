@@ -1,0 +1,128 @@
+name: App Builder
+
+on:
+  push:
+    paths:
+      - '.github/workflows/app-builder.yml'
+      - 'VERSION'
+      - 'cmd/opendesk/**'
+      - 'internal/appbuilder/**'
+      - 'internal/appcli/**'
+      - 'internal/appmodepayload/**'
+      - 'pkg/appshell/**'
+      - 'scripts/build_macos_app.sh'
+      - 'scripts/build_windows_app.ps1'
+      - 'scripts/build_windows_distribution.ps1'
+      - 'scripts/tools/app-mode-payload/**'
+      - 'examples/app-mode/basic/**'
+  pull_request:
+    paths:
+      - '.github/workflows/app-builder.yml'
+      - 'VERSION'
+      - 'cmd/opendesk/**'
+      - 'internal/appbuilder/**'
+      - 'internal/appcli/**'
+      - 'internal/appmodepayload/**'
+      - 'pkg/appshell/**'
+      - 'scripts/build_macos_app.sh'
+      - 'scripts/build_windows_app.ps1'
+      - 'scripts/build_windows_distribution.ps1'
+      - 'scripts/tools/app-mode-payload/**'
+      - 'examples/app-mode/basic/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  macos-consumer:
+    name: macOS Installed Runtime Consumer Build
+    runs-on: macos-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Build the release Runtime template once
+        shell: bash
+        run: SKIP_CODESIGN=1 ./scripts/build_macos_app.sh
+      - name: Build a product from an isolated installed Runtime without Go in PATH
+        shell: bash
+        run: |
+          set -euo pipefail
+          consumer="${RUNNER_TEMP}/app-builder-consumer"
+          rm -rf "$consumer"
+          mkdir -p "$consumer/sdk" "$consumer/input"
+          cp -R dist/OpenDesk.app "$consumer/sdk/OpenDesk.app"
+          cp -R examples/app-mode/basic "$consumer/input/basic"
+          runtime="$consumer/sdk/OpenDesk.app/Contents/MacOS/opendesk"
+          output="$consumer/BuilderSmoke.app"
+          PATH=/usr/bin:/bin "$runtime" app build "$consumer/input/basic" --target macos --output "$output" --json | tee "$consumer/build.json"
+          test -x "$output/Contents/MacOS/opendesk"
+          test -f "$output/Contents/Resources/AppMode/opendesk.app.json"
+          test -f "$output/Contents/Resources/OpenDeskAppBuilder/build-provenance.json"
+          test ! -e "$output/Contents/_CodeSignature"
+          PATH=/usr/bin:/bin "$runtime" app validate "$output/Contents/Resources/AppMode" --json
+          mv "$output" "$consumer/MovedBuilderSmoke.app"
+          PATH=/usr/bin:/bin "$runtime" app validate "$consumer/MovedBuilderSmoke.app/Contents/Resources/AppMode" --json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: app-builder-macos-consumer
+          path: ${{ runner.temp }}/app-builder-consumer
+          if-no-files-found: ignore
+          retention-days: 7
+
+  windows-consumer:
+    name: Windows Installed Runtime Consumer Build
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Build the release Runtime template once
+        shell: pwsh
+        run: pwsh -NoProfile -File scripts/build_windows_distribution.ps1 -Runtime win-x64
+      - name: Build a portable product from an isolated installed Runtime without Go in PATH
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $consumer = Join-Path $env:RUNNER_TEMP 'app-builder-consumer'
+          Remove-Item -LiteralPath $consumer -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path (Join-Path $consumer 'sdk'), (Join-Path $consumer 'input') | Out-Null
+          Copy-Item -LiteralPath 'dist/windows/win-x64' -Destination (Join-Path $consumer 'sdk/win-x64') -Recurse
+          Copy-Item -LiteralPath 'examples/app-mode/basic' -Destination (Join-Path $consumer 'input/basic') -Recurse
+          $runtime = Join-Path $consumer 'sdk/win-x64/opendesk.exe'
+          $output = Join-Path $consumer 'BuilderSmokePortable'
+          $savedPath = $env:PATH
+          try {
+            $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
+            & $runtime app build (Join-Path $consumer 'input/basic') --target windows --output $output --json | Tee-Object -FilePath (Join-Path $consumer 'build.json')
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            & $runtime app validate (Join-Path $output 'app-mode') --json
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          } finally {
+            $env:PATH = $savedPath
+          }
+          foreach ($required in @('opendesk.exe', 'ui-host/opendesk-ui-host.exe', 'app-builder-template.json', 'app-mode/opendesk.app.json', 'app-build-provenance.json')) {
+            if (-not (Test-Path -LiteralPath (Join-Path $output $required) -PathType Leaf)) { throw "missing portable builder output: $required" }
+          }
+          $moved = Join-Path $consumer 'MovedBuilderSmokePortable'
+          Move-Item -LiteralPath $output -Destination $moved
+          & $runtime app validate (Join-Path $moved 'app-mode') --json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: app-builder-windows-consumer
+          path: ${{ runner.temp }}\app-builder-consumer
+          if-no-files-found: ignore
+          retention-days: 7

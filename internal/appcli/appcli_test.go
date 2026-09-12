@@ -12,6 +12,7 @@ import (
 	"github.com/dlclark/regexp2/v2"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 
+	"opendesk/internal/appbuilder"
 	"opendesk/internal/packagecli"
 	"opendesk/pkg/appshell"
 )
@@ -181,6 +182,47 @@ func TestUsageErrorsAndUnknownSubcommandExitTwo(t *testing.T) {
 	}
 	if stderr.Len() != 0 {
 		t.Fatalf("JSON usage wrote stderr: %s", stderr.String())
+	}
+}
+
+func TestBuildArgumentParsingAndUsageRemainMachineReadable(t *testing.T) {
+	options, jsonOutput, err := parseBuildArgs([]string{"--json", "package", "--target=macos", "--output", "out.app"})
+	if err != nil || !jsonOutput || options.PackageDir != "package" || options.Target != "macos" || options.Output != "out.app" {
+		t.Fatalf("unexpected build parse: options=%+v json=%t err=%v", options, jsonOutput, err)
+	}
+
+	for _, args := range [][]string{
+		{"app", "build", "package", "--output", "out.app"},
+		{"app", "build", "package", "--target", "macos"},
+		{"app", "build", "package", "--target", "macos", "--output", "out.app", "--unknown"},
+	} {
+		var stdout, stderr bytes.Buffer
+		if code := Execute(args, &stdout, &stderr); code != 2 || stdout.Len() != 0 || !strings.Contains(stderr.String(), "Usage: "+usage) {
+			t.Fatalf("args=%v exit=%d stdout=%q stderr=%q", args, code, stdout.String(), stderr.String())
+		}
+	}
+
+	var stdout, stderr bytes.Buffer
+	if code := Execute([]string{"app", "build", "--json", "package", "--target", "macos"}, &stdout, &stderr); code != 2 {
+		t.Fatalf("JSON build usage exit=%d output=%s", code, stdout.String())
+	}
+	envelope := decodeEnvelope(t, stdout.Bytes())
+	if envelope.OK || envelope.Command != "app.build" || envelope.Error == nil || envelope.Error.Code != "APP_CLI_USAGE" || stderr.Len() != 0 {
+		t.Fatalf("unexpected JSON build usage: %+v stderr=%q", envelope, stderr.String())
+	}
+}
+
+func TestBuildErrorEnvelopeKeepsStableBuilderContext(t *testing.T) {
+	body := errorBodyFor(&appbuilder.Error{
+		Code:     "APP_BUILD_OUTPUT_EXISTS",
+		Message:  "App Builder output already exists",
+		Field:    "output",
+		Expected: "an unused output path",
+		Actual:   "/tmp/product.app",
+		Hint:     "Choose a new output path.",
+	})
+	if body.Code != "APP_BUILD_OUTPUT_EXISTS" || body.Field != "output" || body.Expected == "" || body.Actual == "" || body.Hint == "" {
+		t.Fatalf("builder error lost machine-readable context: %+v", body)
 	}
 }
 

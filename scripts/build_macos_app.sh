@@ -22,6 +22,8 @@ CLAWDESK_UI_HOST_PATH="${HELPERS_DIR}/clawdesk-ui-host"
 STATUS_HELPER_PATH="${HELPERS_DIR}/opendesk-status"
 INSPECTOR_WEB_SOURCE="${ROOT_DIR}/apps/inspector_web"
 INSPECTOR_WEB_PATH="${RESOURCES_DIR}/inspector_web"
+APP_BUILDER_TEMPLATE_DIR="${RESOURCES_DIR}/OpenDeskAppBuilder"
+APP_BUILDER_TEMPLATE_PATH="${APP_BUILDER_TEMPLATE_DIR}/template.json"
 PLIST_PATH="${CONTENTS_DIR}/Info.plist"
 APP_ICON_SOURCE="${ROOT_DIR}/public/icons/opendesk.icns"
 APP_ICON_NAME="OpenDesk.icns"
@@ -107,6 +109,17 @@ cp "${DIST_DIR}/opendesk-status" "${STATUS_HELPER_PATH}"
 cp "${APP_ICON_SOURCE}" "${RESOURCES_DIR}/${APP_ICON_NAME}"
 mkdir -p "${INSPECTOR_WEB_PATH}"
 rsync -a --delete --exclude README.md --exclude accessibility-workbench "${INSPECTOR_WEB_SOURCE}/" "${INSPECTOR_WEB_PATH}/"
+# This marker is the installed, precompiled Runtime's formal App Builder
+# template. `opendesk app build` copies this bundle; it never invokes this
+# source-tree builder or a Go toolchain on a framework user's machine.
+mkdir -p "${APP_BUILDER_TEMPLATE_DIR}"
+cat > "${APP_BUILDER_TEMPLATE_PATH}" <<'EOF'
+{
+  "schemaVersion": 1,
+  "kind": "opendesk-app-builder-template",
+  "target": "macos"
+}
+EOF
 # Keep the checksum portable: an absolute checkout path is not release data.
 (cd "${MACOS_DIR}" && shasum -a 256 "$(basename "${EXECUTABLE_PATH}")") >"${RESOURCES_DIR}/opendesk-payload.sha256"
 rsync -a --delete "${ROOT_DIR}/polyfills/" "${MACOS_DIR}/polyfills/"

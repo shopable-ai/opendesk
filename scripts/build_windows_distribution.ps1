@@ -153,9 +153,18 @@ try {
     $uiHostDirectory = Join-Path $OutputDirectory 'ui-host'
     $uiHostPath = Join-Path $uiHostDirectory 'opendesk-ui-host.exe'
     $uiHostProvenancePath = Join-Path $uiHostDirectory 'build-provenance.json'
+    # This marker turns the fully assembled portable Runtime into a formal,
+    # same-platform App Builder input. End users consume this payload through
+    # `opendesk app build`; no source checkout, go build, or go run is involved.
+    $appBuilderTemplatePath = Join-Path $OutputDirectory 'app-builder-template.json'
+    [ordered]@{
+        schemaVersion = 1
+        kind = 'opendesk-app-builder-template'
+        target = 'windows'
+    } | ConvertTo-Json | Set-Content -Encoding utf8 $appBuilderTemplatePath
 
     $requiredRuntimeAssets = @($runtimeAssetManifest | ForEach-Object { Join-Path $OutputDirectory $_.path })
-    foreach ($required in @($runtimePath, $uiHostPath, $uiHostProvenancePath) + $requiredRuntimeAssets) {
+    foreach ($required in @($runtimePath, $uiHostPath, $uiHostProvenancePath, $appBuilderTemplatePath) + $requiredRuntimeAssets) {
         if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
             throw "Portable distribution is missing required file: $required"
         }
@@ -182,6 +191,7 @@ try {
     $dotnetVersion = (& dotnet --version).Trim()
     $runtimeHash = (Get-FileHash $runtimePath -Algorithm SHA256).Hash.ToLowerInvariant()
     $uiHostHash = (Get-FileHash $uiHostPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    $appBuilderTemplateHash = (Get-FileHash $appBuilderTemplatePath -Algorithm SHA256).Hash.ToLowerInvariant()
     $uiHostFileCount = @(Get-ChildItem -LiteralPath $uiHostDirectory -File -Recurse).Count
 
     [ordered]@{
@@ -206,6 +216,7 @@ try {
                 predefinedSounds = 'sounds/public/'
             }
             appModePackage = if ($appModeStaged) { 'app-mode/' } else { $null }
+            appBuilderTemplate = 'app-builder-template.json'
         }
         files = [ordered]@{
             runtime = [ordered]@{
@@ -219,6 +230,12 @@ try {
                 sha256 = $uiHostHash
                 peMachine = ('0x{0:X4}' -f $uiHostMachine)
                 closureFileCount = $uiHostFileCount
+            }
+            appBuilderTemplate = [ordered]@{
+                path = 'app-builder-template.json'
+                sha256 = $appBuilderTemplateHash
+                schemaVersion = 1
+                target = 'windows'
             }
             runtimeAssets = @($runtimeAssetManifest)
         }
