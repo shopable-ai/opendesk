@@ -1,6 +1,6 @@
 ---
 title: JavaScript Runtime
-description: OpenDesk 脚本运行入口、异步生命周期、默认执行模式与历史兼容边界。
+description: OpenDesk 脚本运行入口、异步生命周期、ESM 模块入口、默认执行模式与历史兼容边界。
 order: 310
 ---
 
@@ -12,8 +12,22 @@ OpenDesk 为每次脚本执行创建独立的 JavaScript Runtime，注入当前�
 
 ## 从仓库根目录运行
 
+普通 JavaScript：
+
 ```bash
 ./opendesk -script examples/runtime/api-quickstart.js
+```
+
+ES module 入口：
+
+```bash
+./dist/opendesk -script examples/runtime/modules/basic/main.mjs -console-mode script
+```
+
+该示例会从 `main.mjs` 静态导入 `./lib/math.mjs`，后者再导入 `../constants.mjs`，并输出：
+
+```text
+ESM_RELATIVE_IMPORT_OK 42
 ```
 
 也可以运行一段短脚本：
@@ -83,9 +97,50 @@ JavaScript 引擎上游的 Test262，也不按每个 ECMAScript 年份复制
 
 ### 脚本级 await 与模块边界
 
-OpenDesk 允许在脚本文件顶层直接写 `await`，因为 Runtime 会把脚本主体放入受控的 async function
-执行；这不是 ES module 的 top-level await 语义。当前脚本入口没有公开的 ESM loader，不能使用静态
-`import` / `export` 或动态 `import()` 组织脚本。
+普通 `.js` 脚本允许在文件顶层直接写 `await`，因为 Runtime 会把脚本主体放入受控的 async function
+执行；这不是 ES module 的 top-level await 语义。
+
+需要使用 `import` / `export` 组织多个文件时，使用 `.mjs` 文件作为入口。当前公开模块入口支持：
+
+- `.mjs` 文件入口；
+- 静态相对 `import` / `export`；
+- 相对路径按**发起 import 的文件**解析，因此 `./helper.mjs`、`../shared.mjs` 和嵌套依赖均可使用；
+- 可从入口项目可见的 `node_modules` 解析可被当前 profile bundle 的 npm package；
+- 入口导出的 `main()` 会在模块图链接完成后调用一次；如果返回 Promise，Runtime 会等待它完成；
+- 模块最终仍在同一次 OpenDesk Execution 中运行，不会为每个 import 创建新的 Execution。
+
+最小示例：
+
+```js
+// main.mjs
+import { add } from './lib/math.mjs';
+
+export async function main() {
+  const result = add(40, 2);
+  console.log(result);
+}
+```
+
+```js
+// lib/math.mjs
+export function add(left, right) {
+  return left + right;
+}
+```
+
+从仓库根目录运行：
+
+```bash
+./dist/opendesk -script examples/runtime/modules/basic/main.mjs -console-mode script
+```
+
+当前 P0 **不承诺**任意运行时 `import()`、ESM graph 的 module-level top-level await、Node built-in module
+（例如 `node:fs`）、native `.node` addon、远程 URL module import 或自动执行 `npm install`。第三方包必须先
+准备好依赖，而且 bundle 后的代码仍只能使用 OpenDesk Runtime 实际提供的能力。
+
+模块解析与 bundling 的架构边界、package resolution profile 和 LangGraph compatibility probe 见
+[JavaScript Modules](../architecture/javascript-modules.md)；可复制模块示例见
+[`examples/runtime/modules/README.md`](../../examples/runtime/modules/README.md)。
 
 内部执行环境可能保留 `require`、`module`、`exports` 等 CommonJS 兼容全局，但它们不是公开 Runtime
 API，也没有稳定的包解析、安全或跨平台契约；公开脚本不得依赖它们。OpenDesk 也不是 Node.js 或浏览器
@@ -93,24 +148,34 @@ Runtime：文件、路径、命令、网络和桌面能力应分别使用文档�
 `axios` 和桌面 API。
 
 脚本内无需 `import` 即可使用 `page`、`window`、`mouse`、`keyboard`、`File`、`path`、`System` 等
-对象；可信本地 execution 还可按 capability 使用 Experimental `Accessibility` 和 `UI` 菜单方法。
-完整对象列表见 [API 文档索引](index.md)，本次运行的标识、输入和 artifact 目录见
-[Execution Context](execution.md)。
+OpenDesk 注入对象；把业务代码拆成 `.mjs` 模块并不会改变这些对象属于当前同一次 Execution 的事实。
+可信本地 execution 还可按 capability 使用 Experimental `Accessibility` 和 `UI` 菜单方法。完整对象列表见
+[API 文档索引](index.md)，本次运行的标识、输入和 artifact 目录见 [Execution Context](execution.md)。
 
 `Execution.workdir` 是本次 execution 的规范化绝对工作目录；`File.cwd()` 和所有相对 File 路径
 （包括 `await File.readJSON()` / `await File.writeJSON()`）都以同一目录为准。它不改变宿主进程 cwd，
 也不是可由脚本重新赋值来改变 File 后端的设置。
 
 同步的 [Path API](path.md) 只处理字符串。`path.resolve()` 与 `path.relative()` 复用同一个
-execution-owned WorkDir；它们不会访问磁盘或依赖进程 cwd。
+execution-owned WorkDir；它们不会访问磁盘或依赖进程 cwd。注意：ESM 的相对 `import` 解析基准是
+**importing file 所在目录**，不是 `Execution.workdir`；两者不要混淆。
 
 ## 异步完成与取消
 
-顶层 `await` 是推荐的异步入口：
+顶层 `await` 是普通 `.js` 脚本推荐的异步入口：
 
 ```js
 await page.waitForTimeout(100);
 console.log('done');
+```
+
+`.mjs` 模块入口优先通过导出的 `async main()` 表达完成条件：
+
+```js
+export async function main() {
+  await page.waitForTimeout(100);
+  console.log('done');
+}
 ```
 
 脚本主体返回后，Runtime 会继续等待由其持有的 timer、HTTP 请求、事件回调、声音、窗口、
@@ -119,8 +184,9 @@ console.log('done');
 使用受 execution 管理的 [Command API](command.md)。本地 `-script` 和 `ai run` 默认提供该能力，
 HTTP、MCP 与 Scheduler execution 不提供。
 
-`opendesk ai run` 还会等待常见的末尾 `main();` Promise；其他入口应使用顶层 `await` 明确
-表达完成条件。AI recipe 的输入与输出约定见 [AI CLI](ai-cli.md)。
+`opendesk ai run` 还会等待常见的末尾 `main();` Promise；其他普通 `.js` 入口应使用顶层 `await` 明确
+表达完成条件。`.mjs` 文件入口由模块 loader 在链接完成后调用其导出的 `main()`。AI recipe 的输入与输出约定见
+[AI CLI](ai-cli.md)。
 
 Accessibility 的 pending/queued 请求属于同一次 execution 生命周期，即使脚本没有 await 已提交的
 Promise，也不能被结束条件提前丢弃；仅持有闲置 ElementRef 不会让脚本永久等待。timeout、取消或正常
