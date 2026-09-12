@@ -129,8 +129,9 @@ if [[ -n "${APP_MODE_PACKAGE}" ]]; then
     printf 'APP_MODE_PACKAGE staging rejects symlinks: %s\n' "${APP_MODE_PACKAGE}" >&2
     exit 1
   fi
-  mkdir -p "${RESOURCES_DIR}/AppMode"
-  rsync -a --delete --exclude '.runtime/' "${APP_MODE_PACKAGE}/" "${RESOURCES_DIR}/AppMode/"
+  "${GO_BIN}" run ./scripts/tools/app-mode-payload \
+    -source "${APP_MODE_PACKAGE}" \
+    -destination "${RESOURCES_DIR}/AppMode"
   chmod -R go-w "${RESOURCES_DIR}/AppMode"
   printf 'Staged default App Mode package: %s\n' "${RESOURCES_DIR}/AppMode"
 fi

@@ -1,0 +1,19 @@
+# OpenDesk product App Mode runtime closure.
+opendesk.app.json
+main.js
+official-shell.js
+scheduler-client.js
+scheduler-center.js
+script-runner-simple.js
+script-runner/controller.js
+assets/official-shell.odcfg
+assets/opendesk-logo.png
+assets/tray-template.png
+assets/tray.ico
+recorder/controller.js
+recorder/controller-core.js
+recorder/recording-history.js
+recorder/icons/countdown-1.png
+recorder/icons/countdown-2.png
+recorder/icons/countdown-3.png
+recorder/icons/opendesk-logo.png

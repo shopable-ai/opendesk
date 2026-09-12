@@ -1,13 +1,28 @@
-// Compatibility entry. Run from the repository root:
+// Standalone compatibility / learning entry. Run from the repository root:
 // ./dist/opendesk -ui -allow-recorder-capture -script examples/custom-ui/recording-console-simple.js -console-mode script -log-dir .runtime/examples/custom-ui/recording-console-simple
-// The Recorder UI implementation is owned by internal/recorderbundle/ui and
-// the maintained workflow entry lives under workflows/human-to-recipe/.
+// Canonical Recorder UI resources live under apps/opendesk/recorder/.
 'use strict';
 
-const workflowEntry = File.join(
-  Execution.workdir,
-  'workflows',
-  'human-to-recipe',
-  'recording-console-simple.js',
-);
-(0, eval)(File.read(workflowEntry) + '\n//# sourceURL=' + workflowEntry);
+const recorderUIRoot = File.join(Execution.workdir, 'apps', 'opendesk', 'recorder');
+const controllerFile = File.join(recorderUIRoot, 'controller.js');
+globalThis.__OPENDESK_RECORDER_UI_ROOT = recorderUIRoot;
+try {
+  (0, eval)(File.read(controllerFile) + '\n//# sourceURL=' + controllerFile);
+} finally {
+  delete globalThis.__OPENDESK_RECORDER_UI_ROOT;
+}
+
+if (!globalThis.OpenDeskSimpleRecordingConsole || typeof OpenDeskSimpleRecordingConsole.createApp !== 'function') {
+  throw new Error('OpenDesk simple recording console controller did not load');
+}
+
+const recordingConsole = await OpenDeskSimpleRecordingConsole.createApp({
+  recorder: Recorder,
+  getActiveWindow: () => window.getActiveWindow(),
+  captureKeyboard: Execution.env.OPENDESK_RECORDER_CAPTURE_KEYBOARD === '1',
+  controlKeycodes: [],
+  iconRoot: File.join(recorderUIRoot, 'icons'),
+  openDeskBinary: System.getExecutablePath(),
+});
+
+await recordingConsole.run();

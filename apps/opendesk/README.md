@@ -72,12 +72,22 @@ official/commercial action.
 
 ## Ownership
 
+Source ownership, distribution payload and runtime materialization are separate
+contracts. Do not move product source merely to make a release bundle smaller.
+
 - `pkg/appshell`: native tray/menu, manifest dispatch, main-window lifecycle,
   single-instance behavior and framework-owned system actions.
-- `internal/recorderbundle/ui/**`: the single canonical Recorder UI JavaScript
-  and icon implementation. `bundle.go` embeds/materializes those bytes for the
-  built-in same-process `opendesk.recorder` secondary execution. Recorder is
-  injected by the framework and is not declared in this package manifest.
+- `apps/opendesk/recorder/**`: the single canonical Recorder product source for
+  controller/history JavaScript, generated runtime icons and the Go embed
+  declaration. Development/example/workflow entries point here.
+- `internal/recorderbundle/**`: runtime/release adapter only. It embeds and
+  materializes the canonical Recorder source for the built-in same-process
+  `opendesk.recorder` secondary execution; it does not own a second UI source
+  tree.
+- `workflows/human-to-recipe/**`: workflow orchestration, not Recorder product
+  resource ownership.
+- `examples/custom-ui/**`: standalone learning/debug entrypoints, not Recorder
+  product resource ownership.
 - `apps/opendesk/script-runner/controller.js`: shared generic Runner behavior
   (discovery, ordering, Run/Stop, list/empty/error state and child recipe
   execution).
@@ -95,6 +105,43 @@ official/commercial action.
 Every normal recipe remains a child OpenDesk execution launched through the
 existing Runtime path. The product does not claim that recipe execution is
 in-process.
+
+## Release payload boundary
+
+The source tree intentionally contains runtime, build-time and documentation
+files together. A release must not copy that tree wholesale.
+
+OpenDesk opts into an explicit repository-internal allowlist:
+
+```text
+apps/opendesk/.release/app-mode-runtime-files.txt
+```
+
+Both macOS and Windows builders use the shared `internal/appmodepayload` stager.
+For this product package the release payload is exactly the allowlist. The
+policy itself is build metadata: it is not an `opendesk.app.json` field and is
+not copied into the released App Mode directory.
+
+The following remain valid source files but are deliberately excluded from the
+runtime distribution:
+
+```text
+README.md
+recorder/embed.go
+recorder/icons/render-countdown-icons.swift
+.release/**
+.runtime/**
+*.go
+*.swift
+```
+
+A third-party App Mode package without `.release/app-mode-runtime-files.txt`
+keeps generic whole-package staging compatibility (while `.runtime/**` remains
+development state and is skipped). This product-specific closure therefore does
+not redefine the public App Package schema.
+
+The detailed staging contract is documented in
+`docs/architecture/app-mode-desktop-launch.md`.
 
 ## Official Shell
 
@@ -269,21 +316,26 @@ gates remain enforced by the Recorder backend.
 APP_MODE_PACKAGE="$PWD/apps/opendesk" ./scripts/build_macos_app.sh
 ```
 
-The builder stages this directory at:
+The builder validates the package and stages only its release-closed runtime
+payload at:
 
 ```text
 OpenDesk.app/Contents/Resources/AppMode/
 ```
 
-Finder/Launchpad launch with no `-app` argument discovers the bundled package
+For `apps/opendesk`, that file set must exactly match
+`.release/app-mode-runtime-files.txt`; source-only files are not copied. Finder/
+Launchpad launch with no `-app` argument discovers the bundled package
 automatically. Formal desktop launch should not create a Terminal. CLI can
 continue to call the signed bundle executable and inherit the caller Terminal.
 
 ## Windows distribution target
 
-The current portable Windows staging places the App Mode package beside the
-runtime under `app-mode/`. The product target is stronger than the current
-packaging baseline:
+The portable Windows staging applies the same shared App Mode payload contract
+beside the runtime under `app-mode/`; it must not maintain a second PowerShell
+copy/filter implementation.
+
+The longer-term product target remains:
 
 ```text
 OpenDesk.exe   -> desktop GUI entry, no console window
@@ -304,21 +356,24 @@ Already present in the repository:
 - App Mode package and bundled-package discovery;
 - one main App Shell/Tray owner;
 - built-in Recorder action and shared UI process driver;
+- canonical Recorder product source under `apps/opendesk/recorder/**` with
+  `internal/recorderbundle` as its runtime adapter;
 - main automation UI implemented through the current Script Runner code;
 - Scheduler Center/client composition;
 - Official Shell homepage/help/customize support;
 - single-instance/main-window lifecycle;
 - persistent execution artifacts;
-- macOS bundle staging of `Resources/AppMode` and Windows staging of `app-mode`.
+- one explicit App Mode runtime payload policy shared by macOS and Windows
+  staging.
 
-Still to close for the new product contract:
+Still to close for the broader desktop product contract:
 
-- remove user-visible `Script Runner` terminology;
-- remove the duplicate visible `打开 Script Runner` menu item while preserving
+- remove remaining user-visible `Script Runner` terminology where applicable;
+- remove duplicate visible `打开 Script Runner` menu choices while preserving
   internal compatibility routing;
 - merge/preserve the required Developer/legacy product capabilities in the one
   App Mode Tray;
-- add the single-instance `运行日志` window and product menu entry;
+- add/complete the single-instance `运行日志` window and product menu entry;
 - ensure formal desktop launch has no system Terminal/Console window;
 - ensure child recipe execution never creates extra console windows;
 - implement/verify the Windows GUI entry + CLI console entry split;

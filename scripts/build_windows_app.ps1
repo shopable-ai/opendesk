@@ -88,8 +88,10 @@ try {
             throw "App Mode package must contain opendesk.app.json: $AppModePackage"
         }
         $appModeOutput = Join-Path $OutputDirectory 'app-mode'
-        New-Item -ItemType Directory -Force -Path $appModeOutput | Out-Null
-        Copy-Item -Path (Join-Path $AppModePackage '*') -Destination $appModeOutput -Recurse -Force
+        & go run ./scripts/tools/app-mode-payload -source $AppModePackage -destination $appModeOutput
+        if ($LASTEXITCODE -ne 0) {
+            throw "App Mode release payload staging failed ($LASTEXITCODE)."
+        }
         Write-Host "Staged default App Mode package: $appModeOutput"
     }
 

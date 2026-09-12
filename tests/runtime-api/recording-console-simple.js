@@ -328,7 +328,7 @@ const app = OpenDeskSimpleRecordingConsole.createApp({
   },
   sleep: async () => {},
   countdownStepMs: 0,
-  iconRoot: File.join(Execution.workdir, 'internal', 'recorderbundle', 'ui', 'icons'),
+  iconRoot: File.join(Execution.workdir, 'apps', 'opendesk', 'recorder', 'icons'),
   logger: {log() {}, error(message) { throw new Error(message); }},
 });
 
