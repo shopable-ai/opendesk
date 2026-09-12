@@ -3,6 +3,8 @@
 
 package automation
 
+import "runtime"
+
 func darwinAccessibilityStatus() bool {
 	return false
 }
@@ -35,4 +37,11 @@ func darwinTriggerAppleEventsPrompt(targetApp string) bool {
 func TriggerMacAutomationPermissionHelper(targetApp string) bool {
 	_ = targetApp
 	return false
+}
+
+func newPermissionProvider() permissionProvider {
+	if runtime.GOOS == "windows" {
+		return windowsPermissionProvider{}
+	}
+	return unsupportedPermissionProvider{platform: runtime.GOOS}
 }
