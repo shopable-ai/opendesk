@@ -99,7 +99,7 @@ opendesk -app ./my-app -console-mode script
 
 这条路径不要求编译 OpenDesk 源码。App Mode 仍然运行普通 OpenDesk JavaScript，只额外提供应用 identity、主窗口、Tray/Menu、Single Instance 和 `automation.app` 生命周期。
 
-完整开发路径先读 [Script App Packaging](script-app-packaging.md)；App Shell API 读 [automation.app](app-shell.md)；Manifest/CLI 错误 Reference 读 [App Package CLI](app-package-cli.md) 与 [App Package Format](../architecture/app-package-format.md)。
+完整开发路径先读 [Script App Packaging](script-app-packaging.md)；`-app`、Manifest、App Shell 与脚本 API 的关系读 [App Mode 与 App Shell](app-shell.md)；具体运行时方法读 [automation.app API](automation-app.md)；Manifest/CLI 错误 Reference 读 [App Package CLI](app-package-cli.md) 与 [App Package Format](../architecture/app-package-format.md)。
 
 OpenDesk 官方桌面产品自己的 Script Runner、Recorder、Scheduler、Permissions、release staging 与 Go runtime 内部结构不属于普通 App 开发者的必修知识。官方源码维护者进入 [OpenDesk Desktop Product Shell](../architecture/opendesk-desktop-product-shell.md) 和 [App Mode Desktop Launch Contract](../architecture/app-mode-desktop-launch.md)。
 
@@ -156,7 +156,7 @@ App Mode packaging 不等于 `.odpkg` 源码保护，也不在 Manifest 中发�
 18. `global-shortcut.md`：macOS / Windows 系统级快捷键与 Runtime callback
 19. `events.md`：外部窗口、应用、剪贴板与显示器状态变化 watcher
 20. `app.md`：按 stable identity 启动、等待、终止与重启外部桌面应用
-21. `app-shell.md`：App Mode 的 `automation.app`、tray action、菜单状态与退出
+21. `app-shell.md`：App Mode / App Shell 关系入口；具体 `automation.app.*` 方法统一查 `automation-app.md`
 22. `recorder-runtime.md`：显式授权的人工输入采集、actions 与 basic 普通 JS 生成
 23. `recorder.md`：Agent-first Recorder MCP 的显式会话、证据和 Flow 编译
 24. `audio.md`：系统音频控制、设备发现与 capability-gated 固定声音模式匹配
@@ -193,7 +193,7 @@ App Mode packaging 不等于 `.odpkg` 源码保护，也不在 Manifest 中发�
 ## 用用户调用边界分组，保持主 Reference 扁平
 
 - **核心桌面自动化**：`page.md`、`geometry.md`、`desktop-ui.md`、`mouse.md`、`input.md`、`window.md`、`screen.md`、`accessibility.md`、`global-shortcut.md`、`recorder-runtime.md`、`events.md`、`app.md`
-- **OpenDesk 自身 UI 与交互**：`ui.md`、`dialog.md`、`notify.md`、`notifications.md`、`app-shell.md`
+- **OpenDesk 自身 UI 与交互**：`ui.md`、`dialog.md`、`notify.md`、`notifications.md`、`app-shell.md`、`automation-app.md`
 - **识别与媒体**：`vision.md`、`image-color.md`、`audio.md`、`sound.md`
 - **系统与数据**：`system.md`、`command.md`、`path.md`、`file.md`、`sqlite.md`、`storage.md`、`clipboard.md`
 - **网络与服务**：`http.md`、`http-server.md`、`scheduler.md`、`scheduler-api.md`
@@ -210,7 +210,7 @@ App Mode packaging 不等于 `.odpkg` 源码保护，也不在 Manifest 中发�
 - 系统通知 `notify()` 属于 `notify.md`；不要因为 `ui.toast()` 也是“提示”就把小写 `ui` 的完整 Reference 拆到通知文档。
 - 不同运行方向可以独立。例如 `http.md` 是脚本发起 HTTP 请求，`http-server.md` 是外部调用 OpenDesk 的服务协议。
 - 独立协议可以独立。例如 `scheduler-api.md` 是 Scheduler HTTP API，而 `scheduler.md` 说明 Scheduler 产品能力和生命周期。
-- 面向用户的独立 App 开发流程可以有独立入口页，但不能复制 Runtime 内部实现。`script-app-packaging.md` 维护 App 作者工作流；`app-builder.md` 维护已安装 Runtime 的 artifact 构建；`automation.app` 方法仍只在 `app-shell.md` 维护。
+- 面向用户的独立 App 开发流程可以有独立入口页，但不能复制 Runtime 内部实现。`script-app-packaging.md` 维护 App 作者工作流；`app-builder.md` 维护已安装 Runtime 的 artifact 构建；`app-shell.md` 只解释 App Mode / App Shell 的关系；`automation.app` 的公开方法统一维护在 `automation-app.md`。
 - OpenDesk 官方 Desktop Product Shell、Recorder materialization、release staging 等源码维护者内容进入 `docs/architecture/` 或 `apps/opendesk/README.md`，不塞进普通 App 作者主线。
 - ESM module loading 属于 JavaScript Runtime 的文件入口契约，不是新的全局对象或 namespace，因此不单独创建一套重复的 `docs/api` 方法 Reference；用户契约集中在 `runtime.md`，实现与 bundling 原理链接到架构文档。
 
