@@ -1,5 +1,11 @@
 {
+  "schemaVersion": 1,
   "id": "com.opendesk.desktop",
+  "version": "0.1.0",
+  "name": "OpenDesk",
+  "runtime": {
+    "minVersion": "0.1.0"
+  },
   "entry": "main.js",
   "singleInstance": true,
   "window": {
