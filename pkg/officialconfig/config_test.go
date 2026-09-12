@@ -1,6 +1,7 @@
 package officialconfig
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -37,9 +38,17 @@ func TestEncodeDecodeRoundTrip(t *testing.T) {
 	if got := decoded.Actions["help"].URL; got != "https://example.com/help" {
 		t.Fatalf("decoded help URL = %q", got)
 	}
+
+	second, err := Encode(decoded)
+	if err != nil {
+		t.Fatalf("Encode(decoded): %v", err)
+	}
+	if !bytes.Equal(encoded, second) {
+		t.Fatalf("ODCFG output is not deterministic:\nfirst=%s\nsecond=%s", encoded, second)
+	}
 }
 
-func TestValidateRejectsRuntimeOwnedHomeAndUnsafeURL(t *testing.T) {
+func TestValidateRejectsRuntimeOwnedHomeUnsafeURLAndHiddenCoreActions(t *testing.T) {
 	config := testConfig()
 	config.Actions["home"] = Action{Visible: true, URL: "https://example.com"}
 	if err := Validate(config); err == nil || !strings.Contains(err.Error(), "runtime-owned") {
@@ -52,6 +61,43 @@ func TestValidateRejectsRuntimeOwnedHomeAndUnsafeURL(t *testing.T) {
 	config.Actions["help"] = action
 	if err := Validate(config); err == nil || !strings.Contains(err.Error(), "https URL") {
 		t.Fatalf("Validate(http) error = %v", err)
+	}
+
+	for _, name := range []string{"help", "customize"} {
+		config = testConfig()
+		action = config.Actions[name]
+		action.Visible = false
+		config.Actions[name] = action
+		if err := Validate(config); err == nil || !strings.Contains(err.Error(), "cannot be hidden") {
+			t.Fatalf("Validate(hidden %s) error = %v", name, err)
+		}
+	}
+}
+
+func TestParseSourceRejectsTrailingJSON(t *testing.T) {
+	data := []byte(`{"schemaVersion":1,"actions":{"help":{"visible":true,"url":""},"customize":{"visible":true,"url":""},"marketplace":{"visible":false,"url":""},"upgrade":{"visible":false,"url":""}}} {"unexpected":true}`)
+	if _, err := ParseSource(data); err == nil || !strings.Contains(err.Error(), "trailing JSON") {
+		t.Fatalf("ParseSource trailing data error = %v", err)
+	}
+}
+
+func TestDecodeRejectsChecksumMismatch(t *testing.T) {
+	encoded, err := Encode(testConfig())
+	if err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(encoded)), "\n")
+	if len(lines) != 2 || len(lines[1]) < 2 {
+		t.Fatalf("unexpected encoded payload: %q", encoded)
+	}
+	last := lines[1][len(lines[1])-1]
+	replacement := byte('0')
+	if last == '0' {
+		replacement = '1'
+	}
+	lines[1] = lines[1][:len(lines[1])-1] + string(replacement)
+	if _, err := Decode([]byte(strings.Join(lines, "\n"))); err == nil || !strings.Contains(err.Error(), "checksum mismatch") {
+		t.Fatalf("Decode(tampered) error = %v", err)
 	}
 }
 
