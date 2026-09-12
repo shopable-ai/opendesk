@@ -38,6 +38,14 @@ order: 20
 ./opendesk -script examples/runtime/api-quickstart.js
 ```
 
+需要把业务代码拆成多个文件时，可以使用 `.mjs` 入口和静态 `import` / `export`：
+
+```bash
+./dist/opendesk -script examples/runtime/modules/basic/main.mjs -console-mode script
+```
+
+当前支持相对 `./`、`../` 与嵌套静态 import graph；模块入口和限制见 [JavaScript Runtime](runtime.md#脚本级-await-与模块边界)。
+
 推荐按 [Page API](page.md) → [Geometry API](geometry.md) → [Desktop UI API](desktop-ui.md) → [Mouse API](mouse.md) → [Input APIs](input.md) → [Window API](window.md) 阅读。
 
 需要 OCR、图片定位或完整原生菜单路径时都从 [Desktop UI API](desktop-ui.md) 进入；需要底层原生语义元素 snapshot/find/read/perform 时再读 [Accessibility API](accessibility.md)。
@@ -102,7 +110,7 @@ order: 20
 ### Runtime 与数据
 
 26. `execution.md`：Execution ID、结构化输入、工作目录、来源和 artifact 上下文
-27. `runtime.md`：JavaScript 执行、异步生命周期与兼容边界
+27. `runtime.md`：JavaScript 执行、`.mjs` / 静态 import、异步生命周期与兼容边界
 28. `global-apis.md`：无需 import 的全局接口、console、等待、计时器和参数工具
 29. `environment.md`：环境变量、`.env`、输出配置与优先级
 30. `path.md`：平台原生路径字符串处理
@@ -148,10 +156,12 @@ order: 20
 - 不同运行方向可以独立。例如 `http.md` 是脚本发起 HTTP 请求，`http-server.md` 是外部调用 OpenDesk 的服务协议。
 - 独立协议可以独立。例如 `scheduler-api.md` 是 Scheduler HTTP API，而 `scheduler.md` 说明 Scheduler 产品能力和生命周期。
 - 面向用户的独立发布流程可以有独立入口页，但不能重复同一 Runtime 对象的完整方法 Reference。例如 `app-builder.md` 说明已安装 Runtime 的无源码 artifact 交付，`script-app-packaging.md` 说明 App Mode package 和源码维护者的 Runtime staging，`automation.app` 方法仍只在 `app-shell.md` 维护。
+- ESM module loading 属于 JavaScript Runtime 的文件入口契约，不是新的全局对象或 namespace，因此不单独创建一套重复的 `docs/api` 方法 Reference；用户契约集中在 `runtime.md`，实现与 bundling 原理链接到架构文档。
 
 ## docs/api 只记录可调用契约，不记录 Runtime 实现
 
 这里仅说明用户能调用的 API、参数、返回值、平台限制、错误行为和可复制示例；不解释 Go 注入顺序、polyfill 构造、内部构造对象或文档生成流程。
 
 - Runtime 内部组成见 [Runtime API composition](../implementation/runtime/runtime-api-composition.md)。
+- JavaScript module bundling、resolution profile 与兼容边界见 [JavaScript Modules](../architecture/javascript-modules.md)。
 - 文档同步、机器索引、类型与事实优先级见 [API documentation maintenance](../maintenance/docs-user-api-editme-toc-maintenance.md)。
