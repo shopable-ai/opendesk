@@ -35,9 +35,13 @@ OpenDesk commercial/official actions.
 
 - `pkg/appshell`: native tray/menu, manifest dispatch, main-window lifecycle and
   single-instance behavior.
-- `internal/recorderbundle`: framework-internal Recorder bundle. The built-in
-  `opendesk.recorder` action is injected by the framework and is not declared in
-  this package manifest.
+- `apps/opendesk/recorder/**`: canonical Recorder UI JavaScript and icon
+  resources. `embed.go` only exposes those same product-owned bytes to Go
+  release bundling; it is not a second Recorder implementation.
+- `internal/recorderbundle`: framework release/runtime adapter. It materializes
+  the canonical `apps/opendesk/recorder/**` resources for the built-in
+  `opendesk.recorder` secondary execution. The action is injected by the
+  framework and is not declared in this package manifest.
 - `apps/opendesk/script-runner/controller.js`: shared generic Script Runner
   behavior (discovery, ordering, Run/Stop, list/empty/error state and child
   recipe execution).
@@ -155,6 +159,18 @@ above includes `-allow-recorder-capture`, so its **开始录制** control is ena
 when macOS Input Monitoring permission is available. Do not remove that flag
 when recording is needed; without it the toolbar intentionally keeps capture
 disabled and explains the missing authorization in **查看详情**.
+
+The standalone learning/compatibility entry remains directly runnable and uses
+the same canonical Recorder UI resources:
+
+```bash
+OPENDESK_RECORDER_CAPTURE_KEYBOARD=1 ./dist/opendesk -ui -allow-recorder-capture -script examples/custom-ui/recording-console-simple.js -console-mode script -log-dir .runtime/examples/custom-ui/recording-console-simple
+```
+
+The example delegates workflow orchestration to
+`workflows/human-to-recipe/recording-console-simple.js`; both development
+entries load the UI implementation from `apps/opendesk/recorder/**`. No
+symlink or duplicate Recorder controller source is required.
 
 ## macOS release staging
 
