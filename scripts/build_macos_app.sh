@@ -27,7 +27,19 @@ APP_ICON_SOURCE="${ROOT_DIR}/public/icons/opendesk.icns"
 APP_ICON_NAME="OpenDesk.icns"
 BUNDLE_ID="${BUNDLE_ID:-com.opendesk.cli}"
 APP_NAME="${APP_NAME:-OpenDesk}"
-VERSION="${VERSION:-0.1.0}"
+VERSION_FILE="${ROOT_DIR}/VERSION"
+if [[ -z "${VERSION:-}" ]]; then
+  [[ -f "${VERSION_FILE}" ]] || {
+    printf 'Runtime version source is missing: %s\n' "${VERSION_FILE}" >&2
+    exit 1
+  }
+  VERSION="$(tr -d '[:space:]' < "${VERSION_FILE}")"
+fi
+if [[ ! "${VERSION}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
+  printf 'VERSION must be SemVer without a leading v: %s\n' "${VERSION}" >&2
+  exit 1
+fi
+RUNTIME_VERSION_LDFLAGS="-X opendesk/pkg/runtimeversion.Current=${VERSION}"
 CODESIGN_IDENTITY="${CODESIGN_IDENTITY:--}"
 NATIVE_EXTENSIONS_SOURCE="${NATIVE_EXTENSIONS_SOURCE:-}"
 APP_MODE_PACKAGE="${APP_MODE_PACKAGE:-}"
@@ -70,7 +82,7 @@ fi
 # Release payloads must not retain this checkout's absolute source paths.
 # Besides making the bundle easier to move, -trimpath keeps provenance audits
 # focused on the staged artifact instead of the build machine.
-"${GO_BIN}" build -trimpath -o "${EXECUTABLE_STAGE}" ./cmd/opendesk
+"${GO_BIN}" build -trimpath -ldflags "${RUNTIME_VERSION_LDFLAGS}" -o "${EXECUTABLE_STAGE}" ./cmd/opendesk
 "${GO_BIN}" build -trimpath -o "${DIST_DIR}/opendesk-ui-host" ./cmd/opendesk-ui-host
 "${GO_BIN}" build -trimpath -o "${DIST_DIR}/opendesk-status" ./cmd/opendesk-status
 
@@ -118,7 +130,7 @@ if [[ -n "${APP_MODE_PACKAGE}" ]]; then
     exit 1
   fi
   mkdir -p "${RESOURCES_DIR}/AppMode"
-  rsync -a --delete "${APP_MODE_PACKAGE}/" "${RESOURCES_DIR}/AppMode/"
+  rsync -a --delete --exclude '.runtime/' "${APP_MODE_PACKAGE}/" "${RESOURCES_DIR}/AppMode/"
   chmod -R go-w "${RESOURCES_DIR}/AppMode"
   printf 'Staged default App Mode package: %s\n' "${RESOURCES_DIR}/AppMode"
 fi
@@ -240,6 +252,7 @@ printf 'Built macOS status helper: %s\n' "${STATUS_HELPER_PATH}"
 printf 'Bundled Inspector frontend: %s\n' "${INSPECTOR_WEB_PATH}"
 printf 'Built app: %s\n' "${APP_ROOT}"
 printf 'Bundle id: %s\n' "${BUNDLE_ID}"
+printf 'Runtime compatibility version: %s\n' "${VERSION}"
 if [[ "${SKIP_CODESIGN:-0}" == "1" ]]; then
   printf 'Codesign: skipped\n'
 else

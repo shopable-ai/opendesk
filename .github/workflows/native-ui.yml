@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - '.github/workflows/native-ui.yml'
+      - 'VERSION'
       - 'go.mod'
       - 'go.sum'
       - 'cmd/opendesk/**'
@@ -81,6 +82,9 @@ jobs:
       - name: Test App Shell single-instance seams
         if: runner.os != 'Linux'
         run: go test ./pkg/appshell -run 'SingleInstance' -count=1
+      - name: Test App Package contract
+        if: runner.os != 'Linux'
+        run: go test ./pkg/appshell -run '^Test(ParseManifest|Manifest|LoadPackage|PackageError|RuntimeCompatibility|RuntimeVersion|MacOSTemplateIcon|WindowsTrayIcon)' -count=1
       - name: Test native UI internal seams
         run: go test ./pkg/customui/...
       - name: Test test-architecture invariants

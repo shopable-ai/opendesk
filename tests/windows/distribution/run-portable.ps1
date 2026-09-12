@@ -105,12 +105,15 @@ try {
 
     $distributionProvenance = Get-Content -LiteralPath $distributionProvenancePath -Raw | ConvertFrom-Json
     $uiHostProvenance = Get-Content -LiteralPath $uiHostProvenancePath -Raw | ConvertFrom-Json
+    $expectedRuntimeCompatibilityVersion = (Get-Content -LiteralPath (Join-Path $root 'VERSION') -Raw).Trim()
     if ($distributionProvenance.schemaVersion -ne 2 -or
         $distributionProvenance.runtime -ne 'win-x64' -or
         $distributionProvenance.runtimeGOARCH -ne 'amd64' -or
         $distributionProvenance.uiHostRuntime -ne 'win-x64' -or
+        $distributionProvenance.runtimeCompatibilityVersion -ne $expectedRuntimeCompatibilityVersion -or
+        $distributionProvenance.files.runtime.compatibilityVersion -ne $expectedRuntimeCompatibilityVersion -or
         $uiHostProvenance.runtime -ne 'win-x64') {
-        throw 'Distribution provenance does not describe one consistent win-x64 application.'
+        throw 'Distribution provenance does not describe one consistent versioned win-x64 application.'
     }
     if ($env:GITHUB_SHA -and $distributionProvenance.sourceCommit -ne $env:GITHUB_SHA) {
         throw "Distribution provenance sourceCommit '$($distributionProvenance.sourceCommit)' does not match GITHUB_SHA '$env:GITHUB_SHA'."

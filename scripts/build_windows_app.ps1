@@ -2,11 +2,26 @@
 param(
     [ValidateSet('win-x64','win-arm64')][string]$Runtime = 'win-x64',
     [string]$OutputDirectory = '',
-    [string]$AppModePackage = ''
+    [string]$AppModePackage = '',
+    [string]$Version = ''
 )
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
+$versionFile = Join-Path $root 'VERSION'
+if ([string]::IsNullOrWhiteSpace($Version)) {
+    if (-not [string]::IsNullOrWhiteSpace($env:VERSION)) {
+        $Version = $env:VERSION.Trim()
+    } elseif (Test-Path -LiteralPath $versionFile -PathType Leaf) {
+        $Version = (Get-Content -LiteralPath $versionFile -Raw).Trim()
+    } else {
+        throw "Runtime version source is missing: $versionFile"
+    }
+}
+if ($Version -notmatch '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$') {
+    throw "Version must be SemVer without a leading v: $Version"
+}
+$runtimeVersionLdflags = "-X opendesk/pkg/runtimeversion.Current=$Version"
 
 if (!$IsWindows) {
     throw 'Build the complete OpenDesk Windows application on Windows with Go, its native C toolchain, and the .NET 8 SDK.'
@@ -42,7 +57,7 @@ try {
     $env:GOOS = 'windows'
     $env:GOARCH = 'amd64'
 
-    & go build -trimpath -o $runtimePath ./cmd/opendesk
+    & go build -trimpath -ldflags $runtimeVersionLdflags -o $runtimePath ./cmd/opendesk
     if ($LASTEXITCODE -ne 0) {
         throw "OpenDesk main Windows build failed ($LASTEXITCODE)."
     }
@@ -80,6 +95,7 @@ try {
 
     Write-Host "OpenDesk Windows runtime: $runtimePath"
     Write-Host "OpenDesk Windows UI host: $uiHostPath"
+    Write-Host "Runtime compatibility version: $Version"
 } finally {
     if ($null -eq $previousGOOS) {
         Remove-Item Env:GOOS -ErrorAction SilentlyContinue

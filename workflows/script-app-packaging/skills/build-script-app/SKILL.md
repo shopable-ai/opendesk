@@ -101,7 +101,12 @@ my-app/
 
 ```json
 {
+  "schemaVersion": 1,
   "id": "com.example.my-app",
+  "version": "1.0.0",
+  "runtime": {
+    "minVersion": "0.1.0"
+  },
   "entry": "main.js",
   "singleInstance": true,
   "window": {
@@ -118,9 +123,12 @@ my-app/
     "primaryAction": "opendesk.open",
     "menuMode": "merge",
     "menu": []
-  }
+  },
+  "capabilities": ["custom-ui"]
 }
 ```
+
+新 package 必须优先使用 `schemaVersion: 1`；缺失 schemaVersion 只用于读取既有 legacy package。Package `version`、`runtime.minVersion` 与 Manifest schema version 各自独立。`capabilities` 只是 declaration / prerequisite metadata，不代表 permission、sandbox 或 security boundary。
 
 Manifest 只写公开字段。每次发现“希望通过加一个字段解决”的需求，先核对 `docs/api/app-shell.md`、实现和测试；没有公开契约就不得猜字段。
 
@@ -166,7 +174,7 @@ make build
 用户明确要求 macOS desktop artifact 时，再执行/准备：
 
 ```bash
-APP_MODE_PACKAGE=/absolute/path/to/my-app SKIP_CODESIGN=1 ./scripts/build_macos_app.sh
+APP_MODE_PACKAGE=/absolute/path/to/my-app SKIP_CODESIGN=1 VERSION="$(tr -d '[:space:]' < VERSION)" ./scripts/build_macos_app.sh
 ```
 
 上式只适合 packaging mechanism / layout 验证。`SKIP_CODESIGN=1` 不能作为最终发布签名方案。

@@ -123,7 +123,7 @@ Package loader 在业务代码执行前按以下顺序处理：schema/JSON → s
 当前 macOS builder 接受绝对路径 `APP_MODE_PACKAGE`。用于检查 package staging 机制时，可以从仓库根目录执行：
 
 ```bash
-APP_MODE_PACKAGE=/absolute/path/to/my-app SKIP_CODESIGN=1 ./scripts/build_macos_app.sh
+APP_MODE_PACKAGE=/absolute/path/to/my-app SKIP_CODESIGN=1 VERSION="$(tr -d '[:space:]' < VERSION)" ./scripts/build_macos_app.sh
 ```
 
 `SKIP_CODESIGN=1` 只适合开发或 packaging 验证，不代表可向最终用户分发的签名产物。正式交付仍需要按发布流程完成正确的 bundle signing / notarization（如项目发布策略要求）。
@@ -135,6 +135,8 @@ OpenDesk.app/Contents/Resources/AppMode/
 ```
 
 发布产物启动时，如果用户没有传入命令行参数，OpenDesk 可以发现该默认 App Mode package；用户随后直接从 Finder 或 Launchpad 启动应用。
+
+仓库根目录 `VERSION` 是默认 release/runtime compatibility version 来源；显式 `VERSION` 用于发布流水线覆盖。macOS builder 把同一个值同时注入 Runtime binary 的 `pkg/runtimeversion.Current` 与 `CFBundleShortVersionString`。
 
 ## Windows 发布
 
@@ -151,6 +153,8 @@ app-mode\
 ```
 
 用户可以从 Explorer 启动 `opendesk.exe`，也可以自行建立 Start Menu shortcut。当前公开能力不应描述为已经提供 MSI、MSIX、文件关联或自动创建开始菜单快捷方式。
+
+Windows developer/distribution builder 读取同一个根目录 `VERSION`（也可通过 `-Version` 或环境变量 `VERSION` 显式覆盖），将其注入 Runtime binary，并记录为 `distribution-provenance.json.runtimeCompatibilityVersion`。
 
 ## Single Instance 与多应用
 

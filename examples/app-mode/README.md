@@ -2,6 +2,8 @@
 
 `basic/` 是 P0 App Shell 的最小可运行示例：一个 Custom UI 主窗口、原生 tray / menu bar、动态菜单状态、用户关闭后隐藏并由系统 Open 重新显示，以及统一退出。
 
+该示例 Manifest 使用正式 `schemaVersion: 1`，并分别声明 App Package `version` 与 OpenDesk `runtime.minVersion`。这两个版本都不等于 Manifest schema version；可选 `capabilities` 也只表示声明/前置条件元数据，不是权限或 sandbox。
+
 以下命令从仓库根目录运行；先用 `make build` 生成与当前源码配套的 `dist/opendesk` 和 UI host。示例同时携带 macOS template PNG 与 Windows ICO：两者都在启动前校验且没有跨平台 fallback。
 
 从仓库根目录运行当前正式构建：

@@ -2,11 +2,25 @@
 param(
     [ValidateSet('win-x64','win-arm64')][string]$Runtime = 'win-x64',
     [string]$OutputDirectory = '',
-    [string]$AppModePackage = ''
+    [string]$AppModePackage = '',
+    [string]$Version = ''
 )
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
+$versionFile = Join-Path $root 'VERSION'
+if ([string]::IsNullOrWhiteSpace($Version)) {
+    if (-not [string]::IsNullOrWhiteSpace($env:VERSION)) {
+        $Version = $env:VERSION.Trim()
+    } elseif (Test-Path -LiteralPath $versionFile -PathType Leaf) {
+        $Version = (Get-Content -LiteralPath $versionFile -Raw).Trim()
+    } else {
+        throw "Runtime version source is missing: $versionFile"
+    }
+}
+if ($Version -notmatch '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$') {
+    throw "Version must be SemVer without a leading v: $Version"
+}
 
 if (!$IsWindows) {
     throw 'Build the portable Windows distribution on Windows.'
@@ -66,6 +80,7 @@ try {
     $appBuildArguments = @{
         Runtime = 'win-x64'
         OutputDirectory = $OutputDirectory
+        Version = $Version
     }
     if ($AppModePackage) {
         $appBuildArguments.AppModePackage = $AppModePackage
@@ -174,6 +189,7 @@ try {
         artifact = 'opendesk-windows-portable-distribution'
         sourceCommit = $sourceCommit
         sourceDirty = $sourceDirty
+        runtimeCompatibilityVersion = $Version
         runtime = 'win-x64'
         runtimeGOOS = 'windows'
         runtimeGOARCH = 'amd64'
@@ -196,6 +212,7 @@ try {
                 path = 'opendesk.exe'
                 sha256 = $runtimeHash
                 peMachine = ('0x{0:X4}' -f $runtimeMachine)
+                compatibilityVersion = $Version
             }
             nativeUIHost = [ordered]@{
                 path = 'ui-host/opendesk-ui-host.exe'
@@ -214,6 +231,7 @@ try {
     } | ConvertTo-Json -Depth 8 | Set-Content -Encoding utf8 (Join-Path $OutputDirectory 'distribution-provenance.json')
 
     Write-Host "Portable Windows distribution: $OutputDirectory"
+    Write-Host "Runtime compatibility version: $Version"
     Write-Host 'Architecture policy: win-x64 verified; win-arm64 unverified.'
 } finally {
     Pop-Location

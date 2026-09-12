@@ -3,8 +3,11 @@ SHELL := /bin/zsh
 GO ?= go
 GOBIN ?= $(HOME)/go/bin
 export PATH := $(GOBIN):$(PATH)
+VERSION_FILE := $(CURDIR)/VERSION
+VERSION ?= $(shell tr -d '[:space:]' < "$(VERSION_FILE)")
+RUNTIME_VERSION_LDFLAGS := -X opendesk/pkg/runtimeversion.Current=$(VERSION)
 
-.PHONY: help doctor setup deps fmt vet test test-core test-icons test-runtime-api test-runtime-api-live test-host-api test-host-api-live check-custom-ui-components build build-apple-vision-ocr build-macos smoke
+.PHONY: help doctor setup deps fmt vet test test-core test-icons test-runtime-api test-runtime-api-live test-host-api test-host-api-live check-custom-ui-components validate-runtime-version build build-apple-vision-ocr build-macos smoke
 
 help:
 	@echo "opendesk development targets:"
@@ -75,8 +78,11 @@ test-host-api-live: test-runtime-api-live
 check-custom-ui-components: build
 	bash scripts/check_custom_ui_components.sh
 
-build:
-	$(GO) build -o dist/opendesk ./cmd/opendesk
+validate-runtime-version:
+	@printf '%s\n' "$(VERSION)" | grep -Eq '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$$' || { printf 'VERSION must be SemVer without a leading v: %s\n' "$(VERSION)" >&2; exit 1; }
+
+build: validate-runtime-version
+	$(GO) build -ldflags "$(RUNTIME_VERSION_LDFLAGS)" -o dist/opendesk ./cmd/opendesk
 	$(GO) build -o dist/opendesk-ui-host ./cmd/opendesk-ui-host
 
 ifeq ($(shell uname -s),Darwin)

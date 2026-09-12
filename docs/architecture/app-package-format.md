@@ -125,7 +125,9 @@ The loader checks compatibility before resolving the entry file or starting Java
 
 P0 deliberately does not define `runtime.maxVersion`. Maximum-version constraints create unnecessary future blocking and should only be introduced if OpenDesk later has a demonstrated compatibility model that needs them.
 
-`pkg/runtimeversion.Current` is the Runtime compatibility version source. It defaults to the current P0 baseline and is designed for release-build injection with Go `-ldflags -X`. Build/release pipelines must keep the published desktop artifact version and this Runtime compatibility version aligned.
+The repository-root `VERSION` file is the default release version source. Developer and platform builders inject that value into `pkg/runtimeversion.Current` with Go `-ldflags -X`; an explicit `VERSION`/`-Version` release override replaces the same value at the build boundary. The macOS builder also writes it to `CFBundleShortVersionString`, while Windows provenance records it as `runtimeCompatibilityVersion`. Build entry points must not own separate release-version constants.
+
+Direct Go builds that bypass the repository builders retain the compiled development fallback in `pkg/runtimeversion.Current`. Official/developer artifacts use `make build`, `build_macos_app.sh`, or `build_windows_app.ps1`, all of which perform the injection.
 
 ## Resource path rules
 

@@ -3,6 +3,7 @@ package appshell
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"image"
 	"image/color"
 	"image/png"
@@ -10,13 +11,18 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"opendesk/pkg/runtimeversion"
 )
 
 func boolPtr(value bool) *bool { return &value }
 
 func validManifestJSON() string {
 	return `{
+	"schemaVersion": 1,
 	"id": "com.opendesk.sample",
+	"version": "1.2.3-rc.1+build.5",
+	"runtime": {"minVersion": "0.1.0"},
   "entry": "main.js",
   "singleInstance": true,
 	"window": {"mainId": "main", "closeBehavior": "hide"},
@@ -31,8 +37,17 @@ func validManifestJSON() string {
       {"type":"separator"},
       {"id":"sync.pause","label":"Pause","action":"sync.pause","enabled":true,"visible":true}
     ]
-  }
+  },
+	"capabilities": ["custom-ui", "desktop-automation"]
 }`
+}
+
+func minimalSchemaV1Manifest(id, version string) string {
+	return `{"schemaVersion":1,"id":"` + id + `","version":"` + version + `","entry":"main.js","window":{"mainId":"main"},"tray":{"enabled":false}}`
+}
+
+func legacyManifestJSON() string {
+	return `{"id":"com.opendesk.legacy","entry":"main.js","window":{"mainId":"main"},"tray":{"enabled":false}}`
 }
 
 func testPNG(t *testing.T, width, height int, alphaMode string) []byte {
@@ -134,14 +149,145 @@ func writeValidPackageFixture(t *testing.T, root string) string {
 	return assets
 }
 
+func requirePackageError(t *testing.T, err error, code, field string) *PackageError {
+	t.Helper()
+	if err == nil {
+		t.Fatalf("expected %s", code)
+	}
+	var packageErr *PackageError
+	if !errors.As(err, &packageErr) {
+		t.Fatalf("expected PackageError %s, got %T: %v", code, err, err)
+	}
+	if packageErr.Code != code || packageErr.Field != field {
+		t.Fatalf("PackageError code/field = %s/%s, want %s/%s: %v", packageErr.Code, packageErr.Field, code, field, err)
+	}
+	if packageErr.Expected == "" || packageErr.Actual == "" || packageErr.Fix == "" || packageErr.Err == nil {
+		t.Fatalf("PackageError lacks actionable context: %+v", packageErr)
+	}
+	return packageErr
+}
+
 func TestParseManifestValid(t *testing.T) {
 	manifest, err := ParseManifest([]byte(validManifestJSON()))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if manifest.Entry != "main.js" || manifest.Window.CloseBehavior != "hide" || !manifest.SingleInstance {
+	if manifest.SchemaVersion != 1 || manifest.Version != "1.2.3-rc.1+build.5" || manifest.Runtime.MinVersion != "0.1.0" || manifest.Entry != "main.js" || manifest.Window.CloseBehavior != "hide" || !manifest.SingleInstance || len(manifest.Capabilities) != 2 {
 		t.Fatalf("unexpected manifest: %+v", manifest)
 	}
+}
+
+func TestManifestSchemaVersionAndJSONContract(t *testing.T) {
+	t.Run("legacy manifest without schemaVersion", func(t *testing.T) {
+		manifest, err := ParseManifest([]byte(legacyManifestJSON()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if manifest.SchemaVersion != 0 || manifest.Version != "" || manifest.Runtime.MinVersion != "" {
+			t.Fatalf("legacy manifest was not normalized as v0: %+v", manifest)
+		}
+	})
+
+	t.Run("unsupported schemaVersion", func(t *testing.T) {
+		input := strings.Replace(validManifestJSON(), `"schemaVersion": 1`, `"schemaVersion": 2`, 1)
+		_, err := ParseManifest([]byte(input))
+		requirePackageError(t, err, ErrManifestSchemaUnsupported, "schemaVersion")
+	})
+
+	t.Run("schemaVersion must be an integer", func(t *testing.T) {
+		input := strings.Replace(validManifestJSON(), `"schemaVersion": 1`, `"schemaVersion": "1"`, 1)
+		_, err := ParseManifest([]byte(input))
+		requirePackageError(t, err, ErrManifestInvalid, "schemaVersion")
+	})
+
+	for name, input := range map[string]string{
+		"invalid JSON":            `{"schemaVersion":1,"id":`,
+		"JSON null":               `null`,
+		"multiple JSON documents": minimalSchemaV1Manifest("com.opendesk.sample", "1.0.0") + ` {}`,
+		"unknown top-level field": strings.Replace(validManifestJSON(), `"capabilities":`, `"unexpected":true,"capabilities":`, 1),
+		"unknown runtime field":   strings.Replace(validManifestJSON(), `"minVersion": "0.1.0"`, `"minVersion":"0.1.0","maxVersion":"2.0.0"`, 1),
+		"unknown nested field":    strings.Replace(validManifestJSON(), `"mainId": "main"`, `"mainId":"main","title":"Main"`, 1),
+		"legacy with v1 metadata": strings.Replace(legacyManifestJSON(), `"id":`, `"version":"1.0.0","id":`, 1),
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := ParseManifest([]byte(input))
+			if name == "legacy with v1 metadata" {
+				requirePackageError(t, err, ErrManifestSchemaUnsupported, "schemaVersion")
+				return
+			}
+			requirePackageError(t, err, ErrManifestInvalid, "manifest")
+		})
+	}
+}
+
+func TestManifestPackageVersionSemVerContract(t *testing.T) {
+	_, err := ParseManifest([]byte(minimalSchemaV1Manifest("com.opendesk.sample", "")))
+	requirePackageError(t, err, ErrPackageVersionInvalid, "version")
+
+	for _, version := range []string{"v1.0.0", "1.0", "01.0.0", "1.0.0-01", "1.0.0+"} {
+		t.Run("invalid "+version, func(t *testing.T) {
+			_, err := ParseManifest([]byte(minimalSchemaV1Manifest("com.opendesk.sample", version)))
+			requirePackageError(t, err, ErrPackageVersionInvalid, "version")
+		})
+	}
+
+	for _, version := range []string{"1.0.0-alpha.1", "1.0.0+build.20260912", "1.0.0-rc.1+build.7"} {
+		t.Run("valid "+version, func(t *testing.T) {
+			manifest, err := ParseManifest([]byte(minimalSchemaV1Manifest("com.opendesk.sample", version)))
+			if err != nil || manifest.Version != version {
+				t.Fatalf("valid SemVer %q rejected: manifest=%+v err=%v", version, manifest, err)
+			}
+		})
+	}
+
+	invalidRuntime := strings.Replace(validManifestJSON(), `"minVersion": "0.1.0"`, `"minVersion":"v1.0.0"`, 1)
+	_, err = ParseManifest([]byte(invalidRuntime))
+	requirePackageError(t, err, ErrManifestInvalid, "runtime.minVersion")
+}
+
+func TestRuntimeCompatibilitySemVerContract(t *testing.T) {
+	for _, test := range []struct {
+		name, current, minimum string
+		wantCode               string
+	}{
+		{name: "minimum lower than current", current: "1.2.4", minimum: "1.2.3"},
+		{name: "minimum equal current", current: "1.2.3", minimum: "1.2.3"},
+		{name: "minimum higher than current", current: "1.2.2", minimum: "1.2.3", wantCode: ErrRuntimeTooOld},
+		{name: "later prerelease accepted", current: "1.2.3-rc.2", minimum: "1.2.3-rc.1"},
+		{name: "earlier prerelease rejected", current: "1.2.3-rc.1", minimum: "1.2.3-rc.2", wantCode: ErrRuntimeTooOld},
+		{name: "prerelease older than release", current: "1.2.3-rc.2", minimum: "1.2.3", wantCode: ErrRuntimeTooOld},
+		{name: "release newer than prerelease", current: "1.2.3", minimum: "1.2.3-rc.9"},
+		{name: "build metadata does not affect precedence", current: "1.2.3+runtime.1", minimum: "1.2.3+runtime.2"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			err := ValidateRuntimeCompatibility(Manifest{Runtime: RuntimeCompatibilityManifest{MinVersion: test.minimum}}, test.current)
+			if test.wantCode == "" {
+				if err != nil {
+					t.Fatal(err)
+				}
+				return
+			}
+			requirePackageError(t, err, test.wantCode, "runtime.minVersion")
+		})
+	}
+
+	err := ValidateRuntimeCompatibility(Manifest{Runtime: RuntimeCompatibilityManifest{MinVersion: "1.0.0"}}, "development")
+	requirePackageError(t, err, ErrRuntimeVersionInvalid, "runtime")
+}
+
+func TestManifestCapabilitiesContract(t *testing.T) {
+	manifest, err := ParseManifest([]byte(validManifestJSON()))
+	if err != nil || strings.Join(manifest.Capabilities, ",") != "custom-ui,desktop-automation" {
+		t.Fatalf("valid capabilities rejected: manifest=%+v err=%v", manifest, err)
+	}
+
+	invalid := strings.Replace(validManifestJSON(), `"custom-ui", "desktop-automation"`, `"CustomUI"`, 1)
+	_, err = ParseManifest([]byte(invalid))
+	requirePackageError(t, err, ErrPackageCapabilityInvalid, "capabilities[0]")
+
+	duplicate := strings.Replace(validManifestJSON(), `"custom-ui", "desktop-automation"`, `"custom-ui", "custom-ui"`, 1)
+	_, err = ParseManifest([]byte(duplicate))
+	requirePackageError(t, err, ErrPackageCapabilityInvalid, "capabilities[1]")
 }
 
 func TestParseManifestDefaultsSingleInstanceTrueAndPreservesExplicitFalse(t *testing.T) {
@@ -189,9 +335,8 @@ func TestParseManifestRejectsInvalidJSONAndUnknownFields(t *testing.T) {
 func TestManifestRejectsUnsafePaths(t *testing.T) {
 	for _, entry := range []string{"../main.js", "/tmp/main.js", `C:\\app\\main.js`, `..\\main.js`} {
 		input := strings.Replace(validManifestJSON(), `"main.js"`, `"`+entry+`"`, 1)
-		if _, err := ParseManifest([]byte(input)); err == nil {
-			t.Fatalf("expected unsafe entry %q to fail", entry)
-		}
+		_, err := ParseManifest([]byte(input))
+		requirePackageError(t, err, ErrPackageResourceEscape, "entry")
 	}
 	for _, replacement := range []string{
 		`"windows":"../../tray.ico"`,
@@ -205,9 +350,12 @@ func TestManifestRejectsUnsafePaths(t *testing.T) {
 		} else {
 			input = strings.Replace(input, `"macos":"assets/tray.png"`, replacement, 1)
 		}
-		if _, err := ParseManifest([]byte(input)); err == nil {
-			t.Fatalf("expected unsafe icon path %s to fail", replacement)
+		_, err := ParseManifest([]byte(input))
+		field := "tray.icons.macos"
+		if strings.Contains(replacement, "windows") {
+			field = "tray.icons.windows"
 		}
+		requirePackageError(t, err, ErrPackageResourceEscape, field)
 	}
 }
 
@@ -317,18 +465,24 @@ func TestManifestHideRequiresReopenPath(t *testing.T) {
 }
 
 func TestManifestRequiresStableIdentityAndMainWindow(t *testing.T) {
-	for name, input := range map[string]string{
-		"missing id":      `{"entry":"main.js","window":{"mainId":"main"},"tray":{"enabled":false}}`,
-		"non reverse DNS": `{"id":"sample","entry":"main.js","window":{"mainId":"main"},"tray":{"enabled":false}}`,
-		"uppercase id":    `{"id":"Com.Example.Sample","entry":"main.js","window":{"mainId":"main"},"tray":{"enabled":false}}`,
-		"trailing hyphen": `{"id":"com.example.sample-","entry":"main.js","window":{"mainId":"main"},"tray":{"enabled":false}}`,
-		"missing mainId":  `{"id":"com.example.sample","entry":"main.js","window":{},"tray":{"enabled":false}}`,
+	for name, id := range map[string]string{
+		"missing id":       "",
+		"invalid id":       "sample",
+		"uppercase id":     "Com.Example.Sample",
+		"Unicode id":       "com.example.应用",
+		"trailing hyphen":  "com.example.sample-",
+		"id too long":      strings.Repeat("a.", 128) + "a",
+		"segment too long": "com." + strings.Repeat("a", 64),
 	} {
 		t.Run(name, func(t *testing.T) {
-			if _, err := ParseManifest([]byte(input)); err == nil {
-				t.Fatal("expected validation failure")
-			}
+			_, err := ParseManifest([]byte(minimalSchemaV1Manifest(id, "1.0.0")))
+			requirePackageError(t, err, ErrPackageIDInvalid, "id")
 		})
+	}
+
+	input := strings.Replace(minimalSchemaV1Manifest("com.example.sample", "1.0.0"), `"mainId":"main"`, `"mainId":""`, 1)
+	if _, err := ParseManifest([]byte(input)); err == nil {
+		t.Fatal("missing window.mainId should fail")
 	}
 }
 
@@ -339,6 +493,69 @@ func TestManifestAllowsReusableActionWithUniqueMenuIDs(t *testing.T) {
 		1)
 	if _, err := ParseManifest([]byte(input)); err != nil {
 		t.Fatalf("reused action should be valid: %v", err)
+	}
+}
+
+func TestLoadPackageRejectsMissingEntryAndEntryDirectory(t *testing.T) {
+	t.Run("missing entry field", func(t *testing.T) {
+		input := strings.Replace(minimalSchemaV1Manifest("com.opendesk.sample", "1.0.0"), `"entry":"main.js"`, `"entry":""`, 1)
+		_, err := ParseManifest([]byte(input))
+		requirePackageError(t, err, ErrPackageEntryMissing, "entry")
+	})
+
+	t.Run("missing entry file", func(t *testing.T) {
+		root := t.TempDir()
+		writeValidPackageFixture(t, root)
+		if err := os.Remove(filepath.Join(root, "main.js")); err != nil {
+			t.Fatal(err)
+		}
+		_, err := LoadPackage(root)
+		requirePackageError(t, err, ErrPackageEntryMissing, "entry")
+	})
+
+	t.Run("entry is directory", func(t *testing.T) {
+		root := t.TempDir()
+		writeValidPackageFixture(t, root)
+		entryPath := filepath.Join(root, "main.js")
+		if err := os.Remove(entryPath); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Mkdir(entryPath, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		_, err := LoadPackage(root)
+		requirePackageError(t, err, ErrPackageResourceInvalid, "entry")
+	})
+}
+
+func TestLoadPackageChecksSchemaAndCompatibilityBeforeResources(t *testing.T) {
+	for _, test := range []struct {
+		name, from, to, code string
+	}{
+		{name: "unsupported schema before missing entry", from: `"schemaVersion": 1`, to: `"schemaVersion": 999`, code: ErrManifestSchemaUnsupported},
+		{name: "runtime compatibility before missing entry", from: `"minVersion": "0.1.0"`, to: `"minVersion": "999.0.0"`, code: ErrRuntimeTooOld},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			root := t.TempDir()
+			writeValidPackageFixture(t, root)
+			manifestPath := filepath.Join(root, ManifestFileName)
+			data, err := os.ReadFile(manifestPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(manifestPath, []byte(strings.Replace(string(data), test.from, test.to, 1)), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Remove(filepath.Join(root, "main.js")); err != nil {
+				t.Fatal(err)
+			}
+			_, err = LoadPackage(root)
+			field := "runtime.minVersion"
+			if test.code == ErrManifestSchemaUnsupported {
+				field = "schemaVersion"
+			}
+			requirePackageError(t, err, test.code, field)
+		})
 	}
 }
 
@@ -369,6 +586,8 @@ func TestLoadPackageCanonicalizesRootAndRejectsSymlinkEscape(t *testing.T) {
 	}
 	if _, err := LoadPackage(root); err == nil || !strings.Contains(err.Error(), "symlink") {
 		t.Fatalf("expected entry symlink escape rejection, got %v", err)
+	} else {
+		requirePackageError(t, err, ErrPackageResourceEscape, "entry")
 	}
 
 	if err := os.Remove(filepath.Join(root, "main.js")); err != nil {
@@ -400,6 +619,7 @@ func TestLoadPackageCanonicalizesRootAndRejectsSymlinkEscape(t *testing.T) {
 			if err == nil || !strings.Contains(err.Error(), test.field+" escapes the app package through a symlink") {
 				t.Fatalf("expected %s icon symlink escape rejection, got %v", test.name, err)
 			}
+			requirePackageError(t, err, ErrPackageResourceEscape, test.field)
 			if err := os.Remove(insidePath); err != nil {
 				t.Fatal(err)
 			}
@@ -412,20 +632,20 @@ func TestLoadPackageCanonicalizesRootAndRejectsSymlinkEscape(t *testing.T) {
 
 func TestLoadPackageRejectsMissingAndInvalidIconResources(t *testing.T) {
 	tests := []struct {
-		name, file string
-		mutate     func(*testing.T, string)
-		want       []string
+		name, file, code, field string
+		mutate                  func(*testing.T, string)
+		want                    []string
 	}{
-		{name: "missing Windows ICO", file: "tray.ico", mutate: removeTestFile, want: []string{"resolve tray.icons.windows"}},
-		{name: "empty Windows ICO", file: "tray.ico", mutate: emptyTestFile, want: []string{"validate tray.icons.windows", "icon file is empty"}},
-		{name: "corrupt Windows ICO", file: "tray.ico", mutate: func(t *testing.T, path string) { writeTestFile(t, path, []byte("not-an-ico")) }, want: []string{"validate tray.icons.windows", "invalid ICO header"}},
-		{name: "PNG disguised as Windows ICO", file: "tray.ico", mutate: func(t *testing.T, path string) { writeTestFile(t, path, testPNG(t, 32, 32, "template")) }, want: []string{"validate tray.icons.windows", "invalid ICO header"}},
-		{name: "missing macOS PNG", file: "tray.png", mutate: removeTestFile, want: []string{"resolve tray.icons.macos"}},
-		{name: "empty macOS PNG", file: "tray.png", mutate: emptyTestFile, want: []string{"validate tray.icons.macos", "icon file is empty"}},
-		{name: "corrupt macOS PNG", file: "tray.png", mutate: func(t *testing.T, path string) {
+		{name: "missing Windows ICO", file: "tray.ico", code: ErrPackageResourceMissing, field: "tray.icons.windows", mutate: removeTestFile, want: []string{"resolve tray.icons.windows"}},
+		{name: "empty Windows ICO", file: "tray.ico", code: ErrPackageResourceInvalid, field: "tray.icons.windows", mutate: emptyTestFile, want: []string{"validate tray.icons.windows", "icon file is empty"}},
+		{name: "corrupt Windows ICO", file: "tray.ico", code: ErrPackageResourceInvalid, field: "tray.icons.windows", mutate: func(t *testing.T, path string) { writeTestFile(t, path, []byte("not-an-ico")) }, want: []string{"validate tray.icons.windows", "invalid ICO header"}},
+		{name: "PNG disguised as Windows ICO", file: "tray.ico", code: ErrPackageResourceInvalid, field: "tray.icons.windows", mutate: func(t *testing.T, path string) { writeTestFile(t, path, testPNG(t, 32, 32, "template")) }, want: []string{"validate tray.icons.windows", "invalid ICO header"}},
+		{name: "missing macOS PNG", file: "tray.png", code: ErrPackageResourceMissing, field: "tray.icons.macos", mutate: removeTestFile, want: []string{"resolve tray.icons.macos"}},
+		{name: "empty macOS PNG", file: "tray.png", code: ErrPackageResourceInvalid, field: "tray.icons.macos", mutate: emptyTestFile, want: []string{"validate tray.icons.macos", "icon file is empty"}},
+		{name: "corrupt macOS PNG", file: "tray.png", code: ErrPackageResourceInvalid, field: "tray.icons.macos", mutate: func(t *testing.T, path string) {
 			writeTestFile(t, path, append(append([]byte(nil), pngSignature...), []byte("broken")...))
 		}, want: []string{"validate tray.icons.macos", "decode PNG"}},
-		{name: "ICO disguised as macOS PNG", file: "tray.png", mutate: func(t *testing.T, path string) { writeTestFile(t, path, testICO(t, 32)) }, want: []string{"validate tray.icons.macos", "decode PNG"}},
+		{name: "ICO disguised as macOS PNG", file: "tray.png", code: ErrPackageResourceInvalid, field: "tray.icons.macos", mutate: func(t *testing.T, path string) { writeTestFile(t, path, testICO(t, 32)) }, want: []string{"validate tray.icons.macos", "decode PNG"}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -436,6 +656,7 @@ func TestLoadPackageRejectsMissingAndInvalidIconResources(t *testing.T) {
 			if err == nil {
 				t.Fatal("expected icon validation failure")
 			}
+			requirePackageError(t, err, test.code, test.field)
 			for _, want := range test.want {
 				if !strings.Contains(err.Error(), want) {
 					t.Fatalf("error %q does not contain %q", err, want)
@@ -564,6 +785,141 @@ func TestWindowsTrayIconStructureAndFrameDecode(t *testing.T) {
 				t.Fatalf("expected %q error, got %v", test.want, err)
 			}
 		})
+	}
+}
+
+func TestPackageErrorCodesProvideActionableContext(t *testing.T) {
+	tests := []struct {
+		name, code, field string
+		failure           func(*testing.T) error
+	}{
+		{name: "invalid package root", code: ErrPackageRootInvalid, field: "packageRoot", failure: func(t *testing.T) error {
+			_, err := LoadPackage("")
+			return err
+		}},
+		{name: "missing manifest", code: ErrManifestNotFound, field: ManifestFileName, failure: func(t *testing.T) error {
+			_, err := LoadPackage(t.TempDir())
+			return err
+		}},
+		{name: "invalid manifest", code: ErrManifestInvalid, field: "manifest", failure: func(t *testing.T) error {
+			_, err := ParseManifest([]byte(`{"schemaVersion":1,"id":`))
+			return err
+		}},
+		{name: "unsupported schema", code: ErrManifestSchemaUnsupported, field: "schemaVersion", failure: func(t *testing.T) error {
+			_, err := ParseManifest([]byte(`{"schemaVersion":2}`))
+			return err
+		}},
+		{name: "invalid package id", code: ErrPackageIDInvalid, field: "id", failure: func(t *testing.T) error {
+			_, err := ParseManifest([]byte(minimalSchemaV1Manifest("", "1.0.0")))
+			return err
+		}},
+		{name: "invalid package version", code: ErrPackageVersionInvalid, field: "version", failure: func(t *testing.T) error {
+			_, err := ParseManifest([]byte(minimalSchemaV1Manifest("com.opendesk.sample", "")))
+			return err
+		}},
+		{name: "missing entry", code: ErrPackageEntryMissing, field: "entry", failure: func(t *testing.T) error {
+			input := strings.Replace(minimalSchemaV1Manifest("com.opendesk.sample", "1.0.0"), `"entry":"main.js"`, `"entry":""`, 1)
+			_, err := ParseManifest([]byte(input))
+			return err
+		}},
+		{name: "missing resource", code: ErrPackageResourceMissing, field: "tray.icons.windows", failure: func(t *testing.T) error {
+			root := t.TempDir()
+			assets := writeValidPackageFixture(t, root)
+			if err := os.Remove(filepath.Join(assets, "tray.ico")); err != nil {
+				t.Fatal(err)
+			}
+			_, err := LoadPackage(root)
+			return err
+		}},
+		{name: "escaping resource", code: ErrPackageResourceEscape, field: "entry", failure: func(t *testing.T) error {
+			input := strings.Replace(minimalSchemaV1Manifest("com.opendesk.sample", "1.0.0"), `"entry":"main.js"`, `"entry":"../main.js"`, 1)
+			_, err := ParseManifest([]byte(input))
+			return err
+		}},
+		{name: "invalid resource", code: ErrPackageResourceInvalid, field: "tray.icons.windows", failure: func(t *testing.T) error {
+			input := strings.Replace(validManifestJSON(), `"windows":"assets/tray.ico"`, `"windows":"assets/tray.png"`, 1)
+			_, err := ParseManifest([]byte(input))
+			return err
+		}},
+		{name: "invalid capability", code: ErrPackageCapabilityInvalid, field: "capabilities[0]", failure: func(t *testing.T) error {
+			input := strings.Replace(validManifestJSON(), `"custom-ui", "desktop-automation"`, `"CustomUI"`, 1)
+			_, err := ParseManifest([]byte(input))
+			return err
+		}},
+		{name: "runtime too old", code: ErrRuntimeTooOld, field: "runtime.minVersion", failure: func(t *testing.T) error {
+			return ValidateRuntimeCompatibility(Manifest{Runtime: RuntimeCompatibilityManifest{MinVersion: "2.0.0"}}, "1.0.0")
+		}},
+		{name: "invalid runtime version", code: ErrRuntimeVersionInvalid, field: "runtime", failure: func(t *testing.T) error {
+			return ValidateRuntimeCompatibility(Manifest{Runtime: RuntimeCompatibilityManifest{MinVersion: "1.0.0"}}, "development")
+		}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			packageErr := requirePackageError(t, test.failure(t), test.code, test.field)
+			message := packageErr.Error()
+			for _, fragment := range []string{test.code, "field=", "expected=", "actual=", "fix="} {
+				if !strings.Contains(message, fragment) {
+					t.Fatalf("PackageError message %q lacks %q", message, fragment)
+				}
+			}
+		})
+	}
+}
+
+func TestRuntimeVersionBuildWiringUsesCanonicalVariable(t *testing.T) {
+	repoRoot := filepath.Clean(filepath.Join("..", ".."))
+	versionData, err := os.ReadFile(filepath.Join(repoRoot, "VERSION"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	version := strings.TrimSpace(string(versionData))
+	if _, ok := parseSemVersion(version); !ok {
+		t.Fatalf("VERSION is not valid SemVer: %q", version)
+	}
+	if runtimeversion.Current != version {
+		t.Fatalf("developer Runtime default %q does not match VERSION %q", runtimeversion.Current, version)
+	}
+
+	checks := map[string][]string{
+		"Makefile": {
+			`VERSION_FILE := $(CURDIR)/VERSION`,
+			`RUNTIME_VERSION_LDFLAGS := -X opendesk/pkg/runtimeversion.Current=$(VERSION)`,
+			`$(GO) build -ldflags "$(RUNTIME_VERSION_LDFLAGS)" -o dist/opendesk`,
+		},
+		"scripts/build_macos_app.sh": {
+			`VERSION_FILE="${ROOT_DIR}/VERSION"`,
+			`RUNTIME_VERSION_LDFLAGS="-X opendesk/pkg/runtimeversion.Current=${VERSION}"`,
+			`build -trimpath -ldflags "${RUNTIME_VERSION_LDFLAGS}" -o "${EXECUTABLE_STAGE}" ./cmd/opendesk`,
+			`<key>CFBundleShortVersionString</key>`,
+			`<string>${VERSION}</string>`,
+		},
+		"scripts/build_windows_app.ps1": {
+			`$versionFile = Join-Path $root 'VERSION'`,
+			`$runtimeVersionLdflags = "-X opendesk/pkg/runtimeversion.Current=$Version"`,
+			`go build -trimpath -ldflags $runtimeVersionLdflags -o $runtimePath ./cmd/opendesk`,
+		},
+		"scripts/build_windows_distribution.ps1": {
+			`$versionFile = Join-Path $root 'VERSION'`,
+			`Version = $Version`,
+			`runtimeCompatibilityVersion = $Version`,
+			`compatibilityVersion = $Version`,
+		},
+	}
+	for relativePath, snippets := range checks {
+		data, err := os.ReadFile(filepath.Join(repoRoot, relativePath))
+		if err != nil {
+			t.Fatal(err)
+		}
+		content := string(data)
+		for _, snippet := range snippets {
+			if !strings.Contains(content, snippet) {
+				t.Errorf("%s does not wire Runtime version through %q", relativePath, snippet)
+			}
+		}
+		if strings.Contains(content, `0.1.0`) {
+			t.Errorf("%s must read the release version source instead of owning a hard-coded default", relativePath)
+		}
 	}
 }
 

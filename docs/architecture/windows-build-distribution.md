@@ -77,7 +77,7 @@ For the complete P0 application:
 
 ## Distribution provenance
 
-`distribution-provenance.json` records the source commit, dirty flag, target/runtime architecture, executable SHA-256 hashes, PE machine values, UI host closure count, every Runtime asset path and SHA-256 digest, Go/.NET toolchain versions, canonical build command, and build timestamp.
+`distribution-provenance.json` records the source commit, dirty flag, injected Runtime compatibility version, target/runtime architecture, executable SHA-256 hashes, PE machine values, UI host closure count, every Runtime asset path and SHA-256 digest, Go/.NET toolchain versions, canonical build command, and build timestamp. The compatibility version comes from the repository-root `VERSION` file unless the same value is explicitly overridden through `-Version` or environment variable `VERSION`.
 
 This is build provenance for the portable directory. It is not code signing or an installer trust chain.
 

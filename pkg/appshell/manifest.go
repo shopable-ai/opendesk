@@ -154,7 +154,15 @@ func LoadPackage(packageDir string) (*Package, error) {
 func ParseManifest(data []byte) (Manifest, error) {
 	schemaVersion, hasSchemaVersion, err := detectManifestSchemaVersion(data)
 	if err != nil {
-		return Manifest{}, newPackageError(ErrManifestInvalid, "schemaVersion", "an integer when present", "invalid", "fix the manifest JSON and schemaVersion value", fmt.Errorf("invalid %s: %w", ManifestFileName, err))
+		field := "manifest"
+		expected := "one valid JSON object"
+		fix := "fix the manifest JSON syntax and keep exactly one JSON object"
+		if hasSchemaVersion {
+			field = "schemaVersion"
+			expected = "an integer when present"
+			fix = "set schemaVersion to an integer supported by this OpenDesk Runtime"
+		}
+		return Manifest{}, newPackageError(ErrManifestInvalid, field, expected, "invalid", fix, fmt.Errorf("invalid %s: %w", ManifestFileName, err))
 	}
 	if hasSchemaVersion && schemaVersion != CurrentManifestSchemaVersion {
 		return Manifest{}, newPackageError(
@@ -218,6 +226,9 @@ func detectManifestSchemaVersion(data []byte) (int, bool, error) {
 	if err := decoder.Decode(&envelope); err != nil {
 		return 0, false, err
 	}
+	if envelope == nil {
+		return 0, false, errors.New("manifest must be a JSON object")
+	}
 	if err := ensureJSONEOF(decoder); err != nil {
 		return 0, false, err
 	}
@@ -250,7 +261,7 @@ func (m *Manifest) Validate() error {
 	m.ID = strings.TrimSpace(m.ID)
 	if len(m.ID) > 255 || !packageIDPattern.MatchString(m.ID) || !validPackageIDSegments(m.ID) {
 		cause := fmt.Errorf("id %q is invalid: expected a lowercase reverse-DNS package identity", m.ID)
-		return newPackageError(ErrPackageIDInvalid, "id", "lowercase reverse-DNS identity, max 255 bytes and 63 bytes per segment", m.ID, "use a stable value such as com.example.my-app", cause)
+		return newPackageError(ErrPackageIDInvalid, "id", "lowercase reverse-DNS identity, max 255 bytes and 63 bytes per segment", packageErrorActual(m.ID), "use a stable value such as com.example.my-app", cause)
 	}
 	entry, err := validateSafeRelativePath("entry", m.Entry, true)
 	if err != nil {
@@ -372,7 +383,7 @@ func (m *Manifest) validateContractMetadata() error {
 	case CurrentManifestSchemaVersion:
 		m.Version = strings.TrimSpace(m.Version)
 		if _, ok := parseSemVersion(m.Version); !ok {
-			return newPackageError(ErrPackageVersionInvalid, "version", "SemVer such as 1.0.0", m.Version, "set version to a valid SemVer without a leading v", fmt.Errorf("version %q is invalid", m.Version))
+			return newPackageError(ErrPackageVersionInvalid, "version", "SemVer such as 1.0.0", packageErrorActual(m.Version), "set version to a valid SemVer without a leading v", fmt.Errorf("version %q is invalid", m.Version))
 		}
 		if m.Name != "" {
 			m.Name = strings.TrimSpace(m.Name)
@@ -391,7 +402,7 @@ func (m *Manifest) validateContractMetadata() error {
 			capability := strings.TrimSpace(m.Capabilities[i])
 			field := fmt.Sprintf("capabilities[%d]", i)
 			if !capabilityPattern.MatchString(capability) {
-				return newPackageError(ErrPackageCapabilityInvalid, field, "a lowercase capability token", capability, "use a stable token such as custom-ui or desktop-automation", fmt.Errorf("capability %q is invalid", capability))
+				return newPackageError(ErrPackageCapabilityInvalid, field, "a lowercase capability token", packageErrorActual(capability), "use a stable token such as custom-ui or desktop-automation", fmt.Errorf("capability %q is invalid", capability))
 			}
 			if _, exists := seen[capability]; exists {
 				return newPackageError(ErrPackageCapabilityInvalid, field, "unique capability tokens", capability, "remove the duplicate capability", fmt.Errorf("duplicate capability %q", capability))
@@ -417,7 +428,7 @@ func ValidateRuntimeCompatibility(manifest Manifest, currentRuntimeVersion strin
 	currentRuntimeVersion = strings.TrimSpace(currentRuntimeVersion)
 	current, ok := parseSemVersion(currentRuntimeVersion)
 	if !ok {
-		return newPackageError(ErrRuntimeVersionInvalid, "runtime", "a versioned OpenDesk Runtime", currentRuntimeVersion, "use an official versioned OpenDesk build", fmt.Errorf("OpenDesk Runtime version %q is invalid", currentRuntimeVersion))
+		return newPackageError(ErrRuntimeVersionInvalid, "runtime", "a versioned OpenDesk Runtime", packageErrorActual(currentRuntimeVersion), "use an official versioned OpenDesk build", fmt.Errorf("OpenDesk Runtime version %q is invalid", currentRuntimeVersion))
 	}
 	if compareSemVersion(current, required) < 0 {
 		return newPackageError(ErrRuntimeTooOld, "runtime.minVersion", ">="+minimum, currentRuntimeVersion, "upgrade OpenDesk before running this app package", fmt.Errorf("OpenDesk Runtime %s is older than required %s", currentRuntimeVersion, minimum))
@@ -563,7 +574,8 @@ func resolvePackageFile(root, field, relative string) (string, error) {
 	joined := filepath.Join(root, filepath.FromSlash(relative))
 	resolved, err := filepath.EvalSymlinks(joined)
 	if err != nil {
-		return "", newPackageError(ErrPackageResourceMissing, field, "an existing package-local regular file", relative, "add the referenced file inside the app package", fmt.Errorf("resolve %s: %w", field, err))
+		code, fix := missingPackageFileError(field)
+		return "", newPackageError(code, field, "an existing package-local regular file", packageErrorActual(relative), fix, fmt.Errorf("resolve %s: %w", field, err))
 	}
 	contained, err := filepath.Rel(root, resolved)
 	if err != nil || contained == ".." || strings.HasPrefix(contained, ".."+string(filepath.Separator)) || filepath.IsAbs(contained) {
@@ -572,13 +584,28 @@ func resolvePackageFile(root, field, relative string) (string, error) {
 	}
 	info, err := os.Stat(resolved)
 	if err != nil {
-		return "", newPackageError(ErrPackageResourceMissing, field, "an existing package-local regular file", relative, "add the referenced file inside the app package", fmt.Errorf("stat %s: %w", field, err))
+		code, fix := missingPackageFileError(field)
+		return "", newPackageError(code, field, "an existing package-local regular file", packageErrorActual(relative), fix, fmt.Errorf("stat %s: %w", field, err))
 	}
 	if !info.Mode().IsRegular() {
 		cause := fmt.Errorf("%s must reference a regular file", field)
 		return "", newPackageError(ErrPackageResourceInvalid, field, "a regular file", relative, "reference a regular file rather than a directory or special file", cause)
 	}
 	return filepath.Clean(resolved), nil
+}
+
+func missingPackageFileError(field string) (string, string) {
+	if field == "entry" {
+		return ErrPackageEntryMissing, "add the entry file inside the app package"
+	}
+	return ErrPackageResourceMissing, "add the referenced file inside the app package"
+}
+
+func packageErrorActual(value string) string {
+	if value == "" {
+		return "empty"
+	}
+	return value
 }
 
 func looksLikeWindowsDrivePath(value string) bool {

@@ -235,7 +235,12 @@ automation.app.onAction(event => {
 
 ```json
 {
+  "schemaVersion": 1,
   "id": "com.example.sync-helper",
+  "version": "1.0.0",
+  "runtime": {
+    "minVersion": "0.1.0"
+  },
   "entry": "main.js",
   "singleInstance": true,
   "window": { "mainId": "main", "closeBehavior": "hide" },
@@ -253,9 +258,12 @@ automation.app.onAction(event => {
       { "type": "separator" },
       { "id": "status", "label": "Status: idle", "enabled": false }
     ]
-  }
+  },
+  "capabilities": ["custom-ui"]
 }
 ```
+
+新 package 使用 `schemaVersion: 1`；缺失该字段只用于兼容既有 legacy package。Manifest schema version、App Package `version`、OpenDesk Runtime version 与应用自己的 user-data schema version 是四个独立版本。`capabilities` 仅是 declaration / prerequisite metadata，不授予权限，不建立 sandbox 或 security boundary。完整格式与错误码见 [App Package Format](../architecture/app-package-format.md)。
 
 `window.closeBehavior: "hide"` 仅在 tray 启用且 `primaryAction` 为 `opendesk.open` 时合法。Windows 用户 X 在 `FormClosing` 被取消并隐藏原窗口；macOS 用户关闭在 `windowShouldClose` 中 `orderOut` 并返回 `NO`。脚本、session 和 shutdown 发起的 programmatic close 在两个平台都真正销毁窗口。
 
