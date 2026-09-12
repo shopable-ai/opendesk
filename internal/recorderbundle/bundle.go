@@ -1,39 +1,35 @@
 package recorderbundle
 
 import (
-	"embed"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
+
+	recorderassets "opendesk/apps/opendesk/recorder"
 )
 
 const RecorderWindowID = "recording-console"
 
-// The Go package owns only release bundling/materialization. Recorder UI
-// implementation remains JavaScript under ui/.
-//
-//go:embed ui/controller.js ui/controller-core.js ui/recording-history.js ui/icons/countdown-1.png ui/icons/countdown-2.png ui/icons/countdown-3.png
-var assets embed.FS
-
+// WriteToDir materializes the canonical Recorder product resources for the
+// built-in secondary execution. Resource ownership remains under
+// apps/opendesk/recorder; this package is only a release/runtime adapter.
 func WriteToDir(root string) (string, error) {
 	if root == "" {
 		return "", fmt.Errorf("recorder UI root is required")
 	}
-	if err := fs.WalkDir(assets, "ui", func(path string, entry fs.DirEntry, walkErr error) error {
+	if err := fs.WalkDir(recorderassets.Assets, ".", func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
-		if path == "ui" {
+		if path == "." {
 			return nil
 		}
-		relative := strings.TrimPrefix(filepath.ToSlash(path), "ui/")
-		target := filepath.Join(root, "recording-console-simple", filepath.FromSlash(relative))
+		target := filepath.Join(root, "recording-console-simple", filepath.FromSlash(path))
 		if entry.IsDir() {
 			return os.MkdirAll(target, 0o755)
 		}
-		data, err := assets.ReadFile(path)
+		data, err := recorderassets.Assets.ReadFile(path)
 		if err != nil {
 			return err
 		}

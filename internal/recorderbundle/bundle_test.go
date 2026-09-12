@@ -1,10 +1,13 @@
 package recorderbundle
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	recorderassets "opendesk/apps/opendesk/recorder"
 )
 
 func TestWriteToDirIsSelfContained(t *testing.T) {
@@ -31,8 +34,15 @@ func TestWriteToDirIsSelfContained(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	canonicalController, err := recorderassets.Assets.ReadFile("controller.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(controller, canonicalController) {
+		t.Fatal("materialized Recorder controller must match the canonical product resource")
+	}
 	if strings.Contains(string(controller), "workflows/human-to-recipe/recording-console-simple") {
-		t.Fatal("embedded Recorder UI must not fall back to the source examples tree")
+		t.Fatal("embedded Recorder UI must not fall back to the source workflow tree")
 	}
 
 	entryContent, err := os.ReadFile(entry)
