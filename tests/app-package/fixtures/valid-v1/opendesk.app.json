@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "com.opendesk.test.contract-v1",
+  "version": "1.0.0",
+  "runtime": {
+    "minVersion": "0.1.0"
+  },
+  "entry": "main.js",
+  "singleInstance": false,
+  "window": {
+    "mainId": "contractMain",
+    "closeBehavior": "quit"
+  },
+  "tray": {
+    "enabled": false
+  },
+  "capabilities": ["custom-ui"]
+}

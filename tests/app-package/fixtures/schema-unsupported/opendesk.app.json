@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 999,
+  "id": "com.opendesk.test.schema-unsupported",
+  "version": "1.0.0",
+  "entry": "main.js",
+  "singleInstance": false,
+  "window": {
+    "mainId": "unsupportedSchemaMain",
+    "closeBehavior": "quit"
+  },
+  "tray": {
+    "enabled": false
+  }
+}

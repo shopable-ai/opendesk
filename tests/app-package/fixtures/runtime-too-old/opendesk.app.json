@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "com.opendesk.test.runtime-too-old",
+  "version": "1.0.0",
+  "runtime": {
+    "minVersion": "999.0.0"
+  },
+  "entry": "main.js",
+  "singleInstance": false,
+  "window": {
+    "mainId": "runtimeTooOldMain",
+    "closeBehavior": "quit"
+  },
+  "tray": {
+    "enabled": false
+  }
+}

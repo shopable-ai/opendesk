@@ -1,0 +1,12 @@
+{
+  "id": "com.opendesk.test.contract-legacy",
+  "entry": "main.js",
+  "singleInstance": false,
+  "window": {
+    "mainId": "legacyMain",
+    "closeBehavior": "quit"
+  },
+  "tray": {
+    "enabled": false
+  }
+}

@@ -7,7 +7,7 @@ VERSION_FILE := $(CURDIR)/VERSION
 VERSION ?= $(shell tr -d '[:space:]' < "$(VERSION_FILE)")
 RUNTIME_VERSION_LDFLAGS := -X opendesk/pkg/runtimeversion.Current=$(VERSION)
 
-.PHONY: help doctor setup deps fmt vet test test-core test-icons test-runtime-api test-runtime-api-live test-host-api test-host-api-live check-custom-ui-components validate-runtime-version build build-apple-vision-ocr build-macos smoke
+.PHONY: help doctor setup deps fmt vet test test-core test-icons test-app-package-contract test-runtime-api test-runtime-api-live test-host-api test-host-api-live check-custom-ui-components validate-runtime-version build build-apple-vision-ocr build-macos smoke
 
 help:
 	@echo "opendesk development targets:"
@@ -19,6 +19,7 @@ help:
 	@echo "  make test        Run the complete Go test suite"
 	@echo "  make test-core   Run core packages (skips known fixture/demo package conflicts)"
 	@echo "  make test-icons  Validate deterministic app icons and macOS bundle injection"
+	@echo "  make test-app-package-contract Build and test the App Package schema and Runtime loading contract"
 	@echo "  make test-runtime-api Run JavaScript Runtime API contract, unit, smoke, and acceptance gates"
 	@echo "  make test-runtime-api-live Run Runtime API tests against the Safari Test Lab"
 	@echo "  make check-custom-ui-components Build and run the HTML/Native UI component gates"
@@ -64,6 +65,10 @@ test-core:
 
 test-icons:
 	./scripts/test_app_icons.sh
+
+test-app-package-contract: build
+	$(GO) test ./pkg/appshell
+	node --test tests/app-package/runtime-contract.test.js
 
 test-runtime-api: build
 	./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script

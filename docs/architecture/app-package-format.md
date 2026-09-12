@@ -191,6 +191,14 @@ package root
 
 This order is deliberate. A package that needs a newer Runtime should fail with a compatibility diagnostic before an unrelated missing entry/resource error from code the current Runtime should not run.
 
+The maintained deterministic gate is run from the repository root:
+
+```bash
+make test-app-package-contract
+```
+
+It combines the Go schema/semantic/path matrix with real-Runtime fixtures for schema v1, legacy compatibility, minimum Runtime rejection, and unsupported-schema rejection. Machine-readable evidence is written to `.runtime/tests/app-package/runtime-contract.json`; fixture ownership and the broader release gates are documented in [`tests/app-package/README.md`](../../tests/app-package/README.md).
+
 ## Error model
 
 Package validation uses typed `PackageError` values with stable codes and optional field/expected/actual/fix context. P0 codes include:
