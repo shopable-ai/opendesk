@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "actions": {
+    "help": {
+      "visible": true,
+      "url": ""
+    },
+    "customize": {
+      "visible": true,
+      "url": ""
+    },
+    "marketplace": {
+      "visible": false,
+      "url": ""
+    },
+    "upgrade": {
+      "visible": false,
+      "url": ""
+    }
+  }
+}
