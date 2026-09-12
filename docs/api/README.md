@@ -48,9 +48,12 @@ order: 20
 
 ### 发布为可双击桌面应用
 
-已经有可运行的 OpenDesk JavaScript，希望增加 `opendesk.app.json`、App Shell、Tray/Menu Bar、Single Instance，或装入 macOS `.app` / Windows portable distribution 时，使用 [Script App Packaging](script-app-packaging.md)。
+已经有可运行的 OpenDesk JavaScript，希望增加 `opendesk.app.json`、App Shell、Tray/Menu Bar、Single Instance，或装入 macOS `.app` / Windows portable distribution 时，先区分构建者身份：
 
-该页说明 App Mode package 目录、开发态 `-app` 入口、macOS/Windows staging 和验证边界；静态 gate 与 machine-readable diagnostics 见 [App Package CLI](app-package-cli.md)，App 内 `automation.app` 的方法 Reference 仍在 [automation.app](app-shell.md)。Script App Packaging 不等于 `.odpkg` 源码保护，也不在 Manifest 中发明未实现的端口或 installer 配置。
+- 只安装预编译 OpenDesk Runtime/SDK 的应用作者使用 [Installed Runtime App Builder](app-builder.md)：从 package 的 `validate → doctor → build` 生成同平台 `.app` 或 Windows portable artifact，不需要 OpenDesk 源码或 Go。
+- OpenDesk 发行维护者、需要从当前源码制作 Runtime template 的开发者使用 [Script App Packaging](script-app-packaging.md)。
+
+静态 gate、machine-readable diagnostics 和 build CLI Reference 见 [App Package CLI](app-package-cli.md)，App 内 `automation.app` 的方法 Reference 仍在 [automation.app](app-shell.md)。App Mode packaging 不等于 `.odpkg` 源码保护，也不在 Manifest 中发明未实现的端口或 installer 配置。
 
 ### 发布受保护包
 
@@ -117,11 +120,12 @@ order: 20
 39. `http-server.md`：外部程序调用 OpenDesk 的 HTTP Server
 40. `scheduler.md`：Scheduler 功能、生命周期、持久化与本地管理页
 41. `scheduler-api.md`：Scheduler 独立 HTTP 协议契约
-42. `script-app-packaging.md`：已有 JavaScript → App Mode package → macOS/Windows 桌面发布产物
-43. `app-package-cli.md`：App Mode package 静态 validate/doctor、JSON diagnostics 与 exit status
-44. `protected-packages.md`：`.odpkg` packaging、P1/P2 License CLI、执行、安全边界与平台资格
-45. `cookbook.md`：可直接改造的脚本范例
-46. `examples/`：示例源码、直接运行命令与测试脚本索引
+42. `app-builder.md`：已安装 Runtime/SDK 的无源码 build、artifact layout、CI 和发布限制
+43. `script-app-packaging.md`：已有 JavaScript → App Mode package → 源码维护者的 Runtime template 发布
+44. `app-package-cli.md`：App Mode package validate/doctor/build、JSON diagnostics 与 exit status
+45. `protected-packages.md`：`.odpkg` packaging、P1/P2 License CLI、执行、安全边界与平台资格
+46. `cookbook.md`：可直接改造的脚本范例
+47. `examples/`：示例源码、直接运行命令与测试脚本索引
 
 ## 用用户调用边界分组，保持主 Reference 扁平
 
@@ -131,7 +135,7 @@ order: 20
 - **系统与数据**：`system.md`、`command.md`、`path.md`、`file.md`、`sqlite.md`、`storage.md`、`clipboard.md`
 - **网络与服务**：`http.md`、`http-server.md`、`scheduler.md`、`scheduler-api.md`
 - **运行时**：`environment.md`、`execution.md`、`runtime.md`、`global-apis.md`、`libs.md`、`native-extension.md`
-- **发布与交付**：`script-app-packaging.md`、`app-package-cli.md`、`protected-packages.md`
+- **发布与交付**：`app-builder.md`、`script-app-packaging.md`、`app-package-cli.md`、`protected-packages.md`
 - **实践范例**：`cookbook.md`、`examples/`
 
 ## 只有公开边界不同才拆成独立页面
@@ -143,7 +147,7 @@ order: 20
 - 系统通知 `notify()` 属于 `notify.md`；不要因为 `ui.toast()` 也是“提示”就把小写 `ui` 的完整 Reference 拆到通知文档。
 - 不同运行方向可以独立。例如 `http.md` 是脚本发起 HTTP 请求，`http-server.md` 是外部调用 OpenDesk 的服务协议。
 - 独立协议可以独立。例如 `scheduler-api.md` 是 Scheduler HTTP API，而 `scheduler.md` 说明 Scheduler 产品能力和生命周期。
-- 面向用户的独立发布流程可以有独立入口页，但不能重复同一 Runtime 对象的完整方法 Reference。例如 `script-app-packaging.md` 说明 App Mode package 与平台发布流程，`automation.app` 方法仍只在 `app-shell.md` 维护。
+- 面向用户的独立发布流程可以有独立入口页，但不能重复同一 Runtime 对象的完整方法 Reference。例如 `app-builder.md` 说明已安装 Runtime 的无源码 artifact 交付，`script-app-packaging.md` 说明 App Mode package 和源码维护者的 Runtime staging，`automation.app` 方法仍只在 `app-shell.md` 维护。
 
 ## docs/api 只记录可调用契约，不记录 Runtime 实现
 

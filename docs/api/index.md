@@ -30,6 +30,7 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先确定应用
 | 把已探索流程重复执行 | 保存 recipe，再使用 [AI CLI](ai-cli.md) 的 `run` |
 | 把 JavaScript 发布为 `.odpkg` 受保护包，或交接 P1/P2 License | [受保护包 CLI](protected-packages.md) |
 | 在 build/launch 前静态检查 `opendesk.app.json` package | [App Package CLI](app-package-cli.md) |
+| 只安装预编译 OpenDesk/SDK，生成可分发桌面应用 | [Installed Runtime App Builder](app-builder.md) |
 | 人工录制非敏感测试操作并生成基础 JS | [Recorder Runtime API](recorder-runtime.md) |
 | 运行带 tray / menu bar 的单实例桌面脚本应用 | [automation.app API](app-shell.md) |
 | 管理环境变量和默认输出 | [Environment Configuration](environment.md) |
@@ -63,6 +64,7 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先确定应用
 - 在本地 JavaScript execution 中运行命令行程序：[Command API](command.md)
 - 打包、验签、授权或执行 `.odpkg` 受保护包：[受保护包 CLI](protected-packages.md)
 - 静态验证或诊断 App Mode package：[App Package CLI](app-package-cli.md)
+- 不安装源码或 Go，把 App Mode package 生成 `.app` / Windows portable artifact：[Installed Runtime App Builder](app-builder.md)
 - 读写系统剪贴板：[Clipboard API](clipboard.md)
 - 订阅窗口、应用、剪贴板和显示器变化：[Desktop Events API](events.md)
 - 启动、等待、终止与重启应用：[App API](app.md)
@@ -105,7 +107,7 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先确定应用
 
 ### 发布和范例放在可调用 Reference 之后
 
-[Script App Packaging](script-app-packaging.md)、[App Package CLI](app-package-cli.md)、[受保护包 CLI](protected-packages.md)、[Cookbook](cookbook.md)、[Examples 快速索引](examples/README.md)
+[Installed Runtime App Builder](app-builder.md)、[Script App Packaging](script-app-packaging.md)、[App Package CLI](app-package-cli.md)、[受保护包 CLI](protected-packages.md)、[Cookbook](cookbook.md)、[Examples 快速索引](examples/README.md)
 
 ## 当前公开 API 按运行边界与稳定性归档
 
@@ -148,7 +150,7 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先确定应用
 | Global APIs | JavaScript Runtime | Stable | 计时器、等待、console、取消与参数工具 | [Global APIs](global-apis.md) |
 | lodash / moment / query-string / cheerio / beautify | JavaScript Runtime | Secondary | 脚本辅助库 | [JS Libraries](libs.md) |
 | `opendesk ai` | CLI | Stable | Coding Agent JSON desktop-tool surface 与 recipe 入口 | [AI CLI](ai-cli.md) |
-| App package commands | 本机 CLI | P1 | App Mode package 静态 validate/doctor 与 machine-readable diagnostics | [App Package CLI](app-package-cli.md) |
+| App package commands | 本机 CLI | P1 | App Mode package validate/doctor，以及从已安装同平台 Runtime 的无源码 build | [App Package CLI](app-package-cli.md) / [Installed Runtime App Builder](app-builder.md) |
 | Protected package commands | 本机 CLI | P0/P1/P2；平台资格见文档 | `.odpkg` packaging、P1 offline License、P2 online activation 与执行 | [受保护包 CLI](protected-packages.md) |
 | Scheduler | HTTP 模式 | Conditional | 持久化定时 JavaScript | [Scheduler](scheduler.md) / [Scheduler HTTP API](scheduler-api.md) |
 

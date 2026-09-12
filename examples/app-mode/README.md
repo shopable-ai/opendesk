@@ -17,6 +17,8 @@
 
 JSON Schema 位于 `schemas/app-package/opendesk.app.schema.json`，仓库已通过 editor workspace configuration 关联 `opendesk.app.json`。不要在 manifest 中加入 `$schema`；它不是 strict schema v1 的字段。
 
+若只安装了预编译 OpenDesk Runtime/SDK，不需要从本仓库或 Go toolchain 构建发布产物：按 [Installed Runtime App Builder](../../docs/api/app-builder.md) 对此 package 依次运行 `validate`、`doctor` 和 `opendesk app build`，生成同平台 macOS `.app` 或 Windows portable directory。Builder 不会执行本示例的 `main.js`；它只验证和 stage package。
+
 从仓库根目录运行当前正式构建：
 
 ```bash

@@ -76,6 +76,7 @@ examples/
 - [Notifications](notifications/README.md)：发送通知、等待/关闭通知。
 - [Events](events/README.md)：全局快捷键及权限准备。
 - [Scheduler](scheduler/README.md)：可直接运行、也可由 Scheduler 调度的安全任务脚本与验收命令。
+- [App Mode](app-mode/README.md)：`opendesk.app.json`、App Shell 与开发态示例；只安装预编译 Runtime/SDK 时用 [Installed Runtime App Builder](../docs/api/app-builder.md) 生成发布 artifact。
 - [Applications](app/README.md)：Calculator、WeChat、应用窗口清单、千牛等真实应用场景。
 
 已有独立专题目录如 `accessibility/`、`clipboard/`、`http/`、`sqlite/`、`native-extensions/` 保持其现有边界，不为了目录外观做无收益搬迁。
