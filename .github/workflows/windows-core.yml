@@ -64,7 +64,32 @@ jobs:
 
       - name: Build portable Windows distribution
         shell: pwsh
-        run: pwsh -NoProfile -File scripts/build_windows_distribution.ps1 -Runtime win-x64
+        run: pwsh -NoProfile -File scripts/build_windows_distribution.ps1 -Runtime win-x64 -AppModePackage apps/opendesk
+
+      - name: Verify product App Mode resources in Windows distribution
+        shell: pwsh
+        run: |
+          $distribution = ".\dist\windows\win-x64"
+          $required = @(
+            "app-mode\opendesk.app.json",
+            "app-mode\main.js",
+            "app-mode\recorder\controller.js",
+            "app-mode\recorder\controller-core.js",
+            "app-mode\recorder\recording-history.js",
+            "app-mode\recorder\icons\countdown-1.png",
+            "app-mode\recorder\icons\countdown-2.png",
+            "app-mode\recorder\icons\countdown-3.png"
+          )
+          foreach ($relative in $required) {
+            $path = Join-Path $distribution $relative
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+              throw "Windows distribution is missing product App Mode resource: $relative"
+            }
+          }
+          $provenance = Get-Content -LiteralPath (Join-Path $distribution "distribution-provenance.json") -Raw | ConvertFrom-Json
+          if ($provenance.layout.appModePackage -ne "app-mode/") {
+            throw "Windows distribution provenance does not declare the staged product App Mode package."
+          }
 
       - name: Run public Runtime window contract from distribution
         shell: pwsh
