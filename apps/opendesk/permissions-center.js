@@ -1,13 +1,36 @@
 (function installOpenDeskPermissionsCenter(global) {
   'use strict';
 
-  const PERMISSION_IDS = Object.freeze(['accessibility', 'screen-capture', 'input-monitoring', 'automation']);
   const MENU_ITEM_ID = 'open-permissions';
 
   function field(value, camel, pascal) {
     if (!value || typeof value !== 'object') return undefined;
     if (Object.prototype.hasOwnProperty.call(value, camel)) return value[camel];
     return value[pascal];
+  }
+
+  function permissionsFromReport(value) {
+    const permissions = field(value, 'permissions', 'Permissions');
+    return Array.isArray(permissions) ? permissions : [];
+  }
+
+  function basePermissionID(permission) {
+    return String(field(permission, 'id', 'ID') || '').split(':', 1)[0];
+  }
+
+  function controlKey(id) {
+    return String(id || '').replace(/[^A-Za-z0-9_-]/g, '-');
+  }
+
+  function permissionTitle(permission) {
+    const id = basePermissionID(permission);
+    const labels = {
+      accessibility: '辅助功能',
+      'screen-capture': '屏幕录制',
+      'input-monitoring': '输入监控',
+      automation: '自动化',
+    };
+    return labels[id] || String(field(permission, 'displayName', 'DisplayName') || id || '系统权限');
   }
 
   function statusLabel(status) {
@@ -65,30 +88,32 @@
     }
   }
 
-  function buildHTML() {
-    const rows = [
-      ['accessibility', '辅助功能'],
-      ['screen-capture', '屏幕录制'],
-      ['input-monitoring', '输入监控'],
-      ['automation', '自动化'],
-    ].map(([id, label]) => `
+  function rowsFromReport(report) {
+    return permissionsFromReport(report).map(permission => {
+      const id = basePermissionID(permission);
+      return {id, key: controlKey(id), title: permissionTitle(permission)};
+    }).filter(row => row.id);
+  }
+
+  function buildHTML(report) {
+    const rows = rowsFromReport(report).map(row => `
       <div class="permission-row">
         <div class="permission-main">
-          <div class="permission-title"><strong>${label}</strong><span id="status-${id}" class="status">正在检查…</span></div>
-          <p id="requirement-${id}" class="requirement">—</p>
-          <p id="description-${id}" class="description">—</p>
+          <div class="permission-title"><strong>${row.title}</strong><span id="status-${row.key}" class="status">正在检查…</span></div>
+          <p id="requirement-${row.key}" class="requirement">—</p>
+          <p id="description-${row.key}" class="description">—</p>
         </div>
         <div class="permission-actions">
-          <button id="request-${id}">请求授权</button>
-          <button id="settings-${id}">打开系统设置</button>
+          <button id="request-${row.key}">请求授权</button>
+          <button id="settings-${row.key}">打开系统设置</button>
         </div>
       </div>`).join('');
 
     return `<!doctype html><html><head><meta charset="utf-8"></head><body><main>
-      <header><div><strong class="page-title">权限管理</strong><p class="subtitle">OpenDesk 只在真正需要时请求系统权限。启动与刷新只检查状态，不会连续弹出授权窗口。</p></div><div class="header-actions"><button id="refresh">刷新</button><button id="close">关闭</button></div></header>
+      <header><div><strong class="page-title">权限管理</strong><p class="subtitle">OpenDesk 只在真正需要时请求系统权限。启动、刷新、聚焦窗口只检查状态，不会自动触发授权。</p></div><div class="header-actions"><button id="refresh">刷新</button><button id="close">关闭</button></div></header>
       <section class="summary"><div><span>整体状态</span><strong id="overall">正在检查…</strong></div><div><span>当前运行身份</span><strong id="identity">—</strong></div></section>
       <p id="notice" class="notice">正在静默检查权限，不会自动弹出系统授权窗口。</p>
-      <section class="permissions">${rows}</section>
+      <section class="permissions">${rows || '<p class="notice">当前 Runtime 未返回可管理的系统权限。</p>'}</section>
       <p class="footnote">“自动化”按目标应用单独授权。Windows 没有与 macOS TCC 对称的授权项，但普通权限 OpenDesk 仍可能无法控制管理员权限目标程序。</p>
     </main></body></html>`;
   }
@@ -112,19 +137,18 @@
     }
 
     let window = null;
+    let opening = null;
     let sequence = 0;
     let report = null;
+    let viewRows = [];
     let refreshing = false;
     let lastError = '';
+    const attemptedRequests = new Set();
+    const requesting = new Set();
 
     async function safeUpdate(id, patch) {
       if (!window) return;
       try { await window.control(id).update(patch); } catch (_) {}
-    }
-
-    function permissionsFromReport(value) {
-      const permissions = field(value, 'permissions', 'Permissions');
-      return Array.isArray(permissions) ? permissions : [];
     }
 
     function identityText(value) {
@@ -137,10 +161,12 @@
     }
 
     function permissionByID(value, id) {
-      return permissionsFromReport(value).find(permission => {
-        const permissionID = String(field(permission, 'id', 'ID') || '');
-        return permissionID === id || permissionID.indexOf(id + ':') === 0;
-      }) || null;
+      return permissionsFromReport(value).find(permission => basePermissionID(permission) === id) || null;
+    }
+
+    function ensureReport() {
+      if (!report) report = app.getPermissions('desktop-automation');
+      return report;
     }
 
     async function render(value, source) {
@@ -149,21 +175,22 @@
       await safeUpdate('identity', {text: identityText(value)});
       await safeUpdate('notice', {text: source ? `权限状态已刷新 · ${source}` : '权限状态已刷新。'});
 
-      for (const id of PERMISSION_IDS) {
-        const permission = permissionByID(value, id);
+      for (const row of viewRows) {
+        const permission = permissionByID(value, row.id);
         const status = String(field(permission, 'status', 'Status') || 'unknown');
         const requirement = String(field(permission, 'requirement', 'Requirement') || 'on-demand');
         const canRequest = field(permission, 'canRequest', 'CanRequest') === true;
         const canOpenSettings = field(permission, 'canOpenSettings', 'CanOpenSettings') === true;
         const ready = status === 'granted' || status === 'not_required';
-        await safeUpdate(`status-${id}`, {text: statusLabel(status)});
-        await safeUpdate(`requirement-${id}`, {text: requirementLabel(requirement)});
-        await safeUpdate(`description-${id}`, {text: permissionMessage(id, status)});
-        await safeUpdate(`request-${id}`, {
-          disabled: !canRequest || ready,
-          text: ready ? '已就绪' : (canRequest ? '请求授权' : (id === 'automation' ? '按目标应用请求' : '无需请求')),
+        const pending = requesting.has(row.id);
+        await safeUpdate(`status-${row.key}`, {text: statusLabel(status)});
+        await safeUpdate(`requirement-${row.key}`, {text: requirementLabel(requirement)});
+        await safeUpdate(`description-${row.key}`, {text: permissionMessage(row.id, status)});
+        await safeUpdate(`request-${row.key}`, {
+          disabled: !canRequest || ready || pending,
+          text: ready ? '已就绪' : (canRequest ? (attemptedRequests.has(row.id) ? '重新尝试' : '请求授权') : (row.id === 'automation' ? '按目标应用请求' : '无需请求')),
         });
-        await safeUpdate(`settings-${id}`, {disabled: !canOpenSettings, text: canOpenSettings ? '打开系统设置' : '无需系统设置'});
+        await safeUpdate(`settings-${row.key}`, {disabled: !canOpenSettings, text: canOpenSettings ? '打开系统设置' : '无需系统设置'});
       }
       return value;
     }
@@ -202,22 +229,37 @@
     }
 
     async function request(id) {
-      await safeUpdate('notice', {text: '正在请求所选权限；系统可能显示一次授权提示。'});
+      if (requesting.has(id)) return state();
+      const row = viewRows.find(item => item.id === id);
+      const key = row ? row.key : controlKey(id);
+      const force = attemptedRequests.has(id);
+      requesting.add(id);
+      await safeUpdate(`request-${key}`, {disabled: true, text: force ? '正在重新尝试…' : '正在请求…'});
+      await safeUpdate('notice', {text: force ? '正在按你的操作重新尝试授权；系统可能显示一次授权提示。' : '正在请求所选权限；系统可能显示一次授权提示。'});
       try {
-        await app.requestPermission(id);
+        await app.requestPermission(id, {force});
       } catch (error) {
         await safeUpdate('notice', {text: `请求授权失败：${error && error.message ? error.message : error}`});
+      } finally {
+        attemptedRequests.add(id);
+        requesting.delete(id);
       }
-      return refresh('请求授权后');
+      return refresh(force ? '重新尝试授权后' : '请求授权后');
     }
 
     async function openSettings(id) {
       await safeUpdate('notice', {text: '正在打开对应的系统设置…'});
       try {
-        await app.openPermissionSettings(id);
+        const result = await app.openPermissionSettings(id);
+        const fallback = field(result, 'fallback', 'Fallback') === true;
+        const guidance = String(field(result, 'guidance', 'Guidance') || '');
+        if (fallback) {
+          await safeUpdate('notice', {text: guidance ? `已打开“隐私与安全”。请手动前往：${guidance}` : '已打开“隐私与安全”，请手动选择对应权限项。'});
+        } else {
+          await safeUpdate('notice', {text: '已打开对应的系统设置。返回 OpenDesk 后可点击“刷新”重新检查状态。'});
+        }
       } catch (error) {
         await safeUpdate('notice', {text: `打开系统设置失败：${error && error.message ? error.message : error}`});
-        return state();
       }
       return state();
     }
@@ -225,14 +267,14 @@
     async function bind(win) {
       win.control('refresh').on('click', () => refresh('手动刷新'));
       win.control('close').on('click', () => win.close());
-      for (const id of PERMISSION_IDS) {
-        win.control(`request-${id}`).on('click', () => request(id));
-        win.control(`settings-${id}`).on('click', () => openSettings(id));
+      for (const row of viewRows) {
+        win.control(`request-${row.key}`).on('click', () => request(row.id));
+        win.control(`settings-${row.key}`).on('click', () => openSettings(row.id));
       }
       win.on('close', () => { if (window === win) window = null; });
     }
 
-    async function open(source) {
+    async function openInternal(source) {
       if (window) {
         try {
           await window.show();
@@ -242,6 +284,9 @@
           window = null;
         }
       }
+
+      const initialReport = ensureReport();
+      viewRows = rowsFromReport(initialReport);
       const next = await runtimeUI.createWindow({
         id: `permissionsCenter${++sequence}`,
         kind: 'floating',
@@ -250,13 +295,19 @@
         theme: 'dark',
         alwaysOnTop: false,
         draggable: true,
-        content: {html: buildHTML(), css: CSS},
+        content: {html: buildHTML(initialReport), css: CSS},
       });
       window = next;
       await bind(next);
       await next.show();
       await refresh(source || '打开');
       return state();
+    }
+
+    function open(source) {
+      if (opening) return opening;
+      opening = openInternal(source).finally(() => { opening = null; });
+      return opening;
     }
 
     async function preflight() {
@@ -274,6 +325,7 @@
     function state() {
       return Object.freeze({
         open: !!window,
+        opening: !!opening,
         refreshing,
         overall: report ? String(field(report, 'overall', 'Overall') || 'UNKNOWN') : 'UNKNOWN',
         lastError,
