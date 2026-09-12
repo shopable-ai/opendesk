@@ -4,6 +4,8 @@ main.js
 official-shell.js
 scheduler-client.js
 scheduler-center.js
+permissions-center.js
+runtime-log.js
 script-runner-simple.js
 script-runner/controller.js
 assets/official-shell.odcfg
