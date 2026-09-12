@@ -51,6 +51,15 @@ jobs:
         if: runner.os == 'Windows'
         with:
           dotnet-version: '8.0.x'
+      - name: Test Scheduler store concurrency
+        if: runner.os != 'Linux'
+        run: go test ./pkg/scheduler ./tests/scheduler -count=1
+      - name: Run Scheduler multi-runtime ownership harness
+        if: runner.os != 'Linux'
+        run: go run ./tests/scheduler/tools/multiruntime
+      - name: Race-test Scheduler ownership harness on macOS
+        if: runner.os == 'macOS'
+        run: go run -race ./tests/scheduler/tools/multiruntime
       - name: Build paired Runtime (platform assembly compile gate)
         if: runner.os != 'Linux'
         shell: bash
@@ -66,15 +75,6 @@ jobs:
       - name: Test Inspector runtime endpoint propagation
         if: runner.os != 'Linux'
         run: go test ./pkg/http -run 'TestInspectorNetworkPolicyUsesOwnerProvidedRuntimePort' -count=1
-      - name: Test Scheduler store concurrency
-        if: runner.os != 'Linux'
-        run: go test ./pkg/scheduler ./tests/scheduler -count=1
-      - name: Run Scheduler multi-runtime ownership harness
-        if: runner.os != 'Linux'
-        run: go run ./tests/scheduler/tools/multiruntime
-      - name: Race-test Scheduler ownership harness on macOS
-        if: runner.os == 'macOS'
-        run: go run -race ./tests/scheduler/tools/multiruntime
       - name: Test App Shell single-instance seams
         if: runner.os != 'Linux'
         run: go test ./pkg/appshell -run 'SingleInstance' -count=1
