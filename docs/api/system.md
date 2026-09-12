@@ -9,6 +9,7 @@ order: 380
 System 提供系统信息与基础系统操作能力。
 
 适用场景
+- 获取 OpenDesk Runtime-owned 产品身份
 - 获取系统信息、硬件指标
 - 列出进程与网络连接
 - 读取当前工作目录、可执行文件路径
@@ -20,8 +21,9 @@ System 提供系统信息与基础系统操作能力。
 
 ## System：方法总表
 
-| 方法 | 用途 |
+| 方法 / 属性 | 用途 |
 | --- | --- |
+| System.product | 只读 OpenDesk 产品身份；包含 id、name、website |
 | System.delay(milliseconds) | 非阻塞等待，不休眠主机 |
 | System.getPlatformInfo() | 获取 Runtime OS、架构和进程信息 |
 | System.getEnv(name, fallback?) | 从本次 execution 的有效环境快照读取一个键 |
@@ -50,6 +52,50 @@ System 提供系统信息与基础系统操作能力。
 | System.toJSON(data) | 美化 JSON 字符串 |
 
 ## System：常用方法
+
+## System.product
+
+Runtime-owned、只读的 OpenDesk 产品身份。
+
+**签名**
+
+```js
+System.product.id
+System.product.name
+System.product.website
+```
+
+**参数**
+
+无。
+
+**返回值**
+
+`System.product` 是冻结的只读对象，当前包含：
+
+```json
+{
+  "id": "com.opendesk.desktop",
+  "name": "OpenDesk",
+  "website": "https://github.com/shopable-ai/opendesk"
+}
+```
+
+**行为与错误**
+
+- `System.product` 由 Runtime bootstrap 安装，不来自 `.env`、`opendesk.app.json` 或用户脚本配置；
+- `System.product` 本身不能被替换，`id`、`name`、`website` 也不能被修改；
+- 官方 Script Runner、Recorder 等品牌入口应读取 `System.product.website`，不要各自硬编码官网 URL；
+- 该对象只保存公开产品身份，不存 token、License key、私钥或其他 secret。
+
+**示例**
+
+```js
+console.log(System.product.name);
+await page.openURL(System.product.website);
+```
+
+官方运营入口（Help、Customize、Marketplace、Upgrade）不属于 `System.product`；它们由 Official Shell 的 publisher-owned 配置维护。
 
 ## System.delay(milliseconds)
 
