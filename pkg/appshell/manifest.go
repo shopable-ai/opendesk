@@ -13,8 +13,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-
-	"opendesk/pkg/runtimeversion"
 )
 
 const ManifestFileName = "opendesk.app.json"
@@ -103,52 +101,11 @@ func LoadManifest(packageDir string) (Manifest, error) {
 }
 
 func LoadPackage(packageDir string) (*Package, error) {
-	root, err := canonicalPackageRoot(packageDir)
+	validation, err := ValidatePackage(packageDir)
 	if err != nil {
 		return nil, err
 	}
-	manifestPath := filepath.Join(root, ManifestFileName)
-	data, err := os.ReadFile(manifestPath)
-	if err != nil {
-		code := ErrManifestInvalid
-		fix := "make sure the package contains a readable opendesk.app.json"
-		if os.IsNotExist(err) {
-			code = ErrManifestNotFound
-			fix = "add opendesk.app.json at the package root"
-		}
-		return nil, newPackageError(code, ManifestFileName, "a readable manifest file", manifestPath, fix, fmt.Errorf("read %s: %w", manifestPath, err))
-	}
-	manifest, err := ParseManifest(data)
-	if err != nil {
-		return nil, err
-	}
-	if err := ValidateRuntimeCompatibility(manifest, runtimeversion.Current); err != nil {
-		return nil, err
-	}
-	entryPath, err := resolvePackageFile(root, "entry", manifest.Entry)
-	if err != nil {
-		return nil, err
-	}
-	appPackage := &Package{Root: root, ManifestPath: manifestPath, EntryPath: entryPath, Manifest: manifest}
-	if manifest.Tray.Enabled {
-		appPackage.WindowsIconPath, err = resolvePackageFile(root, "tray.icons.windows", manifest.Tray.Icons.Windows)
-		if err != nil {
-			return nil, err
-		}
-		if err := validateWindowsTrayIcon(appPackage.WindowsIconPath); err != nil {
-			cause := fmt.Errorf("validate tray.icons.windows %s: %w", appPackage.WindowsIconPath, err)
-			return nil, newPackageError(ErrPackageResourceInvalid, "tray.icons.windows", "a valid Windows .ico file", appPackage.WindowsIconPath, "replace the invalid tray icon with a valid package-local .ico resource", cause)
-		}
-		appPackage.MacOSIconPath, err = resolvePackageFile(root, "tray.icons.macos", manifest.Tray.Icons.MacOS)
-		if err != nil {
-			return nil, err
-		}
-		if err := validateMacOSTemplateIcon(appPackage.MacOSIconPath); err != nil {
-			cause := fmt.Errorf("validate tray.icons.macos %s: %w", appPackage.MacOSIconPath, err)
-			return nil, newPackageError(ErrPackageResourceInvalid, "tray.icons.macos", "a valid macOS template PNG", appPackage.MacOSIconPath, "replace the invalid tray icon with a valid package-local template PNG", cause)
-		}
-	}
-	return appPackage, nil
+	return validation.Package, nil
 }
 
 func ParseManifest(data []byte) (Manifest, error) {
@@ -215,7 +172,18 @@ func ParseManifest(data []byte) (Manifest, error) {
 		manifest.SchemaVersion = *wire.SchemaVersion
 	}
 	if err := manifest.Validate(); err != nil {
-		return Manifest{}, err
+		var packageErr *PackageError
+		if errors.As(err, &packageErr) {
+			return Manifest{}, err
+		}
+		return Manifest{}, newPackageError(
+			ErrManifestInvalid,
+			"manifest",
+			"a semantically valid App Package manifest",
+			"invalid",
+			"fix the reported manifest constraint",
+			err,
+		)
 	}
 	return manifest, nil
 }

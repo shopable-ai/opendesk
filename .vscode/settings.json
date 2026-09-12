@@ -1,0 +1,10 @@
+{
+  "json.schemas": [
+    {
+      "fileMatch": [
+        "/**/opendesk.app.json"
+      ],
+      "url": "./schemas/app-package/opendesk.app.schema.json"
+    }
+  ]
+}

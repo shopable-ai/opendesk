@@ -28,6 +28,8 @@ Script App Packaging 用于把已经写好并验证过的 OpenDesk JavaScript �
 | 能力 | 当前公开入口 | 说明 |
 | --- | --- | --- |
 | 开发态运行 App Mode package | `opendesk -app <directory>` | 显式读取该目录中的 `opendesk.app.json` |
+| 静态 package gate | `opendesk app validate <directory> [--json]` | 复用 Runtime validator，不执行业务 JavaScript |
+| 分阶段诊断 | `opendesk app doctor <directory> [--json]` | 输出 PASS / FAIL / SKIP / NOT CHECKED 和字段级修复信息 |
 | App Manifest | `opendesk.app.json` | 定义 package identity/version、Runtime compatibility、entry、single instance、主窗口与 tray/menu |
 | macOS 桌面发布 | `scripts/build_macos_app.sh` + `APP_MODE_PACKAGE` | 把 package staging 到 `OpenDesk.app/Contents/Resources/AppMode/` |
 | Windows 桌面发布 | `scripts/build_windows_distribution.ps1 -AppModePackage ...` | 把 package staging 到 portable distribution 的 `app-mode/` |
@@ -102,7 +104,21 @@ my-app/
 make build
 ```
 
-然后运行 package：
+先做不会执行 `main.js` 或启动窗口/tray 的静态 gate：
+
+```bash
+./dist/opendesk app validate /absolute/path/to/my-app
+./dist/opendesk app doctor /absolute/path/to/my-app
+```
+
+Agent / CI 使用完整 JSON envelope，不解析 stderr：
+
+```bash
+./dist/opendesk app validate /absolute/path/to/my-app --json
+./dist/opendesk app doctor /absolute/path/to/my-app --json
+```
+
+`validate`/`doctor` 与 Runtime startup 复用 `pkg/appshell.ValidatePackage()`；只有静态 gate 通过后，再运行 package：
 
 ```bash
 ./dist/opendesk -app /absolute/path/to/my-app -console-mode script
@@ -117,6 +133,8 @@ make build
 开发态的 `-app` 是显式 package 入口。普通 `-script`、`-script-text`、HTTP、MCP 或 Scheduler execution 不会因为附近存在 `opendesk.app.json` 就自动进入 App Mode。
 
 Package loader 在业务代码执行前按以下顺序处理：schema/JSON → semantic validation → Runtime compatibility → entry/resource containment。绝对路径、`../`、Windows drive path、symlink escape、缺失文件和目录型 entry 都会 fail closed。
+
+正式 Draft 2020-12 authoring schema 位于 [`schemas/app-package/opendesk.app.schema.json`](../../schemas/app-package/opendesk.app.schema.json)。仓库使用 editor workspace association；不要向 manifest 添加 `$schema`，因为它不是 schema v1 字段，strict Runtime 会按 unknown field 拒绝。
 
 ## macOS 发布
 
@@ -172,16 +190,18 @@ Windows developer/distribution builder 读取同一个根目录 `VERSION`（也�
 
 1. package 根目录存在严格有效的 schema-v1 `opendesk.app.json`；`entry` 与图标资源都留在 package root 内。
 2. `schemaVersion`、package `version` 与可选 `runtime.minVersion` 符合 [App Package Format](../architecture/app-package-format.md)。
-3. `./dist/opendesk -app <package> -console-mode script` 可以从仓库根目录按原命令启动。
-4. 主窗口 `id` 与 `window.mainId` 一致；Tray/Menu Bar 的 Open、业务 action、Quit 使用同一个 Runtime。
-5. `singleInstance` 行为符合预期；同一 package 的第二次启动不重复执行 `main.js`。
-6. macOS 发布时检查实际 `.app` 中的 `Contents/Resources/AppMode/`；Windows 发布时检查实际 portable 目录中的 `app-mode/`。
-7. cross-build / package layout 检查只证明构建和 staging，不等于目标系统 live UI 验证。
-8. 若交付目标包含代码保密或客户授权，单独进入 `.odpkg` / License 流程；不要把 App Mode packaging 本身描述为源码保护。
+3. `./dist/opendesk app validate <package> --json` 返回 exit `0` 和 `ok: true`；需要解释时再运行 Doctor。
+4. `./dist/opendesk -app <package> -console-mode script` 可以从仓库根目录按原命令启动。
+5. 主窗口 `id` 与 `window.mainId` 一致；Tray/Menu Bar 的 Open、业务 action、Quit 使用同一个 Runtime。
+6. `singleInstance` 行为符合预期；同一 package 的第二次启动不重复执行 `main.js`。
+7. macOS 发布时检查实际 `.app` 中的 `Contents/Resources/AppMode/`；Windows 发布时检查实际 portable 目录中的 `app-mode/`。
+8. cross-build / package layout 检查只证明构建和 staging，不等于目标系统 live UI 验证。
+9. 若交付目标包含代码保密或客户授权，单独进入 `.odpkg` / License 流程；不要把 App Mode packaging 本身描述为源码保护。
 
 ## 相关入口
 
 - [App Package Format](../architecture/app-package-format.md)：`opendesk.app.json` schema、version、compatibility、path security、error model 与 legacy policy。
+- [App Package CLI](app-package-cli.md)：静态 validate/doctor、JSON diagnostics 与 exit status。
 - [automation.app](app-shell.md)：App Mode lifecycle、tray/menu 与 Manifest Runtime 语义。
 - [Examples: App Mode](../../examples/app-mode/README.md)：最小可运行示例。
 - [App Mode desktop launch contract](../architecture/app-mode-desktop-launch.md)：开发与 release staging 的架构边界及验证证据。

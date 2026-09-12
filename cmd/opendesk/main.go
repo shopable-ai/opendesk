@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"opendesk/automation"
 	"opendesk/internal/aicli"
+	"opendesk/internal/appcli"
 	"opendesk/internal/licensecli"
 	"opendesk/internal/packagecli"
 	pkgContainer "opendesk/pkg/container"
@@ -333,6 +334,9 @@ func main() {
 	normalizeMacOSBundleLaunchWorkingDirectory()
 	os.Stdout.Sync()
 	args := commandLineArgs()
+	if appcli.IsCommand(args) {
+		os.Exit(appcli.Execute(args, os.Stdout, os.Stderr))
+	}
 	if packagecli.IsCommand(args) {
 		os.Exit(packagecli.Execute(args, os.Stdout, os.Stderr))
 	}

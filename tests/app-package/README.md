@@ -9,8 +9,14 @@ make test-app-package-contract
 ```
 
 The target builds the current Runtime with the repository `VERSION`, runs the
-Go schema/semantic/path contract in `pkg/appshell/manifest_test.go`, and then
-runs `runtime-contract.test.js` against the real `dist/opendesk` binary.
+Go semantic/path contract in `pkg/appshell`, compiles the Draft 2020-12 authoring
+schema and checks Schema/Runtime parity in `internal/appcli`, validates both
+maintained App Mode packages through the real `dist/opendesk app validate
+--json` CLI, and then runs `runtime-contract.test.js` against the real binary.
+
+Schema parity uses a pinned test-only standards implementation rather than a
+handwritten partial JSON Schema interpreter. The dependency is not linked into
+the Runtime binary; production validation remains `pkg/appshell.ValidatePackage()`.
 
 The Runtime smoke covers:
 
@@ -20,6 +26,9 @@ The Runtime smoke covers:
 | `fixtures/valid-legacy` | manifest without `schemaVersion` remains compatible |
 | `fixtures/runtime-too-old` | `APP_RUNTIME_TOO_OLD` before entry output |
 | `fixtures/schema-unsupported` | `APP_PACKAGE_SCHEMA_UNSUPPORTED` before entry output |
+
+CI additionally validates `examples/app-mode/basic` and `apps/opendesk` through
+the built macOS/Windows CLI before distribution or App Shell launch.
 
 Machine-readable evidence is written to:
 

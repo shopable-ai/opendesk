@@ -58,6 +58,10 @@ jobs:
         shell: pwsh
         run: go test ./pkg/customui/...
 
+      - name: Test App Package developer tooling
+        shell: pwsh
+        run: go test ./internal/appcli ./pkg/appshell -count=1
+
       - name: Run deterministic Window Manager seams
         shell: pwsh
         run: go test ./automation -run '^TestWindowsWindowManager' -count=1
@@ -90,6 +94,15 @@ jobs:
           if ($provenance.layout.appModePackage -ne "app-mode/") {
             throw "Windows distribution provenance does not declare the staged product App Mode package."
           }
+
+      - name: Validate maintained App Mode packages through the Windows CLI
+        shell: pwsh
+        run: |
+          $runtime = ".\dist\windows\win-x64\opendesk.exe"
+          & $runtime app validate examples/app-mode/basic --json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $runtime app validate apps/opendesk --json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Run public Runtime window contract from distribution
         shell: pwsh

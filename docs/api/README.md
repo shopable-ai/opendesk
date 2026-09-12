@@ -50,7 +50,7 @@ order: 20
 
 已经有可运行的 OpenDesk JavaScript，希望增加 `opendesk.app.json`、App Shell、Tray/Menu Bar、Single Instance，或装入 macOS `.app` / Windows portable distribution 时，使用 [Script App Packaging](script-app-packaging.md)。
 
-该页说明 App Mode package 目录、开发态 `-app` 入口、macOS/Windows staging 和验证边界；App 内 `automation.app` 的方法 Reference 仍在 [automation.app](app-shell.md)。Script App Packaging 不等于 `.odpkg` 源码保护，也不在 Manifest 中发明未实现的端口或 installer 配置。
+该页说明 App Mode package 目录、开发态 `-app` 入口、macOS/Windows staging 和验证边界；静态 gate 与 machine-readable diagnostics 见 [App Package CLI](app-package-cli.md)，App 内 `automation.app` 的方法 Reference 仍在 [automation.app](app-shell.md)。Script App Packaging 不等于 `.odpkg` 源码保护，也不在 Manifest 中发明未实现的端口或 installer 配置。
 
 ### 发布受保护包
 
@@ -118,9 +118,10 @@ order: 20
 40. `scheduler.md`：Scheduler 功能、生命周期、持久化与本地管理页
 41. `scheduler-api.md`：Scheduler 独立 HTTP 协议契约
 42. `script-app-packaging.md`：已有 JavaScript → App Mode package → macOS/Windows 桌面发布产物
-43. `protected-packages.md`：`.odpkg` packaging、P1/P2 License CLI、执行、安全边界与平台资格
-44. `cookbook.md`：可直接改造的脚本范例
-45. `examples/`：示例源码、直接运行命令与测试脚本索引
+43. `app-package-cli.md`：App Mode package 静态 validate/doctor、JSON diagnostics 与 exit status
+44. `protected-packages.md`：`.odpkg` packaging、P1/P2 License CLI、执行、安全边界与平台资格
+45. `cookbook.md`：可直接改造的脚本范例
+46. `examples/`：示例源码、直接运行命令与测试脚本索引
 
 ## 用用户调用边界分组，保持主 Reference 扁平
 
@@ -130,7 +131,7 @@ order: 20
 - **系统与数据**：`system.md`、`command.md`、`path.md`、`file.md`、`sqlite.md`、`storage.md`、`clipboard.md`
 - **网络与服务**：`http.md`、`http-server.md`、`scheduler.md`、`scheduler-api.md`
 - **运行时**：`environment.md`、`execution.md`、`runtime.md`、`global-apis.md`、`libs.md`、`native-extension.md`
-- **发布与交付**：`script-app-packaging.md`、`protected-packages.md`
+- **发布与交付**：`script-app-packaging.md`、`app-package-cli.md`、`protected-packages.md`
 - **实践范例**：`cookbook.md`、`examples/`
 
 ## 只有公开边界不同才拆成独立页面

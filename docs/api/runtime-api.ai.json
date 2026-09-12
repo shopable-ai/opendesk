@@ -10,7 +10,7 @@
   },
   "entrypoints": {
 		"cli": {"file": "opendesk -script <file.js>", "inline": "opendesk -script-text \"...\"", "stdin": "opendesk -script-stdin", "runtimeMode": "Use the default JavaScript Runtime. Do not add the compatibility-only -stack flag to new commands."},
-		"appMode": {"command": "opendesk -app <directory>", "manifest": "opendesk.app.json", "docs": "docs/api/app-shell.md", "runtimeMode": "One execution-owned App Shell and one existing Goja Runtime; no default deadline."},
+		"appMode": {"command": "opendesk -app <directory>", "validationCommands": "opendesk app validate|doctor <directory> [--json]", "manifest": "opendesk.app.json", "schema": "schemas/app-package/opendesk.app.schema.json", "docs": "docs/api/app-shell.md", "cliDocs": "docs/api/app-package-cli.md", "runtimeMode": "One execution-owned App Shell and one existing Goja Runtime; static validation never executes entry JavaScript."},
     "aiCli": {"command": "opendesk ai schema", "docs": "docs/api/ai-cli.md", "stdout": "single JSON envelope only", "purpose": "Low-token desktop tool surface for coding agents; reuses Stable Runtime services and Execution evidence."},
     "protectedPackages": {"packageCommands": "opendesk package protect|inspect|verify", "licenseCommands": "opendesk license device|issue|inspect|verify|install|activate|status|refresh|deactivate", "execution": "opendesk -script <package.odpkg> or opendesk ai run <package.odpkg>", "docs": "docs/api/protected-packages.md", "sourceOwners": ["internal/packagecli", "internal/licensecli", "pkg/scriptpackage", "pkg/licensing", "pkg/entitlement", "pkg/scriptloader"], "purpose": "Publish, license, activate, and execute OpenDesk protected packages; authoring workflows continue to produce ordinary JavaScript."},
     "httpServer": {"command": "opendesk -http", "defaultPort": 60844},
@@ -319,7 +319,7 @@
     "vision": ["vision.md", "image-color.md"],
     "systemData": ["system.md", "execution.md", "command.md", "file.md", "sqlite.md", "storage.md", "clipboard.md"],
     "network": ["http.md", "http-server.md"],
-    "delivery": ["protected-packages.md"],
+    "delivery": ["script-app-packaging.md", "app-package-cli.md", "protected-packages.md"],
     "runtime": ["environment.md", "execution.md", "runtime.md", "command.md", "notify.md", "audio.md", "sound.md", "custom-ui.md", "native-extension.md", "global-apis.md", "libs.md"],
     "examples": "cookbook.md"
   }

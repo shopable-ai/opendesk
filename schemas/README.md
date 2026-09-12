@@ -7,6 +7,7 @@
 ## 目录边界
 
 - `automation/`：视觉理解、语义推理、动作决策、golden sample 和 replay 工件。
+- `app-package/`：App Mode `opendesk.app.json` 的公开 authoring schema；Runtime loader 仍是最终校验 authority。
 - `runtime-api/`：JavaScript Runtime API catalog、事件、证据清单和运行摘要。
 
 新增 Schema 必须满足：

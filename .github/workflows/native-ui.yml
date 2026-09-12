@@ -9,13 +9,16 @@ on:
       - 'go.sum'
       - 'cmd/opendesk/**'
       - 'cmd/opendesk-ui-host/**'
-      - 'internal/recorderbundle/**'
+      - 'internal/appcli/**'
+      - 'apps/opendesk/recorder/**'
+      - 'apps/opendesk/opendesk.app.json'
       - 'internal/processlock/**'
       - 'internal/recorderbundle/**'
       - 'pkg/execution/**'
       - 'pkg/runtimeconfig/**'
       - 'pkg/customui/**'
       - 'pkg/appshell/**'
+      - 'schemas/app-package/**'
       - 'pkg/http/**'
       - 'pkg/scheduler/**'
       - 'automation/custom_ui*'
@@ -27,6 +30,7 @@ on:
       - 'tests/custom-ui/**'
       - 'tests/scheduler/**'
       - 'examples/custom-ui/**'
+      - 'examples/app-mode/**'
       - 'workflows/human-to-recipe/**'
       - 'scripts/build_windows*'
       - 'scripts/build_macos_app.sh'
@@ -85,6 +89,15 @@ jobs:
       - name: Test App Package contract
         if: runner.os != 'Linux'
         run: go test ./pkg/appshell -run '^Test(ParseManifest|Manifest|LoadPackage|PackageError|RuntimeCompatibility|RuntimeVersion|MacOSTemplateIcon|WindowsTrayIcon)' -count=1
+      - name: Test App Package developer tooling
+        run: go test ./internal/appcli ./pkg/appshell -count=1
+      - name: Validate maintained App Mode packages through the CLI
+        if: runner.os != 'Linux'
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = Windows ]; then bin=./dist/opendesk.exe; else bin=./dist/opendesk; fi
+          "$bin" app validate examples/app-mode/basic --json
+          "$bin" app validate apps/opendesk --json
       - name: Test native UI internal seams
         run: go test ./pkg/customui/...
       - name: Test test-architecture invariants

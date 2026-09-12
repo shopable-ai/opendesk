@@ -37,6 +37,15 @@ make build
 ./dist/opendesk -app examples/app-mode/basic -console-mode script
 ```
 
+启动前可以先从仓库根目录运行静态 package gate；这些命令不执行 `main.js`、不创建窗口或 tray：
+
+```bash
+./dist/opendesk app validate examples/app-mode/basic
+./dist/opendesk app doctor examples/app-mode/basic
+```
+
+Agent / CI 使用 `--json` 获取字段级 `PackageError` 和 Doctor checks。完整 CLI contract 见 [App Package CLI](app-package-cli.md)。
+
 应用包必须包含严格的 `opendesk.app.json`。`id` 使用小写 reverse-DNS identity；`entry`、Windows `.ico` 和 macOS template PNG 都是包内相对路径。`window.mainId` 必须与入口脚本创建的 Custom UI window `id` 一致。
 
 `-app` 与 `-script`、`-script-text`、`-script-stdin`、`-http`、vision、native-extension 和内部 helper 模式互斥。App Mode 默认没有 30 分钟 deadline；操作系统信号、系统 Quit、主窗口的 `closeBehavior: "quit"` 或 `automation.app.quit()` 都进入同一 execution-owned shutdown。
@@ -333,6 +342,8 @@ go test ./pkg/appshell -run 'TestWindows(SingleInstance|Tray|NativeHost)' -count
 | `APP_SHELL_ERROR` | native update 或 lifecycle operation 失败。 |
 
 ### 启动错误与排障
+
+对 package/compatibility/resource 问题，优先运行 `./dist/opendesk app doctor <package-dir>`；解析或早期校验失败后的阶段会显示 `NOT CHECKED`，不会制造假 PASS。
 
 | 错误片段 | 原因 | 处理 |
 | --- | --- | --- |

@@ -191,6 +191,8 @@ package root
 
 This order is deliberate. A package that needs a newer Runtime should fail with a compatibility diagnostic before an unrelated missing entry/resource error from code the current Runtime should not run.
 
+`pkg/appshell.ValidatePackage()` owns this static pipeline. Runtime startup through `LoadPackage()`, `opendesk app validate`, and `opendesk app doctor` all consume that implementation and its typed `PackageError`; the CLI does not maintain another parser, SemVer implementation, resource resolver, or capability validator. Static validation reads the manifest and referenced resources but never executes `entry` or starts App Shell/native UI.
+
 The maintained deterministic gate is run from the repository root:
 
 ```bash
@@ -226,6 +228,10 @@ Human-readable details remain actionable, while callers/tests can classify failu
 OpenDesk deliberately rejects unknown semantic fields in the current schema. This prevents misspellings such as `runtime.minVerison` from silently behaving as if no compatibility requirement were declared.
 
 Future additive metadata must first become part of a supported schema/contract. A future schema version fails closed on an older Runtime.
+
+The maintained authoring schema is [`schemas/app-package/opendesk.app.schema.json`](../../schemas/app-package/opendesk.app.schema.json), with canonical `$id` `https://opendesk.dev/schemas/app-package/opendesk.app.schema.json`. It describes schema v1 only; legacy v0 remains a Runtime compatibility contract, not a recommended authoring format.
+
+`$schema` is intentionally **not** an `opendesk.app.json` v1 property. Adding it would cause previously released strict schema-v1 Runtimes to reject the same manifest. Repository editor integration therefore associates `**/opendesk.app.json` through `.vscode/settings.json`; other editors should use an equivalent filename/workspace association. JSON Schema is early authoring feedback, while `pkg/appshell` remains authoritative for normalized semantics, Runtime compatibility, real resources, and canonical/symlink containment.
 
 ## Distribution
 
@@ -287,7 +293,7 @@ Once these gates are green, schema v1 should be frozen except for corrections th
 
 ### P1-A: App Package Developer Experience
 
-This is the recommended next milestone after P0 qualification.
+P1 developer tooling is implemented around the frozen schema-v1 Runtime contract.
 
 The target authoring flow is:
 
@@ -302,14 +308,14 @@ write opendesk.app.json
 → launch
 ```
 
-Recommended capabilities:
+Current capabilities:
 
-- publish a machine-readable JSON Schema for schema v1 so editors, CI, generators, and Agents can validate structure before Runtime startup;
-- decide explicitly whether `$schema` becomes a supported manifest field or remains an editor-side association; strict unknown-field validation means it must not be added informally;
-- add a CLI validation surface such as `opendesk app validate <package>` with a machine-readable `--json` mode;
-- add `opendesk app doctor <package>` for higher-level diagnostics covering schema, package identity/version, Runtime compatibility, resources, containment, and actionable fixes;
-- make CLI validation/doctor reuse the Runtime package loader and typed error model rather than introducing a second independent validator;
-- make the same validation suitable for CI so invalid packages fail before distribution builds.
+- Draft 2020-12 authoring schema and workspace filename association without changing manifest v1;
+- `opendesk app validate <package> [--json]` as the deterministic Developer/Agent/CI gate;
+- `opendesk app doctor <package> [--json]` with ordered `PASS`, `FAIL`, `SKIP`, and `NOT CHECKED` stages;
+- stable exit status `0` for a valid package, `1` for package/compatibility failure, and `2` for CLI usage failure;
+- structured JSON success/error/check fields instead of requiring callers to parse terminal text;
+- maintained package validation for `examples/app-mode/basic` and `apps/opendesk` in repository gates and CI.
 
 A Doctor-style result should be able to explain the package as a structured tree, for example:
 
@@ -381,16 +387,4 @@ These concepts should be separate contracts. In particular, `capabilities` must 
 
 ### Recommended next milestone
 
-After the P0 qualification gates are green, start **App Package Developer Experience P1** with this bounded scope:
-
-```text
-App Package Developer Experience P1
-├── JSON Schema / editor validation
-├── opendesk app validate
-├── machine-readable --json diagnostics
-├── opendesk app doctor
-├── CI package validation
-└── documentation/examples integration
-```
-
-Do not combine this milestone with Secret Manager, capability permissions, Marketplace, License, updater, package migration, or remote dependency work. Those features should consume a stable package contract later rather than redefine it during developer-tooling work.
+After P1 developer tooling remains green in CI, the next separately designed milestone is **P1-B App identity and writable-data isolation**. It should consume the stable package `id`; it must not retroactively expand schema v1 or combine Secret Manager, capability permissions, Marketplace, License, updater, package migration, or remote dependency work into this tooling contract.

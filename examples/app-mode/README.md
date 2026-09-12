@@ -6,6 +6,17 @@
 
 以下命令从仓库根目录运行；先用 `make build` 生成与当前源码配套的 `dist/opendesk` 和 UI host。示例同时携带 macOS template PNG 与 Windows ICO：两者都在启动前校验且没有跨平台 fallback。
 
+先执行静态 package validation；它不会执行 `main.js` 或打开 UI：
+
+```bash
+./dist/opendesk app validate examples/app-mode/basic
+./dist/opendesk app validate examples/app-mode/basic --json
+./dist/opendesk app doctor examples/app-mode/basic
+./dist/opendesk app doctor examples/app-mode/basic --json
+```
+
+JSON Schema 位于 `schemas/app-package/opendesk.app.schema.json`，仓库已通过 editor workspace configuration 关联 `opendesk.app.json`。不要在 manifest 中加入 `$schema`；它不是 strict schema v1 的字段。
+
 从仓库根目录运行当前正式构建：
 
 ```bash

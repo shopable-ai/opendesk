@@ -67,7 +67,9 @@ test-icons:
 	./scripts/test_app_icons.sh
 
 test-app-package-contract: build
-	$(GO) test ./pkg/appshell
+	$(GO) test ./pkg/appshell ./internal/appcli
+	./dist/opendesk app validate examples/app-mode/basic --json
+	./dist/opendesk app validate apps/opendesk --json
 	node --test tests/app-package/runtime-contract.test.js
 
 test-runtime-api: build
