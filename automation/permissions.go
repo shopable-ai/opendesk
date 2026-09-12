@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -45,11 +46,28 @@ const (
 type PermissionOverall string
 
 const (
-	PermissionReady   PermissionOverall = "READY"
-	PermissionLimited PermissionOverall = "LIMITED"
-	PermissionBlocked PermissionOverall = "BLOCKED"
+	PermissionReady          PermissionOverall = "READY"
+	PermissionLimited        PermissionOverall = "LIMITED"
+	PermissionBlocked        PermissionOverall = "BLOCKED"
 	PermissionUnknownOverall PermissionOverall = "UNKNOWN"
 )
+
+// PermissionRequestOptions controls an explicit permission request. Force only
+// bypasses the short retry cooldown; it never bypasses an already-ready check
+// or the per-permission single-flight guard.
+type PermissionRequestOptions struct {
+	Force bool `json:"force"`
+}
+
+// PermissionSettingsResult reports how Settings navigation completed. Fallback
+// is true when OpenDesk could only open the general privacy/security pane and
+// the product UI should show Guidance for manual navigation.
+type PermissionSettingsResult struct {
+	Opened   bool   `json:"opened"`
+	ID       string `json:"id"`
+	Fallback bool   `json:"fallback"`
+	Guidance string `json:"guidance,omitempty"`
+}
 
 // RuntimePermission is the shared App/CLI contract for one permission. Status
 // always describes the identity of the process performing this query.
@@ -101,7 +119,7 @@ type permissionProbe struct {
 type permissionProvider interface {
 	Check(id PermissionID, target string) permissionProbe
 	Request(id PermissionID, target string) (permissionProbe, error)
-	OpenSettings(id PermissionID) error
+	OpenSettings(id PermissionID) (PermissionSettingsResult, error)
 }
 
 var permissionCatalog = []permissionDefinition{
@@ -111,8 +129,119 @@ var permissionCatalog = []permissionDefinition{
 	{PermissionAutomation, "Automation", "Controls another macOS application with Apple Events only when a feature explicitly requests it.", "Privacy & Security > Automation"},
 }
 
-// GetPermissionReport is the single status entry point used by product App Mode
-// and CLI. It is intentionally side-effect free and never triggers consent UI.
+const defaultPermissionRequestCooldown = 2 * time.Second
+
+type permissionRequestFlight struct {
+	done  chan struct{}
+	probe permissionProbe
+	err   error
+}
+
+type permissionRequestCoordinator struct {
+	mu              sync.Mutex
+	inFlight        map[string]*permissionRequestFlight
+	lastRequestedAt map[string]time.Time
+	cooldown        time.Duration
+	now             func() time.Time
+}
+
+var defaultPermissionRequestCoordinator = newPermissionRequestCoordinator(defaultPermissionRequestCooldown)
+
+func newPermissionRequestCoordinator(cooldown time.Duration) *permissionRequestCoordinator {
+	return &permissionRequestCoordinator{
+		inFlight:        map[string]*permissionRequestFlight{},
+		lastRequestedAt: map[string]time.Time{},
+		cooldown:        cooldown,
+		now:             time.Now,
+	}
+}
+
+func permissionRequestKey(id PermissionID, target string) string {
+	key := string(id)
+	if target != "" {
+		key += ":" + target
+	}
+	return key
+}
+
+func permissionReady(status PermissionStatus) bool {
+	return status == PermissionGranted || status == PermissionNotRequired
+}
+
+func withPermissionEvidence(probe permissionProbe, key string, value any) permissionProbe {
+	if probe.Evidence == nil {
+		probe.Evidence = map[string]any{}
+	}
+	probe.Evidence[key] = value
+	return probe
+}
+
+// request serializes native prompts per permission while allowing unrelated
+// permission requests to proceed independently. A completed native request is
+// guarded only for a short cooldown; it is never permanently remembered.
+func (c *permissionRequestCoordinator) request(provider permissionProvider, id PermissionID, target string, options PermissionRequestOptions) (permissionProbe, error) {
+	probe := provider.Check(id, target)
+	if permissionReady(probe.Status) {
+		return withPermissionEvidence(probe, "requestSkipped", "already_ready"), nil
+	}
+
+	key := permissionRequestKey(id, target)
+	c.mu.Lock()
+	if flight := c.inFlight[key]; flight != nil {
+		c.mu.Unlock()
+		<-flight.done
+		return flight.probe, flight.err
+	}
+	now := c.now()
+	if !options.Force {
+		if last, ok := c.lastRequestedAt[key]; ok && now.Sub(last) < c.cooldown {
+			c.mu.Unlock()
+			return withPermissionEvidence(probe, "requestSkipped", "retry_cooldown"), nil
+		}
+	}
+	flight := &permissionRequestFlight{done: make(chan struct{})}
+	c.inFlight[key] = flight
+	c.mu.Unlock()
+
+	result, err, dispatched := c.performRequest(provider, id, target)
+
+	c.mu.Lock()
+	flight.probe = result
+	flight.err = err
+	if dispatched {
+		c.lastRequestedAt[key] = c.now()
+	}
+	delete(c.inFlight, key)
+	close(flight.done)
+	c.mu.Unlock()
+	return result, err
+}
+
+func (c *permissionRequestCoordinator) performRequest(provider permissionProvider, id PermissionID, target string) (permissionProbe, error, bool) {
+	// Recheck after becoming the request owner so a grant that landed between
+	// the optimistic check and single-flight reservation cannot prompt again.
+	probe := provider.Check(id, target)
+	if permissionReady(probe.Status) {
+		return withPermissionEvidence(probe, "requestSkipped", "already_ready"), nil, false
+	}
+
+	requestProbe, requestErr := provider.Request(id, target)
+	post := provider.Check(id, target)
+	if requestErr != nil {
+		return post, requestErr, true
+	}
+	// Some target-scoped APIs (notably macOS Apple Events) cannot be probed
+	// without side effects. Preserve a successful request result when the pure
+	// post-check must remain unknown, while still performing that pure check.
+	if post.Status == PermissionUnknown && requestProbe.Status == PermissionGranted {
+		requestProbe = withPermissionEvidence(requestProbe, "postCheckStatus", string(post.Status))
+		return requestProbe, nil, true
+	}
+	return post, nil, true
+}
+
+// GetPermissionReport is the single aggregate status entry point used by
+// product App Mode and CLI. It is side-effect free and never requests consent.
 func GetPermissionReport(feature string) RuntimePermissionReport {
 	feature = normalizePermissionFeature(feature)
 	provider := newPermissionProvider()
@@ -133,6 +262,10 @@ func GetPermissionReport(feature string) RuntimePermissionReport {
 }
 
 func CheckPermission(id string) (RuntimePermission, error) {
+	return checkPermissionWithProvider(newPermissionProvider(), id)
+}
+
+func checkPermissionWithProvider(provider permissionProvider, id string) (RuntimePermission, error) {
 	baseID, target, err := parsePermissionID(id)
 	if err != nil {
 		return RuntimePermission{}, err
@@ -141,13 +274,23 @@ func CheckPermission(id string) (RuntimePermission, error) {
 	if !ok {
 		return RuntimePermission{}, fmt.Errorf("unknown permission id %q", id)
 	}
-	probe := newPermissionProvider().Check(baseID, target)
+	probe := provider.Check(baseID, target)
 	return runtimePermission(definition, PermissionOnDemand, target, probe), nil
 }
 
-// RequestPermission may trigger a platform consent prompt and must therefore be
-// called only from an explicit user action or the first real use of a feature.
+// RequestPermission preserves the existing Go call shape and uses the default
+// non-forced request contract.
 func RequestPermission(id string) (RuntimePermission, error) {
+	return RequestPermissionWithOptions(id, PermissionRequestOptions{})
+}
+
+// RequestPermissionWithOptions may trigger a platform consent prompt and must
+// be called only from an explicit user action or the first real protected use.
+func RequestPermissionWithOptions(id string, options PermissionRequestOptions) (RuntimePermission, error) {
+	return requestPermissionWithProvider(defaultPermissionRequestCoordinator, newPermissionProvider(), id, options)
+}
+
+func requestPermissionWithProvider(coordinator *permissionRequestCoordinator, provider permissionProvider, id string, options PermissionRequestOptions) (RuntimePermission, error) {
 	baseID, target, err := parsePermissionID(id)
 	if err != nil {
 		return RuntimePermission{}, err
@@ -156,7 +299,7 @@ func RequestPermission(id string) (RuntimePermission, error) {
 	if !ok {
 		return RuntimePermission{}, fmt.Errorf("unknown permission id %q", id)
 	}
-	probe, err := newPermissionProvider().Request(baseID, target)
+	probe, err := coordinator.request(provider, baseID, target, options)
 	if err != nil {
 		return RuntimePermission{}, err
 	}
@@ -164,14 +307,23 @@ func RequestPermission(id string) (RuntimePermission, error) {
 }
 
 func OpenPermissionSettings(id string) error {
+	_, err := OpenPermissionSettingsDetailed(id)
+	return err
+}
+
+func OpenPermissionSettingsDetailed(id string) (PermissionSettingsResult, error) {
 	baseID, _, err := parsePermissionID(id)
 	if err != nil {
-		return err
+		return PermissionSettingsResult{}, err
 	}
 	if _, ok := findPermissionDefinition(baseID); !ok {
-		return fmt.Errorf("unknown permission id %q", id)
+		return PermissionSettingsResult{}, fmt.Errorf("unknown permission id %q", id)
 	}
-	return newPermissionProvider().OpenSettings(baseID)
+	result, err := newPermissionProvider().OpenSettings(baseID)
+	if result.ID == "" {
+		result.ID = string(baseID)
+	}
+	return result, err
 }
 
 func runtimePermission(definition permissionDefinition, requirement PermissionRequirement, target string, probe permissionProbe) RuntimePermission {
@@ -224,9 +376,7 @@ func permissionRequirements(feature string) map[PermissionID]PermissionRequireme
 	case "ui-automation":
 		result[PermissionAccessibility] = PermissionRequired
 	case "script-runner", "scheduler", "inspector":
-		// These product surfaces do not require desktop consent by themselves.
-		// A recipe/operation upgrades the relevant permission to required when it
-		// actually uses protected desktop functionality.
+		// Product surfaces do not require desktop consent by themselves.
 	}
 	return result
 }
@@ -358,9 +508,9 @@ type windowsPermissionProvider struct{}
 func (windowsPermissionProvider) Check(id PermissionID, target string) permissionProbe {
 	_ = target
 	return permissionProbe{
-		Status: PermissionNotRequired,
+		Status:      PermissionNotRequired,
 		Remediation: "No Windows consent is required for this capability. A non-elevated OpenDesk process may still be unable to automate a higher-integrity elevated application.",
-		Evidence: map[string]any{"securityModel": "windows-integrity-uac", "permission": string(id)},
+		Evidence:    map[string]any{"securityModel": "windows-integrity-uac", "permission": string(id)},
 	}
 }
 
@@ -368,8 +518,8 @@ func (windowsPermissionProvider) Request(id PermissionID, target string) (permis
 	return windowsPermissionProvider{}.Check(id, target), nil
 }
 
-func (windowsPermissionProvider) OpenSettings(id PermissionID) error {
-	return fmt.Errorf("permission %q has no Windows consent settings page", id)
+func (windowsPermissionProvider) OpenSettings(id PermissionID) (PermissionSettingsResult, error) {
+	return PermissionSettingsResult{ID: string(id)}, fmt.Errorf("permission %q has no Windows consent settings page", id)
 }
 
 type unsupportedPermissionProvider struct{ platform string }
@@ -381,6 +531,6 @@ func (p unsupportedPermissionProvider) Check(id PermissionID, target string) per
 func (p unsupportedPermissionProvider) Request(id PermissionID, target string) (permissionProbe, error) {
 	return p.Check(id, target), fmt.Errorf("permission %q request is unsupported on %s", id, p.platform)
 }
-func (p unsupportedPermissionProvider) OpenSettings(id PermissionID) error {
-	return fmt.Errorf("permission %q settings are unsupported on %s", id, p.platform)
+func (p unsupportedPermissionProvider) OpenSettings(id PermissionID) (PermissionSettingsResult, error) {
+	return PermissionSettingsResult{ID: string(id)}, fmt.Errorf("permission %q settings are unsupported on %s", id, p.platform)
 }
