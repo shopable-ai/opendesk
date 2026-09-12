@@ -8,6 +8,7 @@ package automation
 #cgo darwin LDFLAGS: -framework ApplicationServices -framework CoreGraphics -framework CoreFoundation -framework Foundation -framework IOKit
 #include <stdlib.h>
 #include <stdbool.h>
+#include <string.h>
 #include <ApplicationServices/ApplicationServices.h>
 #include <CoreGraphics/CoreGraphics.h>
 #include <CoreFoundation/CoreFoundation.h>
@@ -81,7 +82,12 @@ bool tm_trigger_appleevents_prompt(const char *targetApp) {
 */
 import "C"
 
-import "unsafe"
+import (
+	"fmt"
+	"os/exec"
+	"strings"
+	"unsafe"
+)
 
 func darwinAccessibilityStatus() bool {
 	return bool(C.tm_ax_is_trusted())
@@ -122,4 +128,123 @@ func darwinTriggerAppleEventsPrompt(targetApp string) bool {
 
 func TriggerMacAutomationPermissionHelper(targetApp string) bool {
 	return darwinTriggerAppleEventsPrompt(targetApp)
+}
+
+type macOSPermissionProvider struct{}
+
+func newPermissionProvider() permissionProvider {
+	return macOSPermissionProvider{}
+}
+
+func (macOSPermissionProvider) Check(id PermissionID, target string) permissionProbe {
+	switch id {
+	case PermissionAccessibility:
+		trusted := darwinAccessibilityStatus()
+		status := PermissionUnknown
+		remediation := "Open System Settings and allow OpenDesk under Accessibility."
+		if trusted {
+			status = PermissionGranted
+			remediation = ""
+		}
+		return permissionProbe{Status: status, Remediation: remediation, Evidence: map[string]any{
+			"api": "AXIsProcessTrusted", "trusted": trusted,
+		}}
+	case PermissionScreenCapture:
+		granted := darwinScreenCaptureStatus()
+		status := PermissionUnknown
+		remediation := "Open System Settings and allow OpenDesk under Screen & System Audio Recording."
+		if granted {
+			status = PermissionGranted
+			remediation = ""
+		}
+		return permissionProbe{Status: status, Remediation: remediation, Evidence: map[string]any{
+			"api": "CGPreflightScreenCaptureAccess", "granted": granted,
+		}}
+	case PermissionInputMonitoring:
+		raw := darwinInputMonitoringStatus()
+		status := PermissionUnknown
+		switch raw {
+		case "granted":
+			status = PermissionGranted
+		case "denied":
+			status = PermissionDenied
+		}
+		remediation := ""
+		if status != PermissionGranted {
+			remediation = "Input Monitoring is needed only for recorder features that listen to global input. Enable it in System Settings when those features are required."
+		}
+		return permissionProbe{Status: status, Remediation: remediation, Evidence: map[string]any{
+			"api": "IOHIDCheckAccess(kIOHIDRequestTypeListenEvent)", "result": raw,
+		}}
+	case PermissionAutomation:
+		evidence := map[string]any{"scope": "target-application", "checkSideEffects": "not-probed"}
+		if target != "" {
+			evidence["targetApp"] = target
+		}
+		return permissionProbe{
+			Status: PermissionUnknown,
+			Remediation: "Automation is requested on demand for a specific target application. OpenDesk does not probe Apple Events at startup because probing can itself trigger consent.",
+			Evidence: evidence,
+		}
+	default:
+		return permissionProbe{Status: PermissionUnsupported, Remediation: fmt.Sprintf("Unknown macOS permission %q.", id)}
+	}
+}
+
+func (p macOSPermissionProvider) Request(id PermissionID, target string) (permissionProbe, error) {
+	switch id {
+	case PermissionAccessibility:
+		if !darwinAccessibilityStatus() {
+			_ = darwinRequestAccessibilityPrompt()
+		}
+		return p.Check(id, target), nil
+	case PermissionScreenCapture:
+		if !darwinScreenCaptureStatus() {
+			_ = darwinRequestScreenCapturePrompt()
+		}
+		return p.Check(id, target), nil
+	case PermissionInputMonitoring:
+		if darwinInputMonitoringStatus() != "granted" {
+			_ = darwinRequestInputMonitoringPrompt()
+		}
+		return p.Check(id, target), nil
+	case PermissionAutomation:
+		target = strings.TrimSpace(target)
+		if target == "" {
+			return p.Check(id, target), fmt.Errorf("automation permission requires a target application, for example automation:Finder")
+		}
+		if darwinTriggerAppleEventsPrompt(target) {
+			return permissionProbe{Status: PermissionGranted, Evidence: map[string]any{
+				"api": "NSAppleScript/AppleEvents", "targetApp": target, "requestSucceeded": true,
+			}}, nil
+		}
+		probe := p.Check(id, target)
+		probe.Evidence["requestSucceeded"] = false
+		probe.Remediation = "The Apple Events request did not succeed. Review Automation access for this target application in System Settings, then retry the real operation."
+		return probe, nil
+	default:
+		return p.Check(id, target), fmt.Errorf("unknown permission id %q", id)
+	}
+}
+
+func (macOSPermissionProvider) OpenSettings(id PermissionID) error {
+	urls := map[PermissionID]string{
+		PermissionAccessibility:   "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
+		PermissionScreenCapture:   "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
+		PermissionInputMonitoring: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent",
+		PermissionAutomation:      "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation",
+	}
+	url, ok := urls[id]
+	if !ok {
+		return fmt.Errorf("unknown macOS permission id %q", id)
+	}
+	if err := exec.Command("/usr/bin/open", url).Run(); err == nil {
+		return nil
+	} else {
+		fallback := "x-apple.systempreferences:com.apple.preference.security"
+		if fallbackErr := exec.Command("/usr/bin/open", fallback).Run(); fallbackErr != nil {
+			return fmt.Errorf("open macOS permission settings for %q: deep link failed: %v; fallback failed: %w", id, err, fallbackErr)
+		}
+	}
+	return nil
 }
