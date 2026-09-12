@@ -36,12 +36,20 @@ OpenDesk commercial/official actions.
 - `pkg/appshell`: native tray/menu, manifest dispatch, main-window lifecycle and
   single-instance behavior.
 - `apps/opendesk/recorder/**`: canonical Recorder UI JavaScript and icon
-  resources. `embed.go` only exposes those same product-owned bytes to Go
-  release bundling; it is not a second Recorder implementation.
+  resources. Recorder is an official OpenDesk product capability, so its
+  implementation remains inside the product package. `embed.go` only exposes
+  those same product-owned bytes to Go release bundling; it is not a second
+  Recorder implementation.
 - `internal/recorderbundle`: framework release/runtime adapter. It materializes
   the canonical `apps/opendesk/recorder/**` resources for the built-in
   `opendesk.recorder` secondary execution. The action is injected by the
   framework and is not declared in this package manifest.
+- `workflows/human-to-recipe/**`: repository-root Human-to-Recipe workflow.
+  It may use the Recorder product implementation, but it remains owned by the
+  root `workflows/` tree and is never nested under `apps/opendesk/recorder/`.
+- `examples/custom-ui/recording-console-simple.js`: repository-root standalone
+  learning/debug entry. It uses the same Recorder implementation without
+  becoming product source.
 - `apps/opendesk/script-runner/controller.js`: shared generic Script Runner
   behavior (discovery, ordering, Run/Stop, list/empty/error state and child
   recipe execution).
@@ -51,6 +59,43 @@ OpenDesk commercial/official actions.
 - `apps/opendesk/official-shell.js`: Help/Customize metadata, protected product
   configuration, HTTPS-only navigation and future hidden commercial actions.
 - `apps/opendesk/main.js`: composition root only.
+
+### Repository boundary
+
+Directory ownership and dependency are different concepts. The repository keeps
+these responsibilities as root-level siblings:
+
+```text
+/
+├── apps/
+│   └── opendesk/
+│       ├── script-runner/
+│       └── recorder/                    # official Recorder implementation
+├── workflows/
+│   └── human-to-recipe/                 # workflow orchestration
+├── examples/
+│   └── custom-ui/                       # standalone learning/debug entries
+└── internal/
+    └── recorderbundle/                  # Go/release adapter
+```
+
+The dependency relationship is intentionally expressed separately:
+
+```text
+workflows/human-to-recipe ───┐
+examples/custom-ui ───────────┼── uses ──→ apps/opendesk/recorder
+internal/recorderbundle ──────┘
+```
+
+Using Recorder does **not** make `workflows/`, `examples/`, or `internal/`
+children of `apps/opendesk/recorder`. Do not move those root responsibility
+trees into the product Recorder directory just to represent reuse.
+
+Conversely, do not introduce a new repository-level `features/`, `packages/`,
+or `shared/` abstraction solely for the current Recorder reuse. `apps/opendesk`
+remains the natural owner while Recorder is an official OpenDesk product
+capability. Re-evaluate extraction only if multiple genuinely independent App
+products later need to co-own the implementation.
 
 The Script Runner UI executes in the main App Mode execution, but every normal
 recipe remains a child OpenDesk process launched through `Command.run()` with
@@ -169,8 +214,8 @@ OPENDESK_RECORDER_CAPTURE_KEYBOARD=1 ./dist/opendesk -ui -allow-recorder-capture
 
 The standalone example and `workflows/human-to-recipe/recording-console-simple.js`
 keep separate entry orchestration, but both load the UI implementation from
-`apps/opendesk/recorder/**`. No symlink or duplicate Recorder controller source
-is required.
+`apps/opendesk/recorder/**`. This is a dependency, not a directory ownership
+relationship. No symlink or duplicate Recorder controller source is required.
 
 ## macOS release staging
 
