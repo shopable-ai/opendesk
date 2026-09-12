@@ -1,47 +1,94 @@
 ---
 title: Script App Packaging
-description: 把已有 OpenDesk JavaScript 与 opendesk.app.json 组织为 App Mode package，并生成可从 Finder、Launchpad 或 Windows Explorer 启动的桌面发布产物。
+description: 使用已安装的 OpenDesk Runtime，把 JavaScript 与 opendesk.app.json 组织成 App Mode 应用，并生成可双击启动的桌面产物。
 order: 600
 ---
 
 # Script App Packaging
 
-Script App Packaging 用于把已经写好并验证过的 OpenDesk JavaScript 组织成一个 **App Mode package**，再按目标平台装入 OpenDesk 的桌面发布产物，使用户可以像普通桌面应用一样启动它。
+Script App Packaging 面向 **OpenDesk App 开发者**：你已经安装了可用的 OpenDesk Runtime，希望只编写 JavaScript、资源和 `opendesk.app.json`，把自动化做成一个可以长期运行、带主窗口和 Tray/Menu 的产品应用。
 
-它解决的是：
+普通 App 开发者不需要 checkout OpenDesk 源码，也不需要 Go、`make build`、`go build` 或修改 Runtime。
+
+最短路径是：
 
 ```text
-已有 JavaScript 自动化
-→ App Mode package
-→ opendesk.app.json
-→ 开发态 -app 验证
-→ macOS .app / Windows portable distribution
-→ 用户双击启动
+安装 OpenDesk Runtime
+→ 创建 my-app/
+→ 编写 main.js / 其他 JavaScript 模块
+→ 编写 opendesk.app.json
+→ opendesk app validate ./my-app
+→ opendesk app doctor ./my-app
+→ opendesk -app ./my-app
+→ opendesk app build ...
+→ macOS .app / Windows portable application
 ```
 
-它不负责 Recorder 脚本精炼，不等于 `.odpkg` 受保护包，也不自动提供 MSI/MSIX、安装器、代码签名证书或 License 服务。需要脚本加密、Publisher 签名和授权时，使用 [受保护包 CLI](protected-packages.md)。
+本文把 **普通 App 开发者路径** 作为默认路径。只有最后的“OpenDesk 源码维护者”一节涉及 OpenDesk 自身源码、`apps/opendesk` 和 release builder。
 
-只安装预编译 OpenDesk Runtime/SDK、没有源码 checkout 或 Go 工具链的应用作者，应使用 [Installed Runtime App Builder](app-builder.md) 的 `opendesk app build` 路径。下面的 `scripts/build_macos_app.sh` 和 `scripts/build_windows_distribution.ps1` 是 OpenDesk 发行维护者从源码制作 Runtime template 的流程，不是无源码 App Builder 的替代命令。
+`automation.app`、Tray/Menu action、菜单状态和退出 API 的完整 Reference 见 [automation.app](app-shell.md)。Manifest 的 schema、版本、兼容性、路径安全和错误模型见 [App Package Format](../architecture/app-package-format.md)。使用已安装 Runtime 生成发布产物的详细规则见 [Installed Runtime App Builder](app-builder.md)。
 
-`automation.app`、tray/menu action、菜单状态和退出 API 的完整 Reference 见 [automation.app](app-shell.md)。Manifest 的长期 schema、版本、兼容性、路径安全和错误模型见 [App Package Format](../architecture/app-package-format.md)。
+## 1. 两类开发者
 
-## 能力边界
+### 1.1 普通 App 开发者
 
-| 能力 | 当前公开入口 | 说明 |
-| --- | --- | --- |
-| 开发态运行 App Mode package | `opendesk -app <directory>` | 显式读取该目录中的 `opendesk.app.json` |
-| 静态 package gate | `opendesk app validate <directory> [--json]` | 复用 Runtime validator，不执行业务 JavaScript |
-| 分阶段诊断 | `opendesk app doctor <directory> [--json]` | 输出 PASS / FAIL / SKIP / NOT CHECKED 和字段级修复信息 |
-| 已安装 Runtime 的无源码构建 | `opendesk app build <package-dir> --target ... --output ...` | 从同平台 Runtime template 创建 `.app` 或 portable directory；不需要 Go 或 OpenDesk 源码 |
-| App Manifest | `opendesk.app.json` | 定义 package identity/version、Runtime compatibility、entry、single instance、主窗口与 tray/menu |
-| macOS Runtime template 发布 | `scripts/build_macos_app.sh` + `APP_MODE_PACKAGE` | 源码维护者把 package staging 到 `OpenDesk.app/Contents/Resources/AppMode/` |
-| Windows Runtime template 发布 | `scripts/build_windows_distribution.ps1 -AppModePackage ...` | 源码维护者把 package staging 到 portable distribution 的 `app-mode/` |
-| App 内生命周期 | `automation.app` | 当前 App Mode application 的 action、菜单更新与退出 |
-| 受保护脚本包 | `opendesk package ...` | 独立能力；输出 `.odpkg`，不等于 App Mode package |
+普通开发者只把 OpenDesk 当成已安装 Runtime / SDK 使用：
 
-## Package 目录
+```text
+OpenDesk Runtime
+    +
+my-app/
+├── opendesk.app.json
+├── main.js
+├── modules/*.js or *.mjs
+└── assets/*
+```
 
-最小目录建议：
+通常只需要理解：
+
+- OpenDesk JavaScript API；
+- Custom UI；
+- `opendesk.app.json`；
+- `automation.app`；
+- `opendesk -app <package-dir>`；
+- `opendesk app validate / doctor / build`。
+
+不需要理解或修改：
+
+```text
+cmd/opendesk/**
+pkg/appshell/**
+internal/**
+apps/opendesk/**
+scripts/build_macos_app.sh
+scripts/build_windows_distribution.ps1
+Go Runtime implementation
+OpenDesk official Script Runner / Recorder internals
+```
+
+### 1.2 OpenDesk 官方源码维护者
+
+只有维护 OpenDesk 官方桌面产品和 Runtime 的开发者才需要理解：
+
+```text
+OpenDesk executable
+→ bundled App Mode
+→ apps/opendesk/main.js
+→ OpenDesk main UI
+→ Recorder / Scheduler / Runtime Log / Permissions
+→ App Shell
+→ macOS / Windows release staging
+```
+
+官方产品的 Script Runner / Recorder 页面关系、Tray ownership 和生命周期属于 OpenDesk 产品架构，而不是普通第三方 App 开发者的必修知识。维护者从以下文档进入：
+
+- [OpenDesk Desktop Product Shell](../architecture/opendesk-desktop-product-shell.md)
+- [App Mode Desktop Launch Contract](../architecture/app-mode-desktop-launch.md)
+- [`apps/opendesk/README.md`](../../apps/opendesk/README.md)
+
+## 2. Package 目录
+
+普通应用的最小目录建议：
 
 ```text
 my-app/
@@ -52,9 +99,9 @@ my-app/
     └── tray-template.png
 ```
 
-`entry`、Windows `.ico` 和 macOS PNG 都使用 package 内相对路径。不要把机器相关的绝对路径写进 Manifest。
+业务代码可以继续拆成相对模块；App Mode package 本质仍然是普通 OpenDesk JavaScript，只是增加了应用 identity、主窗口、Tray/Menu 和生命周期契约。
 
-新 package 使用 schema v1：
+一个 schema v1 Manifest 示例：
 
 ```json
 {
@@ -89,126 +136,199 @@ my-app/
 }
 ```
 
-`schemaVersion: 1` 是正式长期 contract；`version` 使用 SemVer。`runtime.minVersion` 可选，用于在执行业务 JavaScript 前拒绝过旧的 OpenDesk Runtime。P0 不定义 `runtime.maxVersion`。
+`window.mainId` 必须与入口脚本创建的 Custom UI 主窗口 `id` 一致。`id` 使用稳定的小写 reverse-DNS identity。`entry`、图标和其他 package 资源使用 package 内相对路径。
 
-为兼容已经创建的 App Mode package，缺失 `schemaVersion` 的既有 manifest 仍按 legacy v0 读取；新 package 不应继续使用 legacy 格式。Runtime 不会自动改写 manifest。
+`opendesk.app.json` 不是 Secret storage，不要写入 API key、password、access token 或客户凭据。
 
-`window.mainId` 必须与入口脚本创建的 Custom UI 主窗口 `id` 一致。`id` 使用稳定的小写 reverse-DNS identity；改变 `id` 表示改变应用 identity，而不是普通显示名重命名。
+## 3. 开发态：只需要 `-app`
 
-`capabilities` 是可选声明元数据。当前只做格式/重复校验，不是 permission/security enforcement，也不会因为声明某项 capability 自动授予权限。
+如果 `opendesk` 已经安装并可从 PATH 调用，普通开发者直接运行：
 
-`opendesk.app.json` 不是 Secret storage；不要写入 API key、password、access token 或客户凭据。
+```bash
+opendesk app validate ./my-app
+opendesk app doctor ./my-app
+opendesk -app ./my-app -console-mode script
+```
 
-## 开发态验证
+如果安装包没有把 `opendesk` 放进 PATH，使用已安装 Runtime 的真实可执行文件即可。例如 macOS 可以使用：
 
-以下命令均从仓库根目录执行。先构建与当前源码匹配的 OpenDesk：
+```bash
+/Applications/OpenDesk.app/Contents/MacOS/opendesk -app "$PWD/my-app" -console-mode script
+```
+
+Windows 则使用安装或解压目录中的 `opendesk.exe`：
+
+```powershell
+C:\OpenDesk\opendesk.exe -app C:\work\my-app -console-mode script
+```
+
+这里不需要 OpenDesk 源码目录，也不需要 `./dist/opendesk`。仓库开发者当然仍可以使用自己刚构建出来的 `./dist/opendesk`，但那只是同一 Runtime 的源码开发入口，不是 App 作者必须遵循的流程。
+
+`-app` 是显式 App Mode package 入口。普通 `-script`、`-script-text`、HTTP、MCP 或 Scheduler execution 不会因为附近存在 `opendesk.app.json` 就自动进入 App Mode。
+
+Package loader 会在业务代码执行前完成 schema / semantic validation、Runtime compatibility、entry/resource containment 检查。绝对路径、`../` 逃逸、Windows drive path、symlink escape、缺失文件和目录型 entry 都会 fail closed。
+
+## 4. App 代码仍然是普通 JavaScript
+
+App Mode 不要求开发者切换到另一种编程模型。入口仍然可以直接使用 OpenDesk Runtime API，例如：
+
+```js
+const caps = automation.app.getCapabilities();
+
+const mainWindow = await ui.createWindow({
+  id: 'main',
+  title: 'My App',
+  width: 720,
+  height: 520,
+});
+
+automation.app.onAction(async event => {
+  if (event.id === 'run') {
+    // 调用普通 OpenDesk JavaScript 自动化能力。
+  }
+});
+```
+
+业务逻辑、UI、文件、HTTP、桌面自动化、Scheduler 等能力继续按对应 `docs/api/` Reference 使用。App Mode 主要增加的是应用级生命周期和产品外壳。
+
+## 5. 开发、验证、构建的职责分离
+
+```text
+opendesk -app ./my-app
+    开发和真实运行
+
+opendesk app validate ./my-app
+    快速静态 schema/package gate
+
+opendesk app doctor ./my-app
+    分阶段诊断和修复提示
+
+opendesk app build ./my-app ...
+    使用已安装 Runtime 生成桌面发布产物
+```
+
+`validate` / `doctor` 不执行 `main.js`、不创建窗口和 Tray。只有 `-app` 才真实运行应用。
+
+完整 CLI 参数、JSON envelope 和错误码见 [App Package CLI](app-package-cli.md)。
+
+## 6. 从已安装 Runtime 生成桌面应用
+
+普通 App 开发者发布时仍然不需要 OpenDesk 源码。
+
+### macOS
+
+例如 Runtime 安装在 `/Applications/OpenDesk.app`：
+
+```bash
+mkdir -p release
+OPENDESK=/Applications/OpenDesk.app/Contents/MacOS/opendesk
+"$OPENDESK" app validate ./my-app
+"$OPENDESK" app doctor ./my-app
+"$OPENDESK" app build ./my-app --target macos --output "$PWD/release/My App.app"
+```
+
+最终产物包含自己的 App Mode package：
+
+```text
+My App.app/
+└── Contents/
+    ├── MacOS/opendesk
+    ├── Helpers/opendesk-ui-host
+    └── Resources/
+        └── AppMode/
+            ├── opendesk.app.json
+            ├── main.js
+            └── ...
+```
+
+用户双击这个 `.app` 后，Runtime 自动发现 bundled App Mode，不需要再传 `-app`。
+
+### Windows
+
+```powershell
+$opendesk = 'C:\OpenDesk\opendesk.exe'
+& $opendesk app validate .\my-app
+& $opendesk app doctor .\my-app
+& $opendesk app build .\my-app --target windows --output (Join-Path $PWD 'release\MyApp')
+```
+
+最终 portable directory 中包含：
+
+```text
+MyApp/
+├── opendesk.exe
+├── ui-host/
+└── app-mode/
+    ├── opendesk.app.json
+    ├── main.js
+    └── ...
+```
+
+用户从 Explorer 启动 `opendesk.exe`，Runtime 自动发现 `app-mode/`。
+
+Builder 的详细前置条件、签名边界、provenance 和 CI 规则见 [Installed Runtime App Builder](app-builder.md)。
+
+## 7. Single Instance 与多应用
+
+`singleInstance: true` 表示同一个稳定 package identity 不重复创建第二套应用 Runtime；第二次启动会激活已有实例。
+
+不同 App 应使用不同稳定 `id`。不要使用固定 localhost 端口作为应用 identity，也不要在 Manifest 中发明未公开的 `port` 字段。Runtime endpoint ownership 与 App Mode 生命周期是不同层的能力。
+
+## 8. 普通开发者发布前检查
+
+至少确认：
+
+1. `opendesk.app.json` 是有效 schema-v1 Manifest。
+2. `entry` 和所有声明资源都在 package root 内。
+3. `opendesk app validate ./my-app` 通过。
+4. `opendesk app doctor ./my-app` 没有未处理的阻塞项。
+5. `opendesk -app ./my-app` 可以真实打开主窗口和 Tray/Menu。
+6. 主窗口 `id` 与 `window.mainId` 一致。
+7. `singleInstance`、关闭/隐藏、重新打开和 Quit 行为符合预期。
+8. 在目标 macOS / Windows 环境做真实桌面验收。
+9. 发布产物从源码目录之外启动，不能偷偷依赖开发仓库路径。
+
+## 9. OpenDesk 源码维护者专用路径
+
+以下内容不是普通 App 开发者要求，而是 OpenDesk 官方 Runtime / Desktop 产品维护流程。
+
+OpenDesk 官方产品源码位于：
+
+```text
+apps/opendesk/
+```
+
+开发态可以从源码仓库运行：
 
 ```bash
 make build
+./dist/opendesk -app "$PWD/apps/opendesk" -allow-recorder-capture -console-mode script
 ```
 
-先做不会执行 `main.js` 或启动窗口/tray 的静态 gate：
-
-```bash
-./dist/opendesk app validate /absolute/path/to/my-app
-./dist/opendesk app doctor /absolute/path/to/my-app
-```
-
-Agent / CI 使用完整 JSON envelope，不解析 stderr：
-
-```bash
-./dist/opendesk app validate /absolute/path/to/my-app --json
-./dist/opendesk app doctor /absolute/path/to/my-app --json
-```
-
-`validate`/`doctor` 与 Runtime startup 复用 `pkg/appshell.ValidatePackage()`；只有静态 gate 通过后，再运行 package：
-
-```bash
-./dist/opendesk -app /absolute/path/to/my-app -console-mode script
-```
-
-仓库内最小示例：
-
-```bash
-./dist/opendesk -app examples/app-mode/basic -console-mode script
-```
-
-开发态的 `-app` 是显式 package 入口。普通 `-script`、`-script-text`、HTTP、MCP 或 Scheduler execution 不会因为附近存在 `opendesk.app.json` 就自动进入 App Mode。
-
-Package loader 在业务代码执行前按以下顺序处理：schema/JSON → semantic validation → Runtime compatibility → entry/resource containment。绝对路径、`../`、Windows drive path、symlink escape、缺失文件和目录型 entry 都会 fail closed。
-
-正式 Draft 2020-12 authoring schema 位于 [`schemas/app-package/opendesk.app.schema.json`](../../schemas/app-package/opendesk.app.schema.json)。仓库使用 editor workspace association；不要向 manifest 添加 `$schema`，因为它不是 schema v1 字段，strict Runtime 会按 unknown field 拒绝。
-
-## macOS 发布
-
-当前 macOS builder 接受绝对路径 `APP_MODE_PACKAGE`。用于检查 package staging 机制时，可以从仓库根目录执行：
-
-```bash
-APP_MODE_PACKAGE=/absolute/path/to/my-app SKIP_CODESIGN=1 VERSION="$(tr -d '[:space:]' < VERSION)" ./scripts/build_macos_app.sh
-```
-
-`SKIP_CODESIGN=1` 只适合开发或 packaging 验证，不代表可向最终用户分发的签名产物。正式交付仍需要按发布流程完成正确的 bundle signing / notarization（如项目发布策略要求）。
-
-Builder 会把 package 内容 staging 到：
+正式 OpenDesk Desktop 再由源码 release builder 将官方 package staging 到：
 
 ```text
+macOS:
 OpenDesk.app/Contents/Resources/AppMode/
+
+Windows:
+app-mode/
 ```
 
-发布产物启动时，如果用户没有传入命令行参数，OpenDesk 可以发现该默认 App Mode package；用户随后直接从 Finder 或 Launchpad 启动应用。
+官方产品的主 UI、Recorder、Scheduler、Runtime Log、Permissions、Tray ownership、release allowlist 和 Recorder materialization 属于 OpenDesk 自身产品架构，不应暴露成第三方 App 开发的必需概念。
 
-仓库根目录 `VERSION` 是默认 release/runtime compatibility version 来源；显式 `VERSION` 用于发布流水线覆盖。macOS builder 把同一个值同时注入 Runtime binary 的 `pkg/runtimeversion.Current` 与 `CFBundleShortVersionString`。
+源码维护者继续阅读：
 
-## Windows 发布
-
-当前 Windows P0 发布形式是 portable directory，不是 MSI/MSIX installer。可从仓库根目录执行：
-
-```powershell
-pwsh -NoProfile -File scripts/build_windows_distribution.ps1 -Runtime win-x64 -AppModePackage C:\absolute\path\to\my-app
-```
-
-Builder 会把 package staging 到发布目录的：
-
-```text
-app-mode\
-```
-
-用户可以从 Explorer 启动 `opendesk.exe`，也可以自行建立 Start Menu shortcut。当前公开能力不应描述为已经提供 MSI、MSIX、文件关联或自动创建开始菜单快捷方式。
-
-Windows developer/distribution builder 读取同一个根目录 `VERSION`（也可通过 `-Version` 或环境变量 `VERSION` 显式覆盖），将其注入 Runtime binary，并记录为 `distribution-provenance.json.runtimeCompatibilityVersion`。
-
-## Single Instance 与多应用
-
-`singleInstance: true` 表示同一个稳定 package identity 不应重复创建第二套应用 Runtime；第二次启动会沿现有 App Shell 语义激活已有实例。
-
-不同 Script App 应使用不同的稳定 `id`。不要为了区分应用，在 Manifest 中虚构未公开字段。
-
-尤其不要把固定本地服务端口作为 Script App identity。当前公开 `opendesk.app.json` 契约没有用于给每个 App Mode package 声明 Runtime service port 的字段。如果 Runtime 后续增加端口或 endpoint override，应先在实现、测试和 [Environment API](environment.md) / 对应 Runtime 文档中形成公开契约，再由本页引用；不要先在 package 文档中发明 `port`、`OPENDESK_APP_PORT` 等尚未实现的配置。
-
-多 OpenDesk / 多 Script App 的 localhost endpoint 隔离、默认 auto port、显式 override、Single Instance 启动顺序及 legacy `60844` 迁移已经落地，详见 [Runtime Endpoint Allocation 与 App Instance Isolation 设计](../architecture/runtime-endpoint-allocation.md)。当前没有新的端口环境变量；App Mode 也不创建 TCP endpoint。
-
-## 验证清单
-
-发布前至少分别检查：
-
-1. package 根目录存在严格有效的 schema-v1 `opendesk.app.json`；`entry` 与图标资源都留在 package root 内。
-2. `schemaVersion`、package `version` 与可选 `runtime.minVersion` 符合 [App Package Format](../architecture/app-package-format.md)。
-3. `./dist/opendesk app validate <package> --json` 返回 exit `0` 和 `ok: true`；需要解释时再运行 Doctor。
-4. `./dist/opendesk -app <package> -console-mode script` 可以从仓库根目录按原命令启动。
-5. 主窗口 `id` 与 `window.mainId` 一致；Tray/Menu Bar 的 Open、业务 action、Quit 使用同一个 Runtime。
-6. `singleInstance` 行为符合预期；同一 package 的第二次启动不重复执行 `main.js`。
-7. macOS 发布时检查实际 `.app` 中的 `Contents/Resources/AppMode/`；Windows 发布时检查实际 portable 目录中的 `app-mode/`。
-8. cross-build / package layout 检查只证明构建和 staging，不等于目标系统 live UI 验证。
-9. 若交付目标包含代码保密或客户授权，单独进入 `.odpkg` / License 流程；不要把 App Mode packaging 本身描述为源码保护。
+- [OpenDesk Desktop Product Shell](../architecture/opendesk-desktop-product-shell.md)
+- [App Mode Desktop Launch Contract](../architecture/app-mode-desktop-launch.md)
+- [App Package Format](../architecture/app-package-format.md)
+- [`apps/opendesk/README.md`](../../apps/opendesk/README.md)
 
 ## 相关入口
 
-- [App Package Format](../architecture/app-package-format.md)：`opendesk.app.json` schema、version、compatibility、path security、error model 与 legacy policy。
-- [Installed Runtime App Builder](app-builder.md)：无源码/无 Go 的 `validate → doctor → build` 用户路径、artifact layout、CI 与限制。
-- [App Package CLI](app-package-cli.md)：validate/doctor/build、JSON diagnostics 与 exit status。
-- [automation.app](app-shell.md)：App Mode lifecycle、tray/menu 与 Manifest Runtime 语义。
+- [automation.app](app-shell.md)：App Mode lifecycle、Tray/Menu 与 action API。
+- [Installed Runtime App Builder](app-builder.md)：无源码/无 Go 的 artifact 构建、CI 与发布限制。
+- [App Package CLI](app-package-cli.md)：`validate`、`doctor`、`build` Reference。
+- [App Package Format](../architecture/app-package-format.md)：Manifest schema、compatibility 和 path security。
 - [Examples: App Mode](../../examples/app-mode/README.md)：最小可运行示例。
-- [App Mode desktop launch contract](../architecture/app-mode-desktop-launch.md)：开发与 release staging 的架构边界及验证证据。
-- [Runtime Endpoint Allocation 与 App Instance Isolation](../architecture/runtime-endpoint-allocation.md)：多实例 endpoint 所有权、自动分配、显式覆盖、Single Instance 协同与 60844 兼容迁移。
-- [受保护包 CLI](protected-packages.md)：`.js` → `.odpkg` 的源码保护与 License 流程。
-- [`$build-script-app`](../../workflows/script-app-packaging/skills/build-script-app/SKILL.md)：面向开发者和 Agent 的 Script App Packaging 作业 Skill。
+- [受保护包 CLI](protected-packages.md)：`.odpkg` 源码保护与 License 流程。
