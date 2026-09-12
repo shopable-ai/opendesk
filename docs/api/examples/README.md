@@ -33,11 +33,15 @@ Catalog schema version 2 的执行契约要求 `platforms` 声明支持的 `darw
 
 - [Runtime 示例总览](../../../examples/runtime/README.md)
 - [Runtime Quickstart](../../../examples/runtime/api-quickstart.js)
+- [ESM 模块示例总览](../../../examples/runtime/modules/README.md)
+- [ESM 相对 import：main.mjs](../../../examples/runtime/modules/basic/main.mjs)；从仓库根目录运行：`./dist/opendesk -script examples/runtime/modules/basic/main.mjs -console-mode script`
 - [Console](../../../examples/runtime/console.js)、[globalThis](../../../examples/runtime/global-this.js)、[Promise](../../../examples/runtime/promise.js)
 - [Sleep](../../../examples/runtime/sleep.js)、[Timer](../../../examples/runtime/timer.js)、[Page Wait](../../../examples/runtime/page-wait.js)
 - [Environment](../../../examples/runtime/environment.js)、[Path](../../../examples/runtime/path.js)
 - [File](../../../examples/runtime/file.js)、[JSON File](../../../examples/runtime/file-json.js)、[Command](../../../examples/runtime/command.js)
 - [AppStorage](../../../examples/runtime/app-storage.js)、[System Info](../../../examples/runtime/system-info.js)、[Session State](../../../examples/runtime/system-session-state.js)
+
+ESM 示例用于学习 `.mjs`、静态 `import` / `export` 和相对依赖解析；公开契约与限制见 [JavaScript Runtime](../runtime.md#脚本级-await-与模块边界)。第三方 package probe 可能要求先安装依赖，按模块示例 README 执行。
 
 ## SQLite Runtime API
 
