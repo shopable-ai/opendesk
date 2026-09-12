@@ -22,7 +22,10 @@
     "primaryAction": "opendesk.open",
     "menuMode": "merge",
     "menu": [
-      { "id": "runner.open", "label": "打开 Script Runner", "action": "runner.open" }
+      { "id": "runner.open", "label": "打开 Script Runner", "action": "runner.open" },
+      { "type": "separator" },
+      { "id": "scheduler.open", "label": "计划中心", "action": "scheduler.open" },
+      { "id": "scheduler.new", "label": "新建计划…", "action": "scheduler.new" }
     ]
   }
 }
