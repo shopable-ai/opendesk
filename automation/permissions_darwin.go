@@ -86,6 +86,7 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+	"sync"
 	"unsafe"
 )
 
@@ -131,6 +132,33 @@ func TriggerMacAutomationPermissionHelper(targetApp string) bool {
 }
 
 type macOSPermissionProvider struct{}
+
+var macPermissionRequestGuard = struct {
+	sync.Mutex
+	requested map[string]struct{}
+}{requested: map[string]struct{}{}}
+
+func reserveMacPermissionRequest(id PermissionID, target string) bool {
+	key := string(id)
+	if target != "" {
+		key += ":" + target
+	}
+	macPermissionRequestGuard.Lock()
+	defer macPermissionRequestGuard.Unlock()
+	if _, exists := macPermissionRequestGuard.requested[key]; exists {
+		return false
+	}
+	macPermissionRequestGuard.requested[key] = struct{}{}
+	return true
+}
+
+func permissionRequestAlreadyTriggered(probe permissionProbe) permissionProbe {
+	if probe.Evidence == nil {
+		probe.Evidence = map[string]any{}
+	}
+	probe.Evidence["requestSkipped"] = "already_requested_in_process"
+	return probe
+}
 
 func newPermissionProvider() permissionProvider {
 	return macOSPermissionProvider{}
@@ -195,16 +223,25 @@ func (p macOSPermissionProvider) Request(id PermissionID, target string) (permis
 	switch id {
 	case PermissionAccessibility:
 		if !darwinAccessibilityStatus() {
+			if !reserveMacPermissionRequest(id, target) {
+				return permissionRequestAlreadyTriggered(p.Check(id, target)), nil
+			}
 			_ = darwinRequestAccessibilityPrompt()
 		}
 		return p.Check(id, target), nil
 	case PermissionScreenCapture:
 		if !darwinScreenCaptureStatus() {
+			if !reserveMacPermissionRequest(id, target) {
+				return permissionRequestAlreadyTriggered(p.Check(id, target)), nil
+			}
 			_ = darwinRequestScreenCapturePrompt()
 		}
 		return p.Check(id, target), nil
 	case PermissionInputMonitoring:
 		if darwinInputMonitoringStatus() != "granted" {
+			if !reserveMacPermissionRequest(id, target) {
+				return permissionRequestAlreadyTriggered(p.Check(id, target)), nil
+			}
 			_ = darwinRequestInputMonitoringPrompt()
 		}
 		return p.Check(id, target), nil
@@ -212,6 +249,9 @@ func (p macOSPermissionProvider) Request(id PermissionID, target string) (permis
 		target = strings.TrimSpace(target)
 		if target == "" {
 			return p.Check(id, target), fmt.Errorf("automation permission requires a target application, for example automation:Finder")
+		}
+		if !reserveMacPermissionRequest(id, target) {
+			return permissionRequestAlreadyTriggered(p.Check(id, target)), nil
 		}
 		if darwinTriggerAppleEventsPrompt(target) {
 			return permissionProbe{Status: PermissionGranted, Evidence: map[string]any{

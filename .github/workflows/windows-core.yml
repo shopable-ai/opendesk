@@ -42,6 +42,12 @@ jobs:
         shell: pwsh
         run: go build ./...
 
+      - name: Test permission domain and CLI seams
+        shell: pwsh
+        run: |
+          go test ./automation -run '^(TestAggregatePermissionOverall|TestPermissionFeatureRequirements|TestParsePermissionID|TestPermissionProviderAbstractionFeedsDomainModel)$' -count=1
+          go test ./cmd/opendesk -run '^TestPermissions' -count=1
+
       - name: Test built-in Recorder resource bundle
         shell: pwsh
         run: go test ./internal/recorderbundle -count=1
@@ -77,6 +83,8 @@ jobs:
           $required = @(
             "app-mode\opendesk.app.json",
             "app-mode\main.js",
+            "app-mode\permissions-center.js",
+            "app-mode\runtime-log.js",
             "app-mode\recorder\controller.js",
             "app-mode\recorder\controller-core.js",
             "app-mode\recorder\recording-history.js",
@@ -103,6 +111,31 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & $runtime app validate apps/opendesk --json
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Validate Windows permission CLI contract from distribution
+        shell: pwsh
+        run: |
+          $runtime = ".\dist\windows\win-x64\opendesk.exe"
+          $evidence = ".runtime/tests/windows-compat/permissions-status.json"
+          & $runtime permissions status --json | Tee-Object -FilePath $evidence
+          if ($LASTEXITCODE -ne 0) {
+            throw "permissions status --json failed with exit code $LASTEXITCODE"
+          }
+          $report = Get-Content -LiteralPath $evidence -Raw | ConvertFrom-Json
+          if ($report.platform -ne "windows") {
+            throw "permission report platform must be windows"
+          }
+          if ($report.identity.launchKind -ne "windows-process") {
+            throw "permission report must describe the current Windows process identity"
+          }
+          if (-not $report.permissions -or $report.permissions.Count -lt 1) {
+            throw "permission report must contain permission entries"
+          }
+          foreach ($permission in $report.permissions) {
+            if ($permission.status -ne "not_required") {
+              throw "Windows permission $($permission.id) must use not_required instead of fake macOS TCC semantics"
+            }
+          }
 
       - name: Run public Runtime window contract from distribution
         shell: pwsh

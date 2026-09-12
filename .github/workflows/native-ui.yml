@@ -10,6 +10,9 @@ on:
       - 'cmd/opendesk/**'
       - 'cmd/opendesk-ui-host/**'
       - 'internal/appcli/**'
+      - 'apps/opendesk/main.js'
+      - 'apps/opendesk/permissions-center.js'
+      - 'apps/opendesk/.release/**'
       - 'apps/opendesk/recorder/**'
       - 'apps/opendesk/opendesk.app.json'
       - 'internal/processlock/**'
@@ -23,9 +26,11 @@ on:
       - 'pkg/scheduler/**'
       - 'automation/custom_ui*'
       - 'automation/floating_window*'
+      - 'automation/permissions*'
       - 'automation/page.go'
       - 'automation/utils.go'
       - 'automation/command*'
+      - 'tests/app-lifecycle/permissions-center.test.js'
       - 'tests/runtime-api/custom-ui*'
       - 'tests/custom-ui/**'
       - 'tests/scheduler/**'
@@ -77,6 +82,21 @@ jobs:
           else
             go build -o dist/opendesk ./cmd/opendesk
           fi
+      - name: Test permission domain and CLI seams
+        if: runner.os != 'Linux'
+        shell: bash
+        run: |
+          go test ./automation -run '^(TestAggregatePermissionOverall|TestPermissionFeatureRequirements|TestParsePermissionID|TestPermissionProviderAbstractionFeedsDomainModel)$' -count=1
+          go test ./cmd/opendesk -run '^TestPermissions' -count=1
+      - name: macOS permission status machine-readable smoke
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          mkdir -p .runtime/tests/native-ui
+          ./dist/opendesk permissions status --json > .runtime/tests/native-ui/permissions-status.json
+          node -e 'const fs=require("fs");const p=JSON.parse(fs.readFileSync(".runtime/tests/native-ui/permissions-status.json","utf8"));if(p.platform!=="darwin"||!p.identity||!Array.isArray(p.permissions)||!p.permissions.length)process.exit(1);'
+      - name: Test Permissions Center lifecycle
+        run: node --test tests/app-lifecycle/permissions-center.test.js
       - name: Test Runtime endpoint allocation seams
         if: runner.os != 'Linux'
         run: go test ./cmd/opendesk -run 'Test(FrameworkHTTPAutoAllocation|ExplicitEndpoint|RuntimeEndpoint|FrameworkHTTPExplicit|ResolveRuntimeEndpointConfig)' -count=1
