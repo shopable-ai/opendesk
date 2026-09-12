@@ -16,6 +16,27 @@
 
 这些条目在 `examples/catalog.json` 中标记为 `safe`，适合 Example Explorer 一键运行。
 
+## ESM 模块入口
+
+需要把脚本拆成多个文件时，使用 `.mjs` 入口和静态 `import` / `export`。模块示例见 [modules/README.md](modules/README.md)。
+
+最小相对 import 示例：
+
+```bash
+./dist/opendesk -script examples/runtime/modules/basic/main.mjs -console-mode script
+```
+
+它验证：
+
+```text
+main.mjs
+→ ./lib/math.mjs
+→ ../constants.mjs
+→ ESM_RELATIVE_IMPORT_OK 42
+```
+
+第三方 package compatibility probe（例如 LangGraph）也放在 `examples/runtime/modules/`，但需要按对应 README 先准备依赖。ESM 的公开支持范围和限制见 [`docs/api/runtime.md`](../../docs/api/runtime.md#脚本级-await-与模块边界)。
+
 ## Execution、文件和命令
 
 | 示例 | 直接运行 | 说明 |
@@ -44,6 +65,6 @@ HTTP 由 [http.js](http.js) 展示，因为它有外部测试服务前置条件�
 
 ## Example 与 Test 的边界
 
-带 `.test.js` 或 smoke 语义的实现不属于 Explorer 的普通 curated 列表；正式 Runtime contract 继续由 `tests/runtime-api/` 承担。不要因为某个公开 Example 成功执行，就把对应 API 或跨平台行为标记为正式测试通过。
+带 `.test.js` 或 smoke 语义的实现不属于 Explorer 的普通 curated 列表；正式 Runtime contract 继续由 `tests/runtime-api/` 承担。模块 loader 另有 `pkg/scriptloader/module_test.go` 与 `tests/javascript-modules/`；公开 `.mjs` example 仍只是可学习、可直接运行的用户示例。
 
 平台限制和精确 API 契约分别以 [`docs/api/`](../../docs/api/README.md) 中的对应 Reference 为准。
