@@ -71,11 +71,25 @@
     }),
   ]);
 
+  function productizeMainWindowSpec(spec, mainWindowId) {
+    const source = spec || {};
+    let content = source.content;
+    if (content && typeof content === 'object' && typeof content.html === 'string') {
+      content = Object.assign({}, content, {
+        html: content.html.replace(/>Script Runner</g, '>自动化<'),
+      });
+    }
+    return Object.assign({}, source, {
+      id: mainWindowId,
+      title: 'OpenDesk',
+      content,
+    });
+  }
+
   function createRunnerUI(mainWindowId) {
     return Object.freeze({
       createWindow(spec) {
-        const next = Object.assign({}, spec || {}, {id: mainWindowId});
-        return runtimeUI.createWindow(next);
+        return runtimeUI.createWindow(productizeMainWindowSpec(spec, mainWindowId));
       },
     });
   }
@@ -84,7 +98,10 @@
     function ProductFloatingWindow(spec) {
       const source = spec || {};
       const toolbarSpec = Object.assign({}, source.toolbar || {}, {maxWidth, maxRows: 1});
-      const inner = new NativeFloatingWindow(Object.assign({}, source, {toolbar: toolbarSpec}));
+      const inner = new NativeFloatingWindow(Object.assign({}, source, {
+        title: 'OpenDesk',
+        toolbar: toolbarSpec,
+      }));
       let secondaryInstalled = false;
 
       if (homeAction) {
@@ -123,6 +140,12 @@
     return ProductFloatingWindow;
   }
 
+  function argValue(args, name) {
+    if (!Array.isArray(args)) return '';
+    const index = args.indexOf(name);
+    return index >= 0 && index + 1 < args.length ? String(args[index + 1]) : '';
+  }
+
   function createProductRunner(options) {
     const settings = options || {};
     const officialShell = settings.officialShell;
@@ -140,6 +163,54 @@
     let runTask = null;
     let opening = null;
     let lastError = null;
+    let latestExecution = null;
+
+    const productCommand = Object.freeze({
+      run(executablePath, args, options) {
+        const childScript = executablePath === system.getExecutablePath()
+          && Array.isArray(args)
+          && args.includes('-script')
+          && args.includes('-log-dir');
+        if (!childScript) return command.run(executablePath, args, options);
+
+        const startedAt = new Date().toISOString();
+        const base = {
+          scriptPath: argValue(args, '-script'),
+          logDir: argValue(args, '-log-dir'),
+          status: 'running',
+          startedAt,
+          finishedAt: '',
+          exitCode: null,
+        };
+        latestExecution = Object.assign({}, base);
+        const runOptions = Object.assign({}, options || {}, {hideWindow: true});
+        let pending;
+        try {
+          pending = command.run(executablePath, args, runOptions);
+        } catch (error) {
+          latestExecution = Object.assign({}, base, {
+            status: error && error.code === 'CANCELED' ? 'canceled' : 'failed',
+            finishedAt: new Date().toISOString(),
+          });
+          throw error;
+        }
+        return Promise.resolve(pending).then(result => {
+          latestExecution = Object.assign({}, base, {
+            status: 'succeeded',
+            finishedAt: new Date().toISOString(),
+            exitCode: result && Number.isInteger(result.exitCode) ? result.exitCode : 0,
+          });
+          return result;
+        }, error => {
+          latestExecution = Object.assign({}, base, {
+            status: error && error.code === 'CANCELED' ? 'canceled' : 'failed',
+            finishedAt: new Date().toISOString(),
+            exitCode: error && Number.isInteger(error.exitCode) ? error.exitCode : null,
+          });
+          throw error;
+        });
+      },
+    });
 
     function isExpectedLifecycleCancellation(error) {
       return !!(error && error.code === 'UI_CANCELED');
@@ -223,7 +294,7 @@
         scriptRoot,
         managedScriptRoot: !hasConfiguredRoot,
         file,
-        command,
+        command: productCommand,
         execution: runnerExecution,
         system,
         ui: createRunnerUI(mainWindowId),
@@ -285,6 +356,7 @@
         lastError,
         mainWindowId,
         toolbarMaxWidth,
+        latestExecution: latestExecution ? Object.assign({}, latestExecution) : null,
         runner: app ? app.state() : null,
       };
     }
