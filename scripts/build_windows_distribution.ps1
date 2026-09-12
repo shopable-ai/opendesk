@@ -63,9 +63,12 @@ New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
 
 Push-Location $root
 try {
-    $appBuildArguments = @('-Runtime', 'win-x64', '-OutputDirectory', $OutputDirectory)
+    $appBuildArguments = @{
+        Runtime = 'win-x64'
+        OutputDirectory = $OutputDirectory
+    }
     if ($AppModePackage) {
-        $appBuildArguments += @('-AppModePackage', $AppModePackage)
+        $appBuildArguments.AppModePackage = $AppModePackage
     }
     & ./scripts/build_windows_app.ps1 @appBuildArguments
     if ($LASTEXITCODE -ne 0) {
