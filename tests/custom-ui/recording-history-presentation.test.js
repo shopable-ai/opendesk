@@ -7,7 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const vm = require('node:vm');
 
-const historyPath = path.resolve(__dirname, '../../internal/recorderbundle/ui/recording-history.js');
+const historyPath = path.resolve(__dirname, '../../apps/opendesk/recorder/recording-history.js');
 vm.runInThisContext(fs.readFileSync(historyPath, 'utf8'), {filename: historyPath});
 const History = globalThis.OpenDeskRecordingHistory;
 
