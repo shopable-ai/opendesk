@@ -32,7 +32,7 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先确定应用
 | 在 build/launch 前静态检查 `opendesk.app.json` package | [App Package CLI](app-package-cli.md) |
 | 只安装预编译 OpenDesk/SDK，生成可分发桌面应用 | [Installed Runtime App Builder](app-builder.md) |
 | 人工录制非敏感测试操作并生成基础 JS | [Recorder Runtime API](recorder-runtime.md) |
-| 运行带 tray / menu bar 的单实例桌面脚本应用 | [automation.app API](app-shell.md) |
+| 运行带 tray / menu bar 的单实例桌面脚本应用 | 先读 [App Mode 与 App Shell](app-shell.md)；具体方法查 [automation.app API](automation-app.md) |
 | 管理环境变量和默认输出 | [Environment Configuration](environment.md) |
 
 ## 大写 UI 操作外部应用，小写 ui 负责 OpenDesk 自身界面
@@ -68,7 +68,7 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先确定应用
 - 读写系统剪贴板：[Clipboard API](clipboard.md)
 - 订阅窗口、应用、剪贴板和显示器变化：[Desktop Events API](events.md)
 - 启动、等待、终止与重启应用：[App API](app.md)
-- 控制当前 App Mode tray、菜单与退出：[automation.app API](app-shell.md)
+- 理解 `-app` 与 App Shell 的关系：[App Mode 与 App Shell](app-shell.md)；控制当前 App Mode tray、菜单与退出：[automation.app API](automation-app.md)
 - 控制系统音频与发现设备：[Audio API](audio.md)
 - 播放提示音或本地音频：[Sound API](sound.md)
 - 读取显示器、选择区域或录屏：[Screen API](screen.md)
@@ -95,7 +95,7 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先确定应用
 
 ### 交互与状态能力跟在桌面主线之后
 
-[Custom UI](ui.md)、[Dialog API](dialog.md)、[通知与提示](notify.md)、[Notifications API](notifications.md)、[Clipboard API](clipboard.md)、[Global Shortcut API](global-shortcut.md)、[Desktop Events API](events.md)、[App API](app.md)、[automation.app API](app-shell.md)、[Recorder Runtime API](recorder-runtime.md)、[Agent-first Recorder MCP API](recorder.md)、[Audio API](audio.md)、[Sound API](sound.md)
+[Custom UI](ui.md)、[Dialog API](dialog.md)、[通知与提示](notify.md)、[Notifications API](notifications.md)、[Clipboard API](clipboard.md)、[Global Shortcut API](global-shortcut.md)、[Desktop Events API](events.md)、[App API](app.md)、[App Mode 与 App Shell](app-shell.md)、[automation.app API](automation-app.md)、[Recorder Runtime API](recorder-runtime.md)、[Agent-first Recorder MCP API](recorder.md)、[Audio API](audio.md)、[Sound API](sound.md)
 
 ### Runtime 与数据页按脚本运行边界集中
 
@@ -124,7 +124,7 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先确定应用
 | `Recorder` | 可信本地 JavaScript Runtime | Experimental | 人工输入采集、actions 制作与 basic 普通 JS 生成 | [Recorder Runtime API](recorder-runtime.md) |
 | `Events` | JavaScript Runtime | Experimental | 外部桌面状态 watcher | [Desktop Events API](events.md) |
 | `App` | JavaScript Runtime | Experimental | 按稳定 identity 启动、等待、终止与重启应用 | [App API](app.md) |
-| `automation.app` | 显式 App Mode Runtime | P0 macOS / Windows | 当前应用 tray action、菜单状态、reopen 与退出 | [automation.app API](app-shell.md) |
+| `automation.app` | 显式 App Mode Runtime | P0 macOS / Windows | 当前应用 tray action、菜单状态、reopen 与退出 | [automation.app API](automation-app.md) |
 | `window` | JavaScript Runtime | Stable reads / platform-partial actions | 窗口读取、能力矩阵与控制 | [Window API](window.md) |
 | `Screen` | JavaScript Runtime | Stable；部分 macOS Experimental | 显示器、像素、区域选择与录屏 | [Screen API](screen.md) |
 | `Vision` | JavaScript Runtime | Stable | OCR、UI 文本检测、provider | [Vision API](vision.md) |
@@ -158,11 +158,12 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先确定应用
 
 `docs/api/` 以用户真正看到的公开边界和实际查找任务组织，而不是按实现文件数量或章节长度拆页：
 
-1. **同一公开对象/namespace，优先一个主文档。** 大写 `UI` 统一在 `desktop-ui.md`；小写 `ui` 统一从 `ui.md` 查找。
-2. **代码入口与文档入口尽量直接对应。** 用户看到 `ui.xxx` 时应能直接打开 `ui.md`，不要求先知道内部把它称为 Custom UI。
-3. **系统通知与 OpenDesk 自身 UI 分开。** `notify()` 保持在 `notify.md`；`ui.toast()` 属于小写 `ui` 的主 Reference。
-4. **不同运行方向可以独立。** `http.md` 是脚本发起请求，`http-server.md` 是外部客户端调用 OpenDesk。
-5. **独立协议可以独立。** `scheduler-api.md` 是 Scheduler HTTP 协议契约，不是把同一个 JavaScript 类硬拆成两页。
+1. **同一公开对象/namespace，优先一个主文档。** 大写 `UI` 统一在 `desktop-ui.md`；小写 `ui` 统一从 `ui.md` 查找；`automation.app.*` 统一在 `automation-app.md`。
+2. **运行模式说明与方法 Reference 可以分层，但不能重复维护方法契约。** `app-shell.md` 解释 `-app`、Manifest、App Shell 与 `automation.app` 的关系；参数、返回值、错误和方法示例只在 `automation-app.md` 维护。
+3. **代码入口与文档入口尽量直接对应。** 用户看到 `ui.xxx` 时应能直接打开 `ui.md`，不要求先知道内部把它称为 Custom UI。
+4. **系统通知与 OpenDesk 自身 UI 分开。** `notify()` 保持在 `notify.md`；`ui.toast()` 属于小写 `ui` 的主 Reference。
+5. **不同运行方向可以独立。** `http.md` 是脚本发起请求，`http-server.md` 是外部客户端调用 OpenDesk。
+6. **独立协议可以独立。** `scheduler-api.md` 是 Scheduler HTTP 协议契约，不是把同一个 JavaScript 类硬拆成两页。
 
 篇幅不是拆文件的理由。共享参数可以集中说明，但每个公开方法应有独立方法小节，方便阅读、链接和 Agent 检索。
 
