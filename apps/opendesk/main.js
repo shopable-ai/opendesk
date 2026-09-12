@@ -26,10 +26,35 @@ if (!globalThis.OpenDeskProductScriptRunner
   throw new Error('OpenDesk product Script Runner did not initialize');
 }
 
+const schedulerClientEntry = File.join(Execution.scriptDir, 'scheduler-client.js');
+(0, eval)(File.read(schedulerClientEntry) + '\n//# sourceURL=' + schedulerClientEntry);
+if (!globalThis.OpenDeskSchedulerClient
+  || typeof OpenDeskSchedulerClient.listJobs !== 'function') {
+  throw new Error('OpenDesk Scheduler client did not initialize');
+}
+
+const schedulerCenterEntry = File.join(Execution.scriptDir, 'scheduler-center.js');
+(0, eval)(File.read(schedulerCenterEntry) + '\n//# sourceURL=' + schedulerCenterEntry);
+if (!globalThis.OpenDeskSchedulerCenter
+  || typeof OpenDeskSchedulerCenter.create !== 'function') {
+  throw new Error('OpenDesk Scheduler Center did not initialize');
+}
+
 const runner = OpenDeskProductScriptRunner.create({officialShell});
+const schedulerCenter = OpenDeskSchedulerCenter.create();
 const unsubscribeAppActions = automation.app.onAction(async event => {
-  if (!event || (event.id !== 'opendesk.open' && event.id !== 'runner.open')) return;
-  await runner.open(event.source || event.id);
+  if (!event) return;
+  if (event.id === 'opendesk.open' || event.id === 'runner.open') {
+    await runner.open(event.source || event.id);
+    return;
+  }
+  if (event.id === 'scheduler.open') {
+    await schedulerCenter.open(event.source || event.id);
+    return;
+  }
+  if (event.id === 'scheduler.new') {
+    await schedulerCenter.openCreate(event.source || event.id);
+  }
 });
 
 try {
@@ -46,6 +71,7 @@ try {
     mainWindowId: initialState.mainWindowId,
     toolbarMaxWidth: initialState.toolbarMaxWidth,
     recipeProcessModel: 'child-opendesk-process',
+    scheduler: OpenDeskSchedulerClient.getCapabilities(),
     officialShell: officialShell.state(),
   }));
 
