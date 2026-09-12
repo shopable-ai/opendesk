@@ -254,3 +254,133 @@ P0 does not implement:
 - capability-based permission enforcement.
 
 These systems may build on package identity/version/schema later, but they must not overload the P0 manifest contract.
+
+## Evolution roadmap
+
+The package format should evolve by strengthening validation, tooling, identity, and distribution around schema v1 before adding more manifest fields. Schema v1 should be treated as the compatibility foundation, not as a container for every future product feature.
+
+### P0 qualification and freeze criteria
+
+Before schema v1 is considered fully qualified for long-term production use, the repository should continuously prove:
+
+- schema-v1 and legacy-v0 compatibility behavior through `pkg/appshell` contract tests;
+- fail-closed handling for future schema versions and unknown fields;
+- SemVer ordering for package and Runtime compatibility, including prerelease/build metadata cases;
+- Runtime compatibility rejection before entry/resource execution;
+- POSIX/Windows traversal and symlink containment behavior;
+- stable typed error codes for manifest, compatibility, and resource failures;
+- one Runtime compatibility version flowing through canonical development and release builds;
+- successful repository regression, Windows Core CI, Native UI CI, and platform packaging smoke checks;
+- documentation and examples that recommend schema v1 rather than legacy authoring.
+
+Once these gates are green, schema v1 should be frozen except for corrections that preserve its existing semantics. New product concepts should not be added to v1 merely because they need configuration.
+
+### P1-A: App Package Developer Experience
+
+This is the recommended next milestone after P0 qualification.
+
+The target authoring flow is:
+
+```text
+write opendesk.app.json
+→ editor/schema feedback
+→ app validate
+→ app doctor
+→ build
+→ distribution
+→ Runtime compatibility gate
+→ launch
+```
+
+Recommended capabilities:
+
+- publish a machine-readable JSON Schema for schema v1 so editors, CI, generators, and Agents can validate structure before Runtime startup;
+- decide explicitly whether `$schema` becomes a supported manifest field or remains an editor-side association; strict unknown-field validation means it must not be added informally;
+- add a CLI validation surface such as `opendesk app validate <package>` with a machine-readable `--json` mode;
+- add `opendesk app doctor <package>` for higher-level diagnostics covering schema, package identity/version, Runtime compatibility, resources, containment, and actionable fixes;
+- make CLI validation/doctor reuse the Runtime package loader and typed error model rather than introducing a second independent validator;
+- make the same validation suitable for CI so invalid packages fail before distribution builds.
+
+A Doctor-style result should be able to explain the package as a structured tree, for example:
+
+```text
+App Package Doctor
+├── schemaVersion          PASS
+├── package identity       PASS
+├── package version        PASS
+├── Runtime compatibility PASS
+├── entry                  PASS
+├── resources              PASS
+└── path containment       PASS
+```
+
+Developer tooling must not weaken the Runtime's fail-closed validation. JSON Schema/editor validation is an earlier feedback layer, not the security or compatibility authority.
+
+### P1-B: App identity and writable-data isolation
+
+Package `id` should become the stable identity root reused across App-owned namespaces instead of allowing each subsystem to invent a different identity.
+
+The intended model is:
+
+```text
+package id
+├── single-instance identity
+├── app-data namespace
+├── config namespace
+├── log namespace
+├── Scheduler ownership
+├── future secret namespace
+└── future update/license identity
+```
+
+Package files should be treated as immutable/read-only application resources. Mutable state should live outside the package root in a package-ID-scoped writable area so upgrading or replacing a package does not overwrite user data and multiple Apps do not share accidental state.
+
+Exact macOS/Windows writable paths should be frozen only when that runtime API is implemented; the package contract should define the ownership rule before hard-coding a path that other subsystems may later need to share.
+
+This topic should eventually have its own architecture contract, for example `docs/architecture/app-identity-and-data-isolation.md`, once implementation begins.
+
+### P1-C: Build and distribution version consistency
+
+OpenDesk Runtime version and App Package version remain different semantic values, but release/build entry points must not accidentally report conflicting Runtime versions.
+
+The intended release relationship is:
+
+```text
+release/version inputs
+├── Runtime compatibility version
+│   ├── Runtime binary
+│   ├── macOS desktop artifact metadata
+│   └── Windows distribution provenance
+└── App Package version
+    └── independently versioned Script App/product package
+```
+
+Do not permanently force an embedded App Package version to equal the OpenDesk Runtime version. The requirement is consistency within each version concept and explicit ownership between them.
+
+### P2: compatibility, trust, and commercial extensions
+
+Only after P0/P1 contracts are stable should the package system expand into larger lifecycle/security/commercial features such as:
+
+- package upgrade/downgrade policy and user-data schema migration;
+- package integrity, digest, publisher identity, and signing;
+- a capability catalog, availability diagnostics, user consent, permission enforcement, or sandboxing;
+- richer installers/distribution/update metadata;
+- License, paid packages, plugin/script marketplace, and publisher verification.
+
+These concepts should be separate contracts. In particular, `capabilities` must remain declarative metadata until enforceable permission behavior is deliberately designed and implemented.
+
+### Recommended next milestone
+
+After the P0 qualification gates are green, start **App Package Developer Experience P1** with this bounded scope:
+
+```text
+App Package Developer Experience P1
+├── JSON Schema / editor validation
+├── opendesk app validate
+├── machine-readable --json diagnostics
+├── opendesk app doctor
+├── CI package validation
+└── documentation/examples integration
+```
+
+Do not combine this milestone with Secret Manager, capability permissions, Marketplace, License, updater, package migration, or remote dependency work. Those features should consume a stable package contract later rather than redefine it during developer-tooling work.
