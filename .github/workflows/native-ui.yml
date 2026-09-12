@@ -8,7 +8,9 @@ on:
       - 'go.sum'
       - 'cmd/opendesk/**'
       - 'cmd/opendesk-ui-host/**'
+      - 'apps/opendesk/recorder/**'
       - 'internal/processlock/**'
+      - 'internal/recorderbundle/**'
       - 'pkg/execution/**'
       - 'pkg/runtimeconfig/**'
       - 'pkg/customui/**'
@@ -24,6 +26,7 @@ on:
       - 'tests/custom-ui/**'
       - 'tests/scheduler/**'
       - 'examples/custom-ui/**'
+      - 'workflows/human-to-recipe/**'
       - 'scripts/build_windows*'
       - 'scripts/build_macos_app.sh'
       - 'docs/architecture/scheduler-runtime-concurrency.md'
@@ -84,6 +87,8 @@ jobs:
         run: node scripts/audit_test_architecture.js
       - name: Test Script Runner controller and product composition
         run: node --test tests/custom-ui/script-runner-simple.test.js tests/custom-ui/product-script-runner.test.js
+      - name: Test Recorder controller and history
+        run: node --test tests/custom-ui/recording-history.test.js tests/custom-ui/recording-history-icon-adapter.test.js tests/custom-ui/recording-history-interaction.test.js tests/custom-ui/recording-history-pagination.test.js tests/custom-ui/recording-history-presentation.test.js
       - name: Build macOS native UI host
         if: runner.os == 'macOS'
         run: go build -o dist/opendesk-ui-host ./cmd/opendesk-ui-host
