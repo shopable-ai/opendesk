@@ -37,6 +37,14 @@
         "action": "scheduler.new"
       },
       {
+        "type": "separator"
+      },
+      {
+        "id": "open-permissions",
+        "label": "权限管理…",
+        "action": "permissions.open"
+      },
+      {
         "id": "open-runtime-log",
         "label": "运行日志…",
         "action": "runtime.log"
