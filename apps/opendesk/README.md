@@ -167,10 +167,10 @@ the same canonical Recorder UI resources:
 OPENDESK_RECORDER_CAPTURE_KEYBOARD=1 ./dist/opendesk -ui -allow-recorder-capture -script examples/custom-ui/recording-console-simple.js -console-mode script -log-dir .runtime/examples/custom-ui/recording-console-simple
 ```
 
-The example delegates workflow orchestration to
-`workflows/human-to-recipe/recording-console-simple.js`; both development
-entries load the UI implementation from `apps/opendesk/recorder/**`. No
-symlink or duplicate Recorder controller source is required.
+The standalone example and `workflows/human-to-recipe/recording-console-simple.js`
+keep separate entry orchestration, but both load the UI implementation from
+`apps/opendesk/recorder/**`. No symlink or duplicate Recorder controller source
+is required.
 
 ## macOS release staging
 
