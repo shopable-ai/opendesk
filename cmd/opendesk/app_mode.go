@@ -169,6 +169,7 @@ func executeAppMode(config *Config) error {
 		ScriptContent: content,
 		WorkDir:       appPackage.Root,
 		Environment:   environment.Values,
+		// App Mode intentionally has no implicit 30-minute CLI deadline.
 		TimeoutMinutes:                  0,
 		EnableNativeExtensions:          true,
 		EnableUnsafeNativeExtensionCall: config.ExperimentalUnsafeNativeExtensionCall,
