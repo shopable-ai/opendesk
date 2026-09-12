@@ -75,7 +75,9 @@ func TestProductizedUIsHaveSingleCanonicalImplementations(t *testing.T) {
 
 	for _, canonical := range []string{
 		filepath.Join("..", "..", "internal", "recorderbundle", "bundle.go"),
-		filepath.Join("..", "..", "internal", "recorderbundle", "ui", "controller.js"),
+		filepath.Join("..", "..", "apps", "opendesk", "recorder", "controller.js"),
+		filepath.Join("..", "..", "apps", "opendesk", "recorder", "controller-core.js"),
+		filepath.Join("..", "..", "apps", "opendesk", "recorder", "recording-history.js"),
 		filepath.Join("..", "..", "apps", "opendesk", "script-runner", "controller.js"),
 	} {
 		if info, err := os.Stat(canonical); err != nil || !info.Mode().IsRegular() {
