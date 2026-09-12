@@ -2100,6 +2100,36 @@
         "consoleMode": "script"
       }
     },
+    "scheduler/write-evidence.js": {
+      "title": "Scheduler Write Evidence",
+      "description": "Write stable local evidence when run directly or as a Scheduler file task.",
+      "category": "Scheduler",
+      "level": "beginner",
+      "runPolicy": "safe",
+      "legacyNames": [],
+      "docs": "docs/api/scheduler.md",
+      "platforms": [
+        "darwin",
+        "linux",
+        "windows"
+      ],
+      "prerequisites": [
+        "Writes only below the repository .runtime artifact directory.",
+        "A long-running OpenDesk HTTP process is required only when scheduling the file."
+      ],
+      "requiredEnv": [],
+      "expected": "Prints SCHEDULER_EXAMPLE_PASS and writes .runtime/examples/scheduler/last-run.json.",
+      "tags": [
+        "scheduler",
+        "execution",
+        "evidence"
+      ],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
+    },
     "sqlite/persistence-read.js": {
       "title": "SQLite Persistence Read",
       "description": "Use SQLite through a run-owned database and verify the result.",
