@@ -19,10 +19,11 @@ import (
 const appShellRuntimeQueueCapacity = 256
 
 type appShellPending struct {
-	cancel  context.CancelFunc
-	resolve func(any) error
-	reject  func(any) error
-	counted *atomic.Bool
+	operation string
+	cancel    context.CancelFunc
+	resolve   func(any) error
+	reject    func(any) error
+	counted   *atomic.Bool
 }
 
 // AppShellRuntime is the execution-scoped bridge for automation.app. Native
@@ -107,7 +108,12 @@ func disabledAutomationApp(runtime *goja.Runtime) map[string]any {
 		"getCapabilities": func() any {
 			return map[string]any{"enabled": false, "available": false, "reason": "not an App Mode execution"}
 		},
-		"onAction": disabled("onAction"), "updateMenuItem": disabled("updateMenuItem"), "quit": disabled("quit"),
+		"onAction":               disabled("onAction"),
+		"updateMenuItem":         disabled("updateMenuItem"),
+		"getPermissions":         disabled("getPermissions"),
+		"requestPermission":      disabled("requestPermission"),
+		"openPermissionSettings": disabled("openPermissionSettings"),
+		"quit":                   disabled("quit"),
 	}
 }
 
@@ -119,6 +125,46 @@ func (a *AppShellRuntime) jsObject() map[string]any {
 				"enabled": true, "available": true, "packageId": manifest.ID,
 				"mainWindowId": manifest.Window.MainID, "closeBehavior": manifest.Window.CloseBehavior,
 			}
+		},
+		"getPermissions": func(call goja.FunctionCall) goja.Value {
+			feature := "desktop-automation"
+			if len(call.Arguments) > 0 && !goja.IsUndefined(call.Argument(0)) && !goja.IsNull(call.Argument(0)) {
+				if value := strings.TrimSpace(call.Argument(0).String()); value != "" {
+					feature = value
+				}
+			}
+			return a.runtime.ToValue(GetPermissionReport(feature))
+		},
+		"requestPermission": func(call goja.FunctionCall) goja.Value {
+			id := strings.TrimSpace(call.Argument(0).String())
+			if id == "" || id == "undefined" {
+				panic(appShellJSError(a.runtime, "INVALID_ARGUMENT", "requestPermission", "permission id is required"))
+			}
+			return a.startAsync("requestPermission", func(ctx context.Context) (any, error) {
+				select {
+				case <-ctx.Done():
+					return nil, ctx.Err()
+				default:
+				}
+				return RequestPermission(id)
+			})
+		},
+		"openPermissionSettings": func(call goja.FunctionCall) goja.Value {
+			id := strings.TrimSpace(call.Argument(0).String())
+			if id == "" || id == "undefined" {
+				panic(appShellJSError(a.runtime, "INVALID_ARGUMENT", "openPermissionSettings", "permission id is required"))
+			}
+			return a.startAsync("openPermissionSettings", func(ctx context.Context) (any, error) {
+				select {
+				case <-ctx.Done():
+					return nil, ctx.Err()
+				default:
+				}
+				if err := OpenPermissionSettings(id); err != nil {
+					return nil, err
+				}
+				return map[string]any{"opened": true, "id": id}, nil
+			})
 		},
 		"onAction": func(call goja.FunctionCall) goja.Value {
 			callback, ok := goja.AssertFunction(call.Argument(0))
@@ -318,7 +364,7 @@ func (a *AppShellRuntime) startAsync(operation string, worker func(context.Conte
 	ctx, cancel := context.WithCancel(a.context)
 	counted := &atomic.Bool{}
 	counted.Store(true)
-	a.pending[id] = appShellPending{cancel: cancel, resolve: resolve, reject: reject, counted: counted}
+	a.pending[id] = appShellPending{operation: operation, cancel: cancel, resolve: resolve, reject: reject, counted: counted}
 	a.asyncPending.Add(1)
 	a.workers.active.Add(1)
 	a.workers.wg.Add(1)
@@ -346,7 +392,7 @@ func (a *AppShellRuntime) finishAsync(runtime *goja.Runtime, id uint64, value an
 	}
 	pending.cancel()
 	if operationErr != nil {
-		_ = pending.reject(appShellJSError(runtime, "APP_SHELL_ERROR", "updateMenuItem", operationErr.Error()))
+		_ = pending.reject(appShellJSError(runtime, "APP_SHELL_ERROR", pending.operation, operationErr.Error()))
 		return
 	}
 	_ = pending.resolve(value)
