@@ -54,6 +54,13 @@ if (!globalThis.OpenDeskPermissionsCenter
   throw new Error('OpenDesk Permissions Center did not initialize');
 }
 
+const inspectorLauncherEntry = File.join(Execution.scriptDir, 'inspector-launcher.js');
+(0, eval)(File.read(inspectorLauncherEntry) + '\n//# sourceURL=' + inspectorLauncherEntry);
+if (!globalThis.OpenDeskInspectorLauncher
+  || typeof OpenDeskInspectorLauncher.create !== 'function') {
+  throw new Error('OpenDesk Inspector launcher did not initialize');
+}
+
 const appControllerEntry = File.join(Execution.scriptDir, 'app-controller.js');
 (0, eval)(File.read(appControllerEntry) + '\n//# sourceURL=' + appControllerEntry);
 if (!globalThis.OpenDeskProductAppController
@@ -65,12 +72,19 @@ const runner = OpenDeskProductScriptRunner.create({officialShell});
 const schedulerCenter = OpenDeskSchedulerCenter.create();
 const runtimeLog = OpenDeskRuntimeLog.create({runner});
 const permissionsCenter = OpenDeskPermissionsCenter.create();
+const inspectorLauncher = OpenDeskInspectorLauncher.create({
+  system: System,
+  command: Command,
+  execution: Execution,
+  ui: automation.ui,
+});
 const appController = OpenDeskProductAppController.create({
   appRuntime: automation.app,
   runner,
   schedulerCenter,
   runtimeLog,
   permissionsCenter,
+  inspectorLauncher,
   officialShell,
 });
 appController.start();
@@ -93,6 +107,7 @@ console.log('OPENDESK_PRODUCT_APP_READY=' + JSON.stringify({
   toolbarMaxWidth: initialState.toolbarMaxWidth,
   recipeProcessModel: 'child-opendesk-process',
   scheduler: OpenDeskSchedulerClient.getCapabilities(),
+  inspector: inspectorLauncher.getCapabilities(),
   permissions: permissionsCenter.state(),
   appController: appController.state(),
   runtimeLog: runtimeLog.state(),

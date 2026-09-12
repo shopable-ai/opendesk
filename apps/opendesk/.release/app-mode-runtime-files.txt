@@ -5,6 +5,7 @@ official-shell.js
 scheduler-client.js
 scheduler-center.js
 permissions-center.js
+inspector-launcher.js
 app-controller.js
 runtime-log.js
 script-runner-simple.js

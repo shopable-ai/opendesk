@@ -15,6 +15,7 @@
     const schedulerCenter = settings.schedulerCenter;
     const runtimeLog = settings.runtimeLog;
     const permissionsCenter = settings.permissionsCenter;
+    const inspectorLauncher = settings.inspectorLauncher;
     const officialShell = settings.officialShell;
     const logger = settings.logger || global.console;
     let started = false;
@@ -48,6 +49,10 @@
         case 'scheduler.new':
           await schedulerCenter.openCreate(source);
           return true;
+        case 'inspector.open':
+          if (!inspectorLauncher || typeof inspectorLauncher.open !== 'function') return false;
+          await inspectorLauncher.open(source);
+          return true;
         case 'runtime.log':
           if (!runtimeLog || typeof runtimeLog.open !== 'function') return false;
           await runtimeLog.open(source);
@@ -77,9 +82,9 @@
         failedActions++;
         const details = errorDetails(error);
         if (logger && typeof logger.error === 'function') {
-          const prefix = action === 'scheduler.open' || action === 'scheduler.new'
-            ? '[SCHEDULER_CENTER]'
-            : '[APP_ACTION]';
+          let prefix = '[APP_ACTION]';
+          if (action === 'scheduler.open' || action === 'scheduler.new') prefix = '[SCHEDULER_CENTER]';
+          if (action === 'inspector.open') prefix = '[INSPECTOR]';
           logger.error(`${prefix} action=${action} stage=dispatch message=${JSON.stringify(details.message)} stack=${JSON.stringify(details.stack)}`);
         }
         return false;

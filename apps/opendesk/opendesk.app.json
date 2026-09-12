@@ -40,6 +40,11 @@
         "type": "separator"
       },
       {
+        "id": "open-inspector",
+        "label": "Inspector",
+        "action": "inspector.open"
+      },
+      {
         "id": "open-permissions",
         "label": "权限管理…",
         "action": "permissions.open"

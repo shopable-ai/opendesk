@@ -17,6 +17,7 @@ function harness(options = {}) {
   const runnerCalls = [];
   const schedulerOpenCalls = [];
   const schedulerNewCalls = [];
+  const inspectorCalls = [];
   const permissionCalls = [];
   const errors = [];
   const appRuntime = {
@@ -36,6 +37,12 @@ function harness(options = {}) {
     async open(source) { schedulerOpenCalls.push(source); },
     async openCreate(source) { schedulerNewCalls.push(source); },
   };
+  const inspectorLauncher = {
+    async open(source) {
+      inspectorCalls.push(source);
+      if (options.rejectInspectorSource === source) throw new Error('inspector action rejected');
+    },
+  };
   const permissionsCenter = {
     async open(source) { permissionCalls.push(source); },
   };
@@ -43,6 +50,7 @@ function harness(options = {}) {
     appRuntime,
     runner,
     schedulerCenter,
+    inspectorLauncher,
     permissionsCenter,
     logger: {error(message) { errors.push(String(message)); }},
   });
@@ -55,6 +63,7 @@ function harness(options = {}) {
     runnerCalls,
     schedulerOpenCalls,
     schedulerNewCalls,
+    inspectorCalls,
     permissionCalls,
     errors,
     get subscriptions() { return subscriptions; },
@@ -67,15 +76,17 @@ async function settle() {
   await new Promise(resolve => setImmediate(resolve));
 }
 
-test('routes Scheduler Center and Permissions Center actions through one durable controller', async () => {
+test('routes Scheduler Center, Inspector and Permissions Center actions through one durable controller', async () => {
   const f = harness();
   f.controller.start();
   f.dispatch({id: 'scheduler.open', source: 'tray-menu'});
   f.dispatch({id: 'scheduler.new', source: 'tray-menu'});
+  f.dispatch({id: 'inspector.open', source: 'tray-menu'});
   f.dispatch({id: 'permissions.open', source: 'tray-menu'});
   await settle();
   assert.deepEqual(f.schedulerOpenCalls, ['tray-menu']);
   assert.deepEqual(f.schedulerNewCalls, ['tray-menu']);
+  assert.deepEqual(f.inspectorCalls, ['tray-menu']);
   assert.deepEqual(f.permissionCalls, ['tray-menu']);
   assert.equal(f.subscriptions, 1);
   assert.equal(f.unsubscriptions, 0);
@@ -111,5 +122,21 @@ test('one rejected action is logged and the next action still runs', async () =>
   assert.equal(f.errors.length, 1);
   assert.match(f.errors[0], /\[APP_ACTION\] action=runner\.open stage=dispatch/);
   assert.match(f.errors[0], /runner action rejected/);
+  assert.deepEqual(f.controller.state(), {started: true, handledActions: 1, failedActions: 1});
+});
+
+test('Inspector launch failures are isolated and use the Inspector log prefix', async () => {
+  const f = harness({rejectInspectorSource: 'reject-inspector'});
+  f.controller.start();
+  f.dispatch({id: 'inspector.open', source: 'reject-inspector'});
+  await settle();
+  f.dispatch({id: 'scheduler.open', source: 'after-inspector-rejection'});
+  await settle();
+
+  assert.deepEqual(f.inspectorCalls, ['reject-inspector']);
+  assert.deepEqual(f.schedulerOpenCalls, ['after-inspector-rejection']);
+  assert.equal(f.errors.length, 1);
+  assert.match(f.errors[0], /\[INSPECTOR\] action=inspector\.open stage=dispatch/);
+  assert.match(f.errors[0], /inspector action rejected/);
   assert.deepEqual(f.controller.state(), {started: true, handledActions: 1, failedActions: 1});
 });
