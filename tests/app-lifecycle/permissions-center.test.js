@@ -107,14 +107,18 @@ test('Permissions Center reuses an open window and recreates it after close', as
   assert.equal(f.windows[1].showCount, 1);
 });
 
-test('refresh renders status and explicit actions are the only request/settings path', async () => {
+test('refresh renders product-safe status and explicit actions are the only request/settings path', async () => {
   const f = fixture(report('LIMITED'));
   await f.center.open('test');
   const win = f.windows[0];
-  assert.equal(win.updates.get('overall').text, 'LIMITED');
+  assert.equal(win.updates.get('overall').text, '部分功能受限');
+  assert.equal(win.updates.get('identity').text, 'OpenDesk 应用');
   assert.equal(win.updates.get('status-accessibility').text, '✓ 已授权');
   assert.equal(win.updates.get('status-screen-capture').text, '? 需要确认');
+  assert.equal(win.updates.get('request-accessibility').disabled, true);
   assert.equal(win.updates.get('request-automation').disabled, true);
+  assert.match(win.updates.get('description-screen-capture').text, /当前系统接口无法可靠区分/);
+  assert.doesNotMatch(win.updates.get('description-screen-capture').text, /Open settings|CGPreflight|TCC/i);
   assert.equal(f.calls.request.length, 0);
   assert.equal(f.calls.settings.length, 0);
 
@@ -134,4 +138,5 @@ test('product App Mode wires permission action, preflight and release payload', 
   const menu = manifest.tray.menu.find(item => item.id === 'open-permissions');
   assert.deepEqual(menu, {id:'open-permissions',label:'权限管理…',action:'permissions.open'});
   assert.match(release, /^permissions-center\.js$/m);
+  assert.match(release, /^runtime-log\.js$/m);
 });
