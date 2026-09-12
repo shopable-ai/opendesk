@@ -143,6 +143,17 @@ test('Permission Center retry state is scoped to one window lifecycle', async ()
   ]);
 });
 
+test('Permissions Center keeps all four cards and the footnote reachable', async () => {
+  const f = fixture(report('LIMITED'));
+  await f.center.open('layout');
+  const options = f.windows[0].options;
+  assert.deepEqual(options.position.size, {width:860, height:720});
+  assert.match(options.content.css, /html,body\{height:100%;[^}]*overflow:hidden/);
+  assert.match(options.content.css, /main\{height:100%;min-height:0;[^}]*overflow-y:auto/);
+  assert.match(options.content.html, /id="status-automation"/);
+  assert.match(options.content.html, /class="footnote"/);
+});
+
 test('refresh stays pure and explicit repeated request becomes force retry', async () => {
   const f = fixture(report('LIMITED'));
   await f.center.open('test');

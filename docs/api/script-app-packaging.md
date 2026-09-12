@@ -84,7 +84,7 @@ OpenDesk executable
 
 - [OpenDesk Desktop Product Shell](../architecture/opendesk-desktop-product-shell.md)
 - [App Mode Desktop Launch Contract](../architecture/app-mode-desktop-launch.md)
-- [`apps/opendesk/README.md`](../../apps/opendesk/README.md)
+- [apps/opendesk/README.md](../../apps/opendesk/README.md)
 
 ## 2. Package 目录
 
@@ -142,7 +142,7 @@ Manifest menu item 的 `id` 是菜单项自身的稳定定位键，`action` 才�
 
 `opendesk.app.json` 不是 Secret storage，不要写入 API key、password、access token 或客户凭据。
 
-## 3. 开发态：只需要 `-app`
+## 3. 开发态：只需要 -app
 
 如果 `opendesk` 已经安装并可从 PATH 调用，普通开发者直接运行：
 
@@ -324,7 +324,7 @@ app-mode/
 - [OpenDesk Desktop Product Shell](../architecture/opendesk-desktop-product-shell.md)
 - [App Mode Desktop Launch Contract](../architecture/app-mode-desktop-launch.md)
 - [App Package Format](../architecture/app-package-format.md)
-- [`apps/opendesk/README.md`](../../apps/opendesk/README.md)
+- [apps/opendesk/README.md](../../apps/opendesk/README.md)
 
 ## 相关入口
 
