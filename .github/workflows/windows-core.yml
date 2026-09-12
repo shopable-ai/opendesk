@@ -42,6 +42,10 @@ jobs:
         shell: pwsh
         run: go build ./...
 
+      - name: Test built-in Recorder resource bundle
+        shell: pwsh
+        run: go test ./internal/recorderbundle -count=1
+
       - name: Run Scheduler store concurrency tests
         shell: pwsh
         run: go test ./pkg/scheduler ./tests/scheduler -count=1
