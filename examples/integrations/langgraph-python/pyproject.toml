@@ -1,0 +1,11 @@
+[project]
+name = "opendesk-langgraph-integration-example"
+version = "0.1.0"
+description = "OpenDesk external workflow runtime integration example"
+requires-python = ">=3.10"
+dependencies = [
+  "langgraph==1.2.11",
+]
+
+[tool.uv]
+package = false
