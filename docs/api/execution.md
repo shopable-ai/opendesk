@@ -20,7 +20,7 @@ order: 300
 | `Execution.stack` | `string` | Runtime 兼容模式元数据。 |
 | `Execution.artifactDir` | `string` | 当前运行 artifact 根目录。 |
 | `Execution.source` | `string` | 脚本来源标签。 |
-| `Execution.ext` | `string` | 执行源码扩展名。 |
+| `Execution.ext` | `string` | 实际交给 JavaScript Runtime 的源码扩展名。 |
 | `Execution.scriptHash` | `string` | 实际执行源码 SHA-256。 |
 | `Execution.scriptPath` | `string \| null` | 可信文件入口的规范化绝对路径。 |
 | `Execution.scriptDir` | `string \| null` | `scriptPath` 父目录。 |
@@ -39,6 +39,17 @@ order: 300
 ### 来源路径
 
 `scriptPath` 只由可信文件入口提供；内联、stdin、HTTP、MCP 和 Scheduler inline 为 `null`。Runtime 不从可伪造的 `source` 标签推导真实路径。
+
+### ESM 文件入口元数据
+
+`.mjs` 文件会先经过模块 loader 链接静态 import graph，再把生成的 JavaScript payload 交给现有 Runtime 执行。因此模块入口下：
+
+- `Execution.scriptPath` 仍指向用户实际运行的 `.mjs` 入口；
+- `Execution.scriptDir` 仍是该 `.mjs` 入口所在目录；
+- `Execution.ext` 描述实际执行 payload，当前为 `.js`；
+- `Execution.scriptHash` 对实际执行 payload 计算，不应把它当成原始 `.mjs` 文件内容哈希。
+
+模块的相对 `import` 按 importing file 所在目录解析，不按 `Execution.workdir` 或 `Execution.scriptDir` 强制重写。完整模块入口规则见 [JavaScript Runtime](runtime.md#脚本级-await-与模块边界)。
 
 ## Execution.id
 
@@ -140,7 +151,7 @@ Execution.workdir: string;
 
 **行为与错误**
 
-由 execution 启动上下文决定；[`path.resolve()`](path.md#pathresolveparts) 与 `File.cwd()` 使用同一基准。
+由 execution 启动上下文决定；[`path.resolve()`](path.md#pathresolveparts) 与 `File.cwd()` 使用同一基准。ESM 相对 `import` 不使用该字段作为统一解析根，而是相对 importing file 解析。
 
 **示例**
 ```js
@@ -245,7 +256,7 @@ Execution.source: string;
 
 **行为与错误**
 
-仅用于来源描述，不是可信路径 authority。
+仅用于来源描述，不是可信路径 authority。`.mjs` 文件入口仍保留对应 file source；模块 bundle 不把它改写成虚构的磁盘 bundle 路径。
 
 **示例**
 ```js
@@ -254,7 +265,7 @@ console.log(Execution.source);
 
 ## Execution.ext
 
-返回执行源码扩展名。
+返回实际交给 JavaScript Runtime 的源码扩展名。
 
 **签名**
 ```ts
@@ -267,15 +278,15 @@ Execution.ext: string;
 
 **返回值**
 
-通常为 `.js`。
+普通 `.js` 文件通常为 `.js`；当前 `.mjs` 模块入口在静态 import graph 被链接后也以 `.js` payload 执行，因此该值同样为 `.js`。
 
 **行为与错误**
 
-只读 metadata。
+只读 metadata。若需要判断用户实际运行的文件入口，不要从 `Execution.ext` 反推；使用 `Execution.scriptPath`。
 
 **示例**
 ```js
-console.log(Execution.ext);
+console.log({ ext: Execution.ext, scriptPath: Execution.scriptPath });
 ```
 
 ## Execution.scriptHash
@@ -297,7 +308,7 @@ Execution.scriptHash: string;
 
 **行为与错误**
 
-可用于核对本次内容，但不能替代代码签名或信任校验。
+可用于核对本次实际执行内容，但不能替代代码签名或信任校验。对于 `.mjs` 入口，它对应链接后的 JavaScript payload，而不是原始入口文件的逐字节哈希。
 
 **示例**
 ```js
@@ -319,11 +330,11 @@ Execution.scriptPath: string | null;
 
 **返回值**
 
-文件入口为绝对路径；没有可信文件身份时为 `null`。
+文件入口为绝对路径；没有可信文件身份时为 `null`。运行 `.mjs` 时保留实际 `.mjs` 入口路径。
 
 **行为与错误**
 
-直接 `-script`、`ai run` 和 Scheduler file execution 可提供该值；内联/远程来源不从 `source` 猜测。
+直接 `-script`、`ai run` 和 Scheduler file execution 可提供该值；内联/远程来源不从 `source` 猜测。模块 loader 不把该值替换为内部 bundle 路径。
 
 **示例**
 ```js
@@ -349,7 +360,7 @@ Execution.scriptDir: string | null;
 
 **行为与错误**
 
-始终与 `path.dirname(Execution.scriptPath)` 一致，或与 `scriptPath` 一起为 `null`。
+始终与 `path.dirname(Execution.scriptPath)` 一致，或与 `scriptPath` 一起为 `null`。对于 `.mjs` 入口，它是入口文件目录；嵌套模块的相对 import 仍按各自 importing file 解析。
 
 **示例**
 ```js
