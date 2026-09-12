@@ -1,24 +1,38 @@
 package recorderbundle
 
 import (
+	"embed"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
-
-	recorderassets "opendesk/apps/opendesk/recorder"
 )
 
 const RecorderWindowID = "recording-console"
 
-// WriteToDir materializes the canonical Recorder product resources for the
-// built-in secondary execution. Resource ownership remains under
-// apps/opendesk/recorder; this package is only a release/runtime adapter.
+// Keep the embedded JavaScript mirror synchronized with the canonical product
+// sources under apps/opendesk/recorder. The Go implementation and embedded
+// runtime payload stay under internal/ so the App package tree remains JS-only.
+//go:generate go run ./cmd/sync
+
+// runtimeAssets is the built-in Recorder payload owned by the compiled OpenDesk
+// program. The JavaScript files are generated mirrors; binary icons here are
+// program resources, not per-App assets.
+//
+//go:embed assets/controller.js assets/controller-core.js assets/recording-history.js assets/icons/*.png
+var runtimeAssets embed.FS
+
+// WriteToDir materializes the built-in Recorder product resources for the
+// secondary execution. Callers never need the source repository at runtime.
 func WriteToDir(root string) (string, error) {
 	if root == "" {
 		return "", fmt.Errorf("recorder UI root is required")
 	}
-	if err := fs.WalkDir(recorderassets.Assets, ".", func(path string, entry fs.DirEntry, walkErr error) error {
+	assets, err := fs.Sub(runtimeAssets, "assets")
+	if err != nil {
+		return "", err
+	}
+	if err := fs.WalkDir(assets, ".", func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
@@ -29,7 +43,7 @@ func WriteToDir(root string) (string, error) {
 		if entry.IsDir() {
 			return os.MkdirAll(target, 0o755)
 		}
-		data, err := recorderassets.Assets.ReadFile(path)
+		data, err := fs.ReadFile(assets, path)
 		if err != nil {
 			return err
 		}

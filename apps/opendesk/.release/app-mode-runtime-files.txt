@@ -16,7 +16,3 @@ assets/tray.ico
 recorder/controller.js
 recorder/controller-core.js
 recorder/recording-history.js
-recorder/icons/countdown-1.png
-recorder/icons/countdown-2.png
-recorder/icons/countdown-3.png
-recorder/icons/opendesk-logo.png

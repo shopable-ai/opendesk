@@ -6,9 +6,13 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	recorderassets "opendesk/apps/opendesk/recorder"
 )
+
+var recorderJavaScriptFiles = []string{
+	"controller.js",
+	"controller-core.js",
+	"recording-history.js",
+}
 
 func TestWriteToDirIsSelfContained(t *testing.T) {
 	root := t.TempDir()
@@ -35,7 +39,7 @@ func TestWriteToDirIsSelfContained(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	canonicalController, err := recorderassets.Assets.ReadFile("controller.js")
+	canonicalController, err := os.ReadFile(filepath.Join("..", "..", "apps", "opendesk", "recorder", "controller.js"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,5 +56,43 @@ func TestWriteToDirIsSelfContained(t *testing.T) {
 	}
 	if !strings.Contains(string(entryContent), "System.getExecutablePath()") {
 		t.Fatal("embedded Recorder entry must use the released OpenDesk executable path for replay")
+	}
+}
+
+func TestGeneratedJavaScriptMatchesCanonicalSources(t *testing.T) {
+	for _, name := range recorderJavaScriptFiles {
+		embedded, err := runtimeAssets.ReadFile("assets/" + name)
+		if err != nil {
+			t.Fatalf("read embedded %s: %v", name, err)
+		}
+		canonical, err := os.ReadFile(filepath.Join("..", "..", "apps", "opendesk", "recorder", name))
+		if err != nil {
+			t.Fatalf("read canonical %s: %v", name, err)
+		}
+		if !bytes.Equal(embedded, canonical) {
+			t.Fatalf("embedded %s drifted from apps/opendesk/recorder/%s; run go generate ./internal/recorderbundle", name, name)
+		}
+	}
+}
+
+func TestOfficialAppSourceTreeContainsNoGoSource(t *testing.T) {
+	appRoot := filepath.Join("..", "..", "apps", "opendesk")
+	if err := filepath.WalkDir(appRoot, func(path string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !entry.IsDir() && strings.EqualFold(filepath.Ext(entry.Name()), ".go") {
+			t.Fatalf("Go implementation source must not live in official App package tree: %s", path)
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRecorderSourceHasNoPrivateIconDirectory(t *testing.T) {
+	path := filepath.Join("..", "..", "apps", "opendesk", "recorder", "icons")
+	if _, err := os.Stat(path); err == nil || !os.IsNotExist(err) {
+		t.Fatalf("Recorder App source must use program-owned icon resources; unexpected directory %s (err=%v)", path, err)
 	}
 }
