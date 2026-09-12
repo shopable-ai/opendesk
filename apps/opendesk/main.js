@@ -47,9 +47,17 @@ if (!globalThis.OpenDeskRuntimeLog
   throw new Error('OpenDesk Runtime Log did not initialize');
 }
 
+const permissionsCenterEntry = File.join(Execution.scriptDir, 'permissions-center.js');
+(0, eval)(File.read(permissionsCenterEntry) + '\n//# sourceURL=' + permissionsCenterEntry);
+if (!globalThis.OpenDeskPermissionsCenter
+  || typeof OpenDeskPermissionsCenter.create !== 'function') {
+  throw new Error('OpenDesk Permissions Center did not initialize');
+}
+
 const runner = OpenDeskProductScriptRunner.create({officialShell});
 const schedulerCenter = OpenDeskSchedulerCenter.create();
 const runtimeLog = OpenDeskRuntimeLog.create({runner});
+const permissionsCenter = OpenDeskPermissionsCenter.create();
 const officialActionIDs = new Set(['opendesk.home', 'opendesk.help', 'opendesk.customize']);
 
 automation.app.onAction(async event => {
@@ -66,6 +74,10 @@ automation.app.onAction(async event => {
     await schedulerCenter.openCreate(event.source || event.id);
     return;
   }
+  if (event.id === 'permissions.open') {
+    await permissionsCenter.open(event.source || event.id);
+    return;
+  }
   if (event.id === 'runtime.log') {
     await runtimeLog.open(event.source || event.id);
     return;
@@ -75,6 +87,10 @@ automation.app.onAction(async event => {
   }
 });
 
+// Silent startup preflight is deliberately status-only. Native permission
+// prompts are reserved for an explicit Permissions Center action or the first
+// real protected operation.
+await permissionsCenter.preflight('startup');
 const initialState = await runner.open('startup');
 
 console.log('OPENDESK_PRODUCT_APP_READY=' + JSON.stringify({
@@ -89,6 +105,7 @@ console.log('OPENDESK_PRODUCT_APP_READY=' + JSON.stringify({
   toolbarMaxWidth: initialState.toolbarMaxWidth,
   recipeProcessModel: 'child-opendesk-process',
   scheduler: OpenDeskSchedulerClient.getCapabilities(),
+  permissions: permissionsCenter.state(),
   runtimeLog: runtimeLog.state(),
   officialShell: officialShell.state(),
 }));
