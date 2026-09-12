@@ -1,6 +1,6 @@
 ---
 title: 用户 API 文档
-description: OpenDesk 面向脚本作者、自动化使用者与 Agent 的唯一用户 API 文档入口。
+description: OpenDesk 面向脚本作者、自动化使用者、App 开发者与 Agent 的唯一用户 API 文档入口。
 order: 20
 ---
 
@@ -8,24 +8,47 @@ order: 20
 
 `docs/api/` 是 OpenDesk 的用户使用入口。文档按**公开对象、运行入口或独立协议**组织：同一个公开对象的相关方法优先集中在同一个主文档中，不因某一组方法较长就再拆一个平行 API 页面。
 
-## 按用户任务进入 API，而不是按实现目录阅读
+## 命令示例与开发者身份
 
-所有示例均从仓库根目录运行。
+普通用户和 App 开发者默认使用**已安装的 OpenDesk Runtime**，不要求 checkout OpenDesk 源码、安装 Go 或先运行 `make build`。
+
+文档中的：
+
+```bash
+opendesk ...
+```
+
+表示 PATH 中的已安装 Runtime。若安装包没有加入 PATH，可替换为真实可执行文件，例如：
+
+```text
+macOS:   /Applications/OpenDesk.app/Contents/MacOS/opendesk
+Windows: C:\OpenDesk\opendesk.exe
+```
+
+仓库维护者在源码 checkout 中可以用：
+
+```bash
+./dist/opendesk ...
+```
+
+但这只是源码开发入口，不是普通开发者必须遵循的使用方式。只有明确标注“OpenDesk 源码维护者”的文档段落才应要求 `make build`、`scripts/build_*`、`apps/opendesk`、`pkg/**` 或 `internal/**`。
+
+## 按用户任务进入 API，而不是按实现目录阅读
 
 ### 让 Coding Agent 操作桌面
 
 先让 Agent 发现当前机器可用的桌面能力，再逐步缩小目标窗口和截图范围：
 
 ```bash
-./opendesk ai capabilities
-./opendesk ai windows
-./opendesk ai screenshot --active-window
+opendesk ai capabilities
+opendesk ai windows
+opendesk ai screenshot --active-window
 ```
 
 稳定流程应保存为 parameterized JavaScript recipe：
 
 ```bash
-./opendesk ai run recipe.js --input '{"message":"hello"}'
+opendesk ai run recipe.js --input '{"message":"hello"}'
 ```
 
 完整坐标规则、JSON 输出、截图 artifact、错误码与 recipe 输入见 [AI CLI](ai-cli.md)。
@@ -35,13 +58,13 @@ order: 20
 从 `page`、输入和窗口 API 开始：
 
 ```bash
-./opendesk -script examples/runtime/api-quickstart.js
+opendesk -script examples/runtime/api-quickstart.js
 ```
 
 需要把业务代码拆成多个文件时，可以使用 `.mjs` 入口和静态 `import` / `export`：
 
 ```bash
-./dist/opendesk -script examples/runtime/modules/basic/main.mjs -console-mode script
+opendesk -script examples/runtime/modules/basic/main.mjs -console-mode script
 ```
 
 当前支持相对 `./`、`../` 与嵌套静态 import graph；模块入口和限制见 [JavaScript Runtime](runtime.md#脚本级-await-与模块边界)。
@@ -52,23 +75,55 @@ order: 20
 
 需要 OpenDesk 自己显示界面或反馈时，直接进入 [Custom UI](ui.md)：`ui.toast()`、`ui.createWindow()`、`ui.closeAll()`、`ui.on()` 与 `FloatingWindow` 都从这里查。操作系统通知仍使用 [通知与提示](notify.md)，需要明确确认或输入时使用 [Dialog API](dialog.md)。
 
-直接复制运行仓库示例、正式 scripts 或排查旧命令时，打开 [Examples 快速索引](examples/README.md)。
+直接复制运行仓库示例、正式 scripts 或排查旧命令时，打开 [Examples 快速索引](examples/README.md)。仓库示例如果使用 `./dist/opendesk`，已安装 Runtime 用户只需替换为自己的 `opendesk` 可执行文件。
+
+### 开发 App Mode 产品应用
+
+普通 App 开发者只需要已安装 Runtime 和自己的 App package：
+
+```text
+my-app/
+├── opendesk.app.json
+├── main.js
+├── modules/
+└── assets/
+```
+
+开发态直接运行：
+
+```bash
+opendesk app validate ./my-app
+opendesk app doctor ./my-app
+opendesk -app ./my-app -console-mode script
+```
+
+这条路径不要求编译 OpenDesk 源码。App Mode 仍然运行普通 OpenDesk JavaScript，只额外提供应用 identity、主窗口、Tray/Menu、Single Instance 和 `automation.app` 生命周期。
+
+完整开发路径先读 [Script App Packaging](script-app-packaging.md)；App Shell API 读 [automation.app](app-shell.md)；Manifest/CLI 错误 Reference 读 [App Package CLI](app-package-cli.md) 与 [App Package Format](../architecture/app-package-format.md)。
+
+OpenDesk 官方桌面产品自己的 Script Runner、Recorder、Scheduler、Permissions、release staging 与 Go runtime 内部结构不属于普通 App 开发者的必修知识。官方源码维护者进入 [OpenDesk Desktop Product Shell](../architecture/opendesk-desktop-product-shell.md) 和 [App Mode Desktop Launch Contract](../architecture/app-mode-desktop-launch.md)。
 
 ### 发布为可双击桌面应用
 
-已经有可运行的 OpenDesk JavaScript，希望增加 `opendesk.app.json`、App Shell、Tray/Menu Bar、Single Instance，或装入 macOS `.app` / Windows portable distribution 时，先区分构建者身份：
+普通 App 开发者使用已安装 Runtime 的 [Installed Runtime App Builder](app-builder.md)：
 
-- 只安装预编译 OpenDesk Runtime/SDK 的应用作者使用 [Installed Runtime App Builder](app-builder.md)：从 package 的 `validate → doctor → build` 生成同平台 `.app` 或 Windows portable artifact，不需要 OpenDesk 源码或 Go。
-- OpenDesk 发行维护者、需要从当前源码制作 Runtime template 的开发者使用 [Script App Packaging](script-app-packaging.md)。
+```text
+App Mode package
+→ validate
+→ doctor
+→ app build
+→ macOS .app / Windows portable application
+```
 
-静态 gate、machine-readable diagnostics 和 build CLI Reference 见 [App Package CLI](app-package-cli.md)，App 内 `automation.app` 的方法 Reference 仍在 [automation.app](app-shell.md)。App Mode packaging 不等于 `.odpkg` 源码保护，也不在 Manifest 中发明未实现的端口或 installer 配置。
+不需要 OpenDesk 源码或 Go。
+
+源码维护者从当前仓库制作 OpenDesk Runtime template、官方 `OpenDesk.app` 或 Windows distribution 时，才使用 `apps/opendesk`、`scripts/build_macos_app.sh`、`scripts/build_windows_distribution.ps1` 和对应架构文档。
+
+App Mode packaging 不等于 `.odpkg` 源码保护，也不在 Manifest 中发明未实现的端口或 installer 配置。
 
 ### 发布受保护包
 
-把已经写好的 JavaScript 打包为 `.odpkg`、检查/验签，或交接 P1 device License 与 P2 online activation 时，
-使用 [受保护包 CLI](protected-packages.md)。该页把作者工作流、Publisher 材料、客户授权和最终执行分开说明，
-同时给出秘密文件边界和 macOS/Windows 资格矩阵；普通
-`.js` 执行不需要 package 或 License。
+把已经写好的 JavaScript 打包为 `.odpkg`、检查/验签，或交接 P1 device License 与 P2 online activation 时，使用 [受保护包 CLI](protected-packages.md)。该页把作者工作流、Publisher 材料、客户授权和最终执行分开说明，同时给出秘密文件边界和 macOS/Windows 资格矩阵；普通 `.js` 执行不需要 package 或 License。
 
 ### 从其他程序触发 OpenDesk
 
@@ -128,8 +183,8 @@ order: 20
 39. `http-server.md`：外部程序调用 OpenDesk 的 HTTP Server
 40. `scheduler.md`：Scheduler 功能、生命周期、持久化与本地管理页
 41. `scheduler-api.md`：Scheduler 独立 HTTP 协议契约
-42. `app-builder.md`：已安装 Runtime/SDK 的无源码 build、artifact layout、CI 和发布限制
-43. `script-app-packaging.md`：已有 JavaScript → App Mode package → 源码维护者的 Runtime template 发布
+42. `script-app-packaging.md`：已安装 Runtime 下的 App Mode 开发主线，以及源码维护者边界
+43. `app-builder.md`：已安装 Runtime/SDK 的无源码 build、artifact layout、CI 和发布限制
 44. `app-package-cli.md`：App Mode package validate/doctor/build、JSON diagnostics 与 exit status
 45. `protected-packages.md`：`.odpkg` packaging、P1/P2 License CLI、执行、安全边界与平台资格
 46. `cookbook.md`：可直接改造的脚本范例
@@ -143,7 +198,7 @@ order: 20
 - **系统与数据**：`system.md`、`command.md`、`path.md`、`file.md`、`sqlite.md`、`storage.md`、`clipboard.md`
 - **网络与服务**：`http.md`、`http-server.md`、`scheduler.md`、`scheduler-api.md`
 - **运行时**：`environment.md`、`execution.md`、`runtime.md`、`global-apis.md`、`libs.md`、`native-extension.md`
-- **发布与交付**：`app-builder.md`、`script-app-packaging.md`、`app-package-cli.md`、`protected-packages.md`
+- **发布与交付**：`script-app-packaging.md`、`app-builder.md`、`app-package-cli.md`、`protected-packages.md`
 - **实践范例**：`cookbook.md`、`examples/`
 
 ## 只有公开边界不同才拆成独立页面
@@ -155,7 +210,8 @@ order: 20
 - 系统通知 `notify()` 属于 `notify.md`；不要因为 `ui.toast()` 也是“提示”就把小写 `ui` 的完整 Reference 拆到通知文档。
 - 不同运行方向可以独立。例如 `http.md` 是脚本发起 HTTP 请求，`http-server.md` 是外部调用 OpenDesk 的服务协议。
 - 独立协议可以独立。例如 `scheduler-api.md` 是 Scheduler HTTP API，而 `scheduler.md` 说明 Scheduler 产品能力和生命周期。
-- 面向用户的独立发布流程可以有独立入口页，但不能重复同一 Runtime 对象的完整方法 Reference。例如 `app-builder.md` 说明已安装 Runtime 的无源码 artifact 交付，`script-app-packaging.md` 说明 App Mode package 和源码维护者的 Runtime staging，`automation.app` 方法仍只在 `app-shell.md` 维护。
+- 面向用户的独立 App 开发流程可以有独立入口页，但不能复制 Runtime 内部实现。`script-app-packaging.md` 维护 App 作者工作流；`app-builder.md` 维护已安装 Runtime 的 artifact 构建；`automation.app` 方法仍只在 `app-shell.md` 维护。
+- OpenDesk 官方 Desktop Product Shell、Recorder materialization、release staging 等源码维护者内容进入 `docs/architecture/` 或 `apps/opendesk/README.md`，不塞进普通 App 作者主线。
 - ESM module loading 属于 JavaScript Runtime 的文件入口契约，不是新的全局对象或 namespace，因此不单独创建一套重复的 `docs/api` 方法 Reference；用户契约集中在 `runtime.md`，实现与 bundling 原理链接到架构文档。
 
 ## docs/api 只记录可调用契约，不记录 Runtime 实现
@@ -164,4 +220,5 @@ order: 20
 
 - Runtime 内部组成见 [Runtime API composition](../implementation/runtime/runtime-api-composition.md)。
 - JavaScript module bundling、resolution profile 与兼容边界见 [JavaScript Modules](../architecture/javascript-modules.md)。
+- OpenDesk 官方桌面应用组合见 [OpenDesk Desktop Product Shell](../architecture/opendesk-desktop-product-shell.md)。
 - 文档同步、机器索引、类型与事实优先级见 [API documentation maintenance](../maintenance/docs-user-api-editme-toc-maintenance.md)。
