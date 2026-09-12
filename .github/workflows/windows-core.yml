@@ -42,6 +42,10 @@ jobs:
         shell: pwsh
         run: go build ./...
 
+      - name: Test JavaScript module loader
+        shell: pwsh
+        run: go test ./pkg/scriptloader -count=1
+
       - name: Test permission domain and CLI seams
         shell: pwsh
         run: |
@@ -75,6 +79,17 @@ jobs:
       - name: Build portable Windows distribution
         shell: pwsh
         run: pwsh -NoProfile -File scripts/build_windows_distribution.ps1 -Runtime win-x64 -AppModePackage apps/opendesk
+
+      - name: Run ESM relative import example from distribution
+        shell: pwsh
+        run: |
+          $runtime = ".\dist\windows\win-x64\opendesk.exe"
+          $evidence = ".runtime/tests/windows-compat/esm-relative-import.log"
+          & $runtime -script "examples/runtime/modules/basic/main.mjs" -console-mode script *>&1 | Tee-Object -FilePath $evidence
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Select-String -LiteralPath $evidence -Pattern 'ESM_RELATIVE_IMPORT_OK 42' -Quiet)) {
+            throw "ESM relative import example did not emit the expected marker"
+          }
 
       - name: Verify product App Mode resources in Windows distribution
         shell: pwsh
