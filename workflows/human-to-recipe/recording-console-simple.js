@@ -3,9 +3,8 @@
 'use strict';
 
 // The Human-to-Recipe workflow owns orchestration only. Recorder UI source is
-// product-owned so the workflow, standalone example, and released App Mode all
-// exercise the same controller implementation.
-const recorderUIRoot = File.join(Execution.workdir, 'apps', 'opendesk', 'recorder');
+// embedded from the single canonical implementation under internal/recorderbundle/ui.
+const recorderUIRoot = File.join(Execution.workdir, 'internal', 'recorderbundle', 'ui');
 const controllerFile = File.join(recorderUIRoot, 'controller.js');
 globalThis.__OPENDESK_RECORDER_UI_ROOT = recorderUIRoot;
 try {

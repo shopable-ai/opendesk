@@ -197,6 +197,7 @@
     const scriptRoot = settings.scriptRoot;
     const managedScriptRoot = settings.managedScriptRoot !== false;
     const openListOnStart = settings.openListOnStart !== false;
+    const hideListOnClose = settings.hideListOnClose === true;
 
     if (!file || typeof file.join !== 'function' || typeof file.path !== 'function'
       || typeof file.stat !== 'function' || typeof file.listDir !== 'function'
@@ -795,7 +796,7 @@
       bind(window, 'emptyRefresh', rescan);
       bind(window, 'errorRefresh', rescan);
       bind(window, 'restoreOrder', restoreDefaultOrder);
-      bind(window, 'closeList', () => window.close());
+      bind(window, 'closeList', closeList);
 
       for (let index = 0; index < listRowCapacity; index++) {
         bind(window, `run${index}`, () => {
@@ -817,7 +818,7 @@
       }
 
       window.on('close', () => {
-        if (listWindow === window) listWindow = null;
+        if (!hideListOnClose && listWindow === window) listWindow = null;
         void safeToolbarUpdate();
       });
     }
@@ -862,9 +863,14 @@
 
     async function closeList() {
       const previous = listWindow;
-      listWindow = null;
       if (previous) {
-        try { await previous.close(); } catch (_) {}
+        try {
+          if (hideListOnClose) await previous.hide();
+          else await previous.close();
+        } catch (_) {}
+      }
+      if (!hideListOnClose) {
+        listWindow = null;
       }
     }
 

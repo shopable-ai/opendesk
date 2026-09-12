@@ -42,6 +42,11 @@ func TestProductAppKeepsRecipeExecutionAsChildOpenDeskProcess(t *testing.T) {
 			t.Fatalf("main.js missing %q", required)
 		}
 	}
+	for _, legacyLifecycle := range []string{"runner.waitUntilClosed", "unsubscribeAppActions"} {
+		if strings.Contains(mainText, legacyLifecycle) {
+			t.Fatalf("main.js must leave App Shell action handling alive after its initial window closes; found %q", legacyLifecycle)
+		}
+	}
 
 	coreSource, err := os.ReadFile(filepath.Join(root, "script-runner", "controller.js"))
 	if err != nil {

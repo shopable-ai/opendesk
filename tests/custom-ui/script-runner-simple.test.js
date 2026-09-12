@@ -47,6 +47,7 @@ function FakeUI() {
         spec,
         controls,
         shown: false,
+        hidden: false,
         closed: false,
         control(id) {
           if (!controls.has(id)) {
@@ -64,7 +65,8 @@ function FakeUI() {
           return controls.get(id);
         },
         on(type, callback) { listeners.set(type, callback); },
-        async show() { this.shown = true; },
+        async show() { this.shown = true; this.hidden = false; },
+        async hide() { this.hidden = true; },
         async close() {
           if (this.closed) return;
           this.closed = true;
@@ -141,6 +143,7 @@ async function fixture(options = {}) {
     scriptRoot,
     managedScriptRoot: options.managedScriptRoot !== false,
     openListOnStart: options.openListOnStart !== false,
+    hideListOnClose: options.hideListOnClose === true,
     file: options.file || FileAPI(),
     command,
     execution: {workdir: temp},
@@ -211,6 +214,24 @@ test('empty refreshes to ready in the same window', async () => {
     assert.equal(window.control('name0').state.text, 'a.js');
     assert.equal(window.control('name0').state.visible, true);
     assert.equal(f.toolbar.buttons.get('run').disabled, false);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+test('App Mode list close hides and reopens the same main window', async () => {
+  const f = await fixture({hideListOnClose: true});
+  try {
+    const window = f.ui.windows[0];
+    await click(window, 'closeList');
+    assert.equal(window.hidden, true);
+    assert.equal(window.closed, false);
+
+    await f.app.openList('reopen');
+    assert.equal(f.ui.windows.length, 1);
+    assert.equal(f.ui.windows[0], window);
+    assert.equal(window.shown, true);
+    assert.equal(window.hidden, false);
   } finally {
     await f.cleanup();
   }

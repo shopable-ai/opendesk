@@ -9,7 +9,7 @@ on:
       - 'go.sum'
       - 'cmd/opendesk/**'
       - 'cmd/opendesk-ui-host/**'
-      - 'apps/opendesk/recorder/**'
+      - 'internal/recorderbundle/**'
       - 'internal/processlock/**'
       - 'internal/recorderbundle/**'
       - 'pkg/execution/**'

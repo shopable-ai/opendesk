@@ -42,7 +42,7 @@ if (!globalThis.OpenDeskSchedulerCenter
 
 const runner = OpenDeskProductScriptRunner.create({officialShell});
 const schedulerCenter = OpenDeskSchedulerCenter.create();
-const unsubscribeAppActions = automation.app.onAction(async event => {
+automation.app.onAction(async event => {
   if (!event) return;
   if (event.id === 'opendesk.open' || event.id === 'runner.open') {
     await runner.open(event.source || event.id);
@@ -57,25 +57,19 @@ const unsubscribeAppActions = automation.app.onAction(async event => {
   }
 });
 
-try {
-  const initialState = await runner.open('startup');
+const initialState = await runner.open('startup');
 
-  console.log('OPENDESK_PRODUCT_APP_READY=' + JSON.stringify({
-    executionId: Execution.id,
-    packageId: capabilities.packageId,
-    packageRoot: Execution.workdir,
-    scriptDir: Execution.scriptDir,
-    executable: System.getExecutablePath(),
-    appDataRoot: globalThis.OpenDeskProductPaths.appDataRoot,
-    scriptRoot: globalThis.OpenDeskProductPaths.scriptRoot,
-    mainWindowId: initialState.mainWindowId,
-    toolbarMaxWidth: initialState.toolbarMaxWidth,
-    recipeProcessModel: 'child-opendesk-process',
-    scheduler: OpenDeskSchedulerClient.getCapabilities(),
-    officialShell: officialShell.state(),
-  }));
-
-  await runner.waitUntilClosed();
-} finally {
-  unsubscribeAppActions();
-}
+console.log('OPENDESK_PRODUCT_APP_READY=' + JSON.stringify({
+  executionId: Execution.id,
+  packageId: capabilities.packageId,
+  packageRoot: Execution.workdir,
+  scriptDir: Execution.scriptDir,
+  executable: System.getExecutablePath(),
+  appDataRoot: globalThis.OpenDeskProductPaths.appDataRoot,
+  scriptRoot: globalThis.OpenDeskProductPaths.scriptRoot,
+  mainWindowId: initialState.mainWindowId,
+  toolbarMaxWidth: initialState.toolbarMaxWidth,
+  recipeProcessModel: 'child-opendesk-process',
+  scheduler: OpenDeskSchedulerClient.getCapabilities(),
+  officialShell: officialShell.state(),
+}));

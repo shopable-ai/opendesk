@@ -67,7 +67,7 @@
     Object.freeze({
       actionId: 'opendesk.help',
       controlId: 'officialHelp',
-      icon: 'questionmark.circle.fill',
+      icon: 'questionmark.circle',
     }),
   ]);
 
@@ -140,6 +140,10 @@
     let runTask = null;
     let opening = null;
     let lastError = null;
+
+    function isExpectedLifecycleCancellation(error) {
+      return !!(error && error.code === 'UI_CANCELED');
+    }
 
     async function presentOfficialMessage(message) {
       const text = String(message || '');
@@ -226,10 +230,15 @@
         FloatingWindow: createProductFloatingWindow(homeAction(), secondaryActions(), toolbarMaxWidth),
         AbortController: NativeAbortController,
         openListOnStart: false,
+        hideListOnClose: true,
       });
       app = current;
       const task = current.run()
         .catch(error => {
+          if (isExpectedLifecycleCancellation(error)) {
+            lastError = null;
+            return;
+          }
           lastError = error && error.message ? String(error.message) : String(error || 'Script Runner failed');
           if (logger && typeof logger.error === 'function') {
             logger.error('SCRIPT_RUNNER_LIFECYCLE_ERROR=' + JSON.stringify({message: lastError}));

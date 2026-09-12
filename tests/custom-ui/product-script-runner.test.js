@@ -21,6 +21,7 @@ function loadProductRunner(harness) {
     ui: harness.ui,
     FloatingWindow: harness.FloatingWindow,
     AbortController,
+    console: harness.console,
     OpenDeskScriptRunnerSimple: harness.RunnerController,
     OpenDeskProductScriptRunner: undefined,
     OpenDeskProductPaths: undefined,
@@ -46,12 +47,13 @@ function loadProductRunner(harness) {
   }
 }
 
-function createHarness() {
+function createHarness(options = {}) {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'opendesk-product-runner-'));
   const windows = [];
   const notifications = [];
   const floatingWindows = [];
   const activations = [];
+  const errors = [];
   let createAppCount = 0;
 
   const ui = {
@@ -105,6 +107,7 @@ function createHarness() {
       return {
         async run() {
           await toolbar.show();
+          if (options.runError) throw options.runError;
           await toolbar.waitUntilClosed();
         },
         async openList(message) {
@@ -156,6 +159,12 @@ function createHarness() {
     notifications,
     floatingWindows,
     activations,
+    errors,
+    console: {
+      log() {},
+      warn() {},
+      error(message) { errors.push(String(message)); },
+    },
     get createAppCount() { return createAppCount; },
     File: {
       join: path.join,
@@ -193,6 +202,21 @@ test('product runner makes the shared Runner list the stable App Mode main windo
   assert.equal(harness.floatingWindows.length, 1, 'reopen must not create a second toolbar');
 });
 
+test('App Shell UI cancellation is a clean Product Runner shutdown', async () => {
+  const error = Object.assign(new Error('waiting for floating window close: context canceled'), {
+    code: 'UI_CANCELED',
+  });
+  const harness = createHarness({runError: error});
+  const loaded = loadProductRunner(harness);
+  const runner = loaded.api.create({officialShell: harness.officialShell});
+
+  await runner.open('test');
+  await new Promise(resolve => setImmediate(resolve));
+
+  assert.equal(runner.state().lastError, null);
+  assert.deepEqual(harness.errors, []);
+});
+
 test('brand home is the first icon and official actions stay independent from run state', async () => {
   const harness = createHarness();
   const loaded = loadProductRunner(harness);
@@ -220,7 +244,7 @@ test('brand home is the first icon and official actions stay independent from ru
     renderingMode: 'original',
   });
   assert.equal(customize.icon, 'ai.assistant');
-  assert.equal(help.icon, 'questionmark.circle.fill');
+  assert.equal(help.icon, 'questionmark.circle');
   assert.equal(toolbar.controls.some(control => control.id === 'opendesk.marketplace'), false);
   assert.equal(toolbar.controls.some(control => control.id === 'opendesk.upgrade'), false);
 
@@ -259,6 +283,7 @@ test('App Mode composition has no Demo panel and exposes one canonical Script Ru
   assert.doesNotMatch(mainSource, /打开 Script Runner|自动化运行中心已就绪|OpenDesk 服务/);
   assert.match(mainSource, /runner\.open\('startup'\)/);
   assert.match(mainSource, /automation\.app\.onAction/);
+  assert.match(fs.readFileSync(productEntry, 'utf8'), /hideListOnClose:\s*true/);
   assert.equal(manifest.window.mainId, 'main');
   assert.equal(manifest.window.closeBehavior, 'hide');
   assert.equal(manifest.tray.primaryAction, 'opendesk.open');

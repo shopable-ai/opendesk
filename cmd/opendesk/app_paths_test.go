@@ -64,3 +64,49 @@ func TestAppRecorderWorkDirOnlyMovesBundledPackageToWritableDataRoot(t *testing.
 		t.Fatalf("development workdir = %q, want %q", got, developmentRoot)
 	}
 }
+
+func TestAppModeRuntimeArtifactsRootUsesPackageWorkspaceOrWritableData(t *testing.T) {
+	root := t.TempDir()
+	bundledPackage := filepath.Join(root, "OpenDesk.app", "Contents", "Resources", "AppMode")
+	home := filepath.Join(root, "home")
+
+	got, configured, err := appModeRuntimeArtifactsRootForPackage(bundledPackage, bundledPackage, "com.opendesk.desktop", "", map[string]string{
+		"HOME": home,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if configured {
+		t.Fatal("default runtime artifacts root must not be marked configured")
+	}
+	want := filepath.Join(home, ".opendesk", "apps", "com.opendesk.desktop", ".runtime", "runs")
+	if got != want {
+		t.Fatalf("bundled runtime artifacts root = %q, want %q", got, want)
+	}
+
+	developmentPackage := filepath.Join(root, "source-package")
+	got, configured, err = appModeRuntimeArtifactsRootForPackage(developmentPackage, bundledPackage, "com.opendesk.desktop", "", map[string]string{
+		"HOME": home,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if configured {
+		t.Fatal("development default must not be marked configured")
+	}
+	want = filepath.Join(developmentPackage, ".runtime", "runs")
+	if got != want {
+		t.Fatalf("development runtime artifacts root = %q, want %q", got, want)
+	}
+}
+
+func TestAppModeRuntimeArtifactsRootPreservesExplicitLogDir(t *testing.T) {
+	configuredLogDir := filepath.Join(t.TempDir(), "custom-logs")
+	got, configured, err := appModeRuntimeArtifactsRoot("/package", "com.opendesk.desktop", configuredLogDir, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !configured || got != configuredLogDir {
+		t.Fatalf("explicit root = %q configured=%v, want %q true", got, configured, configuredLogDir)
+	}
+}

@@ -26,6 +26,25 @@ func appRecorderWorkDirForPackage(packageRoot, bundledRoot, packageID string, en
 	return appModeDataRoot(packageID, environment)
 }
 
+// appModeRuntimeArtifactsRoot keeps App Mode execution artifacts with the
+// package workspace in development and with the writable App data root once a
+// package is released inside a desktop bundle. An explicit -log-dir remains
+// the caller's override.
+func appModeRuntimeArtifactsRoot(packageRoot, packageID, configuredLogDir string, environment map[string]string) (root string, configured bool, err error) {
+	return appModeRuntimeArtifactsRootForPackage(packageRoot, bundledAppModePath(), packageID, configuredLogDir, environment)
+}
+
+func appModeRuntimeArtifactsRootForPackage(packageRoot, bundledRoot, packageID, configuredLogDir string, environment map[string]string) (root string, configured bool, err error) {
+	if configuredLogDir = strings.TrimSpace(configuredLogDir); configuredLogDir != "" {
+		return filepath.Clean(configuredLogDir), true, nil
+	}
+	workDir, err := appRecorderWorkDirForPackage(packageRoot, bundledRoot, packageID, environment)
+	if err != nil {
+		return "", false, err
+	}
+	return filepath.Join(workDir, ".runtime", "runs"), false, nil
+}
+
 func appModeDataRoot(packageID string, environment map[string]string) (string, error) {
 	packageID = strings.TrimSpace(packageID)
 	if packageID == "" {

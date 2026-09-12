@@ -7,8 +7,8 @@ const path = require('path');
 const vm = require('vm');
 
 const repoRoot = path.resolve(__dirname, '..', '..');
-const historyPath = path.join(repoRoot, 'apps', 'opendesk', 'recorder', 'recording-history.js');
-const controllerPath = path.join(repoRoot, 'apps', 'opendesk', 'recorder', 'controller.js');
+const historyPath = path.join(repoRoot, 'internal', 'recorderbundle', 'ui', 'recording-history.js');
+const controllerPath = path.join(repoRoot, 'internal', 'recorderbundle', 'ui', 'controller.js');
 const historySource = fs.readFileSync(historyPath, 'utf8');
 vm.runInThisContext(historySource, {filename: 'recording-history.js'});
 const History = globalThis.OpenDeskRecordingHistory;
