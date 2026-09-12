@@ -26,7 +26,7 @@ Script App Packaging 面向 **OpenDesk App 开发者**：你已经安装了可�
 
 本文把 **普通 App 开发者路径** 作为默认路径。只有最后的“OpenDesk 源码维护者”一节涉及 OpenDesk 自身源码、`apps/opendesk` 和 release builder。
 
-`automation.app`、Tray/Menu action、菜单状态和退出 API 的完整 Reference 见 [automation.app](app-shell.md)。Manifest 的 schema、版本、兼容性、路径安全和错误模型见 [App Package Format](../architecture/app-package-format.md)。使用已安装 Runtime 生成发布产物的详细规则见 [Installed Runtime App Builder](app-builder.md)。
+先用 [App Mode 与 App Shell](app-shell.md) 理解 `-app`、Manifest、App Shell 与脚本的关系；`automation.app`、Tray/Menu action、菜单状态和退出方法的完整 Reference 见 [automation.app API](automation-app.md)。Manifest 的 schema、版本、兼容性、路径安全和错误模型见 [App Package Format](../architecture/app-package-format.md)。使用已安装 Runtime 生成发布产物的详细规则见 [Installed Runtime App Builder](app-builder.md)。
 
 ## 1. 两类开发者
 
@@ -128,7 +128,7 @@ my-app/
     "primaryAction": "opendesk.open",
     "menuMode": "merge",
     "menu": [
-      { "id": "run", "label": "Run", "action": "run" },
+      { "id": "run.menu", "label": "Run", "action": "run" },
       { "type": "separator" },
       { "id": "status", "label": "Status: ready", "enabled": false }
     ]
@@ -137,6 +137,8 @@ my-app/
 ```
 
 `window.mainId` 必须与入口脚本创建的 Custom UI 主窗口 `id` 一致。`id` 使用稳定的小写 reverse-DNS identity。`entry`、图标和其他 package 资源使用 package 内相对路径。
+
+Manifest menu item 的 `id` 是菜单项自身的稳定定位键，`action` 才是点击后交给业务代码的 action；两者可以相同，但不应把它们当成同一个概念。
 
 `opendesk.app.json` 不是 Secret storage，不要写入 API key、password、access token 或客户凭据。
 
@@ -173,8 +175,6 @@ Package loader 会在业务代码执行前完成 schema / semantic validation、
 App Mode 不要求开发者切换到另一种编程模型。入口仍然可以直接使用 OpenDesk Runtime API，例如：
 
 ```js
-const caps = automation.app.getCapabilities();
-
 const mainWindow = await ui.createWindow({
   id: 'main',
   title: 'My App',
@@ -188,6 +188,8 @@ automation.app.onAction(async event => {
   }
 });
 ```
+
+对于明确只作为 App Mode `main.js` 运行的代码，不需要先调用 `automation.app.getCapabilities()` 才能使用 `onAction()`。`getCapabilities()` 主要用于同一模块还会被 `-script`、Scheduler 等其他 execution 复用时的 capability / context 探测。
 
 业务逻辑、UI、文件、HTTP、桌面自动化、Scheduler 等能力继续按对应 `docs/api/` Reference 使用。App Mode 主要增加的是应用级生命周期和产品外壳。
 
@@ -326,7 +328,8 @@ app-mode/
 
 ## 相关入口
 
-- [automation.app](app-shell.md)：App Mode lifecycle、Tray/Menu 与 action API。
+- [App Mode 与 App Shell](app-shell.md)：`-app`、Manifest、App Shell 与脚本 API 的职责关系。
+- [automation.app API](automation-app.md)：当前 App Mode 应用的 lifecycle、Tray/Menu action 与运行时菜单状态方法。
 - [Installed Runtime App Builder](app-builder.md)：无源码/无 Go 的 artifact 构建、CI 与发布限制。
 - [App Package CLI](app-package-cli.md)：`validate`、`doctor`、`build` Reference。
 - [App Package Format](../architecture/app-package-format.md)：Manifest schema、compatibility 和 path security。
