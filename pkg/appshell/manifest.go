@@ -13,9 +13,12 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"opendesk/pkg/runtimeversion"
 )
 
 const ManifestFileName = "opendesk.app.json"
+const CurrentManifestSchemaVersion = 1
 
 const (
 	ActionOpen     = "opendesk.open"
@@ -26,17 +29,27 @@ const (
 )
 
 var (
-	actionIDPattern  = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
-	packageIDPattern = regexp.MustCompile(`^[a-z](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$`)
-	windowIDPattern  = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]{0,63}$`)
+	actionIDPattern   = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
+	packageIDPattern  = regexp.MustCompile(`^[a-z](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$`)
+	windowIDPattern   = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]{0,63}$`)
+	capabilityPattern = regexp.MustCompile(`^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$`)
 )
 
 type Manifest struct {
-	ID             string         `json:"id"`
-	Entry          string         `json:"entry"`
-	SingleInstance bool           `json:"singleInstance"`
-	Window         WindowManifest `json:"window"`
-	Tray           TrayManifest   `json:"tray"`
+	SchemaVersion  int                          `json:"schemaVersion,omitempty"`
+	ID             string                       `json:"id"`
+	Version        string                       `json:"version,omitempty"`
+	Name           string                       `json:"name,omitempty"`
+	Runtime        RuntimeCompatibilityManifest `json:"runtime,omitempty"`
+	Entry          string                       `json:"entry"`
+	SingleInstance bool                         `json:"singleInstance"`
+	Window         WindowManifest               `json:"window"`
+	Tray           TrayManifest                 `json:"tray"`
+	Capabilities   []string                     `json:"capabilities,omitempty"`
+}
+
+type RuntimeCompatibilityManifest struct {
+	MinVersion string `json:"minVersion,omitempty"`
 }
 
 type WindowManifest struct {
@@ -97,10 +110,19 @@ func LoadPackage(packageDir string) (*Package, error) {
 	manifestPath := filepath.Join(root, ManifestFileName)
 	data, err := os.ReadFile(manifestPath)
 	if err != nil {
-		return nil, fmt.Errorf("read %s: %w", manifestPath, err)
+		code := ErrManifestInvalid
+		fix := "make sure the package contains a readable opendesk.app.json"
+		if os.IsNotExist(err) {
+			code = ErrManifestNotFound
+			fix = "add opendesk.app.json at the package root"
+		}
+		return nil, newPackageError(code, ManifestFileName, "a readable manifest file", manifestPath, fix, fmt.Errorf("read %s: %w", manifestPath, err))
 	}
 	manifest, err := ParseManifest(data)
 	if err != nil {
+		return nil, err
+	}
+	if err := ValidateRuntimeCompatibility(manifest, runtimeversion.Current); err != nil {
 		return nil, err
 	}
 	entryPath, err := resolvePackageFile(root, "entry", manifest.Entry)
@@ -114,45 +136,100 @@ func LoadPackage(packageDir string) (*Package, error) {
 			return nil, err
 		}
 		if err := validateWindowsTrayIcon(appPackage.WindowsIconPath); err != nil {
-			return nil, fmt.Errorf("validate tray.icons.windows %s: %w", appPackage.WindowsIconPath, err)
+			cause := fmt.Errorf("validate tray.icons.windows %s: %w", appPackage.WindowsIconPath, err)
+			return nil, newPackageError(ErrPackageResourceInvalid, "tray.icons.windows", "a valid Windows .ico file", appPackage.WindowsIconPath, "replace the invalid tray icon with a valid package-local .ico resource", cause)
 		}
 		appPackage.MacOSIconPath, err = resolvePackageFile(root, "tray.icons.macos", manifest.Tray.Icons.MacOS)
 		if err != nil {
 			return nil, err
 		}
 		if err := validateMacOSTemplateIcon(appPackage.MacOSIconPath); err != nil {
-			return nil, fmt.Errorf("validate tray.icons.macos %s: %w", appPackage.MacOSIconPath, err)
+			cause := fmt.Errorf("validate tray.icons.macos %s: %w", appPackage.MacOSIconPath, err)
+			return nil, newPackageError(ErrPackageResourceInvalid, "tray.icons.macos", "a valid macOS template PNG", appPackage.MacOSIconPath, "replace the invalid tray icon with a valid package-local template PNG", cause)
 		}
 	}
 	return appPackage, nil
 }
 
 func ParseManifest(data []byte) (Manifest, error) {
+	schemaVersion, hasSchemaVersion, err := detectManifestSchemaVersion(data)
+	if err != nil {
+		return Manifest{}, newPackageError(ErrManifestInvalid, "schemaVersion", "an integer when present", "invalid", "fix the manifest JSON and schemaVersion value", fmt.Errorf("invalid %s: %w", ManifestFileName, err))
+	}
+	if hasSchemaVersion && schemaVersion != CurrentManifestSchemaVersion {
+		return Manifest{}, newPackageError(
+			ErrManifestSchemaUnsupported,
+			"schemaVersion",
+			fmt.Sprintf("%d", CurrentManifestSchemaVersion),
+			fmt.Sprintf("%d", schemaVersion),
+			"upgrade OpenDesk for a newer manifest schema or publish the app using a supported schemaVersion",
+			fmt.Errorf("unsupported %s schemaVersion %d", ManifestFileName, schemaVersion),
+		)
+	}
+
 	type manifestWire struct {
-		ID             string         `json:"id"`
-		Entry          string         `json:"entry"`
-		SingleInstance *bool          `json:"singleInstance"`
-		Window         WindowManifest `json:"window"`
-		Tray           TrayManifest   `json:"tray"`
+		SchemaVersion  *int                         `json:"schemaVersion"`
+		ID             string                       `json:"id"`
+		Version        string                       `json:"version"`
+		Name           string                       `json:"name"`
+		Runtime        RuntimeCompatibilityManifest `json:"runtime"`
+		Entry          string                       `json:"entry"`
+		SingleInstance *bool                        `json:"singleInstance"`
+		Window         WindowManifest               `json:"window"`
+		Tray           TrayManifest                 `json:"tray"`
+		Capabilities   []string                     `json:"capabilities"`
 	}
 	var wire manifestWire
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&wire); err != nil {
-		return Manifest{}, fmt.Errorf("invalid %s: %w", ManifestFileName, err)
+		return Manifest{}, newPackageError(ErrManifestInvalid, "manifest", "only documented schema fields", "invalid", "remove unknown fields or fix the JSON syntax", fmt.Errorf("invalid %s: %w", ManifestFileName, err))
 	}
 	if err := ensureJSONEOF(decoder); err != nil {
-		return Manifest{}, fmt.Errorf("invalid %s: %w", ManifestFileName, err)
+		return Manifest{}, newPackageError(ErrManifestInvalid, "manifest", "one JSON object", "multiple values", "keep exactly one JSON object in opendesk.app.json", fmt.Errorf("invalid %s: %w", ManifestFileName, err))
 	}
 	singleInstance := true
 	if wire.SingleInstance != nil {
 		singleInstance = *wire.SingleInstance
 	}
-	manifest := Manifest{ID: wire.ID, Entry: wire.Entry, SingleInstance: singleInstance, Window: wire.Window, Tray: wire.Tray}
+	manifest := Manifest{
+		ID:             wire.ID,
+		Version:        wire.Version,
+		Name:           wire.Name,
+		Runtime:        wire.Runtime,
+		Entry:          wire.Entry,
+		SingleInstance: singleInstance,
+		Window:         wire.Window,
+		Tray:           wire.Tray,
+		Capabilities:   wire.Capabilities,
+	}
+	if wire.SchemaVersion != nil {
+		manifest.SchemaVersion = *wire.SchemaVersion
+	}
 	if err := manifest.Validate(); err != nil {
 		return Manifest{}, err
 	}
 	return manifest, nil
+}
+
+func detectManifestSchemaVersion(data []byte) (int, bool, error) {
+	var envelope map[string]json.RawMessage
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	if err := decoder.Decode(&envelope); err != nil {
+		return 0, false, err
+	}
+	if err := ensureJSONEOF(decoder); err != nil {
+		return 0, false, err
+	}
+	raw, ok := envelope["schemaVersion"]
+	if !ok {
+		return 0, false, nil
+	}
+	var version int
+	if err := json.Unmarshal(raw, &version); err != nil {
+		return 0, true, err
+	}
+	return version, true, nil
 }
 
 func ensureJSONEOF(decoder *json.Decoder) error {
@@ -166,9 +243,14 @@ func ensureJSONEOF(decoder *json.Decoder) error {
 }
 
 func (m *Manifest) Validate() error {
+	if err := m.validateContractMetadata(); err != nil {
+		return err
+	}
+
 	m.ID = strings.TrimSpace(m.ID)
-	if !packageIDPattern.MatchString(m.ID) {
-		return fmt.Errorf("id %q is invalid: expected a lowercase reverse-DNS package identity", m.ID)
+	if len(m.ID) > 255 || !packageIDPattern.MatchString(m.ID) || !validPackageIDSegments(m.ID) {
+		cause := fmt.Errorf("id %q is invalid: expected a lowercase reverse-DNS package identity", m.ID)
+		return newPackageError(ErrPackageIDInvalid, "id", "lowercase reverse-DNS identity, max 255 bytes and 63 bytes per segment", m.ID, "use a stable value such as com.example.my-app", cause)
 	}
 	entry, err := validateSafeRelativePath("entry", m.Entry, true)
 	if err != nil {
@@ -201,14 +283,14 @@ func (m *Manifest) Validate() error {
 			return err
 		}
 		if !strings.EqualFold(filepath.Ext(windowsIcon), ".ico") {
-			return errors.New("tray.icons.windows must reference an .ico file")
+			return newPackageError(ErrPackageResourceInvalid, "tray.icons.windows", "a package-local .ico path", windowsIcon, "use a Windows .ico tray resource", errors.New("tray.icons.windows must reference an .ico file"))
 		}
 		macOSIcon, err := validateSafeRelativePath("tray.icons.macos", m.Tray.Icons.MacOS, true)
 		if err != nil {
 			return err
 		}
 		if !strings.EqualFold(filepath.Ext(macOSIcon), ".png") {
-			return errors.New("tray.icons.macos must reference a .png template image")
+			return newPackageError(ErrPackageResourceInvalid, "tray.icons.macos", "a package-local .png path", macOSIcon, "use a macOS template PNG tray resource", errors.New("tray.icons.macos must reference a .png template image"))
 		}
 		m.Tray.Icons.Windows = windowsIcon
 		m.Tray.Icons.MacOS = macOSIcon
@@ -279,6 +361,77 @@ func (m *Manifest) Validate() error {
 		return fmt.Errorf("window.closeBehavior=hide requires tray.enabled=true and tray.primaryAction=%s", ActionOpen)
 	}
 	return nil
+}
+
+func (m *Manifest) validateContractMetadata() error {
+	switch m.SchemaVersion {
+	case 0:
+		if m.Version != "" || m.Name != "" || m.Runtime.MinVersion != "" || len(m.Capabilities) != 0 {
+			return newPackageError(ErrManifestSchemaUnsupported, "schemaVersion", "1 when versioned package metadata is used", "missing", "add \"schemaVersion\": 1 or remove v1-only metadata", errors.New("legacy manifest cannot use version, name, runtime, or capabilities fields"))
+		}
+	case CurrentManifestSchemaVersion:
+		m.Version = strings.TrimSpace(m.Version)
+		if _, ok := parseSemVersion(m.Version); !ok {
+			return newPackageError(ErrPackageVersionInvalid, "version", "SemVer such as 1.0.0", m.Version, "set version to a valid SemVer without a leading v", fmt.Errorf("version %q is invalid", m.Version))
+		}
+		if m.Name != "" {
+			m.Name = strings.TrimSpace(m.Name)
+			if m.Name == "" || len(m.Name) > 128 {
+				return newPackageError(ErrManifestInvalid, "name", "1-128 bytes when present", m.Name, "use a short human-readable application name", fmt.Errorf("name %q is invalid", m.Name))
+			}
+		}
+		m.Runtime.MinVersion = strings.TrimSpace(m.Runtime.MinVersion)
+		if m.Runtime.MinVersion != "" {
+			if _, ok := parseSemVersion(m.Runtime.MinVersion); !ok {
+				return newPackageError(ErrManifestInvalid, "runtime.minVersion", "SemVer such as 0.1.0", m.Runtime.MinVersion, "set runtime.minVersion to a valid SemVer without a leading v", fmt.Errorf("runtime.minVersion %q is invalid", m.Runtime.MinVersion))
+			}
+		}
+		seen := make(map[string]struct{}, len(m.Capabilities))
+		for i := range m.Capabilities {
+			capability := strings.TrimSpace(m.Capabilities[i])
+			field := fmt.Sprintf("capabilities[%d]", i)
+			if !capabilityPattern.MatchString(capability) {
+				return newPackageError(ErrPackageCapabilityInvalid, field, "a lowercase capability token", capability, "use a stable token such as custom-ui or desktop-automation", fmt.Errorf("capability %q is invalid", capability))
+			}
+			if _, exists := seen[capability]; exists {
+				return newPackageError(ErrPackageCapabilityInvalid, field, "unique capability tokens", capability, "remove the duplicate capability", fmt.Errorf("duplicate capability %q", capability))
+			}
+			seen[capability] = struct{}{}
+			m.Capabilities[i] = capability
+		}
+	default:
+		return newPackageError(ErrManifestSchemaUnsupported, "schemaVersion", fmt.Sprintf("%d", CurrentManifestSchemaVersion), fmt.Sprintf("%d", m.SchemaVersion), "upgrade OpenDesk or publish using a supported schemaVersion", fmt.Errorf("unsupported %s schemaVersion %d", ManifestFileName, m.SchemaVersion))
+	}
+	return nil
+}
+
+func ValidateRuntimeCompatibility(manifest Manifest, currentRuntimeVersion string) error {
+	minimum := strings.TrimSpace(manifest.Runtime.MinVersion)
+	if minimum == "" {
+		return nil
+	}
+	required, ok := parseSemVersion(minimum)
+	if !ok {
+		return newPackageError(ErrManifestInvalid, "runtime.minVersion", "SemVer", minimum, "fix runtime.minVersion in opendesk.app.json", fmt.Errorf("runtime.minVersion %q is invalid", minimum))
+	}
+	currentRuntimeVersion = strings.TrimSpace(currentRuntimeVersion)
+	current, ok := parseSemVersion(currentRuntimeVersion)
+	if !ok {
+		return newPackageError(ErrRuntimeVersionInvalid, "runtime", "a versioned OpenDesk Runtime", currentRuntimeVersion, "use an official versioned OpenDesk build", fmt.Errorf("OpenDesk Runtime version %q is invalid", currentRuntimeVersion))
+	}
+	if compareSemVersion(current, required) < 0 {
+		return newPackageError(ErrRuntimeTooOld, "runtime.minVersion", ">="+minimum, currentRuntimeVersion, "upgrade OpenDesk before running this app package", fmt.Errorf("OpenDesk Runtime %s is older than required %s", currentRuntimeVersion, minimum))
+	}
+	return nil
+}
+
+func validPackageIDSegments(value string) bool {
+	for _, segment := range strings.Split(value, ".") {
+		if len(segment) == 0 || len(segment) > 63 {
+			return false
+		}
+	}
+	return true
 }
 
 func (m Manifest) InstanceKey() string {
@@ -355,20 +508,30 @@ func validateSafeRelativePath(field, value string, required bool) (string, error
 	value = strings.TrimSpace(value)
 	if value == "" {
 		if required {
-			return "", fmt.Errorf("%s is required", field)
+			code := ErrPackageResourceMissing
+			fix := "provide a package-local resource path"
+			if field == "entry" {
+				code = ErrPackageEntryMissing
+				fix = "set entry to the package-local JavaScript entry file"
+			}
+			cause := fmt.Errorf("%s is required", field)
+			return "", newPackageError(code, field, "a package-relative path", "empty", fix, cause)
 		}
 		return "", nil
 	}
 	if strings.ContainsRune(value, '\x00') {
-		return "", fmt.Errorf("%s contains NUL", field)
+		cause := fmt.Errorf("%s contains NUL", field)
+		return "", newPackageError(ErrPackageResourceInvalid, field, "a portable package-relative path", value, "remove NUL characters from the path", cause)
 	}
 	portable := strings.ReplaceAll(value, "\\", "/")
 	if path.IsAbs(portable) || filepath.IsAbs(value) || filepath.VolumeName(value) != "" || looksLikeWindowsDrivePath(portable) {
-		return "", fmt.Errorf("%s must be a relative package path", field)
+		cause := fmt.Errorf("%s must be a relative package path", field)
+		return "", newPackageError(ErrPackageResourceEscape, field, "a path inside the package root", value, "use a relative path such as main.js or assets/tray.png", cause)
 	}
 	clean := path.Clean(portable)
 	if clean == "." || clean == ".." || strings.HasPrefix(clean, "../") {
-		return "", fmt.Errorf("%s escapes the app package", field)
+		cause := fmt.Errorf("%s escapes the app package", field)
+		return "", newPackageError(ErrPackageResourceEscape, field, "a path inside the package root", value, "remove parent-directory traversal from the path", cause)
 	}
 	return clean, nil
 }
@@ -376,22 +539,22 @@ func validateSafeRelativePath(field, value string, required bool) (string, error
 func canonicalPackageRoot(packageDir string) (string, error) {
 	value := strings.TrimSpace(packageDir)
 	if value == "" {
-		return "", errors.New("-app directory is required")
+		return "", newPackageError(ErrPackageRootInvalid, "packageRoot", "an App Mode package directory", "empty", "pass -app <directory>", errors.New("-app directory is required"))
 	}
 	abs, err := filepath.Abs(value)
 	if err != nil {
-		return "", fmt.Errorf("resolve app package root: %w", err)
+		return "", newPackageError(ErrPackageRootInvalid, "packageRoot", "a resolvable directory", value, "pass an existing package directory", fmt.Errorf("resolve app package root: %w", err))
 	}
 	root, err := filepath.EvalSymlinks(abs)
 	if err != nil {
-		return "", fmt.Errorf("resolve app package root symlinks: %w", err)
+		return "", newPackageError(ErrPackageRootInvalid, "packageRoot", "an existing directory", abs, "pass an existing package directory", fmt.Errorf("resolve app package root symlinks: %w", err))
 	}
 	info, err := os.Stat(root)
 	if err != nil {
-		return "", fmt.Errorf("stat app package root: %w", err)
+		return "", newPackageError(ErrPackageRootInvalid, "packageRoot", "an existing directory", root, "pass an existing package directory", fmt.Errorf("stat app package root: %w", err))
 	}
 	if !info.IsDir() {
-		return "", fmt.Errorf("app package root is not a directory: %s", root)
+		return "", newPackageError(ErrPackageRootInvalid, "packageRoot", "a directory", root, "pass the package directory rather than a file", fmt.Errorf("app package root is not a directory: %s", root))
 	}
 	return filepath.Clean(root), nil
 }
@@ -400,18 +563,20 @@ func resolvePackageFile(root, field, relative string) (string, error) {
 	joined := filepath.Join(root, filepath.FromSlash(relative))
 	resolved, err := filepath.EvalSymlinks(joined)
 	if err != nil {
-		return "", fmt.Errorf("resolve %s: %w", field, err)
+		return "", newPackageError(ErrPackageResourceMissing, field, "an existing package-local regular file", relative, "add the referenced file inside the app package", fmt.Errorf("resolve %s: %w", field, err))
 	}
 	contained, err := filepath.Rel(root, resolved)
 	if err != nil || contained == ".." || strings.HasPrefix(contained, ".."+string(filepath.Separator)) || filepath.IsAbs(contained) {
-		return "", fmt.Errorf("%s escapes the app package through a symlink", field)
+		cause := fmt.Errorf("%s escapes the app package through a symlink", field)
+		return "", newPackageError(ErrPackageResourceEscape, field, "a real path inside the package root", relative, "replace the escaping symlink with a package-local file", cause)
 	}
 	info, err := os.Stat(resolved)
 	if err != nil {
-		return "", fmt.Errorf("stat %s: %w", field, err)
+		return "", newPackageError(ErrPackageResourceMissing, field, "an existing package-local regular file", relative, "add the referenced file inside the app package", fmt.Errorf("stat %s: %w", field, err))
 	}
 	if !info.Mode().IsRegular() {
-		return "", fmt.Errorf("%s must reference a regular file", field)
+		cause := fmt.Errorf("%s must reference a regular file", field)
+		return "", newPackageError(ErrPackageResourceInvalid, field, "a regular file", relative, "reference a regular file rather than a directory or special file", cause)
 	}
 	return filepath.Clean(resolved), nil
 }

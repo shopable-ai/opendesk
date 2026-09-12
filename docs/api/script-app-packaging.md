@@ -21,14 +21,14 @@ Script App Packaging 用于把已经写好并验证过的 OpenDesk JavaScript �
 
 它不负责 Recorder 脚本精炼，不等于 `.odpkg` 受保护包，也不自动提供 MSI/MSIX、安装器、代码签名证书或 License 服务。需要脚本加密、Publisher 签名和授权时，使用 [受保护包 CLI](protected-packages.md)。
 
-`automation.app`、tray/menu action、菜单状态和退出 API 的完整 Reference 见 [automation.app](app-shell.md)。
+`automation.app`、tray/menu action、菜单状态和退出 API 的完整 Reference 见 [automation.app](app-shell.md)。Manifest 的长期 schema、版本、兼容性、路径安全和错误模型见 [App Package Format](../architecture/app-package-format.md)。
 
 ## 能力边界
 
 | 能力 | 当前公开入口 | 说明 |
 | --- | --- | --- |
 | 开发态运行 App Mode package | `opendesk -app <directory>` | 显式读取该目录中的 `opendesk.app.json` |
-| App Manifest | `opendesk.app.json` | 定义 package identity、entry、single instance、主窗口与 tray/menu |
+| App Manifest | `opendesk.app.json` | 定义 package identity/version、Runtime compatibility、entry、single instance、主窗口与 tray/menu |
 | macOS 桌面发布 | `scripts/build_macos_app.sh` + `APP_MODE_PACKAGE` | 把 package staging 到 `OpenDesk.app/Contents/Resources/AppMode/` |
 | Windows 桌面发布 | `scripts/build_windows_distribution.ps1 -AppModePackage ...` | 把 package staging 到 portable distribution 的 `app-mode/` |
 | App 内生命周期 | `automation.app` | 当前 App Mode application 的 action、菜单更新与退出 |
@@ -49,11 +49,17 @@ my-app/
 
 `entry`、Windows `.ico` 和 macOS PNG 都使用 package 内相对路径。不要把机器相关的绝对路径写进 Manifest。
 
-最小 Manifest：
+新 package 使用 schema v1：
 
 ```json
 {
+  "schemaVersion": 1,
   "id": "com.example.my-app",
+  "version": "1.0.0",
+  "name": "My App",
+  "runtime": {
+    "minVersion": "0.1.0"
+  },
   "entry": "main.js",
   "singleInstance": true,
   "window": {
@@ -78,7 +84,15 @@ my-app/
 }
 ```
 
-`window.mainId` 必须与入口脚本创建的 Custom UI 主窗口 `id` 一致。`id` 应使用稳定的小写 reverse-DNS identity。
+`schemaVersion: 1` 是正式长期 contract；`version` 使用 SemVer。`runtime.minVersion` 可选，用于在执行业务 JavaScript 前拒绝过旧的 OpenDesk Runtime。P0 不定义 `runtime.maxVersion`。
+
+为兼容已经创建的 App Mode package，缺失 `schemaVersion` 的既有 manifest 仍按 legacy v0 读取；新 package 不应继续使用 legacy 格式。Runtime 不会自动改写 manifest。
+
+`window.mainId` 必须与入口脚本创建的 Custom UI 主窗口 `id` 一致。`id` 使用稳定的小写 reverse-DNS identity；改变 `id` 表示改变应用 identity，而不是普通显示名重命名。
+
+`capabilities` 是可选声明元数据。当前只做格式/重复校验，不是 permission/security enforcement，也不会因为声明某项 capability 自动授予权限。
+
+`opendesk.app.json` 不是 Secret storage；不要写入 API key、password、access token 或客户凭据。
 
 ## 开发态验证
 
@@ -101,6 +115,8 @@ make build
 ```
 
 开发态的 `-app` 是显式 package 入口。普通 `-script`、`-script-text`、HTTP、MCP 或 Scheduler execution 不会因为附近存在 `opendesk.app.json` 就自动进入 App Mode。
+
+Package loader 在业务代码执行前按以下顺序处理：schema/JSON → semantic validation → Runtime compatibility → entry/resource containment。绝对路径、`../`、Windows drive path、symlink escape、缺失文件和目录型 entry 都会 fail closed。
 
 ## macOS 发布
 
@@ -150,16 +166,18 @@ app-mode\
 
 发布前至少分别检查：
 
-1. package 根目录存在严格有效的 `opendesk.app.json`；`entry` 与图标资源都留在 package root 内。
-2. `./dist/opendesk -app <package> -console-mode script` 可以从仓库根目录按原命令启动。
-3. 主窗口 `id` 与 `window.mainId` 一致；Tray/Menu Bar 的 Open、业务 action、Quit 使用同一个 Runtime。
-4. `singleInstance` 行为符合预期；同一 package 的第二次启动不重复执行 `main.js`。
-5. macOS 发布时检查实际 `.app` 中的 `Contents/Resources/AppMode/`；Windows 发布时检查实际 portable 目录中的 `app-mode/`。
-6. cross-build / package layout 检查只证明构建和 staging，不等于目标系统 live UI 验证。
-7. 若交付目标包含代码保密或客户授权，单独进入 `.odpkg` / License 流程；不要把 App Mode packaging 本身描述为源码保护。
+1. package 根目录存在严格有效的 schema-v1 `opendesk.app.json`；`entry` 与图标资源都留在 package root 内。
+2. `schemaVersion`、package `version` 与可选 `runtime.minVersion` 符合 [App Package Format](../architecture/app-package-format.md)。
+3. `./dist/opendesk -app <package> -console-mode script` 可以从仓库根目录按原命令启动。
+4. 主窗口 `id` 与 `window.mainId` 一致；Tray/Menu Bar 的 Open、业务 action、Quit 使用同一个 Runtime。
+5. `singleInstance` 行为符合预期；同一 package 的第二次启动不重复执行 `main.js`。
+6. macOS 发布时检查实际 `.app` 中的 `Contents/Resources/AppMode/`；Windows 发布时检查实际 portable 目录中的 `app-mode/`。
+7. cross-build / package layout 检查只证明构建和 staging，不等于目标系统 live UI 验证。
+8. 若交付目标包含代码保密或客户授权，单独进入 `.odpkg` / License 流程；不要把 App Mode packaging 本身描述为源码保护。
 
 ## 相关入口
 
+- [App Package Format](../architecture/app-package-format.md)：`opendesk.app.json` schema、version、compatibility、path security、error model 与 legacy policy。
 - [automation.app](app-shell.md)：App Mode lifecycle、tray/menu 与 Manifest Runtime 语义。
 - [Examples: App Mode](../../examples/app-mode/README.md)：最小可运行示例。
 - [App Mode desktop launch contract](../architecture/app-mode-desktop-launch.md)：开发与 release staging 的架构边界及验证证据。
