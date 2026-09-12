@@ -126,6 +126,23 @@ test('Permissions Center single-flights 100 concurrent opens, reuses, and recrea
   assert.equal(f.calls.request.length, 0);
 });
 
+test('Permission Center retry state is scoped to one window lifecycle', async () => {
+  const f = fixture(report('LIMITED'));
+  await f.center.open('first');
+  await f.windows[0].trigger('request-screen-capture');
+  assert.deepEqual(f.calls.request, [['screen-capture', {force:false}]]);
+  assert.equal(f.windows[0].updates.get('request-screen-capture').text, '重新尝试');
+
+  f.windows[0].close();
+  await f.center.open('second');
+  assert.equal(f.windows[1].updates.get('request-screen-capture').text, '请求授权');
+  await f.windows[1].trigger('request-screen-capture');
+  assert.deepEqual(f.calls.request, [
+    ['screen-capture', {force:false}],
+    ['screen-capture', {force:false}],
+  ]);
+});
+
 test('refresh stays pure and explicit repeated request becomes force retry', async () => {
   const f = fixture(report('LIMITED'));
   await f.center.open('test');
