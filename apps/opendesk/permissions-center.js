@@ -139,12 +139,19 @@
     let window = null;
     let opening = null;
     let sequence = 0;
+    let windowGeneration = 0;
     let report = null;
     let viewRows = [];
     let refreshing = false;
     let lastError = '';
     const attemptedRequests = new Set();
     const requesting = new Set();
+
+    function resetWindowSession() {
+      windowGeneration++;
+      attemptedRequests.clear();
+      requesting.clear();
+    }
 
     async function safeUpdate(id, patch) {
       if (!window) return;
@@ -230,6 +237,7 @@
 
     async function request(id) {
       if (requesting.has(id)) return state();
+      const requestGeneration = windowGeneration;
       const row = viewRows.find(item => item.id === id);
       const key = row ? row.key : controlKey(id);
       const force = attemptedRequests.has(id);
@@ -239,11 +247,16 @@
       try {
         await app.requestPermission(id, {force});
       } catch (error) {
-        await safeUpdate('notice', {text: `请求授权失败：${error && error.message ? error.message : error}`});
+        if (requestGeneration === windowGeneration) {
+          await safeUpdate('notice', {text: `请求授权失败：${error && error.message ? error.message : error}`});
+        }
       } finally {
-        attemptedRequests.add(id);
-        requesting.delete(id);
+        if (requestGeneration === windowGeneration) {
+          attemptedRequests.add(id);
+          requesting.delete(id);
+        }
       }
+      if (requestGeneration !== windowGeneration) return state();
       return refresh(force ? '重新尝试授权后' : '请求授权后');
     }
 
@@ -271,7 +284,11 @@
         win.control(`request-${row.key}`).on('click', () => request(row.id));
         win.control(`settings-${row.key}`).on('click', () => openSettings(row.id));
       }
-      win.on('close', () => { if (window === win) window = null; });
+      win.on('close', () => {
+        if (window !== win) return;
+        window = null;
+        resetWindowSession();
+      });
     }
 
     async function openInternal(source) {
@@ -285,6 +302,7 @@
         }
       }
 
+      resetWindowSession();
       const initialReport = ensureReport();
       viewRows = rowsFromReport(initialReport);
       const next = await runtimeUI.createWindow({
