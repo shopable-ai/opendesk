@@ -15,7 +15,10 @@ func TestSystemProductPolyfillExposesImmutableIdentity(t *testing.T) {
 	}
 
 	runtime := goja.New()
-	if err := runtime.Set("System", map[string]any{}); err != nil {
+	if err := runtime.Set("System", map[string]any{
+		"getPlatformInfo": func() map[string]any { return map[string]any{"os": "test"} },
+		"getEnv":          func(string) string { return "https://environment.example.invalid" },
+	}); err != nil {
 		t.Fatalf("register System test object: %v", err)
 	}
 	if err := runtime.Set("notify____Inject", func(goja.FunctionCall) goja.Value { return goja.Undefined() }); err != nil {
@@ -29,12 +32,14 @@ func TestSystemProductPolyfillExposesImmutableIdentity(t *testing.T) {
 		System.product.id,
 		System.product.name,
 		System.product.website,
+		System.getPlatformInfo().os,
+		System.getEnv('OPENDESK_PRODUCT_WEBSITE'),
 		Object.keys(System.product).sort().join(','),
 	].join('|')`)
 	if err != nil {
 		t.Fatalf("read System.product: %v", err)
 	}
-	const want = "com.opendesk.desktop|OpenDesk|https://github.com/shopable-ai/opendesk|id,name,website"
+	const want = "com.opendesk.desktop|OpenDesk|https://github.com/shopable-ai/opendesk|test|https://environment.example.invalid|id,name,website"
 	if got := value.String(); got != want {
 		t.Fatalf("System.product = %q, want %q", got, want)
 	}

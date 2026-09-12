@@ -22,7 +22,7 @@ func TestResolveAppSchedulerScriptRootMatchesProductRecipes(t *testing.T) {
 	}
 
 	configured, err := resolveAppSchedulerScriptRoot("com.opendesk.desktop", root, map[string]string{
-		"HOME":                         home,
+		"HOME":                       home,
 		"OPENDESK_SCRIPT_RUNNER_DIR": "recipes-custom",
 	})
 	if err != nil {
@@ -30,6 +30,17 @@ func TestResolveAppSchedulerScriptRootMatchesProductRecipes(t *testing.T) {
 	}
 	if configured != filepath.Join(root, "recipes-custom") {
 		t.Fatalf("configured root = %q", configured)
+	}
+
+	appDataRoot, err := resolveAppSchedulerScriptRoot("com.opendesk.desktop", root, map[string]string{
+		"HOME":                  home,
+		"OPENDESK_APP_DATA_DIR": "data-custom",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if appDataRoot != filepath.Join(root, "data-custom", "recipes") {
+		t.Fatalf("App data root = %q", appDataRoot)
 	}
 }
 
@@ -39,7 +50,7 @@ func TestAppSchedulerBridgeIsTokenProtectedAndReportsState(t *testing.T) {
 	defer cancel()
 
 	runtime, err := startAppScheduler(ctx, &Config{SchedulerDBPath: filepath.Join(root, "scheduler.db")}, "com.opendesk.desktop", root, map[string]string{
-		"HOME":                         root,
+		"HOME":                       root,
 		"OPENDESK_SCRIPT_RUNNER_DIR": filepath.Join(root, "recipes"),
 	})
 	if err != nil {
@@ -94,8 +105,12 @@ func TestAppSchedulerBridgeIsTokenProtectedAndReportsState(t *testing.T) {
 		t.Fatalf("scriptRoot = %q", payload.Data.ScriptRoot)
 	}
 
-	environment := runtime.Environment(map[string]string{"EXISTING": "1"})
+	base := map[string]string{"EXISTING": "1"}
+	environment := runtime.Environment(base)
 	if environment["EXISTING"] != "1" || environment[appSchedulerEndpointEnv] != runtime.endpoint || environment[appSchedulerTokenEnv] != runtime.token {
 		t.Fatalf("unexpected App Scheduler environment: %+v", environment)
+	}
+	if _, exists := base[appSchedulerEndpointEnv]; exists {
+		t.Fatal("App Scheduler Environment must not mutate the inherited snapshot")
 	}
 }

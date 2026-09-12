@@ -1,6 +1,15 @@
 (function installSystemProductIdentity() {
   'use strict';
 
+  // AutoMapObject is exported by Goja as a host map. Host-map properties
+  // cannot be redefined with stricter descriptors, so retain every native
+  // method on an ordinary JavaScript facade before adding immutable identity.
+  const nativeSystem = globalThis.System;
+  const systemFacade = {};
+  for (const name of Object.keys(nativeSystem)) {
+    systemFacade[name] = nativeSystem[name];
+  }
+  const System = systemFacade;
   const product = Object.freeze({
     id: 'com.opendesk.desktop',
     name: 'OpenDesk',
@@ -13,6 +22,7 @@
     configurable: false,
     enumerable: true,
   });
+  globalThis.System = System;
 })();
 
 function notify(options) {

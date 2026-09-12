@@ -1,4 +1,5 @@
 #import <Cocoa/Cocoa.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "native_darwin.h"
@@ -47,6 +48,8 @@ static BOOL ODOnMainThread(void (^block)(void)) {
 
 - (void)menuPressed:(NSMenuItem *)sender {
     NSString *itemID = [sender.representedObject isKindOfClass:NSString.class] ? sender.representedObject : @"";
+    fprintf(stderr, "[APP_SHELL] action-id=%s stage=native-received\n", itemID.UTF8String ?: "");
+    fflush(stderr);
     [self emitItemID:itemID source:@"tray-menu"];
 }
 

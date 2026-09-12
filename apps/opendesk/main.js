@@ -54,38 +54,26 @@ if (!globalThis.OpenDeskPermissionsCenter
   throw new Error('OpenDesk Permissions Center did not initialize');
 }
 
+const appControllerEntry = File.join(Execution.scriptDir, 'app-controller.js');
+(0, eval)(File.read(appControllerEntry) + '\n//# sourceURL=' + appControllerEntry);
+if (!globalThis.OpenDeskProductAppController
+  || typeof OpenDeskProductAppController.create !== 'function') {
+  throw new Error('OpenDesk product App controller did not initialize');
+}
+
 const runner = OpenDeskProductScriptRunner.create({officialShell});
 const schedulerCenter = OpenDeskSchedulerCenter.create();
 const runtimeLog = OpenDeskRuntimeLog.create({runner});
 const permissionsCenter = OpenDeskPermissionsCenter.create();
-const officialActionIDs = new Set(['opendesk.home', 'opendesk.help', 'opendesk.customize']);
-
-automation.app.onAction(async event => {
-  if (!event) return;
-  if (event.id === 'opendesk.open' || event.id === 'runner.open') {
-    await runner.open(event.source || event.id);
-    return;
-  }
-  if (event.id === 'scheduler.center' || event.id === 'scheduler.open') {
-    await schedulerCenter.open(event.source || event.id);
-    return;
-  }
-  if (event.id === 'scheduler.new') {
-    await schedulerCenter.openCreate(event.source || event.id);
-    return;
-  }
-  if (event.id === 'permissions.open') {
-    await permissionsCenter.open(event.source || event.id);
-    return;
-  }
-  if (event.id === 'runtime.log') {
-    await runtimeLog.open(event.source || event.id);
-    return;
-  }
-  if (officialActionIDs.has(event.id)) {
-    await officialShell.activate(event.id);
-  }
+const appController = OpenDeskProductAppController.create({
+  appRuntime: automation.app,
+  runner,
+  schedulerCenter,
+  runtimeLog,
+  permissionsCenter,
+  officialShell,
 });
+appController.start();
 
 // Silent startup preflight is deliberately status-only. Native permission
 // prompts are reserved for an explicit Permissions Center action or the first
@@ -106,6 +94,7 @@ console.log('OPENDESK_PRODUCT_APP_READY=' + JSON.stringify({
   recipeProcessModel: 'child-opendesk-process',
   scheduler: OpenDeskSchedulerClient.getCapabilities(),
   permissions: permissionsCenter.state(),
+  appController: appController.state(),
   runtimeLog: runtimeLog.state(),
   officialShell: officialShell.state(),
 }));

@@ -277,17 +277,19 @@ test('App Mode composition has no Demo panel and exposes one canonical Script Ru
   const mainFile = path.join(repo, 'apps', 'opendesk', 'main.js');
   const manifestFile = path.join(repo, 'apps', 'opendesk', 'opendesk.app.json');
   const mainSource = fs.readFileSync(mainFile, 'utf8');
+  const appControllerSource = fs.readFileSync(path.join(repo, 'apps', 'opendesk', 'app-controller.js'), 'utf8');
   const manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
 
   assert.doesNotMatch(mainSource, /ui\.createWindow\s*\(/, 'main.js must not create a Demo window');
   assert.doesNotMatch(mainSource, /打开 Script Runner|自动化运行中心已就绪|OpenDesk 服务/);
   assert.match(mainSource, /runner\.open\('startup'\)/);
-  assert.match(mainSource, /automation\.app\.onAction/);
+  assert.match(mainSource, /OpenDeskProductAppController\.create/);
+  assert.match(appControllerSource, /automation\.app\.onAction/);
   assert.match(fs.readFileSync(productEntry, 'utf8'), /hideListOnClose:\s*true/);
   assert.equal(manifest.window.mainId, 'main');
   assert.equal(manifest.window.closeBehavior, 'hide');
   assert.equal(manifest.tray.primaryAction, 'opendesk.open');
   assert.deepEqual(manifest.tray.menu.filter(item => item.action === 'runner.open'), [
-    {id: 'runner.open', label: '打开 Script Runner', action: 'runner.open'},
+    {id: 'open-opendesk', label: '打开 OpenDesk', action: 'runner.open'},
   ]);
 });

@@ -17,8 +17,15 @@ func TestProductAppPackageOwnsRunnerButNotReservedRecorderAction(t *testing.T) {
 	if appPackage.Manifest.ID != "com.opendesk.desktop" {
 		t.Fatalf("package id=%q", appPackage.Manifest.ID)
 	}
-	if action, ok := appPackage.Manifest.MenuAction("runner.open"); !ok || action != "runner.open" {
-		t.Fatalf("runner.open action=%q ok=%v", action, ok)
+	for itemID, expectedAction := range map[string]string{
+		"open-opendesk":          "runner.open",
+		"open-scheduler-center": "scheduler.center",
+		"new-schedule":          "scheduler.new",
+		"open-runtime-log":      "runtime.log",
+	} {
+		if action, ok := appPackage.Manifest.MenuAction(itemID); !ok || action != expectedAction {
+			t.Fatalf("%s action=%q ok=%v, want %q", itemID, action, ok, expectedAction)
+		}
 	}
 	if _, ok := appPackage.Manifest.MenuAction(appshell.ActionRecorder); ok {
 		t.Fatal("product manifest must not declare the reserved framework Recorder action")
@@ -37,10 +44,13 @@ func TestProductAppKeepsRecipeExecutionAsChildOpenDeskProcess(t *testing.T) {
 		t.Fatal(err)
 	}
 	mainText := string(mainSource)
-	for _, required := range []string{"automation.app.onAction", "runner.open", "recipeProcessModel: 'child-opendesk-process'"} {
+	for _, required := range []string{"OpenDeskProductAppController.create", "OpenDeskSchedulerCenter.create", "runner", "schedulerCenter", "recipeProcessModel: 'child-opendesk-process'"} {
 		if !strings.Contains(mainText, required) {
 			t.Fatalf("main.js missing %q", required)
 		}
+	}
+	if strings.Count(mainText, "const runner =") != 1 {
+		t.Fatalf("main.js must create exactly one product runner; declarations=%d", strings.Count(mainText, "const runner ="))
 	}
 	for _, legacyLifecycle := range []string{"runner.waitUntilClosed", "unsubscribeAppActions"} {
 		if strings.Contains(mainText, legacyLifecycle) {
