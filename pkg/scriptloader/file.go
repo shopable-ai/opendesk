@@ -6,10 +6,12 @@ import (
 	"strings"
 )
 
-// FileLoader is the single file-backed source resolver for JavaScript and
-// protected recipe packages. It performs no execution itself.
+// FileLoader is the single file-backed source resolver for JavaScript,
+// JavaScript modules and protected recipe packages. It performs no execution
+// itself.
 type FileLoader struct {
 	Plain     Loader
+	Module    Loader
 	Protected Loader
 }
 
@@ -17,6 +19,7 @@ func NewProductionFileLoader() FileLoader {
 	protected := NewProductionProtectedPackageLoader()
 	return FileLoader{
 		Plain:     PlainScriptLoader{},
+		Module:    ModuleScriptLoader{},
 		Protected: protected,
 	}
 }
@@ -32,13 +35,18 @@ func (loader FileLoader) Load(ctx context.Context, filePath string) (*ScriptSour
 			return nil, newError("unsupported_format", "plain script loader is not configured", nil)
 		}
 		source, err = loader.Plain.Load(ctx, filePath)
+	case ".mjs":
+		if loader.Module == nil {
+			return nil, newError("unsupported_format", "module script loader is not configured", nil)
+		}
+		source, err = loader.Module.Load(ctx, filePath)
 	case ".odpkg":
 		if loader.Protected == nil {
 			return nil, newError("unsupported_format", "protected package loader is not configured", nil)
 		}
 		source, err = loader.Protected.Load(ctx, filePath)
 	default:
-		return nil, newError("unsupported_format", "file-backed execution accepts .js or .odpkg", nil)
+		return nil, newError("unsupported_format", "file-backed execution accepts .js, .mjs or .odpkg", nil)
 	}
 	if err != nil {
 		return nil, err
@@ -69,6 +77,15 @@ func ValidateFileSource(filePath string, source *ScriptSource) error {
 		if !strings.EqualFold(source.Ext, ".js") {
 			return fail("invalid_package", ".js loader must return JavaScript content")
 		}
+	case ".mjs":
+		if source.Protection.Mode != ProtectionPlain {
+			return fail("invalid_package", ".mjs loader must return a plain ScriptSource")
+		}
+		// ModuleScriptLoader links the ESM graph before Execution and deliberately
+		// returns a normal .js payload for the existing Goja/EventLoop path.
+		if !strings.EqualFold(source.Ext, ".js") {
+			return fail("invalid_package", ".mjs loader must return bundled JavaScript content")
+		}
 	case ".odpkg":
 		if source.Protection.Mode != ProtectionProtected {
 			return fail("invalid_package", ".odpkg loader must return a protected ScriptSource")
@@ -80,7 +97,7 @@ func ValidateFileSource(filePath string, source *ScriptSource) error {
 			return fail("unsupported_payload", "protected ScriptSource must contain JavaScript")
 		}
 	default:
-		return fail("unsupported_format", "file-backed execution accepts .js or .odpkg")
+		return fail("unsupported_format", "file-backed execution accepts .js, .mjs or .odpkg")
 	}
 	return nil
 }
