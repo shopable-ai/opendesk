@@ -3,9 +3,11 @@
 
   const CONFIG_MAGIC = 'ODCFG1';
   const CONFIG_SCHEMA_VERSION = 1;
+  const CONFIG_BASENAME = 'official-shell';
   const OBFUSCATION_KEY = 'OpenDeskOfficialShell/v1';
   const HTTPS_URL_PATTERN = /^https:\/\/[^\s/?#\\]+(?:[/?#][^\s]*)?$/;
   const CORE_ACTIONS = Object.freeze(['home', 'help', 'customize']);
+  const CONFIG_ACTIONS = Object.freeze(['help', 'customize', 'marketplace', 'upgrade']);
   const ACTION_DEFINITIONS = Object.freeze({
     home: Object.freeze({
       id: 'opendesk.home',
@@ -42,7 +44,6 @@
   const FALLBACK_CONFIG = Object.freeze({
     schemaVersion: CONFIG_SCHEMA_VERSION,
     actions: Object.freeze({
-      home: Object.freeze({visible: true, url: 'https://github.com/shopable-ai/opendesk'}),
       help: Object.freeze({visible: true, url: ''}),
       customize: Object.freeze({visible: true, url: ''}),
       marketplace: Object.freeze({visible: false, url: ''}),
@@ -82,9 +83,17 @@
     if (!value.actions || typeof value.actions !== 'object' || Array.isArray(value.actions)) {
       throw new Error('official shell config actions must be an object');
     }
+    if (Object.prototype.hasOwnProperty.call(value.actions, 'home')) {
+      throw new Error('official shell home action is runtime-owned by System.product.website');
+    }
+    for (const name of Object.keys(value.actions)) {
+      if (!CONFIG_ACTIONS.includes(name)) {
+        throw new Error(`official shell config contains unknown action: ${name}`);
+      }
+    }
 
     const actions = {};
-    for (const name of Object.keys(ACTION_DEFINITIONS)) {
+    for (const name of CONFIG_ACTIONS) {
       const action = value.actions[name];
       if (!action || typeof action !== 'object' || Array.isArray(action)) {
         throw new Error(`official shell config is missing action: ${name}`);
@@ -122,6 +131,10 @@
     return validateConfig(JSON.parse(decoded));
   }
 
+  function parsePlaintextConfig(text) {
+    return validateConfig(JSON.parse(String(text || '')));
+  }
+
   function create(options) {
     const settings = options || {};
     const file = settings.file || global.File;
@@ -131,29 +144,71 @@
     const logger = settings.logger || global.console;
     const packageRoot = settings.packageRoot || (execution && execution.scriptDir);
 
-    if (!file || typeof file.join !== 'function' || typeof file.read !== 'function' || typeof file.stat !== 'function') {
-      throw new Error('official shell requires File.join/read/stat');
+    if (!file || typeof file.join !== 'function' || typeof file.read !== 'function' || typeof file.exists !== 'function') {
+      throw new Error('official shell requires File.join/read/exists');
     }
     if (!command || typeof command.run !== 'function') throw new Error('official shell requires Command.run()');
     if (!system || typeof system.getPlatformInfo !== 'function') throw new Error('official shell requires System.getPlatformInfo()');
+    if (!system.product || typeof system.product.website !== 'string') {
+      throw new Error('official shell requires System.product.website');
+    }
     if (!execution || !execution.workdir) throw new Error('official shell requires Execution.workdir');
     if (!packageRoot) throw new Error('official shell requires packageRoot');
 
-    const configPath = file.join(packageRoot, 'assets', 'official-shell.odcfg');
+    const productWebsite = system.product.website.trim();
+    if (!HTTPS_URL_PATTERN.test(productWebsite)) {
+      throw new Error('System.product.website must be an https URL');
+    }
+
+    const configBasePath = settings.configBasePath
+      || file.join(packageRoot, 'assets', CONFIG_BASENAME);
+    const protectedConfigPath = settings.configPath
+      ? String(settings.configPath)
+      : configBasePath + '.odcfg';
+    const plaintextConfigPath = settings.configPath
+      ? ''
+      : configBasePath + '.json';
     let config = FALLBACK_CONFIG;
+    let configPath = '';
     let configSource = 'fallback';
+    let configFormat = 'fallback';
     let configError = '';
 
-    try {
-      const info = file.stat(configPath);
-      if (!info || info.type !== 'file') throw new Error('official shell config file is missing');
-      config = parseConfig(String(file.read(configPath)));
-      configSource = 'bundle';
-    } catch (error) {
+    function warnFallback(path, error) {
       configError = error && error.message ? String(error.message) : String(error || 'unknown config error');
+      configPath = path || '';
       if (logger && typeof logger.warn === 'function') {
-        logger.warn('OPENDESK_OFFICIAL_SHELL_CONFIG_FALLBACK=' + JSON.stringify({configPath, error: configError}));
+        logger.warn('OPENDESK_OFFICIAL_SHELL_CONFIG_FALLBACK=' + JSON.stringify({
+          configPath,
+          protectedConfigPath,
+          plaintextConfigPath,
+          error: configError,
+        }));
       }
+    }
+
+    if (file.exists(protectedConfigPath)) {
+      configPath = protectedConfigPath;
+      try {
+        config = parseConfig(String(file.read(protectedConfigPath)));
+        configSource = 'bundle';
+        configFormat = CONFIG_MAGIC;
+      } catch (error) {
+        // Anti-downgrade rule: if the protected file exists but is invalid, do
+        // not silently continue to a sibling plaintext file.
+        warnFallback(protectedConfigPath, error);
+      }
+    } else if (plaintextConfigPath && file.exists(plaintextConfigPath)) {
+      configPath = plaintextConfigPath;
+      try {
+        config = parsePlaintextConfig(String(file.read(plaintextConfigPath)));
+        configSource = 'plaintext';
+        configFormat = 'json';
+      } catch (error) {
+        warnFallback(plaintextConfigPath, error);
+      }
+    } else {
+      warnFallback(protectedConfigPath, new Error('official shell config file is missing'));
     }
 
     function resolveName(actionId) {
@@ -168,7 +223,9 @@
       const name = resolveName(actionId);
       if (!name) return null;
       const definition = ACTION_DEFINITIONS[name];
-      const configured = config.actions[name];
+      const configured = name === 'home'
+        ? Object.freeze({visible: true, url: productWebsite})
+        : config.actions[name];
       return Object.freeze({
         id: definition.id,
         label: definition.label,
@@ -210,13 +267,21 @@
       activate,
       getAction,
       listActions,
-      state: () => Object.freeze({configPath, configSource, configError}),
+      state: () => Object.freeze({
+        configPath,
+        protectedConfigPath,
+        plaintextConfigPath,
+        configSource,
+        configFormat,
+        configError,
+      }),
     });
   }
 
   global.OpenDeskOfficialShell = Object.freeze({
     create,
     parseConfig,
+    parsePlaintextConfig,
     validateConfig,
   });
 })(globalThis);
