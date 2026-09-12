@@ -37,7 +37,10 @@ func TestAppRecorderOpenLaunchesOnceAndShowsExistingWindow(t *testing.T) {
 	ready := make(chan pkgExecution.Request, 1)
 	recorder.run = func(req pkgExecution.Request) (pkgExecution.ExecutionResult, pkgExecution.AgentSummary, error) {
 		launches.Add(1)
-		session, err := customui.NewSession(req.ExecutionID, filepath.Dir(req.ScriptPath), req.CustomUIDriver, nil)
+		if req.CustomUIBaseDir != filepath.Dir(req.ScriptPath) {
+			t.Errorf("CustomUIBaseDir=%q, want embedded Recorder root %q", req.CustomUIBaseDir, filepath.Dir(req.ScriptPath))
+		}
+		session, err := customui.NewSession(req.ExecutionID, req.CustomUIBaseDir, req.CustomUIDriver, nil)
 		if err != nil {
 			t.Errorf("session: %v", err)
 			return pkgExecution.ExecutionResult{}, pkgExecution.AgentSummary{}, err

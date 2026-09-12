@@ -24,6 +24,7 @@ func TestWriteToDirIsSelfContained(t *testing.T) {
 		"recording-console-simple/icons/countdown-1.png",
 		"recording-console-simple/icons/countdown-2.png",
 		"recording-console-simple/icons/countdown-3.png",
+		"recording-console-simple/icons/opendesk-logo.png",
 	} {
 		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(relative))); err != nil {
 			t.Fatalf("missing embedded Recorder UI asset %s: %v", relative, err)

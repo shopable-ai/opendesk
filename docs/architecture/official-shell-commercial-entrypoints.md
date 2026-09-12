@@ -15,6 +15,7 @@ OpenDesk App Shell / Host
         | opendesk.open -> show/focus window "main"
         v
 Product Script Runner                      <- 默认产品 UI
+- opendesk.home (first-position brand icon)
 - Run / Stop
 - current script
 - script list (main window)
@@ -28,8 +29,9 @@ Generic Script Runner                      <- shared behavior / public example
 - no marketplace / license / VIP policy
 ```
 
-P0 显示两个官方入口：
+P0 显示一个首位品牌入口和两个右侧官方入口：
 
+- **官网**：点击原色 OpenDesk Logo，打开 canonical public project page；
 - **定制**：定制自动化与商业服务入口；
 - **帮助**：帮助、文档、反馈、支持的统一入口。
 
@@ -56,6 +58,7 @@ Generic Script Runner controller
 - child recipe process
 
 Official Shell
+- first-position homepage brand action
 - official action metadata
 - product URL/config policy
 - placeholder result
@@ -71,7 +74,7 @@ Product composition 只把 Generic Runner 与 Official Shell 组合在一起。O
 P0 使用 **同一个** FloatingWindow，不创建第二套 toolbar：
 
 ```text
-[运行] [停止] [当前脚本] [列表] │ [定制] [帮助]
+[OpenDesk] │ [运行] [停止] [当前脚本] [列表] │ [定制] [帮助]
 ```
 
 说明：FloatingWindow 的按钮主体由图标表达，`label` 用于 tooltip/Accessibility；上图表示业务语义与顺序，而不是要求渲染成 HTML 文字按钮。
@@ -79,6 +82,8 @@ P0 使用 **同一个** FloatingWindow，不创建第二套 toolbar：
 规则：
 
 - Run / Stop / 当前脚本 / 列表是高频核心业务能力；
+- OpenDesk Logo 固定在第一位，作为无额外内边距的原色 image button，在 40pt 点击区内 `aspect-fit` 铺满；
+- Logo 是有 tooltip / Accessibility name / callback 的原生 icon button，不是装饰图片；
 - 定制 / 帮助位于右侧 secondary group；
 - 使用现有 `addSeparator()` 做真实分组；
 - 产品层只小幅提高 toolbar `maxWidth`，不改变通用 Example；
@@ -121,6 +126,7 @@ launch
 官方入口使用：
 
 ```text
+opendesk.home
 opendesk.help
 opendesk.customize
 opendesk.marketplace
@@ -176,9 +182,11 @@ P0 不实施 DRM、anti-tamper、remote entitlement、anti-debug 或 anti-hook�
 
 ### 6.2 核心入口不可由配置隐藏
 
-`help` 与 `customize` 在 schema validation 中必须保持 `visible=true`。配置不存在、损坏、checksum/schema 无效或试图隐藏核心入口时，使用内置 fallback：
+`home`、`help` 与 `customize` 在 schema validation 中必须保持
+`visible=true`。配置不存在、损坏、checksum/schema 无效或试图隐藏核心入口时，使用内置 fallback：
 
 ```text
+官网       visible=true, URL="https://github.com/shopable-ai/opendesk"
 帮助       visible=true, URL=""
 定制       visible=true, URL=""
 商店       visible=false, URL=""
@@ -187,7 +195,7 @@ P0 不实施 DRM、anti-tamper、remote entitlement、anti-debug 或 anti-hook�
 
 ## 7. URL、pending 与 notify
 
-P0 的 Help/Customize URL 可以为空。
+P0 的 homepage 使用 canonical public repository；仓库 metadata 尚未声明独立产品官网。Help/Customize URL 可以为空。
 
 URL 为空时：
 
@@ -297,6 +305,8 @@ apps/opendesk/
 
 - 启动 App 后不再出现 Demo/欢迎主面板；
 - Product Runner toolbar 与 list 直接出现；
+- OpenDesk 原色 Logo 是首个 image button，无额外内边距地等比铺满 40pt 点击区；
+- Logo 点击打开 `https://github.com/shopable-ai/opendesk`，且不改变 recipe 状态；
 - Runner list 的稳定 window ID 为 `main`；
 - App Shell `opendesk.open` 显示/聚焦同一个 `main`；
 - Tray 不重复显示“打开 OpenDesk / 打开 Script Runner”；
@@ -313,7 +323,7 @@ apps/opendesk/
 ```text
 Implemented
 - 官方主窗口与 OpenDesk 服务区
-- opendesk.help / opendesk.customize 核心入口
+- opendesk.home / opendesk.help / opendesk.customize 核心入口
 - .odcfg 读取、校验、fallback 与 pending 占位反馈
 - HTTPS URL 的平台 handler 调用
 

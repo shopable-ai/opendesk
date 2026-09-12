@@ -19,6 +19,7 @@ const Shell = globalThis.OpenDeskOfficialShell;
 const Runner = globalThis.OpenDeskScriptRunnerSimple;
 const asset = fs.readFileSync(path.join(repo, 'apps', 'opendesk', 'assets', 'official-shell.odcfg'), 'utf8');
 const OBFUSCATION_KEY = 'OpenDeskOfficialShell/v1';
+const OPENDESK_HOMEPAGE_URL = 'https://github.com/shopable-ai/opendesk';
 
 function checksum16(text) {
   let sum = 0;
@@ -40,6 +41,7 @@ function config(overrides = {}) {
   return {
     schemaVersion: 1,
     actions: {
+      home: {visible: true, url: OPENDESK_HOMEPAGE_URL},
       help: {visible: true, url: ''},
       customize: {visible: true, url: ''},
       marketplace: {visible: false, url: ''},
@@ -104,6 +106,7 @@ test('validateConfig rejects non-HTTPS URLs and hidden core actions', () => {
   assert.throws(() => Shell.validateConfig(config({help: {visible: true, url: 'javascript:alert(1)'}})), /only accepts https/);
   assert.throws(() => Shell.validateConfig(config({help: {visible: true, url: 'https://'}})), /only accepts https/);
   assert.throws(() => Shell.validateConfig(config({help: {visible: true, url: 'https://example.com/\n--not-a-url'}})), /only accepts https/);
+  assert.throws(() => Shell.validateConfig(config({home: {visible: false, url: OPENDESK_HOMEPAGE_URL}})), /core action cannot be hidden/);
   assert.throws(() => Shell.validateConfig(config({customize: {visible: false, url: ''}})), /core action cannot be hidden/);
   assert.deepEqual(Shell.validateConfig(config()), config());
 });
@@ -121,6 +124,8 @@ test('missing and corrupt config fail safe to visible pending core actions', asy
     try {
       assert.equal(fixture.shell.state().configSource, 'fallback');
       assert.ok(fixture.warnings.length > 0);
+      assert.equal(fixture.shell.getAction('opendesk.home').visible, true);
+      assert.equal(fixture.shell.getAction('opendesk.home').url, OPENDESK_HOMEPAGE_URL);
       assert.equal(fixture.shell.getAction('opendesk.help').visible, true);
       assert.equal(fixture.shell.getAction('opendesk.customize').visible, true);
       assert.equal(fixture.shell.getAction('opendesk.marketplace').visible, false);
@@ -135,6 +140,20 @@ test('missing and corrupt config fail safe to visible pending core actions', asy
     } finally {
       fs.rmSync(fixture.root, {recursive: true, force: true});
     }
+  }
+});
+
+test('homepage activation opens the canonical public project page', async () => {
+  const fixture = createFixture(encodeConfig(config()));
+  try {
+    assert.deepEqual(await fixture.shell.activate('opendesk.home'), {
+      status: 'opened', actionId: 'opendesk.home', message: '已打开OpenDesk 官网。',
+    });
+    assert.equal(fixture.calls.length, 1);
+    assert.equal(fixture.calls[0][0], '/usr/bin/open');
+    assert.deepEqual(fixture.calls[0][1], [OPENDESK_HOMEPAGE_URL]);
+  } finally {
+    fs.rmSync(fixture.root, {recursive: true, force: true});
   }
 });
 
@@ -218,12 +237,12 @@ test('product Script Runner emits only supported Custom UI HTML elements', () =>
   assert.match(html, /class="title">Script Runner/);
 });
 
-test('product main owns the P0 buttons and keeps future actions out of the UI', () => {
+test('product runner owns current official actions and keeps future actions out of the UI', () => {
   const main = fs.readFileSync(path.join(repo, 'apps', 'opendesk', 'main.js'), 'utf8');
-  assert.match(main, /opendesk\.help/);
-  assert.match(main, /opendesk\.customize/);
-  assert.match(main, /打开 Script Runner/);
-  assert.match(main, /退出 OpenDesk/);
-  assert.match(main, /OpenDesk 服务/);
-  assert.doesNotMatch(main, /opendesk\.marketplace|opendesk\.upgrade/);
+  const productRunner = fs.readFileSync(path.join(repo, 'apps', 'opendesk', 'script-runner-simple.js'), 'utf8');
+  assert.match(main, /OpenDeskProductScriptRunner\.create\(\{officialShell\}\)/);
+  assert.match(productRunner, /opendesk\.home/);
+  assert.match(productRunner, /opendesk\.help/);
+  assert.match(productRunner, /opendesk\.customize/);
+  assert.doesNotMatch(productRunner, /opendesk\.marketplace|opendesk\.upgrade/);
 });

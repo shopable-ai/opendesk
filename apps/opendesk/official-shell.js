@@ -5,8 +5,14 @@
   const CONFIG_SCHEMA_VERSION = 1;
   const OBFUSCATION_KEY = 'OpenDeskOfficialShell/v1';
   const HTTPS_URL_PATTERN = /^https:\/\/[^\s/?#\\]+(?:[/?#][^\s]*)?$/;
-  const CORE_ACTIONS = Object.freeze(['help', 'customize']);
+  const CORE_ACTIONS = Object.freeze(['home', 'help', 'customize']);
   const ACTION_DEFINITIONS = Object.freeze({
+    home: Object.freeze({
+      id: 'opendesk.home',
+      label: '打开 OpenDesk 官网',
+      title: 'OpenDesk 官网',
+      placeholder: 'OpenDesk 官网暂不可用。',
+    }),
     help: Object.freeze({
       id: 'opendesk.help',
       label: '帮助',
@@ -36,6 +42,7 @@
   const FALLBACK_CONFIG = Object.freeze({
     schemaVersion: CONFIG_SCHEMA_VERSION,
     actions: Object.freeze({
+      home: Object.freeze({visible: true, url: 'https://github.com/shopable-ai/opendesk'}),
       help: Object.freeze({visible: true, url: ''}),
       customize: Object.freeze({visible: true, url: ''}),
       marketplace: Object.freeze({visible: false, url: ''}),

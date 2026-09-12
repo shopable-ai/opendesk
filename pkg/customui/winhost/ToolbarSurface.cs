@@ -202,6 +202,10 @@ internal sealed class ToolbarSurface : Surface
 
 internal sealed class IconButton : Button
 {
+    // Full-color artwork is the visual surface of an image button and therefore
+    // occupies the complete 40-DIP hit target. Template glyphs remain compact.
+    private const float OriginalIconSize=40;
+    private const float TemplateIconSize=24;
     private readonly Func<JsonObject> spec;
     private readonly System.Windows.Forms.Timer animation=new(){Interval=80};
     private Image? image;
@@ -217,7 +221,7 @@ internal sealed class IconButton : Button
         else if(d["iconImage"] is JsonObject raster){
             string key=J.S(raster,"dataBase64");
             if(key!=imageKey){image?.Dispose();using var bytes=new MemoryStream(Convert.FromBase64String(key));using var decoded=Image.FromStream(bytes);image=new Bitmap(decoded);imageKey=key;}
-            if(image!=null){float size=24*scale,factor=Math.Min(size/image.Width,size/image.Height);var r=new RectangleF((Width-image.Width*factor)/2,(Height-image.Height*factor)/2,image.Width*factor,image.Height*factor);
+            if(image!=null){float size=(J.S(raster,"renderingMode")=="original"?OriginalIconSize:TemplateIconSize)*scale,factor=Math.Min(size/image.Width,size/image.Height);var r=new RectangleF((Width-image.Width*factor)/2,(Height-image.Height*factor)/2,image.Width*factor,image.Height*factor);
                 if(J.S(raster,"renderingMode")=="template"){
                     using var attributes=new System.Drawing.Imaging.ImageAttributes();
                     var matrix=new System.Drawing.Imaging.ColorMatrix(new float[][]{new[]{0f,0,0,0,0},new[]{0f,0,0,0,0},new[]{0f,0,0,0,0},new[]{0f,0,0,1,0},new[]{foreground.R/255f,foreground.G/255f,foreground.B/255f,0,1}});

@@ -123,6 +123,7 @@ function createHarness() {
   };
 
   const actionMap = new Map([
+    ['opendesk.home', {id: 'opendesk.home', label: '打开 OpenDesk 官网', title: 'OpenDesk 官网', visible: true}],
     ['opendesk.customize', {id: 'opendesk.customize', label: '定制', title: '定制自动化', visible: true}],
     ['opendesk.help', {id: 'opendesk.help', label: '帮助', title: '帮助与支持', visible: true}],
     ['opendesk.marketplace', {id: 'opendesk.marketplace', label: '商店', title: '自动化市场', visible: false}],
@@ -133,6 +134,9 @@ function createHarness() {
     async activate(id) {
       activations.push(id);
       const action = actionMap.get(id);
+      if (id === 'opendesk.home') {
+        return {status: 'opened', actionId: id, message: '已打开OpenDesk 官网。', action};
+      }
       return {
         status: 'pending',
         actionId: id,
@@ -179,7 +183,7 @@ test('product runner makes the shared Runner list the stable App Mode main windo
 
   const state = await runner.open('test');
   assert.equal(state.mainWindowId, 'main');
-  assert.equal(state.toolbarMaxWidth, 480);
+  assert.equal(state.toolbarMaxWidth, 520);
   assert.equal(harness.windows.length, 1);
   assert.equal(harness.windows[0].id, 'main');
   assert.equal(harness.createAppCount, 1);
@@ -189,30 +193,53 @@ test('product runner makes the shared Runner list the stable App Mode main windo
   assert.equal(harness.floatingWindows.length, 1, 'reopen must not create a second toolbar');
 });
 
-test('official actions are secondary controls on the same toolbar and stay independent from run state', async () => {
+test('brand home is the first icon and official actions stay independent from run state', async () => {
   const harness = createHarness();
   const loaded = loadProductRunner(harness);
   const runner = loaded.api.create({officialShell: harness.officialShell});
   await runner.open('test');
 
   const toolbar = harness.floatingWindows[0];
-  assert.equal(toolbar.spec.toolbar.maxWidth, 480);
+  assert.equal(toolbar.spec.toolbar.maxWidth, 520);
+  assert.equal(toolbar.spec.toolbar.maxRows, 1);
   assert.deepEqual(
     toolbar.controls.map(control => control.id),
-    ['run', 'stop', 'script', 'list', 'officialActionsSeparator', 'officialCustomize', 'officialHelp'],
+    [
+      'officialHome', 'officialBrandSeparator',
+      'run', 'stop', 'script', 'list',
+      'officialActionsSeparator', 'officialCustomize', 'officialHelp',
+    ],
   );
 
+  const home = toolbar.controls.find(control => control.id === 'officialHome');
   const customize = toolbar.controls.find(control => control.id === 'officialCustomize');
   const help = toolbar.controls.find(control => control.id === 'officialHelp');
+  assert.equal(home.label, '打开 OpenDesk 官网');
+  assert.deepEqual(home.icon, {
+    path: '/bundle/apps/opendesk/assets/opendesk-logo.png',
+    renderingMode: 'original',
+  });
   assert.equal(customize.icon, 'ai.assistant');
   assert.equal(help.icon, 'questionmark.circle.fill');
   assert.equal(toolbar.controls.some(control => control.id === 'opendesk.marketplace'), false);
   assert.equal(toolbar.controls.some(control => control.id === 'opendesk.upgrade'), false);
 
+  await home.callback();
   await customize.callback();
   await help.callback();
-  assert.deepEqual(harness.activations, ['opendesk.customize', 'opendesk.help']);
+  assert.deepEqual(harness.activations, ['opendesk.home', 'opendesk.customize', 'opendesk.help']);
   assert.deepEqual(harness.notifications, ['定制自动化服务待开放。', '帮助中心待开放。']);
+});
+
+test('product toolbar logo is a bounded packaged PNG derived for native icon use', () => {
+  const logo = fs.readFileSync(path.join(repo, 'apps', 'opendesk', 'assets', 'opendesk-logo.png'));
+  assert.ok(logo.length > 0 && logo.length <= 512 * 1024);
+  assert.deepEqual(Array.from(logo.subarray(0, 8)), [137, 80, 78, 71, 13, 10, 26, 10]);
+
+  const macHost = fs.readFileSync(path.join(repo, 'pkg', 'customui', 'machost', 'floating_toolbar_darwin.m'), 'utf8');
+  const windowsHost = fs.readFileSync(path.join(repo, 'pkg', 'customui', 'winhost', 'ToolbarSurface.cs'), 'utf8');
+  assert.match(macHost, /CDToolbarOriginalImageSize\s*=\s*CDToolbarButtonSize/);
+  assert.match(windowsHost, /OriginalIconSize\s*=\s*40/);
 });
 
 test('generic example remains independent of Official Shell product actions', () => {
@@ -235,7 +262,7 @@ test('App Mode composition has no Demo panel and exposes one canonical Script Ru
   assert.equal(manifest.window.mainId, 'main');
   assert.equal(manifest.window.closeBehavior, 'hide');
   assert.equal(manifest.tray.primaryAction, 'opendesk.open');
-  assert.deepEqual(manifest.tray.menu, [
+  assert.deepEqual(manifest.tray.menu.filter(item => item.action === 'runner.open'), [
     {id: 'runner.open', label: '打开 Script Runner', action: 'runner.open'},
   ]);
 });

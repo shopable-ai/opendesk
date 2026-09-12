@@ -131,7 +131,8 @@ File.write(actionsFile, JSON.stringify({
   ],
 }));
 
-const calls = {start: 0, exclude: 0, pause: 0, resume: 0, stop: 0, build: 0, generate: 0, replay: 0, finder: 0, dialog: 0, copy: 0};
+const calls = {homepage: 0, start: 0, exclude: 0, pause: 0, resume: 0, stop: 0, build: 0, generate: 0, replay: 0, finder: 0, dialog: 0, copy: 0};
+const homepageTargets = [];
 const copiedPrompts = [];
 let copyShouldFail = false;
 const startHandoffTimeline = [];
@@ -319,9 +320,15 @@ const app = OpenDeskSimpleRecordingConsole.createApp({
   },
   file: File,
   execution: Execution,
+  page: {
+    async openURL(url) {
+      calls.homepage += 1;
+      homepageTargets.push(url);
+    },
+  },
   sleep: async () => {},
   countdownStepMs: 0,
-  iconRoot: File.join(Execution.workdir, 'internal', 'recorderbundle', 'ui', 'icons'),
+  iconRoot: File.join(Execution.workdir, 'apps', 'opendesk', 'recorder', 'icons'),
   logger: {log() {}, error(message) { throw new Error(message); }},
 });
 
@@ -329,16 +336,25 @@ await app.show();
 const toolbar = FakeFloatingWindow.instance;
 equal(toolbar.options.orientation, 'horizontal', 'toolbar orientation');
 equal(toolbar.options.toolbar.maxRows, 1, 'toolbar row count');
-equal(toolbar.options.toolbar.maxColumns, 7, 'toolbar column count');
-equal(toolbar.items.filter(item => item.kind === 'Button').length, 6, 'button count');
+equal(toolbar.options.toolbar.maxColumns, 8, 'toolbar column count');
+equal(toolbar.items.filter(item => item.kind === 'Button').length, 7, 'button count');
 equal(toolbar.items.filter(item => item.kind === 'Switch').length, 1, 'pointer motion switch count');
-equal(toolbar.items.filter(item => item.kind === 'Separator').length, 2, 'separator count');
+equal(toolbar.items.filter(item => item.kind === 'Separator').length, 3, 'separator count');
 assert(!toolbar.items.some(item => item.kind === 'Label'), 'toolbar must not contain a visible Label');
 equal(
   toolbar.items.filter(item => item.kind !== 'Separator').map(item => item.id).join(','),
-  'capture,stop,replay,pointerMotion,agentPrompt,details,finder',
-  'pointer motion switch must be the centered fourth content item',
+  'home,capture,stop,replay,pointerMotion,agentPrompt,details,finder',
+  'brand home must be the first content item',
 );
+const homeButton = toolbar.buttons.get('home');
+equal(homeButton.state.label, '打开 OpenDesk 官网', 'homepage tooltip');
+equal(homeButton.state.icon.renderingMode, 'original', 'homepage logo must preserve brand colors');
+assert(homeButton.state.icon.path.endsWith('opendesk-logo.png'), 'homepage logo path');
+assert(File.isFile(homeButton.state.icon.path), 'homepage logo must be a maintained local asset');
+await homeButton.callback(controlEvent('home', -1));
+equal(calls.homepage, 1, 'homepage click count');
+equal(homepageTargets[0], 'https://github.com/shopable-ai/opendesk', 'canonical homepage target');
+equal(app.state().phase, 'ready', 'homepage click must not change Recorder phase');
 const pointerMotionControl = toolbar.controls.get('pointerMotion');
 assert(pointerMotionControl.state.checked, 'pointer motion must default to selected');
 equal(pointerMotionControl.state.width, 48, 'pointer motion switch must use compact tooltip-only width');
@@ -888,8 +904,8 @@ File.removeDir(fixtureRoot);
 
 console.log('RECORDING_CONSOLE_SIMPLE_TEST=' + JSON.stringify({
   passed: true,
-  buttons: 6,
-  separators: 2,
+  buttons: 7,
+  separators: 3,
   countdownIcons: 3,
   captureCalls: calls,
   generationRetryCalls: retryCalls,

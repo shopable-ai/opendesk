@@ -49,7 +49,15 @@
   const runnerExecution = Object.freeze({workdir: appDataRoot});
 
   const PRODUCT_MAIN_WINDOW_ID = 'main';
-  const PRODUCT_TOOLBAR_MAX_WIDTH = 480;
+  const PRODUCT_TOOLBAR_MAX_WIDTH = 520;
+  const PRODUCT_HOMEPAGE_ACTION = Object.freeze({
+    actionId: 'opendesk.home',
+    controlId: 'officialHome',
+    icon: Object.freeze({
+      path: file.join(execution.scriptDir, 'assets', 'opendesk-logo.png'),
+      renderingMode: 'original',
+    }),
+  });
   const OFFICIAL_TOOLBAR_ACTIONS = Object.freeze([
     Object.freeze({
       actionId: 'opendesk.customize',
@@ -72,12 +80,17 @@
     });
   }
 
-  function createProductFloatingWindow(secondaryActions, maxWidth) {
+  function createProductFloatingWindow(homeAction, secondaryActions, maxWidth) {
     function ProductFloatingWindow(spec) {
       const source = spec || {};
-      const toolbarSpec = Object.assign({}, source.toolbar || {}, {maxWidth});
+      const toolbarSpec = Object.assign({}, source.toolbar || {}, {maxWidth, maxRows: 1});
       const inner = new NativeFloatingWindow(Object.assign({}, source, {toolbar: toolbarSpec}));
       let secondaryInstalled = false;
+
+      if (homeAction) {
+        inner.addButton(homeAction.controlId, homeAction.label, homeAction.icon, homeAction.onClick);
+        inner.addSeparator('officialBrandSeparator');
+      }
 
       function installSecondaryActions() {
         if (secondaryInstalled || !secondaryActions.length) return;
@@ -155,7 +168,9 @@
       if (!action || !action.visible) return null;
       try {
         const result = await officialShell.activate(actionId);
-        const presentation = await presentOfficialMessage(result.message);
+        const presentation = result.status === 'opened' && actionId === 'opendesk.home'
+          ? 'external'
+          : await presentOfficialMessage(result.message);
         if (logger && typeof logger.log === 'function') {
           logger.log('OPENDESK_OFFICIAL_ACTION=' + JSON.stringify({
             actionId,
@@ -174,17 +189,26 @@
       }
     }
 
+    function resolveToolbarAction(metadata) {
+      const action = officialShell.getAction(metadata.actionId);
+      if (!action || !action.visible) return null;
+      return Object.freeze({
+        controlId: metadata.controlId,
+        label: action.label,
+        icon: metadata.icon,
+        onClick: () => activateOfficialAction(action.id),
+      });
+    }
+
+    function homeAction() {
+      return resolveToolbarAction(PRODUCT_HOMEPAGE_ACTION);
+    }
+
     function secondaryActions() {
       const actions = [];
       for (const metadata of OFFICIAL_TOOLBAR_ACTIONS) {
-        const action = officialShell.getAction(metadata.actionId);
-        if (!action || !action.visible) continue;
-        actions.push(Object.freeze({
-          controlId: metadata.controlId,
-          label: action.label,
-          icon: metadata.icon,
-          onClick: () => activateOfficialAction(action.id),
-        }));
+        const action = resolveToolbarAction(metadata);
+        if (action) actions.push(action);
       }
       return actions;
     }
@@ -199,7 +223,7 @@
         execution: runnerExecution,
         system,
         ui: createRunnerUI(mainWindowId),
-        FloatingWindow: createProductFloatingWindow(secondaryActions(), toolbarMaxWidth),
+        FloatingWindow: createProductFloatingWindow(homeAction(), secondaryActions(), toolbarMaxWidth),
         AbortController: NativeAbortController,
         openListOnStart: false,
       });

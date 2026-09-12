@@ -8,6 +8,10 @@
 
 static const CGFloat CDToolbarContentItemHeight = 40.0;
 static const CGFloat CDToolbarButtonSize = CDToolbarContentItemHeight;
+// Full-color artwork is the visual surface of an image button, so it uses the
+// complete 40pt hit target. Template glyphs keep the smaller system-icon slot.
+static const CGFloat CDToolbarOriginalImageSize = CDToolbarButtonSize;
+static const CGFloat CDToolbarTemplateImageSize = 22.0;
 static const CGFloat CDToolbarLabelHeight = CDToolbarContentItemHeight;
 static const CGFloat CDToolbarMinLabelWidth = 48.0;
 static const CGFloat CDToolbarMaxLabelWidth = 240.0;
@@ -457,7 +461,8 @@ static NSDictionary *CDToolbarIconForButtonSpec(NSDictionary *spec, NSImage **cu
 		CGFloat pixelWidth = [self.iconPresentation[@"pixelWidth"] doubleValue];
 		CGFloat pixelHeight = [self.iconPresentation[@"pixelHeight"] doubleValue];
 		if (pixelWidth <= 0 || pixelHeight <= 0) return;
-		CGFloat maximum = 22.0;
+		CGFloat maximum = [self.customIconRenderingMode isEqualToString:@"original"]
+			? CDToolbarOriginalImageSize : CDToolbarTemplateImageSize;
 		CGFloat scale = MIN(maximum / pixelWidth, maximum / pixelHeight);
 		NSSize size = NSMakeSize(MAX(1.0, round(pixelWidth * scale)), MAX(1.0, round(pixelHeight * scale)));
 		NSRect iconRect = NSMakeRect(round((NSWidth(self.bounds) - size.width) / 2.0),

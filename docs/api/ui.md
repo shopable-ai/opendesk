@@ -288,6 +288,10 @@ Anchor 是一次明确的重定位动作，不是持续约束。用户拖动、`
 | `icon` | string \| `{path, renderingMode?}` | 必填；可传 160 个经过审核的内置图标键，或脚本目录内的本地 PNG/JPEG。`renderingMode` 为 `original`（默认）或 `template`。 |
 | `callback` | `(event) => unknown \| Promise<unknown>` | 可选；接收 `click` 事件，可同步返回或返回 Promise。 |
 
+`renderingMode: "original"` 保留图片原色，并把图片作为 image button 的视觉表面：
+它以 `aspect-fit` 占满整个 40×40pt 点击区，不再额外预留 icon 内边距，也不拉伸或裁切。`template` 继续按平台
+系统图标尺度绘制并使用按钮当前语义颜色，适合单色轮廓或蒙版，不适合品牌彩色 Logo。
+
 按钮只能在首次 `show()` 前增加或删除。重复 id 返回 `DUPLICATE_ID`；无效 id、label、icon、callback 或超出按钮数返回 `INVALID_SPEC`。
 
 ## toolbar.addLabel(id, text, options?)

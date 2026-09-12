@@ -13,6 +13,7 @@
     details: 'info.circle',
     finder: 'folder.fill',
   });
+  const OPENDESK_HOMEPAGE_URL = 'https://github.com/shopable-ai/opendesk';
 
   const ACTIVE_CAPTURE_PHASES = new Set([
     'countdown', 'starting', 'stop-requested', 'recording', 'pausing', 'paused', 'resuming', 'stopping',
@@ -87,6 +88,7 @@
     const command = settings.command || global.Command;
     const file = settings.file || global.File;
     const execution = settings.execution || global.Execution;
+    const page = settings.page || global.page;
     const clipboardAPI = settings.clipboard || global.clipboard;
     const copyText = typeof settings.copyText === 'function'
       ? settings.copyText
@@ -138,6 +140,10 @@
         : '当前系统未提供可用的 Recorder 输入采集。请在“查看详情”中检查采集限制。';
     const iconRoot = settings.iconRoot
       || file.join(execution.scriptDir, 'recording-console-simple', 'icons');
+    const homepageIcon = Object.freeze({
+      path: file.join(iconRoot, 'opendesk-logo.png'),
+      renderingMode: 'original',
+    });
     const openDeskBinary = settings.openDeskBinary
       || file.join(execution.workdir, 'dist', 'opendesk');
     const runTimeoutMs = Number.isFinite(settings.runTimeoutMs)
@@ -189,7 +195,7 @@
       alwaysOnTop: true,
       draggable: true,
       orientation: 'horizontal',
-      toolbar: {maxColumns: 7, maxRows: 1},
+      toolbar: {maxColumns: 8, maxRows: 1},
     });
 
     function snapshot() {
@@ -899,6 +905,29 @@
       return cleanupPromise;
     }
 
+    async function openHomepage() {
+      try {
+        if (typeof settings.openHomepage === 'function') {
+          await settings.openHomepage(OPENDESK_HOMEPAGE_URL);
+        } else if (page && typeof page.openURL === 'function') {
+          await page.openURL(OPENDESK_HOMEPAGE_URL);
+        } else {
+          throw new Error('page.openURL() is unavailable');
+        }
+        if (logger && typeof logger.log === 'function') {
+          logger.log('OPENDESK_HOMEPAGE_OPENED=' + JSON.stringify({url: OPENDESK_HOMEPAGE_URL}));
+        }
+      } catch (error) {
+        const normalized = normalizeError(error, 'page.openURL');
+        if (logger && typeof logger.error === 'function') {
+          logger.error('OPENDESK_HOMEPAGE_OPEN_ERROR=' + JSON.stringify(normalized));
+        }
+      }
+      return snapshot();
+    }
+
+    toolbar.addButton('home', '打开 OpenDesk 官网', homepageIcon, openHomepage);
+    toolbar.addSeparator('brand-capture-separator');
     // Play and pause share one stable position. Starting returns synchronously
     // so callback busy presentation cannot replace the required 3/2/1 icons;
     // pause/resume still returns its Promise to preserve button single-flight.
@@ -943,6 +972,8 @@
         logger.log('RECORDING_CONSOLE_SIMPLE_READY=' + JSON.stringify({
           windowId: toolbar.id,
           bounds: shown.bounds,
+          homepage: OPENDESK_HOMEPAGE_URL,
+          homepageIcon: homepageIcon.path,
           icons: BUILT_IN_ICONS,
           countdownIcons: [3, 2, 1].map(value => countdownIcon(value).path),
         }));
@@ -967,7 +998,7 @@
     }
 
     return Object.freeze({
-      run, show, close, start, pauseOrResume, stop, generate, runGenerated, setPointerMotion, copyAgentPrompt, showDetails, reveal,
+      run, show, close, start, pauseOrResume, stop, generate, runGenerated, setPointerMotion, copyAgentPrompt, showDetails, reveal, openHomepage,
       state: snapshot,
       toolbar: () => toolbar,
       icons: () => clone(BUILT_IN_ICONS),
@@ -977,5 +1008,6 @@
   global.OpenDeskSimpleRecordingConsole = Object.freeze({
     createApp,
     buildAgentRefinementPrompt,
+    homepageURL: OPENDESK_HOMEPAGE_URL,
   });
 })(globalThis);

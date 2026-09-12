@@ -227,7 +227,7 @@ async function main() {
         global.OpenDeskSimpleRecordingConsole = Object.freeze({
           buildAgentRefinementPrompt() { return 'core'; },
           createApp(options) {
-            const toolbar = new options.FloatingWindow({toolbar:{maxColumns:7,maxRows:1}});
+            const toolbar = new options.FloatingWindow({toolbar:{maxColumns:8,maxRows:1}});
             toolbar.addButton('capture','capture','play.fill',()=>{});
             toolbar.addButton('stop','stop','stop.fill',()=>{ global.__coreStopCalls++; });
             toolbar.addButton('replay','replay','repeat',()=>{});
@@ -274,7 +274,7 @@ async function main() {
     vm.createContext(context);
     vm.runInContext(wrapperSource, context, {filename: 'controller.js'});
     const app = context.OpenDeskSimpleRecordingConsole.createApp({historyCountdownStepMs: 0});
-    assert.strictEqual(constructedOptions.toolbar.maxColumns, 8);
+    assert.strictEqual(constructedOptions.toolbar.maxColumns, 9);
     assert.ok(innerToolbar.buttons.has('history'));
     const runPromise = app.history().runRecording('rec-old');
     for (let i = 0; i < 20 && pendingCommands.length === 0; i++) await new Promise(resolve => setTimeout(resolve, 0));

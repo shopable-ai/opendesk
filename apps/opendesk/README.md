@@ -14,6 +14,7 @@ OpenDesk App Mode
         |
         v
 Product Script Runner                 <- official default user UI
+- OpenDesk logo / official project home
 - Run / Stop
 - current script
 - script list (`window.id = "main"`)
@@ -56,7 +57,7 @@ OpenDesk commercial/official actions.
 - `apps/opendesk/script-runner-simple.js`: product composition seam. It maps the
   Runner list to App Mode `main`, keeps one Runner/toolbar instance, and appends
   Official Shell secondary actions to the same FloatingWindow.
-- `apps/opendesk/official-shell.js`: Help/Customize metadata, protected product
+- `apps/opendesk/official-shell.js`: Homepage/Help/Customize metadata, protected product
   configuration, HTTPS-only navigation and future hidden commercial actions.
 - `apps/opendesk/main.js`: composition root only.
 
@@ -104,8 +105,10 @@ recipe execution is in-process.
 
 ## Official Shell
 
-P0 keeps two core secondary actions visible on the right side of the Product
-Script Runner toolbar:
+The first Product Script Runner control is the OpenDesk logo. It is a real
+native image button, preserves the original brand colors, exposes the tooltip
+and Accessibility name `打开 OpenDesk 官网`, and opens the canonical public
+project page. P0 also keeps two core secondary actions visible on the right:
 
 - `opendesk.customize` -> **定制**
 - `opendesk.help` -> **帮助**
@@ -114,7 +117,7 @@ The core Runner controls remain primary. The actual FloatingWindow is one
 shared toolbar, conceptually:
 
 ```text
-[Run] [Stop] [current script] [List] | [Customize] [Help]
+[OpenDesk] | [Run] [Stop] [current script] [List] | [Customize] [Help]
 ```
 
 `opendesk.marketplace` and `opendesk.upgrade` are reserved for future product
@@ -132,8 +135,11 @@ The P0 file is a low-cost obfuscated, checksummed product configuration. It is
 not a secret store or DRM boundary. If it is missing, corrupt, or attempts to
 hide a core action, `official-shell.js` falls back to built-in defaults.
 
-The current URLs are empty placeholders. In that state Product Runner calls the
-formal `ui.notify()` API and shows:
+The homepage target is currently the canonical public repository
+`https://github.com/shopable-ai/opendesk`; repository metadata does not yet
+declare a separate product website. Help and Customize URLs remain empty
+placeholders. In that state Product Runner calls the formal `ui.notify()` API
+and shows:
 
 ```text
 帮助中心待开放。
@@ -197,13 +203,16 @@ Run the package explicitly from the repository root:
 ```
 
 Expected startup UI is Product Script Runner itself: its Floating toolbar plus
-its list main window. No intermediate welcome/Demo panel should appear.
+its list main window. The toolbar starts with the clickable OpenDesk logo. No
+intermediate welcome/Demo panel should appear.
 
 The built-in Recorder is a trusted framework action. The development command
 above includes `-allow-recorder-capture`, so its **开始录制** control is enabled
 when macOS Input Monitoring permission is available. Do not remove that flag
 when recording is needed; without it the toolbar intentionally keeps capture
 disabled and explains the missing authorization in **查看详情**.
+The Recorder toolbar uses the same first-position logo affordance and official
+target as Script Runner.
 
 The standalone learning/compatibility entry remains directly runnable and uses
 the same canonical Recorder UI resources:
@@ -250,7 +259,8 @@ Store local acceptance artifacts outside Git-tracked source, for example:
 ```
 
 Acceptance should cover one `opendesk` App Mode process/App Shell/Tray,
-startup directly into Runner toolbar + list, Run/Stop, Help/Customize notify,
+startup directly into Runner toolbar + list, homepage navigation, Run/Stop,
+Help/Customize notify,
 OS close-to-hide followed by system Open/Show restoring the same `main` window,
 no duplicate toolbar/Execution, built-in Recorder coexistence, Quit and
 single-instance activation. `.runtime` evidence must not be committed.

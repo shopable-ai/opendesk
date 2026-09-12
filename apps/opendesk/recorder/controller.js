@@ -164,8 +164,8 @@
       const input = options || {};
       const toolbarOptions = input.toolbar ? {...input.toolbar} : null;
       if (toolbarOptions && toolbarOptions.maxRows === 1
-        && (!Number.isFinite(toolbarOptions.maxColumns) || toolbarOptions.maxColumns < 8)) {
-        toolbarOptions.maxColumns = 8;
+        && (!Number.isFinite(toolbarOptions.maxColumns) || toolbarOptions.maxColumns < 9)) {
+        toolbarOptions.maxColumns = 9;
       }
       const inner = new BaseFloatingWindow(toolbarOptions ? {...input, toolbar: toolbarOptions} : input);
       const wrapper = {};

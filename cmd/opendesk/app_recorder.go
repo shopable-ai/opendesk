@@ -148,6 +148,7 @@ func (r *appRecorder) request(ctx context.Context, executionID string) (pkgExecu
 		CustomUIActivationSource:        customui.ActivationCLI,
 		CustomUIHostPath:                r.config.CustomUIHostPath,
 		CustomUIDriver:                  customui.NewSessionScopedDriverForSession(r.driver, executionID),
+		CustomUIBaseDir:                 uiRoot,
 		OnCustomUISession:               func(session *customui.Session) { r.setSession(executionID, session) },
 		Artifacts:                       artifacts,
 		Selection: pkgExecution.TerminalSelection{
