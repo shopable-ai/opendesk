@@ -40,20 +40,38 @@ if (!globalThis.OpenDeskSchedulerCenter
   throw new Error('OpenDesk Scheduler Center did not initialize');
 }
 
+const runtimeLogEntry = File.join(Execution.scriptDir, 'runtime-log.js');
+(0, eval)(File.read(runtimeLogEntry) + '\n//# sourceURL=' + runtimeLogEntry);
+if (!globalThis.OpenDeskRuntimeLog
+  || typeof OpenDeskRuntimeLog.create !== 'function') {
+  throw new Error('OpenDesk Runtime Log did not initialize');
+}
+
 const runner = OpenDeskProductScriptRunner.create({officialShell});
 const schedulerCenter = OpenDeskSchedulerCenter.create();
+const runtimeLog = OpenDeskRuntimeLog.create({runner});
+const officialActionIDs = new Set(['opendesk.home', 'opendesk.help', 'opendesk.customize']);
+
 automation.app.onAction(async event => {
   if (!event) return;
   if (event.id === 'opendesk.open' || event.id === 'runner.open') {
     await runner.open(event.source || event.id);
     return;
   }
-  if (event.id === 'scheduler.open') {
+  if (event.id === 'scheduler.center' || event.id === 'scheduler.open') {
     await schedulerCenter.open(event.source || event.id);
     return;
   }
   if (event.id === 'scheduler.new') {
     await schedulerCenter.openCreate(event.source || event.id);
+    return;
+  }
+  if (event.id === 'runtime.log') {
+    await runtimeLog.open(event.source || event.id);
+    return;
+  }
+  if (officialActionIDs.has(event.id)) {
+    await officialShell.activate(event.id);
   }
 });
 
@@ -71,5 +89,6 @@ console.log('OPENDESK_PRODUCT_APP_READY=' + JSON.stringify({
   toolbarMaxWidth: initialState.toolbarMaxWidth,
   recipeProcessModel: 'child-opendesk-process',
   scheduler: OpenDeskSchedulerClient.getCapabilities(),
+  runtimeLog: runtimeLog.state(),
   officialShell: officialShell.state(),
 }));
