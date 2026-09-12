@@ -16,3 +16,4 @@ assets/tray.ico
 recorder/controller.js
 recorder/controller-core.js
 recorder/recording-history.js
+recorder/runtime-icon-adapter.js

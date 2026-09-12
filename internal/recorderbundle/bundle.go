@@ -16,10 +16,10 @@ const RecorderWindowID = "recording-console"
 //go:generate go run ./cmd/sync
 
 // runtimeAssets is the built-in Recorder payload owned by the compiled OpenDesk
-// program. The JavaScript files are generated mirrors; binary icons here are
-// program resources, not per-App assets.
+// program. JavaScript files are generated mirrors; generic icons remain owned
+// by the shared Custom UI runtime catalog instead of being copied as PNGs.
 //
-//go:embed assets/controller.js assets/controller-core.js assets/recording-history.js assets/icons/*.png
+//go:embed assets/controller.js assets/controller-core.js assets/recording-history.js assets/runtime-icon-adapter.js
 var runtimeAssets embed.FS
 
 // WriteToDir materializes the built-in Recorder product resources for the
@@ -63,7 +63,11 @@ func WriteToDir(root string) (string, error) {
 
 func EntryScript() string {
 	return fmt.Sprintf(`'use strict';
-const simpleControllerFile = File.join(Execution.scriptDir, 'recording-console-simple', 'controller.js');
+const recorderRuntimeDir = File.join(Execution.scriptDir, 'recording-console-simple');
+const runtimeIconAdapterFile = File.join(recorderRuntimeDir, 'runtime-icon-adapter.js');
+(0, eval)(File.read(runtimeIconAdapterFile) + '\n//# sourceURL=' + runtimeIconAdapterFile);
+
+const simpleControllerFile = File.join(recorderRuntimeDir, 'controller.js');
 (0, eval)(File.read(simpleControllerFile) + '\n//# sourceURL=' + simpleControllerFile);
 
 const recordingConsole = OpenDeskSimpleRecordingConsole.createApp({

@@ -12,6 +12,7 @@ var recorderJavaScriptFiles = []string{
 	"controller.js",
 	"controller-core.js",
 	"recording-history.js",
+	"runtime-icon-adapter.js",
 }
 
 func TestWriteToDirIsSelfContained(t *testing.T) {
@@ -25,10 +26,7 @@ func TestWriteToDirIsSelfContained(t *testing.T) {
 		"recording-console-simple/controller.js",
 		"recording-console-simple/controller-core.js",
 		"recording-console-simple/recording-history.js",
-		"recording-console-simple/icons/countdown-1.png",
-		"recording-console-simple/icons/countdown-2.png",
-		"recording-console-simple/icons/countdown-3.png",
-		"recording-console-simple/icons/opendesk-logo.png",
+		"recording-console-simple/runtime-icon-adapter.js",
 	} {
 		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(relative))); err != nil {
 			t.Fatalf("missing embedded Recorder UI asset %s: %v", relative, err)
@@ -54,8 +52,12 @@ func TestWriteToDirIsSelfContained(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(entryContent), "System.getExecutablePath()") {
+	entryText := string(entryContent)
+	if !strings.Contains(entryText, "System.getExecutablePath()") {
 		t.Fatal("embedded Recorder entry must use the released OpenDesk executable path for replay")
+	}
+	if !strings.Contains(entryText, "runtime-icon-adapter.js") {
+		t.Fatal("embedded Recorder entry must install the runtime icon adapter before the controller")
 	}
 }
 
@@ -71,6 +73,19 @@ func TestGeneratedJavaScriptMatchesCanonicalSources(t *testing.T) {
 		}
 		if !bytes.Equal(embedded, canonical) {
 			t.Fatalf("embedded %s drifted from apps/opendesk/recorder/%s; run go generate ./internal/recorderbundle", name, name)
+		}
+	}
+}
+
+func TestRecorderRuntimeAdapterUsesBuiltInCatalogIDs(t *testing.T) {
+	adapter, err := os.ReadFile(filepath.Join("..", "..", "apps", "opendesk", "recorder", "runtime-icon-adapter.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(adapter)
+	for _, iconID := range []string{"timer", "house.fill"} {
+		if !strings.Contains(text, "'"+iconID+"'") {
+			t.Fatalf("Recorder runtime icon adapter must use built-in icon %q", iconID)
 		}
 	}
 }
@@ -93,6 +108,6 @@ func TestOfficialAppSourceTreeContainsNoGoSource(t *testing.T) {
 func TestRecorderSourceHasNoPrivateIconDirectory(t *testing.T) {
 	path := filepath.Join("..", "..", "apps", "opendesk", "recorder", "icons")
 	if _, err := os.Stat(path); err == nil || !os.IsNotExist(err) {
-		t.Fatalf("Recorder App source must use program-owned icon resources; unexpected directory %s (err=%v)", path, err)
+		t.Fatalf("Recorder App source must use program-owned semantic icons; unexpected directory %s (err=%v)", path, err)
 	}
 }
