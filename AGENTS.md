@@ -90,7 +90,7 @@
 ## 文件生命周期与工程产物
 
 - 可维护的源码、正式文档和稳定测试资产才进入版本控制。
-- 执行日志、截图、临时配置、探测结果、脚本快照和 smoke 输出统一写入 `.runtime/`；不要新建或继续使用根目录 `temp/`。
+- 执行日志、截图、临时配置、探测结果、脚本快照、探测结果和 smoke 输出统一写入 `.runtime/`；不要新建或继续使用根目录 `temp/`。
 - `.runtime/` 是本地可清理目录，禁止把其中的运行产物当作源码提交。
 - 项目统一使用顶层 `tests/` 组织跨包测试，禁止重新创建并行的根级 `test/`。可复用 fixture 放入所属测试域；一次性运行结果写入 `.runtime/tests/<domain>/`，正式质量报告放入 `docs/quality/`，外部参考 manifest 放入 `docs/research/external/`。
 - 纯 Go/native 白盒测试使用同包 `_test.go` 文件；可由 JavaScript 观察的 Runtime 公共契约使用
@@ -107,6 +107,7 @@
 - 公开示例归 `examples/<topic>/`；共享断言归 `tests/runtime-api/`；诊断工具归所属领域的
   `tools/`。本轮基础示例规范目录是 `examples/runtime/`。
 - 判断保留价值以构建依赖、调用者、文档命令及独立覆盖为准，不按 AI 来源、文件名或相似度删除。
+  `examples/native-extensions/macos-vision/` 参与构建，不能按普通示例清理。
 - 已登记旧路径只允许薄兼容转发，不保留两套实现；移除前按迁移台账完成引用及直接命令验证。
   转发不得吞掉错误、启动新 Execution 或伪造 `Execution.scriptPath/scriptDir`。
 - Go 新增审查行写入原分类账本末尾的唯一 `## 增量登记` 章节；保留历史迁移基线，不因新增
@@ -123,6 +124,6 @@
 - 允许有证据、应用／布局／区域限定的 OCR 别名，例如乘法按钮的 `× / †`；保留原文，合并候选后要求唯一。
   不做全局字符替换，不把别名当作漏检修复，不为此发明公共 API 或未知 options。
 - 对当前稳定界面先预检全部必要 distinct targets 和结果读取方式；动态流程按当前阶段预检。
-  输入可能已发生或 `actionState: 'unknown'` 时停止，不盲目重放前缀或切换 backend 重点。
+  输入可能已发生或 `actionState: 'unknown'` 时停止，不盲目重放前缀或切换 backend 重复点击。
 - 沿用 application-engineer 的 harden／repair 与现有资格交接；定位策略替换、真实执行或结果 Oracle
   涉及 Human-to-Recipe 时仍遵守上面的完整 Skill 路由。纯行为保持的静态精炼不因此获得桌面执行授权。
