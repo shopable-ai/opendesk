@@ -152,26 +152,26 @@ extension.<publisher>.<plugin>.* extension
 System.product.website
 ```
 
-Script Runner 与 Recorder 都必须读取该值，不得各自维护 URL literal。官网不进入用户环境变量或 `opendesk.app.json`；它的唯一明文 source 与其他官方 action 一样位于 `configs/official-actions.json`，Runtime 从嵌入的生成资源派生 `System.product.website`。
+Script Runner 与 Recorder 都必须读取该值，不得各自维护 URL literal。官网不进入用户环境变量或 `opendesk.app.json`；它的唯一明文 source 与其他官方 action 一样位于 `configs/product.json`，Runtime 从嵌入的生成资源派生 `System.product.website`。
 
 Home / Help / Customize / Marketplace / Upgrade 的唯一明文维护源是：
 
 ```text
-configs/official-actions.json
+configs/product.json
 ```
 
 维护者修改它后，由官方发行调用方显式运行：
 
 ```bash
 ./dist/opendesk config compile \
-  --input configs/official-actions.json \
-  --output apps/opendesk/assets/official-actions.odcfg
+  --input configs/product.json \
+  --output apps/opendesk/assets/product.odcfg
 ```
 
 生成发行资源：
 
 ```text
-apps/opendesk/assets/official-actions.odcfg
+apps/opendesk/assets/product.odcfg
 ```
 
 由 `apps/opendesk/official-shell.js` 自动读取。生成配置只保存少量随发行产品调整的 policy：
@@ -183,18 +183,20 @@ apps/opendesk/assets/official-actions.odcfg
 
 显示名称、动作 ID 与核心 fallback 仍由 release-owned code 定义。
 
-`official-shell.js` 是 Runtime 组件名；`official-actions` 是它读取的运营数据 basename。两者不再共用文件名，避免把只含动作可见性/URL 的配置误解成完整 Shell、产品身份或 App Manifest。文件改名不产生新的 wire format；`ODCFG1` 与既有编解码 key 保持兼容。
+`official-shell.js` 是 Runtime 组件名；`product` 是它读取的 publisher-owned 产品配置 basename。`product.json` 明确表示语言无关的产品运营 policy，且与 App package manifest `opendesk.app.json` 分属不同 owner。文件改名不产生新的 wire format；`ODCFG1` 与既有编解码 key 保持兼容。
 
-`official-actions` 继续作为稳定 basename：它对应 `opendesk.*` action 的运行 policy。`app-config` 会与 `opendesk.app.json` 混淆，`app-info` 会误导为静态 metadata，而 `links` 又无法表达 URL 为空但 action 仍 pending、以及 visibility policy 的语义。这个文件名不应继续泛化；新增产品身份或 App 配置应进入各自 owner。
+`product` 是稳定 basename：它承载 `opendesk.*` action 的产品运行 policy，但不是可翻译 UI copy 的容器。`app-config` 会与 `opendesk.app.json` 混淆，`app-info` 会误导为静态 metadata，而 `links` 又无法表达 URL 为空但 action 仍 pending、以及 visibility policy 的语义。新增产品身份或 App 配置应进入各自 owner。
+
+可翻译的窗口 title、label、placeholder、toast 与 dialog message 以后由 locale/i18n provider 按语义 key 提供。当前 Product Script Runner 和 Recorder 都接受 `windowTitle` 注入，并分别保留 `OpenDesk — Script Runner` 与 `OpenDesk — Recorder` 英文 fallback；引入 `LocaleResolver` 时无需重写窗口生命周期，也不扩展 `product.json` schema。
 
 维护者可以直接查看保护产物并检查 freshness：
 
 ```bash
 ./dist/opendesk config inspect \
-  --input apps/opendesk/assets/official-actions.odcfg
+  --input apps/opendesk/assets/product.odcfg
 ./dist/opendesk config verify \
-  --input configs/official-actions.json \
-  --output apps/opendesk/assets/official-actions.odcfg
+  --input configs/product.json \
+  --output apps/opendesk/assets/product.odcfg
 ```
 
 `inspect` 对 `.odcfg` 完成格式、checksum 与 schema 验证后在 `result.config` 返回有效内容；`verify` 同时解析唯一明文 input，并要求 output 与其确定性编码逐字节一致，因此“保护文件合法但内容过期”也会失败。两者都不启动 Runtime 或执行发行 staging。
@@ -256,16 +258,16 @@ fallback 的 home URL 为空，因此损坏或不一致的 staging 资源不能�
 
 ### 6.4 多后缀加载与反降级
 
-固定 basename `assets/official-actions` 按以下顺序加载：
+固定 basename `assets/product` 按以下顺序加载：
 
 ```text
-official-actions.odcfg 存在且合法   -> 使用 .odcfg
-official-actions.odcfg 存在但损坏   -> 使用内置 fallback，不读 sibling JSON
-official-actions.odcfg 不存在       -> 开发态可读 sibling official-actions.json
+product.odcfg 存在且合法   -> 使用 .odcfg
+product.odcfg 存在但损坏   -> 使用内置 fallback，不读 sibling JSON
+product.odcfg 不存在       -> 开发态可读 sibling product.json
 两者都不存在                        -> 使用内置 fallback
 ```
 
-正式发行 payload 只包含生成后的 `.odcfg`，不包含 `configs/official-actions.json` 或 sibling 明文配置。旧 `official-shell.{json,odcfg}` 不参与兼容加载，避免长期出现第二套来源。
+正式发行 payload 只包含生成后的 `product.odcfg`，不包含 `configs/product.json` 或 sibling 明文配置。旧 `official-shell.{json,odcfg}` 不参与兼容加载，避免长期出现第二套来源。
 
 ## 7. URL、pending 与 notify
 
@@ -359,11 +361,11 @@ P0 只预留这一方向，不实现 License gate，也不把当前轻量 `.odcf
 polyfills/000-systemBase.js
 └── freeze native System.product.{id,name,website}
 
-configs/official-actions.json
+configs/product.json
 └── Home / Help / Customize / Marketplace / Upgrade 唯一明文 URL 维护源
 
 internal/officialassets/**
-└── generated official-actions.odcfg -> native System.product.website
+└── generated product.odcfg -> native System.product.website
 
 pkg/officialconfig + internal/configcli
 └── deterministic ODCFG1 compile / decode / validation
@@ -377,7 +379,7 @@ apps/opendesk/
 │   ├── HTTPS URL policy
 │   └── activation
 ├── assets/
-│   └── official-actions.odcfg
+│   └── product.odcfg
 ├── script-runner-simple.js
 │   └── Product Runner composition / main-window mapping / secondary actions
 ├── script-runner/

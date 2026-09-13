@@ -166,25 +166,25 @@ set. Official actions remain independent of recipe execution state.
 Configuration is loaded from:
 
 ```text
-apps/opendesk/assets/official-actions.odcfg
+apps/opendesk/assets/product.odcfg
 ```
 
 The P0 file is a low-cost obfuscated, checksummed operational-action
 configuration. It is not a secret store or DRM boundary. A valid `.odcfg` wins
-over a sibling `official-actions.json`. A corrupt protected file fails closed
+over a sibling `product.json`. A corrupt protected file fails closed
 to built-in defaults and is never downgraded to plaintext; plaintext is only
 considered when the protected file is absent.
 
 The homepage target and every other official action URL come from the single
-maintained source `configs/official-actions.json`, compiled into this package's
-`assets/official-actions.odcfg`. Runtime `System.product.website` is derived
+maintained source `configs/product.json`, compiled into this package's
+`assets/product.odcfg`. Runtime `System.product.website` is derived
 from the embedded generated asset and is not a second editable source. Help and Customize URLs can remain empty
 placeholders. In that state the product uses `ui.toast()` rather than creating
 another window just to display a message.
 
-The sole plaintext maintenance source is `configs/official-actions.json`.
+The sole plaintext maintenance source is `configs/product.json`.
 The release caller explicitly runs
-`opendesk config compile --input configs/official-actions.json --output apps/opendesk/assets/official-actions.odcfg`
+`opendesk config compile --input configs/product.json --output apps/opendesk/assets/product.odcfg`
 to transform that one JSON file into the generated `.odcfg`; the compiler has
 no product-specific default paths. `opendesk config inspect --input ...` shows
 the validated effective payload and `opendesk config verify --input ... --output ...`

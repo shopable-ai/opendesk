@@ -200,7 +200,7 @@
       "name": "System", "source": "native + execution environment adapter + platform session backend", "status": "stable reads with experimental session actions", "doc": "system.md", "types": "types/System.d.ts",
       "keyProperties": ["product"],
       "keyMethods": ["delay", "getPlatformInfo", "getEnv", "hasEnv", "getSessionCapabilities", "getSessionState", "lock", "logout", "startScreenSaver"],
-      "productIdentity": "product is a frozen Runtime-owned public identity object with readonly id, name, and website. website is derived from the generated embedded official-actions.odcfg whose sole plaintext maintenance source is configs/official-actions.json; it is not sourced from Execution.env, App Manifest, or a second Runtime URL literal.",
+      "productIdentity": "product is a frozen Runtime-owned public identity object with readonly id, name, and website. website is derived from the generated embedded product.odcfg whose sole plaintext maintenance source is configs/product.json; it is not sourced from Execution.env, App Manifest, or a second Runtime URL literal.",
       "sessionSafety": "lock, logout, and startScreenSaver require confirm=true before backend access; success returns initiated=true and verified=false because request acceptance is not a postcondition",
       "environmentAccess": "getEnv(name, optionalFallback) and hasEnv(name) read only the same per-execution snapshot exposed by Execution.env. They never refresh os.Environ or bypass the empty remote/scheduled environment, and no getAllEnv method is exposed.",
       "sessionIdentity": "getSessionState returns only normalized user/session identity and state; unavailable booleans including locked are null rather than inferred",

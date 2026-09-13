@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	officialActionsSourcePath = "configs/" + officialconfig.BaseName + ".json"
-	officialActionsOutputPath = "apps/opendesk/assets/" + officialconfig.BaseName + ".odcfg"
+	productConfigSourcePath = "configs/" + officialconfig.BaseName + ".json"
+	productConfigOutputPath = "apps/opendesk/assets/" + officialconfig.BaseName + ".odcfg"
 )
 
 func readOfficialProductFile(t *testing.T, relative string) []byte {
@@ -26,10 +26,10 @@ func readOfficialProductFile(t *testing.T, relative string) []byte {
 	return data
 }
 
-func TestOfficialProductWebsiteComesFromOfficialActionsSource(t *testing.T) {
-	config, err := officialconfig.ParseSource(readOfficialProductFile(t, officialActionsSourcePath))
+func TestOfficialProductWebsiteComesFromProductConfig(t *testing.T) {
+	config, err := officialconfig.ParseSource(readOfficialProductFile(t, productConfigSourcePath))
 	if err != nil {
-		t.Fatalf("parse official-actions source: %v", err)
+		t.Fatalf("parse product config source: %v", err)
 	}
 	home := config.Actions["home"]
 	if !home.Visible || !strings.HasPrefix(home.URL, "https://") {
@@ -91,44 +91,44 @@ func TestOfficialProductBuildersShareAppModePayloadOwnership(t *testing.T) {
 	}
 }
 
-func TestOfficialActionsSourceCompilesToCommittedReleaseAsset(t *testing.T) {
-	source := readOfficialProductFile(t, officialActionsSourcePath)
+func TestProductConfigCompilesToCommittedReleaseAsset(t *testing.T) {
+	source := readOfficialProductFile(t, productConfigSourcePath)
 	config, err := officialconfig.ParseSource(source)
 	if err != nil {
-		t.Fatalf("parse official-actions source: %v", err)
+		t.Fatalf("parse product config source: %v", err)
 	}
 	if home, ok := config.Actions["home"]; !ok || !home.Visible || !strings.HasPrefix(home.URL, "https://") {
-		t.Fatalf("official-actions source must own the visible HTTPS home action: %+v", home)
+		t.Fatalf("product config source must own the visible HTTPS home action: %+v", home)
 	}
 	encoded, err := officialconfig.Encode(config)
 	if err != nil {
-		t.Fatalf("encode official-actions source: %v", err)
+		t.Fatalf("encode product config source: %v", err)
 	}
-	committed := readOfficialProductFile(t, officialActionsOutputPath)
+	committed := readOfficialProductFile(t, productConfigOutputPath)
 	if !bytes.Equal(encoded, committed) {
-		t.Fatalf("committed official-actions.odcfg is stale; run `opendesk config compile --input %s --output %s`", officialActionsSourcePath, officialActionsOutputPath)
+		t.Fatalf("committed product.odcfg is stale; run `opendesk config compile --input %s --output %s`", productConfigSourcePath, productConfigOutputPath)
 	}
 	embeddedConfig, err := officialassets.Config()
 	if err != nil {
-		t.Fatalf("decode Runtime-embedded official-actions.odcfg: %v", err)
+		t.Fatalf("decode Runtime-embedded product.odcfg: %v", err)
 	}
 	embedded, err := officialconfig.Encode(embeddedConfig)
 	if err != nil {
-		t.Fatalf("re-encode Runtime-embedded official-actions.odcfg: %v", err)
+		t.Fatalf("re-encode Runtime-embedded product.odcfg: %v", err)
 	}
 	if !bytes.Equal(committed, embedded) {
-		t.Fatal("Runtime-embedded official-actions.odcfg is stale; run `go generate ./internal/officialassets`")
+		t.Fatal("Runtime-embedded product.odcfg is stale; run `go generate ./internal/officialassets`")
 	}
 }
 
-func TestOfficialActionsReleasePayloadShipsProtectedConfigOnly(t *testing.T) {
+func TestProductConfigReleasePayloadShipsProtectedConfigOnly(t *testing.T) {
 	allowlist := string(readOfficialProductFile(t, "apps/opendesk/.release/app-mode-runtime-files.txt"))
 	protectedAsset := "assets/" + officialconfig.BaseName + ".odcfg"
 	if !strings.Contains(allowlist, protectedAsset) {
 		t.Fatalf("OpenDesk AppMode release payload must include %s", protectedAsset)
 	}
 	for _, forbidden := range []string{
-		officialActionsSourcePath,
+		productConfigSourcePath,
 		"configs/official-shell.json",
 		"assets/" + officialconfig.BaseName + ".json",
 		"assets/official-shell.odcfg",
@@ -140,10 +140,22 @@ func TestOfficialActionsReleasePayloadShipsProtectedConfigOnly(t *testing.T) {
 	}
 }
 
-func TestOfficialActionsRuntimeBasenameMatchesCompiler(t *testing.T) {
+func TestProductConfigRuntimeBasenameMatchesCompiler(t *testing.T) {
 	officialShell := readOfficialProductFile(t, "apps/opendesk/official-shell.js")
 	expected := []byte("const CONFIG_BASENAME = '" + officialconfig.BaseName + "';")
 	if !bytes.Contains(officialShell, expected) {
 		t.Fatalf("Official Shell Runtime basename must match compiler basename %q", officialconfig.BaseName)
+	}
+}
+
+func TestLegacyOfficialActionsResourcesAreAbsent(t *testing.T) {
+	for _, relative := range []string{
+		"configs/official-actions.json",
+		"apps/opendesk/assets/official-actions.odcfg",
+	} {
+		path := filepath.Join("..", "..", filepath.FromSlash(relative))
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Fatalf("legacy product config resource must be absent: %s (err=%v)", relative, err)
+		}
 	}
 }

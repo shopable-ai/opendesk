@@ -17,8 +17,8 @@ vm.runInThisContext(fs.readFileSync(shellFile, 'utf8'), {filename: shellFile});
 vm.runInThisContext(fs.readFileSync(runnerFile, 'utf8'), {filename: runnerFile});
 const Shell = globalThis.OpenDeskOfficialShell;
 const Runner = globalThis.OpenDeskScriptRunnerSimple;
-const asset = fs.readFileSync(path.join(repo, 'apps', 'opendesk', 'assets', 'official-actions.odcfg'), 'utf8');
-const sourceConfig = JSON.parse(fs.readFileSync(path.join(repo, 'configs', 'official-actions.json'), 'utf8'));
+const asset = fs.readFileSync(path.join(repo, 'apps', 'opendesk', 'assets', 'product.odcfg'), 'utf8');
+const sourceConfig = JSON.parse(fs.readFileSync(path.join(repo, 'configs', 'product.json'), 'utf8'));
 const OBFUSCATION_KEY = 'OpenDeskOfficialShell/v1';
 const OPENDESK_HOMEPAGE_URL = sourceConfig.actions.home.url;
 
@@ -63,9 +63,9 @@ function fileAPI() {
 function createFixture(configText, options = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opendesk-official-shell-'));
   fs.mkdirSync(path.join(root, 'assets'));
-  if (configText !== undefined) fs.writeFileSync(path.join(root, 'assets', 'official-actions.odcfg'), configText);
+  if (configText !== undefined) fs.writeFileSync(path.join(root, 'assets', 'product.odcfg'), configText);
   if (options.plaintextText !== undefined) {
-    fs.writeFileSync(path.join(root, 'assets', 'official-actions.json'), options.plaintextText);
+    fs.writeFileSync(path.join(root, 'assets', 'product.json'), options.plaintextText);
   }
   if (options.legacyConfigText !== undefined) {
     fs.writeFileSync(path.join(root, 'assets', 'official-shell.odcfg'), options.legacyConfigText);
@@ -125,7 +125,7 @@ test('validateConfig rejects missing actions, unknown actions and unknown fields
   assert.throws(() => Shell.validateConfig(config({help: {visible: true, url: '', extra: true}})), /unknown field: help\.extra/);
 });
 
-test('fixed official-actions basename prefers protected config and never reads sibling plaintext', () => {
+test('fixed product basename prefers protected config and never reads sibling plaintext', () => {
   const protectedConfig = config({help: {visible: true, url: 'https://protected.example/help'}});
   const plaintextConfig = config({help: {visible: true, url: 'https://plaintext.example/help'}});
   const fixture = createFixture(encodeConfig(protectedConfig), {

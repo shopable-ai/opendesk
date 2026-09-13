@@ -151,7 +151,7 @@ func TestOpenDeskProductReleasePolicy(t *testing.T) {
 		"runtime-log.js",
 		"script-runner-simple.js",
 		"script-runner/controller.js",
-		"assets/official-actions.odcfg",
+		"assets/product.odcfg",
 		"assets/opendesk-logo.png",
 		"assets/tray-template.png",
 		"assets/tray.ico",

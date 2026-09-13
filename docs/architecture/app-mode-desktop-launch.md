@@ -118,7 +118,7 @@ For `apps/opendesk`, the current classification is:
 | Class | Files | Release behavior |
 | --- | --- | --- |
 | A. Runtime Required | `opendesk.app.json`, product JS composition, Scheduler JS, `script-runner/controller.js`, tray/product-logo assets, Recorder controller/history JS, countdown PNGs and Recorder logo | explicitly staged |
-| B. Runtime Optional / product configuration | `assets/official-actions.odcfg` | explicitly staged; runtime still has built-in fallback defaults |
+| B. Runtime Optional / product configuration | `assets/product.odcfg` | explicitly staged; runtime still has built-in fallback defaults |
 | C. Build-time Only | `.release/**` | never staged |
 | D. Documentation / Development Only | `README.md` | never staged |
 | E. Unknown | none after the current runtime-closure audit | must be investigated before adding to the policy |
