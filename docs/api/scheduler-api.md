@@ -2,12 +2,18 @@
 title: Scheduler HTTP API
 description: OpenDesk 本地 Scheduler 的任务管理与运行历史 HTTP API 契约。
 order: 530
+docType: protocol
 ---
 
 # Scheduler HTTP API
 
-本文是 OpenDesk Scheduler 的 HTTP API 契约。面向普通用户的启动、页面操作、时间
-语义、SQLite 位置与重启恢复说明见 [Scheduler](scheduler.md)。
+本文只负责 OpenDesk Scheduler 的本机 HTTP protocol contract：endpoint、请求/响应、公开 Job/JobRun 数据模型与 transport 安全边界。
+
+- 普通用户如何选择桌面 Scheduler Center 或 Headless 入口、理解时间与任务操作语义：见 [Scheduler](scheduler.md)。
+- Store/Runner ownership、SQLite/WAL、锁、takeover 与 recovery：见 [Scheduler Runtime Concurrency](../architecture/scheduler-runtime-concurrency.md)。
+- OpenDesk Desktop 中计划中心的产品窗口与菜单归属：见 [Desktop Product Shell](../architecture/opendesk-desktop-product-shell.md)。
+
+不要从本协议页推导内部数据库 schema 或把 `/scheduler` Web 管理页当成桌面产品必须重复展示的第二个普通用户入口。
 
 ## Scheduler API：服务地址与边界
 
@@ -162,10 +168,10 @@ JSON 值；HTTP 请求体上限为 2 MiB，内联正文仍受独立的 256 KiB �
 }
 ```
 
-正文保存在 Scheduler SQLite 中，因此 OpenDesk 重启后仍可执行。创建响应、任务列表、
+正文持久化在 Scheduler owner 的内部 Store 中，因此 OpenDesk 重启后仍可执行。创建响应、任务列表、
 暂停/恢复响应、普通服务日志与校验错误都不会回显正文；公开 Job 只返回
 `sourceType: "inline"` 与 `hasInlineScript: true`。执行时仍会在该 execution 的受控
-`.runtime/runs/<executionId>/script_snapshot.js` 中生成标准 snapshot 和 Evidence。
+`.runtime/runs/<executionId>/script_snapshot.js` 中生成标准 snapshot 和 Evidence。内部存储 schema 不是本协议的一部分。
 
 ### Scheduler API：一次任务（at）
 
@@ -296,8 +302,7 @@ curl --fail-with-body -X POST \
 ```
 
 成功时，`data` 是新建的 JobRun，初始状态通常为 `queued`。立即运行也适用于暂停的
-任务，并且不会修改原有的下一次自动调度时间。所有 Scheduler 执行共享一个串行
-worker；另一个桌面任务正在执行时，本次运行会等待。
+任务，并且不会修改原有的下一次自动调度时间。是否立即取得 Runner ownership 由 Scheduler runtime owner 决定；HTTP `200`/queued 不是业务完成证据。
 
 ## Scheduler API：查询运行记录
 
@@ -338,18 +343,15 @@ curl --fail-with-body -X DELETE \
 }
 ```
 
-删除会停止未来调度。已经写入 `.runtime/runs/` 的 Evidence 和 SQLite 中的运行记录
-不会被物理破坏，但当前 API 不再允许通过已删除任务 ID 查询历史。正在执行的任务
-不会被强制终止。
+删除会停止未来调度。已经写入 `.runtime/runs/` 的 Evidence 不会被当成从未发生；
+当前 API 不再允许通过已删除任务 ID 查询历史。正在执行的任务不会被强制终止。内部 Store 的保留/清理策略属于 runtime architecture，不属于 HTTP contract。
 
 ## Scheduler API：与管理页的关系
 
-管理页地址：
+Headless / 开发 / 本机集成场景可以打开：
 
 ```text
 http://127.0.0.1:60844/scheduler
 ```
 
-页面只是一层极简本地客户端，通过本页定义的 API 完成创建、列表、暂停、恢复、立即
-运行、删除和历史查询。调用 API 不是创建任务的唯一用户方式；普通用户可直接使用
-管理页，自动化工具和集成程序再使用 HTTP API。
+这个页面只是本协议的本地客户端，通过本页定义的 API 完成创建、列表、暂停、恢复、立即运行、删除和历史查询。OpenDesk Desktop 的普通用户入口是产品 **Scheduler Center**；不要在产品菜单中同时把这个 Web 页面包装成第二个等价的“计划中心”。
