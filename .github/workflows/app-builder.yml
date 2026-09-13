@@ -112,7 +112,7 @@ jobs:
           } finally {
             $env:PATH = $savedPath
           }
-          foreach ($required in @('opendesk.exe', 'OpenDesk.exe', 'ui-host/opendesk-ui-host.exe', 'app-builder-template.json', 'app-mode/opendesk.app.json', 'app-build-provenance.json')) {
+          foreach ($required in @('opendesk.exe', 'opendesk-desktop.exe', 'ui-host/opendesk-ui-host.exe', 'app-builder-template.json', 'app-mode/opendesk.app.json', 'app-build-provenance.json')) {
             if (-not (Test-Path -LiteralPath (Join-Path $output $required) -PathType Leaf)) { throw "missing portable builder output: $required" }
           }
           $moved = Join-Path $consumer 'MovedBuilderSmokePortable'
