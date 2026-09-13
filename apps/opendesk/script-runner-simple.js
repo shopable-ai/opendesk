@@ -108,6 +108,12 @@
     });
   }
 
+  function formatScriptLabelText(value) {
+    return typeof value === 'string'
+      ? value.replace(/\.js(?=$|\s*·)/i, '')
+      : value;
+  }
+
   function createProductFloatingWindow(homeAction, secondaryActions, maxWidth, windowTitle) {
     function ProductFloatingWindow(spec) {
       const source = spec || {};
@@ -135,10 +141,17 @@
       return {
         get id() { return inner.id; },
         addButton(id, label, icon, callback) { return inner.addButton(id, label, icon, callback); },
-        addLabel(id, text, options) { return inner.addLabel(id, text, options); },
+        addLabel(id, text, options) {
+          return inner.addLabel(id, id === 'script' ? formatScriptLabelText(text) : text, options);
+        },
         addSeparator(id) { return inner.addSeparator(id); },
         updateButton(id, patch) { return inner.updateButton(id, patch); },
-        updateLabel(id, patch) { return inner.updateLabel(id, patch); },
+        updateLabel(id, patch) {
+          const nextPatch = id === 'script' && patch && typeof patch.text === 'string'
+            ? Object.assign({}, patch, {text: formatScriptLabelText(patch.text)})
+            : patch;
+          return inner.updateLabel(id, nextPatch);
+        },
         on(event, callback) { return inner.on(event, callback); },
         onError(callback) { return inner.onError(callback); },
         async show() {
