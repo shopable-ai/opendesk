@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-func TestUIHostCandidatesUseBundledClawdeskHostNameWithOpenDeskMigrationFallback(t *testing.T) {
+func TestUIHostCandidatesPreferPackagedWindowsHostWithCompatibilityFallbacks(t *testing.T) {
 	executable := filepath.Join(string(filepath.Separator), "Applications", "OpenDesk.app", "Contents", "MacOS", "opendesk")
 	if runtime.GOOS == "windows" {
 		executable = filepath.Join(`C:\`, "Program Files", "OpenDesk", "opendesk.exe")
@@ -24,9 +24,9 @@ func TestUIHostCandidatesUseBundledClawdeskHostNameWithOpenDeskMigrationFallback
 	want := []string{}
 	if runtime.GOOS == "windows" {
 		want = []string{
-			filepath.Join(filepath.Dir(executable), "clawdesk-ui-host.exe"),
-			filepath.Join(filepath.Dir(executable), "opendesk-ui-host.exe"),
 			filepath.Join(filepath.Dir(executable), "ui-host", "opendesk-ui-host.exe"),
+			filepath.Join(filepath.Dir(executable), "opendesk-ui-host.exe"),
+			filepath.Join(filepath.Dir(executable), "clawdesk-ui-host.exe"),
 		}
 	} else {
 		want = []string{
