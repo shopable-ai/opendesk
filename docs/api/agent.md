@@ -2,6 +2,7 @@
 title: Agent API
 description: 在普通 OpenDesk JavaScript 中通过 Command owner 调用 Codex 或 Claude Code，并取得严格验证的业务结果。
 order: 393
+docType: reference
 ---
 
 # Agent
@@ -10,70 +11,21 @@ order: 393
 
 `Agent` 是外部 CLI Agent 的薄适配层。默认后端选择为 Codex，也可显式选择 Claude Code；它复用当前 Execution 的 `Command.run()`、环境、timeout、AbortSignal 和进程树清理，不创建第二套进程 Runtime。
 
+正常业务代码直接使用 `Agent.run()`；`Agent.getCapabilities()` 是可选的无副作用诊断/环境适配接口，不是每次调用前必须执行的握手。共享的 `enabled / supported / configured / available / checked / authenticated` 字段语义见 [Capability 状态模型](capabilities.md)。
+
+最小业务调用：
+
+```js
+const result = await Agent.run({ prompt: '只返回 OK' });
+console.log(result.data);
+```
+
 ## API 一览
 
 | 方法 | 用途 |
 | --- | --- |
-| `Agent.getCapabilities(options?)` | 无副作用查询 backend、Profile 与 executable 配置状态。 |
 | `Agent.run(options)` | 通过选定 CLI 协议执行一次 Agent task 并返回已验证的 `result.data`。 |
-
-## Agent.getCapabilities()
-
-**用途**
-
-无副作用解析后端、Profile 与可执行文件状态。该方法不会启动 CLI、检查版本、自动登录、安装程序、打开授权窗口或修改配置。
-
-**签名**
-
-```ts
-Agent.getCapabilities(options?: {backend?: string; profile?: string}): OpenDeskAgentCapabilities
-```
-
-**参数**
-
-| 参数 | 类型 | 必需 | 默认值 | 说明 |
-| --- | --- | --- | --- | --- |
-| `options` | `object` | 否 | `{}` | capability 查询条件。 |
-| `options.backend` | `string` | 否 | 选择规则 / `codex` | 要查询的 CLI 家族。 |
-| `options.profile` | `string` | 否 | 选择规则 | 要查询的命名 Profile；若同时指定 backend，二者必须一致。 |
-
-**返回值**
-
-```ts
-interface OpenDeskAgentCapabilities {
-  schemaVersion: 1;
-  kind: 'agent';
-  enabled: boolean;
-  executionScoped: true;
-  defaultBackend: 'codex';
-  supported: boolean;
-  configured: boolean;
-  executableFound: boolean | null;
-  checked: false;
-  authenticated: boolean | 'unknown';
-  available: null;
-  backend: string;
-  profile: string | null;
-  requestedModel: string | null;
-  supportedBackends: ('codex' | 'claude-code')[];
-  reservedBackends: string[];
-  structuredOutput: {native: boolean; local: true};
-  selectionError: {code: string; message: string; backend?: string | null; profile?: string | null} | null;
-}
-```
-
-`supported` 表示存在真实适配器；`configured` 表示选择和配置完整；`executableFound` 表示显式绝对路径或内建固定程序名已解析为可执行普通文件。Unix/macOS 同时检查执行权限；Windows 按大小写不敏感的环境名、`PATH` 与 `PATHEXT` 检查。该检查不启动程序。`checked: false` 表示没有执行版本探测，saved auth 因未登录测试而为 `'unknown'`，`available` 保持 `null`。这些字段不能互相替代。
-
-**行为与错误**
-
-未知参数以 `INVALID_ARGUMENT` 失败。选择或配置错误放入脱敏 `selectionError`。查询本身不会 fallback 到其他 CLI，也不会因配置完整就返回 `available: true`。
-
-**示例**
-
-```js
-const capabilities = Agent.getCapabilities({backend: 'claude-code'});
-console.log(JSON.stringify(capabilities));
-```
+| `Agent.getCapabilities(options?)` | 可选诊断：无副作用查询 backend、Profile 与 executable 配置状态。 |
 
 ## Agent.run()
 
@@ -176,3 +128,61 @@ console.log(result.data.value);
 ```
 
 Fixture PASS 只证明适配器、选择、校验和 Command 生命周期；没有真实 CLI 登录时不能表述为真实 Agent backend 已验证。
+
+## Agent.getCapabilities()
+
+**用途**
+
+无副作用解析后端、Profile 与可执行文件状态。该方法用于诊断或多环境分支；不会启动 CLI、检查版本、自动登录、安装程序、打开授权窗口或修改配置。正常业务代码不需要先调用它才能执行 `Agent.run()`。
+
+**签名**
+
+```ts
+Agent.getCapabilities(options?: {backend?: string; profile?: string}): OpenDeskAgentCapabilities
+```
+
+**参数**
+
+| 参数 | 类型 | 必需 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `options` | `object` | 否 | `{}` | capability 查询条件。 |
+| `options.backend` | `string` | 否 | 选择规则 / `codex` | 要查询的 CLI 家族。 |
+| `options.profile` | `string` | 否 | 选择规则 | 要查询的命名 Profile；若同时指定 backend，二者必须一致。 |
+
+**返回值**
+
+```ts
+interface OpenDeskAgentCapabilities {
+  schemaVersion: 1;
+  kind: 'agent';
+  enabled: boolean;
+  executionScoped: true;
+  defaultBackend: 'codex';
+  supported: boolean;
+  configured: boolean;
+  executableFound: boolean | null;
+  checked: false;
+  authenticated: boolean | 'unknown';
+  available: null;
+  backend: string;
+  profile: string | null;
+  requestedModel: string | null;
+  supportedBackends: ('codex' | 'claude-code')[];
+  reservedBackends: string[];
+  structuredOutput: {native: boolean; local: true};
+  selectionError: {code: string; message: string; backend?: string | null; profile?: string | null} | null;
+}
+```
+
+`supported` 表示存在真实适配器；`configured` 表示选择和配置完整；`executableFound` 表示显式绝对路径或内建固定程序名已解析为可执行普通文件。Unix/macOS 同时检查执行权限；Windows 按大小写不敏感的环境名、`PATH` 与 `PATHEXT` 检查。该检查不启动程序。`checked: false` 表示没有执行版本探测，saved auth 因未登录测试而为 `'unknown'`，`available` 保持 `null`。这些字段不能互相替代；尤其 `available: null` 表示没有进行 live availability probe，不表示 unavailable。
+
+**行为与错误**
+
+未知参数以 `INVALID_ARGUMENT` 失败。选择或配置错误放入脱敏 `selectionError`。查询本身不会 fallback 到其他 CLI，也不会因配置完整就返回 `available: true`。
+
+**示例**
+
+```js
+const capabilities = Agent.getCapabilities({backend: 'claude-code'});
+console.log(JSON.stringify(capabilities));
+```
