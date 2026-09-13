@@ -361,7 +361,7 @@
     "systemData": ["system.md", "execution.md", "command.md", "llm.md", "agent.md", "file.md", "sqlite.md", "storage.md", "clipboard.md"],
     "network": ["http.md", "http-server.md"],
     "delivery": ["script-app-packaging.md", "app-package-cli.md", "protected-packages.md"],
-    "runtime": ["capabilities.md", "environment.md", "execution.md", "runtime.md", "command.md", "llm.md", "agent.md", "notify.md", "audio.md", "sound.md", "ui.md", "native-extension.md", "global-apis.md", "libs.md"],
+    "runtime": ["capabilities.md", "environment.md", "execution.md", "runtime.md", "command.md", "llm.md", "agent.md", "notify.md", "notifications.md", "audio.md", "sound.md", "ui.md", "native-extension.md", "global-apis.md", "libs.md"],
     "examples": "cookbook.md"
   }
 }
