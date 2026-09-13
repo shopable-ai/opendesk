@@ -2,6 +2,24 @@
 
 本目录保存 Agent-first Recorder／Agent-to-Recipe、人工 Recorder／Human-to-Recipe、官方产品配置维护，以及受保护包发布和 Script App Packaging 等面向开发、发布与交付的工作流、Skill、设计与案例。文档存在不表示 Skill 已加载、整体调度已实现或桌面任务已通过；这些工作流也不代表 OpenDesk 的全部产品范围。
 
+## 自动化能力生命周期：运行与生产怎样接起来
+
+跨 Runtime、Catalog 与作者链的唯一架构见 [Automation Capability Lifecycle](../docs/architecture/desktop-automation/task-capability-lifecycle.md)。它定义最小能力发布合同、已有能力/Capability Gap 路由、独立资格、失败维修与新版本发布，以及跨层任务分解树；字段仍复用现有共享合同和 Human 原生 plan，不复制另一套 AppProfile 或业务步骤权威来源。
+
+```text
+普通用户自然语言 → 受控 Planner → Capability Resolver
+  → 已发布且当前适用的 Qualified Capability → 校验/预览/确认 → 普通 JS → 真实结果
+  → 没有能力或资格不适用 → 明确 Gap/阻塞/重验/维修
+    → 用户明确进入创建/教学/录制 → Agent/Human/已有资产作者链
+    → 冻结 Candidate → independent qualification → 明确 publish → 后续运行复用
+运行失败 → Failure Package → 定向维修 → 新候选/资格/发布版本
+```
+
+- Chat Runner 是产品运行状态机，不在本目录建立平行 `conversational-task-runner/`、`capability-resolver/` 或 `chat-agent/` 工作流。当前 Calculator Chat 的源码、命令与真实验收状态仍见 [Conversational Task Runner](../docs/architecture/conversational-task-runner.md)。
+- Agent 的 S1—S12 与 Human 的 H1—H8 保留各自入口和来源；`application-engineer` 由两条作者链及失败维修共用，不另建应用工程 Skill。方法名称不表示已安装或已有自动调度。
+- 现行 `recorder-script-refiner` 从固定 actions 确定性编译保真候选，其静态 PASS 不等于业务 qualification；需要参数化、业务意图或真实结果资格时使用 `human-to-recipe`。
+- Catalog、发布器与通用 recipe-qualify 是生命周期方案中的待实施部分，不因本文写入而变成当前可调用能力。Normal Mode 不生成并立即执行任意 JS，也不把一次运行确认隐式扩大为探索、开发、验收和发布授权。
+
 ## Official Product Config：从这里开始
 
 - 阅读 [Official Product Config 工作流](official-product-config/README.md)，或使用 [`manage-official-product-config`](official-product-config/skills/manage-official-product-config/SKILL.md) 维护官网、帮助、定制、商店、专业版等官方产品入口。
@@ -30,8 +48,9 @@
 
 - 阅读[Human-to-Recipe 入口](human-to-recipe/README.md)：理解受控坐标、增强普通 JS、JS／Agent 混合出口及其边界。
 - 阅读[完整作业任务树](human-to-recipe/design/task-decomposition.md)：H1—H8、点击与无文字图标分析、其他动作分支及贯穿约束。
+- 阅读[Recorder 工程设计](human-to-recipe/design/recorder-design.md)：Recorder 的规范性需求、数据合同和实际调用链。
 - 阅读[实施与验收计划](human-to-recipe/design/implementation-plan.md)：阶段交接、数据责任、最小工作包、待核查类方法和验证门槛。
-- 人工录制设计不重写 Agent-first 工作流，不把候选方法写成已实现 API，也不要求基础坐标脚本先完成大模型分析。只保留上述三份主文档，不按每个阶段另建文件或 Skill。
+- 人工录制设计不重写 Agent-first 工作流，不把候选方法写成已实现 API，也不要求基础坐标脚本先完成大模型分析。上述四份主文档各有唯一职责，不按每个阶段另建文件或 Skill。
 
 ## Agent-to-Recipe：从这里开始
 
