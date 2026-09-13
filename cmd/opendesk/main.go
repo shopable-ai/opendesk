@@ -1839,7 +1839,7 @@ func startContainerBasedServer(port string, appConfig *Config) error {
 	if err != nil {
 		return fmt.Errorf("locate Scheduler script root: %w", err)
 	}
-	schedulerExecutor, err := pkgScheduler.NewScriptExecutor(scriptRoot, 30*time.Minute)
+	schedulerExecutor, err := newHTTPSchedulerExecutor(scriptRoot, cfg)
 	if err != nil {
 		return fmt.Errorf("initialize Scheduler executor: %w", err)
 	}
@@ -1942,6 +1942,22 @@ func startContainerBasedServer(port string, appConfig *Config) error {
 		}
 	}
 	return nil
+}
+
+func newHTTPSchedulerExecutor(scriptRoot string, config *pkgContainer.Config) (*pkgScheduler.ScriptExecutor, error) {
+	return pkgScheduler.NewScriptExecutorWithOptions(scriptRoot, httpSchedulerExecutorOptions(config))
+}
+
+func httpSchedulerExecutorOptions(config *pkgContainer.Config) pkgScheduler.ScriptExecutorOptions {
+	options := pkgScheduler.ScriptExecutorOptions{Timeout: 30 * time.Minute}
+	if config == nil {
+		return options
+	}
+	options.EnableCustomUI = config.EnableCustomUI
+	options.CustomUIActivationSource = config.CustomUIActivationSource
+	options.CustomUIHostPath = config.CustomUIHostPath
+	options.CustomUIDriver = config.CustomUIDriver
+	return options
 }
 
 func accessibilityWorkbenchArtifactRoot() (string, error) {
