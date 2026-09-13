@@ -72,9 +72,9 @@ jobs:
         shell: pwsh
         run: go test ./internal/appcli ./pkg/appshell -count=1
 
-      - name: Run deterministic Window Manager seams
+      - name: Run deterministic Windows process and Window Manager seams
         shell: pwsh
-        run: go test ./automation -run '^TestWindowsWindowManager' -count=1
+        run: go test ./automation -run '^TestWindows(CommandHideWindow|WindowManager)' -count=1
 
       - name: Build portable Windows distribution
         shell: pwsh
@@ -96,9 +96,12 @@ jobs:
         run: |
           $distribution = ".\dist\windows\win-x64"
           $required = @(
+            "OpenDesk.exe",
+            "opendesk.exe",
             "app-mode\opendesk.app.json",
             "app-mode\main.js",
             "app-mode\permissions-center.js",
+            "app-mode\developer-tools.js",
             "app-mode\runtime-log.js",
             "app-mode\recorder\controller.js",
             "app-mode\recorder\controller-core.js",

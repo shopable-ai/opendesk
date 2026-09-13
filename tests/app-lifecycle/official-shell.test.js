@@ -17,9 +17,10 @@ vm.runInThisContext(fs.readFileSync(shellFile, 'utf8'), {filename: shellFile});
 vm.runInThisContext(fs.readFileSync(runnerFile, 'utf8'), {filename: runnerFile});
 const Shell = globalThis.OpenDeskOfficialShell;
 const Runner = globalThis.OpenDeskScriptRunnerSimple;
-const asset = fs.readFileSync(path.join(repo, 'apps', 'opendesk', 'assets', 'official-shell.odcfg'), 'utf8');
+const asset = fs.readFileSync(path.join(repo, 'apps', 'opendesk', 'assets', 'official-actions.odcfg'), 'utf8');
+const sourceConfig = JSON.parse(fs.readFileSync(path.join(repo, 'configs', 'official-actions.json'), 'utf8'));
 const OBFUSCATION_KEY = 'OpenDeskOfficialShell/v1';
-const OPENDESK_HOMEPAGE_URL = 'https://github.com/shopable-ai/opendesk';
+const OPENDESK_HOMEPAGE_URL = sourceConfig.actions.home.url;
 
 function checksum16(text) {
   let sum = 0;
@@ -55,28 +56,29 @@ function fileAPI() {
   return {
     join: path.join,
     read: file => fs.readFileSync(file, 'utf8'),
-    stat(file) {
-      try {
-        const info = fs.statSync(file);
-        return {type: info.isDirectory() ? 'directory' : info.isFile() ? 'file' : 'other'};
-      } catch (error) {
-        if (error.code === 'ENOENT') return null;
-        throw error;
-      }
-    },
+    exists: file => fs.existsSync(file),
   };
 }
 
-function createFixture(configText) {
+function createFixture(configText, options = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opendesk-official-shell-'));
   fs.mkdirSync(path.join(root, 'assets'));
-  if (configText !== undefined) fs.writeFileSync(path.join(root, 'assets', 'official-shell.odcfg'), configText);
+  if (configText !== undefined) fs.writeFileSync(path.join(root, 'assets', 'official-actions.odcfg'), configText);
+  if (options.plaintextText !== undefined) {
+    fs.writeFileSync(path.join(root, 'assets', 'official-actions.json'), options.plaintextText);
+  }
+  if (options.legacyConfigText !== undefined) {
+    fs.writeFileSync(path.join(root, 'assets', 'official-shell.odcfg'), options.legacyConfigText);
+  }
   const calls = [];
   const warnings = [];
   const shell = Shell.create({
     file: fileAPI(),
     command: {run: async (...args) => { calls.push(args); return {exitCode: 0, stdout: '', stderr: ''}; }},
-    system: {getPlatformInfo: () => ({os: 'darwin'})},
+    system: {
+      product: {website: options.productWebsite || OPENDESK_HOMEPAGE_URL},
+      getPlatformInfo: () => ({os: options.os || 'darwin'}),
+    },
     execution: {workdir: root},
     packageRoot: root,
     logger: {warn: message => warnings.push(message)},
@@ -84,8 +86,8 @@ function createFixture(configText) {
   return {root, shell, calls, warnings};
 }
 
-test('the bundled Official Shell config parses to the frozen P0 defaults', () => {
-  assert.deepEqual(Shell.parseConfig(asset), config());
+test('the bundled Official Shell config matches the maintained plaintext source', () => {
+  assert.deepEqual(Shell.parseConfig(asset), sourceConfig);
 });
 
 for (const [name, mutate, expected] of [
@@ -106,9 +108,77 @@ test('validateConfig rejects non-HTTPS URLs and hidden core actions', () => {
   assert.throws(() => Shell.validateConfig(config({help: {visible: true, url: 'javascript:alert(1)'}})), /only accepts https/);
   assert.throws(() => Shell.validateConfig(config({help: {visible: true, url: 'https://'}})), /only accepts https/);
   assert.throws(() => Shell.validateConfig(config({help: {visible: true, url: 'https://example.com/\n--not-a-url'}})), /only accepts https/);
+  assert.throws(() => Shell.validateConfig(config({home: {visible: true, url: 'javascript:alert(1)'}})), /only accepts https/);
+  assert.throws(() => Shell.validateConfig(config({home: {visible: true, url: ''}})), /requires an https URL/);
   assert.throws(() => Shell.validateConfig(config({home: {visible: false, url: OPENDESK_HOMEPAGE_URL}})), /core action cannot be hidden/);
+  assert.throws(() => Shell.validateConfig(config({help: {visible: false, url: ''}})), /core action cannot be hidden/);
   assert.throws(() => Shell.validateConfig(config({customize: {visible: false, url: ''}})), /core action cannot be hidden/);
   assert.deepEqual(Shell.validateConfig(config()), config());
+});
+
+test('validateConfig rejects missing actions, unknown actions and unknown fields', () => {
+  const missing = config();
+  delete missing.actions.upgrade;
+  assert.throws(() => Shell.validateConfig(missing), /missing action: upgrade/);
+  assert.throws(() => Shell.validateConfig(config({unknown: {visible: true, url: 'https://example.com'}})), /unknown action: unknown/);
+  assert.throws(() => Shell.validateConfig({...config(), unexpected: true}), /unknown field: unexpected/);
+  assert.throws(() => Shell.validateConfig(config({help: {visible: true, url: '', extra: true}})), /unknown field: help\.extra/);
+});
+
+test('fixed official-actions basename prefers protected config and never reads sibling plaintext', () => {
+  const protectedConfig = config({help: {visible: true, url: 'https://protected.example/help'}});
+  const plaintextConfig = config({help: {visible: true, url: 'https://plaintext.example/help'}});
+  const fixture = createFixture(encodeConfig(protectedConfig), {
+    plaintextText: JSON.stringify(plaintextConfig),
+  });
+  try {
+    assert.equal(fixture.shell.state().configSource, 'bundle');
+    assert.equal(fixture.shell.state().configFormat, 'ODCFG1');
+    assert.equal(fixture.shell.getAction('opendesk.help').url, 'https://protected.example/help');
+  } finally {
+    fs.rmSync(fixture.root, {recursive: true, force: true});
+  }
+});
+
+test('corrupt protected config fails closed instead of downgrading to sibling plaintext', () => {
+  const plaintextConfig = config({help: {visible: true, url: 'https://plaintext.example/help'}});
+  const fixture = createFixture('ODCFG1:ffff\n00\n', {
+    plaintextText: JSON.stringify(plaintextConfig),
+  });
+  try {
+    assert.equal(fixture.shell.state().configSource, 'fallback');
+    assert.equal(fixture.shell.state().configFormat, 'fallback');
+    assert.match(fixture.shell.state().configError, /checksum mismatch/);
+    assert.equal(fixture.shell.getAction('opendesk.help').url, '');
+    assert.ok(fixture.warnings.length > 0);
+  } finally {
+    fs.rmSync(fixture.root, {recursive: true, force: true});
+  }
+});
+
+test('plaintext config is a development fallback only when protected config is absent', () => {
+  const fixture = createFixture(undefined, {
+    plaintextText: JSON.stringify(config({help: {visible: true, url: 'https://plaintext.example/help'}})),
+  });
+  try {
+    assert.equal(fixture.shell.state().configSource, 'plaintext');
+    assert.equal(fixture.shell.state().configFormat, 'json');
+    assert.equal(fixture.shell.getAction('opendesk.help').url, 'https://plaintext.example/help');
+    assert.equal(fixture.warnings.length, 0);
+  } finally {
+    fs.rmSync(fixture.root, {recursive: true, force: true});
+  }
+});
+
+test('legacy official-shell basename is not a second configuration source', () => {
+  const fixture = createFixture(undefined, {legacyConfigText: asset});
+  try {
+    assert.equal(fixture.shell.state().configSource, 'fallback');
+    assert.match(fixture.shell.state().configError, /file is missing/);
+    assert.equal(fixture.shell.getAction('opendesk.help').url, '');
+  } finally {
+    fs.rmSync(fixture.root, {recursive: true, force: true});
+  }
 });
 
 test('missing and corrupt config fail safe to visible pending core actions', async () => {
@@ -125,7 +195,7 @@ test('missing and corrupt config fail safe to visible pending core actions', asy
       assert.equal(fixture.shell.state().configSource, 'fallback');
       assert.ok(fixture.warnings.length > 0);
       assert.equal(fixture.shell.getAction('opendesk.home').visible, true);
-      assert.equal(fixture.shell.getAction('opendesk.home').url, OPENDESK_HOMEPAGE_URL);
+      assert.equal(fixture.shell.getAction('opendesk.home').url, '');
       assert.equal(fixture.shell.getAction('opendesk.help').visible, true);
       assert.equal(fixture.shell.getAction('opendesk.customize').visible, true);
       assert.equal(fixture.shell.getAction('opendesk.marketplace').visible, false);
@@ -143,15 +213,43 @@ test('missing and corrupt config fail safe to visible pending core actions', asy
   }
 });
 
-test('homepage activation opens the canonical public project page', async () => {
-  const fixture = createFixture(encodeConfig(config()));
+test('a bundled homepage that disagrees with System.product.website fails closed', () => {
+  const fixture = createFixture(encodeConfig(config()), {
+    productWebsite: 'https://github.com/shopable-ai/opendesk#different',
+  });
   try {
-    assert.deepEqual(await fixture.shell.activate('opendesk.home'), {
-      status: 'opened', actionId: 'opendesk.home', message: '已打开OpenDesk 官网。',
-    });
-    assert.equal(fixture.calls.length, 1);
-    assert.equal(fixture.calls[0][0], '/usr/bin/open');
-    assert.deepEqual(fixture.calls[0][1], [OPENDESK_HOMEPAGE_URL]);
+    assert.equal(fixture.shell.state().configSource, 'fallback');
+    assert.match(fixture.shell.state().configError, /does not match System\.product\.website/);
+    assert.equal(fixture.shell.getAction('opendesk.home').url, '');
+    assert.ok(fixture.warnings.length > 0);
+  } finally {
+    fs.rmSync(fixture.root, {recursive: true, force: true});
+  }
+});
+
+test('every visible bundled action opens its configured HTTPS target', async () => {
+  const fixture = createFixture(asset);
+  try {
+    const visible = Object.entries(sourceConfig.actions).filter(([, action]) => action.visible);
+    for (const [name, action] of visible) {
+      assert.match(action.url, /^https:\/\//);
+      const result = await fixture.shell.activate(`opendesk.${name}`);
+      assert.equal(result.status, 'opened');
+      assert.equal(result.actionId, `opendesk.${name}`);
+    }
+    assert.equal(fixture.calls.length, visible.length);
+    assert.deepEqual(fixture.calls.map(call => call[0]), visible.map(() => '/usr/bin/open'));
+    assert.deepEqual(fixture.calls.map(call => call[1]), visible.map(([, action]) => [action.url]));
+  } finally {
+    fs.rmSync(fixture.root, {recursive: true, force: true});
+  }
+});
+
+test('unknown action activation rejects without invoking an external handler', async () => {
+  const fixture = createFixture(asset);
+  try {
+    await assert.rejects(() => fixture.shell.activate('opendesk.unknown'), /unknown official action/);
+    assert.equal(fixture.calls.length, 0);
   } finally {
     fs.rmSync(fixture.root, {recursive: true, force: true});
   }
@@ -184,7 +282,10 @@ test('HTTPS activation uses platform executable and an argument array', async ()
     const shell = Shell.create({
       file: fileAPI(),
       command: {run: async (...args) => { fixture.calls.push(args); return {exitCode: 0, stdout: '', stderr: ''}; }},
-      system: {getPlatformInfo: () => ({os: osName})},
+      system: {
+        product: {website: OPENDESK_HOMEPAGE_URL},
+        getPlatformInfo: () => ({os: osName}),
+      },
       execution: {workdir: fixture.root},
       packageRoot: fixture.root,
       logger: {warn: message => fixture.warnings.push(message)},

@@ -7,10 +7,11 @@ scheduler-center.js
 permissions-center.js
 inspector-launcher.js
 app-controller.js
+developer-tools.js
 runtime-log.js
 script-runner-simple.js
 script-runner/controller.js
-assets/official-shell.odcfg
+assets/official-actions.odcfg
 assets/opendesk-logo.png
 assets/tray-template.png
 assets/tray.ico

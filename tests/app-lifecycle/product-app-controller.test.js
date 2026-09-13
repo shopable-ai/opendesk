@@ -171,6 +171,7 @@ test('Developer tools keep Inspector, LAN, debug, logs, and status in the produc
   const copied = [];
   const detailModes = [];
   const controls = new Map();
+  let statusWindowCreates = 0;
   let lanEnabled = false;
   try {
     const developerToolsFile = path.resolve(__dirname, '..', '..', 'apps', 'opendesk', 'developer-tools.js');
@@ -213,6 +214,7 @@ test('Developer tools keep Inspector, LAN, debug, logs, and status in the produc
       ui: {
         async notify() {},
         async createWindow() {
+          statusWindowCreates++;
           const closeHandlers = [];
           return {
             control(id) {
@@ -244,7 +246,11 @@ test('Developer tools keep Inspector, LAN, debug, logs, and status in the produc
       args: ['http://127.0.0.1:54321/accessibility-workbench/'],
       options: {timeout: 10000, maxOutputBytes: 256 * 1024, hideWindow: true},
     });
-    await tools.activate('opendesk.status');
+    await Promise.all([
+      tools.activate('opendesk.status'),
+      tools.activate('opendesk.status'),
+    ]);
+    assert.equal(statusWindowCreates, 1);
     assert.equal(tools.state().statusOpen, true);
     assert.equal(controls.get('executionId').at(-1).text, 'app-001');
     assert.equal(controls.get('runner').at(-1).text, '已显示');
@@ -322,7 +328,11 @@ test('Runtime Log reads canonical artifacts, tails detailed events, and rebuilds
     const runtimeLog = globalThis.OpenDeskRuntimeLog.create({
       runner: {state() { return {latestExecution: {scriptPath: '/recipes/daily.js', logDir: run, status: 'failed'}}; }},
     });
-    await runtimeLog.open('test');
+    await Promise.all([
+      runtimeLog.open('test'),
+      runtimeLog.open('test'),
+    ]);
+    assert.equal(windows.length, 1);
     assert.doesNotMatch(windowSpecs[0].content.html, /<pre\b/i,
       'Runtime Log content must stay within the Custom UI v1 element allowlist');
     assert.match(windowSpecs[0].content.html, /<p id="stdout" class="log-output"><\/p>/);

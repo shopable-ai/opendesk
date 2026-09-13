@@ -44,6 +44,7 @@ func validateAppModeConfig(config *Config) error {
 	}
 	return nil
 }
+
 func validateAppModeHelperConflict(args []string) error {
 	if !appModeRequested(args) {
 		return nil
@@ -78,7 +79,11 @@ func executeAppMode(config *Config) error {
 	if err != nil {
 		return fmt.Errorf("read App Mode entry: %w", err)
 	}
-	environment, err := runtimeenv.Resolve(runtimeenv.Options{WorkingDirectory: appPackage.Root, File: config.EnvironmentFile, Inherited: os.Environ()})
+	environment, err := runtimeenv.Resolve(runtimeenv.Options{
+		WorkingDirectory: appPackage.Root,
+		File:             config.EnvironmentFile,
+		Inherited:        os.Environ(),
+	})
 	if err != nil {
 		return fmt.Errorf("resolve App Mode environment: %w", err)
 	}
@@ -101,6 +106,7 @@ func executeAppMode(config *Config) error {
 	if err != nil {
 		return fmt.Errorf("resolve App Mode runtime artifacts root: %w", err)
 	}
+
 	signalContext, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stopSignals()
 	appContext, cancelApp := context.WithCancel(signalContext)
@@ -108,7 +114,10 @@ func executeAppMode(config *Config) error {
 	shell.SetQuitHook(cancelApp)
 	stopSignalHook := context.AfterFunc(signalContext, func() { _ = shell.RequestQuit() })
 	defer stopSignalHook()
-	lease, primary, err := appshell.AcquireSingleInstance(appContext, appPackage.Manifest, func() bool { return shell.Activate("second-instance") == nil })
+
+	lease, primary, err := appshell.AcquireSingleInstance(appContext, appPackage.Manifest, func() bool {
+		return shell.Activate("second-instance") == nil
+	})
 	if err != nil {
 		return err
 	}
@@ -129,20 +138,35 @@ func executeAppMode(config *Config) error {
 		ExperimentalUnsafeNativeExtensionCall: config.ExperimentalUnsafeNativeExtensionCall,
 		CustomUIHostPath:                      config.CustomUIHostPath,
 	}, environment, sharedUIDriver)
-	if err := shell.BindRecorderAction(func(event appshell.ActionEvent) error { return recorder.Open(appContext, event.Source) }); err != nil {
+	if err := shell.BindRecorderAction(func(event appshell.ActionEvent) error {
+		return recorder.Open(appContext, event.Source)
+	}); err != nil {
 		return err
 	}
 	defer recorder.Cancel()
-	appScheduler, err := startAppScheduler(appContext, config, appPackage.Manifest.ID, appPackage.Root, environment.Values)
+	appScheduler, err := startAppScheduler(
+		appContext,
+		config,
+		appPackage.Manifest.ID,
+		appPackage.Root,
+		environment.Values,
+		sharedUIDriver,
+	)
 	if err != nil {
 		return fmt.Errorf("start App Scheduler: %w", err)
 	}
 	defer appScheduler.Close()
-	environment.Values[appSchedulerEndpointEnv] = appScheduler.Endpoint()
-	environment.Values[appSchedulerTokenEnv] = appScheduler.Token()
+	environment.Values = appScheduler.Environment(environment.Values)
+	appDeveloper, err := startAppDeveloperRuntime(appContext, appPackage.Manifest.ID, environment.Values)
+	if err != nil {
+		return fmt.Errorf("start App developer runtime: %w", err)
+	}
+	defer appDeveloper.Close()
+	environment.Values = appDeveloper.Environment(environment.Values)
 	if err := shell.Start(appContext); err != nil {
 		return fmt.Errorf("start App Shell: %w", err)
 	}
+
 	executionID := pkgExecution.NewExecutionID("app")
 	appLogDir := artifactsRoot
 	if !artifactsConfigured {
@@ -156,10 +180,45 @@ func executeAppMode(config *Config) error {
 		return errors.Join(err, shell.Teardown())
 	}
 	selection := buildExecutionConsoleSelection(config)
-	request := pkgExecution.Request{Context: appContext, ExecutionID: executionID, SourceLabel: "app:" + appPackage.Manifest.ID, ScriptPath: appPackage.EntryPath, Ext: ".js", StackMode: config.StackMode, ScriptContent: content, WorkDir: appPackage.Root, Environment: environment.Values, TimeoutMinutes: 0, EnableNativeExtensions: true, EnableUnsafeNativeExtensionCall: config.ExperimentalUnsafeNativeExtensionCall, EnableCommand: true, EnableDownload: true, EnableAccessibility: true, EnableSQLite: true, EnableRecorderCapture: recorderCaptureAllowed, SQLiteProtectedPaths: sqliteProtectedPaths(config), EnableCustomUI: true, CustomUIActivationSource: customui.ActivationCLI, CustomUIHostPath: config.CustomUIHostPath, CustomUIDriver: customui.NewSessionScopedDriverForSession(sharedUIDriver, executionID), CustomUIBaseDir: appPackage.Root, AppShell: shell, GracefulCancellation: func() bool {
-		state := shell.State()
-		return shell.TerminalError() == nil && (state == appshell.StateQuitting || state == appshell.StateStopped)
-	}, Artifacts: artifacts, Selection: pkgExecution.TerminalSelection{Mode: selection.Mode, Categories: copyConsoleCategories(selection.Categories), IncludeDebug: selection.IncludeDebug, ColorMode: selection.ColorMode}}
+	request := pkgExecution.Request{
+		Context:       appContext,
+		ExecutionID:   executionID,
+		SourceLabel:   "app:" + appPackage.Manifest.ID,
+		ScriptPath:    appPackage.EntryPath,
+		Ext:           ".js",
+		StackMode:     config.StackMode,
+		ScriptContent: content,
+		WorkDir:       appPackage.Root,
+		Environment:   environment.Values,
+		// App Mode intentionally has no implicit 30-minute CLI deadline.
+		TimeoutMinutes:                  0,
+		EnableNativeExtensions:          true,
+		EnableUnsafeNativeExtensionCall: config.ExperimentalUnsafeNativeExtensionCall,
+		EnableCommand:                   true,
+		EnableDownload:                  true,
+		EnableAccessibility:             true,
+		EnableSQLite:                    true,
+		EnableRecorderCapture:           recorderCaptureAllowed,
+		SQLiteProtectedPaths:            sqliteProtectedPaths(config),
+		EnableCustomUI:                  true,
+		CustomUIActivationSource:        customui.ActivationCLI,
+		CustomUIHostPath:                config.CustomUIHostPath,
+		CustomUIDriver:                  customui.NewSessionScopedDriverForSession(sharedUIDriver, executionID),
+		CustomUIBaseDir:                 appPackage.Root,
+		AppShell:                        shell,
+		GracefulCancellation: func() bool {
+			state := shell.State()
+			return shell.TerminalError() == nil && (state == appshell.StateQuitting || state == appshell.StateStopped)
+		},
+		Artifacts: artifacts,
+		Selection: pkgExecution.TerminalSelection{
+			Mode:         selection.Mode,
+			Categories:   copyConsoleCategories(selection.Categories),
+			IncludeDebug: selection.IncludeDebug,
+			ColorMode:    selection.ColorMode,
+		},
+	}
+
 	runResult := make(chan appModeExecutionResult, 1)
 	go func() {
 		result, summary, runErr := pkgExecution.Run(request)
@@ -171,6 +230,7 @@ func executeAppMode(config *Config) error {
 		_ = shell.RequestQuit()
 	}
 	outcome := <-runResult
+
 	var leaseErr error
 	if lease != nil {
 		leaseErr = lease.Close()
@@ -186,6 +246,7 @@ func executeAppMode(config *Config) error {
 	}
 	return errors.Join(mainErr, outcome.err, leaseErr)
 }
+
 func appModeRecorderCaptureAllowed(config *Config) bool {
 	if config == nil {
 		return false

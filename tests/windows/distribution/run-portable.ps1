@@ -45,6 +45,27 @@ function Get-PEMachine {
     }
 }
 
+function Get-PESubsystem {
+    param([Parameter(Mandatory=$true)][string]$Path)
+
+    $stream = [IO.File]::Open($Path, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
+    try {
+        $reader = [IO.BinaryReader]::new($stream)
+        if ($reader.ReadUInt16() -ne 0x5A4D) { throw "$Path is not a PE executable." }
+        $stream.Position = 0x3C
+        $peOffset = $reader.ReadInt32()
+        $optionalHeader = $peOffset + 24
+        if ($peOffset -lt 0 -or $optionalHeader + 70 -gt $stream.Length) { throw "$Path has an invalid PE optional header." }
+        $stream.Position = $optionalHeader
+        $magic = $reader.ReadUInt16()
+        if ($magic -ne 0x010B -and $magic -ne 0x020B) { throw "$Path has an unsupported PE optional-header magic." }
+        $stream.Position = $optionalHeader + 68
+        return $reader.ReadUInt16()
+    } finally {
+        $stream.Dispose()
+    }
+}
+
 function Invoke-OpenDesk {
     param(
         [Parameter(Mandatory=$true)][string]$RuntimePath,
@@ -66,6 +87,7 @@ $evidence = [ordered]@{
     checks = [ordered]@{
         requiredFiles = $false
         architecture = $false
+        entrySubsystems = $false
         provenance = $false
         runtimeAssetClosure = $false
         unicodeAndSpacePath = $false
@@ -84,11 +106,12 @@ $evidence = [ordered]@{
 $tempRoot = $null
 try {
     $runtimePath = Join-Path $DistributionDirectory 'opendesk.exe'
+    $desktopRuntimePath = Join-Path $DistributionDirectory 'OpenDesk.exe'
     $uiHostPath = Join-Path $DistributionDirectory 'ui-host/opendesk-ui-host.exe'
     $uiHostProvenancePath = Join-Path $DistributionDirectory 'ui-host/build-provenance.json'
     $distributionProvenancePath = Join-Path $DistributionDirectory 'distribution-provenance.json'
 
-    foreach ($required in @($runtimePath, $uiHostPath, $uiHostProvenancePath, $distributionProvenancePath)) {
+    foreach ($required in @($runtimePath, $desktopRuntimePath, $uiHostPath, $uiHostProvenancePath, $distributionProvenancePath)) {
         if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
             throw "Distribution required file is missing: $required"
         }
@@ -97,11 +120,19 @@ try {
 
     $expectedMachine = 0x8664
     $runtimeMachine = Get-PEMachine -Path $runtimePath
+    $desktopRuntimeMachine = Get-PEMachine -Path $desktopRuntimePath
     $uiHostMachine = Get-PEMachine -Path $uiHostPath
-    if ($runtimeMachine -ne $expectedMachine -or $uiHostMachine -ne $expectedMachine) {
-        throw ('Distribution architecture mismatch: runtime=0x{0:X4}, uiHost=0x{1:X4}, expected=0x8664.' -f $runtimeMachine, $uiHostMachine)
+    if ($runtimeMachine -ne $expectedMachine -or $desktopRuntimeMachine -ne $expectedMachine -or $uiHostMachine -ne $expectedMachine) {
+        throw ('Distribution architecture mismatch: cli=0x{0:X4}, desktop=0x{1:X4}, uiHost=0x{2:X4}, expected=0x8664.' -f $runtimeMachine, $desktopRuntimeMachine, $uiHostMachine)
     }
     $evidence.checks.architecture = $true
+    $runtimeSubsystem = Get-PESubsystem -Path $runtimePath
+    $desktopRuntimeSubsystem = Get-PESubsystem -Path $desktopRuntimePath
+    if ($runtimeSubsystem -ne 3 -or $desktopRuntimeSubsystem -ne 2) {
+        throw "Windows entry subsystem mismatch: opendesk.exe=$runtimeSubsystem (want 3), OpenDesk.exe=$desktopRuntimeSubsystem (want 2)."
+    }
+    $evidence.entrySubsystems = [ordered]@{ cli = $runtimeSubsystem; desktop = $desktopRuntimeSubsystem }
+    $evidence.checks.entrySubsystems = $true
 
     $distributionProvenance = Get-Content -LiteralPath $distributionProvenancePath -Raw | ConvertFrom-Json
     $uiHostProvenance = Get-Content -LiteralPath $uiHostProvenancePath -Raw | ConvertFrom-Json
@@ -112,6 +143,10 @@ try {
         $distributionProvenance.uiHostRuntime -ne 'win-x64' -or
         $distributionProvenance.runtimeCompatibilityVersion -ne $expectedRuntimeCompatibilityVersion -or
         $distributionProvenance.files.runtime.compatibilityVersion -ne $expectedRuntimeCompatibilityVersion -or
+        $distributionProvenance.layout.cliEntry -ne 'opendesk.exe' -or
+        $distributionProvenance.layout.desktopEntry -ne 'OpenDesk.exe' -or
+        $distributionProvenance.files.runtime.peSubsystem -ne 3 -or
+        $distributionProvenance.files.desktopEntry.peSubsystem -ne 2 -or
         $uiHostProvenance.runtime -ne 'win-x64') {
         throw 'Distribution provenance does not describe one consistent versioned win-x64 application.'
     }
@@ -170,8 +205,10 @@ try {
     Copy-Item -Path (Join-Path $DistributionDirectory '*') -Destination $copiedDistribution -Recurse -Force
 
     $copiedRuntime = Join-Path $copiedDistribution 'opendesk.exe'
+    $copiedDesktopRuntime = Join-Path $copiedDistribution 'OpenDesk.exe'
     $copiedHostDirectory = Join-Path $copiedDistribution 'ui-host'
     if (-not (Test-Path -LiteralPath $copiedRuntime -PathType Leaf) -or
+        -not (Test-Path -LiteralPath $copiedDesktopRuntime -PathType Leaf) -or
         -not (Test-Path -LiteralPath (Join-Path $copiedHostDirectory 'opendesk-ui-host.exe') -PathType Leaf)) {
         throw 'Unicode/space-path distribution copy is incomplete.'
     }

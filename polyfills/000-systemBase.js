@@ -10,10 +10,16 @@
     systemFacade[name] = nativeSystem[name];
   }
   const System = systemFacade;
+  const nativeProduct = nativeSystem.product;
+  if (!nativeProduct || typeof nativeProduct !== 'object' ||
+      typeof nativeProduct.id !== 'string' || typeof nativeProduct.name !== 'string' ||
+      typeof nativeProduct.website !== 'string' || !/^https:\/\//.test(nativeProduct.website)) {
+    throw new Error('System.product native identity is unavailable');
+  }
   const product = Object.freeze({
-    id: 'com.opendesk.desktop',
-    name: 'OpenDesk',
-    website: 'https://github.com/shopable-ai/opendesk',
+    id: nativeProduct.id,
+    name: nativeProduct.name,
+    website: nativeProduct.website,
   });
 
   Object.defineProperty(System, 'product', {

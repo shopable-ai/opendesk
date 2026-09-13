@@ -15,6 +15,8 @@ MACOS_ICON="${ROOT_DIR}/public/icons/opendesk.icns"
 WINDOWS_ICON="${ROOT_DIR}/public/icons/opendesk.ico"
 NOTIFICATION_ICON="${ROOT_DIR}/public/icons/opendesk-notification.png"
 MENUBAR_TEMPLATE="${ROOT_DIR}/public/icons/opendesk-menubar-template.png"
+PRODUCT_TRAY_WINDOWS="${ROOT_DIR}/apps/opendesk/assets/tray.ico"
+PRODUCT_TRAY_TEMPLATE_MACOS="${ROOT_DIR}/apps/opendesk/assets/tray-template.png"
 
 if command -v magick >/dev/null 2>&1; then
   USE_MAGICK=1
@@ -193,6 +195,13 @@ image.resize((36, 36), Image.Resampling.LANCZOS).save(
 PY
 fi
 
+# apps/opendesk is the first-party product package. Windows uses the canonical
+# color ICO. Keep the monochrome macOS template available as an authored
+# alternative; the product manifest intentionally points at opendesk-logo.png
+# so the current application logo is rendered in its original colors.
+install -m 0644 "${WINDOWS_ICON}" "${PRODUCT_TRAY_WINDOWS}"
+install -m 0644 "${MENUBAR_TEMPLATE}" "${PRODUCT_TRAY_TEMPLATE_MACOS}"
+
 # Produce a disposable QA strip without changing any shipped asset.
 preview_cells=()
 for size in 16 32 48 64 128 256; do
@@ -235,4 +244,6 @@ printf 'macOS icon: %s\n' "${MACOS_ICON}"
 printf 'Windows icon: %s\n' "${WINDOWS_ICON}"
 printf 'Notification icon: %s\n' "${NOTIFICATION_ICON}"
 printf 'macOS menu bar template: %s\n' "${MENUBAR_TEMPLATE}"
+printf 'Product App Mode Windows tray icon: %s\n' "${PRODUCT_TRAY_WINDOWS}"
+printf 'Product App Mode optional macOS template: %s\n' "${PRODUCT_TRAY_TEMPLATE_MACOS}"
 printf 'QA preview: %s\n' "${RUNTIME_DIR}/size-preview.png"

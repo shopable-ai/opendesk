@@ -69,6 +69,27 @@ function Get-PEMachine {
     }
 }
 
+function Get-PESubsystem {
+    param([Parameter(Mandatory=$true)][string]$Path)
+
+    $stream = [IO.File]::Open($Path, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
+    try {
+        $reader = [IO.BinaryReader]::new($stream)
+        if ($reader.ReadUInt16() -ne 0x5A4D) { throw "$Path is not a PE executable." }
+        $stream.Position = 0x3C
+        $peOffset = $reader.ReadInt32()
+        $optionalHeader = $peOffset + 24
+        if ($peOffset -lt 0 -or $optionalHeader + 70 -gt $stream.Length) { throw "$Path has an invalid PE optional header." }
+        $stream.Position = $optionalHeader
+        $magic = $reader.ReadUInt16()
+        if ($magic -ne 0x010B -and $magic -ne 0x020B) { throw "$Path has an unsupported PE optional-header magic." }
+        $stream.Position = $optionalHeader + 68
+        return $reader.ReadUInt16()
+    } finally {
+        $stream.Dispose()
+    }
+}
+
 if (Test-Path -LiteralPath $OutputDirectory) {
     Remove-Item -LiteralPath $OutputDirectory -Recurse -Force
 }
@@ -150,6 +171,7 @@ try {
     }
 
     $runtimePath = Join-Path $OutputDirectory 'opendesk.exe'
+    $desktopRuntimePath = Join-Path $OutputDirectory 'OpenDesk.exe'
     $uiHostDirectory = Join-Path $OutputDirectory 'ui-host'
     $uiHostPath = Join-Path $uiHostDirectory 'opendesk-ui-host.exe'
     $uiHostProvenancePath = Join-Path $uiHostDirectory 'build-provenance.json'
@@ -164,7 +186,7 @@ try {
     } | ConvertTo-Json | Set-Content -Encoding utf8 $appBuilderTemplatePath
 
     $requiredRuntimeAssets = @($runtimeAssetManifest | ForEach-Object { Join-Path $OutputDirectory $_.path })
-    foreach ($required in @($runtimePath, $uiHostPath, $uiHostProvenancePath, $appBuilderTemplatePath) + $requiredRuntimeAssets) {
+    foreach ($required in @($runtimePath, $desktopRuntimePath, $uiHostPath, $uiHostProvenancePath, $appBuilderTemplatePath) + $requiredRuntimeAssets) {
         if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
             throw "Portable distribution is missing required file: $required"
         }
@@ -172,9 +194,21 @@ try {
 
     $expectedMachine = 0x8664
     $runtimeMachine = Get-PEMachine -Path $runtimePath
+    $desktopRuntimeMachine = Get-PEMachine -Path $desktopRuntimePath
     $uiHostMachine = Get-PEMachine -Path $uiHostPath
     if ($runtimeMachine -ne $expectedMachine) {
         throw ('OpenDesk runtime architecture mismatch: PE machine=0x{0:X4}, expected x64 0x8664.' -f $runtimeMachine)
+    }
+    if ($desktopRuntimeMachine -ne $expectedMachine) {
+        throw ('OpenDesk desktop architecture mismatch: PE machine=0x{0:X4}, expected x64 0x8664.' -f $desktopRuntimeMachine)
+    }
+    $runtimeSubsystem = Get-PESubsystem -Path $runtimePath
+    $desktopRuntimeSubsystem = Get-PESubsystem -Path $desktopRuntimePath
+    if ($runtimeSubsystem -ne 3) {
+        throw "OpenDesk CLI entry must use PE Console subsystem 3; actual=$runtimeSubsystem."
+    }
+    if ($desktopRuntimeSubsystem -ne 2) {
+        throw "OpenDesk desktop entry must use PE Windows GUI subsystem 2; actual=$desktopRuntimeSubsystem."
     }
     if ($uiHostMachine -ne $expectedMachine) {
         throw ('Native UI host architecture mismatch: PE machine=0x{0:X4}, expected x64 0x8664.' -f $uiHostMachine)
@@ -190,6 +224,7 @@ try {
     $goVersion = (& go version).Trim()
     $dotnetVersion = (& dotnet --version).Trim()
     $runtimeHash = (Get-FileHash $runtimePath -Algorithm SHA256).Hash.ToLowerInvariant()
+    $desktopRuntimeHash = (Get-FileHash $desktopRuntimePath -Algorithm SHA256).Hash.ToLowerInvariant()
     $uiHostHash = (Get-FileHash $uiHostPath -Algorithm SHA256).Hash.ToLowerInvariant()
     $appBuilderTemplateHash = (Get-FileHash $appBuilderTemplatePath -Algorithm SHA256).Hash.ToLowerInvariant()
     $uiHostFileCount = @(Get-ChildItem -LiteralPath $uiHostDirectory -File -Recurse).Count
@@ -207,6 +242,8 @@ try {
         architecturePolicy = 'win-x64-supported-and-verified; win-arm64-unverified'
         layout = [ordered]@{
             runtime = 'opendesk.exe'
+            cliEntry = 'opendesk.exe'
+            desktopEntry = 'OpenDesk.exe'
             nativeUIHost = 'ui-host/opendesk-ui-host.exe'
             nativeUIHostClosure = 'ui-host/'
             runtimeAssets = [ordered]@{
@@ -223,6 +260,14 @@ try {
                 path = 'opendesk.exe'
                 sha256 = $runtimeHash
                 peMachine = ('0x{0:X4}' -f $runtimeMachine)
+                peSubsystem = $runtimeSubsystem
+                compatibilityVersion = $Version
+            }
+            desktopEntry = [ordered]@{
+                path = 'OpenDesk.exe'
+                sha256 = $desktopRuntimeHash
+                peMachine = ('0x{0:X4}' -f $desktopRuntimeMachine)
+                peSubsystem = $desktopRuntimeSubsystem
                 compatibilityVersion = $Version
             }
             nativeUIHost = [ordered]@{

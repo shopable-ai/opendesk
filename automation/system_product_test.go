@@ -18,6 +18,10 @@ func TestSystemProductPolyfillExposesImmutableIdentity(t *testing.T) {
 	if err := runtime.Set("System", map[string]any{
 		"getPlatformInfo": func() map[string]any { return map[string]any{"os": "test"} },
 		"getEnv":          func(string) string { return "https://environment.example.invalid" },
+		"product": map[string]any{
+			"id": "com.opendesk.desktop", "name": "OpenDesk",
+			"website": "https://github.com/shopable-ai/opendesk#home",
+		},
 	}); err != nil {
 		t.Fatalf("register System test object: %v", err)
 	}
@@ -39,7 +43,7 @@ func TestSystemProductPolyfillExposesImmutableIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read System.product: %v", err)
 	}
-	const want = "com.opendesk.desktop|OpenDesk|https://github.com/shopable-ai/opendesk|test|https://environment.example.invalid|id,name,website"
+	const want = "com.opendesk.desktop|OpenDesk|https://github.com/shopable-ai/opendesk#home|test|https://environment.example.invalid|id,name,website"
 	if got := value.String(); got != want {
 		t.Fatalf("System.product = %q, want %q", got, want)
 	}
@@ -54,7 +58,7 @@ func TestSystemProductPolyfillExposesImmutableIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read System.product.website after mutation attempts: %v", err)
 	}
-	if got := value.String(); got != "https://github.com/shopable-ai/opendesk" {
+	if got := value.String(); got != "https://github.com/shopable-ai/opendesk#home" {
 		t.Fatalf("System.product.website changed to %q", got)
 	}
 }

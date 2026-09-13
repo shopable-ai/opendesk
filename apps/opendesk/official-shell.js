@@ -3,11 +3,14 @@
 
   const CONFIG_MAGIC = 'ODCFG1';
   const CONFIG_SCHEMA_VERSION = 1;
-  const CONFIG_BASENAME = 'official-shell';
+  // This module owns Official Shell behavior; the file stem describes the
+  // narrower publisher-owned data it loads.
+  const CONFIG_BASENAME = 'official-actions';
+  // The basename rename does not introduce a new ODCFG1 wire format.
   const OBFUSCATION_KEY = 'OpenDeskOfficialShell/v1';
   const HTTPS_URL_PATTERN = /^https:\/\/[^\s/?#\\]+(?:[/?#][^\s]*)?$/;
   const CORE_ACTIONS = Object.freeze(['home', 'help', 'customize']);
-  const CONFIG_ACTIONS = Object.freeze(['help', 'customize', 'marketplace', 'upgrade']);
+  const CONFIG_ACTIONS = Object.freeze(['home', 'help', 'customize', 'marketplace', 'upgrade']);
   const ACTION_DEFINITIONS = Object.freeze({
     home: Object.freeze({
       id: 'opendesk.home',
@@ -44,6 +47,7 @@
   const FALLBACK_CONFIG = Object.freeze({
     schemaVersion: CONFIG_SCHEMA_VERSION,
     actions: Object.freeze({
+      home: Object.freeze({visible: true, url: ''}),
       help: Object.freeze({visible: true, url: ''}),
       customize: Object.freeze({visible: true, url: ''}),
       marketplace: Object.freeze({visible: false, url: ''}),
@@ -77,14 +81,16 @@
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
       throw new Error('official shell config must be an object');
     }
+    for (const name of Object.keys(value)) {
+      if (name !== 'schemaVersion' && name !== 'actions') {
+        throw new Error(`official shell config contains unknown field: ${name}`);
+      }
+    }
     if (value.schemaVersion !== CONFIG_SCHEMA_VERSION) {
       throw new Error('official shell config schemaVersion is unsupported');
     }
     if (!value.actions || typeof value.actions !== 'object' || Array.isArray(value.actions)) {
       throw new Error('official shell config actions must be an object');
-    }
-    if (Object.prototype.hasOwnProperty.call(value.actions, 'home')) {
-      throw new Error('official shell home action is runtime-owned by System.product.website');
     }
     for (const name of Object.keys(value.actions)) {
       if (!CONFIG_ACTIONS.includes(name)) {
@@ -98,12 +104,20 @@
       if (!action || typeof action !== 'object' || Array.isArray(action)) {
         throw new Error(`official shell config is missing action: ${name}`);
       }
+      for (const field of Object.keys(action)) {
+        if (field !== 'visible' && field !== 'url') {
+          throw new Error(`official shell action contains unknown field: ${name}.${field}`);
+        }
+      }
       if (typeof action.visible !== 'boolean' || typeof action.url !== 'string') {
         throw new Error(`official shell action is invalid: ${name}`);
       }
       const url = action.url.trim();
       if (url && !HTTPS_URL_PATTERN.test(url)) {
         throw new Error(`official shell action only accepts https URL: ${name}`);
+      }
+      if (name === 'home' && !url) {
+        throw new Error('official shell home action requires an https URL');
       }
       if (CORE_ACTIONS.includes(name) && action.visible !== true) {
         throw new Error(`official shell core action cannot be hidden: ${name}`);
@@ -211,6 +225,13 @@
       warnFallback(protectedConfigPath, new Error('official shell config file is missing'));
     }
 
+    if (configSource !== 'fallback' && config.actions.home.url !== productWebsite) {
+      warnFallback(configPath, new Error('official shell home URL does not match System.product.website'));
+      config = FALLBACK_CONFIG;
+      configSource = 'fallback';
+      configFormat = 'fallback';
+    }
+
     function resolveName(actionId) {
       const id = String(actionId || '');
       for (const name of Object.keys(ACTION_DEFINITIONS)) {
@@ -223,9 +244,7 @@
       const name = resolveName(actionId);
       if (!name) return null;
       const definition = ACTION_DEFINITIONS[name];
-      const configured = name === 'home'
-        ? Object.freeze({visible: true, url: productWebsite})
-        : config.actions[name];
+      const configured = config.actions[name];
       return Object.freeze({
         id: definition.id,
         label: definition.label,

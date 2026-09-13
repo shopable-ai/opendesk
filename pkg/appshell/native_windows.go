@@ -59,9 +59,9 @@ func newPlatformNativeHost(appPackage *Package) (NativeHost, error) {
 		}
 	}
 	state := make(map[string]MenuItemPatch)
-	for _, item := range appPackage.Manifest.Tray.Menu {
-		if item.Type == "separator" {
-			continue
+	visitNativeMenu(nativeMenuForManifest(appPackage.Manifest), func(item nativeMenuItem) {
+		if item.Type == "separator" || item.ID == "" {
+			return
 		}
 		label := item.Label
 		enabled, visible := true, true
@@ -72,7 +72,7 @@ func newPlatformNativeHost(appPackage *Package) (NativeHost, error) {
 			visible = *item.Visible
 		}
 		state[item.ID] = MenuItemPatch{Label: &label, Enabled: &enabled, Visible: &visible}
-	}
+	})
 	return &windowsNativeHost{
 		appPackage: appPackage, command: make(chan windowsHostCommand, 64),
 		ready: make(chan error, 1), done: make(chan struct{}), menuState: state,
@@ -223,38 +223,10 @@ func (h *windowsNativeHost) showMenu() {
 	}
 	defer win.DestroyMenu(menu)
 	commands := make(map[uint32]string)
-	position, nextID := uint32(0), uint32(100)
-	insertWindowsMenuItem(menu, position, nextID, "Open / Show", true, false)
-	commands[nextID] = "opendesk.open"
-	position, nextID = position+1, nextID+1
-	insertWindowsMenuItem(menu, position, 0, "", false, true)
-	position++
+	nextID := uint32(100)
 	h.mu.RLock()
-	for _, item := range h.appPackage.Manifest.Tray.Menu {
-		if item.Type == "separator" {
-			insertWindowsMenuItem(menu, position, 0, "", false, true)
-			position++
-			continue
-		}
-		state := h.menuState[item.ID]
-		visible := state.Visible == nil || *state.Visible
-		if !visible {
-			continue
-		}
-		label := item.Label
-		if state.Label != nil {
-			label = *state.Label
-		}
-		enabled := state.Enabled == nil || *state.Enabled
-		insertWindowsMenuItem(menu, position, nextID, label, enabled, false)
-		commands[nextID] = item.ID
-		position, nextID = position+1, nextID+1
-	}
+	insertWindowsMenuEntries(menu, nativeMenuForManifest(h.appPackage.Manifest), h.menuState, commands, &nextID)
 	h.mu.RUnlock()
-	insertWindowsMenuItem(menu, position, 0, "", false, true)
-	position++
-	insertWindowsMenuItem(menu, position, nextID, "Quit", true, false)
-	commands[nextID] = "opendesk.quit"
 	var point win.POINT
 	if !win.GetCursorPos(&point) {
 		return
@@ -267,6 +239,52 @@ func (h *windowsNativeHost) showMenu() {
 	if itemID := commands[selected]; itemID != "" {
 		h.dispatch(itemID, "tray-menu")
 	}
+}
+
+func insertWindowsMenuEntries(menu win.HMENU, items []nativeMenuItem, state map[string]MenuItemPatch, commands map[uint32]string, nextID *uint32) {
+	position := uint32(0)
+	for _, item := range items {
+		if item.Type == "separator" {
+			insertWindowsMenuItem(menu, position, 0, "", false, true)
+			position++
+			continue
+		}
+		if len(item.Children) > 0 {
+			submenu := win.CreatePopupMenu()
+			if submenu == 0 {
+				continue
+			}
+			insertWindowsMenuEntries(submenu, item.Children, state, commands, nextID)
+			insertWindowsSubmenu(menu, position, submenu, item.Label)
+			position++
+			continue
+		}
+		itemState := state[item.ID]
+		visible := itemState.Visible == nil || *itemState.Visible
+		if !visible {
+			continue
+		}
+		label := item.Label
+		if itemState.Label != nil {
+			label = *itemState.Label
+		}
+		enabled := itemState.Enabled == nil || *itemState.Enabled
+		commandID := *nextID
+		insertWindowsMenuItem(menu, position, commandID, label, enabled, false)
+		commands[commandID] = item.ID
+		*nextID++
+		position++
+	}
+}
+
+func insertWindowsSubmenu(menu win.HMENU, position uint32, submenu win.HMENU, label string) {
+	text := syscall.StringToUTF16(label)
+	item := win.MENUITEMINFO{
+		CbSize:     uint32(unsafe.Sizeof(win.MENUITEMINFO{})),
+		FMask:      win.MIIM_STRING | win.MIIM_SUBMENU,
+		DwTypeData: &text[0], Cch: uint32(len(text) - 1), HSubMenu: submenu,
+	}
+	win.InsertMenuItem(menu, position, true, &item)
 }
 
 func windowsTrayEventCode(lParam uintptr) uint32 { return uint32(lParam & 0xffff) }

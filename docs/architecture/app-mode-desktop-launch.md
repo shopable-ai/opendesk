@@ -9,14 +9,18 @@ description: Development and released desktop launch paths for App Mode packages
 
 ## Boundary
 
-`-app <directory>` remains the explicit development and portable CLI entry point. A released desktop artifact can opt in to
-one default App Mode package by staging it beside the executable. The executable discovers that package only when launched
-with no user arguments; an artifact without the package keeps its historical no-argument HTTP service behavior.
+`-app <directory>` remains the explicit development and portable CLI entry point. The official OpenDesk desktop distribution
+always stages its first-party default App Mode package beside the executable. The executable discovers that package only when
+launched with no user arguments. A developer can still build a generic Runtime template explicitly, but that is not an
+official OpenDesk product artifact.
 
 `examples/app-mode/basic` is a development fixture and must not be described as the product released to end users.
 
-App Mode does not create a TCP Runtime endpoint. Its `singleInstance` control uses the platform App Shell lease (Unix socket on
-macOS, named mutex/named pipe on Windows); Runtime HTTP endpoint allocation belongs to the separate Framework/HTTP startup path.
+App Mode does not create a TCP execution Runtime endpoint. Its `singleInstance` control uses the platform App Shell lease
+(Unix socket on macOS, named mutex/named pipe on Windows); Runtime HTTP endpoint allocation belongs to the separate
+Framework/HTTP startup path. The official OpenDesk product may start an auxiliary Inspector/Workbench server in that same App
+Mode process. It uses a random port, begins with loopback-only access policy, and does not create another Runtime, App Shell,
+Tray/Menu, Scheduler, Recorder, or main App Mode execution.
 
 ## Development launch
 
@@ -37,36 +41,40 @@ needed merely to show the toolbar, but without it the global-input controls are 
 
 ## macOS released app
 
-`scripts/build_macos_app.sh` now accepts an optional absolute `APP_MODE_PACKAGE`. The release pipeline supplies the real
-product package directory, which must contain `opendesk.app.json`; the script stages its contents at
+With `APP_MODE_PACKAGE` unset, `scripts/build_macos_app.sh` uses the repository-owned `apps/opendesk` product package. That
+package must contain `opendesk.app.json`; the script stages its contents at
 `OpenDesk.app/Contents/Resources/AppMode/` before the bundle is signed.
 
 From the repository root, a maintainer can assemble the mechanism with:
 
 ```bash
-APP_MODE_PACKAGE=/absolute/path/to/product-app SKIP_CODESIGN=1 ./scripts/build_macos_app.sh
+SKIP_CODESIGN=1 ./scripts/build_macos_app.sh
 ```
 
 The command above is a packaging/verification example, not an end-user command. After the signed artifact is delivered, the
 user launches `OpenDesk.app` from Finder or Launchpad. Launch Services supplies no App Mode arguments; the current executable
 finds `Contents/Resources/AppMode/opendesk.app.json`, starts that package in the same process, and exposes the package's
-single App Shell / Menu Bar item. The user then chooses **打开 Recorder** from that real menu.
+single App Shell / Menu Bar item. The user then chooses **录制自动化** from that real menu.
 
-If `APP_MODE_PACKAGE` was omitted, double-clicking the bundle starts the existing no-argument HTTP service instead. It does not
-guess a repository package and does not turn the example into a released application.
+An explicit absolute `APP_MODE_PACKAGE=/absolute/path/to/product-app` stages a custom product package. An explicit empty
+`APP_MODE_PACKAGE=` builds the generic Runtime template for framework development; its no-argument legacy behavior is not an
+official OpenDesk desktop distribution. This explicit opt-out prevents an omitted release variable from silently producing a
+legacy HTTP-only `OpenDesk.app`.
 
 ## Windows released portable directory
 
 P0 currently publishes a portable `win-x64` directory rather than an installer or MSIX registration. The canonical builder
-can optionally stage the real product package beside `opendesk.exe`:
+can optionally stage the real product package beside the two Runtime entries:
 
 ```powershell
 pwsh -NoProfile -File scripts/build_windows_distribution.ps1 -Runtime win-x64 -AppModePackage C:\absolute\path\to\product-app
 ```
 
-The resulting `app-mode\opendesk.app.json` is discovered only for a no-argument launch. An end user can run
-`opendesk.exe` from Explorer or create a Start Menu shortcut to that executable; the existing Windows single-instance
-policy remains in force. Without `-AppModePackage`, the portable executable has no default App Mode package and must be
+The resulting `app-mode\opendesk.app.json` is discovered only for a no-argument launch. An end user runs GUI-subsystem
+`OpenDesk.exe` from Explorer or a Start Menu shortcut; it launches the desktop product without a Console. Console-subsystem
+`opendesk.exe` is the CLI entry and inherits the caller's Terminal/PowerShell Console. Both binaries are built from
+`./cmd/opendesk`, share the same Runtime/App Mode/App Shell/Scheduler/Recorder/Execution implementation, and use the same
+single-instance policy. Without `-AppModePackage`, the portable executable has no default App Mode package and must be
 started with an explicit `-app` path (or follows its existing no-argument behavior).
 
 The Windows directory is a portable release artifact, not an installer: current repository scope does not create a Start Menu
@@ -102,8 +110,8 @@ For `apps/opendesk`, the current classification is:
 | Class | Files | Release behavior |
 | --- | --- | --- |
 | A. Runtime Required | `opendesk.app.json`, product JS composition, Scheduler JS, `script-runner/controller.js`, tray/product-logo assets, Recorder controller/history JS, countdown PNGs and Recorder logo | explicitly staged |
-| B. Runtime Optional / product configuration | `assets/official-shell.odcfg` | explicitly staged; runtime still has built-in fallback defaults |
-| C. Build-time Only | `recorder/embed.go`, `recorder/icons/render-countdown-icons.swift`, `.release/**` | never staged |
+| B. Runtime Optional / product configuration | `assets/official-actions.odcfg` | explicitly staged; runtime still has built-in fallback defaults |
+| C. Build-time Only | `.release/**` | never staged |
 | D. Documentation / Development Only | `README.md` | never staged |
 | E. Unknown | none after the current runtime-closure audit | must be investigated before adding to the policy |
 

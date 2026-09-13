@@ -23,7 +23,7 @@
 ## Official Product Config：从这里开始
 
 - 阅读 [Official Product Config 工作流](official-product-config/README.md)，或使用 [`manage-official-product-config`](official-product-config/skills/manage-official-product-config/SKILL.md) 维护官网、帮助、定制、商店、专业版等官方产品入口。
-- 官网属于 Runtime-owned `System.product.website`；Script Runner、Recorder 等官方 UI 不得各自硬编码地址。Help / Customize / Marketplace / Upgrade 的维护源是 `configs/official-shell.json`，修改后必须通过 `opendesk config compile` 生成 `apps/opendesk/assets/official-shell.odcfg`。
+- 官网与 Help / Customize / Marketplace / Upgrade 的唯一明文维护源都是 `configs/official-actions.json`；Runtime 从生成资源派生只读 `System.product.website`，Script Runner、Recorder 等官方 UI 不得各自硬编码地址。官方发行显式执行 `opendesk config compile --input configs/official-actions.json --output apps/opendesk/assets/official-actions.odcfg`，再用 `config inspect --input ...` 查看、`config verify --input ... --output ...` 检查一致性。编译器本身不内置产品路径或打包行为。
 - 本工作流解决“产品级单一来源 + 编译 + 发行检查”，不把官方链接放进用户可编辑的 `opendesk.app.json`，也不把 ODCFG1 的轻量混淆描述为 secret、DRM 或密码学签名。
 
 ## 受保护包发布：从这里开始

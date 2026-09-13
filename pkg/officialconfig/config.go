@@ -1,31 +1,40 @@
-// Package officialconfig owns the source-to-distribution contract for OpenDesk
-// first-party product navigation configuration.
+// Package officialconfig owns the ODCFG1 compile, decode, and validation
+// contract for OpenDesk first-party product navigation configuration.
 package officialconfig
 
 import (
 	"bytes"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 )
 
 const (
-	Magic          = "ODCFG1"
-	SchemaVersion  = 1
+	// BaseName is the stable filename stem for the publisher-owned official
+	// action configuration. The Runtime loader mirrors this value and product
+	// integration tests keep the cross-language contract aligned.
+	BaseName      = "official-actions"
+	Magic         = "ODCFG1"
+	SchemaVersion = 1
+	// The filename change does not define a new wire format. Keep the existing
+	// ODCFG1 key so already-generated payload semantics remain compatible.
 	obfuscationKey = "OpenDeskOfficialShell/v1"
 )
 
 var httpsURLPattern = regexp.MustCompile(`^https://[^\s/?#\\]+(?:[/?#][^\s]*)?$`)
 
-var requiredActions = []string{"help", "customize", "marketplace", "upgrade"}
+var requiredActions = []string{"home", "help", "customize", "marketplace", "upgrade"}
 
 var coreActions = map[string]bool{
+	"home":      true,
 	"help":      true,
 	"customize": true,
 }
@@ -61,8 +70,9 @@ func ParseSource(data []byte) (Config, error) {
 	return normalize(config), nil
 }
 
-// Validate enforces the public ODCFG1 schema. The homepage is deliberately not
-// part of this file: it is runtime-owned as System.product.website.
+// Validate enforces the public ODCFG1 schema. All official navigation targets,
+// including the homepage used to derive System.product.website, share this
+// publisher-owned configuration source.
 func Validate(config Config) error {
 	if config.SchemaVersion != SchemaVersion {
 		return fmt.Errorf("official config schemaVersion %d is unsupported", config.SchemaVersion)
@@ -77,9 +87,6 @@ func Validate(config Config) error {
 	}
 	for name := range config.Actions {
 		if !allowed[name] {
-			if name == "home" {
-				return fmt.Errorf("official config action home is runtime-owned by System.product.website")
-			}
 			return fmt.Errorf("official config contains unknown action %q", name)
 		}
 	}
@@ -91,6 +98,9 @@ func Validate(config Config) error {
 		url := strings.TrimSpace(action.URL)
 		if url != "" && !httpsURLPattern.MatchString(url) {
 			return fmt.Errorf("official config action %q only accepts https URL", name)
+		}
+		if name == "home" && url == "" {
+			return fmt.Errorf("official config action %q requires https URL", name)
 		}
 		if coreActions[name] && !action.Visible {
 			return fmt.Errorf("official config core action %q cannot be hidden", name)
@@ -117,8 +127,8 @@ func Encode(config Config) ([]byte, error) {
 	return []byte(fmt.Sprintf("%s:%04x\n%s\n", Magic, checksum16(payload), hex.EncodeToString(encoded))), nil
 }
 
-// Decode decodes and validates an ODCFG1 payload. It is used by CLI tests and
-// release tooling to guarantee parity with the JavaScript Official Shell loader.
+// Decode decodes and validates an ODCFG1 payload. It is used by CLI callers to
+// guarantee parity with the JavaScript Official Shell loader.
 func Decode(data []byte) (Config, error) {
 	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
 	if len(lines) != 2 {
@@ -143,21 +153,22 @@ func Decode(data []byte) (Config, error) {
 	return ParseSource(payload)
 }
 
-// CompileFile compiles a plaintext JSON source into the protected distribution
-// payload. The generated file is deterministic and may be committed as an app
-// resource; the plaintext source should not be copied into a release bundle.
-func CompileFile(sourcePath, targetPath string) (Config, error) {
-	sourcePath = filepath.Clean(strings.TrimSpace(sourcePath))
-	targetPath = filepath.Clean(strings.TrimSpace(targetPath))
-	if sourcePath == "." || sourcePath == "" {
-		return Config{}, fmt.Errorf("official config source path is required")
+// CompileFile performs one deterministic plaintext JSON input to one ODCFG1
+// output conversion. Product-specific source and release paths belong to the
+// caller, not this file conversion API.
+func CompileFile(inputPath, outputPath string) (Config, error) {
+	return compileFile(inputPath, outputPath, replaceConfigFile)
+}
+
+func compileFile(inputPath, outputPath string, replace func(string, string) error) (Config, error) {
+	inputPath = filepath.Clean(strings.TrimSpace(inputPath))
+	outputPath = filepath.Clean(strings.TrimSpace(outputPath))
+	if err := validateCompilePaths(inputPath, outputPath); err != nil {
+		return Config{}, err
 	}
-	if targetPath == "." || targetPath == "" {
-		return Config{}, fmt.Errorf("official config target path is required")
-	}
-	data, err := os.ReadFile(sourcePath)
+	data, err := os.ReadFile(inputPath)
 	if err != nil {
-		return Config{}, fmt.Errorf("read official config source %q: %w", sourcePath, err)
+		return Config{}, fmt.Errorf("read config input %q: %w", inputPath, err)
 	}
 	config, err := ParseSource(data)
 	if err != nil {
@@ -167,13 +178,111 @@ func CompileFile(sourcePath, targetPath string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
-		return Config{}, fmt.Errorf("create official config target directory: %w", err)
-	}
-	if err := os.WriteFile(targetPath, encoded, 0o644); err != nil {
-		return Config{}, fmt.Errorf("write official config target %q: %w", targetPath, err)
+	if err := writeConfigFileAtomically(outputPath, encoded, replace); err != nil {
+		return Config{}, err
 	}
 	return config, nil
+}
+
+func validateCompilePaths(inputPath, outputPath string) error {
+	if inputPath == "." || inputPath == "" {
+		return fmt.Errorf("config input path is required")
+	}
+	if outputPath == "." || outputPath == "" {
+		return fmt.Errorf("config output path is required")
+	}
+	if sameCleanPath(inputPath, outputPath) {
+		return fmt.Errorf("config input and output must be different files")
+	}
+	if !strings.EqualFold(filepath.Ext(inputPath), ".json") {
+		return fmt.Errorf("config input must be a .json file: %q", inputPath)
+	}
+	if strings.TrimSuffix(filepath.Base(inputPath), filepath.Ext(inputPath)) == "" {
+		return fmt.Errorf("config input filename must have a basename before .json")
+	}
+	if !strings.EqualFold(filepath.Ext(outputPath), ".odcfg") {
+		return fmt.Errorf("config output must be a .odcfg file: %q", outputPath)
+	}
+	if strings.TrimSuffix(filepath.Base(outputPath), filepath.Ext(outputPath)) == "" {
+		return fmt.Errorf("config output filename must have a basename before .odcfg")
+	}
+
+	inputInfo, inputErr := os.Stat(inputPath)
+	outputInfo, outputErr := os.Stat(outputPath)
+	if outputErr != nil && !errors.Is(outputErr, os.ErrNotExist) {
+		return fmt.Errorf("inspect config output %q: %w", outputPath, outputErr)
+	}
+	if inputErr == nil && outputErr == nil && os.SameFile(inputInfo, outputInfo) {
+		return fmt.Errorf("config input and output must be different files")
+	}
+	return nil
+}
+
+func sameCleanPath(first, second string) bool {
+	firstAbsolute, firstErr := filepath.Abs(first)
+	secondAbsolute, secondErr := filepath.Abs(second)
+	if firstErr != nil || secondErr != nil {
+		return first == second
+	}
+	if runtime.GOOS == "windows" {
+		return strings.EqualFold(firstAbsolute, secondAbsolute)
+	}
+	return firstAbsolute == secondAbsolute
+}
+
+// InspectFile decodes and validates one generated ODCFG1 input.
+func InspectFile(inputPath string) (Config, error) {
+	inputPath = filepath.Clean(strings.TrimSpace(inputPath))
+	if inputPath == "." || inputPath == "" {
+		return Config{}, fmt.Errorf("config inspect input path is required")
+	}
+	if !strings.EqualFold(filepath.Ext(inputPath), ".odcfg") {
+		return Config{}, fmt.Errorf("config inspect input must be a .odcfg file: %q", inputPath)
+	}
+	data, err := os.ReadFile(inputPath)
+	if err != nil {
+		return Config{}, fmt.Errorf("read config inspect input %q: %w", inputPath, err)
+	}
+	config, err := Decode(data)
+	if err != nil {
+		return Config{}, fmt.Errorf("inspect config input %q: %w", inputPath, err)
+	}
+	return config, nil
+}
+
+// VerifyFiles validates one plaintext JSON input and one generated ODCFG1
+// output, then requires the output bytes to match the deterministic encoding
+// of the input. This catches a valid but stale output as well as corruption.
+func VerifyFiles(inputPath, outputPath string) (Config, error) {
+	inputPath = filepath.Clean(strings.TrimSpace(inputPath))
+	outputPath = filepath.Clean(strings.TrimSpace(outputPath))
+	if err := validateCompilePaths(inputPath, outputPath); err != nil {
+		return Config{}, err
+	}
+
+	inputData, err := os.ReadFile(inputPath)
+	if err != nil {
+		return Config{}, fmt.Errorf("read config input %q: %w", inputPath, err)
+	}
+	inputConfig, err := ParseSource(inputData)
+	if err != nil {
+		return Config{}, err
+	}
+	outputData, err := os.ReadFile(outputPath)
+	if err != nil {
+		return Config{}, fmt.Errorf("read config output %q: %w", outputPath, err)
+	}
+	if _, err := Decode(outputData); err != nil {
+		return Config{}, fmt.Errorf("verify config output %q: %w", outputPath, err)
+	}
+	expected, err := Encode(inputConfig)
+	if err != nil {
+		return Config{}, err
+	}
+	if !bytes.Equal(expected, outputData) {
+		return Config{}, fmt.Errorf("config output %q is stale or non-canonical; run `opendesk config compile --input <file.json> --output <file.odcfg>`", outputPath)
+	}
+	return inputConfig, nil
 }
 
 func normalize(config Config) Config {

@@ -56,6 +56,7 @@ func testPNG(t *testing.T, width, height int, alphaMode string) []byte {
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
 			alpha := uint8(0)
+			red, green, blue := uint8(0), uint8(0), uint8(0)
 			switch alphaMode {
 			case "opaque":
 				alpha = 255
@@ -63,11 +64,18 @@ func testPNG(t *testing.T, width, height int, alphaMode string) []byte {
 				if x >= width/4 && x < width-width/4 && y >= height/4 && y < height-height/4 {
 					alpha = 255
 				}
+			case "color":
+				red, green, blue = 20, 90, 180
+				if x >= width/4 && x < width-width/4 && y >= height/4 && y < height-height/4 {
+					alpha = 255
+				}
+			case "color-opaque":
+				red, green, blue, alpha = 20, 90, 180, 255
 			case "transparent":
 			default:
 				t.Fatalf("unknown alpha mode %q", alphaMode)
 			}
-			value.SetNRGBA(x, y, color.NRGBA{R: 20, G: 90, B: 180, A: alpha})
+			value.SetNRGBA(x, y, color.NRGBA{R: red, G: green, B: blue, A: alpha})
 		}
 	}
 	var output bytes.Buffer
@@ -364,7 +372,7 @@ func TestManifestRequiresBothPlatformIconFormatsWithoutFallback(t *testing.T) {
 		"missing Windows icon": {from: `"windows":"assets/tray.ico", `, want: "tray.icons.windows is required"},
 		"missing macOS icon":   {from: `, "macos":"assets/tray.png"`, want: "tray.icons.macos is required"},
 		"Windows PNG":          {from: `"windows":"assets/tray.ico"`, to: `"windows":"assets/tray.png"`, want: "tray.icons.windows must reference an .ico file"},
-		"macOS ICO":            {from: `"macos":"assets/tray.png"`, to: `"macos":"assets/tray.ico"`, want: "tray.icons.macos must reference a .png template image"},
+		"macOS ICO":            {from: `"macos":"assets/tray.png"`, to: `"macos":"assets/tray.ico"`, want: "tray.icons.macos must reference a .png image"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			input := strings.Replace(validManifestJSON(), test.from, test.to, 1)
@@ -439,6 +447,65 @@ func TestEnsureRecorderMenuLeavesDisabledTrayAlone(t *testing.T) {
 	withRecorder := EnsureRecorderMenu(manifest)
 	if len(withRecorder.Tray.Menu) != 0 {
 		t.Fatalf("disabled tray should not receive recorder item: %+v", withRecorder.Tray.Menu)
+	}
+}
+
+func TestOpenDeskProductMenuUsesPrivateCompositionWithoutManifestSubmenus(t *testing.T) {
+	manifest := Manifest{
+		ID: OpenDeskProductPackageID,
+		Tray: TrayManifest{Enabled: true, Menu: []MenuItem{
+			{ID: "scheduler.center", Label: "计划中心", Action: "scheduler.center"},
+			{ID: "scheduler.new", Label: "新建计划…", Action: "scheduler.new"},
+			{ID: "runtime.log", Label: "运行日志…", Action: "runtime.log"},
+		}},
+	}
+	manifest = EnsureRecorderMenu(manifest)
+	if len(manifest.Tray.Menu) != 4 || manifest.Tray.Menu[0].ID != ActionRecorder ||
+		manifest.Tray.Menu[0].Label != ProductRecorderMenuLabel || manifest.Tray.Menu[1].Type == "separator" {
+		t.Fatalf("product Recorder composition=%+v", manifest.Tray.Menu)
+	}
+
+	menu := nativeMenuForManifest(manifest)
+	var paths []string
+	var walk func([]nativeMenuItem, string)
+	walk = func(items []nativeMenuItem, parent string) {
+		for _, item := range items {
+			if item.Type == "separator" {
+				continue
+			}
+			path := item.Label
+			if parent != "" {
+				path = parent + " > " + path
+			}
+			paths = append(paths, path)
+			walk(item.Children, path)
+		}
+	}
+	walk(menu, "")
+	for _, want := range []string{
+		"打开 OpenDesk", "录制自动化", "计划中心", "新建计划…", "运行日志…",
+		"开发者 > 运行状态…", "开发者 > 打开 Inspector",
+		"开发者 > 允许 Inspector 从局域网访问", "开发者 > 复制 Inspector LAN 地址",
+		"开发者 > 打开日志目录", "开发者 > 调试信息 > ✓ 普通", "开发者 > 调试信息 > 详细",
+		"帮助与服务 > OpenDesk 官网", "帮助与服务 > 帮助", "帮助与服务 > 定制", "退出 OpenDesk",
+	} {
+		found := false
+		for _, path := range paths {
+			if path == want {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("product menu missing %q: %v", want, paths)
+		}
+	}
+	for _, forbidden := range []string{"Open / Show", "Quit", "打开 Recorder", "Open Scheduler", "打开 Script Runner"} {
+		for _, path := range paths {
+			if strings.Contains(path, forbidden) {
+				t.Fatalf("product menu exposes %q in %q", forbidden, path)
+			}
+		}
 	}
 }
 
@@ -685,12 +752,27 @@ func writeTestFile(t *testing.T, path string, data []byte) {
 	}
 }
 
-func TestMacOSTemplateIconDimensionsAndTransparency(t *testing.T) {
+func TestMacOSTrayIconRenderingAndDimensions(t *testing.T) {
 	for _, size := range []int{16, 36, 1024} {
 		iconPath := filepath.Join(t.TempDir(), "tray.png")
 		writeTestFile(t, iconPath, testPNG(t, size, size, "template"))
-		if err := validateMacOSTemplateIcon(iconPath); err != nil {
+		template, err := validateMacOSTrayIcon(iconPath)
+		if err != nil {
 			t.Fatalf("valid %dx%d template: %v", size, size, err)
+		}
+		if !template {
+			t.Fatalf("valid %dx%d monochrome image did not select template rendering", size, size)
+		}
+	}
+	for _, mode := range []string{"color", "color-opaque"} {
+		iconPath := filepath.Join(t.TempDir(), "tray.png")
+		writeTestFile(t, iconPath, testPNG(t, 96, 96, mode))
+		template, err := validateMacOSTrayIcon(iconPath)
+		if err != nil {
+			t.Fatalf("valid %s app icon: %v", mode, err)
+		}
+		if template {
+			t.Fatalf("valid %s app icon unexpectedly selected template rendering", mode)
 		}
 	}
 	for _, test := range []struct {
@@ -707,7 +789,8 @@ func TestMacOSTemplateIconDimensionsAndTransparency(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			iconPath := filepath.Join(t.TempDir(), "tray.png")
 			writeTestFile(t, iconPath, testPNG(t, test.width, test.height, test.alpha))
-			if err := validateMacOSTemplateIcon(iconPath); err == nil || !strings.Contains(err.Error(), test.want) {
+			_, err := validateMacOSTrayIcon(iconPath)
+			if err == nil || !strings.Contains(err.Error(), test.want) {
 				t.Fatalf("expected %q error, got %v", test.want, err)
 			}
 		})
@@ -919,6 +1002,34 @@ func TestRuntimeVersionBuildWiringUsesCanonicalVariable(t *testing.T) {
 		}
 		if strings.Contains(content, `0.1.0`) {
 			t.Errorf("%s must read the release version source instead of owning a hard-coded default", relativePath)
+		}
+	}
+}
+
+func TestMacOSDistributionDefaultsToOfficialPackageWithExplicitGenericOptOut(t *testing.T) {
+	repoRoot := filepath.Clean(filepath.Join("..", ".."))
+	checks := map[string][]string{
+		"scripts/build_macos_app.sh": {
+			`APP_MODE_PACKAGE="${APP_MODE_PACKAGE-${ROOT_DIR}/apps/opendesk}"`,
+			`if [[ ! -f "${APP_MODE_PACKAGE}/opendesk.app.json" ]]; then`,
+		},
+		".github/workflows/app-builder.yml": {
+			`run: APP_MODE_PACKAGE= SKIP_CODESIGN=1 ./scripts/build_macos_app.sh`,
+		},
+		"scripts/test_app_icons.sh": {
+			`GO_BIN="${FAKE_GO}" APP_MODE_PACKAGE= SKIP_CODESIGN=1 DIST_DIR="${PACKAGE_DIST}"`,
+		},
+	}
+	for relativePath, snippets := range checks {
+		data, err := os.ReadFile(filepath.Join(repoRoot, relativePath))
+		if err != nil {
+			t.Fatal(err)
+		}
+		content := string(data)
+		for _, snippet := range snippets {
+			if !strings.Contains(content, snippet) {
+				t.Errorf("%s does not preserve the official/default versus explicit/generic macOS build contract: missing %q", relativePath, snippet)
+			}
 		}
 	}
 }

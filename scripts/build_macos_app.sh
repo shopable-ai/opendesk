@@ -44,7 +44,10 @@ fi
 RUNTIME_VERSION_LDFLAGS="-X opendesk/pkg/runtimeversion.Current=${VERSION}"
 CODESIGN_IDENTITY="${CODESIGN_IDENTITY:--}"
 NATIVE_EXTENSIONS_SOURCE="${NATIVE_EXTENSIONS_SOURCE:-}"
-APP_MODE_PACKAGE="${APP_MODE_PACKAGE:-}"
+# An unset value is the official OpenDesk desktop distribution. Framework
+# maintainers can still opt out explicitly with APP_MODE_PACKAGE=, while an
+# absolute non-empty value stages a custom App Mode package.
+APP_MODE_PACKAGE="${APP_MODE_PACKAGE-${ROOT_DIR}/apps/opendesk}"
 APPLE_VISION_SOURCE="${ROOT_DIR}/examples/native-extensions/macos-vision"
 MACOS_DEPLOYMENT_TARGET="${MACOS_DEPLOYMENT_TARGET:-12.0}"
 if [[ ! "${MACOS_DEPLOYMENT_TARGET}" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]]; then

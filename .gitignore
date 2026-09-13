@@ -24,6 +24,8 @@ dist/
 coverage.out
 visualize
 annotate
+# JavaScript dependencies
+node_modules/
 
 # retired generic output namespace; use the owning test/docs directory or .runtime/
 artifacts/

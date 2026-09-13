@@ -64,7 +64,7 @@ ready JavaScript
 | app id | 稳定的小写 reverse-DNS identity，例如 `com.example.invoice-helper` |
 | main window id | 与入口脚本 `ui.createWindow({ id })` 一致 |
 | close behavior | 当前公开值及其前提必须以 `docs/api/app-shell.md` 为准 |
-| tray assets | Windows `.ico` 与 macOS template PNG；启用 tray 时必须按当前 API 约束准备 |
+| tray assets | Windows `.ico` 与 macOS PNG；macOS 可使用保留品牌原色的彩色图标或由系统着色的单色 template，启用 tray 时必须按当前 API 约束准备 |
 | target | development package / macOS release / Windows release / 多平台 |
 | validation scope | 只检查结构、运行开发态、构建 staging，还是要求目标 OS live launch |
 
@@ -178,6 +178,10 @@ APP_MODE_PACKAGE=/absolute/path/to/my-app SKIP_CODESIGN=1 VERSION="$(tr -d '[:sp
 ```
 
 上式只适合 packaging mechanism / layout 验证。`SKIP_CODESIGN=1` 不能作为最终发布签名方案。
+
+仓库官方 OpenDesk 产品构建省略 `APP_MODE_PACKAGE`，默认选择 `apps/opendesk`，并在缺少其
+`opendesk.app.json` 时失败。只有明确构建不带默认 AppMode 的通用 Runtime template 时才传显式空值
+`APP_MODE_PACKAGE=`；省略变量不再是通用模板语义。显式绝对路径仍用于自定义 App package。
 
 检查 package 是否被 staging 到：
 

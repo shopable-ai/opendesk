@@ -21,50 +21,54 @@ const (
 
 var pngSignature = []byte("\x89PNG\r\n\x1a\n")
 
-// validateMacOSTemplateIcon verifies the portable part of the AppKit template
-// image contract before App Mode starts. AppKit still owns the final native
-// decode, 18-point sizing, and appearance-aware rendering.
-func validateMacOSTemplateIcon(iconPath string) error {
+// validateMacOSTrayIcon verifies the portable PNG contract and derives the
+// AppKit rendering mode before App Mode starts. A monochrome alpha mask uses
+// system template tinting, while any visible chromatic pixel selects original
+// color rendering. AppKit still owns the final native decode and 18-point size.
+func validateMacOSTrayIcon(iconPath string) (template bool, err error) {
 	data, err := readTrayIcon(iconPath)
 	if err != nil {
-		return err
+		return false, err
 	}
 	config, err := png.DecodeConfig(bytes.NewReader(data))
 	if err != nil {
-		return fmt.Errorf("decode PNG: %w", err)
+		return false, fmt.Errorf("decode PNG: %w", err)
 	}
 	if config.Width != config.Height {
-		return fmt.Errorf("template PNG must be square, got %dx%d", config.Width, config.Height)
+		return false, fmt.Errorf("macOS tray PNG must be square, got %dx%d", config.Width, config.Height)
 	}
 	if config.Width < minMacOSTrayIconPixels || config.Width > maxMacOSTrayIconPixels {
-		return fmt.Errorf("template PNG dimensions must be between %dx%d and %dx%d, got %dx%d",
+		return false, fmt.Errorf("macOS tray PNG dimensions must be between %dx%d and %dx%d, got %dx%d",
 			minMacOSTrayIconPixels, minMacOSTrayIconPixels,
 			maxMacOSTrayIconPixels, maxMacOSTrayIconPixels,
 			config.Width, config.Height)
 	}
 	decoded, err := png.Decode(bytes.NewReader(data))
 	if err != nil {
-		return fmt.Errorf("decode complete PNG image data: %w", err)
+		return false, fmt.Errorf("decode complete PNG image data: %w", err)
 	}
-	hasVisible, hasTransparency := false, false
+	hasVisible, hasTransparency, hasChromaticPixel := false, false, false
 	bounds := decoded.Bounds()
-	for y := bounds.Min.Y; y < bounds.Max.Y && !(hasVisible && hasTransparency); y++ {
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
 		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			_, _, _, alpha := decoded.At(x, y).RGBA()
+			red, green, blue, alpha := decoded.At(x, y).RGBA()
 			hasVisible = hasVisible || alpha != 0
 			hasTransparency = hasTransparency || alpha != 0xffff
-			if hasVisible && hasTransparency {
-				break
+			if alpha != 0 && (red != green || green != blue) {
+				hasChromaticPixel = true
 			}
 		}
 	}
 	if !hasVisible {
-		return errors.New("template PNG is fully transparent and would be invisible")
+		return false, errors.New("macOS tray PNG is fully transparent and would be invisible")
+	}
+	if hasChromaticPixel {
+		return false, nil
 	}
 	if !hasTransparency {
-		return errors.New("template PNG has no transparent pixels and would render as a solid menu bar square")
+		return false, errors.New("monochrome macOS tray PNG has no transparent pixels and would render as a solid menu bar square")
 	}
-	return nil
+	return true, nil
 }
 
 // validateWindowsTrayIcon validates the ICO container on every host OS. PNG

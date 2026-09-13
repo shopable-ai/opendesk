@@ -55,18 +55,55 @@ static BOOL ODOnMainThread(void (^block)(void)) {
 
 @end
 
-static NSMenuItem *ODAddActionItem(ODAppShellStatusController *controller, NSString *itemID, NSString *label, BOOL enabled, BOOL hidden) {
+static NSMenuItem *ODAddActionItem(ODAppShellStatusController *controller, NSMenu *menu, NSString *itemID, NSString *label, BOOL enabled, BOOL hidden) {
     NSMenuItem *item = [[NSMenuItem alloc] initWithTitle:(label ?: @"") action:@selector(menuPressed:) keyEquivalent:@""];
     item.target = controller;
     item.representedObject = itemID;
     item.enabled = enabled;
     item.hidden = hidden;
-    [controller.menu addItem:item];
+    [menu addItem:item];
     if (itemID.length) controller.items[itemID] = item;
     return item;
 }
 
-int ODAppShellStart(const char *iconPath, const char *tooltip, const char *primaryAction, const char *menuJSON, char **errorMessage) {
+static BOOL ODAddMenuEntries(ODAppShellStatusController *controller, NSMenu *menu, NSArray *entries, char **errorMessage) {
+    for (id rawEntry in entries) {
+        if (![rawEntry isKindOfClass:NSDictionary.class]) {
+            ODSetError(errorMessage, @"tray menu entry is invalid");
+            return NO;
+        }
+        NSDictionary *entry = (NSDictionary *)rawEntry;
+        if ([entry[@"type"] isEqualToString:@"separator"]) {
+            [menu addItem:NSMenuItem.separatorItem];
+            continue;
+        }
+        NSString *label = [entry[@"label"] isKindOfClass:NSString.class] ? entry[@"label"] : @"";
+        NSArray *children = [entry[@"children"] isKindOfClass:NSArray.class] ? entry[@"children"] : nil;
+        if (children != nil) {
+            NSMenuItem *parent = [[NSMenuItem alloc] initWithTitle:label action:nil keyEquivalent:@""];
+            NSMenu *submenu = [NSMenu new];
+            submenu.autoenablesItems = NO;
+            parent.submenu = submenu;
+            [menu addItem:parent];
+            if (!ODAddMenuEntries(controller, submenu, children, errorMessage)) return NO;
+            continue;
+        }
+        NSString *itemID = [entry[@"id"] isKindOfClass:NSString.class] ? entry[@"id"] : @"";
+        BOOL enabled = entry[@"enabled"] ? [entry[@"enabled"] boolValue] : YES;
+        BOOL hidden = entry[@"visible"] ? ![entry[@"visible"] boolValue] : NO;
+        ODAddActionItem(controller, menu, itemID, label, enabled, hidden);
+    }
+    return YES;
+}
+
+static void ODClearMenuTargets(NSMenu *menu) {
+    for (NSMenuItem *item in menu.itemArray) {
+        item.target = nil;
+        if (item.submenu != nil) ODClearMenuTargets(item.submenu);
+    }
+}
+
+int ODAppShellStart(const char *iconPath, int iconTemplate, const char *tooltip, const char *primaryAction, const char *menuJSON, char **errorMessage) {
     __block BOOL success = NO;
     ODOnMainThread(^{
         @autoreleasepool {
@@ -85,7 +122,7 @@ int ODAppShellStart(const char *iconPath, const char *tooltip, const char *prima
                 ODSetError(errorMessage, [NSString stringWithFormat:@"cannot load menu bar icon at %@", path]);
                 return;
             }
-            image.template = YES;
+            image.template = iconTemplate != 0;
             // Package icons may contain Retina-sized pixels. NSStatusItem uses
             // the image's point size for accessibility geometry, so normalize
             // it instead of allowing (for example) a 1024 px source to create
@@ -107,8 +144,6 @@ int ODAppShellStart(const char *iconPath, const char *tooltip, const char *prima
             controller.menu = [NSMenu new];
             controller.menu.autoenablesItems = NO;
 
-            ODAddActionItem(controller, @"opendesk.open", @"Open / Show", YES, NO);
-            [controller.menu addItem:NSMenuItem.separatorItem];
             NSData *data = menuJSON ? [[NSString stringWithUTF8String:menuJSON] dataUsingEncoding:NSUTF8StringEncoding] : nil;
             NSError *jsonError = nil;
             id decoded = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:&jsonError] : @[];
@@ -117,19 +152,10 @@ int ODAppShellStart(const char *iconPath, const char *tooltip, const char *prima
                 ODSetError(errorMessage, jsonError.localizedDescription ?: @"tray menu JSON is invalid");
                 return;
             }
-            for (NSDictionary *entry in (NSArray *)decoded) {
-                if ([entry[@"type"] isEqualToString:@"separator"]) {
-                    [controller.menu addItem:NSMenuItem.separatorItem];
-                    continue;
-                }
-                NSString *itemID = [entry[@"id"] isKindOfClass:NSString.class] ? entry[@"id"] : @"";
-                NSString *label = [entry[@"label"] isKindOfClass:NSString.class] ? entry[@"label"] : @"";
-                BOOL enabled = entry[@"enabled"] ? [entry[@"enabled"] boolValue] : YES;
-                BOOL hidden = entry[@"visible"] ? ![entry[@"visible"] boolValue] : NO;
-                ODAddActionItem(controller, itemID, label, enabled, hidden);
+            if (!ODAddMenuEntries(controller, controller.menu, (NSArray *)decoded, errorMessage)) {
+                [NSStatusBar.systemStatusBar removeStatusItem:controller.statusItem];
+                return;
             }
-            [controller.menu addItem:NSMenuItem.separatorItem];
-            ODAddActionItem(controller, @"opendesk.quit", @"Quit", YES, NO);
             ODAppShellController = controller;
             success = YES;
         }
@@ -164,7 +190,7 @@ void ODAppShellTeardown(void) {
     ODOnMainThread(^{
         if (ODAppShellController) {
             ODAppShellController.statusItem.button.target = nil;
-            for (NSMenuItem *item in ODAppShellController.menu.itemArray) item.target = nil;
+            ODClearMenuTargets(ODAppShellController.menu);
             [NSStatusBar.systemStatusBar removeStatusItem:ODAppShellController.statusItem];
             ODAppShellController = nil;
         }

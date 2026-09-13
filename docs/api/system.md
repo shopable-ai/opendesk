@@ -77,13 +77,13 @@ System.product.website
 {
   "id": "com.opendesk.desktop",
   "name": "OpenDesk",
-  "website": "https://github.com/shopable-ai/opendesk"
+  "website": "https://github.com/shopable-ai/opendesk#home"
 }
 ```
 
 **行为与错误**
 
-- `System.product` 由 Runtime bootstrap 安装，不来自 `.env`、`opendesk.app.json` 或用户脚本配置；
+- `System.product` 由 Runtime bootstrap 安装；`website` 从发布时生成并嵌入的 `official-actions.odcfg` 派生，不来自 `.env`、`opendesk.app.json` 或用户脚本配置；
 - `System.product` 本身不能被替换，`id`、`name`、`website` 也不能被修改；
 - 官方 Script Runner、Recorder 等品牌入口应读取 `System.product.website`，不要各自硬编码官网 URL；
 - 该对象只保存公开产品身份，不存 token、License key、私钥或其他 secret。
@@ -95,7 +95,7 @@ console.log(System.product.name);
 await page.openURL(System.product.website);
 ```
 
-官方运营入口（Help、Customize、Marketplace、Upgrade）不属于 `System.product`；它们由 Official Shell 的 publisher-owned 配置维护。
+`System.product` 只投影产品身份需要的官网值；Home、Help、Customize、Marketplace、Upgrade 的 URL policy 全部由同一个 publisher-owned `official-actions` 配置维护。
 
 ## System.delay(milliseconds)
 

@@ -55,6 +55,11 @@ jobs:
           cache: true
       - name: Test payload staging and Recorder materialization
         run: go test ./internal/appmodepayload ./internal/recorderbundle -count=1
+      - name: Test Official Shell and Product Runner contracts
+        run: >-
+          node --test
+          tests/app-lifecycle/official-shell.test.js
+          tests/custom-ui/product-script-runner.test.js
       - name: Test Recorder JavaScript contracts
         run: >-
           node --test

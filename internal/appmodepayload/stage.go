@@ -101,13 +101,9 @@ func absoluteDirectory(root, label string) (string, error) {
 	if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
 		return "", fmt.Errorf("%s must be a real directory, not a symlink: %s", label, absolute)
 	}
-	resolved, err := filepath.EvalSymlinks(absolute)
-	if err != nil {
-		return "", fmt.Errorf("resolve %s symlinks: %w", label, err)
-	}
-	if filepath.Clean(resolved) != filepath.Clean(absolute) {
-		return "", fmt.Errorf("%s must not depend on a symlinked path: %s", label, absolute)
-	}
+	// The root itself must be a real directory, but parent aliases such as
+	// macOS /var -> /private/var are normal filesystem paths. Nested package
+	// symlinks are still rejected by rejectSymlinks and copyRegularFile.
 	return filepath.Clean(absolute), nil
 }
 

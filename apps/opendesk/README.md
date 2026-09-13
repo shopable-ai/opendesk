@@ -80,8 +80,8 @@ contracts. Do not move product source merely to make a release bundle smaller.
 - `pkg/appshell`: native tray/menu, manifest dispatch, main-window lifecycle,
   single-instance behavior and framework-owned system actions.
 - `apps/opendesk/recorder/**`: the single canonical Recorder product source for
-  controller/history JavaScript, generated runtime icons and the Go embed
-  declaration. Development/example/workflow entries point here.
+  controller/history JavaScript and the runtime icon adapter.
+  Development/example/workflow entries point here.
 - `internal/recorderbundle/**`: runtime/release adapter only. It embeds and
   materializes the canonical Recorder source for the built-in same-process
   `opendesk.recorder` secondary execution; it does not own a second UI source
@@ -129,8 +129,6 @@ runtime distribution:
 
 ```text
 README.md
-recorder/embed.go
-recorder/icons/render-countdown-icons.swift
 .release/**
 .runtime/**
 *.go
@@ -168,18 +166,30 @@ set. Official actions remain independent of recipe execution state.
 Configuration is loaded from:
 
 ```text
-apps/opendesk/assets/official-shell.odcfg
+apps/opendesk/assets/official-actions.odcfg
 ```
 
-The P0 file is a low-cost obfuscated, checksummed product configuration. It is
-not a secret store or DRM boundary. If it is missing, corrupt, or attempts to
-hide a core action, `official-shell.js` falls back to built-in defaults.
+The P0 file is a low-cost obfuscated, checksummed operational-action
+configuration. It is not a secret store or DRM boundary. A valid `.odcfg` wins
+over a sibling `official-actions.json`. A corrupt protected file fails closed
+to built-in defaults and is never downgraded to plaintext; plaintext is only
+considered when the protected file is absent.
 
-The homepage target is currently the canonical public repository
-`https://github.com/shopable-ai/opendesk`; repository metadata does not yet
-declare a separate product website. Help and Customize URLs can remain empty
+The homepage target and every other official action URL come from the single
+maintained source `configs/official-actions.json`, compiled into this package's
+`assets/official-actions.odcfg`. Runtime `System.product.website` is derived
+from the embedded generated asset and is not a second editable source. Help and Customize URLs can remain empty
 placeholders. In that state the product uses `ui.notify()` rather than creating
 another window just to display a message.
+
+The sole plaintext maintenance source is `configs/official-actions.json`.
+The release caller explicitly runs
+`opendesk config compile --input configs/official-actions.json --output apps/opendesk/assets/official-actions.odcfg`
+to transform that one JSON file into the generated `.odcfg`; the compiler has
+no product-specific default paths. `opendesk config inspect --input ...` shows
+the validated effective payload and `opendesk config verify --input ... --output ...`
+rejects corrupt or stale pairs. Runtime loading and release staging are
+separate validation stages.
 
 See `docs/architecture/official-shell-commercial-entrypoints.md` for ownership,
 commercialization and future signed-config/OEM boundaries.
@@ -224,6 +234,14 @@ Ownership is intentionally split:
   `main` window;
 - the old `Open Scheduler` Web entry and the new Scheduler Center must not both
   appear as normal-user menu choices.
+
+Scheduler Center creation supports both a `.js` path under the displayed
+recipe root and inline JavaScript text. The file and inline example buttons
+fill a ready-to-create `notify-and-log.js` plan or an explicit `ui.notify()` +
+`console.log()` smoke template. Product-created jobs run with
+execution-owned Custom UI enabled through the App Mode shared UI driver, while
+their working directory remains the writable recipe root; generic HTTP
+Scheduler executions keep their narrower capability policy.
 
 The detailed target and acceptance rules live in
 `docs/architecture/opendesk-desktop-product-shell.md`.
@@ -315,10 +333,11 @@ gates remain enforced by the Recorder backend.
 ## macOS release staging
 
 ```bash
-APP_MODE_PACKAGE="$PWD/apps/opendesk" ./scripts/build_macos_app.sh
+./scripts/build_macos_app.sh
 ```
 
-The builder validates the package and stages only its release-closed runtime
+With `APP_MODE_PACKAGE` unset, the official builder selects this package by
+default, validates it, and stages only its release-closed runtime
 payload at:
 
 ```text

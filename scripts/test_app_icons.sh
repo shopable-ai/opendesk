@@ -8,12 +8,15 @@ set -euo pipefail
 }
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-RUNTIME_DIR="${ROOT_DIR}/.runtime/tests/app-icons"
+RUNTIME_DIR="${RUNTIME_DIR:-${ROOT_DIR}/.runtime/tests/app-icons}"
 LOGO="${ROOT_DIR}/public/logo.png"
 MACOS_ICON="${ROOT_DIR}/public/icons/opendesk.icns"
 WINDOWS_ICON="${ROOT_DIR}/public/icons/opendesk.ico"
 NOTIFICATION_ICON="${ROOT_DIR}/public/icons/opendesk-notification.png"
 MENUBAR_TEMPLATE="${ROOT_DIR}/public/icons/opendesk-menubar-template.png"
+PRODUCT_TRAY_WINDOWS="${ROOT_DIR}/apps/opendesk/assets/tray.ico"
+PRODUCT_LOGO="${ROOT_DIR}/apps/opendesk/assets/opendesk-logo.png"
+PRODUCT_TRAY_TEMPLATE_MACOS="${ROOT_DIR}/apps/opendesk/assets/tray-template.png"
 APP_BUNDLE="${APP_BUNDLE:-}"
 
 if command -v magick >/dev/null 2>&1; then
@@ -52,7 +55,15 @@ rm -rf "${RUNTIME_DIR}"
 mkdir -p "${RUNTIME_DIR}"
 
 asset_hashes() {
-  shasum -a 256 "${LOGO}" "${MACOS_ICON}" "${WINDOWS_ICON}" "${NOTIFICATION_ICON}" "${MENUBAR_TEMPLATE}"
+  shasum -a 256 \
+    "${LOGO}" \
+    "${MACOS_ICON}" \
+    "${WINDOWS_ICON}" \
+    "${NOTIFICATION_ICON}" \
+    "${MENUBAR_TEMPLATE}" \
+    "${PRODUCT_TRAY_WINDOWS}" \
+    "${PRODUCT_LOGO}" \
+    "${PRODUCT_TRAY_TEMPLATE_MACOS}"
 }
 
 before="$(asset_hashes)"
@@ -93,6 +104,7 @@ PY
 assert_png "${LOGO}" "1024x1024"
 assert_png "${NOTIFICATION_ICON}" "256x256"
 assert_png "${MENUBAR_TEMPLATE}" "36x36"
+assert_png "${PRODUCT_LOGO}" "96x96"
 
 if [[ "${USE_MAGICK}" -eq 1 ]]; then
   alpha_range="$(magick "${LOGO}" -alpha extract -format '%[fx:minima] %[fx:maxima]' info:)"
@@ -155,9 +167,39 @@ if [[ "${ico_sizes}" != "${expected_ico_sizes}" ]]; then
   exit 1
 fi
 
-# The public App Mode example and the macOS live fixture intentionally reuse
-# the canonical, deterministic icon outputs. This prevents a visually tested
-# fixture from drifting away from the resource users copy from the example.
+# The product uses its current application logo in original-color mode while
+# retaining the canonical monochrome template as an optional authored asset.
+cmp "${WINDOWS_ICON}" "${PRODUCT_TRAY_WINDOWS}"
+cmp "${MENUBAR_TEMPLATE}" "${PRODUCT_TRAY_TEMPLATE_MACOS}"
+python3 - "${ROOT_DIR}/apps/opendesk/opendesk.app.json" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as source:
+    manifest = json.load(source)
+if manifest["tray"]["icons"]["macos"] != "assets/opendesk-logo.png":
+    raise SystemExit("OpenDesk product must use its current application logo for the macOS tray")
+PY
+if [[ "${USE_MAGICK}" -eq 1 ]]; then
+  product_chroma="$(magick "${PRODUCT_LOGO}" -colorspace HSL -channel G -separate +channel -format '%[fx:maxima]' info:)"
+  awk -v value="${product_chroma}" 'BEGIN { exit !(value > 0) }' || {
+    printf 'OpenDesk product logo must contain a visible chromatic pixel\n' >&2
+    exit 1
+  }
+else
+  python3 - "${PRODUCT_LOGO}" <<'PY'
+from PIL import Image
+import sys
+
+with Image.open(sys.argv[1]).convert("RGBA") as image:
+    if not any(alpha and (red != green or green != blue)
+               for red, green, blue, alpha in image.getdata()):
+        raise SystemExit("OpenDesk product logo must contain a visible chromatic pixel")
+PY
+fi
+
+# The public example and the macOS live fixture intentionally keep exercising
+# system template rendering.
 for package_dir in \
   "${ROOT_DIR}/examples/app-mode/basic" \
   "${ROOT_DIR}/tests/runtime-api/app-shell-macos"; do
@@ -168,7 +210,7 @@ done
 (
   cd "${ROOT_DIR}"
   "${GO_BIN}" test ./pkg/appshell \
-    -run 'Test(LoadPackageRejectsMissingAndInvalidIconResources|MacOSTemplateIconDimensionsAndTransparency|WindowsTrayIconStructureAndFrameDecode)' \
+    -run 'Test(LoadPackageRejectsMissingAndInvalidIconResources|MacOSTrayIconRenderingAndDimensions|WindowsTrayIconStructureAndFrameDecode)' \
     -count=1
 ) >"${RUNTIME_DIR}/app-shell-icon-contract.log"
 
@@ -229,7 +271,9 @@ done
 cp /usr/bin/true "${output}"
 EOF
 chmod 700 "${FAKE_GO}"
-GO_BIN="${FAKE_GO}" SKIP_CODESIGN=1 DIST_DIR="${PACKAGE_DIST}" \
+# This test isolates the generic bundle/icon template. The official no-variable
+# builder path is covered by the App Mode payload distribution gate.
+GO_BIN="${FAKE_GO}" APP_MODE_PACKAGE= SKIP_CODESIGN=1 DIST_DIR="${PACKAGE_DIST}" \
   "${ROOT_DIR}/scripts/build_macos_app.sh" >"${RUNTIME_DIR}/package.log"
 
 bundle_icon_name="$(plutil -extract CFBundleIconFile raw "${PACKAGE_DIST}/OpenDesk.app/Contents/Info.plist")"

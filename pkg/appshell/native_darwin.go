@@ -52,11 +52,15 @@ func (h *darwinNativeHost) Start(_ context.Context, handler func(string, string)
 	if handler == nil {
 		return fmt.Errorf("AppKit tray action handler is required")
 	}
-	menuJSON, err := json.Marshal(h.appPackage.Manifest.Tray.Menu)
+	menuJSON, err := json.Marshal(nativeMenuForManifest(h.appPackage.Manifest))
 	if err != nil {
 		return fmt.Errorf("encode AppKit tray menu: %w", err)
 	}
 	icon := C.CString(h.appPackage.MacOSIconPath)
+	iconTemplate := C.int(0)
+	if h.appPackage.MacOSIconTemplate {
+		iconTemplate = 1
+	}
 	tooltip := C.CString(h.appPackage.Manifest.Tray.Tooltip)
 	primary := C.CString(h.primaryID)
 	menu := C.CString(string(menuJSON))
@@ -76,7 +80,7 @@ func (h *darwinNativeHost) Start(_ context.Context, handler func(string, string)
 	h.handler = handler
 	h.mu.Unlock()
 	var nativeError *C.char
-	if C.ODAppShellStart(icon, tooltip, primary, menu, &nativeError) == 0 {
+	if C.ODAppShellStart(icon, iconTemplate, tooltip, primary, menu, &nativeError) == 0 {
 		darwinActiveHost.Lock()
 		if darwinActiveHost.host == h {
 			darwinActiveHost.host = nil

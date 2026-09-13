@@ -326,6 +326,16 @@ func setupInspectorRoutes(handler *Handler) *http.ServeMux {
 	return mux
 }
 
+func setupAccessibilityWorkbenchRoutes(handler *Handler) *http.ServeMux {
+	mux := http.NewServeMux()
+	mux.HandleFunc(accessibilityWorkbenchPagePath, handler.handleAccessibilityWorkbenchPage)
+	mux.HandleFunc(accessibilityWorkbenchPagePath+"/", handler.handleAccessibilityWorkbenchPage)
+	mux.HandleFunc(accessibilityWorkbenchControlPath, handler.handleAccessibilityWorkbenchControl)
+	mux.HandleFunc(accessibilityWorkbenchInternalLANPath, handler.handleAccessibilityWorkbenchInternalLAN)
+	mux.HandleFunc(inspectorAPIPrefix+"/", handler.HandleInspectorAPI)
+	return mux
+}
+
 // Server 封装 HTTP 服务。
 type Server struct {
 	server    *http.Server
@@ -353,6 +363,22 @@ func NewServerWithScheduler(container *container.Container, port string, schedul
 		container: container,
 		handler:   handler,
 		scheduler: scheduler,
+	}
+}
+
+// NewAccessibilityWorkbenchServer creates the product-owned Inspector surface
+// without enabling the general script-execution or legacy Scheduler routes.
+// It runs in the existing OpenDesk process and does not create another Runtime.
+func NewAccessibilityWorkbenchServer(port string) *Server {
+	handler := NewHandler(nil)
+	return &Server{
+		server: &http.Server{
+			Addr:         ":" + port,
+			Handler:      setupAccessibilityWorkbenchRoutes(handler),
+			ReadTimeout:  30 * time.Second,
+			WriteTimeout: 0,
+		},
+		handler: handler,
 	}
 }
 

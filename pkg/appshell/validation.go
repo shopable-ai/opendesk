@@ -138,13 +138,18 @@ func validatePackageForRuntime(packageDir, currentRuntimeVersion string) (*Packa
 			result.failResource(CheckMacOSTrayResource, err)
 			return result, err
 		}
-		if iconErr := validateMacOSTemplateIcon(appPackage.MacOSIconPath); iconErr != nil {
-			cause := fmt.Errorf("validate tray.icons.macos %s: %w", appPackage.MacOSIconPath, iconErr)
-			err = newPackageError(ErrPackageResourceInvalid, "tray.icons.macos", "a valid macOS template PNG", appPackage.MacOSIconPath, "replace the invalid tray icon with a valid package-local template PNG", cause)
+		appPackage.MacOSIconTemplate, err = validateMacOSTrayIcon(appPackage.MacOSIconPath)
+		if err != nil {
+			cause := fmt.Errorf("validate tray.icons.macos %s: %w", appPackage.MacOSIconPath, err)
+			err = newPackageError(ErrPackageResourceInvalid, "tray.icons.macos", "a valid macOS tray PNG", appPackage.MacOSIconPath, "replace the invalid tray icon with a valid package-local PNG", cause)
 			result.failResource(CheckMacOSTrayResource, err)
 			return result, err
 		}
-		result.pass(CheckMacOSTrayResource, fmt.Sprintf("macOS tray resource %s is valid.", manifest.Tray.Icons.MacOS))
+		rendering := "original color"
+		if appPackage.MacOSIconTemplate {
+			rendering = "system template"
+		}
+		result.pass(CheckMacOSTrayResource, fmt.Sprintf("macOS tray resource %s is valid (%s rendering).", manifest.Tray.Icons.MacOS, rendering))
 	}
 
 	result.pass(CheckPathContainment, "Entry and declared resources resolve inside the canonical package root.")

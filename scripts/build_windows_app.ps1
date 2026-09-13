@@ -23,6 +23,27 @@ if ($Version -notmatch '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9
 }
 $runtimeVersionLdflags = "-X opendesk/pkg/runtimeversion.Current=$Version"
 
+function Get-PESubsystem {
+    param([Parameter(Mandatory=$true)][string]$Path)
+
+    $stream = [IO.File]::Open($Path, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
+    try {
+        $reader = [IO.BinaryReader]::new($stream)
+        if ($reader.ReadUInt16() -ne 0x5A4D) { throw "$Path is not a PE executable." }
+        $stream.Position = 0x3C
+        $peOffset = $reader.ReadInt32()
+        $optionalHeader = $peOffset + 24
+        if ($peOffset -lt 0 -or $optionalHeader + 70 -gt $stream.Length) { throw "$Path has an invalid PE optional header." }
+        $stream.Position = $optionalHeader
+        $magic = $reader.ReadUInt16()
+        if ($magic -ne 0x010B -and $magic -ne 0x020B) { throw "$Path has an unsupported PE optional-header magic." }
+        $stream.Position = $optionalHeader + 68
+        return $reader.ReadUInt16()
+    } finally {
+        $stream.Dispose()
+    }
+}
+
 if (!$IsWindows) {
     throw 'Build the complete OpenDesk Windows application on Windows with Go, its native C toolchain, and the .NET 8 SDK.'
 }
@@ -46,6 +67,7 @@ if ($OutputDirectory.TrimEnd('\') -eq [IO.Path]::GetFullPath($root).TrimEnd('\')
 }
 
 $runtimePath = Join-Path $OutputDirectory 'opendesk.exe'
+$desktopRuntimePath = Join-Path $OutputDirectory 'OpenDesk.exe'
 $uiOutputDirectory = Join-Path $OutputDirectory 'ui-host'
 New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
 
@@ -63,6 +85,19 @@ try {
     }
     if (-not (Test-Path -LiteralPath $runtimePath -PathType Leaf)) {
         throw "OpenDesk runtime was not produced at $runtimePath"
+    }
+
+    & go build -trimpath -ldflags "$runtimeVersionLdflags -H=windowsgui" -o $desktopRuntimePath ./cmd/opendesk
+    if ($LASTEXITCODE -ne 0) {
+        throw "OpenDesk desktop Windows build failed ($LASTEXITCODE)."
+    }
+    if (-not (Test-Path -LiteralPath $desktopRuntimePath -PathType Leaf)) {
+        throw "OpenDesk desktop entry was not produced at $desktopRuntimePath"
+    }
+    $cliSubsystem = Get-PESubsystem -Path $runtimePath
+    $desktopSubsystem = Get-PESubsystem -Path $desktopRuntimePath
+    if ($cliSubsystem -ne 3 -or $desktopSubsystem -ne 2) {
+        throw "Windows entry subsystem mismatch: opendesk.exe=$cliSubsystem (want 3), OpenDesk.exe=$desktopSubsystem (want 2)."
     }
 
     & ./scripts/build_windows_ui.ps1 -Runtime 'win-x64' -OutputDirectory $uiOutputDirectory
@@ -95,7 +130,8 @@ try {
         Write-Host "Staged default App Mode package: $appModeOutput"
     }
 
-    Write-Host "OpenDesk Windows runtime: $runtimePath"
+    Write-Host "OpenDesk Windows CLI entry: $runtimePath"
+    Write-Host "OpenDesk Windows desktop entry: $desktopRuntimePath"
     Write-Host "OpenDesk Windows UI host: $uiHostPath"
     Write-Host "Runtime compatibility version: $Version"
 } finally {

@@ -23,7 +23,8 @@ const (
 	ActionRecorder = "opendesk.recorder"
 	ActionQuit     = "opendesk.quit"
 
-	RecorderMenuLabel = "打开 Recorder"
+	RecorderMenuLabel        = "打开 Recorder"
+	ProductRecorderMenuLabel = "录制自动化"
 )
 
 var (
@@ -89,7 +90,11 @@ type Package struct {
 	EntryPath       string
 	WindowsIconPath string
 	MacOSIconPath   string
-	Manifest        Manifest
+	// MacOSIconTemplate is derived from the PNG pixels during package
+	// validation. Monochrome icons use AppKit template tinting; chromatic
+	// application icons preserve their authored brand colors.
+	MacOSIconTemplate bool
+	Manifest          Manifest
 }
 
 func LoadManifest(packageDir string) (Manifest, error) {
@@ -269,7 +274,7 @@ func (m *Manifest) Validate() error {
 			return err
 		}
 		if !strings.EqualFold(filepath.Ext(macOSIcon), ".png") {
-			return newPackageError(ErrPackageResourceInvalid, "tray.icons.macos", "a package-local .png path", macOSIcon, "use a macOS template PNG tray resource", errors.New("tray.icons.macos must reference a .png template image"))
+			return newPackageError(ErrPackageResourceInvalid, "tray.icons.macos", "a package-local .png path", macOSIcon, "use a macOS PNG tray resource", errors.New("tray.icons.macos must reference a .png image"))
 		}
 		m.Tray.Icons.Windows = windowsIcon
 		m.Tray.Icons.MacOS = macOSIcon
@@ -445,14 +450,18 @@ func EnsureRecorderMenu(manifest Manifest) Manifest {
 			return manifest
 		}
 	}
-	recorder := MenuItem{ID: ActionRecorder, Label: RecorderMenuLabel, Action: ActionRecorder, system: true}
+	recorderLabel := RecorderMenuLabel
+	if IsOpenDeskProduct(manifest) {
+		recorderLabel = ProductRecorderMenuLabel
+	}
+	recorder := MenuItem{ID: ActionRecorder, Label: recorderLabel, Action: ActionRecorder, system: true}
 	if len(manifest.Tray.Menu) == 0 {
 		manifest.Tray.Menu = []MenuItem{recorder}
 		return manifest
 	}
 	menu := make([]MenuItem, 0, len(manifest.Tray.Menu)+2)
 	menu = append(menu, recorder)
-	if manifest.Tray.Menu[0].Type != "separator" {
+	if !IsOpenDeskProduct(manifest) && manifest.Tray.Menu[0].Type != "separator" {
 		menu = append(menu, MenuItem{Type: "separator"})
 	}
 	menu = append(menu, manifest.Tray.Menu...)

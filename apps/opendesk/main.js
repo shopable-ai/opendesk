@@ -108,7 +108,7 @@ void developerTools.initialize();
 // prompts are reserved for an explicit Permissions Center action or the first
 // real protected operation.
 await permissionsCenter.preflight('startup');
-const initialState = await runner.open('startup');
+const initialState = await runner.launch();
 
 console.log('OPENDESK_PRODUCT_APP_READY=' + JSON.stringify({
   executionId: Execution.id,

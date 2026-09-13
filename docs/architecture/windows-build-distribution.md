@@ -36,6 +36,7 @@ The canonical P0 layout follows the Runtime's existing Native UI Host discovery 
 
 ```text
 dist/windows/win-x64/
+├── OpenDesk.exe
 ├── opendesk.exe
 ├── distribution-provenance.json
 ├── polyfills/
@@ -53,6 +54,13 @@ dist/windows/win-x64/
     └── ... self-contained dotnet publish closure ...
 ```
 
+`OpenDesk.exe` is the Windows GUI-subsystem desktop entry (PE subsystem `2`) and is the target for Explorer/Start Menu
+launches. `opendesk.exe` is the Console-subsystem CLI entry (PE subsystem `3`) and inherits the invoking console. They are
+two link variants of the same `./cmd/opendesk` source and therefore do not duplicate Runtime or product business logic.
+Product-owned child executions started from the desktop entry explicitly request `Command.run(..., {hideWindow:true})`;
+the Windows process backend combines `CREATE_NO_WINDOW` with captured stdout/stderr pipes. CLI calls default to normal
+Console inheritance.
+
 `pkg/customui/process_driver.go` already looks for `ui-host/opendesk-ui-host.exe` relative to the running Runtime executable on Windows. The production bundle therefore needs no repository-relative fallback and no development-machine absolute path.
 
 `automation/utils.go` likewise resolves `polyfills/` and `jslibs/` from the Runtime executable before using repository/development fallbacks. The distribution builder owns the matching asset layout and records every staged Runtime asset with its SHA-256 digest. Default notification and sound resources follow their existing executable-relative discovery paths; application scripts, project Custom UI files, Native Extensions, and App Mode package assets remain application/user inputs and are not copied from the source tree.
@@ -68,7 +76,8 @@ For the complete P0 application:
 - `win-x64` is the only supported distribution target.
 - the Go runtime is built with `GOOS=windows` and `GOARCH=amd64`;
 - the UI host is published as `win-x64`;
-- both PE machine fields are checked for AMD64 (`0x8664`);
+- both Runtime entry PE machine fields and the UI host are checked for AMD64 (`0x8664`);
+- the desktop/CLI PE subsystems are checked as GUI `2` and Console `3` respectively;
 - UI host provenance must also say `win-x64`;
 - an x64 distribution build is rejected on a non-x64 builder until the Go/CGO/native dependency chain has been validated there;
 - requesting a whole-app `win-arm64` distribution fails explicitly instead of producing a mixed package.
@@ -94,7 +103,7 @@ The Windows Core workflow consumes the final staging directory for:
 - real initialization of both the UI polyfill and a bundled JavaScript library;
 - Runtime-to-Native-UI-Host discovery through the bundled `ui-host/` path;
 - explicit failure after the bundled host is removed;
-- x64 PE/provenance consistency.
+- x64 PE/provenance consistency and GUI/Console entry subsystem separation.
 
 The hosted GitHub runner is real Windows, but these gates remain **Hosted Deterministic** evidence. They do not promote DPI, mixed-DPI multi-display behavior, real global input capture, Recorder, foreground switching, GlobalShortcut callbacks, visual Custom UI/Dialog/notification UX, or long-lived user-session lifecycle to verified status.
 

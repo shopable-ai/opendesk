@@ -98,7 +98,7 @@ func TestBuildWindowsFromInstalledTemplateStagesPortableDirectory(t *testing.T) 
 	if result.Signing.Status != "not-signed-by-builder" || result.Signing.Notarization != "" || filepath.Base(result.Provenance) != "app-build-provenance.json" {
 		t.Fatalf("unexpected Windows signing/provenance result: %+v", result)
 	}
-	for _, relative := range []string{"opendesk.exe", "ui-host/opendesk-ui-host.exe", "polyfills/000.js", "jslibs/runtime.js", "app-mode/opendesk.app.json", "app-build-provenance.json"} {
+	for _, relative := range []string{"opendesk.exe", "OpenDesk.exe", "ui-host/opendesk-ui-host.exe", "polyfills/000.js", "jslibs/runtime.js", "app-mode/opendesk.app.json", "app-build-provenance.json"} {
 		if _, err := os.Stat(filepath.Join(output, filepath.FromSlash(relative))); err != nil {
 			t.Fatalf("portable artifact missing %s: %v", relative, err)
 		}
@@ -195,6 +195,7 @@ func writeRuntimeTemplate(t *testing.T, target string) string {
 		return filepath.Join(app, "Contents", "MacOS", "opendesk")
 	}
 	writeFixture(t, root, "opendesk.exe", "runtime")
+	writeFixture(t, root, "OpenDesk.exe", "desktop runtime")
 	writeFixture(t, root, "ui-host/opendesk-ui-host.exe", "ui host")
 	writeFixture(t, root, "polyfills/000.js", "polyfill")
 	writeFixture(t, root, "jslibs/runtime.js", "library")

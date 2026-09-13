@@ -15,17 +15,9 @@
     "primaryAction": "opendesk.open",
     "icons": {
       "windows": "assets/tray.ico",
-      "macos": "assets/tray-template.png"
+      "macos": "assets/opendesk-logo.png"
     },
     "menu": [
-      {
-        "id": "open-opendesk",
-        "label": "打开 OpenDesk",
-        "action": "runner.open"
-      },
-      {
-        "type": "separator"
-      },
       {
         "id": "open-scheduler-center",
         "label": "计划中心",

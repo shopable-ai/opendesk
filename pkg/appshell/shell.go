@@ -79,9 +79,9 @@ func New(manifest Manifest, native NativeHost) (*Shell, error) {
 		return nil, err
 	}
 	menuState := make(map[string]MenuItemPatch)
-	for _, item := range manifest.Tray.Menu {
-		if item.Type == "separator" {
-			continue
+	visitNativeMenu(nativeMenuForManifest(manifest), func(item nativeMenuItem) {
+		if item.Type == "separator" || item.ID == "" {
+			return
 		}
 		label := item.Label
 		enabled := true
@@ -93,7 +93,7 @@ func New(manifest Manifest, native NativeHost) (*Shell, error) {
 			visible = *item.Visible
 		}
 		menuState[item.ID] = MenuItemPatch{Label: &label, Enabled: &enabled, Visible: &visible}
-	}
+	})
 	return &Shell{state: StateRunning, manifest: manifest, native: native, menuState: menuState}, nil
 }
 
@@ -242,7 +242,7 @@ func (s *Shell) SetQuitHook(hook func()) {
 // Native backends never decide the JavaScript event identity themselves.
 func (s *Shell) DispatchMenuItem(itemID, source string) {
 	var err error
-	if isBuiltinAction(itemID) {
+	if isBuiltinAction(itemID) || isProductSystemAction(itemID) {
 		err = s.DispatchAction(itemID, source)
 	} else if action, ok := s.manifest.MenuAction(itemID); ok {
 		err = s.DispatchAction(action, source)
