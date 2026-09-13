@@ -76,6 +76,40 @@ The production rename must land atomically across:
 
 Until those production paths are changed and Windows CI/live launch evidence passes, the current `OpenDesk.exe`/`opendesk.exe` pair is not release-qualified. Do not solve the problem by deleting the CLI role or `ui-host`; fix the filename/layout contract.
 
+## Trusted helper process model
+
+Starting a bundled helper executable is a normal desktop-application process model. The security boundary is **not** “never create a child process”; it is “only execute release-owned, integrity-checked components through a narrow protocol”. The end user still performs one launch action.
+
+```text
+user launches desktop entry once
+        ↓
+OpenDesk Runtime
+        ↓  direct child-process creation, fixed package-relative path
+ui-host/opendesk-ui-host.exe
+        ↓  inherited stdio / versioned protocol
+native windows
+```
+
+Release requirements for the helper path are:
+
+- `ui-host` is built and shipped as part of the same OpenDesk distribution. Runtime must not download it on demand, generate it in `%TEMP%`, or execute a helper from an App Mode/user-writable package path.
+- Production Windows releases must Authenticode-sign the desktop entry, CLI entry, Native UI Host, and any other executable/native binary that Windows can load, using the same stable trusted publisher identity and timestamping policy. An unsigned portable directory is a development/CI artifact, not a consumer trust-qualified release.
+- Runtime launches the helper by an absolute path derived from its own installed/distribution root. Do not route the launch through `cmd.exe`, PowerShell, shell file associations, PATH lookup, or a user-controlled working directory.
+- The helper runs at the same user/integrity level as OpenDesk. It does not request elevation merely to render UI and must not create an additional UAC flow.
+- Communication remains local and narrow: inherited stdin/stdout or an equivalently authenticated local IPC channel. Do not expose the UI helper as a general loopback/network service.
+- The helper lifecycle is owned by the Runtime: lazy start, bounded startup handshake, protocol/version verification, one owned session according to the current Custom UI contract, graceful shutdown, and forced cleanup if the parent exits or the helper becomes unhealthy.
+- Runtime must fail closed if the resolved helper path escapes the release-owned location, the expected helper is missing, the protocol handshake is incompatible, or future release integrity/signature checks fail. It must not silently fall back to an arbitrary same-named executable found elsewhere on a consumer machine.
+- Product UX never asks the user to find or start `opendesk-ui-host.exe`; seeing a helper process in Task Manager is normal internal implementation, not a second OpenDesk application.
+
+Windows security products can still warn on a newly distributed binary because reputation and publisher trust are independent from the parent/child relationship. Therefore release qualification must separately test SmartScreen / Smart App Control behavior for **all shipped executable code paths**, not only the desktop entry. Consistent code signing reduces trust ambiguity but does not guarantee that a brand-new release has already accumulated SmartScreen reputation.
+
+This design intentionally avoids two worse alternatives:
+
+1. **Runtime-dropped helper:** writing a new EXE into a temporary/cache directory and immediately executing it creates unnecessary reputation, integrity, and endpoint-security risk.
+2. **Forced single-process rewrite:** embedding the current .NET/WinForms/WebView2 host into the Go process would materially redesign Custom UI ownership and failure isolation merely to reduce Task Manager process count. That is not justified by the current threat model.
+
+The preferred long-term presentation is still one visible product entry. A future installer may hide CLI/helper payloads under an internal installation directory and publish only one Start Menu/Desktop shortcut, while preserving the separate process roles internally.
+
 ## Four separate levels
 
 | Level | P0 contract |
