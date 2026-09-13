@@ -405,7 +405,9 @@
             state.detail = captureUnavailableDetail;
           }
         } else if (!captureAvailable && (state.phase === 'ready' || TERMINAL_PHASES.has(state.phase))) {
-          state.detail = TERMINAL_PHASES.has(state.phase)
+          const retainingArtifacts = TERMINAL_PHASES.has(state.phase);
+          if (!retainingArtifacts) state.phase = 'unavailable';
+          state.detail = retainingArtifacts
             ? `已有录制/生成结果已保留；新的录制暂不可用：${captureUnavailableDetail}`
             : captureUnavailableDetail;
         }
