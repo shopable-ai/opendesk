@@ -61,6 +61,9 @@ if (index) {
   if (byName.Notifications?.keyMethods?.[0] !== 'list') {
     errors.push('runtime-api.ai.json: Notifications.list must precede diagnostics in keyMethods');
   }
+  if (byName.Recorder?.keyMethods?.[0] !== 'start') {
+    errors.push('runtime-api.ai.json: Recorder.start must precede diagnostics in keyMethods');
+  }
   if (byName.FloatingWindow?.doc !== 'ui.md') {
     errors.push('runtime-api.ai.json: FloatingWindow canonical doc must be ui.md');
   }
