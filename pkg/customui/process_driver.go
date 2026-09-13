@@ -618,9 +618,9 @@ func uiHostCandidates(executable string) []string {
 	dir := filepath.Dir(executable)
 	if runtime.GOOS == "windows" {
 		return []string{
-			filepath.Join(dir, "clawdesk-ui-host.exe"),
-			filepath.Join(dir, "opendesk-ui-host.exe"),
 			filepath.Join(dir, "ui-host", "opendesk-ui-host.exe"),
+			filepath.Join(dir, "opendesk-ui-host.exe"),
+			filepath.Join(dir, "clawdesk-ui-host.exe"),
 		}
 	}
 	return []string{
