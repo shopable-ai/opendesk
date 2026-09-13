@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "actions": {
+    "home": {
+      "visible": true,
+      "url": "https://github.com/shopable-ai/opendesk#home"
+    },
+    "help": {
+      "visible": true,
+      "url": "https://github.com/shopable-ai/opendesk#help"
+    },
+    "customize": {
+      "visible": true,
+      "url": "https://github.com/shopable-ai/opendesk#customize"
+    },
+    "marketplace": {
+      "visible": false,
+      "url": "https://github.com/shopable-ai/opendesk#marketplace"
+    },
+    "upgrade": {
+      "visible": false,
+      "url": "https://github.com/shopable-ai/opendesk#upgrade"
+    }
+  }
+}
