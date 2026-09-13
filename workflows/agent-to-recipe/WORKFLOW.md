@@ -8,6 +8,16 @@ order: 10
 
 本文件负责整体工作流导航和当前已存在的方法入口，不是自动调度程序。当前已建立 [application-engineer/SKILL.md](skills/application-engineer/SKILL.md) 方法入口；其余职责只有在对应实现、宿主加载和验证实际完成后才视为可用。本文不复制专业正文，也不自动授予桌面权限。
 
+## 与普通任务运行及能力发布的交接
+
+跨层唯一架构见 [Automation Capability Lifecycle](../../docs/architecture/desktop-automation/task-capability-lifecycle.md)。本工作流负责生产/维修自动化，不是用户每次自然语言任务的运行链；Chat Runner 的 Runtime 状态机不另建平行 Workflow 目录。
+
+进入本链前先消费明确的 Capability Gap、Failure Package 或已有资产工作包，固定目标、来源、允许副作用与预算。已有有效 AppProfile、过程、候选和证据优先复用；仅缺资格时先重验，仅缺登记时走受控发布，不强制重走新示范。用户在 Normal Mode 确认一次运行，不等于授权 Agent 探索、生成、验收和发布。
+
+出口仍是现有合同下的普通 JS Candidate 与独立 QualificationRecord，再由生命周期的显式发布门登记 Capability。任何代码/依赖修复形成新候选，不能热改生产脚本沿用旧资格；完整发布门与 recipe-qualify 正式入口尚待实施，不因本文存在而自动可用。Agent 的 S1—S12、Human 的 H1—H8 与原始来源分别保留，不把来源适配做成第二份 AppProfile 或业务步骤真相。
+
+application-engineer 保持下述唯一路径，供 Agent、Human 与运行失败维修共享；其局部规则/审阅和资格范围建议不等于整份 Recipe 通过，也不授予最终发布权。详细字段、路由、优先级和跨层任务树只在上述生命周期文档维护。
+
 ## 当前可使用的应用工程方法
 
 默认同一个 Agent 按工作流继续。要认识应用、只做界面认识与审阅、补强定位和操作，或依据失败维修时，读取 application-engineer 方法及指定工作包；按 discover／harden／repair 进入。不假设宿主会扫描此目录，不虚构 Skill 调用命令。
