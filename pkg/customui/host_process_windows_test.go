@@ -38,8 +38,8 @@ func TestWindowsNativeHostParentDeathOwnership(t *testing.T) {
 	defer func() {
 		if parent.Process != nil {
 			_ = parent.Process.Kill()
+			_, _ = parent.Process.Wait()
 		}
-		_, _ = parent.Process.Wait()
 	}()
 
 	var childPID int
