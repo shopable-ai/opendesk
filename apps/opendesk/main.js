@@ -26,6 +26,8 @@ if (!globalThis.OpenDeskProductScriptRunner
   throw new Error('OpenDesk product Script Runner did not initialize');
 }
 
+const runner = OpenDeskProductScriptRunner.create({officialShell});
+
 const schedulerClientEntry = File.join(Execution.scriptDir, 'scheduler-client.js');
 (0, eval)(File.read(schedulerClientEntry) + '\n//# sourceURL=' + schedulerClientEntry);
 if (!globalThis.OpenDeskSchedulerClient
@@ -46,14 +48,12 @@ if (!globalThis.OpenDeskRuntimeLog
   || typeof OpenDeskRuntimeLog.create !== 'function') {
   throw new Error('OpenDesk Runtime Log did not initialize');
 }
-
 const permissionsCenterEntry = File.join(Execution.scriptDir, 'permissions-center.js');
 (0, eval)(File.read(permissionsCenterEntry) + '\n//# sourceURL=' + permissionsCenterEntry);
 if (!globalThis.OpenDeskPermissionsCenter
   || typeof OpenDeskPermissionsCenter.create !== 'function') {
   throw new Error('OpenDesk Permissions Center did not initialize');
 }
-
 const inspectorLauncherEntry = File.join(Execution.scriptDir, 'inspector-launcher.js');
 (0, eval)(File.read(inspectorLauncherEntry) + '\n//# sourceURL=' + inspectorLauncherEntry);
 if (!globalThis.OpenDeskInspectorLauncher
@@ -68,7 +68,6 @@ if (!globalThis.OpenDeskProductAppController
   throw new Error('OpenDesk product App controller did not initialize');
 }
 
-const runner = OpenDeskProductScriptRunner.create({officialShell});
 const schedulerCenter = OpenDeskSchedulerCenter.create();
 const runtimeLog = OpenDeskRuntimeLog.create({runner});
 const permissionsCenter = OpenDeskPermissionsCenter.create();
@@ -78,6 +77,18 @@ const inspectorLauncher = OpenDeskInspectorLauncher.create({
   execution: Execution,
   ui: automation.ui,
 });
+const developerToolsEntry = File.join(Execution.scriptDir, 'developer-tools.js');
+(0, eval)(File.read(developerToolsEntry) + '\n//# sourceURL=' + developerToolsEntry);
+if (!globalThis.OpenDeskDeveloperTools
+  || typeof OpenDeskDeveloperTools.create !== 'function') {
+  throw new Error('OpenDesk developer tools did not initialize');
+}
+const developerTools = OpenDeskDeveloperTools.create({
+  appRuntime: automation.app,
+  runner,
+  schedulerClient: OpenDeskSchedulerClient,
+  runtimeLog,
+});
 const appController = OpenDeskProductAppController.create({
   appRuntime: automation.app,
   runner,
@@ -85,9 +96,13 @@ const appController = OpenDeskProductAppController.create({
   runtimeLog,
   permissionsCenter,
   inspectorLauncher,
+  developerTools,
   officialShell,
 });
 appController.start();
+// Developer-tools state is auxiliary product metadata. It must never serialize the
+// primary desktop launch path behind a loopback request or native menu update.
+void developerTools.initialize();
 
 // Silent startup preflight is deliberately status-only. Native permission
 // prompts are reserved for an explicit Permissions Center action or the first
@@ -111,5 +126,6 @@ console.log('OPENDESK_PRODUCT_APP_READY=' + JSON.stringify({
   permissions: permissionsCenter.state(),
   appController: appController.state(),
   runtimeLog: runtimeLog.state(),
+  developerTools: developerTools.state(),
   officialShell: officialShell.state(),
 }));

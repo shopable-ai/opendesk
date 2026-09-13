@@ -21,39 +21,44 @@ apps/opendesk/assets/            -> file-backed product identity/package resourc
 
 新增普通 UI 图标前必须先查中央 catalog；catalog 已存在同义图标时，禁止新增私有 PNG/SVG 副本。
 
-## Official shell config
+## Official actions config
 
-`official-shell.odcfg` 是 **generated release resource**，不要手工编辑。
+`official-actions.odcfg` 是 **generated release resource**，不要手工编辑。
 
 维护源：
 
 ```text
-configs/official-shell.json
+configs/official-actions.json
 ```
 
 生成：
 
 ```bash
-make build
-./dist/opendesk config compile
+./dist/opendesk config compile --input configs/official-actions.json --output apps/opendesk/assets/official-actions.odcfg
+./dist/opendesk config inspect --input apps/opendesk/assets/official-actions.odcfg
+./dist/opendesk config verify --input configs/official-actions.json --output apps/opendesk/assets/official-actions.odcfg
 ```
 
-默认链路：
+这些路径是官方发行调用方显式选择的，不是编译器默认值。`compile` 只做单个 JSON input 到单个 `.odcfg` output 的编译；省略其 `--output` 时，只会在 input 同目录生成同 basename 的 `.odcfg`。`inspect` 解码并校验生成物；`verify` 进一步确认明文 input 与保护 output 精确一致。三个命令都输出结构化 JSON，实际配置位于 `result.config`。`make build`、App Mode staging、`.app` 与 Windows distribution 构建是独立步骤。
+
+官方发行链路：
 
 ```text
-configs/official-shell.json
+configs/official-actions.json
     -> pkg/officialconfig
     -> internal/configcli
-    -> apps/opendesk/assets/official-shell.odcfg
+    -> apps/opendesk/assets/official-actions.odcfg
 ```
 
-官网不在这个文件中。官网属于 Runtime-owned：
+官网与其他官方 action URL 都在这个文件中。Runtime 为兼容产品身份 API，从同一份生成资源派生：
 
 ```js
 System.product.website
 ```
 
-Help / Customize / Marketplace / Upgrade 才属于 `official-shell.json` / `.odcfg`。
+`home`、Help、Customize、Marketplace、Upgrade 都属于 `official-actions.json` / `.odcfg`；其中 `home` 必须可见且使用非空 HTTPS URL。`System.product.website` 不是第二个维护源。`official-shell.js` 是 Runtime 组件名，不再与配置 basename 混用。
+
+不使用 `app-config`，因为它会与 `opendesk.app.json` 混淆；不使用 `app-info`，因为本文件不是静态 metadata。`official-actions` 精确对应 `opendesk.*` action 的可见性与 HTTPS URL policy。
 
 ODCFG1 当前只是可逆混淆 + checksum，不是 secret store、签名配置或 DRM。禁止保存 token、密码、License key、私钥或其他 secret。
 

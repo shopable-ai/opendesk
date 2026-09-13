@@ -16,6 +16,7 @@
     const runtimeLog = settings.runtimeLog;
     const permissionsCenter = settings.permissionsCenter;
     const inspectorLauncher = settings.inspectorLauncher;
+    const developerTools = settings.developerTools;
     const officialShell = settings.officialShell;
     const logger = settings.logger || global.console;
     let started = false;
@@ -62,6 +63,20 @@
           await permissionsCenter.open(source);
           return true;
         default:
+          if (developerTools
+            && typeof developerTools.activate === 'function'
+            && [
+              'opendesk.status',
+              'opendesk.inspector.open',
+              'opendesk.inspector.lan.toggle',
+              'opendesk.inspector.lan.copy',
+              'opendesk.logs.open',
+              'opendesk.debug.normal',
+              'opendesk.debug.detailed',
+            ].includes(event.id)) {
+            await developerTools.activate(event.id, source);
+            return true;
+          }
           if (officialShell
             && typeof officialShell.activate === 'function'
             && ['opendesk.home', 'opendesk.help', 'opendesk.customize'].includes(event.id)) {

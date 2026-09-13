@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"opendesk/pkg/customui"
 	pkgHTTP "opendesk/pkg/http"
 	pkgScheduler "opendesk/pkg/scheduler"
 )
@@ -43,12 +44,13 @@ type appSchedulerRuntime struct {
 	inspectorURL string
 	token        string
 	root         string
+	artifactRoot string
 
 	closeOnce sync.Once
 	closeErr  error
 }
 
-func startAppScheduler(ctx context.Context, config *Config, packageID, appRoot string, environment map[string]string) (*appSchedulerRuntime, error) {
+func startAppScheduler(ctx context.Context, config *Config, packageID, appRoot string, environment map[string]string, uiDrivers ...customui.Driver) (*appSchedulerRuntime, error) {
 	scriptRoot, err := resolveAppSchedulerScriptRoot(packageID, appRoot, environment)
 	if err != nil {
 		return nil, err
@@ -56,6 +58,11 @@ func startAppScheduler(ctx context.Context, config *Config, packageID, appRoot s
 	if err := os.MkdirAll(scriptRoot, 0o755); err != nil {
 		return nil, fmt.Errorf("create App Scheduler script root: %w", err)
 	}
+	dataRoot, err := appModeDataRoot(packageID, environment)
+	if err != nil {
+		return nil, fmt.Errorf("resolve App Scheduler artifact root: %w", err)
+	}
+	artifactRoot := filepath.Join(dataRoot, ".runtime", "examples", "custom-ui", "script-runner-simple", "runs")
 
 	databasePath := ""
 	if config != nil {
@@ -72,7 +79,21 @@ func startAppScheduler(ctx context.Context, config *Config, packageID, appRoot s
 		}
 	}()
 
-	executor, err := pkgScheduler.NewScriptExecutor(scriptRoot, 30*time.Minute)
+	var uiDriver customui.Driver
+	if len(uiDrivers) > 0 {
+		uiDriver = uiDrivers[0]
+	}
+	var executor *pkgScheduler.ScriptExecutor
+	if uiDriver == nil {
+		executor, err = pkgScheduler.NewScriptExecutor(scriptRoot, 30*time.Minute)
+	} else {
+		executor, err = pkgScheduler.NewScriptExecutorWithOptions(scriptRoot, pkgScheduler.ScriptExecutorOptions{
+			ArtifactRoot:   artifactRoot,
+			Timeout:        30 * time.Minute,
+			EnableCustomUI: true,
+			CustomUIDriver: uiDriver,
+		})
+	}
 	if err != nil {
 		return nil, fmt.Errorf("initialize App Scheduler executor: %w", err)
 	}
@@ -101,12 +122,13 @@ func startAppScheduler(ctx context.Context, config *Config, packageID, appRoot s
 	}
 
 	runtime := &appSchedulerRuntime{
-		service:  service,
-		store:    store,
-		listener: listener,
-		endpoint: "http://" + listener.Addr().String(),
-		token:    token,
-		root:     scriptRoot,
+		service:      service,
+		store:        store,
+		listener:     listener,
+		endpoint:     "http://" + listener.Addr().String(),
+		token:        token,
+		root:         scriptRoot,
+		artifactRoot: artifactRoot,
 	}
 	handler := pkgHTTP.NewHandlerWithScheduler(nil, service)
 	mux := http.NewServeMux()
@@ -239,6 +261,7 @@ func (r *appSchedulerRuntime) handleStatus(w http.ResponseWriter, request *http.
 			"available":     true,
 			"runnerState":   r.service.RunnerState(),
 			"scriptRoot":    r.root,
+			"artifactRoot":  r.artifactRoot,
 			"localEndpoint": r.endpoint,
 			"inspectorUrl":  r.inspectorURL,
 		},
