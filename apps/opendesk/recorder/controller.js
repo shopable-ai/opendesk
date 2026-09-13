@@ -10,6 +10,7 @@
     throw new Error('recording-console-simple history wrapper requires File and Execution.scriptDir');
   }
 
+  const DEFAULT_WINDOW_TITLE = 'OpenDesk — Recorder';
   const HISTORY_ICON_GLYPHS = Object.freeze({
     'play.fill': '▶',
     pencil: '✎',
@@ -166,19 +167,20 @@
     return Object.freeze(wrapper);
   }
 
-  function createToolbarAdapter(BaseFloatingWindow, managerRef, brandIcon) {
+  function createToolbarAdapter(BaseFloatingWindow, managerRef, brandIcon, windowTitle) {
     if (typeof BaseFloatingWindow !== 'function') {
       throw new Error('recording-console-simple requires FloatingWindow');
     }
 
     return function HistoryAwareFloatingWindow(options) {
       const input = options || {};
+      const titledInput = {...input, title: windowTitle};
       const toolbarOptions = input.toolbar ? {...input.toolbar} : null;
       if (toolbarOptions && toolbarOptions.maxRows === 1
         && (!Number.isFinite(toolbarOptions.maxColumns) || toolbarOptions.maxColumns < 9)) {
         toolbarOptions.maxColumns = 9;
       }
-      const inner = new BaseFloatingWindow(toolbarOptions ? {...input, toolbar: toolbarOptions} : input);
+      const inner = new BaseFloatingWindow(toolbarOptions ? {...titledInput, toolbar: toolbarOptions} : titledInput);
       const wrapper = {};
 
       const forward = [
@@ -233,7 +235,15 @@
     const runtimeExecution = settings.execution || global.Execution;
     const BaseFloatingWindow = settings.FloatingWindow || global.FloatingWindow;
     const brandIcon = resolveBrandIcon(runtimeFile, runtimeExecution);
-    const HistoryAwareFloatingWindow = createToolbarAdapter(BaseFloatingWindow, managerRef, brandIcon);
+    const windowTitle = typeof settings.windowTitle === 'string' && settings.windowTitle.trim()
+      ? settings.windowTitle.trim()
+      : DEFAULT_WINDOW_TITLE;
+    const HistoryAwareFloatingWindow = createToolbarAdapter(
+      BaseFloatingWindow,
+      managerRef,
+      brandIcon,
+      windowTitle
+    );
     const sharedDialog = createDialogCoordinator(dialog, settings.logger || global.console);
     const coreApp = coreAPI.createApp({...settings, dialog: sharedDialog, FloatingWindow: HistoryAwareFloatingWindow});
     const historyUI = createHistoryUIAdapter(ui);
