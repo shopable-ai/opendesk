@@ -40,6 +40,15 @@ if (index) {
   if (byName.ui?.doc !== 'ui.md') {
     errors.push('runtime-api.ai.json: ui canonical doc must be ui.md');
   }
+  if (Object.prototype.hasOwnProperty.call(byName.ui || {}, 'toastDoc')) {
+    errors.push('runtime-api.ai.json: ui.toast must not have a second toastDoc; ui.md is canonical');
+  }
+  if (byName.notify?.doc !== 'notify.md') {
+    errors.push('runtime-api.ai.json: global notify canonical doc must be notify.md');
+  }
+  if (byName.Notifications?.doc !== 'notifications.md') {
+    errors.push('runtime-api.ai.json: Notifications canonical doc must be notifications.md');
+  }
   if (byName.FloatingWindow?.doc !== 'ui.md') {
     errors.push('runtime-api.ai.json: FloatingWindow canonical doc must be ui.md');
   }
@@ -87,6 +96,21 @@ requireText('docs/api/ui.md', '## ui.toast(messageOrOptions)');
 requireText('docs/api/ui.md', '## ui.notify(messageOrOptions)');
 requireText('docs/api/ui.md', '## ToastHandle.update(patch)');
 rejectText('docs/api/ui.md', '## NotificationHandle.update(patch)', 'legacy handle as canonical H2');
+
+// Notification ownership: ui.md exclusively owns Toast, notify.md exclusively
+// owns global notify(), and notifications.md owns the inbound Notifications API.
+requireText('docs/api/notify.md', 'docType: reference');
+requireText('docs/api/notify.md', '## notify(messageOrOptions)');
+requireText('docs/api/notify.md', '本页不重复 Toast 参数、句柄、位置或进度契约');
+rejectText('docs/api/notify.md', '## ui.toast(', 'duplicate ui.toast Reference in notify.md');
+rejectText('docs/api/notify.md', '## ui.notify(', 'duplicate ui.notify Reference in notify.md');
+rejectText('docs/api/notify.md', '## ToastHandle', 'duplicate ToastHandle Reference in notify.md');
+
+requireText('docs/api/notifications.md', 'docType: reference');
+requireText('docs/api/notifications.md', '## Notifications.getCapabilities()');
+requireText('docs/api/notifications.md', '## Notifications.list(options?)');
+requireText('docs/api/notifications.md', '## Notifications.waitFor(options?)');
+requireText('docs/api/notifications.md', '## Notifications.dismiss(target)');
 
 for (const rel of ['docs/api/agent.md', 'docs/api/llm.md']) {
   requireText(rel, 'docType: reference');
