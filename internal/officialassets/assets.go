@@ -1,6 +1,6 @@
-// Package officialassets exposes the generated OpenDesk product navigation
+// Package officialassets exposes the generated OpenDesk product configuration
 // resource to the generic JavaScript Runtime. The maintained plaintext source
-// remains configs/official-actions.json.
+// remains configs/product.json.
 package officialassets
 
 import (
@@ -13,12 +13,12 @@ import (
 //go:generate go run ./cmd/sync
 
 // Config decodes the generated ODCFG1 resource embedded in generated Go source.
-// The generator reads only apps/opendesk/assets/official-actions.odcfg so the
-// Runtime does not acquire a second plaintext configuration source.
+// The generator reads only apps/opendesk/assets/product.odcfg so the Runtime
+// does not acquire a second plaintext configuration source.
 func Config() (officialconfig.Config, error) {
-	config, err := officialconfig.Decode([]byte(generatedOfficialActions))
+	config, err := officialconfig.Decode([]byte(generatedProductConfig))
 	if err != nil {
-		return officialconfig.Config{}, fmt.Errorf("decode embedded official actions: %w", err)
+		return officialconfig.Config{}, fmt.Errorf("decode embedded official product config: %w", err)
 	}
 	return config, nil
 }
@@ -32,7 +32,7 @@ func ProductWebsite() (string, error) {
 	}
 	website := strings.TrimSpace(config.Actions["home"].URL)
 	if !strings.HasPrefix(website, "https://") {
-		return "", fmt.Errorf("embedded official actions home URL must use HTTPS")
+		return "", fmt.Errorf("embedded official product config home URL must use HTTPS")
 	}
 	return website, nil
 }
