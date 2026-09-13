@@ -7,7 +7,7 @@ VERSION_FILE := $(CURDIR)/VERSION
 VERSION ?= $(shell tr -d '[:space:]' < "$(VERSION_FILE)")
 RUNTIME_VERSION_LDFLAGS := -X opendesk/pkg/runtimeversion.Current=$(VERSION)
 
-.PHONY: help doctor setup deps fmt vet test test-core test-icons test-app-package-contract test-runtime-api test-runtime-api-live test-host-api test-host-api-live check-custom-ui-components validate-runtime-version build build-apple-vision-ocr build-macos smoke
+.PHONY: help doctor setup deps fmt vet test test-core test-icons test-app-package-contract test-runtime-api test-runtime-api-live test-host-api test-host-api-live check-api-docs-contract check-custom-ui-components validate-runtime-version build build-apple-vision-ocr build-macos smoke
 
 help:
 	@echo "opendesk development targets:"
@@ -22,6 +22,7 @@ help:
 	@echo "  make test-app-package-contract Build and test the App Package schema and Runtime loading contract"
 	@echo "  make test-runtime-api Run JavaScript Runtime API contract, unit, smoke, and acceptance gates"
 	@echo "  make test-runtime-api-live Run Runtime API tests against the Safari Test Lab"
+	@echo "  make check-api-docs-contract Validate canonical API docs and machine-index invariants"
 	@echo "  make check-custom-ui-components Build and run the HTML/Native UI component gates"
 	@echo "  make test-host-api Deprecated alias for test-runtime-api"
 	@echo "  make test-host-api-live Deprecated alias for test-runtime-api-live"
@@ -81,6 +82,9 @@ test-runtime-api-live: build
 test-host-api: test-runtime-api
 
 test-host-api-live: test-runtime-api-live
+
+check-api-docs-contract:
+	node scripts/check_api_docs_contract.js
 
 check-custom-ui-components: build
 	bash scripts/check_custom_ui_components.sh

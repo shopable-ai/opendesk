@@ -1,0 +1,20 @@
+name: API docs contract
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  api-doc-contract:
+    name: Canonical API docs and machine index
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate API documentation contract
+        run: node scripts/check_api_docs_contract.js
