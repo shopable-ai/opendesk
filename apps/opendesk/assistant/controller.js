@@ -1,7 +1,8 @@
 (function installOpenDeskAssistantController(global) {
   'use strict';
 
-  const RECENT_PAGE_SIZE = 8;
+  const RECENT_BATCH_SIZE = 8;
+  const RECENT_ROW_CAPACITY = 64;
   const ARCHIVED_PAGE_SIZE = 4;
   const MESSAGE_PAGE_SIZE = 10;
   const DRAFT_SAVE_DELAY_MS = 500;
@@ -82,8 +83,8 @@
           </div>
           <section class="thread-section recent-section">
             <div class="section-head"><span>最近对话</span><span id="recentCount">0</span></div>
-            <div class="conversation-list">${buildConversationRows('recent', RECENT_PAGE_SIZE, false)}</div>
-            <div class="pager compact"><button id="recentPrev" class="icon-button" data-icon="chevron.left" title="上一页">上一页</button><span id="recentPage">1 / 1</span><button id="recentNext" class="icon-button" data-icon="chevron.right" title="下一页">下一页</button></div>
+            <div id="recentList" class="conversation-list recent-list">${buildConversationRows('recent', RECENT_ROW_CAPACITY, false)}</div>
+            <button id="recentMore" class="load-more is-hidden" title="查看更多最近对话">查看更多</button>
           </section>
           <section class="thread-section archived-section">
             <div class="section-head"><span>已归档</span><span id="archivedCount">0</span></div>
@@ -129,7 +130,7 @@
 
   const CSS = `
     :root{color-scheme:dark;--bg:#151515;--surface:#1d1d1f;--surface2:#252529;--line:#3a3a40;--text:#f4f4f5;--muted:#a4a4ad;--accent:#3977dc;--danger:#a74747;--user:#24456e;--assistant:#27272b;--warning:#d9ad68}
-    html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}*{box-sizing:border-box}.shell{height:100vh;display:grid;grid-template-columns:270px minmax(0,1fr);overflow:hidden}.sidebar{min-width:0;border-right:1px solid var(--line);background:#191919;padding:14px 12px;display:flex;flex-direction:column;gap:14px;overflow:hidden}.sidebar-head,.section-head,.conversation-head,.composer-footer,.connection-card,.connection-actions,.title-actions,.pager{display:flex;align-items:center}.sidebar-head{justify-content:space-between;gap:10px}.sidebar-head strong{font-size:18px}.thread-section{min-height:0;display:flex;flex-direction:column;gap:8px}.recent-section{flex:1}.archived-section{flex:0 0 auto}.section-head{justify-content:space-between;color:var(--muted);font-size:12px}.conversation-list{display:flex;flex-direction:column;gap:5px;min-height:0;overflow:hidden}.conversation-row{width:100%;min-height:36px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border:1px solid transparent;background:transparent;color:#d6d6da;padding:8px 10px;border-radius:7px}.conversation-row:hover:not(:disabled){background:#27272a}.conversation-row.is-selected{background:#30343c;border-color:#4a586c;color:white}.conversation-row.is-active::after{content:"  •";color:#8fb5ff}.conversation-row.archived{color:#b0b0b8}.empty-note{margin:0;padding:8px 4px;color:#777;font-size:12px}.pager{justify-content:center;gap:8px;color:#777;font-size:11px}.compact{margin-top:auto}.workspace{min-width:0;height:100%;padding:16px 18px;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto;gap:11px;overflow:hidden}.conversation-head{justify-content:space-between;gap:12px}.title-block{min-width:0;display:flex;flex-direction:column;gap:3px}.title-block strong{font-size:18px;max-width:440px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.subtle{color:var(--muted);font-size:12px}.title-actions{gap:6px}.title-actions input{width:210px}.connection-card{position:relative;justify-content:space-between;gap:12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:10px 12px}.model-state,.global-status,.model-help{margin:0}.model-state{font-size:12px;color:#d7d7da}.global-status{font-size:11px;color:var(--muted);margin-top:3px}.connection-actions{gap:6px}.model-help{position:absolute;z-index:2;top:calc(100% + 6px);left:0;right:0;border:1px solid #45454d;background:#222227;border-radius:8px;padding:11px;white-space:pre-wrap;line-height:1.5;color:#c8c8cf;box-shadow:0 10px 30px rgba(0,0,0,.35)}.messages-card{min-height:0;border:1px solid var(--line);border-radius:11px;background:var(--surface);padding:12px;display:grid;grid-template-rows:minmax(0,1fr) auto;gap:8px}.message-list{min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:9px;align-items:stretch}.message-empty{align-self:center;justify-self:center;margin:auto;color:#80808a;max-width:460px;text-align:center;line-height:1.6}.message-row{max-width:82%;border:1px solid #3a3a40;border-radius:10px;background:var(--assistant);padding:9px 11px;align-self:flex-start}.message-row.role-user{align-self:flex-end;background:var(--user);border-color:#315a8d}.message-row.state-failed,.message-row.state-interrupted{border-color:#805151}.message-row.state-stopped{border-color:#6b6262}.message-meta,.message-body,.message-state{margin:0}.message-meta{font-size:10px;color:#aeb2bc;margin-bottom:4px}.message-body{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.55}.message-state{font-size:10px;color:var(--warning);margin-top:5px}.message-pager{border-top:1px solid #313137;padding-top:7px}.composer-card{border:1px solid var(--line);border-radius:11px;background:var(--surface);padding:10px}.composer-card textarea,input{border:1px solid #47474f;border-radius:8px;background:#202024;color:var(--text);font:inherit}.composer-card textarea{width:100%;min-height:78px;max-height:190px;resize:vertical;padding:10px 11px;line-height:1.5}.title-actions input{padding:7px 8px}.composer-footer{justify-content:space-between;gap:12px;margin-top:8px}.composer-actions{display:flex;gap:7px}button{border:1px solid #4a4a52;border-radius:7px;background:#2e2e33;color:var(--text);font:inherit;padding:7px 10px}button:not(:disabled){cursor:pointer}button:hover:not(:disabled){background:#393940}button:disabled{opacity:.36}.icon-button{width:34px;height:34px;min-width:34px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:0}.icon-button::before{font-size:16px;line-height:1}.icon-button[data-icon="plus"]::before{content:"+";font-size:20px}.icon-button[data-icon="pencil"]::before{content:"✎"}.icon-button[data-icon="archivebox"]::before{content:"▣"}.icon-button[data-icon="arrow.up.circle.fill"]::before{content:"↑";font-size:19px}.icon-button[data-icon="stop.fill"]::before{content:"■";font-size:13px}.icon-button[data-icon="chevron.left"]::before{content:"‹";font-size:21px}.icon-button[data-icon="chevron.right"]::before{content:"›";font-size:21px}.icon-button[data-icon="arrow.clockwise"]::before{content:"↻"}.icon-button[data-icon="questionmark.circle"]::before{content:"?"}.primary{background:#245fbf;border-color:var(--accent)}.danger{background:#3d2828;border-color:#724343}.is-hidden{display:none!important}
+    html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}*{box-sizing:border-box}.shell{height:100vh;display:grid;grid-template-columns:270px minmax(0,1fr);overflow:hidden}.sidebar{min-width:0;border-right:1px solid var(--line);background:#191919;padding:14px 12px;display:flex;flex-direction:column;gap:14px;overflow:hidden}.sidebar-head,.section-head,.conversation-head,.composer-footer,.connection-card,.connection-actions,.title-actions,.pager{display:flex;align-items:center}.sidebar-head{justify-content:space-between;gap:10px}.sidebar-head strong{font-size:18px}.thread-section{min-height:0;display:flex;flex-direction:column;gap:8px}.recent-section{flex:1}.archived-section{flex:0 0 auto}.section-head{justify-content:space-between;color:var(--muted);font-size:12px}.conversation-list{display:flex;flex-direction:column;gap:5px;min-height:0;overflow:hidden}.recent-list{overflow-y:auto;overscroll-behavior:contain;padding-right:2px}.conversation-row{width:100%;min-height:36px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border:1px solid transparent;background:transparent;color:#d6d6da;padding:8px 10px;border-radius:7px}.conversation-row:hover:not(:disabled){background:#27272a}.conversation-row.is-selected{background:#30343c;border-color:#4a586c;color:white}.conversation-row.is-active::after{content:"  •";color:#8fb5ff}.conversation-row.archived{color:#b0b0b8}.empty-note{margin:0;padding:8px 4px;color:#777;font-size:12px}.load-more{width:100%;flex:0 0 auto;border-color:transparent;background:transparent;color:#9ea6b4;font-size:12px;padding:7px 8px}.load-more:hover:not(:disabled){background:#27272a;color:#f0f0f2}.pager{justify-content:center;gap:8px;color:#777;font-size:11px}.compact{margin-top:auto}.workspace{min-width:0;height:100%;padding:16px 18px;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto;gap:11px;overflow:hidden}.conversation-head{justify-content:space-between;gap:12px}.title-block{min-width:0;display:flex;flex-direction:column;gap:3px}.title-block strong{font-size:18px;max-width:440px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.subtle{color:var(--muted);font-size:12px}.title-actions{gap:6px}.title-actions input{width:210px}.connection-card{position:relative;justify-content:space-between;gap:12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:10px 12px}.model-state,.global-status,.model-help{margin:0}.model-state{font-size:12px;color:#d7d7da}.global-status{font-size:11px;color:var(--muted);margin-top:3px}.connection-actions{gap:6px}.model-help{position:absolute;z-index:2;top:calc(100% + 6px);left:0;right:0;border:1px solid #45454d;background:#222227;border-radius:8px;padding:11px;white-space:pre-wrap;line-height:1.5;color:#c8c8cf;box-shadow:0 10px 30px rgba(0,0,0,.35)}.messages-card{min-height:0;border:1px solid var(--line);border-radius:11px;background:var(--surface);padding:12px;display:grid;grid-template-rows:minmax(0,1fr) auto;gap:8px}.message-list{min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:9px;align-items:stretch}.message-empty{align-self:center;justify-self:center;margin:auto;color:#80808a;max-width:460px;text-align:center;line-height:1.6}.message-row{max-width:82%;border:1px solid #3a3a40;border-radius:10px;background:var(--assistant);padding:9px 11px;align-self:flex-start}.message-row.role-user{align-self:flex-end;background:var(--user);border-color:#315a8d}.message-row.state-failed,.message-row.state-interrupted{border-color:#805151}.message-row.state-stopped{border-color:#6b6262}.message-meta,.message-body,.message-state{margin:0}.message-meta{font-size:10px;color:#aeb2bc;margin-bottom:4px}.message-body{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.55}.message-state{font-size:10px;color:var(--warning);margin-top:5px}.message-pager{border-top:1px solid #313137;padding-top:7px}.composer-card{border:1px solid var(--line);border-radius:11px;background:var(--surface);padding:10px}.composer-card textarea,input{border:1px solid #47474f;border-radius:8px;background:#202024;color:var(--text);font:inherit}.composer-card textarea{width:100%;min-height:78px;max-height:190px;resize:vertical;padding:10px 11px;line-height:1.5}.title-actions input{padding:7px 8px}.composer-footer{justify-content:space-between;gap:12px;margin-top:8px}.composer-actions{display:flex;gap:7px}button{border:1px solid #4a4a52;border-radius:7px;background:#2e2e33;color:var(--text);font:inherit;padding:7px 10px}button:not(:disabled){cursor:pointer}button:hover:not(:disabled){background:#393940}button:disabled{opacity:.36}.icon-button{width:34px;height:34px;min-width:34px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:0}.icon-button::before{font-size:16px;line-height:1}.icon-button[data-icon="plus"]::before{content:"+";font-size:20px}.icon-button[data-icon="pencil"]::before{content:"✎"}.icon-button[data-icon="archivebox"]::before{content:"▣"}.icon-button[data-icon="arrow.up.circle.fill"]::before{content:"↑";font-size:19px}.icon-button[data-icon="stop.fill"]::before{content:"■";font-size:13px}.icon-button[data-icon="chevron.left"]::before{content:"‹";font-size:21px}.icon-button[data-icon="chevron.right"]::before{content:"›";font-size:21px}.icon-button[data-icon="arrow.clockwise"]::before{content:"↻"}.icon-button[data-icon="questionmark.circle"]::before{content:"?"}.primary{background:#245fbf;border-color:var(--accent)}.danger{background:#3d2828;border-color:#724343}.is-hidden{display:none!important}
     @media(max-width:760px){.shell{grid-template-columns:210px minmax(0,1fr)}.title-actions input{width:140px}.message-row{max-width:94%}}
   `;
 
@@ -198,23 +199,36 @@
           record.pendingState = null;
           const selected = state.selectedConversation;
           const active = state.activeRequest;
-          const recentView = pageSlice(state.recent || [], record.recentPage, RECENT_PAGE_SIZE);
+          const recentItems = state.recent || [];
+          const selectedRecentIndex = recentItems.findIndex(item => item.id === state.selectedConversationId);
+          const selectedVisibleCount = selectedRecentIndex >= 0
+            ? Math.ceil((selectedRecentIndex + 1) / RECENT_BATCH_SIZE) * RECENT_BATCH_SIZE
+            : RECENT_BATCH_SIZE;
+          record.recentVisibleCount = Math.min(
+            RECENT_ROW_CAPACITY,
+            Math.max(RECENT_BATCH_SIZE, record.recentVisibleCount || RECENT_BATCH_SIZE, selectedVisibleCount),
+          );
+          const recentVisibleItems = recentItems.slice(0, record.recentVisibleCount);
           const archivedView = pageSlice(state.archived || [], record.archivedPage, ARCHIVED_PAGE_SIZE);
-          record.recentPage = recentView.page;
           record.archivedPage = archivedView.page;
+          const hasMoreRecent = recentVisibleItems.length < recentItems.length && record.recentVisibleCount < RECENT_ROW_CAPACITY;
+          const recentCapacityReached = recentItems.length > RECENT_ROW_CAPACITY && record.recentVisibleCount >= RECENT_ROW_CAPACITY;
 
-          await update(record, 'recentCount', {text: String((state.recent || []).length)});
+          await update(record, 'recentCount', {text: String(recentItems.length)});
           await update(record, 'archivedCount', {text: String((state.archived || []).length)});
-          await update(record, 'recentPage', {text: `${recentView.page + 1} / ${recentView.maxPage + 1}`});
+          await update(record, 'recentMore', {
+            visible: hasMoreRecent || recentCapacityReached,
+            disabled: recentCapacityReached,
+            text: recentCapacityReached ? `已显示前 ${RECENT_ROW_CAPACITY} 条` : '查看更多',
+            classes: classes('load-more', hasMoreRecent || recentCapacityReached),
+          });
           await update(record, 'archivedPage', {text: `${archivedView.page + 1} / ${archivedView.maxPage + 1}`});
-          await update(record, 'recentPrev', {disabled: recentView.page <= 0, text: '上一页'});
-          await update(record, 'recentNext', {disabled: recentView.page >= recentView.maxPage, text: '下一页'});
           await update(record, 'archivedPrev', {disabled: archivedView.page <= 0, text: '上一页'});
           await update(record, 'archivedNext', {disabled: archivedView.page >= archivedView.maxPage, text: '下一页'});
           await update(record, 'archivedEmpty', {visible: (state.archived || []).length === 0, classes: classes('empty-note', (state.archived || []).length === 0)});
 
-          for (let index = 0; index < RECENT_PAGE_SIZE; index++) {
-            const conversation = recentView.items[index] || null;
+          for (let index = 0; index < RECENT_ROW_CAPACITY; index++) {
+            const conversation = recentVisibleItems[index] || null;
             const visible = !!conversation;
             const isSelected = !!conversation && conversation.id === state.selectedConversationId;
             const isActive = !!conversation && active && conversation.id === active.conversationId;
@@ -260,7 +274,7 @@
           else if (state.lastError) statusParts.push(state.lastError.message || state.lastError.code);
           else statusParts.push('会话历史保存在本地；查看历史不会自动重新发送。');
           if (active && (!selected || active.conversationId !== selected.id)) {
-            const activeConversation = (state.recent || []).find(item => item.id === active.conversationId);
+            const activeConversation = recentItems.find(item => item.id === active.conversationId);
             statusParts.push(`“${activeConversation ? activeConversation.title : '其他对话'}”仍有请求处理中。`);
           }
           await update(record, 'globalStatus', {text: statusParts.join(' ')});
@@ -375,18 +389,16 @@
         record.titleEditing = false;
         const conversation = await record.session.createConversation();
         record.messagePages.set(conversation.id, 0);
-        record.recentPage = 0;
         record.draftShadow.delete(conversation.id);
       });
 
-      for (let index = 0; index < RECENT_PAGE_SIZE; index++) {
+      for (let index = 0; index < RECENT_ROW_CAPACITY; index++) {
         bind(record, record.handle.control(`recent${index}`), 'click', 'switch-conversation', async () => {
           await flushDraft(record);
           record.titleEditing = false;
           const state = record.session.snapshot();
-          const page = pageSlice(state.recent || [], record.recentPage, RECENT_PAGE_SIZE);
-          const conversation = page.items[index];
-          if (!conversation) return;
+          const conversation = (state.recent || [])[index];
+          if (!conversation || index >= record.recentVisibleCount) return;
           await record.session.switchConversation(conversation.id);
           const current = record.session.getConversation(conversation.id);
           record.messagePages.set(conversation.id, Math.max(0, Math.ceil((current.messages || []).length / MESSAGE_PAGE_SIZE) - 1));
@@ -401,13 +413,14 @@
           const conversation = page.items[index];
           if (!conversation) return;
           const restored = await record.session.restoreConversation(conversation.id);
-          record.recentPage = 0;
           record.messagePages.set(restored.id, Math.max(0, Math.ceil((restored.messages || []).length / MESSAGE_PAGE_SIZE) - 1));
         });
       }
 
-      bind(record, record.handle.control('recentPrev'), 'click', 'recent-prev', async () => { record.recentPage = Math.max(0, record.recentPage - 1); await render(record); });
-      bind(record, record.handle.control('recentNext'), 'click', 'recent-next', async () => { record.recentPage += 1; await render(record); });
+      bind(record, record.handle.control('recentMore'), 'click', 'recent-more', async () => {
+        record.recentVisibleCount = Math.min(RECENT_ROW_CAPACITY, record.recentVisibleCount + RECENT_BATCH_SIZE);
+        await render(record);
+      });
       bind(record, record.handle.control('archivedPrev'), 'click', 'archived-prev', async () => { record.archivedPage = Math.max(0, record.archivedPage - 1); await render(record); });
       bind(record, record.handle.control('archivedNext'), 'click', 'archived-next', async () => { record.archivedPage += 1; await render(record); });
 
@@ -424,7 +437,6 @@
         record.titleEditing = false;
         const state = record.session.snapshot();
         if (state.selectedConversationId) await record.session.archiveConversation(state.selectedConversationId);
-        record.recentPage = 0;
       });
 
       bind(record, record.handle.control('toggleHelp'), 'click', 'toggle-help', async () => { record.helpVisible = !record.helpVisible; await render(record); });
@@ -536,7 +548,7 @@
           disposed: false,
           rendering: false,
           pendingState: null,
-          recentPage: 0,
+          recentVisibleCount: RECENT_BATCH_SIZE,
           archivedPage: 0,
           messagePages: new Map(),
           draftShadow: new Map(),
