@@ -215,7 +215,7 @@ opendesk app build ./my-app ...
 
 ## 6. 从已安装 Runtime 生成桌面应用
 
-普通 App 开发者发布时仍然不需要 OpenDesk 源码。
+普通 App 开发者发布时仍然不需要 OpenDesk 源码。Builder 必须在目标平台运行：macOS Runtime 构建 macOS `.app`，Windows Runtime 构建 Windows portable directory；当前不支持 cross-build。
 
 ### macOS
 
@@ -254,19 +254,20 @@ $opendesk = 'C:\OpenDesk\opendesk.exe'
 & $opendesk app build .\my-app --target windows --output (Join-Path $PWD 'release\MyApp')
 ```
 
-最终 portable directory 中包含：
+最终产物是必须整体搬移和分发的 portable directory：
 
 ```text
 MyApp/
 ├── opendesk.exe
 ├── ui-host/
-└── app-mode/
-    ├── opendesk.app.json
-    ├── main.js
-    └── ...
+├── app-mode/
+│   ├── opendesk.app.json
+│   ├── main.js
+│   └── ...
+└── app-build-provenance.json
 ```
 
-用户从 Explorer 启动 `opendesk.exe`，Runtime 自动发现 `app-mode/`。
+用户从 Explorer 启动 `MyApp\opendesk.exe`，Runtime 自动发现 `app-mode/`。当前 Builder 不生成 MSI、MSIX、installer、Start Menu shortcut、desktop shortcut 或 auto-update。
 
 Builder 的详细前置条件、签名边界、provenance 和 CI 规则见 [Installed Runtime App Builder](app-builder.md)。
 
