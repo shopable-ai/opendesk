@@ -16,6 +16,11 @@
 - `先计算 25 乘以 4 加 10，再把结果乘以 6。`
 - `先计算 12 乘以 3 加 4，再把结果乘以 5。`
 
+公开 `index.js` 是供 OpenDesk classic `.js` 入口直接运行的受控 bundle；可测试模块和 UI controller
+源码分别保留在同目录的 `calculator.js`、`planner.js`、`task-contract.js`、`task-session.js` 与
+`index.source.js`。入口头部冻结这些源码的 SHA-256；任一源码变化后必须重新生成并重跑本页命令，
+不能让 Node ESM 测试通过却把含 `import` 的源码直接交给 classic loader。
+
 确认前不会清空或点击 Calculator。两阶段任务会先从本次 Calculator 显示区读取 `firstResult`，再次清空后把该实际值逐位输入第二段；不会从 expected、模型文本或 JavaScript 算术补出答案。
 
 ## 前提
