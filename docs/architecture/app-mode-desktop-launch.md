@@ -5,6 +5,8 @@ description: Development and released desktop launch paths for App Mode packages
 
 # App Mode desktop launch contract
 
+> **Audience: OpenDesk 官方源码维护者 / distribution maintainer.** 这页描述 Runtime、bundled App Mode、`apps/opendesk` 与 macOS/Windows release staging 的内部启动契约。普通第三方 App 开发者不需要 checkout OpenDesk 源码或使用 repository build scripts；请从 [Script App Packaging](../api/script-app-packaging.md) 和 [Installed Runtime App Builder](../api/app-builder.md) 开始。
+
 ## Boundary
 
 `-app <directory>` remains the explicit development and portable CLI entry point. A released desktop artifact can opt in to
