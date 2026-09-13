@@ -23,7 +23,6 @@ const recordingConsole = await OpenDeskSimpleRecordingConsole.createApp({
   getActiveWindow: () => window.getActiveWindow(),
   captureKeyboard: Execution.env.OPENDESK_RECORDER_CAPTURE_KEYBOARD === '1',
   controlKeycodes: [],
-  iconRoot: File.join(recorderUIRoot, 'icons'),
   openDeskBinary: System.getExecutablePath(),
 });
 

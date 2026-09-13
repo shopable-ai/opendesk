@@ -328,7 +328,6 @@ const app = OpenDeskSimpleRecordingConsole.createApp({
   },
   sleep: async () => {},
   countdownStepMs: 0,
-  iconRoot: File.join(Execution.workdir, 'apps', 'opendesk', 'recorder', 'icons'),
   logger: {log() {}, error(message) { throw new Error(message); }},
 });
 
@@ -348,9 +347,7 @@ equal(
 );
 const homeButton = toolbar.buttons.get('home');
 equal(homeButton.state.label, '打开 OpenDesk 官网', 'homepage tooltip');
-equal(homeButton.state.icon.renderingMode, 'original', 'homepage logo must preserve brand colors');
-assert(homeButton.state.icon.path.endsWith('opendesk-logo.png'), 'homepage logo path');
-assert(File.isFile(homeButton.state.icon.path), 'homepage logo must be a maintained local asset');
+equal(homeButton.state.icon, 'house.fill', 'homepage registry icon');
 await homeButton.callback(controlEvent('home', -1));
 equal(calls.homepage, 1, 'homepage click count');
 equal(homepageTargets[0], System.product.website, 'Recorder homepage must use Runtime product identity');
@@ -393,13 +390,14 @@ equal(
   'window.getActiveWindow -> Recorder.start',
   'target handoff must not await native toolbar updates between foreground read and Recorder.start',
 );
-const countdownPaths = toolbar.updates
-  .filter(update => update.id === 'capture' && update.patch.icon && typeof update.patch.icon === 'object')
-  .map(update => update.patch.icon.path);
-assert(countdownPaths.some(path => path.endsWith('countdown-3.png')), 'missing countdown 3 icon update');
-assert(countdownPaths.some(path => path.endsWith('countdown-2.png')), 'missing countdown 2 icon update');
-assert(countdownPaths.some(path => path.endsWith('countdown-1.png')), 'missing countdown 1 icon update');
-assert(countdownPaths.every(path => File.isFile(path)), 'countdown icon update points outside maintained assets');
+const countdownUpdates = toolbar.updates
+  .filter(update => update.id === 'capture' && update.patch.icon === 'timer');
+equal(countdownUpdates.length, 3, 'countdown must render three timer updates');
+equal(
+  countdownUpdates.map(update => update.patch.label).join(','),
+  '3 秒后开始录制,2 秒后开始录制,1 秒后开始录制',
+  'countdown timer labels',
+);
 
 function controlEvent(targetId, sequence) {
   return {
