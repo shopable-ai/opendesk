@@ -33,7 +33,7 @@
       },
       {
         "id": "open-permissions",
-        "label": "权限管理…",
+        "label": "系统权限…",
         "action": "permissions.open"
       },
       {
