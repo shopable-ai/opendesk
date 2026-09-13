@@ -106,7 +106,7 @@ $evidence = [ordered]@{
 $tempRoot = $null
 try {
     $runtimePath = Join-Path $DistributionDirectory 'opendesk.exe'
-    $desktopRuntimePath = Join-Path $DistributionDirectory 'OpenDesk.exe'
+    $desktopRuntimePath = Join-Path $DistributionDirectory 'opendesk-desktop.exe'
     $uiHostPath = Join-Path $DistributionDirectory 'ui-host/opendesk-ui-host.exe'
     $uiHostProvenancePath = Join-Path $DistributionDirectory 'ui-host/build-provenance.json'
     $distributionProvenancePath = Join-Path $DistributionDirectory 'distribution-provenance.json'
@@ -129,7 +129,7 @@ try {
     $runtimeSubsystem = Get-PESubsystem -Path $runtimePath
     $desktopRuntimeSubsystem = Get-PESubsystem -Path $desktopRuntimePath
     if ($runtimeSubsystem -ne 3 -or $desktopRuntimeSubsystem -ne 2) {
-        throw "Windows entry subsystem mismatch: opendesk.exe=$runtimeSubsystem (want 3), OpenDesk.exe=$desktopRuntimeSubsystem (want 2)."
+        throw "Windows entry subsystem mismatch: opendesk.exe=$runtimeSubsystem (want 3), opendesk-desktop.exe=$desktopRuntimeSubsystem (want 2)."
     }
     $evidence.entrySubsystems = [ordered]@{ cli = $runtimeSubsystem; desktop = $desktopRuntimeSubsystem }
     $evidence.checks.entrySubsystems = $true
@@ -144,7 +144,8 @@ try {
         $distributionProvenance.runtimeCompatibilityVersion -ne $expectedRuntimeCompatibilityVersion -or
         $distributionProvenance.files.runtime.compatibilityVersion -ne $expectedRuntimeCompatibilityVersion -or
         $distributionProvenance.layout.cliEntry -ne 'opendesk.exe' -or
-        $distributionProvenance.layout.desktopEntry -ne 'OpenDesk.exe' -or
+        $distributionProvenance.layout.desktopEntry -ne 'opendesk-desktop.exe' -or
+        $distributionProvenance.files.desktopEntry.path -ne 'opendesk-desktop.exe' -or
         $distributionProvenance.files.runtime.peSubsystem -ne 3 -or
         $distributionProvenance.files.desktopEntry.peSubsystem -ne 2 -or
         $uiHostProvenance.runtime -ne 'win-x64') {
@@ -205,7 +206,7 @@ try {
     Copy-Item -Path (Join-Path $DistributionDirectory '*') -Destination $copiedDistribution -Recurse -Force
 
     $copiedRuntime = Join-Path $copiedDistribution 'opendesk.exe'
-    $copiedDesktopRuntime = Join-Path $copiedDistribution 'OpenDesk.exe'
+    $copiedDesktopRuntime = Join-Path $copiedDistribution 'opendesk-desktop.exe'
     $copiedHostDirectory = Join-Path $copiedDistribution 'ui-host'
     if (-not (Test-Path -LiteralPath $copiedRuntime -PathType Leaf) -or
         -not (Test-Path -LiteralPath $copiedDesktopRuntime -PathType Leaf) -or
