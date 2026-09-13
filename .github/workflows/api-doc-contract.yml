@@ -18,3 +18,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Validate API documentation contract
         run: node scripts/check_api_docs_contract.js
+      - name: Validate product JavaScript syntax
+        run: |
+          node --check apps/opendesk/script-runner-simple.js
+          node --check apps/opendesk/scheduler-center.js
