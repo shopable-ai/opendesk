@@ -153,15 +153,61 @@
     }
     const productWebsite = resolveProductWebsite(system);
 
-    const capabilities = clone(recorder.getCapabilities());
-    const captureCapabilities = capabilities.capture && typeof capabilities.capture === 'object'
-      ? capabilities.capture : {};
-    const captureAvailable = captureCapabilities.available === true;
-    const captureUnavailableDetail = !captureCapabilities.hostAuthorized
-      ? '当前启动命令未授权录制输入采集。请退出后以包含 -allow-recorder-capture 的命令重新启动。'
-      : captureCapabilities.permission === 'denied'
-        ? 'macOS 未授予 OpenDesk 输入监控权限；请在“系统设置 → 隐私与安全性 → 输入监控”中允许后重新启动。'
-        : '当前系统未提供可用的录制输入采集。请在“查看详情”中检查采集限制。';
+    let capabilities = {};
+    let captureCapabilities = {};
+    let captureAvailable = false;
+    let captureCheckError = '';
+    let captureUnavailableDetail = '';
+
+    function capturePermissionProblem() {
+      const permission = String(captureCapabilities.permission || '').toLowerCase();
+      return permission === 'denied' || permission === 'not_determined'
+        || permission === 'restricted';
+    }
+
+    function currentCaptureUnavailableDetail() {
+      if (captureCheckError) return captureCheckError;
+      const explicit = String(
+        captureCapabilities.unavailableReason || captureCapabilities.reason || ''
+      ).trim();
+      if (explicit) return explicit;
+      if (captureCapabilities.hostAuthorized === false) {
+        return '当前 OpenDesk 启动命令未允许 Recorder 捕获能力。请退出后以包含 -allow-recorder-capture 的方式重新启动。';
+      }
+      if (String(captureCapabilities.permission || '').toLowerCase() === 'denied') {
+        return 'macOS 未授予 OpenDesk 输入监控权限。请从“系统权限…”处理后返回录制器，再点击“查看详情”重新检查；若系统要求重新启动 OpenDesk，请按系统提示重启。';
+      }
+      if (String(captureCapabilities.permission || '').toLowerCase() === 'not_determined') {
+        return '输入监控授权状态尚未确定。请从“系统权限…”处理后返回录制器，再点击“查看详情”重新检查。';
+      }
+      if (String(captureCapabilities.permission || '').toLowerCase() === 'restricted') {
+        return '当前输入监控能力受到系统策略限制。请检查系统权限或设备管理策略后重新检查。';
+      }
+      return '当前系统未提供可用的录制输入采集。请在“查看详情”中检查当前能力和限制。';
+    }
+
+    function applyCapabilities(next) {
+      if (!next || typeof next !== 'object' || Array.isArray(next)) {
+        throw new Error('Recorder.getCapabilities() 未返回有效 capability 对象');
+      }
+      capabilities = clone(next) || {};
+      captureCapabilities = capabilities.capture && typeof capabilities.capture === 'object'
+        ? capabilities.capture : {};
+      captureAvailable = captureCapabilities.available === true;
+      captureCheckError = '';
+      captureUnavailableDetail = captureAvailable ? '' : currentCaptureUnavailableDetail();
+    }
+
+    try {
+      applyCapabilities(recorder.getCapabilities());
+    } catch (error) {
+      capabilities = {};
+      captureCapabilities = {};
+      captureAvailable = false;
+      captureCheckError = `无法可靠检查当前录制条件：${error && error.message ? error.message : error}`;
+      captureUnavailableDetail = captureCheckError;
+    }
+
     const openDeskBinary = settings.openDeskBinary
       || file.join(execution.workdir, 'dist', 'opendesk');
     const runTimeoutMs = Number.isFinite(settings.runTimeoutMs)
@@ -236,7 +282,9 @@
       const resuming = phase === 'resuming';
       const captureActive = recording || pausing || paused || resuming;
       const countingDown = phase === 'countdown' && state.countdown;
-      const canStart = (phase === 'ready' || TERMINAL_PHASES.has(phase))
+      const captureUnavailable = !captureAvailable
+        && (phase === 'ready' || phase === 'unavailable' || TERMINAL_PHASES.has(phase));
+      const canStart = captureAvailable && (phase === 'ready' || TERMINAL_PHASES.has(phase))
         && !generatePromise && !runPromise;
       const canControlCapture = (recording || paused)
         && !startPromise && !controlPromise && !stopPromise;
@@ -256,7 +304,7 @@
           icon: countingDown ? BUILT_IN_ICONS.countdown
             : (recording || pausing ? BUILT_IN_ICONS.pause : BUILT_IN_ICONS.play),
           label: countingDown ? `${state.countdown} 秒后开始录制`
-            : phase === 'unavailable' ? '录制需要授权（查看详情）'
+            : captureUnavailable ? (capturePermissionProblem() ? '录制需要授权（查看详情）' : '暂不能录制，请查看详情')
             : phase === 'starting' ? '正在开始录制'
             : phase === 'stop-requested' ? '正在取消开始'
             : recording ? '暂停录制'
@@ -341,6 +389,41 @@
       return transition(fallbackPhase || 'error', `${prefix}：${normalized.message}`);
     }
 
+    async function refreshCaptureCapabilities() {
+      try {
+        const next = await Promise.resolve(recorder.getCapabilities());
+        applyCapabilities(next);
+        if (state.phase === 'unavailable') {
+          if (captureAvailable) {
+            state.phase = 'ready';
+            state.detail = '当前录制条件已经恢复；请手动点击“开始录制”。';
+            if (state.errorButton === 'capture') {
+              state.error = null;
+              state.errorButton = '';
+            }
+          } else {
+            state.detail = captureUnavailableDetail;
+          }
+        } else if (!captureAvailable && (state.phase === 'ready' || TERMINAL_PHASES.has(state.phase))) {
+          state.detail = TERMINAL_PHASES.has(state.phase)
+            ? `已有录制/生成结果已保留；新的录制暂不可用：${captureUnavailableDetail}`
+            : captureUnavailableDetail;
+        }
+      } catch (error) {
+        capabilities = {};
+        captureCapabilities = {};
+        captureAvailable = false;
+        captureCheckError = `无法可靠检查当前录制条件：${error && error.message ? error.message : error}`;
+        captureUnavailableDetail = captureCheckError;
+        if (state.phase === 'ready' || state.phase === 'unavailable') state.phase = 'unavailable';
+        state.detail = TERMINAL_PHASES.has(state.phase)
+          ? `已有录制/生成结果已保留；${captureUnavailableDetail}`
+          : captureUnavailableDetail;
+      }
+      await syncButtons();
+      return captureAvailable;
+    }
+
     function validTarget(active) {
       const processId = Number(active && active.pid);
       const title = String(active && active.title || '');
@@ -373,9 +456,6 @@
       try {
         return await session.excludeControlClick(event);
       } catch (error) {
-        // The requested pause/resume/stop still runs so the user never loses
-        // control of the listener. Generation is blocked later because the UI
-        // click could otherwise be replayed as a target action.
         controlBoundaryFailure = normalizeError(error, 'RecorderSession.excludeControlClick');
         return null;
       }
@@ -519,12 +599,14 @@
       if (startPromise || stopPromise || generatePromise || runPromise || session || closeRequested) {
         return startPromise || Promise.resolve(snapshot());
       }
-      if (!(state.phase === 'ready' || TERMINAL_PHASES.has(state.phase))) {
+      if (!(state.phase === 'ready' || state.phase === 'unavailable' || TERMINAL_PHASES.has(state.phase))) {
         return Promise.resolve(snapshot());
       }
 
       stopRequested = false;
       startPromise = (async () => {
+        const available = await refreshCaptureCapabilities();
+        if (!available) return snapshot();
         if (beforeStart) {
           const allowed = await beforeStart(snapshot());
           if (allowed === false) {
@@ -560,9 +642,6 @@
         try {
           const target = validTarget(await getActiveWindow());
           state.target = target;
-          // Keep this handoff synchronous so the recorded initial context is
-          // as close as possible to native listener startup. A later title or
-          // foreground change is observational and never stops capture.
           state.detail = `正在为“${target.title}”启动 native listener…`;
           const current = await recorder.start({
             within: target,
@@ -829,9 +908,10 @@
       const parts = [
         `状态：${state.phase}`,
         `说明：${state.detail}`,
-        `采集能力：${captureAvailable ? '可用' : '不可用'}；入口授权：${captureCapabilities.hostAuthorized === true ? '已授权' : '未授权'}；系统权限：${captureCapabilities.permission || '未知'}`,
+        `采集能力：${captureAvailable ? '可用' : '不可用'}；入口授权：${captureCapabilities.hostAuthorized === true ? '已允许' : captureCapabilities.hostAuthorized === false ? '未允许' : '未知'}；系统权限：${captureCapabilities.permission || '未知'}`,
         `采集限制：${Array.isArray(captureCapabilities.limitations) && captureCapabilities.limitations.length
           ? captureCapabilities.limitations.join('；') : '无'}`,
+        `当前不可用原因：${captureAvailable ? '无' : captureUnavailableDetail}`,
         `起始上下文：${state.target ? `${state.target.title}（PID ${state.target.processId}）` : '尚未选择'}`,
         `录制目录：${compactPath(state.saved && state.saved.recordingDir)}`,
         `raw：${artifactPath(state.saved && state.saved.rawFile)}`,
@@ -855,6 +935,9 @@
 
     async function showDetails() {
       try {
+        if (!ACTIVE_CAPTURE_PHASES.has(state.phase) && state.phase !== 'closed') {
+          await refreshCaptureCapabilities();
+        }
         await dialog.alert({
           title: '录制详情',
           message: detailsText(),
@@ -939,9 +1022,6 @@
 
     toolbar.addButton('home', '打开 OpenDesk 官网', BUILT_IN_ICONS.home, openHomepage);
     toolbar.addSeparator('brand-capture-separator');
-    // Play and pause share one stable position. Starting returns synchronously
-    // so callback busy presentation cannot replace the required 3/2/1 icons;
-    // pause/resume still returns its Promise to preserve button single-flight.
     toolbar.addButton('capture', '开始录制', BUILT_IN_ICONS.play, event => {
       if (!session) {
         void start().catch(error => logger.error(
