@@ -307,7 +307,9 @@ recipe 可通过 `Execution.env` 读取启动时的项目环境。默认合并�
 
 本地 recipe 的 `Command.run()` 使用当前 OS 用户权限；HTTP、MCP 与 Scheduler execution 不提供该能力。
 同样，本地 `ai run` 可显式启用 Experimental `Accessibility` 和 `UI` 菜单方法，远程 HTTP、MCP 与
-Scheduler execution 当前关闭，只能看到禁用 capability 且不会读取原生目标。AI CLI 没有为此新增一套
+通用 HTTP Scheduler execution 当前关闭，只能看到禁用 capability 且不会读取原生目标。OpenDesk 产品
+计划中心创建的本机任务会启用 execution-owned Custom UI，以便计划脚本使用 `ui.toast()` / 兼容的
+`ui.notify()` 显示提示；这不会为任务开放 Accessibility。AI CLI 没有为此新增一套
 平行 menu 命令、HTTP route 或 MCP tool；调用契约见 [Accessibility API](accessibility.md) 与
 [Desktop UI API](desktop-ui.md#原生菜单选项)。这个 execution 准入开关不是完整 Runtime 沙箱。
 
