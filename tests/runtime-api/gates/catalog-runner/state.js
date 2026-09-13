@@ -19,7 +19,7 @@
       validModes: [
         'contract', 'unit', 'smoke', 'live', 'live-only', 'coverage', 'negative',
         'sound-cancel', 'notify-icon-live', 'custom-ui', 'custom-ui-config', 'dialog',
-        'command', 'environment', 'file-json', 'path', 'language', 'sqlite',
+        'command', 'ai-runtime', 'environment', 'file-json', 'path', 'language', 'sqlite',
       ],
       cleanupFields: [
         'workers', 'promiseCallbacks', 'timers',

@@ -144,6 +144,18 @@ test('open reuses and refocuses the same normal Scheduler Center window', async 
   assert.match(f.logs.join('\n'), /action=scheduler\.open stage=ready/);
 });
 
+test('uses the native title bar and keeps concise runtime context in the content', async () => {
+  const f = createHarness();
+  await f.center.open('title-and-runtime-context');
+  const window = f.windows[0];
+
+  assert.equal(window.spec.title, 'OpenDesk · 计划中心');
+  assert.doesNotMatch(window.spec.content.html, /<strong>计划中心<\/strong>/);
+  assert.match(window.spec.content.html, /id="runtimeState" class="runtime-context" role="status" aria-live="polite"/);
+  assert.equal(window.control('runtimeState').state.text, '本机负责执行计划 · 脚本目录：/tmp/recipes');
+  assert.doesNotMatch(window.control('runtimeState').state.text, /Active|当前 OpenDesk/);
+});
+
 test('close clears the stale handle and the next open creates generation two', async () => {
   const f = createHarness();
   await f.center.open('first');
@@ -245,7 +257,7 @@ test('standby state disables Run Now instead of reporting false success', async 
   });
   await f.center.open('standby');
   assert.equal(f.windows[0].control('run0').state.disabled, true);
-  assert.match(f.windows[0].control('runtimeState').state.text, /Standby/);
+  assert.match(f.windows[0].control('runtimeState').state.text, /由其他 OpenDesk Runtime 执行计划/);
   assert.equal(f.windows[0].control('enabled0').state.text, '已启用');
 });
 
@@ -267,7 +279,7 @@ test('Scheduler Center presents actions with icons and accessible labels', async
     ['refresh', 'arrow.clockwise', '刷新计划列表'],
     ['closeCreate', 'xmark', '取消创建并收起表单'],
     ['fillFileExample', 'doc.fill', '填入通知文件示例'],
-    ['fillInlineExample', 'doc.text.fill', '填入 ui.notify 文本示例'],
+    ['fillInlineExample', 'doc.text.fill', '填入 ui.toast 文本示例'],
     ['createJob', 'plus', '创建计划'],
     ['run0', 'play.fill', '立即运行'],
     ['toggle0', 'pause.fill', '暂停计划'],
@@ -283,7 +295,7 @@ test('Scheduler Center presents actions with icons and accessible labels', async
     ['refresh', '刷新计划列表'],
     ['closeCreate', '取消创建并收起表单'],
     ['fillFileExample', '填入通知文件示例'],
-    ['fillInlineExample', '填入 ui.notify 文本示例'],
+    ['fillInlineExample', '填入 ui.toast 文本示例'],
     ['run0', '立即运行'],
     ['toggle0', '暂停计划'],
     ['history0', '查看运行历史'],
@@ -376,7 +388,7 @@ test('schedule selectors use accessible dark-theme fields and update expression 
   assert.equal(window.control('scheduleHint').state.text, '单次示例：2026-09-12T18:30:00+08:00');
 });
 
-test('Scheduler Center creates inline script jobs from a multiline editor and built-in notify example', async () => {
+test('Scheduler Center creates inline script jobs from a multiline editor and built-in toast example', async () => {
   const f = createHarness();
   await f.center.openCreate('inline-job');
   const window = f.windows[0];
@@ -396,7 +408,7 @@ test('Scheduler Center creates inline script jobs from a multiline editor and bu
   assert.equal(window.control('createScript').state.disabled, true);
 
   const script = window.control('createInlineScript').state.value;
-  assert.match(script, /await ui\.notify\(/);
+  assert.match(script, /await ui\.toast\(/);
   assert.match(script, /\[SCHEDULER_NOTIFY\] stage=complete/);
   assert.equal(window.control('createName').state.value, 'UI 脚本文本通知计划');
 

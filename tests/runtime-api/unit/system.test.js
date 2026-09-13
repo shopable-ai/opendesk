@@ -3,6 +3,48 @@
   RuntimeAPITest.contractObject('System');
 
   test({
+    name: 'System product identity is Runtime-owned, immutable, and independent from execution environment',
+    tier: 'unit',
+    covers: ['System.product'],
+  }, () => {
+    const product = System.product;
+    assert(product && typeof product === 'object', 'System.product must be an object');
+    equal(product.id, 'com.opendesk.desktop', 'product id');
+    equal(product.name, 'OpenDesk', 'product name');
+    equal(product.website, 'https://github.com/shopable-ai/opendesk#home', 'product website');
+    assert(Object.isFrozen(product), 'System.product must be frozen');
+
+    const descriptor = Object.getOwnPropertyDescriptor(System, 'product');
+    assert(descriptor && descriptor.writable === false && descriptor.configurable === false,
+      'System.product must be non-writable and non-configurable');
+
+    function mutateWebsite() {
+      'use strict';
+      System.product.website = 'https://environment.example.invalid';
+    }
+    function replaceProduct() {
+      'use strict';
+      System.product = {website: 'https://environment.example.invalid'};
+    }
+    for (const mutate of [mutateWebsite, replaceProduct]) {
+      let rejected = false;
+      try {
+        mutate();
+      } catch (error) {
+        rejected = error instanceof TypeError;
+      }
+      assert(rejected, 'System.product mutation must throw TypeError in strict mode');
+    }
+    equal(System.product.website, 'https://github.com/shopable-ai/opendesk#home', 'product website after mutation attempts');
+
+    const environmentOverride = System.getEnv('OPENDESK_PRODUCT_WEBSITE');
+    if (environmentOverride !== undefined) {
+      assert(environmentOverride !== System.product.website,
+        'execution environment must not replace Runtime product identity');
+    }
+  });
+
+  test({
     name: 'System delay is event-loop-owned and platform info is normalized',
     tier: 'unit',
     covers: ['System.delay', 'System.getPlatformInfo'],
@@ -45,7 +87,11 @@
   }, () => {
     const name = 'OPENDESK_RUNTIME_API_RUN_ID';
     equal(System.getEnv(name), Execution.env[name], 'inherited execution value');
-    equal(System.hasEnv(name), true, 'present inherited execution value');
+    equal(
+      System.hasEnv(name),
+      Object.prototype.hasOwnProperty.call(Execution.env, name),
+      'execution environment presence',
+    );
 
     const missing = 'OPENDESK_ENV_NAME_THAT_MUST_NOT_EXIST';
     equal(System.getEnv(missing), undefined, 'missing value');

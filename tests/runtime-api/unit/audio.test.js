@@ -31,7 +31,11 @@
     equal(patternWatch.supported, false, 'default product pattern backend must remain unavailable');
     equal(patternWatch.status, 'unsupported', 'default product pattern backend status');
     assert(typeof patternWatch.platform === 'string' && patternWatch.platform.length > 0, 'patternWatch platform must be explicit');
-    equal(patternWatch.backend, 'unavailable', 'default product pattern backend identity');
+    equal(
+      patternWatch.backend,
+      patternWatch.platform === 'darwin' ? 'screencapturekit-system-mix' : 'unavailable',
+      'default product pattern backend identity',
+    );
     equal(patternWatch.verified, false, 'default product pattern backend must remain unverified');
     assert(['screenRecording', 'none'].includes(patternWatch.permission), 'patternWatch permission must be bounded');
     assert(patternWatch.sources && typeof patternWatch.sources === 'object', 'patternWatch sources must be present');
