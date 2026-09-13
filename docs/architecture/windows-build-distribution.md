@@ -47,6 +47,48 @@ The product contract is therefore:
 
 A future installer or packaged release should expose only the desktop entry as the normal Start Menu/Desktop shortcut. CLI may be installed for developers, but it is not another end-user app icon. `ui-host/` remains an internal payload directory.
 
+## Executable-count decision: do not optimize for a single EXE
+
+The current Windows target is intentionally:
+
+```text
+logical end-user product entry      = 1
+Runtime entry binaries              = 2
+  opendesk-desktop.exe              = GUI subsystem / normal desktop launch
+  opendesk.exe                      = Console subsystem / CLI and automation
+internal Native UI helper           = 1
+  ui-host/opendesk-ui-host.exe      = Runtime-owned sidecar
+```
+
+This is the frozen P0/P1 architecture unless measured evidence justifies reopening it. The release-quality metric is **one ordinary user launch entry with correct ownership**, not “only one `.exe` exists in the installation directory” and not “Task Manager shows only one process”.
+
+The two Runtime entries are link variants of the same `./cmd/opendesk` source. They must not grow separate App Mode, Scheduler, Recorder, Script Runner or automation implementations. Their difference is Windows launch/presentation behavior: GUI subsystem for the ordinary desktop entry, Console semantics for developer/automation CLI use.
+
+The Native UI Host remains a separate process because the current implementation is a .NET/WinForms/WebView2 sidecar with its own native UI lifecycle and failure boundary. Forcing it into the Go Runtime merely to reduce executable count would redesign Custom UI ownership, threading, deployment and crash isolation without solving a current product requirement.
+
+Therefore P0/P1 explicitly does **not**:
+
+- add a new launcher EXE in front of the existing Desktop Runtime;
+- make `opendesk-desktop.exe` spawn `opendesk.exe` as the normal product Runtime merely to centralize the binary name;
+- ask ordinary users to choose between Desktop, CLI and UI Host;
+- extract or download an executable helper into `%TEMP%` and run it there to simulate a single-file product;
+- merge the .NET Native UI Host into Go solely to reduce process count;
+- change the Installed App Builder to capability-aware/minimal packaging just to remove one of these binaries.
+
+The preferred product presentation is still one application: installer/portable UX exposes one normal **OpenDesk** shortcut backed by `opendesk-desktop.exe`; CLI is a developer capability; `ui-host/` is internal payload.
+
+A future “single Runtime entry binary” investigation is allowed only as a separate optimization project after the existing release is measured. Reopen the decision only when at least one material benefit is demonstrated, for example:
+
+- duplicate Runtime binary size or update bandwidth is a meaningful part of the distribution cost;
+- support policy can rely on a Windows launch/console mechanism that preserves Explorer no-console behavior **and** terminal stdin/stdout/stderr, pipes, exit codes and automation compatibility in one entry;
+- real maintenance data shows two Runtime link variants create defects rather than simply two release artifacts;
+- the Native UI technology is migrated so an in-process host has a clear reliability/deployment advantage;
+- startup, servicing or security measurements show a concrete improvement large enough to justify compatibility regression risk.
+
+Any such proposal must compare artifact size, startup behavior, CLI compatibility, Explorer behavior, failure isolation and release complexity before changing this contract. File count alone is not sufficient evidence.
+
+The Windows UI Host publish shape is likewise an implementation choice rather than a “single EXE” product requirement. The distribution must preserve the **actual `dotnet publish` closure**. If single-file/self-extract publishing creates measurable startup, extraction, security or servicing problems, a self-contained folder publish may be chosen without changing the product process model. `.NET self-contained` also does not prove WebView2 Runtime availability; WebView2 remains a separately checked system/deployment prerequisite for HTML/WebSurface features.
+
 ## P0 naming closure
 
 The former design attempted to represent the two Windows entry roles using only case:
@@ -206,12 +248,15 @@ The naming and role model are now defined, but a consumer release still needs th
 ## Next execution order
 
 ```text
-source/artifact naming closure        # current implementation target
-→ hosted Windows build + App Builder CI
-→ Windows interactive desktop acceptance
+source/artifact naming + executable-role decision            # frozen architecture
+→ source/build/CI closure                                     # docs/plans/runtime/windows-distribution-source-ci-closure-prompt.md
+→ hosted Windows build + Installed App Builder artifact gates
+→ Source / Build / CI readiness = READY
+→ Windows interactive desktop acceptance                     # docs/plans/runtime/windows-desktop-release-acceptance-prompt.md
 → publisher signing / clean-machine security qualification
 → installer/channel decision
 → optional stronger helper-integrity enforcement
+→ only with measured benefit: reconsider single Runtime entry/minimal packaging
 ```
 
-Do not merge signing, installer selection and helper protocol redesign into the naming P0 merely because all belong to Windows distribution. Each has a different owner and evidence standard.
+Do not merge signing, installer selection and helper protocol redesign into the source/CI closure merely because all belong to Windows distribution. Each has a different owner and evidence standard. Do not reopen the executable-count decision during implementation unless new measured evidence satisfies the criteria above.
