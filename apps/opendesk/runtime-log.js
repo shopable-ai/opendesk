@@ -36,6 +36,15 @@
     return parts.length ? parts[parts.length - 1] : '';
   }
 
+  function automationNameFromSource(source) {
+    const value = String(source || '');
+    const schedulerFile = value.match(/^scheduler:file:(.+)$/);
+    if (schedulerFile) return basename(schedulerFile[1]);
+    const schedulerInline = value.match(/^scheduler:inline:(.+)$/);
+    if (schedulerInline) return schedulerInline[1];
+    return basename(value.replace(/^file:/, ''));
+  }
+
   function safeJSON(path) {
     const info = file.stat(path);
     if (!info || info.type !== 'file') return null;
@@ -55,13 +64,21 @@
     const root = runRoot();
     const rootInfo = file.stat(root);
     if (!rootInfo || rootInfo.type !== 'directory') return '';
-    const names = file.listDir(root)
+    const candidates = file.listDir(root)
       .filter(name => {
         const info = file.stat(file.join(root, name));
         return info && info.type === 'directory';
       })
-      .sort((left, right) => right.localeCompare(left));
-    return names.length ? file.join(root, names[0]) : '';
+      .map(name => {
+        const directory = file.join(root, name);
+        const info = file.stat(directory) || {};
+        const summary = safeJSON(file.join(directory, 'summary.json')) || {};
+        const agentSummary = safeJSON(file.join(directory, 'agent_summary.json')) || {};
+        const timestamp = Date.parse(summary.started_at || agentSummary.startedAt || info.modifiedAt || '') || 0;
+        return {directory, name, timestamp};
+      })
+      .sort((left, right) => right.timestamp - left.timestamp || right.name.localeCompare(left.name));
+    return candidates.length ? candidates[0].directory : '';
   }
 
   async function readTail(path) {
@@ -107,21 +124,23 @@
       <header><div><strong>运行日志</strong><p id="location" class="subtle">正在定位最近一次自动化…</p></div><div class="actions"><button id="refresh">刷新</button><button id="autoScroll">自动滚动：开</button><button id="openDirectory">打开日志目录</button><button id="close">关闭</button></div></header>
       <section class="facts"><div><span>自动化</span><strong id="automation">—</strong></div><div><span>Execution ID</span><strong id="executionId">—</strong></div><div><span>状态</span><strong id="runStatus">—</strong></div><div><span>开始</span><strong id="startedAt">—</strong></div><div><span>结束 / 结果</span><strong id="finishedAt">—</strong></div></section>
       <p id="notice" class="notice">尚未加载运行日志。</p>
-      <section class="logs"><article><h2>Script output</h2><pre id="stdout"></pre></article><article><h2>Errors</h2><pre id="stderr"></pre></article><article><h2>Summary</h2><pre id="summary"></pre></article></section>
+      <section class="logs"><div class="log-panel"><strong>Script output</strong><p id="stdout" class="log-output"></p></div><div class="log-panel"><strong>Errors</strong><p id="stderr" class="log-output"></p></div><div class="log-panel"><strong>Summary</strong><p id="summary" class="log-output"></p></div></section>
     </main></body></html>`;
   }
 
   const CSS = `
-    html,body{margin:0;padding:0;background:#171717;color:#f4f4f4;font:13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}*{box-sizing:border-box}main{height:100vh;padding:18px;display:flex;flex-direction:column;gap:12px;overflow:hidden}header{display:flex;justify-content:space-between;align-items:flex-start;gap:14px}header strong{font-size:22px}.subtle{margin:5px 0 0;color:#999;font-size:12px;max-width:620px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}button{border:1px solid #505050;border-radius:7px;background:#303030;color:#f4f4f4;padding:7px 10px;font:inherit}button:hover{background:#3b3b3b;cursor:pointer}.facts{display:grid;grid-template-columns:1.25fr 1fr .65fr 1fr 1.15fr;gap:8px}.facts div{min-width:0;border:1px solid #343434;border-radius:8px;background:#202020;padding:8px 10px}.facts span{display:block;color:#888;font-size:10px;margin-bottom:4px;text-transform:uppercase}.facts strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.notice{margin:0;padding:8px 10px;border:1px solid #393939;border-radius:7px;background:#202020;color:#cfcfcf}.logs{flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}.logs article{min-width:0;min-height:0;display:flex;flex-direction:column;border:1px solid #343434;border-radius:9px;background:#1d1d1d;overflow:hidden}.logs h2{font-size:12px;margin:0;padding:9px 10px;border-bottom:1px solid #333;color:#aaa}.logs pre{flex:1;min-height:0;overflow:auto;margin:0;padding:10px;white-space:pre-wrap;overflow-wrap:anywhere;font:12px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;line-height:1.45}
+    html,body{margin:0;padding:0;background:#171717;color:#f4f4f4;font:13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}*{box-sizing:border-box}main{height:100vh;padding:18px;display:flex;flex-direction:column;gap:12px;overflow:hidden}header{display:flex;justify-content:space-between;align-items:flex-start;gap:14px}header strong{font-size:22px}.subtle{margin:5px 0 0;color:#999;font-size:12px;max-width:620px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}button{border:1px solid #505050;border-radius:7px;background:#303030;color:#f4f4f4;padding:7px 10px;font:inherit}button:hover{background:#3b3b3b;cursor:pointer}.facts{display:grid;grid-template-columns:1.25fr 1fr .65fr 1fr 1.15fr;gap:8px}.facts div{min-width:0;border:1px solid #343434;border-radius:8px;background:#202020;padding:8px 10px}.facts span{display:block;color:#888;font-size:10px;margin-bottom:4px;text-transform:uppercase}.facts strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.notice{margin:0;padding:8px 10px;border:1px solid #393939;border-radius:7px;background:#202020;color:#cfcfcf}.logs{flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}.logs .log-panel{min-width:0;min-height:0;display:flex;flex-direction:column;border:1px solid #343434;border-radius:9px;background:#1d1d1d;overflow:hidden}.logs .log-panel>strong{font-size:12px;margin:0;padding:9px 10px;border-bottom:1px solid #333;color:#aaa}.logs .log-output{flex:1;min-height:0;overflow:auto;margin:0;padding:10px;white-space:pre-wrap;overflow-wrap:anywhere;font:12px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;line-height:1.45}
   `;
 
   function createRuntimeLog(options) {
     const settings = options || {};
     const runner = settings.runner || null;
     let window = null;
+    let opening = null;
     let sequence = 0;
     let selectedDirectory = '';
     let autoScroll = true;
+    let detailMode = 'normal';
     let loading = false;
     let lastError = '';
 
@@ -139,6 +158,24 @@
       try { return runner && typeof runner.state === 'function' ? runner.state() : null; } catch (_) { return null; }
     }
 
+    function resolveRunDirectory() {
+      const current = runnerState();
+      const candidate = current && current.latestExecution && current.latestExecution.logDir;
+      const info = candidate ? file.stat(candidate) : null;
+      const discovered = latestRunDirectory();
+      if (!info || info.type !== 'directory') return discovered;
+      if (!discovered || discovered === candidate) return candidate;
+      const latest = current.latestExecution || {};
+      if (latest.status === 'running') return candidate;
+      const candidateSummary = safeJSON(file.join(candidate, 'summary.json')) || {};
+      const discoveredSummary = safeJSON(file.join(discovered, 'summary.json')) || {};
+      const candidateInfo = file.stat(candidate) || {};
+      const discoveredInfo = file.stat(discovered) || {};
+      const candidateTime = Date.parse(candidateSummary.started_at || latest.startedAt || candidateInfo.modifiedAt || '') || 0;
+      const discoveredTime = Date.parse(discoveredSummary.started_at || discoveredInfo.modifiedAt || '') || 0;
+      return discoveredTime > candidateTime ? discovered : candidate;
+    }
+
     async function refresh(source) {
       if (loading) return state();
       loading = true;
@@ -146,7 +183,7 @@
       await safeUpdate('refresh', {disabled: true});
       await safeUpdate('notice', {text: '正在读取最近一次自动化日志…'});
       try {
-        selectedDirectory = latestRunDirectory();
+        selectedDirectory = resolveRunDirectory();
         if (!selectedDirectory) {
           await safeUpdate('location', {text: `日志根目录：${runRoot()}`});
           await safeUpdate('automation', {text: '—'});
@@ -161,21 +198,33 @@
           return state();
         }
 
-        const meta = safeJSON(file.join(selectedDirectory, 'meta.json')) || {};
-        const executionState = safeJSON(file.join(selectedDirectory, 'execution_state.json')) || {};
-        const summary = safeJSON(file.join(selectedDirectory, 'summary.json'));
-        const agentSummary = safeJSON(file.join(selectedDirectory, 'agent_summary.json'));
+        const summary = safeJSON(file.join(selectedDirectory, 'summary.json')) || {};
+        const agentSummary = safeJSON(file.join(selectedDirectory, 'agent_summary.json')) || {};
         const output = await readTail(file.join(selectedDirectory, 'stdout.log'));
-        const errors = await readTail(file.join(selectedDirectory, 'stderr.log'));
+        const errorOutput = await readTail(file.join(selectedDirectory, 'stderr.log'));
+        const events = detailMode === 'detailed'
+          ? await readTail(file.join(selectedDirectory, 'events.ndjson'))
+          : '';
         const currentRunner = runnerState();
-        const automationName = meta.scriptName || meta.name || meta.script || basename(selectedDirectory).replace(/^\d{4}-\d{2}-\d{2}T[^-]+-/, '') || '自动化';
-        const executionId = meta.executionId || meta.id || executionState.executionId || executionState.id || '—';
-        const status = executionState.status || meta.status || (currentRunner && currentRunner.runner && currentRunner.runner.running ? 'running' : 'unknown');
-        const startedAt = executionState.startedAt || meta.startedAt || meta.createdAt || '—';
-        const finishedAt = executionState.finishedAt || meta.finishedAt || executionState.updatedAt || '—';
+        const latest = currentRunner && currentRunner.latestExecution ? currentRunner.latestExecution : {};
+        const selectedIsRunner = !!latest.logDir && latest.logDir === selectedDirectory;
+        const automationName = (selectedIsRunner ? basename(latest.scriptPath) : '')
+          || automationNameFromSource(agentSummary.source || summary.source)
+          || basename(summary.script_snapshot_path)
+          || '自动化';
+        const executionId = summary.execution_id || agentSummary.executionId || '—';
+        const status = summary.status || agentSummary.status || (selectedIsRunner ? latest.status : '')
+          || (currentRunner && currentRunner.runner && currentRunner.runner.running ? 'running' : 'unknown');
+        const startedAt = summary.started_at || agentSummary.startedAt || (selectedIsRunner ? latest.startedAt : '') || '—';
+        const finishedAt = summary.finished_at || agentSummary.finishedAt || (selectedIsRunner ? latest.finishedAt : '') || '—';
+        const structuredErrors = [
+          summary.error || '',
+          Array.isArray(agentSummary.errors) ? compactJSON(agentSummary.errors) : '',
+        ].filter(Boolean).join('\n\n');
         const summaryText = [
-          summary ? compactJSON(summary) : '',
-          agentSummary ? `Agent summary\n${compactJSON(agentSummary)}` : '',
+          Object.keys(summary).length ? compactJSON(summary) : '',
+          Object.keys(agentSummary).length ? `Agent summary\n${compactJSON(agentSummary)}` : '',
+          events ? `Events tail\n${events}` : '',
         ].filter(Boolean).join('\n\n');
 
         await safeUpdate('location', {text: selectedDirectory});
@@ -185,7 +234,7 @@
         await safeUpdate('startedAt', {text: String(startedAt)});
         await safeUpdate('finishedAt', {text: String(finishedAt)});
         await safeUpdate('stdout', {text: output || '（无 stdout）'});
-        await safeUpdate('stderr', {text: errors || '（无 stderr）'});
+        await safeUpdate('stderr', {text: errorOutput || structuredErrors || '（无 stderr / Errors）'});
         await safeUpdate('summary', {text: summaryText || '（暂无 summary）'});
         await safeUpdate('notice', {text: source ? `已刷新 · ${source}` : '已刷新最近一次自动化。'});
         await scrollToLatest('stdout');
@@ -209,6 +258,12 @@
       if (platform === 'windows') return command.run('explorer.exe', [target], {timeout: 10000, hideWindow: true});
       if (platform === 'darwin') return command.run('/usr/bin/open', [target], {timeout: 10000, hideWindow: true});
       return command.run('xdg-open', [target], {timeout: 10000, hideWindow: true});
+    }
+
+    async function setDetailMode(mode) {
+      detailMode = mode === 'detailed' ? 'detailed' : 'normal';
+      if (window) await refresh('调试信息已切换');
+      return state();
     }
 
     async function bind(win) {
@@ -237,35 +292,46 @@
           window = null;
         }
       }
-      const next = await runtimeUI.createWindow({
-        id: `runtimeLog${++sequence}`,
-        kind: 'floating',
-        title: '运行日志',
-        position: {mode:'anchor',size:{width:1180,height:700},horizontal:'center',vertical:'center',margin:0,display:'active'},
-        theme: 'dark',
-        alwaysOnTop: false,
-        draggable: true,
-        content: {html: buildHTML(), css: CSS},
-      });
-      window = next;
-      await bind(next);
-      await next.show();
-      await refresh(source || '打开');
-      return state();
+      if (opening) return opening;
+      const task = (async () => {
+        const next = await runtimeUI.createWindow({
+          id: `runtimeLog${++sequence}`,
+          kind: 'floating',
+          title: '运行日志',
+          position: {mode:'anchor',size:{width:1180,height:700},horizontal:'center',vertical:'center',margin:0,display:'active'},
+          theme: 'dark',
+          alwaysOnTop: false,
+          draggable: true,
+          content: {html: buildHTML(), css: CSS},
+        });
+        window = next;
+        await bind(next);
+        await next.show();
+        await refresh(source || '打开');
+        return state();
+      })();
+      opening = task;
+      try {
+        return await task;
+      } finally {
+        if (opening === task) opening = null;
+      }
     }
 
     function state() {
       return Object.freeze({
         open: !!window,
+        opening: !!opening,
         loading,
         autoScroll,
+        detailMode,
         selectedDirectory,
         runRoot: runRoot(),
         lastError,
       });
     }
 
-    return Object.freeze({open, refresh, state});
+    return Object.freeze({open, openDirectory, refresh, setDetailMode, state});
   }
 
   global.OpenDeskRuntimeLog = Object.freeze({create: createRuntimeLog});

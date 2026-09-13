@@ -47,8 +47,15 @@ function loadProductRunner(harness) {
   }
 }
 
+function deferred() {
+  let resolve;
+  const promise = new Promise(done => { resolve = done; });
+  return {promise, resolve};
+}
+
 function createHarness(options = {}) {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'opendesk-product-runner-'));
+  const runError = options.runError || null;
   const windows = [];
   const notifications = [];
   const floatingWindows = [];
@@ -58,8 +65,17 @@ function createHarness(options = {}) {
 
   const ui = {
     async createWindow(spec) {
-      windows.push(spec);
-      return {id: spec.id};
+      const window = {
+        id: spec.id,
+        spec,
+        showCount: 0,
+        hideCount: 0,
+        async show() { this.showCount += 1; },
+        async hide() { this.hideCount += 1; },
+      };
+      windows.push(window);
+      if (options.createWindowGate) await options.createWindowGate;
+      return window;
     },
     async notify(message) {
       notifications.push(String(message));
@@ -104,20 +120,34 @@ function createHarness(options = {}) {
       toolbar.addLabel('script', '暂无脚本', {width: 168});
       toolbar.addButton('list', '脚本列表', 'list.bullet', () => {});
       let listWindow = null;
+      let listCreating = null;
+      async function prepareList() {
+        if (listWindow) return listWindow;
+        if (listCreating) return listCreating;
+        const task = options.ui.createWindow({
+          id: 'scriptRunnerList1',
+          kind: 'normal',
+          title: 'OpenDesk Script Runner',
+        });
+        listCreating = task;
+        try {
+          listWindow = await task;
+          return listWindow;
+        } finally {
+          if (listCreating === task) listCreating = null;
+        }
+      }
       return {
         async run() {
           await toolbar.show();
-          if (options.runError) throw options.runError;
+          if (runError) throw runError;
           await toolbar.waitUntilClosed();
         },
+        prepareList,
         async openList(message) {
-          if (!listWindow) {
-            listWindow = await options.ui.createWindow({
-              id: 'scriptRunnerList1',
-              title: 'OpenDesk Script Runner',
-            });
-          }
-          return {message};
+          const window = await prepareList();
+          await window.show();
+          return {message, window};
         },
         async stopRun() { return true; },
         state() { return {running: true, scriptCount: 1}; },
@@ -185,21 +215,44 @@ function createHarness(options = {}) {
   };
 }
 
-test('product runner makes the shared Runner list the stable App Mode main window', async () => {
-  const harness = createHarness();
+test('product Open action keeps the toolbar visible without opening the prepared list window', async () => {
+  const createWindowGate = deferred();
+  const harness = createHarness({createWindowGate: createWindowGate.promise});
   const loaded = loadProductRunner(harness);
   const runner = loaded.api.create({officialShell: harness.officialShell});
 
-  const state = await runner.open('test');
+  let launchSettled = false;
+  const launch = runner.launch().then(state => {
+    launchSettled = true;
+    return state;
+  });
+  await new Promise(resolve => setImmediate(resolve));
+
+  assert.equal(harness.windows.length, 1, 'startup must create window.mainId before entry completion');
+  assert.equal(harness.windows[0].id, 'main');
+  assert.equal(harness.windows[0].spec.kind, 'normal');
+  assert.equal(harness.windows[0].showCount, 0, 'startup must not show list content');
+  assert.equal(launchSettled, false, 'launch must await main window registration');
+
+  createWindowGate.resolve();
+  const state = await launch;
   assert.equal(state.mainWindowId, 'main');
   assert.equal(state.toolbarMaxWidth, 520);
+  assert.equal(harness.createAppCount, 1);
+
+  await runner.open('test');
   assert.equal(harness.windows.length, 1);
-  assert.equal(harness.windows[0].id, 'main');
+  assert.equal(harness.windows[0].showCount, 0, 'OpenDesk menu action must not open list content');
   assert.equal(harness.createAppCount, 1);
 
   await runner.open('tray');
+  assert.equal(harness.windows.length, 1, 'reopen must reuse the registered main window');
+  assert.equal(harness.windows[0].showCount, 0, 'repeated OpenDesk menu actions must remain toolbar-only');
   assert.equal(harness.createAppCount, 1, 'reopen must reuse the same shared Runner app');
   assert.equal(harness.floatingWindows.length, 1, 'reopen must not create a second toolbar');
+
+  await runner.openList('toolbar-list');
+  assert.equal(harness.windows[0].showCount, 1, 'the dedicated list action must still open the list window');
 });
 
 test('App Shell UI cancellation is a clean Product Runner shutdown', async () => {
@@ -210,18 +263,31 @@ test('App Shell UI cancellation is a clean Product Runner shutdown', async () =>
   const loaded = loadProductRunner(harness);
   const runner = loaded.api.create({officialShell: harness.officialShell});
 
-  await runner.open('test');
+  await runner.launch();
   await new Promise(resolve => setImmediate(resolve));
 
   assert.equal(runner.state().lastError, null);
   assert.deepEqual(harness.errors, []);
 });
 
+test('launch preserves an unexpected Runner lifecycle error', async () => {
+  const harness = createHarness({runError: new Error('toolbar failed')});
+  const loaded = loadProductRunner(harness);
+  const runner = loaded.api.create({officialShell: harness.officialShell});
+
+  await runner.launch();
+  await new Promise(resolve => setImmediate(resolve));
+
+  assert.equal(runner.state().lastError, 'toolbar failed');
+  assert.equal(harness.errors.length, 1);
+  assert.match(harness.errors[0], /toolbar failed/);
+});
+
 test('brand home is the first icon and official actions stay independent from run state', async () => {
   const harness = createHarness();
   const loaded = loadProductRunner(harness);
   const runner = loaded.api.create({officialShell: harness.officialShell});
-  await runner.open('test');
+  await runner.launch();
 
   const toolbar = harness.floatingWindows[0];
   assert.equal(toolbar.spec.toolbar.maxWidth, 520);
@@ -273,7 +339,7 @@ test('generic example remains independent of Official Shell product actions', ()
   assert.doesNotMatch(source, /OpenDeskOfficialShell|opendesk\.help|opendesk\.customize/);
 });
 
-test('App Mode composition has no Demo panel and exposes one canonical Script Runner tray action', () => {
+test('App Mode composition has no Demo panel and leaves OpenDesk opening to the App Shell', () => {
   const mainFile = path.join(repo, 'apps', 'opendesk', 'main.js');
   const manifestFile = path.join(repo, 'apps', 'opendesk', 'opendesk.app.json');
   const mainSource = fs.readFileSync(mainFile, 'utf8');
@@ -282,14 +348,16 @@ test('App Mode composition has no Demo panel and exposes one canonical Script Ru
 
   assert.doesNotMatch(mainSource, /ui\.createWindow\s*\(/, 'main.js must not create a Demo window');
   assert.doesNotMatch(mainSource, /打开 Script Runner|自动化运行中心已就绪|OpenDesk 服务/);
-  assert.match(mainSource, /runner\.open\('startup'\)/);
-  assert.match(mainSource, /OpenDeskProductAppController\.create/);
-  assert.match(appControllerSource, /automation\.app\.onAction/);
+  assert.match(mainSource, /runner\.launch\(\)/);
+  assert.match(mainSource, /OpenDeskProductAppController\.create\(/);
+  assert.match(appControllerSource, /appRuntime\.onAction/);
   assert.match(fs.readFileSync(productEntry, 'utf8'), /hideListOnClose:\s*true/);
   assert.equal(manifest.window.mainId, 'main');
   assert.equal(manifest.window.closeBehavior, 'hide');
   assert.equal(manifest.tray.primaryAction, 'opendesk.open');
-  assert.deepEqual(manifest.tray.menu.filter(item => item.action === 'runner.open'), [
-    {id: 'open-opendesk', label: '打开 OpenDesk', action: 'runner.open'},
-  ]);
+  assert.deepEqual(manifest.tray.menu.filter(item => item.action === 'runner.open'), []);
+  const productMenuSource = fs.readFileSync(path.join(repo, 'pkg', 'appshell', 'product_menu.go'), 'utf8');
+  assert.match(productMenuSource, /ActionOpen, Label: "打开 OpenDesk"/);
+  assert.match(productMenuSource, /Label: "开发者"/);
+  assert.match(productMenuSource, /Label: "帮助与服务"/);
 });

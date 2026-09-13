@@ -302,6 +302,7 @@
         AbortController: NativeAbortController,
         openListOnStart: false,
         hideListOnClose: true,
+        closeListOnRunnerExit: true,
       });
       app = current;
       const task = current.run()
@@ -323,13 +324,19 @@
       return current;
     }
 
+    async function launch() {
+      lastError = null;
+      const current = start();
+      await current.prepareList();
+      return state();
+    }
+
     async function open(source) {
       if (opening) return opening;
+      lastError = null;
       const task = (async () => {
-        const current = start();
+        start();
         await Promise.resolve();
-        await current.openList(source ? `打开来源：${source}` : '');
-        lastError = null;
         return state();
       })();
       opening = task;
@@ -338,6 +345,13 @@
       } finally {
         if (opening === task) opening = null;
       }
+    }
+
+    async function openList(source) {
+      const current = start();
+      await current.openList(source ? `打开来源：${source}` : '');
+      lastError = null;
+      return state();
     }
 
     async function waitUntilClosed() {
@@ -362,8 +376,9 @@
     }
 
     return Object.freeze({
+      launch,
       open,
-      openList: open,
+      openList,
       stopRun,
       state,
       waitUntilClosed,

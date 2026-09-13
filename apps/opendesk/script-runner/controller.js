@@ -6,6 +6,16 @@
   const RUN_LOG_ROOT = ['.runtime', 'examples', 'custom-ui', 'script-runner-simple', 'runs'];
   const MAX_OUTPUT_BYTES = 1024 * 1024;
   const MIN_LIST_ROW_CAPACITY = 32;
+  const BUTTON_ICONS = Object.freeze({
+    run: 'play.fill',
+    stop: 'stop.fill',
+    openDirectory: 'folder.fill',
+    refresh: 'arrow.clockwise',
+    restoreOrder: 'arrow.counterclockwise',
+    close: 'xmark',
+    moveUp: 'square.and.arrow.up',
+    moveDown: 'square.and.arrow.down',
+  });
 
   function clone(value) {
     return value == null ? value : JSON.parse(JSON.stringify(value));
@@ -108,10 +118,10 @@
       rowParts.push(
         `<input id="select${index}" class="select${hiddenClass}" type="checkbox" aria-label="选择第 ${index + 1} 个脚本"${selected}>`,
         `<p id="index${index}" class="index${hiddenClass}">${script ? index + 1 : ''}</p>`,
-        `<p id="name${index}" class="name${hiddenClass}" title="${escapeHTML(name)}">${escapeHTML(name)}</p>`,
-        `<button id="run${index}" class="run${hiddenClass}"${script ? '' : ' disabled'}>运行</button>`,
-        `<button id="up${index}" class="order${hiddenClass}" aria-label="上移第 ${index + 1} 个脚本"${upDisabled}>↑</button>`,
-        `<button id="down${index}" class="order${hiddenClass}" aria-label="下移第 ${index + 1} 个脚本"${downDisabled}>↓</button>`,
+        `<p id="name${index}" class="name${hiddenClass}" data-icon="doc.text.fill" title="${escapeHTML(name)}">${escapeHTML(name)}</p>`,
+        `<button id="run${index}" class="run icon-button${hiddenClass}" data-icon="${BUTTON_ICONS.run}" title="运行 ${escapeHTML(name)}" aria-label="运行第 ${index + 1} 个自动化"${script ? '' : ' disabled'}>运行</button>`,
+        `<button id="up${index}" class="order icon-button${hiddenClass}" data-icon="${BUTTON_ICONS.moveUp}" title="上移 ${escapeHTML(name)}" aria-label="上移第 ${index + 1} 个自动化"${upDisabled}>上移</button>`,
+        `<button id="down${index}" class="order icon-button${hiddenClass}" data-icon="${BUTTON_ICONS.moveDown}" title="下移 ${escapeHTML(name)}" aria-label="下移第 ${index + 1} 个自动化"${downDisabled}>下移</button>`,
       );
     }
 
@@ -144,12 +154,12 @@
 
         <p id="emptyTitle" class="state-title${emptyVisible ? '' : ' is-hidden'}">暂无可运行脚本</p>
         <p id="emptyHelp" class="state-help${emptyVisible ? '' : ' is-hidden'}">将 JavaScript Recipe 添加到脚本目录后，可以在这里直接运行。</p>
-        <button id="emptyOpenDirectory" class="state-action${emptyVisible ? '' : ' is-hidden'}">打开脚本目录</button>
-        <button id="emptyRefresh" class="state-action${emptyVisible ? '' : ' is-hidden'}">刷新</button>
+        <button id="emptyOpenDirectory" class="state-action icon-button${emptyVisible ? '' : ' is-hidden'}" data-icon="${BUTTON_ICONS.openDirectory}" title="打开自动化目录" aria-label="打开自动化目录">打开自动化目录</button>
+        <button id="emptyRefresh" class="state-action icon-button${emptyVisible ? '' : ' is-hidden'}" data-icon="${BUTTON_ICONS.refresh}" title="刷新自动化列表" aria-label="刷新自动化列表">刷新自动化列表</button>
 
         <p id="errorTitle" class="state-title error-title${errorVisible ? '' : ' is-hidden'}">脚本列表加载失败</p>
         <p id="errorMessage" class="state-help error-message${errorVisible ? '' : ' is-hidden'}">${escapeHTML(state.loadError ? (state.loadError.message || state.loadError) : state.configError || '未知错误')}</p>
-        <button id="errorRefresh" class="state-action${errorVisible ? '' : ' is-hidden'}">重新扫描</button>
+        <button id="errorRefresh" class="state-action icon-button${errorVisible ? '' : ' is-hidden'}" data-icon="${BUTTON_ICONS.refresh}" title="重新扫描自动化目录" aria-label="重新扫描自动化目录">重新扫描自动化目录</button>
 
         <div class="list-grid">
           <p id="colSelect" class="column-head${listVisible ? '' : ' is-hidden'}"></p>
@@ -162,12 +172,12 @@
         </div>
 
         <footer>
-          <button id="runSelected">运行选中</button>
-          <button id="stopRun"${state.running ? '' : ' disabled'}>停止</button>
-          <button id="openDirectory">打开脚本目录</button>
-          <button id="refresh">刷新</button>
-          <button id="restoreOrder"${state.configValid ? ' class="is-hidden"' : ''}>恢复默认排序</button>
-          <button id="closeList">关闭</button>
+          <button id="runSelected" class="icon-button primary" data-icon="${BUTTON_ICONS.run}" title="运行选中的自动化" aria-label="运行选中的自动化">运行选中的自动化</button>
+          <button id="stopRun" class="icon-button" data-icon="${BUTTON_ICONS.stop}" title="停止运行" aria-label="停止运行"${state.running ? '' : ' disabled'}>停止运行</button>
+          <button id="openDirectory" class="icon-button" data-icon="${BUTTON_ICONS.openDirectory}" title="打开自动化目录" aria-label="打开自动化目录">打开自动化目录</button>
+          <button id="refresh" class="icon-button" data-icon="${BUTTON_ICONS.refresh}" title="刷新自动化列表" aria-label="刷新自动化列表">刷新自动化列表</button>
+          <button id="restoreOrder" class="icon-button${state.configValid ? ' is-hidden' : ''}" data-icon="${BUTTON_ICONS.restoreOrder}" title="恢复默认排序" aria-label="恢复默认排序">恢复默认排序</button>
+          <button id="closeList" class="icon-button" data-icon="${BUTTON_ICONS.close}" title="关闭自动化列表" aria-label="关闭自动化列表">关闭自动化列表</button>
         </footer>
       </main>
     </body></html>`;
@@ -175,12 +185,13 @@
 
   const LIST_CSS = `
     html,body{margin:0;padding:0;background:#171717;color:#f4f4f4;font:14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    [hidden]{display:none!important}
     *{box-sizing:border-box} main{height:100vh;padding:18px;display:flex;flex-direction:column;gap:10px;overflow:hidden}
     header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px} .title{display:block;font-size:20px;margin:0 0 5px}.subtle{margin:0;color:#a8a8a8;font-size:12px;max-width:620px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.count{margin:0;color:#b9b9b9;white-space:nowrap}
     .status{margin:0;padding:9px 10px;border:1px solid #3a3a3a;border-radius:7px;background:#202020;color:#d7d7d7;font-size:12px;min-height:36px}
-    .state-title{margin:54px 0 0;text-align:center;font-size:18px;font-weight:700}.state-help{margin:0 auto;text-align:center;color:#aaa;max-width:520px;line-height:1.5}.state-action{align-self:center;min-width:140px}.error-title{color:#ffb7b7}.error-message{color:#d9a2a2}
-    .list-grid{flex:1;min-height:0;overflow-y:auto;display:grid;grid-template-columns:34px 36px minmax(0,1fr) 72px 34px 34px;gap:0 8px;align-content:start;align-items:center}.column-head{margin:0;padding:0 0 6px;color:#8e8e8e;font-size:11px;border-bottom:1px solid #373737}.select{width:16px;height:16px;margin:16px 0 16px 8px}.index,.name{margin:0;min-height:48px;display:flex;align-items:center;border-bottom:1px solid #303030}.index{color:#aaa}.name{font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.run,.order{margin:7px 0}.order{width:34px;padding:6px 0}
-    button{border:1px solid #505050;border-radius:7px;background:#303030;color:#f4f4f4;padding:7px 10px;font:inherit}button:not(:disabled){cursor:pointer}button:hover:not(:disabled){background:#3b3b3b;border-color:#666}button:disabled{opacity:.38}.is-hidden{display:none!important}
+    .state-title{margin:54px 0 0;text-align:center;font-size:18px;font-weight:700}.state-help{margin:0 auto;text-align:center;color:#aaa;max-width:520px;line-height:1.5}.state-action{align-self:center}.error-title{color:#ffb7b7}.error-message{color:#d9a2a2}
+    .list-grid{flex:1;min-height:0;overflow-y:auto;display:grid;grid-template-columns:34px 36px minmax(0,1fr) 40px 34px 34px;gap:0 8px;align-content:start;align-items:center}.column-head{margin:0;padding:0 0 6px;color:#8e8e8e;font-size:11px;border-bottom:1px solid #373737}.select{width:16px;height:16px;margin:16px 0 16px 8px}.index,.name{margin:0;min-height:48px;display:flex;align-items:center;border-bottom:1px solid #303030}.index{color:#aaa}.name{font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.name[data-icon="doc.text.fill"]::before{content:"";flex:0 0 auto;width:14px;height:17px;margin-right:8px;border:1.5px solid #aab2bd;border-radius:2px;background:linear-gradient(#aab2bd,#aab2bd) 3px 5px/7px 1px no-repeat,linear-gradient(#aab2bd,#aab2bd) 3px 9px/7px 1px no-repeat,linear-gradient(#aab2bd,#aab2bd) 3px 13px/5px 1px no-repeat}.run,.order{margin:7px 0}.order{width:34px;padding:0}
+    button{border:1px solid #505050;border-radius:7px;background:#303030;color:#f4f4f4;padding:7px 10px;font:inherit}button:not(:disabled){cursor:pointer}button:hover:not(:disabled){background:#3b3b3b;border-color:#666}button:disabled{opacity:.38}.icon-button{box-sizing:border-box;width:34px;height:34px;min-width:34px;min-height:34px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:0}.icon-button::before{font-size:16px;line-height:1}.icon-button[data-icon="play.fill"]::before{content:"▶";transform:translateX(1px)}.icon-button[data-icon="stop.fill"]::before{content:"■";font-size:14px}.icon-button[data-icon="arrow.clockwise"]::before{content:"↻"}.icon-button[data-icon="arrow.counterclockwise"]::before{content:"↺"}.icon-button[data-icon="xmark"]::before{content:"×";font-size:20px}.icon-button[data-icon="square.and.arrow.up"]::before{content:"↑"}.icon-button[data-icon="square.and.arrow.down"]::before{content:"↓"}.icon-button[data-icon="folder.fill"]::before{content:"";width:18px;height:13px;border-radius:2px;background:currentColor;clip-path:polygon(0 18%,34% 18%,43% 0,100% 0,100% 100%,0 100%)}.primary{background:#245fbe;border-color:#3474d6}.is-hidden{display:none!important}
     footer{display:flex;gap:8px;flex-wrap:wrap;padding-top:8px;border-top:1px solid #343434}footer button{min-height:34px}
   `;
 
@@ -198,6 +209,7 @@
     const managedScriptRoot = settings.managedScriptRoot !== false;
     const openListOnStart = settings.openListOnStart !== false;
     const hideListOnClose = settings.hideListOnClose === true;
+    const closeListOnRunnerExit = settings.closeListOnRunnerExit === true;
 
     if (!file || typeof file.join !== 'function' || typeof file.path !== 'function'
       || typeof file.stat !== 'function' || typeof file.listDir !== 'function'
@@ -227,6 +239,8 @@
     let loading = false;
     let lastOutcome = null;
     let listWindow = null;
+    let listCreating = null;
+    let listVisible = false;
     let listSequence = 0;
     let listRowCapacity = MIN_LIST_ROW_CAPACITY;
     let statusMessage = '';
@@ -237,7 +251,7 @@
     let uiUpdates = Promise.resolve();
 
     const toolbar = new Floating({
-      position: {mode: 'anchor', horizontal: 'right', vertical: 'center', margin: 16, display: 'active'},
+      position: {mode: 'anchor', horizontal: 'right', vertical: 'bottom', margin: 16, display: 'active'},
       title: 'OpenDesk Script Runner',
       theme: 'dark',
       alwaysOnTop: true,
@@ -425,7 +439,7 @@
         await toolbar.updateButton('stop', {disabled: !busy, active: false});
       } catch (_) {}
       try {
-        await toolbar.updateButton('list', {disabled: false, active: !!listWindow});
+        await toolbar.updateButton('list', {disabled: false, active: listVisible});
       } catch (_) {}
       try {
         await toolbar.updateLabel('script', {
@@ -469,11 +483,11 @@
       await safeControlUpdate('loadingHelp', {visible: loadingVisible, classes: ['state-help']});
       await safeControlUpdate('emptyTitle', {visible: emptyVisible, classes: ['state-title']});
       await safeControlUpdate('emptyHelp', {visible: emptyVisible, classes: ['state-help']});
-      await safeControlUpdate('emptyOpenDirectory', {visible: emptyVisible, classes: ['state-action']});
-      await safeControlUpdate('emptyRefresh', {visible: emptyVisible, classes: ['state-action']});
+      await safeControlUpdate('emptyOpenDirectory', {visible: emptyVisible, classes: ['state-action', 'icon-button']});
+      await safeControlUpdate('emptyRefresh', {visible: emptyVisible, classes: ['state-action', 'icon-button']});
       await safeControlUpdate('errorTitle', {visible: errorVisible, classes: ['state-title', 'error-title']});
       await safeControlUpdate('errorMessage', {visible: errorVisible, classes: ['state-help', 'error-message']});
-      await safeControlUpdate('errorRefresh', {visible: errorVisible, classes: ['state-action']});
+      await safeControlUpdate('errorRefresh', {visible: errorVisible, classes: ['state-action', 'icon-button']});
       if (errorVisible) {
         const message = loadError ? loadError.message : configError || '未知错误';
         await safeControlUpdate('errorMessage', {text: message});
@@ -493,9 +507,27 @@
         }));
         await safeControlUpdate(`index${index}`, {visible, text: script ? String(index + 1) : '', classes: ['index']});
         await safeControlUpdate(`name${index}`, {visible, text: script ? script.name : '', classes: ['name']});
-        await safeControlUpdate(`run${index}`, {visible, disabled: busy || !script || !configValid || !!loadError, classes: ['run']});
-        await safeControlUpdate(`up${index}`, {visible, disabled: busy || !script || index === 0 || !!loadError, classes: ['order']});
-        await safeControlUpdate(`down${index}`, {visible, disabled: busy || !script || index === scripts.length - 1 || !!loadError, classes: ['order']});
+        await safeControlUpdate(`run${index}`, {
+          visible,
+          disabled: busy || !script || !configValid || !!loadError,
+          icon: BUTTON_ICONS.run,
+          text: script ? `运行 ${script.name}` : '运行自动化',
+          classes: ['run', 'icon-button'],
+        });
+        await safeControlUpdate(`up${index}`, {
+          visible,
+          disabled: busy || !script || index === 0 || !!loadError,
+          icon: BUTTON_ICONS.moveUp,
+          text: script ? `上移 ${script.name}` : '上移自动化',
+          classes: ['order', 'icon-button'],
+        });
+        await safeControlUpdate(`down${index}`, {
+          visible,
+          disabled: busy || !script || index === scripts.length - 1 || !!loadError,
+          icon: BUTTON_ICONS.moveDown,
+          text: script ? `下移 ${script.name}` : '下移自动化',
+          classes: ['order', 'icon-button'],
+        });
       }
 
       await safeControlUpdate('runSelected', {
@@ -507,7 +539,7 @@
       await safeControlUpdate('emptyRefresh', {disabled: busy});
       await safeControlUpdate('emptyOpenDirectory', {disabled: busy});
       await safeControlUpdate('errorRefresh', {disabled: busy});
-      await safeControlUpdate('restoreOrder', {disabled: busy || configValid || !!loadError, visible: !configValid && !loadError, classes: []});
+      await safeControlUpdate('restoreOrder', {disabled: busy || configValid || !!loadError, visible: !configValid && !loadError, classes: ['icon-button']});
     }
 
     async function syncUI() {
@@ -587,6 +619,7 @@
               cwd: execution.workdir,
               timeout: 0,
               maxOutputBytes: MAX_OUTPUT_BYTES,
+              hideWindow: true,
               signal: controller.signal,
             });
             outcome.completed = index + 1;
@@ -758,12 +791,12 @@
       if (runPromise) return null;
       ensureManagedRoot();
       if (platform === 'windows') {
-        return command.run('explorer.exe', [root], {cwd: execution.workdir, timeout: 10000, maxOutputBytes: MAX_OUTPUT_BYTES});
+        return command.run('explorer.exe', [root], {cwd: execution.workdir, timeout: 10000, maxOutputBytes: MAX_OUTPUT_BYTES, hideWindow: true});
       }
       if (platform === 'darwin') {
-        return command.run('/usr/bin/open', [root], {cwd: execution.workdir, timeout: 10000, maxOutputBytes: MAX_OUTPUT_BYTES});
+        return command.run('/usr/bin/open', [root], {cwd: execution.workdir, timeout: 10000, maxOutputBytes: MAX_OUTPUT_BYTES, hideWindow: true});
       }
-      return command.run('xdg-open', [root], {cwd: execution.workdir, timeout: 10000, maxOutputBytes: MAX_OUTPUT_BYTES});
+      return command.run('xdg-open', [root], {cwd: execution.workdir, timeout: 10000, maxOutputBytes: MAX_OUTPUT_BYTES, hideWindow: true});
     }
 
     function bind(window, controlId, action) {
@@ -818,51 +851,71 @@
       }
 
       window.on('close', () => {
+        if (listWindow === window) listVisible = false;
         if (!hideListOnClose && listWindow === window) listWindow = null;
         void safeToolbarUpdate();
       });
     }
 
-    async function openList(message) {
+    async function prepareList(message) {
       if (closed) return null;
-      if (listWindow) {
-        try {
-          await listWindow.show();
-          if (message) statusMessage = String(message);
-          await syncUI();
-          return listWindow;
-        } catch (_) {
-          listWindow = null;
-        }
-      }
       if (message) statusMessage = String(message);
+      if (listWindow) return listWindow;
+      if (listCreating) return listCreating;
+
       listRowCapacity = Math.max(listRowCapacity, scripts.length, MIN_LIST_ROW_CAPACITY);
-      const window = await ui.createWindow({
-        id: `scriptRunnerList${++listSequence}`,
-        kind: 'floating',
-        title: 'OpenDesk Script Runner',
-        position: {
-          mode: 'anchor',
-          size: {width: 840, height: 520},
-          horizontal: 'center',
-          vertical: 'center',
-          margin: 0,
-          display: 'active',
-        },
-        alwaysOnTop: true,
-        draggable: true,
-        theme: 'dark',
-        content: {html: buildListHTML(scripts, listState()), css: LIST_CSS},
-      });
-      listWindow = window;
-      await bindListWindow(window);
-      await syncUI();
-      await window.show();
-      return window;
+      const task = (async () => {
+        const window = await ui.createWindow({
+          id: `scriptRunnerList${++listSequence}`,
+          kind: 'normal',
+          title: 'OpenDesk Script Runner',
+          position: {
+            mode: 'anchor',
+            size: {width: 840, height: 520},
+            horizontal: 'center',
+            vertical: 'center',
+            margin: 0,
+            display: 'active',
+          },
+          alwaysOnTop: true,
+          draggable: true,
+          theme: 'dark',
+          content: {html: buildListHTML(scripts, listState()), css: LIST_CSS},
+        });
+        if (closed) {
+          try { await window.close(); } catch (_) {}
+          return null;
+        }
+        listWindow = window;
+        await bindListWindow(window);
+        await syncUI();
+        return window;
+      })();
+      listCreating = task;
+      try {
+        return await task;
+      } finally {
+        if (listCreating === task) listCreating = null;
+      }
+    }
+
+    async function openList(message) {
+      const window = await prepareList(message);
+      if (!window) return null;
+      try {
+        await window.show();
+        listVisible = true;
+        await syncUI();
+        return window;
+      } catch (error) {
+        listVisible = false;
+        throw error;
+      }
     }
 
     async function closeList() {
       const previous = listWindow;
+      listVisible = false;
       if (previous) {
         try {
           if (hideListOnClose) await previous.hide();
@@ -872,6 +925,7 @@
       if (!hideListOnClose) {
         listWindow = null;
       }
+      await safeToolbarUpdate();
     }
 
     toolbar.addButton('run', '运行', 'play.fill', () => requestRun(scripts.length ? [scripts[0]] : [], 'toolbar'));
@@ -926,7 +980,14 @@
         activeRun.canceled = true;
         activeRun.controller.abort('script runner closed');
       }
-      await closeList();
+      if (closeListOnRunnerExit && listWindow) {
+        const previous = listWindow;
+        listWindow = null;
+        listVisible = false;
+        try { await previous.close(); } catch (_) {}
+      } else {
+        await closeList();
+      }
       if (runPromise) {
         try { await runPromise; } catch (_) {}
       }
@@ -934,6 +995,7 @@
 
     return Object.freeze({
       run,
+      prepareList,
       openList,
       rescan,
       stopRun,
@@ -951,6 +1013,8 @@
         viewState: viewState(),
         scriptCount: scripts.length,
         selectedNames: Array.from(selectedNames),
+        listPrepared: !!listWindow,
+        listVisible,
         running: !!runPromise,
         lastOutcome: clone(lastOutcome),
         activeRun: activeRun ? {

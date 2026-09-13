@@ -66,7 +66,7 @@ function FakeUI() {
         },
         on(type, callback) { listeners.set(type, callback); },
         async show() { this.shown = true; this.hidden = false; },
-        async hide() { this.hidden = true; },
+        async hide() { this.hidden = true; this.shown = false; },
         async close() {
           if (this.closed) return;
           this.closed = true;
@@ -83,8 +83,9 @@ function FakeUI() {
 function ToolbarCapture() {
   let current = null;
   class FakeToolbar {
-    constructor() {
+    constructor(spec) {
       current = this;
+      this.spec = spec;
       this.id = 'script-runner-test-toolbar';
       this.buttons = new Map();
       this.labels = new Map();
@@ -179,6 +180,94 @@ async function selectAllAndRun(f) {
   }
   return click(window, 'runSelected');
 }
+
+test('toolbar can start without a list and defaults to the active display bottom-right corner', async () => {
+  const f = await fixture({openListOnStart: false});
+  try {
+    assert.equal(f.ui.windows.length, 0);
+    assert.deepEqual(f.toolbar.spec.position, {
+      mode: 'anchor',
+      horizontal: 'right',
+      vertical: 'bottom',
+      margin: 16,
+      display: 'active',
+    });
+  } finally {
+    await f.cleanup();
+  }
+});
+
+test('prepared list stays hidden until open and reuses the same normal window after hide', async () => {
+  const f = await fixture({openListOnStart: false, hideListOnClose: true});
+  try {
+    const prepared = await f.app.prepareList();
+    assert.equal(f.ui.windows.length, 1);
+    assert.equal(prepared, f.ui.windows[0]);
+    assert.equal(prepared.spec.kind, 'normal');
+    assert.equal(prepared.shown, false);
+    assert.equal(f.app.state().listPrepared, true);
+    assert.equal(f.app.state().listVisible, false);
+    assert.equal(f.toolbar.buttons.get('list').active, false);
+
+    const opened = await f.app.openList('tray');
+    assert.equal(opened, prepared);
+    assert.equal(prepared.shown, true);
+    assert.equal(f.app.state().listVisible, true);
+    assert.equal(f.toolbar.buttons.get('list').active, true);
+
+    await click(prepared, 'closeList');
+    assert.equal(prepared.hidden, true);
+    assert.equal(f.app.state().listVisible, false);
+    assert.equal(f.toolbar.buttons.get('list').active, false);
+
+    assert.equal(await f.app.openList('reopen'), prepared);
+    assert.equal(f.ui.windows.length, 1);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+test('automation list uses compact icon controls with accessible labels', () => {
+  const html = Runner.buildListHTML([{name: 'daily-report.js'}], {
+    configValid: true,
+    configError: '',
+    loadError: null,
+    loading: false,
+    running: false,
+    rowCapacity: 32,
+    selectedNames: new Set(),
+    scriptRoot: '/tmp/recipes',
+    statusMessage: '',
+  });
+
+  assert.match(html, /id="name0"[^>]*data-icon="doc\.text\.fill"/);
+  assert.match(html, /id="run0"[^>]*class="run icon-button"[^>]*data-icon="play\.fill"[^>]*aria-label="[^"]+"/);
+  assert.match(html, /id="up0"[^>]*data-icon="square\.and\.arrow\.up"/);
+  assert.match(html, /id="down0"[^>]*data-icon="square\.and\.arrow\.down"/);
+  for (const [id, icon] of [
+    ['runSelected', 'play.fill'],
+    ['stopRun', 'stop.fill'],
+    ['openDirectory', 'folder.fill'],
+    ['refresh', 'arrow.clockwise'],
+    ['restoreOrder', 'arrow.counterclockwise'],
+    ['closeList', 'xmark'],
+  ]) {
+    assert.match(html, new RegExp(`id="${id}"[^>]*class="[^"]*icon-button[^"]*"[^>]*data-icon="${icon.replace('.', '\\.') }"[^>]*title="[^"]+"[^>]*aria-label="[^"]+"`));
+  }
+});
+
+test('automation list keeps Runtime-hidden icon and grid controls out of layout', async () => {
+  const f = await fixture({scriptNames: ['a.js']});
+  try {
+    const window = f.ui.windows[0];
+    assert.match(window.spec.content.css, /\[hidden\]\{display:none!important\}/);
+    for (const id of ['emptyOpenDirectory', 'emptyRefresh', 'errorRefresh', 'name1', 'run1', 'up1', 'down1']) {
+      assert.equal(window.control(id).state.visible, false, `${id} must stay hidden in the ready layout`);
+    }
+  } finally {
+    await f.cleanup();
+  }
+});
 
 test('empty startup still creates the main list page with legal empty actions', async () => {
   const f = await fixture({scriptNames: []});
