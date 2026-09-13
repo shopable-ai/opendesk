@@ -1,91 +1,92 @@
 ---
 title: Scheduler
-description: 内置 JavaScript 定时任务、SQLite 持久化、本地管理页与 HTTP API。
+description: OpenDesk 计划任务的用户工作流、时间语义、Execution 行为与桌面/Headless 入口。
 order: 520
+docType: guide
 ---
 
 # Scheduler
 
-OpenDesk HTTP 模式内置一个轻量 Scheduler，用来持久化执行当前工作目录中的
-JavaScript 文件或用户直接提交的内联 JavaScript。它不是普通的进程内 `sleep`/timer：
-关闭并重新启动 OpenDesk 后，任务和内联正文仍保存在 SQLite 中，并会按 misfire 规则
-恢复。
+Scheduler 用来把普通 OpenDesk JavaScript 保存为持久计划任务，并在未来时间创建标准 Execution 执行。它不是脚本内的 `sleep()` / timer：OpenDesk 重启后，计划和运行历史仍可恢复，并按明确的 misfire 规则处理错过的时间。
 
-## Scheduler：启动和打开页面
+## 先选入口
+
+### OpenDesk 桌面产品
+
+普通桌面用户优先从 OpenDesk 的 **计划中心（Scheduler Center）** 创建、查看和管理计划。
+
+产品层只负责把用户操作连接到 Scheduler service；真正执行仍走：
+
+```text
+Scheduler Service
+→ standard Execution
+→ JavaScript Runtime
+→ normal OpenDesk APIs
+```
+
+因此计划任务不是另一套脚本 Runtime，也不会因为从桌面 UI 创建就获得额外 API 权限。
+
+OpenDesk Desktop 的菜单、窗口生命周期和 Scheduler Center 归属见 [Desktop Product Shell](../architecture/opendesk-desktop-product-shell.md)。
+
+### Headless / 开发 / 本机集成
+
+需要长驻 HTTP 进程、开发调试或本机工具集成时，可以从要执行脚本的项目目录启动：
 
 ```bash
 ./opendesk -http -port 60844
 ```
 
-浏览器打开：
+本地管理页：
 
 ```text
 http://127.0.0.1:60844/scheduler
 ```
 
-页面可以选择“脚本文件”或“内联代码”，创建任务、查看下一次执行时间、暂停、恢复、
-立即运行、删除，并查看最近执行记录。页面是嵌入二进制的单个 HTML 文件，不需要
-Node.js、npm 或前端构建步骤。
+HTTP endpoint、请求/响应字段和 curl 示例统一见 [Scheduler HTTP API](scheduler-api.md)。Web 管理页是本地协议客户端，不是桌面产品里需要重复暴露的第二个普通用户“计划中心”。
 
-Scheduler 页面和 API 只接受本机 loopback 请求，同时校验 `Host` 与 `Origin`；不会
-为 Scheduler 开启 `CORS: *`。即使已有 HTTP 服务监听其他网卡，远程客户端也不能
-调用这些 Scheduler 路由。
+## 脚本来源
 
-## Scheduler：脚本来源
+当前任务类型是 `script`，来源有两种。
 
-任务只支持 `taskType: "script"`，来源分为两种。
+### 文件脚本
 
-### Scheduler：脚本文件
+file 模式执行当前 Scheduler 工作目录内已经存在的 `.js` 文件：
 
-file 模式的脚本必须：
+- 路径不能通过 `..`、绝对路径解析或符号链接逃出工作目录；
+- 每次执行开始时重新读取，因此文件更新会作用于下一次运行；
+- 旧任务和只提供 `scriptPath` 的旧请求保持 file 语义。
 
-- 是 OpenDesk 启动时当前工作目录内已经存在的 `.js` 文件；
-- 不能通过 `..`、绝对路径或符号链接逃出该工作目录；
-- 在每次执行开始时重新读取，因此脚本内容更新会用于下一次运行。
+### 内联脚本
 
-旧任务和只传 `scriptPath` 的旧 API 请求自动保持 file 模式。
+inline 模式保存调用方明确提交的 JavaScript 源码：
 
-### Scheduler：内联代码
+- 去除首尾空白后必须非空；
+- 当前正文上限为 256 KiB；
+- 不与有效 `scriptPath` 同时使用；
+- 不从 Markdown/说明文本中提取代码；
+- 普通任务列表和校验错误不回显完整源码。
 
-inline 模式直接保存用户在页面 textarea 或 API `inlineScript` 中提交的 JavaScript
-原文：
+无论来源如何，实际执行都创建标准 Execution，并生成 Execution ID、结构化事件、summary 与 `script_snapshot.js` 等 Evidence。默认执行证据仍位于 `.runtime/runs/` 下对应的 execution artifact 目录。
 
-- 去除首尾空白后必须非空，最大 256 KiB；
-- 不要求 `scriptPath`，也不能同时提供有效文件路径；
-- 正文持久化到 SQLite，重启恢复后继续使用同一份源码；
-- 任务列表、普通日志和校验错误不回显正文，只显示来源为“内联代码”；
-- 不是 Markdown eval，也不会从说明文本中提取代码。
+## 时间类型
 
-Scheduler 会创建一次标准 Execution，并复用现有 JavaScript Runtime、30 分钟默认
-timeout、结构化日志和 Evidence。Evidence 默认仍在：
+### 一次 at
 
-```text
-.runtime/runs/scheduler-<timestamp>-<id>/
-```
-
-file execution 的 source label 是 `scheduler:file:<path>`，inline execution 是
-`scheduler:inline:<jobId>`。两种来源都会生成 `script_snapshot.js`、事件、summary 与
-Execution ID。内联 snapshot 属于该次执行的受控 Evidence，不会出现在普通 Job list。
-
-## Scheduler：时间类型
-
-### Scheduler：一次（at）
-
-页面中选择日期和时间即可。HTTP API 接受 RFC3339 或本地时间：
+指定一个时间点。HTTP/协议层接受 RFC3339 或结合 `timezone` 解释的本地时间，例如：
 
 ```json
 {
   "scheduleType": "at",
-  "scheduleExpression": "2026-09-02 09:00",
+  "scheduleExpression": "2026-09-14 09:00",
   "timezone": "Asia/Shanghai"
 }
 ```
 
-任务执行一次后自动停用，不自动重试。
+一次任务完成后不再产生下一次自动运行。
 
-### Scheduler：每隔（every）
+### 固定间隔 every
 
-页面中输入数字并选择分钟或小时。HTTP API 使用 Go duration 表达式，例如：
+使用 duration，例如：
 
 ```json
 {
@@ -95,12 +96,11 @@ Execution ID。内联 snapshot 属于该次执行的受控 Evidence，不会出�
 }
 ```
 
-`every` 是 fixed-delay：一次执行完成后，再等待完整 interval，然后开始下一次。
-长任务不会按固定时钟频率堆积。第一版最小 interval 是 1 分钟。
+`every` 是 fixed-delay：一次执行结束后，再等待完整 interval 才开始下一次。长任务不会按固定时钟频率叠加自身实例。
 
-### Scheduler：高级（cron）
+### Cron
 
-Cron 使用标准 Linux 五字段格式：
+使用 Linux 五字段 cron：
 
 ```text
 分钟 小时 日 月 星期
@@ -116,69 +116,54 @@ Cron 使用标准 Linux 五字段格式：
 }
 ```
 
-不接受带秒的六字段 Quartz 表达式。
+当前不把带秒的六字段 Quartz 表达式当成同一种格式。
 
-## Scheduler：重启与 misfire
+## Misfire
 
-SQLite 是任务状态的事实源，运行时轮询器只认领数据库中的到期任务。默认策略为：
+Scheduler 必须明确区分“任务本来应该运行”与“OpenDesk 当时没有运行”。
 
-```text
-run_once
-```
+当前策略：
 
-如果关机期间错过了一次或多次时间，恢复后最多补执行一次。不会把每 5 分钟的任务
-一次性补跑几十次。API 也接受 `misfirePolicy: "skip"`，表示跳过错过的时间并计算
-下一个未来时间；已经过期的 `at + skip` 会停用。
+| 策略 | 行为 |
+| --- | --- |
+| `run_once` | 恢复后最多补执行一次，不把错过的每个间隔全部重放。 |
+| `skip` | 跳过已经错过的发生点并计算下一个未来时间；已经过期的一次任务会停用。 |
 
-程序停止时仍处于 `queued` 或 `running` 的记录会标为 `canceled`，随后任务按自己的
-misfire 策略恢复。
+`run_once` 不等于 exactly-once。进程崩溃、操作系统终止等情况下，业务脚本仍应使用自己的幂等键、外部状态或 postcondition 防止重复副作用。Scheduler 的多 Runtime ownership、takeover 与 SQLite 并发边界见 [Scheduler Runtime Concurrency](../architecture/scheduler-runtime-concurrency.md)。
 
-## Scheduler：串行与操作语义
+## 任务操作语义
 
-所有由 Scheduler 触发的 Execution 共用单个 worker，默认串行控制共享桌面：
+- **暂停**：阻止未来自动调度；已运行的 Execution 不因暂停而被强制取消。
+- **恢复**：让任务重新进入调度并计算下一次时间。
+- **立即运行**：额外请求一次运行，不改写正常计划时间；其是否可以被当前 Runtime 接受仍受 Scheduler ownership 规则约束。
+- **删除**：删除任务及未来调度，不把已经生成的 Execution Evidence 当成从未发生。
 
-```text
-Scheduler A 执行中 → Scheduler B 排队 → A 完成 → B 开始
-```
+当前 Scheduler 的桌面型任务默认避免同时争用共享桌面资源。具体 single-active Runner、standby、takeover、DB lock 等实现合同属于架构层，不在本用户 Guide 复制，见 [Scheduler Runtime Concurrency](../architecture/scheduler-runtime-concurrency.md)。
 
-- 暂停：停止未来自动调度，保留任务和历史；已在运行的 Execution 不会被强制取消。
-- 恢复：从当前时间重新进入调度；`run_once` 的过期一次任务会尽快补执行一次。
-- 立即运行：无论任务是否暂停，都追加一次串行执行；不会改变原来的未来时间。
-- 删除：删除任务和未来调度；已写入 `.runtime/runs/` 的 Evidence 以及 SQLite 中的
-  `job_runs` 历史不会被删除。第一版不提供已删除任务的 UI 历史查询入口。
+## Execution 与权限
 
-## Scheduler：SQLite 文件
+计划任务复用现有 JavaScript Runtime，但 Execution mode 仍然决定权限：
 
-默认数据库位置与 OpenDesk AppStorage 目录保持一致：
+- Scheduler 不因为持久化执行而自动获得 `Command`、`SQLite`、Recorder capture 等可信本地能力；
+- 通知、桌面、网络等能力仍遵守各自 API 的 capability/permission contract；
+- “计划已触发”与“业务完成”是不同事实，最终成功应由 Execution 结果和业务 postcondition 判断。
 
-```text
-~/.opendesk/opendesk/scheduler.db
-```
+如果脚本需要给用户提示，可以使用当前 Execution 实际可用的通知能力；通知展示本身不能替代成功证据。
 
-首次进入 HTTP 模式时自动创建目录、数据库表和索引；旧 schema 会幂等增加
-`source_type` 与 `inline_script` 列，原有 `scheduled_jobs` 和 `job_runs` 不变。使用的是
-`modernc.org/sqlite` 的 CGo-free 嵌入式驱动；用户不需要安装 `sqlite3` CLI、SQLite
-动态库、SQLite Server 或任何数据库 daemon。
+## HTTP 安全边界
 
-此文件、`scheduled_jobs` / `job_runs` schema 和 Scheduler Store 都是 Scheduler owner 的内部实现；
-第一方 [SQLite Runtime API](sqlite.md) 不复用或返回它们的连接、业务表或 AppStorage 数据，并拒绝默认
-Scheduler 路径和直接 CLI 当前 `-scheduler-db` 配置路径（也包括可解析的 symlink 别名）。
+Headless 管理页和 Scheduler HTTP API 只面向本机 loopback，并校验 `Host` / 浏览器 `Origin`。不要把这套没有公网认证模型的接口通过反向代理暴露到 LAN 或公网。
 
-测试或隔离运行时可以覆盖路径：
+完整 transport contract 见 [Scheduler HTTP API](scheduler-api.md)。
 
-```bash
-./opendesk -http -scheduler-db ./.runtime/tests/scheduler/scheduler.db
-```
+## 哪份文档负责什么
 
-## Scheduler：HTTP API
+| 需求 | 文档 |
+| --- | --- |
+| 普通用户如何选择入口、理解时间和操作语义 | 本页 |
+| HTTP endpoint、Job/JobRun 数据模型、curl | [Scheduler HTTP API](scheduler-api.md) |
+| 多 Runtime、Store/Runner ownership、SQLite/WAL/lock、takeover/recovery | [Scheduler Runtime Concurrency](../architecture/scheduler-runtime-concurrency.md) |
+| OpenDesk Desktop 中计划中心和菜单归属 | [Desktop Product Shell](../architecture/opendesk-desktop-product-shell.md) |
+| Execution 生命周期与 evidence | [Execution Context](execution.md) |
 
-普通用户不必手写 HTTP 请求，直接使用 `/scheduler` 管理页即可。需要从外部本机工具
-集成时，可使用创建、列表、暂停、恢复、立即运行、删除和运行历史接口。字段约束、
-请求/响应模型、全部端点与 curl 示例见 [Scheduler HTTP API](scheduler-api.md)。
-
-## Scheduler：第一版边界
-
-第一版只在 OpenDesk HTTP 进程持续运行时调度 JavaScript，不负责安装 launchd、
-systemd 或 Windows Task Scheduler，也不实现 Agent/Workflow/Shell/Webhook 任务、
-分布式 worker、复杂 retry、Scheduler 自带通知策略或 DAG。脚本仍可调用现有 Runtime
-的 `notify()`；系统是否展示通知取决于操作系统权限和勿扰设置，不能作为唯一成功证据。
+不要在本页重新维护内部表结构、SQLite driver、锁文件和迁移实现；这些细节变化不应迫使普通用户重新理解 Scheduler 的产品语义。
