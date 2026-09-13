@@ -71,15 +71,23 @@ pwsh -NoProfile -File scripts/build_windows_distribution.ps1 -Runtime win-x64 -A
 ```
 
 The resulting `app-mode\opendesk.app.json` is discovered only for a no-argument launch. An end user runs GUI-subsystem
-`OpenDesk.exe` from Explorer or a Start Menu shortcut; it launches the desktop product without a Console. Console-subsystem
-`opendesk.exe` is the CLI entry and inherits the caller's Terminal/PowerShell Console. Both binaries are built from
-`./cmd/opendesk`, share the same Runtime/App Mode/App Shell/Scheduler/Recorder/Execution implementation, and use the same
-single-instance policy. Without `-AppModePackage`, the portable executable has no default App Mode package and must be
-started with an explicit `-app` path (or follows its existing no-argument behavior).
+`opendesk-desktop.exe` from Explorer or a future Start Menu shortcut; it launches the desktop product without a Console.
+Console-subsystem `opendesk.exe` is the CLI entry and inherits the caller's Terminal/PowerShell Console. Both binaries are
+built from `./cmd/opendesk`, share the same Runtime/App Mode/App Shell/Scheduler/Recorder/Execution implementation, and use
+the same single-instance policy. They are different Windows entry roles, not two user-facing OpenDesk products.
+
+When a host-backed Custom UI is first required, Runtime starts the bundled
+`ui-host\opendesk-ui-host.exe` automatically. This helper is an internal sidecar: the user does not launch it, it is not a
+second product entry, and a future installer must not create a shortcut for it.
+
+Without `-AppModePackage`, the portable executable has no default App Mode package and must be started with an explicit
+`-app` path (or follows its existing no-argument behavior).
 
 The Windows directory is a portable release artifact, not an installer: current repository scope does not create a Start Menu
 shortcut, register file associations, or claim MSI/MSIX behavior. Windows live desktop interaction, including Recorder
-capture and Start Menu launch, requires a real Windows user session and is not covered by macOS validation.
+capture and Start Menu launch, requires a real Windows user session and is not covered by macOS validation. Consumer release
+qualification additionally needs Authenticode/signing, SmartScreen/Smart App Control/Defender, WebView2 clean-machine, UAC,
+and helper lifecycle evidence; static layout checks are not substitutes for those gates.
 
 ## Source package and release payload closure
 
@@ -126,6 +134,10 @@ For a desktop launch claim, record separately:
 
 - the exact package staging command and bundle/portable layout;
 - matching runtime/UI-host build provenance and hashes;
-- the ordinary real menu click that opens Recorder;
-- Recorder button state changes, generated/copy/Finder results, and cleanup counts;
-- the target OS live result. A cross-compile or package layout check is not Windows live evidence.
+- the ordinary real desktop launch followed by the menu click that opens Recorder;
+- confirmation that the user did not manually start CLI or Native UI Host;
+- Recorder button state changes, generated/copy/Finder or Explorer results, and cleanup counts;
+- the target OS live result, including no unexpected Console/UAC prompt;
+- consumer security evidence for the signed release when that release channel exists.
+
+A cross-compile, static package layout check, or hosted non-interactive build is not Windows live evidence.
