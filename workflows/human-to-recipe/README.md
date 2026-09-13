@@ -12,6 +12,8 @@ order: 10
 
 仓库内现已分别提供零配置行为保持优化的 [`recorder-script-refiner` Skill](skills/recorder-script-refiner/SKILL.md)，以及业务生产化的 [`human-to-recipe` Skill](skills/human-to-recipe/SKILL.md)、最小 `SemanticBuildPlan` schema／validator和 Calculator plan golden；simple console 使用单行相对路径任务交接。通用 renderer 尚未实现，Skill 也未安装到用户级 Codex Skill 目录。用户通过 simple console 产生的 Calculator 录制包 `rec-20260909T113509.231387000Z-e2232547fa4e` 已完成旧 basic 源码的独立真实回放和 `115` oracle，并交付对应的[可维护语义优化 recipe](../../examples/human-to-recipe/calculator-115.semantic.recipe.js)；这些资格仍只属于各自 run-scoped evidence，不能自动转移给其他 candidate。
 
+2026-09-13 文档接线增补：第 6 节接入统一 Capability Lifecycle；只补作者交接与发布边界，不修改 Recorder／Recipe 代码，不增加 Skill 安装、Catalog 接线或 live PASS。上述历史证据保持其原候选与范围。
+
 本目录只负责人工 human-to-recipe；另一条 [Agent-to-Recipe](../agent-to-recipe/WORKFLOW.md) 工作流保持独立推进。Agent-first 是本方案采用的开发分工背景，不表示本次输入改成 Agent 示范。
 
 ## 1. 用户需要得到什么
@@ -72,18 +74,18 @@ H1—H8 是制作和维护自动化的方法，不是每次运行都重走的步
 | [Recorder 工程设计](design/recorder-design.md) | DQ-01—DQ-15 规范性需求、已实现调用链、数据合同、真实符号、native 生命周期、动作、生成与下游交接 |
 | [实施与验收计划](design/implementation-plan.md) | 真实完成、命令、证据、未运行、失败条件与下一批 |
 
-任务树回答完整需要做什么；工程设计回答基础 Recorder 实际如何工作；实施计划只记录资格和证据。不按每个任务节点创建文件、Skill 或 Agent。当前两个 Skill 对应不同且可重复的专业流程：`recorder-script-refiner` 做 script→refined candidate 的行为保持优化；`human-to-recipe` 做 actions→plan→production/gate/evidence 的业务生产化。二者不是节点占位或迁移壳。
+任务树回答完整需要做什么；工程设计回答基础 Recorder 实际如何工作；实施计划只记录资格和证据。不按每个任务节点创建文件、Skill 或 Agent。当前两个 Skill 对应不同且可重复的专业流程：`recorder-script-refiner` 用 script 定位录制包，再由 actions 确定性编译 refined candidate；`human-to-recipe` 做 actions→plan→production/gate/evidence 的业务生产化。二者不是节点占位或迁移壳。
 
 ### 4.1 Skill、plan 和 renderer 的当前状态
 
 | 能力 | 当前状态 | 边界 |
 | --- | --- | --- |
-| 仓库内 `recorder-script-refiner` Skill 源码 | 已实现 | 新会话用 generated script 相对路径零配置进入；校验 sibling lineage 后只做行为保持的静态优化 |
+| 仓库内 `recorder-script-refiner` Skill 源码 | 已实现 | generated script 仅为包定位／lineage／静态对照；inspector → actions-first generator → validator，只做行为保持精炼，不取得业务资格 |
 | 仓库内 `human-to-recipe` Skill 源码 | 已实现 | 仅在用户要求业务理解、动作取舍、参数化或结果资格时使用 |
 | 用户级／系统级 Skill 安装 | 未安装 | simple console 由仓库 `AGENTS.md` 路由到仓库内 Skill，不要求用户传入 Skill 路径 |
 | `SemanticBuildPlan` schema | 已实现 | `skills/human-to-recipe/references/semantic-build-plan.schema.json`；结构允许表达 blocked／unknown |
 | plan validator | 已实现 | `skills/human-to-recipe/scripts/validate-semantic-build-plan.js`；unknown、遗漏、重复消费、source 漂移和 Gate 源码冲突会阻止生产生成 |
-| 通用 renderer | 未实现 | 当前只能由 Agent 按 Skill 的确定性输出顺序生成，不能宣称一键编译 |
+| 通用业务 renderer | 未实现 | 当前由 Agent 按 human-to-recipe 的确定性输出顺序生成；不能宣称一键业务编译，也不能据此否认 actions-first refiner 编译器已存在 |
 | 第一个 golden | Calculator | plan、production、Gate、Evidence 分层已校准；下一个建议应用是 TextEdit，但必须先取得其 human 录制和用户目标，不能预填业务意图 |
 
 Recorder 只保存观察事实。AX／DOM 语义可能因 WebView、Canvas、远程桌面或权限不足正常处于 `unavailable`；这不等于失败，也不允许从坐标和常见布局猜标签或业务目标。OCR、图像和人工标注只能作为有来源的候选，必须保留授权范围、映射和未知项。
@@ -92,7 +94,7 @@ Recorder 只保存观察事实。AX／DOM 语义可能因 WebView、Canvas、远
 
 人工录制的业务要求、完整作业、专业协作、工作包和验收计划以本目录为主，不在 docs 再复制一份任务树。
 
-[docs/frameworks](../../docs/frameworks/README.md) 继续保存可共享的方法；[共享合同](../../docs/frameworks/agent-to-recipe-skill-contract.md) 的已有公共结构应先核查复用，不在人工目录复制成第二份 AppProfile 权威规范。若人工来源需要新增共享字段，下一轮先提出最小差异和兼容影响，再协调修改。
+[docs/frameworks](../../docs/frameworks/README.md) 继续保存可共享的方法；[共享合同](../../docs/frameworks/agent-to-recipe-skill-contract.md) 维护公共结构和跨来源发布交接，不在人工目录复制第二份 AppProfile 权威规范。Human 原生 plan 保留唯一来源；适配与兼容增量统一在共享合同维护，不在本目录私自扩展公共枚举。
 
 [docs/api](../../docs/api/README.md) 只描述经实现与核对的公开接口；当前 JavaScript 全局对象见 [Recorder Runtime API](../../docs/api/recorder-runtime.md)。Agent-first MCP 的 [Recorder API](../../docs/api/recorder.md) 保持独立协议页，不据同名合并数据模型。
 
@@ -100,7 +102,7 @@ Recorder 只保存观察事实。AX／DOM 语义可能因 WebView、Canvas、远
 
 [`human-to-recipe`](skills/human-to-recipe/SKILL.md) 消费固定 human actions lineage，负责逐动作 disposition、Business Episode、`SemanticBuildPlan`、生产 Recipe 与独立 Gate 分层。需要 locator 加固时才遵循 `application-engineer`，且只消费其 target／locator／geometry／strategy／guard／claim／source／unknown handoff；application-engineer 不生成最终 Recipe。
 
-[`recorder-script-refiner`](skills/recorder-script-refiner/SKILL.md) 只消费已生成 Recorder script 的相对路径，通过确定性 inspector 在当前录制包内重定位并核对 candidate/actions/manifest/raw。它不要求业务目标，不删除或重排动作，也不取得业务资格；需要这些能力时才显式升级到 `human-to-recipe`。
+[`recorder-script-refiner`](skills/recorder-script-refiner/SKILL.md) 以已生成 Recorder script 的相对路径进入，通过确定性 inspector 核对 candidate/actions/manifest/raw；权威动作输入是 actions，basic script 只作 lineage 与静态差异审计。它不要求业务目标，不删除或重排动作，也不取得业务资格；需要这些能力时才显式升级到 `human-to-recipe`。
 
 ## 6. 与 Agent-first 的共享边界
 
@@ -117,6 +119,52 @@ Agent 执行 → 工具调用、观察与验证 → 提炼 → Agent 来源的�
 应用认识、业务过程提炼、代码构建、独立验收是不同职责，可由同一个 Agent 按工作包连续完成，不需要每步另起 Agent。正式存在的方法以实际仓库文件与宿主能力为准，不能把职责名称等同于已安装 Skill。
 
 另一会话并行推进 Agent-first 时，默认只读其相关文档，不同时修改其专业正文、Skill 或已有 Recorder 契约。基线核查发现 [recorder API 文档](../../docs/api/recorder.md) 描述的是 Agent-first MCP 会话；不能据此认定人工监听 `Recorder.start()` 已存在，也不能为人工坐标模式放宽其确定性回放要求。完整源码状态在后续工作包核查。
+
+### 6.1 Capability Gap／维修进入 Human 作者链
+
+跨 Runtime／Catalog／Authoring 的唯一总纲和任务树见 [Automation Capability Lifecycle](../../docs/architecture/desktop-automation/task-capability-lifecycle.md)。Chat Runner 是产品运行状态机，不增加 Human 专属 Chat Runner 或新的 Workflow 目录。
+
+```text
+Normal Mode：没有合格能力／当前范围不适用 → 明确 Gap 或受阻
+→ 用户另行选择“教 OpenDesk／录制／维修”并限定对象、副作用和预算
+→ H1 盘点已有 recording、plan、AppProfile、Recipe 与证据
+  → 仅缺发布：不重录，交发布检查
+  → 仅缺当前资格：H7 重验，不无理由改代码
+  → 已有资料可修：H4/H5/H6 定向修复，不从 H2 重录全部任务
+  → 确实缺事实：获准后 H2/H3 定向采集，再返回原工作包
+→ H7 独立资格 → H8 显式发布交接
+```
+
+Gap／Failure Package 是作者输入，不是桌面或模型外发授权。来源包只移交获准且必要的引用与脱敏摘要；普通运行的一次确认不涵盖录制、探索、生成、验收、发布和真实发送。涉及发送、覆盖、删除时，采用获准测试对象或停在提交前，不能把演示授权用于真实业务对象。
+
+### 6.2 共用发布合同，保留 Human 原生权威数据
+
+Task Contract、AppProfile、Semantic Procedure、Candidate、Qualification 和 Capability 是共同逻辑成果，不要求新增六份副本。`SemanticBuildPlan` 的已确认 intent、Episode、数据依赖和 source map 仍是本链权威语义；不为接入 Catalog 再手写一份可独立漂移的 SemanticProcedure。逐 action disposition 也不转交另一份 trace-distill 文件重复维护。
+
+跨来源 ref、只读映射、候选依赖闭包、资格范围及兼容要求唯一见[共享合同](../../docs/frameworks/agent-to-recipe-skill-contract.md)的“跨来源 Capability 发布交接”章节。发布适配器须核对原 plan/actions/production 版本，保留 unknown；schema 尚未实现或 consumer 不支持时停止，不能把 Human 来源改填为 Agent 的 `new-generation-chain`。来源种类与资格链类型分别记录。
+
+application-engineer 保留现有唯一路径，供本链及运行失败维修共享。界面／定位问题返回 discover、harden 或 repair；动作取舍、业务 Episode、参数来源或成功标准问题修原 Human plan。AppProfile 局部通过与资格范围建议不能代替整份 production Recipe 的独立资格，也不赋予最终发布权。
+
+### 6.3 H7／H8 的资格与发布出口
+
+H7 继续冻结实际 production 文件及依赖，由独立 Gate 执行其真实源码，并用独立 Observation／Oracle 判断结果；禁止复制业务动作、把 expected 写进生产读值、验中改码或自动继承旧 golden 资格。只读数通过、静态保真通过与完整任务通过分别记录。
+
+H8 在普通 JS 文件交付之外，可以按用户明确目标申请 Catalog 发布：
+
+```text
+固定 plan／production／依赖／支持范围
+→ 独立 QualificationRecord 与证据
+→ 发布者核对精确候选、覆盖范围、可信来源、持久证据及批准
+→ 登记不可变 Capability 版本
+→ Chat Resolver 可发现
+→ 后续运行重新核对时效输入、目标身份、预览和确认
+```
+
+发布不是每个自用 Recorder 脚本的前置条件；但进入 Normal Mode 的可信目录不能跳过发布门。`generated`、`statically reviewed`、Skill scorer 高分或录制成功，都不自动成为 `qualified/published`。混合 JS＋LLM／Agent 候选也走同一资格出口，模型策略、schema／validator、外发范围和预算必须属于冻结依赖；模型不能成为任意点击或代码生成后立即执行的替代通道。
+
+运行失败保留原 Candidate 与副作用后果，按具体责任定向维修；效果未知先核对，禁止自动重放。代码／规则修复产生新 Candidate，参数域或操作扩展执行 qualification delta 和必要回归；代码未变的补证可产生新资格记录，不伪造代码版本变化。已发布证据不能只留在可清理 `.runtime/`，持久保留与撤销按总纲执行。
+
+以上是交接设计，不表示通用发布适配器、独立 recipe-qualify Skill、Catalog 或跨 Runtime 桌面排他已经实现。当前真实通过仍以本目录实施计划中的精确候选和证据为准。
 
 ## 7. 第一批交付与正常使用
 
