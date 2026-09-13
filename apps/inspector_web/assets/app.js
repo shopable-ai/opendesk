@@ -281,10 +281,16 @@
   }
 
   function controlResponseError(response, payload) {
+    let error;
     if (response && response.status === 404) {
-      return new Error("OpenDesk answered on this computer, but that running app does not expose Workbench control. Quit, update, and restart that OpenDesk.app; do not start a companion dist/opendesk process.");
+      error = new Error("OpenDesk answered on this computer, but that running app does not expose Workbench control. Quit, update, and restart that OpenDesk.app; do not start a companion dist/opendesk process.");
+    } else if (response && response.status === 409) {
+      error = new Error("Another Inspector page is already connected to this OpenDesk process. Close that page, or wait for its short-lived connection to expire, then try again.");
+    } else {
+      error = new Error(apiError(payload, "OpenDesk control request failed with HTTP " + (response ? response.status : "unknown")));
     }
-    return new Error(apiError(payload, "OpenDesk control request failed with HTTP " + (response ? response.status : "unknown")));
+    error.httpStatus = response && response.status;
+    return error;
   }
 
   function normalizedControlError(error) {
@@ -397,7 +403,7 @@
     renderGuide();
   }
 
-  async function connectToOpenDesk() {
+  async function connectToOpenDesk(options) {
     if (!state.pageAccess || !state.pageAccess.canConnect) {
       throw new Error("This address is outside the Inspector local-only or trusted-LAN boundary.");
     }
@@ -434,6 +440,13 @@
       await pair(launchURL.hash);
     } catch (error) {
       error = normalizedControlError(error);
+      if (error.httpStatus === 409 && options && options.retryConflict) {
+        state.launchPhase = "loading";
+        message("Waiting for the previous page connection to close before retrying…", "info");
+        updateButtons();
+        await new Promise(resolve => setTimeout(resolve, 350));
+        return connectToOpenDesk();
+      }
       state.launchPhase = "idle";
       state.launchError = error && error.message || String(error);
       elements["capability-summary"].textContent = "OpenDesk has not connected";
@@ -452,12 +465,24 @@
     if (!code) throw new Error("Missing one-time pairing code. Launch Workbench from OpenDesk again.");
     const paired = await request("/pair", { method: "POST", body: { code } });
     state.token = paired.token;
+    state.launchPhase = "idle";
     state.launchError = "";
     elements["interface-preview"].open = true;
     setBadge(elements["connection-badge"], "Connected", "good");
     message("Paired to the OpenDesk Workbench API. Tokens are kept only in page memory.", "success");
     updateButtons();
-    await Promise.all([loadCapabilities(), loadWindows()]);
+    const results = await Promise.allSettled([loadCapabilities(), loadWindows()]);
+    const capabilityError = results[0].status === "rejected" ? results[0].reason : null;
+    const windowsError = results[1].status === "rejected" ? results[1].reason : null;
+    if (capabilityError) {
+      elements["capability-summary"].textContent = "Capability details unavailable";
+    }
+    if (capabilityError || windowsError) {
+      const issues = [];
+      if (capabilityError) issues.push("capability details could not be read");
+      if (windowsError) issues.push("the target-window list could not be loaded");
+      message("Connected, but " + issues.join(" and ") + ". Use the refresh action to try again.", "warning");
+    }
   }
 
   async function loadCapabilities() {
@@ -1518,8 +1543,18 @@
     renderTarget();
     renderObservation();
     const fragment = new URLSearchParams(location.hash.replace(/^#/, ""));
-    if (fragment.get("pair") && state.pageAccess.canConnect) {
+    const startup = model.connectionStartup(state.pageAccess, Boolean(fragment.get("pair")));
+    if (startup === "pair") {
+      state.launchPhase = "loading";
+      setBadge(elements["connection-badge"], "Connecting", "pending");
+      message("Finishing the short-lived Inspector connection…", "info");
+      updateButtons();
       run(pair);
+    } else if (startup === "connect") {
+      setBadge(elements["connection-badge"], "Connecting", "pending");
+      message("Connecting this local Inspector page to the running OpenDesk service…", "info");
+      updateButtons();
+      run(function () { return connectToOpenDesk({ retryConflict: true }); });
     } else {
       if (fragment.get("pair")) history.replaceState(null, "", location.pathname + location.search);
       if (state.pageAccess.canConnect) {

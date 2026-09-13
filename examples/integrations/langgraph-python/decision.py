@@ -1,23 +1,21 @@
 #!/usr/bin/env python3
-"""LangGraph decision worker for OpenDesk Command.run().
+"""Small Python LangGraph decision worker for OpenDesk Command.run().
 
 stdin: one strict JSON request
 stdout: one strict JSON response
 stderr: diagnostics only
 
-The default local selector exists so the bridge can be tested without credentials.
-Set OPENDESK_LANGGRAPH_DECISION_COMMAND_JSON to a JSON argv array to delegate the
-decision node to a real model wrapper or another controlled decision process.
+The standalone worker deliberately uses a local bounded selector so direction A
+can be exercised without credentials. The separate Python-owned desktop graph
+in main.py calls OpenDesk's Agent.run Recipe directly.
 """
 
 from __future__ import annotations
 
 import json
-import os
 import secrets
-import subprocess
 import sys
-from typing import Any, TypedDict
+from typing import Any, Callable, Mapping, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
@@ -35,6 +33,7 @@ class DecisionState(TypedDict, total=False):
     maximum: int
     value: int
     source: str
+    meta: dict[str, Any]
 
 
 def _strict_int(value: Any, name: str) -> int:
@@ -43,68 +42,46 @@ def _strict_int(value: Any, name: str) -> int:
     return value
 
 
-def _run_decision_command(minimum: int, maximum: int) -> tuple[int, str]:
-    raw = os.environ.get("OPENDESK_LANGGRAPH_DECISION_COMMAND_JSON", "").strip()
-    if not raw:
-        span = maximum - minimum + 1
-        return minimum + secrets.randbelow(span), "local-fallback"
+DecisionChooser = Callable[[int, int], Mapping[str, Any]]
 
-    try:
-        argv = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        raise ProtocolError("OPENDESK_LANGGRAPH_DECISION_COMMAND_JSON must be JSON") from exc
-    if (
-        not isinstance(argv, list)
-        or not argv
-        or any(not isinstance(item, str) or not item for item in argv)
-    ):
-        raise ProtocolError("OPENDESK_LANGGRAPH_DECISION_COMMAND_JSON must be a non-empty string array")
 
-    prompt = {
-        "schemaVersion": 1,
-        "task": "choose_integer",
-        "minimum": minimum,
-        "maximum": maximum,
-        "instruction": "Return JSON only: {\"value\": <integer>}.",
+def build_decision_graph(chooser: DecisionChooser):
+    """Build the one-node decision graph around an injected decision boundary."""
+
+    def choose_node(state: DecisionState) -> DecisionState:
+        minimum = state["minimum"]
+        maximum = state["maximum"]
+        decision = chooser(minimum, maximum)
+        if not isinstance(decision, Mapping):
+            raise ProtocolError("decision result must be an object")
+        value = validate_increment(decision.get("value"), minimum=minimum, maximum=maximum)
+        source = decision.get("source")
+        if not isinstance(source, str) or not source:
+            raise ProtocolError("decision source must be a non-empty string")
+        result: DecisionState = {"value": value, "source": source}
+        meta = decision.get("meta")
+        if meta is not None:
+            if not isinstance(meta, dict):
+                raise ProtocolError("decision meta must be an object")
+            result["meta"] = meta
+        return result
+
+    builder = StateGraph(DecisionState)
+    builder.add_node("choose", choose_node)
+    builder.add_edge(START, "choose")
+    builder.add_edge("choose", END)
+    return builder.compile()
+
+
+def _local_chooser(minimum: int, maximum: int) -> Mapping[str, Any]:
+    span = maximum - minimum + 1
+    return {
+        "value": minimum + secrets.randbelow(span),
+        "source": "local-fallback",
     }
-    timeout = float(os.environ.get("OPENDESK_LANGGRAPH_DECISION_TIMEOUT_SECONDS", "30"))
-    try:
-        completed = subprocess.run(
-            argv,
-            input=json.dumps(prompt, ensure_ascii=False),
-            text=True,
-            capture_output=True,
-            timeout=timeout,
-            check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        raise ProtocolError(f"decision command failed: {exc}") from exc
-    if completed.returncode != 0:
-        diagnostic = completed.stderr.strip()[-1000:]
-        raise ProtocolError(
-            f"decision command exited with {completed.returncode}"
-            + (f": {diagnostic}" if diagnostic else "")
-        )
-    try:
-        payload = json.loads(completed.stdout)
-    except json.JSONDecodeError as exc:
-        raise ProtocolError("decision command stdout must be one JSON object") from exc
-    if not isinstance(payload, dict) or set(payload) != {"value"}:
-        raise ProtocolError("decision command response must contain only value")
-    value = validate_increment(payload["value"], minimum=minimum, maximum=maximum)
-    return value, "external-command"
 
 
-def choose_node(state: DecisionState) -> DecisionState:
-    value, source = _run_decision_command(state["minimum"], state["maximum"])
-    return {"value": value, "source": source}
-
-
-_builder = StateGraph(DecisionState)
-_builder.add_node("choose", choose_node)
-_builder.add_edge(START, "choose")
-_builder.add_edge("choose", END)
-DECISION_GRAPH = _builder.compile()
+LOCAL_DECISION_GRAPH = build_decision_graph(_local_chooser)
 
 
 def handle(value: Any) -> dict[str, Any]:
@@ -114,7 +91,7 @@ def handle(value: Any) -> dict[str, Any]:
     maximum = _strict_int(data.get("maximum", 15), "data.maximum")
     if minimum > maximum:
         raise ProtocolError("data.minimum must be <= data.maximum")
-    result = DECISION_GRAPH.invoke({"minimum": minimum, "maximum": maximum})
+    result = LOCAL_DECISION_GRAPH.invoke({"minimum": minimum, "maximum": maximum})
     chosen = validate_increment(result.get("value"), minimum=minimum, maximum=maximum)
     return success_response(
         request["requestId"],

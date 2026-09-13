@@ -79,6 +79,13 @@
     };
   }
 
+  function connectionStartup(access, hasPairCode) {
+    if (!access || !access.canConnect) return "blocked";
+    if (hasPairCode) return "pair";
+    if (access.mode === "local") return "connect";
+    return "manual";
+  }
+
   function searchableText(node) {
     return [node && node.role, node && node.nativeRole, node && node.nativeSubrole,
       node && node.name, node && node.identifier]
@@ -729,7 +736,7 @@
   }
 
   return {
-    isLoopbackHostname, isPrivateHostname, pageAccess,
+    isLoopbackHostname, isPrivateHostname, pageAccess, connectionStartup,
     flattenTree, searchSnapshot, nodeSummary, nodeDetails, nodeFingerprint,
     selectionAnchor, restoreSelection, refreshSelectionAnchor, selectionContext, sameSelectionContext,
     nodeValue, buildTreeView, hiddenReason, nodePresentation, windowPresentation,

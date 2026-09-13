@@ -1,12 +1,13 @@
 ---
 title: Desktop UI API
 description: 使用 OCR、模板匹配、屏幕坐标与原生 Accessibility 查找和操作外部桌面应用 UI。
+docType: reference
 order: 50
 ---
 
 # UI
 
-`UI` 是 OpenDesk 操作**外部桌面应用界面**的高层 API。文本和图片方法基于截图、OCR 或模板匹配；菜单方法复用第一方 [Accessibility](accessibility.md) 原生语义能力。
+`UI` 是 OpenDesk 操作**外部桌面应用界面**的高层 API。文本和图片方法基于截图、OCR 或模板匹配；显式 target 序列与菜单方法复用第一方 [Accessibility](accessibility.md) 原生语义能力。
 
 `UI` 与小写 [ui](custom-ui.md) 不同：`UI` 操作外部应用，`ui` 创建 OpenDesk 自己的 Custom UI。二者没有别名。
 
@@ -23,6 +24,7 @@ order: 50
 | `UI.hasText(text, options?)` | Stable | 判断是否存在匹配文本。 |
 | `UI.tapText(text, options?)` | Stable | 查找并点击唯一文本。 |
 | `UI.tapTexts(texts, options?)` | Stable；序列等待为 Experimental | 按顺序等待、重新定位并点击多个文本，默认步间隔 300 ms。 |
+| `UI.tapTargets(targets, options)` | Experimental · Local | 全量预检明确的 Accessibility locator，再按序 invoke 固定 refs。 |
 | `UI.waitText(text, options?)` | Stable | 等待唯一文本出现。 |
 | `UI.waitTextGone(text, options?)` | Stable | 等待文本消失。 |
 | `UI.findImages(template, options?)` | Stable | 返回全部模板匹配。 |
@@ -65,6 +67,35 @@ interface OpenDeskUIValueOptions {
 每次调用都执行完整有界唯一查找。目标不存在、多个目标或搜索不完整分别保留 `TARGET_NOT_FOUND`、`AMBIGUOUS_TARGET` 与 `SEARCH_INCOMPLETE`。当前 flat selector 不能在一次调用中表达父容器／祖先 selector；若 Recorder 或手写 locator 的唯一性依赖该约束，调用方必须先用 `Accessibility.find()` 取得并管理容器 ref，再作为 `within` 使用，或停止并保留该依赖，不能静默丢弃结构约束。
 
 值方法拒绝时符合 `OpenDeskUIValueError` 声明。`phase` 固定表达高层生命周期：`arguments`、`capability`、`locate`、`read`、`precondition`、`action`、`verification` 或 `cleanup`；底层 backend phase 可用时保留在 `nativePhase`，即使名称相同也不会覆盖高层 phase。错误始终包含 `code`、`operation`、`phase` 与 `actionState`，并在确实可用时保留 `verified`、`backend`、`requestId`、`cause` 和脱敏的 `cleanupError`。该声明只是错误对象形状，不新增 Runtime 全局构造器。
+
+### 原生 target 序列选项
+
+`UI.tapTargets()` 是现有 `Accessibility.find/read/perform/release` owner 上的 Experimental 顺序组合。每步必须显式提供一个 V1 exact selector；本方法只提交 `invoke`，不推断控件类型、坐标、应用、按钮别名或业务结果。
+
+```ts
+interface OpenDeskUITapTargetStep {
+  locator: OpenDeskAccessibilitySelector;
+}
+
+interface OpenDeskUITapTargetsOptions {
+  within: OpenDeskWindowInfo;
+  timeout?: number;
+  maxDepth?: number;
+  maxNodes?: number;
+  signal?: AbortSignal | null;
+}
+```
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `targets` | `OpenDeskUITapTargetStep[]` | 是 | 无 | `1..256` 个步骤；每项只允许 `locator`。序列、步骤与 locator 在首个 await 前复制并校验。 |
+| `options.within` | `OpenDeskWindowInfo` | 是 | 无 | 已解析窗口；必须包含稳定 id、正 PID、title、非零 native handle 与正 bounds。 |
+| `options.timeout` | `number` | 否 | `3000` ms | 每次原生 find/read/perform 的有界整数预算，范围 `1..30000`。 |
+| `options.maxDepth` | `number` | 否 | `8` | 每个 distinct locator 的唯一查找深度，范围 `1..32`。 |
+| `options.maxNodes` | `number` | 否 | `1000` | 每个 distinct locator 的唯一查找节点数，范围 `1..5000`。 |
+| `options.signal` | `AbortSignal \| null` | 否 | 未设置 | 在原生请求之间阻止后续观察或动作；不能撤回已经开始的同步 native 调用。 |
+
+本方法不接受视觉 fallback、OCR provider、坐标、重试、等待未来控件或每步不同 scope。若 Accessibility 不可用、权限未授予或 invoke backend 未实现，会在 target observation 前失败。
 
 ### 文本选项
 
@@ -647,10 +678,10 @@ const win = await window.getActiveWindow();
 await UI.tapTexts(['下一步', '确认'], { within: win, intervalMs: 500 });
 ```
 
-计算器等确定快速界面的显式旧行为：
+无需等待的显式旧时序：
 
 ```js
-await UI.tapTexts(['1', '6', '×', '3', '='], {
+await UI.tapTexts(['开始', '确认'], {
   within: win,
   match: 'exact',
   intervalMs: 50,
@@ -677,6 +708,75 @@ try {
   clearTimeout(cancelTimer);
 }
 ```
+
+## UI.tapTargets(targets, options)
+
+对已知原生控件执行 Accessibility-first 顺序 invoke。它用于调用方已经拥有明确 locator、且 OCR 文字并非可靠动作身份的场景。
+
+**签名**
+
+```ts
+UI.tapTargets(
+  targets: OpenDeskUITapTargetStep[],
+  options: OpenDeskUITapTargetsOptions,
+): Promise<OpenDeskUITapTargetsResult>;
+```
+
+**参数**
+
+参数与限制见[原生 target 序列选项](#原生-target-序列选项)。`locator` 复用 `OpenDeskAccessibilitySelector`：`role`、`name`、`identifier` 至少一个，多个字段为区分大小写的 exact AND 条件，不做本地化、OCR 纠错或 alias 展开。
+
+**返回值**
+
+```ts
+interface OpenDeskUITapTargetsResult {
+  ok: true;
+  action: 'tapTargets';
+  backend: 'accessibility';
+  completed: Array<{
+    index: number;
+    action: 'invoke';
+    backend: string;
+    requestId: string;
+    actionState: 'acknowledged' | 'not_needed';
+  }>;
+}
+```
+
+每项 `backend` 是 `Accessibility.perform()` 返回的实际 native backend。顶层 `backend: 'accessibility'` 表示没有走视觉 fallback。`acknowledged` 只说明原生调用返回，不证明 Calculator 运算、保存、发送等业务后置条件成功；调用方必须使用独立 oracle。
+
+**行为与错误**
+
+调用开始时先复制并完整校验数组、步骤、locator、options 与 WindowInfo。非法参数、未知字段、symbol 字段、稀疏数组、未解析窗口和非法 limits 在 `window.get`、Accessibility observation 或 input 前失败。
+
+输入前对每个 distinct locator 执行完整的有界唯一 `Accessibility.find()` 和 `Accessibility.read()`。找不到、歧义、`SEARCH_INCOMPLETE`、`enabled !== true` 或 actions 不含 `invoke` 时零 `perform` 失败。重复 locator 共享这次预检得到的同一个 managed ref；每一步动作前仍重新读取该 ref，证明 locator 字段、enabled 与 invoke 能力没有变化。
+
+初始预检、每个 distinct locator 前、首个动作前和每步动作前都用 `window.get({id})` 重新读取窗口，并严格比较 id、PID、title、native handle 和 bounds。窗口关闭、重建、改名、换 identity、移动或 resize 均抛 `STALE_TARGET`；Runtime 不聚焦、不换窗，也不把 selector 迁移到同名窗口。
+
+每一步至多调用一次 `Accessibility.perform(ref, {action:'invoke'})`。返回 `unknown` 时抛 `STATE_UNKNOWN` 并立即停止；返回 `not_started` 或缺少合法状态时抛 `BACKEND_FAILED`。原生调用抛错时保留它提供的 `actionState`；动作可能已经提交的 `unknown` 绝不会触发重试、OCR、鼠标或下一个步骤。
+
+步骤错误包含 `operation: 'UI.tapTargets'`、`phase`、`actionState`、`failedIndex`、`failedPhase: 'preflight' | 'action'`、成功返回的 `completed` 前缀与 `cause`。参数/能力错误发生在步骤生命周期前，可以没有步骤字段。成功、失败与取消都在返回/拒绝前释放全部 refs；主错误期间的 cleanup 失败追加为 `cleanupErrors`，不会覆盖原 action 状态。
+
+**示例**
+
+下面只演示显式 locator 序列；真实系统 Calculator 会改变用户状态，必须在已授权的隔离验收中运行，并在动作前完成应用 identity 与 Basic layout qualification。乘号是 Accessibility selector 数据，不经过 OCR：
+
+```js
+const win = await window.get({ app: { bundleId: 'com.apple.calculator' } });
+const input = ['2', '5', '×', '4', '='].map(name => ({
+  locator: { role: 'button', name },
+}));
+
+const action = await UI.tapTargets(input, {
+  within: win,
+  timeout: 3000,
+  maxDepth: 8,
+  maxNodes: 1000,
+});
+console.log(action.backend, action.completed.length);
+```
+
+动作后不要用 `acknowledged` 推断 `100`。仓库的 `examples/ai-cli/macos-calculator-recipe.js` 另用完整 Accessibility snapshot 限定 Display 区域，并要求连续稳定读数作为业务 oracle；OCR 只可作为附加证据。
 
 需要进入另一个窗口时拆成独立调用，明确选择和验证新窗口；不要通过默认序列等待自动跨窗口提交。
 
@@ -959,16 +1059,17 @@ CANCELED
 BACKEND_FAILED
 ```
 
-`tapTexts()` 的序列错误还包含步骤和完成前缀。原生文本值与菜单可能出现 [Accessibility](accessibility.md) 的结构化错误，包括 `CAPABILITY_DISABLED`、`NOT_SUPPORTED`、`PERMISSION_DENIED`、`SEARCH_INCOMPLETE`、`ELEMENT_DISABLED`、`ACTION_NOT_SUPPORTED`、`STATE_UNKNOWN`、`QUEUE_FULL` 与 `RESOURCE_LIMIT`。值方法使用 `OpenDeskUIValueError` 的高层 `phase`，底层 phase 另存为 `nativePhase`；`UI.setValue()` 在动作可能已经提交后保留 `actionState` 和 `verified`，cleanup 失败可另带不含字段内容的 `cleanupError`。错误、cause、cleanupError、日志和回执都不附带旧值、新值或受保护内容。不要通过解析 `error.message` 判断错误类型。
+`tapTexts()` 与 `tapTargets()` 的序列错误还包含步骤和完成前缀。原生 target 序列、文本值与菜单可能出现 [Accessibility](accessibility.md) 的结构化错误，包括 `CAPABILITY_DISABLED`、`NOT_SUPPORTED`、`PERMISSION_DENIED`、`SEARCH_INCOMPLETE`、`ELEMENT_DISABLED`、`ACTION_NOT_SUPPORTED`、`STATE_UNKNOWN`、`QUEUE_FULL` 与 `RESOURCE_LIMIT`。值方法使用 `OpenDeskUIValueError` 的高层 `phase`，底层 phase 另存为 `nativePhase`；`UI.setValue()` 在动作可能已经提交后保留 `actionState` 和 `verified`，cleanup 失败可另带不含字段内容的 `cleanupError`。错误、cause、cleanupError、日志和回执都不附带旧值、新值或受保护内容。不要通过解析 `error.message` 判断错误类型。
 
 ## 平台与能力
 
-文本和图片能力依赖当前截图、Vision、ImageColor 与输入后端。菜单能力为 Experimental，并要求当前 execution 显式启用 Accessibility；HTTP、MCP 与 Scheduler 当前不提供菜单操作。
+文本和图片能力依赖当前截图、Vision、ImageColor 与输入后端。原生 target 序列与菜单能力为 Experimental，并要求当前 execution 显式启用 Accessibility；HTTP、MCP 与 Scheduler 当前不提供这些操作。
 
 当前明确不提供：
 
 - `UI.inputValue()`、`UI.fill()`、`UI.type()` 或其他 `UI.setValue()` 同义写入别名；
 - `UI.invoke()`；
+- `UI.tapTargets()` 的 OCR、坐标或鼠标 fallback；
 - 原生 value 的 OCR/name fallback、非字符串转换或 checkbox/range/selection/document 泛化；
 - `UI.getValue()` / `UI.setValue()` 的 `signal`，以及包含父／祖先 selector 的第二套 locator schema；
 - `UI.waitImage()`；

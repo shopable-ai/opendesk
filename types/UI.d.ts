@@ -158,6 +158,69 @@ declare global {
     completed: Array<OpenDeskUITapResult<OpenDeskUITextTarget>>;
   }
 
+  /** One explicit native target step. Only Accessibility invoke is supported. */
+  interface OpenDeskUITapTargetStep {
+    locator: OpenDeskAccessibilitySelector;
+  }
+
+  interface OpenDeskUITapTargetsOptions extends OpenDeskAccessibilityTraversalOptions {
+    /** Required resolved window with stable id, PID, title, native handle, and bounds. */
+    within: OpenDeskWindowInfo;
+    /** Prevents later observation/action stages; it cannot interrupt an in-flight native call. */
+    signal?: AbortSignal | null;
+  }
+
+  interface OpenDeskUITapTargetCompletion {
+    /** Zero-based position in the caller's snapshotted sequence. */
+    index: number;
+    action: "invoke";
+    /** Actual native Accessibility backend reported by Accessibility.perform. */
+    backend: string;
+    requestId: string;
+    actionState: "acknowledged" | "not_needed";
+  }
+
+  interface OpenDeskUITapTargetsResult {
+    ok: true;
+    action: "tapTargets";
+    backend: "accessibility";
+    completed: OpenDeskUITapTargetCompletion[];
+  }
+
+  type OpenDeskUITapTargetsPhase =
+    | "arguments"
+    | "capability"
+    | "preflight"
+    | "action"
+    | "cleanup";
+
+  interface OpenDeskUITapTargetsCleanupError {
+    code: OpenDeskAccessibilityErrorCode;
+    operation: "UI.tapTargets";
+    phase: "cleanup";
+    nativePhase?: string;
+    actionState: OpenDeskAccessibilityActionState;
+    backend?: string;
+    requestId?: string;
+  }
+
+  /** Rejection shape for UI.tapTargets; no Runtime constructor is added. */
+  interface OpenDeskUITapTargetsError extends Error {
+    code: OpenDeskAccessibilityErrorCode;
+    operation: "UI.tapTargets";
+    phase: OpenDeskUITapTargetsPhase;
+    nativePhase?: string;
+    actionState: OpenDeskAccessibilityActionState;
+    backend?: string;
+    requestId?: string;
+    /** Present for preflight/action failures after a sequence was established. */
+    failedIndex?: number;
+    failedPhase?: "preflight" | "action";
+    completed?: OpenDeskUITapTargetCompletion[];
+    cause?: unknown;
+    cleanupErrors?: OpenDeskUITapTargetsCleanupError[];
+  }
+
   /** Native text-value lookup reuses Accessibility selector and scope semantics. */
   interface OpenDeskUIValueOptions extends OpenDeskAccessibilityTraversalOptions {
     /** Required: semantic value lookup never defaults to the whole desktop or active window. */
@@ -357,6 +420,8 @@ declare global {
     hasText(text: string, options?: OpenDeskUITextLocateOptions): Promise<boolean>;
     tapText(text: string, options?: OpenDeskUITextLocateOptions): Promise<OpenDeskUITapResult<OpenDeskUITextTarget>>;
     tapTexts(texts: string[], options?: OpenDeskUITapTextsOptions): Promise<OpenDeskUITapTextsResult>;
+    /** Preflights every distinct native locator, then invokes the fixed refs strictly in order. */
+    tapTargets(targets: OpenDeskUITapTargetStep[], options: OpenDeskUITapTargetsOptions): Promise<OpenDeskUITapTargetsResult>;
     waitText(text: string, options?: OpenDeskUITextOptions): Promise<OpenDeskUITextTarget>;
     waitTextGone(text: string, options?: OpenDeskUITextOptions): Promise<true>;
     findImages(template: OpenDeskImageTemplate, options?: OpenDeskUIImageOptions): Promise<OpenDeskUIImageTarget[]>;

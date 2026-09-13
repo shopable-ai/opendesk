@@ -60,7 +60,7 @@ def new_request(data: Mapping[str, Any], *, request_id: str | None = None,
 def validate_request(value: Any) -> dict[str, Any]:
     request = _require_object(value, "request")
     _reject_unknown_keys(request, REQUEST_KEYS, "request")
-    if request.get("schemaVersion") != SCHEMA_VERSION:
+    if type(request.get("schemaVersion")) is not int or request["schemaVersion"] != SCHEMA_VERSION:
         raise ProtocolError(f"schemaVersion must be {SCHEMA_VERSION}")
     _require_request_id(request.get("requestId"))
     _require_object(request.get("data"), "request.data")
@@ -103,7 +103,7 @@ def validate_response(value: Any, *, request_id: str) -> Response:
     if set(response) != RESPONSE_KEYS:
         missing = RESPONSE_KEYS - set(response)
         raise ProtocolError(f"response is missing fields: {', '.join(sorted(missing))}")
-    if response.get("schemaVersion") != SCHEMA_VERSION:
+    if type(response.get("schemaVersion")) is not int or response["schemaVersion"] != SCHEMA_VERSION:
         raise ProtocolError(f"schemaVersion must be {SCHEMA_VERSION}")
     if response.get("requestId") != request_id:
         raise ProtocolError("response requestId does not match request")

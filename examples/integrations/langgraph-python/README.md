@@ -1,234 +1,197 @@
 # OpenDesk + Python / LangGraph
 
-This example is the first implementation scaffold for
-`docs/architecture/external-workflow-runtime-integration.md`.
-
-It intentionally proves two directions without adding a second workflow engine
-inside OpenDesk:
+This example keeps one owner for each concern:
 
 ```text
-A. OpenDesk JavaScript
-   -> Command.run(Python decision worker)
-   -> strict JSON result
-   -> JavaScript continues
-
-B. Python / LangGraph
-   -> opendesk ai run parameterized Recipe
-   -> strict result file
-   -> next graph node
+Python LangGraph     owns graph state and node order
+OpenDesk Recipes     own deterministic desktop actions and UI reads
+OpenDesk Agent.run   owns the real model call and structured output
+result-file bridge   connects each OpenDesk execution to Python
 ```
 
-The files are committed as an implementation baseline. They have **not** been
-claimed as macOS live-qualified by the web-only implementation session. Run the
-local acceptance below before treating the example as production-qualified.
+## Human request and success criteria
 
-## Why the Recipe result is a file
+The example starts from this concrete human request, represented by the small
+`WorkflowRequest` in `main.py`:
 
-`opendesk ai run` owns stdout and returns one machine-readable CLI JSON
-envelope. Recipe `console.log()` output belongs to its run artifacts. The bridge
-therefore does not scrape console text for business data.
+> Use macOS Calculator to calculate 25 × 4 and read 100; ask the model to
+> choose a dynamic increment from 5 through 15 while Calculator remains at 100;
+> continue with 100 + increment; read the final Calculator UI; and have Python
+> independently verify the result.
 
-For direction B, Python creates a request-scoped path under:
+The request maps directly to the graph:
+
+| Requirement | StateGraph node | Owner | Success condition |
+| --- | --- | --- | --- |
+| Validate the supported request | `validate_human_request` | Python | Goal, `25 × 4`, expected `100`, bounds, and criteria have the exact supported types and values. |
+| Establish the base | `establish_base_in_calculator` | OpenDesk Recipe A | Calculator UI is read as `100` after `25 × 4`. |
+| Choose a dynamic increment | `choose_increment_with_agent` | `Agent.run()` | Native JSON output contains one integer in `5..15`. |
+| Continue from the waited-on UI state | `continue_calculator_from_verified_state` | OpenDesk Recipe B | Its atomic pre-check reads `100`, then the final UI reads `100 + increment`. |
+| Verify the human goal | `verify_human_goal` | Python | Independent arithmetic and both UI readbacks agree; `goalSatisfied` is true. |
+
+The Python-owned path is intentionally linear and serial:
 
 ```text
-.runtime/external-workflow-results/
+validate_human_request
+-> establish_base_in_calculator       -> calculator-base.js
+-> choose_increment_with_agent        -> Agent.run({output: native JSON schema})
+-> continue_calculator_from_verified_state -> calculator-add.js
+-> verify_human_goal                  -> independent Python validation
 ```
 
-and passes that path through `Execution.input.meta.resultPath`. The Recipe writes
-one strict JSON response with `File.writeJSON()`. This separates:
+There is no Python provider adapter, duplicated Codex JSONL parser, or second
+workflow engine inside OpenDesk.
+
+## Separate LangGraph JS Runtime example
+
+OpenDesk can also load LangGraph JS directly. From the repository root, run:
+
+```bash
+./dist/opendesk -script examples/runtime/modules/langgraph/main.mjs -console-mode script
+```
+
+That example imports `@langchain/langgraph/StateGraph` inside the OpenDesk
+JavaScript Runtime. It is not a Python bridge.
+
+## Set up Python
+
+From the repository root:
+
+```bash
+cd examples/integrations/langgraph-python && uv sync
+```
+
+The example pins its Python LangGraph dependencies in `pyproject.toml` and
+`uv.lock`.
+
+## Run the Python-owned real workflow
+
+Before running, build the current OpenDesk binary, grant its existing macOS
+Calculator permissions, and make an authenticated backend available to the
+existing `Agent.run()` configuration. `Agent.run()` does not install or log in
+to Codex or Claude Code for you; see `docs/api/agent.md` for profile selection.
+
+From the repository root:
+
+```bash
+examples/integrations/langgraph-python/.venv/bin/python examples/integrations/langgraph-python/main.py --opendesk ./dist/opendesk
+```
+
+`main.py` owns the Python `StateGraph`. Its three OpenDesk calls use one
+request-scoped result file each under `.runtime/external-workflow-results/`:
 
 ```text
-CLI status        -> opendesk ai run stdout envelope
-business result   -> request-scoped bridge JSON
-diagnostics       -> stderr / OpenDesk artifacts
+opendesk ai run stdout  -> CLI execution envelope
+strict result file      -> correlated business value
+stderr / run artifacts  -> diagnostics and evidence
 ```
 
-## Protocol
+Recipe A receives the request's base expression and establishes and reads
+Calculator `100`. The Agent Recipe receives the human goal, decision
+instruction, verified base, and bounds before asking the existing `Agent.run()`
+API for one native-schema integer in `5..15`. Recipe B re-reads the UI and
+refuses to mutate unless it is still `100`, adds the model value, and returns
+both that pre-continuation readback and the final UI display. Python
+independently checks `finalResult == expectedBase + increment`.
+
+The success record includes the human goal, success criteria,
+`baseDisplayBeforeContinuation`, independent expected result, three OpenDesk
+execution IDs, and `Agent.run()` metadata. A model's console prose is never
+parsed as the business decision.
+
+## OpenDesk-owned direction
+
+`main.js -> decision.py` remains a small, credential-free example of OpenDesk
+calling a Python LangGraph worker through `Command.run()`. Its local bounded
+selector is a protocol fixture, not an LLM.
+
+From the repository root:
+
+```bash
+OPENDESK_LANGGRAPH_PYTHON="$PWD/examples/integrations/langgraph-python/.venv/bin/python" ./dist/opendesk -script examples/integrations/langgraph-python/main.js -console-mode script
+```
+
+`emitOutput: false` keeps the worker's stdout as a machine-only protocol channel;
+the JavaScript owner emits its own human-facing completion message.
+
+## Bridge contract
 
 Request:
 
 ```json
 {
   "schemaVersion": 1,
-  "requestId": "uuid-or-correlation-id",
+  "requestId": "correlation-id",
   "data": {},
-  "meta": {}
+  "meta": {"resultPath": ".runtime/external-workflow-results/opaque.json"}
 }
 ```
 
-Response:
+Response file:
 
 ```json
 {
   "schemaVersion": 1,
-  "requestId": "same-id",
+  "requestId": "same-correlation-id",
   "ok": true,
   "data": {},
   "error": null
 }
 ```
 
-The validators intentionally reject implicit type conversion, unknown response
-fields, mismatched request IDs, and out-of-range decision values.
+The bridge uses an opaque filename rather than `requestId` as a path. Validators
+reject unknown fields, wrong schema types, request ID mismatches, invalid value
+types, and values outside the declared bounds.
 
-## Python environment
+## Focused tests
 
-The example pins LangGraph 1.2.11, the current release used when this scaffold
-was written:
+The integration keeps only contract-level tests. Existing Runtime `Command` and
+`Agent` suites remain responsible for their complete timeout, cancellation, and
+backend lifecycle matrices.
 
-```bash
-cd examples/integrations/langgraph-python
-uv sync
-```
-
-The OpenDesk JavaScript -> Python example needs an explicit interpreter path
-because GUI/runtime PATH inheritance must not be treated as a product contract:
+From the integration directory:
 
 ```bash
-export OPENDESK_LANGGRAPH_PYTHON="$PWD/.venv/bin/python"
-```
-
-## Direction A: OpenDesk owns the execution
-
-Run from the repository root:
-
-```bash
-OPENDESK_LANGGRAPH_PYTHON="$PWD/examples/integrations/langgraph-python/.venv/bin/python" \
-  ./dist/opendesk -script examples/integrations/langgraph-python/main.js -console-mode script
-```
-
-`main.js` sends one JSON request to `decision.py` with `Command.run()`.
-`decision.py` runs a real LangGraph node and emits exactly one JSON response.
-
-By default the decision node uses a credential-free local bounded selector so
-the bridge itself can be tested independently from a model provider.
-
-To delegate the decision node to a real model wrapper, set a JSON argv array:
-
-```bash
-export OPENDESK_LANGGRAPH_DECISION_COMMAND_JSON='["/absolute/path/to/model-wrapper"]'
-```
-
-The wrapper receives this JSON on stdin:
-
-```json
-{
-  "schemaVersion": 1,
-  "task": "choose_integer",
-  "minimum": 5,
-  "maximum": 15,
-  "instruction": "Return JSON only: {\"value\": <integer>}."
-}
-```
-
-and must write only:
-
-```json
-{"value": 12}
-```
-
-to stdout. This keeps LangGraph independent from any one model vendor; the
-wrapper may use an SDK, HTTP service, Codex/Claude adapter, or another controlled
-backend. Provider-specific authentication remains outside this example.
-
-## Direction B: Python / LangGraph owns the workflow
-
-Run from the repository root after building OpenDesk and granting the existing
-Calculator permissions:
-
-```bash
-examples/integrations/langgraph-python/.venv/bin/python \
-  examples/integrations/langgraph-python/main.py \
-  --opendesk ./dist/opendesk
-```
-
-The graph is deliberately serial:
-
-```text
-calculator-base.js
--> decision
--> calculator-add.js
--> independent Python validation
-```
-
-`calculator-base.js` reuses the maintained Calculator semantic recipe's
-qualified 232x321 window guard, button points for `25 x 4 =`, and Accessibility
-display read. The result is the actual display value.
-
-Before `calculator-add.js` mutates the desktop it reads the display again and
-requires it to still equal the first Recipe's actual result. It then enters the
-dynamic increment and reads the final display. Python calculates an expected
-value only as an independent validator; that value is never substituted for the
-UI result.
-
-The extra digit points needed for arbitrary `5..15` input are explicitly marked
-as candidates in `calculator-add.js`. They must be live-qualified on the target
-macOS Calculator build during local acceptance.
-
-## Decision backend
-
-The default `local-fallback` is intentionally **not** presented as an LLM. It
-only keeps protocol, LangGraph, cancellation, and desktop integration testable
-without credentials.
-
-A real model belongs behind the decision node. This is intentionally separate
-from OpenDesk's in-progress `LLM.generate()` / `Agent.run()` work: Python may use
-its own SDK or service, or may invoke a controlled wrapper through
-`OPENDESK_LANGGRAPH_DECISION_COMMAND_JSON`.
-
-## Cancellation and ownership
-
-Direction A:
-
-```text
-OpenDesk Execution
--> Command.run
--> Python worker
-```
-
-The existing execution-owned Command lifecycle owns the child process.
-
-Direction B:
-
-```text
-Python workflow
--> opendesk ai run
--> OpenDesk Execution
-```
-
-`opendesk_bridge.py` starts each CLI run in its own process group. Timeout or
-KeyboardInterrupt terminates that process group so the CLI/Runtime can execute
-its normal cancellation/teardown path.
-
-This P0 bridge is synchronous by design. It does not claim to provide a detached
-HTTP execution handle or durable LangGraph recovery. Those require a separate
-HTTP backend with persisted `executionId` ownership and must not be faked by
-closing only the Python client.
-
-## Tests
-
-Protocol-only tests do not need a desktop:
-
-```bash
-cd examples/integrations/langgraph-python
 .venv/bin/python -m unittest discover -s tests -v
 ```
 
-Local acceptance should additionally prove:
+Setting `OPENDESK_BIN` enables the small `main.js` Runtime contract test; without
+it that test is skipped:
 
-```text
-[ ] Python environment installs from pyproject.toml
-[ ] main.js -> decision.py succeeds
-[ ] wrong schema / requestId / type is rejected
-[ ] Python worker timeout/cancel leaves no child process
-[ ] calculator-base reads actual 100 from Calculator
-[ ] Calculator state change between stages stops before new input
-[ ] each candidate digit point used by 5..15 is live-qualified
-[ ] calculator-add reads the real final display
-[ ] Python independent validation agrees with final display
-[ ] Ctrl+C / timeout cleans up the active OpenDesk CLI execution
-[ ] no second workflow/runtime layer was added inside OpenDesk
+```bash
+OPENDESK_BIN="$PWD/../../../dist/opendesk" .venv/bin/python -m unittest discover -s tests -v
 ```
 
-Do not convert this checklist into a PASS report until those items have actually
-been run on the local target machine.
+The retained `qualify_calculator.py`, `observe-calculator.js`, and
+`perturb-calculator.js` cover Calculator UI readback, the `5..15` candidate
+points, screenshots, and state-drift rejection. They are qualification assets,
+not another lifecycle framework. Run desktop mutation phases serially and keep
+their evidence under `.runtime/tests/langgraph-python/`.
+
+## What is borrowed from Langflow
+
+Langflow/LFX is not installed or required by this example. Five design ideas are
+useful if a future optional adapter is justified:
+
+- typed component input/output ports map naturally to strict Recipe data schemas;
+- an explicit flow ID or flow file is safer than scanning arbitrary source files;
+- one-shot run and webhook endpoints are useful external entrypoint shapes;
+- flow/run/session IDs and trace spans are good correlation primitives;
+- a custom component is the right boundary for an OpenDesk adapter.
+
+Current OpenDesk contracts already cover this example, so adding a Langflow
+service now would add deployment, authentication, persistence, and lifecycle
+ownership without improving the three-node path. A future Langflow/LFX adapter
+must remain outside the OpenDesk Runtime and must call the same Recipe/result
+contract.
+
+## Limits
+
+- The Calculator Recipes are currently macOS-specific and guard one qualified
+  `232x321` Calculator layout.
+- Linux and Windows have no live Calculator qualification for this example.
+- The CLI bridge is synchronous and not a durable checkpoint/resume transport.
+- A successful fixture test does not prove a real Agent backend is installed,
+  authenticated, or available.
+- Model nondeterminism is confined to the validated `5..15` decision; desktop
+  actions remain deterministic and serial.

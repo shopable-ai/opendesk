@@ -29,21 +29,50 @@ const BUTTON = Object.freeze({
   equals: Object.freeze({x: 204, y: 292}),
 });
 
+function requireExactKeys(value, expected, name) {
+  const actual = Object.keys(value).sort();
+  const wanted = [...expected].sort();
+  if (JSON.stringify(actual) !== JSON.stringify(wanted)) {
+    throw new Error(`${name} fields do not match the bridge contract`);
+  }
+}
+
+function requireJSONInteger(value, name) {
+  let normalized = value;
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const keys = Object.keys(value).sort();
+    const hostNumberKeys = ['Float64', 'Int64', 'String'];
+    const isHostJSONNumber = JSON.stringify(keys) === JSON.stringify(hostNumberKeys)
+      && hostNumberKeys.every((key) => typeof value[key] === 'function');
+    if (!isHostJSONNumber) throw new Error(`${name} must be an integer`);
+    const raw = String(value);
+    if (!/^-?(?:0|[1-9]\d*)$/.test(raw)) throw new Error(`${name} must be an integer`);
+    normalized = Number(raw);
+  }
+  if (!Number.isSafeInteger(normalized)) throw new Error(`${name} must be an integer`);
+  return normalized;
+}
+
 function requireBridgeInput() {
   const input = Execution.input;
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
     throw new Error('Execution.input must be an object');
   }
-  if (input.schemaVersion !== 1) throw new Error('schemaVersion must be 1');
+  requireExactKeys(input, ['schemaVersion', 'requestId', 'data', 'meta'], 'Execution.input');
+  if (requireJSONInteger(input.schemaVersion, 'schemaVersion') !== 1) {
+    throw new Error('schemaVersion must be 1');
+  }
   if (typeof input.requestId !== 'string' || !input.requestId || input.requestId.length > 256) {
     throw new Error('requestId must be a non-empty string');
   }
   if (!input.data || typeof input.data !== 'object' || Array.isArray(input.data)) {
     throw new Error('data must be an object');
   }
+  requireExactKeys(input.data, ['baseResult', 'increment'], 'data');
   if (!input.meta || typeof input.meta !== 'object' || Array.isArray(input.meta)) {
     throw new Error('meta must be an object');
   }
+  requireExactKeys(input.meta, ['resultPath'], 'meta');
   const resultPath = input.meta.resultPath;
   if (
     typeof resultPath !== 'string'
@@ -52,10 +81,9 @@ function requireBridgeInput() {
     throw new Error('meta.resultPath is outside the bridge result namespace');
   }
 
-  const baseResult = input.data.baseResult;
-  const increment = input.data.increment;
-  if (!Number.isInteger(baseResult)) throw new Error('data.baseResult must be an integer');
-  if (!Number.isInteger(increment) || increment < 5 || increment > 15) {
+  const baseResult = requireJSONInteger(input.data.baseResult, 'data.baseResult');
+  const increment = requireJSONInteger(input.data.increment, 'data.increment');
+  if (increment < 5 || increment > 15) {
     throw new Error('data.increment must be an integer between 5 and 15');
   }
 
@@ -99,12 +127,7 @@ async function findCalculator() {
   if (Number(target.width) !== CALCULATOR.width || Number(target.height) !== CALCULATOR.height) {
     throw new Error('Calculator must use the qualified 232×321 layout');
   }
-  const active = await window.getActiveWindow();
-  if (!sameWindow(active, target)) {
-    await window.bringToTop(target.title, Number(target.pid));
-    await sleep(200);
-  }
-  return requireActiveCalculator(target);
+  return activateCalculator(target);
 }
 
 async function requireActiveCalculator(target) {
@@ -121,10 +144,19 @@ async function requireActiveCalculator(target) {
   return active;
 }
 
+async function activateCalculator(target) {
+  let active = await window.getActiveWindow();
+  if (!sameWindow(active, target)) {
+    await window.bringToTop(target.title, Number(target.pid));
+    await sleep(200);
+  }
+  return requireActiveCalculator(target);
+}
+
 async function press(target, key) {
   const offset = BUTTON[key];
   if (!offset) throw new Error(`Unknown Calculator key: ${key}`);
-  const active = await requireActiveCalculator(target);
+  const active = await activateCalculator(target);
   const point = Geometry.pointOffset(active, offset.x, offset.y);
   if (!Geometry.contains(Geometry.rect(active), point)) {
     throw new Error(`Calculator key is outside the qualified window: ${key}`);
@@ -156,7 +188,7 @@ function numericDisplay(value) {
 }
 
 async function readCalculatorDisplay(target) {
-  const active = await requireActiveCalculator(target);
+  const active = await activateCalculator(target);
   const snapshot = await Accessibility.snapshot({
     within: active,
     maxDepth: 12,
@@ -211,6 +243,7 @@ try {
     response(contract.requestId, true, {
       baseResult: contract.data.baseResult,
       increment: contract.data.increment,
+      baseDisplayBeforeContinuation: currentDisplay,
       finalResult,
       finalDisplay,
     }, null),

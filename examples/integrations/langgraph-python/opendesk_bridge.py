@@ -65,7 +65,10 @@ class OpenDeskBridge:
         rid = request_id or str(uuid.uuid4())
         result_dir = self.workdir / ".runtime" / "external-workflow-results"
         result_dir.mkdir(parents=True, exist_ok=True)
-        result_path = result_dir / f"{rid}.json"
+        # requestId is protocol data, not a filesystem name. Keep the result
+        # path request-scoped without allowing separators or repeated IDs to
+        # escape/collide within the bridge namespace.
+        result_path = result_dir / f"{uuid.uuid4().hex}.json"
         result_path.unlink(missing_ok=True)
         relative_result = result_path.relative_to(self.workdir).as_posix()
 
@@ -185,6 +188,12 @@ class OpenDeskBridge:
     def _terminate(process: subprocess.Popen[str]) -> None:
         if process.poll() is not None:
             return
+        process_group: int | None = None
+        if os.name != "nt":
+            try:
+                process_group = os.getpgid(process.pid)
+            except ProcessLookupError:
+                return
         try:
             if os.name == "nt":
                 ctrl_break = getattr(signal, "CTRL_BREAK_EVENT", None)
@@ -193,13 +202,33 @@ class OpenDeskBridge:
                 else:
                     process.terminate()
             else:
-                os.killpg(process.pid, signal.SIGTERM)
+                os.killpg(process_group, signal.SIGTERM)
             process.wait(timeout=3)
+        except (ProcessLookupError, subprocess.TimeoutExpired):
+            pass
         except Exception:
+            pass
+
+        # The CLI leader may exit on SIGTERM while a descendant keeps the
+        # process group (and inherited stdout/stderr pipes) alive. Always reap
+        # the remaining POSIX group before returning to communicate().
+        if os.name != "nt" and process_group is not None:
             try:
-                if os.name == "nt":
-                    process.kill()
-                else:
-                    os.killpg(process.pid, signal.SIGKILL)
-            except Exception:
+                os.killpg(process_group, 0)
+            except ProcessLookupError:
+                pass
+            else:
+                try:
+                    os.killpg(process_group, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+
+        if process.poll() is None:
+            try:
                 process.kill()
+            except ProcessLookupError:
+                pass
+            try:
+                process.wait(timeout=3)
+            except (ProcessLookupError, subprocess.TimeoutExpired):
+                pass

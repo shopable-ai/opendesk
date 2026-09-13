@@ -33,9 +33,9 @@
 ## OpenDesk 官方产品配置
 
 - 用户要求修改或验收 OpenDesk 官网、`System.product.website`、Help / Customize / Marketplace / Upgrade、
-  `configs/official-actions.json` 或 `official-actions.odcfg` 时，必须完整读取并遵守
+  `configs/product.json` 或 `product.odcfg` 时，必须完整读取并遵守
   `workflows/official-product-config/skills/manage-official-product-config/SKILL.md`。
-- 官网与其他官方按钮 URL 的唯一明文 source 是 `configs/official-actions.json`，并通过 OpenDesk CLI 生成
+- 官网与其他官方按钮 URL 的唯一明文 source 是 `configs/product.json`，并通过 OpenDesk CLI 生成
   `.odcfg`；只读 `System.product.website` 从该生成资源派生，不得形成第二个 URL source，也不得进入环境变量或
   App Manifest。发行与 UI 验收必须分别检查，不得用源码阅读替代真实点击。
 

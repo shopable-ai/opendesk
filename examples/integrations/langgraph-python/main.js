@@ -57,6 +57,9 @@ const result = await Command.run(python, [worker], {
   input: JSON.stringify(request),
   timeout: 30000,
   maxOutputBytes: 256 * 1024,
+  // The worker's stdout is a machine-only protocol channel. Keep it out of
+  // parent execution logs; this script emits its own human-facing completion.
+  emitOutput: false,
 });
 
 let response;

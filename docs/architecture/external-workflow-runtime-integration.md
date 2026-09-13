@@ -7,18 +7,36 @@ description: OpenDesk 与 Python/LangGraph、Node、Go、Langflow/LFX 等外部�
 
 日期：2026-09-12。
 
-状态：**架构与实施基线。**
+状态：**精简后的 CLI bridge 与示例已实现；HTTP 和 Langflow/LFX adapter 仍是可选后续路线。**
 
 本文解决的不是“把 LangGraph 重写进 OpenDesk Runtime”，而是定义 OpenDesk 如何与 Python/LangGraph、Node.js、Go、Langflow/LFX 等外部运行时协作，让桌面自动化保持以确定性 Recipe 为主体，并只在少数真正需要理解、选择、推理或状态编排的位置使用模型与工作流框架。
 
 相关但职责不同的设计见：
 
-- `docs/architecture/llm-agent-runtime.md`：OpenDesk JavaScript 内部 `LLM.generate()` / `Agent.run()` 的目标合同。
+- `docs/api/agent.md`：OpenDesk JavaScript 内部已经落地的 `Agent.run()` 合同。
 - `docs/api/command.md`：当前 execution-owned 外部命令调用能力。
 - `docs/api/http-server.md`：OpenDesk HTTP execution、状态、事件和取消合同。
 - `docs/api/execution.md`：当前 Execution 输入、环境、artifact 与来源上下文。
 
-本文不把以上拟新增接口写成已实现事实。具体可用能力仍以当前源码、测试与 `docs/api/` 为准。
+本文不把未实现的后续接口写成已实现事实。已落地的 CLI route 具体以当前源码、测试与 `docs/api/` 为准。
+
+当前 Python/LangGraph 示例从一个具体的人类请求开始：使用 macOS Calculator 计算
+`25 × 4` 并读取 `100`，让模型在 `5..15` 中选择动态增量，等待模型期间确认 UI 仍为
+`100`，再继续 `100 + increment`，最后由 Python 独立核验 UI 结果。
+
+关键路径只有一条：
+
+```text
+WorkflowRequest
+-> validate_human_request
+-> establish_base_in_calculator（OpenDesk Recipe A）
+-> choose_increment_with_agent（OpenDesk Agent.run Recipe）
+-> continue_calculator_from_verified_state（OpenDesk Recipe B）
+-> verify_human_goal（Python 独立验证）
+```
+
+三类 owner 不重叠：Python 拥有 graph，Recipe 拥有桌面，`Agent.run()` 拥有模型调用；三次
+OpenDesk execution 都通过相同的严格 result-file bridge 返回。
 
 ---
 
@@ -175,9 +193,9 @@ Python / LangGraph
 
 ---
 
-## 3. 推荐的第一优先路线
+## 3. 当前优先路线
 
-P0 优先完成：
+OpenDesk 主控的最小跨语言方向保留为：
 
 ```text
 OpenDesk JavaScript
@@ -187,25 +205,27 @@ OpenDesk JavaScript
 → OpenDesk JavaScript 继续执行
 ```
 
-原因：
+它用于证明 `Command.run()`、Python LangGraph worker 与严格 JSON 合同，不承担真实模型调用。原因：
 
 - 当前 `Command.run()` 已经提供 execution-owned 生命周期；
 - 支持 cwd、env、一次性 stdin、timeout、输出上限与 AbortSignal；
 - 可以最小成本验证跨语言调用；
 - 不依赖 OpenDesk ESM Loader；
-- 不要求先完成完整 `LLM.generate()` / `Agent.run()`；
-- Python worker 内部既可以只做一次模型调用，也可以运行完整 LangGraph 子图。
+- Python worker 可以独立验证 LangGraph 与机器协议。
 
-P1 再完成：
+Python 主控的正式业务方向已经收敛为：
 
 ```text
-Python / LangGraph
-→ OpenDesk CLI 或 HTTP Bridge
-→ OpenDesk Recipe
-→ result / artifact / cancel
+Python / LangGraph StateGraph
+→ Calculator Recipe A
+→ Agent.run decision Recipe
+→ Calculator Recipe B
+→ Python validation
 ```
 
-这会形成双向协作，但每次工作流必须只有一个明确主控方，不能形成环形等待。
+真实模型节点直接复用现有 `Agent.run({output:{type:'json', validation:'native', schema}})`；
+不在 Python 中复制 Codex/Claude CLI 参数、JSONL、output-file 或 provider adapter。每次工作流仍只有
+一个明确主控方，不能形成环形等待。
 
 ---
 
@@ -347,23 +367,27 @@ Profile 负责：
 ```text
 LangGraph main.py
 │
-├─ node: run_base_recipe
+├─ node: validate_human_request
+│      → 验证 goal、base expression / expected base、decision instruction、bounds 与 success criteria
+│
+├─ node: establish_base_in_calculator
 │      → OpenDesk
-│      → 读取 baseResult
+│      → Calculator 执行 25 × 4 并读取 UI 100
 │
-├─ node: decide_increment
-│      → model
-│      → strict validation
+├─ node: choose_increment_with_agent
+│      → OpenDesk Agent.run native JSON schema
+│      → 选择并严格验证 5..15 整数
 │
-├─ node: validate_desktop_precondition
-│      → OpenDesk
+├─ node: continue_calculator_from_verified_state
+│      → Recipe B 原子执行：前置 UI 回读 100 + 加法动作 + 最终 UI 回读
 │
-├─ node: run_add_recipe
-│      → OpenDesk
-│      → 读取 finalResult
-│
-└─ node: verify_and_finish
+└─ node: verify_human_goal
+       → Python 独立核对 base、等待后 UI、final UI 和 100 + increment
 ```
+
+`WorkflowRequest` 只承载这个示例需要的 goal、base expression / expected base、decision
+instruction、bounds 和 success criteria；它不是 DSL、manifest 或另一套 workflow
+engine。
 
 ### 5.2 CLI bridge
 
@@ -383,23 +407,17 @@ Python
 → 获取结构化业务结果
 ```
 
-当前 `Execution.input` 已经能够承接结构化输入。
-
-P0 需要补齐的是：
-
-> **Python 怎样可靠取得 Recipe 的最终业务结果。**
-
-不能仅用 exit code 0 代表业务成功，也不能让 Python 从任意 console 输出中猜结果。
-
-推荐优先：
+当前 P0/P1 CLI bridge 已采用 request-scoped result-file 合同：
 
 ```text
-结构化 stdout
-或
-Execution.artifactDir/result.json
+opendesk ai run stdout  -> 一个 CLI JSON envelope（状态与 artifacts）
+Recipe File.writeJSON() -> .runtime/external-workflow-results/<opaque-id>.json（业务结果）
+stderr                   -> 诊断
 ```
 
-最终选择应与当前 CLI 输出模式和现有 runtime contract 对齐。
+`opendesk_bridge.py` 生成不含 request ID 的 opaque result filename，把相对路径放入
+`Execution.input.meta.resultPath`，并要求 Recipe 返回 exact schemaVersion/requestId/fields。
+因此 Python 不以 exit code 0 代表业务成功，也不会从任意 console 文本猜取业务数值。
 
 ### 5.3 HTTP bridge
 
@@ -550,9 +568,9 @@ Node workflow
 → OpenDesk CLI / HTTP bridge
 ```
 
-这条路线**不依赖 OpenDesk ESM Loader**。
-
-OpenDesk ESM Loader 的价值是让 OpenDesk VM 自己加载经过验证的模块，而不是为了允许调用 Node 项目。
+外部 Node workflow 路线**不依赖 OpenDesk ESM Loader**。同时，当前
+`examples/runtime/modules/langgraph/main.mjs` 已经能在 OpenDesk Runtime 内直接 import
+`@langchain/langgraph/StateGraph`；这个 JS fixture 是独立的正式 Runtime 能力，不是 Python bridge。
 
 ### 7.2 Go
 
@@ -579,22 +597,16 @@ Go service → OpenDesk HTTP execution
 
 ### 7.3 Langflow / LFX
 
-如果需要可视化流程设计，可以选择：
+Langflow/LFX 当前不进入依赖、部署或关键路径。可以借鉴但不复制的设计点是：
 
-```text
-Langflow 编辑
-→ 导出 flow
-→ LFX CLI 运行
-```
+- [typed component ports](https://docs.langflow.org/1.8.0/components-custom-components)：把输入、输出和连接兼容性显式化；
+- [显式 LFX flow entrypoint](https://docs.langflow.org/lfx-run)：以指定 `.json` flow 或 `.py` 文件运行，不扫描任意源码；
+- [`/run` 与 `/webhook` endpoints](https://docs.langflow.org/api-flows-run)：为一次运行和事件触发提供清楚入口；
+- [flow/run/session trace correlation](https://docs.langflow.org/observability-opentelemetry)：让 workflow、execution 和日志可关联；
+- [custom component boundary](https://docs.langflow.org/extensions-quickstart)：把 OpenDesk 连接器限制在一个明确组件 API 内。
 
-或：
-
-```text
-LFX service
-→ HTTP 调用
-```
-
-OpenDesk 只把它视为一种外部 workflow runtime，不维护 Langflow 内部流程 IR。
+如果未来确有可视化编排需求，Langflow/LFX adapter 应作为外部 runner，调用同一 OpenDesk
+Recipe/result 合同；OpenDesk 不维护 Langflow flow IR，也不随本示例安装或启动 Langflow 服务。
 
 ---
 
@@ -611,9 +623,9 @@ OpenDesk 只把它视为一种外部 workflow runtime，不维护 Langflow 内�
 | ESM Loader | OpenDesk JS 模块加载 | Node/npm 全兼容保证 |
 | External Workflow Integration | 连接 Python/Node/Go/LangGraph/LFX 与 Recipe | 自研一套 LangGraph |
 
-一个普通 Python 脚本不应该被包装成 `Agent.run()`，因为它可能完全没有 Agent 语义。
-
-Python 自己调用模型时，也不应该强制绕回 OpenDesk `LLM.generate()`。
+一个普通 Python 脚本不应该被包装成 `Agent.run()`，因为它可能完全没有 Agent 语义。反过来，
+当 Python-owned workflow 只需要一个受控模型决策，而且 OpenDesk 已经拥有所需 Agent profile 时，
+应通过一个小 Recipe 复用 `Agent.run()`，而不是在 Python 中复制相同 CLI adapter。
 
 原则：
 
@@ -825,10 +837,13 @@ examples/integrations/langgraph-python/
 ├── main.js
 ├── recipes/
 │   ├── calculator-base.js
+│   ├── agent-decision.js
 │   └── calculator-add.js
 └── tests/
-    ├── test_protocol.py
-    └── test_validation.py
+    ├── test_*.py
+    ├── qualify_calculator.py
+    ├── observe-calculator.js
+    └── perturb-calculator.js
 ```
 
 目录职责：
@@ -845,39 +860,44 @@ OpenDesk JS
 
 ### `decision.py`
 
-只处理动态决策：
+提供一个很小的 Python `StateGraph` decision boundary：
 
 ```text
-input JSON
-→ model / LangGraph
-→ validated JSON
+injected chooser
+→ LangGraph node
+→ validated decision
 ```
 
-不反向启动新的 OpenDesk execution。
+作为 `main.js` worker 时使用无凭据 bounded selector。Python-owned 桌面主图不嵌套该子图；
+`main.py` 直接调用 OpenDesk `agent-decision.js`，再由 Recipe 复用既有
+`Agent.run({output: native JSON schema})`。这两个方向都不包含 provider adapter。
 
 ### `main.py`
 
 验证：
 
 ```text
-LangGraph
-→ OpenDesk Recipe A
-→ decision
-→ OpenDesk Recipe B
+WorkflowRequest（人类需求 + 成功条件）
+→ validate_human_request（Python graph owner）
+→ establish_base_in_calculator（Recipe A desktop owner）
+→ choose_increment_with_agent（Agent.run model owner）
+→ continue_calculator_from_verified_state（Recipe B desktop owner）
+→ verify_human_goal（Python oracle）
 ```
+
+Recipe A、Agent Recipe 和 Recipe B 分别在独立 OpenDesk execution 中运行，三者都使用
+request-scoped 严格 result file 把业务结果返回 Python。
 
 ### `opendesk_bridge.py`
 
 隐藏：
 
 - CLI 参数；
-- HTTP endpoint；
-- execution polling；
-- cancel；
-- result parsing；
+- 同步 timeout 与进程组清理；
+- result-file parsing；
 - correlation metadata。
 
-业务图不应重复实现这些细节。
+当前 bridge 不假装提供 HTTP polling、durable resume 或第二套 execution lifecycle。
 
 ### `recipes/`
 
@@ -910,6 +930,9 @@ OpenDesk JS
 - 示例；
 - 测试。
 
+真实模型决定由 `agent-decision.js` 直接调用现有 `Agent.run()` native structured output；Python
+只看到经 schema 验证、requestId 关联的 result-file 结果。
+
 不做：
 
 - Workflow 平台；
@@ -936,6 +959,10 @@ Python/LangGraph
 - executionId correlation；
 - cancellation；
 - calculator end-to-end 示例。
+
+当前精简链路要求一次串行本机证据：真实 Calculator `25 × 4 = 100`、`Agent.run()` 动态
+`5..15` 决策、Continuation 前 UI 仍为 `100`、最终 UI 读取，以及 Python 独立 oracle。
+通用 Command/Agent lifecycle 继续由既有 Runtime 测试负责，集成示例不再复制完整矩阵。
 
 ### P2｜统一 External Task Runner
 
@@ -986,7 +1013,8 @@ Script Runner
 - secret 不进入日志；
 - 计算器示例的业务结果来自 UI 真实读取；
 - 模型结果只影响指定动态节点；
-- ESM Loader、`LLM.generate()`、`Agent.run()` 未完成时，该方案仍然可以独立工作。
+- `main.js -> decision.py` 的协议 fixture 不依赖模型凭据；
+- Python-owned 真实模型链路复用已落地的 `Agent.run()`，不维护第二套 adapter。
 
 ---
 

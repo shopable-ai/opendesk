@@ -22,7 +22,8 @@ Agent 应消费 handoff，生成普通 OpenDesk JavaScript，再通过用户已�
 Host、Origin 和实际端口。不需要额外静态服务器、`60845`、`control` 查询参数或第二个 API listener。开发 checkout 直接读取
 `apps/inspector_web/`；构建脚本把同一资源复制进 `OpenDesk.app/Contents/Resources/inspector_web`，避免主程序与 UI 来源漂移。
 
-页面只在点击 **Connect** 后生成短期一次性 pairing。fragment 随即从地址栏清除，Bearer 和 session token 仅留在页面内存；
+loopback `local-only` 页面打开后会自动生成短期一次性 pairing；如果失败，页面会显示可重试动作。受信 LAN 页面仍要求用户
+明确点击 **Connect**，因为其 HTTP 流量未加密。fragment 随即从地址栏清除，Bearer 和 session token 仅留在页面内存；
 关闭页面会尽力撤销 session 与 client，pair/client/session/visual 仍按既有 TTL 回收。开发树把审阅包写到
 `.runtime/accessibility-inspector/<sessionId>/`；安装版写到用户配置目录的
 `opendesk/accessibility-inspector/<sessionId>/`。这些都是本地运行证据，不应提交到 Git。
@@ -49,12 +50,13 @@ LAN 能力留到 P1：只有在同一个 App Local Services listener 上完成 p
 ## 同机并行、目标窗口与网页目标
 
 正常推荐状态就是同一台电脑同时运行 OpenDesk、同源 Inspector 页面和目标应用。三者不会因为“都在本机”而自动争用同一窗口：
-前端只在用户点击 **Connect** 后申请短期配对，窗口列表只在用户主动刷新时读取，创建 scope 时使用该列表中所选
+前端只在用户打开 loopback Inspector 页面或明确点击重试／LAN **Connect** 后申请短期配对；窗口列表在连接后自动读取，
+也可由用户主动刷新。创建 scope 时使用该列表中所选
 行的短期 `windowId`，后台再绑定它携带的精确 native window identity。标题、应用名、PID 和 bounds 用于让人核对，不是按标题
 模糊查找或“取同名第一项”的降级路径；同名窗口会保留为不同选择项。
 
 并发边界是：**一个 OpenDesk 进程同一时刻只允许一个已启动的 Workbench 授权 generation／已连接前端**。第二个 Inspector 页面
-可以照常加载静态资源，但它点击 Connect 会得到 409 conflict，直到第一个页面撤销 authorization、关闭后尽力撤销，或短期
+可以照常加载静态资源，但它的自动连接或重试会得到 409 conflict，直到第一个页面撤销 authorization、关闭后尽力撤销，或短期
 授权到期。单个现有页面的产品 UI 同时只打开一个 target scope；HTTP controller 的每 session 单操作互斥和全局有界额度仍
 负责阻止观察风暴。普通 OpenDesk HTTP／MCP／Scheduler 的 Accessibility 授权不会因 Workbench 连接而打开。
 
@@ -73,7 +75,7 @@ identity，scope 建立后继续显示已绑定目标与 session generation。�
 
 1. 把目标网页放到一个**单独的原生浏览器窗口**，让目标 tab 保持为该窗口的活动 tab；同一浏览器进程没有问题。
 2. 在另一个浏览器窗口打开 Inspector。若标题／PID 仍容易混淆，可再使用单独浏览器实例或 profile，但这不是协议要求。
-3. Connect 后按 application、精确标题、PID、bounds 和 picker identity 选择目标浏览器窗口，再 Open scope。
+3. 本机页面自动连接后，按 application、精确标题、PID、bounds 和 picker identity 选择目标浏览器窗口，再 Open scope。
 4. 查看或刷新树；不要期待窗口 picker 能把同一 native browser window 内的后台 tab 当成另一扇窗口。
 
 OpenDesk 读取的是 Chrome 等浏览器通过 macOS AX／Windows UIA 暴露的平台 accessibility tree，而不是 DOM 或 DevTools tree。
@@ -101,11 +103,12 @@ Workbench 页面不要求模型。没有已配置 Agent 时，树、属性、结
 
 ## 人工审阅闭环
 
-页面顶部的 **Start here** 是状态驱动导航，不是静态说明：唯一的 **Do this now** 按钮会依次执行或聚焦 Connect、目标列表、
+页面顶部的 **Start here** 是状态驱动导航，不是静态说明：loopback 页面先自动连接，唯一的 **Do this now** 按钮会在失败时重试，
+随后依次聚焦目标列表、
 所选窗口、UI tree 和刷新动作。四步说明与未连接工作区默认收起，连接成功后工作区自动展开；首次使用只需跟随这个按钮，
 不会在顶部状态区再看到重复 Connect。树出现后点击任意一行即可查看属性，Validate、review 和 handoff 都是可选的后续用途。
 
-1. 打开 `OpenDesk ready` 日志中实际地址的 `/accessibility-workbench/` 并点 **Connect**，确认页面显示 `Connected` 和实际 backend 状态。
+1. 打开 `OpenDesk ready` 日志中实际地址的 `/accessibility-workbench/`，等待本机页面自动显示 `Connected` 和实际 backend 状态；失败时点重试。
 2. 在窗口列表中按 application、精确标题、PID、bounds 和 picker identity 选择目标，再点 `Open scope`。页面不会默认观察活动
    窗口，也不会以模糊标题选择同名第一项。
 3. 检查 UI Tree、只读原始属性和 Layout Preview。Preview 只是逻辑 bounds 的结构示意，不是截图或点击坐标。

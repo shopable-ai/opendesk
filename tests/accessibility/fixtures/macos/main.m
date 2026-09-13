@@ -25,6 +25,8 @@ static NSString *const FixtureBundleIdentifier = @"com.opendesk.accessibility-fi
 @property(nonatomic) NSInteger menuCheckCount;
 @property(nonatomic) NSInteger menuRadioCount;
 @property(nonatomic) NSInteger dynamicRevealCount;
+@property(nonatomic) NSInteger slowInvokeCount;
+@property(nonatomic, strong) NSMutableArray<NSString *> *sequenceTrace;
 @property(nonatomic) BOOL delayedItemMaterialized;
 @end
 
@@ -70,6 +72,7 @@ static NSButton *PushButton(NSString *title, NSString *identifier, id target, SE
     if (self.statePath.length == 0) {
         self.statePath = @".runtime/tests/accessibility/macos-fixture-state.json";
     }
+    self.sequenceTrace = [NSMutableArray array];
     self.lastAction = @"launched";
 
     [self buildMenuBar];
@@ -136,11 +139,13 @@ static NSButton *PushButton(NSString *title, NSString *identifier, id target, SE
     NSButton *duplicateOne = PushButton(@"Duplicate", @"fixture.duplicate.first", self, @selector(duplicateButton:));
     NSButton *duplicateTwo = PushButton(@"Duplicate", @"fixture.duplicate.second", self, @selector(duplicateButton:));
     NSButton *disabled = PushButton(@"Disabled", @"fixture.disabled", self, @selector(disabledButton:));
+    NSButton *slowInvoke = PushButton(@"Slow Invoke", @"fixture.slow-invoke", self, @selector(slowInvokeButton:));
     disabled.enabled = NO;
     [buttons addArrangedSubview:invoke];
     [buttons addArrangedSubview:duplicateOne];
     [buttons addArrangedSubview:duplicateTwo];
     [buttons addArrangedSubview:disabled];
+    [buttons addArrangedSubview:slowInvoke];
     [root addArrangedSubview:buttons];
 
     NSStackView *fields = [NSStackView stackViewWithViews:@[]];
@@ -309,7 +314,21 @@ static NSButton *PushButton(NSString *title, NSString *identifier, id target, SE
 - (void)invokeButton:(id)sender {
     (void)sender;
     self.invokeCount += 1;
+    [self.sequenceTrace addObject:@"invoke"];
     [self updateStatus:@"invoke-button"];
+}
+
+- (void)slowInvokeButton:(id)sender {
+    (void)sender;
+    self.slowInvokeCount += 1;
+    [self.sequenceTrace addObject:@"slow"];
+    [self updateStatus:@"slow-invoke-started"];
+    // The native acceptance uses a shorter Accessibility deadline. Blocking
+    // this owned fixture's main thread makes the submitted AXPress outcome
+    // genuinely unknown to the caller while the counter still proves exactly
+    // one side effect and no replay.
+    [NSThread sleepForTimeInterval:1.0];
+    [self updateStatus:@"slow-invoke-finished"];
 }
 
 - (void)duplicateButton:(NSButton *)sender {
@@ -358,6 +377,7 @@ static NSButton *PushButton(NSString *title, NSString *identifier, id target, SE
 - (void)revealDynamicControl:(id)sender {
     (void)sender;
     self.dynamicRevealCount += 1;
+    [self.sequenceTrace addObject:@"reveal"];
     [self updateStatus:@"dynamic-requested"];
     NSView *existing = [self.dynamicContainer viewWithTag:8842];
     if (existing != nil) {
@@ -432,6 +452,8 @@ static NSButton *PushButton(NSString *title, NSString *identifier, id target, SE
         @"menuRadioCount": @(self.menuRadioCount),
         @"selectedMenuRadio": self.menuRadioTwoItem.state == NSControlStateValueOn ? @"two" : @"one",
         @"dynamicRevealCount": @(self.dynamicRevealCount),
+        @"slowInvokeCount": @(self.slowInvokeCount),
+        @"sequenceTrace": self.sequenceTrace ?: @[],
         @"delayedItemMaterialized": @(self.delayedItemMaterialized),
     };
     NSError *error = nil;
