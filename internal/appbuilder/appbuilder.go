@@ -331,7 +331,7 @@ func locateRuntimeTemplate(target, explicitExecutable string) (runtimeTemplate, 
 		if err := requireRegular(filepath.Join(sourceRoot, "opendesk.exe")); err != nil {
 			return runtimeTemplate{}, templateInvalid(target, err)
 		}
-		if err := requireRegular(filepath.Join(sourceRoot, "OpenDesk.exe")); err != nil {
+		if err := requireRegular(filepath.Join(sourceRoot, "opendesk-desktop.exe")); err != nil {
 			return runtimeTemplate{}, templateInvalid(target, err)
 		}
 		if err := requireRegular(filepath.Join(sourceRoot, "ui-host", "opendesk-ui-host.exe")); err != nil {
@@ -542,7 +542,7 @@ func verifyOutput(target, output, packagePath, provenance string) error {
 		}
 	}
 	if target == TargetWindows {
-		for _, relative := range []string{"opendesk.exe", "OpenDesk.exe", "ui-host/opendesk-ui-host.exe", "app-mode/opendesk.app.json"} {
+		for _, relative := range []string{"opendesk.exe", "opendesk-desktop.exe", "ui-host/opendesk-ui-host.exe", "app-mode/opendesk.app.json"} {
 			if err := requireRegular(filepath.Join(output, filepath.FromSlash(relative))); err != nil {
 				return fmt.Errorf("verify Windows portable layout: %w", err)
 			}
