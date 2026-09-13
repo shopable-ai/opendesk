@@ -10,7 +10,24 @@ order: 605
 
 它与 `opendesk package protect|inspect|verify` 不同：后者只负责 `.odpkg` 受保护 recipe package 的构建和密码学检查。App Mode package validation 不属于 protected-package namespace。
 
-仓库内示例从仓库根目录运行，并先用 `make build` 生成与当前源码匹配的 `./dist/opendesk`。普通应用作者不需要源码或 Go：请使用安装 Runtime 中的 `opendesk`，并按 [Installed Runtime App Builder](app-builder.md) 的工作目录和命令运行。
+本文默认面向**已经安装 OpenDesk Runtime 的普通 App 开发者**。不需要 checkout OpenDesk 源码、安装 Go、运行 `make build` 或使用 `./dist/opendesk`。如果 Runtime 没有加入 PATH，只需把示例中的 `opendesk` 替换为当前平台已安装 Runtime 的真实可执行文件。
+
+macOS / Linux 风格：
+
+```bash
+opendesk app validate ./my-app
+opendesk app doctor ./my-app
+```
+
+Windows PowerShell：
+
+```powershell
+$opendesk = 'C:\OpenDesk\opendesk.exe'
+& $opendesk app validate .\my-app
+& $opendesk app doctor .\my-app
+```
+
+源码仓库中的 `make build`、`./dist/opendesk` 和 release scripts 只属于本文末尾的 **OpenDesk 源码维护者** 路径。
 
 ## API 一览
 
@@ -42,10 +59,16 @@ order: 605
 
 ## opendesk app validate
 
-从仓库根目录验证最小示例：
+验证普通 App package：
 
 ```bash
-./dist/opendesk app validate examples/app-mode/basic
+opendesk app validate ./my-app
+```
+
+Windows PowerShell：
+
+```powershell
+& $opendesk app validate .\my-app
 ```
 
 成功输出 package schema、identity、version、当前 Runtime compatibility 与 entry。它不会执行 entry。
@@ -53,7 +76,13 @@ order: 605
 Agent / CI 使用结构化输出：
 
 ```bash
-./dist/opendesk app validate examples/app-mode/basic --json
+opendesk app validate ./my-app --json
+```
+
+Windows PowerShell：
+
+```powershell
+& $opendesk app validate .\my-app --json
 ```
 
 成功 envelope：
@@ -64,8 +93,8 @@ Agent / CI 使用结构化输出：
   "command": "app.validate",
   "result": {
     "schemaVersion": 1,
-    "id": "com.opendesk.example.basic",
-    "version": "0.1.0",
+    "id": "com.example.my-app",
+    "version": "1.0.0",
     "runtimeVersion": "0.1.0",
     "runtimeCompatible": true,
     "entry": "main.js"
@@ -92,10 +121,16 @@ Agent / CI 使用结构化输出：
 
 ## opendesk app doctor
 
-从仓库根目录运行：
+运行完整 package 诊断：
 
 ```bash
-./dist/opendesk app doctor examples/app-mode/basic
+opendesk app doctor ./my-app
+```
+
+Windows PowerShell：
+
+```powershell
+& $opendesk app doctor .\my-app
 ```
 
 Doctor 按实际验证顺序显示 `PASS`、`FAIL`、`SKIP` 或 `NOT CHECKED`。例如 manifest 解析失败后，Runtime compatibility、entry 和 resource 不会被伪报为 PASS；它们保持 `NOT CHECKED`。
@@ -103,7 +138,13 @@ Doctor 按实际验证顺序显示 `PASS`、`FAIL`、`SKIP` 或 `NOT CHECKED`。
 结构化诊断：
 
 ```bash
-./dist/opendesk app doctor examples/app-mode/basic --json
+opendesk app doctor ./my-app --json
+```
+
+Windows PowerShell：
+
+```powershell
+& $opendesk app doctor .\my-app --json
 ```
 
 每个 check 的稳定最小形状：
@@ -135,6 +176,8 @@ opendesk app build <package-dir> --target <macos|windows> --output <path> [--jso
 | `--target windows` | 二选一 | 只能由完整的同平台 Windows portable Runtime 构建；output 是 directory。 |
 | `--output <path>` | 是 | 新 artifact 的显式路径。父目录必须存在、目标必须不在 package 内且尚不存在。没有默认值或覆盖 flag。 |
 | `--json` | 否 | stdout 输出一个 machine-readable envelope。 |
+
+Builder 必须在目标平台运行：macOS Runtime 只构建 `--target macos`，Windows Runtime 只构建 `--target windows`。当前不是 cross compiler。
 
 **返回值**
 
@@ -182,9 +225,38 @@ Build 先验证 source package，再复制安装 Runtime 的完整 template、st
 
 `APP_BUILD_TARGET_INVALID` 表示 target 不是 `macos` 或 `windows`。`APP_BUILD_TARGET_UNAVAILABLE` 表示当前 executable 没有请求目标的同平台 desktop layout；Builder 不 cross-build。`APP_BUILD_RUNTIME_NOT_FOUND` 或 `APP_BUILD_RUNTIME_TEMPLATE_INVALID` 表示没有完整的官方 Runtime/SDK template。`APP_BUILD_OUTPUT_INVALID` 表示 output parent、扩展名或 package containment 不符合要求；`APP_BUILD_STAGING_FAILED` / `APP_BUILD_OUTPUT_COMMIT_FAILED` 表示 staging 或最终发布失败。详情和修复路径见 [Installed Runtime App Builder](app-builder.md#退出码json-与常见失败)。
 
-**示例**
+**普通 App 开发者示例**
 
-从安装 Runtime 运行的 macOS / Windows 完整命令、artifact layout、启动方式和 CI pattern 见 [Installed Runtime App Builder](app-builder.md)。仓库维护者从源码构建 Runtime template 的命令仍见 [Script App Packaging](script-app-packaging.md)。
+macOS：
+
+```bash
+opendesk app build ./my-app \
+  --target macos \
+  --output "$PWD/release/My App.app"
+```
+
+Windows PowerShell：
+
+```powershell
+& $opendesk app build .\my-app `
+  --target windows `
+  --output (Join-Path $PWD 'release\MyApp')
+```
+
+macOS `.app` 与 Windows portable directory 的完整 artifact layout、启动方式和 CI pattern 见 [Installed Runtime App Builder](app-builder.md)。
+
+## OpenDesk 源码维护者
+
+只有在维护 OpenDesk Runtime / Desktop distribution、并希望用当前 checkout 生成与源码完全匹配的本地 Runtime 时，才需要：
+
+```bash
+make build
+./dist/opendesk app validate examples/app-mode/basic
+./dist/opendesk app doctor examples/app-mode/basic
+./dist/opendesk -app examples/app-mode/basic -console-mode script
+```
+
+这一组命令是 repository contributor 路径，不是普通 App 作者使用 `opendesk app` 的前置条件。OpenDesk 官方 Runtime template / distribution 的源码构建继续使用对应 repository release scripts；普通 App 作者发布自己的应用应使用已安装 Runtime 的 `opendesk app build`。
 
 ## App Mode 与受保护包边界
 
