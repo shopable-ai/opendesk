@@ -112,7 +112,9 @@ release/MyApp/
 
 ## CI 与可追溯性
 
-CI 应固定同平台 Runtime/SDK 版本，使用全新的 output 目录，并只解析 `--json` 的 stdout。下例从包含 `my-app/` 的工作目录运行；`OPENDESK` 必须是已安装 Runtime 中的真实可执行文件，不是源码构建步骤。
+CI 应固定同平台 Runtime/SDK 版本，使用全新的 output 目录，并只解析 `--json` 的 stdout。下例从包含 `my-app/` 的工作目录运行；`OPENDESK` 必须是已安装 Runtime 中的真实可执行文件，不是源码构建步骤。这里的 `OPENDESK` 只是 CI job 自己定义的变量名，不是 OpenDesk Runtime 的环境变量 contract。
+
+macOS / POSIX shell 示例：
 
 ```bash
 mkdir -p "$RUNNER_TEMP/app-release"
@@ -120,6 +122,21 @@ mkdir -p "$RUNNER_TEMP/app-release"
 "$OPENDESK" app doctor "$PWD/my-app" --json
 "$OPENDESK" app build "$PWD/my-app" --target macos --output "$RUNNER_TEMP/app-release/My App.app" --json > "$RUNNER_TEMP/app-release/build.json"
 ```
+
+Windows PowerShell 示例：
+
+```powershell
+$opendesk = $env:OPENDESK
+
+& $opendesk app validate .\my-app --json
+& $opendesk app doctor .\my-app --json
+& $opendesk app build .\my-app `
+  --target windows `
+  --output (Join-Path $env:RUNNER_TEMP 'MyApp') `
+  --json
+```
+
+同样地，`$env:OPENDESK` 只是该 CI 示例约定的 job variable；调用方应把它设置为当前 Windows runner 中已安装/解压的完整 OpenDesk Runtime portable directory 里的 `opendesk.exe`。
 
 成功 envelope 的固定外层为 `{"ok":true,"command":"app.build","result":...}`。`result` 包含：
 
@@ -168,5 +185,6 @@ Builder 先在 sibling temporary directory staging，复核 payload、所需 Run
 
 - [App Package CLI](app-package-cli.md)：`validate`、`doctor`、`build` 的完整参数、JSON 与错误 Reference。
 - [Script App Packaging](script-app-packaging.md)：Manifest、App Shell、开发态 `-app` 与源码维护者的 release staging。
-- [automation.app](app-shell.md)：当前 App Mode application 的 tray/menu、action 和退出 API。
+- [automation.app API](automation-app.md)：当前 App Mode application 的 tray/menu、action、menu state 和退出 API。
+- [App Mode 与 App Shell](app-shell.md)：`-app`、Manifest、App Shell 与 `automation.app` 的职责关系。
 - [App Package Format](../architecture/app-package-format.md)：Manifest schema、兼容性和 containment contract。
