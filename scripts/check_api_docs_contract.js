@@ -93,6 +93,14 @@ for (const rel of ['docs/api/agent.md', 'docs/api/llm.md']) {
   requireText(rel, 'Capability 状态模型');
 }
 
+// Official product code and examples must teach the canonical API. The
+// compatibility alias remains available for existing user scripts, but new
+// first-party sources must not reintroduce it.
+requireText('apps/opendesk/script-runner-simple.js', 'runtimeUI.toast(', 'canonical ui.toast() in product shell');
+rejectText('apps/opendesk/script-runner-simple.js', 'runtimeUI.notify(', 'ui.notify() compatibility alias in product shell');
+requireText('examples/scheduler/notify-and-log.js', 'await ui.toast(', 'canonical ui.toast() in Scheduler example');
+rejectText('examples/scheduler/notify-and-log.js', 'await ui.notify(', 'ui.notify() compatibility alias in Scheduler example');
+
 if (errors.length > 0) {
   for (const error of errors) console.error(`API_DOC_CONTRACT_ERROR ${error}`);
   process.exit(1);
