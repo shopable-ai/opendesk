@@ -18,10 +18,10 @@ import (
 )
 
 const (
-	// BaseName is the stable filename stem for the publisher-owned official
-	// action configuration. The Runtime loader mirrors this value and product
+	// BaseName is the stable filename stem for the publisher-owned product
+	// configuration. The Runtime loader mirrors this value and product
 	// integration tests keep the cross-language contract aligned.
-	BaseName      = "official-actions"
+	BaseName      = "product"
 	Magic         = "ODCFG1"
 	SchemaVersion = 1
 	// The filename change does not define a new wire format. Keep the existing
