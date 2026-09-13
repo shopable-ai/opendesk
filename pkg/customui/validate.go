@@ -20,7 +20,7 @@ var allowedElements = map[string]bool{
 	"html": true, "head": true, "body": true, "meta": true, "title": true, "style": true,
 	"div": true, "section": true, "main": true, "header": true, "footer": true,
 	"button": true, "span": true, "p": true, "label": true, "strong": true, "em": true,
-	"img": true, "input": true, "select": true, "option": true,
+	"img": true, "input": true, "textarea": true, "select": true, "option": true,
 }
 
 var cssURLPattern = regexp.MustCompile(`(?i)url\s*\(`)
@@ -30,7 +30,7 @@ var cssCommentPattern = regexp.MustCompile(`(?s)/\*.*?\*/`)
 var safeDataImagePattern = regexp.MustCompile(`(?i)^data:image/(png|jpeg|jpg|gif|webp);base64,[a-z0-9+/=\r\n]+$`)
 
 var interactiveElements = map[string]bool{
-	"button": true, "input": true, "select": true,
+	"button": true, "input": true, "textarea": true, "select": true,
 }
 
 var publicControlTypes = map[string]bool{
@@ -701,6 +701,9 @@ func controlType(node *html.Node) string {
 		return "container"
 	}
 	if tag != "input" {
+		if tag == "textarea" {
+			return "input"
+		}
 		if tag == "span" || tag == "p" || tag == "label" || tag == "strong" || tag == "em" {
 			return "text"
 		}

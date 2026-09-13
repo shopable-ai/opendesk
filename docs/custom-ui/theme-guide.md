@@ -63,7 +63,7 @@ const panel = await ui.createWindow({
   theme: "dark",
   position: {
     mode: "anchor",
-    size: { width: 760, height: 780 },
+    size: { width: 760, height: 880 },
     horizontal: "center",
     vertical: "center",
     display: "active"
@@ -100,6 +100,12 @@ Runtime `ControlState` 决定。状态变更使用 `control.update({classes: [..
 | select | 单一 `select`，稳定 id，非 `multiple` | `value`、`disabled`、`options` | default、focus-visible、disabled、当前值 | 关闭的 field 可样式化；展开菜单的字体、阴影、箭头和位置由 WKWebView/WebView2/系统控制。 |
 | input | 支持的单行 `input` type，稳定 id | `value`、`disabled`、`classes`，事件 `input`/`change` | empty/placeholder、filled、focus-visible、disabled、invalid | 不使用 `autofocus`；floating window 不在 show 时抢键盘。校验提示放在相邻文字节点。 |
 | button | `button type="button"`，稳定 id | `text`、`disabled`、`busy`、`active`、`error`、`classes` | default、hover、pressed、focus-visible、disabled、busy、error | busy 时禁止重复点击；错误信息保留在可读文字或辅助状态中。 |
+
+`examples/custom-ui/ui-components.js` 有意只放一个真实 live `select` 和一个真实 live
+`input`。Select/Input 的其余状态用说明行和 token 表达，避免重复绘制无法代表
+WKWebView/WebView2 弹出菜单的静态 select；Button 的状态仍使用 HTML button 样本，因为
+它们展示的是本页 CSS surface，而不是 Native peer。打开 select 的菜单只作为当前 host 的
+附加观察，不作为跨平台视觉契约。
 
 最小的状态切换模式如下：
 
@@ -220,8 +226,8 @@ context 目录。
 在真实窗口中至少检查：
 
 1. 标题、卡片和底部操作区没有裁切，窗口没有异常拉宽、过高或大面积空白；
-2. HTML 的 select closed field、input placeholder/filled/invalid、button normal/active/
-   loading/disabled/success/error 状态均可见，状态变化不移动相邻控件；Native 窗口的
+2. HTML 的单一 live select closed field、live input placeholder/filled/invalid、button
+   normal/active/loading/disabled/success/error 状态及其说明均可见，状态变化不移动相邻控件；Native 窗口的
    typed peers、固定 geometry、busy/error/disabled/badge readback 与 Label 差异说明一致；
 3. 鼠标 hover 和键盘 Tab 能到达三个组件，focus-visible ring 与深色背景有足够对比；
 4. 打开 select 后记录平台弹出菜单差异，但不把弹出菜单的像素当作跨平台契约；

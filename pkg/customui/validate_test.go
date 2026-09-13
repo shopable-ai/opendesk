@@ -206,6 +206,7 @@ func TestNormalizeBuildsStableControlOrder(t *testing.T) {
 			<img id="preview" src="preview.png">
 			<input id="enabled" type="checkbox" role="switch">
 			<input id="name">
+			<textarea id="script"></textarea>
 			<select id="mode"><option value="safe">Safe</option></select>
 		</body></html>`},
 	}, baseDir)
@@ -218,7 +219,8 @@ func TestNormalizeBuildsStableControlOrder(t *testing.T) {
 		{ID: "preview", Type: "img", Order: 2},
 		{ID: "enabled", Type: "switch", Order: 3},
 		{ID: "name", Type: "input", Order: 4},
-		{ID: "mode", Type: "select", Order: 5},
+		{ID: "script", Type: "input", Order: 5},
+		{ID: "mode", Type: "select", Order: 6},
 	}
 	if !reflect.DeepEqual(spec.Controls, want) {
 		t.Fatalf("controls = %#v, want %#v", spec.Controls, want)

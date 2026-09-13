@@ -6,10 +6,10 @@
       <div class="title-block">
         <span class="eyebrow">OPEN DESK / CUSTOM UI</span>
         <strong>Component state gallery</strong>
-        <span class="subtitle">HTML structure · CSS tokens · Runtime-owned state</span>
+        <span class="subtitle">A small, honest HTML/CSS surface for Runtime-owned states</span>
       </div>
       <div class="header-meta">
-        <span class="header-chip">DARK TOKEN SET</span>
+        <span class="surface-chip">HTML / CSS</span>
         <button id="close" class="cd-button cd-button-quiet" type="button">Close</button>
       </div>
     </header>
@@ -17,30 +17,32 @@
     <main id="content">
       <section class="intro">
         <div class="intro-copy">
-          <span class="eyebrow">HTML / CSS SURFACE</span>
-          <p>Three reusable controls, shown with the states that a component author can style and the states that must be explained beside the control.</p>
+          <div class="intro-kicker">
+            <span class="eyebrow">COMPONENT LAB</span>
+            <span class="intro-count">3 LIVE CONTROLS</span>
+          </div>
+          <strong class="intro-title">One theme, clear state changes.</strong>
+          <p>Interact with the live controls, then read the same value back through the Runtime bridge. Static notes show the styling contract without pretending to be native UI.</p>
         </div>
-        <div class="coverage" aria-label="State coverage">
-          <span class="coverage-chip coverage-chip-good">DEFAULT</span>
-          <span class="coverage-chip">HOVER</span>
-          <span class="coverage-chip">FOCUS</span>
-          <span class="coverage-chip">DISABLED</span>
-          <span class="coverage-chip coverage-chip-danger">INVALID / ERROR</span>
-          <span class="coverage-chip coverage-chip-warn">LOADING</span>
+        <div class="intro-status">
+          <span class="status-label">SESSION STATUS</span>
+          <span id="status" class="status-line" role="status" aria-live="polite">Ready for interaction</span>
         </div>
-        <span id="status" class="status-line" role="status" aria-live="polite">Ready for interaction</span>
       </section>
 
       <section class="component-grid" aria-label="Component specimens">
         <section class="component-card">
           <div class="card-heading">
             <div>
-              <span class="component-name">Select</span>
+              <span class="component-name">01 / Select</span>
               <strong class="card-title">Delivery mode</strong>
             </div>
             <span id="modeState" class="state-pill">ready</span>
           </div>
-          <label class="field-label" for="mode">Live specimen</label>
+          <div class="live-label-row">
+            <label class="field-label" for="mode">Live specimen</label>
+            <span class="live-badge">RUNTIME</span>
+          </div>
           <div class="select-wrap">
             <select id="mode" class="component-control cd-select" aria-describedby="modeHint">
               <option value="ready">Ready</option>
@@ -49,58 +51,70 @@
             </select>
           </div>
           <p id="modeHint" class="field-hint">Choose a value to emit a change event.</p>
-          <div class="state-grid" aria-label="Select state specimens">
-            <div class="state-swatch"><span class="state-label">Default</span><select id="modeDefault" class="component-control cd-select" aria-label="Select default specimen"><option>Ready</option></select></div>
-            <div class="state-swatch"><span class="state-label">Hover</span><select id="modeHover" class="component-control cd-select is-hovered" aria-label="Select hover specimen"><option>Review</option></select></div>
-            <div class="state-swatch"><span class="state-label">Focus</span><select id="modeFocus" class="component-control cd-select is-focus-sample" aria-label="Select focus specimen"><option>Queued</option></select></div>
-            <div class="state-swatch"><span class="state-label">Disabled</span><select id="modeDisabled" class="component-control cd-select" aria-label="Select disabled specimen" disabled><option>Ready</option></select></div>
-            <div class="state-swatch state-swatch-wide"><span class="state-label">Invalid</span><select id="modeInvalid" class="component-control cd-select is-invalid" aria-label="Select invalid specimen" aria-invalid="true"><option>Choose a mode</option></select></div>
+          <div class="state-list state-summary" aria-label="Select state notes">
+            <div class="state-summary-item"><span class="state-marker state-marker-accent"></span><div class="state-summary-copy"><strong>Default</strong><span>closed field</span></div></div>
+            <div class="state-summary-item"><span class="state-marker state-marker-focus"></span><div class="state-summary-copy"><strong>Focus</strong><span>offset ring</span></div></div>
+            <div class="state-summary-item"><span class="state-marker state-marker-muted"></span><div class="state-summary-copy"><strong>Disabled</strong><span>readable</span></div></div>
+            <div class="state-summary-item"><span class="state-marker state-marker-danger"></span><div class="state-summary-copy"><strong>Invalid</strong><span>text + aria</span></div></div>
           </div>
-          <p class="state-note">Active, loading, success and error are not native select states; use an adjacent status message.</p>
+          <div class="host-note">
+            <span class="host-note-mark">↗</span>
+            <p><strong>Popup menu is host-owned.</strong> The closed field is styleable here; the opened menu may differ between WKWebView, WebView2, and the operating system.</p>
+          </div>
         </section>
 
         <section class="component-card">
           <div class="card-heading">
             <div>
-              <span class="component-name">Input</span>
+              <span class="component-name">02 / Input</span>
               <strong class="card-title">Search query</strong>
             </div>
             <span id="queryState" class="state-pill">empty</span>
           </div>
-          <label class="field-label" for="query">Live specimen</label>
+          <div class="live-label-row">
+            <label class="field-label" for="query">Live specimen</label>
+            <span class="live-badge">INPUT EVENT</span>
+          </div>
           <input id="query" class="component-control cd-input" type="text" placeholder="Type something" aria-describedby="queryHint" maxlength="64">
           <p id="queryHint" class="field-hint">Input events update the readback badge.</p>
-          <div class="state-grid" aria-label="Input state specimens">
-            <div class="state-swatch"><span class="state-label">Empty</span><input id="queryEmpty" class="component-control cd-input" type="text" placeholder="Placeholder" aria-label="Input empty specimen"></div>
-            <div class="state-swatch"><span class="state-label">Hover</span><input id="queryHover" class="component-control cd-input is-hovered" type="text" value="demo" aria-label="Input hover specimen"></div>
-            <div class="state-swatch"><span class="state-label">Focus</span><input id="queryFocus" class="component-control cd-input is-focus-sample" type="text" value="focused" aria-label="Input focus specimen"></div>
-            <div class="state-swatch"><span class="state-label">Disabled</span><input id="queryDisabled" class="component-control cd-input" type="text" value="Unavailable" aria-label="Input disabled specimen" disabled></div>
-            <div class="state-swatch state-swatch-wide"><span class="state-label">Invalid</span><input id="queryInvalid" class="component-control cd-input is-invalid" type="text" value="Missing value" aria-label="Input invalid specimen" aria-invalid="true"></div>
+          <div class="state-list state-summary" aria-label="Input state notes">
+            <div class="state-summary-item"><span class="state-marker state-marker-muted"></span><div class="state-summary-copy"><strong>Empty</strong><span>placeholder</span></div></div>
+            <div class="state-summary-item"><span class="state-marker state-marker-accent"></span><div class="state-summary-copy"><strong>Filled</strong><span>value</span></div></div>
+            <div class="state-summary-item"><span class="state-marker state-marker-focus"></span><div class="state-summary-copy"><strong>Focus</strong><span>keyboard</span></div></div>
+            <div class="state-summary-item"><span class="state-marker state-marker-danger"></span><div class="state-summary-copy"><strong>Invalid</strong><span>aria-invalid</span></div></div>
           </div>
-          <p class="state-note">Use text plus aria-invalid for validation; loading and success belong to the surrounding form flow.</p>
+          <p class="state-note">Notes, not extra inputs. The live field above is the only bridge-bound sample.</p>
         </section>
 
         <section class="component-card component-card-button">
           <div class="card-heading">
             <div>
-              <span class="component-name">Button</span>
+              <span class="component-name">03 / Button</span>
               <strong class="card-title">Save changes</strong>
             </div>
             <span id="buttonState" class="state-pill">normal</span>
           </div>
-          <label class="field-label" for="saveButton">Live specimen</label>
-          <button id="saveButton" class="cd-button cd-button-primary" type="button" aria-describedby="saveHint">Save changes</button>
-          <p id="saveHint" class="field-hint">Save shows loading, success, and error transitions.</p>
-          <div class="button-state-grid" aria-label="Button state specimens">
-            <div class="state-swatch"><span class="state-label">Default</span><button id="buttonDefault" class="cd-button cd-button-secondary" type="button">Default</button></div>
-            <div class="state-swatch"><span class="state-label">Hover</span><button id="buttonHover" class="cd-button cd-button-secondary is-hovered" type="button">Hover</button></div>
-            <div class="state-swatch"><span class="state-label">Focus</span><button id="buttonFocus" class="cd-button cd-button-secondary is-focus-sample" type="button">Focus</button></div>
-            <div class="state-swatch"><span class="state-label">Active</span><button id="buttonActive" class="cd-button cd-button-secondary is-active" type="button" aria-pressed="true">Active</button></div>
-            <div class="state-swatch"><span class="state-label">Disabled</span><button id="buttonDisabled" class="cd-button cd-button-secondary" type="button" disabled>Disabled</button></div>
-            <div class="state-swatch"><span class="state-label">Loading</span><button id="buttonLoading" class="cd-button cd-button-secondary is-busy" type="button" aria-busy="true" disabled>Saving…</button></div>
-            <div class="state-swatch"><span class="state-label">Success</span><button id="buttonSuccess" class="cd-button cd-button-success" type="button">Saved</button></div>
-            <div class="state-swatch"><span class="state-label">Error</span><button id="buttonError" class="cd-button cd-button-error" type="button" aria-invalid="true">Try again</button></div>
+          <div class="button-live-row">
+            <div>
+              <div class="live-label-row">
+                <label class="field-label" for="saveButton">Live specimen</label>
+                <span class="live-badge">CLICK TO CYCLE</span>
+              </div>
+              <p id="saveHint" class="field-hint">Save shows loading, success, and error transitions.</p>
+            </div>
+            <button id="saveButton" class="cd-button cd-button-primary" type="button" aria-describedby="saveHint">Save changes</button>
           </div>
+          <div class="button-state-grid" aria-label="Button state specimens">
+            <div class="button-swatch"><span class="state-label">Default</span><button id="buttonDefault" class="cd-button cd-button-secondary" type="button">Default</button></div>
+            <div class="button-swatch"><span class="state-label">Hover</span><button id="buttonHover" class="cd-button cd-button-secondary is-hovered" type="button">Hover</button></div>
+            <div class="button-swatch"><span class="state-label">Focus</span><button id="buttonFocus" class="cd-button cd-button-secondary is-focus-sample" type="button">Focus</button></div>
+            <div class="button-swatch"><span class="state-label">Active</span><button id="buttonActive" class="cd-button cd-button-secondary is-active" type="button" aria-pressed="true">Active</button></div>
+            <div class="button-swatch"><span class="state-label">Disabled</span><button id="buttonDisabled" class="cd-button cd-button-secondary" type="button" disabled>Disabled</button></div>
+            <div class="button-swatch"><span class="state-label">Loading</span><button id="buttonLoading" class="cd-button cd-button-secondary is-busy" type="button" aria-busy="true" disabled>Busy</button></div>
+            <div class="button-swatch"><span class="state-label">Success</span><button id="buttonSuccess" class="cd-button cd-button-success" type="button">Saved</button></div>
+            <div class="button-swatch"><span class="state-label">Error</span><button id="buttonError" class="cd-button cd-button-error" type="button" aria-invalid="true">Retry</button></div>
+          </div>
+          <p class="state-note">HTML/CSS samples; only <span class="inline-code">saveButton</span> is Runtime-wired.</p>
         </section>
       </section>
 
@@ -117,9 +131,11 @@
 
       <footer class="actions">
         <span class="footer-note">Tab through live controls to verify the focus ring.</span>
-        <button id="toggleSelect" class="cd-button cd-button-secondary" type="button">Disable select</button>
-        <button id="simulateError" class="cd-button cd-button-secondary" type="button">Simulate error</button>
-        <button id="reset" class="cd-button cd-button-secondary" type="button">Reset</button>
+        <div class="action-group">
+          <button id="toggleSelect" class="cd-button cd-button-secondary" type="button">Disable select</button>
+          <button id="simulateError" class="cd-button cd-button-secondary" type="button">Simulate error</button>
+          <button id="reset" class="cd-button cd-button-secondary" type="button">Reset</button>
+        </div>
       </footer>
     </main>
   </body>

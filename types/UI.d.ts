@@ -116,6 +116,25 @@ declare global {
     center: OpenDeskScreenPoint;
   }
 
+  interface OpenDeskUITextMatchGroup {
+    /** Zero-based position of the corresponding input query. */
+    queryIndex: number;
+    /** Reading-order matches for this query from the shared OCR observation. */
+    matches: OpenDeskUITextTarget[];
+  }
+
+  interface OpenDeskUITextMatchOptions {
+    within?: OpenDeskUIScope;
+    match?: "exact" | "contains" | "startsWith" | "endsWith";
+    caseSensitive?: boolean;
+    normalizeWhitespace?: boolean;
+    minConfidence?: number;
+    provider?: string;
+    providerChain?: string[];
+    lang?: string;
+    region?: OpenDeskUITextRegionRule;
+  }
+
   interface OpenDeskUIImageTarget {
     source: "image";
     template: string;
@@ -332,6 +351,8 @@ declare global {
     /** Sets one complete native string value once and verifies it by reading the same ref. */
     setValue(target: OpenDeskAccessibilitySelector, value: string, options: OpenDeskUIValueOptions): Promise<OpenDeskUISetValueResult>;
     findTexts(text: string, options?: OpenDeskUITextLocateOptions): Promise<OpenDeskUITextTarget[]>;
+    /** Evaluates 1..32 string or RegExp queries against one shared OCR observation. */
+    findTextMatches(queries: Array<string | RegExp>, options?: OpenDeskUITextMatchOptions): Promise<OpenDeskUITextMatchGroup[]>;
     findText(text: string, options?: OpenDeskUITextLocateOptions): Promise<OpenDeskUITextTarget | null>;
     hasText(text: string, options?: OpenDeskUITextLocateOptions): Promise<boolean>;
     tapText(text: string, options?: OpenDeskUITextLocateOptions): Promise<OpenDeskUITapResult<OpenDeskUITextTarget>>;

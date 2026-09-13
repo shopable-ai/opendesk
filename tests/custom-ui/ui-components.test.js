@@ -33,8 +33,7 @@ test('ui-components demo keeps structure, state ownership, and resource boundari
   assert.doesNotMatch(html, /\bautofocus\b/i);
   assert.doesNotMatch(html, /\bmultiple\b/i);
   for (const id of [
-    'mode', 'modeDefault', 'modeHover', 'modeFocus', 'modeDisabled', 'modeInvalid',
-    'query', 'queryEmpty', 'queryHover', 'queryFocus', 'queryDisabled', 'queryInvalid',
+    'mode', 'query',
     'saveButton', 'buttonDefault', 'buttonHover', 'buttonFocus', 'buttonActive',
     'buttonDisabled', 'buttonLoading', 'buttonSuccess', 'buttonError',
     'simulateError', 'toggleSelect', 'reset', 'close',
@@ -44,9 +43,12 @@ test('ui-components demo keeps structure, state ownership, and resource boundari
   assert.match(html, /<header id="dragbar" data-clawdesk-drag>/);
   assert.match(html, /<select id="mode"/);
   assert.match(html, /<input id="query"[^>]*type="text"/);
+  assert.equal((html.match(/<select\b/g) || []).length, 1, 'gallery should keep one real select specimen');
+  assert.equal((html.match(/<input\b/g) || []).length, 1, 'gallery should keep one real input specimen');
+  assert.match(html, /class="state-list state-summary"[^>]*aria-label="Select state notes"/);
+  assert.match(html, /Popup menu is host-owned/);
+  assert.match(html, /<span class="inline-code">saveButton<\/span> is Runtime-wired/);
   assert.match(html, /<button id="saveButton"[^>]*type="button"/);
-  assert.match(html, /id="modeInvalid"[^>]*aria-invalid="true"/);
-  assert.match(html, /id="queryInvalid"[^>]*aria-invalid="true"/);
   assert.match(html, /id="buttonActive"[^>]*aria-pressed="true"/);
   assert.match(html, /id="buttonLoading"[^>]*aria-busy="true"/);
   assert.match(html, /class="cd-button cd-button-success"/);
@@ -61,6 +63,7 @@ test('ui-components demo keeps structure, state ownership, and resource boundari
   assert.match(css, /\.is-focus-sample/);
   assert.match(css, /@media \(max-width: 700px\)/);
   assert.match(css, /\.cd-select\s*\{/);
+  assert.doesNotMatch(css, /appearance\s*:\s*auto/i);
   assert.doesNotMatch(css, /@import|url\s*\(|image-set\s*\(/i);
 
   const entry = catalog.entries['custom-ui/ui-components.js'];

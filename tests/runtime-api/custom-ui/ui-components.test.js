@@ -22,7 +22,7 @@
         title: 'Custom UI component states',
         position: {
           mode: 'anchor',
-          size: { width: 760, height: 780 },
+          size: { width: 760, height: 880 },
           horizontal: 'center',
           vertical: 'center',
           display: 'active',
@@ -37,8 +37,7 @@
 
       const ids = panel.controls().map(control => control.id);
       for (const id of [
-        'dragbar', 'mode', 'modeDefault', 'modeHover', 'modeFocus', 'modeDisabled', 'modeInvalid',
-        'query', 'queryEmpty', 'queryHover', 'queryFocus', 'queryDisabled', 'queryInvalid',
+        'dragbar', 'mode', 'query',
         'saveButton', 'buttonDefault', 'buttonHover', 'buttonFocus', 'buttonActive',
         'buttonDisabled', 'buttonLoading', 'buttonSuccess', 'buttonError',
         'simulateError', 'toggleSelect', 'reset', 'close',

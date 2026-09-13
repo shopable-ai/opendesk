@@ -1987,6 +1987,18 @@ Custom UI 常见结构化错误：
 
 ## 主题、图标与详细设计规范
 
+### 主题与 CSS surface
+
+`ui.createWindow(spec).theme` 只接受 `system` 或 `dark`，默认 `system`；
+`FloatingWindow` 固定使用 `dark`。主题在创建时声明，不能通过
+`ControlHandle.update()` 切换；切换时应关闭旧窗口并用新的 window id 创建新窗口。
+
+主题不会生成设计 token，也不会把任意 CSS 颜色自动换成另一套颜色。HTML/CSS surface 的背景、文字、边框、焦点环和状态色必须由脚本明确声明。需要稳定截图和跨平台示例时，优先 `theme: "dark"` 加显式 CSS token；跟随系统时使用 `theme: "system"`，并声明合适的 `color-scheme`、测试浅色与深色外观。
+
+文件型内容的 CSS 层叠顺序固定为 HTML 内的 `<style>`、`content.css`、`content.cssFile`；CSS 只作用于当前窗口内容，不是全局样式表。HTML、CSS 与图片资源必须位于脚本目录内；不支持 CSS `url()`、`image-set()`、`@import`、CSS escape、远程 stylesheet 或远程图片，HTML 也不能包含 `<script>` 或 inline event handler。交互逻辑由外层 JavaScript 通过 `panel.control(id).on(...)` 注册。
+
+`ui.createWindow()` 的 `button`、`input`、`textarea`、`select` 由 WKWebView 或 WebView2 绘制并通过 Custom UI bridge 提供稳定 id、状态 readback 与事件；它们不是 `FloatingWindow` 的 AppKit/WinForms 控件。`FloatingWindow` 没有 CSS surface，宽度、选项和状态必须通过对应声明以及 `updateButton()` / `updateControl()` 更新。
+
 本 Reference 维护公共 API contract；视觉设计、token、平台差异和图标选型工具单独维护：
 
 - [Custom UI 主题与控件规范](../custom-ui/theme-guide.md)

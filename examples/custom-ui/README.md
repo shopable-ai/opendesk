@@ -2,11 +2,13 @@
 
 ## Reusable UI component states
 
-`ui-components.js` 是面向组件作者的 HTML/CSS 状态画廊：它集中展示 Select 的当前值和
-disabled、Input 的 placeholder/filled/invalid、Button 的 normal/busy/disabled/error，
-并把状态变化、可访问性 readback 和关闭生命周期写入 Runtime 日志。结构和主题样式分别
-位于 `ui-components/panel.html` 与 `ui-components/panel.css`；它们是受限内容，不包含
-业务脚本。组件规范见 [`docs/custom-ui/theme-guide.md`](../../docs/custom-ui/theme-guide.md)。
+`ui-components.js` 是面向组件作者的 HTML/CSS 状态画廊：它用一个真实的 Select 和一个
+真实的 Input 演示 Runtime 事件，用说明行表达 placeholder/filled/focus/disabled/invalid
+等状态，再用 HTML button 样本展示 normal/busy/disabled/error。Select 的关闭 field 可以
+由 CSS 统一主题，展开菜单则明确标注为 WKWebView/WebView2/系统 host 的差异；不会用静态
+HTML 冒充 Native UI。状态变化、可访问性 readback 和关闭生命周期写入 Runtime 日志。
+结构和主题样式分别位于 `ui-components/panel.html` 与 `ui-components/panel.css`；它们是
+受限内容，不包含业务脚本。组件规范见 [`docs/custom-ui/theme-guide.md`](../../docs/custom-ui/theme-guide.md)。
 
 从仓库根目录直接运行：
 

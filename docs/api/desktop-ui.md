@@ -18,6 +18,7 @@ order: 50
 | `UI.getValue(target, options)` | Experimental · Local | 读取唯一原生文本框的字符串值。 |
 | `UI.setValue(target, value, options)` | Experimental · Local | 设置唯一原生文本框的完整字符串值并用同一引用回读。 |
 | `UI.findTexts(text, options?)` | Stable | 返回全部匹配文本。 |
+| `UI.findTextMatches(queries, options?)` | Stable | 用一次截图和 OCR 批量计算多组字符串或正则匹配。 |
 | `UI.findText(text, options?)` | Stable | 返回唯一匹配文本。 |
 | `UI.hasText(text, options?)` | Stable | 判断是否存在匹配文本。 |
 | `UI.tapText(text, options?)` | Stable | 查找并点击唯一文本。 |
@@ -444,6 +445,45 @@ UI.findTexts(text: string, options?: OpenDeskUITextLocateOptions): Promise<OpenD
 ```js
 const targets = await UI.findTexts('保存', { within: win });
 console.log(targets.length);
+```
+
+## UI.findTextMatches(queries, options?)
+
+对同一次截图和 OCR 观察批量计算 `1..32` 个字符串或 `RegExp` 查询；本方法只读，不发送输入。
+
+**签名**
+
+```ts
+UI.findTextMatches(
+  queries: Array<string | RegExp>,
+  options?: OpenDeskUITextMatchOptions,
+): Promise<OpenDeskUITextMatchGroup[]>;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `queries` | `Array<string \| RegExp>` | 是 | 无 | `1..32` 个非空查询；正则拒绝有状态的 `g` / `y` flag。 |
+| `options` | `OpenDeskUITextMatchOptions` | 否 | `{}` | 支持 `within`、OCR 选项和 `region`；不接受点击、索引、轮询或 `relativeTo`。 |
+
+**返回值**
+
+`Promise<OpenDeskUITextMatchGroup[]>`。结果与输入顺序一一对应；每项包含 `queryIndex` 和按 reading order 排列的 `matches`，无匹配时该数组为空。同一 OCR 文本可以进入多个查询组。
+
+**行为与错误**
+
+所有查询共享一次观察，观察失败整体拒绝，不返回部分结果。省略 `within` 时会在返回前复核同一活动窗口；窗口身份或边界变化抛 `STALE_TARGET`。字符串查询支持 `exact`、`contains`、`startsWith`、`endsWith`；为正则查询传入字符串专用匹配选项会抛 `INVALID_ARGUMENT`。
+
+**示例**
+
+```js
+const groups = await UI.findTextMatches([
+  '订单号：12345678',
+  /^订单号：\d{8,20}$/u,
+  /已完成$/u,
+], { within: win });
+console.log(groups.map(group => group.matches.length));
 ```
 
 ## UI.findText(text, options?)
