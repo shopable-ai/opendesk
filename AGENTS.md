@@ -107,10 +107,22 @@
 - 公开示例归 `examples/<topic>/`；共享断言归 `tests/runtime-api/`；诊断工具归所属领域的
   `tools/`。本轮基础示例规范目录是 `examples/runtime/`。
 - 判断保留价值以构建依赖、调用者、文档命令及独立覆盖为准，不按 AI 来源、文件名或相似度删除。
-  `examples/native-extensions/macos-vision/` 参与构建，不能按普通示例清理。
 - 已登记旧路径只允许薄兼容转发，不保留两套实现；移除前按迁移台账完成引用及直接命令验证。
   转发不得吞掉错误、启动新 Execution 或伪造 `Execution.scriptPath/scriptDir`。
 - Go 新增审查行写入原分类账本末尾的唯一 `## 增量登记` 章节；保留历史迁移基线，不因新增
   测试改写历史计数。未登记或丢失的测试仍必须使审计失败。
 - 目录整理运行 `node scripts/audit_test_architecture.js`；维护审计逻辑时补跑
   `node --test tests/test-architecture/layout.test.js`。宿主侧模拟检查不能代替真实 Runtime gate。
+
+## UI 定位代码生成与失败修复
+
+- 生成或修改桌面自动化定位／动作代码，或处理 `UI.tapTexts` 超时、OCR 错读／漏检／歧义时，必须读取
+  `docs/frameworks/ui-locator-repair.md`，按“候选 → 无输入预检 → 获准最小实测 → 独立结果验证 → 定向修复 → 重验”推进。
+- 先核对当前 API、实际构建物与 execution 入口；复用已有脚本、AppProfile、Recorder／测量证据。
+  静态检查和模拟测试不能替代真实桌面验收；没有连接／权限的项目明确记为未运行，不补造通过结论。
+- 允许有证据、应用／布局／区域限定的 OCR 别名，例如乘法按钮的 `× / †`；保留原文，合并候选后要求唯一。
+  不做全局字符替换，不把别名当作漏检修复，不为此发明公共 API 或未知 options。
+- 对当前稳定界面先预检全部必要 distinct targets 和结果读取方式；动态流程按当前阶段预检。
+  输入可能已发生或 `actionState: 'unknown'` 时停止，不盲目重放前缀或切换 backend 重点。
+- 沿用 application-engineer 的 harden／repair 与现有资格交接；定位策略替换、真实执行或结果 Oracle
+  涉及 Human-to-Recipe 时仍遵守上面的完整 Skill 路由。纯行为保持的静态精炼不因此获得桌面执行授权。
