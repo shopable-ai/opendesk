@@ -6,10 +6,16 @@ import (
 	"path/filepath"
 )
 
-var files = []string{
-	"controller.js",
-	"controller-core.js",
-	"recording-history.js",
+type assetSync struct {
+	sourceDir string
+	name      string
+}
+
+var assets = []assetSync{
+	{sourceDir: filepath.Join("..", "..", "apps", "opendesk", "recorder"), name: "controller.js"},
+	{sourceDir: filepath.Join("..", "..", "apps", "opendesk", "recorder"), name: "controller-core.js"},
+	{sourceDir: filepath.Join("..", "..", "apps", "opendesk", "recorder"), name: "recording-history.js"},
+	{sourceDir: filepath.Join("..", "..", "apps", "opendesk", "assets"), name: "opendesk-logo.png"},
 }
 
 func main() {
@@ -17,14 +23,13 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	sourceRoot := filepath.Clean(filepath.Join(cwd, "..", "..", "apps", "opendesk", "recorder"))
 	targetRoot := filepath.Join(cwd, "assets")
 	if err := os.MkdirAll(targetRoot, 0o755); err != nil {
 		panic(err)
 	}
-	for _, name := range files {
-		source := filepath.Join(sourceRoot, name)
-		target := filepath.Join(targetRoot, name)
+	for _, asset := range assets {
+		source := filepath.Clean(filepath.Join(cwd, asset.sourceDir, asset.name))
+		target := filepath.Join(targetRoot, asset.name)
 		data, err := os.ReadFile(source)
 		if err != nil {
 			panic(fmt.Errorf("read %s: %w", source, err))

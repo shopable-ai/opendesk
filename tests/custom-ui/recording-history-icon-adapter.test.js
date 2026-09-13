@@ -8,6 +8,8 @@ const vm = require('node:vm');
 
 const controllerPath = path.resolve(__dirname, '../../apps/opendesk/recorder/controller.js');
 const controllerSource = fs.readFileSync(controllerPath, 'utf8');
+const corePath = path.resolve(__dirname, '../../apps/opendesk/recorder/controller-core.js');
+const coreSource = fs.readFileSync(corePath, 'utf8');
 
 function defaultDialog() {
   return {
@@ -17,8 +19,9 @@ function defaultDialog() {
   };
 }
 
-function loadController(baseUI, rawDialog = defaultDialog()) {
+function loadController(baseUI, rawDialog = defaultDialog(), createOptions = {}) {
   const toolbar = {};
+  const toolbarIcons = new Map();
   const coreApp = {
     async show() {}, async run() {}, async close() {}, async stop() {},
     state: () => ({phase: 'ready'}),
@@ -34,7 +37,7 @@ function loadController(baseUI, rawDialog = defaultDialog()) {
       join: (...parts) => parts.join('/').replace(/\/+/g, '/'),
       read(file) {
         if (file.endsWith('/controller-core.js')) {
-          return `globalThis.OpenDeskSimpleRecordingConsole = { createApp(options) { globalThis.__coreOptions = options; return globalThis.__coreApp; } };`;
+          return `globalThis.OpenDeskSimpleRecordingConsole = { createApp(options) { globalThis.__coreOptions = options; globalThis.__innerToolbar = new options.FloatingWindow({title: 'core title'}); globalThis.__innerToolbar.addButton('home', '', 'house.fill'); return globalThis.__coreApp; } };`;
         }
         if (file.endsWith('/recording-history.js')) {
           return `globalThis.OpenDeskRecordingHistory = { createManager(options) { globalThis.__historyOptions = options; return globalThis.__history; } };`;
@@ -43,15 +46,22 @@ function loadController(baseUI, rawDialog = defaultDialog()) {
       },
     },
     Execution: {scriptDir: '/scripts'},
-    FloatingWindow: function FloatingWindow() {},
+    FloatingWindow: function FloatingWindow(spec) {
+      this.spec = spec;
+      sandbox.__baseToolbar = this;
+    },
     Dialog: rawDialog,
     __coreApp: coreApp,
     __history: history,
+  };
+  sandbox.FloatingWindow.prototype.addButton = function addButton(id, label, icon) {
+    toolbarIcons.set(id, icon);
   };
   sandbox.globalThis = sandbox;
   vm.createContext(sandbox);
   vm.runInContext(controllerSource, sandbox, {filename: 'controller.js'});
   sandbox.OpenDeskSimpleRecordingConsole.createApp({
+    ...createOptions,
     ui: baseUI,
     FloatingWindow: sandbox.FloatingWindow,
     dialog: rawDialog,
@@ -60,8 +70,64 @@ function loadController(baseUI, rawDialog = defaultDialog()) {
     historyUI: sandbox.__historyOptions.ui,
     coreDialog: sandbox.__coreOptions.dialog,
     historyDialog: sandbox.__historyOptions.dialog,
+    toolbarSpec: sandbox.__baseToolbar.spec,
+    toolbarIcons,
   };
 }
+
+function recorderCoreToolbarSpec(createOptions = {}) {
+  let toolbarSpec;
+  function FloatingWindow(spec) {
+    toolbarSpec = spec;
+    this.id = spec.id;
+  }
+  for (const method of ['addButton', 'addSeparator', 'addSwitch', 'onError', 'on']) {
+    FloatingWindow.prototype[method] = function noop() {};
+  }
+  const sandbox = {
+    console,
+    Recorder: {
+      getCapabilities() { return {capture: {available: false, hostAuthorized: true, permission: 'unavailable'}}; },
+      async start() {}, async buildActions() {}, async generateScript() {},
+    },
+    window: {getActiveWindow: () => ({pid: 1, title: 'Fixture'})},
+    FloatingWindow,
+    Dialog: {async alert() {}},
+    Command: {async run() { return {exitCode: 0}; }},
+    File: {join: (...parts) => parts.join('/'), read() { return ''; }, ensureDir() {}},
+    Execution: {workdir: '/workspace', scriptDir: '/bundle'},
+    System: {product: {website: 'https://example.com'}},
+    page: {async openURL() {}},
+  };
+  sandbox.globalThis = sandbox;
+  vm.createContext(sandbox);
+  vm.runInContext(coreSource, sandbox, {filename: corePath});
+  sandbox.OpenDeskSimpleRecordingConsole.createApp(createOptions);
+  return toolbarSpec;
+}
+
+test('Recorder wrapper and core default to a localizable title and honor windowTitle', () => {
+  const baseUI = {async createWindow() { return {control() { return null; }}; }};
+  assert.equal(loadController(baseUI).toolbarSpec.title, 'OpenDesk — Recorder');
+  assert.equal(
+    loadController(baseUI, defaultDialog(), {windowTitle: '  Recorder locale override  '}).toolbarSpec.title,
+    'Recorder locale override',
+  );
+  assert.equal(recorderCoreToolbarSpec().title, 'OpenDesk — Recorder');
+  assert.equal(recorderCoreToolbarSpec({windowTitle: '  Core locale override  '}).title, 'Core locale override');
+  assert.doesNotMatch(coreSource, /title:\s*'\\u200B'/);
+});
+
+test('Recorder home uses the Script Runner image descriptor from the self-contained execution payload', () => {
+  const baseUI = {async createWindow() { return {control() { return null; }}; }};
+  const {toolbarIcons} = loadController(baseUI);
+
+  const homeIcon = toolbarIcons.get('home');
+  assert.equal(homeIcon.path, '/scripts/assets/opendesk-logo.png');
+  assert.equal(homeIcon.renderingMode, 'original');
+  assert.match(controllerSource, /runtimeExecution\.scriptDir, 'assets', 'opendesk-logo\.png'/);
+  assert.match(controllerSource, /renderingMode: 'original'/);
+});
 
 test('history UI adapter keeps built-in icon metadata and supplies visible fallback glyphs', async () => {
   const patches = new Map();

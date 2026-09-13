@@ -23,6 +23,8 @@
     'arrow.clockwise': '↻',
   });
 
+  // The framework-owned Recorder execution materializes this asset beside its
+  // entry script, matching Script Runner's script-local image descriptor.
   function resolveBrandIcon(runtimeFile, runtimeExecution) {
     if (!runtimeFile || typeof runtimeFile.join !== 'function'
       || !runtimeExecution || !runtimeExecution.scriptDir) {
@@ -245,7 +247,12 @@
       windowTitle
     );
     const sharedDialog = createDialogCoordinator(dialog, settings.logger || global.console);
-    const coreApp = coreAPI.createApp({...settings, dialog: sharedDialog, FloatingWindow: HistoryAwareFloatingWindow});
+    const coreApp = coreAPI.createApp({
+      ...settings,
+      windowTitle,
+      dialog: sharedDialog,
+      FloatingWindow: HistoryAwareFloatingWindow,
+    });
     const historyUI = createHistoryUIAdapter(ui);
 
     const history = historyAPI.createManager({

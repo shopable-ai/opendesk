@@ -16,10 +16,11 @@ const RecorderWindowID = "recording-console"
 //go:generate go run ./cmd/sync
 
 // runtimeAssets is the built-in Recorder payload owned by the compiled OpenDesk
-// program. JavaScript files are generated mirrors; generic icons remain owned
-// by the shared Custom UI runtime catalog instead of being copied as PNGs.
+// program. JavaScript files are generated mirrors. The product logo is copied
+// from the canonical App asset so the auxiliary execution can use the same
+// script-local FloatingWindow image descriptor as Script Runner.
 //
-//go:embed assets/controller.js assets/controller-core.js assets/recording-history.js
+//go:embed assets/controller.js assets/controller-core.js assets/recording-history.js assets/opendesk-logo.png
 var runtimeAssets embed.FS
 
 // WriteToDir materializes the built-in Recorder product resources for the
@@ -39,7 +40,13 @@ func WriteToDir(root string) (string, error) {
 		if path == "." {
 			return nil
 		}
-		target := filepath.Join(root, "recording-console-simple", filepath.FromSlash(path))
+		targetRoot := filepath.Join(root, "recording-console-simple")
+		if path == "opendesk-logo.png" {
+			// FloatingWindow permits image descriptors only inside this execution's
+			// script directory. This preserves Script Runner's assets/ path shape.
+			targetRoot = filepath.Join(root, "assets")
+		}
+		target := filepath.Join(targetRoot, filepath.FromSlash(path))
 		if entry.IsDir() {
 			return os.MkdirAll(target, 0o755)
 		}

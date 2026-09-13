@@ -17,6 +17,15 @@
   });
   const HTTPS_URL_PATTERN = /^https:\/\/[^\s/?#\\]+(?:[/?#][^\s]*)?$/;
 
+  const DEFAULT_WINDOW_TITLE = 'OpenDesk — Recorder';
+
+  function resolveWindowTitle(settings) {
+    const input = settings || {};
+    return typeof input.windowTitle === 'string' && input.windowTitle.trim()
+      ? input.windowTitle.trim()
+      : DEFAULT_WINDOW_TITLE;
+  }
+
   function resolveProductWebsite(system) {
     const website = system && system.product && typeof system.product.website === 'string'
       ? system.product.website.trim()
@@ -92,6 +101,7 @@
 
   function createApp(options) {
     const settings = options || {};
+    const windowTitle = resolveWindowTitle(settings);
     const recorder = settings.recorder || global.Recorder;
     const getActiveWindow = settings.getActiveWindow
       || (() => global.window.getActiveWindow());
@@ -196,9 +206,7 @@
       position: {
         mode: 'anchor', horizontal: 'center', vertical: 'bottom', margin: 24, display: 'active',
       },
-      // Keep the native title bar visually blank; all semantic names live on
-      // button tooltips and Accessibility names.
-      title: '\u200B',
+      title: windowTitle,
       theme: 'dark',
       alwaysOnTop: true,
       draggable: true,

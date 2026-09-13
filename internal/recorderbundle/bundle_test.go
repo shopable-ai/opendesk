@@ -25,6 +25,7 @@ func TestWriteToDirIsSelfContained(t *testing.T) {
 		"recording-console-simple/controller.js",
 		"recording-console-simple/controller-core.js",
 		"recording-console-simple/recording-history.js",
+		"assets/opendesk-logo.png",
 	} {
 		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(relative))); err != nil {
 			t.Fatalf("missing embedded Recorder UI asset %s: %v", relative, err)
@@ -44,6 +45,17 @@ func TestWriteToDirIsSelfContained(t *testing.T) {
 	}
 	if strings.Contains(string(controller), "workflows/human-to-recipe/recording-console-simple") {
 		t.Fatal("embedded Recorder UI must not fall back to the source workflow tree")
+	}
+	materializedLogo, err := os.ReadFile(filepath.Join(root, "assets", "opendesk-logo.png"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	canonicalLogo, err := os.ReadFile(filepath.Join("..", "..", "apps", "opendesk", "assets", "opendesk-logo.png"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(materializedLogo, canonicalLogo) {
+		t.Fatal("materialized Recorder logo must match the canonical Script Runner product asset")
 	}
 
 	entryContent, err := os.ReadFile(entry)
@@ -75,6 +87,20 @@ func TestGeneratedJavaScriptMatchesCanonicalSources(t *testing.T) {
 	}
 }
 
+func TestGeneratedProductLogoMatchesCanonicalAsset(t *testing.T) {
+	embedded, err := runtimeAssets.ReadFile("assets/opendesk-logo.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	canonical, err := os.ReadFile(filepath.Join("..", "..", "apps", "opendesk", "assets", "opendesk-logo.png"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(embedded, canonical) {
+		t.Fatal("embedded Recorder logo drifted from apps/opendesk/assets/opendesk-logo.png; run go generate ./internal/recorderbundle")
+	}
+}
+
 func TestRecorderControllerUsesBuiltInCatalogIDsDirectly(t *testing.T) {
 	core, err := os.ReadFile(filepath.Join("..", "..", "apps", "opendesk", "recorder", "controller-core.js"))
 	if err != nil {
@@ -90,7 +116,7 @@ func TestRecorderControllerUsesBuiltInCatalogIDsDirectly(t *testing.T) {
 		}
 	}
 	for _, forbidden := range []string{
-		"iconRoot", "countdown-", "opendesk-logo.png", "runtime-icon-adapter",
+		"iconRoot", "countdown-", "runtime-icon-adapter",
 	} {
 		if strings.Contains(text, forbidden) {
 			t.Fatalf("Recorder controller must not retain legacy icon indirection %q", forbidden)
