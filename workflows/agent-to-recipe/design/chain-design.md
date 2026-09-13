@@ -6,9 +6,13 @@ order: 40
 
 # Agent-first Recorder｜链路、职责与成果交接设计
 
-状态：链路设计 v0.6，2026-09-11。本文把[需求](requirements.md)与[完整任务树](task-decomposition.md)转成环节关系；当前只落地 application-engineer 方法入口及设计接线，不是完整运行调度器，也不新增可执行 IR。Structured UI Collection Reading 的 Runtime/VLM/Traversal 详细合同只维护在[专项架构](../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)。返回[设计总纲](README.md)。
+状态：链路设计 v0.7，2026-09-13 增补 Capability Gap／维修／资格发布接线。本文把[需求](requirements.md)与[完整任务树](task-decomposition.md)转成环节关系；当前只落地 application-engineer 方法入口及设计接线，不是完整运行调度器，也不新增可执行 IR。Structured UI Collection Reading 的 Runtime/VLM/Traversal 详细合同只维护在[专项架构](../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)。返回[设计总纲](README.md)。
 
-## 一、三层怎样配合
+跨 Runtime／Catalog／Authoring 的唯一架构与完整生命周期任务树见 [Automation Capability Lifecycle](../../../docs/architecture/desktop-automation/task-capability-lifecycle.md)。本页只维护作者链如何接入和返回；不复制 Catalog 字段、运行状态机或另建 `workflows/conversational-task-runner/`。本轮仅更新文档，不表示通用 Catalog、发布器或新的专业 Skill 已实现。
+
+## 一、需求树／链路／方法三层怎样配合
+
+以下是作者文档的三个职责层次，不是生命周期总纲中的 Runtime／Catalog／Authoring 三个产品责任层。
 
 - 需求与任务树说明必须满足什么、完整需要做哪些事，保留必要的推导、状态、数据与验证节点。
 - 链路设计分配职责、输入输出、路由与控制，明确哪里可以独立进入或跳过；一个工作包可以跨多个阶段。
@@ -112,6 +116,39 @@ UI.readCollection(current viewport)
   - 仅验收时直接消费冻结候选、合同和场景，不先重新生成代码。
   - 源码纯结构改进与应用语义改变分开；后者须同步应用依据及验证范围。
 
+### 从 Runtime 进入作者链，再返回可发布能力
+
+普通用户运行已有能力不进入 S1—S12；只有明确的 Gap、维修、扩展或资格／发布需求进入相应作者工作包。Runtime/Catalog 的详细路由与权限规则以生命周期总纲为准。
+
+| 进入条件 | 本链最小处理 | 完成出口 |
+| --- | --- | --- |
+| 参数歧义、权限／认证／准备条件缺失 | 返回澄清或现有 owner 的 guidance／受控准备，不新建 Recipe | 修正输入或明确受阻；没有新增资格 |
+| 已有合格候选，仅缺登记 | 发布者检查固定候选、证据和批准，不重做示范 | 显式发布交接；发布不触发业务执行 |
+| 代码未变，仅当前环境未验证或证据不足 | S12 针对固定 Candidate 补证／重验 | 新 QualificationRecord 或明确 blocked，不伪造代码修改 |
+| App／layout／locator 变化 | application-engineer repair／harden，复用有效规则，再固定受影响候选 | 新 Candidate、重验范围和必要回归 |
+| 相似能力需新参数域／操作 | 修订经授权合同和所需过程，定向应用工程与生成 | 增量候选、qualification delta、相应新发布版本 |
+| 完全没有能力 | 先查已有资产，再明确选择 Agent 新示范或转 Human 录制入口 | 有来源的 Candidate 与独立资格，或可接续阻塞包 |
+| Runtime primitive 缺失 | 用当前 API／实现证据提出[扩展请求](../../../docs/frameworks/runtime-api-extension-framework.md) | 基础能力完成对应验证后返回原工作包，不绕过 Runtime |
+| 动作效果不明／授权不允许 | 核对后果或停止，不把阻塞变成开发绕过 | unknown／blocked 与诊断交接；不自动重放 |
+
+Gap 与 Failure Package 不自动授权探索、录制、模型上传、代码修改、测试或发布。先固定用户目标、成功标准、来源、允许对象／副作用与预算；普通运行确认不沿用为作者授权。结果可能已生效时，在任何真实重演前先核对，而不是从第一步重新执行。
+
+Human 来源继续进入[Human-to-Recipe](../../human-to-recipe/README.md)，其 actions／SemanticBuildPlan／Episode 不改造成虚构的 Agent Dossier。application-engineer 保留现有路径供三条入口共享；discover、harden、repair 按实际知识缺口选择，不复制新的应用工程 Skill。跨来源映射、Candidate 闭包与发布 handoff 唯一遵循[共享合同](../../../docs/frameworks/agent-to-recipe-skill-contract.md)第 10 节。
+
+### 可独立接续的最小工作包
+
+这些是工作范围，不是新增阶段或五个新 Skill；同一个已有 attempt 组织能够承载时不额外拆文件。
+
+| 工作包目标 | 输入 | 输出／消费者 | 完成或阻塞条件 |
+| --- | --- | --- | --- |
+| 明确本次走哪条最小路径 | Gap／Failure／已有资产引用、用户目标和权限 | TaskContract／WorkPlan 或 Human 原 plan 的授权增量；供所需作者职责 | 区分复用、发布、重验、维修、扩展、新生产；关键未决保持 blocked |
+| 补足应用操作依据 | 所需操作、旧 Profile／helper、具体失败和获准证据 | 同版 AppProfile／helper／局部验证及影响范围；供示范、构建、重验 | 只认识不能冒充操作通过；无 primitive 时返回扩展请求 |
+| 固定可执行候选 | 已确认原生过程、实际 API、有效规则及变化范围 | 普通 JS、CandidateManifest、依赖闭包及 source mapping；供独立资格 | 无来源按钮／数据／fallback 不进入代码；变更产生新候选 |
+| 证明候选在声明范围内可用 | 固定 Candidate、标准、场景、测试授权与当前环境 | QualificationRecord、实际证据或 repairRequests；供发布者／责任环节 | Gate 执行实际 production，独立读回；fail/not-run/blocked 不冒充 pass |
+| 将合格成果交给普通运行入口 | 精确候选与资格、拟发布范围、持久证据和发布批准 | Catalog 的固定发布引用；供后续 Resolver | 仅在发布门已实现并校验通过时登记；不得自动执行旧请求 |
+
+可复用资产不要求全部重走这些工作包；缺哪个补哪个。qualification delta 消费明确的变更影响、仍有效旧证据、新场景与必要回归，不把旧 pass 直接复制给新 hash。共享 Profile／helper 改变时追踪受影响候选，依赖不明则保守重验；未改变且仍适用的部分继续引用原版本。
+
 ### 同一 Agent 的正常与异常路线
 
 ```text
@@ -178,7 +215,7 @@ UI.readCollection(current viewport)
 
 ### 作为复用资产交付的最小条件
 
-资产可以是一份 JS、必要 helper 与简短说明，不强制新目录、Registry、平台或独立 schema。复用的是代码、规则和限定范围的验证依据，不是作者当次会话与权限。
+资产可以是一份 JS、必要 helper 与简短说明，不强制新目录、Registry、平台或独立 schema。复用的是代码、规则和限定范围的验证依据，不是作者当次会话与权限。这里的轻量文件交付不等于 Normal Mode 放行；后者另须共同 Qualification 与 Catalog 发布门。
 
 | 交付内容 | 生产与核验责任 |
 | --- | --- |
@@ -189,6 +226,24 @@ UI.readCollection(current viewport)
 | 共享边界与独立使用条件 | 交付者确认共享许可与维护责任；S12 用 BC-20 检查他人配置及运行，不继承作者的私有上下文或通过状态 |
 
 共享版本仅包含获准代码、说明和必要脱敏样例；原始屏幕、私有聊天、凭据与临时任务包不随资产发布。需求、应用版本或依赖变化使相关资格需重核；未经共享授权的可运行代码仍不能自动公开。后续外部编排只组织已明确的调用合同，不成为本轮普通运行前提。
+
+### Qualification 到 Catalog 的交付边界
+
+S12 的完成成果仍是固定 Candidate 的 QualificationRecord，不增加 S13，不让 qualification 自己修改生产代码或决定发布。普通文件／工作包 handoff、产品 Catalog 发布、真实业务执行是三个不同边界。
+
+```text
+不可变 Candidate + 独立 QualificationRecord
+→ 发布者核对范围、来源、依赖、持久证据和明确批准
+→ 本地 Catalog 登记固定版本
+→ 后续 Runtime 重新解析、预检、预览、确认
+→ 普通 JS + 真实 Observation
+```
+
+纯 JS 和混合 JS＋LLM.generate()／Agent.run() 都走同一候选与资格模型；混合判断的模型策略、schema／validator、工具／外发限制和预算纳入冻结闭包。发布不能扩大模型权限，模型输出只进入严格校验后的确定分支，不能临时生成新代码执行。
+
+公开使用的代码与已有 AppProfile、preflight、preview、schema 或依赖发生影响性变化时，旧确认和资格绑定不能继续套用。代码未变的补证与真实维修分别记录，问题版本按目录策略暂停／撤销，历史证据不改写。一次新环境失败不自动否认旧环境资格，但未知 app version/layout/locale 不能视作兼容。
+
+上述发行检查的字段与证据寿命遵循共享合同第 10 节；本页不维护第二套发布清单。发布门未实现、关键证据未持久保存或资格未覆盖时，交付候选和明确阻塞，不把“生成成功”写成“普通用户已可用”。
 
 ## 五、数据线、控制线与权限
 
@@ -265,6 +320,8 @@ UI.readCollection(current viewport)
 
 正向检查每项需求有负责环节、成果和测试；反向检查每个新增环节都有需求依据。实际执行后补真实证据引用，不在此写预制通过状态。
 
+本轮 Capability 生命周期衔接不另造 DREQ／BC 编号。跨层信任门、双来源发布、版本漂移、取消／未知效果和证据保留的验收统一引用生命周期总纲第 15 节，以及共享合同第 10.7 节；上表继续保存 S1—S12 原需求映射，不把跨层设计写成这些旧用例已运行。
+
 ## 九、进入正式 Skill 化的实施规格
 
 - 每个 Skill 需要明确适用触发、前提、输入合同、专业步骤、输出及消费者、错误和停止条件、允许工具、验证场景及未支持范围。
@@ -275,6 +332,8 @@ UI.readCollection(current viewport)
 - 核实实际实现与宿主加载路径，建立与本设计一致的入口；旧目录已删除，不将历史索引或 stages 路径作为当前依赖，不恢复重复阶段卡。
 - 独立 code-rebuild、超出 minimal-repair 的获准优化、人工开发来源及质量裁剪仍须各自兼容设计。本次不悄悄新增这些 JSON 枚举，不把代码改进伪称新示范。
 - 实施后再验证单 Skill、独立交接及完整生成；合同、业务设计、实现和实际加载分别核实，不以本文证明新调用已经可用。
+- 下一实施批的作者侧优先补共享 `recipe-qualify` 正式方法与实际候选 Gate 接线、发布 handoff 的最小适配，并与总纲 P0 的 Catalog／信任门配合；不是先恢复全部旧 Skill 目录。其余 planning／demonstration／distillation／procedure／build 入口按真实消费者逐个补齐，code-rebuild 保持独立可选。
+- Calculator 当前 Chat 候选必须取得自己的真实参数域／layout／取消／读值资格后才进入 Normal Mode，不能继承历史 golden 或 mock；第二应用、双来源实际发布及定向维修回归进入 P1。当前没有这些新 PASS，不对未来功能填写完成率。
 
 方法依据：[框架导航](../../../docs/frameworks/README.md)、[任务求解](../../../docs/frameworks/automation-problem-solving-framework.md)、[应用开发](../../../docs/frameworks/app-development-framework.md)、[共享合同](../../../docs/frameworks/agent-to-recipe-skill-contract.md)、[Structured UI Collection Reading](../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)。
 
@@ -285,3 +344,5 @@ UI.readCollection(current viewport)
 2026-09-10，v0.5：接入 Structured UI Collection Reading：application-engineer → CollectionProfile → recipe-build/future readCollection → generic CollectionItem[] → App Adapter/Recipe business mapping → qualification；跨 viewport 另经过 side-effecting scroll collector。新增 profile drift、evidence conflict、VLM unavailable、continuity unproven、collection mutation 五类定向返回，并接入 DREQ-25—DREQ-29；不新增 S13、Skill、稳定 API 或分页内建策略。
 
 2026-09-11，v0.6：新增自然语言入口后的可审阅业务操作计划、关键未知优先核实和 planned／actual／planDelta 交接；将 S7 明确为 DistilledSteps 生产环节和目标 `trace-distill` 职责，将 `procedure-synthesize` 收窄为 S8—S9，并接入 DREQ-30—DREQ-33。未新增阶段、Runtime 或已安装 Skill 声明。
+
+2026-09-13，v0.7：接入 Runtime Gap／Failure／已有资产的最小分流、五类可接续工作包与 Qualification→Publish→后续运行出口，明确 Human 原生来源、共享应用工程、差量重验及 P0/P1 实施顺序。只更新文档，保留 S1—S12、原需求／案例与历史证据，不创建 Catalog、发布器、Skill 或新的 Runtime API。
