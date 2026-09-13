@@ -335,6 +335,7 @@
     const openDeskBinary = settings.openDeskBinary
       || file.join(execution.workdir, 'dist', os === 'windows' ? 'opendesk.exe' : 'opendesk');
     let historyWindow = null;
+    let historyOpening = null;
     let currentRows = [];
     let visibleRows = [];
     let pageIndex = 0;
@@ -706,11 +707,11 @@
         const row = assertMutableRecording(recordingId);
         let result;
         if (os === 'windows') {
-          result = await command.run('explorer.exe', [row.recordingDir], {cwd: execution.workdir, timeout: 10000, maxOutputBytes: 1024 * 1024});
+          result = await command.run('explorer.exe', [row.recordingDir], {cwd: execution.workdir, timeout: 10000, maxOutputBytes: 1024 * 1024, hideWindow: true});
         } else if (os === 'darwin') {
-          result = await command.run('/usr/bin/open', [row.recordingDir], {cwd: execution.workdir, timeout: 10000, maxOutputBytes: 1024 * 1024});
+          result = await command.run('/usr/bin/open', [row.recordingDir], {cwd: execution.workdir, timeout: 10000, maxOutputBytes: 1024 * 1024, hideWindow: true});
         } else {
-          result = await command.run('xdg-open', [row.recordingDir], {cwd: execution.workdir, timeout: 10000, maxOutputBytes: 1024 * 1024});
+          result = await command.run('xdg-open', [row.recordingDir], {cwd: execution.workdir, timeout: 10000, maxOutputBytes: 1024 * 1024, hideWindow: true});
         }
         await showFeedback(`已打开 ${recordingId} 的目录`, {level: 'success'});
         return result;
@@ -812,6 +813,7 @@
           cwd: execution.workdir,
           timeout: runTimeoutMs,
           maxOutputBytes: 1024 * 1024,
+          hideWindow: true,
           signal: controller.signal,
         });
         lastRun = {
@@ -950,39 +952,52 @@
           pageIndex = 0;
         }
       }
+      if (historyOpening) return historyOpening;
 
-      currentRows = loadHistoryRows();
-      pageIndex = 0;
-      visibleRows = paginateRows(currentRows, pageIndex, PAGE_SIZE).rows;
-      const id = `recordingHistory${++windowSequence}`;
-      const window = await ui.createWindow({
-        id,
-        kind: 'floating',
-        title: '历史录制',
-        position: {
-          mode: 'anchor',
-          size: {width: 860, height: 620},
-          horizontal: 'center',
-          vertical: 'center',
-          margin: 0,
-          display: 'active',
-        },
-        alwaysOnTop: true,
-        draggable: true,
-        theme: 'dark',
-        content: {
-          html: buildWindowHTML(currentRows, null, {pageIndex, pageSize: PAGE_SIZE}),
-          css: HISTORY_CSS,
-        },
-      });
-      historyWindow = window;
-      await bindWindow(window);
-      await renderPage();
-      if (activeRun) await setHistoryActionsDisabled(true);
-      await window.show();
-      if (message) await showFeedback(message);
-      await syncAvailability();
-      return window;
+      const task = (async () => {
+        currentRows = loadHistoryRows();
+        pageIndex = 0;
+        visibleRows = paginateRows(currentRows, pageIndex, PAGE_SIZE).rows;
+        const id = `recordingHistory${++windowSequence}`;
+        const window = await ui.createWindow({
+          id,
+          kind: 'floating',
+          title: '历史录制',
+          position: {
+            mode: 'anchor',
+            size: {width: 860, height: 620},
+            horizontal: 'center',
+            vertical: 'center',
+            margin: 0,
+            display: 'active',
+          },
+          alwaysOnTop: true,
+          draggable: true,
+          theme: 'dark',
+          content: {
+            html: buildWindowHTML(currentRows, null, {pageIndex, pageSize: PAGE_SIZE}),
+            css: HISTORY_CSS,
+          },
+        });
+        if (closed) {
+          try { await window.close(); } catch (_) {}
+          return null;
+        }
+        historyWindow = window;
+        await bindWindow(window);
+        await renderPage();
+        if (activeRun) await setHistoryActionsDisabled(true);
+        await window.show();
+        if (message) await showFeedback(message);
+        await syncAvailability();
+        return window;
+      })();
+      historyOpening = task;
+      try {
+        return await task;
+      } finally {
+        if (historyOpening === task) historyOpening = null;
+      }
     }
 
     async function refresh(message, traceContext) {

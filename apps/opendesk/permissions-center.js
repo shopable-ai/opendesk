@@ -2,6 +2,7 @@
   'use strict';
 
   const MENU_ITEM_ID = 'open-permissions';
+  const WINDOW_SIZE = Object.freeze({width: 860, height: 720});
 
   function field(value, camel, pascal) {
     if (!value || typeof value !== 'object') return undefined;
@@ -119,7 +120,7 @@
   }
 
   const CSS = `
-    html,body{margin:0;padding:0;background:#171717;color:#f4f4f4;font:13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}*{box-sizing:border-box}main{min-height:100vh;padding:20px;display:flex;flex-direction:column;gap:12px}header{display:flex;justify-content:space-between;align-items:flex-start;gap:18px}.page-title{font-size:22px}.subtitle{margin:6px 0 0;color:#9d9d9d;line-height:1.5;max-width:680px}.header-actions,.permission-actions{display:flex;gap:8px;flex-wrap:wrap}button{border:1px solid #505050;border-radius:7px;background:#303030;color:#f4f4f4;padding:7px 10px;font:inherit}button:hover:not(:disabled){background:#3b3b3b;cursor:pointer}button:disabled{opacity:.45}.summary{display:grid;grid-template-columns:180px 1fr;gap:8px}.summary div{border:1px solid #343434;border-radius:8px;background:#202020;padding:9px 11px}.summary span{display:block;color:#888;font-size:10px;margin-bottom:4px}.summary strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.notice{margin:0;padding:9px 11px;border:1px solid #393939;border-radius:8px;background:#202020;color:#cfcfcf}.permissions{display:flex;flex-direction:column;gap:8px}.permission-row{display:flex;justify-content:space-between;align-items:center;gap:18px;border:1px solid #343434;border-radius:9px;background:#1d1d1d;padding:12px}.permission-main{min-width:0;flex:1}.permission-title{display:flex;align-items:center;gap:12px}.permission-title strong{font-size:14px}.status{color:#cfcfcf}.requirement{margin:5px 0 0;color:#aaa;font-size:11px}.description{margin:5px 0 0;color:#898989;line-height:1.45}.permission-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;min-width:220px}.footnote{margin:0;color:#777;font-size:11px;line-height:1.45}
+    html,body{height:100%;margin:0;padding:0;overflow:hidden;background:#171717;color:#f4f4f4;font:13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}*{box-sizing:border-box}main{height:100%;min-height:0;padding:20px 20px 24px;display:flex;flex-direction:column;gap:12px;overflow-y:auto}header{display:flex;justify-content:space-between;align-items:flex-start;gap:18px}.page-title{font-size:22px}.subtitle{margin:6px 0 0;color:#9d9d9d;line-height:1.5;max-width:680px}.header-actions,.permission-actions{display:flex;gap:8px;flex-wrap:wrap}button{border:1px solid #505050;border-radius:7px;background:#303030;color:#f4f4f4;padding:7px 10px;font:inherit}button:hover:not(:disabled){background:#3b3b3b;cursor:pointer}button:disabled{opacity:.45}.summary{display:grid;grid-template-columns:180px 1fr;gap:8px}.summary div{border:1px solid #343434;border-radius:8px;background:#202020;padding:9px 11px}.summary span{display:block;color:#888;font-size:10px;margin-bottom:4px}.summary strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.notice{margin:0;padding:9px 11px;border:1px solid #393939;border-radius:8px;background:#202020;color:#cfcfcf}.permissions{display:flex;flex-direction:column;gap:8px}.permission-row{display:flex;justify-content:space-between;align-items:center;gap:18px;border:1px solid #343434;border-radius:9px;background:#1d1d1d;padding:12px}.permission-main{min-width:0;flex:1}.permission-title{display:flex;align-items:center;gap:12px}.permission-title strong{font-size:14px}.status{color:#cfcfcf}.requirement{margin:5px 0 0;color:#aaa;font-size:11px}.description{margin:5px 0 0;color:#898989;line-height:1.45}.permission-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;min-width:220px}.footnote{margin:0;color:#777;font-size:11px;line-height:1.45}
   `;
 
   function create(options) {
@@ -309,7 +310,7 @@
         id: `permissionsCenter${++sequence}`,
         kind: 'floating',
         title: '权限管理',
-        position: {mode:'anchor',size:{width:860,height:650},horizontal:'center',vertical:'center',margin:0,display:'active'},
+        position: {mode:'anchor',size:WINDOW_SIZE,horizontal:'center',vertical:'center',margin:0,display:'active'},
         theme: 'dark',
         alwaysOnTop: false,
         draggable: true,

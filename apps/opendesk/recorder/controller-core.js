@@ -148,10 +148,10 @@
       ? capabilities.capture : {};
     const captureAvailable = captureCapabilities.available === true;
     const captureUnavailableDetail = !captureCapabilities.hostAuthorized
-      ? '当前启动命令未授权 Recorder 输入采集。请退出后以包含 -allow-recorder-capture 的命令重新启动。'
+      ? '当前启动命令未授权录制输入采集。请退出后以包含 -allow-recorder-capture 的命令重新启动。'
       : captureCapabilities.permission === 'denied'
         ? 'macOS 未授予 OpenDesk 输入监控权限；请在“系统设置 → 隐私与安全性 → 输入监控”中允许后重新启动。'
-        : '当前系统未提供可用的 Recorder 输入采集。请在“查看详情”中检查采集限制。';
+        : '当前系统未提供可用的录制输入采集。请在“查看详情”中检查采集限制。';
     const openDeskBinary = settings.openDeskBinary
       || file.join(execution.workdir, 'dist', 'opendesk');
     const runTimeoutMs = Number.isFinite(settings.runTimeoutMs)
@@ -414,7 +414,7 @@
       const text = conflicts.find(value => message.includes(value));
       if (!text) return false;
       try {
-        await dialog.alert({title: 'Recorder', message: text, level: 'warning', okText: '关闭'});
+        await dialog.alert({title: '录制自动化', message: text, level: 'warning', okText: '关闭'});
       } catch (_) {}
       return true;
     }
@@ -719,6 +719,7 @@
             cwd: execution.workdir,
             timeout: runTimeoutMs,
             maxOutputBytes: 1024 * 1024,
+            hideWindow: true,
             signal: runController.signal,
           });
           state.run = {
@@ -866,6 +867,7 @@
           cwd: execution.workdir,
           timeout: 10000,
           maxOutputBytes: 1024 * 1024,
+          hideWindow: true,
         });
         state.detail = selected.directory ? '已在 Finder 打开录制目录。' : '已在 Finder 显示生成文件。';
         await syncButtons();

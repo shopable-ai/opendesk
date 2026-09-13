@@ -264,10 +264,10 @@ const command = {
 };
 
 const controllerPath = File.join(
-  Execution.workdir, 'internal', 'recorderbundle', 'ui', 'controller.js',
+  Execution.workdir, 'apps', 'opendesk', 'recorder', 'controller.js',
 );
 globalThis.__OPENDESK_RECORDER_UI_ROOT = File.join(
-  Execution.workdir, 'internal', 'recorderbundle', 'ui',
+  Execution.workdir, 'apps', 'opendesk', 'recorder',
 );
 (0, eval)(File.read(controllerPath) + '\n//# sourceURL=' + controllerPath);
 delete globalThis.__OPENDESK_RECORDER_UI_ROOT;
@@ -353,7 +353,7 @@ assert(homeButton.state.icon.path.endsWith('opendesk-logo.png'), 'homepage logo 
 assert(File.isFile(homeButton.state.icon.path), 'homepage logo must be a maintained local asset');
 await homeButton.callback(controlEvent('home', -1));
 equal(calls.homepage, 1, 'homepage click count');
-equal(homepageTargets[0], 'https://github.com/shopable-ai/opendesk', 'canonical homepage target');
+equal(homepageTargets[0], System.product.website, 'Recorder homepage must use Runtime product identity');
 equal(app.state().phase, 'ready', 'homepage click must not change Recorder phase');
 const pointerMotionControl = toolbar.controls.get('pointerMotion');
 assert(pointerMotionControl.state.checked, 'pointer motion must default to selected');

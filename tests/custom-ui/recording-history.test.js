@@ -204,7 +204,9 @@ async function main() {
       system: {getPlatformInfo: () => ({os: 'windows'})}, toolbar: makeToolbar(),
       app: {state: () => ({phase: 'ready'})}, recordingsRoot: root, platform: 'windows', runCountdownStepMs: 0,
     });
-    const first = await manager.open();
+    const [first, duplicate] = await Promise.all([manager.open(), manager.open()]);
+    assert.strictEqual(first, duplicate);
+    assert.strictEqual(ui.windows.length, 1);
     await first.close();
     await manager.open();
     assert.deepStrictEqual(ui.ids.slice(-2), ['recordingHistory1', 'recordingHistory2']);
