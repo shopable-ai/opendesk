@@ -171,7 +171,7 @@ try {
     }
 
     $runtimePath = Join-Path $OutputDirectory 'opendesk.exe'
-    $desktopRuntimePath = Join-Path $OutputDirectory 'OpenDesk.exe'
+    $desktopRuntimePath = Join-Path $OutputDirectory 'opendesk-desktop.exe'
     $uiHostDirectory = Join-Path $OutputDirectory 'ui-host'
     $uiHostPath = Join-Path $uiHostDirectory 'opendesk-ui-host.exe'
     $uiHostProvenancePath = Join-Path $uiHostDirectory 'build-provenance.json'
@@ -243,7 +243,7 @@ try {
         layout = [ordered]@{
             runtime = 'opendesk.exe'
             cliEntry = 'opendesk.exe'
-            desktopEntry = 'OpenDesk.exe'
+            desktopEntry = 'opendesk-desktop.exe'
             nativeUIHost = 'ui-host/opendesk-ui-host.exe'
             nativeUIHostClosure = 'ui-host/'
             runtimeAssets = [ordered]@{
@@ -264,7 +264,7 @@ try {
                 compatibilityVersion = $Version
             }
             desktopEntry = [ordered]@{
-                path = 'OpenDesk.exe'
+                path = 'opendesk-desktop.exe'
                 sha256 = $desktopRuntimeHash
                 peMachine = ('0x{0:X4}' -f $desktopRuntimeMachine)
                 peSubsystem = $desktopRuntimeSubsystem
