@@ -2,133 +2,147 @@
 
 本页只保留当前可验证的启动和调试主路径。完整 API 说明见 `docs/api/`，项目设计与质量规范见 `docs/`。
 
-## 0. 先理解 OpenDesk 是什么
+## 0. 先选择正确入口
 
-OpenDesk（不是 `opendesc`）不是被操作的微信、Safari、Finder 等目标应用，也不是安装后
-自动替用户完成任务的聊天机器人。它是一个运行在本机的桌面自动化运行时：JavaScript
-脚本可以通过它操作窗口、鼠标、键盘、截图、OCR、文件、网络和系统能力；外部程序还可以
-通过 HTTP，Agent 可以通过 MCP，调用同一套执行能力。
+OpenDesk（不是 `opendesc`）是本地桌面自动化 Runtime，同时提供官方 Desktop 产品、脚本入口、
+HTTP/MCP/AI CLI 等调用方式。不要把这些入口混成一个概念：
 
-### Mac 桌面应用解决什么问题
-
-`OpenDesk.app` 主要提供三个价值：
-
-1. **固定的 macOS 应用身份**：桌面自动化需要“辅助功能”“屏幕录制”和按场景需要的
-   “自动化”权限。长期使用固定的 App 身份，比反复从 `go run`、Terminal 或临时二进制
-   启动更容易保持权限稳定。
-2. **常驻的本机服务入口**：无参数双击启动时，App 默认启动 loopback Framework Runtime，
-   自动分配实际端口，供本机脚本、其他程序或管理页面调用；显式 `-http` 才使用 legacy `60844` 默认端口。
-3. **持久化定时任务**：HTTP 模式内置 Scheduler，任务保存在
-   `~/.opendesk/opendesk/scheduler.db`，重启 OpenDesk 后可以恢复任务状态。
-
-它不等于以下功能：
-
-- 不会自动识别并操作任意桌面应用；必须由 JavaScript、HTTP 请求、Scheduler 任务或 MCP
-  调用触发；
-- 不会替代微信、Safari、Finder 等目标应用；
-- 当前版本不会自动安装 launchd、systemd 或 Windows Task Scheduler，也不负责崩溃后自动
-  重启；
-- 它的 HTTP 服务不是登录型云服务。显式 `-http` 默认监听 `:60844`，不要把它直接暴露到互联网或不
-  可信局域网；Scheduler 管理页和 Scheduler API 只允许 loopback 请求。
-
-### “长时间运行”具体指什么
-
-这里的长时间运行，指 **OpenDesk 进程持续在线等待请求或定时任务**，不是指某一个脚本
-必须一直占用进程。进程空闲时不会主动操作桌面；收到 HTTP execution 或 Scheduler 到期
-后才启动一次 JavaScript 执行。单次执行完成后，HTTP 服务仍继续运行，直到用户退出 App
-或停止进程。
-
-普通使用可以按下面三种方式选择：
-
-| 需求 | 使用方式 | 结果 |
+| 目标 | 推荐入口 | 说明 |
 | --- | --- | --- |
-| 偶尔运行一次脚本 | App 带 `-script` 参数启动 | 执行完成后退出 |
-| 从另一个本机程序触发 OpenDesk | App 无参数常驻，再调用 `/executions` | OpenDesk 等待并执行 HTTP 请求中的 JS |
-| 每天/每隔一段时间执行 | App 无参数常驻，打开 `/scheduler` | 在管理页创建并管理持久化任务 |
+| 普通用户使用 OpenDesk Desktop | 启动 `OpenDesk.app` | 自动加载 bundle 内官方 App Mode，显示 OpenDesk 主界面和统一 Tray/App Shell |
+| 一次运行确定性自动化 | `opendesk -script task.js` | 普通 JavaScript Runtime execution |
+| 开发/验证自定义 App Mode | `opendesk -app ./my-app` | `opendesk.app.json` + `main.js` + assets |
+| 让其他本机程序触发任务 | `opendesk -http -port 60844` | 显式 headless/integration 模式 |
+| Coding Agent / Codex 调桌面能力 | `opendesk ai ...` | 低 Token JSON CLI surface |
 
-如果只是第一次体验，建议先走“安装并启动”与 Scheduler 管理页；不需要先学习所有 API。
+核心分层是：
 
-## 1. Mac 安装与第一次使用
+```text
+Product / User Task
+→ Runtime / Execution Mode
+→ Public API
+→ Protocol / CLI
+→ Internal implementation
+```
+
+因此：
+
+```text
+OpenDesk Desktop != -http
+App Mode          != automation.app API
+automation.app    != App（外部桌面应用自动化）
+```
+
+App Mode 与 App Shell 的正式说明见 `docs/api/app-shell.md`；当前 App Mode execution 的
+JavaScript API 见 `docs/api/automation-app.md`。
+
+## 1. macOS Desktop 安装与第一次使用
 
 ### 已经拿到 `OpenDesk.app`
 
-1. 在 Finder 中把 `OpenDesk.app` 拖到“应用程序”目录。只保留并长期使用一个固定副本，
-   例如 `/Applications/OpenDesk.app`。
-2. 双击这个 App。它的主要入口不是业务操作窗口，而是本机 Framework Runtime 服务。Runtime
-   会绑定 loopback 自动端口；HTTP socket 和 Scheduler 都就绪后，菜单栏右上角会出现一个 OpenDesk 图标；点击它可以
-   打开状态页、Scheduler 或退出服务。这个状态项出现才表示启动完成：App 不会保留 Dock
-   图标，也不会打开业务窗口，这是常驻后台服务的正常行为，不是卡死。
-
-   启动日志的 `OpenDesk ready` 行会给出状态页实际地址，例如：
+1. 在 Finder 中把 `OpenDesk.app` 拖到“应用程序”目录。只保留并长期使用一个固定副本，例如：
 
    ```text
-   http://127.0.0.1:<actual-port>/status
+   /Applications/OpenDesk.app
    ```
 
-   能返回 `"status":"ok"` 且 `"scheduler":true` 的 JSON 就表示服务已启动。定时任务管理页是：
+2. 启动：
+
+   ```bash
+   open /Applications/OpenDesk.app
+   ```
+
+   当前官方发行构建默认把 `apps/opendesk` 打包到：
 
    ```text
-   http://127.0.0.1:<actual-port>/scheduler
+   OpenDesk.app/Contents/Resources/AppMode/
    ```
 
-   每次无参数启动都会自动选择新的 loopback endpoint，因此多个普通 Runtime 不会因默认端口
-   直接冲突；不要猜测端口或把内部 Runtime 当作固定 `60844` 服务。不要把无窗口或无 Dock
-   图标当成失败。
+   无参数启动时 Runtime 会自动发现这个 bundled App Mode。正常产品链路是：
 
-3. 第一次执行截图或控制其他应用时，按 macOS 提示授予“辅助功能”“屏幕录制”和需要的
-   “自动化”权限。权限应授予固定的 `/Applications/OpenDesk.app`（Bundle ID
-   `com.opendesk.cli`），而不是 Terminal、Codex 或临时 `go run` 二进制。权限排查见
+   ```text
+   OpenDesk.app
+   → OpenDesk Runtime
+   → bundled App Mode
+   → 一个 App Shell / Tray
+   → OpenDesk 主界面（自动化）
+      + Recorder
+      + Scheduler Center
+      + Developer / Official actions
+   ```
+
+   所以“OpenDesk.app 只启动固定 `60844` HTTP/Scheduler、没有业务窗口”属于旧模型，不要再按
+   这个模型判断启动是否成功。主窗口关闭/隐藏也不等于 Quit；正式退出由 OpenDesk Tray/Menu
+   的退出动作负责。
+
+3. 第一次截图、录制或控制其他应用时，按 macOS 提示授予对应权限。长期使用时权限应绑定固定的
+   `/Applications/OpenDesk.app`（当前 Bundle ID `com.opendesk.cli`），而不是 Terminal、Codex 或
+   临时 `go run` 二进制。权限说明见
    [`docs/implementation/macos/automation-config.md`](docs/implementation/macos/automation-config.md)。
 
 ### 从源码构建并安装
 
-下面命令均从仓库根目录执行。构建者需要 Go；普通用户只需要得到构建好的 App：
+下面命令均从仓库根目录执行。构建者需要 Go；普通用户只需要已经构建好的 App：
 
 ```bash
 ./scripts/build_macos_app.sh
 ```
 
-输出是 `dist/OpenDesk.app`。构建脚本不会自动复制到系统“应用程序”目录；请在 Finder
-中把它拖入 `/Applications`，然后从该固定位置启动：
+输出是：
 
-```bash
-open /Applications/OpenDesk.app
+```text
+dist/opendesk
+dist/OpenDesk.app
 ```
 
-安装完成后，Finder 的“应用程序”图标网格应显示 OpenDesk 的彩色应用图标，而不是通用空白
-App 图标。构建者还可以从仓库根目录验证已安装 bundle 的图标资源、Info.plist 和签名：
+官方 builder 在 `APP_MODE_PACKAGE` 未显式覆盖时默认选择 `apps/opendesk`，并只把该 package 的
+release runtime payload 放入 bundle。验证源码 package：
+
+```bash
+./dist/opendesk app validate apps/opendesk --json
+```
+
+启动本次构建：
+
+```bash
+open dist/OpenDesk.app
+```
+
+安装到 `/Applications` 后可验证图标资源、Info.plist 和签名：
 
 ```bash
 APP_BUNDLE=/Applications/OpenDesk.app bash scripts/test_app_icons.sh
 ```
 
-### 使用 OpenDesk Inspector
+### 开发时显式运行官方 App Mode
 
-Inspector 的页面、启动控制和只读数据 API 均由同一个当前版 OpenDesk 进程在实际 Framework Runtime
-endpoint 同源提供。启动 `/Applications/OpenDesk.app` 后，从菜单栏选择 **Developer → Open Inspector**，
-或打开启动日志 `OpenDesk ready` 行中的地址：
+正式 bundle 无需手工提供 `-app`；源码开发或验收时可以显式运行同一个 package：
 
-```text
-http://127.0.0.1:<actual-port>/accessibility-workbench/
+```bash
+./dist/opendesk -app apps/opendesk -allow-recorder-capture -console-mode script
 ```
 
-先另开目标应用；检查网页时，把目标 tab 放进另一个原生浏览器窗口。回到 Inspector，依次点击
-**Connect to OpenDesk**、选择目标窗口、**Open scope**，再点击 UI tree 中的行查看属性。
+`-console-mode script` 只是开发时的终端输出选择，不定义正式 Desktop UX。
 
-需要从可信局域网中的另一台设备检查时，先在 macOS 菜单栏选择 **Developer → Allow Inspector from
-LAN**，再选择 **Copy Inspector LAN URL**。这是显式的 trusted-LAN 开发模式：页面会显示 HTTP 明文警告，
-只接受私有网段 socket 来源、当前机器的精确私有 IP `Host` 和同源 `Origin`。不要使用反向代理、Host 改写、
-端口转发或公网地址。关闭选项后立即恢复 local-only；OpenDesk 重启后也总是恢复关闭。
+### 使用 OpenDesk Inspector
 
-连接仍需一次性 pairing、内存 Bearer token、session token、单客户端和既有 TTL。Inspector 不授予脚本执行、
-Scheduler、MCP 或通用 Runtime 权限。当前 App bundle 会携带与主程序同次构建的前端资源，源码开发入口保留在
-`apps/inspector_web/`。不再需要 Python `60845`、`control` 查询参数或随机 API 端口。更完整的安全边界见
+Inspector 由当前 OpenDesk Runtime 提供。从 Desktop 产品的 **Developer** 菜单打开 Inspector
+最稳妥，不要猜测内部 Runtime 端口。开发模式下也可以根据 Runtime 输出的实际 endpoint 打开对应页面。
+
+需要从可信局域网中的另一台设备检查时，只使用产品提供的显式 LAN Inspector 开关；不要使用
+反向代理、Host 改写、端口转发或公网地址。关闭开关或重启 OpenDesk 后应恢复 local-only。
+Inspector 不授予脚本执行、Scheduler、MCP 或通用 Runtime 权限。更完整的安全边界见
 [`docs/integrations/desktop-agent.md`](docs/integrations/desktop-agent.md)。
 
 ### 一次性运行脚本
 
-一次性脚本使用绝对路径最稳妥。下面命令会使用固定 App 身份执行脚本，执行完成后退出，
-不会把 OpenDesk 作为 HTTP 服务长期挂起：
+一次性脚本可以直接使用 Runtime CLI：
+
+```bash
+./dist/opendesk -script /absolute/path/to/task.js
+```
+
+如果希望通过已安装 App 的固定 macOS 身份执行，可以把参数传给 bundle executable：
 
 ```bash
 open -n /Applications/OpenDesk.app --args -script /absolute/path/to/task.js -timeout 30
@@ -143,44 +157,36 @@ bash scripts/install_macos_cli.sh
 ```
 
 它默认写入 `~/.local/bin/opendesk`，不会复制主程序，也不会改写 shell 配置或覆盖别的同名
-命令。这个小型启动器始终执行 `/Applications/OpenDesk.app/Contents/MacOS/opendesk`，所以 macOS
-权限身份和 App bundle 内的 `opendesk-ui-host` 保持匹配；把新版 App 替换到同一位置后，下次运行
-会自动使用新版，无须重新安装命令。
+命令。这个启动器始终执行 `/Applications/OpenDesk.app/Contents/MacOS/opendesk`，因此替换同一路径
+下的新版 App 后无需重新安装命令。
 
-确认 `~/.local/bin` 已在新开的终端 PATH 中后，可从仓库根目录直接运行交互示例：
+确认 `~/.local/bin` 已在 PATH 后，可直接运行：
 
 ```bash
-opendesk -ui -script examples/custom-ui/toolbar-wrap/main.js -console-mode script -log-dir .runtime/examples/custom-ui/toolbar-wrap
+opendesk -script examples/notifications/send.js
 ```
 
-安装器发现已有但不带 OpenDesk 管理标记的 `opendesk` 时会停止，不会覆盖它。指定另一个 App
-或命令目录时使用 `--app-bundle /absolute/path/OpenDesk.app --bin-dir /absolute/path/bin`；刷新受
-管理启动器使用 `--update`，移除它使用：
+刷新受管理启动器使用 `--update`，移除它使用：
 
 ```bash
 bash scripts/install_macos_cli.sh --uninstall
 ```
 
-若你曾按旧版临时步骤在 `/usr/local/bin/opendesk` 创建了启动器，安装器不会自动接管它。只有
-该文件与旧版临时启动器逐字一致时，才可显式迁移：
+### 可选：显式 HTTP 集成模式
+
+HTTP 适合让其他本机程序触发 OpenDesk，它不是 Desktop App Mode 的产品主入口。显式启动：
 
 ```bash
-bash scripts/install_macos_cli.sh --adopt-legacy-launcher --bin-dir /usr/local/bin
+./dist/opendesk -http -port 60844
 ```
 
-全局命令只适合固定的 `/Applications/OpenDesk.app`。开发当前源码、调试未安装 build 或需要成对
-验证主程序和 UI host 时，仍应使用 `./scripts/build_macos_app.sh` 生成的 bundle 或仓库内成对 build。
-
-### 常驻服务与 HTTP 调用
-
-无参数启动后，OpenDesk 会持续运行 HTTP 服务。菜单栏的 OpenDesk 状态图标是日常的启动完成
-提示；先检查状态：
+检查状态：
 
 ```bash
 curl http://127.0.0.1:60844/status
 ```
 
-再由其他本机程序提交一段 JavaScript：
+提交 JavaScript execution：
 
 ```bash
 curl -X POST http://127.0.0.1:60844/executions \
@@ -188,33 +194,22 @@ curl -X POST http://127.0.0.1:60844/executions \
   -d '{"script":"console.log(\"hello from HTTP\")","timeout":30}'
 ```
 
-HTTP 响应中的 `executionId`、`statusUrl`、`summaryUrl` 和 `streamUrl` 可用于查询执行
-状态、摘要和实时事件。HTTP 是“让其他程序触发 OpenDesk”的集成方式；它不是 OpenDesk
-必须依赖的运行方式，直接运行 JavaScript 仍然可以完成同样的桌面操作。
+不要把这个显式 `-http` 的 `60844` 默认端口反推成 Desktop 内部 Runtime 的固定端口。
+HTTP 接口也不是登录型公网 API；不要直接暴露到互联网或不可信网络。
 
-### 用 Scheduler 做定时任务
+### Scheduler
 
-浏览器打开：
+普通 Desktop 用户优先使用 **Scheduler Center**。它属于官方 `apps/opendesk` App Mode 的产品 UI，
+不是要求用户先打开旧 Web Scheduler 才能使用计划任务。
+
+显式 `-http` 模式仍保留 Scheduler HTTP/Web 集成能力，供 headless/外部程序场景使用。Scheduler
+行为、协议边界和实现架构分别见：
 
 ```text
-http://127.0.0.1:60844/scheduler
+docs/api/scheduler.md
+docs/api/scheduler-api.md
+docs/architecture/scheduler-runtime-concurrency.md
 ```
-
-普通用户优先选择“内联代码”，输入要执行的 JavaScript，再选择一次执行、间隔或 Cron。
-内联代码会保存到 Scheduler 数据库，重启 OpenDesk 后仍可恢复。脚本文件任务则要求脚本
-位于 OpenDesk 进程当前工作目录内；如果从 Finder 启动安装在 `/Applications` 的 App，
-第一次使用建议先用内联代码，避免工作目录造成混淆。
-
-Scheduler 只在 OpenDesk 进程运行时实际调度；退出 App 后不会继续执行，重新启动 App
-后会按任务的 misfire 策略恢复。完整说明见 [`docs/api/scheduler.md`](docs/api/scheduler.md)。
-
-### 退出和安全提醒
-
-- 不需要服务时，点击菜单栏的 OpenDesk 图标，再选择 **Quit OpenDesk**。它会向主进程发送正常的
-  终止信号并停止 HTTP 和 Scheduler；正在运行的执行会进入关闭流程。
-- 显式 `-http` 模式默认仍是 legacy `60844`，请求端口被占用时会直接失败，不会静默切换；桌面/内部 Runtime 不使用这个默认值。
-- 不要把任何 `0.0.0.0:<port>` HTTP server 当成可直接提供给公网或不可信设备的 API；当前 HTTP 接口没有
-  用户登录认证。
 
 ## 2. 构建
 
@@ -240,19 +235,19 @@ go run ./cmd/opendesk <flags>
 ### 文件
 
 ```bash
-go run ./cmd/opendesk -script examples/notifications/send.js
+./dist/opendesk -script examples/notifications/send.js
 ```
 
 ### Inline source
 
 ```bash
-go run ./cmd/opendesk -script-text "console.log('inline run')"
+./dist/opendesk -script-text "console.log('inline run')"
 ```
 
 ### stdin
 
 ```bash
-printf "console.log('stdin run')\n" | go run ./cmd/opendesk -script-stdin
+printf "console.log('stdin run')\n" | ./dist/opendesk -script-stdin
 ```
 
 规则：`-script`、`-script-text`、`-script-stdin` 一次只能选择一个。
@@ -262,7 +257,7 @@ printf "console.log('stdin run')\n" | go run ./cmd/opendesk -script-stdin
 低噪音 Agent 模式：
 
 ```bash
-go run ./cmd/opendesk \
+./dist/opendesk \
   -script-text "console.log('agent run')" \
   -console-mode agent
 ```
@@ -270,7 +265,7 @@ go run ./cmd/opendesk \
 JSON 输出：
 
 ```bash
-go run ./cmd/opendesk \
+./dist/opendesk \
   -script-text "console.log('agent run')" \
   -output-format json
 ```
@@ -289,8 +284,8 @@ agent
 交互终端默认按日志类别自动配色；管道和重定向自动保持纯文本。可按单次命令覆盖：
 
 ```bash
-go run ./cmd/opendesk -script-text "console.log('colored')" -color always
-go run ./cmd/opendesk -script-text "console.log('plain')" -color never
+./dist/opendesk -script-text "console.log('colored')" -color always
+./dist/opendesk -script-text "console.log('plain')" -color never
 ```
 
 非空 `NO_COLOR` 会关闭默认的 `auto` 配色；未设置它时也可用 `FORCE_COLOR=1` 强制开启。
@@ -316,7 +311,7 @@ events.ndjson
 指定自定义产物目录：
 
 ```bash
-go run ./cmd/opendesk \
+./dist/opendesk \
   -script-text "console.log('custom logs')" \
   -log-dir .runtime/debug/my-run
 ```
@@ -324,7 +319,7 @@ go run ./cmd/opendesk \
 保存本次执行脚本：
 
 ```bash
-go run ./cmd/opendesk \
+./dist/opendesk \
   -script-text "console.log('snapshot')" \
   -save-last-script .runtime/debug/last-script.js
 ```
@@ -334,21 +329,22 @@ go run ./cmd/opendesk \
 新脚本直接使用默认 Runtime，不要指定 `-stack`。查看本次运行上下文：
 
 ```bash
-go run ./cmd/opendesk -script-text "console.log(JSON.stringify({id: Execution.id, artifactDir: Execution.artifactDir}))"
+./dist/opendesk -script-text "console.log(JSON.stringify({id: Execution.id, artifactDir: Execution.artifactDir}))"
 ```
 
 `Execution.input`、`workdir`、源码 hash 和 artifact 规则见 `docs/api/execution.md`；异步完成、
 取消和资源清理见 `docs/api/runtime.md`。
 
-早期 `upgraded` / `playwright` 只是进程内兼容 shim，不是 browser driver，不提供 DOM、selector、
-tab 或 Playwright 语义，不应在新 workflow 中使用。
+当前 Runtime 已支持 `.mjs` 入口、静态相对 `import` / `export` 和可见 profile `node_modules` 中的
+package resolution；不要把它描述成“全部 ESM 都不支持”。当前 P0 仍不承诺任意动态 `import()`、
+module-level top-level await、Node 内置模块、native `.node`、远程 URL import 或 npm 自动安装。
 
 ## 6. HTTP 模式
 
 启动：
 
 ```bash
-go run ./cmd/opendesk -http -port 60844
+./dist/opendesk -http -port 60844
 ```
 
 DI/container 模式默认开启。
@@ -407,44 +403,37 @@ docs/api/http-server.md
 
 ### Scheduler
 
-HTTP 模式会自动创建并恢复内置 Scheduler。打开：
-
-```text
-http://127.0.0.1:60844/scheduler
-```
-
-它支持一次执行、fixed-delay 间隔与五字段 Cron，并可暂停、恢复、立即运行和删除。
-任务保存在 `~/.opendesk/opendesk/scheduler.db`；SQLite 已嵌入二进制，无需另行安装。
-完整说明见 `docs/api/scheduler.md`。
+显式 HTTP 模式提供 Scheduler 的 Web/API 集成入口；普通 Desktop 使用优先走 Scheduler Center。
+完整用户说明见 `docs/api/scheduler.md`，HTTP protocol 见 `docs/api/scheduler-api.md`。
 
 ### Legacy HTTP
 
 只有需要验证历史兼容行为时才使用：
 
 ```bash
-USE_DI_CONTAINER=0 go run ./cmd/opendesk -http -port 60844
+USE_DI_CONTAINER=0 ./dist/opendesk -http -port 60844
 ```
 
-Legacy 模式和默认 container 模式存在路由/行为差异，新开发应以默认模式和 `docs/api/http-server.md` 为准。
+新开发应以默认模式和 `docs/api/http-server.md` 为准。
 
 ## 7. Vision CLI
 
 OCR：
 
 ```bash
-go run ./cmd/opendesk \
-  -vision-ocr-image tests/desktopvision/fixtures/legacy-testmonkey-desktop.png \
-  -vision-provider paddle \
+./dist/opendesk \
+  -vision-ocr-image tests/extensions/native-process/fixtures/ocr/opendesk-ocr-123.png \
+  -vision-provider apple \
   -vision-lang ch
 ```
 
 检测目标文字：
 
 ```bash
-go run ./cmd/opendesk \
-  -vision-detect-ui-image tests/desktopvision/fixtures/legacy-testmonkey-desktop.png \
-  -vision-target-text 发送 \
-  -vision-provider paddle \
+./dist/opendesk \
+  -vision-detect-ui-image tests/extensions/native-process/fixtures/ocr/opendesk-ocr-123.png \
+  -vision-target-text 你好 \
+  -vision-provider apple \
   -vision-lang ch
 ```
 
@@ -462,9 +451,33 @@ docs/api/vision.md
 docs/implementation/ocr/provider-integration.md
 ```
 
-## 8. macOS App 与权限
+## 8. App Mode、App Builder 与 macOS 权限
 
-构建固定 App：
+### App Mode 开发
+
+一个普通 App Mode package 的核心是：
+
+```text
+my-app/
+├── opendesk.app.json
+├── main.js
+└── assets/...
+```
+
+开发时：
+
+```bash
+./dist/opendesk app validate ./my-app
+./dist/opendesk app doctor ./my-app
+./dist/opendesk -app ./my-app -console-mode script
+```
+
+App Mode 是 Runtime execution mode；`automation.app.*` 是当前 App Mode execution 与自己 App Shell
+通信的 JavaScript API。不要通过 `automation.app.getCapabilities()`“启动 App Mode”或创建 Shell。
+
+### macOS 固定 App
+
+构建官方固定 App：
 
 ```bash
 ./scripts/build_macos_app.sh
@@ -477,21 +490,13 @@ dist/opendesk
 dist/OpenDesk.app
 ```
 
-启动 App：
+启动：
 
 ```bash
 open dist/OpenDesk.app
 ```
 
-带参数启动：
-
-```bash
-./scripts/open_macos_app.sh \
-  -script examples/mac/request-macos-permissions.js \
-  -timeout 2
-```
-
-需要重新处理权限时可查看：
+需要重新处理权限时查看：
 
 ```text
 scripts/reset_macos_permissions.sh
@@ -500,7 +505,36 @@ docs/implementation/macos/screenshot-troubleshooting.md
 docs/implementation/macos/automation-config.md
 ```
 
-## 9. 测试
+完整 App Mode/App Builder 文档：
+
+```text
+docs/api/app-shell.md
+docs/api/automation-app.md
+docs/api/script-app-packaging.md
+docs/api/app-builder.md
+docs/api/app-package-cli.md
+```
+
+## 9. AI / Coding Agent CLI
+
+常用命令：
+
+```bash
+./dist/opendesk ai capabilities
+./dist/opendesk ai windows
+./dist/opendesk ai screenshot --window-title "TextEdit"
+./dist/opendesk ai mouse click --window-title "TextEdit" --x 300 --y 200
+./dist/opendesk ai keyboard type --text "Hello"
+./dist/opendesk ai run workflows/macos/calculator/calculate-and-reuse-result.js
+```
+
+完整 contract：
+
+```text
+docs/api/ai-cli.md
+```
+
+## 10. 测试
 
 Go 回归：
 
@@ -508,7 +542,14 @@ Go 回归：
 go test ./...
 ```
 
-项目非 UI smoke（从仓库根目录运行）：
+Runtime API contract：
+
+```bash
+make check-api-docs-contract
+./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+```
+
+项目非 UI smoke：
 
 ```bash
 ./dist/opendesk -script scripts/e2e_smoke.js -console-mode script
@@ -520,13 +561,6 @@ go test ./...
 OPENDESK_LIVE_E2E=1 ./dist/opendesk -script scripts/e2e_smoke.js -console-mode script
 ```
 
-浏览器自动化测试规范：
-
-```text
-docs/quality/browser-automation/test-matrix.md
-docs/quality/browser-automation/http-smoke.md
-```
-
 整体质量门禁：
 
 ```text
@@ -534,7 +568,7 @@ docs/quality/gates-and-evidence.md
 docs/quality/testing-guide.md
 ```
 
-## 10. 下一步阅读
+## 11. 下一步阅读
 
 脚本/API 使用：
 
@@ -556,19 +590,13 @@ docs/README.md
 docs/architecture/desktop-automation/
 ```
 
-WeChat 场景：
-
-```text
-docs/scenarios/wechat/
-```
-
 MCP：
 
 ```text
 docs/integrations/mcp/
 ```
 
-## 11. 文档事实规则
+## 12. 文档事实规则
 
 遇到冲突时按以下顺序判断：
 
