@@ -1,64 +1,79 @@
 # Official Product Config 工作流
 
-本工作流维护 OpenDesk 官方产品身份与产品运营入口，解决“官网、帮助、定制、商店、专业版等入口以后修改时容易重复硬编码、漏改、忘记重新生成发行资源”的问题。
+本工作流维护 OpenDesk **publisher-owned、language-neutral** 的产品运营配置，当前包括官网、帮助、定制、商店、专业版等官方入口的可见性与 HTTPS 目标。
 
-它不是普通用户配置，也不是 App Mode package 的 `opendesk.app.json` 配置；不要把官方品牌地址、帮助地址或商业入口重新塞进用户可编辑 Manifest。
+它不是普通用户配置，也不是 App Mode package manifest，更不是多语言文案文件。
 
 ## 固定模型
 
 ```text
-Publisher-owned operational source
-configs/official-actions.json
+App package manifest
+apps/opendesk/opendesk.app.json
+        -> App Mode package / tray / menu / lifecycle
+
+Publisher-owned product config
+configs/product.json
         |
-        | opendesk config compile --input ... --output ...
+        | opendesk config compile
         v
-apps/opendesk/assets/official-actions.odcfg
+apps/opendesk/assets/product.odcfg
         |
-        +--> native System.product.website
-        |       +--> Script Runner Logo / 官网
-        |       +--> Recorder Logo / 官网
-        |
+        +--> System.product.website
         +--> opendesk.home
         +--> opendesk.help
         +--> opendesk.customize
         +--> opendesk.marketplace
         +--> opendesk.upgrade
+
+Localized UI copy (future)
+locale / i18n provider
+        -> Script Runner windowTitle
+        -> Recorder windowTitle
+        -> labels / placeholders / messages
 ```
 
-## 为什么叫 `official-actions`
+## 为什么叫 `product.json`
 
-这个 basename 描述的是实际数据域：OpenDesk 保留的 `opendesk.*` action 中，Home / Help / Customize / Marketplace / Upgrade 的可见性和 HTTPS 目标。它不代表完整 Official Shell，也不包含产品名称、ID、窗口、菜单或普通 App Manifest。
+仓库已经存在 `apps/opendesk/opendesk.app.json`，它是真正的 App package manifest，因此不能再使用含义过宽且容易冲突的 `app.json` / `app-config.json`。
 
-- 不使用 `app-config.json`：它容易与普通 App Mode 的 `opendesk.app.json` 混淆，并暗示这里能配置整个 App；
-- 不使用 `app-info.json`：它通常表示静态名称、版本、图标等 metadata，而这里是会影响运行行为的运营策略；
-- 不改成 `links.json`：URL 可以为空且 action 仍保留为 pending，文件还拥有 `visible` policy，不只是链接清单。
+`configs/product.json` 表示 OpenDesk 自身的产品级、发行方拥有的静态运营配置。当前 schema 只有 `actions`，但文件名不再把实现永久绑定在“只有 action”这一种字段上。
 
-因此继续使用 `official-actions.{json,odcfg}`。如果未来数据职责发生变化，应先拆 owner/schema，而不是靠更宽泛的文件名吸收更多配置。
+边界必须保持：
 
-### 1. 官网与官方按钮共享唯一 URL source
+- `opendesk.app.json`：App 包身份、入口、菜单、生命周期等 App Mode manifest；
+- `configs/product.json`：语言无关、publisher-owned、随发行维护的产品运营配置；
+- locale/i18n：用户可见且需要翻译的窗口标题、按钮标签、提示语、错误文案；
+- secret：不属于上述任一明文配置，应使用专门的 secret/credential 机制。
 
-官网不是用户配置项，但与其他官方按钮 URL 一起进入生成的 `.odcfg`。唯一明文维护源是：
+不要因为文件名叫 `product.json` 就把所有产品设置塞进去。职责明显不同的配置应拆 owner/schema，而不是把它变成新的 catch-all。
+
+## 多语言边界
+
+`configs/product.json` **不得保存可翻译 UI 文案**。例如下面内容都不应写入：
 
 ```text
-configs/official-actions.json
+"Script Runner"
+"Recorder"
+"帮助"
+"定制"
+窗口 title / label / placeholder / toast / dialog message
 ```
 
-其中 `home` 必须 `visible=true` 且包含非空 HTTPS URL。Runtime 从嵌入的生成资源派生兼容身份属性：
-
-```js
-System.product.website
-```
-
-Script Runner、Recorder 或以后新增的官方品牌入口都必须读取该值，不得再次写死 URL。`System.product.website` 是生成配置的只读投影，不是第二个可维护 URL source。
-
-修改官网时应修改 `configs/official-actions.json`，重新生成 `.odcfg`，并同时更新/验证 Runtime identity、Official Shell、API/架构文档和相应测试；不要只修改某个 UI 文件。
-
-### 2. 五个 action 的配置约束
-
-可随发行调整的入口只编辑明文源文件：
+Script Runner 与 Recorder 的窗口创建代码应暴露语义化 `windowTitle` 注入点，并提供当前英文 fallback：
 
 ```text
-configs/official-actions.json
+OpenDesk — Script Runner
+OpenDesk — Recorder
+```
+
+未来增加 `locales/en-US.json`、`locales/zh-CN.json` 或统一 i18n provider 时，只替换文案提供层，不需要重新设计窗口生命周期或 `product.json` schema。
+
+## 唯一产品 URL source
+
+唯一明文维护源：
+
+```text
+configs/product.json
 ```
 
 当前 action：
@@ -71,161 +86,135 @@ marketplace
 upgrade
 ```
 
-其中 `home`、`help`、`customize` 是核心入口，不能由配置隐藏；`home` URL 不能为空；`marketplace`、`upgrade` 在真实产品能力上线前保持隐藏。
+约束：
 
-明文源文件是开发/维护输入，不是发行资源。
+- `home`、`help`、`customize` 必须可见；
+- `home` URL 必须为非空 HTTPS；
+- 其他 URL 非空时也必须为 HTTPS；
+- `marketplace`、`upgrade` 在真实能力上线前可保持隐藏；
+- 不允许保存 token、License key、密码、私钥等 secret。
 
-### 3. 发行资源必须由 CLI 生成
+Runtime 从同一份生成资源派生只读兼容属性：
 
-修改 `configs/official-actions.json` 后，从仓库根目录执行：
+```js
+System.product.website
+```
+
+Script Runner、Recorder、Tray 或其他官方品牌入口不得重新硬编码官网 URL。
+
+## 编译与验证
+
+从仓库根目录：
 
 ```bash
 ./dist/opendesk config compile \
-  --input configs/official-actions.json \
-  --output apps/opendesk/assets/official-actions.odcfg
+  --input configs/product.json \
+  --output apps/opendesk/assets/product.odcfg
+
+./dist/opendesk config inspect \
+  --input apps/opendesk/assets/product.odcfg
+
+./dist/opendesk config verify \
+  --input configs/product.json \
+  --output apps/opendesk/assets/product.odcfg
 ```
 
-这是官方发行调用方对路径的显式选择，不是编译器内置默认。`config compile` 的合同只有“读取一个 JSON、写出一个 `.odcfg`”。它不构建 macOS `.app`、Windows distribution，不执行 App Mode 全量 staging，也不运行测试。需要确认 CLI 与当前源码一致时，可先独立执行 `make build`；这只是刷新命令行二进制。
-
-等价的源码开发入口可以使用：
+开发态也可以：
 
 ```bash
 go run ./cmd/opendesk config compile \
-  --input configs/official-actions.json \
-  --output apps/opendesk/assets/official-actions.odcfg
+  --input configs/product.json \
+  --output apps/opendesk/assets/product.odcfg
 ```
 
-通用 CLI 形式：
+`config compile` 仍是通用的“一个 JSON input -> 一个 `.odcfg` output”接口，不负责构建 `.app`、Windows distribution、App Mode staging 或测试。
 
-```bash
-./dist/opendesk config compile --input <file.json> [--output <file.odcfg>]
+ODCFG1 wire format 本轮没有变化。它只是可逆混淆 + checksum，不是 secret store、数字签名、DRM 或加密存储。
+
+## Runtime 加载规则
+
+Official Shell 固定 basename 为 `product`：
+
+```text
+1. product.odcfg exists + valid   -> protected bundle config
+2. product.odcfg exists + invalid -> built-in fallback；禁止降级读取 plaintext
+3. product.odcfg missing          -> sibling product.json 可用于开发/诊断
+4. both missing                   -> built-in fallback
 ```
 
-`--input` 必填。省略 `--output` 时，只在 input 文件所在目录生成同 basename 的 `.odcfg`：
+正式 distribution 只携带生成的 `apps/opendesk/assets/product.odcfg`，不携带维护源 `configs/product.json`。
 
-```bash
-./dist/opendesk config compile --input /x/official-actions.json
-# /x/official-actions.odcfg
-```
-
-显式 `--output` 时只写该文件，并自动创建其父目录。input 必须是 `.json`，output 必须是 `.odcfg`；二者不得是同一文件（包括硬链接别名）。命令不接受多个 input、位置参数或上述合同之外的参数名。输出通过同目录临时文件原子替换；输入、校验、写入或替换失败时不得留下半成品，也不得破坏已有 output。
-
-不要手工编辑 HEX payload 或 checksum。
-
-### 查看生成配置
-
-直接解码并验证当前 `.odcfg`：
-
-```bash
-./dist/opendesk config inspect --input apps/opendesk/assets/official-actions.odcfg
-```
-
-输出是结构化 JSON；`result.config` 就是 Runtime 将接受的运营配置。checksum、ODCFG1 格式、schema、核心 action 可见性或 HTTPS URL 任一不合法时，命令以非零状态失败。
-
-### 确认 input 与生成物一致
-
-```bash
-./dist/opendesk config verify \
-  --input configs/official-actions.json \
-  --output apps/opendesk/assets/official-actions.odcfg
-```
-
-该命令同时验证唯一明文 input 与保护 output，并要求 output 精确等于 input 的确定性编译结果。保护文件即使自身合法但内容已经落后，也会失败并提示重新运行 `config compile`。
-
-自定义 inspect/verify 路径使用其只读命令自己的参数，不要套用到 compile：
-
-```bash
-./dist/opendesk config inspect --input /path/to/official-actions.odcfg
-./dist/opendesk config verify \
-  --input /path/to/official-actions.json \
-  --output /path/to/official-actions.odcfg
-```
+旧 `official-actions.{json,odcfg}` 不保留兼容 fallback，避免形成第二配置源。
 
 ## 三阶段边界
 
 ```text
-1. config compile
-   一个可读 JSON -> 一个 .odcfg
+1. Source / compile
+   configs/product.json -> apps/opendesk/assets/product.odcfg
 
 2. Runtime load
-   Official Shell 按固定 basename 加载并执行 fail-closed policy
+   Official Shell + System.product.website consume the generated config
 
-3. release staging
-   macOS / Windows packaging 只消费已生成的 .odcfg
+3. Release staging
+   macOS / Windows App Mode payload includes product.odcfg only
 ```
 
-这三段是相邻合同，不是同一个命令。单文件编译不要求构建 `.app`；编译成功也不能替代 Runtime 加载或最终 payload 验收。
+前一阶段通过不代表后一阶段通过。
 
-## Runtime 加载优先级
-
-Official Shell 的加载顺序固定为：
+## 每次修改固定检查
 
 ```text
-1. official-actions.odcfg
-2. sibling official-actions.json（仅当 .odcfg 不存在时用于开发/诊断）
-3. built-in fallback
+configs/product.json
+-> config compile / inspect / verify
+-> System.product.website derivation
+-> Official Shell parser / fallback tests
+-> Script Runner / Recorder product integration
+-> App Mode runtime-file manifest
+-> macOS / Windows distribution payload
+-> live UI（可执行环境可用时）
 ```
 
-反降级规则：如果 `.odcfg` 已存在但损坏、schema 不合法或 checksum 不匹配，不允许静默改读旁边的明文 `.json`；直接使用内置 fallback 并记录错误。
+文件名迁移或 schema 变化时还必须搜索：
 
-正式 distribution 只应携带需要的 `.odcfg` 资源，不应把 `configs/official-actions.json` 作为 AppMode payload 一起发布。旧 `official-shell.{json,odcfg}` 不作为兼容 fallback，以免形成第二个隐式配置源。
+```bash
+rg -n --hidden -g '!.git/**' 'official-actions|product\.odcfg|configs/product\.json' .
+```
 
-## URL 约束
+正常最终状态：旧 `official-actions` 文件路径和 loader basename 不再出现；若文档中作为“禁止/历史名称”提及，应明确标注为历史名称而不是有效路径。
 
-运营 URL：
+## 窗口标题验收
 
-- 只能是 `https://...`；
-- 除 `home` 外可以为空，表示入口保留但当前 pending；`home` 必须是非空 HTTPS URL；
-- 不允许 `file:`、`javascript:`、`shell:` 等协议；
-- 正式运营建议指向稳定 redirect endpoint，而不是把最终 CRM/文档/商店页面散落硬编码到桌面客户端。
-
-`.odcfg` 当前是轻量混淆 + checksum，用来降低随手修改成本并检测误编辑；它不是 secret store、DRM 或密码学签名。不得放 token、License key、密码、私钥或其他 secret。
-
-## 每次修改的固定检查
-
-修改任一官网/帮助/定制/商店/专业版 URL 时：
+产品 UI 至少确认：
 
 ```text
-configs/official-actions.json
--> opendesk config compile
--> opendesk config inspect
--> opendesk config verify
--> System.product.website 派生值
--> Official Shell parser tests
--> Script Runner / Recorder product tests
--> App Mode / distribution payload check
+Script Runner default title = OpenDesk — Script Runner
+Recorder default title      = OpenDesk — Recorder
 ```
 
-新增一个官方 action 时，不允许只改 JSON。至少同步检查：
+并确认调用方能够通过 `windowTitle` 覆盖，未来 locale provider 不需要修改窗口控制器结构。
 
-```text
-action definition
-+ config schema / validator
-+ plaintext source
-+ generated .odcfg
-+ product UI placement
-+ tests
-+ docs
-```
+主 OpenDesk App Shell 自身仍可使用 `OpenDesk`，不要把每个窗口都强制改成同一个 feature title。
 
 ## 验收边界
 
-一次完整修改至少区分以下层级：
+必须分别报告：
 
-- source validation：明文 JSON schema、HTTPS、核心 action 可见性；
-- compile validation：CLI 成功且生成内容可 decode；
-- runtime validation：Official Shell 能读取 `.odcfg`，失败时 fail closed；
-- product integration：Script Runner / Recorder 不存在重复官网硬编码；
-- distribution validation：macOS / Windows AppMode payload 含 `.odcfg` 且不含维护用明文 source；
-- live UI：真实点击 Logo / Help / Customize 后行为符合当前配置。
+```text
+source validation
+ODCFG compile / inspect / verify
+Runtime load
+System.product.website derivation
+Script Runner title / product actions
+Recorder title / product actions
+App Mode payload
+macOS distribution
+Windows distribution
+live UI
+```
 
-配置编译器的主要证据是 Go tests、当前 OpenDesk CLI 与 Runtime 实际加载；`node --test` 形式的 host test 只能补充 JavaScript seam，不替代这些证据。
+没有实际执行的层级必须标记 `not run`，不得用源码检查替代真实构建或 UI 证据。
 
-没有实际执行的层级必须写 `not run`，不能用“配置完成”代替 UI 或 distribution 验收。
-
-## Skill
-
-重复维护时直接使用：
+重复维护时使用：
 
 ```text
 $manage-official-product-config
