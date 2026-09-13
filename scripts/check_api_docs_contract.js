@@ -18,6 +18,15 @@ const rejectText = (rel, needle, description = needle) => {
   if (text.includes(needle)) errors.push(`${rel}: forbidden ${description}`);
 };
 
+const requireBefore = (rel, first, second, description = `${first} before ${second}`) => {
+  const text = read(rel);
+  const firstIndex = text.indexOf(first);
+  const secondIndex = text.indexOf(second);
+  if (firstIndex < 0 || secondIndex < 0 || firstIndex >= secondIndex) {
+    errors.push(`${rel}: expected ${description}`);
+  }
+};
+
 let index;
 try {
   index = JSON.parse(read('docs/api/runtime-api.ai.json'));
@@ -48,6 +57,9 @@ if (index) {
   }
   if (byName.Notifications?.doc !== 'notifications.md') {
     errors.push('runtime-api.ai.json: Notifications canonical doc must be notifications.md');
+  }
+  if (byName.Notifications?.keyMethods?.[0] !== 'list') {
+    errors.push('runtime-api.ai.json: Notifications.list must precede diagnostics in keyMethods');
   }
   if (byName.FloatingWindow?.doc !== 'ui.md') {
     errors.push('runtime-api.ai.json: FloatingWindow canonical doc must be ui.md');
@@ -111,11 +123,29 @@ requireText('docs/api/notifications.md', '## Notifications.getCapabilities()');
 requireText('docs/api/notifications.md', '## Notifications.list(options?)');
 requireText('docs/api/notifications.md', '## Notifications.waitFor(options?)');
 requireText('docs/api/notifications.md', '## Notifications.dismiss(target)');
+requireBefore(
+  'docs/api/notifications.md',
+  '## Notifications.list(options?)',
+  '## Notifications.getCapabilities()',
+  'Notifications.list() business method before getCapabilities() diagnostic method',
+);
 
 for (const rel of ['docs/api/agent.md', 'docs/api/llm.md']) {
   requireText(rel, 'docType: reference');
   requireText(rel, 'Capability 状态模型');
 }
+requireBefore(
+  'docs/api/agent.md',
+  '## Agent.run()',
+  '## Agent.getCapabilities()',
+  'Agent.run() business method before getCapabilities() diagnostic method',
+);
+requireBefore(
+  'docs/api/llm.md',
+  '## LLM.generate()',
+  '## LLM.getCapabilities()',
+  'LLM.generate() business method before getCapabilities() diagnostic method',
+);
 
 // Public entry docs must preserve the current product/runtime layering. The
 // installed desktop product owns bundled App Mode; explicit -http is a
