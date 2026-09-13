@@ -5,10 +5,10 @@
   const defaultUI = global.ui;
   const defaultLogger = global.console;
   const MAX_ROWS = 48;
-  const INLINE_NOTIFY_EXAMPLE = `'use strict';
+  const INLINE_TOAST_EXAMPLE = `'use strict';
 const firedAt = new Date().toISOString();
 console.log('[SCHEDULER_NOTIFY] stage=start firedAt=' + firedAt);
-const notice = await ui.notify({
+const notice = await ui.toast({
   message: '计划已运行 · ' + firedAt,
   caption: '这条提示由计划中心的脚本文本任务创建',
   level: 'success',
@@ -111,14 +111,14 @@ return {ok: true, firedAt};`;
             <div class="group-title-row"><div class="group-title"><span class="group-index">1</span><div><strong>执行内容</strong><span>可选择脚本目录中的文件，或直接保存脚本文本。</span></div></div>
             <div class="example-actions" aria-label="通知测试模板">
               <button id="fillFileExample" class="icon-button example-button" data-icon="doc.fill" title="填入通知文件示例" aria-label="填入通知文件示例">填入通知文件示例</button>
-              <button id="fillInlineExample" class="icon-button example-button" data-icon="doc.text.fill" title="填入 ui.notify 文本示例" aria-label="填入 ui.notify 文本示例">填入 ui.notify 文本示例</button>
+              <button id="fillInlineExample" class="icon-button example-button" data-icon="doc.text.fill" title="填入 ui.toast 文本示例" aria-label="填入 ui.toast 文本示例">填入 ui.toast 文本示例</button>
             </div>
             </div>
             <div class="target-grid">
               <label for="createName"><span class="field-label">计划名称 <span class="required-mark" aria-hidden="true">*</span></span><input id="createName" class="scheduler-field scheduler-input" data-opendesk-dialog-focus placeholder="例如：每日数据整理" aria-required="true"></label>
               <label for="createSource"><span class="field-label">脚本来源 <span class="required-mark" aria-hidden="true">*</span></span><span class="select-shell"><select id="createSource" class="scheduler-field scheduler-select" aria-describedby="createSourceHint" aria-required="true"><option value="file">脚本文件</option><option value="inline">脚本文本</option></select><span class="select-chevron" aria-hidden="true"></span></span><span id="createSourceHint" class="sr-only">选择脚本目录中的 JavaScript 文件，或直接填写脚本文本。</span></label>
               <div id="fileSourceGroup" class="source-group"><label for="createScript"><span class="field-label">脚本路径 <span class="required-mark" aria-hidden="true">*</span></span><input id="createScript" class="scheduler-field scheduler-input" placeholder="例如：notify-and-log.js" aria-required="true"></label></div>
-              <div id="inlineSourceGroup" class="source-group is-hidden"><label for="createInlineScript"><span class="field-label">JavaScript 脚本文本 <span class="required-mark" aria-hidden="true">*</span></span></label><textarea id="createInlineScript" class="scheduler-field scheduler-textarea" maxlength="262144" spellcheck="false" aria-required="true" placeholder="console.log('计划开始'); await ui.notify({message: '计划已运行', timeoutMs: 2500});"></textarea><span class="inline-help">最多 256 KiB；列表与接口不会回传脚本文本正文。</span></div>
+              <div id="inlineSourceGroup" class="source-group is-hidden"><label for="createInlineScript"><span class="field-label">JavaScript 脚本文本 <span class="required-mark" aria-hidden="true">*</span></span></label><textarea id="createInlineScript" class="scheduler-field scheduler-textarea" maxlength="262144" spellcheck="false" aria-required="true" placeholder="console.log('计划开始'); await ui.toast({message: '计划已运行', timeoutMs: 2500});"></textarea><span class="inline-help">最多 256 KiB；列表与接口不会回传脚本文本正文。</span></div>
             </div>
           </div>
           <div class="form-panel">
@@ -265,7 +265,7 @@ return {ok: true, firedAt};`;
         await updateControl(record, 'inlineSourceGroup', {visible: createSourceType === 'inline', classes: classes('source-group', createSourceType === 'inline')});
         await updateControl(record, 'createScript', {disabled: formDisabled || createSourceType !== 'file'});
         await updateControl(record, 'createInlineScript', {disabled: formDisabled || createSourceType !== 'inline'});
-        await updateControl(record, 'fillInlineExample', {disabled: formDisabled, icon: BUTTON_ICONS.inlineExample, text: '填入 ui.notify 文本示例'});
+        await updateControl(record, 'fillInlineExample', {disabled: formDisabled, icon: BUTTON_ICONS.inlineExample, text: '填入 ui.toast 文本示例'});
         await updateControl(record, 'createCard', {visible: createVisible, classes: createVisible ? ['create-card','is-create-mode'] : ['create-card','is-hidden']});
         for (const id of ['headName','headSchedule','headNext','headLast','headEnabled','headRun','headToggle','headHistory','headDelete']) {
           await updateControl(record, id, {visible: hasRows, classes: classes('head', hasRows)});
@@ -431,11 +431,11 @@ return {ok: true, firedAt};`;
       if (loading) return;
       createSourceType = 'inline';
       await updateControl(windowRecord, 'createSource', {value: 'inline'});
-      await updateControl(windowRecord, 'createInlineScript', {value: INLINE_NOTIFY_EXAMPLE});
+      await updateControl(windowRecord, 'createInlineScript', {value: INLINE_TOAST_EXAMPLE});
       if (!(await readValue('createName'))) {
         await updateControl(windowRecord, 'createName', {value: 'UI 脚本文本通知计划'});
       }
-      notice = '已填入 ui.notify 与 console.log 测试脚本，可直接设置计划并创建。';
+      notice = '已填入 ui.toast 与 console.log 测试脚本，可直接设置计划并创建。';
       lastError = '';
       await render();
     }
@@ -457,7 +457,6 @@ return {ok: true, firedAt};`;
       notice = '创建表单已收起；已填写内容仍会保留。';
       await render();
     }
-
     async function mutate(index, action, operation, successText) {
       const job = jobs[index];
       if (!job || loading) return null;
@@ -520,7 +519,7 @@ return {ok: true, firedAt};`;
         const state = await win.control('createSource').getState();
         createSourceType = String(state && state.value || 'file') === 'inline' ? 'inline' : 'file';
         notice = createSourceType === 'inline'
-          ? '可直接输入脚本文本，或点击“填入 ui.notify 示例”。'
+          ? '可直接输入脚本文本，或点击“填入 ui.toast 示例”。'
           : '脚本路径相对于上方显示的脚本目录。';
         lastError = '';
         await render();
