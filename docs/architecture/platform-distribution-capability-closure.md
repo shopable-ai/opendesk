@@ -19,6 +19,34 @@
 | 第三方 App 不继承官方 AppMode 业务包 | Builder 已排除旧 AppMode，重新 stage 用户 package；不是整包无差别复制 |
 | Optional 是职责分类，不是当前裁剪授权 | OCR/native extension 等即便业务不使用，P0 仍保留已验证模板中的 payload |
 | 文件保全与功能通过分别验收 | 文件存在、散列相同、成功编译都不能证明窗口、权限或系统依赖可用 |
+| Windows 对用户只暴露一个普通桌面启动角色 | CLI 是开发/自动化入口；`ui-host` 是 Runtime 自动管理的 child helper，不是第二或第三个用户 App |
+
+### Windows 产品进程模型：多个 executable role，不是多个用户应用
+
+Windows distribution 中存在多个 `.exe` 是实现分工，不代表用户需要手工启动多个程序。目标产品链路固定为：
+
+```text
+普通用户
+  -> desktop entry                      # 唯一正常桌面启动入口
+       -> OpenDesk Runtime / App Mode
+            -> Script Runner / Recorder / Scheduler Center / Runtime Log
+            -> 需要 host-backed UI 时自动启动 ui-host
+
+开发者 / Terminal / 自动化调用方
+  -> CLI entry                          # 命令行入口，不是第二个桌面产品
+
+ui-host
+  -> Runtime child helper               # 不在 Explorer/Start Menu 作为用户入口宣传
+```
+
+因此需要区分“发行目录里有几个 executable”与“用户需要启动几个 App”：
+
+- 普通用户只启动一个 desktop entry；
+- CLI 仅在开发、脚本或运维场景显式调用；
+- `ui-host` 由 Runtime 按需启动和关闭，用户不应手工运行；
+- Installer/shortcut 层未来只需要把 desktop entry 暴露成正常应用图标，内部 helper 保持隐藏实现角色。
+
+当前大小写冲突不改变上述产品模型；它只是说明现有 Windows 文件名合同错误，必须把 CLI 与 desktop role 改成两个真正不同的路径。
 
 ## 1. 三种不同的 closure
 
@@ -59,7 +87,7 @@ macOS: OpenDesk.app/Contents/
 
 Windows: portable root/
 ├── opendesk.exe               # 源码声明的 CLI role
-├── OpenDesk.exe               # 最新源码声明的 GUI role；大小写冲突，见 P0
+├── OpenDesk.exe               # 当前源码声明的 GUI role；大小写冲突，见 P0
 ├── ui-host/
 │   ├── opendesk-ui-host.exe
 │   ├── build-provenance.json
@@ -159,7 +187,15 @@ App Mode / 官方产品初始化代码已审查，但本表不是每个产品窗
 
 **Windows CLI/GUI 文件名冲突。** 复核源码将 `opendesk.exe` 作为 Console subsystem 3、`OpenDesk.exe` 作为 GUI subsystem 2。Windows 默认目录大小写不敏感，两者不是可靠的两个文件；可能互相覆盖，随后 subsystem 检查失败。Builder 两次 `requireRegular` 也不能证明存在两种 role。
 
-建议统一为：`opendesk.exe`（CLI）与 `opendesk-desktop.exe`（GUI），或其他不只在大小写上不同的两个名称。同步改动 build_windows_app、distribution、Builder input/output checks、launcher/文档、native regression 与 provenance；不得只改复制目标。本轮增加检测和测试，**尚未完成这组生产路径改名**。
+目标命名决定统一为：`opendesk.exe`（CLI / developer）与 `opendesk-desktop.exe`（GUI / normal user）。`ui-host/opendesk-ui-host.exe` 保持 Runtime 自动管理的内部 helper。同步改动 build_windows_app、distribution、Builder input/output checks、launcher/文档、native regression 与 provenance；不得只改复制目标。本轮增加检测、测试与架构合同，**尚未完成这组生产路径改名**。
+
+这三个 executable role 的用户语义必须保持：
+
+```text
+用户只启动 opendesk-desktop.exe
+CLI/脚本显式调用 opendesk.exe
+Runtime 在需要 Custom UI 时自动管理 ui-host/opendesk-ui-host.exe
+```
 
 此外：
 
