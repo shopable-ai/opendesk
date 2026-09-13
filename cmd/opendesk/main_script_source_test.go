@@ -136,6 +136,32 @@ func TestResolveProtectedFileUsesScriptLoader(t *testing.T) {
 	}
 }
 
+func TestResolveModuleFileUsesScriptLoader(t *testing.T) {
+	loadCalls := 0
+	loader := mainTestLoader(func(_ context.Context, path string) (*scriptloader.ScriptSource, error) {
+		loadCalls++
+		return &scriptloader.ScriptSource{
+			Content: []byte("bundled module payload"),
+			Source:  "file:" + path,
+			Ext:     ".js",
+			Protection: scriptloader.ProtectionInfo{
+				Mode: scriptloader.ProtectionPlain,
+			},
+		}, nil
+	})
+
+	source, err := resolveScriptSourceWithLoader(context.Background(), &Config{ScriptPath: "main.mjs"}, loader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loadCalls != 1 {
+		t.Fatalf("module loader calls = %d, want 1", loadCalls)
+	}
+	if source.Source != "file:main.mjs" || source.Ext != ".js" || string(source.Content) != "bundled module payload" {
+		t.Fatalf("unexpected module source: %#v", source)
+	}
+}
+
 func TestDirectProtectedExportAndHTTPModesFailBeforeSourceLoad(t *testing.T) {
 	exportPath := filepath.Join(t.TempDir(), "export.js")
 	err := executeScript(&Config{ScriptPath: "missing.odpkg", SaveLastScript: exportPath})

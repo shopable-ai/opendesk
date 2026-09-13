@@ -2,7 +2,9 @@ package scriptloader
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -40,6 +42,16 @@ func (ModuleScriptLoader) Load(ctx context.Context, filePath string) (*ScriptSou
 		return nil, newError("module_build_failed", "cannot resolve module entry path", err)
 	}
 	absolutePath = filepath.Clean(absolutePath)
+	entryInfo, err := os.Stat(absolutePath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, newError("module_entry_not_found", "module entry does not exist: "+absolutePath, err)
+		}
+		return nil, newError("module_entry_unreadable", "cannot inspect module entry: "+absolutePath, err)
+	}
+	if entryInfo.IsDir() {
+		return nil, newError("module_entry_unreadable", "module entry is not a file: "+absolutePath, nil)
+	}
 
 	content, err := bundleModule(ctx, absolutePath)
 	if err != nil {
@@ -60,17 +72,20 @@ func (ModuleScriptLoader) Load(ctx context.Context, filePath string) (*ScriptSou
 
 func bundleModule(ctx context.Context, entryPath string) ([]byte, error) {
 	options := api.BuildOptions{
-		EntryPoints:  []string{entryPath},
+		EntryPoints:   []string{entryPath},
 		AbsWorkingDir: filepath.Dir(entryPath),
-		Bundle:       true,
-		Write:        false,
-		Platform:     api.PlatformBrowser,
-		Format:       api.FormatIIFE,
-		GlobalName:   moduleEntryGlobal,
-		Target:       api.ES2020,
-		Outfile:      filepath.Join(filepath.Dir(entryPath), ".opendesk-module-bundle.js"),
-		LogLevel:     api.LogLevelSilent,
-		Sourcemap:    api.SourceMapInline,
+		Bundle:        true,
+		Write:         false,
+		Platform:      api.PlatformBrowser,
+		Format:        api.FormatIIFE,
+		GlobalName:    moduleEntryGlobal,
+		// Goja supports async functions but does not parse async generators.
+		// ES2017 keeps ordinary async/await efficient while making esbuild lower
+		// async-generator and newer syntax used by browser-compatible packages.
+		Target:        api.ES2017,
+		Outfile:       filepath.Join(filepath.Dir(entryPath), ".opendesk-module-bundle.js"),
+		LogLevel:      api.LogLevelSilent,
+		Sourcemap:     api.SourceMapInline,
 		LegalComments: api.LegalCommentsInline,
 	}
 

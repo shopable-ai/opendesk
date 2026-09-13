@@ -2,6 +2,7 @@ package scriptloader
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -51,6 +52,86 @@ func TestModuleScriptLoaderReportsBuildError(t *testing.T) {
 	}
 	if err == nil || !strings.Contains(err.Error(), "does-not-exist") {
 		t.Fatalf("module build error lost dependency context: %v", err)
+	}
+}
+
+func TestModuleScriptLoaderReportsMissingEntry(t *testing.T) {
+	entryPath := filepath.Join(t.TempDir(), "missing-entry.mjs")
+	_, err := (ModuleScriptLoader{}).Load(context.Background(), entryPath)
+	if ErrorCodeOf(err) != "module_entry_not_found" {
+		t.Fatalf("missing entry error code = %q, err=%v", ErrorCodeOf(err), err)
+	}
+	if err == nil || !strings.Contains(err.Error(), "missing-entry.mjs") {
+		t.Fatalf("missing entry error lost original path: %v", err)
+	}
+}
+
+func TestModuleScriptLoaderReportsMissingPackage(t *testing.T) {
+	entryPath := filepath.Join(t.TempDir(), "main.mjs")
+	if err := os.WriteFile(entryPath, []byte(`import "@opendesk/definitely-missing-package";`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, err := (ModuleScriptLoader{}).Load(context.Background(), entryPath)
+	if ErrorCodeOf(err) != "module_build_failed" {
+		t.Fatalf("missing package error code = %q, err=%v", ErrorCodeOf(err), err)
+	}
+	if err == nil || !strings.Contains(err.Error(), "@opendesk/definitely-missing-package") {
+		t.Fatalf("missing package error lost dependency context: %v", err)
+	}
+}
+
+func TestModuleScriptLoaderReportsSyntaxError(t *testing.T) {
+	entryPath := filepath.Join(t.TempDir(), "syntax-error.mjs")
+	if err := os.WriteFile(entryPath, []byte(`export const broken = ;`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, err := (ModuleScriptLoader{}).Load(context.Background(), entryPath)
+	if ErrorCodeOf(err) != "module_build_failed" {
+		t.Fatalf("syntax error code = %q, err=%v", ErrorCodeOf(err), err)
+	}
+	if err == nil || !strings.Contains(err.Error(), "syntax-error.mjs") {
+		t.Fatalf("syntax error lost original module context: %v", err)
+	}
+}
+
+func TestModuleScriptLoaderHonorsPreCanceledBuild(t *testing.T) {
+	entryPath := filepath.Join(t.TempDir(), "main.mjs")
+	if err := os.WriteFile(entryPath, []byte(`export const ready = true;`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err := (ModuleScriptLoader{}).Load(ctx, entryPath)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("pre-canceled module build error = %v, want context.Canceled", err)
+	}
+}
+
+func TestModuleScriptLoaderLowersAsyncGeneratorsForGoja(t *testing.T) {
+	entryPath := filepath.Join(t.TempDir(), "main.mjs")
+	if err := os.WriteFile(entryPath, []byte(`
+async function* pages() {
+  yield Promise.resolve(42);
+}
+
+export async function main() {
+  for await (const value of pages()) {
+    if (value !== 42) throw new Error("unexpected value");
+  }
+}
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	source, err := (ModuleScriptLoader{}).Load(context.Background(), entryPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bundled := string(source.Content)
+	for _, unsupported := range []string{"async function*", "for await"} {
+		if strings.Contains(bundled, unsupported) {
+			t.Fatalf("module bundle retained Goja-incompatible %q syntax", unsupported)
+		}
 	}
 }
 

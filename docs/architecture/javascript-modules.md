@@ -58,7 +58,7 @@ export async function main() {
 
 Imported modules are never auto-invoked just because they also export a function named `main`.
 
-The bundle is emitted as an IIFE and then passed through the existing JavaScript Execution path. The exported entry namespace is private implementation detail and is not a new public Runtime global.
+The bundle is emitted as an ES2017-compatible IIFE and then passed through the existing JavaScript Execution path. This lets esbuild lower syntax such as async generators that Goja does not parse, while preserving ordinary async functions for the existing EventLoop. The exported entry namespace is private implementation detail and is not a new public Runtime global.
 
 ## Resolution profile
 
@@ -80,6 +80,11 @@ P0 targets:
 - async exported `main()` using the existing OpenDesk EventLoop;
 - failure propagation from module build and from exported `main()`;
 - execution cancellation can cancel an in-progress esbuild rebuild through the esbuild Context API.
+
+The loader reports a missing file-backed entry as `module_entry_not_found` before creating an esbuild context.
+Once the entry exists, unresolved relative imports, unresolved package imports, and JavaScript parse failures remain
+`module_build_failed` errors with esbuild's original importing-file/dependency location in the message. There is no
+legacy-text fallback after any module error.
 
 Not promised by P0:
 
@@ -110,6 +115,8 @@ If a future LangGraph feature requires Node-specific APIs, OpenDesk should eithe
 
 - internal bundler behavior: `pkg/scriptloader/module_test.go`
 - direct executable module fixture: `tests/javascript-modules/basic/main.mjs`
+- direct CLI success/failure/cancellation matrix: `tests/javascript-modules/cli.test.js`
 - public third-party compatibility probe: `examples/runtime/modules/langgraph/main.mjs`
+- real LangGraph node-rejection probe: `examples/runtime/modules/langgraph/failing-node.mjs`
 
 The final acceptance must use the built OpenDesk executable to run the `.mjs` entrypoints. A successful esbuild-only test or a successful Node.js run does not prove OpenDesk module execution.

@@ -7,6 +7,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"opendesk/automation"
 	"opendesk/pkg/appshell"
 	"opendesk/pkg/customui"
+	"opendesk/pkg/scriptloader"
 )
 
 func TestRunJavaScriptAppShellKeepsOneExecutionAliveUntilUnifiedQuit(t *testing.T) {
@@ -201,6 +203,50 @@ func TestRunJavaScriptTeardownInterruptsWatchWaitRejectionHandler(t *testing.T) 
 	}
 	if active := backend.activeSessions(); active != 0 {
 		t.Fatalf("audio capture sessions after teardown = %d, want 0", active)
+	}
+}
+
+func TestRunBundledModuleTimeoutDrainsAsyncMain(t *testing.T) {
+	workDir := t.TempDir()
+	entryPath := filepath.Join(workDir, "main.mjs")
+	startedPath := filepath.Join(workDir, "started")
+	latePath := filepath.Join(workDir, "late")
+	startedJSON, err := json.Marshal(startedPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lateJSON, err := json.Marshal(latePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	module := `export async function main() {
+  File.write(` + string(startedJSON) + `, "started");
+  await new Promise((resolve) => setTimeout(resolve, 5000));
+  File.write(` + string(lateJSON) + `, "late");
+}`
+	if err := os.WriteFile(entryPath, []byte(module), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	source, err := (scriptloader.ModuleScriptLoader{}).Load(context.Background(), entryPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, _, runErr := Run(Request{
+		Context: context.Background(), ExecutionID: NewExecutionID("module-timeout"),
+		SourceLabel: source.Source, ScriptPath: entryPath, Ext: source.Ext,
+		WorkDir: workDir, ScriptContent: source.Content, Timeout: 750 * time.Millisecond,
+		Selection: TerminalSelection{Mode: "quiet", Categories: map[string]bool{}},
+	})
+	if result.Status != ExecutionStatusTimedOut || runErr == nil || !strings.Contains(runErr.Error(), "timed out") {
+		t.Fatalf("module timeout status/error = %s / %v", result.Status, runErr)
+	}
+	if _, err := os.Stat(startedPath); err != nil {
+		t.Fatalf("async module main did not start before timeout: %v", err)
+	}
+	time.Sleep(100 * time.Millisecond)
+	if _, err := os.Stat(latePath); !os.IsNotExist(err) {
+		t.Fatalf("module async behavior survived timeout: %v", err)
 	}
 }
 

@@ -244,7 +244,7 @@ func parseFlags() *Config {
 	config := &Config{}
 
 	flag.StringVar(&config.AppPath, "app", "", "Run an OpenDesk App Mode package directory")
-	flag.StringVar(&config.ScriptPath, "script", "", "Script file path (.txt, .js, or .odpkg)")
+	flag.StringVar(&config.ScriptPath, "script", "", "Script file path (.txt, .js, .mjs, or .odpkg)")
 	flag.StringVar(&config.ScriptText, "script-text", "", "Execute JavaScript source directly from the command line")
 	flag.StringVar(&config.StackMode, "stack", "legacy", "Legacy compatibility selector; new scripts should omit this flag")
 	flag.StringVar(&config.SaveLastScript, "save-last-script", "", "Persist the executed script source to the given path")
@@ -507,7 +507,7 @@ func main() {
 	}
 
 	// 没有脚本的情况
-	fmt.Fprintln(os.Stderr, "Please specify a script source: -script path/to/script.[txt|js|odpkg], -script-text 'code', or -script-stdin")
+	fmt.Fprintln(os.Stderr, "Please specify a script source: -script path/to/script.[txt|js|mjs|odpkg], -script-text 'code', or -script-stdin")
 
 	// 如果是 HTTP 模式，启动服务器
 	if config.HttpMode {
@@ -1157,7 +1157,7 @@ func resolveScriptSourceWithLoader(ctx context.Context, config *Config, fileLoad
 
 	if config.ScriptPath != "" {
 		ext := strings.ToLower(filepath.Ext(config.ScriptPath))
-		if ext == ".js" || ext == ".odpkg" {
+		if ext == ".js" || ext == ".mjs" || ext == ".odpkg" {
 			if fileLoader == nil {
 				return nil, fmt.Errorf("script file loader is required")
 			}
