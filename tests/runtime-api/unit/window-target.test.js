@@ -58,6 +58,25 @@
     verification: 'contract', covers: ['window.list', 'window.get', 'window.wait'] }, () => {
     for (const name of ['list', 'get', 'wait']) equal(typeof window[name], 'function', name);
   });
+  test({ name: 'window target contract stays single-target without platform routing', tier: 'unit',
+    verification: 'contract', covers: ['window.get', 'window.wait', 'UI.tapText', 'UI.tapTexts'] }, () => {
+    for (const name of ['byPlatform', 'forPlatform', 'resolvePlatformTarget']) {
+      equal(window[name], undefined, 'window.' + name);
+    }
+    const windowTypes = File.read(File.join(File.cwd(), 'types/window.d.ts'));
+    for (const token of ['byPlatform', 'PlatformWindowTarget', 'forPlatform', 'resolvePlatformTarget']) {
+      assert(!windowTypes.includes(token), 'WindowTarget type must not publish platform routing: ' + token);
+    }
+    const uiTypes = File.read(File.join(File.cwd(), 'types/UI.d.ts'));
+    const start = uiTypes.indexOf('interface OpenDeskUIBaseOptions');
+    const end = uiTypes.indexOf('interface OpenDeskUIImageOptions', start);
+    assert(start >= 0 && end > start, 'UI text option type surface was not found');
+    const textOptions = uiTypes.slice(start, end);
+    for (const field of ['appName', 'windowName', 'platform', 'bundleId', 'exeName']) {
+      const property = new RegExp('\\b' + field + '\\??\\s*:');
+      assert(!property.test(textOptions), 'UI text options must not resolve window field: ' + field);
+    }
+  });
   unit('list stays synchronous and legacy snapshot adapters remain compatible', async () => {
     const f = fixture(); assert(Array.isArray(f.win.list()));
     equal((await f.win.getActiveWindow()).pid, 1);
@@ -96,7 +115,8 @@
     for (const input of [undefined, null, '', 'Calculator', 1, [], {}, { name: 'Editor' },
       { pid: 0 }, { pid: 1.5 }, { pid: 4294967296 }, { title: '' }, { title: undefined },
       { id: 'fixture:1:unresolved' }, { app: {} }, { app: { name: 'x', path: '/x' } },
-      { app: 'x', pid: 1 }, { exePath: '/x', exeName: 'x' }]) {
+      { app: 'x', pid: 1 }, { exePath: '/x', exeName: 'x' },
+      { byPlatform: { darwin: { pid: 1 } } }, { platform: 'darwin', pid: 1 }]) {
       await rejects(() => f.win.get(input), 'INVALID_ARGUMENT', 'window.get');
     }
     await rejects(() => f.win.list({ extra: true }), 'INVALID_ARGUMENT', 'window.list');
