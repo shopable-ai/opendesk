@@ -157,12 +157,6 @@ func executeAppMode(config *Config) error {
 	}
 	defer appScheduler.Close()
 	environment.Values = appScheduler.Environment(environment.Values)
-	appDeveloper, err := startAppDeveloperRuntime(appContext, appPackage.Manifest.ID, environment.Values)
-	if err != nil {
-		return fmt.Errorf("start App developer runtime: %w", err)
-	}
-	defer appDeveloper.Close()
-	environment.Values = appDeveloper.Environment(environment.Values)
 	if err := shell.Start(appContext); err != nil {
 		return fmt.Errorf("start App Shell: %w", err)
 	}

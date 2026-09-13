@@ -210,8 +210,6 @@ Tray/Menu owner:
 开发者 >
     运行状态…
     打开 Inspector
-    允许 Inspector 从局域网访问
-    复制 Inspector LAN 地址
     打开日志目录
     调试信息 > 普通 / 详细
 ----------------
@@ -359,16 +357,17 @@ copy/filter implementation.
 The longer-term product target remains:
 
 ```text
-OpenDesk.exe   -> desktop GUI entry, no console window
-opendesk.exe   -> CLI/developer entry, console subsystem
+opendesk-desktop.exe -> desktop GUI entry, no console window
+opendesk.exe         -> CLI/developer entry, console subsystem
 ```
 
 Both entries must share one Runtime core and App Mode contract. Child recipe
 execution from the product UI must not create extra console windows; its
 stdout/stderr must continue through pipes/artifacts.
 
-Windows GUI/CLI entry separation is a target until it has real Windows build
-and live evidence. Do not mark it implemented from a non-Windows cross-build.
+Windows GUI/CLI filenames and subsystem roles are now distinct in source and
+release validation. Windows live launch remains unverified until exercised in
+a real Windows desktop session; a non-Windows contract check does not replace it.
 
 ## Current implementation status vs target
 

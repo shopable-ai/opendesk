@@ -68,8 +68,6 @@
             && [
               'opendesk.status',
               'opendesk.inspector.open',
-              'opendesk.inspector.lan.toggle',
-              'opendesk.inspector.lan.copy',
               'opendesk.logs.open',
               'opendesk.debug.normal',
               'opendesk.debug.detailed',
@@ -99,7 +97,7 @@
         if (logger && typeof logger.error === 'function') {
           let prefix = '[APP_ACTION]';
           if (action === 'scheduler.open' || action === 'scheduler.new') prefix = '[SCHEDULER_CENTER]';
-          if (action === 'inspector.open') prefix = '[INSPECTOR]';
+          if (action === 'inspector.open' || action === 'opendesk.inspector.open') prefix = '[INSPECTOR]';
           logger.error(`${prefix} action=${action} stage=dispatch message=${JSON.stringify(details.message)} stack=${JSON.stringify(details.stack)}`);
         }
         return false;

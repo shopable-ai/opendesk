@@ -42,13 +42,9 @@ Origin、pair 重放、跨 session token 和过期凭据均拒绝。精确字段
 
 ### 网络范围
 
-默认 `local-only` 策略只接受 loopback socket 和 loopback IP Host。需要可信局域网时，在 macOS 托盘选择
-**Developer → Allow Inspector from LAN**，再用 **Copy Inspector LAN URL** 取得
-`http://<本机私有-IP>:<actual-port>/accessibility-workbench/`。这是仅当前进程有效的 trusted-LAN 开关，重启必定恢复关闭；只有真实公开 listener 模式才适合启用 LAN。
+正式 App Mode P0 只接受 loopback socket 和 loopback IP Host，listener 绑定 `127.0.0.1`。Product Developer 菜单不显示 LAN 开关或 LAN URL，App Local Services 也不挂载内部 LAN-control route。不要通过反向代理、Host 改写、端口转发或公网地址扩大该边界。
 
-trusted-LAN 仍只允许 RFC 私有网段 socket、本机实际私有 IP 的精确 Host 和相同 HTTP Origin；公网 RemoteAddr、伪造私有 Host、
-forwarded headers 和跨源请求继续拒绝。页面会持续显示“plaintext HTTP”警告。只应在可信开发网络短期开启，不得通过公网路由、
-反向代理或端口转发扩大。helper 只能经 loopback 内部 endpoint 和启动时随机 argv token 查询或切换该状态。
+LAN 能力留到 P1：只有在同一个 App Local Services listener 上完成 per-process privileged control、随机 token、非持久化、token isolation 与 Recipe/child execution 不传播，并通过私网 Host/Origin/socket fail-closed 测试后，才可重新暴露正式入口。
 
 ## 同机并行、目标窗口与网页目标
 

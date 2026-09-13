@@ -92,6 +92,51 @@ func TestStageRejectsDevelopmentFileInReleasePolicy(t *testing.T) {
 	}
 }
 
+func TestStageRejectsLiteralScriptDirDependencyMissingFromReleasePolicy(t *testing.T) {
+	source := t.TempDir()
+	writeFixture(t, source, "opendesk.app.json", "{}")
+	writeFixture(t, source, "main.js", `const moduleFile = File.join(Execution.scriptDir, 'developer-tools.js'); File.read(moduleFile);`)
+	writeFixture(t, source, "developer-tools.js", "// runtime module")
+	writeFixture(t, source, ReleasePolicyPath, "opendesk.app.json\nmain.js\n")
+
+	_, err := Stage(source, filepath.Join(t.TempDir(), "app-mode"))
+	if err == nil || !strings.Contains(err.Error(), "omits literal package dependency developer-tools.js") {
+		t.Fatalf("expected literal dependency closure rejection, got %v", err)
+	}
+
+	writeFixture(t, source, ReleasePolicyPath, "opendesk.app.json\nmain.js\ndeveloper-tools.js\n")
+	if _, err := Stage(source, filepath.Join(t.TempDir(), "complete")); err != nil {
+		t.Fatalf("complete literal dependency closure rejected: %v", err)
+	}
+}
+
+func TestStageRejectsLiteralPackageDependencyMissingFromReleasePolicy(t *testing.T) {
+	source := t.TempDir()
+	writeFixture(t, source, "opendesk.app.json", "{}")
+	writeFixture(t, source, "main.js", "const moduleFile = File.join(Execution.scriptDir, 'developer-tools.js');\nFile.read(moduleFile);\n")
+	writeFixture(t, source, "developer-tools.js", "// runtime module")
+	writeFixture(t, source, ReleasePolicyPath, "opendesk.app.json\nmain.js\n")
+
+	_, err := Stage(source, filepath.Join(t.TempDir(), "app-mode"))
+	if err == nil || !strings.Contains(err.Error(), "omits literal package dependency developer-tools.js") {
+		t.Fatalf("expected literal dependency closure rejection, got %v", err)
+	}
+}
+
+func TestLiteralPackageDependenciesIncludeNestedRuntimeResources(t *testing.T) {
+	content := []byte(`
+const one = File.join(Execution.scriptDir, 'developer-tools.js');
+const two = file.join(execution.scriptDir, 'script-runner', 'controller.js');
+const three = file.join(execution.scriptDir, dynamicName);
+const runtimeDirectory = file.join(execution.scriptDir, 'recording-console-simple');
+`)
+	got := literalPackageDependencies(content)
+	want := []string{"developer-tools.js", "script-runner/controller.js"}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("literal dependencies=%v, want=%v", got, want)
+	}
+}
+
 func TestStageRejectsDestinationContainingSource(t *testing.T) {
 	parent := t.TempDir()
 	source := filepath.Join(parent, "package")

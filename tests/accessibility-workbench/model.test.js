@@ -586,18 +586,19 @@ test('browser UI uses text-only rendering, memory credentials, current routes, a
   assert.equal(/<script(?!\s+src=)/i.test(html), false, 'inline script bypasses static CSP');
 });
 
-test('user documentation describes the current same-origin local and trusted-LAN workflow', () => {
+test('user documentation describes the current same-origin local-only App Mode workflow', () => {
   const readme = fs.readFileSync(path.join(webRoot, 'README.md'), 'utf8');
   const integration = fs.readFileSync(path.join(repoRoot, 'docs/integrations/desktop-agent.md'), 'utf8');
   const quickstart = fs.readFileSync(path.join(repoRoot, 'QUICKSTART.md'), 'utf8');
   for (const document of [readme, integration, quickstart]) {
     assert.match(document, /OpenDesk ready|actual-port|实际地址|实际.*端口/i);
-    assert.match(document, /trusted-LAN|可信.*局域网/i);
+    assert.match(document, /local-only|仅本机/i);
     assert.doesNotMatch(document, /python3 -m http\.server 60845/);
+    assert.doesNotMatch(document, /Developer → Allow Inspector from\s+LAN|Copy Inspector LAN URL/);
   }
   assert.match(readme, /same-origin/i);
   assert.match(integration, /legacy `60844`|legacy.*60844/i);
-  assert.match(quickstart, /Allow Inspector from\s+LAN/);
+  assert.match(quickstart, /P0 保持 local-only/);
 });
 
 test('small secondary text tokens retain WCAG AA contrast on workbench surfaces', () => {

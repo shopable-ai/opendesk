@@ -3,9 +3,8 @@
 `apps/inspector_web` is the source-owned HTML/CSS/JavaScript frontend for a
 bounded, read-only Accessibility observation and an explicitly requested,
 short-lived pixel capture. The current OpenDesk development checkout serves
-these source files directly; `scripts/build_macos_app.sh` copies the same files
-into `OpenDesk.app/Contents/Resources/inspector_web` so the app and UI always
-come from one build.
+these source files directly; the macOS and Windows builders stage the same four
+runtime files into `inspector_web` so the app and UI always come from one build.
 
 The single local entry is the current loopback Runtime URL printed by OpenDesk,
 followed by:
@@ -21,20 +20,16 @@ the current URL from the `OpenDesk ready` log line, then click **Connect**. Page
 Python `60845` server, `control` query parameter, CORS bridge, or random API
 listener in the normal workflow.
 
-LAN access is an explicit trusted developer-network mode. It starts off on every
-OpenDesk process launch and is enabled only from **Developer → Allow Inspector
-from LAN**. **Copy Inspector LAN URL** copies
-`http://<local-private-IP>:<actual-port>/accessibility-workbench/`. The LAN page displays
-a persistent plaintext-HTTP warning. Use this only on a private network you
-trust; do not expose or forward the port to the public internet.
+Official App Mode is P0 local-only: its listener binds `127.0.0.1`, accepts exact
+loopback Host/Origin, and does not expose clickable LAN controls or an internal
+LAN-control route. LAN support remains deferred until the same App Local Services
+listener has privileged loopback control, random per-process token isolation, and
+proof that no token reaches Recipe/child executions.
 
-Both modes require an exact IP `Host`, exact same-origin HTTP `Origin`, a real
-loopback or private socket peer allowed by the active policy, a one-time pairing
-code, one in-memory Bearer client, per-session tokens, and the existing pair,
-client, session, and visual TTLs. Forwarded requests, public peers, forged local
-hosts, cross-origin traffic, and a second active client are rejected. The helper
-can change LAN state only through a loopback-only internal endpoint authenticated
-by a random token passed in its argv. That state is not persisted.
+The local mode requires a one-time pairing code, one in-memory Bearer client,
+per-session tokens, and the existing pair, client, session, and visual TTLs.
+Forwarded requests, forged hosts, cross-origin traffic, and a second active
+client are rejected.
 
 The Inspector API remains read-only and narrowly routed. It does not grant or
 proxy script execution, Scheduler, MCP, generic Runtime, arbitrary files, or UI
@@ -113,9 +108,8 @@ enabled and the page supplies accessible semantics; canvas, virtualized, or
 otherwise unexposed content may still be absent.
 
 The integration boundary is the documented same-origin HTTP control/data
-contract. The macOS status menu opens the fixed page URL and changes only the
-process-local trusted-LAN policy; it never receives Inspector bearer or session
-credentials.
+contract. The Product Developer menu only delegates the Runtime-published URL
+to `InspectorLauncher`; it never receives Inspector bearer or session credentials.
 
 Frontend model and static-safety tests run from the repository root:
 

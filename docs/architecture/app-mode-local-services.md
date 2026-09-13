@@ -35,7 +35,7 @@ executeAppMode
 → 官方 OpenDesk 且发现 inspector_web 资源时挂载 Inspector routes
 → 把实际 endpoint / Inspector URL 写入当前 App Execution environment
 → start App Shell
-→ main.js 注册 inspector.open
+→ Product Developer surface 注册 opendesk.inspector.open
 → 用户点击 Inspector
 → 系统默认浏览器打开当前 runtime 的 /accessibility-workbench/
 → Quit / cancellation
@@ -70,7 +70,9 @@ http://127.0.0.1:<runtime-port>/accessibility-workbench/
 
 当前只对官方 package id `com.opendesk.desktop` 自动挂载 Inspector。普通第三方 App Mode 不因为 Runtime 自带 Inspector 代码就自动获得产品菜单或开发工具入口。
 
-`apps/opendesk/opendesk.app.json` 中的 `inspector.open` 只是官方产品菜单 action。它不会改变 App Manifest 的通用 schema，也不会新增 `port` / `runtimePort` 配置。
+`打开 Inspector` 只由 App Shell 的官方 Product Developer surface 组合；`apps/opendesk/opendesk.app.json` 不再重复声明第二个 Inspector 菜单 action。它不会改变 App Manifest 的通用 schema，也不会新增 `port` / `runtimePort` 配置。
+
+P0 App Mode listener 固定绑定 loopback，且不挂载 Inspector internal LAN control route。`Allow Inspector from LAN` / `Copy Inspector LAN URL` 不在正式 Product Developer 菜单中显示；待后续在这一个 listener 上完成受保护 control、token isolation 与 child-execution non-propagation 后再单独进入 P1。
 
 ## 与 Runtime Endpoint Allocation 的关系
 
@@ -87,3 +89,4 @@ P0 至少验证：
 5. Inspector frontend 不存在时 App 仍可启动，且不发布伪 Inspector URL。
 6. Quit 时 listener、Inspector authorization、Scheduler 和 store 全部关闭。
 7. `Inspector` 菜单只打开 `OPENDESK_APP_INSPECTOR_URL`，不 spawn 第二个 Runtime/server。
+8. Product Developer 菜单不暴露未完成的 Inspector LAN control。

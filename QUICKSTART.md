@@ -129,8 +129,9 @@ APP_BUNDLE=/Applications/OpenDesk.app bash scripts/test_app_icons.sh
 Inspector 由当前 OpenDesk Runtime 提供。从 Desktop 产品的 **Developer** 菜单打开 Inspector
 最稳妥，不要猜测内部 Runtime 端口。开发模式下也可以根据 Runtime 输出的实际 endpoint 打开对应页面。
 
-需要从可信局域网中的另一台设备检查时，只使用产品提供的显式 LAN Inspector 开关；不要使用
-反向代理、Host 改写、端口转发或公网地址。关闭开关或重启 OpenDesk 后应恢复 local-only。
+正式 App Mode P0 保持 local-only，只监听 `127.0.0.1`，Developer 菜单不提供 LAN 开关或 LAN URL。
+不要使用反向代理、Host 改写、端口转发或公网地址扩大该边界。LAN 能力只有在同一 App Local Services
+listener 上完成受保护 control 与 child-execution token isolation 后才会作为后续版本进入产品。
 Inspector 不授予脚本执行、Scheduler、MCP 或通用 Runtime 权限。更完整的安全边界见
 [`docs/integrations/desktop-agent.md`](docs/integrations/desktop-agent.md)。
 

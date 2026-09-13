@@ -88,6 +88,7 @@ const developerTools = OpenDeskDeveloperTools.create({
   runner,
   schedulerClient: OpenDeskSchedulerClient,
   runtimeLog,
+  inspectorLauncher,
 });
 const appController = OpenDeskProductAppController.create({
   appRuntime: automation.app,

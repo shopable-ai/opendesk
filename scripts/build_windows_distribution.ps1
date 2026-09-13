@@ -175,6 +175,22 @@ try {
     $uiHostDirectory = Join-Path $OutputDirectory 'ui-host'
     $uiHostPath = Join-Path $uiHostDirectory 'opendesk-ui-host.exe'
     $uiHostProvenancePath = Join-Path $uiHostDirectory 'build-provenance.json'
+    $inspectorWebFiles = @(
+        'inspector_web/index.html',
+        'inspector_web/assets/app.css',
+        'inspector_web/assets/app.js',
+        'inspector_web/assets/model.js'
+    )
+    foreach ($relative in $inspectorWebFiles) {
+        $path = Join-Path $OutputDirectory $relative
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+            throw "Portable distribution is missing Inspector frontend asset: $path"
+        }
+        $runtimeAssetManifest.Add([ordered]@{
+            path = $relative
+            sha256 = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
+        })
+    }
     # This marker turns the fully assembled portable Runtime into a formal,
     # same-platform App Builder input. End users consume this payload through
     # `opendesk app build`; no source checkout, go build, or go run is involved.
@@ -251,6 +267,7 @@ try {
                 javascriptLibraries = 'jslibs/'
                 notificationIcon = 'resources/opendesk-notification.png'
                 predefinedSounds = 'sounds/public/'
+                inspectorFrontend = 'inspector_web/'
             }
             appModePackage = if ($appModeStaged) { 'app-mode/' } else { $null }
             appBuilderTemplate = 'app-builder-template.json'

@@ -75,6 +75,14 @@ func TestOfficialAppInspectorSharesSchedulerListenerAndKeepsGenericHTTPClosed(t 
 	if genericResponse.StatusCode != http.StatusNotFound {
 		t.Fatalf("generic Runtime route status = %d, want %d", genericResponse.StatusCode, http.StatusNotFound)
 	}
+	lanResponse, err := http.Get(runtime.endpoint + "/api/accessibility-workbench/v1/internal/lan")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = lanResponse.Body.Close()
+	if lanResponse.StatusCode != http.StatusNotFound {
+		t.Fatalf("App Mode local-only Inspector must not expose LAN control; status = %d", lanResponse.StatusCode)
+	}
 
 	launchRequest, err := http.NewRequest(http.MethodPost, runtime.endpoint+"/api/accessibility-workbench/v1/launch", strings.NewReader("{}"))
 	if err != nil {
@@ -105,6 +113,28 @@ func TestOfficialAppInspectorSharesSchedulerListenerAndKeepsGenericHTTPClosed(t 
 	}
 	if payload.Code != 0 || payload.Data.Listener != strings.TrimPrefix(runtime.endpoint, "http://") || payload.Data.Mode != "local-only" || !strings.HasPrefix(payload.Data.URL, runtime.InspectorURL()+"#") {
 		t.Fatalf("unexpected Inspector launch payload: %+v", payload)
+	}
+}
+
+func TestAppLocalServicesCloseReleasesSharedListener(t *testing.T) {
+	root := t.TempDir()
+	runtime, err := startAppScheduler(context.Background(), &Config{SchedulerDBPath: filepath.Join(root, "scheduler.db")}, "com.example.app", root, map[string]string{
+		"HOME": root, "OPENDESK_SCRIPT_RUNNER_DIR": filepath.Join(root, "recipes"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	endpoint := runtime.Endpoint()
+	if err := runtime.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := runtime.Close(); err != nil {
+		t.Fatalf("second close: %v", err)
+	}
+	client := &http.Client{}
+	if response, requestErr := client.Get(endpoint + "/api/scheduler/status"); requestErr == nil {
+		_ = response.Body.Close()
+		t.Fatalf("App Local Services listener still accepts requests after Close: %s", endpoint)
 	}
 }
 

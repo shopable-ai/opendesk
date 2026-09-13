@@ -3,16 +3,14 @@ package appshell
 const OpenDeskProductPackageID = "com.opendesk.desktop"
 
 const (
-	ActionProductStatus             = "opendesk.status"
-	ActionProductInspectorOpen      = "opendesk.inspector.open"
-	ActionProductInspectorLANToggle = "opendesk.inspector.lan.toggle"
-	ActionProductInspectorLANCopy   = "opendesk.inspector.lan.copy"
-	ActionProductLogsOpen           = "opendesk.logs.open"
-	ActionProductDebugNormal        = "opendesk.debug.normal"
-	ActionProductDebugDetailed      = "opendesk.debug.detailed"
-	ActionProductHome               = "opendesk.home"
-	ActionProductHelp               = "opendesk.help"
-	ActionProductCustomize          = "opendesk.customize"
+	ActionProductStatus        = "opendesk.status"
+	ActionProductInspectorOpen = "opendesk.inspector.open"
+	ActionProductLogsOpen      = "opendesk.logs.open"
+	ActionProductDebugNormal   = "opendesk.debug.normal"
+	ActionProductDebugDetailed = "opendesk.debug.detailed"
+	ActionProductHome          = "opendesk.home"
+	ActionProductHelp          = "opendesk.help"
+	ActionProductCustomize     = "opendesk.customize"
 )
 
 // nativeMenuItem is an App Shell implementation detail. Its recursive shape
@@ -60,9 +58,6 @@ func openDeskProductMenu(manifest Manifest) []nativeMenuItem {
 			{ID: ActionProductStatus, Label: "运行状态…"},
 			{ID: ActionProductInspectorOpen, Label: "打开 Inspector"},
 			{Type: "separator"},
-			{ID: ActionProductInspectorLANToggle, Label: "允许 Inspector 从局域网访问"},
-			{ID: ActionProductInspectorLANCopy, Label: "复制 Inspector LAN 地址", Enabled: boolPointer(false)},
-			{Type: "separator"},
 			{ID: ActionProductLogsOpen, Label: "打开日志目录"},
 			{Label: "调试信息", Children: []nativeMenuItem{
 				{ID: ActionProductDebugNormal, Label: "✓ 普通"},
@@ -92,8 +87,6 @@ func nativeMenuItems(items []MenuItem) []nativeMenuItem {
 	return result
 }
 
-func boolPointer(value bool) *bool { return &value }
-
 func visitNativeMenu(items []nativeMenuItem, visit func(nativeMenuItem)) {
 	for _, item := range items {
 		visit(item)
@@ -105,8 +98,6 @@ func isProductSystemAction(value string) bool {
 	switch value {
 	case ActionProductStatus,
 		ActionProductInspectorOpen,
-		ActionProductInspectorLANToggle,
-		ActionProductInspectorLANCopy,
 		ActionProductLogsOpen,
 		ActionProductDebugNormal,
 		ActionProductDebugDetailed,

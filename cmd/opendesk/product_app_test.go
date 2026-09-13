@@ -1,9 +1,6 @@
 package main
 
 import (
-	"context"
-	"io"
-	"net/http"
 	"opendesk/pkg/appshell"
 	"os"
 	"path/filepath"
@@ -34,6 +31,9 @@ func TestProductAppPackageOwnsRunnerButNotReservedRecorderAction(t *testing.T) {
 	}
 	if _, ok := appPackage.Manifest.MenuAction("open-opendesk"); ok {
 		t.Fatal("product manifest must not duplicate the App Shell-owned OpenDesk entry")
+	}
+	if _, ok := appPackage.Manifest.MenuAction("open-inspector"); ok {
+		t.Fatal("product manifest must not duplicate the Developer-owned Inspector entry")
 	}
 
 	merged := appshell.EnsureRecorderMenu(appPackage.Manifest)
@@ -104,51 +104,21 @@ func TestProductizedUIsHaveSingleCanonicalImplementations(t *testing.T) {
 	}
 }
 
-func TestProductAppDeveloperRuntimeIsProcessOwnedAndReleasesEndpoint(t *testing.T) {
-	workingDirectory, err := os.Getwd()
+func TestProductAppUsesOnlyTheSharedAppLocalServicesRuntime(t *testing.T) {
+	source, err := os.ReadFile("app_mode.go")
 	if err != nil {
 		t.Fatal(err)
 	}
-	repositoryRoot, err := filepath.Abs(filepath.Join("..", ".."))
-	if err != nil {
-		t.Fatal(err)
+	text := string(source)
+	if strings.Count(text, "startAppScheduler(") != 1 {
+		t.Fatalf("App Mode must start exactly one App Local Services runtime; source=%s", text)
 	}
-	if err := os.Chdir(repositoryRoot); err != nil {
-		t.Fatal(err)
+	for _, forbidden := range []string{"startAppDeveloperRuntime", "appDeveloper", "OPENDESK_APP_INSPECTOR_CONTROL_TOKEN"} {
+		if strings.Contains(text, forbidden) {
+			t.Fatalf("App Mode still references legacy standalone Inspector ownership %q", forbidden)
+		}
 	}
-	t.Cleanup(func() { _ = os.Chdir(workingDirectory) })
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	runtime, err := startAppDeveloperRuntime(ctx, "com.opendesk.desktop", map[string]string{
-		"OPENDESK_APP_DATA_DIR": t.TempDir(),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = runtime.Close() })
-	environment := runtime.Environment(map[string]string{"KEEP": "value"})
-	if environment["KEEP"] != "value" || environment[appInspectorEndpointEnv] != runtime.Endpoint() ||
-		environment[appInspectorTokenEnv] == "" {
-		t.Fatalf("developer environment=%+v", environment)
-	}
-	request, err := http.NewRequest(http.MethodGet, runtime.Endpoint()+"/api/accessibility-workbench/v1/internal/lan", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	request.Header.Set("X-OpenDesk-Inspector-Control", environment[appInspectorTokenEnv])
-	response, err := http.DefaultClient.Do(request)
-	if err != nil {
-		t.Fatal(err)
-	}
-	body, readErr := io.ReadAll(response.Body)
-	_ = response.Body.Close()
-	if readErr != nil || response.StatusCode != http.StatusOK || !strings.Contains(string(body), `"allowLAN":false`) {
-		t.Fatalf("Inspector LAN status=%d body=%s readErr=%v", response.StatusCode, body, readErr)
-	}
-	if err := runtime.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if err := runtime.Close(); err != nil {
-		t.Fatalf("second close: %v", err)
+	if _, err := os.Stat("app_developer.go"); !os.IsNotExist(err) {
+		t.Fatalf("legacy standalone Inspector runtime must not remain in the product startup package: %v", err)
 	}
 }

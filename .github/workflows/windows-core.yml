@@ -106,9 +106,10 @@ jobs:
             "app-mode\recorder\controller.js",
             "app-mode\recorder\controller-core.js",
             "app-mode\recorder\recording-history.js",
-            "app-mode\recorder\icons\countdown-1.png",
-            "app-mode\recorder\icons\countdown-2.png",
-            "app-mode\recorder\icons\countdown-3.png"
+            "inspector_web\index.html",
+            "inspector_web\assets\app.css",
+            "inspector_web\assets\app.js",
+            "inspector_web\assets\model.js"
           )
           foreach ($relative in $required) {
             $path = Join-Path $distribution $relative

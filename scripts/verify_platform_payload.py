@@ -31,6 +31,10 @@ LAYOUT = {
                     "Contents/Resources/OpenDeskAppBuilder/build-provenance.json"),
         "wrong_suffixes": (".exe", ".dll", ".pdb"),
         "wrong_paths": ("ui-host", "opendesk.exe", "app-builder-template.json"),
+        "inspector": ("Contents/Resources/inspector_web/index.html",
+                      "Contents/Resources/inspector_web/assets/app.css",
+                      "Contents/Resources/inspector_web/assets/app.js",
+                      "Contents/Resources/inspector_web/assets/model.js"),
     },
     "windows": {
         "files": (
@@ -44,11 +48,13 @@ LAYOUT = {
         "marker": "app-builder-template.json",
         "package": "app-mode",
         "provenance": "app-build-provenance.json",
-        "owned": ("ui-host", "polyfills", "jslibs", "resources", "sounds"),
+        "owned": ("ui-host", "polyfills", "jslibs", "resources", "sounds", "inspector_web"),
         "mutable": ("app-mode", "distribution-provenance.json", "app-build-provenance.json"),
         "wrong_suffixes": (".dylib", ".icns"),
         "wrong_paths": ("Contents", "OpenDesk.app", "opendesk-status",
                         "resources/NativeExtensions/com.example.macos-vision"),
+        "inspector": ("inspector_web/index.html", "inspector_web/assets/app.css",
+                      "inspector_web/assets/app.js", "inspector_web/assets/model.js"),
     },
 }
 
@@ -142,6 +148,14 @@ def verify(root: Path, target: str, kind: str = "runtime",
         required.append(layout["marker"])
     else:
         required.extend((layout["package"] + "/opendesk.app.json", layout["provenance"]))
+        manifest = files.get(layout["package"] + "/opendesk.app.json")
+        if manifest is not None:
+            try:
+                package = json.loads(manifest.read_text(encoding="utf-8-sig"))
+                if isinstance(package, dict) and package.get("id") == "com.opendesk.desktop":
+                    required.extend(layout["inspector"])
+            except (ValueError, UnicodeError, OSError) as exc:
+                errors.append(f"invalid App Mode manifest: {exc}")
     for relative in required:
         if relative not in files:
             errors.append(f"missing required file: {relative}")

@@ -95,13 +95,6 @@ if [[ ! -f "${APP_ICON_SOURCE}" ]]; then
   printf 'App icon is missing: %s\nRun scripts/generate_app_icons.sh first.\n' "${APP_ICON_SOURCE}" >&2
   exit 1
 fi
-for inspector_asset in index.html assets/app.css assets/app.js assets/model.js; do
-  if [[ ! -f "${INSPECTOR_WEB_SOURCE}/${inspector_asset}" ]]; then
-    printf 'Inspector frontend asset is missing: %s\n' "${INSPECTOR_WEB_SOURCE}/${inspector_asset}" >&2
-    exit 1
-  fi
-done
-
 rm -rf "${APP_ROOT}"
 mkdir -p "${MACOS_DIR}" "${HELPERS_DIR}" "${RESOURCES_DIR}"
 
@@ -110,8 +103,10 @@ cp "${DIST_DIR}/opendesk-ui-host" "${UI_HOST_PATH}"
 cp "${DIST_DIR}/opendesk-ui-host" "${CLAWDESK_UI_HOST_PATH}"
 cp "${DIST_DIR}/opendesk-status" "${STATUS_HELPER_PATH}"
 cp "${APP_ICON_SOURCE}" "${RESOURCES_DIR}/${APP_ICON_NAME}"
-mkdir -p "${INSPECTOR_WEB_PATH}"
-rsync -a --delete --exclude README.md --exclude accessibility-workbench "${INSPECTOR_WEB_SOURCE}/" "${INSPECTOR_WEB_PATH}/"
+"${GO_BIN}" run ./scripts/tools/inspector-web-payload \
+  -source "${INSPECTOR_WEB_SOURCE}" \
+  -destination "${INSPECTOR_WEB_PATH}"
+chmod -R go-w "${INSPECTOR_WEB_PATH}"
 # This marker is the installed, precompiled Runtime's formal App Builder
 # template. `opendesk app build` copies this bundle; it never invokes this
 # source-tree builder or a Go toolchain on a framework user's machine.

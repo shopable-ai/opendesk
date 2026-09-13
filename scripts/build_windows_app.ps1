@@ -130,6 +130,14 @@ try {
         Write-Host "Staged default App Mode package: $appModeOutput"
     }
 
+    $inspectorWebSource = Join-Path $root 'apps/inspector_web'
+    $inspectorWebOutput = Join-Path $OutputDirectory 'inspector_web'
+    & go run ./scripts/tools/inspector-web-payload -source $inspectorWebSource -destination $inspectorWebOutput
+    if ($LASTEXITCODE -ne 0) {
+        throw "Inspector frontend staging failed ($LASTEXITCODE)."
+    }
+    Write-Host "Staged Inspector frontend: $inspectorWebOutput"
+
     Write-Host "OpenDesk Windows CLI entry: $runtimePath"
     Write-Host "OpenDesk Windows desktop entry: $desktopRuntimePath"
     Write-Host "OpenDesk Windows UI host: $uiHostPath"

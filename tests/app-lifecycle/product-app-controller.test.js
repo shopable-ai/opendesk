@@ -164,15 +164,13 @@ test('Inspector launch failures are isolated and use the Inspector log prefix', 
   assert.deepEqual(f.controller.state(), {started: true, handledActions: 1, failedActions: 1});
 });
 
-test('Developer tools keep Inspector, LAN, debug, logs, and status in the product process', async () => {
+test('Developer tools delegate Inspector launch and keep local-only status, debug, and logs in the product process', async () => {
   const originalDeveloperTools = globalThis.OpenDeskDeveloperTools;
   const menuUpdates = [];
-  const commandCalls = [];
-  const copied = [];
+  const inspectorCalls = [];
   const detailModes = [];
   const controls = new Map();
   let statusWindowCreates = 0;
-  let lanEnabled = false;
   try {
     const developerToolsFile = path.resolve(__dirname, '..', '..', 'apps', 'opendesk', 'developer-tools.js');
     vm.runInThisContext(fs.readFileSync(developerToolsFile, 'utf8'), {filename: developerToolsFile});
@@ -190,26 +188,16 @@ test('Developer tools keep Inspector, LAN, debug, logs, and status in the produc
       runner: {state() { return {active: true, runner: {listVisible: true}}; }},
       schedulerClient: {getCapabilities() { return {available: true, endpoint: 'app-loopback'}; }},
       runtimeLog,
-      execution: {id: 'app-001', env: {
-        OPENDESK_APP_INSPECTOR_ENDPOINT: 'http://127.0.0.1:54321',
-        OPENDESK_APP_INSPECTOR_CONTROL_TOKEN: 'control-token',
-      }},
-      system: {getPlatformInfo() { return {os: 'darwin'}; }},
-      command: {async run(command, args, options) {
-        commandCalls.push({command, args, options}); return {exitCode: 0, stdout: '', stderr: ''};
-      }},
-      http: {
-        async get(_url, options) {
-          assert.equal(options.headers['X-OpenDesk-Inspector-Control'], 'control-token');
-          return {data: {code: 0, data: {allowLAN: lanEnabled, lanUrl: lanEnabled ? 'http://192.0.2.10:54321' : ''}}};
+      inspectorLauncher: {
+        getCapabilities() {
+          return {available: true, url: 'http://127.0.0.1:54321/accessibility-workbench/'};
         },
-        async post(_url, body, options) {
-          assert.equal(options.headers['X-OpenDesk-Inspector-Control'], 'control-token');
-          lanEnabled = body.allow;
-          return {data: {code: 0, data: {allowLAN: lanEnabled, lanUrl: lanEnabled ? 'http://192.0.2.10:54321' : ''}}};
+        async open(source) {
+          inspectorCalls.push(source);
+          return {status: 'opened'};
         },
       },
-      clipboard: {copy(value) { copied.push(value); }},
+      execution: {id: 'app-001'},
       productPaths: {appDataRoot: '/data'},
       ui: {
         async notify() {},
@@ -233,19 +221,12 @@ test('Developer tools keep Inspector, LAN, debug, logs, and status in the produc
     });
 
     await tools.initialize();
-    assert.equal(tools.state().allowLAN, false);
-    await tools.activate('opendesk.inspector.lan.toggle');
-    assert.equal(tools.state().allowLAN, true);
-    await tools.activate('opendesk.inspector.lan.copy');
-    assert.deepEqual(copied, ['http://192.0.2.10:54321']);
+    assert.equal(tools.state().inspectorScope, 'local-only');
+    assert.equal(tools.state().inspectorAvailable, true);
     await tools.activate('opendesk.debug.detailed');
     assert.deepEqual(detailModes, ['detailed']);
-    await tools.activate('opendesk.inspector.open');
-    assert.deepEqual(commandCalls.at(-1), {
-      command: '/usr/bin/open',
-      args: ['http://127.0.0.1:54321/accessibility-workbench/'],
-      options: {timeout: 10000, maxOutputBytes: 256 * 1024, hideWindow: true},
-    });
+    await tools.activate('opendesk.inspector.open', 'tray-menu');
+    assert.deepEqual(inspectorCalls, ['tray-menu']);
     await Promise.all([
       tools.activate('opendesk.status'),
       tools.activate('opendesk.status'),
@@ -254,7 +235,8 @@ test('Developer tools keep Inspector, LAN, debug, logs, and status in the produc
     assert.equal(tools.state().statusOpen, true);
     assert.equal(controls.get('executionId').at(-1).text, 'app-001');
     assert.equal(controls.get('runner').at(-1).text, '已显示');
-    assert.ok(menuUpdates.some(update => update.id === 'opendesk.inspector.lan.copy' && update.patch.enabled === true));
+    assert.equal(controls.get('inspectorScope').at(-1).text, '仅本机 loopback');
+    assert.equal(menuUpdates.some(update => update.id.includes('.lan.')), false);
     assert.ok(menuUpdates.some(update => update.id === 'opendesk.debug.detailed' && update.patch.label === '✓ 详细'));
   } finally {
     if (originalDeveloperTools === undefined) delete globalThis.OpenDeskDeveloperTools;

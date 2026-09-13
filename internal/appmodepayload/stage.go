@@ -8,6 +8,8 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -61,6 +63,11 @@ func Stage(sourceRoot, destinationRoot string) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
+	if policyApplied {
+		if err := validateLiteralPackageDependencies(source, entries); err != nil {
+			return Result{}, err
+		}
+	}
 	if err := os.RemoveAll(destination); err != nil {
 		return Result{}, fmt.Errorf("clear App Mode payload destination: %w", err)
 	}
@@ -84,6 +91,104 @@ func Stage(sourceRoot, destinationRoot string) (Result, error) {
 		return Result{}, err
 	}
 	return Result{Files: files}, nil
+}
+
+var (
+	scriptDirJoinPattern = regexp.MustCompile(`(?s)(?:File|file)\.join\(\s*(?:Execution|execution)\.scriptDir\s*,([^)]*)\)`)
+	jsStringPattern      = regexp.MustCompile(`['"]([^'"]+)['"]`)
+)
+
+// validateLiteralPackageDependencies closes the common product-module loading
+// pattern at release staging time. It deliberately handles only literal
+// package paths rooted at Execution.scriptDir; dynamic user-data reads remain
+// runtime behavior rather than release resources.
+func validateLiteralPackageDependencies(sourceRoot string, entries []string) error {
+	listed := make(map[string]bool, len(entries))
+	for _, entry := range entries {
+		listed[entry] = true
+	}
+	dependencies := map[string]string{}
+	for _, entry := range entries {
+		if strings.ToLower(path.Ext(entry)) != ".js" {
+			continue
+		}
+		content, err := os.ReadFile(filepath.Join(sourceRoot, filepath.FromSlash(entry)))
+		if err != nil {
+			return fmt.Errorf("read release JavaScript dependency source %s: %w", entry, err)
+		}
+		for _, dependency := range literalPackageDependencies(content) {
+			if firstOwner, exists := dependencies[dependency]; !exists {
+				dependencies[dependency] = entry
+			} else if entry < firstOwner {
+				dependencies[dependency] = entry
+			}
+		}
+	}
+	ordered := make([]string, 0, len(dependencies))
+	for dependency := range dependencies {
+		ordered = append(ordered, dependency)
+	}
+	sort.Strings(ordered)
+	for _, dependency := range ordered {
+		if !listed[dependency] {
+			return fmt.Errorf("release payload omits literal package dependency %s loaded by %s", dependency, dependencies[dependency])
+		}
+		info, err := os.Lstat(filepath.Join(sourceRoot, filepath.FromSlash(dependency)))
+		if err != nil {
+			return fmt.Errorf("literal package dependency is missing %s (loaded by %s): %w", dependency, dependencies[dependency], err)
+		}
+		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+			return fmt.Errorf("literal package dependency must be a regular file: %s", dependency)
+		}
+	}
+	return nil
+}
+
+func literalPackageDependencies(content []byte) []string {
+	seen := map[string]bool{}
+	for _, join := range scriptDirJoinPattern.FindAllSubmatch(content, -1) {
+		arguments := strings.TrimSpace(string(join[1]))
+		matches := jsStringPattern.FindAllStringSubmatchIndex(arguments, -1)
+		if len(matches) == 0 {
+			continue
+		}
+		segments := make([]string, 0, len(matches))
+		cursor := 0
+		literal := true
+		for _, match := range matches {
+			separator := strings.TrimSpace(arguments[cursor:match[0]])
+			if separator != "" && separator != "," {
+				literal = false
+				break
+			}
+			value := arguments[match[2]:match[3]]
+			if value == "" || strings.Contains(value, `\`) {
+				literal = false
+				break
+			}
+			segments = append(segments, value)
+			cursor = match[1]
+		}
+		if tail := strings.TrimSpace(arguments[cursor:]); !literal || tail != "" {
+			continue
+		}
+		dependency := path.Join(segments...)
+		// Release policies enumerate regular files. An extensionless literal join
+		// is a runtime directory root (for example a user-data workspace), not a
+		// package file dependency.
+		if path.Ext(dependency) == "" {
+			continue
+		}
+		if validatePolicyEntry(dependency) == nil {
+			seen[dependency] = true
+		}
+	}
+	result := make([]string, 0, len(seen))
+	for dependency := range seen {
+		result = append(result, dependency)
+	}
+	sort.Strings(result)
+	return result
 }
 
 func absoluteDirectory(root, label string) (string, error) {

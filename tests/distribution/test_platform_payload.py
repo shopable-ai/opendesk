@@ -48,6 +48,18 @@ class PayloadTests(unittest.TestCase):
         self.write(dest, layout["provenance"], b"{}")
         return source, dest
 
+    def official_app(self, target):
+        source = self.fixture(target, "official-" + target)
+        dest = self.root / ("official-app-" + target)
+        shutil.copytree(source, dest)
+        package = payload.LAYOUT[target]["package"]
+        self.write(dest, payload.LAYOUT[target]["provenance"], b"{}")
+        self.write(dest, package + "/opendesk.app.json",
+                   b'{"schemaVersion":1,"id":"com.opendesk.desktop"}')
+        for relative in payload.LAYOUT[target]["inspector"]:
+            self.write(dest, relative)
+        return source, dest
+
     def test_structural_fixtures_are_explicitly_not_live_evidence(self):
         for target in payload.LAYOUT:
             with self.subTest(target=target):
@@ -134,6 +146,16 @@ class PayloadTests(unittest.TestCase):
         self.assertTrue(payload.verify(dest, "macos", "app", source)["ok"])
         (dest / "Contents/Resources/inspector_web/index.html").unlink()
         self.assertFalse(payload.verify(dest, "macos", "app", source)["ok"])
+
+    def test_official_product_requires_complete_inspector_frontend_on_both_platforms(self):
+        for target in payload.LAYOUT:
+            with self.subTest(target=target):
+                _, dest = self.official_app(target)
+                self.assertTrue(payload.verify(dest, target, "app")["ok"])
+                (dest / payload.LAYOUT[target]["inspector"][-1]).unlink()
+                result = payload.verify(dest, target, "app")
+                self.assertFalse(result["ok"])
+                self.assertTrue(any("inspector_web" in message for message in result["errors"]))
 
     def test_reference_must_be_independent_and_required_when_requested(self):
         root = self.fixture("windows")

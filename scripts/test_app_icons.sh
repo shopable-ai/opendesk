@@ -256,6 +256,9 @@ FAKE_GO="${RUNTIME_DIR}/fake-go"
 cat >"${FAKE_GO}" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
+if [[ "${1:-}" == "run" ]]; then
+  exec "${TEST_APP_ICONS_REAL_GO:?}" "$@"
+fi
 output=""
 while [[ "$#" -gt 0 ]]; do
   if [[ "$1" == "-o" ]]; then
@@ -273,7 +276,7 @@ EOF
 chmod 700 "${FAKE_GO}"
 # This test isolates the generic bundle/icon template. The official no-variable
 # builder path is covered by the App Mode payload distribution gate.
-GO_BIN="${FAKE_GO}" APP_MODE_PACKAGE= SKIP_CODESIGN=1 DIST_DIR="${PACKAGE_DIST}" \
+TEST_APP_ICONS_REAL_GO="${GO_BIN}" GO_BIN="${FAKE_GO}" APP_MODE_PACKAGE= SKIP_CODESIGN=1 DIST_DIR="${PACKAGE_DIST}" \
   "${ROOT_DIR}/scripts/build_macos_app.sh" >"${RUNTIME_DIR}/package.log"
 
 bundle_icon_name="$(plutil -extract CFBundleIconFile raw "${PACKAGE_DIST}/OpenDesk.app/Contents/Info.plist")"

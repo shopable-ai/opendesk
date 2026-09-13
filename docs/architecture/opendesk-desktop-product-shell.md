@@ -157,9 +157,6 @@ apps/opendesk/script-runner-simple.js
     运行状态…
     打开 Inspector
     ────────────────
-    允许 Inspector 从局域网访问
-    复制 Inspector LAN 地址
-    ────────────────
     打开日志目录
     调试信息 >
         普通
@@ -307,13 +304,15 @@ Developer menu 不再只是 Inspector 的容器，而是 OpenDesk runtime diagno
 开发者
 ├── 运行状态…
 ├── 打开 Inspector
-├── 允许 Inspector 从局域网访问
-├── 复制 Inspector LAN 地址
 ├── 打开日志目录
 └── 调试信息
     ├── 普通
     └── 详细
 ```
+
+App Mode Inspector P0 保持 local-only。未完成的 LAN control/token isolation
+不进入正式菜单；后续如实现，必须继续复用同一个 App Local Services listener，
+并独立完成 privileged loopback control 与 child-execution non-propagation 验收。
 
 `运行状态` 建议展示：
 
@@ -365,7 +364,7 @@ Windows 正式发行不应采用“启动 console executable，然后立即 hide
 目标结构：
 
 ```text
-OpenDesk.exe
+opendesk-desktop.exe
   desktop GUI entry
   no console window
 
@@ -378,7 +377,7 @@ opendesk.exe
 
 要求：
 
-- Start Menu / desktop shortcut 使用 `OpenDesk.exe`；
+- Start Menu / desktop shortcut 使用 `opendesk-desktop.exe`；
 - CLI 文档使用 `opendesk.exe`；
 - GUI entry 自动发现 bundled `app-mode/`；
 - child recipe 不弹额外 console window；
@@ -487,7 +486,7 @@ CLI：
 10. 主窗口隐藏后 Recorder、Scheduler、运行日志、帮助/定制仍可使用。
 11. 执行 automation/recipe 不弹出新的系统 Console window。
 12. stdout/stderr/events/summary 在无 Terminal 时仍正确落盘。
-13. Developer Inspector/LAN controls/运行状态/日志目录入口正确。
+13. Developer Inspector/运行状态/日志目录入口正确，P0 不暴露未完成的 LAN controls。
 14. Quit 能停止 App lifecycle，并正确 teardown Tray/UI/Scheduler/Recorder ownership。
 15. Windows GUI entry 与 CLI entry 有真实 Windows evidence；macOS Finder/Launchpad 与 CLI 两条路径有真实 macOS evidence。
 16. 不覆盖并行会话改动，不回退当前 master。
