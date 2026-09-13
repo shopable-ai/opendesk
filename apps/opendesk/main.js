@@ -28,6 +28,21 @@ if (!globalThis.OpenDeskProductScriptRunner
 
 const runner = OpenDeskProductScriptRunner.create({officialShell});
 
+const assistantEntries = [
+  ['store.js', 'OpenDeskAssistantStore'],
+  ['model-channel.js', 'OpenDeskAssistantModelChannel'],
+  ['session.js', 'OpenDeskAssistantSession'],
+  ['controller.js', 'OpenDeskAssistantController'],
+];
+for (const [name, globalName] of assistantEntries) {
+  const entry = File.join(Execution.scriptDir, 'assistant', name);
+  (0, eval)(File.read(entry) + '\n//# sourceURL=' + entry);
+  if (!globalThis[globalName]) throw new Error(`OpenDesk AI assistant module did not initialize: ${name}`);
+}
+const assistant = OpenDeskAssistantController.create({
+  appDataRoot: globalThis.OpenDeskProductPaths.appDataRoot,
+});
+
 const schedulerClientEntry = File.join(Execution.scriptDir, 'scheduler-client.js');
 (0, eval)(File.read(schedulerClientEntry) + '\n//# sourceURL=' + schedulerClientEntry);
 if (!globalThis.OpenDeskSchedulerClient
@@ -93,6 +108,7 @@ const developerTools = OpenDeskDeveloperTools.create({
 const appController = OpenDeskProductAppController.create({
   appRuntime: automation.app,
   runner,
+  assistant,
   schedulerCenter,
   runtimeLog,
   permissionsCenter,
@@ -122,6 +138,7 @@ console.log('OPENDESK_PRODUCT_APP_READY=' + JSON.stringify({
   mainWindowId: initialState.mainWindowId,
   toolbarMaxWidth: initialState.toolbarMaxWidth,
   recipeProcessModel: 'child-opendesk-process',
+  assistant: assistant.state(),
   scheduler: OpenDeskSchedulerClient.getCapabilities(),
   inspector: inspectorLauncher.getCapabilities(),
   permissions: permissionsCenter.state(),

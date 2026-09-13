@@ -12,6 +12,7 @@
     const settings = options || {};
     const appRuntime = settings.appRuntime || (global.automation && global.automation.app);
     const runner = settings.runner;
+    const assistant = settings.assistant;
     const schedulerCenter = settings.schedulerCenter;
     const runtimeLog = settings.runtimeLog;
     const permissionsCenter = settings.permissionsCenter;
@@ -29,6 +30,9 @@
     if (!runner || typeof runner.open !== 'function') {
       throw new Error('OpenDesk product controller requires Script Runner');
     }
+    if (!assistant || typeof assistant.open !== 'function') {
+      throw new Error('OpenDesk product controller requires AI Assistant');
+    }
     if (!schedulerCenter
       || typeof schedulerCenter.open !== 'function'
       || typeof schedulerCenter.openCreate !== 'function') {
@@ -42,6 +46,10 @@
         case 'opendesk.open':
         case 'runner.open':
           await runner.open(source);
+          return true;
+        case 'assistant.open':
+        case 'opendesk.assistant.open':
+          await assistant.open(source);
           return true;
         case 'scheduler.open':
         case 'scheduler.center':
@@ -96,6 +104,7 @@
         const details = errorDetails(error);
         if (logger && typeof logger.error === 'function') {
           let prefix = '[APP_ACTION]';
+          if (action === 'assistant.open' || action === 'opendesk.assistant.open') prefix = '[ASSISTANT]';
           if (action === 'scheduler.open' || action === 'scheduler.new') prefix = '[SCHEDULER_CENTER]';
           if (action === 'inspector.open' || action === 'opendesk.inspector.open') prefix = '[INSPECTOR]';
           logger.error(`${prefix} action=${action} stage=dispatch message=${JSON.stringify(details.message)} stack=${JSON.stringify(details.stack)}`);

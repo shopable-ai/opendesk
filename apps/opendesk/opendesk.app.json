@@ -19,6 +19,14 @@
     },
     "menu": [
       {
+        "id": "open-ai-assistant",
+        "label": "AI 助手",
+        "action": "assistant.open"
+      },
+      {
+        "type": "separator"
+      },
+      {
         "id": "open-scheduler-center",
         "label": "计划中心",
         "action": "scheduler.center"
