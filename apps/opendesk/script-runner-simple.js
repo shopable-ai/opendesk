@@ -218,9 +218,9 @@
 
     async function presentOfficialMessage(message) {
       const text = String(message || '');
-      if (runtimeUI && typeof runtimeUI.notify === 'function') {
+      if (runtimeUI && typeof runtimeUI.toast === 'function') {
         try {
-          await runtimeUI.notify(text);
+          await runtimeUI.toast(text);
           return 'notify';
         } catch (error) {
           if (logger && typeof logger.warn === 'function') {
