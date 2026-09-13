@@ -2,6 +2,12 @@
 
 这是 `docs/architecture/conversational-task-runner.md` 的首个公开实现：Codex 只把自然语言转换成固定 Calculator 任务参数；OpenDesk 宿主再次校验并生成可信预览；只有用户确认后，普通 JavaScript 才操作真实 macOS Calculator 并从 Accessibility 显示区读取结果。
 
+## 产品化方向与代码来源
+
+通用产品的需求、聊天交互、真实代码/参数查看、执行策略与主应用整合见 [OpenDesk 对话工作台｜产品需求与实施设计](../../../docs/architecture/conversational-task-workspace.md)。Calculator 是首个能力和回归案例，不是未来产品名称。该文档是拟实施设计，不表示本示例已经具备通用会话、代码详情面板或自动运行。
+
+当前点击「规划」只生成固定任务参数，不会生成新的 JavaScript；执行调用已有 Calculator 逻辑。`calculator.js` 是业务模块源码，`index.source.js` 是 UI/controller 源码，`index.js` 是构建时生成、供公开命令实际加载的 bundle。查看或修改代码时应区分这三类文件与本次参数，不能把构建产物误认为每次规划生成的新脚本。
+
 ## 工作目录与一行启动命令
 
 从 **OpenDesk 仓库根目录** 运行：
