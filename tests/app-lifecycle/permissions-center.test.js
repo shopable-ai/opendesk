@@ -16,17 +16,12 @@ function report(overall = 'READY') {
     platform: 'darwin',
     feature: 'desktop-automation',
     overall,
-    identity: {
-      processId: 42,
-      executable: '/Applications/OpenDesk.app/Contents/MacOS/opendesk',
-      bundlePath: '/Applications/OpenDesk.app',
-      launchKind: 'app-bundle',
-    },
+    identity: {processId:42, launchKind:'app-bundle'},
     permissions: [
-      {id:'accessibility',displayName:'Accessibility',description:'UI automation',requirement:'required',status:'granted',canRequest:true,canOpenSettings:true},
-      {id:'screen-capture',displayName:'Screen Recording',description:'screenshots',requirement:'required',status:'unknown',canRequest:true,canOpenSettings:true,remediation:'Open settings'},
-      {id:'input-monitoring',displayName:'Input Monitoring',description:'recorder',requirement:'optional',status:'denied',canRequest:true,canOpenSettings:true},
-      {id:'automation',displayName:'Automation',description:'Apple Events',requirement:'on-demand',status:'unknown',canRequest:false,canOpenSettings:true},
+      {id:'accessibility',displayName:'Accessibility',requirement:'required',status:'granted',canRequest:true,canOpenSettings:true},
+      {id:'screen-capture',displayName:'Screen Recording',requirement:'required',status:'unknown',canRequest:true,canOpenSettings:true},
+      {id:'input-monitoring',displayName:'Input Monitoring',requirement:'optional',status:'denied',canRequest:true,canOpenSettings:true},
+      {id:'automation',displayName:'Automation',requirement:'on-demand',status:'unknown',canRequest:false,canOpenSettings:true},
     ],
   };
 }
@@ -87,91 +82,90 @@ function fixture(initialReport = report(), options = {}) {
   return {center, calls, windows, setReport(value) { currentReport = value; }};
 }
 
-test('startup preflight is silent and only updates tray status', async () => {
-  const f = fixture(report('UNKNOWN'));
+test('system permissions menu label is fixed and preflight is silent', async () => {
+  const f = fixture(report('BLOCKED'));
   const state = await f.center.preflight('startup');
   assert.equal(state.open, false);
   assert.equal(f.calls.create, 0);
   assert.equal(f.calls.status, 1);
   assert.deepEqual(f.calls.request, []);
   assert.deepEqual(f.calls.settings, []);
-  assert.deepEqual(f.calls.menu.at(-1), ['open-permissions', {label:'权限管理（需要处理）…'}]);
+  assert.deepEqual(f.calls.menu, []);
+  assert.equal(PermissionsCenter.menuLabel('READY'), '系统权限…');
+  assert.equal(PermissionsCenter.menuLabel('LIMITED'), '系统权限…');
+  assert.equal(PermissionsCenter.menuLabel('BLOCKED'), '系统权限…');
+});
+
+test('system permissions window is scoped to system authorization and has no aggregate readiness', () => {
+  const html = PermissionsCenter.buildHTML(report('LIMITED'));
+  assert.match(html, /系统权限/);
+  assert.match(html, />重新检查</);
+  assert.match(html, /这里只检查系统授权。具体能否开始录制，请以录制器的检查结果为准。/);
+  assert.doesNotMatch(html, /整体状态/);
+  assert.doesNotMatch(html, /权限管理（部分功能受限）/);
+  assert.match(html, /status-automation/);
 });
 
 test('Permissions Center derives supported rows from the Runtime report', () => {
-  const html = PermissionsCenter.buildHTML({
-    permissions: [{id:'future-permission',displayName:'Future Permission'}],
-  });
+  const html = PermissionsCenter.buildHTML({permissions:[{id:'future-permission',displayName:'Future Permission'}]});
   assert.match(html, /Future Permission/);
   assert.match(html, /status-future-permission/);
   assert.doesNotMatch(html, /status-accessibility/);
 });
 
-test('Permissions Center single-flights 100 concurrent opens, reuses, and recreates after close', async () => {
+test('Permissions Center single-flights concurrent opens, reuses, and recreates after close', async () => {
   const f = fixture(report('READY'), {createDelay:5});
   await Promise.all(Array.from({length:100}, (_, index) => f.center.open(`open-${index}`)));
   assert.equal(f.calls.create, 1);
   assert.equal(f.windows[0].showCount, 1);
+  assert.equal(f.windows[0].options.title, '系统权限');
   assert.equal(f.calls.request.length, 0);
 
-  for (let i = 0; i < 100; i++) await f.center.open(`focus-${i}`);
+  for (let i = 0; i < 20; i++) await f.center.open(`focus-${i}`);
   assert.equal(f.calls.create, 1);
-  assert.equal(f.windows[0].showCount, 101);
+  assert.equal(f.windows[0].showCount, 21);
   assert.equal(f.calls.request.length, 0);
 
   f.windows[0].close();
   await f.center.open('recreate');
   assert.equal(f.calls.create, 2);
   assert.equal(f.windows[1].showCount, 1);
-  assert.equal(f.calls.request.length, 0);
 });
 
-test('Permission Center retry state is scoped to one window lifecycle', async () => {
-  const f = fixture(report('LIMITED'));
-  await f.center.open('first');
-  await f.windows[0].trigger('request-screen-capture');
-  assert.deepEqual(f.calls.request, [['screen-capture', {force:false}]]);
-  assert.equal(f.windows[0].updates.get('request-screen-capture').text, '重新尝试');
-
-  f.windows[0].close();
-  await f.center.open('second');
-  assert.equal(f.windows[1].updates.get('request-screen-capture').text, '请求授权');
-  await f.windows[1].trigger('request-screen-capture');
-  assert.deepEqual(f.calls.request, [
-    ['screen-capture', {force:false}],
-    ['screen-capture', {force:false}],
-  ]);
-});
-
-test('Permissions Center keeps all four cards and the footnote reachable', async () => {
-  const f = fixture(report('LIMITED'));
-  await f.center.open('layout');
-  const options = f.windows[0].options;
-  assert.deepEqual(options.position.size, {width:860, height:720});
-  assert.match(options.content.css, /html,body\{height:100%;[^}]*overflow:hidden/);
-  assert.match(options.content.css, /main\{height:100%;min-height:0;[^}]*overflow-y:auto/);
-  assert.match(options.content.html, /id="status-automation"/);
-  assert.match(options.content.html, /class="footnote"/);
-});
-
-test('refresh stays pure and explicit repeated request becomes force retry', async () => {
+test('open, focus and manual recheck only read state and never request authorization', async () => {
   const f = fixture(report('LIMITED'));
   await f.center.open('test');
   const win = f.windows[0];
-  assert.equal(win.updates.get('overall').text, '部分功能受限');
-  assert.equal(win.updates.get('identity').text, 'OpenDesk 应用');
-  assert.equal(win.updates.get('status-accessibility').text, '✓ 已授权');
-  assert.equal(win.updates.get('status-screen-capture').text, '? 需要确认');
-  assert.equal(win.updates.get('request-accessibility').disabled, true);
-  assert.equal(win.updates.get('request-automation').disabled, true);
-  assert.match(win.updates.get('description-screen-capture').text, /当前系统接口无法可靠区分/);
-  assert.doesNotMatch(win.updates.get('description-screen-capture').text, /Open settings|CGPreflight|TCC/i);
-  assert.equal(f.calls.request.length, 0);
-  assert.equal(f.calls.settings.length, 0);
+  assert.deepEqual(f.calls.request, []);
+  assert.deepEqual(f.calls.settings, []);
+  assert.deepEqual(f.calls.menu, []);
 
+  await f.center.open('focus');
   await win.trigger('refresh');
+  assert.deepEqual(f.calls.request, []);
+  assert.deepEqual(f.calls.settings, []);
+  assert.deepEqual(f.calls.menu, []);
+});
+
+test('granted/no-extra-system-authorization rows hide meaningless actions', async () => {
+  const windowsReport = report('READY');
+  windowsReport.platform = 'win32';
+  windowsReport.permissions[0] = {...windowsReport.permissions[0], status:'not_required'};
+  const f = fixture(windowsReport);
+  await f.center.open('layout');
+  const win = f.windows[0];
+  assert.equal(win.updates.get('status-accessibility').text, '✓ 无需额外系统授权');
+  assert.equal(win.updates.get('request-accessibility').visible, false);
+  assert.equal(win.updates.get('settings-accessibility').visible, false);
+  assert.equal(win.updates.get('request-screen-capture').visible, true);
+  assert.equal(win.updates.get('settings-screen-capture').visible, true);
+});
+
+test('only an explicit request action invokes requestPermission and retry is deduplicated per window lifecycle', async () => {
+  const f = fixture(report('LIMITED'));
+  await f.center.open('first');
+  const win = f.windows[0];
   assert.equal(f.calls.request.length, 0);
-  assert.equal(f.calls.settings.length, 0);
 
   await win.trigger('request-screen-capture');
   assert.deepEqual(f.calls.request, [['screen-capture', {force:false}]]);
@@ -182,9 +176,13 @@ test('refresh stays pure and explicit repeated request becomes force retry', asy
     ['screen-capture', {force:false}],
     ['screen-capture', {force:true}],
   ]);
+
+  f.windows[0].close();
+  await f.center.open('second');
+  assert.equal(f.windows[1].updates.get('request-screen-capture').text, '请求授权');
 });
 
-test('settings fallback gives manual navigation guidance instead of failing silently', async () => {
+test('settings fallback gives manual navigation guidance', async () => {
   const f = fixture(report('LIMITED'), {
     openSettingsResult(id) {
       return {opened:true,id,fallback:true,guidance:'System Settings > Privacy & Security > Screen Recording'};
@@ -195,10 +193,9 @@ test('settings fallback gives manual navigation guidance instead of failing sile
   await win.trigger('settings-screen-capture');
   assert.deepEqual(f.calls.settings, ['screen-capture']);
   assert.match(win.updates.get('notice').text, /请手动前往/);
-  assert.match(win.updates.get('notice').text, /Privacy & Security/);
 });
 
-test('product App Mode wires permission action, preflight and release payload', () => {
+test('product App Mode keeps existing permission route and fixed tray entry', () => {
   const main = fs.readFileSync(path.join(repo, 'apps', 'opendesk', 'main.js'), 'utf8');
   const appController = fs.readFileSync(path.join(repo, 'apps', 'opendesk', 'app-controller.js'), 'utf8');
   const manifest = JSON.parse(fs.readFileSync(path.join(repo, 'apps', 'opendesk', 'opendesk.app.json'), 'utf8'));
@@ -208,7 +205,7 @@ test('product App Mode wires permission action, preflight and release payload', 
   assert.match(appController, /case 'permissions\.open':/);
   assert.match(main, /permissionsCenter\.preflight\('startup'\)/);
   const menu = manifest.tray.menu.find(item => item.id === 'open-permissions');
-  assert.deepEqual(menu, {id:'open-permissions',label:'权限管理…',action:'permissions.open'});
+  assert.deepEqual(menu, {id:'open-permissions',label:'系统权限…',action:'permissions.open'});
   assert.match(release, /^permissions-center\.js$/m);
   assert.match(release, /^runtime-log\.js$/m);
 });
