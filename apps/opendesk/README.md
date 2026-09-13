@@ -1,5 +1,7 @@
 # OpenDesk product App Mode package
 
+> **Audience: OpenDesk 官方源码维护者。** `apps/opendesk/**` 是 OpenDesk 官方桌面产品源码，不是第三方 App 作者需要复制或理解的模板。普通 App 开发者只需已安装 Runtime、自有 JavaScript/assets 和 `opendesk.app.json`；请从 [`docs/api/script-app-packaging.md`](../../docs/api/script-app-packaging.md) 与 [`docs/api/app-builder.md`](../../docs/api/app-builder.md) 开始。
+
 `apps/opendesk` is the release-owned App Mode package. It is intentionally
 separate from framework infrastructure in `pkg/appshell` and from developer
 fixtures under `examples/`.
