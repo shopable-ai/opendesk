@@ -40,6 +40,10 @@ if (typeof globalThis.AbortController !== 'function') {
         this._abortListeners = this._abortListeners.filter((candidate) => candidate !== listener);
     };
 
+    AbortSignal.prototype.throwIfAborted = function() {
+        if (this.aborted) throw this.reason;
+    };
+
     function AbortController() {
         this.signal = new AbortSignal();
     }

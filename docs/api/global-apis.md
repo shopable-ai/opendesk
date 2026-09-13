@@ -26,6 +26,7 @@ main();
 | `setTimeout` / `clearTimeout` | 延迟执行与取消一次性任务 | Stable | 返回数字 ID |
 | `setInterval` / `clearInterval` | 周期执行与取消 | Stable | 回调必须主动清理 |
 | `requestAnimationFrame` / `cancelAnimationFrame` | 约 60 FPS 的延迟回调 | Stable / Compatibility | 基于 timer，不是浏览器绘制循环 |
+| `queueMicrotask` | 在当前 JavaScript job 后排队回调 | Stable / Compatibility | 使用同一 Goja Promise job queue |
 | `delay` | Promise 风格等待 | Stable | `await delay(3000)`；不阻塞 Runtime 事件循环 |
 | `sleep` / `sleepSeconds` | Promise 风格等待 | Stable | 不阻塞 Runtime 事件循环 |
 | `console` | 日志与执行事件输出 | Stable | 全局日志对象；方法同步返回 |
@@ -33,10 +34,16 @@ main();
 | `notify` | 系统通知 | Secondary | 成功提交不代表用户已看到 |
 | `alert` / `confirm` / `prompt` | 异步原生模态提示与短文本输入 | Conditional | 返回 Promise，不是浏览器同步 dialog |
 | `AbortController` / `AbortSignal` | 取消在途异步操作 | Stable / Compatibility | 与 `http`、`axios`、`SQLite` 的 `signal` 配合 |
+| `crypto.getRandomValues` / `crypto.randomUUID` | 安全随机字节与 UUID v4 | Stable | 由宿主 `crypto/rand` 提供，不启动外部 Runtime |
 | `SQLite` | 本地异步 SQLite 数据库句柄 | Stable / Local only | `SQLite.open()` 返回 `query` / `exec` / `batch` / `close` 句柄；HTTP、MCP、Scheduler 不注入 |
 | `Accessibility` | 外部桌面的原生语义元素 | Experimental / Local only | capability 摘要可读；观察/动作只在宿主授权的可信本地 execution 启用 |
 | `URLSearchParams` | 生成查询参数或表单参数 | Stable / Compatibility | 当前为轻量兼容实现 |
 | `URL` | 解析和拼接 HTTP(S) / file URL | Stable / Compatibility | 支持相对 URL、`searchParams` 和常用字段 |
+| `TextEncoder` | 把 JavaScript 字符串编码为 UTF-8 | Stable / Compatibility | 支持 `encode()` 和 `encodeInto()` |
+| `TextDecoder` | 把字节解码为 UTF-8 字符串 | Stable / Compatibility | 支持 BOM、fatal 和分段 decode |
+| `ReadableStream` | 按需读取异步数据块 | Stable / Compatibility | 支持 controller、reader、取消和 async iteration |
+| `WritableStream` | 顺序写入异步数据块 | Stable / Compatibility | 支持 writer、关闭和中止 |
+| `TransformStream` | 连接 writable 输入与 readable 输出 | Stable / Compatibility | 支持同步或异步 transform / flush |
 | `Promise` | 异步结果与组合 | Stable | `async` / `await` 属于语言语法；见 [JavaScript Runtime](runtime.md#javascript-语言基线) |
 
 ## setTimeout / setInterval / requestAnimationFrame / delay / sleep：计时器与等待
@@ -91,6 +98,36 @@ const frameID = requestAnimationFrame((timestamp) => {
 `requestAnimationFrame()` 当前由约 60 FPS 的 timer 兼容实现提供，回调会收到毫秒时间戳。
 它不会等待浏览器 DOM 绘制，也不代表屏幕像素已经刷新；桌面自动化中的 UI 状态应优先使用
 `page.waitForFunction()` 或其他可验证条件等待。
+
+## queueMicrotask
+
+在当前同步 JavaScript job 结束后、后续 timer 前排队一个回调。
+
+**签名**
+
+```ts
+queueMicrotask(callback: () => void): void
+```
+
+**参数**
+
+`callback`：需要排队的函数。
+
+**返回值**
+
+`undefined`。
+
+**行为与错误**
+
+回调使用当前 Goja Runtime 的 Promise job queue，不创建线程或第二个 Runtime。非函数参数同步抛出
+`TypeError`；回调抛错会进入当前 Execution 的异步错误处理。
+
+**示例**
+
+```js
+queueMicrotask(() => console.log('microtask'));
+console.log('sync');
+```
 
 ### delay / sleep / sleepSeconds：固定等待
 
@@ -275,11 +312,13 @@ try {
 | `signal.reason` | `unknown` | 调用 `abort()` 时传入的原因 |
 | `signal.addEventListener('abort', fn)` | `void` | 注册取消监听 |
 | `signal.removeEventListener('abort', fn)` | `void` | 移除取消监听 |
+| `signal.throwIfAborted()` | `void` | 已取消时同步抛出原始 `reason`，否则正常返回 |
 
 取消只影响显式接收该 `signal` 的 HTTP 请求、`http.download()` 或 SQLite 操作，不会自动终止任意
 JavaScript 函数。首次 `abort(reason)` 保留 reason，后续调用幂等。某个同步 `onabort` 或 listener
 抛错不会阻断剩余 listener 和 native 取消；listener 返回的 Promise 不会自动 await，失败通过 Runtime
 的 console error 通道报告而不复制任意 listener 错误正文。
+`throwIfAborted()` 不包装取消原因，调用方可按对象身份捕获传给首次 `abort(reason)` 的值。
 HTTP 错误和 deadline 语义见 [HTTP and Axios](http.md)；SQLite 的超时、写入状态和清理语义见
 [SQLite API](sqlite.md)。
 
@@ -315,6 +354,299 @@ console.log(params.toString());
 
 当前实现覆盖 OpenDesk 脚本常用的查询参数场景；它不是完整浏览器 URL 或 DOM API，
 `entries()`、`keys()`、`values()` 返回数组而不是浏览器中的迭代器。
+
+## crypto.getRandomValues
+
+使用宿主操作系统的密码学安全随机源填充整数 TypedArray。它不会使用 `Math.random()`，也不会启动
+Node.js、Python 或第二个 JavaScript Runtime。
+
+**签名**
+
+```ts
+crypto.getRandomValues<T extends IntegerTypedArray>(array: T): T
+```
+
+**参数**
+
+`array`：`Int8Array`、`Uint8Array`、`Uint8ClampedArray`、`Int16Array`、`Uint16Array`、
+`Int32Array`、`Uint32Array`、`BigInt64Array` 或 `BigUint64Array`。只填充 view 覆盖的字节范围。
+
+**返回值**
+
+返回原始 `array` 对象。
+
+**行为与错误**
+
+单次最多填充 65,536 字节。参数不是整数 TypedArray 时抛出 `TypeError`；超出限制时抛出
+`RangeError`。随机源失败时当前 Execution 直接失败，不回退到伪随机数。
+
+**示例**
+
+```js
+const bytes = crypto.getRandomValues(new Uint8Array(16));
+console.log(Array.from(bytes));
+```
+
+## crypto.randomUUID
+
+生成使用宿主密码学安全随机源的 RFC 4122 UUID v4。
+
+**签名**
+
+```ts
+crypto.randomUUID(): string
+```
+
+**参数**
+
+无。
+
+**返回值**
+
+返回小写、带连字符的 UUID v4 字符串。
+
+**行为与错误**
+
+随机源失败时当前 Execution 直接失败；不会回退到 `Math.random()`。
+
+**示例**
+
+```js
+console.log(crypto.randomUUID());
+```
+
+## TextEncoder
+
+把字符串编码为标准 UTF-8 字节：
+
+```js
+const bytes = new TextEncoder().encode('OpenDesk ✓');
+console.log(Array.from(bytes));
+```
+
+**签名**
+
+```ts
+new TextEncoder()
+encoder.encode(input?): Uint8Array
+encoder.encodeInto(input, destination): { read: number; written: number }
+```
+
+**参数**
+
+`input`：待编码字符串；`encode()` 省略时使用空字符串。
+
+`destination`：`encodeInto()` 写入的 `Uint8Array`。
+
+**返回值**
+
+`encode()` 返回新的 `Uint8Array`。`encodeInto()` 返回已读取的 UTF-16 code unit 数和已写入字节数，
+目标空间不足时不会写入半个 Unicode scalar value。
+
+**行为与错误**
+
+`encoding` 恒为 `utf-8`；孤立 UTF-16 surrogate 按 Unicode replacement character 编码。
+`encodeInto()` 的目标不是 `Uint8Array` 时抛出 `TypeError`。
+
+**示例**
+
+```js
+const target = new Uint8Array(16);
+const progress = new TextEncoder().encodeInto('你好', target);
+console.log(progress.read, progress.written);
+```
+
+## TextDecoder
+
+把 `ArrayBuffer` 或 typed-array view 中的 UTF-8 字节解码为字符串：
+
+```js
+const text = new TextDecoder().decode(new Uint8Array([79, 112, 101, 110, 68, 101, 115, 107]));
+console.log(text); // OpenDesk
+```
+
+**签名**
+
+```ts
+new TextDecoder(label?, options?)
+decoder.decode(input?, options?): string
+```
+
+**参数**
+
+`label`：支持 `utf-8`、`utf8` 或 `unicode-1-1-utf-8`；省略时为 `utf-8`。
+
+`options.fatal`：无效 UTF-8 是否抛出 `TypeError`，默认 `false`。
+
+`options.ignoreBOM`：是否把开头 UTF-8 BOM 保留为字符，默认 `false`。
+
+`input`：`ArrayBuffer` 或 `ArrayBufferView`；省略时为空字节序列。
+
+`decodeOptions.stream`：是否保留末尾未完成的多字节序列供下次 `decode()` 继续，默认 `false`。
+
+**返回值**
+
+解码后的 JavaScript 字符串。
+
+**行为与错误**
+
+非 fatal 模式用 Unicode replacement character 替换无效 UTF-8；fatal 模式抛出 `TypeError`。
+非 UTF-8 label 抛出 `RangeError`，不接受 Node.js `Buffer` 专属契约。
+
+**示例**
+
+```js
+const decoder = new TextDecoder();
+decoder.decode(new Uint8Array([0xf0, 0x9f]), { stream: true });
+console.log(decoder.decode(new Uint8Array([0x98, 0x80]))); // 😀
+```
+
+## ReadableStream
+
+创建按需产生数据块、可由 reader 或 async iterator 消费的流：
+
+```js
+const stream = new ReadableStream({
+  start(controller) {
+    controller.enqueue('ready');
+    controller.close();
+  },
+});
+
+const reader = stream.getReader();
+console.log(await reader.read()); // { value: 'ready', done: false }
+```
+
+**签名**
+
+```ts
+new ReadableStream(underlyingSource?, strategy?)
+stream.getReader(): ReadableStreamDefaultReader
+stream.cancel(reason?): Promise<void>
+```
+
+**参数**
+
+`underlyingSource.start(controller)`：构造时初始化数据源。
+
+`underlyingSource.pull(controller)`：队列需要数据时调用，可返回 Promise。
+
+`underlyingSource.cancel(reason)`：reader 或 stream 取消时清理数据源。
+
+`strategy.highWaterMark`：队列目标大小，默认 `1`。
+
+**返回值**
+
+`getReader()` 返回独占 reader；`read()` 返回 `Promise<{value, done}>`。
+
+**行为与错误**
+
+controller 支持 `enqueue()`、`close()`、`error()` 和 `desiredSize`。同一时间只允许一个 reader；
+关闭后继续 enqueue、重复加锁或有 pending read 时释放 reader 会抛出 `TypeError`。
+Runtime 同时提供流异步迭代所需的 `Symbol.asyncIterator`，并为显式异步释放提供
+`Symbol.asyncDispose` well-known symbol。
+当前 compatibility contract 不承诺 byte stream/BYOB reader、`pipeTo()`、`pipeThrough()` 或 `tee()`。
+
+**示例**
+
+```js
+for await (const chunk of stream) {
+  console.log(chunk);
+}
+```
+
+## WritableStream
+
+创建顺序接收数据块的 writable 流：
+
+```js
+const received = [];
+const stream = new WritableStream({
+  write(chunk) { received.push(chunk); },
+});
+const writer = stream.getWriter();
+await writer.write('ready');
+await writer.close();
+```
+
+**签名**
+
+```ts
+new WritableStream(underlyingSink?)
+stream.getWriter(): WritableStreamDefaultWriter
+stream.abort(reason?): Promise<void>
+stream.close(): Promise<void>
+```
+
+**参数**
+
+`underlyingSink.start(controller)`：构造时初始化 sink。
+
+`underlyingSink.write(chunk)`：按调用顺序处理一个数据块。
+
+`underlyingSink.close()`：完成正常关闭。
+
+`underlyingSink.abort(reason)`：处理中止原因。
+
+**返回值**
+
+writer 的 `write()`、`close()` 和 `abort()` 均返回 Promise；`ready` 与 `closed` 提供相应状态。
+
+**行为与错误**
+
+同一时间只允许一个 writer。写入会串行调用 sink；sink 抛错或 rejected Promise 会使 writer 操作和
+`closed` 失败。当前 compatibility contract 不实现浏览器完整的 size algorithm/backpressure 模型。
+
+**示例**
+
+```js
+await writer.write({ value: 42 });
+writer.releaseLock();
+```
+
+## TransformStream
+
+把 writable 侧输入转换后送到 readable 侧：
+
+```js
+const transform = new TransformStream({
+  transform(chunk, controller) {
+    controller.enqueue(String(chunk).toUpperCase());
+  },
+});
+```
+
+**签名**
+
+```ts
+new TransformStream(transformer?)
+```
+
+**参数**
+
+`transformer.start(controller)`：初始化转换器。
+
+`transformer.transform(chunk, controller)`：处理一个输入块；省略时原样转发。
+
+`transformer.flush(controller)`：writable 关闭前输出末尾数据。
+
+**返回值**
+
+实例公开 `writable` 和 `readable`，分别遵循本页的 `WritableStream` 与 `ReadableStream` contract。
+
+**行为与错误**
+
+controller 支持 `enqueue()`、`error()` 和 `terminate()`；transform/flush 可同步返回或返回 Promise。
+转换错误会传播到 writer 和 readable 侧。
+
+**示例**
+
+```js
+const writer = transform.writable.getWriter();
+const reader = transform.readable.getReader();
+await writer.write('open');
+console.log((await reader.read()).value); // OPEN
+```
 
 ## URL：解析和拼接 URL
 
