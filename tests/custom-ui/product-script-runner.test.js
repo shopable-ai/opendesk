@@ -81,6 +81,10 @@ function createHarness(options = {}) {
       notifications.push(String(message));
       return {status: 'shown'};
     },
+    async toast(message) {
+      notifications.push(String(message));
+      return {status: 'shown'};
+    },
   };
 
   class FakeFloatingWindow {
@@ -231,6 +235,7 @@ test('product Open action keeps the toolbar visible without opening the prepared
   assert.equal(harness.windows.length, 1, 'startup must create window.mainId before entry completion');
   assert.equal(harness.windows[0].id, 'main');
   assert.equal(harness.windows[0].spec.kind, 'normal');
+  assert.equal(harness.windows[0].spec.title, 'OpenDesk — Script Runner');
   assert.equal(harness.windows[0].showCount, 0, 'startup must not show list content');
   assert.equal(launchSettled, false, 'launch must await main window registration');
 
@@ -238,7 +243,9 @@ test('product Open action keeps the toolbar visible without opening the prepared
   const state = await launch;
   assert.equal(state.mainWindowId, 'main');
   assert.equal(state.toolbarMaxWidth, 520);
+  assert.equal(state.windowTitle, 'OpenDesk — Script Runner');
   assert.equal(harness.createAppCount, 1);
+  assert.equal(harness.floatingWindows[0].spec.title, 'OpenDesk — Script Runner');
 
   await runner.open('test');
   assert.equal(harness.windows.length, 1);
@@ -253,6 +260,34 @@ test('product Open action keeps the toolbar visible without opening the prepared
 
   await runner.openList('toolbar-list');
   assert.equal(harness.windows[0].showCount, 1, 'the dedicated list action must still open the list window');
+});
+
+test('product Script Runner injects one title into the main window and FloatingWindow', async () => {
+  const harness = createHarness();
+  const loaded = loadProductRunner(harness);
+  const runner = loaded.api.create({
+    officialShell: harness.officialShell,
+    title: 'Legacy Script Runner',
+    windowTitle: '  Localized Script Runner  ',
+  });
+
+  await runner.launch();
+
+  assert.equal(runner.state().windowTitle, 'Localized Script Runner');
+  assert.equal(harness.windows[0].spec.title, 'Localized Script Runner');
+  assert.equal(harness.floatingWindows[0].spec.title, 'Localized Script Runner');
+});
+
+test('product Script Runner retains title as a compatibility input', async () => {
+  const harness = createHarness();
+  const loaded = loadProductRunner(harness);
+  const runner = loaded.api.create({officialShell: harness.officialShell, title: '  Existing title option  '});
+
+  await runner.launch();
+
+  assert.equal(runner.state().windowTitle, 'Existing title option');
+  assert.equal(harness.windows[0].spec.title, 'Existing title option');
+  assert.equal(harness.floatingWindows[0].spec.title, 'Existing title option');
 });
 
 test('App Shell UI cancellation is a clean Product Runner shutdown', async () => {

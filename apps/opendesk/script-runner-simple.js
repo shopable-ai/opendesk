@@ -48,6 +48,7 @@
     : file.join(appDataRoot, 'recipes');
   const runnerExecution = Object.freeze({workdir: appDataRoot});
 
+  const DEFAULT_WINDOW_TITLE = 'OpenDesk — Script Runner';
   const PRODUCT_MAIN_WINDOW_ID = 'main';
   const PRODUCT_TOOLBAR_MAX_WIDTH = 520;
   const PRODUCT_HOMEPAGE_ACTION = Object.freeze({
@@ -71,7 +72,20 @@
     }),
   ]);
 
-  function productizeMainWindowSpec(spec, mainWindowId) {
+  function resolveWindowTitle(settings) {
+    const input = settings || {};
+    if (typeof input.windowTitle === 'string' && input.windowTitle.trim()) {
+      return input.windowTitle.trim();
+    }
+    // title predates the product-level seam. Keep it as a compatibility input
+    // while locale-aware callers move to windowTitle.
+    if (typeof input.title === 'string' && input.title.trim()) {
+      return input.title.trim();
+    }
+    return DEFAULT_WINDOW_TITLE;
+  }
+
+  function productizeMainWindowSpec(spec, mainWindowId, windowTitle) {
     const source = spec || {};
     let content = source.content;
     if (content && typeof content === 'object' && typeof content.html === 'string') {
@@ -81,25 +95,25 @@
     }
     return Object.assign({}, source, {
       id: mainWindowId,
-      title: 'OpenDesk',
+      title: windowTitle,
       content,
     });
   }
 
-  function createRunnerUI(mainWindowId) {
+  function createRunnerUI(mainWindowId, windowTitle) {
     return Object.freeze({
       createWindow(spec) {
-        return runtimeUI.createWindow(productizeMainWindowSpec(spec, mainWindowId));
+        return runtimeUI.createWindow(productizeMainWindowSpec(spec, mainWindowId, windowTitle));
       },
     });
   }
 
-  function createProductFloatingWindow(homeAction, secondaryActions, maxWidth) {
+  function createProductFloatingWindow(homeAction, secondaryActions, maxWidth, windowTitle) {
     function ProductFloatingWindow(spec) {
       const source = spec || {};
       const toolbarSpec = Object.assign({}, source.toolbar || {}, {maxWidth, maxRows: 1});
       const inner = new NativeFloatingWindow(Object.assign({}, source, {
-        title: 'OpenDesk',
+        title: windowTitle,
         toolbar: toolbarSpec,
       }));
       let secondaryInstalled = false;
@@ -148,6 +162,7 @@
 
   function createProductRunner(options) {
     const settings = options || {};
+    const windowTitle = resolveWindowTitle(settings);
     const officialShell = settings.officialShell;
     if (!officialShell
       || typeof officialShell.getAction !== 'function'
@@ -297,8 +312,8 @@
         command: productCommand,
         execution: runnerExecution,
         system,
-        ui: createRunnerUI(mainWindowId),
-        FloatingWindow: createProductFloatingWindow(homeAction(), secondaryActions(), toolbarMaxWidth),
+        ui: createRunnerUI(mainWindowId, windowTitle),
+        FloatingWindow: createProductFloatingWindow(homeAction(), secondaryActions(), toolbarMaxWidth, windowTitle),
         AbortController: NativeAbortController,
         openListOnStart: false,
         hideListOnClose: true,
@@ -370,6 +385,7 @@
         lastError,
         mainWindowId,
         toolbarMaxWidth,
+        windowTitle,
         latestExecution: latestExecution ? Object.assign({}, latestExecution) : null,
         runner: app ? app.state() : null,
       };
@@ -388,6 +404,7 @@
   global.OpenDeskProductScriptRunner = Object.freeze({
     create: createProductRunner,
     constants: Object.freeze({
+      defaultWindowTitle: DEFAULT_WINDOW_TITLE,
       mainWindowId: PRODUCT_MAIN_WINDOW_ID,
       toolbarMaxWidth: PRODUCT_TOOLBAR_MAX_WIDTH,
     }),
