@@ -10,7 +10,6 @@ var files = []string{
 	"controller.js",
 	"controller-core.js",
 	"recording-history.js",
-	"runtime-icon-adapter.js",
 }
 
 func main() {

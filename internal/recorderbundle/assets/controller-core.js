@@ -4,6 +4,8 @@
   'use strict';
 
   const BUILT_IN_ICONS = Object.freeze({
+    home: 'house.fill',
+    countdown: 'timer',
     play: 'play.fill',
     pause: 'pause.fill',
     stop: 'stop.fill',
@@ -150,12 +152,6 @@
       : captureCapabilities.permission === 'denied'
         ? 'macOS 未授予 OpenDesk 输入监控权限；请在“系统设置 → 隐私与安全性 → 输入监控”中允许后重新启动。'
         : '当前系统未提供可用的 Recorder 输入采集。请在“查看详情”中检查采集限制。';
-    const iconRoot = settings.iconRoot
-      || file.join(execution.scriptDir, 'recording-console-simple', 'icons');
-    const homepageIcon = Object.freeze({
-      path: file.join(iconRoot, 'opendesk-logo.png'),
-      renderingMode: 'original',
-    });
     const openDeskBinary = settings.openDeskBinary
       || file.join(execution.workdir, 'dist', 'opendesk');
     const runTimeoutMs = Number.isFinite(settings.runTimeoutMs)
@@ -214,13 +210,6 @@
       return clone(state);
     }
 
-    function countdownIcon(value) {
-      return {
-        path: file.join(iconRoot, `countdown-${value}.png`),
-        renderingMode: 'template',
-      };
-    }
-
     function artifact() {
       if (state.generated && state.generated.scriptFile) {
         return {path: state.generated.scriptFile, directory: false};
@@ -256,7 +245,7 @@
 
       return {
         capture: {
-          icon: countingDown ? countdownIcon(state.countdown)
+          icon: countingDown ? BUILT_IN_ICONS.countdown
             : (recording || pausing ? BUILT_IN_ICONS.pause : BUILT_IN_ICONS.play),
           label: countingDown ? `${state.countdown} 秒后开始录制`
             : phase === 'unavailable' ? '录制需要授权（查看详情）'
@@ -938,7 +927,7 @@
       return snapshot();
     }
 
-    toolbar.addButton('home', '打开 OpenDesk 官网', homepageIcon, openHomepage);
+    toolbar.addButton('home', '打开 OpenDesk 官网', BUILT_IN_ICONS.home, openHomepage);
     toolbar.addSeparator('brand-capture-separator');
     // Play and pause share one stable position. Starting returns synchronously
     // so callback busy presentation cannot replace the required 3/2/1 icons;
@@ -985,9 +974,9 @@
           windowId: toolbar.id,
           bounds: shown.bounds,
           homepage: productWebsite,
-          homepageIcon: homepageIcon.path,
+          homepageIcon: BUILT_IN_ICONS.home,
           icons: BUILT_IN_ICONS,
-          countdownIcons: [3, 2, 1].map(value => countdownIcon(value).path),
+          countdownIcon: BUILT_IN_ICONS.countdown,
         }));
         return shown;
       }

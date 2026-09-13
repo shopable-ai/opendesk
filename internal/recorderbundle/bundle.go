@@ -19,7 +19,7 @@ const RecorderWindowID = "recording-console"
 // program. JavaScript files are generated mirrors; generic icons remain owned
 // by the shared Custom UI runtime catalog instead of being copied as PNGs.
 //
-//go:embed assets/controller.js assets/controller-core.js assets/recording-history.js assets/runtime-icon-adapter.js
+//go:embed assets/controller.js assets/controller-core.js assets/recording-history.js
 var runtimeAssets embed.FS
 
 // WriteToDir materializes the built-in Recorder product resources for the
@@ -64,9 +64,6 @@ func WriteToDir(root string) (string, error) {
 func EntryScript() string {
 	return fmt.Sprintf(`'use strict';
 const recorderRuntimeDir = File.join(Execution.scriptDir, 'recording-console-simple');
-const runtimeIconAdapterFile = File.join(recorderRuntimeDir, 'runtime-icon-adapter.js');
-(0, eval)(File.read(runtimeIconAdapterFile) + '\n//# sourceURL=' + runtimeIconAdapterFile);
-
 const simpleControllerFile = File.join(recorderRuntimeDir, 'controller.js');
 (0, eval)(File.read(simpleControllerFile) + '\n//# sourceURL=' + simpleControllerFile);
 

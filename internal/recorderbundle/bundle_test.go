@@ -12,7 +12,6 @@ var recorderJavaScriptFiles = []string{
 	"controller.js",
 	"controller-core.js",
 	"recording-history.js",
-	"runtime-icon-adapter.js",
 }
 
 func TestWriteToDirIsSelfContained(t *testing.T) {
@@ -26,7 +25,6 @@ func TestWriteToDirIsSelfContained(t *testing.T) {
 		"recording-console-simple/controller.js",
 		"recording-console-simple/controller-core.js",
 		"recording-console-simple/recording-history.js",
-		"recording-console-simple/runtime-icon-adapter.js",
 	} {
 		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(relative))); err != nil {
 			t.Fatalf("missing embedded Recorder UI asset %s: %v", relative, err)
@@ -56,8 +54,8 @@ func TestWriteToDirIsSelfContained(t *testing.T) {
 	if !strings.Contains(entryText, "System.getExecutablePath()") {
 		t.Fatal("embedded Recorder entry must use the released OpenDesk executable path for replay")
 	}
-	if !strings.Contains(entryText, "runtime-icon-adapter.js") {
-		t.Fatal("embedded Recorder entry must install the runtime icon adapter before the controller")
+	if strings.Contains(entryText, "runtime-icon-adapter") {
+		t.Fatal("embedded Recorder entry must consume Runtime semantic icons directly")
 	}
 }
 
@@ -77,16 +75,33 @@ func TestGeneratedJavaScriptMatchesCanonicalSources(t *testing.T) {
 	}
 }
 
-func TestRecorderRuntimeAdapterUsesBuiltInCatalogIDs(t *testing.T) {
-	adapter, err := os.ReadFile(filepath.Join("..", "..", "apps", "opendesk", "recorder", "runtime-icon-adapter.js"))
+func TestRecorderControllerUsesBuiltInCatalogIDsDirectly(t *testing.T) {
+	core, err := os.ReadFile(filepath.Join("..", "..", "apps", "opendesk", "recorder", "controller-core.js"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	text := string(adapter)
-	for _, iconID := range []string{"timer", "house.fill"} {
+	text := string(core)
+	for _, iconID := range []string{
+		"house.fill", "timer", "play.fill", "pause.fill", "stop.fill",
+		"ai.generate", "repeat", "ai.assistant", "info.circle", "folder.fill",
+	} {
 		if !strings.Contains(text, "'"+iconID+"'") {
-			t.Fatalf("Recorder runtime icon adapter must use built-in icon %q", iconID)
+			t.Fatalf("Recorder controller must use built-in icon %q directly", iconID)
 		}
+	}
+	for _, forbidden := range []string{
+		"iconRoot", "countdown-", "opendesk-logo.png", "runtime-icon-adapter",
+	} {
+		if strings.Contains(text, forbidden) {
+			t.Fatalf("Recorder controller must not retain legacy icon indirection %q", forbidden)
+		}
+	}
+}
+
+func TestRecorderSourceHasNoRuntimeIconAdapter(t *testing.T) {
+	path := filepath.Join("..", "..", "apps", "opendesk", "recorder", "runtime-icon-adapter.js")
+	if _, err := os.Stat(path); err == nil || !os.IsNotExist(err) {
+		t.Fatalf("Recorder App source must not contain runtime-icon-adapter.js (err=%v)", err)
 	}
 }
 
