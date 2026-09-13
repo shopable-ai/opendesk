@@ -61,17 +61,19 @@ globalThis.RuntimeAPIObjects = {
     'getVirtualBounds', 'pixel', 'pixels', 'screenshot', 'selectRegion', 'startRecording',
     'getCaptureCapabilities',
   ] },
-  System: { docs: 'docs/api/system.md', types: 'types/System.d.ts', source: 'automation/system.go + automation/system_environment.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: [
+  System: { docs: 'docs/api/system.md', types: 'types/System.d.ts', source: 'automation/system.go + automation/system_environment.go + polyfills/000-systemBase.js', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: [
     'delay', 'getPlatformInfo', 'getEnv', 'hasEnv', 'getSessionCapabilities', 'getSessionState', 'lock', 'logout', 'startScreenSaver',
     'getSystemInfo', 'getProcessList', 'killProcess', 'getNetworkInterfaces',
     'getNetworkConnections', 'getPowerInfo', 'shutdown', 'restart', 'sleep',
     'getDirectoryContents', 'getExecutablePath', 'getWorkingDirectory', 'getUserInfo',
     'isAdministrator', 'getSystemMetrics', 'getFingerprint', 'toJSON',
-  ] },
+  ], properties: ['product'] },
   Execution: { docs: 'docs/api/execution.md', types: 'types/Execution.d.ts', source: 'pkg/execution/runner.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: [], properties: [
     'id', 'executionId', 'input', 'workdir', 'env', 'stack', 'artifactDir', 'source', 'ext', 'scriptHash', 'scriptPath', 'scriptDir', 'activationSource',
   ] },
   Command: { docs: 'docs/api/command.md', types: 'types/Command.d.ts', source: 'automation/command.go + automation/command_*.go', status: 'local', platforms: ['darwin', 'linux', 'windows'], methods: ['getCapabilities', 'run'] },
+  LLM: { docs: 'docs/api/llm.md', types: 'types/LLM.d.ts', source: 'polyfills/008-ai-runtime.js + automation/http.go', status: 'p0', platforms: ['darwin', 'linux', 'windows'], methods: ['getCapabilities', 'generate'] },
+  Agent: { docs: 'docs/api/agent.md', types: 'types/Agent.d.ts', source: 'polyfills/008-ai-runtime.js + automation/command.go + automation/command_*.go', status: 'local', platforms: ['darwin', 'linux', 'windows'], methods: ['getCapabilities', 'run'] },
   path: { docs: 'docs/api/path.md', types: 'types/path.d.ts', source: 'automation/path.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: [
     'join', 'resolve', 'normalize', 'dirname', 'basename', 'extname', 'relative', 'isAbsolute',
   ], properties: ['sep', 'delimiter'] },
@@ -99,6 +101,9 @@ globalThis.RuntimeAPIObjects = {
     'log', 'info', 'warn', 'error', 'debug', 'table', 'group', 'groupEnd', 'time',
     'timeEnd', 'clear',
   ] },
+  crypto: { docs: 'docs/api/global-apis.md', types: 'types/global.d.ts', source: 'automation/web_crypto.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: [
+    'getRandomValues', 'randomUUID',
+  ] },
   http: { docs: 'docs/api/http.md', types: 'types/http.d.ts', source: 'automation/http.go + automation/http_download.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: ['request', 'get', 'post', 'download'] },
   NativeExtensions: {
     docs: 'docs/api/native-extension.md', types: 'types/NativeExtension.d.ts', source: 'automation/native_extensions.go',
@@ -116,7 +121,7 @@ globalThis.RuntimeAPIObjects = {
     docs: 'docs/api/desktop-ui.md', types: 'types/UI.d.ts',
     source: 'polyfills/006-ui.js + automation/accessibility_menu.go',
     status: 'stable', platforms: ['darwin', 'linux', 'windows'],
-    methods: ['getCapabilities', 'getValue', 'setValue', 'findTexts', 'findText', 'hasText', 'tapText', 'tapTexts', 'waitText', 'waitTextGone', 'findImages', 'findImage', 'tapImage', 'getMenuItems', 'findMenuItem', 'tapMenuItem'],
+    methods: ['getCapabilities', 'getValue', 'setValue', 'findTexts', 'findTextMatches', 'findText', 'hasText', 'tapText', 'tapTexts', 'waitText', 'waitTextGone', 'findImages', 'findImage', 'tapImage', 'getMenuItems', 'findMenuItem', 'tapMenuItem'],
     methodMetadata: {
       getValue: { source: 'polyfills/006-ui.js', docs: 'docs/api/desktop-ui.md', types: 'types/UI.d.ts', status: 'experimental-local', platforms: ['darwin', 'windows'] },
       setValue: { source: 'polyfills/006-ui.js', docs: 'docs/api/desktop-ui.md', types: 'types/UI.d.ts', status: 'experimental-local', platforms: ['darwin', 'windows'] },
@@ -153,7 +158,8 @@ globalThis.RuntimeAPIObjects = {
   global: { docs: 'docs/api/global-apis.md', types: 'types/global.d.ts', source: 'polyfills', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: [
     'notify', 'alert', 'confirm', 'prompt', 'copyToClipboard', 'getClipboard', 'AbortController', 'setTimeout', 'clearTimeout',
     'setInterval', 'clearInterval', 'delay', 'sleep', 'sleepSeconds', 'requestAnimationFrame',
-    'cancelAnimationFrame', 'URL', 'URLSearchParams',
+    'cancelAnimationFrame', 'queueMicrotask', 'URL', 'URLSearchParams', 'TextEncoder', 'TextDecoder',
+    'ReadableStream', 'WritableStream', 'TransformStream',
   ] },
 };
 
@@ -171,8 +177,11 @@ const unitBehavior = new Set([
   'window.getCapabilities', 'window.list', 'window.get', 'window.wait', 'window.setAlwaysOnTop', 'window.unsetTopMost', 'window.js_beautify',
   ...RuntimeAPIObjects.Screen.methods.filter((method) => method !== 'screenshot').map((method) => 'Screen.' + method),
   ...RuntimeAPIObjects.System.methods.filter((method) => !['killProcess', 'shutdown', 'restart', 'sleep'].includes(method)).map((method) => 'System.' + method),
+  ...RuntimeAPIObjects.System.properties.map((property) => 'System.' + property),
   ...RuntimeAPIObjects.Execution.properties.map((property) => 'Execution.' + property),
   ...RuntimeAPIObjects.Command.methods.map((method) => 'Command.' + method),
+  ...RuntimeAPIObjects.LLM.methods.map((method) => 'LLM.' + method),
+  ...RuntimeAPIObjects.Agent.methods.map((method) => 'Agent.' + method),
   ...RuntimeAPIObjects.path.methods.map((method) => 'path.' + method),
   ...RuntimeAPIObjects.path.properties.map((property) => 'path.' + property),
   ...RuntimeAPIObjects.File.methods.filter((method) => !['readJSON', 'writeJSON'].includes(method)).map((method) => 'File.' + method),
@@ -182,6 +191,7 @@ const unitBehavior = new Set([
   ...RuntimeAPIObjects.AppStorage.methods.filter((method) => method !== 'clear').map((method) => 'AppStorage.' + method),
   ...['read', 'write', 'getFormats', 'getCapabilities'].map((method) => 'clipboard.' + method),
   ...RuntimeAPIObjects.console.methods.map((method) => 'console.' + method),
+  ...RuntimeAPIObjects.crypto.methods.map((method) => 'crypto.' + method),
   ...RuntimeAPIObjects.Geometry.methods.map((method) => 'Geometry.' + method),
   ...RuntimeAPIObjects.UI.methods.map((method) => 'UI.' + method),
   'http.request', 'http.download', 'NativeExtensions.list', 'NativeExtensions.get', 'NativeExtensions.diagnostics', 'OCR.extractText', 'Vision.runOCR', 'Vision.detectUI', 'Vision.getCapabilities', 'Vision.analyzeLayout', 'Vision.annotateRegions',
@@ -191,7 +201,7 @@ const unitBehavior = new Set([
   ...RuntimeAPIObjects.Dialog.methods.map((method) => 'Dialog.' + method),
   ...RuntimeAPIObjects.ui.methods.map((method) => 'ui.' + method),
   'global.notify', 'global.alert', 'global.confirm', 'global.prompt',
-  ...['AbortController', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'delay', 'sleep', 'sleepSeconds', 'requestAnimationFrame', 'cancelAnimationFrame', 'URL', 'URLSearchParams'].map((method) => 'global.' + method),
+  ...['AbortController', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'delay', 'sleep', 'sleepSeconds', 'requestAnimationFrame', 'cancelAnimationFrame', 'queueMicrotask', 'URL', 'URLSearchParams', 'TextEncoder', 'TextDecoder', 'ReadableStream', 'WritableStream', 'TransformStream'].map((method) => 'global.' + method),
 ]);
 
 const liveBehavior = new Set([
@@ -243,6 +253,7 @@ const restricted = {
   'global.notify': 'creates a real operating-system notification',
 };
 restricted['Command.run'] = 'runs a host command and is available only to a local script execution';
+restricted['Agent.run'] = 'runs a configured external Agent CLI through Command and is available only to a trusted local execution';
 for (const method of ['playSuccess', 'playFail', 'playWarning', 'playError', 'playCaptcha']) restricted['Sound.' + method] = 'plays audible system output';
 for (const method of ['start', 'playAsync', 'stop', 'stopAll']) restricted['Sound.' + method] = 'starts or changes audible system output; use a dedicated playback lifecycle smoke';
 for (const method of RuntimeAPIObjects.Audio.methods.filter((method) => !['getCapabilities', 'watchSound', 'waitForSound'].includes(method))) {
@@ -407,6 +418,8 @@ globalThis.RuntimeAPITestFiles = {
     'tests/runtime-api/unit/system.test.js',
     'tests/runtime-api/unit/execution.test.js',
     'tests/runtime-api/unit/command.test.js',
+    'tests/runtime-api/unit/llm.test.js',
+    'tests/runtime-api/unit/agent.test.js',
     'tests/runtime-api/unit/path.test.js',
     'tests/runtime-api/unit/file.test.js',
     'tests/runtime-api/unit/file-json.test.js',

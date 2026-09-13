@@ -174,28 +174,30 @@ App Mode packaging 不等于 `.odpkg` 源码保护，也不在 Manifest 中发�
 33. `sqlite.md`：第一方本地 SQLite
 34. `system.md`：系统信息、进程、网络和 session capability
 35. `command.md`：本地命令执行、输出、错误与 execution-owned 清理
-36. `libs.md`：Runtime 自动加载的 JavaScript 辅助库
-37. `native-extension.md`：Native Extension Plugin V1
+36. `llm.md`：HTTP 模型生成、Profile、结构化输出和共享结果合同
+37. `agent.md`：Codex / Claude Code CLI 适配、Profile、Command 生命周期和共享结果合同
+38. `libs.md`：Runtime 自动加载的 JavaScript 辅助库
+39. `native-extension.md`：Native Extension Plugin V1
 
 ### 服务、发布与范例
 
-38. `http.md`：脚本内 HTTP 请求
-39. `http-server.md`：外部程序调用 OpenDesk 的 HTTP Server
-40. `scheduler.md`：Scheduler 功能、生命周期、持久化与本地管理页
-41. `scheduler-api.md`：Scheduler 独立 HTTP 协议契约
-42. `script-app-packaging.md`：已安装 Runtime 下的 App Mode 开发主线，以及源码维护者边界
-43. `app-builder.md`：已安装 Runtime/SDK 的无源码 build、artifact layout、CI 和发布限制
-44. `app-package-cli.md`：App Mode package validate/doctor/build、JSON diagnostics 与 exit status
-45. `protected-packages.md`：`.odpkg` packaging、P1/P2 License CLI、执行、安全边界与平台资格
-46. `cookbook.md`：可直接改造的脚本范例
-47. `examples/`：示例源码、直接运行命令与测试脚本索引
+40. `http.md`：脚本内 HTTP 请求
+41. `http-server.md`：外部程序调用 OpenDesk 的 HTTP Server
+42. `scheduler.md`：Scheduler 功能、生命周期、持久化与本地管理页
+43. `scheduler-api.md`：Scheduler 独立 HTTP 协议契约
+44. `script-app-packaging.md`：已安装 Runtime 下的 App Mode 开发主线，以及源码维护者边界
+45. `app-builder.md`：已安装 Runtime/SDK 的无源码 build、artifact layout、CI 和发布限制
+46. `app-package-cli.md`：App Mode package validate/doctor/build、JSON diagnostics 与 exit status
+47. `protected-packages.md`：`.odpkg` packaging、P1/P2 License CLI、执行、安全边界与平台资格
+48. `cookbook.md`：可直接改造的脚本范例
+49. `examples/`：示例源码、直接运行命令与测试脚本索引
 
 ## 用用户调用边界分组，保持主 Reference 扁平
 
 - **核心桌面自动化**：`page.md`、`geometry.md`、`desktop-ui.md`、`mouse.md`、`input.md`、`window.md`、`screen.md`、`accessibility.md`、`global-shortcut.md`、`recorder-runtime.md`、`events.md`、`app.md`
 - **OpenDesk 自身 UI 与交互**：`ui.md`、`dialog.md`、`notify.md`、`notifications.md`、`app-shell.md`、`automation-app.md`
 - **识别与媒体**：`vision.md`、`image-color.md`、`audio.md`、`sound.md`
-- **系统与数据**：`system.md`、`command.md`、`path.md`、`file.md`、`sqlite.md`、`storage.md`、`clipboard.md`
+- **系统与数据**：`system.md`、`command.md`、`llm.md`、`agent.md`、`path.md`、`file.md`、`sqlite.md`、`storage.md`、`clipboard.md`
 - **网络与服务**：`http.md`、`http-server.md`、`scheduler.md`、`scheduler-api.md`
 - **运行时**：`environment.md`、`execution.md`、`runtime.md`、`global-apis.md`、`libs.md`、`native-extension.md`
 - **发布与交付**：`script-app-packaging.md`、`app-builder.md`、`app-package-cli.md`、`protected-packages.md`

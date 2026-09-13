@@ -110,6 +110,56 @@ func TestEmitterAgentModeOverridesForcedColor(t *testing.T) {
 	}
 }
 
+func TestEmitterRoutesCommandStderrWithoutMarkingExecutionFailed(t *testing.T) {
+	dir := t.TempDir()
+	artifacts := ExecutionArtifacts{
+		StdoutPath: filepath.Join(dir, "stdout.log"),
+		StderrPath: filepath.Join(dir, "stderr.log"),
+	}
+	emitter, err := NewEmitter("command-stream-test", TerminalSelection{
+		Mode:       "full",
+		ColorMode:  "never",
+		Categories: map[string]bool{"script": true},
+	}, artifacts, time.Now())
+	if err != nil {
+		t.Fatalf("NewEmitter: %v", err)
+	}
+	defer emitter.Close()
+	var stdout, stderr bytes.Buffer
+	emitter.terminalOut = &stdout
+	emitter.terminalErr = &stderr
+
+	emitter.Emit(EventCategoryScript, EventLevelInfo, EventSourceRuntime, "command.stdout", "child out", map[string]any{"stream": "stdout"})
+	emitter.Emit(EventCategoryScript, EventLevelWarn, EventSourceRuntime, "command.stderr", "child err", map[string]any{"stream": "stderr"})
+	_, summary, err := emitter.Finalize(ExecutionStatusSucceeded, nil)
+	if err != nil {
+		t.Fatalf("Finalize: %v", err)
+	}
+	if len(summary.Errors) != 0 {
+		t.Fatalf("successful child stderr polluted execution errors: %+v", summary.Errors)
+	}
+	if got := stdout.String(); !strings.Contains(got, "child out") || strings.Contains(got, "child err") {
+		t.Fatalf("terminal stdout routing = %q", got)
+	}
+	if got := stderr.String(); !strings.Contains(got, "child err") {
+		t.Fatalf("terminal stderr routing = %q", got)
+	}
+	stdoutLog, err := os.ReadFile(artifacts.StdoutPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stderrLog, err := os.ReadFile(artifacts.StderrPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(stdoutLog, []byte("child out")) || bytes.Contains(stdoutLog, []byte("child err")) {
+		t.Fatalf("stdout artifact routing: %q", stdoutLog)
+	}
+	if !bytes.Contains(stderrLog, []byte("child err")) {
+		t.Fatalf("stderr artifact routing: %q", stderrLog)
+	}
+}
+
 func TestFormatTerminalEventKeepsLevelVisibleWithoutColor(t *testing.T) {
 	writer := &bytes.Buffer{}
 	tests := []struct {

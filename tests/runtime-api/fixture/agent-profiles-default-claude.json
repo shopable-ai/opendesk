@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "defaultProfile": "claude-test",
+  "profiles": {
+    "codex-test": {
+      "backend": "codex",
+      "executableEnv": "OPENDESK_TEST_CODEX_EXECUTABLE",
+      "policy": "analysis"
+    },
+    "claude-test": {
+      "backend": "claude-code",
+      "executableEnv": "OPENDESK_TEST_CLAUDE_EXECUTABLE",
+      "policy": "analysis"
+    }
+  }
+}

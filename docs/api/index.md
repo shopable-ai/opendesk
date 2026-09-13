@@ -18,6 +18,8 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先确定应用
 | --- | --- |
 | 让 Codex、Claude Code 或 shell Agent 操作桌面 | [AI CLI](ai-cli.md)：先运行 `opendesk ai capabilities` 和 `opendesk ai schema` |
 | 写或维护 JavaScript 桌面自动化 | [Geometry API](geometry.md) → [Desktop UI API](desktop-ui.md) → [Mouse API](mouse.md) → [Window API](window.md) |
+| 在确定性 JavaScript 中加入少量模型生成 | [LLM API](llm.md)；业务值统一读取 `result.data` |
+| 在确定性 JavaScript 中调用 Codex 或 Claude Code | [Agent API](agent.md)；进程生命周期复用 `Command` |
 | 查找屏幕文本、按钮或图片 | [Desktop UI API](desktop-ui.md) 的大写 `UI.*` |
 | 观察或执行完整原生菜单路径 | [Desktop UI API](desktop-ui.md#原生菜单选项) 的 `UI.getMenuItems()` / `UI.findMenuItem()` / `UI.tapMenuItem()` |
 | 直接操作原生语义元素 | [Accessibility API](accessibility.md) |
@@ -62,6 +64,8 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先确定应用
 - 做同尺寸图像差异、模板或颜色判断：[ImageColor API](image-color.md)
 - 做系统、路径与文件操作：[System API](system.md)、[Path API](path.md)、[File API](file.md)、[SQLite API](sqlite.md)、[AppStorage](storage.md)
 - 在本地 JavaScript execution 中运行命令行程序：[Command API](command.md)
+- 通过 HTTP 模型生成验证后的业务值：[LLM API](llm.md)
+- 通过 Codex / Claude Code CLI 获取验证后的业务值：[Agent API](agent.md)
 - 打包、验签、授权或执行 `.odpkg` 受保护包：[受保护包 CLI](protected-packages.md)
 - 静态验证或诊断 App Mode package：[App Package CLI](app-package-cli.md)
 - 不安装源码或 Go，把 App Mode package 生成 `.app` / Windows portable artifact：[Installed Runtime App Builder](app-builder.md)
@@ -99,7 +103,7 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先确定应用
 
 ### Runtime 与数据页按脚本运行边界集中
 
-[Execution Context](execution.md)、[JavaScript Runtime](runtime.md)、[Global APIs](global-apis.md)、[Environment Configuration](environment.md)、[Path API](path.md)、[File API](file.md)、[AppStorage](storage.md)、[SQLite Runtime API](sqlite.md)、[System API](system.md)、[Command API](command.md)、[JS Libraries](libs.md)、[Native Extension Plugin](native-extension.md)
+[Execution Context](execution.md)、[JavaScript Runtime](runtime.md)、[Global APIs](global-apis.md)、[Environment Configuration](environment.md)、[LLM API](llm.md)、[Agent API](agent.md)、[Path API](path.md)、[File API](file.md)、[AppStorage](storage.md)、[SQLite Runtime API](sqlite.md)、[System API](system.md)、[Command API](command.md)、[JS Libraries](libs.md)、[Native Extension Plugin](native-extension.md)
 
 ### 服务协议保持独立，避免把调用方向混成一页
 
@@ -135,6 +139,8 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先确定应用
 | `System` | JavaScript Runtime | Stable reads / Experimental actions | 系统、进程、网络、指标与 session capability | [System API](system.md) |
 | `Execution` | JavaScript Runtime | Stable | ID、输入、环境、工作目录、来源与 artifact | [Execution Context](execution.md) |
 | `Command` | 本地 JavaScript Runtime | Conditional | 运行命令行程序 | [Command API](command.md) |
+| `LLM` | JavaScript Runtime | P0 | 通过 execution-owned HTTP 调用模型并严格验证业务输出 | [LLM API](llm.md) |
+| `Agent` | 本地 JavaScript Runtime | P0 / Conditional | 通过 Command owner 调用 Codex 或 Claude Code | [Agent API](agent.md) |
 | `path` | JavaScript Runtime | Stable | 平台路径字符串处理 | [Path API](path.md) |
 | `File` | JavaScript Runtime | Stable | 文件与目录操作 | [File API](file.md) |
 | `SQLite` | 本地 JavaScript Runtime | Stable（可信本地 execution） | execution-owned SQLite | [SQLite API](sqlite.md) |

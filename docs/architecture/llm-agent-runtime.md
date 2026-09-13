@@ -5,11 +5,13 @@ description: OpenDesk 模型生成、默认 Codex 的多 CLI Agent 薄适配、P
 
 # OpenDesk LLM / Agent Runtime：提示词与代码混合执行
 
-日期：2026-09-12。设计修订：2。
+日期：2026-09-12。实现状态更新：2026-09-13。
 
-状态：**已讨论的设计基线，供后续实施接续；本次更新文档，没有实现或运行验收。**
+状态：**P0 Runtime 已实现并进入资格收口。`LLM` / `Agent` 已由正式 JavaScript Runtime 注入，Command 环境替换、两类 Agent CLI 协议、两类 HTTP 协议、严格 schema、取消和 teardown 已有 deterministic Runtime 证据。真实 CLI 与桌面资格仍按本轮最终证据分别记录。**
 
-除“已核对基础”明确列出的现有能力外，本文中的 `LLM`、`Agent`、Profile、环境键、适配器和新增 Command 选项均为拟新增契约，不表示当前 Runtime 已经提供。示例表达目标用法，不是已通过运行的公开示例。后续以最新源码核对实际进度，不把设计文字当成实现证据。
+2026-09-13 本机资格结果：Codex CLI 0.154.0 的真实 text 与 native JSON 调用通过；Claude Code 2.1.150 已安装且认证状态可读，但真实任务在 60 秒、120 秒与 180 秒总 deadline 内均未返回结果，标记 `BLOCKED_BY_ENVIRONMENT`；macOS Calculator 的默认 Codex Agent 路线完成 `100 + 10 = 110` 的真实 Accessibility/UI 闭环；Windows 真机为 `NOT_EVALUATED`。Fixture、交叉编译或其他平台证据不能提升这些状态。
+
+本文保留设计推导和后续路线，但当前用户事实以 [LLM API](../api/llm.md)、[Agent API](../api/agent.md)、类型、机器索引和 Runtime 测试为准。未实现的 Gemini、json-cli、持续会话与流式能力仍只是后续范围，不能从本设计文字推导为可用 API。
 
 本次有效决定：**保留 `LLM.generate()`；将 `Agent.run()` 明确定义为基于现有 Command 的外部 Agent 薄调用入口。默认选择 Codex，可以显式选择其他 CLI，但必须由对应协议适配器处理，而不是仅替换可执行文件名。** 不开发第二套 Agent 引擎、进程管理器或环境解析器。
 
@@ -85,7 +87,7 @@ description: OpenDesk 模型生成、默认 Codex 的多 CLI Agent 薄适配、P
 
 ## 3. 已核对基础与待补能力
 
-初次设计所读源码基线为 `ecea7e9df212193e55455c37a4379f713ee1e903`；本次更新读取 `e6df609ff4e9dfc57ddb4b0d0bd14b3670f54510` 的设计和 Command 合同。SHA 仅为来源定位，后续实施须重新取得最新基线，不回退或锁定旧提交。
+初次设计所读源码基线为 `ecea7e9df212193e55455c37a4379f713ee1e903`；P0 收口重新核对的共享树 HEAD 为 `3a5baeccb9ce7cbab1f83a4e27e78e1c88a92e71`，实现和验收同时包含未提交的并行工作树内容。SHA 仅为来源定位，不把旧构建或旧 freeze 当作当前实现证据。
 
 | 现有基础 | 已核对合同 | 本次复用与缺口 |
 | --- | --- | --- |
@@ -132,7 +134,7 @@ const result = await LLM.generate({
 const increment = result.data.value;
 ```
 
-普通文本省略 output，result.data 为字符串。上述接口仍为拟实施合同。
+普通文本省略 output，result.data 为字符串。该接口已实现；当前用户合同以正式 [LLM API](../api/llm.md) 为准。
 
 | 输入 | 契约 |
 | --- | --- |
@@ -198,7 +200,7 @@ LLM / Agent 消费 Execution.env，不重新扫描目录、不读取 shell 初�
 
 ### 5.2 最小配置与后端独立参数
 
-以下全部为拟新增键：
+以下为已经实现的 P0 环境入口；Profile 内的认证策略仍通过配置文件引用环境变量，不另造 auth dotenv 语义：
 
 ```dotenv
 # HTTP 模型保持独立配置。
@@ -207,28 +209,31 @@ OPENDESK_LLM_BASE_URL=https://api.openai.com/v1
 OPENDESK_LLM_MODEL=YOUR_MODEL_ID
 OPENDESK_LLM_API_KEY=YOUR_API_KEY
 OPENDESK_LLM_TIMEOUT_MS=30000
+# OPENDESK_LLM_MAX_RETRIES=2
+# OPENDESK_LLM_CONFIG=config/llm-profiles.json
+# OPENDESK_LLM_DEFAULT_PROFILE=default
 
 # Agent 默认后端；省略且没有其他默认 Profile 时为 codex。
 OPENDESK_AGENT_BACKEND=codex
 OPENDESK_AGENT_TIMEOUT_MS=120000
+# OPENDESK_AGENT_CONFIG=config/agent-profiles.json
+# OPENDESK_AGENT_DEFAULT_PROFILE=codex-analysis
 
-# 每个 CLI 的路径、可选模型、认证配置相互独立。
-OPENDESK_CODEX_EXECUTABLE=/absolute/path/to/codex
-OPENDESK_CODEX_AUTH_MODE=saved
+# 每个 CLI 的高级路径 override、可选模型、认证配置相互独立。
+# 默认内建 Profile 会从当前 Execution.env/PATH 查找固定程序名。
+# OPENDESK_CODEX_EXECUTABLE=/absolute/path/to/codex
 # OPENDESK_CODEX_MODEL=YOUR_CODEX_MODEL_ID
 # OPENDESK_CLAUDE_CODE_EXECUTABLE=/absolute/path/to/claude
 # OPENDESK_CLAUDE_CODE_MODEL=YOUR_CLAUDE_MODEL_ID
-# OPENDESK_GEMINI_EXECUTABLE=/absolute/path/to/gemini
-# OPENDESK_GEMINI_MODEL=YOUR_GEMINI_MODEL_ID
 ```
 
-默认 Codex 是后端选择默认值，不代表已安装、已登录、具有权限或零配置运行一定成功。未提供 model 时允许 CLI 使用其实际配置，不固化一个可能过时的默认模型 ID。
+默认 Codex 是后端选择默认值。未显式设置 executable 时，内建 Codex Profile 由 Command native owner 从当前 `Execution.env/PATH` 安全解析固定程序名 `codex`；Claude Code 内建 Profile 同理只解析 `claude`。这不代表自动安装、已登录、具有权限或模型任务一定成功。未提供 model 时允许 CLI 使用其实际配置，不固化一个可能过时的默认模型 ID。
 
 已有设计中的 OPENDESK_CODEX_TIMEOUT_MS 作为 Codex 后端专属默认值继续保留；通用 OPENDESK_AGENT_TIMEOUT_MS 是后备值。其他后端不读取 Codex 的模型、凭据或专属超时。密钥使用适配器需要的独立引用，不把 HTTP Key 自动传给 CLI。
 
 ### 5.3 可选命名 Profile
 
-单一后端不必先创建 Profile 文件。多个配置可通过拟新增 `OPENDESK_AGENT_CONFIG` 显式指向配置文件；相对路径以 Execution.workdir 为准，文件必须有效且由可信本地配置选择，不由远程脚本自行选择宿主文件。没有此键就不自动遍历目录寻找配置。
+单一后端不必先创建 Profile 文件。多个配置可通过 `OPENDESK_AGENT_CONFIG` 显式指向配置文件；相对路径以 Execution.workdir 为准，文件必须有效且由可信本地配置选择，不由远程脚本自行选择宿主文件。没有此键就不自动遍历目录寻找配置。
 
 ```dotenv
 OPENDESK_AGENT_CONFIG=config/agents.json
@@ -263,7 +268,7 @@ OPENDESK_AGENT_DEFAULT_PROFILE=codex-analysis
 
 `policy` 是要验证和执行的权限要求，不是授予权限的魔法字符串。auth 的类型和值按后端定义；不假定 Codex 的 saved/API Key 选项对其他 CLI 同样有效。未声明认证模式时，由后端选用已配置且允许的认证方式；不自动登录。
 
-Profile 可使用 executable / executableEnv、model / modelEnv 两种来源形式，但同一字段的字面值与 Env 引用互斥。显式 Env 引用缺失时按字段处理：程序路径可在授权的已知路径中解析，找不到就失败；可选 model 缺失可沿用 CLI 默认；必须的凭据不能因此变为匿名或其他身份。空值和非法值不当作缺省。
+Profile 可使用 executable / executableEnv、model / modelEnv 两种来源形式，但同一字段的字面值与 Env 引用互斥。只有内建固定后端 Profile 在 executable override 完全未设置时，才允许从受控 PATH 解析其固定程序名；自定义 Profile 声明的 executableEnv 缺失时直接失败，不扩大成任意命令发现。可选 model 缺失可沿用 CLI 默认；必须的凭据不能因此变为匿名或其他身份。空值和非法值不当作缺省。
 
 内建 `<backend>-analysis` 配置使用对应后端的环境引用。自定义 Profile 只读取其声明的引用，不再被一套隐含厂商默认值改写。Profile 名称在各自 LLM / Agent 配置域解析，不跨域混用。配置不能直接包含真实密钥或任意待执行脚本。
 
@@ -282,7 +287,7 @@ Profile 可使用 executable / executableEnv、model / modelEnv 两种来源形�
 
 ### 5.5 GUI、凭据与远程来源
 
-GUI 不依赖终端偶然提供的 PATH。CLI 路径优先按可信配置解析为确定程序，不在不可信 cwd 搜索同名程序；诊断给出程序位置和已检查版本，不打开登录窗口。
+GUI 与 CLI 都只消费宿主明确交给当前 Execution 的环境快照，不读取 shell 初始化文件。内建后端允许按该快照的 PATH 顺序解析固定程序名，但忽略空项与相对目录，不在不可信 cwd 搜索；显式可信配置仍优先解析为确定程序。诊断可报告是否找到程序，不为 capability 查询启动版本或登录探测。
 
 .env 是配置载体，不是加密保险箱。不将真实文件、API Key、CLI 认证材料或完整环境打包发布。未来官方代付调用应走受控服务，不内置通用 Key。
 
@@ -313,7 +318,7 @@ baseURL 包含版本前缀，例如 /v1，适配器负责路径拼接，不生�
 
 ### 7.1 渐进式调用
 
-以下是目标接口，不代表适配器已经实现：
+以下调用已由当前 P0 的 Codex 与 Claude Code 独立适配器实现：
 
 ```js
 // 无显式默认配置时选择 Codex；仍要求程序、认证与权限已满足。
@@ -389,15 +394,15 @@ P0 不增加 Codex.run、Claude.run、AI.run 等平行公开入口；内部适�
 
 错误需能区分配置冲突、后端未实现、程序缺失、认证缺失、版本/选项/schema/权限不支持、进程失败、协议失败、输出非法、超时和取消，并保留后端与阶段的脱敏定位信息。
 
-### 7.4 三种 CLI 的协议差异与实施次序
+### 7.4 两种已实现 CLI 与保留扩展
 
-以下外部能力来自本次核对的官方文档；OpenDesk 对应适配器仍待实施，并须记录实际测试版本。
+以下外部能力来自本次核对的官方文档；Codex / Claude Code 已落地独立适配器和不同 fixture，Gemini 仍只是保留扩展。
 
 | backend | 官方非交互形态 | 输出提取重点 | 本方案实施顺序 |
 | --- | --- | --- | --- |
-| codex | codex exec；JSONL；output-schema 和最终消息文件 | 终止状态与最终消息分开判断，schema 文件和结果归本次 callId | 默认后端，P0-B 必须实施 |
-| claude-code | claude -p；output-format json；json-schema | 文本 result 与结构化 structured_output 不同；完整 envelope 的错误/完成信息独立检查 | 首个真实可切换后端，P0-B 一并实施 |
-| gemini | headless / -p；output-format json 或 stream-json | json envelope 的 response 是回答字符串，stats/error 为协议字段 | 后续批次；文本和显式 local JSON 可先实施，native 未核验不得宣称支持 |
+| codex | codex exec；JSONL；output-schema 和最终消息文件 | 终止状态与最终消息分开判断，schema 文件和结果归本次 callId | P0 已实现；默认后端 |
+| claude-code | claude -p；output-format json；json-schema | 文本 result 与结构化 structured_output 不同；完整 envelope 的错误/完成信息独立检查 | P0 已实现；显式可切换后端 |
+| gemini | headless / -p；output-format json 或 stream-json | json envelope 的 response 是回答字符串，stats/error 为协议字段 | 未实现；选择时明确失败 |
 
 Gemini CLI 输出 JSON 的事实不证明可以约束业务 schema，也不代表 Gemini 模型 API 没有 schema 能力；这是 CLI 暴露合同与模型 API 能力的区别。确认具体版本后才能提升 native 能力状态。
 
@@ -410,7 +415,7 @@ P0-B 至少用 Codex 和 Claude Code 两种真实协议实现及不同 fixtures 
 复用现有 Command 的可执行文件与 argv 数组，不模拟键盘控制终端。命令形态参考：
 
 ```text
-codex exec --json --output-schema <schema-file> --output-last-message <result-file> --sandbox read-only --ephemeral --skip-git-repo-check -
+codex exec --json --output-schema <schema-file> --output-last-message <result-file> --sandbox read-only --ephemeral --ignore-user-config --disable <fixed-tool-feature> ... --skip-git-repo-check -
 ```
 
 这不是固定版本的万能命令模板。根据实际 CLI 版本、任务目录和 Profile 权限选择有效选项；跳过 Git 检查不能被当成扩大权限。提示词优先通过 stdin；命令行只含稳定选项和不敏感配置，不拼接 shell 字符串。
@@ -426,6 +431,8 @@ codex exec --json --output-schema <schema-file> --output-last-message <result-fi
 分析 Profile 只请求明确输入和获准的只读分析；workspace Profile 才能使用明确授予的工作目录与修改能力。默认不授权桌面、业务文件修改、未知 MCP、插件或 hooks。不同 CLI 的 read-only、plan、工具 allowlist、approval 不是等价概念，适配器必须说明能执行和能保证的限制。
 
 `cwd` 不是沙箱，Command 不是沙箱，read-only 不是所有工具禁用，清理 env 也不阻止文件读取。有效用户/项目配置及自动加载内容必须考虑；不能只靠 prompt 中“不要使用工具”声明隔离成功。所要求的限制无法落实时，在副作用前拒绝或显式标明该 Profile 不支持，不自动降级安全策略。
+
+当前 Codex P0 适配器除 read-only sandbox 外，还固定关闭 `shell_tool`、`unified_exec`、`computer_use`、`browser_use`、`browser_use_external`、`in_app_browser`、`in_app_local_automation`、`apps` 与 `multi_agent`。调用方没有 `extraArgs` 或厂商参数透传，因此不能在一次 `Agent.run()` 中重新开启这些模型可调用工具；这项限制用于保证 Calculator 等确定性桌面脚本等待模型时，CLI 不会同时获得进程、浏览器或桌面控制入口。它仍不等同于 filesystem sandbox，也不宣称隔离同一 OS 用户可读文件。
 
 首版非交互调用不能挂起等待不可见的人类审批；按支持协议明确失败或提示缺少前置授权，不自动启用跳过审批/无限权限选项。提示词和模型输出不能提高授权。
 
@@ -467,14 +474,14 @@ CLI 是已有 Execution 的子进程资源，不是另一个 OpenDesk Execution�
 
 ### 8.2 环境覆盖与替换
 
-当前 Command.run 的 env 为覆盖。建议在现有 Command 合同增加可复用的 `envMode`，不是新增 Agent 专属进程 API：
+`Command.run()` 当前已提供通用 `envMode`；Agent 复用 `replace`，没有新增 Agent 专属进程 API：
 
-| 拟新增模式 | 行为 |
+| 模式 | 行为 |
 | --- | --- |
 | inherit | 默认；保持已有 Execution.env 继承与同名覆盖 |
 | replace | 使用显式提供的环境集合，不隐含继承其他键；确有平台必要补项必须公开列明 |
 
-程序解析与环境收紧要一致：先按可信策略确定程序位置，不为补 PATH 临时读取 shell 初始化文件或重新注入整个宿主环境。只给子进程必需的系统变量、获准的代理/证书配置和选定认证引用；Windows 大小写规则保持原合同。
+程序解析与环境收紧要一致：Command native owner 按当前 Execution 环境执行 PATH/PATHEXT、普通文件和平台可执行性检查，返回绝对路径；Unix/macOS 检查执行权限，Windows 对环境名大小写不敏感。不为补 PATH 临时读取 shell 初始化文件或重新注入整个宿主环境。解析后的绝对路径交给 `Command.run()`，child 只获得必需的系统变量、获准的代理/证书配置和选定认证引用。
 
 replace 不是文件系统沙箱，也不能改变 execution 来源准入。已有普通 Command 调用默认行为不回归。
 
@@ -488,7 +495,7 @@ Windows 上需核对实际安装入口是原生可执行文件、脚本还是 .c
 
 ### 8.4 查询与显式检查分离
 
-拟新增 `LLM.getCapabilities()` 与 `Agent.getCapabilities({backend?, profile?})` 使用相同选择规则，只读配置、已知适配器能力和已有检查缓存；不产生模型请求、不启动登录、不弹权限窗口。
+已实现的 `LLM.getCapabilities()` 与 `Agent.getCapabilities({backend?, profile?})` 使用与实际调用相同的选择规则，只读配置和已知适配器能力；不产生模型请求、不启动登录、不弹权限窗口。
 
 至少区分：适配器是否实现、是否配置、程序/版本是否检查、是否支持请求能力、认证状态是否已知、目标平台是否测试。unknown 不等于 false，也不等于可用。
 
@@ -527,8 +534,8 @@ increment=12 转为 `['1', '2']`，不是寻找名为 12 的按钮。全部按�
 等待模型后重核窗口身份及计算状态。显示仍为 100 不必然排除待执行运算符；状态连续性无法验证时停止，不盲目继续。
 
 ```js
-// 目标用法：下面的新调用接口和状态守卫仍需实施。
-// 计算器 helper 是业务函数，优先复用并补齐旧案例，不是新全局 API。
+// 当前公开示例已在 examples/runtime/llm-agent/calculator-hybrid-macos.js 实现同一链路。
+// 计算器 helper 是业务函数，不是新全局 API。
 const target = await openCalculator();
 await allClear(target);
 await calculate25Times4(target);
@@ -578,11 +585,11 @@ console.log({ baseResult, increment, finalResult });
 
 只具备 GitHub 读写不等于具备测试执行器；网页、云端 CI 或 Linux 容器通过不等于用户 macOS / Windows 安装版通过。没有本地桌面连接时不得声称启动了计算器或完成真实 UI。缺少凭据不自动登录、不复制认证文件、不借用无关身份，也不将付费请求隐藏在能力查询里。
 
-本轮文档归档不授权立即实施运行代码。后续用户粘贴实施提示词才进入实现任务；实现会话根据工具能力完成最大可执行交付，不能因缺本地设备就停留在纯设计，也不能伪造 live PASS。
+本轮已经进入实现与运行验收；源码、deterministic fixture、真实 CLI 和桌面证据继续分级记录，不能用较低层证据冒充较高层资格。
 
 ### 11.3 文件职责
 
-本文件保持设计单一入口。新增可调用 API 才进入 docs/api，并按 docs/api/.rules.md 同步类型与索引；未实施后端不放在已支持能力列表。正式 Runtime 公共接口测试遵守 AGENTS.md，使用 JavaScript 验证，不用 Go 白盒替代用户入口。
+本文件保持架构边界入口。已发布的可调用 API 已进入 docs/api，并按 docs/api/.rules.md 同步类型与索引；未实施后端不放在已支持能力列表。正式 Runtime 公共接口测试遵守 AGENTS.md，使用 JavaScript 验证，不用 Go 白盒替代用户入口。
 
 不在 workflows/agent-to-recipe 复制运行时总纲，不重写十二阶段或 Recorder 产品 UI。源码、稳定测试和脱敏文档进入版本控制；运行结果、截图与临时配置留在 .runtime。更新同一文档的实际状态，不追加互相矛盾的新设计总纲。
 
@@ -594,7 +601,7 @@ console.log({ baseResult, increment, finalResult });
 
 | 领域 | 必须验证 |
 | --- | --- |
-| 默认选择 | 无选择时按既定顺序解析并最终默认 Codex；没有程序明确失败，不自动安装或换后端 |
+| 默认选择 | 无选择时按既定顺序解析并最终默认 Codex；无 override 时只从 Execution 的受控 PATH 查找固定 `codex`，没有程序明确失败，不自动安装或换后端 |
 | 显式选择 | backend / Profile / env 优先级，显式冲突，未知名字；不同后端配置不混用 |
 | 参数 | model 与后端独立；backendOptions 已知映射、错误命名空间、非法类型、保留参数覆盖均有测试 |
 | 双协议最小闭环 | Codex、Claude Code 使用不同真实格式的 fixture；新增后端无需改业务消费者或进程生命周期 |
@@ -622,7 +629,7 @@ console.log({ baseResult, increment, finalResult });
 
 ## 13. 参考资料与来源边界
 
-既有 LLM 设计与环境规则沿用前轮方案和已读仓库合同。本次重新核对了 Codex、Claude Code、Gemini CLI 的官方非交互资料，用于多 CLI 边界；仍未运行这些 CLI。第三方文档持续变化，实际实施必须记录所用版本，不能把本文例子当成永久 CLI 合同。
+既有 LLM 设计与环境规则沿用前轮方案和已读仓库合同。本次重新核对官方非交互资料，并对本机 Codex 0.154.0、Claude Code 2.1.150 的参数执行了只读核对；真实 Codex 文本与 native schema 调用成功，Claude Code 真实任务在统一 deadline 内未完成，因此后者不能计为 live PASS。第三方 CLI 持续变化，不能把本文例子当成永久 CLI 合同。
 
 | 资料 | 用途与核对范围 |
 | --- | --- |

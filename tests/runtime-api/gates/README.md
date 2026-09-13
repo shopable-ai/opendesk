@@ -6,6 +6,12 @@
 ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
 ```
 
+LLM + Agent P0 的确定性 HTTP/CLI 协议与生命周期 gate：
+
+```bash
+OPENDESK_RUNTIME_API_MODE=ai-runtime ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+```
+
 `catalog-runner.js` 只负责加载和分派；`registry.js` 是唯一模式/模块映射；
 `runtime-context.js` 维护构建来源、证据、watchdog 和通用清理检查；`suites/` 按领域维护编排。
 这些 factory 模块不是独立命令，不要用 Node 或直接 `-script` 执行它们。

@@ -26,6 +26,8 @@
 - `system`：`./dist/opendesk -script tests/runtime-api/single/system.js -console-mode script`
 - `execution`：`./dist/opendesk -script tests/runtime-api/single/execution.js -console-mode script`
 - `command`：`./dist/opendesk -script tests/runtime-api/single/command.js -console-mode script`
+- `llm`：`./dist/opendesk -script tests/runtime-api/single/llm.js -console-mode script`
+- `agent`：`./dist/opendesk -script tests/runtime-api/single/agent.js -console-mode script`
 - `path`：`./dist/opendesk -script tests/runtime-api/single/path.js -console-mode script`
 - `file`：`./dist/opendesk -script tests/runtime-api/single/file.js -console-mode script`
 - `file-json`：`./dist/opendesk -script tests/runtime-api/single/file-json.js -console-mode script`

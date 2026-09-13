@@ -338,7 +338,7 @@ func (e *Emitter) writeRawLocked(event RunEvent) {
 	}
 	line += "\n"
 
-	if event.Category == EventCategoryError {
+	if routesToStderr(event) {
 		if e.stderrFile != nil {
 			_, _ = e.stderrFile.WriteString(line)
 		}
@@ -360,13 +360,17 @@ func (e *Emitter) echoLocked(event RunEvent) {
 	if strings.EqualFold(strings.TrimSpace(e.selection.Mode), "agent") {
 		colorMode = terminalstyle.ModeNever
 	}
-	if event.Category == EventCategoryError {
+	if routesToStderr(event) {
 		line := formatTerminalEvent(event, colorMode, e.terminalErr)
 		_, _ = terminalstyle.WriteString(e.terminalErr, line+"\n")
 		return
 	}
 	line := formatTerminalEvent(event, colorMode, e.terminalOut)
 	_, _ = terminalstyle.WriteString(e.terminalOut, line+"\n")
+}
+
+func routesToStderr(event RunEvent) bool {
+	return event.Category == EventCategoryError || event.Kind == "command.stderr"
 }
 
 func (e *Emitter) clearTerminal() {

@@ -5,9 +5,11 @@ description: 规定 LLM.generate 与 Agent.run 从设计进入 Runtime、类型�
 
 # OpenDesk LLM / Agent API 发布契约
 
-日期：2026-09-12。
+日期：2026-09-12。发布状态更新：2026-09-13。
 
-状态：**实施交接契约。当前 Runtime 尚未提供本文拟定的 LLM / Agent 公共对象，因此本文位于 docs/architecture，不是当前用户 API Reference。**
+状态：**发布门槛已满足。当前 Runtime 已提供 `LLM` / `Agent` 公共对象，正式 Reference 为 [LLM API](../api/llm.md) 与 [Agent API](../api/agent.md)；本文件保留跨 Runtime、类型、测试、索引和示例的发布约束。真实 CLI / 模型 / 桌面资格仍独立于 API 发布状态。**
+
+2026-09-13 本机资格记录：真实 Codex text/native JSON 与 macOS Calculator Agent UI 闭环通过；Claude Code 真实任务因 deadline 内无结果为 `BLOCKED_BY_ENVIRONMENT`；Windows 真机为 `NOT_EVALUATED`。这些状态不改变已通过 deterministic Runtime 测试的 API 发布结论。
 
 本文件补充 [LLM / Agent Runtime 设计](llm-agent-runtime.md)，只回答一件事：当 LLM / Agent 从设计进入实现时，哪些公开文档、类型、测试和索引必须在同一轮一起落地，以及在什么条件下才允许写入 docs/api。
 
@@ -58,23 +60,16 @@ docs/api/
 
 ### 3.1 页面结构
 
-最终 `docs/api/llm.md` 至少包含：
+当前 `docs/api/llm.md` 至少包含：
 
 ```text
 # LLM
 
-## API 一览
-## 公共约定
-
 ## LLM.getCapabilities(options?)
 ## LLM.generate(options)
-
-## 类型
-## 错误
-## 平台与能力
 ```
 
-方法条目必须按 docs/api 规范写：用途 → 签名 → 参数 → 返回值 → 行为与错误 → 示例。
+每个公开方法使用独立 H2，并按 docs/api 规范写：用途 → 签名 → 参数 → 返回值 → 行为与错误 → 示例。共享类型、错误、配置和 execution source 可以放入相应方法条目，避免另造第二份事实源。
 
 ### 3.2 LLM.generate 必须记录的公开字段
 
@@ -154,7 +149,7 @@ Reference 必须明确：
 - `signal`
 - `backendOptions`
 
-没有显式 backend / profile / 默认配置时选择 Codex，是**后端选择默认值**，不是自动安装、登录、授权或自动切换失败后端。
+没有显式 backend / profile / 默认配置时选择 Codex，是**后端选择默认值**。内建 Profile 可以从当前 Execution 的受控 PATH 解析固定 `codex` 程序名，但这不是自动安装、登录、授权或自动切换失败后端。
 
 必须区分：
 
@@ -213,7 +208,7 @@ LLM / Agent 都消费已有 execution 环境快照；不要建立新的 dotenv �
 
 正式 Reference 只引用现有 Environment 文档，并记录与本对象直接相关的配置键或 Profile 入口。环境优先级仍由 `docs/api/environment.md` 定义。
 
-拟新增配置在实现前都属于架构目标。实现后至少核验：
+当前已实现配置至少持续核验：
 
 ```text
 LLM：协议、base URL、模型、凭据引用、timeout、默认 Profile
@@ -221,6 +216,8 @@ Agent：默认 backend / Profile、各后端 executable、模型、认证引用�
 ```
 
 CLI 子进程如果需要真正的环境替换 / allowlist，应优先作为 `Command` 的通用能力实现和测试。不能把当前 `Command.run({env})` 的“覆盖”语义写成“替换”。
+
+内建 Agent executable discovery 的 PATH/PATHEXT、环境名大小写和平台执行权限算法属于 Command native owner。若仅为固定内建 backend 提供窄内部 bridge，不必扩大公开 Command API；解析必须使用 Execution 环境快照并在进入 `Command.run()` 前得到绝对路径。自定义 Profile 不得借此透传任意程序名。
 
 ## 6. Capability 发布门槛
 

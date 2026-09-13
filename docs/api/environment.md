@@ -223,6 +223,34 @@ OPENDESK_CONSOLE_CATEGORIES=script,summary,error
 若同时设置 `-debug` 和显式 `-console-mode` 或 `-console-categories`，后两者更具体，优先
 生效。
 
+## LLM 与 Agent Profile 环境入口
+
+`LLM` 与 `Agent` 复用本页定义的同一冻结 `Execution.env`，不会自行扫描 dotenv 文件或读取 shell 初始化文件。模型配置的公开入口如下：
+
+| 环境键 | 使用者 | 含义 |
+| --- | --- | --- |
+| `OPENDESK_LLM_CONFIG` | `LLM` | 命名 LLM Profile JSON；相对路径以 `Execution.workdir` 为准。 |
+| `OPENDESK_LLM_DEFAULT_PROFILE` | `LLM` | 未显式传 `profile` 时优先选择的命名项。 |
+| `OPENDESK_LLM_PROTOCOL` | `LLM` 内建 default | `openai-responses` 或 `openai-chat-completions`。 |
+| `OPENDESK_LLM_BASE_URL` | `LLM` 内建 default | HTTPS API root；loopback HTTP 还需显式 opt-in。 |
+| `OPENDESK_LLM_MODEL` | `LLM` 内建 default | 请求模型。 |
+| `OPENDESK_LLM_API_KEY` | `LLM` 内建 default | HTTP Authorization 凭据，只在请求 header 使用。 |
+| `OPENDESK_LLM_TIMEOUT_MS` | `LLM` 内建 default | 整次调用总预算，毫秒。 |
+| `OPENDESK_LLM_MAX_RETRIES` | `LLM` 内建 default | 临时 transport / HTTP 状态的额外尝试次数，0 到 5。 |
+| `OPENDESK_LLM_ALLOW_INSECURE_LOCALHOST` | `LLM` 内建 default | 只有精确字符串 `true` 才允许 loopback HTTP。 |
+| `OPENDESK_AGENT_CONFIG` | `Agent` | 命名 Agent Profile JSON；相对路径以 `Execution.workdir` 为准。 |
+| `OPENDESK_AGENT_DEFAULT_PROFILE` | `Agent` | 未显式传 backend/profile 时优先选择的命名项。 |
+| `OPENDESK_AGENT_BACKEND` | `Agent` | 没有默认 Profile 时的 backend；再省略则为 `codex`。 |
+| `OPENDESK_AGENT_TIMEOUT_MS` | `Agent` | 通用整次 Agent 调用预算。 |
+| `OPENDESK_CODEX_EXECUTABLE` | `Agent` 内建 Codex Profile | Codex CLI 绝对路径。 |
+| `OPENDESK_CODEX_MODEL` | `Agent` 内建 Codex Profile | 可选请求模型。 |
+| `OPENDESK_CODEX_TIMEOUT_MS` | `Agent` 内建 Codex Profile | Codex 专属调用预算。 |
+| `OPENDESK_CLAUDE_CODE_EXECUTABLE` | `Agent` 内建 Claude Code Profile | Claude Code CLI 绝对路径。 |
+| `OPENDESK_CLAUDE_CODE_MODEL` | `Agent` 内建 Claude Code Profile | 可选请求模型。 |
+| `OPENDESK_CLAUDE_CODE_TIMEOUT_MS` | `Agent` 内建 Claude Code Profile | Claude Code 专属调用预算。 |
+
+完整 Profile schema、选择优先级、凭据引用和 capability 语义分别见 [LLM API](llm.md) 与 [Agent API](agent.md)。环境文件只是配置载体；不要把含真实密钥的文件、Profile 或完整 `Execution.env` 打包发布。
+
 ## 解析与安全边界
 
 环境文件可使用空行、`#` 注释、`export KEY=value`、空值以及匹配的单/双引号值。键必须满足
@@ -241,8 +269,7 @@ OPENDESK_ENV_EMPTY=
 File.write(envFile, contents);
 ```
 
-每个合法键都会进入本地 `Execution.env`，但只有上表三个 `OPENDESK_CONSOLE_*` 键具有 CLI 配置
-含义。环境值可能含有访问令牌，禁止整体打印 `Execution.env` 或无选择写入 artifact。
+每个合法键都会进入本地 `Execution.env`。三个 `OPENDESK_CONSOLE_*` 键由 CLI 解释为输出配置；上节的 LLM / Agent 键由对应 Runtime facade 在调用时解释。环境值可能含有访问令牌，禁止整体打印 `Execution.env` 或无选择写入 artifact。
 
 HTTP、MCP 和 Scheduler execution 默认获得空的 `Execution.env`，不会继承服务端进程环境，也不会
 自动读取服务端工作目录中的 `.env`。这保证远程提交的脚本不能通过 Runtime 环境入口读取宿主秘密。

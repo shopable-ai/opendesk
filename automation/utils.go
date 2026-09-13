@@ -14,6 +14,7 @@ import (
 
 	"github.com/dop251/goja"
 	"github.com/dop251/goja_nodejs/eventloop"
+	officialassets "opendesk/internal/officialassets"
 	"opendesk/pkg/appshell"
 	"opendesk/pkg/customui"
 	"opendesk/pkg/nativeextension"
@@ -980,11 +981,23 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 	}
 	system := NewSystemWithSessionBackend(runtime, timer, sessionBackend)
 	systemMethods := AutoMapObject(runtime, system)
+	productWebsite, err := officialassets.ProductWebsite()
+	if err != nil {
+		return fmt.Errorf("load OpenDesk product identity: %w", err)
+	}
+	systemMethods["product"] = map[string]any{
+		"id":      "com.opendesk.desktop",
+		"name":    "OpenDesk",
+		"website": productWebsite,
+	}
 	if err := registerSystemEnvironment(runtime, opts.Environment, systemMethods); err != nil {
 		return err
 	}
 	registerSystemSession(runtime, system, systemMethods)
 	runtime.Set("System", systemMethods)
+	if err := registerWebCrypto(runtime); err != nil {
+		return err
+	}
 
 	windowManager := NewWindowManager()
 	windowMethods := AutoMapObject(runtime, windowManager)

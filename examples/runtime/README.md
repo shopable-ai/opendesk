@@ -49,6 +49,10 @@ main.mjs
 
 HTTP 由 [http.js](http.js) 展示，因为它有外部测试服务前置条件，不是 Explorer 默认 safe quickstart。
 
+## LLM 与 Agent
+
+[llm-agent/README.md](llm-agent/README.md) 提供最短 `LLM.generate()`、默认 Codex `Agent.run()`、Codex / Claude Code 显式切换，以及真实 macOS Calculator 混合闭环。默认内建 Agent 会从当前 Execution 的受控 PATH 发现固定 `codex` / `claude` 程序名；无需为常规安装填写 executable，仍需已有 CLI 登录或模型配置。它们均为 `manual`，不会成为 Explorer 的无条件一键运行项。
+
 ## 本地持久化与 System
 
 | 示例 | Explorer | 说明 |

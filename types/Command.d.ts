@@ -6,12 +6,18 @@ declare global {
     cwd?: string;
     /** Portable string entries merged over Execution.env; Windows names are case-insensitive and canonical uppercase. */
     env?: Record<string, string>;
+    /** Inherit Execution.env by default, or pass only the explicit env map. */
+    envMode?: "inherit" | "replace";
     /** Complete UTF-8 stdin payload. */
     input?: string;
     /** Per-command deadline in milliseconds; 0 or omitted uses the enclosing execution deadline. */
     timeout?: number;
     /** Combined stdout/stderr byte bound; defaults to 4 MiB and cannot exceed 64 MiB. */
     maxOutputBytes?: number;
+    /** Windows only: create the child without a Console window. Defaults to false. */
+    hideWindow?: boolean;
+    /** Emit live command.stdout/command.stderr events. Defaults to true; capture is unaffected when false. */
+    emitOutput?: boolean;
     /** Cancels the execution-owned command and its process group when aborted. */
     signal?: AbortSignal | null;
   }

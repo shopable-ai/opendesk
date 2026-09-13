@@ -9,7 +9,7 @@ import (
 	"syscall"
 )
 
-func configureCommand(cmd *exec.Cmd) {
+func configureCommand(cmd *exec.Cmd, _ bool) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 }
 

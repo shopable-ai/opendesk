@@ -9,8 +9,15 @@ import (
 	"syscall"
 )
 
-func configureCommand(cmd *exec.Cmd) {
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+const windowsCreateNoWindow = 0x08000000
+
+func configureCommand(cmd *exec.Cmd, hideWindow bool) {
+	if hideWindow {
+		cmd.SysProcAttr = &syscall.SysProcAttr{
+			HideWindow:    true,
+			CreationFlags: windowsCreateNoWindow,
+		}
+	}
 }
 
 func terminateCommand(cmd *exec.Cmd, _ bool) error {

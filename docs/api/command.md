@@ -25,16 +25,19 @@ order: 390
 | --- | --- | --- | --- | --- |
 | `cwd` | `string` | 否 | `Execution.workdir` | 子进程工作目录；必须是已存在目录。 |
 | `env` | `Record<string, string>` | 否 | `{}` | 覆盖 `Execution.env` 中的同名键。 |
+| `envMode` | `"inherit" \| "replace"` | 否 | `"inherit"` | `inherit` 在 `Execution.env` 上覆盖；`replace` 只传入显式 `env`。 |
 | `input` | `string` | 否 | 未设置 | 一次性 UTF-8 stdin；写完自动关闭；最大 64 MiB。 |
 | `timeout` | `number` | 否 | `0` | 毫秒；`0` 仅服从外层 execution deadline；最大 24 小时。 |
 | `maxOutputBytes` | `number` | 否 | 4 MiB | stdout + stderr 合计上限；最大 64 MiB。 |
+| `hideWindow` | `boolean` | 否 | `false` | Windows 创建子进程时隐藏 Console 窗口；其他平台接受该字段但没有窗口行为。 |
+| `emitOutput` | `boolean` | 否 | `true` | 是否把子进程输出实时写为 `command.stdout` / `command.stderr` 事件；设为 `false` 仍完整收集有界结果。 |
 | `signal` | `AbortSignal \| null` | 否 | `null` | 取消在途命令及其进程组；预先取消的 signal 不会启动子进程。 |
 
 接口不提供 shell command interpolation、流式 handle、PTY、detached/unref、IPC 或交互式 stdin。
 `signal` 复用 Runtime 的 `AbortController`；取消后 Promise 以 `CANCELED` 拒绝，并保留取消前已收集的
 有界 stdout / stderr。listener 会在完成、失败、取消或 teardown 时移除。
 
-环境键必须满足 `[A-Za-z_][A-Za-z0-9_]*`。Windows 下 Runtime 统一为大写并按大小写不敏感方式覆盖。未显式覆盖时，子进程使用当前 `Execution.env` 快照。
+环境键必须满足 `[A-Za-z_][A-Za-z0-9_]*`。Windows 下 Runtime 统一为大写并按大小写不敏感方式覆盖。默认 `envMode: "inherit"` 时，子进程使用当前 `Execution.env` 快照并应用显式覆盖；`envMode: "replace"` 时，子进程只获得显式 `env`，用于避免把父 execution 的其他变量传给受限 child。
 
 ## Command.getCapabilities()
 
@@ -106,7 +109,7 @@ interface OpenDeskCommandResult {
 
 **行为与错误**
 
-成功只在进程以 exit code `0` 完成并且输出未超过限制时 resolve。非零退出、启动失败、timeout、输出超限、I/O 失败、`AbortSignal` 取消或 execution 取消时 reject `CommandError`。
+成功只在进程以 exit code `0` 完成并且输出未超过限制时 resolve。默认情况下，子进程 stdout/stderr 在运行期间进入当前 execution 的结构化事件与对应 artifact，同时仍以有界 UTF-8 字符串保留在最终结果中。`emitOutput: false` 只关闭这些实时事件，适合由上层协议适配器自行解析的机器输出；它不会关闭结果收集、输出限额、timeout、取消或进程清理。非零退出、启动失败、timeout、输出超限、I/O 失败、`AbortSignal` 取消或 execution 取消时 reject `CommandError`。
 
 `CommandError` 的公开字段包括 `name`、`code`、`exitCode`、`stdout` 与 `stderr`。稳定错误码：
 

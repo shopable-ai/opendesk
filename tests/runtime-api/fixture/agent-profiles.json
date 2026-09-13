@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "profiles": {
+    "codex-test": {
+      "backend": "codex",
+      "executableEnv": "OPENDESK_TEST_CODEX_EXECUTABLE",
+      "auth": {"mode": "saved"},
+      "policy": "analysis"
+    },
+    "team-codex": {
+      "backend": "codex",
+      "executableEnv": "OPENDESK_TEST_CODEX_EXECUTABLE",
+      "auth": {"mode": "saved"},
+      "policy": "analysis"
+    },
+    "codex-env-auth": {
+      "backend": "codex",
+      "executableEnv": "OPENDESK_TEST_CODEX_EXECUTABLE",
+      "auth": {"mode": "env", "env": "DUMMY_CODEX_AUTH"},
+      "policy": "analysis"
+    },
+    "claude-test": {
+      "backend": "claude-code",
+      "executableEnv": "OPENDESK_TEST_CLAUDE_EXECUTABLE",
+      "auth": {"mode": "saved"},
+      "policy": "analysis"
+    },
+    "claude-env-auth": {
+      "backend": "claude-code",
+      "executableEnv": "OPENDESK_TEST_CLAUDE_EXECUTABLE",
+      "auth": {"mode": "env", "env": "DUMMY_CLAUDE_AUTH"},
+      "policy": "analysis"
+    },
+    "missing-program": {
+      "backend": "codex",
+      "executableEnv": "OPENDESK_FIXTURE_MISSING_EXECUTABLE",
+      "policy": "analysis"
+    },
+    "relative-program": {
+      "backend": "codex",
+      "executable": "relative/codex",
+      "policy": "analysis"
+    },
+    "nonexistent-program": {
+      "backend": "codex",
+      "executable": "/opendesk-fixture/command-that-does-not-exist",
+      "policy": "analysis"
+    },
+    "bad-auth": {
+      "backend": "codex",
+      "executableEnv": "OPENDESK_TEST_CODEX_EXECUTABLE",
+      "auth": {"mode": "token"},
+      "policy": "analysis"
+    },
+    "bad-policy": {
+      "backend": "codex",
+      "executableEnv": "OPENDESK_TEST_CODEX_EXECUTABLE",
+      "policy": "workspace-write"
+    },
+    "raw-args": {
+      "backend": "codex",
+      "executableEnv": "OPENDESK_TEST_CODEX_EXECUTABLE",
+      "policy": "analysis",
+      "defaultArgs": ["--output-last-message", "stolen.txt"]
+    }
+  }
+}

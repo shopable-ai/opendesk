@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "defaultProfile": "responses-profile",
+  "profiles": {
+    "responses-profile": {
+      "protocol": "openai-responses",
+      "baseURLEnv": "OPENDESK_LLM_FIXTURE_BASE_URL",
+      "model": "fixture-profile-responses-model",
+      "credentialEnv": "OPENDESK_LLM_PROFILE_KEY",
+      "timeoutMs": 30000,
+      "maxRetries": 1,
+      "generation": {"maxOutputTokens": 77},
+      "allowInsecureLocalhost": true
+    },
+    "chat-profile": {
+      "protocol": "openai-chat-completions",
+      "baseURLEnv": "OPENDESK_LLM_FIXTURE_BASE_URL",
+      "model": "fixture-profile-chat-model",
+      "credentialEnv": "OPENDESK_LLM_PROFILE_KEY",
+      "timeoutMs": 30000,
+      "maxRetries": 1,
+      "allowInsecureLocalhost": true
+    }
+  }
+}
