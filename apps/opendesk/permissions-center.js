@@ -1,7 +1,6 @@
 (function installOpenDeskPermissionsCenter(global) {
   'use strict';
 
-  const MENU_ITEM_ID = 'open-permissions';
   const WINDOW_SIZE = Object.freeze({width: 860, height: 720});
 
   function field(value, camel, pascal) {
@@ -37,7 +36,7 @@
   function statusLabel(status) {
     switch (String(status || 'unknown')) {
       case 'granted': return '✓ 已授权';
-      case 'not_required': return '✓ 无需系统授权';
+      case 'not_required': return '✓ 无需额外系统授权';
       case 'denied': return '⚠ 未授权';
       case 'not_determined': return '○ 尚未决定';
       case 'restricted': return '⚠ 受系统限制';
@@ -58,7 +57,7 @@
 
   function requirementLabel(requirement) {
     switch (String(requirement || 'on-demand')) {
-      case 'required': return '当前桌面自动化必需';
+      case 'required': return '当前功能需要';
       case 'optional': return '可选能力';
       default: return '按需使用';
     }
@@ -66,27 +65,25 @@
 
   function permissionMessage(id, status) {
     const messages = {
-      accessibility: '用于识别和操作桌面窗口、控件。缺失时，依赖辅助功能的桌面自动化不可用。',
-      'screen-capture': '用于截图、视觉定位以及图像/OCR 自动化。缺失时，相关视觉能力不可用。',
+      accessibility: '用于识别和操作桌面窗口、控件。缺失时，依赖辅助功能的桌面操作不可用。',
+      'screen-capture': '用于截图、视觉定位以及图像/OCR。缺失时，相关视觉能力不可用。',
       'input-monitoring': '仅特定 Recorder 全局键盘/输入监听能力需要；普通脚本运行不要求此权限。',
-      automation: '仅在需要通过 Apple Events 控制具体外部应用时按目标应用请求，不会在启动时统一授权。',
+      automation: '仅在需要通过 Apple Events 控制具体外部应用时按目标应用授权，不会在启动时统一请求。',
     };
-    const base = messages[id] || '此系统能力仅在相关功能真正使用时检查。';
+    const base = messages[id] || '此系统权限只在相关功能真正使用时检查。';
     switch (String(status || 'unknown')) {
       case 'not_required': return `${base} 当前平台无需额外系统授权。`;
       case 'restricted': return `${base} 当前受到系统策略限制。`;
-      case 'unknown': return `${base} 当前系统接口无法可靠区分“尚未授权”和“尚未决定”，可打开系统设置确认。`;
-      case 'denied': return `${base} 当前未授权，可打开系统设置处理。`;
+      case 'unknown': return `${base} 当前系统接口无法可靠确认状态，可打开系统设置检查。`;
+      case 'denied': return `${base} 当前未授权，可使用适用操作处理。`;
       default: return base;
     }
   }
 
-  function menuLabel(overall) {
-    switch (String(overall || 'UNKNOWN')) {
-      case 'READY': return '权限管理…';
-      case 'LIMITED': return '权限管理（部分功能受限）…';
-      default: return '权限管理（需要处理）…';
-    }
+  // Kept as a compatibility helper for existing callers/tests. The product
+  // menu is intentionally fixed and is no longer derived from aggregate state.
+  function menuLabel() {
+    return '系统权限…';
   }
 
   function rowsFromReport(report) {
@@ -111,16 +108,15 @@
       </div>`).join('');
 
     return `<!doctype html><html><head><meta charset="utf-8"></head><body><main>
-      <header><div><strong class="page-title">权限管理</strong><p class="subtitle">OpenDesk 只在真正需要时请求系统权限。启动、刷新、聚焦窗口只检查状态，不会自动触发授权。</p></div><div class="header-actions"><button id="refresh">刷新</button><button id="close">关闭</button></div></header>
-      <section class="summary"><div><span>整体状态</span><strong id="overall">正在检查…</strong></div><div><span>当前运行身份</span><strong id="identity">—</strong></div></section>
+      <header><div><strong class="page-title">系统权限</strong><p class="subtitle">这里只检查系统授权。具体能否开始录制，请以录制器的检查结果为准。</p></div><div class="header-actions"><button id="refresh">重新检查</button><button id="close">关闭</button></div></header>
       <p id="notice" class="notice">正在静默检查权限，不会自动弹出系统授权窗口。</p>
       <section class="permissions">${rows || '<p class="notice">当前 Runtime 未返回可管理的系统权限。</p>'}</section>
-      <p class="footnote">“自动化”按目标应用单独授权。Windows 没有与 macOS TCC 对称的授权项，但普通权限 OpenDesk 仍可能无法控制管理员权限目标程序。</p>
+      <p class="footnote">“自动化”按目标应用单独授权。Windows 没有对应系统授权的项目会显示“无需额外系统授权”；这不表示所有自动化一定可执行。</p>
     </main></body></html>`;
   }
 
   const CSS = `
-    html,body{height:100%;margin:0;padding:0;overflow:hidden;background:#171717;color:#f4f4f4;font:13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}*{box-sizing:border-box}main{height:100%;min-height:0;padding:20px 20px 24px;display:flex;flex-direction:column;gap:12px;overflow-y:auto}header{display:flex;justify-content:space-between;align-items:flex-start;gap:18px}.page-title{font-size:22px}.subtitle{margin:6px 0 0;color:#9d9d9d;line-height:1.5;max-width:680px}.header-actions,.permission-actions{display:flex;gap:8px;flex-wrap:wrap}button{border:1px solid #505050;border-radius:7px;background:#303030;color:#f4f4f4;padding:7px 10px;font:inherit}button:hover:not(:disabled){background:#3b3b3b;cursor:pointer}button:disabled{opacity:.45}.summary{display:grid;grid-template-columns:180px 1fr;gap:8px}.summary div{border:1px solid #343434;border-radius:8px;background:#202020;padding:9px 11px}.summary span{display:block;color:#888;font-size:10px;margin-bottom:4px}.summary strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.notice{margin:0;padding:9px 11px;border:1px solid #393939;border-radius:8px;background:#202020;color:#cfcfcf}.permissions{display:flex;flex-direction:column;gap:8px}.permission-row{display:flex;justify-content:space-between;align-items:center;gap:18px;border:1px solid #343434;border-radius:9px;background:#1d1d1d;padding:12px}.permission-main{min-width:0;flex:1}.permission-title{display:flex;align-items:center;gap:12px}.permission-title strong{font-size:14px}.status{color:#cfcfcf}.requirement{margin:5px 0 0;color:#aaa;font-size:11px}.description{margin:5px 0 0;color:#898989;line-height:1.45}.permission-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;min-width:220px}.footnote{margin:0;color:#777;font-size:11px;line-height:1.45}
+    html,body{height:100%;margin:0;padding:0;overflow:hidden;background:#171717;color:#f4f4f4;font:13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}*{box-sizing:border-box}main{height:100%;min-height:0;padding:20px 20px 24px;display:flex;flex-direction:column;gap:12px;overflow-y:auto}header{display:flex;justify-content:space-between;align-items:flex-start;gap:18px}.page-title{font-size:22px}.subtitle{margin:6px 0 0;color:#9d9d9d;line-height:1.5;max-width:680px}.header-actions,.permission-actions{display:flex;gap:8px;flex-wrap:wrap}button{border:1px solid #505050;border-radius:7px;background:#303030;color:#f4f4f4;padding:7px 10px;font:inherit}button:hover:not(:disabled){background:#3b3b3b;cursor:pointer}button:disabled{opacity:.45}.notice{margin:0;padding:9px 11px;border:1px solid #393939;border-radius:8px;background:#202020;color:#cfcfcf}.permissions{display:flex;flex-direction:column;gap:8px}.permission-row{display:flex;justify-content:space-between;align-items:center;gap:18px;border:1px solid #343434;border-radius:9px;background:#1d1d1d;padding:12px}.permission-main{min-width:0;flex:1}.permission-title{display:flex;align-items:center;gap:12px}.permission-title strong{font-size:14px}.status{color:#cfcfcf}.requirement{margin:5px 0 0;color:#aaa;font-size:11px}.description{margin:5px 0 0;color:#898989;line-height:1.45}.permission-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;min-width:220px}.footnote{margin:0;color:#777;font-size:11px;line-height:1.45}
   `;
 
   function create(options) {
@@ -159,15 +155,6 @@
       try { await window.control(id).update(patch); } catch (_) {}
     }
 
-    function identityText(value) {
-      const identity = field(value, 'identity', 'Identity') || {};
-      const launchKind = String(field(identity, 'launchKind', 'LaunchKind') || 'process');
-      if (launchKind === 'app-bundle') return 'OpenDesk 应用';
-      if (launchKind === 'windows-process') return 'OpenDesk Windows 应用';
-      if (launchKind === 'cli-or-child') return 'OpenDesk 独立进程';
-      return 'OpenDesk 当前进程';
-    }
-
     function permissionByID(value, id) {
       return permissionsFromReport(value).find(permission => basePermissionID(permission) === id) || null;
     }
@@ -178,10 +165,7 @@
     }
 
     async function render(value, source) {
-      const overall = String(field(value, 'overall', 'Overall') || 'UNKNOWN');
-      await safeUpdate('overall', {text: overallLabel(overall)});
-      await safeUpdate('identity', {text: identityText(value)});
-      await safeUpdate('notice', {text: source ? `权限状态已刷新 · ${source}` : '权限状态已刷新。'});
+      await safeUpdate('notice', {text: source ? `系统权限已重新检查 · ${source}` : '系统权限已重新检查。'});
 
       for (const row of viewRows) {
         const permission = permissionByID(value, row.id);
@@ -191,28 +175,23 @@
         const canOpenSettings = field(permission, 'canOpenSettings', 'CanOpenSettings') === true;
         const ready = status === 'granted' || status === 'not_required';
         const pending = requesting.has(row.id);
+        const showRequest = !ready && canRequest;
+        const showSettings = !ready && canOpenSettings;
         await safeUpdate(`status-${row.key}`, {text: statusLabel(status)});
         await safeUpdate(`requirement-${row.key}`, {text: requirementLabel(requirement)});
         await safeUpdate(`description-${row.key}`, {text: permissionMessage(row.id, status)});
         await safeUpdate(`request-${row.key}`, {
-          disabled: !canRequest || ready || pending,
-          text: ready ? '已就绪' : (canRequest ? (attemptedRequests.has(row.id) ? '重新尝试' : '请求授权') : (row.id === 'automation' ? '按目标应用请求' : '无需请求')),
+          visible: showRequest,
+          disabled: !showRequest || pending,
+          text: attemptedRequests.has(row.id) ? '重新尝试' : '请求授权',
         });
-        await safeUpdate(`settings-${row.key}`, {disabled: !canOpenSettings, text: canOpenSettings ? '打开系统设置' : '无需系统设置'});
+        await safeUpdate(`settings-${row.key}`, {
+          visible: showSettings,
+          disabled: !showSettings,
+          text: '打开系统设置',
+        });
       }
       return value;
-    }
-
-    async function updateTray(value) {
-      if (typeof app.updateMenuItem !== 'function') return;
-      const overall = String(field(value, 'overall', 'Overall') || 'UNKNOWN');
-      try {
-        await app.updateMenuItem(MENU_ITEM_ID, {label: menuLabel(overall)});
-      } catch (error) {
-        if (logger && typeof logger.warn === 'function') {
-          logger.warn('PERMISSIONS_MENU_UPDATE_FAILED=' + String(error && error.message ? error.message : error));
-        }
-      }
     }
 
     async function refresh(source) {
@@ -220,14 +199,13 @@
       refreshing = true;
       lastError = '';
       await safeUpdate('refresh', {disabled: true});
-      await safeUpdate('notice', {text: '正在静默检查当前进程权限…'});
+      await safeUpdate('notice', {text: '正在静默重新检查当前进程的系统权限…'});
       try {
         report = app.getPermissions('desktop-automation');
-        await render(report, source || '刷新');
-        await updateTray(report);
+        await render(report, source || '重新检查');
       } catch (error) {
         lastError = error && error.message ? String(error.message) : String(error || 'permission refresh failed');
-        await safeUpdate('notice', {text: `权限检查失败：${lastError}`});
+        await safeUpdate('notice', {text: `系统权限检查失败：${lastError}`});
         if (logger && typeof logger.error === 'function') logger.error('PERMISSIONS_REFRESH_FAILED=' + lastError);
       } finally {
         refreshing = false;
@@ -270,7 +248,7 @@
         if (fallback) {
           await safeUpdate('notice', {text: guidance ? `已打开“隐私与安全”。请手动前往：${guidance}` : '已打开“隐私与安全”，请手动选择对应权限项。'});
         } else {
-          await safeUpdate('notice', {text: '已打开对应的系统设置。返回 OpenDesk 后可点击“刷新”重新检查状态。'});
+          await safeUpdate('notice', {text: '已打开对应的系统设置。返回 OpenDesk 后可点击“重新检查”读取最新状态。'});
         }
       } catch (error) {
         await safeUpdate('notice', {text: `打开系统设置失败：${error && error.message ? error.message : error}`});
@@ -279,7 +257,7 @@
     }
 
     async function bind(win) {
-      win.control('refresh').on('click', () => refresh('手动刷新'));
+      win.control('refresh').on('click', () => refresh('手动重新检查'));
       win.control('close').on('click', () => win.close());
       for (const row of viewRows) {
         win.control(`request-${row.key}`).on('click', () => request(row.id));
@@ -309,7 +287,7 @@
       const next = await runtimeUI.createWindow({
         id: `permissionsCenter${++sequence}`,
         kind: 'floating',
-        title: '权限管理',
+        title: '系统权限',
         position: {mode:'anchor',size:WINDOW_SIZE,horizontal:'center',vertical:'center',margin:0,display:'active'},
         theme: 'dark',
         alwaysOnTop: false,
@@ -333,7 +311,6 @@
       lastError = '';
       try {
         report = app.getPermissions('desktop-automation');
-        await updateTray(report);
       } catch (error) {
         lastError = error && error.message ? String(error.message) : String(error || 'permission preflight failed');
         if (logger && typeof logger.warn === 'function') logger.warn('PERMISSIONS_PREFLIGHT_FAILED=' + lastError);
