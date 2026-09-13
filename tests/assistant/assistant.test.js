@@ -306,14 +306,20 @@ test('model channel uses controlled Agent only when LLM is not configured', asyn
   assert.match(capturedPrompt, /User:\nhello/);
 });
 
-test('assistant UI source has no Enter-to-send or task/script execution controls', () => {
+test('assistant UI source uses progressive recent-chat loading and has no Enter-to-send or task/script execution controls', () => {
   const here = path.dirname(fileURLToPath(import.meta.url));
   const controller = readFileSync(path.resolve(here, '../../apps/opendesk/assistant/controller.js'), 'utf8');
   assert.doesNotMatch(controller, /['"](?:keydown|keypress|keyup)['"]/);
   assert.doesNotMatch(controller, /task selector|script selector|execute script/i);
   assert.match(controller, /普通聊天不会运行脚本、命令或桌面动作/);
   assert.match(controller, /MESSAGE_PAGE_SIZE/);
-  assert.match(controller, /RECENT_PAGE_SIZE/);
+  assert.match(controller, /RECENT_BATCH_SIZE\s*=\s*8/);
+  assert.match(controller, /id="recentMore"/);
+  assert.match(controller, /id="recentOverflow"/);
+  assert.match(controller, /recentVisibleCount\s*\+\s*RECENT_BATCH_SIZE/);
+  assert.doesNotMatch(controller, /id="recentPrev"/);
+  assert.doesNotMatch(controller, /id="recentNext"/);
+  assert.doesNotMatch(controller, /id="recentPage"/);
 });
 
 test('official App Shell routes exactly one assistant action and keeps Script Runner as default primary flow', async () => {
