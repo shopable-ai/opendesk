@@ -5,6 +5,16 @@ description: "用自然语言选择受控任务、由 Codex 填写固定参数�
 
 # 对话式任务运行器｜Chat UI + Codex CLI + Calculator P0
 
+## 0. 与统一 Capability Lifecycle 的边界
+
+2026-09-13 增补：跨应用 Runtime / Catalog / Authoring 的唯一总纲见 [Automation Capability Lifecycle](desktop-automation/task-capability-lifecycle.md)。本文继续拥有 Calculator Chat P0 的源码、固定 envelope、公开命令和验收状态；不复制跨层任务树、AppProfile、CandidateManifest 或 QualificationRecord。
+
+Chat Runner 是产品运行状态机，不新增 `workflows/conversational-task-runner/`。未来普通入口消费本地已发布、当前适用的 Qualified Capability；已有能力走校验/预检/预览/确认/执行，缺失或失效时明确返回 Gap、阻塞、重验或维修请求。用户另行进入 Agent-to-Recipe / Human-to-Recipe / Existing Assets 作者态，经过独立 qualification 与明确 publish 后，才成为后续可发现能力。发布完成不自动执行原请求，也不沿用开发前的旧确认。
+
+当前代码仍是下面记录的两个固定任务，`index.js` 仍有按 TASK_IDS 分支的接线；通用 Catalog、发布门、跨 Runtime 桌面排他和 Failure Package 接续尚不能据此宣称已完成。下一批先建设这些最小信任门，再将两个任务作为候选登记，不能直接继承旧 golden 的资格。
+
+本次生命周期文档更新没有修改 Chat 源码或重跑测试。第 2—13 节的 12/12 是此前纯 JS/mock 记录，真实 Codex、Calculator、公开启动与实窗资格仍按原证据边界保留。
+
 ## 1. 目标需求
 
 让普通用户打开一个类似聊天软件的 OpenDesk 窗口，用自然语言提出计算任务，不输入终端命令、脚本路径、窗口坐标或 JavaScript，便可在明确确认后完成真实 Calculator 自动化，并在聊天窗口看到真实读取结果。
@@ -400,6 +410,10 @@ fail 0
 
 ## 14. 后续演进
 
-P0 完整通过后才考虑：官方菜单入口、应用发行打包、更多经 Human-to-Recipe 资格化的固定任务、保存已批准参数任务、低风险场景的可选确认策略。
+当前固定任务 P0 的验收与通用生命周期建设是两项不同交付，不因编写 Catalog 设计而撤销上述 Calculator live 要求。下一实施批以 [Automation Capability Lifecycle](desktop-automation/task-capability-lifecycle.md) 的 P0 顺序为准：最小本地目录与不可变发布引用、Resolver/Gap、独立 qualification/发布门、确认绑定和 Failure Package，再将 Calculator 精确候选通过真实验收后登记为 Qualified Capability。
+
+当前 `task-contract.js` 的两个固定任务合同可以成为最早的能力输入合同来源，但不得永远在每个 Chat UI 扩大应用专属 if/else。参数校验、可信预览、受控 Planner 和 task-session 现有行为继续复用；应用规则保留在 Recipe/AppProfile，不复制到 Chat UI 或 Catalog。新增 Candidate、输入范围或应用环境必须有对应资格，发布与运行授权分别处理。
+
+官方菜单、应用发行打包、保存已批准参数任务、更多应用和低风险确认策略继续按实际需要推进；Normal Mode 的候选放行不得等待复杂插件市场才实现。Human/Agent/Recorder 入口保留，业务 renderer、完整作者 Skill 入口和目录能力分批交付，不把静态 refiner 编译器误称为通用业务 renderer。
 
 只有确实出现持久多轮 session、turn interruption、审批回传等需求时，再评估 Codex App Server。P0 不建立通用工作流解释器、Workflow IR、Replay Runtime 或任意代码执行通道。
