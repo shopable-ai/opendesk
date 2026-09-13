@@ -79,7 +79,8 @@ try {
     $sha = (& git rev-parse HEAD).Trim()
     $dirty = @(& git status --porcelain).Count -gt 0
     $hash = (Get-FileHash $hostPath -Algorithm SHA256).Hash.ToLowerInvariant()
-    $fileCount = @(Get-ChildItem -LiteralPath $OutputDirectory -File -Recurse).Count
+    # build-provenance.json is written immediately below and belongs to the final published closure.
+    $fileCount = @(Get-ChildItem -LiteralPath $OutputDirectory -File -Recurse).Count + 1
     $loaderPaths = @($webView2Loaders | ForEach-Object {
         [IO.Path]::GetRelativePath($OutputDirectory, $_.FullName).Replace('\','/')
     } | Sort-Object)
