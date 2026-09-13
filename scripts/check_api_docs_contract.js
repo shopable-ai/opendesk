@@ -93,11 +93,22 @@ for (const rel of ['docs/api/agent.md', 'docs/api/llm.md']) {
   requireText(rel, 'Capability 状态模型');
 }
 
-// Official product code and examples must teach the canonical API. The
-// compatibility alias remains available for existing user scripts, but new
-// first-party sources must not reintroduce it.
+// Public entry docs must preserve the current product/runtime layering. The
+// installed desktop product owns bundled App Mode; explicit -http is a
+// separate headless integration mode and must not become the desktop model.
+requireText('README.md', '`-http` 是显式的 headless / integration 模式', 'explicit HTTP-vs-Desktop boundary');
+rejectText('README.md', '没有业务窗口\n和没有 Dock 图标是此后台服务的正常状态', 'obsolete background-only macOS App model');
+requireText('QUICKSTART.md', 'OpenDesk Desktop != -http', 'Desktop/App Mode layering rule');
+requireText('QUICKSTART.md', 'OpenDesk.app/Contents/Resources/AppMode/', 'bundled App Mode payload path');
+rejectText('QUICKSTART.md', '它的主要入口不是业务操作窗口', 'obsolete background-only Desktop entry model');
+
+// Official product code, product-maintainer docs and examples must teach the
+// canonical API. Compatibility aliases remain available for existing user
+// scripts, but new first-party sources must not reintroduce them.
 requireText('apps/opendesk/script-runner-simple.js', 'runtimeUI.toast(', 'canonical ui.toast() in product shell');
 rejectText('apps/opendesk/script-runner-simple.js', 'runtimeUI.notify(', 'ui.notify() compatibility alias in product shell');
+requireText('apps/opendesk/README.md', 'uses `ui.toast()`', 'canonical ui.toast() in product maintainer docs');
+rejectText('apps/opendesk/README.md', 'uses `ui.notify()`', 'ui.notify() compatibility alias in product maintainer docs');
 requireText('examples/scheduler/notify-and-log.js', 'await ui.toast(', 'canonical ui.toast() in Scheduler example');
 rejectText('examples/scheduler/notify-and-log.js', 'await ui.notify(', 'ui.notify() compatibility alias in Scheduler example');
 
