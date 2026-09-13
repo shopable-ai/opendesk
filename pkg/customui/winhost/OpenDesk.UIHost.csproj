@@ -10,9 +10,11 @@
     <RootNamespace>OpenDesk.UIHost</RootNamespace>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <PublishSingleFile>true</PublishSingleFile>
+    <!-- The host is already a Runtime-owned sidecar directory. Keep .NET
+         self-contained, but publish as an explicit folder so native runtime
+         libraries do not need single-file extraction into TEMP. -->
+    <PublishSingleFile>false</PublishSingleFile>
     <SelfContained>true</SelfContained>
-    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <DebugType>none</DebugType>
     <PublishTrimmed>false</PublishTrimmed>
   </PropertyGroup>

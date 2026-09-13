@@ -40,7 +40,7 @@ type ProcessDriver struct {
 	opts ProcessDriverOptions
 
 	mu            sync.RWMutex
-	cmd           *exec.Cmd
+	process       hostProcess
 	stdin         io.WriteCloser
 	pending       map[string]chan protocolFrame
 	sinks         map[string]func(Event)
@@ -123,7 +123,7 @@ func (d *ProcessDriver) resourceCountsLocked(sessionID string) DriverResourceCou
 		}
 	}
 	counts := DriverResourceCounts{Sinks: sinks}
-	started := d.cmd != nil && d.cmd.Process != nil
+	started := d.process != nil
 	exited := d.exited
 	if started && (sessionID == "" || sinks > 0) {
 		if exited == nil {
@@ -183,7 +183,7 @@ func (d *ProcessDriver) platform() string {
 
 func (d *ProcessDriver) CloseSession(ctx context.Context, sessionID string) error {
 	d.mu.RLock()
-	processStarted := d.cmd != nil && d.cmd.Process != nil
+	processStarted := d.process != nil
 	fatal := d.fatalErr
 	d.mu.RUnlock()
 	if !processStarted || fatal != nil {
@@ -217,7 +217,7 @@ func (d *ProcessDriver) Close() error {
 		return nil
 	}
 	d.closed = true
-	processStarted := d.cmd != nil && d.cmd.Process != nil
+	processStarted := d.process != nil
 	d.mu.Unlock()
 	if !processStarted {
 		d.clearAllWindowResources()
@@ -230,15 +230,15 @@ func (d *ProcessDriver) Close() error {
 	_ = d.call(ctx, "", "", "shutdown", nil, nil)
 
 	d.mu.RLock()
-	cmd := d.cmd
+	process := d.process
 	exited := d.exited
 	d.mu.RUnlock()
 	if exited != nil {
 		select {
 		case <-exited:
 		case <-ctx.Done():
-			if cmd != nil && cmd.Process != nil {
-				_ = cmd.Process.Kill()
+			if process != nil {
+				_ = process.Kill()
 			}
 			<-exited
 		}
@@ -287,46 +287,34 @@ func (d *ProcessDriver) ensureStarted(ctx context.Context) error {
 		d.releaseLease()
 		return d.waitReady(ctx)
 	}
-	command := exec.Command(path)
+
+	var process hostProcess
+	var stdin io.WriteCloser
+	var stdout io.ReadCloser
 	if d.opts.Command != nil {
-		command = d.opts.Command(path)
+		process, stdin, stdout, err = startCommandHostProcess(d.opts.Command(path), d.opts.Stderr)
+	} else {
+		process, stdin, stdout, err = startPlatformHostProcess(path, d.opts.Stderr)
 	}
-	stdin, err := command.StdinPipe()
 	if err != nil {
-		d.failStart(wrapDriver("startHost", "", err))
-		d.releaseLease()
-		return d.waitReady(ctx)
-	}
-	stdout, err := command.StdoutPipe()
-	if err != nil {
-		_ = stdin.Close()
-		d.failStart(wrapDriver("startHost", "", err))
-		d.releaseLease()
-		return d.waitReady(ctx)
-	}
-	command.Stderr = d.opts.Stderr
-	if err := command.Start(); err != nil {
-		_ = stdin.Close()
 		d.failStart(wrapDriver("startHost", "", err))
 		d.releaseLease()
 		return d.waitReady(ctx)
 	}
 	d.mu.Lock()
-	d.cmd = command
+	d.process = process
 	d.stdin = stdin
 	d.mu.Unlock()
 	go d.readFrames(stdout)
 	go func() {
-		err := command.Wait()
+		err := process.Wait()
 		d.handleExit(err)
 	}()
 
 	startupCtx, cancel := context.WithTimeout(ctx, d.opts.StartupTimeout)
 	defer cancel()
 	if err := d.waitReady(startupCtx); err != nil {
-		if command.Process != nil {
-			_ = command.Process.Kill()
-		}
+		_ = process.Kill()
 		return err
 	}
 	return nil
@@ -455,7 +443,7 @@ func (d *ProcessDriver) failTransport(err error) {
 	}
 	ready := d.ready
 	stdin := d.stdin
-	cmd := d.cmd
+	process := d.process
 	d.sinks = map[string]func(Event){}
 	d.controls = map[string]map[string]struct{}{}
 	d.sequences = map[string]uint64{}
@@ -467,8 +455,8 @@ func (d *ProcessDriver) failTransport(err error) {
 	if stdin != nil {
 		_ = stdin.Close()
 	}
-	if cmd != nil && cmd.Process != nil {
-		_ = cmd.Process.Kill()
+	if process != nil {
+		_ = process.Kill()
 	}
 }
 
@@ -741,8 +729,8 @@ var _ Driver = (*ProcessDriver)(nil)
 func (d *ProcessDriver) String() string {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
-	if d.cmd == nil || d.cmd.Process == nil {
+	if d.process == nil || d.process.PID() == 0 {
 		return "native-process:not-started"
 	}
-	return fmt.Sprintf("native-process:pid=%d", d.cmd.Process.Pid)
+	return fmt.Sprintf("native-process:pid=%d", d.process.PID())
 }

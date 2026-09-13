@@ -13,7 +13,11 @@ on:
       - 'scripts/build_macos_app.sh'
       - 'scripts/build_windows_app.ps1'
       - 'scripts/build_windows_distribution.ps1'
+      - 'scripts/build_windows_ui.ps1'
+      - 'scripts/windows_release_preflight.ps1'
+      - 'scripts/verify_platform_payload.py'
       - 'scripts/tools/app-mode-payload/**'
+      - 'pkg/customui/winhost/**'
       - 'examples/app-mode/basic/**'
   pull_request:
     paths:
@@ -27,7 +31,11 @@ on:
       - 'scripts/build_macos_app.sh'
       - 'scripts/build_windows_app.ps1'
       - 'scripts/build_windows_distribution.ps1'
+      - 'scripts/build_windows_ui.ps1'
+      - 'scripts/windows_release_preflight.ps1'
+      - 'scripts/verify_platform_payload.py'
       - 'scripts/tools/app-mode-payload/**'
+      - 'pkg/customui/winhost/**'
       - 'examples/app-mode/basic/**'
   workflow_dispatch:
 
@@ -92,9 +100,15 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - name: Build the release Runtime template once
         shell: pwsh
         run: pwsh -NoProfile -File scripts/build_windows_distribution.ps1 -Runtime win-x64
+      - name: Preflight the installed Runtime template
+        shell: pwsh
+        run: pwsh -NoProfile -File scripts/windows_release_preflight.ps1 -ArtifactDirectory dist/windows/win-x64 -Kind Runtime -EvidencePath .runtime/tests/app-builder/windows-runtime-preflight.json
       - name: Build a portable product from an isolated installed Runtime without Go in PATH
         shell: pwsh
         run: |
@@ -104,7 +118,8 @@ jobs:
           New-Item -ItemType Directory -Force -Path (Join-Path $consumer 'sdk'), (Join-Path $consumer 'input') | Out-Null
           Copy-Item -LiteralPath 'dist/windows/win-x64' -Destination (Join-Path $consumer 'sdk/win-x64') -Recurse
           Copy-Item -LiteralPath 'examples/app-mode/basic' -Destination (Join-Path $consumer 'input/basic') -Recurse
-          $runtime = Join-Path $consumer 'sdk/win-x64/opendesk.exe'
+          $runtimeRoot = Join-Path $consumer 'sdk/win-x64'
+          $runtime = Join-Path $runtimeRoot 'opendesk.exe'
           $output = Join-Path $consumer 'BuilderSmokePortable'
           $savedPath = $env:PATH
           try {
@@ -129,10 +144,18 @@ jobs:
           Move-Item -LiteralPath $output -Destination $moved
           & $runtime app validate (Join-Path $moved 'app-mode') --json
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          python scripts/verify_platform_payload.py --root $moved --target windows --kind app --reference $runtimeRoot --require-reference | Tee-Object -FilePath (Join-Path $consumer 'payload-verification.json')
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          pwsh -NoProfile -File scripts/windows_release_preflight.ps1 -ArtifactDirectory $moved -Kind App -EvidencePath (Join-Path $consumer 'release-preflight.json')
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: app-builder-windows-consumer
-          path: ${{ runner.temp }}\app-builder-consumer
+          path: |
+            ${{ runner.temp }}\app-builder-consumer
+            .runtime\tests\app-builder
           if-no-files-found: ignore
           retention-days: 7

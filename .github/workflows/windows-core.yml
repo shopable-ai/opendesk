@@ -68,6 +68,10 @@ jobs:
         shell: pwsh
         run: go test ./pkg/customui/...
 
+      - name: Verify Windows Native UI parent-death ownership explicitly
+        shell: pwsh
+        run: go test ./pkg/customui -run '^TestWindows(NativeHostParentDeathOwnership|OwnedHostKillAndWait)$' -count=1 -v
+
       - name: Test App Package developer tooling
         shell: pwsh
         run: go test ./internal/appcli ./pkg/appshell -count=1
@@ -79,6 +83,10 @@ jobs:
       - name: Build portable Windows distribution
         shell: pwsh
         run: pwsh -NoProfile -File scripts/build_windows_distribution.ps1 -Runtime win-x64 -AppModePackage apps/opendesk
+
+      - name: Run Windows release preflight on the real distribution
+        shell: pwsh
+        run: pwsh -NoProfile -File scripts/windows_release_preflight.ps1 -ArtifactDirectory dist/windows/win-x64 -Kind Runtime -EvidencePath .runtime/tests/windows-compat/release-preflight.json
 
       - name: Run ESM relative import example from distribution
         shell: pwsh
