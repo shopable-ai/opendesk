@@ -164,6 +164,18 @@ test('A/B/C conversations keep independent titles, drafts, archive state, and du
   assert.equal(reloaded.snapshot().selectedConversationId, c.id);
 });
 
+test('event sequence gaps or corrupt event headers fail load instead of being ignored', async () => {
+  const file = memoryFile();
+  const store = createStore(file);
+  await store.load();
+  const eventPath = '/data/assistant/events/000000000001.json';
+  const original = file.files.get(eventPath);
+  file.files.set(eventPath, {...original, seq: 2});
+
+  const reloaded = createStore(file);
+  await assert.rejects(() => reloaded.load(), {code: 'STORE_CORRUPT'});
+});
+
 test('A response remains owned by A after switching to B and model context never includes B', async () => {
   const file = memoryFile();
   const gate = deferred();
@@ -309,6 +321,8 @@ test('model channel uses controlled Agent only when LLM is not configured', asyn
 test('assistant UI source uses progressive recent-chat loading and has no Enter-to-send or task/script execution controls', () => {
   const here = path.dirname(fileURLToPath(import.meta.url));
   const controller = readFileSync(path.resolve(here, '../../apps/opendesk/assistant/controller.js'), 'utf8');
+  assert.doesNotMatch(controller, /<aside\b/i);
+  assert.match(controller, /<textarea id="composer"[^>]*aria-label="聊天消息"/);
   assert.doesNotMatch(controller, /['"](?:keydown|keypress|keyup)['"]/);
   assert.doesNotMatch(controller, /task selector|script selector|execute script/i);
   assert.match(controller, /普通聊天不会运行脚本、命令或桌面动作/);

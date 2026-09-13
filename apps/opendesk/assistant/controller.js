@@ -76,7 +76,7 @@
   function buildHTML() {
     return `<!doctype html><html><head><meta charset="utf-8"></head><body>
       <main class="shell">
-        <aside class="sidebar">
+        <div class="sidebar">
           <div class="sidebar-head">
             <strong>AI 助手</strong>
             <button id="newConversation" class="icon-button primary" data-icon="plus" title="新建对话" aria-label="新建对话">新建对话</button>
@@ -93,7 +93,7 @@
             <div class="conversation-list archived-list">${buildConversationRows('archived', ARCHIVED_PAGE_SIZE, true)}</div>
             <div class="pager compact"><button id="archivedPrev" class="icon-button" data-icon="chevron.left" title="上一页">上一页</button><span id="archivedPage">1 / 1</span><button id="archivedNext" class="icon-button" data-icon="chevron.right" title="下一页">下一页</button></div>
           </section>
-        </aside>
+        </div>
 
         <section class="workspace">
           <header class="conversation-head">
@@ -118,7 +118,7 @@
           </section>
 
           <section class="composer-card">
-            <textarea id="composer" maxlength="20000" rows="4" spellcheck="true" placeholder="输入消息。发送只由按钮触发，输入法确认不会自动发送。"></textarea>
+            <textarea id="composer" maxlength="20000" rows="4" spellcheck="true" aria-label="聊天消息" placeholder="输入消息。发送只由按钮触发，输入法确认不会自动发送。"></textarea>
             <div class="composer-footer">
               <span id="composerHint" class="subtle">普通聊天不会运行脚本、命令或桌面动作。</span>
               <div class="composer-actions"><button id="stop" class="icon-button danger" data-icon="stop.fill" title="停止当前请求" aria-label="停止当前请求">停止</button><button id="send" class="icon-button primary" data-icon="arrow.up.circle.fill" title="发送消息" aria-label="发送消息">发送</button></div>
