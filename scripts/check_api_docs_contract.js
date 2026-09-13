@@ -72,7 +72,7 @@ if (index) {
   }
 
   const runtimeDocs = index.documentation?.runtime || [];
-  for (const required of ['capabilities.md', 'ui.md']) {
+  for (const required of ['capabilities.md', 'ui.md', 'notifications.md']) {
     if (!runtimeDocs.includes(required)) {
       errors.push(`runtime-api.ai.json: documentation.runtime missing ${required}`);
     }
