@@ -8,6 +8,36 @@ OpenDesk 是一个本地桌面自动化运行时。你可以直接运行 JavaScr
 
 ## 快速开始
 
+### OpenDesk Desktop（macOS）
+
+正式 `OpenDesk.app` 默认包含官方 `apps/opendesk` App Mode 包。双击或使用 Finder/Launchpad
+启动时，Runtime 会自动发现 bundle 内的 `Contents/Resources/AppMode/`，打开 **OpenDesk** 主界面，
+并由同一个 App Shell / Tray 承载自动化列表、Recorder、Scheduler Center、开发者入口以及退出生命周期。
+它不是“只启动 60844 HTTP/Scheduler、没有业务窗口”的后台服务模型。
+
+已安装发行包时直接启动：
+
+```bash
+open /Applications/OpenDesk.app
+```
+
+从源码构建官方 bundle：
+
+```bash
+./scripts/build_macos_app.sh
+open dist/OpenDesk.app
+```
+
+源码开发时也可以显式运行同一个官方 App Mode 包：
+
+```bash
+./dist/opendesk -app apps/opendesk -allow-recorder-capture -console-mode script
+```
+
+`-http` 是另一条显式的 headless / integration 入口，不是 OpenDesk Desktop 的产品主入口。App Mode、
+App Shell 与 `automation.app.*` 的关系见 [`docs/api/app-shell.md`](docs/api/app-shell.md) 和
+[`docs/api/automation-app.md`](docs/api/automation-app.md)。
+
 ### 直接运行 JavaScript 文件
 
 ```bash
@@ -184,6 +214,9 @@ OpenDesk 也提供 `opendesk ai`：一个为 Codex、Claude Code 与 shell-based
 
 ## HTTP 服务
 
+`-http` 是显式的 headless / integration 模式；它适合让其他本机程序通过 HTTP 触发 Runtime，
+不要把它等同于正式 OpenDesk Desktop 的 App Mode 启动语义。
+
 启动：
 
 ```bash
@@ -254,11 +287,27 @@ docs/api/image-color.md
 ## macOS
 
 长期使用桌面自动化时，建议使用发行包中的固定 App 身份，避免临时可执行路径导致 TCC 权限主体变化。
-OpenDesk.app 的主要作用是承载这个稳定身份，并可在无参数启动时提供本机 HTTP 服务和
-Scheduler；它不是一个会自动操作其他 App 的业务窗口。双击安装在
-`/Applications/OpenDesk.app` 的 App 后，服务真正监听 `60844` 且 Scheduler 就绪时，菜单栏会
-显示带图标的 **OpenDesk** 状态项；其中可以打开状态页、Scheduler 或选择退出。没有业务窗口
-和没有 Dock 图标是此后台服务的正常状态，不是启动失败。
+当前官方构建默认把 `apps/opendesk` 作为 App Mode package，经过 release payload 规则放入：
+
+```text
+OpenDesk.app/Contents/Resources/AppMode/
+```
+
+Finder / Launchpad 无参数启动时，Runtime 会自动发现这个 bundled package。当前产品模型是：
+
+```text
+OpenDesk.app
+→ OpenDesk Runtime
+→ bundled App Mode
+→ 一个 App Shell / Tray
+→ OpenDesk 主界面（自动化）
+   + Recorder
+   + Scheduler Center
+   + Developer / Official actions
+```
+
+因此“没有业务窗口、只监听固定 60844、主要从 Web Scheduler 使用”是旧模型，不再是正式 Desktop
+产品的启动说明。显式 `-http -port 60844` 仍然保留，但它属于独立的 headless / integration 入口。
 
 ### 普通用户安装
 
@@ -268,6 +317,9 @@ Scheduler；它不是一个会自动操作其他 App 的业务窗口。双击安
 open /Applications/OpenDesk.app
 ```
 
+主界面关闭/隐藏不等于退出；正式退出由 OpenDesk Tray/Menu 的 Quit 动作负责。Recorder、Scheduler
+Center 等产品能力由同一个 App Shell 生命周期管理，而不是通过多个独立 Desktop Runtime 拼接。
+
 ### 开发者从源码构建
 
 只有开发或制作发行包时才需要 Go。构建 App：
@@ -276,28 +328,41 @@ open /Applications/OpenDesk.app
 ./scripts/build_macos_app.sh
 ```
 
-构建结果位于 `dist/OpenDesk.app`；把它安装到 `/Applications` 后启动：
+构建结果位于 `dist/OpenDesk.app`，默认已经包含官方 App Mode payload。可以直接验证源码 package：
+
+```bash
+./dist/opendesk app validate apps/opendesk --json
+```
+
+把 bundle 安装到 `/Applications` 后启动：
 
 ```bash
 open /Applications/OpenDesk.app
 ```
 
-启动完成以 `http://127.0.0.1:60844/status` 返回 `"status":"ok"` 与
-`"scheduler":true` 为准；Scheduler 页面是 `http://127.0.0.1:60844/scheduler`。菜单栏选择
-**Quit OpenDesk** 可优雅退出。Finder 的“应用程序”网格应显示彩色 OpenDesk 图标；构建者可从
-仓库根目录运行 `APP_BUNDLE=/Applications/OpenDesk.app bash scripts/test_app_icons.sh` 检查图标
-资源、Info.plist 和 ad-hoc 签名。首次辅助功能、屏幕录制或自动化授权应针对固定的
-`com.opendesk.cli` App 身份，而不是 Terminal 或临时二进制。
+Finder 的“应用程序”网格应显示彩色 OpenDesk 图标；构建者可从仓库根目录运行
+`APP_BUNDLE=/Applications/OpenDesk.app bash scripts/test_app_icons.sh` 检查图标资源、Info.plist 和签名。
+首次辅助功能、屏幕录制或自动化授权应针对固定的 `com.opendesk.cli` App 身份，而不是 Terminal
+或临时二进制。
 
-需要带脚本参数时可使用：
+源码开发/验收官方产品包可显式运行：
+
+```bash
+./dist/opendesk -app apps/opendesk -allow-recorder-capture -console-mode script
+```
+
+需要带一次性脚本参数时仍可使用：
 
 ```bash
 ./scripts/open_macos_app.sh -script examples/mac/request-macos-permissions.js -timeout 2
 ```
 
-相关文档：
+App Mode / App Builder / macOS 相关文档：
 
 ```text
+docs/api/app-shell.md
+docs/api/automation-app.md
+docs/api/app-builder.md
 docs/implementation/macos/automation-config.md
 docs/implementation/macos/screenshot-troubleshooting.md
 docs/implementation/macos/gocv-build-guide.md
