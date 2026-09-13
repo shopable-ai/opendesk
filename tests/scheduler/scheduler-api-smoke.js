@@ -23,6 +23,8 @@ const exampleEvidencePath = File.join(
   'scheduler',
   'last-run.json',
 );
+const automaticAtDelayMs = 5000;
+const terminalRunTimeoutMs = 25000;
 const own = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
 
 function assert(condition, message) {
@@ -36,24 +38,47 @@ function unwrap(response, operation) {
   return envelope.data;
 }
 
+async function listRuns(jobID, operation = 'list runs') {
+  const runs = unwrap(
+    await axios.get(`${apiURL}/jobs/${encodeURIComponent(jobID)}/runs`, {
+      params: {limit: 20},
+      timeout: 3000,
+    }),
+    operation,
+  );
+  assert(Array.isArray(runs), 'run history is not an array');
+  return runs;
+}
+
 async function waitForTerminalRun(jobID, runID) {
-  const deadline = Date.now() + 20000;
+  const deadline = Date.now() + terminalRunTimeoutMs;
   while (Date.now() < deadline) {
-    const runs = unwrap(
-      await axios.get(`${apiURL}/jobs/${encodeURIComponent(jobID)}/runs`, {
-        params: {limit: 20},
-        timeout: 3000,
-      }),
-      'list runs',
-    );
-    assert(Array.isArray(runs), 'run history is not an array');
+    const runs = await listRuns(jobID);
     const run = runs.find((candidate) => candidate.id === runID);
     if (run && ['succeeded', 'failed', 'canceled', 'skipped'].includes(run.status)) {
       return {run, runs};
     }
     await sleep(100);
   }
-  throw new Error(`Scheduler acceptance failed: run ${runID} did not finish within 20s`);
+  throw new Error(
+    `Scheduler acceptance failed: run ${runID} did not finish within ${terminalRunTimeoutMs}ms`,
+  );
+}
+
+async function waitForAutomaticTerminalRun(jobID) {
+  const deadline = Date.now() + terminalRunTimeoutMs;
+  while (Date.now() < deadline) {
+    const runs = await listRuns(jobID, 'list automatic runs');
+    assert(runs.length <= 1, `automatic at job produced ${runs.length} occurrences`);
+    const run = runs[0];
+    if (run && ['succeeded', 'failed', 'canceled', 'skipped'].includes(run.status)) {
+      return {run, runs};
+    }
+    await sleep(100);
+  }
+  throw new Error(
+    `Scheduler acceptance failed: automatic at job did not finish within ${terminalRunTimeoutMs}ms`,
+  );
 }
 
 let jobID = '';
@@ -127,13 +152,15 @@ try {
   const jobsAfterDelete = unwrap(await axios.get(`${apiURL}/jobs`, {timeout: 3000}), 'list after delete');
   assert(!jobsAfterDelete.some((job) => job.id === created.id), 'deleted job remains listed');
 
+  const scheduledForMs = Date.now() + automaticAtDelayMs;
+  const scheduledFor = new Date(scheduledForMs).toISOString();
   const fileCreated = unwrap(
     await axios.post(`${apiURL}/jobs`, {
-      name: `scheduler-file-example-${Date.now()}`,
+      name: `scheduler-file-at-example-${Date.now()}`,
       sourceType: 'file',
       scriptPath: 'examples/scheduler/write-evidence.js',
       scheduleType: 'at',
-      scheduleExpression: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      scheduleExpression: scheduledFor,
       timezone: 'UTC',
       misfirePolicy: 'run_once',
       taskType: 'script',
@@ -147,15 +174,21 @@ try {
     fileCreated.scriptPath === 'examples/scheduler/write-evidence.js',
     `file scriptPath=${JSON.stringify(fileCreated.scriptPath)}`,
   );
-
-  const fileQueued = unwrap(
-    await axios.post(`${apiURL}/jobs/${encodeURIComponent(fileJobID)}/run`, null, {timeout: 3000}),
-    'run file example now',
+  assert(
+    Date.parse(fileCreated.nextRunAt) === scheduledForMs,
+    `file nextRunAt=${JSON.stringify(fileCreated.nextRunAt)} scheduledFor=${scheduledFor}`,
   );
-  assert(fileQueued.jobId === fileJobID, `file run-now jobId=${JSON.stringify(fileQueued.jobId)}`);
-  assert(fileQueued.status === 'queued', `file run-now status=${JSON.stringify(fileQueued.status)}`);
 
-  const {run: fileRun, runs: fileRuns} = await waitForTerminalRun(fileJobID, fileQueued.id);
+  const preDueCheckedAt = new Date().toISOString();
+  assert(
+    Date.parse(preDueCheckedAt) < scheduledForMs,
+    `could not inspect history before due time ${scheduledFor}`,
+  );
+  const preDueRuns = await listRuns(fileJobID, 'list runs before due');
+  assert(preDueRuns.length === 0, `automatic at job ran before due: ${JSON.stringify(preDueRuns)}`);
+  console.log(`SCHEDULER_AT_WAIT jobId=${fileJobID} due=${scheduledFor}`);
+
+  const {run: fileRun, runs: fileRuns} = await waitForAutomaticTerminalRun(fileJobID);
   assert(
     fileRun.status === 'succeeded',
     `file run finished with status=${fileRun.status} error=${fileRun.error || ''}`,
@@ -165,8 +198,20 @@ try {
     'successful file run has no executionId',
   );
   assert(
-    fileRuns.filter((candidate) => candidate.id === fileQueued.id).length === 1,
-    'file run history duplicated the occurrence',
+    fileRun.jobId === fileJobID,
+    `automatic file run jobId=${JSON.stringify(fileRun.jobId)}`,
+  );
+  assert(
+    Date.parse(fileRun.scheduledAt) === scheduledForMs,
+    `automatic run scheduledAt=${JSON.stringify(fileRun.scheduledAt)} scheduledFor=${scheduledFor}`,
+  );
+  assert(
+    Date.parse(fileRun.startedAt) >= scheduledForMs,
+    `automatic run started before due: startedAt=${JSON.stringify(fileRun.startedAt)} due=${scheduledFor}`,
+  );
+  assert(
+    fileRuns.length === 1,
+    `automatic at job occurrence count=${fileRuns.length}`,
   );
 
   const exampleEvidence = await File.readJSON(exampleEvidencePath, {defaultValue: null});
@@ -180,6 +225,19 @@ try {
   assert(
     String(exampleEvidence.source).startsWith('scheduler:file:'),
     `file example source=${JSON.stringify(exampleEvidence.source)}`,
+  );
+
+  const jobsAfterAutomaticRun = unwrap(
+    await axios.get(`${apiURL}/jobs`, {timeout: 3000}),
+    'list after automatic run',
+  );
+  const fileAfterRun = jobsAfterAutomaticRun.find((job) => job.id === fileJobID);
+  assert(fileAfterRun, `automatic file job ${fileJobID} is absent after its run`);
+  assert(fileAfterRun.enabled === false, 'completed at job remains enabled');
+  assert(!own(fileAfterRun, 'nextRunAt'), 'completed at job still has nextRunAt');
+  assert(
+    fileAfterRun.lastRun && fileAfterRun.lastRun.id === fileRun.id,
+    `job lastRun does not match automatic run ${fileRun.id}`,
   );
 
   const fileDeleted = unwrap(
@@ -205,11 +263,16 @@ try {
     pauseResumeVerified: true,
     runNowWhilePausedVerified: true,
     schedulerExampleVerified: true,
+    automaticAtVerified: true,
     fileJobId: fileCreated.id,
     fileRunId: fileRun.id,
     fileExecutionId: fileRun.executionId,
     fileRunStatus: fileRun.status,
-    fileOccurrenceCount: fileRuns.filter((candidate) => candidate.id === fileQueued.id).length,
+    fileScheduledFor: scheduledFor,
+    filePreDueCheckedAt: preDueCheckedAt,
+    fileStartedAt: fileRun.startedAt,
+    fileFinishedAt: fileRun.finishedAt,
+    fileOccurrenceCount: fileRuns.length,
     exampleEvidencePath,
     deleted: true,
     recordedAt: new Date().toISOString(),

@@ -33,5 +33,16 @@ window, network, or external-process actions.
   the responsibility of `go run ./tests/scheduler/tools/multiruntime` because
   those are host-process invariants, not a JavaScript global API contract.
 
+- `schedule-two-notifications.test.js` runs the public visible demonstration
+  against a deterministic HTTP/File harness. It asserts that the example
+  creates two future `at` jobs, never calls the Run-now route, prints exactly
+  two setup markers, validates two distinct scheduled Executions, retains jobs
+  by default, and deletes only its own jobs when cleanup is explicitly enabled.
+  Run it from the repository root with:
+
+  ```bash
+  node --test tests/scheduler/schedule-two-notifications.test.js
+  ```
+
 SQLite files, HTTP responses, screenshots, logs, binaries, and other run output
 belong under `.runtime/tests/scheduler/` and must not be committed as fixtures.

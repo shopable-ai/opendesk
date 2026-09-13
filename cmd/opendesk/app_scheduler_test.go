@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"path/filepath"
 	"testing"
+
+	"opendesk/pkg/customui"
 )
 
 func TestResolveAppSchedulerScriptRootMatchesProductRecipes(t *testing.T) {
@@ -52,7 +54,7 @@ func TestAppSchedulerBridgeIsTokenProtectedAndReportsState(t *testing.T) {
 	runtime, err := startAppScheduler(ctx, &Config{SchedulerDBPath: filepath.Join(root, "scheduler.db")}, "com.opendesk.desktop", root, map[string]string{
 		"HOME":                       root,
 		"OPENDESK_SCRIPT_RUNNER_DIR": filepath.Join(root, "recipes"),
-	})
+	}, customui.NewMemoryDriver())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,9 +89,10 @@ func TestAppSchedulerBridgeIsTokenProtectedAndReportsState(t *testing.T) {
 	var payload struct {
 		Code int `json:"code"`
 		Data struct {
-			Available   bool   `json:"available"`
-			RunnerState string `json:"runnerState"`
-			ScriptRoot  string `json:"scriptRoot"`
+			Available    bool   `json:"available"`
+			RunnerState  string `json:"runnerState"`
+			ScriptRoot   string `json:"scriptRoot"`
+			ArtifactRoot string `json:"artifactRoot"`
 		} `json:"data"`
 	}
 	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
@@ -103,6 +106,10 @@ func TestAppSchedulerBridgeIsTokenProtectedAndReportsState(t *testing.T) {
 	}
 	if payload.Data.ScriptRoot != filepath.Join(root, "recipes") {
 		t.Fatalf("scriptRoot = %q", payload.Data.ScriptRoot)
+	}
+	expectedArtifactRoot := filepath.Join(root, ".opendesk", "apps", "com.opendesk.desktop", ".runtime", "examples", "custom-ui", "script-runner-simple", "runs")
+	if payload.Data.ArtifactRoot != expectedArtifactRoot {
+		t.Fatalf("artifactRoot = %q, want %q", payload.Data.ArtifactRoot, expectedArtifactRoot)
 	}
 
 	base := map[string]string{"EXISTING": "1"}

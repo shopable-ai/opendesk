@@ -36,6 +36,16 @@ OpenDesk Desktop 的菜单、窗口生命周期和 Scheduler Center 归属见 [D
 ./opendesk -http -port 60844
 ```
 
+如果计划脚本要调用小写 `ui`（例如 `ui.notify()`），Custom UI 必须由长驻 owner 明确启用：
+
+```bash
+./opendesk -http -ui -port 60844
+```
+
+`-ui` 授权的是 Scheduler 到期后创建的 scheduled Execution；短命的建计划客户端不需要
+也不能靠自己的 `-ui` 为另一个 owner 补授权。完整的两任务自动到期示例见
+[`examples/scheduler/README.md`](../../examples/scheduler/README.md)。
+
 本地管理页：
 
 ```text

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"opendesk/pkg/customui"
 	pkgExecution "opendesk/pkg/execution"
 )
 
@@ -83,6 +84,58 @@ func TestScriptExecutorRunsInlineJavaScriptWithStandardEvidence(t *testing.T) {
 	summary, err := os.ReadFile(result.Artifacts.SummaryPath)
 	if err != nil || !strings.Contains(string(summary), "scheduler:inline:job-inline-runtime") {
 		t.Fatalf("inline source label missing from summary: err=%v summary=%s", err, summary)
+	}
+}
+
+func TestScriptExecutorCanEnableCustomUIAndUsesWritableScriptRoot(t *testing.T) {
+	root := t.TempDir()
+	driver := customui.NewMemoryDriver()
+	source := `
+const notice = await ui.notify({message: 'scheduled ui smoke', timeoutMs: 0});
+const state = await notice.getState();
+if (!state.notification || state.notification.message !== 'scheduled ui smoke') throw new Error('notification state mismatch');
+if (Execution.activationSource !== 'projectConfig') throw new Error('activation source mismatch: ' + Execution.activationSource);
+await notice.close();
+File.write('scheduler-relative-marker.txt', Execution.workdir);
+console.log('SCHEDULER_CUSTOM_UI_PASS workdir=' + Execution.workdir);
+`
+	executor, err := NewScriptExecutorWithOptions(root, ScriptExecutorOptions{
+		ArtifactRoot:             filepath.Join(root, "evidence"),
+		Timeout:                  5 * time.Second,
+		EnableCustomUI:           true,
+		CustomUIActivationSource: customui.ActivationProjectConfig,
+		CustomUIHostPath:         filepath.Join(root, "custom-ui-host"),
+		CustomUIDriver:           driver,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if executor.customUIHostPath != filepath.Join(root, "custom-ui-host") {
+		t.Fatalf("Custom UI host path = %q", executor.customUIHostPath)
+	}
+	result, err := executor.Execute(context.Background(), Job{
+		ID: "job-custom-ui", SourceType: SourceInline, InlineScript: source,
+	})
+	if err != nil {
+		t.Fatalf("execute Custom UI source: %v", err)
+	}
+	if result.Status != pkgExecution.ExecutionStatusSucceeded {
+		t.Fatalf("unexpected Custom UI execution result: %#v", result)
+	}
+	marker, err := os.ReadFile(filepath.Join(root, "scheduler-relative-marker.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	canonicalRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(marker) != canonicalRoot {
+		t.Fatalf("Execution.workdir = %q, want %q", marker, canonicalRoot)
+	}
+	stdout, err := os.ReadFile(result.Artifacts.StdoutPath)
+	if err != nil || !strings.Contains(string(stdout), "SCHEDULER_CUSTOM_UI_PASS") {
+		t.Fatalf("Custom UI stdout marker missing: err=%v stdout=%s", err, stdout)
 	}
 }
 

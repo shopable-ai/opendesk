@@ -37,6 +37,16 @@ Scheduler API 只接受来自本机 loopback 地址的请求，并校验 `Host` 
 是 `Scheduler Service -> Execution Runtime -> JavaScript Runtime`。当前版本通过
 `-http` 模式承载 Scheduler 的长驻生命周期，因此 OpenDesk 进程必须保持运行。
 
+计划脚本需要小写 `ui` 时，启动 owner 的命令必须带 `-ui`：
+
+```bash
+./opendesk -http -ui -port 60844
+```
+
+这个 capability 由长驻 Scheduler owner 传给到期后创建的 scheduled Execution。创建计划的
+HTTP/JavaScript 客户端是否带 `-ui` 不会改变服务端任务权限；没有启用时，计划仍会触发，
+但 payload 的 `ui` 调用会按 Custom UI capability contract 失败。
+
 ## Scheduler API：通用响应
 
 成功响应的 HTTP 状态为 `200`，统一格式为：

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"opendesk/pkg/customui"
 	pkgExecution "opendesk/pkg/execution"
 )
 
@@ -16,9 +17,22 @@ type Executor interface {
 }
 
 type ScriptExecutor struct {
-	scriptRoot   string
-	artifactRoot string
-	timeout      time.Duration
+	scriptRoot               string
+	artifactRoot             string
+	timeout                  time.Duration
+	enableCustomUI           bool
+	customUIActivationSource customui.ActivationSource
+	customUIHostPath         string
+	customUIDriver           customui.Driver
+}
+
+type ScriptExecutorOptions struct {
+	ArtifactRoot             string
+	Timeout                  time.Duration
+	EnableCustomUI           bool
+	CustomUIActivationSource customui.ActivationSource
+	CustomUIHostPath         string
+	CustomUIDriver           customui.Driver
 }
 
 func NewScriptExecutor(scriptRoot string, timeout time.Duration) (*ScriptExecutor, error) {
@@ -26,20 +40,37 @@ func NewScriptExecutor(scriptRoot string, timeout time.Duration) (*ScriptExecuto
 }
 
 func NewScriptExecutorWithArtifacts(scriptRoot, artifactRoot string, timeout time.Duration) (*ScriptExecutor, error) {
+	return NewScriptExecutorWithOptions(scriptRoot, ScriptExecutorOptions{
+		ArtifactRoot: artifactRoot,
+		Timeout:      timeout,
+	})
+}
+
+func NewScriptExecutorWithOptions(scriptRoot string, options ScriptExecutorOptions) (*ScriptExecutor, error) {
 	root, err := canonicalRoot(scriptRoot)
 	if err != nil {
 		return nil, err
 	}
+	artifactRoot := options.ArtifactRoot
 	if strings.TrimSpace(artifactRoot) != "" {
 		artifactRoot, err = filepath.Abs(artifactRoot)
 		if err != nil {
 			return nil, fmt.Errorf("resolve Scheduler artifact root: %w", err)
 		}
 	}
+	timeout := options.Timeout
 	if timeout <= 0 {
 		timeout = 30 * time.Minute
 	}
-	return &ScriptExecutor{scriptRoot: root, artifactRoot: artifactRoot, timeout: timeout}, nil
+	return &ScriptExecutor{
+		scriptRoot:               root,
+		artifactRoot:             artifactRoot,
+		timeout:                  timeout,
+		enableCustomUI:           options.EnableCustomUI,
+		customUIActivationSource: options.CustomUIActivationSource,
+		customUIHostPath:         options.CustomUIHostPath,
+		customUIDriver:           options.CustomUIDriver,
+	}, nil
 }
 
 func (e *ScriptExecutor) Execute(ctx context.Context, job Job) (pkgExecution.ExecutionResult, error) {
@@ -95,6 +126,7 @@ func (e *ScriptExecutor) Execute(ctx context.Context, job Job) (pkgExecution.Exe
 		ExecutionID:   executionID,
 		SourceLabel:   sourceLabel,
 		ScriptPath:    scriptPath,
+		WorkDir:       e.scriptRoot,
 		Ext:           ".js",
 		StackMode:     "legacy",
 		ScriptHash:    pkgExecution.ComputeScriptHash(content),
@@ -102,6 +134,13 @@ func (e *ScriptExecutor) Execute(ctx context.Context, job Job) (pkgExecution.Exe
 		Timeout:       e.timeout,
 		Artifacts:     artifacts,
 		Selection:     selection,
+	}
+	if e.enableCustomUI {
+		request.EnableCustomUI = true
+		request.CustomUIActivationSource = e.customUIActivationSource
+		request.CustomUIBaseDir = e.scriptRoot
+		request.CustomUIHostPath = e.customUIHostPath
+		request.CustomUIDriver = customui.NewSessionScopedDriverForSession(e.customUIDriver, executionID)
 	}
 	result, _, execErr := pkgExecution.Run(request)
 	return result, execErr
