@@ -3,10 +3,11 @@
 This AppKit application is isolated test data for the native Accessibility
 Runtime. It exposes stable accessibility identifiers, ambiguous names,
 disabled/read-only/protected controls, writable text, check/radio state, a
-dynamic child inside an explicit Accessibility group, a hostile Accessibility
-label rendered as test data, and two- and three-level menus. A JSON state file records input
-counts, so an acceptance test can distinguish acknowledgement from a real side
-effect without touching user data.
+dynamic child inside an explicit Accessibility group, a bounded slow invoke,
+a hostile Accessibility label rendered as test data, and two- and three-level
+menus. A JSON state file records input counts and ordered sequence trace, so an
+acceptance test can distinguish acknowledgement from a real side effect without
+touching user data.
 
 From the repository root, build it with the OpenDesk JavaScript Runtime:
 
@@ -30,6 +31,7 @@ well as invoke/check/radio/menu counters. Stop only the PID recorded by the help
 
 Notable identifiers include `fixture.window.main`, `fixture.invoke`,
 `fixture.duplicate.first`, `fixture.duplicate.second`, `fixture.disabled`,
+`fixture.slow-invoke`,
 `fixture.text.editable`, `fixture.text.readonly`, `fixture.text.disabled`, `fixture.text.protected`,
 `fixture.checkbox`, `fixture.radio.one`, and `fixture.radio.two`. Menu
 identifiers use the `fixture.menu.*` prefix. `Delayed Submenu` materializes its

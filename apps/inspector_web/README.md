@@ -14,7 +14,9 @@ followed by:
 ```
 
 Open it from the macOS tray menu under **Developer → Open Inspector**, or enter
-the current URL from the `OpenDesk ready` log line, then click **Connect**. Page, launch control
+the current URL from the `OpenDesk ready` log line. A loopback page connects automatically;
+if the connection fails, use the visible retry action. Trusted-LAN pages keep an explicit
+**Connect** action because their traffic is plaintext. Page, launch control
 (`POST /api/accessibility-workbench/v1/launch`), and data
 (`/api/accessibility-inspector/v1/*`) use the same Framework Runtime origin. There is no
 Python `60845` server, `control` query parameter, CORS bridge, or random API
@@ -44,7 +46,7 @@ search always covers the complete snapshot even while compact view is active.
 
 Use the page in this order:
 
-1. Click **Connect**.
+1. Wait for the local page to connect automatically. If it reports a failure, use **Try connecting again**.
 2. Choose one exact target row by application, window title, PID, bounds, and the
    page's short-lived picker identity; then click **Open scope**.
 3. Read or refresh the tree. Select a node only when you want to review its facts
@@ -79,12 +81,16 @@ mapping is window-relative and is never reused as a browser or mouse coordinate;
 mixed or missing coordinate spaces remain unmapped facts.
 
 The page keeps one **Start here** action visible throughout this flow. It changes
-with the current state: connect, focus the target list, open the selected window,
+with the current state: automatic connection or retry, focus the target list, open the selected window,
 go to the UI tree, or refresh the tree. The four-step explanation and inactive
 workspace are collapsed before connection, which avoids duplicating Connect in
 the header and keeps the first screen focused. Once the tree appears, ordinary
 inspection only requires clicking a tree row; validation and handoff controls are
 optional advanced steps.
+
+After connection, the expanded four-step explanation and redundant workspace disclosure are
+collapsed into one compact next-action strip so the tree, visual reference, and selected-element
+panes remain the primary workspace.
 
 The target is a native application window, not an active-window guess. Duplicate
 titles remain separate picker rows and the backend binds the session to the exact

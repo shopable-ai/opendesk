@@ -21,6 +21,7 @@ function errorDetails(error) {
   };
   for (const key of [
     'code', 'operation', 'backend', 'phase', 'nativePhase', 'requestId', 'actionState', 'verified',
+    'failedIndex', 'failedPhase', 'completed', 'cleanupErrors',
     'failedLevel', 'completedLevels', 'expansionOccurred',
   ]) {
     if (error && error[key] !== undefined) detail[key] = error[key];
@@ -68,6 +69,8 @@ function stateSummary(value) {
     menuCheckCount: Number(value.menuCheckCount),
     menuRadioCount: Number(value.menuRadioCount),
     dynamicRevealCount: Number(value.dynamicRevealCount),
+    slowInvokeCount: Number(value.slowInvokeCount),
+    sequenceTrace: Array.isArray(value.sequenceTrace) ? value.sequenceTrace.slice() : null,
     checkboxChecked: value.checkboxChecked,
     selectedRadio: value.selectedRadio,
     menuChecked: value.menuChecked,
@@ -86,6 +89,8 @@ function assertFresh(value) {
   const expected = {
     invokeCount: 0, setValueCount: 0, checkboxActionCount: 0, radioActionCount: 0,
     menuInvokeCount: 0, menuCheckCount: 0, menuRadioCount: 0, dynamicRevealCount: 0,
+    slowInvokeCount: 0,
+    sequenceTrace: [],
     checkboxChecked: false, selectedRadio: 'one', menuChecked: false,
     selectedMenuRadio: 'one', delayedItemMaterialized: false,
   };
@@ -132,6 +137,38 @@ async function expectValueError(run, expectedCode, operation, phase, label, expe
   assert(caught.operation === operation, `${label} returned an unexpected operation`);
   assert(caught.phase === phase, `${label} returned an unexpected high-level phase`);
   assert(caught.actionState === expectedState, `${label} returned an unexpected actionState`);
+  return caught;
+}
+
+async function expectTargetSequenceError(
+  run,
+  expectedCode,
+  expectedIndex,
+  label,
+  expectedState = 'not_started',
+  expectedPhase = 'preflight',
+  expectedCompleted = 0,
+) {
+  let caught = null;
+  try {
+    await run();
+  } catch (error) {
+    caught = error;
+  }
+  assert(caught, `${label} unexpectedly succeeded`);
+  assert(caught.code === expectedCode, `${label} returned an unexpected error code`);
+  assert(caught.operation === 'UI.tapTargets', `${label} returned an unexpected operation`);
+  assert(caught.actionState === expectedState, `${label} returned an unexpected actionState`);
+  assert(caught.failedPhase === expectedPhase, `${label} failed in an unexpected sequence phase`);
+  assert(caught.failedIndex === expectedIndex, `${label} returned an unexpected failedIndex`);
+  assert(Array.isArray(caught.completed) && caught.completed.length === expectedCompleted,
+    `${label} returned an unexpected completed prefix`);
+  if (caught.backend !== undefined) {
+    assert(caught.backend === 'macos-ax', `${label} used an unexpected native backend`);
+  }
+  if (caught.requestId !== undefined) {
+    assert(/^axreq-[A-Za-z0-9]+-[1-9][0-9]*$/.test(caught.requestId), `${label} returned an invalid requestId`);
+  }
   return caught;
 }
 
@@ -208,7 +245,7 @@ const result = {
   covers: [
     'Accessibility.getCapabilities', 'Accessibility.snapshot', 'Accessibility.find',
     'Accessibility.read', 'Accessibility.perform', 'Accessibility.release',
-    'UI.getValue', 'UI.setValue',
+    'UI.getValue', 'UI.setValue', 'UI.tapTargets',
     'UI.getMenuItems', 'UI.findMenuItem', 'UI.tapMenuItem',
   ],
   stages: [],
@@ -366,7 +403,10 @@ try {
     const invoked = await Accessibility.perform(invokeRef, { action: 'invoke' }, { timeout: 10000 });
     assert(invoked.actionState === 'acknowledged', 'invoke was not acknowledged');
     let observed = await waitForState((value) => value.invokeCount === invokeBefore + 1, 'invoke');
-    assertStateTransition(before, stateSummary(observed), { invokeCount: invokeBefore + 1 }, 'invoke');
+    assertStateTransition(before, stateSummary(observed), {
+      invokeCount: invokeBefore + 1,
+      sequenceTrace: before.sequenceTrace.concat('invoke'),
+    }, 'invoke');
 
     const editableRef = await find({ role: 'textField', identifier: 'fixture.text.editable' }, within);
     before = stateSummary(state());
@@ -515,6 +555,127 @@ try {
       readonly: 'rejected-before-action',
       disabled: 'rejected-before-action',
       protected: errorDetails(protectedError),
+    };
+  });
+
+  await stage('ui-target-sequence', async () => {
+    const sequenceWithin = await focusFixture();
+    const sequenceOptions = {
+      within: sequenceWithin, timeout: 10000, maxDepth: 8, maxNodes: 1000,
+    };
+    const before = stateSummary(state());
+    const expectedTrace = before.sequenceTrace.concat(['invoke', 'reveal', 'invoke']);
+    const receipt = await UI.tapTargets([
+      { locator: { role: 'button', identifier: 'fixture.invoke' } },
+      { locator: { role: 'button', identifier: 'fixture.dynamic.reveal' } },
+      { locator: { role: 'button', identifier: 'fixture.invoke' } },
+    ], sequenceOptions);
+    assert(receipt && receipt.ok === true && receipt.action === 'tapTargets',
+      'UI.tapTargets did not return its explicit success contract');
+    assert(receipt.backend === 'accessibility', 'UI.tapTargets reported an unexpected sequence backend');
+    assert(Array.isArray(receipt.completed) && receipt.completed.length === 3,
+      'UI.tapTargets did not report the exact completion prefix');
+    for (let index = 0; index < receipt.completed.length; index += 1) {
+      const completion = receipt.completed[index];
+      assert(completion.index === index && completion.action === 'invoke',
+        'UI.tapTargets completion order changed');
+      assert(completion.backend === 'macos-ax' && completion.actionState === 'acknowledged',
+        'UI.tapTargets did not expose the native acknowledged receipt');
+      assert(/^axreq-[A-Za-z0-9]+-[1-9][0-9]*$/.test(completion.requestId),
+        'UI.tapTargets completion omitted its native requestId');
+    }
+    const observed = await waitForState(
+      (value) => Number(value.invokeCount) === before.invokeCount + 2 &&
+        Number(value.dynamicRevealCount) === before.dynamicRevealCount + 1 &&
+        JSON.stringify(value.sequenceTrace) === JSON.stringify(expectedTrace),
+      'UI.tapTargets ordered actions',
+    );
+    assertStateTransition(before, stateSummary(observed), {
+      invokeCount: before.invokeCount + 2,
+      dynamicRevealCount: before.dynamicRevealCount + 1,
+      sequenceTrace: expectedTrace,
+    }, 'UI.tapTargets ordered actions');
+
+    const failures = [
+      {
+        label: 'missing target', code: 'TARGET_NOT_FOUND', failedIndex: 1,
+        targets: [
+          { locator: { role: 'button', identifier: 'fixture.invoke' } },
+          { locator: { role: 'button', identifier: 'fixture.does-not-exist' } },
+        ],
+      },
+      {
+        label: 'ambiguous target', code: 'AMBIGUOUS_TARGET', failedIndex: 1,
+        targets: [
+          { locator: { role: 'button', identifier: 'fixture.invoke' } },
+          { locator: { role: 'button', name: 'Duplicate' } },
+        ],
+      },
+      {
+        label: 'disabled target', code: 'ELEMENT_DISABLED', failedIndex: 1,
+        targets: [
+          { locator: { role: 'button', identifier: 'fixture.invoke' } },
+          { locator: { role: 'button', identifier: 'fixture.disabled' } },
+        ],
+      },
+      {
+        label: 'unsupported target action', code: 'ACTION_NOT_SUPPORTED', failedIndex: 1,
+        targets: [
+          { locator: { role: 'button', identifier: 'fixture.invoke' } },
+          { locator: { role: 'textField', identifier: 'fixture.text.readonly' } },
+        ],
+      },
+      {
+        label: 'bounded incomplete search', code: 'SEARCH_INCOMPLETE', failedIndex: 0,
+        targets: [
+          { locator: { role: 'button', identifier: 'fixture.does-not-exist' } },
+        ],
+        options: { ...sequenceOptions, maxNodes: 1 },
+      },
+    ];
+    const rejected = [];
+    for (const scenario of failures) {
+      const unchanged = stateSummary(state());
+      const error = await expectTargetSequenceError(
+        () => UI.tapTargets(scenario.targets, scenario.options || sequenceOptions),
+        scenario.code,
+        scenario.failedIndex,
+        `UI.tapTargets ${scenario.label}`,
+      );
+      assertStateTransition(unchanged, stateSummary(state()), {}, `UI.tapTargets ${scenario.label}`);
+      rejected.push({ label: scenario.label, error: errorDetails(error) });
+    }
+
+    const beforeUnknown = stateSummary(state());
+    const unknownError = await expectTargetSequenceError(
+      () => UI.tapTargets([
+        { locator: { role: 'button', identifier: 'fixture.slow-invoke' } },
+        { locator: { role: 'button', identifier: 'fixture.invoke' } },
+      ], { ...sequenceOptions, timeout: 300 }),
+      'TIMEOUT',
+      0,
+      'UI.tapTargets unknown native action',
+      'unknown',
+      'action',
+      0,
+    );
+    const unknownTrace = beforeUnknown.sequenceTrace.concat('slow');
+    await waitForState(
+      (value) => Number(value.slowInvokeCount) === beforeUnknown.slowInvokeCount + 1 &&
+        JSON.stringify(value.sequenceTrace) === JSON.stringify(unknownTrace),
+      'UI.tapTargets unknown native action side effect',
+    );
+    await page.waitForTimeout(1200);
+    assertStateTransition(beforeUnknown, stateSummary(state()), {
+      slowInvokeCount: beforeUnknown.slowInvokeCount + 1,
+      sequenceTrace: unknownTrace,
+    }, 'UI.tapTargets unknown native action did not retry or continue');
+    return {
+      orderedTrace: expectedTrace.slice(-3),
+      completions: receipt.completed,
+      rejected,
+      unknownStopped: errorDetails(unknownError),
+      counters: stateSummary(state()),
     };
   });
 

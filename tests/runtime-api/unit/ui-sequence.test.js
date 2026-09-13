@@ -180,6 +180,19 @@
     await rejects(() => f.host.UI.tapTexts(['A'], { waitForEach: true }), 'OCR_FAILED', 0);
     equal(f.waits.length, 0); equal(f.ocr.length, 1); equal(f.clicks.length, 0);
   });
+  unit('tapTexts keeps strict OCR matching for Calculator-like symbols and missing glyphs', async () => {
+    const f = fixture({ frames: () => [line('25'), line('†', 50), line('%', 90)] });
+    const error = await rejects(
+      () => f.host.UI.tapTexts(['×', '4', '='], { waitForEach: false }),
+      'TARGET_NOT_FOUND',
+      0,
+      'locate',
+    );
+    equal(error.failedText, '×');
+    equal(error.completed.length, 0);
+    equal(f.ocr.length, 1);
+    equal(f.clicks.length, 0);
+  });
   unit('tapTexts default sequence does not switch to a new foreground window', async () => {
     const f = fixture({ frames: f => f.clicks.length === 0 ? [line('A')] : [],
       onWait: (_, __, f) => { f.row.id = 'fixture:2:native:20'; f.row.pid = 2; } });

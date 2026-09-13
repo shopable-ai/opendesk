@@ -55,7 +55,8 @@
     "Use the native lowercase path global for platform path-string operations. path.resolve and path.relative use the immutable Execution.workdir, not the host process cwd; path never performs filesystem I/O or symlink resolution.",
     "Do not use retired TestMonkey documentation as a current API authority.",
     "UI.tapTexts defaults to intervalMs=300, waitForEach=true, timeout=10000 per step, polling=200 milliseconds. Omitted within binds the first resolved active window; explicit waiting scopes must be WindowInfo. It waits for successful empty observations only and never retries submitted input. Use waitForEach:false and intervalMs:0 explicitly for legacy fail-fast timing; another window requires a separate deliberate selection.",
-    "UI.getValue and UI.setValue are Experimental local native text-value helpers. They require explicit Accessibility scope, preserve string values exactly, use one managed ref per call, and never fall back to OCR, keyboard, focus, scrolling, or retries."
+    "UI.getValue and UI.setValue are Experimental local native text-value helpers. They require explicit Accessibility scope, preserve string values exactly, use one managed ref per call, and never fall back to OCR, keyboard, focus, scrolling, or retries.",
+    "UI.tapTargets is an Experimental local Accessibility-first invoke sequence for known native controls. It requires an explicit resolved WindowInfo, preflights every distinct exact locator before input, revalidates the fixed window and managed ref before every action, stops on unknown state, releases all refs, and never retries or falls back to OCR/mouse."
   ],
   "globals": [
     {
@@ -84,8 +85,8 @@
       "coordinates": "nativeBounds stays tagged in the backend coordinate space. bounds is null unless a reliable conversion to OpenDesk logical screen coordinates was performed."
     },
     {
-      "name": "UI", "source": "stable visual polyfill plus execution-owned native Accessibility value and menu composition", "status": "stable-with-experimental-local-value-menu-and-sequence-wait", "doc": "desktop-ui.md", "types": "types/UI.d.ts",
-      "keyMethods": ["getCapabilities", "getValue", "setValue", "findTexts", "findText", "hasText", "tapText", "tapTexts", "waitText", "waitTextGone", "findImages", "findImage", "tapImage", "getMenuItems", "findMenuItem", "tapMenuItem"],
+      "name": "UI", "source": "stable visual polyfill plus execution-owned native Accessibility value, target-sequence, and menu composition", "status": "stable-with-experimental-local-value-target-menu-and-sequence-wait", "doc": "desktop-ui.md", "types": "types/UI.d.ts",
+      "keyMethods": ["getCapabilities", "getValue", "setValue", "tapTargets", "findTexts", "findText", "hasText", "tapText", "tapTexts", "waitText", "waitTextGone", "findImages", "findImage", "tapImage", "getMenuItems", "findMenuItem", "tapMenuItem"],
       "coordinateMapping": "Every discovery uses a fresh explicit screen clip. imageWidth/logicalScope.width and imageHeight/logicalScope.height are separately calculated actual capture scales; a scope across effective different-DPI displays fails closed.",
       "value": {
         "status": "experimental-local",
@@ -105,6 +106,15 @@
         "result": "Promise<{ok:true, action:'tapTexts', completed:OpenDeskUITapResult[]}>; not an array. Step failures carry failedIndex, failedText, failedPhase interval|locate|input, completed and cause.",
         "compatibility": "Default interval changed from 0 to 300 and target waiting is now enabled. Explicit waitForEach:false plus intervalMs:0 restores fail-fast timing and permits legacy Display/ScreenRegion scope. Unknown options, symbol fields, sparse strings and invalid timing are rejected before input.",
         "verification": "Text visibility is not proof of enabled state or business completion. Verify postconditions independently; do not use an unknown input outcome as permission to replay. Runtime/native verification remains separate from source-level isolated tests."
+      },
+      "tapTargets": {
+        "status": "experimental-local",
+        "input": "A non-empty array of at most 256 {locator: OpenDeskAccessibilitySelector} steps plus required options.within. The array, each step, each locator, and WindowInfo are copied and fully validated before the first await. Unknown fields, symbols, sparse slots, visual fallback options, unresolved windows, or missing non-zero native handles fail before observation/input.",
+        "scope": "within must be one already resolved WindowInfo. Initial preflight, each distinct locator, the pre-action boundary, and every action re-read window.get({id}) and require unchanged id, PID, title, native handle, and bounds. The method never launches, focuses, switches, waits for, or substitutes another window.",
+        "preflight": "Before any perform, every distinct exact locator must complete bounded Accessibility.find plus read and prove a unique complete result, enabled===true, unchanged locator fields, and invoke support. TARGET_NOT_FOUND, AMBIGUOUS_TARGET, SEARCH_INCOMPLETE, disabled, unknown enabled state, or missing invoke means zero input. Duplicate steps reuse the same managed ref but re-read it before every action.",
+        "action": "Only Accessibility.perform(ref,{action:'invoke'}) is submitted, at most once per step and strictly in sequence. acknowledged means only that the native call returned; not_needed is also a completed native state. unknown rejects STATE_UNKNOWN and stops immediately. not_started or an invalid state rejects BACKEND_FAILED. No result or error triggers retries, OCR, mouse, keyboard, aliases, or visual fallback.",
+        "result": "Promise<{ok:true,action:'tapTargets',backend:'accessibility',completed:[{index,action:'invoke',backend,requestId,actionState}]}>. Each completed backend is the actual Accessibility.perform backend. Step errors retain failedIndex, failedPhase, actionState and completed prefix; primary errors may attach cleanupErrors.",
+        "lifecycle": "All refs are execution-owned by native Accessibility. The facade releases every acquired ref in reverse order on success, preflight failure, action failure, cancellation, and unknown state. signal is checked only between native calls and cannot withdraw a submitted synchronous action."
       },
       "relativeTextTargeting": {
         "supportedMethods": ["findTexts", "findText", "hasText", "tapText", "tapTexts"],

@@ -1,14 +1,14 @@
 // macOS Calculator Agent-to-Recipe example.
 //
 // Run from the OpenDesk repository root after granting Screen Recording and
-// Accessibility and making one Vision OCR provider available:
+// Accessibility. Native input and the final Display oracle do not use OCR:
 //   ./dist/opendesk ai run examples/ai-cli/macos-calculator-recipe.js --input '{"expression":"16*3","expected":"48"}'
 //
 // The text-locator acceptance case maps canonical `*` to the exact visible
 // Calculator glyph `×`, then verifies the real Display ROI result:
 //   ./dist/opendesk ai run examples/ai-cli/macos-calculator-recipe.js --input '{"expression":"12*3","expected":"36"}'
 //
-// A dependent follow-up uses the first Calculator display OCR result:
+// A dependent follow-up uses the first verified Calculator Display result:
 //   ./dist/opendesk ai run examples/ai-cli/macos-calculator-recipe.js --input '{"expression":"125*8","expected":"1000","followUp":{"expression":"{result}/4+37","expected":"287"}}'
 //
 // This recipe supports only the macOS Standard/Basic Calculator layout that
@@ -68,7 +68,7 @@ const CALCULATOR_TEXT_LOCATOR_PROFILES = Object.freeze([
 ]);
 
 const CALCULATOR_ACCESSIBILITY_PROFILE = Object.freeze({
-  backend: 'accessibility-snapshot+pid-axpress',
+  backend: 'accessibility-snapshot+UI.tapTargets',
   role: 'button',
   match: 'exact',
   maxDepth: 4,
@@ -169,6 +169,9 @@ function validateInput(input) {
     throw new Error('Execution.input.expected must be a string or number');
   }
   normalizeExpected(input.expected);
+  if (input.visualFallback !== undefined && input.visualFallback !== 'ocr') {
+    throw new Error('Execution.input.visualFallback, when provided, must equal "ocr"');
+  }
   if (input.followUp !== undefined) {
     const followUp = input.followUp;
     if (!followUp || typeof followUp !== 'object' || Array.isArray(followUp)) {
@@ -884,9 +887,6 @@ async function inspectCalculatorAccessibilityDisplay(calculationNumber, stage, t
 
 async function waitForCalculatorAccessibilityDisplay(expected, expectedClearState, calculationNumber, stage) {
   const normalizedExpected = normalizeExpected(expected);
-  if (normalizedExpected !== '0') {
-    throw new Error('Calculator Accessibility reset Display waiter only supports the exact zero reset state');
-  }
   const started = Date.now();
   const deadlineAt = started + DISPLAY_READY_TIMEOUT_MS;
   const observations = [];
@@ -1153,8 +1153,6 @@ async function qualifyCalculatorClearStateLocator(verifiedWindow, providers) {
 }
 
 async function qualifyCalculatorTextLocator(inputSequence, verifiedWindow, calculationNumber) {
-  const capabilities = await Vision.getCapabilities({});
-  const providers = Array.isArray(capabilities.providers) ? capabilities.providers : [];
   const visibleTexts = inputSequence.visibleTexts;
   const distinctTexts = Array.from(new Set(visibleTexts));
   const attempts = [];
@@ -1198,6 +1196,20 @@ async function qualifyCalculatorTextLocator(inputSequence, verifiedWindow, calcu
       capability: accessibilityCapabilityEvidence(accessibilityCapabilities),
     });
   }
+
+  if (!resultDocument.input || resultDocument.input.visualFallback !== 'ocr') {
+    resultDocument.textLocatorQualificationFailures.push({ calculationNumber, distinctTexts, attempts });
+    await writeResultDocument();
+    throw calculatorError(
+      'CAPABILITY_DISABLED',
+      'Calculator.accessibilityPreflight',
+      'Calculator Accessibility input did not qualify and OCR fallback was not explicitly enabled',
+      { attempts },
+    );
+  }
+
+  const capabilities = await Vision.getCapabilities({});
+  const providers = Array.isArray(capabilities.providers) ? capabilities.providers : [];
 
   for (const profile of CALCULATOR_TEXT_LOCATOR_PROFILES) {
     const capability = providers.find(item => item.provider === profile.provider);
@@ -1328,23 +1340,188 @@ async function recordFailedCalculatorAction(failure) {
   }
 }
 
+function calculatorAccessibilitySequenceTarget(qualification, canonicalKey, visibleText) {
+  const target = canonicalKey === 'clear'
+    ? qualification && qualification.clearTarget
+    : qualification
+      && Array.isArray(qualification.targets)
+      && qualification.targets.find(item => item.canonicalKey === canonicalKey && item.visibleText === visibleText);
+  if (!target || target.role !== 'button' || !target.name) {
+    throw calculatorError(
+      'TARGET_NOT_FOUND',
+      'Calculator.tapTargets',
+      `Calculator key ${JSON.stringify(visibleText)} lacks a qualified Accessibility locator`,
+    );
+  }
+  const locator = { role: 'button', name: target.name };
+  if (target.identifier) locator.identifier = target.identifier;
+  return { target, step: { locator } };
+}
+
+async function tapCalculatorAccessibilityTargets(sequence, canonicalKeys, rawOptions) {
+  const before = await currentVerifiedCalculatorWindow(true);
+  const qualification = rawOptions.qualification;
+  const qualifiedIdentity = qualification && qualification.windowIdentity;
+  const qualifiedBounds = qualification && qualification.windowBounds;
+  const beforeBounds = compactBounds(before);
+  if (
+    !rawOptions.within
+    || String(rawOptions.within.id) !== String(before.id)
+    || Number(rawOptions.within.pid) !== Number(before.pid)
+    || !qualifiedIdentity
+    || String(qualifiedIdentity.id) !== String(before.id)
+    || Number(qualifiedIdentity.pid) !== Number(before.pid)
+    || !qualifiedBounds
+    || Number(qualifiedBounds.x) !== beforeBounds.x
+    || Number(qualifiedBounds.y) !== beforeBounds.y
+    || Number(qualifiedBounds.width) !== beforeBounds.width
+    || Number(qualifiedBounds.height) !== beforeBounds.height
+  ) {
+    throw calculatorError(
+      'STALE_TARGET',
+      'Calculator.tapTargets',
+      'Calculator Accessibility qualification no longer matches the fixed window',
+      {
+        expected: { identity: qualifiedIdentity || null, bounds: qualifiedBounds || null },
+        actual: { identity: { id: before.id, pid: before.pid }, bounds: beforeBounds },
+      },
+    );
+  }
+
+  const qualified = sequence.map((visibleText, index) => calculatorAccessibilitySequenceTarget(
+    qualification,
+    canonicalKeys[index],
+    visibleText,
+  ));
+  let receipt;
+  try {
+    receipt = await UI.tapTargets(qualified.map(item => item.step), {
+      within: before,
+      timeout: CALCULATOR_ACCESSIBILITY_PROFILE.timeoutMs,
+      maxDepth: CALCULATOR_ACCESSIBILITY_PROFILE.maxDepth,
+      maxNodes: CALCULATOR_ACCESSIBILITY_PROFILE.maxNodes,
+    });
+  } catch (error) {
+    const nativeCompleted = Array.isArray(error && error.completed) ? error.completed : [];
+    const completed = nativeCompleted.map((item, completedIndex) => {
+      const index = Number.isInteger(item.index) ? item.index : completedIndex;
+      const action = {
+        sequence: resultDocument.actionTrace.length + 1,
+        calculationNumber: rawOptions.calculationNumber,
+        phase: String(rawOptions.phase || 'expression'),
+        phaseOrdinal: Number.isInteger(rawOptions.phaseOrdinal) ? rawOptions.phaseOrdinal + index : index + 1,
+        keyIndex: index,
+        canonicalKey: canonicalKeys[index],
+        visibleText: sequence[index],
+        windowIdentity: { id: String(before.id), pid: Number(before.pid) },
+        windowBounds: beforeBounds,
+        target: qualified[index].target,
+        point: null,
+        dispatch: {
+          backend: 'UI.tapTargets/Accessibility.perform',
+          nativeBackend: item.backend,
+          requestId: item.requestId,
+          actionState: item.actionState,
+        },
+        preActionWindowBounds: beforeBounds,
+        outcome: 'native-invoke-returned',
+      };
+      resultDocument.actionTrace.push(action);
+      return action;
+    });
+    const failedIndex = Number.isInteger(error && error.failedIndex) ? error.failedIndex : completed.length;
+    const failure = {
+      calculationNumber: rawOptions.calculationNumber,
+      phase: String(rawOptions.phase || 'expression'),
+      failedIndex,
+      canonicalKey: canonicalKeys[failedIndex] || null,
+      visibleText: sequence[failedIndex] || null,
+      stage: error && error.failedPhase ? String(error.failedPhase) : 'action',
+      completedPrefix: completed.map(item => item.visibleText),
+      inputOutcome: error && error.actionState === 'unknown' ? 'unknown' : 'not-dispatched',
+      cause: errorEvidence(error),
+    };
+    await recordFailedCalculatorAction(failure);
+    const wrapped = new Error(
+      `Calculator Accessibility input stopped at key ${failedIndex}: ${errorMessage(error)}`,
+    );
+    wrapped.code = error && error.code ? error.code : 'CALCULATOR_INPUT_FAILED';
+    wrapped.operation = 'tapCalculatorTexts';
+    wrapped.failedIndex = failedIndex;
+    wrapped.failedText = failure.visibleText;
+    wrapped.completed = completed;
+    wrapped.cause = error;
+    throw wrapped;
+  }
+
+  const after = await currentVerifiedCalculatorWindow(false);
+  const completed = receipt.completed.map((item, index) => {
+    const action = {
+      sequence: resultDocument.actionTrace.length + 1,
+      calculationNumber: rawOptions.calculationNumber,
+      phase: String(rawOptions.phase || 'expression'),
+      phaseOrdinal: Number.isInteger(rawOptions.phaseOrdinal) ? rawOptions.phaseOrdinal + index : index + 1,
+      keyIndex: index,
+      canonicalKey: canonicalKeys[index],
+      visibleText: sequence[index],
+      windowIdentity: { id: String(after.id), pid: Number(after.pid) },
+      windowBounds: compactBounds(after),
+      target: qualified[index].target,
+      point: null,
+      dispatch: {
+        backend: 'UI.tapTargets/Accessibility.perform',
+        nativeBackend: item.backend,
+        requestId: item.requestId,
+        actionState: item.actionState,
+      },
+      preActionWindowBounds: beforeBounds,
+      outcome: 'native-invoke-returned',
+    };
+    resultDocument.actionTrace.push(action);
+    return action;
+  });
+  try {
+    await writeResultDocument();
+  } catch (error) {
+    const checkpointFailure = {
+      calculationNumber: rawOptions.calculationNumber,
+      phase: String(rawOptions.phase || 'expression'),
+      afterKeyIndex: completed.length - 1,
+      afterCanonicalKey: canonicalKeys[completed.length - 1],
+      afterVisibleText: sequence[completed.length - 1],
+      completedPrefix: completed.map(item => item.visibleText),
+      inputOutcome: 'dispatched-checkpoint-failed',
+      cause: errorEvidence(error),
+    };
+    resultDocument.checkpointFailure = checkpointFailure;
+    const wrapped = new Error(`Calculator action checkpoint failed after Accessibility sequence: ${errorMessage(error)}`);
+    wrapped.code = 'RESULT_PERSISTENCE_FAILED';
+    wrapped.operation = 'Calculator.actionCheckpoint';
+    wrapped.completed = completed;
+    wrapped.cause = error;
+    throw wrapped;
+  }
+  return { ok: true, action: 'tapCalculatorTexts', backend: receipt.backend, completed };
+}
+
 async function tapCalculatorTexts(texts, rawOptions) {
   if (!Array.isArray(texts) || texts.length === 0 || texts.some(text => typeof text !== 'string' || text.length === 0)) {
     throw new Error('tapCalculatorTexts texts must be a non-empty string array');
   }
   if (!rawOptions || typeof rawOptions !== 'object') throw new Error('tapCalculatorTexts options are required');
 
-  // UI.tapTexts currently reads its caller-owned array after awaits. Keep this
-  // recipe deterministic and permit per-key state/evidence checks by taking an
-  // immutable snapshot. The preferred Calculator backend first proves exact
-  // AX button names in a complete snapshot, then performs one PID-scoped
-  // AXPress at a freshly projected verified-layout point per key. OCR-only
-  // environments retain the same helper contract, but OCR only locates the
-  // key: the action still uses PID-scoped AXPress, never a global UI.tapText.
+  // Keep the recipe deterministic and permit per-key state/evidence checks by
+  // taking an immutable snapshot. The preferred backend first verifies the
+  // Calculator profile with a complete Accessibility snapshot, then delegates
+  // the whole sequence to the reusable Accessibility-first UI.tapTargets API.
+  // An explicitly selected OCR fallback still uses PID-scoped AXPress.
   const sequence = Object.freeze(texts.slice());
   const canonicalKeys = Object.freeze((rawOptions.canonicalKeys || sequence).slice());
   if (canonicalKeys.length !== sequence.length) throw new Error('canonicalKeys must match the visible Calculator text sequence');
   const options = calculatorTapOptions(rawOptions);
+  if (options.backend === 'accessibility') {
+    return tapCalculatorAccessibilityTargets(sequence, canonicalKeys, rawOptions);
+  }
   const completed = [];
 
   for (let index = 0; index < sequence.length; index += 1) {
@@ -1359,151 +1536,92 @@ async function tapCalculatorTexts(texts, rawOptions) {
       let target;
       let point;
       let dispatch;
-      if (options.backend === 'accessibility') {
-        if (
-          !options.within
-          || String(options.within.id) !== String(before.id)
-          || Number(options.within.pid) !== Number(before.pid)
-        ) {
-          throw calculatorError(
-            'STALE_TARGET',
-            'Calculator.tapCalculatorTexts',
-            'tapCalculatorTexts within no longer identifies the verified Calculator window',
-          );
-        }
-        const qualification = rawOptions.qualification;
-        const qualifiedIdentity = qualification && qualification.windowIdentity;
-        const qualifiedBounds = qualification && qualification.windowBounds;
-        const beforeBounds = compactBounds(before);
-        if (
-          !qualifiedIdentity
-          || String(qualifiedIdentity.id) !== String(before.id)
-          || Number(qualifiedIdentity.pid) !== Number(before.pid)
-          || !qualifiedBounds
-          || Number(qualifiedBounds.x) !== beforeBounds.x
-          || Number(qualifiedBounds.y) !== beforeBounds.y
-          || Number(qualifiedBounds.width) !== beforeBounds.width
-          || Number(qualifiedBounds.height) !== beforeBounds.height
-        ) {
-          throw calculatorError(
-            'STALE_TARGET',
-            'Calculator.tapCalculatorTexts',
-            `Calculator key ${JSON.stringify(visibleText)} semantic qualification no longer matches the current window bounds`,
-            {
-              expected: { identity: qualifiedIdentity || null, bounds: qualifiedBounds || null },
-              actual: { identity: { id: before.id, pid: before.pid }, bounds: beforeBounds },
-            },
-          );
-        }
-        target = canonicalKey === 'clear'
-          ? qualification && qualification.clearTarget
-          : qualification
-            && Array.isArray(qualification.targets)
-            && qualification.targets.find(item => item.canonicalKey === canonicalKey && item.visibleText === visibleText);
-        if (!target) {
-          throw calculatorError(
-            'TARGET_NOT_FOUND',
-            'Calculator.tapCalculatorTexts',
-            `Calculator key ${JSON.stringify(visibleText)} lacks a current semantic preflight target`,
-          );
-        }
-        point = calculatorKeyPoint(before, canonicalKey);
-        stage = 'tap';
-        await mouse.clickForPID(Number(before.pid), point.x, point.y);
-        inputDispatched = true;
-        dispatch = {
-          backend: 'mouse.clickForPID/AXPress',
-          callState: 'returned',
-          qualificationRequestId: qualification.snapshot && qualification.snapshot.requestId,
-        };
-      } else {
-        if (typeof mouse !== 'object' || mouse === null || typeof mouse.clickForPID !== 'function') {
-          throw calculatorError(
-            'ACTION_NOT_SUPPORTED',
-            'Calculator.tapCalculatorTexts',
-            'OCR-located Calculator input requires PID-scoped AXPress support',
-          );
-        }
-        const ocrOptions = { ...options, within: before };
-        const located = await findUniqueCalculatorText(
-          visibleText,
-          ocrOptions,
+      if (typeof mouse !== 'object' || mouse === null || typeof mouse.clickForPID !== 'function') {
+        throw calculatorError(
+          'ACTION_NOT_SUPPORTED',
           'Calculator.tapCalculatorTexts',
+          'OCR-located Calculator input requires PID-scoped AXPress support',
         );
-        // Do not refocus after OCR: a focus change makes the observation stale
-        // and must stop this sequence rather than authorize a click from it.
-        const actionWindow = await currentVerifiedCalculatorWindow(false);
-        const beforeBounds = compactBounds(before);
-        const actionBounds = compactBounds(actionWindow);
-        if (
-          beforeBounds.x !== actionBounds.x
-          || beforeBounds.y !== actionBounds.y
-          || beforeBounds.width !== actionBounds.width
-          || beforeBounds.height !== actionBounds.height
-        ) {
-          throw calculatorError(
-            'STALE_TARGET',
-            'Calculator.tapCalculatorTexts',
-            `Calculator key ${JSON.stringify(visibleText)} OCR observation no longer matches the current window bounds`,
-            { expected: beforeBounds, actual: actionBounds },
-          );
-        }
-        const locatedBounds = located.bounds;
-        const locatedCenter = located.center;
-        const expectedPoint = calculatorKeyPoint(actionWindow, canonicalKey);
-        if (
-          !locatedBounds
-          || ![locatedBounds.x, locatedBounds.y, locatedBounds.width, locatedBounds.height].every(Number.isFinite)
-          || Number(locatedBounds.width) <= 0
-          || Number(locatedBounds.height) <= 0
-          || String(locatedBounds.coordinateSpace || '') !== 'screen'
-          || !locatedCenter
-          || !Number.isFinite(locatedCenter.x)
-          || !Number.isFinite(locatedCenter.y)
-          || String(locatedCenter.coordinateSpace || '') !== 'screen'
-          || !Geometry.contains(calculatorKeypadRegion(actionWindow), locatedCenter)
-        ) {
-          throw calculatorError(
-            'STALE_TARGET',
-            'Calculator.tapCalculatorTexts',
-            `Calculator key ${JSON.stringify(visibleText)} OCR geometry is invalid or outside the current verified keypad`,
-          );
-        }
-        const targetInsetPoints = Math.min(2, locatedBounds.width / 4, locatedBounds.height / 4);
-        const centerDeltaPercent = {
-          x: Math.abs(locatedCenter.x - expectedPoint.x) / Number(actionWindow.width) * 100,
-          y: Math.abs(locatedCenter.y - expectedPoint.y) / Number(actionWindow.height) * 100,
-        };
-        const tolerance = CALCULATOR_ACCESSIBILITY_PROFILE.keyPointTolerancePercent;
-        if (
-          expectedPoint.x < locatedBounds.x + targetInsetPoints
-          || expectedPoint.y < locatedBounds.y + targetInsetPoints
-          || expectedPoint.x > locatedBounds.x + locatedBounds.width - targetInsetPoints
-          || expectedPoint.y > locatedBounds.y + locatedBounds.height - targetInsetPoints
-          || centerDeltaPercent.x > tolerance
-          || centerDeltaPercent.y > tolerance
-        ) {
-          throw calculatorError(
-            'STALE_TARGET',
-            'Calculator.tapCalculatorTexts',
-            `Calculator key ${JSON.stringify(visibleText)} OCR target does not bind to its verified layout key point`,
-            {
-              expected: expectedPoint,
-              actual: { bounds: locatedBounds, center: locatedCenter, centerDeltaPercent },
-            },
-          );
-        }
-        point = expectedPoint;
-        stage = 'tap';
-        await mouse.clickForPID(Number(actionWindow.pid), point.x, point.y);
-        inputDispatched = true;
-        target = targetEvidence(located);
-        dispatch = {
-          backend: 'UI.findTexts+mouse.clickForPID/AXPress',
-          callState: 'returned',
-          provider: options.provider,
-        };
       }
+      const ocrOptions = { ...options, within: before };
+      const located = await findUniqueCalculatorText(
+        visibleText,
+        ocrOptions,
+        'Calculator.tapCalculatorTexts',
+      );
+      // Do not refocus after OCR: a focus change makes the observation stale
+      // and must stop this sequence rather than authorize a click from it.
+      const actionWindow = await currentVerifiedCalculatorWindow(false);
+      const beforeBounds = compactBounds(before);
+      const actionBounds = compactBounds(actionWindow);
+      if (
+        beforeBounds.x !== actionBounds.x
+        || beforeBounds.y !== actionBounds.y
+        || beforeBounds.width !== actionBounds.width
+        || beforeBounds.height !== actionBounds.height
+      ) {
+        throw calculatorError(
+          'STALE_TARGET',
+          'Calculator.tapCalculatorTexts',
+          `Calculator key ${JSON.stringify(visibleText)} OCR observation no longer matches the current window bounds`,
+          { expected: beforeBounds, actual: actionBounds },
+        );
+      }
+      const locatedBounds = located.bounds;
+      const locatedCenter = located.center;
+      const expectedPoint = calculatorKeyPoint(actionWindow, canonicalKey);
+      if (
+        !locatedBounds
+        || ![locatedBounds.x, locatedBounds.y, locatedBounds.width, locatedBounds.height].every(Number.isFinite)
+        || Number(locatedBounds.width) <= 0
+        || Number(locatedBounds.height) <= 0
+        || String(locatedBounds.coordinateSpace || '') !== 'screen'
+        || !locatedCenter
+        || !Number.isFinite(locatedCenter.x)
+        || !Number.isFinite(locatedCenter.y)
+        || String(locatedCenter.coordinateSpace || '') !== 'screen'
+        || !Geometry.contains(calculatorKeypadRegion(actionWindow), locatedCenter)
+      ) {
+        throw calculatorError(
+          'STALE_TARGET',
+          'Calculator.tapCalculatorTexts',
+          `Calculator key ${JSON.stringify(visibleText)} OCR geometry is invalid or outside the current verified keypad`,
+        );
+      }
+      const targetInsetPoints = Math.min(2, locatedBounds.width / 4, locatedBounds.height / 4);
+      const centerDeltaPercent = {
+        x: Math.abs(locatedCenter.x - expectedPoint.x) / Number(actionWindow.width) * 100,
+        y: Math.abs(locatedCenter.y - expectedPoint.y) / Number(actionWindow.height) * 100,
+      };
+      const tolerance = CALCULATOR_ACCESSIBILITY_PROFILE.keyPointTolerancePercent;
+      if (
+        expectedPoint.x < locatedBounds.x + targetInsetPoints
+        || expectedPoint.y < locatedBounds.y + targetInsetPoints
+        || expectedPoint.x > locatedBounds.x + locatedBounds.width - targetInsetPoints
+        || expectedPoint.y > locatedBounds.y + locatedBounds.height - targetInsetPoints
+        || centerDeltaPercent.x > tolerance
+        || centerDeltaPercent.y > tolerance
+      ) {
+        throw calculatorError(
+          'STALE_TARGET',
+          'Calculator.tapCalculatorTexts',
+          `Calculator key ${JSON.stringify(visibleText)} OCR target does not bind to its verified layout key point`,
+          {
+            expected: expectedPoint,
+            actual: { bounds: locatedBounds, center: locatedCenter, centerDeltaPercent },
+          },
+        );
+      }
+      point = expectedPoint;
+      stage = 'tap';
+      await mouse.clickForPID(Number(actionWindow.pid), point.x, point.y);
+      inputDispatched = true;
+      target = targetEvidence(located);
+      dispatch = {
+        backend: 'UI.findTexts+mouse.clickForPID/AXPress',
+        callState: 'returned',
+        provider: options.provider,
+      };
       stage = 'postcheck';
       const after = await currentVerifiedCalculatorWindow(false);
       const action = {
@@ -1982,6 +2100,38 @@ async function waitForCalculatorDisplay(expected, evidenceName) {
   );
 }
 
+async function waitForCalculatorResultDisplay(expected, calculationNumber, locator) {
+  if (locator.backend !== 'accessibility') {
+    const visual = await waitForCalculatorDisplay(expected, calculationNumber);
+    return { ...visual, backend: 'ocr' };
+  }
+  const semantic = await waitForCalculatorAccessibilityDisplay(
+    expected,
+    'all-clear',
+    calculationNumber,
+    'result-oracle',
+  );
+  const screenshot = await captureCalculatorDisplay(`${calculationNumber}-accessibility-result-oracle`);
+  return {
+    backend: 'accessibility-snapshot',
+    rawDisplay: semantic.display.rawValue,
+    normalizedResult: semantic.display.normalizedResult,
+    stable: semantic.stable,
+    matchedExpected: semantic.matchedExpected,
+    observations: semantic.observations,
+    screenshot,
+    accessibility: {
+      requestId: semantic.snapshot.requestId,
+      windowIdentity: semantic.windowIdentity,
+      windowBounds: semantic.windowBounds,
+      rootNativeBounds: semantic.rootNativeBounds,
+      display: semantic.display,
+      clearTarget: semantic.clearTarget,
+    },
+    ocr: null,
+  };
+}
+
 function normalizeExpected(expected) {
   return normalizeCalculatorDisplay(String(expected));
 }
@@ -2013,7 +2163,7 @@ async function evaluateCalculatorExpression(expression, expected, calculationNum
     phase: 'expression',
   });
 
-  const display = await waitForCalculatorDisplay(normalizedExpected, calculationNumber);
+  const display = await waitForCalculatorResultDisplay(normalizedExpected, calculationNumber, locator);
   const calculation = {
     expression,
     canonicalKeys: inputSequence.canonicalKeys.slice(),
@@ -2031,16 +2181,18 @@ async function evaluateCalculatorExpression(expression, expected, calculationNum
     verified: false,
     displayScreenshot: display.screenshot.path,
     displayRead: {
+      backend: display.backend,
       stable: display.stable,
       matchedExpected: display.matchedExpected,
       timeoutMs: DISPLAY_READY_TIMEOUT_MS,
       pollingMs: DISPLAY_POLLING_MS,
       observations: display.observations,
     },
-    ocr: {
+    accessibilityOracle: display.accessibility || null,
+    ocr: display.ocr ? {
       provider: display.ocr.provider,
       lines: display.ocr.lines,
-    },
+    } : null,
   };
   resultDocument.calculations.push(calculation);
   await writeResultDocument();
@@ -2080,7 +2232,7 @@ async function main() {
       requirement: 'one external desktop-action owner for the whole execution',
       runtimeLeaseEnforced: false,
     },
-    actionTraceSemantics: 'dispatch-only: reset consumption is proven by backend-specific clear-state/Display checkpoints (Accessibility snapshot or OCR); expression consumption by stable Display ROI OCR and the final oracle.',
+    actionTraceSemantics: 'dispatch-only: Accessibility input uses UI.tapTargets after complete profile qualification; business completion is proven separately by two stable Accessibility Display snapshots. Explicit OCR fallback retains its own independent visual Display oracle.',
     actionTrace: [],
     failedAction: null,
     checkpointFailure: null,

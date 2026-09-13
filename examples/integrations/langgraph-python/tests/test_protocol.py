@@ -23,10 +23,26 @@ class ProtocolTests(unittest.TestCase):
         with self.assertRaises(ProtocolError):
             validate_request(request)
 
+    def test_request_rejects_non_integer_or_wrong_schema_version(self) -> None:
+        for bad in (True, 1.0, "1", 2):
+            with self.subTest(bad=bad):
+                request = new_request({}, request_id="req-1")
+                request["schemaVersion"] = bad
+                with self.assertRaises(ProtocolError):
+                    validate_request(request)
+
     def test_response_rejects_request_id_mismatch(self) -> None:
         response = success_response("req-1", {"value": 8})
         with self.assertRaises(ProtocolError):
             validate_response(response, request_id="req-2")
+
+    def test_response_rejects_non_integer_or_wrong_schema_version(self) -> None:
+        for bad in (True, 1.0, "1", 2):
+            with self.subTest(bad=bad):
+                response = success_response("req-1", {"value": 8})
+                response["schemaVersion"] = bad
+                with self.assertRaises(ProtocolError):
+                    validate_response(response, request_id="req-1")
 
     def test_increment_is_strict_integer(self) -> None:
         self.assertEqual(validate_increment(5), 5)

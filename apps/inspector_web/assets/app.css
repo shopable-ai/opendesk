@@ -219,6 +219,17 @@ label { color: var(--muted); font-size: 13px; }
 .interface-preview[open] > summary { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
 .interface-shell { min-width: 0; }
 
+.page-connected .onboarding {
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+}
+.page-connected .onboarding-heading,
+.page-connected .guide-help { display: none; }
+.page-connected .next-action { margin-top: 0; }
+.page-connected .interface-preview { margin-top: 0; }
+.page-connected .interface-preview > summary { display: none; }
+
 .scopebar { min-height: 62px; gap: 7px; padding: 7px 16px; background: var(--panel); }
 .window-picker { flex: 1 1 560px; max-width: 760px; min-width: 280px; }
 .scope-label-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 3px; }
@@ -303,13 +314,13 @@ label { color: var(--muted); font-size: 13px; }
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(330px, 1.15fr) minmax(300px, .9fr) minmax(350px, 1.1fr);
+  grid-template-columns: minmax(330px, 1.05fr) minmax(340px, 1.25fr) minmax(330px, .95fr);
   gap: 8px;
   padding: 8px 16px;
 }
 .pane {
   min-width: 0;
-  min-height: 520px;
+  min-height: min(620px, calc(100vh - 250px));
   overflow: auto;
   padding: 12px;
   border: 1px solid var(--line);

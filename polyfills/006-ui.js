@@ -1,7 +1,8 @@
-// High-level desktop UI helpers. Each operation captures a fresh screen scope,
-// maps image pixels back to desktop logical coordinates, and then reuses the
-// existing mouse input primitive. It deliberately does not create a new native
-// runtime, provider framework, or accessibility abstraction.
+// High-level desktop UI helpers. Visual operations capture a fresh screen
+// scope, map image pixels back to desktop logical coordinates, and reuse the
+// existing mouse primitive. Native value and target-sequence composition
+// delegates platform resources and action lifecycle to Accessibility; this
+// file does not create another native runtime or provider abstraction.
 (function (global) {
   'use strict';
 
@@ -12,6 +13,27 @@
   const DISPLAY_SCALE_EPSILON = 0.01;
   const MAX_TEXT_QUERIES = 32;
   const MAX_REGEXP_SOURCE_LENGTH = 1024;
+  const MAX_ACCESSIBILITY_TARGET_SEQUENCE = 256;
+  const ACCESSIBILITY_SELECTOR_MAX_LENGTH = 1024;
+  const ACCESSIBILITY_ROLES = Object.freeze({
+    application: true,
+    window: true,
+    button: true,
+    checkbox: true,
+    radioButton: true,
+    textField: true,
+    staticText: true,
+    menuBar: true,
+    menu: true,
+    menuItem: true,
+    group: true,
+    list: true,
+    listItem: true,
+    table: true,
+    row: true,
+    cell: true,
+    unknown: true,
+  });
 
   function fail(code, operation, message, details) {
     const error = new Error(message);
@@ -224,6 +246,310 @@
         typeof global.Accessibility.release !== 'function' ||
         (requiresWrite && typeof global.Accessibility.perform !== 'function')) {
       throw makeValueError('NOT_SUPPORTED', operation, 'native Accessibility value runtime is unavailable', 'capability', 'not_started');
+    }
+  }
+
+  function makeTargetSequenceError(code, operation, message, phase, actionState, details) {
+    const error = new Error(message);
+    error.code = code;
+    error.operation = operation;
+    error.phase = phase;
+    error.actionState = actionState;
+    if (details && typeof details === 'object') {
+      for (const key of Object.keys(details)) error[key] = details[key];
+    }
+    return error;
+  }
+
+  function wrapTargetSequenceError(error, operation, phase, fallbackActionState) {
+    if (error && error.operation === operation && typeof error.phase === 'string' &&
+        validAccessibilityActionState(error.actionState)) return error;
+    const actionState = error && validAccessibilityActionState(error.actionState)
+      ? error.actionState
+      : fallbackActionState;
+    const wrapped = makeTargetSequenceError(
+      error && typeof error.code === 'string' ? error.code : 'BACKEND_FAILED',
+      operation,
+      'native Accessibility target sequence failed',
+      phase,
+      actionState,
+      { cause: error },
+    );
+    if (error && typeof error.phase === 'string') wrapped.nativePhase = error.phase;
+    if (error && typeof error.backend === 'string') wrapped.backend = error.backend;
+    if (error && typeof error.requestId === 'string') wrapped.requestId = error.requestId;
+    return wrapped;
+  }
+
+  function requireSelectorString(value, name, operation) {
+    if (typeof value !== 'string' || value.trim().length === 0) {
+      throw makeTargetSequenceError('INVALID_ARGUMENT', operation, name + ' must be a non-empty string', 'arguments', 'not_started');
+    }
+    if (Array.from(value).length > ACCESSIBILITY_SELECTOR_MAX_LENGTH) {
+      throw makeTargetSequenceError('INVALID_ARGUMENT', operation, name + ' exceeds the length limit', 'arguments', 'not_started');
+    }
+    return value;
+  }
+
+  function cloneTargetLocator(value, name, operation) {
+    requireObject(value, name, operation);
+    rejectUnknownFields(value, ['role', 'name', 'identifier'], name, operation);
+    if (Object.getOwnPropertySymbols(value).length > 0) {
+      throw makeTargetSequenceError('INVALID_ARGUMENT', operation, name + ' must not contain symbol fields', 'arguments', 'not_started');
+    }
+    const locator = {};
+    if (hasOwn(value, 'role')) {
+      const role = requireSelectorString(value.role, name + '.role', operation);
+      if (!ACCESSIBILITY_ROLES[role]) {
+        throw makeTargetSequenceError('INVALID_ARGUMENT', operation, name + '.role is not a normalized Accessibility role', 'arguments', 'not_started');
+      }
+      locator.role = role;
+    }
+    if (hasOwn(value, 'name')) locator.name = requireSelectorString(value.name, name + '.name', operation);
+    if (hasOwn(value, 'identifier')) {
+      locator.identifier = requireSelectorString(value.identifier, name + '.identifier', operation);
+    }
+    if (Object.keys(locator).length === 0) {
+      throw makeTargetSequenceError(
+        'INVALID_ARGUMENT', operation, name + ' must contain at least one of role, name, or identifier', 'arguments', 'not_started',
+      );
+    }
+    return Object.freeze(locator);
+  }
+
+  function cloneTargetSequence(targets, operation) {
+    const values = Array.isArray(targets) ? Array.from(targets) : null;
+    if (!values || values.length === 0 || values.length > MAX_ACCESSIBILITY_TARGET_SEQUENCE) {
+      throw makeTargetSequenceError(
+        'INVALID_ARGUMENT', operation,
+        'targets must be a non-empty array with at most ' + MAX_ACCESSIBILITY_TARGET_SEQUENCE + ' items',
+        'arguments', 'not_started',
+      );
+    }
+    return Object.freeze(values.map(function (value, index) {
+      const name = 'targets[' + index + ']';
+      requireObject(value, name, operation);
+      rejectUnknownFields(value, ['locator'], name, operation);
+      if (Object.getOwnPropertySymbols(value).length > 0) {
+        throw makeTargetSequenceError('INVALID_ARGUMENT', operation, name + ' must not contain symbol fields', 'arguments', 'not_started');
+      }
+      if (!hasOwn(value, 'locator')) {
+        throw makeTargetSequenceError('INVALID_ARGUMENT', operation, name + '.locator is required', 'arguments', 'not_started');
+      }
+      return Object.freeze({ locator: cloneTargetLocator(value.locator, name + '.locator', operation) });
+    }));
+  }
+
+  function targetLocatorKey(locator) {
+    return JSON.stringify([
+      hasOwn(locator, 'role') ? locator.role : null,
+      hasOwn(locator, 'name') ? locator.name : null,
+      hasOwn(locator, 'identifier') ? locator.identifier : null,
+    ]);
+  }
+
+  function requireTargetSequenceWindow(value, operation) {
+    if (!hasReliableWindowIdentity(value)) {
+      throw makeTargetSequenceError(
+        'INVALID_ARGUMENT', operation, 'options.within must be an explicitly resolved WindowInfo', 'arguments', 'not_started',
+      );
+    }
+    const identity = identitySnapshot(value);
+    if (!Number.isInteger(identity.pid) || identity.pid <= 0 || identity.handle === null) {
+      throw makeTargetSequenceError(
+        'INVALID_ARGUMENT', operation, 'options.within must include a positive PID and non-zero native handle', 'arguments', 'not_started',
+      );
+    }
+    return {
+      within: frozenWindowCopy(value),
+      identity: Object.freeze({
+        id: identity.id,
+        pid: identity.pid,
+        title: identity.title,
+        handle: identity.handle,
+        bounds: Object.freeze({ ...identity.bounds }),
+      }),
+    };
+  }
+
+  function targetSequenceOptions(rawOptions, operation) {
+    const raw = rawOptions === undefined ? null : requireObject(rawOptions, 'options', operation);
+    if (!raw) {
+      throw makeTargetSequenceError('INVALID_ARGUMENT', operation, 'options.within is required', 'arguments', 'not_started');
+    }
+    rejectUnknownFields(raw, ['within', 'timeout', 'maxDepth', 'maxNodes', 'signal'], 'options', operation);
+    if (Object.getOwnPropertySymbols(raw).length > 0) {
+      throw makeTargetSequenceError('INVALID_ARGUMENT', operation, 'options must not contain symbol fields', 'arguments', 'not_started');
+    }
+    if (!hasOwn(raw, 'within') || raw.within === undefined || raw.within === null) {
+      throw makeTargetSequenceError('INVALID_ARGUMENT', operation, 'options.within is required', 'arguments', 'not_started');
+    }
+    const window = requireTargetSequenceWindow(raw.within, operation);
+    const signal = raw.signal == null ? undefined : raw.signal;
+    if (signal !== undefined && (typeof signal.aborted !== 'boolean' ||
+        typeof signal.addEventListener !== 'function' || typeof signal.removeEventListener !== 'function')) {
+      throw makeTargetSequenceError('INVALID_ARGUMENT', operation, 'options.signal must be an AbortSignal', 'arguments', 'not_started');
+    }
+    return {
+      within: window.within,
+      identity: window.identity,
+      timeout: raw.timeout === undefined
+        ? VALUE_DEFAULT_TIMEOUT
+        : requireBoundedInteger(raw.timeout, 'options.timeout', 1, VALUE_MAX_TIMEOUT, operation),
+      maxDepth: raw.maxDepth === undefined
+        ? undefined
+        : requireBoundedInteger(raw.maxDepth, 'options.maxDepth', 1, 32, operation),
+      maxNodes: raw.maxNodes === undefined
+        ? undefined
+        : requireBoundedInteger(raw.maxNodes, 'options.maxNodes', 1, 5000, operation),
+      signal: signal,
+    };
+  }
+
+  function targetSequenceFindOptions(options) {
+    const result = { within: options.within, timeout: options.timeout };
+    if (options.maxDepth !== undefined) result.maxDepth = options.maxDepth;
+    if (options.maxNodes !== undefined) result.maxNodes = options.maxNodes;
+    return result;
+  }
+
+  function checkTargetSequenceCanceled(options, operation, phase, actionState) {
+    if (options.signal && options.signal.aborted) {
+      throw makeTargetSequenceError('CANCELED', operation, 'target sequence was canceled', phase, actionState);
+    }
+  }
+
+  async function revalidateTargetSequenceWindow(options, operation, phase, actionState) {
+    let current;
+    try {
+      current = await global.window.get({ id: options.identity.id });
+    } catch (error) {
+      throw makeTargetSequenceError(
+        'STALE_TARGET', operation, 'the fixed target window is no longer available', phase, actionState,
+        { cause: error },
+      );
+    }
+    const actual = hasReliableWindowIdentity(current) ? identitySnapshot(current) : null;
+    if (!actual || actual.handle === null ||
+        actual.id !== options.identity.id || actual.pid !== options.identity.pid ||
+        actual.title !== options.identity.title || actual.handle !== options.identity.handle ||
+        !sameBounds(actual.bounds, options.identity.bounds)) {
+      throw makeTargetSequenceError(
+        'STALE_TARGET', operation, 'the fixed target window identity or bounds changed', phase, actionState,
+        { expectedWindow: options.identity, actualWindow: actual },
+      );
+    }
+    return current;
+  }
+
+  function requireInvokableTarget(read, locator, operation, phase, actionState) {
+    if (!read || !read.properties || typeof read.properties !== 'object') {
+      throw makeTargetSequenceError(
+        'BACKEND_FAILED', operation, 'Accessibility.read returned no target properties', phase, actionState,
+        valueResultDetails(read),
+      );
+    }
+    const properties = read.properties;
+    for (const field of ['role', 'name', 'identifier']) {
+      if (hasOwn(locator, field) && properties[field] !== locator[field]) {
+        throw makeTargetSequenceError(
+          'STALE_TARGET', operation, 'the Accessibility target no longer matches its locator', phase, actionState,
+          valueResultDetails(read),
+        );
+      }
+    }
+    if (properties.enabled === false) {
+      throw makeTargetSequenceError(
+        'ELEMENT_DISABLED', operation, 'the Accessibility target is disabled', phase, actionState,
+        valueResultDetails(read),
+      );
+    }
+    if (properties.enabled !== true) {
+      throw makeTargetSequenceError(
+        'STATE_UNKNOWN', operation, 'the Accessibility target enabled state is unknown', phase, actionState,
+        valueResultDetails(read),
+      );
+    }
+    if (!Array.isArray(properties.actions) || properties.actions.indexOf('invoke') < 0) {
+      throw makeTargetSequenceError(
+        'ACTION_NOT_SUPPORTED', operation, 'the Accessibility target does not support invoke', phase, actionState,
+        valueResultDetails(read),
+      );
+    }
+    return properties;
+  }
+
+  function requireTargetSequenceRuntime(operation) {
+    if (!global.Accessibility || typeof global.Accessibility.getCapabilities !== 'function' ||
+        typeof global.Accessibility.find !== 'function' || typeof global.Accessibility.read !== 'function' ||
+        typeof global.Accessibility.perform !== 'function' || typeof global.Accessibility.release !== 'function' ||
+        !global.window || typeof global.window.get !== 'function') {
+      throw makeTargetSequenceError(
+        'NOT_SUPPORTED', operation, 'native Accessibility target sequence runtime is unavailable', 'capability', 'not_started',
+      );
+    }
+    let capabilities;
+    try {
+      capabilities = global.Accessibility.getCapabilities();
+    } catch (error) {
+      throw wrapTargetSequenceError(error, operation, 'capability', 'not_started');
+    }
+    if (!capabilities || !capabilities.hostAuthorization || capabilities.hostAuthorization.enabled !== true) {
+      throw makeTargetSequenceError(
+        'CAPABILITY_DISABLED', operation, 'native Accessibility is disabled for this execution', 'capability', 'not_started',
+      );
+    }
+    if (!capabilities.implementation || capabilities.implementation.available !== true) {
+      throw makeTargetSequenceError(
+        'NOT_SUPPORTED', operation, 'native Accessibility is not implemented on this platform', 'capability', 'not_started',
+      );
+    }
+    if (!capabilities.permission || capabilities.permission.granted !== true) {
+      throw makeTargetSequenceError(
+        'PERMISSION_DENIED', operation, 'native Accessibility permission is not granted', 'capability', 'not_started',
+      );
+    }
+    if (!capabilities.implementation.actions || capabilities.implementation.actions.invoke !== true) {
+      throw makeTargetSequenceError(
+        'ACTION_NOT_SUPPORTED', operation, 'native Accessibility invoke is unavailable', 'capability', 'not_started',
+      );
+    }
+  }
+
+  async function releaseTargetSequenceRefs(refs, operation, primaryError, actionState) {
+    const cleanupErrors = [];
+    for (let index = refs.length - 1; index >= 0; index -= 1) {
+      try {
+        const released = await global.Accessibility.release(refs[index]);
+        if (released !== true) {
+          throw makeTargetSequenceError(
+            'BACKEND_FAILED', operation, 'native Accessibility target ref was not released', 'cleanup', actionState,
+          );
+        }
+      } catch (error) {
+        const cleanup = wrapTargetSequenceError(error, operation, 'cleanup', actionState);
+        cleanupErrors.push({
+          code: cleanup.code,
+          operation: cleanup.operation,
+          phase: cleanup.phase,
+          nativePhase: cleanup.nativePhase,
+          actionState: cleanup.actionState,
+          backend: cleanup.backend,
+          requestId: cleanup.requestId,
+        });
+      }
+    }
+    refs.length = 0;
+    if (cleanupErrors.length > 0) {
+      if (primaryError) {
+        primaryError.cleanupErrors = cleanupErrors;
+        return;
+      }
+      throw makeTargetSequenceError(
+        cleanupErrors[0].code || 'BACKEND_FAILED', operation,
+        'native Accessibility target ref cleanup failed', 'cleanup', actionState,
+        { cleanupErrors: cleanupErrors },
+      );
     }
   }
 
@@ -1722,6 +2048,167 @@
         }
       }
       return { ok: true, action: 'tapTexts', completed: completed };
+    },
+
+    tapTargets: async function (targets, rawOptions) {
+      const operation = 'UI.tapTargets';
+      let sequence;
+      let options;
+      try {
+        // Both the sequence and every locator are copied before the first
+        // await. Sparse slots become undefined and fail here without any
+        // window observation or native Accessibility request.
+        sequence = cloneTargetSequence(targets, operation);
+        options = targetSequenceOptions(rawOptions, operation);
+      } catch (error) {
+        throw wrapTargetSequenceError(error, operation, 'arguments', 'not_started');
+      }
+      requireTargetSequenceRuntime(operation);
+
+      const refs = [];
+      const resolved = new Map();
+      const completed = [];
+      let failure = null;
+      let phase = 'preflight';
+      let failedIndex = 0;
+      let actionState = 'not_started';
+      try {
+        checkTargetSequenceCanceled(options, operation, phase, actionState);
+        await revalidateTargetSequenceWindow(options, operation, phase, actionState);
+        checkTargetSequenceCanceled(options, operation, phase, actionState);
+
+        // Preflight every distinct selector before the first input. Repeated
+        // steps intentionally reuse the exact managed ref proved here.
+        for (let index = 0; index < sequence.length; index += 1) {
+          failedIndex = index;
+          const locator = sequence[index].locator;
+          const key = targetLocatorKey(locator);
+          if (resolved.has(key)) continue;
+          checkTargetSequenceCanceled(options, operation, phase, actionState);
+          await revalidateTargetSequenceWindow(options, operation, phase, actionState);
+          checkTargetSequenceCanceled(options, operation, phase, actionState);
+
+          let ref;
+          try {
+            ref = await global.Accessibility.find(locator, targetSequenceFindOptions(options));
+          } catch (error) {
+            throw wrapTargetSequenceError(error, operation, phase, actionState);
+          }
+          if (!ref) {
+            throw makeTargetSequenceError(
+              'TARGET_NOT_FOUND', operation, 'the Accessibility target was not found', phase, actionState,
+            );
+          }
+          refs.push(ref);
+          resolved.set(key, { ref: ref, locator: locator });
+          checkTargetSequenceCanceled(options, operation, phase, actionState);
+
+          let read;
+          try {
+            read = await global.Accessibility.read(ref, {
+              properties: ['role', 'name', 'identifier', 'enabled', 'actions'],
+              timeout: options.timeout,
+            });
+          } catch (error) {
+            throw wrapTargetSequenceError(error, operation, phase, actionState);
+          }
+          checkTargetSequenceCanceled(options, operation, phase, actionState);
+          requireInvokableTarget(read, locator, operation, phase, actionState);
+        }
+
+        failedIndex = 0;
+        await revalidateTargetSequenceWindow(options, operation, phase, actionState);
+        checkTargetSequenceCanceled(options, operation, phase, actionState);
+
+        for (let index = 0; index < sequence.length; index += 1) {
+          failedIndex = index;
+          phase = 'action';
+          actionState = 'not_started';
+          checkTargetSequenceCanceled(options, operation, phase, actionState);
+          await revalidateTargetSequenceWindow(options, operation, phase, actionState);
+          checkTargetSequenceCanceled(options, operation, phase, actionState);
+
+          const item = resolved.get(targetLocatorKey(sequence[index].locator));
+          if (!item || !item.ref) {
+            throw makeTargetSequenceError(
+              'BACKEND_FAILED', operation, 'preflight target ref is unavailable', phase, actionState,
+            );
+          }
+          let read;
+          try {
+            read = await global.Accessibility.read(item.ref, {
+              properties: ['role', 'name', 'identifier', 'enabled', 'actions'],
+              timeout: options.timeout,
+            });
+          } catch (error) {
+            throw wrapTargetSequenceError(error, operation, phase, actionState);
+          }
+          checkTargetSequenceCanceled(options, operation, phase, actionState);
+          requireInvokableTarget(read, item.locator, operation, phase, actionState);
+          checkTargetSequenceCanceled(options, operation, phase, actionState);
+
+          let performed;
+          try {
+            // Until the native owner returns a reliable state, submission may
+            // have happened. No catch path retries or falls back to vision.
+            actionState = 'unknown';
+            performed = await global.Accessibility.perform(
+              item.ref,
+              { action: 'invoke' },
+              { timeout: options.timeout },
+            );
+          } catch (error) {
+            throw wrapTargetSequenceError(error, operation, phase, actionState);
+          }
+          actionState = performed && performed.actionState;
+          if (!validAccessibilityActionState(actionState)) {
+            actionState = 'unknown';
+            throw makeTargetSequenceError(
+              'BACKEND_FAILED', operation, 'native invoke returned no completion state', phase, actionState,
+              valueResultDetails(performed),
+            );
+          }
+          if (actionState === 'unknown') {
+            throw makeTargetSequenceError(
+              'STATE_UNKNOWN', operation, 'native invoke completion is unknown', phase, actionState,
+              valueResultDetails(performed),
+            );
+          }
+          if (actionState === 'not_started') {
+            throw makeTargetSequenceError(
+              'BACKEND_FAILED', operation, 'native invoke did not start', phase, actionState,
+              valueResultDetails(performed),
+            );
+          }
+          completed.push({
+            index: index,
+            action: 'invoke',
+            backend: performed && typeof performed.backend === 'string' ? performed.backend : 'unknown',
+            requestId: performed && typeof performed.requestId === 'string' ? performed.requestId : '',
+            actionState: actionState,
+          });
+          // A cancellation observed while the synchronous native action was in
+          // flight cannot retract it. Preserve that completed prefix and stop
+          // before the next target instead of reporting a misleading success.
+          checkTargetSequenceCanceled(options, operation, phase, actionState);
+        }
+        return {
+          ok: true,
+          action: 'tapTargets',
+          backend: 'accessibility',
+          completed: completed,
+        };
+      } catch (error) {
+        failure = error && error.operation === operation
+          ? error
+          : wrapTargetSequenceError(error, operation, phase, actionState);
+        failure.failedIndex = failedIndex;
+        failure.failedPhase = phase;
+        failure.completed = completed.slice();
+        throw failure;
+      } finally {
+        await releaseTargetSequenceRefs(refs, operation, failure, actionState);
+      }
     },
 
     waitText: async function (query, rawOptions) {

@@ -56,6 +56,18 @@ test('page access distinguishes local-only, trusted-LAN, and rejected origins', 
   assert.equal(model.pageAccess('not a URL').canConnect, false);
 });
 
+test('connection startup automatically connects only loopback pages', () => {
+  const local = model.pageAccess('http://127.0.0.1:53116/accessibility-workbench/');
+  const lan = model.pageAccess('http://192.168.30.104:53116/accessibility-workbench/');
+  const blocked = model.pageAccess('https://127.0.0.1:53116/accessibility-workbench/');
+  assert.equal(model.connectionStartup(local, false), 'connect');
+  assert.equal(model.connectionStartup(local, true), 'pair');
+  assert.equal(model.connectionStartup(lan, false), 'manual');
+  assert.equal(model.connectionStartup(lan, true), 'pair');
+  assert.equal(model.connectionStartup(blocked, true), 'blocked');
+  assert.equal(model.connectionStartup(null, false), 'blocked');
+});
+
 test('tree search and summaries preserve hostile text as data', () => {
   const hostile = '<img src=x onerror=alert(1)>';
   const root = {
@@ -522,6 +534,11 @@ test('browser UI uses text-only rendering, memory credentials, current routes, a
   assert.match(app, /sessionPhase/);
   assert.match(app, /function guideState\(\)/);
   assert.match(app, /function performGuideAction\(\)/);
+  assert.match(app, /model\.connectionStartup/);
+  assert.match(app, /connectToOpenDesk\(\{ retryConflict: true \}\)/);
+  assert.match(app, /error\.httpStatus === 409/);
+  assert.match(app, /Promise\.allSettled\(\[loadCapabilities\(\), loadWindows\(\)\]\)/);
+  assert.match(app, /Another Inspector page is already connected/);
   assert.match(app, /windowPhase/);
   assert.match(app, /Go to target list/);
   assert.match(app, /Click a row in the UI tree/);
@@ -531,7 +548,7 @@ test('browser UI uses text-only rendering, memory credentials, current routes, a
   assert.match(html, /id="getting-started"/);
   assert.match(html, /id="how-to-use"/);
   assert.match(html, /id="guide-action"/);
-  assert.equal((html.match(/>Connect to OpenDesk<\/button>/g) || []).length, 1);
+  assert.match(html, /id="guide-action"[^>]*disabled>Connecting…<\/button>/);
   assert.match(html, /id="origin-route"/);
   assert.match(html, /Trusted-LAN address · plaintext HTTP/);
   assert.match(html, /id="interface-preview" class="interface-preview"/);
@@ -565,6 +582,8 @@ test('browser UI uses text-only rendering, memory credentials, current routes, a
   assert.match(html, /src="\.\/assets\/app\.js"/);
   assert.match(css, /\.quick-steps li\.current/);
   assert.match(css, /\.quick-steps li\.complete/);
+  assert.match(css, /\.page-connected \.onboarding-heading/);
+  assert.match(css, /\.page-connected \.interface-preview > summary/);
   assert.match(css, /--visual-selection:\s*#ff3b30/i);
   assert.match(css, /\.mapping-box\.selected\s*\{[^}]*border:\s*2px solid var\(--visual-selection\)/s);
   assert.match(css, /\.mapping-box\s*\{[^}]*border:\s*1px solid rgba\(85, 167, 255/s);

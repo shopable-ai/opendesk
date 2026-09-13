@@ -36,20 +36,26 @@ ui-understanding 只是认识子作业标签，不是第二个正式 Skill。仅
 
 遇到会话列表、消息时间流、订单表、文件列表等重复 UI 数据时，应用工程仍负责认识区域、item 边界和必要模型提取；跨应用 Runtime 的 Collection／Observation／VLM／滚动遍历职责不在本工作流重复设计，统一参考[Structured UI Collection Reading](../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)。其中 `UI.readCollection()`、`UI.collectCollection()` 和 `SemanticVisionProvider` 当前是 Target contract，不得当作已发布接口调用。
 
-## 定位代码生成、自检与失败维修
+## 开发期策略适配、生成自检与失败维修
 
-生成／修改 UI 定位与动作代码，或遇到 `UI.tapTexts` 超时、OCR 错读、漏检、歧义时，必须读取[UI 定位失败诊断与修复](../../docs/frameworks/ui-locator-repair.md)。它补充现有应用工程方法，不增加 Skill、阶段、公共 API 或自动调度程序。
+生成／修改 UI 定位与动作代码，或遇到观察、定位、读取、状态准备及结果验证缺口时，必须读取[UI 定位失败诊断与修复](../../docs/frameworks/ui-locator-repair.md)。其核心是“目标与验收不变，方法可以依据证据调整”，OCR 别名和原生语义只是实例。它补充现有应用工程方法，不增加 Skill、阶段、公共 API 或自动调度程序。
 
 ```text
-复用／生成候选
+固定业务目标、授权、数据依赖与成功条件
+→ 核对并复用已有适用能力，提前识别当前任务的策略弱点
+→ 选择最小必要策略，复用／生成候选
 → 无输入预检当前阶段必要目标与结果读取方式
 → 获准最小真实执行与独立结果验证
-→ 失败：保留现场并分类，进入 application-engineer harden／repair
-→ 只修受影响定位规则，形成新候选并重验
-→ 返回当前流程，交接真实证据、适用范围和未测项
+→ 缺口：保留证据并分类，进入现有应用工程 harden／repair
+→ 在不变量内调整最小策略，形成新候选并重验
+→ 返回当前流程，交接采用依据、适用范围、失效条件及未测项
 ```
 
-S10 消费定位策略及证据，S11 执行生成者自检，S12 负责验证与定向维修回流；编号和共享合同不变。应用内有据 OCR 别名、一次 OCR 批量预检、模板／原生语义、Recorder／测量规则和开发期视觉模型补证均按该方法的边界选择。别名不能补回漏检，批量预检不授权永久复用坐标，输入可能已发生时不能换 backend 重复点击。Human 来源继续沿用自身来源记录和完整 Skill 路由，不能扩大静态精炼权限；没有真实环境时不声称真机通过。
+S10 消费策略选择、风险和定位证据，S11 执行生成者自检，S12 负责验证与定向维修回流；已知缺口在前面的应用发现阶段即可处理，不要求故意制造失败。编号和共享合同不变。最小策略决定记录沿用方法正文第 1 节，附在现有工作包中，不创建第二套 schema。
+
+开发期可以选择或替换策略，正常运行只执行已验证且明确配置的方法。最终代码可以只保留一条可靠路径，不要求每个按钮包含 OCR、Accessibility、图像和 fallback 字段。已有本地实现优先核对复用，不重复建设或按讨论对象重构；没有代码缺口时只补方法、记录或验证。
+
+应用内有据 OCR 别名、一次 OCR 批量预检、模板／原生语义、Recorder／测量规则和开发期视觉模型补证均按该方法的边界选择。别名不能补回漏检，批量预检不授权永久复用坐标，输入可能已发生时不能换 backend 重复点击。需要改变业务动作、结果来源要求或成功标准时返回任务合同确认，不能把需求变更叫作容错。Human 来源继续沿用自身来源记录和完整 Skill 路由，不能扩大静态精炼权限；没有真实环境时不声称真机通过。
 
 ## 从当前目的进入
 
@@ -58,7 +64,7 @@ S10 消费定位策略及证据，S11 执行生成者自检，S12 负责验证�
 - 理解完整需要做什么：看[任务分解树](design/task-decomposition.md)。
 - 明确由谁做、消费什么、交付什么：看[链路设计](design/chain-design.md)。
 - 深入专业问题：看[应用操作](design/application-operations.md)或[独立代码改进](design/code-rebuild.md)。
-- 处理生成代码后的 OCR／定位失败、局部别名与替代方法，或建立输入前预检：看[UI 定位失败诊断与修复](../../docs/frameworks/ui-locator-repair.md)。
+- 提前识别策略弱点、处理观察／定位／读取失败，或选择局部适配和替代方法：看[UI 定位失败诊断与修复](../../docs/frameworks/ui-locator-repair.md)。
 - 需要把 list／table／timeline 等重复 UI 转成通用 `Item[]`，或设计 VLM fallback、虚拟列表、滚动连续性与合并去重时，看[Structured UI Collection Reading](../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)。
 - 确认怎样证明通过：看[验证计划](design/validation-plan.md)和[计算器案例](cases/calculator.md)。
 
