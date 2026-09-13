@@ -100,23 +100,23 @@ Windows output 是必须整体搬移的 portable directory。产品角色是：
 
 ```text
 release/MyApp/
-├── <desktop-entry>.exe                    # 普通用户唯一桌面启动入口
-├── opendesk.exe                           # CLI / 开发工具入口
+├── opendesk-desktop.exe                    # 普通用户唯一桌面启动入口
+├── opendesk.exe                            # CLI / 开发工具入口
 ├── ui-host/
-│   └── opendesk-ui-host.exe               # Runtime 自动启动的内部 helper
+│   └── opendesk-ui-host.exe                # Runtime 自动启动的内部 helper
 ├── app-builder-template.json
-├── app-mode/                              # 已验证的 my-app payload
+├── app-mode/                               # 已验证的 my-app payload
 │   └── opendesk.app.json
 └── app-build-provenance.json
 ```
 
-普通用户只双击 desktop entry；不要要求用户先启动 CLI 或 `ui-host`。CLI 与 desktop entry 使用同一 OpenDesk Runtime/App Mode 实现，只是 Windows Console/GUI subsystem 的入口语义不同；`ui-host` 在需要 host-backed Custom UI 时由 Runtime 自动启动。
+普通用户只双击 `opendesk-desktop.exe`；不要要求用户先启动 CLI 或 `ui-host`。CLI 与 desktop entry 使用同一 OpenDesk Runtime/App Mode 实现，只是 Windows Console/GUI subsystem 的入口语义不同；`ui-host` 在需要 host-backed Custom UI 时由 Runtime 自动启动。
 
-> 当前仓库 Windows 源码仍存在一个 P0 发布阻塞：CLI `opendesk.exe` 与 GUI `OpenDesk.exe` 仅靠大小写区分，而普通 Windows 目录大小写不敏感。因此当前 portable layout 在完成入口改名及 Windows 原生验证前不应视为 release-qualified。目标命名合同见 [Windows Build and Distribution Contract](../architecture/windows-build-distribution.md)：CLI 保持 `opendesk.exe`，desktop entry 改为不发生大小写冲突的独立名称，例如 `opendesk-desktop.exe`。本页不会把尚未落地的目标文件名伪装成当前已实现输出。
+源码和 Builder contract 已把 Windows desktop entry 从仅大小写不同的旧 `OpenDesk.exe` 收口为独立的 `opendesk-desktop.exe`。这解决的是 artifact 路径正确性；它本身不等于 Windows 最终发布资格。Windows 原生构建、真实 Explorer 启动、无 Console、helper 自动启动、SmartScreen / Smart App Control / Defender、WebView2、UAC 和签名仍需 Windows release evidence。
 
 Builder 的 Windows signing status 是 `not-signed-by-builder`：它不生成 MSI、MSIX、installer、Start Menu shortcut、文件关联、Publisher 签名或 auto-update。未来 installer/shortcut 层应只把 desktop entry 暴露为普通用户应用；CLI 可以作为开发能力安装，`ui-host` 保持内部实现文件。
 
-仓库的 App Builder workflow 配置在原生 Windows runner 上构建 portable payload、移动它并再次 validation。本次文档验收没有 Windows live desktop evidence；这类检查也不是对你的业务窗口、tray、权限、single-instance 或目标客户机器的验收。在目标 Windows 环境中另行执行这些交互验证；macOS 或 Linux 上的 cross/package 检查不能替代它。
+仓库的 App Builder workflow 配置在原生 Windows runner 上构建 portable payload、移动它并再次 validation。Hosted runner 通过仍不等于真实用户桌面、信誉或目标客户机器通过。在目标 Windows 环境中另行执行这些交互和安全验证；macOS 或 Linux 上的 cross/package 检查不能替代它。
 
 ## CI 与可追溯性
 
@@ -196,4 +196,4 @@ Builder 先在 sibling temporary directory staging，复核 payload、所需 Run
 - [automation.app API](automation-app.md)：当前 App Mode application 的 tray/menu、action、menu state 和退出 API。
 - [App Mode 与 App Shell](app-shell.md)：`-app`、Manifest、App Shell 与 `automation.app` 的职责关系。
 - [App Package Format](../architecture/app-package-format.md)：Manifest schema、兼容性和 containment contract。
-- [Windows Build and Distribution Contract](../architecture/windows-build-distribution.md)：Windows desktop/CLI/helper 角色、当前 P0 入口命名阻塞与发布验证边界。
+- [Windows Build and Distribution Contract](../architecture/windows-build-distribution.md)：Windows desktop/CLI/helper 角色、可信 helper 模型与发布验证边界。
