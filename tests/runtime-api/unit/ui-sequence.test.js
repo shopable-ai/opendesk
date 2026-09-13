@@ -65,12 +65,16 @@
     f.host = host;
     return f;
   }
-  async function rejects(fn, code, index, phase) {
+  async function rejectsForOperation(fn, code, operation) {
     let error;
     try { await fn(); } catch (caught) { error = caught; }
     assert(error, 'expected failure ' + code);
     equal(error.code, code, String(error));
-    equal(error.operation, 'UI.tapTexts');
+    equal(error.operation, operation);
+    return error;
+  }
+  async function rejects(fn, code, index, phase) {
+    const error = await rejectsForOperation(fn, code, 'UI.tapTexts');
     if (index !== undefined) equal(error.failedIndex, index);
     if (phase !== undefined) equal(error.failedPhase, phase);
     return error;
@@ -230,6 +234,25 @@
     const f = fixture(); const sparse = ['A']; sparse.length = 2;
     await rejects(() => f.host.UI.tapTexts(sparse), 'INVALID_ARGUMENT'); equal(f.clicks.length, 0);
   });
+  unit('tapText and tapTexts reject window resolver fields before observation', async () => {
+    const forbidden = {
+      appName: 'Calculator',
+      windowName: 'Calculator',
+      platform: 'darwin',
+      bundleId: 'com.apple.calculator',
+      exeName: 'Calculator.exe',
+    };
+    for (const method of ['tapText', 'tapTexts']) {
+      for (const [field, value] of Object.entries(forbidden)) {
+        const f = fixture();
+        const invoke = method === 'tapText'
+          ? () => f.host.UI.tapText('A', { [field]: value })
+          : () => f.host.UI.tapTexts(['A'], { [field]: value });
+        await rejectsForOperation(invoke, 'INVALID_ARGUMENT', 'UI.' + method);
+        equal(f.reads, 0); equal(f.screenshots.length, 0); equal(f.clicks.length, 0);
+      }
+    }
+  }, ['UI.tapText', 'UI.tapTexts']);
   unit('tapTexts preserves explicit click options and unaffected tapText behavior', async () => {
     const f = fixture(); await f.host.UI.tapTexts(['A'], { click: { button: 'right', clickCount: 1 } });
     equal(f.clicks[0].options.button, 'right');

@@ -1921,6 +1921,13 @@
     tapText: async function (query, rawOptions) {
       const operation = 'UI.tapText';
       validateTextQuery(query, operation);
+      const raw = rawOptions === undefined ? {} : requireObject(rawOptions, 'options', operation);
+      rejectUnknownFields(raw, [
+        'within', 'index', 'timeout', 'polling', 'click', 'intervalMs',
+        'match', 'caseSensitive', 'normalizeWhitespace', 'minConfidence',
+        'provider', 'providerChain', 'lang', 'region', 'relativeTo',
+      ], 'options', operation);
+      if (Object.getOwnPropertySymbols(raw).length) fail('INVALID_ARGUMENT', operation, 'options must not contain symbol fields');
       const options = validateOptions(rawOptions, operation, 'text', true);
       const matcher = compileTextMatcher(query, options, rawOptions, operation);
       return options.positioning
