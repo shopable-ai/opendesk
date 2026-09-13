@@ -64,6 +64,10 @@ jobs:
           test -f "$output/Contents/Resources/AppMode/opendesk.app.json"
           test -f "$output/Contents/Resources/OpenDeskAppBuilder/build-provenance.json"
           test ! -e "$output/Contents/_CodeSignature"
+          for forbidden_dir in examples tests docs workflows research; do
+            leaked_dir="$(find "$output" -type d -name "$forbidden_dir" -print -quit)"
+            test -z "$leaked_dir" || { echo "repository-only directory leaked into macOS App Builder output: $leaked_dir" >&2; exit 1; }
+          done
           PATH=/usr/bin:/bin "$runtime" app validate "$output/Contents/Resources/AppMode" --json
           mv "$output" "$consumer/MovedBuilderSmoke.app"
           PATH=/usr/bin:/bin "$runtime" app validate "$consumer/MovedBuilderSmoke.app/Contents/Resources/AppMode" --json
@@ -114,6 +118,12 @@ jobs:
           }
           foreach ($required in @('opendesk.exe', 'opendesk-desktop.exe', 'ui-host/opendesk-ui-host.exe', 'app-builder-template.json', 'app-mode/opendesk.app.json', 'app-build-provenance.json')) {
             if (-not (Test-Path -LiteralPath (Join-Path $output $required) -PathType Leaf)) { throw "missing portable builder output: $required" }
+          }
+          foreach ($forbiddenDir in @('examples', 'tests', 'docs', 'workflows', 'research')) {
+            $leakedDir = @(Get-ChildItem -LiteralPath $output -Directory -Recurse -Force | Where-Object { $_.Name -eq $forbiddenDir } | Select-Object -First 1)
+            if ($leakedDir.Count -ne 0) {
+              throw "Repository-only directory leaked into Windows App Builder output: $($leakedDir[0].FullName)"
+            }
           }
           $moved = Join-Path $consumer 'MovedBuilderSmokePortable'
           Move-Item -LiteralPath $output -Destination $moved

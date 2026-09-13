@@ -40,6 +40,14 @@
         "id": "open-runtime-log",
         "label": "运行日志…",
         "action": "runtime.log"
+      },
+      {
+        "type": "separator"
+      },
+      {
+        "id": "open-examples",
+        "label": "示例代码…",
+        "action": "opendesk.examples"
       }
     ]
   }

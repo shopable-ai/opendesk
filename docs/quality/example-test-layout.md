@@ -22,6 +22,45 @@ order: 22
 | 一次性日志、截图、运行输出 | `.runtime/` | 不提交。 |
 | 历史资料 | `.archive/` | 不作为活跃实现。 |
 
+## Repository / Distribution Boundary
+
+源码仓库中的资产归属与正式发行 Payload 是两套不同边界：
+
+```text
+OpenDesk Source Repository
+├─ examples/       用户 / 开发者学习与示例源码
+├─ tests/          开发、CI、回归与 qualification 资产
+├─ docs/           文档源码
+├─ workflows/      开发工作流资产
+└─ Product Source
+        ↓ 显式声明运行时所需 Payload
+Official OpenDesk Distribution
+├─ Runtime 必需文件
+├─ Desktop App 必需文件
+├─ Native UI Host / platform payload
+└─ 官方产品资源
+```
+
+正式 Runtime、Desktop App 和 Installed App Builder 产物必须遵守以下规则：
+
+- `examples/` 是 repository-side 学习资产，不属于正式 Runtime / Desktop App payload。
+- `tests/` 是 repository-side 开发、CI、回归和 qualification 资产，不属于普通用户安装包。
+- `docs/`、`workflows/`、`research/` 等 repository-only 资产不会因为存在于源码仓库而自动进入发行包。
+- Distribution / App Builder 必须显式选择真正运行所需的 Runtime、App、Native UI、platform payload 和官方产品资源；优先使用 allowlist 或等价的显式资源选择机制。
+- 仓库未来新增 `examples/new-feature/`、`tests/new-feature/`、`benchmarks/`、`research/`、`tools/` 等目录，不应自动改变正式发行内容。
+- 某个 repository-side 文件被构建或测试流程显式用作**构建期输入**，不等于其源码目录成为 Distribution Payload；真正需要发行的是构建结果时，应由对应 Distribution owner 显式声明该结果。
+- Examples 的 canonical source 是 `https://github.com/shopable-ai/opendesk/tree/master/examples`。正式 OpenDesk 的「示例代码…」通过既有 Official Shell / 外部 HTTPS URL 机制打开该在线来源，不依赖安装包内存在 `examples/`。
+- 公开 Example 可以帮助理解和组合 API，但不承担 Tests / Qualification 职责，也不能替代正式 contract、回归或真机验收。
+- 不因为用户需要查看 Examples 而恢复 Built-in Examples Distribution；未来若需要单文件下载、Example Pack 或缓存，应作为独立产品能力设计。
+
+因此核心约束是：
+
+```text
+Repository Source Tree != Distribution Payload
+```
+
+运行时确实需要的新资源，必须在对应 Distribution / App Builder 中显式声明；不能通过“复制整个仓库，再持续增加 exclude”来隐式扩大产品 Payload。
+
 ## Canonical-only 规则
 
 完成迁移后只保留 canonical 实现。**不再为了旧命令在 `examples/` 中保留 wrapper。**

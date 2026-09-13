@@ -14,6 +14,7 @@ import (
 const (
 	productConfigSourcePath = "configs/" + officialconfig.BaseName + ".json"
 	productConfigOutputPath = "apps/opendesk/assets/" + officialconfig.BaseName + ".odcfg"
+	examplesCanonicalURL     = "https://github.com/shopable-ai/opendesk/tree/master/examples"
 )
 
 func readOfficialProductFile(t *testing.T, relative string) []byte {
@@ -100,6 +101,9 @@ func TestProductConfigCompilesToCommittedReleaseAsset(t *testing.T) {
 	if home, ok := config.Actions["home"]; !ok || !home.Visible || !strings.HasPrefix(home.URL, "https://") {
 		t.Fatalf("product config source must own the visible HTTPS home action: %+v", home)
 	}
+	if examples, ok := config.Actions["examples"]; !ok || !examples.Visible || examples.URL != examplesCanonicalURL {
+		t.Fatalf("product config source must own the visible canonical Examples action: %+v", examples)
+	}
 	encoded, err := officialconfig.Encode(config)
 	if err != nil {
 		t.Fatalf("encode product config source: %v", err)
@@ -111,6 +115,9 @@ func TestProductConfigCompilesToCommittedReleaseAsset(t *testing.T) {
 	embeddedConfig, err := officialassets.Config()
 	if err != nil {
 		t.Fatalf("decode Runtime-embedded product.odcfg: %v", err)
+	}
+	if examples := embeddedConfig.Actions["examples"]; !examples.Visible || examples.URL != examplesCanonicalURL {
+		t.Fatalf("Runtime-embedded product config must preserve canonical Examples action: %+v", examples)
 	}
 	embedded, err := officialconfig.Encode(embeddedConfig)
 	if err != nil {

@@ -9,8 +9,10 @@
   // The basename rename does not introduce a new ODCFG1 wire format.
   const OBFUSCATION_KEY = 'OpenDeskOfficialShell/v1';
   const HTTPS_URL_PATTERN = /^https:\/\/[^\s/?#\\]+(?:[/?#][^\s]*)?$/;
-  const CORE_ACTIONS = Object.freeze(['home', 'help', 'customize']);
-  const CONFIG_ACTIONS = Object.freeze(['home', 'help', 'customize', 'marketplace', 'upgrade']);
+  const CORE_ACTIONS = Object.freeze(['home', 'help', 'customize', 'examples']);
+  const REQUIRED_CONFIG_ACTIONS = Object.freeze(['home', 'help', 'customize', 'marketplace', 'upgrade']);
+  const OPTIONAL_CONFIG_ACTIONS = Object.freeze(['examples']);
+  const CONFIG_ACTIONS = Object.freeze([...REQUIRED_CONFIG_ACTIONS, ...OPTIONAL_CONFIG_ACTIONS]);
   const ACTION_DEFINITIONS = Object.freeze({
     home: Object.freeze({
       id: 'opendesk.home',
@@ -23,6 +25,12 @@
       label: '帮助',
       title: '帮助与支持',
       placeholder: '帮助中心待开放。',
+    }),
+    examples: Object.freeze({
+      id: 'opendesk.examples',
+      label: '示例代码…',
+      title: '示例代码',
+      placeholder: '示例代码暂不可用。',
     }),
     customize: Object.freeze({
       id: 'opendesk.customize',
@@ -49,6 +57,7 @@
     actions: Object.freeze({
       home: Object.freeze({visible: true, url: ''}),
       help: Object.freeze({visible: true, url: ''}),
+      examples: Object.freeze({visible: true, url: ''}),
       customize: Object.freeze({visible: true, url: ''}),
       marketplace: Object.freeze({visible: false, url: ''}),
       upgrade: Object.freeze({visible: false, url: ''}),
@@ -102,6 +111,7 @@
     for (const name of CONFIG_ACTIONS) {
       const action = value.actions[name];
       if (!action || typeof action !== 'object' || Array.isArray(action)) {
+        if (OPTIONAL_CONFIG_ACTIONS.includes(name) && action === undefined) continue;
         throw new Error(`official shell config is missing action: ${name}`);
       }
       for (const field of Object.keys(action)) {
@@ -244,7 +254,7 @@
       const name = resolveName(actionId);
       if (!name) return null;
       const definition = ACTION_DEFINITIONS[name];
-      const configured = config.actions[name];
+      const configured = config.actions[name] || FALLBACK_CONFIG.actions[name];
       return Object.freeze({
         id: definition.id,
         label: definition.label,

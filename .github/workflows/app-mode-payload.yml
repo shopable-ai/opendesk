@@ -9,11 +9,14 @@ on:
       - 'VERSION'
       - 'go.mod'
       - 'go.sum'
+      - 'configs/product.json'
       - 'apps/opendesk/**'
       - 'apps/inspector_web/**'
       - 'internal/appmodepayload/**'
       - 'internal/inspectorwebpayload/**'
+      - 'internal/officialassets/**'
       - 'internal/recorderbundle/**'
+      - 'pkg/officialconfig/**'
       - 'scripts/build_macos_app.sh'
       - 'scripts/build_windows_app.ps1'
       - 'scripts/build_windows_distribution.ps1'
@@ -22,6 +25,8 @@ on:
       - 'scripts/tools/inspector-web-payload/**'
       - 'cmd/opendesk/**'
       - 'cmd/opendesk-ui-host/**'
+      - 'tests/app-lifecycle/official-shell.test.js'
+      - 'tests/app-lifecycle/examples-menu-action.test.js'
       - 'docs/architecture/app-mode-desktop-launch.md'
   pull_request:
     paths:
@@ -29,11 +34,14 @@ on:
       - 'VERSION'
       - 'go.mod'
       - 'go.sum'
+      - 'configs/product.json'
       - 'apps/opendesk/**'
       - 'apps/inspector_web/**'
       - 'internal/appmodepayload/**'
       - 'internal/inspectorwebpayload/**'
+      - 'internal/officialassets/**'
       - 'internal/recorderbundle/**'
+      - 'pkg/officialconfig/**'
       - 'scripts/build_macos_app.sh'
       - 'scripts/build_windows_app.ps1'
       - 'scripts/build_windows_distribution.ps1'
@@ -42,6 +50,8 @@ on:
       - 'scripts/tools/inspector-web-payload/**'
       - 'cmd/opendesk/**'
       - 'cmd/opendesk-ui-host/**'
+      - 'tests/app-lifecycle/official-shell.test.js'
+      - 'tests/app-lifecycle/examples-menu-action.test.js'
       - 'docs/architecture/app-mode-desktop-launch.md'
   workflow_dispatch:
 
@@ -65,6 +75,7 @@ jobs:
         run: >-
           node --test
           tests/app-lifecycle/official-shell.test.js
+          tests/app-lifecycle/examples-menu-action.test.js
           tests/custom-ui/product-script-runner.test.js
       - name: Test Recorder JavaScript contracts
         run: >-
@@ -92,7 +103,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          payload="dist/OpenDesk.app/Contents/Resources/AppMode"
+          distribution="dist/OpenDesk.app"
+          payload="$distribution/Contents/Resources/AppMode"
           policy="apps/opendesk/.release/app-mode-runtime-files.txt"
           evidence=".runtime/tests/app-mode-payload/macos"
           mkdir -p "$evidence"
@@ -106,8 +118,12 @@ jobs:
           test -z "$leaked_source" || { echo "build-time source leaked into macOS App Mode payload: $leaked_source" >&2; exit 1; }
           leaked_link="$(find "$payload" -type l -print -quit)"
           test -z "$leaked_link" || { echo "symlink leaked into macOS App Mode payload: $leaked_link" >&2; exit 1; }
+          for forbidden_dir in examples tests docs workflows research; do
+            leaked_dir="$(find "$distribution" -type d -name "$forbidden_dir" -print -quit)"
+            test -z "$leaked_dir" || { echo "repository-only directory leaked into macOS distribution: $leaked_dir" >&2; exit 1; }
+          done
           for relative in index.html assets/app.css assets/app.js assets/model.js; do
-            test -f "dist/OpenDesk.app/Contents/Resources/inspector_web/$relative" || { echo "macOS Inspector frontend asset is missing: $relative" >&2; exit 1; }
+            test -f "$distribution/Contents/Resources/inspector_web/$relative" || { echo "macOS Inspector frontend asset is missing: $relative" >&2; exit 1; }
           done
       - uses: actions/upload-artifact@v4
         if: always()
@@ -162,6 +178,12 @@ jobs:
           $leakedLink = @(Get-ChildItem -LiteralPath $appMode -Recurse -Force | Where-Object { $_.Attributes -band [IO.FileAttributes]::ReparsePoint })
           if ($leakedLink.Count -ne 0) {
             throw "Reparse point/symlink leaked into Windows App Mode payload: $($leakedLink[0].FullName)"
+          }
+          foreach ($forbiddenDir in @('examples', 'tests', 'docs', 'workflows', 'research')) {
+            $leakedDir = @(Get-ChildItem -LiteralPath $distribution -Directory -Recurse -Force | Where-Object { $_.Name -eq $forbiddenDir } | Select-Object -First 1)
+            if ($leakedDir.Count -ne 0) {
+              throw "Repository-only directory leaked into Windows distribution: $($leakedDir[0].FullName)"
+            }
           }
           $provenance = Get-Content -LiteralPath (Join-Path $distribution "distribution-provenance.json") -Raw | ConvertFrom-Json
           if ($provenance.layout.appModePackage -ne "app-mode/") {

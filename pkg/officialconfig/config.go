@@ -32,11 +32,13 @@ const (
 var httpsURLPattern = regexp.MustCompile(`^https://[^\s/?#\\]+(?:[/?#][^\s]*)?$`)
 
 var requiredActions = []string{"home", "help", "customize", "marketplace", "upgrade"}
+var optionalActions = []string{"examples"}
 
 var coreActions = map[string]bool{
 	"home":      true,
 	"help":      true,
 	"customize": true,
+	"examples":  true,
 }
 
 type Action struct {
@@ -81,8 +83,13 @@ func Validate(config Config) error {
 		return fmt.Errorf("official config actions are required")
 	}
 
-	allowed := make(map[string]bool, len(requiredActions))
+	allowed := make(map[string]bool, len(requiredActions)+len(optionalActions))
+	required := make(map[string]bool, len(requiredActions))
 	for _, name := range requiredActions {
+		allowed[name] = true
+		required[name] = true
+	}
+	for _, name := range optionalActions {
 		allowed[name] = true
 	}
 	for name := range config.Actions {
@@ -90,10 +97,13 @@ func Validate(config Config) error {
 			return fmt.Errorf("official config contains unknown action %q", name)
 		}
 	}
-	for _, name := range requiredActions {
+	for _, name := range allActionNames() {
 		action, ok := config.Actions[name]
 		if !ok {
-			return fmt.Errorf("official config is missing action %q", name)
+			if required[name] {
+				return fmt.Errorf("official config is missing action %q", name)
+			}
+			continue
 		}
 		url := strings.TrimSpace(action.URL)
 		if url != "" && !httpsURLPattern.MatchString(url) {
@@ -287,8 +297,11 @@ func VerifyFiles(inputPath, outputPath string) (Config, error) {
 
 func normalize(config Config) Config {
 	actions := make(map[string]Action, len(config.Actions))
-	for _, name := range requiredActions {
-		action := config.Actions[name]
+	for _, name := range allActionNames() {
+		action, ok := config.Actions[name]
+		if !ok {
+			continue
+		}
 		action.URL = strings.TrimSpace(action.URL)
 		actions[name] = action
 	}
@@ -303,10 +316,17 @@ func checksum16(payload []byte) uint16 {
 	return sum
 }
 
+func allActionNames() []string {
+	names := make([]string, 0, len(requiredActions)+len(optionalActions))
+	names = append(names, requiredActions...)
+	names = append(names, optionalActions...)
+	return names
+}
+
 // ActionNames returns the stable source schema action set for diagnostics and
 // tests without exposing mutable package state.
 func ActionNames() []string {
-	names := append([]string(nil), requiredActions...)
+	names := allActionNames()
 	sort.Strings(names)
 	return names
 }
