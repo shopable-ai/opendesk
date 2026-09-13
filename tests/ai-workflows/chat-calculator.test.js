@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
+import {readFileSync} from 'node:fs';
 import test from 'node:test';
 
 import {
@@ -7,9 +9,15 @@ import {
   freezeTaskEnvelope,
   validateTaskEnvelope,
 } from '../../examples/ai-workflows/chat-calculator/task-contract.js';
-import {planTask} from '../../examples/ai-workflows/chat-calculator/planner.js';
+import {buildPlannerPrompt, planTask} from '../../examples/ai-workflows/chat-calculator/planner.js';
 import {createCalculatorAutomation} from '../../examples/ai-workflows/chat-calculator/calculator.js';
 import {createTaskSession} from '../../examples/ai-workflows/chat-calculator/task-session.js';
+
+const EXAMPLE_ROOT = new URL('../../examples/ai-workflows/chat-calculator/', import.meta.url);
+
+function sha256File(name) {
+  return createHash('sha256').update(readFileSync(new URL(name, EXAMPLE_ROOT))).digest('hex');
+}
 
 function validSingle(overrides = {}) {
   return {
@@ -118,6 +126,24 @@ function calculatorMock(options = {}) {
   };
 }
 
+test('public index.js is a classic bundle pinned to the reviewed module graph', () => {
+  const entry = readFileSync(new URL('index.js', EXAMPLE_ROOT), 'utf8');
+  const sources = {
+    'calculator.js': 'a71c341f9639fa720c04b2da8478ef05a20219854bec0b0d178c07b36d72bd9c',
+    'planner.js': 'ac6f1ab4e7d90c993ef716d4c5690268567c7f1ce87e7d542dc65197955f8041',
+    'task-contract.js': '36c50ff1afde00ae11185d31f37500567dd15c02cc394704de46eb0f53ae7509',
+    'task-session.js': '1e78299d56f7db303b33b556f14f23e962617e15cdebe16cdc0bbc6f6676427d',
+    'index.source.js': '9e0e756ca3d1649d4fb16f8fcf33f46a4fb0ed268092a77922d81fb900d8c263',
+  };
+  for (const [name, expected] of Object.entries(sources)) {
+    assert.equal(sha256File(name), expected, `${name} changed without regenerating the public bundle`);
+    assert.ok(entry.includes(`Source SHA-256: ${name}=${expected}`), `${name} hash is missing from the public bundle`);
+  }
+  assert.doesNotMatch(entry, /^\s*(?:import|export)\s/m);
+  assert.match(entry, /\/\/ examples\/ai-workflows\/chat-calculator\/index\.source\.js/);
+  assert.match(entry, /await main\(\);\s*$/);
+});
+
 test('task contract accepts both supported tasks and builds host-owned preview', () => {
   assert.equal(validateTaskEnvelope(validSingle()).task, TASK_IDS.PRESS_AND_READ);
   assert.equal(validateTaskEnvelope(validTwo()).task, TASK_IDS.TWO_STAGE);
@@ -146,6 +172,10 @@ test('task contract rejects malformed expressions before desktop side effects', 
 });
 
 test('planner uses fixed Codex analysis profile and host revalidates result.data', async () => {
+  const chainedPrompt = buildPlannerPrompt('先计算 25 乘以 4 加 10，再把结果乘以 6');
+  assert.match(chainedPrompt, /可以包含一个或多个二元运算符/);
+  assert.match(chainedPrompt, /25 × 4 \+ 10 =/);
+
   let captured = null;
   const agent = {
     getCapabilities(options) {
