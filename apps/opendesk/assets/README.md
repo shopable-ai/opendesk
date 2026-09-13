@@ -21,22 +21,22 @@ apps/opendesk/assets/            -> file-backed product identity/package resourc
 
 新增普通 UI 图标前必须先查中央 catalog；catalog 已存在同义图标时，禁止新增私有 PNG/SVG 副本。
 
-## Official actions config
+## Product config
 
-`official-actions.odcfg` 是 **generated release resource**，不要手工编辑。
+`product.odcfg` 是 **generated release resource**，不要手工编辑。
 
 维护源：
 
 ```text
-configs/official-actions.json
+configs/product.json
 ```
 
 生成：
 
 ```bash
-./dist/opendesk config compile --input configs/official-actions.json --output apps/opendesk/assets/official-actions.odcfg
-./dist/opendesk config inspect --input apps/opendesk/assets/official-actions.odcfg
-./dist/opendesk config verify --input configs/official-actions.json --output apps/opendesk/assets/official-actions.odcfg
+./dist/opendesk config compile --input configs/product.json --output apps/opendesk/assets/product.odcfg
+./dist/opendesk config inspect --input apps/opendesk/assets/product.odcfg
+./dist/opendesk config verify --input configs/product.json --output apps/opendesk/assets/product.odcfg
 ```
 
 这些路径是官方发行调用方显式选择的，不是编译器默认值。`compile` 只做单个 JSON input 到单个 `.odcfg` output 的编译；省略其 `--output` 时，只会在 input 同目录生成同 basename 的 `.odcfg`。`inspect` 解码并校验生成物；`verify` 进一步确认明文 input 与保护 output 精确一致。三个命令都输出结构化 JSON，实际配置位于 `result.config`。`make build`、App Mode staging、`.app` 与 Windows distribution 构建是独立步骤。
@@ -44,23 +44,27 @@ configs/official-actions.json
 官方发行链路：
 
 ```text
-configs/official-actions.json
+configs/product.json
     -> pkg/officialconfig
     -> internal/configcli
-    -> apps/opendesk/assets/official-actions.odcfg
+    -> apps/opendesk/assets/product.odcfg
 ```
 
-官网与其他官方 action URL 都在这个文件中。Runtime 为兼容产品身份 API，从同一份生成资源派生：
+`product.json` 是 OpenDesk **语言无关的产品级静态配置源**。当前 schema v1 主要保存官网与其他官方 action URL、可见性等产品变量；后续可在保持清晰 namespace 的前提下增加其他产品级静态配置。
+
+Runtime 为兼容产品身份 API，从同一份生成资源派生：
 
 ```js
 System.product.website
 ```
 
-`home`、Help、Customize、Marketplace、Upgrade 都属于 `official-actions.json` / `.odcfg`；其中 `home` 必须可见且使用非空 HTTPS URL。`System.product.website` 不是第二个维护源。`official-shell.js` 是 Runtime 组件名，不再与配置 basename 混用。
+`home`、Help、Customize、Marketplace、Upgrade 当前都属于 `product.json` / `product.odcfg` 的 `actions` namespace；其中 `home` 必须可见且使用非空 HTTPS URL。`System.product.website` 不是第二个维护源。`official-shell.js` 是 Runtime 组件名，不再与配置 basename 混用。
 
-不使用 `app-config`，因为它会与 `opendesk.app.json` 混淆；不使用 `app-info`，因为本文件不是静态 metadata。`official-actions` 精确对应 `opendesk.*` action 的可见性与 HTTPS URL policy。
+`product.json` **不保存可翻译 UI 文案**（例如窗口 title、按钮 label、提示语），也不保存用户设置、运行时状态、权限状态、动态 capability、token、密码、License key、私钥或其他 secret。未来多语言文案应由 locale/i18n 层按语义 key 提供，产品配置只保存语言无关的数据或必要的语义 key。
 
-ODCFG1 当前只是可逆混淆 + checksum，不是 secret store、签名配置或 DRM。禁止保存 token、密码、License key、私钥或其他 secret。
+不使用 `app.json`，因为它会与 `apps/opendesk/opendesk.app.json` 这个 App Package manifest 混淆；`product.json` 明确表示产品级静态配置，而不是 App Mode manifest 或用户配置。
+
+ODCFG1 当前只是可逆混淆 + checksum，不是 secret store、签名配置或 DRM。
 
 完整维护流程与防遗漏检查见：
 
