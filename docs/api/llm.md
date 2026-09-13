@@ -2,6 +2,7 @@
 title: LLM API
 description: 在普通 OpenDesk JavaScript 中通过 execution-owned HTTP 调用模型并取得严格验证的业务结果。
 order: 392
+docType: reference
 ---
 
 # LLM
@@ -10,67 +11,21 @@ order: 392
 
 `LLM` 是普通 JavaScript 的模型生成入口。它只调用 HTTP 模型 API，不拥有 Agent 工具、Command 或文件操作权限。当前真实适配器为 `openai-responses` 与 `openai-chat-completions`。
 
+正常业务代码直接使用 `LLM.generate()`；`LLM.getCapabilities()` 是可选的无副作用诊断/环境适配接口，不是每次模型调用前必须执行的握手。共享的 `enabled / supported / configured / available / checked / authenticated` 字段语义见 [Capability 状态模型](capabilities.md)。
+
+最小业务调用：
+
+```js
+const result = await LLM.generate({ prompt: '只返回 OK' });
+console.log(result.data);
+```
+
 ## API 一览
 
 | 方法 | 用途 |
 | --- | --- |
-| `LLM.getCapabilities(options?)` | 无副作用查询 Profile 与 HTTP 协议配置状态。 |
 | `LLM.generate(options)` | 通过选定 HTTP 协议生成文本或严格结构化的 `result.data`。 |
-
-## LLM.getCapabilities()
-
-**用途**
-
-只读解析目标 Profile 和协议能力，用于区分适配器支持、配置完整性与尚未验证的真实可用性。该方法不发起网络请求、不测试密钥、不登录，也不修改配置。
-
-**签名**
-
-```ts
-LLM.getCapabilities(options?: {profile?: string}): OpenDeskLLMCapabilities
-```
-
-**参数**
-
-| 参数 | 类型 | 必需 | 默认值 | 说明 |
-| --- | --- | --- | --- | --- |
-| `options` | `object` | 否 | `{}` | capability 查询条件。 |
-| `options.profile` | `string` | 否 | 配置选择规则 | 查询命名 LLM Profile；不会调用模型。 |
-
-**返回值**
-
-```ts
-interface OpenDeskLLMCapabilities {
-  schemaVersion: 1;
-  kind: 'llm';
-  enabled: boolean;
-  executionScoped: true;
-  supported: boolean;
-  configured: boolean;
-  executableFound: null;
-  checked: false;
-  authenticated: false | 'unknown';
-  available: null;
-  profile: string | null;
-  protocol: string;
-  supportedProtocols: ('openai-responses' | 'openai-chat-completions')[];
-  reservedProtocols: string[];
-  structuredOutput: {native: boolean; local: true};
-  selectionError: {code: string; message: string; protocol?: string | null; profile?: string | null} | null;
-}
-```
-
-`configured` 仅表示本次选择能解析到 base URL、model 和凭据环境值。`authenticated: 'unknown'` 表示没有进行网络鉴权检查；`available` 因而保持 `null`。`configured` 不等于真实调用可用。
-
-**行为与错误**
-
-未知参数以 `INVALID_ARGUMENT` 失败。Profile 缺失、配置文件无效、协议未知或保留但未实施时，方法返回 `configured: false` 和脱敏的 `selectionError`，不会产生模型请求。
-
-**示例**
-
-```js
-const capabilities = LLM.getCapabilities({profile: 'default'});
-console.log(JSON.stringify(capabilities));
-```
+| `LLM.getCapabilities(options?)` | 可选诊断：无副作用查询 Profile 与 HTTP 协议配置状态。 |
 
 ## LLM.generate()
 
@@ -168,3 +123,58 @@ console.log(result.data.value);
 ```
 
 该 fixture 不使用真实模型凭据，不能作为真实 OpenAI 调用证据。
+
+## LLM.getCapabilities()
+
+**用途**
+
+只读解析目标 Profile 和协议能力，用于诊断或多环境分支，区分适配器支持、配置完整性与尚未验证的真实可用性。该方法不发起网络请求、不测试密钥、不登录，也不修改配置。正常业务代码不需要先调用它才能执行 `LLM.generate()`。
+
+**签名**
+
+```ts
+LLM.getCapabilities(options?: {profile?: string}): OpenDeskLLMCapabilities
+```
+
+**参数**
+
+| 参数 | 类型 | 必需 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `options` | `object` | 否 | `{}` | capability 查询条件。 |
+| `options.profile` | `string` | 否 | 配置选择规则 | 查询命名 LLM Profile；不会调用模型。 |
+
+**返回值**
+
+```ts
+interface OpenDeskLLMCapabilities {
+  schemaVersion: 1;
+  kind: 'llm';
+  enabled: boolean;
+  executionScoped: true;
+  supported: boolean;
+  configured: boolean;
+  executableFound: null;
+  checked: false;
+  authenticated: false | 'unknown';
+  available: null;
+  profile: string | null;
+  protocol: string;
+  supportedProtocols: ('openai-responses' | 'openai-chat-completions')[];
+  reservedProtocols: string[];
+  structuredOutput: {native: boolean; local: true};
+  selectionError: {code: string; message: string; protocol?: string | null; profile?: string | null} | null;
+}
+```
+
+`configured` 仅表示本次选择能解析到 base URL、model 和凭据环境值。`authenticated: 'unknown'` 表示没有进行网络鉴权检查；`available` 因而保持 `null`。`configured` 不等于真实调用可用；尤其 `available: null` 表示没有进行 live availability probe，不表示 unavailable。
+
+**行为与错误**
+
+未知参数以 `INVALID_ARGUMENT` 失败。Profile 缺失、配置文件无效、协议未知或保留但未实施时，方法返回 `configured: false` 和脱敏的 `selectionError`，不会产生模型请求。
+
+**示例**
+
+```js
+const capabilities = LLM.getCapabilities({profile: 'default'});
+console.log(JSON.stringify(capabilities));
+```
