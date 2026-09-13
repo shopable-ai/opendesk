@@ -90,7 +90,7 @@
 ## 文件生命周期与工程产物
 
 - 可维护的源码、正式文档和稳定测试资产才进入版本控制。
-- 执行日志、截图、临时配置、探测结果、脚本快照、探测结果和 smoke 输出统一写入 `.runtime/`；不要新建或继续使用根目录 `temp/`。
+- 执行日志、截图、临时配置、探测结果、脚本快照和 smoke 输出统一写入 `.runtime/`；不要新建或继续使用根目录 `temp/`。
 - `.runtime/` 是本地可清理目录，禁止把其中的运行产物当作源码提交。
 - 项目统一使用顶层 `tests/` 组织跨包测试，禁止重新创建并行的根级 `test/`。可复用 fixture 放入所属测试域；一次性运行结果写入 `.runtime/tests/<domain>/`，正式质量报告放入 `docs/quality/`，外部参考 manifest 放入 `docs/research/external/`。
 - 纯 Go/native 白盒测试使用同包 `_test.go` 文件；可由 JavaScript 观察的 Runtime 公共契约使用
