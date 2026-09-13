@@ -86,6 +86,24 @@ interface OpenDeskWindowInfo {
 
 `WindowTarget` 是查询条件，`WindowInfo` 是一次观察快照。快照不是永久句柄，也不代表后续输入目标仍然有效。旧动作接口保持原来的标题/PID 参数，本轮 target 对象不能直接传给 `focus/maximize/restore` 等方法。
 
+### 单目标执行边界
+
+`OpenDeskWindowTarget` 只描述**当前这次 Execution / Recipe 要解析的一个实际目标**，不是跨平台配置表、目标集合或 Runtime dispatcher。平台差异应在部署/Recipe 配置边界选择完成，再把一个普通 `WindowTarget` 交给 `window.get()` / `window.wait()`。
+
+Runtime 不提供 `byPlatform`、`PlatformWindowTarget`、`window.forPlatform()`、`window.resolvePlatformTarget()` 或其他平台路由 API。业务脚本也不应为了目标解析维护 `darwin/windows/linux` 三套分支；同一 Recipe 部署到另一系统时，只替换部署侧的单一目标配置。
+
+推荐链路保持唯一：
+
+```text
+Recipe / 部署参数
+→ 一个 OpenDeskWindowTarget
+→ window.get() / window.wait()
+→ 一个 OpenDeskWindowInfo
+→ UI.tapText() / UI.tapTexts({ within: win })
+```
+
+`UI.tapText()` / `UI.tapTexts()` 消费已经解析的 `within: OpenDeskWindowInfo`。它们不重复承担窗口身份解析，因此不增加 `appName`、`windowName`、`platform`、`bundleId`、`exeName` 等窗口选择参数。
+
 ### 标题消歧与 stale target
 
 兼容 mutation API 以标题作为 target。多个匹配窗口抛 `AMBIGUOUS_TARGET`；不存在抛 `NOT_FOUND`；解析后窗口关闭、重建或改名导致 identity 失效时抛 `STALE_TARGET`。不会默认选择第一个同名窗口。
