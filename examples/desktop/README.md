@@ -50,39 +50,19 @@ OPENDESK_EXAMPLE_WINDOW_TITLE='OpenDesk window test' OPENDESK_EXAMPLE_WINDOW_PID
 
 运行前让一个可丢弃测试窗口包含两行：`OpenDesk 测试行 A    编辑` 与 `OpenDesk 测试行 B    编辑`。示例使用 `UI.tapText()` + `relativeTo` 精确选择第一行右侧的“编辑”，并执行一次真实点击，因此在 Catalog 中保持 `manual`。不要用于聊天、订单、支付等真实业务窗口。
 
-## 跨平台窗口范围与 `UI.tapTexts()`
+## 指定目标窗口与 `UI.tapTexts()`
 
-`UI.tapTexts(texts, { within: win })` 是推荐边界：先由 `window` 把平台相关查询解析成唯一 `WindowInfo`，再把这个已解析窗口交给 `UI`。不要把窗口标题字符串当作跨平台应用 identity；标题查询 API 可以跨平台使用，但标题值可能随操作系统、语言、应用版本和窗口状态变化。
+`WindowTarget` 只描述**本次执行的一个目标窗口**。它不是平台路由表，也不需要在一个 Recipe 中同时维护 macOS / Windows / Linux 三套应用名称。
 
-`examples/desktop/support/platform-window-target.js` 提供 example-local 的严格平台选择器。它不会猜测其他平台的应用名，也不会在缺少当前平台目标时退回活动窗口。下面的 Calculator 结构可以在不同系统复用；macOS 使用稳定 bundle ID，Windows/Linux 应填写该机器上已经验证的 `exeName`，只有无法取得更稳定 identity 时才通过环境变量显式提供精确标题：
+推荐把目标作为一处部署参数或脚本顶部常量；迁移到另一台机器或另一个操作系统时，只替换这一处目标，后面的业务逻辑保持不变：
 
 ```js
-const createPlatformWindowTarget = (0, eval)(File.read(
-  File.join(File.cwd(), 'examples/desktop/support/platform-window-target.js'),
-));
-const platformWindow = createPlatformWindowTarget();
-const platform = platformWindow.currentPlatform();
-
-const calculatorTargets = {
-  darwin: { app: { bundleId: 'com.apple.calculator' } },
+const TARGET_WINDOW = {
+  app: { bundleId: 'com.apple.calculator' },
 };
 
-if (platform !== 'darwin') {
-  const exeName = Execution.env.OPENDESK_CALCULATOR_EXE_NAME;
-  const title = Execution.env.OPENDESK_CALCULATOR_WINDOW_TITLE;
-  if (typeof exeName === 'string' && exeName.trim()) {
-    calculatorTargets[platform] = { exeName: exeName.trim() };
-  } else if (typeof title === 'string' && title.trim()) {
-    calculatorTargets[platform] = { title: title.trim() };
-  } else {
-    throw new Error(
-      'Set OPENDESK_CALCULATOR_EXE_NAME or OPENDESK_CALCULATOR_WINDOW_TITLE ' +
-      'to a verified exact target for platform: ' + platform,
-    );
-  }
-}
+const win = await window.wait(TARGET_WINDOW, { timeout: 10000 });
 
-const win = await platformWindow.wait(calculatorTargets, { timeout: 10000 });
 await UI.tapTexts(['2', '5', '×', '4', '='], {
   within: win,
   match: 'exact',
@@ -91,7 +71,19 @@ await UI.tapTexts(['2', '5', '×', '4', '='], {
 });
 ```
 
-这个例子故意把“平台目标解析”和“UI 文本点击”分开：`WindowTarget` 可以按平台配置，`UI.tapTexts()` 不新增 `appName` / `windowName` 等重复解析参数。若 Recipe 已知更稳定的应用 identity，应优先使用 identity；精确标题是配置型 fallback，不是跨平台默认值。
+上例是 macOS Calculator 的一个稳定目标配置。在 Windows 部署同一业务脚本时，只需要把 `TARGET_WINDOW` 替换成该机器已经验证的单一 `WindowTarget`，例如稳定的 `exeName`、`pid` 或必要时的精确 `title`；不要在业务脚本里增加平台判断，也不要为了跨平台而给 `UI.tapTexts()` 增加 `appName` / `windowName` 等重复参数。
+
+推荐边界保持简单：
+
+```text
+部署 / Recipe 参数
+→ 一个 WindowTarget
+→ window.get() / window.wait()
+→ 一个 WindowInfo
+→ UI.tapText() / UI.tapTexts({ within: win })
+```
+
+如果目标应用身份在不同平台不同，差异属于部署配置，不属于 `WindowTarget` API 本身。标题查询可以跨平台使用，但标题值可能随语言、应用版本和窗口状态变化；存在更稳定 identity 时应优先使用 identity。
 
 ## Mouse 与 Page 固定坐标
 
