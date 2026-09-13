@@ -9,42 +9,18 @@ docType: reference
 
 `Notifications` 是全局 [`notify()`](notify.md) 的受限 inbound companion。它不创建第二套发送 API，也不把 Notification Center UI、OCR 结果或任意应用通知包装成稳定通知模型。
 
-当前仅在 macOS 提供 **Experimental、own-app** 子集：
+当前仅在 macOS 提供 **Experimental、own-app** 子集。正常业务入口优先使用 `list()`、`waitFor()` 和 `dismiss()`；`getCapabilities()` 只用于诊断、平台适配和可选分支，不是每次调用前的强制握手：
 
 ```js
-Notifications.getCapabilities();
-await Notifications.list();
-await Notifications.waitFor({ title: 'OpenDesk', timeout: 10000 });
+const notifications = await Notifications.list();
+const notification = await Notifications.waitFor({ title: 'OpenDesk', timeout: 10000 });
 await Notifications.dismiss(notification.id);
-```
 
-发送系统通知仍使用全局 `notify()`；execution-owned 瞬时反馈使用 [`ui.toast()`](ui.md#uitoastmessageoroptions)。
-
-## Notifications.getCapabilities()
-
-读取当前平台和 backend 的静态能力状态，不发送通知，也不请求系统权限。
-
-```js
+// 仅在确实需要平台/能力分支时读取：
 const capabilities = Notifications.getCapabilities();
 ```
 
-当前 macOS 形状：
-
-```json
-{
-  "schemaVersion": 1,
-  "platform": "darwin",
-  "backend": "macos-usernotifications",
-  "scope": "own-app",
-  "list": { "supported": true, "verified": false },
-  "waitFor": { "supported": true, "verified": false },
-  "dismiss": { "supported": true, "verified": false },
-  "activate": { "supported": false, "verified": false },
-  "events": { "supported": false, "verified": false }
-}
-```
-
-`verified` 不会因为仓库保存过一次 smoke 就变成当前主机证明；真实运行仍要保存本次 Evidence。
+发送系统通知仍使用全局 `notify()`；execution-owned 瞬时反馈使用 [`ui.toast()`](ui.md#uitoastmessageoroptions)。
 
 ## Notifications.list(options?)
 
@@ -93,6 +69,32 @@ Notifications.dismiss({id: string}): Promise<{id: string, dismissed: true}>;
 ```
 
 只移除 OpenDesk 自身已投递通知，并在返回前 readback 确认该 identifier 已不存在。目标已经消失时拒绝并给出 `NOT_FOUND`，不会把幂等 no-op 写成一次成功交互。
+
+## Notifications.getCapabilities()
+
+读取当前平台和 backend 的静态能力状态，不发送通知，也不请求系统权限。它是诊断/适配接口，不是 `list()`、`waitFor()` 或 `dismiss()` 的必需前置步骤。
+
+```js
+const capabilities = Notifications.getCapabilities();
+```
+
+当前 macOS 形状：
+
+```json
+{
+  "schemaVersion": 1,
+  "platform": "darwin",
+  "backend": "macos-usernotifications",
+  "scope": "own-app",
+  "list": { "supported": true, "verified": false },
+  "waitFor": { "supported": true, "verified": false },
+  "dismiss": { "supported": true, "verified": false },
+  "activate": { "supported": false, "verified": false },
+  "events": { "supported": false, "verified": false }
+}
+```
+
+`verified` 不会因为仓库保存过一次 smoke 就变成当前主机证明；真实运行仍要保存本次 Evidence。
 
 ## 可复制示例
 

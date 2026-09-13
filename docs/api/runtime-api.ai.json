@@ -129,7 +129,7 @@
     {"name": "globalShortcut", "source": "native", "status": "stable", "platforms": ["darwin", "windows"], "doc": "global-shortcut.md", "keyMethods": ["register", "unregister", "isRegistered", "unregisterAll"]},
     {
       "name": "Recorder", "source": "native execution owner + static libuiohook adapter + JavaScript facade", "status": "experimental-local", "platforms": ["darwin", "windows", "linux-x11"], "doc": "recorder-runtime.md", "types": "types/recorder.d.ts",
-      "keyMethods": ["getCapabilities", "start", "buildActions", "generateScript"],
+      "keyMethods": ["start", "buildActions", "generateScript", "getCapabilities"],
       "sessionMethods": ["status", "pause", "resume", "excludeControlClick", "stop"],
       "captureAuthorization": "Only a trusted local -script invocation with -allow-recorder-capture may start the process-wide listener. The option object and Execution.env cannot grant capture.",
       "captureScope": "within requires an exact initial foreground PID and title as provenance. The listener is desktop-global after start: application/window switches are retained as action-level contexts rather than filtered, and pause/resume does not rebind or enforce the initial window. This is not an OS-level hook filter.",
@@ -361,7 +361,7 @@
     "systemData": ["system.md", "execution.md", "command.md", "llm.md", "agent.md", "file.md", "sqlite.md", "storage.md", "clipboard.md"],
     "network": ["http.md", "http-server.md"],
     "delivery": ["script-app-packaging.md", "app-package-cli.md", "protected-packages.md"],
-    "runtime": ["capabilities.md", "environment.md", "execution.md", "runtime.md", "command.md", "llm.md", "agent.md", "notify.md", "audio.md", "sound.md", "ui.md", "native-extension.md", "global-apis.md", "libs.md"],
+    "runtime": ["capabilities.md", "environment.md", "execution.md", "runtime.md", "command.md", "llm.md", "agent.md", "notify.md", "notifications.md", "audio.md", "sound.md", "ui.md", "native-extension.md", "global-apis.md", "libs.md"],
     "examples": "cookbook.md"
   }
 }
