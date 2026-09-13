@@ -179,7 +179,7 @@ The homepage target and every other official action URL come from the single
 maintained source `configs/official-actions.json`, compiled into this package's
 `assets/official-actions.odcfg`. Runtime `System.product.website` is derived
 from the embedded generated asset and is not a second editable source. Help and Customize URLs can remain empty
-placeholders. In that state the product uses `ui.notify()` rather than creating
+placeholders. In that state the product uses `ui.toast()` rather than creating
 another window just to display a message.
 
 The sole plaintext maintenance source is `configs/official-actions.json`.
@@ -237,7 +237,7 @@ Ownership is intentionally split:
 
 Scheduler Center creation supports both a `.js` path under the displayed
 recipe root and inline JavaScript text. The file and inline example buttons
-fill a ready-to-create `notify-and-log.js` plan or an explicit `ui.notify()` +
+fill a ready-to-create `notify-and-log.js` plan or an explicit `ui.toast()` +
 `console.log()` smoke template. Product-created jobs run with
 execution-owned Custom UI enabled through the App Mode shared UI driver, while
 their working directory remains the writable recipe root; generic HTTP
