@@ -96,7 +96,7 @@ jobs:
         run: |
           $distribution = ".\dist\windows\win-x64"
           $required = @(
-            "OpenDesk.exe",
+            "opendesk-desktop.exe",
             "opendesk.exe",
             "app-mode\opendesk.app.json",
             "app-mode\main.js",
