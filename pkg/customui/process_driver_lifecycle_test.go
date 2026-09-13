@@ -89,6 +89,7 @@ func TestProcessDriverCrashAfterHelloHelper(t *testing.T) {
 	encoder := json.NewEncoder(os.Stdout)
 	_ = encoder.Encode(protocolFrame{Version: ProtocolVersion, Kind: protocolKindHello})
 	scanner := bufio.NewScanner(os.Stdin)
+
 	if !scanner.Scan() {
 		os.Exit(20)
 	}
@@ -99,8 +100,25 @@ func TestProcessDriverCrashAfterHelloHelper(t *testing.T) {
 	state := WindowState{ID: create.WindowID, SessionID: create.SessionID, Status: StatusHidden, HostPID: os.Getpid(), NativeWindowID: 77, Revision: 1}
 	result, _ := json.Marshal(state)
 	_ = encoder.Encode(protocolFrame{Version: ProtocolVersion, Kind: protocolKindResponse, RequestID: create.RequestID, OK: true, Result: result})
+
+	// Session.Create() verifies the newly created native window by issuing an
+	// immediate getState call. Complete that handshake before simulating the
+	// unexpected host crash so this test exercises the next caller request.
 	if !scanner.Scan() {
 		os.Exit(22)
+	}
+	var getState protocolFrame
+	if err := json.Unmarshal(scanner.Bytes(), &getState); err != nil || getState.Operation != "getState" {
+		os.Exit(24)
+	}
+	_ = encoder.Encode(protocolFrame{Version: ProtocolVersion, Kind: protocolKindResponse, RequestID: getState.RequestID, OK: true, Result: result})
+
+	if !scanner.Scan() {
+		os.Exit(25)
+	}
+	var show protocolFrame
+	if err := json.Unmarshal(scanner.Bytes(), &show); err != nil || show.Operation != "show" {
+		os.Exit(26)
 	}
 	os.Exit(23)
 }
