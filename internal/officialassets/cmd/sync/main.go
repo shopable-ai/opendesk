@@ -9,7 +9,7 @@ import (
 	"opendesk/pkg/officialconfig"
 )
 
-const generatedFilename = "zz_generated_official_actions.go"
+const generatedFilename = "zz_generated_product_config.go"
 
 func main() {
 	sourcePath := filepath.Join("..", "..", "apps", "opendesk", "assets", officialconfig.BaseName+".odcfg")
@@ -24,13 +24,13 @@ func main() {
 
 package officialassets
 
-const generatedOfficialActions = %q
+const generatedProductConfig = %q
 `, string(payload)))
 	formatted, err := format.Source(source)
 	if err != nil {
 		fail("format generated source: %v", err)
 	}
-	temporary, err := os.CreateTemp(".", ".official-actions-*.go")
+	temporary, err := os.CreateTemp(".", ".product-config-*.go")
 	if err != nil {
 		fail("create temporary output: %v", err)
 	}
