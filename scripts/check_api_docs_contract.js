@@ -107,6 +107,9 @@ rejectText('QUICKSTART.md', '它的主要入口不是业务操作窗口', 'obsol
 // scripts, but new first-party sources must not reintroduce them.
 requireText('apps/opendesk/script-runner-simple.js', 'runtimeUI.toast(', 'canonical ui.toast() in product shell');
 rejectText('apps/opendesk/script-runner-simple.js', 'runtimeUI.notify(', 'ui.notify() compatibility alias in product shell');
+requireText('apps/opendesk/scheduler-center.js', 'INLINE_TOAST_EXAMPLE', 'canonical Scheduler Center inline template name');
+requireText('apps/opendesk/scheduler-center.js', 'await ui.toast(', 'canonical ui.toast() in Scheduler Center');
+rejectText('apps/opendesk/scheduler-center.js', 'ui.notify', 'ui.notify compatibility alias in Scheduler Center');
 requireText('apps/opendesk/README.md', 'uses `ui.toast()`', 'canonical ui.toast() in product maintainer docs');
 rejectText('apps/opendesk/README.md', 'uses `ui.notify()`', 'ui.notify() compatibility alias in product maintainer docs');
 requireText('examples/scheduler/notify-and-log.js', 'await ui.toast(', 'canonical ui.toast() in Scheduler example');
