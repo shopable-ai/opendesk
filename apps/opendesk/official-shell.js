@@ -4,8 +4,8 @@
   const CONFIG_MAGIC = 'ODCFG1';
   const CONFIG_SCHEMA_VERSION = 1;
   // This module owns Official Shell behavior; the file stem describes the
-  // narrower publisher-owned data it loads.
-  const CONFIG_BASENAME = 'official-actions';
+  // publisher-owned product configuration it loads.
+  const CONFIG_BASENAME = 'product';
   // The basename rename does not introduce a new ODCFG1 wire format.
   const OBFUSCATION_KEY = 'OpenDeskOfficialShell/v1';
   const HTTPS_URL_PATTERN = /^https:\/\/[^\s/?#\\]+(?:[/?#][^\s]*)?$/;
