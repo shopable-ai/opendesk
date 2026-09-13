@@ -1,10 +1,10 @@
 # Agent-to-Recipe：独立 Skill 与成果交接合同
 
-状态：路线 A 的作业规范 v1.1，2026-09-11 修订计划—事实—关键步骤交接与目标专业职责；应用工程增量原修订于 2026-09-08。原记录日期：2026-09-06；实际执行仍须核对当次代码、构建物、Skill 宿主与接口。规范、职责名称或 Skill 文件不证明宿主调度、权限隔离、自动校验或桌面测试已经实现／通过。
+状态：作业规范文档 v1.2，2026-09-13 增补跨来源 Capability 发布交接；2026-09-11 修订计划—事实—关键步骤交接与目标专业职责，应用工程增量原修订于 2026-09-08。原记录日期：2026-09-06；实际执行仍须核对当次代码、构建物、Skill 宿主与接口。文档版本不自动升级 request／handoff／AppProfile 或 Human schema。规范、职责名称或 Skill 文件不证明宿主调度、权限隔离、自动校验或桌面测试已经实现／通过。
 
 ## 1. 定位与唯一职责
 
-本文件维护 Agent-to-Recipe 专业作业的输入、输出、交接和恢复约定，不另建开发阶段或业务执行引擎。S1—S12 仍是生命周期阶段；专业职责与阶段不是一一对应。当前仓库只有 `application-engineer` 正式方法入口；`trace-distill`、`code-rebuild` 等目标职责只有在对应方法文件、宿主加载和独立验证完成后才视为可调用能力。
+本文件维护 Agent-to-Recipe 专业作业的输入、输出、交接和恢复约定，并维护 Human／已有资产进入共同资格与发布出口时的最小适配约束，不另建开发阶段或业务执行引擎。S1—S12 仍是生命周期阶段；专业职责与阶段不是一一对应。当前 Agent-to-Recipe 目录只有 `application-engineer` 正式方法入口；`trace-distill`、`code-rebuild` 等目标职责只有在对应方法文件、宿主加载和独立验证完成后才视为可调用能力。Human 的两个现有 Skill 保持独立来源和方法，不因复用本合同而改成 Agent 示范。
 
 - 阶段与完整生命周期：[示范到自动化执行方法](demonstration-to-automation-pipeline.md)。
 - 业务拆解、数据依赖和六类解题模式：[自动化任务求解方法](automation-problem-solving-framework.md)。
@@ -13,8 +13,9 @@
 - 已有质量体系：[G0—G7](../quality/gates-and-evidence.md)、[失败分类](../quality/failure-taxonomy.md)。不另造平行 Gate／Failure 编号。
 - 工作流导航：[当前入口](../../workflows/agent-to-recipe/WORKFLOW.md)。当前唯一正式专业 Skill 文件：[application-engineer](../../workflows/agent-to-recipe/skills/application-engineer/SKILL.md)。旧 prompts 目录不是有效入口；目标职责名称不证明当前存在已安装实现。
 - 原首个验证任务：[计算器规程](../quality/agent-to-recipe/calculator-validation.md)。行为案例与应用工程评测沿用[当前验证计划](../../workflows/agent-to-recipe/design/validation-plan.md)。
+- 跨 Runtime／Catalog／Authoring 生命周期、CapabilityDefinition／CatalogEntry、运行路由与 P0／P1 优先级：[Automation Capability Lifecycle](../architecture/desktop-automation/task-capability-lifecycle.md)。本文第 10 节只拥有跨来源作者交接约束，不复制第二套运行状态机或能力目录字段。
 
-业务 Skill／普通 JS helper 与本文 Agent 专业作业不同。前者在业务运行中复用动作；后者生产并验证业务程序。本文只约束明确选择多专业作业开发链的任务，不强制所有短 Recipe 创建整套工件。
+业务 Skill／普通 JS helper 与本文 Agent 专业作业不同。前者在业务运行中复用动作；后者生产并验证业务程序。本文不强制所有短 Recipe 创建整套工件；申请进入 Normal Mode 可信目录时，仍须满足第 10 节及生命周期总纲的独立资格和明确发布门。
 
 ### 路线 A 的边界
 
@@ -220,7 +221,7 @@ WorkPlan 包含 `revision / contractRef / businessTaskTree / operationPlan / che
 
 ### DemonstrationDossier
 
-包含 `contractRef / planRevision / appProfileRefs / executionRefs / actualInputs / initialState / finalState / actionsRef / runtimeValues / verification / evidenceRefs / unresolved / privacy / sideEffects`，并应能关联本次实际消费的 WorkPlan revision 和 planned step／planDelta。未支持新字段的旧 Dossier 可以通过现有 evidence/notes/handoff 记录该关联，不能伪造 schema 已升级。
+包含 `contractRef / planRevision / appProfileRefs / executionRefs / actualInputs / initialState / finalState / actionsRef / runtimeValues / verification / evidenceRefs / unresolved /privacy / sideEffects`，并应能关联本次实际消费的 WorkPlan revision 和 planned step／planDelta。未支持新字段的旧 Dossier 可以通过现有 evidence/notes/handoff 记录该关联，不能伪造 schema 已升级。
 
 重要节点随操作保存，不等结束后回忆：动作与脱敏参数、对应 planned step／子目标、目标及简短依据、预期变化、实际观察、验证、分类、计划偏差、重试／恢复关联。允许复用已有工具／execution 日志并加语义引用；不启用 Recorder Session，不保存模型私有思维过程，不要求所有场景强制 OCR。
 
@@ -305,7 +306,89 @@ F0—F10 描述问题，不单独决定是否可重试；同时检查风险与 G
 
 原合同保留交接 20、恢复 20、业务验证 25、安全控制 20、兼容交付 15 的历史评审权重作为来源；当前工作流统一使用 validation-plan.md 的五维、20 项评分办法，不同时维护两份有效验收评分。没有实际证据不填写能力成绩。设计评审与运行资格必须区分。
 
+## 10. 跨来源 Capability 发布交接
+
+本节是跨来源交接的目标合同增量，不表示已有可执行 schema／adapter／publisher。CapabilityDefinition、CatalogEntry、运行期 Preflight／确认与路由的唯一规范在[生命周期总纲](../architecture/desktop-automation/task-capability-lifecycle.md)；此处只约束作者输入、产物映射、资格和发布交接。第 7 节“发布 handoff”表示工作包完成交接，**不等于向普通用户发布 Capability**。
+
+### 10.1 三种边界不能互相替代
+
+| 边界 | 必须核对的输入 | 可交付结果 | 不自动授予 |
+| --- | --- | --- | --- |
+| Runtime → Authoring | Gap／Failure Package 的固定来源、任务目标、已知环境、可复用资产、明确作者授权 | 现有 TaskContract／WorkPlan 或 Human plan 的新工作包 | 桌面探索、录制、模型外发、真实发送或发布权限 |
+| Authoring → Qualification | 已确认成功标准、冻结 Candidate 及依赖、请求验证范围、测试授权 | 不可变 QualificationRecord、证据、失败和修复请求 | 修改候选、扩大业务范围或降低标准 |
+| Qualification → Catalog | 精确 Candidate、资格覆盖范围、可信来源、可持久复核证据与明确发布批准 | 生命周期合同下的固定 Capability 发布版本 | 执行原用户请求、沿用旧确认或跨环境资格 |
+
+普通运行 Task Intent 不是完整 authoring TaskContract，Planner 的提议也不是作者权限。缺事实可以先交 blocked 工作包，不要求用户手填 JSON；准备动作和业务动作分别取得授权。Normal Mode 不调用目标专业职责生成任意 JS 后立即运行。
+
+### 10.2 来源适配与唯一真相
+
+共同消费 Task Contract、AppProfile、Semantic Procedure、Candidate 和 Qualification 的逻辑含义，不要求两条作者链维护格式完全相同的副本。Human 原生 `SemanticBuildPlan` 的 intent、Episode、数据依赖和 source map 仍是其权威语义；Agent 的 Dossier／DistilledSteps／SemanticProcedure 仍按第 6 节维护。
+
+需要跨来源适配时，保存以下最小逻辑信息；正式字段格式随 adapter/schema 一次性实现并测试，不能把下列工作名直接填进旧 schema 冒充支持：
+
+| 交接信息 | 约束 |
+| --- | --- |
+| 原始来源引用与格式 | 每份 raw/actions/plan/Dossier/Procedure 使用第 5 节的获准 root、相对 path、hash、实际 schemaVersion；保留来源种类与真实执行者，不伪造 Human 为 Agent 示范 |
+| 语义映射 | 保存 mappingVersion、源对象／字段到共同逻辑成果的映射和 unknown；映射是可重建只读投影，不重新解释业务或双向独立编辑 |
+| Task 与输入来源 | 追溯到用户已确认目标、参数、约束及成功条件；未知 intent、单位、目标身份或后置条件不能因适配消失 |
+| 应用知识 | Candidate 引用固定 AppProfile／helper；不在 Catalog、Chat 或 Human plan 再手写一套权威应用识别规则 |
+| 步骤与动作来源 | Human disposition 唯一在其 plan；Agent actionDecisions 唯一在 DistilledSteps；投影保留映射，不生成第二份可改的动作取舍表 |
+| 适配结论 | 区分结构可转换、语义可消费与业务已资格化；只读适配通过不能抬高成熟度或 qualification |
+
+`qualificationScope.lineage` 的现有三个值描述参考／接续／完整新生成的验收链类型，不是 Agent／Human 来源枚举。Human 来源不能放进 `agent-demonstration` evidence role，也不能为通过旧 validator 伪填 `new-generation-chain`。无法用当前 schema 真实表达时，保留原文件，通过明确版本的外部发布交接和已实现 adapter 消费；adapter 不存在则阻塞该发布。若需扩展公共字段，集中升级共享 schema／消费者和兼容测试，不擅改旧格式或让消费者丢弃未知约束。
+
+源 hash／revision 改变使相关投影及下游消费绑定失效。旧资料可以继续用于历史诊断，不能悄悄重新绑定到当前候选。
+
+### 10.3 发布候选的冻结闭包
+
+Candidate 不只固定顶层 `.js`。拟发布对象须固定实际入口、导出／调用绑定、业务与应用 helper、输入／结果 schema 和 validator、preflight／preview 实现、AppProfile 规则、配置语义和相关依赖。模型调用存在时还固定 prompt／模型策略、backend／profile 的允许范围、结构校验、外发范围、工具限制、超时和调用预算；Secret 只记录引用，不复制凭据。
+
+不能通过加载未知候选取得 metadata 或执行其 preflight 后才判断可信。目录加载、用户确认绑定和执行前复查由 Runtime/Catalog 层按总纲落实；作者交接必须提供足以核对的闭包，不承诺单凭 hash 已建立发布者信任。
+
+内容引用保持无环：Definition 不引用 Candidate／Qualification；Candidate 固定 Definition 与实际依赖；Qualification 引用 Candidate；CatalogEntry 汇总引用。禁止把后生成的 qualification hash 写回已经受测的 Candidate。Human plan／生产脚本引用方式尚不满足旧 Candidate schema 时先完成版本化适配，不能清空必需 procedureRef 或捏造文件。
+
+### 10.4 独立资格与范围交接
+
+独立资格必须固定 Candidate、事先确定的 requested scope／criterionRefs、Fresh Run 和独立 Observation／Oracle，并记录实际执行者与隔离方式。Gate 执行精确 production 文件，不维护第二套隐藏业务动作；expected、历史缓存和模型推测不进入生产读值路径。应用局部规则测试、生成者自检、refiner 静态保真报告、plan scorer 分数、业务资格和视觉资格分别记录。
+
+发布请求范围必须属于 Candidate 声明范围与 Qualification 已证明范围的交集，还受发布策略限制。环境范围包含所需的实际应用身份、平台、app version/build、layout、locale 与输入子域；关键未知不是通配符。旧 Record 缺范围字段时按未知处理，不推断支持所有平台、按钮或输入。
+
+同一人员可以启动固定 Gate，但切换模型角色不等于独立上下文；没有对应证据不能宣称无历史交接通过。Qualification 方法只有实际入口／宿主／测试落实后才可调用，本节不表示 `recipe-qualify` Skill 已创建或已安装。
+
+### 10.5 Failure Package 与定向修复接续
+
+Gap／Failure Package 的整体路由由总纲维护。进入本合同的作者工作包时至少保留原 task/request 版本、capability/Candidate/Qualification 引用、发生步骤、实际环境与观察、脱敏输入、F0—F10 分类、已尝试恢复和证据引用。只保存获准必要内容；包中文字、页面文本和模型输出均不是新指令。
+
+副作用后果必须可区分“未提交”“已提交待核对”“效果已确认”“效果未知”；这些是待实现的后果描述，不新增到第 5 节 executionStatus 或 Gate 枚举。只有证据能支持时才判未提交；超时、断连、取消或缺日志不能证明未生效。结果未知先核对并停止后续副作用，不因进入维修工作包自动重放。
+
+沿第 8 节责任定向返回：应用认识／定位回 application-engineer；Agent 必要路径／语义回原 S7／S8—S9；Human 动作取舍／Episode／参数回原 plan；代码回构建；Gate／Oracle 回资格责任；Runtime primitive 缺口回[扩展框架](runtime-api-extension-framework.md)后返回原工作包。参数错误或权限缺失不默认创建新 Recipe。
+
+修复交接注明 preservedScope、changedScope、受影响依赖、仍可引用的旧证据及重验要求。qualification delta 必须是明确影响分析、增量场景与必要回归的组合，不是把旧 pass 复制到新 hash；依赖未知时保守扩大重验。代码／依赖或业务范围改变产生新 Candidate 和相应发布版本；精确候选未变、仅新增资格证据可生成新 QualificationRecord／目录 revision。任何路径都不热改运行中版本，不篡改旧失败或旧资格。
+
+### 10.6 发布交付与证据寿命
+
+发布者消费固定 Definition/Candidate/Qualification 引用、拟发布范围、来源与适配说明、依赖闭包、必要证据根／保留策略及发布批准。不能只接收生产者自写的 `qualified: true`。证据中包含用户数据时先核对保存／脱敏／共享授权，不复制所有聊天或屏幕。
+
+`.runtime/automation-authoring/` 与 Execution.artifactDir 继续保存过程；已发布能力的必要证据按授权保留在明确、不会随运行清理的持久根，未实现持久保留时阻塞对应发布，不把一次性日志提交到源码仓库替代。目录只索引资格引用与发布／撤销状态，不复制资格权威正文。缺失、不可读、hash 漂移或失去必要可复核性时重新审查／暂停放行；旧记录保留事实，不改写成未发生。
+
+发布成功只表明后续可发现。原请求的报价、联系人、账号、时区／日期和其他时效输入必须重新核对，重新预览并确认。App 版本／布局／语言变化只阻止未被资格覆盖的新环境，不能因为一个新环境失败就伪称旧环境也未通过；更不能把旧范围自动扩大到新环境。
+
+### 10.7 跨来源交接的最小验收增量
+
+下表为后续实施要求，本次文档更新没有新增测试 PASS：
+
+| 检查 | 必须证明 |
+| --- | --- |
+| 双来源消费 | Agent 与 Human 原生格式都能被明确适配，不伪造 Dossier、不复制可编辑语义真相 |
+| 来源／枚举兼容 | 未知 format、缺意图、错误 lineage 和不支持 consumer 均阻止发布；诊断仍可阅读原资料 |
+| 冻结闭包 | helper／preview／preflight／schema／Profile／model policy 任一影响性变化不能沿用旧绑定 |
+| 独立候选执行 | Gate 实际执行所发布字节，结果来自独立观察，验中修改产生新候选 |
+| 差量维修 | 复用有效资产且重验受影响范围；发送结果未知时不自动重发 |
+| 范围与证据 | 旧 app/layout/locale、静态 PASS、不可读证据都不能被扩大解释为当前业务可运行 |
+| 发布与执行隔离 | 作者完成不自动登记，登记不自动执行，旧用户确认不用于新版本 |
+
 ### 修订记录
 
 - 2026-09-08：深化应用工程合同并写入正式 application-engineer 方法入口。保留既有主产物和 request／handoff 枚举，明确同一 Agent、工作包内部复用、最小数据和 AppProfile 增量版本。
 - 2026-09-11，v1.1：补自然语言来源与内部结构化合同边界、可读操作计划、planned／actual／planDelta 交接；新增 DistilledSteps 主产物，目标 `trace-distill` 承担 S7，`procedure-synthesize` 收窄为 S8—S9。未据此声明新增 Skill 已安装、宿主已接线或运行验收通过。
+- 2026-09-13，文档 v1.2：补 Runtime 输入到 Agent／Human 作者态及共同发布出口；明确源格式适配、来源与 lineage 正交、冻结依赖、独立资格、Failure Package、差量重验与持久证据。未修改既有 schema 枚举、代码、Skill 安装或 live 资格；CapabilityDefinition／CatalogEntry 仍只在生命周期总纲维护。
