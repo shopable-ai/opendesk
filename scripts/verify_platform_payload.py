@@ -34,7 +34,8 @@ LAYOUT = {
     },
     "windows": {
         "files": (
-            "opendesk.exe", "ui-host/opendesk-ui-host.exe",
+            "opendesk.exe", "opendesk-desktop.exe",
+            "ui-host/opendesk-ui-host.exe",
             "resources/opendesk-notification.png",
             "sounds/public/done.mp3", "sounds/public/fail.mp3",
             "sounds/public/warn.mp3", "sounds/public/captcha.mp3",
@@ -130,6 +131,10 @@ def verify(root: Path, target: str, kind: str = "runtime",
                 if isinstance(cli, str) and isinstance(desktop, str):
                     if cli.replace("\\", "/").casefold() == desktop.replace("\\", "/").casefold():
                         errors.append("Windows CLI and GUI entry roles resolve to the same case-insensitive path")
+                    if cli.replace("\\", "/") != "opendesk.exe":
+                        errors.append("Windows provenance cliEntry must be opendesk.exe")
+                    if desktop.replace("\\", "/") != "opendesk-desktop.exe":
+                        errors.append("Windows provenance desktopEntry must be opendesk-desktop.exe")
             except (ValueError, UnicodeError, OSError) as exc:
                 errors.append(f"invalid distribution provenance: {exc}")
     required = list(layout["files"])
