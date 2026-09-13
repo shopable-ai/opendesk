@@ -40,8 +40,11 @@ The repository also keeps a deterministic regression fixture at `tests/javascrip
 Prepare the pinned npm dependencies once:
 
 ```bash
-cd examples/runtime/modules/langgraph && npm install && cd ../../../..
+cd examples/runtime/modules/langgraph && npm ci --ignore-scripts && cd ../../../..
 ```
+
+`package.json` and `package-lock.json` are source-controlled inputs. `npm` is used only to prepare the pinned
+dependency tree; OpenDesk does not start Node.js while executing the module.
 
 Then run the actual OpenDesk module entry from the repository root:
 
@@ -53,6 +56,12 @@ Expected console marker:
 
 ```text
 LANGGRAPH_DEMO_OK
+```
+
+The validated result is:
+
+```json
+{"value":20,"trace":["add","multiply"]}
 ```
 
 The LangGraph example is deliberately small. It validates the exercised `StateGraph` path; it does not claim complete Node.js or complete LangGraph/LangChain compatibility.
