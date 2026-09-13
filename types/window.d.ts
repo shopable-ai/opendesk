@@ -22,7 +22,10 @@ declare global {
     index: number;
   }
 
-  /** One identity optionally ANDed with an exact title, or an exact title alone. */
+  /**
+   * One target for the current execution: one identity optionally ANDed with an exact title,
+   * or an exact title alone. Deployment/platform routing is outside this Runtime type.
+   */
   type OpenDeskWindowTarget = { title?: string } & (
     | { id: string; pid?: never; app?: never; exePath?: never; exeName?: never }
     | { pid: number; id?: never; app?: never; exePath?: never; exeName?: never }
