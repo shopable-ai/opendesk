@@ -67,7 +67,7 @@ if ($OutputDirectory.TrimEnd('\') -eq [IO.Path]::GetFullPath($root).TrimEnd('\')
 }
 
 $runtimePath = Join-Path $OutputDirectory 'opendesk.exe'
-$desktopRuntimePath = Join-Path $OutputDirectory 'OpenDesk.exe'
+$desktopRuntimePath = Join-Path $OutputDirectory 'opendesk-desktop.exe'
 $uiOutputDirectory = Join-Path $OutputDirectory 'ui-host'
 New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
 
@@ -97,7 +97,7 @@ try {
     $cliSubsystem = Get-PESubsystem -Path $runtimePath
     $desktopSubsystem = Get-PESubsystem -Path $desktopRuntimePath
     if ($cliSubsystem -ne 3 -or $desktopSubsystem -ne 2) {
-        throw "Windows entry subsystem mismatch: opendesk.exe=$cliSubsystem (want 3), OpenDesk.exe=$desktopSubsystem (want 2)."
+        throw "Windows entry subsystem mismatch: opendesk.exe=$cliSubsystem (want 3), opendesk-desktop.exe=$desktopSubsystem (want 2)."
     }
 
     & ./scripts/build_windows_ui.ps1 -Runtime 'win-x64' -OutputDirectory $uiOutputDirectory
