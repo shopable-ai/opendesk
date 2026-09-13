@@ -14,9 +14,9 @@ console.log(
     + ` executionId=${Execution.executionId} firedAt=${firedAt}`,
 );
 
-// ui.notify() is retained here deliberately to exercise the compatibility API
-// requested by Scheduler users. New application code may prefer ui.toast().
-const notice = await ui.notify({
+// ui.toast() is the canonical execution-owned transient feedback API.
+// ui.notify() remains a compatibility alias for existing scripts only.
+const notice = await ui.toast({
   message: `${scheduled ? 'Scheduler 到期触发' : 'Direct payload smoke'} · ${firedAt}`,
   caption: `Execution …${executionLabel}`,
   level: 'success',
