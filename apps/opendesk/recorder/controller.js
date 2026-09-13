@@ -22,6 +22,17 @@
     'arrow.clockwise': '↻',
   });
 
+  function resolveBrandIcon(runtimeFile, runtimeExecution) {
+    if (!runtimeFile || typeof runtimeFile.join !== 'function'
+      || !runtimeExecution || !runtimeExecution.scriptDir) {
+      return null;
+    }
+    return Object.freeze({
+      path: runtimeFile.join(runtimeExecution.scriptDir, 'assets', 'opendesk-logo.png'),
+      renderingMode: 'original',
+    });
+  }
+
   const explicitRoot = typeof global.__OPENDESK_RECORDER_UI_ROOT === 'string'
     ? global.__OPENDESK_RECORDER_UI_ROOT.trim()
     : '';
@@ -155,7 +166,7 @@
     return Object.freeze(wrapper);
   }
 
-  function createToolbarAdapter(BaseFloatingWindow, managerRef) {
+  function createToolbarAdapter(BaseFloatingWindow, managerRef, brandIcon) {
     if (typeof BaseFloatingWindow !== 'function') {
       throw new Error('recording-console-simple requires FloatingWindow');
     }
@@ -182,8 +193,9 @@
       }
 
       wrapper.addButton = function addButton(id, label, icon, callback) {
-        if (id !== 'stop') return inner.addButton(id, label, icon, callback);
-        return inner.addButton(id, label, icon, event => {
+        const resolvedIcon = id === 'home' && brandIcon ? brandIcon : icon;
+        if (id !== 'stop') return inner.addButton(id, label, resolvedIcon, callback);
+        return inner.addButton(id, label, resolvedIcon, event => {
           const manager = managerRef.current;
           if (manager && manager.isRunActive()) return manager.cancelRun();
           return typeof callback === 'function' ? callback(event) : undefined;
@@ -217,18 +229,21 @@
       return coreAPI.createApp(settings);
     }
     const managerRef = {current: null};
+    const runtimeFile = settings.file || global.File;
+    const runtimeExecution = settings.execution || global.Execution;
     const BaseFloatingWindow = settings.FloatingWindow || global.FloatingWindow;
-    const HistoryAwareFloatingWindow = createToolbarAdapter(BaseFloatingWindow, managerRef);
+    const brandIcon = resolveBrandIcon(runtimeFile, runtimeExecution);
+    const HistoryAwareFloatingWindow = createToolbarAdapter(BaseFloatingWindow, managerRef, brandIcon);
     const sharedDialog = createDialogCoordinator(dialog, settings.logger || global.console);
     const coreApp = coreAPI.createApp({...settings, dialog: sharedDialog, FloatingWindow: HistoryAwareFloatingWindow});
     const historyUI = createHistoryUIAdapter(ui);
 
     const history = historyAPI.createManager({
-      file: settings.file || global.File,
+      file: runtimeFile,
       ui: historyUI,
       dialog: sharedDialog,
       command: settings.command || global.Command,
-      execution: settings.execution || global.Execution,
+      execution: runtimeExecution,
       system: settings.system || global.System,
       toolbar: coreApp.toolbar(),
       app: coreApp,
