@@ -4,6 +4,8 @@
 > 日期：2026-09-12
 > 范围：OpenDesk 官方桌面应用的启动语义、统一 Tray/Menu、主界面产品命名、运行日志、Developer surface、Console presentation 与 Windows/macOS distribution entry。
 > 依赖：`docs/architecture/app-shell-tray-menu.md` 继续作为 App Shell/framework contract；本文只定义 OpenDesk 官方产品如何组合这些能力。
+>
+> **读者边界：OpenDesk 官方源码维护者。** 普通第三方 App 开发者不需要理解 `apps/opendesk/**`、内部 Product Shell、Recorder/Scheduler 组合或 release staging；请从 [Script App Packaging](../api/script-app-packaging.md) 和 [Installed Runtime App Builder](../api/app-builder.md) 开始。
 
 ## 1. 结论
 
