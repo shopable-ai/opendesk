@@ -306,7 +306,10 @@
         timeout: options.timeout,
         match: 'exact',
       });
-      checkCanceled(options, 'action');
+      // Do not observe cancellation here: UI.tapText has already returned after
+      // submitting the real click. The outer sequence records this completion
+      // first and only then honors cancellation, preserving the side-effect
+      // prefix exactly like UI.tapTexts.
       return {
         resolver: 'ocr',
         action: 'click',
