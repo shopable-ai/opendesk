@@ -619,7 +619,7 @@ await UI.tapText('确定', { within: win, match: 'exact' });
 
 ## UI.tapTexts(texts, options?)
 
-按顺序等待目标出现、重新观察并激活多个文本目标。普通 exact 文本激活由 Runtime 自动选择安全的定位协作策略；调用者不传 `strategy`、fallback 顺序或 backend 配置。第一个参数 `texts` 是必填的主要动作序列；`options.within` 只是已解析 `OpenDeskWindowInfo` 的可选 scope，同一窗口内的一般流程可以省略整个第二个参数。第一个参数 `texts` 是必填的主要动作序列；`options.within` 只是已解析 `OpenDeskWindowInfo` 的可选 scope，同一窗口内的一般流程可以省略整个第二个参数。
+按顺序等待目标出现、重新观察并激活多个文本目标。普通 exact 文本激活由 Runtime 自动选择安全的定位协作策略；调用者不传 `strategy`、fallback 顺序或 backend 配置。第一个参数 `texts` 是必填的主要动作序列；`options.within` 只是已解析 `OpenDeskWindowInfo` 的可选 scope，同一窗口内的一般流程可以省略整个第二个参数。
 
 **签名**
 

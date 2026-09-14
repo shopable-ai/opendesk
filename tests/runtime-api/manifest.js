@@ -134,7 +134,11 @@ globalThis.RuntimeAPIObjects = {
     methodMetadata: {
       getValue: { source: 'polyfills/006-ui.js', docs: 'docs/api/desktop-ui.md', types: 'types/UI.d.ts', status: 'experimental-local', platforms: ['darwin', 'windows'] },
       setValue: { source: 'polyfills/006-ui.js', docs: 'docs/api/desktop-ui.md', types: 'types/UI.d.ts', status: 'experimental-local', platforms: ['darwin', 'windows'] },
-      tapTexts: { status: 'stable-with-experimental-sequence-wait' },
+      tapTexts: {
+        source: 'polyfills/006-ui.js + automation/accessibility.go', docs: 'docs/api/desktop-ui.md', types: 'types/UI.d.ts',
+        status: 'stable-with-experimental-sequence-wait-and-runtime-owned-native-resolution',
+        platforms: ['darwin', 'linux', 'windows'], nativeResolutionPlatforms: ['darwin', 'windows'],
+      },
       tapTargets: {
         source: 'polyfills/006-ui.js + polyfills/011-ui-targets.js', docs: 'docs/api/desktop-ui.md', types: 'types/UI.d.ts',
         status: 'experimental-semantic-with-legacy-native-compatibility', platforms: ['darwin', 'linux', 'windows'], nativeSemanticPlatforms: ['darwin', 'windows'],
