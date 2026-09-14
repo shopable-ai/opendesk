@@ -3,7 +3,10 @@
 
 package automation
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 type stubWindowManager struct{}
 
@@ -15,6 +18,14 @@ func (w *stubWindowManager) GetActiveWindow() (*WindowInfo, error) {
 
 func (w *stubWindowManager) GetWindowByTitle(title string) (*WindowInfo, error) {
 	return nil, fmt.Errorf("window automation is not implemented on this platform")
+}
+
+func (w *stubWindowManager) Current(target WindowInfo) (*WindowInfo, error) {
+	return nil, fmt.Errorf("exact window lifecycle is not implemented on this platform")
+}
+
+func (w *stubWindowManager) Activate(target WindowInfo, timeout time.Duration) (*WindowInfo, error) {
+	return nil, fmt.Errorf("exact window lifecycle is not implemented on this platform")
 }
 
 func (w *stubWindowManager) Focus(title string) error {

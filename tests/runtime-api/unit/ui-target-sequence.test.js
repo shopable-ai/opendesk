@@ -33,6 +33,7 @@
       },
       events: [],
       windows: [],
+      activations: [],
       finds: [],
       reads: [],
       performs: [],
@@ -48,12 +49,29 @@
     };
     const host = {
       window: {
-        get: async query => {
+        current: async query => {
           const index = state.windows.length;
           state.windows.push({ query: { ...query }, index });
           state.events.push(`window:${index}`);
           if (settings.onWindow) await settings.onWindow(index, state);
-          if (settings.windowErrorAt === index) throw Object.assign(new Error('window unavailable'), { code: 'NOT_FOUND' });
+          if (settings.windowErrorAt === index) {
+            throw Object.assign(new Error('window unavailable'), { code: settings.windowErrorCode || 'NOT_FOUND' });
+          }
+          return { ...state.row };
+        },
+        activate: async (query, options) => {
+          const index = state.activations.length;
+          state.activations.push({ query: { ...query }, options: { ...options }, index });
+          state.events.push(`activate:${index}`);
+          if (settings.onActivate) {
+            const overridden = await settings.onActivate(index, state, options);
+            if (overridden !== undefined) return overridden;
+          }
+          if (settings.activationErrorAt === index) {
+            throw Object.assign(new Error('activation unavailable'), { code: 'VERIFICATION_FAILED' });
+          }
+          state.row.isForeground = true;
+          state.row.hasFocus = true;
           return { ...state.row };
         },
       },
@@ -174,6 +192,11 @@
     const g = fixture();
     await rejects(() => g.host.UI.tapTargets([step('A')], { within: { ...g.row }, fallback: 'vision' }), 'INVALID_ARGUMENT', undefined, undefined, false);
     equal(g.windows.length, 0);
+    const refocusWithoutMode = fixture();
+    await rejects(() => refocusWithoutMode.host.UI.tapTargets([step('A')], {
+      within: { ...refocusWithoutMode.row }, refocusTimeout: 100,
+    }), 'INVALID_ARGUMENT', undefined, undefined, false);
+    equal(refocusWithoutMode.windows.length, 0);
     const h = fixture();
     const unresolved = { ...h.row, handle: 0 };
     await rejects(() => h.host.UI.tapTargets([step('A')], { within: unresolved }), 'INVALID_ARGUMENT', undefined, undefined, false);
@@ -198,9 +221,16 @@
     equal(result.completed.map(item => item.actionState).join(','), 'acknowledged,acknowledged,acknowledged');
     equal(f.releases.length, 2);
     equal(f.activeRefs.size, 0);
+    equal(f.activations.length, 0, 'default tapTargets unexpectedly activated a window');
     const firstPerform = f.events.findIndex(item => item.startsWith('perform:'));
     const lastFind = f.events.reduce((last, item, index) => item.startsWith('find:') ? index : last, -1);
     equal(firstPerform > lastFind, true, 'perform began before all distinct finds');
+
+    const defaults = fixture();
+    await defaults.host.UI.tapTargets([step('A')], { within: { ...defaults.row } });
+    equal(defaults.finds[0].options.timeout, 3000);
+    equal(defaults.finds[0].options.maxDepth, 8);
+    equal(defaults.finds[0].options.maxNodes, 1000);
   });
 
   unit('tapTargets preflight failures perform zero actions and release every acquired ref', async () => {
@@ -278,6 +308,17 @@
     equal(closed.performs.length, 0);
     equal(closed.activeRefs.size, 0);
 
+    const backendFailed = fixture({ windowErrorAt: 3, windowErrorCode: 'BACKEND_FAILED' });
+    const backendError = await rejects(
+      () => backendFailed.host.UI.tapTargets([step('A'), step('B')], { within: { ...backendFailed.row } }),
+      'BACKEND_FAILED',
+      0,
+      'preflight',
+    );
+    equal(backendError.cause.code, 'BACKEND_FAILED');
+    equal(backendFailed.performs.length, 0);
+    equal(backendFailed.activeRefs.size, 0);
+
     const changedAfterFirstAction = fixture({
       onWindow: (index, state) => { if (index === 5) state.row.handle += 1; },
     });
@@ -344,6 +385,56 @@
     equal(f.releases.length, 2);
     equal(f.activeRefs.size, 0);
     assert(f.host.Vision === undefined && f.host.mouse === undefined, 'visual fallback dependency was installed');
+  });
+
+  unit('tapTargets can exactly refocus the frozen window immediately before each invoke', async () => {
+    const f = fixture({
+      onRead: (ref, options, index, state) => {
+        if (index === 2 || index === 3) {
+          state.row.isForeground = false;
+          state.row.hasFocus = false;
+        }
+      },
+      onPerform: (ref, action, options, index, state) => {
+        state.row.isForeground = false;
+        state.row.hasFocus = false;
+      },
+    });
+    const receipt = await f.host.UI.tapTargets([step('A'), step('B')], {
+      within: { ...f.row }, refocus: 'if-needed', refocusTimeout: 321,
+    });
+    equal(receipt.completed.length, 2);
+    equal(f.activations.length, 2);
+    equal(f.activations.every(item => item.options.timeout === 321), true);
+    for (let index = 0; index < 2; index += 1) {
+      const activation = f.events.indexOf(`activate:${index}`);
+      const perform = f.events.indexOf(`perform:${index === 0 ? 'A' : 'B'}`);
+      equal(activation >= 0 && activation < perform, true, 'exact refocus was not immediately before invoke');
+    }
+    equal(f.performs.length, 2);
+    equal(f.activeRefs.size, 0);
+  });
+
+  unit('tapTargets refocus failure is fail-closed and never resumes after unknown action state', async () => {
+    const failed = fixture({ activationErrorAt: 0 });
+    const activationError = await rejects(() => failed.host.UI.tapTargets([step('A'), step('B')], {
+      within: { ...failed.row }, refocus: 'if-needed',
+    }), 'VERIFICATION_FAILED', 0, 'action');
+    equal(activationError.actionState, 'not_started');
+    equal(failed.activations.length, 1);
+    equal(failed.performs.length, 0);
+    equal(failed.activeRefs.size, 0);
+
+    const unknown = fixture({
+      onPerform: () => { throw nativeError('BACKEND_FAILED', 'Accessibility.perform', 'action', 'unknown'); },
+    });
+    const unknownError = await rejects(() => unknown.host.UI.tapTargets([step('A'), step('B')], {
+      within: { ...unknown.row }, refocus: 'if-needed',
+    }), 'BACKEND_FAILED', 0, 'action');
+    equal(unknownError.actionState, 'unknown');
+    equal(unknown.activations.length, 1);
+    equal(unknown.performs.length, 1);
+    equal(unknown.activeRefs.size, 0);
   });
 
   unit('tapTargets releases all refs on cancellation and target revalidation failure', async () => {

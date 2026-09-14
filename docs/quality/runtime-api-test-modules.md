@@ -23,6 +23,7 @@ scripts/test_runtime_apis.js          原命令入口
 	    ├── http-download.js         原生流式下载 loopback、取消和资源清理
         ├── catalog.js               smoke/live 的组合顺序与失败收尾
         ├── accessibility.js         Accessibility/UI menu 公共合同与清理
+        ├── ui-target-sequence.js    exact window lifecycle + UI.tapTargets 精确 contract/unit/coverage
         ├── sqlite.js                SQLite 专用分层与清理
         ├── file-json.js             File JSON 及 ai run 验证
         ├── environment.js           环境文件、本地与 HTTP 隔离
@@ -109,6 +110,14 @@ OPENDESK_RUNTIME_API_MODE=accessibility ./dist/opendesk -script scripts/test_run
 
 这个 mode 不解析或操作任意活动桌面；native fixture 和真实应用菜单验收仍是独立显式步骤。
 
+`window.current/activate` 与 `UI.tapTargets` 的精确 contract、确定性 unit、exact-ID coverage 和逐 execution 清理：
+
+```bash
+OPENDESK_RUNTIME_API_MODE=ui-target-sequence ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+```
+
+这个 mode 不操作桌面，也不把 mock 行为表述为原生 AX/UIA 验收；macOS 自有 fixture 仍需显式运行。
+
 HTTP 下载使用现有 loopback fixture 与 watchdog，不依赖公网或桌面 UI：
 
 ```bash
@@ -124,7 +133,7 @@ Windows/Linux 不因 cross-compile 结果被表述为 live Runtime 通过。
 原有 mode 均保留：`contract`、`unit`、`smoke`、`live`、`live-only`、`coverage`、
 `negative`、`sound-cancel`、`notify-icon-live`、`custom-ui`、`custom-ui-config`、`dialog`、
 `command`、`environment`、`file-json`、`path`、`language`、`sqlite`。
-新增 `accessibility`、`page-wait`、`unit-selected` 和 `http-download` 不改变它们的范围。普通完整 gate 和直接 `unit.js` 收到筛选变量会明确
+新增 `accessibility`、`page-wait`、`ui-target-sequence`、`unit-selected` 和 `http-download` 不改变它们的范围。普通完整 gate 和直接 `unit.js` 收到筛选变量会明确
 拒绝，而不是忽略筛选或把部分接口结果充当全量结果。
 
 ## 证据不混用

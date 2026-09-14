@@ -28,6 +28,8 @@ const originalGetFocusWindow = window.getFocusWindow;
 window.getFocusWindow = function() {
     return normalizeWindowResult(originalGetFocusWindow.call(window));
 };
+const originalCurrentWindow = window.current;
+const originalActivateWindow = window.activate;
 
 // Query composition only. Native Window/App owners retain platform enumeration,
 // identity interpretation and execution lifecycle. No duplicate alias registry.
@@ -127,12 +129,100 @@ window.getFocusWindow = function() {
         return row;
     }
 
+    function exactWindow(value, operation) {
+        if (!plain(value)) invalid(operation, 'target must be a resolved WindowInfo object');
+        const allowed = [
+            'id', 'title', 'pid', 'processId', 'processID', 'x', 'y', 'width', 'height',
+            'exeName', 'exePath', 'isForeground', 'hasFocus', 'handle', 'isPopup', 'index',
+        ];
+        const keys = Object.keys(value);
+        if (Object.getOwnPropertySymbols(value).length || keys.some(key => allowed.indexOf(key) < 0)) {
+            invalid(operation, 'target contains an unknown WindowInfo field');
+        }
+        if (typeof value.id !== 'string' || !value.id || /:unresolved$/.test(value.id) ||
+            typeof value.title !== 'string' || !value.title.trim() ||
+            !Number.isSafeInteger(value.pid) || value.pid < 1 || value.pid > 4294967295 ||
+            !Number.isSafeInteger(value.handle) || value.handle < 1 ||
+            ![value.x, value.y, value.width, value.height].every(Number.isInteger) ||
+            value.x < -2147483648 || value.x > 2147483647 ||
+            value.y < -2147483648 || value.y > 2147483647 ||
+            value.width > 2147483647 || value.height > 2147483647 ||
+            value.width <= 0 || value.height <= 0) {
+            invalid(operation, 'target must contain a resolved id, title, positive PID/handle, and valid bounds');
+        }
+        for (const alias of ['processId', 'processID']) {
+            if (own(value, alias) && value[alias] !== value.pid) invalid(operation, 'target PID aliases must agree');
+        }
+        for (const key of ['exeName', 'exePath']) {
+            if (own(value, key) && typeof value[key] !== 'string') invalid(operation, key + ' must be a string');
+        }
+        for (const key of ['isForeground', 'hasFocus', 'isPopup']) {
+            if (own(value, key) && typeof value[key] !== 'boolean') invalid(operation, key + ' must be boolean');
+        }
+        if (own(value, 'index') && !Number.isInteger(value.index)) invalid(operation, 'index must be an integer');
+        const copy = {};
+        allowed.forEach(key => { if (own(value, key)) copy[key] = value[key]; });
+        return Object.freeze(copy);
+    }
+
+    function exactOptions(value, operation) {
+        if (value === undefined) return Object.freeze({ timeout: 1000 });
+        if (!plain(value) || Object.getOwnPropertySymbols(value).length ||
+            Object.keys(value).some(key => key !== 'timeout')) invalid(operation, 'Unknown window.activate option');
+        const timeout = value.timeout === undefined ? 1000 : value.timeout;
+        if (!Number.isInteger(timeout) || timeout < 1 || timeout > 10000) {
+            invalid(operation, 'timeout must be 1..10000 milliseconds');
+        }
+        return Object.freeze({ timeout });
+    }
+
+    function exactResult(result, expected, operation) {
+        const current = normalizeWindowResult(result);
+        if (!current || typeof current !== 'object' || Array.isArray(current) ||
+            current.id !== expected.id || current.pid !== expected.pid || current.handle !== expected.handle) {
+            throw failure('STALE_TARGET', operation, 'The exact window identity is no longer current');
+        }
+        if (typeof current.title !== 'string' || !current.title.trim() ||
+            ![current.x, current.y, current.width, current.height].every(Number.isFinite) ||
+            current.width <= 0 || current.height <= 0) {
+            throw failure('VERIFICATION_FAILED', operation, 'The exact window observation is incomplete');
+        }
+        return current;
+    }
+
     // Preserve the synchronous list() contract; await list() remains valid too.
     facade.list = function(value) {
         return query(target(value, 'window.list', true), 'window.list');
     };
     facade.get = async function(value) {
         return unique(target(value, 'window.get', false), 'window.get');
+    };
+    facade.current = async function(value) {
+        const operation = 'window.current';
+        const expected = exactWindow(value, operation);
+        try {
+            return exactResult(await originalCurrentWindow.call(facade, expected), expected, operation);
+        } catch (cause) {
+            if (cause && cause.name === 'WindowError' && cause.operation === operation) throw cause;
+            throw failure(cause && typeof cause.code === 'string' ? cause.code : 'BACKEND_FAILED',
+                operation, 'Exact window refresh failed', cause);
+        }
+    };
+    facade.activate = async function(value, options) {
+        const operation = 'window.activate';
+        const expected = exactWindow(value, operation);
+        const activation = exactOptions(options, operation);
+        try {
+            return exactResult(
+                await originalActivateWindow.call(facade, expected, activation.timeout),
+                expected,
+                operation,
+            );
+        } catch (cause) {
+            if (cause && cause.name === 'WindowError' && cause.operation === operation) throw cause;
+            throw failure(cause && typeof cause.code === 'string' ? cause.code : 'BACKEND_FAILED',
+                operation, 'Exact window activation failed', cause);
+        }
     };
     facade.wait = function(value, options) {
         return new Promise(function(resolve, reject) {

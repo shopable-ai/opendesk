@@ -35,6 +35,8 @@ order: 80
 | `window.list(target?)` | 同步返回全部或筛选后的窗口快照。 |
 | `window.get(target)` | 取得唯一、身份与几何有效的窗口快照。 |
 | `window.wait(target, options?)` | 等待唯一窗口出现，支持超时和取消。 |
+| `window.current(target)` | 快速刷新同一 PID/native handle 的窗口。 |
+| `window.activate(target, options?)` | 有界激活同一精确窗口并验证前台状态。 |
 | `window.getFocusWindow()` | 同步返回当前焦点窗口。 |
 | `window.setAlwaysOnTop(title, alwaysOnTop)` | 设置/取消置顶。 |
 | `window.unsetTopMost(title)` | 取消置顶。 |
@@ -84,7 +86,7 @@ interface OpenDeskWindowInfo {
 
 `title/exePath/exeName/id` 不自动 trim、忽略大小写、翻译或模糊匹配。查询不自动放宽标题、取第一项、启动、聚焦、恢复或关闭应用。`app` 使用现有 [App](app.md) 解析；macOS native App backend 的“计算器”和“Calculator”别名不代表其他平台也支持相同映射。
 
-`WindowTarget` 是查询条件，`WindowInfo` 是一次观察快照。快照不是永久句柄，也不代表后续输入目标仍然有效。旧动作接口保持原来的标题/PID 参数，本轮 target 对象不能直接传给 `focus/maximize/restore` 等方法。
+`WindowTarget` 是查询条件，`WindowInfo` 是一次观察快照。快照不是永久句柄，也不代表后续输入目标仍然有效。兼容动作接口保持原来的标题/PID 参数；只有 Experimental 的 `current/activate` 明确消费完整 WindowInfo，并且只重验或激活其中已经解析的同一 PID/native handle，不重新按标题选窗。
 
 ### 单目标执行边界
 
@@ -781,6 +783,62 @@ window.wait(target: OpenDeskWindowTarget, options?: OpenDeskWindowWaitOptions): 
 await App.launch('Calculator');
 const win = await window.wait({ app: 'Calculator' }, { timeout: 10000, polling: 200 });
 console.log(win.id);
+```
+
+## window.current(target)
+
+刷新一个已经解析的精确窗口，不做全桌面标题枚举，也不改变前台窗口。本方法为 **Experimental**。
+
+**签名**
+
+```ts
+window.current(target: OpenDeskWindowInfo): Promise<OpenDeskWindowInfo>;
+```
+
+**参数**
+
+`target` 必须是包含 resolved id、正 PID、非零 native handle、title 与正 bounds 的完整 WindowInfo。调用开始时复制参数；未知字段、symbol 字段、unresolved id 或不完整 identity 在 native observation 前抛 `INVALID_ARGUMENT`。
+
+**返回值**
+
+`Promise<OpenDeskWindowInfo>`，返回相同 id/PID/native handle 的新观察。窗口允许在两次观察间改变 title、bounds 或前台状态；需要冻结这些字段的上层动作必须自行比较返回值。
+
+**行为与错误**
+
+macOS 使用 PID + CGWindowID 的 CoreGraphics 直接刷新，不先等待 System Events/JXA 全窗口枚举；Windows 使用 PID + HWND。窗口关闭、重建、换 owner 或 native handle 失效为 `STALE_TARGET`。本方法不按标题 fallback，不启动、聚焦、恢复或替换窗口。
+
+```js
+const resolved = await window.get({ app: { bundleId: 'com.apple.calculator' } });
+const current = await window.current(resolved);
+console.log(current.id === resolved.id, current.isForeground);
+```
+
+## window.activate(target, options?)
+
+在需要时激活同一精确窗口，并只在 native read-back 证明相同 id/PID/native handle 为前台后返回。本方法为 **Experimental**。
+
+**签名**
+
+```ts
+window.activate(
+  target: OpenDeskWindowInfo,
+  options?: { timeout?: number },
+): Promise<OpenDeskWindowInfo>;
+```
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `target` | `OpenDeskWindowInfo` | 是 | 无 | 已解析的精确窗口；校验规则与 `current()` 相同。 |
+| `options.timeout` | `number` | 否 | `1000` | 整数毫秒，范围 `1..10000`；包含一次 activation 与 read-back。 |
+
+已经是精确前台窗口时只返回新观察，不提交 activation。否则 native owner 最多提交一次 activation，再在同一 deadline 内只轮询验证；不会重复 raise、改用标题窗口、接受同 PID 的另一窗口或切换到 OCR/鼠标。macOS 的 activation 先以 PID、title 和 bounds 唯一限定 AX window，返回时再以 PID + CGWindowID 复核；Windows 始终使用原 HWND。
+
+目标消失或替换为 `STALE_TARGET`；权限不足为 `PERMISSION_DENIED`；超时或前台策略拒绝由 `TIMEOUT` / `VERIFICATION_FAILED` 区分。同步 native activation 不能由 JavaScript signal 强制中断，因此本合同不接受 `signal`。
+
+```js
+const resolved = await window.get({ app: { bundleId: 'com.apple.calculator' } });
+const active = await window.activate(resolved, { timeout: 1000 });
+if (active.id !== resolved.id) throw new Error('window identity changed');
 ```
 
 ## window.getFocusWindow()

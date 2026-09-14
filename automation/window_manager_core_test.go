@@ -58,6 +58,7 @@ func TestWindowCapabilitiesAreExplicitForEveryMaintainedTarget(t *testing.T) {
 		}
 		for _, name := range []string{
 			"window.list", "window.active", "window.findByTitle", "window.focus",
+			"window.exactLifecycle",
 			"window.getBounds", "window.setBounds", "window.minimize", "window.maximize",
 			"window.restore", "window.close", "window.alwaysOnTop", "window.bringToTop",
 		} {
@@ -68,6 +69,35 @@ func TestWindowCapabilitiesAreExplicitForEveryMaintainedTarget(t *testing.T) {
 			if platform == "linux" && capability.Supported {
 				t.Fatalf("unsupported target exposed %s as supported", name)
 			}
+		}
+	}
+}
+
+func TestExactWindowTargetMapPreservesLowercaseJavaScriptFields(t *testing.T) {
+	raw := map[string]interface{}{
+		"id": makeWindowID(42, 99), "title": "Fixture", "pid": float64(42),
+		"processId": float64(42), "handle": float64(99),
+		"x": float64(-10), "y": float64(20), "width": float64(300), "height": float64(200),
+	}
+	target, err := exactWindowTargetFromMap("window.current", raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if target.ID != makeWindowID(42, 99) || target.ProcessID != 42 || target.Handle != 99 || target.X != -10 {
+		t.Fatalf("target=%#v", target)
+	}
+	for name, value := range map[string]interface{}{
+		"fractionalBounds": map[string]interface{}{
+			"id": makeWindowID(42, 99), "title": "Fixture", "pid": float64(42), "handle": float64(99),
+			"x": 0.5, "y": float64(0), "width": float64(300), "height": float64(200),
+		},
+		"pidAliasMismatch": map[string]interface{}{
+			"id": makeWindowID(42, 99), "title": "Fixture", "pid": float64(42), "processId": float64(43),
+			"handle": float64(99), "x": float64(0), "y": float64(0), "width": float64(300), "height": float64(200),
+		},
+	} {
+		if _, err := exactWindowTargetFromMap("window.current", value.(map[string]interface{})); windowErrorCode(err) != WindowInvalidArgument {
+			t.Fatalf("%s error=%v", name, err)
 		}
 	}
 }

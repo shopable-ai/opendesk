@@ -256,7 +256,7 @@ OPENDESK_CALCULATOR_115_CONFIRM=authorized-calculator-fixture ./dist/opendesk -s
 
 框架侧按三项 P0 拆分，而不是增加一个应用工具类：Go Window owner 提供精确窗口解析／刷新／激活；`UI.js` 提供语义控件 `find/read/perform/release` 的无 ref 样板 facade；Go native owner 提供确切窗口内相对点的原子动作。状态等待、输入框填写和统一 Action Receipt 作为 P1。这样既让可访问控件优先走语义操作，也让显式窗口内坐标策略在一个原生生命周期内关闭“检查窗口 → 投影 → 动作”的竞态；语义 press 与物理 click 必须分别声明，不能静默互相 fallback。
 
-这些是待实施的框架合同，不是当前可调用方法。在 P0 落地并重新资格前，现有生产 Recipe 继续使用局部 `requireActiveCalculator()`／`press()`、已有 `Geometry` 和 `mouse.clickForPID()`；不得把设计方法名提前写入示例或 Skill 依赖。通用的生产／资格／证据边界仍见[示范到自动化执行方法](../../../docs/frameworks/demonstration-to-automation-pipeline.md#生产-recipe资格-gate-与-evidence-分层)。
+当前工作树已先落地 Experimental `window.current/activate` 与 Accessibility-first `UI.tapTargets`：前者只刷新/激活同一 PID/native handle，后者可显式在每次 invoke 前做有界 exact refocus，并在 `actionState: unknown` 后停止。初始 selector/require、应用布局、业务恢复与独立 Oracle 仍在 Recipe/AppProfile；确切窗口内相对点原子动作等其余合同仍是待实施设计。未在 API Reference、类型和 manifest 同时出现的方法名不得提前写入示例或 Skill 依赖。通用的生产／资格／证据边界仍见[示范到自动化执行方法](../../../docs/frameworks/demonstration-to-automation-pipeline.md#生产-recipe资格-gate-与-evidence-分层)。
 
 ### 4.12 确定性语义生成与双应用校准
 

@@ -4,7 +4,7 @@
 
 本文回答一个具体问题：哪些代码不应由 Calculator、TextEdit、Safari、微信、千牛、拼多多等 Recipe 反复实现，而应成为 OpenDesk 的跨应用框架能力。
 
-状态：2026-09-10 的实施路线图。`UI.getValue()`／`UI.setValue()` 已按 Experimental local 能力进入当前工作树；其余未在 API Reference、类型和 manifest 同时出现的方法名仍只是用于冻结职责和验收范围的设计草案，不是当前已公开 API。实际实现仍须按[Runtime API 扩展与定制框架](runtime-api-extension-framework.md)完成 owner、类型、API 文档和 Runtime 测试。
+状态：2026-09-14 的实施路线图。`UI.getValue()`／`UI.setValue()` 与 `window.current()`／`window.activate()` 已按 Experimental local 能力进入当前工作树；其余未在 API Reference、类型和 manifest 同时出现的方法名仍只是用于冻结职责和验收范围的设计草案，不是当前已公开 API。实际实现仍须按[Runtime API 扩展与定制框架](runtime-api-extension-framework.md)完成 owner、类型、API 文档和 Runtime 测试。
 
 目标不是隐藏业务逻辑，而是让生产 Recipe 主要保留：应用／窗口目标、页面或布局约束、业务值、业务步骤和影响后续控制流的状态判断。窗口枚举、身份重验、坐标空间转换、原生 ref 清理和通用轮询不应在每个 Recipe 中重写。
 
@@ -18,7 +18,7 @@
 | 批次 B.1：原生文本值 facade | 当前工作树已实现；Experimental local；current-source deterministic 17/17 与 Recorder 14/14 通过 | `UI.getValue()`／`UI.setValue()` 复用现有 `Accessibility.find/read/perform/release`；current8 Recorder 已证明同一 locator/ref/actionState 合同和专用文本 patch 可共存；Windows UIA 真机仍需独立验证 |
 | 批次 B.2：其他语义控件 facade | 设计候选 | 多属性读取继续使用 `Accessibility.read()`；`UI.invoke()`、通用 `UI.read()` 与 checkbox／range／selection 等尚未公开，不建立同义入口或第二套 locator |
 | 结构化界面集合读取 | **设计候选；v0.3 边界已冻结** | 当前只冻结“当前明确观察范围 → generic CollectionItem[]”的合同方向；复用 AX/UIA、OCR、Layout/Image、截图和 application-engineer。滚动、分页、跨批去重、结束判断归 Recipe；不再把 `UI.collectCollection()` 作为目标公共 API。详细正文见[结构化界面集合读取](../architecture/desktop-automation/structured-ui-collection-reading.md) |
-| 批次 C：精确窗口生命周期 | 设计草案 | 当前 title/PID mutation 没有在所有平台贯穿 exact native handle，不能把工作形状当作已实现 API |
+| 批次 C：精确窗口生命周期 | 当前工作树部分实现；Experimental | `window.current(WindowInfo)` 已按 PID/native handle 直接刷新；`window.activate(WindowInfo,{timeout})` 至多提交一次精确 activation 并做前台 read-back。初始 selector/require 仍复用 `window.get()` 与调用方 AppProfile，尚未发布独立 `resolve()` |
 | 批次 D：确切窗口内原子动作 | 设计草案，依赖 C | 当前 `mouse.clickForPID()` 只提供 macOS PID-scoped AXPress，不是 exact-window action receipt |
 | 批次 E：生产 Recipe 全量迁移 | 未开始 | Calculator 的单项 Geometry 收敛不等于 Calculator/TextEdit 已完成全部通用样板迁移 |
 
@@ -92,27 +92,23 @@ Structured Collection Reading 沿用同一原则，但当前不提前决定它�
 
 ## 四、P0 合同草案
 
-以下名称只表示能力形状，正式 API 评审可以改名。
+未在 API Reference、类型和 manifest 同时出现的名称仍只表示能力形状；`window.current/activate` 已按下述 Experimental 合同公开。
 
 ### 4.1 精确窗口目标
 
-工作形状：
+当前 Experimental 调用：
 
 ```js
-const target = await window.resolve({
-  app: { bundleId: 'com.apple.calculator' },
-  title: 'Calculator',
-  require: { visible: true, width: 232, height: 321 },
-});
-
-const current = await window.activate(target, { timeout: 3000 });
+const target = await window.get({ app: { bundleId: 'com.apple.calculator' } });
+const current = await window.current(target);
+const active = await window.activate(current, { timeout: 1000 });
 ```
 
 必须满足：
 
-- 用稳定应用 identity 限定候选；多实例、多窗口或 unresolved identity 默认拒绝，不选第一个。
+- 初始解析仍用 `window.get()`：用稳定应用 identity 限定候选；多实例、多窗口或 unresolved identity 默认拒绝，不选第一个。
 - 返回可在当前 execution 内重新解析的确切窗口 identity，并保留当前普通 `WindowInfo` 观察。
-- `activate` 接受确切目标而不是只接受标题；完成前原生验证前台／焦点，返回新的当前观察。
+- `activate` 接受确切目标而不是只接受标题；已在前台时不 mutation，否则至多提交一次 activation，完成前原生验证前台／焦点并返回新的当前观察。
 - `refresh/current` 重新验证同一生命周期；窗口关闭重建、PID 实例变化或 handle 失效返回 `STALE_TARGET`。
 - 通用 `require` 只执行调用方给出的尺寸、可见性或 popup 约束；框架不内置某个应用的数字。
 
@@ -268,7 +264,7 @@ B.2 只有出现重复且后端明确支持的需求后，才分别评审 `UI.in
 
 ### 批次 C：确切窗口生命周期
 
-在 Go Window owner 增加 selector、精确 activate/current 与结构化错误；覆盖同标题、多 PID、多窗口、窗口关闭重建、前台抢占和 timeout。
+当前工作树先在 Go Window owner 增加精确 `current/activate` 与结构化错误，保留 `window.get()` 作为初始 selector；覆盖同 PID 多窗口前台抢占、窗口 identity 替换、无效输入、activation failure、timeout 和 no-repeat。独立 `resolve(require)` 仍待跨应用需求证明，不把设计名提前发布。
 
 ### 批次 D：原子窗口内动作
 

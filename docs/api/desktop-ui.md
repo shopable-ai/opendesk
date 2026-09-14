@@ -82,6 +82,8 @@ interface OpenDeskUITapTargetsOptions {
   timeout?: number;
   maxDepth?: number;
   maxNodes?: number;
+  refocus?: 'if-needed';
+  refocusTimeout?: number;
   signal?: AbortSignal | null;
 }
 ```
@@ -726,6 +728,16 @@ UI.tapTargets(
 
 参数与限制见[原生 target 序列选项](#原生-target-序列选项)。`locator` 复用 `OpenDeskAccessibilitySelector`：`role`、`name`、`identifier` 至少一个，多个字段为区分大小写的 exact AND 条件，不做本地化、OCR 纠错或 alias 展开。
 
+| 选项 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `within` | `OpenDeskWindowInfo` | 是 | 无 | 冻结的 resolved id、PID、title、native handle 与 bounds。 |
+| `timeout` | `number` | 否 | `3000` | 每次 Accessibility find/read/perform 的毫秒上限。 |
+| `maxDepth` | `number` | 否 | `8` | 每次完整 Accessibility 搜索的深度上限。 |
+| `maxNodes` | `number` | 否 | `1000` | 每次完整 Accessibility 搜索的节点上限。 |
+| `refocus` | `'if-needed'` | 否 | 未设置 | 每一步 invoke 前用同一个 WindowInfo 执行精确、有界 activation；不接受 boolean 或其他策略。 |
+| `refocusTimeout` | `number` | 否 | `1000` | 每次 activation 的整数毫秒预算 `1..10000`；只在设置 `refocus` 时合法。 |
+| `signal` | `AbortSignal \| null` | 否 | 未设置 | 阻止后续阶段；不能中断 in-flight native 调用。 |
+
 **返回值**
 
 ```ts
@@ -751,7 +763,11 @@ interface OpenDeskUITapTargetsResult {
 
 输入前对每个 distinct locator 执行完整的有界唯一 `Accessibility.find()` 和 `Accessibility.read()`。找不到、歧义、`SEARCH_INCOMPLETE`、`enabled !== true` 或 actions 不含 `invoke` 时零 `perform` 失败。重复 locator 共享这次预检得到的同一个 managed ref；每一步动作前仍重新读取该 ref，证明 locator 字段、enabled 与 invoke 能力没有变化。
 
-初始预检、每个 distinct locator 前、首个动作前和每步动作前都用 `window.get({id})` 重新读取窗口，并严格比较 id、PID、title、native handle 和 bounds。窗口关闭、重建、改名、换 identity、移动或 resize 均抛 `STALE_TARGET`；Runtime 不聚焦、不换窗，也不把 selector 迁移到同名窗口。
+初始预检、每个 distinct locator 前、首个动作前和每步动作前都用 `window.current(within)` 直接刷新同一 PID/native handle，并严格比较 id、PID、title、native handle 和 bounds。macOS 这条路径不先等待全桌面 JXA 枚举。窗口关闭、重建、改名、换 identity、移动或 resize 均抛 `STALE_TARGET`，也不把 selector 迁移到同名窗口。
+
+`window.current()` / `window.activate()` 的结构化错误按 code 保留；只有底层 `NOT_FOUND` 会在已冻结窗口语义下归一为 `STALE_TARGET`。`PERMISSION_DENIED`、`TIMEOUT`、`VERIFICATION_FAILED` 与 `BACKEND_FAILED` 不会被误标为 stale。
+
+默认不聚焦或换窗。只有显式 `refocus: 'if-needed'` 时，每一步 Accessibility ref 回读通过后、invoke 尚未提交前调用一次 `window.activate(within)`；已经是同一前台窗口时不产生 activation，否则最多提交一次精确 activation。返回观察还必须保持冻结的 id/PID/title/handle/bounds 且 `isForeground/hasFocus` 都为 true。失败时该步 `actionState` 仍是 `not_started`；一旦 `Accessibility.perform()` 开始而状态成为 `unknown`，不会再 refocus、重试、OCR、鼠标或执行下一步。
 
 每一步至多调用一次 `Accessibility.perform(ref, {action:'invoke'})`。返回 `unknown` 时抛 `STATE_UNKNOWN` 并立即停止；返回 `not_started` 或缺少合法状态时抛 `BACKEND_FAILED`。原生调用抛错时保留它提供的 `actionState`；动作可能已经提交的 `unknown` 绝不会触发重试、OCR、鼠标或下一个步骤。
 
@@ -772,6 +788,8 @@ const action = await UI.tapTargets(input, {
   timeout: 3000,
   maxDepth: 8,
   maxNodes: 1000,
+  refocus: 'if-needed',
+  refocusTimeout: 1000,
 });
 console.log(action.backend, action.completed.length);
 ```

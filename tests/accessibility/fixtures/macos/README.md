@@ -4,8 +4,8 @@ This AppKit application is isolated test data for the native Accessibility
 Runtime. It exposes stable accessibility identifiers, ambiguous names,
 disabled/read-only/protected controls, writable text, check/radio state, a
 dynamic child inside an explicit Accessibility group, a bounded slow invoke,
-a hostile Accessibility label rendered as test data, and two- and three-level
-menus. A JSON state file records input counts and ordered sequence trace, so an
+a hostile Accessibility label rendered as test data, a second AppKit window
+that deliberately takes key-window focus, and two- and three-level menus. A JSON state file records input counts and ordered sequence trace, so an
 acceptance test can distinguish acknowledgement from a real side effect without
 touching user data.
 

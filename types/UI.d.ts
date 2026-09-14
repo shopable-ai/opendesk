@@ -166,6 +166,10 @@ declare global {
   interface OpenDeskUITapTargetsOptions extends OpenDeskAccessibilityTraversalOptions {
     /** Required resolved window with stable id, PID, title, native handle, and bounds. */
     within: OpenDeskWindowInfo;
+    /** Opt in to one exact, bounded same-window activation immediately before each invoke. */
+    refocus?: "if-needed";
+    /** Per-activation budget in milliseconds, 1..10000; requires refocus and defaults to 1000. */
+    refocusTimeout?: number;
     /** Prevents later observation/action stages; it cannot interrupt an in-flight native call. */
     signal?: AbortSignal | null;
   }
@@ -194,6 +198,11 @@ declare global {
     | "action"
     | "cleanup";
 
+  /** Accessibility failures plus exact-window activation verification. */
+  type OpenDeskUITapTargetsErrorCode =
+    | OpenDeskAccessibilityErrorCode
+    | "VERIFICATION_FAILED";
+
   interface OpenDeskUITapTargetsCleanupError {
     code: OpenDeskAccessibilityErrorCode;
     operation: "UI.tapTargets";
@@ -206,7 +215,7 @@ declare global {
 
   /** Rejection shape for UI.tapTargets; no Runtime constructor is added. */
   interface OpenDeskUITapTargetsError extends Error {
-    code: OpenDeskAccessibilityErrorCode;
+    code: OpenDeskUITapTargetsErrorCode;
     operation: "UI.tapTargets";
     phase: OpenDeskUITapTargetsPhase;
     nativePhase?: string;

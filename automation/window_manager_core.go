@@ -2,9 +2,11 @@ package automation
 
 import (
 	"errors"
+	"math"
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type WindowErrorCode string
@@ -110,6 +112,8 @@ type WindowInfo struct {
 type windowManagerPlatform interface {
 	GetActiveWindow() (*WindowInfo, error)
 	GetWindowByTitle(title string) (*WindowInfo, error)
+	Current(target WindowInfo) (*WindowInfo, error)
+	Activate(target WindowInfo, timeout time.Duration) (*WindowInfo, error)
 	Focus(title string) error
 	SetWindowBounds(title string, x, y, width, height int) error
 	SetWidth(title string, width int) error
@@ -183,6 +187,42 @@ func (w *WindowManager) GetWindowByTitle(title string) (*WindowInfo, error) {
 		return nil, wrapWindowError("window.getWindowByTitle", err, false)
 	}
 	return normalizeWindowInfo(result), nil
+}
+
+// Current refreshes one already-resolved native window identity without
+// performing an all-window title query. The JavaScript facade validates and
+// snapshots the complete WindowInfo before calling this native owner; this
+// layer repeats the security-critical identity checks for direct Go callers.
+func (w *WindowManager) Current(rawTarget map[string]interface{}) (*WindowInfo, error) {
+	const operation = "window.current"
+	target, err := exactWindowTargetFromMap(operation, rawTarget)
+	if err != nil {
+		return nil, err
+	}
+	result, err := w.impl.Current(target)
+	if err != nil {
+		return nil, wrapWindowError(operation, err, true)
+	}
+	return requireSameExactWindow(operation, target, result)
+}
+
+// Activate raises the exact current native window at most once, then waits
+// only for bounded read-back verification. It never resolves by title or
+// substitutes another window with the same application/title.
+func (w *WindowManager) Activate(rawTarget map[string]interface{}, timeoutMilliseconds int) (*WindowInfo, error) {
+	const operation = "window.activate"
+	target, err := exactWindowTargetFromMap(operation, rawTarget)
+	if err != nil {
+		return nil, err
+	}
+	if timeoutMilliseconds < 1 || timeoutMilliseconds > 10000 {
+		return nil, windowOperationError(operation, WindowInvalidArgument, "timeout must be 1..10000 milliseconds", nil)
+	}
+	result, err := w.impl.Activate(target, time.Duration(timeoutMilliseconds)*time.Millisecond)
+	if err != nil {
+		return nil, wrapWindowError(operation, err, true)
+	}
+	return requireSameExactWindow(operation, target, result)
 }
 
 func (w *WindowManager) Focus(title string) error {
@@ -386,6 +426,127 @@ func (w *WindowManager) resolveTitle(operation, title string) (string, error) {
 	return info.Title, nil
 }
 
+func exactWindowTargetFromMap(operation string, raw map[string]interface{}) (WindowInfo, error) {
+	var target WindowInfo
+	if raw == nil {
+		return target, windowOperationError(operation, WindowInvalidArgument, "target must be a resolved WindowInfo object", nil)
+	}
+	allowed := map[string]bool{
+		"id": true, "title": true, "pid": true, "processId": true, "processID": true,
+		"x": true, "y": true, "width": true, "height": true, "exeName": true, "exePath": true,
+		"isForeground": true, "hasFocus": true, "handle": true, "isPopup": true, "index": true,
+	}
+	for name := range raw {
+		if !allowed[name] {
+			return target, windowOperationError(operation, WindowInvalidArgument, "target contains an unknown WindowInfo field", nil)
+		}
+	}
+	id, idOK := raw["id"].(string)
+	title, titleOK := raw["title"].(string)
+	pid, pidOK := exactWindowInteger(raw["pid"], 1, math.MaxUint32)
+	handle, handleOK := exactWindowInteger(raw["handle"], 1, 1<<53-1)
+	x, xOK := exactWindowInteger(raw["x"], math.MinInt32, math.MaxInt32)
+	y, yOK := exactWindowInteger(raw["y"], math.MinInt32, math.MaxInt32)
+	width, widthOK := exactWindowInteger(raw["width"], 1, math.MaxInt32)
+	height, heightOK := exactWindowInteger(raw["height"], 1, math.MaxInt32)
+	if !idOK || !titleOK || !pidOK || !handleOK || !xOK || !yOK || !widthOK || !heightOK {
+		return target, windowOperationError(operation, WindowInvalidArgument, "target must contain a resolved id, title, positive PID/handle, and integer bounds", nil)
+	}
+	for _, alias := range []string{"processId", "processID"} {
+		if rawAlias, exists := raw[alias]; exists {
+			value, ok := exactWindowInteger(rawAlias, 1, math.MaxUint32)
+			if !ok || value != pid {
+				return target, windowOperationError(operation, WindowInvalidArgument, "target PID aliases must agree", nil)
+			}
+		}
+	}
+	target = WindowInfo{
+		ID: id, Title: title, ProcessID: uint32(pid), Handle: uint64(handle),
+		X: int32(x), Y: int32(y), Width: int32(width), Height: int32(height),
+	}
+	if value, ok := raw["exeName"].(string); ok {
+		target.ExeName = value
+	}
+	if value, ok := raw["exePath"].(string); ok {
+		target.ExePath = value
+	}
+	if value, ok := raw["isForeground"].(bool); ok {
+		target.IsForeground = value
+	}
+	if value, ok := raw["hasFocus"].(bool); ok {
+		target.HasFocus = value
+	}
+	if value, ok := raw["isPopup"].(bool); ok {
+		target.IsPopup = value
+	}
+	if value, ok := exactWindowInteger(raw["index"], 0, math.MaxInt32); ok {
+		target.Index = int(value)
+	}
+	if err := validateExactWindowTarget(operation, target); err != nil {
+		return WindowInfo{}, err
+	}
+	return target, nil
+}
+
+func exactWindowInteger(raw interface{}, minimum, maximum int64) (int64, bool) {
+	var number float64
+	switch value := raw.(type) {
+	case int:
+		number = float64(value)
+	case int32:
+		number = float64(value)
+	case int64:
+		number = float64(value)
+	case uint:
+		number = float64(value)
+	case uint32:
+		number = float64(value)
+	case uint64:
+		number = float64(value)
+	case float32:
+		number = float64(value)
+	case float64:
+		number = value
+	default:
+		return 0, false
+	}
+	if math.IsNaN(number) || math.IsInf(number, 0) || math.Trunc(number) != number ||
+		number < float64(minimum) || number > float64(maximum) {
+		return 0, false
+	}
+	return int64(number), true
+}
+
+func validateExactWindowTarget(operation string, target WindowInfo) error {
+	if target.ID == "" || strings.HasSuffix(target.ID, ":unresolved") {
+		return windowOperationError(operation, WindowInvalidArgument, "target must have a resolved window id", nil)
+	}
+	if target.ProcessID == 0 || target.Handle == 0 {
+		return windowOperationError(operation, WindowInvalidArgument, "target must have a positive PID and native handle", nil)
+	}
+	if target.ID != makeWindowID(target.ProcessID, target.Handle) {
+		return windowOperationError(operation, WindowInvalidArgument, "target id does not match its PID and native handle", nil)
+	}
+	if strings.TrimSpace(target.Title) == "" {
+		return windowOperationError(operation, WindowInvalidArgument, "target title cannot be empty", nil)
+	}
+	if target.Width <= 0 || target.Height <= 0 {
+		return windowOperationError(operation, WindowInvalidArgument, "target bounds must have positive width and height", nil)
+	}
+	return nil
+}
+
+func requireSameExactWindow(operation string, expected WindowInfo, actual *WindowInfo) (*WindowInfo, error) {
+	actual = normalizeWindowInfo(actual)
+	if actual == nil || actual.ID != expected.ID || actual.ProcessID != expected.ProcessID || actual.Handle != expected.Handle {
+		return nil, windowOperationError(operation, WindowStaleTarget, "exact window identity is no longer current", nil)
+	}
+	if strings.TrimSpace(actual.Title) == "" || actual.Width <= 0 || actual.Height <= 0 {
+		return nil, windowOperationError(operation, WindowVerificationFailed, "refreshed window observation is incomplete", nil)
+	}
+	return actual, nil
+}
+
 func normalizeWindowInfo(info *WindowInfo) *WindowInfo {
 	if info == nil {
 		return nil
@@ -516,6 +677,8 @@ func windowCapabilityForOperation(operation string) string {
 		return "window.findByTitle"
 	case "window.focus":
 		return "window.focus"
+	case "window.current", "window.activate":
+		return "window.exactLifecycle"
 	case "window.setWindowBounds", "window.setWidth", "window.setHeight":
 		return "window.setBounds"
 	case "window.maximize", "window.maximizeByPID":
@@ -540,6 +703,7 @@ func windowCapabilityForOperation(operation string) string {
 func windowCapabilities(platform string) WindowCapabilities {
 	names := []string{
 		"window.list", "window.active", "window.findByTitle", "window.focus",
+		"window.exactLifecycle",
 		"window.getBounds", "window.setBounds", "window.minimize", "window.maximize",
 		"window.restore", "window.close", "window.alwaysOnTop", "window.bringToTop",
 	}
@@ -558,18 +722,19 @@ func windowCapabilities(platform string) WindowCapabilities {
 		capabilities.CoordinateSpace = "global display points; primary-display top-left origin; secondary displays may use negative coordinates"
 		capabilities.SpaceBehavior = "observation is limited to WindowServer-visible rows; focus/actions across Spaces depend on macOS and Accessibility state"
 		capabilities.Capabilities = map[string]WindowCapability{
-			"window.list":        {Status: WindowPartial, Supported: true, Notes: "visible WindowServer rows; may degrade to the active window when System Events enumeration is unavailable"},
-			"window.active":      {Status: WindowStable, Supported: true},
-			"window.findByTitle": {Status: WindowPartial, Supported: true, Notes: "unique current title required; duplicate titles return AMBIGUOUS_TARGET"},
-			"window.focus":       {Status: WindowPartial, Supported: true, Notes: "requires Accessibility/System Events and may switch Spaces"},
-			"window.getBounds":   {Status: WindowStable, Supported: true},
-			"window.setBounds":   {Status: WindowPartial, Supported: true, Notes: "target application may reject AX position or size changes"},
-			"window.minimize":    {Status: WindowPartial, Supported: true, Notes: "requires Accessibility/System Events"},
-			"window.maximize":    {Status: WindowPartial, Supported: true, Notes: "fills primary display bounds; not native full-screen"},
-			"window.restore":     {Status: WindowPartial, Supported: true, Notes: "restores minimized state and raises; previous custom bounds are not persisted"},
-			"window.close":       {Status: WindowPartial, Supported: true, Notes: "requires AXClose or Command-W fallback"},
-			"window.alwaysOnTop": {Status: WindowUnsupported, Supported: false, Notes: "macOS does not expose a supported primitive for arbitrary third-party windows"},
-			"window.bringToTop":  {Status: WindowPartial, Supported: true, Notes: "same constraints as focus"},
+			"window.list":           {Status: WindowPartial, Supported: true, Notes: "visible WindowServer rows; may degrade to the active window when System Events enumeration is unavailable"},
+			"window.active":         {Status: WindowStable, Supported: true},
+			"window.findByTitle":    {Status: WindowPartial, Supported: true, Notes: "unique current title required; duplicate titles return AMBIGUOUS_TARGET"},
+			"window.focus":          {Status: WindowPartial, Supported: true, Notes: "requires Accessibility/System Events and may switch Spaces"},
+			"window.exactLifecycle": {Status: WindowExperimental, Supported: true, Notes: "refreshes PID+CGWindowID directly; activate performs one bounded PID/title/bounds-qualified raise and exact read-back"},
+			"window.getBounds":      {Status: WindowStable, Supported: true},
+			"window.setBounds":      {Status: WindowPartial, Supported: true, Notes: "target application may reject AX position or size changes"},
+			"window.minimize":       {Status: WindowPartial, Supported: true, Notes: "requires Accessibility/System Events"},
+			"window.maximize":       {Status: WindowPartial, Supported: true, Notes: "fills primary display bounds; not native full-screen"},
+			"window.restore":        {Status: WindowPartial, Supported: true, Notes: "restores minimized state and raises; previous custom bounds are not persisted"},
+			"window.close":          {Status: WindowPartial, Supported: true, Notes: "requires AXClose or Command-W fallback"},
+			"window.alwaysOnTop":    {Status: WindowUnsupported, Supported: false, Notes: "macOS does not expose a supported primitive for arbitrary third-party windows"},
+			"window.bringToTop":     {Status: WindowPartial, Supported: true, Notes: "same constraints as focus"},
 		}
 	case "windows":
 		capabilities.Backend = "Win32"
@@ -577,18 +742,19 @@ func windowCapabilities(platform string) WindowCapabilities {
 		capabilities.CoordinateSpace = "virtual-screen logical coordinates; per-process DPI awareness can affect scaling"
 		capabilities.SpaceBehavior = "virtual desktops are not selected or managed by this API"
 		capabilities.Capabilities = map[string]WindowCapability{
-			"window.list":        {Status: WindowStable, Supported: true},
-			"window.active":      {Status: WindowStable, Supported: true},
-			"window.findByTitle": {Status: WindowPartial, Supported: true, Notes: "unique current title required; duplicate titles return AMBIGUOUS_TARGET"},
-			"window.focus":       {Status: WindowPartial, Supported: true, Notes: "Windows foreground-lock policy may reject activation"},
-			"window.getBounds":   {Status: WindowStable, Supported: true},
-			"window.setBounds":   {Status: WindowStable, Supported: true},
-			"window.minimize":    {Status: WindowStable, Supported: true},
-			"window.maximize":    {Status: WindowStable, Supported: true},
-			"window.restore":     {Status: WindowStable, Supported: true},
-			"window.close":       {Status: WindowPartial, Supported: true, Notes: "application may reject WM_CLOSE"},
-			"window.alwaysOnTop": {Status: WindowStable, Supported: true},
-			"window.bringToTop":  {Status: WindowPartial, Supported: true, Notes: "Windows foreground-lock policy may reject activation"},
+			"window.list":           {Status: WindowStable, Supported: true},
+			"window.active":         {Status: WindowStable, Supported: true},
+			"window.findByTitle":    {Status: WindowPartial, Supported: true, Notes: "unique current title required; duplicate titles return AMBIGUOUS_TARGET"},
+			"window.focus":          {Status: WindowPartial, Supported: true, Notes: "Windows foreground-lock policy may reject activation"},
+			"window.exactLifecycle": {Status: WindowExperimental, Supported: true, Notes: "refreshes and activates the exact PID+HWND with bounded foreground read-back"},
+			"window.getBounds":      {Status: WindowStable, Supported: true},
+			"window.setBounds":      {Status: WindowStable, Supported: true},
+			"window.minimize":       {Status: WindowStable, Supported: true},
+			"window.maximize":       {Status: WindowStable, Supported: true},
+			"window.restore":        {Status: WindowStable, Supported: true},
+			"window.close":          {Status: WindowPartial, Supported: true, Notes: "application may reject WM_CLOSE"},
+			"window.alwaysOnTop":    {Status: WindowStable, Supported: true},
+			"window.bringToTop":     {Status: WindowPartial, Supported: true, Notes: "Windows foreground-lock policy may reject activation"},
 		}
 	default:
 		capabilities.Backend = "unsupported"

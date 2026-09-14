@@ -608,6 +608,60 @@ func (w *windowsWindowManager) GetWindowByTitle(title string) (*WindowInfo, erro
 	return buildWindowInfo(hwnd, 0, foreground, focus)
 }
 
+func (w *windowsWindowManager) Current(target WindowInfo) (*WindowInfo, error) {
+	hwnd := uintptr(target.Handle)
+	if err := requireValidWindow(hwnd); err != nil {
+		return nil, err
+	}
+	var pid uint32
+	procGetWindowThreadProcessId.Call(hwnd, uintptr(unsafe.Pointer(&pid)))
+	if pid == 0 || pid != target.ProcessID {
+		return nil, windowsBackendError(WindowStaleTarget, "exact HWND owner changed", nil)
+	}
+	foreground, _, focus, err := foregroundAndFocus()
+	if err != nil {
+		return nil, err
+	}
+	return buildWindowInfo(hwnd, 0, foreground, focus)
+}
+
+func (w *windowsWindowManager) Activate(target WindowInfo, timeout time.Duration) (*WindowInfo, error) {
+	current, err := w.Current(target)
+	if err != nil {
+		return nil, err
+	}
+	if current.IsForeground {
+		return current, nil
+	}
+	hwnd := uintptr(target.Handle)
+	if !isWindowVisible(hwnd) {
+		if err := showWindowAndVerify(hwnd, SW_SHOW, windowsStateVisible); err != nil {
+			return nil, err
+		}
+	}
+	if isWindowIconic(hwnd) {
+		if err := showWindowAndVerify(hwnd, SW_RESTORE, windowsStateRestored); err != nil {
+			return nil, err
+		}
+	}
+	procBringWindowToTop.Call(hwnd)
+	procSetForegroundWindow.Call(hwnd)
+	deadline := time.Now().Add(timeout)
+	for {
+		current, err = w.Current(target)
+		if err != nil {
+			return nil, err
+		}
+		if current.IsForeground {
+			return current, nil
+		}
+		if !time.Now().Before(deadline) {
+			return nil, windowsBackendError(WindowVerificationFailed, "Windows foreground policy rejected exact window activation", nil)
+		}
+		time.Sleep(windowsMutationPoll)
+	}
+}
+
 func (w *windowsWindowManager) Focus(title string) error {
 	hwnd, err := findUniqueWindowByTitle(title)
 	if err != nil {

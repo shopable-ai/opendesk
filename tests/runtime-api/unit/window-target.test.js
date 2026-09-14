@@ -2,12 +2,12 @@
 (() => {
   const { test, assert, equal } = RuntimeAPITest;
   const source = File.read(File.join(File.cwd(), 'polyfills/003-window.js'));
-  const row = (extra = {}) => ({ id: 'fixture:1:native:10', pid: 1, title: 'Document',
+  const row = (extra = {}) => ({ id: 'fixture:1:native:10', pid: 1, handle: 10, title: 'Document',
     exePath: '/fixture/editor', exeName: 'Editor', x: -100, y: 20, width: 800, height: 600, ...extra });
   function fixture(initial = [row()]) {
     let rows = initial, now = 0, sequence = 0;
     const timers = new Map();
-    const calls = { list: 0, app: [] };
+    const calls = { list: 0, app: [], current: [], activate: [] };
     const host = {
       window: {
         getCapabilities: () => ({ platform: 'fixture' }),
@@ -15,6 +15,14 @@
         getActiveWindow: () => ({ ID: 'active', ProcessID: 1 }),
         getWindowByTitle: () => ({ ID: 'title', ProcessID: 1 }),
         getFocusWindow: () => ({ ID: 'focus', ProcessID: 1 }),
+        current: target => {
+          calls.current.push({ ...target });
+          return { ...row(), isForeground: false, hasFocus: false };
+        },
+        activate: (target, timeout) => {
+          calls.activate.push({ target: { ...target }, timeout });
+          return { ...row(), isForeground: true, hasFocus: true };
+        },
       },
       App: { get: value => { calls.app.push(value); return { pids: [1] }; } },
       setTimeout: (fn, ms) => { const id = ++sequence; timers.set(id, { fn, at: now + ms }); return id; },
@@ -55,8 +63,8 @@
   }
 
   test({ name: 'window target methods are exposed by the real runtime', tier: 'unit',
-    verification: 'contract', covers: ['window.list', 'window.get', 'window.wait'] }, () => {
-    for (const name of ['list', 'get', 'wait']) equal(typeof window[name], 'function', name);
+    verification: 'contract', covers: ['window.list', 'window.get', 'window.wait', 'window.current', 'window.activate'] }, () => {
+    for (const name of ['list', 'get', 'wait', 'current', 'activate']) equal(typeof window[name], 'function', name);
   });
   test({ name: 'window target contract stays single-target without platform routing', tier: 'unit',
     verification: 'contract', covers: ['window.get', 'window.wait', 'UI.tapText', 'UI.tapTexts'] }, () => {
@@ -110,6 +118,49 @@
     f.setRows([row(), row({ id: 'fixture:1:native:11' })]);
     await rejects(() => f.win.get({ exeName: 'Editor' }), 'AMBIGUOUS_TARGET');
   }, ['window.get']);
+  unit('current and activate retain one native identity and validate before native work', async () => {
+    const f = fixture();
+    const target = row();
+    const currentPending = f.win.current(target);
+    target.id = 'changed'; target.handle = 999; target.x = 500;
+    const current = await currentPending;
+    equal(current.id, 'fixture:1:native:10');
+    equal(f.calls.current[0].id, 'fixture:1:native:10');
+    equal(f.calls.current[0].handle, 10);
+
+    const activated = await f.win.activate(row(), { timeout: 4321 });
+    equal(activated.isForeground, true);
+    equal(activated.hasFocus, true);
+    equal(f.calls.activate[0].timeout, 4321);
+    equal(f.calls.activate[0].target.id, 'fixture:1:native:10');
+
+    for (const invalid of [
+      {}, row({ id: 'fixture:1:unresolved' }), row({ pid: 0 }), row({ handle: 0 }),
+      row({ width: 0 }), row({ x: 0.5 }), row({ processId: 2 }),
+      row({ handle: Number.MAX_SAFE_INTEGER + 1 }), row({ extra: true }),
+    ]) await rejects(() => f.win.current(invalid), 'INVALID_ARGUMENT', 'window.current');
+    for (const options of [null, [], { timeout: 0 }, { timeout: 10001 }, { signal: {} }]) {
+      await rejects(() => f.win.activate(row(), options), 'INVALID_ARGUMENT', 'window.activate');
+    }
+    equal(f.calls.current.length, 1);
+    equal(f.calls.activate.length, 1);
+  }, ['window.current', 'window.activate']);
+  unit('current and activate reject native identity substitution', async () => {
+    // Re-evaluate the public facade against the hostile native seam.
+    const sourceAgain = File.read(File.join(File.cwd(), 'polyfills/003-window.js'));
+    const host = {
+      window: {
+        getCapabilities: () => ({ platform: 'fixture' }), list: () => [row()],
+        getActiveWindow: () => row(), getWindowByTitle: () => row(), getFocusWindow: () => row(),
+        current: () => row({ id: 'fixture:1:native:11', handle: 11 }),
+        activate: () => row({ id: 'fixture:2:native:20', pid: 2, handle: 20 }),
+      },
+      App: { get: () => ({ pids: [1] }) }, setTimeout, clearTimeout,
+    };
+    new Function('globalThis', 'window', sourceAgain)(host, host.window);
+    await rejects(() => host.window.current(row()), 'STALE_TARGET', 'window.current');
+    await rejects(() => host.window.activate(row()), 'STALE_TARGET', 'window.activate');
+  }, ['window.current', 'window.activate']);
   unit('invalid selectors fail before native enumeration', async () => {
     const f = fixture();
     for (const input of [undefined, null, '', 'Calculator', 1, [], {}, { name: 'Editor' },

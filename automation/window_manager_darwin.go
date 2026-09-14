@@ -108,6 +108,27 @@ func (w *darwinWindowManager) resolveAccessibilityWindow(
 	ctx context.Context,
 	expected AccessibilityWindowIdentity,
 ) (map[string]interface{}, error) {
+	current, err := w.currentExact(ctx, WindowInfo{
+		ID: expected.ID, ProcessID: uint32(expected.PID), Handle: expected.Handle,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if current == nil {
+		return nil, nil
+	}
+	row := map[string]interface{}{
+		"title": current.Title, "pid": current.ProcessID, "processId": current.ProcessID,
+		"x": current.X, "y": current.Y, "width": current.Width, "height": current.Height,
+		"exeName": current.ExeName, "exePath": current.ExePath,
+		"isForeground": current.IsForeground, "hasFocus": current.HasFocus,
+		"isPopup": current.IsPopup, "handle": current.Handle, "index": current.Index,
+	}
+	normalizeWindowRow(row)
+	return row, nil
+}
+
+func (w *darwinWindowManager) currentExact(ctx context.Context, expected WindowInfo) (*WindowInfo, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -121,29 +142,73 @@ func (w *darwinWindowManager) resolveAccessibilityWindow(
 	var matched *macWindow
 	for index := range items {
 		item := &items[index]
-		if int64(item.PID) != expected.PID || uint64(item.Handle) != expected.Handle {
+		if item.PID != expected.ProcessID || uint64(item.Handle) != expected.Handle {
 			continue
 		}
 		if matched != nil {
-			return nil, fmt.Errorf("CoreGraphics returned duplicate window identity pid=%d handle=%d", expected.PID, expected.Handle)
+			return nil, fmt.Errorf("CoreGraphics returned duplicate window identity pid=%d handle=%d", expected.ProcessID, expected.Handle)
 		}
 		matched = item
 	}
 	if matched == nil {
 		return nil, nil
 	}
-	row := map[string]interface{}{
-		"title": matched.Title, "pid": matched.PID, "processId": matched.PID,
-		"x": matched.X, "y": matched.Y, "width": matched.Width, "height": matched.Height,
-		"exeName": matched.ExeName, "exePath": matched.ExePath,
-		"isForeground": matched.IsForeground, "hasFocus": matched.HasFocus,
-		"isPopup": matched.IsPopup, "handle": uint64(matched.Handle), "index": matched.Index,
-	}
-	normalizeWindowRow(row)
-	if id, _ := row["id"].(string); id != expected.ID {
+	current := matched.toWindowInfo()
+	current.ID = makeWindowID(current.ProcessID, current.Handle)
+	if current.ID != expected.ID {
 		return nil, nil
 	}
-	return row, nil
+	// CoreGraphics marks the front process, not the exact key window. Compare
+	// the front-most row's native identity so two windows in one process do not
+	// both claim focus.
+	current.IsForeground = false
+	current.HasFocus = false
+	if active, activeErr := getActiveMacWindowCoreGraphics(); activeErr == nil && active != nil &&
+		active.PID == current.ProcessID && uint64(active.Handle) == current.Handle {
+		current.IsForeground = true
+		current.HasFocus = true
+	}
+	return current, nil
+}
+
+func (w *darwinWindowManager) Current(target WindowInfo) (*WindowInfo, error) {
+	return w.currentExact(context.Background(), target)
+}
+
+func (w *darwinWindowManager) Activate(target WindowInfo, timeout time.Duration) (*WindowInfo, error) {
+	if timeout <= 0 {
+		return nil, fmt.Errorf("activation timeout must be positive")
+	}
+	deadline := time.Now().Add(timeout)
+	current, err := w.currentExact(context.Background(), target)
+	if err != nil {
+		return nil, err
+	}
+	if current == nil {
+		return nil, &WindowError{Code: WindowStaleTarget, Message: "exact window is no longer visible"}
+	}
+	if current.IsForeground && current.HasFocus {
+		return current, nil
+	}
+	if err := runExactWindowActivationJXA(target, time.Until(deadline)); err != nil {
+		return nil, err
+	}
+	for {
+		current, err = w.currentExact(context.Background(), target)
+		if err != nil {
+			return nil, err
+		}
+		if current == nil {
+			return nil, &WindowError{Code: WindowStaleTarget, Message: "exact window disappeared during activation"}
+		}
+		if current.IsForeground && current.HasFocus {
+			return current, nil
+		}
+		if !time.Now().Before(deadline) {
+			return nil, &WindowError{Code: WindowVerificationFailed, Message: "exact window did not remain foreground after one activation request"}
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
 }
 
 func newPlatformWindowManager() windowManagerPlatform {
@@ -532,6 +597,54 @@ function run(argv) {
 	jxaArgs := []string{strconv.FormatUint(uint64(pid), 10), title}
 	jxaArgs = append(jxaArgs, args...)
 	_, err := runJXA(script, jxaArgs...)
+	return err
+}
+
+func runExactWindowActivationJXA(target WindowInfo, timeout time.Duration) error {
+	if timeout <= 0 {
+		return fmt.Errorf("exact window activation timed out before submission")
+	}
+	script := `
+function run(argv) {
+	var targetPid = Number(argv[0]);
+	var targetTitle = String(argv[1] || "");
+	var expected = argv.slice(2, 6).map(Number);
+	if (!targetPid || !targetTitle || expected.some(function (value) { return !isFinite(value); })) {
+		throw new Error("invalid exact window identity");
+	}
+	var se = Application("System Events");
+	var processes = se.applicationProcesses.whose({unixId: targetPid})();
+	if (processes.length !== 1) throw new Error("exact process is unavailable");
+	var p = processes[0];
+	var appName = "";
+	try { appName = String(p.name()); } catch (e) {}
+	var windows = [];
+	try { windows = p.windows(); } catch (e) { windows = []; }
+	var matches = [];
+	for (var index = 0; index < windows.length; index++) {
+		var item = windows[index];
+		var name = "", position = [], size = [];
+		try { name = String(item.name()); } catch (e) {}
+		try { position = item.position(); } catch (e) { position = []; }
+		try { size = item.size(); } catch (e) { size = []; }
+		var titleMatches = name === targetTitle || (!name && appName === targetTitle);
+		var bounds = [Number(position[0]), Number(position[1]), Number(size[0]), Number(size[1])];
+		var boundsMatch = bounds.every(function (value, i) {
+			return isFinite(value) && Math.abs(value - expected[i]) <= 2;
+		});
+		if (titleMatches && boundsMatch) matches.push(item);
+	}
+	if (matches.length !== 1) throw new Error("exact process window is absent or ambiguous");
+	try { p.frontmost = true; } catch (e) { throw new Error("could not activate exact process: " + e); }
+	try { matches[0].actions.byName("AXRaise").perform(); }
+	catch (e) { throw new Error("could not raise exact window: " + e); }
+	return "ok";
+}`
+	_, err := runJXAWithOptions(timeout, exec.CommandContext, script,
+		strconv.FormatUint(uint64(target.ProcessID), 10), target.Title,
+		strconv.FormatInt(int64(target.X), 10), strconv.FormatInt(int64(target.Y), 10),
+		strconv.FormatInt(int64(target.Width), 10), strconv.FormatInt(int64(target.Height), 10),
+	)
 	return err
 }
 

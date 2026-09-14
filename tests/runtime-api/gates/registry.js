@@ -8,6 +8,7 @@ const modules = {
   'sqlite': { file: 'suites/sqlite.js', exports: ["sqlite"] },
   'accessibility': { file: 'suites/accessibility.js', exports: ["accessibility"] },
   'page-wait': { file: 'suites/page-wait.js', exports: ["pageWait"] },
+  'ui-target-sequence': { file: 'suites/ui-target-sequence.js', exports: ["uiTargetSequence"] },
   'file-json': { file: 'suites/file-json.js', exports: ["fileJSON"] },
   'environment': { file: 'suites/environment.js', exports: ["environment"] },
   'path': { file: 'suites/path.js', exports: ["pathContext"] },
@@ -43,6 +44,7 @@ const modes = {
   "sqlite": "sqlite",
   "accessibility": "accessibility",
   "page-wait": "pageWait",
+  "ui-target-sequence": "uiTargetSequence",
   "unit-selected": "unitSelected",
   "http-download": "httpDownload"
 };

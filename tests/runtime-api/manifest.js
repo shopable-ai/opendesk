@@ -48,12 +48,14 @@ globalThis.RuntimeAPIObjects = {
     'getCapabilities', 'getActiveWindow', 'getWindowByTitle', 'getFocusWindow', 'focus', 'setWindowBounds',
     'setWidth', 'setHeight', 'maximize', 'minimize', 'restore', 'restoreByPID',
     'minimizeByPID', 'maximizeByPID', 'closeWindow', 'closeActiveWindow', 'kill',
-    'title', 'getTitle', 'content', 'getContent', 'list', 'get', 'wait', 'setAlwaysOnTop',
+    'title', 'getTitle', 'content', 'getContent', 'list', 'get', 'wait', 'current', 'activate', 'setAlwaysOnTop',
     'unsetTopMost', 'bringToTop', 'js_beautify',
   ], methodMetadata: {
     list: { status: 'stable-with-experimental-target-query' },
     get: { status: 'experimental' },
     wait: { status: 'experimental' },
+    current: { status: 'experimental', platforms: ['darwin', 'windows'] },
+    activate: { status: 'experimental', platforms: ['darwin', 'windows'] },
   } },
   Screen: { docs: 'docs/api/screen.md', types: 'types/Screen.d.ts', source: 'automation/screen.go + automation/screen_capture.go', status: 'stable-with-experimental-capture', platforms: ['darwin', 'linux', 'windows'], methods: [
     'getWidth', 'getHeight', 'getDisplays', 'getPrimaryDisplay', 'getDisplay',
@@ -175,7 +177,7 @@ const unitBehavior = new Set([
 	...RuntimeAPIObjects.automation.handle.methods.map((method) => 'automation.app.' + method),
   ...RuntimeAPIObjects.Accessibility.methods.map((method) => 'Accessibility.' + method),
   ...RuntimeAPIObjects.Notifications.methods.map((method) => 'Notifications.' + method),
-  'window.getCapabilities', 'window.list', 'window.get', 'window.wait', 'window.setAlwaysOnTop', 'window.unsetTopMost', 'window.js_beautify',
+  'window.getCapabilities', 'window.list', 'window.get', 'window.wait', 'window.current', 'window.activate', 'window.setAlwaysOnTop', 'window.unsetTopMost', 'window.js_beautify',
   ...RuntimeAPIObjects.Screen.methods.filter((method) => method !== 'screenshot').map((method) => 'Screen.' + method),
   ...RuntimeAPIObjects.System.methods.filter((method) => !['killProcess', 'shutdown', 'restart', 'sleep'].includes(method)).map((method) => 'System.' + method),
   ...RuntimeAPIObjects.System.properties.map((property) => 'System.' + property),
@@ -271,6 +273,7 @@ restricted['UI.findMenuItem'] = 'local execution-only native menu observation; n
 restricted['UI.tapMenuItem'] = 'submits a native application menu action at most once and requires a dedicated foreground fixture for live evidence';
 restricted['UI.getValue'] = 'reads one explicitly scoped native text value in a local execution and requires native Accessibility permission';
 restricted['UI.setValue'] = 'submits one explicitly scoped native text mutation at most once and requires native Accessibility permission';
+restricted['UI.tapTargets'] = 'submits an explicitly scoped native invoke sequence at most once per step and requires a dedicated foreground fixture for live evidence';
 for (const method of ['launch', 'terminate', 'restart']) restricted['App.' + method] = 'starts or terminates a real desktop application; dedicated fixture smoke owns the target lifecycle';
 restricted['Notifications.list'] = 'may reveal own-app notification metadata or explicitly requested content; the formal unit gate validates arguments without reading host notifications';
 restricted['Notifications.waitFor'] = 'waits on the own-app notification model and may explicitly return content; the formal unit gate validates arguments without changing host notification state';
@@ -278,7 +281,7 @@ restricted['Notifications.dismiss'] = 'removes an own-app notification; the form
 for (const method of RuntimeAPIObjects.FloatingWindow.methods) restricted['FloatingWindow.' + method] = 'compact native toolbar facade is exposed only when Custom UI is explicitly authorized';
 for (const method of RuntimeAPIObjects.window.methods) {
   const id = 'window.' + method;
-  const hasSafeBehavior = ['getCapabilities', 'getActiveWindow', 'setWindowBounds', 'list', 'get', 'wait', 'setAlwaysOnTop', 'unsetTopMost', 'js_beautify'].includes(method);
+  const hasSafeBehavior = ['getCapabilities', 'getActiveWindow', 'setWindowBounds', 'list', 'get', 'wait', 'current', 'setAlwaysOnTop', 'unsetTopMost', 'js_beautify'].includes(method);
   if (!hasSafeBehavior && !restricted[id]) {
     restricted[id] = 'generic macOS Accessibility enumeration or third-party window action is high-latency and only the verified foreground fixture route is live-tested';
   }

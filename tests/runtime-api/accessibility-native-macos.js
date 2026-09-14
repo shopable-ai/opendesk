@@ -70,6 +70,9 @@ function stateSummary(value) {
     menuRadioCount: Number(value.menuRadioCount),
     dynamicRevealCount: Number(value.dynamicRevealCount),
     slowInvokeCount: Number(value.slowInvokeCount),
+    competingOpenCount: Number(value.competingOpenCount),
+    competingWindowNumber: Number(value.competingWindowNumber),
+    competingWindowVisible: value.competingWindowVisible,
     sequenceTrace: Array.isArray(value.sequenceTrace) ? value.sequenceTrace.slice() : null,
     checkboxChecked: value.checkboxChecked,
     selectedRadio: value.selectedRadio,
@@ -90,6 +93,7 @@ function assertFresh(value) {
     invokeCount: 0, setValueCount: 0, checkboxActionCount: 0, radioActionCount: 0,
     menuInvokeCount: 0, menuCheckCount: 0, menuRadioCount: 0, dynamicRevealCount: 0,
     slowInvokeCount: 0,
+    competingOpenCount: 0, competingWindowNumber: 0, competingWindowVisible: false,
     sequenceTrace: [],
     checkboxChecked: false, selectedRadio: 'one', menuChecked: false,
     selectedMenuRadio: 'one', delayedItemMaterialized: false,
@@ -245,7 +249,7 @@ const result = {
   covers: [
     'Accessibility.getCapabilities', 'Accessibility.snapshot', 'Accessibility.find',
     'Accessibility.read', 'Accessibility.perform', 'Accessibility.release',
-    'UI.getValue', 'UI.setValue', 'UI.tapTargets',
+    'window.current', 'window.activate', 'UI.getValue', 'UI.setValue', 'UI.tapTargets',
     'UI.getMenuItems', 'UI.findMenuItem', 'UI.tapMenuItem',
   ],
   stages: [],
@@ -719,6 +723,85 @@ try {
     ], baseline + 3);
     await waitForState((value) => value.delayedItemMaterialized === true, 'delayed submenu materialization');
     return { twoLevel, threeLevel, delayed, counters: stateSummary(state()) };
+  });
+
+  await stage('exact-window-refocus-competition', async () => {
+    const mainWindow = await focusFixture();
+    const before = stateSummary(state());
+    const competeRef = await find({ role: 'button', identifier: 'fixture.window.compete' }, mainWindow);
+    const opened = await Accessibility.perform(competeRef, { action: 'invoke' }, { timeout: 10000 });
+    assert(opened.actionState === 'acknowledged', 'competing-window invoke was not acknowledged');
+    const competingState = await waitForState(
+      (value) => Number(value.competingOpenCount) === before.competingOpenCount + 1 &&
+        Number(value.competingWindowNumber) > 0 && value.competingWindowVisible === true,
+      'competing window',
+    );
+    const competing = await window.getActiveWindow();
+    assert(Number(competing.pid) === pid && competing.id !== mainWindow.id,
+      'repository-owned competing window did not take exact focus');
+    const currentStartedAt = Date.now();
+    const staleForeground = await window.current(mainWindow);
+    const exactRefreshDurationMs = Date.now() - currentStartedAt;
+    assert(staleForeground.id === mainWindow.id && staleForeground.isForeground === false && staleForeground.hasFocus === false,
+      'window.current did not distinguish the background main window');
+
+    const beforeImage = await page.screenshot({
+      clip: {
+        x: Number(competing.x), y: Number(competing.y),
+        width: Number(competing.width), height: Number(competing.height),
+      },
+      path: File.join(evidenceDir, 'focus-competition-before.png'),
+      returnType: 'object',
+    });
+    assert(beforeImage && Number(beforeImage.width) > 0 && Number(beforeImage.height) > 0,
+      'competing-window screenshot is unavailable');
+
+    const refocusStartedAt = Date.now();
+    const receipt = await UI.tapTargets([
+      { locator: { role: 'button', identifier: 'fixture.invoke' } },
+    ], {
+      within: mainWindow,
+      timeout: 10000,
+      maxDepth: 8,
+      maxNodes: 1000,
+      refocus: 'if-needed',
+      refocusTimeout: 1500,
+    });
+    const refocusSequenceDurationMs = Date.now() - refocusStartedAt;
+    assert(receipt.completed.length === 1 && receipt.completed[0].actionState === 'acknowledged',
+      'exact-refocus target sequence did not complete exactly once');
+    const observed = await waitForState(
+      (value) => Number(value.invokeCount) === before.invokeCount + 1,
+      'exact-refocus invoke',
+    );
+    const after = await window.current(mainWindow);
+    assert(after.id === mainWindow.id && after.isForeground === true && after.hasFocus === true,
+      'exact-refocus sequence did not leave the frozen main window active');
+    const afterImage = await page.screenshot({
+      clip: {
+        x: Number(after.x), y: Number(after.y),
+        width: Number(after.width), height: Number(after.height),
+      },
+      path: File.join(evidenceDir, 'focus-competition-after.png'),
+      returnType: 'object',
+    });
+    assert(afterImage && Number(afterImage.width) > 0 && Number(afterImage.height) > 0,
+      'exact-refocus main-window screenshot is unavailable');
+    assertStateTransition(before, stateSummary(observed), {
+      invokeCount: before.invokeCount + 1,
+      competingOpenCount: before.competingOpenCount + 1,
+      competingWindowNumber: Number(competingState.competingWindowNumber),
+      competingWindowVisible: true,
+      sequenceTrace: before.sequenceTrace.concat('invoke'),
+    }, 'exact window refocus competition');
+    return {
+      beforeWindow: { id: competing.id, pid: Number(competing.pid) },
+      targetWindow: { id: mainWindow.id, pid: Number(mainWindow.pid) },
+      completion: receipt.completed[0],
+      timing: { exactRefreshDurationMs, refocusSequenceDurationMs },
+      screenshots: { before: beforeImage.path, after: afterImage.path },
+      counters: stateSummary(observed),
+    };
   });
 } catch (error) {
   failure = error;

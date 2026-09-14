@@ -44,6 +44,11 @@ declare global {
     signal?: AbortSignal;
   }
 
+  interface OpenDeskWindowActivateOptions {
+    /** Total native activation/read-back budget in milliseconds; default 1000. */
+    timeout?: number;
+  }
+
   type OpenDeskWindowCapabilityStatus = 'Stable' | 'Partial' | 'Unsupported' | 'Experimental';
 
   interface OpenDeskWindowCapability {
@@ -80,6 +85,10 @@ declare global {
     get(target: OpenDeskWindowTarget): Promise<OpenDeskWindowInfo>;
     /** Retry empty successful queries only; all backend and ambiguity errors are terminal. */
     wait(target: OpenDeskWindowTarget, options?: OpenDeskWindowWaitOptions): Promise<OpenDeskWindowInfo>;
+    /** Refresh the same resolved PID/native-handle identity without title/all-window selection. */
+    current(target: OpenDeskWindowInfo): Promise<OpenDeskWindowInfo>;
+    /** If needed, submit one exact activation and return only after exact foreground read-back. */
+    activate(target: OpenDeskWindowInfo, options?: OpenDeskWindowActivateOptions): Promise<OpenDeskWindowInfo>;
     getFocusWindow(): OpenDeskWindowInfo | null;
     focus(title: string): void;
     setWindowBounds(title: string, x: number, y: number, width: number, height: number): void;

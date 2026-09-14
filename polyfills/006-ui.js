@@ -377,7 +377,12 @@
     if (!raw) {
       throw makeTargetSequenceError('INVALID_ARGUMENT', operation, 'options.within is required', 'arguments', 'not_started');
     }
-    rejectUnknownFields(raw, ['within', 'timeout', 'maxDepth', 'maxNodes', 'signal'], 'options', operation);
+    rejectUnknownFields(
+      raw,
+      ['within', 'timeout', 'maxDepth', 'maxNodes', 'signal', 'refocus', 'refocusTimeout'],
+      'options',
+      operation,
+    );
     if (Object.getOwnPropertySymbols(raw).length > 0) {
       throw makeTargetSequenceError('INVALID_ARGUMENT', operation, 'options must not contain symbol fields', 'arguments', 'not_started');
     }
@@ -390,6 +395,17 @@
         typeof signal.addEventListener !== 'function' || typeof signal.removeEventListener !== 'function')) {
       throw makeTargetSequenceError('INVALID_ARGUMENT', operation, 'options.signal must be an AbortSignal', 'arguments', 'not_started');
     }
+    const refocus = raw.refocus === undefined ? undefined : raw.refocus;
+    if (refocus !== undefined && refocus !== 'if-needed') {
+      throw makeTargetSequenceError(
+        'INVALID_ARGUMENT', operation, 'options.refocus must be "if-needed"', 'arguments', 'not_started',
+      );
+    }
+    if (raw.refocusTimeout !== undefined && refocus === undefined) {
+      throw makeTargetSequenceError(
+        'INVALID_ARGUMENT', operation, 'options.refocusTimeout requires options.refocus', 'arguments', 'not_started',
+      );
+    }
     return {
       within: window.within,
       identity: window.identity,
@@ -397,20 +413,26 @@
         ? VALUE_DEFAULT_TIMEOUT
         : requireBoundedInteger(raw.timeout, 'options.timeout', 1, VALUE_MAX_TIMEOUT, operation),
       maxDepth: raw.maxDepth === undefined
-        ? undefined
+        ? 8
         : requireBoundedInteger(raw.maxDepth, 'options.maxDepth', 1, 32, operation),
       maxNodes: raw.maxNodes === undefined
-        ? undefined
+        ? 1000
         : requireBoundedInteger(raw.maxNodes, 'options.maxNodes', 1, 5000, operation),
       signal: signal,
+      refocus: refocus,
+      refocusTimeout: raw.refocusTimeout === undefined
+        ? 1000
+        : requireBoundedInteger(raw.refocusTimeout, 'options.refocusTimeout', 1, 10000, operation),
     };
   }
 
   function targetSequenceFindOptions(options) {
-    const result = { within: options.within, timeout: options.timeout };
-    if (options.maxDepth !== undefined) result.maxDepth = options.maxDepth;
-    if (options.maxNodes !== undefined) result.maxNodes = options.maxNodes;
-    return result;
+    return {
+      within: options.within,
+      timeout: options.timeout,
+      maxDepth: options.maxDepth,
+      maxNodes: options.maxNodes,
+    };
   }
 
   function checkTargetSequenceCanceled(options, operation, phase, actionState) {
@@ -422,10 +444,13 @@
   async function revalidateTargetSequenceWindow(options, operation, phase, actionState) {
     let current;
     try {
-      current = await global.window.get({ id: options.identity.id });
+      current = await global.window.current(options.within);
     } catch (error) {
+      const code = error && typeof error.code === 'string'
+        ? (error.code === 'NOT_FOUND' ? 'STALE_TARGET' : error.code)
+        : 'BACKEND_FAILED';
       throw makeTargetSequenceError(
-        'STALE_TARGET', operation, 'the fixed target window is no longer available', phase, actionState,
+        code, operation, 'the fixed target window could not be refreshed', phase, actionState,
         { cause: error },
       );
     }
@@ -440,6 +465,34 @@
       );
     }
     return current;
+  }
+
+  async function refocusTargetSequenceWindow(options, operation, phase, actionState) {
+    if (options.refocus !== 'if-needed') return;
+    let current;
+    try {
+      current = await global.window.activate(options.within, { timeout: options.refocusTimeout });
+    } catch (error) {
+      throw makeTargetSequenceError(
+        error && typeof error.code === 'string' ? error.code : 'BACKEND_FAILED',
+        operation,
+        'the fixed target window could not be exactly refocused before input',
+        phase,
+        actionState,
+        { cause: error },
+      );
+    }
+    const actual = hasReliableWindowIdentity(current) ? identitySnapshot(current) : null;
+    if (!actual || actual.handle === null ||
+        actual.id !== options.identity.id || actual.pid !== options.identity.pid ||
+        actual.title !== options.identity.title || actual.handle !== options.identity.handle ||
+        !sameBounds(actual.bounds, options.identity.bounds) ||
+        current.isForeground !== true || current.hasFocus !== true) {
+      throw makeTargetSequenceError(
+        'STALE_TARGET', operation, 'the exact refocus did not preserve the fixed active window', phase, actionState,
+        { expectedWindow: options.identity, actualWindow: actual },
+      );
+    }
   }
 
   function requireInvokableTarget(read, locator, operation, phase, actionState) {
@@ -483,7 +536,7 @@
     if (!global.Accessibility || typeof global.Accessibility.getCapabilities !== 'function' ||
         typeof global.Accessibility.find !== 'function' || typeof global.Accessibility.read !== 'function' ||
         typeof global.Accessibility.perform !== 'function' || typeof global.Accessibility.release !== 'function' ||
-        !global.window || typeof global.window.get !== 'function') {
+        !global.window || typeof global.window.current !== 'function') {
       throw makeTargetSequenceError(
         'NOT_SUPPORTED', operation, 'native Accessibility target sequence runtime is unavailable', 'capability', 'not_started',
       );
@@ -2071,6 +2124,11 @@
         throw wrapTargetSequenceError(error, operation, 'arguments', 'not_started');
       }
       requireTargetSequenceRuntime(operation);
+      if (options.refocus === 'if-needed' && typeof global.window.activate !== 'function') {
+        throw makeTargetSequenceError(
+          'NOT_SUPPORTED', operation, 'exact window refocus is unavailable', 'capability', 'not_started',
+        );
+      }
 
       const refs = [];
       const resolved = new Map();
@@ -2152,6 +2210,8 @@
           }
           checkTargetSequenceCanceled(options, operation, phase, actionState);
           requireInvokableTarget(read, item.locator, operation, phase, actionState);
+          checkTargetSequenceCanceled(options, operation, phase, actionState);
+          await refocusTargetSequenceWindow(options, operation, phase, actionState);
           checkTargetSequenceCanceled(options, operation, phase, actionState);
 
           let performed;

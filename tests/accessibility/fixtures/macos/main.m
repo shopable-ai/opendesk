@@ -4,6 +4,7 @@ static NSString *const FixtureBundleIdentifier = @"com.opendesk.accessibility-fi
 
 @interface OpenDeskAccessibilityFixtureDelegate : NSObject <NSApplicationDelegate, NSTextFieldDelegate, NSMenuDelegate>
 @property(nonatomic, strong) NSWindow *window;
+@property(nonatomic, strong) NSWindow *competingWindow;
 @property(nonatomic, strong) NSTextField *statusLabel;
 @property(nonatomic, strong) NSTextField *editableField;
 @property(nonatomic, strong) NSButton *checkBox;
@@ -26,6 +27,7 @@ static NSString *const FixtureBundleIdentifier = @"com.opendesk.accessibility-fi
 @property(nonatomic) NSInteger menuRadioCount;
 @property(nonatomic) NSInteger dynamicRevealCount;
 @property(nonatomic) NSInteger slowInvokeCount;
+@property(nonatomic) NSInteger competingOpenCount;
 @property(nonatomic, strong) NSMutableArray<NSString *> *sequenceTrace;
 @property(nonatomic) BOOL delayedItemMaterialized;
 @end
@@ -94,7 +96,7 @@ static NSButton *PushButton(NSString *title, NSString *identifier, id target, SE
 }
 
 - (void)buildWindow {
-    NSRect frame = NSMakeRect(0, 0, 720, 360);
+    NSRect frame = NSMakeRect(0, 0, 720, 410);
     self.window = [[NSWindow alloc]
         initWithContentRect:frame
                   styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
@@ -102,7 +104,7 @@ static NSButton *PushButton(NSString *title, NSString *identifier, id target, SE
                     backing:NSBackingStoreBuffered
                       defer:NO];
     self.window.title = @"OpenDesk Accessibility Fixture";
-    self.window.minSize = NSMakeSize(680, 340);
+    self.window.minSize = NSMakeSize(680, 390);
     SetIdentifier(self.window, @"fixture.window.main");
     [self.window center];
 
@@ -185,6 +187,38 @@ static NSButton *PushButton(NSString *title, NSString *identifier, id target, SE
     [self.dynamicContainer.heightAnchor constraintEqualToConstant:34].active = YES;
     [dynamicRow addArrangedSubview:self.dynamicContainer];
     [root addArrangedSubview:dynamicRow];
+
+    [root addArrangedSubview:PushButton(
+        @"Open Competing Window", @"fixture.window.compete", self, @selector(openCompetingWindow:))];
+}
+
+- (void)openCompetingWindow:(id)sender {
+    (void)sender;
+    if (self.competingWindow == nil) {
+        self.competingWindow = [[NSWindow alloc]
+            initWithContentRect:NSMakeRect(0, 0, 380, 180)
+                      styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable)
+                        backing:NSBackingStoreBuffered
+                          defer:NO];
+        self.competingWindow.title = @"OpenDesk Focus Competitor";
+        SetIdentifier(self.competingWindow, @"fixture.window.competitor");
+        NSTextField *label = [NSTextField labelWithString:
+            @"This repository-owned window deliberately takes focus before exact refocus."];
+        label.maximumNumberOfLines = 2;
+        label.alignment = NSTextAlignmentCenter;
+        label.translatesAutoresizingMaskIntoConstraints = NO;
+        [self.competingWindow.contentView addSubview:label];
+        [NSLayoutConstraint activateConstraints:@[
+            [label.leadingAnchor constraintEqualToAnchor:self.competingWindow.contentView.leadingAnchor constant:24],
+            [label.trailingAnchor constraintEqualToAnchor:self.competingWindow.contentView.trailingAnchor constant:-24],
+            [label.centerYAnchor constraintEqualToAnchor:self.competingWindow.contentView.centerYAnchor],
+        ]];
+        [self.competingWindow center];
+    }
+    self.competingOpenCount += 1;
+    [self.competingWindow makeKeyAndOrderFront:nil];
+    [NSApp activateIgnoringOtherApps:YES];
+    [self updateStatus:@"competing-window-opened"];
 }
 
 - (NSStackView *)fieldRow:(NSString *)title field:(NSTextField *)field {
@@ -453,6 +487,9 @@ static NSButton *PushButton(NSString *title, NSString *identifier, id target, SE
         @"selectedMenuRadio": self.menuRadioTwoItem.state == NSControlStateValueOn ? @"two" : @"one",
         @"dynamicRevealCount": @(self.dynamicRevealCount),
         @"slowInvokeCount": @(self.slowInvokeCount),
+        @"competingOpenCount": @(self.competingOpenCount),
+        @"competingWindowNumber": @(self.competingWindow ? self.competingWindow.windowNumber : 0),
+        @"competingWindowVisible": @((BOOL)(self.competingWindow && self.competingWindow.visible)),
         @"sequenceTrace": self.sequenceTrace ?: @[],
         @"delayedItemMaterialized": @(self.delayedItemMaterialized),
     };

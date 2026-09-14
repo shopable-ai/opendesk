@@ -21,13 +21,14 @@ const originalModes = {
   'live-only': 'liveOnly', coverage: 'coverage', negative: 'negative',
   'sound-cancel': 'soundCancel', 'notify-icon-live': 'notifyIconLive',
   'custom-ui': 'customUI', 'custom-ui-config': 'customUIConfig', dialog: 'dialog',
-  command: 'commandGate', environment: 'environment', 'file-json': 'fileJSON',
+  command: 'commandGate', 'ai-runtime': 'aiRuntime', environment: 'environment', 'file-json': 'fileJSON',
   path: 'pathContext', language: 'language', sqlite: 'sqlite',
 };
 
-test('all existing modes retain their route; focused Accessibility, HTTP download, Page wait and unit selection are additive', () => {
+test('all existing modes retain their route; focused domain and unit-selection modes are additive', () => {
   assert.deepEqual(plain(registry.modes), {
-    ...originalModes, accessibility: 'accessibility', 'http-download': 'httpDownload', 'page-wait': 'pageWait', 'unit-selected': 'unitSelected',
+    ...originalModes, accessibility: 'accessibility', 'http-download': 'httpDownload', 'page-wait': 'pageWait',
+    'ui-target-sequence': 'uiTargetSequence', 'unit-selected': 'unitSelected',
   });
 });
 
@@ -89,7 +90,8 @@ async function dispatch(mode, options = {}) {
 }
 
 for (const [mode, entry] of Object.entries({
-  ...originalModes, accessibility: 'accessibility', 'http-download': 'httpDownload', 'page-wait': 'pageWait', 'unit-selected': 'unitSelected',
+  ...originalModes, accessibility: 'accessibility', 'http-download': 'httpDownload', 'page-wait': 'pageWait',
+  'ui-target-sequence': 'uiTargetSequence', 'unit-selected': 'unitSelected',
 })) {
   test(`dispatcher routes ${mode} exactly once and loads only its suite`, async () => {
     const result = await dispatch(mode, mode === 'unit-selected' ? { filter: 'file' } : {});
@@ -109,7 +111,7 @@ for (const mode of ['typo', '__proto__', 'constructor', 'toString']) {
 }
 
 test('selection filter cannot silently narrow an ordinary smoke or live gate', async () => {
-  for (const mode of ['unit', 'smoke', 'live', 'sqlite', 'accessibility', 'http-download', 'page-wait']) {
+  for (const mode of ['unit', 'smoke', 'live', 'sqlite', 'accessibility', 'http-download', 'page-wait', 'ui-target-sequence']) {
     const result = await dispatch(mode, { filter: 'file' });
     assert.match(result.error.message, /requires mode=unit-selected/);
     assert.deepEqual(result.trace, []);
@@ -183,6 +185,24 @@ test('SQLite preserves scoped phases and cleanup on failure; first error wins', 
   assert.deepEqual(calls, [
     ['contract', '/repo/tests/runtime-api/sqlite-contract.js', 5, 180], ['zero', 'contract'],
     ['unit', '/repo/tests/runtime-api/sqlite-unit.js', 15, 240], ['cleanup'],
+  ]);
+});
+
+test('UI target sequence preserves scoped phases, exact coverage and cleanup', async () => {
+  const calls = [];
+  const context = {
+    ROOT_DIR: '/repo',
+    runJS: async (...args) => calls.push(args),
+    verifyZeroCleanup: async (gate) => calls.push(['zero', gate]),
+    invoke: async (name) => calls.push([name]),
+    noResidual: async () => calls.push(['noResidual']),
+  };
+  await suite('ui-target-sequence', context).uiTargetSequence();
+  assert.deepEqual(plain(calls), [
+    ['contract', '/repo/tests/runtime-api/ui-target-sequence-contract.js', 5, 180], ['zero', 'contract'],
+    ['unit', '/repo/tests/runtime-api/ui-target-sequence-unit.js', 15, 240], ['zero', 'unit'],
+    ['coverage', '/repo/tests/runtime-api/ui-target-sequence-coverage.js', 10, 240], ['zero', 'coverage'],
+    ['cleanup'], ['noResidual'],
   ]);
 });
 
