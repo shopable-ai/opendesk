@@ -14,6 +14,7 @@ Current top-level categories:
 
 ```text
 project/
+frameworks/
 architecture/
 implementation/
 quality/
@@ -59,7 +60,7 @@ repository-root types.md
 docs/api/types.md
 ```
 
-The former project-doc working areas removed during the 2026-08 cleanup remain historical only and must not be recreated as parallel current roots.
+Former working areas and old-path redirect Markdown are historical only. Once current references point to the canonical file, do not retain a placeholder page solely to explain where content moved.
 
 ## Source priority
 
@@ -67,7 +68,7 @@ The former project-doc working areas removed during the 2026-08 cleanup remain h
 
 ```text
 1. current source/runtime behavior
-2. docs/api/*.md
+2. docs/api/*.md canonical Reference
 3. docs/api/runtime-api.ai.json
 4. types/*.d.ts
 5. Git history
@@ -88,7 +89,7 @@ The Markdown layer is the canonical rendered user documentation. JSON and `.d.ts
 
 | Material | Canonical destination |
 |---|---|
-| Current project/architecture/implementation/quality knowledge | `docs/<category>/` |
+| Current project/framework/architecture/implementation/quality knowledge | `docs/<category>/` |
 | User-facing API prose | `docs/api/` |
 | Machine-readable user API map | `docs/api/runtime-api.ai.json` |
 | Editor signatures | `types/*.d.ts` |
@@ -103,7 +104,7 @@ The Markdown layer is the canonical rendered user documentation. JSON and `.d.ts
 | Local development state | `.dev/` |
 | Superseded but valuable historical material | `.archive/` |
 | Reusable AI orchestration prompt | `prompts/` |
-| Low-value completed prompt/workpad | delete after extracting durable knowledge; rely on Git history |
+| Low-value completed prompt/workpad/migration notice | delete after extracting durable knowledge; rely on Git history |
 
 ## Canonical vs supporting material
 
@@ -116,6 +117,8 @@ Run      -> Runtime evidence -> promote reusable evidence only when justified
 ```
 
 Do not let a Research file, phase report, Prompt, JSON index or `.d.ts` silently become the effective specification just because it is longer or easier for a tool to consume.
+
+A completed move does not need a permanent Markdown redirect inside the repository. Update inbound links, keep one canonical document, delete the transition file, and use Git history when the move itself needs to be audited.
 
 ## Naming rules
 
@@ -139,7 +142,7 @@ When adding or changing a user-visible API:
 6. run the declaration checks;
 7. verify examples.
 
-Do not create a new API explanation file merely because a new type declaration was added.
+Do not create a new API explanation file merely because a new type declaration was added. Deprecated/Compatibility names belong in the canonical Reference; do not create a separate old-path page for them.
 
 When adding or changing project/engineering documentation:
 
@@ -147,12 +150,16 @@ When adding or changing project/engineering documentation:
 2. update an existing Source of Truth whenever one exists;
 3. keep app-specific semantics in `scenarios/` or adapters rather than generic architecture;
 4. keep reports and generated evidence out of canonical docs;
-5. do not create flat topic files in `docs/` root.
+5. do not create flat topic files in `docs/` root;
+6. remove completed migration plans, path maps and transition-only pages after durable rules and current links have been updated.
 
-## Migration status
+## Current maintenance entrypoints
 
-The 2026-08 `docs/` cleanup is structurally complete.
+Repository/document governance is maintained by the current rules, not by completed migration logs:
 
-See `docs/maintenance/docs-migration-map.md` for the completion record and migration rationale.
-See `docs/maintenance/repository-root-layout.md` for the current top-level
-directory decisions, root-output routing, and path-move validation rules.
+- `docs/maintenance/repository-documentation-map.md`
+- `docs/maintenance/repo-file-lifecycle-policy.md`
+- `docs/maintenance/repository-root-layout.md`
+- `docs/maintenance/release-artifact-workflow.md`
+
+Historical cleanup and path-move details are available through Git history and do not require a separate maintained migration map.
