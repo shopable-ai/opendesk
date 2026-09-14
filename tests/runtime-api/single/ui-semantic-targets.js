@@ -16,13 +16,18 @@ if (!globalThis.OPENDESK_RUNTIME_API_CONTEXT) {
 }
 
 (0, eval)(File.read(File.join(File.cwd(), 'tests/runtime-api/framework.js')));
-const file = 'tests/runtime-api/unit/ui-semantic-targets.test.js';
-const before = RuntimeAPITest.tests.length;
-RuntimeAPITest.load(file);
-RuntimeAPITest.assert(RuntimeAPITest.tests.length > before, `semantic target suite registered no tests: ${file}`);
+const files = [
+  'tests/runtime-api/unit/ui-semantic-targets.test.js',
+  'tests/runtime-api/unit/ui-semantic-targets-cancel.test.js',
+];
+for (const file of files) {
+  const before = RuntimeAPITest.tests.length;
+  RuntimeAPITest.load(file);
+  RuntimeAPITest.assert(RuntimeAPITest.tests.length > before, `semantic target suite registered no tests: ${file}`);
+}
 const result = await RuntimeAPITest.run('RUNTIME-API-UI-SEMANTIC-TARGETS');
 RuntimeAPITest.writeGate('ui-semantic-targets', {
   ...result,
-  file,
+  files,
   fullCatalog: false,
 });
