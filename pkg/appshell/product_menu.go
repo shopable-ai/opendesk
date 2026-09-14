@@ -1,5 +1,7 @@
 package appshell
 
+import "opendesk/pkg/localization"
+
 const OpenDeskProductPackageID = "com.opendesk.desktop"
 
 const (
@@ -41,49 +43,63 @@ func allowsOpenDeskProductManifestAction(manifest Manifest, action string) bool 
 		(action == ActionProductExamples || action == ActionProductAPIDocs)
 }
 
+// ResolveMenuLabel is the single App Shell bridge between manifest presentation
+// references and Locale Core. Native backends receive only resolved text and do
+// not read catalogs themselves.
+func ResolveMenuLabel(item MenuItem) string {
+	if item.LabelKey == "" {
+		return item.Label
+	}
+	return localization.TranslateWithFallback(item.LabelKey, item.Label)
+}
+
+func translatedProductLabel(key, fallback string) string {
+	return localization.TranslateWithFallback(key, fallback)
+}
+
 func nativeMenuForManifest(manifest Manifest) []nativeMenuItem {
 	if IsOpenDeskProduct(manifest) {
 		return openDeskProductMenu(manifest)
 	}
 	items := []nativeMenuItem{
-		{ID: ActionOpen, Label: "Open / Show"},
+		{ID: ActionOpen, Label: translatedProductLabel("menu.open", "Open / Show")},
 		{Type: "separator"},
 	}
 	items = append(items, nativeMenuItems(manifest.Tray.Menu)...)
 	items = append(items,
 		nativeMenuItem{Type: "separator"},
-		nativeMenuItem{ID: ActionQuit, Label: "Quit"},
+		nativeMenuItem{ID: ActionQuit, Label: translatedProductLabel("menu.quit", "Quit")},
 	)
 	return items
 }
 
 func openDeskProductMenu(manifest Manifest) []nativeMenuItem {
 	items := []nativeMenuItem{
-		{ID: ActionOpen, Label: "显示主窗口"},
+		{ID: ActionOpen, Label: translatedProductLabel("menu.open", "打开 OpenDesk")},
 		{Type: "separator"},
 	}
 	items = append(items, nativeMenuItems(manifest.Tray.Menu)...)
 	items = append(items,
 		nativeMenuItem{Type: "separator"},
-		nativeMenuItem{Label: "开发者", Children: []nativeMenuItem{
-			{ID: ActionProductStatus, Label: "运行状态"},
-			{ID: ActionProductMeasurement, Label: "桌面测量"},
-			{ID: ActionProductInspectorOpen, Label: "打开 Inspector"},
+		nativeMenuItem{Label: translatedProductLabel("menu.developer", "开发者"), Children: []nativeMenuItem{
+			{ID: ActionProductStatus, Label: translatedProductLabel("menu.runtimeStatus", "运行状态")},
+			{ID: ActionProductMeasurement, Label: translatedProductLabel("menu.measurement", "桌面测量")},
+			{ID: ActionProductInspectorOpen, Label: translatedProductLabel("menu.inspector", "打开 Inspector")},
 			{Type: "separator"},
-			{ID: ActionProductLogsOpen, Label: "打开日志目录"},
-			{Label: "调试信息", Children: []nativeMenuItem{
-				{ID: ActionProductDebugNormal, Label: "✓ 普通"},
-				{ID: ActionProductDebugDetailed, Label: "详细"},
+			{ID: ActionProductLogsOpen, Label: translatedProductLabel("menu.logs", "打开日志目录")},
+			{Label: translatedProductLabel("menu.debug", "调试信息"), Children: []nativeMenuItem{
+				{ID: ActionProductDebugNormal, Label: translatedProductLabel("menu.debugNormal", "✓ 普通")},
+				{ID: ActionProductDebugDetailed, Label: translatedProductLabel("menu.debugDetailed", "详细")},
 			}},
 		}},
 		nativeMenuItem{Type: "separator"},
-		nativeMenuItem{Label: "帮助与服务", Children: []nativeMenuItem{
-			{ID: ActionProductHome, Label: "OpenDesk 官网"},
-			{ID: ActionProductHelp, Label: "帮助"},
-			{ID: ActionProductCustomize, Label: "定制"},
+		nativeMenuItem{Label: translatedProductLabel("menu.helpAndSupport", "帮助与服务"), Children: []nativeMenuItem{
+			{ID: ActionProductHome, Label: translatedProductLabel("menu.website", "OpenDesk 官网")},
+			{ID: ActionProductHelp, Label: translatedProductLabel("menu.help", "帮助")},
+			{ID: ActionProductCustomize, Label: translatedProductLabel("menu.customize", "定制")},
 		}},
 		nativeMenuItem{Type: "separator"},
-		nativeMenuItem{ID: ActionQuit, Label: "退出"},
+		nativeMenuItem{ID: ActionQuit, Label: translatedProductLabel("menu.quit", "退出")},
 	)
 	return items
 }
@@ -92,7 +108,7 @@ func nativeMenuItems(items []MenuItem) []nativeMenuItem {
 	result := make([]nativeMenuItem, 0, len(items))
 	for _, item := range items {
 		result = append(result, nativeMenuItem{
-			Type: item.Type, ID: item.ID, Label: item.Label,
+			Type: item.Type, ID: item.ID, Label: ResolveMenuLabel(item),
 			Enabled: item.Enabled, Visible: item.Visible,
 		})
 	}

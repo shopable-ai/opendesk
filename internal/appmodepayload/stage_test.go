@@ -207,6 +207,8 @@ func TestOpenDeskProductReleasePolicy(t *testing.T) {
 		"recorder/controller.js",
 		"recorder/controller-core.js",
 		"recorder/recording-history.js",
+		"locales/zh-CN.json",
+		"locales/en-US.json",
 	}
 	if len(result.Files) != len(expected) {
 		t.Fatalf("unexpected product payload file count: got %d want %d: %v", len(result.Files), len(expected), result.Files)

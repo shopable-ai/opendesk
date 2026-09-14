@@ -20,6 +20,7 @@
     "menu": [
       {
         "id": "open-ai-assistant",
+        "labelKey": "menu.assistant",
         "label": "AI 助手",
         "action": "assistant.open"
       },
@@ -28,11 +29,13 @@
       },
       {
         "id": "open-scheduler-center",
+        "labelKey": "menu.schedulerCenter",
         "label": "计划中心",
         "action": "scheduler.center"
       },
       {
         "id": "new-schedule",
+        "labelKey": "menu.newSchedule",
         "label": "新建计划…",
         "action": "scheduler.new"
       },
@@ -41,11 +44,13 @@
       },
       {
         "id": "open-permissions",
+        "labelKey": "menu.permissions",
         "label": "系统权限",
         "action": "permissions.open"
       },
       {
         "id": "open-runtime-log",
+        "labelKey": "menu.runtimeLog",
         "label": "运行日志",
         "action": "runtime.log"
       },
@@ -54,11 +59,13 @@
       },
       {
         "id": "open-examples",
+        "labelKey": "menu.examples",
         "label": "示例代码",
         "action": "opendesk.examples"
       },
       {
         "id": "open-api-docs",
+        "labelKey": "menu.apiDocs",
         "label": "API 文档",
         "action": "opendesk.api-docs"
       }

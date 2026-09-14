@@ -28,10 +28,11 @@ const (
 )
 
 var (
-	actionIDPattern   = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
-	packageIDPattern  = regexp.MustCompile(`^[a-z](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$`)
-	windowIDPattern   = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]{0,63}$`)
-	capabilityPattern = regexp.MustCompile(`^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$`)
+	actionIDPattern       = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
+	packageIDPattern      = regexp.MustCompile(`^[a-z](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$`)
+	windowIDPattern       = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]{0,63}$`)
+	capabilityPattern     = regexp.MustCompile(`^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$`)
+	localizationKeyPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
 )
 
 type Manifest struct {
@@ -71,12 +72,13 @@ type TrayIcons struct {
 }
 
 type MenuItem struct {
-	Type    string `json:"type,omitempty"`
-	ID      string `json:"id,omitempty"`
-	Label   string `json:"label,omitempty"`
-	Action  string `json:"action,omitempty"`
-	Enabled *bool  `json:"enabled,omitempty"`
-	Visible *bool  `json:"visible,omitempty"`
+	Type     string `json:"type,omitempty"`
+	ID       string `json:"id,omitempty"`
+	LabelKey string `json:"labelKey,omitempty"`
+	Label    string `json:"label,omitempty"`
+	Action   string `json:"action,omitempty"`
+	Enabled  *bool  `json:"enabled,omitempty"`
+	Visible  *bool  `json:"visible,omitempty"`
 
 	system bool
 }
@@ -289,18 +291,22 @@ func (m *Manifest) Validate() error {
 		field := fmt.Sprintf("tray.menu[%d]", i)
 		switch item.Type {
 		case "separator":
-			if item.ID != "" || item.Label != "" || item.Action != "" || item.Enabled != nil || item.Visible != nil {
+			if item.ID != "" || item.LabelKey != "" || item.Label != "" || item.Action != "" || item.Enabled != nil || item.Visible != nil {
 				return fmt.Errorf("%s: separator must be exactly {\"type\":\"separator\"}", field)
 			}
 		case "":
 			item.ID = strings.TrimSpace(item.ID)
+			item.LabelKey = strings.TrimSpace(item.LabelKey)
 			item.Label = strings.TrimSpace(item.Label)
 			item.Action = strings.TrimSpace(item.Action)
 			if item.ID == "" {
 				return fmt.Errorf("%s.id is required", field)
 			}
-			if item.Label == "" {
-				return fmt.Errorf("%s.label is required", field)
+			if item.LabelKey == "" && item.Label == "" {
+				return fmt.Errorf("%s.label or %s.labelKey is required", field, field)
+			}
+			if item.LabelKey != "" && !localizationKeyPattern.MatchString(item.LabelKey) {
+				return fmt.Errorf("%s.labelKey %q is invalid", field, item.LabelKey)
 			}
 			if err := validateActionID(field+".id", item.ID, item.system); err != nil {
 				return err
@@ -451,10 +457,12 @@ func EnsureRecorderMenu(manifest Manifest) Manifest {
 		}
 	}
 	recorderLabel := RecorderMenuLabel
+	recorderLabelKey := ""
 	if IsOpenDeskProduct(manifest) {
 		recorderLabel = ProductRecorderMenuLabel
+		recorderLabelKey = "menu.recorder"
 	}
-	recorder := MenuItem{ID: ActionRecorder, Label: recorderLabel, Action: ActionRecorder, system: true}
+	recorder := MenuItem{ID: ActionRecorder, LabelKey: recorderLabelKey, Label: recorderLabel, Action: ActionRecorder, system: true}
 	if len(manifest.Tray.Menu) == 0 {
 		manifest.Tray.Menu = []MenuItem{recorder}
 		return manifest

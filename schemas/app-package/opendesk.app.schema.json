@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://opendesk.dev/schemas/app-package/opendesk.app.schema.json",
   "title": "OpenDesk App Package Manifest V1",
-  "description": "Authoring schema for schemaVersion 1 App Mode packages. The OpenDesk Runtime loader remains the authoritative validator for semantics, compatibility, resources, and containment.",
+  "description": "Authoring schema for schemaVersion 1 App Mode packages. The OpenDesk Runtime loader remains the authoritative validator for semantics, compatibility, resources, containment, and additive menu presentation references such as labelKey.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -171,6 +171,11 @@
       "minLength": 1,
       "pattern": "^\\s*[A-Za-z0-9][A-Za-z0-9._-]*\\s*$"
     },
+    "localizationKey": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^\\s*[A-Za-z0-9][A-Za-z0-9._-]*\\s*$"
+    },
     "businessActionId": {
       "allOf": [
         {
@@ -315,8 +320,7 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
-            "id",
-            "label"
+            "id"
           ],
           "properties": {
             "type": {
@@ -324,6 +328,9 @@
             },
             "id": {
               "$ref": "#/$defs/businessActionId"
+            },
+            "labelKey": {
+              "$ref": "#/$defs/localizationKey"
             },
             "label": {
               "type": "string",
@@ -346,6 +353,18 @@
               "type": "boolean"
             }
           },
+          "anyOf": [
+            {
+              "required": [
+                "label"
+              ]
+            },
+            {
+              "required": [
+                "labelKey"
+              ]
+            }
+          ],
           "allOf": [
             {
               "if": {
