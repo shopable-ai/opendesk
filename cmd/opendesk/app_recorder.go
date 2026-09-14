@@ -46,6 +46,7 @@ type appRecorderConfig struct {
 	AllowRecorderCapture                  bool
 	ExperimentalUnsafeNativeExtensionCall bool
 	CustomUIHostPath                      string
+	MeasurementOpen                       func(context.Context) error
 }
 
 func newAppRecorder(shell *appshell.Shell, appPackage *appshell.Package, config appRecorderConfig, environment runtimeenv.Result, driver customui.Driver) *appRecorder {
@@ -144,6 +145,7 @@ func (r *appRecorder) request(ctx context.Context, executionID string) (pkgExecu
 		EnableSQLite:                    true,
 		EnableRecorderCapture:           r.config.AllowRecorderCapture,
 		RecorderStartGate:               r.canStartRecording,
+		MeasurementOpen:                 r.config.MeasurementOpen,
 		EnableCustomUI:                  true,
 		CustomUIActivationSource:        customui.ActivationCLI,
 		CustomUIHostPath:                r.config.CustomUIHostPath,

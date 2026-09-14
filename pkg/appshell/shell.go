@@ -64,6 +64,7 @@ type Shell struct {
 	native      NativeHost
 	sink        ActionSink
 	recorder    ActionSink
+	measurement ActionSink
 	pending     []ActionEvent
 	menuState   map[string]MenuItemPatch
 	started     bool
@@ -230,6 +231,31 @@ func (s *Shell) UnbindRecorderAction() {
 	s.mu.Unlock()
 }
 
+func (s *Shell) BindMeasurementAction(sink ActionSink) error {
+	if sink == nil {
+		return errors.New("measurement action sink is required")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.teardown {
+		return ErrTornDown
+	}
+	if s.state != StateRunning {
+		return ErrNotRunning
+	}
+	if s.measurement != nil {
+		return errors.New("measurement action sink already bound")
+	}
+	s.measurement = sink
+	return nil
+}
+
+func (s *Shell) UnbindMeasurementAction() {
+	s.mu.Lock()
+	s.measurement = nil
+	s.mu.Unlock()
+}
+
 func (s *Shell) SetQuitHook(hook func()) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -295,7 +321,28 @@ func (s *Shell) DispatchAction(id, source string) error {
 	if id == ActionRecorder {
 		return s.dispatchRecorder(ActionEvent{ID: id, Source: source})
 	}
+	if id == ActionProductMeasurement {
+		return s.dispatchMeasurement(ActionEvent{ID: id, Source: source})
+	}
 	return s.enqueue(ActionEvent{ID: id, Source: source})
+}
+
+func (s *Shell) dispatchMeasurement(event ActionEvent) error {
+	s.mu.Lock()
+	if s.teardown {
+		s.mu.Unlock()
+		return ErrTornDown
+	}
+	if s.state != StateRunning {
+		s.mu.Unlock()
+		return ErrNotRunning
+	}
+	sink := s.measurement
+	s.mu.Unlock()
+	if sink == nil {
+		return nil
+	}
+	return sink(event)
 }
 
 func (s *Shell) dispatchRecorder(event ActionEvent) error {
@@ -450,6 +497,7 @@ func (s *Shell) BeginShutdown() bool {
 	s.state = StateQuitting
 	s.sink = nil
 	s.recorder = nil
+	s.measurement = nil
 	s.pending = nil
 	return true
 }
@@ -501,6 +549,7 @@ func (s *Shell) cancelAsyncLocked() {
 		s.mu.Lock()
 		s.sink = nil
 		s.recorder = nil
+		s.measurement = nil
 		s.pending = nil
 		native := s.native
 		s.mu.Unlock()

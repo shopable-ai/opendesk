@@ -476,6 +476,13 @@ func validateHostEvent(event Event, controls map[string]struct{}, lastSequence u
 		if event.TargetID != "" {
 			return &Error{Code: CodeDriverFailure, Operation: "readHostEvent", WindowID: event.WindowID, TargetID: event.TargetID, Message: "window event must not identify a control target"}
 		}
+	case "measurement.pointerdown", "measurement.pointermove", "measurement.pointerup", "measurement.key":
+		if _, exists := controls[event.TargetID]; !exists || event.TargetID == "" {
+			return &Error{Code: CodeDriverFailure, Operation: "readHostEvent", WindowID: event.WindowID, TargetID: event.TargetID, Message: "measurement event target is not a declared control"}
+		}
+		if event.Fields == nil {
+			return &Error{Code: CodeDriverFailure, Operation: "readHostEvent", WindowID: event.WindowID, TargetID: event.TargetID, Message: "measurement event fields are required"}
+		}
 	default:
 		return &Error{Code: CodeDriverFailure, Operation: "readHostEvent", WindowID: event.WindowID, TargetID: event.TargetID, Message: "native UI host emitted an unsupported event type"}
 	}

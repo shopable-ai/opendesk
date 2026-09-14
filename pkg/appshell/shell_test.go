@@ -164,6 +164,30 @@ func TestShellRecorderActionUsesFrameworkSinkOnly(t *testing.T) {
 	}
 }
 
+func TestShellMeasurementActionUsesOneFrameworkSinkOnly(t *testing.T) {
+	shell, _ := shellFixture(t)
+	var business []ActionEvent
+	if err := shell.BindActionSink(func(event ActionEvent) error {
+		business = append(business, event)
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var measurement []ActionEvent
+	if err := shell.BindMeasurementAction(func(event ActionEvent) error {
+		measurement = append(measurement, event)
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := shell.DispatchAction(ActionProductMeasurement, "tray-menu"); err != nil {
+		t.Fatal(err)
+	}
+	if len(measurement) != 1 || measurement[0].ID != ActionProductMeasurement || len(business) != 0 {
+		t.Fatalf("measurement=%+v business=%+v", measurement, business)
+	}
+}
+
 func TestShellRecorderActionRejectedAfterShutdown(t *testing.T) {
 	shell, _ := shellFixture(t)
 	var called int

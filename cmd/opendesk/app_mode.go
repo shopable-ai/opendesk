@@ -8,6 +8,7 @@ import (
 	"opendesk/pkg/appshell"
 	"opendesk/pkg/customui"
 	pkgExecution "opendesk/pkg/execution"
+	"opendesk/pkg/measurement"
 	"opendesk/pkg/runtimeenv"
 	"os"
 	"os/signal"
@@ -106,11 +107,29 @@ func executeAppMode(config *Config) error {
 	if err != nil {
 		return fmt.Errorf("resolve App Mode runtime artifacts root: %w", err)
 	}
+	var measurementService *measurement.Service
+	if appshell.IsOpenDeskProduct(appPackage.Manifest) {
+		measurementService, err = measurement.NewService(measurement.ServiceOptions{
+			Driver: sharedUIDriver, Capture: appMeasurementCapture{}, Clipboard: automation.NewClipboard(),
+			BaseDir: filepath.Join(artifactsRoot, "measurement"), SaveDir: filepath.Join(artifactsRoot, "measurement", "results"),
+		})
+		if err != nil {
+			return fmt.Errorf("initialize Desktop Measurement: %w", err)
+		}
+		defer measurementService.Close(context.Background())
+	}
 
 	signalContext, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stopSignals()
 	appContext, cancelApp := context.WithCancel(signalContext)
 	defer cancelApp()
+	if measurementService != nil {
+		if err := shell.BindMeasurementAction(func(event appshell.ActionEvent) error {
+			return measurementService.Open(appContext, event.Source)
+		}); err != nil {
+			return err
+		}
+	}
 	shell.SetQuitHook(cancelApp)
 	stopSignalHook := context.AfterFunc(signalContext, func() { _ = shell.RequestQuit() })
 	defer stopSignalHook()
@@ -131,12 +150,19 @@ func executeAppMode(config *Config) error {
 			lease.Wait()
 		}
 	}()
+	var openMeasurement func(context.Context) error
+	if measurementService != nil {
+		openMeasurement = func(ctx context.Context) error {
+			return measurementService.OpenAndWait(ctx, "recorder-toolbar")
+		}
+	}
 	recorder := newAppRecorder(shell, appPackage, appRecorderConfig{
 		LogDir:                                artifactsRoot,
 		StackMode:                             config.StackMode,
 		AllowRecorderCapture:                  recorderCaptureAllowed,
 		ExperimentalUnsafeNativeExtensionCall: config.ExperimentalUnsafeNativeExtensionCall,
 		CustomUIHostPath:                      config.CustomUIHostPath,
+		MeasurementOpen:                       openMeasurement,
 	}, environment, sharedUIDriver)
 	if err := shell.BindRecorderAction(func(event appshell.ActionEvent) error {
 		return recorder.Open(appContext, event.Source)

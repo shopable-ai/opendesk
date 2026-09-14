@@ -158,12 +158,32 @@ func TestProtocolFailurePreservesTransportCause(t *testing.T) {
 
 func TestProtocolEventAcceptsEscapedRFC3339Offset(t *testing.T) {
 	var frame protocolFrame
-	err := json.Unmarshal([]byte(`{"version":"1.9.0","kind":"event","event":{"sessionId":"portable","windowId":"panel","type":"close","sequence":1,"timestamp":"2026-09-11T11:41:03.7059140\u002B00:00","reason":"script"}}`), &frame)
+	err := json.Unmarshal([]byte(`{"version":"1.10.0","kind":"event","event":{"sessionId":"portable","windowId":"panel","type":"close","sequence":1,"timestamp":"2026-09-11T11:41:03.7059140\u002B00:00","reason":"script"}}`), &frame)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if frame.Event == nil || frame.Event.Timestamp.IsZero() || frame.Event.Timestamp.UTC().Format(time.RFC3339Nano) != "2026-09-11T11:41:03.705914Z" {
 		t.Fatalf("event = %#v", frame.Event)
+	}
+}
+
+func TestHostMeasurementEventRequiresDeclaredTargetAndFields(t *testing.T) {
+	controls := map[string]struct{}{"preview": {}}
+	valid := Event{WindowID: "measurement", TargetID: "preview", Type: "measurement.pointerup", Sequence: 1, Fields: map[string]any{"u": 0.25, "v": 0.75}}
+	if err := validateHostEvent(valid, controls, 0); err != nil {
+		t.Fatal(err)
+	}
+	missingFields := valid
+	missingFields.Sequence = 2
+	missingFields.Fields = nil
+	if err := validateHostEvent(missingFields, controls, 1); err == nil {
+		t.Fatal("measurement event without fields was accepted")
+	}
+	unknown := valid
+	unknown.Sequence = 2
+	unknown.TargetID = "other"
+	if err := validateHostEvent(unknown, controls, 1); err == nil {
+		t.Fatal("measurement event for an undeclared target was accepted")
 	}
 }
 

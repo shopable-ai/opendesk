@@ -179,8 +179,8 @@
       const titledInput = {...input, title: windowTitle};
       const toolbarOptions = input.toolbar ? {...input.toolbar} : null;
       if (toolbarOptions && toolbarOptions.maxRows === 1
-        && (!Number.isFinite(toolbarOptions.maxColumns) || toolbarOptions.maxColumns < 9)) {
-        toolbarOptions.maxColumns = 9;
+        && (!Number.isFinite(toolbarOptions.maxColumns) || toolbarOptions.maxColumns < 10)) {
+        toolbarOptions.maxColumns = 10;
       }
       const inner = new BaseFloatingWindow(toolbarOptions ? {...titledInput, toolbar: toolbarOptions} : titledInput);
       const wrapper = {};

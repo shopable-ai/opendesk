@@ -5,6 +5,7 @@ const OpenDeskProductPackageID = "com.opendesk.desktop"
 const (
 	ActionProductStatus        = "opendesk.status"
 	ActionProductInspectorOpen = "opendesk.inspector.open"
+	ActionProductMeasurement   = "opendesk.measurement"
 	ActionProductLogsOpen      = "opendesk.logs.open"
 	ActionProductDebugNormal   = "opendesk.debug.normal"
 	ActionProductDebugDetailed = "opendesk.debug.detailed"
@@ -56,6 +57,7 @@ func openDeskProductMenu(manifest Manifest) []nativeMenuItem {
 		nativeMenuItem{Type: "separator"},
 		nativeMenuItem{Label: "开发者", Children: []nativeMenuItem{
 			{ID: ActionProductStatus, Label: "运行状态…"},
+			{ID: ActionProductMeasurement, Label: "桌面测量…"},
 			{ID: ActionProductInspectorOpen, Label: "打开 Inspector"},
 			{Type: "separator"},
 			{ID: ActionProductLogsOpen, Label: "打开日志目录"},
@@ -97,6 +99,7 @@ func visitNativeMenu(items []nativeMenuItem, visit func(nativeMenuItem)) {
 func isProductSystemAction(value string) bool {
 	switch value {
 	case ActionProductStatus,
+		ActionProductMeasurement,
 		ActionProductInspectorOpen,
 		ActionProductLogsOpen,
 		ActionProductDebugNormal,

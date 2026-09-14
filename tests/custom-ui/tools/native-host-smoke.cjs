@@ -41,7 +41,7 @@ function call(operation,payload,windowId='toolbar'){
   return new Promise((resolve,reject)=>{
     const timer=setTimeout(()=>{pending.delete(requestId);reject(new Error('host timeout '+operation+' '+stderr));},20000);
     pending.set(requestId,{resolve,reject,timer});
-    child.stdin.write(JSON.stringify({version:'1.9.0',kind:'request',requestId,sessionId:'smoke',windowId,operation,payload})+'\n');
+    child.stdin.write(JSON.stringify({version:'1.10.0',kind:'request',requestId,sessionId:'smoke',windowId,operation,payload})+'\n');
   });
 }
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -52,7 +52,7 @@ const toolbar={schemaVersion:4,revision:1,orientation:'horizontal',maxWidth:960,
 const notice={message:'正在执行 · Native UI smoke',caption:'Task progress and expiry are distinct',level:'info',timeoutMs:0,timeoutProgress:false,closable:true,progress:{min:0,max:5,value:1,indeterminate:false},position:{mode:'relative',target:'toolbar',side:'bottom',align:'center',gap:8,follow:true}};
 (async()=>{
   const helloTimer=setTimeout(()=>helloReject(new Error('host did not send hello '+stderr)),10000);
-  const greet=await hello;clearTimeout(helloTimer);assert.equal(greet.version,'1.9.0');
+  const greet=await hello;clearTimeout(helloTimer);assert.equal(greet.version,'1.10.0');
   await call('create',{id:'toolbar',kind:'floating',title:'Native UI smoke',bounds:{x:100,y:100,width:376,height:81},alwaysOnTop:true,draggable:true,theme:'dark',toolbar,controls:[{id:'run',type:'button',order:0}]},'toolbar');
   const tools=await call('show',{},'toolbar');assert.equal(tools.visible,true);assert(tools.nativeWindowId>0);
   const text=await call('getToolbarLabelState',{id:'status'},'toolbar');assert.equal(text.renderedText,'Ready');
@@ -84,11 +84,21 @@ const notice={message:'正在执行 · Native UI smoke',caption:'Task progress a
     assert.equal((await call('getControlState',{id:'text'},'web')).text,'Ready');
     assert.equal((await call('updateControl',{id:'text',patch:{text:'Updated from host'}},'web')).text,'Updated from host');
     await call('close',{},'web');
+    const imageName='measurement-pixel.png';
+    fs.writeFileSync(path.join(root,imageName),Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAF/gL+AvzqWQAAAABJRU5ErkJggg==','base64'));
+    const measurement={id:'measurement',kind:'normal',title:'Measurement image smoke',bounds:{x:160,y:220,width:420,height:260},alwaysOnTop:false,draggable:false,content:{html:`<main id="root"><img id="preview" src="${imageName}"></main>`,css:'body { margin: 0; } #preview { width: 100%; height: 100%; object-fit: contain; }',basePath:root},measurement:{targetId:'preview'},controls:[{id:'root',type:'container',order:0},{id:'preview',type:'img',order:1}]};
+    await call('create',measurement,'measurement');await call('show',{},'measurement');
+    let imageState=null;
+    for(let index=0;index<20;index++){imageState=await call('getControlState',{id:'preview'},'measurement');if(imageState.imageComplete&&imageState.imageNaturalWidth===1&&imageState.imageNaturalHeight===1)break;await sleep(50);}
+    assert.equal(imageState.imageComplete,true,'Measurement image must finish loading');
+    assert.equal(imageState.imageNaturalWidth,1,'Measurement image must retain its natural width');
+    assert.equal(imageState.imageNaturalHeight,1,'Measurement image must retain its natural height');
+    await call('close',{},'measurement');
   }
   await call('closeSession',{},'');
   const coverage = hostedDeterministic
-    ? {profile,verified:['hello','icon-registry','toolbar-lifecycle','toolbar-state','notification-lifecycle','notification-follow','notification-timeout'],requiresInteractive:['web-surface-navigation','web-surface-control-bridge']}
-    : {profile,verified:['hello','icon-registry','toolbar-lifecycle','toolbar-state','notification-lifecycle','notification-follow','notification-timeout','web-surface-navigation','web-surface-control-bridge'],requiresInteractive:[]};
+    ? {profile,verified:['hello','icon-registry','toolbar-lifecycle','toolbar-state','notification-lifecycle','notification-follow','notification-timeout'],requiresInteractive:['web-surface-navigation','web-surface-control-bridge','measurement-local-image']}
+    : {profile,verified:['hello','icon-registry','toolbar-lifecycle','toolbar-state','notification-lifecycle','notification-follow','notification-timeout','web-surface-navigation','web-surface-control-bridge','measurement-local-image'],requiresInteractive:[]};
   fs.writeFileSync(path.join(root,'protocol-smoke.json'),JSON.stringify({hostPath,platform:process.platform,passed:true,coverage,events,stderr},null,2));
   console.log('NATIVE_HOST_PROTOCOL_PASS');await call('shutdown',{},'');child.stdin.end();
 })().catch(error=>{fs.writeFileSync(path.join(root,'protocol-smoke-error.json'),JSON.stringify({message:error.message,code:error.code,profile,stderr,events},null,2));console.error(error,stderr);child.kill();process.exitCode=1;});

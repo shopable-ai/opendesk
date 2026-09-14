@@ -5,7 +5,7 @@ namespace OpenDesk.UIHost;
 
 internal static class Program
 {
-    internal const string Protocol = "1.9.0";
+    internal const string Protocol = "1.10.0";
     private static readonly object OutputLock = new();
     private static StreamWriter? output;
     [STAThread]

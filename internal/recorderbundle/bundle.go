@@ -81,6 +81,10 @@ const recordingConsole = OpenDeskSimpleRecordingConsole.createApp({
   controlKeycodes: [],
   windowID: %q,
   openDeskBinary: System.getExecutablePath(),
+  openMeasurement: typeof __opendeskMeasurement === 'object' && __opendeskMeasurement
+    && typeof __opendeskMeasurement.open === 'function'
+    ? () => __opendeskMeasurement.open()
+    : null,
 });
 
 await recordingConsole.run();

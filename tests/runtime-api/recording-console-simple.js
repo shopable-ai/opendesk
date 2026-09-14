@@ -335,14 +335,14 @@ await app.show();
 const toolbar = FakeFloatingWindow.instance;
 equal(toolbar.options.orientation, 'horizontal', 'toolbar orientation');
 equal(toolbar.options.toolbar.maxRows, 1, 'toolbar row count');
-equal(toolbar.options.toolbar.maxColumns, 8, 'toolbar column count');
-equal(toolbar.items.filter(item => item.kind === 'Button').length, 7, 'button count');
+equal(toolbar.options.toolbar.maxColumns, 9, 'toolbar column count');
+equal(toolbar.items.filter(item => item.kind === 'Button').length, 8, 'button count');
 equal(toolbar.items.filter(item => item.kind === 'Switch').length, 1, 'pointer motion switch count');
 equal(toolbar.items.filter(item => item.kind === 'Separator').length, 3, 'separator count');
 assert(!toolbar.items.some(item => item.kind === 'Label'), 'toolbar must not contain a visible Label');
 equal(
   toolbar.items.filter(item => item.kind !== 'Separator').map(item => item.id).join(','),
-  'home,capture,stop,replay,pointerMotion,agentPrompt,details,finder',
+  'home,capture,stop,measurement,replay,pointerMotion,agentPrompt,details,finder',
   'brand home must be the first content item',
 );
 const homeButton = toolbar.buttons.get('home');
@@ -902,7 +902,7 @@ File.removeDir(fixtureRoot);
 
 console.log('RECORDING_CONSOLE_SIMPLE_TEST=' + JSON.stringify({
   passed: true,
-  buttons: 7,
+  buttons: 8,
   separators: 3,
   countdownIcons: 3,
   captureCalls: calls,

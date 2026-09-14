@@ -175,7 +175,7 @@ func (p *Page) Screenshot(options interface{}) (result interface{}, captureErr e
 		}
 	}
 	if len(pngBytes) == 0 {
-		pngBytes, err = p.captureRobotgoScreenshotPNG(x, y, width, height, source)
+		pngBytes, err = p.captureRobotgoScreenshotPNG(x, y, width, height, source, opts.DisplayIndex)
 		if err != nil {
 			return "", err
 		}
@@ -196,7 +196,13 @@ func (p *Page) Screenshot(options interface{}) (result interface{}, captureErr e
 	return p.buildScreenshotResponse(opts, pngBytes, imgW, imgH, source, backend, debugEnabled)
 }
 
-func (p *Page) captureRobotgoScreenshotPNG(x, y, width, height int, source string) ([]byte, error) {
+func (p *Page) captureRobotgoScreenshotPNG(x, y, width, height int, source string, displayIndex int) ([]byte, error) {
+	if source == screenshotTargetScreen && displayIndex > 0 {
+		x, y, width, height = robotgo.GetDisplayBounds(displayIndex - 1)
+		if width <= 0 || height <= 0 {
+			return nil, fmt.Errorf("displayIndex %d has invalid physical capture bounds", displayIndex)
+		}
+	}
 	bit := robotgo.CaptureScreen(x, y, width, height)
 	if bit == nil {
 		return nil, p.wrapScreenshotCaptureError(
@@ -630,6 +636,12 @@ func (p *Page) resolveScreenshotCaptureArea(opts ScreenshotOptions) (int, int, i
 	case opts.FullPage || opts.Target == screenshotTargetScreen:
 		if opts.DisplayIndex > 0 {
 			if meta := NewScreen().GetDisplay(opts.DisplayIndex); meta != nil {
+				if value, ok := parseIntValue(meta["x"]); ok {
+					x = value
+				}
+				if value, ok := parseIntValue(meta["y"]); ok {
+					y = value
+				}
 				if w, ok := parseIntValue(meta["width"]); ok {
 					width = w
 				}

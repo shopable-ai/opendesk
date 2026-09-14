@@ -108,6 +108,10 @@ type InitJSOptions struct {
 	// error rejects Recorder.start without stopping, pausing, or queueing any
 	// other execution.
 	RecorderStartGate func() error
+	// MeasurementOpen is a first-party Recorder bridge. It is not part of the
+	// public Runtime API and remains absent unless App Mode supplies the shared
+	// process-owned Measurement service.
+	MeasurementOpen func(context.Context) error
 	// ExecutionID binds a capture session and its manifest to this Runtime.
 	ExecutionID string
 	// RecorderBackendFactory and RecorderWindowProbe are internal seams for
@@ -1136,6 +1140,17 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 			recorderRuntime.Wait()
 		}
 	}()
+	if opts.MeasurementOpen != nil {
+		if err := runtime.Set("__opendeskMeasurement", map[string]any{
+			"open": func() {
+				if err := opts.MeasurementOpen(opts.Context); err != nil {
+					panic(runtime.NewGoError(err))
+				}
+			},
+		}); err != nil {
+			return fmt.Errorf("failed to register internal Measurement bridge: %w", err)
+		}
+	}
 
 	if err := loadPolyfillsWithSink(runtime, opts.EventSink); err != nil {
 		return fmt.Errorf("failed to load polyfills: %v", err)

@@ -10,7 +10,7 @@
 #import "floating_toolbar_darwin.h"
 #import "notification_darwin.h"
 
-static NSString *const CDProtocolVersion = @"1.9.0";
+static NSString *const CDProtocolVersion = @"1.10.0";
 static NSMutableDictionary<NSString *, id> *CDWindows;
 static NSMutableDictionary<NSString *, NSDictionary *> *CDClosedNotifications;
 
@@ -229,7 +229,7 @@ static NSDictionary *CDBoundsForWindow(NSWindow *window) {
 	return bounds.count ? bounds : CDBoundsFromNativeRect(window.frame);
 }
 
-static NSString *CDBridgeSource(NSArray *controls, NSString *css, BOOL draggable) {
+static NSString *CDBridgeSource(NSArray *controls, NSString *css, BOOL draggable, NSString *measurementTarget) {
     NSMutableArray *ids = [NSMutableArray arrayWithCapacity:controls.count];
     NSMutableDictionary *types = [NSMutableDictionary dictionaryWithCapacity:controls.count];
     for (NSDictionary *control in controls) {
@@ -244,6 +244,7 @@ static NSString *CDBridgeSource(NSArray *controls, NSString *css, BOOL draggable
         @"types": types,
         @"css": css ?: @"",
         @"draggable": @(draggable),
+		@"measurementTarget": measurementTarget ?: @"",
     };
     return [NSString stringWithFormat:
         @"(() => {\n"
@@ -255,24 +256,87 @@ static NSString *CDBridgeSource(NSArray *controls, NSString *css, BOOL draggable
          "const element = (id) => { if (!allowed.has(id)) throw new Error('unknown custom UI control: ' + id); return document.getElementById(id); };\n"
          "const typeFor = (id) => config.types[id] || 'unknown';\n"
          "const dragRects = () => Array.from(document.querySelectorAll('[data-clawdesk-drag],[data-opendesk-drag]')).map(el => { const r=el.getBoundingClientRect(); return {x:r.x,y:r.y,width:r.width,height:r.height}; }).filter(r => r.width>0 && r.height>0);\n"
-	         "const state = (id) => { const el = element(id); const r = el.getBoundingClientRect(); return {id, type:typeFor(id), text:el.textContent || '', icon:el.dataset.icon || '', value:('value' in el ? el.value : null), checked:('checked' in el ? !!el.checked : null), active:el.getAttribute('aria-pressed') === 'true', disabled:!!el.disabled, busy:el.getAttribute('aria-busy') === 'true', error:el.dataset.error || '', visible:!!(el.offsetWidth || el.offsetHeight || el.getClientRects().length), classes:Array.from(el.classList), localBounds:{x:r.x,y:r.y,width:r.width,height:r.height}, screenBounds:{x:window.screenX+r.x,y:window.screenY+r.y,width:r.width,height:r.height}}; };\n"
+	         "const state = (id) => { const el = element(id); const r = el.getBoundingClientRect(); return {id, type:typeFor(id), text:el.textContent || '', icon:el.dataset.icon || '', value:('value' in el ? el.value : null), checked:('checked' in el ? !!el.checked : null), active:el.getAttribute('aria-pressed') === 'true', disabled:!!el.disabled, readOnly:!!el.readOnly, accessibilityName:el.getAttribute('aria-label') || el.getAttribute('placeholder') || el.textContent || '', busy:el.getAttribute('aria-busy') === 'true', error:el.dataset.error || '', visible:!!(el.offsetWidth || el.offsetHeight || el.getClientRects().length), classes:Array.from(el.classList), imageComplete:el.tagName === 'IMG' ? !!el.complete : null, imageNaturalWidth:el.tagName === 'IMG' ? Number(el.naturalWidth || 0) : null, imageNaturalHeight:el.tagName === 'IMG' ? Number(el.naturalHeight || 0) : null, localBounds:{x:r.x,y:r.y,width:r.width,height:r.height}, screenBounds:{x:window.screenX+r.x,y:window.screenY+r.y,width:r.width,height:r.height}}; };\n"
 	         "const toolbarState = (id) => { const value=state(id); const el=element(id); if (el.dataset.opendeskIconOnly === 'true') { value.accessibilityName=el.getAttribute('aria-label') || ''; value.iconPresentation={systemSymbol:el.dataset.iconSymbol || '',scale:Number(el.dataset.iconScale || 1),offsetX:Number(el.dataset.iconOffsetX || 0),offsetY:Number(el.dataset.iconOffsetY || 0)}; } return value; };\n"
 	         "const states = () => config.ids.map(toolbarState);\n"
 	         "const px = value => { const number=Number.parseFloat(value); return Number.isFinite(number) ? number : 0; };\n"
 	         "const dialogLayout = () => { const root=document.getElementById('dialogRoot'); if (!root || !root.classList.contains('dialog')) return null; const icon=document.getElementById('dialogIcon'); const message=document.getElementById('dialogMessage'); const input=document.querySelector('.dialog-input'); const actions=document.getElementById('dialogButtons'); if (!icon || !message || !actions) return null; const rs=getComputedStyle(root); const is=getComputedStyle(icon); const ms=getComputedStyle(message); const messageHeight=Math.ceil(Math.max(message.scrollHeight,message.getBoundingClientRect().height)); const iconHeight=px(is.marginTop)+icon.getBoundingClientRect().height+px(is.marginBottom); const inputHeight=input ? px(getComputedStyle(input).marginTop)+input.getBoundingClientRect().height+px(getComputedStyle(input).marginBottom) : 0; const actionStyle=getComputedStyle(actions); const actionHeight=actions.getBoundingClientRect().height+px(actionStyle.marginBottom); const rightHeight=px(ms.marginTop)+messageHeight+px(ms.marginBottom)+inputHeight+actionHeight; return {contentHeight:Math.ceil(px(rs.paddingTop)+Math.max(iconHeight,rightHeight)+px(rs.paddingBottom)),messageHeight,inputHeight,actionHeight}; };\n"
-	         "const update = (id, patch) => { const el = element(id); if (Object.prototype.hasOwnProperty.call(patch,'text')) { const text=String(patch.text ?? ''); el.textContent=text; if (el.tagName === 'BUTTON') { el.title=text; el.setAttribute('aria-label',text); } } if (Object.prototype.hasOwnProperty.call(patch,'icon')) el.dataset.icon=String(patch.icon ?? ''); if (Object.prototype.hasOwnProperty.call(patch,'value')) el.value = patch.value ?? ''; if (Object.prototype.hasOwnProperty.call(patch,'checked')) el.checked = !!patch.checked; if (Object.prototype.hasOwnProperty.call(patch,'active')) el.setAttribute('aria-pressed',patch.active ? 'true' : 'false'); if (Object.prototype.hasOwnProperty.call(patch,'disabled')) el.disabled = !!patch.disabled; if (Object.prototype.hasOwnProperty.call(patch,'busy')) { el.dataset.busy=patch.busy ? 'true' : 'false'; el.setAttribute('aria-busy',patch.busy ? 'true' : 'false'); } if (Object.prototype.hasOwnProperty.call(patch,'error')) { const message=String(patch.error ?? ''); el.dataset.error=message; el.setAttribute('aria-invalid',message ? 'true' : 'false'); } if (Object.prototype.hasOwnProperty.call(patch,'visible')) el.hidden = !patch.visible; if (Array.isArray(patch.classes)) el.className = patch.classes.join(' '); if (Object.prototype.hasOwnProperty.call(patch,'source')) { if (el.tagName !== 'IMG') throw new Error('source is supported only for img controls'); el.src = patch.source || ''; } if (Array.isArray(patch.options)) { if (el.tagName !== 'SELECT') throw new Error('options are supported only for select controls'); el.replaceChildren(...patch.options.map(o => { const option=document.createElement('option'); option.value=String(o.value); option.textContent=String(o.label); return option; })); } return state(id); };\n"
+	         "const update = (id, patch) => { const el = element(id); if (Object.prototype.hasOwnProperty.call(patch,'text')) { const text=String(patch.text ?? ''); el.textContent=text; if (el.tagName === 'BUTTON') { el.title=text; el.setAttribute('aria-label',text); } } if (Object.prototype.hasOwnProperty.call(patch,'icon')) el.dataset.icon=String(patch.icon ?? ''); if (Object.prototype.hasOwnProperty.call(patch,'value')) el.value = patch.value ?? ''; if (Object.prototype.hasOwnProperty.call(patch,'checked')) el.checked = !!patch.checked; if (Object.prototype.hasOwnProperty.call(patch,'active')) el.setAttribute('aria-pressed',patch.active ? 'true' : 'false'); if (Object.prototype.hasOwnProperty.call(patch,'disabled')) el.disabled = !!patch.disabled; if (Object.prototype.hasOwnProperty.call(patch,'busy')) { el.dataset.busy=patch.busy ? 'true' : 'false'; el.setAttribute('aria-busy',patch.busy ? 'true' : 'false'); } if (Object.prototype.hasOwnProperty.call(patch,'error')) { const message=String(patch.error ?? ''); el.dataset.error=message; el.setAttribute('aria-invalid',message ? 'true' : 'false'); } if (Object.prototype.hasOwnProperty.call(patch,'visible')) el.hidden = !patch.visible; if (Array.isArray(patch.classes)) el.className = patch.classes.join(' '); if (Object.prototype.hasOwnProperty.call(patch,'source')) { if (el.tagName !== 'IMG') throw new Error('source is supported only for img controls'); el.src = patch.source || ''; if (measurementOverlay) measurementOverlay.clear(); } if (Array.isArray(patch.options)) { if (el.tagName !== 'SELECT') throw new Error('options are supported only for select controls'); el.replaceChildren(...patch.options.map(o => { const option=document.createElement('option'); option.value=String(o.value); option.textContent=String(o.label); return option; })); } return state(id); };\n"
 	         "const toolbarUpdate = (id, patch) => { update(id, patch); const el=element(id); if (el.dataset.opendeskIconOnly === 'true') { if (Object.prototype.hasOwnProperty.call(patch,'text')) el.textContent=''; const p=patch.iconPresentation; if (p && typeof p.systemSymbol === 'string') { el.dataset.iconSymbol=p.systemSymbol; el.dataset.iconScale=String(p.scale); el.dataset.iconOffsetX=String(p.offsetX); el.dataset.iconOffsetY=String(p.offsetY); } } return toolbarState(id); };\n"
 	         "const targetFor = (event) => { const el = event.target && event.target.closest ? event.target.closest('[id]') : null; return el && allowed.has(el.id) ? el : null; };\n"
 	         "document.addEventListener('click', event => { const el=targetFor(event); if (el && !el.disabled && el.dataset.busy !== 'true') send({type:'click',targetId:el.id,value:('value' in el ? el.value : null),checked:('checked' in el ? !!el.checked : null),bounds:state(el.id).screenBounds}); });\n"
 	         "document.addEventListener('input', event => { const el=targetFor(event); if (el && !el.hasAttribute('data-opendesk-dialog-private-input')) send({type:'input',targetId:el.id,value:('value' in el ? el.value : null),checked:('checked' in el ? !!el.checked : null)}); });\n"
 	         "document.addEventListener('change', event => { const el=targetFor(event); if (el && !el.hasAttribute('data-opendesk-dialog-private-input')) send({type:'change',targetId:el.id,value:('value' in el ? el.value : null),checked:('checked' in el ? !!el.checked : null)}); });\n"
-	         "document.addEventListener('keydown', event => { if (event.isComposing || event.defaultPrevented) return; if (event.key === 'Escape') { const cancel=document.querySelector('[data-opendesk-dialog-cancel]'); if (cancel || document.querySelector('[data-opendesk-dialog-default]')) { event.preventDefault(); send({type:'dialogCancel'}); } return; } if (event.key === 'Enter') { const button=document.querySelector('[data-opendesk-dialog-default]'); if (button && !button.disabled) { event.preventDefault(); send({type:'click',targetId:button.id,bounds:state(button.id).screenBounds}); } } });\n"
+	         "const measurementPoint = (event, el) => { const r=el.getBoundingClientRect(); const nw=el.naturalWidth||r.width, nh=el.naturalHeight||r.height; const s=Math.min(r.width/nw,r.height/nh); const w=nw*s,h=nh*s,left=r.left+(r.width-w)/2,top=r.top+(r.height-h)/2; return {u:(event.clientX-left)/w,v:(event.clientY-top)/h,left,top,width:w,height:h}; };\n"
+	         "const measurementOverlay = (() => { if (!config.measurementTarget) return null; const el=document.getElementById(config.measurementTarget); if (!el) return null; el.style.touchAction='none'; el.style.userSelect='none'; const box=document.createElement('div'); box.style.cssText='position:fixed;pointer-events:none;border:1px solid #34a8ff;background:rgba(52,168,255,.15);z-index:2147483646;display:none'; const lens=document.createElement('div'); lens.style.cssText='position:fixed;pointer-events:none;width:96px;height:96px;border:2px solid #fff;box-shadow:0 2px 14px #000;background-repeat:no-repeat;image-rendering:pixelated;z-index:2147483647;display:none'; document.body.append(box,lens); let start=null; const paint=(event,p) => { const x=p.left+Math.max(0,Math.min(1,p.u))*p.width,y=p.top+Math.max(0,Math.min(1,p.v))*p.height; if(start){const sx=start.left+Math.max(0,Math.min(1,start.u))*start.width,sy=start.top+Math.max(0,Math.min(1,start.v))*start.height;box.style.display='block';box.style.left=Math.min(sx,x)+'px';box.style.top=Math.min(sy,y)+'px';box.style.width=Math.abs(x-sx)+'px';box.style.height=Math.abs(y-sy)+'px';} lens.style.display='block';lens.style.left=(event.clientX+18)+'px';lens.style.top=(event.clientY+18)+'px';lens.style.backgroundImage='url('+JSON.stringify(el.currentSrc||el.src).slice(1,-1)+')';lens.style.backgroundSize=(p.width*8)+'px '+(p.height*8)+'px';lens.style.backgroundPosition=(-p.u*p.width*8+48)+'px '+(-p.v*p.height*8+48)+'px'; }; const emit=(phase,event) => { const p=measurementPoint(event,el); if(p.u<0||p.v<0||p.u>1||p.v>1)return; if(phase==='pointerdown')start=p; paint(event,p); send({type:'measurement.'+phase,targetId:el.id,fields:{u:p.u,v:p.v,button:event.button,shift:event.shiftKey,alt:event.altKey,ctrl:event.ctrlKey,meta:event.metaKey}}); if(phase==='pointerup')start=null; }; el.addEventListener('pointerdown',event=>{if(event.button!==0)return;event.preventDefault();el.setPointerCapture(event.pointerId);emit('pointerdown',event);}); el.addEventListener('pointermove',event=>{if(event.buttons===1){event.preventDefault();emit('pointermove',event);}else{const p=measurementPoint(event,el);if(p.u>=0&&p.v>=0&&p.u<=1&&p.v<=1)paint(event,p);}}); el.addEventListener('pointerup',event=>{if(event.button!==0)return;event.preventDefault();emit('pointerup',event);}); el.addEventListener('pointerleave',()=>{if(!start)lens.style.display='none';}); return {clear:()=>{box.style.display='none';lens.style.display='none';start=null;}}; })();\n"
+	         "document.addEventListener('keydown', event => { if (event.isComposing || event.defaultPrevented) return; const editing=!!(event.target&&event.target.closest&&event.target.closest('select,input,textarea')); const copy=(event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='c'; if (config.measurementTarget && (event.key==='Escape'||copy||(!editing&&(event.key==='Enter'||event.key.startsWith('Arrow'))))) { event.preventDefault(); send({type:'measurement.key',targetId:config.measurementTarget,fields:{key:event.key,shift:event.shiftKey,alt:event.altKey,ctrl:event.ctrlKey,meta:event.metaKey}}); return; } if (event.key === 'Escape') { const cancel=document.querySelector('[data-opendesk-dialog-cancel]'); if (cancel || document.querySelector('[data-opendesk-dialog-default]')) { event.preventDefault(); send({type:'dialogCancel'}); } return; } if (event.key === 'Enter') { const button=document.querySelector('[data-opendesk-dialog-default]'); if (button && !button.disabled) { event.preventDefault(); send({type:'click',targetId:button.id,bounds:state(button.id).screenBounds}); } } });\n"
 	         "const dialogFocus = document.querySelector('[data-opendesk-dialog-focus]'); if (dialogFocus) requestAnimationFrame(() => dialogFocus.focus());\n"
          "const setDraggable = (enabled) => { config.draggable = !!enabled; };\n"
 	         "Object.defineProperty(window, '__opendesk', {value:Object.freeze({state:toolbarState,states,update:toolbarUpdate,setDraggable,dragRects}), configurable:false, writable:false});\n"
 	         "send({type:'ready',dragRects:dragRects(),controls:states(),dialogLayout:dialogLayout()});\n"
          "})();", CDJSONString(configuration)];
 }
+
+// WKWebView does not reliably grant file: subresource access to documents
+// created with loadHTMLString, even when a contained file base URL is supplied.
+// Serve already-validated local image references through a host-owned scheme so
+// the restricted document keeps network and arbitrary filesystem access off.
+@interface CDAssetSchemeHandler : NSObject <WKURLSchemeHandler>
+@property(nonatomic, copy) NSString *basePath;
+@end
+
+@implementation CDAssetSchemeHandler
+
+- (void)failTask:(id<WKURLSchemeTask>)task code:(NSInteger)code message:(NSString *)message {
+	NSError *error = [NSError errorWithDomain:NSURLErrorDomain code:code userInfo:@{
+		NSLocalizedDescriptionKey: message ?: @"local image resource failed",
+	}];
+	[task didFailWithError:error];
+}
+
+- (void)webView:(WKWebView *)webView startURLSchemeTask:(id<WKURLSchemeTask>)task {
+	NSURL *url = task.request.URL;
+	if (![url.scheme.lowercaseString isEqualToString:@"opendesk-asset"] || ![url.host.lowercaseString isEqualToString:@"local"]) {
+		[self failTask:task code:NSURLErrorUnsupportedURL message:@"local image URL is invalid"];
+		return;
+	}
+	NSString *relative = url.path.stringByRemovingPercentEncoding ?: @"";
+	while ([relative hasPrefix:@"/"]) relative = [relative substringFromIndex:1];
+	NSString *root = self.basePath.stringByStandardizingPath.stringByResolvingSymlinksInPath;
+	NSString *path = [[root stringByAppendingPathComponent:relative].stringByStandardizingPath stringByResolvingSymlinksInPath];
+	NSString *prefix = [root stringByAppendingString:@"/"];
+	if (!relative.length || ![path hasPrefix:prefix]) {
+		[self failTask:task code:NSURLErrorNoPermissionsToReadFile message:@"local image must stay within content.basePath"];
+		return;
+	}
+	NSString *extension = path.pathExtension.lowercaseString;
+	NSDictionary<NSString *, NSString *> *types = @{
+		@"png": @"image/png", @"jpg": @"image/jpeg", @"jpeg": @"image/jpeg",
+		@"gif": @"image/gif", @"webp": @"image/webp", @"bmp": @"image/bmp", @"ico": @"image/x-icon",
+	};
+	NSString *mime = types[extension];
+	NSDictionary *attributes = [NSFileManager.defaultManager attributesOfItemAtPath:path error:nil];
+	unsigned long long size = [attributes[NSFileSize] unsignedLongLongValue];
+	if (!mime.length || ![attributes[NSFileType] isEqualToString:NSFileTypeRegular] || size == 0 || size > 8ULL * 1024ULL * 1024ULL) {
+		[self failTask:task code:NSURLErrorNoPermissionsToReadFile message:@"local image type or size is not allowed"];
+		return;
+	}
+	NSData *data = [NSData dataWithContentsOfFile:path options:NSDataReadingMappedIfSafe error:nil];
+	if (!data || data.length != size) {
+		[self failTask:task code:NSURLErrorCannotOpenFile message:@"local image could not be read"];
+		return;
+	}
+	NSURLResponse *response = [[NSURLResponse alloc] initWithURL:url MIMEType:mime expectedContentLength:(NSInteger)data.length textEncodingName:nil];
+	[task didReceiveResponse:response];
+	[task didReceiveData:data];
+	[task didFinish];
+}
+
+- (void)webView:(WKWebView *)webView stopURLSchemeTask:(id<WKURLSchemeTask>)task {
+	// Reads are synchronous and bounded above; there is no retained task state.
+}
+
+@end
 
 // A nonactivating panel must still receive the user's first physical click.
 // WKWebView otherwise treats that event as activation-only and the controlled
@@ -405,6 +469,10 @@ static NSString *CDBridgeSource(NSArray *controls, NSString *css, BOOL draggable
 - (void)accessibilityButtonDidPress:(NSString *)targetID;
 @end
 
+@protocol CDWebAccessibilityInputProxyDelegate <NSObject>
+- (void)accessibilityInputDidSetValue:(NSString *)targetID value:(NSString *)value;
+@end
+
 // A native, non-drawing Accessibility peer for a validated DOM button. Pointer
 // hit-testing remains owned by WKWebView; this object exists only so VoiceOver
 // and AXPress receive a stable semantic name, bounds, and action in an
@@ -440,6 +508,80 @@ static NSString *CDBridgeSource(NSArray *controls, NSString *css, BOOL draggable
 	if (!self.enabled || self.callbackBusy || !self.targetID.length) return NO;
 	[self.eventDelegate accessibilityButtonDidPress:self.targetID];
 	return YES;
+}
+@end
+
+// WKWebView does not reliably export editable DOM controls from an
+// accessory-process host. Mirror only declared Custom UI input controls as
+// non-drawing native AXTextField peers, so assistive clients can use the same
+// bounded value-change bridge as a user typing in the WebView.
+@interface CDWebAccessibilityInputProxy : NSView
+@property(nonatomic, copy) NSString *targetID;
+@property(nonatomic, weak) id<CDWebAccessibilityInputProxyDelegate> eventDelegate;
+@property(nonatomic, copy) NSString *value;
+@property(nonatomic) BOOL enabled;
+@property(nonatomic) BOOL readOnly;
+@end
+
+@implementation CDWebAccessibilityInputProxy
+- (void)drawRect:(NSRect)dirtyRect {
+	(void)dirtyRect;
+}
+
+- (BOOL)isAccessibilityElement {
+	return YES;
+}
+
+- (NSString *)accessibilityRole {
+	return NSAccessibilityTextFieldRole;
+}
+
+- (id)accessibilityParent {
+	return self.window;
+}
+
+- (id)accessibilityValue {
+	return self.value ?: @"";
+}
+
+- (id)accessibilityAttributeValue:(NSAccessibilityAttributeName)attribute {
+	if ([attribute isEqualToString:NSAccessibilityValueAttribute]) return self.value ?: @"";
+	return [super accessibilityAttributeValue:attribute];
+}
+
+- (NSArray<NSAccessibilityAttributeName> *)accessibilityAttributeNames {
+	NSMutableArray<NSAccessibilityAttributeName> *names = [[super accessibilityAttributeNames] mutableCopy] ?: [NSMutableArray array];
+	if (![names containsObject:NSAccessibilityValueAttribute]) [names addObject:NSAccessibilityValueAttribute];
+	return names;
+}
+
+- (BOOL)isAccessibilityEnabled {
+	return self.enabled;
+}
+
+- (BOOL)accessibilityIsAttributeSettable:(NSAccessibilityAttributeName)attribute {
+	if ([attribute isEqualToString:NSAccessibilityValueAttribute]) return self.enabled && !self.readOnly;
+	return [super accessibilityIsAttributeSettable:attribute];
+}
+
+- (void)setAccessibilityValue:(id)value {
+	if (!self.enabled || self.readOnly) return;
+	NSString *next = nil;
+	if ([value isKindOfClass:NSString.class]) next = (NSString *)value;
+	else if ([value isKindOfClass:NSAttributedString.class]) next = [(NSAttributedString *)value string];
+	else if (value != nil && value != NSNull.null) next = [value description];
+	if (next == nil) return;
+	if ([self.value isEqualToString:next]) return;
+	self.value = next;
+	[self.eventDelegate accessibilityInputDidSetValue:self.targetID value:next];
+}
+
+- (void)accessibilitySetValue:(id)value forAttribute:(NSAccessibilityAttributeName)attribute {
+	if ([attribute isEqualToString:NSAccessibilityValueAttribute]) {
+		[self setAccessibilityValue:value];
+		return;
+	}
+	[super accessibilitySetValue:value forAttribute:attribute];
 }
 @end
 
@@ -554,7 +696,7 @@ static NSString *CDBridgeSource(NSArray *controls, NSString *css, BOOL draggable
 
 @end
 
-@interface CDWindowController : NSObject <WKScriptMessageHandler, WKNavigationDelegate, NSWindowDelegate, CDDragOverlayDelegate, CDWebAccessibilityButtonProxyDelegate, CDFloatingToolbarDelegate>
+@interface CDWindowController : NSObject <WKScriptMessageHandler, WKNavigationDelegate, NSWindowDelegate, CDDragOverlayDelegate, CDWebAccessibilityButtonProxyDelegate, CDWebAccessibilityInputProxyDelegate, CDFloatingToolbarDelegate>
 @property(nonatomic, copy) NSString *sessionID;
 @property(nonatomic, copy) NSString *windowID;
 @property(nonatomic, copy) NSString *kind;
@@ -562,6 +704,7 @@ static NSString *CDBridgeSource(NSArray *controls, NSString *css, BOOL draggable
 @property(nonatomic, copy) NSString *createRequestID;
 @property(nonatomic, strong) NSWindow *window;
 @property(nonatomic, strong) WKWebView *webView;
+@property(nonatomic, strong) CDAssetSchemeHandler *assetSchemeHandler;
 @property(nonatomic, strong) CDDragOverlayView *dragOverlay;
 @property(nonatomic, strong) CDWebIconOverlayView *webIconOverlay;
 @property(nonatomic, strong) CDToolbarView *floatingToolbarView;
@@ -572,6 +715,7 @@ static NSString *CDBridgeSource(NSArray *controls, NSString *css, BOOL draggable
 @property(nonatomic) NSInteger notificationSlot;
 @property(nonatomic, weak) CDContentView *contentView;
 @property(nonatomic, strong) NSMutableDictionary<NSString *, CDWebAccessibilityButtonProxy *> *webAccessibilityButtons;
+@property(nonatomic, strong) NSMutableDictionary<NSString *, CDWebAccessibilityInputProxy *> *webAccessibilityInputs;
 @property(nonatomic, strong) NSSet<NSString *> *controlIDs;
 @property(nonatomic, copy) NSArray<NSDictionary *> *dragRegions;
 @property(nonatomic) CGWindowID nativeWindowID;
@@ -580,6 +724,7 @@ static NSString *CDBridgeSource(NSArray *controls, NSString *css, BOOL draggable
 @property(nonatomic) BOOL closed;
 @property(nonatomic) BOOL programmaticClose;
 @property(nonatomic, copy) NSString *appCloseBehavior;
+@property(nonatomic, copy) NSString *measurementTarget;
 @property(nonatomic) BOOL dragActive;
 @property(nonatomic) BOOL navigationFinished;
 @property(nonatomic) BOOL bridgeReady;
@@ -595,6 +740,7 @@ static NSString *CDBridgeSource(NSArray *controls, NSString *css, BOOL draggable
 - (void)setDragRegionsFromValue:(id)value;
 - (void)syncAccessibilityControlsFromValue:(id)value;
 - (void)syncAccessibilityControlFromState:(NSDictionary *)state;
+- (void)syncAccessibilityInputValue:(id)value targetID:(NSString *)targetID;
 - (BOOL)fitHostDialogToContentLayout:(NSDictionary *)layout;
 - (void)failInitialNavigation:(NSError *)error;
 - (void)refreshDragRegionsWithCompletion:(void (^)(NSError *error))completion;
@@ -644,9 +790,42 @@ static void CDFinalizeClosedWindow(CDWindowController *controller, NSUInteger at
 }
 
 - (void)syncAccessibilityControlFromState:(NSDictionary *)state {
-	if (![state isKindOfClass:NSDictionary.class] || ![state[@"type"] isEqualToString:@"button"] || !self.contentView) return;
+	if (![state isKindOfClass:NSDictionary.class] || !self.contentView) return;
+	NSString *type = state[@"type"];
 	NSString *targetID = state[@"id"];
 	if (![targetID isKindOfClass:NSString.class] || ![self.controlIDs containsObject:targetID]) return;
+	if ([type isEqualToString:@"input"]) {
+		CDWebAccessibilityInputProxy *input = self.webAccessibilityInputs[targetID];
+		if (!input) {
+			input = [[CDWebAccessibilityInputProxy alloc] initWithFrame:NSZeroRect];
+			input.targetID = targetID;
+			input.eventDelegate = self;
+			input.accessibilityElement = YES;
+			[self.contentView addSubview:input positioned:NSWindowBelow relativeTo:self.webView];
+			self.webAccessibilityInputs[targetID] = input;
+		}
+		NSString *label = [state[@"accessibilityName"] isKindOfClass:NSString.class] ? state[@"accessibilityName"] : @"";
+		input.accessibilityLabel = label;
+		input.toolTip = label;
+		input.readOnly = [state[@"readOnly"] boolValue];
+		input.enabled = ![state[@"disabled"] boolValue];
+		input.hidden = state[@"visible"] && ![state[@"visible"] boolValue];
+		id value = state[@"value"];
+		input.value = [value isKindOfClass:NSString.class] ? value : @"";
+		NSDictionary *bounds = state[@"localBounds"];
+		if ([bounds isKindOfClass:NSDictionary.class]) {
+			double x = [bounds[@"x"] doubleValue];
+			double y = [bounds[@"y"] doubleValue];
+			double width = [bounds[@"width"] doubleValue];
+			double height = [bounds[@"height"] doubleValue];
+			if (isfinite(x) && isfinite(y) && isfinite(width) && isfinite(height) && width > 0 && height > 0) {
+				input.frame = NSMakeRect(x, NSHeight(self.contentView.bounds) - y - height, width, height);
+			}
+		}
+		NSAccessibilityPostNotification(input, NSAccessibilityValueChangedNotification);
+		return;
+	}
+	if (![type isEqualToString:@"button"]) return;
 	CDWebAccessibilityButtonProxy *button = self.webAccessibilityButtons[targetID];
 	if (!button) {
 		button = [[CDWebAccessibilityButtonProxy alloc] initWithFrame:NSZeroRect];
@@ -684,18 +863,24 @@ static void CDFinalizeClosedWindow(CDWindowController *controller, NSUInteger at
 
 - (void)syncAccessibilityControlsFromValue:(id)value {
 	if (![value isKindOfClass:NSArray.class] || !self.contentView) return;
-	NSMutableArray<NSView *> *orderedButtons = [NSMutableArray array];
+	NSMutableArray<NSView *> *orderedControls = [NSMutableArray array];
 	for (id rawState in (NSArray *)value) {
 		if (![rawState isKindOfClass:NSDictionary.class]) continue;
 		NSDictionary *state = (NSDictionary *)rawState;
-		if (![state[@"type"] isEqualToString:@"button"]) continue;
+		NSString *type = state[@"type"];
+		if (![type isEqualToString:@"button"] && ![type isEqualToString:@"input"]) continue;
 		[self syncAccessibilityControlFromState:state];
-		CDWebAccessibilityButtonProxy *button = self.webAccessibilityButtons[state[@"id"]];
-		if (button) [orderedButtons addObject:button];
+		if ([type isEqualToString:@"button"]) {
+			CDWebAccessibilityButtonProxy *button = self.webAccessibilityButtons[state[@"id"]];
+			if (button) [orderedControls addObject:button];
+		} else {
+			CDWebAccessibilityInputProxy *input = self.webAccessibilityInputs[state[@"id"]];
+			if (input) [orderedControls addObject:input];
+		}
 	}
-	self.contentView.nativeAccessibilityChildren = orderedButtons.copy;
+	self.contentView.nativeAccessibilityChildren = orderedControls.copy;
 	if ([self.window isKindOfClass:CDDialogWindow.class]) {
-		((CDDialogWindow *)self.window).dialogAccessibilityChildren = orderedButtons.copy;
+		((CDDialogWindow *)self.window).dialogAccessibilityChildren = orderedControls.copy;
 	}
 	NSAccessibilityPostNotification(self.contentView, NSAccessibilityLayoutChangedNotification);
 	NSAccessibilityPostNotification(self.window, NSAccessibilityLayoutChangedNotification);
@@ -706,6 +891,33 @@ static void CDFinalizeClosedWindow(CDWindowController *controller, NSUInteger at
 	CDWebAccessibilityButtonProxy *button = self.webAccessibilityButtons[targetID];
 	if (!button || !button.enabled || button.callbackBusy) return;
 	[self emitType:@"click" target:targetID body:@{} reason:nil];
+}
+
+- (void)syncAccessibilityInputValue:(id)value targetID:(NSString *)targetID {
+	CDWebAccessibilityInputProxy *input = self.webAccessibilityInputs[targetID];
+	if (!input || ![value isKindOfClass:NSString.class]) return;
+	input.value = value;
+	NSAccessibilityPostNotification(input, NSAccessibilityValueChangedNotification);
+}
+
+- (void)accessibilityInputDidSetValue:(NSString *)targetID value:(NSString *)value {
+	if (self.closed || ![self.controlIDs containsObject:targetID] || ![value isKindOfClass:NSString.class]) return;
+	CDWebAccessibilityInputProxy *input = self.webAccessibilityInputs[targetID];
+	if (!input || !input.enabled || input.readOnly) return;
+	NSString *script = [NSString stringWithFormat:@"window.__opendesk.update(%@, %@)", CDJSONString(targetID), CDJSONString(@{@"value": value})];
+	__weak CDWindowController *weakSelf = self;
+	[self.webView evaluateJavaScript:script inFrame:nil inContentWorld:WKContentWorld.defaultClientWorld completionHandler:^(id result, NSError *error) {
+		CDWindowController *controller = weakSelf;
+		if (!controller || controller.closed) return;
+		if (error || ![result isKindOfClass:NSDictionary.class]) {
+			[controller.webView evaluateJavaScript:[NSString stringWithFormat:@"window.__opendesk.state(%@)", CDJSONString(targetID)] inFrame:nil inContentWorld:WKContentWorld.defaultClientWorld completionHandler:^(id state, NSError *stateError) {
+				if (!stateError && [state isKindOfClass:NSDictionary.class]) [controller syncAccessibilityControlFromState:state];
+			}];
+			return;
+		}
+		[controller syncAccessibilityControlFromState:(NSDictionary *)result];
+		[controller emitType:@"input" target:targetID body:@{@"value": value} reason:nil];
+	}];
 }
 
 - (void)setDragRegionsFromValue:(id)value {
@@ -830,6 +1042,7 @@ static void CDFinalizeClosedWindow(CDWindowController *controller, NSUInteger at
 	if (body[@"value"] && body[@"value"] != NSNull.null) event[@"value"] = body[@"value"];
 	if (body[@"checked"] && body[@"checked"] != NSNull.null) event[@"checked"] = body[@"checked"];
 	if ([body[@"bounds"] isKindOfClass:NSDictionary.class]) event[@"bounds"] = body[@"bounds"];
+	if ([body[@"fields"] isKindOfClass:NSDictionary.class]) event[@"fields"] = body[@"fields"];
 	if ([type isEqualToString:@"move"] || [type isEqualToString:@"resize"]) event[@"bounds"] = CDBoundsForWindow(self.window);
     if (reason.length) event[@"reason"] = reason;
     CDEmit(@{@"version": CDProtocolVersion, @"kind": @"event", @"event": event});
@@ -874,9 +1087,19 @@ static void CDFinalizeClosedWindow(CDWindowController *controller, NSUInteger at
 	if ([type isEqualToString:@"click"] || [type isEqualToString:@"input"] || [type isEqualToString:@"change"]) {
 		NSString *targetID = body[@"targetId"];
 		if (![targetID isKindOfClass:NSString.class] || ![self.controlIDs containsObject:targetID]) return;
+		if ([type isEqualToString:@"input"] || [type isEqualToString:@"change"]) {
+			[self syncAccessibilityInputValue:body[@"value"] targetID:targetID];
+		}
 		[self emitType:type target:targetID body:body reason:nil];
 		return;
     }
+	if ([type hasPrefix:@"measurement."]) {
+		NSString *targetID = body[@"targetId"];
+		if (self.measurementTarget.length && [targetID isKindOfClass:NSString.class] && [targetID isEqualToString:self.measurementTarget] && [body[@"fields"] isKindOfClass:NSDictionary.class]) {
+			[self emitType:type target:targetID body:body reason:nil];
+		}
+		return;
+	}
 	if ([type isEqualToString:@"dialogCancel"]) {
 		// This message is emitted only by the native, fixed Dialog bridge. It
 		// preserves the user-close semantics instead of exposing a new public
@@ -910,6 +1133,7 @@ static void CDFinalizeClosedWindow(CDWindowController *controller, NSUInteger at
 	[self.floatingToolbarView releaseResources];
 	[self.notificationView dispose];
 	for (CDWebAccessibilityButtonProxy *button in self.webAccessibilityButtons.allValues) button.eventDelegate = nil;
+	for (CDWebAccessibilityInputProxy *input in self.webAccessibilityInputs.allValues) input.eventDelegate = nil;
 	self.contentView.nativeAccessibilityChildren = @[];
 	[self.webIconOverlay clear];
     self.revision += 1;
@@ -1326,6 +1550,7 @@ static void CDHandleCreate(NSDictionary *request, NSString *requestID) {
     controller.windowID = windowID;
 	controller.kind = kind;
 	controller.appCloseBehavior = [spec[@"appCloseBehavior"] isKindOfClass:NSString.class] ? spec[@"appCloseBehavior"] : @"";
+	controller.measurementTarget = [spec[@"measurement"] isKindOfClass:NSDictionary.class] ? spec[@"measurement"][@"targetId"] : nil;
     controller.window = window;
 	controller.nativeWindowID = (CGWindowID)window.windowNumber;
     controller.alwaysOnTop = [spec[@"alwaysOnTop"] boolValue];
@@ -1365,17 +1590,23 @@ static void CDHandleCreate(NSDictionary *request, NSString *requestID) {
 	// native-toolbar branch has returned. FloatingWindow therefore has no DOM,
 	// icon overlay, or non-drawing Accessibility proxy objects.
 	controller.webAccessibilityButtons = [NSMutableDictionary dictionary];
+	controller.webAccessibilityInputs = [NSMutableDictionary dictionary];
 
     NSDictionary *content = spec[@"content"];
     NSString *html = content[@"html"] ?: @"";
     NSString *css = content[@"css"] ?: @"";
     controller.basePath = [content[@"basePath"] stringByStandardizingPath] ?: @"";
 	controller.createRequestID = requestID;
-    WKWebViewConfiguration *configuration = [WKWebViewConfiguration new];
+	WKWebViewConfiguration *configuration = [WKWebViewConfiguration new];
 	configuration.defaultWebpagePreferences.allowsContentJavaScript = NO;
 	configuration.preferences.javaScriptCanOpenWindowsAutomatically = NO;
+	CDAssetSchemeHandler *assetSchemeHandler = [CDAssetSchemeHandler new];
+	assetSchemeHandler.basePath = controller.basePath;
+	[configuration setURLSchemeHandler:assetSchemeHandler forURLScheme:@"opendesk-asset"];
+	controller.assetSchemeHandler = assetSchemeHandler;
 	[configuration.userContentController addScriptMessageHandler:controller contentWorld:WKContentWorld.defaultClientWorld name:@"opendesk"];
-    NSString *bridge = CDBridgeSource(spec[@"controls"] ?: @[], css, controller.draggable);
+	NSString *measurementTarget = [spec[@"measurement"] isKindOfClass:NSDictionary.class] ? spec[@"measurement"][@"targetId"] : nil;
+    NSString *bridge = CDBridgeSource(spec[@"controls"] ?: @[], css, controller.draggable, measurementTarget);
 	WKUserScript *script = [[WKUserScript alloc] initWithSource:bridge injectionTime:WKUserScriptInjectionTimeAtDocumentEnd forMainFrameOnly:YES inContentWorld:WKContentWorld.defaultClientWorld];
     [configuration.userContentController addUserScript:script];
 	CDContentView *contentView = [[CDContentView alloc] initWithFrame:window.contentView.bounds];
@@ -1402,9 +1633,9 @@ static void CDHandleCreate(NSDictionary *request, NSString *requestID) {
 	[contentView addSubview:webIconOverlay positioned:NSWindowAbove relativeTo:webView];
 	[contentView addSubview:dragOverlay positioned:NSWindowAbove relativeTo:webView];
 	window.contentView = contentView;
-    NSURL *baseURL = controller.basePath.length ? [NSURL fileURLWithPath:controller.basePath isDirectory:YES] : nil;
+    NSURL *baseURL = controller.basePath.length ? [NSURL URLWithString:@"opendesk-asset://local/"] : nil;
     CDWindows[key] = controller;
-	NSString *policy = @"default-src 'none'; img-src data: file:; style-src 'unsafe-inline'; script-src 'none'; connect-src 'none'; media-src 'none'; font-src 'none'; child-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'";
+	NSString *policy = @"default-src 'none'; img-src data: opendesk-asset:; style-src 'unsafe-inline'; script-src 'none'; connect-src 'none'; media-src 'none'; font-src 'none'; child-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'";
 	NSString *protectedHTML = [NSString stringWithFormat:@"<meta http-equiv=\"Content-Security-Policy\" content=\"%@\">%@", policy, html];
 	[webView loadHTMLString:protectedHTML baseURL:baseURL];
 	CDFailCreateIfNotReady(controller, 0);

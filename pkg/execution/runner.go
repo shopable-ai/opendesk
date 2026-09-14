@@ -112,6 +112,10 @@ type Request struct {
 	// RecorderStartGate is an execution-scoped host policy hook. Returning an
 	// error rejects Recorder.start without changing any other execution.
 	RecorderStartGate func() error
+	// MeasurementOpen is an in-process bridge used only by the built-in
+	// Recorder execution. It opens the same process-owned Measurement service
+	// as the OpenDesk product menu and is absent from ordinary scripts.
+	MeasurementOpen func(context.Context) error
 	// SQLiteProtectedPaths supplies additional internal database files that a
 	// local SQLite Runtime must not open (for example a configured Scheduler
 	// store). The automation owner also protects the default Scheduler path.
@@ -386,6 +390,7 @@ func runJavaScript(req Request, emitter *Emitter) error {
 				EnableSQLite:                    req.EnableSQLite,
 				EnableRecorderCapture:           req.EnableRecorderCapture,
 				RecorderStartGate:               req.RecorderStartGate,
+				MeasurementOpen:                 req.MeasurementOpen,
 				ExecutionID:                     req.ExecutionID,
 				SQLiteProtectedPaths:            req.SQLiteProtectedPaths,
 				CustomUIActivationSource:        normalizeCustomUIActivationSource(req),

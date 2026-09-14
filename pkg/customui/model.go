@@ -8,7 +8,7 @@ import (
 
 // ProtocolVersion advances with native toolbar schema changes so an older host
 // cannot silently accept a newer FloatingWindow declaration or mutation.
-const ProtocolVersion = "1.9.0"
+const ProtocolVersion = "1.10.0"
 
 type ActivationSource string
 
@@ -73,9 +73,19 @@ type WindowSpec struct {
 	Toolbar               *toolbar.ToolbarSpec `json:"toolbar,omitempty"`
 	Controls              []Control            `json:"controls,omitempty"`
 	Notification          *NotificationSpec    `json:"notification,omitempty"`
+	// Measurement is a host-owned surface extension. Public JavaScript cannot
+	// declare it: automation/custom_ui.go decodes a deliberately narrower
+	// declaration. It gives the first-party Measurement service bounded pointer
+	// and keyboard events for one already-validated image control without
+	// enabling document scripts or a second desktop-input framework.
+	Measurement *MeasurementSurfaceSpec `json:"measurement,omitempty"`
 	// AppCloseBehavior is host-owned App Mode policy. It is absent from the
 	// public JavaScript declaration and is injected only for window.mainId.
 	AppCloseBehavior string `json:"appCloseBehavior,omitempty"`
+}
+
+type MeasurementSurfaceSpec struct {
+	TargetID string `json:"targetId"`
 }
 
 type Control struct {

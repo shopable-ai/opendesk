@@ -14,6 +14,7 @@
     agentPrompt: 'ai.assistant',
     details: 'info.circle',
     finder: 'folder.fill',
+    measurement: 'viewfinder',
   });
   const HTTPS_URL_PATTERN = /^https:\/\/[^\s/?#\\]+(?:[/?#][^\s]*)?$/;
 
@@ -123,6 +124,9 @@
     const beforeStart = typeof settings.beforeStart === 'function'
       ? settings.beforeStart
       : null;
+    const openMeasurement = typeof settings.openMeasurement === 'function'
+      ? settings.openMeasurement
+      : null;
     const countdownStepMs = Number.isFinite(settings.countdownStepMs)
       ? Math.max(0, Math.trunc(settings.countdownStepMs)) : 1000;
 
@@ -160,6 +164,7 @@
     let captureUnavailableDetail = '';
 
     function capturePermissionProblem() {
+      if (captureCapabilities.hostAuthorized === false) return false;
       const permission = String(captureCapabilities.permission || '').toLowerCase();
       return permission === 'denied' || permission === 'not_determined'
         || permission === 'restricted';
@@ -235,6 +240,7 @@
     let session = null;
     let startPromise = null;
     let controlPromise = null;
+    let measurementPromise = null;
     let stopPromise = null;
     let generatePromise = null;
     let copyPromptPromise = null;
@@ -257,7 +263,7 @@
       alwaysOnTop: true,
       draggable: true,
       orientation: 'horizontal',
-      toolbar: {maxColumns: 8, maxRows: 1},
+      toolbar: {maxColumns: 9, maxRows: 1},
     });
 
     function snapshot() {
@@ -281,13 +287,14 @@
       const pausing = phase === 'pausing';
       const resuming = phase === 'resuming';
       const captureActive = recording || pausing || paused || resuming;
+      const measurementBusy = !!measurementPromise;
       const countingDown = phase === 'countdown' && state.countdown;
       const captureUnavailable = !captureAvailable
         && (phase === 'ready' || phase === 'unavailable' || TERMINAL_PHASES.has(phase));
       const canStart = captureAvailable && (phase === 'ready' || TERMINAL_PHASES.has(phase))
-        && !generatePromise && !runPromise;
+        && !generatePromise && !runPromise && !measurementBusy;
       const canControlCapture = (recording || paused)
-        && !startPromise && !controlPromise && !stopPromise;
+        && !startPromise && !controlPromise && !stopPromise && !measurementBusy;
       const canRetryGeneration = phase === 'generation-error'
         && actionsCanGenerate(state.actions)
         && !state.generated && !generatePromise && !runPromise;
@@ -298,7 +305,6 @@
         && !runPromise && phase !== 'run-countdown' && phase !== 'running'
         && !ACTIVE_CAPTURE_PHASES.has(phase);
       const terminalArtifact = !!artifact();
-
       return {
         capture: {
           icon: countingDown ? BUILT_IN_ICONS.countdown
@@ -323,7 +329,7 @@
               ? '取消开始' : '停止录制'),
           active: false,
           disabled: !(phase === 'countdown' || phase === 'starting' || phase === 'stop-requested'
-            || captureActive || !!runPromise),
+            || captureActive || !!runPromise) || measurementBusy,
         },
         replay: {
           icon: phase === 'generating' || canRetryGeneration ? BUILT_IN_ICONS.generate : BUILT_IN_ICONS.replay,
@@ -353,6 +359,13 @@
           active: false,
           disabled: !terminalArtifact,
         },
+        measurement: {
+          icon: BUILT_IN_ICONS.measurement,
+          label: measurementBusy ? '桌面测量中' : '测量',
+          active: measurementBusy,
+          disabled: !openMeasurement || measurementBusy || !!startPromise || !!controlPromise
+            || !!stopPromise || !!generatePromise || !!runPromise || closeRequested,
+        },
       };
     }
 
@@ -366,7 +379,7 @@
     async function syncButtons() {
       if (toolbarClosed) return;
       const presentation = buttonPresentation();
-      for (const id of ['capture', 'stop', 'replay', 'agentPrompt', 'details', 'finder']) {
+      for (const id of ['capture', 'stop', 'measurement', 'replay', 'agentPrompt', 'details', 'finder']) {
         const patch = presentation[id];
         patch.error = state.errorButton === id && state.error ? state.error.message : null;
         await toolbar.updateButton(id, patch);
@@ -675,7 +688,7 @@
     }
 
     function pauseOrResume() {
-      if (controlPromise || stopPromise || startPromise || !session || closeRequested) {
+      if (controlPromise || measurementPromise || stopPromise || startPromise || !session || closeRequested) {
         return controlPromise || Promise.resolve(snapshot());
       }
       controlPromise = (async () => {
@@ -732,6 +745,41 @@
       }
       if (session) return stopSession({build: true});
       return snapshot();
+    }
+
+    function measure(event) {
+      if (!openMeasurement || measurementPromise || closeRequested) {
+        return measurementPromise || Promise.resolve(snapshot());
+      }
+      measurementPromise = (async () => {
+        await excludeControlClick(event);
+        if (session) {
+          const native = session.status();
+          state.nativeStatus = clone(native);
+          if (native.captureState === 'recording') {
+            await transition('pausing', '正在暂停录制并打开桌面测量…', {error: null, errorButton: ''});
+            await session.pause();
+            state.nativeStatus = clone(session.status());
+            await transition('paused', '录制已暂停；桌面测量退出后仍保持暂停，不会自动恢复。');
+          }
+        }
+        await Promise.resolve(openMeasurement());
+        return snapshot();
+      })().catch(async error => {
+        let fallback = state.phase;
+        if (session) {
+          try {
+            state.nativeStatus = clone(session.status());
+            fallback = state.nativeStatus.captureState === 'paused' ? 'paused'
+              : state.nativeStatus.captureState === 'recording' ? 'recording' : fallback;
+          } catch (_) {}
+        }
+        return fail(error, 'measurement', fallback, '打开桌面测量失败');
+      }).finally(async () => {
+        measurementPromise = null;
+        await syncButtons();
+      });
+      return measurementPromise;
     }
 
     function generate() {
@@ -1040,6 +1088,7 @@
       await excludeControlClick(event);
       return stop();
     });
+    toolbar.addButton('measurement', '测量', BUILT_IN_ICONS.measurement, measure);
     toolbar.addSeparator('capture-output-separator');
     toolbar.addButton('replay', '重放', BUILT_IN_ICONS.replay, replayOrRetryGeneration);
     toolbar.addSwitch('pointerMotion', '鼠标移动（开：平滑，关：瞬移）', {
@@ -1091,7 +1140,7 @@
     }
 
     return Object.freeze({
-      run, show, close, start, pauseOrResume, stop, generate, runGenerated, setPointerMotion, copyAgentPrompt, showDetails, reveal, openHomepage,
+      run, show, close, start, pauseOrResume, stop, measure, generate, runGenerated, setPointerMotion, copyAgentPrompt, showDetails, reveal, openHomepage,
       state: snapshot,
       toolbar: () => toolbar,
       icons: () => clone(BUILT_IN_ICONS),

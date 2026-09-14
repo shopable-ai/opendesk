@@ -30,6 +30,30 @@ func TestNormalizeRejectsNonFiniteBounds(t *testing.T) {
 	}
 }
 
+func TestNormalizeMeasurementSurfaceTargetsOnlyDeclaredImage(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "snapshot.png"), []byte("fixture"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	spec := WindowSpec{
+		ID: "measurement", Kind: "normal", Bounds: Bounds{Width: 800, Height: 600},
+		Content:     ContentSpec{HTML: `<img id="preview" src="snapshot.png"><button id="copy">Copy</button>`, BasePath: "."},
+		Measurement: &MeasurementSurfaceSpec{TargetID: "preview"},
+	}
+	normalized, err := Normalize(spec, root)
+	if err != nil || normalized.Measurement == nil || normalized.Measurement.TargetID != "preview" {
+		t.Fatalf("measurement normalize = %#v, err=%v", normalized.Measurement, err)
+	}
+	bad := spec
+	bad.Measurement = &MeasurementSurfaceSpec{TargetID: "copy"}
+	if _, err := Normalize(bad, root); err == nil {
+		t.Fatal("measurement surface accepted a non-image target")
+	}
+	if IsPublicEventType("measurement.pointerdown") || IsPublicEventType("measurement.key") {
+		t.Fatal("host-owned Measurement events leaked into the public Custom UI event contract")
+	}
+}
+
 func TestNormalizeToolbarOrientationPolicy(t *testing.T) {
 	button := func(id string) toolbar.ButtonSpec {
 		return toolbar.ButtonSpec{ID: id, Label: id, Icon: "timer", State: toolbar.ButtonState{Revision: 1}}

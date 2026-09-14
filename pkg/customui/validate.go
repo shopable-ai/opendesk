@@ -172,6 +172,23 @@ func Normalize(spec WindowSpec, baseDir string) (WindowSpec, error) {
 		return WindowSpec{}, err
 	}
 	spec.Controls = controls
+	if spec.Measurement != nil {
+		targetID := strings.TrimSpace(spec.Measurement.TargetID)
+		if !publicIDPattern.MatchString(targetID) {
+			return WindowSpec{}, invalidSpec("measurement target id is invalid")
+		}
+		found := false
+		for _, control := range controls {
+			if control.ID == targetID && control.Type == "img" {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return WindowSpec{}, invalidSpec("measurement target must identify a declared img control")
+		}
+		spec.Measurement = &MeasurementSurfaceSpec{TargetID: targetID}
+	}
 	return spec, nil
 }
 

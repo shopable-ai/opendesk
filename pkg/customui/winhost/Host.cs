@@ -110,7 +110,7 @@ internal abstract class Surface : IDisposable
             ["hostPid"]=Environment.ProcessId,["nativeWindowId"]=NativeID.ToInt64(),["onScreen"]=!Closed&&Native.OnScreen(NativeID),
             ["layer"]=Form.TopMost?1:0,["alpha"]=Closed?0:Form.Opacity,["revision"]=Revision,["lastSequence"]=Sequence };
     }
-    internal void Emit(string type,string? target=null,JsonNode? value=null,bool? check=null,JsonObject? bounds=null,string? reason=null)
+    internal void Emit(string type,string? target=null,JsonNode? value=null,bool? check=null,JsonObject? bounds=null,string? reason=null,JsonObject? fields=null)
     {
         if(!Registered || (Closed&&type!="close"))return;
         var e=new JsonObject { ["sessionId"]=Session,["windowId"]=ID,["type"]=type,["sequence"]=++Sequence,["timestamp"]=DateTimeOffset.UtcNow.ToString("O") };
@@ -119,6 +119,7 @@ internal abstract class Surface : IDisposable
         if(check.HasValue)e["checked"]=check.Value;
         if(bounds is not null)e["bounds"]=bounds;
         if(reason is not null)e["reason"]=reason;
+        if(fields is not null)e["fields"]=fields.DeepClone();
         Program.Emit(new JsonObject { ["version"]=Program.Protocol,["kind"]="event",["event"]=e });
     }
     internal virtual async Task<JsonNode?> Apply(string operation,JsonObject payload)
