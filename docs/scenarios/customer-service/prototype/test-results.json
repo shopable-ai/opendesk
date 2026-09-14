@@ -1,0 +1,93 @@
+{
+  "scope": "Offline browser mock interaction checks only; NOT Runtime/integration/production tests",
+  "testDate": "2026-09-14T11:41:51.930615+00:00",
+  "limitations": [
+    "Rendered via page.set_content; file and localhost navigation blocked by environment policy",
+    "localStorage is a test double; real browser reload durability NOT verified",
+    "No production identity, concurrency, network or Runtime test"
+  ],
+  "passed": 20,
+  "failed": 0,
+  "tests": [
+    {
+      "name": "01 Missing material blocks preview and execution",
+      "status": "passed"
+    },
+    {
+      "name": "02 Preview is not approval",
+      "status": "passed"
+    },
+    {
+      "name": "03 Changed arguments invalidate prior approval",
+      "status": "passed"
+    },
+    {
+      "name": "04 Rejection causes no business write",
+      "status": "passed"
+    },
+    {
+      "name": "05 After-sale case verifies only the application",
+      "status": "passed"
+    },
+    {
+      "name": "06 Duplicate clicks create one operation attempt",
+      "status": "passed"
+    },
+    {
+      "name": "07 Submission timeout is unknown, not failed",
+      "status": "passed"
+    },
+    {
+      "name": "08 Read-only reconciliation recovers without repeat write",
+      "status": "passed"
+    },
+    {
+      "name": "09 Pre-submission failure performs no write",
+      "status": "passed"
+    },
+    {
+      "name": "10 Outbox-only retry does not redo the business",
+      "status": "passed"
+    },
+    {
+      "name": "11 Pending is not verified completion",
+      "status": "passed"
+    },
+    {
+      "name": "12 Partial mismatch requires human handling",
+      "status": "passed"
+    },
+    {
+      "name": "13 Cancellation waits for stop and does not claim rollback",
+      "status": "passed"
+    },
+    {
+      "name": "14 Simulated restart hydrates unknown state; mocked storage",
+      "status": "passed"
+    },
+    {
+      "name": "15 Quote case returns a draft, not a sales commitment",
+      "status": "passed"
+    },
+    {
+      "name": "16 Invalid quote quantity blocks preview",
+      "status": "passed"
+    },
+    {
+      "name": "17 Entered text is not interpreted as HTML",
+      "status": "passed"
+    },
+    {
+      "name": "18 Evidence carries demo identity and reread source",
+      "status": "passed"
+    },
+    {
+      "name": "19 Responsive page has no mobile horizontal overflow",
+      "status": "passed"
+    },
+    {
+      "name": "20 No external network calls or browser script errors",
+      "status": "passed"
+    }
+  ]
+}
