@@ -84,18 +84,18 @@ OpenDesk 按“框架分类 → 任务求解方法 → 解题模式 → 案例 �
 
 状态用语必须区分：**源码已有、已在明确范围验证、设计建议、尚待确认**。历史文档中的 Current 或 Validated 必须保留其核验时间与范围，不能因为导航或目录更新就获得新的验证状态。
 
-## 五、目录位置与迁移记录
+## 五、目录位置与维护边界
 
-| 文件或内容 | 当前目录决定 | 理由 |
+| 文件或内容 | 当前维护位置 | 理由 |
 | --- | --- | --- |
 | 总导航、任务求解与应用开发方法 | `docs/frameworks/` | 跨应用选方法、做判断，集中日常阅读 |
-| `demonstration-to-automation-pipeline.md` | 正文从 `docs/architecture/desktop-automation/` 迁入 `docs/frameworks/` | 核心职责是从示范到复用的执行方法，与其他方法同目录阅读 |
-| `agent-first-recorder.md` | 保留在 `docs/architecture/desktop-automation/` | 特定 Recorder 路线的架构决策与核心模型，按需进入 |
-| `action-target-model.md`、`app-adapter-contract.md` | 保留在原架构目录 | 专项模型与合同，不是通用任务教程 |
-| 千牛案例 | 随迁入后的主流程第 10 节维护 | 不拆出第三个日常阅读位置，不搬动 `examples/app/qianniu.js` |
+| `demonstration-to-automation-pipeline.md` | `docs/frameworks/` | 从示范到复用的执行方法，与其他方法同目录阅读 |
+| `agent-first-recorder.md` | `docs/architecture/desktop-automation/` | 特定 Recorder 路线的架构决策与核心模型，按需进入 |
+| `action-target-model.md`、`app-adapter-contract.md` | `docs/architecture/desktop-automation/` | 专项模型与合同，不是通用任务教程 |
+| 千牛案例 | 主流程第 10 节 | 不拆出第三个日常阅读位置，不搬动 `examples/app/qianniu.js` |
 
-旧主流程路径只保留迁移说明和常用章节入口，不维护第二份正文；当前维护的引用应使用新路径。旧入口并非 HTTP 自动重定向，也不承诺兼容所有外部书签锚点。
+当前维护的引用必须直接指向上述唯一正文，不保留旧文件名或旧路径占位页。若未来确实调整位置，应同步更新仓库内引用并删除旧页；需要追溯时使用 Git 历史，而不是长期维护迁移说明。
 
-未来只有当单一应用案例形成可独立维护的业务规则、验证材料和回归内容时，才考虑将案例正文独立到对应 `docs/scenarios/<app>/`。届时同步入口、章节链接和维护映射，并在原位置保留指向唯一正文的导航；不能两处长期复制维护。
+只有当单一应用案例形成可独立维护的业务规则、验证材料和回归内容时，才考虑将案例正文独立到对应 `docs/scenarios/<app>/`。届时同步入口和章节链接，确保仍只有一个正文维护位置。
 
-目录迁移只调整方法正文与导航，不重新解释原阶段或验证 Recorder 实现。2026-09-06 增补了路线 A 的独立 Skill 与计算器验证入口；该增补仅为作业资产，不代表 live 测试通过。目录治理总原则继续以 [项目文档入口](../README.md) 为准。
+目录治理总原则以 [项目文档入口](../README.md) 为准。
