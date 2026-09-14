@@ -62,14 +62,10 @@ console.log('tapTargets completed:', receipt.completed.map(item => ({
 
 // Independent business-visible oracle. The value is not used to drive clicks;
 // it only proves that the real Calculator processed 25 × 4 = 100.
-const resultVisible = await UI.hasText('100', {
+await UI.waitText('100', {
   within: win,
   match: 'exact',
   timeout: 5000,
 });
-
-if (!resultVisible) {
-  throw new Error('Calculator verification failed: expected visible result 100');
-}
 
 console.log('Calculator semantic tapTargets validation passed: 25 × 4 = 100');
