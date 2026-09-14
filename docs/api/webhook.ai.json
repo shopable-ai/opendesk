@@ -1,0 +1,110 @@
+{
+  "docType": "opendesk-runtime-api-contract",
+  "name": "Webhook",
+  "status": "p0-local-short-processing",
+  "platforms": ["darwin", "linux", "windows"],
+  "publicMethods": ["listen"],
+  "types": "types/Webhook.d.ts",
+  "canonicalDoc": "docs/api/webhook.md",
+  "source": ["automation/webhook.go", "polyfills/009-webhook.js"],
+  "authorization": {
+    "owner": "host",
+    "enabledFor": ["trusted-local-script", "trusted-local-ai"],
+    "disabledFor": ["http-execution", "mcp-execution", "scheduler-execution"],
+    "javascriptCanElevate": false,
+    "remoteListen": false
+  },
+  "listen": {
+    "signature": "Webhook.listen(name, handler, options?)",
+    "transport": {
+      "bind": "127.0.0.1:0",
+      "method": "POST",
+      "contentType": "application/json",
+      "contentEncoding": ["identity"],
+      "cors": false,
+      "authentication": "per-listener-bearer",
+      "hostValidation": true,
+      "loopbackSourceValidation": true
+    },
+    "handler": {
+      "sameExecution": true,
+      "eventLoopOwned": true,
+      "asyncAwait": true,
+      "responseWaitsForPromise": true,
+      "defaultConcurrency": 1,
+      "automaticRetry": false,
+      "hardCancel": false
+    },
+    "request": {
+      "fields": ["requestId", "source", "deliveryId", "receivedAt", "body", "signal"],
+      "requestIdOwner": "opendesk",
+      "sourceHeader": "X-OpenDesk-Source",
+      "sourceDefault": "external",
+      "deliveryIdHeader": "X-OpenDesk-Delivery-Id",
+      "authHeaderVisibleToHandler": false
+    },
+    "response": {
+      "shape": {"status": "integer 200..599", "body": "JSON-compatible"},
+      "earlyCompletion": false,
+      "asyncModeFallback": false
+    },
+    "defaults": {
+      "maxRequestBytes": 1048576,
+      "maxResponseBytes": 1048576,
+      "maxQueuedRequests": 32,
+      "maxQueuedBytes": 8388608,
+      "handlerTimeoutMs": 30000,
+      "dedupeWindowMs": 300000,
+      "maxDedupeEntries": 256
+    },
+    "absoluteLimits": {
+      "maxRequestBytes": 16777216,
+      "maxResponseBytes": 16777216,
+      "maxQueuedRequests": 256,
+      "maxQueuedBytes": 67108864,
+      "handlerTimeoutMs": 600000,
+      "dedupeWindowMs": 3600000,
+      "maxDedupeEntries": 4096
+    },
+    "dedupe": {
+      "scope": "listener-instance",
+      "key": ["source", "deliveryId"],
+      "sameContent": "wait-or-replay-original-result",
+      "differentContent": "409 DELIVERY_ID_CONFLICT",
+      "missingDeliveryId": "no-duplicate-detection-guarantee",
+      "crossRestart": false,
+      "exactlyOnce": false,
+      "silentProtectedEviction": false
+    },
+    "close": {
+      "idempotent": true,
+      "revokesNewCallsBeforeReturn": true,
+      "queuedNotStarted": "rejected",
+      "activeHandler": "allowed-to-settle",
+      "waitsForCallingHandler": false
+    }
+  },
+  "httpErrors": {
+    "400": ["HOST_MISMATCH", "REQUEST_BODY_READ_FAILED", "REQUEST_BODY_MISSING", "INVALID_JSON", "SOURCE_INVALID", "DELIVERY_ID_INVALID"],
+    "401": ["AUTHENTICATION_FAILED"],
+    "403": ["SOURCE_NOT_LOOPBACK", "BROWSER_ORIGIN_DENIED"],
+    "404": ["WEBHOOK_NOT_FOUND"],
+    "405": ["METHOD_NOT_ALLOWED"],
+    "409": ["DELIVERY_ID_CONFLICT"],
+    "413": ["REQUEST_BODY_TOO_LARGE"],
+    "415": ["CONTENT_ENCODING_UNSUPPORTED", "CONTENT_TYPE_UNSUPPORTED"],
+    "429": ["WEBHOOK_QUEUE_FULL", "DEDUPE_CAPACITY"],
+    "500": ["HANDLER_FAILED", "HANDLER_RESULT_INVALID", "HANDLER_STATUS_INVALID", "HANDLER_BODY_INVALID", "HANDLER_RESPONSE_TOO_LARGE", "HANDLER_DISPATCH_FAILED", "WEBHOOK_INTERNAL"],
+    "503": ["WEBHOOK_UNAVAILABLE", "EXECUTION_CANCELED", "LISTENER_CLOSED_NOT_STARTED", "WEBHOOK_SERVER_FAILED_NOT_STARTED"],
+    "504": ["REQUEST_EXPIRED_NOT_STARTED", "RESULT_UNKNOWN"]
+  },
+  "nonGoals": [
+    "public-internet-gateway",
+    "mode-selection-ui",
+    "durable-inbox",
+    "persistent-background-jobs",
+    "cross-restart-recovery",
+    "arbitrary-source-execution",
+    "proxy-or-certificate-management"
+  ]
+}
