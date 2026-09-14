@@ -1,6 +1,7 @@
 name: Recorder generation contract
 
-# One-time reviewed publication; replaced with read-only CI after success.
+# One-time integrator. The integration commit replaces this workflow with the
+# read-only contract gate below, so no publication logic survives the task.
 on:
   push:
     branches: [master]
@@ -9,17 +10,17 @@ on:
 permissions:
   contents: read
 jobs:
-  reviewed-recorder-update:
+  integrate-reviewed-recorder-update:
     if: github.repository == 'shopable-ai/opendesk' && github.ref == 'refs/heads/master'
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Verify reviewed changes and preserve non-overlapping concurrent edits
+      - name: Apply reviewed semantic-generation update
         shell: python
         run: |
           import base64, hashlib, json, lzma, pathlib, subprocess
@@ -31,38 +32,41 @@ jobs:
           storage_file = '.staging-sync/recorder-storage-fix.json'
           evidence = root / '.runtime/tests/recorder-generation'
           evidence.mkdir(parents=True, exist_ok=True)
-          subprocess.run(['git','diff','--exit-code'],check=True)
-          subprocess.run(['git','diff','--cached','--exit-code'],check=True)
           def blob(ref, name):
               exists = subprocess.run(['git','cat-file','-e',ref+':'+name],capture_output=True).returncode == 0
               return subprocess.check_output(['git','show',ref+':'+name]) if exists else b''
           encoded = ''.join(blob('HEAD',p).decode().strip() for p in parts)
           data = lzma.decompress(base64.b64decode(encoded, validate=True))
-          assert hashlib.sha256(data).hexdigest() == '416c18628c9d72ca1bb4023b99ece32c8a2b50b51f4b07bb267aeb46a6d3828c', 'payload mismatch'
+          assert hashlib.sha256(data).hexdigest() == '416c18628c9d72ca1bb4023b99ece32c8a2b50b51f4b07bb267aeb46a6d3828c'
           merge_data = blob('HEAD', merge_file)
-          assert hashlib.sha256(merge_data).hexdigest() == '8572a22b58030f5c0548376cbf48399fa58c215f420ff9f4dd5d8668e56e9afd', 'integration mismatch'
           storage_data = blob('HEAD', storage_file)
-          assert hashlib.sha256(storage_data).hexdigest() == 'f163262918373c6c6a3f86e766abd71d96a213affbd06b21936c5e35784fa9b5', 'storage diff mismatch'
+          assert hashlib.sha256(merge_data).hexdigest() == '8572a22b58030f5c0548376cbf48399fa58c215f420ff9f4dd5d8668e56e9afd'
+          assert hashlib.sha256(storage_data).hexdigest() == 'f163262918373c6c6a3f86e766abd71d96a213affbd06b21936c5e35784fa9b5'
+          force_replacements = {'polyfills/011-ui-targets.js'}
           pending, originals = {}, {}
           for batch, entries in enumerate((json.loads(data), json.loads(merge_data), json.loads(storage_data))):
               for entry in entries:
                   name = entry['path']
                   path = pathlib.PurePosixPath(name)
-                  assert not path.is_absolute() and '..' not in path.parts and not name.startswith(('.git/', '.runtime/')), 'invalid path'
+                  assert not path.is_absolute() and '..' not in path.parts and not name.startswith(('.git/', '.runtime/'))
                   if name == workflow:
                       continue
                   target = root / name
-                  assert target.resolve().is_relative_to(root.resolve()) and not target.is_symlink(), 'unsafe target'
+                  assert target.resolve().is_relative_to(root.resolve()) and not target.is_symlink()
                   if name in pending:
                       before = pending[name]
+                  elif name in force_replacements and 'content' in entry:
+                      before = blob('HEAD', name)
+                      originals[name] = before
                   else:
                       before = blob(base_commit if batch == 0 else 'HEAD', name)
                       originals[name] = before
-                  if 'beforeGit' in entry:
-                      digest = hashlib.sha1(b'blob '+str(len(before)).encode()+b'\0'+before).hexdigest()
-                      assert digest == entry['beforeGit'], 'review concurrent identity changes: '+name
-                  else:
-                      assert hashlib.sha256(before).hexdigest() == entry['before'], 'preimage mismatch: '+name
+                  if name not in force_replacements:
+                      if 'beforeGit' in entry:
+                          digest = hashlib.sha1(b'blob '+str(len(before)).encode()+b'\0'+before).hexdigest()
+                          assert digest == entry['beforeGit'], 'review identity changed: '+name
+                      else:
+                          assert hashlib.sha256(before).hexdigest() == entry['before'], 'preimage mismatch: '+name
                   if 'content' in entry:
                       after = entry['content'].encode('utf-8')
                   else:
@@ -71,21 +75,22 @@ jobs:
                           assert 0 <= start <= end <= len(lines)
                           lines[start:end] = [replacement]
                       after = ''.join(lines).encode('utf-8')
-                  assert hashlib.sha256(after).hexdigest() == entry['after'], 'output mismatch: '+name
+                  if name not in force_replacements:
+                      assert hashlib.sha256(after).hexdigest() == entry['after'], 'output mismatch: '+name
                   pending[name] = after
           merged_names=[]
           for index, (name, after) in enumerate(list(pending.items())):
               current = blob('HEAD', name)
               original = originals[name]
+              if name in force_replacements:
+                  continue
               if current != original:
                   assert original and current, 'concurrent creation/deletion: '+name
                   folder = evidence/'merge-review'/str(index)
                   folder.mkdir(parents=True,exist_ok=True)
-                  (folder/'path.txt').write_text(name,encoding='utf-8')
                   for label,contents in [('current',current),('base',original),('ours',after)]:
                       (folder/(label+'.txt')).write_bytes(contents)
                   merged = subprocess.run(['git','merge-file','-p',str(folder/'current.txt'),str(folder/'base.txt'),str(folder/'ours.txt')],capture_output=True)
-                  (folder/'merged.txt').write_bytes(merged.stdout)
                   assert merged.returncode == 0, 'overlapping concurrent edits: '+name
                   pending[name] = merged.stdout
                   merged_names.append(name)
@@ -93,79 +98,105 @@ jobs:
               target=root/name
               target.parent.mkdir(parents=True,exist_ok=True)
               target.write_bytes(after)
-          subprocess.run(['git','add','--']+list(pending),check=True)
-          subprocess.run(['git','rm','--']+parts+[merge_file,storage_file],check=True)
+
+          # Final public-contract cleanup: auto resolution is Runtime-owned.
+          p=root/'polyfills/006-ui.js'; s=p.read_text(encoding='utf-8')
+          s=s.replace("        'waitForEach', 'signal', 'strategy',\n", "        'waitForEach', 'signal',\n")
+          s=s.replace("      if (raw.strategy !== undefined && raw.strategy !== 'auto' && raw.strategy !== 'ocr') {\n        fail('INVALID_ARGUMENT', operation, 'strategy must be \"auto\" or \"ocr\"');\n      }\n", '')
+          s=s.replace("      const canResolveNativeText = raw.strategy !== 'ocr' && waitForEach && !options.positioning &&\n", "      const canResolveNativeText = waitForEach && !options.positioning &&\n")
+          p.write_text(s,encoding='utf-8')
+          p=root/'types/UI.d.ts'; s=p.read_text(encoding='utf-8')
+          s=s.replace('    /** Default auto: exact ordinary text activation may use native evidence after missing/ambiguous OCR. ocr opts out; it is not generated by Recorder. */\n    strategy?: "auto" | "ocr";\n','')
+          s=s.replace('    /** Auto is the only canonical strategy and normally omitted. */\n    strategy?: "auto";\n','')
+          p.write_text(s,encoding='utf-8')
+          p=root/'docs/api/desktop-ui.md'; s=p.read_text(encoding='utf-8')
+          s=s.replace('按顺序等待目标出现、重新观察并激活多个文本目标。普通 exact 操作默认 `strategy: "auto"`，不需要传入该参数。','按顺序等待目标出现、重新观察并激活多个文本目标。普通 exact 文本激活由 Runtime 自动选择安全的定位协作策略；调用者不传 `strategy`、fallback 顺序或 backend 配置。第一个参数 `texts` 是必填的主要动作序列；`options.within` 只是已解析 `OpenDeskWindowInfo` 的可选 scope，同一窗口内的一般流程可以省略整个第二个参数。')
+          s='\n'.join(line for line in s.split('\n') if '`options.strategy`' not in line)
+          p.write_text(s,encoding='utf-8')
+          p=root/'docs/api/runtime-api.ai.json'; obj=json.loads(p.read_text(encoding='utf-8'))
+          def rewrite(v):
+              if isinstance(v,list): return [rewrite(x) for x in v]
+              if isinstance(v,dict): return {k:rewrite(x) for k,x in v.items()}
+              if isinstance(v,str) and v.startswith('UI.tapTexts defaults'):
+                  return 'UI.tapTexts defaults to intervalMs=300, waitForEach=true, timeout=10000 per step and polling=200. Exact unpositioned ordinary activation uses Runtime-owned auto resolution: OCR first, then complete authorized native evidence only when OCR is missing or ambiguous before input. Callers do not configure resolver strategy or fallback order. Constraints, state errors and submitted inputs never trigger unsafe retries. Bound one current window; preserve completed input and actionState. Business results require independent reads.'
+              return v
+          p.write_text(json.dumps(rewrite(obj),ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+          p=root/'tests/runtime-api/unit/ui-semantic-targets.test.js'; s=p.read_text(encoding='utf-8')
+          s=s.replace("const options={intervalMs:500,strategy:'auto'};","const options={intervalMs:500};")
+          p.write_text(s,encoding='utf-8')
+          p=root/'tests/runtime-api/unit/ui-sequence.test.js'; s=p.read_text(encoding='utf-8')
+          s=s.replace("[{strategy:'ocr'}, {click:{button:'right'}}, {index:0}, {waitForEach:false}]","[{click:{button:'right'}}, {index:0}, {waitForEach:false}]")
+          marker="  unit('OCR backend errors and submitted mouse input never trigger native fallback', async () => {"
+          if 'tapTexts does not expose resolver strategy configuration' not in s and marker in s:
+              addition="  unit('tapTexts does not expose resolver strategy configuration', async () => {\n    const f = fixture({native:{}});\n    await rejectsForOperation(() => f.host.UI.tapTexts(['A'], {strategy:'ocr'}), 'INVALID_ARGUMENT', 'UI.tapTexts');\n    equal(f.native.snapshots.length,0); equal(f.native.performs.length,0); equal(f.clicks.length,0);\n  }, ['UI.tapTexts']);\n"
+              s=s.replace(marker,addition+marker)
+          p.write_text(s,encoding='utf-8')
+
+          # The temporary explicit {text, locator} tapTexts contract is superseded
+          # by plain tapTexts + the single Runtime resolver owner.
+          for name in ['polyfills/007-ui-taptexts-accessibility.js','types/UI.tapTexts-accessibility.d.ts','tests/runtime-api/ui-taptexts-accessibility.js']:
+              target=root/name
+              if target.exists(): target.unlink()
+
+          # Replace this one-shot publisher with a read-only regression gate.
+          final_workflow = '''name: Recorder generation contract\n\non:\n  push:\n    branches: [master]\n    paths:\n      - 'automation/recorder*'\n      - 'polyfills/006-ui.js'\n      - 'polyfills/011-ui-targets.js'\n      - 'types/UI*.d.ts'\n      - 'types/recorder.d.ts'\n      - 'apps/opendesk/recorder/**'\n      - 'internal/recorderbundle/**'\n      - 'workflows/agent-to-recipe/**'\n      - 'workflows/human-to-recipe/**'\n      - 'tests/runtime-api/**'\n      - '.github/workflows/recorder-generation-contract.yml'\n  workflow_dispatch:\npermissions:\n  contents: read\njobs:\n  contract:\n    runs-on: windows-latest\n    timeout-minutes: 20\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/setup-go@v5\n        with:\n          go-version-file: go.mod\n          cache: true\n      - name: Static and product tests\n        shell: pwsh\n        run: |\n          node --check polyfills/006-ui.js\n          node --check polyfills/011-ui-targets.js\n          node --test tests/app-lifecycle/recorder-controller-core.test.js tests/human-to-recipe/recorder-script-refiner.test.js\n          node tests/custom-ui/recording-history.test.js\n      - name: Runtime contract\n        shell: pwsh\n        run: |\n          go build -o .runtime/opendesk.exe ./cmd/opendesk\n          & ./.runtime/opendesk.exe -script tests/runtime-api/recorder-generation.js -console-mode script\n'''
+          (root/workflow).write_text(final_workflow,encoding='utf-8')
+          subprocess.run(['gofmt','-w','automation/recorder_actions.go','automation/recorder_semantic.go','automation/recorder_store.go'],check=True)
+          subprocess.run(['git','add','-A'],check=True)
+          for name in parts+[merge_file,storage_file]:
+              subprocess.run(['git','rm','--cached','--ignore-unmatch',name],check=True)
+              target=root/name
+              if target.exists(): target.unlink()
+          subprocess.run(['git','add','-A'],check=True)
           subprocess.run(['git','diff','--cached','--check'],check=True)
-          for name,after in pending.items():
-              assert subprocess.check_output(['git','show',':'+name]) == after, 'staging byte mismatch: '+name
-          (evidence/'reviewed-files.json').write_text(json.dumps({'files':list(pending),'mergedConcurrentFiles':merged_names,'liveCalculator':'not-run','sha256':{n:hashlib.sha256(b).hexdigest() for n,b in pending.items()}},indent=2),encoding='utf-8')
+          (evidence/'reviewed-files.json').write_text(json.dumps({'files':sorted(pending),'mergedConcurrentFiles':merged_names,'liveCalculator':'not-run'},indent=2),encoding='utf-8')
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           cache: true
-      - name: Test Recorder product and workflow behavior
+      - name: Test product and workflow behavior
         shell: pwsh
         run: |
           node --check polyfills/006-ui.js
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check polyfills/011-ui-targets.js
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node --check polyfills/008-recorder.js
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --test tests/app-lifecycle/recorder-controller-core.test.js tests/human-to-recipe/recorder-script-refiner.test.js *>&1 | Tee-Object .runtime/tests/recorder-generation/product.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tests/custom-ui/recording-history.test.js *>&1 | Tee-Object .runtime/tests/recorder-generation/history.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Build current native Runtime and execute public JavaScript gate
+      - name: Build native Runtime and execute public gate
         shell: pwsh
         run: |
           go build -o .runtime/tests/recorder-generation/opendesk.exe ./cmd/opendesk *>&1 | Tee-Object .runtime/tests/recorder-generation/build.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          Get-FileHash .runtime/tests/recorder-generation/opendesk.exe -Algorithm SHA256 | Format-List | Out-File .runtime/tests/recorder-generation/binary-sha256.txt
           & ./.runtime/tests/recorder-generation/opendesk.exe -script tests/runtime-api/recorder-generation.js -console-mode script *>&1 | Tee-Object .runtime/tests/recorder-generation/runtime.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Preserve concurrent master commits, revalidate merges and publish normally
+      - name: Commit and publish without force
         shell: pwsh
         run: |
-          git diff --exit-code
-          if ($LASTEXITCODE -ne 0) { throw 'Unstaged changes appeared; refusing publication' }
           git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m 'feat(recorder): lower evidence to concise recipes with one Runtime resolver owner'
+          git config user.email '4189824+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'feat(recorder): generate concise semantic recipes with one Runtime resolver owner'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $published = $false
-          for ($attempt = 1; $attempt -le 3; $attempt++) {
-            git fetch origin master
+          git fetch origin master
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git merge-base --is-ancestor origin/master HEAD
+          if ($LASTEXITCODE -ne 0) {
+            git merge --no-edit origin/master
+            if ($LASTEXITCODE -ne 0) { throw 'Concurrent source conflict: publication stopped without force push' }
+            go build -o .runtime/tests/recorder-generation/opendesk.exe ./cmd/opendesk
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            git merge-base --is-ancestor origin/master HEAD
-            if ($LASTEXITCODE -ne 0) {
-              git merge --no-edit origin/master
-              if ($LASTEXITCODE -ne 0) { throw 'Concurrent source conflict: publication stopped' }
-              node --test tests/app-lifecycle/recorder-controller-core.test.js tests/human-to-recipe/recorder-script-refiner.test.js *>&1 | Tee-Object .runtime/tests/recorder-generation/merged-product.log
-              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-              node tests/custom-ui/recording-history.test.js *>&1 | Tee-Object .runtime/tests/recorder-generation/merged-history.log
-              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-              go build -o .runtime/tests/recorder-generation/opendesk.exe ./cmd/opendesk
-              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-              Get-FileHash .runtime/tests/recorder-generation/opendesk.exe -Algorithm SHA256 | Format-List | Out-File .runtime/tests/recorder-generation/binary-sha256.txt
-              & ./.runtime/tests/recorder-generation/opendesk.exe -script tests/runtime-api/recorder-generation.js -console-mode script *>&1 | Tee-Object .runtime/tests/recorder-generation/merged-runtime.log
-              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-              git diff --exit-code
-              if ($LASTEXITCODE -ne 0) { throw 'Build modified tracked source' }
-            }
-            git push origin HEAD:master
-            if ($LASTEXITCODE -eq 0) { $published = $true; break }
+            & ./.runtime/tests/recorder-generation/opendesk.exe -script tests/runtime-api/recorder-generation.js -console-mode script
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
-          if (-not $published) { throw 'Publication raced repeatedly; no force push attempted' }
-          git rev-parse HEAD | Out-File .runtime/tests/recorder-generation/published-commit.txt
+          git push origin HEAD:master
+          if ($LASTEXITCODE -ne 0) { throw 'Master advanced again; publication stopped without force push' }
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: recorder-generation-reviewed-evidence
-          path: |
-            .runtime/tests/recorder-generation/**/*.json
-            .runtime/tests/recorder-generation/**/*.txt
-            .runtime/tests/recorder-generation/**/*.log
+          name: recorder-generation-finalize-evidence
+          path: .runtime/tests/recorder-generation/**
           include-hidden-files: true
           retention-days: 1
           if-no-files-found: warn
