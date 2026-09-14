@@ -128,14 +128,17 @@ globalThis.RuntimeAPIObjects = {
   Geometry: { docs: 'docs/api/geometry.md', types: 'types/Geometry.d.ts', source: 'polyfills/005-geometry.js + polyfills/007-geometry-layout.js', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: ['rect', 'center', 'pointOffset', 'pointPercent', 'regionOffset', 'regionPercent', 'regionByEdges', 'inset', 'anchorPoint', 'contains', 'intersect'] },
   UI: {
     docs: 'docs/api/desktop-ui.md', types: 'types/UI.d.ts',
-    source: 'polyfills/006-ui.js + automation/accessibility.go + automation/accessibility_menu.go',
+    source: 'polyfills/006-ui.js + polyfills/011-ui-targets.js + automation/accessibility.go + automation/accessibility_menu.go',
     status: 'stable', platforms: ['darwin', 'linux', 'windows'],
     methods: ['getCapabilities', 'getValue', 'setValue', 'findTexts', 'findTextMatches', 'findText', 'hasText', 'tapText', 'tapTexts', 'tapTargets', 'waitText', 'waitTextGone', 'findImages', 'findImage', 'tapImage', 'getMenuItems', 'findMenuItem', 'tapMenuItem'],
     methodMetadata: {
       getValue: { source: 'polyfills/006-ui.js', docs: 'docs/api/desktop-ui.md', types: 'types/UI.d.ts', status: 'experimental-local', platforms: ['darwin', 'windows'] },
       setValue: { source: 'polyfills/006-ui.js', docs: 'docs/api/desktop-ui.md', types: 'types/UI.d.ts', status: 'experimental-local', platforms: ['darwin', 'windows'] },
       tapTexts: { status: 'stable-with-experimental-sequence-wait' },
-      tapTargets: { source: 'polyfills/006-ui.js', docs: 'docs/api/desktop-ui.md', types: 'types/UI.d.ts', status: 'experimental-local', platforms: ['darwin', 'windows'] },
+      tapTargets: {
+        source: 'polyfills/006-ui.js + polyfills/011-ui-targets.js', docs: 'docs/api/desktop-ui.md', types: 'types/UI.d.ts',
+        status: 'experimental-semantic-with-legacy-native-compatibility', platforms: ['darwin', 'linux', 'windows'], nativeSemanticPlatforms: ['darwin', 'windows'],
+      },
       getMenuItems: { docs: 'docs/api/desktop-ui.md', status: 'experimental-local', platforms: ['darwin', 'windows'] },
       findMenuItem: { docs: 'docs/api/desktop-ui.md', status: 'experimental-local', platforms: ['darwin', 'windows'] },
       tapMenuItem: { docs: 'docs/api/desktop-ui.md', status: 'experimental-local', platforms: ['darwin', 'windows'] },
@@ -282,7 +285,7 @@ restricted['UI.findMenuItem'] = 'local execution-only native menu observation; n
 restricted['UI.tapMenuItem'] = 'submits a native application menu action at most once and requires a dedicated foreground fixture for live evidence';
 restricted['UI.getValue'] = 'reads one explicitly scoped native text value in a local execution and requires native Accessibility permission';
 restricted['UI.setValue'] = 'submits one explicitly scoped native text mutation at most once and requires native Accessibility permission';
-restricted['UI.tapTargets'] = 'submits an explicitly scoped native invoke sequence at most once per step and requires a dedicated foreground fixture for live evidence';
+restricted['UI.tapTargets'] = 'submits each semantic step at most once through OCR or exact native Accessibility; resolver fallback is allowed only after deterministic pre-input OCR failures, and native semantic actions require a dedicated foreground fixture for live evidence';
 for (const method of ['launch', 'terminate', 'restart']) restricted['App.' + method] = 'starts or terminates a real desktop application; dedicated fixture smoke owns the target lifecycle';
 restricted['Notifications.list'] = 'may reveal own-app notification metadata or explicitly requested content; the formal unit gate validates arguments without reading host notifications';
 restricted['Notifications.waitFor'] = 'waits on the own-app notification model and may explicitly return content; the formal unit gate validates arguments without changing host notification state';
@@ -428,6 +431,8 @@ globalThis.RuntimeAPITestFiles = {
     'tests/runtime-api/unit/window-target.test.js',
     'tests/runtime-api/unit/ui-sequence.test.js',
     'tests/runtime-api/unit/ui-target-sequence.test.js',
+    'tests/runtime-api/unit/ui-semantic-targets.test.js',
+    'tests/runtime-api/unit/ui-semantic-targets-cancel.test.js',
     'tests/runtime-api/unit/ui-value.test.js',
     'tests/runtime-api/unit/screen.test.js',
     'tests/runtime-api/unit/system.test.js',

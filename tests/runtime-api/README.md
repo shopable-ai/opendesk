@@ -34,7 +34,7 @@ Dialog 的视觉验收与行为验收分别判定：即使返回值、Promise �
 | unit | 每个 API family 的独立 `.test.js` 安全行为 | `results/unit.json` |
 | http-download | 已知二进制、gzip、chunked、限额、重定向、取消、并发和文件提交的确定性 loopback Runtime 行为；不是公网示例 | `results/http-download.json`、`runtime-logs/http-download/resources.json` |
 | accessibility | 三个真实 Runtime execution 中的 Accessibility/UI menu 注册、capability、严格参数、Promise 与五项资源归零；不冒充 native fixture | `results/accessibility.json`、`runtime-logs/accessibility-*/resources.json` |
-| ui-target-sequence | `window.current/activate` 与 `UI.tapTargets` 的精确 contract、确定性 unit、exact-ID coverage 与每阶段资源归零；不操作真实桌面 | `results/contract.json`、`results/unit.json`、`results/coverage.json`、`runtime-logs/*/resources.json` |
+| ui-target-sequence | `window.current/activate`、semantic `UI.tapTargets` auto resolution 与 legacy locator contract 的确定性 unit、exact-ID coverage 与每阶段资源归零；不操作真实桌面 | `results/contract.json`、`results/unit.json`、`results/coverage.json`、`runtime-logs/*/resources.json` |
 | accessibility-native-macos（显式直接运行） | 仓库自有 AppKit fixture 的真实 AX snapshot/find/read/action/release、Accessibility-first `UI.tapTargets` 顺序动作、全量零输入预检与 unknown 不重试、UI 文本值读写、只读菜单及多级菜单动作 | `.runtime/tests/accessibility/<runId>/result.json`、`runtime-logs/{events.ndjson,summary.json}` |
 | ui-taptexts-native-macos（显式直接运行） | 仓库自有 AppKit fixture 的真实窗口截图、Apple Vision OCR、PID 约束鼠标序列与独立点击状态 | `.runtime/tests/ui-taptexts-macos/<executionId>/result.json`、截图与 Runtime 日志 |
 | sqlite | SQLite 专用 contract、复用公开 smoke cases 的 unit、SQLite scoped coverage，以及每个 child execution 的资源归零和进程 cleanup；不执行无关 desktop live 测试 | `results/contract.json`、`results/unit.json`、`results/coverage.json`、`runtime-logs/*/resources.json`、`results/cleanup.json` |
@@ -91,8 +91,8 @@ OPENDESK_RUNTIME_API_MODE=notify-icon-live OPENDESK_BINARY=/absolute/path/to/Ope
 表述为 AX/UIA native fixture、取消 in-flight 原生调用或真实菜单动作已经通过。
 
 `ui-target-sequence` 只为 `window.current/activate` 与 `UI.tapTargets` 生成同一 runId 下的 contract、unit 与 exact-ID
-coverage。它复用 `unit/ui-target-sequence.test.js` 的 mock Accessibility owner 验证完整预检、
-顺序、窗口/引用失效、unknown 停止、取消、调用方对象快照和资源释放；真实 AX 行为仍必须由
+coverage。它复用 legacy `unit/ui-target-sequence.test.js` 以及正式注册的 semantic unit files，验证完整预检、
+OCR safe fallback、显式 native constraint、顺序、窗口/引用失效、unknown 停止、取消后 completed prefix、调用方对象快照和资源释放；真实 AX 行为仍必须由
 上面的 macOS 自有 fixture 显式验收。
 
 macOS 原生 fixture 是补充性的显式验收，不是 catalog runner mode，也不会随普通 `unit`、`live` 或

@@ -23,7 +23,7 @@ scripts/test_runtime_apis.js          原命令入口
 	    ├── http-download.js         原生流式下载 loopback、取消和资源清理
         ├── catalog.js               smoke/live 的组合顺序与失败收尾
         ├── accessibility.js         Accessibility/UI menu 公共合同与清理
-        ├── ui-target-sequence.js    exact window lifecycle + UI.tapTargets 精确 contract/unit/coverage
+        ├── ui-target-sequence.js    exact window lifecycle + semantic/legacy UI.tapTargets contract/unit/coverage
         ├── sqlite.js                SQLite 专用分层与清理
         ├── file-json.js             File JSON 及 ai run 验证
         ├── environment.js           环境文件、本地与 HTTP 隔离

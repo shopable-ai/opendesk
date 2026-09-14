@@ -158,6 +158,8 @@ Coverage includes:
 - legacy locator calls are delegated unchanged;
 - uncertain native action state never retries another resolver;
 - input sequence is snapshotted before the first await.
+- cancellation after a real OCR click preserves the completed prefix before later targets stop.
+- acknowledged native input remains in the completed prefix if ref cleanup subsequently fails.
 
 Real Calculator validation is kept as an executable example under `examples/desktop/ui-semantic-targets-calculator.js` and must be run on an interactive desktop with the required screenshot/Accessibility permissions.
 
@@ -175,8 +177,6 @@ The generator should not emit `strategy`, `fallbackOrder`, OCR confidence, AX/UI
 
 P1 candidates after P0 real-desktop evidence:
 
-- merge the semantic overload into the canonical `types/UI.d.ts` layout when concurrent API work is quiet;
-- update the canonical `docs/api/desktop-ui.md` `tapTargets` section and machine index without overwriting parallel edits;
 - decide whether one cross-resolver `match` enum can support exact/contains/regex (or another small set) with equivalent OCR/native semantics;
 - expose additional safe diagnostic metadata only if repair workflows prove it necessary.
 

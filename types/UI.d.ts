@@ -230,6 +230,77 @@ declare global {
     cleanupErrors?: OpenDeskUITapTargetsCleanupError[];
   }
 
+  /**
+   * Lightweight business-semantic target for UI.tapTargets.
+   * P0 matching is exact; Runtime owns OCR/Accessibility resolver policy.
+   */
+  type OpenDeskUISemanticTapTarget =
+    | { text: string; role?: OpenDeskAccessibilityRole; name?: string; identifier?: string }
+    | { text?: string; role: OpenDeskAccessibilityRole; name?: string; identifier?: string }
+    | { text?: string; role?: OpenDeskAccessibilityRole; name: string; identifier?: string }
+    | { text?: string; role?: OpenDeskAccessibilityRole; name?: string; identifier: string };
+
+  interface OpenDeskUISemanticTapTargetsOptions {
+    /** Pins the sequence to this resolved window; when omitted, Runtime resolves the active window once. */
+    within?: OpenDeskWindowInfo;
+    /** Per resolver-operation budget in milliseconds. Defaults to 3000; range 1..30000. */
+    timeout?: number;
+    /** Prevents later resolver observations/actions; cannot retract submitted native or mouse input. */
+    signal?: AbortSignal | null;
+  }
+
+  interface OpenDeskUISemanticTapAttempt {
+    resolver: "ocr" | "accessibility";
+    phase: "resolve" | "precondition" | "action" | "cleanup";
+    code: string;
+    message: string;
+    candidateCount?: number;
+    candidates?: OpenDeskUITextTarget[];
+    backend?: string;
+    requestId?: string;
+    actionState?: OpenDeskAccessibilityActionState;
+  }
+
+  interface OpenDeskUISemanticOCRTapCompletion {
+    index: number;
+    resolver: "ocr";
+    action: "click";
+    backend: string;
+    target?: OpenDeskUITextTarget;
+    point?: OpenDeskScreenPoint;
+  }
+
+  interface OpenDeskUISemanticAccessibilityTapCompletion {
+    index: number;
+    resolver: "accessibility";
+    action: "invoke";
+    backend: string;
+    requestId: string;
+    actionState: "acknowledged" | "not_needed";
+  }
+
+  type OpenDeskUISemanticTapCompletion =
+    | OpenDeskUISemanticOCRTapCompletion
+    | OpenDeskUISemanticAccessibilityTapCompletion;
+
+  interface OpenDeskUISemanticTapTargetsResult {
+    ok: true;
+    action: "tapTargets";
+    completed: OpenDeskUISemanticTapCompletion[];
+  }
+
+  interface OpenDeskUISemanticTapTargetsError extends Error {
+    code: OpenDeskUIError["code"] | OpenDeskAccessibilityErrorCode | "NOT_SUPPORTED";
+    operation: "UI.tapTargets";
+    failedIndex: number;
+    failedTarget: OpenDeskUISemanticTapTarget;
+    failedPhase: "arguments" | "scope" | "capability" | "resolve" | "precondition" | "action" | "cleanup";
+    completed: OpenDeskUISemanticTapCompletion[];
+    attempts: OpenDeskUISemanticTapAttempt[];
+    cause?: unknown;
+    cleanupError?: unknown;
+  }
+
   /** Native text-value lookup reuses Accessibility selector and scope semantics. */
   interface OpenDeskUIValueOptions extends OpenDeskAccessibilityTraversalOptions {
     /** Required: semantic value lookup never defaults to the whole desktop or active window. */
@@ -430,7 +501,9 @@ declare global {
     tapText(text: string, options?: OpenDeskUITextLocateOptions): Promise<OpenDeskUITapResult<OpenDeskUITextTarget>>;
     /** The required first argument is the ordered action sequence; options.within only scopes it to a resolved window. */
     tapTexts(texts: string[], options?: OpenDeskUITapTextsOptions): Promise<OpenDeskUITapTextsResult>;
-    /** Preflights every distinct native locator, then invokes the fixed refs strictly in order. */
+    /** Activates lightweight semantic targets strictly in order using Runtime-owned resolver policy. */
+    tapTargets(targets: OpenDeskUISemanticTapTarget[], options?: OpenDeskUISemanticTapTargetsOptions): Promise<OpenDeskUISemanticTapTargetsResult>;
+    /** Compatibility overload: preflights every distinct native locator, then invokes fixed refs strictly in order. */
     tapTargets(targets: OpenDeskUITapTargetStep[], options: OpenDeskUITapTargetsOptions): Promise<OpenDeskUITapTargetsResult>;
     waitText(text: string, options?: OpenDeskUITextOptions): Promise<OpenDeskUITextTarget>;
     waitTextGone(text: string, options?: OpenDeskUITextOptions): Promise<true>;

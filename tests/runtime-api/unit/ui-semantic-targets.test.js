@@ -313,4 +313,27 @@
     await f.host.UI.tapTargets(targets);
     equal(f.ocr.map(item => item.text).join(','), 'A,B');
   });
+
+  unit('semantic tapTargets preserves an acknowledged native completion when cleanup fails', async () => {
+    const f = fixture({
+      onRelease: () => { throw codedError('BACKEND_FAILED', 'release failed'); },
+    });
+    const error = await rejects(
+      () => f.host.UI.tapTargets([
+        { role: 'button', name: 'Submit' },
+        { text: 'Never' },
+      ]),
+      'BACKEND_FAILED',
+    );
+    equal(error.failedIndex, 0);
+    equal(error.failedPhase, 'cleanup');
+    equal(error.completed.length, 1);
+    equal(error.completed[0].index, 0);
+    equal(error.completed[0].resolver, 'accessibility');
+    equal(error.completed[0].actionState, 'acknowledged');
+    equal(error.attempts[error.attempts.length - 1].phase, 'cleanup');
+    equal(error.cleanupError.code, 'BACKEND_FAILED');
+    equal(f.performs.length, 1);
+    equal(f.ocr.length, 0, 'later targets must not run after native cleanup failure');
+  });
 })();

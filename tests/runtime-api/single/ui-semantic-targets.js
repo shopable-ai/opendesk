@@ -1,8 +1,8 @@
 // Run from the repository root:
 // ./dist/opendesk -script tests/runtime-api/single/ui-semantic-targets.js -console-mode script
-// Fixed-scope entry for the semantic UI.tapTargets contract. It deliberately
-// bypasses the global unit manifest so this focused regression can be executed
-// independently while the catalog remains stable for parallel work.
+// Fixed-scope entry for the semantic UI.tapTargets contract. The same test
+// files are registered in the formal unit manifest; this runner remains for
+// quick isolated diagnosis.
 'use strict';
 
 if (!globalThis.OPENDESK_RUNTIME_API_CONTEXT) {

@@ -189,6 +189,7 @@
 
     var ref = null;
     var actionStarted = false;
+    var actionReceipt = null;
     var primaryError = null;
     try {
       checkCanceled(options, 'resolve');
@@ -261,13 +262,14 @@
         attempts.push(errorSummary(stateError, 'accessibility', 'action'));
         throw stateError;
       }
-      return {
+      actionReceipt = {
         resolver: 'accessibility',
         action: 'invoke',
         backend: performed && typeof performed.backend === 'string' ? performed.backend : 'accessibility',
         requestId: performed && typeof performed.requestId === 'string' ? performed.requestId : '',
         actionState: state,
       };
+      return actionReceipt;
     } catch (error) {
       primaryError = error;
       if (actionStarted && error && error.sideEffectPossible === undefined) {
@@ -282,16 +284,20 @@
           if (primaryError) {
             try { primaryError.cleanupError = releaseError; } catch (_) {}
           } else {
-            throw makeError(
+            var cleanupFailure = makeError(
               releaseError && releaseError.code ? releaseError.code : 'BACKEND_FAILED',
               releaseError && releaseError.message ? releaseError.message : 'Accessibility target cleanup failed',
               {
                 resolver: 'accessibility',
                 phase: 'cleanup',
                 cause: releaseError,
+                cleanupError: releaseError,
                 sideEffectPossible: actionStarted,
+                actionReceipt: actionReceipt,
               },
             );
+            attempts.push(errorSummary(cleanupFailure, 'accessibility', 'cleanup'));
+            throw cleanupFailure;
           }
         }
       }
@@ -325,6 +331,10 @@
 
   function sequenceError(error, index, target, completed, attempts) {
     if (error && error.operation === 'UI.tapTargets' && Number.isInteger(error.failedIndex)) return error;
+    var completedPrefix = completed.slice();
+    if (error && error.actionReceipt) {
+      completedPrefix.push(Object.assign({ index: index }, error.actionReceipt));
+    }
     var wrapped = makeError(
       error && error.code ? error.code : 'BACKEND_FAILED',
       error && error.message ? error.message : 'semantic target activation failed',
@@ -332,7 +342,7 @@
         failedIndex: index,
         failedTarget: target,
         failedPhase: error && error.phase ? error.phase : (error && error.sideEffectPossible ? 'action' : 'resolve'),
-        completed: completed.slice(),
+        completed: completedPrefix,
         attempts: attempts.slice(),
         cause: error,
       },

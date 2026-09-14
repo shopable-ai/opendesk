@@ -22,9 +22,11 @@ const win = await window.wait(
 );
 
 // Normalize Calculator state without teaching UI.tapTargets button aliases.
-// Calculator normally exposes AC in the cleared state and C after input.
+// Calculator normally exposes AC in the cleared state and C after input; its
+// native Accessibility name is localized, so the example tries the exact
+// current names observed by the established Calculator baseline.
 let cleared = false;
-for (const clearName of ['AC', 'C']) {
+for (const clearName of ['AC', 'C', 'Clear', '清除', 'All Clear', '全部清除']) {
   try {
     await UI.tapTargets(
       [{ role: 'button', name: clearName }],
@@ -36,7 +38,7 @@ for (const clearName of ['AC', 'C']) {
     if (!error || error.code !== 'TARGET_NOT_FOUND') throw error;
   }
 }
-if (!cleared) throw new Error('Calculator clear button (AC/C) was not found');
+if (!cleared) throw new Error('Calculator clear button (AC/C/Clear/清除) was not found');
 
 // Mixed resolver sequence:
 // - text-only numbers/operators use the Runtime-owned auto path;
