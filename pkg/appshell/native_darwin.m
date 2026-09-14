@@ -78,19 +78,22 @@ static BOOL ODAddMenuEntries(ODAppShellStatusController *controller, NSMenu *men
             continue;
         }
         NSString *label = [entry[@"label"] isKindOfClass:NSString.class] ? entry[@"label"] : @"";
+        NSString *itemID = [entry[@"id"] isKindOfClass:NSString.class] ? entry[@"id"] : @"";
+        BOOL enabled = entry[@"enabled"] ? [entry[@"enabled"] boolValue] : YES;
+        BOOL hidden = entry[@"visible"] ? ![entry[@"visible"] boolValue] : NO;
         NSArray *children = [entry[@"children"] isKindOfClass:NSArray.class] ? entry[@"children"] : nil;
         if (children != nil) {
             NSMenuItem *parent = [[NSMenuItem alloc] initWithTitle:label action:nil keyEquivalent:@""];
             NSMenu *submenu = [NSMenu new];
             submenu.autoenablesItems = NO;
+            parent.enabled = enabled;
+            parent.hidden = hidden;
             parent.submenu = submenu;
             [menu addItem:parent];
+            if (itemID.length) controller.items[itemID] = parent;
             if (!ODAddMenuEntries(controller, submenu, children, errorMessage)) return NO;
             continue;
         }
-        NSString *itemID = [entry[@"id"] isKindOfClass:NSString.class] ? entry[@"id"] : @"";
-        BOOL enabled = entry[@"enabled"] ? [entry[@"enabled"] boolValue] : YES;
-        BOOL hidden = entry[@"visible"] ? ![entry[@"visible"] boolValue] : NO;
         ODAddActionItem(controller, menu, itemID, label, enabled, hidden);
     }
     return YES;
