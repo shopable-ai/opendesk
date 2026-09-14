@@ -4,6 +4,7 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright
 root = Path(__file__).resolve().parent
 repo = root.parents[1]
+prototype = repo / 'apps/opendesk/prototypes/desktop-measurement/index.html'
 evidence = repo / '.runtime/tests/desktop-measurement/prototype'
 evidence.mkdir(parents=True, exist_ok=True)
 results = []; errors = []
@@ -15,7 +16,7 @@ with sync_playwright() as p:
     browser=p.chromium.launch(**({'executable_path':exe} if exe else {}),args=['--no-sandbox'])
     page=browser.new_page(viewport={'width':1440,'height':960},device_scale_factor=1)
     page.on('pageerror',lambda e:errors.append(str(e)))
-    page.set_content((root/'prototype/index.html').read_text(encoding='utf-8'),wait_until='load')
+    page.set_content(prototype.read_text(encoding='utf-8'),wait_until='load')
     check('默认测量界面不打开详情',not page.locator('#inspector').is_visible())
     check('默认同时绘制参照与目标',page.locator('#overlay rect[stroke="#298a78"]').count()==1 and page.locator('#overlay rect[stroke="#218ccd"]').count()>=1)
     sid=page.evaluate('MeasureDemo.state.session'); targets=page.evaluate('JSON.stringify(MeasureDemo.state.targets)')
