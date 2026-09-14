@@ -186,6 +186,10 @@ func TestOpenDeskProductReleasePolicy(t *testing.T) {
 	expected := []string{
 		"opendesk.app.json",
 		"main.js",
+		"assistant/store.js",
+		"assistant/model-channel.js",
+		"assistant/session.js",
+		"assistant/controller.js",
 		"official-shell.js",
 		"scheduler-client.js",
 		"scheduler-center.js",

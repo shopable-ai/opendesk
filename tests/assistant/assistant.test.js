@@ -334,6 +334,9 @@ test('assistant UI source uses progressive recent-chat loading and has no Enter-
   assert.doesNotMatch(controller, /id="recentPrev"/);
   assert.doesNotMatch(controller, /id="recentNext"/);
   assert.doesNotMatch(controller, /id="recentPage"/);
+  assert.match(controller, /async function renderRequestControls/);
+  assert.match(controller, /void renderRequestControls\(record, suppliedState\)/);
+  assert.ok(controller.indexOf('await renderRequestControls(record, state);') < controller.indexOf("await update(record, 'recentCount'"));
 });
 
 test('official App Shell routes exactly one assistant action and keeps Script Runner as default primary flow', async () => {

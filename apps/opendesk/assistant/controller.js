@@ -188,9 +188,26 @@
       return state.selectedConversation ? state.selectedConversation.draft || '' : '';
     }
 
+    async function renderRequestControls(record, state) {
+      const selected = state.selectedConversation;
+      const active = state.activeRequest;
+      const busy = !!active || state.submitting;
+      await update(record, 'composer', {value: selectedDraft(record, state), disabled: !selected});
+      await update(record, 'send', {disabled: !selected || busy, busy: state.submitting, text: '发送消息'});
+      await update(record, 'stop', {disabled: !active, busy: !!(active && active.stopping), text: '停止当前请求'});
+      await update(record, 'composerHint', {
+        text: busy
+          ? '当前仅允许一个在途模型请求；仍可切换会话并编辑、保存其他草稿。'
+          : '普通聊天不会运行脚本、命令或桌面动作。',
+      });
+    }
+
     async function render(record, suppliedState) {
       if (!record || record.disposed || record.rendering) {
-        if (record && !record.disposed && suppliedState) record.pendingState = suppliedState;
+        if (record && !record.disposed && suppliedState) {
+          record.pendingState = suppliedState;
+          void renderRequestControls(record, suppliedState);
+        }
         return;
       }
       record.rendering = true;
@@ -218,6 +235,8 @@
           const overflowValue = selectedRecentIndex >= RECENT_ROW_CAPACITY ? state.selectedConversationId : '';
           const archivedView = pageSlice(state.archived || [], record.archivedPage, ARCHIVED_PAGE_SIZE);
           record.archivedPage = archivedView.page;
+
+          await renderRequestControls(record, state);
 
           await update(record, 'recentCount', {text: String(recentItems.length)});
           await update(record, 'archivedCount', {text: String((state.archived || []).length)});
@@ -328,15 +347,6 @@
             });
           }
 
-          await update(record, 'composer', {value: selectedDraft(record, state), disabled: !selected});
-          const busy = !!active || state.submitting;
-          await update(record, 'send', {disabled: !selected || busy, busy: state.submitting, text: '发送消息'});
-          await update(record, 'stop', {disabled: !active, busy: !!(active && active.stopping), text: '停止当前请求'});
-          await update(record, 'composerHint', {
-            text: busy
-              ? '当前仅允许一个在途模型请求；仍可切换会话并编辑、保存其他草稿。'
-              : '普通聊天不会运行脚本、命令或桌面动作。',
-          });
           state = record.pendingState;
         } while (state && !record.disposed);
       } finally {
