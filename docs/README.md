@@ -1,6 +1,6 @@
 # OpenDesk 项目文档
 
-`docs/` 是 OpenDesk 的**项目与工程文档根目录**。本目录已经完成 2026-08 文档结构收敛：根目录不再平铺专题、阶段报告、Prompt 或版本化草稿。
+`docs/` 是 OpenDesk 的**项目与工程文档根目录**。长期文档按职责分类维护，不在根目录平铺专题、阶段报告、Prompt 或版本化草稿。
 
 ## 文档权威边界
 
@@ -8,13 +8,6 @@ OpenDesk 当前保留两类正式文档根：
 
 - `docs/`：项目、核心框架、架构、实现、质量、集成、场景、研究、计划和仓库治理。
 - `docs/api/`：**唯一用户 API 文档根目录**，包括脚本/runtime API、HTTP API、示例、编辑器类型说明和机器可读 API 索引。
-
-以下历史 API 文档树已经退役，不得重新创建为并行 Source of Truth：
-
-```text
-docs-api/
-docs-api-user/
-```
 
 `types/*.d.ts` 是编辑器/TypeScript 的派生契约面，不是第三套文档权威。
 
@@ -73,10 +66,10 @@ OpenDesk 长期使用的核心开发框架，是桌面自动化开发的重要�
 - `automation-problem-solving-framework.md`：业务任务求解、六类解题模式和步骤交接。
 - `capability-development.md`：能力开发与成熟度路径。
 - `app-development-framework.md`：应用自动化开发框架。
-- `demonstration-to-automation-pipeline.md`：示范到自动化执行方法与千牛案例，由原架构目录迁入。
+- `demonstration-to-automation-pipeline.md`：示范到自动化执行方法与千牛案例的唯一主流程正文。
 - `runtime-api-extension-framework.md`：能力扩展与交付层级。
 
-日常方法集中在本目录；Target、Adapter 和 Recorder 等专项设计保留在架构目录，经[桌面自动化架构导航](architecture/desktop-automation/README.md)按需进入。主流程旧路径只保留迁移入口，不复制千牛案例或维护第二份正文。具体归属见[框架总导航](frameworks/README.md)。
+日常方法集中在本目录；Target、Adapter 和 Recorder 等专项设计保留在架构目录，经[桌面自动化架构导航](architecture/desktop-automation/README.md)按需进入。具体归属见[框架总导航](frameworks/README.md)。
 
 本目录强调稳定的开发思路、分层、顺序和边界，不保存一次性实现计划、测试报告或单一应用细节。
 
@@ -133,12 +126,6 @@ docs/integrations/mcp/
 
 面向具体应用/业务场景的需求、场景架构、baseline 与动作规范。
 
-当前主要场景：
-
-```text
-docs/scenarios/wechat/
-```
-
 通用框架能力不能反向埋进单一场景目录；可复用能力应上收至 frameworks / architecture / implementation / quality。
 
 ### `research/`
@@ -155,23 +142,18 @@ YYYY-MM-DD-topic.md
 
 尚未完成、仍值得推进的路线图和实现计划。
 
-已完成或失效的计划应更新、关闭或归档，不能长期以“待做”状态污染当前事实。
-
-[Desktop Agent 与 Accessibility Workbench](integrations/desktop-agent.md) 是当前用户入口与人工修订／Agent 交接指南；
-[HTTP Server API](api/http-server.md) 维护独立静态前端与按需 loopback API listener 的正式合同；
-[Accessibility Workbench 实施方案](plans/desktop-automation/accessibility-workbench.md) 保留产品边界、阶段和本轮验收证据；
-[本地 Codex Goal](../prompts/runtime/accessibility-workbench-goal.md) 是实施约束。第一批只读 Web 闭环已在当前工作树实现，
-平台和视觉未运行项以方案的验收表为准，不能从源码存在推导未列明的平台资格。
+已完成或失效的计划应更新、关闭或删除，不能长期以“待做”状态污染当前事实。只有仍有明确追溯价值的历史材料才进入 `.archive/`。
 
 ### `maintenance/`
 
-仓库与文档治理规则，包括：
+只保存仍在生效的仓库与文档治理规则。当前主要入口：
 
 - `repository-documentation-map.md`
 - `repo-file-lifecycle-policy.md`
-- `docs-migration-map.md`
-- `repo-layout-refactor-plan.md`
-- `repo-migration-map-and-p0-batch.md`
+- `repository-root-layout.md`
+- `release-artifact-workflow.md`
+
+一次性迁移表、已完成的批次计划、旧路径跳转页和重复维护 Prompt 不作为长期治理文档保留；完成后依赖 Git 历史追溯。
 
 ## Source of Truth 优先级
 
@@ -179,8 +161,8 @@ YYYY-MM-DD-topic.md
 
 ```text
 当前源码 / runtime 行为
+-> docs/api/*.md canonical Reference
 -> docs/api/runtime-api.ai.json
--> docs/api/*.md
 -> types/*.d.ts
 -> Git 历史
 ```
@@ -190,8 +172,8 @@ YYYY-MM-DD-topic.md
 ```text
 当前源码、测试和运行证据
 -> docs/ 当前正式文档
--> docs/research/ 与 docs/plans/ 过程输入
--> .archive/ 历史证据
+-> docs/research/ 与 docs/plans/ 当前过程输入
+-> .archive/ 有保留价值的历史证据
 -> Git 历史
 ```
 
@@ -207,9 +189,9 @@ YYYY-MM-DD-topic.md
 | 长期保留的测试/评审报告 | `docs/quality/` 对应领域 |
 | 运行日志、截图、probe、smoke 输出 | `.runtime/` |
 | 本机环境/工具状态 | `.dev/` |
-| 已失效但值得追溯的历史材料 | `.archive/` |
+| 已失效但确有追溯价值的历史材料 | `.archive/` |
 | 仍可复用的 AI Prompt | `prompts/` |
-| 低价值中间 Prompt / raw workpad | 合并有效信息后删除，依赖 Git 历史 |
+| 低价值中间 Prompt / raw workpad / 已完成迁移说明 | 合并有效信息后删除，依赖 Git 历史 |
 
 ## 命名规则
 
@@ -242,26 +224,4 @@ Research / Report 等时间型材料可使用日期前缀。
 4. 它属于 `docs/`、`docs/api/`、所属测试目录、`.runtime/`、`.archive/` 还是 `prompts/`？
 5. 任务结束后它是否仍有长期维护价值？
 
-默认规则：**不要向 `docs/` 根目录新增专题文件。**
-
-## 2026-08 文档整理结果
-
-整理前 `docs/` 根目录有 61 个直接文件，混合了正式文档、Research、测试报告、Prompt、FINAL/V2 草稿和一次性工作记录。
-
-当前已完成：
-
-- 61 个根目录旧文件全部分类、迁移、合并、归档或删除；
-- `docs/` 根目录只保留 `README.md` 和分类目录；
-- `docs/mcp/` 已收敛到 `docs/integrations/mcp/`；
-- `docs/desktop-automation/`、`docs/discuz/`、`docs/golden_sample_strategy/`、`docs/optimization/`、`docs/strategy/` 等旧工作区已拆分或归档；
-- Layout 文档已按当前源码修正默认值和评分事实；
-- Gate V1/V2/Golden Gate 已收敛为单一 `docs/quality/gates-and-evidence.md`；
-- 重复 FINAL/COMPLETE SUMMARY 已合并为历史报告；
-- 可复用 WeChat 执行 Prompt 已移出 `docs/`，过时 Prompt/workpad 已删除；
-- `docs/api/` 继续保持唯一用户 API 文档根。
-
-迁移审计记录见：
-
-```text
-docs/maintenance/docs-migration-map.md
-```
+默认规则：**不要向 `docs/` 根目录新增专题文件；不要为旧文件名、旧路径或已完成迁移创建长期占位文档。**
