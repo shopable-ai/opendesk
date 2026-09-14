@@ -97,12 +97,18 @@ Runtime 不提供 `byPlatform`、`PlatformWindowTarget`、`window.forPlatform()`
 ```text
 Recipe / 部署参数
 → 一个 OpenDeskWindowTarget
-→ window.get() / window.wait()
+→ window.wait()
 → 一个 OpenDeskWindowInfo
-→ UI.tapText() / UI.tapTexts({ within: win })
+→ UI.tapTexts(texts, { within: win, ...textOptions })
 ```
 
-`UI.tapText()` / `UI.tapTexts()` 消费已经解析的 `within: OpenDeskWindowInfo`。它们不重复承担窗口身份解析，因此不增加 `appName`、`windowName`、`platform`、`bundleId`、`exeName` 等窗口选择参数。
+这里的 `texts` 是必填的主要动作序列；`within` 只是由 `window.get()` / `window.wait()` 返回的 `OpenDeskWindowInfo` scope。完整调用例如：
+
+```js
+await UI.tapTexts(["2", "5", "×", "4", "="], { within: win, match: "exact" });
+```
+
+`UI.tapText()` / `UI.tapTexts()` 不重复承担窗口身份解析，因此不增加 `appName`、`windowName`、`platform`、`bundleId`、`exeName` 等窗口选择参数。
 
 ### 标题消歧与 stale target
 

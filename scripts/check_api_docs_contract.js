@@ -112,6 +112,29 @@ requireText('docs/api/ui.md', '## ui.notify(messageOrOptions)');
 requireText('docs/api/ui.md', '## ToastHandle.update(patch)');
 rejectText('docs/api/ui.md', '## NotificationHandle.update(patch)', 'legacy handle as canonical H2');
 
+// Window-scoped text sequences must keep the required action sequence visible.
+// `within` is a resolved WindowInfo scope, not a replacement for `texts` and
+// not another place to accept WindowTarget selector fields.
+const tapTextsSignature = 'UI.tapTexts(texts: string[], options?: OpenDeskUITapTextsOptions)';
+const tapTextsFlow = 'UI.tapTexts(texts, { within: win, ...textOptions })';
+const windowTargetFlow = [
+  'Recipe / 部署参数',
+  '→ 一个 OpenDeskWindowTarget',
+  '→ window.wait()',
+  '→ 一个 OpenDeskWindowInfo',
+  `→ ${tapTextsFlow}`,
+].join('\n');
+const tapTextsExample = 'await UI.tapTexts(["2", "5", "×", "4", "="], { within: win, match: "exact" });';
+requireText('docs/api/desktop-ui.md', tapTextsSignature, 'complete UI.tapTexts signature');
+requireText('types/UI.d.ts', 'tapTexts(texts: string[], options?: OpenDeskUITapTextsOptions)', 'complete UI.tapTexts type');
+for (const rel of ['docs/api/window.md', 'examples/desktop/README.md']) {
+  requireText(rel, windowTargetFlow, 'one-target WindowTarget to UI.tapTexts flow');
+  rejectText(rel, 'UI.tapTexts({ within: win })', 'options-only UI.tapTexts pseudo-call');
+}
+for (const rel of ['docs/api/desktop-ui.md', 'docs/api/window.md', 'examples/desktop/README.md']) {
+  requireText(rel, tapTextsExample, 'complete Calculator UI.tapTexts example');
+}
+
 // Notification ownership: ui.md exclusively owns Toast, notify.md exclusively
 // owns global notify(), and notifications.md owns the inbound Notifications API.
 requireText('docs/api/notify.md', 'docType: reference');

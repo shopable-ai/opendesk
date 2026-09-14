@@ -615,7 +615,7 @@ await UI.tapText('确定', { within: win, match: 'exact' });
 
 ## UI.tapTexts(texts, options?)
 
-按顺序等待目标出现、重新观察并点击多个文本；同一窗口内的一般流程可以省略第二个参数。
+按顺序等待目标出现、重新观察并点击多个文本。第一个参数 `texts` 是必填的主要动作序列；`options.within` 只是已解析 `OpenDeskWindowInfo` 的可选 scope，同一窗口内的一般流程可以省略整个第二个参数。
 
 **签名**
 
@@ -671,11 +671,11 @@ const result = await UI.tapTexts(['下一步', '确认']);
 console.log('已完成输入步骤：', result.completed.length);
 ```
 
-固定已确认窗口，只覆盖需要的选项：
+固定由 `window.get()` / `window.wait()` 返回的已确认窗口，只覆盖需要的文本选项：
 
 ```js
-const win = await window.getActiveWindow();
-await UI.tapTexts(['下一步', '确认'], { within: win, intervalMs: 500 });
+const win = await window.wait({ app: { bundleId: "com.apple.calculator" } });
+await UI.tapTexts(["2", "5", "×", "4", "="], { within: win, match: "exact" });
 ```
 
 无需等待的显式旧时序：

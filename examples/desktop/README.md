@@ -63,24 +63,19 @@ const TARGET_WINDOW = {
 
 const win = await window.wait(TARGET_WINDOW, { timeout: 10000 });
 
-await UI.tapTexts(['2', '5', '×', '4', '='], {
-  within: win,
-  match: 'exact',
-  waitForEach: true,
-  intervalMs: 100,
-});
+await UI.tapTexts(["2", "5", "×", "4", "="], { within: win, match: "exact" });
 ```
 
-上例是 macOS Calculator 的一个稳定目标配置。在 Windows 部署同一业务脚本时，只需要把 `TARGET_WINDOW` 替换成该机器已经验证的单一 `WindowTarget`，例如稳定的 `exeName`、`pid` 或必要时的精确 `title`；不要在业务脚本里增加平台判断，也不要为了跨平台而给 `UI.tapTexts()` 增加 `appName` / `windowName` 等重复参数。
+第一个参数 `texts` 是必填的主要动作序列；`within: win` 只把动作限定在 `window.wait()` 返回的 `WindowInfo` 中。上例是 macOS Calculator 的一个稳定目标配置。在 Windows 部署同一业务脚本时，只需要把 `TARGET_WINDOW` 替换成该机器已经验证的单一 `WindowTarget`，例如稳定的 `exeName`、`pid` 或必要时的精确 `title`；不要在业务脚本里增加平台判断，也不要为了跨平台而给 `UI.tapTexts()` 增加 `appName` / `windowName` 等重复参数。
 
 推荐边界保持简单：
 
 ```text
-部署 / Recipe 参数
-→ 一个 WindowTarget
-→ window.get() / window.wait()
-→ 一个 WindowInfo
-→ UI.tapText() / UI.tapTexts({ within: win })
+Recipe / 部署参数
+→ 一个 OpenDeskWindowTarget
+→ window.wait()
+→ 一个 OpenDeskWindowInfo
+→ UI.tapTexts(texts, { within: win, ...textOptions })
 ```
 
 如果目标应用身份在不同平台不同，差异属于部署配置，不属于 `WindowTarget` API 本身。标题查询可以跨平台使用，但标题值可能随语言、应用版本和窗口状态变化；存在更稳定 identity 时应优先使用 identity。

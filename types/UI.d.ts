@@ -419,6 +419,7 @@ declare global {
     findText(text: string, options?: OpenDeskUITextLocateOptions): Promise<OpenDeskUITextTarget | null>;
     hasText(text: string, options?: OpenDeskUITextLocateOptions): Promise<boolean>;
     tapText(text: string, options?: OpenDeskUITextLocateOptions): Promise<OpenDeskUITapResult<OpenDeskUITextTarget>>;
+    /** The required first argument is the ordered action sequence; options.within only scopes it to a resolved window. */
     tapTexts(texts: string[], options?: OpenDeskUITapTextsOptions): Promise<OpenDeskUITapTextsResult>;
     /** Preflights every distinct native locator, then invokes the fixed refs strictly in order. */
     tapTargets(targets: OpenDeskUITapTargetStep[], options: OpenDeskUITapTargetsOptions): Promise<OpenDeskUITapTargetsResult>;
