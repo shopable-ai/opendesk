@@ -67,7 +67,7 @@ opendesk -script examples/runtime/modules/basic/main.mjs -console-mode script
 - `ui.toast()`：瞬时 OpenDesk feedback，canonical API。
 - `ui.createWindow()`：受限 HTML/CSS UI。
 - `FloatingWindow`：typed native toolbar。
-- `ui.notify()`：`ui.toast()` 的 Deprecated/Compatibility alias。
+- `ui.notify()`：`ui.toast()` 的 Deprecated/Compatibility alias；兼容关系记录在 canonical Reference 内，不单独建立旧入口页面。
 - 全局 `notify()`：操作系统通知中心，不属于小写 `ui`。
 - `Dialog.*`：一次性 alert / confirm / prompt。
 
@@ -187,24 +187,25 @@ const agentResult = await Agent.run({prompt: '返回 OK'});
 
 ## Canonical Reference 与其他文档类型
 
-`docs/api/` 允许不同用户文档类型，但不能让它们互相争夺事实源：
+`docs/api/` 可以包含不同类型的当前用户文档，但不能让它们互相争夺事实源：
 
 - `reference`：一个公开对象/namespace 的 canonical method contract。
 - `guide`：围绕用户目标组织，并链接 Reference。
 - `concept`：解释关系和共享语义，不复制 method contract。
 - `protocol`：HTTP/MCP/transport contract。
 - `cli`：命令、flag、stdout/stderr、exit code。
-- `compatibility`：旧名称/旧路径迁移，不维护第二份 Reference。
 - `index`：导航与 source-of-truth 规则。
+
+Deprecated/Compatibility **方法或名称**仍可在其 canonical Reference 内保留最小迁移说明；仅用于旧文件名、旧路径跳转的 Markdown 页面不属于长期文档资产。仓库内引用完成迁移后应删除这类占位页；若公开站点必须保留 URL 重定向，应由文档发布/路由层承担，而不是继续维护一份空壳 Markdown。
 
 典型例子：
 
 ```text
+ui.md                 = reference
 app-shell.md          = concept
 automation-app.md     = reference
 scheduler.md          = guide
 scheduler-api.md      = protocol
-custom-ui.md          = compatibility
 README.md             = index
 ```
 
@@ -227,12 +228,12 @@ README.md             = index
 
 ```text
 Runtime / polyfill implementation
-→ types/*.d.ts
 → canonical docs/api Reference
 → docs/api/runtime-api.ai.json
+→ types/*.d.ts
 ```
 
-机器索引是 Agent 的高密度入口，不是第二事实源。修改相关能力后运行：
+机器索引和类型是派生消费面，不是第二事实源。修改相关能力后运行：
 
 ```bash
 node scripts/check_api_docs_contract.js
