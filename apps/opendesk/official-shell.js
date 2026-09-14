@@ -28,13 +28,13 @@
     }),
     examples: Object.freeze({
       id: 'opendesk.examples',
-      label: '示例代码…',
+      label: '示例代码',
       title: '示例代码',
       placeholder: '示例代码暂不可用。',
     }),
     apiDocs: Object.freeze({
       id: 'opendesk.api-docs',
-      label: 'API 文档…',
+      label: 'API 文档',
       title: 'API 文档',
       placeholder: 'API 文档暂不可用。',
     }),
