@@ -22,6 +22,8 @@ apps/opendesk/assets/product.odcfg
         +--> opendesk.home
         +--> opendesk.help
         +--> opendesk.customize
+        +--> opendesk.examples
+        +--> opendesk.api-docs
         +--> opendesk.marketplace
         +--> opendesk.upgrade
 
@@ -82,13 +84,15 @@ configs/product.json
 home
 help
 customize
+examples
+apiDocs
 marketplace
 upgrade
 ```
 
 约束：
 
-- `home`、`help`、`customize` 必须可见；
+- `home`、`help`、`customize`、`examples`、`apiDocs` 必须可见；
 - `home` URL 必须为非空 HTTPS；
 - 其他 URL 非空时也必须为 HTTPS；
 - `marketplace`、`upgrade` 在真实能力上线前可保持隐藏；

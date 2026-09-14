@@ -12,6 +12,8 @@ const (
 	ActionProductHome          = "opendesk.home"
 	ActionProductHelp          = "opendesk.help"
 	ActionProductCustomize     = "opendesk.customize"
+	ActionProductExamples      = "opendesk.examples"
+	ActionProductAPIDocs       = "opendesk.api-docs"
 )
 
 // nativeMenuItem is an App Shell implementation detail. Its recursive shape
@@ -29,6 +31,14 @@ type nativeMenuItem struct {
 
 func IsOpenDeskProduct(manifest Manifest) bool {
 	return manifest.ID == OpenDeskProductPackageID
+}
+
+// allowsOpenDeskProductManifestAction keeps the reserved action namespace
+// unavailable to third-party packages while allowing the resource actions
+// intentionally declared by the first-party product manifest.
+func allowsOpenDeskProductManifestAction(manifest Manifest, action string) bool {
+	return IsOpenDeskProduct(manifest) &&
+		(action == ActionProductExamples || action == ActionProductAPIDocs)
 }
 
 func nativeMenuForManifest(manifest Manifest) []nativeMenuItem {

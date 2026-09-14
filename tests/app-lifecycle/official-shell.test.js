@@ -21,6 +21,8 @@ const asset = fs.readFileSync(path.join(repo, 'apps', 'opendesk', 'assets', 'pro
 const sourceConfig = JSON.parse(fs.readFileSync(path.join(repo, 'configs', 'product.json'), 'utf8'));
 const OBFUSCATION_KEY = 'OpenDeskOfficialShell/v1';
 const OPENDESK_HOMEPAGE_URL = sourceConfig.actions.home.url;
+const OPENDESK_EXAMPLES_URL = sourceConfig.actions.examples.url;
+const OPENDESK_API_DOCS_URL = sourceConfig.actions.apiDocs.url;
 
 function checksum16(text) {
   let sum = 0;
@@ -44,12 +46,18 @@ function config(overrides = {}) {
     actions: {
       home: {visible: true, url: OPENDESK_HOMEPAGE_URL},
       help: {visible: true, url: ''},
+      examples: {visible: true, url: OPENDESK_EXAMPLES_URL},
+      apiDocs: {visible: true, url: OPENDESK_API_DOCS_URL},
       customize: {visible: true, url: ''},
       marketplace: {visible: false, url: ''},
       upgrade: {visible: false, url: ''},
       ...overrides,
     },
   };
+}
+
+function officialActionID(name) {
+  return name === 'apiDocs' ? 'opendesk.api-docs' : `opendesk.${name}`;
 }
 
 function fileAPI() {
@@ -113,6 +121,8 @@ test('validateConfig rejects non-HTTPS URLs and hidden core actions', () => {
   assert.throws(() => Shell.validateConfig(config({home: {visible: false, url: OPENDESK_HOMEPAGE_URL}})), /core action cannot be hidden/);
   assert.throws(() => Shell.validateConfig(config({help: {visible: false, url: ''}})), /core action cannot be hidden/);
   assert.throws(() => Shell.validateConfig(config({customize: {visible: false, url: ''}})), /core action cannot be hidden/);
+  assert.throws(() => Shell.validateConfig(config({examples: {visible: false, url: ''}})), /core action cannot be hidden/);
+  assert.throws(() => Shell.validateConfig(config({apiDocs: {visible: false, url: ''}})), /core action cannot be hidden/);
   assert.deepEqual(Shell.validateConfig(config()), config());
 });
 
@@ -123,6 +133,11 @@ test('validateConfig rejects missing actions, unknown actions and unknown fields
   assert.throws(() => Shell.validateConfig(config({unknown: {visible: true, url: 'https://example.com'}})), /unknown action: unknown/);
   assert.throws(() => Shell.validateConfig({...config(), unexpected: true}), /unknown field: unexpected/);
   assert.throws(() => Shell.validateConfig(config({help: {visible: true, url: '', extra: true}})), /unknown field: help\.extra/);
+
+  const backwardCompatible = config();
+  delete backwardCompatible.actions.examples;
+  delete backwardCompatible.actions.apiDocs;
+  assert.deepEqual(Shell.validateConfig(backwardCompatible), backwardCompatible);
 });
 
 test('fixed product basename prefers protected config and never reads sibling plaintext', () => {
@@ -198,6 +213,8 @@ test('missing and corrupt config fail safe to visible pending core actions', asy
       assert.equal(fixture.shell.getAction('opendesk.home').url, '');
       assert.equal(fixture.shell.getAction('opendesk.help').visible, true);
       assert.equal(fixture.shell.getAction('opendesk.customize').visible, true);
+      assert.equal(fixture.shell.getAction('opendesk.examples').visible, true);
+      assert.equal(fixture.shell.getAction('opendesk.api-docs').visible, true);
       assert.equal(fixture.shell.getAction('opendesk.marketplace').visible, false);
       assert.equal(fixture.shell.getAction('opendesk.upgrade').visible, false);
       assert.deepEqual(await fixture.shell.activate('opendesk.help'), {
@@ -233,9 +250,10 @@ test('every visible bundled action opens its configured HTTPS target', async () 
     const visible = Object.entries(sourceConfig.actions).filter(([, action]) => action.visible);
     for (const [name, action] of visible) {
       assert.match(action.url, /^https:\/\//);
-      const result = await fixture.shell.activate(`opendesk.${name}`);
+      const actionId = officialActionID(name);
+      const result = await fixture.shell.activate(actionId);
       assert.equal(result.status, 'opened');
-      assert.equal(result.actionId, `opendesk.${name}`);
+      assert.equal(result.actionId, actionId);
     }
     assert.equal(fixture.calls.length, visible.length);
     assert.deepEqual(fixture.calls.map(call => call[0]), visible.map(() => '/usr/bin/open'));

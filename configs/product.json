@@ -13,6 +13,10 @@
       "visible": true,
       "url": "https://github.com/shopable-ai/opendesk/tree/master/examples"
     },
+    "apiDocs": {
+      "visible": true,
+      "url": "https://github.com/shopable-ai/opendesk/blob/master/docs/api/index.md"
+    },
     "customize": {
       "visible": true,
       "url": "https://github.com/shopable-ai/opendesk#customize"

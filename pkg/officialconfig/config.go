@@ -32,13 +32,14 @@ const (
 var httpsURLPattern = regexp.MustCompile(`^https://[^\s/?#\\]+(?:[/?#][^\s]*)?$`)
 
 var requiredActions = []string{"home", "help", "customize", "marketplace", "upgrade"}
-var optionalActions = []string{"examples"}
+var optionalActions = []string{"examples", "apiDocs"}
 
 var coreActions = map[string]bool{
 	"home":      true,
 	"help":      true,
 	"customize": true,
 	"examples":  true,
+	"apiDocs":   true,
 }
 
 type Action struct {

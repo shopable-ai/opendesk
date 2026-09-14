@@ -314,7 +314,7 @@ func (m *Manifest) Validate() error {
 					return fmt.Errorf("%s without action must be permanently disabled", field)
 				}
 			} else {
-				if err := validateActionID(field+".action", item.Action, item.system); err != nil {
+				if err := validateActionID(field+".action", item.Action, item.system); err != nil && !allowsOpenDeskProductManifestAction(*m, item.Action) {
 					return err
 				}
 				actions[item.Action] = struct{}{}

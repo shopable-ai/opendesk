@@ -16,6 +16,8 @@ func testConfig() Config {
 		Actions: map[string]Action{
 			"home":        {Visible: true, URL: "https://example.com/home"},
 			"help":        {Visible: true, URL: "https://example.com/help"},
+			"examples":    {Visible: true, URL: "https://example.com/examples"},
+			"apiDocs":     {Visible: true, URL: "https://example.com/docs/api"},
 			"customize":   {Visible: true, URL: "https://example.com/customize"},
 			"marketplace": {Visible: false, URL: ""},
 			"upgrade":     {Visible: false, URL: ""},
@@ -40,6 +42,9 @@ func TestEncodeDecodeRoundTrip(t *testing.T) {
 	}
 	if got := decoded.Actions["help"].URL; got != "https://example.com/help" {
 		t.Fatalf("decoded help URL = %q", got)
+	}
+	if got := decoded.Actions["apiDocs"].URL; got != "https://example.com/docs/api" {
+		t.Fatalf("decoded API docs URL = %q", got)
 	}
 
 	second, err := Encode(decoded)
@@ -68,7 +73,7 @@ func TestValidateRejectsUnsafeURLHiddenCoreMissingAndUnknownActions(t *testing.T
 		t.Fatalf("Validate(http) error = %v", err)
 	}
 
-	for _, name := range []string{"home", "help", "customize"} {
+	for _, name := range []string{"home", "help", "customize", "examples", "apiDocs"} {
 		config = testConfig()
 		action = config.Actions[name]
 		action.Visible = false
@@ -104,6 +109,13 @@ func TestValidateRejectsUnsafeURLHiddenCoreMissingAndUnknownActions(t *testing.T
 	config.Actions["unknown"] = Action{Visible: true, URL: "https://example.com/unknown"}
 	if err := Validate(config); err == nil || !strings.Contains(err.Error(), "unknown action") {
 		t.Fatalf("Validate(unknown action) error = %v", err)
+	}
+
+	config = testConfig()
+	delete(config.Actions, "examples")
+	delete(config.Actions, "apiDocs")
+	if err := Validate(config); err != nil {
+		t.Fatalf("Validate(config without backward-compatible optional actions): %v", err)
 	}
 }
 

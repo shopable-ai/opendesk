@@ -56,6 +56,11 @@
         "id": "open-examples",
         "label": "示例代码…",
         "action": "opendesk.examples"
+      },
+      {
+        "id": "open-api-docs",
+        "label": "API 文档…",
+        "action": "opendesk.api-docs"
       }
     ]
   }

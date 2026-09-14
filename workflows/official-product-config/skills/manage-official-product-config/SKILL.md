@@ -51,11 +51,13 @@ locale / i18n provider（未来）
 home
 help
 customize
+examples
+apiDocs
 marketplace
 upgrade
 ```
 
-`home`、`help`、`customize` 必须可见；`home` 必须有非空 HTTPS URL；其余 URL 非空时必须为 HTTPS；不存 secret。
+`home`、`help`、`customize`、`examples`、`apiDocs` 必须可见；`home` 必须有非空 HTTPS URL；其余 URL 非空时必须为 HTTPS；不存 secret。
 
 Runtime 从同一生成配置派生：
 

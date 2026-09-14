@@ -9,9 +9,9 @@
   // The basename rename does not introduce a new ODCFG1 wire format.
   const OBFUSCATION_KEY = 'OpenDeskOfficialShell/v1';
   const HTTPS_URL_PATTERN = /^https:\/\/[^\s/?#\\]+(?:[/?#][^\s]*)?$/;
-  const CORE_ACTIONS = Object.freeze(['home', 'help', 'customize', 'examples']);
+  const CORE_ACTIONS = Object.freeze(['home', 'help', 'customize', 'examples', 'apiDocs']);
   const REQUIRED_CONFIG_ACTIONS = Object.freeze(['home', 'help', 'customize', 'marketplace', 'upgrade']);
-  const OPTIONAL_CONFIG_ACTIONS = Object.freeze(['examples']);
+  const OPTIONAL_CONFIG_ACTIONS = Object.freeze(['examples', 'apiDocs']);
   const CONFIG_ACTIONS = Object.freeze([...REQUIRED_CONFIG_ACTIONS, ...OPTIONAL_CONFIG_ACTIONS]);
   const ACTION_DEFINITIONS = Object.freeze({
     home: Object.freeze({
@@ -31,6 +31,12 @@
       label: '示例代码…',
       title: '示例代码',
       placeholder: '示例代码暂不可用。',
+    }),
+    apiDocs: Object.freeze({
+      id: 'opendesk.api-docs',
+      label: 'API 文档…',
+      title: 'API 文档',
+      placeholder: 'API 文档暂不可用。',
     }),
     customize: Object.freeze({
       id: 'opendesk.customize',
@@ -58,6 +64,7 @@
       home: Object.freeze({visible: true, url: ''}),
       help: Object.freeze({visible: true, url: ''}),
       examples: Object.freeze({visible: true, url: ''}),
+      apiDocs: Object.freeze({visible: true, url: ''}),
       customize: Object.freeze({visible: true, url: ''}),
       marketplace: Object.freeze({visible: false, url: ''}),
       upgrade: Object.freeze({visible: false, url: ''}),

@@ -35,6 +35,9 @@ function harness(options = {}) {
       if (options.rejectRunnerSource === source) throw new Error('runner action rejected');
     },
   };
+  const assistant = {
+    async open() {},
+  };
   const schedulerCenter = {
     async open(source) { schedulerOpenCalls.push(source); },
     async openCreate(source) { schedulerNewCalls.push(source); },
@@ -51,6 +54,7 @@ function harness(options = {}) {
   const controller = ProductAppController.create({
     appRuntime,
     runner,
+    assistant,
     schedulerCenter,
     inspectorLauncher,
     permissionsCenter,

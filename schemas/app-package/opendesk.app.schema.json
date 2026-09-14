@@ -128,6 +128,31 @@
           "tray"
         ]
       }
+    },
+    {
+      "if": {
+        "properties": {
+          "id": {
+            "const": "com.opendesk.desktop"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
+      "else": {
+        "properties": {
+          "tray": {
+            "properties": {
+              "menu": {
+                "items": {
+                  "$ref": "#/$defs/thirdPartyMenuItem"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   ],
   "$defs": {
@@ -153,6 +178,19 @@
         },
         {
           "pattern": "^\\s*(?![oO][pP][eE][nN][dD][eE][sS][kK]\\.)"
+        }
+      ]
+    },
+    "productResourceActionId": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/businessActionId"
+        },
+        {
+          "const": "opendesk.examples"
+        },
+        {
+          "const": "opendesk.api-docs"
         }
       ]
     },
@@ -297,7 +335,7 @@
                   "pattern": "^\\s*$"
                 },
                 {
-                  "$ref": "#/$defs/businessActionId"
+                  "$ref": "#/$defs/productResourceActionId"
                 }
               ]
             },
@@ -343,6 +381,28 @@
               }
             }
           ]
+        }
+      ]
+    },
+    "thirdPartyMenuItem": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/menuItem"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "action": {
+              "oneOf": [
+                {
+                  "pattern": "^\\s*$"
+                },
+                {
+                  "$ref": "#/$defs/businessActionId"
+                }
+              ]
+            }
+          }
         }
       ]
     }

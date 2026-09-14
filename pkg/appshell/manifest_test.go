@@ -484,7 +484,7 @@ func TestOpenDeskProductMenuUsesPrivateCompositionWithoutManifestSubmenus(t *tes
 	walk(menu, "")
 	for _, want := range []string{
 		"打开 OpenDesk", "录制自动化", "计划中心", "新建计划…", "运行日志…",
-		"开发者 > 运行状态…", "开发者 > 打开 Inspector",
+		"开发者 > 运行状态…", "开发者 > 桌面测量…", "开发者 > 打开 Inspector",
 		"开发者 > 打开日志目录", "开发者 > 调试信息 > ✓ 普通", "开发者 > 调试信息 > 详细",
 		"帮助与服务 > OpenDesk 官网", "帮助与服务 > 帮助", "帮助与服务 > 定制", "退出 OpenDesk",
 	} {
@@ -514,6 +514,25 @@ func TestOpenDeskProductMenuUsesPrivateCompositionWithoutManifestSubmenus(t *tes
 	}
 	if inspectorEntries != 1 {
 		t.Fatalf("product menu must expose exactly one Inspector entry, got %d: %v", inspectorEntries, paths)
+	}
+}
+
+func TestProductResourceActionsRemainReservedOutsideTheOfficialProduct(t *testing.T) {
+	for _, action := range []string{ActionProductExamples, ActionProductAPIDocs} {
+		t.Run(action, func(t *testing.T) {
+			product := strings.Replace(validManifestJSON(), `"id": "com.opendesk.sample"`, `"id": "`+OpenDeskProductPackageID+`"`, 1)
+			product = strings.Replace(product, `"action":"sync.now"`, `"action":"`+action+`"`, 1)
+			if _, err := ParseManifest([]byte(product)); err != nil {
+				t.Fatalf("official product resource action rejected: %v", err)
+			}
+
+			thirdParty := strings.Replace(validManifestJSON(), `"action":"sync.now"`, `"action":"`+action+`"`, 1)
+			_, err := ParseManifest([]byte(thirdParty))
+			requirePackageError(t, err, ErrManifestInvalid, "manifest")
+			if !strings.Contains(err.Error(), "uses reserved opendesk.* namespace") {
+				t.Fatalf("third-party package did not reject reserved product action: %v", err)
+			}
+		})
 	}
 }
 

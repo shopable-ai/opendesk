@@ -85,7 +85,13 @@
           }
           if (officialShell
             && typeof officialShell.activate === 'function'
-            && ['opendesk.home', 'opendesk.help', 'opendesk.customize', 'opendesk.examples'].includes(event.id)) {
+            && [
+              'opendesk.home',
+              'opendesk.help',
+              'opendesk.customize',
+              'opendesk.examples',
+              'opendesk.api-docs',
+            ].includes(event.id)) {
             await officialShell.activate(event.id);
             return true;
           }

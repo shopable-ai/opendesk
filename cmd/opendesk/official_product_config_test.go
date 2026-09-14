@@ -14,7 +14,7 @@ import (
 const (
 	productConfigSourcePath = "configs/" + officialconfig.BaseName + ".json"
 	productConfigOutputPath = "apps/opendesk/assets/" + officialconfig.BaseName + ".odcfg"
-	examplesCanonicalURL     = "https://github.com/shopable-ai/opendesk/tree/master/examples"
+	examplesCanonicalURL    = "https://github.com/shopable-ai/opendesk/tree/master/examples"
 )
 
 func readOfficialProductFile(t *testing.T, relative string) []byte {
@@ -36,6 +36,10 @@ func TestOfficialProductWebsiteComesFromProductConfig(t *testing.T) {
 	if !home.Visible || !strings.HasPrefix(home.URL, "https://") {
 		t.Fatalf("official home action must be visible with an HTTPS URL: %+v", home)
 	}
+	apiDocs := config.Actions["apiDocs"]
+	if !apiDocs.Visible || !strings.HasPrefix(apiDocs.URL, "https://") || !strings.HasSuffix(apiDocs.URL, "/docs/api/index.md") {
+		t.Fatalf("official API docs action must be visible and target the canonical API index: %+v", apiDocs)
+	}
 
 	for _, relative := range []string{
 		"polyfills/000-systemBase.js",
@@ -46,8 +50,13 @@ func TestOfficialProductWebsiteComesFromProductConfig(t *testing.T) {
 		"apps/opendesk/recorder/controller-core.js",
 	} {
 		source := readOfficialProductFile(t, relative)
-		if bytes.Contains(source, []byte(home.URL)) {
-			t.Fatalf("%s duplicated the configured product website literal", relative)
+		for label, target := range map[string]string{
+			"product website": home.URL,
+			"API docs":        apiDocs.URL,
+		} {
+			if bytes.Contains(source, []byte(target)) {
+				t.Fatalf("%s duplicated the configured %s URL literal", relative, label)
+			}
 		}
 	}
 
@@ -104,6 +113,9 @@ func TestProductConfigCompilesToCommittedReleaseAsset(t *testing.T) {
 	if examples, ok := config.Actions["examples"]; !ok || !examples.Visible || examples.URL != examplesCanonicalURL {
 		t.Fatalf("product config source must own the visible canonical Examples action: %+v", examples)
 	}
+	if apiDocs, ok := config.Actions["apiDocs"]; !ok || !apiDocs.Visible || !strings.HasPrefix(apiDocs.URL, "https://") || !strings.HasSuffix(apiDocs.URL, "/docs/api/index.md") {
+		t.Fatalf("product config source must own the visible canonical API docs action: %+v", apiDocs)
+	}
 	encoded, err := officialconfig.Encode(config)
 	if err != nil {
 		t.Fatalf("encode product config source: %v", err)
@@ -118,6 +130,9 @@ func TestProductConfigCompilesToCommittedReleaseAsset(t *testing.T) {
 	}
 	if examples := embeddedConfig.Actions["examples"]; !examples.Visible || examples.URL != examplesCanonicalURL {
 		t.Fatalf("Runtime-embedded product config must preserve canonical Examples action: %+v", examples)
+	}
+	if apiDocs := embeddedConfig.Actions["apiDocs"]; !apiDocs.Visible || apiDocs.URL != config.Actions["apiDocs"].URL {
+		t.Fatalf("Runtime-embedded product config must preserve canonical API docs action: %+v", apiDocs)
 	}
 	embedded, err := officialconfig.Encode(embeddedConfig)
 	if err != nil {

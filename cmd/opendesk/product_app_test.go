@@ -21,6 +21,8 @@ func TestProductAppPackageOwnsRunnerButNotReservedRecorderAction(t *testing.T) {
 		"open-scheduler-center": "scheduler.center",
 		"new-schedule":          "scheduler.new",
 		"open-runtime-log":      "runtime.log",
+		"open-examples":         appshell.ActionProductExamples,
+		"open-api-docs":         appshell.ActionProductAPIDocs,
 	} {
 		if action, ok := appPackage.Manifest.MenuAction(itemID); !ok || action != expectedAction {
 			t.Fatalf("%s action=%q ok=%v, want %q", itemID, action, ok, expectedAction)

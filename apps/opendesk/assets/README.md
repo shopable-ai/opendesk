@@ -58,7 +58,7 @@ Runtime 为兼容产品身份 API，从同一份生成资源派生：
 System.product.website
 ```
 
-`home`、Help、Customize、Marketplace、Upgrade 当前都属于 `product.json` / `product.odcfg` 的 `actions` namespace；其中 `home` 必须可见且使用非空 HTTPS URL。`System.product.website` 不是第二个维护源。`official-shell.js` 是 Runtime 组件名，不再与配置 basename 混用。
+`home`、Help、Customize、Examples、API Docs、Marketplace、Upgrade 当前都属于 `product.json` / `product.odcfg` 的 `actions` namespace；其中 `home` 必须可见且使用非空 HTTPS URL。`System.product.website` 不是第二个维护源。`official-shell.js` 是 Runtime 组件名，不再与配置 basename 混用。
 
 `product.json` **不保存可翻译 UI 文案**（例如窗口 title、按钮 label、提示语），也不保存用户设置、运行时状态、权限状态、动态 capability、token、密码、License key、私钥或其他 secret。未来多语言文案应由 locale/i18n 层按语义 key 提供，产品配置只保存语言无关的数据或必要的语义 key。
 
