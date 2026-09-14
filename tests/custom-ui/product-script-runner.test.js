@@ -488,7 +488,7 @@ test('App Mode composition has no Demo panel and leaves OpenDesk opening to the 
   assert.equal(manifest.tray.primaryAction, 'opendesk.open');
   assert.deepEqual(manifest.tray.menu.filter(item => item.action === 'runner.open'), []);
   const productMenuSource = fs.readFileSync(path.join(repo, 'pkg', 'appshell', 'product_menu.go'), 'utf8');
-  assert.match(productMenuSource, /ActionOpen, Label: "打开 OpenDesk"/);
-  assert.match(productMenuSource, /Label: "开发者"/);
-  assert.match(productMenuSource, /Label: "帮助与服务"/);
+  assert.match(productMenuSource, /ActionOpen, Label: translatedProductLabel\("menu\.open", "显示主窗口"\)/);
+  assert.match(productMenuSource, /translatedProductLabel\("menu\.developer", "开发者"\)/);
+  assert.match(productMenuSource, /translatedProductLabel\("menu\.helpAndSupport", "帮助与服务"\)/);
 });

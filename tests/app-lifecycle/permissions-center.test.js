@@ -205,7 +205,12 @@ test('product App Mode keeps existing permission route and fixed tray entry', ()
   assert.match(appController, /case 'permissions\.open':/);
   assert.match(main, /permissionsCenter\.preflight\('startup'\)/);
   const menu = manifest.tray.menu.find(item => item.id === 'open-permissions');
-  assert.deepEqual(menu, {id:'open-permissions',label:'系统权限…',action:'permissions.open'});
+  assert.deepEqual(menu, {
+    id: 'open-permissions',
+    labelKey: 'menu.permissions',
+    label: '系统权限',
+    action: 'permissions.open',
+  });
   assert.match(release, /^permissions-center\.js$/m);
   assert.match(release, /^runtime-log\.js$/m);
 });

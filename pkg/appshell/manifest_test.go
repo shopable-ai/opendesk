@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"opendesk/pkg/localization"
 	"opendesk/pkg/runtimeversion"
 )
 
@@ -451,6 +452,12 @@ func TestEnsureRecorderMenuLeavesDisabledTrayAlone(t *testing.T) {
 }
 
 func TestOpenDeskProductMenuUsesPrivateCompositionWithoutManifestSubmenus(t *testing.T) {
+	localization.ConfigureDefault(localization.Options{
+		CatalogDir:     filepath.Join("..", "..", "apps", "opendesk", "locales"),
+		PreferencePath: filepath.Join(t.TempDir(), "preferences.json"),
+		SystemLocale:   func() (string, error) { return localization.LocaleZhCN, nil },
+		Diagnostics:    func(localization.Diagnostic) {},
+	})
 	manifest := Manifest{
 		ID: OpenDeskProductPackageID,
 		Tray: TrayManifest{Enabled: true, Menu: []MenuItem{

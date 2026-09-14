@@ -453,4 +453,4 @@ These concepts should be separate contracts. In particular, `capabilities` must 
 
 ### Recommended next milestone
 
-After Localization Core and App Package gates are verified locally/CI, Native Tray/Menu language switching may consume `SetLocalePreference` and the existing App Shell localization bridge without creating a second manifest or locale contract. App Package identity/data-isolation work remains a separate architecture concern.
+Native Tray/Menu language switching consumes `SetLocalePreference` and the existing App Shell localization bridge without creating a second manifest or locale contract. App Package identity/data-isolation work remains a separate architecture concern.

@@ -963,7 +963,9 @@
         const id = `recordingHistory${++windowSequence}`;
         const window = await ui.createWindow({
           id,
-          kind: 'floating',
+          // History is a normal Recorder page, not the compact recording
+          // control bar. Keep it in the ordinary application Z-order.
+          kind: 'normal',
           title: '历史录制',
           position: {
             mode: 'anchor',
@@ -973,7 +975,7 @@
             margin: 0,
             display: 'active',
           },
-          alwaysOnTop: true,
+          alwaysOnTop: false,
           draggable: true,
           theme: 'dark',
           content: {

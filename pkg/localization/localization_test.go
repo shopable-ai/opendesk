@@ -18,11 +18,13 @@ func TestResolveLocale(t *testing.T) {
 		{"auto zh-CN", PreferenceAuto, "zh-CN", LocaleZhCN},
 		{"auto zh-Hans", PreferenceAuto, "zh-Hans", LocaleZhCN},
 		{"auto zh-Hans-CN", PreferenceAuto, "zh-Hans-CN", LocaleZhCN},
+		{"auto language-only en", PreferenceAuto, "en", LocaleEnUS},
 		{"auto en-US", PreferenceAuto, "en-US", LocaleEnUS},
 		{"auto en-GB", PreferenceAuto, "en-GB", LocaleEnUS},
 		{"auto en-AU", PreferenceAuto, "en-AU", LocaleEnUS},
 		{"auto unsupported", PreferenceAuto, "ja-JP", ProductDefaultLocale},
 		{"traditional Chinese unsupported", PreferenceAuto, "zh-TW", ProductDefaultLocale},
+		{"Hong Kong Chinese unsupported", PreferenceAuto, "zh-HK", ProductDefaultLocale},
 		{"explicit zh-CN", LocaleZhCN, "en-US", LocaleZhCN},
 		{"explicit en-US", LocaleEnUS, "zh-CN", LocaleEnUS},
 	}
@@ -61,29 +63,48 @@ func TestPreferencePersistsAndReloads(t *testing.T) {
 		if got := manager.GetLocalePreference(); got != preference {
 			t.Fatalf("reloaded preference=%q, want %q", got, preference)
 		}
+		wantResolved := preference
+		if preference == PreferenceAuto {
+			wantResolved = LocaleEnUS
+		}
+		if got := manager.GetResolvedLocale(); got != wantResolved {
+			t.Fatalf("reloaded resolved locale=%q, want %q", got, wantResolved)
+		}
 	}
 }
 
 func TestInvalidPersistedPreferenceRecoversToAuto(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "preferences.json")
-	data, _ := json.Marshal(preferenceDocument{LocalePreference: "ja-JP"})
-	if err := os.WriteFile(path, data, 0o600); err != nil {
-		t.Fatal(err)
+	tests := []struct {
+		name string
+		data string
+	}{
+		{name: "unsupported locale", data: `{"localePreference":"ja-JP"}`},
+		{name: "unknown locale", data: `{"localePreference":"foo"}`},
+		{name: "empty locale", data: `{"localePreference":""}`},
+		{name: "malformed JSON", data: `{"localePreference":`},
 	}
-	var diagnostics []Diagnostic
-	manager := NewManager(Options{
-		PreferencePath: path,
-		SystemLocale:   func() (string, error) { return "en-US", nil },
-		Diagnostics:    func(d Diagnostic) { diagnostics = append(diagnostics, d) },
-	})
-	if got := manager.GetLocalePreference(); got != PreferenceAuto {
-		t.Fatalf("invalid persisted preference recovered as %q, want auto", got)
-	}
-	if got := manager.GetResolvedLocale(); got != LocaleEnUS {
-		t.Fatalf("resolved locale=%q, want en-US after auto recovery", got)
-	}
-	if !hasDiagnostic(diagnostics, DiagnosticPreferenceInvalid) {
-		t.Fatalf("missing %s diagnostic: %#v", DiagnosticPreferenceInvalid, diagnostics)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "preferences.json")
+			if err := os.WriteFile(path, []byte(test.data), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			var diagnostics []Diagnostic
+			manager := NewManager(Options{
+				PreferencePath: path,
+				SystemLocale:   func() (string, error) { return "en-US", nil },
+				Diagnostics:    func(d Diagnostic) { diagnostics = append(diagnostics, d) },
+			})
+			if got := manager.GetLocalePreference(); got != PreferenceAuto {
+				t.Fatalf("invalid persisted preference recovered as %q, want auto", got)
+			}
+			if got := manager.GetResolvedLocale(); got != LocaleEnUS {
+				t.Fatalf("resolved locale=%q, want en-US after auto recovery", got)
+			}
+			if !hasDiagnostic(diagnostics, DiagnosticPreferenceInvalid) {
+				t.Fatalf("missing %s diagnostic: %#v", DiagnosticPreferenceInvalid, diagnostics)
+			}
+		})
 	}
 }
 
@@ -125,6 +146,15 @@ func TestCatalogLookupFallbackAndInterpolation(t *testing.T) {
 	})
 	if got := manager.Translate("menu.current"); got != "Current" {
 		t.Fatalf("en-US hit=%q", got)
+	}
+	if err := manager.SetLocalePreference(LocaleZhCN); err != nil {
+		t.Fatal(err)
+	}
+	if got := manager.Translate("menu.onlyChinese"); got != "仅中文" {
+		t.Fatalf("zh-CN hit=%q", got)
+	}
+	if err := manager.SetLocalePreference(LocaleEnUS); err != nil {
+		t.Fatal(err)
 	}
 	if got := manager.Translate("menu.onlyChinese"); got != "仅中文" {
 		t.Fatalf("fallback hit=%q", got)
@@ -196,14 +226,93 @@ func TestCatalogValueMustBeString(t *testing.T) {
 	}
 }
 
+func TestCatalogRootMustBeObject(t *testing.T) {
+	catalogDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(catalogDir, LocaleEnUS+".json"), []byte(`[]`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	writeTestCatalog(t, catalogDir, LocaleZhCN, map[string]any{"menu.foo": "中文回退"})
+	var diagnostics []Diagnostic
+	manager := NewManager(Options{
+		CatalogDir:     catalogDir,
+		PreferencePath: filepath.Join(t.TempDir(), "preferences.json"),
+		SystemLocale:   func() (string, error) { return "en-US", nil },
+		Diagnostics:    func(d Diagnostic) { diagnostics = append(diagnostics, d) },
+	})
+	if got := manager.Translate("menu.foo"); got != "中文回退" {
+		t.Fatalf("non-object catalog should fall back, got %q", got)
+	}
+	if !hasDiagnostic(diagnostics, DiagnosticCatalogInvalid) {
+		t.Fatalf("missing %s diagnostic: %#v", DiagnosticCatalogInvalid, diagnostics)
+	}
+}
+
+func TestCatalogReadErrorFailsSoft(t *testing.T) {
+	catalogDir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(catalogDir, LocaleEnUS+".json"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeTestCatalog(t, catalogDir, LocaleZhCN, map[string]any{"menu.foo": "中文回退"})
+	var diagnostics []Diagnostic
+	manager := NewManager(Options{
+		CatalogDir:     catalogDir,
+		PreferencePath: filepath.Join(t.TempDir(), "preferences.json"),
+		SystemLocale:   func() (string, error) { return "en-US", nil },
+		Diagnostics:    func(d Diagnostic) { diagnostics = append(diagnostics, d) },
+	})
+	if got := manager.Translate("menu.foo"); got != "中文回退" {
+		t.Fatalf("catalog read error should fall back, got %q", got)
+	}
+	if !hasDiagnostic(diagnostics, DiagnosticCatalogInvalid) {
+		t.Fatalf("missing %s diagnostic: %#v", DiagnosticCatalogInvalid, diagnostics)
+	}
+}
+
+func TestDiagnosticsAreDeduplicated(t *testing.T) {
+	var diagnostics []Diagnostic
+	manager := NewManager(Options{
+		CatalogDir:     t.TempDir(),
+		PreferencePath: filepath.Join(t.TempDir(), "preferences.json"),
+		SystemLocale:   func() (string, error) { return "", errors.New("unavailable") },
+		Diagnostics:    func(d Diagnostic) { diagnostics = append(diagnostics, d) },
+	})
+	if got := manager.Translate("menu.missing"); got != "menu.missing" {
+		t.Fatalf("missing key fallback=%q", got)
+	}
+	if err := manager.SetLocalePreference(PreferenceAuto); err != nil {
+		t.Fatal(err)
+	}
+	if got := manager.Translate("menu.missing"); got != "menu.missing" {
+		t.Fatalf("repeated missing key fallback=%q", got)
+	}
+
+	counts := make(map[string]int)
+	for _, diagnostic := range diagnostics {
+		counts[diagnostic.Code]++
+	}
+	if counts[DiagnosticSystemUnavailable] != 1 {
+		t.Fatalf("system locale diagnostic count=%d, want 1: %#v", counts[DiagnosticSystemUnavailable], diagnostics)
+	}
+	if counts[DiagnosticMissingKey] != 1 {
+		t.Fatalf("missing key diagnostic count=%d, want 1: %#v", counts[DiagnosticMissingKey], diagnostics)
+	}
+	if counts[DiagnosticCatalogMissing] != 1 {
+		t.Fatalf("catalog missing diagnostic count=%d, want 1 for the resolved product-default locale: %#v", counts[DiagnosticCatalogMissing], diagnostics)
+	}
+}
+
 func TestSystemLocaleFailureDoesNotBlockStartup(t *testing.T) {
+	var diagnostics []Diagnostic
 	manager := NewManager(Options{
 		PreferencePath: filepath.Join(t.TempDir(), "preferences.json"),
 		SystemLocale:   func() (string, error) { return "", errors.New("unavailable") },
-		Diagnostics:    func(Diagnostic) {},
+		Diagnostics:    func(d Diagnostic) { diagnostics = append(diagnostics, d) },
 	})
 	if got := manager.GetResolvedLocale(); got != ProductDefaultLocale {
 		t.Fatalf("OS locale failure resolved=%q, want product default", got)
+	}
+	if !hasDiagnostic(diagnostics, DiagnosticSystemUnavailable) {
+		t.Fatalf("missing %s diagnostic: %#v", DiagnosticSystemUnavailable, diagnostics)
 	}
 }
 
