@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 1,
+  "prototypeOnly": true,
+  "measurementId": "demo-measurement-1",
+  "mode": "region",
+  "complete": true,
+  "coordinateSpace": "desktop-logical",
+  "unit": "logical-unit",
+  "snapshot": {
+    "id": "prototype-snapshot-1789378096948",
+    "prototypeOnly": true,
+    "createdAt": "2026-09-14T09:28:16.948Z",
+    "source": "synthetic-canvas-fixture-not-real-screen",
+    "coordinateSpace": "desktop-logical",
+    "axis": {
+      "origin": "virtual-desktop",
+      "x": "right",
+      "y": "down"
+    },
+    "displays": [
+      {
+        "displayId": "demo-display-1",
+        "logicalBounds": {
+          "x": 0,
+          "y": 0,
+          "width": 1440,
+          "height": 836
+        },
+        "pixelSize": {
+          "width": 2880,
+          "height": 1672
+        },
+        "scaleFactor": 2,
+        "colorSpace": "sRGB",
+        "alphaMode": "opaque"
+      }
+    ],
+    "window": {
+      "stableHints": {
+        "appName": "示例客服工作台",
+        "titleHint": "客服工作台"
+      },
+      "runtimeEvidence": null
+    },
+    "assetsSaved": false,
+    "rawPixelsRetainedInMemory": true
+  },
+  "reference": {
+    "kind": "window",
+    "label": "客服工作台 · 整窗",
+    "bounds": {
+      "x": 129.6,
+      "y": 96.14,
+      "width": 1152,
+      "height": 618.64
+    },
+    "locked": true,
+    "revision": 4
+  },
+  "selection": {
+    "source": "synthetic-fixture",
+    "reliability": "prototype-only"
+  },
+  "targets": [
+    {
+      "x": 331.6,
+      "y": 251.14,
+      "width": 440,
+      "height": 100
+    }
+  ],
+  "result": {
+    "absolute": {
+      "x": 331.6,
+      "y": 251.14,
+      "width": 440,
+      "height": 100
+    },
+    "relative": {
+      "x": 202.00000000000003,
+      "y": 155,
+      "width": 440,
+      "height": 100
+    },
+    "percentage": {
+      "x": 17.534722222222225,
+      "y": 25.054959265485582,
+      "width": 38.19444444444444,
+      "height": 16.164489848700374
+    },
+    "signedEdges": {
+      "left": 202.00000000000003,
+      "top": 155,
+      "right": 509.9999999999999,
+      "bottom": 363.64
+    },
+    "centerOffset": {
+      "x": -154,
+      "y": -104.32
+    },
+    "alignmentDelta": {
+      "left": 202.00000000000003,
+      "top": 155,
+      "right": -509.9999999999999,
+      "bottom": -363.64
+    },
+    "aspectRatio": 4.4,
+    "areaRatio": 0.06173937094989726,
+    "coverageRatio": 0.06173937094989726,
+    "insideRatio": 1
+  },
+  "pair": null,
+  "reusePolicy": "Do not use sample geometry as a real application locator. Reacquire window in each new run."
+}

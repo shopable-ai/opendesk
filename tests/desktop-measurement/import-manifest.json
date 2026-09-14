@@ -1,0 +1,160 @@
+{
+  "schemaVersion": 1,
+  "source": "opendesk-measurement-delivery.zip uploaded in the approved design conversation",
+  "sourceArchiveSHA256": "74dff1001e6b886d20ba9e5942a82cd1d3f0bdbabb71c1058b32221fce715c72",
+  "scope": "design-and-prototype-preservation-not-native-implementation",
+  "canonicalDesign": "docs/architecture/desktop-automation/desktop-measurement.md",
+  "prototypeEntry": "tests/desktop-measurement/prototype/index.html",
+  "originalDeliveryMetadata": {
+    "repo": "shopable-ai/opendesk",
+    "branch": "master",
+    "baseline": "b23740773c48e0fd7b4a0f36716224a8a3b4b38f",
+    "commits": [
+      "4eb1bd6c596af8dbfb3243e691201e059458d61b",
+      "fe995c2d8c921f89dcdcfd17eee95fbca3e40921"
+    ],
+    "repositoryFilesChanged": [
+      "docs/architecture/desktop-automation/desktop-measurement.md",
+      "docs/architecture/desktop-automation/README.md"
+    ],
+    "productionCodeModified": false,
+    "prototypeModelTests": 16,
+    "prototypeBrowserChecks": 34,
+    "nativeAcceptance": "NOT_RUN",
+    "prototypeSHA256": "8ff69e481d09778e7870228bba143c5b90a123af414f97503e424784082a34c5"
+  },
+  "historicalResults": {
+    "modelTestsPassed": 16,
+    "browserChecksPassed": 34,
+    "browserErrors": 0,
+    "nativeAcceptance": "NOT_RUN"
+  },
+  "thisImport": {
+    "testsRun": false,
+    "buildRun": false,
+    "nativeAcceptance": "NOT_RUN",
+    "productionCodeModified": false,
+    "futureOutputDirectory": ".runtime/tests/desktop-measurement/prototype/"
+  },
+  "note": "Checksums identify original artifacts; they do not imply PNG screenshots, ZIP, or raw logs are stored in this repository.",
+  "files": [
+    {
+      "source": "README.md",
+      "bytes": 3747,
+      "sha256": "1f12596dacf894df68a9010a5b5d98d793443d7f7e4dfd26b01cb9f255f4860e",
+      "preservation": "replaced-with-repository-guide",
+      "repositoryPath": "tests/desktop-measurement/README.md"
+    },
+    {
+      "source": "delivery-manifest.json",
+      "bytes": 605,
+      "sha256": "769871c2f614d4bea31db80bb5034281a5f964dbcd13fca193c0e33f11fc6fad",
+      "preservation": "metadata-recorded-in-import-manifest",
+      "repositoryPath": null
+    },
+    {
+      "source": "evidence/01-default-region.png",
+      "bytes": 204490,
+      "sha256": "62bf8f791d644468dfecd17ceb9a3bb2dd4e8876405bb77c8392fd287ec4c807",
+      "preservation": "original-conversation-artifact-not-versioned",
+      "repositoryPath": null
+    },
+    {
+      "source": "evidence/02-negative-edge.png",
+      "bytes": 205977,
+      "sha256": "ac10bfd144c3314f97bcf7cb4da9783feff4bc7060ae3ba45d21968b42ee9126",
+      "preservation": "original-conversation-artifact-not-versioned",
+      "repositoryPath": null
+    },
+    {
+      "source": "evidence/03-details-on-demand.png",
+      "bytes": 267845,
+      "sha256": "75754593207f2ef8f2e8b3b9e04d1a422f1c390ef1cf01589c0109511315f575",
+      "preservation": "original-conversation-artifact-not-versioned",
+      "repositoryPath": null
+    },
+    {
+      "source": "evidence/04-point-color.png",
+      "bytes": 200738,
+      "sha256": "4a8776f518a3fe6daacdbf556513d347ec6ba6e198f8359fe13602263104a4e4",
+      "preservation": "original-conversation-artifact-not-versioned",
+      "repositoryPath": null
+    },
+    {
+      "source": "evidence/05-final-region.png",
+      "bytes": 203971,
+      "sha256": "315c7b23fc9a0c40e1e6d329d6fa4f728c1ea070a20625582f61af515a35328e",
+      "preservation": "original-conversation-artifact-not-versioned",
+      "repositoryPath": null
+    },
+    {
+      "source": "evidence/browser-tests.json",
+      "bytes": 3997,
+      "sha256": "1d0e2f5d78bdc761a1c966b863577bf6dc1a121eb596ba154bcf4b63bd21cea1",
+      "preservation": "original-conversation-artifact-not-versioned",
+      "repositoryPath": null
+    },
+    {
+      "source": "evidence/export-example.json",
+      "bytes": 2551,
+      "sha256": "131bffd091a11ae2533facfcd39378eb285e76f6fef80cb626141453afd51ce7",
+      "preservation": "copied-exact-synthetic-fixture",
+      "repositoryPath": "tests/desktop-measurement/fixtures/export-example.json"
+    },
+    {
+      "source": "evidence/model-tests.txt",
+      "bytes": 2896,
+      "sha256": "6a6e2fba17319cb5926afe494b1c8404b3470d050852858cae26152085228bf7",
+      "preservation": "original-conversation-artifact-not-versioned",
+      "repositoryPath": null
+    },
+    {
+      "source": "prototype/index.html",
+      "bytes": 43262,
+      "sha256": "8ff69e481d09778e7870228bba143c5b90a123af414f97503e424784082a34c5",
+      "preservation": "copied-exact",
+      "repositoryPath": "tests/desktop-measurement/prototype/index.html"
+    },
+    {
+      "source": "prototype/model.js",
+      "bytes": 3734,
+      "sha256": "cdc28b42e7df0ee274b52e1137782caca8144eaf23f88ac04becf0c43f6b55da",
+      "preservation": "copied-exact",
+      "repositoryPath": "tests/desktop-measurement/prototype/model.js"
+    },
+    {
+      "source": "prototype/template.html",
+      "bytes": 39541,
+      "sha256": "c0313c973367cc6cb731a5b67e634d19d2eb60a666f84720a3990d551782753f",
+      "preservation": "copied-exact",
+      "repositoryPath": "tests/desktop-measurement/prototype/template.html"
+    },
+    {
+      "source": "tests/browser.test.py",
+      "bytes": 9333,
+      "sha256": "9269dd4dd8be72b7578287666459c9983fa5e4b1266a2319b9e4a0123cf575f0",
+      "preservation": "paths-and-utf8-adapted-not-rerun",
+      "repositoryPath": "tests/desktop-measurement/browser.test.py"
+    },
+    {
+      "source": "tests/model.test.js",
+      "bytes": 4254,
+      "sha256": "2d8d923ecc603b40653bf3e33c5ec85633abd411c3f57974cc0c4f467639d58a",
+      "preservation": "path-only-adapted",
+      "repositoryPath": "tests/desktop-measurement/model.test.js"
+    },
+    {
+      "source": "validation-report.md",
+      "bytes": 3311,
+      "sha256": "5a846aba9a7dd4ecad38c3a1e4b1b438f07250dc3f9cf95d6c8befa26a056a62",
+      "preservation": "historical-report-preserved-with-context",
+      "repositoryPath": "docs/quality/desktop-measurement-prototype.md"
+    }
+  ],
+  "separatePreview": {
+    "source": "opendesk-measurement-preview.png",
+    "bytes": 172193,
+    "sha256": "3e96da1e203ee0c9b7baa3c3f8725811275af5b48135baf8c69a23a26fa6dcc4",
+    "preservation": "original-conversation-artifact-not-versioned"
+  }
+}
