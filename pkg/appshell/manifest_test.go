@@ -456,7 +456,7 @@ func TestOpenDeskProductMenuUsesPrivateCompositionWithoutManifestSubmenus(t *tes
 		Tray: TrayManifest{Enabled: true, Menu: []MenuItem{
 			{ID: "scheduler.center", Label: "计划中心", Action: "scheduler.center"},
 			{ID: "scheduler.new", Label: "新建计划…", Action: "scheduler.new"},
-			{ID: "runtime.log", Label: "运行日志…", Action: "runtime.log"},
+			{ID: "runtime.log", Label: "运行日志", Action: "runtime.log"},
 		}},
 	}
 	manifest = EnsureRecorderMenu(manifest)
@@ -483,10 +483,10 @@ func TestOpenDeskProductMenuUsesPrivateCompositionWithoutManifestSubmenus(t *tes
 	}
 	walk(menu, "")
 	for _, want := range []string{
-		"打开 OpenDesk", "录制自动化", "计划中心", "新建计划…", "运行日志…",
-		"开发者 > 运行状态…", "开发者 > 桌面测量…", "开发者 > 打开 Inspector",
+		"打开 OpenDesk", "录制自动化", "计划中心", "新建计划…", "运行日志",
+		"开发者 > 运行状态", "开发者 > 桌面测量", "开发者 > 打开 Inspector",
 		"开发者 > 打开日志目录", "开发者 > 调试信息 > ✓ 普通", "开发者 > 调试信息 > 详细",
-		"帮助与服务 > OpenDesk 官网", "帮助与服务 > 帮助", "帮助与服务 > 定制", "退出 OpenDesk",
+		"帮助与服务 > OpenDesk 官网", "帮助与服务 > 帮助", "帮助与服务 > 定制", "退出",
 	} {
 		found := false
 		for _, path := range paths {
@@ -499,7 +499,7 @@ func TestOpenDeskProductMenuUsesPrivateCompositionWithoutManifestSubmenus(t *tes
 			t.Fatalf("product menu missing %q: %v", want, paths)
 		}
 	}
-	for _, forbidden := range []string{"Open / Show", "Quit", "打开 Recorder", "Open Scheduler", "打开 Script Runner", "允许 Inspector 从局域网访问", "复制 Inspector LAN 地址"} {
+	for _, forbidden := range []string{"Open / Show", "Quit", "打开 Recorder", "Open Scheduler", "打开 Script Runner", "允许 Inspector 从局域网访问", "复制 Inspector LAN 地址", "运行日志…", "运行状态…", "桌面测量…", "退出 OpenDesk"} {
 		for _, path := range paths {
 			if strings.Contains(path, forbidden) {
 				t.Fatalf("product menu exposes %q in %q", forbidden, path)
