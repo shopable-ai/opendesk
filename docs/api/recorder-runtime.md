@@ -14,7 +14,7 @@ order: 220
 
 | 方法 | 用途 |
 | --- | --- |
-| `Recorder.getCapabilities()` | 无副作用地查询采集、actions 和 basic 生成能力 |
+| `Recorder.getCapabilities()` | 无副作用地查询采集、actions、semantic 和 basic 生成能力 |
 | `Recorder.start(options)` | 在明确授权下记录起始窗口上下文并开始桌面级人工输入采集 |
 | `RecorderSession.status()` | 读取当前采集和保存状态快照 |
 | `RecorderSession.pause()` | 在保留 session 和 native lease 的同时暂停接受输入并写入明确边界 |
@@ -22,7 +22,7 @@ order: 220
 | `RecorderSession.excludeControlClick(event)` | 为 Custom UI 控制点击写入可审计排除边界，避免生成目标动作 |
 | `RecorderSession.stop()` | 固定截止边界、停止监听、排空 writer 并终结录制包 |
 | `Recorder.buildActions(recordingDir)` | 从终结包或可校验的未终结 raw 前缀确定性制作固定版本 actions |
-| `Recorder.generateScript(actionsFile, options?)` | 从固定 actions 文件生成不覆盖旧文件的 basic 普通 JS |
+| `Recorder.generateScript(actionsFile, options?)` | 从固定 actions 生成简洁 semantic 候选；显式 basic 为物理回放 |
 
 ## 暂停与恢复约定
 
@@ -53,7 +53,7 @@ Recorder.getCapabilities(): OpenDeskRecorderCapabilities
 
 **返回值**
 
-`capture` 分别给出 `supported`、当前 execution 的 `hostAuthorized`、无提示权限探测 `permission`、`available`、平台、固定 libuiohook 版本、坐标空间、`evidenceModes` 和限制。`evidenceModes` 当前包含 `"none"` 与 `"target-semantics"`。`actions.available` 与 `basicGeneration.available` 描述文件制作能力；它们不因 hook 不可用或未授权而变为 `false`。`actions.actionSubset` 固定为 `click.left.single`、`drag.left.straight`、`wheel.xy.burst`、`text.focused-value-patch`、`text.basic-latin-fallback`、`keyboard.shortcut` 和 `keyboard.special-key` 的并集；需要 verified 双端点输入框语义的自然文字选择仍属于严格 `drag.left.straight` 能力面，不会因轨迹形状单独取得资格。
+`capture` 分别给出 `supported`、当前 execution 的 `hostAuthorized`、无提示权限探测 `permission`、`available`、平台、固定 libuiohook 版本、坐标空间、`evidenceModes` 和限制。`evidenceModes` 当前包含 `"none"` 与 `"target-semantics"`。`actions.available`、`semanticGeneration.available` 与 `basicGeneration.available` 描述文件制作能力；它们不因 hook 不可用或未授权而变为 `false`。`actions.actionSubset` 固定为 `click.left.single`、`drag.left.straight`、`wheel.xy.burst`、`text.focused-value-patch`、`text.basic-latin-fallback`、`keyboard.shortcut` 和 `keyboard.special-key` 的并集；需要 verified 双端点输入框语义的自然文字选择仍属于严格 `drag.left.straight` 能力面，不会因轨迹形状单独取得资格。
 
 **行为与错误**
 
@@ -135,7 +135,7 @@ macOS 使用静态编入的 libuiohook 并需要 Input Monitoring/Accessibility 
 开始控制是本次即时采集授权；点击后控制台留出 3 秒供用户聚焦起始窗口，再读取并保存该窗口上下文，
 用于聚焦的点击发生在 listener 启动前，不会进入录制。简化工具条把 Play 与 Pause 合并在首个按钮：录制中原位显示 Pause，暂停后原位恢复 Play；该按钮按
 `status().captureState` 分派到明确的 `pause()`／`resume()`，继续时可以位于任意窗口。录制中可切换窗口和应用。停止后界面显示保存摘要并调用同一个
-`Recorder.buildActions()`；actions 为 `ready` 或 `needs-review` 时立即调用 `Recorder.generateScript()` 生成文件，后者显示省略项并保留 warning；生成失败时原“重放”位置切换为显式重试入口，不增加常驻按钮。生成后详情页读取并显示真实脚本内容，但不会自动回放。只有再次明确点击
+`Recorder.buildActions()`；默认从 ready actions 调用 semantic 生成；证据不足或 needs-review 明确显示生成阻塞，不自动退回坐标。工具栏的“兼容物理回放”是显式 basic 选择，才允许带省略警告的 partial candidate；生成失败时原“重放”位置切换为显式重试入口，不增加常驻按钮。生成后详情页读取并显示真实脚本内容，但不会自动回放。只有再次明确点击
 “重放”后控制台先留出 3 秒供用户恢复起始桌面和窗口，再通过 [Command.run()](command.md#commandruncommand-args-options) 启动新的
 `./dist/opendesk -script <scriptFile>` execution；取消或关闭使用 `AbortSignal` 清理该受管子进程。
 进程退出结果与 candidate 分开显示，生成结果仍保持 `verification: "not-run"`。生成成功后可再次明确点击
@@ -374,7 +374,7 @@ console.log(actions.actionsFile, actions.readiness, actions.issues);
 Recorder.generateScript(
   actionsFile: string,
   options?: {
-    mode?: "basic";
+    mode?: "semantic" | "basic";
     outputFile?: string;
     timing?: {
       minimumDelayMs?: number;
@@ -391,8 +391,8 @@ Recorder.generateScript(
 | 参数 | 类型 | 必填 | 默认值 | 说明 |
 | --- | --- | --- | --- | --- |
 | `actionsFile` | `string` | 是 | 无 | 录制目录直属的 `actions.json` 或 `actions.rNNN.json` |
-| `options.mode` | `"basic"` | 否 | `"basic"` | 首版唯一生成模式 |
-| `options.outputFile` | `string` | 否 | `generated/basic.recipe.js` | 只能是本录制 `generated` 目录内的新 `.js` 文件 |
+| `options.mode` | `"semantic" \| "basic"` | 否 | `"semantic"` | 语义生成；basic 是显式兼容物理回放，不作为高质量自动降级 |
+| `options.outputFile` | `string` | 否 | `generated/semantic.recipe.js` | 只能是本录制 `generated` 目录内的新 `.js` 文件 |
 | `options.timing` | `object` | 否 | 见下列 timing 字段 | 生成相邻动作间 `sleep` 的可审计策略；显式 pause/resume 边界不应用该策略 |
 | `options.timing.minimumDelayMs` | `number` | 否 | `500` | 每个非暂停动作间隔的下限；整数，范围 `0..1800000` |
 | `options.timing.maximumDelayMs` | `number` | 否 | `30000` | 每个非暂停动作间隔的上限；整数，范围 `0..1800000`，不得小于 `minimumDelayMs` |
@@ -401,11 +401,23 @@ Recorder.generateScript(
 
 **返回值**
 
-返回 `scriptFile`、`candidateFile`、actions 与脚本 hash、约束、实际采用的完整 `timing`、`pointerMotion`，以及固定的 `verification: "not-run"`。candidate 固定 actions 版本、映射、timing、指针定位策略和环境限制。
+返回 `mode`、`scriptFile`、`candidateFile`、actions 与脚本 hash、约束、实际采用的完整 `timing`、`pointerMotion`，以及固定的 `verification: "not-run"`。candidate 固定 actions 版本、映射、timing、指针定位策略和环境限制。
 
 **行为与错误**
 
-该方法重新读取并严格校验实际 actions 字节及其固定 raw hash/byte reference，不信任上次调用的内存对象。它重新解析 raw 和终结 manifest，要求 eventDisposition 完整且唯一，并验证 click/drag/wheel/text/text-edit/shortcut/key、source basis、timing、issues、readiness 与固定输入事实的确定性归组一致。未知字段、未知动作、非法数值、悬空引用、unsafe ID、空文本、`blocked` 资格和非 basic mode 均拒绝。`ready` 生成完整 basic candidate；`needs-review` 生成 runnable partial candidate，并在源码和 constraints 明示 omitted raw event 数量。零安全动作时仍生成 no-op candidate，不能据此声称录制行为或业务目标完成。输出使用 exclusive create；已存在脚本或 candidate 返回 `WOULD_OVERWRITE`，不会覆盖人工代码。
+该方法重新读取并严格校验 actions、固定 raw hash/bytes 和终结 manifest。所有模式保持同一 native 文件 owner、确定性归组、完整 eventDisposition 和 exclusive-create 规则；未知字段、非法来源、篡改数据、blocked package 均拒绝，不覆盖旧脚本。
+
+默认 semantic 只接受非空 ready actions。可证明为 enabled、支持 invoke 的单左键控件激活，若文字足够且录制证据无已知竞争控件，生成 `UI.tapTexts`；同文字不同控件／role 或无文字目标，保留必要 role/name/identifier 并生成扁平 `UI.tapTargets`。已知同 role/name 的多个目标没有可区分 identifier 时阻塞，不能按 index 或坐标取第一个。AX label 不伪称 OCR 观察；录制期未发现冲突也不证明运行期唯一，Runtime 仍必须检查，并独立 qualification。
+
+连续点击仅在相同窗口、相同有效间隔且无 pause 边界时合并，最多 256 步；按 action 保留 candidate `mappings[{actionId,line,api,stepIndex,basis}]`，同一行可对应多个 stepIndex。不合并窗口、键盘、读取或不同节奏边界。原始 bounds、event IDs、native evidence 仍留在 actions，不生成 fallback/strategy/完整 evidence 配置。候选版本为 `opendesk.recorder.semantic-candidate/v1`，`verification` 仍为 not-run。
+
+语义模式按应用身份加精确标题解析新执行窗口；标题失败不放宽。按键使用已有 keyboard API 与活动窗口 guard；完整 text-edit 保留已有前／后 hash、聚焦和真实读回合同，不用简单 setValue 丢掉这些条件。拖拽、wheel、低层未确认 text、语义证据不足及 needs-review 在本模式返回 `GENERATION_BLOCKED`，不写出脆弱坐标候选。smooth 仅属于 basic；本模式要求 instant。
+
+生成步骤不会凭空推断业务读值。`firstResult` 来源、第二次数据绑定和 `finalResult` Oracle 由已确认 Human-to-Recipe 业务过程补齐；点击日志本身不能证明这些数据依赖。输入 acknowledgement 也不能作为业务通过。
+
+**显式 basic 兼容合同**
+
+`{mode: "basic"}` 保留原物理输入语义，包括 needs-review partial/no-op、窗口相对坐标、pointerMotion 与下述回放规则。默认输出为 `generated/basic.recipe.js`，仍不可覆盖。它不是 semantic 模式失败后的自动 fallback，也不继承 semantic 资格。
 
 生成脚本先检查 OS，然后仅发出白名单窗口、显示器、Geometry、mouse、keyboard 与 Accessibility 调用，以及相邻动作间固定的 `sleep`。快捷键和特殊键先证明重新解析的窗口正在前台，再分别调用 `keyboard.combination()` 和 `keyboard.press()`；自动重复按 `repeatCount` 逐次调用。低层 `text` 的内容先写入显式 `const __recorderTextN`，供用户或下游流程确认、改名或参数化，再传给 `keyboard.type()`。`text-edit` 先在该窗口内用录制的 role 加 identifier（缺失时 name）执行完整唯一性搜索，同时读取当前 `focused` 和 `value`；只有目标仍聚焦，且 value 的 UTF-16 code-unit 长度与 UTF-16LE SHA-256 精确匹配 precondition，才在内存应用差异、核对 after hash、最多一次调用 `Accessibility.perform(...setValue...)`。调用后再次读取同一引用，要求它仍聚焦且值匹配 postcondition。安全字段、歧义、焦点或前置状态漂移、动作未确认、回读不一致均停止，绝不重试或退回键盘猜测。执行这类候选必须显式启用 Accessibility Runtime 能力并具备系统权限。
 
@@ -419,7 +431,7 @@ wheel 同样先解析新鲜窗口或显示器，把录制的首事件坐标投�
 
 脚本不导入 Node、不 `eval` actions、不循环解释 actions、不调用 OCR／模型／Skill，也不自动运行。每个非暂停动作间隔都以“前一动作最后事件到后一动作首个事件”的 raw 毫秒差为基准，先计算 `effectiveGap = clamp(round(recordedGap / speedMultiplier), minimumDelayMs, maximumDelayMs)`。instant 或非指针动作仍把完整 `effectiveGap` 生成为 `sleep`；smooth 的 click、wheel 和 drag start 则用录制 screen-logical 点间距离 `d` 计算 `desiredMotion = clamp(round(180 + d / 1.2), 300, 1200)`，再取 `motionDuration = min(desiredMotion, effectiveGap)` 与 `residualSleep = effectiveGap - motionDuration`。residual sleep 先发生，随后移动在动作前结束，所以目标解析仍尽量新鲜；短 gap 可以全部用于移动，长停顿不会被伪造成不自然的慢速 hover。没有可用前序指针点（首个指针动作或 pause boundary 后）使用明确的 320ms synthetic duration；若可用 gap 为 0，则使用 1ms 以满足公开 API 的正时长边界。所有数值和公式都以生成注释、`durationMs`、`curve` 与 residual `sleep` 明示。
 
-默认 timing 因此继续保留用户总节奏，同时给快速操作至少 500ms 的稳定间隔，并把异常长等待限制为 30 秒；`mouse.move.durationMs` 已包含平台稳定间隔，除系统调度误差外，budgeted gap 的 `residualSleep + motionDuration` 等于 `effectiveGap`。显式 pause/resume 之间的墙钟时间不重放。resolved timing 与 pointer motion 同时写入返回值和 `basic-candidate/v4` 元数据，调用方或后续 AI 可在生成时调整策略，也可审核后修改普通 JS。这些 duration 和 sleep 是可检查的录制时间事实与重放节奏策略，不是目标就绪、加载完成或业务成功条件。
+默认 timing 因此继续保留用户总节奏，同时给快速操作至少 500ms 的稳定间隔，并把异常长等待限制为 30 秒；`mouse.move.durationMs` 已包含平台稳定间隔，除系统调度误差外，budgeted gap 的 `residualSleep + motionDuration` 等于 `effectiveGap`。显式 pause/resume 之间的墙钟时间不重放。resolved timing 与 pointer motion 同时写入返回值和 相应 candidate 元数据（basic 为 `basic-candidate/v4`），调用方或后续 AI 可在生成时调整策略，也可审核后修改普通 JS。这些 duration 和 sleep 是可检查的录制时间事实与重放节奏策略，不是目标就绪、加载完成或业务成功条件。
 
 **示例**
 
@@ -438,7 +450,7 @@ $env:OPENDESK_RECORDER_ACTIONS_FILE='.runtime\recordings\<ID>\actions.json'; .\d
 生成后只有在重新建立获准测试起点并明确授权回放时，才从仓库根目录单独执行：
 
 ```bash
-./dist/opendesk -script .runtime/recordings/<ID>/generated/basic.recipe.js -console-mode script
+./dist/opendesk -script .runtime/recordings/<ID>/generated/semantic.recipe.js -console-mode script
 ```
 
 Promise resolve 只证明生成或输入 API 返回，不证明目标应用的业务结果；结果必须由 fixture 状态、实际画面或预先约定的独立检查确认。
@@ -452,13 +464,15 @@ Recorder v2 目录为：
   manifest.json
   raw/events.ndjson
   actions.json
-  generated/basic.recipe.js
-  generated/basic.candidate.json
+  generated/semantic.recipe.js
+  generated/semantic.candidate.json
+  generated/basic.recipe.js          # 显式 basic 才生成
+  generated/basic.candidate.json     # 显式 basic 才生成
 ```
 
 raw 使用字符串保存 session sequence 和 native timestamp，避免 JavaScript safe-integer 损失；同时保存 native clock/unit、接收时间、modifier、库事件、坐标验证、输入来源和已知 gap；新的 macOS live `KEY_TYPED` 将不能代表目标应用最终输入结果的 `textInputSource` 明确保存为 `unknown`。`manifest.json` 保存可选的起始窗口快照、与权威 pointer/keyboard 事件关联的 `inputContexts`、显式键盘授权下的 `textEdits`，以及只针对 raw 未配对按键的 `keyStatesAtStop`。新录制的 pointer press/release/wheel context 分别带 `pressed`／`released`／`wheel` phase；旧 v2 release-only context 的空 phase 仍可读取，但不能补造缺失的 press traits。窗口和标签语义是动作当时事实；`textEdits` 只含 before/after 指纹、差异插入内容、精确可写文本框 descriptor 和源事件引用，不保存未变化上下文、完整字段值、选择文本或安全字段内容。Recorder 自身的暂停／恢复与 Custom UI 控制点击边界使用 `source: "recorder"`；控制点击边界的 metadata 固定保存 `windowId`、`targetId`、`uiTimestamp`、`triggerEventIds`、`controlBounds` 和 `matchStatus`。暂停区间的输入内容不写入 raw。普通 hover `MOUSE_MOVED` 不保存；只在鼠标键按住期间保留 motion／drag 路径供动作判定。默认事件队列 4096、窗口上下文队列 128、文本采样 40ms、文本静默归组 750ms、上下文新鲜度上限 750ms、writer flush 250ms、backend start/stop deadline 8s、默认 session 15 分钟、最大 30 分钟；Meta／Control／Alt chord 和非编辑导航键会立即切断文本归组，以保留独立快捷键或特殊键事实。这些是有限设计默认值，不是性能实测结论。
 
-basic 模式不创建 `observations/`。Accessibility 标签直接作为动作上下文中的结构化事实保存，不等于 OCR，也不被当作已证明的业务意图。只有未来在明确启用屏幕证据后实际取得有界目标裁剪时才能创建并引用 `observations/`；不得把后来截图、OCR 文本或模型描述伪装成录制时事实。
+当前 Human Recorder 不创建 `observations/`。Accessibility 标签直接作为动作上下文中的结构化事实保存，不等于 OCR，也不被当作已证明的业务意图。只有未来在明确启用屏幕证据后实际取得有界目标裁剪时才能创建并引用 `observations/`；不得把后来截图、OCR 文本或模型描述伪装成录制时事实。
 
 ## 错误
 
@@ -477,3 +491,9 @@ Recorder Promise 使用 `RecorderError`，至少包含 `name`、`code`、`operat
 | `INVALID_RECORDING` | manifest、raw、actions、顺序、hash 或引用不合法 |
 | `GENERATION_BLOCKED` | actions 为 package-integrity `blocked`；raw／manifest、事件保存或 Custom UI 控制边界不足以安全生成 |
 | `WOULD_OVERWRITE` | 目标脚本或 candidate 已存在 |
+
+## 生成协作验收
+
+无桌面输入的 Runtime gate：从仓库根目录运行 `./dist/opendesk -script tests/runtime-api/recorder-generation.js -console-mode script`。它在真实 Runtime 内通过固定 recording fixture 调用 buildActions/generateScript；UI owner 使用隔离观察和输入桩，不能作为真机通过。
+
+Calculator 的独立入口为 `tests/runtime-api/recorder-generation-calculator-macos.js`，沿用既有 macOS Calculator 布局与真实显示区读取规则。只在已授权、存在匹配真实五步 recording/actions 且窗口预检通过时运行；详情见该文件顶部命令。分别验证生成脚本 25×4、直接文字序列 25×4+10、真实 firstResult→第二次按钮输入→真实 finalResult。缺少真实录制／桌面／权限时标记 not-run，不能把 fixture 结果当真机结果。

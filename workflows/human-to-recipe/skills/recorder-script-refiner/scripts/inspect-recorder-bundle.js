@@ -104,6 +104,8 @@ function inspectBundle(scriptInput, options = {}) {
   const candidatePath = path.join(path.dirname(scriptPath), candidateName(path.basename(scriptPath)));
   const candidateBytes = readRegular(candidatePath, 'candidateFile');
   const candidate = parseJSON(candidateBytes, 'candidateFile');
+  assert(candidate.mode !== 'semantic', 'SEMANTIC_CANDIDATE_REQUIRES_BUSINESS_ROUTE',
+    'semantic candidates use Human-to-Recipe; this refiner preserves basic physical input and must not reinterpret semantic mappings');
   assert((candidate.formatVersion === 'opendesk.recorder.basic-candidate/v3'
       || candidate.formatVersion === 'opendesk.recorder.basic-candidate/v4')
     && candidate.mode === 'basic' && candidate.recordingId === recordingId,

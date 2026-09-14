@@ -97,7 +97,9 @@
       throw error;
     }
 
-    return `优化 Recorder 已生成脚本：\`${scriptFile}\`。`;
+    return generated.mode === 'semantic'
+      ? `继续完善 Recorder 语义候选：\`${scriptFile}\`。按 human-to-recipe 复用 actions/candidate 与逐步骤映射；选择简洁公开 API，不重复实现 Runtime 定位策略。先核对业务读取与数据绑定，再按独立授权执行资格验证；不要转入仅适用于 basic 的物理精炼器。`
+      : `优化 Recorder 已生成脚本：\`${scriptFile}\`。`;
   }
 
   function createApp(options) {
@@ -220,7 +222,8 @@
 
     const state = {
       phase: captureAvailable ? 'ready' : 'unavailable',
-      pointerMotion: settings.pointerMotion === 'instant' ? 'instant' : 'smooth',
+      generationMode: settings.generationMode === 'basic' ? 'basic' : 'semantic',
+      pointerMotion: settings.generationMode === 'basic' && settings.pointerMotion !== 'instant' ? 'smooth' : 'instant',
       countdown: null,
       target: null,
       nativeStatus: null,
@@ -373,7 +376,7 @@
       const disabled = closeRequested || !!session || !!startPromise || !!controlPromise
         || !!stopPromise || !!generatePromise || !!runPromise || !!state.generated
         || state.phase === 'unavailable' || state.phase === 'closed';
-      return {checked: state.pointerMotion === 'smooth', disabled};
+      return {checked: state.generationMode === 'basic', disabled};
     }
 
     async function syncButtons() {
@@ -794,10 +797,10 @@
         try {
           const pointerMotion = state.pointerMotion;
           const generated = await recorder.generateScript(state.actions.actionsFile, {
-            mode: 'basic', pointerMotion,
+            mode: state.generationMode, pointerMotion,
           });
           const source = String(file.read(generated.scriptFile));
-          state.generated = {...clone(generated), pointerMotion, source};
+          state.generated = {...clone(generated), mode: state.generationMode, pointerMotion, source};
           await transition(
             'generated',
             state.actions.readiness === 'ready'
@@ -906,10 +909,11 @@
         await syncButtons();
         return snapshot();
       }
+      state.generationMode = event.checked ? 'basic' : 'semantic';
       state.pointerMotion = event.checked ? 'smooth' : 'instant';
       state.detail = event.checked
-        ? '已启用可见鼠标移动：生成脚本会在指针动作前合成平滑移动。'
-        : '已关闭可见鼠标移动：生成脚本会保留直接定位的快速模式。';
+        ? '已选择兼容物理回放：使用录制坐标并合成平滑鼠标移动；这不是语义生成。'
+        : '已选择语义生成：优先文字序列，必要时保留目标约束；证据不足会停止生成，不自动退回坐标。';
       await syncButtons();
       return snapshot();
     }
@@ -973,7 +977,7 @@
         `生成脚本：${artifactPath(state.generated && state.generated.scriptFile)}`,
         `candidate：${artifactPath(state.generated && state.generated.candidateFile)}`,
         `生成节奏：${timingText}`,
-        `鼠标移动：${state.pointerMotion === 'smooth' ? '平滑（合成可见移动）' : '快速（瞬时定位）'}`,
+        `生成方式：${state.generationMode === 'basic' ? '兼容物理回放（录制坐标）' : '语义生成（无默认坐标回退）'}`,
         `错误：${state.error ? `${state.error.code} · ${state.error.operation} · ${state.error.message}` : '无'}`,
         `生成源码预览：\n${previewText(state.generated && state.generated.source, 360)}`,
         `重放摘要：\n${runDetails()}`,
@@ -1091,8 +1095,8 @@
     toolbar.addButton('measurement', '测量', BUILT_IN_ICONS.measurement, measure);
     toolbar.addSeparator('capture-output-separator');
     toolbar.addButton('replay', '重放', BUILT_IN_ICONS.replay, replayOrRetryGeneration);
-    toolbar.addSwitch('pointerMotion', '鼠标移动（开：平滑，关：瞬移）', {
-      value: state.pointerMotion === 'smooth', width: 48,
+    toolbar.addSwitch('pointerMotion', '兼容物理回放（开：录制坐标；关：语义生成）', {
+      value: state.generationMode === 'basic', width: 48,
     }, setPointerMotion);
     toolbar.addButton('agentPrompt', '复制 Agent 优化脚本', BUILT_IN_ICONS.agentPrompt, copyAgentPrompt);
     toolbar.addSeparator('output-info-separator');

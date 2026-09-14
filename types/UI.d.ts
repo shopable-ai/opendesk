@@ -155,10 +155,37 @@ declare global {
   interface OpenDeskUITapTextsResult {
     ok: true;
     action: "tapTexts";
-    completed: Array<OpenDeskUITapResult<OpenDeskUITextTarget>>;
+    completed: Array<OpenDeskUISequenceCompletion>;
   }
 
-  /** One explicit native target step. Only Accessibility invoke is supported. */
+  /** Runtime-owned native completion; acknowledgement is not business success. */
+  interface OpenDeskUISemanticTapCompletion {
+    ok: true;
+    action: "invoke";
+    actionState: "acknowledged" | "not_needed";
+    backend: string;
+    requestId: string;
+    target: {source: "accessibility"; text?: string; locator: OpenDeskAccessibilitySelector};
+  }
+  type OpenDeskUISequenceCompletion = OpenDeskUITapResult<OpenDeskUITextTarget> | OpenDeskUISemanticTapCompletion;
+  type OpenDeskUISemanticTapTarget = string | OpenDeskAccessibilitySelector | { text: string; role?: OpenDeskAccessibilityRole; name?: string; identifier?: string };
+  interface OpenDeskUISemanticTapOptions {
+    /** Defaults to the active window pinned before the first step. */
+    within?: OpenDeskWindowInfo;
+    /** Per-step budget after its interval; integer milliseconds 1..30000, default 10000. */
+    timeout?: number;
+    /** Integer milliseconds 1..10000; default 200. */
+    polling?: number;
+    /** Integer milliseconds 0..86400000; default 300. */
+    intervalMs?: number;
+    signal?: AbortSignal | null;
+  }
+  interface OpenDeskUISemanticTapResult {
+    ok: true;
+    action: "tapTargets";
+    completed: OpenDeskUISequenceCompletion[];
+  }
+  /** Compatibility-only explicit native sequence; new code uses strings/flat selectors. */
   interface OpenDeskUITapTargetStep {
     locator: OpenDeskAccessibilitySelector;
   }
@@ -196,7 +223,7 @@ declare global {
     | "capability"
     | "preflight"
     | "action"
-    | "cleanup";
+    | "cleanup" | "interval" | "locate" | "precondition" | "input";
 
   /** Accessibility failures plus exact-window activation verification. */
   type OpenDeskUITapTargetsErrorCode =
@@ -224,8 +251,8 @@ declare global {
     requestId?: string;
     /** Present for preflight/action failures after a sequence was established. */
     failedIndex?: number;
-    failedPhase?: "preflight" | "action";
-    completed?: OpenDeskUITapTargetCompletion[];
+    failedPhase?: OpenDeskUITapTargetsPhase;
+    completed?: Array<OpenDeskUITapTargetCompletion | OpenDeskUISequenceCompletion>;
     cause?: unknown;
     cleanupErrors?: OpenDeskUITapTargetsCleanupError[];
   }
@@ -375,7 +402,8 @@ declare global {
   }
 
   interface OpenDeskUICapabilities {
-    text: { find: true; tap: true; wait: true; backend: "Vision.runOCR" };
+    text: { find: true; tap: true; wait: true; backend: "Vision.runOCR"; sequenceStrategy: "auto" };
+    targets: { semantic: true; legacyLocatorSequence: true };
     image: { find: true; tap: true; backend: "ImageColor.findImages" };
     accessibility: OpenDeskUIAccessibilityCapabilitySummary;
     coordinateMapping: { actualCaptureScale: true; mixedDPIScope: false };
@@ -395,15 +423,24 @@ declare global {
       | "UNSUPPORTED_COORDINATE_MAPPING"
       | "TIMEOUT"
       | "CANCELED"
-      | "BACKEND_FAILED";
+      | "BACKEND_FAILED"
+      | "SEARCH_INCOMPLETE"
+      | "ELEMENT_DISABLED"
+      | "STATE_UNKNOWN"
+      | "REF_RELEASED"
+      | "CAPABILITY_DISABLED"
+      | "PERMISSION_DENIED"
+      | "ACTION_NOT_SUPPORTED";
     operation: string;
     candidateCount?: number;
     candidates?: Array<OpenDeskUITextTarget | OpenDeskUIImageTarget>;
     failedIndex?: number;
     failedText?: string;
+    actionState?: OpenDeskAccessibilityActionState;
+    resolution?: {ocr: "missing" | "ambiguous"; ocrCandidateCount: number; accessibility: "unavailable" | "unique" | "missing"};
     /** Sequence failure stage; input may have been submitted even when it failed. */
     failedPhase?: "interval" | "locate" | "input";
-    completed?: Array<OpenDeskUITapResult<OpenDeskUITextTarget>>;
+    completed?: Array<OpenDeskUISequenceCompletion>;
     /** Identifies anchor resolution failures when relativeTo is enabled. */
     stage?: "anchor";
     cause?: unknown;
@@ -430,7 +467,9 @@ declare global {
     tapText(text: string, options?: OpenDeskUITextLocateOptions): Promise<OpenDeskUITapResult<OpenDeskUITextTarget>>;
     /** The required first argument is the ordered action sequence; options.within only scopes it to a resolved window. */
     tapTexts(texts: string[], options?: OpenDeskUITapTextsOptions): Promise<OpenDeskUITapTextsResult>;
-    /** Preflights every distinct native locator, then invokes the fixed refs strictly in order. */
+    /** Text delegates to tapTexts; native constraints are resolved fresh per step and never weakened to OCR. */
+    tapTargets(targets: OpenDeskUISemanticTapTarget[], options?: OpenDeskUISemanticTapOptions): Promise<OpenDeskUISemanticTapResult>;
+    /** Compatibility: preflights every distinct legacy locator, then invokes fixed refs in order. */
     tapTargets(targets: OpenDeskUITapTargetStep[], options: OpenDeskUITapTargetsOptions): Promise<OpenDeskUITapTargetsResult>;
     waitText(text: string, options?: OpenDeskUITextOptions): Promise<OpenDeskUITextTarget>;
     waitTextGone(text: string, options?: OpenDeskUITextOptions): Promise<true>;

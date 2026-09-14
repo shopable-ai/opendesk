@@ -165,3 +165,9 @@ CollectionProfile 发布前至少回答：适用 window/page/region、collection
 - recipe-qualify 消费冻结候选及依赖，用预定标准和独立结果来源核验。集合任务至少按 validation-plan 的 SC-A—SC-P 选取适用场景，分别验证 visible collection、traversal 和 business parser；允许同一 Agent 执行检查，但不能冒充独立上下文或以自述替代证据。
 
 输入过期、关键证据缺失、规则超范围、身份歧义、权限不足或预算耗尽时，保留真实局部成果并报告对应 fail／not-run／blocked；不缩小原请求来换 pass。分批实施和正式验收以验证计划为唯一依据，当前未运行项目不得预填通过率或 95 分以上的能力结论。
+
+## Recorder 语义生成与 Runtime 定位协作
+
+按 `docs/frameworks/ui-locator-repair.md` 的同名合同执行。`actions.json` 保留录制事实，不绑定某个 API；简单文字优先 `UI.tapTexts`，必要的逐步身份约束使用 `UI.tapTargets`，特殊动作保留已有低层 API。不得在生成代码中复制 Runtime 默认 auto 的定位算法。
+
+semantic candidate 按业务生成／独立资格路线处理；显式 basic 的静态物理精炼保持原合同。批量源码保留 actionId→line+stepIndex+api 映射，读取实际结果与其消费者不得越过数据依赖边界合并。失败利用原始证据最小维修；没有真机结果明确 not-run。

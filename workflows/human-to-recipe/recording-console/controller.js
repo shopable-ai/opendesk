@@ -413,7 +413,7 @@
           generated: null, run: null, copyStatus: 'idle', error: null,
         });
         try {
-          const generated = await recorder.generateScript(state.actions.actionsFile, {mode: 'basic'});
+          const generated = await recorder.generateScript(state.actions.actionsFile);
           state.generated = clone(generated);
           if (!readGeneratedScript) {
             throw Object.assign(new Error('当前 controller 没有可用的 File.read 适配器'), {

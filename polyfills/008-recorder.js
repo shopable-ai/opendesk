@@ -27,7 +27,7 @@
         name: 'RecorderError', code: 'INVALID_ARGUMENT', operation: 'Recorder.generateScript',
       }));
     }
-    const normalized = options === undefined ? { mode: 'basic' } : options;
+    const normalized = options === undefined ? { mode: 'semantic' } : options;
     return nativeGenerateScript(actionsFile, normalized);
   };
 

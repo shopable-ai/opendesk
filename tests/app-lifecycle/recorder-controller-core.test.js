@@ -119,7 +119,8 @@ function fixture(initialCapability = capability(true)) {
       assert.equal(recordingDir, saved.recordingDir);
       return actions;
     },
-    async generateScript(actionsFile) {
+    async generateScript(actionsFile, options) {
+      calls.generateOptions = options;
       calls.generate++;
       assert.equal(actionsFile, actions.actionsFile);
       return generated;
@@ -330,3 +331,16 @@ for (const [name, invalidCapability] of [
     assert.match(after.detail, /已有录制\/生成结果已保留|无法可靠检查当前录制条件/);
   });
 }
+
+test('Recorder defaults to semantic generation and requires an explicit compatibility switch for coordinates', async()=>{
+  const semantic=fixture();await semantic.app.show();await semantic.app.start();await semantic.app.stop();
+  assert.equal(semantic.calls.generateOptions.mode,'semantic');assert.equal(semantic.calls.generateOptions.pointerMotion,'instant');
+  assert.match(semantic.toolbar().controls.get('pointerMotion').label,/兼容物理回放/);
+  const basic=fixture();await basic.app.show();await basic.toolbar().controls.get('pointerMotion').handler({type:'change',checked:true});
+  await basic.app.start();await basic.app.stop();
+  assert.equal(basic.calls.generateOptions.mode,'basic');assert.equal(basic.calls.generateOptions.pointerMotion,'smooth');
+});
+test('semantic candidates route to business authoring rather than the basic physical refiner',()=>{
+  const prompt=RecordingConsole.buildAgentRefinementPrompt({execution:{workdir:'/repo'},generated:{mode:'semantic',scriptFile:'/repo/.runtime/recordings/rec-test/generated/semantic.recipe.js'}});
+  assert.match(prompt,/human-to-recipe/);assert.match(prompt,/逐步骤映射/);
+});

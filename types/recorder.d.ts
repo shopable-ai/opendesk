@@ -85,6 +85,7 @@ declare global {
     };
     actions: {available: true; version: string; actionSubset: string[]};
     basicGeneration: {available: true; mode: 'basic'; version: string};
+    semanticGeneration: {available: true; mode: 'semantic'; version: string};
   }
 
   interface OpenDeskRecorderStartOptions {
@@ -187,14 +188,16 @@ declare global {
   type OpenDeskRecorderPointerMotion = 'instant' | 'smooth';
 
   interface OpenDeskRecorderGenerateOptions {
-    mode?: 'basic';
+    /** Defaults to semantic; basic is explicit physical replay, not semantic qualification. */
+    mode?: 'semantic' | 'basic';
     outputFile?: string;
     timing?: Partial<OpenDeskRecorderGenerationTiming>;
-    /** Defaults to instant for API compatibility; the recording toolbar explicitly defaults this to smooth. */
+    /** Defaults to instant. Smooth is supported only by explicit basic physical replay. */
     pointerMotion?: OpenDeskRecorderPointerMotion;
   }
 
   interface OpenDeskRecorderScriptResult {
+    mode: "semantic" | "basic";
     scriptFile: string;
     candidateFile: string;
     actionsSha256: string;
@@ -211,7 +214,7 @@ declare global {
     getCapabilities(): OpenDeskRecorderCapabilities;
     start(options: OpenDeskRecorderStartOptions): Promise<OpenDeskRecorderSession>;
     buildActions(recordingDir: string): Promise<OpenDeskRecorderActionsResult>;
-    /** Generates from ready or needs-review actions; blocked packages are rejected. */
+    /** Semantic requires ready and qualified lowering evidence; basic also permits explicit needs-review partial output. All generated candidates remain not-run. */
     generateScript(actionsFile: string, options?: OpenDeskRecorderGenerateOptions): Promise<OpenDeskRecorderScriptResult>;
   }
 

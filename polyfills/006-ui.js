@@ -1697,6 +1697,9 @@
     let override;
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const found = await discover(value, options, operation, override);
+      if (found.nativeLocator && typeof options.nativeActivate === 'function') {
+        return options.nativeActivate(found.nativeLocator, found.nativeWindow);
+      }
       const target = chooseCandidate(found.candidates, options, operation);
       if (!target) {
         fail('TARGET_NOT_FOUND', operation, 'target was not found in the visible scope');
@@ -1767,10 +1770,384 @@
     };
   }
 
+  // Runtime-owned automatic resolution. Recording evidence and caller fields
+  // are never executable policies. Only an exact, unpositioned, ordinary text
+  // activation may consult native evidence after an unsuccessful OCR match.
+  function nativeTextResolutionAvailable(operation) {
+    try {
+      requireTargetSequenceRuntime(operation);
+      return typeof global.Accessibility.snapshot === 'function';
+    } catch (error) {
+      if (error && ['NOT_SUPPORTED', 'CAPABILITY_DISABLED', 'PERMISSION_DENIED', 'ACTION_NOT_SUPPORTED'].indexOf(error.code) >= 0) return false;
+      throw error;
+    }
+  }
+
+  function checkSemanticDeadline(deadline, signal, operation, phase, actionState) {
+    if (signal && signal.aborted) {
+      throw makeTargetSequenceError('CANCELED', operation, 'target sequence was canceled', phase, actionState);
+    }
+    return remainingValueTimeout(deadline, operation, phase, actionState);
+  }
+
+  async function requireSemanticWindow(expected, operation) {
+    const current = await currentActiveWindow(operation);
+    assertExpectedWindow(identitySnapshot(expected), current, operation);
+    return frozenWindowCopy(current);
+  }
+
+  async function findNativeTextLocator(matcher, win, deadline, signal, operation) {
+    const timeout = checkSemanticDeadline(deadline, signal, operation, 'locate', 'not_started');
+    const snapshot = await global.Accessibility.snapshot({
+      within: win, timeout: timeout, maxDepth: 32, maxNodes: 5000,
+      properties: ['role', 'name', 'identifier', 'enabled', 'actions'],
+    });
+    checkSemanticDeadline(deadline, signal, operation, 'locate', 'not_started');
+    if (!snapshot || snapshot.complete !== true || snapshot.truncated !== false) {
+      throw makeTargetSequenceError('SEARCH_INCOMPLETE', operation,
+        'native text search did not prove uniqueness', 'locate', 'not_started', valueResultDetails(snapshot));
+    }
+    const matches = [];
+    if (!snapshot.root || typeof snapshot.root !== 'object') {
+      throw makeTargetSequenceError('BACKEND_FAILED', operation, 'native observation has no root', 'locate', 'not_started');
+    }
+    const pending = [snapshot.root];
+    let visited = 0;
+    while (pending.length) {
+      const node = pending.pop();
+      if (!node || typeof node !== 'object' || ++visited > 5000 || !Array.isArray(node.children)) {
+        throw makeTargetSequenceError('BACKEND_FAILED', operation, 'invalid native text observation', 'locate', 'not_started');
+      }
+      if (typeof node.name === 'string' && matcher.matches(node.name) &&
+          Array.isArray(node.actions) && node.actions.indexOf('invoke') >= 0) matches.push(node);
+      for (const child of node.children) pending.push(child);
+    }
+    if (matches.length === 0) return null;
+    if (matches.length !== 1) {
+      throw makeTargetSequenceError('AMBIGUOUS_TARGET', operation,
+        'more than one invokable native control matches the requested text', 'locate', 'not_started',
+        { candidateCount: matches.length });
+    }
+    const node = matches[0];
+    // Never infer an accessible name from a symbol, native role or identifier.
+    const locator = { role: node.role, name: node.name };
+    if (typeof node.identifier === 'string' && node.identifier.length > 0) locator.identifier = node.identifier;
+    return cloneTargetLocator(locator, 'resolved target', operation);
+  }
+
+  async function activateNativeTarget(locator, win, deadline, signal, operation, beforeInput, polling) {
+    requireTargetSequenceRuntime(operation);
+    let ref = null;
+    let failure = null;
+    let result = null;
+    let phase = 'locate';
+    let actionState = 'not_started';
+    try {
+      // Retry only a successful, complete no-match find. Every action uses a
+      // fresh ref; a submitted invoke, stale ref, ambiguity or unknown result
+      // is terminal and never switches back to OCR.
+      while (!ref) {
+        const timeout = checkSemanticDeadline(deadline, signal, operation, phase, actionState);
+        win = await requireSemanticWindow(win, operation);
+        checkSemanticDeadline(deadline, signal, operation, phase, actionState);
+        ref = await global.Accessibility.find(locator, {
+          within: win, timeout: Math.min(timeout, checkSemanticDeadline(deadline, signal, operation, phase, actionState)),
+          maxDepth: 32, maxNodes: 5000,
+        });
+        checkSemanticDeadline(deadline, signal, operation, phase, actionState);
+        if (!ref) {
+          if (polling === undefined) return null;
+          await global.page.waitForTimeout(Math.min(polling,
+            checkSemanticDeadline(deadline, signal, operation, phase, actionState)), { signal: signal });
+        }
+      }
+      phase = 'precondition';
+      const read = await global.Accessibility.read(ref, {
+        properties: ['role', 'name', 'identifier', 'enabled', 'actions'],
+        timeout: checkSemanticDeadline(deadline, signal, operation, phase, actionState),
+      });
+      checkSemanticDeadline(deadline, signal, operation, phase, actionState);
+      requireInvokableTarget(read, locator, operation, phase, actionState);
+      await requireSemanticWindow(win, operation);
+      checkSemanticDeadline(deadline, signal, operation, phase, actionState);
+      if (beforeInput) beforeInput();
+      phase = 'input';
+      const timeout = checkSemanticDeadline(deadline, signal, operation, phase, actionState);
+      actionState = 'unknown';
+      const performed = await global.Accessibility.perform(ref, { action: 'invoke' }, { timeout: timeout });
+      actionState = performed && performed.actionState;
+      if (actionState !== 'acknowledged' && actionState !== 'not_needed') {
+        actionState = validAccessibilityActionState(actionState) ? actionState : 'unknown';
+        throw makeTargetSequenceError(actionState === 'not_started' ? 'BACKEND_FAILED' : 'STATE_UNKNOWN',
+          operation, 'native activation was not confirmed', phase, actionState, valueResultDetails(performed));
+      }
+      result = {
+        ok: true, action: 'invoke', actionState: actionState,
+        backend: typeof performed.backend === 'string' ? performed.backend : 'unknown',
+        requestId: typeof performed.requestId === 'string' ? performed.requestId : '',
+        target: { source: 'accessibility', text: locator.name, locator: locator },
+      };
+      return result;
+    } catch (error) {
+      failure = wrapTargetSequenceError(error, operation, phase, actionState);
+      throw failure;
+    } finally {
+      if (ref) {
+        try { await releaseValueRef(ref, operation, failure, actionState); }
+        catch (error) {
+          // Cleanup cannot erase an acknowledged input from the prefix.
+          if (result) error.completedAction = result;
+          throw error;
+        }
+      }
+    }
+  }
+
+  async function tapSemanticTargets(targets, rawOptions) {
+    const operation = 'UI.tapTargets';
+    const input = Array.isArray(targets) ? Array.from(targets) : null;
+    if (!input || !input.length || input.length > MAX_ACCESSIBILITY_TARGET_SEQUENCE) {
+      throw makeTargetSequenceError('INVALID_ARGUMENT', operation, 'targets must contain 1..256 steps', 'arguments', 'not_started');
+    }
+    const sequence = input.map(function (target, index) {
+      return typeof target === 'string'
+        ? requireSelectorString(target, 'targets[' + index + ']', operation)
+        : cloneTargetLocator(target, 'targets[' + index + ']', operation);
+    });
+    const raw = rawOptions === undefined ? {} : requireObject(rawOptions, 'options', operation);
+    rejectUnknownFields(raw, ['within', 'timeout', 'polling', 'intervalMs', 'signal', 'strategy'], 'options', operation);
+    if (Object.getOwnPropertySymbols(raw).length || (raw.strategy !== undefined && raw.strategy !== 'auto')) {
+      throw makeTargetSequenceError('INVALID_ARGUMENT', operation, 'semantic targets use the default auto strategy', 'arguments', 'not_started');
+    }
+    let within = raw.within === undefined ? null : requireTargetSequenceWindow(raw.within, operation).within;
+    const timeout = raw.timeout === undefined ? DEFAULT_TIMEOUT : requireBoundedInteger(raw.timeout, 'timeout', 1, 30000, operation);
+    const polling = raw.polling === undefined ? DEFAULT_POLLING : requireBoundedInteger(raw.polling, 'polling', 1, 10000, operation);
+    const intervalMs = raw.intervalMs === undefined ? 300 : requireBoundedInteger(raw.intervalMs, 'intervalMs', 0, 86400000, operation);
+    const signal = raw.signal == null ? undefined : raw.signal;
+    if (signal !== undefined && (typeof signal.aborted !== 'boolean' ||
+        typeof signal.addEventListener !== 'function' || typeof signal.removeEventListener !== 'function')) {
+      throw makeTargetSequenceError('INVALID_ARGUMENT', operation, 'signal must be an AbortSignal', 'arguments', 'not_started');
+    }
+    // Native-specific target constraints may not be weakened to OCR, including
+    // when Accessibility is disabled for this execution.
+    if (sequence.some(function (target) { return typeof target !== 'string'; })) requireTargetSequenceRuntime(operation);
+    checkTargetSequenceCanceled({ signal: signal }, operation, 'arguments', 'not_started');
+    if (within === null) within = requireTargetSequenceWindow(await currentActiveWindow(operation), operation).within;
+    const completed = [];
+    for (let index = 0; index < sequence.length; index += 1) {
+      let phase = 'interval';
+      let actionState = 'not_started';
+      try {
+        checkTargetSequenceCanceled({ signal: signal }, operation, phase, actionState);
+        if (index > 0 && intervalMs > 0) await global.page.waitForTimeout(intervalMs, { signal: signal });
+        checkTargetSequenceCanceled({ signal: signal }, operation, phase, actionState);
+        phase = 'locate';
+        const deadline = Date.now() + timeout;
+        const current = await requireSemanticWindow(within, operation);
+        checkSemanticDeadline(deadline, signal, operation, phase, actionState);
+        let result;
+        if (typeof sequence[index] === 'string') {
+          const output = await UI.tapTexts([sequence[index]], {
+            within: current, timeout: checkSemanticDeadline(deadline, signal, operation, phase, actionState),
+            polling: polling, intervalMs: 0, signal: signal,
+          });
+          result = output.completed[0];
+        } else {
+          result = await activateNativeTarget(sequence[index], current, deadline, signal, operation,
+            function () { phase = 'input'; actionState = 'unknown'; }, polling);
+        }
+        completed.push(result);
+        actionState = result.actionState || 'acknowledged';
+        checkSemanticDeadline(deadline, signal, operation, 'input', actionState);
+      } catch (error) {
+        if (error && error.completedAction) completed.push(error.completedAction);
+        else if (error && error.operation === 'UI.tapTexts' && Array.isArray(error.completed)) {
+          for (const done of error.completed) completed.push(done);
+        }
+        const failure = wrapTargetSequenceError(error, operation, phase, actionState);
+        failure.failedIndex = index;
+        failure.failedPhase = error && error.failedPhase ? error.failedPhase : phase;
+        failure.completed = completed.slice();
+        throw failure;
+      }
+    }
+    return { ok: true, action: 'tapTargets', completed: completed };
+  }
+
+  // Compatibility owner for the former explicit { locator } native sequence.
+  async function legacyNativeTargetSequence(targets, rawOptions) {
+      const operation = 'UI.tapTargets';
+      let sequence;
+      let options;
+      try {
+        // Both the sequence and every locator are copied before the first
+        // await. Sparse slots become undefined and fail here without any
+        // window observation or native Accessibility request.
+        sequence = cloneTargetSequence(targets, operation);
+        options = targetSequenceOptions(rawOptions, operation);
+      } catch (error) {
+        throw wrapTargetSequenceError(error, operation, 'arguments', 'not_started');
+      }
+      requireTargetSequenceRuntime(operation);
+      if (options.refocus === 'if-needed' && typeof global.window.activate !== 'function') {
+        throw makeTargetSequenceError(
+          'NOT_SUPPORTED', operation, 'exact window refocus is unavailable', 'capability', 'not_started',
+        );
+      }
+
+      const refs = [];
+      const resolved = new Map();
+      const completed = [];
+      let failure = null;
+      let phase = 'preflight';
+      let failedIndex = 0;
+      let actionState = 'not_started';
+      try {
+        checkTargetSequenceCanceled(options, operation, phase, actionState);
+        await revalidateTargetSequenceWindow(options, operation, phase, actionState);
+        checkTargetSequenceCanceled(options, operation, phase, actionState);
+
+        // Preflight every distinct selector before the first input. Repeated
+        // steps intentionally reuse the exact managed ref proved here.
+        for (let index = 0; index < sequence.length; index += 1) {
+          failedIndex = index;
+          const locator = sequence[index].locator;
+          const key = targetLocatorKey(locator);
+          if (resolved.has(key)) continue;
+          checkTargetSequenceCanceled(options, operation, phase, actionState);
+          await revalidateTargetSequenceWindow(options, operation, phase, actionState);
+          checkTargetSequenceCanceled(options, operation, phase, actionState);
+
+          let ref;
+          try {
+            ref = await global.Accessibility.find(locator, targetSequenceFindOptions(options));
+          } catch (error) {
+            throw wrapTargetSequenceError(error, operation, phase, actionState);
+          }
+          if (!ref) {
+            throw makeTargetSequenceError(
+              'TARGET_NOT_FOUND', operation, 'the Accessibility target was not found', phase, actionState,
+            );
+          }
+          refs.push(ref);
+          resolved.set(key, { ref: ref, locator: locator });
+          checkTargetSequenceCanceled(options, operation, phase, actionState);
+
+          let read;
+          try {
+            read = await global.Accessibility.read(ref, {
+              properties: ['role', 'name', 'identifier', 'enabled', 'actions'],
+              timeout: options.timeout,
+            });
+          } catch (error) {
+            throw wrapTargetSequenceError(error, operation, phase, actionState);
+          }
+          checkTargetSequenceCanceled(options, operation, phase, actionState);
+          requireInvokableTarget(read, locator, operation, phase, actionState);
+        }
+
+        failedIndex = 0;
+        await revalidateTargetSequenceWindow(options, operation, phase, actionState);
+        checkTargetSequenceCanceled(options, operation, phase, actionState);
+
+        for (let index = 0; index < sequence.length; index += 1) {
+          failedIndex = index;
+          phase = 'action';
+          actionState = 'not_started';
+          checkTargetSequenceCanceled(options, operation, phase, actionState);
+          await revalidateTargetSequenceWindow(options, operation, phase, actionState);
+          checkTargetSequenceCanceled(options, operation, phase, actionState);
+
+          const item = resolved.get(targetLocatorKey(sequence[index].locator));
+          if (!item || !item.ref) {
+            throw makeTargetSequenceError(
+              'BACKEND_FAILED', operation, 'preflight target ref is unavailable', phase, actionState,
+            );
+          }
+          let read;
+          try {
+            read = await global.Accessibility.read(item.ref, {
+              properties: ['role', 'name', 'identifier', 'enabled', 'actions'],
+              timeout: options.timeout,
+            });
+          } catch (error) {
+            throw wrapTargetSequenceError(error, operation, phase, actionState);
+          }
+          checkTargetSequenceCanceled(options, operation, phase, actionState);
+          requireInvokableTarget(read, item.locator, operation, phase, actionState);
+          checkTargetSequenceCanceled(options, operation, phase, actionState);
+          await refocusTargetSequenceWindow(options, operation, phase, actionState);
+          checkTargetSequenceCanceled(options, operation, phase, actionState);
+
+          let performed;
+          try {
+            // Until the native owner returns a reliable state, submission may
+            // have happened. No catch path retries or falls back to vision.
+            actionState = 'unknown';
+            performed = await global.Accessibility.perform(
+              item.ref,
+              { action: 'invoke' },
+              { timeout: options.timeout },
+            );
+          } catch (error) {
+            throw wrapTargetSequenceError(error, operation, phase, actionState);
+          }
+          actionState = performed && performed.actionState;
+          if (!validAccessibilityActionState(actionState)) {
+            actionState = 'unknown';
+            throw makeTargetSequenceError(
+              'BACKEND_FAILED', operation, 'native invoke returned no completion state', phase, actionState,
+              valueResultDetails(performed),
+            );
+          }
+          if (actionState === 'unknown') {
+            throw makeTargetSequenceError(
+              'STATE_UNKNOWN', operation, 'native invoke completion is unknown', phase, actionState,
+              valueResultDetails(performed),
+            );
+          }
+          if (actionState === 'not_started') {
+            throw makeTargetSequenceError(
+              'BACKEND_FAILED', operation, 'native invoke did not start', phase, actionState,
+              valueResultDetails(performed),
+            );
+          }
+          completed.push({
+            index: index,
+            action: 'invoke',
+            backend: performed && typeof performed.backend === 'string' ? performed.backend : 'unknown',
+            requestId: performed && typeof performed.requestId === 'string' ? performed.requestId : '',
+            actionState: actionState,
+          });
+          // A cancellation observed while the synchronous native action was in
+          // flight cannot retract it. Preserve that completed prefix and stop
+          // before the next target instead of reporting a misleading success.
+          checkTargetSequenceCanceled(options, operation, phase, actionState);
+        }
+        return {
+          ok: true,
+          action: 'tapTargets',
+          backend: 'accessibility',
+          completed: completed,
+        };
+      } catch (error) {
+        failure = error && error.operation === operation
+          ? error
+          : wrapTargetSequenceError(error, operation, phase, actionState);
+        failure.failedIndex = failedIndex;
+        failure.failedPhase = phase;
+        failure.completed = completed.slice();
+        throw failure;
+      } finally {
+        await releaseTargetSequenceRefs(refs, operation, failure, actionState);
+      }
+  }
+
   const UI = {
     getCapabilities: function () {
       return {
-        text: { find: true, tap: true, wait: true, backend: 'Vision.runOCR' },
+        text: { find: true, tap: true, wait: true, backend: 'Vision.runOCR', sequenceStrategy: 'auto' },
+        targets: { semantic: true, legacyLocatorSequence: true },
         image: { find: true, tap: true, backend: 'ImageColor.findImages' },
         accessibility: accessibilityCapabilitySummary(),
         coordinateMapping: { actualCaptureScale: true, mixedDPIScope: false },
@@ -2031,10 +2408,13 @@
       let expectedWindow = waitForEach && options.within !== undefined ? identitySnapshot(options.within) : null;
       if (options.providerChain) options.providerChain = options.providerChain.slice();
       if (options.click && typeof options.click === 'object') options.click = Object.assign({}, options.click);
+      const canResolveNativeText = waitForEach && !options.positioning &&
+        options.index === undefined && options.match === 'exact' && raw.click === undefined;
       const completed = [];
       for (let index = 0; index < sequence.length; index += 1) {
         let phase = 'interval';
         let deadline = null;
+        let resolution = null;
         function check() {
           if (signal && signal.aborted) fail('CANCELED', operation, 'text sequence was canceled');
           if (deadline !== null && Date.now() >= deadline) {
@@ -2048,6 +2428,11 @@
         // This guard is private to normalized options, never taken from a
         // caller field. Capture/OCR check it between awaited native reads.
         options.sequenceGuard = check;
+        options.nativeActivate = async function (locator, win) {
+          const result = await activateNativeTarget(locator, win, deadline, signal, operation, beforeInput);
+          if (!result) fail('STALE_TARGET', operation, 'the native target disappeared after observation');
+          return result;
+        };
         async function discoverForStep(value, settings, currentOperation, override) {
           while (true) {
             check();
@@ -2066,6 +2451,16 @@
               ? await discoverPositionedTexts(value, settings, currentOperation, !waitForEach)
               : await discoverTexts(value, settings, currentOperation, override);
             check();
+            if (canResolveNativeText && found.candidates.length !== 1) {
+              resolution = { ocr: found.candidates.length === 0 ? 'missing' : 'ambiguous',
+                ocrCandidateCount: found.candidates.length, accessibility: 'unavailable' };
+              if (nativeTextResolutionAvailable(currentOperation)) {
+                const locator = await findNativeTextLocator(value, settings.within, deadline, signal, currentOperation);
+                check();
+                resolution.accessibility = locator ? 'unique' : 'missing';
+                if (locator) return { nativeLocator: locator, nativeWindow: settings.within };
+              }
+            }
             if (!waitForEach || found.candidates.length > 0 || settings.index !== undefined) return found;
             // Only a successful zero-candidate observation is retried. Errors,
             // ambiguous matches and invalid explicit indices are never caught
@@ -2088,10 +2483,12 @@
             ? tapPositionedText(sequenceMatchers[index], options, operation, beforeInput, discoverForStep)
             : tapWithDiscovery(discoverForStep, sequenceMatchers[index], options, operation, 'tapText', beforeInput));
           completed.push(result);
+          check();
           // Never drop a completed input when cancellation arrives during that
           // input. Report the prefix and stop instead of submitting another.
           if (signal && signal.aborted) fail('CANCELED', operation, 'text sequence was canceled after input');
         } catch (error) {
+          if (error && error.completedAction) completed.push(error.completedAction);
           const message = error && error.message ? error.message : 'text activation failed';
           const wrapped = new Error(message);
           wrapped.code = error && error.code ? error.code : 'BACKEND_FAILED';
@@ -2101,6 +2498,12 @@
           wrapped.failedPhase = phase;
           wrapped.completed = completed;
           wrapped.cause = error;
+          wrapped.actionState = error && validAccessibilityActionState(error.actionState)
+            ? error.actionState : (completed.length > index
+              ? (completed[index].actionState || 'acknowledged')
+              : (phase === 'input' ? 'unknown' : 'not_started'));
+          if (resolution) wrapped.resolution = resolution;
+          if (error && error.cleanupError) wrapped.cleanupError = error.cleanupError;
           if (error && error.stage) wrapped.stage = error.stage;
           if (error && Number.isInteger(error.candidateCount)) wrapped.candidateCount = error.candidateCount;
           if (error && Array.isArray(error.candidates)) wrapped.candidates = error.candidates;
@@ -2111,171 +2514,13 @@
     },
 
     tapTargets: async function (targets, rawOptions) {
-      const operation = 'UI.tapTargets';
-      let sequence;
-      let options;
-      try {
-        // Both the sequence and every locator are copied before the first
-        // await. Sparse slots become undefined and fail here without any
-        // window observation or native Accessibility request.
-        sequence = cloneTargetSequence(targets, operation);
-        options = targetSequenceOptions(rawOptions, operation);
-      } catch (error) {
-        throw wrapTargetSequenceError(error, operation, 'arguments', 'not_started');
-      }
-      requireTargetSequenceRuntime(operation);
-      if (options.refocus === 'if-needed' && typeof global.window.activate !== 'function') {
-        throw makeTargetSequenceError(
-          'NOT_SUPPORTED', operation, 'exact window refocus is unavailable', 'capability', 'not_started',
-        );
-      }
-
-      const refs = [];
-      const resolved = new Map();
-      const completed = [];
-      let failure = null;
-      let phase = 'preflight';
-      let failedIndex = 0;
-      let actionState = 'not_started';
-      try {
-        checkTargetSequenceCanceled(options, operation, phase, actionState);
-        await revalidateTargetSequenceWindow(options, operation, phase, actionState);
-        checkTargetSequenceCanceled(options, operation, phase, actionState);
-
-        // Preflight every distinct selector before the first input. Repeated
-        // steps intentionally reuse the exact managed ref proved here.
-        for (let index = 0; index < sequence.length; index += 1) {
-          failedIndex = index;
-          const locator = sequence[index].locator;
-          const key = targetLocatorKey(locator);
-          if (resolved.has(key)) continue;
-          checkTargetSequenceCanceled(options, operation, phase, actionState);
-          await revalidateTargetSequenceWindow(options, operation, phase, actionState);
-          checkTargetSequenceCanceled(options, operation, phase, actionState);
-
-          let ref;
-          try {
-            ref = await global.Accessibility.find(locator, targetSequenceFindOptions(options));
-          } catch (error) {
-            throw wrapTargetSequenceError(error, operation, phase, actionState);
-          }
-          if (!ref) {
-            throw makeTargetSequenceError(
-              'TARGET_NOT_FOUND', operation, 'the Accessibility target was not found', phase, actionState,
-            );
-          }
-          refs.push(ref);
-          resolved.set(key, { ref: ref, locator: locator });
-          checkTargetSequenceCanceled(options, operation, phase, actionState);
-
-          let read;
-          try {
-            read = await global.Accessibility.read(ref, {
-              properties: ['role', 'name', 'identifier', 'enabled', 'actions'],
-              timeout: options.timeout,
-            });
-          } catch (error) {
-            throw wrapTargetSequenceError(error, operation, phase, actionState);
-          }
-          checkTargetSequenceCanceled(options, operation, phase, actionState);
-          requireInvokableTarget(read, locator, operation, phase, actionState);
-        }
-
-        failedIndex = 0;
-        await revalidateTargetSequenceWindow(options, operation, phase, actionState);
-        checkTargetSequenceCanceled(options, operation, phase, actionState);
-
-        for (let index = 0; index < sequence.length; index += 1) {
-          failedIndex = index;
-          phase = 'action';
-          actionState = 'not_started';
-          checkTargetSequenceCanceled(options, operation, phase, actionState);
-          await revalidateTargetSequenceWindow(options, operation, phase, actionState);
-          checkTargetSequenceCanceled(options, operation, phase, actionState);
-
-          const item = resolved.get(targetLocatorKey(sequence[index].locator));
-          if (!item || !item.ref) {
-            throw makeTargetSequenceError(
-              'BACKEND_FAILED', operation, 'preflight target ref is unavailable', phase, actionState,
-            );
-          }
-          let read;
-          try {
-            read = await global.Accessibility.read(item.ref, {
-              properties: ['role', 'name', 'identifier', 'enabled', 'actions'],
-              timeout: options.timeout,
-            });
-          } catch (error) {
-            throw wrapTargetSequenceError(error, operation, phase, actionState);
-          }
-          checkTargetSequenceCanceled(options, operation, phase, actionState);
-          requireInvokableTarget(read, item.locator, operation, phase, actionState);
-          checkTargetSequenceCanceled(options, operation, phase, actionState);
-          await refocusTargetSequenceWindow(options, operation, phase, actionState);
-          checkTargetSequenceCanceled(options, operation, phase, actionState);
-
-          let performed;
-          try {
-            // Until the native owner returns a reliable state, submission may
-            // have happened. No catch path retries or falls back to vision.
-            actionState = 'unknown';
-            performed = await global.Accessibility.perform(
-              item.ref,
-              { action: 'invoke' },
-              { timeout: options.timeout },
-            );
-          } catch (error) {
-            throw wrapTargetSequenceError(error, operation, phase, actionState);
-          }
-          actionState = performed && performed.actionState;
-          if (!validAccessibilityActionState(actionState)) {
-            actionState = 'unknown';
-            throw makeTargetSequenceError(
-              'BACKEND_FAILED', operation, 'native invoke returned no completion state', phase, actionState,
-              valueResultDetails(performed),
-            );
-          }
-          if (actionState === 'unknown') {
-            throw makeTargetSequenceError(
-              'STATE_UNKNOWN', operation, 'native invoke completion is unknown', phase, actionState,
-              valueResultDetails(performed),
-            );
-          }
-          if (actionState === 'not_started') {
-            throw makeTargetSequenceError(
-              'BACKEND_FAILED', operation, 'native invoke did not start', phase, actionState,
-              valueResultDetails(performed),
-            );
-          }
-          completed.push({
-            index: index,
-            action: 'invoke',
-            backend: performed && typeof performed.backend === 'string' ? performed.backend : 'unknown',
-            requestId: performed && typeof performed.requestId === 'string' ? performed.requestId : '',
-            actionState: actionState,
-          });
-          // A cancellation observed while the synchronous native action was in
-          // flight cannot retract it. Preserve that completed prefix and stop
-          // before the next target instead of reporting a misleading success.
-          checkTargetSequenceCanceled(options, operation, phase, actionState);
-        }
-        return {
-          ok: true,
-          action: 'tapTargets',
-          backend: 'accessibility',
-          completed: completed,
-        };
-      } catch (error) {
-        failure = error && error.operation === operation
-          ? error
-          : wrapTargetSequenceError(error, operation, phase, actionState);
-        failure.failedIndex = failedIndex;
-        failure.failedPhase = phase;
-        failure.completed = completed.slice();
-        throw failure;
-      } finally {
-        await releaseTargetSequenceRefs(refs, operation, failure, actionState);
-      }
+      // The legacy shape keeps its all-preflight/fixed-ref contract. New
+      // source uses strings or flat semantic selectors, with fresh per-step
+      // resolution so controls created by an earlier action need not exist yet.
+      if (Array.isArray(targets) && targets.length > 0 && targets.every(function (item) {
+        return item && typeof item === 'object' && hasOwn(item, 'locator');
+      })) return legacyNativeTargetSequence(targets, rawOptions);
+      return tapSemanticTargets(targets, rawOptions);
     },
 
     waitText: async function (query, rawOptions) {

@@ -157,3 +157,9 @@ order: 60
 - 旧方案曾将 code-rebuild 作为 recipe-build 的拟升级名称，并在 S11 后固定安排优化；用户随后明确简单脚本可不优化、已有代码可独立改进，故本次替换为生成与可选改进分离。
 - 保留原分析的代码质量任务、数据与安全规则和全部反例，新增预算结束、helper 一致性及新职责未实现边界。此记录不是迁移 Skill 已完成，也不代表实际代码或桌面验收通过。
 - 2026-09-07：随项目背景修订，仅将已删除的 recipe-build／recipe-qualify 实现链接改为链路职责入口，并纠正实现状态；本文件原质量作业树与反例不变。
+
+## Recorder 语义生成与 Runtime 定位协作
+
+按 `docs/frameworks/ui-locator-repair.md` 的同名合同执行。`actions.json` 保留录制事实，不绑定某个 API；简单文字优先 `UI.tapTexts`，必要的逐步身份约束使用 `UI.tapTargets`，特殊动作保留已有低层 API。不得在生成代码中复制 Runtime 默认 auto 的定位算法。
+
+semantic candidate 按业务生成／独立资格路线处理；显式 basic 的静态物理精炼保持原合同。批量源码保留 actionId→line+stepIndex+api 映射，读取实际结果与其消费者不得越过数据依赖边界合并。失败利用原始证据最小维修；没有真机结果明确 not-run。
