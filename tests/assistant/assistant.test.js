@@ -318,7 +318,7 @@ test('model channel uses controlled Agent only when LLM is not configured', asyn
   assert.match(capturedPrompt, /User:\nhello/);
 });
 
-test('assistant UI source uses progressive recent-chat loading and has no Enter-to-send or task/script execution controls', () => {
+test('assistant UI source uses scrollable chat history and progressive conversation loading without page controls', () => {
   const here = path.dirname(fileURLToPath(import.meta.url));
   const controller = readFileSync(path.resolve(here, '../../apps/opendesk/assistant/controller.js'), 'utf8');
   assert.doesNotMatch(controller, /<aside\b/i);
@@ -326,14 +326,25 @@ test('assistant UI source uses progressive recent-chat loading and has no Enter-
   assert.doesNotMatch(controller, /['"](?:keydown|keypress|keyup)['"]/);
   assert.doesNotMatch(controller, /task selector|script selector|execute script/i);
   assert.match(controller, /普通聊天不会运行脚本、命令或桌面动作/);
-  assert.match(controller, /MESSAGE_PAGE_SIZE/);
+
+  assert.match(controller, /MESSAGE_ROW_CAPACITY\s*=\s*120/);
+  assert.match(controller, /id="messageList"[^>]*role="log"/);
+  assert.match(controller, /id="messageOverflow"/);
+  assert.match(controller, /flex-direction:column-reverse/);
+  assert.doesNotMatch(controller, /MESSAGE_PAGE_SIZE|messagePages|id="messagePrev"|id="messageNext"|id="messagePage"/);
+
   assert.match(controller, /RECENT_BATCH_SIZE\s*=\s*8/);
   assert.match(controller, /id="recentMore"/);
   assert.match(controller, /id="recentOverflow"/);
   assert.match(controller, /recentVisibleCount\s*\+\s*RECENT_BATCH_SIZE/);
-  assert.doesNotMatch(controller, /id="recentPrev"/);
-  assert.doesNotMatch(controller, /id="recentNext"/);
-  assert.doesNotMatch(controller, /id="recentPage"/);
+  assert.doesNotMatch(controller, /id="recentPrev"|id="recentNext"|id="recentPage"/);
+
+  assert.match(controller, /ARCHIVED_BATCH_SIZE\s*=\s*4/);
+  assert.match(controller, /id="archivedMore"/);
+  assert.match(controller, /id="archivedOverflow"/);
+  assert.match(controller, /archivedVisibleCount\s*\+\s*ARCHIVED_BATCH_SIZE/);
+  assert.doesNotMatch(controller, /archivedPage|id="archivedPrev"|id="archivedNext"|id="archivedPage"/);
+
   assert.match(controller, /async function renderRequestControls/);
   assert.match(controller, /void renderRequestControls\(record, suppliedState\)/);
   assert.ok(controller.indexOf('await renderRequestControls(record, state);') < controller.indexOf("await update(record, 'recentCount'"));
