@@ -1,0 +1,51 @@
+name: Recorder generation contract
+
+on:
+  pull_request:
+    paths:
+      - 'automation/recorder*.go'
+      - 'polyfills/*ui*.js'
+      - 'polyfills/008-recorder.js'
+      - 'workflows/human-to-recipe/**'
+      - 'tests/recorder-generation/**'
+      - '.github/workflows/recorder-generation-contract.yml'
+  push:
+    branches: [master]
+    paths:
+      - 'automation/recorder*.go'
+      - 'polyfills/*ui*.js'
+      - 'polyfills/008-recorder.js'
+      - 'workflows/human-to-recipe/**'
+      - 'tests/recorder-generation/**'
+      - '.github/workflows/recorder-generation-contract.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Capture tracked source provenance
+        run: |
+          mkdir -p "$RUNNER_TEMP/recorder-contract"
+          git rev-parse HEAD > "$RUNNER_TEMP/recorder-contract/source-commit.txt"
+          git archive --format=tar HEAD > "$RUNNER_TEMP/recorder-contract/source.tar"
+      - name: Check generator and facade syntax
+        run: |
+          node --check polyfills/006-ui.js
+          node --check polyfills/008-recorder.js
+          node --check workflows/human-to-recipe/skills/recorder-script-refiner/scripts/generate-refinement.js
+          node --check workflows/human-to-recipe/skills/recorder-script-refiner/scripts/validate-refinement.js
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: recorder-generation-contract-source
+          path: ${{ runner.temp }}/recorder-contract
+          retention-days: 1
+          if-no-files-found: error
