@@ -649,7 +649,8 @@ func (r *RecorderRuntime) capabilities() map[string]any {
 	if backend != nil {
 		capability = backend.Capabilities()
 	}
-	available := capability.Supported && r.enableCapture && capability.Permission != "denied"
+	permissionReady := capability.Permission == "authorized" || capability.Permission == "not-required"
+	available := capability.Supported && r.enableCapture && permissionReady
 	limitations := append([]string(nil), capability.Limitations...)
 	if !r.enableCapture {
 		limitations = append(limitations, "capture requires the trusted local -allow-recorder-capture entrypoint flag")

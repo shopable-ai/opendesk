@@ -1329,6 +1329,44 @@ func TestRecorderResourceCountsDoesNotClearStarting(t *testing.T) {
 	}
 }
 
+type recorderCapabilityBackend struct {
+	permission string
+}
+
+func (b recorderCapabilityBackend) Capabilities() RecorderBackendCapabilities {
+	return RecorderBackendCapabilities{
+		Supported: true, Platform: "darwin", Backend: "fixture",
+		Permission: b.permission, CoordinateSpace: "screen-logical",
+	}
+}
+func (recorderCapabilityBackend) Start(context.Context, func(RecorderInputEvent), func(error)) error {
+	return nil
+}
+func (recorderCapabilityBackend) Stop(context.Context) error { return nil }
+func (recorderCapabilityBackend) Wait()                      {}
+
+func TestRecorderCapabilitiesFailClosedWhenPermissionIsUnknown(t *testing.T) {
+	for _, test := range []struct {
+		permission string
+		available  bool
+	}{
+		{permission: "authorized", available: true},
+		{permission: "not-required", available: true},
+		{permission: "denied", available: false},
+		{permission: "unknown", available: false},
+		{permission: "unsupported", available: false},
+	} {
+		t.Run(test.permission, func(t *testing.T) {
+			owner := recorderTestOwner(t.TempDir(), recorderCapabilityBackend{permission: test.permission})
+			owner.enableCapture = true
+			capture := owner.capabilities()["capture"].(map[string]any)
+			if got := capture["available"]; got != test.available {
+				t.Fatalf("permission=%q available=%v, want %v", test.permission, got, test.available)
+			}
+		})
+	}
+}
+
 func recorderTestOwner(workDir string, backend RecorderInputBackend) *RecorderRuntime {
 	return &RecorderRuntime{
 		context: context.Background(), workDir: workDir, executionID: "test-execution",

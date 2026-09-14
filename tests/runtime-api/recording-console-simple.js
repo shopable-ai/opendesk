@@ -889,8 +889,8 @@ await unavailableApp.show();
 const unavailableToolbar = FakeFloatingWindow.instance;
 assert(unavailableToolbar.buttons.get('capture').state.disabled,
   'capture must remain disabled without trusted host authorization');
-equal(unavailableToolbar.buttons.get('capture').state.label, '录制需要授权（查看详情）',
-  'unavailable capture tooltip must direct the user to the remedy');
+equal(unavailableToolbar.buttons.get('capture').state.label, '暂不能录制，请查看详情',
+  'host authorization gate must not be presented as a system permission request');
 assert(!unavailableToolbar.buttons.get('details').state.disabled,
   'details must remain available while capture is disabled');
 await unavailableApp.showDetails();

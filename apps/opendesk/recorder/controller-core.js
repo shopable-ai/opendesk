@@ -164,6 +164,7 @@
     let captureUnavailableDetail = '';
 
     function capturePermissionProblem() {
+      if (captureCapabilities.hostAuthorized === false) return false;
       const permission = String(captureCapabilities.permission || '').toLowerCase();
       return permission === 'denied' || permission === 'not_determined'
         || permission === 'restricted';
