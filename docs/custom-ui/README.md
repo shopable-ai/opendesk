@@ -8,7 +8,7 @@ controller 绑定真实 Runtime 事件。
 ## 运行 Custom UI 示例
 
 Custom UI 的 API 契约、`-ui` / `-no-ui` / `-config` 的优先级、配置文件格式，以及 HTTP
-请求的额外授权条件都在 [Custom UI API](../api/custom-ui.md)。这个目录只保存内置图标资源和
+请求的额外授权条件都在 [Custom UI API](../api/ui.md)。这个目录只保存内置图标资源和
 生成说明，不定义另一套命令行行为。
 
 从仓库根目录，在 `opendesk` 与同级 `opendesk-ui-host` 已由维护者准备好的前提下，可直接运行：
@@ -69,7 +69,7 @@ autofocus 或脚本 `focus()`。所有控件的 width、options、range、step �
 ```
 
 多行表单、动态 option tree、滚动内容和任意进度布局仍使用 `ui.createWindow()`；完整契约见
-[Custom UI API](../api/custom-ui.md)。
+[Custom UI API](../api/ui.md)。
 
 ## 脚本录制控制台
 
@@ -106,7 +106,7 @@ Recorder session。主托盘关闭、脚本异常或宿主退出会取消在途�
 
 ## FloatingWindow 自定义图片
 
-业务或品牌图标可以直接传给 `FloatingWindow.addButton()`：`{path:"./icons/action.png"}` 保留图片原色，`{path:"./icons/action.png",renderingMode:"template"}` 使用原生状态颜色。路径相对于执行脚本，且解析后必须留在脚本目录内；只接受受限大小和尺寸的 PNG/JPEG，路径本身不会传给 native host。完整限制、动态替换方式和一行运行示例见 [Custom UI API 的“用户自定义按钮图标”](../api/custom-ui.md#用户自定义按钮图标) 与 `examples/custom-ui/custom-image-icons.js`。
+业务或品牌图标可以直接传给 `FloatingWindow.addButton()`：`{path:"./icons/action.png"}` 保留图片原色，`{path:"./icons/action.png",renderingMode:"template"}` 使用原生状态颜色。路径相对于执行脚本，且解析后必须留在脚本目录内；只接受受限大小和尺寸的 PNG/JPEG，路径本身不会传给 native host。完整限制、动态替换方式和一行运行示例见 [Custom UI API](../api/ui.md) 与 `examples/custom-ui/custom-image-icons.js`。
 
 ## 重新生成
 
