@@ -112,10 +112,12 @@ Log Selection
 正式产品不再向用户展示 `Script Runner`：
 
 ```text
-Tray action:   打开 OpenDesk
+Tray action:   显示主窗口
 Window title:  OpenDesk
 Main section:  自动化
 ```
+
+这里的菜单动作只负责显示并聚焦已经存在的 `main` 窗口；内部 action ID 继续保持 `opendesk.open`，不因为产品文案变化改动兼容契约。
 
 主界面承担：
 
@@ -146,7 +148,7 @@ apps/opendesk/script-runner-simple.js
 正式产品菜单收口为：
 
 ```text
-打开 OpenDesk
+显示主窗口
 ────────────────────
 录制自动化
 AI 助手
@@ -184,7 +186,7 @@ API 文档
 
 ```text
 App Shell / framework owned
-├── 打开 OpenDesk
+├── 显示主窗口
 ├── 录制自动化
 └── 退出
 
@@ -457,7 +459,7 @@ CLI：
 ### P0
 
 - 移除用户可见 `打开 Script Runner`；
-- Tray system action 使用 `打开 OpenDesk`；
+- Tray system action 使用 `显示主窗口`；
 - Window title `OpenDesk Script Runner` → `OpenDesk`；
 - 页面 `Script Runner` → `自动化`；
 - 保留内部 `runner.open` 兼容；
@@ -501,7 +503,7 @@ CLI：
 2. 正式桌面启动不出现系统 Terminal/Console window。
 3. CLI `./dist/opendesk -app ...` 继续正常输出到调用者 Terminal。
 4. Tray 只有一个 OpenDesk owner。
-5. `打开 OpenDesk` 复用现有 `main` window，不创建第二 App execution。
+5. `显示主窗口` 复用现有 `main` window，显示并聚焦已有窗口，不创建第二 App execution。
 6. 用户可见菜单/窗口不再出现 `Script Runner`。
 7. Recorder 可打开、关闭、再次打开，capture permission 行为不回归。
 8. Scheduler Center 可打开、关闭后重建/复用，并连接真实 Scheduler backend。
