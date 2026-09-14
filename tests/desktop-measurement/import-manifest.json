@@ -4,7 +4,14 @@
   "sourceArchiveSHA256": "74dff1001e6b886d20ba9e5942a82cd1d3f0bdbabb71c1058b32221fce715c72",
   "scope": "design-and-prototype-preservation-not-native-implementation",
   "canonicalDesign": "docs/architecture/desktop-automation/desktop-measurement.md",
-  "prototypeEntry": "tests/desktop-measurement/prototype/index.html",
+  "prototypeEntry": "apps/opendesk/prototypes/desktop-measurement/index.html",
+  "relocation": {
+    "date": "2026-09-15",
+    "from": "tests/desktop-measurement/prototype",
+    "to": "apps/opendesk/prototypes/desktop-measurement",
+    "reason": "The approved prototype is a long-lived OpenDesk product interaction contract; tests consume it rather than own it.",
+    "prototypeContentChanged": false
+  },
   "originalDeliveryMetadata": {
     "repo": "shopable-ai/opendesk",
     "branch": "master",
@@ -113,21 +120,24 @@
       "bytes": 43262,
       "sha256": "8ff69e481d09778e7870228bba143c5b90a123af414f97503e424784082a34c5",
       "preservation": "copied-exact",
-      "repositoryPath": "tests/desktop-measurement/prototype/index.html"
+      "repositoryPath": "apps/opendesk/prototypes/desktop-measurement/index.html",
+      "repositoryPathAtImport": "tests/desktop-measurement/prototype/index.html"
     },
     {
       "source": "prototype/model.js",
       "bytes": 3734,
       "sha256": "cdc28b42e7df0ee274b52e1137782caca8144eaf23f88ac04becf0c43f6b55da",
       "preservation": "copied-exact",
-      "repositoryPath": "tests/desktop-measurement/prototype/model.js"
+      "repositoryPath": "apps/opendesk/prototypes/desktop-measurement/model.js",
+      "repositoryPathAtImport": "tests/desktop-measurement/prototype/model.js"
     },
     {
       "source": "prototype/template.html",
       "bytes": 39541,
       "sha256": "c0313c973367cc6cb731a5b67e634d19d2eb60a666f84720a3990d551782753f",
       "preservation": "copied-exact",
-      "repositoryPath": "tests/desktop-measurement/prototype/template.html"
+      "repositoryPath": "apps/opendesk/prototypes/desktop-measurement/template.html",
+      "repositoryPathAtImport": "tests/desktop-measurement/prototype/template.html"
     },
     {
       "source": "tests/browser.test.py",
