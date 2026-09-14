@@ -10,6 +10,7 @@
 
 | 文件 | 回答的问题 | 什么时候需要读 |
 | --- | --- | --- |
+| [桌面测量](desktop-measurement.md) | 怎样通过唯一测量会话、透明标注、角落信息和按需详情，完成带明确参照的坐标、取色、区域与距离测量？ | 重构 Measurement 交互、集成 Recorder／快捷键、设计三档导出与原生验收时；浏览器样机不替代真机验证 |
 | [Action Target Model](action-target-model.md) | 已经知道要操作某个对象后，怎样形成候选、消歧、动作前后条件和安全失败？ | 设计相对定位、候选消歧、动作保护和结果验证时；一般调用先看公开 API |
 | [Native Accessibility](native-accessibility.md) | macOS AX / Windows UIA 的元素读取、原生动作、引用生命周期、取消和清理怎样闭环？ | 维护 Accessibility 后端、UI 菜单组合或 execution lifecycle 时；脚本调用先看公开 API |
 | [结构化界面集合读取](structured-ui-collection-reading.md) | 当前界面里有很多会话、消息、订单、表格行或卡片时，怎样可靠地读成一条条通用数据？ | 设计 list／table／timeline／grid／cards／tree 等重复 UI 的读取、字段归属、多源证据和 VLM 辅助时 |
