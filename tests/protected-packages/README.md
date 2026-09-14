@@ -37,3 +37,12 @@ directory, so their standard `.runtime/ai/` evidence remains nested inside the
 same protected-package run directory. The outer `-script` execution keeps its
 ordinary metadata under `.runtime/runs/`; it contains no Publisher private key,
 License issuer private key, DEK, or installed License state.
+
+For the complete local generation / inspect / verify / authorization / runtime
+validation workflow, evidence locations, disclosure checks, and the proposed
+UI-independent basic smoke-test contract, see
+[`docs/implementation/runtime/protected-packages.md`](../../docs/implementation/runtime/protected-packages.md).
+
+The proposed `tests/protected-packages/basic-runtime-smoke.js` is a follow-up
+implementation target and is **not** currently present. Do not treat it as an
+available test command until that file is implemented and qualified.
