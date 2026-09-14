@@ -143,18 +143,26 @@ apps/opendesk/script-runner-simple.js
 
 ## 4. 统一 Tray / Menu
 
-推荐正式产品菜单：
+正式产品菜单收口为：
 
 ```text
 打开 OpenDesk
 ────────────────────
 录制自动化
+AI 助手
+────────────────────
 计划中心
 新建计划…
-运行日志…
+────────────────────
+系统权限
+运行日志
+────────────────────
+示例代码
+API 文档
 ────────────────────
 开发者 >
-    运行状态…
+    运行状态
+    桌面测量
     打开 Inspector
     ────────────────
     打开日志目录
@@ -167,8 +175,10 @@ apps/opendesk/script-runner-simple.js
     帮助
     定制
 ────────────────────
-退出 OpenDesk
+退出
 ```
+
+菜单文案遵循桌面平台通用约定：**省略号表示点击后还需要继续输入、选择或确认参数，当前命令才能完成；仅仅打开窗口、页面或直接进入某个模式，不使用省略号。** 因此当前菜单只为需要继续填写计划内容的 `新建计划…` 保留省略号；`系统权限`、`运行日志`、`示例代码`、`API 文档`、`运行状态`、`桌面测量` 等直接入口均不使用省略号。
 
 ### 4.1 菜单 ownership
 
@@ -176,15 +186,24 @@ apps/opendesk/script-runner-simple.js
 App Shell / framework owned
 ├── 打开 OpenDesk
 ├── 录制自动化
-├── Developer
-└── Quit
+└── 退出
 
 App package business menu
+├── AI 助手
 ├── 计划中心
-└── 新建计划…
+├── 新建计划…
+├── 系统权限
+├── 运行日志
+├── 示例代码
+└── API 文档
 
 OpenDesk product shell
-├── 运行日志…
+├── 开发者
+│   ├── 运行状态
+│   ├── 桌面测量
+│   ├── 打开 Inspector
+│   ├── 打开日志目录
+│   └── 调试信息
 └── 帮助与服务
     ├── 官网
     ├── 帮助
@@ -194,7 +213,7 @@ OpenDesk product shell
 约束：
 
 - Recorder 继续由 framework 注入，不写进普通 App manifest；
-- Quit 继续由 App Shell 持有；
+- 退出动作继续由 App Shell 持有；
 - 普通 App manifest 不因为 OpenDesk 官方产品需要 Developer/Official Shell 而扩展成复杂 submenu DSL；
 - `opendesk.*` 保持 framework/system namespace；
 - OpenDesk 官方产品的 product-only menu composition 可以在 shell/product composition layer 完成。
@@ -226,14 +245,17 @@ tray.primaryAction = "opendesk.open"
 主窗口隐藏后仍必须可使用：
 
 - Recorder；
+- AI 助手；
 - Scheduler Center；
 - 新建计划；
+- 系统权限；
 - 运行日志；
+- 示例代码 / API 文档；
 - Developer tools；
 - 官网 / 帮助 / 定制；
 - 后台 Scheduler 与正在运行的 automation。
 
-只有 `退出 OpenDesk` 才进入 App lifecycle cancel/teardown。
+只有 `退出` 才进入 App lifecycle cancel/teardown。
 
 ## 5. 运行日志
 
@@ -275,7 +297,7 @@ script_snapshot.js
 
 必须支持：
 
-- Tray `运行日志…`；
+- Tray `运行日志`；
 - 主界面/工具条可增加日志入口；
 - 单实例 window；
 - close 后 hide/reopen；
@@ -302,7 +324,8 @@ Developer menu 不再只是 Inspector 的容器，而是 OpenDesk runtime diagno
 
 ```text
 开发者
-├── 运行状态…
+├── 运行状态
+├── 桌面测量
 ├── 打开 Inspector
 ├── 打开日志目录
 └── 调试信息
@@ -487,7 +510,7 @@ CLI：
 11. 执行 automation/recipe 不弹出新的系统 Console window。
 12. stdout/stderr/events/summary 在无 Terminal 时仍正确落盘。
 13. Developer Inspector/运行状态/日志目录入口正确，P0 不暴露未完成的 LAN controls。
-14. Quit 能停止 App lifecycle，并正确 teardown Tray/UI/Scheduler/Recorder ownership。
+14. `退出` 能停止 App lifecycle，并正确 teardown Tray/UI/Scheduler/Recorder ownership。
 15. Windows GUI entry 与 CLI entry 有真实 Windows evidence；macOS Finder/Launchpad 与 CLI 两条路径有真实 macOS evidence。
 16. 不覆盖并行会话改动，不回退当前 master。
 
