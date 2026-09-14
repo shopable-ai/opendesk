@@ -1,7 +1,7 @@
 name: Recorder generation contract
 
-# One-time integrator. The integration commit replaces this workflow with the
-# read-only contract gate below, so no publication logic survives the task.
+# One-time source integrator. It never edits its own workflow in the generated
+# commit because the Actions token intentionally lacks workflow-write scope.
 on:
   push:
     branches: [master]
@@ -138,9 +138,6 @@ jobs:
               target=root/name
               if target.exists(): target.unlink()
 
-          # Replace this one-shot publisher with a read-only regression gate.
-          final_workflow = '''name: Recorder generation contract\n\non:\n  push:\n    branches: [master]\n    paths:\n      - 'automation/recorder*'\n      - 'polyfills/006-ui.js'\n      - 'polyfills/011-ui-targets.js'\n      - 'types/UI*.d.ts'\n      - 'types/recorder.d.ts'\n      - 'apps/opendesk/recorder/**'\n      - 'internal/recorderbundle/**'\n      - 'workflows/agent-to-recipe/**'\n      - 'workflows/human-to-recipe/**'\n      - 'tests/runtime-api/**'\n      - '.github/workflows/recorder-generation-contract.yml'\n  workflow_dispatch:\npermissions:\n  contents: read\njobs:\n  contract:\n    runs-on: windows-latest\n    timeout-minutes: 20\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/setup-go@v5\n        with:\n          go-version-file: go.mod\n          cache: true\n      - name: Static and product tests\n        shell: pwsh\n        run: |\n          node --check polyfills/006-ui.js\n          node --check polyfills/011-ui-targets.js\n          node --test tests/app-lifecycle/recorder-controller-core.test.js tests/human-to-recipe/recorder-script-refiner.test.js\n          node tests/custom-ui/recording-history.test.js\n      - name: Runtime contract\n        shell: pwsh\n        run: |\n          go build -o .runtime/opendesk.exe ./cmd/opendesk\n          & ./.runtime/opendesk.exe -script tests/runtime-api/recorder-generation.js -console-mode script\n'''
-          (root/workflow).write_text(final_workflow,encoding='utf-8')
           subprocess.run(['gofmt','-w','automation/recorder_actions.go','automation/recorder_semantic.go','automation/recorder_store.go'],check=True)
           subprocess.run(['git','add','-A'],check=True)
           for name in parts+[merge_file,storage_file]:
@@ -148,6 +145,8 @@ jobs:
               target=root/name
               if target.exists(): target.unlink()
           subprocess.run(['git','add','-A'],check=True)
+          # Never let this source-only commit modify the workflow itself.
+          subprocess.run(['git','restore','--staged','--worktree','--',workflow],check=True)
           subprocess.run(['git','diff','--cached','--check'],check=True)
           (evidence/'reviewed-files.json').write_text(json.dumps({'files':sorted(pending),'mergedConcurrentFiles':merged_names,'liveCalculator':'not-run'},indent=2),encoding='utf-8')
       - uses: actions/setup-go@v5
@@ -172,11 +171,11 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & ./.runtime/tests/recorder-generation/opendesk.exe -script tests/runtime-api/recorder-generation.js -console-mode script *>&1 | Tee-Object .runtime/tests/recorder-generation/runtime.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Commit and publish without force
+      - name: Commit and publish source without force
         shell: pwsh
         run: |
           git config user.name 'github-actions[bot]'
-          git config user.email '4189824+github-actions[bot]@users.noreply.github.com'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -m 'feat(recorder): generate concise semantic recipes with one Runtime resolver owner'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           git fetch origin master
