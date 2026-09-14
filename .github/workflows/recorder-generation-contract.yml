@@ -37,7 +37,6 @@ jobs:
               exists = subprocess.run(['git','cat-file','-e',ref+':'+name],capture_output=True).returncode == 0
               return subprocess.check_output(['git','show',ref+':'+name]) if exists else b''
           encoded = ''.join(blob('HEAD',p).decode().strip() for p in parts)
-          (evidence / 'transfer.b64').write_text(encoded, encoding='utf-8')
           data = lzma.decompress(base64.b64decode(encoded, validate=True))
           assert hashlib.sha256(data).hexdigest() == '416c18628c9d72ca1bb4023b99ece32c8a2b50b51f4b07bb267aeb46a6d3828c', 'payload mismatch'
           merge_data = blob('HEAD', merge_file)
@@ -125,7 +124,7 @@ jobs:
           Get-FileHash .runtime/tests/recorder-generation/opendesk.exe -Algorithm SHA256 | Format-List | Out-File .runtime/tests/recorder-generation/binary-sha256.txt
           & ./.runtime/tests/recorder-generation/opendesk.exe -script tests/runtime-api/recorder-generation.js -console-mode script *>&1 | Tee-Object .runtime/tests/recorder-generation/runtime.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Publish only the tested source batch without force
+      - name: Preserve concurrent master commits, revalidate merges and publish normally
         shell: pwsh
         run: |
           git diff --exit-code
@@ -134,8 +133,30 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -m 'feat(recorder): lower evidence to concise recipes with one Runtime resolver owner'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          git push origin HEAD:master
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $published = $false
+          for ($attempt = 1; $attempt -le 3; $attempt++) {
+            git fetch origin master
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            git merge-base --is-ancestor origin/master HEAD
+            if ($LASTEXITCODE -ne 0) {
+              git merge --no-edit origin/master
+              if ($LASTEXITCODE -ne 0) { throw 'Concurrent source conflict: publication stopped' }
+              node --test tests/app-lifecycle/recorder-controller-core.test.js tests/human-to-recipe/recorder-script-refiner.test.js *>&1 | Tee-Object .runtime/tests/recorder-generation/merged-product.log
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+              node tests/custom-ui/recording-history.test.js *>&1 | Tee-Object .runtime/tests/recorder-generation/merged-history.log
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+              go build -o .runtime/tests/recorder-generation/opendesk.exe ./cmd/opendesk
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+              Get-FileHash .runtime/tests/recorder-generation/opendesk.exe -Algorithm SHA256 | Format-List | Out-File .runtime/tests/recorder-generation/binary-sha256.txt
+              & ./.runtime/tests/recorder-generation/opendesk.exe -script tests/runtime-api/recorder-generation.js -console-mode script *>&1 | Tee-Object .runtime/tests/recorder-generation/merged-runtime.log
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+              git diff --exit-code
+              if ($LASTEXITCODE -ne 0) { throw 'Build modified tracked source' }
+            }
+            git push origin HEAD:master
+            if ($LASTEXITCODE -eq 0) { $published = $true; break }
+          }
+          if (-not $published) { throw 'Publication raced repeatedly; no force push attempted' }
           git rev-parse HEAD | Out-File .runtime/tests/recorder-generation/published-commit.txt
       - uses: actions/upload-artifact@v4
         if: always()
@@ -145,7 +166,6 @@ jobs:
             .runtime/tests/recorder-generation/**/*.json
             .runtime/tests/recorder-generation/**/*.txt
             .runtime/tests/recorder-generation/**/*.log
-            .runtime/tests/recorder-generation/transfer.b64
           include-hidden-files: true
           retention-days: 1
           if-no-files-found: warn
