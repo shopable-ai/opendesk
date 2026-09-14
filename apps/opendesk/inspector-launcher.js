@@ -11,6 +11,8 @@
     const execution = settings.execution || global.Execution;
     const ui = settings.ui || (global.automation && global.automation.ui);
     const logger = settings.logger || global.console;
+    const now = typeof settings.now === 'function' ? settings.now : Date.now;
+    let launchSequence = 0;
 
     if (!system || typeof system.getEnv !== 'function' || typeof system.getPlatformInfo !== 'function') {
       throw new Error('Inspector launcher requires System.getEnv/getPlatformInfo');
@@ -32,6 +34,12 @@
         transport: 'app-loopback-browser',
         url,
       });
+    }
+
+    function freshLaunchURL(url) {
+      launchSequence += 1;
+      const nonce = String(now()) + '-' + String(launchSequence);
+      return url + '?launch=' + encodeURIComponent(nonce);
     }
 
     async function notifyFailure(message) {
@@ -67,14 +75,18 @@
         maxOutputBytes: 256 * 1024,
       };
       try {
+        // Force a fresh browser navigation even when an old canonical tab is
+        // already open. This value is only a navigation nonce, never a pairing
+        // code or credential; the page removes it from the visible URL.
+        const launchURL = freshLaunchURL(state.url);
         if (platform === 'windows') {
-          await command.run('explorer.exe', [state.url], runOptions);
+          await command.run('explorer.exe', [launchURL], runOptions);
         } else if (platform === 'darwin') {
-          await command.run('/usr/bin/open', [state.url], runOptions);
+          await command.run('/usr/bin/open', [launchURL], runOptions);
         } else {
-          await command.run('xdg-open', [state.url], runOptions);
+          await command.run('xdg-open', [launchURL], runOptions);
         }
-        return Object.freeze({status: 'opened', source: source || 'inspector.open', url: state.url});
+        return Object.freeze({status: 'opened', source: source || 'inspector.open', url: launchURL});
       } catch (error) {
         await notifyFailure('Inspector 打开失败，请查看运行日志。');
         throw error;

@@ -28,6 +28,7 @@ function harness(url, os = 'darwin') {
     execution: {workdir: '/tmp/opendesk-app'},
     ui: {async toast(input) { notifications.push(input); }},
     logger: {error(message) { errors.push(String(message)); }},
+    now: () => 1789318200000,
   });
   return {launcher, commands, notifications, errors};
 }
@@ -44,10 +45,20 @@ test('opens only the runtime-published loopback Inspector URL', async () => {
   assert.equal(result.status, 'opened');
   assert.deepEqual(f.commands, [{
     command: '/usr/bin/open',
-    args: ['http://127.0.0.1:53127/accessibility-workbench/'],
+    args: ['http://127.0.0.1:53127/accessibility-workbench/?launch=1789318200000-1'],
     options: {cwd: '/tmp/opendesk-app', timeout: 10000, maxOutputBytes: 256 * 1024},
   }]);
   assert.deepEqual(f.notifications, []);
+});
+
+test('each tray selection forces a fresh navigation without exposing credentials', async () => {
+  const f = harness('http://127.0.0.1:53127/accessibility-workbench/');
+  const first = await f.launcher.open('tray-menu');
+  const second = await f.launcher.open('tray-menu');
+  assert.equal(first.url, 'http://127.0.0.1:53127/accessibility-workbench/?launch=1789318200000-1');
+  assert.equal(second.url, 'http://127.0.0.1:53127/accessibility-workbench/?launch=1789318200000-2');
+  assert.notEqual(first.url, second.url);
+  assert.doesNotMatch(first.url + second.url, /pair=/);
 });
 
 test('rejects missing or non-loopback Inspector URLs without starting another server', async () => {

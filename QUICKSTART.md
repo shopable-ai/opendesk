@@ -128,7 +128,8 @@ APP_BUNDLE=/Applications/OpenDesk.app bash scripts/test_app_icons.sh
 
 Inspector 由当前 OpenDesk Runtime 提供。从 Desktop 产品的 **Developer** 菜单打开 Inspector
 最稳妥，不要猜测内部 Runtime 端口。本机 `local-only` 页面会自动连接，失败时可使用页面上的重试动作；
-开发模式下也可以根据 Runtime 输出的实际地址（endpoint）打开对应页面。
+开发模式下也可以根据 Runtime 输出的实际地址（endpoint）打开对应页面。菜单会为每次打开附加一个不含
+凭证的唯一 `launch` 查询，以强制已有浏览器标签重新导航；页面加载后会立即清除该查询。
 
 正式 App Mode P0 保持 local-only，只监听 `127.0.0.1`，Developer 菜单不提供 LAN 开关或 LAN URL。
 不要使用反向代理、Host 改写、端口转发或公网地址扩大该边界。LAN 能力只有在同一 App Local Services

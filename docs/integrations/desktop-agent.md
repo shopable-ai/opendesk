@@ -57,7 +57,8 @@ LAN 能力留到 P1：只有在同一个 App Local Services listener 上完成 p
 
 并发边界是：**一个 OpenDesk 进程同一时刻只允许一个已启动的 Workbench 授权 generation／已连接前端**。第二个 Inspector 页面
 可以照常加载静态资源，但它的自动连接或重试会得到 409 conflict，直到第一个页面撤销 authorization、关闭后尽力撤销，或短期
-授权到期。单个现有页面的产品 UI 同时只打开一个 target scope；HTTP controller 的每 session 单操作互斥和全局有界额度仍
+授权到期。托盘每次打开都会附加不含凭证的唯一 `launch` 查询，确保浏览器不会只复用旧标签而跳过页面初始化；页面随后清除该
+查询。单个现有页面的产品 UI 同时只打开一个 target scope；HTTP controller 的每 session 单操作互斥和全局有界额度仍
 负责阻止观察风暴。普通 OpenDesk HTTP／MCP／Scheduler 的 Accessibility 授权不会因 Workbench 连接而打开。
 
 页面会同时显示“Inspector page”和“Target window”。目标行显示 application、**原样精确标题**、PID、bounds 和短期 picker

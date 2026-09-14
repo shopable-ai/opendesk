@@ -22,6 +22,11 @@ if the connection fails, use the visible retry action. Trusted-LAN pages keep an
 Python `60845` server, `control` query parameter, CORS bridge, or random API
 listener in the normal workflow.
 
+Every tray selection adds a unique, non-secret `launch` query only to force the
+browser to perform a fresh navigation when an older Inspector tab exists. The
+page removes that query immediately; pairing codes and bearer tokens are never
+placed in it.
+
 Official App Mode is P0 local-only: its listener binds `127.0.0.1`, accepts exact
 loopback Host/Origin, and does not expose clickable LAN controls or an internal
 LAN-control route. LAN support remains deferred until the same App Local Services

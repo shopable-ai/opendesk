@@ -76,7 +76,7 @@ func TestAccessibilityWorkbenchRoutesAreDisabledUnlessConfigured(t *testing.T) {
 	}
 }
 
-func TestAccessibilityWorkbenchServesOnlyFixedSameOriginFrontendAssets(t *testing.T) {
+func TestAccessibilityWorkbenchServesOnlyFixedFrontendAssetsAndTrayNavigation(t *testing.T) {
 	handler := newAccessibilityWorkbenchTestHandler(t)
 	for _, item := range []struct {
 		path        string
@@ -112,6 +112,33 @@ func TestAccessibilityWorkbenchServesOnlyFixedSameOriginFrontendAssets(t *testin
 	setupRoutes(handler).ServeHTTP(unknownResponse, unknown)
 	if unknownResponse.Code != stdhttp.StatusNotFound {
 		t.Fatalf("unknown asset status = %d, want 404", unknownResponse.Code)
+	}
+
+	// LaunchServices can ask an existing browser tab to navigate from an
+	// unrelated site. Chrome then reports Sec-Fetch-Site: cross-site for the
+	// top-level document even though the destination is the exact loopback
+	// listener. The fixed public shell must load so its same-origin script can
+	// perform the protected launch request.
+	navigation := httptest.NewRequest(stdhttp.MethodGet, "http://127.0.0.1:60844/accessibility-workbench/?launch=test", nil)
+	navigation.RemoteAddr = "127.0.0.1:41000"
+	navigation.Header.Set("Sec-Fetch-Site", "cross-site")
+	navigation.Header.Set("Sec-Fetch-Mode", "navigate")
+	navigation.Header.Set("Sec-Fetch-Dest", "document")
+	navigationResponse := httptest.NewRecorder()
+	setupRoutes(handler).ServeHTTP(navigationResponse, navigation)
+	if navigationResponse.Code != stdhttp.StatusOK {
+		t.Fatalf("tray browser navigation status = %d, want 200: %s", navigationResponse.Code, navigationResponse.Body.String())
+	}
+
+	crossSiteAsset := httptest.NewRequest(stdhttp.MethodGet, "http://127.0.0.1:60844/accessibility-workbench/assets/app.js", nil)
+	crossSiteAsset.RemoteAddr = "127.0.0.1:41000"
+	crossSiteAsset.Header.Set("Sec-Fetch-Site", "cross-site")
+	crossSiteAsset.Header.Set("Sec-Fetch-Mode", "no-cors")
+	crossSiteAsset.Header.Set("Sec-Fetch-Dest", "script")
+	crossSiteAssetResponse := httptest.NewRecorder()
+	setupRoutes(handler).ServeHTTP(crossSiteAssetResponse, crossSiteAsset)
+	if crossSiteAssetResponse.Code != stdhttp.StatusForbidden {
+		t.Fatalf("cross-site asset status = %d, want 403", crossSiteAssetResponse.Code)
 	}
 }
 

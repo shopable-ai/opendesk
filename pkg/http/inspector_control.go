@@ -257,6 +257,26 @@ func (p *inspectorNetworkPolicy) authorizeSameOrigin(r *stdhttp.Request, require
 	return nil
 }
 
+// authorizePage permits a browser to enter the Workbench through a top-level
+// navigation initiated by the native tray menu. Depending on the browser's
+// currently active tab, Fetch Metadata can classify that navigation as
+// cross-site even though its socket peer and destination Host are the exact
+// OpenDesk listener. The page is a fixed, no-store static asset and carries no
+// authorization secret; launch, pairing, and data APIs continue to require an
+// exact same-origin request through authorizeSameOrigin.
+func (p *inspectorNetworkPolicy) authorizePage(r *stdhttp.Request) error {
+	if err := p.authorizeNetwork(r); err != nil {
+		return err
+	}
+	if (r.Method == stdhttp.MethodGet || r.Method == stdhttp.MethodHead) &&
+		strings.TrimSpace(r.Header.Get("Origin")) == "" &&
+		r.Header.Get("Sec-Fetch-Mode") == "navigate" &&
+		r.Header.Get("Sec-Fetch-Dest") == "document" {
+		return nil
+	}
+	return p.authorizeSameOrigin(r, false)
+}
+
 func (p *inspectorNetworkPolicy) authorizeInternal(r *stdhttp.Request) error {
 	if p == nil || r == nil || hasForwardedHeaders(r.Header) {
 		return errors.New("internal Inspector control is local-only")
@@ -438,7 +458,7 @@ func (h *Handler) handleAccessibilityWorkbenchPage(w stdhttp.ResponseWriter, r *
 		return
 	}
 	setAccessibilityWorkbenchPageHeaders(w)
-	if err := h.inspectorPolicy.authorizeSameOrigin(r, false); err != nil {
+	if err := h.inspectorPolicy.authorizePage(r); err != nil {
 		h.sendError(w, stdhttp.StatusForbidden, err.Error())
 		return
 	}
