@@ -56,7 +56,7 @@
 | --- | --- | --- |
 | 生成前的风险识别 | 根据已有失败与应用特点检查当前任务的弱点，例如符号 OCR、重复文字、动态布局、读取字段缺失 | 优先复用已有有效方案；知道某路径不适用时不必故意运行制造失败，也不强制穷举全部策略 |
 | 开发与生成者自测 | 在授权和预算内比较最小候选，先观察预检，再验证真实动作和业务结果 | 可以只改注释、规则、配置、测试或普通 JS；不要求新增 Runtime 能力或在最终代码保留每条试验分支 |
-| 正常运行 | 只执行已经验证、明确配置的策略和有限恢复规则 | 没有配置运行期 fallback 就停止；有配置也只能在条件与动作状态允许时使用，不能临时生成别名或扩大权限 |
+| 正常运行 | 执行当前公开 API 的默认 auto 或显式选择的策略与有限恢复规则 | Runtime 的已发布默认 auto 不要求 Recipe 重复配置；超出该合同的 fallback 停止。不能临时生成别名、扩大目标范围或权限 |
 | 运行失败后的维修 | 冻结旧候选和现场，由获准维修流程核对结果、选择安全起点并产生新候选 | 维修不是原失败 Execution 的自动续点；新候选重验后才进入原有资格／发布交接 |
 
 异常不必全部转成成功。合理出口包括：复用有效规则继续、修复后通过、明确不支持、安全停止、需要补证或人工处理。稳定路径足够时立即收束，不以“容错完整”为由增加全部 backend、无限重试或多余包装层。
@@ -238,3 +238,15 @@ Tesseract 官方 [ImproveQuality](https://tesseract-ocr.github.io/tessdoc/Improv
 工作包沿用当前目录和共享合同。运行原图、OCR 原文、诊断和日志保存到既有 `.runtime/automation-authoring/` 工作包或相应 `.runtime/tests/` 运行目录，不提交到源码。最小修复记录包括：来源候选与规则版本、故障及原始证据、分类与仍未知项、采用／拒绝的方法、范围和失效条件、动作状态、实际结果来源、已运行／未运行项、下一消费者。它是现有工作包的说明，不新建竞争性的 AppProfile schema。
 
 本方法的完成标准是：生成者能提前识别已知策略弱点，在真实失败后找到对应修复分支，并正确复用、留证、停止或重验；不要求新增 API，也不是每次都增加 timeout、重新生成整段脚本，或把碰巧成功的一次点击称为稳定自动化。方法设计评分与真实实现验收分开，不能用高分代替独立运行证据。
+
+## Recorder 语义生成与 Runtime 定位协作
+
+`actions.json` 是固定录制事实，不是 `UI.tapTargets` 参数文件；其中 `strategy: mouse.click` 记录原始输入，不强制生成 mouse 或 tapTargets。先判断业务动作，再选择当前公开 API：普通文字序列优先 `UI.tapTexts`，确需逐步骤身份约束才使用字符串与扁平 role/name/identifier 的 `UI.tapTargets`，只有两者无法保持必要语义时才复用更低层能力；没有可靠路径则阻止 qualification，不自动生成坐标。
+
+正常路径使用 Runtime 默认 auto，不在 Recipe 或伪代码重复编写 OCR→AX/UIA fallback、confidence 或遍历策略。仅改变同一目标的无输入定位属于 Runtime；改窗口、改目标、键盘／协议替代及可能重复副作用仍是业务／开发期策略，需要单独依据和授权。物理点击严格等价的 basic 精炼不能静默换成 invoke。
+
+录制／actions 保留原始 label、role、identifier、window、bounds、press/release 关联和可用证据；原生 label 不等于 OCR 事实。candidate 的 actionId→line+stepIndex+api 映射用于错误 failedIndex 回溯，多个 action 可以映射到同一批量调用的不同步骤。不把全部 evidence 展开进源码，不丢失有必要的身份约束。
+
+先无输入预检当前阶段的 distinct targets 与读取通道，不预检尚未出现的未来 UI。失败区分 observation、missing、ambiguity、scope、disabled、state、input unknown、cleanup 和 business verification；未知输入先对账，不重放前缀、不切 backend 重做。只维修受影响 target／业务步骤，重新生成并冻结源码 hash，再独立 qualification；旧资格不自动继承。
+
+Calculator 的 `25 × 4 + 10 =` 必须读取真实 firstResult，第二段输入消费其数字字符串，最后读取真实 finalResult。读取与消费者跨批量边界，不能并进一次静态录制点击序列；期望 110/660 只用于独立断言，不能注入动作或输出。没有真机证据明确 not-run，不能把单元／宿主模拟测试算作真实运行。

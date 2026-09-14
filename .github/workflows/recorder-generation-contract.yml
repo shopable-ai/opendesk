@@ -1,171 +1,44 @@
 name: Recorder generation contract
 
-# One-time reviewed publication; replaced with read-only CI after success.
 on:
   push:
     branches: [master]
-    paths: ['.github/workflows/recorder-generation-contract.yml']
+    paths:
+      - 'automation/recorder*'
+      - 'polyfills/006-ui.js'
+      - 'polyfills/011-ui-targets.js'
+      - 'types/UI*.d.ts'
+      - 'types/recorder.d.ts'
+      - 'apps/opendesk/recorder/**'
+      - 'internal/recorderbundle/**'
+      - 'workflows/agent-to-recipe/**'
+      - 'workflows/human-to-recipe/**'
+      - 'tests/runtime-api/**'
+      - '.github/workflows/recorder-generation-contract.yml'
   workflow_dispatch:
+
 permissions:
   contents: read
+
 jobs:
-  reviewed-recorder-update:
-    if: github.repository == 'shopable-ai/opendesk' && github.ref == 'refs/heads/master'
+  contract:
     runs-on: windows-latest
     timeout-minutes: 20
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Verify reviewed changes and preserve non-overlapping concurrent edits
-        shell: python
-        run: |
-          import base64, hashlib, json, lzma, pathlib, subprocess
-          root = pathlib.Path.cwd()
-          workflow = '.github/workflows/recorder-generation-contract.yml'
-          base_commit = 'b0c46c1992de9995fd57152b906256ad79e385da'
-          parts = [f'.staging-sync/recorder-update-{i}.b64' for i in range(4)]
-          merge_file = '.staging-sync/recorder-merge.json'
-          storage_file = '.staging-sync/recorder-storage-fix.json'
-          evidence = root / '.runtime/tests/recorder-generation'
-          evidence.mkdir(parents=True, exist_ok=True)
-          subprocess.run(['git','diff','--exit-code'],check=True)
-          subprocess.run(['git','diff','--cached','--exit-code'],check=True)
-          def blob(ref, name):
-              exists = subprocess.run(['git','cat-file','-e',ref+':'+name],capture_output=True).returncode == 0
-              return subprocess.check_output(['git','show',ref+':'+name]) if exists else b''
-          encoded = ''.join(blob('HEAD',p).decode().strip() for p in parts)
-          data = lzma.decompress(base64.b64decode(encoded, validate=True))
-          assert hashlib.sha256(data).hexdigest() == '416c18628c9d72ca1bb4023b99ece32c8a2b50b51f4b07bb267aeb46a6d3828c', 'payload mismatch'
-          merge_data = blob('HEAD', merge_file)
-          assert hashlib.sha256(merge_data).hexdigest() == '8572a22b58030f5c0548376cbf48399fa58c215f420ff9f4dd5d8668e56e9afd', 'integration mismatch'
-          storage_data = blob('HEAD', storage_file)
-          assert hashlib.sha256(storage_data).hexdigest() == 'f163262918373c6c6a3f86e766abd71d96a213affbd06b21936c5e35784fa9b5', 'storage diff mismatch'
-          pending, originals = {}, {}
-          for batch, entries in enumerate((json.loads(data), json.loads(merge_data), json.loads(storage_data))):
-              for entry in entries:
-                  name = entry['path']
-                  path = pathlib.PurePosixPath(name)
-                  assert not path.is_absolute() and '..' not in path.parts and not name.startswith(('.git/', '.runtime/')), 'invalid path'
-                  if name == workflow:
-                      continue
-                  target = root / name
-                  assert target.resolve().is_relative_to(root.resolve()) and not target.is_symlink(), 'unsafe target'
-                  if name in pending:
-                      before = pending[name]
-                  else:
-                      before = blob(base_commit if batch == 0 else 'HEAD', name)
-                      originals[name] = before
-                  if 'beforeGit' in entry:
-                      digest = hashlib.sha1(b'blob '+str(len(before)).encode()+b'\0'+before).hexdigest()
-                      assert digest == entry['beforeGit'], 'review concurrent identity changes: '+name
-                  else:
-                      assert hashlib.sha256(before).hexdigest() == entry['before'], 'preimage mismatch: '+name
-                  if 'content' in entry:
-                      after = entry['content'].encode('utf-8')
-                  else:
-                      lines = before.decode('utf-8').splitlines(keepends=True)
-                      for start,end,replacement in reversed(entry['edits']):
-                          assert 0 <= start <= end <= len(lines)
-                          lines[start:end] = [replacement]
-                      after = ''.join(lines).encode('utf-8')
-                  assert hashlib.sha256(after).hexdigest() == entry['after'], 'output mismatch: '+name
-                  pending[name] = after
-          merged_names=[]
-          for index, (name, after) in enumerate(list(pending.items())):
-              current = blob('HEAD', name)
-              original = originals[name]
-              if current != original:
-                  assert original and current, 'concurrent creation/deletion: '+name
-                  folder = evidence/'merge-review'/str(index)
-                  folder.mkdir(parents=True,exist_ok=True)
-                  (folder/'path.txt').write_text(name,encoding='utf-8')
-                  for label,contents in [('current',current),('base',original),('ours',after)]:
-                      (folder/(label+'.txt')).write_bytes(contents)
-                  merged = subprocess.run(['git','merge-file','-p',str(folder/'current.txt'),str(folder/'base.txt'),str(folder/'ours.txt')],capture_output=True)
-                  (folder/'merged.txt').write_bytes(merged.stdout)
-                  assert merged.returncode == 0, 'overlapping concurrent edits: '+name
-                  pending[name] = merged.stdout
-                  merged_names.append(name)
-          for name,after in pending.items():
-              target=root/name
-              target.parent.mkdir(parents=True,exist_ok=True)
-              target.write_bytes(after)
-          subprocess.run(['git','add','--']+list(pending),check=True)
-          subprocess.run(['git','rm','--']+parts+[merge_file,storage_file],check=True)
-          subprocess.run(['git','diff','--cached','--check'],check=True)
-          for name,after in pending.items():
-              assert subprocess.check_output(['git','show',':'+name]) == after, 'staging byte mismatch: '+name
-          (evidence/'reviewed-files.json').write_text(json.dumps({'files':list(pending),'mergedConcurrentFiles':merged_names,'liveCalculator':'not-run','sha256':{n:hashlib.sha256(b).hexdigest() for n,b in pending.items()}},indent=2),encoding='utf-8')
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           cache: true
-      - name: Test Recorder product and workflow behavior
+      - name: Static and product tests
         shell: pwsh
         run: |
           node --check polyfills/006-ui.js
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check polyfills/011-ui-targets.js
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node --check polyfills/008-recorder.js
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node --test tests/app-lifecycle/recorder-controller-core.test.js tests/human-to-recipe/recorder-script-refiner.test.js *>&1 | Tee-Object .runtime/tests/recorder-generation/product.log
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node tests/custom-ui/recording-history.test.js *>&1 | Tee-Object .runtime/tests/recorder-generation/history.log
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Build current native Runtime and execute public JavaScript gate
+          node --test tests/app-lifecycle/recorder-controller-core.test.js tests/human-to-recipe/recorder-script-refiner.test.js
+          node tests/custom-ui/recording-history.test.js
+      - name: Runtime contract
         shell: pwsh
         run: |
-          go build -o .runtime/tests/recorder-generation/opendesk.exe ./cmd/opendesk *>&1 | Tee-Object .runtime/tests/recorder-generation/build.log
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          Get-FileHash .runtime/tests/recorder-generation/opendesk.exe -Algorithm SHA256 | Format-List | Out-File .runtime/tests/recorder-generation/binary-sha256.txt
-          & ./.runtime/tests/recorder-generation/opendesk.exe -script tests/runtime-api/recorder-generation.js -console-mode script *>&1 | Tee-Object .runtime/tests/recorder-generation/runtime.log
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Preserve concurrent master commits, revalidate merges and publish normally
-        shell: pwsh
-        run: |
-          git diff --exit-code
-          if ($LASTEXITCODE -ne 0) { throw 'Unstaged changes appeared; refusing publication' }
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m 'feat(recorder): lower evidence to concise recipes with one Runtime resolver owner'
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $published = $false
-          for ($attempt = 1; $attempt -le 3; $attempt++) {
-            git fetch origin master
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            git merge-base --is-ancestor origin/master HEAD
-            if ($LASTEXITCODE -ne 0) {
-              git merge --no-edit origin/master
-              if ($LASTEXITCODE -ne 0) { throw 'Concurrent source conflict: publication stopped' }
-              node --test tests/app-lifecycle/recorder-controller-core.test.js tests/human-to-recipe/recorder-script-refiner.test.js *>&1 | Tee-Object .runtime/tests/recorder-generation/merged-product.log
-              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-              node tests/custom-ui/recording-history.test.js *>&1 | Tee-Object .runtime/tests/recorder-generation/merged-history.log
-              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-              go build -o .runtime/tests/recorder-generation/opendesk.exe ./cmd/opendesk
-              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-              Get-FileHash .runtime/tests/recorder-generation/opendesk.exe -Algorithm SHA256 | Format-List | Out-File .runtime/tests/recorder-generation/binary-sha256.txt
-              & ./.runtime/tests/recorder-generation/opendesk.exe -script tests/runtime-api/recorder-generation.js -console-mode script *>&1 | Tee-Object .runtime/tests/recorder-generation/merged-runtime.log
-              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-              git diff --exit-code
-              if ($LASTEXITCODE -ne 0) { throw 'Build modified tracked source' }
-            }
-            git push origin HEAD:master
-            if ($LASTEXITCODE -eq 0) { $published = $true; break }
-          }
-          if (-not $published) { throw 'Publication raced repeatedly; no force push attempted' }
-          git rev-parse HEAD | Out-File .runtime/tests/recorder-generation/published-commit.txt
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: recorder-generation-reviewed-evidence
-          path: |
-            .runtime/tests/recorder-generation/**/*.json
-            .runtime/tests/recorder-generation/**/*.txt
-            .runtime/tests/recorder-generation/**/*.log
-          include-hidden-files: true
-          retention-days: 1
-          if-no-files-found: warn
+          go build -o .runtime/opendesk.exe ./cmd/opendesk
+          & ./.runtime/opendesk.exe -script tests/runtime-api/recorder-generation.js -console-mode script

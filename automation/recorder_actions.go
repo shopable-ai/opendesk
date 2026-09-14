@@ -242,8 +242,11 @@ type recorderCandidateScriptRef struct {
 }
 
 type recorderCandidateMapping struct {
-	ActionID string `json:"actionId"`
-	Line     int    `json:"line"`
+	ActionID  string `json:"actionId"`
+	Line      int    `json:"line"`
+	API       string `json:"api,omitempty"`
+	StepIndex *int   `json:"stepIndex,omitempty"`
+	Basis     string `json:"basis,omitempty"`
 }
 
 type recorderGenerationTiming struct {
@@ -282,6 +285,7 @@ type recorderCandidate struct {
 }
 
 type recorderScriptResult struct {
+	Mode          string
 	ScriptFile    string
 	CandidateFile string
 	ActionsSHA256 string
@@ -294,7 +298,7 @@ type recorderScriptResult struct {
 
 func (r recorderScriptResult) jsValue() map[string]any {
 	return map[string]any{
-		"scriptFile": r.ScriptFile, "candidateFile": r.CandidateFile,
+		"mode": r.Mode, "scriptFile": r.ScriptFile, "candidateFile": r.CandidateFile,
 		"actionsSha256": r.ActionsSHA256, "scriptSha256": r.ScriptSHA256,
 		"constraints": append([]string(nil), r.Constraints...), "verification": r.Verification,
 		"timing": r.Timing.jsValue(), "pointerMotion": r.PointerMotion,
@@ -344,7 +348,7 @@ func (r *RecorderRuntime) generateScript(call goja.FunctionCall) (value goja.Val
 		}
 	}()
 	actionsFile, err := recorderRequiredString(call, 0, "Recorder.generateScript", "actionsFile")
-	mode, outputFile, pointerMotion := "basic", "", recorderDefaultPointerMotion
+	mode, outputFile, pointerMotion := "semantic", "", recorderDefaultPointerMotion
 	timing := recorderDefaultGenerationTiming()
 	if err == nil && len(call.Arguments) > 1 && !goja.IsUndefined(call.Argument(1)) && !goja.IsNull(call.Argument(1)) {
 		object := call.Argument(1).ToObject(r.runtime)
@@ -391,8 +395,8 @@ func (r *RecorderRuntime) generateScript(call goja.FunctionCall) (value goja.Val
 	if err == nil {
 		err = recorderNoExtraArguments(call, 2, "Recorder.generateScript")
 	}
-	if err == nil && mode != "basic" {
-		err = recorderError(RecorderInvalidArgument, "Recorder.generateScript", "mode must be \"basic\"", nil)
+	if err == nil && mode != "basic" && mode != "semantic" {
+		err = recorderError(RecorderInvalidArgument, "Recorder.generateScript", "mode must be \"basic\" or \"semantic\"", nil)
 	}
 	if err == nil && pointerMotion != recorderDefaultPointerMotion && pointerMotion != recorderSmoothPointerMotion {
 		err = recorderError(RecorderInvalidArgument, "Recorder.generateScript", "options.pointerMotion must be \"instant\" or \"smooth\"", nil)
@@ -406,7 +410,7 @@ func (r *RecorderRuntime) generateScript(call goja.FunctionCall) (value goja.Val
 		return promiseValue
 	}
 	r.pending++
-	r.startWorker(func() (any, error) { return r.generateBasicScript(actionsFile, outputFile, timing, pointerMotion) }, func(result any, err error) {
+	r.startWorker(func() (any, error) { return r.generateScriptFile(actionsFile, outputFile, timing, pointerMotion, mode) }, func(result any, err error) {
 		r.pending--
 		if err != nil {
 			_ = reject(recorderJSError(r.runtime, err))
@@ -3374,6 +3378,10 @@ func recorderSaveActionsRevision(recordingDir string, actions *recorderActions) 
 }
 
 func (r *RecorderRuntime) generateBasicScript(input, outputFile string, timing recorderGenerationTiming, pointerMotion string) (recorderScriptResult, error) {
+	return r.generateScriptFile(input, outputFile, timing, pointerMotion, "basic")
+}
+
+func (r *RecorderRuntime) generateScriptFile(input, outputFile string, timing recorderGenerationTiming, pointerMotion, mode string) (recorderScriptResult, error) {
 	const operation = "Recorder.generateScript"
 	actionsPath, recordingDir, err := r.resolveActionsFile(input, operation)
 	if err != nil {
@@ -3402,7 +3410,7 @@ func (r *RecorderRuntime) generateBasicScript(input, outputFile string, timing r
 	if err := recorderRejectSymlinkPath(recordingDir, generatedDir); err != nil {
 		return recorderScriptResult{}, recorderError(RecorderInvalidArgument, operation, "generated directory contains a symbolic link", err)
 	}
-	scriptPath := filepath.Join(generatedDir, "basic.recipe.js")
+	scriptPath := filepath.Join(generatedDir, mode+".recipe.js")
 	if outputFile != "" {
 		scriptPath = outputFile
 		if !filepath.IsAbs(scriptPath) {
@@ -3425,14 +3433,20 @@ func (r *RecorderRuntime) generateBasicScript(input, outputFile string, timing r
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return recorderScriptResult{}, recorderWrapFileError(operation, "candidate output", err)
 	}
-	script, mappings, constraints, err := recorderGenerateBasicSource(actions, rawEvents, timing, pointerMotion)
+	generateSource := recorderGenerateBasicSource
+	formatVersion := recorderCandidateFormatVersion
+	if mode == "semantic" {
+		generateSource = recorderGenerateSemanticSource
+		formatVersion = recorderSemanticCandidateFormatVersion
+	}
+	script, mappings, constraints, err := generateSource(actions, rawEvents, timing, pointerMotion)
 	if err != nil {
 		return recorderScriptResult{}, err
 	}
 	scriptHash := recorderSHA256(script)
 	candidate := recorderCandidate{
-		FormatVersion: recorderCandidateFormatVersion, RecordingID: actions.RecordingID,
-		CreatedAt: time.Now().UTC().Format(time.RFC3339Nano), Mode: "basic",
+		FormatVersion: formatVersion, RecordingID: actions.RecordingID,
+		CreatedAt: time.Now().UTC().Format(time.RFC3339Nano), Mode: mode,
 		Actions: recorderCandidateActionsRef{File: actionsPath, SHA256: actionsHash, Revision: actions.Revision},
 		Script:  recorderCandidateScriptRef{File: scriptPath, SHA256: scriptHash},
 		Timing:  timing, PointerMotion: pointerMotion,
@@ -3456,7 +3470,7 @@ func (r *RecorderRuntime) generateBasicScript(input, outputFile string, timing r
 		}
 		return recorderScriptResult{}, recorderError(RecorderStorageFailed, operation, "could not save candidate metadata", err)
 	}
-	return recorderScriptResult{ScriptFile: scriptPath, CandidateFile: candidatePath, ActionsSHA256: actionsHash, ScriptSHA256: scriptHash, Constraints: constraints, Verification: "not-run", Timing: timing, PointerMotion: pointerMotion}, nil
+	return recorderScriptResult{Mode: mode, ScriptFile: scriptPath, CandidateFile: candidatePath, ActionsSHA256: actionsHash, ScriptSHA256: scriptHash, Constraints: constraints, Verification: "not-run", Timing: timing, PointerMotion: pointerMotion}, nil
 }
 
 func recorderValidateActions(actions recorderActions, actionsPath, recordingDir string, validatedRaw *[]recorderRawEvent) error {

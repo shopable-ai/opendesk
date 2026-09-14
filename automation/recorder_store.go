@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -285,6 +286,22 @@ func recorderSyncDirectory(path string) error {
 		return err
 	}
 	defer directory.Close()
+	info, err := directory.Stat()
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("recorder sync target is not a directory: %s", path)
+	}
+	// Windows File.Sync uses FlushFileBuffers, which requires a writable file
+	// handle; os.Open returns a read-only directory handle. Data files were
+	// already synced and closed by both callers. Windows has no portable Go
+	// directory fsync barrier, so do not turn a successful file write into a
+	// STORAGE_FAILED error (or remove the new revision) at this final step.
+	// This does not promise POSIX directory-entry durability after power loss.
+	if runtime.GOOS == "windows" {
+		return nil
+	}
 	return directory.Sync()
 }
 

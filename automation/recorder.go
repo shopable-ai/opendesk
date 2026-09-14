@@ -665,8 +665,9 @@ func (r *RecorderRuntime) capabilities() map[string]any {
 			"coordinateSpace": capability.CoordinateSpace,
 			"keyboardDefault": false, "evidenceModes": []string{"none", "target-semantics"}, "limitations": limitations,
 		},
-		"actions":         map[string]any{"available": true, "version": recorderActionsFormatVersion, "actionSubset": []string{"click.left.single", "drag.left.straight", "wheel.xy.burst", "text.focused-value-patch", "text.basic-latin-fallback", "keyboard.shortcut", "keyboard.special-key"}},
-		"basicGeneration": map[string]any{"available": true, "mode": "basic", "version": recorderCandidateFormatVersion},
+		"actions":            map[string]any{"available": true, "version": recorderActionsFormatVersion, "actionSubset": []string{"click.left.single", "drag.left.straight", "wheel.xy.burst", "text.focused-value-patch", "text.basic-latin-fallback", "keyboard.shortcut", "keyboard.special-key"}},
+		"basicGeneration":    map[string]any{"available": true, "mode": "basic", "version": recorderCandidateFormatVersion},
+		"semanticGeneration": map[string]any{"available": true, "mode": "semantic", "version": recorderSemanticCandidateFormatVersion},
 	}
 }
 

@@ -91,7 +91,7 @@ try {
 - AX label、role 或 identifier 不存在时保留 `unavailable`，不得从坐标、图标常识或相邻文字补造语义。
 - WebView 先检查是否存在获准且可查询的 DOM／Browser 或 Accessibility 表面；Canvas、远程桌面和权限不足同样可以正常得到 `unavailable`。
 - DOM／AX 不可用时，只能对获准窗口范围提出或执行定向截图、OCR、图像或人工标注补采。保留来源、范围、映射和未决项。
-- OCR、图像和坐标只是有来源的 locator 候选，不自动成为业务事实。禁止 AX → OCR → 坐标 → keyboard 的静默 fallback；每条获准替代策略必须在 plan 中显式排序、限定失效条件并独立资格。
+- OCR、图像和坐标只是有来源的 locator 候选，不自动成为业务事实。禁止改变目标、scope 或输入效果的 AX → OCR → 坐标 → keyboard 静默替代；这些获准业务替代在 plan 中限定条件并独立资格。当前公开 API 内已实现的同目标 auto 无输入定位协作由 Runtime 负责，不在 plan 或 Recipe 复制内部算法。
 - 窗口或显示器相对点使用已实现的 `Geometry` API，并保留越界拒绝；不得长期输出 `win.x + offset` 样板。
 - 代码只使用当前 `docs/api/` 已实现的方法。路线图名称、设计草案或 application-engineer 中的未来 helper 不得写成可调用 API。
 
@@ -106,3 +106,9 @@ try {
 - `qualified`：冻结 production 源码通过预定独立 Gate。
 
 普通用户命令、正式 Gate 和视觉证据分别报告。没有实际运行就写 `not-run`；synthetic、旧 hash 或模型自述不得升级为 live／qualified。
+
+## Recorder 语义生成与 Runtime 定位协作
+
+按 `docs/frameworks/ui-locator-repair.md` 的同名合同执行。`actions.json` 保留录制事实，不绑定某个 API；简单文字优先 `UI.tapTexts`，必要的逐步身份约束使用 `UI.tapTargets`，特殊动作保留已有低层 API。不得在生成代码中复制 Runtime 默认 auto 的定位算法。
+
+semantic candidate 按业务生成／独立资格路线处理；显式 basic 的静态物理精炼保持原合同。批量源码保留 actionId→line+stepIndex+api 映射，读取实际结果与其消费者不得越过数据依赖边界合并。失败利用原始证据最小维修；没有真机结果明确 not-run。

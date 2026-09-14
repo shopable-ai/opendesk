@@ -1,317 +1,65 @@
-// Inert contract tests for the high-level semantic UI.tapTargets facade.
-// Resolver owners are local fixtures; no desktop observation or input occurs.
+// Syntax adapter tests; resolver behavior is covered by ui-sequence and
+// ui-target-sequence using the real core UI source with isolated native owners.
 (() => {
   const { test, assert, equal } = RuntimeAPITest;
-  const facadeSource = File.read(File.join(File.cwd(), 'polyfills/011-ui-targets.js'));
+  const source = File.read(File.join(File.cwd(), 'polyfills/011-ui-targets.js'));
   const unit = (name, fn) => test({ name, tier: 'unit', covers: ['UI.tapTargets'] }, fn);
-
-  function codedError(code, message = code, extra = {}) {
-    return Object.assign(new Error(message), { code }, extra);
+  function fixture(run) {
+    const calls = [];
+    const host = { UI: { tapTargets: async (targets, options) => {
+      calls.push({ targets, options });
+      return run ? run(targets, options) : { ok: true, action: 'tapTargets', completed: [] };
+    } } };
+    new Function('globalThis', source)(host);
+    return { calls, UI: host.UI };
   }
-
-  function fixture(settings = {}) {
-    const state = {
-      row: {
-        id: 'fixture:42:native:7',
-        pid: 42,
-        processId: 42,
-        title: 'Semantic Fixture',
-        handle: 7,
-        exePath: '/fixture/semantic',
-        exeName: 'Semantic Fixture',
-        x: 10,
-        y: 20,
-        width: 500,
-        height: 400,
-      },
-      events: [],
-      activeWindowCalls: 0,
-      ocr: [],
-      legacy: [],
-      finds: [],
-      reads: [],
-      performs: [],
-      releases: [],
-      nextRef: 0,
-    };
-
-    const host = {
-      window: {
-        getActiveWindow: async () => {
-          state.activeWindowCalls += 1;
-          state.events.push('window:active');
-          if (settings.activeWindowError) throw settings.activeWindowError;
-          return { ...state.row };
-        },
-      },
-      UI: {
-        tapTargets: async (targets, options) => {
-          state.legacy.push({ targets, options });
-          state.events.push('legacy');
-          return { ok: true, action: 'tapTargets', backend: 'accessibility', completed: [] };
-        },
-        tapText: async (text, options) => {
-          const index = state.ocr.length;
-          state.ocr.push({ text, options, index });
-          state.events.push(`ocr:${text}`);
-          if (settings.onTapText) {
-            const overridden = await settings.onTapText(text, options, index, state);
-            if (overridden !== undefined) return overridden;
-          }
-          return {
-            point: { x: 100 + index, y: 200 + index },
-            target: { text, provider: 'fixture-ocr', confidence: 0.99 },
-          };
-        },
-      },
-      Accessibility: {
-        find: async (selector, options) => {
-          const index = state.finds.length;
-          const snapshot = { ...selector };
-          state.finds.push({ selector: snapshot, options, index });
-          state.events.push(`find:${snapshot.name || snapshot.identifier || snapshot.role}`);
-          if (settings.onFind) {
-            const overridden = await settings.onFind(snapshot, options, index, state);
-            if (overridden !== undefined) return overridden;
-          }
-          const ref = { kind: 'AccessibilityElementRef', id: `semantic-ref-${++state.nextRef}` };
-          Object.defineProperty(ref, '_selector', { value: snapshot });
-          return ref;
-        },
-        read: async (ref, options) => {
-          const index = state.reads.length;
-          state.reads.push({ ref, options, index });
-          state.events.push(`read:${ref._selector.name || ref._selector.identifier || ref._selector.role}`);
-          if (settings.onRead) {
-            const overridden = await settings.onRead(ref, options, index, state);
-            if (overridden !== undefined) return overridden;
-          }
-          return {
-            requestId: `read-${index}`,
-            backend: 'fixture-accessibility',
-            properties: {
-              role: ref._selector.role || 'button',
-              name: ref._selector.name || null,
-              identifier: ref._selector.identifier || null,
-              enabled: true,
-              actions: ['invoke'],
-            },
-          };
-        },
-        perform: async (ref, action, options) => {
-          const index = state.performs.length;
-          state.performs.push({ ref, action: { ...action }, options, index });
-          state.events.push(`perform:${ref._selector.name || ref._selector.identifier || ref._selector.role}`);
-          if (settings.onPerform) {
-            const overridden = await settings.onPerform(ref, action, options, index, state);
-            if (overridden !== undefined) return overridden;
-          }
-          return {
-            requestId: `perform-${index}`,
-            backend: 'fixture-accessibility',
-            action: 'invoke',
-            actionState: 'acknowledged',
-          };
-        },
-        release: async ref => {
-          const index = state.releases.length;
-          state.releases.push({ ref, index });
-          state.events.push(`release:${ref._selector.name || ref._selector.identifier || ref._selector.role}`);
-          if (settings.onRelease) {
-            const overridden = await settings.onRelease(ref, index, state);
-            if (overridden !== undefined) return overridden;
-          }
-          return true;
-        },
-      },
-    };
-
-    new Function('globalThis', facadeSource)(host);
-    state.host = host;
-    return state;
+  async function rejected(fn) {
+    let caught; try { await fn(); } catch (error) { caught = error; }
+    assert(caught); equal(caught.code, 'INVALID_ARGUMENT'); equal(caught.actionState, 'not_started');
   }
-
-  async function rejects(run, code) {
-    let error = null;
-    try {
-      await run();
-    } catch (caught) {
-      error = caught;
-    }
-    assert(error, `expected ${code}`);
-    equal(error.code, code, String(error));
-    equal(error.operation, 'UI.tapTargets');
-    return error;
-  }
-
-  unit('semantic tapTargets keeps text-only calls simple and resolves the active window once', async () => {
-    const f = fixture();
-    const result = await f.host.UI.tapTargets([{ text: 'Save' }, { text: 'Done' }]);
-    equal(result.ok, true);
-    equal(result.completed.length, 2);
-    equal(result.completed.map(item => item.resolver).join(','), 'ocr,ocr');
-    equal(f.activeWindowCalls, 1);
-    equal(f.ocr.length, 2);
-    equal(f.finds.length, 0);
-    equal(f.ocr[0].options.match, 'exact');
-    equal(f.ocr[0].options.timeout, 3000);
-    equal(f.ocr[0].options.within.id, f.row.id);
-    equal(Object.prototype.hasOwnProperty.call(f.ocr[0].options, 'strategy'), false);
+  unit('semantic spelling adapter delegates text objects and strings to one owner', async () => {
+    const f = fixture(); await f.UI.tapTargets([{text:'A'}, 'B']);
+    equal(JSON.stringify(f.calls[0].targets), '["A","B"]');
   });
-
-  unit('semantic tapTargets falls through from OCR miss to exact Accessibility name', async () => {
-    const f = fixture({
-      onTapText: () => { throw codedError('TARGET_NOT_FOUND', 'OCR miss', { candidateCount: 0 }); },
-    });
-    const result = await f.host.UI.tapTargets([{ text: '×' }]);
-    equal(result.completed.length, 1);
-    equal(result.completed[0].resolver, 'accessibility');
-    equal(f.ocr.length, 1);
-    equal(f.finds.length, 1);
-    equal(f.finds[0].selector.name, '×');
-    equal(f.performs.length, 1);
-    equal(f.releases.length, 1);
+  unit('semantic spelling adapter retains authoritative constraints', async () => {
+    const f = fixture(); await f.UI.tapTargets([{text:'Confirm',role:'button',identifier:'ok'}]);
+    equal(JSON.stringify(f.calls[0].targets[0]), '{"role":"button","identifier":"ok","name":"Confirm"}');
   });
-
-  unit('semantic tapTargets falls through from OCR ambiguity to unique Accessibility target', async () => {
-    const f = fixture({
-      onTapText: () => {
-        throw codedError('AMBIGUOUS_TARGET', 'two OCR candidates', {
-          candidateCount: 2,
-          candidates: [{ text: 'Confirm' }, { text: 'Confirm' }],
-        });
-      },
-    });
-    const result = await f.host.UI.tapTargets([{ text: 'Confirm' }]);
-    equal(result.completed[0].resolver, 'accessibility');
-    equal(f.finds[0].selector.name, 'Confirm');
-    equal(f.performs.length, 1);
+  unit('semantic spelling adapter preserves an explicit accessible name', async () => {
+    const f = fixture(); await f.UI.tapTargets([{text:'×',role:'button',name:'multiply'}]);
+    equal(f.calls[0].targets[0].name, 'multiply'); equal(f.calls[0].targets[0].text, undefined);
   });
-
-  unit('semantic constraints are authoritative and use exact Accessibility selector fields', async () => {
-    const f = fixture();
-    const result = await f.host.UI.tapTargets([
-      { text: 'Confirm', role: 'button' },
-      { role: 'button', name: 'Save', identifier: 'save.primary' },
-    ]);
-    equal(result.completed.map(item => item.resolver).join(','), 'accessibility,accessibility');
-    equal(f.ocr.length, 0, 'role/name constraints must not be discarded by an OCR-only click');
-    equal(f.finds[0].selector.role, 'button');
-    equal(f.finds[0].selector.name, 'Confirm');
-    equal(f.finds[1].selector.role, 'button');
-    equal(f.finds[1].selector.name, 'Save');
-    equal(f.finds[1].selector.identifier, 'save.primary');
+  unit('semantic spelling adapter copies all steps before awaiting execution', async () => {
+    const targets=[{text:'A'},{text:'B'}]; const f=fixture(async () => {targets[1].text='changed';});
+    await f.UI.tapTargets(targets); equal(f.calls[0].targets.join(','), 'A,B');
   });
-
-  unit('semantic mixed target sequence executes strictly in order', async () => {
-    const f = fixture({
-      onTapText: text => {
-        if (text === 'C') throw codedError('TARGET_NOT_FOUND', 'C is not visible to OCR');
-        return undefined;
-      },
-    });
-    const result = await f.host.UI.tapTargets([
-      { text: 'A' },
-      { role: 'button', name: 'B' },
-      { text: 'C' },
-    ], { within: { ...f.row }, timeout: 777 });
-    equal(result.completed.map(item => item.resolver).join(','), 'ocr,accessibility,accessibility');
-    equal(f.activeWindowCalls, 0);
-    const relevant = f.events.filter(item => item.startsWith('ocr:') || item.startsWith('find:') || item.startsWith('perform:'));
-    equal(relevant.join(','), 'ocr:A,find:B,perform:B,ocr:C,find:C,perform:C');
-    equal(f.finds[0].options.timeout, 777);
+  unit('semantic spelling adapter leaves default scope and timing to Runtime', async () => {
+    const f=fixture(); const options={intervalMs:500};
+    await f.UI.tapTargets([{text:'A'}],options); equal(f.calls[0].options,options);
   });
-
-  unit('semantic middle failure stops later targets and reports the completed prefix', async () => {
-    const f = fixture({
-      onFind: selector => selector.name === 'Missing' ? null : undefined,
-    });
-    const error = await rejects(
-      () => f.host.UI.tapTargets([
-        { text: 'A' },
-        { role: 'button', name: 'Missing' },
-        { text: 'Never' },
-      ]),
-      'TARGET_NOT_FOUND',
-    );
-    equal(error.failedIndex, 1);
-    equal(error.failedTarget.name, 'Missing');
-    equal(error.completed.length, 1);
-    equal(error.completed[0].index, 0);
-    equal(error.attempts.length, 1);
-    equal(error.attempts[0].resolver, 'accessibility');
-    equal(f.ocr.map(item => item.text).join(','), 'A');
-    equal(f.performs.length, 0);
-  });
-
-  unit('semantic tapTargets rejects caller-owned resolver strategy before observation', async () => {
-    const targetFields = [
-      { text: 'A', accessibility: { role: 'button' } },
-      { text: 'A', fallback: 'accessibility' },
-      { text: 'A', confidence: 0.9 },
-      { text: 'A', coordinates: { x: 1, y: 2 } },
-    ];
-    for (const target of targetFields) {
-      const f = fixture();
-      await rejects(() => f.host.UI.tapTargets([target]), 'INVALID_ARGUMENT');
-      equal(f.activeWindowCalls, 0);
-      equal(f.ocr.length, 0);
-      equal(f.finds.length, 0);
-    }
-    for (const options of [{ strategy: 'auto' }, { fallbackOrder: ['ocr', 'accessibility'] }, { provider: 'ocr' }]) {
-      const f = fixture();
-      await rejects(() => f.host.UI.tapTargets([{ text: 'A' }], options), 'INVALID_ARGUMENT');
-      equal(f.activeWindowCalls, 0);
-      equal(f.ocr.length, 0);
-      equal(f.finds.length, 0);
+  unit('semantic spelling adapter rejects resolver bags before delegation', async () => {
+    for(const key of ['fallback','accessibility','OCR','strategy','confidence','regex','fuzzy']) {
+      const f=fixture(); await rejected(() => f.UI.tapTargets([{text:'A',[key]:'forbidden'}])); equal(f.calls.length,0);
     }
   });
-
-  unit('semantic tapTargets preserves the legacy locator contract without normalization', async () => {
-    const f = fixture();
-    const targets = [{ locator: { role: 'button', name: 'Legacy' } }];
-    const options = { within: { ...f.row }, maxDepth: 4, refocus: 'if-needed' };
-    const result = await f.host.UI.tapTargets(targets, options);
-    equal(result.backend, 'accessibility');
-    equal(f.legacy.length, 1);
-    equal(f.legacy[0].targets, targets);
-    equal(f.legacy[0].options, options);
-    equal(f.activeWindowCalls, 0);
-    equal(f.ocr.length, 0);
-    equal(f.finds.length, 0);
+  unit('semantic spelling adapter preserves unknown-state failure and prefix', async () => {
+    const error=Object.assign(new Error('unknown'),{code:'STATE_UNKNOWN',failedIndex:1,actionState:'unknown',completed:[{ok:true}]});
+    const f=fixture(async () => {throw error;}); let caught;
+    try {await f.UI.tapTargets(['A','B','never']);} catch(e) {caught=e;}
+    equal(caught,error); equal(f.calls.length,1); equal(caught.completed.length,1);
   });
-
-  unit('semantic tapTargets never retries another resolver after uncertain native action state', async () => {
-    const f = fixture({
-      onTapText: () => { throw codedError('TARGET_NOT_FOUND', 'OCR miss'); },
-      onPerform: () => ({
-        requestId: 'uncertain',
-        backend: 'fixture-accessibility',
-        action: 'invoke',
-        actionState: 'unknown',
-      }),
-    });
-    const error = await rejects(() => f.host.UI.tapTargets([{ text: '×' }]), 'STATE_UNKNOWN');
-    equal(error.failedIndex, 0);
-    equal(error.failedPhase, 'action');
-    equal(f.ocr.length, 1);
-    equal(f.finds.length, 1);
-    equal(f.performs.length, 1);
-    equal(f.releases.length, 1);
-    equal(error.attempts.map(item => item.resolver).join(','), 'ocr,accessibility');
-    equal(error.attempts[1].phase, 'action');
+  unit('semantic spelling adapter preserves explicit legacy calls', async () => {
+    const f=fixture(); const targets=[{locator:{role:'button',name:'A'}}],options={within:{id:'w'}};
+    await f.UI.tapTargets(targets,options); equal(f.calls[0].targets,targets); equal(f.calls[0].options,options);
   });
-
-  unit('semantic tapTargets snapshots the sequence before the first await', async () => {
-    const targets = [{ text: 'A' }, { text: 'B' }];
-    const f = fixture({
-      onTapText: (text, options, index) => {
-        if (index === 0) targets[1].text = 'MUTATED';
-        return undefined;
-      },
-    });
-    await f.host.UI.tapTargets(targets);
-    equal(f.ocr.map(item => item.text).join(','), 'A,B');
+  unit('semantic spelling adapter rejects mixed legacy and invalid sequences', async () => {
+    for(const targets of [[{locator:{name:'A'}},{text:'B'}],new Array(1),[],[null],[{}],[{text:''}]]) {
+      const f=fixture(); await rejected(() => f.UI.tapTargets(targets)); equal(f.calls.length,0);
+    }
+  });
+  unit('semantic spelling adapter never rewrites returned completion evidence', async () => {
+    const result={ok:true,action:'tapTargets',completed:[{action:'invoke',actionState:'acknowledged'}]};
+    const f=fixture(async()=>result); equal(await f.UI.tapTargets([{role:'button',name:'A'}]),result);
   });
 
   unit('semantic tapTargets preserves an acknowledged native completion when cleanup fails', async () => {

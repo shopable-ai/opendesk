@@ -12,6 +12,7 @@
 | --- | --- | --- |
 | [桌面测量](desktop-measurement.md) | 怎样通过唯一测量会话、透明标注、角落信息和按需详情，完成带明确参照的坐标、取色、区域与距离测量？ | 重构 Measurement 交互、集成 Recorder／快捷键、设计三档导出与原生验收时；浏览器样机不替代真机验证 |
 | [Action Target Model](action-target-model.md) | 已经知道要操作某个对象后，怎样形成候选、消歧、动作前后条件和安全失败？ | 设计相对定位、候选消歧、动作保护和结果验证时；一般调用先看公开 API |
+| [窗口作用域与轻量 Locator](ui-scope-locator.md) | 怎样在同一个窗口内用对象查找、等待、点击和读写目标，并在没有 UI 树时保持视觉路径可用？ | 实施 UI.within／Locator L0、统一三类目标的能力与安全边界时；文末有新对话实施提示词，设计不等于 API 已发布 |
 | [Native Accessibility](native-accessibility.md) | macOS AX / Windows UIA 的元素读取、原生动作、引用生命周期、取消和清理怎样闭环？ | 维护 Accessibility 后端、UI 菜单组合或 execution lifecycle 时；脚本调用先看公开 API |
 | [结构化界面集合读取](structured-ui-collection-reading.md) | 当前界面里有很多会话、消息、订单、表格行或卡片时，怎样可靠地读成一条条通用数据？ | 设计 list／table／timeline／grid／cards／tree 等重复 UI 的读取、字段归属、多源证据和 VLM 辅助时 |
 | [App Adapter Contract](app-adapter-contract.md) | 通用界面事实怎样解释成某个应用的会话、消息、订单等业务对象？ | 封装应用 helper／adapter 或划分通用与业务职责时 |

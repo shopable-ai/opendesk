@@ -24,7 +24,7 @@ order: 50
 | `UI.hasText(text, options?)` | Stable | 判断是否存在匹配文本。 |
 | `UI.tapText(text, options?)` | Stable | 查找并点击唯一文本。 |
 | `UI.tapTexts(texts, options?)` | Stable；序列等待为 Experimental | 按顺序等待、重新定位并点击多个文本，默认步间隔 300 ms。 |
-| `UI.tapTargets(targets, options?)` | Experimental | 按顺序激活轻量 semantic targets；Runtime 自动选择安全的 OCR / Accessibility resolver。 |
+| `UI.tapTargets(targets, options?)` | Experimental · Local | 逐步骤文字或扁平语义目标；由 Runtime 负责定位、执行和清理。 |
 | `UI.waitText(text, options?)` | Stable | 等待唯一文本出现。 |
 | `UI.waitTextGone(text, options?)` | Stable | 等待文本消失。 |
 | `UI.findImages(template, options?)` | Stable | 返回全部模板匹配。 |
@@ -68,40 +68,38 @@ interface OpenDeskUIValueOptions {
 
 值方法拒绝时符合 `OpenDeskUIValueError` 声明。`phase` 固定表达高层生命周期：`arguments`、`capability`、`locate`、`read`、`precondition`、`action`、`verification` 或 `cleanup`；底层 backend phase 可用时保留在 `nativePhase`，即使名称相同也不会覆盖高层 phase。错误始终包含 `code`、`operation`、`phase` 与 `actionState`，并在确实可用时保留 `verified`、`backend`、`requestId`、`cause` 和脱敏的 `cleanupError`。该声明只是错误对象形状，不新增 Runtime 全局构造器。
 
-### Semantic target 选项
+### 原生 target 序列选项
 
-`UI.tapTargets()` 的首选 public form 是轻量 business-semantic target。P0 只接受 exact `text`、`role`、`name`、`identifier`；调用方不选择 OCR 或 Accessibility，也不提供 strategy、fallback、provider、confidence、bounds 或 coordinates。
+本小节只适用于兼容的 `[{locator: ...}]` 形式；新代码使用下方 `UI.tapTargets` 的字符串／扁平 target 形式，不暴露遍历与 refocus 配置。
+
+`UI.tapTargets()` 是现有 `Accessibility.find/read/perform/release` owner 上的 Experimental 顺序组合。每步必须显式提供一个 V1 exact selector；本方法只提交 `invoke`，不推断控件类型、坐标、应用、按钮别名或业务结果。
 
 ```ts
-type OpenDeskUISemanticTapTarget =
-  | { text: string; role?: OpenDeskAccessibilityRole; name?: string; identifier?: string }
-  | { text?: string; role: OpenDeskAccessibilityRole; name?: string; identifier?: string }
-  | { text?: string; role?: OpenDeskAccessibilityRole; name: string; identifier?: string }
-  | { text?: string; role?: OpenDeskAccessibilityRole; name?: string; identifier: string };
+interface OpenDeskUITapTargetStep {
+  locator: OpenDeskAccessibilitySelector;
+}
 
-interface OpenDeskUISemanticTapTargetsOptions {
-  within?: OpenDeskWindowInfo;
+interface OpenDeskUITapTargetsOptions {
+  within: OpenDeskWindowInfo;
   timeout?: number;
+  maxDepth?: number;
+  maxNodes?: number;
+  refocus?: 'if-needed';
+  refocusTimeout?: number;
   signal?: AbortSignal | null;
 }
 ```
 
 | 参数 | 类型 | 必填 | 默认值 | 说明 |
 | --- | --- | --- | --- | --- |
-| `targets` | `OpenDeskUISemanticTapTarget[]` | 是 | 无 | 非空、按序执行的目标数组；每项至少一个 P0 semantic field。序列和 target 在首个 await 前复制。 |
-| `targets[].text` | `string` | 条件 | 无 | 精确可见文本；未提供 role/name/identifier 时走 OCR-first 路径。 |
-| `targets[].role` | `OpenDeskAccessibilityRole` | 条件 | 无 | 精确 native role；一旦提供任一 native field，该 target 直接走 Accessibility。 |
-| `targets[].name` | `string` | 条件 | 无 | 精确 native accessible name；text-only fallback 使用 `name = text`。 |
-| `targets[].identifier` | `string` | 条件 | 无 | 精确 native identifier。 |
-| `options.within` | `OpenDeskWindowInfo` | 否 | 首次解析的 active window | 为整条 sequence 固定已解析窗口。 |
-| `options.timeout` | `number` | 否 | `3000` ms | 每次 resolver operation 的整数预算，范围 `1..30000`。 |
-| `options.signal` | `AbortSignal \| null` | 否 | 未设置 | 阻止后续观察/动作；不能撤回已提交的 mouse 或 native input。 |
+| `targets` | `OpenDeskUITapTargetStep[]` | 是 | 无 | `1..256` 个步骤；每项只允许 `locator`。序列、步骤与 locator 在首个 await 前复制并校验。 |
+| `options.within` | `OpenDeskWindowInfo` | 是 | 无 | 已解析窗口；必须包含稳定 id、正 PID、title、非零 native handle 与正 bounds。 |
+| `options.timeout` | `number` | 否 | `3000` ms | 每次原生 find/read/perform 的有界整数预算，范围 `1..30000`。 |
+| `options.maxDepth` | `number` | 否 | `8` | 每个 distinct locator 的唯一查找深度，范围 `1..32`。 |
+| `options.maxNodes` | `number` | 否 | `1000` | 每个 distinct locator 的唯一查找节点数，范围 `1..5000`。 |
+| `options.signal` | `AbortSignal \| null` | 否 | 未设置 | 在原生请求之间阻止后续观察或动作；不能撤回已经开始的同步 native 调用。 |
 
-P0 不提供 fuzzy、regex、contains 或自动坐标 fallback。非法字段（包括 `strategy`、`fallback`、`fallbackOrder`、`ocr`、`accessibility`、`provider`、`confidence`、`bounds`、`coordinates`）在观察和输入前以 `INVALID_ARGUMENT` 拒绝。
-
-### Compatibility / Advanced legacy locator options
-
-历史 `{ locator }` overload 继续可用，但不是新业务代码的推荐 form。它只在所有步骤都是 `{ locator: OpenDeskAccessibilitySelector }` 时使用，且要求 `within: OpenDeskWindowInfo`；`timeout`、`maxDepth`、`maxNodes`、`refocus: 'if-needed'`、`refocusTimeout` 和 `signal` 保持原有 exact native traversal contract。它会在任何输入前完整预检所有 distinct locator、保存 fixed refs、每一步重验同一窗口并只 invoke 一次；详细行为在 [`UI.tapTargets()` 的 Compatibility / Advanced legacy locator contract](#compatibility--advanced-legacy-locator-contract) 中说明。
+本方法不接受视觉 fallback、OCR provider、坐标、重试、等待未来控件或每步不同 scope。若 Accessibility 不可用、权限未授予或 invoke backend 未实现，会在 target observation 前失败。
 
 ### 文本选项
 
@@ -621,7 +619,7 @@ await UI.tapText('确定', { within: win, match: 'exact' });
 
 ## UI.tapTexts(texts, options?)
 
-按顺序等待目标出现、重新观察并点击多个文本。第一个参数 `texts` 是必填的主要动作序列；`options.within` 只是已解析 `OpenDeskWindowInfo` 的可选 scope，同一窗口内的一般流程可以省略整个第二个参数。
+按顺序等待目标出现、重新观察并激活多个文本目标。普通 exact 文本激活由 Runtime 自动选择安全的定位协作策略；调用者不传 `strategy`、fallback 顺序或 backend 配置。第一个参数 `texts` 是必填的主要动作序列；`options.within` 只是已解析 `OpenDeskWindowInfo` 的可选 scope，同一窗口内的一般流程可以省略整个第二个参数。第一个参数 `texts` 是必填的主要动作序列；`options.within` 只是已解析 `OpenDeskWindowInfo` 的可选 scope，同一窗口内的一般流程可以省略整个第二个参数。
 
 **签名**
 
@@ -650,7 +648,7 @@ UI.tapTexts(texts: string[], options?: OpenDeskUITapTextsOptions): Promise<OpenD
 interface OpenDeskUITapTextsResult {
   ok: true;
   action: 'tapTexts';
-  completed: Array<OpenDeskUITapResult<OpenDeskUITextTarget>>;
+  completed: Array<OpenDeskUISequenceCompletion>;
 }
 ```
 
@@ -660,11 +658,13 @@ interface OpenDeskUITapTextsResult {
 
 默认等待模式固定首次解析窗口的 id、PID、标题和可用 handle；后续只接受同一活动窗口的新 bounds。关闭、换窗或身份变化时抛 `STALE_TARGET`，不按应用名重新选择另一个窗口。静态 region 仍是快照，失效后不会自动迁移。
 
-只有成功观察且无候选时才继续轮询；明确的索引越界、目标歧义、截图/OCR、窗口身份等错误立即停止。`relativeTo` 的参照物缺失可继续等，参照物歧义必须停止。目标文字可见并不证明控件 enabled 或业务界面已经完全就绪。保存/发送/提交等业务后置条件由调用方另行验证，失败或结果不确定不得自动重做输入。
+OCR 唯一匹配直接点击。普通 exact、无定位区域／锚点、无 index、无自定义 click、waitForEach 为 true 的步骤，OCR 零候选或多候选时，Runtime 可在已经授权的同一窗口里请求完整、有界 Accessibility snapshot。只有一个名称匹配且支持 invoke 的控件才继续：用该观察的实际 role/name/identifier 重新 find、read、核对 enabled 与 invoke，然后至多提交一次并释放引用。不猜测 `×` 的本地化名称，不复用上一动作的 ref，不要求未来步骤提前存在。
+
+原生能力未授权／未实现时不请求权限，保留视觉失败或等待语义。原生歧义、不完整搜索、禁用、状态漂移立即停止。只有成功观察且无候选时才继续轮询；明确索引越界、截图/OCR backend 错误、窗口身份错误立即停止，不把基础设施错误当成可重试的漏字。`relativeTo` 的参照物缺失可继续等，参照物歧义必须停止。目标文字可见并不证明控件 enabled 或业务界面已经完全就绪。保存/发送/提交等业务后置条件由调用方另行验证，失败或结果不确定不得自动重做输入。
 
 取消在延时和各观察阶段之间检查，输入前再次检查。同步 native 调用无法被 JS timer 或 signal 强制撤回；已经调用的输入不会自动撤销或重试。输入成功返回后才观察到取消时，该项仍保留在完成前缀。
 
-任一步失败立即拒绝，错误包含 `code`、`operation: 'UI.tapTexts'`、零基 `failedIndex`、`failedText`、`failedPhase`（`interval`、`locate`、`input`）、`completed` 和原始 `cause`。`completed` 只记录成功返回的输入，不证明失败项没有产生副作用；不要仅按 `failedIndex` 自动恢复执行。调用前参数错误在任何输入前拒绝，不保证附带步骤字段。未知 option、symbol 字段、稀疏文本数组和非法时序值提前拒绝。
+任一步失败立即拒绝，错误包含 `code`、`operation: 'UI.tapTexts'`、零基 `failedIndex`、`failedText`、`failedPhase`（`interval`、`locate`、`input`）、`completed` 和原始 `cause`。`completed` 保留视觉点击或原生激活；原生项包含 `target.source: "accessibility"`、实际 locator、backend 和 actionState。错误增加 `actionState` 及可用的 `resolution` 摘要；确认成功后发生取消、超时或清理错误仍保留该输入。`completed` 只记录成功返回的输入，不证明失败项没有产生副作用；不要仅按 `failedIndex` 自动恢复执行。调用前参数错误在任何输入前拒绝，不保证附带步骤字段。未知 option、symbol 字段、稀疏文本数组和非法时序值提前拒绝。
 
 默认间隔由旧版 `0` 改为 `300`，目标等待默认开启。需要旧版 fail-fast / Display / ScreenRegion 行为时显式设置 `{ waitForEach: false, intervalMs: 0 }`。其他 UI 方法的等待规则不随本方法变化。
 
@@ -717,85 +717,59 @@ try {
 
 ## UI.tapTargets(targets, options?)
 
-按严格顺序激活轻量 semantic targets。它适用于 `UI.tapTexts()` 的单纯文本不足、但调用方拥有少量稳定语义证据的业务步骤；不是新的 locator DSL。
+逐步骤表达待激活目标，不是可配置的 Locator Framework。文字足以描述整段操作时直接使用 `UI.tapTexts`；只有部分步骤需要语义约束时使用本方法。
 
 **签名**
 
 ```ts
-UI.tapTargets(
-  targets: OpenDeskUISemanticTapTarget[],
-  options?: OpenDeskUISemanticTapTargetsOptions,
-): Promise<OpenDeskUISemanticTapTargetsResult>;
+UI.tapTargets(targets: OpenDeskUISemanticTapTarget[],
+  options?: OpenDeskUISemanticTapOptions): Promise<OpenDeskUISemanticTapResult>;
 ```
 
 **参数**
 
-参数、exact P0 字段和可接受 options 见[Semantic target 选项](#semantic-target-选项)。调用方只传 target identity；不得传 resolver policy。普通文本仍优先使用 `UI.tapTexts()`：
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `targets` | 字符串／扁平 selector 数组 | 是 | 无 | 1..256 项；selector 仅 role/name/identifier，至少一项，多个字段 exact AND，不得任意放宽 |
+| `options.within` | `OpenDeskWindowInfo` | 否 | 当前活动窗口 | 首步前固定，后续重新核对相同 id、PID、title、native handle；生成器显式传入录制目标的新鲜 WindowInfo |
+| `options.timeout` | `number` | 否 | `10000` | 每步预算，整数毫秒 1..30000；额外间隔结束后开始 |
+| `options.polling` | `number` | 否 | `200` | 成功零候选观察的轮询间隔，整数毫秒 1..10000 |
+| `options.intervalMs` | `number` | 否 | `300` | 相邻步骤额外等待，整数毫秒 0..86400000 |
+| `options.signal` | `AbortSignal \| null` | 否 | 未设置 | 在阶段之间取消；不能撤回已经提交的输入 |
 
-```js
-await UI.tapTargets([
-  { text: '保存' },
-  { role: 'button', name: '确认' },
-]);
-```
+不接受 OCR/accessibility 嵌套对象、fallback/fallbackOrder、confidence、fuzzy 或 regex 字段。需要模糊文字或正则的观察仍使用已存在的文本匹配 API；不得猜出唯一输入目标。字符串沿用 `tapTexts` 的 exact 文本语义；扁平 selector 的原生约束不能降级为 OCR 字符串而丢失 role/identifier。
 
 **返回值**
 
-```ts
-interface OpenDeskUISemanticTapTargetsResult {
-  ok: true;
-  action: 'tapTargets';
-  completed: Array<
-    | { index: number; resolver: 'ocr'; action: 'click'; backend: string }
-    | { index: number; resolver: 'accessibility'; action: 'invoke'; backend: string; requestId: string; actionState: 'acknowledged' | 'not_needed' }
-  >;
-}
-```
-
-每项明确报告实际 resolver。成功只表示输入已经提交或 native invoke 已确认；保存、计算、发送等业务结果仍必须用独立 oracle 验证。
+返回 `{ok: true, action: "tapTargets", completed}`。每一项是实际视觉点击结果或原生激活结果，与 `UI.tapTexts` 的完成项相同；原生结果的 `actionState: "acknowledged" | "not_needed"` 不是业务成功。最终读值／保存／发送结果必须独立验证。
 
 **行为与错误**
 
-Runtime 在首个 action 前复制 sequence，固定 `options.within`，或只解析一次 active window。`{ text }` 以 exact OCR 先定位；只有 `TARGET_NOT_FOUND`、`AMBIGUOUS_TARGET`、`OCR_FAILED`、`SCREENSHOT_FAILED`、scope/coordinate mapping 等确定未发送输入的安全定位失败，才会以同一 exact text 作为 Accessibility `name` 继续查找。OCR 已点击、原生 action 已提交、或 native `actionState: 'unknown'` 时立即停止，绝不换 resolver、重试或重复点击。
+输入数组、全部 target、options 和窗口身份在首次输入前复制校验。未知字段、稀疏数组、非法 selector 提前拒绝。每一步重新观察当前活动窗口并保留相同 id/PID/title/handle；允许同一窗口移动，不能自动切换或重建目标窗口。
 
-提供任一 `role`、`name`、`identifier` 的 target 直接以 supplied exact selector 调用 Accessibility；Runtime 不会丢弃这些 native constraints 再点击 OCR 文字。Accessibility 要求唯一、enabled、支持 `invoke`；只接受 `acknowledged` / `not_needed`。P0 没有坐标 fallback、fuzzy、regex 或 provider policy。
+字符串委托 `tapTexts`，扁平原生 target 复用现有 Accessibility find/read/perform/release。动态流程按步骤解析；不要求后续步骤在第一步之前存在。每次动作都获取新 ref，动作前核对真实语义、enabled、invoke 能力；不跨步骤缓存 ref。无需 Agent／Generator 编写另一套 fallback。
 
-sequence 按调用方顺序逐步重新解析，失败即停止后续 target，不回滚已发生动作。语义错误包含 `operation: 'UI.tapTargets'`、`failedIndex`、`failedTarget`、`failedPhase`、`completed`、`attempts` 与 `cause`；attempts 记录 resolver、phase、code 及可用的候选/backend/requestId/actionState。若 OCR click 已返回后才观察到 cancellation，该项先进入 `completed`，再以 `CANCELED` 停止后续步骤；若 acknowledged native invoke 的 release cleanup 失败，同样保留该 receipt、`failedPhase: 'cleanup'` 与 `cleanupError`，而不把已发生动作表现为未执行。
+任一步失败停止并保留 `failedIndex`、`failedPhase`、`actionState`、`completed`、`cause`；错误码沿用 Accessibility／UI，取消为 `CANCELED`，窗口漂移为 `STALE_TARGET`。动作可能已经发生的 unknown 永不重试或切换 backend。原生引用在成功、失败、取消路径均释放；清理失败不能抹掉已确认动作。
 
 **示例**
 
 ```js
-const result = await UI.tapTargets([
-  { text: '2' },
-  { text: '5' },
-  { role: 'button', name: '×' },
-  { text: '4' },
-  { text: '=' },
-], { within: win, timeout: 5000 });
-console.log(result.completed.map(step => step.resolver));
+await UI.tapTexts(["2", "5", "×", "4", "="], {within: win});
+await UI.tapTargets([
+  "打开",
+  {role: "button", name: "保存", identifier: "document-save"}
+], {within: win});
 ```
 
-### Compatibility / Advanced legacy locator contract
+上面的 identifier 必须来自该应用真实证据，不是给所有控件编造 ID。录制证据和定位维修信息保存在 actions/candidate，不机械展开进调用参数。
 
-当且仅当每一步都是 `{ locator }` 时，Runtime 将原 array 和 options 原样交给原有 Accessibility-first sequence。该 overload 仍需要已解析的 `within`，保留 full preflight、fixed managed refs、exact selector AND matching、`maxDepth` / `maxNodes`、可选 `refocus`、structured legacy errors 与 cleanup 合同；semantic 和 legacy steps 不能混用。
+**旧形式兼容**
 
-```ts
-UI.tapTargets(
-  targets: OpenDeskUITapTargetStep[],
-  options: OpenDeskUITapTargetsOptions,
-): Promise<OpenDeskUITapTargetsResult>;
-```
+已有 `UI.tapTargets([{locator: {role: "button", name: "保存"}}], options)` 仍保留原来的 Accessibility-only 协议：预检全部 distinct locator、复用固定 refs、冻结 bounds，支持原有 maxDepth/maxNodes 和显式 refocus。返回原有 `backend: "accessibility"` 与带 index 的原生完成项。旧形式与新形式不能混用；新生成器不再生成此包装。旧选项见[原生 target 序列选项](#原生-target-序列选项)，不能把旧预检／固定坐标语义误套到新动态序列。
 
-它会在任何 `perform` 前完成每个 distinct locator 的 bounded unique `Accessibility.find()` / `read()`；窗口 identity/bounds 在预检及每一步前重验，重复 locator 复用 fixed ref。每一步最多 `Accessibility.perform(ref, { action: 'invoke' })` 一次。`unknown` 或动作后错误视为可能有副作用，永不 OCR/mouse fallback 或重放。legacy 返回顶层 `backend: 'accessibility'`、native completed receipts；失败保留 `phase`、`actionState`、`failedIndex`、`failedPhase`、`completed`、`cause` 和可能的 `cleanupErrors`。
+**轻量 target 写法与单一 Runtime owner**
 
-```js
-await UI.tapTargets(
-  [{ locator: { role: 'button', name: 'Save' } }],
-  { within: win, maxDepth: 8, maxNodes: 1000, refocus: 'if-needed' },
-);
-```
-
-需要复杂 native traversal、父容器约束、snapshot/read 或非-`invoke` action 时，直接使用 `Accessibility.*`，不要扩展 semantic `tapTargets`。
+`UI.tapTargets` 也接受 `{ text: "保存" }`；它与字符串 `"保存"` 含义相同。`{ text: "确认", role: "button" }` 等价于 `{ name: "确认", role: "button" }`；显式 `name` 优先作为 native identity。`within` 省略时，在首步前固定当前活动窗口，后续仍逐步重新验证。`polyfills/011-ui-targets.js` 只转换这些输入写法，定位、取消、已完成前缀与清理全部由核心 UI owner 负责。
 
 ## UI.waitText(text, options?)
 

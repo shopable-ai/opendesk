@@ -9,6 +9,10 @@ description: 从 OpenDesk Recorder actions.json 权威动作数据确定性编�
 
 默认目标是在不改变动作、顺序、参数、目标范围和录制时序的前提下，利用录制包中已经验证的证据提升定位质量；证据不足的动作保守编译。actions 声明的复合 target resolution 是 AND contract：窗口的应用 identity 与精确标题、显示器的 session ID 与可用 hardware ID 都不得在运行时放宽为单字段 fallback。`role`、`name`、`identifier`、`nativeRole`、`enabled` 和 `nativeActions` 不是只写进报告的旁证：对 eligible verified 动作，它们必须成为生成代码中可读、可审计、每次点击前重新验证的运行时 identity contract。不要要求用户补充业务目标、成功条件或通用约束。
 
+## 输入模式边界
+
+本 Skill 只接受 basic 物理回放候选。默认 Recorder semantic 输出不属于此精炼合同；inspector 返回 `SEMANTIC_CANDIDATE_REQUIRES_BUSINESS_ROUTE`，交给 `human-to-recipe` 继续业务参数化与资格验证。下面逐动作物理等价、坐标及展开约束不适用于 semantic 批量调用，不能据此要求把 tapTexts 再展开成复杂 locator。
+
 ## 质量目标与黄金样本边界
 
 本 Skill 的高质量首先指可证明的 Recorder fidelity 和 fail-closed 定位，而不是把录制动作解释成业务程序：

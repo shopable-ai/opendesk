@@ -129,6 +129,8 @@
     const generatedDir = file.join(recordingDir, 'generated');
     if (!statIs(file, generatedDir, 'directory')) return null;
 
+    const semantic = file.join(generatedDir, 'semantic.recipe.js');
+    if (statIs(file, semantic, 'file')) return semantic;
     const canonical = file.join(generatedDir, 'basic.recipe.js');
     if (statIs(file, canonical, 'file')) return canonical;
 

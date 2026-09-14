@@ -62,6 +62,42 @@
     const clock = { now: () => f.now };
     new Function('globalThis', 'window', 'Date', windowSource)(host, host.window, clock);
     new Function('globalThis', 'Date', uiSource)(host, clock);
+    f.native = { snapshots: [], finds: [], reads: [], performs: [], releases: [] };
+    if (settings.native) {
+      const native = settings.native;
+      const properties = locator => ({ role: 'button', name: 'A', identifier: 'fixture-A', enabled: true,
+        actions: ['invoke'], ...locator, ...(native.properties || {}) });
+      host.Accessibility = {
+        getCapabilities: () => native.capabilities || ({ available: true, hostAuthorization: { enabled: true },
+          implementation: { available: true, actions: { invoke: true } }, permission: { granted: true } }),
+        snapshot: async options => {
+          f.native.snapshots.push(options);
+          if (native.snapshot) return native.snapshot(f);
+          return { complete: true, truncated: false, root: { role: 'window', name: '', actions: [],
+            children: (native.nodes || [properties()]).map(node => ({ ...node, children: [] })) } };
+        },
+        find: async (locator, options) => {
+          f.native.finds.push({ locator, options });
+          if (native.find) return native.find(locator, f);
+          return { id: 'ref-' + f.native.finds.length, locator };
+        },
+        read: async (ref, options) => {
+          f.native.reads.push({ ref, options });
+          if (native.read) return native.read(ref, f);
+          return { properties: properties(ref.locator) };
+        },
+        perform: async (ref, action, options) => {
+          f.native.performs.push({ ref, action, options });
+          if (native.perform) return native.perform(ref, f);
+          return { actionState: 'acknowledged', backend: 'fixture', requestId: 'p-' + f.native.performs.length };
+        },
+        release: async ref => {
+          f.native.releases.push(ref);
+          if (native.release) return native.release(ref, f);
+          return true;
+        },
+      };
+    }
     f.host = host;
     return f;
   }
@@ -306,4 +342,119 @@
       within: { x: 100, y: 200, width: 300, height: 200, coordinateSpace: 'screen' } });
     equal(f.clicks.length, 2); equal(f.waits.length, 0);
   });
+
+  unit('auto text activation uses OCR first without consulting native evidence', async () => {
+    const f = fixture({ native: {} });
+    await f.host.UI.tapTexts(['A']);
+    equal(f.clicks.length, 1); equal(f.native.snapshots.length, 0); equal(f.native.finds.length, 0);
+  });
+  unit('auto text activation resolves a missing OCR match through existing native owners', async () => {
+    const f = fixture({ frames: () => [], native: {} });
+    const result = await f.host.UI.tapTexts(['A']);
+    equal(f.clicks.length, 0); equal(f.native.performs.length, 1); equal(f.native.releases.length, 1);
+    equal(result.completed[0].target.source, 'accessibility'); equal(result.completed[0].target.text, 'A');
+  });
+  unit('auto text activation disambiguates visual duplicates only with one native invokable target', async () => {
+    const f = fixture({ frames: () => [line('A'), line('A', 60)], native: {} });
+    await f.host.UI.tapTexts(['A']);
+    equal(f.clicks.length, 0); equal(f.native.performs.length, 1);
+  });
+  unit('auto text activation never invents Calculator symbol aliases', async () => {
+    const f = fixture({ frames: () => [], native: {} });
+    await rejects(() => f.host.UI.tapTexts(['×'], { timeout: 100, polling: 50 }), 'TIMEOUT');
+    equal(f.clicks.length, 0); equal(f.native.performs.length, 0);
+  });
+  unit('auto text activation fails closed for native ambiguity, incomplete traversal and disabled controls', async () => {
+    for (const [native, code] of [
+      [{ nodes: [{role:'button',name:'A',actions:['invoke']}, {role:'menuItem',name:'A',actions:['invoke']}] }, 'AMBIGUOUS_TARGET'],
+      [{ snapshot: () => ({ complete: false, truncated: true }) }, 'SEARCH_INCOMPLETE'],
+      [{ properties: { enabled: false } }, 'ELEMENT_DISABLED'],
+    ]) {
+      const f = fixture({ frames: () => [], native });
+      const e = await rejects(() => f.host.UI.tapTexts(['A']), code);
+      equal(e.actionState, 'not_started'); equal(f.clicks.length, 0); equal(f.native.performs.length, 0);
+      equal(f.native.releases.length, f.native.finds.length);
+    }
+  });
+  unit('auto text activation preserves explicit OCR, region and custom mouse contracts', async () => {
+    for (const options of [{click:{button:'right'}}, {index:0}, {waitForEach:false}]) {
+      const f = fixture({ frames: () => [], native: {} });
+      try { await f.host.UI.tapTexts(['A'], {timeout:100,polling:50,...options}); } catch (_) {}
+      equal(f.native.snapshots.length, 0); equal(f.native.performs.length, 0); equal(f.clicks.length, 0);
+    }
+  });
+  unit('tapTexts does not expose resolver strategy configuration', async () => {
+    const f = fixture({native:{}});
+    await rejectsForOperation(() => f.host.UI.tapTexts(['A'], {strategy:'ocr'}), 'INVALID_ARGUMENT', 'UI.tapTexts');
+    equal(f.native.snapshots.length,0); equal(f.native.performs.length,0); equal(f.clicks.length,0);
+  }, ['UI.tapTexts']);
+  unit('OCR backend errors and submitted mouse input never trigger native fallback', async () => {
+    for (const settings of [
+      { frames: () => { throw new Error('fixture OCR backend failed'); } },
+      { onClick: () => { throw Object.assign(new Error('uncertain input'), {code:'TARGET_NOT_FOUND'}); } },
+    ]) {
+      const f = fixture({...settings, native:{}});
+      try { await f.host.UI.tapTexts(['A']); } catch (_) {}
+      equal(f.native.snapshots.length, 0); equal(f.native.performs.length, 0);
+    }
+  });
+  unit('native unknown input stops the sequence, releases the ref and never replays its prefix', async () => {
+    const f = fixture({ frames: () => [], native: {perform: () => ({actionState:'unknown'})} });
+    const e = await rejects(() => f.host.UI.tapTexts(['A','B']), 'STATE_UNKNOWN', 0, 'input');
+    equal(e.actionState, 'unknown'); equal(e.completed.length, 0);
+    equal(f.native.performs.length, 1); equal(f.native.releases.length, 1); equal(f.clicks.length, 0);
+  });
+  unit('late cancellation after native acknowledgement retains its completed input', async () => {
+    const controller = new AbortController();
+    const f = fixture({frames:()=>[],native:{perform:()=>{controller.abort();return {actionState:'acknowledged'};}}});
+    const e = await rejects(() => f.host.UI.tapTexts(['A','B'], {signal:controller.signal}), 'CANCELED');
+    equal(e.completed.length, 1); equal(e.actionState, 'acknowledged'); equal(f.native.performs.length, 1);
+    equal(f.native.releases.length, 1);
+  });
+  unit('native cleanup failure preserves acknowledgement and does not send another action', async () => {
+    const f = fixture({frames:()=>[],native:{release:()=>{throw new Error('fixture cleanup');}}});
+    let e; try { await f.host.UI.tapTexts(['A','B']); } catch (error) { e=error; }
+    assert(e); equal(e.completed.length,1); equal(e.actionState,'acknowledged'); equal(f.native.performs.length,1);
+  });
+  unit('flat semantic targets are fresh per step and may appear after an earlier activation', async () => {
+    const f = fixture({native:{find:(locator,f)=> {
+      if (locator.name === 'B' && f.native.performs.length === 0) throw new Error('premature future preflight');
+      return {id:'r-'+f.native.finds.length,locator};
+    }}});
+    const result = await f.host.UI.tapTargets([{role:'button',name:'A'},{role:'button',name:'B'}], {within:f.row});
+    equal(result.completed.length,2); equal(f.native.finds.length,2); equal(f.native.releases.length,2);
+    assert(f.native.performs[0].ref !== f.native.performs[1].ref); equal(f.clicks.length,0);
+  }, ['UI.tapTargets']);
+  unit('mixed text and constrained targets preserve sequence order without leaking fallback policy', async () => {
+    const f = fixture({native:{}});
+    const result = await f.host.UI.tapTargets(['A',{role:'button',name:'B',identifier:'B'}], {within:f.row});
+    equal(result.completed.length,2); equal(f.clicks.length,1); equal(f.native.performs.length,1);
+    equal(f.native.performs[0].ref.locator.identifier,'B');
+  }, ['UI.tapTargets','UI.tapTexts']);
+  unit('flat semantic sequence validates every later target before the first input', async () => {
+    const f = fixture({native:{}});
+    await rejectsForOperation(()=>f.host.UI.tapTargets(['A',{name:'B',fallback:'ocr'}],{within:f.row}), 'INVALID_ARGUMENT','UI.tapTargets');
+    equal(f.clicks.length,0); equal(f.native.finds.length,0); equal(f.reads,0);
+  }, ['UI.tapTargets']);
+  unit('flat semantic sequence preserves unknown-state failure and stops without visual retries', async () => {
+    const f = fixture({native:{perform:()=>({actionState:'unknown'})}});
+    const e = await rejectsForOperation(()=>f.host.UI.tapTargets([{name:'A'},{name:'B'}],{within:f.row}), 'STATE_UNKNOWN','UI.tapTargets');
+    equal(e.failedIndex,0); equal(e.actionState,'unknown'); equal(e.completed.length,0);
+    equal(f.native.performs.length,1); equal(f.native.releases.length,1); equal(f.clicks.length,0);
+  }, ['UI.tapTargets']);
+  unit('semantic targets pin the active window when scope is omitted', async () => {
+    const f = fixture();
+    const result = await f.host.UI.tapTargets(['A']);
+    equal(result.completed.length, 1);
+    equal(f.clicks.length, 1);
+  }, ['UI.tapTargets']);
+  unit('semantic spelling adapter and core cooperate without a second resolver', async () => {
+    const f = fixture();
+    const source = File.read(File.join(File.cwd(), 'polyfills/011-ui-targets.js'));
+    new Function('globalThis', source)(f.host);
+    const result = await f.host.UI.tapTargets([{ text: 'A' }], { within: f.row });
+    equal(result.completed.length, 1);
+    equal(f.clicks.length, 1);
+    equal(f.ocr.length, 1);
+  }, ['UI.tapTargets']);
 })();

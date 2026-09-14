@@ -145,9 +145,12 @@ async function main() {
     assert.strictEqual(path.basename(rows[0].scriptFile), 'basic.recipe.js');
   });
 
-  await test('script resolution prefers canonical basic.recipe.js and has deterministic recipe fallback', async () => {
+  await test('script resolution prefers semantic, retains basic compatibility and deterministic recipe fallback', async () => {
     const canonical = path.join(root, 'rec-old');
     assert.strictEqual(path.basename(History.resolveGeneratedScript(File, canonical)), 'basic.recipe.js');
+    fs.writeFileSync(path.join(canonical, 'generated', 'semantic.recipe.js'), '// semantic\n');
+    assert.strictEqual(path.basename(History.resolveGeneratedScript(File, canonical)), 'semantic.recipe.js');
+    fs.unlinkSync(path.join(canonical, 'generated', 'semantic.recipe.js'));
     const fallback = createRecording(root, 'rec-fallback', {canonical: false, extraScripts: ['z.recipe.js', 'a.recipe.js']});
     const same = new Date('2026-09-10T12:00:00Z');
     fs.utimesSync(path.join(fallback, 'generated', 'z.recipe.js'), same, same);
@@ -276,7 +279,7 @@ async function main() {
     vm.createContext(context);
     vm.runInContext(wrapperSource, context, {filename: 'controller.js'});
     const app = context.OpenDeskSimpleRecordingConsole.createApp({historyCountdownStepMs: 0});
-    assert.strictEqual(constructedOptions.toolbar.maxColumns, 9);
+    assert.strictEqual(constructedOptions.toolbar.maxColumns, 10);
     assert.ok(innerToolbar.buttons.has('history'));
     const runPromise = app.history().runRecording('rec-old');
     for (let i = 0; i < 20 && pendingCommands.length === 0; i++) await new Promise(resolve => setTimeout(resolve, 0));
