@@ -204,6 +204,7 @@ test('prepared list stays hidden until open and reuses the same normal window af
     assert.equal(f.ui.windows.length, 1);
     assert.equal(prepared, f.ui.windows[0]);
     assert.equal(prepared.spec.kind, 'normal');
+    assert.equal(prepared.spec.alwaysOnTop, false);
     assert.equal(prepared.shown, false);
     assert.equal(f.app.state().listPrepared, true);
     assert.equal(f.app.state().listVisible, false);
@@ -222,6 +223,7 @@ test('prepared list stays hidden until open and reuses the same normal window af
 
     assert.equal(await f.app.openList('reopen'), prepared);
     assert.equal(f.ui.windows.length, 1);
+    assert.equal(prepared.spec.alwaysOnTop, false, 'reopening must not promote the reused list window');
   } finally {
     await f.cleanup();
   }

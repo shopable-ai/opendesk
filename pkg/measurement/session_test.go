@@ -56,17 +56,23 @@ func (c *sessionCapture) Capture(_ context.Context, target string) (CaptureFrame
 		return CaptureFrame{}, err
 	}
 	return CaptureFrame{
-		PNG: data.Bytes(),
-		Snapshot: Snapshot{SampledAt: time.Date(2026, 9, 14, 10, 0, c.count, 0, time.UTC), Mapping: mapping},
-		Reference: Reference{Type: ReferenceWindowOuter, Bounds: bounds, Window: &WindowIdentity{ID: target, PID: 7, Title: "Fixture"}},
-		Targets: []TargetWindow{{ID: "target", Title: "Fixture", PID: 7}, {ID: "other", Title: "Other", PID: 8}},
-		SelectedTargetID: target,
+		PNG:              data.Bytes(),
+		Snapshot:         Snapshot{SampledAt: time.Date(2026, 9, 14, 10, 0, c.count, 0, time.UTC), Mapping: mapping},
+		Reference:        Reference{Type: ReferenceWindowOuter, Bounds: bounds, Window: &WindowIdentity{ID: target, PID: 7, Title: "Fixture"}},
+		Targets:          []TargetWindow{{ID: "target", Title: "Fixture", PID: 7}, {ID: "other", Title: "Other", PID: 8}},
+		SelectedTargetID: target, TargetConfirmed: true,
 	}, nil
 }
 
 type sessionClipboard struct {
 	mu     sync.Mutex
 	writes []string
+}
+
+type captureFunc func(context.Context, string) (CaptureFrame, error)
+
+func (fn captureFunc) Capture(ctx context.Context, target string) (CaptureFrame, error) {
+	return fn(ctx, target)
 }
 
 func (c *sessionClipboard) Copy(value string) error {
@@ -76,30 +82,29 @@ func (c *sessionClipboard) Copy(value string) error {
 	return nil
 }
 
-type updateFailureDriver struct {
+// replacementFailureDriver follows the production lifecycle: render creates a
+// replacement native surface, rather than mutating the prior preview control.
+// Keeping this seam at Create protects that canonical behavior from stale tests.
+type replacementFailureDriver struct {
 	customui.Driver
-	failTarget string
-	fail       bool
+	mu         sync.Mutex
+	creates    int
+	failCreate bool
 }
 
-func (d *updateFailureDriver) Create(ctx context.Context, sessionID string, spec customui.WindowSpec, sink func(customui.Event)) (customui.DriverWindow, error) {
+func (d *replacementFailureDriver) Create(ctx context.Context, sessionID string, spec customui.WindowSpec, sink func(customui.Event)) (customui.DriverWindow, error) {
+	d.mu.Lock()
+	shouldFail := d.failCreate && d.creates > 0
+	d.creates++
+	d.mu.Unlock()
+	if shouldFail {
+		return nil, errors.New("injected replacement surface create failure")
+	}
 	window, err := d.Driver.Create(ctx, sessionID, spec, sink)
 	if err != nil {
 		return nil, err
 	}
-	return &updateFailureWindow{DriverWindow: window, owner: d}, nil
-}
-
-type updateFailureWindow struct {
-	customui.DriverWindow
-	owner *updateFailureDriver
-}
-
-func (w *updateFailureWindow) UpdateControl(ctx context.Context, id string, patch customui.ControlPatch) (customui.ControlState, error) {
-	if w.owner.fail && id == w.owner.failTarget {
-		return customui.ControlState{}, errors.New("injected control update failure")
-	}
-	return w.DriverWindow.UpdateControl(ctx, id, patch)
+	return window, nil
 }
 
 func newSessionService(t *testing.T) (*Service, *customui.MemoryDriver, *sessionCapture, *sessionClipboard) {
@@ -110,7 +115,7 @@ func newSessionService(t *testing.T) (*Service, *customui.MemoryDriver, *session
 	service, err := NewService(ServiceOptions{
 		Driver: driver, Capture: capture, Clipboard: clipboard,
 		BaseDir: t.TempDir(),
-		Now: func() time.Time { return time.Date(2026, 9, 14, 11, 0, 0, 0, time.UTC) },
+		Now:     func() time.Time { return time.Date(2026, 9, 14, 11, 0, 0, 0, time.UTC) },
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -143,6 +148,74 @@ func TestServiceReentryUsesSameSessionAndSnapshot(t *testing.T) {
 	}
 	if service.Counts() != (ServiceCounts{}) || driver.ResourceCounts().Sinks != 0 {
 		t.Fatal("measurement resources leaked after close")
+	}
+}
+
+func TestWindowReferenceRequiresCandidateConfirmationButManualFallbackRemainsAvailable(t *testing.T) {
+	service, _, _, _ := newSessionService(t)
+	ctx := context.Background()
+	if err := service.Open(ctx, "product-menu"); err != nil {
+		t.Fatal(err)
+	}
+	a := service.active
+	a.targetConfirmed = false // Product capture intentionally starts this way.
+	if err := a.handle(ctx, customui.Event{Type: "measurement.pointerup", Fields: map[string]any{"u": 0.25, "v": 0.25}}); err != nil {
+		t.Fatal(err)
+	}
+	if a.result != nil || !strings.Contains(a.status, "确认") {
+		t.Fatalf("unconfirmed candidate must not yield a window-relative result: result=%+v status=%q", a.result, a.status)
+	}
+	if err := a.handle(ctx, customui.Event{Type: "change", TargetID: "referenceType", Value: string(ReferenceManualRegion)}); err != nil {
+		t.Fatal(err)
+	}
+	if !a.manualPending {
+		t.Fatal("manual reference fallback was unavailable before candidate confirmation")
+	}
+	if err := a.handle(ctx, customui.Event{Type: "measurement.pointerdown", Fields: map[string]any{"u": 0.2, "v": 0.2}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.handle(ctx, customui.Event{Type: "measurement.pointerup", Fields: map[string]any{"u": 0.4, "v": 0.6}}); err != nil {
+		t.Fatal(err)
+	}
+	if a.reference.Type != ReferenceManualRegion {
+		t.Fatalf("manual fallback reference = %+v", a.reference)
+	}
+	if err := service.Close(ctx); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCloseRestoresCapturedWindowAndReportsLimitedRecovery(t *testing.T) {
+	for name, restoreErr := range map[string]error{"restored": nil, "limited": errors.New("window was closed")} {
+		t.Run(name, func(t *testing.T) {
+			capture := &sessionCapture{}
+			var restores int
+			service, err := NewService(ServiceOptions{
+				Driver: customui.NewMemoryDriver(), Clipboard: &sessionClipboard{}, BaseDir: t.TempDir(),
+				Now: func() time.Time { return time.Date(2026, 9, 14, 11, 0, 0, 0, time.UTC) },
+				Capture: captureFunc(func(ctx context.Context, target string) (CaptureFrame, error) {
+					frame, err := capture.Capture(ctx, target)
+					frame.Restore = func(context.Context) error { restores++; return restoreErr }
+					return frame, err
+				}),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := service.Open(context.Background(), "product-menu"); err != nil {
+				t.Fatal(err)
+			}
+			err = service.Close(context.Background())
+			if restores != 1 || service.Counts() != (ServiceCounts{}) {
+				t.Fatalf("restore calls=%d counts=%+v", restores, service.Counts())
+			}
+			if restoreErr == nil && err != nil {
+				t.Fatalf("successful restore returned %v", err)
+			}
+			if restoreErr != nil && (err == nil || !strings.Contains(err.Error(), "recovery limited")) {
+				t.Fatalf("limited recovery error = %v", err)
+			}
+		})
 	}
 }
 
@@ -314,9 +387,9 @@ func TestRefreshMovesSurfaceWithNewDisplayAndClearsOldResult(t *testing.T) {
 	_ = service.Close(ctx)
 }
 
-func TestRefreshDoesNotSwitchCanonicalFrameWhenPreviewUpdateFails(t *testing.T) {
+func TestRefreshDoesNotSwitchCanonicalFrameWhenReplacementSurfaceCreationFails(t *testing.T) {
 	baseDriver := customui.NewMemoryDriver()
-	driver := &updateFailureDriver{Driver: baseDriver, failTarget: previewID}
+	driver := &replacementFailureDriver{Driver: baseDriver}
 	capture := &sessionCapture{}
 	clipboard := &sessionClipboard{}
 	service, err := NewService(ServiceOptions{Driver: driver, Capture: capture, Clipboard: clipboard, BaseDir: t.TempDir()})
@@ -329,9 +402,11 @@ func TestRefreshDoesNotSwitchCanonicalFrameWhenPreviewUpdateFails(t *testing.T) 
 	}
 	a := service.active
 	beforeSample, beforeAsset := a.frame.Snapshot.SampledAt, a.assetPath
-	driver.fail = true
+	driver.mu.Lock()
+	driver.failCreate = true
+	driver.mu.Unlock()
 	if err := a.refresh(ctx, "other"); err == nil {
-		t.Fatal("refresh succeeded after host rejected preview")
+		t.Fatal("refresh succeeded after host rejected replacement surface")
 	}
 	if a.frame.Snapshot.SampledAt != beforeSample || a.assetPath != beforeAsset || a.selectedTarget != "target" {
 		t.Fatalf("failed refresh switched canonical frame: sampled=%s asset=%q target=%q", a.frame.Snapshot.SampledAt, a.assetPath, a.selectedTarget)
@@ -343,6 +418,8 @@ func TestRefreshDoesNotSwitchCanonicalFrameWhenPreviewUpdateFails(t *testing.T) 
 	if len(assets) != 1 || assets[0] != beforeAsset {
 		t.Fatalf("failed refresh assets = %#v, want only %q", assets, beforeAsset)
 	}
-	driver.fail = false
+	driver.mu.Lock()
+	driver.failCreate = false
+	driver.mu.Unlock()
 	_ = service.Close(ctx)
 }

@@ -134,6 +134,8 @@ test('history presentation keeps one horizontal row shape and adds bounded pagin
   assert.equal(toolbar.buttons.get('history').icon, 'list.bullet');
   await manager.open();
   const window = ui.windows[0];
+  assert.equal(window.spec.kind, 'normal');
+  assert.equal(window.spec.alwaysOnTop, false);
   assert.equal(window.spec.position.size.width, 860);
   assert.match(window.spec.content.css, /display: flex/);
   assert.match(window.spec.content.css, /flex: 1 1 auto/);

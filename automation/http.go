@@ -24,12 +24,13 @@ const (
 )
 
 // HTTPClientOptions are host-owned settings for the native HTTP bridge. In
-// particular, EnableDownload is never inferred from JavaScript options or the
-// execution environment: transports must explicitly opt trusted local
-// executions into file-writing downloads.
+// particular, neither EnableDownload nor EnableWebhook is inferred from
+// JavaScript options or the execution environment: transports must explicitly
+// opt trusted local executions into these host-side effects.
 type HTTPClientOptions struct {
 	WorkDir        string
 	EnableDownload bool
+	EnableWebhook  bool
 }
 
 // HTTPClient is the native bridge below the documented axios polyfill. The
@@ -45,6 +46,7 @@ type HTTPClient struct {
 	bodyLimit    int64
 	workDir      string
 	downloadsOK  bool
+	webhooksOK   bool
 
 	workers         *httpWorkers
 	nextID          uint64 // event-loop owner only
@@ -116,6 +118,7 @@ func NewHTTPClientWithOptions(runtime *goja.Runtime, ctx context.Context, loop *
 		bodyLimit:    defaultHTTPResponseBodyMax,
 		workDir:      settings.WorkDir,
 		downloadsOK:  settings.EnableDownload,
+		webhooksOK:   settings.EnableWebhook,
 		workers:      &httpWorkers{},
 		pending:      make(map[uint64]pendingHTTPRequest),
 	}

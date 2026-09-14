@@ -6,9 +6,9 @@ import (
 	"time"
 )
 
-// ProtocolVersion advances with native toolbar schema changes so an older host
-// cannot silently accept a newer FloatingWindow declaration or mutation.
-const ProtocolVersion = "1.10.0"
+// ProtocolVersion advances with native-host schema changes so an older host
+// cannot silently accept a host-owned Measurement surface declaration.
+const ProtocolVersion = "1.11.0"
 
 type ActivationSource string
 

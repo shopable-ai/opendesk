@@ -286,7 +286,8 @@
       viewRows = rowsFromReport(initialReport);
       const next = await runtimeUI.createWindow({
         id: `permissionsCenter${++sequence}`,
-        kind: 'floating',
+        // Permission management is a regular, focusable product page.
+        kind: 'normal',
         title: '系统权限',
         position: {mode:'anchor',size:WINDOW_SIZE,horizontal:'center',vertical:'center',margin:0,display:'active'},
         theme: 'dark',

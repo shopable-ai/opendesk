@@ -9,10 +9,24 @@
   "source": ["automation/webhook.go", "polyfills/009-webhook.js"],
   "authorization": {
     "owner": "host",
-    "enabledFor": ["trusted-local-script", "trusted-local-ai"],
+    "enabledFor": ["trusted-local-script", "trusted-local-app-mode", "trusted-local-ai"],
     "disabledFor": ["http-execution", "mcp-execution", "scheduler-execution"],
     "javascriptCanElevate": false,
     "remoteListen": false
+  },
+  "userFlow": {
+    "example": "examples/local-webhook-order-query/main.js",
+    "documentation": "examples/local-webhook-order-query/README.md",
+    "commandFromRepositoryRoot": "./dist/opendesk -script examples/local-webhook-order-query/main.js -console-mode script",
+    "verificationExample": "examples/local-webhook-order-query/send.js",
+    "verificationCommandFromRepositoryRoot": "./dist/opendesk -script examples/local-webhook-order-query/send.js -console-mode script",
+    "verificationConfigurationInput": "Copy the READY JSON to the system clipboard; the sender reads but does not modify it. Do not pass the credential through argv, environment, or Execution.input.",
+    "developmentToolDependencies": [],
+    "externalCaller": "real HTTP caller on the same machine",
+    "configurationHandoff": ["random loopback url", "Authorization header", "Content-Type header"],
+    "observe": ["external HTTP status and JSON body", "OPENDESK_WEBHOOK_DELIVERY in the OpenDesk terminal"],
+    "stop": "Ctrl+C cancels the owning Execution and revokes the listener",
+    "appMode": "Supported for an existing package entry, but unnecessary for the minimal example; the official apps/opendesk package is not a wrapper for an arbitrary webhook script."
   },
   "listen": {
     "signature": "Webhook.listen(name, handler, options?)",

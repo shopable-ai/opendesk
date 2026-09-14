@@ -337,7 +337,7 @@ Developer menu 不再只是 Inspector 的容器，而是 OpenDesk runtime diagno
 
 App Mode Inspector P0 保持 local-only。未完成的 LAN control/token isolation
 不进入正式菜单；后续如实现，必须继续复用同一个 App Local Services listener，
-并独立完成 privileged loopback control 与 child-execution non-propagation 验收。
+并独立完成 privileged loopback control 与 secondary-Execution non-propagation 验收。
 
 `运行状态` 建议展示：
 
@@ -368,7 +368,7 @@ Persistent logs:         ON
 Runtime Log UI:          on demand
 ```
 
-主应用、Recorder、Scheduler、Recipe child execution 不得各自弹出系统 Terminal。
+主应用、Recorder、Scheduler、App-owned Recipe execution 不得各自弹出系统 Terminal。
 
 ### 7.2 CLI / 开发模式
 
@@ -405,7 +405,7 @@ opendesk.exe
 - Start Menu / desktop shortcut 使用 `opendesk-desktop.exe`；
 - CLI 文档使用 `opendesk.exe`；
 - GUI entry 自动发现 bundled `app-mode/`；
-- child recipe 不弹额外 console window；
+- App-owned Recipe 不弹额外 console window；
 - stdout/stderr 继续通过 pipe/artifacts 捕获；
 - 不复制两套 runtime business logic；
 - Windows GUI/CLI entry 必须有真实 Windows build/live evidence 后才能标记完成。
@@ -467,7 +467,7 @@ CLI：
 - Recorder / Scheduler / Developer / Official Shell 不丢失；
 - 新增单实例 `运行日志`；
 - 正式桌面启动默认无 Terminal；
-- child recipe 无额外 Console；
+- App-owned Recipe 无额外 Console；
 - Windows GUI/CLI entry 分离；
 - macOS Finder/Launchpad 与 CLI launch context 正确；
 - 完成真实 UI click-level acceptance。

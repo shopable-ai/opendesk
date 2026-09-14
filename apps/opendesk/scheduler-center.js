@@ -491,7 +491,10 @@ return {ok: true, firedAt};`;
       const history = await runtimeUI.createWindow({
         id: `schedulerHistory${++historySequence}`, kind: 'normal', title: `计划历史 · ${job.name}`,
         position: {mode: 'anchor', size: {width: 760, height: 420}, horizontal: 'center', vertical: 'center', margin: 0, display: 'active'},
-        theme: 'dark', alwaysOnTop: true, draggable: true,
+        // History is a normal, focusable page. show() brings it forward once;
+        // persistent topmost would prevent other OpenDesk and system windows
+        // from covering it.
+        theme: 'dark', alwaysOnTop: false, draggable: true,
         content: {
           html: `<!doctype html><html><head><meta charset="utf-8"></head><body><main><strong>${escapeHTML(job.name)}</strong><div class="history-grid"><div class="history-head"><span>状态</span><span>计划时间</span><span>完成时间</span><span>错误</span></div>${rows || '<p class="history-empty">暂无运行记录</p>'}</div><button id="close" class="icon-button" data-icon="xmark" title="关闭" aria-label="关闭">关闭</button></main></body></html>`,
           css: 'html,body{margin:0;background:#171717;color:#f4f4f4;font:13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}*{box-sizing:border-box}main{height:100vh;padding:18px;display:flex;flex-direction:column;gap:12px;overflow:hidden}main>strong{font-size:20px}.history-grid{flex:1;min-height:0;overflow:auto;border:1px solid #333;border-radius:8px}.history-head,.history-row{display:grid;grid-template-columns:.7fr 1.2fr 1.2fr 1.6fr;gap:10px;padding:9px 10px;border-bottom:1px solid #333}.history-head{color:#999;background:#202020;font-size:11px}.history-row span{min-width:0;overflow-wrap:anywhere}.history-empty{margin:0;padding:20px;color:#999}button{align-self:flex-start;border:1px solid #555;border-radius:7px;background:#303030;color:#fff}button:hover:not(:disabled){background:#3c3c3c}button:focus-visible{outline:2px solid #8ea7ff;outline-offset:2px}.icon-button{box-sizing:border-box;width:32px;height:32px;min-width:32px;min-height:32px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:0}.icon-button::before{font-size:16px;line-height:1}.icon-button[data-icon="xmark"]::before{content:"×"}',

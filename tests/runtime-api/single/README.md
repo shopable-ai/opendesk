@@ -12,6 +12,7 @@
 - `mouse`：`./dist/opendesk -script tests/runtime-api/single/mouse.js -console-mode script`
 - `keyboard`：`./dist/opendesk -script tests/runtime-api/single/keyboard.js -console-mode script`
 - `recorder`：`./dist/opendesk -script tests/runtime-api/single/recorder.js -console-mode script`
+- `webhook`：`./dist/opendesk -script tests/runtime-api/single/webhook.js -console-mode script`
 - `global-shortcut`：`./dist/opendesk -script tests/runtime-api/single/global-shortcut.js -console-mode script`
 - `events`：`./dist/opendesk -script tests/runtime-api/single/events.js -console-mode script`
 - `app`：`./dist/opendesk -script tests/runtime-api/single/app.js -console-mode script`

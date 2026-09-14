@@ -147,6 +147,66 @@ test('HTTP rejects a bad status or request failure without echoing URL/body', as
   await assert.rejects(script('examples/runtime/http.js', env, { axios: { request: async () => { throw new Error('PRIVATE_TOKEN'); } } }), error => !error.message.includes('PRIVATE_TOKEN'));
 });
 
+test('Webhook public example is pure OpenDesk JavaScript with an explicit external handoff', async () => {
+  const source = read('examples/local-webhook-order-query/main.js');
+  assert.match(source, /Webhook\.listen\(/);
+  assert.doesNotMatch(source, /Command\.run|\bgo\s+run\b|\bnode\b/i);
+
+  let handler;
+  const result = await script('examples/local-webhook-order-query/main.js', {}, {
+    sleep: async () => {},
+    Webhook: {
+      listen(name, candidate) {
+        assert.equal(name, 'order-query-response');
+        handler = candidate;
+        return {
+          url: 'http://127.0.0.1:41234/v1/webhook/test',
+          requestHeaders: () => ({Authorization: 'Bearer TEST_ONLY', 'Content-Type': 'application/json'}),
+        };
+      },
+    },
+  });
+  assert(result.messages.some(message => message.startsWith('OPENDESK_WEBHOOK_READY=')));
+  assert(result.messages.some(message => message.startsWith('OPENDESK_WEBHOOK_WAITING=')));
+
+  const request = {
+    requestId: 'request-1', source: 'fixture', deliveryId: 'delivery-1',
+    body: {type: 'order.query.response', orderId: 'ORDER-1', status: 'paid'},
+  };
+  const response = await handler(request);
+  assert.equal(response.status, 200);
+  assert.equal(response.body.ok, true);
+  assert.equal(response.body.requestId, request.requestId);
+  assert(result.messages.some(message => message.startsWith('OPENDESK_WEBHOOK_DELIVERY=')));
+});
+
+test('Webhook send example uses a separate OpenDesk HTTP execution without logging its credential', async () => {
+  const source = read('examples/local-webhook-order-query/send.js');
+  assert.doesNotMatch(source, /Command\.run|\bgo\s+run\b|\bnode\b/i);
+
+  const calls = [];
+  const input = {
+    url: 'http://127.0.0.1:41234/v1/webhook/test',
+    headers: {Authorization: 'Bearer TEST_ONLY', 'Content-Type': 'application/json'},
+    exampleBody: {type: 'order.query.response', orderId: 'ORDER-1', status: 'paid'},
+    deliveryId: 'delivery-1',
+  };
+  const result = await script('examples/local-webhook-order-query/send.js', {}, {
+    clipboard: {paste: () => JSON.stringify(input)},
+    http: {request: async options => {
+      calls.push(options);
+      return {status: 200, data: {ok: true, orderId: 'ORDER-1'}};
+    }},
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, input.url);
+  assert.equal(calls[0].headers.Authorization, input.headers.Authorization);
+  assert.equal(calls[0].headers['X-OpenDesk-Delivery-Id'], input.deliveryId);
+  assert(result.messages.some(message => message === 'OPENDESK_WEBHOOK_SEND_PASS'));
+  assert(!result.messages.join('').includes('TEST_ONLY'));
+});
+
 test('Clipboard text denies writes by default and never clears/restores original data', async () => {
   let value = 'PRIVATE'; const writes = [];
   const clipboard = { copy: text => { writes.push(text); value = text; }, paste: () => value, clear: () => assert.fail('must not clear') };

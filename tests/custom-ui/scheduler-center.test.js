@@ -470,6 +470,8 @@ test('history opens with only Custom UI v1 supported elements', async () => {
   assert.equal(f.createWindowCalls, 2);
   const history = f.windows[1];
   assert.equal(history.showCount, 1);
+  assert.equal(history.spec.kind, 'normal');
+  assert.equal(history.spec.alwaysOnTop, false);
   assert.match(history.spec.content.html, /class="history-row"/);
   assert.match(history.spec.content.html, /id="close"[^>]*title="关闭"[^>]*aria-label="关闭"/);
   assert.equal(history.control('close').state.icon, 'xmark');

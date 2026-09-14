@@ -136,6 +136,10 @@ const agentResult = await Agent.run({prompt: '返回 OK'});
 
 使用 [HTTP Server API](http-server.md) 或 [MCP 文档](../integrations/mcp/README.md)。它们是外部调用入口，不等于脚本内 [HTTP API](http.md)。
 
+如果目标是让一个已经运行的可信本地 JavaScript execution 接收同机外部系统的短处理 JSON
+callback，使用 [Webhook API](webhook.md)。最小用户路径只运行 OpenDesk JavaScript，再把随机
+localhost URL 与认证 header 配置给真实调用方；它不同于通过 HTTP Server 创建新 execution。
+
 ## 文档地图
 
 ### 桌面自动化
@@ -178,12 +182,13 @@ const agentResult = await Agent.run({prompt: '返回 OK'});
 
 28. [HTTP](http.md) — 脚本发出 HTTP 请求
 29. [HTTP Server](http-server.md) — 外部调用 OpenDesk
-30. [Scheduler](scheduler.md) / [Scheduler HTTP API](scheduler-api.md)
-31. [Script App Packaging](script-app-packaging.md)
-32. [Installed Runtime App Builder](app-builder.md)
-33. [App Package CLI](app-package-cli.md)
-34. [Protected Packages](protected-packages.md)
-35. [Cookbook](cookbook.md) / [Examples](examples/README.md)
+30. [Webhook](webhook.md) — 当前本地 execution 接收同机认证 callback
+31. [Scheduler](scheduler.md) / [Scheduler HTTP API](scheduler-api.md)
+32. [Script App Packaging](script-app-packaging.md)
+33. [Installed Runtime App Builder](app-builder.md)
+34. [App Package CLI](app-package-cli.md)
+35. [Protected Packages](protected-packages.md)
+36. [Cookbook](cookbook.md) / [Examples](examples/README.md)
 
 ## Canonical Reference 与其他文档类型
 

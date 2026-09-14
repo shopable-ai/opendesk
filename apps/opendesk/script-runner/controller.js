@@ -877,7 +877,9 @@
             margin: 0,
             display: 'active',
           },
-          alwaysOnTop: true,
+          // The list is the normal, focusable Script Runner page. Opening it
+          // may activate it once, but must never promote it above other apps.
+          alwaysOnTop: false,
           draggable: true,
           theme: 'dark',
           content: {html: buildListHTML(scripts, listState()), css: LIST_CSS},

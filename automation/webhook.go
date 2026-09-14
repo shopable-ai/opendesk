@@ -13,7 +13,6 @@ import (
 	"mime"
 	"net"
 	"net/http"
-	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -23,21 +22,21 @@ import (
 )
 
 const (
-	webhookDefaultMaxRequestBytes   = 1 << 20
-	webhookAbsoluteMaxRequestBytes  = 16 << 20
-	webhookDefaultMaxResponseBytes  = 1 << 20
-	webhookAbsoluteMaxResponseBytes = 16 << 20
-	webhookDefaultMaxQueuedRequests = 32
+	webhookDefaultMaxRequestBytes    = 1 << 20
+	webhookAbsoluteMaxRequestBytes   = 16 << 20
+	webhookDefaultMaxResponseBytes   = 1 << 20
+	webhookAbsoluteMaxResponseBytes  = 16 << 20
+	webhookDefaultMaxQueuedRequests  = 32
 	webhookAbsoluteMaxQueuedRequests = 256
-	webhookDefaultMaxQueuedBytes    = 8 << 20
-	webhookAbsoluteMaxQueuedBytes   = 64 << 20
-	webhookDefaultHandlerTimeout    = 30 * time.Second
-	webhookMaxHandlerTimeout        = 10 * time.Minute
-	webhookDefaultDedupeWindow      = 5 * time.Minute
-	webhookMaxDedupeWindow          = time.Hour
-	webhookDefaultMaxDedupeEntries = 256
-	webhookAbsoluteMaxDedupeEntries = 4096
-	webhookMaxHeaderValueBytes      = 256
+	webhookDefaultMaxQueuedBytes     = 8 << 20
+	webhookAbsoluteMaxQueuedBytes    = 64 << 20
+	webhookDefaultHandlerTimeout     = 30 * time.Second
+	webhookMaxHandlerTimeout         = 10 * time.Minute
+	webhookDefaultDedupeWindow       = 5 * time.Minute
+	webhookMaxDedupeWindow           = time.Hour
+	webhookDefaultMaxDedupeEntries   = 256
+	webhookAbsoluteMaxDedupeEntries  = 4096
+	webhookMaxHeaderValueBytes       = 256
 )
 
 const (
@@ -87,8 +86,8 @@ type localWebhookRequest struct {
 
 	waiters map[*webhookHTTPWaiter]struct{}
 
-	cancelResolve  func(interface{}) error
-	cancelReason   string
+	cancelResolve func(interface{}) error
+	cancelReason  string
 }
 
 type webhookDedupeRecord struct {
@@ -141,30 +140,30 @@ type localWebhookHost struct {
 
 var localWebhookHosts sync.Map // map[*HTTPClient]*localWebhookHost
 
-// Webhook is a public facade, but its transport is deliberately attached to
-// HTTPClient's existing execution-owned network lifecycle. These methods are
-// captured by polyfills/009-webhook.js and removed from the normal public http
-// surface; Webhook.listen is the only supported user entrypoint.
-func init() {
-	typ := reflect.TypeOf((*HTTPClient)(nil))
-	jsMethodAllowlist[typ] = append(jsMethodAllowlist[typ],
-		"WebhookOpen",
-		"WebhookHeaders",
-		"WebhookNext",
-		"WebhookRespond",
-		"WebhookClose",
-	)
+// registerWebhook installs the private native bridge before polyfills load.
+// The facade captures and removes these methods from http, leaving only
+// Webhook.listen as the public API. Keeping registration explicit makes the
+// InitJSWithOptions -> HTTP client -> Webhook lifecycle chain auditable.
+func registerWebhook(httpMethods map[string]interface{}, client *HTTPClient) {
+	if httpMethods == nil || client == nil {
+		return
+	}
+	httpMethods["webhookOpen"] = client.WebhookOpen
+	httpMethods["webhookHeaders"] = client.WebhookHeaders
+	httpMethods["webhookNext"] = client.WebhookNext
+	httpMethods["webhookRespond"] = client.WebhookRespond
+	httpMethods["webhookClose"] = client.WebhookClose
 }
 
 func (h *HTTPClient) webhookAvailable() error {
 	if h == nil || h.runtime == nil || h.loop == nil {
 		return fmt.Errorf("WEBHOOK_UNAVAILABLE: Webhook requires an event-loop-owned Runtime")
 	}
-	// P0 reuses the existing host-owned local-side-effect gate rather than
-	// creating a JavaScript-controlled permission. Trusted local script/AI
-	// entrypoints enable native downloads; HTTP/MCP/Scheduler entrypoints do not.
-	// This is intentionally not configurable from Webhook.listen options.
-	if !h.downloadsOK {
+	// This is a distinct host-owned authorization. It is intentionally not
+	// configurable from Webhook.listen options, JavaScript environment values,
+	// or a delivery body. Trusted local script/AI hosts opt in; generic, HTTP,
+	// MCP, and Scheduler executions fail closed.
+	if !h.webhooksOK {
 		return fmt.Errorf("WEBHOOK_DISABLED: local Webhook registration is disabled for this Runtime entrypoint")
 	}
 	if h.context != nil && h.context.Err() != nil {

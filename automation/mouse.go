@@ -13,9 +13,10 @@ import (
 )
 
 type Mouse struct {
-	mu             sync.Mutex
-	pressedButtons map[string]bool
-	context        context.Context
+	mu                   sync.Mutex
+	pressedButtons       map[string]bool
+	context              context.Context
+	inputPermissionCheck func() error
 }
 
 const (
@@ -40,7 +41,14 @@ func NewMouseWithContext(ctx context.Context) *Mouse {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	return &Mouse{pressedButtons: make(map[string]bool), context: ctx}
+	return &Mouse{pressedButtons: make(map[string]bool), context: ctx, inputPermissionCheck: ensureMouseInputPermission}
+}
+
+func (m *Mouse) checkInputPermission() error {
+	if m != nil && m.inputPermissionCheck != nil {
+		return m.inputPermissionCheck()
+	}
+	return ensureMouseInputPermission()
 }
 
 func (m *Mouse) Click(x, y int, options interface{}) error {
@@ -110,6 +118,9 @@ func (m *Mouse) Click(x, y int, options interface{}) error {
 	if !isValidButton(opts.Button) {
 		return fmt.Errorf("invalid button type: %s", opts.Button)
 	}
+	if err := m.checkInputPermission(); err != nil {
+		return err
+	}
 
 	// Handle single click case
 	// On macOS, keep movement and the paired down/up in robotgo's native
@@ -159,6 +170,9 @@ func (m *Mouse) Move(x, y int, options interface{}) error {
 		ctx = context.Background()
 	}
 	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := m.checkInputPermission(); err != nil {
 		return err
 	}
 
@@ -414,6 +428,9 @@ func (m *Mouse) Down(options interface{}) error {
 	if !isValidButton(opts.Button) {
 		return fmt.Errorf("invalid button type: %s", opts.Button)
 	}
+	if err := m.checkInputPermission(); err != nil {
+		return err
+	}
 
 	robotgo.Toggle(opts.Button, "down")
 	m.setButtonPressed(opts.Button, true)
@@ -442,6 +459,9 @@ func (m *Mouse) Up(options interface{}) error {
 
 	if !isValidButton(opts.Button) {
 		return fmt.Errorf("invalid button type: %s", opts.Button)
+	}
+	if err := m.checkInputPermission(); err != nil {
+		return err
 	}
 
 	robotgo.Toggle(opts.Button, "up")
@@ -541,6 +561,11 @@ func (m *Mouse) Wheel(options interface{}) error {
 
 	if opts.Steps <= 0 {
 		opts.Steps = 1
+	}
+	if opts.DeltaX != 0 || opts.DeltaY != 0 {
+		if err := m.checkInputPermission(); err != nil {
+			return err
+		}
 	}
 
 	stepDeltaX := opts.DeltaX / opts.Steps

@@ -95,11 +95,13 @@ contracts. Do not move product source merely to make a release bundle smaller.
 - `examples/custom-ui/**`: standalone learning/debug entrypoints, not Recorder
   product resource ownership.
 - `apps/opendesk/script-runner/controller.js`: shared generic Runner behavior
-  (discovery, ordering, Run/Stop, list/empty/error state and child recipe
-  execution).
+  (discovery, ordering, Run/Stop, list/empty/error state and a command-compatible
+  execution adapter).
 - `apps/opendesk/script-runner-simple.js`: product composition seam. It maps the
   automation list to App Mode `main`, keeps one toolbar/main UI instance and
-  appends Official Shell product actions.
+  appends Official Shell product actions. For the official product it routes
+  Recipes through the private App-owned execution bridge and presents one
+  lifecycle Toast per run.
 - `apps/opendesk/scheduler-center.js`: product Scheduler Center UI.
 - `apps/opendesk/scheduler-client.js`: Scheduler backend client used by the
   product UI.
@@ -108,9 +110,10 @@ contracts. Do not move product source merely to make a release bundle smaller.
   actions.
 - `apps/opendesk/main.js`: product composition root only.
 
-Every normal recipe remains a child OpenDesk execution launched through the
-existing Runtime path. The product does not claim that recipe execution is
-in-process.
+Every normal Recipe receives a separate standard JavaScript Execution, but the
+official macOS product keeps that Execution in the App host process so protected
+desktop operations use the same TCC identity. This is not evaluation inside the
+App entry Runtime; ordinary scripts cannot access the private product bridge.
 
 ## Release payload boundary
 
@@ -415,7 +418,7 @@ Still to close for the broader desktop product contract:
   App Mode Tray;
 - add/complete the single-instance `运行日志` window and product menu entry;
 - ensure formal desktop launch has no system Terminal/Console window;
-- ensure child recipe execution never creates extra console windows;
+- ensure App-owned Recipe execution never creates extra console windows;
 - implement/verify the Windows GUI entry + CLI console entry split;
 - perform click-level acceptance across OpenDesk, Recorder, Scheduler, Runtime
   Log, Developer, Help/Customize and Quit.
@@ -432,6 +435,6 @@ Acceptance must cover the checklist in
 `docs/architecture/opendesk-desktop-product-shell.md`, especially bundled
 icon-launch behavior, no desktop Terminal, one Tray owner, `显示主窗口`,
 Recorder coexistence, Scheduler backend connectivity, Runtime Log lifecycle,
-child-recipe console suppression, Help/Customize, Quit, single-instance and
+App-owned Recipe console suppression, Help/Customize, Quit, single-instance and
 Windows/macOS platform-specific distribution behavior. `.runtime` evidence
 must not be committed.

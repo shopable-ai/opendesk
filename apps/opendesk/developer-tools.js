@@ -90,7 +90,8 @@
       const task = (async () => {
         const current = await runtimeUI.createWindow({
           id: `openDeskStatus${++statusSequence}`,
-          kind: 'floating', title: 'OpenDesk 运行状态',
+          // Status is a regular product page, not a nonactivating tool panel.
+          kind: 'normal', title: 'OpenDesk 运行状态',
           position: {mode:'anchor',size:{width:760,height:510},horizontal:'center',vertical:'center',margin:0,display:'active'},
           theme: 'dark', alwaysOnTop: false, draggable: true,
           content: {html: statusHTML(), css: STATUS_CSS},

@@ -93,6 +93,10 @@ type Request struct {
 	// It is intentionally separate from ordinary HTTP so remote transports keep
 	// their existing network behavior without gaining filesystem side effects.
 	EnableDownload bool
+	// EnableWebhook permits the loopback-only, execution-owned local Webhook
+	// transport. Trusted local script and AI entrypoints opt in explicitly;
+	// generic, HTTP, MCP, and Scheduler executions fail closed.
+	EnableWebhook bool
 	// EnableAccessibility permits the first-party native Accessibility owner.
 	// Trusted local script entrypoints set it; remote and scheduled requests
 	// leave it false.
@@ -126,6 +130,10 @@ type Request struct {
 	// AppShell is the execution-scoped owner used only by the explicit -app
 	// pipeline. Ordinary Script/HTTP requests leave it nil.
 	AppShell *appshell.Shell
+	// AppOwnedScriptRun is the bundled product's private bridge for launching a
+	// separate Recipe Execution without leaving the App host process identity.
+	// Ordinary and nested Recipe executions leave it nil.
+	AppOwnedScriptRun automation.AppOwnedScriptRunner
 	// CustomUIDriver is an internal dependency seam used by Runtime API tests.
 	CustomUIDriver customui.Driver
 	// OnCustomUISession is an internal lifecycle hook for App Mode owners that
@@ -385,6 +393,7 @@ func runJavaScript(req Request, emitter *Emitter) error {
 				EnableCustomUI:                  req.EnableCustomUI,
 				EnableCommand:                   req.EnableCommand,
 				EnableDownload:                  req.EnableDownload,
+				EnableWebhook:                   req.EnableWebhook,
 				EnableAccessibility:             req.EnableAccessibility,
 				AccessibilityPolicy:             req.AccessibilityPolicy,
 				EnableSQLite:                    req.EnableSQLite,
@@ -399,6 +408,7 @@ func runJavaScript(req Request, emitter *Emitter) error {
 				CustomUISessionID:               req.ExecutionID,
 				CustomUIBaseDir:                 customUIBaseDir(req),
 				AppShell:                        req.AppShell,
+				AppOwnedScriptRun:               req.AppOwnedScriptRun,
 				GlobalShortcutBackendFactory:    req.GlobalShortcutBackendFactory,
 				DesktopEventBackendFactory:      req.DesktopEventBackendFactory,
 				AudioCaptureBackendFactory:      req.AudioCaptureBackendFactory,

@@ -10,7 +10,7 @@
 #import "floating_toolbar_darwin.h"
 #import "notification_darwin.h"
 
-static NSString *const CDProtocolVersion = @"1.10.0";
+static NSString *const CDProtocolVersion = @"1.11.0";
 static NSMutableDictionary<NSString *, id> *CDWindows;
 static NSMutableDictionary<NSString *, NSDictionary *> *CDClosedNotifications;
 
@@ -269,7 +269,7 @@ static NSString *CDBridgeSource(NSArray *controls, NSString *css, BOOL draggable
 	         "document.addEventListener('change', event => { const el=targetFor(event); if (el && !el.hasAttribute('data-opendesk-dialog-private-input')) send({type:'change',targetId:el.id,value:('value' in el ? el.value : null),checked:('checked' in el ? !!el.checked : null)}); });\n"
 	         "const measurementPoint = (event, el) => { const r=el.getBoundingClientRect(); const nw=el.naturalWidth||r.width, nh=el.naturalHeight||r.height; const s=Math.min(r.width/nw,r.height/nh); const w=nw*s,h=nh*s,left=r.left+(r.width-w)/2,top=r.top+(r.height-h)/2; return {u:(event.clientX-left)/w,v:(event.clientY-top)/h,left,top,width:w,height:h}; };\n"
 	         "const measurementOverlay = (() => { if (!config.measurementTarget) return null; const el=document.getElementById(config.measurementTarget); if (!el) return null; el.style.touchAction='none'; el.style.userSelect='none'; const box=document.createElement('div'); box.style.cssText='position:fixed;pointer-events:none;border:1px solid #34a8ff;background:rgba(52,168,255,.15);z-index:2147483646;display:none'; const lens=document.createElement('div'); lens.style.cssText='position:fixed;pointer-events:none;width:96px;height:96px;border:2px solid #fff;box-shadow:0 2px 14px #000;background-repeat:no-repeat;image-rendering:pixelated;z-index:2147483647;display:none'; document.body.append(box,lens); let start=null; const paint=(event,p) => { const x=p.left+Math.max(0,Math.min(1,p.u))*p.width,y=p.top+Math.max(0,Math.min(1,p.v))*p.height; if(start){const sx=start.left+Math.max(0,Math.min(1,start.u))*start.width,sy=start.top+Math.max(0,Math.min(1,start.v))*start.height;box.style.display='block';box.style.left=Math.min(sx,x)+'px';box.style.top=Math.min(sy,y)+'px';box.style.width=Math.abs(x-sx)+'px';box.style.height=Math.abs(y-sy)+'px';} lens.style.display='block';lens.style.left=(event.clientX+18)+'px';lens.style.top=(event.clientY+18)+'px';lens.style.backgroundImage='url('+JSON.stringify(el.currentSrc||el.src).slice(1,-1)+')';lens.style.backgroundSize=(p.width*8)+'px '+(p.height*8)+'px';lens.style.backgroundPosition=(-p.u*p.width*8+48)+'px '+(-p.v*p.height*8+48)+'px'; }; const emit=(phase,event) => { const p=measurementPoint(event,el); if(p.u<0||p.v<0||p.u>1||p.v>1)return; if(phase==='pointerdown')start=p; paint(event,p); send({type:'measurement.'+phase,targetId:el.id,fields:{u:p.u,v:p.v,button:event.button,shift:event.shiftKey,alt:event.altKey,ctrl:event.ctrlKey,meta:event.metaKey}}); if(phase==='pointerup')start=null; }; el.addEventListener('pointerdown',event=>{if(event.button!==0)return;event.preventDefault();el.setPointerCapture(event.pointerId);emit('pointerdown',event);}); el.addEventListener('pointermove',event=>{if(event.buttons===1){event.preventDefault();emit('pointermove',event);}else{const p=measurementPoint(event,el);if(p.u>=0&&p.v>=0&&p.u<=1&&p.v<=1)paint(event,p);}}); el.addEventListener('pointerup',event=>{if(event.button!==0)return;event.preventDefault();emit('pointerup',event);}); el.addEventListener('pointerleave',()=>{if(!start)lens.style.display='none';}); return {clear:()=>{box.style.display='none';lens.style.display='none';start=null;}}; })();\n"
-	         "document.addEventListener('keydown', event => { if (event.isComposing || event.defaultPrevented) return; const editing=!!(event.target&&event.target.closest&&event.target.closest('select,input,textarea')); const copy=(event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='c'; if (config.measurementTarget && (event.key==='Escape'||copy||(!editing&&(event.key==='Enter'||event.key.startsWith('Arrow'))))) { event.preventDefault(); send({type:'measurement.key',targetId:config.measurementTarget,fields:{key:event.key,shift:event.shiftKey,alt:event.altKey,ctrl:event.ctrlKey,meta:event.metaKey}}); return; } if (event.key === 'Escape') { const cancel=document.querySelector('[data-opendesk-dialog-cancel]'); if (cancel || document.querySelector('[data-opendesk-dialog-default]')) { event.preventDefault(); send({type:'dialogCancel'}); } return; } if (event.key === 'Enter') { const button=document.querySelector('[data-opendesk-dialog-default]'); if (button && !button.disabled) { event.preventDefault(); send({type:'click',targetId:button.id,bounds:state(button.id).screenBounds}); } } });\n"
+	         "document.addEventListener('keydown', event => { if (event.isComposing || event.defaultPrevented) return; const editing=!!(event.target&&event.target.closest&&event.target.closest('select,input,textarea')); const copy=(event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='c'; if (config.measurementTarget && event.key==='Escape') { const details=document.querySelector('details[open]'); if(details){event.preventDefault();details.open=false;return;} event.preventDefault(); send({type:'measurement.key',targetId:config.measurementTarget,fields:{key:event.key,shift:event.shiftKey,alt:event.altKey,ctrl:event.ctrlKey,meta:event.metaKey}}); return; } if (config.measurementTarget && (copy||(!editing&&(event.key==='Enter'||event.key.startsWith('Arrow'))))) { event.preventDefault(); send({type:'measurement.key',targetId:config.measurementTarget,fields:{key:event.key,shift:event.shiftKey,alt:event.altKey,ctrl:event.ctrlKey,meta:event.metaKey}}); return; } if (event.key === 'Escape') { const cancel=document.querySelector('[data-opendesk-dialog-cancel]'); if (cancel || document.querySelector('[data-opendesk-dialog-default]')) { event.preventDefault(); send({type:'dialogCancel'}); } return; } if (event.key === 'Enter') { const button=document.querySelector('[data-opendesk-dialog-default]'); if (button && !button.disabled) { event.preventDefault(); send({type:'click',targetId:button.id,bounds:state(button.id).screenBounds}); } } });\n"
 	         "const dialogFocus = document.querySelector('[data-opendesk-dialog-focus]'); if (dialogFocus) requestAnimationFrame(() => dialogFocus.focus());\n"
          "const setDraggable = (enabled) => { config.draggable = !!enabled; };\n"
 	         "Object.defineProperty(window, '__opendesk', {value:Object.freeze({state:toolbarState,states,update:toolbarUpdate,setDraggable,dragRects}), configurable:false, writable:false});\n"
@@ -599,6 +599,19 @@ static NSString *CDBridgeSource(NSArray *controls, NSString *css, BOOL draggable
 	if (self.dialogAccessibilityChildren.count) return self.dialogAccessibilityChildren;
 	return [super accessibilityChildren];
 }
+@end
+
+// Measurement owns the full display-sized surface but must not become a
+// document window merely because it receives the bounded Measurement input.
+// A borderless nonactivating panel is absent from normal window cycling and
+// Dock/window-menu presentation. Allowing it to become key gives its WKWebView
+// Esc/arrow-key delivery without activating the frozen target application.
+@interface CDMeasurementPanel : NSPanel
+@end
+
+@implementation CDMeasurementPanel
+- (BOOL)canBecomeKeyWindow { return YES; }
+- (BOOL)canBecomeMainWindow { return NO; }
 @end
 
 // Generic ui.createWindow() remains a WebKit surface. This compatibility-only
@@ -1018,7 +1031,14 @@ static void CDFinalizeClosedWindow(CDWindowController *controller, NSUInteger at
         @"alwaysOnTop": @(self.alwaysOnTop),
         @"draggable": @(self.draggable),
         @"hostPid": @(getpid()),
-        @"nativeWindowId": @(self.nativeWindowID),
+		@"nativeWindowId": @(self.nativeWindowID),
+		@"surfaceClass": NSStringFromClass(self.window.class) ?: @"",
+		@"borderless": ((self.window.styleMask & NSWindowStyleMaskTitled) == 0) ? @YES : @NO,
+		@"nonActivatingPanel": ((self.window.styleMask & NSWindowStyleMaskNonactivatingPanel) != 0) ? @YES : @NO,
+		@"excludedFromWindowCycle": ((self.window.collectionBehavior & NSWindowCollectionBehaviorIgnoresCycle) != 0) ? @YES : @NO,
+		@"isPanel": [self.window isKindOfClass:NSPanel.class] ? @YES : @NO,
+		@"screenOverlayLevel": self.window.level >= NSScreenSaverWindowLevel ? @YES : @NO,
+		@"hostAccessory": NSApp.activationPolicy == NSApplicationActivationPolicyAccessory ? @YES : @NO,
 		@"onScreen": @((BOOL)(visible && [evidence[@"onScreen"] boolValue])),
 		@"layer": evidence[@"layer"] ?: @0,
 		@"alpha": visible ? (evidence[@"alpha"] ?: @0) : @0,
@@ -1191,6 +1211,18 @@ static void CDFinalizeClosedWindow(CDWindowController *controller, NSUInteger at
 
 @end
 
+// The UI host is an accessory process unless it currently owns a normal
+// document surface. Floating tools and the dedicated Measurement panel must
+// never leave a Dock/app-switcher participant behind after a normal page has
+// been closed in the same process.
+static BOOL CDHasRegularDocumentWindow(void) {
+	for (CDWindowController *controller in CDWindows.allValues) {
+		if (controller.closed || controller.notificationView) continue;
+		if (![controller.kind isEqualToString:@"floating"] && ![controller.kind isEqualToString:@"measurement"]) return YES;
+	}
+	return NO;
+}
+
 static void CDFinalizeClosedWindow(CDWindowController *controller, NSUInteger attempt) {
 	if (!controller || controller.closeEventEmitted) return;
 	NSDictionary *evidence = CDWindowServerSnapshot(controller.nativeWindowID);
@@ -1203,10 +1235,10 @@ static void CDFinalizeClosedWindow(CDWindowController *controller, NSUInteger at
             while (CDClosedNotifications.count > 64) [CDClosedNotifications removeObjectForKey:CDClosedNotifications.allKeys.firstObject];
         }
         [CDWindows removeObjectForKey:CDWindowKey(controller.sessionID, controller.windowID)];
-		// The host is normally an accessory process. Restore that nonpersistent
-		// status only after the last native window is gone; a normal Dialog must
-		// be able to become the key application while its prompt is visible.
-		if (CDWindows.count == 0) [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
+		// Restore the host's nonpersistent status as soon as no normal document
+		// surface remains. Tooling and Measurement may still be visible, but they
+		// must not keep the host in Dock/window-switcher presentation.
+		if (!CDHasRegularDocumentWindow()) [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
 		return;
 	}
 	if (attempt >= 500) return;
@@ -1500,6 +1532,7 @@ static void CDHandleCreate(NSDictionary *request, NSString *requestID) {
 	// AppKit alert shape. Public Custom UI windows retain their existing normal
 	// window chrome and resize behavior.
 	BOOL isHostDialog = [spec[@"centerOnActiveDisplay"] boolValue];
+	BOOL isMeasurement = [kind isEqualToString:@"measurement"];
     NSWindowStyleMask style = NSWindowStyleMaskTitled | NSWindowStyleMaskClosable;
 	if (!isHostDialog && !isNativeToolbar) style |= NSWindowStyleMaskResizable | NSWindowStyleMaskMiniaturizable;
     NSRect frame = CDNativeRect(bounds);
@@ -1507,7 +1540,18 @@ static void CDHandleCreate(NSDictionary *request, NSString *requestID) {
 		frame = CDCenteredDialogRect(frame);
 	}
     NSWindow *window;
-    if ([kind isEqualToString:@"floating"]) {
+	if (isMeasurement) {
+		CDMeasurementPanel *panel = [[CDMeasurementPanel alloc] initWithContentRect:frame
+			styleMask:NSWindowStyleMaskBorderless | NSWindowStyleMaskNonactivatingPanel
+			backing:NSBackingStoreBuffered defer:NO];
+		panel.collectionBehavior = NSWindowCollectionBehaviorCanJoinAllSpaces | NSWindowCollectionBehaviorFullScreenAuxiliary | NSWindowCollectionBehaviorTransient | NSWindowCollectionBehaviorIgnoresCycle;
+		panel.floatingPanel = YES;
+		panel.becomesKeyOnlyIfNeeded = NO;
+		panel.hidesOnDeactivate = NO;
+		panel.titleVisibility = NSWindowTitleHidden;
+		panel.titlebarAppearsTransparent = YES;
+		window = panel;
+	} else if ([kind isEqualToString:@"floating"]) {
 		NSWindowStyleMask panelStyle = toolbarNeedsKeyboard ? style : (style | NSWindowStyleMaskNonactivatingPanel);
 		NSPanel *panel = [[NSPanel alloc] initWithContentRect:frame styleMask:panelStyle backing:NSBackingStoreBuffered defer:NO];
         panel.collectionBehavior = NSWindowCollectionBehaviorCanJoinAllSpaces | NSWindowCollectionBehaviorFullScreenAuxiliary;
@@ -1539,7 +1583,7 @@ static void CDHandleCreate(NSDictionary *request, NSString *requestID) {
 		[window setMaxSize:frame.size];
 	}
 	window.releasedWhenClosed = NO;
-	window.title = spec[@"title"] ?: @"";
+	window.title = isMeasurement ? @"" : (spec[@"title"] ?: @"");
 	// FloatingWindow paints a near-black native toolbar surface regardless of
 	// the user's system appearance. Scope Dark Aqua to that window so standard
 	// AppKit controls keep readable foregrounds, tracks, and disabled states.
@@ -1565,7 +1609,8 @@ static void CDHandleCreate(NSDictionary *request, NSString *requestID) {
 	// Host-owned Dialogs must remain visible above always-on-top Custom UI
 	// surfaces from the same execution. A normal-level confirm can otherwise be
 	// fully covered by the floating History window that requested it.
-	window.level = isHostDialog ? NSModalPanelWindowLevel : (controller.alwaysOnTop ? NSFloatingWindowLevel : NSNormalWindowLevel);
+	window.level = isHostDialog ? NSModalPanelWindowLevel :
+		(isMeasurement ? NSScreenSaverWindowLevel : (controller.alwaysOnTop ? NSFloatingWindowLevel : NSNormalWindowLevel));
 	window.movableByWindowBackground = NO;
 	window.delegate = controller;
 	if (isNativeToolbar) {
@@ -1814,14 +1859,23 @@ static void CDHandleRequest(NSDictionary *request) {
     CDWindowController *controller = CDFindWindow(request, requestID, operation);
     if (!controller) return;
     if ([operation isEqualToString:@"show"]) {
-		if ([controller.kind isEqualToString:@"floating"] || controller.notificationView) {
+		if ([controller.kind isEqualToString:@"measurement"]) {
+			[controller.window orderFrontRegardless];
+			[controller.window makeKeyWindow];
+			[controller.window makeFirstResponder:controller.webView];
+			[controller.window displayIfNeeded];
+		} else if ([controller.kind isEqualToString:@"floating"] || controller.notificationView) {
             [controller.window orderFrontRegardless];
 			[controller.floatingToolbarView setAnimationsActive:YES];
             [controller.notificationView start];
 			[controller.notificationView displayIfNeeded];
 			[controller.window displayIfNeeded];
 		}
-        else {
+		else {
+			// show() is also the re-open path for a hidden or minimized normal
+			// product window. Restoring is deliberately separate from the
+			// floating-level branch above: it must not alter the window level.
+			if (controller.window.isMiniaturized) [controller.window deminiaturize:nil];
 			[NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
             [NSApp activateIgnoringOtherApps:YES];
 			[controller.window makeKeyAndOrderFront:nil];

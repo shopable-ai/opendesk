@@ -137,7 +137,7 @@ console.log('OPENDESK_PRODUCT_APP_READY=' + JSON.stringify({
   scriptRoot: globalThis.OpenDeskProductPaths.scriptRoot,
   mainWindowId: initialState.mainWindowId,
   toolbarMaxWidth: initialState.toolbarMaxWidth,
-  recipeProcessModel: 'child-opendesk-process',
+  recipeProcessModel: 'app-owned-separate-execution',
   assistant: assistant.state(),
   scheduler: OpenDeskSchedulerClient.getCapabilities(),
   inspector: inspectorLauncher.getCapabilities(),

@@ -36,7 +36,7 @@ func TestNormalizeMeasurementSurfaceTargetsOnlyDeclaredImage(t *testing.T) {
 		t.Fatal(err)
 	}
 	spec := WindowSpec{
-		ID: "measurement", Kind: "normal", Bounds: Bounds{Width: 800, Height: 600},
+		ID: "measurement", Kind: "measurement", Bounds: Bounds{Width: 800, Height: 600},
 		Content:     ContentSpec{HTML: `<img id="preview" src="snapshot.png"><button id="copy">Copy</button>`, BasePath: "."},
 		Measurement: &MeasurementSurfaceSpec{TargetID: "preview"},
 	}
@@ -51,6 +51,14 @@ func TestNormalizeMeasurementSurfaceTargetsOnlyDeclaredImage(t *testing.T) {
 	}
 	if IsPublicEventType("measurement.pointerdown") || IsPublicEventType("measurement.key") {
 		t.Fatal("host-owned Measurement events leaked into the public Custom UI event contract")
+	}
+}
+
+func TestNormalizeMeasurementSurfaceRequiresHostExtension(t *testing.T) {
+	spec := testWindowSpec("measurement")
+	spec.Kind = "measurement"
+	if _, err := Normalize(spec, t.TempDir()); err == nil {
+		t.Fatal("reserved measurement kind was accepted without its host-only extension")
 	}
 }
 

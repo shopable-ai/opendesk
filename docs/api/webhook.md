@@ -146,11 +146,25 @@ const hook = Webhook.listen("order-query-response", async (request) => {
   };
 });
 
-console.log(hook.url);
-// 把 hook.url 与 hook.requestHeaders() 通过受控 stdin 等安全通道交给外部程序。
+console.log("OPENDESK_WEBHOOK_READY=" + JSON.stringify({
+  method: "POST",
+  url: hook.url,
+  headers: hook.requestHeaders(),
+}));
+// 保持 OpenDesk 运行，把上述 URL 与 headers 配置给同机的真实外部 HTTP 调用方。
 ```
 
-完整的独立 Go 程序接入示例见 `examples/local-webhook-order-query/`。
+完整的纯 OpenDesk JavaScript 示例见
+[`examples/local-webhook-order-query/`](../../examples/local-webhook-order-query/README.md)。从仓库
+根目录启动：
+
+```bash
+./dist/opendesk -script examples/local-webhook-order-query/main.js -console-mode script
+```
+
+普通使用不需要 Go、Node.js 或其他开发工具。OpenDesk 负责运行 JavaScript listener；用户把每次
+启动生成的新 URL 与认证 header 配置给同一台机器上的真实外部 HTTP 调用方。示例文档分别说明
+启动、配置、终端观察、HTTP 成功判断和 `Ctrl+C` 停止方式。
 
 ## handle.requestHeaders()
 
@@ -191,9 +205,17 @@ const hook = Webhook.listen("orders", async (request) => ({
   body: { requestId: request.requestId },
 }));
 
-const config = JSON.stringify({ url: hook.url, headers: hook.requestHeaders() });
-await Command.run("my-helper", [], { input: config + "\n", emitOutput: false });
+const config = {
+  method: "POST",
+  url: hook.url,
+  headers: hook.requestHeaders(),
+};
+console.log("OPENDESK_WEBHOOK_READY=" + JSON.stringify(config));
 ```
+
+上例主动输出 credential 是为了把配置交给外部系统，属于调用方明确选择的 secret handoff；不要
+把该输出复制到公共日志、截图、工单或聊天。OpenDesk 默认不会自行把 credential 写入 URL、argv
+或普通日志。
 
 ## handle.close()
 
@@ -232,7 +254,14 @@ hook.close(); // no-op
 
 Webhook 注册属于当前 Execution，并通过既有 Runtime 网络 worker 生命周期保持执行活跃，不需要 `while (true)` 或轮询保活。
 
-P0 只允许宿主已经授权的 trusted local script / AI execution 使用本地入口；HTTP、MCP、Scheduler 等远程或调度入口不能通过 JavaScript options、环境变量或请求正文自行打开该监听能力。
+P0 只允许宿主已经授权的 trusted local script、App Mode package entry 或 local AI execution 使用
+本地入口；HTTP、MCP、Scheduler 等远程或调度入口不能通过 JavaScript options、环境变量或请求
+正文自行打开该监听能力。
+
+普通 Webhook 使用首选 `-script`：它直接运行示例并在当前终端观察与停止。`-app <package>` 只在
+调用方已经需要 App Shell、Tray/Menu Bar 或 app lifecycle 时使用；它运行 package manifest 的
+entry，不是任意脚本的别名。尤其 `-app "$PWD/apps/opendesk"` 启动官方产品包，不会代替示例注册
+listener，也不需要为此增加第二套 Webhook API 或产品按钮。
 
 当最后一个 listener 关闭后，入口 worker 可以自然释放；Execution deadline / Ctrl+C / 执行取消仍是最终边界。无法安全停止单个任意 JavaScript handler 时，OpenDesk 不承诺 per-callback 强杀。
 

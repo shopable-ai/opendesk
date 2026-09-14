@@ -130,11 +130,11 @@ Recipe 执行模型继续保持：
 
 ```text
 Script Runner UI
-→ Command.run(System.getExecutablePath(), ["-script", ...])
-→ child OpenDesk process
+→ product-private App-owned execution bridge
+→ fresh pkg/execution JavaScript Runtime in the OpenDesk App process
 ```
 
-不要在没有专项设计的情况下改成 main-process recipe execution。
+这不是在 App entry Runtime 中 `eval()` Recipe：每次运行仍有独立 Execution ID、context、取消、资源回收和 artifacts。该边界用于避免 macOS `.app` 启动后另起 CLI child 导致 TCC 身份和授权状态分裂；普通脚本与远程 transport 不暴露此内部 bridge。
 
 ### 3.5 Official Shell commercial entrypoints — IMPLEMENTED BASELINE
 
@@ -179,7 +179,7 @@ static checks
 → real OpenDesk.app launch
 → Tray interaction
 → Recorder live regression
-→ Script Runner Run/Stop child-process evidence
+→ Script Runner App-owned Run/Stop 与 TCC identity evidence
 → discovered defect fixes
 ```
 
@@ -279,7 +279,7 @@ OpenDesk Data Directory Contract
 
 ```text
 App Mode main process crash
-Script Runner child process orphan
+Script Runner secondary Execution teardown
 Custom UI host orphan
 single-instance lease release
 Recorder secondary execution cleanup

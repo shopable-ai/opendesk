@@ -73,10 +73,13 @@ internal abstract class Surface : IDisposable
         Host=host;Session=session;ID=id;Spec=J.Copy(spec);
         // centerOnActiveDisplay is reserved for host-owned Dialog surfaces. Keep
         // those above an always-on-top Custom UI window that requested them.
-        Form=new NativeForm { Text=J.S(spec,"title"),TopMost=J.B(spec,"alwaysOnTop")||J.B(spec,"centerOnActiveDisplay"),BackgroundDraggable=J.B(spec,"draggable") };
+        bool floating=J.S(spec,"kind")=="floating", measurement=J.S(spec,"kind")=="measurement";
+        Form=new NativeForm { Text=measurement?"":J.S(spec,"title"),TopMost=J.B(spec,"alwaysOnTop")||J.B(spec,"centerOnActiveDisplay"),BackgroundDraggable=J.B(spec,"draggable"),ShowInTaskbar=!floating&&!measurement };
         Form.BackColor=J.S(spec,"theme")=="dark"?Color.FromArgb(25,25,28):SystemColors.Window;
         Form.ForeColor=J.S(spec,"theme")=="dark"?Color.White:SystemColors.WindowText;
-        Form.NonActivating=J.S(spec,"kind")=="floating";
+		// Measurement is a tool-window surface, not a click-through overlay: it
+		// intentionally activates only long enough to receive Esc and arrow keys.
+		Form.NonActivating=floating;
 		Form.FormClosing+=(_,eventArgs)=>{
 			// User close is the only origin eligible for App Mode hide. Script,
 			// session, and shutdown paths set CloseReason before Form.Close and must
@@ -125,8 +128,13 @@ internal abstract class Surface : IDisposable
     internal virtual async Task<JsonNode?> Apply(string operation,JsonObject payload)
     {
         switch(operation) {
-            case "show": Form.Show(); if(!Form.NonActivating)Form.Activate(); Revision++; Native.DwmFlush(); OnShown(); break;
-            case "hide": Form.Hide();if(J.S(Spec,"kind")=="floating")Form.RearmNonActivating();Revision++;Native.DwmFlush();break;
+            case "show":
+                // Reopening a minimized normal page restores and activates it
+                // once. This does not touch TopMost, so focus never becomes a
+                // persistent Z-order policy.
+                if(!Form.NonActivating&&Form.WindowState==FormWindowState.Minimized)Form.WindowState=FormWindowState.Normal;
+                Form.Show(); if(!Form.NonActivating)Form.Activate(); Revision++; Native.DwmFlush(); OnShown(); break;
+			case "hide": Form.Hide();if(J.S(Spec,"kind")=="floating")Form.RearmNonActivating();Revision++;Native.DwmFlush();break;
             case "close": Close("script");break;
             case "getState":break;
             case "setBounds":Native.Place(Form,J.Rect(payload));Revision++;break;

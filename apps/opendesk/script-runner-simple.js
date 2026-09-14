@@ -9,6 +9,7 @@
   const runtimeUI = global.ui;
   const NativeFloatingWindow = global.FloatingWindow;
   const NativeAbortController = global.AbortController;
+  const nativeRecipeExecution = global.__opendeskRecipeExecution;
   const logger = global.console;
 
   if (!global.OpenDeskScriptRunnerSimple
@@ -193,6 +194,102 @@
     let lastError = null;
     let latestExecution = null;
 
+    function recipeDisplayName(scriptPath) {
+      const parts = String(scriptPath || '').split(/[\\/]/);
+      return formatScriptLabelText(parts[parts.length - 1] || '自动化');
+    }
+
+    async function beginRecipeToast(base) {
+      const show = runtimeUI && (typeof runtimeUI.toast === 'function'
+        ? runtimeUI.toast.bind(runtimeUI)
+        : typeof runtimeUI.notify === 'function' ? runtimeUI.notify.bind(runtimeUI) : null);
+      if (!show) return null;
+      try {
+        return await show({
+          message: `正在运行“${recipeDisplayName(base.scriptPath)}”…`,
+          caption: 'OpenDesk 已开始执行，可随时点击停止。',
+          level: 'info',
+          timeoutMs: 0,
+          closable: true,
+          progress: {indeterminate: true},
+        });
+      } catch (error) {
+        logRecipeToastError('start', error);
+        return null;
+      }
+    }
+
+    function permissionFailure(error) {
+      const message = String(error && error.message || error || '');
+      const normalized = message.toLowerCase();
+      let expectedID = '';
+      if (normalized.includes('accessibility') || normalized.includes('辅助功能')) expectedID = 'accessibility';
+      else if (normalized.includes('screen capture') || normalized.includes('screen recording') || normalized.includes('屏幕录制')) expectedID = 'screen-capture';
+      else if (normalized.includes('input monitoring') || normalized.includes('输入监控')) expectedID = 'input-monitoring';
+      else if (normalized.includes('automation permission') || normalized.includes('自动化权限')) expectedID = 'automation';
+      if (!expectedID && !normalized.includes('permission_denied') && !normalized.includes('permission is not granted')) {
+        return null;
+      }
+      try {
+        const report = appRuntime.getPermissions('desktop-automation');
+        const rawPermissions = report && (report.permissions || report.Permissions);
+        const permissions = Array.isArray(rawPermissions) ? rawPermissions : [];
+        const blocked = permissions.find(permission => {
+          const id = String(permission && (permission.id || permission.ID) || '').split(':', 1)[0];
+          const status = String(permission && (permission.status || permission.Status) || 'unknown');
+          return (!expectedID || id === expectedID) && status !== 'granted' && status !== 'not_required';
+        });
+        if (!blocked) return null;
+        const id = String(blocked.id || blocked.ID || '').split(':', 1)[0];
+        const labels = {
+          accessibility: '辅助功能',
+          'screen-capture': '屏幕录制',
+          'input-monitoring': '输入监控',
+          automation: '自动化',
+        };
+        return labels[id] || blocked.displayName || blocked.DisplayName || '所需系统';
+      } catch (_) {
+        return expectedID === 'accessibility' ? '辅助功能' : null;
+      }
+    }
+
+    function recipeFailureMessage(base, error) {
+      const scriptName = recipeDisplayName(base.scriptPath);
+      const permission = permissionFailure(error);
+      if (permission) {
+        return {
+          message: `“${scriptName}”未运行：OpenDesk 缺少“${permission}”权限。`,
+          caption: '请打开菜单“系统权限…”处理后重试。',
+        };
+      }
+      const detail = error && error.message ? String(error.message) : String(error || '未知错误');
+      return {
+        message: `“${scriptName}”运行失败。`,
+        caption: detail.length > 180 ? detail.slice(0, 177) + '…' : detail,
+      };
+    }
+
+    function logRecipeToastError(stage, error) {
+      if (logger && typeof logger.warn === 'function') {
+        logger.warn('SCRIPT_RUNNER_TOAST_ERROR=' + JSON.stringify({
+          stage,
+          message: error && error.message ? String(error.message) : String(error || 'toast failed'),
+        }));
+      }
+    }
+
+    async function finishRecipeToast(toastTask, patch) {
+      let toast = null;
+      try {
+        toast = await toastTask;
+        if (toast && typeof toast.update === 'function') {
+          await toast.update(Object.assign({progress: null}, patch));
+        }
+      } catch (error) {
+        logRecipeToastError('finish', error);
+      }
+    }
+
     const productCommand = Object.freeze({
       run(executablePath, args, options) {
         const childScript = executablePath === system.getExecutablePath()
@@ -211,30 +308,63 @@
           exitCode: null,
         };
         latestExecution = Object.assign({}, base);
-        const runOptions = Object.assign({}, options || {}, {hideWindow: true});
+        const toastTask = beginRecipeToast(base);
         let pending;
         try {
-          pending = command.run(executablePath, args, runOptions);
+          if (!nativeRecipeExecution || typeof nativeRecipeExecution.run !== 'function') {
+            const unavailable = new Error('App-owned Recipe execution is unavailable');
+            unavailable.code = 'APP_RECIPE_RUNNER_UNAVAILABLE';
+            throw unavailable;
+          }
+          pending = nativeRecipeExecution.run({
+            scriptPath: base.scriptPath,
+            workdir: options && options.cwd ? String(options.cwd) : runnerExecution.workdir,
+            logDir: base.logDir,
+            signal: options && options.signal,
+          });
         } catch (error) {
           latestExecution = Object.assign({}, base, {
             status: error && error.code === 'CANCELED' ? 'canceled' : 'failed',
             finishedAt: new Date().toISOString(),
           });
+          const failure = recipeFailureMessage(base, error);
+          void finishRecipeToast(toastTask, Object.assign({level: 'error', timeoutMs: 7000, closable: true}, failure));
           throw error;
         }
-        return Promise.resolve(pending).then(result => {
+        return Promise.resolve(pending).then(async result => {
           latestExecution = Object.assign({}, base, {
             status: 'succeeded',
             finishedAt: new Date().toISOString(),
-            exitCode: result && Number.isInteger(result.exitCode) ? result.exitCode : 0,
+            exitCode: 0,
+            executionId: result && result.executionId ? String(result.executionId) : '',
           });
-          return result;
-        }, error => {
+          await finishRecipeToast(toastTask, {
+            message: `“${recipeDisplayName(base.scriptPath)}”运行完成。`,
+            caption: '执行日志已保存。',
+            level: 'success',
+            timeoutMs: 2200,
+            closable: false,
+          });
+          return {exitCode: 0, stdout: '', stderr: ''};
+        }, async error => {
           latestExecution = Object.assign({}, base, {
             status: error && error.code === 'CANCELED' ? 'canceled' : 'failed',
             finishedAt: new Date().toISOString(),
-            exitCode: error && Number.isInteger(error.exitCode) ? error.exitCode : null,
+            exitCode: null,
+            executionId: error && error.executionId ? String(error.executionId) : '',
           });
+          if (error && error.code === 'CANCELED') {
+            await finishRecipeToast(toastTask, {
+              message: `已停止“${recipeDisplayName(base.scriptPath)}”。`,
+              caption: '剩余脚本不会继续执行。',
+              level: 'warning',
+              timeoutMs: 2600,
+              closable: false,
+            });
+          } else {
+            const failure = recipeFailureMessage(base, error);
+            await finishRecipeToast(toastTask, Object.assign({level: 'error', timeoutMs: 7000, closable: true}, failure));
+          }
           throw error;
         });
       },

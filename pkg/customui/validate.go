@@ -19,6 +19,7 @@ var publicIDPattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]{0,63}$`)
 var allowedElements = map[string]bool{
 	"html": true, "head": true, "body": true, "meta": true, "title": true, "style": true,
 	"div": true, "section": true, "main": true, "header": true, "footer": true,
+	"aside": true, "details": true, "summary": true, "pre": true,
 	"button": true, "span": true, "p": true, "label": true, "strong": true, "em": true,
 	"img": true, "input": true, "textarea": true, "select": true, "option": true,
 }
@@ -72,8 +73,8 @@ func Normalize(spec WindowSpec, baseDir string) (WindowSpec, error) {
 	if spec.Kind == "" {
 		spec.Kind = "normal"
 	}
-	if spec.Kind != "normal" && spec.Kind != "floating" {
-		return WindowSpec{}, invalidSpec("window kind must be normal or floating")
+	if spec.Kind != "normal" && spec.Kind != "floating" && spec.Kind != "measurement" {
+		return WindowSpec{}, invalidSpec("window kind must be normal, floating, or host-owned measurement")
 	}
 	if spec.Theme == "" {
 		spec.Theme = "system"
@@ -188,6 +189,15 @@ func Normalize(spec WindowSpec, baseDir string) (WindowSpec, error) {
 			return WindowSpec{}, invalidSpec("measurement target must identify a declared img control")
 		}
 		spec.Measurement = &MeasurementSurfaceSpec{TargetID: targetID}
+		if spec.Kind != "measurement" {
+			return WindowSpec{}, invalidSpec("measurement extension requires the host-owned measurement window kind")
+		}
+	} else if spec.Kind == "measurement" {
+		// The public JavaScript declaration has no Measurement field. Keeping this
+		// check here makes the reserved surface impossible to request through a
+		// normal Custom UI call even if a future decoder accidentally accepts its
+		// kind string.
+		return WindowSpec{}, invalidSpec("host-owned measurement window requires a measurement extension")
 	}
 	return spec, nil
 }

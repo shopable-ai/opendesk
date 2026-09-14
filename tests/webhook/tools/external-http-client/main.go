@@ -95,8 +95,8 @@ func run(input io.Reader, output io.Writer) error {
 	client := &http.Client{
 		Timeout: 45 * time.Second,
 		Transport: &http.Transport{
-			// Never route the OpenDesk callback through an observed proxy. This
-			// prevents proxy self-capture loops and keeps the callback local.
+			// Keep internal evidence on the real loopback path and out of any
+			// configured proxy to avoid proxy self-capture loops.
 			Proxy: nil,
 		},
 	}

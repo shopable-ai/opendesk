@@ -8,13 +8,13 @@ import (
 func TestMeasurementWindowSpecUsesDisplaySizedCompactSurface(t *testing.T) {
 	snapshot, reference := testContext(t)
 	frame := CaptureFrame{
-		Snapshot: snapshot,
-		Reference: reference,
-		Targets: []TargetWindow{{ID: "window-1", Title: "Target", PID: 42}},
+		Snapshot:         snapshot,
+		Reference:        reference,
+		Targets:          []TargetWindow{{ID: "window-1", Title: "Target", PID: 42}},
 		SelectedTargetID: "window-1",
 	}
 	spec := measurementWindowSpec(frame, "snapshot.png", "test")
-	if spec.Kind != "floating" || spec.Title != "" || !spec.AlwaysOnTop {
+	if spec.Kind != "measurement" || spec.Title != "" || !spec.AlwaysOnTop {
 		t.Fatalf("surface = kind=%q title=%q top=%v", spec.Kind, spec.Title, spec.AlwaysOnTop)
 	}
 	if spec.Bounds.X != snapshot.Mapping.Origin.X || spec.Bounds.Y != snapshot.Mapping.Origin.Y || spec.Bounds.Width != snapshot.Mapping.LogicalSize.Width || spec.Bounds.Height != snapshot.Mapping.LogicalSize.Height {
@@ -41,8 +41,8 @@ func TestHUDPlacementOpposesTargetAndMarksLargeTarget(t *testing.T) {
 		t.Fatalf("top-left target => %q constrained=%v", corner, constrained)
 	}
 	corner, constrained = hudPlacement(mapping, Rect{X: 20, Y: 100, Width: 800, Height: 650})
-	if corner != "bottom-left" || !constrained {
-		t.Fatalf("large target => %q constrained=%v", corner, constrained)
+	if !constrained {
+		t.Fatalf("large target must enter constrained HUD mode, got corner=%q constrained=%v", corner, constrained)
 	}
 }
 

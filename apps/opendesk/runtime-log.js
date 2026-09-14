@@ -296,7 +296,8 @@
       const task = (async () => {
         const next = await runtimeUI.createWindow({
           id: `runtimeLog${++sequence}`,
-          kind: 'floating',
+          // Logs are a regular, focusable product page, never a floating panel.
+          kind: 'normal',
           title: '运行日志',
           position: {mode:'anchor',size:{width:1180,height:700},horizontal:'center',vertical:'center',margin:0,display:'active'},
           theme: 'dark',

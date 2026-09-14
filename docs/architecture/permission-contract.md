@@ -432,20 +432,22 @@ Permission/readiness correctness depends on stable distribution identity. Releas
 
 A release that changes the protected-operation owner may effectively change the OS authorization identity even if the JavaScript API is unchanged.
 
-## Script Runner child-process validation gate
+## Script Runner App-owned execution identity
 
-The current product Script Runner records `child-opendesk-process` as its recipe process model. Source-level unification does not prove that a child recipe inherits the signed App's macOS TCC authorization.
+Packaged macOS validation proved that a Recipe launched by executing the bundle binary as a command-line child receives a different effective TCC state: the App host was Accessibility-authorized while the child reported `AXIsProcessTrusted=false` and its mouse input was silently discarded. The product therefore no longer launches normal Recipes through `Command.run(System.getExecutablePath(), ...)`.
 
-Before closing the macOS identity gate, validate a real packaged/signed flow:
+The bundled Script Runner now keeps process ownership in the App and creates a fresh `pkg/execution` JavaScript Runtime for every Recipe. This is not `eval()` in the App entry Runtime: each run retains its own Execution ID, context, cancellation, resource teardown and artifact directory. The private source-controlled host bridge is absent from ordinary scripts and remote transports.
+
+Release validation must exercise the real packaged/signed flow:
 
 ```text
 OpenDesk.app
   -> Script Runner
-  -> child opendesk recipe
+  -> App-owned separate Recipe Execution
   -> screenshot / Accessibility-protected operation
 ```
 
-Record which identities macOS shows under Privacy & Security. If the child needs independent consent, do not report this gate as PASS. Prefer a future App-owned protected-operation broker when the duplication cannot be fixed safely as a small P0 change.
+Record the current-process identity and permission state at the protected operation. A reintroduction of an external Recipe process must fail this gate unless that real process independently proves the intended stable authorization identity. The generic standalone Script Runner example may continue to demonstrate `Command.run`; it is not the installed product execution owner.
 
 The same identity principle applies to any future Windows elevated helper: the product must document which process performs the privileged operation and evaluate readiness for that real owner.
 

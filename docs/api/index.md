@@ -29,6 +29,7 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先确定应用
 | 发送操作系统通知 | [通知与提示](notify.md) |
 | 让用户确认、取消或输入短文本 | [Dialog API](dialog.md) |
 | 从服务或其他程序触发任务 | [HTTP Server API](http-server.md) 或 MCP |
+| 让当前本地 JavaScript 接收同机系统的短处理 callback | [Webhook API](webhook.md) |
 | 把已探索流程重复执行 | 保存 recipe，再使用 [AI CLI](ai-cli.md) 的 `run` |
 | 把 JavaScript 发布为 `.odpkg` 受保护包，或交接 P1/P2 License | [受保护包 CLI](protected-packages.md) |
 | 在 build/launch 前静态检查 `opendesk.app.json` package | [App Package CLI](app-package-cli.md) |
@@ -78,6 +79,7 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先确定应用
 - 读取显示器、选择区域或录屏：[Screen API](screen.md)
 - 在脚本中发起网络请求：[HTTP and Axios](http.md)
 - 从外部程序调用 OpenDesk：[HTTP Server API](http-server.md)
+- 让当前本地 execution 接收同机认证 JSON callback：[Webhook API](webhook.md)
 - 观察 OpenDesk 自身已投递通知：[Notifications API](notifications.md)
 - 显示需用户确认的异步原生窗口：[Dialog API](dialog.md)
 - 使用 console、计时器、等待等全局能力：[Global APIs](global-apis.md)
@@ -107,7 +109,7 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先确定应用
 
 ### 服务协议保持独立，避免把调用方向混成一页
 
-[HTTP and Axios](http.md)、[HTTP Server API](http-server.md)、[Scheduler](scheduler.md)、[Scheduler HTTP API](scheduler-api.md)
+[HTTP and Axios](http.md)、[HTTP Server API](http-server.md)、[Webhook API](webhook.md)、[Scheduler](scheduler.md)、[Scheduler HTTP API](scheduler-api.md)
 
 ### 发布和范例放在可调用 Reference 之后
 
@@ -148,6 +150,7 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先确定应用
 | `clipboard` | JavaScript Runtime | Stable text / Experimental rich | 系统剪贴板 | [Clipboard API](clipboard.md) |
 | `console` | JavaScript Runtime | Stable | 日志与事件输出 | [Global APIs](global-apis.md) |
 | `http` / `axios` | JavaScript Runtime | Stable | 脚本内 HTTP 客户端 | [HTTP and Axios](http.md) |
+| `Webhook` | 可信本地 JavaScript Runtime / App Mode | P0 local | 当前 execution 接收同机认证 short-processing JSON callback | [Webhook API](webhook.md) |
 | HTTP Server | 外部调用入口 | Stable | 创建、查询、取消 OpenDesk execution | [HTTP Server API](http-server.md) |
 | `NativeExtensions` | 本机 CLI | Experimental | 发现并调用本地 manifest plugin | [Native Extension Plugin](native-extension.md) |
 | `notify()` | JavaScript Runtime | Secondary | 发送系统通知 | [通知与提示](notify.md) |
@@ -179,6 +182,7 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先确定应用
 - 新脚本省略 `-stack`。早期 `upgraded` / `playwright` facade 不属于维护中的用户 API。
 - `page.$`、`page.$$` 与旧 DOM 风格 `page.click(selector)` / `page.type(selector, text)` 不属于稳定桌面 API。
 - `SQLite` 仅供可信本地 execution；HTTP、MCP、Scheduler 不注入通用 SQL remote route/tool。
+- `Webhook` 只绑定随机 IPv4 loopback URL，由 trusted local script、App Mode 或 local AI host 独立授权；HTTP、MCP、Scheduler 不能从请求中开启。
 - `Accessibility` 与 `UI` 菜单方法仅在可信本地 execution 启用；HTTP、MCP、Scheduler 当前只看到禁用 capability，不会读取目标。
 - Scheduler 的产品能力与生命周期见 `scheduler.md`；HTTP 字段和响应合同见 `scheduler-api.md`。
 

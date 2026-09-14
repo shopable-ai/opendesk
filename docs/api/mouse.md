@@ -31,7 +31,7 @@ order: 60
 
 ### 权限与平台
 
-macOS 发送全局输入通常需要 Accessibility 权限；截图验证另需 Screen Recording。`mouse.clickForPID()` 仅在启用 cgo 的 macOS 构建中可用，并且不会降级为普通全局点击。
+macOS 发送全局输入需要 Accessibility 权限；截图验证另需 Screen Recording。`mouse.click()`、`mouse.move()`、`mouse.down()`、`mouse.up()` 和实际发送滚动的 `mouse.wheel()` 会先做无提示的当前进程权限检查；未授权时以包含 `PERMISSION_DENIED` 的错误拒绝且不发送输入。`mouse.clickForPID()` 仅在启用 cgo 的 macOS 构建中可用，并且不会降级为普通全局点击。
 
 ## mouse.click(x, y, options?)
 
@@ -276,4 +276,4 @@ await mouse.wheel({ deltaY: 300, steps: 3, delay: 20 });
 
 ## 错误
 
-全局鼠标方法会对非法坐标、按钮和选项明确失败。`clickPoint()` 使用结构化 `INVALID_ARGUMENT`。真实输入完成后不要把 Promise resolve 解释为业务成功。
+全局鼠标方法会对非法坐标、按钮和选项明确失败。macOS 当前进程没有 Accessibility 权限时，输入方法返回包含 `PERMISSION_DENIED` 的错误，不再把系统拒绝的静默 no-op 报告为成功。`clickPoint()` 使用结构化 `INVALID_ARGUMENT`。真实输入完成后不要把 Promise resolve 解释为业务成功。

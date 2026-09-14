@@ -222,6 +222,63 @@ type GlobalShortcutBackendHandle interface {
 
 type GlobalShortcutBackendFactory func() GlobalShortcutBackend
 
+// GlobalShortcutLease is a single application-owned global registration. It
+// deliberately has no unregister-all operation: closing it can release only
+// the accelerator acquired through this lease, never another Runtime's or
+// product feature's shortcut.
+type GlobalShortcutLease struct {
+	once    sync.Once
+	backend GlobalShortcutBackend
+	handle  GlobalShortcutBackendHandle
+	err     error
+}
+
+// RegisterGlobalShortcut reuses the platform global-shortcut backend for a
+// first-party application lifecycle callback. The JavaScript Runtime keeps its
+// own execution-scoped registry; this narrow Go lease is for product actions
+// such as Desktop Measurement that must exist before a Recorder Runtime starts.
+func RegisterGlobalShortcut(acceleratorText string, callback func()) (*GlobalShortcutLease, error) {
+	return registerGlobalShortcutWithBackend(acceleratorText, callback, newPlatformGlobalShortcutBackend())
+}
+
+func registerGlobalShortcutWithBackend(acceleratorText string, callback func(), backend GlobalShortcutBackend) (*GlobalShortcutLease, error) {
+	if callback == nil {
+		return nil, errors.New("global shortcut callback is required")
+	}
+	accelerator, err := NormalizeAccelerator(acceleratorText)
+	if err != nil {
+		return nil, err
+	}
+	platform, err := platformGlobalShortcutAccelerator(accelerator)
+	if err != nil {
+		return nil, globalShortcutRegistrationError("globalShortcut.register", accelerator.Canonical, err)
+	}
+	if backend == nil {
+		return nil, globalShortcutRegistrationError("globalShortcut.register", accelerator.Canonical, errGlobalShortcutPlatformUnsupported)
+	}
+	handle, err := backend.Register(platform, callback)
+	if err != nil {
+		_ = backend.Close()
+		return nil, globalShortcutRegistrationError("globalShortcut.register", accelerator.Canonical, err)
+	}
+	return &GlobalShortcutLease{backend: backend, handle: handle}, nil
+}
+
+// Close is idempotent and keeps the first cleanup error for diagnostics.
+func (l *GlobalShortcutLease) Close() error {
+	if l == nil {
+		return nil
+	}
+	l.once.Do(func() {
+		if l.handle != nil {
+			l.err = l.handle.Unregister()
+		}
+		// Do not close the backend here. Backends may be process-shared (as on
+		// macOS), and the handle above is the resource this lease owns.
+	})
+	return l.err
+}
+
 // The native backend cannot identify the owning process for a conflicting
 // system hotkey. Do not claim that the conflict belongs to this Runtime: it
 // can be another OpenDesk Runtime or a shortcut registered by macOS/app.

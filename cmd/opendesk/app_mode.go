@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"opendesk/automation"
 	"opendesk/pkg/appshell"
 	"opendesk/pkg/customui"
@@ -129,6 +130,19 @@ func executeAppMode(config *Config) error {
 		}); err != nil {
 			return err
 		}
+		measurementShortcut, shortcutErr := registerMeasurementGlobalShortcut(measurementService, appContext)
+		if shortcutErr != nil {
+			// A system reservation or missing input permission must not disable the
+			// two visible product entrances. Keep the native error in the app log
+			// instead of claiming the shortcut is registered.
+			log.Printf("Desktop Measurement shortcut %s is unavailable: %v", measurementGlobalShortcutAccelerator, shortcutErr)
+		} else if measurementShortcut != nil {
+			defer func() {
+				if err := measurementShortcut.Close(); err != nil {
+					log.Printf("Desktop Measurement shortcut cleanup failed: %v", err)
+				}
+			}()
+		}
 	}
 	shell.SetQuitHook(cancelApp)
 	stopSignalHook := context.AfterFunc(signalContext, func() { _ = shell.RequestQuit() })
@@ -183,6 +197,15 @@ func executeAppMode(config *Config) error {
 	}
 	defer appScheduler.Close()
 	environment.Values = appScheduler.Environment(environment.Values)
+	recipeRunner := newAppRecipeRunner(appRecipeRunnerConfig{
+		StackMode:                             config.StackMode,
+		ExperimentalUnsafeNativeExtensionCall: config.ExperimentalUnsafeNativeExtensionCall,
+		CustomUIHostPath:                      config.CustomUIHostPath,
+		SQLiteProtectedPaths:                  sqliteProtectedPaths(config),
+	}, environment.Values, sharedUIDriver)
+	recorder.ordinaryRunning = recipeRunner.Running
+	recipeRunner.recorderRunning = recorder.Running
+	defer recipeRunner.Close()
 	if err := shell.Start(appContext); err != nil {
 		return fmt.Errorf("start App Shell: %w", err)
 	}
@@ -216,6 +239,7 @@ func executeAppMode(config *Config) error {
 		EnableUnsafeNativeExtensionCall: config.ExperimentalUnsafeNativeExtensionCall,
 		EnableCommand:                   true,
 		EnableDownload:                  true,
+		EnableWebhook:                   true,
 		EnableAccessibility:             true,
 		EnableSQLite:                    true,
 		EnableRecorderCapture:           recorderCaptureAllowed,
@@ -226,6 +250,7 @@ func executeAppMode(config *Config) error {
 		CustomUIDriver:                  customui.NewSessionScopedDriverForSession(sharedUIDriver, executionID),
 		CustomUIBaseDir:                 appPackage.Root,
 		AppShell:                        shell,
+		AppOwnedScriptRun:               recipeRunner.Run,
 		GracefulCancellation: func() bool {
 			state := shell.State()
 			return shell.TerminalError() == nil && (state == appshell.StateQuitting || state == appshell.StateStopped)

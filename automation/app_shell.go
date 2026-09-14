@@ -21,9 +21,57 @@ const appShellRuntimeQueueCapacity = 256
 type appShellPending struct {
 	operation string
 	cancel    context.CancelFunc
+	cleanup   func()
 	resolve   func(any) error
 	reject    func(any) error
 	counted   *atomic.Bool
+}
+
+// AppOwnedScriptRunRequest contains plain, host-validated inputs for the
+// bundled product Script Runner. The callback never receives Goja values.
+type AppOwnedScriptRunRequest struct {
+	ScriptPath string
+	WorkDir    string
+	LogDir     string
+}
+
+// AppOwnedScriptRunResult is the terminal result returned to the product
+// adapter. Public execution artifacts remain the source of detailed logs.
+type AppOwnedScriptRunResult struct {
+	ExecutionID string `json:"executionId"`
+	Status      string `json:"status"`
+	Error       string `json:"error,omitempty"`
+	LogDir      string `json:"logDir"`
+}
+
+type AppOwnedScriptRunner func(context.Context, AppOwnedScriptRunRequest) (AppOwnedScriptRunResult, error)
+
+// AppOwnedScriptRunError preserves a stable product-facing failure category
+// without turning the internal host bridge into a public Runtime API.
+type AppOwnedScriptRunError struct {
+	Code   string
+	Result AppOwnedScriptRunResult
+	Cause  error
+}
+
+func (e *AppOwnedScriptRunError) Error() string {
+	if e == nil {
+		return "App-owned script execution failed"
+	}
+	if e.Cause != nil {
+		return e.Cause.Error()
+	}
+	if e.Result.Error != "" {
+		return e.Result.Error
+	}
+	return "App-owned script execution failed"
+}
+
+func (e *AppOwnedScriptRunError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Cause
 }
 
 // AppShellRuntime is the execution-scoped bridge for automation.app. Native
@@ -78,7 +126,71 @@ func registerAppShell(runtime *goja.Runtime, opts InitJSOptions, ui *CustomUIRun
 		opts.AppShell.UnbindActionSink()
 		return nil, err
 	}
+	if opts.AppOwnedScriptRun != nil {
+		if err := bridge.attachAppOwnedScriptRunner(opts.AppOwnedScriptRun); err != nil {
+			opts.AppShell.UnbindActionSink()
+			return nil, err
+		}
+	}
 	return bridge, nil
+}
+
+func (a *AppShellRuntime) attachAppOwnedScriptRunner(run AppOwnedScriptRunner) error {
+	object := a.runtime.NewObject()
+	if err := object.Set("run", func(call goja.FunctionCall) goja.Value {
+		request, signal, err := decodeAppOwnedScriptRunRequest(call.Argument(0))
+		if err != nil {
+			promise, _, reject := a.runtime.NewPromise()
+			_ = reject(appShellJSError(a.runtime, "INVALID_ARGUMENT", "runScript", err.Error()))
+			return a.runtime.ToValue(promise)
+		}
+		return a.startAsyncWithSignal("runScript", signal, func(ctx context.Context) (any, error) {
+			return run(ctx, request)
+		})
+	}); err != nil {
+		return fmt.Errorf("register internal App-owned Script Runner: %w", err)
+	}
+	return a.runtime.GlobalObject().DefineDataProperty(
+		"__opendeskRecipeExecution",
+		object,
+		goja.FLAG_FALSE,
+		goja.FLAG_FALSE,
+		goja.FLAG_FALSE,
+	)
+}
+
+func decodeAppOwnedScriptRunRequest(value goja.Value) (AppOwnedScriptRunRequest, goja.Value, error) {
+	if value == nil || goja.IsUndefined(value) || goja.IsNull(value) {
+		return AppOwnedScriptRunRequest{}, nil, errors.New("run options are required")
+	}
+	object, ok := value.(*goja.Object)
+	if !ok {
+		return AppOwnedScriptRunRequest{}, nil, errors.New("run options must be an object")
+	}
+	requiredString := func(name string) (string, error) {
+		field := object.Get(name)
+		if field == nil || goja.IsUndefined(field) || goja.IsNull(field) {
+			return "", fmt.Errorf("options.%s is required", name)
+		}
+		exported, ok := field.Export().(string)
+		if !ok || strings.TrimSpace(exported) == "" {
+			return "", fmt.Errorf("options.%s must be a non-empty string", name)
+		}
+		return exported, nil
+	}
+	scriptPath, err := requiredString("scriptPath")
+	if err != nil {
+		return AppOwnedScriptRunRequest{}, nil, err
+	}
+	workDir, err := requiredString("workdir")
+	if err != nil {
+		return AppOwnedScriptRunRequest{}, nil, err
+	}
+	logDir, err := requiredString("logDir")
+	if err != nil {
+		return AppOwnedScriptRunRequest{}, nil, err
+	}
+	return AppOwnedScriptRunRequest{ScriptPath: scriptPath, WorkDir: workDir, LogDir: logDir}, object.Get("signal"), nil
 }
 
 func attachAutomationApp(runtime *goja.Runtime, app any) error {
@@ -383,17 +495,33 @@ func (a *AppShellRuntime) startDetached(operation string, worker func(context.Co
 }
 
 func (a *AppShellRuntime) startAsync(operation string, worker func(context.Context) (any, error)) goja.Value {
+	return a.startAsyncWithSignal(operation, nil, worker)
+}
+
+func (a *AppShellRuntime) startAsyncWithSignal(operation string, signal goja.Value, worker func(context.Context) (any, error)) goja.Value {
 	promise, resolve, reject := a.runtime.NewPromise()
 	if a.closing.Load() {
 		_ = reject(appShellJSError(a.runtime, "APP_QUITTING", operation, "App Shell is quitting"))
 		return a.runtime.ToValue(promise)
 	}
+	ctx, cancel := context.WithCancel(a.context)
+	cleanup, preCanceled, err := a.bindAbortSignal(signal, cancel)
+	if err != nil {
+		cancel()
+		_ = reject(appShellJSError(a.runtime, "INVALID_ARGUMENT", operation, err.Error()))
+		return a.runtime.ToValue(promise)
+	}
+	if preCanceled {
+		cleanup()
+		cancel()
+		_ = reject(appShellJSError(a.runtime, "CANCELED", operation, "operation was canceled before start"))
+		return a.runtime.ToValue(promise)
+	}
 	a.nextPendingID++
 	id := a.nextPendingID
-	ctx, cancel := context.WithCancel(a.context)
 	counted := &atomic.Bool{}
 	counted.Store(true)
-	a.pending[id] = appShellPending{operation: operation, cancel: cancel, resolve: resolve, reject: reject, counted: counted}
+	a.pending[id] = appShellPending{operation: operation, cancel: cancel, cleanup: cleanup, resolve: resolve, reject: reject, counted: counted}
 	a.asyncPending.Add(1)
 	a.workers.active.Add(1)
 	a.workers.wg.Add(1)
@@ -419,12 +547,46 @@ func (a *AppShellRuntime) finishAsync(runtime *goja.Runtime, id uint64, value an
 	if pending.counted.CompareAndSwap(true, false) {
 		a.asyncPending.Add(-1)
 	}
+	pending.cleanup()
 	pending.cancel()
 	if operationErr != nil {
-		_ = pending.reject(appShellJSError(runtime, "APP_SHELL_ERROR", pending.operation, operationErr.Error()))
+		_ = pending.reject(appShellAsyncJSError(runtime, pending.operation, operationErr))
 		return
 	}
 	_ = pending.resolve(value)
+}
+
+func (a *AppShellRuntime) bindAbortSignal(value goja.Value, cancel context.CancelFunc) (func(), bool, error) {
+	if value == nil || goja.IsUndefined(value) || goja.IsNull(value) {
+		return func() {}, false, nil
+	}
+	signal, ok := value.(*goja.Object)
+	if !ok {
+		return nil, false, errors.New("options.signal must be an AbortSignal")
+	}
+	aborted, ok := signal.Get("aborted").Export().(bool)
+	if !ok {
+		return nil, false, errors.New("options.signal must be an AbortSignal")
+	}
+	add, addOK := goja.AssertFunction(signal.Get("addEventListener"))
+	remove, removeOK := goja.AssertFunction(signal.Get("removeEventListener"))
+	if !addOK || !removeOK {
+		return nil, false, errors.New("options.signal must be an AbortSignal")
+	}
+	if aborted {
+		return func() {}, true, nil
+	}
+	listener := a.runtime.ToValue(func(goja.FunctionCall) goja.Value {
+		cancel()
+		return goja.Undefined()
+	})
+	if _, err := add(signal, a.runtime.ToValue("abort"), listener); err != nil {
+		return nil, false, fmt.Errorf("options.signal must be an AbortSignal: %w", err)
+	}
+	return func() {
+		defer func() { _ = recover() }()
+		_, _ = remove(signal, a.runtime.ToValue("abort"), listener)
+	}, false, nil
 }
 
 func (a *AppShellRuntime) observeListenerResult(value goja.Value) {
@@ -467,6 +629,7 @@ func (a *AppShellRuntime) BeginCancel() {
 		a.shell.UnbindActionSink()
 		for id, pending := range a.pending {
 			delete(a.pending, id)
+			pending.cleanup()
 			pending.cancel()
 			if pending.counted.CompareAndSwap(true, false) {
 				a.asyncPending.Add(-1)
@@ -535,6 +698,22 @@ func appShellJSError(runtime *goja.Runtime, code, operation, message string) *go
 	_ = object.Set("code", code)
 	_ = object.Set("operation", operation)
 	_ = object.Set("message", message)
+	return object
+}
+
+func appShellAsyncJSError(runtime *goja.Runtime, operation string, operationErr error) *goja.Object {
+	var scriptErr *AppOwnedScriptRunError
+	if !errors.As(operationErr, &scriptErr) {
+		return appShellJSError(runtime, "APP_SHELL_ERROR", operation, operationErr.Error())
+	}
+	code := strings.TrimSpace(scriptErr.Code)
+	if code == "" {
+		code = "EXECUTION_FAILED"
+	}
+	object := appShellJSError(runtime, code, operation, scriptErr.Error())
+	_ = object.Set("executionId", scriptErr.Result.ExecutionID)
+	_ = object.Set("status", scriptErr.Result.Status)
+	_ = object.Set("logDir", scriptErr.Result.LogDir)
 	return object
 }
 

@@ -44,14 +44,14 @@ func TestProductAppPackageOwnsRunnerButNotReservedRecorderAction(t *testing.T) {
 	}
 }
 
-func TestProductAppKeepsRecipeExecutionAsChildOpenDeskProcess(t *testing.T) {
+func TestProductAppUsesAppOwnedSeparateRecipeExecution(t *testing.T) {
 	root := filepath.Join("..", "..", "apps", "opendesk")
 	mainSource, err := os.ReadFile(filepath.Join(root, "main.js"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	mainText := string(mainSource)
-	for _, required := range []string{"OpenDeskProductAppController.create", "OpenDeskSchedulerCenter.create", "OpenDeskDeveloperTools.create", "runner", "schedulerCenter", "runtimeLog", "developerTools", "recipeProcessModel: 'child-opendesk-process'"} {
+	for _, required := range []string{"OpenDeskProductAppController.create", "OpenDeskSchedulerCenter.create", "OpenDeskDeveloperTools.create", "runner", "schedulerCenter", "runtimeLog", "developerTools", "recipeProcessModel: 'app-owned-separate-execution'"} {
 		if !strings.Contains(mainText, required) {
 			t.Fatalf("main.js missing %q", required)
 		}
@@ -75,8 +75,21 @@ func TestProductAppKeepsRecipeExecutionAsChildOpenDeskProcess(t *testing.T) {
 	coreText := string(coreSource)
 	for _, required := range []string{"getExecutablePath", "command.run", "'-script'", "hideWindow: true"} {
 		if !strings.Contains(coreText, required) {
-			t.Fatalf("Script Runner controller missing child-process contract %q", required)
+			t.Fatalf("generic Script Runner controller missing command-compatible contract %q", required)
 		}
+	}
+	productSource, err := os.ReadFile(filepath.Join(root, "script-runner-simple.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	productText := string(productSource)
+	for _, required := range []string{"__opendeskRecipeExecution", "nativeRecipeExecution.run", "beginRecipeToast", "permissionFailure"} {
+		if !strings.Contains(productText, required) {
+			t.Fatalf("product Script Runner missing App-owned execution contract %q", required)
+		}
+	}
+	if strings.Contains(productText, "command.run(executablePath, args, runOptions)") {
+		t.Fatal("product Recipe path must not spawn the current executable as a child process")
 	}
 }
 

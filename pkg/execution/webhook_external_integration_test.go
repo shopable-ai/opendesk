@@ -9,12 +9,12 @@ import (
 	"time"
 )
 
-func TestLocalWebhookExampleUsesIndependentGoProcess(t *testing.T) {
+func TestLocalWebhookUsesIndependentExternalHTTPProcess(t *testing.T) {
 	repoRoot, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
 		t.Fatal(err)
 	}
-	scriptPath := filepath.Join(repoRoot, "examples", "local-webhook-order-query", "main.js")
+	scriptPath := filepath.Join(repoRoot, "tests", "webhook", "external-http-integration.js")
 	scriptContent, err := os.ReadFile(scriptPath)
 	if err != nil {
 		t.Fatal(err)
@@ -23,16 +23,16 @@ func TestLocalWebhookExampleUsesIndependentGoProcess(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	result, _, runErr := Run(Request{
-		Context:        ctx,
-		ExecutionID:    NewExecutionID("webhook-external-helper"),
-		SourceLabel:    "local webhook external helper integration",
-		ScriptContent:  scriptContent,
-		Ext:            ".js",
-		WorkDir:        repoRoot,
-		Environment:    webhookTestEnvironment(),
-		EnableCommand:  true,
-		EnableDownload: true,
-		Selection:      TerminalSelection{Mode: "quiet", Categories: map[string]bool{}},
+		Context:       ctx,
+		ExecutionID:   NewExecutionID("webhook-external-helper"),
+		SourceLabel:   "internal local webhook external HTTP integration",
+		ScriptContent: scriptContent,
+		Ext:           ".js",
+		WorkDir:       repoRoot,
+		Environment:   webhookTestEnvironment(),
+		EnableCommand: true,
+		EnableWebhook: true,
+		Selection:     TerminalSelection{Mode: "quiet", Categories: map[string]bool{}},
 	})
 	if runErr != nil {
 		t.Fatalf("external helper integration failed: status=%s error=%v", result.Status, runErr)

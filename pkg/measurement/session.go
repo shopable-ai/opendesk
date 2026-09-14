@@ -38,6 +38,13 @@ type CaptureFrame struct {
 	Reference        Reference
 	Targets          []TargetWindow
 	SelectedTargetID string
+	// TargetConfirmed is supplied only when an entry has already obtained an
+	// explicit user confirmation. Product capture intentionally leaves it false.
+	TargetConfirmed bool
+	// Restore is an in-process lifecycle callback supplied by the product
+	// capture adapter. It reactivates the exact WindowInfo observed before
+	// Measurement opened; it is intentionally never serialized with results.
+	Restore func(context.Context) error
 }
 
 type CaptureAdapter interface {
@@ -86,20 +93,24 @@ type activeSession struct {
 	surfaceSeq uint64
 	source     string
 
-	frame          CaptureFrame
-	image          image.Image
-	assetPath      string
-	reference      Reference
-	tool           string
-	outputFormat   string
-	status         string
-	dragStart      *Point
-	twoPointFirst  *Point
-	spacingFirst   *Rect
-	result         *Result
-	manualPending  bool
-	selectedTarget string
-	closeOnce      sync.Once
+	frame           CaptureFrame
+	image           image.Image
+	assetPath       string
+	restore         func(context.Context) error
+	reference       Reference
+	tool            string
+	outputFormat    string
+	status          string
+	dragStart       *Point
+	twoPointFirst   *Point
+	spacingFirst    *Rect
+	result          *Result
+	manualPending   bool
+	selectedTarget  string
+	targetConfirmed bool
+	closeOnce       sync.Once
+	finishMu        sync.Mutex
+	finishErr       error
 }
 
 type ServiceCounts struct {
@@ -191,7 +202,7 @@ func (s *Service) OpenAndWait(ctx context.Context, source string) error {
 	}
 	select {
 	case <-active.done:
-		return nil
+		return active.finishResult()
 	case <-ctx.Done():
 		_ = active.finish(context.Background(), true)
 		return ctx.Err()
@@ -211,9 +222,9 @@ func (s *Service) openNew(ctx context.Context, source string) (*activeSession, e
 	}
 	active := &activeSession{
 		service: s, events: make(chan customui.Event, eventQueueSize), done: make(chan struct{}),
-		frame: frame, image: img, assetPath: assetPath, reference: frame.Reference,
-		tool: "point", outputFormat: "concise", status: toolInstruction("point"),
-		selectedTarget: frame.SelectedTargetID, source: strings.TrimSpace(source),
+		frame: frame, image: img, assetPath: assetPath, restore: frame.Restore, reference: frame.Reference,
+		tool: "point", outputFormat: "concise", status: targetConfirmationInstruction(frame),
+		selectedTarget: frame.SelectedTargetID, targetConfirmed: frame.TargetConfirmed, source: strings.TrimSpace(source),
 	}
 	sessionID := "measurement-" + s.now().UTC().Format("20060102T150405.000000000Z") + "-" + strconv.FormatUint(s.sessionID.Add(1), 10)
 	session, err := customui.NewSession(sessionID, s.baseDir, s.driver, active.enqueue)
@@ -228,6 +239,12 @@ func (s *Service) openNew(ctx context.Context, source string) (*activeSession, e
 		return nil, err
 	}
 	return active, nil
+}
+
+func (a *activeSession) finishResult() error {
+	a.finishMu.Lock()
+	defer a.finishMu.Unlock()
+	return a.finishErr
 }
 
 func (s *Service) prepareFrame(frame CaptureFrame) (image.Image, string, error) {
@@ -345,6 +362,14 @@ func (a *activeSession) handle(ctx context.Context, event customui.Event) error 
 	switch event.Type {
 	case "click":
 		switch event.TargetID {
+		case "confirmTarget":
+			a.targetConfirmed = true
+			a.status = "候选目标已确认：窗口外框将作为锁定参照；不会把 Content Bounds 猜作外框。"
+			return a.renderSurface(ctx)
+		case "previousTarget":
+			return a.cycleTarget(ctx, -1)
+		case "nextTarget":
+			return a.cycleTarget(ctx, 1)
 		case "refreshSnapshot":
 			return a.refresh(ctx, a.selectedTarget)
 		case "copyResult":
@@ -366,6 +391,10 @@ func (a *activeSession) handle(ctx context.Context, event customui.Event) error 
 				a.manualPending, a.result, a.spacingFirst, a.twoPointFirst = true, nil, nil, nil
 				a.status = "请拖拽一个区域作为锁定参照；不会自动猜测 Content Bounds。"
 				return a.renderSurface(ctx)
+			}
+			if !a.targetConfirmed {
+				a.status = "请先确认当前候选窗口，或选择人工参照；不会静默猜测目标。"
+				return a.updateStatus(ctx, a.status)
 			}
 			a.reference, a.manualPending, a.result, a.spacingFirst, a.twoPointFirst = a.frame.Reference, false, nil, nil, nil
 			a.status = "参照已恢复为已确认目标窗口外边界。"
@@ -426,6 +455,10 @@ func (a *activeSession) completeSelection(ctx context.Context, end Point) error 
 		a.manualPending, a.result, a.spacingFirst, a.twoPointFirst = false, nil, nil, nil
 		a.status = "人工参照已锁定；后续测量都使用同一参照，直到用户主动切换。"
 		return a.renderSurface(ctx)
+	}
+	if !a.targetConfirmed {
+		a.status = "请先确认当前候选窗口，或改用人工参照；不会静默猜测目标。"
+		return a.updateStatus(ctx, a.status)
 	}
 	var result Result
 	var err error
@@ -579,21 +612,43 @@ func (a *activeSession) refresh(ctx context.Context, targetID string) error {
 	oldReference, oldTarget := a.reference, a.selectedTarget
 	oldResult, oldDrag := a.result, a.dragStart
 	oldTwoPoint, oldSpacing, oldManual := a.twoPointFirst, a.spacingFirst, a.manualPending
+	oldConfirmed := a.targetConfirmed
 
 	a.frame, a.image, a.assetPath = frame, img, assetPath
 	a.reference, a.selectedTarget = frame.Reference, frame.SelectedTargetID
 	a.result, a.dragStart, a.twoPointFirst, a.spacingFirst, a.manualPending = nil, nil, nil, nil, false
-	a.status = "已冻结新的干净快照；此前结果已清除。"
+	a.targetConfirmed = false
+	a.status = "已冻结新的干净快照；此前结果已清除。" + targetConfirmationInstruction(frame)
 	if err := a.replaceSurface(ctx); err != nil {
 		a.frame, a.image, a.assetPath = oldFrame, oldImage, oldAsset
 		a.reference, a.selectedTarget = oldReference, oldTarget
 		a.result, a.dragStart, a.twoPointFirst, a.spacingFirst, a.manualPending = oldResult, oldDrag, oldTwoPoint, oldSpacing, oldManual
+		a.targetConfirmed = oldConfirmed
 		_ = os.Remove(assetPath)
 		_, _ = oldWindow.Show(context.Background())
 		return err
 	}
 	_ = os.Remove(oldAsset)
 	return nil
+}
+
+func (a *activeSession) cycleTarget(ctx context.Context, direction int) error {
+	if len(a.frame.Targets) < 2 {
+		a.status = "当前没有可切换的其他候选窗口；可选择人工参照。"
+		return a.updateStatus(ctx, a.status)
+	}
+	current := 0
+	for index, target := range a.frame.Targets {
+		if target.ID == a.selectedTarget {
+			current = index
+			break
+		}
+	}
+	next := (current + direction) % len(a.frame.Targets)
+	if next < 0 {
+		next += len(a.frame.Targets)
+	}
+	return a.refresh(ctx, a.frame.Targets[next].ID)
 }
 
 func (a *activeSession) renderSurface(ctx context.Context) error {
@@ -683,6 +738,14 @@ func (a *activeSession) finish(ctx context.Context, closeWindow bool) error {
 		if err := a.session.Close(ctx); result == nil {
 			result = err
 		}
+		if a.restore != nil {
+			if err := a.restore(ctx); err != nil && result == nil {
+				result = fmt.Errorf("measurement recovery limited: %w", err)
+			}
+		}
+		a.finishMu.Lock()
+		a.finishErr = result
+		a.finishMu.Unlock()
 		a.service.mu.Lock()
 		if a.service.active == a {
 			a.service.active = nil
@@ -699,7 +762,7 @@ func (a *activeSession) finish(ctx context.Context, closeWindow bool) error {
 func measurementWindowSpec(frame CaptureFrame, assetName, source string) customui.WindowSpec {
 	view := &activeSession{
 		frame: frame, reference: frame.Reference, assetPath: assetName, tool: "point", outputFormat: "concise",
-		status: toolInstruction("point"), selectedTarget: frame.SelectedTargetID, source: strings.TrimSpace(source),
+		status: targetConfirmationInstruction(frame), selectedTarget: frame.SelectedTargetID, source: strings.TrimSpace(source),
 	}
 	return measurementWindowSpecState(view)
 }
@@ -707,10 +770,14 @@ func measurementWindowSpec(frame CaptureFrame, assetName, source string) customu
 func measurementWindowSpecState(a *activeSession) customui.WindowSpec {
 	m := a.frame.Snapshot.Mapping
 	return customui.WindowSpec{
-		ID: WindowID, Kind: "floating", Title: "",
-		Bounds: customui.Bounds{X: m.Origin.X, Y: m.Origin.Y, Width: m.LogicalSize.Width, Height: m.LogicalSize.Height},
+		// This is deliberately not a normal/floating Custom UI window. The native
+		// host maps the first-party-only kind to a borderless tool surface that is
+		// absent from the ordinary window switcher while still consuming the
+		// bounded Measurement pointer and keyboard events.
+		ID: WindowID, Kind: "measurement", Title: "",
+		Bounds:      customui.Bounds{X: m.Origin.X, Y: m.Origin.Y, Width: m.LogicalSize.Width, Height: m.LogicalSize.Height},
 		AlwaysOnTop: true, Theme: "dark",
-		Content: customui.ContentSpec{HTML: measurementHTML(a), CSS: measurementCSS(), BasePath: "."},
+		Content:     customui.ContentSpec{HTML: measurementHTML(a), CSS: measurementCSS(), BasePath: "."},
 		Measurement: &customui.MeasurementSurfaceSpec{TargetID: previewID},
 	}
 }
@@ -738,7 +805,24 @@ func measurementHTML(a *activeSession) string {
 		}
 	}
 	assetName := filepath.Base(a.assetPath)
-	return `<main id="measurementRoot"><img id="measurementPreview" src="` + html.EscapeString(assetName) + `">` + measurementOverlayHTML(a) + `<section id="measurementToolbar"><select id="measurementTool" aria-label="测量工具">` + toolOptions(a.tool) + `</select><select id="referenceType" aria-label="参照">` + referenceOptions(a) + `</select><button id="copyResult"` + copyDisabled + `>复制</button><button id="saveResult"` + copyDisabled + `>保存</button><button id="exitMeasurement">退出</button></section><aside id="measurementHUD" class="` + corner + `"><strong>桌面测量</strong><p id="measurementHUDValue">` + html.EscapeString(concise) + `</p><p id="measurementStatus">` + html.EscapeString(a.status) + `</p><p class="referenceInfo">` + html.EscapeString(referenceSummary(a.reference)) + `</p>` + constraintText + `<details id="measurementDetails"><summary>详情</summary><div class="detailsBody"><label>目标<select id="targetWindow">` + options.String() + `</select></label><button id="refreshSnapshot">重新冻结</button><label>导出<select id="outputFormat">` + outputOptions(a.outputFormat) + `</select></label><p id="snapshotInfo">` + html.EscapeString(snapshotSummary(a.frame)) + `</p><pre id="measurementResult">` + html.EscapeString(resultText) + `</pre><p class="hint">入口：` + html.EscapeString(a.source) + ` · Esc 退出 · 方向键移动 · Shift+方向键调整尺寸</p></div></details></aside></main>`
+	confirmation := `<button id="confirmTarget">确认候选</button>`
+	if a.targetConfirmed {
+		confirmation = `<span class="targetConfirmed">已确认窗口参照</span>`
+	}
+	return `<main id="measurementRoot"><img id="measurementPreview" src="` + html.EscapeString(assetName) + `">` + measurementOverlayHTML(a) + `<section id="measurementToolbar"><button id="previousTarget" aria-label="上一个候选">‹</button><span class="candidateTitle">` + html.EscapeString(selectedTargetTitle(a.frame.Targets, a.selectedTarget)) + `</span><button id="nextTarget" aria-label="下一个候选">›</button>` + confirmation + `<select id="measurementTool" aria-label="测量工具">` + toolOptions(a.tool) + `</select><select id="referenceType" aria-label="参照">` + referenceOptions(a) + `</select><button id="copyResult"` + copyDisabled + `>复制</button><button id="saveResult"` + copyDisabled + `>保存</button><button id="exitMeasurement">退出</button></section><section id="measurementHUD" class="` + corner + `"><strong>桌面测量</strong><p id="measurementHUDValue">` + html.EscapeString(concise) + `</p><p id="measurementStatus">` + html.EscapeString(a.status) + `</p><p class="referenceInfo">` + html.EscapeString(referenceSummary(a.reference)) + `</p>` + constraintText + `<details><summary>详情</summary><div class="detailsBody"><label>目标<select id="targetWindow">` + options.String() + `</select></label><button id="refreshSnapshot">重新冻结</button><label>导出<select id="outputFormat">` + outputOptions(a.outputFormat) + `</select></label><p id="snapshotInfo">` + html.EscapeString(snapshotSummary(a.frame)) + `</p><pre>` + html.EscapeString(resultText) + `</pre><p class="hint">入口：` + html.EscapeString(a.source) + ` · Esc 先关闭详情 · 方向键移动 · Shift+方向键调整尺寸</p></div></details></section></main>`
+}
+
+func selectedTargetTitle(targets []TargetWindow, selected string) string {
+	for _, target := range targets {
+		if target.ID == selected {
+			return target.Title
+		}
+	}
+	return "候选窗口不可用"
+}
+
+func targetConfirmationInstruction(frame CaptureFrame) string {
+	return "当前候选：" + selectedTargetTitle(frame.Targets, frame.SelectedTargetID) + "。请确认窗口外框，或选择人工参照；不会静默猜测 Content Bounds。"
 }
 
 func toolOptions(selected string) string {
@@ -746,7 +830,9 @@ func toolOptions(selected string) string {
 	var b strings.Builder
 	for _, item := range values {
 		mark := ""
-		if item.value == selected { mark = " selected" }
+		if item.value == selected {
+			mark = " selected"
+		}
 		fmt.Fprintf(&b, `<option value="%s"%s>%s</option>`, item.value, mark, item.label)
 	}
 	return b.String()
@@ -754,7 +840,11 @@ func toolOptions(selected string) string {
 
 func referenceOptions(a *activeSession) string {
 	outer, manual := "", ""
-	if a.reference.Type == ReferenceManualRegion || a.manualPending { manual = " selected" } else { outer = " selected" }
+	if a.reference.Type == ReferenceManualRegion || a.manualPending {
+		manual = " selected"
+	} else {
+		outer = " selected"
+	}
 	return `<option value="windowOuterBounds"` + outer + `>窗口参照</option><option value="manualRegion"` + manual + `>人工参照</option>`
 }
 
@@ -763,7 +853,9 @@ func outputOptions(selected string) string {
 	var b strings.Builder
 	for _, item := range values {
 		mark := ""
-		if item.value == selected { mark = " selected" }
+		if item.value == selected {
+			mark = " selected"
+		}
 		fmt.Fprintf(&b, `<option value="%s"%s>%s</option>`, item.value, mark, item.label)
 	}
 	return b.String()
@@ -780,7 +872,9 @@ func measurementOverlayHTML(a *activeSession) string {
 	if a.spacingFirst != nil {
 		fmt.Fprintf(&b, `<div class="resultRect pending" style="%s"></div>`, overlayRectStyle(mapping, *a.spacingFirst))
 	}
-	if a.result == nil { return b.String() }
+	if a.result == nil {
+		return b.String()
+	}
 	switch {
 	case a.result.Point != nil:
 		fmt.Fprintf(&b, `<span class="pointMarker" style="%s"></span>`, overlayPointStyle(mapping, a.result.Point.Absolute))
@@ -797,7 +891,7 @@ func measurementOverlayHTML(a *activeSession) string {
 }
 
 func measurementCSS() string {
-	return `:root{color-scheme:dark;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#000;color:#f5f8fc}*{box-sizing:border-box}html,body,#measurementRoot{margin:0;width:100%;height:100%;overflow:hidden}#measurementRoot{position:relative;background:#000;user-select:none}#measurementPreview{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;display:block}.targetOutline,.referenceOutline,.resultRect,.pointMarker,.distanceLine{position:absolute;pointer-events:none;z-index:4}.targetOutline{border:2px solid rgba(70,174,255,.95);box-shadow:0 0 0 1px rgba(0,0,0,.65)}.referenceOutline{border:1px dashed rgba(255,206,82,.95)}.resultRect{border:2px solid rgba(113,238,169,.96);background:rgba(113,238,169,.08)}.resultRect.pending{border-style:dashed}.pointMarker{width:12px;height:12px;margin:-6px 0 0 -6px;border:2px solid rgba(113,238,169,.98);border-radius:50%;background:rgba(0,0,0,.45)}.pointMarker.pending{border-color:#ffd479}.distanceLine{height:2px;transform-origin:0 50%;background:rgba(113,238,169,.95);box-shadow:0 0 0 1px rgba(0,0,0,.28)}#measurementToolbar{position:absolute;z-index:12;top:12px;left:50%;transform:translateX(-50%);display:flex;gap:6px;padding:6px;border:1px solid rgba(255,255,255,.16);border-radius:10px;background:rgba(14,18,24,.88);box-shadow:0 6px 22px rgba(0,0,0,.26)}select,button{height:30px;max-width:190px;border:1px solid rgba(255,255,255,.16);border-radius:7px;background:#202833;color:#f5f8fc;padding:0 9px}button{cursor:pointer}button:disabled{opacity:.42;cursor:default}#measurementHUD{position:absolute;z-index:11;width:min(280px,calc(100vw - 24px));max-height:calc(100vh - 78px);padding:10px 11px;border:1px solid rgba(255,255,255,.16);border-radius:10px;background:rgba(14,18,24,.88);box-shadow:0 8px 26px rgba(0,0,0,.28);overflow:auto}#measurementHUD.top-left{top:58px;left:12px}#measurementHUD.top-right{top:58px;right:12px}#measurementHUD.bottom-left{bottom:12px;left:12px}#measurementHUD.bottom-right{bottom:12px;right:12px}#measurementHUD strong{font-size:13px}#measurementHUD p{margin:6px 0 0;font-size:11px;line-height:1.42;white-space:pre-wrap}#measurementHUDValue{color:#fff}#measurementStatus{color:#92d2ff}.referenceInfo{color:#ffd479}.limited{display:block;margin-top:6px;color:#ffd479;font-size:10px}details{margin-top:8px;border-top:1px solid rgba(255,255,255,.12);padding-top:6px}summary{cursor:pointer;color:#c9d5e2;font-size:11px}.detailsBody{display:flex;flex-direction:column;gap:7px;padding-top:8px}.detailsBody label{display:flex;flex-direction:column;gap:4px;color:#aebccc;font-size:10px}.detailsBody select{width:100%;max-width:none}#snapshotInfo{color:#aebccc}#measurementResult{margin:0;max-height:200px;overflow:auto;white-space:pre-wrap;font:10px ui-monospace,SFMono-Regular,Consolas,monospace;color:#e2ebf5;background:rgba(0,0,0,.28);padding:7px;border-radius:6px}.hint{color:#8290a1!important}`
+	return `:root{color-scheme:dark;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#000;color:#f5f8fc}*{box-sizing:border-box}html,body,#measurementRoot{margin:0;width:100%;height:100%;overflow:hidden}#measurementRoot{position:relative;background:#000;user-select:none}#measurementPreview{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;display:block}.targetOutline,.referenceOutline,.resultRect,.pointMarker,.distanceLine{position:absolute;pointer-events:none;z-index:4}.targetOutline{border:2px solid rgba(70,174,255,.95);box-shadow:0 0 0 1px rgba(0,0,0,.65)}.referenceOutline{border:1px dashed rgba(255,206,82,.95)}.resultRect{border:2px solid rgba(113,238,169,.96);background:rgba(113,238,169,.08)}.resultRect.pending{border-style:dashed}.pointMarker{width:12px;height:12px;margin:-6px 0 0 -6px;border:2px solid rgba(113,238,169,.98);border-radius:50%;background:rgba(0,0,0,.45)}.pointMarker.pending{border-color:#ffd479}.distanceLine{height:2px;transform-origin:0 50%;background:rgba(113,238,169,.95);box-shadow:0 0 0 1px rgba(0,0,0,.28)}#measurementToolbar{position:absolute;z-index:12;top:12px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:6px;max-width:calc(100vw - 24px);padding:6px;border:1px solid rgba(255,255,255,.16);border-radius:10px;background:rgba(14,18,24,.88);box-shadow:0 6px 22px rgba(0,0,0,.26)}.candidateTitle{max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#c9d5e2;font-size:11px}.targetConfirmed{color:#9ee9c2;font-size:11px;white-space:nowrap}select,button{height:30px;max-width:190px;border:1px solid rgba(255,255,255,.16);border-radius:7px;background:#202833;color:#f5f8fc;padding:0 9px}button{cursor:pointer}button:disabled{opacity:.42;cursor:default}#measurementHUD{position:absolute;z-index:11;width:min(280px,calc(100vw - 24px));max-height:calc(100vh - 78px);padding:10px 11px;border:1px solid rgba(255,255,255,.16);border-radius:10px;background:rgba(14,18,24,.88);box-shadow:0 8px 26px rgba(0,0,0,.28);overflow:auto}#measurementHUD.top-left{top:58px;left:12px}#measurementHUD.top-right{top:58px;right:12px}#measurementHUD.bottom-left{bottom:12px;left:12px}#measurementHUD.bottom-right{bottom:12px;right:12px}#measurementHUD strong{font-size:13px}#measurementHUD p{margin:6px 0 0;font-size:11px;line-height:1.42;white-space:pre-wrap}#measurementHUDValue{color:#fff}#measurementStatus{color:#92d2ff}.referenceInfo{color:#ffd479}.limited{display:block;margin-top:6px;color:#ffd479;font-size:10px}details{margin-top:8px;border-top:1px solid rgba(255,255,255,.12);padding-top:6px}summary{cursor:pointer;color:#c9d5e2;font-size:11px}.detailsBody{display:flex;flex-direction:column;gap:7px;padding-top:8px}.detailsBody label{display:flex;flex-direction:column;gap:4px;color:#aebccc;font-size:10px}.detailsBody select{width:100%;max-width:none}#snapshotInfo{color:#aebccc}#measurementResult{margin:0;max-height:200px;overflow:auto;white-space:pre-wrap;font:10px ui-monospace,SFMono-Regular,Consolas,monospace;color:#e2ebf5;background:rgba(0,0,0,.28);padding:7px;border-radius:6px}.hint{color:#8290a1!important}`
 }
 
 func overlayRectStyle(mapping CaptureMapping, rect Rect) string {
@@ -806,14 +900,18 @@ func overlayRectStyle(mapping CaptureMapping, rect Rect) string {
 	right := (rect.Right() - mapping.Origin.X) / mapping.LogicalSize.Width * 100
 	bottom := (rect.Bottom() - mapping.Origin.Y) / mapping.LogicalSize.Height * 100
 	left, top, right, bottom = clampPercent(left), clampPercent(top), clampPercent(right), clampPercent(bottom)
-	if right < left { left, right = right, left }
-	if bottom < top { top, bottom = bottom, top }
+	if right < left {
+		left, right = right, left
+	}
+	if bottom < top {
+		top, bottom = bottom, top
+	}
 	return fmt.Sprintf("left:%.4f%%;top:%.4f%%;width:%.4f%%;height:%.4f%%", left, top, right-left, bottom-top)
 }
 
 func overlayPointStyle(mapping CaptureMapping, point Point) string {
-	x := clampPercent((point.X-mapping.Origin.X)/mapping.LogicalSize.Width*100)
-	y := clampPercent((point.Y-mapping.Origin.Y)/mapping.LogicalSize.Height*100)
+	x := clampPercent((point.X - mapping.Origin.X) / mapping.LogicalSize.Width * 100)
+	y := clampPercent((point.Y - mapping.Origin.Y) / mapping.LogicalSize.Height * 100)
 	return fmt.Sprintf("left:%.4f%%;top:%.4f%%", x, y)
 }
 
@@ -830,17 +928,25 @@ func overlayLineStyle(mapping CaptureMapping, first, second Point) string {
 }
 
 func clampPercent(value float64) float64 {
-	if value < 0 { return 0 }
-	if value > 100 { return 100 }
+	if value < 0 {
+		return 0
+	}
+	if value > 100 {
+		return 100
+	}
 	return value
 }
 
 func hudPlacement(mapping CaptureMapping, target Rect) (string, bool) {
 	center := target.Center()
 	horizontal := "right"
-	if center.X >= mapping.Origin.X+mapping.LogicalSize.Width/2 { horizontal = "left" }
+	if center.X >= mapping.Origin.X+mapping.LogicalSize.Width/2 {
+		horizontal = "left"
+	}
 	vertical := "bottom"
-	if center.Y >= mapping.Origin.Y+mapping.LogicalSize.Height/2 { vertical = "top" }
+	if center.Y >= mapping.Origin.Y+mapping.LogicalSize.Height/2 {
+		vertical = "top"
+	}
 	constrained := target.Width >= mapping.LogicalSize.Width*0.7 || target.Height >= mapping.LogicalSize.Height*0.7
 	return vertical + "-" + horizontal, constrained
 }

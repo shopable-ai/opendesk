@@ -1,14 +1,12 @@
 // Run from the repository root:
-//   ./dist/opendesk -script examples/local-webhook-order-query/main.js
+//   ./dist/opendesk -script examples/local-webhook-order-query/main.js -console-mode script
 //
-// This is a real cross-process HTTP integration example. The Go helper is an
-// independent process. It receives the ephemeral URL + auth headers only via
-// stdin, sends multiple HTTP deliveries, and never receives source code or a
-// JavaScript function name.
+// Keep this OpenDesk process running, then copy the printed localhost URL and
+// required headers into the real external HTTP caller on this machine.
 
 const state = {
   processed: 0,
-  orders: {},
+  orders: Object.create(null),
 };
 
 const hook = Webhook.listen("order-query-response", async (request) => {
@@ -20,27 +18,38 @@ const hook = Webhook.listen("order-query-response", async (request) => {
     typeof event.orderId !== "string" ||
     typeof event.status !== "string"
   ) {
+    const rejection = {
+      requestId: request.requestId,
+      source: request.source,
+      deliveryId: request.deliveryId,
+      code: "INVALID_ORDER_EVENT",
+    };
+    console.log("OPENDESK_WEBHOOK_REJECTED=" + JSON.stringify(rejection));
     return {
       status: 400,
-      body: { code: "INVALID_ORDER_EVENT", requestId: request.requestId },
+      body: { ok: false, code: rejection.code, requestId: request.requestId },
     };
   }
 
-  // This delay demonstrates that HTTP completion waits for the actual async
-  // handler instead of acknowledging early or switching to a background mode.
+  // The HTTP response waits for this asynchronous work to finish.
   await sleep(20);
 
   state.processed += 1;
   state.orders[event.orderId] = event.status;
 
+  const result = {
+    requestId: request.requestId,
+    source: request.source,
+    deliveryId: request.deliveryId,
+    orderId: event.orderId,
+    orderStatus: state.orders[event.orderId],
+    processed: state.processed,
+  };
+  console.log("OPENDESK_WEBHOOK_DELIVERY=" + JSON.stringify(result));
+
   return {
     status: 200,
-    body: {
-      requestId: request.requestId,
-      orderId: event.orderId,
-      orderStatus: state.orders[event.orderId],
-      processed: state.processed,
-    },
+    body: { ok: true, ...result },
   };
 }, {
   handlerTimeoutMs: 5000,
@@ -50,82 +59,20 @@ const hook = Webhook.listen("order-query-response", async (request) => {
   maxDedupeEntries: 64,
 });
 
-const event100 = {
-  type: "order.query.response",
-  orderId: "ORDER-100",
-  status: "paid",
-};
-
-const helperInput = [
-  JSON.stringify({
-    url: hook.url,
-    headers: hook.requestHeaders(),
-    source: "order-query-helper",
-  }),
-  JSON.stringify({ deliveryId: "delivery-100", body: event100 }),
-  JSON.stringify({
-    deliveryId: "delivery-200",
-    body: { type: "order.query.response", orderId: "ORDER-200", status: "shipped" },
-  }),
-  // Same source + id + content: must replay the first real result and must not
-  // increment state.processed.
-  JSON.stringify({ deliveryId: "delivery-100", body: event100 }),
-  // Same source + id, different content: must be an explicit 409 conflict.
-  JSON.stringify({
-    deliveryId: "delivery-100",
-    body: { type: "order.query.response", orderId: "ORDER-100", status: "refunded" },
-  }),
-  // Business-invalid JSON still reaches the registered handler and returns the
-  // handler's actual 400 result, proving responses are not fixed success text.
-  JSON.stringify({ deliveryId: "delivery-bad", body: { type: "order.query.response" } }),
-].join("\n") + "\n";
-
-try {
-  const helper = await Command.run(
-    "go",
-    ["run", "./examples/local-webhook-order-query/helper"],
-    {
-      input: helperInput,
-      timeout: 30_000,
-      emitOutput: false,
-      maxOutputBytes: 1024 * 1024,
-    }
-  );
-
-  const lines = helper.stdout
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => JSON.parse(line));
-
-  if (!lines[0] || lines[0].kind !== "ready") {
-    throw new Error("helper did not confirm readiness");
-  }
-
-  const results = lines.slice(1);
-  const statuses = results.map((entry) => entry.status);
-  if (JSON.stringify(statuses) !== JSON.stringify([200, 200, 200, 409, 400])) {
-    throw new Error(`unexpected helper statuses: ${JSON.stringify(statuses)}`);
-  }
-
-  if (state.processed !== 2) {
-    throw new Error(`dedupe/state contract failed: processed=${state.processed}`);
-  }
-
-  const first = results[0].body;
-  const duplicate = results[2].body;
-  if (!first || !duplicate || first.requestId !== duplicate.requestId || first.processed !== duplicate.processed) {
-    throw new Error("duplicate delivery did not replay the original result");
-  }
-
-  console.log(JSON.stringify({
-    webhook: "order-query-response",
-    helperReady: true,
-    deliveries: results.length,
-    statuses,
-    processed: state.processed,
-    orders: Object.keys(state.orders).sort(),
-  }));
-} finally {
-  hook.close();
-}
+// Printing the credential is an explicit handoff for this interactive example.
+// Treat this line as a secret and copy it only into the intended local caller.
+console.log("OPENDESK_WEBHOOK_READY=" + JSON.stringify({
+  method: "POST",
+  url: hook.url,
+  headers: hook.requestHeaders(),
+  optionalHeaders: {
+    "X-OpenDesk-Source": "your-system",
+    "X-OpenDesk-Delivery-Id": "unique-id-for-this-delivery",
+  },
+  exampleBody: {
+    type: "order.query.response",
+    orderId: "ORDER-100",
+    status: "paid",
+  },
+}));
+console.log("OPENDESK_WEBHOOK_WAITING=Send a POST from the configured external system; press Ctrl+C to stop.");

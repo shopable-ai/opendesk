@@ -15,7 +15,9 @@ Script Runner
   ├─ 主工具条：快速运行默认脚本 / 停止 / 当前脚本名 / 脚本列表
   └─ 脚本列表：序号、单个运行、排序、多选顺序运行、打开目录
   ↓
-Command.run(current OpenDesk executable)
+command-compatible execution adapter
+  ├─ standalone example: Command.run(current OpenDesk executable)
+  └─ official App: private App-owned execution bridge
   ↓
 新的标准 OpenDesk execution
   ↓
@@ -28,7 +30,7 @@ Command.run(current OpenDesk executable)
 - 普通 `.js` 保持第一等公民；
 - `#1 = 默认脚本`，不再维护第二份 `defaultScript` 状态；
 - 主工具条只有高频操作，低频管理进入列表窗口；
-- 使用现有 `Command.run()` 启动新的标准 OpenDesk execution，并用 `AbortSignal` 停止；
+- controller 使用 command-compatible adapter 启动新的标准 OpenDesk execution，并用 `AbortSignal` 停止；官方 App adapter 在同一 App host 进程创建隔离 Execution，避免 macOS TCC 身份分裂；
 - 顺序配置属于 JS 应用层，可随脚本目录复制；
 - 现有 Scheduler 留作后续计划任务 owner，不在 Runner 内重新实现 timer/cron；
 - 明确保留运行 Evidence / log-dir，但不在 P0 伪造当前 Runtime 不具备的实时终端能力。
@@ -58,11 +60,16 @@ P0 不追求完整自动化平台。当前目标是先完成 **可用、可理�
 - `Command.run()`
   - 本地 `-script` execution 可直接启动当前 OpenDesk executable；
   - 支持 `cwd`、timeout、bounded stdout/stderr、`AbortSignal`；
-  - 可用于 `Runner -> child OpenDesk -> target script`。
+  - 继续用于 standalone example 的 `Runner -> child OpenDesk -> target script`。
+- App-owned Recipe bridge
+  - 只注入官方 App entry 的 source-controlled product adapter；
+  - 每次运行创建新的 `pkg/execution` Runtime、Execution ID 与 artifact set；
+  - 不向普通脚本、HTTP、MCP 或 Scheduler 暴露；
+  - 保持 App host 的 macOS TCC identity，并支持同一 `AbortSignal` 停止合同。
 
 ### 2.2 当前没有实时终端 API
 
-`Command.run()` 当前契约是：
+standalone example 的 `Command.run()` 当前契约是：
 
 ```text
 启动命令
@@ -84,7 +91,7 @@ P0 不追求完整自动化平台。当前目标是先完成 **可用、可理�
 
 ```text
 运行中 / 运行后 Evidence
-  ├─ child OpenDesk 的 -log-dir
+  ├─ execution-owned run log directory
   └─ 标准 .runtime 运行证据
 
 Command.run 完成后
@@ -93,7 +100,7 @@ Command.run 完成后
   └─ stderr
 ```
 
-P0 继续为每次执行创建独立 `-log-dir`，并保留结构化父进程日志；**本轮不做实时终端/控制台窗口**。
+P0 继续为每次执行创建独立 run log directory，并保留结构化 Runner 日志；**本轮不做实时终端/控制台窗口**。
 
 未来如果需要实时日志，优先顺序是：
 
@@ -164,7 +171,7 @@ scripts[0] = default script
   ↓
 AbortController.abort()
   ↓
-Command.run() 取消当前 child process group
+execution adapter 取消当前 Recipe context（standalone adapter 取消 child process group）
   ↓
 取消尚未开始的 queue
   ↓
@@ -457,27 +464,21 @@ File.write(configFile, JSON.stringify(config, null, 2) + "\n");
 
 ## 7. 执行链路
 
-P0 不 `eval()` 目标脚本，也不在 Runner 当前 execution 内直接解释另一个脚本。
+P0 不在 Runner 当前 App entry Runtime 中 `eval()` 或直接解释目标脚本。
 
-正确链路：
+官方产品链路：
 
 ```text
-Script Runner execution
+Script Runner App entry execution
   ↓
-System.getExecutablePath()
+private source-controlled App-owned bridge
   ↓
-Command.run(currentOpenDesk, [
-  "-script", scriptPath,
-  "-console-mode", "script",
-  "-log-dir", runLogDir
-])
-  ↓
-新的 OpenDesk process / execution
+new pkg/execution Runtime + context + artifacts
   ↓
 目标 *.js
 ```
 
-这与 Recorder 当前生成脚本重放采用的正式思路一致：Runner 负责启动，目标脚本仍进入正常 OpenDesk Runtime。
+standalone example 仍可用 `Command.run(currentOpenDesk, ["-script", ...])`。两条路径都进入正常 OpenDesk Execution；官方产品使用同进程的新 Runtime，是为了让真实输入与截图沿用 `.app` 的系统授权 identity，并不把目标脚本合并进 App entry Runtime。
 
 ### 7.1 单脚本状态
 
@@ -532,7 +533,7 @@ run #3
 └─ 2026-09-10T15-30-00-000Z-erp/
 ```
 
-child OpenDesk 启动时传：
+execution adapter 接收：
 
 ```text
 -log-dir <runLogDir>
@@ -687,7 +688,7 @@ scan scripts
 load/reconcile/save order
 manage selection
 manage queue
-start/cancel child OpenDesk execution
+start/cancel Recipe execution through the injected adapter
 sync toolbar
 create/sync Script List window
 structured logging
@@ -723,7 +724,7 @@ cleanup
 - 行 Run 只运行该行；
 - Run Selected 按当前顺序串行；
 - 第一个失败后后续脚本不执行；
-- Stop 能取消当前 child execution 并清空剩余 queue；
+- Stop 能取消当前 Recipe execution 并清空剩余 queue；
 - Runner 本身在 stop 后仍保持可操作；
 - 运行中禁止 reorder 和重复启动；
 - Label 长名称由 native 末尾截断，完整名称仍保留；
@@ -731,7 +732,7 @@ cleanup
 
 日志验收：
 
-- 每个 child run 有独立 `-log-dir`；
+- 每个 Recipe run 有独立 log directory；
 - 成功、失败、取消均有结构化 Runner 记录；
 - 不声称 stdout/stderr 在 UI 中实时 streaming；
 - 不新增 console/terminal UI。
@@ -741,7 +742,7 @@ cleanup
 - macOS 主 toolbar 使用原生 FloatingWindow；
 - Windows 主 toolbar 使用 WinForms FloatingWindow；
 - Windows Script List 明确依赖 WebView2，缺失时沿现有 `UNSUPPORTED_CAPABILITY` 行为失败，不做假的降级；
-- child executable 使用 `System.getExecutablePath()`，不写死 `/usr/bin` 或无 `.exe` 的路径。
+- standalone adapter 使用 `System.getExecutablePath()`，不写死 `/usr/bin` 或无 `.exe` 的路径；官方 App adapter 不另起当前 executable。
 
 架构验收：
 

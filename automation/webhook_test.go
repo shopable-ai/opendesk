@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -32,9 +34,9 @@ func newWebhookTestRuntime(t *testing.T, script string) *webhookTestRuntime {
 	ready := make(chan error, 1)
 	if !loop.RunOnLoop(func(rt *goja.Runtime) {
 		err := InitJSWithOptions(rt, InitJSOptions{
-			Context:        ctx,
-			EventLoop:      loop,
-			EnableDownload: true,
+			Context:       ctx,
+			EventLoop:     loop,
+			EnableWebhook: true,
 			OnReady: func(lifecycle *RuntimeLifecycle) {
 				harness.lifecycle = lifecycle
 			},
@@ -95,8 +97,87 @@ func (h *webhookTestRuntime) close(t *testing.T) {
 	h.loop.Terminate()
 	if h.lifecycle != nil {
 		h.lifecycle.Wait()
+		if counts := h.lifecycle.ResourceCounts(); !counts.IsZero() {
+			t.Fatalf("webhook runtime leaked resources after teardown: %s", counts.String())
+		}
 	}
 	h.loop = nil
+}
+
+func TestWebhookRequiresIndependentHostAuthorization(t *testing.T) {
+	for _, test := range []struct {
+		name           string
+		enableDownload bool
+		enableWebhook  bool
+		options        string
+		wantError      string
+	}{
+		{name: "download does not authorize webhook", enableDownload: true, options: `{ enableWebhook: true }`, wantError: "WEBHOOK_DISABLED"},
+		{name: "host webhook authorization works without download", enableWebhook: true, options: `{}`},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			loop := eventloop.NewEventLoop()
+			loop.Start()
+			defer loop.Terminate()
+
+			var lifecycle *RuntimeLifecycle
+			ready := make(chan error, 1)
+			if !loop.RunOnLoop(func(rt *goja.Runtime) {
+				err := InitJSWithOptions(rt, InitJSOptions{
+					Context:        ctx,
+					EventLoop:      loop,
+					EnableDownload: test.enableDownload,
+					EnableWebhook:  test.enableWebhook,
+					OnReady: func(value *RuntimeLifecycle) {
+						lifecycle = value
+					},
+				})
+				if err == nil {
+					_, err = rt.RunString(`
+						if (typeof http.webhookOpen !== "undefined") throw new Error("native webhook bridge leaked on http");
+						globalThis.__hook = Webhook.listen("authorization", () => ({ status: 200, body: { ok: true } }), ` + test.options + `);
+					`)
+				}
+				if err == nil {
+					_, err = rt.RunString(`__hook.close()`)
+				}
+				ready <- err
+			}) {
+				t.Fatal("failed to schedule authorization test")
+			}
+
+			err := <-ready
+			if test.wantError == "" {
+				if err != nil {
+					t.Fatalf("Webhook.listen unexpectedly failed: %v", err)
+				}
+			} else if err == nil || !strings.Contains(err.Error(), test.wantError) {
+				t.Fatalf("Webhook.listen error = %v, want %s", err, test.wantError)
+			}
+
+			cancel()
+			if lifecycle != nil {
+				canceled := make(chan struct{}, 1)
+				if !loop.RunOnLoop(func(*goja.Runtime) {
+					lifecycle.CancelAsync()
+					close(canceled)
+				}) {
+					t.Fatal("failed to schedule authorization teardown")
+				}
+				select {
+				case <-canceled:
+				case <-time.After(time.Second):
+					t.Fatal("authorization teardown did not run")
+				}
+				lifecycle.Wait()
+				if counts := lifecycle.ResourceCounts(); !counts.IsZero() {
+					t.Fatalf("authorization runtime leaked resources: %s", counts.String())
+				}
+			}
+		})
+	}
 }
 
 func (h *webhookTestRuntime) eval(t *testing.T, expression string) goja.Value {
@@ -146,6 +227,45 @@ func webhookPost(t *testing.T, url string, headers map[string]string, source, de
 	defer response.Body.Close()
 	payload, readErr := io.ReadAll(response.Body)
 	return response.StatusCode, payload, elapsed, readErr
+}
+
+func webhookRaw(t *testing.T, request *http.Request) (int, []byte, error) {
+	t.Helper()
+	response, err := (&http.Client{Transport: &http.Transport{Proxy: nil}}).Do(request)
+	if err != nil {
+		return 0, nil, err
+	}
+	defer response.Body.Close()
+	payload, readErr := io.ReadAll(response.Body)
+	return response.StatusCode, payload, readErr
+}
+
+func webhookQueueLength(t *testing.T, harness *webhookTestRuntime) int {
+	t.Helper()
+	parsed, err := url.Parse(harness.url)
+	if err != nil {
+		t.Fatalf("parse webhook URL: %v", err)
+	}
+	host := webhookHostFor(harness.lifecycle.HTTP)
+	host.mu.Lock()
+	defer host.mu.Unlock()
+	listener := host.listeners[host.byPath[parsed.Path]]
+	if listener == nil {
+		return -1
+	}
+	return len(listener.queue)
+}
+
+func waitForWebhook(t *testing.T, description string, condition func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if condition() {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatalf("timed out waiting for %s", description)
 }
 
 func TestWebhookListenProcessesRealLoopbackHTTPInSingleExecution(t *testing.T) {
@@ -269,11 +389,11 @@ func TestWebhookTimeoutDoesNotReleaseSingleFlightAndCloseInsideHandlerDoesNotDea
 	harness := newWebhookTestRuntime(t, `
 		globalThis.__state = { processed: 0 };
 		globalThis.__hook = Webhook.listen("timeout-test", async (request) => {
-			await sleep(140);
+			await sleep(250);
 			__state.processed += 1;
 			if (request.body.close === true) __hook.close();
 			return { status: 200, body: { processed: __state.processed } };
-		}, { handlerTimeoutMs: 50, maxQueuedRequests: 4, maxQueuedBytes: 4096 });
+		}, { maxRequestBytes: 4096, handlerTimeoutMs: 100, maxQueuedRequests: 4, maxQueuedBytes: 4096 });
 	`)
 
 	status, first, _, err := webhookPost(t, harness.url, harness.headers, "timeout-test", "timeout-1", []byte(`{"close":false}`))
@@ -285,7 +405,7 @@ func TestWebhookTimeoutDoesNotReleaseSingleFlightAndCloseInsideHandlerDoesNotDea
 		t.Fatalf("queued timeout mismatch: status=%d err=%v body=%s", status, err, second)
 	}
 
-	time.Sleep(180 * time.Millisecond)
+	time.Sleep(290 * time.Millisecond)
 	if processed := harness.eval(t, "__state.processed").ToInteger(); processed != 1 {
 		t.Fatalf("timed-out active handler did not finish exactly once: processed=%d", processed)
 	}
@@ -316,4 +436,211 @@ func TestWebhookTimeoutDoesNotReleaseSingleFlightAndCloseInsideHandlerDoesNotDea
 	if oldErr == nil {
 		t.Fatal("closed webhook endpoint unexpectedly remained callable")
 	}
+}
+
+func TestWebhookRejectsProtocolFailuresBeforeBusinessHandler(t *testing.T) {
+	harness := newWebhookTestRuntime(t, `
+		globalThis.__state = { calls: 0 };
+		globalThis.__hook = Webhook.listen("protocol", async (request) => {
+			__state.calls += 1;
+			if (request.body.kind === "throw") throw new Error("expected handler failure");
+			if (request.body.kind === "large-response") return { status: 200, body: { value: "x".repeat(1024) } };
+			return {
+				status: 200,
+				body: {
+					requestId: request.requestId,
+					deliveryId: request.deliveryId,
+					receivedAt: request.receivedAt,
+					signalPresent: typeof request.signal.aborted === "boolean",
+					calls: __state.calls,
+				},
+			};
+		}, { maxRequestBytes: 512, maxResponseBytes: 512, maxQueuedBytes: 512 });
+	`)
+
+	request, err := http.NewRequest(http.MethodGet, harness.url, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	status, payload, err := webhookRaw(t, request)
+	if err != nil || status != http.StatusMethodNotAllowed || !strings.Contains(string(payload), "METHOD_NOT_ALLOWED") {
+		t.Fatalf("wrong method = status=%d err=%v body=%s", status, err, payload)
+	}
+
+	request, err = http.NewRequest(http.MethodPost, harness.url, strings.NewReader(`{"kind":"normal"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, value := range harness.headers {
+		request.Header.Set(key, value)
+	}
+	request.Host = "localhost"
+	status, payload, err = webhookRaw(t, request)
+	if err != nil || status != http.StatusBadRequest || !strings.Contains(string(payload), "HOST_MISMATCH") {
+		t.Fatalf("wrong Host = status=%d err=%v body=%s", status, err, payload)
+	}
+
+	for _, test := range []struct {
+		name     string
+		mutate   func(*http.Request)
+		want     int
+		contains string
+	}{
+		{name: "origin", mutate: func(request *http.Request) { request.Header.Set("Origin", "https://example.test") }, want: http.StatusForbidden, contains: "BROWSER_ORIGIN_DENIED"},
+		{name: "encoding", mutate: func(request *http.Request) { request.Header.Set("Content-Encoding", "gzip") }, want: http.StatusUnsupportedMediaType, contains: "CONTENT_ENCODING_UNSUPPORTED"},
+		{name: "content type", mutate: func(request *http.Request) { request.Header.Set("Content-Type", "text/plain") }, want: http.StatusUnsupportedMediaType, contains: "CONTENT_TYPE_UNSUPPORTED"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			request, err := http.NewRequest(http.MethodPost, harness.url, strings.NewReader(`{"kind":"normal"}`))
+			if err != nil {
+				t.Fatal(err)
+			}
+			for key, value := range harness.headers {
+				request.Header.Set(key, value)
+			}
+			test.mutate(request)
+			status, payload, err := webhookRaw(t, request)
+			if err != nil || status != test.want || !strings.Contains(string(payload), test.contains) {
+				t.Fatalf("%s = status=%d err=%v body=%s", test.name, status, err, payload)
+			}
+		})
+	}
+
+	status, payload, _, err = webhookPost(t, harness.url, harness.headers, "protocol", "bad-json", []byte(`{"kind":`))
+	if err != nil || status != http.StatusBadRequest || !strings.Contains(string(payload), "INVALID_JSON") {
+		t.Fatalf("malformed JSON = status=%d err=%v body=%s", status, err, payload)
+	}
+	status, payload, _, err = webhookPost(t, harness.url, harness.headers, "protocol", "too-large", []byte(`{"value":"`+strings.Repeat("x", 600)+`"}`))
+	if err != nil || status != http.StatusRequestEntityTooLarge || !strings.Contains(string(payload), "REQUEST_BODY_TOO_LARGE") {
+		t.Fatalf("oversize request = status=%d err=%v body=%s", status, err, payload)
+	}
+	if calls := harness.eval(t, "__state.calls").ToInteger(); calls != 0 {
+		t.Fatalf("protocol rejection reached handler: calls=%d", calls)
+	}
+
+	status, payload, _, err = webhookPost(t, harness.url, harness.headers, "protocol", "throw", []byte(`{"kind":"throw"}`))
+	if err != nil || status != http.StatusInternalServerError || !strings.Contains(string(payload), "HANDLER_FAILED") {
+		t.Fatalf("handler throw = status=%d err=%v body=%s", status, err, payload)
+	}
+	if calls := harness.eval(t, "__state.calls").ToInteger(); calls != 1 {
+		t.Fatalf("handler throw was retried: calls=%d", calls)
+	}
+
+	status, payload, _, err = webhookPost(t, harness.url, harness.headers, "protocol", "large-response", []byte(`{"kind":"large-response"}`))
+	if err != nil || status != http.StatusInternalServerError || !strings.Contains(string(payload), "HANDLER_RESPONSE_TOO_LARGE") {
+		t.Fatalf("oversize response = status=%d err=%v body=%s", status, err, payload)
+	}
+
+	status, payload, _, err = webhookPost(t, harness.url, harness.headers, "protocol", "fields", []byte(`{"kind":"normal"}`))
+	if err != nil || status != http.StatusOK || !strings.Contains(string(payload), `"deliveryId":"fields"`) || !strings.Contains(string(payload), `"signalPresent":true`) {
+		t.Fatalf("request contract = status=%d err=%v body=%s", status, err, payload)
+	}
+	status, _, _, err = webhookPost(t, harness.url, harness.headers, "protocol", "", []byte(`{"kind":"normal"}`))
+	if err != nil || status != http.StatusOK {
+		t.Fatalf("first no-delivery-id request = status=%d err=%v", status, err)
+	}
+	status, _, _, err = webhookPost(t, harness.url, harness.headers, "protocol", "", []byte(`{"kind":"normal"}`))
+	if err != nil || status != http.StatusOK {
+		t.Fatalf("second no-delivery-id request = status=%d err=%v", status, err)
+	}
+	if calls := harness.eval(t, "__state.calls").ToInteger(); calls != 5 {
+		t.Fatalf("missing delivery id incorrectly deduped or handler count drifted: calls=%d", calls)
+	}
+
+	message := harness.eval(t, `(() => { try { Webhook.listen("invalid", () => ({status:200, body:{}}), { mode: "async" }); } catch (error) { return String(error); } return "missing error"; })()`).String()
+	if !strings.Contains(message, "WEBHOOK_INVALID_OPTION") {
+		t.Fatalf("unsupported option error = %s", message)
+	}
+	message = harness.eval(t, `(() => { try { Webhook.listen("protocol", () => ({status:200, body:{}})); } catch (error) { return String(error); } return "missing error"; })()`).String()
+	if !strings.Contains(message, "WEBHOOK_NAME_CONFLICT") {
+		t.Fatalf("same-name conflict error = %s", message)
+	}
+	harness.eval(t, `const recovered = Webhook.listen("invalid", () => ({status:200, body:{ok:true}})); recovered.close();`)
+}
+
+func TestWebhookQueueCapacityAndCancellationSignals(t *testing.T) {
+	harness := newWebhookTestRuntime(t, `
+		globalThis.__state = { calls: 0, started: 0, aborted: 0 };
+		globalThis.__hook = Webhook.listen("capacity", async (request) => {
+			__state.calls += 1;
+			__state.started += 1;
+			request.signal.addEventListener("abort", () => { __state.aborted += 1; }, { once: true });
+			if (request.body.kind === "wait-abort") {
+				await new Promise((resolve) => request.signal.addEventListener("abort", resolve, { once: true }));
+			} else {
+				await sleep(200);
+			}
+			return { status: 200, body: { calls: __state.calls } };
+		}, { maxRequestBytes: 512, maxQueuedRequests: 1, maxQueuedBytes: 512, handlerTimeoutMs: 1000, maxDedupeEntries: 1 });
+	`)
+
+	type reply struct {
+		status int
+		body   []byte
+		err    error
+	}
+	first := make(chan reply, 1)
+	go func() {
+		status, body, _, err := webhookPost(t, harness.url, harness.headers, "capacity", "", []byte(`{"kind":"slow"}`))
+		first <- reply{status: status, body: body, err: err}
+	}()
+	waitForWebhook(t, "first handler start", func() bool { return harness.eval(t, "__state.started").ToInteger() == 1 })
+	second := make(chan reply, 1)
+	go func() {
+		status, body, _, err := webhookPost(t, harness.url, harness.headers, "capacity", "", []byte(`{"kind":"slow"}`))
+		second <- reply{status: status, body: body, err: err}
+	}()
+	waitForWebhook(t, "second request queueing", func() bool { return webhookQueueLength(t, harness) == 1 })
+	status, payload, _, err := webhookPost(t, harness.url, harness.headers, "capacity", "", []byte(`{"kind":"slow"}`))
+	if err != nil || status != http.StatusTooManyRequests || !strings.Contains(string(payload), "WEBHOOK_QUEUE_FULL") {
+		t.Fatalf("queue capacity = status=%d err=%v body=%s", status, err, payload)
+	}
+	for _, result := range []reply{<-first, <-second} {
+		if result.err != nil || result.status != http.StatusOK {
+			t.Fatalf("accepted queued request = status=%d err=%v body=%s", result.status, result.err, result.body)
+		}
+	}
+
+	status, _, _, err = webhookPost(t, harness.url, harness.headers, "capacity", "dedupe-one", []byte(`{"kind":"slow"}`))
+	if err != nil || status != http.StatusOK {
+		t.Fatalf("first protected delivery = status=%d err=%v", status, err)
+	}
+	status, payload, _, err = webhookPost(t, harness.url, harness.headers, "capacity", "dedupe-two", []byte(`{"kind":"slow"}`))
+	if err != nil || status != http.StatusTooManyRequests || !strings.Contains(string(payload), "DEDUPE_CAPACITY") {
+		t.Fatalf("dedupe capacity = status=%d err=%v body=%s", status, err, payload)
+	}
+
+	requestContext, cancelRequest := context.WithCancel(context.Background())
+	defer cancelRequest()
+	request, err := http.NewRequestWithContext(requestContext, http.MethodPost, harness.url, strings.NewReader(`{"kind":"wait-abort"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, value := range harness.headers {
+		request.Header.Set(key, value)
+	}
+	clientDone := make(chan error, 1)
+	go func() {
+		_, err := (&http.Client{Transport: &http.Transport{Proxy: nil}}).Do(request)
+		clientDone <- err
+	}()
+	waitForWebhook(t, "abortable handler start", func() bool { return harness.eval(t, "__state.started").ToInteger() == 4 })
+	cancelRequest()
+	if err := <-clientDone; err == nil {
+		t.Fatal("client disconnect unexpectedly received an HTTP result")
+	}
+	waitForWebhook(t, "client disconnect abort signal", func() bool { return harness.eval(t, "__state.aborted").ToInteger() == 1 })
+
+	active := make(chan reply, 1)
+	go func() {
+		status, body, _, err := webhookPost(t, harness.url, harness.headers, "capacity", "", []byte(`{"kind":"wait-abort"}`))
+		active <- reply{status: status, body: body, err: err}
+	}()
+	waitForWebhook(t, "execution-cancel handler start", func() bool { return harness.eval(t, "__state.started").ToInteger() == 5 })
+	harness.cancel()
+	result := <-active
+	if result.err != nil && !errors.Is(result.err, io.EOF) && !strings.Contains(result.err.Error(), "connection") {
+		t.Fatalf("execution cancellation request error = %v", result.err)
+	}
+	waitForWebhook(t, "execution cancellation abort signal", func() bool { return harness.eval(t, "__state.aborted").ToInteger() == 2 })
 }

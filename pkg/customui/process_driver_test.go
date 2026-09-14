@@ -158,7 +158,7 @@ func TestProtocolFailurePreservesTransportCause(t *testing.T) {
 
 func TestProtocolEventAcceptsEscapedRFC3339Offset(t *testing.T) {
 	var frame protocolFrame
-	err := json.Unmarshal([]byte(`{"version":"1.10.0","kind":"event","event":{"sessionId":"portable","windowId":"panel","type":"close","sequence":1,"timestamp":"2026-09-11T11:41:03.7059140\u002B00:00","reason":"script"}}`), &frame)
+	err := json.Unmarshal([]byte(`{"version":"1.11.0","kind":"event","event":{"sessionId":"portable","windowId":"panel","type":"close","sequence":1,"timestamp":"2026-09-11T11:41:03.7059140\u002B00:00","reason":"script"}}`), &frame)
 	if err != nil {
 		t.Fatal(err)
 	}

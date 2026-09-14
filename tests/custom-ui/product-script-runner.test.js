@@ -25,6 +25,7 @@ function loadProductRunner(harness) {
     OpenDeskScriptRunnerSimple: harness.RunnerController,
     OpenDeskProductScriptRunner: undefined,
     OpenDeskProductPaths: undefined,
+    __opendeskRecipeExecution: harness.recipeExecution,
   };
 
   for (const [name, value] of Object.entries(globals)) {
@@ -61,7 +62,10 @@ function createHarness(options = {}) {
   const floatingWindows = [];
   const activations = [];
   const errors = [];
+  const toastUpdates = [];
+  const recipeRuns = [];
   let createAppCount = 0;
+  let runnerOptions = null;
 
   const ui = {
     async createWindow(spec) {
@@ -82,8 +86,11 @@ function createHarness(options = {}) {
       return {status: 'shown'};
     },
     async toast(message) {
-      notifications.push(String(message));
-      return {status: 'shown'};
+      notifications.push(String(message && typeof message === 'object' ? message.message : message));
+      return {
+        status: 'shown',
+        async update(patch) { toastUpdates.push(patch); return {applied: true}; },
+      };
     },
   };
 
@@ -118,6 +125,7 @@ function createHarness(options = {}) {
   const RunnerController = {
     createApp(options) {
       createAppCount += 1;
+      runnerOptions = options;
       const toolbar = new options.FloatingWindow({toolbar: {maxWidth: 360}});
       toolbar.addButton('run', '运行', 'play.fill', () => {});
       toolbar.addButton('stop', '停止', 'stop.fill', () => {});
@@ -194,6 +202,8 @@ function createHarness(options = {}) {
     floatingWindows,
     activations,
     errors,
+    toastUpdates,
+    recipeRuns,
     console: {
       log() {},
       warn() {},
@@ -213,9 +223,20 @@ function createHarness(options = {}) {
       },
       getExecutablePath() { return '/opt/opendesk'; },
     },
-    automation: {app: {getCapabilities: () => ({packageId: 'com.opendesk.desktop'})}},
+    automation: {app: {
+      getCapabilities: () => ({packageId: 'com.opendesk.desktop'}),
+      getPermissions: () => options.permissionReport || ({overall: 'READY', permissions: []}),
+    }},
+    recipeExecution: {
+      async run(request) {
+        recipeRuns.push(request);
+        if (options.recipeRunError) throw options.recipeRunError;
+        return {executionId: 'app-recipe-1', status: 'succeeded', logDir: request.logDir};
+      },
+    },
     Execution: {scriptDir: '/bundle/apps/opendesk', workdir: '/bundle/apps/opendesk'},
     Command: {run: async () => ({exitCode: 0})},
+    get runnerOptions() { return runnerOptions; },
   };
 }
 
@@ -288,6 +309,81 @@ test('product Script Runner retains title as a compatibility input', async () =>
   assert.equal(runner.state().windowTitle, 'Existing title option');
   assert.equal(harness.windows[0].spec.title, 'Existing title option');
   assert.equal(harness.floatingWindows[0].spec.title, 'Existing title option');
+});
+
+test('product Recipe runs in the App-owned execution bridge with one visible lifecycle toast', async () => {
+  const harness = createHarness();
+  const loaded = loadProductRunner(harness);
+  const runner = loaded.api.create({officialShell: harness.officialShell});
+  await runner.launch();
+
+  const result = await harness.runnerOptions.command.run('/opt/opendesk', [
+    '-script', '/recipes/计算器.js',
+    '-console-mode', 'script',
+    '-log-dir', '/artifacts/calculator',
+  ], {cwd: '/app-data', signal: new AbortController().signal, hideWindow: true});
+
+  assert.equal(result.exitCode, 0);
+  assert.equal(harness.recipeRuns.length, 1);
+  assert.equal(harness.recipeRuns[0].scriptPath, '/recipes/计算器.js');
+  assert.equal(harness.recipeRuns[0].workdir, '/app-data');
+  assert.equal(harness.recipeRuns[0].logDir, '/artifacts/calculator');
+  assert.equal(harness.notifications.length, 1, 'one toast must be reused for the full run');
+  assert.match(harness.notifications[0], /正在运行.*计算器/);
+  assert.equal(harness.toastUpdates.length, 1);
+  assert.match(harness.toastUpdates[0].message, /运行完成/);
+  assert.equal(harness.toastUpdates[0].level, 'success');
+  assert.equal(runner.state().latestExecution.status, 'succeeded');
+  assert.equal(runner.state().latestExecution.executionId, 'app-recipe-1');
+});
+
+test('product Recipe permission failure updates the same toast with remediation', async () => {
+  const denied = Object.assign(new Error('PERMISSION_DENIED: macOS Accessibility permission is not granted'), {
+    code: 'EXECUTION_FAILED',
+    executionId: 'app-recipe-denied',
+  });
+  const harness = createHarness({
+    recipeRunError: denied,
+    permissionReport: {
+      overall: 'BLOCKED',
+      permissions: [{id: 'accessibility', status: 'denied', displayName: 'Accessibility'}],
+    },
+  });
+  const loaded = loadProductRunner(harness);
+  const runner = loaded.api.create({officialShell: harness.officialShell});
+  await runner.launch();
+
+  await assert.rejects(() => harness.runnerOptions.command.run('/opt/opendesk', [
+    '-script', '/recipes/计算器.js', '-log-dir', '/artifacts/calculator',
+  ], {cwd: '/app-data'}), /PERMISSION_DENIED/);
+
+  assert.equal(harness.notifications.length, 1);
+  assert.equal(harness.toastUpdates.length, 1);
+  assert.match(harness.toastUpdates[0].message, /缺少“辅助功能”权限/);
+  assert.match(harness.toastUpdates[0].caption, /系统权限/);
+  assert.equal(harness.toastUpdates[0].level, 'error');
+  assert.equal(runner.state().latestExecution.status, 'failed');
+});
+
+test('product Recipe permission failure accepts native PascalCase permission reports', async () => {
+  const denied = Object.assign(new Error('GoError: PERMISSION_DENIED: macOS Accessibility permission is not granted'), {
+    code: 'EXECUTION_FAILED',
+  });
+  const harness = createHarness({
+    recipeRunError: denied,
+    permissionReport: {
+      Overall: 'BLOCKED',
+      Permissions: [{ID: 'accessibility', Status: 'denied', DisplayName: 'Accessibility'}],
+    },
+  });
+  const loaded = loadProductRunner(harness);
+  const runner = loaded.api.create({officialShell: harness.officialShell});
+  await runner.launch();
+
+  await assert.rejects(() => harness.runnerOptions.command.run('/opt/opendesk', [
+    '-script', '/recipes/计算器.js', '-log-dir', '/artifacts/calculator',
+  ], {cwd: '/app-data'}), /PERMISSION_DENIED/);
+  assert.match(harness.toastUpdates[0].message, /缺少“辅助功能”权限/);
 });
 
 test('App Shell UI cancellation is a clean Product Runner shutdown', async () => {

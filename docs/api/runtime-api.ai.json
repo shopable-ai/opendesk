@@ -285,6 +285,18 @@
     {"name": "console", "source": "native runtime wrapper", "status": "stable", "doc": "global-apis.md", "keyMethods": ["log", "info", "warn", "error", "debug", "table", "group", "groupEnd", "time", "timeEnd", "clear"]},
     {"name": "http", "source": "native", "status": "stable", "doc": "http.md", "keyMethods": ["request", "get", "post", "download"]},
     {
+      "name": "Webhook", "source": "automation/webhook.go + polyfills/009-webhook.js", "status": "local", "platforms": ["darwin", "linux", "windows"], "doc": "webhook.md", "types": "types/Webhook.d.ts",
+      "keyMethods": ["listen"], "handleType": "OpenDeskWebhookHandle", "handleMethods": ["requestHeaders", "close"],
+      "availability": "Only trusted local script, App Mode package entry, and local AI executions whose host sets EnableWebhook inject this loopback-only P0 API. HTTP, MCP, Scheduler, and generic Runtime executions fail closed; JavaScript options, Execution.env, and delivery bodies cannot enable it.",
+      "summary": "Authenticated local short-processing Webhook: current Execution handler, bounded single-flight queue, response waits for handler Promise, and listener-instance delivery dedupe only.",
+      "example": "examples/local-webhook-order-query/main.js",
+      "quickstart": "./dist/opendesk -script examples/local-webhook-order-query/main.js -console-mode script",
+      "verificationExample": "examples/local-webhook-order-query/send.js",
+      "verificationCommand": "./dist/opendesk -script examples/local-webhook-order-query/send.js -console-mode script",
+      "userFlow": "Run only OpenDesk JavaScript, copy the generated loopback URL and authorization headers into a real same-machine external HTTP caller, observe its HTTP JSON response plus the OpenDesk delivery log, and press Ctrl+C to revoke the listener. No Go or Node.js installation is required.",
+      "appMode": "An existing App Mode package entry may call the same Webhook.listen API, but -app apps/opendesk launches the official product package and is not a generic webhook-script entrypoint."
+    },
+    {
       "name": "NativeExtensions", "source": "strict manifest registry plus host-generated immutable binding", "status": "experimental", "doc": "native-extension.md",
       "condition": "available to local CLI JavaScript by default after a complete source-free bundle is installed beside the actual executable; the -script path does not affect discovery; HTTP, MCP, and other remote execution transports never inject, enable, redirect, or call it",
       "summary": "Discovers strict extension.json bundles from exactly one portable/app-bundled program-relative root; it does not compile or install source examples, generates frozen namespaces and method closures, and starts one validated executable only when a generated method is called.",
@@ -372,7 +384,7 @@
     "core": ["page.md", "mouse.md", "input.md", "events.md", "app.md", "accessibility.md", "desktop-ui.md", "audio.md", "window.md", "screen.md"],
     "vision": ["vision.md", "image-color.md"],
     "systemData": ["system.md", "execution.md", "command.md", "llm.md", "agent.md", "file.md", "sqlite.md", "storage.md", "clipboard.md"],
-    "network": ["http.md", "http-server.md"],
+    "network": ["http.md", "http-server.md", "webhook.md"],
     "delivery": ["script-app-packaging.md", "app-package-cli.md", "protected-packages.md"],
     "runtime": ["capabilities.md", "environment.md", "execution.md", "runtime.md", "command.md", "llm.md", "agent.md", "notify.md", "notifications.md", "audio.md", "sound.md", "ui.md", "native-extension.md", "global-apis.md", "libs.md"],
     "examples": "cookbook.md"

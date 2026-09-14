@@ -223,6 +223,15 @@ func (r *appRecorder) Cancel() {
 	}
 }
 
+func (r *appRecorder) Running() bool {
+	if r == nil {
+		return false
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.running
+}
+
 func showRecorderSession(ctx context.Context, session *customui.Session) error {
 	if session == nil {
 		return nil

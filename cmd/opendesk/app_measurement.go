@@ -20,10 +20,12 @@ type measurementWindowRow struct {
 	id     string
 	title  string
 	pid    int64
+	handle uint64
 	x      float64
 	y      float64
 	width  float64
 	height float64
+	raw    map[string]interface{}
 }
 
 type measurementDisplayRow struct {
@@ -90,6 +92,7 @@ func (appMeasurementCapture) Capture(ctx context.Context, targetID string) (meas
 			Window: &measurement.WindowIdentity{ID: selected.id, PID: selected.pid, Title: selected.title},
 		},
 		Targets: targetOptions, SelectedTargetID: selected.id,
+		Restore: measurementRestoreTarget(windowManager, selected),
 	}, nil
 }
 
@@ -113,7 +116,7 @@ func measurementWindows(manager *automation.WindowManager) ([]measurementWindowR
 	if activeErr == nil && active != nil && active.Width > 0 && active.Height > 0 {
 		activeID = active.ID
 		if !seen[active.ID] {
-			windows = append(windows, measurementWindowRow{id: active.ID, title: active.Title, pid: int64(active.ProcessID), x: float64(active.X), y: float64(active.Y), width: float64(active.Width), height: float64(active.Height)})
+			windows = append(windows, measurementWindowFromInfo(active))
 		}
 	}
 	if len(windows) == 0 {
@@ -136,8 +139,60 @@ func measurementWindows(manager *automation.WindowManager) ([]measurementWindowR
 
 func measurementWindowFromMap(row map[string]interface{}) measurementWindowRow {
 	return measurementWindowRow{
-		id: stringValue(row["id"]), title: stringValue(row["title"]), pid: int64(numberValue(row["pid"])),
+		id: stringValue(row["id"]), title: stringValue(row["title"]), pid: int64(numberValue(row["pid"])), handle: uint64(numberValue(row["handle"])),
 		x: numberValue(row["x"]), y: numberValue(row["y"]), width: numberValue(row["width"]), height: numberValue(row["height"]),
+		raw: measurementWindowExactTarget(row),
+	}
+}
+
+func measurementWindowFromInfo(info *automation.WindowInfo) measurementWindowRow {
+	if info == nil {
+		return measurementWindowRow{}
+	}
+	return measurementWindowFromMap(map[string]interface{}{
+		"id": info.ID, "title": info.Title, "pid": info.ProcessID, "handle": info.Handle,
+		"x": info.X, "y": info.Y, "width": info.Width, "height": info.Height,
+		"exeName": info.ExeName, "exePath": info.ExePath,
+	})
+}
+
+// measurementWindowExactTarget keeps the existing WindowInfo contract intact:
+// recovery will fail closed when a PID/native-handle observation is gone rather
+// than resolving a same-titled replacement window.
+func measurementWindowExactTarget(row map[string]interface{}) map[string]interface{} {
+	if row == nil {
+		return nil
+	}
+	target := map[string]interface{}{
+		"id": stringValue(row["id"]), "title": stringValue(row["title"]),
+		"pid": uint32(numberValue(row["pid"])), "handle": uint64(numberValue(row["handle"])),
+		"x": int32(numberValue(row["x"])), "y": int32(numberValue(row["y"])),
+		"width": int32(numberValue(row["width"])), "height": int32(numberValue(row["height"])),
+	}
+	if value := stringValue(row["exeName"]); value != "" {
+		target["exeName"] = value
+	}
+	if value := stringValue(row["exePath"]); value != "" {
+		target["exePath"] = value
+	}
+	return target
+}
+
+func measurementRestoreTarget(manager *automation.WindowManager, selected measurementWindowRow) func(context.Context) error {
+	if manager == nil || len(selected.raw) == 0 || selected.handle == 0 {
+		return nil
+	}
+	target := selected.raw
+	return func(ctx context.Context) error {
+		if ctx != nil {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+		}
+		if _, err := manager.Activate(target, 1500); err != nil {
+			return fmt.Errorf("恢复进入前窗口受限：%w", err)
+		}
+		return nil
 	}
 }
 

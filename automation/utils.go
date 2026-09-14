@@ -86,6 +86,10 @@ type InitJSOptions struct {
 	// streaming file writer. Remote HTTP, MCP, and Scheduler executions remain
 	// denied before either a network request or a filesystem side effect.
 	EnableDownload bool
+	// EnableWebhook opts a trusted local execution into the loopback-only
+	// short-processing Webhook transport. It is independent from download and
+	// remains false for generic Runtime, HTTP, MCP, and Scheduler executions.
+	EnableWebhook bool
 	// EnableAccessibility opts a trusted local execution into the first-party
 	// native Accessibility owner. Generic Runtime, HTTP, MCP, and Scheduler
 	// executions leave it false while retaining the capability summary.
@@ -112,6 +116,11 @@ type InitJSOptions struct {
 	// public Runtime API and remains absent unless App Mode supplies the shared
 	// process-owned Measurement service.
 	MeasurementOpen func(context.Context) error
+	// AppOwnedScriptRun is a first-party product bridge used by the bundled
+	// Script Runner. It creates a separate JavaScript Execution inside the App
+	// host process so protected desktop operations retain the App's OS identity.
+	// It is deliberately not exposed through the public automation.app object.
+	AppOwnedScriptRun AppOwnedScriptRunner
 	// ExecutionID binds a capture session and its manifest to this Runtime.
 	ExecutionID string
 	// RecorderBackendFactory and RecorderWindowProbe are internal seams for
@@ -971,9 +980,10 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 	runtime.Set("console", consoleMethods)
 
 	httpClient := NewHTTPClientWithOptions(runtime, opts.Context, opts.EventLoop, opts.OnAsyncError, HTTPClientOptions{
-		WorkDir: opts.WorkDir, EnableDownload: opts.EnableDownload,
+		WorkDir: opts.WorkDir, EnableDownload: opts.EnableDownload, EnableWebhook: opts.EnableWebhook,
 	})
 	httpMethods := AutoMapObject(runtime, httpClient)
+	registerWebhook(httpMethods, httpClient)
 	runtime.Set("http", httpMethods)
 
 	timer := NewTimer(runtime, opts.EventLoop, opts.OnAsyncError)
