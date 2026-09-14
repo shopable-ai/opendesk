@@ -41,12 +41,12 @@
       },
       {
         "id": "open-permissions",
-        "label": "系统权限…",
+        "label": "系统权限",
         "action": "permissions.open"
       },
       {
         "id": "open-runtime-log",
-        "label": "运行日志…",
+        "label": "运行日志",
         "action": "runtime.log"
       },
       {
@@ -54,12 +54,12 @@
       },
       {
         "id": "open-examples",
-        "label": "示例代码…",
+        "label": "示例代码",
         "action": "opendesk.examples"
       },
       {
         "id": "open-api-docs",
-        "label": "API 文档…",
+        "label": "API 文档",
         "action": "opendesk.api-docs"
       }
     ]
