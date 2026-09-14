@@ -203,12 +203,20 @@ Tray/Menu owner:
 打开 OpenDesk
 ----------------
 录制自动化
+AI 助手
+----------------
 计划中心
 新建计划…
-运行日志…
+----------------
+系统权限
+运行日志
+----------------
+示例代码
+API 文档
 ----------------
 开发者 >
-    运行状态…
+    运行状态
+    桌面测量
     打开 Inspector
     打开日志目录
     调试信息 > 普通 / 详细
@@ -218,14 +226,21 @@ Tray/Menu owner:
     帮助
     定制
 ----------------
-退出 OpenDesk
+退出
 ```
+
+Menu labels follow the desktop convention that an ellipsis means the command
+still requires additional input or selection before it can complete. Direct
+window/page/mode entry points therefore do not use an ellipsis. `新建计划…` is
+the intentional exception because creating a schedule continues into a data-entry
+flow.
 
 Ownership is intentionally split:
 
-- Open/Recorder/Developer/Quit are App Shell/framework-owned;
-- Scheduler Center/New Schedule are package business actions;
-- Runtime Log and Help/Services are OpenDesk product-shell composition;
+- Open/Recorder/Quit are App Shell/framework-owned;
+- AI Assistant, Scheduler Center/New Schedule, System Permissions, Runtime Log,
+  Examples and API Docs are package-declared product actions;
+- Developer and Help/Services are OpenDesk product-shell composition;
 - Recorder is not duplicated in `opendesk.app.json`;
 - `打开 Script Runner` must disappear from the visible product menu, while the
   internal `runner.open` action can remain as a compatibility route to the same
@@ -258,9 +273,10 @@ tray.primaryAction = "opendesk.open"
 and focuses the existing window. It does not start another App execution,
 another toolbar or another Runtime.
 
-Closing/hiding the main UI is not Quit. Recorder, Scheduler Center, Runtime Log,
-Help/Customize and background scheduled/running automation must remain usable
-while the main UI is hidden. `Quit OpenDesk` owns the actual app teardown.
+Closing/hiding the main UI is not Quit. Recorder, AI Assistant, Scheduler Center,
+System Permissions, Runtime Log, Examples/API Docs, Help/Customize and background
+scheduled/running automation must remain usable while the main UI is hidden.
+`退出` owns the actual app teardown.
 
 ## Runtime Log and console policy
 
