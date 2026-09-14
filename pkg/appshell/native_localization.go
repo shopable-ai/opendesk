@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"path/filepath"
 	"strings"
 	"sync"
 
@@ -27,24 +26,6 @@ type localizedNativeHost struct {
 	closed            bool
 	runtimeLabelOwned map[string]bool
 	debugDetailed     bool
-}
-
-func configurePackageLocalization(appPackage *Package) *localization.Manager {
-	if appPackage == nil || (!IsOpenDeskProduct(appPackage.Manifest) && !manifestUsesLocalization(appPackage.Manifest)) {
-		return nil
-	}
-	return localization.ConfigureDefault(localization.Options{
-		CatalogDir: filepath.Join(appPackage.Root, "locales"),
-	})
-}
-
-func manifestUsesLocalization(manifest Manifest) bool {
-	for _, item := range manifest.Tray.Menu {
-		if strings.TrimSpace(item.LabelKey) != "" {
-			return true
-		}
-	}
-	return false
 }
 
 func newLocalizedNativeHost(manifest Manifest, inner NativeHost, manager *localization.Manager) NativeHost {
