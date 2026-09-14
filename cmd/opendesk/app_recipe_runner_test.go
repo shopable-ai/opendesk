@@ -98,9 +98,42 @@ func TestAppRecipeRunnerCancellationPropagatesAsCanceled(t *testing.T) {
 	}
 }
 
-func TestAppRecipeRunnerRejectsWhileRecorderIsRunning(t *testing.T) {
+func TestAppRecipeRunnerAllowsRunWhileRecorderTrayIsOpenButNotCapturing(t *testing.T) {
+	workDir := t.TempDir()
+	scriptPath := filepath.Join(workDir, "recipe.js")
+	if err := os.WriteFile(scriptPath, []byte(`console.log("APP_RECIPE_TRAY_OK");`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	recorder := &appRecorder{running: true, executionID: "recorder-tray"}
+	if !recorder.Running() || recorder.CaptureActive() {
+		t.Fatalf("Recorder tray state running=%t captureActive=%t", recorder.Running(), recorder.CaptureActive())
+	}
 	runner := newAppRecipeRunner(appRecipeRunnerConfig{}, nil, nil)
-	runner.recorderRunning = func() bool { return true }
+	runner.recorderCaptureActive = recorder.CaptureActive
+	runCalled := false
+	runner.run = func(request pkgExecution.Request) (pkgExecution.ExecutionResult, pkgExecution.AgentSummary, error) {
+		runCalled = true
+		return pkgExecution.ExecutionResult{
+			ExecutionID: request.ExecutionID,
+			Status:      pkgExecution.ExecutionStatusSucceeded,
+			Artifacts:   request.Artifacts,
+		}, pkgExecution.AgentSummary{}, nil
+	}
+	if _, err := runner.Run(context.Background(), automation.AppOwnedScriptRunRequest{
+		ScriptPath: scriptPath, WorkDir: workDir, LogDir: filepath.Join(workDir, ".runtime", "run"),
+	}); err != nil {
+		t.Fatalf("Recipe was blocked by an idle Recorder tray: %v", err)
+	}
+	if !runCalled {
+		t.Fatal("Recipe runner did not invoke its execution")
+	}
+}
+
+func TestAppRecipeRunnerRejectsWhileRecorderCaptureIsActive(t *testing.T) {
+	recorder := &appRecorder{running: true, captureActive: true, executionID: "recorder-capture"}
+	runner := newAppRecipeRunner(appRecipeRunnerConfig{}, nil, nil)
+	runner.recorderCaptureActive = recorder.CaptureActive
 	_, err := runner.Run(context.Background(), automation.AppOwnedScriptRunRequest{})
 	var typed *automation.AppOwnedScriptRunError
 	if !errors.As(err, &typed) || typed.Code != appRecipeRunBusyCode || typed.Error() != recorderConflictRecording {

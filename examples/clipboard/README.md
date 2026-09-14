@@ -11,6 +11,15 @@ OPENDESK_EXAMPLE_ALLOW_CLIPBOARD_WRITE=1 ./opendesk -script examples/clipboard/t
 成功后示例文本留在剪贴板，不像旧根目录示例那样无条件清空。未显式启用时，在首次读写前失败。
 旧根目录入口已经退休；当前只使用本目录的 canonical 文件。
 
+## 手动粘贴一个文件
+
+`test-clip.txt` 包含文本 `hello opendesk`。下面的命令会把这个文件本身写入系统剪贴板，回读绝对路径后停止；
+不会打开应用、自动粘贴、恢复、清空或发送内容。随后可在你已打开的目标应用中手动粘贴。
+
+```bash
+OPENDESK_EXAMPLE_ALLOW_CLIPBOARD_WRITE=1 ./opendesk -script examples/clipboard/file.js -console-mode script
+```
+
 公开的 [rich-paste-fixture.js](rich-paste-fixture.js) 用于人工粘贴演示；`tests/clipboard/rich-smoke.js` 是真实设备 smoke，不属于 Examples。
 它们的富格式行为和平台限制继续按 [Clipboard API](../../docs/api/clipboard.md)；不能把纯文本
 复制视为富格式恢复，也不能把所有剪贴板示例批量运行。

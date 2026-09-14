@@ -68,10 +68,17 @@ func TestRunJavaScriptRecorderSessionPrivateBackendSeam(t *testing.T) {
 		t.Fatal(err)
 	}
 	backend := &recorderRuntimeFixtureBackend{}
+	var captureStates []bool
+	var captureStatesMu sync.Mutex
 	result, _, runErr := Run(Request{
 		Context: context.Background(), ExecutionID: "recorder-session", SourceLabel: "runtime API Recorder private backend seam",
 		Ext: ".js", WorkDir: workDir, ScriptContent: script, Artifacts: artifacts, Timeout: 10 * time.Second,
 		Selection: TerminalSelection{Mode: "quiet", Categories: map[string]bool{}}, EnableRecorderCapture: true,
+		RecorderCaptureStateChanged: func(active bool) {
+			captureStatesMu.Lock()
+			captureStates = append(captureStates, active)
+			captureStatesMu.Unlock()
+		},
 		RecorderBackendFactory: func() automation.RecorderInputBackend { return backend },
 		RecorderWindowProbe: func() (*automation.WindowInfo, error) {
 			return &automation.WindowInfo{
@@ -110,5 +117,10 @@ func TestRunJavaScriptRecorderSessionPrivateBackendSeam(t *testing.T) {
 	starts, stops, waits, active := backend.counts()
 	if starts != 1 || stops != 1 || waits != 1 || active {
 		t.Fatalf("backend lifecycle=%d/%d/%d active=%t", starts, stops, waits, active)
+	}
+	captureStatesMu.Lock()
+	defer captureStatesMu.Unlock()
+	if len(captureStates) != 2 || !captureStates[0] || captureStates[1] {
+		t.Fatalf("capture lifecycle=%v, want [true false]", captureStates)
 	}
 }

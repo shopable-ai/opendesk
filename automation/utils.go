@@ -112,6 +112,10 @@ type InitJSOptions struct {
 	// error rejects Recorder.start without stopping, pausing, or queueing any
 	// other execution.
 	RecorderStartGate func() error
+	// RecorderCaptureStateChanged notifies a trusted host when native Recorder
+	// capture becomes active or has fully stopped. It is never exposed to
+	// JavaScript and must not access Goja or block the Recorder worker.
+	RecorderCaptureStateChanged func(active bool)
 	// MeasurementOpen is a first-party Recorder bridge. It is not part of the
 	// public Runtime API and remains absent unless App Mode supplies the shared
 	// process-owned Measurement service.

@@ -39,12 +39,12 @@ type appRecipeRunner struct {
 	driver      customui.Driver
 	run         func(pkgExecution.Request) (pkgExecution.ExecutionResult, pkgExecution.AgentSummary, error)
 
-	mu              sync.Mutex
-	running         bool
-	executionID     string
-	cancel          context.CancelFunc
-	done            chan struct{}
-	recorderRunning func() bool
+	mu                    sync.Mutex
+	running               bool
+	executionID           string
+	cancel                context.CancelFunc
+	done                  chan struct{}
+	recorderCaptureActive func() bool
 }
 
 func newAppRecipeRunner(config appRecipeRunnerConfig, environment map[string]string, driver customui.Driver) *appRecipeRunner {
@@ -60,7 +60,7 @@ func (r *appRecipeRunner) Run(parent context.Context, input automation.AppOwnedS
 	if parent == nil {
 		parent = context.Background()
 	}
-	if r.recorderRunning != nil && r.recorderRunning() {
+	if r.recorderCaptureActive != nil && r.recorderCaptureActive() {
 		return automation.AppOwnedScriptRunResult{}, &automation.AppOwnedScriptRunError{
 			Code: appRecipeRunBusyCode, Cause: errors.New(recorderConflictRecording),
 		}

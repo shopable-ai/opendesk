@@ -80,6 +80,17 @@ func TestAppRecorderOpenLaunchesOnceAndShowsExistingWindow(t *testing.T) {
 	if !ok || !state.Visible {
 		t.Fatalf("expected existing recorder window to be shown, state=%+v ok=%v", state, ok)
 	}
+	if recorder.CaptureActive() {
+		t.Fatal("an open Recorder tray/window must not be treated as active capture")
+	}
+	req.RecorderCaptureStateChanged(true)
+	if !recorder.CaptureActive() {
+		t.Fatal("Recorder did not reflect an active native capture")
+	}
+	req.RecorderCaptureStateChanged(false)
+	if recorder.CaptureActive() {
+		t.Fatal("Recorder retained an inactive native capture")
+	}
 	recorder.Cancel()
 }
 

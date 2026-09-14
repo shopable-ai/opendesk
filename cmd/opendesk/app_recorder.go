@@ -30,12 +30,13 @@ type appRecorder struct {
 	driver      customui.Driver
 	run         func(pkgExecution.Request) (pkgExecution.ExecutionResult, pkgExecution.AgentSummary, error)
 
-	mu          sync.Mutex
-	running     bool
-	executionID string
-	session     *customui.Session
-	cancel      context.CancelFunc
-	done        chan struct{}
+	mu            sync.Mutex
+	running       bool
+	captureActive bool
+	executionID   string
+	session       *customui.Session
+	cancel        context.CancelFunc
+	done          chan struct{}
 
 	ordinaryRunning func() bool
 }
@@ -145,14 +146,17 @@ func (r *appRecorder) request(ctx context.Context, executionID string) (pkgExecu
 		EnableSQLite:                    true,
 		EnableRecorderCapture:           r.config.AllowRecorderCapture,
 		RecorderStartGate:               r.canStartRecording,
-		MeasurementOpen:                 r.config.MeasurementOpen,
-		EnableCustomUI:                  true,
-		CustomUIActivationSource:        customui.ActivationCLI,
-		CustomUIHostPath:                r.config.CustomUIHostPath,
-		CustomUIDriver:                  customui.NewSessionScopedDriverForSession(r.driver, executionID),
-		CustomUIBaseDir:                 uiRoot,
-		OnCustomUISession:               func(session *customui.Session) { r.setSession(executionID, session) },
-		Artifacts:                       artifacts,
+		RecorderCaptureStateChanged: func(active bool) {
+			r.setCaptureActive(executionID, active)
+		},
+		MeasurementOpen:          r.config.MeasurementOpen,
+		EnableCustomUI:           true,
+		CustomUIActivationSource: customui.ActivationCLI,
+		CustomUIHostPath:         r.config.CustomUIHostPath,
+		CustomUIDriver:           customui.NewSessionScopedDriverForSession(r.driver, executionID),
+		CustomUIBaseDir:          uiRoot,
+		OnCustomUISession:        func(session *customui.Session) { r.setSession(executionID, session) },
+		Artifacts:                artifacts,
 		Selection: pkgExecution.TerminalSelection{
 			Mode:       "quiet",
 			Categories: map[string]bool{},
@@ -200,10 +204,19 @@ func (r *appRecorder) clear(executionID string) {
 	r.mu.Lock()
 	if r.executionID == executionID {
 		r.running = false
+		r.captureActive = false
 		r.executionID = ""
 		r.session = nil
 		r.cancel = nil
 		r.done = nil
+	}
+	r.mu.Unlock()
+}
+
+func (r *appRecorder) setCaptureActive(executionID string, active bool) {
+	r.mu.Lock()
+	if r.executionID == executionID && r.running {
+		r.captureActive = active
 	}
 	r.mu.Unlock()
 }
@@ -230,6 +243,17 @@ func (r *appRecorder) Running() bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.running
+}
+
+// CaptureActive distinguishes a native Recorder capture from the long-lived
+// Recorder tray/window execution. Only capture may conflict with a Recipe.
+func (r *appRecorder) CaptureActive() bool {
+	if r == nil {
+		return false
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.captureActive
 }
 
 func showRecorderSession(ctx context.Context, session *customui.Session) error {

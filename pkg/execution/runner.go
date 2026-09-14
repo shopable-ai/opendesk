@@ -116,6 +116,9 @@ type Request struct {
 	// RecorderStartGate is an execution-scoped host policy hook. Returning an
 	// error rejects Recorder.start without changing any other execution.
 	RecorderStartGate func() error
+	// RecorderCaptureStateChanged is an internal host lifecycle hook. It reports
+	// actual native capture, not whether a Recorder UI execution is open.
+	RecorderCaptureStateChanged func(active bool)
 	// MeasurementOpen is an in-process bridge used only by the built-in
 	// Recorder execution. It opens the same process-owned Measurement service
 	// as the OpenDesk product menu and is absent from ordinary scripts.
@@ -399,6 +402,7 @@ func runJavaScript(req Request, emitter *Emitter) error {
 				EnableSQLite:                    req.EnableSQLite,
 				EnableRecorderCapture:           req.EnableRecorderCapture,
 				RecorderStartGate:               req.RecorderStartGate,
+				RecorderCaptureStateChanged:     req.RecorderCaptureStateChanged,
 				MeasurementOpen:                 req.MeasurementOpen,
 				ExecutionID:                     req.ExecutionID,
 				SQLiteProtectedPaths:            req.SQLiteProtectedPaths,

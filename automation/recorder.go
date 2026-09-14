@@ -506,19 +506,20 @@ func issuesToAny(issues []recorderIssue) []map[string]any {
 // execution's capture session. No goroutine other than the EventLoop owner
 // accesses its Goja values.
 type RecorderRuntime struct {
-	runtime         *goja.Runtime
-	loop            *eventloop.EventLoop
-	context         context.Context
-	workDir         string
-	executionID     string
-	enableCapture   bool
-	backendFactory  RecorderBackendFactory
-	windowProbe     RecorderWindowProbe
-	targetProbe     func(context.Context, *WindowInfo, recorderTargetPoint) (*recorderElementSnapshot, error)
-	textProbe       recorderTextProbe
-	displayResolver func() []DisplayInfo
-	onAsyncError    func(error)
-	startGate       func() error
+	runtime               *goja.Runtime
+	loop                  *eventloop.EventLoop
+	context               context.Context
+	workDir               string
+	executionID           string
+	enableCapture         bool
+	backendFactory        RecorderBackendFactory
+	windowProbe           RecorderWindowProbe
+	targetProbe           func(context.Context, *WindowInfo, recorderTargetPoint) (*recorderElementSnapshot, error)
+	textProbe             recorderTextProbe
+	displayResolver       func() []DisplayInfo
+	onAsyncError          func(error)
+	startGate             func() error
+	onCaptureStateChanged func(active bool)
 
 	closing atomic.Bool
 	workers atomic.Int64
@@ -620,7 +621,7 @@ func registerRecorder(runtimeValue *goja.Runtime, opts InitJSOptions) (*Recorder
 		workDir: workDir, executionID: opts.ExecutionID,
 		enableCapture:  opts.EnableRecorderCapture,
 		backendFactory: factory, windowProbe: probe, targetProbe: targetProbe, textProbe: textProbe, displayResolver: resolver,
-		onAsyncError: opts.OnAsyncError, startGate: opts.RecorderStartGate,
+		onAsyncError: opts.OnAsyncError, startGate: opts.RecorderStartGate, onCaptureStateChanged: opts.RecorderCaptureStateChanged,
 	}
 	object := runtimeValue.NewObject()
 	if err := object.Set("getCapabilities", func(goja.FunctionCall) goja.Value {
@@ -986,9 +987,18 @@ func (r *RecorderRuntime) startSession(options recorderStartOptions) (*recorderS
 		return nil, recorderError(RecorderStorageFailed, "Recorder.start", "could not persist the ready recording state", err)
 	}
 	session.captureState.Store("recording")
+	r.notifyCaptureState(true)
 	go session.monitorDeadline()
 	go session.monitorExecution()
 	return session, nil
+}
+
+// notifyCaptureState reports the native-capture lifecycle to the trusted host.
+// The callback must be fast and thread-safe: it can run on Recorder workers.
+func (r *RecorderRuntime) notifyCaptureState(active bool) {
+	if r != nil && r.onCaptureStateChanged != nil {
+		r.onCaptureStateChanged(active)
+	}
 }
 
 func newRecorderManifest(executionID string, options recorderStartOptions, capability RecorderBackendCapabilities, displays []DisplayInfo, initialWindow *recorderWindowSnapshot) recorderManifest {
@@ -1877,6 +1887,7 @@ func (s *recorderSession) finish(reason error, cutoffTime time.Time) {
 	s.resultMu.Lock()
 	s.result, s.stopErr = result, finalErr
 	s.resultMu.Unlock()
+	s.owner.notifyCaptureState(false)
 	close(s.done)
 }
 

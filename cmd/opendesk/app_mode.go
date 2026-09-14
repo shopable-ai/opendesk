@@ -204,7 +204,9 @@ func executeAppMode(config *Config) error {
 		SQLiteProtectedPaths:                  sqliteProtectedPaths(config),
 	}, environment.Values, sharedUIDriver)
 	recorder.ordinaryRunning = recipeRunner.Running
-	recipeRunner.recorderRunning = recorder.Running
+	// An open Recorder tray/window is an idle UI execution, not a capture
+	// conflict. Block Recipes only while the native input capture is active.
+	recipeRunner.recorderCaptureActive = recorder.CaptureActive
 	defer recipeRunner.Close()
 	if err := shell.Start(appContext); err != nil {
 		return fmt.Errorf("start App Shell: %w", err)
