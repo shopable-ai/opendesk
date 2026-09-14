@@ -28,6 +28,7 @@ jobs:
           base_commit = 'b0c46c1992de9995fd57152b906256ad79e385da'
           parts = [f'.staging-sync/recorder-update-{i}.b64' for i in range(4)]
           merge_file = '.staging-sync/recorder-merge.json'
+          storage_file = '.staging-sync/recorder-storage-fix.json'
           evidence = root / '.runtime/tests/recorder-generation'
           evidence.mkdir(parents=True, exist_ok=True)
           subprocess.run(['git','diff','--exit-code'],check=True)
@@ -41,8 +42,10 @@ jobs:
           assert hashlib.sha256(data).hexdigest() == '416c18628c9d72ca1bb4023b99ece32c8a2b50b51f4b07bb267aeb46a6d3828c', 'payload mismatch'
           merge_data = blob('HEAD', merge_file)
           assert hashlib.sha256(merge_data).hexdigest() == '8572a22b58030f5c0548376cbf48399fa58c215f420ff9f4dd5d8668e56e9afd', 'integration mismatch'
+          storage_data = blob('HEAD', storage_file)
+          assert hashlib.sha256(storage_data).hexdigest() == 'f163262918373c6c6a3f86e766abd71d96a213affbd06b21936c5e35784fa9b5', 'storage diff mismatch'
           pending, originals = {}, {}
-          for batch, entries in enumerate((json.loads(data), json.loads(merge_data))):
+          for batch, entries in enumerate((json.loads(data), json.loads(merge_data), json.loads(storage_data))):
               for entry in entries:
                   name = entry['path']
                   path = pathlib.PurePosixPath(name)
@@ -92,7 +95,7 @@ jobs:
               target.parent.mkdir(parents=True,exist_ok=True)
               target.write_bytes(after)
           subprocess.run(['git','add','--']+list(pending),check=True)
-          subprocess.run(['git','rm','--']+parts+[merge_file],check=True)
+          subprocess.run(['git','rm','--']+parts+[merge_file,storage_file],check=True)
           subprocess.run(['git','diff','--cached','--check'],check=True)
           for name,after in pending.items():
               assert subprocess.check_output(['git','show',':'+name]) == after, 'staging byte mismatch: '+name
