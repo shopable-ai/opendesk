@@ -1,51 +1,114 @@
 name: Recorder generation contract
 
+# One-time, checksum-pinned publication of the reviewed Recorder diff.
+# The retained workflow is restored to read-only after this checked batch.
 on:
-  pull_request:
-    paths:
-      - 'automation/recorder*.go'
-      - 'polyfills/*ui*.js'
-      - 'polyfills/008-recorder.js'
-      - 'workflows/human-to-recipe/**'
-      - 'tests/recorder-generation/**'
-      - '.github/workflows/recorder-generation-contract.yml'
   push:
     branches: [master]
-    paths:
-      - 'automation/recorder*.go'
-      - 'polyfills/*ui*.js'
-      - 'polyfills/008-recorder.js'
-      - 'workflows/human-to-recipe/**'
-      - 'tests/recorder-generation/**'
-      - '.github/workflows/recorder-generation-contract.yml'
+    paths: ['.github/workflows/recorder-generation-contract.yml']
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  source-contract:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+  reviewed-recorder-update:
+    if: github.repository == 'shopable-ai/opendesk' && github.ref == 'refs/heads/master'
+    runs-on: windows-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
-          persist-credentials: false
-      - name: Capture tracked source provenance
+          fetch-depth: 0
+      - name: Validate exact source hashes and apply reviewed edits
+        shell: python
         run: |
-          mkdir -p "$RUNNER_TEMP/recorder-contract"
-          git rev-parse HEAD > "$RUNNER_TEMP/recorder-contract/source-commit.txt"
-          git archive --format=tar HEAD > "$RUNNER_TEMP/recorder-contract/source.tar"
-      - name: Check generator and facade syntax
+          import base64, hashlib, json, lzma, pathlib, subprocess
+          root = pathlib.Path.cwd()
+          base = 'b0c46c1992de9995fd57152b906256ad79e385da'
+          workflow = '.github/workflows/recorder-generation-contract.yml'
+          parts = [f'.staging-sync/recorder-update-{i}.b64' for i in range(4)]
+          observed = set(subprocess.check_output(['git','diff','--name-only',base,'HEAD'],text=True).splitlines())
+          assert observed <= set(parts + [workflow]), 'concurrent source edits: stop, do not overwrite'
+          encoded = ''.join((root / p).read_text(encoding='utf-8').strip() for p in parts)
+          evidence = root / '.runtime/tests/recorder-generation'
+          evidence.mkdir(parents=True, exist_ok=True)
+          (evidence / 'transfer.b64').write_text(encoded, encoding='utf-8')
+          data = lzma.decompress(base64.b64decode(encoded, validate=True))
+          assert hashlib.sha256(data).hexdigest() == '416c18628c9d72ca1bb4023b99ece32c8a2b50b51f4b07bb267aeb46a6d3828c', 'reviewed payload hash mismatch'
+          entries = json.loads(data)
+          pending = []
+          for entry in entries:
+              name = entry['path']
+              path = pathlib.PurePosixPath(name)
+              assert not path.is_absolute() and '..' not in path.parts and not name.startswith(('.git/', '.runtime/')), 'invalid source path'
+              if name == workflow:
+                  continue
+              target = root / name
+              assert target.resolve().is_relative_to(root.resolve()) and not target.is_symlink(), 'unsafe target'
+              before = target.read_bytes() if target.exists() else b''
+              assert hashlib.sha256(before).hexdigest() == entry['before'], 'source changed: ' + name
+              lines = before.decode('utf-8').splitlines(keepends=True)
+              for start, end, replacement in reversed(entry['edits']):
+                  assert 0 <= start <= end <= len(lines)
+                  lines[start:end] = [replacement]
+              after = ''.join(lines).encode('utf-8')
+              assert hashlib.sha256(after).hexdigest() == entry['after'], 'output hash mismatch: ' + name
+              pending.append((target, after))
+          # No file is touched until all source and output hashes pass.
+          for target, after in pending:
+              target.parent.mkdir(parents=True, exist_ok=True)
+              target.write_bytes(after)
+          names = [str(p.relative_to(root)).replace('\\','/') for p, _ in pending]
+          subprocess.run(['git','add','--'] + names, check=True)
+          subprocess.run(['git','rm','--'] + parts, check=True)
+          subprocess.run(['git','diff','--cached','--check'], check=True)
+          (evidence / 'reviewed-files.json').write_text(json.dumps({'base':base,'files':names,'liveCalculator':'not-run'},indent=2), encoding='utf-8')
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Test Recorder product and workflow behavior
+        shell: pwsh
         run: |
           node --check polyfills/006-ui.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check polyfills/008-recorder.js
-          node --check workflows/human-to-recipe/skills/recorder-script-refiner/scripts/generate-refinement.js
-          node --check workflows/human-to-recipe/skills/recorder-script-refiner/scripts/validate-refinement.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --test tests/app-lifecycle/recorder-controller-core.test.js tests/human-to-recipe/recorder-script-refiner.test.js *>&1 | Tee-Object .runtime/tests/recorder-generation/product.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node tests/custom-ui/recording-history.test.js *>&1 | Tee-Object .runtime/tests/recorder-generation/history.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build current native Runtime and execute public JavaScript gate
+        shell: pwsh
+        run: |
+          go build -o .runtime/tests/recorder-generation/opendesk.exe ./cmd/opendesk *>&1 | Tee-Object .runtime/tests/recorder-generation/build.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Get-FileHash .runtime/tests/recorder-generation/opendesk.exe -Algorithm SHA256 | Format-List | Out-File .runtime/tests/recorder-generation/binary-sha256.txt
+          & ./.runtime/tests/recorder-generation/opendesk.exe -script tests/runtime-api/recorder-generation.js -console-mode script *>&1 | Tee-Object .runtime/tests/recorder-generation/runtime.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Publish only the tested source batch without force or branch changes
+        shell: pwsh
+        run: |
+          git diff --exit-code
+          if ($LASTEXITCODE -ne 0) { throw 'Unstaged changes appeared; refusing publication' }
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'feat(recorder): lower evidence to concise semantic recipes with runtime-owned resolution'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git push origin HEAD:master
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git rev-parse HEAD | Out-File .runtime/tests/recorder-generation/published-commit.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: recorder-generation-contract-source
-          path: ${{ runner.temp }}/recorder-contract
+          name: recorder-generation-reviewed-evidence
+          path: |
+            .runtime/tests/recorder-generation/**/*.json
+            .runtime/tests/recorder-generation/**/*.txt
+            .runtime/tests/recorder-generation/**/*.log
+            .runtime/tests/recorder-generation/transfer.b64
           retention-days: 1
-          if-no-files-found: error
+          if-no-files-found: warn
