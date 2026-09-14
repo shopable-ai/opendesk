@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-const ResultVersion = 1
+const ResultVersion = 2
 
 type ReferenceType string
 
@@ -84,8 +84,7 @@ func NewCaptureMapping(origin Point, logical Size, pixels PixelSize, displayID s
 	}
 	return CaptureMapping{
 		Origin: origin, LogicalSize: logical, ImageSize: pixels,
-		ScaleX:    float64(pixels.Width) / logical.Width,
-		ScaleY:    float64(pixels.Height) / logical.Height,
+		ScaleX: float64(pixels.Width) / logical.Width, ScaleY: float64(pixels.Height) / logical.Height,
 		DisplayID: strings.TrimSpace(displayID), DisplayIndex: displayIndex,
 	}, nil
 }
@@ -93,17 +92,11 @@ func NewCaptureMapping(origin Point, logical Size, pixels PixelSize, displayID s
 // LogicalToImage deliberately performs no clipping. Callers can preserve an
 // outside-capture relationship and decide separately whether a pixel exists.
 func (m CaptureMapping) LogicalToImage(point Point) Point {
-	return Point{
-		X: (point.X - m.Origin.X) * m.ScaleX,
-		Y: (point.Y - m.Origin.Y) * m.ScaleY,
-	}
+	return Point{X: (point.X - m.Origin.X) * m.ScaleX, Y: (point.Y - m.Origin.Y) * m.ScaleY}
 }
 
 func (m CaptureMapping) ImageToLogical(point Point) Point {
-	return Point{
-		X: m.Origin.X + point.X/m.ScaleX,
-		Y: m.Origin.Y + point.Y/m.ScaleY,
-	}
+	return Point{X: m.Origin.X + point.X/m.ScaleX, Y: m.Origin.Y + point.Y/m.ScaleY}
 }
 
 func (m CaptureMapping) PixelAt(point Point) (ImagePixel, bool) {
@@ -187,10 +180,8 @@ type EdgeDistances struct {
 
 func DistancesToReference(target, reference Rect) EdgeDistances {
 	return EdgeDistances{
-		Left:   target.X - reference.X,
-		Top:    target.Y - reference.Y,
-		Right:  reference.Right() - target.Right(),
-		Bottom: reference.Bottom() - target.Bottom(),
+		Left: target.X - reference.X, Top: target.Y - reference.Y,
+		Right: reference.Right() - target.Right(), Bottom: reference.Bottom() - target.Bottom(),
 	}
 }
 
@@ -226,10 +217,7 @@ type RelativeRect struct {
 }
 
 func RectRelativeTo(target, reference Rect) RelativeRect {
-	result := RelativeRect{
-		X: target.X - reference.X, Y: target.Y - reference.Y,
-		Width: target.Width, Height: target.Height,
-	}
+	result := RelativeRect{X: target.X - reference.X, Y: target.Y - reference.Y, Width: target.Width, Height: target.Height}
 	if reference.Width != 0 {
 		x, width := result.X/reference.Width, result.Width/reference.Width
 		result.XRatio, result.WidthRatio = &x, &width
@@ -275,6 +263,20 @@ func axisSpacing(firstMin, firstMax, secondMin, secondMax float64, before, after
 	}
 }
 
+type CoordinateContext struct {
+	Screen   string `json:"screen"`
+	Relative string `json:"relative"`
+	Image    string `json:"image"`
+	Ratio    string `json:"ratio"`
+}
+
+func canonicalCoordinateContext() CoordinateContext {
+	return CoordinateContext{
+		Screen: "screen-logical", Relative: "reference-relative-logical",
+		Image: "capture-pixel", Ratio: "ratio-0-1",
+	}
+}
+
 type PointMeasurement struct {
 	Absolute   Point         `json:"absolute"`
 	Relative   RelativePoint `json:"relative"`
@@ -289,6 +291,16 @@ type RegionMeasurement struct {
 	EdgeDistances EdgeDistances `json:"edgeDistances"`
 }
 
+type TwoPointMeasurement struct {
+	First          Point         `json:"first"`
+	Second         Point         `json:"second"`
+	FirstRelative  RelativePoint `json:"firstRelative"`
+	SecondRelative RelativePoint `json:"secondRelative"`
+	DeltaX         float64       `json:"deltaX"`
+	DeltaY         float64       `json:"deltaY"`
+	Distance       float64       `json:"distance"`
+}
+
 type SpacingMeasurement struct {
 	First   Rect    `json:"first"`
 	Second  Rect    `json:"second"`
@@ -296,13 +308,15 @@ type SpacingMeasurement struct {
 }
 
 type Result struct {
-	Version   int                 `json:"version"`
-	Kind      string              `json:"kind"`
-	Snapshot  Snapshot            `json:"snapshot"`
-	Reference Reference           `json:"reference"`
-	Point     *PointMeasurement   `json:"point,omitempty"`
-	Region    *RegionMeasurement  `json:"region,omitempty"`
-	Spacing   *SpacingMeasurement `json:"spacing,omitempty"`
+	Version         int                  `json:"version"`
+	Kind            string               `json:"kind"`
+	CoordinateSpace CoordinateContext    `json:"coordinateSpace"`
+	Snapshot        Snapshot             `json:"snapshot"`
+	Reference       Reference            `json:"reference"`
+	Point           *PointMeasurement    `json:"point,omitempty"`
+	Region          *RegionMeasurement   `json:"region,omitempty"`
+	TwoPoint        *TwoPointMeasurement `json:"twoPoint,omitempty"`
+	Spacing         *SpacingMeasurement  `json:"spacing,omitempty"`
 }
 
 func BuildPointResult(snapshot Snapshot, reference Reference, point Point, img image.Image) (Result, error) {
@@ -310,9 +324,7 @@ func BuildPointResult(snapshot Snapshot, reference Reference, point Point, img i
 		return Result{}, err
 	}
 	pixel, inside := snapshot.Mapping.PixelAt(point)
-	measurement := PointMeasurement{
-		Absolute: point, Relative: PointRelativeTo(point, reference.Bounds), ImagePixel: pixel,
-	}
+	measurement := PointMeasurement{Absolute: point, Relative: PointRelativeTo(point, reference.Bounds), ImagePixel: pixel}
 	if inside && img != nil {
 		color, err := RGBAt(img, pixel)
 		if err != nil {
@@ -320,7 +332,7 @@ func BuildPointResult(snapshot Snapshot, reference Reference, point Point, img i
 		}
 		measurement.Color = &color
 	}
-	return Result{Version: ResultVersion, Kind: "point", Snapshot: snapshot, Reference: reference, Point: &measurement}, nil
+	return newResult("point", snapshot, reference, &measurement, nil, nil, nil), nil
 }
 
 func BuildRegionResult(snapshot Snapshot, reference Reference, region Rect) (Result, error) {
@@ -334,7 +346,23 @@ func BuildRegionResult(snapshot Snapshot, reference Reference, region Rect) (Res
 		Absolute: region, Center: region.Center(), Relative: RectRelativeTo(region, reference.Bounds),
 		EdgeDistances: DistancesToReference(region, reference.Bounds),
 	}
-	return Result{Version: ResultVersion, Kind: "region", Snapshot: snapshot, Reference: reference, Region: &measurement}, nil
+	return newResult("region", snapshot, reference, nil, &measurement, nil, nil), nil
+}
+
+func BuildTwoPointResult(snapshot Snapshot, reference Reference, first, second Point) (Result, error) {
+	if err := validateContext(snapshot, reference); err != nil {
+		return Result{}, err
+	}
+	if !finitePoint(first) || !finitePoint(second) {
+		return Result{}, errors.New("two-point targets require finite coordinates")
+	}
+	dx, dy := second.X-first.X, second.Y-first.Y
+	measurement := TwoPointMeasurement{
+		First: first, Second: second,
+		FirstRelative: PointRelativeTo(first, reference.Bounds), SecondRelative: PointRelativeTo(second, reference.Bounds),
+		DeltaX: dx, DeltaY: dy, Distance: math.Hypot(dx, dy),
+	}
+	return newResult("twoPoint", snapshot, reference, nil, nil, &measurement, nil), nil
 }
 
 func BuildSpacingResult(snapshot Snapshot, reference Reference, first, second Rect) (Result, error) {
@@ -345,7 +373,14 @@ func BuildSpacingResult(snapshot Snapshot, reference Reference, first, second Re
 		return Result{}, errors.New("spacing targets require finite non-negative dimensions")
 	}
 	measurement := SpacingMeasurement{First: first, Second: second, Spacing: RegionSpacing(first, second)}
-	return Result{Version: ResultVersion, Kind: "spacing", Snapshot: snapshot, Reference: reference, Spacing: &measurement}, nil
+	return newResult("spacing", snapshot, reference, nil, nil, nil, &measurement), nil
+}
+
+func newResult(kind string, snapshot Snapshot, reference Reference, point *PointMeasurement, region *RegionMeasurement, twoPoint *TwoPointMeasurement, spacing *SpacingMeasurement) Result {
+	return Result{
+		Version: ResultVersion, Kind: kind, CoordinateSpace: canonicalCoordinateContext(), Snapshot: snapshot,
+		Reference: reference, Point: point, Region: region, TwoPoint: twoPoint, Spacing: spacing,
+	}
 }
 
 func validateContext(snapshot Snapshot, reference Reference) error {
@@ -359,8 +394,9 @@ func validateContext(snapshot Snapshot, reference Reference) error {
 }
 
 type Outputs struct {
-	Human string `json:"human"`
-	JSON  string `json:"json"`
+	Concise string `json:"concise"`
+	Human   string `json:"human"`
+	JSON    string `json:"json"`
 }
 
 func (r Result) Outputs() (Outputs, error) {
@@ -368,14 +404,48 @@ func (r Result) Outputs() (Outputs, error) {
 	if err != nil {
 		return Outputs{}, err
 	}
-	return Outputs{Human: r.HumanText(), JSON: string(data)}, nil
+	return Outputs{Concise: r.ConciseText(), Human: r.HumanText(), JSON: string(data)}, nil
+}
+
+func (r Result) ConciseText() string {
+	ref := fmt.Sprintf("ref=%s [%.2f,%.2f %.2fx%.2f] logical", r.Reference.Type,
+		r.Reference.Bounds.X, r.Reference.Bounds.Y, r.Reference.Bounds.Width, r.Reference.Bounds.Height)
+	switch {
+	case r.Point != nil:
+		color := "color=n/a"
+		if r.Point.Color != nil {
+			color = "color=" + r.Point.Color.Hex
+		}
+		return fmt.Sprintf("点 (%.2f,%.2f) logical; relative=(%.2f,%.2f); ratio=(%s,%s); capture=(%d,%d) px; %s; %s",
+			r.Point.Absolute.X, r.Point.Absolute.Y, r.Point.Relative.X, r.Point.Relative.Y,
+			formatPercent(r.Point.Relative.RatioX), formatPercent(r.Point.Relative.RatioY),
+			r.Point.ImagePixel.X, r.Point.ImagePixel.Y, color, ref)
+	case r.Region != nil:
+		return fmt.Sprintf("区域 [%.2f,%.2f %.2fx%.2f] logical; margins=(L %.2f,T %.2f,R %.2f,B %.2f); %s",
+			r.Region.Absolute.X, r.Region.Absolute.Y, r.Region.Absolute.Width, r.Region.Absolute.Height,
+			r.Region.EdgeDistances.Left, r.Region.EdgeDistances.Top, r.Region.EdgeDistances.Right, r.Region.EdgeDistances.Bottom, ref)
+	case r.TwoPoint != nil:
+		return fmt.Sprintf("两点 A(%.2f,%.2f) → B(%.2f,%.2f) logical; dx=%.2f dy=%.2f distance=%.2f; %s",
+			r.TwoPoint.First.X, r.TwoPoint.First.Y, r.TwoPoint.Second.X, r.TwoPoint.Second.Y,
+			r.TwoPoint.DeltaX, r.TwoPoint.DeltaY, r.TwoPoint.Distance, ref)
+	case r.Spacing != nil:
+		return fmt.Sprintf("两区域间距 horizontal=%.2f(%s) vertical=%.2f(%s) logical; %s",
+			r.Spacing.Spacing.Horizontal.Gap, r.Spacing.Spacing.Horizontal.Relation,
+			r.Spacing.Spacing.Vertical.Gap, r.Spacing.Spacing.Vertical.Relation, ref)
+	default:
+		return "尚无测量目标; " + ref
+	}
 }
 
 func (r Result) HumanText() string {
-	header := fmt.Sprintf("OpenDesk 桌面测量（%s）\n采样：%s\n参照：%s x=%.2f y=%.2f w=%.2f h=%.2f\n映射：origin=(%.2f,%.2f) scale=(%.4f,%.4f)",
+	header := fmt.Sprintf("OpenDesk 桌面测量（%s）\n采样：%s\n坐标空间：屏幕逻辑坐标；参照相对逻辑坐标；Capture Pixel；比例为 0–1\n参照：%s x=%.2f y=%.2f w=%.2f h=%.2f\n映射：display=%s/%d origin=(%.2f,%.2f) logical=%.2fx%.2f image=%dx%d px scale=(%.4f,%.4f)",
 		r.Kind, r.Snapshot.SampledAt.UTC().Format(time.RFC3339Nano), r.Reference.Type,
 		r.Reference.Bounds.X, r.Reference.Bounds.Y, r.Reference.Bounds.Width, r.Reference.Bounds.Height,
-		r.Snapshot.Mapping.Origin.X, r.Snapshot.Mapping.Origin.Y, r.Snapshot.Mapping.ScaleX, r.Snapshot.Mapping.ScaleY)
+		r.Snapshot.Mapping.DisplayID, r.Snapshot.Mapping.DisplayIndex,
+		r.Snapshot.Mapping.Origin.X, r.Snapshot.Mapping.Origin.Y,
+		r.Snapshot.Mapping.LogicalSize.Width, r.Snapshot.Mapping.LogicalSize.Height,
+		r.Snapshot.Mapping.ImageSize.Width, r.Snapshot.Mapping.ImageSize.Height,
+		r.Snapshot.Mapping.ScaleX, r.Snapshot.Mapping.ScaleY)
 	switch {
 	case r.Point != nil:
 		color := "超出 Capture，无颜色"
@@ -387,15 +457,19 @@ func (r Result) HumanText() string {
 			formatRatio(r.Point.Relative.RatioX), formatRatio(r.Point.Relative.RatioY),
 			r.Point.ImagePixel.X, r.Point.ImagePixel.Y, color)
 	case r.Region != nil:
-		return fmt.Sprintf("%s\n区域：x=%.2f y=%.2f w=%.2f h=%.2f center=(%.2f,%.2f)\n相对：x=%.2f y=%.2f w=%.2f h=%.2f ratios=(%s,%s,%s,%s)\n边距：left=%.2f top=%.2f right=%.2f bottom=%.2f",
+		return fmt.Sprintf("%s\n区域：x=%.2f y=%.2f w=%.2f h=%.2f center=(%.2f,%.2f)\n相对：x=%.2f y=%.2f w=%.2f h=%.2f ratios=(%s,%s,%s,%s)\n四边距：left=%.2f top=%.2f right=%.2f bottom=%.2f（正=参照内余量，0=重合，负=越界）",
 			header, r.Region.Absolute.X, r.Region.Absolute.Y, r.Region.Absolute.Width, r.Region.Absolute.Height,
 			r.Region.Center.X, r.Region.Center.Y, r.Region.Relative.X, r.Region.Relative.Y,
 			r.Region.Relative.Width, r.Region.Relative.Height,
 			formatRatio(r.Region.Relative.XRatio), formatRatio(r.Region.Relative.YRatio), formatRatio(r.Region.Relative.WidthRatio), formatRatio(r.Region.Relative.HeightRatio),
-			r.Region.EdgeDistances.Left,
-			r.Region.EdgeDistances.Top, r.Region.EdgeDistances.Right, r.Region.EdgeDistances.Bottom)
+			r.Region.EdgeDistances.Left, r.Region.EdgeDistances.Top, r.Region.EdgeDistances.Right, r.Region.EdgeDistances.Bottom)
+	case r.TwoPoint != nil:
+		return fmt.Sprintf("%s\n第一点：absolute=(%.2f,%.2f) relative=(%.2f,%.2f)\n第二点：absolute=(%.2f,%.2f) relative=(%.2f,%.2f)\n两点距离：dx=%.2f dy=%.2f euclidean=%.2f logical",
+			header, r.TwoPoint.First.X, r.TwoPoint.First.Y, r.TwoPoint.FirstRelative.X, r.TwoPoint.FirstRelative.Y,
+			r.TwoPoint.Second.X, r.TwoPoint.Second.Y, r.TwoPoint.SecondRelative.X, r.TwoPoint.SecondRelative.Y,
+			r.TwoPoint.DeltaX, r.TwoPoint.DeltaY, r.TwoPoint.Distance)
 	case r.Spacing != nil:
-		return fmt.Sprintf("%s\n第一个：x=%.2f y=%.2f w=%.2f h=%.2f\n第二个：x=%.2f y=%.2f w=%.2f h=%.2f\n间距：horizontal=%.2f (%s, delta=%.2f) vertical=%.2f (%s, delta=%.2f)",
+		return fmt.Sprintf("%s\n第一个：x=%.2f y=%.2f w=%.2f h=%.2f\n第二个：x=%.2f y=%.2f w=%.2f h=%.2f\n两区域间距：horizontal=%.2f (%s, delta=%.2f) vertical=%.2f (%s, delta=%.2f)",
 			header, r.Spacing.First.X, r.Spacing.First.Y, r.Spacing.First.Width, r.Spacing.First.Height,
 			r.Spacing.Second.X, r.Spacing.Second.Y, r.Spacing.Second.Width, r.Spacing.Second.Height,
 			r.Spacing.Spacing.Horizontal.Gap, r.Spacing.Spacing.Horizontal.Relation,
@@ -411,6 +485,13 @@ func formatRatio(value *float64) string {
 		return "n/a"
 	}
 	return fmt.Sprintf("%.6f", *value)
+}
+
+func formatPercent(value *float64) string {
+	if value == nil {
+		return "n/a"
+	}
+	return fmt.Sprintf("%.2f%%", *value*100)
 }
 
 func finite(value float64) bool    { return !math.IsNaN(value) && !math.IsInf(value, 0) }
