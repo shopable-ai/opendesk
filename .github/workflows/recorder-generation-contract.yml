@@ -1,7 +1,7 @@
 name: Recorder generation contract
 
-# One-time, checksum-pinned publication of the reviewed Recorder diff.
-# The retained workflow is restored to read-only after this checked batch.
+# One-time checksum-pinned publication. Restore the retained read-only gate
+# after publication; never force-push or overwrite concurrent source edits.
 on:
   push:
     branches: [master]
@@ -22,50 +22,67 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Validate exact source hashes and apply reviewed edits
+      - name: Verify each source preimage and the reviewed integration diff
         shell: python
         run: |
           import base64, hashlib, json, lzma, pathlib, subprocess
           root = pathlib.Path.cwd()
-          base = 'b0c46c1992de9995fd57152b906256ad79e385da'
           workflow = '.github/workflows/recorder-generation-contract.yml'
           parts = [f'.staging-sync/recorder-update-{i}.b64' for i in range(4)]
-          observed = set(subprocess.check_output(['git','diff','--name-only',base,'HEAD'],text=True).splitlines())
-          assert observed <= set(parts + [workflow]), 'concurrent source edits: stop, do not overwrite'
-          encoded = ''.join((root / p).read_text(encoding='utf-8').strip() for p in parts)
+          merge_file = '.staging-sync/recorder-merge.json'
           evidence = root / '.runtime/tests/recorder-generation'
           evidence.mkdir(parents=True, exist_ok=True)
+          subprocess.run(['git','diff','--exit-code'],check=True)
+          subprocess.run(['git','diff','--cached','--exit-code'],check=True)
+          encoded = ''.join((root / p).read_text(encoding='utf-8').strip() for p in parts)
           (evidence / 'transfer.b64').write_text(encoded, encoding='utf-8')
           data = lzma.decompress(base64.b64decode(encoded, validate=True))
-          assert hashlib.sha256(data).hexdigest() == '416c18628c9d72ca1bb4023b99ece32c8a2b50b51f4b07bb267aeb46a6d3828c', 'reviewed payload hash mismatch'
-          entries = json.loads(data)
-          pending = []
-          for entry in entries:
-              name = entry['path']
-              path = pathlib.PurePosixPath(name)
-              assert not path.is_absolute() and '..' not in path.parts and not name.startswith(('.git/', '.runtime/')), 'invalid source path'
-              if name == workflow:
-                  continue
+          assert hashlib.sha256(data).hexdigest() == '416c18628c9d72ca1bb4023b99ece32c8a2b50b51f4b07bb267aeb46a6d3828c', 'payload mismatch'
+          merge_data = subprocess.check_output(['git','show','HEAD:'+merge_file])
+          assert hashlib.sha256(merge_data).hexdigest() == '8572a22b58030f5c0548376cbf48399fa58c215f420ff9f4dd5d8668e56e9afd', 'integration payload mismatch'
+          pending = {}
+          for entries in (json.loads(data), json.loads(merge_data)):
+              for entry in entries:
+                  name = entry['path']
+                  path = pathlib.PurePosixPath(name)
+                  assert not path.is_absolute() and '..' not in path.parts and not name.startswith(('.git/', '.runtime/')), 'invalid path'
+                  if name == workflow:
+                      continue
+                  target = root / name
+                  assert target.resolve().is_relative_to(root.resolve()) and not target.is_symlink(), 'unsafe target'
+                  if name in pending:
+                      before = pending[name]
+                  else:
+                      tracked = subprocess.run(['git','ls-files','--error-unmatch','--',name],capture_output=True).returncode == 0
+                      before = subprocess.check_output(['git','show','HEAD:'+name]) if tracked else b''
+                      assert tracked or not target.exists(), 'unexpected untracked target: '+name
+                  if 'beforeGit' in entry:
+                      blob = hashlib.sha1(b'blob '+str(len(before)).encode()+b'\0'+before).hexdigest()
+                      assert blob == entry['beforeGit'], 'concurrent source change: '+name
+                  else:
+                      assert hashlib.sha256(before).hexdigest() == entry['before'], 'concurrent source change: '+name
+                  if 'content' in entry:
+                      after = entry['content'].encode('utf-8')
+                  else:
+                      lines = before.decode('utf-8').splitlines(keepends=True)
+                      for start, end, replacement in reversed(entry['edits']):
+                          assert 0 <= start <= end <= len(lines)
+                          lines[start:end] = [replacement]
+                      after = ''.join(lines).encode('utf-8')
+                  assert hashlib.sha256(after).hexdigest() == entry['after'], 'output mismatch: '+name
+                  pending[name] = after
+          # Unrelated concurrent changes remain untouched. Every affected source
+          # byte is validated from its Git blob, independent of checkout CRLF.
+          for name, after in pending.items():
               target = root / name
-              assert target.resolve().is_relative_to(root.resolve()) and not target.is_symlink(), 'unsafe target'
-              before = target.read_bytes() if target.exists() else b''
-              assert hashlib.sha256(before).hexdigest() == entry['before'], 'source changed: ' + name
-              lines = before.decode('utf-8').splitlines(keepends=True)
-              for start, end, replacement in reversed(entry['edits']):
-                  assert 0 <= start <= end <= len(lines)
-                  lines[start:end] = [replacement]
-              after = ''.join(lines).encode('utf-8')
-              assert hashlib.sha256(after).hexdigest() == entry['after'], 'output hash mismatch: ' + name
-              pending.append((target, after))
-          # No file is touched until all source and output hashes pass.
-          for target, after in pending:
               target.parent.mkdir(parents=True, exist_ok=True)
               target.write_bytes(after)
-          names = [str(p.relative_to(root)).replace('\\','/') for p, _ in pending]
-          subprocess.run(['git','add','--'] + names, check=True)
-          subprocess.run(['git','rm','--'] + parts, check=True)
-          subprocess.run(['git','diff','--cached','--check'], check=True)
-          (evidence / 'reviewed-files.json').write_text(json.dumps({'base':base,'files':names,'liveCalculator':'not-run'},indent=2), encoding='utf-8')
+          subprocess.run(['git','add','--']+list(pending),check=True)
+          subprocess.run(['git','rm','--']+parts+[merge_file],check=True)
+          subprocess.run(['git','diff','--cached','--check'],check=True)
+          for name, after in pending.items():
+              assert subprocess.check_output(['git','show',':'+name]) == after, 'staging byte mismatch: '+name
+          (evidence/'reviewed-files.json').write_text(json.dumps({'files':list(pending),'liveCalculator':'not-run'},indent=2),encoding='utf-8')
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
@@ -74,6 +91,8 @@ jobs:
         shell: pwsh
         run: |
           node --check polyfills/006-ui.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check polyfills/011-ui-targets.js
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check polyfills/008-recorder.js
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -96,7 +115,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Unstaged changes appeared; refusing publication' }
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m 'feat(recorder): lower evidence to concise semantic recipes with runtime-owned resolution'
+          git commit -m 'feat(recorder): lower evidence to concise recipes with one Runtime resolver owner'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           git push origin HEAD:master
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -110,5 +129,6 @@ jobs:
             .runtime/tests/recorder-generation/**/*.txt
             .runtime/tests/recorder-generation/**/*.log
             .runtime/tests/recorder-generation/transfer.b64
+          include-hidden-files: true
           retention-days: 1
           if-no-files-found: warn
