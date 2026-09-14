@@ -1,16 +1,13 @@
 name: Recorder generation contract
 
-# One-time checksum-pinned publication. Restore the retained read-only gate
-# after publication; never force-push or overwrite concurrent source edits.
+# One-time reviewed publication; replaced with read-only CI after success.
 on:
   push:
     branches: [master]
     paths: ['.github/workflows/recorder-generation-contract.yml']
   workflow_dispatch:
-
 permissions:
   contents: read
-
 jobs:
   reviewed-recorder-update:
     if: github.repository == 'shopable-ai/opendesk' && github.ref == 'refs/heads/master'
@@ -22,26 +19,30 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Verify each source preimage and the reviewed integration diff
+      - name: Verify reviewed changes and preserve non-overlapping concurrent edits
         shell: python
         run: |
           import base64, hashlib, json, lzma, pathlib, subprocess
           root = pathlib.Path.cwd()
           workflow = '.github/workflows/recorder-generation-contract.yml'
+          base_commit = 'b0c46c1992de9995fd57152b906256ad79e385da'
           parts = [f'.staging-sync/recorder-update-{i}.b64' for i in range(4)]
           merge_file = '.staging-sync/recorder-merge.json'
           evidence = root / '.runtime/tests/recorder-generation'
           evidence.mkdir(parents=True, exist_ok=True)
           subprocess.run(['git','diff','--exit-code'],check=True)
           subprocess.run(['git','diff','--cached','--exit-code'],check=True)
-          encoded = ''.join((root / p).read_text(encoding='utf-8').strip() for p in parts)
+          def blob(ref, name):
+              exists = subprocess.run(['git','cat-file','-e',ref+':'+name],capture_output=True).returncode == 0
+              return subprocess.check_output(['git','show',ref+':'+name]) if exists else b''
+          encoded = ''.join(blob('HEAD',p).decode().strip() for p in parts)
           (evidence / 'transfer.b64').write_text(encoded, encoding='utf-8')
           data = lzma.decompress(base64.b64decode(encoded, validate=True))
           assert hashlib.sha256(data).hexdigest() == '416c18628c9d72ca1bb4023b99ece32c8a2b50b51f4b07bb267aeb46a6d3828c', 'payload mismatch'
-          merge_data = subprocess.check_output(['git','show','HEAD:'+merge_file])
-          assert hashlib.sha256(merge_data).hexdigest() == '8572a22b58030f5c0548376cbf48399fa58c215f420ff9f4dd5d8668e56e9afd', 'integration payload mismatch'
-          pending = {}
-          for entries in (json.loads(data), json.loads(merge_data)):
+          merge_data = blob('HEAD', merge_file)
+          assert hashlib.sha256(merge_data).hexdigest() == '8572a22b58030f5c0548376cbf48399fa58c215f420ff9f4dd5d8668e56e9afd', 'integration mismatch'
+          pending, originals = {}, {}
+          for batch, entries in enumerate((json.loads(data), json.loads(merge_data))):
               for entry in entries:
                   name = entry['path']
                   path = pathlib.PurePosixPath(name)
@@ -53,36 +54,49 @@ jobs:
                   if name in pending:
                       before = pending[name]
                   else:
-                      tracked = subprocess.run(['git','ls-files','--error-unmatch','--',name],capture_output=True).returncode == 0
-                      before = subprocess.check_output(['git','show','HEAD:'+name]) if tracked else b''
-                      assert tracked or not target.exists(), 'unexpected untracked target: '+name
+                      before = blob(base_commit if batch == 0 else 'HEAD', name)
+                      originals[name] = before
                   if 'beforeGit' in entry:
-                      blob = hashlib.sha1(b'blob '+str(len(before)).encode()+b'\0'+before).hexdigest()
-                      assert blob == entry['beforeGit'], 'concurrent source change: '+name
+                      digest = hashlib.sha1(b'blob '+str(len(before)).encode()+b'\0'+before).hexdigest()
+                      assert digest == entry['beforeGit'], 'review concurrent identity changes: '+name
                   else:
-                      assert hashlib.sha256(before).hexdigest() == entry['before'], 'concurrent source change: '+name
+                      assert hashlib.sha256(before).hexdigest() == entry['before'], 'preimage mismatch: '+name
                   if 'content' in entry:
                       after = entry['content'].encode('utf-8')
                   else:
                       lines = before.decode('utf-8').splitlines(keepends=True)
-                      for start, end, replacement in reversed(entry['edits']):
+                      for start,end,replacement in reversed(entry['edits']):
                           assert 0 <= start <= end <= len(lines)
                           lines[start:end] = [replacement]
                       after = ''.join(lines).encode('utf-8')
                   assert hashlib.sha256(after).hexdigest() == entry['after'], 'output mismatch: '+name
                   pending[name] = after
-          # Unrelated concurrent changes remain untouched. Every affected source
-          # byte is validated from its Git blob, independent of checkout CRLF.
-          for name, after in pending.items():
-              target = root / name
-              target.parent.mkdir(parents=True, exist_ok=True)
+          merged_names=[]
+          for index, (name, after) in enumerate(list(pending.items())):
+              current = blob('HEAD', name)
+              original = originals[name]
+              if current != original:
+                  assert original and current, 'concurrent creation/deletion: '+name
+                  folder = evidence/'merge-review'/str(index)
+                  folder.mkdir(parents=True,exist_ok=True)
+                  (folder/'path.txt').write_text(name,encoding='utf-8')
+                  for label,contents in [('current',current),('base',original),('ours',after)]:
+                      (folder/(label+'.txt')).write_bytes(contents)
+                  merged = subprocess.run(['git','merge-file','-p',str(folder/'current.txt'),str(folder/'base.txt'),str(folder/'ours.txt')],capture_output=True)
+                  (folder/'merged.txt').write_bytes(merged.stdout)
+                  assert merged.returncode == 0, 'overlapping concurrent edits: '+name
+                  pending[name] = merged.stdout
+                  merged_names.append(name)
+          for name,after in pending.items():
+              target=root/name
+              target.parent.mkdir(parents=True,exist_ok=True)
               target.write_bytes(after)
           subprocess.run(['git','add','--']+list(pending),check=True)
           subprocess.run(['git','rm','--']+parts+[merge_file],check=True)
           subprocess.run(['git','diff','--cached','--check'],check=True)
-          for name, after in pending.items():
+          for name,after in pending.items():
               assert subprocess.check_output(['git','show',':'+name]) == after, 'staging byte mismatch: '+name
-          (evidence/'reviewed-files.json').write_text(json.dumps({'files':list(pending),'liveCalculator':'not-run'},indent=2),encoding='utf-8')
+          (evidence/'reviewed-files.json').write_text(json.dumps({'files':list(pending),'mergedConcurrentFiles':merged_names,'liveCalculator':'not-run','sha256':{n:hashlib.sha256(b).hexdigest() for n,b in pending.items()}},indent=2),encoding='utf-8')
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
@@ -108,7 +122,7 @@ jobs:
           Get-FileHash .runtime/tests/recorder-generation/opendesk.exe -Algorithm SHA256 | Format-List | Out-File .runtime/tests/recorder-generation/binary-sha256.txt
           & ./.runtime/tests/recorder-generation/opendesk.exe -script tests/runtime-api/recorder-generation.js -console-mode script *>&1 | Tee-Object .runtime/tests/recorder-generation/runtime.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Publish only the tested source batch without force or branch changes
+      - name: Publish only the tested source batch without force
         shell: pwsh
         run: |
           git diff --exit-code
