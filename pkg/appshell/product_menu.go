@@ -66,8 +66,8 @@ func openDeskProductMenu(manifest Manifest) []nativeMenuItem {
 	items = append(items,
 		nativeMenuItem{Type: "separator"},
 		nativeMenuItem{Label: "开发者", Children: []nativeMenuItem{
-			{ID: ActionProductStatus, Label: "运行状态…"},
-			{ID: ActionProductMeasurement, Label: "桌面测量…"},
+			{ID: ActionProductStatus, Label: "运行状态"},
+			{ID: ActionProductMeasurement, Label: "桌面测量"},
 			{ID: ActionProductInspectorOpen, Label: "打开 Inspector"},
 			{Type: "separator"},
 			{ID: ActionProductLogsOpen, Label: "打开日志目录"},
@@ -83,7 +83,7 @@ func openDeskProductMenu(manifest Manifest) []nativeMenuItem {
 			{ID: ActionProductCustomize, Label: "定制"},
 		}},
 		nativeMenuItem{Type: "separator"},
-		nativeMenuItem{ID: ActionQuit, Label: "退出 OpenDesk"},
+		nativeMenuItem{ID: ActionQuit, Label: "退出"},
 	)
 	return items
 }
