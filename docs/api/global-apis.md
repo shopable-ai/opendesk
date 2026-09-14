@@ -695,7 +695,7 @@ runTask();
 - 本地命令行执行对象 `Command`：见 [Command API](command.md)。
 - 第一方、本地 execution-owned 的 `SQLite`：见 [SQLite API](sqlite.md)。
 - 第一方、execution-owned 的 `Accessibility`：见 [Accessibility API](accessibility.md)；大写 `UI` 的原生菜单组合见 [Desktop UI API](desktop-ui.md#原生菜单选项)。
-- `Sound`：见 [Sound API](sound.md)；`FloatingWindow` 与 `ui`：见 [Custom UI](custom-ui.md)。
+- `Sound`：见 [Sound API](sound.md)；`FloatingWindow` 与 `ui`：见 [Custom UI](ui.md)。
 
 ## 全局接口的实现来源与维护边界
 

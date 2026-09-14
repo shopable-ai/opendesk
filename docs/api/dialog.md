@@ -283,4 +283,4 @@ const value = await prompt('请输入标签');
 
 ## 平台与能力
 
-Dialog 需要可用 native UI host 与 `ui` capability。定时/后台提示使用 [`notify()`](notify.md)，复杂持久界面使用 [`ui`](custom-ui.md)。
+Dialog 需要可用 native UI host 与 `ui` capability。定时/后台提示使用 [`notify()`](notify.md)，复杂持久界面使用 [`ui`](ui.md)。

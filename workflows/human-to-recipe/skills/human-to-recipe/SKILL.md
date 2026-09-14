@@ -52,7 +52,7 @@ description: 将 OpenDesk Recorder 的固定 actions 包加工为可读生产 Re
 - **展示时机。** Episode 的 preconditions 通过、第一项业务副作用发生前更新“当前阶段”；只有最终成功条件实际成立后才显示整体完成。失败时显示当前 Episode 名称和非敏感错误摘要，然后继续抛出原业务错误。
 - **进度只在语义成立时显示。** 顶层 Episode 顺序确定且本次都会执行时，可以显示 `当前阶段 i / n`；存在分支、可跳过 Episode、循环或动态子任务时默认只显示阶段名称，不从静态 Episode 数量伪造百分比。真实业务进度只能来自已验证的运行时数据。
 - **提示不得控制业务。** 创建、更新、定位或关闭提示失败默认只写入 `console`，不得让本来可执行的业务失败、重试副作用或改变 fallback。只有用户明确把可见提示本身定义为业务交付物时，才另行把它作为需求和资格项处理。
-- **能力按当前 Runtime 决定。** 生成前读取当前 `docs/api/custom-ui.md`。只有其中已经公开 `ui.notify()` 时才可生成该调用；若该接口尚未进入当前 API Reference，则保留同一 Episode 语义并使用 `console` 输出，不得把路线图名称写成可调用 API。
+- **能力按当前 Runtime 决定。** 生成前读取当前 `docs/api/ui.md`。只有其中已经公开 `ui.notify()` 时才可生成该调用；若该接口尚未进入当前 API Reference，则保留同一 Episode 语义并使用 `console` 输出，不得把路线图名称写成可调用 API。
 - **UI 授权保持现有规则。** `-ui` 可以显式授权；项目配置已经授权 `ui` 时无需重复传 `-ui`；`-no-ui` 始终强制禁用。脚本可以先读取 `ui.getCapabilities()`，UI 未授权或当前平台／host 不可用时走非阻塞 `console` 降级，不自行弹系统通知冒充同一表面。
 - **一个运行尽量复用一个提示句柄。** 长任务创建一次持续提示，在 Episode 切换时原位 `update()`；整体成功／失败后给出短暂终态并关闭。不要逐阶段创建互相堆叠的 Toast 历史。
 - **提示与业务来源映射分离。** 阶段显示由已有 Episode 派生，不新增 action disposition，不消费新的 source event，也不要求为了提示修改 `SemanticBuildPlan` v1。若未来需要用户可配置主题、位置或展示策略，再单独扩展 presentation 配置；不要污染业务语义 schema。

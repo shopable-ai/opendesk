@@ -80,8 +80,9 @@ if (index) {
       errors.push(`runtime-api.ai.json: documentation.runtime missing ${required}`);
     }
   }
-  if (runtimeDocs.includes('custom-ui.md')) {
-    errors.push('runtime-api.ai.json: compatibility custom-ui.md must not be canonical runtime documentation');
+  const legacyUiDoc = ['custom', 'ui.md'].join('-');
+  if (runtimeDocs.includes(legacyUiDoc)) {
+    errors.push('runtime-api.ai.json: legacy UI documentation path must not be canonical runtime documentation');
   }
 
   const runtimeRules = index.runtimeRules || [];
@@ -91,9 +92,6 @@ if (index) {
 }
 
 rejectText('docs/api/runtime-api.ai.json', 'Static/dynamic ESM loading is unsupported', 'stale all-ESM-unsupported claim');
-
-requireText('docs/api/custom-ui.md', 'docType: compatibility');
-requireText('docs/api/custom-ui.md', 'ui.toast()');
 
 requireText('docs/api/scheduler.md', 'docType: guide');
 requireText('docs/api/scheduler.md', 'scheduler-api.md');

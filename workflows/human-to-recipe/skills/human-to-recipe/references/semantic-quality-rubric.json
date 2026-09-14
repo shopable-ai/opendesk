@@ -90,7 +90,7 @@
     "authoritativeSources": [
       "docs/api/accessibility.md",
       "docs/api/app.md",
-      "docs/api/custom-ui.md",
+      "docs/api/ui.md",
       "docs/api/geometry.md",
       "docs/api/input.md",
       "docs/api/mouse.md",

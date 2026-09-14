@@ -24,7 +24,7 @@ Agent 不打开面板也必须能继续通过原有普通 JS 使用 Accessibilit
 
 必要阅读范围：
 
-- `docs/api/accessibility.md`、`window.md`、`execution.md`、`http-server.md`、`custom-ui.md`；修改 API 文档前读取 `docs/api/.rules.md`。
+- `docs/api/accessibility.md`、`window.md`、`execution.md`、`http-server.md`、`ui.md`；修改 API 文档前读取 `docs/api/.rules.md`。
 - `automation/accessibility.go`、`accessibility_runtime.go`、相关 types／backend、window 和 execution 集成。重点核对 EnableAccessibility 的真实来源、owner、scope、队列、取消及 ElementRef 生命周期。
 - `pkg/http/handler.go`、`scheduler_handler.go`、`scheduler_ui.html`、现有 HTTP 测试及实际启动／打包入口。`docs/api/http-server.md` 的精确合同以最新实现为准。
 - `examples/accessibility/inspect-window.js` 及 fixture；保留受控示例的原有意义，不把摘要示例冒充通用面板。

@@ -9,7 +9,7 @@ order: 50
 
 `UI` 是 OpenDesk 操作**外部桌面应用界面**的高层 API。文本和图片方法基于截图、OCR 或模板匹配；显式 target 序列与菜单方法复用第一方 [Accessibility](accessibility.md) 原生语义能力。
 
-`UI` 与小写 [ui](custom-ui.md) 不同：`UI` 操作外部应用，`ui` 创建 OpenDesk 自己的 Custom UI。二者没有别名。
+`UI` 与小写 [ui](ui.md) 不同：`UI` 操作外部应用，`ui` 创建 OpenDesk 自己的 Custom UI。二者没有别名。
 
 ## API 一览
 

@@ -81,8 +81,8 @@ order: 22
 | Sound | sound.md / Sound.d.ts | automation/sound.go；registerSound | playSuccess, playFail, playWarning, playError, playCaptcha, playSound, play, start, playAsync, stop, stopAll, getActive | start→playback.stop/wait；下一步旧阻塞与新句柄共存；playAsync 是 start 别名，不凭名称认定 Promise |
 | Audio | audio.md / Audio.d.ts | automation/audio.go、audio_pattern_runtime.go、平台 backend | getVolume, setVolume, isMuted, mute, unmute, toggleMute, getOutputDevices, getInputDevices, getDefaultOutput, getDefaultInput, watchSound, waitForSound, getCapabilities | 控制/设备；watchSound→watcher.stop/wait；下一步平台可用性、捕获释放，既有记录表明默认 pattern capture fail-closed，不能称真实后端已完成 |
 | Dialog | dialog.md / dialog.d.ts | automation/dialog.go + Custom UI owner；polyfills/000-dialog.js | alert, confirm, prompt, getCapabilities | 显示→用户结果/取消→清理；下一步 exactly-once 与未 await；总有对象不代表获得 ui 权限 |
-| ui | custom-ui.md / custom-ui.d.ts | automation/custom_ui.go | getCapabilities, createWindow, closeAll, on | createWindow→window/control handle→close；下一步 dormant 授权和资源；与大写 UI 无别名关系 |
-| FloatingWindow | custom-ui.md / FloatingWindow.d.ts | automation/floating_window.go、floating_window_controls.go | constructor, addButton, addLabel, addSwitch, addCheckbox, addInput, addSelect, addSlider, addSegmentedControl, addProgress, addSeparator, addSpacer, removeButton, removeLabel, removeControl, updateButton, updateLabel, updateControl, getButtonState, getLabelState, getControlState, getState, show, hide, close, setPosition, setPlacement, onButtonClick, onControlChange, onError, setAlwaysOnTop, setDraggable, on, waitUntilClosed, run | 构造→控件/事件→run/close；下一步分控件、事件、生命周期，条件能力不机械归为未实现 |
+| ui | ui.md / custom-ui.d.ts | automation/custom_ui.go | getCapabilities, createWindow, closeAll, on | createWindow→window/control handle→close；下一步 dormant 授权和资源；与大写 UI 无别名关系 |
+| FloatingWindow | ui.md / FloatingWindow.d.ts | automation/floating_window.go、floating_window_controls.go | constructor, addButton, addLabel, addSwitch, addCheckbox, addInput, addSelect, addSlider, addSegmentedControl, addProgress, addSeparator, addSpacer, removeButton, removeLabel, removeControl, updateButton, updateLabel, updateControl, getButtonState, getLabelState, getControlState, getState, show, hide, close, setPosition, setPlacement, onButtonClick, onControlChange, onError, setAlwaysOnTop, setDraggable, on, waitUntilClosed, run | 构造→控件/事件→run/close；下一步分控件、事件、生命周期，条件能力不机械归为未实现 |
 
 ### 全局函数、构造器与返回句柄
 
@@ -116,9 +116,9 @@ order: 22
 | AudioSoundWatcher | audio.md / Audio.d.ts / automation/audio_pattern_runtime.go | status, stop, wait；id, backend, startedAt, sourceScope, sourceVerified | watchSound→事件→stop/wait；核对停止确认与 callback Promise |
 | DesktopEventSubscription | events.md / Events.d.ts / automation/desktop_events.go | unsubscribe；id, event, backend | Events.on→unsubscribe；核对幂等和 teardown |
 | RecorderSession | recorder-runtime.md / recorder.d.ts / automation/recorder*.go + 008-recorder.js | status, pause, resume, excludeControlClick, stop | Recorder.start→会话→stop；核对落盘和排除边界 |
-| ClawdeskUIWindowHandle | custom-ui.md / custom-ui.d.ts / automation/custom_ui.go | controls, show, hide, close, getState, setBounds, setPosition, setPlacement, setSize, setAlwaysOnTop, setDraggable, waitUntilClosed, control, on；id | ui.createWindow→控制/事件→close；核对 native owner |
-| ClawdeskUIControlHandle | custom-ui.md / custom-ui.d.ts / automation/custom_ui.go | getState, update, on；id | window.control→状态/事件；核对父窗口关闭后失效 |
-| ClawdeskUIUnsubscribe | custom-ui.md / custom-ui.d.ts / Custom UI owner | 返回的可调用函数 () => void | on→调用解除订阅；核对幂等 |
+| ClawdeskUIWindowHandle | ui.md / custom-ui.d.ts / automation/custom_ui.go | controls, show, hide, close, getState, setBounds, setPosition, setPlacement, setSize, setAlwaysOnTop, setDraggable, waitUntilClosed, control, on；id | ui.createWindow→控制/事件→close；核对 native owner |
+| ClawdeskUIControlHandle | ui.md / custom-ui.d.ts / automation/custom_ui.go | getState, update, on；id | window.control→状态/事件；核对父窗口关闭后失效 |
+| ClawdeskUIUnsubscribe | ui.md / custom-ui.d.ts / Custom UI owner | 返回的可调用函数 () => void | on→调用解除订阅；核对幂等 |
 | Accessibility element ref | accessibility.md / Accessibility.d.ts / AccessibilityRuntime | 无自行控制资源的方法；交给 Accessibility.read/perform/release | execution-owned opaque ref；不能序列化重建权限；字段全集在该对象轮次补核 |
 | NativeExtension namespace | native-extension.md / NativeExtension.d.ts / automation/native_extensions.go | descriptor.methods 指定的绑定调用函数；get 的返回对象与 namespace 属性入口 | Host manifest→冻结绑定→调用；按安装版本补全方法，不建立第二套发现器 |
 | NativeExtension（单数） | native-extension.md / NativeExtension.d.ts / automation/native_extension.go | call | 已文档化但仅 unsafe 本地诊断开关条件注入；不是默认公开快捷方式，也不当成纯内部对象遗漏 |

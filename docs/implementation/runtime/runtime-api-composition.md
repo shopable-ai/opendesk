@@ -122,7 +122,7 @@ Go native method 到 Goja function 的反射、参数/返回/错误投影，以�
 ```text
 automation/custom_ui_notify.go + pkg/customui notification owner
 → polyfills/000-ui.js
-→ docs/api/notify.md（用户主入口）+ docs/api/custom-ui.md（namespace/兼容入口）
+→ docs/api/notify.md（用户主入口）+ docs/api/ui.md（namespace/兼容入口）
 → types/custom-ui.d.ts
 → docs/api/runtime-api.ai.json
 → tests/runtime-api/manifest.js + custom-ui tests

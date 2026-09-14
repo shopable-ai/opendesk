@@ -605,9 +605,9 @@ P0 后续需要继续补证据，而不是立即开发：
 | 单项接口 | 按 `docs/api/` 对应契约记录平台、授权、可用性和限制 | 从一个接口的限制推导整个程序不支持该平台 |
 | 验收证据 | 文档、源码、编译结果、真实目标系统运行分别记录 | 文档或交叉编译等于已经完成 Windows / macOS 实机验收 |
 
-本轮读取的 [Custom UI API](../../api/custom-ui.md) 仍明确写明：macOS 使用 AppKit / WKWebView，Windows 与 Linux 的该模块报告 `available: false`。**这是当前所读 Custom UI 文档的接口级描述，不否定 OpenDesk 程序的 Windows 支持。** 本轮未执行目标系统测试，也不据此声称 Windows Custom UI 已完成或已实测；若实现已先于文档更新，应另以源码和对应版本的 Runtime 证据更新正式接口文档。
+本轮读取的 [Custom UI API](../../api/ui.md) 仍明确写明：macOS 使用 AppKit / WKWebView，Windows 与 Linux 的该模块报告 `available: false`。**这是当前所读 Custom UI 文档的接口级描述，不否定 OpenDesk 程序的 Windows 支持。** 本轮未执行目标系统测试，也不据此声称 Windows Custom UI 已完成或已实测；若实现已先于文档更新，应另以源码和对应版本的 Runtime 证据更新正式接口文档。
 
-另需保留当前命名边界：小写 `ui` / `FloatingWindow` 创建 OpenDesk 自己的界面，大写 `UI` 操作外部可见目标；`docs/custom-ui/` 是资源与示例说明入口，正式接口契约在 `docs/api/custom-ui.md`。依据：[Custom UI 资源说明](../../custom-ui/README.md)、[Custom UI API](../../api/custom-ui.md)。
+另需保留当前命名边界：小写 `ui` / `FloatingWindow` 创建 OpenDesk 自己的界面，大写 `UI` 操作外部可见目标；`docs/custom-ui/` 是资源与示例说明入口，正式接口契约在 `docs/api/ui.md`。依据：[Custom UI 资源说明](../../custom-ui/README.md)、[Custom UI API](../../api/ui.md)。
 
 ### 14.2 直接或高度相邻的小应用产品
 

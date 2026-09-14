@@ -39,7 +39,7 @@ AI 拿到树后可以直接推进支持范围内的业务，但树不等于任�
 | [Execution](../../api/execution.md) | 结构化输入、执行关联与生命周期 | ElementRef 可跨 execution 序列化复用 |
 | [HTTP Server](../../api/http-server.md)、[handler.go](../../../pkg/http/handler.go) | 已有 HTTP 服务、execution manager、状态与事件处理 | 只增加 HTML 即可读取原生树；所有旧路由已具备本方案授权 |
 | [HTTP 目录](../../../pkg/http/) | 已有 scheduler_ui.html 等页面资产，可复用分发方式 | 已有通用 Inspector 页面 |
-| [Custom UI](../../api/custom-ui.md) | 最新文档已有 macOS AppKit／WKWebView 和 Windows WinForms／WebView2 host；Windows HTML／Dialog 需要 WebView2 Runtime，Linux 仍 unavailable | 新增 Windows 源码等于所有 Windows 真机／安装包均已验收 |
+| [Custom UI](../../api/ui.md) | 最新文档已有 macOS AppKit／WKWebView 和 Windows WinForms／WebView2 host；Windows HTML／Dialog 需要 WebView2 Runtime，Linux 仍 unavailable | 新增 Windows 源码等于所有 Windows 真机／安装包均已验收 |
 | [AccessibilityRuntime](../../../automation/accessibility_runtime.go)、[JS facade](../../../automation/accessibility.go) | execution-scoped owner、受管引用、队列及权限 | HTTP handler 可绕过 owner 任意操作 AX／UIA |
 | [Human-to-Recipe](../../../workflows/human-to-recipe/README.md)、[AGENTS.md](../../../AGENTS.md) | 已有录制和 Agent 交接；最新增量区分 recorder-script-refiner 静态精炼与 human-to-recipe 的业务判断／资格验证 | 当前树可以补写成过去录制时的事实，复制提示词等于已生成和验收 |
 
