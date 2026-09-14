@@ -49,10 +49,14 @@ OpenDesk main UI                       <- official default user UI
 User-visible target terminology:
 
 ```text
-Tray / Menu:   打开 OpenDesk
+Tray / Menu:   显示主窗口
 Window title:  OpenDesk
 Main section:  自动化
 ```
+
+The visible label describes the actual lifecycle semantics: the action shows
+and focuses the already-existing `main` window. The stable internal action ID
+remains `opendesk.open` for compatibility.
 
 The internal names below remain valid compatibility/implementation seams and do
 not need a repository-wide rename:
@@ -200,7 +204,7 @@ The official OpenDesk desktop product target is one App Shell and one system
 Tray/Menu owner:
 
 ```text
-打开 OpenDesk
+显示主窗口
 ----------------
 录制自动化
 AI 助手
@@ -237,7 +241,7 @@ flow.
 
 Ownership is intentionally split:
 
-- Open/Recorder/Quit are App Shell/framework-owned;
+- Show Main Window/Recorder/Quit are App Shell/framework-owned;
 - AI Assistant, Scheduler Center/New Schedule, System Permissions, Runtime Log,
   Examples and API Docs are package-declared product actions;
 - Developer and Help/Services are OpenDesk product-shell composition;
@@ -426,7 +430,7 @@ Store local acceptance artifacts outside Git-tracked source, for example:
 
 Acceptance must cover the checklist in
 `docs/architecture/opendesk-desktop-product-shell.md`, especially bundled
-icon-launch behavior, no desktop Terminal, one Tray owner, `打开 OpenDesk`,
+icon-launch behavior, no desktop Terminal, one Tray owner, `显示主窗口`,
 Recorder coexistence, Scheduler backend connectivity, Runtime Log lifecycle,
 child-recipe console suppression, Help/Customize, Quit, single-instance and
 Windows/macOS platform-specific distribution behavior. `.runtime` evidence
