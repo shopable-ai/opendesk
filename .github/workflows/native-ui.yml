@@ -14,6 +14,7 @@ on:
       - 'apps/opendesk/permissions-center.js'
       - 'apps/opendesk/.release/**'
       - 'apps/opendesk/recorder/**'
+      - 'apps/opendesk/locales/**'
       - 'apps/opendesk/opendesk.app.json'
       - 'internal/processlock/**'
       - 'internal/recorderbundle/**'
@@ -21,6 +22,7 @@ on:
       - 'pkg/runtimeconfig/**'
       - 'pkg/customui/**'
       - 'pkg/appshell/**'
+      - 'pkg/localization/**'
       - 'schemas/app-package/**'
       - 'pkg/http/**'
       - 'pkg/scheduler/**'
@@ -64,6 +66,11 @@ jobs:
         if: runner.os == 'Windows'
         with:
           dotnet-version: '8.0.x'
+      - name: Test Localization L0 contracts
+        shell: bash
+        run: |
+          go test ./pkg/localization -count=1
+          go test ./pkg/appshell -run 'Localization|Locale|OpenDeskProductMenu|OfficialManifestKeepsStableLocalizedBusinessActions' -count=1
       - name: Test Scheduler store concurrency
         if: runner.os != 'Linux'
         run: go test ./pkg/scheduler ./tests/scheduler -count=1
