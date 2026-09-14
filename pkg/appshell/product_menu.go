@@ -59,7 +59,7 @@ func nativeMenuForManifest(manifest Manifest) []nativeMenuItem {
 
 func openDeskProductMenu(manifest Manifest) []nativeMenuItem {
 	items := []nativeMenuItem{
-		{ID: ActionOpen, Label: "打开 OpenDesk"},
+		{ID: ActionOpen, Label: "显示主窗口"},
 		{Type: "separator"},
 	}
 	items = append(items, nativeMenuItems(manifest.Tray.Menu)...)
