@@ -4,7 +4,7 @@
 
 日常框架与方法集中在 [docs/frameworks/](../../frameworks/README.md)：总体框架 → 任务求解 → 应用分析 → 示范到自动化。这里保存专项模型和设计合同，不要求普通 Recipe 作者逐篇阅读。
 
-[示范到自动化执行方法](../../frameworks/demonstration-to-automation-pipeline.md)的正文已迁入 `docs/frameworks/`；原路径只保留迁移入口，第 10 节千牛案例仍在同一份主流程正文中维护。
+[示范到自动化执行方法](../../frameworks/demonstration-to-automation-pipeline.md)是当前唯一主流程正文，第 10 节保留千牛案例。
 
 ## 按问题直接进入
 
@@ -80,10 +80,8 @@ Recipe 再根据这些业务对象决定下一步怎么做。
 
 设计文档里的 `ObservationBundle`、`CollectionProfile`、`CollectionItem`、`SemanticVisionProvider` 或 `UI.readCollection()` 等名称不自动代表已发布 API。当前结构化集合读取先进行合同、fixture 和 JavaScript 原型验证，再决定是否值得晋级公共 API。
 
-业务对象、授权、步骤交接与成果失效条件见[自动化任务求解方法](../../frameworks/automation-problem-solving-framework.md)。方法阅读不替代业务成功验证；目录迁移不代表本目录模型重新通过源码或真机审计。
+业务对象、授权、步骤交接与成果失效条件见[自动化任务求解方法](../../frameworks/automation-problem-solving-framework.md)。方法阅读不替代业务成功验证；目录调整不代表本目录模型重新通过源码或真机审计。
 
 ## 目录与维护规则
 
-本目录的 Target、Collection、Adapter、应用分类与 Recorder 文档继续保留唯一正文；不为集中阅读把技术细节全部搬进 `frameworks/`，也不在两处复制维护。
-
-主流程迁移映射：`docs/architecture/desktop-automation/demonstration-to-automation-pipeline.md` → `docs/frameworks/demonstration-to-automation-pipeline.md`。新引用使用新路径；旧路径仅为过渡导航，不是第二份方法文档。
+本目录的 Target、Collection、Adapter、应用分类与 Recorder 文档继续保留唯一正文；不为集中阅读把技术细节全部搬进 `frameworks/`，也不在两处复制维护。示范到自动化主流程直接引用 [frameworks 中的唯一正文](../../frameworks/demonstration-to-automation-pipeline.md)，不保留旧路径占位页。
