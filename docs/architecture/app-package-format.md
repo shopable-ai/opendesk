@@ -13,7 +13,8 @@
 - which package version it declares;
 - whether the current OpenDesk Runtime is compatible;
 - whether entry/resources remain inside the package root;
-- which capabilities the package declares as metadata.
+- which capabilities the package declares as metadata;
+- which stable presentation references should be resolved by App Shell before native UI construction.
 
 This contract does not define an App Store, installer, updater, license server, secret store, remote dependency resolver, protected recipe format, or user-data migration framework.
 
@@ -29,6 +30,20 @@ my-app/
     ├── tray.ico
     └── tray-template.png
 ```
+
+A localized package may additionally own runtime catalogs such as:
+
+```text
+my-app/
+├── opendesk.app.json
+├── main.js
+├── locales/
+│   ├── zh-CN.json
+│   └── en-US.json
+└── assets/
+```
+
+The current official OpenDesk package uses `locales/zh-CN.json` and `locales/en-US.json`. Generic third-party localization metadata/resource declaration is expanded in later localization stages; package-owned resources remain the ownership model.
 
 Example:
 
@@ -83,15 +98,20 @@ Four version concepts are intentionally separate:
 
 - `version` is required.
 - `name`, `runtime.minVersion`, and `capabilities` are optional.
+- Tray menu items support the additive optional presentation field `labelKey`; legacy `label` remains supported.
 - unknown fields are rejected rather than silently ignored.
 - a future/unknown `schemaVersion` fails closed before package resources or JavaScript are executed.
 - Runtime does not rewrite or automatically migrate the manifest on disk.
+
+Localization Core keeps `schemaVersion: 1` for `labelKey`: it is an additive optional presentation reference and does not change menu IDs, action IDs, lifecycle or execution semantics. The maintained Runtime parser and Draft 2020-12 authoring schema were updated together.
 
 ### Legacy v0 compatibility
 
 For compatibility with App Mode packages created before this contract, omission of `schemaVersion` is treated as legacy v0.
 
 Legacy v0 continues to accept the previously published fields (`id`, `entry`, `singleInstance`, `window`, `tray`). It cannot opt into v1-only metadata (`version`, `name`, `runtime`, `capabilities`) without setting `schemaVersion: 1`.
+
+Legacy menu items containing only `label` remain valid. Localization does not require existing Apps to introduce `labelKey` or locale resources.
 
 New packages should always publish schema v1. Legacy support exists to avoid breaking already-created App Mode packages, not as a recommended authoring format.
 
@@ -167,11 +187,64 @@ P0 semantics are intentionally limited:
 
 A future permission system must define enforceable Runtime behavior separately rather than retroactively describing metadata as security enforcement.
 
+## Tray menu presentation and localization
+
+A normal menu item may use a legacy inline label:
+
+```json
+{
+  "id": "sync.now",
+  "label": "Sync now",
+  "action": "sync.now"
+}
+```
+
+or provide a stable localization reference while retaining a compatibility fallback:
+
+```json
+{
+  "id": "open-scheduler-center",
+  "labelKey": "menu.schedulerCenter",
+  "label": "计划中心",
+  "action": "scheduler.center"
+}
+```
+
+A `labelKey`-only item is also valid:
+
+```json
+{
+  "id": "sync.now",
+  "labelKey": "menu.syncNow",
+  "action": "sync.now"
+}
+```
+
+Rules:
+
+- `labelKey` is a presentation reference, not an action identifier;
+- at least one of `label` or `labelKey` must be present for a normal menu item;
+- `labelKey` uses stable key syntax and is trimmed/validated by Runtime;
+- `id` and `action` are stable machine contracts and are never localized;
+- separators cannot carry `label`, `labelKey`, IDs or actions;
+- App Shell resolves labels through Locale Core before handing plain strings to the platform-native backend.
+
+Manifest presentation resolution order is:
+
+```text
+resolved locale catalog
+→ product fallback locale catalog
+→ legacy label
+→ safe key representation
+```
+
+Missing optional translation data is fail-soft. It must not silently mutate the action dispatched by the menu item.
+
 ## Secrets and user configuration
 
 `opendesk.app.json` is source/package metadata and is not a secret store. API keys, passwords, access tokens, customer credentials, or machine-specific secrets must not be placed in this manifest.
 
-User configuration, secrets, and persistent user-data schema are separate contracts.
+User configuration, secrets, locale preference, and persistent user-data schema are separate contracts. `localePreference` is persisted by Localization Core outside the package manifest so changing UI language does not mutate signed/staged application resources.
 
 ## Validation pipeline
 
@@ -223,11 +296,13 @@ APP_RUNTIME_VERSION_INVALID
 
 Human-readable details remain actionable, while callers/tests can classify failures through the stable code rather than brittle string matching.
 
+Localization diagnostics such as `I18N_MISSING_KEY` belong to Locale Core rather than the structural App Package error model because a missing translation is intentionally fail-soft when safe presentation fallback exists.
+
 ## Unknown fields
 
 OpenDesk deliberately rejects unknown semantic fields in the current schema. This prevents misspellings such as `runtime.minVerison` from silently behaving as if no compatibility requirement were declared.
 
-Future additive metadata must first become part of a supported schema/contract. A future schema version fails closed on an older Runtime.
+`labelKey` is now a documented schema-v1 field; arbitrary unknown fields remain rejected. Future metadata must first become part of a supported schema/contract. A future schema version fails closed on an older Runtime.
 
 The maintained authoring schema is [`schemas/app-package/opendesk.app.schema.json`](../../schemas/app-package/opendesk.app.schema.json), with canonical `$id` `https://opendesk.dev/schemas/app-package/opendesk.app.schema.json`. It describes schema v1 only; legacy v0 remains a Runtime compatibility contract, not a recommended authoring format.
 
@@ -242,16 +317,22 @@ macOS .app
 └── Contents/Resources/AppMode/
     ├── opendesk.app.json
     ├── main.js
+    ├── locales/
+    │   ├── zh-CN.json
+    │   └── en-US.json
     └── assets/
 
 Windows portable/custom app
 └── app-mode/
     ├── opendesk.app.json
     ├── main.js
+    ├── locales/
+    │   ├── zh-CN.json
+    │   └── en-US.json
     └── assets/
 ```
 
-The same manifest/path/compatibility validation runs before business code in development and distribution layouts.
+The same manifest/path/compatibility validation runs before business code in development and distribution layouts. Official OpenDesk release staging explicitly includes both L0 catalogs so source checkout and staged App Mode share the same localization resources.
 
 ## Non-goals for P0
 
@@ -289,7 +370,7 @@ Before schema v1 is considered fully qualified for long-term production use, the
 - successful repository regression, Windows Core CI, Native UI CI, and platform packaging smoke checks;
 - documentation and examples that recommend schema v1 rather than legacy authoring.
 
-Once these gates are green, schema v1 should be frozen except for corrections that preserve its existing semantics. New product concepts should not be added to v1 merely because they need configuration.
+Localization adds qualification for `labelKey`, legacy-label compatibility, stable action IDs and packaged catalog presence without changing those structural gates.
 
 ### P1-A: App Package Developer Experience
 
@@ -317,19 +398,6 @@ Current capabilities:
 - structured JSON success/error/check fields instead of requiring callers to parse terminal text;
 - maintained package validation for `examples/app-mode/basic` and `apps/opendesk` in repository gates and CI.
 
-A Doctor-style result should be able to explain the package as a structured tree, for example:
-
-```text
-App Package Doctor
-├── schemaVersion          PASS
-├── package identity       PASS
-├── package version        PASS
-├── Runtime compatibility PASS
-├── entry                  PASS
-├── resources              PASS
-└── path containment       PASS
-```
-
 Developer tooling must not weaken the Runtime's fail-closed validation. JSON Schema/editor validation is an earlier feedback layer, not the security or compatibility authority.
 
 ### P1-B: App identity and writable-data isolation
@@ -352,8 +420,6 @@ package id
 Package files should be treated as immutable/read-only application resources. Mutable state should live outside the package root in a package-ID-scoped writable area so upgrading or replacing a package does not overwrite user data and multiple Apps do not share accidental state.
 
 Exact macOS/Windows writable paths should be frozen only when that runtime API is implemented; the package contract should define the ownership rule before hard-coding a path that other subsystems may later need to share.
-
-This topic should eventually have its own architecture contract, for example `docs/architecture/app-identity-and-data-isolation.md`, once implementation begins.
 
 ### P1-C: Build and distribution version consistency
 
@@ -387,4 +453,4 @@ These concepts should be separate contracts. In particular, `capabilities` must 
 
 ### Recommended next milestone
 
-After P1 developer tooling remains green in CI, the next separately designed milestone is **P1-B App identity and writable-data isolation**. It should consume the stable package `id`; it must not retroactively expand schema v1 or combine Secret Manager, capability permissions, Marketplace, License, updater, package migration, or remote dependency work into this tooling contract.
+After Localization Core and App Package gates are verified locally/CI, Native Tray/Menu language switching may consume `SetLocalePreference` and the existing App Shell localization bridge without creating a second manifest or locale contract. App Package identity/data-isolation work remains a separate architecture concern.
