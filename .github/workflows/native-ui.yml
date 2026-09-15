@@ -11,6 +11,8 @@ on:
       - 'cmd/opendesk-ui-host/**'
       - 'internal/appcli/**'
       - 'apps/opendesk/main.js'
+      - 'apps/opendesk/script-runner-simple.js'
+      - 'apps/opendesk/script-runner/**'
       - 'apps/opendesk/permissions-center.js'
       - 'apps/opendesk/.release/**'
       - 'apps/opendesk/recorder/**'
