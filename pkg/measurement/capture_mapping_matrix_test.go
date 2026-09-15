@@ -3,6 +3,7 @@ package measurement
 import (
 	"math"
 	"testing"
+	"time"
 )
 
 func TestCaptureMappingDPIMatrixRoundTripsLogicalCoordinates(t *testing.T){
