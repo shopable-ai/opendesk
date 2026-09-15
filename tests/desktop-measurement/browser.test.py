@@ -1,86 +1,213 @@
-"""In-memory Chromium prototype tests, not native OpenDesk/OS acceptance."""
-import json, shutil
+"""Desktop Measurement HTML Interaction Oracle.
+
+This is a synthetic Chromium contract test. It consumes the same modular files
+that users open from apps/opendesk/prototypes/desktop-measurement/index.html;
+it is not native macOS/Windows acceptance and never claims real AX/UIA evidence.
+"""
+from __future__ import annotations
+
+import json
+import shutil
 from pathlib import Path
 from playwright.sync_api import sync_playwright
+
 root = Path(__file__).resolve().parent
 repo = root.parents[1]
-prototype = repo / 'apps/opendesk/prototypes/desktop-measurement/index.html'
-evidence = repo / '.runtime/tests/desktop-measurement/prototype'
-evidence.mkdir(parents=True, exist_ok=True)
-results = []; errors = []
-def check(name,condition,detail=''):
-    results.append({'name':name,'status':'PASS' if condition else 'FAIL','detail':detail})
-    if not condition: raise AssertionError(name+': '+detail)
+prototype_dir = repo / "apps/opendesk/prototypes/desktop-measurement"
+index_file = prototype_dir / "index.html"
+template_file = prototype_dir / "template.html"
+css_file = prototype_dir / "prototype.css"
+model_file = prototype_dir / "model.js"
+interaction_file = prototype_dir / "interaction-core.js"
+evidence_dir = repo / ".runtime/tests/desktop-measurement/prototype"
+evidence_dir.mkdir(parents=True, exist_ok=True)
+
+results: list[dict] = []
+errors: list[str] = []
+
+def check(name: str, condition: bool, detail: str = "") -> None:
+    results.append({"name": name, "status": "PASS" if condition else "FAIL", "detail": detail})
+    if not condition:
+        raise AssertionError(f"{name}: {detail}")
+
+index = index_file.read_text(encoding="utf-8")
+template = template_file.read_text(encoding="utf-8")
+css = css_file.read_text(encoding="utf-8")
+model = model_file.read_text(encoding="utf-8")
+interaction = interaction_file.read_text(encoding="utf-8")
+
+check("index 只引用外部 Oracle 资源", '<link rel="stylesheet" href="prototype.css">' in index
+      and '<script src="model.js"></script>' in index
+      and '<script src="interaction-core.js"></script>' in index
+      and "<style" not in index and "function buildSnapshot" not in index)
+check("template 不再复制第二套交互", 'url=index.html' in template and "interaction-core.js" not in template and "MeasureDemo" not in template)
+
+# CI inlines the exact checked-in sources after proving that index.html itself
+# uses relative direct-open references. This avoids runner-specific file://
+# restrictions without introducing a second prototype implementation.
+composed = index.replace('<link rel="stylesheet" href="prototype.css">', f"<style>{css}</style>")
+composed = composed.replace('<script src="model.js"></script>', f"<script>{model}</script>")
+composed = composed.replace('<script src="interaction-core.js"></script>', f"<script>{interaction}</script>")
+
 with sync_playwright() as p:
-    exe=shutil.which('chromium') or shutil.which('google-chrome')
-    browser=p.chromium.launch(**({'executable_path':exe} if exe else {}),args=['--no-sandbox'])
-    page=browser.new_page(viewport={'width':1440,'height':960},device_scale_factor=1)
-    page.on('pageerror',lambda e:errors.append(str(e)))
-    page.set_content(prototype.read_text(encoding='utf-8'),wait_until='load')
-    check('默认测量界面不打开详情',not page.locator('#inspector').is_visible())
-    check('默认同时绘制参照与目标',page.locator('#overlay rect[stroke="#298a78"]').count()==1 and page.locator('#overlay rect[stroke="#218ccd"]').count()>=1)
-    sid=page.evaluate('MeasureDemo.state.session'); targets=page.evaluate('JSON.stringify(MeasureDemo.state.targets)')
-    for entry in ['#entry-dev','#entry-rec','#entry-key']:page.click(entry)
-    check('三个网页模拟入口复用同一会话',page.evaluate('MeasureDemo.state.session')==sid and page.evaluate('JSON.stringify(MeasureDemo.state.targets)')==targets)
-    page.evaluate("document.getElementById('toast').hidden=true")
-    page.screenshot(path=str(evidence/'01-default-region.png'))
-    oldref=page.evaluate('JSON.stringify(MeasureDemo.state.ref)')
-    st=page.locator('#stage').bounding_box(); page.mouse.move(900,500)
-    check('鼠标移动不会切换锁定参照',page.evaluate('JSON.stringify(MeasureDemo.state.ref)')==oldref)
-    page.select_option('#fixture','color')
-    check('2x冻结源蓝色像素取色',page.evaluate('MeasureDemo.data().result.color.hex')=='#2879D8')
-    color=page.evaluate('MeasureDemo.data().result.color')
-    check('像素色包含源图坐标与显示器',color['imagePixel']['x']>=0 and color['displayId']=='demo-display-1')
-    page.screenshot(path=str(evidence/'04-point-color.png'))
-    page.click('#details');check('详情只在用户请求时打开',page.locator('#inspector').is_visible())
-    page.keyboard.press('Escape');check('Esc关闭详情而非结束会话',not page.locator('#inspector').is_visible() and page.evaluate('MeasureDemo.state.active'))
-    check('打开关闭详情不污染原始取色',page.evaluate('MeasureDemo.data().result.color.hex')==color['hex'])
-    page.select_option('#fixture','pp');q=page.evaluate('MeasureDemo.data().pair');check('两点真实样机数据导出距离',abs(q['straightDistance']-300)<1e-8 and q['dx']==240 and q['dy']==180)
-    page.select_option('#fixture','rr');q=page.evaluate('MeasureDemo.data().pair');check('两区域间距与重叠分别导出',q['horizontalGap']==18 and q['overlapArea']==0)
-    page.select_option('#fixture','overflow');q=page.evaluate('MeasureDemo.data().result');check('越过参照右边缘显示负44',abs(q['signedEdges']['right']+44)<1e-8)
-    page.screenshot(path=str(evidence/'02-negative-edge.png'))
-    collisions=page.evaluate('''()=>{const h=document.getElementById('hud').getBoundingClientRect();return [...document.querySelectorAll('[data-badge]')].filter(n=>{const b=n.getBoundingClientRect();return Math.min(b.right,h.right)>Math.max(b.left,h.left)&&Math.min(b.bottom,h.bottom)>Math.max(b.top,h.top)}).length}''')
-    check('距离标签不藏在角落信息下',collisions==0)
-    page.click('#details');page.screenshot(path=str(evidence/'03-details-on-demand.png'));page.click('#details-close')
-    for scenario in ['top-left','top-right','bottom-left','bottom-right']:
-        page.select_option('#fixture',scenario)
-        overlap=page.evaluate('''()=>{const h=document.getElementById('hud').getBoundingClientRect(),s=document.getElementById('stage').getBoundingClientRect(),t=MeasureDemo.state.targets[0],o=MeasureDemo.origin();return MeasureModel.intersection({x:h.x-s.x,y:h.y-s.y,width:h.width,height:h.height},{x:t.x-o.x,y:t.y-o.y,width:t.width,height:t.height}).area}''')
-        check('角落避让 '+scenario,overlap==0)
-    page.select_option('#display-fixture','negative');page.select_option('#fixture','color');q=page.evaluate('MeasureDemo.data()')
-    check('负逻辑坐标仍正确取色',q['result']['absolute']['x']<0 and q['result']['color']['hex']=='#2879D8')
-    page.select_option('#display-fixture','mixed');q=page.evaluate('MeasureDemo.data()')
-    check('双屏模拟保留不同像素映射',q['snapshot']['displays'][0]['scaleFactor']==1 and q['snapshot']['displays'][1]['scaleFactor']==2)
-    page.select_option('#display-fixture','retina');page.select_option('#fixture','region')
-    # Exercise drag and resize through actual browser pointer events.
-    before=page.evaluate('({...MeasureDemo.state.targets[0]})');o=page.evaluate('MeasureDemo.origin()')
-    x=before['x']-o['x']+st['x']+40;y=before['y']-o['y']+st['y']+50
-    page.mouse.move(x,y);page.mouse.down();page.mouse.move(x+20,y+15,steps=4);page.mouse.up()
-    after=page.evaluate('MeasureDemo.state.targets[0]');check('拖动区域更新位置不改变大小',abs(after['x']-before['x']-20)<1e-7 and after['width']==before['width'])
-    handle=page.locator('[data-handle="se"]').bounding_box();page.mouse.move(handle['x']+4,handle['y']+4);page.mouse.down();page.mouse.move(handle['x']+34,handle['y']+24,steps=4);page.mouse.up()
-    check('拖动尺寸手柄可调整区域',page.evaluate('MeasureDemo.state.targets[0].width')>after['width'])
-    page.locator('#overlay').focus();beforex=page.evaluate('MeasureDemo.state.targets[0].x');page.keyboard.press('ArrowRight')
-    check('方向键微调区域一个逻辑单位',page.evaluate('MeasureDemo.state.targets[0].x')==beforex+1)
-    page.click('[data-mode="region"]');r=page.evaluate('MeasureDemo.state.ref.bounds');x=r['x']+220;y=r['y']+180+st['y'];page.mouse.move(x,y);page.locator('#overlay').focus()
-    c1=page.evaluate('MeasureDemo.state.candidate.width');page.keyboard.press('Tab');c2=page.evaluate('MeasureDemo.state.candidate.width');check('Tab可切换更大候选',c2>c1)
-    page.keyboard.down('Alt');check('按住Alt暂停吸附',page.evaluate('MeasureDemo.state.candidate') is None);page.keyboard.up('Alt')
-    page.select_option('#fixture','region')
-    # Clipboard success is an injected browser adapter test, not system clipboard evidence.
-    page.evaluate("Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async t=>{window.testClipboard=t}}})")
-    for level in [1,2,3]:
-        page.click('#copy');page.click(f'[data-copy="{level}"]');q=page.evaluate('MeasureDemo.state.copied')
-        check(f'第{level}档复制经适配器接收',q['status']=='success' and 'desktop-logical' in q['text'] and ('参照' in q['text'] or 'reference' in q['text']),'剪切板适配器为测试替身；不是系统剪切板验收')
-    page.evaluate("Object.defineProperty(navigator,'clipboard',{configurable:true,value:undefined})")
-    page.click('#copy');page.click('[data-copy="1"]');check('剪切板不可用时显示手动复制而非虚报成功',page.locator('#manual-copy').is_visible() and page.evaluate('MeasureDemo.state.copied.status')=='manual-required');page.click('#manual-close')
-    page.click('#details');page.select_option('#save-level','3')
-    with page.expect_download() as download_info:page.click('#save')
-    download=download_info.value;download.save_as(str(evidence/'export-example.json'));check('保存可解析结构化JSON',json.loads((evidence/'export-example.json').read_text(encoding='utf-8'))['prototypeOnly'] is True)
-    snapid=page.evaluate('MeasureDemo.state.snapshot.id');page.select_option('#reference-select','custom');page.click('#reference-apply')
-    check('更换参照需显式确认且不更换源快照',page.evaluate('MeasureDemo.state.ref.kind')=='region' and page.evaluate('MeasureDemo.state.snapshot.id')==snapid)
-    page.click('#details-close');page.click('#exit');check('退出移除所有测量层并清理样机会话引用',page.locator('#overlay').is_hidden() and page.locator('#hud').is_hidden() and page.evaluate('MeasureDemo.state.snapshot===null&&MeasureDemo.state.tiles.length===0&&MeasureDemo.state.targets.length===0'))
-    page.keyboard.press('ArrowRight');check('退出后测量快捷键不产生结果',page.evaluate('MeasureDemo.state.targets.length')==0)
-    page.click('#entry-rec');check('退出后可通过Recorder模拟入口新建会话',page.evaluate('MeasureDemo.state.session')==sid+1)
-    check('没有浏览器脚本异常',not errors,str(errors))
-    page.select_option('#fixture','region');page.evaluate("document.getElementById('toast').hidden=true");page.screenshot(path=str(evidence/'05-final-region.png'))
+    exe = shutil.which("chromium") or shutil.which("google-chrome")
+    browser = p.chromium.launch(**({"executable_path": exe} if exe else {}), args=["--no-sandbox"])
+    page = browser.new_page(viewport={"width": 1440, "height": 960}, device_scale_factor=1)
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    page.set_content(composed, wait_until="load")
+    page.wait_for_timeout(250)
+
+    def state(expr: str):
+        return page.evaluate(f"MeasureDemo.state.{expr}")
+
+    def node(name: str):
+        return page.evaluate(f"MeasureDemo.nodes.find(n => n.id === {json.dumps(name)})")
+
+    def screen_to_client(point: dict) -> tuple[float, float]:
+        origin = page.evaluate("MeasureDemo.origin")
+        box = page.locator("#stage").bounding_box()
+        return box["x"] + point["x"] - origin["x"], box["y"] + point["y"] - origin["y"]
+
+    def move_to(name: str):
+        item = node(name)
+        point = {"x": item["rect"]["x"] + item["rect"]["width"] / 2,
+                 "y": item["rect"]["y"] + item["rect"]["height"] / 2}
+        x, y = screen_to_client(point)
+        page.mouse.move(x, y)
+        page.wait_for_timeout(160)
+        return item, point, x, y
+
+    check("默认进入唯一 MEASURING session", state("active") and state("phase") == "MEASURING" and state("session") == 1)
+    check("磁吸定位默认开启", state("magnet") is True and page.locator("#magnet-toggle").get_attribute("class") and "active" in page.locator("#magnet-toggle").get_attribute("class"))
+    check("Inspector 默认关闭", page.locator("#inspector").is_hidden())
+    check("窗口外弱蒙版与目标窗口轮廓存在", page.locator("#overlay path.mask").count() == 1 and page.locator("#overlay rect.window-outline").count() == 1)
+
+    first_token = page.evaluate("MeasureDemo.token()")
+    for entry in ["#entry-dev", "#entry-rec", "#entry-key"]:
+        page.click(entry)
+    check("三入口复用同一 session 和 Snapshot", page.evaluate("MeasureDemo.token()") == first_token and state("session") == 1)
+
+    move_to("input")
+    micro = page.locator("#micro").inner_text()
+    check("鼠标旁即时显示三级坐标与颜色", all(label in micro for label in ["屏幕", "窗口", "区域", "■ #"]) and "区域   —" not in micro, micro)
+    pointer = page.evaluate("MeasureDemo.data().pointer")
+    check("颜色来自冻结源像素", pointer["rawPixelColor"]["source"] == "frozen-synthetic-source-pixel" and pointer["rawPixelColor"]["interpolation"] == "none")
+    check("语义候选来源被诚实标记", state("candidate.provider") == "synthetic-ui-tree" and state("candidate.reliability") == "fixture-not-native")
+
+    first_candidate = state("candidate.id")
+    page.locator("#overlay").focus()
+    page.keyboard.press("Tab")
+    check("Tab 切换候选层级而不同时铺满", state("candidate.id") != first_candidate and page.locator("#overlay rect.candidate").count() == 1)
+    page.keyboard.press("Shift+Tab")
+    check("Shift+Tab 可返回更小候选", state("candidate.id") == first_candidate)
+
+    page.keyboard.down("Alt")
+    check("Alt 临时暂停磁吸", state("alt") is True and state("candidate") is None)
+    page.keyboard.up("Alt")
+    page.wait_for_timeout(160)
+    check("Alt 松开恢复磁吸", state("alt") is False and state("candidate") is not None)
+
+    _, _, x, y = move_to("input")
+    page.mouse.click(x, y)
+    data = page.evaluate("MeasureDemo.data()")
+    check("Target → Window 边距成立", data["margins"] is not None and data["margins"]["targetToWindow"] is not None)
+    check("Target → Local Reference 边距成立", data["localReference"] is not None and data["localReference"]["label"] == "输入区" and data["margins"]["targetToLocal"] is not None)
+    check("普通 HUD 最多两组边距", "最多两组边距" in page.locator("#hud-meta").inner_text() and page.locator("#margin-table > span").count() == 15)
+    check("Overlay 一次只突出一组四边距", page.locator("#overlay line.margin-line").count() == 4)
+    page.click("#margin-toggle")
+    check("切换局部参照仍只绘制四条边距线", state("marginView") == "local" and page.locator("#overlay line.margin-line").count() == 4)
+
+    structured = page.evaluate("MeasureDemo.data()")
+    check("结构化 Evidence 区分稳定重定位与运行时证据", structured["stableRelocationEvidence"].get("semanticCandidateId") == "input"
+          and structured["runtimeEvidence"]["absoluteGeometryIsRuntimeEvidenceOnly"] is True)
+    check("结构化 Evidence 包含百分比几何", structured["target"]["windowRelative"]["percentage"] is not None)
+
+    page.click('[data-mode="point"]')
+    _, _, x, y = move_to("send")
+    page.mouse.click(x, y)
+    point = page.evaluate("MeasureDemo.data().point")
+    check("点模式保存源像素色", point is not None and point["color"]["source"] == "frozen-synthetic-source-pixel")
+
+    page.click('[data-mode="pp"]')
+    a = node("bubble")["rect"]
+    b = node("send")["rect"]
+    ax, ay = screen_to_client({"x": a["x"] + 8, "y": a["y"] + 8})
+    bx, by = screen_to_client({"x": b["x"] + 8, "y": b["y"] + 8})
+    page.mouse.click(ax, ay)
+    page.mouse.click(bx, by)
+    check("两点距离成立", page.evaluate("MeasureDemo.data().twoPoint.straightDistance") > 0)
+
+    page.click('[data-mode="rr"]')
+    stage_box = page.locator("#stage").bounding_box()
+    page.mouse.move(stage_box["x"] + 420, stage_box["y"] + 260)
+    page.mouse.down()
+    page.mouse.move(stage_box["x"] + 500, stage_box["y"] + 320)
+    page.mouse.up()
+    page.mouse.move(stage_box["x"] + 620, stage_box["y"] + 380)
+    page.mouse.down()
+    page.mouse.move(stage_box["x"] + 710, stage_box["y"] + 450)
+    page.mouse.up()
+    check("两区域距离成立", page.evaluate("MeasureDemo.data().spacing") is not None)
+
+    stale_token = page.evaluate("MeasureDemo.token()")
+    page.click("#refresh")
+    refreshed_token = page.evaluate("MeasureDemo.token()")
+    accepted = page.evaluate("token => MeasureDemo.applyAsyncCandidate(token, {id:'stale',label:'stale',rect:{x:1,y:1,width:10,height:10},provider:'synthetic-ui-tree',reliability:'fixture-not-native'})", stale_token)
+    check("更新画面创建新 Snapshot/generation", refreshed_token["snapshotId"] != stale_token["snapshotId"] and refreshed_token["generation"] > stale_token["generation"])
+    check("旧 Snapshot 异步候选不会污染新 Snapshot", accepted is False and state("candidate") is None)
+
+    before_adjust = page.evaluate("MeasureDemo.token()")
+    page.click("#details")
+    check("Inspector 只在用户主动请求时打开", page.locator("#inspector").is_visible())
+    page.click("#adjust")
+    check("调整界面进入 ADJUSTING", state("phase") == "ADJUSTING" and state("adjusting") is True and page.locator("#live-controls").is_visible())
+    check("ADJUSTING 不把旧 Snapshot 当当前画面", state("snapshotId") is None and page.evaluate("MeasureDemo.data().snapshot") is None)
+    check("ADJUSTING 隐藏冻结层/Overlay/HUD/工具条/Inspector", all(page.locator(selector).evaluate("el => getComputedStyle(el).display === 'none'") for selector in ["#scene", "#overlay", "#hud", "#tools", "#inspector"]))
+    page.click("#live-scroll")
+    page.click("#live-tab")
+    page.click("#live-menu")
+    page.click("#continue")
+    after_adjust = page.evaluate("MeasureDemo.token()")
+    check("继续测量重新冻结且 session 不变", state("phase") == "MEASURING" and after_adjust["sessionId"] == before_adjust["sessionId"]
+          and after_adjust["snapshotId"] != before_adjust["snapshotId"] and after_adjust["generation"] > before_adjust["generation"])
+
+    page.select_option("#provider", "visual")
+    move_to("send")
+    visual = page.evaluate("MeasureDemo.state.candidate")
+    visual_honest = (visual is None and "未找到可靠候选" in state("status")) or (
+        visual is not None and visual["provider"] == "pixel-region-growing"
+        and visual["reliability"] == "estimated-not-semantic" and visual.get("role") is None
+    )
+    check("视觉候选不冒充语义控件", visual_honest)
+
+    page.select_option("#display-mode", "negative")
+    page.wait_for_timeout(100)
+    check("负坐标显示器保留屏幕逻辑坐标", page.evaluate("MeasureDemo.data().windowReference.bounds.x") < 0)
+    page.select_option("#display-mode", "mixed")
+    maps = page.evaluate("MeasureDemo.data().displayMapping")
+    check("双屏 1x + 2x 映射成立", len(maps) == 2 and maps[0]["scaleX"] == 1 and maps[1]["scaleX"] == 2)
+
+    check("Toast 不截获输入", page.locator("#toast").evaluate("el => getComputedStyle(el).pointerEvents") == "none")
+    check("没有浏览器脚本异常", not errors, str(errors))
+
+    previous_session = state("session")
+    page.click("#exit")
+    check("退出清理 Snapshot/Overlay/候选", state("active") is False and state("snapshotId") is None
+          and page.locator("#scene").evaluate("el => el.childElementCount") == 0 and page.locator("#overlay").evaluate("el => el.childElementCount") == 0)
+    page.keyboard.press("Tab")
+    check("退出后测量快捷键不继续消费输入", state("active") is False)
+    page.click("#entry-rec")
+    check("退出后 Recorder 入口创建新 session", state("session") == previous_session + 1 and state("phase") == "MEASURING")
+
+    page.screenshot(path=str(evidence_dir / "final-modular-oracle.png"))
     browser.close()
-(evidence/'browser-tests.json').write_text(json.dumps({'scope':'In-memory Chromium HTML prototype; not native OS acceptance','cases':results,'pass':sum(x['status']=='PASS' for x in results),'errors':errors},ensure_ascii=False,indent=2), encoding='utf-8')
-print(json.dumps({'tests':len(results),'pass':sum(x['status']=='PASS' for x in results),'errors':errors},ensure_ascii=False))
+
+summary = {
+    "scope": "Synthetic Chromium interaction oracle using checked-in modular prototype sources; not native OS acceptance",
+    "tests": len(results),
+    "pass": sum(item["status"] == "PASS" for item in results),
+    "errors": errors,
+    "results": results,
+}
+(evidence_dir / "browser-tests.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
+print(json.dumps({"tests": summary["tests"], "pass": summary["pass"], "errors": errors}, ensure_ascii=False))
