@@ -17,52 +17,52 @@ const RepairSchemaVersion = "measurement-repair/v1"
 type FailureClass string
 
 const (
-	FailureTargetNotFound      FailureClass = "target-not-found"
-	FailureAmbiguousTarget     FailureClass = "ambiguous-target"
-	FailureWindowChanged       FailureClass = "window-changed"
-	FailureGeometryDrift       FailureClass = "geometry-drift"
-	FailureOCRMismatch         FailureClass = "ocr-mismatch"
-	FailureAccessibility      FailureClass = "accessibility-unavailable"
-	FailureVisualMismatch      FailureClass = "visual-mismatch"
-	FailureStateMismatch       FailureClass = "state-mismatch"
-	FailurePermission          FailureClass = "permission"
-	FailureBusinessVerification FailureClass = "business-verification-failure"
+	FailureTargetNotFound        FailureClass = "target-not-found"
+	FailureAmbiguousTarget       FailureClass = "ambiguous-target"
+	FailureWindowChanged         FailureClass = "window-changed"
+	FailureGeometryDrift         FailureClass = "geometry-drift"
+	FailureOCRMismatch           FailureClass = "ocr-mismatch"
+	FailureAccessibility         FailureClass = "accessibility-unavailable"
+	FailureVisualMismatch        FailureClass = "visual-mismatch"
+	FailureStateMismatch         FailureClass = "state-mismatch"
+	FailurePermission            FailureClass = "permission"
+	FailureBusinessVerification  FailureClass = "business-verification-failure"
 )
 
 type NeededEvidence string
 
 const (
-	NeedTargetRegion     NeededEvidence = "target-region"
-	NeedReference        NeededEvidence = "reference"
-	NeedPointColor       NeededEvidence = "point-color"
-	NeedRegionSpacing    NeededEvidence = "region-spacing"
-	NeedSemanticCandidate NeededEvidence = "semantic-candidate"
+	NeedTargetRegion       NeededEvidence = "target-region"
+	NeedReference          NeededEvidence = "reference"
+	NeedPointColor         NeededEvidence = "point-color"
+	NeedRegionSpacing      NeededEvidence = "region-spacing"
+	NeedSemanticCandidate  NeededEvidence = "semantic-candidate"
 )
 
 type AutomationFailure struct {
-	Class       FailureClass   `json:"class"`
-	Message     string         `json:"message,omitempty"`
-	StepID      string         `json:"stepId"`
-	EvidenceRefs []string      `json:"evidenceRefs,omitempty"`
-	Details     map[string]any `json:"details,omitempty"`
+	Class        FailureClass   `json:"class"`
+	Message      string         `json:"message,omitempty"`
+	StepID       string         `json:"stepId"`
+	EvidenceRefs []string       `json:"evidenceRefs,omitempty"`
+	Details      map[string]any `json:"details,omitempty"`
 }
 
 type RepairRequest struct {
-	SchemaVersion      string                 `json:"schemaVersion"`
-	TaskID             string                 `json:"taskId"`
-	Failure            AutomationFailure      `json:"failure"`
-	ExistingEvidence   []string               `json:"existingEvidence,omitempty"`
-	NeededEvidence     []NeededEvidence       `json:"neededEvidence"`
-	AllowedInteraction string                 `json:"allowedInteraction"`
-	CreatedAt          time.Time              `json:"createdAt"`
+	SchemaVersion      string           `json:"schemaVersion"`
+	TaskID             string           `json:"taskId"`
+	Failure            AutomationFailure `json:"failure"`
+	ExistingEvidence   []string         `json:"existingEvidence,omitempty"`
+	NeededEvidence     []NeededEvidence `json:"neededEvidence"`
+	AllowedInteraction string           `json:"allowedInteraction"`
+	CreatedAt          time.Time        `json:"createdAt"`
 }
 
 type ProposedChange struct {
-	Kind        string         `json:"kind"`
-	Target      string         `json:"target,omitempty"`
-	Locator     map[string]any `json:"locator,omitempty"`
-	Constraint  map[string]any `json:"constraint,omitempty"`
-	Reason      string         `json:"reason"`
+	Kind       string         `json:"kind"`
+	Target     string         `json:"target,omitempty"`
+	Locator    map[string]any `json:"locator,omitempty"`
+	Constraint map[string]any `json:"constraint,omitempty"`
+	Reason     string         `json:"reason"`
 }
 
 type RepairCandidateStatus string
@@ -81,25 +81,25 @@ type RepairAttemptOutcome struct {
 }
 
 type RepairCandidate struct {
-	SchemaVersion string                `json:"schemaVersion"`
-	TaskID        string                `json:"taskId"`
-	FailedStep    string                `json:"failedStep"`
-	OldEvidence   []string              `json:"oldEvidence,omitempty"`
-	NewEvidence   []string              `json:"newEvidence"`
-	ProposedChange ProposedChange       `json:"proposedChange"`
-	Status        RepairCandidateStatus `json:"status"`
-	Execution     *RepairAttemptOutcome `json:"execution,omitempty"`
-	Verification  *RepairAttemptOutcome `json:"verification,omitempty"`
-	CreatedAt     time.Time             `json:"createdAt"`
-	QualifiedAt   *time.Time            `json:"qualifiedAt,omitempty"`
+	SchemaVersion  string                `json:"schemaVersion"`
+	TaskID         string                `json:"taskId"`
+	FailedStep     string                `json:"failedStep"`
+	OldEvidence    []string              `json:"oldEvidence,omitempty"`
+	NewEvidence    []string              `json:"newEvidence"`
+	ProposedChange ProposedChange        `json:"proposedChange"`
+	Status         RepairCandidateStatus `json:"status"`
+	Execution      *RepairAttemptOutcome `json:"execution,omitempty"`
+	Verification   *RepairAttemptOutcome `json:"verification,omitempty"`
+	CreatedAt      time.Time             `json:"createdAt"`
+	QualifiedAt    *time.Time            `json:"qualifiedAt,omitempty"`
 }
 
 type RepairHistoryEntry struct {
-	SchemaVersion string                `json:"schemaVersion"`
-	RecordedAt    time.Time             `json:"recordedAt"`
-	Failure       AutomationFailure     `json:"failure"`
-	Request       RepairRequest         `json:"request"`
-	Candidate     RepairCandidate       `json:"candidate"`
+	SchemaVersion string            `json:"schemaVersion"`
+	RecordedAt    time.Time         `json:"recordedAt"`
+	Failure       AutomationFailure `json:"failure"`
+	Request       RepairRequest     `json:"request"`
+	Candidate     RepairCandidate   `json:"candidate"`
 }
 
 type RepairExecutor interface {
@@ -110,9 +110,14 @@ type RepairVerifier interface {
 	VerifyBusinessResult(context.Context, RepairCandidate) (RepairAttemptOutcome, error)
 }
 
+// MeasurementEligibleFailure is deliberately conservative. A generic
+// target-not-found, OCR failure or unavailable Accessibility backend does not,
+// by itself, prove a geometry/layout problem. Those failures stay on their
+// native diagnostic paths unless further evidence reclassifies the failure as
+// ambiguity, reference/window drift, geometry drift or visual mismatch.
 func MeasurementEligibleFailure(class FailureClass) bool {
 	switch class {
-	case FailureTargetNotFound, FailureAmbiguousTarget, FailureWindowChanged, FailureGeometryDrift, FailureVisualMismatch, FailureOCRMismatch, FailureAccessibility:
+	case FailureAmbiguousTarget, FailureWindowChanged, FailureGeometryDrift, FailureVisualMismatch:
 		return true
 	default:
 		return false
@@ -129,8 +134,6 @@ func DefaultNeededEvidence(class FailureClass) []NeededEvidence {
 		return []NeededEvidence{NeedTargetRegion, NeedRegionSpacing}
 	case FailureVisualMismatch:
 		return []NeededEvidence{NeedPointColor, NeedTargetRegion}
-	case FailureTargetNotFound, FailureOCRMismatch, FailureAccessibility:
-		return []NeededEvidence{NeedSemanticCandidate, NeedTargetRegion}
 	default:
 		return nil
 	}
@@ -150,13 +153,13 @@ func NewRepairRequest(taskID string, failure AutomationFailure, existing []strin
 		now = time.Now()
 	}
 	return RepairRequest{
-		SchemaVersion: RepairSchemaVersion,
-		TaskID: taskID,
-		Failure: failure,
-		ExistingEvidence: appendUniqueStrings(existing, failure.EvidenceRefs...),
-		NeededEvidence: DefaultNeededEvidence(failure.Class),
+		SchemaVersion:      RepairSchemaVersion,
+		TaskID:             taskID,
+		Failure:            failure,
+		ExistingEvidence:   appendUniqueStrings(existing, failure.EvidenceRefs...),
+		NeededEvidence:     DefaultNeededEvidence(failure.Class),
 		AllowedInteraction: "measure-only",
-		CreatedAt: now.UTC(),
+		CreatedAt:          now.UTC(),
 	}, nil
 }
 
@@ -174,18 +177,21 @@ func NewRepairCandidate(request RepairRequest, evidenceRefs []string, change Pro
 		now = time.Now()
 	}
 	candidate := RepairCandidate{
-		SchemaVersion: RepairSchemaVersion,
-		TaskID: request.TaskID,
-		FailedStep: request.Failure.StepID,
-		OldEvidence: append([]string(nil), request.ExistingEvidence...),
-		NewEvidence: appendUniqueStrings(nil, evidenceRefs...),
+		SchemaVersion:  RepairSchemaVersion,
+		TaskID:         request.TaskID,
+		FailedStep:     request.Failure.StepID,
+		OldEvidence:    append([]string(nil), request.ExistingEvidence...),
+		NewEvidence:    appendUniqueStrings(nil, evidenceRefs...),
 		ProposedChange: change,
-		Status: RepairProposed,
-		CreatedAt: now.UTC(),
+		Status:         RepairProposed,
+		CreatedAt:      now.UTC(),
 	}
 	return candidate, nil
 }
 
+// ExecuteRepair coordinates the retry and verification gates through adapters
+// to OpenDesk's existing execution/recipe path. It never executes a second
+// runtime and never edits the golden Recipe.
 func ExecuteRepair(ctx context.Context, candidate RepairCandidate, executor RepairExecutor, verifier RepairVerifier, now time.Time) (RepairCandidate, error) {
 	if executor == nil || verifier == nil {
 		return candidate, errors.New("repair execution requires existing execution and business verification adapters")
