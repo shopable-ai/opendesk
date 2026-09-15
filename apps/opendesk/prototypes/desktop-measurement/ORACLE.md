@@ -121,12 +121,12 @@ IDLE
 
 ## 5. Tool contract
 
-The default mode is **Region**.
+The prototype starts in **Region** on first load. Lifecycle actions do not themselves reset an explicitly selected tool.
 
 | ID | Tool / contract | Acceptance | Source |
 |---|---|---|---|
 | DM-TOOL-001 | Tool switching supports exactly Point, Region, Point↔Point, Region↔Region in the Oracle. Switching tool clears prior tool result/Target/drag/candidate state. | One active tool button; stale result does not leak into new tool. | `setMode()` |
-| DM-TOOL-002 | Region is the default mode on session start. | Region button is active before explicit tool choice. | initial `E.mode='region'` |
+| DM-TOOL-002 | Region is the prototype's initial mode on first load. Update, Adjust/Continue, and Exit/re-entry do not themselves force-reset a user-selected tool; the selected mode remains until explicitly changed. | First load starts in Region; after selecting another tool, lifecycle actions do not implicitly reset it to Region. | initial `E.mode='region'`, `setMode()`, absence of mode reset in `begin()`, `refreshSnapshot()`, `adjustInterface()` / `continueMeasurement()`, `exitMeasurement()` |
 | DM-TOOL-003 | **Point** continuously exposes pointer coordinates/color; click confirms one point and frozen-source color. | HUD reports point and color after click. | `pointerUp()` point branch |
 | DM-TOOL-004 | **Region** with Magnet candidate: click locks the current candidate as Target. | Target becomes locked candidate; local reference may be derived. | `lockCandidate()` |
 | DM-TOOL-005 | **Region** without a usable candidate: dragging a positive area of at least 5×5 creates a user-confirmed manual Target. | Manual Target has no fabricated semantic/local-reference evidence. | `manualTarget()`, region branch |
@@ -237,7 +237,7 @@ These requirements are relational, not pixel-perfect browser-copy requirements.
 
 The following scenarios are the minimum parity suite; individual checks should cite Requirement IDs above.
 
-1. **Initial Freeze**: enter from any of the three entry points; one session; Region active; Magnet on; snapshot visible; mask/window outline, Toolbar and HUD present.
+1. **Initial Freeze**: on first prototype load Region is active; entry from any of the three entry points addresses one session; Magnet is on; snapshot, mask/window outline, Toolbar and HUD are visible. After an explicit tool change, Update/Adjust/Exit re-entry must not implicitly reset the selected mode.
 2. **Point**: choose Point; move pointer; verify three coordinate levels + frozen-source pixel color; click and retain point result.
 3. **Region**: with candidate, click to lock; without candidate/Magnet, drag to create manual Target; no invented semantic Local Reference.
 4. **Candidate**: hover a nested semantic control; only one candidate is highlighted; Tab/Shift+Tab cycle the same stack.
