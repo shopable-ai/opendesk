@@ -3,7 +3,6 @@
 // oracle after both values have been read from Calculator's display.
 'use strict';
 
-const CONFIRM = 'authorized-calculator-hybrid';
 const CALCULATOR = Object.freeze({
   bundleId: 'com.apple.calculator',
   executablePath: '/System/Applications/Calculator.app/Contents/MacOS/Calculator',
@@ -162,15 +161,13 @@ async function generateIncrement(baseResult) {
   throw new Error('OPENDESK_CALCULATOR_MODEL_KIND must be llm or agent');
 }
 
-assert(Execution.env.OPENDESK_CALCULATOR_HYBRID_CONFIRM === CONFIRM,
-  `set OPENDESK_CALCULATOR_HYBRID_CONFIRM=${CONFIRM} to authorize real Calculator input`);
 assert(modelKind === 'llm' || modelKind === 'agent',
   'set OPENDESK_CALCULATOR_MODEL_KIND=llm or agent');
 
 const evidenceDir = File.join(
   Execution.workdir,
   '.runtime',
-  'tests',
+  'examples',
   'llm-agent-calculator',
   Execution.id,
 );

@@ -29,7 +29,7 @@ OPENDESK_EXAMPLE_SHOW_TITLES=1 ./opendesk -script examples/desktop/window-inspec
 ## 指定窗口输入
 
 ```bash
-OPENDESK_EXAMPLE_WINDOW_TITLE='OpenDesk input test' OPENDESK_EXAMPLE_WINDOW_PID=12345 OPENDESK_EXAMPLE_ALLOW_INPUT=1 ./opendesk -script examples/desktop/keyboard.js -console-mode script
+OPENDESK_EXAMPLE_WINDOW_TITLE='OpenDesk input test' OPENDESK_EXAMPLE_WINDOW_PID=12345 ./opendesk -script examples/desktop/keyboard.js -console-mode script
 ```
 
 脚本核对唯一精确标题、PID 与 native identity，聚焦目标并再次验证活动窗口，只派发一段有限文本。不点击按钮、不按 Enter。请只使用可丢弃测试窗口。
@@ -37,7 +37,7 @@ OPENDESK_EXAMPLE_WINDOW_TITLE='OpenDesk input test' OPENDESK_EXAMPLE_WINDOW_PID=
 ## 指定窗口位置
 
 ```bash
-OPENDESK_EXAMPLE_WINDOW_TITLE='OpenDesk window test' OPENDESK_EXAMPLE_WINDOW_PID=12345 OPENDESK_EXAMPLE_ALLOW_WINDOW_CHANGE=1 ./opendesk -script examples/desktop/window-controls.js -console-mode script
+OPENDESK_EXAMPLE_WINDOW_TITLE='OpenDesk window test' OPENDESK_EXAMPLE_WINDOW_PID=12345 ./opendesk -script examples/desktop/window-controls.js -console-mode script
 ```
 
 只用于普通、非最大化/全屏的可丢弃测试窗口。示例将 x 增加 20，核对结果，并在 `finally` 中恢复原 bounds。
@@ -85,10 +85,20 @@ Recipe / 部署参数
 这个最小示例只展示关键业务代码：清空 Calculator，输入 `25 × 4 + 10`，从真实显示区读取 `110`，再把该读取值拆成第二轮 `6 × 110` 的按钮输入，最后读取 `660`。它不会录制 Recorder actions，也不会使用 JavaScript 算术代替 Calculator。
 
 ```bash
-OPENDESK_CALCULATOR_SEMANTIC_EXAMPLE_CONFIRM=authorized-calculator-fixture ./dist/opendesk -script examples/desktop/calculator-semantic-110-660-macos.js -console-mode script
+./dist/opendesk -script examples/desktop/calculator-semantic-110-660-macos.js -console-mode script
 ```
 
 运行前授予 Screen Recording 与 Accessibility 权限。命令会真实修改系统 Calculator；终端打印两个显示值，并将可直接查看的 `first-result-110.png` 与 `final-result-660.png` 写入 `.runtime/examples/calculator-semantic-110-660/<execution-id>/`。
+
+### UI Perception Resolver（macOS，真实输入）
+
+这是独立于上面业务语义流程的 Runtime Resolver 示例。它先在没有输入的情况下以 `UI.findText()` 预检必要按键，随后只使用 `UI.tapText()`、`UI.tapTexts()` 与 `UI.readText()`；调用者不选择 OCR、Accessibility、VLM、provider 或 fallback。当前 cloud VLM 默认关闭。
+
+```bash
+./dist/opendesk -script examples/desktop/ui-resolver-calculator-macos.js -console-mode script
+```
+
+运行会真实清空和操作系统 Calculator，预检、实际 `110`/`660` 值及截图写入 `.runtime/examples/ui-perception-resolver-calculator/<execution-id>/`。如果焦点切换、候选歧义或输入状态未知，脚本停止，不会切换 backend 或重放输入。
 
 ## Mouse 与 Page 固定坐标
 

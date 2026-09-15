@@ -52,15 +52,14 @@ ESM 示例用于学习 `.mjs`、静态 `import` / `export` 和相对依赖解析
 - [Desktop 示例总览](../../../examples/desktop/README.md)
 - [窗口查询](../../../examples/desktop/window-inspect.js)、[窗口控制](../../../examples/desktop/window-controls.js)、[键盘输入](../../../examples/desktop/keyboard.js)
 - [UI 相对文本定位](../../../examples/desktop/ui-relative-target.js)
+- [UI Perception Resolver Calculator（macOS，真实输入）](../../../examples/desktop/ui-resolver-calculator-macos.js)
 - [鼠标输入](../../../examples/desktop/mouse.js)、[Page 固定坐标与截图](../../../examples/desktop/page-click.js)
 - [屏幕信息](../../../examples/desktop/screen-info.js)、[截图](../../../examples/desktop/screenshot.js)、[截图字节](../../../examples/desktop/screenshot-bytes.js)
 - [显示模式](../../../examples/desktop/display-modes.js)、[区域录屏](../../../examples/desktop/screen-record-region.js)
 - [剪贴板](../../../examples/clipboard/README.md)
 - [Native Accessibility、UI 原生文本值与菜单](../../../examples/accessibility/README.md)
 
-键盘、鼠标、UI 点击、窗口修改需要明确目标和显式授权；截图与录屏会捕获真实可见内容。不要批量运行 Desktop 示例。
-
-Desktop 输入示例要求 `OPENDESK_EXAMPLE_ALLOW_INPUT=1`，窗口修改示例要求 `OPENDESK_EXAMPLE_ALLOW_WINDOW_CHANGE=1`；两个变量都只表示用户已经阅读并确认当前目标。
+键盘、鼠标、UI 点击、窗口修改需要明确目标；截图与录屏会捕获真实可见内容。不要批量运行 Desktop 示例。
 
 ## Vision、OCR 与图像
 
@@ -128,4 +127,4 @@ Desktop 输入示例要求 `OPENDESK_EXAMPLE_ALLOW_INPUT=1`，窗口修改示例
 
 Examples 用于学习、观察和手动体验，不负责声明公共 API 已通过正式验证。开发者回归测试见[测试说明](../../quality/runtime-api-test-modules.md)和[测试目录](../../quality/developer-test-catalog.md)。
 
-剪贴板写入示例必须显式设置 `OPENDESK_EXAMPLE_ALLOW_CLIPBOARD_WRITE=1`；音频 fixture generator、listener、smoke 和 Runtime contract test 均位于 `tests/`，不会出现在 Explorer 的普通列表。`examples/mac/`、`examples/protected-packages/` 和 `examples/app-mode/` 是平台实验或特殊打包入口，按各自 README 运行，不伪装成 Explorer 的普通 script。
+剪贴板写入示例会覆盖现有内容，运行前先保存需要保留的数据；音频 fixture generator、listener、smoke 和 Runtime contract test 均位于 `tests/`，不会出现在 Explorer 的普通列表。`examples/mac/`、`examples/protected-packages/` 和 `examples/app-mode/` 是平台实验或特殊打包入口，按各自 README 运行，不伪装成 Explorer 的普通 script。

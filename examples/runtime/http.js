@@ -1,6 +1,6 @@
 // From the repository root, with a test server you control:
 // OPENDESK_EXAMPLE_HTTP_URL=http://127.0.0.1:8080/echo ./opendesk -script examples/runtime/http.js -console-mode script
-// No built-in server address or credentials. GET by default; POST/PUT/PATCH/DELETE also require ALLOW_WRITE=1.
+// No built-in server address or credentials. GET by default; POST/PUT/PATCH/DELETE require a disposable test endpoint.
 // Response bodies and URLs are not logged. A 2xx response proves request completion, not server persistence.
 'use strict';
 const configured = Execution.env.OPENDESK_EXAMPLE_HTTP_URL;
@@ -16,9 +16,6 @@ if (!['http:', 'https:'].includes(endpoint.protocol) || !endpoint.hostname || en
 }
 const method = String(Execution.env.OPENDESK_EXAMPLE_HTTP_METHOD || 'GET').toUpperCase();
 if (!['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) throw new Error('Unsupported HTTP example method');
-if (method !== 'GET' && Execution.env.OPENDESK_EXAMPLE_ALLOW_WRITE !== '1') {
-  throw new Error('Mutation requires OPENDESK_EXAMPLE_ALLOW_WRITE=1 and a disposable test endpoint');
-}
 const config = { url: endpoint.href, method, timeout: 5000 };
 if (method === 'GET') config.params = { name: 'opendesk-example', value: 123 };
 else if (method !== 'DELETE') config.data = { name: 'opendesk-example', value: 123 };

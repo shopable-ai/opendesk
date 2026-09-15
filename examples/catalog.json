@@ -100,8 +100,8 @@
       "legacyNames": [],
       "docs": "docs/api/agent.md",
       "platforms": ["darwin"],
-      "prerequisites": ["Requires Accessibility permission, explicit input confirmation, and either a real LLM Profile or authenticated Agent CLI."],
-      "requiredEnv": ["OPENDESK_CALCULATOR_HYBRID_CONFIRM", "OPENDESK_CALCULATOR_MODEL_KIND"],
+      "prerequisites": ["Requires Accessibility permission and either a real LLM Profile or authenticated Agent CLI."],
+      "requiredEnv": ["OPENDESK_CALCULATOR_MODEL_KIND"],
       "expected": "Calculator displays 100, a validated 5-15 increment is clicked digit by digit, and the final display passes an independent oracle.",
       "tags": ["runtime", "llm", "agent", "calculator", "accessibility"],
       "launch": {"kind": "script", "ui": false, "consoleMode": "script"}
@@ -371,7 +371,7 @@
         "windows"
       ],
       "prerequisites": [
-        "Read the target identity and explicit topmost authorization requirements before running."
+        "Read the target identity and reviewed topmost-change requirements before running."
       ],
       "requiredEnv": [],
       "expected": "The example completes and prints its result.",
@@ -607,9 +607,7 @@
       "prerequisites": [
         "Use a disposable clipboard; this example replaces all current clipboard formats and does not restore them."
       ],
-      "requiredEnv": [
-        "OPENDESK_EXAMPLE_ALLOW_CLIPBOARD_WRITE"
-      ],
+      "requiredEnv": [],
       "expected": "The fixed demo text is read back from the clipboard.",
       "tags": [
         "clipboard",
@@ -1026,6 +1024,21 @@
         "consoleMode": "script"
       }
     },
+    "desktop/calculator-semantic-110-660-macos.js": {
+      "title": "Calculator Semantic Result Flow",
+      "description": "Operate macOS Calculator, read an intermediate result, and feed that observed value into a second button sequence.",
+      "category": "Desktop",
+      "level": "advanced",
+      "runPolicy": "manual",
+      "platforms": ["darwin"],
+      "prerequisites": ["Requires Screen Recording and Accessibility permissions; clears and operates the real system Calculator."],
+      "expected": "Calculator displays the observed intermediate value 110 and final value 660; screenshots are written under .runtime/examples/calculator-semantic-110-660/.",
+      "tags": ["desktop", "calculator", "accessibility", "UI.tapTexts", "semantic"],
+      "legacyNames": [],
+      "docs": "docs/api/desktop-ui.md",
+      "requiredEnv": [],
+      "launch": {"kind": "script", "ui": false, "consoleMode": "script"}
+    },
     "desktop/display-modes.js": {
       "title": "Display Modes",
       "description": "Read display capability metadata, current display modes, and available mode counts.",
@@ -1065,7 +1078,7 @@
         "windows"
       ],
       "prerequisites": [
-        "Requires the explicit input opt-in and exact target identity documented in examples/desktop/README.md."
+        "Requires the exact disposable target identity documented in examples/desktop/README.md."
       ],
       "expected": "The configured disposable target receives the bounded input.",
       "tags": [
@@ -1265,6 +1278,21 @@
         "consoleMode": "script"
       }
     },
+    "desktop/ui-resolver-calculator-macos.js": {
+      "title": "UI Perception Resolver Calculator",
+      "description": "Preflight and operate macOS Calculator through the Runtime-owned UI Perception Resolver without selecting a backend or fallback.",
+      "category": "Desktop",
+      "level": "advanced",
+      "runPolicy": "manual",
+      "platforms": ["darwin"],
+      "prerequisites": ["Requires Screen Recording and Accessibility permissions; clears and operates the real system Calculator."],
+      "expected": "Preflight evidence, observed values 110 and 660, and screenshots are written under .runtime/examples/ui-perception-resolver-calculator/.",
+      "tags": ["desktop", "calculator", "UI", "perception", "resolver", "preflight"],
+      "legacyNames": [],
+      "docs": "docs/api/desktop-ui.md",
+      "requiredEnv": [],
+      "launch": {"kind": "script", "ui": false, "consoleMode": "script"}
+    },
     "desktop/ui-relative-target.js": {
       "title": "UI Relative Text Target",
       "description": "Resolve one text target relative to another text inside the active disposable window and click it once.",
@@ -1307,7 +1335,7 @@
         "windows"
       ],
       "prerequisites": [
-        "Requires explicit window-change opt-in and exact target identity."
+        "Requires exact disposable target identity."
       ],
       "expected": "The target bounds are changed, verified, and restored.",
       "tags": [
@@ -1981,7 +2009,7 @@
         "windows"
       ],
       "prerequisites": [
-        "Use a test server you control; write requests also require their explicit opt-in."
+        "Use a test server you control; write requests must target a disposable endpoint."
       ],
       "requiredEnv": [
         "OPENDESK_EXAMPLE_HTTP_URL"

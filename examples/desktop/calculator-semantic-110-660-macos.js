@@ -1,15 +1,10 @@
 // Run from the repository root, after granting Screen Recording and
 // Accessibility permissions:
-// OPENDESK_CALCULATOR_SEMANTIC_EXAMPLE_CONFIRM=authorized-calculator-fixture \
 // ./dist/opendesk -script examples/desktop/calculator-semantic-110-660-macos.js -console-mode script
 //
 // This is a real macOS Calculator input example. It clears Calculator, enters
 // 25 × 4 + 10 =, reads the displayed 110, and uses that read value for 6 × 110 =.
 'use strict';
-
-if (Execution.env.OPENDESK_CALCULATOR_SEMANTIC_EXAMPLE_CONFIRM !== 'authorized-calculator-fixture') {
-  throw new Error('Set OPENDESK_CALCULATOR_SEMANTIC_EXAMPLE_CONFIRM=authorized-calculator-fixture before real Calculator input');
-}
 
 const APP = {bundleId: 'com.apple.calculator'};
 const CLEAR_NAMES = new Set(['C', 'AC', 'Clear', 'All Clear', '清除', '全部清除']);

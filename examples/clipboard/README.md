@@ -4,11 +4,11 @@
 也不宣称恢复原来的文本、HTML、图片或私有格式。请先使用可丢弃的剪贴板内容。
 
 ```bash
-OPENDESK_EXAMPLE_ALLOW_CLIPBOARD_WRITE=1 ./opendesk -script examples/clipboard/text.js -console-mode script
+./opendesk -script examples/clipboard/text.js -console-mode script
 ```
 
 [text.js](text.js) 只写固定示例文本并读回核对，不匹配即抛错；不会打印意外读到的剪贴板正文。
-成功后示例文本留在剪贴板，不像旧根目录示例那样无条件清空。未显式启用时，在首次读写前失败。
+成功后示例文本留在剪贴板，不像旧根目录示例那样无条件清空。
 旧根目录入口已经退休；当前只使用本目录的 canonical 文件。
 
 ## 手动粘贴一个文件
@@ -17,7 +17,7 @@ OPENDESK_EXAMPLE_ALLOW_CLIPBOARD_WRITE=1 ./opendesk -script examples/clipboard/t
 不会打开应用、自动粘贴、恢复、清空或发送内容。随后可在你已打开的目标应用中手动粘贴。
 
 ```bash
-OPENDESK_EXAMPLE_ALLOW_CLIPBOARD_WRITE=1 ./opendesk -script examples/clipboard/file.js -console-mode script
+./opendesk -script examples/clipboard/file.js -console-mode script
 ```
 
 公开的 [rich-paste-fixture.js](rich-paste-fixture.js) 用于人工粘贴演示；`tests/clipboard/rich-smoke.js` 是真实设备 smoke，不属于 Examples。

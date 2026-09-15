@@ -115,11 +115,11 @@ test('Command disabled capability fails before execution', async () => {
   await assert.rejects(script('examples/runtime/command.js', {}, { Command: { getCapabilities: () => ({ enabled: false }), run: () => assert.fail() } }), /requires local/);
 });
 
-test('HTTP missing/invalid URL and denied writes make no requests', async () => {
+test('HTTP missing or invalid URL and unsupported methods make no requests', async () => {
   for (const env of [{}, { OPENDESK_EXAMPLE_HTTP_URL: 'bad url' }, { OPENDESK_EXAMPLE_HTTP_URL: 'file:///private/file' },
     { OPENDESK_EXAMPLE_HTTP_URL: 'https://user:secret@example.test/a' },
     { OPENDESK_EXAMPLE_HTTP_URL: 'https://example.test/a#part' },
-    ...['POST', 'PUT', 'PATCH', 'DELETE', 'TRACE'].map(method => ({ OPENDESK_EXAMPLE_HTTP_URL: 'http://127.0.0.1/echo', OPENDESK_EXAMPLE_HTTP_METHOD: method }))]) {
+    { OPENDESK_EXAMPLE_HTTP_URL: 'http://127.0.0.1/echo', OPENDESK_EXAMPLE_HTTP_METHOD: 'TRACE' }]) {
     let calls = 0;
     await assert.rejects(script('examples/runtime/http.js', env, { axios: { request: () => { calls++; } } }));
     assert.equal(calls, 0);
@@ -128,7 +128,7 @@ test('HTTP missing/invalid URL and denied writes make no requests', async () => 
 for (const method of ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']) {
   test('HTTP sends exactly one explicit ' + method + ' request without exposing response data', async () => {
     const calls = [];
-    const env = { OPENDESK_EXAMPLE_HTTP_URL: 'http://127.0.0.1/echo?secret=not-for-log', OPENDESK_EXAMPLE_HTTP_METHOD: method, OPENDESK_EXAMPLE_ALLOW_WRITE: '1' };
+    const env = { OPENDESK_EXAMPLE_HTTP_URL: 'http://127.0.0.1/echo?secret=not-for-log', OPENDESK_EXAMPLE_HTTP_METHOD: method };
     const result = await script('examples/runtime/http.js', env, { axios: { request: async config => { calls.push(config); return { status: 200, data: 'PRIVATE_BODY' }; } } });
     assert.equal(calls.length, 1); assert.equal(calls[0].method, method); assert.equal(calls[0].timeout, 5000);
     assert(!result.messages.join('').includes('PRIVATE_BODY')); assert(!result.messages.join('').includes('secret='));
@@ -137,7 +137,7 @@ for (const method of ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']) {
 }
 test('HTTP form POST keeps the existing form demonstration', async () => {
   let config;
-  await script('examples/runtime/http.js', { OPENDESK_EXAMPLE_HTTP_URL: 'http://127.0.0.1/echo', OPENDESK_EXAMPLE_HTTP_METHOD: 'POST', OPENDESK_EXAMPLE_ALLOW_WRITE: '1', OPENDESK_EXAMPLE_HTTP_FORM: '1' },
+  await script('examples/runtime/http.js', { OPENDESK_EXAMPLE_HTTP_URL: 'http://127.0.0.1/echo', OPENDESK_EXAMPLE_HTTP_METHOD: 'POST', OPENDESK_EXAMPLE_HTTP_FORM: '1' },
     { axios: { request: async c => { config = c; return { status: 204 }; } } });
   assert.equal(config.data.toString(), 'name=opendesk-example&value=123');
 });
@@ -207,35 +207,33 @@ test('Webhook send example uses a separate OpenDesk HTTP execution without loggi
   assert(!result.messages.join('').includes('TEST_ONLY'));
 });
 
-test('Clipboard text denies writes by default and never clears/restores original data', async () => {
+test('Clipboard text writes one fixed value and never clears or restores original data', async () => {
   let value = 'PRIVATE'; const writes = [];
   const clipboard = { copy: text => { writes.push(text); value = text; }, paste: () => value, clear: () => assert.fail('must not clear') };
-  await assert.rejects(script('examples/clipboard/text.js', {}, { clipboard }), /overwrites/);
-  assert.equal(writes.length, 0);
-  const result = await script('examples/clipboard/text.js', { OPENDESK_EXAMPLE_ALLOW_CLIPBOARD_WRITE: '1' }, { clipboard });
+  const result = await script('examples/clipboard/text.js', {}, { clipboard });
   assert.deepEqual(writes, ['OpenDesk clipboard example']); assert.equal(value, writes[0]);
   assert(!result.messages.join('').includes('PRIVATE'));
 });
 test('Clipboard mismatch is a failure and never logs actual text', async () => {
-  await assert.rejects(script('examples/clipboard/text.js', { OPENDESK_EXAMPLE_ALLOW_CLIPBOARD_WRITE: '1' },
+  await assert.rejects(script('examples/clipboard/text.js', {},
     { clipboard: { copy() {}, paste: () => 'PRIVATE' } }), error => /mismatch/.test(error.message) && !error.message.includes('PRIVATE'));
 });
 
 for (const file of ['examples/desktop/keyboard.js', 'examples/desktop/window-controls.js']) {
-  test('desktop side effects are opt-in: ' + file, async () => {
+  test('desktop side effects require an exact target identity: ' + file, async () => {
     const d = desktop(); await assert.rejects(script(file, {}, { window: d.window })); assert.equal(d.actions.length, 0);
   });
   for (const bad of ['duplicate', 'unresolved', 'stale']) {
     test(file + ' refuses ' + bad + ' identity before any action', async () => {
       const d = desktop({ [bad]: true });
-      await assert.rejects(script(file, { ...targetEnv, OPENDESK_EXAMPLE_ALLOW_INPUT: '1', OPENDESK_EXAMPLE_ALLOW_WINDOW_CHANGE: '1' }, { window: d.window }));
+      await assert.rejects(script(file, targetEnv, { window: d.window }));
       assert.equal(d.actions.length, 0);
     });
   }
 }
 test('keyboard focuses a checked target then dispatches one line, never Enter or shortcuts', async () => {
   const d = desktop();
-  const result = await script('examples/desktop/keyboard.js', { ...targetEnv, OPENDESK_EXAMPLE_ALLOW_INPUT: '1' },
+  const result = await script('examples/desktop/keyboard.js', targetEnv,
     { window: d.window, keyboard: { type: async text => d.actions.push(['type', text]), press: () => assert.fail(), combination: () => assert.fail() } });
   assert.deepEqual(d.actions, [['focus', target.title], ['type', 'Hello from OpenDesk']]);
   assert(result.messages.join('').includes('not programmatically verified'));
@@ -243,20 +241,20 @@ test('keyboard focuses a checked target then dispatches one line, never Enter or
 test('keyboard will not type after failed focus or unsupported focus capability', async () => {
   for (const options of [{ wrongFocus: true }, { unsupported: 'window.focus' }]) {
     const d = desktop(options);
-    await assert.rejects(script('examples/desktop/keyboard.js', { ...targetEnv, OPENDESK_EXAMPLE_ALLOW_INPUT: '1' },
+    await assert.rejects(script('examples/desktop/keyboard.js', targetEnv,
       { window: d.window, keyboard: { type: () => assert.fail('unsafe input') } }));
   }
 });
 test('window control verifies requested bounds and restores exactly the original bounds', async () => {
   const d = desktop();
-  await script('examples/desktop/window-controls.js', { ...targetEnv, OPENDESK_EXAMPLE_ALLOW_WINDOW_CHANGE: '1' }, { window: d.window });
+  await script('examples/desktop/window-controls.js', targetEnv, { window: d.window });
   assert.deepEqual(d.actions, [['bounds', 'Disposable', 30, 20, 300, 200], ['bounds', 'Disposable', 10, 20, 300, 200]]);
   assert.equal(d.info().x, 10);
 });
 for (const option of ['throwFirst', 'throwRestore', 'partial', 'noMove']) {
   test('window control preserves failure for ' + option, async () => {
     const d = desktop({ [option]: true });
-    await assert.rejects(script('examples/desktop/window-controls.js', { ...targetEnv, OPENDESK_EXAMPLE_ALLOW_WINDOW_CHANGE: '1' }, { window: d.window }), /Window example failed/);
+    await assert.rejects(script('examples/desktop/window-controls.js', targetEnv, { window: d.window }), /Window example failed/);
     if (option === 'throwFirst') assert.equal(d.info().x, 10);
     if (option === 'partial') assert.equal(d.actions.length, 1, 'refuse to overwrite externally changed bounds');
   });
@@ -268,10 +266,10 @@ test('window inventory never reads content or changes any window; titles opt-in'
   const full = await script('examples/desktop/window-inspect.js', { OPENDESK_EXAMPLE_SHOW_TITLES: '1' }, { window: d.window });
   assert(full.messages.join('').includes('Disposable'));
 });
-test('Qianniu inventory is read-only; topmost requires explicit target/action and executable match', async () => {
+test('Qianniu inventory is read-only; topmost requires explicit target, mode, and executable match', async () => {
   const d = desktop(); const System = { getPlatformInfo: () => ({ os: 'windows' }) };
   await script('examples/app/qianniu-window.js', {}, { window: d.window, System }); assert.equal(d.actions.length, 0);
-  const env = { ...targetEnv, OPENDESK_EXAMPLE_QIANNIU_TOPMOST: 'on', OPENDESK_EXAMPLE_ALLOW_WINDOW_CHANGE: '1' };
+  const env = { ...targetEnv, OPENDESK_EXAMPLE_QIANNIU_TOPMOST: 'on' };
   await script('examples/app/qianniu-window.js', env, { window: d.window, System });
   assert.deepEqual(d.actions, [['topmost', 'Disposable', true]]);
   const other = desktop({ exeName: 'Notepad.exe' });
@@ -722,10 +720,10 @@ test('retired root example paths stay deleted after canonical migration', () => 
   for (const file of retired) assert.equal(fs.existsSync(path.join(root, file)), false, file);
 });
 
-test('example index uses canonical paths and explicit input/clipboard opt-ins', () => {
+test('example index uses canonical paths and describes real side effects', () => {
   const index = read('docs/api/examples/README.md');
   for (const old of ['examples/file.js', 'examples/command.js', 'examples/http.js', 'examples/clipboard.js', 'examples/keyboard.js', 'examples/window.js', 'examples/window-more.js']) assert(!index.includes(old), old);
-  for (const name of ['OPENDESK_EXAMPLE_ALLOW_CLIPBOARD_WRITE=1', 'OPENDESK_EXAMPLE_ALLOW_INPUT=1', 'OPENDESK_EXAMPLE_ALLOW_WINDOW_CHANGE=1']) assert(index.includes(name), name);
+  for (const name of ['OPENDESK_EXAMPLE_ALLOW_CLIPBOARD_WRITE', 'OPENDESK_EXAMPLE_ALLOW_INPUT', 'OPENDESK_EXAMPLE_ALLOW_WINDOW_CHANGE']) assert(!index.includes(name), name);
   for (const file of ['examples/runtime/README.md', 'examples/clipboard/README.md', 'examples/desktop/README.md', 'examples/app/README.md']) assert(read(file).includes('仓库根目录'));
 });
 

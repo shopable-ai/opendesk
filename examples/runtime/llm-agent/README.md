@@ -43,16 +43,16 @@
 真实 macOS Calculator 混合闭环。它会打开并操作 Calculator；需要已经授予 Accessibility 权限。HTTP LLM 路线：
 
 ```bash
-OPENDESK_CALCULATOR_HYBRID_CONFIRM=authorized-calculator-hybrid OPENDESK_CALCULATOR_MODEL_KIND=llm ./dist/opendesk -script examples/runtime/llm-agent/calculator-hybrid-macos.js -console-mode script
+OPENDESK_CALCULATOR_MODEL_KIND=llm ./dist/opendesk -script examples/runtime/llm-agent/calculator-hybrid-macos.js -console-mode script
 ```
 
 默认 Codex Agent 路线：
 
 ```bash
-OPENDESK_CALCULATOR_HYBRID_CONFIRM=authorized-calculator-hybrid OPENDESK_CALCULATOR_MODEL_KIND=agent ./dist/opendesk -script examples/runtime/llm-agent/calculator-hybrid-macos.js -console-mode script
+OPENDESK_CALCULATOR_MODEL_KIND=agent ./dist/opendesk -script examples/runtime/llm-agent/calculator-hybrid-macos.js -console-mode script
 ```
 
-脚本严格执行 `25 × 4 =`，从显示区读取 `baseResult`，只调用一次 LLM / Agent，重新确认同一窗口、显示值和可观察 Accessibility 状态，再按增量的每一位点击数字并读取 `finalResult`。JavaScript 运算只用于独立 oracle。成功证据与 base/final 实窗截图写入 `.runtime/tests/llm-agent-calculator/<execution-id>/`。
+脚本严格执行 `25 × 4 =`，从显示区读取 `baseResult`，只调用一次 LLM / Agent，重新核对同一窗口、显示值和可观察 Accessibility 状态，再按增量的每一位点击数字并读取 `finalResult`。JavaScript 运算只用于独立 oracle。成功证据与 base/final 实窗截图写入 `.runtime/examples/llm-agent-calculator/<execution-id>/`。
 
 无需真实凭据的适配器 fixture：
 

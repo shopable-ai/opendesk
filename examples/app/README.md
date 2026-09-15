@@ -44,20 +44,19 @@
 
 按 `exeName === AliWorkbench.exe`（大小写不敏感）筛选，仅输出 ID/PID。不会读取聊天、商品或窗口内容。需要标题时先设置 `$env:OPENDESK_EXAMPLE_SHOW_TITLES = '1'`，用毕移除。
 
-设置置顶必须明确输入实际标题与 PID、on/off 和授权。例如：
+设置置顶必须明确输入实际标题与 PID、on/off。例如：
 
 ```powershell
 $env:OPENDESK_EXAMPLE_WINDOW_TITLE = '你的千牛测试窗口完整标题'
 $env:OPENDESK_EXAMPLE_WINDOW_PID = '12345'
 $env:OPENDESK_EXAMPLE_QIANNIU_TOPMOST = 'on'
-$env:OPENDESK_EXAMPLE_ALLOW_WINDOW_CHANGE = '1'
 try { .\dist\opendesk.exe -script examples/app/qianniu-window.js -console-mode script }
 finally {
-  Remove-Item Env:OPENDESK_EXAMPLE_WINDOW_TITLE, Env:OPENDESK_EXAMPLE_WINDOW_PID, Env:OPENDESK_EXAMPLE_QIANNIU_TOPMOST, Env:OPENDESK_EXAMPLE_ALLOW_WINDOW_CHANGE -ErrorAction SilentlyContinue
+  Remove-Item Env:OPENDESK_EXAMPLE_WINDOW_TITLE, Env:OPENDESK_EXAMPLE_WINDOW_PID, Env:OPENDESK_EXAMPLE_QIANNIU_TOPMOST -ErrorAction SilentlyContinue
 }
 ```
 
-没有 mode 时只读；非法 mode 或未授权时失败。动作前核对唯一标题、PID、稳定身份和能力。API 返回后仍需视觉确认，不能只凭日志宣布业务或视觉结果通过。
+没有 mode 时只读；非法 mode 时失败。动作前核对唯一标题、PID、稳定身份和能力。API 返回后仍需视觉确认，不能只凭日志宣布业务或视觉结果通过。
 
 ## 旧路径已退休
 

@@ -54,9 +54,10 @@ Windows PowerShell 的对应待验收命令：
 完整的窗口与输入前置条件见[窗口与输入示例说明](../../../examples/desktop/README.md)。
 
 - [查询窗口](../../../examples/desktop/window-inspect.js)：`./opendesk -script examples/desktop/window-inspect.js -console-mode script`
-- [向指定窗口输入一行文字](../../../examples/desktop/keyboard.js)：`OPENDESK_EXAMPLE_WINDOW_TITLE='OpenDesk input test' OPENDESK_EXAMPLE_WINDOW_PID=12345 OPENDESK_EXAMPLE_ALLOW_INPUT=1 ./opendesk -script examples/desktop/keyboard.js -console-mode script`
-- [移动指定窗口并恢复位置](../../../examples/desktop/window-controls.js)：`OPENDESK_EXAMPLE_WINDOW_TITLE='OpenDesk window test' OPENDESK_EXAMPLE_WINDOW_PID=12345 OPENDESK_EXAMPLE_ALLOW_WINDOW_CHANGE=1 ./opendesk -script examples/desktop/window-controls.js -console-mode script`
-- [Calculator 语义结果流（macOS，真实输入）](../../../examples/desktop/calculator-semantic-110-660-macos.js)：`OPENDESK_CALCULATOR_SEMANTIC_EXAMPLE_CONFIRM=authorized-calculator-fixture ./dist/opendesk -script examples/desktop/calculator-semantic-110-660-macos.js -console-mode script`
+- [向指定窗口输入一行文字](../../../examples/desktop/keyboard.js)：`OPENDESK_EXAMPLE_WINDOW_TITLE='OpenDesk input test' OPENDESK_EXAMPLE_WINDOW_PID=12345 ./opendesk -script examples/desktop/keyboard.js -console-mode script`
+- [移动指定窗口并恢复位置](../../../examples/desktop/window-controls.js)：`OPENDESK_EXAMPLE_WINDOW_TITLE='OpenDesk window test' OPENDESK_EXAMPLE_WINDOW_PID=12345 ./opendesk -script examples/desktop/window-controls.js -console-mode script`
+- [Calculator 语义结果流（macOS，真实输入）](../../../examples/desktop/calculator-semantic-110-660-macos.js)：`./dist/opendesk -script examples/desktop/calculator-semantic-110-660-macos.js -console-mode script`
+- [UI Perception Resolver Calculator（macOS，真实输入）](../../../examples/desktop/ui-resolver-calculator-macos.js)：`./dist/opendesk -script examples/desktop/ui-resolver-calculator-macos.js -console-mode script`
 
 ## Recorder
 
@@ -74,7 +75,7 @@ Recorder 是人工示范到 Recipe 的授权工作流，不是可独立运行的
 
 以下示例会覆盖系统剪贴板，不会恢复原内容；先保存需要保留的内容。
 
-- [文本复制与读回](../../../examples/clipboard/text.js)：`OPENDESK_EXAMPLE_ALLOW_CLIPBOARD_WRITE=1 ./opendesk -script examples/clipboard/text.js -console-mode script`
+- [文本复制与读回](../../../examples/clipboard/text.js)：`./opendesk -script examples/clipboard/text.js -console-mode script`
 - [富文本复制（macOS）](../../../examples/clipboard/rich-paste-fixture.js)：`./opendesk -script examples/clipboard/rich-paste-fixture.js -console-mode script`
 
 ## Dialog 与 Custom UI（macOS）

@@ -1,9 +1,8 @@
 // From the repository root, with an exact test-window title and PID:
-// OPENDESK_EXAMPLE_WINDOW_TITLE='OpenDesk window test' OPENDESK_EXAMPLE_WINDOW_PID=12345 OPENDESK_EXAMPLE_ALLOW_WINDOW_CHANGE=1 ./opendesk -script examples/desktop/window-controls.js -console-mode script
+// OPENDESK_EXAMPLE_WINDOW_TITLE='OpenDesk window test' OPENDESK_EXAMPLE_WINDOW_PID=12345 ./opendesk -script examples/desktop/window-controls.js -console-mode script
 // Nudges a normal, non-maximized/non-fullscreen test window by 20 points, verifies bounds, then restores bounds.
 // Does not minimize, maximize, close, kill, focus or change always-on-top state. Bounds restoration is not full UI restoration.
 'use strict';
-if (Execution.env.OPENDESK_EXAMPLE_ALLOW_WINDOW_CHANGE !== '1') throw new Error('Set OPENDESK_EXAMPLE_ALLOW_WINDOW_CHANGE=1 for a disposable normal window');
 const createGuard = (0, eval)(File.read(File.join(File.cwd(), 'examples/desktop/support/target-window.js')));
 const guard = createGuard();
 guard.requireCapability('window.setBounds');
