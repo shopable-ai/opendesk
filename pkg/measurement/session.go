@@ -238,7 +238,7 @@ func (s *Service) openNew(ctx context.Context, source string) (*activeSession, e
 	a := &activeSession{
 		service: s, events: make(chan customui.Event, eventQueueSize), done: make(chan struct{}),
 		frame: frame, image: img, assetPath: assetPath, restore: frame.Restore, reference: frame.Reference,
-		tool: "point", outputFormat: "concise", status: targetConfirmationInstruction(frame),
+		tool: "region", outputFormat: "concise", status: targetConfirmationInstruction(frame),
 		selectedTarget: frame.SelectedTargetID, targetConfirmed: frame.TargetConfirmed, source: strings.TrimSpace(source),
 		snapEnabled: true, marginView: "window",
 		phase: PhasePreparing, sessionID: sessionID, generation: 1,
@@ -444,6 +444,7 @@ func (a *activeSession) handleClick(ctx context.Context, id string) error {
 	case "magnetToggle":
 		a.snapEnabled = !a.snapEnabled
 		a.snapSuspended = false
+		a.service.resetSnapshotCandidatesForOracle(a, a.snapEnabled, false, a.snapEnabled)
 		if a.snapEnabled {
 			a.status = "磁吸定位已开启；Alt/Option 可临时暂停。"
 		} else {
@@ -528,14 +529,19 @@ func setMeasurementTool(a *activeSession, value string) bool {
 		return false
 	}
 	a.tool = value
+	a.result = nil
 	a.dragStart = nil
 	a.twoPointFirst = nil
 	a.spacingFirst = nil
+	a.manualPending = false
 	a.regionHandle = RegionEditNone
 	a.editAnchor = nil
 	a.editOriginal = nil
 	a.copyMenuOpen = false
 	a.status = toolInstruction(value)
+	if a.service != nil {
+		a.service.resetSnapshotCandidatesForOracle(a, a.snapEnabled, a.snapSuspended, false)
+	}
 	return true
 }
 
@@ -669,8 +675,8 @@ func (a *activeSession) completeSelection(ctx context.Context, end Point) error 
 		result, err = BuildPointResult(a.frame.Snapshot, a.reference, end, a.image)
 		a.regionHandle = RegionEditNone
 	case "region":
-		if selection.Width <= 0 || selection.Height <= 0 {
-			a.status = "区域测量需要拖拽出正宽高区域。"
+		if selection.Width < 5 || selection.Height < 5 {
+			a.status = "区域测量需要拖拽至少 5×5 logical px；单击不会创建人工 Target。"
 			return a.updateStatus(ctx, a.status)
 		}
 		result, err = BuildRegionResult(a.frame.Snapshot, a.reference, selection)
@@ -720,6 +726,7 @@ func (a *activeSession) handleKey(ctx context.Context, fields map[string]any) er
 		if !a.snapEnabled {
 			if a.snapSuspended {
 				a.snapSuspended = false
+				a.service.resetSnapshotCandidatesForOracle(a, false, false, false)
 				return a.renderSurface(ctx)
 			}
 			return nil
@@ -727,6 +734,7 @@ func (a *activeSession) handleKey(ctx context.Context, fields map[string]any) er
 		suspended := phase != "up"
 		if a.snapSuspended != suspended {
 			a.snapSuspended = suspended
+			a.service.resetSnapshotCandidatesForOracle(a, true, suspended, !suspended)
 			if suspended {
 				a.status = "吸附已暂停；松开 Alt/Option 恢复。"
 			} else {
@@ -1069,7 +1077,7 @@ func (a *activeSession) renderSurface(ctx context.Context) error {
 		{"toolRegion", customui.ControlPatch{Active: boolPtr(a.tool == "region")}},
 		{"toolTwoPoint", customui.ControlPatch{Active: boolPtr(a.tool == "twoPoint")}},
 		{"toolSpacing", customui.ControlPatch{Active: boolPtr(a.tool == "spacing")}},
-		{"magnetToggle", customui.ControlPatch{Active: boolPtr(a.snapEnabled && !a.snapSuspended)}},
+		{"magnetToggle", customui.ControlPatch{Active: boolPtr(a.snapEnabled)}},
 		{"marginToggle", customui.ControlPatch{Text: &marginLabel, Active: boolPtr(a.marginView == "local" && hasLocalReference(a)), Disabled: boolPtr(!hasLocalReference(a))}},
 		{"referenceButton", customui.ControlPatch{Active: boolPtr(a.manualPending)}},
 		{"copyMenuButton", customui.ControlPatch{Disabled: boolPtr(a.result == nil)}},
