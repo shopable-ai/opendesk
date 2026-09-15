@@ -7,6 +7,13 @@ on:
       - 'pkg/measurement/**'
       - 'pkg/customui/**'
       - 'pkg/recorder/measurement_evidence*'
+      - 'pkg/appshell/**'
+      - 'cmd/opendesk/app_measurement*'
+      - 'cmd/opendesk/app_recorder*'
+      - 'cmd/opendesk/app_mode*'
+      - 'internal/measurementshortcut/**'
+      - 'internal/recorderbundle/**'
+      - 'apps/opendesk/recorder/**'
       - 'apps/opendesk/prototypes/desktop-measurement/**'
       - 'tests/desktop-measurement/**'
       - 'docs/architecture/desktop-automation/desktop-measurement*'
@@ -18,6 +25,13 @@ on:
       - 'pkg/measurement/**'
       - 'pkg/customui/**'
       - 'pkg/recorder/measurement_evidence*'
+      - 'pkg/appshell/**'
+      - 'cmd/opendesk/app_measurement*'
+      - 'cmd/opendesk/app_recorder*'
+      - 'cmd/opendesk/app_mode*'
+      - 'internal/measurementshortcut/**'
+      - 'internal/recorderbundle/**'
+      - 'apps/opendesk/recorder/**'
       - 'apps/opendesk/prototypes/desktop-measurement/**'
       - 'tests/desktop-measurement/**'
       - 'docs/architecture/desktop-automation/desktop-measurement*'
@@ -61,6 +75,17 @@ jobs:
         run: |
           set -o pipefail
           go test ./pkg/recorder/... -count=1 2>&1 | tee .runtime/tests/desktop-measurement/recorder-${RUNNER_OS}.log
+      - name: Test App Shell and App Mode Measurement ownership
+        shell: bash
+        run: |
+          set -o pipefail
+          go test ./pkg/appshell/... -count=1 2>&1 | tee .runtime/tests/desktop-measurement/appshell-${RUNNER_OS}.log
+          go test ./cmd/opendesk -run 'Measurement|Recorder' -count=1 2>&1 | tee .runtime/tests/desktop-measurement/app-mode-${RUNNER_OS}.log
+      - name: Test embedded Recorder bundle parity
+        shell: bash
+        run: |
+          set -o pipefail
+          go test ./internal/recorderbundle/... -count=1 2>&1 | tee .runtime/tests/desktop-measurement/recorder-bundle-${RUNNER_OS}.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:
