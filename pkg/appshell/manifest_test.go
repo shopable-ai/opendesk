@@ -491,7 +491,7 @@ func TestOpenDeskProductMenuUsesPrivateCompositionWithoutManifestSubmenus(t *tes
 	walk(menu, "")
 	for _, want := range []string{
 		"显示主窗口", "录制自动化", "计划中心", "新建计划…", "运行日志",
-		"开发者 > 运行状态", "开发者 > 桌面测量", "开发者 > 打开 Inspector",
+		"开发者 > 运行状态", "开发者 > "+measurementProductLabel(), "开发者 > 打开 Inspector",
 		"开发者 > 打开日志目录", "开发者 > 调试信息 > ✓ 普通", "开发者 > 调试信息 > 详细",
 		"帮助与服务 > OpenDesk 官网", "帮助与服务 > 帮助", "帮助与服务 > 定制", "退出",
 	} {
