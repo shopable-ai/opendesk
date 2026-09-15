@@ -329,7 +329,8 @@ test('assistant UI source uses scrollable chat history and progressive conversat
 
   assert.match(controller, /MESSAGE_ROW_CAPACITY\s*=\s*120/);
   assert.match(controller, /id="messageList"[^>]*role="log"/);
-  assert.match(controller, /id="messageOverflow"/);
+  assert.match(controller, /<p id="messageOverflow" class="message-overflow is-hidden"><\/p>/);
+  assert.doesNotMatch(controller, /<pre\b[^>]*\bid="messageOverflow"/);
   assert.match(controller, /flex-direction:column-reverse/);
   assert.doesNotMatch(controller, /MESSAGE_PAGE_SIZE|messagePages|id="messagePrev"|id="messageNext"|id="messagePage"/);
 

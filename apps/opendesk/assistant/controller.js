@@ -120,7 +120,7 @@
             <div id="messageEmpty" class="message-empty">这是一个新对话。输入消息后才会调用模型；打开历史不会自动重发。</div>
             <div id="messageList" class="message-list" role="log" aria-live="polite" aria-label="聊天记录">
               ${buildMessageRows()}
-              <pre id="messageOverflow" class="message-overflow is-hidden"></pre>
+              <p id="messageOverflow" class="message-overflow is-hidden"></p>
             </div>
           </section>
 
