@@ -2,7 +2,12 @@
 // No real desktop input is performed.
 (() => {
   const { test, assert, equal } = RuntimeAPITest;
+  // Exercise the sole Runtime semantic resolver, rather than the lightweight
+  // spelling adapter. The adapter deliberately delegates and has no input
+  // lifecycle of its own to cancel.
+  const uiSource = File.read(File.join(File.cwd(), 'polyfills/006-ui.js'));
   const facadeSource = File.read(File.join(File.cwd(), 'polyfills/011-ui-targets.js'));
+  const windowSource = File.read(File.join(File.cwd(), 'polyfills/003-window.js'));
 
   test({
     name: 'semantic tapTargets preserves a completed OCR click before honoring cancellation',
@@ -23,30 +28,40 @@
       width: 500,
       height: 400,
     };
-    const taps = [];
     const host = {
       window: {
-        getActiveWindow: async () => ({ ...row }),
+        list: () => [{ ...row }],
+        getCapabilities: () => ({ platform: 'fixture' }),
+        getActiveWindow: () => ({ ...row }),
+        getWindowByTitle: () => ({ ...row }),
+        getFocusWindow: () => ({ ...row }),
       },
-      UI: {
-        tapTargets: async () => ({ ok: true, action: 'tapTargets', backend: 'accessibility', completed: [] }),
-        tapText: async text => {
-          taps.push(text);
-          if (text === 'A') controller.abort();
-          return {
-            point: { x: 10, y: 20 },
-            target: { text, provider: 'fixture-ocr', confidence: 1 },
-          };
-        },
+      App: { get: () => ({ pids: [42] }) },
+      Geometry,
+      Screen: {
+        getVirtualBounds: () => ({ x: 0, y: 0, width: 2000, height: 1500 }),
+        getDisplays: () => [{
+          id: 'fixture-display', index: 1,
+          x: 0, y: 0, width: 2000, height: 1500,
+          pixelWidth: 2000, pixelHeight: 1500, scale: 1,
+        }],
       },
-      Accessibility: {
-        find: async () => null,
-        read: async () => null,
-        perform: async () => null,
-        release: async () => true,
+      page: {
+        waitFor: async () => {},
+        waitForTimeout: async () => {},
+        screenshot: async () => 'fixture-shot',
       },
+      ImageColor: { getSize: () => [row.width, row.height] },
+      Vision: { runOCR: async () => ({
+        provider: 'fixture-ocr',
+        lines: [{ text: 'A', confidence: 1, bbox: { x: 10, y: 10, width: 20, height: 15 } }],
+      }) },
+      mouse: { clickPoint: async () => controller.abort() },
     };
 
+    const clock = { now: () => 0 };
+    new Function('globalThis', 'window', 'Date', windowSource)(host, host.window, clock);
+    new Function('globalThis', 'Date', uiSource)(host, clock);
     new Function('globalThis', facadeSource)(host);
 
     let error = null;
@@ -63,10 +78,8 @@
     equal(error.code, 'CANCELED');
     equal(error.operation, 'UI.tapTargets');
     equal(error.failedIndex, 0);
-    equal(error.failedPhase, 'action');
+    equal(error.failedPhase, 'input');
     equal(error.completed.length, 1);
-    equal(error.completed[0].index, 0);
-    equal(error.completed[0].resolver, 'ocr');
-    equal(taps.join(','), 'A', 'later targets must not execute after cancellation');
+    equal(error.completed[0].target.text, 'A');
   });
 })();

@@ -49,6 +49,10 @@
     };
     const host = {
       window: {
+        getActiveWindow: async () => {
+          state.events.push('active-window');
+          return { ...state.row };
+        },
         current: async query => {
           const index = state.windows.length;
           state.windows.push({ query: { ...query }, index });
@@ -528,6 +532,32 @@
     equal(error.actionState, 'unknown');
     equal(error.cleanupErrors.length, 1);
     equal(f.releases.length, 2);
+    equal(f.activeRefs.size, 0);
+  });
+
+  unit('semantic tapTargets retains an acknowledged prefix and stops on cleanup failure', async () => {
+    const f = fixture({
+      onRelease: (ref, index, state) => {
+        state.activeRefs.delete(ref);
+        throw nativeError('BACKEND_FAILED', 'Accessibility.release', 'cleanup');
+      },
+    });
+    const error = await rejects(
+      () => f.host.UI.tapTargets([
+        { role: 'button', name: 'Submit' },
+        { role: 'button', name: 'Never' },
+      ], { within: { ...f.row }, intervalMs: 0 }),
+      'BACKEND_FAILED',
+      0,
+      'cleanup',
+    );
+    equal(error.actionState, 'acknowledged');
+    equal(error.completed.length, 1);
+    equal(error.completed[0].action, 'invoke');
+    equal(error.completed[0].actionState, 'acknowledged');
+    equal(f.performs.length, 1);
+    equal(f.finds.length, 1);
+    equal(f.releases.length, 1);
     equal(f.activeRefs.size, 0);
   });
 })();

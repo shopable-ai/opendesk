@@ -1966,7 +1966,9 @@
         }
         const failure = wrapTargetSequenceError(error, operation, phase, actionState);
         failure.failedIndex = index;
-        failure.failedPhase = error && error.failedPhase ? error.failedPhase : phase;
+        failure.failedPhase = error && error.failedPhase
+          ? error.failedPhase
+          : (error && typeof error.phase === 'string' ? error.phase : phase);
         failure.completed = completed.slice();
         throw failure;
       }

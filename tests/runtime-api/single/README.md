@@ -23,6 +23,8 @@
 - `window-target`：`./dist/opendesk -script tests/runtime-api/single/window-target.js -console-mode script`
 - `ui-sequence`：`./dist/opendesk -script tests/runtime-api/single/ui-sequence.js -console-mode script`
 - `ui-target-sequence`：`./dist/opendesk -script tests/runtime-api/single/ui-target-sequence.js -console-mode script`
+- `ui-semantic-targets`：`./dist/opendesk -script tests/runtime-api/single/ui-semantic-targets.js -console-mode script`
+- `ui-semantic-targets-cancel`：`./dist/opendesk -script tests/runtime-api/single/ui-semantic-targets-cancel.js -console-mode script`
 - `ui-value`：`./dist/opendesk -script tests/runtime-api/single/ui-value.js -console-mode script`
 - `screen`：`./dist/opendesk -script tests/runtime-api/single/screen.js -console-mode script`
 - `system`：`./dist/opendesk -script tests/runtime-api/single/system.js -console-mode script`

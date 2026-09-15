@@ -1,6 +1,6 @@
-// Run from the repository root: ./dist/opendesk -script tests/runtime-api/single/ui-semantic-targets.js -console-mode script
+// Run from the repository root: ./dist/opendesk -script tests/runtime-api/single/ui-semantic-targets-cancel.js -console-mode script
 // Thin fixed-scope entry. Assertions remain in the existing Runtime unit manifest.
 'use strict';
 const runSelected = (0, eval)(File.read(File.join(File.cwd(), 'tests/runtime-api/support/run-selected.js')));
 if (typeof runSelected !== 'function') throw new Error('Runtime API selected runner must be a function');
-await runSelected('ui-semantic-targets');
+await runSelected('ui-semantic-targets-cancel');
