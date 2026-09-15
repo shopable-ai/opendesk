@@ -226,7 +226,7 @@ func microText(a *activeSession) string {
 		region = fmt.Sprintf("%.1f / %.1f", coordinates.Region.X, coordinates.Region.Y)
 	}
 	colour := "—"
-	if pixel, err := a.frame.Snapshot.Mapping.PixelAt(*a.pointer); err == nil {
+	if pixel, inside := a.frame.Snapshot.Mapping.PixelAt(*a.pointer); inside {
 		if rgb, err := RGBAt(a.image, pixel); err == nil {
 			colour = rgb.Hex
 		}
