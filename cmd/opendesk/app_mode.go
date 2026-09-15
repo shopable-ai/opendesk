@@ -117,6 +117,9 @@ func executeAppMode(config *Config) error {
 		if err != nil {
 			return fmt.Errorf("initialize Desktop Measurement: %w", err)
 		}
+		if err := measurementService.EnableSnapshotCandidates(newAppMeasurementCandidateProviders(), 0); err != nil {
+			return fmt.Errorf("initialize Desktop Measurement candidates: %w", err)
+		}
 		defer measurementService.Close(context.Background())
 	}
 
