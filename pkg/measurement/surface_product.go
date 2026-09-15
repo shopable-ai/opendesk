@@ -206,7 +206,7 @@ func snapshotSummary(frame CaptureFrame) string {
 }
 
 func measurementHint(source string) string {
-	return "入口：" + strings.TrimSpace(source) + " · 1/2/3/4 · Tab/Shift+Tab · Alt/Option 临时暂停磁吸 · I 详情 · 更新画面 · 调整界面后再次使用任一统一入口继续测量 · Esc 分层退出"
+	return "入口：" + strings.TrimSpace(source) + " · 1/2/3/4 · Tab/Shift+Tab 仅切换当前 Snapshot 的 UI 候选层级 · Alt/Option 临时暂停磁吸 · I 详情 · 更新画面 · 调整界面后再次使用任一统一入口继续测量 · Esc 分层退出"
 }
 
 func hasLocalReference(a *activeSession) bool {
@@ -227,10 +227,7 @@ func snapSummary(a *activeSession) string {
 	if a.snapSuspended {
 		return "磁吸定位：暂停（松开 Alt/Option 恢复）"
 	}
-	if len(a.frame.Targets) == 0 {
-		return "磁吸定位：开 · 无真实候选"
-	}
-	return fmt.Sprintf("磁吸定位：开 · 候选 %d · Tab 切换", len(a.frame.Targets))
+	return "磁吸定位：开 · 当前 Snapshot 无可循环 UI 候选"
 }
 
 func microText(a *activeSession) string {
