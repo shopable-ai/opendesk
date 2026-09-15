@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -29,21 +30,21 @@ type AuthoringStrategyHint struct {
 }
 
 type AuthoringMeasurementInput struct {
-	SchemaVersion             string                    `json:"schemaVersion"`
-	TaskID                    string                    `json:"taskId"`
-	Consumer                  AuthoringConsumer         `json:"consumer"`
-	EvidenceRef               string                    `json:"evidenceRef"`
-	MeasurementKind           string                    `json:"measurementKind"`
-	Reference                 Reference                 `json:"reference"`
-	SemanticEvidenceAvailable bool                      `json:"semanticEvidenceAvailable"`
-	StrategyHints             []AuthoringStrategyHint   `json:"strategyHints"`
-	Provenance                EvidenceProvenance        `json:"provenance"`
-	Snapshot                  *SnapshotToken            `json:"snapshot,omitempty"`
+	SchemaVersion             string                     `json:"schemaVersion"`
+	TaskID                    string                     `json:"taskId"`
+	Consumer                  AuthoringConsumer          `json:"consumer"`
+	EvidenceRef               string                     `json:"evidenceRef"`
+	MeasurementKind           string                     `json:"measurementKind"`
+	Reference                 Reference                  `json:"reference"`
+	SemanticEvidenceAvailable bool                       `json:"semanticEvidenceAvailable"`
+	StrategyHints             []AuthoringStrategyHint    `json:"strategyHints"`
+	Provenance                EvidenceProvenance         `json:"provenance"`
+	Snapshot                  *SnapshotToken             `json:"snapshot,omitempty"`
 	Target                    *MeasurementTargetGeometry `json:"target,omitempty"`
-	References                *TwoLevelReferences       `json:"references,omitempty"`
-	Margins                   *MarginRelations          `json:"margins,omitempty"`
-	StableRelocation          *StableRelocationEvidence `json:"stableRelocation,omitempty"`
-	CreatedAt                 time.Time                 `json:"createdAt"`
+	References                *TwoLevelReferences        `json:"references,omitempty"`
+	Margins                   *MarginRelations           `json:"margins,omitempty"`
+	StableRelocation          *StableRelocationEvidence  `json:"stableRelocation,omitempty"`
+	CreatedAt                 time.Time                  `json:"createdAt"`
 }
 
 func BuildAuthoringMeasurementInput(consumer AuthoringConsumer, evidenceRef string, ev MeasurementEvidence, semanticAvailable bool, now time.Time) (AuthoringMeasurementInput, error) {
@@ -175,10 +176,23 @@ func validAuthoringConsumer(consumer AuthoringConsumer) bool {
 	}
 }
 
+// Artifact references are serialized task-package paths, so their safety must
+// not depend on the OS that happens to validate them. Normalize both slash
+// styles and reject Unix roots, UNC roots, Windows drive roots and traversal.
 func validateRelativeArtifactRef(ref string) error {
-	clean := filepath.Clean(strings.TrimSpace(ref))
-	if clean == "" || clean == "." || filepath.IsAbs(clean) || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
+	raw := strings.TrimSpace(ref)
+	portable := strings.ReplaceAll(raw, "\\", "/")
+	clean := path.Clean(portable)
+	if raw == "" || clean == "." || strings.HasPrefix(portable, "/") || strings.HasPrefix(portable, "//") || hasWindowsDrivePrefix(portable) || clean == ".." || strings.HasPrefix(clean, "../") {
 		return errors.New("measurement evidence reference must be a safe relative artifact path")
 	}
 	return nil
+}
+
+func hasWindowsDrivePrefix(value string) bool {
+	if len(value) < 2 || value[1] != ':' {
+		return false
+	}
+	first := value[0]
+	return (first >= 'A' && first <= 'Z') || (first >= 'a' && first <= 'z')
 }
