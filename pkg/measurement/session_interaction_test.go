@@ -2,6 +2,7 @@ package measurement
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"opendesk/pkg/customui"
@@ -113,7 +114,7 @@ func TestMagnetToggleAndMarginToggleFollowOracleState(t *testing.T) {
 		t.Fatal(err)
 	}
 	if a.selectedTarget != beforeTarget || capture.Count() != beforeCaptures {
-		t.Fatalf("Tab changed candidate while magnet was off target=%q captures=%d", a.selectedTarget, capture.Count())
+		t.Fatalf("Tab changed target while magnet was off target=%q captures=%d", a.selectedTarget, capture.Count())
 	}
 	if err := a.handleClick(ctx, "magnetToggle"); err != nil {
 		t.Fatal(err)
@@ -184,18 +185,63 @@ func TestRegionPointerBodyAndHandleEditing(t *testing.T) {
 	_ = service.Close(ctx)
 }
 
-func TestTabUsesOnlyRealCaptureCandidates(t *testing.T) {
+func TestTabDoesNotTreatTargetWindowsAsSnapshotCandidates(t *testing.T) {
 	service, _, capture, _ := newSessionService(t)
 	ctx := context.Background()
 	if err := service.Open(ctx, "product-menu"); err != nil {
 		t.Fatal(err)
 	}
 	a := service.active
+	beforeTarget := a.selectedTarget
+	beforeToken := service.State().Token
 	if err := a.handleKey(ctx, map[string]any{"key": "Tab"}); err != nil {
 		t.Fatal(err)
 	}
+	if a.selectedTarget != beforeTarget || capture.Count() != 1 || service.State().Token != beforeToken {
+		t.Fatalf("Tab changed target/snapshot target=%q captures=%d before=%+v after=%+v", a.selectedTarget, capture.Count(), beforeToken, service.State().Token)
+	}
+	if !strings.Contains(a.status, "同一 Snapshot") || !strings.Contains(a.status, "不会切换目标窗口") {
+		t.Fatalf("Tab status does not explain snapshot-candidate contract: %q", a.status)
+	}
+	_ = service.Close(ctx)
+}
+
+func TestInspectorTargetWindowSwitchRemainsExplicit(t *testing.T) {
+	service, _, capture, _ := newSessionService(t)
+	ctx := context.Background()
+	if err := service.Open(ctx, "product-menu"); err != nil {
+		t.Fatal(err)
+	}
+	a := service.active
+	a.snapEnabled = false
+	if err := a.handleClick(ctx, "nextTarget"); err != nil {
+		t.Fatal(err)
+	}
 	if a.selectedTarget != "other" || capture.Count() != 2 {
-		t.Fatalf("tab candidate=%q captures=%d", a.selectedTarget, capture.Count())
+		t.Fatalf("explicit Inspector target switch failed target=%q captures=%d", a.selectedTarget, capture.Count())
+	}
+	_ = service.Close(ctx)
+}
+
+func TestDeprecatedRAndCopyChordsDoNotMutateMeasurementSession(t *testing.T) {
+	service, _, _, clipboard := newSessionService(t)
+	ctx := context.Background()
+	if err := service.Open(ctx, "product-menu"); err != nil {
+		t.Fatal(err)
+	}
+	a := service.active
+	_ = a.handle(ctx, customui.Event{Type: "measurement.pointerup", Fields: map[string]any{"u": .25, "v": .25}})
+	if err := a.handleKey(ctx, map[string]any{"key": "r"}); err != nil {
+		t.Fatal(err)
+	}
+	if a.manualPending {
+		t.Fatal("deprecated R shortcut entered reference editing")
+	}
+	if err := a.handleKey(ctx, map[string]any{"key": "c", "meta": true}); err != nil {
+		t.Fatal(err)
+	}
+	if len(clipboard.writes) != 0 {
+		t.Fatalf("system copy chord was hijacked by Measurement: %#v", clipboard.writes)
 	}
 	_ = service.Close(ctx)
 }
