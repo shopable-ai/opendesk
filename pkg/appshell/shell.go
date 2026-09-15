@@ -23,6 +23,10 @@ var (
 	ErrTornDown   = errors.New("app shell is torn down")
 	ErrQueueFull  = errors.New("app shell event queue is full")
 	ErrNotStarted = errors.New("app shell native host is not started")
+	// ErrMainLoopReturned prevents a native main-thread event loop from
+	// silently ending a live App Mode process. Normal teardown transitions the
+	// Shell out of StateRunning and/or cancels its owning context first.
+	ErrMainLoopReturned = errors.New("app shell main event loop returned while the shell is still running")
 )
 
 type ActionEvent struct {
@@ -145,7 +149,16 @@ func (s *Shell) RunMain(ctx context.Context) error {
 		return ErrNotStarted
 	}
 	if host, ok := native.(MainThreadHost); ok {
-		return host.RunMain(ctx)
+		if err := host.RunMain(ctx); err != nil {
+			return err
+		}
+		// A native main-thread host returning nil is valid only after an
+		// intentional shutdown. Treat a live, uncancelled shell as a lifecycle
+		// failure instead of allowing App Mode to report a false success.
+		if ctx != nil && ctx.Err() == nil && s.State() == StateRunning {
+			s.recordTerminalError(ErrMainLoopReturned)
+			return ErrMainLoopReturned
+		}
 	}
 	return nil
 }

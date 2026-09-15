@@ -27,6 +27,18 @@ type blockingStartNative struct {
 	release chan struct{}
 }
 
+type fakeMainThreadNative struct {
+	fakeNative
+	runMain func(context.Context) error
+}
+
+func (f *fakeMainThreadNative) RunMain(ctx context.Context) error {
+	if f.runMain == nil {
+		return nil
+	}
+	return f.runMain(ctx)
+}
+
 func (f *blockingStartNative) Start(ctx context.Context, handler func(string, string)) error {
 	close(f.entered)
 	<-f.release
@@ -106,6 +118,70 @@ func TestShellStateAndRepeatedQuit(t *testing.T) {
 	}
 	if native.teardown != 1 || quitCount != 1 {
 		t.Fatalf("teardown=%d quitHook=%d", native.teardown, quitCount)
+	}
+}
+
+func TestShellRunMainRejectsUnexpectedLiveMainLoopReturn(t *testing.T) {
+	manifest, err := ParseManifest([]byte(validManifestJSON()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	native := &fakeMainThreadNative{}
+	shell, err := New(manifest, native)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := shell.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := shell.RunMain(context.Background()); !errors.Is(err, ErrMainLoopReturned) {
+		t.Fatalf("RunMain error=%v, want %v", err, ErrMainLoopReturned)
+	}
+	if !errors.Is(shell.TerminalError(), ErrMainLoopReturned) {
+		t.Fatalf("terminal error=%v, want %v", shell.TerminalError(), ErrMainLoopReturned)
+	}
+}
+
+func TestShellRunMainAllowsExplicitShutdown(t *testing.T) {
+	manifest, err := ParseManifest([]byte(validManifestJSON()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	native := &fakeMainThreadNative{}
+	shell, err := New(manifest, native)
+	if err != nil {
+		t.Fatal(err)
+	}
+	native.runMain = func(context.Context) error { return shell.RequestQuit() }
+	if err := shell.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := shell.RunMain(context.Background()); err != nil {
+		t.Fatalf("RunMain after explicit shutdown: %v", err)
+	}
+	if shell.State() != StateQuitting {
+		t.Fatalf("state=%s", shell.State())
+	}
+}
+
+func TestShellRunMainAllowsCanceledOwningContext(t *testing.T) {
+	manifest, err := ParseManifest([]byte(validManifestJSON()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	native := &fakeMainThreadNative{}
+	shell, err := New(manifest, native)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := shell.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	defer shell.Teardown()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := shell.RunMain(ctx); err != nil {
+		t.Fatalf("RunMain with canceled context: %v", err)
 	}
 }
 

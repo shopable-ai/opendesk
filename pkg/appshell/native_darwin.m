@@ -206,7 +206,23 @@ void ODAppShellTeardown(void) {
 
 void ODAppShellRun(void) {
     if (!NSThread.isMainThread || !ODAppShellController) return;
-    [NSApp run];
+    // AppKit may return from -run after a stop request even though the status
+    // item is still live. The App Shell owns the process lifetime, so resume
+    // the loop until its one teardown path has removed that ownership. During
+    // normal teardown ODAppShellTeardown clears the controller before stopping
+    // NSApp, which makes this loop exit immediately after -run returns.
+    while (ODAppShellController) {
+        @autoreleasepool {
+            [NSApp run];
+        }
+        // A foreign stop request must not turn into a tight main-thread spin
+        // while the Shell still owns the status item. Re-enter promptly, but
+        // yield a bounded slice first so an abnormal repeated return remains
+        // observable and does not consume a CPU core.
+        if (ODAppShellController) {
+            [NSThread sleepForTimeInterval:0.01];
+        }
+    }
 }
 
 void ODAppShellFree(char *value) { free(value); }
