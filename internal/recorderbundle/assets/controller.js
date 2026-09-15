@@ -11,6 +11,7 @@
   }
 
   const DEFAULT_WINDOW_TITLE = 'OpenDesk — Recorder';
+  const MEASUREMENT_ICON = 'ruler';
   const HISTORY_ICON_GLYPHS = Object.freeze({
     'play.fill': '▶',
     pencil: '✎',
@@ -206,10 +207,13 @@
       }
 
       wrapper.addButton = function addButton(id, label, icon, callback) {
-        const resolvedIcon = id === 'home' && brandIcon ? brandIcon : icon;
+        let resolvedIcon = icon;
+        if (id === 'home' && brandIcon) resolvedIcon = brandIcon;
+        if (id === 'measurement') resolvedIcon = MEASUREMENT_ICON;
         // Keep the existing core measure callback (capture-click exclusion,
         // pause, single-flight and failure handling). Only move its native
-        // control into the right-hand tools group, after Finder.
+        // control into the right-hand tools group, after Finder, and present it
+        // with the product-level ruler icon.
         if (id === 'measurement') {
           measurementButton = {id, label, icon: resolvedIcon, callback};
           return wrapper;
@@ -230,8 +234,11 @@
       };
 
       wrapper.updateButton = async function updateButton(id, patch) {
-        const next = id === 'measurement' && patch && typeof patch.label === 'string'
-          ? {...patch, label: measurementLabel(patch.label)} : patch;
+        let next = patch;
+        if (id === 'measurement' && patch && typeof patch === 'object') {
+          next = {...patch, icon: MEASUREMENT_ICON};
+          if (typeof patch.label === 'string') next.label = measurementLabel(patch.label);
+        }
         const result = await inner.updateButton(id, next);
         if (id === 'stop') {
           const manager = managerRef.current;
