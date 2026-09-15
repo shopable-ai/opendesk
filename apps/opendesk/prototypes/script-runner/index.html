@@ -1,0 +1,512 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>OpenDesk Script Runner Prototype</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #111214;
+      --panel: rgba(29, 30, 34, 0.96);
+      --panel-strong: #202126;
+      --panel-hover: #2a2c31;
+      --border: #393b42;
+      --border-soft: #2d2f35;
+      --text: #f5f6f8;
+      --muted: #a9adb7;
+      --accent: #5b8cff;
+      --accent-strong: #3f73ef;
+      --danger: #ff6b6b;
+      --shadow: 0 16px 50px rgba(0, 0, 0, 0.42);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      min-height: 100vh;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 18% 18%, rgba(91,140,255,.13), transparent 28%),
+        radial-gradient(circle at 76% 34%, rgba(126,87,194,.10), transparent 30%),
+        linear-gradient(180deg, #17181b 0%, #101114 100%);
+      color: var(--text);
+      font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .desktop {
+      position: relative;
+      min-height: 100vh;
+      padding: 28px;
+    }
+
+    .notes {
+      width: min(620px, calc(100vw - 56px));
+      padding: 18px 20px;
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 14px;
+      background: rgba(23,24,28,.72);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px);
+    }
+    .notes h1 { margin: 0 0 8px; font-size: 20px; }
+    .notes p { margin: 6px 0; color: var(--muted); }
+    .notes code { color: #d7e2ff; }
+
+    .runner-shell {
+      position: absolute;
+      right: 22px;
+      bottom: 22px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 10px;
+    }
+
+    .popover {
+      width: 322px;
+      border: 1px solid var(--border);
+      border-radius: 13px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      transform-origin: right bottom;
+      opacity: 0;
+      transform: translateY(8px) scale(.985);
+      pointer-events: none;
+      transition: opacity .12s ease, transform .12s ease;
+      backdrop-filter: blur(22px);
+    }
+    .popover.open {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      pointer-events: auto;
+    }
+
+    .popover-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 11px 12px 9px;
+      border-bottom: 1px solid var(--border-soft);
+    }
+    .popover-title { font-size: 12px; font-weight: 700; }
+    .popover-count { font-size: 11px; color: var(--muted); }
+
+    .script-list {
+      max-height: 246px;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      padding: 5px;
+      scrollbar-width: thin;
+    }
+
+    .script-row {
+      width: 100%;
+      min-height: 45px;
+      display: grid;
+      grid-template-columns: 28px minmax(0, 1fr) 32px;
+      align-items: center;
+      gap: 7px;
+      padding: 4px 5px 4px 7px;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--text);
+      text-align: left;
+      cursor: default;
+    }
+    .script-row:hover { background: var(--panel-hover); }
+    .script-row.selected { background: rgba(91,140,255,.15); }
+    .script-row.selected:hover { background: rgba(91,140,255,.21); }
+
+    .row-index {
+      width: 24px;
+      text-align: center;
+      color: #7f8490;
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+    }
+    .script-row.selected .row-index { color: #a9c0ff; }
+
+    .row-main {
+      min-width: 0;
+      cursor: pointer;
+      padding: 5px 0;
+    }
+    .row-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .row-meta {
+      margin-top: 1px;
+      color: var(--muted);
+      font-size: 10px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .row-run,
+    .icon-btn,
+    .script-selector,
+    .manager-btn {
+      border: 1px solid var(--border);
+      background: #2a2b30;
+      color: var(--text);
+      outline: none;
+    }
+    .row-run:hover,
+    .icon-btn:hover:not(:disabled),
+    .script-selector:hover,
+    .manager-btn:hover { background: #34363d; border-color: #50535d; }
+    button { font: inherit; }
+
+    .row-run {
+      width: 30px;
+      height: 30px;
+      border-radius: 7px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+
+    .popover-foot {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 8px 9px;
+      border-top: 1px solid var(--border-soft);
+    }
+    .tip { color: var(--muted); font-size: 10px; }
+    .manager-btn {
+      height: 29px;
+      padding: 0 9px;
+      border-radius: 7px;
+      cursor: pointer;
+      font-size: 11px;
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 6px;
+      border: 1px solid var(--border);
+      border-radius: 13px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(22px);
+      user-select: none;
+    }
+
+    .icon-btn {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: inline-grid;
+      place-items: center;
+      padding: 0;
+    }
+    .icon-btn:disabled { opacity: .35; cursor: default; }
+    .icon-btn.primary {
+      background: var(--accent-strong);
+      border-color: #6390ff;
+    }
+    .icon-btn.primary:hover:not(:disabled) { background: #4b7ef3; }
+    .icon-btn.stop.running { color: #ffb3b3; border-color: rgba(255,107,107,.55); }
+    .icon { font-size: 13px; line-height: 1; }
+
+    .script-selector {
+      height: 34px;
+      width: 178px;
+      min-width: 0;
+      display: grid;
+      grid-template-columns: minmax(0,1fr) 20px;
+      align-items: center;
+      gap: 2px;
+      padding: 0 7px 0 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      text-align: left;
+    }
+    .selector-copy { min-width: 0; }
+    .selector-label {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 12px;
+      font-weight: 650;
+    }
+    .selector-state {
+      display: block;
+      margin-top: -1px;
+      color: var(--muted);
+      font-size: 9px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .chevron {
+      color: #aeb3be;
+      font-size: 10px;
+      text-align: center;
+      transition: transform .12s ease;
+    }
+    .script-selector.open .chevron { transform: rotate(180deg); }
+
+    .status-toast {
+      position: absolute;
+      right: 22px;
+      bottom: 78px;
+      max-width: 390px;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      background: rgba(24,25,29,.94);
+      color: #d7dae1;
+      font-size: 11px;
+      box-shadow: 0 10px 28px rgba(0,0,0,.35);
+      opacity: 0;
+      transform: translateY(6px);
+      pointer-events: none;
+      transition: .14s ease;
+    }
+    .status-toast.show { opacity: 1; transform: translateY(0); }
+
+    .kbd {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 18px;
+      height: 17px;
+      padding: 0 5px;
+      margin: 0 1px;
+      border: 1px solid #444750;
+      border-bottom-color: #31333a;
+      border-radius: 4px;
+      background: #24262b;
+      color: #bcc1cb;
+      font-size: 9px;
+    }
+  </style>
+</head>
+<body>
+  <main class="desktop" id="desktop">
+    <section class="notes">
+      <h1>Script Runner · Compact Selector Prototype</h1>
+      <p>目标：把高频“切换脚本 → 运行”留在浮动工具条内，不再为了切换脚本打开完整列表窗口。</p>
+      <p>建议主交互：上一项 / 当前脚本下拉 / 下一项。点击当前脚本展开最多约 5 行的紧凑列表；点击行只切换，右侧 ▶ 可直接运行。</p>
+      <p>滚轮仅在展开列表中滚动，不在收起状态直接切换脚本，避免误操作。完整排序、多选、批量运行继续留给“管理脚本”。</p>
+    </section>
+
+    <div class="status-toast" id="toast"></div>
+
+    <section class="runner-shell" aria-label="OpenDesk Script Runner 原型">
+      <div class="popover" id="popover" role="dialog" aria-label="选择脚本">
+        <div class="popover-head">
+          <span class="popover-title">选择脚本</span>
+          <span class="popover-count" id="scriptCount">8 个脚本</span>
+        </div>
+        <div class="script-list" id="scriptList" role="listbox" aria-label="脚本列表"></div>
+        <div class="popover-foot">
+          <span class="tip">点击脚本切换 · ▶ 直接运行</span>
+          <button class="manager-btn" id="managerBtn" type="button">管理脚本…</button>
+        </div>
+      </div>
+
+      <div class="toolbar" aria-label="Script Runner 工具条">
+        <button class="icon-btn" id="prevBtn" type="button" title="上一个脚本" aria-label="上一个脚本"><span class="icon">◀</span></button>
+        <button class="icon-btn primary" id="runBtn" type="button" title="运行当前脚本" aria-label="运行当前脚本"><span class="icon">▶</span></button>
+        <button class="icon-btn stop" id="stopBtn" type="button" title="停止运行" aria-label="停止运行" disabled><span class="icon">■</span></button>
+
+        <button class="script-selector" id="selectorBtn" type="button" aria-haspopup="listbox" aria-expanded="false">
+          <span class="selector-copy">
+            <span class="selector-label" id="selectorLabel">daily-report.js</span>
+            <span class="selector-state" id="selectorState">1 / 8 · 就绪</span>
+          </span>
+          <span class="chevron">▾</span>
+        </button>
+
+        <button class="icon-btn" id="nextBtn" type="button" title="下一个脚本" aria-label="下一个脚本"><span class="icon">▶</span></button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const scripts = [
+      { name: 'daily-report.js', meta: '日报汇总' },
+      { name: 'wechat-customer-followup.js', meta: '微信客户跟进' },
+      { name: 'invoice-export.js', meta: '发票导出' },
+      { name: 'crm-sync.js', meta: 'CRM 同步' },
+      { name: 'inventory-check.js', meta: '库存检查' },
+      { name: 'order-reconcile.js', meta: '订单对账' },
+      { name: 'screenshot-archive.js', meta: '截图归档' },
+      { name: 'browser-login-check.js', meta: '登录状态检查' },
+    ];
+
+    let currentIndex = 0;
+    let runningIndex = -1;
+    let popoverOpen = false;
+    let runTimer = null;
+    let toastTimer = null;
+
+    const popover = document.getElementById('popover');
+    const scriptList = document.getElementById('scriptList');
+    const selectorBtn = document.getElementById('selectorBtn');
+    const selectorLabel = document.getElementById('selectorLabel');
+    const selectorState = document.getElementById('selectorState');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const runBtn = document.getElementById('runBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const managerBtn = document.getElementById('managerBtn');
+    const toast = document.getElementById('toast');
+
+    function showToast(message) {
+      toast.textContent = message;
+      toast.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove('show'), 1700);
+    }
+
+    function currentStatusText() {
+      if (runningIndex === currentIndex) return '运行中';
+      if (runningIndex >= 0) return `运行中：${scripts[runningIndex].name}`;
+      return '就绪';
+    }
+
+    function render() {
+      selectorLabel.textContent = scripts[currentIndex].name;
+      selectorLabel.title = scripts[currentIndex].name;
+      selectorState.textContent = `${currentIndex + 1} / ${scripts.length} · ${currentStatusText()}`;
+      selectorBtn.classList.toggle('open', popoverOpen);
+      selectorBtn.setAttribute('aria-expanded', String(popoverOpen));
+      popover.classList.toggle('open', popoverOpen);
+      stopBtn.disabled = runningIndex < 0;
+      stopBtn.classList.toggle('running', runningIndex >= 0);
+      runBtn.disabled = runningIndex >= 0;
+      prevBtn.disabled = runningIndex >= 0 || scripts.length < 2;
+      nextBtn.disabled = runningIndex >= 0 || scripts.length < 2;
+
+      scriptList.innerHTML = '';
+      scripts.forEach((script, index) => {
+        const row = document.createElement('div');
+        row.className = 'script-row' + (index === currentIndex ? ' selected' : '');
+        row.setAttribute('role', 'option');
+        row.setAttribute('aria-selected', String(index === currentIndex));
+
+        const idx = document.createElement('span');
+        idx.className = 'row-index';
+        idx.textContent = String(index + 1).padStart(2, '0');
+
+        const main = document.createElement('div');
+        main.className = 'row-main';
+        main.tabIndex = 0;
+        main.innerHTML = `<div class="row-name"></div><div class="row-meta"></div>`;
+        main.querySelector('.row-name').textContent = script.name;
+        main.querySelector('.row-meta').textContent = index === runningIndex ? '正在运行…' : script.meta;
+        main.addEventListener('click', () => selectScript(index));
+        main.addEventListener('keydown', event => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            selectScript(index);
+          }
+        });
+
+        const directRun = document.createElement('button');
+        directRun.className = 'row-run';
+        directRun.type = 'button';
+        directRun.textContent = '▶';
+        directRun.title = `直接运行 ${script.name}`;
+        directRun.disabled = runningIndex >= 0;
+        directRun.addEventListener('click', event => {
+          event.stopPropagation();
+          currentIndex = index;
+          startRun(index, '列表');
+        });
+
+        row.append(idx, main, directRun);
+        scriptList.appendChild(row);
+      });
+    }
+
+    function setPopover(open) {
+      popoverOpen = open;
+      render();
+      if (open) {
+        requestAnimationFrame(() => {
+          const selected = scriptList.querySelector('.script-row.selected');
+          if (selected) selected.scrollIntoView({ block: 'nearest' });
+        });
+      }
+    }
+
+    function selectScript(index) {
+      if (runningIndex >= 0) return;
+      currentIndex = (index + scripts.length) % scripts.length;
+      setPopover(false);
+      showToast(`已切换：${scripts[currentIndex].name}`);
+    }
+
+    function step(delta) {
+      if (runningIndex >= 0) return;
+      currentIndex = (currentIndex + delta + scripts.length) % scripts.length;
+      render();
+      showToast(`已切换：${scripts[currentIndex].name}`);
+    }
+
+    function startRun(index, source) {
+      if (runningIndex >= 0) return;
+      runningIndex = index;
+      setPopover(false);
+      render();
+      showToast(`${source}运行：${scripts[index].name}`);
+      clearTimeout(runTimer);
+      runTimer = setTimeout(() => {
+        const finished = scripts[runningIndex]?.name;
+        runningIndex = -1;
+        render();
+        showToast(`运行完成：${finished}`);
+      }, 4200);
+    }
+
+    function stopRun() {
+      if (runningIndex < 0) return;
+      const stopped = scripts[runningIndex].name;
+      clearTimeout(runTimer);
+      runningIndex = -1;
+      render();
+      showToast(`已停止：${stopped}`);
+    }
+
+    selectorBtn.addEventListener('click', () => setPopover(!popoverOpen));
+    prevBtn.addEventListener('click', () => step(-1));
+    nextBtn.addEventListener('click', () => step(1));
+    runBtn.addEventListener('click', () => startRun(currentIndex, '工具条'));
+    stopBtn.addEventListener('click', stopRun);
+    managerBtn.addEventListener('click', () => {
+      setPopover(false);
+      showToast('原型：这里打开现有完整“脚本列表 / 管理脚本”窗口');
+    });
+
+    document.addEventListener('pointerdown', event => {
+      if (!popoverOpen) return;
+      if (popover.contains(event.target) || selectorBtn.contains(event.target)) return;
+      setPopover(false);
+    });
+
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && popoverOpen) setPopover(false);
+    });
+
+    render();
+  </script>
+</body>
+</html>
