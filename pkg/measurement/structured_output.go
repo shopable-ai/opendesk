@@ -35,14 +35,15 @@ type StructuredEvidenceSummary struct {
 // save and automation-authoring consumers. It intentionally wraps the existing
 // canonical models instead of introducing a parallel Geometry/Mapping schema.
 type StructuredMeasurementData struct {
-	SchemaVersion    string                    `json:"schemaVersion"`
-	MeasurementKind string                    `json:"measurementKind"`
-	Reference       Reference                 `json:"reference"`
-	CoordinateSpace CoordinateContext         `json:"coordinateSpace"`
-	Unit            string                    `json:"unit"`
-	CaptureMapping  CaptureMapping            `json:"captureMapping"`
-	Result          CanonicalResult           `json:"result"`
-	Evidence        StructuredEvidenceSummary `json:"evidence"`
+	SchemaVersion    string                      `json:"schemaVersion"`
+	MeasurementKind string                      `json:"measurementKind"`
+	Reference       Reference                   `json:"reference"`
+	CoordinateSpace CoordinateContext           `json:"coordinateSpace"`
+	Unit            string                      `json:"unit"`
+	CaptureMapping  CaptureMapping              `json:"captureMapping"`
+	Result          CanonicalResult             `json:"result"`
+	Evidence        StructuredEvidenceSummary   `json:"evidence"`
+	Product         *MeasurementProductEvidence `json:"product,omitempty"`
 }
 
 func StructuredDataFromResult(result Result) (StructuredMeasurementData, error) {
@@ -93,6 +94,10 @@ func StructuredDataFromEvidence(ev MeasurementEvidence) (StructuredMeasurementDa
 		Candidates:                 append([]CandidateEvidence(nil), ev.Candidates...),
 		FrozenPixels:               &pixels,
 		Confidence:                 &confidence,
+	}
+	if ev.Product != nil {
+		product := *ev.Product
+		data.Product = &product
 	}
 	return data, nil
 }
