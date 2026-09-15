@@ -90,7 +90,7 @@ Copy Menu
 - Micro 根据目标与 display edge 选择翻转方向，并且自身使用 `pointer-events:none`，不会成为 Target/Candidate/Reference。
 - reverse drag 使用 `RectFromPoints` 规范化。
 - body / handle 编辑统一 clamp 到当前 CaptureMapping display。
-- pointermove 队列允许 coalesce；Region drag 的 surface render 设 16ms 保护，pointerup 总会做最终 render。
+- pointermove 队列允许 coalesce；Region drag 的 surface render 采用有界节流，pointerup 总会做最终 render。
 - refresh capture / SetBounds / patch 失败时保留已有 Session，并在 refresh 事务中恢复旧 frame、bounds、result、reference 和 UI 状态。
 - cleanup 使用 `sync.Once`，重复 Close/Exit 不重复释放资源。
 
@@ -191,6 +191,7 @@ Recorder 通过 `pkg/recorder/measurement_evidence.go` 将 evidence ref 附加�
 
 ```text
 AutomationFailure
+→ classify root cause
 → MeasurementEligibleFailure
 → RepairRequest
 → new Measurement evidence
@@ -201,21 +202,23 @@ AutomationFailure
 → repair-history.jsonl
 ```
 
-会进入 Measurement-assisted repair 的类别：
+只有已经有证据表明 Measurement 能解决问题的类别才直接进入 Measurement-assisted repair：
+
+- ambiguous-target：需要目标消歧 / 新 semantic candidate
+- window-changed：需要重新确认 Window / Reference
+- geometry-drift：需要重新取得目标区域、布局或间距证据
+- visual-mismatch：需要新的 frozen visual / pixel / region evidence
+
+以下失败类型**不能仅凭原始分类自动打开 Measurement**：
 
 - target-not-found
-- ambiguous-target
-- window-changed
-- geometry-drift
 - ocr-mismatch
 - accessibility-unavailable
-- visual-mismatch
-
-不会因为 Measurement 自动处理：
-
 - state-mismatch
 - permission
 - business-verification-failure
+
+其中 `target-not-found`、`ocr-mismatch`、`accessibility-unavailable` 必须先走各自定位/感知诊断。如果进一步证据证明根因其实是 target ambiguity、reference/window drift、geometry/layout drift 或 visual mismatch，再重新分类进入 Measurement repair。这样避免把 Measurement 变成所有自动化失败的通用 fallback。
 
 RepairCandidate 是结构化对象，不是一段 prompt 文本。它只能在：
 

@@ -80,7 +80,19 @@ func ChooseHUDPlacement(mapping CaptureMapping, reference Reference, result *Res
 	occupied:=[]Rect{reference.Bounds};if r,ok:=resultBounds(result);ok{occupied=append(occupied,r)}
 	boxW:=math.Min(280,bounds.Width*.32);boxH:=math.Min(180,bounds.Height*.28);margin:=12.0
 	candidates:=[]struct{name string;rect Rect}{{"top-left",Rect{bounds.X+margin,bounds.Y+margin,boxW,boxH}},{"top-right",Rect{bounds.Right()-margin-boxW,bounds.Y+margin,boxW,boxH}},{"bottom-left",Rect{bounds.X+margin,bounds.Bottom()-margin-boxH,boxW,boxH}},{"bottom-right",Rect{bounds.Right()-margin-boxW,bounds.Bottom()-margin-boxH,boxW,boxH}}}
-	best:=candidates[0];bestScore:=math.Inf(1);for _,candidate:=range candidates{score:=0.0;for _,r:=range occupied{score+=intersectionArea(candidate.rect,r)};if score<bestScore{bestScore=score;best=candidate}}
+	best:=candidates[0];bestOverlap:=math.Inf(1);bestDistance:=-1.0
+	for _,candidate:=range candidates{
+		overlap:=0.0;distance:=0.0
+		for _,r:=range occupied{
+			overlap+=intersectionArea(candidate.rect,r)
+			dx:=candidate.rect.Center().X-r.Center().X;dy:=candidate.rect.Center().Y-r.Center().Y
+			distance+=dx*dx+dy*dy
+		}
+		// Overlap is the primary product rule. When several corners cover the
+		// same area, prefer the corner farthest from the measured/reference
+		// geometry so top-left content deterministically chooses bottom-right.
+		if overlap<bestOverlap || (math.Abs(overlap-bestOverlap)<1e-9 && distance>bestDistance){bestOverlap=overlap;bestDistance=distance;best=candidate}
+	}
 	return OverlayPlacement{Corner:best.name,Classes:[]string{"hud",best.name}}
 }
 

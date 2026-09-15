@@ -13,12 +13,16 @@ type repairVerifierFunc func(context.Context, RepairCandidate) (RepairAttemptOut
 func (f repairVerifierFunc) VerifyBusinessResult(ctx context.Context, c RepairCandidate) (RepairAttemptOutcome, error) { return f(ctx, c) }
 
 func TestMeasurementEligibleFailureClassification(t *testing.T) {
-	for _, class := range []FailureClass{FailureTargetNotFound, FailureAmbiguousTarget, FailureWindowChanged, FailureGeometryDrift, FailureOCRMismatch, FailureAccessibility, FailureVisualMismatch} {
+	for _, class := range []FailureClass{FailureAmbiguousTarget, FailureWindowChanged, FailureGeometryDrift, FailureVisualMismatch} {
 		if !MeasurementEligibleFailure(class) { t.Fatalf("expected measurement eligibility for %s", class) }
 		if len(DefaultNeededEvidence(class)) == 0 { t.Fatalf("missing evidence request for %s", class) }
 	}
-	for _, class := range []FailureClass{FailureStateMismatch, FailurePermission, FailureBusinessVerification} {
+	// These failures need their native diagnostic/classification path first.
+	// They may later be reclassified as geometry/reference/visual problems, but
+	// the raw failure alone must not open Measurement.
+	for _, class := range []FailureClass{FailureTargetNotFound, FailureOCRMismatch, FailureAccessibility, FailureStateMismatch, FailurePermission, FailureBusinessVerification} {
 		if MeasurementEligibleFailure(class) { t.Fatalf("unexpected measurement eligibility for %s", class) }
+		if len(DefaultNeededEvidence(class)) != 0 { t.Fatalf("non-eligible class %s requested measurement evidence", class) }
 	}
 }
 
@@ -58,7 +62,7 @@ func TestRepairHistoryUsesAutomationAuthoringTaskPackage(t *testing.T) {
 }
 
 func TestNonMeasurementFailureDoesNotCreateRepairRequest(t *testing.T) {
-	for _, class := range []FailureClass{FailurePermission, FailureStateMismatch, FailureBusinessVerification} {
+	for _, class := range []FailureClass{FailureTargetNotFound, FailureOCRMismatch, FailureAccessibility, FailurePermission, FailureStateMismatch, FailureBusinessVerification} {
 		if _, err := NewRepairRequest("task", AutomationFailure{Class: class, StepID:"s1"}, nil, time.Now()); err == nil { t.Fatalf("class %s should be rejected", class) }
 	}
 }
