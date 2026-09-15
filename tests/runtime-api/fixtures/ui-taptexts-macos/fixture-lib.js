@@ -65,7 +65,10 @@
   },
 
   expectedCommand(paths, session) {
-    return `${paths.executable} --state ${session.statePath} --stop ${session.stopPath} --mode ${session.mode} --delay-ms ${session.delayMs}`;
+    const origin = paths.origin;
+    const suffix = origin && Number.isInteger(origin.x) && Number.isInteger(origin.y)
+      ? ` --origin-x ${origin.x} --origin-y ${origin.y}` : '';
+    return `${paths.executable} --state ${session.statePath} --stop ${session.stopPath} --mode ${session.mode} --delay-ms ${session.delayMs}${suffix}`;
   },
 
   async ownedPid(paths, session, pid) {
@@ -137,17 +140,26 @@
     };
     if (File.exists(session.statePath)) await File.remove(session.statePath);
     if (File.exists(session.stopPath)) await File.remove(session.stopPath);
-    const opened = await Command.run('/usr/bin/open', [
+    const arguments = [
       '-n', paths.app, '--args', '--state', session.statePath, '--stop', session.stopPath,
       '--mode', mode, '--delay-ms', String(delayMs),
-    ], { cwd: paths.repoRoot, timeout: 10000, maxOutputBytes: 1024 * 1024 });
+    ];
+    if (paths.origin && Number.isInteger(paths.origin.x) && Number.isInteger(paths.origin.y)) {
+      arguments.push('--origin-x', String(paths.origin.x), '--origin-y', String(paths.origin.y));
+    }
+    const opened = await Command.run('/usr/bin/open', arguments, { cwd: paths.repoRoot, timeout: 10000, maxOutputBytes: 1024 * 1024 });
     await File.write(session.launchLog, `${opened.stdout || ''}\n${opened.stderr || ''}`);
     const ready = await this.waitForState(session, state => Number(state.pid) > 0 && Number(state.windowNumber) > 0);
     if (!(await this.ownedPid(paths, session, Number(ready.pid)))) {
       throw new Error(`fixture pid identity mismatch for ${name}: ${ready.pid}`);
     }
     const win = await this.waitForWindow(paths, session, ready);
-    const active = await this.waitForActive(win);
+    // AppKit normally activates a newly opened fixture. When another desktop
+    // process wins that race, use the public exact-identity activation API
+    // before declaring the owned test window unavailable.
+    let active = null;
+    try { active = await window.activate(win, { timeout: 5000 }); }
+    catch (_) { active = await this.waitForActive(win); }
     return { ...session, pid: Number(ready.pid), win: active };
   },
 

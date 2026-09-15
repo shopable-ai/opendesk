@@ -7,6 +7,7 @@ static NSString *const FixtureBundleIdentifier = @"com.opendesk.ui-taptexts-fixt
 @property(nonatomic, strong) NSWindow *secondaryWindow;
 @property(nonatomic, strong) NSStackView *root;
 @property(nonatomic, strong) NSTextField *statusLabel;
+@property(nonatomic, strong) NSTextField *messageField;
 @property(nonatomic, strong) NSButton *nextButton;
 @property(nonatomic, strong) NSButton *confirmButton;
 @property(nonatomic, copy) NSString *statePath;
@@ -71,7 +72,7 @@ static void SetIdentifier(id object, NSString *identifier) {
     NSStackView *stack = [NSStackView stackViewWithViews:@[]];
     stack.orientation = NSUserInterfaceLayoutOrientationVertical;
     stack.alignment = NSLayoutAttributeCenterX;
-    stack.spacing = 28;
+    stack.spacing = 18;
     stack.edgeInsets = NSEdgeInsetsMake(42, 48, 42, 48);
     stack.translatesAutoresizingMaskIntoConstraints = NO;
     [target.contentView addSubview:stack];
@@ -82,6 +83,15 @@ static void SetIdentifier(id object, NSString *identifier) {
         [stack.bottomAnchor constraintEqualToAnchor:target.contentView.bottomAnchor],
     ]];
     return stack;
+}
+
+- (void)applyRequestedOrigin {
+    NSString *originX = [self argumentValue:@"--origin-x"];
+    NSString *originY = [self argumentValue:@"--origin-y"];
+    if (originX.length == 0 || originY.length == 0) return;
+    NSRect frame = self.window.frame;
+    frame.origin = NSMakePoint(originX.doubleValue, originY.doubleValue);
+    [self.window setFrame:frame display:YES];
 }
 
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
@@ -105,20 +115,30 @@ static void SetIdentifier(id object, NSString *identifier) {
                                     repeats:YES];
     [self.window makeKeyAndOrderFront:nil];
     [NSApp activateIgnoringOtherApps:YES];
-    dispatch_async(dispatch_get_main_queue(), ^{ [self writeState]; });
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self applyRequestedOrigin];
+        [self writeState];
+    });
 }
 
 - (void)buildMainWindow {
+    CGFloat initialContentHeight = [self.mode isEqualToString:@"ambiguous"] ? 400 : 320;
     self.window = [[NSWindow alloc]
-        initWithContentRect:NSMakeRect(0, 0, 680, 380)
+        initWithContentRect:NSMakeRect(0, 0, 680, initialContentHeight)
                   styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
                              NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable)
                     backing:NSBackingStoreBuffered
                       defer:NO];
     self.window.title = @"OpenDesk UI Sequence Fixture";
-    self.window.minSize = NSMakeSize(620, 340);
+    self.window.minSize = NSMakeSize(620, [self.mode isEqualToString:@"ambiguous"] ? 380 : 320);
     SetIdentifier(self.window, @"fixture.ui-sequence.main");
-    [self.window center];
+    NSString *originX = [self argumentValue:@"--origin-x"];
+    NSString *originY = [self argumentValue:@"--origin-y"];
+    if (originX.length > 0 && originY.length > 0) {
+        [self.window setFrameOrigin:NSMakePoint(originX.doubleValue, originY.doubleValue)];
+    } else {
+        [self.window center];
+    }
     self.root = [self contentStackForWindow:self.window];
     NSTextField *heading = [self labelWithText:@"OpenDesk 可见序列验证" size:26 weight:NSFontWeightSemibold];
     SetIdentifier(heading, @"fixture.heading");
@@ -127,6 +147,14 @@ static void SetIdentifier(id object, NSString *identifier) {
     self.statusLabel.textColor = NSColor.secondaryLabelColor;
     SetIdentifier(self.statusLabel, @"fixture.status");
     [self.root addArrangedSubview:self.statusLabel];
+    self.messageField = [NSTextField new];
+    self.messageField.stringValue = @"初始值";
+    self.messageField.placeholderString = @"消息";
+    self.messageField.font = [NSFont systemFontOfSize:18 weight:NSFontWeightRegular];
+    SetIdentifier(self.messageField, @"fixture.messageInput");
+    [self.messageField.widthAnchor constraintEqualToConstant:360].active = YES;
+    [self.messageField.heightAnchor constraintEqualToConstant:32].active = YES;
+    [self.root addArrangedSubview:self.messageField];
 
     if ([self.mode isEqualToString:@"ambiguous"]) {
         NSButton *first = [self buttonWithTitle:@"重复目标" identifier:@"fixture.ambiguous.first" action:@selector(ambiguousPressed:)];
@@ -156,8 +184,10 @@ static void SetIdentifier(id object, NSString *identifier) {
     [self removeArrangedView:self.nextButton from:self.root];
     self.nextButton = nil;
     if ([self.mode isEqualToString:@"move"]) {
-        NSPoint origin = self.window.frame.origin;
-        [self.window setFrameOrigin:NSMakePoint(origin.x + 120, origin.y + 55)];
+        NSRect frame = self.window.frame;
+        frame.origin = NSMakePoint(frame.origin.x + 120, frame.origin.y + 55);
+        frame.size.width = MAX(self.window.minSize.width, frame.size.width - 20);
+        [self.window setFrame:frame display:YES];
         self.movedAtMs = NowMs();
     }
     [self writeState];
@@ -203,10 +233,13 @@ static void SetIdentifier(id object, NSString *identifier) {
         [self removeArrangedView:self.confirmButton from:stack];
         [stack addArrangedSubview:[self labelWithText:@"完成" size:34 weight:NSFontWeightBold]];
     } else {
-        [self removeArrangedView:self.confirmButton from:self.root];
-        self.statusLabel.stringValue = @"完成";
-        self.statusLabel.font = [NSFont systemFontOfSize:34 weight:NSFontWeightBold];
-        self.statusLabel.textColor = NSColor.labelColor;
+      [self removeArrangedView:self.confirmButton from:self.root];
+      self.statusLabel.stringValue = @"完成";
+      self.statusLabel.font = [NSFont systemFontOfSize:34 weight:NSFontWeightBold];
+      self.statusLabel.textColor = NSColor.labelColor;
+      NSRect frame = self.window.frame;
+      frame.size.height = self.window.minSize.height;
+      [self.window setFrame:frame display:YES];
     }
     self.confirmButton = nil;
     [self writeState];
@@ -223,7 +256,9 @@ static void SetIdentifier(id object, NSString *identifier) {
     (void)timer;
     if ([[NSFileManager defaultManager] fileExistsAtPath:self.stopPath]) {
         [NSApp terminate:nil];
+        return;
     }
+    [self writeState];
 }
 
 - (void)writeState {
@@ -245,6 +280,7 @@ static void SetIdentifier(id object, NSString *identifier) {
         @"movedAtMs": @(self.movedAtMs),
         @"confirmShownAtMs": @(self.confirmShownAtMs),
         @"confirmClickedAtMs": @(self.confirmClickedAtMs),
+        @"messageInput": self.messageField.stringValue ?: @"",
         @"frame": @{
             @"x": @(frame.origin.x), @"y": @(frame.origin.y),
             @"width": @(frame.size.width), @"height": @(frame.size.height),

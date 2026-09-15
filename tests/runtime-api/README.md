@@ -37,6 +37,7 @@ Dialog 的视觉验收与行为验收分别判定：即使返回值、Promise �
 | ui-target-sequence | `window.current/activate`、semantic `UI.tapTargets` auto resolution 与 legacy locator contract 的确定性 unit、exact-ID coverage 与每阶段资源归零；不操作真实桌面 | `results/contract.json`、`results/unit.json`、`results/coverage.json`、`runtime-logs/*/resources.json` |
 | accessibility-native-macos（显式直接运行） | 仓库自有 AppKit fixture 的真实 AX snapshot/find/read/action/release、Accessibility-first `UI.tapTargets` 顺序动作、全量零输入预检与 unknown 不重试、UI 文本值读写、只读菜单及多级菜单动作 | `.runtime/tests/accessibility/<runId>/result.json`、`runtime-logs/{events.ndjson,summary.json}` |
 | ui-taptexts-native-macos（显式直接运行） | 仓库自有 AppKit fixture 的真实窗口截图、Apple Vision OCR、PID 约束鼠标序列与独立点击状态 | `.runtime/tests/ui-taptexts-macos/<executionId>/result.json`、截图与 Runtime 日志 |
+| ui-scope-locator-native-macos（显式直接运行） | `window.wait → UI.within → locator` 的真实 OCR、image、Accessibility、native value 与 stale identity 链路 | `.runtime/tests/ui-scope-locator-macos/<executionId>/result.json`、截图与 fixture 状态 |
 | sqlite | SQLite 专用 contract、复用公开 smoke cases 的 unit、SQLite scoped coverage，以及每个 child execution 的资源归零和进程 cleanup；不执行无关 desktop live 测试 | `results/contract.json`、`results/unit.json`、`results/coverage.json`、`runtime-logs/*/resources.json`、`results/cleanup.json` |
 | language | 选定的 ES2015–ES2023 作者语法与内建能力，以及 OpenDesk 脚本级 `await` | `results/language.json` |
 | coverage | 每方法 contract、已通过 tier、required tier、风险理由和用例 | `results/coverage.json` |
@@ -131,6 +132,20 @@ OPENDESK_RUNTIME_API_RUN_ID="$run_id" OPENDESK_ACCESSIBILITY_TARGET_PID="$fixtur
 `fixtureStopped` 为 true，且 Runtime cleanup event 的 timer、listener、subscription、worker、
 Promise callback 与 UI host process 等字段全部为 0，才可报告通过。该入口需要 macOS Screen
 Recording、Accessibility 和 Input Monitoring 权限，不属于默认 catalog/unit/live gate。
+
+`UI.within()` 与 Lightweight Locator 有一条独立的 macOS 原生 smoke。它同样只创建和停止本次
+运行自行编译的 AppKit fixture：先在真实窗口中 OCR 定位、移动窗口后重取 geometry、临时移除
+Accessibility global 验证 visual locator 仍走 OCR；再从截图生成 image template，最后验证
+Accessibility semantic button、原生文本框的 `setValue()`/`getValue()` 独立回读，以及关闭同名旧
+窗口后旧 locator 的 `STALE_TARGET`。从仓库根目录运行：
+
+```bash
+./dist/opendesk -script tests/runtime-api/ui-scope-locator-native-macos.js -console-mode script -timeout 300
+```
+
+结果、fixture 状态、image template 与窗口前后截图写入
+`.runtime/tests/ui-scope-locator-macos/<executionId>/`。`result.json` 必须为 `passed`；这是显式
+实机验收，不属于默认 catalog/unit/live gate，也不应由 mock 或 Node 测试替代。
 
 `dialog` 在 macOS 构建 run-local native host，并实际运行公开 JavaScript 的 disabled、严格
 参数、non-blocking、single-flight、`.then/.catch/.finally`、prompt 真实键盘输入、输入值第二个

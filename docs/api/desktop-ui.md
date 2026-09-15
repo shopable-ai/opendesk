@@ -15,6 +15,7 @@ order: 50
 
 | 方法 | 状态 | 用途 |
 | --- | --- | --- |
+| `UI.within(win)` | Experimental · Local | 同步绑定一个已解析窗口，返回可复用的轻量 UI Scope。 |
 | `UI.getCapabilities()` | Stable | 查询当前高层 UI 能力。 |
 | `UI.getValue(target, options)` | Experimental · Local | 读取唯一原生文本框的字符串值。 |
 | `UI.setValue(target, value, options)` | Experimental · Local | 设置唯一原生文本框的完整字符串值并用同一引用回读。 |
@@ -37,6 +38,236 @@ order: 50
 视觉或原生动作成功只表示目标已读取或输入已提交，不证明保存、提交、导出等业务结果已经完成。自动化脚本仍应验证业务后置条件。
 
 本页示例用于从仓库根目录运行的普通 OpenDesk JavaScript。引用 `win` 的示例要求先取得并核对目标窗口，例如 `const win = await window.getActiveWindow();`；目标必须可见且具备当前平台所需权限。菜单和素材示例还需对应应用菜单与实际模板文件，不能直接对未知业务窗口尝试。
+
+## UI.within(win)
+
+同步创建一个绑定到已解析 `WindowInfo` identity 的轻量 UI Scope。构造只复制并校验窗口描述：不截图、不扫描 Accessibility tree、不激活窗口、不发送输入，也不创建长期 native ref。
+
+**签名**
+
+```ts
+UI.within(win: OpenDeskWindowInfo): OpenDeskUIWindowScope;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `win` | `OpenDeskWindowInfo` | 是 | 无 | 由 `window.get()`、`window.wait()` 或等价已解析 API 返回的实际窗口；不是按标题查询条件。 |
+
+**返回值**
+
+`OpenDeskUIWindowScope`。Scope 保存调用时的 identity snapshot，而不是对调用方对象的引用。
+
+**行为与错误**
+
+每个 Scope 或 Locator 方法都会先用 `window.current()` 刷新同一 `id`、PID 与 native handle 的 geometry。移动或 resize 保持 Scope 有效；窗口关闭、重建或同名新窗口不会重新绑定，后续操作以 `STALE_TARGET` 失败。Scope-bound 调用不接受 `options.within`，以免替换已经绑定的窗口。
+
+Scope 复用下列既有函数式 API；它只自动补入当前新鲜 `within`，不改变底层 OCR、image、Accessibility、cancellation、actionState 或 cleanup 合同。
+
+| Scope 方法 | 对应函数式 API |
+| --- | --- |
+| `findText`、`findTexts`、`findTextMatches`、`hasText` | `UI.findText`、`UI.findTexts`、`UI.findTextMatches`、`UI.hasText` |
+| `tapText`、`tapTexts`、`tapTargets` | `UI.tapText`、`UI.tapTexts`、`UI.tapTargets` |
+| `findImage`、`findImages`、`tapImage` | `UI.findImage`、`UI.findImages`、`UI.tapImage` |
+| `getValue`、`setValue` | `UI.getValue`、`UI.setValue` |
+
+**示例**
+
+```js
+const win = await window.wait({ title: '目标窗口' });
+const app = UI.within(win);
+
+await app.tapText('保存');
+```
+
+## UI Scope locator(target)
+
+同步创建一个 lightweight Locator。Locator 只保存 Scope identity 与复制后的 target description；它不是 `ElementHandle`，不保存 OCR 坐标、截图结果、Accessibility ref 或任何旧观察。
+
+**签名**
+
+```ts
+scope.locator(target: OpenDeskUILocatorTarget): OpenDeskUILocator;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `target` | `OpenDeskUILocatorTarget` | 是 | 无 | 一种文字、图片或 native semantic target；所有给出的 semantic 字段按精确 AND 条件解释。 |
+
+**返回值**
+
+`OpenDeskUILocator`。构造不保证目标当前存在。
+
+**行为与错误**
+
+P0 target 形式是 `{ text: '保存' }`、`{ image: './assets/save.png' }` 和 `{ role: 'button', name: '保存' }`；semantic target 也可提供 `identifier` 及现有 `UI.tapTargets()` 支持的扁平约束。图片不能与其他字段混用。没有 UI tree 时，text/image Locator 仍直接使用原有 visual capability；semantic target 则明确报告 native capability failure。
+
+**示例**
+
+```js
+const save = app.locator({ text: '保存' });
+```
+
+## Locator.find(options?)
+
+对当前 Scope 做一次有界、只读观察。
+
+**签名**
+
+```ts
+locator.find(options?: OpenDeskUILocatorFindOptions): Promise<OpenDeskUITargetMatch | null>;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `options` | `OpenDeskUILocatorFindOptions` | 否 | `{}` | `timeout` 默认 `3000` ms；`signal` 在观察阶段之间检查；`maxDepth`/`maxNodes` 只影响 semantic traversal。 |
+
+**返回值**
+
+完整且可靠的零匹配返回 `null`。唯一匹配返回普通、冻结的 `OpenDeskUITargetMatch` snapshot，不是可执行对象。snapshot 只包含本次真实读取的 source、window identity、bounds、时间和可靠属性；未确认的 native state/value 不会填充猜测值。
+
+**行为与错误**
+
+多匹配为 `AMBIGUOUS_TARGET`；无法证明搜索完整为 `SEARCH_INCOMPLETE`；截图/OCR/图片/权限/backend 失败保持原错误，不能转换为 `null`。semantic observation 在返回前释放本次 `Accessibility` ref。
+
+**示例**
+
+```js
+const observed = await save.find();
+if (observed === null) console.log('当前可见范围没有保存按钮');
+```
+
+## Locator.waitFor(options?)
+
+只读等待 Locator 的 `exists` 或 `visible` 状态。
+
+**签名**
+
+```ts
+locator.waitFor(options?: OpenDeskUILocatorWaitOptions): Promise<void>;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `options` | `OpenDeskUILocatorWaitOptions` | 否 | `{}` | `state` 默认为 `exists`；`timeout` 是默认 `10000` ms 的单一总 deadline；可传 `signal`。 |
+
+**返回值**
+
+条件被可靠证明时返回 `Promise<void>`。
+
+**行为与错误**
+
+每轮都是一次新只读观察，且不会重置总 deadline。暂时零匹配会在剩余预算内重试；`STALE_TARGET`、权限/backend failure、`AMBIGUOUS_TARGET`、`SEARCH_INCOMPLETE`、取消和明确不支持立即结束。视觉 target 的存在即为当前可见证据；semantic `visible` 仅在 native backend 能可靠证明时支持，否则为 `NOT_SUPPORTED`。
+
+**示例**
+
+```js
+await save.waitFor({ state: 'visible', timeout: 5000 });
+```
+
+## Locator.tap(options?)
+
+通过现有 target-specific action owner 对当前 Locator 最多提交一次动作。
+
+**签名**
+
+```ts
+locator.tap(options?: OpenDeskUILocatorTapOptions): Promise<
+  OpenDeskUITapResult<OpenDeskUITextTarget>
+  | OpenDeskUITapResult<OpenDeskUIImageTarget>
+  | OpenDeskUISemanticTapResult
+>;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `options` | `OpenDeskUILocatorTapOptions` | 否 | `{}` | 可传现有 action timeout；semantic action 也把 `signal` 交给 `UI.tapTargets()`。 |
+
+**返回值**
+
+对应原 action owner 的真实 result。
+
+**行为与错误**
+
+semantic target 委托 `UI.tapTargets()`；text target 委托 `UI.tapText()`；image target 委托 `UI.tapImage()`。image Locator 在不要求调用方公开 strategy 参数的前提下，向既有 image owner 传入高置信度阈值 `0.95`，避免近似视觉结果变成任意点击。Locator 不建立第二套点击器，也不会在 submitted/unknown 动作后改用 OCR、image 或其它 backend 再点一次。既有 `actionState`、completed prefix、diagnostics、cancellation 和 cleanup 语义原样保留。
+
+**示例**
+
+```js
+await save.tap();
+```
+
+## Locator.getValue(options?)
+
+读取当前 Locator 指向的严格 native `textField` 字符串值。
+
+**签名**
+
+```ts
+locator.getValue(options?: OpenDeskUILocatorValueOptions): Promise<string>;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `options` | `OpenDeskUILocatorValueOptions` | 否 | `{}` | 复用 `UI.getValue()` 的 timeout、maxDepth 和 maxNodes；Scope 提供 `within`。 |
+
+**返回值**
+
+目标原生 owner 实际读取的完整字符串，包含空字符串、Unicode 和空白。
+
+**行为与错误**
+
+仅 semantic target 支持此方法，且目标必须是可读取的 native `textField`。OCR 可见文字、图片、accessible name 和猜测值不会充当 value；没有可靠原生证据时为 `NOT_SUPPORTED`。
+
+**示例**
+
+```js
+const actual = await app.locator({ role: 'textField', identifier: 'messageInput' }).getValue();
+```
+
+## Locator.setValue(value, options?)
+
+用原生 `setValue` action 设置完整字符串，并复用现有严格回读验证。
+
+**签名**
+
+```ts
+locator.setValue(value: string, options?: OpenDeskUILocatorValueOptions): Promise<OpenDeskUISetValueResult>;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `value` | `string` | 是 | 无 | 要设置的完整 native value；空字符串合法。 |
+| `options` | `OpenDeskUILocatorValueOptions` | 否 | `{}` | 复用 `UI.setValue()` 的 timeout、maxDepth 和 maxNodes；Scope 提供 `within`。 |
+
+**返回值**
+
+`OpenDeskUISetValueResult`，其中 `verified: true` 表示同一 native ref 的读回与输入字符串完全相等。
+
+**行为与错误**
+
+只调用已有原生 owner；不会 click、全选、键盘输入或 OCR fallback。若 actionState 变成 `unknown` 或验证不能可靠完成，调用失败且不自动重放输入。
+
+**示例**
+
+```js
+const input = app.locator({ role: 'textField', identifier: 'messageInput' });
+await input.setValue('你好');
+console.log(await input.getValue());
+```
 
 ## 公共约定
 

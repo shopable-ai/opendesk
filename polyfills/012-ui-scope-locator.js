@@ -3,6 +3,10 @@
   'use strict';
   const UI = g.UI, W = g.window, own = (v, k) => Object.prototype.hasOwnProperty.call(v, k);
   if (!UI || !W || typeof W.current !== 'function') return;
+  // A Locator image target is intentionally parameter-light. Keep discovery
+  // with the existing UI image owner, but require high-confidence evidence so
+  // a broadly similar visual result cannot turn into a silent arbitrary tap.
+  const locatorImageThreshold = 0.95;
   const roles = new Set(['application','window','button','checkbox','radioButton','textField','staticText','menuBar','menu','menuItem','group','list','listItem','table','row','cell','unknown']);
   const winKeys = ['id','title','pid','processId','processID','x','y','width','height','exeName','exePath','isForeground','hasFocus','handle','isPopup','index'];
   const scoped = ['findText','findTexts','findTextMatches','hasText','tapText','tapTexts','tapTargets','findImage','findImages','tapImage'];
@@ -92,7 +96,7 @@
     const o=findOpts(raw,op,override); canceled(o.signal,op); const w=await refresh(initial,op); canceled(o.signal,op);
     if(t.kind==='semantic')return semanticFind(t,w,o,op);
     if(t.kind==='text'){const c=await UI.findText(t.public.text,{within:w,timeout:o.timeout});canceled(o.signal,op);return c?match(t,w,c,c.source||'ocr'):null;}
-    const c=await UI.findImage(t.public.image,{within:w,timeout:o.timeout});canceled(o.signal,op);return c?match(t,w,c,c.source||'image'):null;
+    const c=await UI.findImage(t.public.image,{within:w,timeout:o.timeout,threshold:locatorImageThreshold});canceled(o.signal,op);return c?match(t,w,c,c.source||'image'):null;
   }
   async function sleep(ms,s,op){if(ms<=0)return;canceled(s,op);if(g.page&&typeof g.page.waitForTimeout==='function'){try{await g.page.waitForTimeout(ms,s?{signal:s}:undefined);}catch(e){if(s&&s.aborted)canceled(s,op);throw e;}return;}await new Promise((res,rej)=>{let done=false,t;const finish=e=>{if(done)return;done=true;if(t)g.clearTimeout(t);if(s)s.removeEventListener('abort',abort);e?rej(e):res();};const abort=()=>finish(E('CANCELED',op,'operation was canceled',{phase:'wait',actionState:'not_started'}));if(s)s.addEventListener('abort',abort,{once:true});t=g.setTimeout(()=>finish(),ms);});}
   function locator(initial,rawTarget) {
@@ -100,7 +104,7 @@
     return Object.freeze({
       find(raw){return findOnce(initial,t,raw,'UILocator.find');},
       async waitFor(raw){const op='UILocator.waitFor',o=options(raw,op,['state','timeout','signal']),state=o.state===undefined?'exists':o.state;if(!['exists','visible'].includes(state))bad(op,'options.state must be "exists" or "visible"');const timeout=o.timeout===undefined?10000:n(o.timeout,0,300000,'options.timeout',op),s=signal(o.signal,op),deadline=Date.now()+timeout;for(;;){canceled(s,op);const budget=timeout===0?1:Math.max(1,Math.min(30000,deadline-Date.now()));const m=await findOnce(initial,t,{timeout:budget,signal:s},op,budget);if(m){if(state==='exists'||m.visible===true)return;if(t.kind==='semantic')throw E('NOT_SUPPORTED',op,'visible state is not reliably observable for this semantic target',{phase:'state',actionState:'not_started'});}if(timeout===0||Date.now()>=deadline)throw E('TIMEOUT',op,'timed out waiting for target state',{state,timeout,phase:'wait',actionState:'not_started'});await sleep(Math.min(200,Math.max(1,deadline-Date.now())),s,op);}},
-      async tap(raw){const op='UILocator.tap',o=options(raw,op,['timeout','signal']),s=signal(o.signal,op);if(o.timeout!==undefined)n(o.timeout,1,30000,'options.timeout',op);canceled(s,op);const w=await refresh(initial,op);canceled(s,op);const d={};if(o.timeout!==undefined)d.timeout=o.timeout;if(t.kind==='semantic'){if(s)d.signal=s;return UI.tapTargets([t.public],Object.assign({within:w,intervalMs:0},d));}if(t.kind==='text')return UI.tapText(t.public.text,Object.assign({within:w},d));return UI.tapImage(t.public.image,Object.assign({within:w},d));},
+      async tap(raw){const op='UILocator.tap',o=options(raw,op,['timeout','signal']),s=signal(o.signal,op);if(o.timeout!==undefined)n(o.timeout,1,30000,'options.timeout',op);canceled(s,op);const w=await refresh(initial,op);canceled(s,op);const d={};if(o.timeout!==undefined)d.timeout=o.timeout;if(t.kind==='semantic'){if(s)d.signal=s;return UI.tapTargets([t.public],Object.assign({within:w,intervalMs:0},d));}if(t.kind==='text')return UI.tapText(t.public.text,Object.assign({within:w},d));return UI.tapImage(t.public.image,Object.assign({within:w,threshold:locatorImageThreshold},d));},
       async getValue(raw){const op='UILocator.getValue';if(t.kind!=='semantic')throw E('NOT_SUPPORTED',op,'visual targets do not expose a provable native field value',{phase:'capability',actionState:'not_started'});const o=options(raw,op,['timeout','maxDepth','maxNodes']),w=await refresh(initial,op);return UI.getValue(t.selector,Object.assign({within:w},o));},
       async setValue(value,raw){const op='UILocator.setValue';if(t.kind!=='semantic')throw E('NOT_SUPPORTED',op,'visual targets cannot set a provable native field value',{phase:'capability',actionState:'not_started'});const o=options(raw,op,['timeout','maxDepth','maxNodes']),w=await refresh(initial,op);return UI.setValue(t.selector,value,Object.assign({within:w},o));}
     });
@@ -109,6 +113,7 @@
   function scope(win) {
     const initial=snapWindow(win,'UI.within'), out={};
     for(const method of scoped)if(typeof UI[method]==='function')out[method]=async function(){const a=Array.prototype.slice.call(arguments);if(a.length)a[0]=seq(a[0],method);const o=options(a[1],'UIScope.'+method),w=await refresh(initial,'UIScope.'+method);a[1]=Object.assign({},o,{within:w});return UI[method].apply(UI,a);};
+    out.readText=async function(raw){const op='UIScope.readText',o=options(raw,op,['timeout','maxDepth','maxNodes','region','signal']),w=await refresh(initial,op);if(typeof UI.readText!=='function')throw E('NOT_SUPPORTED',op,'UI.readText is unavailable',{phase:'capability',actionState:'not_started'});return UI.readText(Object.assign({},o,{within:w}));};
     out.getValue=async function(target,raw){const op='UIScope.getValue',t=cloneTarget(target,op);if(t.kind!=='semantic')throw E('NOT_SUPPORTED',op,'visual targets do not expose a provable native field value',{phase:'capability',actionState:'not_started'});const o=options(raw,op,['timeout','maxDepth','maxNodes']),w=await refresh(initial,op);return UI.getValue(t.selector,Object.assign({within:w},o));};
     out.setValue=async function(target,value,raw){const op='UIScope.setValue',t=cloneTarget(target,op);if(t.kind!=='semantic')throw E('NOT_SUPPORTED',op,'visual targets cannot set a provable native field value',{phase:'capability',actionState:'not_started'});const o=options(raw,op,['timeout','maxDepth','maxNodes']),w=await refresh(initial,op);return UI.setValue(t.selector,value,Object.assign({within:w},o));};
     out.locator=target=>locator(initial,target); return Object.freeze(out);

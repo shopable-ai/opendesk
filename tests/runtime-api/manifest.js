@@ -128,10 +128,14 @@ globalThis.RuntimeAPIObjects = {
   Geometry: { docs: 'docs/api/geometry.md', types: 'types/Geometry.d.ts', source: 'polyfills/005-geometry.js + polyfills/007-geometry-layout.js', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: ['rect', 'center', 'pointOffset', 'pointPercent', 'regionOffset', 'regionPercent', 'regionByEdges', 'inset', 'anchorPoint', 'contains', 'intersect'] },
   UI: {
     docs: 'docs/api/desktop-ui.md', types: 'types/UI.d.ts',
-    source: 'polyfills/006-ui.js + polyfills/011-ui-targets.js + automation/accessibility.go + automation/accessibility_menu.go',
-    status: 'stable', platforms: ['darwin', 'linux', 'windows'],
-    methods: ['getCapabilities', 'getValue', 'setValue', 'findTexts', 'findTextMatches', 'findText', 'hasText', 'tapText', 'tapTexts', 'tapTargets', 'waitText', 'waitTextGone', 'findImages', 'findImage', 'tapImage', 'getMenuItems', 'findMenuItem', 'tapMenuItem'],
+    source: 'polyfills/006-ui.js + polyfills/011-ui-targets.js + polyfills/012-ui-scope-locator.js + automation/accessibility.go + automation/accessibility_menu.go',
+    status: 'stable-with-experimental-scope-locator', platforms: ['darwin', 'linux', 'windows'],
+    methods: ['within', 'getCapabilities', 'getValue', 'setValue', 'findTexts', 'findTextMatches', 'findText', 'hasText', 'tapText', 'tapTexts', 'tapTargets', 'waitText', 'waitTextGone', 'findImages', 'findImage', 'tapImage', 'getMenuItems', 'findMenuItem', 'tapMenuItem'],
     methodMetadata: {
+      within: {
+        source: 'polyfills/012-ui-scope-locator.js + polyfills/003-window.js', docs: 'docs/api/desktop-ui.md', types: 'types/UI.d.ts',
+        status: 'experimental-local', platforms: ['darwin', 'linux', 'windows'],
+      },
       getValue: { source: 'polyfills/006-ui.js', docs: 'docs/api/desktop-ui.md', types: 'types/UI.d.ts', status: 'experimental-local', platforms: ['darwin', 'windows'] },
       setValue: { source: 'polyfills/006-ui.js', docs: 'docs/api/desktop-ui.md', types: 'types/UI.d.ts', status: 'experimental-local', platforms: ['darwin', 'windows'] },
       tapTexts: {
@@ -400,6 +404,11 @@ globalThis.RuntimeAPITestFiles = {
   accessibilityNativeMacOS: [
     'tests/runtime-api/accessibility-native-macos.js',
   ],
+  // Explicit native Scope/Locator smoke. It builds and removes only its own
+  // AppKit fixture process and writes screenshots plus structured evidence.
+  uiScopeLocatorNativeMacOS: [
+    'tests/runtime-api/ui-scope-locator-native-macos.js',
+  ],
   // Explicit opt-in because these start the native hook. The lifecycle case
   // opens a real toolbar, sends an otherwise unused F18 key and clicks only
   // its own stop control; the Calculator case sends real fixture input.
@@ -438,6 +447,7 @@ globalThis.RuntimeAPITestFiles = {
     'tests/runtime-api/unit/ui-semantic-targets.test.js',
     'tests/runtime-api/unit/ui-semantic-targets-cancel.test.js',
     'tests/runtime-api/unit/ui-value.test.js',
+    'tests/runtime-api/unit/ui-scope-locator.test.js',
     'tests/runtime-api/unit/screen.test.js',
     'tests/runtime-api/unit/system.test.js',
     'tests/runtime-api/unit/execution.test.js',

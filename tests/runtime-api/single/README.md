@@ -26,6 +26,7 @@
 - `ui-semantic-targets`：`./dist/opendesk -script tests/runtime-api/single/ui-semantic-targets.js -console-mode script`
 - `ui-semantic-targets-cancel`：`./dist/opendesk -script tests/runtime-api/single/ui-semantic-targets-cancel.js -console-mode script`
 - `ui-value`：`./dist/opendesk -script tests/runtime-api/single/ui-value.js -console-mode script`
+- `ui-scope-locator`：`./dist/opendesk -script tests/runtime-api/single/ui-scope-locator.js -console-mode script`
 - `screen`：`./dist/opendesk -script tests/runtime-api/single/screen.js -console-mode script`
 - `system`：`./dist/opendesk -script tests/runtime-api/single/system.js -console-mode script`
 - `execution`：`./dist/opendesk -script tests/runtime-api/single/execution.js -console-mode script`

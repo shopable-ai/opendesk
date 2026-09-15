@@ -222,8 +222,19 @@
       "coordinates": "nativeBounds stays tagged in the backend coordinate space. bounds is null unless a reliable conversion to OpenDesk logical screen coordinates was performed."
     },
     {
-      "name": "UI", "source": "visual polyfills 006-ui/011-ui-targets plus execution-owned native Accessibility value, target-sequence, and menu composition", "status": "stable-with-experimental-semantic-and-legacy-target-value-menu-and-sequence-wait", "doc": "desktop-ui.md", "types": "types/UI.d.ts",
-      "keyMethods": ["getCapabilities", "findTexts", "findText", "hasText", "tapText", "tapTexts", "tapTargets", "waitText", "waitTextGone", "getValue", "setValue", "findImages", "findImage", "tapImage", "getMenuItems", "findMenuItem", "tapMenuItem"],
+      "name": "UI", "source": "visual polyfills 006-ui/011-ui-targets/012-ui-scope-locator plus execution-owned native Accessibility value, target-sequence, and menu composition", "status": "stable-with-experimental-scope-locator-semantic-and-legacy-target-value-menu-and-sequence-wait", "doc": "desktop-ui.md", "types": "types/UI.d.ts",
+      "keyMethods": ["within", "getCapabilities", "findTexts", "findText", "hasText", "tapText", "tapTexts", "tapTargets", "waitText", "waitTextGone", "getValue", "setValue", "findImages", "findImage", "tapImage", "getMenuItems", "findMenuItem", "tapMenuItem"],
+      "scopeLocator": {
+        "status": "experimental-local",
+        "methods": ["UI.within", "UIScope.locator", "Locator.find", "Locator.waitFor", "Locator.tap", "Locator.getValue", "Locator.setValue"],
+        "identity": "UI.within synchronously snapshots one resolved WindowInfo identity. Each later Scope or Locator operation refreshes the same id, PID and native handle, so move/resize refreshes geometry while closure/recreation or a same-title replacement fails STALE_TARGET without rebinding.",
+        "locator": "A Locator copies only Scope identity and target description. It retains no OCR point, screenshot, ElementRef or ElementHandle; find returns a one-time observation snapshot rather than an executable object.",
+        "targets": "{text} uses existing OCR/visual discovery, {image} uses existing high-confidence (0.95) image discovery, and role/name/identifier uses exact native Accessibility. Loss of the native UI tree does not disable text/image observation or action.",
+        "find": "A complete reliable zero result is null; a unique result is TargetMatch; ambiguity and incomplete search remain AMBIGUOUS_TARGET and SEARCH_INCOMPLETE. Permission/backend failures are never converted to null.",
+        "waitFor": "exists and visible use repeated readonly observations under one total deadline. Cancellation, stale identity, ambiguity, incomplete search and terminal observation failures stop immediately. Semantic visible is NOT_SUPPORTED unless native evidence can prove it.",
+        "tap": "Semantic, text and image actions delegate once to UI.tapTargets, UI.tapText and UI.tapImage respectively. No secondary click engine, submitted-action fallback or replay is introduced; actionState, completed prefix, cancellation and cleanup remain owner-defined.",
+        "value": "getValue/setValue delegate only to the existing strict native textField owner. Visual/OCR results never become a native value; there is no keyboard fallback."
+      },
       "coordinateMapping": "Every discovery uses a fresh explicit screen clip. imageWidth/logicalScope.width and imageHeight/logicalScope.height are separately calculated actual capture scales; a scope across effective different-DPI displays fails closed.",
       "value": {
         "status": "experimental-local",
