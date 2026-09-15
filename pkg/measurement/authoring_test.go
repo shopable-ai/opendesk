@@ -1,0 +1,11 @@
+package measurement
+
+import(
+	"path/filepath"
+	"testing"
+	"time"
+)
+
+func TestAuthoringHandoffKeepsSemanticLocatorFirst(t *testing.T){frame,result,pngBytes:=evidenceFixture(t);ev,err:=BuildEvidence("authoring-semantic","recorder-toolbar",frame,result,pngBytes,EvidenceConfidence{Target:.95,Geometry:1,Pixel:1,Overall:.96});if err!=nil{t.Fatal(err)};input,err:=BuildAuthoringMeasurementInput(ConsumerAgentToRecipe,"measurement/evidence.json",ev,true,time.Date(2026,9,15,10,0,0,0,time.UTC));if err!=nil{t.Fatal(err)};if len(input.StrategyHints)<2||input.StrategyHints[0].Kind!="semantic-first"||input.StrategyHints[0].Priority>=input.StrategyHints[1].Priority{t.Fatalf("hints=%+v",input.StrategyHints)}}
+func TestHumanToRecipeHandoffPersistsInsideExistingTaskPackage(t *testing.T){frame,_,pngBytes:=evidenceFixture(t);result,err:=BuildRegionResult(frame.Snapshot,frame.Reference,Rect{X:30,Y:30,Width:20,Height:10});if err!=nil{t.Fatal(err)};ev,err:=BuildEvidence("authoring-human","human-demonstration",frame,result,pngBytes,EvidenceConfidence{Target:.8,Geometry:1,Overall:.9});if err!=nil{t.Fatal(err)};input,err:=BuildAuthoringMeasurementInput(ConsumerHumanToRecipe,"measurement/evidence.json",ev,false,time.Now());if err!=nil{t.Fatal(err)};if input.StrategyHints[0].Kind!="constrained-region"{t.Fatalf("hints=%+v",input.StrategyHints)};root:=t.TempDir();path,err:=SaveAuthoringMeasurementInput(root,input);if err!=nil{t.Fatal(err)};want:=filepath.Join(".runtime","automation-authoring","authoring-human","measurement","handoff-human-to-recipe.json");if !pathHasSuffix(path,want){t.Fatalf("path=%q",path)};loaded,loadedPath,err:=LoadAuthoringMeasurementInput(root,"authoring-human",ConsumerHumanToRecipe);if err!=nil{t.Fatal(err)};if loadedPath!=path||loaded.MeasurementKind!="region"||loaded.Provenance.Reference!=EvidenceOriginWindow{t.Fatalf("loaded=%+v path=%q",loaded,loadedPath)}}
+func TestAuthoringHandoffRejectsUnsafeEvidenceReference(t *testing.T){frame,result,pngBytes:=evidenceFixture(t);ev,err:=BuildEvidence("authoring-safe","agent",frame,result,pngBytes,EvidenceConfidence{Target:1,Geometry:1,Pixel:1,Overall:1});if err!=nil{t.Fatal(err)};for _,ref:=range []string{"","../escape.json","/tmp/evidence.json"}{if _,err:=BuildAuthoringMeasurementInput(ConsumerAgentToRecipe,ref,ev,true,time.Now());err==nil{t.Fatalf("unsafe ref accepted: %q",ref)}}}
