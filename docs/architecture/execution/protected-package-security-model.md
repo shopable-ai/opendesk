@@ -2,7 +2,7 @@
 
 本文补充 [Protected Recipe Package｜商业脚本保护与执行架构](protected-recipe-package.md)，冻结 `.odpkg` 的威胁模型、平台化密钥隔离方式以及后续安全增强方向。
 
-公共 CLI 契约见 [受保护包 CLI](../../api/protected-packages.md)。开发与本地测试见 [Protected Package 开发与测试指南](../../implementation/runtime/protected-packages.md)。Publisher / 管理员运维见 [Protected Package Publisher 与密钥运维](../../maintenance/protected-packages.md)。
+公共 CLI 契约见 [受保护包 CLI](../../api/protected-packages.md)。开发与本地测试见 [Protected Package 开发与测试指南](../../implementation/protected-packages.md)。Publisher / 管理员运维见 [Protected Package Publisher 与密钥运维](../../maintenance/protected-packages.md)。
 
 ## 1. 核心结论
 
@@ -290,7 +290,7 @@ protected local recipe
 | 文档 | 读者 | 内容 |
 | --- | --- | --- |
 | `docs/api/protected-packages.md` | 普通开发者 / Publisher | 公开 CLI、参数、返回值、公开格式与错误 |
-| `docs/implementation/runtime/protected-packages.md` | OpenDesk 开发者 / 测试工程师 | 源码入口、本地生成、运行、测试、证据与排错 |
+| `docs/implementation/protected-packages.md` | OpenDesk 开发者 / 测试工程师 | 源码入口、本地生成、运行、测试、证据与排错 |
 | `docs/maintenance/protected-packages.md` | Publisher / 管理员 / Release / Security | key lifecycle、环境隔离、rotation、compromise response |
 | 本文 | Runtime / Security 架构 | threat model、平台化 key architecture、安全上限 |
 

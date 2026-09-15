@@ -2,7 +2,7 @@
 
 本文面向 OpenDesk Publisher、平台管理员、Release Engineer 与 Security / Operations 维护者，定义 `.odpkg` 商业发布中的密钥责任、环境隔离、轮换与泄露处置。
 
-公开 CLI 参数见 [受保护包 CLI](../api/protected-packages.md)。开发与本地测试见 [Protected Package 开发与测试指南](../implementation/runtime/protected-packages.md)。Threat Model 与平台密钥架构见 [Protected Package Security Model](../architecture/execution/protected-package-security-model.md)。
+公开 CLI 参数见 [受保护包 CLI](../api/protected-packages.md)。开发与本地测试见 [Protected Package 开发与测试指南](../implementation/protected-packages.md)。Threat Model 与平台密钥架构见 [Protected Package Security Model](../architecture/execution/protected-package-security-model.md)。
 
 ## 1. 文档边界
 

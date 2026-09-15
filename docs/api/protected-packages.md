@@ -2,6 +2,7 @@
 title: 受保护包 CLI
 description: OpenDesk .odpkg 打包、验签、设备 License、在线 activation 与执行入口的公开命令行契约。
 order: 610
+docType: cli
 ---
 
 # 受保护包 CLI
@@ -520,19 +521,10 @@ package。CLI 先推进 OS-protected watermark，再替换 cache；后续写入�
 文本执行；HTTP、MCP 和 Scheduler 当前也没有 `.odpkg` 文件输入。受保护执行不写 `script_snapshot.js`，并禁止
 `-save-last-script` 导出明文。
 
-## Runtime 等价性验证
+## 开发验证
 
-`package inspect` / `package verify` 不能替代授权后的行为验证。仓库提供一条由已编译 OpenDesk Runtime 执行的
-canonical JavaScript gate，从 plain source 经 package、真实 P1 device/issue/verify/install 到 protected execution，
-分别比较 basic、`ai run --input-file` 参数化结果和 real native UI 的语义/视觉证据：
-
-```bash
-./dist/opendesk -script tests/protected-packages/runtime-equivalence.js -console-mode script
-```
-
-命令从仓库根目录运行；完整前置条件、Oracle、预期差异、失败分级、证据目录和安全清理见
-[`build-odpkg Runtime equivalence plan`](../../workflows/protected-packages/skills/build-odpkg/references/runtime-equivalence.md)。
-该 gate 不使用 `--license-required=false`，也不把 inspect/verify 写成 authorization 结论。
+本页定义 CLI 契约；本地构建、basic smoke、完整 Runtime equivalence、evidence directory、UI permission lane 和
+故障定位见 [Protected Package 开发与测试指南](../implementation/protected-packages.md)。
 
 ## 错误
 

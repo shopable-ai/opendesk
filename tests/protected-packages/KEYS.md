@@ -29,7 +29,7 @@ Device key
 
 The Publisher signing key and License issuer signing key are deliberately different files and different identities. A test must fail if an implementation starts treating them as one shared key domain.
 
-## Basic smoke evidence layout
+## Canonical basic-smoke evidence layout
 
 Running:
 
@@ -39,27 +39,26 @@ Running:
   -console-mode script
 ```
 
-creates a unique directory similar to:
+starts the canonical runtime-equivalence test in `basic` mode and creates a unique directory similar to:
 
 ```text
-.runtime/tests/protected-packages-basic/<Execution.id>/
+.runtime/tests/protected-packages/<Execution.id>/
 ├── commands/
-├── keys/
-│   ├── publisher-private.pem          # ephemeral; removed in cleanup
-│   ├── publisher-public.pem           # retained as safe evidence
-│   ├── license-issuer-private.pem     # ephemeral; removed in cleanup
-│   └── license-issuer-public.pem      # retained as safe evidence
-├── package/
-│   ├── basic.odpkg                    # retained encrypted package
-│   ├── basic.content-key              # ephemeral DEK; removed before protected execution
-│   └── basic.odlicense                # raw test License; removed before protected execution
+├── publisher-public.pem               # retained as safe evidence
+├── license-issuer-public.pem          # retained as safe evidence
 ├── device-public.json                 # retained public identity
 ├── installed-p1/                      # temporary installed License state; removed in cleanup
 ├── p1-device.keychain-db              # macOS temporary Keychain; removed in cleanup
 ├── lanes/
-│   ├── plain/
-│   └── protected/
-└── basic-runtime-smoke-summary.json
+│   └── basic/
+│       ├── plain/
+│       └── protected/
+├── packages/basic/
+│   ├── basic.odpkg                    # retained encrypted package
+│   ├── basic.content-key              # ephemeral DEK; removed before protected execution
+│   └── basic.odlicense                # raw test License; removed before protected execution
+├── acceptance-ledger.json
+└── runtime-equivalence-summary.json
 ```
 
 Private-key, DEK and raw-License files are useful while the test is running, but they are not durable fixtures and must not be committed.

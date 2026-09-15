@@ -10,6 +10,12 @@
 const root = Execution.workdir;
 const binary = File.join(root, 'dist', 'opendesk');
 const uiHost = File.join(root, 'dist', 'opendesk-ui-host');
+const testMode = String(Execution.env.OPENDESK_PROTECTED_PACKAGE_TEST_MODE || 'full').trim();
+if (!['basic', 'full'].includes(testMode)) {
+  throw new Error('OPENDESK_PROTECTED_PACKAGE_TEST_MODE must be basic or full');
+}
+const selectedLaneNames = testMode === 'basic' ? ['basic'] : ['basic', 'parameterized', 'ui'];
+const uiLaneEnabled = selectedLaneNames.includes('ui');
 const runToken = Execution.id;
 const runDir = File.join(root, '.runtime', 'tests', 'protected-packages', runToken);
 const commandsDir = File.join(runDir, 'commands');
@@ -62,9 +68,14 @@ function newAcceptanceLane() {
   };
 }
 
+const acceptanceLanes = {};
+for (const lane of selectedLaneNames) acceptanceLanes[lane] = newAcceptanceLane();
+
 const report = {
   schemaVersion: 1,
   kind: 'opendesk-protected-package-runtime-equivalence',
+  testMode,
+  selectedLanes: selectedLaneNames,
   runToken,
   runDir,
   startedAt: new Date().toISOString(),
@@ -105,11 +116,7 @@ const report = {
     runDir,
     status: 'running',
     sequence: acceptanceStepDefinitions,
-    lanes: {
-      basic: newAcceptanceLane(),
-      parameterized: newAcceptanceLane(),
-      ui: newAcceptanceLane(),
-    },
+    lanes: acceptanceLanes,
   },
   lanes: {},
   cleanup: null,
@@ -169,6 +176,42 @@ function mark(failureClass, lane, status, details) {
 
 function sameBusinessResult(left, right) {
   return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function assertBasicBusinessResult(result, variant) {
+  assert(result && typeof result === 'object', 'protectedRuntime', 'basic',
+    `${variant} basic business result is not an object`);
+  assert(result.schemaVersion === 1 && result.contract === 'protected-package-basic-v1',
+    'protectedRuntime', 'basic', `${variant} basic business-result contract mismatch`);
+  assert(Array.isArray(result.values) && result.values.length > 0,
+    'protectedRuntime', 'basic', `${variant} basic business result has no values`);
+  assert(typeof result.weightedTotal === 'number' && Number.isFinite(result.weightedTotal),
+    'protectedRuntime', 'basic', `${variant} basic business result has an invalid weightedTotal`);
+  assert(typeof result.label === 'string' && result.label.length > 0,
+    'protectedRuntime', 'basic', `${variant} basic business result has an invalid label`);
+}
+
+function bytesEqual(left, right) {
+  if (left.length !== right.length) return false;
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) return false;
+  }
+  return true;
+}
+
+function containsBytes(haystack, needle) {
+  if (needle.length === 0 || needle.length > haystack.length) return false;
+  for (let offset = 0; offset <= haystack.length - needle.length; offset += 1) {
+    let matches = true;
+    for (let index = 0; index < needle.length; index += 1) {
+      if (haystack[offset + index] !== needle[index]) {
+        matches = false;
+        break;
+      }
+    }
+    if (matches) return true;
+  }
+  return false;
 }
 
 function acceptanceStep(lane, stepId) {
@@ -305,7 +348,7 @@ async function collectProvenance() {
     'packageStructureSignature', 'preflight', 'git branch')).stdout.trim();
   const status = (await runCommand('/usr/bin/git', ['status', '--short'], null,
     'packageStructureSignature', 'preflight', 'git status')).stdout.split('\n').filter(Boolean);
-  return {
+  const provenance = {
     recordedAt: new Date().toISOString(),
     head,
     branch,
@@ -318,19 +361,22 @@ async function collectProvenance() {
       stat: File.stat(binary),
       kind: await fileKind(binary),
     },
-    uiHost: {
+    relevantSources: {
+      main: File.stat(File.join(root, 'cmd', 'opendesk', 'main.go')),
+      protectedLoader: File.stat(File.join(root, 'pkg', 'scriptloader', 'protected.go')),
+    },
+  };
+  if (uiLaneEnabled) {
+    provenance.uiHost = {
       path: uiHost,
       sha256: await sha256(uiHost),
       stat: File.stat(uiHost),
       kind: await fileKind(uiHost),
-    },
-    relevantSources: {
-      main: File.stat(File.join(root, 'cmd', 'opendesk', 'main.go')),
-      dialogRuntime: File.stat(File.join(root, 'automation', 'dialog.go')),
-      macUIHost: File.stat(File.join(root, 'pkg', 'customui', 'machost', 'native_darwin.m')),
-      protectedLoader: File.stat(File.join(root, 'pkg', 'scriptloader', 'protected.go')),
-    },
-  };
+    };
+    provenance.relevantSources.dialogRuntime = File.stat(File.join(root, 'automation', 'dialog.go'));
+    provenance.relevantSources.macUIHost = File.stat(File.join(root, 'pkg', 'customui', 'machost', 'native_darwin.m'));
+  }
+  return provenance;
 }
 
 async function generateSigningKeys() {
@@ -436,6 +482,16 @@ async function protectAndAuthorize(lane) {
 
   assert(File.isFile(packagePath) && File.isFile(contentKey),
     'packageStructureSignature', lane, 'package protect did not create package and per-package DEK');
+  const sourceBytes = new Uint8Array(File.readBytes(source));
+  const packageBytes = new Uint8Array(File.readBytes(packagePath));
+  assert(packageBytes.length > 0, 'packageStructureSignature', lane, 'protected package is empty');
+  assert(!bytesEqual(packageBytes, sourceBytes), 'packageStructureSignature', lane,
+    'protected package raw bytes equal the plain JavaScript source');
+  assert(!containsBytes(packageBytes, sourceBytes), 'packageStructureSignature', lane,
+    'protected package raw bytes contain the complete JavaScript source');
+  const sourceMarkerBytes = new Uint8Array(sourceMarkers[lane].split('').map(character => character.charCodeAt(0)));
+  assert(!containsBytes(packageBytes, sourceMarkerBytes), 'packageStructureSignature', lane,
+    'protected package raw bytes contain the JavaScript source marker');
   const mode = (await runCommand('/usr/bin/stat', ['-f', '%Lp', contentKey], null,
     'packageStructureSignature', lane, `${lane} DEK mode`)).stdout.trim();
   assert(mode === '600', 'packageStructureSignature', lane, 'generated DEK mode is not 0600');
@@ -457,6 +513,9 @@ async function protectAndAuthorize(lane) {
     'packageStructureSignature', lane, 'inspect Publisher identity mismatch');
   assert(manifest.encryption && manifest.encryption.keyId === identity.contentKeyId,
     'packageStructureSignature', lane, 'inspect content-key identity mismatch');
+  assert(Object.keys(manifest.encryption).every(key => ['algorithm', 'keyId', 'nonce'].includes(key)) &&
+    !Object.prototype.hasOwnProperty.call(manifest, 'contentKey'),
+  'packageStructureSignature', lane, 'public manifest contains an unexpected content-key field');
   assert(manifest.license && manifest.license.required === true,
     'packageStructureSignature', lane, 'package must require a License');
   assert(manifest.minimumRuntimeVersion === '0.0.0',
@@ -479,6 +538,8 @@ async function protectAndAuthorize(lane) {
   assert(verify.result && verify.result.signatureVerified === true && verify.result.packageDigest === digest,
     'packageStructureSignature', lane, 'independent Publisher signature verification failed');
   const publicPackageOutput = JSON.stringify([protect, inspect, verify]);
+  assert(!publicPackageOutput.includes(File.read(source)),
+    'packageStructureSignature', lane, 'package inspect or verify disclosed the complete JavaScript source');
   assert(!publicPackageOutput.includes(sourceMarkers[lane]),
     'packageStructureSignature', lane, 'package commands disclosed the source execution marker');
   passAcceptance(lane, 'package-verify', {
@@ -486,6 +547,14 @@ async function protectAndAuthorize(lane) {
     publisherPublicKey: publisherPublic,
     packageDigest: digest,
     signatureVerified: true,
+    plaintextDisclosureChecks: {
+      packageNonEmpty: true,
+      packageBytesDifferFromPlainSource: true,
+      completeSourceAbsentFromRawPackage: true,
+      sourceMarkerAbsentFromRawPackage: true,
+      inspectAndVerifyDoNotDiscloseSource: true,
+      manifestContainsNoDEK: true,
+    },
   });
   mark('packageStructureSignature', lane, 'passed', {
     packagePath,
@@ -903,93 +972,108 @@ async function verifyPreflightCapabilities() {
 
 async function validateAllLanes() {
   const platform = System.getPlatformInfo();
-  assert(platform && platform.os === 'darwin', 'uiVisualAcceptance', 'preflight', 'macOS host is required');
+  assert(platform && platform.os === 'darwin', 'p1Authorization', 'preflight',
+    'the production P1 Keychain test requires macOS');
   assert(Command.getCapabilities().enabled && Command.getCapabilities().supported,
     'packageStructureSignature', 'preflight', 'local Command capability is required');
-  for (const path of [binary, uiHost, sources.basic, sources.parameterized, sources.ui, parameterInput]) {
+  const requiredPaths = [binary];
+  for (const lane of selectedLaneNames) requiredPaths.push(sources[lane]);
+  if (selectedLaneNames.includes('parameterized')) requiredPaths.push(parameterInput);
+  if (uiLaneEnabled) requiredPaths.push(uiHost);
+  for (const path of requiredPaths) {
     assert(File.isFile(path), 'packageStructureSignature', 'preflight', `required input is missing: ${path}`);
   }
   assert(!File.exists(runDir), 'packageStructureSignature', 'preflight', `refusing to reuse run directory: ${runDir}`);
   File.ensureDir(commandsDir);
   File.ensureDir(packagesDir);
   console.log(`[PROTECTED-PACKAGE-EQUIVALENCE] evidence=${runDir}`);
+  console.log(`[PROTECTED-PACKAGE-EQUIVALENCE] mode=${testMode}`);
   console.log('[PROTECTED-PACKAGE-EQUIVALENCE] sequence=' +
     acceptanceStepDefinitions.map(step => step.label).join(' -> '));
 
   report.binaryProvenance = await collectProvenance();
   writeJSON(File.join(runDir, 'binary-provenance.json'), report.binaryProvenance);
-  await verifyPreflightCapabilities();
+  if (uiLaneEnabled) await verifyPreflightCapabilities();
   await generateSigningKeys();
   await setupIsolatedDeviceKeychain();
   report.security.deviceId = await ensureDeviceIdentity();
 
-  const basicPlain = await executeDirect('basic', 'plain', sources.basic);
-  const basicPackage = await protectAndAuthorize('basic');
-  const basicProtected = await executeDirect('basic', 'protected', basicPackage.packagePath);
-  beginAcceptance('basic', 'business-compare');
-  assert(sameBusinessResult(basicPlain.businessResult, basicProtected.businessResult),
-    'protectedRuntime', 'basic', 'basic business result differs before and after packaging');
-  laneReport('basic').equivalence = {
-    status: 'passed',
-    oracle: 'exact deterministic business-result.json',
-    result: basicPlain.businessResult,
-  };
-  passAcceptance('basic', 'business-compare', {
-    oracle: 'exact deterministic business-result.json equality',
-    plainResult: basicPlain.resultPath,
-    protectedResult: basicProtected.resultPath,
-  });
+  if (selectedLaneNames.includes('basic')) {
+    const basicPlain = await executeDirect('basic', 'plain', sources.basic);
+    const basicPackage = await protectAndAuthorize('basic');
+    const basicProtected = await executeDirect('basic', 'protected', basicPackage.packagePath);
+    assertBasicBusinessResult(basicPlain.businessResult, 'plain');
+    assertBasicBusinessResult(basicProtected.businessResult, 'protected');
+    beginAcceptance('basic', 'business-compare');
+    assert(sameBusinessResult(basicPlain.businessResult, basicProtected.businessResult),
+      'protectedRuntime', 'basic', 'basic business result differs before and after packaging');
+    laneReport('basic').equivalence = {
+      status: 'passed',
+      oracle: 'exact deterministic business-result.json',
+      result: basicPlain.businessResult,
+    };
+    passAcceptance('basic', 'business-compare', {
+      oracle: 'exact deterministic business-result.json equality',
+      comparedFields: ['schemaVersion', 'contract', 'values', 'weightedTotal', 'label'],
+      plainResult: basicPlain.resultPath,
+      protectedResult: basicProtected.resultPath,
+    });
+  }
 
-  const parameterPlain = await executeParameterized('plain', sources.parameterized);
-  const parameterPackage = await protectAndAuthorize('parameterized');
-  const parameterProtected = await executeParameterized('protected', parameterPackage.packagePath);
-  beginAcceptance('parameterized', 'business-compare');
-  assert(sameBusinessResult(parameterPlain.businessResult, parameterProtected.businessResult),
-    'parameterEquivalence', 'parameterized', 'parameterized business result differs for the same --input-file');
-  mark('parameterEquivalence', 'parameterized', 'passed', {
-    inputFile: parameterInput,
-    oracle: 'normalized business-result.json equality plus expectedTotalCents validation',
-    result: parameterPlain.businessResult,
-  });
-  passAcceptance('parameterized', 'business-compare', {
-    oracle: 'normalized business-result.json equality plus expectedTotalCents validation',
-    inputFile: parameterInput,
-    plainResult: parameterPlain.resultPath,
-    protectedResult: parameterProtected.resultPath,
-  });
+  if (selectedLaneNames.includes('parameterized')) {
+    const parameterPlain = await executeParameterized('plain', sources.parameterized);
+    const parameterPackage = await protectAndAuthorize('parameterized');
+    const parameterProtected = await executeParameterized('protected', parameterPackage.packagePath);
+    beginAcceptance('parameterized', 'business-compare');
+    assert(sameBusinessResult(parameterPlain.businessResult, parameterProtected.businessResult),
+      'parameterEquivalence', 'parameterized', 'parameterized business result differs for the same --input-file');
+    mark('parameterEquivalence', 'parameterized', 'passed', {
+      inputFile: parameterInput,
+      oracle: 'normalized business-result.json equality plus expectedTotalCents validation',
+      result: parameterPlain.businessResult,
+    });
+    passAcceptance('parameterized', 'business-compare', {
+      oracle: 'normalized business-result.json equality plus expectedTotalCents validation',
+      inputFile: parameterInput,
+      plainResult: parameterPlain.resultPath,
+      protectedResult: parameterProtected.resultPath,
+    });
+  }
 
-  const uiPlain = await executeUI('plain', sources.ui);
-  const uiPackage = await protectAndAuthorize('ui');
-  const uiProtected = await executeUI('protected', uiPackage.packagePath);
-  beginAcceptance('ui', 'business-compare');
-  assert(sameBusinessResult(uiPlain.businessResult, uiProtected.businessResult),
-    'uiSemanticAcceptance', 'ui', 'native UI semantic result differs before and after packaging');
-  mark('uiSemanticAcceptance', 'ui', 'passed', {
-    oracle: 'same approved business state after a real ENTER interaction',
-    result: uiPlain.businessResult,
-  });
-  const plainVisual = uiPlain.visual;
-  const protectedVisual = uiProtected.visual;
-  assert(Math.abs(plainVisual.geometry.width - protectedVisual.geometry.width) <= 12 &&
-    Math.abs(plainVisual.geometry.height - protectedVisual.geometry.height) <= 12,
-  'uiVisualAcceptance', 'ui', 'plain/protected native dialog geometry differs unexpectedly');
-  mark('uiVisualAcceptance', 'ui', 'passed', {
-    oracle: 'bounded native geometry, screenshot/window agreement, OCR-visible copy/action, and non-pixel-perfect cross-run sizing',
-    plain: plainVisual,
-    protected: protectedVisual,
-    humanReviewRecommended: true,
-  });
-  passAcceptance('ui', 'business-compare', {
-    semanticOracle: 'same approved business state after a real ENTER interaction',
-    visualOracle: 'bounded native geometry, screenshot/window agreement, OCR-visible copy/action, and non-pixel-perfect cross-run sizing',
-    plainResult: uiPlain.resultPath,
-    protectedResult: uiProtected.resultPath,
-    screenshots: {
-      plain: plainVisual.screenshotPath,
-      protected: protectedVisual.screenshotPath,
-    },
-    humanVisualReviewRequired: true,
-  });
+  if (uiLaneEnabled) {
+    const uiPlain = await executeUI('plain', sources.ui);
+    const uiPackage = await protectAndAuthorize('ui');
+    const uiProtected = await executeUI('protected', uiPackage.packagePath);
+    beginAcceptance('ui', 'business-compare');
+    assert(sameBusinessResult(uiPlain.businessResult, uiProtected.businessResult),
+      'uiSemanticAcceptance', 'ui', 'native UI semantic result differs before and after packaging');
+    mark('uiSemanticAcceptance', 'ui', 'passed', {
+      oracle: 'same approved business state after a real ENTER interaction',
+      result: uiPlain.businessResult,
+    });
+    const plainVisual = uiPlain.visual;
+    const protectedVisual = uiProtected.visual;
+    assert(Math.abs(plainVisual.geometry.width - protectedVisual.geometry.width) <= 12 &&
+      Math.abs(plainVisual.geometry.height - protectedVisual.geometry.height) <= 12,
+    'uiVisualAcceptance', 'ui', 'plain/protected native dialog geometry differs unexpectedly');
+    mark('uiVisualAcceptance', 'ui', 'passed', {
+      oracle: 'bounded native geometry, screenshot/window agreement, OCR-visible copy/action, and non-pixel-perfect cross-run sizing',
+      plain: plainVisual,
+      protected: protectedVisual,
+      humanReviewRecommended: true,
+    });
+    passAcceptance('ui', 'business-compare', {
+      semanticOracle: 'same approved business state after a real ENTER interaction',
+      visualOracle: 'bounded native geometry, screenshot/window agreement, OCR-visible copy/action, and non-pixel-perfect cross-run sizing',
+      plainResult: uiPlain.resultPath,
+      protectedResult: uiProtected.resultPath,
+      screenshots: {
+        plain: plainVisual.screenshotPath,
+        protected: protectedVisual.screenshotPath,
+      },
+      humanVisualReviewRequired: true,
+    });
+  }
 
   report.status = 'passed';
   report.passed = true;
@@ -1048,6 +1132,8 @@ async function cleanSensitiveState() {
   const stillPresent = secretFiles.concat(authorizationFiles).filter(path => File.exists(path));
   if (File.exists(licenseRoot)) stillPresent.push(licenseRoot);
   if (File.exists(deviceKeychainPath)) stillPresent.push(deviceKeychainPath);
+  const retainedSafeEvidence = [publisherPublic, issuerPublic, devicePublic, packagesDir];
+  if (uiLaneEnabled) retainedSafeEvidence.push(File.join(runDir, 'lanes', 'ui', 'screenshots'));
   return {
     status: failures.length === 0 && stillPresent.length === 0 ? 'passed' : 'failed',
     removed,
@@ -1059,8 +1145,7 @@ async function cleanSensitiveState() {
     isolatedLicenseRootRemoved: !File.exists(licenseRoot),
     isolatedDeviceKeychainRemoved: !File.exists(deviceKeychainPath),
     originalKeychainConfigurationRestored: failures.every(value => !String(value).includes('Keychain')),
-    retainedSafeEvidence: [publisherPublic, issuerPublic, devicePublic, packagesDir,
-      File.join(runDir, 'lanes', 'ui', 'screenshots')],
+    retainedSafeEvidence,
     deviceKeychainIdentity: 'created in a dedicated temporary Keychain by the production provider; private key was never exported',
   };
 }
@@ -1111,10 +1196,11 @@ if (failure) {
 console.log('[PROTECTED-PACKAGE-EQUIVALENCE] passed ' + JSON.stringify({
   runDir,
   acceptanceLedger: acceptanceLedgerPath,
+  testMode,
   sequence: acceptanceStepDefinitions.map(step => step.id),
-  basic: 'passed',
-  parameterized: 'passed',
-  uiSemantic: 'passed',
-  uiVisual: 'passed',
+  basic: selectedLaneNames.includes('basic') ? 'passed' : 'not_run',
+  parameterized: selectedLaneNames.includes('parameterized') ? 'passed' : 'not_run',
+  uiSemantic: uiLaneEnabled ? 'passed' : 'not_run',
+  uiVisual: uiLaneEnabled ? 'passed' : 'not_run',
   secretsRemoved: report.cleanup.status === 'passed',
 }));

@@ -43,27 +43,22 @@ OpenDesk 需要同时支持两种脚本交付方式：
 
 ---
 
-## 2. 当前基线与问题
+## 2. 当前冻结实现
 
-当前 OpenDesk 已经具备适合接入受保护脚本的基础：
+当前实现已将可信加载层置于 execution 之前，而不是增加另一套 JavaScript 引擎：
 
-- CLI 支持文件、inline、stdin 等普通脚本来源。
-- `opendesk ai run` 当前读取 `.js` 源码后构造 `pkg/execution.Request`。
-- `pkg/execution.Request` 已使用 `ScriptContent []byte` 承接待执行源码。
-- JavaScript 最终由现有 Goja Runtime 执行。
+- `pkg/scriptpackage/` 读写严格的 v1 container、AES-256-GCM payload 与 Ed25519 signature；
+- `pkg/scriptloader/ProtectedPackageLoader` 执行结构校验、Publisher signature、License/entitlement、
+  `ContentKeyProvider` 和内存解密；
+- `.js` 继续由 `PlainScriptLoader` 加载；`.odpkg` 和 `.js` 都返回 `ScriptSource` 并进入既有
+  `pkg/execution.Run()` / Goja；
+- `opendesk -script` 和 `opendesk ai run` 都接受 `.odpkg`，而 HTTP、MCP、Scheduler 没有将其 fallback 为文本；
+- protected artifact policy 不写 source snapshot，也拒绝 `-save-last-script` 导出；
+- P1 device-bound offline License 与 P2 signed entitlement cache 都使用同一 `LicenseVerifier` /
+  `ContentKeyProvider` 边界。
 
-因此缺少的不是另一套 JavaScript 引擎，而是 Execution 之前的可信加载层。
-
-当前商业保护存在以下缺口：
-
-- 没有受保护包格式。
-- 没有 AES-GCM payload 加密链路。
-- 没有发布者签名与验证链路。
-- 没有 LicenseVerifier / ContentKeyProvider 边界。
-- `ai run` 当前只接受 `.js`。
-- 普通执行会生成源码 snapshot；该行为不能直接复用于受保护包。
-- legacy HTTP inline 路径存在源码 preview 等调试行为；受保护内容不得进入这些泄露路径。
-- 当前没有可以被视为商业脚本保护边界的 JavaScript `Crypto` 公共对象。
+未实现且不应从当前 Runtime 推断为已提供的能力包括 P3 Publisher registry、rotation/retirement service、
+customer watermark build 与 server-side proprietary-logic hosting。它们不能改变本页冻结的 v1 format 或加载链路。
 
 ---
 
@@ -179,7 +174,29 @@ existing pkg/execution.Run()
 existing Goja JavaScript Runtime
 ```
 
-推荐代码职责：
+### 4.1 Threat Model 与安全上限
+
+`.odpkg` 防止的是 at-rest 直接查看和未授权的普通提取，而不是声称客户设备上的 JavaScript 永远不可逆。当前设计
+要防止：
+
+- 用普通文本编辑器或 archive inspection 直接获得 JavaScript plaintext；
+- 对 package 的未授权篡改；
+- 没有合法 content key 时直接解密 AES-GCM payload；
+- protected execution 把解密 source 回写为 snapshot、temporary `.js` 或 artifact preview。
+
+当前设计不承诺绝对防止：
+
+- 具有本机管理员、调试或 instrumentation 能力的攻击者；
+- Runtime binary patching；
+- process memory inspection；
+- successful decryption 之后放置的 hooks；
+- 已取得合法授权的恶意客户进行高级逆向。
+
+Security must not depend on keeping AES-GCM, Ed25519, `.odpkg` structure, or runtime verification flow secret.
+安全依赖独立 private keys、per-package DEK、device-bound authorization、签名和 disclosure policy，而不是隐藏算法或
+格式。完整平台化 key architecture 和 compromise 边界见 [Protected Package Security Model](protected-package-security-model.md)。
+
+当前代码职责：
 
 ```text
 pkg/
@@ -187,7 +204,7 @@ pkg/
 │   ├── format.go
 │   ├── reader.go
 │   ├── writer.go
-│   ├── encrypt.go
+│   ├── crypto.go
 │   ├── signature.go
 │   └── errors.go
 │
@@ -205,7 +222,7 @@ pkg/
     └── existing runtime
 ```
 
-目录名称允许实施阶段依据当前仓库既有 package 习惯做最小调整，但职责边界不得合并。
+目录可随实现做最小调整，但职责边界不得合并。
 
 ---
 
@@ -414,38 +431,15 @@ type ContentKeyProvider interface {
 
 `ProtectedPackageLoader` 只组合这两个边界，不知道购买、支付、账号 UI 或 SaaS 后台细节。
 
-### 8.3 分阶段实现
+### 8.3 已落地与未落地的阶段边界
 
-Phase A｜核心包保护基础设施：
+已落地：v1 `.odpkg`、AES-256-GCM、Ed25519、ScriptLoader、protected artifact policy、P1 device-bound offline
+License、P2 signed online entitlement cache，以及 `.js` / `.odpkg` 共用 existing execution。测试使用短生命周期
+test identities，不能被描述为 production universal key 或授权旁路。
 
-- `.odpkg` format
-- AES-GCM
-- Ed25519
-- ScriptLoader
-- protected artifact policy
-- 可测试的 LicenseVerifier / ContentKeyProvider seam
-- `.js` / `.odpkg` 共用现有 execution
-
-Phase A 可以有明确标记的 test/development key provider 用于离线自动化测试，但不得把这种 provider 描述为商业 License 方案。
-
-Phase B｜商业可交付授权：
-
-- installation/device identity
-- OS secure storage
-- device-bound entitlement
-- wrapped DEK
-- 离线 License 文件或在线激活
-
-Phase C｜规模化商业授权：
-
-- License service
-- subscription entitlement
-- device limits
-- revoke / refresh
-- publisher/key rotation
-- observability 与运营后台
-
-这三个阶段必须分别声明“已完成什么”，不得在只有 Phase A 时声称已经防止 License 分享。
+未落地：P3 Publisher registry、集中 key rotation/retirement service、subscription/billing backend、per-customer
+watermark build 与 server-side proprietary logic。后续加入这些能力时必须保留 Publisher signing、License issuer、
+device identity 和 per-package DEK 的分离，不得引入全平台固定 AES Master Key。
 
 ---
 

@@ -4,7 +4,7 @@ OpenDesk keeps two live protected-package test levels:
 
 ```text
 basic-runtime-smoke.js
-    -> fast core .js -> .odpkg -> P1 -> protected execution gate
+    -> thin entry for the canonical basic P1 lane
 
 runtime-equivalence.js
     -> full basic + parameterized + native UI qualification gate
@@ -22,7 +22,7 @@ This is the first command a developer should run when validating protected-packa
   -console-mode script
 ```
 
-The smoke test automatically performs:
+The thin entry sets `OPENDESK_PROTECTED_PACKAGE_TEST_MODE=basic` for the sole shared assertion implementation, `runtime-equivalence.js`. It automatically performs:
 
 ```text
 examples/protected-packages/basic.js
@@ -38,8 +38,7 @@ examples/protected-packages/basic.js
 -> remove Publisher-side DEK and raw .odlicense
 -> run the generated basic.odpkg through the normal -script entry
 -> compare plain/protected business-result.json exactly
--> verify no protected source snapshot exists
--> scan .odpkg / protected text artifacts for the source-only sentinel
+-> verify no protected source snapshot exists and no protected text artifact discloses the source-only sentinel
 -> remove private keys, P1 install state and temporary device Keychain
 ```
 
@@ -50,19 +49,21 @@ The current isolated P1 smoke uses the production macOS Keychain device provider
 A successful run ends with:
 
 ```text
-[PROTECTED-PACKAGE-BASIC] passed {...}
+[PROTECTED-PACKAGE-EQUIVALENCE] passed {"testMode":"basic",...}
+[PROTECTED-PACKAGE-BASIC] passed (canonical basic lane)
 ```
 
 The retained encrypted package is under:
 
 ```text
-.runtime/tests/protected-packages-basic/<Execution.id>/package/basic.odpkg
+.runtime/tests/protected-packages/<Execution.id>/packages/basic/basic.odpkg
 ```
 
 and the complete safe summary is:
 
 ```text
-.runtime/tests/protected-packages-basic/<Execution.id>/basic-runtime-smoke-summary.json
+.runtime/tests/protected-packages/<Execution.id>/acceptance-ledger.json
+.runtime/tests/protected-packages/<Execution.id>/runtime-equivalence-summary.json
 ```
 
 ## Test keys and secret lifecycle
@@ -98,4 +99,4 @@ Because it includes the native UI lane, the full test additionally requires macO
 
 `ai run` normally creates command artifacts below `.runtime/ai/`. The canonical runner gives those child processes the unique test directory as their working directory, so their standard evidence remains nested inside the same protected-package run directory. The outer `-script` execution keeps its ordinary metadata under `.runtime/runs/`; it must contain no Publisher private key, License issuer private key, DEK, or installed License state.
 
-For the complete generation / inspect / verify / authorization / runtime workflow and acceptance rules, see [`docs/implementation/runtime/protected-packages.md`](../../docs/implementation/runtime/protected-packages.md).
+For the complete generation / inspect / verify / authorization / runtime workflow and acceptance rules, see [Protected Package 开发与测试指南](../../docs/implementation/protected-packages.md).
