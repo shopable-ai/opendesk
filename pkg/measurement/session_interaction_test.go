@@ -8,50 +8,28 @@ import (
 	"opendesk/pkg/customui"
 )
 
-func TestEscHierarchyClosesOnlyInnermostMeasurementState(t *testing.T) {
+func TestEscapeClosesInspectorThenMeasurementSession(t *testing.T) {
 	service, _, _, _ := newSessionService(t)
 	ctx := context.Background()
 	if err := service.Open(ctx, "product-menu"); err != nil {
 		t.Fatal(err)
 	}
 	a := service.active
-	_ = a.handle(ctx, customui.Event{Type: "measurement.pointerup", Fields: map[string]any{"u": .25, "v": .25}})
-	a.copyMenuOpen = true
 	a.inspectorOpen = true
-	a.manualPending = true
-	a.regionHandle = RegionEditBody
 	if err := a.handleKey(ctx, map[string]any{"key": "Escape"}); err != nil {
 		t.Fatal(err)
 	}
-	if a.copyMenuOpen || !a.inspectorOpen || !a.manualPending || a.regionHandle != RegionEditBody {
-		t.Fatalf("copy menu esc hierarchy failed: %+v", a)
-	}
-	if err := a.handleKey(ctx, map[string]any{"key": "Escape"}); err != nil {
-		t.Fatal(err)
-	}
-	if a.inspectorOpen || !a.manualPending || a.regionHandle != RegionEditBody {
-		t.Fatal("inspector esc must not pop deeper layers")
-	}
-	if err := a.handleKey(ctx, map[string]any{"key": "Escape"}); err != nil {
-		t.Fatal(err)
-	}
-	if a.regionHandle != RegionEditNone || !a.manualPending {
-		t.Fatal("local edit esc must precede reference edit")
-	}
-	if err := a.handleKey(ctx, map[string]any{"key": "Escape"}); err != nil {
-		t.Fatal(err)
-	}
-	if a.manualPending {
-		t.Fatal("reference edit esc did not cancel")
+	if a.inspectorOpen {
+		t.Fatal("first Escape must close Inspector")
 	}
 	if service.Counts().Sessions != 1 {
-		t.Fatal("reference edit esc exited session")
+		t.Fatal("closing Inspector must keep the Measurement session active")
 	}
 	if err := a.handleKey(ctx, map[string]any{"key": "Escape"}); err != nil {
 		t.Fatal(err)
 	}
 	if service.Counts().Sessions != 0 {
-		t.Fatal("final esc did not exit session")
+		t.Fatal("second Escape must exit Measurement")
 	}
 }
 
@@ -144,7 +122,7 @@ func TestMagnetToggleAndMarginToggleFollowOracleState(t *testing.T) {
 	_ = service.Close(ctx)
 }
 
-func TestRegionPointerBodyAndHandleEditing(t *testing.T) {
+func TestRegionPointerStartsNewMeasurementInsteadOfEditingLockedRegion(t *testing.T) {
 	service, _, _, _ := newSessionService(t)
 	ctx := context.Background()
 	if err := service.Open(ctx, "product-menu"); err != nil {
@@ -161,26 +139,89 @@ func TestRegionPointerBodyAndHandleEditing(t *testing.T) {
 	u := imagePoint.X / float64(m.ImageSize.Width)
 	v := imagePoint.Y / float64(m.ImageSize.Height)
 	_ = a.handle(ctx, customui.Event{Type: "measurement.pointerdown", Fields: map[string]any{"u": u, "v": v}})
-	if a.regionHandle != RegionEditBody {
-		t.Fatalf("body handle=%s", a.regionHandle)
+	if a.result != nil || a.regionHandle != RegionEditNone {
+		t.Fatalf("new Region gesture must clear the locked result instead of entering edit mode: result=%+v handle=%q", a.result, a.regionHandle)
 	}
-	_ = a.handle(ctx, customui.Event{Type: "measurement.pointerup", Fields: map[string]any{"u": u + .05, "v": v}})
-	moved := a.result.Region.Absolute
-	if moved.Width != original.Width || moved.Height != original.Height || moved.X == original.X {
-		t.Fatalf("body drag=%+v original=%+v", moved, original)
+	_ = a.handle(ctx, customui.Event{Type: "measurement.pointerup", Fields: map[string]any{"u": u + .08, "v": v + .08}})
+	if a.result == nil || a.result.Region == nil {
+		t.Fatal("new Region drag did not create a replacement result")
 	}
-	corner := Point{X: moved.Right(), Y: moved.Bottom()}
-	imagePoint = m.LogicalToImage(corner)
-	u = imagePoint.X / float64(m.ImageSize.Width)
-	v = imagePoint.Y / float64(m.ImageSize.Height)
-	_ = a.handle(ctx, customui.Event{Type: "measurement.pointerdown", Fields: map[string]any{"u": u, "v": v}})
-	if a.regionHandle != RegionEditSE {
-		t.Fatalf("corner handle=%s", a.regionHandle)
+	replacement := a.result.Region.Absolute
+	if replacement == original || replacement.Width >= original.Width || replacement.Height >= original.Height {
+		t.Fatalf("Region was edited instead of replaced: original=%+v replacement=%+v", original, replacement)
 	}
-	_ = a.handle(ctx, customui.Event{Type: "measurement.pointerup", Fields: map[string]any{"u": u + .03, "v": v + .03}})
-	resized := a.result.Region.Absolute
-	if resized.X != moved.X || resized.Y != moved.Y || resized.Width <= moved.Width || resized.Height <= moved.Height {
-		t.Fatalf("se resize=%+v moved=%+v", resized, moved)
+	_ = service.Close(ctx)
+}
+
+func TestArrowKeysDoNotMutateLockedMeasurement(t *testing.T) {
+	service, _, _, _ := newSessionService(t)
+	ctx := context.Background()
+	if err := service.Open(ctx, "product-menu"); err != nil {
+		t.Fatal(err)
+	}
+	a := service.active
+	_ = a.handleKey(ctx, map[string]any{"key": "1"})
+	_ = a.handle(ctx, customui.Event{Type: "measurement.pointerup", Fields: map[string]any{"u": .25, "v": .25}})
+	if a.result == nil || a.result.Point == nil {
+		t.Fatal("point result missing")
+	}
+	before := a.result.Point.Absolute
+	if err := a.handleKey(ctx, map[string]any{"key": "ArrowRight", "shift": true}); err != nil {
+		t.Fatal(err)
+	}
+	if a.result == nil || a.result.Point == nil || a.result.Point.Absolute != before {
+		t.Fatalf("Arrow shortcut invented post-lock editing: before=%+v after=%+v", before, a.result)
+	}
+	_ = service.Close(ctx)
+}
+
+func TestSelectedToolPersistsAcrossExitAndNewSession(t *testing.T) {
+	service, _, _, _ := newSessionService(t)
+	ctx := context.Background()
+	if err := service.Open(ctx, "product-menu"); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.active.handleKey(ctx, map[string]any{"key": "3"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.Close(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.Open(ctx, "global-shortcut"); err != nil {
+		t.Fatal(err)
+	}
+	if service.active.tool != "twoPoint" {
+		t.Fatalf("tool did not persist across sessions: %q", service.active.tool)
+	}
+	_ = service.Close(ctx)
+}
+
+func TestUpdatePreservesPointerInspectorAndToolWhileClearingResult(t *testing.T) {
+	service, _, _, _ := newSessionService(t)
+	ctx := context.Background()
+	if err := service.Open(ctx, "product-menu"); err != nil {
+		t.Fatal(err)
+	}
+	a := service.active
+	_ = a.handleKey(ctx, map[string]any{"key": "1"})
+	_ = a.handle(ctx, customui.Event{Type: "measurement.pointerup", Fields: map[string]any{"u": .25, "v": .25}})
+	a.inspectorOpen = true
+	beforePointer := *a.pointer
+	beforeTool := a.tool
+	if err := a.handleClick(ctx, "refreshSnapshot"); err != nil {
+		t.Fatal(err)
+	}
+	if a.result != nil {
+		t.Fatal("Update must clear snapshot-bound result")
+	}
+	if a.pointer == nil || *a.pointer != beforePointer {
+		t.Fatalf("Update changed pointer: before=%+v after=%+v", beforePointer, a.pointer)
+	}
+	if !a.inspectorOpen {
+		t.Fatal("Update unexpectedly closed Inspector")
+	}
+	if a.tool != beforeTool {
+		t.Fatalf("Update changed tool: before=%q after=%q", beforeTool, a.tool)
 	}
 	_ = service.Close(ctx)
 }
