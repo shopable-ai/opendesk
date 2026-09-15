@@ -4,11 +4,11 @@ import "testing"
 
 func TestGlobalShortcutLeaseReleasesOnlyItsOwnRegistration(t *testing.T) {
 	backend := newMemoryGlobalShortcutBackend()
-	first, err := registerGlobalShortcutWithBackend("CommandOrControl+Alt+Shift+M", func() {}, backend)
+	first, err := registerGlobalShortcutWithBackend("CommandOrControl+Shift+M", func() {}, backend)
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := registerGlobalShortcutWithBackend("CommandOrControl+Alt+Shift+N", func() {}, backend)
+	second, err := registerGlobalShortcutWithBackend("CommandOrControl+Shift+N", func() {}, backend)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -79,8 +79,5 @@ func warnMeasurementGlobalShortcutUnavailable(err error) {
 }
 
 func measurementGlobalShortcutDisplayName() string {
-	if runtime.GOOS == "darwin" {
-		return "⌘⌥⇧M"
-	}
-	return "Ctrl+Alt+Shift+M"
+	return measurementshortcut.GlobalShortcutLabel(runtime.GOOS)
 }

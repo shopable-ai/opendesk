@@ -8,7 +8,7 @@ Desktop Measurement 的标准 Interaction Oracle 位于产品所有权域：
 - [`apps/opendesk/prototypes/desktop-measurement/interaction-core.js`](../../apps/opendesk/prototypes/desktop-measurement/interaction-core.js)
 - [`apps/opendesk/prototypes/desktop-measurement/template.html`](../../apps/opendesk/prototypes/desktop-measurement/template.html)（仅历史兼容入口）
 
-本目录保存 Prototype 验证、跨平台 qualification manifest、fixtures 与资格说明。Prototype 是 UI / Interaction Oracle，不是 Native PASS。
+本目录保存 Prototype 验证、跨平台 qualification manifest、fixtures 与资格说明；`tests/` 不拥有产品交互基准。Prototype 是 UI / Interaction Oracle，不是 Native PASS。
 
 ## 权威入口
 
@@ -33,6 +33,14 @@ python3 tests/desktop-measurement/browser.test.py
 ```sh
 open apps/opendesk/prototypes/desktop-measurement/index.html
 ```
+
+Windows 可在文件管理器中双击同一文件，或从仓库根目录运行：
+
+```powershell
+Start-Process .\apps\opendesk\prototypes\desktop-measurement\index.html
+```
+
+样机不需要运行 OpenDesk、安装前端依赖或启动 HTTP server。浏览器直接打开本地文件时可能限制剪切板；页面提供手工复制回退。
 
 `browser.test.py` 先验证 `index.html` 只引用 `prototype.css + model.js + interaction-core.js`，并验证 `template.html` 不再复制第二套实现；随后在 Chromium 中使用这些同一份源码执行交互 Oracle。
 
@@ -65,7 +73,7 @@ Toast 不截获输入
 退出清理
 ```
 
-这些全部是 synthetic browser proof，不证明系统权限、native focus、系统剪切板、真实 Recorder 输入隔离或物理 DPI。
+这些全部是 synthetic browser proof，不证明系统权限、native focus、系统剪切板、真实 Recorder 输入隔离或物理 DPI。浏览器测试需要 Python Playwright 和 Chromium，运行输出写入 `.runtime/tests/desktop-measurement/prototype/`，不写回样机、fixture 或历史证据目录。
 
 ## Production automated proof
 

@@ -3,18 +3,26 @@ package main
 import (
 	"context"
 	"errors"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"opendesk/automation"
+	"opendesk/internal/measurementshortcut"
 	"opendesk/pkg/measurement"
 )
 
 type shortcutLeaseStub struct{ closed bool }
 
 func (s *shortcutLeaseStub) Close() error { s.closed = true; return nil }
+
+func TestMeasurementGlobalShortcutDisplayNameUsesSharedPlatformLabel(t *testing.T) {
+	if got, want := measurementGlobalShortcutDisplayName(), measurementshortcut.GlobalShortcutLabel(runtime.GOOS); got != want {
+		t.Fatalf("measurementGlobalShortcutDisplayName() = %q, want shared label %q", got, want)
+	}
+}
 
 func TestMeasurementGlobalShortcutUsesTheSharedServiceOpenCallback(t *testing.T) {
 	original := registerAppMeasurementShortcut

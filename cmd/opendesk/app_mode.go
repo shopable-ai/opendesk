@@ -146,19 +146,6 @@ func executeAppMode(config *Config) error {
 		}); err != nil {
 			return err
 		}
-		measurementShortcut, shortcutErr := registerMeasurementGlobalShortcut(measurementService, appContext)
-		if shortcutErr != nil {
-			// A system reservation or missing input permission must not disable the
-			// two visible product entrances. Keep the native error in the app log
-			// instead of claiming the shortcut is registered.
-			log.Printf("Desktop Measurement shortcut %s is unavailable: %v", measurementGlobalShortcutAccelerator, shortcutErr)
-		} else if measurementShortcut != nil {
-			defer func() {
-				if err := measurementShortcut.Close(); err != nil {
-					log.Printf("Desktop Measurement shortcut cleanup failed: %v", err)
-				}
-			}()
-		}
 	}
 	shell.SetQuitHook(cancelApp)
 	stopSignalHook := context.AfterFunc(signalContext, func() { _ = shell.RequestQuit() })
@@ -180,6 +167,21 @@ func executeAppMode(config *Config) error {
 			lease.Wait()
 		}
 	}()
+	if measurementService != nil {
+		// Register only in the primary instance. A secondary launch must first
+		// activate the running product instead of racing it for this optional
+		// process-wide shortcut.
+		measurementShortcut, shortcutErr := registerMeasurementGlobalShortcut(measurementService, appContext)
+		if shortcutErr != nil {
+			warnMeasurementGlobalShortcutUnavailable(shortcutErr)
+		} else if measurementShortcut != nil {
+			defer func() {
+				if err := measurementShortcut.Close(); err != nil {
+					log.Printf("Desktop Measurement shortcut cleanup failed: %v", err)
+				}
+			}()
+		}
+	}
 	var openMeasurement func(context.Context) error
 	if measurementService != nil {
 		openMeasurement = func(ctx context.Context) error {

@@ -13,7 +13,7 @@ func TestGlobalShortcutContract(t *testing.T) {
 	}{
 		{goos: "darwin", want: "⌘⇧M"},
 		{goos: "windows", want: "Ctrl+Shift+M"},
-		{goos: "linux", want: ""},
+		{goos: "linux", want: "Ctrl+Shift+M"},
 	} {
 		t.Run(tc.goos, func(t *testing.T) {
 			if got := GlobalShortcutLabel(tc.goos); got != tc.want {
