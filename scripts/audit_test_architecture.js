@@ -8,6 +8,7 @@ const root = process.cwd();
 const primaryClassification = path.resolve(root, 'docs/quality/go-test-file-classification.md');
 const supplementalClassifications = [
   path.resolve(root, 'docs/quality/go-test-file-classification-measurement.md'),
+  path.resolve(root, 'docs/quality/go-test-file-classification-measurement-recorder.md'),
 ];
 const originalReadFileSync = fs.readFileSync.bind(fs);
 
