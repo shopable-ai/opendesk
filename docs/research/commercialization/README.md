@@ -1,6 +1,6 @@
 # OpenDesk 商业化研究
 
-更新时间：2026-09-13
+更新时间：2026-09-15
 
 本目录保存 OpenDesk 的**市场、竞品、收费方式、行业机会和商业模式研究**。
 
@@ -82,17 +82,29 @@
     - 记录共用功能底座、完整工作量与待验证假设，不声称已经商业验证或实现全部功能；
     - 通过[商业验证推进计划](../../plans/commercialization/business-validation-roadmap.md)进入客户与场景筛选、模式卡、付费试点和复用维护验证。
 
+11. [`opendesk-global-competitiveness-2026.md`](opendesk-global-competitiveness-2026.md)
+    - 保存 2026-09-15 对 OpenDesk 当前真实能力、技术竞争力、产品/商业短板和全球竞争格局的阶段性基线；
+    - 明确区分 Feature、Capability、Product Advantage 与 Moat，不以功能数量推断世界排名；
+    - 给出当前技术竞争力约 `51/100` 的六维评分依据，指出最大缺口是 Reliability、Application Compatibility、统一 Perception/Locator、真实 Repair 和 Developer Platform；
+    - 给出从约 51 → 70/72 → 80+ 的技术跃迁条件，要求后续升分必须由真实运行和资格验证证据支持；
+    - 研究 UiPath、Power Automate、Playwright、AI Computer Use、OpenAdapt 等不同类型方案“更强在哪里”，避免只做功能表格比较；
+    - 对应未来 12 个月资源收口进入 [`OpenDesk 未来 12 个月战略路线`](../../plans/commercialization/opendesk-12-month-strategy.md)。
+
 ## 从研究进入验证
 
 ```text
 长期战略：全球可执行经验网络
 → 商业设计：七层系统、模式选项、经营组合与边界
+→ 全球竞争力基线：当前优势、弱点、评分与跃迁条件
+→ 12 个月战略：有限资源只押哪些方向
 → 验证计划：首批客户和 1—3 个场景
-→ 报价、最小交付、真实付费、成本与复用证据
-→ 再决定标准包、伙伴、返还、托管或市场建设
+→ 报价、最小交付、真实付费、可靠性、成本与复用证据
+→ 再决定标准包、伙伴、返还、托管、Team、Enterprise 或 Marketplace
 ```
 
-当前接续入口：[商业验证推进计划](../../plans/commercialization/business-validation-roadmap.md)。计划优先进入首批客户与场景选择，不将所有候选模式自动转成工程待办。保存研究不等于验证成立；已有电商优先研究背景不等于已确认具体客户或付费场景。
+当前战略收口入口：[OpenDesk 未来 12 个月战略路线](../../plans/commercialization/opendesk-12-month-strategy.md)。
+
+当前商业验证执行入口：[商业验证推进计划](../../plans/commercialization/business-validation-roadmap.md)。计划优先进入首批客户与场景选择，不将所有候选模式自动转成工程待办。保存研究不等于验证成立；已有电商优先研究背景不等于已确认具体客户或付费场景。
 
 ## 商业 Research 的两条过滤轴
 
