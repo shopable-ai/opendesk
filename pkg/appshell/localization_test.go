@@ -171,7 +171,7 @@ func TestOfficialCatalogsHaveMatchingL0MenuKeys(t *testing.T) {
 		"menu.permissions", "menu.runtimeLog", "menu.examples", "menu.apiDocs", "menu.developer",
 		"menu.runtimeStatus", "menu.measurement", "menu.inspector", "menu.logs", "menu.debug",
 		"menu.debugNormal", "menu.debugDetailed", "menu.helpAndSupport", "menu.website", "menu.help",
-		"menu.customize", "menu.language", "menu.language.auto", "menu.language.zhCN", "menu.language.enUS",
+		"menu.customize", "menu.language", "menu.language.auto", "menu.language.auto.default", "menu.language.auto.englishFallback", "menu.language.zhCN", "menu.language.enUS",
 		"menu.quit",
 	}
 	for _, key := range required {

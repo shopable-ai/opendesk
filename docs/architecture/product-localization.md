@@ -215,12 +215,23 @@ menu.quit
 
 Source sentences are not keys. `t("计划中心")` is not a supported authoring pattern.
 
-The language entry is deliberately discoverable in either UI locale:
+The language-menu title and its choices follow the active UI locale. Automatic
+mode keeps its label short while still distinguishing normal matching, the
+default language, and English fallback. For example, an unsupported `de-DE`
+system locale uses the English catalog and shows `Auto (English)`; it never
+implies that a German catalog is installed:
 
 ```text
-语言 / Language
-├─ 自动（跟随系统） / System Default
+zh-CN:
+语言
+├─ 自动匹配
 ├─ 简体中文
+└─ 英语
+
+en-US:
+Language
+├─ Auto Match
+├─ Chinese (Simplified)
 └─ English
 ```
 

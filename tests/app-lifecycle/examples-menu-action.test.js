@@ -17,10 +17,12 @@ test('official tray exposes API docs immediately after Examples in the resource 
   const examplesIndex = menu.findIndex(item => item && item.action === 'opendesk.examples');
   const apiDocsIndex = menu.findIndex(item => item && item.action === 'opendesk.api-docs');
   assert.ok(examplesIndex > 0, 'opendesk.examples must be present in the official tray menu');
-  assert.equal(menu[examplesIndex].label, '示例代码…');
+  assert.equal(menu[examplesIndex].labelKey, 'menu.examples');
+  assert.equal(menu[examplesIndex].label, '示例代码');
   assert.equal(menu[examplesIndex - 1].type, 'separator', 'Resources must stay separate from execution and operations actions');
   assert.equal(apiDocsIndex, examplesIndex + 1, 'API docs must be immediately after Examples');
-  assert.equal(menu[apiDocsIndex].label, 'API 文档…');
+  assert.equal(menu[apiDocsIndex].labelKey, 'menu.apiDocs');
+  assert.equal(menu[apiDocsIndex].label, 'API 文档');
 });
 
 test('resource actions are delegated to the existing Official Shell action router', async () => {

@@ -171,10 +171,10 @@ func TestOpenDeskProductMenuLocalizesAndMarksPreference(t *testing.T) {
 	zh := openDeskProductMenu(manifest)
 	requireNativeLabel(t, zh, ActionOpen, "显示主窗口")
 	requireNativeLabel(t, zh, ActionRecorder, "录制自动化")
-	requireNativeLabel(t, zh, menuProductLanguage, "语言 / Language")
-	requireNativeLabel(t, zh, ActionLocaleAuto, "自动（跟随系统） / System Default")
+	requireNativeLabel(t, zh, menuProductLanguage, "语言")
+	requireNativeLabel(t, zh, ActionLocaleAuto, "自动匹配")
 	requireNativeLabel(t, zh, ActionLocaleZhCN, "✓ 简体中文")
-	requireNativeLabel(t, zh, ActionLocaleEnUS, "English")
+	requireNativeLabel(t, zh, ActionLocaleEnUS, "英语")
 
 	if err := manager.SetLocalePreference(localization.LocaleEnUS); err != nil {
 		t.Fatal(err)
@@ -183,10 +183,29 @@ func TestOpenDeskProductMenuLocalizesAndMarksPreference(t *testing.T) {
 	requireNativeLabel(t, en, ActionOpen, "Show OpenDesk")
 	requireNativeLabel(t, en, ActionRecorder, "Record Automation")
 	requireNativeLabel(t, en, menuProductDeveloper, "Developer")
-	requireNativeLabel(t, en, menuProductLanguage, "语言 / Language")
-	requireNativeLabel(t, en, ActionLocaleZhCN, "简体中文")
+	requireNativeLabel(t, en, menuProductLanguage, "Language")
+	requireNativeLabel(t, en, ActionLocaleAuto, "Auto Match")
+	requireNativeLabel(t, en, ActionLocaleZhCN, "Chinese (Simplified)")
 	requireNativeLabel(t, en, ActionLocaleEnUS, "✓ English")
 	requireNativeLabel(t, en, ActionQuit, "Quit")
+
+	systemLocale = "de-DE"
+	if err := manager.SetLocalePreference(localization.PreferenceAuto); err != nil {
+		t.Fatal(err)
+	}
+	germanSystem := openDeskProductMenu(manifest)
+	requireNativeLabel(t, germanSystem, ActionOpen, "Show OpenDesk")
+	requireNativeLabel(t, germanSystem, menuProductLanguage, "Language")
+	requireNativeLabel(t, germanSystem, ActionLocaleAuto, "✓ Auto (English)")
+
+	systemLocale = ""
+	if err := manager.SetLocalePreference(localization.PreferenceAuto); err != nil {
+		t.Fatal(err)
+	}
+	noSystemLocale := openDeskProductMenu(manifest)
+	requireNativeLabel(t, noSystemLocale, ActionOpen, "显示主窗口")
+	requireNativeLabel(t, noSystemLocale, menuProductLanguage, "语言")
+	requireNativeLabel(t, noSystemLocale, ActionLocaleAuto, "✓ 自动（默认）")
 }
 
 func TestLocalizedNativeHostSwitchesWithoutBusinessDispatchAndPreservesRuntimeState(t *testing.T) {

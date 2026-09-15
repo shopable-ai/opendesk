@@ -78,7 +78,7 @@ P0 目标：
 Localization L0 additionally requires:
 
 - OpenDesk-owned presentation and Manifest `labelKey` resolve through one Locale Core;
-- official `语言 / Language` submenu exposes `auto / zh-CN / en-US` without extending the public manifest submenu contract;
+- official language submenu is translated into the active UI locale and exposes `auto / zh-CN / en-US` without extending the public manifest submenu contract;
 - locale action IDs stay stable and never enter business JavaScript;
 - a preference change persists first, then refreshes the current native menu without restart;
 - locale refresh changes presentation only and preserves Runtime-owned state.
@@ -98,7 +98,8 @@ P0 / Localization L0 不解决：
 - 浏览器式生命周期 API；
 - 用环境变量作为正式应用 Manifest 的唯一配置载体；
 - 在 native backend 中实现第二套 catalog loader / locale resolver；
-- 在 L0 中全面迁移 AI Assistant、Scheduler、Recorder、Permissions、Runtime Log、Measurement 等 Custom UI 页面。
+- 在 L0 中全面迁移 AI Assistant、Scheduler、Recorder、Permissions、Runtime Log、Measurement 等 Custom UI 页面；
+- 扩展超出 L0 固定的 `Language → auto / 简体中文 / English` 语言选项或为其引入另一套 preference store。
 
 这些能力可以后续叠加，但不能改变 Execution 与 App Shell 边界。
 
@@ -595,10 +596,10 @@ Qualification must verify status-item lifecycle, callback safety, WKWebView coex
 | legacy `label` only | Yes | Yes | 兼容 |
 | `labelKey + label` | Yes | Yes | current → fallback → legacy |
 | `labelKey` missing translation | Yes | Yes | safe fallback，action 不变 |
-| Language submenu | Yes | Yes | `语言 / Language` + auto / 简体中文 / English |
+| Language submenu | Yes | Yes | active-UI-language title and choices; automatic state explains system/default/English-fallback resolution |
 | 选择 English | Yes | Yes | persist `en-US`，当前 native menu 立即英文化 |
 | 选择简体中文 | Yes | Yes | persist `zh-CN`，当前 native menu 立即中文化 |
-| 选择 System Default | Yes | Yes | persist `auto`，重新读取 OS locale 并 resolve |
+| 选择 Automatic | Yes | Yes | persist `auto`，重新读取 OS locale；无对应 catalog 时以 English fallback 明示 |
 | locale action dispatch | Yes | Yes | 不进入 JavaScript business sink |
 | locale refresh state merge | Yes | Yes | enabled/visible/runtime labels/debug mode 保持 |
 | restart persistence | Yes | Yes | 重启后仍使用 persisted preference |
@@ -679,7 +680,7 @@ Core App Shell P0 contracts remain implemented. Localization L0 repository imple
 - [x] shared Locale Core and OS resolver;
 - [x] `labelKey` + legacy-label compatibility;
 - [x] official zh-CN / en-US catalogs in release payload;
-- [x] official `语言 / Language` submenu;
+- [x] official language submenu localized to the active UI locale;
 - [x] stable `opendesk.locale.auto / zh-CN / en-US` actions;
 - [x] locale actions consumed outside business JavaScript;
 - [x] preference persistence and immediate native presentation refresh;

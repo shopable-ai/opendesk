@@ -118,9 +118,9 @@ func openDeskProductMenu(manifest Manifest) []nativeMenuItem {
 			}},
 		}},
 		nativeMenuItem{Type: "separator"},
-		nativeMenuItem{ID: menuProductLanguage, Label: translatedProductLabel("menu.language", "语言 / Language"), Children: []nativeMenuItem{
-			{ID: ActionLocaleAuto, Label: selectedProductLabel("menu.language.auto", "自动（跟随系统） / System Default", preference == localization.PreferenceAuto)},
-			{ID: ActionLocaleZhCN, Label: selectedProductLabel("menu.language.zhCN", "简体中文", preference == localization.LocaleZhCN)},
+		nativeMenuItem{ID: menuProductLanguage, Label: translatedProductLabel("menu.language", "Language"), Children: []nativeMenuItem{
+			{ID: ActionLocaleAuto, Label: automaticProductLabel(preference)},
+			{ID: ActionLocaleZhCN, Label: selectedProductLabel("menu.language.zhCN", "Chinese (Simplified)", preference == localization.LocaleZhCN)},
 			{ID: ActionLocaleEnUS, Label: selectedProductLabel("menu.language.enUS", "English", preference == localization.LocaleEnUS)},
 		}},
 		nativeMenuItem{Type: "separator"},
@@ -133,6 +133,18 @@ func openDeskProductMenu(manifest Manifest) []nativeMenuItem {
 		nativeMenuItem{ID: ActionQuit, Label: translatedProductLabel("menu.quit", "退出")},
 	)
 	return items
+}
+
+func automaticProductLabel(preference string) string {
+	key, fallback := "menu.language.auto", "Auto Match"
+	systemLocale := localization.GetSystemLocale()
+	switch {
+	case strings.TrimSpace(systemLocale) == "":
+		key, fallback = "menu.language.auto.default", "Auto (Default)"
+	case !localization.IsSupportedSystemLocale(systemLocale):
+		key, fallback = "menu.language.auto.englishFallback", "Auto (English)"
+	}
+	return selectedProductLabel(key, fallback, preference == localization.PreferenceAuto)
 }
 
 func nativeMenuItems(items []MenuItem) []nativeMenuItem {

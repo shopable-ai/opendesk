@@ -18,13 +18,15 @@ func TestResolveLocale(t *testing.T) {
 		{"auto zh-CN", PreferenceAuto, "zh-CN", LocaleZhCN},
 		{"auto zh-Hans", PreferenceAuto, "zh-Hans", LocaleZhCN},
 		{"auto zh-Hans-CN", PreferenceAuto, "zh-Hans-CN", LocaleZhCN},
+		{"auto language-only zh", PreferenceAuto, "zh", LocaleZhCN},
 		{"auto language-only en", PreferenceAuto, "en", LocaleEnUS},
 		{"auto en-US", PreferenceAuto, "en-US", LocaleEnUS},
 		{"auto en-GB", PreferenceAuto, "en-GB", LocaleEnUS},
 		{"auto en-AU", PreferenceAuto, "en-AU", LocaleEnUS},
-		{"auto unsupported", PreferenceAuto, "ja-JP", ProductDefaultLocale},
-		{"traditional Chinese unsupported", PreferenceAuto, "zh-TW", ProductDefaultLocale},
-		{"Hong Kong Chinese unsupported", PreferenceAuto, "zh-HK", ProductDefaultLocale},
+		{"auto unsupported", PreferenceAuto, "ja-JP", LocaleEnUS},
+		{"German falls back to English", PreferenceAuto, "de-DE", LocaleEnUS},
+		{"traditional Chinese unsupported", PreferenceAuto, "zh-TW", LocaleEnUS},
+		{"Hong Kong Chinese unsupported", PreferenceAuto, "zh-HK", LocaleEnUS},
 		{"explicit zh-CN", LocaleZhCN, "en-US", LocaleZhCN},
 		{"explicit en-US", LocaleEnUS, "zh-CN", LocaleEnUS},
 	}
@@ -34,6 +36,24 @@ func TestResolveLocale(t *testing.T) {
 				t.Fatalf("ResolveLocale(%q, %q)=%q, want %q", test.preference, test.system, got, test.want)
 			}
 		})
+	}
+}
+
+func TestIsSupportedSystemLocale(t *testing.T) {
+	for _, test := range []struct {
+		locale string
+		want   bool
+	}{
+		{locale: "zh", want: true},
+		{locale: "zh-CN", want: true},
+		{locale: "zh-Hans-CN", want: true},
+		{locale: "en-GB", want: true},
+		{locale: "de-DE", want: false},
+		{locale: "", want: false},
+	} {
+		if got := IsSupportedSystemLocale(test.locale); got != test.want {
+			t.Errorf("IsSupportedSystemLocale(%q)=%t, want %t", test.locale, got, test.want)
+		}
 	}
 }
 

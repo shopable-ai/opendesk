@@ -128,15 +128,32 @@ func ResolveLocale(localePreference, systemLocale string) string {
 
 func resolveSupportedSystemLocale(value string) string {
 	normalized := normalizeSystemLocale(value)
+	if normalized == "" {
+		return ProductDefaultLocale
+	}
 	lower := strings.ToLower(normalized)
 	switch {
-	case lower == "zh-cn", lower == "zh-hans", strings.HasPrefix(lower, "zh-hans-"):
+	case lower == "zh", lower == "zh-cn", lower == "zh-hans", strings.HasPrefix(lower, "zh-hans-"):
 		return LocaleZhCN
 	case lower == "en", strings.HasPrefix(lower, "en-"):
 		return LocaleEnUS
 	default:
-		return ProductDefaultLocale
+		// The product currently ships Chinese and English catalogs only. Use the
+		// broadly understandable English catalog for every unsupported system
+		// locale instead of unexpectedly presenting a Chinese interface.
+		return LocaleEnUS
 	}
+}
+
+// IsSupportedSystemLocale reports whether the current product release has a
+// first-class locale mapping for the system locale. It deliberately describes
+// the shipped locale set, rather than treating an unsupported locale as if its
+// language catalog were available.
+func IsSupportedSystemLocale(value string) bool {
+	normalized := normalizeSystemLocale(value)
+	lower := strings.ToLower(normalized)
+	return lower == "zh" || lower == "zh-cn" || lower == "zh-hans" || strings.HasPrefix(lower, "zh-hans-") ||
+		lower == "en" || strings.HasPrefix(lower, "en-")
 }
 
 func normalizeSystemLocale(value string) string {
@@ -467,6 +484,14 @@ func GetLocalePreference() string {
 		return PreferenceAuto
 	}
 	return manager.GetLocalePreference()
+}
+
+func GetSystemLocale() string {
+	manager := Default()
+	if manager == nil {
+		return ""
+	}
+	return manager.GetSystemLocale()
 }
 
 func GetResolvedLocale() string {
