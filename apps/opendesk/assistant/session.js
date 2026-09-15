@@ -23,10 +23,30 @@
     return !!(error && (error.code === 'CANCELED' || error.name === 'AbortError'));
   }
 
+  function deferred() {
+    let resolve;
+    const promise = new Promise(res => { resolve = res; });
+    return {promise, resolve};
+  }
+
+  function publicTaskState(task) {
+    if (!task) return null;
+    return Object.freeze({
+      taskId: task.taskId,
+      phase: task.phase,
+      preview: task.preview || '',
+      envelope: task.envelope || null,
+      progress: task.progress || null,
+      result: task.result || null,
+      error: task.error || null,
+    });
+  }
+
   function createSession(options) {
     const settings = options || {};
     const store = settings.store;
     const channel = settings.channel;
+    const taskService = settings.taskService || null;
     const AbortControllerImpl = settings.AbortController || global.AbortController;
     const logger = settings.logger || global.console;
     const onChange = typeof settings.onChange === 'function' ? settings.onChange : async () => {};
@@ -35,6 +55,12 @@
     }
     if (!channel || typeof channel.send !== 'function' || typeof channel.statusText !== 'function') {
       throw new AssistantSessionError('INVALID_SESSION', 'assistant session requires a model channel');
+    }
+    if (taskService && (typeof taskService.shouldHandle !== 'function'
+      || typeof taskService.plan !== 'function'
+      || typeof taskService.execute !== 'function'
+      || typeof taskService.preview !== 'function')) {
+      throw new AssistantSessionError('INVALID_SESSION', 'assistant task service is invalid');
     }
     if (typeof AbortControllerImpl !== 'function') {
       throw new AssistantSessionError('INVALID_SESSION', 'AbortController is unavailable');
@@ -64,6 +90,7 @@
           userMessageId: active.userMessageId,
           assistantMessageId: active.assistantMessageId,
           stopping: active.stopRequested === true,
+          task: publicTaskState(active.taskState),
         }) : null,
         submitting,
         lastError,
@@ -94,7 +121,7 @@
         if (recovered > 0) {
           lastError = Object.freeze({
             code: 'INTERRUPTED_REQUEST_RECOVERED',
-            message: `已将 ${recovered} 个上次未完成请求标记为中断；没有自动重发。`,
+            message: `已将 ${recovered} 个上次未完成请求标记为中断；没有自动重发或自动执行。`,
           });
         }
       } catch (error) {
@@ -214,23 +241,100 @@
       await publish();
     }
 
-    async function performRequest(entry, messages) {
+    async function performChatRequest(entry, messages) {
+      const result = await channel.send({messages, signal: entry.controller.signal, requestId: entry.requestId});
+      if (entry.stopRequested || entry.controller.signal.aborted) {
+        await finishRequest(entry, {status: 'stopped', text: '请求已停止；迟到回复已丢弃。'});
+        return;
+      }
+      await finishRequest(entry, {status: 'completed', text: result.text});
+    }
+
+    async function performTaskRequest(entry, text) {
+      entry.taskState = {
+        taskId: entry.requestId,
+        phase: 'planning',
+        preview: '',
+        envelope: null,
+        progress: Object.freeze({phase: 'planning'}),
+        result: null,
+        error: null,
+      };
+      await publish();
+
+      const envelope = await taskService.plan(text, {signal: entry.controller.signal, requestId: entry.requestId});
+      if (entry.stopRequested || entry.controller.signal.aborted) {
+        await finishRequest(entry, {status: 'stopped', text: '任务已停止。'});
+        return;
+      }
+
+      if (envelope.kind !== 'task') {
+        entry.taskState.phase = envelope.kind;
+        entry.taskState.envelope = envelope;
+        entry.taskState.progress = null;
+        await publish();
+        await finishRequest(entry, {status: 'completed', text: envelope.message});
+        return;
+      }
+
+      entry.taskState.phase = 'awaitingConfirmation';
+      entry.taskState.envelope = envelope;
+      entry.taskState.preview = taskService.preview(envelope);
+      entry.taskState.progress = null;
+      entry.decision = deferred();
+      await publish();
+
+      const confirmed = await entry.decision.promise;
+      if (!confirmed || entry.stopRequested || entry.controller.signal.aborted) {
+        await finishRequest(entry, {status: 'stopped', text: '任务已取消；没有继续提交新的桌面动作。'});
+        return;
+      }
+
+      entry.taskState.phase = 'running';
+      entry.taskState.progress = Object.freeze({phase: 'starting'});
+      await publish();
+      const result = await taskService.execute(envelope, {
+        signal: entry.controller.signal,
+        requestId: entry.requestId,
+        onProgress: async progress => {
+          if (disposed || active !== entry || entry.stopRequested || entry.controller.signal.aborted) return;
+          entry.taskState.progress = progress && typeof progress === 'object' ? Object.freeze({...progress}) : null;
+          await publish();
+        },
+      });
+      if (entry.stopRequested || entry.controller.signal.aborted) {
+        await finishRequest(entry, {status: 'stopped', text: '自动化任务已停止；迟到结果已丢弃。'});
+        return;
+      }
+      entry.taskState.phase = 'completed';
+      entry.taskState.progress = Object.freeze({phase: 'completed'});
+      entry.taskState.result = result;
+      await publish();
+      await finishRequest(entry, {status: 'completed', text: taskService.resultText(result)});
+    }
+
+    async function performRequest(entry, messages, text) {
       try {
-        const result = await channel.send({messages, signal: entry.controller.signal, requestId: entry.requestId});
-        if (entry.stopRequested || entry.controller.signal.aborted) {
-          await finishRequest(entry, {status: 'stopped', text: '请求已停止；迟到回复已丢弃。'});
-          return;
+        if (taskService && taskService.shouldHandle(text)) {
+          await performTaskRequest(entry, text);
+        } else {
+          await performChatRequest(entry, messages);
         }
-        await finishRequest(entry, {status: 'completed', text: result.text});
       } catch (error) {
         if (entry.stopRequested || entry.controller.signal.aborted || isCanceled(error)) {
-          await finishRequest(entry, {status: 'stopped', text: '请求已停止。'});
+          await finishRequest(entry, {status: 'stopped', text: entry.taskState ? '自动化任务已停止。' : '请求已停止。'});
         } else {
           const details = publicError(error);
           lastError = details;
+          if (entry.taskState) {
+            entry.taskState.phase = 'failed';
+            entry.taskState.error = Object.freeze(details);
+            entry.taskState.progress = null;
+            await publish();
+          }
           await finishRequest(entry, {
             status: 'failed',
-            text: `请求失败：${details.code}: ${details.message}`,
+            text: `${entry.taskState ? '任务失败' : '请求失败'}：${details.code}: ${details.message}`,
             error: details,
           });
         }
@@ -243,7 +347,7 @@
     async function submit(text) {
       assertReady();
       if (submitting || active) {
-        throw new AssistantSessionError('REQUEST_BUSY', '已有请求正在处理；可以切换会话或编辑其他草稿，但不能创建隐形队列。');
+        throw new AssistantSessionError('REQUEST_BUSY', '已有请求或自动化任务正在处理；可以切换会话或编辑其他草稿，但不能创建隐形队列。');
       }
       const current = store.snapshot().selectedConversation;
       if (!current) throw new AssistantSessionError('CONVERSATION_NOT_FOUND', '没有可发送的当前会话');
@@ -257,23 +361,25 @@
           userMessageId: store.allocateId('msg'),
           assistantMessageId: store.allocateId('msg'),
         };
-        // Freeze and persist identities before the real model call. A failed
-        // persistence step therefore cannot produce an untracked model request.
+        // Freeze and persist identities before any real model/planner call. A
+        // failed persistence step therefore cannot produce an untracked request.
         await store.beginRequest({...ids, text});
         const entry = {
           ...ids,
           controller: new AbortControllerImpl(),
           stopRequested: false,
-          task: null,
+          taskState: null,
+          decision: null,
+          lifecycle: null,
         };
         active = entry;
         submitting = false;
         persistenceError = null;
         const messages = store.getModelMessages(current.id);
         await publish();
-        const task = performRequest(entry, messages);
-        entry.task = task;
-        void task.catch(error => {
+        const lifecycle = performRequest(entry, messages, text);
+        entry.lifecycle = lifecycle;
+        void lifecycle.catch(error => {
           if (logger && typeof logger.error === 'function') logger.error('[ASSISTANT] request lifecycle failed:', error);
         });
         return Object.freeze(ids);
@@ -286,22 +392,66 @@
       }
     }
 
-    async function stop() {
+    async function confirmTask(taskId) {
       assertReady();
       const entry = active;
-      if (!entry) return false;
-      if (entry.stopRequested) return true;
+      if (!entry || !entry.taskState || entry.taskState.taskId !== taskId
+          || entry.taskState.phase !== 'awaitingConfirmation' || !entry.decision) {
+        throw new AssistantSessionError('STALE_CONFIRMATION', '当前没有可确认的自动化任务，或执行预览已经失效。');
+      }
+      if (entry.executionStarted) {
+        throw new AssistantSessionError('DUPLICATE_EXECUTION', '该自动化任务已经开始执行。');
+      }
+      entry.executionStarted = true;
+      entry.taskState.phase = 'starting';
+      entry.taskState.progress = Object.freeze({phase: 'starting'});
+      await publish();
+      entry.decision.resolve(true);
+      return true;
+    }
+
+    async function cancelTask(taskId) {
+      assertReady();
+      const entry = active;
+      if (!entry || !entry.taskState || entry.taskState.taskId !== taskId
+          || entry.taskState.phase !== 'awaitingConfirmation') return false;
       entry.stopRequested = true;
-      // Abort first: rendering or persistence latency must not leave the real
-      // request running after the user asked to stop it.
-      entry.controller.abort('user-stop');
+      entry.controller.abort('task-cancel');
+      if (entry.decision) entry.decision.resolve(false);
       try {
         await store.markStopping(entry.conversationId, entry.requestId);
         await store.transitionRequest({
           conversationId: entry.conversationId,
           requestId: entry.requestId,
           status: 'stopped',
-          text: '请求已停止。',
+          text: '任务已取消；确认前没有执行桌面动作。',
+          error: null,
+        });
+        persistenceError = null;
+      } catch (error) {
+        recordPersistenceError(error);
+      }
+      await publish();
+      return true;
+    }
+
+    async function stop() {
+      assertReady();
+      const entry = active;
+      if (!entry) return false;
+      if (entry.stopRequested) return true;
+      entry.stopRequested = true;
+      // Abort first: rendering or persistence latency must not leave a real
+      // planner/model/desktop request running after the user asked to stop it.
+      entry.controller.abort('user-stop');
+      if (entry.decision) entry.decision.resolve(false);
+      try {
+        await store.markStopping(entry.conversationId, entry.requestId);
+        await store.transitionRequest({
+          conversationId: entry.conversationId,
+          requestId: entry.requestId,
+          status: 'stopped',
+          text: entry.taskState ? '自动化任务已停止。' : '请求已停止。',
           error: null,
         });
         persistenceError = null;
@@ -331,6 +481,8 @@
       archiveConversation,
       restoreConversation,
       submit,
+      confirmTask,
+      cancelTask,
       stop,
       close,
     });
