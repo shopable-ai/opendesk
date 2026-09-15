@@ -4,15 +4,15 @@
 
 ## 入口与本次保存范围
 
-[唯一产品设计](../architecture/desktop-automation/desktop-measurement.md) · [中文 HTML 样机](../../tests/desktop-measurement/prototype/index.html) · [样机使用与复验说明](../../tests/desktop-measurement/README.md) · [下一轮实施提示词](../../prompts/desktop-measurement-implementation.md)。
+[唯一产品设计](../architecture/desktop-automation/desktop-measurement.md) · [中文 HTML 样机](../../apps/opendesk/prototypes/desktop-measurement/index.html) · [样机资产说明](../../apps/opendesk/prototypes/desktop-measurement/README.md) · [验证说明](../../tests/desktop-measurement/README.md) · [下一轮实施提示词](../../prompts/desktop-measurement-implementation.md)。
 
-设计正文继续只维护 canonical 文件；不把样机当作正式 `apps/` 应用，也不把样机装入 Runtime 发行包。本次保存原 HTML、模板和模型，迁入测试、合成导出 fixture、来源清单和本记录。测试仅调整相对路径、UTF-8 读写和后续运行产物位置，不修改断言。
+设计正文继续只维护 canonical 文件。样机现由 `apps/opendesk/prototypes/desktop-measurement/` 长期保存，作为 OpenDesk 产品的 UI / Interaction Oracle；这表示产品所有权，不表示它是正式应用入口，也不表示样机会进入 Runtime 生产执行链路。Node / Playwright 验证、fixtures 与导入清单继续留在 `tests/desktop-measurement/`。
 
-源文件一致性：原单文件 HTML 和交付包中的 `prototype/index.html` 字节相同，SHA-256 为 `8ff69e481d09778e7870228bba143c5b90a123af414f97503e424784082a34c5`。模板插入模型全文与单文件 HTML 一致。来源清单见 [`import-manifest.json`](../../tests/desktop-measurement/import-manifest.json)。
+2026-09-15 仅进行了目录职责调整：`index.html`、`template.html`、`model.js` 复用原 Git blob 迁移，样机内容没有因目录迁移而修改。导入时旧路径与当前路径同时记录在 [`import-manifest.json`](../../tests/desktop-measurement/import-manifest.json)，避免重写历史。
 
-本轮只进行文件内容、路径和 Git 交付核验，未重新运行模型测试、浏览器测试、构建、lint 或原生桌面验收。下表 PASS 全部属于此前合成样机的历史记录；迁入后的测试及真实系统验收仍需新一轮执行。
+源文件一致性：原单文件 HTML 和交付包中的 `prototype/index.html` 字节相同，SHA-256 为 `8ff69e481d09778e7870228bba143c5b90a123af414f97503e424784082a34c5`。模板插入模型全文与单文件 HTML 一致。
 
-原始 PNG 截图、完整 ZIP 和逐次运行日志不作为维护源码入库；它们仍在原对话交付包中，来源清单保留各文件校验值，不能把清单等同于原始图像证据。后续截图、日志和下载结果统一写入 `.runtime/tests/desktop-measurement/prototype/`。新对话可直接打开已入库 HTML 理解交互，不依赖原对话附件；若要复查当时的原始截图，则仍需原始交付包。
+原始 PNG 截图、完整 ZIP 和逐次运行日志不作为维护源码入库；来源清单保留各文件校验值，不能把清单等同于原始图像证据。后续截图、日志和下载结果统一写入 `.runtime/tests/desktop-measurement/prototype/`。新对话可直接打开已入库 HTML 理解交互，不依赖原对话附件；若要复查当时的原始截图，则仍需原始交付包。
 
 ## 历史验证记录（原报告内容）
 
@@ -20,7 +20,7 @@
 
 ### 几何模型
 
-16 项 / 16 项通过。详细 TAP 输出见 `evidence/model-tests.txt`；其中一项包含 1000 组矩形恒等式。
+16 项 / 16 项通过。详细 TAP 输出见原交付证据 `evidence/model-tests.txt`；其中一项包含 1000 组矩形恒等式。
 
 ### 浏览器交互
 

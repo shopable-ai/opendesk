@@ -1,5 +1,5 @@
 'use strict';
-const {test}=require('node:test');const a=require('node:assert/strict');const M=require('./prototype/model.js');
+const {test}=require('node:test');const a=require('node:assert/strict');const M=require('../../apps/opendesk/prototypes/desktop-measurement/model.js');
 const R={x:100,y:80,width:1200,height:800};
 test('signed edges: inside, coincidence, overflow',()=>{const t={x:196,y:200,width:320,height:180};a.deepEqual(M.relative(t,R).signedEdges,{left:96,top:120,right:784,bottom:500});a.equal(M.relative({...t,x:80},R).signedEdges.left,-20);a.deepEqual(M.relative(R,R).signedEdges,{left:0,top:0,right:0,bottom:0});});
 test('target partly outside: area ratio != reference coverage',()=>{const r={x:0,y:0,width:100,height:100},t={x:80,y:0,width:40,height:100},q=M.relative(t,r);a.equal(q.areaRatio,.4);a.equal(q.coverageRatio,.2);a.equal(q.insideRatio,.5);a.equal(q.signedEdges.right,-20);});

@@ -1,27 +1,25 @@
 # App Shell、Tray / Menu Bar 与 Single-Instance 设计
 
-> 状态：App Shell P0 implemented / Localization Core initial-label integration implemented / Native Language Menu switching pending / macOS local evidence verified / Windows main Runtime cross-build and live verification are not claimed in this workspace
-> Verification boundary：App Mode 单实例仍由平台 lease / activation transport 负责；Framework Runtime endpoint 分配与传播见 [Runtime Endpoint Allocation](runtime-endpoint-allocation.md)。
-> 日期：2026-09-11
-> 范围：OpenDesk 可分发桌面脚本应用（App Mode）的 App Shell、系统托盘 / 菜单栏、菜单 Action、窗口关闭行为、单实例生命周期与初始菜单 presentation resolution。  
-> 兼容性：现有普通 JavaScript / CLI 执行路径必须保持不变。
-> 验证边界：macOS 已完成既有真实 Menu Bar、窗口与 single-instance live；Localization Core 提交后的语言切换真机 qualification 尚未执行；Windows 原生 Tray / IPC 已完成目标系统测试二进制 cross-build，真机 live 留待具备 Windows 设备时执行。
+> 状态：App Shell P0 implemented / Localization L0 Native Language Menu implementation complete / platform-live language-switch qualification pending  
+> Verification boundary：App Mode 单实例仍由平台 lease / activation transport 负责；Framework Runtime endpoint 分配与传播见 [Runtime Endpoint Allocation](runtime-endpoint-allocation.md)。  
+> 日期：2026-09-15  
+> 范围：OpenDesk 可分发桌面脚本应用（App Mode）的 App Shell、系统托盘 / 菜单栏、菜单 Action、窗口关闭行为、单实例生命周期、localized presentation 与 Native Language Menu refresh。  
+> 兼容性：现有普通 JavaScript / CLI 执行路径必须保持不变。  
+> 验证边界：macOS 已完成既有真实 Menu Bar、窗口与 single-instance live；本次 Localization L0 的语言切换真机 qualification 尚未执行；Windows 原生 Tray / IPC 已完成既有目标系统构建覆盖，语言切换真机 live 仍待本地阶段验证。
 
 ## 1. 结论
 
 本设计冻结以下核心边界：
 
-> **OpenDesk App 的系统托盘属于 App Shell；Manifest 定义初始菜单，Runtime 可以动态更新菜单状态；菜单点击只向当前应用 Execution 分发 Action，不因为菜单项而启动新的脚本 Runtime。**
+> **OpenDesk App 的系统托盘属于 App Shell；Manifest 定义初始菜单，Runtime 可以动态更新菜单状态；菜单点击只向当前应用 Execution 分发业务 Action，不因为菜单项而启动新的脚本 Runtime；产品语言动作由 App Shell 自己消费，不进入业务 JavaScript。**
 
-OpenDesk 继续保留现有脚本运行方式，同时新增可打包、可双击启动的 App Mode。App Mode 不是第二套 JavaScript Runtime，而是在现有 Execution 外增加一个轻量 App Shell，负责操作系统级应用生命周期和入口。
+OpenDesk 继续保留现有脚本运行方式，同时提供可打包、可双击启动的 App Mode。App Mode 不是第二套 JavaScript Runtime，而是在现有 Execution 外增加一个轻量 App Shell，负责操作系统级应用生命周期和入口。
 
-Localization Core 增加的是 presentation resolution，不改变上述生命周期：App Shell 在构建 native menu 之前通过 `pkg/localization` 将 Manifest `labelKey` / OpenDesk-owned menu key 解析为普通字符串；macOS / Windows native backend 不读取 JSON catalog，也不拥有 locale fallback 规则。语言偏好与解析的正式 Source of Truth 见 [Product Localization Architecture](product-localization.md)。
+Localization 不改变上述生命周期：App Shell 在构建 native menu 之前通过 `pkg/localization` 将 Manifest `labelKey` / OpenDesk-owned menu key 解析为普通字符串；macOS / Windows native backend 不读取 JSON catalog，也不拥有 locale fallback 规则。语言偏好与解析的正式 Source of Truth 见 [Product Localization Architecture](product-localization.md)。
 
-这里的 App Mode tray owner 与普通 `OpenDesk.app` HTTP 服务的 `cmd/opendesk-status` helper 不同。普通 macOS 服务状态项固定包含
-Status、Scheduler、Developer 和 Quit；Developer 子菜单提供 **Open Inspector**、进程内 **Allow Inspector from LAN** checkbox
-和 **Copy Inspector LAN URL**。helper 不持有 Inspector bearer/session，也不直接修改 server 内存；主进程启动时生成随机 control
-token，仅通过 helper argv 传入，helper 经 parent 注入的 Framework loopback endpoint 查询／切换状态。LAN 选项不持久化，OpenDesk 重启
-恢复关闭。这组框架 Developer 动作不进入 App Mode manifest/action namespace。
+Repository-owned OpenDesk product menu additionally owns a native Language submenu. Its stable locale IDs are intercepted inside App Shell, persisted through the same Locale Core, then used to refresh localization-owned presentation while preserving Runtime-owned menu state.
+
+这里的 App Mode tray owner 与普通 `OpenDesk.app` HTTP 服务的 `cmd/opendesk-status` helper 不同。普通 macOS 服务状态项固定包含 Status、Scheduler、Developer 和 Quit；Developer 子菜单提供 **Open Inspector**、进程内 **Allow Inspector from LAN** checkbox 和 **Copy Inspector LAN URL**。helper 不持有 Inspector bearer/session，也不直接修改 server 内存；主进程启动时生成随机 control token，仅通过 helper argv 传入，helper 经 parent 注入的 Framework loopback endpoint 查询／切换状态。LAN 选项不持久化，OpenDesk 重启恢复关闭。这组框架 Developer 动作不进入 App Mode manifest/action namespace。
 
 ```text
 OpenDesk App / executable
@@ -31,12 +29,13 @@ OpenDesk App / executable
 | App Shell                 |
 | - manifest                |
 | - localization bridge     |
+| - native language actions |
 | - single instance         |
 | - tray / menu bar         |
 | - app lifecycle           |
 +-------------+-------------+
               |
-              | actionId / lifecycle event
+              | business actionId / lifecycle event
               v
 +---------------------------+
 | Current Execution         |
@@ -61,7 +60,7 @@ OpenDesk 已经能够让用户编写 JavaScript，通过 Native / Custom UI 创�
 - 同一个应用不能因为重复双击而重复启动多份 Runtime 或重复执行自动化任务；
 - 退出必须沿用并收敛到 OpenDesk 现有生命周期，而不是形成一套独立、不可取消的后台执行系统。
 
-如果直接把 Tray 做成 Recipe 内部对象，或者让每个菜单项重新启动脚本，会带来多个 Execution、状态复制、资源泄漏、重复任务、退出竞态和平台行为不一致。因此需要在实现前先冻结职责边界。
+如果直接把 Tray 做成 Recipe 内部对象，或者让每个菜单项重新启动脚本，会带来多个 Execution、状态复制、资源泄漏、重复任务、退出竞态和平台行为不一致。因此需要冻结职责边界。
 
 ## 3. 目标
 
@@ -76,25 +75,32 @@ P0 目标：
 - 应用退出时安全停止 Action 分发、销毁 Tray / Menu、关闭 Native UI，并进入已有 Execution 取消 / 退出路径；
 - 不破坏现有 `./dist/opendesk -script xxx.js` 行为。
 
-Localization L0 另外要求：初始 native menu 的 OpenDesk-owned presentation 与 Manifest `labelKey` 由同一个 Locale Core 解析，且 action/id 不随 UI 语言改变。本文件只记录 App Shell 的消费边界；完整 locale contract 仍由 `product-localization.md` 负责。
+Localization L0 additionally requires:
+
+- OpenDesk-owned presentation and Manifest `labelKey` resolve through one Locale Core;
+- official `语言 / Language` submenu exposes `auto / zh-CN / en-US` without extending the public manifest submenu contract;
+- locale action IDs stay stable and never enter business JavaScript;
+- a preference change persists first, then refreshes the current native menu without restart;
+- locale refresh changes presentation only and preserves Runtime-owned state.
 
 ## 4. 非目标
 
-P0 不解决：
+P0 / Localization L0 不解决：
 
 - 创建另一套 Recipe Runtime、Replay Runtime 或后台 Worker Runtime；
 - 让菜单项直接指定另一个 `.js` 并启动独立 Execution；
 - 用 Node.js `child_process` 作为 App Shell；
 - 在 JS polyfill 中实现 OpenDesk 专用原生 Tray；
 - Linux Tray；
-- 复杂菜单 DSL、任意平台专属菜单能力、菜单模板语言；
+- 对第三方 App 开放复杂 recursive submenu DSL；
+- arbitrary checked/radio/accelerator/badge/reorder public menu API；
 - 安装器、自动更新、代码签名、Protected Recipe Package 的完整分发流程；
 - 浏览器式生命周期 API；
 - 用环境变量作为正式应用 Manifest 的唯一配置载体；
 - 在 native backend 中实现第二套 catalog loader / locale resolver；
-- 本阶段直接实现完整 `Language → auto / 简体中文 / English` 子菜单。
+- 在 L0 中全面迁移 AI Assistant、Scheduler、Recorder、Permissions、Runtime Log、Measurement 等 Custom UI 页面。
 
-这些能力可以后续叠加，但不能改变本设计的 Execution 与 App Shell 边界。
+这些能力可以后续叠加，但不能改变 Execution 与 App Shell 边界。
 
 ## 5. 与当前仓库能力的关系
 
@@ -110,11 +116,11 @@ Localization Core 由 `pkg/localization` 持有；App Shell 只通过稳定 help
 
 菜单由三个层次组成：
 
-1. **OpenDesk System Menu**：框架保留的系统动作，例如打开 / 显示应用、退出；
+1. **OpenDesk System Menu**：框架保留的系统动作，例如打开 / 显示应用、语言和退出；
 2. **Manifest Business Menu**：`opendesk.app.json` 中声明的初始业务菜单；
 3. **Runtime State**：当前 Execution 对已有菜单项进行动态状态更新。
 
-P0 默认采用 merge 语义：
+普通 Script App 的 P0 merge 语义仍为：
 
 ```text
 Open / Show
@@ -124,7 +130,9 @@ Open / Show
 Quit
 ```
 
-在 native backend 接收这棵菜单树之前，初始 presentation 会经过 Localization Core：
+Repository-owned OpenDesk product additionally composes Developer、Language、Help 等 recursive native items. This recursive shape is an internal `nativeMenuItem.Children` contract and is not added to third-party `opendesk.app.json`.
+
+在 native backend 接收菜单树之前，presentation 经过 Localization Core：
 
 ```text
 system presentation key / Manifest labelKey
@@ -138,9 +146,9 @@ nativeMenuItem
 Windows / macOS backend
 ```
 
-业务菜单不能通过错误配置让应用失去退出入口。P0 的 `Quit` 为框架保留项。
+业务菜单不能通过错误配置让应用失去退出入口。`Quit` 为框架保留项。
 
-保留 `opendesk.*` 作为系统 Action / Menu ID 前缀，应用 Manifest 不得声明该前缀。翻译只改变 label，不改变这些机器 ID。
+保留 `opendesk.*` 作为系统 Action / Menu ID 前缀，应用 Manifest 不得声明该前缀。翻译只改变 label，不改变机器 ID。
 
 ## 7. App Manifest 契约
 
@@ -195,12 +203,11 @@ P0 Manifest 示例：
 ### 7.1 顶层字段
 
 - `id: string`
-  - 必填、稳定的 package identity；P0 使用小写 reverse-DNS 形式，例如 `com.example.sync-helper`；
-  - single-instance key 只来自规范化后的 `id` 的 SHA-256，不使用绝对 `entry` 路径或当前工作目录；
+  - 必填、稳定的 package identity；P0 使用小写 reverse-DNS 形式；
+  - single-instance key 只来自规范化后的 `id` 的 SHA-256；
   - `id` 改变表示另一个应用身份。
 - `entry: string`
-  - App Mode 的 JavaScript 入口；
-  - P0 默认可为 `main.js`，但实现必须显式解析并验证；
+  - App Mode JavaScript 入口；
   - 它是 App Mode 契约，不改变已有 `-script` 参数。
 - `singleInstance: boolean`
   - P0 推荐默认 `true`；
@@ -209,24 +216,26 @@ P0 Manifest 示例：
   - `hide`：关闭主窗口仅隐藏，App Shell 保持运行；
   - `quit`：关闭行为进入应用退出流程。
 - `window.mainId: string`
-  - 必填；必须与入口脚本传给 `automation.ui.createWindow()` 的稳定 Custom UI window `id` 一致；
-  - 系统动作 `opendesk.open` 显示并聚焦这个现有窗口；不会新建窗口，也不会向业务层改写成另一个 action。
+  - 必填；必须与入口脚本创建的稳定 Custom UI window `id` 一致；
+  - `opendesk.open` 显示并聚焦这个现有窗口。
 - `tray`
   - 托盘 / 菜单栏配置。
 
 ### 7.2 Tray 字段
 
 - `enabled: boolean`：是否创建系统托盘 / 菜单栏入口；
-- `icons.windows: string`：Windows Notification Area 使用的真实 `.ico` 包内相对路径；tray 启用时必填；ICO directory/frame 在所有 host 上启动前验证，native loader 按当前 DPI 的 small-icon metrics 选择 frame；推荐包含 16/20/24/32/48/256 px，但 P0 不把固定帧集合设为硬要求；
-- `icons.macos: string`：macOS Menu Bar 使用的真实正方形 PNG 包内相对路径；tray 启用时必填，必须同时含可见与透明 alpha，作为 18-point template image 按比例渲染；推荐 36×36 px；
+- `icons.windows: string`：Windows Notification Area 使用的真实 `.ico` 包内相对路径；
+- `icons.macos: string`：macOS Menu Bar 使用的真实正方形 PNG 包内相对路径；
 - `tooltip: string`：平台支持时显示；
 - `primaryAction: string`：托盘主激活动作对应的业务 Action ID；
 - `menuMode: "merge"`：P0 只冻结 `merge`；
 - `menu: array`：静态初始菜单。
 
+两端 icon 均在创建 native host 前完成 package containment、格式和内容验证。Windows backend 按当前 DPI 的 small-icon metrics 选择 ICO frame；macOS 使用 18-point proportional-down template image 语义。
+
 ### 7.3 菜单项
 
-普通菜单项继续支持 legacy label：
+Legacy label continues to work:
 
 ```json
 {
@@ -238,7 +247,7 @@ P0 Manifest 示例：
 }
 ```
 
-Localization Core 增加 additive `labelKey` presentation reference：
+Localization L0 adds optional `labelKey`:
 
 ```json
 {
@@ -249,28 +258,26 @@ Localization Core 增加 additive `labelKey` presentation reference：
 }
 ```
 
-`labelKey` 也可以在没有 legacy `label` 时单独使用；普通 item 至少需要二者之一。`schemaVersion` 继续保持 `1`。
+`labelKey` can also be used without `label`; a normal item requires at least one. `schemaVersion` remains `1`.
 
-分隔符：
+Separator:
 
 ```json
 { "type": "separator" }
 ```
 
-设计要求：
+Design requirements:
 
-- 可被 Runtime 更新的菜单项必须具有稳定且唯一的 `id`；
-- 普通 menu item 的 `id` 在整个 menu 中全局唯一；`action` 可以由多个 item 复用；native item `id` 只用于更新定位，发给 JavaScript 的 `event.id` 始终是 `action`；
-- `labelKey` 只描述 presentation，不能代替 `id` / `action`；
-- `action` 是业务 Action ID，不是文件名、JS 代码或 shell command；
-- 没有 `action` 的 status-only item 只允许显式且永久 `enabled:false`；Runtime 不得把它重新启用；
-- separator 的唯一合法结构是 `{ "type": "separator" }`，不能携带 `labelKey`；
-- `id` / `action` 不允许使用保留的 `opendesk.*` 前缀；
-- 重复 ID、无效类型、非法资源路径必须在应用启动阶段尽早失败；
-- `primaryAction` 必须引用已声明的业务 Action 或系统动作 `opendesk.open`；`opendesk.quit` 只保留给系统 Quit menu，不允许作为 primary action；
-- `closeBehavior=hide` 时必须有 `tray.enabled=true`，且 `primaryAction` 必须是 `opendesk.open`，否则启动校验失败。
+- Runtime-updateable items have stable unique `id`;
+- `action` may be reused; `event.id` is the action, not the native item ID;
+- `labelKey` is presentation only and cannot replace `id` / `action`;
+- no-action status item must remain disabled;
+- separator cannot carry `labelKey`, label, ID or action;
+- app manifests cannot claim reserved `opendesk.*` IDs/actions except documented first-party resource exceptions;
+- `primaryAction` resolves to a declared business action or `opendesk.open`;
+- `closeBehavior=hide` requires a reliable tray reopen path.
 
-Manifest label presentation lookup 顺序由 Locale Core 统一负责：
+Manifest presentation lookup order is:
 
 ```text
 resolved locale
@@ -281,30 +288,25 @@ resolved locale
 
 ### 7.4 Package root 与资源边界
 
-- package root 是 `realpath(-app directory)`；启动前必须确认它是目录；
-- `entry` 与两端 icon 都必须是 package root 内的相对路径，拒绝绝对路径、`..` 逃逸、缺失文件、目录和 symlink escape；
-- 路径校验使用解析 symlink 后的真实目标，而不是只做字符串前缀比较；
-- 两端 icon 都在创建 Execution/native host 前验证且单文件限制为 16 MiB：macOS PNG 边长 16–1024 px，必须完整解码；Windows ICO 每帧为 16–256 px 正方形，验证 frame count、offset/range/overlap 与尺寸，嵌入 PNG 完整解码，传统 DIB 验证 header 与常见未压缩 payload；
-- 两个图标字段没有平台 fallback；P0 不承诺把任意单一 PNG 自动转换为 Windows ICO 或 macOS template image，manifest 必须分别提供上述平台资源；
-- Windows backend 在 message-loop owner 上加载一个 `HICON`，Explorer taskbar 重建复用该 handle，统一 teardown 先 `NIM_DELETE` 再 `DestroyIcon`；macOS backend 显式使用 proportional-down scaling，避免高分辨率源被当作同等 point size 拉宽或裁切。
+- package root is canonicalized with real-path semantics;
+- `entry` and icon paths must stay inside the package root;
+- reject absolute paths, traversal, missing resources and symlink escapes;
+- icons are validated before business Execution/native host creation;
+- both platform resources are explicit; L0 does not promise automatic PNG↔ICO conversion.
 
 ### 7.5 App Mode CLI 边界
 
-- 唯一入口是 `-app <directory>`；它在 helper/native/flags/console 处理后、无参数 HTTP、vision、direct script 与 HTTP 分支前进入独立 startup pipeline；
-- `-app` 与 `-script`、`-script-text`、`-script-stdin`、`-http`、vision/native/helper 模式严格互斥；
-- 普通 Script、inline、stdin 和 HTTP 模式不读取或自动发现 `opendesk.app.json`；
-- App Mode 创建独立 `execution.Request`，不使用 direct-script replacement lease、不修改 process cwd、默认没有 30 分钟 deadline；`WorkDir` 与 `CustomUIBaseDir` 都是 package root；
-- single-instance 必须在 `execution.Run` 前完成 acquire/activation ACK 决策。
+- unique entry is `-app <directory>`;
+- `-app` is mutually exclusive with direct script/HTTP/vision/native/helper modes;
+- ordinary Script/inline/stdin/HTTP modes do not auto-discover app manifests;
+- App Mode owns a separate execution request without changing process cwd;
+- single-instance acquire/activation decision occurs before `execution.Run`.
 
 ## 8. App Runtime API
 
-最终 API 名称必须在实现时先对照当前 native binding 风格确认；以下名称冻结的是**业务语义**，不是要求无视仓库风格硬加名称。
-
-正式归属：native `automation.app`。现有 global `App` 继续表示外部桌面应用控制，保持兼容；生命周期结构字段命名 `AppShell`，不得与该 `App` 混用。普通 Script Mode 可以看到 disabled capability，但不会读取 manifest、创建 tray 或获得常驻语义。
+Formal ownership is native `automation.app`. Existing global `App` continues to mean external desktop-application control. Ordinary Script Mode may expose disabled capability metadata but does not create tray or persistent App Mode semantics.
 
 ### 8.1 Action 订阅
-
-建议：
 
 ```js
 automation.app.onAction((event) => {
@@ -314,7 +316,7 @@ automation.app.onAction((event) => {
 });
 ```
 
-P0 Action Event 至少包含：
+P0 event includes at least:
 
 ```js
 {
@@ -323,11 +325,9 @@ P0 Action Event 至少包含：
 }
 ```
 
-必要时可后续扩展 `timestamp`、平台来源等，但业务代码不应依赖 Windows 左 / 右键或 macOS selector 名称。
+Business code does not depend on platform selector/click names.
 
 ### 8.2 动态菜单更新
-
-推荐：
 
 ```js
 await automation.app.updateMenuItem("status", {
@@ -336,33 +336,29 @@ await automation.app.updateMenuItem("status", {
 });
 ```
 
-核心原则：**使用稳定菜单 ID 更新局部状态，不要求业务状态每次变化都重建整棵菜单树。**
+Core principle: **use stable menu IDs for local state patches; normal business state changes do not rebuild the whole tree.**
 
-P0 patch 字段按平台共同能力冻结为：
+P0 patch fields remain:
 
 - `label`
 - `enabled`
 - `visible`
 
-`checked`、radio、submenu、accelerator、badge 与 arbitrary reorder 均不进入 P0。
+Unknown fields fail explicitly. Public checked/radio/submenu/accelerator/badge/reorder remain outside this API.
 
-未知字段必须返回明确错误，不静默忽略。
-
-Localization Core 不改变这个动态 patch 合同。本轮只收口 initial menu presentation；后续 Native Language Menu 可以在 preference 改变后重建/刷新 native presentation，但不得改变 action ID 或创建新 Execution。
+Localization L0 does not widen that public patch contract. A locale change uses the product-owned App Shell path and updates only localization-owned labels. Existing `enabled` / `visible` values are not reset; arbitrary Runtime-owned dynamic labels remain Runtime-owned. Debug `Normal/Detailed` selection is preserved while its base text is retranslated.
 
 ### 8.3 应用退出
-
-推荐：
 
 ```js
 await automation.app.quit();
 ```
 
-它必须进入统一 App Shell / Execution shutdown 流程，不能直接绕开资源释放调用平台 `exit()`。
+It enters the unified App Shell / Execution shutdown path and must not bypass cleanup via a platform `exit()`.
 
 ## 9. Action 分发链路
 
-正确链路：
+Business actions:
 
 ```text
 Native tray/menu callback
@@ -370,7 +366,7 @@ Native tray/menu callback
         v
 App Shell
         |
-        | stable actionId
+        | stable business actionId
         v
 Runtime-safe Action Dispatcher
         |
@@ -381,35 +377,49 @@ CURRENT Execution
 main.js registered handler
 ```
 
-强约束：
+Locale actions are intentionally different product-system actions:
 
-- 一个 App Shell 对应当前应用的一个业务 Execution；
-- 菜单 Action 不创建新的 Goja Runtime；
-- 不通过 `Command.run()`、进程启动或再次调用 OpenDesk CLI 来执行同一个 App 的 Action；
-- Native UI thread 不直接执行 JS；
-- native callback 必须切换 / 投递到当前 Runtime 允许的线程和事件机制；
-- 应保持 Action 的可解释顺序，避免并发回调直接进入同一个 JS Runtime；
-- Execution 已进入 shutdown 后必须拒绝新 Action。
+```text
+Native Language menu callback
+        |
+        v
+App Shell NativeHost localization adapter
+        |
+        +--> SetLocalePreference + persist
+        +--> resolve new presentation
+        `--> refresh native menu labels
 
-Localization 只能改变进入 native tree 的显示字符串，不进入这条 action dispatch 链路。
+(no JavaScript business dispatch)
+```
+
+Stable locale IDs:
+
+```text
+opendesk.locale.auto
+opendesk.locale.zh-CN
+opendesk.locale.en-US
+```
+
+Strong constraints:
+
+- one App Shell corresponds to one current business Execution;
+- business menu actions do not create Goja runtimes or relaunch the CLI;
+- Native UI thread does not execute JavaScript;
+- callbacks safely cross to Runtime-owned event mechanisms;
+- shutdown rejects new actions;
+- locale action IDs never enter business handlers and are never localized.
 
 ## 10. Tray 主激活语义
 
-跨平台业务语义使用 `primaryAction`，而不是把 left-click / right-click 暴露为主要公共契约。
+Cross-platform semantics use `primaryAction`, not public left/right-click details.
 
-例如：
+`opendesk.open` first shows/focuses `window.mainId`, then exposes the same open event to the current Runtime for observation; business code cannot replace the system reopen behavior.
 
-```json
-"primaryAction": "opendesk.open"
-```
+Platform mapping remains native:
 
-`opendesk.open` 是 App Shell 保留的系统动作：它先显示并聚焦 `window.mainId` 对应的现有 Custom UI window，再把同一个 `{id:"opendesk.open", source}` event 投递给当前 Runtime，使业务能够观测 tray primary click 与 second-instance activation，但不能覆盖系统 reopen 行为。业务 `primaryAction` 则按普通 action 分发。
-
-平台实现可映射为：
-
-- Windows：Notification Area icon 的主激活动作 + context menu；
-- macOS：`NSStatusItem` / menu bar item 的激活与 menu；
-- 平台差异留在 native backend，不扩散到普通 Recipe。
+- Windows Notification Area icon + context menu;
+- macOS `NSStatusItem` / menu;
+- platform click details do not leak into ordinary Recipe code.
 
 ## 11. 窗口关闭生命周期
 
@@ -417,42 +427,28 @@ Localization 只能改变进入 native tree 的显示字符串，不进入这条
 
 ```text
 User closes main window
-        |
-        v
-App Shell intercepts app-level close intent
-        |
-        v
-hide existing Custom UI window
-        |
-        v
-Execution + Tray remain alive
+→ App Shell intercepts app-level close intent
+→ hide existing Custom UI window
+→ Execution + Tray remain alive
 ```
 
-再次通过 Tray `primaryAction` / Open 菜单显示原窗口。
+Tray Open restores the original window.
 
 ### 11.2 `closeBehavior=quit`
 
 ```text
 User closes main window
-        |
-        v
-App Shell begin shutdown
-        |
-        v
-existing Execution cancellation / cleanup
-        |
-        v
-Native UI + Tray teardown
-        |
-        v
-process exit
+→ App Shell begin shutdown
+→ existing Execution cancellation / cleanup
+→ Native UI + Tray teardown
+→ process exit
 ```
 
-P0 不创建第三种模糊状态。
+P0 does not create a third ambiguous state.
 
 ## 12. Single Instance
 
-当 `singleInstance=true`：
+When `singleInstance=true`:
 
 ```text
 First launch
@@ -463,7 +459,7 @@ First launch
 
 Second launch
   -> detect existing primary instance
-  -> send activate/reopen intent to primary App Shell
+  -> send activate/reopen intent
   -> exit before business Runtime initialization
 
 Primary instance
@@ -472,18 +468,17 @@ Primary instance
   -> DO NOT rerun main.js
 ```
 
-平台锁 / IPC 机制可以不同，但产品语义必须相同。
+Platform mechanisms differ, but product semantics do not:
 
-实例 identity 固定来自规范化 manifest `id` 的 SHA-256：
-
-- Windows：每用户 `Local\\OpenDesk.App.<hash>` named mutex + current-user-only ACL named pipe；
-- macOS：用户私有状态目录中的 `flock` lease + Unix domain socket，目录、lock、socket 均拒绝扩大到其他用户；
-- primary 必须先取得 identity，随后且只创建一次业务 Execution；secondary 发送 activation 并收到 ACK 后，在 `execution.Run` 之前退出；
-- primary 进入 `QUITTING` 后拒绝并 NACK activation，绝不复活或重建 Runtime。
+- Windows: per-user named mutex + current-user-only named pipe;
+- macOS: user-private `flock` lease + Unix domain socket;
+- primary acquires identity before creating the one business Execution;
+- secondary waits for activation ACK and exits before `execution.Run`;
+- `QUITTING` primary rejects activation and never resurrects Runtime.
 
 ## 13. Shutdown 顺序
 
-退出必须是单向、幂等的生命周期：
+Shutdown is one-way and idempotent:
 
 ```text
 RUNNING
@@ -500,160 +495,129 @@ QUITTING
 STOPPED
 ```
 
-正式 shutdown 只使用现有 Execution 生命周期：
+Formal path:
 
 ```text
 AppShell.RequestQuit
-  -> CAS RUNNING -> QUITTING；拒绝 action / activation
+  -> CAS RUNNING -> QUITTING
   -> cancel App Mode parent context
-  -> RuntimeLifecycle.CancelAsync（含 AppShell listener/queue、Custom UI、native tray teardown）
+  -> RuntimeLifecycle.CancelAsync
   -> EventLoop.Terminate
-  -> RuntimeLifecycle.Wait join workers
+  -> RuntimeLifecycle.Wait
   -> release single-instance IPC / lease
   -> process exit
 ```
 
-AppShell 是 `RuntimeLifecycle` 的正式资源，必须进入 `AsyncCounts`、`ResourceCounts`、`CancelAsync` 与 `Wait`。监听器本身使 App Mode 顶层脚本完成后继续存活；资源变化必须通过 completion wake/gate 通知 runner 重新检查，禁止永久 `setInterval`、sleep loop 或 1ms polling。不能在 App Shell 内复制一套任务终止系统。
+AppShell is a formal `RuntimeLifecycle` resource and participates in async/resource counts, cancellation and wait. It does not own a second task-termination system.
 
-至少保证：
-
-- 重复 `quit()` 不崩溃；
-- Tray 回调不能在 Execution 销毁后进入 JS；
-- Native UI 关闭与 Runtime 退出不存在明显 use-after-free；
-- 第二实例的 IPC / activation 不会在主实例退出中途复活 Runtime。
+Locale refresh work is serialized with native menu updates; teardown stops accepting new locale callbacks and joins in-flight refresh before destroying native resources.
 
 ## 14. 错误与校验策略
 
-Manifest 属于应用启动契约，应尽早校验并给出可定位错误。
+Manifest structural errors fail early. P0 checks include JSON syntax, entry/resources, duplicate menu IDs, reserved namespace conflicts, action types, missing `label`/`labelKey`, invalid `labelKey`, primary action, menu mode, close behavior, reopen requirements, icon containment/content and native tray creation.
 
-P0 至少检查：
+Do not silently downgrade structural errors to “no menu”. Translation-resource errors are different: Locale Core follows its fail-soft fallback/diagnostic contract.
 
-- JSON 语法；
-- 缺失 / 无效 `entry`；
-- 重复 menu ID；
-- 保留 `opendesk.*` 前缀冲突；
-- 菜单 `action` 类型错误；
-- 普通菜单项同时缺失 `label` 与 `labelKey`；
-- 非法 `labelKey`；
-- `primaryAction` 无法解析；
-- `menuMode` 不受支持；
-- `closeBehavior` 不受支持；
-- `closeBehavior=hide` 但没有可靠 reopen 路径；
-- tray icon 路径逃逸应用包或资源不存在；
-- tray icon 空文件、错格式、损坏内容、非法尺寸/透明度或 ICO frame range；
-- 平台创建 Tray / Menu 失败。
+A locale preference persistence failure prevents that locale change from being treated as committed; it does not dispatch the locale ID as a business action. A native presentation refresh error is diagnosed instead of corrupting action identity.
 
-不要把结构性配置错误静默降级成“没有菜单”。翻译资源缺失与结构性 Manifest 错误不同：Localization Core 可以按照正式 fallback 合同 fail-soft。
+## 15. P0 / Localization L0 boundary
 
-## 15. P0 / P1 边界
+### 15.1 Implemented platform-neutral / repository contracts
 
-### 15.1 P0 必须完成
+- App Manifest parsing/validation and App Mode entry;
+- Windows Tray and macOS Menu Bar/status item;
+- Open/Show + Quit system menu;
+- manifest business-menu merge;
+- stable-ID runtime label/enabled/visible patching;
+- same-Execution business action dispatch;
+- hide/quit lifecycle and single-instance behavior;
+- idempotent shutdown;
+- Manifest `labelKey` and shared Locale Core;
+- official OpenDesk recursive Developer / Language / Help product menu;
+- stable `auto / zh-CN / en-US` locale actions;
+- persisted locale switching and native label refresh;
+- runtime state preservation during locale refresh;
+- release packaging of both L0 catalogs.
 
-- App Manifest 解析与校验；
-- App Mode 的入口解析；
-- Windows Tray；
-- macOS Menu Bar / status item；
-- 默认 Open / Show + Quit 系统菜单；
-- Manifest 静态业务菜单 merge；
-- 稳定 ID 的动态菜单更新；
-- Tray / Menu Action 分发到同一个当前 Execution；
-- `closeBehavior=hide|quit`；
-- `singleInstance=true|false` 的明确行为；
-- 幂等 shutdown；
-- Windows / macOS 测试或平台可执行 smoke coverage；
-- JS API 文档、Manifest 文档、可运行 example；
-- 现有 CLI / Custom UI 回归验证。
+### 15.2 Later / outside L0
 
-Localization Core 已经增加初始菜单 `labelKey` 解析，但完整 Native Language submenu / live refresh 属于独立后续任务，不修改上述 P0 生命周期语义。
-
-### 15.2 P1 再考虑
-
-- 多级 submenu；
-- accelerator / keyboard shortcut；
-- Runtime 任意 insert / remove / reorder menu item；
-- richer checked / radio / badge / icon-per-item；
-- 平台专属高级菜单能力；
-- Linux；
-- richer lifecycle events；
-- installer / self-update；
-- OS login startup；
-- manifest schema versioning 的复杂迁移机制；
-- environment-variable based deployment defaults。
+- public third-party recursive submenu API;
+- public checked/radio/badge/accelerator/menu-reorder abstractions;
+- Linux tray;
+- installer/self-update/login startup;
+- full localization of non-native official Custom UI surfaces (L1);
+- broader language set / advanced localization formatting.
 
 ## 16. 向后兼容
 
-以下行为属于不可回归项：
+These are non-regression requirements:
 
-- 没有进入 App Mode 时，不要求存在 `opendesk.app.json`；
-- `./dist/opendesk -script xxx.js` 继续按照现有 Execution 路径运行；
-- 普通 `.js` 不因为加入 App Shell 自动变成常驻进程；
-- 现有 `automation.ui.*` API 不因 App Shell 改名或复制；
-- 当前通知、Recorder、桌面自动化 API 不依赖 Tray 才能工作；
-- App Menu Action 不能通过再次启动 CLI 来实现；
-- 旧 `label`-only App Manifest 继续有效；
-- locale 切换不改变 menu/action machine ID。
+- non-App Mode does not require `opendesk.app.json`;
+- `./dist/opendesk -script xxx.js` keeps the existing Execution path;
+- ordinary `.js` does not become persistent because App Shell exists;
+- existing `automation.ui.*`, notification, Recorder and desktop APIs do not depend on Tray;
+- App Menu Action is never implemented by relaunching CLI;
+- old `label`-only manifest remains valid;
+- locale switching does not change menu/action machine IDs;
+- UI locale does not change AI conversation language.
 
 ## 17. 平台实现原则
 
-P0 不使用当前 `fyne.io/systray v1.11.0` indirect legacy dependency：其 primary-click、错误传播、丢事件和全局 loop/delegate 契约无法满足本设计。两端使用平台原生 backend。
+P0 does not use the legacy indirect `fyne.io/systray` dependency for App Shell. Both platforms use native backends.
 
-两个 native backend 都只消费已经解析好的菜单文本；不得分别读取 `locales/*.json`、推断 OS locale 或实现 translation fallback。
+Both native backends consume already-resolved strings. They do not read `locales/*.json`, infer OS locale, persist preference or implement translation fallback.
 
 ### Windows
 
-由 `opendesk` 主 Go process 的 App Shell 持有 Notification Area icon、menu 和 single-instance，而不是 Custom UI sidecar 或 `cmd/opendesk-status`。backend 使用专属 Windows message-loop owner；窗口 user close 在 `FormClosing` / `NativeForm.OnFormClosing` 阶段拦截，`hide` 时设 `Cancel=true` 并隐藏原窗口。script/session/programmatic close 带明确 origin 并真正关闭。
+The main `opendesk` Go process owns Notification Area icon/menu/single-instance. The backend uses a dedicated Windows message-loop owner. User close with `hide` is intercepted before real form close; programmatic/session close remains real close.
 
-必须验证：
+For locale switching, the callback returns from the Win32 message-loop handler before App Shell performs `UpdateMenuItem` operations, preventing the message loop from synchronously waiting on itself. The visible tree is reconstructed from current localized presentation and native state when the menu opens.
 
-- 与 WebView2 STA / COM 生命周期兼容；
-- Tray callback 不直接进入 Goja；
-- Explorer / tray 重建场景至少不会导致应用崩溃；
-- 单实例 IPC 不阻塞主 GUI loop；
-- Localization Core 后续触发 rebuild/refresh 时仍由 Go 层提供最终字符串。
+Qualification must verify WebView2 STA/COM coexistence, Explorer tray recreation, single-instance IPC responsiveness, real language switching and restart persistence.
 
 ### macOS
 
-由 `opendesk` 主 Go process 的 App Shell 持有 `NSStatusItem` / `NSMenu` 与 single-instance，不依赖 Custom UI sidecar。AppKit 状态栏和 UI mutation 必须位于 primordial main thread，Execution 可在 goroutine。窗口在 `windowShouldClose` 区分 origin：用户关闭且 `hide` 时 `orderOut` 并返回 `NO`；programmatic/session close 返回 `YES`；`windowWillClose` 只负责最终清理。
+The main `opendesk` Go process owns `NSStatusItem` / `NSMenu` and single-instance. AppKit mutation stays on the primordial main thread while Execution may run in a goroutine. User close/hide and programmatic/session close retain their existing origin semantics.
 
-必须验证：
+Product submenu parents receive stable internal native IDs and are registered in the AppKit menu-item index, so `Developer`, `Language`, `Debug`, `Help` and leaf labels can update in place without giving Objective-C any catalog responsibility.
 
-- `NSStatusItem` 生命周期与应用退出一致；
-- callback 安全投递到 Runtime；
-- 与 WKWebView / Custom UI 共存；
-- 第二实例 activation 不重复运行入口脚本；
-- Localization Core 后续触发 rebuild/refresh 时不在 Objective-C backend 中复制 catalog 逻辑。
+Qualification must verify status-item lifecycle, callback safety, WKWebView coexistence, single-instance activation, real language switching and restart persistence.
 
 ## 18. 测试矩阵
 
 | 场景 | Windows | macOS | 必须结果 |
 | --- | --- | --- | --- |
 | 无 App Manifest 的 `-script` | Yes | Yes | 行为与当前版本一致 |
-| 有效 Manifest 启动 | Yes | Yes | 创建一个 App Shell + 一个业务 Execution |
+| 有效 Manifest 启动 | Yes | Yes | 一个 App Shell + 一个业务 Execution |
 | 无效 Manifest | Yes | Yes | 启动阶段明确失败 |
 | 默认系统菜单 | Yes | Yes | Open / Show 与 Quit 存在 |
 | 业务菜单 merge | Yes | Yes | 顺序和 actionId 正确 |
-| legacy `label` only | Yes | Yes | 与旧版本兼容 |
-| `labelKey + label` | Yes | Yes | current locale → fallback locale → legacy label |
-| `labelKey` missing translation | Yes | Yes | 不返回空字符串，safe fallback，action 不变 |
+| legacy `label` only | Yes | Yes | 兼容 |
+| `labelKey + label` | Yes | Yes | current → fallback → legacy |
+| `labelKey` missing translation | Yes | Yes | safe fallback，action 不变 |
+| Language submenu | Yes | Yes | `语言 / Language` + auto / 简体中文 / English |
+| 选择 English | Yes | Yes | persist `en-US`，当前 native menu 立即英文化 |
+| 选择简体中文 | Yes | Yes | persist `zh-CN`，当前 native menu 立即中文化 |
+| 选择 System Default | Yes | Yes | persist `auto`，重新读取 OS locale 并 resolve |
+| locale action dispatch | Yes | Yes | 不进入 JavaScript business sink |
+| locale refresh state merge | Yes | Yes | enabled/visible/runtime labels/debug mode 保持 |
+| restart persistence | Yes | Yes | 重启后仍使用 persisted preference |
 | 点击业务菜单 | Yes | Yes | 当前 Execution 收到一次 Action |
 | 连续点击菜单 | Yes | Yes | 不创建额外 Runtime，事件有序 |
 | 动态更新菜单 label | Yes | Yes | 原菜单项原位更新 |
 | `closeBehavior=hide` | Yes | Yes | 窗口隐藏，Runtime / Tray 存活 |
-| `closeBehavior=quit` | Yes | Yes | 进入统一 shutdown |
+| `closeBehavior=quit` | Yes | Yes | 统一 shutdown |
 | 第二次启动 | Yes | Yes | 激活已有实例，不 rerun `main.js` |
 | 退出中的菜单点击 | Yes | Yes | 被拒绝 / 忽略且不崩溃 |
 | 重复 quit | Yes | Yes | 幂等 |
 | Custom UI coexistence | Yes | Yes | UI 与 Tray 生命周期无死锁 |
-| icon missing / empty / wrong-format / corrupt | Yes | Yes | Execution 创建前指出具体 `tray.icons.*` 字段并失败 |
-| icon traversal / symlink escape | Yes | Yes | 解析真实路径后拒绝 package 越界 |
-| icon scaling / template tint | N/A | Yes | 18-point 比例缩放；真实浅色/深色菜单栏截图检查清晰、留白与无裁切 |
-| ICO common DPI frames | Yes | N/A | portable 结构/解码测试；真机检查 Windows 实际 DPI 选择与显示 |
+| icon invalid / escape | Yes | Yes | Execution 创建前明确失败 |
+| icon scaling / template tint | N/A | Yes | 真机视觉验证 |
+| ICO common DPI frames | Yes | N/A | portable test + real DPI verification |
 
-测试必须覆盖“Action 执行次数 / Runtime 实例数量”，不能只验证图标是否出现。Localization tests 还必须证明 action ID 不随 locale 改变。
+Repository automated tests prove contracts and fake-native runtime switching. Real platform rows that depend on clicking native UI remain qualification tasks until corresponding local evidence exists.
 
-## 19. 建议实现分层
-
-最终文件名应以当前源码组织为准，但职责保持：
+## 19. 实现分层
 
 ```text
 CLI / app-mode bootstrap
@@ -661,12 +625,13 @@ CLI / app-mode bootstrap
         v
 Manifest parser + validator
         |
-        +--> Locale Core / presentation resolution
+        +--> Locale Core / preference persistence
         |
         v
 AppShell (platform-neutral state/lifecycle)
         |\
         | +--> SingleInstance bridge
+        | +--> Product locale-action adapter
         |
         +--> Tray/Menu abstraction
                  |-- Windows backend
@@ -679,74 +644,73 @@ Runtime Action Dispatcher
 automation.app binding
 ```
 
-实现约束：
+Constraints:
 
-- 原生 App Shell / Tray 代码优先按仓库现有约束放在 `src/automation/*` 或与其一致的原生模块边界；
-- 不把 OpenDesk 专用 App API 做成 `js/polyfills`；
-- Locale Core 只保留一套，Native backend 不复制；
-- 先检查当前 CLI / Execution / binding / Custom UI 生命周期，再选择最小落点；
-- 不为了抽象完整性创建新的大型 framework；
-- 不创建第二套窗口对象；
-- 不创建第二套 Execution 管理器。
+- no OpenDesk-specific App API duplicate in `polyfills`;
+- one Locale Core only;
+- native backends do not duplicate localization logic;
+- no second window object or Execution manager;
+- no large framework/Event Bus solely for language switching.
 
-## 20. 实施顺序
+## 20. Localization implementation sequence
 
-既有 App Shell P0 顺序保持不变。Localization Core 对 App Shell 的增量顺序是：
+Current L0 chain is:
 
 ```text
 Locale Core
 → Manifest labelKey
 → ResolveMenuLabel
+→ official catalogs + release closure
 → nativeMenuForManifest resolved strings
-→ existing Windows/macOS backend
-→ tests / release packaging / docs
-→ later Native Language submenu + refresh
+→ Language submenu with stable locale IDs
+→ App Shell locale-action adapter
+→ SetLocalePreference + persistence
+→ native label refresh preserving Runtime state
+→ automated contract tests
+→ platform-live qualification
 ```
 
-语言切换不得绕过 `SetLocalePreference`，也不得在各平台自行维护 preference。
+Language switching never bypasses `SetLocalePreference` and platforms never maintain their own preference.
 
-## 21. P0 验收标准
+## 21. P0 / L0 acceptance boundary
 
-P0 完成必须同时满足：
+Core App Shell P0 contracts remain implemented. Localization L0 repository implementation additionally has:
 
-- [x] Windows 与 macOS 都有真实 native Tray / Menu Bar 实现；
-- [x] App Manifest 能声明入口、single instance、close behavior、tray/menu；
-- [x] 配置错误有明确、可测试的失败；
-- [x] 两端图标在 native host 启动前完成路径、格式、尺寸与损坏校验；
-- [x] 默认系统菜单不能被错误配置移除 Quit；
-- [x] 菜单 Action 进入当前 Execution，而不是启动第二个 Runtime；
-- [x] `main.js` 在 single-instance 重复启动时不会再次运行；
-- [x] Runtime 可以通过稳定 menu ID 更新已有菜单项；
-- [x] `closeBehavior=hide` 能通过 Tray 可靠恢复窗口；
-- [x] `closeBehavior=quit` 和 `automation.app.quit()` 汇入同一 shutdown；
-- [x] shutdown 后没有 native callback 继续访问已销毁 Runtime；
-- [x] 普通 `-script` 路径回归通过；
-- [x] 至少有一个最小可运行 App Mode example；
-- [x] 正式 API / Manifest 文档与实现一致；
-- [x] 平台相关测试、静态构建检查和可执行 smoke test 结果被记录。
+- [x] shared Locale Core and OS resolver;
+- [x] `labelKey` + legacy-label compatibility;
+- [x] official zh-CN / en-US catalogs in release payload;
+- [x] official `语言 / Language` submenu;
+- [x] stable `opendesk.locale.auto / zh-CN / en-US` actions;
+- [x] locale actions consumed outside business JavaScript;
+- [x] preference persistence and immediate native presentation refresh;
+- [x] selected-language presentation;
+- [x] runtime `enabled` / `visible` / dynamic-label / debug-selection preservation contracts;
+- [x] fake NativeHost automated coverage;
+- [ ] macOS live switching / restart / release-package qualification;
+- [ ] Windows live switching / restart / release-package qualification.
 
-Localization Core 已加入，但完整 Native Language Menu / switching qualification 仍使用 `product-localization.md` 的 L0 状态，不由本 P0 checkbox 提前宣告完成。
+The unchecked platform-live items are intentionally delegated to the local qualification stage and must not be described as verified in this repository-only implementation pass.
 
 ## 22. 冻结决定
 
-以下决定在 P0 与 Localization Core 集成中视为冻结：
-
-1. Tray / Menu Bar 是 **App Shell** 能力，不是 Recipe 自己创建的第二套 Runtime；
-2. 一个 App 的菜单 Action 只分发给该 App 的**当前 Execution**；
-3. Manifest 负责**初始结构**，Runtime 负责**有限动态状态**；
-4. 动态菜单优先使用稳定 ID 的局部更新，不把整树重建作为常规业务 API；
-5. 系统 Quit 必须始终可达；
-6. `closeBehavior` 只冻结 `hide` 与 `quit`；
-7. single-instance 的第二次启动只激活已有实例，不 rerun `main.js`；
-8. Windows / macOS 对外提供统一业务语义，平台点击细节留在 native backend；
-9. App Shell 必须接入已有 Runtime / Native UI shutdown，而不是另造生命周期；
-10. 普通 JavaScript `-script` 执行路径保持兼容；
-11. 原生 App Shell 能力不通过仓库专用 JS polyfill 实现；
-12. P0 先实现最小可靠闭环，复杂菜单、安装器、自动更新等进入后续阶段；
-13. Manifest `labelKey` 与 OpenDesk-owned menu presentation 统一经 `pkg/localization` 解析，native backend 永不拥有第二套 locale/catelog system；
-14. `id` / `action` 永不本地化，UI locale 不改变 Action 分发；
-15. Native Language submenu 后续只消费现有 `SetLocalePreference` / resolved presentation，不建立第二套 preference storage。
+1. Tray / Menu Bar is **App Shell** capability, not a Recipe-created second Runtime.
+2. Business menu actions target the app's **current Execution** only.
+3. Manifest owns initial business structure; Runtime owns limited dynamic state.
+4. Dynamic business state uses stable-ID local patches, not routine whole-tree replacement.
+5. System Quit stays reachable.
+6. `closeBehavior` remains `hide | quit`.
+7. Single-instance secondary launch activates the existing instance and does not rerun `main.js`.
+8. Windows/macOS expose unified product semantics; platform click details remain native.
+9. App Shell joins existing Runtime/Native UI shutdown.
+10. Ordinary `-script` remains compatible.
+11. Native App Shell is not implemented through repository-specific JS polyfills.
+12. Complex public menu APIs, installers and updates remain later work.
+13. Manifest `labelKey` and OpenDesk-owned menu presentation resolve through `pkg/localization`; native backends never own a second locale/catalog system.
+14. `id` / `action` are never localized and UI locale does not alter business dispatch.
+15. Native Language Menu consumes the existing `SetLocalePreference` / resolved presentation and does not create a second preference store.
+16. Locale action IDs are App Shell product-system actions and never enter JavaScript business handlers.
+17. Locale refresh is presentation-only and preserves Runtime-owned state.
 
 ---
 
-本文件是 App Shell / Tray P0 的实现基线。后续代码审查应优先检查是否保持“一个 App Shell、一个当前业务 Execution、Action 不重启 Runtime、Native backend 不复制 Localization Core”这些核心不变量，而不是仅检查 Tray 图标或翻译文本是否能够显示。
+本文件是 App Shell / Tray P0 与 Localization L0 Native Menu 的实现基线。后续代码审查应优先检查“一个 App Shell、一个当前业务 Execution、业务 Action 不重启 Runtime、语言 Action 不进入 JS、Native backend 不复制 Localization Core、locale refresh 不丢 Runtime state”这些不变量，而不是只检查 Tray 图标或翻译文本是否能够显示。
