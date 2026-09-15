@@ -4,7 +4,7 @@ import "strings"
 
 // GlobalShortcutAccelerator is shared by App-lifecycle registration and the
 // first-party menu/Recorder hints. A hint never registers another shortcut.
-const GlobalShortcutAccelerator = "CommandOrControl+Alt+Shift+M"
+const GlobalShortcutAccelerator = "CommandOrControl+Shift+M"
 
 // GlobalShortcutLabel returns the default binding's presentation only on the
 // platforms with a native registration backend. Derive it from the registered
