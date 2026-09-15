@@ -121,6 +121,7 @@ static NSDictionary<NSString *, NSDictionary *> *CDGeneratedToolbarIcons(void) {
     @"shippingbox.fill": @{@"token": @"shippingbox-fill", @"systemSymbol": @"shippingbox.fill", @"scale": @(1.00), @"offsetX": @(0.00), @"offsetY": @(0.00)},
     @"printer.fill": @{@"token": @"printer-fill", @"systemSymbol": @"printer.fill", @"scale": @(1.00), @"offsetX": @(0.00), @"offsetY": @(0.00)},
     @"viewfinder": @{@"token": @"viewfinder", @"systemSymbol": @"viewfinder", @"scale": @(1.00), @"offsetX": @(0.00), @"offsetY": @(0.00)},
+    @"ruler": @{@"token": @"ruler", @"systemSymbol": @"ruler", @"scale": @(1.00), @"offsetX": @(0.00), @"offsetY": @(0.00)},
     @"qrcode": @{@"token": @"qrcode", @"systemSymbol": @"qrcode", @"scale": @(1.00), @"offsetX": @(0.00), @"offsetY": @(0.00)},
     @"barcode": @{@"token": @"barcode", @"systemSymbol": @"barcode", @"scale": @(1.00), @"offsetX": @(0.00), @"offsetY": @(0.00)},
     @"creditcard.fill": @{@"token": @"creditcard-fill", @"systemSymbol": @"creditcard.fill", @"scale": @(1.00), @"offsetX": @(0.00), @"offsetY": @(0.00)},

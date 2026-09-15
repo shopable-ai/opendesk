@@ -14,7 +14,7 @@ OpenDesk Runtime 自带跨平台语义图标目录。`FloatingWindow` 的普通�
 pkg/customui/assets/toolbar-icons-v1.json
 ```
 
-当前 v1 catalog 包含 160 个语义图标，并由 Runtime 映射到 macOS SF Symbols 与 Windows Segoe Fluent glyph。可通过仓库中的 Icon Browser 查看实际效果：
+当前 v1 catalog 包含 161 个语义图标，并由 Runtime 映射到 macOS SF Symbols 与 Windows Segoe Fluent glyph。可通过仓库中的 Icon Browser 查看实际效果：
 
 ```text
 examples/custom-ui/icon-browser/

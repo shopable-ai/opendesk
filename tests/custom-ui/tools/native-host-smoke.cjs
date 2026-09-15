@@ -19,7 +19,7 @@ fs.mkdirSync(root, {recursive:true});
 const publicRegistry = JSON.parse(fs.readFileSync(path.resolve('pkg/customui/assets/toolbar-icons-v1.json'),'utf8'));
 const windowsRegistry = JSON.parse(fs.readFileSync(path.resolve('pkg/customui/winhost/icons.json'),'utf8'));
 const publicNames = publicRegistry.icons.map(icon=>icon.name).sort();
-assert.deepEqual(Object.keys(windowsRegistry).sort(), publicNames, 'Windows icon registry must cover the canonical 160 public names exactly');
+assert.deepEqual(Object.keys(windowsRegistry).sort(), publicNames, 'Windows icon registry must cover every canonical public name exactly');
 for (const name of publicNames) {
   const codePoints = Array.from(windowsRegistry[name].glyph || '');
   assert(codePoints.length >= 1 && codePoints.length <= 2,

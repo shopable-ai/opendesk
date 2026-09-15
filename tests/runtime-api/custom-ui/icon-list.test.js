@@ -29,7 +29,7 @@
     const registry = JSON.parse(File.read(registryPath));
     equal(registry.schemaVersion, 1, 'icon registry schema changed');
     const iconCount = registry.icons.length;
-    equal(iconCount, 160, 'default icon registry count changed');
+    equal(iconCount, 161, 'default icon registry count changed');
     const names = registry.icons.map(icon => icon.name);
     const ids = names.map(buttonIDFor);
     equal(new Set(names).size, iconCount, 'icon names are not unique');
@@ -139,10 +139,17 @@
     const firstCopied = await screenshot('first-copied');
 
     await mouse.move(shown.bounds.x + shown.bounds.width / 2, shown.bounds.y + shown.bounds.height - 90);
-    await mouse.wheel({ deltaY: 6000, steps: 30, delay: 10 });
-    await new Promise(resolve => setTimeout(resolve, 400));
+    let lastAfter;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      await mouse.wheel({ deltaY: 6000, steps: 30, delay: 10 });
+      await new Promise(resolve => setTimeout(resolve, 400));
+      lastAfter = await panel.control(ids[ids.length - 1]).getState();
+      if (lastAfter.localBounds.y >= 72
+          && lastAfter.localBounds.y + lastAfter.localBounds.height <= shown.bounds.height) {
+        break;
+      }
+    }
     const firstAfter = await panel.control(ids[0]).getState();
-    const lastAfter = await panel.control(ids[ids.length - 1]).getState();
     assert(firstAfter.localBounds.y < -shown.bounds.height, 'wheel did not scroll the first icon out of view');
     assert(lastAfter.localBounds.y >= 72 && lastAfter.localBounds.y + lastAfter.localBounds.height <= shown.bounds.height, 'wheel did not make the last icon visible');
     const bottom = await screenshot('bottom');

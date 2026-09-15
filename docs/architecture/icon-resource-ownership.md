@@ -7,7 +7,7 @@ OpenDesk 不允许每个产品界面各自维护一套通用按钮图标。图�
 ```text
 OpenDesk Runtime
 ├── pkg/customui/assets/toolbar-icons-v1.json
-│   └── shared semantic UI icons (160 in v1)
+│   └── shared semantic UI icons (161 in v1)
 ├── internal/<feature>/assets/
 │   └── compiled feature-internal binary resources
 └── App Shell product identity contract

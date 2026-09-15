@@ -129,6 +129,7 @@ declare global {
     | "questionmark.circle"
     | "radio.fill"
     | "repeat"
+    | "ruler"
     | "scissors"
     | "shield.fill"
     | "shippingbox.fill"

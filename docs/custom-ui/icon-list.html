@@ -35,14 +35,14 @@
           <h1>Custom UI 内置图标</h1>
           <p>点击图标复制名称，或复制完整的 <code>FloatingWindow.addButton()</code> 用法。页面自包含，可离线保存和打开。</p>
         </div>
-        <div class="summary">160 / 160 已渲染</div>
+        <div class="summary">161 / 161 已渲染</div>
       </header>
       <section class="controls" aria-label="图标目录工具">
         <input id="search" type="search" placeholder="搜索，例如 camera、doc、wifi" aria-label="搜索图标">
         <button id="toggleDensity" class="toolbar-button" type="button" aria-pressed="false">紧凑模式</button>
         <button id="copyAll" class="toolbar-button" type="button">复制全部名称</button>
         <button id="saveJSON" class="toolbar-button" type="button">保存 JSON</button>
-        <span id="status" class="status" aria-live="polite">160 个图标</span>
+        <span id="status" class="status" aria-live="polite">161 个图标</span>
       </section>
       <section id="grid" class="grid" aria-label="内置图标列表">
           <article class="icon-card" data-search="play.fill">
@@ -885,6 +885,13 @@
     <code class="icon-name">viewfinder</code>
     <button class="copy-usage" type="button" data-copy="toolbar.addButton(&quot;icon-viewfinder&quot;, &quot;动作说明&quot;, &quot;viewfinder&quot;, () =&gt; {});">复制用法</button>
   </article>
+  <article class="icon-card" data-search="ruler">
+    <button class="icon-preview" type="button" data-copy="ruler" aria-label="复制图标名称 ruler" title="复制 ruler">
+      <img src="data:image/png;base64,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" alt="">
+    </button>
+    <code class="icon-name">ruler</code>
+    <button class="copy-usage" type="button" data-copy="toolbar.addButton(&quot;icon-ruler&quot;, &quot;动作说明&quot;, &quot;ruler&quot;, () =&gt; {});">复制用法</button>
+  </article>
   <article class="icon-card" data-search="qrcode">
     <button class="icon-preview" type="button" data-copy="qrcode" aria-label="复制图标名称 qrcode" title="复制 qrcode">
       <img src="data:image/png;base64,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" alt="">
@@ -1166,7 +1173,7 @@
     <button class="copy-usage" type="button" data-copy="toolbar.addButton(&quot;icon-shield-fill&quot;, &quot;动作说明&quot;, &quot;shield.fill&quot;, () =&gt; {});">复制用法</button>
   </article>
       </section>
-      <footer>由 <code>pkg/customui/assets/toolbar-icons-v1.json</code> 在当前 macOS 上生成。此 HTML 用于查找和复制；真实 Runtime 窗口由 <code>examples/custom-ui/icon-browser/main.js</code> 加载同一批生成图像，并在一个可滚动界面中绑定全部 160 个按钮。</footer>
+      <footer>由 <code>pkg/customui/assets/toolbar-icons-v1.json</code> 在当前 macOS 上生成。此 HTML 用于查找和复制；真实 Runtime 窗口由 <code>examples/custom-ui/icon-browser/main.js</code> 加载同一批生成图像，并在一个可滚动界面中绑定全部 161 个按钮。</footer>
     </main>
     <script>
       const cards = [...document.querySelectorAll('.icon-card')];

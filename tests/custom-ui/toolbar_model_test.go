@@ -9,15 +9,15 @@ import (
 
 func TestGeneratedIconRegistryIsCompleteAndOrdered(t *testing.T) {
 	got := IconNames()
-	if len(got) != 160 {
-		t.Fatalf("IconNames() count = %d, want 160", len(got))
+	if len(got) != 161 {
+		t.Fatalf("IconNames() count = %d, want 161", len(got))
 	}
 	if !sort.StringsAreSorted(got) {
 		t.Fatalf("IconNames() is not sorted: %q", got)
 	}
 	for _, name := range []string{
 		"arrow.clockwise", "gearshape.fill", "paperplane.fill", "person.2.fill", "play.fill",
-		"qrcode", "timer", "video.fill", "wifi",
+		"qrcode", "ruler", "timer", "video.fill", "wifi",
 	} {
 		presentation, ok := IconPresentationFor(name)
 		if !ok || presentation.SystemSymbol != name {

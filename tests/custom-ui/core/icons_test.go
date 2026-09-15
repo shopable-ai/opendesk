@@ -7,8 +7,8 @@ import (
 )
 
 func TestToolbarIconRegistryUsesReviewedSFSymbolPresentations(t *testing.T) {
-	if got := len(customui.ToolbarIconNames()); got != 160 {
-		t.Fatalf("ToolbarIconNames() count = %d, want 160", got)
+	if got := len(customui.ToolbarIconNames()); got != 161 {
+		t.Fatalf("ToolbarIconNames() count = %d, want 161", got)
 	}
 	want := map[string]customui.ToolbarIconPresentation{
 		"play.fill":            {SystemSymbol: "play.fill", Scale: 1.00, OffsetX: 0.5, OffsetY: 0},
@@ -27,6 +27,7 @@ func TestToolbarIconRegistryUsesReviewedSFSymbolPresentations(t *testing.T) {
 		"automation.configure": {SystemSymbol: "gearshape.2.fill", Scale: 1.00, OffsetX: 0, OffsetY: 0},
 		"automation.review":    {SystemSymbol: "rectangle.and.hand.point.up.left.fill", Scale: 1.00, OffsetX: 0, OffsetY: 0},
 		"automation.approve":   {SystemSymbol: "hand.tap.fill", Scale: 1.00, OffsetX: 0, OffsetY: 0},
+		"ruler":                {SystemSymbol: "ruler", Scale: 1.00, OffsetX: 0, OffsetY: 0},
 	}
 	for name, expected := range want {
 		presentation, ok := customui.ToolbarIconPresentationFor(name)

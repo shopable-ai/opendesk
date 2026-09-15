@@ -359,6 +359,9 @@
   "viewfinder": {
     "glyph": "⌖"
   },
+  "ruler": {
+    "glyph": "📏"
+  },
   "qrcode": {
     "glyph": "▦"
   },

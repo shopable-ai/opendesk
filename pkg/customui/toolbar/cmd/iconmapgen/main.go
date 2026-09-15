@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -36,6 +37,7 @@ func main() {
 	source := flag.String("source", "", "registry JSON")
 	goOut := flag.String("go-out", "", "generated Go file")
 	objcOut := flag.String("objc-out", "", "generated Objective-C include")
+	hostGoOut := flag.String("host-go-out", "", "generated Go cache input for the macOS native host")
 	tsOut := flag.String("ts-out", "", "generated TypeScript built-in icon key declarations")
 	flag.Parse()
 	data, err := os.ReadFile(*source)
@@ -90,6 +92,19 @@ func main() {
 	}
 	fmt.Fprintln(&objc, "  }; }); return icons;\n}")
 	must(os.WriteFile(*objcOut, objc.Bytes(), 0o644))
+
+	// cgo's build cache does not track an Objective-C .inc include as a Go
+	// package input. Emit a tiny generated Go file in machost so a registry
+	// change necessarily rebuilds the UI host that consumes the include.
+	if *hostGoOut != "" {
+		var hostGo bytes.Buffer
+		fmt.Fprintln(&hostGo, "// Code generated from assets/toolbar-icons-v1.json; DO NOT EDIT.")
+		fmt.Fprintln(&hostGo, "package machost")
+		fmt.Fprintf(&hostGo, "\nconst generatedToolbarIconRegistrySHA256 = %q\n", fmt.Sprintf("%x", sha256.Sum256(data)))
+		formattedHostGo, err := format.Source(hostGo.Bytes())
+		must(err)
+		must(os.WriteFile(*hostGoOut, formattedHostGo, 0o644))
+	}
 
 	must(os.WriteFile(*tsOut, renderTypeScript(names), 0o644))
 }
