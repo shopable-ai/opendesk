@@ -42,6 +42,10 @@ type EvidenceProvenance struct {
 	Candidate   EvidenceOrigin `json:"candidate,omitempty"`
 }
 
+// CandidateEvidence is retained by measurement-evidence/v1 for compatibility.
+// BuildEvidence fills it from the target-window enumeration, not from the
+// frozen Snapshot's UI candidate stack. New semantic UI candidates belong in
+// MeasurementProductEvidence.Candidate.
 type CandidateEvidence struct {
 	ID                   string               `json:"id"`
 	Title                string               `json:"title,omitempty"`
@@ -98,12 +102,12 @@ type StableRelocationEvidence struct {
 // authoring and repair. It extends the existing evidence envelope instead of
 // creating another Geometry/Locator runtime.
 type MeasurementProductEvidence struct {
-	Target       *MeasurementTargetGeometry `json:"target,omitempty"`
-	References   TwoLevelReferences         `json:"references"`
-	Margins      *MarginRelations            `json:"margins,omitempty"`
-	Candidate    *CandidateDescriptor        `json:"candidate,omitempty"`
-	Runtime      RuntimeMeasurementEvidence  `json:"runtime"`
-	StableHints  StableRelocationEvidence    `json:"stableRelocation"`
+	Target      *MeasurementTargetGeometry `json:"target,omitempty"`
+	References  TwoLevelReferences         `json:"references"`
+	Margins     *MarginRelations            `json:"margins,omitempty"`
+	Candidate   *CandidateDescriptor        `json:"candidate,omitempty"`
+	Runtime     RuntimeMeasurementEvidence  `json:"runtime"`
+	StableHints StableRelocationEvidence    `json:"stableRelocation"`
 }
 
 type MeasurementEvidence struct {
@@ -144,7 +148,7 @@ func BuildEvidence(taskID, source string, frame CaptureFrame, result Result, fro
 		}
 		candidates = append(candidates, CandidateEvidence{
 			ID: target.ID, Title: target.Title, PID: target.PID, Source: "window-enumeration",
-			Reliability: reliability, Semantic: true, Selected: selected, Confirmed: selected && frame.TargetConfirmed,
+			Reliability: reliability, Semantic: false, Selected: selected, Confirmed: selected && frame.TargetConfirmed,
 		})
 	}
 	ev := MeasurementEvidence{
