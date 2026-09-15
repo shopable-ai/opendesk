@@ -1,16 +1,18 @@
-# 桌面测量：验证资产
+# Desktop Measurement：验证资产
 
-标准中文交互样机位于 OpenDesk 产品所有权域：
+Desktop Measurement 的标准 Interaction Oracle 位于产品所有权域：
 
 - [`apps/opendesk/prototypes/desktop-measurement/index.html`](../../apps/opendesk/prototypes/desktop-measurement/index.html)
-- [`apps/opendesk/prototypes/desktop-measurement/template.html`](../../apps/opendesk/prototypes/desktop-measurement/template.html)
+- [`apps/opendesk/prototypes/desktop-measurement/prototype.css`](../../apps/opendesk/prototypes/desktop-measurement/prototype.css)
 - [`apps/opendesk/prototypes/desktop-measurement/model.js`](../../apps/opendesk/prototypes/desktop-measurement/model.js)
+- [`apps/opendesk/prototypes/desktop-measurement/interaction-core.js`](../../apps/opendesk/prototypes/desktop-measurement/interaction-core.js)
+- [`apps/opendesk/prototypes/desktop-measurement/template.html`](../../apps/opendesk/prototypes/desktop-measurement/template.html)（仅历史兼容入口）
 
 本目录保存 Prototype 验证、跨平台 qualification manifest、fixtures 与资格说明。Prototype 是 UI / Interaction Oracle，不是 Native PASS。
 
 ## 权威入口
 
-- [产品与交互设计](../../docs/architecture/desktop-automation/desktop-measurement.md)
+- [唯一产品与 Framework 设计正文](../../docs/architecture/desktop-automation/desktop-measurement.md)
 - [P0–P4 实现架构](../../docs/architecture/desktop-automation/desktop-measurement-implementation.md)
 - [Prototype 历史验证](../../docs/quality/desktop-measurement-prototype.md)
 - [Prototype → Native → OS Qualification Matrix](../../docs/quality/desktop-measurement-qualification.md)
@@ -25,7 +27,44 @@ node --test tests/desktop-measurement/model.test.js
 python3 tests/desktop-measurement/browser.test.py
 ```
 
-浏览器测试需要 Python Playwright 和 Chromium。它证明合成 UI/Interaction 行为，不证明系统权限、native focus、剪切板、Recorder 隔离或 DPI。
+也可以直接体验：
+
+```sh
+open apps/opendesk/prototypes/desktop-measurement/index.html
+```
+
+`browser.test.py` 先验证 `index.html` 只引用 `prototype.css + model.js + interaction-core.js`，并验证 `template.html` 不再复制第二套实现；随后在 Chromium 中使用这些同一份源码执行交互 Oracle。
+
+当前浏览器合同重点覆盖：
+
+```text
+默认 MEASURING + 冻结 Snapshot
+三入口复用同一 session
+磁吸定位默认开启
+屏幕 / 窗口 / 区域三级坐标
+冻结源像素颜色
+语义候选来源与 reliability
+Tab / Shift+Tab 候选层级
+Alt / Option 临时暂停磁吸
+Target → Window signed margins
+Target → Local Reference signed margins
+HUD 最多两组边距
+Overlay 一次只画四条当前边距线
+稳定重定位线索 vs runtime evidence
+点 / 两点 / 两区域
+更新画面 → 新 generation / snapshotId
+旧 Snapshot 异步候选失效
+ADJUSTING 隐藏所有 Measurement 层并使旧 snapshotId 失去当前身份
+继续测量 → 同 session 新 Snapshot
+视觉候选不冒充语义控件
+负坐标
+1x + 2x 多屏映射 fixture
+Inspector 按需
+Toast 不截获输入
+退出清理
+```
+
+这些全部是 synthetic browser proof，不证明系统权限、native focus、系统剪切板、真实 Recorder 输入隔离或物理 DPI。
 
 ## Production automated proof
 
@@ -35,12 +74,34 @@ python3 tests/desktop-measurement/browser.test.py
 go test ./pkg/measurement/...
 go test ./pkg/customui/...
 go test ./pkg/recorder/...
+go test ./pkg/appshell/...
+go test ./cmd/opendesk -run 'Measurement|Recorder'
+go test ./internal/recorderbundle/...
 ```
 
-重点覆盖：
+专用 GitHub Actions：
+
+```text
+.github/workflows/desktop-measurement.yml
+```
+
+在 Ubuntu / macOS / Windows runner 上验证：
+
+```text
+Measurement core / Evidence / Authoring / Qualification / Repair
+CustomUI Measurement host contracts
+Recorder Measurement evidence
+App Shell / App Mode Measurement owner 与 Recorder bridge
+全局快捷键共享 Service 合同
+Recorder pause / no-auto-resume 隔离合同
+Recorder canonical source ↔ embedded bundle parity
+```
+
+重点 owner 测试包括：
 
 ```text
 pkg/measurement/model*_test.go
+pkg/measurement/product_contract_test.go
 pkg/measurement/session*_test.go
 pkg/measurement/interaction_test.go
 pkg/measurement/surface_overlay_test.go
@@ -50,10 +111,12 @@ pkg/measurement/provenance_test.go
 pkg/measurement/capture_mapping_matrix_test.go
 pkg/measurement/qualification_test.go
 pkg/measurement/authoring_test.go
-pkg/measurement/repair_test.go
-pkg/measurement/repair_workflow_test.go
+pkg/measurement/repair*_test.go
 pkg/customui/measurement_host_contract_test.go
 pkg/recorder/measurement_evidence_test.go
+cmd/opendesk/app_measurement*_test.go
+cmd/opendesk/app_recorder_test.go
+internal/recorderbundle/measurement_contract_test.go
 ```
 
 若环境允许，最后运行：
@@ -77,15 +140,15 @@ P3: Recorder → Measurement evidence/artifact
 P4: real failure → Measurement repair → retry → business verification
 ```
 
-完成一项真实资格验证后，更新 `qualification-manifest.json` 的对应 case：
+完成一项真实资格验证后，更新 `qualification-manifest.json`：
 
 - `status`: `PASS` / `FAIL`
-- `evidence`: 日志、截图、artifact 等仓库内或测试输出引用
+- `evidence`: 日志、截图、artifact 等实际证据引用
 
-不得因为 Prototype 或纯 Go geometry test 通过而将物理 OS 行改为 PASS。
+不得因为 Chromium、Go unit test 或 GitHub-hosted macOS / Windows runner contract test 通过，就将物理 OS 真机行改为 PASS。
 
 ## 样机边界
 
-网页顶部模拟入口、场景选择器和合成桌面只用于样机控制；正式产品由开发者菜单、Recorder 工具栏与全局快捷键进入同一个 Native Measurement Session。
+网页入口、合成桌面、synthetic UI tree、视觉像素候选和显示器 fixture 只用于样机控制。正式产品由开发者菜单、Recorder 工具栏与全局快捷键进入同一个 Native Measurement Service。
 
-背景、窗口、候选、显示器均为合成数据。网页不读取真实桌面，也不注册系统级快捷键。取色来自合成 Canvas；正式实现的 Point RGB 必须来自 Frozen Native Capture Pixel。
+背景、窗口、候选、显示器均为合成数据。网页不读取真实桌面，也不注册系统级快捷键。取色来自冻结的合成 Canvas；正式实现的 RGB 必须来自 Frozen Native Capture Pixel。
