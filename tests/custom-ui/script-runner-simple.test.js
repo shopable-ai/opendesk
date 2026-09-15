@@ -214,7 +214,7 @@ test('prepared list stays hidden until open and reuses the same normal window af
     assert.equal(opened, prepared);
     assert.equal(prepared.shown, true);
     assert.equal(f.app.state().listVisible, true);
-    assert.equal(f.toolbar.buttons.get('list').active, true);
+    assert.equal(f.toolbar.buttons.get('list').active, false, 'the toolbar list button now owns only the compact selector state');
 
     await click(prepared, 'closeList');
     assert.equal(prepared.hidden, true);
@@ -278,6 +278,7 @@ test('empty startup still creates the main list page with legal empty actions', 
     const window = f.ui.windows[0];
     assert.equal(window.shown, true);
     assert.equal(f.app.state().viewState, 'empty');
+    assert.equal(f.app.state().selectedScriptName, null);
     assert.equal(f.toolbar.buttons.get('run').disabled, true);
     assert.equal(f.toolbar.buttons.get('stop').disabled, true);
     assert.equal(window.control('runSelected').state.disabled, true);
@@ -301,6 +302,7 @@ test('empty refreshes to ready in the same window', async () => {
     assert.equal(f.ui.windows[0], window);
     assert.equal(f.app.state().viewState, 'ready');
     assert.deepEqual(f.app.scripts().map(s => s.name), ['a.js']);
+    assert.equal(f.app.state().selectedScriptName, 'a.js');
     assert.equal(window.control('emptyTitle').state.visible, false);
     assert.equal(window.control('name0').state.text, 'a.js');
     assert.equal(window.control('name0').state.visible, true);
@@ -339,6 +341,7 @@ test('ready refreshes to empty, clears stale selection, and keeps the same windo
     assert.equal(await click(window, 'refresh'), true);
     assert.equal(f.ui.windows.length, 1);
     assert.equal(f.app.state().viewState, 'empty');
+    assert.equal(f.app.state().selectedScriptName, null);
     assert.deepEqual(f.app.state().selectedNames, []);
     assert.equal(window.control('name0').state.visible, false);
     assert.equal(window.control('emptyTitle').state.visible, true);
@@ -552,6 +555,126 @@ test('Run stays owned until final UI cleanup settles, then the next run owns Sto
     assert.equal(await f.app.stopRun(), false);
   } finally {
     releaseCleanup();
+    await f.cleanup();
+  }
+});
+
+test('compact selector defaults to first sorted script and keeps toolbar label in sync', async () => {
+  const f = await fixture({openListOnStart: false, scriptNames: ['c.js', 'a.js', 'b.js']});
+  try {
+    await waitFor(() => f.app.state().scriptCount === 3, 'script load');
+    assert.deepEqual(f.app.scripts().map(script => script.name), ['a.js', 'b.js', 'c.js']);
+    assert.equal(f.app.state().selectedScriptName, 'a.js');
+    assert.equal(f.toolbar.labels.get('script').text, 'a.js');
+  } finally {
+    await f.cleanup();
+  }
+});
+
+test('compact selector changes selected script without auto-running and closes after selection', async () => {
+  const f = await fixture({openListOnStart: false, scriptNames: ['a.js', 'b.js', 'c.js']});
+  try {
+    await f.toolbar.buttons.get('list').callback();
+    assert.equal(f.app.state().selectorVisible, true);
+    assert.equal(f.app.state().listVisible, false);
+    const selector = f.ui.windows[0];
+    assert.match(selector.spec.content.html, /选择脚本/);
+    assert.match(selector.spec.content.css, /overflow-y:auto/);
+    await click(selector, 'compactScript1');
+    assert.equal(f.app.state().selectedScriptName, 'b.js');
+    assert.equal(f.app.state().selectorVisible, false);
+    assert.equal(f.toolbar.labels.get('script').text, 'b.js');
+    assert.equal(f.calls.length, 0);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+test('toolbar Run executes selected script rather than the first script', async () => {
+  const f = await fixture({openListOnStart: false, scriptNames: ['a.js', 'b.js', 'c.js']});
+  try {
+    assert.equal(await f.app.selectScript('b.js'), true);
+    const outcome = await f.toolbar.buttons.get('run').callback();
+    assert.deepEqual(outcome, {status: 'succeeded', completed: 1, total: 1});
+    assert.equal(f.calls.length, 1);
+    assert.equal(path.basename(f.calls[0].args[1]), 'b.js');
+    assert.equal(f.app.state().selectedScriptName, 'b.js');
+  } finally {
+    await f.cleanup();
+  }
+});
+
+test('running disables Run and compact selection while Stop remains enabled', async () => {
+  let started = 0;
+  let release;
+  const command = {
+    run() {
+      started++;
+      return new Promise(resolve => { release = () => resolve({exitCode: 0, stdout: '', stderr: ''}); });
+    },
+  };
+  const f = await fixture({openListOnStart: false, scriptNames: ['a.js', 'b.js', 'c.js'], command});
+  try {
+    await f.app.selectScript('b.js');
+    const pending = f.toolbar.buttons.get('run').callback();
+    await waitFor(() => started === 1, 'selected script run');
+    assert.equal(f.toolbar.buttons.get('run').disabled, true);
+    assert.equal(f.toolbar.buttons.get('stop').disabled, false);
+    assert.equal(f.toolbar.buttons.get('list').disabled, true);
+    assert.equal(await f.app.selectScript('c.js'), false);
+    assert.equal(f.app.state().selectedScriptName, 'b.js');
+    release();
+    assert.equal((await pending).status, 'succeeded');
+  } finally {
+    await f.cleanup();
+  }
+});
+
+test('refresh preserves selected script by name and falls back when it disappears', async () => {
+  const f = await fixture({openListOnStart: false, scriptNames: ['a.js', 'b.js', 'c.js']});
+  try {
+    await f.app.selectScript('b.js');
+    assert.equal(await f.app.rescan(), true);
+    assert.equal(f.app.state().selectedScriptName, 'b.js');
+    fs.rmSync(path.join(f.scriptRoot, 'b.js'));
+    assert.equal(await f.app.rescan(), true);
+    assert.equal(f.app.state().selectedScriptName, 'a.js');
+    assert.equal(f.toolbar.labels.get('script').text, 'a.js');
+  } finally {
+    await f.cleanup();
+  }
+});
+
+test('Manage scripts closes compact selector and opens the existing full manager', async () => {
+  const f = await fixture({openListOnStart: false, scriptNames: ['a.js', 'b.js']});
+  try {
+    await f.toolbar.buttons.get('list').callback();
+    const selector = f.ui.windows[0];
+    await click(selector, 'compactManage');
+    assert.equal(f.app.state().selectorVisible, false);
+    assert.equal(f.app.state().listVisible, true);
+    assert.equal(f.ui.windows.length, 2);
+    const manager = f.ui.windows[1];
+    assert.equal(manager.shown, true);
+    assert.match(manager.spec.content.html, /id="runSelected"/);
+    assert.match(manager.spec.content.html, /id="restoreOrder"/);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+test('script-list toolbar button toggles only the compact selector', async () => {
+  const f = await fixture({openListOnStart: false, scriptNames: ['a.js', 'b.js']});
+  try {
+    await f.toolbar.buttons.get('list').callback();
+    assert.equal(f.app.state().selectorVisible, true);
+    assert.equal(f.app.state().listVisible, false);
+    assert.equal(f.toolbar.buttons.get('list').active, true);
+    await f.toolbar.buttons.get('list').callback();
+    assert.equal(f.app.state().selectorVisible, false);
+    assert.equal(f.app.state().listVisible, false);
+    assert.equal(f.toolbar.buttons.get('list').active, false);
+  } finally {
     await f.cleanup();
   }
 });
