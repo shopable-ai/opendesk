@@ -5,10 +5,11 @@ import (
 	"log"
 
 	"opendesk/automation"
+	"opendesk/internal/measurementshortcut"
 	"opendesk/pkg/measurement"
 )
 
-const measurementGlobalShortcutAccelerator = "CommandOrControl+Alt+Shift+M"
+const measurementGlobalShortcutAccelerator = measurementshortcut.GlobalShortcutAccelerator
 
 type appMeasurementShortcut interface {
 	Close() error

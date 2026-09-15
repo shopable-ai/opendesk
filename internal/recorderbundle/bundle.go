@@ -6,6 +6,9 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
+
+	"opendesk/internal/measurementshortcut"
 )
 
 const RecorderWindowID = "recording-console"
@@ -85,6 +88,7 @@ const recordingConsole = OpenDeskSimpleRecordingConsole.createApp({
   captureKeyboard: Execution.env.OPENDESK_RECORDER_CAPTURE_KEYBOARD === '1',
   controlKeycodes: [],
   windowID: %q,
+  measurementShortcut: %q,
   openDeskBinary: System.getExecutablePath(),
   openMeasurement: typeof __opendeskMeasurement === 'object' && __opendeskMeasurement
     && typeof __opendeskMeasurement.open === 'function'
@@ -93,5 +97,5 @@ const recordingConsole = OpenDeskSimpleRecordingConsole.createApp({
 });
 
 await recordingConsole.run();
-`, RecorderWindowID)
+`, RecorderWindowID, measurementshortcut.GlobalShortcutLabel(runtime.GOOS))
 }

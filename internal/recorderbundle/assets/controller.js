@@ -1,6 +1,6 @@
 // Framework-owned integration layer for the built-in Recorder UI.
 // The core Recorder state machine remains in controller-core.js; this wrapper
-// adds History without coupling the released runtime to the source examples tree.
+// composes the product toolbar without coupling the released runtime to examples.
 (function installOpenDeskSimpleRecordingConsoleWithHistory(global) {
   'use strict';
 
@@ -169,7 +169,7 @@
     return Object.freeze(wrapper);
   }
 
-  function createToolbarAdapter(BaseFloatingWindow, managerRef, brandIcon, windowTitle) {
+  function createToolbarAdapter(BaseFloatingWindow, managerRef, brandIcon, windowTitle, measurementShortcut) {
     if (typeof BaseFloatingWindow !== 'function') {
       throw new Error('recording-console-simple requires FloatingWindow');
     }
@@ -184,6 +184,15 @@
       }
       const inner = new BaseFloatingWindow(toolbarOptions ? {...titledInput, toolbar: toolbarOptions} : titledInput);
       const wrapper = {};
+      let measurementButton = null;
+      const shortcut = typeof measurementShortcut === 'string' ? measurementShortcut.trim() : '';
+
+      // FloatingWindow labels are the native icon-button tooltip/accessibility
+      // text. Keep the hint on every state update, not just the initial button.
+      function measurementLabel(label) {
+        return shortcut && typeof label === 'string' && label
+          ? `${label} · ${shortcut}` : label;
+      }
 
       const forward = [
         'addSeparator', 'addSpacer', 'addLabel', 'addSwitch', 'addCheckbox', 'addInput', 'addSelect',
@@ -198,16 +207,32 @@
 
       wrapper.addButton = function addButton(id, label, icon, callback) {
         const resolvedIcon = id === 'home' && brandIcon ? brandIcon : icon;
-        if (id !== 'stop') return inner.addButton(id, label, resolvedIcon, callback);
-        return inner.addButton(id, label, resolvedIcon, event => {
+        // Keep the existing core measure callback (capture-click exclusion,
+        // pause, single-flight and failure handling). Only move its native
+        // control into the right-hand tools group, after Finder.
+        if (id === 'measurement') {
+          measurementButton = {id, label, icon: resolvedIcon, callback};
+          return wrapper;
+        }
+        const onClick = id === 'stop' ? event => {
           const manager = managerRef.current;
           if (manager && manager.isRunActive()) return manager.cancelRun();
           return typeof callback === 'function' ? callback(event) : undefined;
-        });
+        } : callback;
+        const result = inner.addButton(id, label, resolvedIcon, onClick);
+        if (id === 'finder' && measurementButton) {
+          const button = measurementButton;
+          inner.addSeparator('info-measurement-separator');
+          inner.addButton(button.id, measurementLabel(button.label), button.icon, button.callback);
+          measurementButton = null;
+        }
+        return result;
       };
 
       wrapper.updateButton = async function updateButton(id, patch) {
-        const result = await inner.updateButton(id, patch);
+        const next = id === 'measurement' && patch && typeof patch.label === 'string'
+          ? {...patch, label: measurementLabel(patch.label)} : patch;
+        const result = await inner.updateButton(id, next);
         if (id === 'stop') {
           const manager = managerRef.current;
           if (manager) await manager.syncAvailability();
@@ -244,7 +269,8 @@
       BaseFloatingWindow,
       managerRef,
       brandIcon,
-      windowTitle
+      windowTitle,
+      settings.measurementShortcut
     );
     const sharedDialog = createDialogCoordinator(dialog, settings.logger || global.console);
     const coreApp = coreAPI.createApp({

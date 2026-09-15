@@ -1,8 +1,10 @@
 package appshell
 
 import (
+	"runtime"
 	"strings"
 
+	"opendesk/internal/measurementshortcut"
 	"opendesk/pkg/localization"
 )
 
@@ -108,7 +110,7 @@ func openDeskProductMenu(manifest Manifest) []nativeMenuItem {
 		nativeMenuItem{Type: "separator"},
 		nativeMenuItem{ID: menuProductDeveloper, Label: translatedProductLabel("menu.developer", "开发者"), Children: []nativeMenuItem{
 			{ID: ActionProductStatus, Label: translatedProductLabel("menu.runtimeStatus", "运行状态")},
-			{ID: ActionProductMeasurement, Label: translatedProductLabel("menu.measurement", "桌面测量")},
+			{ID: ActionProductMeasurement, Label: measurementProductLabel()},
 			{ID: ActionProductInspectorOpen, Label: translatedProductLabel("menu.inspector", "打开 Inspector")},
 			{Type: "separator"},
 			{ID: ActionProductLogsOpen, Label: translatedProductLabel("menu.logs", "打开日志目录")},
@@ -133,6 +135,16 @@ func openDeskProductMenu(manifest Manifest) []nativeMenuItem {
 		nativeMenuItem{ID: ActionQuit, Label: translatedProductLabel("menu.quit", "退出")},
 	)
 	return items
+}
+
+// Show the existing global binding directly; discovering it must not require
+// hovering a native menu item or registering a second menu accelerator.
+func measurementProductLabel() string {
+	label := translatedProductLabel("menu.measurement", "桌面测量")
+	if shortcut := measurementshortcut.GlobalShortcutLabel(runtime.GOOS); shortcut != "" {
+		return label + " · " + shortcut
+	}
+	return label
 }
 
 func automaticProductLabel(preference string) string {
