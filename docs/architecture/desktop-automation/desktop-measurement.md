@@ -1,304 +1,704 @@
-# 桌面测量：无侵入式 Measurement Session
+# Desktop Measurement：无侵入式 Measurement Session
 
-> 产品与交互设计基线，2026-09-14。本文是本职责唯一正文，不是已经发布的 Runtime API Reference。
-> 当前结论：快捷键／Recorder 测量按钮／开发者菜单 → 同一个测量会话；透明标注层 + 屏幕角落精简信息 + 按需详情；复制固定三档。
-> 验证状态：浏览器合成样机的 16 项几何测试、34 项交互检查通过。原生 macOS／Windows 交互、真实 Recorder、系统剪切板与多显示器尚未验收，不能据此标记产品 PASS。
+> 本文是 OpenDesk Desktop Measurement 的唯一产品 / Framework 设计正文。HTML Prototype 是 Interaction Oracle；生产实现位于 `pkg/measurement`、`pkg/customui`、`cmd/opendesk` 与 Recorder 集成层。不要再创建第二份 Measurement 总设计。
 
-## 1. 用户实际看到的方案
+## 1. 产品定位
 
-不打开大型测量工具窗口。用户仍能看清目标软件；测量模式展示冻结画面，目标程序本身不被暂停，也不承诺继续实时显示其变化。
+Desktop Measurement 不是截图编辑器，也不是第二套 Locator Runtime。
 
-```text
-快捷键／Recorder「测量」／开发者「桌面测量…」
-→ 可靠确定进入前的真实目标窗口
-→ 冻结画面并锁定参照；不确定时才请用户点选窗口
-→ 移动鼠标取点取色，或框选、测距、调整
-→ 角落查看核心数值，画面就地查看选区和距离
-→ 复制三档之一／按需打开详情和保存
-→ 退出测量，清理临时交互并恢复原上下文
-```
-
-产品界面只保留：目标边框、参照边框、必要标尺／距离线、尺寸标签、角落信息、小型工具条。鼠标附近仅保留十字线、可选像素放大镜和极短操作提示，不再携带完整数值面板。
-
-无侵入是视觉和上下文约束，不是鼠标穿透：测量点击、拖动、快捷键必须由测量会话消费，不能落到目标程序形成真实业务操作。
-
-## 2. 产品功能树
+它的职责是：
 
 ```text
-桌面测量
-├─ 进入与唯一会话
-│  ├─ 开发者菜单／Recorder 工具栏／全局快捷键
-│  ├─ 重复触发复用当前会话；启动中合并请求
-│  └─ 保存进入前的真实应用、窗口、Recorder 状态
-├─ 确定测量上下文
-│  ├─ 获取真实窗口；排除测量自身和入口工具 UI
-│  ├─ 明确参照：默认整个窗口；可主动改为内容区或自定义区域
-│  ├─ 明确锁定；鼠标移动不改变参照
-│  └─ 冻结窗口、显示器、几何、源图及逐显示器映射
-├─ 选择测量对象
-│  ├─ 悬停显示候选及来源，不将候选冒充已确认目标
-│  ├─ 像素／边缘／视觉矩形／可靠语义元素／父区域／窗口
-│  ├─ 切换候选层级，临时关闭吸附
-│  └─ 不可靠时退回人工框选，不静默猜测
-├─ 完成测量
-│  ├─ 点：绝对／相对／百分比坐标，源像素颜色
-│  ├─ 区域：绝对／相对几何，宽高比例、宽高比、覆盖率
-│  ├─ 两点：有向 ΔX／ΔY，水平／垂直／直线距离
-│  ├─ 两区域：间距、投影重叠、实际重叠、中心与对齐偏差
-│  └─ 目标相对参照：左／上／右／下有符号边距与中心偏移
-├─ 查看与调整
-│  ├─ 透明标注层同时表达目标与参照
-│  ├─ 角落信息按测量模式显示，自动避让与折叠
-│  ├─ 拖动、八方向尺寸手柄、方向键微调、重新吸附
-│  └─ 详情默认关闭；主动打开后查看完整数据
-├─ 带走数据
-│  ├─ 第一档：简明数值
-│  ├─ 第二档：完整中文说明
-│  ├─ 第三档：结构化数据与必要程序上下文
-│  └─ 复制或保存；所有档位保留参照、单位、坐标空间
-└─ 退出与恢复
-   ├─ 释放 Overlay／HUD／详情／临时输入资源／快照
-   ├─ 校验后恢复原真实应用与窗口
-   ├─ 恢复对应 Recorder 会话的原状态
-   └─ 异常、取消、权限丢失同样走幂等清理
+真实桌面上下文
+→ 获取干净冻结 Snapshot
+→ 在同一帧上完成坐标 / 颜色 / 区域 / 距离 / 边距测量
+→ 保存来源、可靠性、窗口身份、显示器映射和结构化 Evidence
+→ 供 Automation Authoring / Recipe / Recorder / Qualification / Locator Repair 消费
 ```
 
-## 3. 屏幕信息分层
+Measurement Evidence 是**定位、校准、代码生成和维修证据**。绝对坐标、一次运行的像素和窗口几何默认属于 runtime evidence，不自动升级成长期稳定 Locator。
 
-| 层次 | 默认状态 | 内容 | 禁止事项 |
-| --- | --- | --- | --- |
-| 测量标注层 Overlay | 开启 | 参照虚线、目标实线、候选点线、尺寸手柄、必要距离标签 | 普通标题栏、大片不透明底板、成为自己的 Target |
-| 角落信息 HUD | 开启 | 参照简名与锁定状态、当前模式的核心数值 | 默认显示 PID、句柄、完整 JSON 或所有高级指标 |
-| 鼠标微提示 | 需要时 | 十字线、色块、短提示；取色时可打开像素放大镜 | 大型跟随面板遮挡当前目标 |
-| 小型工具条 | 开启，可收起 | 点／区域／两点／两区域，参照，复制，详情，退出 | 扩展成布局设计器或应用工具箱 |
-| 详情 Inspector | 默认关闭 | 全量几何、坐标映射、元数据、导出与高级调整 | 进入会话时自动显示；关闭详情即结束测量 |
-
-角落信息优先右上角，也允许用户固定左上角。建议宽度约 240–280 逻辑单位，按模式使用约 4–6 行；这是初始设计预算，不是跨字体硬编码尺寸。
-
-| 模式 | 默认核心信息 | 收入详情的信息 |
-| --- | --- | --- |
-| 点 | 绝对 X/Y；相对 X/Y；相对百分比；HEX；RGB，必要时 alpha | 显示器标识、图像像素位置、色彩空间、完整映射 |
-| 区域 | 宽×高；绝对与相对 X/Y；占参照宽／高百分比；四边距 | 百分比 X/Y、宽高比、面积比、覆盖率、中心／对齐偏差 |
-| 两点 | 直线距离；ΔX/ΔY；水平／垂直距离 | 两端点完整坐标、颜色与来源 |
-| 两区域 | 水平／垂直间距；实际重叠面积；中心偏移；B 相对于 A | 投影重叠、四边有符号距离、完整对齐偏差 |
-
-普通界面只显示“参照：客服窗口·整窗·已锁定”这样的名称，不展示程序窗口 ID。颜色之外用线型和文字区分目标、参照、候选，不能只依赖颜色。
-
-避让顺序：当前目标与鼠标优先，其次选区手柄，再次角落信息和工具条，最后辅助标签。标签的排版必须将 HUD／工具条作为障碍物，不能只在标签之间避让。角落位置有滞回，原位置仍安全时不随每次鼠标移动跳动。目标很大导致四角均冲突时，收起为一行状态，暂隐次要标注；不得声称任意场景都能完全零遮挡。
-
-多屏时 HUD 跟随当前交互显示器的安全区域，不按整个虚拟桌面的单一角落放置。鼠标提示到边缘翻转并裁限。详情打开时另行选择尽量不覆盖目标的位置；显式文本编辑可以暂时接收焦点，但关闭后必须恢复测量输入路由。
-
-## 4. 入口与快捷键
-
-三入口调用同一个测量会话 owner 的幂等进入动作，不创建三个窗口实例，也不另启 Runtime。已有会话只显示一次轻提示，保留原参照、快照和结果；再次按全局快捷键不是隐式退出或重新冻结。
-
-建议初始绑定：macOS `Command+Option+Shift+M`；Windows `Control+Alt+Shift+M`。这是可配置候选，不是“保证无冲突”的结论。避开 macOS 截图的 Command+Shift+3/4/5，以及 Windows 截图的 Win+Shift+S；发布前还须扫描当前本地 OpenDesk 注册点，并做本机实际注册与触发检查。
-
-当前 `globalShortcut.isRegistered()` 只查询当前 Runtime 的本地 registry，不能证明系统全局没有其他应用占用。不能用它伪造全局冲突扫描。注册或触发失败时说明原因并允许改键，两个可点击入口继续可用。
-
-会话内快捷键，不长期注册为系统级单键：
-
-| 操作 | 建议按键 |
-| --- | --- |
-| 点／区域／两点／两区域 | 1／2／3／4 |
-| 切换到更大候选／较小候选 | Tab／Shift+Tab，仅画布测量状态 |
-| 临时自由选择 | 按住 Alt／Option；另提供可点击吸附开关 |
-| 微调 | 方向键；Shift+方向键为 10 步 |
-| 更换参照／打开详情 | R／I |
-| 简明复制／完整说明／结构化复制 | CommandOrControl+C／+Shift+C／+Alt+C |
-| 退出 | Esc，或明确的退出按钮 |
-
-详情、下拉菜单、文本编辑获得焦点时，Tab 和普通编辑键恢复其正常意义，不被候选切换逻辑吞掉。点的精确微调按所属源图 1 像素映射回逻辑空间；区域默认按 1 逻辑单位微调，不混称两者。
-
-## 5. 目标、参照与吸附
-
-Target 是正在测量的点、区域，或两组已确认的对象。Reference 是这些数据共同依赖的明确坐标参照。默认选择进入前可靠识别的真实目标窗口，并在显示 HUD 时明确标为“整窗·已锁定”。系统菜单、Recorder 工具栏或 Measurement 自己的 surface 不能取代真实窗口。
-
-记录窗口上下文必须早于测量 UI 抢占识别条件；菜单路径需要可信的进入前外部窗口上下文。无法确认时进入“选择参照”，不静默使用 OpenDesk 窗口。默认整个窗口的边界是否含标题栏、阴影须按当前 Window/Screen 实际合同固定并记录；不能将 client area 与整个窗口混用。自定义参照必须主动确认，保存新 reference revision，重新计算派生量。
-
-磁性选择不是要求所有平台都自动识别所有层级：
-
-- 点默认逐像素，不悄悄吸到按钮中心；边缘吸附由明确操作启用。
-- 对已获取的候选做包含关系组织：较小区域 → 父区域 → 窗口。像素、边缘、视觉矩形和语义元素是来源，不假装它们永远构成严格包含链。
-- 视觉候选只叫“视觉矩形候选”；AX/UIA 数据也必须核对当前窗口、范围与快照一致性。结构或时间不一致时不宣称语义可靠。
-- 点线框表示候选，短标签交代“视觉边缘／语义控件／窗口”等来源；确认后才变为目标实线。参照虚线始终保留。
-- Tab 只在已经获得的候选间切换；不可靠、歧义或权限不足时立即允许人工框选。按住 Alt 暂停吸附；调整后重新吸附也必须可见并可撤销。
-
-P0 必须有可靠窗口参照、人工框选、候选展示／确认／切换／退出路径。语义候选仅在现有能力确实可靠时出现；不得为视觉效果编造控件。
-
-## 6. 快照与原始像素
-
-冻结顺序：取得会话与输入隔离 → 保存上下文 → 获取真实窗口与显示器几何 → 隐藏／排除测量和入口工具 surface → 等待合成画面更新 → 采集源图 → 再次核对几何 → 固化快照 → 展示冻结画面及测量 Overlay。
-
-快照至少包含：snapshotId、capture timestamp、窗口 identity/bounds/bounds kind、逐显示器 identity/logical bounds/pixel dimensions、逐显示器 logical↔pixel transform、源图及内容校验信息、色彩空间／通道／alpha 语义、Reference geometry/revision。多个显示器可能不是同一瞬间采集，需记录每块时间与 capture skew；超出项目明确容差时重试或报告，不能伪称跨屏原子截图。
-
-沿用当前 Window/Screen 的归一化坐标与 Geometry、ImageColor 能力。若底层返回不同坐标约定，只做明确适配，不能发明一个与现有 Window API 不兼容的全局坐标系。
-
-对于已经确认无旋转、轴对齐的单个截图块：
+## 2. 唯一用户链路
 
 ```text
-sx = imagePixelWidth  / sourceLogicalWidth
-sy = imagePixelHeight / sourceLogicalHeight
-u  = floor((desktopX - sourceLogicalOriginX) × sx)
-v  = floor((desktopY - sourceLogicalOriginY) × sy)
+开发者 → 桌面测量…
+或 Recorder → 测量
+或 CommandOrControl+Shift+M
+        ↓
+同一个 Measurement owner / Service
+        ↓
+保存进入前真实上下文
+        ↓
+排除 Measurement 自身 Surface
+        ↓
+确认真实目标窗口和显示器
+        ↓
+FREEZING：获取干净 Snapshot
+        ↓
+MEASURING
+        ↓
+点 / 区域 / 两点 / 两区域
++ 磁吸候选
++ 三级坐标
++ 冻结源像素颜色
++ Window / Local 两组关键边距
+        ↓
+按需 Inspector / 复制 / 保存 / Authoring handoff
+        ↓
+退出并幂等清理
 ```
 
-一般情况使用该块明确保存的变换；不能把上面的简单式无条件用于旋转或不同捕获方向。显示器归属使用半开边界，并处理边界处的浮点误差。虚拟桌面空洞、源图缺失或越界返回不可用，不取最近屏幕代替，也不静默 clamp 为边缘像素。
+三入口不能创建三个实现，也不能创建三个 Measurement Runtime。重复进入必须复用当前唯一 Session；启动中的并发进入需要 single-flight。
 
-混合 DPI 不能用一个全局 scale。跨屏区域先按各显示器截图块切分，各自映射；拼接图只用于显示，不能把经过插值的拼接图当成 canonical 原始像素源。
-
-取色只读取冻结源图的明确像素，不从 Overlay、放大镜或缩放预览读取，不插值、不混合邻点。通道顺序、premultiplied alpha、色彩 profile/HDR 等必须注明；未经确认不能一律标为 sRGB 或保证等于肉眼显示色。取色的 raw byte 值与经过色彩转换的显示预览不得混为一个字段。
-
-同一组两点／两区域必须属于同一 snapshot。刷新画面是显式操作，建立新 snapshot；旧结果不得与新点静默拼成一组。显示器热插拔、缩放或几何变化需要暂停／刷新，不能继续沿用失效映射。目标窗口消失后，可以查看明确标为历史快照的数据，但不能假称恢复到了该窗口。
-
-## 7. 几何语义
-
-设参照 R=(rx,ry,rw,rh)，目标区域 T=(tx,ty,tw,th)，宽高均大于零，X 向右、Y 向下。
+当前默认全局快捷键的单一来源为：
 
 ```text
-relativeX = tx - rx                  relativeY = ty - ry
-relativeWidth = tw                  relativeHeight = th
-xPercent = 100 × (tx-rx)/rw          yPercent = 100 × (ty-ry)/rh
-widthPercent = 100 × tw/rw           heightPercent = 100 × th/rh
-left = tx-rx                        top = ty-ry
-right = (rx+rw)-(tx+tw)              bottom = (ry+rh)-(ty+th)
-centerOffsetX = tx+tw/2-(rx+rw/2)     centerOffsetY = ty+th/2-(ry+rh/2)
+internal/measurementshortcut.GlobalShortcutAccelerator
+= CommandOrControl+Shift+M
 ```
 
-四边距的符号只描述相应一条边：正数为该边的内侧余量，零为对应边重合，负数为越过对应边；一条边为正不意味着整个目标都在参照内部。
+菜单显示、Recorder tooltip 和注册逻辑必须从同一来源投影，不允许再次硬编码旧快捷键。
 
-相对宽高不因平移参照而改变；归一化宽高或百分比另设字段，不能都叫 relativeWidth。除法遇零尺寸参照返回错误，不导出 Infinity/NaN。
+## 3. Session 状态机
 
-面积比 `area(T)/area(R)` 与参照覆盖率 `area(T∩R)/area(R)` 分开；越界时不能把二者混用。目标位于参照内部的比例为 `area(T∩R)/area(T)`。宽高比为 tw/th。
-
-对齐偏差统一使用 Target 对应边减 Reference 对应边。因此左／上对齐偏差与同名边距同号，右／下对齐偏差与同名边距反号，字段必须分别命名。
-
-两点按 B−A 给出 ΔX、ΔY，水平／垂直距离取绝对值，直线距离为 hypot(ΔX,ΔY)。两区域分别给出非负 horizontalGap、verticalGap、X/Y 投影重叠及交集面积；接触时 gap=0 且面积=0，不等于重叠。有符号边距另计算为 B 相对于 A，不把负 gap 同时定义为包含距离或重叠深度。中心偏移和对齐差也固定为 B−A。
-
-说明样例：R=(100,80,1200,800)，T=(196,200,320,180)。相对位置=(96,120)，四边距=(96,120,784,500)，占参照宽／高=26.6667%／22.5%。这些是合同测试数值，不是当前用户真实窗口的读数。
-
-## 8. 三档复制与保存
-
-三档只按信息完整度划分，不再增加“第四种高级模式”。保存使用同一档位定义，避免复制与保存生成两套不同模型。
-
-| 档位 | 内容 | 使用者 |
-| --- | --- | --- |
-| ① 简明数值 | 类型、参照简名与范围、coordinateSpace、单位、快照标识、绝对／相对位置、当前模式核心结果；点包含颜色，区域包含尺寸和四边距 | 日常复制到脚本、聊天或笔记 |
-| ② 完整中文说明 | 第一档 + 全量比例、覆盖率、中心／对齐偏差、边距符号、颜色源说明、映射摘要和失效提示 | 交给开发者／Agent 阅读，不需要先解读 JSON |
-| ③ 结构化数据 | schemaVersion、测量对象、Reference、Snapshot/Display 映射、来源可靠性、完整几何、稳定重定位线索、必要运行时证据与适用边界 | 程序处理、复核和后续校准 |
-
-最简档也不能只给 `(x,y)` 或只给 `#RRGGBB`，否则脱离使用环境后就丢失了参照和来源。
-
-程序数据中区分：
+产品层状态：
 
 ```text
-stableHints
-  应用 bundle identifier／可用时的 executable identity、窗口标题线索、角色
-  这些也只是重定位线索，不保证永远稳定
-runtimeEvidence
-  本次 PID、进程启动标识、窗口句柄／ID、观察时间
-  仅用于这次采集诊断；应用重启后必须重新解析，禁止直接复用
+IDLE
+  ↓
+PREPARING
+  ↓
+FREEZING
+  ↓
+MEASURING
+  ↓
+REVIEW（按需）
 ```
 
-界面不常驻 runtimeEvidence，详情中折叠显示；第三档可包含必要字段，不附加无关用户数据或凭据。仅凭 PID 或标题都不能证明下次是同一个窗口。
-
-复制只在用户操作后写入剪切板，成功后给“已复制：完整说明（含参照）”这类反馈，不自动退出测量。写入失败必须显示失败或可手工复制的内容，不虚报成功。默认不附送整屏截图。
-
-保存结构化测量需要复核源图时，可由用户显式选择“包含原始快照”；原图与标注预览分开保存，文件／hash／capture metadata 一致。未保存源图的 JSON 必须说明 source asset 未保存，不能留下看似可读但实际失效的临时路径。默认不上传、不联网分析截图。
-
-## 9. 数据模型与生命周期
-
-以下为内部设计合同，不表示新增公共 API：
+必须额外支持：
 
 ```text
-MeasurementSession
-  id / owner / lifecycleState / entrySource / operationMode
-  originalContext { externalApplication, externalWindow, recorderSession, recorderRevision }
-  snapshot { id, capturedAt, windowEvidence, displayTiles[], rawSources, mapping, colorMetadata }
-  reference { kind, humanLabel, bounds, boundsKind, coordinateSpace, locked, revision }
-  candidate { source, bounds, parentCandidates, reliability, snapshotId }
-  targets[] { kind, value, source, snapshotId, referenceRevision, confirmed }
-  measurements { point, region, pair, referenceRelation }
-  presentation { hudAnchor, inspectorOpen, overlaySurfaceIds }
-  ownedResources { inputLease, temporaryShortcuts, surfaces, subscriptions, rawImages }
+MEASURING
+  ↓ 调整界面
+ADJUSTING
+  ↓ 继续测量
+FREEZING
+  ↓ 新 Snapshot
+MEASURING
 ```
+
+每个可产生异步候选的冻结代际必须绑定：
 
 ```text
-空闲 IDLE
-→ 准备 PREPARING（去重启动、保存上下文、获得输入隔离）
-→ 需要时选择参照 PICK_REFERENCE
-→ 冻结 FREEZING（隐藏工具 UI、采集并校验）
-→ 测量 FROZEN/MEASURING（预览、选择、草稿）
-→ 调整 REVIEW（保留结果、微调、复制、可选详情）
-→ 恢复 RESTORING
-→ 空闲 IDLE
+sessionId
+generation
+snapshotId
 ```
 
-Inspector 开关是展示子状态，不新建会话。更换参照需确认并增加 revision；重新冻结增加 snapshotId。所有异步结果须校验 sessionId/generation，过期结果不能重建已退出的 Overlay。
+任何 OCR / AX / UIA / Vision / 图像 / 颜色候选返回时，都必须与当前 token 全匹配；旧 generation 或旧 snapshotId 的结果直接丢弃，不能重新污染当前 Snapshot。
 
-Esc 优先关闭已打开的菜单／详情；正在拖动时撤销这次草稿；其余测量状态退出。明确的“退出”按钮始终结束整个会话。用户不需要理解内部枚举。
+## 4. 默认冻结 Snapshot
 
-## 10. Recorder、原生 surface 与清理边界
+Measurement 默认不是持续全屏截图。
 
-Recorder 与开发者菜单通过已有 Runtime 内的控制边界交给唯一 owner。若当前 Recorder 自身运行在已有独立 Execution 中，应复用当前可用的路由，不复制 Measurement 实现，不为测量另启一个 Runtime；实际 owner 位置须以本地源码确认。
+进入时：
 
-Measurement 必须取得可恢复的录制隔离状态：保存 recorder session identity/revision、原 toolbar 状态、捕获状态和输入状态；将测量事件从业务事件采集源头隔离，而不是事后删几条 action。入口触发的按下／抬起和工具 UI 点击也要覆盖。若当前 Recorder 不支持可证明可靠的隔离，不得在录制中静默启动测量或用停止／重新启动录制冒充恢复，应明确阻止并提示先暂停。
+```text
+保存进入前上下文
+→ 确定目标窗口
+→ 隐藏 / 排除 Measurement 自身 UI
+→ 获取真实显示器与窗口几何
+→ 截取源图
+→ 再次核对几何
+→ 固化 Snapshot
+→ 再显示 Measurement Surface
+```
 
-退出恢复要验证还是同一个 Recorder 会话且没有用户主动改动；不能用旧状态覆盖期间新建、停止或切换的录制。若进入前正在录制且隔离是受控临时暂停，只恢复同一会话既有状态，不创建新的录制；恢复前检查按键／鼠标释放，避免丢失抬起事件后卡键。
+目标应用没有被暂停；只是在 Measurement 中，所有坐标、颜色、区域、尺寸、边距和候选证据都绑定到进入时的同一帧。
 
-原生实现优先复用当前 Custom UI/native host。macOS 可评估 borderless nonactivating NSPanel；Windows 可评估无普通窗口框的 surface 与 WS_EX_NOACTIVATE/WS_EX_TOOLWINDOW。它们只是底层候选，不代表设置几个 flag 就已证明焦点、可访问性、截图排除和生命周期全部正确。
+### 4.1 收起信息 ≠ 取消冻结
 
-必须分别核对：不出现普通标题栏；测量 surface 不新增 Dock／Taskbar／普通窗口切换项；应用原有项目不因测量被错误删除；输入可被测量消费而不激活目标业务操作；显示用 surface 不截获尺寸手柄输入；窗口识别和截图按 instrument surface identity 排除自身，不能粗暴排除同 PID 下所有合法业务窗口。
+正常测量：
 
-退出按资源账本幂等执行：停止新事件 → 取消异步采集／候选任务 → 销毁 Overlay/HUD/详情 → 解除测量临时快捷键和输入资源 → 释放源图与订阅 → 校验原目标仍有效 → 尝试恢复原应用／窗口 → 恢复对应 Recorder 状态 → 清空唯一会话槽位。
+```text
+冻结 Snapshot：显示
+Overlay：显示
+Cursor HUD：显示
+Corner HUD：显示
+Toolbar：显示
+```
 
-全局“进入测量”快捷键属于 App 生命周期，测量内快捷键属于 Session 生命周期。不得调用 Runtime 级 unregisterAll() 清理测量，从而误删其他功能的快捷键。异常／取消／宿主关闭必须覆盖同一清理链；目标被关闭、ID 复用或系统拒绝激活应报告恢复受限，不能伪报原窗口恢复成功。
+用户收起 HUD / Inspector，只是减少遮挡：
 
-## 11. 本轮事实来源与最小落地顺序
+```text
+冻结 Snapshot：仍显示
+Overlay：仍工作
+```
 
-本轮环境没有挂载用户本地工作区。读取到的远端 master 基线为 `b23740773c48e0fd7b4a0f36716224a8a3b4b38f`；它不能代表本地／并行会话尚未同步的 Measurement 代码。
+不能把“隐藏 HUD”实现成“恢复实时桌面”。
 
-已检查远端 apps 与 docs 目录树、`apps/opendesk/main.js`、`developer-tools.js`、`official-shell.js`、Recorder controller 包装层、`docs/api/global-shortcut.md` 和 Custom UI 迁移说明。该基线的已读产品入口中未确认 Measurement 接线，canonical 路径读取为不存在；不能据此推断用户机器上没有测量实现。
+### 4.2 更新画面
 
-特别注意：`developer-tools.js` 中读取到的 760×510 floating window 是“运行状态”窗口，不是本轮已经定位到的 Measurement 大窗口。用户报告的大测量窗口仍需在其当前本地实现定位，禁止凭这个尺寸误改无关窗口。
+`更新画面` 保持同一 Session，但必须：
 
-实施顺序：
+```text
+旧异步结果失效
+→ generation 增加
+→ 隐藏 Measurement Surface
+→ 重新捕获
+→ 新 snapshotId
+→ 清除旧 Snapshot 派生 Target / Candidate
+→ MEASURING
+```
 
-1. 本地重新读取 HEAD、status、Measurement 真实代码与同职责设计。先给出已复用／缺口／证据阻塞简表；若存在未同步的同职责正文，将其有效决定合并到本文，不留第二份 canonical。
-2. 确认唯一 owner、进入前目标上下文和 Recorder 隔离。以失败可恢复的最小链路接通三个入口，不先设计新 locator API。
-3. 把已有大测量窗口降为按需详情，将默认交互移到 Overlay 与角落 HUD。只有现有 native surface 无法表达 hit-test/focus/capture exclusion 时才补底层最小能力。
-4. 复用已有截图、WindowTarget、Geometry、ImageColor，接入本文参照／快照／三档导出合同；不把浏览器样机的数学函数复制成第二套 Runtime Geometry。
-5. 运行真实菜单、Recorder、全局快捷键及四种测量。保存 `.runtime/` 内证据，分别验证业务输入不泄漏、源图不受 Overlay 污染和全部退出路径。
+### 4.3 调整界面
 
-HTML 样机是离线产品交互验证资产，不是原生 surface 实现。样机背景与候选均为明确标注的合成数据；系统快捷键入口是按钮模拟，剪切板成功路径使用测试适配器，不能作为系统授权或真实剪切板证据。本轮未依据缺失的本地代码修改生产 Runtime。
+点击 `调整界面` 后进入 `ADJUSTING`：
 
-## 12. 验收矩阵与门槛
+```text
+旧 Snapshot 立即失去“当前画面”身份
+隐藏冻结画面
+隐藏弱蒙版
+隐藏 Overlay
+隐藏 Cursor HUD
+隐藏 Corner HUD
+隐藏 Toolbar
+隐藏 Inspector
+恢复真实桌面输入
+```
 
-| 验收对象 | 本轮可用证据 | 产品真实验收要求 |
-| --- | --- | --- |
-| 三入口唯一会话 | 网页三按钮复用 PASS | 真菜单／Recorder／系统快捷键，并发触发仍单会话 |
-| 默认无大窗口、详情按需 | Chromium 样机 PASS | 原生首次唤起截图，窗口列表与任务切换检查 |
-| 目标与参照同时表达、锁定 | 样机 PASS | 真实窗口切换、鼠标跨窗口，Reference 不漂移 |
-| 点绝对／相对、颜色 | 合成 2× 原始像素 PASS | 原生源图独立抽样核对，Overlay 开关不改变取色 |
-| 区域几何、比例、四边距 | 16 项数学测试覆盖，含 1000 组矩形恒等式 | 源图标尺复核，四边越界、接触、包含、零尺寸拒绝 |
-| 两点、两区域 | 合成场景 PASS | 真实快照内多组点／区域，A/B 顺序及符号一致 |
-| 磁性候选与手动回退 | 样例候选层级、Alt 暂停 PASS | 实际视觉／语义候选来源、误识别、缺权与人工框选 |
-| 调整、标签和 HUD 避让 | 拖动／resize／方向键、四角及标签避让 PASS | 真实多屏、菜单、放大镜、不同字体及大目标受限路径 |
-| 三档复制与保存 | 文本／JSON、剪切板适配器、失败回退、浏览器保存 PASS | 两平台真实剪切板粘贴、取消／磁盘失败、源图资产一致性 |
-| Retina／缩放 | 2×、1.25× 合成映射 PASS | macOS Retina；Windows 100/125/150/200%，原生捕获比例 |
-| 多屏／负坐标 | 混合 1×/2×、负坐标、空洞数学用例 PASS | 实际显示器位于左／上，跨屏窗口、热插拔、缩放变化 |
-| Recorder 不受污染 | 无原生证据 | 含入口按键/点击的原始录制事件检查，前后会话身份一致 |
-| 退出／恢复／无残留 | 网页层隐藏与状态引用清理 PASS | 原生 surface、topmost、hook、快捷键、源图和前台状态检查 |
-| 原生异常路径 | 无原生证据 | 拒权、目标关闭、宿主崩溃、取消、显示器变化、重复退出 |
+此时用户可以滚动、切换 Tab、展开菜单、输入、改变应用状态。
 
-本轮合计：16 项模型测试、34 项 Chromium 交互检查通过；浏览器脚本异常为零。退出测试曾发现 SVG 隐藏状态问题，交互测试曾发现标注拦截 resize 手柄，视觉复核曾发现距离标签被 HUD 遮住，均在样机中修复后重跑。上述测试不是 OpenDesk Runtime API 测试，也不是 macOS／Windows 真机验证。
+旧 Snapshot 可以暂时保留在内存用于安全清理，但其 `snapshotId` 不得继续作为当前 Evidence 输出。
 
-设计覆盖审查的自评分为 96/100，仅用于本轮方案收口，不是独立专家评分或上线评分；剩余风险集中于未读取的本地 owner/surface/Recorder 实现，以及原生验证。发布验收门槛为各关键方向至少 95/100，且任何 P0 行为未通过均不能靠其他分数补齐。当前真实产品验收状态仍是待验证。
+`继续测量` 必须：
 
-## 参考与既有合同
+```text
+重新确认窗口
+→ FREEZING
+→ 新 generation
+→ 新 snapshotId
+→ 新 CaptureMapping
+→ 旧候选全部失效
+→ MEASURING
+```
 
-- [Global Shortcut API](../../api/global-shortcut.md)：Runtime 注册与生命周期、isRegistered 的范围。
-- [ui API](../../api/ui.md)、[Geometry API](../../api/geometry.md)、[ImageColor API](../../api/image-color.md)：调用以当前发布合同为准。
-- [Recorder 共存规则](recorder-app-coexistence.md)：集成应复用现有边界。
-- [Apple 键盘快捷键](https://support.apple.com/en-us/102650)、[Microsoft 截图工具](https://support.microsoft.com/en-us/windows/apps/use-snipping-tool-to-capture-screenshots)：系统常见截图入口。
-- [Apple nonactivatingPanel](https://developer.apple.com/documentation/appkit/nswindow/stylemask-swift.struct/nonactivatingpanel)、[Microsoft Extended Window Styles](https://learn.microsoft.com/en-us/windows/win32/winmsg/extended-window-styles)：原生 surface 评估依据，不替代真机测试。
+## 5. Surface 产品合同
+
+默认界面不是普通大型应用窗口，只包含：
+
+- 冻结桌面 / 显示器图像；
+- 窗口外弱蒙版；
+- Measurement Overlay；
+- 鼠标旁极小 Cursor HUD；
+- 角落 Corner HUD；
+- 小型 Toolbar；
+- 按需 Inspector。
+
+Native / Custom UI host 必须保证：
+
+- 无普通标题栏；
+- 不作为普通 Dock / Taskbar 工具窗口出现；
+- Always-on-top 但不成为自己的 Measurement Target；
+- Measurement 自身 UI 不进入截图源；
+- 默认不错误抢占进入前目标窗口上下文；
+- macOS / Windows 允许平台实现不同，但产品合同一致。
+
+## 6. 鼠标旁 Cursor HUD：三级坐标 + 源像素颜色
+
+鼠标旁只显示高频即时信息：
+
+```text
+屏幕   X / Y
+窗口   X / Y
+区域   X / Y
+■ #RRGGBB
+```
+
+语义分别为：
+
+1. **屏幕坐标**：虚拟桌面的 screen logical 坐标，可为负值。
+2. **窗口坐标**：相对整个目标窗口的 logical 坐标。
+3. **区域坐标**：相对当前可靠候选 / Target 区域的 logical 坐标。
+4. **颜色**：当前冻结 Snapshot 的原始源像素，不读取蒙版、边框、HUD 或 Overlay 混合后的屏幕像素。
+
+没有可靠区域时必须显示：
+
+```text
+区域 —
+```
+
+禁止伪造 `(0, 0)`。
+
+Cursor HUD 必须避开当前像素；靠近屏幕边缘自动翻转 / 裁限；进入 Measurement 自己的工具 UI 时不能把工具 UI 当成业务目标。
+
+## 7. Measurement Target 与磁吸定位
+
+正式名称：**磁吸定位**。
+
+默认开启，用户可以关闭；按住 Alt / Option 只做临时暂停。
+
+磁吸移动的是：
+
+```text
+Measurement Target / Selection Frame
+```
+
+不是系统真实鼠标。
+
+候选来源按已存在能力组合，不新建第二套 Locator Framework：
+
+```text
+当前窗口上下文
+→ Accessibility / UI Tree / UIA 等语义证据
+→ OCR / Perception Resolver / 现有视觉与图像能力
+→ 冻结 Snapshot 的边缘 / 颜色 / 连通区域候选
+→ 人工框选
+```
+
+候选必须显式保留：
+
+```text
+source
+reliability
+semantic / visual
+bounds
+runtime token
+```
+
+视觉或颜色候选只能称为“视觉区域 / 颜色区域 / 边缘区域”，不能因为长得像输入框就声称 `textField`。
+
+Tab / Shift+Tab 只是候选切换机制：
+
+```text
+文本输入框
+→ 输入区
+→ 聊天区
+→ 窗口
+```
+
+屏幕一次只展示当前候选，不把所有 ancestry 同时铺满。
+
+## 8. 两级有效参照：Window + Local
+
+普通自动化开发最有价值的关系只有两组：
+
+```text
+Target → 整个目标窗口
+Target → 当前有意义的局部布局参照
+```
+
+生产结构使用：
+
+```text
+Window Reference
+Local Layout Reference | null
+Target
+```
+
+Local Reference 自动选择最近一个真正具有布局价值的可靠父区域，并跳过：
+
+- 与 Target 几乎重合的 wrapper；
+- 纯技术包装层；
+- 没有独立几何意义的节点；
+- 可靠性不足的候选。
+
+没有可靠局部参照时：
+
+```text
+localReference = null
+```
+
+不能编造。
+
+完整 ancestry / candidates 可以保留在 Evidence 中，但默认 HUD 不展示第三组、第四组边距。
+
+## 9. 有符号边距
+
+一组边距：
+
+```text
+left
+top
+right
+bottom
+```
+
+全部采用有符号距离。Target 越过 Reference 时保留负值，例如：
+
+```text
+right = -12
+```
+
+禁止 clamp 到 0。
+
+Corner HUD 最多显示：
+
+```text
+Target                     692 × 70
+
+边距参照          左    上    右    下
+整个窗口          ...   ...   ...   ...
+输入区            ...   ...   ...   ...
+```
+
+Overlay **一次只重点绘制其中一组四条边距线**：
+
+```text
+默认：Target → Window
+切换：Target → Local Reference
+```
+
+切换第二组不新增第三组，也不同时绘制八条线。
+
+## 10. 弱蒙版与 Overlay
+
+激活 Measurement 后：
+
+```text
+窗口外：轻度压暗
+目标窗口内：保持原始亮度
+当前候选：清晰候选边框
+已确认 Target：更明确实线
+Local Reference：需要时弱边框
+当前边距关系：四条重点线
+```
+
+禁止：
+
+- 每层父节点叠一层蒙版；
+- 将 Target 大面积染色；
+- 不透明底板覆盖业务 UI；
+- 让蒙版参与取色。
+
+蒙版表达“正在测量哪个窗口”，不是视觉特效层。
+
+## 11. 测量模式
+
+### 11.1 点
+
+保存：
+
+- screen logical 坐标；
+- window-relative 坐标；
+- 当前可靠 region-relative 坐标；
+- capture pixel；
+- frozen source RGB / HEX；
+- display mapping。
+
+### 11.2 区域
+
+保存：
+
+- absolute bounds；
+- Window / Local relative geometry；
+- percentage geometry；
+- signed margins；
+- center / ratio / coverage 等必要派生量。
+
+### 11.3 两点
+
+保存：
+
+- A / B；
+- ΔX / ΔY；
+- horizontal / vertical distance；
+- Euclidean distance。
+
+### 11.4 两区域
+
+保存：
+
+- A / B bounds；
+- horizontal / vertical gap；
+- projection overlap；
+- overlap area；
+- center delta；
+- B relative to A。
+
+## 12. Structured Measurement Evidence
+
+生产 Evidence 继续复用 `pkg/measurement` 的 Geometry / Result，不创建第二套结构。
+
+结构化数据必须能表达：
+
+```text
+snapshot token:
+  sessionId
+  generation
+  snapshotId
+
+coordinateSpace
+capture/display mapping
+
+target.bounds
+windowReference.bounds
+localReference.bounds | null
+
+targetToWindow.signedEdges
+targetToLocal.signedEdges | null
+
+window-relative geometry
+local-relative geometry
+percentage geometry
+
+raw frozen pixel color
+candidate source
+candidate reliability
+window identity hints
+runtime evidence
+semantic / visual evidence
+stable relocation hints
+```
+
+必须区分：
+
+### 稳定重定位线索
+
+例如：
+
+- 窗口身份提示；
+- 可靠 semantic candidate；
+- role / identifier / name；
+- 已 qualification 的 Reference 关系。
+
+### 本次运行时证据
+
+例如：
+
+- 绝对坐标；
+- 当前窗口位置；
+- 当前 Snapshot pixel；
+- 当前 CaptureMapping；
+- 当前视觉区域。
+
+Runtime Evidence 默认用于约束、验证、消歧和维修，不自动变成唯一长期 Locator。
+
+## 13. Automation Authoring / Recipe / Repair
+
+正式链路：
+
+```text
+Recorder / Human / Agent 已有 semantic evidence
++
+按需 MeasurementEvidence
+        ↓
+AuthoringMeasurementInput
+        ↓
+semantic-first 普通 OpenDesk JavaScript
+        ↓
+正式 Execution
+        ↓
+独立业务验证
+```
+
+推荐：
+
+```text
+semantic locator 可用
+→ 仍以 semantic locator 为主
+→ Measurement geometry 用于 constrained search / verification
+
+semantic ambiguous
+→ Window + Local + percentage geometry 用于消歧
+
+visual drift
+→ frozen pixel / region 用于 qualification
+
+locator failure
+→ Measurement-assisted Repair 只请求必要的新 evidence
+```
+
+禁止因为测量过就把 Recipe 退化为唯一绝对坐标点击。
+
+对应实现：
+
+- `pkg/measurement/evidence.go`
+- `pkg/measurement/product_contract.go`
+- `pkg/measurement/authoring.go`
+- `pkg/measurement/qualification.go`
+- `pkg/measurement/repair.go`
+- `pkg/recorder/measurement_evidence.go`
+- `workflows/agent-to-recipe/design/measurement-evidence.md`
+
+## 14. Recorder 集成与输入隔离
+
+Recorder「测量」调用 App Mode 持有的同一个 Measurement Service。
+
+录制期间打开 Measurement 时：
+
+1. Recorder 先审计并排除工具按钮自身点击；
+2. 若 native capture 正在 recording，则先通过 Recorder 正式 `pause()` 关闭输入接受门；
+3. Measurement 自身 mouse / keyboard / Tab / Alt / drag / toolbar input 不进入业务录制；
+4. Measurement 退出后 Recorder 保持 paused，不能未经用户操作自动恢复业务录制；
+5. 用户在 Recorder 中显式 resume 后才重新打开录制接受门。
+
+正确隔离必须发生在输入接受边界，不能采用“录完以后删除几条 action”冒充隔离。
+
+## 15. macOS / Windows Host Contract
+
+两平台共享：
+
+- `WindowSpec.Kind = measurement`；
+- Host-owned `MeasurementSurfaceSpec`；
+- bounded pointer events；
+- Measurement keyboard bridge；
+- Tab / Alt / 1–4 / R / I 等会话按键语义；
+- Surface 生命周期与幂等 cleanup。
+
+平台实现可以不同，但不得：
+
+- 在公共 JS 中开放任意 host-owned Measurement surface 构造能力；
+- 产生第二套 desktop input framework；
+- 把 HTML fixture 当成真实 Native 证据。
+
+## 16. HTML Interaction Oracle
+
+正式交互样机：
+
+```text
+apps/opendesk/prototypes/desktop-measurement/
+```
+
+唯一维护关系：
+
+```text
+index.html
+  ├─ prototype.css
+  ├─ model.js
+  └─ interaction-core.js
+```
+
+`template.html` 只作为兼容入口跳转到 `index.html`，不再复制第二套实现。
+
+从仓库根目录直接：
+
+```bash
+open apps/opendesk/prototypes/desktop-measurement/index.html
+```
+
+不要求 npm、HTTP Server 或 OpenDesk Runtime。
+
+HTML 定义：
+
+- 产品交互；
+- 信息层级；
+- 状态转换；
+- 几何语义。
+
+HTML 中的 synthetic UI tree、模拟微信、Canvas、多屏 fixture、浏览器 clipboard 都是测试替身，不能复制成生产证据源。
+
+## 17. 自动化验证分层
+
+### A. Geometry / Model
+
+覆盖：
+
+- 绝对 / 相对 / 百分比坐标；
+- signed margins；
+- 负坐标；
+- Retina / DPI；
+- 多显示器映射；
+- 区域包含 / 越界；
+- 两点 / 两区域。
+
+### B. Prototype Browser Oracle
+
+覆盖：
+
+- 模块化单一 Oracle；
+- 磁吸默认开启；
+- 三级坐标；
+- 源像素颜色；
+- 两组边距且最多两组；
+- 一次只突出四条边距线；
+- Tab / Shift+Tab；
+- Alt 暂停；
+- 弱蒙版；
+- `更新画面`；
+- `ADJUSTING`；
+- `继续测量` 新 Snapshot；
+- 旧 token candidate invalidation；
+- Inspector 按需；
+- structured export；
+- exit cleanup；
+- 视觉候选不冒充语义。
+
+### C. Measurement Framework
+
+覆盖：
+
+- Service single owner；
+- session lifecycle；
+- snapshot / generation；
+- Window + Local References；
+- two margin relations；
+- structured evidence；
+- authoring / qualification / repair；
+- cleanup。
+
+### D. Native / Custom UI Contract
+
+覆盖：
+
+- macOS host contract；
+- Windows host contract；
+- Measurement keyboard / pointer routing；
+- overlay ownership；
+- Surface lifecycle。
+
+### E. Recorder / App Mode
+
+覆盖：
+
+- 三入口 → 同一 Service；
+- Recorder Measurement bridge；
+- capture pause / isolation；
+- shortcut 单一来源；
+- Measurement Evidence handoff。
+
+## 18. 验证真实性边界
+
+报告必须明确区分：
+
+```text
+HTML synthetic PASS
+Go unit PASS
+JS integration PASS
+GitHub Actions platform contract PASS
+build PASS
+真实 macOS UI PASS
+真实 Windows UI PASS
+```
+
+GitHub Actions 在 macOS / Windows runner 上通过 Go host contract，只能证明**跨平台代码 / contract test**，不能写成“真实原生体验通过”。
+
+以下仍必须本地真机验收：
+
+- Surface 是否真正不进入 Dock / Taskbar；
+- 截图是否完全排除 Measurement 自身；
+- 焦点与目标窗口恢复；
+- 真正 Accessibility / UIA 候选；
+- Recorder 真实鼠标键盘隔离；
+- 多显示器 / Retina / Windows DPI；
+- 系统剪切板；
+- 全局快捷键实际注册与冲突；
+- 调整界面期间目标应用真实交互体验。
+
+没有这些证据时必须写“未进行真机验收”。
+
+## 19. 不变量
+
+1. 一套 `pkg/measurement` Geometry。
+2. 一个 Measurement Service / owner。
+3. 一个 CaptureMapping 合同。
+4. 一个 Result / Evidence 主数据链。
+5. HTML 是 Oracle，不是 Runtime。
+6. 视觉证据不冒充语义证据。
+7. 绝对坐标不自动升级为长期 Locator。
+8. Window + Local 默认最多两组关键边距。
+9. Overlay 一次只突出一组边距关系。
+10. ADJUSTING 必须让旧 Snapshot 立即失去当前身份。
+11. 旧异步结果必须通过 sessionId + generation + snapshotId 校验。
+12. Recorder 隔离发生在输入接受边界，不靠事后删 action。
+13. 三入口共享同一个 Session，不创建第二套实现。
