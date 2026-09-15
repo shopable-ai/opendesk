@@ -13,10 +13,11 @@ Desktop Measurement 的标准 Interaction Oracle 位于产品所有权域：
 ## 权威入口
 
 - [唯一产品与 Framework 设计正文](../../docs/architecture/desktop-automation/desktop-measurement.md)
-- [P0–P4 实现架构](../../docs/architecture/desktop-automation/desktop-measurement-implementation.md)
 - [Prototype 历史验证](../../docs/quality/desktop-measurement-prototype.md)
 - [Prototype → Native → OS Qualification Matrix](../../docs/quality/desktop-measurement-qualification.md)
 - [`qualification-manifest.json`](./qualification-manifest.json)：真实平台状态；未运行必须保持 `NOT_RUN`。
+
+曾用于推进 P0–P4 的阶段性 implementation 文档和执行 prompt 已完成使命并移除。P0–P4 中仍有效的能力已经落到上述 canonical 设计、`pkg/measurement/**`、Recorder 集成、自动测试和 qualification 资产中；后续不得再建立第二份 Measurement 总设计或用历史 prompt 覆盖 HTML Oracle。
 
 ## Prototype Oracle
 
@@ -136,8 +137,8 @@ macOS: native overlay, keyboard, clipboard, Accessibility, global shortcut,
 Windows: native host, UIA, 100/125/150/200%, mixed DPI, clipboard,
          keyboard, global shortcut, physical multi-display
 
-P3: Recorder → Measurement evidence/artifact
-P4: real failure → Measurement repair → retry → business verification
+Authoring: Recorder → Measurement evidence/artifact
+Repair: real failure → Measurement repair → retry → business verification
 ```
 
 完成一项真实资格验证后，更新 `qualification-manifest.json`：
