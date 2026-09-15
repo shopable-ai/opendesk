@@ -155,8 +155,12 @@ func (r *appRecorder) request(ctx context.Context, executionID string) (pkgExecu
 		CustomUIHostPath:         r.config.CustomUIHostPath,
 		CustomUIDriver:           customui.NewSessionScopedDriverForSession(r.driver, executionID),
 		CustomUIBaseDir:          uiRoot,
-		OnCustomUISession:        func(session *customui.Session) { r.setSession(executionID, session) },
-		Artifacts:                artifacts,
+		// The built-in Recorder is an official product surface. It receives the
+		// same read-only Locale Core projection as the App entry, while keeping
+		// its separate Execution and capture lifecycle.
+		AppShell:          r.shell,
+		OnCustomUISession: func(session *customui.Session) { r.setSession(executionID, session) },
+		Artifacts:         artifacts,
 		Selection: pkgExecution.TerminalSelection{
 			Mode:       "quiet",
 			Categories: map[string]bool{},

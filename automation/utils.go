@@ -17,6 +17,7 @@ import (
 	officialassets "opendesk/internal/officialassets"
 	"opendesk/pkg/appshell"
 	"opendesk/pkg/customui"
+	"opendesk/pkg/localization"
 	"opendesk/pkg/nativeextension"
 	"opendesk/pkg/terminalstyle"
 )
@@ -1003,11 +1004,19 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 	if err != nil {
 		return fmt.Errorf("load OpenDesk product identity: %w", err)
 	}
-	systemMethods["product"] = map[string]any{
+	product := map[string]any{
 		"id":      "com.opendesk.desktop",
 		"name":    "OpenDesk",
 		"website": productWebsite,
 	}
+	// Product-page presentation is deliberately scoped to the first-party App
+	// Mode package. It projects the already-configured Locale Core into its
+	// JavaScript execution; it is not a second catalog loader and it is never
+	// passed to Assistant model channels or prompts.
+	if opts.AppShell != nil && appshell.IsOpenDeskProduct(opts.AppShell.Manifest()) {
+		product["locale"] = productLocaleBridge(runtime, localization.Default())
+	}
+	systemMethods["product"] = product
 	if err := registerSystemEnvironment(runtime, opts.Environment, systemMethods); err != nil {
 		return err
 	}

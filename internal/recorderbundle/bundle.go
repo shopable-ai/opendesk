@@ -20,7 +20,7 @@ const RecorderWindowID = "recording-console"
 // from the canonical App asset so the auxiliary execution can use the same
 // script-local FloatingWindow image descriptor as Script Runner.
 //
-//go:embed assets/controller.js assets/controller-core.js assets/recording-history.js assets/opendesk-logo.png
+//go:embed assets/controller.js assets/controller-core.js assets/recording-history.js assets/localization.js assets/opendesk-logo.png
 var runtimeAssets embed.FS
 
 // WriteToDir materializes the built-in Recorder product resources for the
@@ -71,6 +71,11 @@ func WriteToDir(root string) (string, error) {
 func EntryScript() string {
 	return fmt.Sprintf(`'use strict';
 const recorderRuntimeDir = File.join(Execution.scriptDir, 'recording-console-simple');
+const localizationFile = File.join(recorderRuntimeDir, 'localization.js');
+(0, eval)(File.read(localizationFile) + '\n//# sourceURL=' + localizationFile);
+if (!globalThis.OpenDeskProductI18n || !OpenDeskProductI18n.install()) {
+  throw new Error('OpenDesk Recorder Locale Core bridge did not initialize');
+}
 const simpleControllerFile = File.join(recorderRuntimeDir, 'controller.js');
 (0, eval)(File.read(simpleControllerFile) + '\n//# sourceURL=' + simpleControllerFile);
 

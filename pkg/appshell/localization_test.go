@@ -215,6 +215,49 @@ func TestOfficialManifestLocalizationRetainsMachineActions(t *testing.T) {
 	}
 }
 
+func TestNativeHostLocalizationConfigurationIsLimitedToLocalizedPresentation(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		manifest Manifest
+		want     bool
+	}{
+		{name: "official product", manifest: Manifest{ID: OpenDeskProductPackageID}, want: true},
+		{name: "third-party label key", manifest: Manifest{ID: "com.example.localized", Tray: TrayManifest{Menu: []MenuItem{{LabelKey: "menu.open"}}}}, want: true},
+		{name: "legacy third-party menu", manifest: Manifest{ID: "com.example.legacy", Tray: TrayManifest{Menu: []MenuItem{{Label: "Open"}}}}, want: false},
+		{name: "third-party app without tray", manifest: Manifest{ID: "com.example.no-tray"}, want: false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if got := shouldConfigureLocalization(test.manifest); got != test.want {
+				t.Fatalf("shouldConfigureLocalization(%+v)=%t, want %t", test.manifest, got, test.want)
+			}
+		})
+	}
+
+	productManager := localization.ConfigureDefault(localization.Options{
+		CatalogDir:     filepath.Join("..", "..", "apps", "opendesk", "locales"),
+		PreferencePath: filepath.Join(t.TempDir(), "preferences.json"),
+		SystemLocale:   func() (string, error) { return localization.LocaleZhCN, nil },
+		Diagnostics:    func(localization.Diagnostic) {},
+	})
+	appPackage := &Package{
+		Root: t.TempDir(),
+		Manifest: Manifest{
+			ID:   "com.example.no-tray",
+			Tray: TrayManifest{Enabled: false},
+		},
+	}
+	host, err := NewNativeHost(appPackage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if host != nil {
+		t.Fatalf("native host=%T, want nil for disabled tray", host)
+	}
+	if got := localization.Default(); got != productManager {
+		t.Fatal("an unlocalized App Mode package replaced the product locale manager")
+	}
+}
+
 // recordingLocalizedNative is an in-memory native backend. It mirrors the
 // platform hosts' patch semantics so this test can prove that a locale refresh
 // changes presentation only, without needing a Desktop session.

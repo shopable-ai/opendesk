@@ -1,6 +1,7 @@
 # OpenDesk product App Mode runtime closure.
 opendesk.app.json
 main.js
+localization.js
 assistant/store.js
 assistant/model-channel.js
 assistant/session.js

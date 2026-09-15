@@ -22,7 +22,6 @@ func NewNativeHost(appPackage *Package) (NativeHost, error) {
 			CatalogDir: filepath.Join(appPackage.Root, "locales"),
 		})
 	}
-
 	native, err := newPlatformNativeHost(appPackage)
 	if err != nil {
 		return nil, err
@@ -33,6 +32,9 @@ func NewNativeHost(appPackage *Package) (NativeHost, error) {
 	return native, nil
 }
 
+// shouldConfigureLocalization limits the process-wide Locale Core to packages
+// that actually consume localized presentation. A legacy third-party App must
+// not replace the product manager merely by starting App Mode.
 func shouldConfigureLocalization(manifest Manifest) bool {
 	if IsOpenDeskProduct(manifest) {
 		return true

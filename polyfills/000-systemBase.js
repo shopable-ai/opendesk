@@ -16,11 +16,25 @@
       typeof nativeProduct.website !== 'string' || !/^https:\/\//.test(nativeProduct.website)) {
     throw new Error('System.product native identity is unavailable');
   }
-  const product = Object.freeze({
+  const product = {
     id: nativeProduct.id,
     name: nativeProduct.name,
     website: nativeProduct.website,
-  });
+  };
+  // locale is intentionally present only in the official product App Mode
+  // execution. It is a read-only Locale Core projection, never an AI prompt
+  // setting and never a third-party catalog contract.
+  if (nativeProduct.locale && typeof nativeProduct.locale === 'object' &&
+      typeof nativeProduct.locale.preference === 'string' &&
+      typeof nativeProduct.locale.resolved === 'string' &&
+      typeof nativeProduct.locale.translate === 'function') {
+    product.locale = Object.freeze({
+      preference: nativeProduct.locale.preference,
+      resolved: nativeProduct.locale.resolved,
+      translate: nativeProduct.locale.translate,
+    });
+  }
+  Object.freeze(product);
 
   Object.defineProperty(System, 'product', {
     value: product,

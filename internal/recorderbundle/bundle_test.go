@@ -12,6 +12,7 @@ var recorderJavaScriptFiles = []string{
 	"controller.js",
 	"controller-core.js",
 	"recording-history.js",
+	"localization.js",
 }
 
 func TestWriteToDirIsSelfContained(t *testing.T) {
@@ -25,6 +26,7 @@ func TestWriteToDirIsSelfContained(t *testing.T) {
 		"recording-console-simple/controller.js",
 		"recording-console-simple/controller-core.js",
 		"recording-console-simple/recording-history.js",
+		"recording-console-simple/localization.js",
 		"assets/opendesk-logo.png",
 	} {
 		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(relative))); err != nil {
@@ -77,7 +79,11 @@ func TestGeneratedJavaScriptMatchesCanonicalSources(t *testing.T) {
 		if err != nil {
 			t.Fatalf("read embedded %s: %v", name, err)
 		}
-		canonical, err := os.ReadFile(filepath.Join("..", "..", "apps", "opendesk", "recorder", name))
+		canonicalDir := filepath.Join("..", "..", "apps", "opendesk", "recorder")
+		if name == "localization.js" {
+			canonicalDir = filepath.Join("..", "..", "apps", "opendesk")
+		}
+		canonical, err := os.ReadFile(filepath.Join(canonicalDir, name))
 		if err != nil {
 			t.Fatalf("read canonical %s: %v", name, err)
 		}

@@ -15,6 +15,7 @@ var assets = []assetSync{
 	{sourceDir: filepath.Join("..", "..", "apps", "opendesk", "recorder"), name: "controller.js"},
 	{sourceDir: filepath.Join("..", "..", "apps", "opendesk", "recorder"), name: "controller-core.js"},
 	{sourceDir: filepath.Join("..", "..", "apps", "opendesk", "recorder"), name: "recording-history.js"},
+	{sourceDir: filepath.Join("..", "..", "apps", "opendesk"), name: "localization.js"},
 	{sourceDir: filepath.Join("..", "..", "apps", "opendesk", "assets"), name: "opendesk-logo.png"},
 }
 

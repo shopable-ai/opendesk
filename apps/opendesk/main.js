@@ -19,6 +19,12 @@ const officialShell = OpenDeskOfficialShell.create({
   packageRoot: Execution.scriptDir,
 });
 
+const localizationEntry = File.join(Execution.scriptDir, 'localization.js');
+(0, eval)(File.read(localizationEntry) + '\n//# sourceURL=' + localizationEntry);
+if (!globalThis.OpenDeskProductI18n || !OpenDeskProductI18n.install()) {
+  throw new Error('OpenDesk product Locale Core bridge did not initialize');
+}
+
 const runnerEntry = File.join(Execution.scriptDir, 'script-runner-simple.js');
 (0, eval)(File.read(runnerEntry) + '\n//# sourceURL=' + runnerEntry);
 if (!globalThis.OpenDeskProductScriptRunner
