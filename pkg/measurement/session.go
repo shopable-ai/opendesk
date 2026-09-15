@@ -102,7 +102,9 @@ type activeSession struct {
 	manualPending     bool
 	copyMenuOpen      bool
 	inspectorOpen     bool
+	snapEnabled       bool
 	snapSuspended     bool
+	marginView        string
 	regionHandle      RegionEditHandle
 	editAnchor        *Point
 	editOriginal      *Rect
@@ -238,6 +240,7 @@ func (s *Service) openNew(ctx context.Context, source string) (*activeSession, e
 		frame: frame, image: img, assetPath: assetPath, restore: frame.Restore, reference: frame.Reference,
 		tool: "point", outputFormat: "concise", status: targetConfirmationInstruction(frame),
 		selectedTarget: frame.SelectedTargetID, targetConfirmed: frame.TargetConfirmed, source: strings.TrimSpace(source),
+		snapEnabled: true, marginView: "window",
 		phase: PhasePreparing, sessionID: sessionID, generation: 1,
 	}
 	a.snapshotID = snapshotIdentity(sessionID, a.generation, frame.Snapshot)
@@ -438,6 +441,26 @@ func (a *activeSession) handleClick(ctx context.Context, id string) error {
 	case "toolSpacing":
 		setMeasurementTool(a, "spacing")
 		return a.renderSurface(ctx)
+	case "magnetToggle":
+		a.snapEnabled = !a.snapEnabled
+		a.snapSuspended = false
+		if a.snapEnabled {
+			a.status = "磁吸定位已开启；Alt/Option 可临时暂停。"
+		} else {
+			a.status = "磁吸定位已关闭；Tab 不再切换候选。"
+		}
+		return a.renderSurface(ctx)
+	case "marginToggle":
+		if !hasLocalReference(a) {
+			a.marginView = "window"
+			return a.updateStatus(ctx, "当前没有可靠局部参照；继续显示 Target → Window 边距。")
+		}
+		if a.marginView == "local" {
+			a.marginView = "window"
+		} else {
+			a.marginView = "local"
+		}
+		return a.renderSurface(ctx)
 	case "referenceButton":
 		return a.beginReferenceEdit(ctx)
 	case "copyMenuButton":
@@ -458,6 +481,7 @@ func (a *activeSession) handleClick(ctx context.Context, id string) error {
 		return a.renderSurface(ctx)
 	case "closeInspector":
 		a.inspectorOpen = false
+		a.copyMenuOpen = false
 		return a.renderSurface(ctx)
 	case "confirmTarget":
 		a.targetConfirmed = true
@@ -538,6 +562,7 @@ func (a *activeSession) restoreWindowReference(ctx context.Context) error {
 	}
 	a.reference = a.frame.Reference
 	a.manualPending = false
+	a.marginView = "window"
 	a.regionHandle = RegionEditNone
 	a.status = "参照已恢复为已确认目标窗口外边界。"
 	return a.renderSurface(ctx)
@@ -626,6 +651,7 @@ func (a *activeSession) completeSelection(ctx context.Context, end Point) error 
 		}
 		a.reference = Reference{Type: ReferenceManualRegion, Bounds: selection}
 		a.manualPending = false
+		a.marginView = "local"
 		a.result = nil
 		a.spacingFirst = nil
 		a.twoPointFirst = nil
@@ -694,6 +720,13 @@ func (a *activeSession) handleKey(ctx context.Context, fields map[string]any) er
 	alt, _ := fields["alt"].(bool)
 	lower := strings.ToLower(key)
 	if key == "Alt" || key == "Option" {
+		if !a.snapEnabled {
+			if a.snapSuspended {
+				a.snapSuspended = false
+				return a.renderSurface(ctx)
+			}
+			return nil
+		}
 		suspended := phase != "up"
 		if a.snapSuspended != suspended {
 			a.snapSuspended = suspended
@@ -927,7 +960,7 @@ func (a *activeSession) refresh(ctx context.Context, targetID string) error {
 	oldReference, oldTarget := a.reference, a.selectedTarget
 	oldResult := a.result
 	oldConfirmed, oldStatus := a.targetConfirmed, a.status
-	oldManual, oldCopy, oldInspector, oldSnap := a.manualPending, a.copyMenuOpen, a.inspectorOpen, a.snapSuspended
+	oldManual, oldCopy, oldInspector, oldSnap, oldMargin := a.manualPending, a.copyMenuOpen, a.inspectorOpen, a.snapSuspended, a.marginView
 	oldHandle := a.regionHandle
 	oldDrag, oldTwo, oldSpacing := a.dragStart, a.twoPointFirst, a.spacingFirst
 	oldPointer := a.pointer
@@ -937,6 +970,7 @@ func (a *activeSession) refresh(ctx context.Context, targetID string) error {
 	a.result, a.pointer = nil, nil
 	a.dragStart, a.twoPointFirst, a.spacingFirst = nil, nil, nil
 	a.manualPending, a.copyMenuOpen, a.inspectorOpen, a.snapSuspended = false, false, false, false
+	a.marginView = "window"
 	a.regionHandle, a.editAnchor, a.editOriginal = RegionEditNone, nil, nil
 	a.targetConfirmed = frame.TargetConfirmed
 	a.status = "已冻结新的干净快照；此前结果和旧 Snapshot 派生候选均已失效。" + targetConfirmationInstruction(frame)
@@ -955,7 +989,7 @@ func (a *activeSession) refresh(ctx context.Context, targetID string) error {
 		a.reference, a.selectedTarget = oldReference, oldTarget
 		a.result, a.pointer = oldResult, oldPointer
 		a.targetConfirmed, a.status = oldConfirmed, oldStatus
-		a.manualPending, a.copyMenuOpen, a.inspectorOpen, a.snapSuspended = oldManual, oldCopy, oldInspector, oldSnap
+		a.manualPending, a.copyMenuOpen, a.inspectorOpen, a.snapSuspended, a.marginView = oldManual, oldCopy, oldInspector, oldSnap, oldMargin
 		a.regionHandle, a.dragStart, a.twoPointFirst, a.spacingFirst = oldHandle, oldDrag, oldTwo, oldSpacing
 		_ = os.Remove(assetPath)
 		_, _ = w.SetBounds(context.Background(), oldState.Bounds)
@@ -986,6 +1020,10 @@ func (a *activeSession) rollbackFreezeState(oldPhase MeasurementPhase, oldToken 
 }
 
 func (a *activeSession) cycleTarget(ctx context.Context, direction int) error {
+	if !a.snapEnabled {
+		a.status = "磁吸定位已关闭；不会切换候选。"
+		return a.updateStatus(ctx, a.status)
+	}
 	if len(a.frame.Targets) < 2 {
 		a.status = "当前没有可切换的其他真实候选窗口；不会伪造候选。"
 		return a.updateStatus(ctx, a.status)
@@ -1039,6 +1077,7 @@ func (a *activeSession) renderSurface(ctx context.Context) error {
 		microTarget = result
 	}
 	micro := MicroPlacement(a.frame.Snapshot.Mapping, microTarget)
+	marginLabel := marginToggleText(a)
 	patches := []struct {
 		id    string
 		patch customui.ControlPatch
@@ -1049,6 +1088,8 @@ func (a *activeSession) renderSurface(ctx context.Context) error {
 		{"toolRegion", customui.ControlPatch{Active: boolPtr(a.tool == "region")}},
 		{"toolTwoPoint", customui.ControlPatch{Active: boolPtr(a.tool == "twoPoint")}},
 		{"toolSpacing", customui.ControlPatch{Active: boolPtr(a.tool == "spacing")}},
+		{"magnetToggle", customui.ControlPatch{Active: boolPtr(a.snapEnabled && !a.snapSuspended)}},
+		{"marginToggle", customui.ControlPatch{Text: &marginLabel, Active: boolPtr(a.marginView == "local" && hasLocalReference(a)), Disabled: boolPtr(!hasLocalReference(a))}},
 		{"referenceButton", customui.ControlPatch{Active: boolPtr(a.manualPending)}},
 		{"copyMenuButton", customui.ControlPatch{Disabled: boolPtr(a.result == nil)}},
 		{"inspectorButton", customui.ControlPatch{Active: boolPtr(a.inspectorOpen)}},
@@ -1091,7 +1132,11 @@ func (a *activeSession) renderSurface(ctx context.Context) error {
 func (a *activeSession) writeOverlay() (string, error) {
 	name := "overlay-" + a.service.now().UTC().Format("20060102T150405.000000000Z") + "-" + strconv.FormatUint(a.service.assetID.Add(1), 10) + ".png"
 	path := filepath.Join(a.service.baseDir, name)
-	if err := RenderOverlayPNG(path, a.frame.Snapshot.Mapping, a.frame.Reference, a.reference, a.result, a.twoPointFirst, a.spacingFirst); err != nil {
+	marginReference := a.frame.Reference
+	if a.marginView == "local" && hasLocalReference(a) {
+		marginReference = a.reference
+	}
+	if err := RenderOverlayPNG(path, a.frame.Snapshot.Mapping, a.frame.Reference, marginReference, a.result, a.twoPointFirst, a.spacingFirst); err != nil {
 		return "", err
 	}
 	return path, nil
