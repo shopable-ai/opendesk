@@ -1,54 +1,65 @@
-# OpenDesk 最应该先证明哪个“全球第一”？加入 Appium 后，答案更窄了
+# OpenDesk 最应该先争哪个“全球第一”？先从 OPC 自动化交付开始
 
 状态：Draft  
 更新时间：2026-09-16
 
-> 本文讨论的是一个准备通过公开 Benchmark 和真实交付去争取的有限竞争位置，不是“OpenDesk 已经全球第一”的声明。
+> 本文讨论的是准备通过公开 Benchmark 和真实交付去争取的有限竞争位置，不是“OpenDesk 已经全球第一”的声明。
 
-## 结论
+## 先说结论
 
-OpenDesk 现在最不应该做的，是为了制造“第一”而把竞争范围写成：
+OpenDesk 不应该为了制造“第一”，去宣传：
 
-> 唯一同时支持 Desktop + Browser + Mobile 的自动化平台。
+> 唯一支持桌面 + 浏览器 + 手机的自动化平台。
 
-Appium 已经证明，一个成熟 UI automation 生态可以同时覆盖 mobile、browser、desktop 甚至更多设备 surface；UiPath 等企业 RPA 也已经覆盖桌面、浏览器和移动端。
+Appium、UiPath 等已经证明，多平台覆盖本身并不稀缺。
 
-所以“支持的平台多”本身不是 OpenDesk 的第一。
+现在最值得先争的更小位置，可以用一个很短的名字表达：
 
-OpenDesk 目前最值得优先争取的更窄位置是：
+> ## **OPC 自动化交付**
 
-> ## Agent-authored Local Automation Delivery Runtime for independent developers / automation consultants
->
-> 面向独立自动化开发者、AI 自动化顾问和小型实施团队，把 Agent 做出的本地自动化真正打包、授权、部署、验证、诊断并长期维护给客户。
+这里的 OPC 指 One Person Company / 一人公司。
 
-## 为什么先争这个，而不是先补所有平台
+一句话：
 
-OpenDesk 当前真正接近完整闭环的资产不是 Mobile，也不是完整 Browser Driver，而是：
+> **一个人做自动化，也能像公司一样交付。**
+
+目标用户包括：
+
+- OPC / 一人公司；
+- AI 自动化顾问；
+- 独立自动化开发者；
+- 小型自动化实施团队。
+
+他们真正的问题不是“AI 会不会点电脑”，而是：
+
+> **我已经能用 AI 做出自动化，怎样把它可靠地交付给客户，并重复卖第二次？**
+
+## 为什么先争 OPC 自动化交付
+
+OpenDesk 当前已经接近这条链：
 
 ```text
-Codex / Claude / Human Recorder
-→ JavaScript Workflow / Recipe
-→ structured input
-→ local Execution
-→ run artifacts / evidence
-→ protected package
-→ publisher signature
-→ License / device authorization
-→ client machine execution
-→ diagnosis / maintenance
+Agent / Recorder
+→ Workflow
+→ 参数化
+→ 验证
+→ 客户机器运行
+→ Evidence
+→ 诊断 / 维修
+→ 第二客户复用
 ```
 
-这条链已经接近一个非常具体的买方问题：
+这比马上补完整 Browser 和 Mobile 更接近现有产品，也更容易通过真实第二台机器、真实客户和真实维护工时证明价值。
 
-> 我已经能让 AI 帮我做出自动化，怎样把它可靠地卖给客户，而不是把源码、开发环境和我的电脑一起交出去？
+Cua 更偏 Agent Computer Use；Peekaboo 更偏 macOS Agent automation；Appium 是成熟的多平台 UI automation 底座；UiPath 和 Automation Anywhere 在企业自动化交付上更完整。
 
-Cua 很强，但它的主轴是给 Agent 一台能操作的电脑；Peekaboo 很强，但核心是 macOS native automation；Appium 很强，但核心是 multi-platform UI test / automation framework；UiPath 和 Automation Anywhere 在企业交付上更成熟，但它们面向的是完整企业 Automation Platform。
+OpenDesk 要争的不是“功能比他们都多”，而是一个更窄的问题：
 
-因此，“独立开发者 / 顾问 + 本地 Agent-authored automation + 商业交付 Runtime”是一个更窄、也更适合 OpenDesk 当前能力去验证的范围。
+> **OPC 能不能用 OpenDesk，把 Agent 做出的自动化变成可重复交付的业务资产？**
 
-## Appium 为什么改变了我们的判断
+## Appium 为什么让这个结论更清楚
 
-此前很容易把下面这个组合当作潜在第一：
+如果只看平台覆盖，很容易把下面的组合当作差异：
 
 ```text
 macOS
@@ -57,89 +68,114 @@ macOS
 + iOS / Android
 ```
 
-但 Appium 官方 driver 生态已经覆盖：
+但 Appium 的 Driver 生态已经覆盖浏览器、macOS、Windows、Android、iOS 等多个 Surface。
 
-- Chromium / Gecko / Safari browsers；
-- macOS Mac2；
-- Windows；
-- Android UiAutomator2 / Espresso；
-- iOS / iPadOS / tvOS XCUITest。
+因此：
 
-这说明：
+> **多端是能力，不是自动形成的护城河。**
 
-> **Multi-surface 是能力基础，不是自动形成的差异化。**
-
-OpenDesk 真正需要把这些 surface 统一到更高一层：
+OpenDesk 真正需要统一的是更高一层：
 
 ```text
-Goal
-→ choose the most deterministic surface
-→ execute
-→ verify business result
-→ save evidence
-→ reusable workflow
-→ repair
-→ deliver to another machine / client
+任务
+→ 选择最合适的控制方式
+→ 执行
+→ 验证结果
+→ 保存证据
+→ 形成可复用 Workflow
+→ 维修
+→ 再交付
 ```
 
-## 第二个值得争的位置
+## 第二个位置：双入口 RPA
 
-> **Human demonstration + Coding Agent exploration → same maintainable macOS/Windows Workflow**
+第二个值得争的位置也可以收成四个字：
 
-如果普通用户通过 Recorder 演示，Codex / Claude 通过 Agent 探索，最后都能形成同一种可读、可验证、可复用 Workflow，这会比“我有 Recorder”或者“我有 Agent CLI”强得多。
+> ## **双入口 RPA**
 
-它的强对手也更明确：UiPath Delegate、OpenAdapt、ADH、Codex Record & Replay。
+意思是：
 
-所以这条需要直接公开对测，而不是靠功能清单宣布领先。
+```text
+普通用户 Recorder ─┐
+                    ├→ 同一种 Workflow
+Codex / Claude ─────┘
+```
 
-## 第三个长期位置
+真正的竞争点不是“有 Recorder”，也不是“有 Agent CLI”。
 
-> **Local Multi-surface Agent RPA Runtime: Desktop + Browser + Mobile → one verified reusable workflow model**
+而是：
 
-长期可以形成：
+> **人演示一次和 Agent 探索一次，最后能不能变成同一种可维护、可验证、可复用的自动化。**
+
+这条的强对手包括 UiPath Delegate、OpenAdapt、ADH 和 Codex Record & Replay。
+
+## 第三个位置：可复用 Agent RPA
+
+这是更适合官网和长期品牌传播的主山头：
+
+> ## **可复用 Agent RPA**
+
+一句话：
+
+> **AI 做一次，以后自动做。**
+
+它比 OPC 自动化交付更宽，所以竞争也更强。
+
+当前更合理的目标是先建立 Top 3 证据，而不是先喊 Top 1。
+
+## 长期扩张：多端 Agent RPA
+
+等桌面主链证明以后，再扩：
 
 ```text
 Desktop
-→ macOS AX / Windows UIA / Vision
-
-Browser
-→ CDP / Playwright adapter
-
-Mobile
-→ phone mirroring for low-setup use
-→ Appium XCUITest / UiAutomator2 for semantic automation
++ Browser
++ Mobile
+        ↓
+同一种 Workflow
+        ↓
+Verification / Evidence / Delivery
 ```
 
-然后全部进入同一个 Workflow / Verification / Evidence / Delivery 模型。
+Browser 可以接 CDP / Playwright；Mobile 可以同时探索手机镜像和 Appium XCUITest / UiAutomator2。
 
-但这应该是扩张路线，不是现在一次性开工的功能清单。
+这条可以简称：
+
+> **多端 Agent RPA**
+
+但它目前还是扩张目标，不是已经完成的产品能力。
 
 ## 最合理的顺序
 
 ```text
-1. 先证明 Delivery Runtime
-2. 再证明 Human + Agent → same Workflow
-3. 加 Browser Adapter
-4. 加 Mobile Adapter
-5. 最后做 Multi-surface Benchmark
+1. OPC 自动化交付
+2. 双入口 RPA
+3. 可复用 Agent RPA Benchmark
+4. Browser Adapter
+5. Mobile / Appium Adapter
+6. 多端 Agent RPA
 ```
 
-如果第 1 步都不能让第二台机器、第二个独立环境或第一个真实客户低成本运行，那么增加更多 surface 只会扩大维护面积。
+这个顺序的核心思想很简单：
 
-## 什么证据出现后才可以说“第一”
+> **先证明一个人能把自动化稳定卖出去，再增加更多可以自动化的设备。**
+
+## 什么时候才可以说“第一”
 
 至少需要：
 
-- 冻结一个有商业意义的竞争范围；
+- 明确竞争范围；
 - 预先选出 3—5 个最接近的替代方案；
-- 同一个 workflow 从作者机器交付到第二台机器；
-- 统计安装、权限、参数化、授权、首次成功和维修工时；
+- 同一个 Workflow 从作者机器交付到第二台机器；
+- 统计安装、参数化、首次成功和维修工时；
 - 至少一个外部独立环境或真实付费交付；
 - 未测试竞品不能按失败处理；
 - 公开最强对手在哪些维度更强。
 
-在这些证据出现以前，最准确的说法不是“OpenDesk 全球第一”，而是：
+在这些证据出现以前，准确说法是：
 
-> **OpenDesk 正在争一个更窄的位置：让独立开发者把 Agent 做出的本地自动化真正变成可以交付和维护的商品。**
+> **OpenDesk 正在优先验证“OPC 自动化交付”这个 Top 1 候选位置。**
 
-这比“功能最多”更难，但也更有商业价值。
+而不是：
+
+> OpenDesk 已经全球第一。
