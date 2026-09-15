@@ -1,5 +1,7 @@
 //go:build cgo && (darwin || windows || linux)
 
+#include <stddef.h>
+
 #include "recorder_uiohook_bridge.h"
 #include "../third_party/libuiohook/include/uiohook.h"
 
