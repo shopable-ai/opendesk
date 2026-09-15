@@ -1195,50 +1195,147 @@ RuntimeAPITest.contractObject('Recorder');
     });
     return rows;
   }
-  test({name:'Recorder semantic default compiles recorded labels to concise text batches without losing actions evidence',
+  test({name:'Recorder UI Tree-only simple button lowers an Accessibility name to tapTexts without claiming OCR',
     tier:'unit',covers:['Recorder.buildActions','Recorder.generateScript']}, async()=>{
-    const id = 'rec-semantic-' + Date.now();
+    const id = 'rec-semantic-simple-button-' + Date.now();
     const dir = File.join(Execution.workdir,'.runtime','recordings',id);
-    const buttons = ['2','5','×','4','='].map(name=>({name,identifier:'button-'+name}));
+    const buttons = [{name:'5',identifier:'button-5'}];
     writeFixture(dir,id,buttonEvents(buttons),{buttons});
     const built = await Recorder.buildActions(dir);
     equal(built.readiness,'ready',JSON.stringify(built.issues));
     const pinned = File.read(built.actionsFile);
+    const recorded = JSON.parse(pinned);
+    const manifest = JSON.parse(File.read(File.join(dir,'manifest.json')));
+    const element = recorded.actions[0].target.element;
+    equal(manifest.capture.evidence,'target-semantics');
+    equal(recorded.actions[0].target.semanticStatus,'verified');
+    equal(element.source,'accessibility'); equal(element.role,'button'); equal(element.name,'5');
+    assert(element.enabled === true && element.nativeActions.includes('AXPress'),JSON.stringify(element));
+    assert(!Object.prototype.hasOwnProperty.call(element,'children'),'target evidence must not contain a full UI tree');
+    assert(!JSON.stringify(recorded).toLowerCase().includes('ocr'),'fixture must contain no OCR evidence');
     const generated = await Recorder.generateScript(built.actionsFile);
     const source = File.read(generated.scriptFile), candidate = JSON.parse(File.read(generated.candidateFile));
     equal(candidate.mode,'semantic'); equal(candidate.formatVersion,'opendesk.recorder.semantic-candidate/v1');
     equal(generated.verification,'not-run'); equal(File.read(built.actionsFile),pinned);
-    assert(source.includes('UI.tapTexts(["2","5","×","4","="]'),source);
+    assert(source.includes('UI.tapTexts(["5"]'),source);
+    assert(!source.includes('UI.tapTargets(['),source);
+    equal(candidate.mappings.length,1); equal(candidate.mappings[0].api,'UI.tapTexts');
+    equal(candidate.mappings[0].basis,'recorded-button-label; runtime-uniqueness-required');
+    const mappingAction = recorded.actions.find(action=>action.id===candidate.mappings[0].actionId);
+    equal(mappingAction.target.element.source,'accessibility','mapping must retain Accessibility provenance through actionId');
+    assert(!JSON.stringify(candidate.mappings).toLowerCase().includes('ocr'),'candidate mapping must not claim OCR verification');
+    assert(candidate.constraints.some(item=>item.includes('does not prove whole-window uniqueness')),JSON.stringify(candidate.constraints));
     for (const forbidden of ['mouse.click','Geometry.','Accessibility.find','strategy:','fallback','button-','"locator"']) {
       assert(!source.includes(forbidden),'semantic source leaked '+forbidden+': '+source);
     }
-    equal(candidate.mappings.length,5);
-    equal(new Set(candidate.mappings.map(row=>row.line)).size,1);
-    equal(candidate.mappings.map(row=>row.stepIndex).join(','),'0,1,2,3,4');
-    assert(candidate.mappings.every(row=>row.api==='UI.tapTexts'));
-    const recorded=JSON.parse(pinned); assert(recorded.actions.every(row=>row.target.element.identifier));
-    assert(recorded.actions.every(row=>row.strategy==='mouse.click'),'actions must remain capture facts');
     // The source is parsed but never executed by this file-production gate.
     new (Object.getPrototypeOf(async function(){}).constructor)(source);
   });
-  test({name:'Recorder semantic generation retains constraints for known duplicate controls and same-name different roles',
+  test({name:'Recorder UI Tree-only Calculator labels merge into one ordered tapTexts batch',
     tier:'unit',covers:['Recorder.buildActions','Recorder.generateScript']}, async()=>{
-    for (const buttons of [
-      [{name:'保存',identifier:'save-left'},{name:'保存',identifier:'save-right'}],
-      [{name:'打开',identifier:'open-button'},{name:'打开',role:'menuItem',identifier:'open-menu'}],
-    ]) {
-      const id='rec-semantic-duplicate-'+Date.now(); const dir=File.join(Execution.workdir,'.runtime','recordings',id);
-      writeFixture(dir,id,buttonEvents(buttons),{buttons});
-      const built=await Recorder.buildActions(dir); equal(built.readiness,'ready',JSON.stringify(built.issues));
-      const generated=await Recorder.generateScript(built.actionsFile); const source=File.read(generated.scriptFile);
-      assert(source.includes('UI.tapTargets(['),source); assert(!source.includes('"locator"'),source);
-      for(const button of buttons) assert(source.includes(button.identifier),source);
-      assert(!source.includes('mouse.click')&&!source.includes('Accessibility.find'),source);
-    }
+    const id = 'rec-semantic-calculator-' + Date.now();
+    const dir = File.join(Execution.workdir,'.runtime','recordings',id);
+    const labels = ['2','5','×','4','+','1','0','='];
+    const buttons = labels.map(name=>({name,identifier:'button-'+name}));
+    writeFixture(dir,id,buttonEvents(buttons),{buttons});
+    const built = await Recorder.buildActions(dir);
+    equal(built.readiness,'ready',JSON.stringify(built.issues));
+    const generated = await Recorder.generateScript(built.actionsFile);
+    const source = File.read(generated.scriptFile), candidate = JSON.parse(File.read(generated.candidateFile));
+    assert(source.includes('UI.tapTexts(["2","5","×","4","+","1","0","="]'),source);
+    equal(candidate.mappings.length,labels.length);
+    equal(new Set(candidate.mappings.map(row=>row.line)).size,1);
+    equal(candidate.mappings.map(row=>row.stepIndex).join(','),'0,1,2,3,4,5,6,7');
+    assert(candidate.mappings.every(row=>row.api==='UI.tapTexts'
+      && row.basis==='recorded-button-label; runtime-uniqueness-required'),JSON.stringify(candidate.mappings));
   });
-  test({name:'Recorder semantic generation blocks ambiguous or unsupported actions instead of emitting coordinate candidates',
+  test({name:'Recorder semantic candidate maps an actual batched failedIndex back to immutable action evidence',
+    tier:'unit',covers:['Recorder.generateScript','UI.tapTexts']}, async()=>{
+    const id = 'rec-semantic-mapping-failure-' + Date.now();
+    const dir = File.join(Execution.workdir,'.runtime','recordings',id);
+    const labels = ['2','5','×','4','+'];
+    writeFixture(dir,id,buttonEvents(labels.map(name=>({name,identifier:'button-'+name}))),{
+      buttons: labels.map(name=>({name,identifier:'button-'+name})),
+    });
+    const built = await Recorder.buildActions(dir);
+    equal(built.readiness,'ready',JSON.stringify(built.issues));
+    const recorded = JSON.parse(File.read(built.actionsFile));
+    const generated = await Recorder.generateScript(built.actionsFile);
+    const source = File.read(generated.scriptFile);
+    const candidate = JSON.parse(File.read(generated.candidateFile));
+    const failedIndex = 3;
+    const runtimeFailure = Object.assign(new Error('target is missing in the live execution'), {
+      code: 'TARGET_NOT_FOUND', operation: 'UI.tapTexts', failedIndex,
+      failedText: labels[failedIndex], failedPhase: 'locate',
+      completed: labels.slice(0, failedIndex).map((text, index) => ({index, text})),
+    });
+    const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
+    const runCandidate = new AsyncFunction('System','window','UI','sleep',source);
+    let caught = null;
+    try {
+      await runCandidate(
+        {getPlatformInfo:()=>({os:System.getPlatformInfo().os})},
+        {get:async()=>({id:'live-fixture-window',pid:4242,title:'Recorder Fixture'})},
+        {tapTexts:async texts=>{
+          equal(texts.join(','),labels.join(','),'generated batch must reach the Runtime unchanged');
+          throw runtimeFailure;
+        }},
+        async()=>{},
+      );
+    } catch (error) {
+      caught = error;
+    }
+    equal(caught,runtimeFailure,'the generated candidate must preserve the Runtime failure object');
+    const mapping = candidate.mappings.find(row=>row.api===caught.operation&&row.stepIndex===caught.failedIndex);
+    assert(mapping,'failed Runtime step has no candidate mapping: '+JSON.stringify({caught,mappings:candidate.mappings}));
+    equal(mapping.actionId,'a0004'); equal(mapping.api,'UI.tapTexts'); equal(mapping.stepIndex,3);
+    equal(mapping.basis,'recorded-button-label; runtime-uniqueness-required');
+    const original = recorded.actions.find(action=>action.id===mapping.actionId);
+    assert(original&&original.source&&original.source.eventIds.length===3
+      &&original.target&&original.target.window&&original.target.semanticStatus==='verified'
+      &&original.target.element&&original.target.element.name==='4'
+      &&original.target.element.role==='button'&&original.target.element.identifier==='button-4',
+    'failed Runtime index did not recover its original action evidence: '+JSON.stringify({mapping,original}));
+  });
+  test({name:'Recorder UI Tree-only same-name different-role targets retain the necessary role constraint',
     tier:'unit',covers:['Recorder.buildActions','Recorder.generateScript']}, async()=>{
-    for(const buttons of [null,[{name:'A',enabled:false}],[{name:'A'},{name:'A'}]]) {
+    const id='rec-semantic-role-ambiguity-'+Date.now(); const dir=File.join(Execution.workdir,'.runtime','recordings',id);
+    const buttons=[{name:'打开',role:'button'},{name:'打开',role:'menuItem'}];
+    writeFixture(dir,id,buttonEvents(buttons),{buttons});
+    const built=await Recorder.buildActions(dir); equal(built.readiness,'ready',JSON.stringify(built.issues));
+    const generated=await Recorder.generateScript(built.actionsFile); const source=File.read(generated.scriptFile);
+    const candidate=JSON.parse(File.read(generated.candidateFile));
+    assert(source.includes('UI.tapTargets(['),source); assert(!source.includes('UI.tapTexts(["打开"'),source);
+    assert(source.includes('{"name":"打开","role":"button"}')&&source.includes('{"name":"打开","role":"menuItem"}'),source);
+    assert(candidate.mappings.every(row=>row.api==='UI.tapTargets'&&row.basis==='recorded-semantic-constraints'),JSON.stringify(candidate.mappings));
+    assert(!source.includes('mouse.click')&&!source.includes('Accessibility.find'),source);
+  });
+  test({name:'Recorder UI Tree-only same-role same-name targets retain their necessary identifiers',
+    tier:'unit',covers:['Recorder.buildActions','Recorder.generateScript']}, async()=>{
+    const id='rec-semantic-identifier-ambiguity-'+Date.now(); const dir=File.join(Execution.workdir,'.runtime','recordings',id);
+    const buttons=[{name:'保存',identifier:'save-left'},{name:'保存',identifier:'save-right'}];
+    writeFixture(dir,id,buttonEvents(buttons),{buttons});
+    const built=await Recorder.buildActions(dir); equal(built.readiness,'ready',JSON.stringify(built.issues));
+    const generated=await Recorder.generateScript(built.actionsFile); const source=File.read(generated.scriptFile);
+    assert(source.includes('UI.tapTargets(['),source);
+    for(const identifier of ['save-left','save-right']) assert(source.includes(identifier),source);
+    assert(!source.includes('UI.tapTexts(["保存"'),source);
+  });
+  test({name:'Recorder UI Tree-only unresolved duplicate targets are GENERATION_BLOCKED without bounds or index fallback',
+    tier:'unit',covers:['Recorder.buildActions','Recorder.generateScript']}, async()=>{
+    const id='rec-semantic-unresolved-ambiguity-'+Date.now(); const dir=File.join(Execution.workdir,'.runtime','recordings',id);
+    const buttons=[{name:'保存'},{name:'保存'}];
+    writeFixture(dir,id,buttonEvents(buttons),{buttons});
+    const built=await Recorder.buildActions(dir); equal(built.readiness,'ready',JSON.stringify(built.issues));
+    let failure;try{await Recorder.generateScript(built.actionsFile);}catch(e){failure=e;}
+    assert(failure&&failure.code==='GENERATION_BLOCKED',String(failure));
+    assert(String(failure.message).includes('cannot be disambiguated without coordinates'),String(failure));
+    assert(!File.exists(File.join(dir,'generated','semantic.recipe.js')),'blocked source must not be written');
+    assert(!File.exists(File.join(dir,'generated','semantic.candidate.json')),'blocked candidate must not be written');
+  });
+  test({name:'Recorder semantic generation blocks unavailable and disabled evidence instead of emitting coordinate candidates',
+    tier:'unit',covers:['Recorder.buildActions','Recorder.generateScript']}, async()=>{
+    for(const buttons of [null,[{name:'A',enabled:false}]]) {
       const id='rec-semantic-blocked-'+Date.now(); const dir=File.join(Execution.workdir,'.runtime','recordings',id);
       writeFixture(dir,id,buttons?buttonEvents(buttons):undefined,buttons?{buttons}:{});
       const built=await Recorder.buildActions(dir);

@@ -8,7 +8,7 @@ order: 710
 
 公开示例的 canonical 实现按领域保存在 `examples/<domain>/`。从仓库根目录运行；已经完成迁移的旧根路径已删除，不再保留 compatibility wrapper。
 
-需要逐项复制命令时，使用[单项示例运行 guide](single-tests.md)。
+需要逐项复制命令时，使用[单项示例运行](single-tests.md)。
 
 ## OpenDesk Examples 图形入口
 

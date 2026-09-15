@@ -1799,7 +1799,6 @@ func (s *recorderSession) finish(reason error, cutoffTime time.Time) {
 	// callbacks are counted as late but cannot extend the recording.
 	s.accepting.Store(false)
 	keyStatesAtStop := s.captureKeyStatesAtStop()
-	s.cancel()
 	stopCtx, cancel := context.WithTimeout(context.Background(), recorderBackendStopTimeout)
 	backendErr := s.backend.Stop(stopCtx)
 	cancel()
@@ -1814,6 +1813,14 @@ func (s *recorderSession) finish(reason error, cutoffTime time.Time) {
 	<-s.textDone
 	close(s.events)
 	writerResult := <-s.writerDone
+	// Target semantics are post-event evidence.  A normal stop closes the
+	// request queue only after the native backend has confirmed it cannot add
+	// more input; it must then let already accepted observations finish within
+	// their bounded probe deadline.  Cancelling the session before that drain
+	// turns the final real click into "context canceled" and loses evidence.
+	// Cancellation remains the terminal lifecycle signal once every owned
+	// worker has drained.
+	s.cancel()
 	s.storageState.Store(writerResult.State)
 	if backendErr != nil {
 		s.addIssue("backend-stop-failed", "error", "native input backend did not confirm a clean stop", "")

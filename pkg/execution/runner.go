@@ -123,6 +123,9 @@ type Request struct {
 	// Recorder execution. It opens the same process-owned Measurement service
 	// as the OpenDesk product menu and is absent from ordinary scripts.
 	MeasurementOpen func(context.Context) error
+	// EnableProductLocale projects the process-owned OpenDesk Locale Core into
+	// a trusted product auxiliary execution without also binding automation.app.
+	EnableProductLocale bool
 	// SQLiteProtectedPaths supplies additional internal database files that a
 	// local SQLite Runtime must not open (for example a configured Scheduler
 	// store). The automation owner also protects the default Scheduler path.
@@ -404,6 +407,7 @@ func runJavaScript(req Request, emitter *Emitter) error {
 				RecorderStartGate:               req.RecorderStartGate,
 				RecorderCaptureStateChanged:     req.RecorderCaptureStateChanged,
 				MeasurementOpen:                 req.MeasurementOpen,
+				EnableProductLocale:             req.EnableProductLocale,
 				ExecutionID:                     req.ExecutionID,
 				SQLiteProtectedPaths:            req.SQLiteProtectedPaths,
 				CustomUIActivationSource:        normalizeCustomUIActivationSource(req),

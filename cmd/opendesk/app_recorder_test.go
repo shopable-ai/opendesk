@@ -94,6 +94,38 @@ func TestAppRecorderOpenLaunchesOnceAndShowsExistingWindow(t *testing.T) {
 	recorder.Cancel()
 }
 
+func TestAppRecorderRequestDoesNotRebindPrimaryAppShellActionSink(t *testing.T) {
+	shell, appPackage := testAppRecorderShell(t)
+	measurementOpened := false
+	recorder := newAppRecorder(shell, appPackage, appRecorderConfig{
+		LogDir: t.TempDir(),
+		MeasurementOpen: func(context.Context) error {
+			measurementOpened = true
+			return nil
+		},
+	}, runtimeenv.Result{Values: map[string]string{}}, customui.NewMemoryDriver())
+
+	request, err := recorder.request(context.Background(), "recorder-secondary")
+	if err != nil {
+		t.Fatalf("prepare Recorder request: %v", err)
+	}
+	if request.AppShell != nil {
+		t.Fatal("secondary Recorder execution must not bind the primary App Shell action sink")
+	}
+	if request.MeasurementOpen == nil {
+		t.Fatal("secondary Recorder execution lost its Measurement bridge")
+	}
+	if !request.EnableProductLocale {
+		t.Fatal("secondary Recorder execution lost the product Locale Core projection")
+	}
+	if err := request.MeasurementOpen(context.Background()); err != nil {
+		t.Fatalf("open shared measurement service: %v", err)
+	}
+	if !measurementOpened {
+		t.Fatal("secondary Recorder request did not preserve the Measurement bridge")
+	}
+}
+
 func TestAppRecorderEarlyRepeatedOpenWaitsForTheSameWindow(t *testing.T) {
 	shell, appPackage := testAppRecorderShell(t)
 	driver := customui.NewMemoryDriver()

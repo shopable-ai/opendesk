@@ -11,5 +11,6 @@ RuntimeAPITest.load('tests/runtime-api/manifest.js');
 RuntimeAPITest.load('tests/runtime-api/unit/ui-sequence.test.js');
 RuntimeAPITest.load('tests/runtime-api/unit/ui-target-sequence.test.js');
 RuntimeAPITest.load('tests/runtime-api/unit/ui-semantic-targets.test.js');
+RuntimeAPITest.load('tests/runtime-api/unit/ui-semantic-targets-cancel.test.js');
 RuntimeAPITest.load('tests/runtime-api/unit/recorder.test.js');
 await RuntimeAPITest.run('RUNTIME-API-RECORDER-GENERATION');

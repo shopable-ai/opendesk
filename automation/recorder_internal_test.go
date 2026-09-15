@@ -218,6 +218,64 @@ func TestRecorderSessionReadyStopDrainIdempotenceAndReuse(t *testing.T) {
 	}
 }
 
+func TestRecorderSessionStopDrainsAcceptedTargetSemanticObservation(t *testing.T) {
+	backend := &recorderMemoryBackend{}
+	owner := recorderTestOwner(t.TempDir(), backend)
+	baseProbe := owner.targetProbe
+	probeStarted := make(chan struct{}, 1)
+	allowProbe := make(chan struct{})
+	owner.targetProbe = func(ctx context.Context, window *WindowInfo, point recorderTargetPoint) (*recorderElementSnapshot, error) {
+		select {
+		case probeStarted <- struct{}{}:
+		default:
+		}
+		select {
+		case <-allowProbe:
+			return baseProbe(ctx, window, point)
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	options := recorderTestStartOptions()
+	options.Evidence = "target-semantics"
+	session, err := owner.startSession(options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	backend.Emit(RecorderInputEvent{Type: recorderEventMousePressed, NativeTime: 1000, Button: 1, Clicks: 1, X: 10, Y: 20})
+	select {
+	case <-probeStarted:
+	case <-time.After(3 * time.Second):
+		t.Fatal("target semantic probe did not start")
+	}
+	session.finishAsync(nil)
+	select {
+	case <-session.done:
+		t.Fatal("normal stop canceled an accepted target semantic observation")
+	case <-time.After(100 * time.Millisecond):
+	}
+	close(allowProbe)
+	select {
+	case <-session.done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("stop did not finish after target semantic observation drained")
+	}
+	if session.stopErr != nil {
+		t.Fatalf("stop error=%v", session.stopErr)
+	}
+	manifestBytes, err := os.ReadFile(session.writer.manifestPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var manifest recorderManifest
+	if err := recorderDecodeStrict(manifestBytes, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	if len(manifest.InputContexts) != 1 || manifest.InputContexts[0].Status != "verified" || manifest.InputContexts[0].SemanticStatus != "verified" || manifest.InputContexts[0].Element == nil || manifest.InputContexts[0].Element.Name != "Save" {
+		t.Fatalf("accepted target semantics were not preserved at stop: %#v", manifest.InputContexts)
+	}
+}
+
 func TestRecorderSessionPersistsAuditableUnmatchedKeyStateAtStop(t *testing.T) {
 	for _, test := range []struct {
 		name      string

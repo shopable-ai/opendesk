@@ -126,7 +126,9 @@ func recorderPlanSemanticSteps(actions recorderActions) ([]recorderSemanticStep,
 			if strings.TrimSpace(element.Name) != "" && element.Role == "button" && len(labels[labelKey]) == 1 {
 				// A semantic candidate deliberately expresses activation by label.
 				// The label is real AX/UIA evidence, NOT a fabricated OCR reading.
-				// Unknown runtime collisions fail closed and require qualification.
+				// This target-level snapshot only says that recording found no known
+				// competing control. Unknown runtime collisions fail closed and
+				// require fresh Runtime uniqueness checking and qualification.
 				step.text = element.Name
 				step.basis = "recorded-button-label; runtime-uniqueness-required"
 			} else {
@@ -298,8 +300,8 @@ func recorderGenerateSemanticSource(actions recorderActions, raw []recorderRawEv
 	constraints := []string{
 		"semantic candidate only: not-run; generated source is not business or visual qualification",
 		"actions remain immutable recording facts; their strategy fields do not mandate generated APIs",
-		"named button activation is lowered to text only when recording evidence has no known competing control; native names are not claimed to be OCR observations",
-		"runtime uniqueness, scope, authorization and state checks remain mandatory; newly discovered collisions require repair, never index-first selection",
+		"named button activation is lowered to text only when target-level Accessibility evidence has no known competing control; native names are not claimed to be OCR observations",
+		"target-level Recorder evidence does not prove whole-window uniqueness; Runtime uniqueness, scope, authorization and state checks remain mandatory; newly discovered collisions require repair, never index-first selection",
 		"native semantic activation does not promise physical mouse events, hover paths or pointer placement; explicit basic mode preserves that separate contract",
 		"known ambiguity retains minimal role/name/identifier predicates; unresolved ambiguity and unsupported actions block the entire candidate",
 		"each recorded application/window is freshly and exactly resolved in this execution; title failure never widens scope",

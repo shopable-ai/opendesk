@@ -45,26 +45,22 @@ Windows PowerShell 的对应待验收命令：
 .\dist\opendesk.exe -script examples/runtime/page-wait.js -console-mode script
 ```
 
-本轮没有 Windows 真机 Runtime evidence，因此这条命令是 **NOT_EVALUATED**；登记命令不表示已经运行或通过。Page family 的共享 contract test 只从 `tests/runtime-api/` 运行。
+本轮没有 Windows 真机 Runtime evidence，因此这条命令是 **NOT_EVALUATED**；登记命令不表示已经运行或通过。Page family 的共享 contract test 仅由开发者回归 gate 运行。
 
 ## 窗口与键盘
 
 查询无需修改窗口。输入和移动示例需将标题、PID 替换为可丢弃测试窗口的实际值，并按系统提示授予权限。
 
+完整的窗口与输入前置条件见[窗口与输入示例说明](../../../examples/desktop/README.md)。
+
 - [查询窗口](../../../examples/desktop/window-inspect.js)：`./opendesk -script examples/desktop/window-inspect.js -console-mode script`
-- [窗口与输入示例说明](../../../examples/desktop/README.md)
 - [向指定窗口输入一行文字](../../../examples/desktop/keyboard.js)：`OPENDESK_EXAMPLE_WINDOW_TITLE='OpenDesk input test' OPENDESK_EXAMPLE_WINDOW_PID=12345 OPENDESK_EXAMPLE_ALLOW_INPUT=1 ./opendesk -script examples/desktop/keyboard.js -console-mode script`
 - [移动指定窗口并恢复位置](../../../examples/desktop/window-controls.js)：`OPENDESK_EXAMPLE_WINDOW_TITLE='OpenDesk window test' OPENDESK_EXAMPLE_WINDOW_PID=12345 OPENDESK_EXAMPLE_ALLOW_WINDOW_CHANGE=1 ./opendesk -script examples/desktop/window-controls.js -console-mode script`
+- [Calculator 语义结果流（macOS，真实输入）](../../../examples/desktop/calculator-semantic-110-660-macos.js)：`OPENDESK_CALCULATOR_SEMANTIC_EXAMPLE_CONFIRM=authorized-calculator-fixture ./dist/opendesk -script examples/desktop/calculator-semantic-110-660-macos.js -console-mode script`
 
 ## Recorder
 
-人工录制只用于已授权、可恢复、非敏感 fixture。从仓库根目录运行后，F8 明确开始，F9 在示例 UI 层暂停／继续，F10 停止并制作 actions，F11 显式生成但不回放，F12 结束：
-
-- [人工录制](../../../workflows/human-to-recipe/record.js)：`./dist/opendesk -allow-recorder-capture -script workflows/human-to-recipe/record.js -console-mode script`
-- [计算器暂停／继续自检（macOS）](../../../tests/human-to-recipe/calculator-pause-resume.js)：`OPENDESK_RECORDER_CALCULATOR_CONFIRM=authorized-calculator-fixture ./dist/opendesk -allow-recorder-capture -script tests/human-to-recipe/calculator-pause-resume.js -console-mode script`
-- [从固定 actions 独立生成](../../../workflows/human-to-recipe/generate.js)：`OPENDESK_RECORDER_ACTIONS_FILE=.runtime/recordings/<ID>/actions.json ./dist/opendesk -script workflows/human-to-recipe/generate.js -console-mode script`
-
-计算器自检会真实输入 `9 →（暂停）8 →（继续）7`；终端应连续输出五行 `[PASS]`，计算器应显示 `987`，而保存的 raw/actions 只能包含 `9`、`7` 两次点击。证据目录中的 `summary.json` 必须为 `"passed": true`，并包含显示 `0`、`98`、`987` 的三张截图。没有 `-allow-recorder-capture` 时，文件制作仍可用但监听拒绝；生成命令不会重新监听或自动回放。
+Recorder 是人工示范到 Recipe 的授权工作流，不是可独立运行的公开示例。录制、生成与真实桌面资格的前置条件、操作顺序和证据边界见[Human-to-Recipe 工作流](../../../workflows/human-to-recipe/README.md)。
 
 ## Accessibility 与菜单
 

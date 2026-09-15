@@ -150,15 +150,17 @@ func (r *appRecorder) request(ctx context.Context, executionID string) (pkgExecu
 			r.setCaptureActive(executionID, active)
 		},
 		MeasurementOpen:          r.config.MeasurementOpen,
+		EnableProductLocale:      true,
 		EnableCustomUI:           true,
 		CustomUIActivationSource: customui.ActivationCLI,
 		CustomUIHostPath:         r.config.CustomUIHostPath,
 		CustomUIDriver:           customui.NewSessionScopedDriverForSession(r.driver, executionID),
 		CustomUIBaseDir:          uiRoot,
-		// The built-in Recorder is an official product surface. It receives the
-		// same read-only Locale Core projection as the App entry, while keeping
-		// its separate Execution and capture lifecycle.
-		AppShell:          r.shell,
+		// The primary App execution exclusively owns the App Shell action sink.
+		// Recorder is a separate execution, so it must not register automation.app
+		// against that same shell. Its first-party bridges are MeasurementOpen and
+		// the locale projection requested above.
+		AppShell:          nil,
 		OnCustomUISession: func(session *customui.Session) { r.setSession(executionID, session) },
 		Artifacts:         artifacts,
 		Selection: pkgExecution.TerminalSelection{

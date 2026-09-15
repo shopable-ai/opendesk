@@ -80,6 +80,16 @@ Recipe / 部署参数
 
 如果目标应用身份在不同平台不同，差异属于部署配置，不属于 `WindowTarget` API 本身。标题查询可以跨平台使用，但标题值可能随语言、应用版本和窗口状态变化；存在更稳定 identity 时应优先使用 identity。
 
+### Calculator 语义结果流（macOS，真实输入）
+
+这个最小示例只展示关键业务代码：清空 Calculator，输入 `25 × 4 + 10`，从真实显示区读取 `110`，再把该读取值拆成第二轮 `6 × 110` 的按钮输入，最后读取 `660`。它不会录制 Recorder actions，也不会使用 JavaScript 算术代替 Calculator。
+
+```bash
+OPENDESK_CALCULATOR_SEMANTIC_EXAMPLE_CONFIRM=authorized-calculator-fixture ./dist/opendesk -script examples/desktop/calculator-semantic-110-660-macos.js -console-mode script
+```
+
+运行前授予 Screen Recording 与 Accessibility 权限。命令会真实修改系统 Calculator；终端打印两个显示值，并将可直接查看的 `first-result-110.png` 与 `final-result-660.png` 写入 `.runtime/examples/calculator-semantic-110-660/<execution-id>/`。
+
 ## Mouse 与 Page 固定坐标
 
 ```bash

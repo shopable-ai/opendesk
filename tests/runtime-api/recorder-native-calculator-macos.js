@@ -8,6 +8,7 @@ const CONFIRM_TOKEN = 'authorized-calculator-fixture';
 const CALCULATOR_BUNDLE_ID = 'com.apple.calculator';
 const CALCULATOR_PATH = '/System/Applications/Calculator.app/Contents/MacOS/Calculator';
 const BUTTON_NAMES = ['9', '8', '7'];
+const SEMANTIC_SEQUENCE = ['2', '5', '×', '4', '+', '1', '0', '='];
 const outputRoot = File.join(Execution.workdir, '.runtime', 'tests', 'human-to-recipe');
 const runDir = File.join(outputRoot, `calculator-live-${Date.now()}-${Execution.id}`);
 
@@ -201,7 +202,16 @@ async function run() {
     {activate: true, waitUntilReady: 'window', timeout: 10000},
   );
   await page.waitForTimeout(350);
-  const active = await window.getActiveWindow();
+  const calculatorWindows = (await window.list()).filter((candidate) =>
+    String(candidate.exePath || '') === CALCULATOR_PATH && String(candidate.title || '') === 'Calculator');
+  assert(calculatorWindows.length === 1,
+    'expected exactly one system Calculator window after launch', calculatorWindows);
+  let active = await window.getActiveWindow();
+  if (String(active && active.exePath || '') !== CALCULATOR_PATH) {
+    await window.bringToTop(calculatorWindows[0].title, Number(calculatorWindows[0].pid));
+    await page.waitForTimeout(150);
+    active = await window.getActiveWindow();
+  }
   const processId = Number(active && (active.pid || active.processID));
   const scope = {processId, title: String(active && active.title || '')};
   assert(Number.isInteger(processId) && processId > 0 && scope.title !== '',
@@ -308,10 +318,12 @@ async function run() {
       && manifest.counts.accepted === saved.counts.accepted,
     'terminal manifest does not match the stop result', {manifest, saved});
     const pointerContexts = manifest.inputContexts.filter((item) => item.kind === 'pointer');
-    assert(pointerContexts.length === 2
-      && pointerContexts.every((item) => item.status === 'verified' && item.semanticStatus === 'verified'
-        && item.element && item.element.role === 'button'),
-    'Calculator pointer contexts must contain verified button semantics', pointerContexts);
+    assert(pointerContexts.length === 4
+      && pointerContexts.every((item) => item.eventId && item.status === 'verified'
+        && item.semanticStatus === 'verified' && item.element && item.element.role === 'button'
+        && Array.isArray(item.element.nativeActions) && item.element.nativeActions.includes('AXPress'))
+      && pointerContexts.map((item) => item.element.name).join(',') === '9,9,7,7',
+      'Calculator pointer contexts must contain verified button semantics', pointerContexts);
 
     const built = await Recorder.buildActions(saved.recordingDir);
     const actionsDocument = JSON.parse(File.read(built.actionsFile));
@@ -332,6 +344,75 @@ async function run() {
     const generated = await Recorder.generateScript(built.actionsFile);
     assert(generated.verification === 'not-run',
       'candidate generation must not claim replay verification', generated);
+
+    // A second native capture is intentionally continuous: it proves that
+    // target-level Accessibility evidence can lower an ordinary Calculator
+    // button sequence to one concise semantic batch without treating actions
+    // as a UI locator parameter file.
+    await window.bringToTop(scope.title, scope.processId);
+    await page.waitForTimeout(150);
+    await exactActive(scope);
+    await keyboard.press('Escape');
+    await keyboard.press('Escape');
+    const semanticObservation = await waitForDisplay(scope, '0');
+    const semanticPoints = Object.fromEntries(
+      SEMANTIC_SEQUENCE.map((name) => [name, buttonPoint(semanticObservation, name)]),
+    );
+    let semanticSession = null;
+    let semanticSaved = null;
+    try {
+      semanticSession = await Recorder.start({
+        within: scope,
+        captureKeyboard: false,
+        evidence: 'target-semantics',
+        maxDurationMs: 60000,
+      });
+      for (const name of SEMANTIC_SEQUENCE) {
+        const before = semanticSession.status();
+        await exactActive(scope);
+        await mouse.click(semanticPoints[name].x, semanticPoints[name].y, {
+          button: 'left', clickCount: 1, delay: 30,
+        });
+        await waitForCount(semanticSession, 'accepted', Number(before.counts.accepted) + 3);
+      }
+      await waitForDisplay(scope, '110');
+      semanticSaved = await semanticSession.stop();
+      semanticSession = null;
+    } finally {
+      if (semanticSession) await semanticSession.stop();
+    }
+    assert(semanticSaved && semanticSaved.captureState === 'stopped'
+      && semanticSaved.storageState === 'saved' && semanticSaved.counts.dropped === 0,
+    'continuous Calculator capture did not save cleanly', semanticSaved);
+    const semanticBuilt = await Recorder.buildActions(semanticSaved.recordingDir);
+    const semanticActions = JSON.parse(File.read(semanticBuilt.actionsFile));
+    const semanticClicks = semanticActions.actions.filter((action) => action.kind === 'click');
+    assert(semanticBuilt.readiness === 'ready' && semanticClicks.length === SEMANTIC_SEQUENCE.length
+      && semanticClicks.map((action) => action.target.element.name).join(',') === SEMANTIC_SEQUENCE.join(','),
+    'continuous Calculator actions did not preserve the recorded button sequence', semanticClicks);
+    assert(semanticClicks.every((action) => action.source && action.source.eventIds.length === 3
+      && action.target && action.target.window && action.target.window.application
+      && action.target.semanticStatus === 'verified' && action.target.element
+      && action.target.element.role === 'button' && action.target.element.name
+      && action.target.element.identifier && Array.isArray(action.target.element.nativeActions)
+      && action.target.element.nativeActions.includes('AXPress') && action.target.element.bounds
+      && action.position && action.position.window && action.position.window.verified === true
+      && action.target.element.point && action.target.element.coordinateMapping
+      && action.target.element.coordinateMapping.verified === true),
+    'actions must retain raw source IDs and rich target-level semantic evidence', semanticClicks);
+    const semanticGenerated = await Recorder.generateScript(semanticBuilt.actionsFile);
+    const semanticSource = File.read(semanticGenerated.scriptFile);
+    const semanticCandidate = JSON.parse(File.read(semanticGenerated.candidateFile));
+    assert(semanticGenerated.mode === 'semantic'
+      && semanticSource.includes('await UI.tapTexts(["2","5","×","4","+","1","0","="], { within: targetWindow1, intervalMs: 500 });')
+      && !semanticSource.includes('mouse.') && !semanticSource.includes('Accessibility.')
+      && !semanticSource.includes('fallback') && !semanticSource.includes('strategy'),
+    'default semantic generation did not produce a concise text batch', semanticSource);
+    assert(semanticCandidate.mappings.length === SEMANTIC_SEQUENCE.length
+      && semanticCandidate.mappings.every((mapping, index) => mapping.actionId === semanticClicks[index].id
+        && mapping.api === 'UI.tapTexts' && mapping.stepIndex === index
+        && mapping.basis === 'recorded-button-label; runtime-uniqueness-required'),
+    'semantic candidate mappings must preserve every recorded action in the batch', semanticCandidate.mappings);
 
     const summary = {
       schemaVersion: 1,
@@ -355,6 +436,13 @@ async function run() {
       saved,
       built,
       generated,
+      semanticRecording: {
+        sequence: SEMANTIC_SEQUENCE,
+        points: semanticPoints,
+        saved: semanticSaved,
+        built: semanticBuilt,
+        generated: semanticGenerated,
+      },
       screenshots: [
         '01-initial-zero.png',
         '02-recording-nine.png',

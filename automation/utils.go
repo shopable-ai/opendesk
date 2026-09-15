@@ -121,6 +121,10 @@ type InitJSOptions struct {
 	// public Runtime API and remains absent unless App Mode supplies the shared
 	// process-owned Measurement service.
 	MeasurementOpen func(context.Context) error
+	// EnableProductLocale projects the process-owned Locale Core into a trusted
+	// product auxiliary execution. Unlike AppShell, it never installs or binds
+	// the automation.app action dispatcher.
+	EnableProductLocale bool
 	// AppOwnedScriptRun is a first-party product bridge used by the bundled
 	// Script Runner. It creates a separate JavaScript Execution inside the App
 	// host process so protected desktop operations retain the App's OS identity.
@@ -1013,7 +1017,7 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 	// Mode package. It projects the already-configured Locale Core into its
 	// JavaScript execution; it is not a second catalog loader and it is never
 	// passed to Assistant model channels or prompts.
-	if opts.AppShell != nil && appshell.IsOpenDeskProduct(opts.AppShell.Manifest()) {
+	if opts.EnableProductLocale || (opts.AppShell != nil && appshell.IsOpenDeskProduct(opts.AppShell.Manifest())) {
 		product["locale"] = productLocaleBridge(runtime, localization.Default())
 	}
 	systemMethods["product"] = product

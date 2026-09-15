@@ -472,7 +472,11 @@ Recorder v2 目录为：
 
 raw 使用字符串保存 session sequence 和 native timestamp，避免 JavaScript safe-integer 损失；同时保存 native clock/unit、接收时间、modifier、库事件、坐标验证、输入来源和已知 gap；新的 macOS live `KEY_TYPED` 将不能代表目标应用最终输入结果的 `textInputSource` 明确保存为 `unknown`。`manifest.json` 保存可选的起始窗口快照、与权威 pointer/keyboard 事件关联的 `inputContexts`、显式键盘授权下的 `textEdits`，以及只针对 raw 未配对按键的 `keyStatesAtStop`。新录制的 pointer press/release/wheel context 分别带 `pressed`／`released`／`wheel` phase；旧 v2 release-only context 的空 phase 仍可读取，但不能补造缺失的 press traits。窗口和标签语义是动作当时事实；`textEdits` 只含 before/after 指纹、差异插入内容、精确可写文本框 descriptor 和源事件引用，不保存未变化上下文、完整字段值、选择文本或安全字段内容。Recorder 自身的暂停／恢复与 Custom UI 控制点击边界使用 `source: "recorder"`；控制点击边界的 metadata 固定保存 `windowId`、`targetId`、`uiTimestamp`、`triggerEventIds`、`controlBounds` 和 `matchStatus`。暂停区间的输入内容不写入 raw。普通 hover `MOUSE_MOVED` 不保存；只在鼠标键按住期间保留 motion／drag 路径供动作判定。默认事件队列 4096、窗口上下文队列 128、文本采样 40ms、文本静默归组 750ms、上下文新鲜度上限 750ms、writer flush 250ms、backend start/stop deadline 8s、默认 session 15 分钟、最大 30 分钟；Meta／Control／Alt chord 和非编辑导航键会立即切断文本归组，以保留独立快捷键或特殊键事实。这些是有限设计默认值，不是性能实测结论。
 
-当前 Human Recorder 不创建 `observations/`。Accessibility 标签直接作为动作上下文中的结构化事实保存，不等于 OCR，也不被当作已证明的业务意图。只有未来在明确启用屏幕证据后实际取得有界目标裁剪时才能创建并引用 `observations/`；不得把后来截图、OCR 文本或模型描述伪装成录制时事实。
+当前 Human Recorder 不创建 `observations/`，也不保存完整 AX/UIA Tree。`evidence: "target-semantics"` 对真实 pointer action 保存当前 application/window、point-hit element（必要时最近可执行 ancestor）、有界 ancestors/containers，以及该目标的 role、name、identifier、enabled、nativeActions、bounds 和点内位置；它是 target-level Accessibility evidence，不是 OCR observation。Accessibility 标签直接作为动作上下文中的结构化事实保存，不等于 OCR，也不被当作已证明的业务意图。
+
+生成 semantic candidate 时，不按 evidence provider 机械选择 API。已验证的普通可激活控件若其 Accessibility `name` 已足以表达目标，生成器可以使用 `UI.tapTexts(["5"])`；这表示“按文字语义激活”，不表示文字来自 OCR，也不跳过 Runtime 的新鲜唯一性检查。若录制中已有同名不同 role 或同 role/name 但不同 identifier 的已知冲突，生成器只保留必要的 role/name/identifier，改用 `UI.tapTargets()`。target-level actions 中未观察到冲突不能证明全窗口唯一；Runtime 必须在新 Execution 重新解析。没有足够语义消歧时生成必须 `GENERATION_BLOCKED`，不得用 index、录制 bounds、x/y 或自动 `basic` 降级。
+
+只有未来在明确启用独立屏幕证据通道后实际取得有界目标裁剪时才能创建并引用 `observations/`；不得把后来截图、OCR 文本或模型描述伪装成录制时事实。届时 OCR、UI Tree 和 pointer evidence 必须保留各自来源；OCR 不能自行发明 role/identifier，且与 Accessibility 不一致时不得静默覆盖。
 
 ## 错误
 
@@ -496,4 +500,4 @@ Recorder Promise 使用 `RecorderError`，至少包含 `name`、`code`、`operat
 
 无桌面输入的 Runtime gate：从仓库根目录运行 `./dist/opendesk -script tests/runtime-api/recorder-generation.js -console-mode script`。它在真实 Runtime 内通过固定 recording fixture 调用 buildActions/generateScript；UI owner 使用隔离观察和输入桩，不能作为真机通过。
 
-Calculator 的独立入口为 `tests/runtime-api/recorder-generation-calculator-macos.js`，沿用既有 macOS Calculator 布局与真实显示区读取规则。只在已授权、存在匹配真实五步 recording/actions 且窗口预检通过时运行；详情见该文件顶部命令。分别验证生成脚本 25×4、直接文字序列 25×4+10、真实 firstResult→第二次按钮输入→真实 finalResult。缺少真实录制／桌面／权限时标记 not-run，不能把 fixture 结果当真机结果。
+Calculator 的独立入口为 `tests/runtime-api/recorder-generation-calculator-macos.js`，沿用既有 macOS Calculator 布局与真实显示区读取规则。它在显式授权后录制当前八步 pointer action 的 `target-semantics` actions（不输入 OCR 或完整 UI Tree），随后验证生成脚本 25×4+10、真实 firstResult→第二次按钮输入→真实 finalResult；详情见该文件顶部命令。缺少桌面／Recorder／Accessibility 权限时标记 not-run，不能把 fixture 结果当真机结果。
