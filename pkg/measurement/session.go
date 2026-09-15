@@ -68,6 +68,7 @@ type Service struct {
 	mu        sync.Mutex
 	active    *activeSession
 	opening   chan struct{}
+	tool      string
 	assetID   atomic.Uint64
 	sessionID atomic.Uint64
 }
@@ -154,7 +155,7 @@ func NewService(options ServiceOptions) (*Service, error) {
 	if options.Now == nil {
 		options.Now = time.Now
 	}
-	return &Service{driver: options.Driver, capture: options.Capture, clipboard: options.Clipboard, baseDir: absolute, saveDir: saveDir, now: options.Now}, nil
+	return &Service{driver: options.Driver, capture: options.Capture, clipboard: options.Clipboard, baseDir: absolute, saveDir: saveDir, now: options.Now, tool: "region"}, nil
 }
 
 func (s *Service) Open(ctx context.Context, source string) error {
@@ -234,11 +235,17 @@ func (s *Service) openNew(ctx context.Context, source string) (*activeSession, e
 	if err != nil {
 		return nil, err
 	}
+	s.mu.Lock()
+	tool := s.tool
+	s.mu.Unlock()
+	if tool == "" {
+		tool = "region"
+	}
 	sessionID := "measurement-" + s.now().UTC().Format("20060102T150405.000000000Z") + "-" + strconv.FormatUint(s.sessionID.Add(1), 10)
 	a := &activeSession{
 		service: s, events: make(chan customui.Event, eventQueueSize), done: make(chan struct{}),
 		frame: frame, image: img, assetPath: assetPath, restore: frame.Restore, reference: frame.Reference,
-		tool: "region", outputFormat: "concise", status: targetConfirmationInstruction(frame),
+		tool: tool, outputFormat: "concise", status: targetConfirmationInstruction(frame),
 		selectedTarget: frame.SelectedTargetID, targetConfirmed: frame.TargetConfirmed, source: strings.TrimSpace(source),
 		snapEnabled: true, marginView: "window",
 		phase: PhasePreparing, sessionID: sessionID, generation: 1,
@@ -534,12 +541,17 @@ func setMeasurementTool(a *activeSession, value string) bool {
 	a.twoPointFirst = nil
 	a.spacingFirst = nil
 	a.manualPending = false
+	a.reference = a.frame.Reference
+	a.marginView = "window"
 	a.regionHandle = RegionEditNone
 	a.editAnchor = nil
 	a.editOriginal = nil
 	a.copyMenuOpen = false
 	a.status = toolInstruction(value)
 	if a.service != nil {
+		a.service.mu.Lock()
+		a.service.tool = value
+		a.service.mu.Unlock()
 		a.service.resetSnapshotCandidatesForOracle(a, a.snapEnabled, a.snapSuspended, false)
 	}
 	return true
@@ -557,7 +569,7 @@ func (a *activeSession) beginReferenceEdit(ctx context.Context) error {
 	a.editAnchor = nil
 	a.editOriginal = nil
 	a.copyMenuOpen = false
-	a.status = "参照编辑：拖拽一个区域作为锁定参照；Esc 只取消本层编辑。"
+	a.status = "参照编辑：拖拽一个区域作为锁定参照。"
 	return a.renderSurface(ctx)
 }
 
@@ -587,15 +599,11 @@ func (a *activeSession) logicalPoint(fields map[string]any) (Point, error) {
 func (a *activeSession) pointerDown(ctx context.Context, p Point) error {
 	a.pointer = &p
 	if !a.manualPending && a.tool == "region" && a.result != nil && a.result.Region != nil {
-		handle := DetectRegionEditHandle(p, a.result.Region.Absolute, 8)
-		if handle != RegionEditNone {
-			original := a.result.Region.Absolute
-			a.regionHandle = handle
-			a.editAnchor = &p
-			a.editOriginal = &original
-			a.status = "区域编辑：" + string(handle) + "；Esc 退出本层编辑。"
-			return a.renderSurface(ctx)
-		}
+		a.result = nil
+		a.regionHandle = RegionEditNone
+		a.editAnchor = nil
+		a.editOriginal = nil
+		a.status = "开始新的区域测量。"
 	}
 	a.dragStart = &p
 	return nil
@@ -637,7 +645,7 @@ func (a *activeSession) pointerUp(ctx context.Context, p Point) error {
 		a.result = &r
 		a.editAnchor = nil
 		a.editOriginal = nil
-		a.status = "区域编辑已应用；方向键继续按 1 logical unit 微调，Shift=10。"
+		a.status = "区域编辑已应用。"
 		return a.renderSurface(ctx)
 	}
 	return a.completeSelection(ctx, p)
@@ -680,9 +688,12 @@ func (a *activeSession) completeSelection(ctx context.Context, end Point) error 
 			return a.updateStatus(ctx, a.status)
 		}
 		result, err = BuildRegionResult(a.frame.Snapshot, a.reference, selection)
-		a.regionHandle = RegionEditBody
+		a.regionHandle = RegionEditNone
 	case "twoPoint":
 		if a.twoPointFirst == nil {
+			if a.result != nil && a.result.TwoPoint != nil {
+				a.result = nil
+			}
 			first := end
 			a.twoPointFirst = &first
 			a.status = "第一点已锁定，请选择第二点。"
@@ -697,6 +708,9 @@ func (a *activeSession) completeSelection(ctx context.Context, end Point) error 
 			return a.updateStatus(ctx, a.status)
 		}
 		if a.spacingFirst == nil {
+			if a.result != nil && a.result.Spacing != nil {
+				a.result = nil
+			}
 			first := selection
 			a.spacingFirst = &first
 			a.status = "第一个区域已锁定，请拖拽第二个区域。"
@@ -766,39 +780,19 @@ func (a *activeSession) handleKey(ctx context.Context, fields map[string]any) er
 			return a.renderSurface(ctx)
 		}
 	case strings.HasPrefix(key, "Arrow"):
-		step := 1.0
-		if shift {
-			step = 10
-		}
-		return a.nudge(ctx, key, step)
+		return nil
 	}
 	return nil
 }
 
 func (a *activeSession) handleEscape(ctx context.Context) error {
-	switch {
-	case a.copyMenuOpen:
-		a.copyMenuOpen = false
-		a.status = "已关闭复制菜单。"
-		return a.renderSurface(ctx)
-	case a.inspectorOpen:
+	if a.inspectorOpen {
 		a.inspectorOpen = false
+		a.copyMenuOpen = false
 		a.status = "已关闭详情。"
 		return a.renderSurface(ctx)
-	case a.regionHandle != RegionEditNone || a.editAnchor != nil:
-		a.regionHandle = RegionEditNone
-		a.editAnchor = nil
-		a.editOriginal = nil
-		a.status = "已退出区域局部编辑。"
-		return a.renderSurface(ctx)
-	case a.manualPending:
-		a.manualPending = false
-		a.dragStart = nil
-		a.status = "已取消参照编辑。"
-		return a.renderSurface(ctx)
-	default:
-		return a.finish(ctx, true)
 	}
+	return a.finish(ctx, true)
 }
 
 func (a *activeSession) nudge(ctx context.Context, key string, step float64) error {
@@ -960,9 +954,13 @@ func (a *activeSession) refresh(ctx context.Context, targetID string) error {
 
 	a.frame, a.image, a.assetPath = frame, img, assetPath
 	a.reference, a.selectedTarget = frame.Reference, frame.SelectedTargetID
-	a.result, a.pointer = nil, nil
+	a.result = nil
+	if wasAdjusting {
+		a.pointer = nil
+		a.inspectorOpen = false
+	}
 	a.dragStart, a.twoPointFirst, a.spacingFirst = nil, nil, nil
-	a.manualPending, a.copyMenuOpen, a.inspectorOpen, a.snapSuspended = false, false, false, false
+	a.manualPending, a.copyMenuOpen, a.snapSuspended = false, false, false
 	a.marginView = "window"
 	a.regionHandle, a.editAnchor, a.editOriginal = RegionEditNone, nil, nil
 	a.targetConfirmed = frame.TargetConfirmed
