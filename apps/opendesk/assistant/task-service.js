@@ -266,13 +266,31 @@
       return calculator.execute(frozen, context || {});
     }
 
-    function resultText(result) {
+    function resultText(result, envelope) {
       if (!result || typeof result !== 'object') return '自动化已完成，但没有返回可展示的结构化结果。';
+      const task = envelope && typeof envelope === 'object' ? freezeEnvelope(envelope) : null;
+      const trace = task && task.kind === 'task'
+        ? [
+          `受控 capability：Calculator Basic（${task.task}）。`,
+          '未运行 JavaScript、Shell、路径或任意脚本；只执行了已确认的发布能力。',
+          `已确认按键计划：${task.buttons.join(' ')}。`,
+        ]
+        : ['受控 capability 已完成；没有运行任意脚本、Shell 或路径。'];
       if (result.task === TASK_IDS.TWO_STAGE) {
-        return `自动化已完成。第一段从计算器显示区真实读取：${result.firstResult}；最终从显示区真实读取：${result.finalResult}。`;
+        return [
+          '自动化已完成。',
+          ...trace,
+          `第一段从计算器显示区真实读取：${result.firstResult}。`,
+          `第二段按键由真实 firstResult 派生：${Array.isArray(result.secondStageButtons) ? result.secondStageButtons.join(' ') : '不可用'}。`,
+          `最终从计算器显示区真实读取：${result.finalResult}。`,
+        ].join('\n');
       }
       if (result.task === TASK_IDS.PRESS_AND_READ) {
-        return `自动化已完成。计算器显示区真实读取结果：${result.result}。`;
+        return [
+          '自动化已完成。',
+          ...trace,
+          `计算器显示区真实读取结果：${result.result}。`,
+        ].join('\n');
       }
       return '自动化已完成。';
     }

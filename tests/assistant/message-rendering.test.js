@@ -15,6 +15,7 @@ test('assistant message rows use supported text controls and render atomically',
   assert.doesNotMatch(controller, /<div id="messageRow\$\{index\}"/);
   assert.match(controller, /<p id="messageEmpty" class="message-empty">/);
   assert.doesNotMatch(controller, /<div id="messageEmpty"/);
+  assert.match(controller, /<p id="messageTranscript" class="message-transcript is-hidden"><\/p>/);
 
   assert.doesNotMatch(controller, /id="messageMeta\$\{index\}"/);
   assert.doesNotMatch(controller, /id="messageBody\$\{index\}"/);
@@ -22,6 +23,10 @@ test('assistant message rows use supported text controls and render atomically',
   assert.match(
     controller,
     /await update\(record, `messageRow\$\{index\}`, \{\s*visible,\s*text: message \? messageDisplayText\(message\) : '',\s*classes: rowClasses,\s*\}\);/s,
+  );
+  assert.match(
+    controller,
+    /await update\(record, 'messageTranscript', \{\s*visible: messages\.length > 0,\s*text: messages\.length > 0 \? buildMessageOverflow\(messages\) : '',/s,
   );
 });
 

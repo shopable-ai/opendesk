@@ -59,7 +59,8 @@
     if (taskService && (typeof taskService.shouldHandle !== 'function'
       || typeof taskService.plan !== 'function'
       || typeof taskService.execute !== 'function'
-      || typeof taskService.preview !== 'function')) {
+      || typeof taskService.preview !== 'function'
+      || typeof taskService.freezeEnvelope !== 'function')) {
       throw new AssistantSessionError('INVALID_SESSION', 'assistant task service is invalid');
     }
     if (typeof AbortControllerImpl !== 'function') {
@@ -262,11 +263,16 @@
       };
       await publish();
 
-      const envelope = await taskService.plan(text, {signal: entry.controller.signal, requestId: entry.requestId});
+      const plannedEnvelope = await taskService.plan(text, {signal: entry.controller.signal, requestId: entry.requestId});
       if (entry.stopRequested || entry.controller.signal.aborted) {
         await finishRequest(entry, {status: 'stopped', text: '任务已停止。'});
         return;
       }
+
+      // Planning data is untrusted until this second host-owned validation and
+      // copy.  The preview and later execution both consume this exact frozen
+      // envelope; planner prose or a mutable caller object cannot alter it.
+      const envelope = taskService.freezeEnvelope(plannedEnvelope);
 
       if (envelope.kind !== 'task') {
         entry.taskState.phase = envelope.kind;
@@ -310,7 +316,7 @@
       entry.taskState.progress = Object.freeze({phase: 'completed'});
       entry.taskState.result = result;
       await publish();
-      await finishRequest(entry, {status: 'completed', text: taskService.resultText(result)});
+      await finishRequest(entry, {status: 'completed', text: taskService.resultText(result, envelope)});
     }
 
     async function performRequest(entry, messages, text) {
@@ -346,8 +352,22 @@
 
     async function submit(text) {
       assertReady();
-      if (submitting || active) {
+      if (submitting) {
         throw new AssistantSessionError('REQUEST_BUSY', '已有请求或自动化任务正在处理；可以切换会话或编辑其他草稿，但不能创建隐形队列。');
+      }
+      if (active) {
+        // A new natural-language task is the only supported way to revise a
+        // preview.  Cancel the old frozen envelope first, wait for its
+        // lifecycle to settle, then create a brand-new request/confirmation.
+        // This makes an old confirmation unambiguously stale and never queues
+        // a second desktop-capable task behind it.
+        if (active.taskState && active.taskState.phase === 'awaitingConfirmation') {
+          const previous = active;
+          await cancelTask(previous.taskState.taskId, '任务已修改；旧执行预览已失效，确认前没有执行桌面动作。');
+          if (previous.lifecycle) await previous.lifecycle;
+        } else {
+          throw new AssistantSessionError('REQUEST_BUSY', '已有请求或自动化任务正在处理；可以切换会话或编辑其他草稿，但不能创建隐形队列。');
+        }
       }
       const current = store.snapshot().selectedConversation;
       if (!current) throw new AssistantSessionError('CONVERSATION_NOT_FOUND', '没有可发送的当前会话');
@@ -410,7 +430,7 @@
       return true;
     }
 
-    async function cancelTask(taskId) {
+    async function cancelTask(taskId, stoppedText) {
       assertReady();
       const entry = active;
       if (!entry || !entry.taskState || entry.taskState.taskId !== taskId
@@ -424,7 +444,7 @@
           conversationId: entry.conversationId,
           requestId: entry.requestId,
           status: 'stopped',
-          text: '任务已取消；确认前没有执行桌面动作。',
+          text: stoppedText || '任务已取消；确认前没有执行桌面动作。',
           error: null,
         });
         persistenceError = null;

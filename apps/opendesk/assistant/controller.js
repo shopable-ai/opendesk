@@ -14,6 +14,8 @@
     restore: 'arrow.counterclockwise',
     send: 'arrow.up.circle.fill',
     stop: 'stop.fill',
+    confirmTask: 'checkmark.circle',
+    cancelTask: 'xmark.circle',
     refresh: 'arrow.clockwise',
     help: 'questionmark.circle',
   });
@@ -33,14 +35,16 @@
   }
 
   function requestStatusLabel(status) {
-    return ({
+    const labels = {
       pending: '处理中',
       stopping: '正在停止',
       stopped: '已停止',
       failed: '失败',
       interrupted: '已中断',
       completed: '',
-    })[status] || String(status || '');
+    };
+    const key = String(status || '');
+    return Object.prototype.hasOwnProperty.call(labels, key) ? labels[key] : key;
   }
 
   function messageDisplayText(message) {
@@ -48,6 +52,27 @@
     const status = requestStatusLabel(message && message.status);
     const body = message ? (message.text || (message.status === 'pending' ? '正在生成回复…' : '')) : '';
     return `${role}\n${body}${status ? `\n[${status}]` : ''}`;
+  }
+
+  function taskProgressText(task) {
+    if (!task) return '';
+    const phase = String(task.phase || '');
+    const progress = task.progress && typeof task.progress === 'object' ? task.progress : null;
+    if (phase === 'planning') return '正在理解已发布的任务能力…';
+    if (phase === 'awaitingConfirmation') return '已生成可信执行预览；确认前不会产生 Calculator 桌面动作。';
+    if (phase === 'starting') return '已确认，正在开始受控自动化…';
+    if (phase === 'stopping') return '正在停止；不会提交新的桌面动作。';
+    if (phase === 'running') {
+      if (!progress) return '正在执行受控自动化…';
+      const stage = progress.stage === 'first' ? '第一段' : progress.stage === 'second' ? '第二段' : '';
+      if (progress.phase === 'opening') return '正在打开并验证 Calculator…';
+      if (progress.phase === 'clearing') return `${stage}正在清空 Calculator…`;
+      if (progress.phase === 'click') return `${stage}正在点击：${progress.key || '按键'}…`;
+      if (progress.phase === 'reading') return `${stage}正在从 Calculator 显示区读取真实结果…`;
+      if (progress.phase === 'read') return `${stage}已从显示区读取：${progress.value || '结果'}。`;
+      return '正在执行受控自动化…';
+    }
+    return '';
   }
 
   function buildMessageOverflow(messages) {
@@ -113,6 +138,7 @@
 
           <section class="messages-card">
             <p id="messageEmpty" class="message-empty">这是一个新对话。输入消息后才会调用模型；打开历史不会自动重发。</p>
+            <p id="messageTranscript" class="message-transcript is-hidden"></p>
             <div id="messageList" class="message-list" role="log" aria-live="polite" aria-label="聊天记录">
               ${buildMessageRows()}
               <p id="messageOverflow" class="message-overflow is-hidden"></p>
@@ -121,6 +147,11 @@
 
           <section class="composer-card">
             <textarea id="composer" maxlength="20000" rows="4" spellcheck="true" aria-label="聊天消息" placeholder="输入消息。发送只由按钮触发，输入法确认不会自动发送。"></textarea>
+            <div class="task-panel" aria-live="polite">
+              <p id="taskStatus" class="task-status is-hidden"></p>
+              <p id="taskPreview" class="task-preview is-hidden"></p>
+              <div class="task-actions"><button id="confirmTask" class="task-button primary is-hidden" data-icon="checkmark.circle" title="确认执行受控任务" aria-label="确认执行受控任务">确认执行</button><button id="cancelTask" class="task-button danger is-hidden" data-icon="xmark.circle" title="取消自动化任务" aria-label="取消自动化任务">取消任务</button></div>
+            </div>
             <div class="composer-footer">
               <span id="composerHint" class="subtle">普通聊天不会运行脚本、命令或桌面动作。</span>
               <div class="composer-actions"><button id="stop" class="icon-button danger" data-icon="stop.fill" title="停止当前请求" aria-label="停止当前请求">停止</button><button id="send" class="icon-button primary" data-icon="arrow.up.circle.fill" title="发送消息" aria-label="发送消息">发送</button></div>
@@ -133,7 +164,7 @@
 
   const CSS = `
     :root{color-scheme:dark;--bg:#151515;--surface:#1d1d1f;--surface2:#252529;--line:#3a3a40;--text:#f4f4f5;--muted:#a4a4ad;--accent:#3977dc;--danger:#a74747;--user:#24456e;--assistant:#27272b;--warning:#d9ad68}
-    html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}*{box-sizing:border-box}.shell{height:100vh;display:grid;grid-template-columns:270px minmax(0,1fr);overflow:hidden}.sidebar{min-width:0;border-right:1px solid var(--line);background:#191919;padding:14px 12px;display:flex;flex-direction:column;gap:14px;overflow:hidden}.sidebar-head,.section-head,.conversation-head,.composer-footer,.connection-card,.connection-actions,.title-actions{display:flex;align-items:center}.sidebar-head{justify-content:space-between;gap:10px}.sidebar-head strong{font-size:18px}.thread-section{min-height:0;display:flex;flex-direction:column;gap:8px}.recent-section{flex:1}.archived-section{flex:0 0 auto;max-height:42%}.section-head{justify-content:space-between;color:var(--muted);font-size:12px}.conversation-list{display:flex;flex-direction:column;gap:5px;min-height:0;overflow:hidden}.recent-list,.archived-list{overflow-y:auto;overscroll-behavior:contain;padding-right:2px}.conversation-row{width:100%;min-height:36px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border:1px solid transparent;background:transparent;color:#d6d6da;padding:8px 10px;border-radius:7px}.conversation-row:hover:not(:disabled){background:#27272a}.conversation-row.is-selected{background:#30343c;border-color:#4a586c;color:white}.conversation-row.is-active::after{content:"  •";color:#8fb5ff}.conversation-row.archived{color:#b0b0b8}.empty-note{margin:0;padding:8px 4px;color:#777;font-size:12px}.load-more{width:100%;flex:0 0 auto;border-color:transparent;background:transparent;color:#9ea6b4;font-size:12px;padding:7px 8px}.load-more:hover:not(:disabled){background:#27272a;color:#f0f0f2}.list-overflow{width:100%;flex:0 0 auto;border:1px solid #3d3d43;border-radius:7px;background:#232327;color:#c6c6cc;padding:7px 8px;font:inherit;font-size:12px}.workspace{min-width:0;height:100%;padding:16px 18px;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto;gap:11px;overflow:hidden}.conversation-head{justify-content:space-between;gap:12px}.title-block{min-width:0;display:flex;flex-direction:column;gap:3px}.title-block strong{font-size:18px;max-width:440px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.subtle{color:var(--muted);font-size:12px}.title-actions{gap:6px}.title-actions input{width:210px}.connection-card{position:relative;justify-content:space-between;gap:12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:10px 12px}.model-state,.global-status,.model-help{margin:0}.model-state{font-size:12px;color:#d7d7da}.global-status{font-size:11px;color:var(--muted);margin-top:3px}.connection-actions{gap:6px}.model-help{position:absolute;z-index:2;top:calc(100% + 6px);left:0;right:0;border:1px solid #45454d;background:#222227;border-radius:8px;padding:11px;white-space:pre-wrap;line-height:1.5;color:#c8c8cf;box-shadow:0 10px 30px rgba(0,0,0,.35)}.messages-card{position:relative;min-height:0;border:1px solid var(--line);border-radius:11px;background:var(--surface);padding:12px;overflow:hidden}.message-list{height:100%;min-height:0;overflow-y:auto;overscroll-behavior:contain;display:flex;flex-direction:column-reverse;gap:9px;align-items:stretch}.message-empty{position:absolute;z-index:1;inset:12px;margin:0;display:flex;align-items:center;justify-content:center;color:#80808a;text-align:center;line-height:1.6;pointer-events:none}.message-row{max-width:82%;margin:0;border:1px solid #3a3a40;border-radius:10px;background:var(--assistant);padding:9px 11px;align-self:flex-start;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.55}.message-row.role-user{align-self:flex-end;background:var(--user);border-color:#315a8d}.message-row.state-failed,.message-row.state-interrupted{border-color:#805151}.message-row.state-stopped{border-color:#6b6262}.message-overflow{width:100%;margin:0;border:1px solid #34343a;border-radius:9px;background:#202024;color:#b8b8c0;padding:10px 11px;white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;align-self:stretch}.composer-card{border:1px solid var(--line);border-radius:11px;background:var(--surface);padding:10px}.composer-card textarea,input{border:1px solid #47474f;border-radius:8px;background:#202024;color:var(--text);font:inherit}.composer-card textarea{width:100%;min-height:78px;max-height:190px;resize:vertical;padding:10px 11px;line-height:1.5}.title-actions input{padding:7px 8px}.composer-footer{justify-content:space-between;gap:12px;margin-top:8px}.composer-actions{display:flex;gap:7px}button{border:1px solid #4a4a52;border-radius:7px;background:#2e2e33;color:var(--text);font:inherit;padding:7px 10px}button:not(:disabled){cursor:pointer}button:hover:not(:disabled){background:#393940}button:disabled{opacity:.36}.icon-button{width:34px;height:34px;min-width:34px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:0}.icon-button::before{font-size:16px;line-height:1}.icon-button[data-icon="plus"]::before{content:"+";font-size:20px}.icon-button[data-icon="pencil"]::before{content:"✎"}.icon-button[data-icon="archivebox"]::before{content:"▣"}.icon-button[data-icon="arrow.up.circle.fill"]::before{content:"↑";font-size:19px}.icon-button[data-icon="stop.fill"]::before{content:"■";font-size:13px}.icon-button[data-icon="arrow.clockwise"]::before{content:"↻"}.icon-button[data-icon="questionmark.circle"]::before{content:"?"}.primary{background:#245fbf;border-color:var(--accent)}.danger{background:#3d2828;border-color:#724343}.is-hidden{display:none!important}
+    html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}*{box-sizing:border-box}.shell{height:100vh;display:grid;grid-template-columns:270px minmax(0,1fr);overflow:hidden}.sidebar{min-width:0;border-right:1px solid var(--line);background:#191919;padding:14px 12px;display:flex;flex-direction:column;gap:14px;overflow:hidden}.sidebar-head,.section-head,.conversation-head,.composer-footer,.connection-card,.connection-actions,.title-actions{display:flex;align-items:center}.sidebar-head{justify-content:space-between;gap:10px}.sidebar-head strong{font-size:18px}.thread-section{min-height:0;display:flex;flex-direction:column;gap:8px}.recent-section{flex:1}.archived-section{flex:0 0 auto;max-height:42%}.section-head{justify-content:space-between;color:var(--muted);font-size:12px}.conversation-list{display:flex;flex-direction:column;gap:5px;min-height:0;overflow:hidden}.recent-list,.archived-list{overflow-y:auto;overscroll-behavior:contain;padding-right:2px}.conversation-row{width:100%;min-height:36px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border:1px solid transparent;background:transparent;color:#d6d6da;padding:8px 10px;border-radius:7px}.conversation-row:hover:not(:disabled){background:#27272a}.conversation-row.is-selected{background:#30343c;border-color:#4a586c;color:white}.conversation-row.is-active::after{content:"  •";color:#8fb5ff}.conversation-row.archived{color:#b0b0b8}.empty-note{margin:0;padding:8px 4px;color:#777;font-size:12px}.load-more{width:100%;flex:0 0 auto;border-color:transparent;background:transparent;color:#9ea6b4;font-size:12px;padding:7px 8px}.load-more:hover:not(:disabled){background:#27272a;color:#f0f0f2}.list-overflow{width:100%;flex:0 0 auto;border:1px solid #3d3d43;border-radius:7px;background:#232327;color:#c6c6cc;padding:7px 8px;font:inherit;font-size:12px}.workspace{min-width:0;height:100%;padding:16px 18px;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto;gap:11px;overflow:hidden}.conversation-head{justify-content:space-between;gap:12px}.title-block{min-width:0;display:flex;flex-direction:column;gap:3px}.title-block strong{font-size:18px;max-width:440px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.subtle{color:var(--muted);font-size:12px}.title-actions{gap:6px}.title-actions input{width:210px}.connection-card{position:relative;justify-content:space-between;gap:12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:10px 12px}.model-state,.global-status,.model-help{margin:0}.model-state{font-size:12px;color:#d7d7da}.global-status{font-size:11px;color:var(--muted);margin-top:3px}.connection-actions{gap:6px}.model-help{position:absolute;z-index:2;top:calc(100% + 6px);left:0;right:0;border:1px solid #45454d;background:#222227;border-radius:8px;padding:11px;white-space:pre-wrap;line-height:1.5;color:#c8c8cf;box-shadow:0 10px 30px rgba(0,0,0,.35)}.messages-card{position:relative;min-height:0;border:1px solid var(--line);border-radius:11px;background:var(--surface);padding:12px;overflow:hidden}.message-list{height:100%;min-height:0;overflow-y:auto;overscroll-behavior:contain;display:flex;flex-direction:column-reverse;gap:9px;align-items:stretch}.message-empty{position:absolute;z-index:1;inset:12px;margin:0;display:flex;align-items:center;justify-content:center;color:#80808a;text-align:center;line-height:1.6;pointer-events:none}.message-transcript{position:absolute;z-index:2;inset:12px;margin:0;overflow-y:auto;overscroll-behavior:contain;border:1px solid #34343a;border-radius:9px;background:#202024;color:#d5e6ff;padding:10px 11px;white-space:pre-wrap;overflow-wrap:anywhere;font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.message-row{max-width:82%;margin:0;border:1px solid #3a3a40;border-radius:10px;background:var(--assistant);padding:9px 11px;align-self:flex-start;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.55}.message-row.role-user{align-self:flex-end;background:var(--user);border-color:#315a8d}.message-row.state-failed,.message-row.state-interrupted{border-color:#805151}.message-row.state-stopped{border-color:#6b6262}.message-overflow{width:100%;margin:0;border:1px solid #34343a;border-radius:9px;background:#202024;color:#b8b8c0;padding:10px 11px;white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;align-self:stretch}.composer-card{border:1px solid var(--line);border-radius:11px;background:var(--surface);padding:10px}.composer-card textarea,input{border:1px solid #47474f;border-radius:8px;background:#202024;color:var(--text);font:inherit}.composer-card textarea{width:100%;min-height:78px;max-height:190px;resize:vertical;padding:10px 11px;line-height:1.5}.task-panel{display:flex;flex-direction:column;gap:6px}.task-status,.task-preview{margin:0;border-radius:8px;white-space:pre-wrap;line-height:1.45}.task-status{padding:8px 10px;border:1px solid #695b3d;background:#302b22;color:#f0d59a}.task-preview{padding:9px 10px;border:1px solid #3d526d;background:#202a36;color:#d5e6ff}.task-actions{display:flex;gap:7px}.task-button{padding:7px 10px}.task-button[data-icon="checkmark.circle"]::before{content:"✓";margin-right:6px}.task-button[data-icon="xmark.circle"]::before{content:"×";margin-right:6px}.title-actions input{padding:7px 8px}.composer-footer{justify-content:space-between;gap:12px;margin-top:8px}.composer-actions{display:flex;gap:7px}button{border:1px solid #4a4a52;border-radius:7px;background:#2e2e33;color:var(--text);font:inherit;padding:7px 10px}button:not(:disabled){cursor:pointer}button:hover:not(:disabled){background:#393940}button:disabled{opacity:.36}.icon-button{width:34px;height:34px;min-width:34px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:0}.icon-button::before{font-size:16px;line-height:1}.icon-button[data-icon="plus"]::before{content:"+";font-size:20px}.icon-button[data-icon="pencil"]::before{content:"✎"}.icon-button[data-icon="archivebox"]::before{content:"▣"}.icon-button[data-icon="arrow.up.circle.fill"]::before{content:"↑";font-size:19px}.icon-button[data-icon="stop.fill"]::before{content:"■";font-size:13px}.icon-button[data-icon="arrow.clockwise"]::before{content:"↻"}.icon-button[data-icon="questionmark.circle"]::before{content:"?"}.primary{background:#245fbf;border-color:var(--accent)}.danger{background:#3d2828;border-color:#724343}.is-hidden{display:none!important}
     @media(max-width:760px){.shell{grid-template-columns:210px minmax(0,1fr)}.title-actions input{width:140px}.message-row{max-width:94%}}
   `;
 
@@ -145,6 +176,7 @@
     const Store = settings.Store || global.OpenDeskAssistantStore;
     const ModelChannel = settings.ModelChannel || global.OpenDeskAssistantModelChannel;
     const Session = settings.Session || global.OpenDeskAssistantSession;
+    const taskService = settings.taskService || null;
     const llm = settings.llm || global.LLM;
     const agent = settings.agent || global.Agent;
     const AbortControllerImpl = settings.AbortController || global.AbortController;
@@ -155,7 +187,7 @@
     if (!runtimeUI || typeof runtimeUI.createWindow !== 'function') throw new Error('AI assistant requires ui.createWindow()');
     if (!file || typeof file.join !== 'function') throw new Error('AI assistant requires File.join()');
     if (!appDataRoot) throw new Error('AI assistant requires appDataRoot');
-    if (!Store || !ModelChannel || !Session) throw new Error('AI assistant modules are not loaded');
+    if (!Store || !ModelChannel || !Session || !taskService) throw new Error('AI assistant modules are not loaded');
     if (typeof setTimer !== 'function' || typeof clearTimer !== 'function') throw new Error('AI assistant requires timers');
 
     const assistantRoot = file.join(appDataRoot, 'assistant');
@@ -178,7 +210,28 @@
       try {
         return await record.handle.control(id).update(patch);
       } catch (error) {
-        if (!record.disposed) logError(`render:${id}`, error);
+        if (!record.disposed) {
+          const stage = `render:${id}`;
+          logError(stage, error);
+          // A failed control patch must be visible in the same UI turn.  Do
+          // not wait for a later state transition (which may never arrive) or
+          // leave the user with a blank message area and only a runtime log.
+          if (id !== 'globalStatus') {
+            try {
+              await record.handle.control('globalStatus').update({
+                text: `界面错误：${stage}: ${errorDetails(error).message}`,
+              });
+            } catch (diagnosticError) {
+              if (logger && typeof logger.error === 'function') {
+                logger.error('OPENDESK_ASSISTANT_ERROR=' + JSON.stringify({
+                  stage: 'render-diagnostic',
+                  code: errorDetails(diagnosticError).code,
+                  message: errorDetails(diagnosticError).message,
+                }));
+              }
+            }
+          }
+        }
         return null;
       }
     }
@@ -194,13 +247,48 @@
       const selected = state.selectedConversation;
       const active = state.activeRequest;
       const busy = !!active || state.submitting;
-      await update(record, 'composer', {value: selectedDraft(record, state), disabled: !selected});
-      await update(record, 'send', {disabled: !selected || busy, busy: state.submitting, text: '发送消息'});
+      const canReplacePreview = !!(active && active.task
+        && active.conversationId === state.selectedConversationId
+        && active.task.phase === 'awaitingConfirmation');
+      await update(record, 'composer', {value: selectedDraft(record, state), disabled: !selected || (busy && !canReplacePreview)});
+      await update(record, 'send', {disabled: !selected || (busy && !canReplacePreview), busy: state.submitting, text: '发送消息'});
       await update(record, 'stop', {disabled: !active, busy: !!(active && active.stopping), text: '停止当前请求'});
       await update(record, 'composerHint', {
-        text: busy
+        text: active && active.task && active.conversationId === state.selectedConversationId
+          ? (active.task.phase === 'awaitingConfirmation'
+            ? '执行预览已冻结。修改并发送新任务会使当前确认失效；普通聊天不会运行桌面动作。'
+            : '当前受控任务正在处理；仍可切换会话并编辑、保存其他草稿。')
+          : busy
           ? '当前仅允许一个在途模型请求；仍可切换会话并编辑、保存其他草稿。'
           : '普通聊天不会运行脚本、命令或桌面动作。',
+      });
+      const task = active && selected && active.conversationId === selected.id ? active.task : null;
+      const phase = task && String(task.phase || '');
+      const taskVisible = !!task;
+      const previewVisible = !!(task && task.preview);
+      const confirmVisible = phase === 'awaitingConfirmation';
+      const cancelVisible = ['planning', 'awaitingConfirmation', 'starting', 'running', 'stopping'].includes(phase);
+      await update(record, 'taskStatus', {
+        visible: taskVisible,
+        text: taskVisible ? taskProgressText(task) : '',
+        classes: classes('task-status', taskVisible),
+      });
+      await update(record, 'taskPreview', {
+        visible: previewVisible,
+        text: previewVisible ? task.preview : '',
+        classes: classes('task-preview', previewVisible),
+      });
+      await update(record, 'confirmTask', {
+        visible: confirmVisible,
+        disabled: !confirmVisible,
+        text: '确认执行',
+        classes: classes('task-button primary', confirmVisible),
+      });
+      await update(record, 'cancelTask', {
+        visible: cancelVisible,
+        disabled: !cancelVisible || phase === 'stopping',
+        text: phase === 'awaitingConfirmation' ? '取消任务' : '停止任务',
+        classes: classes('task-button danger', cancelVisible),
       });
     }
 
@@ -348,6 +436,11 @@
           const overflowMessages = overflowCount > 0 ? messages.slice(0, overflowCount) : [];
           const bubbleMessages = messages.slice(overflowCount).reverse();
           await update(record, 'messageEmpty', {visible: messages.length === 0, classes: classes('message-empty', messages.length === 0)});
+          await update(record, 'messageTranscript', {
+            visible: messages.length > 0,
+            text: messages.length > 0 ? buildMessageOverflow(messages) : '',
+            classes: classes('message-transcript', messages.length > 0),
+          });
           await update(record, 'messageOverflow', {
             visible: overflowMessages.length > 0,
             text: overflowMessages.length > 0 ? buildMessageOverflow(overflowMessages) : '',
@@ -538,9 +631,26 @@
         }
       });
       bind(record, record.handle.control('stop'), 'click', 'stop', async () => { await record.session.stop(); });
+      bind(record, record.handle.control('confirmTask'), 'click', 'confirm-task', async () => {
+        const state = record.session.snapshot();
+        const active = state.activeRequest;
+        if (!active || active.conversationId !== state.selectedConversationId || !active.task) return;
+        await record.session.confirmTask(active.task.taskId);
+      });
+      bind(record, record.handle.control('cancelTask'), 'click', 'cancel-task', async () => {
+        const state = record.session.snapshot();
+        const active = state.activeRequest;
+        if (!active || active.conversationId !== state.selectedConversationId || !active.task) return;
+        if (active.task.phase === 'awaitingConfirmation') {
+          await record.session.cancelTask(active.task.taskId);
+        } else {
+          await record.session.stop();
+        }
+      });
 
       const offClose = record.handle.on('close', async () => {
-        if (record.disposed) return;
+        if (record.disposed || record.closing) return;
+        record.closing = true;
         try { await record.session.stop(); } catch (_) {}
         try { await flushDraft(record); } catch (_) {}
         try { await record.session.close(); } catch (_) {}
@@ -596,6 +706,7 @@
           session: null,
           unsubscribers: [],
           disposed: false,
+          closing: false,
           rendering: false,
           pendingState: null,
           recentVisibleCount: RECENT_BATCH_SIZE,
@@ -611,6 +722,7 @@
         const session = Session.create({
           store,
           channel,
+          taskService,
           AbortController: AbortControllerImpl,
           logger,
           onChange: state => render(record, state),
@@ -661,6 +773,7 @@
     async function close() {
       const record = windowRecord;
       if (!record || record.disposed) return state();
+      record.closing = true;
       try { await record.session.stop(); } catch (_) {}
       try { await flushDraft(record); } catch (_) {}
       await record.session.close();

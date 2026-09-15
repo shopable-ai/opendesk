@@ -4,8 +4,10 @@ main.js
 localization.js
 assistant/store.js
 assistant/model-channel.js
+assistant/task-service.js
 assistant/session.js
 assistant/controller.js
+capabilities/calculator.js
 official-shell.js
 scheduler-client.js
 scheduler-center.js

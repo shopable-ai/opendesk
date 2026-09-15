@@ -6,10 +6,14 @@ import {fileURLToPath} from 'node:url';
 
 await import('../../apps/opendesk/assistant/store.js');
 await import('../../apps/opendesk/assistant/model-channel.js');
+await import('../../apps/opendesk/capabilities/calculator.js');
+await import('../../apps/opendesk/assistant/task-service.js');
 await import('../../apps/opendesk/assistant/session.js');
 
 const Store = globalThis.OpenDeskAssistantStore;
 const ModelChannel = globalThis.OpenDeskAssistantModelChannel;
+const TaskService = globalThis.OpenDeskAssistantTaskService;
+const CalculatorCapability = globalThis.OpenDeskCalculatorCapability;
 const Session = globalThis.OpenDeskAssistantSession;
 
 function clone(value) {
@@ -111,9 +115,9 @@ function createChannelStub(handler) {
   };
 }
 
-async function createSession(file, channel) {
+async function createSession(file, channel, taskService = null, onChange = null) {
   const store = createStore(file);
-  const session = Session.create({store, channel, AbortController});
+  const session = Session.create({store, channel, taskService, AbortController, onChange: onChange || undefined});
   await session.initialize();
   return {store, session};
 }
@@ -124,6 +128,45 @@ async function waitFor(predicate, iterations = 50) {
     await new Promise(resolve => setImmediate(resolve));
   }
   throw new Error('condition was not reached');
+}
+
+function calculatorEnvelope(overrides = {}) {
+  return {
+    schemaVersion: 1,
+    kind: 'task',
+    task: 'calculator.pressAndRead',
+    buttons: ['2', '5', '×', '4', '+', '1', '0', '='],
+    multiplier: '',
+    message: '已识别 Calculator 任务。',
+    ...overrides,
+  };
+}
+
+function taskServiceStub(options = {}) {
+  const planned = options.planned || calculatorEnvelope();
+  const calls = {plan: 0, execute: 0, previews: 0};
+  return {
+    calls,
+    shouldHandle(text) { return /^计算器任务:/.test(String(text)); },
+    async plan(text, context) {
+      calls.plan += 1;
+      return typeof options.plan === 'function' ? options.plan(text, context) : planned;
+    },
+    preview(envelope) {
+      calls.previews += 1;
+      return `冻结预览：${envelope.buttons.join(' ')}`;
+    },
+    freezeEnvelope(envelope) {
+      return Object.freeze({...envelope, buttons: Object.freeze([...envelope.buttons])});
+    },
+    async execute(envelope, context) {
+      calls.execute += 1;
+      return typeof options.execute === 'function'
+        ? options.execute(envelope, context)
+        : {task: envelope.task, result: '110'};
+    },
+    resultText(result) { return `真实结果：${result.result || result.finalResult}`; },
+  };
 }
 
 test('A/B/C conversations keep independent titles, drafts, archive state, and durable history', async () => {
@@ -316,6 +359,163 @@ test('model channel uses controlled Agent only when LLM is not configured', asyn
   assert.equal(result.text, 'agent reply');
   assert.match(capturedPrompt, /do not have authority to execute scripts/i);
   assert.match(capturedPrompt, /User:\nhello/);
+});
+
+test('Calculator requests persist the user and pending assistant message before planner work, while ordinary chat never enters the task service', async () => {
+  const file = memoryFile();
+  const planGate = deferred();
+  const channel = createChannelStub(async () => ({text: '普通聊天回复'}));
+  const taskService = taskServiceStub({plan: () => planGate.promise});
+  const {session} = await createSession(file, channel, taskService);
+  const conversationId = session.snapshot().selectedConversationId;
+
+  const ids = await session.submit('计算器任务: 打开计算器，计算 25 × 4 + 10');
+  const persisted = session.getConversation(conversationId);
+  assert.deepEqual(persisted.messages.map(message => ({role: message.role, status: message.status, text: message.text})), [
+    {role: 'user', status: 'completed', text: '计算器任务: 打开计算器，计算 25 × 4 + 10'},
+    {role: 'assistant', status: 'pending', text: ''},
+  ]);
+  await waitFor(() => session.snapshot().activeRequest?.task?.phase === 'planning');
+  assert.equal(taskService.calls.plan, 1);
+  assert.equal(channel.calls, 0);
+
+  planGate.resolve(calculatorEnvelope());
+  await waitFor(() => session.snapshot().activeRequest?.task?.phase === 'awaitingConfirmation');
+  assert.equal(taskService.calls.execute, 0, 'planning/preview may not produce desktop side effects');
+  assert.match(session.snapshot().activeRequest.task.preview, /冻结预览/);
+
+  await session.cancelTask(ids.requestId);
+  await waitFor(() => session.snapshot().activeRequest === null);
+  await session.submit('这是普通聊天，不是自动化。');
+  await waitFor(() => session.snapshot().activeRequest === null);
+  assert.equal(channel.calls, 1);
+  assert.equal(taskService.calls.plan, 1);
+  assert.equal(taskService.calls.execute, 0);
+});
+
+test('host task service admits only fixed Calculator envelopes and rejects code, shell, path, and action-bearing non-task planner data', async () => {
+  const valid = calculatorEnvelope();
+  const calculator = {definition: CalculatorCapability.definition, async execute() { throw new Error('not reached'); }};
+  const agent = {
+    getCapabilities(options) {
+      assert.deepEqual(options, {backend: 'codex', profile: 'codex-analysis'});
+      return {supported: true, configured: true, executableFound: true};
+    },
+    async run() { return {data: {...valid, code: 'mouse.click(1, 2)'}}; },
+  };
+  const taskService = TaskService.create({agent, calculator});
+  assert.equal(taskService.shouldHandle('打开 Calculator，计算 25 × 4 + 10'), true);
+  assert.equal(taskService.shouldHandle('请解释这个表达式'), false);
+  await assert.rejects(() => taskService.plan('打开 Calculator，计算 25 × 4 + 10'), {code: 'UNKNOWN_FIELD'});
+
+  agent.run = async () => ({data: {
+    schemaVersion: 1,
+    kind: 'unsupported',
+    task: '',
+    buttons: ['2', '+', '2', '='],
+    multiplier: '',
+    message: 'ignored action',
+  }});
+  await assert.rejects(() => taskService.plan('打开 Calculator，计算 25 × 4 + 10'), {code: 'NON_TASK_ACTION'});
+
+  agent.run = async () => ({data: {...valid, shell: 'open -a Calculator', path: '/tmp/task.js'}});
+  await assert.rejects(() => taskService.plan('打开 Calculator，计算 25 × 4 + 10'), {code: 'UNKNOWN_FIELD'});
+
+  const trace = taskService.resultText({task: 'calculator.pressAndRead', result: '110'}, valid);
+  assert.match(trace, /Calculator Basic（calculator\.pressAndRead）/);
+  assert.match(trace, /未运行 JavaScript、Shell、路径或任意脚本/);
+  assert.match(trace, /已确认按键计划：2 5 × 4 \+ 1 0 =/);
+  assert.match(trace, /真实读取结果：110/);
+});
+
+test('confirmation executes only the frozen envelope once and returns its result to the original conversation after a conversation switch', async () => {
+  const file = memoryFile();
+  const channel = createChannelStub(async () => ({text: 'ordinary'}));
+  const submittedEnvelope = calculatorEnvelope();
+  let executedEnvelope = null;
+  const taskService = taskServiceStub({
+    planned: submittedEnvelope,
+    execute: async envelope => {
+      executedEnvelope = envelope;
+      assert.equal(Object.isFrozen(envelope), true);
+      assert.equal(Object.isFrozen(envelope.buttons), true);
+      return {task: 'calculator.pressAndRead', result: '110'};
+    },
+  });
+  const {session} = await createSession(file, channel, taskService);
+  const a = session.snapshot().selectedConversation;
+  const ids = await session.submit('计算器任务: 打开 Calculator，计算 25 × 4 + 10');
+  await waitFor(() => session.snapshot().activeRequest?.task?.phase === 'awaitingConfirmation');
+  const b = await session.createConversation();
+  await session.switchConversation(b.id);
+
+  await session.confirmTask(ids.requestId);
+  await waitFor(() => session.snapshot().activeRequest === null);
+  assert.equal(taskService.calls.execute, 1);
+  assert.deepEqual(executedEnvelope.buttons, submittedEnvelope.buttons);
+  assert.match(session.getConversation(a.id).messages.at(-1).text, /真实结果：110/);
+  assert.equal(session.getConversation(b.id).messages.length, 0);
+});
+
+test('editing and sending a replacement task invalidates the old confirmation before any desktop execution', async () => {
+  const file = memoryFile();
+  const channel = createChannelStub(async () => ({text: 'ordinary'}));
+  let sequence = 0;
+  const taskService = taskServiceStub({
+    plan: async () => calculatorEnvelope({buttons: sequence++ === 0
+      ? ['2', '5', '×', '4', '=']
+      : ['6', '×', '7', '=']}),
+  });
+  const {session} = await createSession(file, channel, taskService);
+  const first = await session.submit('计算器任务: 25 × 4');
+  await waitFor(() => session.snapshot().activeRequest?.task?.phase === 'awaitingConfirmation');
+  const second = await session.submit('计算器任务: 6 × 7');
+  await waitFor(() => session.snapshot().activeRequest?.requestId === second.requestId
+    && session.snapshot().activeRequest?.task?.phase === 'awaitingConfirmation');
+  await assert.rejects(() => session.confirmTask(first.requestId), {code: 'STALE_CONFIRMATION'});
+  assert.equal(taskService.calls.execute, 0);
+  await session.cancelTask(second.requestId);
+});
+
+test('stop aborts both task planning and running execution, and a late task result cannot revive a stopped request', async () => {
+  const file = memoryFile();
+  const channel = createChannelStub(async () => ({text: 'ordinary'}));
+  const planGate = deferred();
+  let runningSignal = null;
+  let submittedDesktopActions = 0;
+  const taskService = taskServiceStub({
+    plan: (_text, context) => {
+      if (taskService.calls.plan === 1) return planGate.promise;
+      return Promise.resolve(calculatorEnvelope());
+    },
+    execute: async (_envelope, context) => {
+      runningSignal = context.signal;
+      submittedDesktopActions += 1;
+      return new Promise(resolve => context.signal.addEventListener('abort', () => {
+        setImmediate(() => resolve({task: 'calculator.pressAndRead', result: 'late'}));
+      }, {once: true}));
+    },
+  });
+  const {session} = await createSession(file, channel, taskService);
+  const planning = await session.submit('计算器任务: 25 × 4');
+  await waitFor(() => session.snapshot().activeRequest?.task?.phase === 'planning');
+  await session.stop();
+  planGate.resolve(calculatorEnvelope());
+  await waitFor(() => session.snapshot().activeRequest === null);
+  assert.equal(session.getConversation(session.snapshot().selectedConversationId).requests[0].status, 'stopped');
+
+  const running = await session.submit('计算器任务: 25 × 4 + 10');
+  await waitFor(() => session.snapshot().activeRequest?.task?.phase === 'awaitingConfirmation');
+  await session.confirmTask(running.requestId);
+  await waitFor(() => runningSignal !== null && submittedDesktopActions === 1);
+  await session.stop();
+  assert.equal(runningSignal.aborted, true);
+  await waitFor(() => session.snapshot().activeRequest === null);
+  assert.equal(submittedDesktopActions, 1, 'stop must prevent every later desktop action');
+  const message = session.getConversation(session.snapshot().selectedConversationId).messages.find(item => item.requestId === running.requestId && item.role === 'assistant');
+  assert.equal(message.status, 'stopped');
+  assert.doesNotMatch(message.text, /late/);
+  assert.notEqual(planning.requestId, running.requestId);
 });
 
 test('assistant UI source uses scrollable chat history and progressive conversation loading without page controls', () => {

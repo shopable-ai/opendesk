@@ -34,9 +34,17 @@ if (!globalThis.OpenDeskProductScriptRunner
 
 const runner = OpenDeskProductScriptRunner.create({officialShell});
 
+const calculatorCapabilityEntry = File.join(Execution.scriptDir, 'capabilities', 'calculator.js');
+(0, eval)(File.read(calculatorCapabilityEntry) + '\n//# sourceURL=' + calculatorCapabilityEntry);
+if (!globalThis.OpenDeskCalculatorCapability
+  || typeof OpenDeskCalculatorCapability.execute !== 'function') {
+  throw new Error('OpenDesk Calculator capability did not initialize');
+}
+
 const assistantEntries = [
   ['store.js', 'OpenDeskAssistantStore'],
   ['model-channel.js', 'OpenDeskAssistantModelChannel'],
+  ['task-service.js', 'OpenDeskAssistantTaskService'],
   ['session.js', 'OpenDeskAssistantSession'],
   ['controller.js', 'OpenDeskAssistantController'],
 ];
@@ -45,8 +53,13 @@ for (const [name, globalName] of assistantEntries) {
   (0, eval)(File.read(entry) + '\n//# sourceURL=' + entry);
   if (!globalThis[globalName]) throw new Error(`OpenDesk AI assistant module did not initialize: ${name}`);
 }
+const assistantTaskService = OpenDeskAssistantTaskService.create({
+  agent: globalThis.Agent,
+  calculator: OpenDeskCalculatorCapability,
+});
 const assistant = OpenDeskAssistantController.create({
   appDataRoot: globalThis.OpenDeskProductPaths.appDataRoot,
+  taskService: assistantTaskService,
 });
 
 const schedulerClientEntry = File.join(Execution.scriptDir, 'scheduler-client.js');
