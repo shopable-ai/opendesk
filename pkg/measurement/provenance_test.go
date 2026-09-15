@@ -1,0 +1,6 @@
+package measurement
+
+import "testing"
+
+func TestEvidenceProvenanceRecordsRecorderWindowAndFrozenCapture(t *testing.T){frame,result,pngBytes:=evidenceFixture(t);ev,err:=BuildEvidence("prov-recorder","recorder-toolbar",frame,result,pngBytes,EvidenceConfidence{Target:1,Geometry:1,Pixel:1,Overall:1});if err!=nil{t.Fatal(err)};if ev.Provenance.Measurement!=EvidenceOriginRecorder||ev.Provenance.Reference!=EvidenceOriginWindow||ev.Provenance.Capture!=EvidenceOriginCapture||ev.Provenance.Pixel!=EvidenceOriginCapture||ev.Provenance.Candidate!=EvidenceOriginWindow{t.Fatalf("provenance=%+v",ev.Provenance)}}
+func TestEvidenceProvenanceRecordsManualReferenceWithoutInventingPixelSource(t *testing.T){frame,_,pngBytes:=evidenceFixture(t);frame.Reference=Reference{Type:ReferenceManualRegion,Bounds:Rect{X:20,Y:25,Width:70,Height:35}};result,err:=BuildRegionResult(frame.Snapshot,frame.Reference,Rect{X:30,Y:30,Width:10,Height:10});if err!=nil{t.Fatal(err)};ev,err:=BuildEvidence("prov-manual","developer-menu",frame,result,pngBytes,EvidenceConfidence{Target:.7,Geometry:1,Overall:.8});if err!=nil{t.Fatal(err)};if ev.Provenance.Measurement!=EvidenceOriginManual||ev.Provenance.Reference!=EvidenceOriginManual||ev.Provenance.Pixel!=""{t.Fatalf("provenance=%+v",ev.Provenance)}}
