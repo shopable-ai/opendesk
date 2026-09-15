@@ -25,7 +25,7 @@ func measurementWindowSpec(frame CaptureFrame, assetName, source string) customu
 	a := &activeSession{
 		frame: frame, reference: frame.Reference, assetPath: assetName, overlayPath: "measurement-overlay.png",
 		tool: "point", outputFormat: "concise", status: targetConfirmationInstruction(frame), selectedTarget: frame.SelectedTargetID,
-		targetConfirmed: frame.TargetConfirmed, source: strings.TrimSpace(source), phase: PhaseMeasuring,
+		targetConfirmed: frame.TargetConfirmed, source: strings.TrimSpace(source), snapEnabled: true, marginView: "window", phase: PhaseMeasuring,
 	}
 	return measurementWindowSpecProduct(a)
 }
@@ -34,6 +34,10 @@ func measurementHTMLProduct(a *activeSession) string {
 	disabled := " disabled"
 	if a.result != nil {
 		disabled = ""
+	}
+	marginDisabled := " disabled"
+	if hasLocalReference(a) {
+		marginDisabled = ""
 	}
 	confirmHidden, confirmedHidden := "", " hidden"
 	if a.targetConfirmed {
@@ -52,14 +56,22 @@ func measurementHTMLProduct(a *activeSession) string {
 		`<img id="measurementOverlay" src="` + html.EscapeString(filepath.Base(a.overlayPath)) + `">` +
 		`<section id="measurementMicro" class="` + strings.Join(micro.Classes, " ") + `"><span id="measurementMicroValue">` + html.EscapeString(microText(a)) + `</span></section>` +
 		`<section id="measurementHUD" class="` + strings.Join(hud.Classes, " ") + `"><p id="measurementHUDValue">` + html.EscapeString(a.conciseResult()) + `</p><p id="referenceInfo">` + html.EscapeString(measurementReferenceSummary(a)) + `</p><p id="measurementStatus">` + html.EscapeString(a.status) + `</p><p id="snapInfo">` + html.EscapeString(snapSummary(a)) + `</p></section>` +
-		`<section id="measurementCopyMenu" hidden><button id="copyConcise"` + disabled + `>① 简明数值</button><button id="copyHuman"` + disabled + `>② 完整中文说明</button><button id="copyStructured"` + disabled + `>③ 结构化数据</button></section>` +
-		`<section id="measurementInspector" hidden><header><strong>测量详情</strong><button id="closeInspector">关闭</button></header><label>目标<select id="targetWindow">` + targetOptionsHTML(a.frame.Targets, a.selectedTarget) + `</select></label><div class="row"><button id="previousTarget">上一个候选</button><button id="nextTarget">下一个候选</button><button id="confirmTarget"` + confirmHidden + `>确认候选</button><span id="targetConfirmed"` + confirmedHidden + `>已确认</span></div><label>局部参照<select id="referenceType">` + referenceOptions(a) + `</select></label><label>保存格式<select id="outputFormat">` + outputOptions(a.outputFormat) + `</select></label><button id="saveResult"` + disabled + `>保存结果</button><p id="snapshotInfo">` + html.EscapeString(snapshotSummary(a.frame)+" · "+snapshotTokenSummary(a.snapshotToken())) + `</p><p id="measurementInspectorResult" class="inspectorResult">` + html.EscapeString(a.selectedResult()) + `</p><p id="measurementHint">` + html.EscapeString(measurementHint(a.source)) + `</p></section>` +
-		`<section id="measurementToolbar"><button id="toolPoint" aria-pressed="` + boolString(a.tool == "point") + `">点</button><button id="toolRegion" aria-pressed="` + boolString(a.tool == "region") + `">区域</button><button id="toolTwoPoint" aria-pressed="` + boolString(a.tool == "twoPoint") + `">两点</button><button id="toolSpacing" aria-pressed="` + boolString(a.tool == "spacing") + `">两区域</button><span class="separator"></span><span class="snapLabel">磁吸定位：开 · Alt 暂停</span><button id="referenceButton">参照</button><button id="refreshSnapshot">更新画面</button><button id="adjustInterface">调整界面</button><button id="copyMenuButton"` + disabled + `>复制 ▾</button><button id="inspectorButton">详情</button><button id="exitMeasurement">退出</button></section>` +
+		`<section id="measurementInspector" hidden data-opendesk-measurement-inspector><header><strong>测量详情</strong><button id="closeInspector">关闭</button></header>` +
+		`<p class="inspectorLead">完整坐标映射、候选证据和结构化输出只在这里按需显示。</p>` +
+		`<label>目标<select id="targetWindow">` + targetOptionsHTML(a.frame.Targets, a.selectedTarget) + `</select></label>` +
+		`<div class="row"><button id="previousTarget">上一个候选</button><button id="nextTarget">下一个候选</button><button id="confirmTarget"` + confirmHidden + `>确认候选</button><span id="targetConfirmed"` + confirmedHidden + `>已确认</span></div>` +
+		`<label>局部参照<select id="referenceType">` + referenceOptions(a) + `</select></label>` +
+		`<div class="row secondaryActions"><button id="referenceButton">选择局部参照</button><button id="copyStructured"` + disabled + `>复制结构化数据</button></div>` +
+		`<div class="row secondaryActions"><button id="copyMenuButton"` + disabled + `>更多复制格式</button><label class="inlineLabel">保存格式<select id="outputFormat">` + outputOptions(a.outputFormat) + `</select></label></div>` +
+		`<section id="measurementCopyMenu" hidden><button id="copyConcise"` + disabled + `>① 简明数值</button><button id="copyHuman"` + disabled + `>② 完整中文说明</button></section>` +
+		`<button id="saveResult"` + disabled + `>保存结果</button><p id="snapshotInfo">` + html.EscapeString(snapshotSummary(a.frame)+" · "+snapshotTokenSummary(a.snapshotToken())) + `</p>` +
+		`<p id="measurementInspectorResult" class="inspectorResult">` + html.EscapeString(a.selectedResult()) + `</p><p id="measurementHint">` + html.EscapeString(measurementHint(a.source)) + `</p></section>` +
+		`<section id="measurementToolbar"><button id="toolPoint" aria-pressed="` + boolString(a.tool == "point") + `">点</button><button id="toolRegion" aria-pressed="` + boolString(a.tool == "region") + `">区域</button><button id="toolTwoPoint" aria-pressed="` + boolString(a.tool == "twoPoint") + `">两点</button><button id="toolSpacing" aria-pressed="` + boolString(a.tool == "spacing") + `">两区域</button><span class="separator"></span><button id="magnetToggle" aria-pressed="` + boolString(a.snapEnabled && !a.snapSuspended) + `">磁吸定位</button><button id="marginToggle" aria-pressed="` + boolString(a.marginView == "local" && hasLocalReference(a)) + `"` + marginDisabled + `>` + html.EscapeString(marginToggleText(a)) + `</button><button id="refreshSnapshot">更新画面</button><button id="adjustInterface">调整界面</button><button id="inspectorButton">详情</button><button id="exitMeasurement">退出</button></section>` +
 		`</main>`
 }
 
 func measurementCSSProduct() string {
-	return `:root{color-scheme:dark;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#000;color:#f5f8fc}*{box-sizing:border-box}html,body,#measurementRoot{margin:0;width:100%;height:100%;overflow:hidden}#measurementRoot{position:relative;background:#000;user-select:none}#measurementPreview,#measurementOverlay{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;display:block}#measurementOverlay{pointer-events:none;z-index:4}button,select{height:30px;border:1px solid rgba(255,255,255,.16);border-radius:7px;background:#202833;color:#f5f8fc;padding:0 9px}button{cursor:pointer}button[aria-pressed=true]{background:#1677b8;border-color:#58baff}button:disabled{opacity:.42;cursor:default}#measurementToolbar{position:absolute;z-index:20;left:50%;bottom:14px;transform:translateX(-50%);display:flex;align-items:center;gap:6px;padding:6px;border:1px solid rgba(255,255,255,.18);border-radius:11px;background:rgba(14,18,24,.92);box-shadow:0 5px 22px rgba(0,0,0,.35);max-width:calc(100vw - 20px)}#measurementToolbar .separator{width:1px;height:22px;background:rgba(255,255,255,.18);margin:0 2px}.snapLabel{font-size:10px;color:#9ee9c2;white-space:nowrap;padding:0 3px}.hud{position:absolute;z-index:12;width:min(330px,calc(100vw - 24px));padding:9px 10px;border:1px solid rgba(255,255,255,.16);border-radius:10px;background:rgba(14,18,24,.88);pointer-events:none}.hud.top-left{left:12px;top:12px}.hud.top-right{right:12px;top:12px}.hud.bottom-left{left:12px;bottom:64px}.hud.bottom-right{right:12px;bottom:64px}.hud p{margin:4px 0;font-size:11px;line-height:1.4;white-space:pre-wrap}#measurementHUDValue{color:#fff;font-size:13px}#measurementStatus{color:#92d2ff}#referenceInfo{color:#ffd479;font-variant-numeric:tabular-nums}#snapInfo{color:#9ee9c2}.micro{position:absolute;z-index:13;max-width:250px;padding:5px 7px;border-radius:6px;background:rgba(10,13,18,.84);font:10px/1.45 ui-monospace,SFMono-Regular,Consolas,monospace;pointer-events:none;white-space:pre}.micro.top-left{left:14px;top:14px}.micro.top-right{right:14px;top:14px}.micro.bottom-left{left:14px;bottom:64px}.micro.bottom-right{right:14px;bottom:64px}#measurementCopyMenu{position:absolute;z-index:30;left:50%;bottom:58px;transform:translateX(44px);display:flex;flex-direction:column;gap:4px;padding:5px;border:1px solid rgba(255,255,255,.16);border-radius:8px;background:#151b23}#measurementCopyMenu[hidden],#measurementInspector[hidden]{display:none}#measurementInspector{position:absolute;z-index:25;right:14px;top:14px;width:min(360px,calc(100vw - 28px));max-height:calc(100vh - 86px);overflow:auto;padding:10px;border:1px solid rgba(255,255,255,.18);border-radius:10px;background:rgba(14,18,24,.96);box-shadow:0 8px 30px rgba(0,0,0,.45)}#measurementInspector header,#measurementInspector .row{display:flex;align-items:center;justify-content:space-between;gap:6px}#measurementInspector label{display:flex;flex-direction:column;gap:4px;margin-top:8px;color:#aebccc;font-size:10px}#measurementInspector select{width:100%}.inspectorResult{max-height:220px;overflow:auto;white-space:pre-wrap;font:10px ui-monospace,SFMono-Regular,Consolas,monospace;background:rgba(0,0,0,.3);padding:7px;border-radius:6px}#measurementHint,#snapshotInfo{font-size:10px;color:#8290a1;white-space:pre-wrap}`
+	return `:root{color-scheme:dark;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#000;color:#f5f8fc}*{box-sizing:border-box}html,body,#measurementRoot{margin:0;width:100%;height:100%;overflow:hidden}#measurementRoot{position:relative;background:#000;user-select:none}#measurementPreview,#measurementOverlay{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;display:block}#measurementOverlay{pointer-events:none;z-index:4}button,select{height:30px;border:1px solid rgba(255,255,255,.16);border-radius:7px;background:#202833;color:#f5f8fc;padding:0 9px}button{cursor:pointer}button[aria-pressed=true]{background:#1677b8;border-color:#58baff}button:disabled{opacity:.42;cursor:default}#measurementToolbar{position:absolute;z-index:20;left:50%;bottom:14px;transform:translateX(-50%);display:flex;align-items:center;gap:6px;padding:6px;border:1px solid rgba(255,255,255,.18);border-radius:11px;background:rgba(14,18,24,.92);box-shadow:0 5px 22px rgba(0,0,0,.35);max-width:calc(100vw - 20px)}#measurementToolbar .separator{width:1px;height:22px;background:rgba(255,255,255,.18);margin:0 2px}.hud{position:absolute;z-index:12;width:min(330px,calc(100vw - 24px));padding:9px 10px;border:1px solid rgba(255,255,255,.16);border-radius:10px;background:rgba(14,18,24,.88);pointer-events:none}.hud.top-left{left:12px;top:12px}.hud.top-right{right:12px;top:12px}.hud.bottom-left{left:12px;bottom:64px}.hud.bottom-right{right:12px;bottom:64px}.hud p{margin:4px 0;font-size:11px;line-height:1.4;white-space:pre-wrap}#measurementHUDValue{color:#fff;font-size:13px}#measurementStatus{color:#92d2ff}#referenceInfo{color:#ffd479;font-variant-numeric:tabular-nums}#snapInfo{color:#9ee9c2}.micro{position:absolute;z-index:13;max-width:250px;padding:5px 7px;border-radius:6px;background:rgba(10,13,18,.84);font:10px/1.45 ui-monospace,SFMono-Regular,Consolas,monospace;pointer-events:none;white-space:pre}.micro.top-left{left:14px;top:14px}.micro.top-right{right:14px;top:14px}.micro.bottom-left{left:14px;bottom:64px}.micro.bottom-right{right:14px;bottom:64px}#measurementCopyMenu[hidden],#measurementInspector[hidden]{display:none}#measurementInspector{position:absolute;z-index:25;right:14px;top:14px;width:min(390px,calc(100vw - 28px));max-height:calc(100vh - 86px);overflow:auto;padding:10px;border:1px solid rgba(255,255,255,.18);border-radius:10px;background:rgba(14,18,24,.96);box-shadow:0 8px 30px rgba(0,0,0,.45)}#measurementInspector header,#measurementInspector .row{display:flex;align-items:center;justify-content:space-between;gap:6px}#measurementInspector label{display:flex;flex-direction:column;gap:4px;margin-top:8px;color:#aebccc;font-size:10px}#measurementInspector select{width:100%}.inspectorLead{font-size:10px;color:#8290a1}.secondaryActions{margin-top:8px}.inlineLabel{flex:1;margin-top:0!important}#measurementCopyMenu{display:flex;gap:6px;margin:8px 0;padding:6px;border:1px solid rgba(255,255,255,.12);border-radius:8px;background:#151b23}#measurementCopyMenu button{flex:1}.inspectorResult{max-height:220px;overflow:auto;white-space:pre-wrap;font:10px ui-monospace,SFMono-Regular,Consolas,monospace;background:rgba(0,0,0,.3);padding:7px;border-radius:6px}#measurementHint,#snapshotInfo{font-size:10px;color:#8290a1;white-space:pre-wrap}`
 }
 
 func (a *activeSession) conciseResult() string {
@@ -93,7 +105,7 @@ func targetConfirmationInstruction(frame CaptureFrame) string {
 	if frame.TargetConfirmed {
 		return "当前窗口参照已由入口确认：" + selectedTargetTitle(frame.Targets, frame.SelectedTargetID) + "。"
 	}
-	return "当前候选：" + selectedTargetTitle(frame.Targets, frame.SelectedTargetID) + "。请确认窗口外框，或选择人工参照。"
+	return "当前候选：" + selectedTargetTitle(frame.Targets, frame.SelectedTargetID) + "。请确认窗口外框，或在详情中选择人工局部参照。"
 }
 
 func toolInstruction(tool string) string {
@@ -194,10 +206,24 @@ func snapshotSummary(frame CaptureFrame) string {
 }
 
 func measurementHint(source string) string {
-	return "入口：" + strings.TrimSpace(source) + " · 1/2/3/4 · Tab/Shift+Tab · Alt 暂停磁吸 · R 参照 · I 详情 · 更新画面 · 调整界面后再次使用任一统一入口继续测量 · Esc 分层退出"
+	return "入口：" + strings.TrimSpace(source) + " · 1/2/3/4 · Tab/Shift+Tab · Alt/Option 临时暂停磁吸 · I 详情 · 更新画面 · 调整界面后再次使用任一统一入口继续测量 · Esc 分层退出"
+}
+
+func hasLocalReference(a *activeSession) bool {
+	return a != nil && a.reference.Type == ReferenceManualRegion
+}
+
+func marginToggleText(a *activeSession) string {
+	if a != nil && a.marginView == "local" && hasLocalReference(a) {
+		return "边距：局部参照"
+	}
+	return "边距：窗口"
 }
 
 func snapSummary(a *activeSession) string {
+	if a == nil || !a.snapEnabled {
+		return "磁吸定位：关"
+	}
 	if a.snapSuspended {
 		return "磁吸定位：暂停（松开 Alt/Option 恢复）"
 	}
