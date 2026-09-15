@@ -11,27 +11,31 @@
 
 真实平台状态以 [`tests/desktop-measurement/qualification-manifest.json`](../../tests/desktop-measurement/qualification-manifest.json) 为准。
 
+UI / Interaction 出现描述差异时，以 [`apps/opendesk/prototypes/desktop-measurement/`](../../apps/opendesk/prototypes/desktop-measurement/) 当前 Oracle 为准；历史 P0–P4 prompt/implementation 描述不再具有产品合同优先级。
+
 ## Prototype → Native → OS
 
-| Prototype behavior | Native automated proof | OS qualification | Web completion |
+| Product behavior | Native automated proof | OS qualification | Web completion |
 | --- | --- | --- | --- |
 | Point / frozen pixel | `model_test.go`, `session_test.go`, `structured_test.go` | macOS + Windows real capture/color | automated code present |
 | Region | `model_test.go`, `session_test.go` | real pointer drag | automated code present |
 | Two Point | `model_test.go`, `session_test.go` | real pointer input | automated code present |
 | Two Region / spacing | `model_test.go`, `session_test.go` | real pointer input | automated code present |
 | Stable single surface | `TestServiceReentryUsesSameSessionSnapshotAndSurface`, `TestRefreshMutatesSameSurfaceAndMovesBounds` | native window identity observation | automated code present |
+| Update picture → new Snapshot | session product tests | clean recapture excluding overlay | automated code present |
+| ADJUSTING → refreeze same Session | `TestAdjustingHidesSurfaceAndUnifiedEntryRefreezesSameSession` | real desktop interaction / focus restore | automated code present |
 | Reference invariant | session reference tests + provenance tests | foreground / Recorder-bound target | automated code present |
 | Region body drag | `session_interaction_test.go`, `interaction_test.go` | real drag latency | automated code present |
 | N/NE/E/SE/S/SW/W/NW | `interaction_test.go`, overlay renderer | real handle hit testing | automated code present |
 | Arrow = 1 / Shift = 10 | session tests | native key routing | automated code present |
 | Tab / Shift+Tab | session candidate test | real candidate list | automated code present |
-| Alt/Option suspend / restore | session interaction + host parity | physical key down/up | covered contract |
+| Magnet on/off + Alt/Option temporary suspend | session interaction + host parity | physical key down/up | covered contract |
 | 1/2/3/4 | session + host parity | physical keyboard | covered contract |
-| R / I | session state + host parity | physical keyboard/focus | covered contract |
-| Esc hierarchy | `TestEscHierarchyClosesOnlyInnermostMeasurementState` | real menus/Inspector/edit | automated code present |
-| three copy levels | session copy test + structured schema test | system clipboard | automated code present |
+| I / Inspector | session state + host parity | physical keyboard/focus | covered contract |
+| Esc: Inspector → local edit → session | session interaction tests | real Inspector/edit | automated code present |
+| Structured export from Inspector | structured schema + session copy test | system clipboard | automated code present |
+| Backend concise/human/structured output encoding | structured output tests | not a separate UI contract | automated code present |
 | duplicate entry | stable surface test | menu + Recorder + shortcut duplicate open | automated code present |
-| refresh | stable surface test | clean recapture excluding overlay | automated code present |
 | cleanup / re-entry | session close/OpenAndWait tests | native hooks and Recorder restore | automated code present |
 | HUD 4-corner avoidance | `interaction_test.go`, layout test | visual overlap review | automated code present |
 | Micro edge flip | `interaction_test.go` | physical display edge | automated code present |
@@ -89,8 +93,22 @@ status
 
 No row moves from `NOT_RUN` to `PASS` without actual evidence.
 
+## Native robustness invariants
+
+HTML Oracle 负责交互真相；Native 还必须额外证明 HTML 无法证明的系统健壮性：
+
+```text
+single Measurement owner / session
+ordinary state changes do not recreate the native surface
+capture / SetBounds / Source patch failures do not leave half-updated state
+refresh/refreeze rolls back or remains deterministically recoverable on failure
+pointermove rendering is coalesced / bounded and pointerup always commits final state
+cleanup is idempotent
+Measurement surface never becomes its own target or capture source
+```
+
 ## Performance guard
 
-Measurement must not perform `window.Create` on pointer move, tool switch, result update, Inspector, copy menu or refresh. Overlay source is patched on the stable surface. Pointer move is coalesced and Region render is protected at roughly one update per 16 ms, with an unconditional final pointerup render.
+Measurement must not perform `window.Create` on pointer move, tool switch, result update, Inspector or refresh. Overlay source is patched on the stable surface. Pointer move is coalesced and Region render is bounded, with an unconditional final pointerup render.
 
-Local acceptance should record pointer/drag responsiveness; a passing functional result with obviously unusable drag latency is not a product PASS.
+Local acceptance should record pointer/drag responsiveness; a passing functional result with obviously unusable drag latency is not a product PASS。
