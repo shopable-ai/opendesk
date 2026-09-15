@@ -1,12 +1,28 @@
 # OpenDesk 商业化研究
 
-更新时间：2026-09-15
+更新时间：2026-09-16
 
 本目录保存 OpenDesk 的**市场、竞品、收费方式、行业机会和商业模式研究**。
 
 它属于 `docs/research/`，是产品与商业决策的输入，不是当前产品能力、架构事实或正式路线图。
 
 2026-09-05 已在现有[个人自动化与 Creator 生态竞品研究](个人自动化与Creator生态竞品研究.md#custom-ui-automation-20260905)中补充“自定义界面 + 脚本接口 + 桌面自动化小应用”专题，而不是另建平行竞品目录。**OpenDesk 当前支持 Windows 与 macOS**；某个接口（例如本轮所读 Custom UI 文档）的平台限制，不能被扩大为整个程序的平台限制。具体接口与实机验收状态按正式 API 文档分别核对；本目录更新时间不代表所有历史价格、商业条款均已重新核验。
+
+## 2026-09-16 Agent-driven RPA 定位收口
+
+本轮新增两个优先入口：
+
+- [`agent-driven-rpa-positioning-2026.md`](agent-driven-rpa-positioning-2026.md)
+  - 将主赛道收口为 `Agent-driven RPA`，把“电商等行业现金流场景”和“全球技术竞争山头”分开；
+  - 明确前五个候选竞争位置默认按**全球竞争集合**理解，不把全球分数直接套成中国排名；
+  - 当前第一候选为 `Coding Agent → Verified Reusable Desktop RPA`，第二个更窄的候选为 `Agent-authored Desktop Automation Commercial Delivery Runtime`；
+  - 重新核验 Cua / Peekaboo：Cua 既有 trajectory recorder，也保留 Gradio UI / demonstration 能力；Peekaboo 当前是 CLI + menu-bar App + Agent / MCP，而不是“只有 OpenClaw / 程序员 CLI”；
+  - OpenDesk 的 Recorder / UI 差异应比较“人工或 Agent authoring → semantic evidence → workflow generation → verification → reusable execution / repair”，不能宣传“别人没有 UI / Recorder”。
+- [`agent-driven-rpa-content-keywords.md`](agent-driven-rpa-content-keywords.md)
+  - 保存全球英文与中国中文关键词簇；
+  - 覆盖 Agent-driven RPA、Computer Use → RPA、Codex / Claude / MCP、Recorder、Verification、Repair、Commercial Delivery、行业现金流等搜索意图；
+  - 给出 Cua / Peekaboo / OpenAdapt / ADH / Codex / UiPath / Power Automate 竞品比较关键词；
+  - 先冻结 Blog 标题和每篇要证明的主张，再写正文，避免 Blog 反向成为工程事实源。
 
 ## 当前研究文件
 
@@ -96,11 +112,17 @@
 长期战略：全球可执行经验网络
 → 商业设计：七层系统、模式选项、经营组合与边界
 → 全球竞争力基线：当前优势、弱点、评分与跃迁条件
+→ Agent-driven RPA 定位：先争哪个有限全球山头
+→ Content / Benchmark：关键词、竞品、同任务证明
 → 12 个月战略：有限资源只押哪些方向
 → 验证计划：首批客户和 1—3 个场景
 → 报价、最小交付、真实付费、可靠性、成本与复用证据
 → 再决定标准包、伙伴、返还、托管、Team、Enterprise 或 Marketplace
 ```
+
+当前 Agent-driven RPA 定位入口：[Agent-driven RPA：首个全球竞争位置、地域边界与竞品地图](agent-driven-rpa-positioning-2026.md)。
+
+当前内容 / SEO 研究入口：[Agent-driven RPA：关键词、竞品内容与 Blog 选题池](agent-driven-rpa-content-keywords.md)。
 
 当前战略收口入口：[OpenDesk 未来 12 个月战略路线](../../plans/commercialization/opendesk-12-month-strategy.md)。
 
@@ -238,6 +260,8 @@ Action / Automation 本体
 → Computer Use / Agent Runtime 新竞品扫描
 → Personal Automation / Action Panel / Plugin 生态
 → Recorder / Creator / Automation Package
+→ Agent-driven RPA 全球竞争位置
+→ Coding Agent / Human-first 双 authoring UX
 → Distribution / Marketplace / Paid Runner
 → 电商宽市场扫描
 → C0—C4 相关性过滤
