@@ -107,13 +107,21 @@ declare global {
   }
 
   interface OpenDeskUITextTarget {
-    source: "ocr";
+    /** Resolver observation source; callers do not select it. */
+    source: "ocr" | "accessibility" | "vlm";
     text: string;
-    confidence: number;
-    provider: string;
-    imageBounds: OpenDeskUIImageBounds;
+    normalizedText?: string;
+    confidence?: number;
+    provider?: string;
+    imageBounds?: OpenDeskUIImageBounds;
     bounds: OpenDeskScreenRegion;
     center: OpenDeskScreenPoint;
+    role?: OpenDeskAccessibilityRole;
+    name?: string | null;
+    identifier?: string | null;
+    actionable?: boolean;
+    /** One or more compatible sources that Runtime fused as the same target. */
+    sources?: Array<"ocr" | "accessibility" | "vlm">;
   }
 
   interface OpenDeskUITextMatchGroup {
@@ -334,6 +342,16 @@ declare global {
     within: OpenDeskAccessibilityScope;
   }
 
+  /** Read-only text observation within one current window or a smaller screen region. */
+  interface OpenDeskUIReadTextOptions extends OpenDeskAccessibilityTraversalOptions {
+    /** Defaults to the current active window; no desktop-wide default exists. */
+    within?: OpenDeskWindowInfo;
+    /** Optional screen-space subset that must be fully contained by within. */
+    region?: OpenDeskScreenRegion;
+    /** Stops later observation stages; it cannot retract an in-flight native read. */
+    signal?: AbortSignal | null;
+  }
+
   interface OpenDeskUISetValueResult {
     requestId: string;
     operation: "UI.setValue";
@@ -478,6 +496,17 @@ declare global {
     image: { find: true; tap: true; backend: "ImageColor.findImages" };
     accessibility: OpenDeskUIAccessibilityCapabilitySummary;
     coordinateMapping: { actualCaptureScale: true; mixedDPIScope: false };
+    perception: {
+      resolver: true;
+      sources: { accessibility: boolean; ocr: true; image: true; vlm: boolean };
+      cloudVisual: {
+        policyAllowed: boolean;
+        configured: boolean;
+        sharedMultimodal: boolean;
+        defaultEnabled: false;
+        automaticFallback: "policy-gated" | "not-enabled-until-shared-multimodal-transport";
+      };
+    };
   }
 
   interface OpenDeskUIError extends Error {
@@ -489,6 +518,8 @@ declare global {
       | "TARGET_SCOPE_NOT_VISIBLE"
       | "SCREENSHOT_FAILED"
       | "OCR_FAILED"
+      | "VLM_FAILED"
+      | "VLM_INVALID_RESPONSE"
       | "IMAGE_MATCH_FAILED"
       | "UNSUPPORTED_MIXED_DPI_SCOPE"
       | "UNSUPPORTED_COORDINATE_MAPPING"
@@ -589,6 +620,7 @@ declare global {
 
   type OpenDeskUILocatorValueOptions = Omit<OpenDeskUIValueOptions, "within">;
   type OpenDeskUIWindowTextOptions = Omit<OpenDeskUITextLocateOptions, "within">;
+  type OpenDeskUIWindowReadTextOptions = Omit<OpenDeskUIReadTextOptions, "within">;
   type OpenDeskUIWindowTapTextsOptions = Omit<OpenDeskUITapTextsOptions, "within">;
   type OpenDeskUIWindowImageOptions = Omit<OpenDeskUIImageOptions, "within">;
   type OpenDeskUIWindowSemanticTapOptions = Omit<OpenDeskUISemanticTapOptions, "within">;
@@ -613,6 +645,7 @@ declare global {
     findTextMatches(queries: Array<string | RegExp>, options?: Omit<OpenDeskUITextMatchOptions, "within">): Promise<OpenDeskUITextMatchGroup[]>;
     findText(text: string, options?: OpenDeskUIWindowTextOptions): Promise<OpenDeskUITextTarget | null>;
     hasText(text: string, options?: OpenDeskUIWindowTextOptions): Promise<boolean>;
+    readText(options?: OpenDeskUIWindowReadTextOptions): Promise<string>;
     tapText(text: string, options?: OpenDeskUIWindowTextOptions): Promise<OpenDeskUITapResult<OpenDeskUITextTarget>>;
     tapTexts(texts: string[], options?: OpenDeskUIWindowTapTextsOptions): Promise<OpenDeskUITapTextsResult>;
     tapTargets(targets: OpenDeskUISemanticTapTarget[], options?: OpenDeskUIWindowSemanticTapOptions): Promise<OpenDeskUISemanticTapResult>;
@@ -644,6 +677,8 @@ declare global {
     findTextMatches(queries: Array<string | RegExp>, options?: OpenDeskUITextMatchOptions): Promise<OpenDeskUITextMatchGroup[]>;
     findText(text: string, options?: OpenDeskUITextLocateOptions): Promise<OpenDeskUITextTarget | null>;
     hasText(text: string, options?: OpenDeskUITextLocateOptions): Promise<boolean>;
+    /** Reads current native value/text, then local OCR only when no unique native value exists. */
+    readText(options?: OpenDeskUIReadTextOptions): Promise<string>;
     tapText(text: string, options?: OpenDeskUITextLocateOptions): Promise<OpenDeskUITapResult<OpenDeskUITextTarget>>;
     /** The required first argument is the ordered action sequence; options.within only scopes it to a resolved window. */
     tapTexts(texts: string[], options?: OpenDeskUITapTextsOptions): Promise<OpenDeskUITapTextsResult>;

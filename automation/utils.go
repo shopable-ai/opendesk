@@ -1092,6 +1092,12 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 	visionMethods := AutoMapObject(runtime, vision)
 	runtime.Set("Vision", visionMethods)
 
+	// DesktopVision is the existing deployment-owned visual-observation bridge.
+	// Its Observe method is privacy-gated in the native owner; polyfills never
+	// receive model, provider, credentials, or an input-capable surface.
+	desktopVision := NewDesktopVision()
+	runtime.Set("DesktopVision", AutoMapObject(runtime, desktopVision))
+
 	if opts.EnableNativeExtensions {
 		if err := registerNativeExtensions(runtime, opts.Context, opts.EventSink, opts.NativeExtensionRoots); err != nil {
 			return fmt.Errorf("failed to register NativeExtensions: %w", err)

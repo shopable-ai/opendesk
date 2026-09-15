@@ -6,7 +6,7 @@ order: 110
 
 # Vision
 
-`Vision` 提供底层 OCR、provider capability 和图像布局分析。需要直接操作桌面文本时优先使用 [`UI`](desktop-ui.md)，因为 `UI` 会处理 scope、歧义与 image-pixel → screen-logical 投影。
+`Vision` 提供底层 OCR、provider capability 和图像布局分析。需要直接操作桌面文本时优先使用 [`UI`](desktop-ui.md)，因为 `UI` 的 Perception Resolver 会处理 scope、歧义、候选融合与 image-pixel → screen-logical 投影。Native OCR（包括 Apple Vision）是该 Resolver 的一个只读 observation source；普通 Recipe 不需要、也不应选择 OCR provider。
 
 同页记录 secondary `OCR.extractText()`，它是独立的本地 Tesseract 纯文本兼容入口。
 
@@ -40,6 +40,8 @@ OCR 输入可通过 `image`、`imageBase64` 或 `imagePath` 提供。路径相�
 | `aws` | Reserved | 当前未实现。 |
 
 macOS 默认 provider 为环境配置值或 `apple`；其他平台为环境配置值或 `paddle`。默认语言来自 `VISION_OCR_LANG`，否则使用 Runtime 默认值。
+
+Apple helper 缺失、扩展发现/协议失败、无执行权限、provider timeout、崩溃、语言不支持或无效响应都是 provider/backend failure，不是“目标文字不存在”。只有 OCR 调用成功完成且返回零候选，才是该次 local observation 的 no-match。`Vision.runOCR()` 仍是需要显式图片或低层诊断时的 canonical OCR API；高层 `UI.tapText()` / `UI.tapTexts()` 不把 provider chain 暴露给 Recipe。
 
 ### OCR 坐标
 

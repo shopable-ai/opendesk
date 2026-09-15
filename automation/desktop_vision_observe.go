@@ -10,10 +10,11 @@ import (
 
 const maxDesktopVisionObserveImageBytes = 24 * 1024 * 1024
 
-// Observe is the privacy-gated, non-persisting DesktopVision entrypoint used by
-// high-level UI perception. It deliberately does not accept model/provider from
-// the UI call surface: deployment configuration selects them through env vars.
-// Parse remains the explicit low-level/audited API.
+// Observe is the privacy-gated, non-persisting DesktopVision entry point used
+// by high-level UI perception. UI callers cannot select a model, provider, or
+// credential: the existing deployment configuration selects them (currently
+// through environment variables). Parse remains the explicit low-level audited
+// API.
 func (v *DesktopVision) Observe(options map[string]interface{}) (map[string]interface{}, error) {
 	if strings.TrimSpace(os.Getenv("OPENDESK_UI_CLOUD_VISION")) != "allow" {
 		return nil, fmt.Errorf("cloud vision policy does not allow UI perception uploads")
@@ -102,12 +103,16 @@ func (v *DesktopVision) GetCapabilities() map[string]interface{} {
 	modelConfigured := strings.TrimSpace(os.Getenv("DESKTOP_VISION_MODEL")) != ""
 	providerConfigured := strings.TrimSpace(os.Getenv("DESKTOP_VISION_PROVIDER")) != ""
 	return map[string]interface{}{
-		"schemaVersion":                1,
-		"observe":                      true,
-		"policyAllowed":                policyAllowed,
-		"configured":                   policyAllowed && modelConfigured && providerConfigured,
-		"modelConfigured":              modelConfigured,
-		"providerConfigured":           providerConfigured,
+		"schemaVersion":      1,
+		"observe":            true,
+		"policyAllowed":      policyAllowed,
+		"configured":         policyAllowed && modelConfigured && providerConfigured,
+		"modelConfigured":    modelConfigured,
+		"providerConfigured": providerConfigured,
+		// The P0 shared LLM Runtime has no multimodal transport yet. DesktopVision
+		// remains an explicit low-level provider, but UI's automatic cloud fallback
+		// must stay off until that shared owner supplies this capability.
+		"sharedMultimodal":             false,
 		"persistsAutomaticScreenshots": false,
 		"persistsAutomaticRawResponse": false,
 	}

@@ -128,9 +128,9 @@ globalThis.RuntimeAPIObjects = {
   Geometry: { docs: 'docs/api/geometry.md', types: 'types/Geometry.d.ts', source: 'polyfills/005-geometry.js + polyfills/007-geometry-layout.js', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: ['rect', 'center', 'pointOffset', 'pointPercent', 'regionOffset', 'regionPercent', 'regionByEdges', 'inset', 'anchorPoint', 'contains', 'intersect'] },
   UI: {
     docs: 'docs/api/desktop-ui.md', types: 'types/UI.d.ts',
-    source: 'polyfills/006-ui.js + polyfills/011-ui-targets.js + polyfills/012-ui-scope-locator.js + automation/accessibility.go + automation/accessibility_menu.go',
+    source: 'polyfills/006-ui.js + polyfills/011-ui-targets.js + polyfills/012-ui-scope-locator.js + polyfills/013-ui-perception.js + automation/accessibility.go + automation/accessibility_menu.go',
     status: 'stable-with-experimental-scope-locator', platforms: ['darwin', 'linux', 'windows'],
-    methods: ['within', 'getCapabilities', 'getValue', 'setValue', 'findTexts', 'findTextMatches', 'findText', 'hasText', 'tapText', 'tapTexts', 'tapTargets', 'waitText', 'waitTextGone', 'findImages', 'findImage', 'tapImage', 'getMenuItems', 'findMenuItem', 'tapMenuItem'],
+    methods: ['within', 'getCapabilities', 'getValue', 'setValue', 'findTexts', 'findTextMatches', 'findText', 'hasText', 'readText', 'tapText', 'tapTexts', 'tapTargets', 'waitText', 'waitTextGone', 'findImages', 'findImage', 'tapImage', 'getMenuItems', 'findMenuItem', 'tapMenuItem'],
     methodMetadata: {
       within: {
         source: 'polyfills/012-ui-scope-locator.js + polyfills/003-window.js', docs: 'docs/api/desktop-ui.md', types: 'types/UI.d.ts',
@@ -138,6 +138,10 @@ globalThis.RuntimeAPIObjects = {
       },
       getValue: { source: 'polyfills/006-ui.js', docs: 'docs/api/desktop-ui.md', types: 'types/UI.d.ts', status: 'experimental-local', platforms: ['darwin', 'windows'] },
       setValue: { source: 'polyfills/006-ui.js', docs: 'docs/api/desktop-ui.md', types: 'types/UI.d.ts', status: 'experimental-local', platforms: ['darwin', 'windows'] },
+      readText: {
+        source: 'polyfills/013-ui-perception.js + automation/accessibility.go + automation/vision.go', docs: 'docs/api/desktop-ui.md', types: 'types/UI.d.ts',
+        status: 'experimental-local', platforms: ['darwin', 'windows'],
+      },
       tapTexts: {
         source: 'polyfills/006-ui.js + automation/accessibility.go', docs: 'docs/api/desktop-ui.md', types: 'types/UI.d.ts',
         status: 'stable-with-experimental-sequence-wait-and-runtime-owned-native-resolution',
@@ -408,6 +412,12 @@ globalThis.RuntimeAPITestFiles = {
   // AppKit fixture process and writes screenshots plus structured evidence.
   uiScopeLocatorNativeMacOS: [
     'tests/runtime-api/ui-scope-locator-native-macos.js',
+  ],
+  // Explicit opt-in real Calculator input for the unified local perception
+  // path. It performs no cloud VLM call and stores operational evidence only
+  // under .runtime/tests/ui-perception/.
+  uiPerceptionResolverNativeMacOS: [
+    'tests/runtime-api/ui-perception-resolver-calculator-macos.js',
   ],
   // Explicit opt-in because these start the native hook. The lifecycle case
   // opens a real toolbar, sends an otherwise unused F18 key and clicks only

@@ -11,6 +11,8 @@ docType: reference
 
 `LLM` 是普通 JavaScript 的模型生成入口。它只调用 HTTP 模型 API，不拥有 Agent 工具、Command 或文件操作权限。当前真实适配器为 `openai-responses` 与 `openai-chat-completions`。
 
+桌面视觉的自动 cloud fallback 当前未启用：共享 LLM Runtime 尚未公开 multimodal image transport。若以后实现，它必须复用本对象的 profile、credential owner、execution-owned HTTP、timeout、retry、cancel 与 structured-output validation；UI Resolver 不得另建 HTTP client 或 API-key owner。即使 transport 就绪，桌面图像上传仍默认禁止，必须同时有部署 policy、已配置 profile/credential 和明确 window/crop scope；VLM 只返回 observation/grounding，永远不拥有 mouse、Accessibility 或 keyboard input。
+
 正常业务代码直接使用 `LLM.generate()`；`LLM.getCapabilities()` 是可选的无副作用诊断/环境适配接口，不是每次模型调用前必须执行的握手。共享的 `enabled / supported / configured / available / checked / authenticated` 字段语义见 [Capability 状态模型](capabilities.md)。
 
 最小业务调用：

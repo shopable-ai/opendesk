@@ -222,8 +222,8 @@
       "coordinates": "nativeBounds stays tagged in the backend coordinate space. bounds is null unless a reliable conversion to OpenDesk logical screen coordinates was performed."
     },
     {
-      "name": "UI", "source": "visual polyfills 006-ui/011-ui-targets/012-ui-scope-locator plus execution-owned native Accessibility value, target-sequence, and menu composition", "status": "stable-with-experimental-scope-locator-semantic-and-legacy-target-value-menu-and-sequence-wait", "doc": "desktop-ui.md", "types": "types/UI.d.ts",
-      "keyMethods": ["within", "getCapabilities", "findTexts", "findText", "hasText", "tapText", "tapTexts", "tapTargets", "waitText", "waitTextGone", "getValue", "setValue", "findImages", "findImage", "tapImage", "getMenuItems", "findMenuItem", "tapMenuItem"],
+      "name": "UI", "source": "visual polyfills 006-ui/011-ui-targets/012-ui-scope-locator/013-ui-perception plus execution-owned native Accessibility value, target-sequence, menu composition, and privacy-gated DesktopVision observation", "status": "stable-with-experimental-scope-locator-semantic-and-legacy-target-value-menu-and-sequence-wait", "doc": "desktop-ui.md", "types": "types/UI.d.ts",
+      "keyMethods": ["within", "findTexts", "findText", "hasText", "readText", "tapText", "tapTexts", "tapTargets", "waitText", "waitTextGone", "getValue", "setValue", "findImages", "findImage", "tapImage", "getMenuItems", "findMenuItem", "tapMenuItem", "getCapabilities"],
       "scopeLocator": {
         "status": "experimental-local",
         "methods": ["UI.within", "UIScope.locator", "Locator.find", "Locator.waitFor", "Locator.tap", "Locator.getValue", "Locator.setValue"],

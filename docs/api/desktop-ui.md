@@ -7,7 +7,9 @@ order: 50
 
 # UI
 
-`UI` 是 OpenDesk 操作**外部桌面应用界面**的高层 API。文本和图片方法基于截图、OCR 或模板匹配；`tapTargets()` 的轻量 semantic form 由 Runtime 自动协调 OCR 与第一方 [Accessibility](accessibility.md)，菜单与 advanced legacy locator form 则复用原生语义能力。
+`UI` 是 OpenDesk 操作**外部桌面应用界面**的高层 API。文本调用由 Runtime 内部的 Perception Resolver 协调本地 [Accessibility](accessibility.md) 与 Native OCR，统一规范化候选、融合兼容证据并在歧义或过期时 fail closed；Recipe 只表达目标，不选择 provider 或 fallback 顺序。既有 image capability 继续由 image API/Locator 使用；它不会把无模板的图片猜成文本候选。`tapTargets()` 的扁平 semantic form 仍由第一方 Accessibility owner 执行，菜单与 advanced legacy locator form 复用原生语义能力。
+
+Cloud visual observation 默认关闭。即使本地 OCR 没有候选或 provider 失败，Runtime 也不会上传桌面或整屏截图；只有未来共享 LLM Runtime 提供多模态 transport，且 deployment policy、credential/profile 与当前 window-only scope 全部批准后，才可能作为只读 observation source。模型永远不拥有 mouse、Accessibility 或 keyboard 输入。
 
 `UI` 与小写 [ui](ui.md) 不同：`UI` 操作外部应用，`ui` 创建 OpenDesk 自己的 Custom UI。二者没有别名。
 
@@ -23,6 +25,7 @@ order: 50
 | `UI.findTextMatches(queries, options?)` | Stable | 用一次截图和 OCR 批量计算多组字符串或正则匹配。 |
 | `UI.findText(text, options?)` | Stable | 返回唯一匹配文本。 |
 | `UI.hasText(text, options?)` | Stable | 判断是否存在匹配文本。 |
+| `UI.readText(options?)` | Experimental · Local | 读取当前唯一 native value 或局部 OCR 实际文字。 |
 | `UI.tapText(text, options?)` | Stable | 查找并点击唯一文本。 |
 | `UI.tapTexts(texts, options?)` | Stable；序列等待为 Experimental | 按顺序等待、重新定位并点击多个文本，默认步间隔 300 ms。 |
 | `UI.tapTargets(targets, options?)` | Experimental · Local | 逐步骤文字或扁平语义目标；由 Runtime 负责定位、执行和清理。 |
@@ -67,7 +70,7 @@ Scope 复用下列既有函数式 API；它只自动补入当前新鲜 `within`�
 
 | Scope 方法 | 对应函数式 API |
 | --- | --- |
-| `findText`、`findTexts`、`findTextMatches`、`hasText` | `UI.findText`、`UI.findTexts`、`UI.findTextMatches`、`UI.hasText` |
+| `findText`、`findTexts`、`findTextMatches`、`hasText`、`readText` | `UI.findText`、`UI.findTexts`、`UI.findTextMatches`、`UI.hasText`、`UI.readText` |
 | `tapText`、`tapTexts`、`tapTargets` | `UI.tapText`、`UI.tapTexts`、`UI.tapTargets` |
 | `findImage`、`findImages`、`tapImage` | `UI.findImage`、`UI.findImages`、`UI.tapImage` |
 | `getValue`、`setValue` | `UI.getValue`、`UI.setValue` |
@@ -558,7 +561,7 @@ UI.getCapabilities(): OpenDeskUICapabilities;
 
 **返回值**
 
-`OpenDeskUICapabilities`。实际字段值以当前 execution、平台、后端和系统权限为准。
+`OpenDeskUICapabilities`。实际字段值以当前 execution、平台、后端和系统权限为准。`perception` 说明 Runtime 内部 Resolver 的可用 observation source；`cloudVisual.defaultEnabled` 始终为 `false`，而 `automaticFallback: 'not-enabled-until-shared-multimodal-transport'` 表示当前共享 LLM Runtime 尚未提供可复用的图像 transport，不能启用自动云端视觉。
 
 **行为与错误**
 
@@ -681,6 +684,10 @@ console.log(receipt.actionState, receipt.verified);
 
 **Text APIs**
 
+文本查找、等待与输入使用同一 Resolver。它先收集当前 scope 内的本地 OCR 与可用的 Accessibility evidence；只有几何和语义能证明是同一目标时才融合。不同位置、不能证明同一 identity 的多个候选一律为 `AMBIGUOUS_TARGET`，不会按第一个或 confidence 选择。OCR/Accessibility/provider/screenshot failure 保留为结构化 backend failure，绝不伪装成“文本不存在”。
+
+普通调用者不写 `strategy`、`provider`、`providerChain`、`fallbackOrder` 或 model 参数。现存 `provider` / `providerChain` 仅是低层 OCR compatibility/tuning 字段，不是新的 Recipe 推荐用法，也不能把 provider failure 变为 no-match。
+
 ## UI.findTexts(text, options?)
 
 返回当前观察中全部匹配文本。
@@ -704,7 +711,7 @@ UI.findTexts(text: string, options?: OpenDeskUITextLocateOptions): Promise<OpenD
 
 **行为与错误**
 
-使用新的截图和 OCR，不默认选择某个候选。使用 `relativeTo` 时，参照物不存在返回空数组，参照物不唯一抛 `AMBIGUOUS_TARGET`。观察错误不会被当作无结果。
+Resolver 用新的本地 observation 返回所有已规范化候选，不默认选择某个候选。使用 `relativeTo` 时继续使用既有同帧 OCR anchor 合同：参照物不存在返回空数组，参照物不唯一抛 `AMBIGUOUS_TARGET`。观察错误不会被当作无结果。
 
 **示例**
 
@@ -775,7 +782,7 @@ UI.findText(text: string, options?: OpenDeskUITextLocateOptions): Promise<OpenDe
 
 **行为与错误**
 
-唯一候选直接返回；多个候选且未设置 `index` 时抛 `AMBIGUOUS_TARGET`；`index` 越界抛 `TARGET_NOT_FOUND`。不会默认选择第一项、最近项或最高置信度项。
+唯一候选直接返回；多个不同的 source/geometry candidate 抛 `AMBIGUOUS_TARGET`。不会默认选择第一项、最近项或最高置信度项。兼容的 `index` 及 positioned path 保留既有 OCR-specific 合同。
 
 **示例**
 
@@ -807,7 +814,7 @@ UI.hasText(text: string, options?: OpenDeskUITextLocateOptions): Promise<boolean
 
 **行为与错误**
 
-使用 `relativeTo` 时参照物不存在返回 `false`；参照物不唯一仍抛 `AMBIGUOUS_TARGET`。其他观察错误不会被吞掉为 `false`。
+使用 `relativeTo` 时参照物不存在返回 `false`；参照物不唯一仍抛 `AMBIGUOUS_TARGET`。provider、permission、screenshot、scope 和 VLM schema failure 不会被吞掉为 `false`。
 
 **示例**
 
@@ -817,9 +824,48 @@ if (await UI.hasText('完成', { within: win })) {
 }
 ```
 
+## UI.readText(options?)
+
+只读返回当前 scope 中可证明唯一的实际 UI 文本；它用于把上一段 UI 的真实显示值传给后续步骤，不能使用 caller query、expected 或本地计算补值。
+
+**签名**
+
+```ts
+UI.readText(options?: OpenDeskUIReadTextOptions): Promise<string>;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `options` | `OpenDeskUIReadTextOptions` | 否 | `{}` | 读取范围、deadline 与 cancellation。 |
+| `options.within` | `OpenDeskWindowInfo` | 否 | 当前活动窗口 | 已解析的同一目标 window；不会默认读取全桌面。 |
+| `options.region` | `OpenDeskScreenRegion` | 否 | 整个 `within` | 必须完全位于当前 window 内的更小只读区域。 |
+| `options.timeout` | `number` | 否 | `10000` | 本次 native observation 或 local OCR 的总预算。 |
+| `options.maxDepth` | `number` | 否 | `32` | Accessibility snapshot 最大深度。 |
+| `options.maxNodes` | `number` | 否 | `5000` | Accessibility snapshot 最大节点数。 |
+| `options.signal` | `AbortSignal \| null` | 否 | 未设置 | 停止后续 observation；不会撤回 in-flight native read。 |
+
+**返回值**
+
+`Promise<string>`。优先返回当前 Accessibility snapshot 中唯一的实际 `value`；没有唯一 native value 时，才在同一明确 window/region 上执行本地 OCR 并返回当前识别行。它不返回 caller target、expected 或计算结果。
+
+**行为与错误**
+
+多个 native value 或多个可读对象抛 `AMBIGUOUS_TARGET`。空的完整 local observation 抛 `TARGET_NOT_FOUND`；Accessibility/OCR/screenshot/scope failure 保留各自错误，不会变成空字符串。窗口 identity 变化抛 `STALE_TARGET`。`readText` 不调用 cloud VLM，也不发送输入。
+
+**示例**
+
+```js
+const firstResult = await UI.readText({ within: win });
+await UI.tapTexts(['6', '×', ...String(firstResult), '='], { within: win });
+const finalResult = await UI.readText({ within: win });
+console.log({ firstResult, finalResult });
+```
+
 ## UI.tapText(text, options?)
 
-查找唯一文本并最多提交一次鼠标点击。
+通过 Resolver 查找唯一文本，并由 Runtime-owned Accessibility 或 mouse owner 最多提交一次输入。
 
 **签名**
 
@@ -836,11 +882,11 @@ UI.tapText(text: string, options?: OpenDeskUITextLocateOptions): Promise<OpenDes
 
 **返回值**
 
-`Promise<OpenDeskUITapResult<OpenDeskUITextTarget>>`，包含已定位 target 和实际点击点。
+`Promise<OpenDeskUITapResult<OpenDeskUITextTarget>>`，包含实际 candidate、输入 backend 与可用点击点。Accessibility invoke 的 acknowledgement 只证明 native submission，不证明业务成功。
 
 **行为与错误**
 
-找不到目标或索引越界抛 `TARGET_NOT_FOUND`；多候选未消歧抛 `AMBIGUOUS_TARGET`。本方法不自动等待未来出现的文本。输入已提交后，即使后续结果不确定也不会自动重复点击。
+完整本地 observation 的零候选才抛 `TARGET_NOT_FOUND`；OCR provider unavailable、native backend failure、VLM timeout/schema failure 等仍是 backend failure。多候选未消歧抛 `AMBIGUOUS_TARGET`。输入前重新验证同一 window identity、bounds 与 observation freshness；输入已提交后，即使后续结果不确定也不会自动改用其它 source 或重复点击。
 
 **示例**
 
@@ -889,9 +935,9 @@ interface OpenDeskUITapTextsResult {
 
 默认等待模式固定首次解析窗口的 id、PID、标题和可用 handle；后续只接受同一活动窗口的新 bounds。关闭、换窗或身份变化时抛 `STALE_TARGET`，不按应用名重新选择另一个窗口。静态 region 仍是快照，失效后不会自动迁移。
 
-OCR 唯一匹配直接点击。普通 exact、无定位区域／锚点、无 index、无自定义 click、waitForEach 为 true 的步骤，OCR 零候选或多候选时，Runtime 可在已经授权的同一窗口里请求完整、有界 Accessibility snapshot。只有一个名称匹配且支持 invoke 的控件才继续：用该观察的实际 role/name/identifier 重新 find、read、核对 enabled 与 invoke，然后至多提交一次并释放引用。不猜测 `×` 的本地化名称，不复用上一动作的 ref，不要求未来步骤提前存在。
+每步均通过同一 Resolver 收集本地 OCR 与 Accessibility evidence；相同语义且几何兼容的 evidence 可以融合，不能证明相同 identity 的结果一律停止为 `AMBIGUOUS_TARGET`。只有一个名称匹配且支持 invoke 的控件才走 native owner：用该观察的实际 role/name/identifier 重新 find、read、核对 enabled 与 invoke，然后至多提交一次。其它已验证 visual candidate 才走 mouse owner。不猜测 `×` 的本地化名称，不复用上一动作的 ref，不要求未来步骤提前存在。
 
-原生能力未授权／未实现时不请求权限，保留视觉失败或等待语义。原生歧义、不完整搜索、禁用、状态漂移立即停止。只有成功观察且无候选时才继续轮询；明确索引越界、截图/OCR backend 错误、窗口身份错误立即停止，不把基础设施错误当成可重试的漏字。`relativeTo` 的参照物缺失可继续等，参照物歧义必须停止。目标文字可见并不证明控件 enabled 或业务界面已经完全就绪。保存/发送/提交等业务后置条件由调用方另行验证，失败或结果不确定不得自动重做输入。
+原生能力未授权／未实现时不请求权限，保留视觉失败或等待语义。原生歧义、不完整搜索、禁用、provider failure、VLM schema/timeout、状态漂移立即停止。只有成功观察且无候选时才继续轮询；明确索引越界、截图/OCR backend 错误、窗口身份错误立即停止，不把基础设施错误当成可重试的漏字。`relativeTo` 的参照物缺失可继续等，参照物歧义必须停止。目标文字可见并不证明控件 enabled 或业务界面已经完全就绪。保存/发送/提交等业务后置条件由调用方另行验证，失败或结果不确定不得自动重做输入。
 
 取消在延时和各观察阶段之间检查，输入前再次检查。同步 native 调用无法被 JS timer 或 signal 强制撤回；已经调用的输入不会自动撤销或重试。输入成功返回后才观察到取消时，该项仍保留在完成前缀。
 
@@ -1273,6 +1319,8 @@ STALE_TARGET
 TARGET_SCOPE_NOT_VISIBLE
 SCREENSHOT_FAILED
 OCR_FAILED
+VLM_FAILED
+VLM_INVALID_RESPONSE
 IMAGE_MATCH_FAILED
 UNSUPPORTED_MIXED_DPI_SCOPE
 UNSUPPORTED_COORDINATE_MAPPING
