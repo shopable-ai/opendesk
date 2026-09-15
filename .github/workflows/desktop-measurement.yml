@@ -43,12 +43,31 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - name: Prepare contract evidence directory
+        shell: bash
+        run: mkdir -p .runtime/tests/desktop-measurement
       - name: Test Measurement core, authoring and repair
-        run: go test ./pkg/measurement/... -count=1
+        shell: bash
+        run: |
+          set -o pipefail
+          go test ./pkg/measurement/... -count=1 2>&1 | tee .runtime/tests/desktop-measurement/measurement-${RUNNER_OS}.log
       - name: Test CustomUI Measurement host contracts
-        run: go test ./pkg/customui/... -count=1
+        shell: bash
+        run: |
+          set -o pipefail
+          go test ./pkg/customui/... -count=1 2>&1 | tee .runtime/tests/desktop-measurement/customui-${RUNNER_OS}.log
       - name: Test Recorder Measurement evidence integration
-        run: go test ./pkg/recorder/... -count=1
+        shell: bash
+        run: |
+          set -o pipefail
+          go test ./pkg/recorder/... -count=1 2>&1 | tee .runtime/tests/desktop-measurement/recorder-${RUNNER_OS}.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: desktop-measurement-contracts-${{ runner.os }}
+          path: .runtime/tests/desktop-measurement
+          if-no-files-found: ignore
+          retention-days: 7
 
   prototype-model:
     name: Prototype model oracle
