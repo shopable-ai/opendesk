@@ -87,6 +87,39 @@ static NSString *CDTimestamp(void) {
     return [formatter stringFromDate:NSDate.date];
 }
 
+// Measurement is intentionally a nonactivating, full-screen panel so it does
+// not replace the application being measured in the user's window cycle. A
+// local WKWebView listener alone therefore cannot see keys while that
+// application remains active. Keep the small, explicit Measurement key
+// vocabulary in the native host and relay it only while its panel is visible.
+static NSString *CDMeasurementKeyForEvent(NSEvent *event) {
+	switch (event.keyCode) {
+		case 18: return @"1";
+		case 19: return @"2";
+		case 20: return @"3";
+		case 21: return @"4";
+		case 8: return @"c";
+		case 15: return @"r";
+		case 53: return @"Escape";
+		case 48: return @"Tab";
+		case 58:
+		case 61: return @"Alt";
+		case 123: return @"ArrowLeft";
+		case 124: return @"ArrowRight";
+		case 125: return @"ArrowDown";
+		case 126: return @"ArrowUp";
+		default: return nil;
+	}
+}
+
+static BOOL CDIsMeasurementKey(NSString *key, NSEventModifierFlags modifiers) {
+	if (!key.length) return NO;
+	if ([key isEqualToString:@"c"]) {
+		return (modifiers & (NSEventModifierFlagCommand | NSEventModifierFlagControl)) != 0;
+	}
+	return YES;
+}
+
 static NSScreen *CDPrimaryScreen(void) {
 	CGDirectDisplayID primaryDisplay = CGMainDisplayID();
 	for (NSScreen *screen in NSScreen.screens) {
@@ -256,7 +289,7 @@ static NSString *CDBridgeSource(NSArray *controls, NSString *css, BOOL draggable
          "const element = (id) => { if (!allowed.has(id)) throw new Error('unknown custom UI control: ' + id); return document.getElementById(id); };\n"
          "const typeFor = (id) => config.types[id] || 'unknown';\n"
          "const dragRects = () => Array.from(document.querySelectorAll('[data-clawdesk-drag],[data-opendesk-drag]')).map(el => { const r=el.getBoundingClientRect(); return {x:r.x,y:r.y,width:r.width,height:r.height}; }).filter(r => r.width>0 && r.height>0);\n"
-	         "const state = (id) => { const el = element(id); const r = el.getBoundingClientRect(); return {id, type:typeFor(id), text:el.textContent || '', icon:el.dataset.icon || '', value:('value' in el ? el.value : null), checked:('checked' in el ? !!el.checked : null), active:el.getAttribute('aria-pressed') === 'true', disabled:!!el.disabled, readOnly:!!el.readOnly, accessibilityName:el.getAttribute('aria-label') || el.getAttribute('placeholder') || el.textContent || '', busy:el.getAttribute('aria-busy') === 'true', error:el.dataset.error || '', visible:!!(el.offsetWidth || el.offsetHeight || el.getClientRects().length), classes:Array.from(el.classList), imageComplete:el.tagName === 'IMG' ? !!el.complete : null, imageNaturalWidth:el.tagName === 'IMG' ? Number(el.naturalWidth || 0) : null, imageNaturalHeight:el.tagName === 'IMG' ? Number(el.naturalHeight || 0) : null, localBounds:{x:r.x,y:r.y,width:r.width,height:r.height}, screenBounds:{x:window.screenX+r.x,y:window.screenY+r.y,width:r.width,height:r.height}}; };\n"
+	         "const state = (id) => { const el = element(id); const r = el.getBoundingClientRect(); return {id, type:typeFor(id), text:el.textContent || '', icon:el.dataset.icon || '', source:el.tagName === 'IMG' ? (el.getAttribute('src') || '') : '', value:('value' in el ? el.value : null), checked:('checked' in el ? !!el.checked : null), active:el.getAttribute('aria-pressed') === 'true', disabled:!!el.disabled, readOnly:!!el.readOnly, accessibilityName:el.getAttribute('aria-label') || el.getAttribute('placeholder') || el.textContent || '', busy:el.getAttribute('aria-busy') === 'true', error:el.dataset.error || '', visible:!!(el.offsetWidth || el.offsetHeight || el.getClientRects().length), classes:Array.from(el.classList), imageComplete:el.tagName === 'IMG' ? !!el.complete : null, imageNaturalWidth:el.tagName === 'IMG' ? Number(el.naturalWidth || 0) : null, imageNaturalHeight:el.tagName === 'IMG' ? Number(el.naturalHeight || 0) : null, localBounds:{x:r.x,y:r.y,width:r.width,height:r.height}, screenBounds:{x:window.screenX+r.x,y:window.screenY+r.y,width:r.width,height:r.height}}; };\n"
 	         "const toolbarState = (id) => { const value=state(id); const el=element(id); if (el.dataset.opendeskIconOnly === 'true') { value.accessibilityName=el.getAttribute('aria-label') || ''; value.iconPresentation={systemSymbol:el.dataset.iconSymbol || '',scale:Number(el.dataset.iconScale || 1),offsetX:Number(el.dataset.iconOffsetX || 0),offsetY:Number(el.dataset.iconOffsetY || 0)}; } return value; };\n"
 	         "const states = () => config.ids.map(toolbarState);\n"
 	         "const px = value => { const number=Number.parseFloat(value); return Number.isFinite(number) ? number : 0; };\n"
@@ -269,7 +302,10 @@ static NSString *CDBridgeSource(NSArray *controls, NSString *css, BOOL draggable
 	         "document.addEventListener('change', event => { const el=targetFor(event); if (el && !el.hasAttribute('data-opendesk-dialog-private-input')) send({type:'change',targetId:el.id,value:('value' in el ? el.value : null),checked:('checked' in el ? !!el.checked : null)}); });\n"
 	         "const measurementPoint = (event, el) => { const r=el.getBoundingClientRect(); const nw=el.naturalWidth||r.width, nh=el.naturalHeight||r.height; const s=Math.min(r.width/nw,r.height/nh); const w=nw*s,h=nh*s,left=r.left+(r.width-w)/2,top=r.top+(r.height-h)/2; return {u:(event.clientX-left)/w,v:(event.clientY-top)/h,left,top,width:w,height:h}; };\n"
 	         "const measurementOverlay = (() => { if (!config.measurementTarget) return null; const el=document.getElementById(config.measurementTarget); if (!el) return null; el.style.touchAction='none'; el.style.userSelect='none'; const box=document.createElement('div'); box.style.cssText='position:fixed;pointer-events:none;border:1px solid #34a8ff;background:rgba(52,168,255,.15);z-index:2147483646;display:none'; const lens=document.createElement('div'); lens.style.cssText='position:fixed;pointer-events:none;width:96px;height:96px;border:2px solid #fff;box-shadow:0 2px 14px #000;background-repeat:no-repeat;image-rendering:pixelated;z-index:2147483647;display:none'; document.body.append(box,lens); let start=null; const paint=(event,p) => { const x=p.left+Math.max(0,Math.min(1,p.u))*p.width,y=p.top+Math.max(0,Math.min(1,p.v))*p.height; if(start){const sx=start.left+Math.max(0,Math.min(1,start.u))*start.width,sy=start.top+Math.max(0,Math.min(1,start.v))*start.height;box.style.display='block';box.style.left=Math.min(sx,x)+'px';box.style.top=Math.min(sy,y)+'px';box.style.width=Math.abs(x-sx)+'px';box.style.height=Math.abs(y-sy)+'px';} lens.style.display='block';lens.style.left=(event.clientX+18)+'px';lens.style.top=(event.clientY+18)+'px';lens.style.backgroundImage='url('+JSON.stringify(el.currentSrc||el.src).slice(1,-1)+')';lens.style.backgroundSize=(p.width*8)+'px '+(p.height*8)+'px';lens.style.backgroundPosition=(-p.u*p.width*8+48)+'px '+(-p.v*p.height*8+48)+'px'; }; const emit=(phase,event) => { const p=measurementPoint(event,el); if(p.u<0||p.v<0||p.u>1||p.v>1)return; if(phase==='pointerdown')start=p; paint(event,p); send({type:'measurement.'+phase,targetId:el.id,fields:{u:p.u,v:p.v,button:event.button,shift:event.shiftKey,alt:event.altKey,ctrl:event.ctrlKey,meta:event.metaKey}}); if(phase==='pointerup')start=null; }; el.addEventListener('pointerdown',event=>{if(event.button!==0)return;event.preventDefault();el.setPointerCapture(event.pointerId);emit('pointerdown',event);}); el.addEventListener('pointermove',event=>{if(event.buttons===1){event.preventDefault();emit('pointermove',event);}else{const p=measurementPoint(event,el);if(p.u>=0&&p.v>=0&&p.u<=1&&p.v<=1)paint(event,p);}}); el.addEventListener('pointerup',event=>{if(event.button!==0)return;event.preventDefault();emit('pointerup',event);}); el.addEventListener('pointerleave',()=>{if(!start)lens.style.display='none';}); return {clear:()=>{box.style.display='none';lens.style.display='none';start=null;}}; })();\n"
-	         "document.addEventListener('keydown', event => { if (event.isComposing || event.defaultPrevented) return; const editing=!!(event.target&&event.target.closest&&event.target.closest('select,input,textarea')); const copy=(event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='c'; if (config.measurementTarget && event.key==='Escape') { const details=document.querySelector('details[open]'); if(details){event.preventDefault();details.open=false;return;} event.preventDefault(); send({type:'measurement.key',targetId:config.measurementTarget,fields:{key:event.key,shift:event.shiftKey,alt:event.altKey,ctrl:event.ctrlKey,meta:event.metaKey}}); return; } if (config.measurementTarget && (copy||(!editing&&(event.key==='Enter'||event.key.startsWith('Arrow'))))) { event.preventDefault(); send({type:'measurement.key',targetId:config.measurementTarget,fields:{key:event.key,shift:event.shiftKey,alt:event.altKey,ctrl:event.ctrlKey,meta:event.metaKey}}); return; } if (event.key === 'Escape') { const cancel=document.querySelector('[data-opendesk-dialog-cancel]'); if (cancel || document.querySelector('[data-opendesk-dialog-default]')) { event.preventDefault(); send({type:'dialogCancel'}); } return; } if (event.key === 'Enter') { const button=document.querySelector('[data-opendesk-dialog-default]'); if (button && !button.disabled) { event.preventDefault(); send({type:'click',targetId:button.id,bounds:state(button.id).screenBounds}); } } });\n"
+	         "const measurementToolbar=(()=>{if(!config.measurementTarget)return null;const toolbar=document.querySelector('[data-opendesk-measurement-toolbar]'),handle=toolbar&&toolbar.querySelector('[data-opendesk-measurement-toolbar-drag]');if(!toolbar||!handle)return null;const inset=12;let drag=null;const syncMenu=()=>{const panel=toolbar.querySelector('#copyMenuPanel');if(!panel)return;const r=toolbar.getBoundingClientRect();toolbar.dataset.opendeskToolbarMenuPlacement=r.top+r.height+180>window.innerHeight?'above':'below';};const place=(left,top)=>{const r=toolbar.getBoundingClientRect(),maxLeft=Math.max(inset,window.innerWidth-r.width-inset),maxTop=Math.max(inset,window.innerHeight-r.height-inset);toolbar.style.left=Math.max(inset,Math.min(left,maxLeft))+'px';toolbar.style.top=Math.max(inset,Math.min(top,maxTop))+'px';toolbar.style.right='auto';toolbar.style.bottom='auto';toolbar.style.transform='none';syncMenu();};handle.addEventListener('pointerdown',event=>{if(event.button!==0)return;const r=toolbar.getBoundingClientRect();drag={x:event.clientX,y:event.clientY,left:r.left,top:r.top};event.preventDefault();event.stopPropagation();handle.setPointerCapture(event.pointerId);});handle.addEventListener('pointermove',event=>{if(!drag)return;event.preventDefault();event.stopPropagation();place(drag.left+event.clientX-drag.x,drag.top+event.clientY-drag.y);});const end=event=>{if(!drag)return;drag=null;event.preventDefault();event.stopPropagation();};handle.addEventListener('pointerup',end);handle.addEventListener('pointercancel',end);window.addEventListener('resize',()=>{const r=toolbar.getBoundingClientRect();place(r.left,r.top);});requestAnimationFrame(syncMenu);return {syncMenu};})();\n"
+	         "const measurementKey=(event,phase)=>{if(!config.measurementTarget)return false;const key=event.key,editing=!!(event.target&&event.target.closest&&event.target.closest('select,input,textarea')),inspector=document.querySelector('[data-opendesk-measurement-inspector]:not([hidden])'),copy=(event.metaKey||event.ctrlKey)&&key.toLowerCase()==='c';if(phase==='up'){if(key!=='Alt')return false;send({type:'measurement.key',targetId:config.measurementTarget,fields:{key,phase,shift:event.shiftKey,alt:event.altKey,ctrl:event.ctrlKey,meta:event.metaKey}});return true;}const allowedKey=key==='Escape'||key==='Tab'||key==='Alt'||key==='1'||key==='2'||key==='3'||key==='4'||key.startsWith('Arrow')||key.toLowerCase()==='r'||key.toLowerCase()==='i'||copy;if(!allowedKey)return false;if(editing&&key!=='Escape')return false;if(inspector&&key!=='Escape')return false;event.preventDefault();send({type:'measurement.key',targetId:config.measurementTarget,fields:{key,phase,shift:event.shiftKey,alt:event.altKey,ctrl:event.ctrlKey,meta:event.metaKey}});return true;};\n"
+	         "document.addEventListener('keydown',event=>{if(event.isComposing||event.defaultPrevented)return;if(measurementKey(event,'down'))return;if(event.key==='Escape'){const cancel=document.querySelector('[data-opendesk-dialog-cancel]');if(cancel||document.querySelector('[data-opendesk-dialog-default]')){event.preventDefault();send({type:'dialogCancel'});}return;}if(event.key==='Enter'){const button=document.querySelector('[data-opendesk-dialog-default]');if(button&&!button.disabled){event.preventDefault();send({type:'click',targetId:button.id,bounds:state(button.id).screenBounds});}}});\n"
+	         "document.addEventListener('keyup',event=>{measurementKey(event,'up');}); window.addEventListener('blur',()=>{if(config.measurementTarget)send({type:'measurement.key',targetId:config.measurementTarget,fields:{key:'Alt',phase:'up',shift:false,alt:false,ctrl:false,meta:false}});});\n"
 	         "const dialogFocus = document.querySelector('[data-opendesk-dialog-focus]'); if (dialogFocus) requestAnimationFrame(() => dialogFocus.focus());\n"
          "const setDraggable = (enabled) => { config.draggable = !!enabled; };\n"
 	         "Object.defineProperty(window, '__opendesk', {value:Object.freeze({state:toolbarState,states,update:toolbarUpdate,setDraggable,dragRects}), configurable:false, writable:false});\n"
@@ -738,6 +774,7 @@ static NSString *CDBridgeSource(NSArray *controls, NSString *css, BOOL draggable
 @property(nonatomic) BOOL programmaticClose;
 @property(nonatomic, copy) NSString *appCloseBehavior;
 @property(nonatomic, copy) NSString *measurementTarget;
+@property(nonatomic, strong) id measurementKeyboardMonitor;
 @property(nonatomic) BOOL dragActive;
 @property(nonatomic) BOOL navigationFinished;
 @property(nonatomic) BOOL bridgeReady;
@@ -754,6 +791,8 @@ static NSString *CDBridgeSource(NSArray *controls, NSString *css, BOOL draggable
 - (void)syncAccessibilityControlsFromValue:(id)value;
 - (void)syncAccessibilityControlFromState:(NSDictionary *)state;
 - (void)syncAccessibilityInputValue:(id)value targetID:(NSString *)targetID;
+- (void)startMeasurementKeyboardMonitor;
+- (void)stopMeasurementKeyboardMonitor;
 - (BOOL)fitHostDialogToContentLayout:(NSDictionary *)layout;
 - (void)failInitialNavigation:(NSError *)error;
 - (void)refreshDragRegionsWithCompletion:(void (^)(NSError *error))completion;
@@ -762,6 +801,44 @@ static NSString *CDBridgeSource(NSArray *controls, NSString *css, BOOL draggable
 static void CDFinalizeClosedWindow(CDWindowController *controller, NSUInteger attempt);
 
 @implementation CDWindowController
+
+- (void)startMeasurementKeyboardMonitor {
+	if (self.measurementKeyboardMonitor || self.closed || !self.measurementTarget.length) return;
+	__weak CDWindowController *weakSelf = self;
+	self.measurementKeyboardMonitor = [NSEvent addGlobalMonitorForEventsMatchingMask:(NSEventMaskKeyDown | NSEventMaskKeyUp | NSEventMaskFlagsChanged) handler:^(NSEvent *event) {
+		NSString *key = CDMeasurementKeyForEvent(event);
+		if (!key.length) return;
+		NSEventModifierFlags modifiers = event.modifierFlags;
+		NSString *phase = @"down";
+		if (event.type == NSEventTypeKeyUp) {
+			if (![key isEqualToString:@"Alt"]) return;
+			phase = @"up";
+		} else if (event.type == NSEventTypeFlagsChanged) {
+			if (![key isEqualToString:@"Alt"]) return;
+			phase = (modifiers & NSEventModifierFlagOption) ? @"down" : @"up";
+		}
+		if (!CDIsMeasurementKey(key, modifiers)) return;
+		NSDictionary *fields = @{
+			@"key": key,
+			@"phase": phase,
+			@"shift": @((modifiers & NSEventModifierFlagShift) != 0),
+			@"alt": @((modifiers & NSEventModifierFlagOption) != 0),
+			@"ctrl": @((modifiers & NSEventModifierFlagControl) != 0),
+			@"meta": @((modifiers & NSEventModifierFlagCommand) != 0),
+		};
+		dispatch_async(dispatch_get_main_queue(), ^{
+			CDWindowController *controller = weakSelf;
+			if (!controller || controller.closed || !controller.window.visible || !controller.measurementTarget.length) return;
+			[controller emitType:@"measurement.key" target:controller.measurementTarget body:@{@"fields": fields} reason:nil];
+		});
+	}];
+}
+
+- (void)stopMeasurementKeyboardMonitor {
+	if (!self.measurementKeyboardMonitor) return;
+	[NSEvent removeMonitor:self.measurementKeyboardMonitor];
+	self.measurementKeyboardMonitor = nil;
+}
 
 - (BOOL)fitHostDialogToContentLayout:(NSDictionary *)layout {
 	if (![self.window isKindOfClass:CDDialogWindow.class]) return YES;
@@ -1147,6 +1224,7 @@ static void CDFinalizeClosedWindow(CDWindowController *controller, NSUInteger at
 - (void)windowWillClose:(NSNotification *)notification {
 	if (self.closed) return;
 	self.closed = YES;
+	[self stopMeasurementKeyboardMonitor];
 	self.dragActive = NO;
 	self.dragOverlay.enabled = NO;
 	self.dragOverlay.dragDelegate = nil;
@@ -1858,11 +1936,18 @@ static void CDHandleRequest(NSDictionary *request) {
     }
     CDWindowController *controller = CDFindWindow(request, requestID, operation);
     if (!controller) return;
-    if ([operation isEqualToString:@"show"]) {
+	if ([operation isEqualToString:@"show"]) {
 		if ([controller.kind isEqualToString:@"measurement"]) {
+			// A nonactivating panel is intentionally absent from ordinary window
+			// cycling, but AppKit only delivers its local WebView key events after
+			// the host application owns a key window. The Session restores the
+			// captured external target on exit, so this activation is bounded to the
+			// frozen Measurement interaction rather than a permanent app switch.
+			[NSApp activateIgnoringOtherApps:YES];
 			[controller.window orderFrontRegardless];
 			[controller.window makeKeyWindow];
 			[controller.window makeFirstResponder:controller.webView];
+			[controller startMeasurementKeyboardMonitor];
 			[controller.window displayIfNeeded];
 		} else if ([controller.kind isEqualToString:@"floating"] || controller.notificationView) {
             [controller.window orderFrontRegardless];

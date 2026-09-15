@@ -2,7 +2,7 @@
 
 > 产品与交互设计基线，2026-09-14。本文是本职责唯一正文，不是已经发布的 Runtime API Reference。
 > 当前结论：快捷键／Recorder 测量按钮／开发者菜单 → 同一个测量会话；透明标注层 + 屏幕角落精简信息 + 按需详情；复制固定三档。
-> 验证状态：浏览器合成样机的 16 项几何测试、34 项交互检查通过。原生 macOS／Windows 交互、真实 Recorder、系统剪切板与多显示器尚未验收，不能据此标记产品 PASS。
+> 验证状态：浏览器合成样机的 16 项几何测试、34 项交互检查，以及 Native Measurement 的包级／Custom UI 合同测试均须保持通过。2026-09-15 已在 macOS 本机实测真实 OpenDesk Surface、冻结截图、底部工具条、HUD／Inspector、原生键盘 relay 和退出／重入；Windows、物理混合 DPI 与真实 Recorder 隔离仍分别标记为 NOT_RUN。
 
 ## 1. 用户实际看到的方案
 
@@ -85,6 +85,8 @@
 普通界面只显示“参照：客服窗口·整窗·已锁定”这样的名称，不展示程序窗口 ID。颜色之外用线型和文字区分目标、参照、候选，不能只依赖颜色。
 
 避让顺序：当前目标与鼠标优先，其次选区手柄，再次角落信息和工具条，最后辅助标签。标签的排版必须将 HUD／工具条作为障碍物，不能只在标签之间避让。角落位置有滞回，原位置仍安全时不随每次鼠标移动跳动。目标很大导致四角均冲突时，收起为一行状态，暂隐次要标注；不得声称任意场景都能完全零遮挡。
+
+工具条初始停在底部居中，采用与 Prototype 一致的小体积布局；其最左侧的握把只移动工具条本身，不移动全屏 Measurement surface 或冻结快照。用户可在本次会话内把它拖到任意不贴边的位置；拖动受窗口可见边界约束，复制菜单随上下空间翻转。位置不跨会话保存，避免把某一显示器的布局错误带到另一台设备。
 
 多屏时 HUD 跟随当前交互显示器的安全区域，不按整个虚拟桌面的单一角落放置。鼠标提示到边缘翻转并裁限。详情打开时另行选择尽量不覆盖目标的位置；显式文本编辑可以暂时接收焦点，但关闭后必须恢复测量输入路由。
 
@@ -254,46 +256,27 @@ Measurement 必须取得可恢复的录制隔离状态：保存 recorder session
 
 全局“进入测量”快捷键属于 App 生命周期，测量内快捷键属于 Session 生命周期。不得调用 Runtime 级 unregisterAll() 清理测量，从而误删其他功能的快捷键。异常／取消／宿主关闭必须覆盖同一清理链；目标被关闭、ID 复用或系统拒绝激活应报告恢复受限，不能伪报原窗口恢复成功。
 
-## 11. 本轮事实来源与最小落地顺序
+## 11. 生产实现与稳定 Surface
 
-本轮环境没有挂载用户本地工作区。读取到的远端 master 基线为 `b23740773c48e0fd7b4a0f36716224a8a3b4b38f`；它不能代表本地／并行会话尚未同步的 Measurement 代码。
+`apps/opendesk/prototypes/desktop-measurement/index.html` 是唯一长期 UI / Interaction Oracle；它不进入生产。`pkg/measurement` 是 Production owner，继续使用 `CaptureMapping`、`Reference`、`Result` 与冻结 PNG 的真实 Geometry，而不复制 Prototype 的模拟模型。
 
-已检查远端 apps 与 docs 目录树、`apps/opendesk/main.js`、`developer-tools.js`、`official-shell.js`、Recorder controller 包装层、`docs/api/global-shortcut.md` 和 Custom UI 迁移说明。该基线的已读产品入口中未确认 Measurement 接线，canonical 路径读取为不存在；不能据此推断用户机器上没有测量实现。
+每个 Session 只创建一个 `kind: measurement` 的 Native surface。首次进入捕获一次干净冻结 Snapshot，固定预览图与透明 Overlay；工具、HUD、参照、Inspector、候选和结果改变均通过 `UpdateControl` 的 `Source`、`Text`、`Visible`、`Classes` 与 `Value` patch 既有 controls。只有显式“重新冻结”才再次 Capture，退出才销毁 surface 和临时 PNG。
 
-特别注意：`developer-tools.js` 中读取到的 760×510 floating window 是“运行状态”窗口，不是本轮已经定位到的 Measurement 大窗口。用户报告的大测量窗口仍需在其当前本地实现定位，禁止凭这个尺寸误改无关窗口。
+默认视觉层级为冻结桌面、Target / Reference outline、必要标注、角落 HUD 和底部居中小工具条；Inspector 默认隐藏且独立打开。macOS 非激活 Panel 还在可见期间以原生受限键盘 relay 发送 Measurement 的全部快捷键，关闭时移除监听；Windows bridge 保持同一键盘词表。此机制没有新增 JavaScript Runtime API。
 
-实施顺序：
+## 12. Prototype → Native 验收映射
 
-1. 本地重新读取 HEAD、status、Measurement 真实代码与同职责设计。先给出已复用／缺口／证据阻塞简表；若存在未同步的同职责正文，将其有效决定合并到本文，不留第二份 canonical。
-2. 确认唯一 owner、进入前目标上下文和 Recorder 隔离。以失败可恢复的最小链路接通三个入口，不先设计新 locator API。
-3. 把已有大测量窗口降为按需详情，将默认交互移到 Overlay 与角落 HUD。只有现有 native surface 无法表达 hit-test/focus/capture exclusion 时才补底层最小能力。
-4. 复用已有截图、WindowTarget、Geometry、ImageColor，接入本文参照／快照／三档导出合同；不把浏览器样机的数学函数复制成第二套 Runtime Geometry。
-5. 运行真实菜单、Recorder、全局快捷键及四种测量。保存 `.runtime/` 内证据，分别验证业务输入不泄漏、源图不受 Overlay 污染和全部退出路径。
-
-HTML 样机是离线产品交互验证资产，不是原生 surface 实现。样机背景与候选均为明确标注的合成数据；系统快捷键入口是按钮模拟，剪切板成功路径使用测试适配器，不能作为系统授权或真实剪切板证据。本轮未依据缺失的本地代码修改生产 Runtime。
-
-## 12. 验收矩阵与门槛
-
-| 验收对象 | 本轮可用证据 | 产品真实验收要求 |
+| Oracle 行为 | Native 自动保护 | 真机范围 |
 | --- | --- | --- |
-| 三入口唯一会话 | 网页三按钮复用 PASS | 真菜单／Recorder／系统快捷键，并发触发仍单会话 |
-| 默认无大窗口、详情按需 | Chromium 样机 PASS | 原生首次唤起截图，窗口列表与任务切换检查 |
-| 目标与参照同时表达、锁定 | 样机 PASS | 真实窗口切换、鼠标跨窗口，Reference 不漂移 |
-| 点绝对／相对、颜色 | 合成 2× 原始像素 PASS | 原生源图独立抽样核对，Overlay 开关不改变取色 |
-| 区域几何、比例、四边距 | 16 项数学测试覆盖，含 1000 组矩形恒等式 | 源图标尺复核，四边越界、接触、包含、零尺寸拒绝 |
-| 两点、两区域 | 合成场景 PASS | 真实快照内多组点／区域，A/B 顺序及符号一致 |
-| 磁性候选与手动回退 | 样例候选层级、Alt 暂停 PASS | 实际视觉／语义候选来源、误识别、缺权与人工框选 |
-| 调整、标签和 HUD 避让 | 拖动／resize／方向键、四角及标签避让 PASS | 真实多屏、菜单、放大镜、不同字体及大目标受限路径 |
-| 三档复制与保存 | 文本／JSON、剪切板适配器、失败回退、浏览器保存 PASS | 两平台真实剪切板粘贴、取消／磁盘失败、源图资产一致性 |
-| Retina／缩放 | 2×、1.25× 合成映射 PASS | macOS Retina；Windows 100/125/150/200%，原生捕获比例 |
-| 多屏／负坐标 | 混合 1×/2×、负坐标、空洞数学用例 PASS | 实际显示器位于左／上，跨屏窗口、热插拔、缩放变化 |
-| Recorder 不受污染 | 无原生证据 | 含入口按键/点击的原始录制事件检查，前后会话身份一致 |
-| 退出／恢复／无残留 | 网页层隐藏与状态引用清理 PASS | 原生 surface、topmost、hook、快捷键、源图和前台状态检查 |
-| 原生异常路径 | 无原生证据 | 拒权、目标关闭、宿主崩溃、取消、显示器变化、重复退出 |
+| 单一稳定 surface、重复进入、显式刷新 | `pkg/measurement/session_test.go` | macOS 快捷键进入、退出、重入 |
+| HUD / Inspector、底部工具条、三档输出 | `pkg/measurement/session_layout_test.go` 与 Session 行为测试 | macOS 截图检查 |
+| Point / Region / Two Point / Two Region、8 handle、边距与 DPI Geometry | `pkg/measurement/...` | Region 键盘模式已实测；物理多屏另测 |
+| `Source` patch 与图片资源 | `pkg/customui/memory_driver_source_test.go` | 原生冻结截图实际显示 |
+| 1–4、Tab、Alt、Arrow、R、I、Escape、三档复制 | `tests/custom-ui/measurement-keyboard-bridge.test.js` 与 Session 行为测试 | macOS 真实 `2`、`I`、`Esc` 已实测 |
 
-本轮合计：16 项模型测试、34 项 Chromium 交互检查通过；浏览器脚本异常为零。退出测试曾发现 SVG 隐藏状态问题，交互测试曾发现标注拦截 resize 手柄，视觉复核曾发现距离标签被 HUD 遮住，均在样机中修复后重跑。上述测试不是 OpenDesk Runtime API 测试，也不是 macOS／Windows 真机验证。
+2026-09-15 本机证据写入 `.runtime/tests/desktop-measurement/macos/`：`23-frozen-snapshot-assets-retry.png` 显示真实冻结桌面、Target / Reference 与底部工具条；`24-key-2-relay.png` 显示前台应用仍活动时切换到区域；`25-inspector-key-i.png` 与 `26-inspector-escape.png` 证明 Inspector 层级；`30-session-exit.png` 与 `31-session-reenter.png` 证明清理和重入。
 
-设计覆盖审查的自评分为 96/100，仅用于本轮方案收口，不是独立专家评分或上线评分；剩余风险集中于未读取的本地 owner/surface/Recorder 实现，以及原生验证。发布验收门槛为各关键方向至少 95/100，且任何 P0 行为未通过均不能靠其他分数补齐。当前真实产品验收状态仍是待验证。
+Windows Native、物理 mixed-DPI / 多显示器、真实 Recorder 隔离以及系统剪切板粘贴仍是 **NOT_RUN**。这些缺口不能被浏览器样机或编译结果伪装为通过。
 
 ## 参考与既有合同
 

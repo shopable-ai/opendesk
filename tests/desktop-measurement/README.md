@@ -57,3 +57,19 @@ python3 tests/desktop-measurement/browser.test.py
 浏览器测试需要 Python Playwright 和可用 Chromium。运行输出统一写入 `.runtime/tests/desktop-measurement/prototype/`，不写回样机、fixture 或历史证据目录。
 
 原生权限、焦点、Recorder 隔离、物理多屏、系统剪切板和资源清理必须由真实 OpenDesk / OS 验收；网页 PASS 不能沿用为原生 PASS。
+
+## Native parity 与真实桌面验收
+
+Prototype 是长期 UI / Interaction Oracle，Native 是 Production；不要将 Prototype 的模型或合成 geometry 复制进 `pkg/measurement`。Production 继续以 `CaptureMapping`、`Reference`、`Result` 和冻结源 PNG 为唯一几何与取色来源。
+
+从仓库根目录运行 Native contract 回归：
+
+```sh
+go test ./pkg/measurement/...
+go test ./pkg/customui/...
+node --test tests/custom-ui/measurement-keyboard-bridge.test.js
+```
+
+这些测试保护：single stable surface、显式刷新才 Capture、Source / Text / Visible / Classes / Value patch、默认隐藏 Inspector、四种测量模式、Region body drag 与八方向 resize、键盘词表与 Esc 层级、参照锁定、三档输出和清理／重入。它们不是 `strings.Contains` 的替代品：核心行为由 Session / MemoryDriver state 和事件结果断言。
+
+macOS 真机应在完成 `make build` 与正式 App bundle 构建后，以真实 OpenDesk 的开发者菜单、Recorder 或全局快捷键启动；至少保留冻结 Snapshot、底部工具条与 HUD、`2`、`I`、Inspector 的 `Esc`、Session 的 `Esc` 和重新进入的实窗证据到 `.runtime/tests/desktop-measurement/macos/`。Windows Native、物理混合 DPI / 多显示器和未具备条件的真实 Recorder 场景要明确记录 **NOT_RUN**，不能由本 README 的浏览器测试补齐。

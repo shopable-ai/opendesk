@@ -68,3 +68,17 @@
 所有系统级结论仍为 NOT_RUN：macOS 与 Windows 原生 surface、窗口焦点、全局快捷键、真实 Recorder 事件、系统剪切板、多物理显示器、真实 Retina／混合 DPI、进程异常后的 topmost／hook／快照清理。
 
 设计覆盖自评 96/100，不是独立专家评分，不是原生发布评分。设计审查与真机验收分别记录，不能平均分掩盖任一 P0 缺口。
+
+## 2026-09-15 Native Measurement 验收增补
+
+本节覆盖当前本地 `master` 的 Production 实现，取代上节“所有系统级结论均 NOT_RUN”的泛化表述；历史样机报告本身仍只描述 Prototype。
+
+- Oracle 未进入生产：`apps/opendesk/prototypes/desktop-measurement/index.html` 继续定义 UI / Interaction，Native 继续使用 `pkg/measurement` 的 CaptureMapping、Reference、Result 和冻结源 PNG。
+- Stable surface：首次 Capture 后创建一个 Measurement Window；状态变化 patch 已有 DOM control，重复入口复用 Session，显式刷新才重新 Capture；测试断言 window ID、capture count 和 event sink 数量稳定。
+- Native UI：冻结桌面之上显示 Target / Reference outline、底部居中小工具条和约 268 logical-unit 的 corner HUD；Inspector 默认隐藏，并由 `I` / 详情打开。
+- Native keyboard：macOS nonactivating Panel 在可见时 relay `1–4`、Tab / Shift+Tab、Option、Arrow / Shift+Arrow、R、I、Escape 和三档复制组合；关闭时卸载 relay。Windows bridge 使用相同 vocabulary。
+- Control patch：MemoryDriver 现在保存并暴露 `img Source`，连同 Text、Visible、Classes、Value 支持增量渲染的合同测试。
+
+本机 macOS 真实 OpenDesk 证据：`23-frozen-snapshot-assets-retry.png`（真实冻结画面与底部工具条）、`24-key-2-relay.png`（真实键盘切换区域）、`25-inspector-key-i.png` / `26-inspector-escape.png`（Inspector 的 Esc 层级）、`30-session-exit.png` / `31-session-reenter.png`（退出清理与再次进入）。这些本地运行产物位于 `.runtime/tests/desktop-measurement/macos/`，不纳入版本控制。
+
+仍为 **NOT_RUN**：Windows Native、物理 mixed-DPI / 多显示器、真实 Recorder 隔离、系统剪切板粘贴和宿主崩溃路径。它们没有被浏览器或内存驱动测试表述为 PASS。

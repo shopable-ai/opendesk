@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"image/png"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -17,15 +18,16 @@ import (
 type appMeasurementCapture struct{}
 
 type measurementWindowRow struct {
-	id     string
-	title  string
-	pid    int64
-	handle uint64
-	x      float64
-	y      float64
-	width  float64
-	height float64
-	raw    map[string]interface{}
+	id       string
+	title    string
+	pid      int64
+	handle   uint64
+	x        float64
+	y        float64
+	width    float64
+	height   float64
+	isActive bool
+	raw      map[string]interface{}
 }
 
 type measurementDisplayRow struct {
@@ -81,7 +83,10 @@ func (appMeasurementCapture) Capture(ctx context.Context, targetID string) (meas
 	}
 	targetOptions := make([]measurement.TargetWindow, 0, len(targets))
 	for _, target := range targets {
-		targetOptions = append(targetOptions, measurement.TargetWindow{ID: target.id, Title: target.title, PID: target.pid})
+		targetOptions = append(targetOptions, measurement.TargetWindow{
+			ID: target.id, Title: target.title, PID: target.pid,
+			Bounds: measurement.Rect{X: target.x, Y: target.y, Width: target.width, Height: target.height},
+		})
 	}
 	return measurement.CaptureFrame{
 		PNG:      pngBytes,
@@ -92,7 +97,12 @@ func (appMeasurementCapture) Capture(ctx context.Context, targetID string) (meas
 			Window: &measurement.WindowIdentity{ID: selected.id, PID: selected.pid, Title: selected.title},
 		},
 		Targets: targetOptions, SelectedTargetID: selected.id,
-		Restore: measurementRestoreTarget(windowManager, selected),
+		// Only an external foreground window observed before Measurement creates
+		// its surface is strong enough to become a locked default Reference. A
+		// menu/Recorder host or an arbitrary listed window remains a visible
+		// candidate and requires an explicit confirmation instead.
+		TargetConfirmed: selected.isActive,
+		Restore:         measurementRestoreTarget(windowManager, selected),
 	}, nil
 }
 
@@ -105,7 +115,7 @@ func measurementWindows(manager *automation.WindowManager) ([]measurementWindowR
 	seen := map[string]bool{}
 	for _, row := range rows {
 		item := measurementWindowFromMap(row)
-		if item.id == "" || strings.TrimSpace(item.title) == "" || item.width <= 0 || item.height <= 0 || seen[item.id] {
+		if item.id == "" || strings.TrimSpace(item.title) == "" || item.width <= 0 || item.height <= 0 || seen[item.id] || measurementExcludedWindow(item) {
 			continue
 		}
 		seen[item.id] = true
@@ -116,8 +126,14 @@ func measurementWindows(manager *automation.WindowManager) ([]measurementWindowR
 	if activeErr == nil && active != nil && active.Width > 0 && active.Height > 0 {
 		activeID = active.ID
 		if !seen[active.ID] {
-			windows = append(windows, measurementWindowFromInfo(active))
+			item := measurementWindowFromInfo(active)
+			if !measurementExcludedWindow(item) {
+				windows = append(windows, item)
+			}
 		}
+	}
+	for index := range windows {
+		windows[index].isActive = windows[index].id == activeID
 	}
 	if len(windows) == 0 {
 		if activeErr != nil {
@@ -135,6 +151,16 @@ func measurementWindows(manager *automation.WindowManager) ([]measurementWindowR
 		return strings.ToLower(windows[i].title) < strings.ToLower(windows[j].title)
 	})
 	return windows, nil
+}
+
+func measurementExcludedWindow(window measurementWindowRow) bool {
+	if window.pid == int64(os.Getpid()) {
+		return true
+	}
+	executable := strings.ToLower(stringValue(window.raw["exeName"]))
+	title := strings.ToLower(strings.TrimSpace(window.title))
+	return strings.Contains(executable, "opendesk-ui-host") || strings.Contains(executable, "clawdesk-ui-host") ||
+		strings.HasPrefix(title, "opendesk") || strings.HasPrefix(title, "clawdesk")
 }
 
 func measurementWindowFromMap(row map[string]interface{}) measurementWindowRow {

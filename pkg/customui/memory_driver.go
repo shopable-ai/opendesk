@@ -6,8 +6,11 @@ import (
 	"opendesk/pkg/customui/toolbar"
 	"runtime"
 	"sort"
+	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/net/html"
 )
 
 // MemoryDriver is a deterministic non-GUI driver for core and Runtime tests.
@@ -99,7 +102,7 @@ func (d *MemoryDriver) Create(_ context.Context, sessionID string, spec WindowSp
 		window.state.Bounds = placed
 	}
 	for _, control := range spec.Controls {
-		window.controls[control.ID] = ControlState{ID: control.ID, Type: control.Type, Visible: true}
+		window.controls[control.ID] = ControlState{ID: control.ID, Type: control.Type, Source: memoryControlSource(spec.Content.HTML, control), Visible: true}
 	}
 	if spec.Toolbar != nil {
 		for _, item := range spec.Toolbar.Items {
@@ -369,8 +372,48 @@ func (w *memoryWindow) UpdateControl(_ context.Context, id string, patch Control
 		state.Classes = append([]string(nil), patch.Classes...)
 		sort.Strings(state.Classes)
 	}
+	if patch.Source != nil {
+		state.Source = *patch.Source
+	}
 	w.controls[id] = state
 	return state, nil
+}
+
+func memoryControlSource(source string, control Control) string {
+	if control.Type != "img" || strings.TrimSpace(source) == "" {
+		return ""
+	}
+	doc, err := html.Parse(strings.NewReader(source))
+	if err != nil {
+		return ""
+	}
+	var found string
+	var visit func(*html.Node)
+	visit = func(node *html.Node) {
+		if found != "" || node == nil {
+			return
+		}
+		if node.Type == html.ElementNode && strings.EqualFold(node.Data, "img") {
+			var id, src string
+			for _, attribute := range node.Attr {
+				switch strings.ToLower(attribute.Key) {
+				case "id":
+					id = attribute.Val
+				case "src":
+					src = attribute.Val
+				}
+			}
+			if id == control.ID {
+				found = src
+				return
+			}
+		}
+		for child := node.FirstChild; child != nil; child = child.NextSibling {
+			visit(child)
+		}
+	}
+	visit(doc)
+	return found
 }
 
 func (w *memoryWindow) ToolbarButtonState(_ context.Context, id string) (toolbar.ButtonResult, error) {

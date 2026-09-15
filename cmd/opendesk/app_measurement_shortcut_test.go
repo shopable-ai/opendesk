@@ -3,10 +3,12 @@ package main
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"opendesk/automation"
 	"opendesk/pkg/measurement"
 )
 
@@ -62,5 +64,35 @@ func TestMeasurementGlobalShortcutPreservesRegistrationFailure(t *testing.T) {
 	registerAppMeasurementShortcut = func(func()) (appMeasurementShortcut, error) { return nil, want }
 	if _, err := registerMeasurementGlobalShortcut(&measurement.Service{}, context.Background()); !errors.Is(err, want) {
 		t.Fatalf("registration error = %v, want %v", err, want)
+	}
+}
+
+func TestMeasurementGlobalShortcutUnavailableWarnsWithoutBlocking(t *testing.T) {
+	originalDelivery := deliverMeasurementShortcutWarning
+	defer func() { deliverMeasurementShortcutWarning = originalDelivery }()
+	originalDispatch := dispatchMeasurementShortcutWarning
+	defer func() { dispatchMeasurementShortcutWarning = originalDispatch }()
+
+	var dispatched bool
+	dispatchMeasurementShortcutWarning = func(callback func()) {
+		dispatched = true
+		callback()
+	}
+	var gotTitle, gotMessage string
+	var gotSound bool
+	deliverMeasurementShortcutWarning = func(options *automation.NotifyOptions) error {
+		gotTitle, gotMessage, gotSound = options.Title, options.Message, options.Sound
+		return nil
+	}
+
+	warnMeasurementGlobalShortcutUnavailable(errors.New("already registered"))
+	if !dispatched {
+		t.Fatal("shortcut warning was not dispatched asynchronously")
+	}
+	if gotTitle != "OpenDesk" || gotSound {
+		t.Fatalf("notification title=%q sound=%v, want non-modal OpenDesk notification", gotTitle, gotSound)
+	}
+	if !strings.Contains(gotMessage, "Desktop Measurement") || !strings.Contains(gotMessage, measurementGlobalShortcutDisplayName()) || !strings.Contains(gotMessage, "OpenDesk menu") {
+		t.Fatalf("notification message=%q", gotMessage)
 	}
 }

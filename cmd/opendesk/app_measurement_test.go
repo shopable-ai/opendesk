@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"os"
+	"testing"
+)
 
 func TestMeasurementDisplaySelectionPreservesNegativeDesktopGeometry(t *testing.T) {
 	displays := []measurementDisplayRow{
@@ -10,6 +13,18 @@ func TestMeasurementDisplaySelectionPreservesNegativeDesktopGeometry(t *testing.
 	selected, ok := selectMeasurementDisplay(displays, measurementWindowRow{x: -1800, y: 20, width: 800, height: 600})
 	if !ok || selected.id != "left" || selected.x != -1920 || selected.y != -120 {
 		t.Fatalf("selected display = %+v, ok=%v", selected, ok)
+	}
+}
+
+func TestMeasurementExcludesItsOwnAndHostWindowsFromReferenceCandidates(t *testing.T) {
+	if !measurementExcludedWindow(measurementWindowRow{pid: int64(os.Getpid()), title: "Calculator"}) {
+		t.Fatal("current OpenDesk process was accepted as a measurement reference")
+	}
+	if !measurementExcludedWindow(measurementWindowRow{title: "OpenDesk — Recorder", raw: map[string]interface{}{"exeName": "opendesk-ui-host"}}) {
+		t.Fatal("OpenDesk Recorder host was accepted as a measurement reference")
+	}
+	if measurementExcludedWindow(measurementWindowRow{pid: int64(os.Getpid()) + 1, title: "Calculator", raw: map[string]interface{}{"exeName": "Calculator"}}) {
+		t.Fatal("external Calculator was incorrectly excluded")
 	}
 }
 

@@ -144,6 +144,10 @@ type WindowState struct {
 type ControlState struct {
 	ID   string `json:"id"`
 	Type string `json:"type"`
+	// Source is the validated local image source for an img control.  Keeping it
+	// in internal driver readback lets host-owned renderers prove that an image
+	// was patched in place instead of silently replacing its native window.
+	Source string `json:"source,omitempty"`
 	// Text is intentionally present even when empty. Custom UI callers use an
 	// empty text readback to clear reusable controls (for example, empty slots
 	// in the Recorder history window); omitting it turns a successful clear into

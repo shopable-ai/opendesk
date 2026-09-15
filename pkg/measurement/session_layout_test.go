@@ -1,6 +1,7 @@
 package measurement
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -10,7 +11,7 @@ func TestMeasurementWindowSpecUsesDisplaySizedCompactSurface(t *testing.T) {
 	frame := CaptureFrame{
 		Snapshot:         snapshot,
 		Reference:        reference,
-		Targets:          []TargetWindow{{ID: "window-1", Title: "Target", PID: 42}},
+		Targets:          []TargetWindow{{ID: "window-1", Title: "Target", PID: 42, Bounds: reference.Bounds}},
 		SelectedTargetID: "window-1",
 	}
 	spec := measurementWindowSpec(frame, "snapshot.png", "test")
@@ -21,13 +22,35 @@ func TestMeasurementWindowSpecUsesDisplaySizedCompactSurface(t *testing.T) {
 		t.Fatalf("bounds = %+v mapping = %+v", spec.Bounds, snapshot.Mapping)
 	}
 	html := spec.Content.HTML
-	for _, token := range []string{"measurementToolbar", "measurementHUD", "<details", "twoPoint", "简明数值", "完整中文", "结构化 JSON"} {
+	for _, token := range []string{"measurementToolbar", "data-opendesk-measurement-toolbar", "data-opendesk-measurement-toolbar-drag", "measurementHUD", "measurementInspector", "toolTwoPoint", "简明数值", "完整中文说明", "结构化数据"} {
 		if !strings.Contains(html, token) {
 			t.Fatalf("measurement HTML missing %q", token)
 		}
 	}
+	css := spec.Content.CSS
+	for _, token := range []string{"#measurementToolbar{position:absolute", "left:50%;bottom:17px;top:auto;transform:translateX(-50%)", "measurementToolbarDragHandle", "#measurementStatus{position:absolute", "left:16px;top:62px;bottom:auto", "data-opendesk-toolbar-menu-placement=above"} {
+		if !strings.Contains(css, token) {
+			t.Fatalf("measurement CSS missing %q", token)
+		}
+	}
+	if strings.Contains(css, "left:16px;top:16px") {
+		t.Fatalf("measurement toolbar must default to the compact bottom center: %s", css)
+	}
 	if strings.Contains(html, "<details open") || strings.Contains(html, "PID 42") {
 		t.Fatalf("details must default closed and PID must not be persistently displayed: %s", html)
+	}
+}
+
+func TestMeasurementWindowSpecResolvesFrozenAssetsFromTheirRuntimeDirectory(t *testing.T) {
+	snapshot, reference := testContext(t)
+	assetDir := t.TempDir()
+	assetPath := filepath.Join(assetDir, "snapshot.png")
+	spec := measurementWindowSpec(CaptureFrame{Snapshot: snapshot, Reference: reference}, assetPath, "test")
+	if spec.Content.BasePath != assetDir {
+		t.Fatalf("asset base path = %q, want %q", spec.Content.BasePath, assetDir)
+	}
+	if !strings.Contains(spec.Content.HTML, `id="measurementPreview" src="snapshot.png"`) {
+		t.Fatalf("preview must keep an asset-relative source: %s", spec.Content.HTML)
 	}
 }
 

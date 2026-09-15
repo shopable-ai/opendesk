@@ -126,7 +126,20 @@ func executeAppMode(config *Config) error {
 	defer cancelApp()
 	if measurementService != nil {
 		if err := shell.BindMeasurementAction(func(event appshell.ActionEvent) error {
-			return measurementService.Open(appContext, event.Source)
+			// AppKit invokes a tray-menu action while its menu tracking loop owns the
+			// main thread. Capture and native WebView creation must run after that
+			// callback returns; otherwise the visible-surface handshake can wait on
+			// the very event loop needed to place the Measurement Panel on screen.
+			source := event.Source
+			go func() {
+				log.Printf("Desktop Measurement entry %s requested", source)
+				if openErr := measurementService.Open(appContext, source); openErr != nil {
+					log.Printf("Desktop Measurement entry %s failed: %v", source, openErr)
+					return
+				}
+				log.Printf("Desktop Measurement entry %s opened", source)
+			}()
+			return nil
 		}); err != nil {
 			return err
 		}
