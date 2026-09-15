@@ -57,6 +57,20 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - name: Install Linux App Mode build dependencies
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libasound2-dev \
+            libx11-dev \
+            libxkbcommon-dev \
+            libxkbcommon-x11-dev \
+            libxi-dev \
+            libxinerama-dev \
+            libxrandr-dev \
+            libxtst-dev
       - name: Prepare contract evidence directory
         shell: bash
         run: mkdir -p .runtime/tests/desktop-measurement
