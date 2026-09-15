@@ -4,6 +4,33 @@
 
 正式工程事实仍以当前源码、测试、Evidence 与 `docs/` / `docs/api/` 对应正式文档为准。
 
+## 内容来源与当前策略
+
+仓库**不创建 `docs/blogs/`**。不同生命周期的信息分别归属：
+
+```text
+docs/research/
+= 市场、竞品、关键词、证据和未知项
+
+docs/plans/commercialization/
+= 产品定位、验证路线、内容增长和商业行动计划
+
+docs/project/
+= 已冻结且仍然有效的高层项目共识
+
+blogs/
+= 真正面向外部读者的传播正文
+```
+
+当前 Agent-driven RPA 内容入口：
+
+- 产品定位与领先证明计划：[`../docs/plans/commercialization/agent-driven-rpa-positioning.md`](../docs/plans/commercialization/agent-driven-rpa-positioning.md)
+- 内容增长策略：[`../docs/plans/commercialization/agent-driven-rpa-content-strategy.md`](../docs/plans/commercialization/agent-driven-rpa-content-strategy.md)
+- 全球竞争位置与竞品研究：[`../docs/research/commercialization/agent-driven-rpa-positioning-2026.md`](../docs/research/commercialization/agent-driven-rpa-positioning-2026.md)
+- 关键词与候选标题池：[`../docs/research/commercialization/agent-driven-rpa-content-keywords.md`](../docs/research/commercialization/agent-driven-rpa-content-keywords.md)
+
+文章只有在完成内容策略规定的证据卡后，才进入 `blogs/drafts/`。Blog 中出现的竞争结论、Benchmark 数字或当前能力必须回指当前证据，不能靠旧 Blog 自我引用维持事实。
+
 ## 推荐结构
 
 ```text
