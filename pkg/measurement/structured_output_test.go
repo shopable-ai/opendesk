@@ -24,7 +24,7 @@ func TestStructuredOutputContainsP0P3ContractAndLegacyResultFields(t *testing.T)
 			t.Fatalf("structured output missing %q: %s", key, outputs.JSON)
 		}
 	}
-	if payload["schemaVersion"] != StructuredDataSchemaVersion || payload["measurementKind"] != "region" || payload["unit"] != "logical" {
+	if payload["schemaVersion"] != StructuredDataSchemaVersion || payload["measurementKind"] != "region" || payload["unit"] != "logical-unit" {
 		t.Fatalf("unexpected structured identity: %#v", payload)
 	}
 	// Result v2 remains additive/backward compatible for consumers that still
@@ -48,7 +48,7 @@ func TestStructuredDataFromEvidenceCarriesPersistedProvenanceWithoutNewGeometry(
 	if err != nil {
 		t.Fatal(err)
 	}
-	if data.SchemaVersion != StructuredDataSchemaVersion || data.MeasurementKind != result.Kind || data.CaptureMapping != ev.Mapping {
+	if data.SchemaVersion != StructuredDataSchemaVersion || data.MeasurementKind != result.Kind || data.CaptureMapping != ev.Mapping || data.Unit != "logical-unit" {
 		t.Fatalf("structured evidence changed canonical mapping/result identity: %+v", data)
 	}
 	if data.Reference.Type != ev.Reference.Type || data.Reference.Bounds != ev.Reference.Bounds {
