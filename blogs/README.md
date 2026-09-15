@@ -27,9 +27,19 @@ blogs/
 - 产品定位与领先证明计划：[`../docs/plans/commercialization/agent-driven-rpa-positioning.md`](../docs/plans/commercialization/agent-driven-rpa-positioning.md)
 - 内容增长策略：[`../docs/plans/commercialization/agent-driven-rpa-content-strategy.md`](../docs/plans/commercialization/agent-driven-rpa-content-strategy.md)
 - 全球竞争位置与竞品研究：[`../docs/research/commercialization/agent-driven-rpa-positioning-2026.md`](../docs/research/commercialization/agent-driven-rpa-positioning-2026.md)
+- 全球竞品能力矩阵：[`../docs/research/commercialization/agent-driven-rpa-competitor-matrix-2026.md`](../docs/research/commercialization/agent-driven-rpa-competitor-matrix-2026.md)
+- Competitive Benchmark 合同：[`../docs/quality/agent-driven-rpa-competitive-benchmark.md`](../docs/quality/agent-driven-rpa-competitive-benchmark.md)
 - 关键词与候选标题池：[`../docs/research/commercialization/agent-driven-rpa-content-keywords.md`](../docs/research/commercialization/agent-driven-rpa-content-keywords.md)
 
 文章只有在完成内容策略规定的证据卡后，才进入 `blogs/drafts/`。Blog 中出现的竞争结论、Benchmark 数字或当前能力必须回指当前证据，不能靠旧 Blog 自我引用维持事实。
+
+## 当前重点草稿
+
+- [`drafts/where-opendesk-can-compete-top-3.md`](drafts/where-opendesk-can-compete-top-3.md)
+  - 保存当前 Top 1 / Top 3 候选小山头的对外表达；
+  - 明确区分“准备竞争的位置”和“已经取得的排名”；
+  - 当前三条主线为 `Agent → Verified Reusable Desktop RPA`、`Commercial Delivery Runtime`、`Human + Agent → Same Maintainable Workflow`；
+  - 只有后续 Competitive Benchmark 达到公开 Gate 后，才能把候选表述升级成有限范围内的排名结论。
 
 ## 推荐结构
 
