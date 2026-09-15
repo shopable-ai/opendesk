@@ -3,11 +3,12 @@ package measurement
 import (
 	"encoding/json"
 	"errors"
+	"reflect"
 	"strings"
 	"time"
 )
 
-const StructuredDataSchemaVersion = "desktop-measurement/structured/v1"
+const StructuredDataSchemaVersion = "desktop-measurement/v1"
 
 // CanonicalResult is a serialization alias for Result. It deliberately has no
 // methods so StructuredMeasurementData can contain the canonical result
@@ -53,7 +54,7 @@ func StructuredDataFromResult(result Result) (StructuredMeasurementData, error) 
 		MeasurementKind: result.Kind,
 		Reference:       result.Reference,
 		CoordinateSpace: result.CoordinateSpace,
-		Unit:            "logical",
+		Unit:            "logical-unit",
 		CaptureMapping:  result.Snapshot.Mapping,
 		Result:          CanonicalResult(result),
 		Evidence: StructuredEvidenceSummary{
@@ -129,6 +130,57 @@ func (r Result) MarshalJSON() ([]byte, error) {
 		Unit: data.Unit, CaptureMapping: data.CaptureMapping,
 		Result: data.Result, Evidence: data.Evidence,
 	})
+}
+
+// UnmarshalJSON accepts both the structured envelope and the legacy raw Result
+// representation. This keeps older saved artifacts readable while ensuring the
+// structured envelope cannot drift away from the canonical Result geometry.
+func (r *Result) UnmarshalJSON(data []byte) error {
+	if r == nil {
+		return errors.New("measurement result target is nil")
+	}
+	var probe struct {
+		SchemaVersion string `json:"schemaVersion"`
+	}
+	if err := json.Unmarshal(data, &probe); err != nil {
+		return err
+	}
+	if strings.TrimSpace(probe.SchemaVersion) == "" {
+		var legacy CanonicalResult
+		if err := json.Unmarshal(data, &legacy); err != nil {
+			return err
+		}
+		*r = Result(legacy)
+		return nil
+	}
+	if probe.SchemaVersion != StructuredDataSchemaVersion {
+		return errors.New("unsupported structured measurement schema")
+	}
+	var envelope StructuredMeasurementData
+	if err := json.Unmarshal(data, &envelope); err != nil {
+		return err
+	}
+	canonical := Result(envelope.Result)
+	if err := validateStructuredResult(canonical); err != nil {
+		return err
+	}
+	if envelope.MeasurementKind != canonical.Kind {
+		return errors.New("structured measurement kind diverges from canonical result")
+	}
+	if !reflect.DeepEqual(envelope.Reference, canonical.Reference) {
+		return errors.New("structured measurement reference diverges from canonical result")
+	}
+	if envelope.CaptureMapping != canonical.Snapshot.Mapping {
+		return errors.New("structured measurement mapping diverges from canonical result")
+	}
+	if !reflect.DeepEqual(envelope.CoordinateSpace, canonical.CoordinateSpace) {
+		return errors.New("structured measurement coordinate space diverges from canonical result")
+	}
+	if envelope.Unit != "logical-unit" {
+		return errors.New("structured measurement unit is unsupported")
+	}
+	*r = canonical
+	return nil
 }
 
 func validateStructuredResult(result Result) error {
