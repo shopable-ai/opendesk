@@ -14,12 +14,38 @@ quality/
 ├── failure-cases.md
 ├── developer-test-catalog.md
 ├── golden-sample-strategy.md
+├── agent-driven-rpa-competitive-benchmark.md
 ├── browser-automation/
 ├── layout/
 └── wechat/
 ```
 
 仓库可以存在其他平台/领域专项目录；它们不因为出现在 `quality/` 下就自动成为全局规范。上面的树只表示本轮已审计的核心角色，不虚构不存在的 `review/` 等目录。
+
+## Agent-driven RPA Competitive Benchmark
+
+[`agent-driven-rpa-competitive-benchmark.md`](agent-driven-rpa-competitive-benchmark.md) 是当前公开 Top 3 / Top 1 竞争结论的 Benchmark 合同入口。
+
+它固定：
+
+```text
+First-run
+→ Author / Distill
+→ Replay
+→ Repair
+→ Delivery
+```
+
+并要求：
+
+- 各产品使用其最佳公开推荐路径；
+- Human-first / Agent-first 分轨；
+- macOS / Windows 分轨；
+- 正常任务与 fault/mutation 分开；
+- 业务结果使用独立 Oracle；
+- 正常任务主动停止记 `INCOMPLETE`，只有 fault set 的正确停止才记 `CORRECT_STOP`；
+- 无法公平取得环境的竞品记 `UNTESTED`，不能自动判负；
+- Blog 或内部评分不能替代公开 Benchmark 结果。
 
 ## Document types
 
