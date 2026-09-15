@@ -4,9 +4,11 @@
 
 ## 入口与本次保存范围
 
-[唯一产品设计](../architecture/desktop-automation/desktop-measurement.md) · [中文 HTML 样机](../../apps/opendesk/prototypes/desktop-measurement/index.html) · [样机资产说明](../../apps/opendesk/prototypes/desktop-measurement/README.md) · [验证说明](../../tests/desktop-measurement/README.md) · [下一轮实施提示词](../../prompts/desktop-measurement-implementation.md)。
+[唯一产品设计](../architecture/desktop-automation/desktop-measurement.md) · [中文 HTML 样机](../../apps/opendesk/prototypes/desktop-measurement/index.html) · [样机资产说明](../../apps/opendesk/prototypes/desktop-measurement/README.md) · [验证说明](../../tests/desktop-measurement/README.md) · [Qualification Matrix](./desktop-measurement-qualification.md)。
 
 设计正文继续只维护 canonical 文件。样机现由 `apps/opendesk/prototypes/desktop-measurement/` 长期保存，作为 OpenDesk 产品的 UI / Interaction Oracle；这表示产品所有权，不表示它是正式应用入口，也不表示样机会进入 Runtime 生产执行链路。Node / Playwright 验证、fixtures 与导入清单继续留在 `tests/desktop-measurement/`。
+
+曾用于推进 Native P0–P4 的阶段性 implementation 文档与执行 prompt 已完成使命并移除。它们产生的有效 Geometry / Evidence / Authoring / Qualification / Repair 能力保留在正式代码、canonical 设计和 qualification 资产中；其中任何旧 UI/Interaction 描述都不得覆盖当前 HTML Oracle。
 
 2026-09-15 仅进行了目录职责调整：`index.html`、`template.html`、`model.js` 复用原 Git blob 迁移，样机内容没有因目录迁移而修改。导入时旧路径与当前路径同时记录在 [`import-manifest.json`](../../tests/desktop-measurement/import-manifest.json)，避免重写历史。
 
@@ -16,7 +18,7 @@
 
 ## 历史验证记录（原报告内容）
 
-范围：独立 HTML 样机，不是 OpenDesk Runtime 或原生桌面验收。
+范围：独立 HTML 样机，不是 OpenDesk Runtime 或原生桌面验收。下表保留 2026-09-14 原报告事实，不再作为当前模块化 Oracle 的 UI 合同；当前交互合同必须以仓库中的 `index.html + interaction-core.js` 及 `browser.test.py` 为准。
 
 ### 几何模型
 
@@ -71,12 +73,12 @@
 
 ## 2026-09-15 Native Measurement 验收增补
 
-本节覆盖当前本地 `master` 的 Production 实现，取代上节“所有系统级结论均 NOT_RUN”的泛化表述；历史样机报告本身仍只描述 Prototype。
+本节覆盖当时本地 `master` 的 Production 实现，取代上节“所有系统级结论均 NOT_RUN”的泛化表述；历史样机报告本身仍只描述 Prototype。当前发布资格状态继续以 `desktop-measurement-qualification.md` 与 `qualification-manifest.json` 为准。
 
 - Oracle 未进入生产：`apps/opendesk/prototypes/desktop-measurement/index.html` 继续定义 UI / Interaction，Native 继续使用 `pkg/measurement` 的 CaptureMapping、Reference、Result 和冻结源 PNG。
 - Stable surface：首次 Capture 后创建一个 Measurement Window；状态变化 patch 已有 DOM control，重复入口复用 Session，显式刷新才重新 Capture；测试断言 window ID、capture count 和 event sink 数量稳定。
 - Native UI：冻结桌面之上显示 Target / Reference outline、底部居中小工具条和约 268 logical-unit 的 corner HUD；Inspector 默认隐藏，并由 `I` / 详情打开。
-- Native keyboard：macOS nonactivating Panel 在可见时 relay `1–4`、Tab / Shift+Tab、Option、Arrow / Shift+Arrow、R、I、Escape 和三档复制组合；关闭时卸载 relay。Windows bridge 使用相同 vocabulary。
+- Native keyboard：当前产品键盘合同以 HTML Oracle 为准：`1–4`、Tab / Shift+Tab、Alt / Option 临时暂停、`I` 与 Esc；区域编辑所需 Arrow / Shift+Arrow 作为 Native 编辑能力继续由生产测试覆盖。旧 P0 文档曾列出的 `R` 与三档复制组合不再作为当前 UI 合同。
 - Control patch：MemoryDriver 现在保存并暴露 `img Source`，连同 Text、Visible、Classes、Value 支持增量渲染的合同测试。
 
 本机 macOS 真实 OpenDesk 证据：`23-frozen-snapshot-assets-retry.png`（真实冻结画面与底部工具条）、`24-key-2-relay.png`（真实键盘切换区域）、`25-inspector-key-i.png` / `26-inspector-escape.png`（Inspector 的 Esc 层级）、`30-session-exit.png` / `31-session-reenter.png`（退出清理与再次进入）。这些本地运行产物位于 `.runtime/tests/desktop-measurement/macos/`，不纳入版本控制。
