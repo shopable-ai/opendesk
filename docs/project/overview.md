@@ -4,6 +4,18 @@
 
 OpenDesk 是一个面向本地桌面自动化与 AI Agent 的执行运行时。核心不是某一个业务脚本，而是把桌面感知、窗口与输入控制、视觉/OCR、脚本运行、HTTP 调用、MCP 工具和执行证据统一到同一个工程中。
 
+当前产品方向已经收口为：
+
+> **Agent-driven RPA / Agent 驱动的桌面自动化。**
+
+第一优先的竞争问题是：Agent 或人完成真实桌面任务一次以后，怎样把成功经验沉淀成可验证、可复用、可维修并能够长期运行的自动化资产。这个定位是产品战略决策，不等于已经取得全球 Top 3 / Top 1 证明；竞争范围、证据门槛和验证路线统一见：
+
+```text
+docs/plans/commercialization/agent-driven-rpa-positioning.md
+```
+
+市场、竞品与地域证据仍保存在 `docs/research/`，不在本项目概览重复维护。
+
 ## 核心使用面
 
 ### JavaScript Runtime / CLI
