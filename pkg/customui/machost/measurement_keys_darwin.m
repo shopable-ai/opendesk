@@ -58,7 +58,6 @@ static void CDEmitMeasurementKey(CDMeasurementPanel *panel, NSEvent *event, NSSt
         NSString *lower = raw.lowercaseString;
         NSString *key = nil;
         if ([raw isEqualToString:@"\t"]) key = @"Tab";
-        else if ([lower isEqualToString:@"r"]) key = @"r";
         else if ([lower isEqualToString:@"i"]) key = @"i";
         else if ([raw isEqualToString:@"1"] || [raw isEqualToString:@"2"] || [raw isEqualToString:@"3"] || [raw isEqualToString:@"4"]) key = raw;
         if (key.length) {
