@@ -2,67 +2,19 @@
   "schemaVersion": "agent-driven-rpa-competitive-benchmark/v1",
   "benchmarkContract": "docs/quality/agent-driven-rpa-competitive-benchmark.md",
   "researchBaseline": "docs/research/commercialization/agent-driven-rpa-competitor-matrix-2026.md",
+  "appiumResearchBaseline": "docs/research/commercialization/appium-and-multi-surface-automation-2026.md",
   "status": "NOT_RUN",
-  "phases": [
-    "FIRST_RUN",
-    "AUTHOR_DISTILL",
-    "REPLAY",
-    "REPAIR",
-    "DELIVERY"
-  ],
-  "outcomes": [
-    "CORRECT_SUCCESS",
-    "CORRECT_STOP",
-    "INCOMPLETE",
-    "FALSE_SUCCESS",
-    "UNSAFE_SIDE_EFFECT",
-    "HARNESS_FAILURE",
-    "EXTERNAL_BLOCKER",
-    "UNTESTED"
-  ],
+  "phases": ["FIRST_RUN", "AUTHOR_DISTILL", "REPLAY", "REPAIR", "DELIVERY"],
+  "outcomes": ["CORRECT_SUCCESS", "CORRECT_STOP", "INCOMPLETE", "FALSE_SUCCESS", "UNSAFE_SIDE_EFFECT", "HARNESS_FAILURE", "EXTERNAL_BLOCKER", "UNTESTED"],
   "taskFamilies": [
-    {
-      "id": "calculator",
-      "tier": 0,
-      "goal": "Complete a multi-step calculation through the visible application and return the independently verified display result.",
-      "oracle": "independent-display-read",
-      "status": "DEFINED"
-    },
-    {
-      "id": "text-editor",
-      "tier": 0,
-      "goal": "Edit text, save the document, and verify the persisted file independently of the automation tool.",
-      "oracle": "filesystem-content",
-      "status": "DEFINED"
-    },
-    {
-      "id": "file-manager",
-      "tier": 0,
-      "goal": "Create, copy, or rename a file through the visible UI and verify the filesystem state independently.",
-      "oracle": "filesystem-state",
-      "status": "DEFINED"
-    },
-    {
-      "id": "spreadsheet",
-      "tier": 1,
-      "goal": "Read and update spreadsheet cells through the visible application, persist the workbook, and verify the saved data independently.",
-      "oracle": "saved-workbook-parse",
-      "status": "NEEDS_APP_FREEZE"
-    },
-    {
-      "id": "electron-app",
-      "tier": 1,
-      "goal": "Perform a bounded state change in an Electron or Chromium desktop app and verify it through independent application or configuration state.",
-      "oracle": "independent-app-state",
-      "status": "NEEDS_APP_FREEZE"
-    },
-    {
-      "id": "order-exception-fixture",
-      "tier": 2,
-      "goal": "Resolve a multi-source order exception with stale or conflicting data, stop safely when evidence is insufficient, and return a result checked against a system-of-record oracle.",
-      "oracle": "fixture-system-of-record",
-      "status": "NEEDS_FIXTURE"
-    }
+    {"id":"calculator","tier":0,"goal":"Complete a multi-step calculation through the visible application and return the independently verified display result.","oracle":"independent-display-read","status":"DEFINED"},
+    {"id":"text-editor","tier":0,"goal":"Edit text, save the document, and verify the persisted file independently of the automation tool.","oracle":"filesystem-content","status":"DEFINED"},
+    {"id":"file-manager","tier":0,"goal":"Create, copy, or rename a file through the visible UI and verify the filesystem state independently.","oracle":"filesystem-state","status":"DEFINED"},
+    {"id":"spreadsheet","tier":1,"goal":"Read and update spreadsheet cells through the visible application, persist the workbook, and verify the saved data independently.","oracle":"saved-workbook-parse","status":"NEEDS_APP_FREEZE"},
+    {"id":"electron-app","tier":1,"goal":"Perform a bounded state change in an Electron or Chromium desktop app and verify it through independent application or configuration state.","oracle":"independent-app-state","status":"NEEDS_APP_FREEZE"},
+    {"id":"order-exception-fixture","tier":2,"goal":"Resolve a multi-source order exception with stale or conflicting data, stop safely when evidence is insufficient, and return a result checked against a system-of-record oracle.","oracle":"fixture-system-of-record","status":"NEEDS_FIXTURE"},
+    {"id":"browser-semantic","tier":2,"goal":"Perform a bounded browser task using DOM or protocol-level semantics and verify the persisted or server-side outcome independently.","oracle":"browser-system-of-record","status":"BLOCKED_OPENDESK_BROWSER_ADAPTER"},
+    {"id":"mobile-semantic","tier":2,"goal":"Perform a bounded native mobile task with semantic element automation and verify application state independently.","oracle":"mobile-system-of-record","status":"BLOCKED_OPENDESK_MOBILE_ADAPTER"}
   ],
   "products": [
     {"id":"opendesk","scope":"macos+windows","status":"UNTESTED"},
@@ -71,77 +23,23 @@
     {"id":"adh","scope":"windows","status":"UNTESTED"},
     {"id":"openadapt","scope":"qualified-environment-only","status":"UNTESTED"},
     {"id":"codex","scope":"eligible-macos+windows","status":"UNTESTED"},
+    {"id":"appium","scope":"browser+macos+windows+ios+android via drivers","status":"UNTESTED_REFERENCE_SUBSTRATE"},
     {"id":"uipath-delegate","scope":"enterprise-track","status":"UNTESTED"},
     {"id":"microsoft-computer-use","scope":"windows-enterprise-track","status":"UNTESTED"},
     {"id":"automation-anywhere","scope":"enterprise-track","status":"UNTESTED"}
   ],
   "cases": [
-    {
-      "id": "macos-public-baseline",
-      "platform": "macos",
-      "products": ["opendesk", "cua", "peekaboo", "openadapt", "codex"],
-      "taskFamilies": ["calculator", "text-editor", "file-manager", "spreadsheet", "electron-app"],
-      "phases": ["FIRST_RUN", "AUTHOR_DISTILL", "REPLAY"],
-      "status": "NOT_RUN",
-      "evidence": []
-    },
-    {
-      "id": "windows-public-baseline",
-      "platform": "windows",
-      "products": ["opendesk", "cua", "adh", "openadapt", "codex"],
-      "taskFamilies": ["calculator", "text-editor", "file-manager", "spreadsheet", "electron-app"],
-      "phases": ["FIRST_RUN", "AUTHOR_DISTILL", "REPLAY"],
-      "status": "NOT_RUN",
-      "evidence": []
-    },
-    {
-      "id": "macos-repair",
-      "platform": "macos",
-      "products": ["opendesk", "cua", "peekaboo", "openadapt", "codex"],
-      "taskFamilies": ["order-exception-fixture"],
-      "phases": ["REPAIR"],
-      "status": "BLOCKED_FIXTURE",
-      "evidence": []
-    },
-    {
-      "id": "windows-repair",
-      "platform": "windows",
-      "products": ["opendesk", "cua", "adh", "openadapt", "codex"],
-      "taskFamilies": ["order-exception-fixture"],
-      "phases": ["REPAIR"],
-      "status": "BLOCKED_FIXTURE",
-      "evidence": []
-    },
-    {
-      "id": "independent-developer-delivery",
-      "platform": "cross-machine",
-      "products": ["opendesk"],
-      "comparisonSlots": 3,
-      "selectionRule": "Choose the three closest independently usable client-delivery alternatives before the run; do not select them after seeing results.",
-      "taskFamilies": ["text-editor", "spreadsheet", "order-exception-fixture"],
-      "phases": ["DELIVERY"],
-      "status": "BLOCKED_COMPARISON_FREEZE",
-      "evidence": []
-    }
+    {"id":"macos-public-baseline","platform":"macos","products":["opendesk","cua","peekaboo","openadapt","codex"],"taskFamilies":["calculator","text-editor","file-manager","spreadsheet","electron-app"],"phases":["FIRST_RUN","AUTHOR_DISTILL","REPLAY"],"status":"NOT_RUN","evidence":[]},
+    {"id":"windows-public-baseline","platform":"windows","products":["opendesk","cua","adh","openadapt","codex"],"taskFamilies":["calculator","text-editor","file-manager","spreadsheet","electron-app"],"phases":["FIRST_RUN","AUTHOR_DISTILL","REPLAY"],"status":"NOT_RUN","evidence":[]},
+    {"id":"macos-repair","platform":"macos","products":["opendesk","cua","peekaboo","openadapt","codex"],"taskFamilies":["order-exception-fixture"],"phases":["REPAIR"],"status":"BLOCKED_FIXTURE","evidence":[]},
+    {"id":"windows-repair","platform":"windows","products":["opendesk","cua","adh","openadapt","codex"],"taskFamilies":["order-exception-fixture"],"phases":["REPAIR"],"status":"BLOCKED_FIXTURE","evidence":[]},
+    {"id":"independent-developer-delivery","platform":"cross-machine","products":["opendesk"],"comparisonSlots":3,"selectionRule":"Choose the three closest independently usable client-delivery alternatives before the run; do not select them after seeing results.","taskFamilies":["text-editor","spreadsheet","order-exception-fixture"],"phases":["DELIVERY"],"status":"BLOCKED_COMPARISON_FREEZE","evidence":[]},
+    {"id":"future-browser-surface","platform":"browser","products":["opendesk","cua","appium"],"taskFamilies":["browser-semantic"],"phases":["FIRST_RUN","AUTHOR_DISTILL","REPLAY"],"status":"BLOCKED_OPENDESK_BROWSER_ADAPTER","evidence":[]},
+    {"id":"future-mobile-semantic-surface","platform":"mobile","products":["opendesk","appium"],"taskFamilies":["mobile-semantic"],"phases":["FIRST_RUN","AUTHOR_DISTILL","REPLAY"],"status":"BLOCKED_OPENDESK_MOBILE_ADAPTER","evidence":[]}
   ],
   "publicationGates": {
-    "measuredAdvantage": {
-      "minimumRepresentativeTaskFamilies": 3,
-      "minimumHeldOutNormalInputsPerTaskFamily": 50,
-      "requiresFaultSet": true,
-      "requiresIndependentOracle": true,
-      "requiresRawSummaryEvidence": true
-    },
-    "top3": {
-      "requiresFrozenCompetitiveSet": true,
-      "requiresStrongestDirectSubstitutes": true,
-      "requiresPredeclaredTasks": true,
-      "allowUntestedAsLoss": false
-    },
-    "top1": {
-      "requiresCommerciallyMeaningfulNiche": true,
-      "requiresPaidOrDeliveryEvidence": true,
-      "requiresExternalEnvironmentOrIndependentReproduction": true
-    }
+    "measuredAdvantage": {"minimumRepresentativeTaskFamilies":3,"minimumHeldOutNormalInputsPerTaskFamily":50,"requiresFaultSet":true,"requiresIndependentOracle":true,"requiresRawSummaryEvidence":true},
+    "top3": {"requiresFrozenCompetitiveSet":true,"requiresStrongestDirectSubstitutes":true,"requiresPredeclaredTasks":true,"allowUntestedAsLoss":false},
+    "top1": {"requiresCommerciallyMeaningfulNiche":true,"requiresPaidOrDeliveryEvidence":true,"requiresExternalEnvironmentOrIndependentReproduction":true}
   }
 }
