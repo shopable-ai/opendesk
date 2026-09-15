@@ -86,6 +86,14 @@
     return configuredExisting.concat(appended);
   }
 
+  function resolveSelectedScriptName(scripts, selectedName) {
+    const names = (scripts || [])
+      .map(script => typeof script === 'string' ? script : script && script.name)
+      .filter(Boolean);
+    if (!names.length) return null;
+    return selectedName && names.includes(selectedName) ? selectedName : names[0];
+  }
+
   function deriveViewState(state, scriptCount) {
     if (state.loading) return 'loading';
     if (state.loadError || !state.configValid) return 'error';
@@ -93,6 +101,33 @@
     if (scriptCount === 0) return 'empty';
     return 'ready';
   }
+
+  function buildCompactSelectorHTML(scripts, selectedScriptName) {
+    const rows = (scripts || []).map((script, index) => {
+      const selected = script.name === selectedScriptName;
+      return `<button id="compactScript${index}" class="compact-script${selected ? ' selected' : ''}" title="选择 ${escapeHTML(script.name)}" aria-label="选择 ${escapeHTML(script.name)}" aria-pressed="${selected ? 'true' : 'false'}"><span class="check">${selected ? '✓' : ''}</span><span class="script-name">${escapeHTML(script.name)}</span></button>`;
+    });
+    if (!rows.length) rows.push('<p class="compact-empty">暂无可运行脚本</p>');
+    return `<!doctype html><html><head><meta charset="utf-8"></head><body>
+      <main>
+        <p class="compact-title">选择脚本</p>
+        <div class="compact-list">${rows.join('\n')}</div>
+        <footer><button id="compactManage" class="manage">管理脚本…</button></footer>
+      </main>
+    </body></html>`;
+  }
+
+  const COMPACT_SELECTOR_CSS = `
+    html,body{margin:0;padding:0;background:#171717;color:#f4f4f4;font:14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    *{box-sizing:border-box} main{height:100vh;padding:10px;display:flex;flex-direction:column;gap:8px;overflow:hidden}
+    .compact-title{margin:0 4px 2px;font-size:12px;font-weight:700;color:#b9b9b9}
+    .compact-list{flex:1;min-height:0;overflow-y:auto;border:1px solid #333;border-radius:8px;background:#1d1d1d}
+    .compact-script{width:100%;height:36px;border:0;border-bottom:1px solid #303030;border-radius:0;background:transparent;color:#f4f4f4;padding:0 10px;display:flex;align-items:center;gap:8px;text-align:left;font:inherit}
+    .compact-script:last-child{border-bottom:0}.compact-script:not(:disabled){cursor:pointer}.compact-script:hover{background:#292929}.compact-script.selected{background:#252d3a}
+    .check{width:16px;flex:0 0 16px;text-align:center;color:#8db7ff;font-weight:700}.script-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .compact-empty{margin:0;padding:18px 12px;text-align:center;color:#999}
+    footer{padding-top:8px;border-top:1px solid #343434}.manage{width:100%;height:34px;border:1px solid #505050;border-radius:7px;background:#303030;color:#f4f4f4;font:inherit}.manage:hover{background:#3b3b3b;border-color:#666;cursor:pointer}
+  `;
 
   function buildListHTML(scripts, state) {
     const rowCapacity = Math.max(
@@ -136,7 +171,7 @@
         ? (state.loadError ? `无法读取脚本目录：${state.loadError.message || state.loadError}` : `排序配置无效：${state.configError || '请恢复默认排序'}`)
         : emptyVisible
           ? '当前没有可运行脚本。'
-          : '#1 是主工具条默认脚本。';
+          : `主工具条当前脚本：${state.selectedScriptName || '暂无脚本'}`;
 
     return `<!doctype html><html><head><meta charset="utf-8"></head><body>
       <main>
@@ -232,6 +267,7 @@
     const executable = system.getExecutablePath();
     const platform = system.getPlatformInfo().os;
     const selectedNames = new Set();
+    let selectedScriptName = null;
     let scripts = [];
     let configValid = true;
     let configError = '';
@@ -243,6 +279,10 @@
     let listVisible = false;
     let listSequence = 0;
     let listRowCapacity = MIN_LIST_ROW_CAPACITY;
+    let selectorWindow = null;
+    let selectorCreating = null;
+    let selectorVisible = false;
+    let selectorSequence = 0;
     let statusMessage = '';
     let runPromise = null;
     let activeRun = null;
@@ -321,6 +361,12 @@
       for (const selected of Array.from(selectedNames)) {
         if (!available.has(selected)) selectedNames.delete(selected);
       }
+      selectedScriptName = resolveSelectedScriptName(scripts, selectedScriptName);
+    }
+
+    function selectedScript() {
+      if (!selectedScriptName) return null;
+      return scripts.find(script => script.name === selectedScriptName) || null;
     }
 
     function loadScripts() {
@@ -371,7 +417,8 @@
 
     function idleLabel() {
       if (loadError) return '目录错误';
-      return scripts.length ? `#1 ${scripts[0].name}` : '暂无脚本';
+      const current = selectedScript();
+      return current ? current.name : '暂无脚本';
     }
 
     function currentLabel() {
@@ -392,6 +439,7 @@
     function listState() {
       return {
         selectedNames,
+        selectedScriptName,
         configValid,
         configError,
         loadError,
@@ -410,7 +458,7 @@
       if (!configValid) return `排序配置无效：${configError || '请恢复默认排序'}`;
       if (!scripts.length) return '当前没有可运行脚本。';
       if (runPromise && activeRun && activeRun.current) return `正在运行：${activeRun.current.name}`;
-      return `当前 #1 = ${scripts[0].name}`;
+      return `当前脚本：${selectedScriptName || '暂无脚本'}`;
     }
 
     async function safeControlUpdate(id, patch) {
@@ -419,8 +467,6 @@
     }
 
     function queueUIUpdate(update) {
-      // Serialize host writes so a delayed update from an older run cannot
-      // overwrite the next run's presentation.
       uiUpdates = uiUpdates.catch(() => {}).then(update);
       return uiUpdates;
     }
@@ -431,7 +477,7 @@
 
     async function updateToolbar() {
       const busy = !!activeRun;
-      const runnable = !loadError && configValid && scripts.length > 0;
+      const runnable = !loadError && configValid && !!selectedScript();
       try {
         await toolbar.updateButton('run', {disabled: busy || !runnable, active: busy});
       } catch (_) {}
@@ -439,7 +485,7 @@
         await toolbar.updateButton('stop', {disabled: !busy, active: false});
       } catch (_) {}
       try {
-        await toolbar.updateButton('list', {disabled: false, active: listVisible});
+        await toolbar.updateButton('list', {disabled: busy, active: selectorVisible});
       } catch (_) {}
       try {
         await toolbar.updateLabel('script', {
@@ -579,6 +625,7 @@
         current: null,
         canceled: false,
       };
+      await closeSelector();
       await syncUI();
       let outcome = {status: 'succeeded', completed: 0, total: queue.length};
 
@@ -693,7 +740,6 @@
         lastOutcome = {status: 'empty', completed: 0, total: 0};
         return Promise.resolve(clone(lastOutcome));
       }
-      // executeQueue establishes activeRun synchronously before Run returns.
       const pending = executeQueue(normalizedQueue, source)
         .catch(error => {
           const normalized = logError(error, 'ScriptRunner.executeQueue', {source});
@@ -732,7 +778,7 @@
       next.splice(target, 0, item);
       scripts = next;
       await saveCurrentOrder();
-      statusMessage = `已调整顺序；#1 = ${scripts[0].name}`;
+      statusMessage = `已调整顺序；第一项 = ${scripts[0].name}`;
       await syncUI();
       return true;
     }
@@ -750,7 +796,7 @@
       }
       setScriptsFromNames(names);
       await saveCurrentOrder();
-      statusMessage = scripts.length ? `已恢复默认文件名排序；#1 = ${scripts[0].name}` : '已恢复默认排序；当前没有脚本。';
+      statusMessage = scripts.length ? `已恢复默认文件名排序；当前脚本 = ${selectedScriptName}` : '已恢复默认排序；当前没有脚本。';
       await ensureListCapacity();
       await syncUI();
       return true;
@@ -780,7 +826,7 @@
         : !configValid
           ? `重新扫描完成，但 ${CONFIG_FILE} 仍无效。`
           : scripts.length
-            ? `已重新扫描；当前 #1 = ${scripts[0].name}`
+            ? `已重新扫描；当前脚本 = ${selectedScriptName}`
             : '已重新扫描；当前没有脚本。';
       const rebuilt = await ensureListCapacity();
       if (!rebuilt) await syncUI();
@@ -809,6 +855,106 @@
           return null;
         }
       });
+    }
+
+    async function closeSelector() {
+      const previous = selectorWindow;
+      selectorVisible = false;
+      selectorWindow = null;
+      if (previous) {
+        try { await previous.close(); } catch (_) {}
+      }
+      await safeToolbarUpdate();
+    }
+
+    async function selectScriptByName(name) {
+      if (runPromise || activeRun) return false;
+      const script = scripts.find(item => item.name === name);
+      if (!script) return false;
+      selectedScriptName = script.name;
+      statusMessage = `当前脚本：${script.name}`;
+      await closeSelector();
+      await safeToolbarUpdate();
+      return true;
+    }
+
+    async function bindSelectorWindow(window) {
+      const names = scripts.map(script => script.name);
+      for (let index = 0; index < names.length; index++) {
+        bind(window, `compactScript${index}`, () => selectScriptByName(names[index]));
+      }
+      bind(window, 'compactManage', async () => {
+        await closeSelector();
+        return openList();
+      });
+      window.on('close', () => {
+        if (selectorWindow === window) {
+          selectorWindow = null;
+          selectorVisible = false;
+        }
+        void safeToolbarUpdate();
+      });
+    }
+
+    async function prepareSelector() {
+      if (closed || runPromise || activeRun) return null;
+      if (selectorWindow) return selectorWindow;
+      if (selectorCreating) return selectorCreating;
+      const task = (async () => {
+        const window = await ui.createWindow({
+          id: `scriptRunnerSelector${++selectorSequence}`,
+          kind: 'normal',
+          title: '选择脚本',
+          position: {
+            mode: 'anchor',
+            size: {width: 310, height: 272},
+            horizontal: 'right',
+            vertical: 'bottom',
+            margin: 72,
+            display: 'active',
+          },
+          alwaysOnTop: true,
+          draggable: false,
+          theme: 'dark',
+          content: {html: buildCompactSelectorHTML(scripts, selectedScriptName), css: COMPACT_SELECTOR_CSS},
+        });
+        if (closed || runPromise || activeRun) {
+          try { await window.close(); } catch (_) {}
+          return null;
+        }
+        selectorWindow = window;
+        await bindSelectorWindow(window);
+        return window;
+      })();
+      selectorCreating = task;
+      try {
+        return await task;
+      } finally {
+        if (selectorCreating === task) selectorCreating = null;
+      }
+    }
+
+    async function openSelector() {
+      const window = await prepareSelector();
+      if (!window) return null;
+      try {
+        await window.show();
+        selectorVisible = true;
+        await safeToolbarUpdate();
+        return window;
+      } catch (error) {
+        selectorVisible = false;
+        throw error;
+      }
+    }
+
+    async function toggleSelector() {
+      if (runPromise || activeRun) return null;
+      if (selectorVisible || selectorWindow) {
+        await closeSelector();
+        return null;
+      }
+      return openSelector();
     }
 
     async function bindListWindow(window) {
@@ -877,8 +1023,6 @@
             margin: 0,
             display: 'active',
           },
-          // The list is the normal, focusable Script Runner page. Opening it
-          // may activate it once, but must never promote it above other apps.
           alwaysOnTop: false,
           draggable: true,
           theme: 'dark',
@@ -902,6 +1046,7 @@
     }
 
     async function openList(message) {
+      await closeSelector();
       const window = await prepareList(message);
       if (!window) return null;
       try {
@@ -930,7 +1075,10 @@
       await safeToolbarUpdate();
     }
 
-    toolbar.addButton('run', '运行', 'play.fill', () => requestRun(scripts.length ? [scripts[0]] : [], 'toolbar'));
+    toolbar.addButton('run', '运行', 'play.fill', () => {
+      const script = selectedScript();
+      return requestRun(script ? [script] : [], 'toolbar');
+    });
     toolbar.addButton('stop', '停止', 'stop.fill', stopRun);
     toolbar.addLabel('script', '暂无脚本', {
       width: 168,
@@ -938,7 +1086,7 @@
       verticalAlignment: 'center',
       tone: 'secondary',
     });
-    toolbar.addButton('list', '脚本列表', 'list.bullet', () => openList());
+    toolbar.addButton('list', '脚本列表', 'list.bullet', toggleSelector);
 
     toolbar.on('close', () => {
       closed = true;
@@ -946,6 +1094,7 @@
         activeRun.canceled = true;
         activeRun.controller.abort('script runner window closed');
       }
+      void closeSelector();
       void closeList();
     });
     toolbar.onError(error => logError(error, 'FloatingWindow'));
@@ -961,7 +1110,7 @@
         : !configValid
           ? `排序配置无效：${configError || '请恢复默认排序'}`
           : scripts.length
-            ? `已加载 ${scripts.length} 个脚本；当前 #1 = ${scripts[0].name}`
+            ? `已加载 ${scripts.length} 个脚本；当前脚本 = ${selectedScriptName}`
             : '暂无可运行脚本。将 JavaScript Recipe 添加到脚本目录后点击“刷新”。';
       const rebuilt = await ensureListCapacity();
       if (!rebuilt) await syncUI();
@@ -972,6 +1121,7 @@
         configFile,
         scriptCount: scripts.length,
         defaultScript: scripts.length ? scripts[0].name : null,
+        selectedScript: selectedScriptName,
         configValid,
         viewState: viewState(),
         loadError,
@@ -982,6 +1132,7 @@
         activeRun.canceled = true;
         activeRun.controller.abort('script runner closed');
       }
+      await closeSelector();
       if (closeListOnRunnerExit && listWindow) {
         const previous = listWindow;
         listWindow = null;
@@ -999,6 +1150,10 @@
       run,
       prepareList,
       openList,
+      openSelector,
+      closeSelector,
+      toggleSelector,
+      selectScript: selectScriptByName,
       rescan,
       stopRun,
       restoreDefaultOrder,
@@ -1014,7 +1169,10 @@
         loadError: clone(loadError),
         viewState: viewState(),
         scriptCount: scripts.length,
+        selectedScriptName,
         selectedNames: Array.from(selectedNames),
+        selectorPrepared: !!selectorWindow,
+        selectorVisible,
         listPrepared: !!listWindow,
         listVisible,
         running: !!runPromise,
@@ -1034,8 +1192,10 @@
     createApp,
     validateOrderConfig,
     reconcileOrder,
+    resolveSelectedScriptName,
     isDirectJavaScriptName,
     deriveViewState,
+    buildCompactSelectorHTML,
     buildListHTML,
   });
 })(globalThis);
