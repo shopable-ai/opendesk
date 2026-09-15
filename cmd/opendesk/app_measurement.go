@@ -85,7 +85,6 @@ func (appMeasurementCapture) Capture(ctx context.Context, targetID string) (meas
 	for _, target := range targets {
 		targetOptions = append(targetOptions, measurement.TargetWindow{
 			ID: target.id, Title: target.title, PID: target.pid,
-			Bounds: measurement.Rect{X: target.x, Y: target.y, Width: target.width, Height: target.height},
 		})
 	}
 	return measurement.CaptureFrame{
