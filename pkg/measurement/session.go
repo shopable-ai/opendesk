@@ -714,10 +714,7 @@ func (a *activeSession) completeSelection(ctx context.Context, end Point) error 
 func (a *activeSession) handleKey(ctx context.Context, fields map[string]any) error {
 	key, _ := fields["key"].(string)
 	phase, _ := fields["phase"].(string)
-	ctrl, _ := fields["ctrl"].(bool)
-	meta, _ := fields["meta"].(bool)
 	shift, _ := fields["shift"].(bool)
-	alt, _ := fields["alt"].(bool)
 	lower := strings.ToLower(key)
 	if key == "Alt" || key == "Option" {
 		if !a.snapEnabled {
@@ -740,26 +737,21 @@ func (a *activeSession) handleKey(ctx context.Context, fields map[string]any) er
 		return nil
 	}
 	switch {
-	case lower == "c" && (ctrl || meta) && alt:
-		return a.copyFormat(ctx, "json")
-	case lower == "c" && (ctrl || meta) && shift:
-		return a.copyFormat(ctx, "human")
-	case lower == "c" && (ctrl || meta):
-		return a.copyFormat(ctx, "concise")
 	case key == "Escape":
 		return a.handleEscape(ctx)
 	case key == "Tab":
-		direction := 1
-		if shift {
-			direction = -1
+		if !a.snapEnabled {
+			return a.updateStatus(ctx, "磁吸定位已关闭；Tab 不执行候选切换。")
 		}
-		return a.cycleTarget(ctx, direction)
+		direction := "下一个"
+		if shift {
+			direction = "上一个"
+		}
+		return a.updateStatus(ctx, "当前冻结 Snapshot 尚无可切换的 UI 候选；Tab/Shift+Tab 只用于同一 Snapshot 内的候选层级，不会切换目标窗口或重新截图（请求："+direction+"候选）。")
 	case lower == "i":
 		a.inspectorOpen = !a.inspectorOpen
 		a.copyMenuOpen = false
 		return a.renderSurface(ctx)
-	case lower == "r":
-		return a.beginReferenceEdit(ctx)
 	case key == "1" || key == "2" || key == "3" || key == "4":
 		tools := map[string]string{"1": "point", "2": "region", "3": "twoPoint", "4": "spacing"}
 		if setMeasurementTool(a, tools[key]) {
@@ -771,13 +763,6 @@ func (a *activeSession) handleKey(ctx context.Context, fields map[string]any) er
 			step = 10
 		}
 		return a.nudge(ctx, key, step)
-	case key == "Enter":
-		if a.copyMenuOpen {
-			return a.copyFormat(ctx, a.outputFormat)
-		}
-		if a.result != nil {
-			return a.copy(ctx)
-		}
 	}
 	return nil
 }
@@ -1020,12 +1005,8 @@ func (a *activeSession) rollbackFreezeState(oldPhase MeasurementPhase, oldToken 
 }
 
 func (a *activeSession) cycleTarget(ctx context.Context, direction int) error {
-	if !a.snapEnabled {
-		a.status = "磁吸定位已关闭；不会切换候选。"
-		return a.updateStatus(ctx, a.status)
-	}
 	if len(a.frame.Targets) < 2 {
-		a.status = "当前没有可切换的其他真实候选窗口；不会伪造候选。"
+		a.status = "当前没有可切换的其他目标窗口。"
 		return a.updateStatus(ctx, a.status)
 	}
 	current := 0
