@@ -139,6 +139,11 @@ if (!globalThis.OpenDeskPermissionsCenter
   || typeof OpenDeskPermissionsCenter.create !== 'function') {
   throw new Error('OpenDesk Permissions Center did not initialize');
 }
+const aboutEntry = File.join(Execution.scriptDir, 'about.js');
+(0, eval)(File.read(aboutEntry) + '\n//# sourceURL=' + aboutEntry);
+if (!globalThis.OpenDeskAbout || typeof OpenDeskAbout.create !== 'function') {
+  throw new Error('OpenDesk About did not initialize');
+}
 const inspectorLauncherEntry = File.join(Execution.scriptDir, 'inspector-launcher.js');
 (0, eval)(File.read(inspectorLauncherEntry) + '\n//# sourceURL=' + inspectorLauncherEntry);
 if (!globalThis.OpenDeskInspectorLauncher
@@ -156,6 +161,11 @@ if (!globalThis.OpenDeskProductAppController
 const schedulerCenter = OpenDeskSchedulerCenter.create();
 const runtimeLog = OpenDeskRuntimeLog.create({runner});
 const permissionsCenter = OpenDeskPermissionsCenter.create();
+const about = OpenDeskAbout.create({
+  file: File,
+  packageRoot: Execution.scriptDir,
+  officialShell,
+});
 const inspectorLauncher = OpenDeskInspectorLauncher.create({
   system: System,
   command: Command,
@@ -182,6 +192,7 @@ const appController = OpenDeskProductAppController.create({
   schedulerCenter,
   runtimeLog,
   permissionsCenter,
+  about,
   inspectorLauncher,
   developerTools,
   officialShell,
@@ -212,6 +223,7 @@ console.log('OPENDESK_PRODUCT_APP_READY=' + JSON.stringify({
   scheduler: OpenDeskSchedulerClient.getCapabilities(),
   inspector: inspectorLauncher.getCapabilities(),
   permissions: permissionsCenter.state(),
+  about: about.state(),
   appController: appController.state(),
   runtimeLog: runtimeLog.state(),
   developerTools: developerTools.state(),
