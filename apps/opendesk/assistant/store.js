@@ -151,6 +151,15 @@
         if (payload.select !== false) state.selectedConversationId = conversation.id;
         break;
       }
+      case 'conversation.delete': {
+        const conversation = assertConversation(state, payload.id);
+        if (activeRequestForConversation(conversation)) {
+          throw new AssistantStoreError('CONVERSATION_BUSY', 'cannot delete a conversation with an active request');
+        }
+        delete state.conversations[conversation.id];
+        if (state.selectedConversationId === conversation.id) state.selectedConversationId = null;
+        break;
+      }
       case 'request.create': {
         const conversation = assertConversation(state, payload.conversationId);
         if (conversation.archived) throw new AssistantStoreError('CONVERSATION_ARCHIVED', 'cannot send in an archived conversation');
@@ -437,6 +446,14 @@
       return getConversation(id);
     }
 
+    async function deleteConversation(id) {
+      const conversation = assertConversation(state, id);
+      const wasSelected = state.selectedConversationId === conversation.id;
+      await appendEvent('conversation.delete', {id: conversation.id});
+      if (wasSelected) await createConversation();
+      return snapshot();
+    }
+
     async function beginRequest(input) {
       const data = input || {};
       const conversationId = requiredText(data.conversationId, 160, 'conversationId');
@@ -482,6 +499,7 @@
       setDraft,
       archiveConversation,
       restoreConversation,
+      deleteConversation,
       allocateId,
       beginRequest,
       markStopping,
