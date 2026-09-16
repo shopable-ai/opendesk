@@ -54,18 +54,16 @@ jobs:
           python -m pip install --disable-pip-version-check playwright
           python -m playwright install --with-deps chromium
           python tests/desktop-measurement/browser.test.py
-      - name: Publish formal files only
+      - name: Publish generated formal files
         shell: bash
         run: |
-          git rm \
-            .github/workflows/measurement-web-closure.yml \
-            .github/scripts/measurement-close-prototype.py \
-            .github/scripts/measurement-close-production.py \
-            .github/scripts/measurement-close-docs.py \
-            .github/scripts/measurement-close-tests.py
           git config user.name shopable-ai
           git config user.email 4077725@qq.com
           git add -A
+          if git diff --cached --quiet; then
+            echo "reviewed closure produced no repository changes"
+            exit 0
+          fi
           git commit -m "fix(measurement): freeze oracle and align production contract"
           git fetch origin master
           remote_head="$(git rev-parse origin/master)"
