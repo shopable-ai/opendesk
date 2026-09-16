@@ -223,6 +223,21 @@
       }
     }
 
+    async function deleteConversation(id) {
+      assertReady();
+      try {
+        const result = await store.deleteConversation(id);
+        lastError = null;
+        await publish();
+        return result;
+      } catch (error) {
+        lastError = publicError(error);
+        if (error && error.code === 'PERSIST_FAILED') recordPersistenceError(error);
+        await publish();
+        throw error;
+      }
+    }
+
     async function finishRequest(entry, outcome) {
       if (!entry) return;
       try {
@@ -500,6 +515,7 @@
       updateDraft,
       archiveConversation,
       restoreConversation,
+      deleteConversation,
       submit,
       confirmTask,
       cancelTask,
