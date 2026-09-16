@@ -1,0 +1,111 @@
+{
+  "schemaVersion": "desktop-measurement-amendment/v1",
+  "amendmentId": "DM-AMEND-2026-09-17-01",
+  "baseMaster": "8d4e6a9231ba95c9483b692785305e7e331ec540",
+  "date": "2026-09-17",
+  "dateTimezone": "Asia/Tokyo",
+  "scope": "Executable synthetic Prototype and Frozen Oracle amendment; limited production suppression guard; not native closure",
+  "oracle": {
+    "path": "apps/opendesk/prototypes/desktop-measurement/ORACLE.md",
+    "status": "FROZEN",
+    "historicalBaseline": "apps/opendesk/prototypes/desktop-measurement/ORACLE.baseline-2026-09-16.md",
+    "historicalBlobSha": "9ea08d96dc00ae40f1eb596b4221626964686245"
+  },
+  "environment": {
+    "platform": "Linux",
+    "node": "v22.16.0",
+    "chromium": "Chromium 144.0.7559.96 built on Debian GNU/Linux 13 (trixie)",
+    "browserLoading": "Chromium set_content with exact repository CSS and external JS module contents; file URI navigation restricted",
+    "worktree": "Partial materialization, not a Git checkout; user local git status not observed"
+  },
+  "executed": [
+    {
+      "command": "node --test tests/desktop-measurement/model.test.js tests/desktop-measurement/amendment.test.js",
+      "status": "PASS_AUTOMATED",
+      "tests": 50,
+      "passed": 50,
+      "existingGeometryTests": 16,
+      "newVisualRecordTests": 34,
+      "evidence": ".runtime/tests/desktop-measurement/model-and-amendment.tap"
+    },
+    {
+      "command": "python tests/desktop-measurement/browser.test.py",
+      "status": "PASS_AUTOMATED",
+      "tests": 97,
+      "passed": 97,
+      "pageErrors": 0,
+      "evidence": ".runtime/tests/desktop-measurement/prototype/browser-tests.json"
+    },
+    {
+      "command": "gofmt -w pkg/measurement/candidate_stack.go pkg/measurement/candidate_suppression_test.go",
+      "status": "PARSED_FORMATTED_ONLY",
+      "notTypeChecked": true
+    }
+  ],
+  "performance": {
+    "scope": "Synthetic send-button frozen component after warm resolve; not a full-machine benchmark",
+    "pointerEvents": 100,
+    "additionalVisualResolves": 0,
+    "additionalFloodFills": 0,
+    "additionalCacheHits": 100,
+    "spacedInsidePointerEventsAlsoTested": 25
+  },
+  "sessionArtifact": {
+    "evidence": ".runtime/tests/desktop-measurement/prototype/measurement-session.json",
+    "measurements": 3,
+    "snapshots": 2,
+    "actualChromiumBlobDownload": true,
+    "pickerSuccessAndFailures": "mocked browser contract only",
+    "systemClipboardQualified": false,
+    "prototypeOnly": true,
+    "sha256": "fbd07203fa4f0bbef1ede3c5659563ab922f19a376ba3b14d311361dd1a67208"
+  },
+  "sourceSha256": {
+    "apps/opendesk/prototypes/desktop-measurement/index.html": "32ac7479b37e25b344bf10c56bf6d846db92a1a3764df017c5a92ff25b7f812e",
+    "apps/opendesk/prototypes/desktop-measurement/prototype.css": "2ce1192ee827003448fc134fdeffbbc96fdc23105dc633516675a7a7e8bbc613",
+    "apps/opendesk/prototypes/desktop-measurement/model.js": "cdc28b42e7df0ee274b52e1137782caca8144eaf23f88ac04becf0c43f6b55da",
+    "apps/opendesk/prototypes/desktop-measurement/visual-resolver.js": "490cbd07fdec5fd3b87a221a4bb84b0dd84658799d6250afaf1b0793a7ff73ff",
+    "apps/opendesk/prototypes/desktop-measurement/records.js": "b4c97b08cb1077bb6e0dbaeb431e6e679326c673a419a4e2bbdf50ef058ffb0e",
+    "apps/opendesk/prototypes/desktop-measurement/interaction-core.js": "f4b0d0a1803beb92b84ac42d9722ed22a1c94a190de1004ab2b78ea914c066b0",
+    "tests/desktop-measurement/browser.test.py": "2f5a6a0b09c7ac140159c51b9b22fc10e9b6d6568ee5c1e33a91cea880674ded",
+    "tests/desktop-measurement/model.test.js": "0419d767146e737d4a3484ba827004663716971753894f0fb81059e1d873f7ac",
+    "tests/desktop-measurement/amendment.test.js": "545e0fc9b4538dd2cd4c935d9f9e2195a39231dde8a73efbaec51409576c445e",
+    "pkg/measurement/candidate_stack.go": "edb5b56ecf03f9939351621f80a285d55e2ebc3877bd207c3950992e1e40628a",
+    "pkg/measurement/candidate_suppression_test.go": "556cc8f63b78f497f98f9e81d449d17a4fc042cc86779461c6ed23673dc9a477"
+  },
+  "notRun": {
+    "goPackageSuite": "NOT_RUN: full Go module/dependency checkout not available in execution environment",
+    "productionBuild": "NOT_RUN",
+    "macosNative": "NOT_RUN",
+    "windowsNative": "NOT_RUN",
+    "userLocalLoadedBundle": "NOT_OBSERVED"
+  },
+  "productionGaps": [
+    {
+      "id": "PG-01",
+      "status": "OPEN_IMPLEMENTATION",
+      "scope": "Live Reference selector and selection/capture two-phase host/service protocol"
+    },
+    {
+      "id": "PG-02",
+      "status": "PARTIAL_SOURCE_ONLY",
+      "scope": "OFF/Alt request/cancellation guard changed; native cache/throttle/bounded worker/ROI still missing"
+    },
+    {
+      "id": "PG-03",
+      "status": "OPEN_IMPLEMENTATION",
+      "scope": "Native hover Corner HUD size/margins/source/layer"
+    },
+    {
+      "id": "PG-04",
+      "status": "OPEN_IMPLEMENTATION",
+      "scope": "Native Session records/persistence/Enter/Inspector/canonical Authoring adapter"
+    },
+    {
+      "id": "PG-05",
+      "status": "PRESERVED_NATIVE_NOT_RUN",
+      "scope": "Existing four-mode/ten-toolbar/Esc/no-handles/no-nudge contracts"
+    }
+  ],
+  "evidencePolicy": "Runtime raw logs/images/JSON stay in .runtime, not application source. Synthetic PASS never promotes native qualification. Go guard is unexecuted, not PASS_AUTOMATED."
+}

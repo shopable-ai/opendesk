@@ -1,593 +1,107 @@
-# Desktop Measurement Product Oracle
+# Desktop Measurement UI / Interaction Oracle
 
-> Structured UI / Interaction contract extracted from the approved executable HTML/CSS/JavaScript prototype in this directory.
->
-> **Authority:** Explicit user requirements and subsequent corrections take precedence. Within UI / Interaction behavior actually defined by the executable prototype, `index.html` + `prototype.css` + `model.js` + `interaction-core.js` are the only primary UI / Interaction evidence for this document. When this document conflicts with those executable sources, the executable prototype wins. Production code, architecture documents, README text, and tests may verify or consume this Oracle, but must not redefine it.
+**ORACLE STATUS: FROZEN — Controlled Amendment `DM-AMEND-2026-09-17-01`.**
 
-> **ORACLE STATUS: FROZEN**
->
-> Frozen baseline: 2026-09-16. All four §20 blockers have executable fixes and browser regressions. This status freezes the HTML-defined core; it does not assert native OS qualification.
+Frozen applies to the executable **synthetic** interaction contract, not to Native completion. Production gaps remain open. Read this file before implementation or qualification.
 
-## 0. Scope, evidence boundary, and source hierarchy
+## 1. Authority and preserved history
 
-`NOT_SUPPORTED_BY_HTML` means no HTML-defined behavior, not a product-wide prohibition. Independently justified Native invariants and Product Extensions live in the architecture document. Existing Production code cannot amend this Oracle retroactively; harness controls are not Production controls.
+This amendment implements the user's explicit correction: select a Reference Window on a Live desktop **before** creating a Frozen Snapshot; restore hover measurement; bound visual work; collect multiple explicit measurements in one session.
 
-This document describes product-visible UI hierarchy, state, interaction, state transitions, pointer/keyboard behavior, visual feedback, measurement semantics, structured evidence, and explicit non-contracts.
+The former complete Oracle is preserved byte-for-byte as `ORACLE.baseline-2026-09-16.md`, Git blob `9ea08d96dc00ae40f1eb596b4221626964686245`, read at master `8d4e6a9231ba95c9483b692785305e7e331ec540`. It is an **inherited baseline**, not a competing current Oracle. Its unchanged numbered contracts remain normative. This amendment replaces only the rows and unnumbered boundaries listed below. In particular the old “no user Reference selection”, “only current-result clipboard export”, “no history” and “initial Freeze” statements are superseded, including their repetitions in baseline §§15,18–24 and its traceability/acceptance tables. Do not silently delete or rewrite the archived record.
 
-It does **not** prescribe native capture APIs, AX/UIA/OCR implementation, thread models, DPI implementation, Runtime internals, or production ownership.
+Authority: explicit user amendment → executable Prototype → this Oracle plus inherited unchanged contracts → Architecture → Production → tests/qualification. A native implementation must not redefine the Oracle to match its limitations.
 
-### Primary evidence
+Sources: `index.html`, `prototype.css`, unchanged `model.js`, `interaction-core.js`, `visual-resolver.js`, `records.js`. `template.html` stays redirect-only. The new modules are prototype helpers, not a second Runtime, Recorder, Geometry or Locator implementation.
 
-- `index.html`: visible hierarchy, controls, labels, tooltips, simulated entry points, Inspector/Adjust/Idle harness UI.
-- `prototype.css`: visibility, active/disabled/hover/focus states, visual hierarchy, responsive show/hide behavior.
-- `interaction-core.js`: executable state machine, pointer/keyboard handling, candidate/magnet behavior, snapshot lifecycle, result/reset/persistence behavior, structured evidence and clipboard copy behavior.
-- `model.js`: geometry values actually consumed by the prototype/export.
+## 2. Engineering decision
 
-### Secondary verification only
+| Option | Determinism / evidence | Cost and UX | Decision |
+|---|---|---|---|
+| A: Live Reference selection → Freeze → Measurement | One immutable pixel/geometry source for color, regions, margins and authoring | One capture per confirmation/update; no premature frozen desktop | **Implemented** |
+| B: fully Live measurement | Scrolling, animation, moving windows and colors can disagree across results; every confirmed record still needs an atomic capture | Repeated capture/segmentation, stale async and coordinate races | Not this amendment |
+| C: Live Preview + confirmation Freeze | Preview can be useful, but must never masquerade as evidence | Extra preview/capture consistency machinery | Only its minimal window-preview aspect is included in A; no live pixel segmentation |
 
-- `tests/desktop-measurement/browser.test.py`: verifies executable behavior but is not allowed to invent Oracle behavior.
-- `README.md`: explains intent and maintenance boundaries but is not primary UI / Interaction evidence.
-- Production implementation and qualification files: consumers of this Oracle, never sources for it.
+A does not pause the target application: it freezes the Measurement source. A suggested foreground window is not a confirmed reference.
 
-### Prototype harness vs product behavior
+## 3. Amended inherited Contract IDs
 
-The page contains both Measurement behavior and synthetic harness controls. The following are **prototype harness only** unless separately expressed as a Measurement semantic contract below:
+| IDs | Previous behavior | New binding behavior |
+|---|---|---|
+| DM-LIFECYCLE-002; DM-REFERENCE-001/003/004; DM-FREEZE-003 | Entry captures immediately; no explicit window selection | Entry reaches `REFERENCE_SELECTING`, with no snapshot or source pixel evidence. Pointer previews a window; a valid same-window click locks identity and creates the first snapshot. Update/Continue revalidate the **same** identity; reselection is explicit. |
+| DM-LIFECYCLE-005/006 | Cleanup/current-snapshot invalidation only | Temporary current state is cleaned up; already exported files are not deleted. Historical records keep their original tokens. Async candidates additionally match request epoch, pointer revision and provider configuration. |
+| DM-CANDIDATE-002/005 | Visual single region; >3px movement resets candidate layer | Bounded visual region plus separately proven Window ancestor is allowed; never invent semantic visual parents. Stable containment/cache hits retain the selected layer; entering a different semantic child invalidates the stack instead of sticking to an ancestor. |
+| DM-MARGIN-001/002/004; DM-ERROR-004 | Margin summary is primarily locked-result only | A provisional candidate also shows size, Window margins and one trustworthy Local Reference where available. Preview margins are not formal result evidence. No Local means a disabled Local toggle. |
+| DM-VIS-010/015 | Corner HUD primarily summarizes locked results | Corner HUD distinguishes `候选预览 · 未确认` from `已锁定 · 待记录`, with source/layer, dimensions, ratios and up to two margin rows. Completed RR summary still precedes generic region; Point/PP result priority is preserved. |
+| DM-INSPECTOR-003/005 | Current result/snapshot JSON | Inspector also shows explicit records, label, Copy All and Save Session. Reselection closes Inspector; Update preserves its open state; current and historical JSON are separate. |
+| DM-EXPORT-001/004 | Only current structured clipboard copy; no file flow | Preserve current copy, add Copy All and explicit browser JSON save/download. Only completed writable-close acknowledgement marks captured record IDs `saved`. Download request or clipboard success is not a durable-save acknowledgement. |
+| DM-KEY-001/002 | Tab consumed by measuring page | Tab/Shift+Tab cycle when the Measurement plane owns keyboard input. Label/select/editable fields retain normal text/focus behavior; composition is not hijacked. |
 
-- the page header and three clickable simulated entry buttons;
-- automatic first entry via `requestAnimationFrame(() => begin('prototype-auto'))`;
-- the synthetic WeChat desktop and synthetic UI tree;
-- footer fixture selectors (`候选来源`, `显示器`, `视觉容差`) and footer keyboard legend;
-- ADJUSTING-only synthetic buttons (`模拟滚动`, `切换 Tab`, `展开 / 收起菜单`);
-- the post-exit `idle` card and its `重新进入` button;
-- browser clipboard implementation details;
-- responsive demo-page layout rules whose only purpose is fitting the browser fixture.
+The old unnumbered statement that `pointRelative()` is unused is superseded only for confirmed Point record serialization. Its existing mathematics are unchanged.
 
-These harness elements may demonstrate a real product contract (for example, three entry sources must address one session), but Production must not copy harness chrome simply because it appears in this page.
-
-## 1. Product mental model
-
-```text
-entry source
-  -> one Measurement Session
-  -> PREPARING
-  -> FREEZING
-       -> establish current Reference Window fixture
-       -> capture one immutable Frozen Snapshot generation
-  -> MEASURING
-       + pointer coordinates / source pixel
-       + Candidate Stack / Magnet preview
-       + Target / optional Local Reference
-       + Point / Region / Point↔Point / Region↔Region
-       + HUD / status / annotations
-       + optional Inspector
-  -> Update
-       -> same session, replace snapshot, clear snapshot-bound result state
-  -> Adjust
-       -> invalidate snapshot identity, hide Measurement chrome, operate live desktop
-  -> Continue
-       -> same session, capture a new frozen generation
-  -> Exit
-       -> IDLE, destroy snapshot-bound state
-```
-
-Terms:
-
-- **Measurement Session**: one logical measuring lifetime. Re-entry while active addresses the same session.
-- **Frozen Snapshot**: one immutable capture generation used as the visible/measurable source until Update, Adjust/Continue, or Exit invalidates it.
-- **Reference Window**: the current window fixture used as primary coordinate/margin reference. The prototype does **not** contain a user-facing Reference selection/reselection interaction; see §6.
-- **Candidate**: the one currently highlighted snap-able region/control hypothesis under the pointer.
-- **Candidate Stack**: ordered candidates under the pointer for the current snapshot/provider; only one is highlighted at a time.
-- **Target**: user-confirmed region/control used for Region measurement and margins. It may come from a semantic/visual candidate or manual drag.
-- **Local Reference**: at most one useful semantic parent/layout region associated with a semantic Target. It is optional and never fabricated for manual/visual Targets.
-- **Selection**: transient candidate or drag preview, or an incomplete pair measurement.
-- **Measurement**: confirmed point, Target region, two-point relation, or two-region relation plus derived evidence.
-- **Inspector**: optional right-side structured evidence view; never the default measurement UI.
-
-## 2. UI hierarchy
-
-```text
-Measurement Surface
-├─ Frozen Snapshot layer
-├─ Measurement overlay
-│  ├─ outside-window weak mask
-│  ├─ Reference Window outline
-│  ├─ Candidate / drag preview
-│  ├─ locked Target / region pair rectangles
-│  ├─ optional Local Reference
-│  ├─ one active four-line margin relation
-│  ├─ point-pair handle / distance line
-│  └─ region-pair center distance line
-├─ pointer micro HUD
-├─ corner HUD
-├─ status hint
-├─ transient toast
-├─ bottom floating Toolbar
-│  ├─ Point
-│  ├─ Region
-│  ├─ Point ↔ Point
-│  ├─ Region ↔ Region
-│  ├─ Magnet
-│  ├─ Margin reference toggle
-│  ├─ Update
-│  ├─ Adjust
-│  ├─ Inspector
-│  └─ Exit
-└─ optional Inspector panel
-```
-
-`ADJUSTING` is deliberately different: snapshot layer, overlay, micro HUD, corner HUD, Toolbar, status and Inspector are hidden; the synthetic live desktop becomes pointer-interactive and the harness exposes a minimal Continue control.
-
-## 3. Control inventory and visible states
-
-### 3.1 Measuring Toolbar
-
-| Control | Visible label | Tooltip / shortcut evidence | Selected / disabled behavior | Action |
-|---|---|---|---|---|
-| Point | `点` | `1 · 点 / 取色` | active when `mode=point` | selects/resets Point mode |
-| Region | `区域` | `2 · 区域` | active when `mode=region`; initial mode | selects/resets Region mode |
-| Point↔Point | `两点` | `3 · 两点距离` | active when `mode=pp` | selects/resets two-point mode |
-| Region↔Region | `两区域` | `4 · 两区域距离` | active when `mode=rr` | selects/resets two-region mode |
-| Magnet | `磁吸定位` | `Alt / Option 临时暂停` | active iff persistent Magnet setting is ON | toggles persistent Magnet setting |
-| Margin reference | `边距：窗口` or `边距：<Local Reference>` | `只切换当前重点绘制的一组边距` | disabled when no Local Reference; class `optional` hides it at demo width ≤700px | toggles active Window/Local margin relation |
-| Update | `更新画面` | `重新冻结当前真实界面，不退出 Measurement` | no selected state | same-session refreeze |
-| Adjust | `调整界面` | `隐藏冻结快照与全部 Measurement UI，恢复真实桌面交互` | no selected state | enter ADJUSTING |
-| Inspector | `详情` | `I · 按需查看完整数据` | no active CSS state even while Inspector is open | opens Inspector |
-| Exit | `退出` | `Esc · 退出 Measurement` | danger text treatment | exits Measurement when clicked |
-
-The prototype uses **text controls, not icons**. It does not define production iconography for these controls.
-
-### 3.2 Generic control feedback
-
-- buttons have a visible hover background change;
-- keyboard focus uses a distinct `focus-visible` outline;
-- disabled buttons use reduced opacity and default cursor;
-- active tool/Magnet state uses a stronger selected treatment;
-- the margin-table row corresponding to the active margin reference receives a selected treatment;
-- negative margin values receive a distinct warning treatment;
-- transient toast is non-interactive (`pointer-events:none`).
-
-### 3.3 Harness-only visible controls
-
-The header entry buttons, footer fixture selectors, ADJUSTING synthetic controls, and `idle` restart card are not production toolbar requirements. They remain traceable because they exercise session/state semantics.
-
-## 4. State model
-
-Externally meaningful phases:
+## 4. New reference lifecycle contracts
 
 ```text
 IDLE
-  -> PREPARING
-  -> FREEZING
-  -> MEASURING
-       -> FREEZING -> MEASURING                 (Update)
-       -> ADJUSTING -> FREEZING -> MEASURING   (Adjust + Continue)
-       -> IDLE                                   (Exit)
+  → REFERENCE_SELECTING (Live; snapshotId=null)
+  → FREEZING (only after explicit confirmation)
+  → MEASURING (Frozen Snapshot)
+       → Update → FREEZING → MEASURING
+       → Adjust → ADJUSTING → Continue → FREEZING → MEASURING
+       → Inspector / Reselect → REFERENCE_SELECTING
+       → Exit → IDLE
 ```
 
-`PREPARING` and `FREEZING` may be short-lived. There is no separate persistent `UPDATING`, `UNFROZEN`, `CLOSING`, or `EXPORTING` phase.
-
-Product-significant state carried by the executable prototype includes:
-
-```text
-active / adjusting / phase
-session / generation / snapshotId
-mode
-magnet + temporary alt suspension
-pointer
-candidate / stack / layer
-Target / Local Reference / marginView
-pointResult / pointPair / regionPair
-dragStart / dragCurrent
-Inspector open/closed
-status
-async candidate epoch/pending state
-snapshot-bound pixel cache
-```
-
-## 5. Session and entry contract
-
-| ID | Contract | Acceptance | HTML evidence |
-|---|---|---|---|
-| DM-LIFECYCLE-001 | Developer-menu, Recorder, and global-shortcut entry sources must address the same active Measurement Session. | Re-entry while `MEASURING` does not create a second session or snapshot. | `#entry-dev`, `#entry-rec`, `#entry-key`, `begin()` |
-| DM-LIFECYCLE-002 | A new session passes through PREPARING/FREEZING and becomes `MEASURING` with a valid snapshot. | Measuring UI is usable only after snapshot creation. | `begin()`, `captureSnapshot()` |
-| DM-LIFECYCLE-003 | Session identity, generation and snapshot identity are distinct. | token exposes all three. | `token()` |
-| DM-LIFECYCLE-004 | Re-entry while `ADJUSTING` means Continue/refreeze of the same session. | same session id, new snapshot. | `begin()`, `continueMeasurement()` |
-| DM-LIFECYCLE-005 | Exit enters `IDLE`, invalidates snapshot identity and clears snapshot-bound target/result/candidate/drag/Inspector/pixel-cache state. | later entry creates a new session. | `exitMeasurement()` |
-| DM-LIFECYCLE-006 | Async candidate results are snapshot-scoped. | stale token/epoch results cannot mutate a newer snapshot. | `sameToken()`, `invalidateAsync()`, `applyAsyncCandidate()` |
-| DM-ENTRY-001 | The visible simulated global shortcut label is `⌘ / Ctrl + Shift + M`. | label is present in the entry harness. | `#entry-key` |
-| DM-ENTRY-002 | The HTML page does not itself capture the OS-global shortcut; its button only simulates that entry source. | no `Meta/Ctrl+Shift+M` key handler exists in prototype. | `index.html`, keyboard handlers |
-| DM-ENTRY-003 | Re-entry while measuring produces a transient “same session” toast and returns the current token. | token unchanged. | `begin()`, `notify()` |
-| DM-ENTRY-004 | Auto-entry on page load is prototype harness behavior, not a fourth production entry point. | auto call is excluded from production parity. | final `requestAnimationFrame()` |
-
-## 6. Reference Window contract and explicit boundary
-
-The prototype has a current Reference Window, but **does not define user-facing Reference selection or reselection**.
-
-| ID | Contract | Acceptance | HTML evidence |
-|---|---|---|---|
-| DM-REFERENCE-001 | The current Reference Window is established from the synthetic scene before each capture and is used by window-relative coordinates, mask/outline and Target→Window margins. | `win` is current before structured geometry is produced. | `defineScene()`, `captureSnapshot()` |
-| DM-REFERENCE-002 | Reference Window is visually distinguished by a weak outside-window mask plus an outline. | mask and outline appear while measuring. | `drawMask()`, `.mask`, `.window-outline` |
-| DM-REFERENCE-003 | Update/Continue recompute the current synthetic scene/reference before producing the new snapshot. | newly frozen geometry follows the current live scene. | `captureSnapshot()`, `defineScene()` |
-| DM-REFERENCE-004 | No control, shortcut, pointer gesture, or state transition in the prototype lets the user select a different Reference Window or “reselect Reference”. | Production must not invent Reference acquisition/reselection UX and claim HTML parity. | absence from `index.html` and handlers |
-
-Therefore these requested behaviors are **NOT_SUPPORTED_BY_HTML** as user interactions: “select Reference”, “change Reference before Freeze”, “reselect Reference after Freeze”. The Oracle can only constrain how the already-current Reference participates in measurement.
-
-## 7. Freeze / Update / Adjust / Continue contract
-
-| ID | Contract | Acceptance | HTML evidence |
-|---|---|---|---|
-| DM-FREEZE-001 | Measurement uses frozen source pixels; the synthetic underlying desktop is not logically paused. | measured pixels stay tied to one snapshot generation. | `captureSnapshot()`, separate live/snapshot canvases |
-| DM-FREEZE-002 | Pixel color is sampled from frozen raw canvases, not overlay/HUD/mask compositing. | provenance says frozen source. | `rawColor()` |
-| DM-FREEZE-003 | There is no standalone Freeze/Unfreeze toggle. Entry, Update, and Continue trigger freezing; Adjust is the temporary live-desktop phase. | only those actions change freeze lifecycle. | handlers + lifecycle functions |
-| DM-UPDATE-001 | Update keeps the same Measurement Session. | session id unchanged. | `refreshSnapshot()` |
-| DM-UPDATE-002 | Update advances generation and creates a new snapshot id. | new generation/snapshot. | `refreshSnapshot()`, `captureSnapshot()` |
-| DM-UPDATE-003 | Update invalidates pending candidate work and clears Target, Local Reference, point/pair results, candidate stack, drag state and pixel cache. | snapshot-bound state does not survive. | `invalidateAsync()`, `captureSnapshot()` |
-| DM-UPDATE-004 | Update returns to `MEASURING` on the newly frozen source. | phase returns to MEASURING. | `refreshSnapshot()` |
-| DM-UPDATE-005 | Update does not reset the selected tool, persistent Magnet setting, Inspector-open state, or pointer position. | those states persist unless separately changed. | absence of reset in `refreshSnapshot()` / `captureSnapshot()` |
-| DM-ADJUST-001 | Adjust exists so the user can operate the live underlying desktop before continuing. | live desktop becomes pointer-interactive. | `adjustInterface()`, `.adjusting .desktop-layer` |
-| DM-ADJUST-002 | Entering Adjust immediately invalidates snapshot identity. | `snapshotId=null`, structured `snapshot=null`. | `adjustInterface()` |
-| DM-ADJUST-003 | During Adjust, snapshot, overlay, micro HUD, corner HUD, Toolbar, status and Inspector are hidden. | Measurement chrome absent. | `.adjusting ... {display:none}` |
-| DM-ADJUST-004 | Entering Adjust clears Target, Local Reference, point/pair results and Candidate Stack; Inspector closes; pointer becomes null. | old selection is not current evidence. | `adjustInterface()` |
-| DM-ADJUST-005 | Continue keeps the same session and captures a new Frozen Snapshot before returning to MEASURING. | same session, newer generation/snapshot. | `continueMeasurement()` |
-| DM-ADJUST-006 | The three live-edit buttons inside the demo are synthetic harness controls, not production Adjustment controls. | Production needs live desktop interaction + Continue semantics, not those exact buttons. | `#live-scroll`, `#live-tab`, `#live-menu` |
-
-## 8. Tool selection, reset, and result lifetime
-
-The first prototype load starts in **Region**.
-
-| ID | Contract | Acceptance | HTML evidence |
-|---|---|---|---|
-| DM-TOOL-001 | Exactly four measurement tools are defined: Point, Region, Point↔Point, Region↔Region. | one active tool button. | `data-mode`, `setMode()` |
-| DM-TOOL-002 | Region is initial mode. Explicitly selected mode persists through Update, Adjust/Continue, Exit and later new-session entry until the user selects another mode. | lifecycle functions do not reset `E.mode`. | initial state + absence of mode reset |
-| DM-TOOL-003 | Selecting any tool clears current Target/Local Reference, point/pair results, drag state and candidate stack. | fresh result state after selection. | `setMode()` |
-| DM-TOOL-004 | Selecting the **already-active** tool also runs `setMode()` and therefore acts as a lightweight clear/reset for current measurement results. | same-mode click/key removes current result. | click handler + `setMode()` |
-| DM-TOOL-005 | No dedicated Clear/Reset button or shortcut exists. | Production must not infer one from the HTML. | control/keyboard absence |
-
-Lifecycle result clearing:
-
-- **tool selection/reselection**: clears result/Target/candidate/drag, preserves pointer, mode becomes selected mode;
-- **Update**: clears snapshot-bound result state, preserves mode/Magnet/Inspector-open/pointer;
-- **Adjust**: clears result state, pointer and Inspector, preserves mode/Magnet;
-- **Exit**: clears snapshot-bound result state and Inspector/pointer; mode persists into the next session;
-- **re-entry while already measuring**: preserves the current result because no new session/snapshot is created.
-
-## 9. Pointer and selection contract
-
-| ID | Contract | Acceptance | HTML evidence |
-|---|---|---|---|
-| DM-MOUSE-001 | Overlay is the pointer interaction plane while measuring; underlying desktop is not pointer-interactive through it. | overlay receives pointer events. | `#overlay`, `.measuring .desktop-layer` |
-| DM-MOUSE-002 | Pointer move updates the current logical screen point, updates drag preview, and schedules candidate resolution when allowed. | micro HUD/candidate can follow pointer. | `pointerMove()` |
-| DM-MOUSE-003 | Pointer down starts a drag origin for every tool; individual tools interpret pointer-up differently. | `dragStart/dragCurrent` set. | `pointerDown()` |
-| DM-MOUSE-004 | A drag is considered a Region/Region↔Region rectangle only when both width and height are at least 5 logical px. | smaller motion is treated as click/invalid according to tool. | `pointerUp()` |
-| DM-MOUSE-005 | Region drag wins over candidate click semantics: a valid drag creates/replaces a manual Target even if a candidate was visible. | manual Target result. | Region branch order in `pointerUp()` |
-| DM-MOUSE-006 | Point and Point↔Point use pointer-up position even if the user moved while holding the pointer; drag rectangle itself is ignored. | endpoint is confirmed point. | Point/PP branches |
-| DM-MOUSE-007 | Region↔Region requires valid drags; a click/small drag is rejected with status feedback. | pair unchanged on invalid input. | RR branch |
-
-There is no `pointercancel`/pointer-leave product flow in the prototype. Escape is not an intermediate selection-cancel command: it closes Inspector first, otherwise exits the whole session. Partial pair/drag state can instead be cleared by tool reselection/switch, Update, Adjust, or Exit.
-
-## 10. Point / Region / pair tools
-
-| ID | Tool / contract | Acceptance | HTML evidence |
-|---|---|---|---|
-| DM-TOOL-006 | **Point** continuously exposes pointer coordinates/color; pointer-up confirms one point and frozen-source color. | HUD reports confirmed point/color. | Point branch |
-| DM-TOOL-007 | **Region** with a current candidate: click locks that candidate as Target. | candidate becomes Target; semantic Target may derive Local Reference. | `lockCandidate()` |
-| DM-TOOL-008 | **Region** valid drag creates a manual Target, regardless of candidate presence. | provider=`manual`, reliability=`user-confirmed`, no Local Reference. | `manualTarget()` |
-| DM-TOOL-009 | Region click with no candidate does not invent a result. | status asks for manual drag. | Region branch |
-| DM-TOOL-010 | Current prototype defines no post-lock resize/edit handles for a Region. | Region result is replaced/reset, not handle-edited. | absence in handlers/rendering |
-| DM-TOOL-011 | **Point↔Point** accepts two pointer-up points; after second point it exposes straight distance, signed ΔX/ΔY and absolute H/V distance. A third point starts a new pair. | pair length cycles 1→2→1. | PP branch, `M.points()` |
-| DM-TOOL-012 | **Region↔Region** accepts two valid dragged regions; a third valid drag starts a new pair. | pair length cycles 1→2→1. | RR branch |
-| DM-TOOL-013 | Structured Region↔Region evidence contains H/V gaps, projection overlaps, overlap area, center delta and B-relative-to-A geometry. | `spacing` object contains those fields. | `M.rectangles()`, `structuredData()` |
-| DM-TOOL-014 | Overlay shows first/second Region↔Region rectangles and a center-to-center distance line once both exist. | relation is visually present on overlay. | `renderOverlay()` |
-| DM-TOOL-015 | Two completed RR regions expose H/V gaps, overlap area and signed center delta in the normal Corner HUD as well as full structured relation evidence. | completed RR relation summary is reachable before generic Target. | RR branch, `M.rectangles()`, `renderHUD()` |
-
-## 11. Magnet, Snap, and Candidate Stack
-
-| ID | Contract | Acceptance | HTML evidence |
-|---|---|---|---|
-| DM-MAGNET-001 | Persistent Magnet setting is reset ON by `begin()` for every new session. | `E.magnet=true`. | `begin()` |
-| DM-MAGNET-002 | While Magnet is on, Alt is not held, pointer exists, no Target is locked and session is measuring, pointer movement schedules candidate resolution. | candidate can follow pointer. | `scheduleResolve()` |
-| DM-MAGNET-003 | “Snap” is a visual Candidate highlight; it never warps/moves the system pointer. | highlight changes without pointer mutation. | rendering + absence of pointer warp |
-| DM-MAGNET-004 | Alt/Option keydown temporarily clears candidate/stack and suspends candidate resolution without changing persistent `magnet`. | temporary pause. | keydown Alt |
-| DM-MAGNET-005 | Alt/Option keyup resumes resolution if still active/measuring. | candidate may return. | keyup Alt |
-| DM-MAGNET-006 | Explicit Magnet OFF clears candidate/stack and prevents snapping; manual Region drag remains available. | no candidate resolution while off. | magnet toggle + scheduler |
-| DM-MAGNET-007 | No reliable candidate produces explicit status and manual-framing guidance rather than fabricated semantics. | status text reflects unavailable candidate. | `resolveNow()` |
-| DM-MAGNET-008 | Candidate resolution is not gated by current tool mode. Candidate preview can therefore appear in Point, Region, Point↔Point and Region↔Region while no Target is locked; only Region click consumes the Candidate as a Target. | cross-tool preview may be visible; non-Region tools ignore it on pointer-up. | `scheduleResolve()`, `pointerUp()` |
-
-Candidate Stack:
-
-| ID | Contract | Acceptance | HTML evidence |
-|---|---|---|---|
-| DM-CANDIDATE-001 | Semantic stack is containing synthetic UI-tree nodes under pointer, ordered smaller/more specific → larger ancestors. | nested control can cycle outward to window. | `semanticAt()` |
-| DM-CANDIDATE-002 | Visual provider may return one estimated pixel-region Candidate and may not invent semantic role. | role is null; reliability=`estimated-not-semantic`. | `visualAt()` |
-| DM-CANDIDATE-003 | Candidate Stack is snapshot/pointer/provider state, not a persistent locator list. | source/reliability remain explicit. | state + structured evidence |
-| DM-CANDIDATE-004 | Only one Candidate is highlighted at a time. | one preview rectangle. | `renderOverlay()` |
-| DM-CANDIDATE-005 | Pointer movement >3 logical px resets layer index to the first/smallest candidate before new resolution. | layer reset. | `pointerMove()` |
-| DM-CANDIDATE-006 | Tab/Shift+Tab wrap within the **existing** current stack; they do not create targets/sessions. | current candidate changes only. | `cycleCandidate()` |
-| DM-CANDIDATE-007 | Semantic Target may derive one useful non-trivial parent as Local Reference; visual/manual Target never fabricates one. | zero or one Local Reference. | `chooseLocalReference()` |
-| DM-CANDIDATE-008 | Once a Target is locked, pointer movement stops candidate resolution until Target is cleared/replaced by an allowed reset path. | no new Candidate follows pointer while Target exists. | `scheduleResolve()` guard |
-
-## 12. Coordinates, pixels, and geometry
-
-### 12.1 Pointer coordinate display
-
-| ID | Contract | Acceptance | HTML evidence |
-|---|---|---|---|
-| DM-COORD-001 | Pointer micro HUD exposes Screen, Reference Window-relative, and Region-relative rows. | three labels visible after pointer exists. | `coordinateTriple()`, `renderMicro()` |
-| DM-COORD-002 | Region-relative pointer coordinate exists only when pointer is inside the current locked Target or current highlighted Candidate; otherwise it displays `—`. | region row is conditional. | `currentRegionForPointer()` |
-| DM-COORD-003 | Micro HUD also shows frozen-source pixel color. | hex readout. | `renderMicro()` |
-| DM-COORD-004 | Screen coordinates are logical desktop coordinates and may be negative. | negative fixture changes origin. | `displayLayout()` |
-| DM-COORD-005 | Capture image mapping is per display and may have non-integer or mixed scale. | display mapping carries logical bounds, pixel size and scaleX/scaleY. | `displayLayout()`, `logicalToPixel()` |
-| DM-COORD-006 | `rawColor()` returns image pixel coordinate, display id, scale, color space, source provenance and no interpolation. | Inspector pointer evidence can expose it. | `rawColor()` |
-| DM-COORD-007 | Absolute geometry is runtime evidence only and is separated from stable semantic relocation evidence. | structured evidence separates both. | `stableRelocationEvidence`, `runtimeEvidence` |
-| DM-COORD-008 | Visual candidate provenance remains estimated visual evidence, never semantic control evidence. | role remains null. | `visualAt()`, `structuredData()` |
-| DM-COORD-009 | `percentage` geometry is percentage 0–100 (`100 * value / referenceSize`); true ratio fields such as `areaRatio`, `coverageRatio`, `insideRatio` remain ratios. | metadata and arithmetic agree. | `M.relative()`, `coordinateSpace.percentage` |
-| DM-COORD-010 | The prototype does not expose a separate normalized-coordinate field distinct from its `percentage` geometry. | Production must not invent one and claim parity. | structured evidence shape |
-
-### 12.2 Target-relative geometry actually exported
-
-For `M.relative(target, reference)` the executable model emits:
-
-- `absolute`: Target screen-logical rectangle;
-- `relative`: Target x/y relative to reference origin plus unchanged width/height;
-- `percentage`: x/y/width/height derived from reference dimensions (numeric convention blocked by `HTML-CONFLICT-002`);
-- `signedEdges`;
-- `centerOffset`;
-- `alignmentDelta`;
-- `aspectRatio`;
-- `areaRatio`;
-- `coverageRatio`;
-- `insideRatio`.
-
-`windowRelative` always uses the Reference Window when Target exists. `localRelative` exists only when a Local Reference exists.
-
-### 12.3 Two-point geometry
-
-`M.points(a,b)` emits:
-
-- signed `dx`, `dy`;
-- absolute `horizontalDistance`, `verticalDistance`;
-- Euclidean `straightDistance`.
-
-### 12.4 Two-region geometry
-
-`M.rectangles(a,b)` emits:
-
-- rectangles `a`, `b`;
-- non-negative `horizontalGap`, `verticalGap`;
-- `projectionOverlapX`, `projectionOverlapY`;
-- `overlapArea`;
-- signed `centerDelta` from A center to B center;
-- `bRelativeToA`, using the same relative-geometry shape above.
-
-Unused model helpers (`pointRelative()`, `placePanel()`) are not automatically product contracts merely because they exist in `model.js`; this Oracle only freezes model semantics actually consumed by the executable interaction/evidence flow.
-
-## 13. Margin contract
-
-| ID | Contract | Acceptance | HTML evidence |
-|---|---|---|---|
-| DM-MARGIN-001 | Margin is a relationship view for current Target/latest RR region, not a fifth tool mode. | margin toggle does not change tool mode. | `targetBounds()`, margin toggle |
-| DM-MARGIN-002 | A semantic Target may expose at most two reference sets: Reference Window plus one Local Reference. | HUD has one or two rows. | `renderHUD()` |
-| DM-MARGIN-003 | Overlay emphasizes one reference set at a time with exactly four edge lines. | Window/Local toggle keeps four lines. | `drawMarginLines()` |
-| DM-MARGIN-004 | Margin toggle is disabled when no Local Reference exists. | disabled state visible. | `renderButtons()` |
-| DM-MARGIN-005 | Locking/replacing a Target resets active margin reference to Window. | `marginView='window'`. | `lockCandidate()`, `manualTarget()` |
-| DM-MARGIN-006 | Signed margins use: left=`target.left-reference.left`; top=`target.top-reference.top`; right=`reference.right-target.right`; bottom=`reference.bottom-target.bottom`. Negative values mean Target extends beyond that reference edge. | negative value receives warning treatment. | `M.relative().signedEdges`, `.negative` |
-| DM-MARGIN-007 | Manual Target is not clipped to the Reference Window by the prototype; signed margins can therefore legitimately be negative. | geometry remains source-honest. | pointer/drag + no clipping |
-
-## 14. HUD, status, annotations, and visual semantics
-
-| ID | Contract | Acceptance | HTML evidence |
-|---|---|---|---|
-| DM-VIS-001 | Frozen snapshot is the visual base layer while measuring. | Measurement chrome overlays it. | snapshot/overlay stacking |
-| DM-VIS-002 | Toolbar is a compact independent floating bar centered near bottom. | one grouped bar. | `.tools` |
-| DM-VIS-003 | Selected measurement tool has unmistakable active state. | selected tool active. | `renderButtons()`, `.active` |
-| DM-VIS-004 | Persistent Magnet ON/OFF is visible on Toolbar and HUD; temporary Alt suspension is separately visible as `（临时暂停）`. | states distinguishable. | `renderHUD()` |
-| DM-VIS-005 | Candidate/drag preview and locked Target differ visually; locked stroke is stronger. | preview vs locked. | `.candidate`, `.candidate.locked` |
-| DM-VIS-006 | Local Reference uses a separate dashed visual treatment. | distinct reference outline. | `.local-reference` |
-| DM-VIS-007 | Margin and distance lines use distinct annotation classes from selection outlines. | relation types visually distinguishable. | `.margin-line`, `.distance-line` |
-| DM-VIS-008 | One-point-pair first point uses a small handle; second point replaces that with a distance line. | progressive pair feedback. | `renderOverlay()` |
-| DM-VIS-009 | Pointer micro HUD follows pointer and flips side near stage edges. | concise readout avoids obvious overflow. | `renderMicro()` |
-| DM-VIS-010 | Corner HUD is top-right and is the normal result summary; Inspector is secondary/off by default. | main summary remains visible behind Inspector. | `.corner-hud`, `.inspector` |
-| DM-VIS-011 | Outside Reference Window is weakly de-emphasized, not blacked out. | readable source remains visible. | `.mask` |
-| DM-VIS-012 | Status is a small non-interactive hint near lower-left (moves above toolbar at narrower demo width). | current interaction guidance visible. | `.status`, media query |
-| DM-VIS-013 | Transient toast appears top-center, does not intercept input and auto-hides after the prototype timeout. | informational only. | `notify()`, `.toast` |
-| DM-VIS-014 | When no measurement result is active, HUD meta exposes current `snapshotId` and generation. | snapshot lifecycle visibly inspectable. | `renderHUD()` |
-| DM-VIS-015 | HUD priority is completed RR relation → generic Target/latest incomplete RR region → Point → two-point relation → no-result snapshot meta. | completed RR shows H/V gaps, overlap and center delta. | `renderHUD()` |
-| DM-VIS-016 | Completed RR summary is reachable before generic Target; its margin table is empty while structured spacing and overlay relation remain available. | former HTML-CONFLICT-001 resolved. | `renderHUD()` |
-
-## 15. Inspector, Snapshot evidence, and Export boundary
-
-| ID | Contract | Acceptance | HTML evidence |
-|---|---|---|---|
-| DM-INSPECTOR-001 | Inspector is closed by default and opens only by explicit `详情` action or `I`. | no default side panel. | state + handlers |
-| DM-INSPECTOR-002 | Inspector is a right-side scrollable detail panel over Measurement Surface; opening it does not mutate snapshot/Target. | state stable. | `.inspector`, handlers |
-| DM-INSPECTOR-003 | Inspector renders current `structuredData()` as formatted JSON. | JSON refreshes when render occurs. | `renderInspector()` |
-| DM-INSPECTOR-004 | Explicit close and first Escape while open close Inspector without exiting session. | second Escape may exit. | close/Escape handlers |
-| DM-INSPECTOR-005 | Inspector remains open across tool switch and Update, but Adjust/Exit/new-session begin close it. | visibility follows state functions. | lifecycle functions |
-
-Structured evidence includes, when applicable:
-
-- schema/version + prototype flag + phase;
-- snapshot token (`sessionId`, `generation`, `snapshotId`) when a current snapshot exists;
-- coordinate-space declarations and display mapping;
-- Target + Window/Local relative geometry;
-- Window Reference + optional Local Reference;
-- margins + currently emphasized relation;
-- pointer coordinate triple + frozen-source pixel sample;
-- confirmed Point;
-- two-point result;
-- two-region `spacing` result;
-- current Candidate provenance;
-- stable semantic relocation evidence;
-- runtime-evidence flags.
-
-### Snapshot boundary
-
-The prototype uses “Snapshot” as the current frozen measurement source/token. It has **no user control to save, name, browse, or export a screenshot image**. `更新画面` replaces the current Frozen Snapshot; `调整界面 → 继续测量` invalidates then replaces it.
-
-### Export boundary
-
-| ID | Contract | Acceptance | HTML evidence |
-|---|---|---|---|
-| DM-EXPORT-001 | The only explicit export-like UI is `复制结构化数据` in Inspector. | current structured JSON is copied as text when browser clipboard is available. | `#copy-json` handler |
-| DM-EXPORT-002 | Clipboard success shows a transient success toast. | evidence view remains open. | copy handler + `notify()` |
-| DM-EXPORT-003 | Clipboard unavailable/failure shows a non-destructive unavailable toast and leaves JSON visible. | no evidence loss. | catch branch |
-| DM-EXPORT-004 | No file export, PNG export, JSON-file save, filesystem chooser, or Snapshot-image export is defined by the HTML prototype. | Production must not infer those behaviors from the word “Export”. | absence from DOM/handlers |
-
-## 16. Keyboard contract
-
-| ID | Contract | Acceptance | HTML evidence |
-|---|---|---|---|
-| DM-KEY-001 | Tab is consumed while measuring and cycles forward within current Candidate Stack. | browser focus traversal prevented. | keydown Tab |
-| DM-KEY-002 | Shift+Tab cycles backward within same stack. | prior candidate restored when stack permits. | keydown Tab + shift |
-| DM-KEY-003 | Alt/Option keydown/keyup implements temporary Magnet suspension/resume without changing persistent `magnet`. | `alt` toggles separately. | key handlers |
-| DM-KEY-004 | Escape closes Inspector first; otherwise it exits Measurement. | not an intermediate-result cancel action. | keydown Escape |
-| DM-KEY-005 | `1`/`2`/`3`/`4` select/reset Point/Region/Point↔Point/Region↔Region. | active mode changes; result state clears. | mode map + `setMode()` |
-| DM-KEY-006 | `I` toggles Inspector while measuring. | panel opens/closes. | keydown i |
-| DM-KEY-007 | Measurement key handling is inactive while ADJUSTING and after Exit. | these handlers stop mutating measurement state. | early return |
-| DM-KEY-008 | The displayed `⌘ / Ctrl + Shift + M` global shortcut is not implemented by this page’s keydown handler; it is represented by a simulated entry button. | OS-global capture remains outside this HTML implementation. | `#entry-key`, key handlers |
-
-## 17. Error / invalid / unavailable states
-
-| ID | State | Required visible behavior | HTML evidence |
-|---|---|---|---|
-| DM-ERROR-001 | no reliable Candidate | status says no reliable candidate and suggests manual framing | `resolveNow()` |
-| DM-ERROR-002 | Region click without Candidate | no Target is invented; status asks user to drag | Region branch |
-| DM-ERROR-003 | RR click/small drag | pair does not advance; status says positive-size drag is required | RR branch |
-| DM-ERROR-004 | no Local Reference | margin toggle disabled; only Window margin relation is available | `renderButtons()` |
-| DM-ERROR-005 | pointer outside mapped display/source | raw color may be unavailable and HUD shows `—` instead of fabricating a value | `rawColor()`, `renderMicro()` |
-| DM-ERROR-006 | clipboard unavailable | structured JSON remains in Inspector; toast reports unavailability | copy catch branch |
-| DM-ERROR-007 | stale async Candidate | result is ignored, never applied to current snapshot | `applyAsyncCandidate()` |
-
-## 18. State persistence matrix
-
-| State | Tool select/reselect | Update | Adjust → Continue | Re-entry while measuring | Exit → new session |
-|---|---|---|---|---|---|
-| selected tool | becomes selected tool | persists | persists | persists | **persists** |
-| persistent Magnet | persists | persists | persists | persists | resets ON in `begin()` |
-| temporary Alt | unchanged by tool/update | unchanged | reset OFF entering Adjust | unchanged | reset OFF on Exit and begin; keyup also clears while inactive |
-| pointer | persists | persists | cleared entering Adjust; new snapshot starts with null | persists | cleared |
-| Candidate/stack | cleared | cleared | cleared | preserved | cleared |
-| Target / measurement result | cleared | cleared | cleared | preserved | cleared |
-| Local Reference | cleared | cleared | cleared | preserved | cleared |
-| active margin relation | effectively reset when new Target is locked; may remain latent without Local Reference | latent value not explicitly reset | latent value not explicitly reset | preserved | new session sets Window |
-| Inspector | unchanged | persists open | closes entering Adjust | preserved | closes |
-| snapshot token | same until lifecycle action | replaced | invalidated then replaced | same | destroyed then new session/new token |
-
-The prototype does not define a separate persistent-history list of prior Measurements or Snapshots.
-
-## 19. Bidirectional HTML ↔ Oracle traceability matrix
-
-Status values intentionally use the audit vocabulary requested for this conversion.
-
-| Prototype capability / behavior | Primary HTML evidence | Oracle section | Status after this revision |
-|---|---|---|---|
-| Measurement Session | `begin()`, `exitMeasurement()`, token | §5 | PASS |
-| three entry sources + same-session re-entry | `#entry-*`, `begin()` | §5 | PASS |
-| displayed global shortcut | `#entry-key` | §5, §16 | PASS |
-| actual OS-global shortcut capture | no matching key handler | §5, §16 | NOT_SUPPORTED_BY_HTML |
-| Toolbar labels/tooltips/states | `index.html#tools`, `renderButtons()`, CSS | §3 | PASS |
-| icons | text-only buttons | §3 | NOT_SUPPORTED_BY_HTML |
-| tool selection + same-tool reset | `setMode()` | §8 | PASS |
-| user Reference selection/reselection | no control/handler | §6 | NOT_SUPPORTED_BY_HTML |
-| Reference highlight + Window relation | `drawMask()`, coordinates/margins | §6, §13 | PASS |
-| Freeze lifecycle | `begin()`, `captureSnapshot()` | §7 | PASS |
-| standalone Unfreeze toggle | none; Adjust is live phase | §7 | NOT_SUPPORTED_BY_HTML |
-| Update | `refreshSnapshot()` | §7 | PASS |
-| Adjust / Continue | `adjustInterface()`, `continueMeasurement()` | §7 | PASS |
-| Magnet/Snap | scheduler + toggle/Alt | §11 | PASS |
-| Candidate resolution/provenance | `semanticAt()`, `visualAt()` | §11 | PASS |
-| Candidate cycling | `cycleCandidate()`, Tab handlers | §11, §16 | PASS |
-| Point | Point branch | §10 | PASS |
-| Region candidate lock | `lockCandidate()` | §10 | PASS |
-| Region manual drag | `manualTarget()`, Region branch | §9–§10 | PASS |
-| post-lock Region resize/edit handles | absent | §10 | NOT_SUPPORTED_BY_HTML |
-| Point↔Point | PP branch + `M.points()` | §10, §12 | PASS |
-| Region↔Region structured relation | RR branch + `M.rectangles()` | §10, §12 | PASS |
-| Region↔Region HUD summary | conditional order in `renderHUD()` | §10, §14 | RESOLVED · PASS_AUTOMATED |
-| pointer screen/window/region coordinates | `coordinateTriple()`, `renderMicro()` | §12 | PASS |
-| Reference-relative geometry | `M.relative(target, win.rect)` | §12 | PASS |
-| percentage / normalized convention | `M.relative()` vs structured coordinate metadata | §12 | RESOLVED · PASS_AUTOMATED |
-| separate normalized coordinates | absent | §12 | NOT_SUPPORTED_BY_HTML |
-| geometry ratios/alignment/coverage | `M.relative()` | §12 | PASS |
-| Window + Local margins | `signedMargins()`, `renderHUD()` | §13 | PASS |
-| one active four-line margin overlay | `drawMarginLines()` | §13 | PASS |
-| Inspector | DOM + `renderInspector()` | §15 | PASS |
-| HUD/status/toast | DOM/CSS/render functions | §14 | PASS_AUTOMATED; §20 conflicts resolved |
-| Frozen Snapshot token | capture/token/HUD | §7, §15 | PASS |
-| save/export screenshot | absent | §15 | NOT_SUPPORTED_BY_HTML |
-| structured data clipboard copy | `#copy-json` handler | §15 | PASS |
-| file JSON export | absent | §15 | NOT_SUPPORTED_BY_HTML |
-| keyboard shortcuts | key handlers + titles | §16 | PASS |
-| pointer interactions | overlay pointer handlers | §9 | PASS |
-| intermediate Escape cancel | Escape exits after Inspector-close | §9, §16 | NOT_SUPPORTED_BY_HTML |
-| dedicated Clear/Reset control | absent; same-tool selection resets | §8 | NOT_SUPPORTED_BY_HTML |
-| close/Exit state cleanup | `exitMeasurement()` + CSS/render | §5, §20 | RESOLVED · PASS_AUTOMATED |
-| invalid/unavailable feedback | status/toast/disabled states | §17 | PASS |
-| state persistence within session | lifecycle functions | §18 | PASS_AUTOMATED; Alt boundary regression |
-| active/hover/disabled/selected visual state | CSS + renderButtons/margin table | §3, §14 | PASS |
-| responsive hiding of optional/harness controls | media queries | §3 / harness boundary | PASS (prototype presentation only) |
-
-This table is also the minimal proof that important product semantics were not silently lost between executable prototype and Markdown.
-
-## 20. Resolved HTML internal conflict register
-
-| ID | Former contradiction | Executable resolution | Regression evidence | State |
-|---|---|---|---|---|
-| HTML-CONFLICT-001 | RR metrics existed but generic Target HUD intercepted them. | `renderHUD()` checks completed RR before generic Target; displays H/V gaps, overlap and signed center delta without a duplicated margin table. | browser RR summary + structured spacing + overlay line | RESOLVED |
-| HTML-CONFLICT-002 | Arithmetic was percentage while metadata declared ratio. | `coordinateSpace.percentage = percentage-0-100`; true ratio fields are unchanged. | numerical percentage/ratio checks | RESOLVED |
-| HTML-CONFLICT-003 | IDLE could leave Toolbar/status/SVG interaction chrome. | render hides scene/SVG/tools/status, disables controls, hides toast; inactive handlers reject mutation. | Exit visibility + inactive-action regression | RESOLVED |
-| HTML-CONFLICT-004 | Alt could survive Exit/new session or a lost release. | Exit/begin/Adjust clear temporary Alt; keyup clears even while inactive; new session resets Magnet ON. | held Alt → Exit/re-entry + Adjust/Continue | RESOLVED |
-
-No known freeze blocker remains. Native host behavior remains a separate qualification layer.
-
-## 21. Freeze corrections and preserved boundaries
-
-This freeze resolves the four prototype contradictions in executable code first, then aligns requirement rows, persistence semantics, traceability and scenarios. It does not introduce Region resize handles, Arrow nudge, intermediate Esc cancellation, a new toolbar control, saved-image history, or fixture UI in Production.
-
-`详情` is **open** (idempotent); `I` is **toggle**. Inspector shows current Snapshot/mapping/reference/pointer/candidate evidence even without a Result. Temporary Alt and in-progress drag state are cleared when Measurement releases input ownership for Adjust. Update preserves tool, persistent Magnet, pointer and Inspector-open while clearing old snapshot-derived result/candidate/reference/drag state.
-
-## 22. Acceptance scenarios after conflict resolution
-
-These scenarios are the minimum frozen-Oracle parity suite. All former §20 blockers are resolved in executable sources and covered by browser regression.
-
-1. **Initial Freeze**: Region active, Magnet ON, one session, valid snapshot, weak outside mask, Reference outline, Toolbar/HUD visible.
-2. **Entry reuse**: developer/Recorder/global-shortcut sources address one active session; re-entry returns same token and shows same-session toast.
-3. **Point**: move pointer → three coordinate rows + source pixel; pointer-up → confirmed point/color.
-4. **Region candidate**: click highlighted Candidate → locked Target; semantic Target may derive one Local Reference.
-5. **Region manual**: valid drag → manual Target even if Candidate was visible; no fabricated Local Reference.
-6. **Candidate cycle**: only one highlighted candidate; Tab/Shift+Tab wraps current stack; Alt temporary suspension; persistent Magnet toggle independent.
-7. **Point↔Point**: two points → signed ΔX/ΔY + H/V + straight distance; third point starts new pair.
-8. **Region↔Region**: two drags → structured gap/overlap/center/B-relative evidence + overlay relation; **HUD shows H/V gap, overlap area and signed center delta**.
-9. **Margins**: Window + optional one Local Reference; margin toggle disabled without Local Reference; overlay shows exactly one four-line relation.
-10. **Inspector**: default closed; Details/I opens; close/Escape closes without mutating Target/Snapshot; Update preserves open state; Adjust closes.
-11. **Structured copy**: success/unavailable toast is non-destructive; no file export is assumed.
-12. **Update**: same session, newer generation/snapshot, snapshot-bound result/candidate state cleared, mode/Magnet/Inspector-open/pointer preserved.
-13. **Adjust**: snapshot invalid immediately; Measurement chrome hidden; Continue refreezes same session and clears old result state.
-14. **Exit**: snapshot-bound data cleared and next entry creates a new session; **all Measurement chrome and the SVG input plane are hidden; controls cannot mutate IDLE**.
-15. **Percentage/normalized evidence**: **percentage = 100 × relative/reference; metadata `percentage-0-100`; true ratio fields unchanged**.
-16. **Alt transient lifecycle**: **hold Alt → Exit → release Alt → new session starts Alt OFF, Magnet ON, selected tool retained**.
-
-## 23. Explicit non-contracts / boundaries
-
-- No user-facing Reference selection/reselection behavior is defined.
-- No standalone Freeze/Unfreeze toggle is defined.
-- No Region resize/edit handles are defined after lock.
-- No dedicated Clear/Reset button or shortcut is defined.
-- Escape is not an intermediate-result cancel command.
-- No saved Snapshot gallery/history is defined.
-- No screenshot/PNG export is defined.
-- No JSON file export or filesystem save flow is defined; only clipboard copy of structured JSON exists.
-- No separate normalized-coordinate field is defined.
-- No production icons are defined; prototype Toolbar is text-based.
-- The synthetic WeChat scene/UI tree, pixel-region-growing implementation, browser clipboard, display fixtures and responsive browser demo chrome are test substitutes.
-- Candidate Stack is not equivalent to `CaptureFrame.Targets` or a persistent locator list.
-- Visual Candidate is not semantic control evidence.
-- Native correctness still owns real capture exclusion, input routing, monitor/DPI conversion, accessibility/OCR/Vision calls, resource/thread lifetime, Dock/Taskbar behavior and platform-specific surface mechanics.
-
-## 24. Change discipline
-
-1. Explicit user corrections → executable Prototype → this FROZEN Oracle → architecture Native/Framework invariants and separately justified Product Extensions → Production → tests/qualification.
-2. Preserve requirement IDs; tests are witnesses, not a second requirement source.
-3. Production-only capabilities require explicit architecture/user basis and never amend this Oracle retroactively.
-4. A future real prototype contradiction reopens only its specific blocker before a new freeze is asserted.
-5. Current state: **ORACLE STATUS: FROZEN**. Browser evidence is synthetic and never substitutes for macOS/Windows qualification.
+| ID | Requirement / executable witness |
+|---|---|
+| DM-SELECT-001 | `begin()` creates/reuses one session without capture; duplicate menu/Recorder/shortcut entries never create a second session or implicitly confirm a suggestion. |
+| DM-SELECT-002 | `windowAt()` + `renderOverlay()/renderHUD()` preview the topmost synthetic window, its label and bounds while the live scene remains mutable. No Micro pixel HUD or frozen mask in this phase. |
+| DM-SELECT-003 | Pointer down/up must name the same existing window, same bounds and a click-size movement. Blank desktop/changed candidate does not freeze. Esc cancels. |
+| DM-SELECT-004 | `confirmReference()` is the only initial capture gate. `captureSnapshot()` rejects absent reference, binds geometry/display mapping/source canvases to a fresh session/generation/snapshot token. |
+| DM-SELECT-005 | Explicit Inspector reselection invalidates current state but retains records. Update never silently substitutes a same-title window; the native identity/revalidation gap is listed in the architecture amendment. |
+
+The browser draws two **synthetic** windows (chat and notes). This proves selection UX, not real OS window enumeration, transparency or capture permissions.
+
+## 5. Resolver / performance contracts
+
+| ID | Binding behavior |
+|---|---|
+| DM-RESOLVE-001 | Resolution order is valid cache → semantic fixture → visual frozen-pixel fixture → manual selection. Semantic and visual provenance remain distinct. A known Window ancestor is not a flood-fill result. |
+| DM-RESOLVE-002 | `visual-resolver.js` owns centralized `DEFAULTS`: 64ms trailing throttle, 7 logical-pixel local negative-cache distance, 768×384 logical-analysis ROI, 60,000 maximum visited pixels, 50,000 maximum bounding-box area and at most 50% Reference area, 12ms cooperative time budget, eight positive cache entries, minimum side 12, fill ratio ≥0.70, opaque seed. Thresholds are calibrated fixture defaults, not universal segmentation guarantees. |
+| DM-RESOLVE-003 | No pointer-driven capture. Analysis pixels are created once per snapshot. Flood fill allocates only bounded ROI/queue buffers; connected component uses 4-neighbours and RGB RMS tolerance (default 8, accepted 0–64), not RGB equality. |
+| DM-RESOLVE-004 | Same-snapshot positive candidate containment + compatible seed color reuses the result. Small same-color failed seeds reuse a local negative result. Semantic stack signatures detect child transitions; Tab-selected ancestors are not blindly retained across different child contexts. |
+| DM-RESOLVE-005 | The latest-pointer trailing timer is not restarted by every event. Continuous movement cannot indefinitely starve resolution. Pointer/Micro HUD updates do not wait for segmentation. |
+| DM-RESOLVE-006 | OFF/Alt/locked Target/non-Measuring/outside Reference ownership means no new visual work. Alt clears preview, not pointer HUD. On release, resolution may resume. |
+| DM-RESOLVE-007 | ROI/source boundary contact, oversized/transparent/small/sparse component, pixel/area/time budget or cancellation returns **no visual candidate**. Never return the whole window as guessed flood-fill output. Irregular gradients/text/shadows may require manual selection. |
+| DM-RESOLVE-008 | Snapshot/generation/epoch/provider/pointer-revision mismatch rejects stale async application; Update/Adjust/reselection/Exit invalidate pending work. Visual work samples source canvases, never HUD/mask pixels. |
+| DM-RESOLVE-009 | Metrics expose pointerMoveCount, semanticResolveCount, visualResolveCount, visualCacheHit/Miss, floodFillRuns, visited/time maxima and rejection reasons. Regression must prove 100 inside pointer events do not cause 100 fills. |
+
+Micro HUD remains only Screen/Window/Region coordinates plus source color, pointer-events:none and edge flip. Corner HUD carries the object summary. The main Toolbar retains the original ten controls; Record is a secondary Corner/Inspector action. Window + **one** useful Local Reference, no third margin group; overlay emphasizes exactly one four-edge relation.
+
+## 6. Session record / export contracts
+
+| ID | Binding behavior |
+|---|---|
+| DM-RECORD-001 | Click locks the measurement; it does not append or save. Enter (non-repeat, unmodified, outside editable controls) / Record explicitly appends a completed Region/Point/PP/RR. Preview or incomplete pairs cannot enter records. |
+| DM-RECORD-002 | Successful append deep-copies the confirmed result and source snapshot, then clears only the current result so the next measurement can be collected. Repeated Enter cannot duplicate the consumed result. |
+| DM-RECORD-003 | `desktop-measurement-session/v1` contains sessionId, prototypeOnly, coordinate-space declarations, snapshots[] and measurements[]. Every record has id/type/label/status/token/snapshotId/geometry/coordinates/margins/candidate/sourcePixel/stableRelocationEvidence/runtimeEvidence as applicable. No invented semantic evidence for manual/visual regions. |
+| DM-RECORD-004 | Records are `confirmed` with memory persistence; preview stays outside the journal. Explicit successful file commit may change captured IDs to `saved`. Copy/download does not. Label defaults can be edited before Record. |
+| DM-RECORD-005 | Snapshot sources are retained once per referenced snapshot. Update/Adjust/reselection preserves historical records and their original reference/display mappings; no automatic cross-snapshot relocation or relabeling. |
+| DM-RECORD-006 | Bounds: 100 records, 16 retained snapshots, 20MiB encoded snapshot budget. Invalid geometry/token, retention limit or serialization failure rejects append atomically, preserves prior records and asks the user to save/start a new session. No hidden eviction. |
+| DM-RECORD-007 | Copy All copies the complete session JSON. Clipboard failure leaves full session JSON visibly available in Inspector without replacing current-result JSON. |
+| DM-RECORD-008 | Save uses user-selected browser file where supported, otherwise JSON Blob download. Cancellation/write/close failure does not mark records saved; abort the writable when possible. Plain browser download only becomes `download-requested`. No automatic filesystem writes on hover/click/Record. |
+| DM-RECORD-009 | Exit destroys unsaved memory/current state; visible Record feedback warns “only in memory; copy/save before exit”. Exported files remain. No new Esc confirmation hierarchy or complex Recorder is introduced. |
+
+Prototype snapshots include PNG data URLs to make one exported JSON self-contained. They remain `prototypeOnly:true`. Existing Go `measurement-evidence/v1` / Authoring loaders must not accept these fixtures as native evidence. Production integration must reuse validated canonical Evidence rather than create a second Geometry/Locator model.
+
+## 7. Contracts still frozen and unchanged
+
+The inherited baseline remains binding for all contracts not explicitly amended above, including the four measurement tools, valid ≥5×5 drag, signed geometry and 0–100 percentage vs true 0–1 ratios; source-pixel mapping/desktop holes; one Session; Adjust/Continue; Inspector default closed, Details=open and I=toggle; Escape closes Inspector otherwise exits; no Region eight handles/body editing, no Arrow nudge, no intermediate Escape cancel, no fifth margin tool and no standalone Freeze/Unfreeze toolbar toggle. DM-MARGIN-003/005/006/007 remain unchanged. Semantic fixture is not real AX/UIA. Native capture/input/Recorder isolation/platform qualification remains separate.
+
+## 8. Evidence and release gate
+
+`tests/desktop-measurement/browser.test.py` exercises the exact checked-in modules via Chromium set_content, including entry/reference selection, hover size/margins, Tab/Alt, cache/throttle, multiple records across snapshots, actual Blob download, mocked picker failure/success, old four-mode/cleanup/geometry cases. File-URI navigation was restricted in the execution environment; this is not a claim of tested native/direct-file permissions.
+
+Actual run: browser **97/97**, existing geometry **16/16**, new visual/record model **34/34**; no browser page errors. Runtime evidence is under `.runtime/tests/desktop-measurement/`, not in this source directory. Source hashes and scope are in `tests/desktop-measurement/amendment-manifest.json`.
+
+Production gates are tracked in `docs/architecture/desktop-automation/desktop-measurement-amendment-2026-09-17.md`. A browser PASS does **not** close native Live Reference selection, production visual scheduling/ROI, Corner HUD or Session Records/Authoring integration. macOS/Windows qualification stays NOT_RUN.

@@ -1,88 +1,40 @@
 # Desktop Measurement Prototype
 
-本目录保存 OpenDesk「桌面测量」已经确认的长期 **UI / Interaction Oracle**。
-
-它用于验证产品交互、信息层级、状态转换和几何语义；**不是生产 Runtime，不读取真实桌面，不替代 `pkg/measurement`、Accessibility / UIA、OCR、Perception Resolver 或 Native Host。**
+本目录是长期 UI / Interaction Oracle，不是 Production Runtime，不读取真实桌面，不替代 AX/UIA、Native Host、Geometry 或 Recorder。
 
 ## 直接体验
-
-从仓库根目录直接执行：
 
 ```bash
 open apps/opendesk/prototypes/desktop-measurement/index.html
 ```
 
-不需要 `npm install`、HTTP Server 或运行 OpenDesk。
+无需 npm install 或 HTTP Server。依次体验：进入 Live 窗口选择 → 移动到聊天窗口或备忘录窗口 → 单击确认后冻结 → Hover 看 Candidate 尺寸/边距 → Tab 换层 → 点击锁定 → Enter／记录 → 继续下一个 → 测量记录 → 复制全部／保存 JSON。
 
-## 单一维护关系
+“Live”场景、窗口、UI Tree 和源像素全部是浏览器合成测试替身，不是实际 macOS/Windows 桌面。
 
-```text
-index.html
-  ├─ prototype.css
-  ├─ model.js
-  └─ interaction-core.js
+## 唯一维护关系
+
+`index.html` 只保留 DOM 与相对资源引用；`prototype.css` 是唯一样式；`model.js` 保留原数学模型；`interaction-core.js` 是唯一状态/交互 owner；`visual-resolver.js` 提供有预算的 Snapshot 局部像素分析；`records.js` 只负责本 Session 的显式记录。`template.html` 仅跳转，不维护第二套页面。
+
+当前合同入口是 `ORACLE.md`。`ORACLE.baseline-2026-09-16.md` 是本轮保存的原始冻结文档，必须结合当前 Amendment 阅读，不能用其旧的“没有窗口选择／没有历史／只有当前结果复制”否决本轮用户修订。
+
+## 关键边界
+
+进入不截图；窗口建议不是确认。只有确认／更新／继续测量才创建 Snapshot；正式颜色、坐标、区域与边距绑定该帧。Micro HUD 只承载指针信息，Corner HUD 区分候选预览与已锁定。最多 Window + 一个 Local Reference，Overlay 同时一组四边距；原十项 Toolbar 保持。
+
+磁吸关闭／Alt 暂停不运行视觉解析。缓存、64ms trailing throttle、有限 ROI、像素/面积/时间上限保护 pointermove；透明、背景连接、截断、不可靠轮廓拒绝候选并允许人工框选。Visual 永远不是 semantic control。
+
+点击锁定 ≠ 记录 ≠ 保存。Enter／记录仅追加已确认结果到内存，随后继续测量；Update/Adjust/重选不删除历史。退出会销毁未保存内存，先复制全部或保存。浏览器下载请求不冒充文件已落盘；选择器写入并关闭成功才标记 saved。快照源图在首次 Record 时纳入 Session JSON，多个记录共享同一快照。
+
+## 测试与正式实现
+
+```bash
+node --test tests/desktop-measurement/model.test.js tests/desktop-measurement/amendment.test.js
+python tests/desktop-measurement/browser.test.py
 ```
 
-- `index.html`：唯一可执行样机页面，只保留 DOM 骨架与相对资源引用，不再内联第二套 CSS / Model / Interaction。
-- `prototype.css`：Oracle 的唯一样式源。
-- `model.js`：仅用于样机与合同验证的数学模型；不得复制为第二套 Runtime Geometry。
-- `interaction-core.js`：Oracle 的唯一交互实现，包含冻结 Snapshot、磁吸候选、三级坐标、两级参照、两组边距、ADJUSTING / refreeze、结构化导出等合成交互。
-- `template.html`：历史兼容入口，只跳转到 `index.html`；禁止再次复制实现。
+Browser harness 读取并内联完全相同的模块源码，不复制另一套交互。合成测试不代替 Native 权限、窗口捕获、输入、剪切板、多屏/DPI、Recorder 隔离或实际加载产物验收。
 
-`tests/desktop-measurement/browser.test.py` 会同时检查：
+正式合同：`docs/architecture/desktop-automation/desktop-measurement.md`；当前差距：同目录 `desktop-measurement-amendment-2026-09-17.md`；正式实现仍由 `pkg/measurement/**`、`pkg/customui/**`、`cmd/opendesk/**measurement**` 和现有 Recorder 集成承担。当前 Amendment 不等于这些 Native 能力已经全部同步。
 
-1. `index.html` 只引用上述外部资源；
-2. `template.html` 不再包含第二套交互；
-3. Chromium 使用这些同一源码完成产品交互验证。
-
-因此 Prototype 不再允许出现“旧单文件样机”和“新模块化样机”同时维护的分叉状态。
-
-## 当前 Oracle 合同
-
-样机当前覆盖：
-
-- 默认冻结 Snapshot；目标应用没有被“暂停”，只是测量基于同一帧。
-- `更新画面`：保持同一 session，生成新的 `generation + snapshotId`。
-- `调整界面`：进入 `ADJUSTING`，旧 Snapshot 立即失去当前身份；冻结层、蒙版、Overlay、HUD、工具条、Inspector 全部隐藏，恢复合成真实桌面交互。
-- `继续测量`：重新冻结并生成新 Snapshot；旧异步候选 token 不得污染新 Snapshot。
-- 鼠标旁显示屏幕 / 窗口 / 当前可靠区域三级坐标与冻结源像素颜色；没有可靠区域时必须显示 `区域 —`。
-- 磁吸定位默认开启；Tab / Shift+Tab 只切换当前候选层级，Alt / Option 临时暂停。
-- 候选来源诚实区分 `synthetic-ui-tree` 与 `pixel-region-growing`；视觉候选只能是 estimated visual evidence，不能冒充 `textField` 等真实语义控件。
-- Target 最多同时保留两级有效参照：整个目标窗口 + 一个有布局价值的 Local Reference。
-- HUD 最多显示两组有符号边距：`Target → Window`、`Target → Local Reference`。
-- Overlay 一次只重点绘制一组四边距线，不同时绘制八条线。
-- Inspector 默认关闭；结构化数据区分 stable relocation evidence 与 runtime evidence，绝对坐标不会自动升级为长期 Locator。
-- 三个模拟入口复用同一个 session；退出后清理 Snapshot、Overlay、候选和临时交互状态。
-
-## 真实性边界
-
-Prototype 中的：
-
-- 微信界面；
-- synthetic UI tree；
-- Canvas 像素；
-- 多屏 fixture；
-- 浏览器 clipboard；
-
-全部都是测试替身。
-
-以下结论必须由生产代码和真机验收提供，不能由本样机冒充：
-
-- macOS / Windows 真实窗口与显示器几何；
-- 真实截图排除 Measurement Surface；
-- Accessibility / UIA / OCR / Vision 候选；
-- Native Surface 焦点、输入路由和 Dock / Taskbar 行为；
-- Recorder 真实输入隔离；
-- 系统级剪切板；
-- 多显示器 / Retina / DPI 真机体验。
-
-## 正式实现与文档
-
-- 正式产品设计正文：`docs/architecture/desktop-automation/desktop-measurement.md`
-- 正式 Framework：`pkg/measurement/**`
-- Native / Custom UI host contract：`pkg/customui/**`
-- App Mode 三入口 owner：`cmd/opendesk/**measurement**`
-- Recorder 集成：`apps/opendesk/recorder/**`、`pkg/recorder/measurement_evidence.go`
-- Oracle / qualification tests：`tests/desktop-measurement/**`
-
-运行截图、日志、下载结果和测试证据统一写入 `.runtime/`，不提交到本目录。
+截图、日志、导出的 JSON 和测试报告只放 `.runtime/`。生产任务产物优先复用 `.runtime/automation-authoring/<task-id>/measurement/`，不得写入 `apps/opendesk/**`。浏览器样机不能替用户决定仓库文件系统路径。

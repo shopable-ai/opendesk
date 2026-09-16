@@ -109,7 +109,11 @@
   "contract": {
     "oracle": "apps/opendesk/prototypes/desktop-measurement/ORACLE.md",
     "status": "FROZEN",
-    "date": "2026-09-16",
+    "date": "2026-09-17",
+    "amendmentId": "DM-AMEND-2026-09-17-01",
+    "amendmentEvidence": "tests/desktop-measurement/amendment-manifest.json",
+    "productionGapMatrix": "docs/architecture/desktop-automation/desktop-measurement-amendment-2026-09-17.md",
+    "productionClosure": "OPEN_IMPLEMENTATION: PG-01 through PG-04; not native-only qualification",
     "nativeEvidencePolicy": "Repository changes, synthetic browser tests and hosted CI do not qualify the user runtime."
   },
   "requiredInteractions": [
@@ -130,6 +134,21 @@
     "recorder-entry-isolation",
     "global-shortcut",
     "native-capture-clipboard",
-    "binary-host-resource-provenance"
+    "binary-host-resource-provenance",
+    "entry-live-reference-selection-no-snapshot",
+    "reference-hover-identity-bounds-and-click-confirm-before-freeze",
+    "reference-move-resize-close-fail-closed",
+    "candidate-preview-source-layer-size-window-local-margins",
+    "candidate-vs-confirmed-result-distinction",
+    "magnet-off-alt-no-new-provider-work",
+    "previous-candidate-reuse-and-bounded-visual-throttle",
+    "local-roi-pixel-area-time-cancellation-budgets",
+    "snapshot-and-pointer-context-stale-result-rejection",
+    "explicit-record-enter-outside-editable-controls",
+    "multiple-records-across-snapshots-preserve-original-evidence",
+    "copy-all-session-evidence",
+    "save-cancel-failure-never-false-saved",
+    "artifact-path-outside-app-source-and-atomic-persistence",
+    "canonical-session-authoring-adapter-and-provenance"
   ]
 }

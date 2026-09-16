@@ -3,6 +3,9 @@
 // interaction/state only; it is not a native capture, AX/UIA, OCR or locator runtime.
 (function installDesktopMeasurementOracle(root) {
   const M = root.MeasureModel;
+  const V = root.MeasureVisual;
+  const R = root.MeasureRecords;
+  if (!V || !R) throw new Error('Visual resolver and Session Records must load before interaction core');
   if (!M) throw new Error('MeasureModel must be loaded before interaction-core.js');
 
   const $ = id => document.getElementById(id);
@@ -49,6 +52,9 @@
     pixelCache: [],
     live: {scroll: 0, tab: 0, menu: false},
     lastCopy: null,
+    sessionId: '', reference: null, referenceCandidate: null, referenceDown: null,
+    currentSnapshot: null, records: [], pointerRevision: 0, lastResolveAt: -Infinity,
+    exportStatus: null, metrics: {pointerMoveCount: 0, semanticResolveCount: 0, candidateReuse: 0},
   };
 
   let W = 0;
@@ -63,6 +69,17 @@
   let analysisPixels = null;
   let resolveTimer = null;
   let toastTimer = null;
+  let visual = V.create();
+  let journal = null;
+  let inspectorRevision = '';
+  const isMeasuring = () => E.active && E.phase === 'MEASURING' && !!E.snapshotId;
+  const isSelecting = () => E.active && E.phase === 'REFERENCE_SELECTING';
+  const canResolve = () => isMeasuring() && E.magnet && !E.alt && !!E.pointer && !E.target && windowAt(E.pointer)?.id === win?.id;
+  const canRecord = () => isMeasuring() && !!(E.mode === 'region' && E.target
+    || E.mode === 'point' && E.pointResult || E.mode === 'pp' && E.pointPair.length === 2
+    || E.mode === 'rr' && E.regionPair.length === 2);
+  const escapeText = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
 
   function absPoint(point) { return {x: point.x + origin.x, y: point.y + origin.y}; }
   function localPoint(point) { return {x: point.x - origin.x, y: point.y - origin.y}; }
@@ -135,12 +152,16 @@
       node('bubble', E.live.tab ? '文件卡片' : '消息气泡', bubble, 'chat', 'group'),
       node('conversations', '会话列表', {x: wx + navW, y: wy + 44, width: listW, height: wh - 44}, 'window', 'list'),
     ];
+    // A second real fixture window makes Reference acquisition demonstrable.
+    const note = {x: W-286, y: Math.min(H-238, 356), width: 256, height: 192};
+    nodes.push(node('notes-window', '备忘录 · 校准笔记', note, null, 'window'));
+    nodes.push(node('note-input', '笔记输入区', {x: note.x+16, y: note.y+48, width: 224, height: 122}, 'notes-window', 'textField'));
     byId = new Map(nodes.map(item => [item.id, item]));
-    win = byId.get('window');
+    win = byId.get(E.reference ? E.reference.id : 'window');
   }
 
   function drawScene(ctx) {
-    const windowRect = localRect(win.rect);
+    const windowRect = localRect(byId.get('window').rect);
     const chat = localRect(byId.get('chat').rect);
     const list = localRect(byId.get('conversations').rect);
     const composer = localRect(byId.get('composer').rect);
@@ -188,6 +209,11 @@
     text(ctx, '在这里输入消息…', input.x + 10, input.y + 24, 11, '#b1bfc8');
     roundedRect(ctx, send, '#d9eee4', 5); text(ctx, '发送', send.x + 30, send.y + 19, 11, '#548770', 550);
     ctx.restore();
+    const note = localRect(byId.get('notes-window').rect);
+    roundedRect(ctx, note, '#fff7d9', 9);
+    text(ctx, '备忘录 · 校准笔记', note.x+16, note.y+28, 12, '#766943', 550);
+    roundedRect(ctx, localRect(byId.get('note-input').rect), '#fffcf2', 4);
+    text(ctx, '先选择窗口，再开始测量。', note.x+26, note.y+78, 11, '#8e805a');
   }
 
   function drawLiveDesktop() {
@@ -211,6 +237,7 @@
   }
 
   function captureSnapshot(reason) {
+    if (!E.reference) throw new Error('Reference must be explicitly confirmed before capture');
     W = Math.max(640, stage.clientWidth);
     H = Math.max(380, stage.clientHeight);
     const parts = displayLayout();
@@ -246,7 +273,12 @@
     drawScene(analysis);
     analysisPixels = analysis.getImageData(0, 0, W, H);
     E.snapshotRevision += 1;
-    E.snapshotId = `prototype-s${E.session}-g${E.generation}-r${E.snapshotRevision}`;
+    E.snapshotId = `${E.sessionId}-g${E.generation}-r${E.snapshotRevision}`;
+    E.reference = {id: win.id, kind: 'window', label: win.label, bounds: clone(win.rect),
+      source: 'synthetic-window-fixture', reliability: 'fixture-not-native'};
+    E.currentSnapshot = {snapshotId: E.snapshotId, token: token(), referenceWindow: clone(E.reference),
+      displayMapping: clone(tiles), capturedAt: new Date().toISOString(), prototypeOnly: true};
+    visual.reset({snapshotId: E.snapshotId, image: analysisPixels, origin: clone(origin), referenceBounds: clone(win.rect)});
     E.pixelCache = [];
     E.target = null;
     E.localReference = null;
@@ -264,7 +296,7 @@
   }
 
   function token() {
-    return {sessionId: `prototype-session-${E.session}`, generation: E.generation, snapshotId: E.snapshotId};
+    return {sessionId: E.sessionId, generation: E.generation, snapshotId: E.snapshotId};
   }
 
   function sameToken(a, b) {
@@ -300,67 +332,40 @@
   }
 
   function semanticAt(point) {
-    return nodes.filter(item => inside(point, item.rect)).sort((a, b) => area(a.rect) - area(b.rect));
+    // Hit-test immutable snapshot nodes; no native AX traversal on pointermove.
+    if (!win || windowAt(point)?.id !== win.id) return [];
+    return nodes.filter(item => {
+      if (!inside(point, item.rect)) return false;
+      let parent = item;
+      while (parent.parentId) parent = byId.get(parent.parentId);
+      return parent.id === win.id;
+    }).sort((a,b) => area(a.rect)-area(b.rect) || a.id.localeCompare(b.id));
   }
 
-  function visualAt(point) {
-    if (!point || !analysisPixels || !inside(point, win.rect)) return null;
-    const local = localPoint(point);
-    const x = Math.floor(local.x), y = Math.floor(local.y);
-    if (x < 0 || y < 0 || x >= W || y >= H) return null;
-    const tolerance = Number($('tolerance').value);
-    const index = y * W + x;
-    const cached = E.pixelCache.find(entry => entry.tolerance === tolerance && entry.mask[index]);
-    if (cached) return clone(cached.node);
+  function windowAt(point) {
+    return [...nodes].reverse().find(item => item.role === 'window' && inside(point, item.rect)) || null;
+  }
 
-    const data = analysisPixels.data;
-    const seed = [data[index * 4], data[index * 4 + 1], data[index * 4 + 2]];
-    const localWindow = localRect(win.rect);
-    const left = Math.max(0, Math.ceil(localWindow.x));
-    const right = Math.min(W - 1, Math.floor(localWindow.x + localWindow.width - 1));
-    const top = Math.max(0, Math.ceil(localWindow.y));
-    const bottom = Math.min(H - 1, Math.floor(localWindow.y + localWindow.height - 1));
-    const maxCount = 160000;
-    const queue = new Int32Array(maxCount);
-    const seen = new Uint8Array(W * H);
-    const mask = new Uint8Array(W * H);
-    let head = 0, tail = 1, count = 0, minX = x, maxX = x, minY = y, maxY = y, limited = false;
-    queue[0] = index; seen[index] = 1; E.visualRuns += 1;
-    function enqueue(next, xx, yy) {
-      if (xx < left || xx > right || yy < top || yy > bottom || next < 0 || next >= seen.length || seen[next]) return;
-      seen[next] = 1;
-      const j = next * 4;
-      if (Math.max(Math.abs(data[j] - seed[0]), Math.abs(data[j + 1] - seed[1]), Math.abs(data[j + 2] - seed[2])) > tolerance) return;
-      if (tail >= maxCount) { limited = true; return; }
-      queue[tail++] = next;
-    }
-    while (head < tail && !limited) {
-      const current = queue[head++];
-      const xx = current % W, yy = Math.floor(current / W);
-      mask[current] = 1; count += 1;
-      minX = Math.min(minX, xx); maxX = Math.max(maxX, xx); minY = Math.min(minY, yy); maxY = Math.max(maxY, yy);
-      enqueue(current - 1, xx - 1, yy); enqueue(current + 1, xx + 1, yy);
-      enqueue(current - W, xx, yy - 1); enqueue(current + W, xx, yy + 1);
-    }
-    if (limited) return null;
-    const bounds = absRect({x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1});
-    const density = count / Math.max(1, area(bounds));
-    if (bounds.width < 14 || bounds.height < 14 || density < .38 || area(bounds) > area(win.rect) * .82) return null;
-    const candidate = {
-      id: `visual-${minX}-${minY}-${bounds.width}-${bounds.height}`,
-      label: '颜色区域', rect: bounds, parentId: 'window', role: null,
-      provider: 'pixel-region-growing', reliability: 'estimated-not-semantic',
-      evidence: {tolerance, connectivity: 4, pixels: count, boundingBoxFillRatio: density, prototypeOnly: true},
-    };
-    E.pixelCache.unshift({tolerance, mask, node: clone(candidate)});
-    E.pixelCache.length = Math.min(E.pixelCache.length, 4);
+  function previewNode(item) {
+    return item ? {...clone(item), state: 'preview', snapshotId: E.snapshotId,
+      semantic: item.provider === 'synthetic-ui-tree'} : null;
+  }
+
+  function metrics() {
+    return clone({...E.metrics, ...visual.stats});
+  }
+
+  function visualAt(point, expectedToken, expectedEpoch) {
+    const candidate = visual.resolve(point, Number($('tolerance').value),
+      () => canResolve() && sameToken(expectedToken, token()) && expectedEpoch === E.candidateEpoch);
+    E.visualRuns = visual.stats.floodFillRuns;
     return candidate;
   }
 
   function chooseLocalReference(target) {
     if (!target || !target.parentId || target.provider !== 'synthetic-ui-tree') return null;
     let parent = byId.get(target.parentId);
-    while (parent && parent.id !== 'window') {
+    while (parent && parent.id !== win.id) {
       const nearlySame = Math.abs(parent.rect.x - target.rect.x) <= 2
         && Math.abs(parent.rect.y - target.rect.y) <= 2
         && Math.abs((parent.rect.x + parent.rect.width) - (target.rect.x + target.rect.width)) <= 2
@@ -377,32 +382,64 @@
   }
 
   function resolveNow(expectedToken, expectedEpoch) {
-    if (!E.active || E.adjusting || E.alt || !E.magnet || !E.pointer || E.target) return;
-    if (!sameToken(expectedToken, token()) || expectedEpoch !== E.candidateEpoch) return;
-    let stack = [];
-    if ($('provider').value === 'semantic') stack = semanticAt(E.pointer);
-    else {
-      const visual = visualAt(E.pointer);
-      stack = visual ? [visual] : [];
+    resolveTimer = null; E.pending = false;
+    if (!canResolve() || !sameToken(expectedToken, token()) || expectedEpoch !== E.candidateEpoch) return;
+    E.lastResolveAt = performance.now();
+    const provider = $('provider').value;
+    let stack = provider === 'visual' ? [] : semanticAt(E.pointer);
+    E.metrics.semanticResolveCount += provider === 'visual' ? 0 : 1;
+    const hasControl = stack.some(item => item.role !== 'window');
+    if (provider === 'visual' || provider === 'auto' && !hasControl) {
+      const found = visualAt(E.pointer, expectedToken, expectedEpoch);
+      // A Window ancestor has its own window provenance; it is not flood-fill output.
+      stack = found ? [found, {...clone(win), provider: 'synthetic-window-fixture', semantic: false}] : stack;
     }
-    E.stack = stack;
-    E.layer = Math.min(E.layer, Math.max(0, stack.length - 1));
-    E.candidate = clone(stack[E.layer] || null);
-    E.pending = false;
+    if (!canResolve() || !sameToken(expectedToken, token()) || expectedEpoch !== E.candidateEpoch) return;
+    const previous = E.candidate && E.candidate.id;
+    E.stack = stack.map(previewNode);
+    const retained = E.stack.findIndex(item => item.id === previous);
+    E.layer = retained >= 0 ? retained : 0;
+    E.candidate = clone(E.stack[E.layer] || null);
     setStatus(E.candidate
-      ? `候选：${E.candidate.label} · ${E.candidate.provider} · ${E.candidate.reliability}`
-      : '未找到可靠候选；可关闭磁吸后人工框选。');
+      ? `候选预览：${E.candidate.label} · ${E.candidate.provider} · 点击锁定，Enter 记录`
+      : '没有可靠候选；请人工框选。视觉推断不会冒充语义控件。');
     render();
   }
 
   function scheduleResolve() {
-    invalidateAsync();
-    if (!E.active || E.adjusting || E.alt || !E.magnet || !E.pointer || E.target) { render(); return; }
+    if (!canResolve()) {
+      if (!E.target && E.candidate) { invalidateAsync(); E.candidate = null; E.stack = []; E.layer = 0; }
+      return;
+    }
+    const provider = $('provider').value;
+    const semantic = provider === 'visual' ? [] : semanticAt(E.pointer);
+    const sameStack = semantic.length && E.stack.length === semantic.length
+      && semantic.every((item,i) => item.id === E.stack[i].id);
+    if (E.candidate && inside(E.pointer,E.candidate.rect) && sameStack) {
+      E.metrics.candidateReuse++; return;
+    }
+    // Do not pin an ancestor across child boundaries. This is a cheap cache hit-test.
+    if (provider !== 'visual' && semantic.some(item => item.role !== 'window')) {
+      E.candidate = null; E.stack = []; E.layer = 0;
+    } else {
+      const reuse = visual.reuse(E.pointer, Number($('tolerance').value));
+      if (reuse.hit) {
+        if (reuse.candidate) {
+          const id = E.candidate && E.candidate.id;
+          E.stack = [reuse.candidate, previewNode({...win, provider: 'synthetic-window-fixture'})];
+          E.layer = Math.max(0,E.stack.findIndex(item => item.id === id));
+          E.candidate = clone(E.stack[E.layer]);
+        } else { E.candidate = null; E.stack = []; E.layer = 0; }
+        E.metrics.candidateReuse++; return;
+      }
+      E.candidate = null; E.stack = []; E.layer = 0;
+    }
+    // Latest-pointer trailing throttle: continuous movement cannot starve resolution.
+    if (resolveTimer !== null) return;
     E.pending = true;
-    const expectedToken = clone(token());
-    const expectedEpoch = E.candidateEpoch;
-    resolveTimer = setTimeout(() => resolveNow(expectedToken, expectedEpoch), 80);
-    render();
+    const expectedToken = clone(token()), expectedEpoch = E.candidateEpoch;
+    const delay = Math.max(0, V.DEFAULTS.throttleMs-(performance.now()-E.lastResolveAt));
+    resolveTimer = setTimeout(() => resolveNow(expectedToken, expectedEpoch), delay);
   }
 
   function screenPointFromEvent(event) {
@@ -412,16 +449,18 @@
 
   function pointerMove(point) {
     if (!E.active || E.adjusting) return;
-    const previous = E.pointer;
-    E.pointer = point;
-    if (!previous || Math.hypot(point.x - previous.x, point.y - previous.y) > 3) E.layer = 0;
+    E.metrics.pointerMoveCount++; E.pointerRevision++; E.pointer = point;
+    if (isSelecting()) {
+      E.referenceCandidate = clone(windowAt(point)); render(); return;
+    }
+    if (!isMeasuring()) return;
     if (E.dragStart) E.dragCurrent = point;
     scheduleResolve();
     render();
   }
 
   function setMode(mode) {
-    if (!E.active || E.adjusting) return;
+    if (!isMeasuring()) return;
     invalidateAsync();
     if (!['point', 'region', 'pp', 'rr'].includes(mode)) return;
     E.mode = mode;
@@ -432,8 +471,8 @@
   }
 
   function lockCandidate() {
-    if (!E.active || E.adjusting || !E.candidate || E.alt || !E.magnet) return false;
-    E.target = clone(E.candidate);
+    if (!isMeasuring() || !E.candidate || E.alt || !E.magnet || !inside(E.pointer,E.candidate.rect) || E.candidate.snapshotId !== E.snapshotId) return false;
+    E.target = {...clone(E.candidate), state: 'confirmed'};
     E.localReference = chooseLocalReference(E.target);
     E.marginView = 'window';
     setStatus(`已锁定 Target：${E.target.label}；局部参照：${E.localReference ? E.localReference.label : '无可靠局部参照'}`);
@@ -443,7 +482,7 @@
   }
 
   function manualTarget(bounds) {
-    E.target = {id: 'manual-target', label: '人工区域', rect: bounds, parentId: null, role: null, provider: 'manual', reliability: 'user-confirmed'};
+    E.target = {state: 'confirmed', snapshotId: E.snapshotId, id: 'manual-target', label: '人工区域', rect: bounds, parentId: null, role: null, provider: 'manual', reliability: 'user-confirmed'};
     E.localReference = null;
     E.marginView = 'window';
     setStatus('已锁定人工 Target；未编造局部参照。');
@@ -451,13 +490,29 @@
   }
 
   function pointerDown(point) {
-    if (!E.active || E.adjusting) return;
-    E.dragStart = point;
-    E.dragCurrent = point;
+    if (isSelecting()) {
+      const candidate = windowAt(point);
+      E.referenceDown = candidate ? {id: candidate.id, rect: clone(candidate.rect), point: clone(point)} : null;
+      return;
+    }
+    if (!isMeasuring()) return;
+    E.pointer = point;
+    // Never commit a stale candidate from a previous pointer location.
+    if (E.candidate && !inside(point,E.candidate.rect)) { E.candidate = null; E.stack = []; }
+    E.dragStart = point; E.dragCurrent = point;
   }
 
   function pointerUp(point) {
-    if (!E.active || E.adjusting) return;
+    if (isSelecting()) {
+      const candidate = windowAt(point), down = E.referenceDown;
+      E.referenceDown = null;
+      if (candidate && down && candidate.id === down.id
+        && JSON.stringify(candidate.rect) === JSON.stringify(down.rect)
+        && Math.hypot(point.x-down.point.x,point.y-down.point.y) < 5) confirmReference(candidate.id);
+      return;
+    }
+    if (!isMeasuring()) return;
+    E.pointer = point;
     const start = E.dragStart || point;
     const dragRect = {
       x: Math.min(start.x, point.x), y: Math.min(start.y, point.y),
@@ -533,7 +588,8 @@
   function drawMarginLines(target) {
     if (!target || !$('margin-table')) return;
     let reference = win && win.rect;
-    if (E.marginView === 'local' && E.localReference) reference = E.localReference.bounds;
+    const local = E.localReference || (!E.target && chooseLocalReference(E.candidate));
+    if (E.marginView === 'local' && local) reference = local.bounds;
     if (!reference) return;
     const tc = {x: target.x + target.width / 2, y: target.y + target.height / 2};
     appendLine({x: reference.x, y: tc.y}, {x: target.x, y: tc.y}, 'margin-line');
@@ -544,13 +600,18 @@
 
   function renderOverlay() {
     overlay.replaceChildren();
-    if (!E.active || E.adjusting || !E.snapshotId) return;
+    if (isSelecting()) {
+      if (E.referenceCandidate) appendRect(E.referenceCandidate.rect, 'window-preview');
+      return;
+    }
+    if (!isMeasuring()) return;
     drawMask();
     if (E.candidate && !E.target) appendRect(E.candidate.rect, 'candidate');
     const target = targetBounds();
     if (target) appendRect(target, 'candidate locked');
     if (E.localReference) appendRect(E.localReference.bounds, 'local-reference');
     if (target) drawMarginLines(target);
+    else if (E.candidate) drawMarginLines(E.candidate.rect);
     if (E.dragStart && E.dragCurrent) {
       appendRect({x: Math.min(E.dragStart.x, E.dragCurrent.x), y: Math.min(E.dragStart.y, E.dragCurrent.y), width: Math.abs(E.dragCurrent.x - E.dragStart.x), height: Math.abs(E.dragCurrent.y - E.dragStart.y)}, 'candidate');
     }
@@ -568,7 +629,7 @@
 
   function renderMicro() {
     const micro = $('micro');
-    if (!E.active || E.adjusting || !E.pointer) { micro.hidden = true; return; }
+    if (!isMeasuring() || !E.pointer) { micro.hidden = true; return; }
     const triple = coordinateTriple(E.pointer);
     const color = rawColor(E.pointer);
     const regionText = triple.region ? `${fmt(triple.region.x)} / ${fmt(triple.region.y)}` : '—';
@@ -591,8 +652,20 @@
     const hud = $('hud');
     if (!E.active || E.adjusting) { hud.hidden = true; return; }
     hud.hidden = false;
-    $('hud-source').textContent = `磁吸定位 · ${E.magnet ? '开' : '关'}${E.alt ? '（临时暂停）' : ''}`;
-    const target = targetBounds();
+    if (isSelecting()) {
+      $('hud-title').textContent = '选择参照窗口 · Live';
+      $('hud-source').textContent = '尚未冻结';
+      $('hud-size').textContent = E.referenceCandidate ? E.referenceCandidate.label : '移动鼠标选择窗口';
+      $('margin-table').replaceChildren();
+      const r = E.referenceCandidate && E.referenceCandidate.rect;
+      $('hud-meta').textContent = r ? `${fmt(r.x)} / ${fmt(r.y)} · ${fmt(r.width)} × ${fmt(r.height)} · 单击确认后才冻结；Esc 退出。` : '没有窗口候选；不会把背景当作 Reference。';
+      return;
+    }
+    $('hud-title').textContent = canRecord() ? '已锁定 · 待记录' : E.candidate ? '候选预览 · 未确认' : '桌面测量';
+    const object = E.target || E.candidate;
+    $('hud-source').textContent = object ? `${object.semantic || object.provider === 'synthetic-ui-tree' ? 'UI Tree' : object.provider === 'manual' ? 'Manual' : object.provider === 'synthetic-window-fixture' ? 'Window' : 'Visual'} · ${E.layer+1}/${Math.max(1,E.stack.length)} · 磁吸${E.magnet ? '开' : '关'}${E.alt ? '（临时暂停）' : ''}` : `磁吸定位 · ${E.magnet ? '开' : '关'}${E.alt ? '（临时暂停）' : ''}`;
+    const target = targetBounds() || (!E.pointResult && E.pointPair.length !== 2 && E.candidate ? E.candidate.rect : null);
+    const local = E.localReference || (!E.target && chooseLocalReference(E.candidate));
     // Completed pair relation must precede the generic last-region Target HUD.
     if (E.mode === 'rr' && E.regionPair.length === 2) {
       const result = M.rectangles(E.regionPair[0], E.regionPair[1]);
@@ -600,14 +673,15 @@
       $('margin-table').innerHTML = '';
       $('hud-meta').textContent = `overlap ${fmt(result.overlapArea)} · center Δ ${fmt(result.centerDelta.x)} / ${fmt(result.centerDelta.y)}`;
     } else if (target) {
-      $('hud-size').textContent = `${E.target ? E.target.label : '区域'}　${fmt(target.width)} × ${fmt(target.height)}`;
+      $('hud-size').textContent = `${object ? object.label : '区域'}　${fmt(target.width)} × ${fmt(target.height)}`;
       const windowMargins = signedMargins(target, win.rect);
-      const localMargins = E.localReference ? signedMargins(target, E.localReference.bounds) : null;
+      const localMargins = local ? signedMargins(target, local.bounds) : null;
       let html = '<span class="head">边距参照</span><span class="head">左</span><span class="head">上</span><span class="head">右</span><span class="head">下</span>';
       html += `<span class="${E.marginView === 'window' ? 'selected' : ''}">整个窗口</span>${marginCell(windowMargins.left)}${marginCell(windowMargins.top)}${marginCell(windowMargins.right)}${marginCell(windowMargins.bottom)}`;
-      if (localMargins) html += `<span class="${E.marginView === 'local' ? 'selected' : ''}">${E.localReference.label}</span>${marginCell(localMargins.left)}${marginCell(localMargins.top)}${marginCell(localMargins.right)}${marginCell(localMargins.bottom)}`;
+      if (localMargins) html += `<span class="${E.marginView === 'local' ? 'selected' : ''}">${escapeText(local.label)}</span>${marginCell(localMargins.left)}${marginCell(localMargins.top)}${marginCell(localMargins.right)}${marginCell(localMargins.bottom)}`;
       $('margin-table').innerHTML = html;
-      $('hud-meta').textContent = `最多两组边距；Overlay 当前只突出：${E.marginView === 'local' && E.localReference ? E.localReference.label : '整个窗口'}。`;
+      const proportion = M.relative(target,win.rect).percentage;
+      $('hud-meta').textContent = `${local ? local.label+' › ' : ''}${object ? object.label : '区域'} · 比例 ${fmt(proportion.width)}% × ${fmt(proportion.height)}% · 最多两组边距；Overlay 当前只突出：${E.marginView === 'local' && local ? local.label : '整个窗口'}。`;
     } else if (E.pointResult) {
       $('hud-size').textContent = `点　${fmt(E.pointResult.absolute.x)} / ${fmt(E.pointResult.absolute.y)}　${E.pointResult.color ? E.pointResult.color.hex : '—'}`;
       $('margin-table').innerHTML = '';
@@ -626,12 +700,13 @@
 
   function structuredData() {
     const target = targetBounds();
-    const windowReference = win ? {kind: 'window', label: win.label, bounds: clone(win.rect), source: 'synthetic-window-fixture', reliability: 'fixture-not-native'} : null;
+    const windowReference = E.snapshotId ? clone(E.reference) : null;
     const localReference = E.localReference ? clone(E.localReference) : null;
     return {
       schemaVersion: 'desktop-measurement-oracle/v2',
       prototypeOnly: true,
       phase: E.phase,
+      confirmation: canRecord() ? 'confirmed' : 'preview',
       snapshot: E.snapshotId ? token() : null,
       coordinateSpace: {screen: 'screen-logical', window: 'window-relative-logical', region: 'local-region-relative-logical', image: 'capture-pixel', percentage: 'percentage-0-100'},
       displayMapping: clone(tiles),
@@ -653,36 +728,65 @@
       point: E.pointResult ? clone(E.pointResult) : null,
       twoPoint: E.pointPair.length === 2 ? M.points(E.pointPair[0], E.pointPair[1]) : null,
       spacing: E.regionPair.length === 2 ? M.rectangles(E.regionPair[0], E.regionPair[1]) : null,
-      candidate: E.candidate ? {id: E.candidate.id, label: E.candidate.label, source: E.candidate.provider, reliability: E.candidate.reliability, semantic: E.candidate.provider === 'synthetic-ui-tree'} : null,
+      candidate: E.target || E.candidate ? {
+        id: (E.target || E.candidate).id, label: (E.target || E.candidate).label,
+        source: (E.target || E.candidate).provider, provider: (E.target || E.candidate).provider,
+        reliability: (E.target || E.candidate).reliability,
+        semantic: (E.target || E.candidate).provider === 'synthetic-ui-tree',
+        state: E.target ? 'confirmed' : 'preview', snapshotId: E.snapshotId,
+        geometry: clone((E.target || E.candidate).rect), evidence: clone((E.target || E.candidate).evidence || null),
+      } : null,
       stableRelocationEvidence: E.target && E.target.provider === 'synthetic-ui-tree' ? {semanticCandidateId: E.target.id, role: E.target.role, label: E.target.label, windowLabel: win && win.label} : {windowLabel: win && win.label},
       runtimeEvidence: {absoluteGeometryIsRuntimeEvidenceOnly: true, sourcePixelsAreFrozenSnapshotOnly: true, visualCandidateIsNotSemantic: E.target && E.target.provider === 'pixel-region-growing'},
     };
   }
 
   function renderInspector() {
-    $('inspector').hidden = !E.inspectorOpen || E.adjusting || !E.active;
-    if (E.inspectorOpen && E.active && !E.adjusting) $('json-info').textContent = JSON.stringify(structuredData(), null, 2);
+    $('inspector').hidden = !E.inspectorOpen || !isMeasuring();
+    if (!E.inspectorOpen || !isMeasuring()) return;
+    $('json-info').textContent = JSON.stringify(structuredData(), null, 2);
+    $('session-json').textContent = E.lastCopy?.kind === 'session' ? E.lastCopy.text : '';
+    const key = `${E.sessionId}:${journal ? journal.revision : 0}`;
+    if (key !== inspectorRevision) {
+      inspectorRevision = key;
+      $('session-records').replaceChildren();
+      for (const record of E.records) {
+        const li = document.createElement('li');
+        li.textContent = `${record.id} · ${record.label} · ${record.type} · ${record.status} · ${record.snapshotId}`;
+        $('session-records').append(li);
+      }
+    }
   }
 
   function renderButtons() {
-    const measuring = E.active && !E.adjusting;
+    const measuring = isMeasuring();
     $('tools').querySelectorAll('button').forEach(button => { button.disabled = !measuring; });
     document.querySelectorAll('[data-mode]').forEach(button => button.classList.toggle('active', button.dataset.mode === E.mode));
     $('magnet-toggle').classList.toggle('active', E.magnet);
-    $('margin-toggle').textContent = E.marginView === 'local' && E.localReference ? `边距：${E.localReference.label}` : '边距：窗口';
-    $('margin-toggle').disabled = !measuring || !E.localReference;
+    const local = E.localReference || (!E.target && chooseLocalReference(E.candidate));
+    $('margin-toggle').textContent = E.marginView === 'local' && local ? `边距：${local.label}` : '边距：窗口';
+    $('margin-toggle').disabled = !measuring || !local;
+    $('record-actions').hidden = !measuring;
+    $('record-current').disabled = !canRecord();
+    $('record-from-details').disabled = !canRecord();
+    $('view-records').textContent = `测量记录 (${journal ? journal.count : 0})`;
+    $('copy-all').disabled = !journal || journal.count === 0;
+    $('save-session').disabled = !journal || journal.count === 0;
+    $('continue').hidden = !E.adjusting;
   }
 
   function render() {
-    const measuring = E.active && !E.adjusting;
-    for (const id of ['scene', 'overlay', 'tools', 'status']) $(id).toggleAttribute('hidden', !measuring);
-    if (!measuring) $('toast').hidden = true;
-    stage.classList.toggle('measuring', E.active && !E.adjusting);
+    const measuring = isMeasuring(), selecting = isSelecting();
+    for (const id of ['scene','tools']) $(id).hidden = !measuring;
+    for (const id of ['overlay','status']) $(id).toggleAttribute('hidden', !measuring && !selecting);
+    if (!measuring && !selecting) $('toast').hidden = true;
+    stage.classList.toggle('measuring', measuring);
+    stage.classList.toggle('selecting', selecting);
     stage.classList.toggle('adjusting', E.active && E.adjusting);
-    $('live-controls').hidden = !E.adjusting;
+    $('live-controls').hidden = !E.adjusting && !selecting;
     $('idle').hidden = E.active;
     renderOverlay(); renderMicro(); renderHUD(); renderInspector(); renderButtons();
-    if (E.active && !E.adjusting) $('status').textContent = E.status;
+    if (measuring || selecting) $('status').textContent = E.status;
   }
 
   function begin(source) {
@@ -691,27 +795,59 @@
       notify('同一个 Measurement Session 已经打开；不会创建第二个实例。');
       return clone(token());
     }
-    E.active = true; E.adjusting = false; E.phase = 'PREPARING'; E.session += 1; E.generation = 1;
+    E.active = true; E.adjusting = false; E.session += 1; E.generation = 0;
+    E.sessionId = `prototype-${globalThis.crypto?.randomUUID?.() || Date.now()+'-'+E.session}`;
     E.source = source || 'manual'; E.inspectorOpen = false; E.magnet = true; E.marginView = 'window';
-    E.alt = false;
+    E.alt = false; E.pointer = null; E.snapshotId = null; E.reference = null; E.records = [];
+    E.currentSnapshot = null; E.exportStatus = null; E.lastResolveAt = -Infinity;
+    E.metrics = {pointerMoveCount: 0, semanticResolveCount: 0, candidateReuse: 0};
+    visual = V.create(); journal = R.create(E.sessionId); inspectorRevision = '';
     E.live = {scroll: 0, tab: 0, menu: false};
-    E.phase = 'FREEZING';
-    captureSnapshot('进入测量');
-    E.phase = 'MEASURING';
-    render();
+    startReferenceSelection();
     return clone(token());
   }
 
+  function startReferenceSelection() {
+    invalidateAsync(); visual.reset();
+    E.phase = 'REFERENCE_SELECTING'; E.adjusting = false; E.snapshotId = null;
+    E.reference = null; E.currentSnapshot = null; E.referenceDown = null;
+    E.pointer = null; E.alt = false; E.inspectorOpen = false;
+    E.target = null; E.localReference = null; E.pointResult = null; E.pointPair = []; E.regionPair = [];
+    E.candidate = null; E.stack = []; E.dragStart = null; E.dragCurrent = null;
+    tiles = []; rawCanvases.clear(); analysisPixels = null; analysisCanvas = null; $('scene').replaceChildren();
+    W = Math.max(640,stage.clientWidth); H = Math.max(380,stage.clientHeight);
+    displayLayout(); defineScene(); drawLiveDesktop();
+    E.referenceCandidate = clone(win); // suggestion is not a locked Reference
+    overlay.setAttribute('viewBox',`0 0 ${W} ${H}`);
+    setStatus('真实桌面仍为 Live：移动鼠标选择窗口，单击确认后冻结；Esc 退出。'); render();
+  }
+
+  function confirmReference(id) {
+    if (!isSelecting()) return false;
+    const candidate = nodes.find(item => item.id === id && item.role === 'window');
+    if (!candidate) return false;
+    E.reference = {id: candidate.id}; E.referenceCandidate = null;
+    E.phase = 'FREEZING'; E.generation++;
+    try { captureSnapshot('确认 Reference'); }
+    catch (error) { startReferenceSelection(); notify(`冻结失败：${error.message}`); return false; }
+    E.phase = 'MEASURING'; E.pointer = null; render(); return true;
+  }
+
+  function reselectReference() {
+    if (!E.active) return false;
+    E.generation++; startReferenceSelection(); return true;
+  }
+
   function refreshSnapshot() {
-    if (!E.active || E.adjusting) return null;
+    if (!isMeasuring()) return null;
     invalidateAsync(); E.phase = 'FREEZING'; E.generation += 1;
     captureSnapshot('更新画面'); E.phase = 'MEASURING'; render();
     return clone(token());
   }
 
   function adjustInterface() {
-    if (!E.active || E.adjusting) return;
-    invalidateAsync();
+    if (!isMeasuring()) return;
+    invalidateAsync(); visual.reset();
     E.generation += 1; // immediately invalidates all results from the visible snapshot
     E.snapshotId = null; // old frozen pixels remain hidden, but no longer identify the current UI state
     E.phase = 'ADJUSTING'; E.adjusting = true; E.inspectorOpen = false; E.pointer = null;
@@ -736,7 +872,8 @@
     E.alt = false; E.status = ''; E.lastCopy = null; E.layer = 0;
     clearTimeout(toastTimer); toastTimer = null; $('toast').hidden = true;
     $('status').textContent = ''; $('json-info').textContent = '';
-    analysisCanvas = null; analysisPixels = null;
+    analysisCanvas = null; analysisPixels = null; visual.reset();
+    E.records = []; E.currentSnapshot = null; E.reference = null; E.referenceCandidate = null; E.referenceDown = null; journal = null;
     E.target = null; E.localReference = null; E.pointResult = null; E.pointPair = []; E.regionPair = []; E.stack = []; E.candidate = null;
     E.dragStart = null; E.dragCurrent = null; E.inspectorOpen = false; E.pixelCache = []; tiles = []; rawCanvases.clear();
     $('scene').replaceChildren(); overlay.replaceChildren(); $('micro').hidden = true; $('hud').hidden = true; $('inspector').hidden = true; $('live-controls').hidden = true;
@@ -744,15 +881,88 @@
   }
 
   function applyAsyncCandidate(candidateToken, candidate) {
-    if (!E.active || E.adjusting || E.alt || !E.magnet || E.target || !sameToken(candidateToken, token())) return false;
-    E.candidate = clone(candidate); E.stack = [clone(candidate)]; E.layer = 0; render(); return true;
+    if (!canResolve() || !sameToken(candidateToken,token())
+      || candidateToken.epoch !== E.candidateEpoch || candidateToken.pointerRevision !== E.pointerRevision
+      || candidateToken.provider !== $('provider').value || !candidate || !inside(E.pointer,candidate.rect)
+      || candidate.snapshotId !== E.snapshotId) return false;
+    E.candidate = previewNode(candidate); E.stack = [previewNode(candidate)]; E.layer = 0; render(); return true;
   }
 
   function cycleCandidate(direction) {
-    if (!E.active || E.adjusting || E.target || !E.stack.length) return;
+    if (!canResolve() || !E.stack.length) return;
     E.layer = (E.layer + direction + E.stack.length) % E.stack.length;
     E.candidate = clone(E.stack[E.layer]);
     setStatus(`候选层级：${E.candidate.label} · ${E.candidate.provider}`); render();
+  }
+
+  function recordMeasurement(label) {
+    if (!canRecord() || !journal) return false;
+    const d = structuredData(), type = E.mode;
+    const geometry = type === 'region' ? clone(d.target.bounds) : type === 'point' ? clone(d.point.absolute)
+      : type === 'pp' ? {a: clone(E.pointPair[0]), b: clone(E.pointPair[1])} : {a: clone(E.regionPair[0]), b: clone(E.regionPair[1])};
+    const samplePoint = type === 'point' ? geometry : type === 'region'
+      ? {x: geometry.x+geometry.width/2, y: geometry.y+geometry.height/2} : null;
+    try {
+      let snapshot = journal.data().snapshots.find(item => item.snapshotId === E.snapshotId);
+      if (!snapshot) snapshot = {...clone(E.currentSnapshot), sourceImages: [...rawCanvases].map(([displayId,canvas]) =>
+        ({displayId, encoding: 'data-url/png', data: canvas.toDataURL('image/png')}))};
+      journal.add({status: 'confirmed', type, label: label || E.target?.label || ({point:'点',pp:'两点距离',rr:'两区域距离'}[type]),
+        token: token(), geometry, coordinates: type === 'point' ? M.pointRelative(geometry,E.reference.bounds) : d.target,
+        margins: d.margins, candidate: type === 'region' ? d.candidate : null,
+        sourcePixel: samplePoint ? {point: samplePoint, ...rawColor(samplePoint)} : null,
+        stableRelocationEvidence: d.stableRelocationEvidence, runtimeEvidence: d.runtimeEvidence,
+      }, snapshot, token());
+      E.records = journal.data().measurements;
+      $('record-label').value = '';
+      setMode(E.mode); // successful Record consumes the current result; repeated Enter cannot duplicate it
+      notify(`已加入测量记录 (${journal.count})；仅在内存，退出前请复制全部或保存。`);
+      render(); return true;
+    } catch (error) { notify(error.message); return false; }
+  }
+
+  async function copyAll() {
+    if (!journal || !journal.count) return false;
+    const current = journal, value = JSON.stringify(current.data(),null,2);
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable');
+      await navigator.clipboard.writeText(value);
+      if (journal !== current) return false;
+      E.lastCopy = {status: 'success', kind: 'session', text: value};
+      notify('已复制全部 Session Evidence；复制不等于保存文件。'); return true;
+    } catch (error) {
+      if (journal !== current) return false;
+      E.lastCopy = {status: 'unavailable', kind: 'session', text: value};
+      $('session-json').textContent = value; notify('剪切板不可用；完整 Session JSON 已显示在详情中。'); return false;
+    }
+  }
+
+  async function saveSession() {
+    if (!journal || !journal.count) return false;
+    const current = journal, data = current.data(), ids = data.measurements.map(m => m.id);
+    const filename = `${E.sessionId}.measurement.json`;
+    let writer = null;
+    try {
+      if (typeof window.showSaveFilePicker === 'function') {
+        const handle = await window.showSaveFilePicker({suggestedName: filename, types: [{description:'Measurement Session',accept:{'application/json':['.json']}}]});
+        writer = await handle.createWritable();
+        data.measurements.forEach(m => { m.status = 'saved'; m.persistence = {status:'saved',destination:handle.name}; });
+        await writer.write(JSON.stringify(data,null,2)); await writer.close(); writer = null;
+        if (journal !== current) return true;
+        current.markSaved(ids,handle.name); E.records = current.data().measurements;
+        E.exportStatus = {status:'saved',destination:handle.name}; notify('Session Evidence 已保存。'); render(); return true;
+      }
+      // Direct-open browsers cannot choose a repository path. A download request is not a durable-save acknowledgement.
+      const blob = new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+      const url = URL.createObjectURL(blob), a = document.createElement('a');
+      a.href = url; a.download = filename; a.click(); setTimeout(() => URL.revokeObjectURL(url),1000);
+      E.exportStatus = {status:'download-requested',filename};
+      notify('已请求浏览器保存 JSON；请确认文件已落盘，尚未标记 saved。'); return true;
+    } catch (error) {
+      if (writer?.abort) { try { await writer.abort(); } catch (_) { /* preserve original error */ } }
+      if (journal !== current) return false;
+      E.exportStatus = {status: error.name === 'AbortError' ? 'cancelled' : 'failed',message:error.message};
+      notify(`未保存：${error.message}`); return false;
+    }
   }
 
   overlay.addEventListener('pointermove', event => pointerMove(screenPointFromEvent(event)));
@@ -761,7 +971,7 @@
 
   document.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => setMode(button.dataset.mode)));
   $('magnet-toggle').addEventListener('click', () => { if (!E.active || E.adjusting) return; E.magnet = !E.magnet; invalidateAsync(); E.candidate = null; E.stack = []; setStatus(`磁吸定位已${E.magnet ? '开启' : '关闭'}。`); scheduleResolve(); render(); });
-  $('margin-toggle').addEventListener('click', () => { if (!E.active || E.adjusting || !E.localReference) return; E.marginView = E.marginView === 'window' ? 'local' : 'window'; render(); });
+  $('margin-toggle').addEventListener('click', () => { if (!isMeasuring() || !(E.localReference || chooseLocalReference(E.candidate))) return; E.marginView = E.marginView === 'window' ? 'local' : 'window'; render(); });
   $('refresh').addEventListener('click', refreshSnapshot);
   $('adjust').addEventListener('click', adjustInterface);
   $('continue').addEventListener('click', () => continueMeasurement('adjust-continue'));
@@ -772,12 +982,12 @@
   $('entry-dev').addEventListener('click', () => begin('developer-menu'));
   $('entry-rec').addEventListener('click', () => begin('recorder-toolbar'));
   $('entry-key').addEventListener('click', () => begin('global-shortcut'));
-  $('provider').addEventListener('change', () => { E.candidate = null; E.stack = []; E.layer = 0; scheduleResolve(); });
-  $('display-mode').addEventListener('change', () => { if (E.active && !E.adjusting) refreshSnapshot(); else { W = stage.clientWidth; H = stage.clientHeight; displayLayout(); defineScene(); drawLiveDesktop(); } });
-  $('tolerance').addEventListener('change', () => { E.pixelCache = []; scheduleResolve(); });
-  $('live-scroll').addEventListener('click', () => { E.live.scroll = (E.live.scroll + 1) % 4; defineScene(); drawLiveDesktop(); });
-  $('live-tab').addEventListener('click', () => { E.live.tab = E.live.tab ? 0 : 1; defineScene(); drawLiveDesktop(); });
-  $('live-menu').addEventListener('click', () => { E.live.menu = !E.live.menu; defineScene(); drawLiveDesktop(); });
+  $('provider').addEventListener('change', () => { invalidateAsync(); E.candidate = null; E.stack = []; E.layer = 0; scheduleResolve(); render(); });
+  $('display-mode').addEventListener('change', () => { if (isMeasuring()) refreshSnapshot(); else if (isSelecting()) startReferenceSelection(); else { W = stage.clientWidth; H = stage.clientHeight; displayLayout(); defineScene(); drawLiveDesktop(); } });
+  $('tolerance').addEventListener('change', () => { invalidateAsync(); E.candidate = null; E.stack = []; scheduleResolve(); render(); });
+  $('live-scroll').addEventListener('click', () => { E.live.scroll = (E.live.scroll + 1) % 4; defineScene(); drawLiveDesktop(); if (isSelecting()) { E.referenceCandidate = clone(windowAt(E.pointer) || win); render(); } });
+  $('live-tab').addEventListener('click', () => { E.live.tab = E.live.tab ? 0 : 1; defineScene(); drawLiveDesktop(); if (isSelecting()) { E.referenceCandidate = clone(windowAt(E.pointer) || win); render(); } });
+  $('live-menu').addEventListener('click', () => { E.live.menu = !E.live.menu; defineScene(); drawLiveDesktop(); if (isSelecting()) { E.referenceCandidate = clone(windowAt(E.pointer) || win); render(); } });
   $('copy-json').addEventListener('click', async () => {
     if (!E.active || E.adjusting || !E.inspectorOpen) return;
     const copyToken = clone(token());
@@ -794,14 +1004,27 @@
     }
   });
 
+  $('record-current').addEventListener('click', () => recordMeasurement($('record-label').value));
+  $('record-from-details').addEventListener('click', () => recordMeasurement($('record-label').value));
+  $('view-records').addEventListener('click', () => { E.inspectorOpen = true; render(); });
+  $('copy-all').addEventListener('click', copyAll);
+  $('save-session').addEventListener('click', saveSession);
+  $('reselect-reference').addEventListener('click', reselectReference);
+  overlay.addEventListener('pointercancel', () => { E.dragStart = null; E.dragCurrent = null; E.referenceDown = null; render(); });
+  window.addEventListener('blur', () => { E.alt = false; invalidateAsync(); E.candidate = null; E.stack = []; render(); });
   window.addEventListener('keydown', event => {
-    if (!E.active || E.adjusting) return;
-    if (event.key === 'Alt') { E.alt = true; E.candidate = null; E.stack = []; invalidateAsync(); render(); return; }
+    if (!E.active) return;
+    if (event.key === 'Escape' && isSelecting()) { exitMeasurement(); return; }
+    if (!isMeasuring() || event.isComposing) return;
     if (event.key === 'Escape') {
-      if (E.inspectorOpen) { E.inspectorOpen = false; render(); }
-      else exitMeasurement();
+      if (E.inspectorOpen) { E.inspectorOpen = false; render(); } else exitMeasurement();
       return;
     }
+    if (event.target.closest?.('input,textarea,select,[contenteditable=true]')) return;
+    if (event.key === 'Enter' && !event.repeat && !event.ctrlKey && !event.metaKey && !event.altKey) {
+      if (canRecord()) { event.preventDefault(); recordMeasurement($('record-label').value); } return;
+    }
+    if (event.key === 'Alt') { E.alt = true; E.candidate = null; E.stack = []; invalidateAsync(); render(); return; }
     if (event.key === 'Tab') { event.preventDefault(); cycleCandidate(event.shiftKey ? -1 : 1); return; }
     if (event.key.toLowerCase() === 'i') { E.inspectorOpen = !E.inspectorOpen; render(); return; }
     const modes = {'1': 'point', '2': 'region', '3': 'pp', '4': 'rr'};
@@ -810,7 +1033,7 @@
   window.addEventListener('keyup', event => {
     if (event.key === 'Alt') { E.alt = false; if (E.active && !E.adjusting) { scheduleResolve(); render(); } }
   });
-  window.addEventListener('resize', () => { if (E.active && !E.adjusting) refreshSnapshot(); });
+  window.addEventListener('resize', () => { if (isMeasuring()) refreshSnapshot(); else if (isSelecting()) startReferenceSelection(); });
 
   const api = {
     begin,
@@ -822,7 +1045,10 @@
     token: () => clone(token()),
     applyAsyncCandidate,
     setMode,
-    lockCandidate,
+    lockCandidate, confirmReference, reselectReference, recordMeasurement, copyAll, saveSession,
+    sessionEvidence: () => journal ? journal.data() : null,
+    candidateToken: () => ({...token(),epoch:E.candidateEpoch,pointerRevision:E.pointerRevision,provider:$('provider').value}),
+    get metrics() { return metrics(); },
     get state() { return E; },
     get origin() { return clone(origin); },
     get nodes() { return clone(nodes); },

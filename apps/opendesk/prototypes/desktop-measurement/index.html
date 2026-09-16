@@ -20,7 +20,7 @@
     </div>
   </header>
 
-  <main id="stage" class="stage measuring" aria-label="桌面测量交互画布">
+  <main id="stage" class="stage" aria-label="桌面测量交互画布">
     <canvas id="desktop" class="desktop-layer" aria-hidden="true"></canvas>
     <div id="scene" class="snapshot-layer" aria-hidden="true"></div>
     <svg id="overlay" class="overlay" tabindex="0" aria-label="Measurement overlay"></svg>
@@ -31,6 +31,10 @@
       <div id="hud-size" class="hud-size">移动鼠标开始测量</div>
       <div id="margin-table" class="margin-table"></div>
       <div id="hud-meta" class="hud-meta"></div>
+      <div id="record-actions" class="record-actions" hidden>
+        <button id="record-current" title="Enter · 只记录已确认结果">记录 ↵</button>
+        <button id="view-records">测量记录 (0)</button>
+      </div>
     </section>
 
     <div id="status" class="status"></div>
@@ -54,15 +58,23 @@
       <header><strong>测量详情</strong><button id="details-close">关闭</button></header>
       <div class="body">
         <p>详情只在用户主动打开时出现。这里显示 Snapshot token、完整坐标映射、候选证据和结构化导出；它不是默认 HUD。</p>
-        <h3>完整 Measurement Evidence</h3>
+        <h3>Session 测量记录</h3>
+        <p>点击只锁定；Enter 或“记录”才加入集合。记录仅在内存，退出前请复制全部或保存。</p>
+        <label for="record-label">测量名称</label>
+        <input id="record-label" maxlength="120" placeholder="例如：输入框、发送按钮">
+        <div class="row"><button id="record-from-details">记录当前结果</button><button id="reselect-reference">重新选择窗口</button></div>
+        <ol id="session-records"></ol>
+        <div class="row"><button id="copy-all">复制全部</button><button id="save-session">保存 Session JSON</button></div>
+        <h3>当前 Measurement Evidence</h3>
         <pre id="json-info"></pre>
+        <h3>Session 复制结果 / 剪切板不可用时手工复制</h3><pre id="session-json"></pre>
         <div class="row"><button id="copy-json">复制结构化数据</button></div>
       </div>
     </aside>
 
     <section id="live-controls" class="live-controls" hidden aria-label="调整界面模拟真实桌面控制">
-      <strong>ADJUSTING · 真实桌面交互</strong>
-      <p>冻结快照、蒙版、Overlay、HUD 和工具条已隐藏。这里模拟滚动、切换 Tab、展开菜单等真实应用变化；旧 Snapshot 不能继续作为当前画面。</p>
+      <strong>Live · 合成桌面控制</strong>
+      <p>选择窗口前或调整界面时，这些按钮演示真实桌面仍在变化。只有确认窗口或继续测量才创建新的 Snapshot；不会冻结选窗阶段。</p>
       <div class="row">
         <button id="live-scroll">模拟滚动</button>
         <button id="live-tab">切换 Tab</button>
@@ -82,7 +94,7 @@
   <footer class="demo-footer">
     <div class="fixtures">
       <label>候选来源</label>
-      <select id="provider"><option value="semantic">模拟 UI Tree</option><option value="visual">冻结像素区域</option></select>
+      <select id="provider"><option value="auto">UI Tree → Visual</option><option value="semantic">模拟 UI Tree</option><option value="visual">冻结像素区域</option></select>
       <label>显示器</label>
       <select id="display-mode"><option value="retina">单屏 2×</option><option value="negative">负坐标 1.25×</option><option value="mixed">双屏 1× + 2×</option></select>
       <label>视觉容差</label><select id="tolerance"><option>4</option><option selected>8</option><option>14</option></select>
@@ -91,6 +103,8 @@
   </footer>
 
   <script src="model.js"></script>
+  <script src="visual-resolver.js"></script>
+  <script src="records.js"></script>
   <script src="interaction-core.js"></script>
 </body>
 </html>

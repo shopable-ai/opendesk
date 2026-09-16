@@ -90,9 +90,10 @@ type snapshotCandidateRuntime struct {
 	candidates []SnapshotCandidate
 	index      int
 	failures   []CandidateProviderFailure
-	epoch      uint64
-	request    uint64
-	cancel     context.CancelFunc
+
+	epoch   uint64
+	request uint64
+	cancel  context.CancelFunc
 
 	magnet    bool
 	suspended bool
@@ -209,7 +210,11 @@ func (d *snapshotCandidateDriver) prepareHostEvent(event customui.Event) (custom
 			d.state.mu.Lock()
 			d.state.magnet = !d.state.magnet
 			d.state.suspended = false
+			disabled := !d.state.magnet
 			d.state.mu.Unlock()
+			if disabled {
+				d.invalidate()
+			}
 		}
 	}
 	if (event.Type == "change" || event.Type == "input") && event.TargetID == "targetWindow" {
@@ -226,7 +231,11 @@ func (d *snapshotCandidateDriver) prepareHostEvent(event customui.Event) (custom
 			} else {
 				d.state.suspended = false
 			}
+			suspended := d.state.suspended
 			d.state.mu.Unlock()
+			if suspended {
+				d.invalidate()
+			}
 			return event, false
 		}
 		if key == "Tab" {
@@ -322,6 +331,12 @@ func (d *snapshotCandidateDriver) resolveAsync(a *activeSession, pointer Point) 
 		return
 	}
 	d.state.mu.Lock()
+	// DM-AMEND-2026-09-17-01: suppression gates work, not only painting.
+	// Keep this check under the same lock as request creation/invalidation.
+	if !d.state.magnet || d.state.suspended {
+		d.state.mu.Unlock()
+		return
+	}
 	if !d.state.token.Matches(token) {
 		d.state.epoch++
 		if d.state.cancel != nil {
@@ -356,7 +371,7 @@ func (d *snapshotCandidateDriver) resolveAsync(a *activeSession, pointer Point) 
 			return
 		}
 		d.state.mu.Lock()
-		if d.state.epoch != epoch || d.state.request != requestID || !d.state.token.Matches(token) {
+		if d.state.epoch != epoch || d.state.request != requestID || !d.state.token.Matches(token) || !d.state.magnet || d.state.suspended {
 			d.state.mu.Unlock()
 			return
 		}
@@ -494,9 +509,9 @@ func (d *snapshotCandidateDriver) cycle(a *activeSession, direction int) {
 		return
 	}
 	d.state.mu.Lock()
-	if !d.state.magnet {
+	if !d.state.magnet || d.state.suspended {
 		d.state.mu.Unlock()
-		d.patchInfo(a, "磁吸定位已关闭；Tab 不执行候选切换。", "")
+		d.patchInfo(a, "磁吸定位已关闭或暂时暂停；Tab 不执行候选切换。", "")
 		return
 	}
 	if len(d.state.candidates) == 0 || !d.state.token.Matches(a.snapshotToken()) {
