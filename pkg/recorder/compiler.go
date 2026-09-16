@@ -30,7 +30,7 @@ func (m *Manager) Compile(sessionID string, flow Flow, options CompileOptions) (
 		}
 	}
 	if options.ReplayConfigPath == "" {
-		options.ReplayConfigPath = "generated/replay-config.json"
+		options.ReplayConfigPath = "replay-config.json"
 	}
 	flowJSON, err := json.MarshalIndent(flow, "", "  ")
 	if err != nil {
@@ -44,7 +44,7 @@ func (m *Manager) Compile(sessionID string, flow Flow, options CompileOptions) (
 	if err := template.Must(template.New("flow").Parse(generatedJavaScript)).Execute(&buffer, data); err != nil {
 		return "", err
 	}
-	path, err := m.store.ArtifactPath(sessionID, "generated/flow.js")
+	path, err := m.store.ArtifactPath(sessionID, "flow.js")
 	if err != nil {
 		return "", err
 	}
