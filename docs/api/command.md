@@ -37,6 +37,11 @@ order: 390
 `signal` 复用 Runtime 的 `AbortController`；取消后 Promise 以 `CANCELED` 拒绝，并保留取消前已收集的
 有界 stdout / stderr。listener 会在完成、失败、取消或 teardown 时移除。
 
+`controller.abort()` 的作用范围是**传入该 signal 的这一次 `Command.run()`**。它不会主动取消调用者的整个
+JavaScript execution，也不会停止同一 execution 中其他互不相关的异步任务。需要停止整个 execution 时，
+应使用 Script Runner 的“停止”、CLI 中断或创建该 execution 的 transport 控制面；统一语义见
+[JavaScript Runtime：异步完成与取消](runtime.md#异步完成与取消)。
+
 环境键必须满足 `[A-Za-z_][A-Za-z0-9_]*`。Windows 下 Runtime 统一为大写并按大小写不敏感方式覆盖。默认 `envMode: "inherit"` 时，子进程使用当前 `Execution.env` 快照并应用显式覆盖；`envMode: "replace"` 时，子进程只获得显式 `env`，用于避免把父 execution 的其他变量传给受限 child。
 
 ## Command.getCapabilities()
@@ -139,7 +144,7 @@ const result = await Command.run('/usr/bin/git', ['status', '--short'], {
 console.log(result.stdout);
 ```
 
-在 UI 等持续交互中显式取消：
+在 UI 等持续交互中显式取消单个命令：
 
 ```js
 const controller = new AbortController();
@@ -148,7 +153,7 @@ const pending = Command.run('./dist/opendesk', [
   '-console-mode', 'script',
 ], {signal: controller.signal});
 
-// 由另一个明确的用户动作调用。
+// 由另一个明确的用户动作调用；这里只取消 pending 对应的 Command.run()。
 controller.abort('user canceled');
 try {
   await pending;
