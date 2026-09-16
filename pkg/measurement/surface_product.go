@@ -24,7 +24,7 @@ func measurementWindowSpecProduct(a *activeSession) customui.WindowSpec {
 func measurementWindowSpec(frame CaptureFrame, assetName, source string) customui.WindowSpec {
 	a := &activeSession{
 		frame: frame, reference: frame.Reference, assetPath: assetName, overlayPath: "measurement-overlay.png",
-		tool: "point", outputFormat: "concise", status: targetConfirmationInstruction(frame), selectedTarget: frame.SelectedTargetID,
+		tool: "region", outputFormat: "concise", status: targetConfirmationInstruction(frame), selectedTarget: frame.SelectedTargetID,
 		targetConfirmed: frame.TargetConfirmed, source: strings.TrimSpace(source), snapEnabled: true, marginView: "window", phase: PhaseMeasuring,
 	}
 	return measurementWindowSpecProduct(a)
@@ -61,11 +61,11 @@ func measurementHTMLProduct(a *activeSession) string {
 		`<label>目标<select id="targetWindow">` + targetOptionsHTML(a.frame.Targets, a.selectedTarget) + `</select></label>` +
 		`<div class="row"><button id="previousTarget">上一个候选</button><button id="nextTarget">下一个候选</button><button id="confirmTarget"` + confirmHidden + `>确认候选</button><span id="targetConfirmed"` + confirmedHidden + `>已确认</span></div>` +
 		`<label>局部参照<select id="referenceType">` + referenceOptions(a) + `</select></label>` +
-		`<div class="row secondaryActions"><button id="referenceButton">选择局部参照</button><button id="copyStructured"` + disabled + `>复制结构化数据</button></div>` +
+		`<div class="row secondaryActions"><button id="referenceButton">选择局部参照</button><button id="copyStructured">复制结构化数据</button></div>` +
 		`<div class="row secondaryActions"><button id="copyMenuButton"` + disabled + `>更多复制格式</button><label class="inlineLabel">保存格式<select id="outputFormat">` + outputOptions(a.outputFormat) + `</select></label></div>` +
 		`<section id="measurementCopyMenu" hidden><button id="copyConcise"` + disabled + `>① 简明数值</button><button id="copyHuman"` + disabled + `>② 完整中文说明</button></section>` +
 		`<button id="saveResult"` + disabled + `>保存结果</button><p id="snapshotInfo">` + html.EscapeString(snapshotSummary(a.frame)+" · "+snapshotTokenSummary(a.snapshotToken())) + `</p>` +
-		`<p id="measurementInspectorResult" class="inspectorResult">` + html.EscapeString(a.selectedResult()) + `</p><p id="measurementHint">` + html.EscapeString(measurementHint(a.source)) + `</p></section>` +
+		`<p id="measurementInspectorResult" class="inspectorResult">` + html.EscapeString(a.inspectorEvidence()) + `</p><p id="measurementHint">` + html.EscapeString(measurementHint(a.source)) + `</p></section>` +
 		`<section id="measurementToolbar"><button id="toolPoint" aria-pressed="` + boolString(a.tool == "point") + `">点</button><button id="toolRegion" aria-pressed="` + boolString(a.tool == "region") + `">区域</button><button id="toolTwoPoint" aria-pressed="` + boolString(a.tool == "twoPoint") + `">两点</button><button id="toolSpacing" aria-pressed="` + boolString(a.tool == "spacing") + `">两区域</button><span class="separator"></span><button id="magnetToggle" aria-pressed="` + boolString(a.snapEnabled && !a.snapSuspended) + `">磁吸定位</button><button id="marginToggle" aria-pressed="` + boolString(a.marginView == "local" && hasLocalReference(a)) + `"` + marginDisabled + `>` + html.EscapeString(marginToggleText(a)) + `</button><button id="refreshSnapshot">更新画面</button><button id="adjustInterface">调整界面</button><button id="inspectorButton">详情</button><button id="exitMeasurement">退出</button></section>` +
 		`</main>`
 }
@@ -111,7 +111,7 @@ func targetConfirmationInstruction(frame CaptureFrame) string {
 func toolInstruction(tool string) string {
 	switch tool {
 	case "region":
-		return "区域：拖拽创建；点击区域本体或八向控制点可编辑。"
+		return "区域：单击锁定磁吸候选，或拖拽至少 5×5 logical px 创建区域；再次拖拽开始新的区域测量。"
 	case "twoPoint":
 		return "两点：依次选择两个点。"
 	case "spacing":
@@ -206,7 +206,7 @@ func snapshotSummary(frame CaptureFrame) string {
 }
 
 func measurementHint(source string) string {
-	return "入口：" + strings.TrimSpace(source) + " · 1/2/3/4 · Tab/Shift+Tab 仅切换当前 Snapshot 的 UI 候选层级 · Alt/Option 临时暂停磁吸 · I 详情 · 更新画面 · 调整界面后再次使用任一统一入口继续测量 · Esc 分层退出"
+	return "入口：" + strings.TrimSpace(source) + " · 1/2/3/4 · Tab/Shift+Tab 仅切换当前 Snapshot 的 UI 候选层级 · Alt/Option 临时暂停磁吸 · I 详情 · 更新画面 · 调整界面后再次使用任一统一入口继续测量 · Esc 先关闭详情，否则退出测量"
 }
 
 func hasLocalReference(a *activeSession) bool {

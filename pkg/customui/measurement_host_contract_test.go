@@ -36,4 +36,13 @@ func TestMeasurementHostKeyboardContractParity(t *testing.T) {
 	if !strings.Contains(string(windows), "keyup") || !strings.Contains(string(mac), "FlagsChanged") {
 		t.Fatal("measurement Alt/Option release must be observable on both platforms")
 	}
+	if !strings.Contains(string(windows), "emit('pointermove',event)") {
+		t.Fatal("Windows Measurement hover must emit pointermove so HUD/candidates follow the pointer")
+	}
+	if !strings.Contains(string(windows), "placeMicro") || !strings.Contains(string(windows), "event.clientX-r.width-gap") {
+		t.Fatal("Windows Measurement bridge must position and edge-flip the Micro HUD")
+	}
+	if strings.Contains(string(windows), "key.startsWith('Arrow')") || strings.Contains(string(mac), "ArrowLeft") {
+		t.Fatal("Arrow nudge is not part of the frozen Measurement session contract")
+	}
 }

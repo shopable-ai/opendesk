@@ -28,24 +28,24 @@ func candidateFixtureToken(session string, generation uint64, snapshot string) S
 func candidateFixtureRequest() SnapshotCandidateRequest {
 	mapping, _ := NewCaptureMapping(Point{X: -100, Y: 20}, Size{Width: 100, Height: 50}, PixelSize{Width: 200, Height: 100}, "display", 1)
 	return SnapshotCandidateRequest{
-		Token: candidateFixtureToken("session-a", 3, "snapshot-a"),
-		Snapshot: Snapshot{SampledAt: time.Date(2026, 9, 15, 1, 2, 3, 0, time.UTC), Mapping: mapping},
+		Token:     candidateFixtureToken("session-a", 3, "snapshot-a"),
+		Snapshot:  Snapshot{SampledAt: time.Date(2026, 9, 15, 1, 2, 3, 0, time.UTC), Mapping: mapping},
 		Reference: Reference{Type: ReferenceWindowOuter, Bounds: Rect{X: -80, Y: 25, Width: 60, Height: 30}, Window: &WindowIdentity{ID: "target", PID: 7, Title: "Fixture"}},
-		Pointer: Point{X: -60, Y: 40}, ImagePath: "/tmp/frozen.png",
+		Pointer:   Point{X: -60, Y: 40}, ImagePath: "/tmp/frozen.png",
 	}
 }
 
 func semanticCandidate(request SnapshotCandidateRequest, id, source string, bounds Rect) SnapshotCandidate {
 	return SnapshotCandidate{
 		CandidateDescriptor: CandidateDescriptor{ID: id, Label: id, Source: source, Bounds: bounds, Reliability: CandidateReliabilityReliable, Semantic: true},
-		Token: request.Token, Role: "textField", Name: "Message", Identifier: "message-input", Confidence: .98,
+		Token:               request.Token, Role: "textField", Name: "Message", Identifier: "message-input", Confidence: .98,
 	}
 }
 
 func visualCandidate(request SnapshotCandidateRequest, id string, bounds Rect) SnapshotCandidate {
 	return SnapshotCandidate{
 		CandidateDescriptor: CandidateDescriptor{ID: id, Label: "OCR text", Source: "ocr:apple", Bounds: bounds, Reliability: CandidateReliabilityEstimated, Semantic: false},
-		Token: request.Token, Confidence: .84,
+		Token:               request.Token, Confidence: .84,
 	}
 }
 
@@ -226,6 +226,7 @@ func TestSnapshotCandidateDriverSnapsSelectionWithoutMovingSystemPointer(t *test
 	}
 	defer service.Close(context.Background())
 	a := service.active
+	setMeasurementTool(a, "point")
 	driver := service.driver.(*snapshotCandidateDriver)
 	driver.handleHostEvent(customui.Event{WindowID: WindowID, Type: "measurement.pointermove", Fields: map[string]any{"u": .4, "v": .4}})
 	view := waitCandidateView(t, service, func(view SnapshotCandidateView) bool { return len(view.Candidates) > 0 })
@@ -347,4 +348,34 @@ func waitCandidateView(t *testing.T, service *Service, predicate func(SnapshotCa
 	view := service.SnapshotCandidates()
 	t.Fatalf("candidate view condition timed out: %+v", view)
 	return SnapshotCandidateView{}
+}
+
+func TestSnapshotCandidateLocalReferenceChoosesSmallestUsefulSemanticParent(t *testing.T) {
+	service, _, _, _ := newSessionService(t)
+	provider := snapshotCandidateProviderFunc{name: "ax", fn: func(_ context.Context, request SnapshotCandidateRequest) ([]SnapshotCandidate, error) {
+		return []SnapshotCandidate{
+			semanticCandidate(request, "input", "ax", Rect{X: -70, Y: 32, Width: 20, Height: 12}),
+			semanticCandidate(request, "composer", "ax", Rect{X: -75, Y: 28, Width: 40, Height: 22}),
+			semanticCandidate(request, "chat", "ax", Rect{X: -80, Y: 25, Width: 60, Height: 30}),
+		}, nil
+	}}
+	if err := service.EnableSnapshotCandidates([]SnapshotCandidateProvider{provider}, time.Second); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.Open(context.Background(), "product-menu"); err != nil {
+		t.Fatal(err)
+	}
+	defer service.Close(context.Background())
+	a := service.active
+	driver := service.driver.(*snapshotCandidateDriver)
+	driver.handleHostEvent(customui.Event{WindowID: WindowID, Type: "measurement.pointermove", Fields: map[string]any{"u": .4, "v": .4}})
+	view := waitCandidateView(t, service, func(view SnapshotCandidateView) bool { return len(view.Candidates) >= 3 })
+	target := view.Candidates[0]
+	local, ok := driver.localReferenceFor(target, a.snapshotToken())
+	if !ok {
+		t.Fatal("semantic Target did not derive a useful Local Reference")
+	}
+	if local.ID != "composer" {
+		t.Fatalf("local reference=%q want composer", local.ID)
+	}
 }

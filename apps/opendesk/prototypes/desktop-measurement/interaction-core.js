@@ -421,6 +421,8 @@
   }
 
   function setMode(mode) {
+    if (!E.active || E.adjusting) return;
+    invalidateAsync();
     if (!['point', 'region', 'pp', 'rr'].includes(mode)) return;
     E.mode = mode;
     E.target = null; E.localReference = null; E.pointResult = null; E.pointPair = []; E.regionPair = [];
@@ -430,7 +432,7 @@
   }
 
   function lockCandidate() {
-    if (!E.candidate) return false;
+    if (!E.active || E.adjusting || !E.candidate || E.alt || !E.magnet) return false;
     E.target = clone(E.candidate);
     E.localReference = chooseLocalReference(E.target);
     E.marginView = 'window';
@@ -591,7 +593,13 @@
     hud.hidden = false;
     $('hud-source').textContent = `磁吸定位 · ${E.magnet ? '开' : '关'}${E.alt ? '（临时暂停）' : ''}`;
     const target = targetBounds();
-    if (target) {
+    // Completed pair relation must precede the generic last-region Target HUD.
+    if (E.mode === 'rr' && E.regionPair.length === 2) {
+      const result = M.rectangles(E.regionPair[0], E.regionPair[1]);
+      $('hud-size').textContent = `两区域　H gap ${fmt(result.horizontalGap)} · V gap ${fmt(result.verticalGap)}`;
+      $('margin-table').innerHTML = '';
+      $('hud-meta').textContent = `overlap ${fmt(result.overlapArea)} · center Δ ${fmt(result.centerDelta.x)} / ${fmt(result.centerDelta.y)}`;
+    } else if (target) {
       $('hud-size').textContent = `${E.target ? E.target.label : '区域'}　${fmt(target.width)} × ${fmt(target.height)}`;
       const windowMargins = signedMargins(target, win.rect);
       const localMargins = E.localReference ? signedMargins(target, E.localReference.bounds) : null;
@@ -609,11 +617,6 @@
       $('hud-size').textContent = `两点距离　${fmt(result.straightDistance)}`;
       $('margin-table').innerHTML = '';
       $('hud-meta').textContent = `ΔX ${fmt(result.dx)} · ΔY ${fmt(result.dy)} · H ${fmt(result.horizontalDistance)} · V ${fmt(result.verticalDistance)}`;
-    } else if (E.regionPair.length === 2) {
-      const result = M.rectangles(E.regionPair[0], E.regionPair[1]);
-      $('hud-size').textContent = `两区域　H gap ${fmt(result.horizontalGap)} · V gap ${fmt(result.verticalGap)}`;
-      $('margin-table').innerHTML = '';
-      $('hud-meta').textContent = `overlap ${fmt(result.overlapArea)} · center Δ ${fmt(result.centerDelta.x)} / ${fmt(result.centerDelta.y)}`;
     } else {
       $('hud-size').textContent = '移动鼠标开始测量';
       $('margin-table').innerHTML = '';
@@ -630,7 +633,7 @@
       prototypeOnly: true,
       phase: E.phase,
       snapshot: E.snapshotId ? token() : null,
-      coordinateSpace: {screen: 'screen-logical', window: 'window-relative-logical', region: 'local-region-relative-logical', image: 'capture-pixel', percentage: 'ratio-0-1'},
+      coordinateSpace: {screen: 'screen-logical', window: 'window-relative-logical', region: 'local-region-relative-logical', image: 'capture-pixel', percentage: 'percentage-0-100'},
       displayMapping: clone(tiles),
       target: target ? {
         bounds: clone(target),
@@ -662,13 +665,18 @@
   }
 
   function renderButtons() {
+    const measuring = E.active && !E.adjusting;
+    $('tools').querySelectorAll('button').forEach(button => { button.disabled = !measuring; });
     document.querySelectorAll('[data-mode]').forEach(button => button.classList.toggle('active', button.dataset.mode === E.mode));
     $('magnet-toggle').classList.toggle('active', E.magnet);
     $('margin-toggle').textContent = E.marginView === 'local' && E.localReference ? `边距：${E.localReference.label}` : '边距：窗口';
-    $('margin-toggle').disabled = !E.localReference;
+    $('margin-toggle').disabled = !measuring || !E.localReference;
   }
 
   function render() {
+    const measuring = E.active && !E.adjusting;
+    for (const id of ['scene', 'overlay', 'tools', 'status']) $(id).toggleAttribute('hidden', !measuring);
+    if (!measuring) $('toast').hidden = true;
     stage.classList.toggle('measuring', E.active && !E.adjusting);
     stage.classList.toggle('adjusting', E.active && E.adjusting);
     $('live-controls').hidden = !E.adjusting;
@@ -685,6 +693,7 @@
     }
     E.active = true; E.adjusting = false; E.phase = 'PREPARING'; E.session += 1; E.generation = 1;
     E.source = source || 'manual'; E.inspectorOpen = false; E.magnet = true; E.marginView = 'window';
+    E.alt = false;
     E.live = {scroll: 0, tab: 0, menu: false};
     E.phase = 'FREEZING';
     captureSnapshot('进入测量');
@@ -706,6 +715,7 @@
     E.generation += 1; // immediately invalidates all results from the visible snapshot
     E.snapshotId = null; // old frozen pixels remain hidden, but no longer identify the current UI state
     E.phase = 'ADJUSTING'; E.adjusting = true; E.inspectorOpen = false; E.pointer = null;
+    E.alt = false; E.dragStart = null; E.dragCurrent = null;
     E.target = null; E.localReference = null; E.pointResult = null; E.pointPair = []; E.regionPair = []; E.candidate = null; E.stack = [];
     drawLiveDesktop();
     render();
@@ -723,6 +733,10 @@
     if (!E.active) return;
     invalidateAsync();
     E.phase = 'IDLE'; E.active = false; E.adjusting = false; E.snapshotId = null; E.pointer = null;
+    E.alt = false; E.status = ''; E.lastCopy = null; E.layer = 0;
+    clearTimeout(toastTimer); toastTimer = null; $('toast').hidden = true;
+    $('status').textContent = ''; $('json-info').textContent = '';
+    analysisCanvas = null; analysisPixels = null;
     E.target = null; E.localReference = null; E.pointResult = null; E.pointPair = []; E.regionPair = []; E.stack = []; E.candidate = null;
     E.dragStart = null; E.dragCurrent = null; E.inspectorOpen = false; E.pixelCache = []; tiles = []; rawCanvases.clear();
     $('scene').replaceChildren(); overlay.replaceChildren(); $('micro').hidden = true; $('hud').hidden = true; $('inspector').hidden = true; $('live-controls').hidden = true;
@@ -730,7 +744,7 @@
   }
 
   function applyAsyncCandidate(candidateToken, candidate) {
-    if (!E.active || E.adjusting || !sameToken(candidateToken, token())) return false;
+    if (!E.active || E.adjusting || E.alt || !E.magnet || E.target || !sameToken(candidateToken, token())) return false;
     E.candidate = clone(candidate); E.stack = [clone(candidate)]; E.layer = 0; render(); return true;
   }
 
@@ -746,12 +760,12 @@
   overlay.addEventListener('pointerup', event => pointerUp(screenPointFromEvent(event)));
 
   document.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => setMode(button.dataset.mode)));
-  $('magnet-toggle').addEventListener('click', () => { E.magnet = !E.magnet; invalidateAsync(); E.candidate = null; E.stack = []; setStatus(`磁吸定位已${E.magnet ? '开启' : '关闭'}。`); scheduleResolve(); render(); });
-  $('margin-toggle').addEventListener('click', () => { if (!E.localReference) return; E.marginView = E.marginView === 'window' ? 'local' : 'window'; render(); });
+  $('magnet-toggle').addEventListener('click', () => { if (!E.active || E.adjusting) return; E.magnet = !E.magnet; invalidateAsync(); E.candidate = null; E.stack = []; setStatus(`磁吸定位已${E.magnet ? '开启' : '关闭'}。`); scheduleResolve(); render(); });
+  $('margin-toggle').addEventListener('click', () => { if (!E.active || E.adjusting || !E.localReference) return; E.marginView = E.marginView === 'window' ? 'local' : 'window'; render(); });
   $('refresh').addEventListener('click', refreshSnapshot);
   $('adjust').addEventListener('click', adjustInterface);
   $('continue').addEventListener('click', () => continueMeasurement('adjust-continue'));
-  $('details').addEventListener('click', () => { E.inspectorOpen = true; render(); });
+  $('details').addEventListener('click', () => { if (!E.active || E.adjusting) return; E.inspectorOpen = true; render(); });
   $('details-close').addEventListener('click', () => { E.inspectorOpen = false; render(); });
   $('exit').addEventListener('click', exitMeasurement);
   $('restart').addEventListener('click', () => begin('restart'));
@@ -765,11 +779,17 @@
   $('live-tab').addEventListener('click', () => { E.live.tab = E.live.tab ? 0 : 1; defineScene(); drawLiveDesktop(); });
   $('live-menu').addEventListener('click', () => { E.live.menu = !E.live.menu; defineScene(); drawLiveDesktop(); });
   $('copy-json').addEventListener('click', async () => {
+    if (!E.active || E.adjusting || !E.inspectorOpen) return;
+    const copyToken = clone(token());
+    const stillCurrent = () => E.active && !E.adjusting && sameToken(copyToken, token());
     const value = JSON.stringify(structuredData(), null, 2);
     try {
       if (!navigator.clipboard || typeof navigator.clipboard.writeText !== 'function') throw new Error('clipboard unavailable');
-      await navigator.clipboard.writeText(value); E.lastCopy = {status: 'success', text: value}; notify('已复制结构化 Measurement Evidence。');
+      await navigator.clipboard.writeText(value);
+      if (!stillCurrent()) return;
+      E.lastCopy = {status: 'success', text: value}; notify('已复制结构化 Measurement Evidence。');
     } catch (error) {
+      if (!stillCurrent()) return;
       E.lastCopy = {status: 'unavailable', text: value}; notify('浏览器剪切板不可用；结构化数据仍保留在详情中。');
     }
   });
@@ -788,7 +808,7 @@
     if (modes[event.key]) setMode(modes[event.key]);
   });
   window.addEventListener('keyup', event => {
-    if (event.key === 'Alt' && E.active && !E.adjusting) { E.alt = false; scheduleResolve(); render(); }
+    if (event.key === 'Alt') { E.alt = false; if (E.active && !E.adjusting) { scheduleResolve(); render(); } }
   });
   window.addEventListener('resize', () => { if (E.active && !E.adjusting) refreshSnapshot(); });
 

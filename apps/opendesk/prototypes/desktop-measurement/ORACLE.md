@@ -2,13 +2,15 @@
 
 > Structured UI / Interaction contract extracted from the approved executable HTML/CSS/JavaScript prototype in this directory.
 >
-> **Authority:** `index.html` + `prototype.css` + `model.js` + `interaction-core.js` are the only primary UI / Interaction evidence for this document. When this document conflicts with those executable sources, the executable prototype wins. Production code, architecture documents, README text, and tests may verify or consume this Oracle, but must not redefine it.
+> **Authority:** Explicit user requirements and subsequent corrections take precedence. Within UI / Interaction behavior actually defined by the executable prototype, `index.html` + `prototype.css` + `model.js` + `interaction-core.js` are the only primary UI / Interaction evidence for this document. When this document conflicts with those executable sources, the executable prototype wins. Production code, architecture documents, README text, and tests may verify or consume this Oracle, but must not redefine it.
 
-> **ORACLE STATUS: NOT YET FROZEN**
+> **ORACLE STATUS: FROZEN**
 >
-> The HTML → Oracle conversion is now traceable and substantially complete, but the executable prototype still contains four product-significant internal conflicts listed in §20. Those conflicts must be resolved in the prototype before this Oracle can be frozen for Production Gap Closure.
+> Frozen baseline: 2026-09-16. All four §20 blockers have executable fixes and browser regressions. This status freezes the HTML-defined core; it does not assert native OS qualification.
 
 ## 0. Scope, evidence boundary, and source hierarchy
+
+`NOT_SUPPORTED_BY_HTML` means no HTML-defined behavior, not a product-wide prohibition. Independently justified Native invariants and Product Extensions live in the architecture document. Existing Production code cannot amend this Oracle retroactively; harness controls are not Production controls.
 
 This document describes product-visible UI hierarchy, state, interaction, state transitions, pointer/keyboard behavior, visual feedback, measurement semantics, structured evidence, and explicit non-contracts.
 
@@ -276,7 +278,7 @@ There is no `pointercancel`/pointer-leave product flow in the prototype. Escape 
 | DM-TOOL-012 | **Region↔Region** accepts two valid dragged regions; a third valid drag starts a new pair. | pair length cycles 1→2→1. | RR branch |
 | DM-TOOL-013 | Structured Region↔Region evidence contains H/V gaps, projection overlaps, overlap area, center delta and B-relative-to-A geometry. | `spacing` object contains those fields. | `M.rectangles()`, `structuredData()` |
 | DM-TOOL-014 | Overlay shows first/second Region↔Region rectangles and a center-to-center distance line once both exist. | relation is visually present on overlay. | `renderOverlay()` |
-| DM-TOOL-015 | Region↔Region HUD summary is currently internally conflicted; see `HTML-CONFLICT-001`. | do not freeze expected HUD content yet. | `targetBounds()`, `renderHUD()` |
+| DM-TOOL-015 | Two completed RR regions expose H/V gaps, overlap area and signed center delta in the normal Corner HUD as well as full structured relation evidence. | completed RR relation summary is reachable before generic Target. | RR branch, `M.rectangles()`, `renderHUD()` |
 
 ## 11. Magnet, Snap, and Candidate Stack
 
@@ -318,7 +320,7 @@ Candidate Stack:
 | DM-COORD-006 | `rawColor()` returns image pixel coordinate, display id, scale, color space, source provenance and no interpolation. | Inspector pointer evidence can expose it. | `rawColor()` |
 | DM-COORD-007 | Absolute geometry is runtime evidence only and is separated from stable semantic relocation evidence. | structured evidence separates both. | `stableRelocationEvidence`, `runtimeEvidence` |
 | DM-COORD-008 | Visual candidate provenance remains estimated visual evidence, never semantic control evidence. | role remains null. | `visualAt()`, `structuredData()` |
-| DM-COORD-009 | Percentage-vs-normalized numeric convention is internally conflicted; see `HTML-CONFLICT-002`. | do not freeze 0–1 vs 0–100 convention yet. | `M.relative()`, `coordinateSpace.percentage` |
+| DM-COORD-009 | `percentage` geometry is percentage 0–100 (`100 * value / referenceSize`); true ratio fields such as `areaRatio`, `coverageRatio`, `insideRatio` remain ratios. | metadata and arithmetic agree. | `M.relative()`, `coordinateSpace.percentage` |
 | DM-COORD-010 | The prototype does not expose a separate normalized-coordinate field distinct from its `percentage` geometry. | Production must not invent one and claim parity. | structured evidence shape |
 
 ### 12.2 Target-relative geometry actually exported
@@ -389,8 +391,8 @@ Unused model helpers (`pointRelative()`, `placePanel()`) are not automatically p
 | DM-VIS-012 | Status is a small non-interactive hint near lower-left (moves above toolbar at narrower demo width). | current interaction guidance visible. | `.status`, media query |
 | DM-VIS-013 | Transient toast appears top-center, does not intercept input and auto-hides after the prototype timeout. | informational only. | `notify()`, `.toast` |
 | DM-VIS-014 | When no measurement result is active, HUD meta exposes current `snapshotId` and generation. | snapshot lifecycle visibly inspectable. | `renderHUD()` |
-| DM-VIS-015 | HUD result priority is Target/latest RR region → Point → two-point relation → two-region relation → no-result snapshot meta. | conditional order is observable. | `renderHUD()` |
-| DM-VIS-016 | Because RR `targetBounds()` is non-null once an RR region exists, current two-region HUD branch is conflicted/unreachable; see `HTML-CONFLICT-001`. | no frozen expected summary yet. | `targetBounds()`, `renderHUD()` |
+| DM-VIS-015 | HUD priority is completed RR relation → generic Target/latest incomplete RR region → Point → two-point relation → no-result snapshot meta. | completed RR shows H/V gaps, overlap and center delta. | `renderHUD()` |
+| DM-VIS-016 | Completed RR summary is reachable before generic Target; its margin table is empty while structured spacing and overlay relation remain available. | former HTML-CONFLICT-001 resolved. | `renderHUD()` |
 
 ## 15. Inspector, Snapshot evidence, and Export boundary
 
@@ -462,7 +464,7 @@ The prototype uses “Snapshot” as the current frozen measurement source/token
 |---|---|---|---|---|---|
 | selected tool | becomes selected tool | persists | persists | persists | **persists** |
 | persistent Magnet | persists | persists | persists | persists | resets ON in `begin()` |
-| temporary Alt | unchanged by tool/update | unchanged | key handling inactive during Adjust | unchanged | **conflicted edge case; see HTML-CONFLICT-004** |
+| temporary Alt | unchanged by tool/update | unchanged | reset OFF entering Adjust | unchanged | reset OFF on Exit and begin; keyup also clears while inactive |
 | pointer | persists | persists | cleared entering Adjust; new snapshot starts with null | persists | cleared |
 | Candidate/stack | cleared | cleared | cleared | preserved | cleared |
 | Target / measurement result | cleared | cleared | cleared | preserved | cleared |
@@ -501,16 +503,16 @@ Status values intentionally use the audit vocabulary requested for this conversi
 | post-lock Region resize/edit handles | absent | §10 | NOT_SUPPORTED_BY_HTML |
 | Point↔Point | PP branch + `M.points()` | §10, §12 | PASS |
 | Region↔Region structured relation | RR branch + `M.rectangles()` | §10, §12 | PASS |
-| Region↔Region HUD summary | conditional order in `renderHUD()` | §10, §14 | HTML_INTERNAL_CONFLICT |
+| Region↔Region HUD summary | conditional order in `renderHUD()` | §10, §14 | RESOLVED · PASS_AUTOMATED |
 | pointer screen/window/region coordinates | `coordinateTriple()`, `renderMicro()` | §12 | PASS |
 | Reference-relative geometry | `M.relative(target, win.rect)` | §12 | PASS |
-| percentage / normalized convention | `M.relative()` vs structured coordinate metadata | §12 | HTML_INTERNAL_CONFLICT |
+| percentage / normalized convention | `M.relative()` vs structured coordinate metadata | §12 | RESOLVED · PASS_AUTOMATED |
 | separate normalized coordinates | absent | §12 | NOT_SUPPORTED_BY_HTML |
 | geometry ratios/alignment/coverage | `M.relative()` | §12 | PASS |
 | Window + Local margins | `signedMargins()`, `renderHUD()` | §13 | PASS |
 | one active four-line margin overlay | `drawMarginLines()` | §13 | PASS |
 | Inspector | DOM + `renderInspector()` | §15 | PASS |
-| HUD/status/toast | DOM/CSS/render functions | §14 | PASS except conflicts listed in §20 |
+| HUD/status/toast | DOM/CSS/render functions | §14 | PASS_AUTOMATED; §20 conflicts resolved |
 | Frozen Snapshot token | capture/token/HUD | §7, §15 | PASS |
 | save/export screenshot | absent | §15 | NOT_SUPPORTED_BY_HTML |
 | structured data clipboard copy | `#copy-json` handler | §15 | PASS |
@@ -519,92 +521,34 @@ Status values intentionally use the audit vocabulary requested for this conversi
 | pointer interactions | overlay pointer handlers | §9 | PASS |
 | intermediate Escape cancel | Escape exits after Inspector-close | §9, §16 | NOT_SUPPORTED_BY_HTML |
 | dedicated Clear/Reset control | absent; same-tool selection resets | §8 | NOT_SUPPORTED_BY_HTML |
-| close/Exit state cleanup | `exitMeasurement()` + CSS/render | §5, §20 | HTML_INTERNAL_CONFLICT |
+| close/Exit state cleanup | `exitMeasurement()` + CSS/render | §5, §20 | RESOLVED · PASS_AUTOMATED |
 | invalid/unavailable feedback | status/toast/disabled states | §17 | PASS |
-| state persistence within session | lifecycle functions | §18 | PASS except Alt conflict |
+| state persistence within session | lifecycle functions | §18 | PASS_AUTOMATED; Alt boundary regression |
 | active/hover/disabled/selected visual state | CSS + renderButtons/margin table | §3, §14 | PASS |
 | responsive hiding of optional/harness controls | media queries | §3 / harness boundary | PASS (prototype presentation only) |
 
 This table is also the minimal proof that important product semantics were not silently lost between executable prototype and Markdown.
 
-## 20. HTML internal conflict register — freeze blockers
+## 20. Resolved HTML internal conflict register
 
-The following are **not** Oracle guesses. They are contradictions or product-significant inconsistencies inside the executable prototype. This document records them instead of silently choosing a preferred behavior.
+| ID | Former contradiction | Executable resolution | Regression evidence | State |
+|---|---|---|---|---|
+| HTML-CONFLICT-001 | RR metrics existed but generic Target HUD intercepted them. | `renderHUD()` checks completed RR before generic Target; displays H/V gaps, overlap and signed center delta without a duplicated margin table. | browser RR summary + structured spacing + overlay line | RESOLVED |
+| HTML-CONFLICT-002 | Arithmetic was percentage while metadata declared ratio. | `coordinateSpace.percentage = percentage-0-100`; true ratio fields are unchanged. | numerical percentage/ratio checks | RESOLVED |
+| HTML-CONFLICT-003 | IDLE could leave Toolbar/status/SVG interaction chrome. | render hides scene/SVG/tools/status, disables controls, hides toast; inactive handlers reject mutation. | Exit visibility + inactive-action regression | RESOLVED |
+| HTML-CONFLICT-004 | Alt could survive Exit/new session or a lost release. | Exit/begin/Adjust clear temporary Alt; keyup clears even while inactive; new session resets Magnet ON. | held Alt → Exit/re-entry + Adjust/Continue | RESOLVED |
 
-### HTML-CONFLICT-001 — Region↔Region HUD relation branch is unreachable
+No known freeze blocker remains. Native host behavior remains a separate qualification layer.
 
-Evidence:
+## 21. Freeze corrections and preserved boundaries
 
-1. `targetBounds()` returns the latest `regionPair` rectangle whenever RR has at least one region.
-2. `renderHUD()` first executes `if (target) { ... region size + margins ... }`.
-3. Its later `else if (E.regionPair.length === 2) { ... H gap / V gap / overlap / center Δ ... }` therefore cannot execute after two RR regions exist.
-4. `structuredData().spacing` and overlay relation line **do** expose the two-region relation.
+This freeze resolves the four prototype contradictions in executable code first, then aligns requirement rows, persistence semantics, traceability and scenarios. It does not introduce Region resize handles, Arrow nudge, intermediate Esc cancellation, a new toolbar control, saved-image history, or fixture UI in Production.
 
-Consequence: HTML unambiguously computes the relation, but does not unambiguously define the intended normal-HUD presentation because an explicit RR-summary branch exists yet is shadowed by earlier logic.
-
-Required before freeze: correct/clarify the executable prototype, then update DM-TOOL-015 / DM-VIS-016 accordingly.
-
-### HTML-CONFLICT-002 — `percentage` numeric convention contradicts coordinate metadata
-
-Evidence:
-
-- `M.relative()` computes each `percentage` field as `100 * value / referenceDimension`, i.e. 0–100 percentage units in ordinary in-reference cases.
-- `structuredData().coordinateSpace.percentage` declares `'ratio-0-1'`.
-
-Consequence: Production cannot know whether the frozen contract is normalized ratio (0–1) or percentage units (0–100). The prototype also has no second explicit normalized field.
-
-Required before freeze: choose one convention in the executable prototype and make value + metadata agree.
-
-### HTML-CONFLICT-003 — Exit enters IDLE but leaves Toolbar/status visible and partly interactive
-
-Evidence:
-
-- `exitMeasurement()` sets `active=false`, removes snapshot/overlay, hides micro HUD/corner HUD/Inspector/live controls and shows the `idle` harness card through `render()`.
-- It does **not** hide `#tools` or `#status`.
-- CSS hides Toolbar/status only under `.adjusting`, not under IDLE/non-active state.
-- some visible tool controls can still mutate prototype state while idle (`setMode()`, Magnet toggle), even though lifecycle actions such as Update/Adjust are no-ops.
-
-Consequence: “Exit/Close” does not currently define a coherent final Measurement-chrome state. The previous Oracle statement that all Measurement chrome disappears was therefore incorrect.
-
-Required before freeze: make the executable IDLE visibility/interaction behavior explicit and internally coherent.
-
-### HTML-CONFLICT-004 — temporary Alt suspension can leak across Exit → new session
-
-Evidence:
-
-- Alt keydown sets `E.alt=true`.
-- `exitMeasurement()` does not reset `E.alt`.
-- Alt keyup resets it only when `E.active && !E.adjusting`; a keyup after Exit is ignored.
-- `begin()` resets `magnet=true` but does not reset `alt`.
-
-Consequence: if the user exits while Alt is held and releases it after Exit, a later new session can start with persistent Magnet ON but the stale temporary `alt` flag still true, suppressing candidate resolution and showing `开（临时暂停）`.
-
-Required before freeze: define/reset transient-modifier state coherently in the executable prototype.
-
-## 21. Corrections made by this audit
-
-The previous `ORACLE.md` was directionally strong but incomplete for Production Gap use. This revision corrects these conversion defects:
-
-- **INCORRECT_IN_ORACLE**: removed tests/README from primary-authority status; only executable HTML/CSS/JS remains authoritative.
-- **INCOMPLETE_IN_ORACLE**: added full toolbar label/tooltip/selected/disabled/hover/focus inventory and explicit “no icons” boundary.
-- **AMBIGUOUS_IN_ORACLE**: clarified that Reference Window exists but user Reference selection/reselection is not defined by HTML.
-- **INCOMPLETE_IN_ORACLE**: distinguished Snapshot lifecycle from screenshot-save/export behavior.
-- **INCOMPLETE_IN_ORACLE**: distinguished structured clipboard copy from file/JSON/PNG export.
-- **INCOMPLETE_IN_ORACLE**: added detailed pointer semantics, minimum drag threshold, Region drag-over-candidate precedence and lack of intermediate Escape cancellation.
-- **INCOMPLETE_IN_ORACLE**: documented same-tool reselection as the only direct lightweight clear/reset behavior and recorded absence of a dedicated reset control.
-- **INCOMPLETE_IN_ORACLE**: documented cross-tool Candidate preview behavior and Target-lock suppression of subsequent resolution.
-- **INCOMPLETE_IN_ORACLE**: expanded geometry to the actual relative/alignment/ratio/coverage and two-region fields emitted by `model.js`.
-- **INCOMPLETE_IN_ORACLE**: made margin sign convention, negative visual feedback and no-clipping behavior explicit.
-- **INCOMPLETE_IN_ORACLE**: added state persistence across tool change, Update, Adjust/Continue, re-entry and Exit/new-session.
-- **INCORRECT_IN_ORACLE / HTML_INTERNAL_CONFLICT**: replaced the prior unconditional claim that RR HUD exposes relation metrics with the actual conflict in `renderHUD()`.
-- **HTML_INTERNAL_CONFLICT**: surfaced percentage 0–100 computation vs `'ratio-0-1'` metadata contradiction.
-- **INCORRECT_IN_ORACLE / HTML_INTERNAL_CONFLICT**: removed the prior claim that Exit makes all Measurement chrome disappear; current HTML leaves Toolbar/status visible.
-- **HTML_INTERNAL_CONFLICT**: surfaced stale Alt transient state across Exit/new-session edge case.
-- **INCOMPLETE_IN_ORACLE**: added a single bidirectional Traceability Matrix covering the requested product areas.
+`详情` is **open** (idempotent); `I` is **toggle**. Inspector shows current Snapshot/mapping/reference/pointer/candidate evidence even without a Result. Temporary Alt and in-progress drag state are cleared when Measurement releases input ownership for Adjust. Update preserves tool, persistent Magnet, pointer and Inspector-open while clearing old snapshot-derived result/candidate/reference/drag state.
 
 ## 22. Acceptance scenarios after conflict resolution
 
-These scenarios are the minimum future frozen-Oracle parity suite. Items marked BLOCKED depend on §20.
+These scenarios are the minimum frozen-Oracle parity suite. All former §20 blockers are resolved in executable sources and covered by browser regression.
 
 1. **Initial Freeze**: Region active, Magnet ON, one session, valid snapshot, weak outside mask, Reference outline, Toolbar/HUD visible.
 2. **Entry reuse**: developer/Recorder/global-shortcut sources address one active session; re-entry returns same token and shows same-session toast.
@@ -613,15 +557,15 @@ These scenarios are the minimum future frozen-Oracle parity suite. Items marked 
 5. **Region manual**: valid drag → manual Target even if Candidate was visible; no fabricated Local Reference.
 6. **Candidate cycle**: only one highlighted candidate; Tab/Shift+Tab wraps current stack; Alt temporary suspension; persistent Magnet toggle independent.
 7. **Point↔Point**: two points → signed ΔX/ΔY + H/V + straight distance; third point starts new pair.
-8. **Region↔Region**: two drags → structured gap/overlap/center/B-relative evidence + overlay relation; **HUD summary BLOCKED by HTML-CONFLICT-001**.
+8. **Region↔Region**: two drags → structured gap/overlap/center/B-relative evidence + overlay relation; **HUD shows H/V gap, overlap area and signed center delta**.
 9. **Margins**: Window + optional one Local Reference; margin toggle disabled without Local Reference; overlay shows exactly one four-line relation.
 10. **Inspector**: default closed; Details/I opens; close/Escape closes without mutating Target/Snapshot; Update preserves open state; Adjust closes.
 11. **Structured copy**: success/unavailable toast is non-destructive; no file export is assumed.
 12. **Update**: same session, newer generation/snapshot, snapshot-bound result/candidate state cleared, mode/Magnet/Inspector-open/pointer preserved.
 13. **Adjust**: snapshot invalid immediately; Measurement chrome hidden; Continue refreezes same session and clears old result state.
-14. **Exit**: snapshot-bound data cleared and next entry creates a new session; **final Toolbar/status visibility BLOCKED by HTML-CONFLICT-003**.
-15. **Percentage/normalized evidence**: **BLOCKED by HTML-CONFLICT-002**.
-16. **Alt transient lifecycle**: **BLOCKED by HTML-CONFLICT-004**.
+14. **Exit**: snapshot-bound data cleared and next entry creates a new session; **all Measurement chrome and the SVG input plane are hidden; controls cannot mutate IDLE**.
+15. **Percentage/normalized evidence**: **percentage = 100 × relative/reference; metadata `percentage-0-100`; true ratio fields unchanged**.
+16. **Alt transient lifecycle**: **hold Alt → Exit → release Alt → new session starts Alt OFF, Magnet ON, selected tool retained**.
 
 ## 23. Explicit non-contracts / boundaries
 
@@ -640,23 +584,10 @@ These scenarios are the minimum future frozen-Oracle parity suite. Items marked 
 - Visual Candidate is not semantic control evidence.
 - Native correctness still owns real capture exclusion, input routing, monitor/DPI conversion, accessibility/OCR/Vision calls, resource/thread lifetime, Dock/Taskbar behavior and platform-specific surface mechanics.
 
-## 24. Change discipline and freeze rule
+## 24. Change discipline
 
-1. Requirement IDs already present remain stable; wording may improve without renumbering.
-2. New IDs are added only for stable product-visible requirements or explicit boundaries.
-3. Every important Oracle claim must identify executable HTML/CSS/JS evidence.
-4. Tests and Production may validate the Oracle but cannot override it.
-5. If executable prototype and Markdown differ, correct Markdown unless the prototype itself is internally contradictory.
-6. When the prototype is internally contradictory, record an `HTML_INTERNAL_CONFLICT`; do not silently choose a preferred Production behavior.
-7. Production Gap Closure may start only after all freeze-blocking conflicts in §20 are resolved and this header changes to:
-
-```text
-ORACLE STATUS: FROZEN
-```
-
-Until then:
-
-```text
-ORACLE STATUS: NOT YET FROZEN
-Production Gap Closure: BLOCKED on the four HTML internal conflicts in §20
-```
+1. Explicit user corrections → executable Prototype → this FROZEN Oracle → architecture Native/Framework invariants and separately justified Product Extensions → Production → tests/qualification.
+2. Preserve requirement IDs; tests are witnesses, not a second requirement source.
+3. Production-only capabilities require explicit architecture/user basis and never amend this Oracle retroactively.
+4. A future real prototype contradiction reopens only its specific blocker before a new freeze is asserted.
+5. Current state: **ORACLE STATUS: FROZEN**. Browser evidence is synthetic and never substitutes for macOS/Windows qualification.

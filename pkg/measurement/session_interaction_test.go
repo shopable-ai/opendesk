@@ -142,7 +142,7 @@ func TestRegionPointerStartsNewMeasurementInsteadOfEditingLockedRegion(t *testin
 	if a.result != nil || a.regionHandle != RegionEditNone {
 		t.Fatalf("new Region gesture must clear the locked result instead of entering edit mode: result=%+v handle=%q", a.result, a.regionHandle)
 	}
-	_ = a.handle(ctx, customui.Event{Type: "measurement.pointerup", Fields: map[string]any{"u": u + .08, "v": v + .08}})
+	_ = a.handle(ctx, customui.Event{Type: "measurement.pointerup", Fields: map[string]any{"u": u + .12, "v": v + .12}})
 	if a.result == nil || a.result.Region == nil {
 		t.Fatal("new Region drag did not create a replacement result")
 	}
