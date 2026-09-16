@@ -156,11 +156,14 @@ func (d *snapshotCandidateDriver) Capabilities(ctx context.Context) customui.Cap
 	return d.base.Capabilities(ctx)
 }
 
+const snapshotCandidateEventField = "_opendesk_snapshot_candidate"
+
 func (d *snapshotCandidateDriver) Create(ctx context.Context, sessionID string, spec customui.WindowSpec, sink func(customui.Event)) (customui.DriverWindow, error) {
 	wrapped := sink
 	if spec.Kind == "measurement" {
 		wrapped = func(event customui.Event) {
-			if d.handleHostEvent(event) {
+			event, consumed := d.prepareHostEvent(event)
+			if consumed {
 				return
 			}
 			sink(event)
@@ -185,10 +188,17 @@ func (d *snapshotCandidateDriver) active() *activeSession {
 	return d.service.active
 }
 
+// handleHostEvent remains the test-facing side-effect helper. Production must
+// use prepareHostEvent so a candidate-adjusted event reaches the Session sink.
 func (d *snapshotCandidateDriver) handleHostEvent(event customui.Event) bool {
+	_, consumed := d.prepareHostEvent(event)
+	return consumed
+}
+
+func (d *snapshotCandidateDriver) prepareHostEvent(event customui.Event) (customui.Event, bool) {
 	a := d.active()
 	if a == nil || event.WindowID != WindowID {
-		return false
+		return event, false
 	}
 
 	if event.Type == "click" {
@@ -217,7 +227,7 @@ func (d *snapshotCandidateDriver) handleHostEvent(event customui.Event) bool {
 				d.state.suspended = false
 			}
 			d.state.mu.Unlock()
-			return false
+			return event, false
 		}
 		if key == "Tab" {
 			shift, _ := event.Fields["shift"].(bool)
@@ -226,7 +236,7 @@ func (d *snapshotCandidateDriver) handleHostEvent(event customui.Event) bool {
 				direction = -1
 			}
 			go d.cycle(a, direction)
-			return true
+			return event, true
 		}
 	}
 
@@ -239,7 +249,7 @@ func (d *snapshotCandidateDriver) handleHostEvent(event customui.Event) bool {
 			event = d.snapPointerEvent(a, event, point)
 		}
 	}
-	return false
+	return event, false
 }
 
 func (d *snapshotCandidateDriver) invalidate() {
@@ -266,12 +276,15 @@ func (d *snapshotCandidateDriver) clear(removePreview bool) {
 		d.state.cancel = nil
 	}
 	preview := d.state.preview
+	// Do not replace state wholesale here.  snapshotCandidateRuntime owns the
+	// mutex currently protecting these fields; replacing it while locked leaves
+	// us trying to unlock a new, unlocked mutex during Session close.
 	d.state.token = SnapshotToken{}
 	d.state.candidates = nil
-	d.state.failures = nil
 	d.state.index = 0
-	d.state.magnet = true
+	d.state.failures = nil
 	d.state.suspended = false
+	d.state.magnet = true
 	d.state.preview = ""
 	d.state.mu.Unlock()
 	if removePreview && preview != "" {
@@ -293,8 +306,19 @@ func (d *snapshotCandidateDriver) snapshotView() SnapshotCandidateView {
 }
 
 func (d *snapshotCandidateDriver) resolveAsync(a *activeSession, pointer Point) {
+	if a == nil {
+		return
+	}
+	// Refresh/Adjust replace the capture frame while candidate providers run in
+	// the background.  Copy the complete request under the Session operation
+	// lock so pixels, geometry, reference and asset path always name one
+	// immutable Frozen Snapshot generation.
+	a.operationMu.Lock()
 	token := a.snapshotToken()
-	if token.Validate() != nil || !pointInsideRect(pointer, a.frame.Reference.Bounds) {
+	frame := a.frame
+	assetPath := a.assetPath
+	a.operationMu.Unlock()
+	if token.Validate() != nil || !pointInsideRect(pointer, frame.Reference.Bounds) {
 		return
 	}
 	d.state.mu.Lock()
@@ -317,7 +341,7 @@ func (d *snapshotCandidateDriver) resolveAsync(a *activeSession, pointer Point) 
 	d.state.cancel = cancel
 	d.state.mu.Unlock()
 
-	request := SnapshotCandidateRequest{Token: token, Snapshot: a.frame.Snapshot, Reference: a.frame.Reference, Pointer: pointer, ImagePath: a.assetPath}
+	request := SnapshotCandidateRequest{Token: token, Snapshot: frame.Snapshot, Reference: frame.Reference, Pointer: pointer, ImagePath: assetPath}
 	go func() {
 		defer cancel()
 		candidates, failures := resolveSnapshotCandidateProviders(ctx, d.providers, request)
@@ -507,21 +531,27 @@ func (d *snapshotCandidateDriver) selected(a *activeSession) (SnapshotCandidate,
 }
 
 func (d *snapshotCandidateDriver) snapPointerEvent(a *activeSession, event customui.Event, raw Point) customui.Event {
+	if a == nil {
+		return event
+	}
+	a.operationMu.Lock()
+	defer a.operationMu.Unlock()
+	// Candidate selection is a Region-only operation. Point, Two Point and
+	// Region-to-Region keep their own explicitly measured input semantics.
+	if a.tool != "region" {
+		return event
+	}
 	candidate, ok := d.selected(a)
 	if !ok || !pointInsideRect(raw, candidate.Bounds) || a.manualPending || a.editAnchor != nil {
 		return event
 	}
-	point := candidate.Bounds.Center()
-	if a.tool == "region" || a.tool == "spacing" {
-		switch event.Type {
-		case "measurement.pointerdown":
-			point = Point{X: candidate.Bounds.X, Y: candidate.Bounds.Y}
-		case "measurement.pointerup":
-			point = Point{X: candidate.Bounds.Right(), Y: candidate.Bounds.Bottom()}
-		default:
-			return event
-		}
-	} else if event.Type == "measurement.pointermove" {
+	var point Point
+	switch event.Type {
+	case "measurement.pointerdown":
+		point = Point{X: candidate.Bounds.X, Y: candidate.Bounds.Y}
+	case "measurement.pointerup":
+		point = Point{X: candidate.Bounds.Right(), Y: candidate.Bounds.Bottom()}
+	default:
 		return event
 	}
 	fields := make(map[string]any, len(event.Fields)+2)
@@ -547,6 +577,9 @@ func (d *snapshotCandidateDriver) snapPointerEvent(a *activeSession, event custo
 			fields["snapLocalWidth"], fields["snapLocalHeight"] = local.Bounds.Width, local.Bounds.Height
 		}
 	}
+	// Keep the full envelope until the Session consumes the event so the
+	// receiving side can reject a candidate from a stale snapshot generation.
+	fields[snapshotCandidateEventField] = candidate
 	event.Fields = fields
 	return event
 }
@@ -583,8 +616,19 @@ func (d *snapshotCandidateDriver) patchPreview(a *activeSession) {
 	candidate, ok := d.selected(a)
 	view := d.snapshotView()
 	if !ok {
+		if view.Token.Validate() == nil && !a.acceptsSnapshot(view.Token) {
+			return
+		}
 		message := candidateStackSummary(view)
 		d.patchInfo(a, message, "")
+		return
+	}
+	// Do not read or patch a Surface after an Update, Adjust or Exit has made
+	// this candidate's capture generation stale.  The same lock protects frame
+	// replacement and teardown from an asynchronous preview write.
+	a.operationMu.Lock()
+	defer a.operationMu.Unlock()
+	if !a.acceptsSnapshot(candidate.Token) {
 		return
 	}
 	message := fmt.Sprintf("磁吸定位：%d/%d · %s · %s · %s", view.Index+1, len(view.Candidates), semanticKind(candidate), candidate.Reliability, candidate.Source)

@@ -85,11 +85,13 @@ func (a *activeSession) selectedResult() string {
 	if a.result == nil {
 		return "尚无结果"
 	}
-	outputs, err := a.result.Outputs()
+	outputs, err := a.outputsWithProductEvidence()
 	if err != nil {
 		return "结果编码失败：" + err.Error()
 	}
-	return outputValue(outputs, a.outputFormat)
+	// Inspector is the explicit full-evidence view. The separate output-format
+	// picker affects Copy/Save, not which evidence the Inspector reveals.
+	return outputs.JSON
 }
 
 func selectedTargetTitle(targets []TargetWindow, id string) string {

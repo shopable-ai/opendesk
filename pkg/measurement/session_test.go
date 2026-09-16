@@ -184,26 +184,48 @@ func TestPointRegionTwoPointAndSpacingUseCanonicalSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 	a := service.active
-	_ = a.handle(ctx, customui.Event{Type: "measurement.key", Fields: map[string]any{"key": "1"}})
-	_ = a.handle(ctx, customui.Event{Type: "measurement.pointerup", Fields: map[string]any{"u": .25, "v": .25}})
+	if err := a.handleKey(ctx, map[string]any{"key": "1"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.handle(ctx, customui.Event{Type: "measurement.pointerup", Fields: map[string]any{"u": .25, "v": .25}}); err != nil {
+		t.Fatal(err)
+	}
 	if a.result == nil || a.result.Point == nil || a.result.Point.Color == nil || a.result.Point.Color.Hex != "#010203" {
 		t.Fatalf("point=%+v", a.result)
 	}
-	_ = a.handle(ctx, customui.Event{Type: "measurement.key", Fields: map[string]any{"key": "2"}})
+
+	if err := a.handleKey(ctx, map[string]any{"key": "2"}); err != nil {
+		t.Fatal(err)
+	}
 	_ = a.handle(ctx, customui.Event{Type: "measurement.pointerdown", Fields: map[string]any{"u": .1, "v": .1}})
 	_ = a.handle(ctx, customui.Event{Type: "measurement.pointerup", Fields: map[string]any{"u": .5, "v": .5}})
-	before := a.result.Region.Absolute
-	_ = a.handle(ctx, customui.Event{Type: "measurement.key", Fields: map[string]any{"key": "ArrowRight", "shift": true}})
-	if a.result.Region.Absolute != before {
-		t.Fatalf("Arrow must not nudge Region: before=%+v after=%+v", before, a.result.Region.Absolute)
+	if a.result == nil || a.result.Region == nil {
+		t.Fatalf("region=%+v", a.result)
 	}
-	_ = a.handle(ctx, customui.Event{Type: "measurement.key", Fields: map[string]any{"key": "3"}})
+	before := a.result.Region.Absolute
+	if err := a.handleKey(ctx, map[string]any{"key": "ArrowRight", "shift": true}); err != nil {
+		t.Fatal(err)
+	}
+	if a.result == nil || a.result.Region == nil || a.result.Region.Absolute != before {
+		t.Fatalf("Arrow changed locked Region: before=%+v after=%+v", before, a.result)
+	}
+
+	if err := a.handleKey(ctx, map[string]any{"key": "3"}); err != nil {
+		t.Fatal(err)
+	}
 	_ = a.handle(ctx, customui.Event{Type: "measurement.pointerup", Fields: map[string]any{"u": .2, "v": .2}})
 	_ = a.handle(ctx, customui.Event{Type: "measurement.pointerup", Fields: map[string]any{"u": .6, "v": .7}})
 	if a.result == nil || a.result.TwoPoint == nil || a.result.TwoPoint.Distance <= 0 {
 		t.Fatalf("twoPoint=%+v", a.result)
 	}
-	_ = a.handle(ctx, customui.Event{Type: "measurement.key", Fields: map[string]any{"key": "4"}})
+	_ = a.handle(ctx, customui.Event{Type: "measurement.pointerup", Fields: map[string]any{"u": .3, "v": .3}})
+	if a.result != nil || a.twoPointFirst == nil {
+		t.Fatalf("third point must start a new pair: result=%+v first=%+v", a.result, a.twoPointFirst)
+	}
+
+	if err := a.handleKey(ctx, map[string]any{"key": "4"}); err != nil {
+		t.Fatal(err)
+	}
 	_ = a.handle(ctx, customui.Event{Type: "measurement.pointerdown", Fields: map[string]any{"u": .1, "v": .1}})
 	_ = a.handle(ctx, customui.Event{Type: "measurement.pointerup", Fields: map[string]any{"u": .2, "v": .25}})
 	_ = a.handle(ctx, customui.Event{Type: "measurement.pointerdown", Fields: map[string]any{"u": .6, "v": .6}})
@@ -211,9 +233,16 @@ func TestPointRegionTwoPointAndSpacingUseCanonicalSnapshot(t *testing.T) {
 	if a.result == nil || a.result.Spacing == nil || a.result.Spacing.Spacing.Horizontal.Relation != "right" {
 		t.Fatalf("spacing=%+v", a.result)
 	}
-	_ = service.Close(ctx)
+	_ = a.handle(ctx, customui.Event{Type: "measurement.pointerdown", Fields: map[string]any{"u": .3, "v": .3}})
+	_ = a.handle(ctx, customui.Event{Type: "measurement.pointerup", Fields: map[string]any{"u": .45, "v": .45}})
+	if a.result != nil || a.spacingFirst == nil {
+		t.Fatalf("third Region must start a new pair: result=%+v first=%+v", a.result, a.spacingFirst)
+	}
+	if err := service.Close(ctx); err != nil {
+		t.Fatal(err)
+	}
 }
-func TestInspectorCopyAndSavePreserveThreeTiers(t *testing.T) {
+func TestInspectorCopyAndSavePreserveThreeTiersAndProductEvidence(t *testing.T) {
 	service, _, _, clipboard := newSessionService(t)
 	ctx := context.Background()
 	if err := service.Open(ctx, "product-menu"); err != nil {
@@ -222,6 +251,9 @@ func TestInspectorCopyAndSavePreserveThreeTiers(t *testing.T) {
 	a := service.active
 	_ = a.handle(ctx, customui.Event{Type: "measurement.key", Fields: map[string]any{"key": "1"}})
 	_ = a.handle(ctx, customui.Event{Type: "measurement.pointerup", Fields: map[string]any{"u": .25, "v": .25}})
+	if inspector := a.selectedResult(); !strings.Contains(inspector, `"product"`) || !strings.Contains(inspector, `"runtime"`) {
+		t.Fatalf("Inspector dropped Product/runtime locator evidence: %s", inspector)
+	}
 	for _, id := range []string{"copyConcise", "copyHuman", "copyStructured"} {
 		if err := a.handleClick(ctx, id); err != nil {
 			t.Fatal(err)
@@ -229,6 +261,11 @@ func TestInspectorCopyAndSavePreserveThreeTiers(t *testing.T) {
 	}
 	if len(clipboard.writes) != 3 || !strings.Contains(clipboard.writes[0], "ref=") || !strings.Contains(clipboard.writes[1], "坐标空间") || !strings.Contains(clipboard.writes[2], `"schemaVersion": "desktop-measurement-session/v1"`) {
 		t.Fatalf("clipboard tiers=%#v", clipboard.writes)
+	}
+	for _, required := range []string{`"kind": "point"`, `"product"`, `"runtime"`, `"snapshot"`} {
+		if !strings.Contains(clipboard.writes[2], required) {
+			t.Fatalf("structured copy is missing %s: %s", required, clipboard.writes[2])
+		}
 	}
 	for _, format := range []string{"concise", "human", "json"} {
 		a.outputFormat = format
@@ -242,16 +279,17 @@ func TestInspectorCopyAndSavePreserveThreeTiers(t *testing.T) {
 	}
 	jsonFound := false
 	for _, f := range files {
-		if filepath.Ext(f.Name()) == ".json" {
-			data, e := os.ReadFile(filepath.Join(service.saveDir, f.Name()))
-			if e != nil {
-				t.Fatal(e)
-			}
-			jsonFound = bytes.Contains(data, []byte(`"coordinateSpace"`))
+		if filepath.Ext(f.Name()) != ".json" {
+			continue
 		}
+		data, readErr := os.ReadFile(filepath.Join(service.saveDir, f.Name()))
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		jsonFound = bytes.Contains(data, []byte(`"coordinateSpace"`)) && bytes.Contains(data, []byte(`"product"`)) && bytes.Contains(data, []byte(`"runtime"`))
 	}
 	if !jsonFound {
-		t.Fatal("structured save missing coordinateSpace")
+		t.Fatal("structured save missing Product/runtime locator evidence")
 	}
 	_ = service.Close(ctx)
 }

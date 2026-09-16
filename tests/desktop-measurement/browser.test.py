@@ -57,6 +57,14 @@ with sync_playwright() as p:
     page.set_content(composed, wait_until="load")
     page.wait_for_timeout(250)
 
+    # `prototype-auto` is a harness-only requestAnimationFrame entry.  Some
+    # headless Chromium configurations throttle animation frames for a
+    # `set_content` document, so drive the same public entry only when that
+    # harness callback has not been scheduled; production entry semantics are
+    # exercised below through the three explicit sources.
+    if not page.evaluate("MeasureDemo.state.active"):
+        page.evaluate("MeasureDemo.begin('browser-test-initial-entry')")
+
     def state(expr: str):
         return page.evaluate(f"MeasureDemo.state.{expr}")
 

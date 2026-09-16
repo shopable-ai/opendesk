@@ -2,6 +2,7 @@ package measurement
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"math"
 	"strings"
@@ -140,7 +141,7 @@ func TestResolveSnapshotCandidateProvidersKeepsPartialResultsAndReportsTimeout(t
 	}
 }
 
-func TestSnapshotCandidateDriverCyclesCurrentSnapshotWithoutChangingTargetOrCapture(t *testing.T) {
+func TestSnapshotCandidateDriverCyclesCurrentSnapshotWithoutChangingTargetOrCaptureAndClosesCleanly(t *testing.T) {
 	service, _, capture, _ := newSessionService(t)
 	provider := snapshotCandidateProviderFunc{name: "ax", fn: func(_ context.Context, request SnapshotCandidateRequest) ([]SnapshotCandidate, error) {
 		return []SnapshotCandidate{
@@ -155,7 +156,6 @@ func TestSnapshotCandidateDriverCyclesCurrentSnapshotWithoutChangingTargetOrCapt
 	if err := service.Open(ctx, "product-menu"); err != nil {
 		t.Fatal(err)
 	}
-	defer service.Close(ctx)
 	a := service.active
 	driver := service.driver.(*snapshotCandidateDriver)
 	beforeToken, beforeTarget := service.State().Token, a.selectedTarget
@@ -177,6 +177,12 @@ func TestSnapshotCandidateDriverCyclesCurrentSnapshotWithoutChangingTargetOrCapt
 	view = waitCandidateView(t, service, func(view SnapshotCandidateView) bool { return view.Index == 0 })
 	if view.Index != 0 || service.State().Token != beforeToken || a.selectedTarget != beforeTarget || capture.Count() != 1 {
 		t.Fatalf("candidate cycle changed target/snapshot token=%+v target=%q captures=%d", service.State().Token, a.selectedTarget, capture.Count())
+	}
+	if err := service.Close(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if view := service.SnapshotCandidates(); view.Token != (SnapshotToken{}) || len(view.Candidates) != 0 || !view.Magnet || view.Suspended {
+		t.Fatalf("close left stale candidate state: %+v", view)
 	}
 }
 
@@ -213,7 +219,7 @@ func TestSnapshotCandidateDriverAltSuspendsAndMagnetOffMakesTabSafeNoop(t *testi
 	}
 }
 
-func TestSnapshotCandidateDriverSnapsSelectionWithoutMovingSystemPointer(t *testing.T) {
+func TestSnapshotCandidateDriverForwardsRegionSnapButNeverSnapsPoint(t *testing.T) {
 	service, _, _, _ := newSessionService(t)
 	provider := snapshotCandidateProviderFunc{name: "ax", fn: func(_ context.Context, request SnapshotCandidateRequest) ([]SnapshotCandidate, error) {
 		return []SnapshotCandidate{semanticCandidate(request, "input", "ax", Rect{X: -70, Y: 32, Width: 20, Height: 12})}, nil
@@ -231,20 +237,74 @@ func TestSnapshotCandidateDriverSnapsSelectionWithoutMovingSystemPointer(t *test
 	driver.handleHostEvent(customui.Event{WindowID: WindowID, Type: "measurement.pointermove", Fields: map[string]any{"u": .4, "v": .4}})
 	view := waitCandidateView(t, service, func(view SnapshotCandidateView) bool { return len(view.Candidates) > 0 })
 	candidate := view.Candidates[0]
-	event := customui.Event{WindowID: WindowID, Type: "measurement.pointerup", Fields: map[string]any{"u": .4, "v": .4}}
-	snapped := driver.snapPointerEvent(a, event, Point{X: -60, Y: 40})
-	point, err := a.logicalPoint(snapped.Fields)
+
+	for _, event := range []customui.Event{
+		{WindowID: WindowID, Type: "measurement.pointerdown", Fields: map[string]any{"u": .4, "v": .4}},
+		{WindowID: WindowID, Type: "measurement.pointerup", Fields: map[string]any{"u": .4, "v": .4}},
+	} {
+		forwarded, consumed := driver.prepareHostEvent(event)
+		if consumed {
+			t.Fatalf("Region input was consumed instead of forwarded: %+v", forwarded)
+		}
+		eventCandidate, ok := forwarded.Fields[snapshotCandidateEventField].(SnapshotCandidate)
+		if !ok || !eventCandidate.Token.Matches(service.State().Token) {
+			t.Fatalf("forwarded Region event lost its current-snapshot candidate: %+v", forwarded)
+		}
+		if err := a.handle(context.Background(), forwarded); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if a.result == nil || a.result.Region == nil || a.result.Region.Absolute != candidate.Bounds {
+		t.Fatalf("forwarded Region snap did not lock candidate bounds: result=%+v candidate=%+v", a.result, candidate.Bounds)
+	}
+	if a.lockedCandidate == nil || a.lockedCandidate.ID != candidate.ID {
+		t.Fatalf("locked Region lost candidate evidence: %+v", a.lockedCandidate)
+	}
+	outputs, err := a.outputsWithProductEvidence()
 	if err != nil {
 		t.Fatal(err)
 	}
-	center := candidate.Bounds.Center()
-	if math.Abs(point.X-center.X) > .01 || math.Abs(point.Y-center.Y) > .01 {
-		t.Fatalf("measurement target did not snap to candidate center point=%+v center=%+v", point, center)
+	var structured StructuredMeasurementData
+	if err := json.Unmarshal([]byte(outputs.JSON), &structured); err != nil {
+		t.Fatal(err)
 	}
-	// The host event carries only normalized Measurement coordinates. There is
-	// deliberately no API or side effect here that can move the OS cursor.
-	if _, ok := snapped.Fields["systemMouseMove"]; ok {
-		t.Fatal("candidate snapping attempted to encode a system mouse movement")
+	if structured.Product == nil || structured.Product.Candidate == nil || structured.Product.Candidate.ID != candidate.ID || !structured.Product.Runtime.Snapshot.Matches(service.State().Token) {
+		t.Fatalf("Region export dropped locked candidate/runtime evidence: %+v", structured.Product)
+	}
+
+	if err := a.handleKey(context.Background(), map[string]any{"key": "1"}); err != nil {
+		t.Fatal(err)
+	}
+	pointEvent := customui.Event{WindowID: WindowID, Type: "measurement.pointerup", Fields: map[string]any{"u": .4, "v": .4}}
+	forwardedPoint, consumed := driver.prepareHostEvent(pointEvent)
+	if consumed || len(forwardedPoint.Fields) != len(pointEvent.Fields) {
+		t.Fatalf("Point event must not use candidate selection: forwarded=%+v consumed=%v", forwardedPoint, consumed)
+	}
+	point, err := a.logicalPoint(forwardedPoint.Fields)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if point != (Point{X: -60, Y: 40}) {
+		t.Fatalf("Point event was changed by candidate snap: %+v", point)
+	}
+	// No candidate conversion encodes a system cursor move; only the Session's
+	// normalized Region event is adjusted.
+	if _, ok := forwardedPoint.Fields["systemMouseMove"]; ok {
+		t.Fatal("candidate selection attempted to encode a system mouse movement")
+	}
+}
+
+func TestSnapshotCandidateFromEventRejectsStaleCandidate(t *testing.T) {
+	request := candidateFixtureRequest()
+	candidate := semanticCandidate(request, "input", "ax", Rect{X: -70, Y: 32, Width: 20, Height: 12})
+	event := customui.Event{Fields: map[string]any{snapshotCandidateEventField: candidate}}
+	if got := snapshotCandidateFromEvent(event, request.Token); got == nil || got.ID != candidate.ID {
+		t.Fatalf("current candidate was not preserved: %+v", got)
+	}
+	stale := request.Token
+	stale.Generation++
+	if got := snapshotCandidateFromEvent(event, stale); got != nil {
+		t.Fatalf("stale candidate leaked into a different snapshot generation: %+v", got)
 	}
 }
 

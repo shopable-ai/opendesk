@@ -17,6 +17,31 @@ The current implementation already has the correct single-service/single-session
 - Qualification still treats old Region resize/nudge behavior as product acceptance;
 - native visual parity cannot be promoted to PASS without real macOS/Windows evidence.
 
+## Production-closure addendum (2026-09-16)
+
+The table below remains the pre-fix audit baseline; it is not rewritten as if
+its historical findings never existed.  The following rows have since been
+closed by the current production changes and their owner tests:
+
+| Audit item | Closure in current tree | Automated evidence | OS status |
+|---|---|---|---|
+| DM-TOOL-002 / 005 / 007 | New sessions default to Region; manual Region rejects selections smaller than 5×5 logical px; a completed Region starts a new measurement on the next drag rather than exposing edit handles. | `pkg/measurement/session_test.go`, `session_interaction_test.go` | `NOT_RUN` on the rebuilt bundle |
+| DM-TOOL-004 / DM-CANDIDATE-007 | A Region-only candidate transform reaches the Session sink, is token-checked, and becomes locked Target/product evidence; Point, Two Point and Two Region are left untouched. | `pkg/measurement/candidate_stack_test.go` | Candidate provider/visual proof remains `NOT_RUN` |
+| DM-MAGNET-004 / 005 / 006 / DM-KEY-003 / DM-VIS-004 | Alt and Magnet transitions invalidate stale candidate state, resume resolution, and render a distinct paused state. | `pkg/measurement/session_test.go`, `candidate_stack_test.go` | Physical key/visual proof remains `NOT_RUN` |
+| DM-KEY-004 | Escape closes Inspector before the Measurement session; obsolete Region edit handles are absent from the primary surface. | `pkg/measurement/session_interaction_test.go` | `NOT_RUN` |
+| System R and Cmd/Ctrl+C guards | The macOS Measurement bridge now leaves deprecated `R` and system copy chords to their ordinary owner, matching the Session contract. | `tests/custom-ui/measurement-keyboard-bridge.test.js` | Physical clipboard/key proof remains `NOT_RUN` |
+
+The fresh bundle used for the attempted macOS run has SHA-256
+`6220e929c9897a04760be57011ef8bd341e9e70ec3c3c51e560a5473777b84d3` for
+both `dist/opendesk` and
+`dist/OpenDesk.app/Contents/MacOS/opendesk`.  The visible status-menu and
+native-surface screenshots under
+`.runtime/tests/desktop-measurement/macos/` are diagnostic evidence only; they
+do not change a physical qualification case to PASS.  The bundle subsequently
+requested Screen Recording permission, so the remaining real capture, global
+shortcut, Recorder, clipboard, and reopen checks cannot be represented as
+passed until that OS prerequisite is granted and the full flow is rerun.
+
 ## Requirement matrix
 
 | Requirement | Oracle behavior | Current Production behavior | Status | Gap | Implementation owner/path | Test status |

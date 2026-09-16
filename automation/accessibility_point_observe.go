@@ -85,8 +85,8 @@ func ObserveAccessibilityAtPoint(ctx context.Context, window *WindowInfo, x, y i
 		}
 	}
 	scope := AccessibilityScope{
-		Kind: AccessibilityScopeWindow,
-		PID:  int64(window.ProcessID),
+		Kind:   AccessibilityScopeWindow,
+		PID:    int64(window.ProcessID),
 		Target: AccessibilityTargetIdentity{PID: int64(window.ProcessID), ExecutablePath: window.ExePath},
 		Window: &AccessibilityWindowIdentity{
 			ID: window.ID, PID: int64(window.ProcessID), Handle: window.Handle, Title: window.Title,
@@ -127,7 +127,7 @@ func ObserveAccessibilityAtPoint(ctx context.Context, window *WindowInfo, x, y i
 		if root || node.Role == "application" || node.Role == "window" {
 			return
 		}
-		name, identifier, subrole := accessibilityString(node.Name), accessibilityString(node.Identifier), accessibilityString(node.NativeSubrole)
+		name, identifier, subrole := accessibilityOptionalString(node.Name), accessibilityOptionalString(node.Identifier), accessibilityOptionalString(node.NativeSubrole)
 		ordered = append(ordered, AccessibilityPointEvidence{
 			Relation: "ancestor", Source: source, Role: node.Role, NativeRole: node.NativeRole,
 			Subrole: subrole, Name: name, Identifier: identifier, Enabled: node.Enabled, Focused: node.Focused,
@@ -163,10 +163,10 @@ func accessibilityNodeLogicalBounds(node AccessibilityNode, root *AccessibilityN
 	}
 	bounds := node.NativeBounds
 	return AccessibilityScreenBounds{
-		X: float64(window.X) + (bounds.X-root.X)/scaleX,
-		Y: float64(window.Y) + (bounds.Y-root.Y)/scaleY,
-		Width: bounds.Width / scaleX,
-		Height: bounds.Height / scaleY,
+		X:               float64(window.X) + (bounds.X-root.X)/scaleX,
+		Y:               float64(window.Y) + (bounds.Y-root.Y)/scaleY,
+		Width:           bounds.Width / scaleX,
+		Height:          bounds.Height / scaleY,
 		CoordinateSpace: "screen-logical",
 	}, true
 }
@@ -183,7 +183,7 @@ func accessibilityObservationSource(backend string) string {
 	}
 }
 
-func accessibilityString(value *string) string {
+func accessibilityOptionalString(value *string) string {
 	if value == nil {
 		return ""
 	}

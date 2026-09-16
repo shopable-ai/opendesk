@@ -78,8 +78,7 @@ test('measurement host bridge forwards the complete session keyboard contract', 
   assert.ok(keyup);
   const cases = [
     ['1'], ['2'], ['3'], ['4'], ['Tab'], ['Tab', {shift: true}], ['Alt'],
-    ['ArrowLeft'], ['ArrowRight', {shift: true}], ['R'], ['I'], ['Escape'],
-    ['c', {meta: true}], ['c', {meta: true, shift: true}], ['c', {meta: true, alt: true}],
+    ['ArrowLeft'], ['ArrowRight', {shift: true}], ['I'], ['Escape'],
   ];
   for (const [key, modifiers] of cases) {
     const event = keyboardEvent(key, modifiers);
@@ -89,11 +88,25 @@ test('measurement host bridge forwards the complete session keyboard contract', 
   const altUp = keyboardEvent('Alt');
   keyup(altUp);
   const forwarded = messages.filter(message => message.type === 'measurement.key').map(message => message.fields);
-  assert.deepEqual(forwarded.map(fields => fields.key), ['1', '2', '3', '4', 'Tab', 'Tab', 'Alt', 'ArrowLeft', 'ArrowRight', 'R', 'I', 'Escape', 'c', 'c', 'c', 'Alt']);
+  assert.deepEqual(forwarded.map(fields => fields.key), ['1', '2', '3', '4', 'Tab', 'Tab', 'Alt', 'ArrowLeft', 'ArrowRight', 'I', 'Escape', 'Alt']);
   assert.equal(forwarded.at(-1).phase, 'up');
-  assert.equal(forwarded.at(-4).shift, false);
-  assert.equal(forwarded.at(-3).shift, true);
-  assert.equal(forwarded.at(-2).alt, true);
+  assert.equal(forwarded[7].shift, false);
+  assert.equal(forwarded[8].shift, true);
+});
+
+test('Measurement bridge does not hijack deprecated R or system copy chords', () => {
+  const {messages, listeners} = bridgeHarness();
+  for (const [key, modifiers] of [
+    ['R', {}],
+    ['c', {meta: true}],
+    ['c', {meta: true, shift: true}],
+    ['c', {meta: true, alt: true}],
+  ]) {
+    const event = keyboardEvent(key, modifiers);
+    listeners.get('keydown')(event);
+    assert.equal(event.prevented, undefined, `${key} was hijacked by Measurement`);
+  }
+  assert.equal(messages.filter(message => message.type === 'measurement.key').length, 0);
 });
 
 test('Measurement bridge leaves Inspector editing keys to Inspector controls', () => {
@@ -134,9 +147,10 @@ test('Measurement toolbar drag moves only the toolbar and keeps it on-screen', (
 
 test('macOS host relays the Measurement key contract while its nonactivating panel is visible', () => {
   const macHost = fs.readFileSync(path.join(__dirname, '../../pkg/customui/machost/native_darwin.m'), 'utf8');
-  for (const key of ["key==='1'", "key==='2'", "key==='3'", "key==='4'", "key==='Tab'", "key==='Alt'", "key.startsWith('Arrow')", "key.toLowerCase()==='r'", "key.toLowerCase()==='i'", "key==='Escape'"]) {
+  for (const key of ["key==='1'", "key==='2'", "key==='3'", "key==='4'", "key==='Tab'", "key==='Alt'", "key.startsWith('Arrow')", "key.toLowerCase()==='i'", "key==='Escape'"]) {
     assert.match(macHost, new RegExp(key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   }
+  assert.doesNotMatch(macHost, /key\.toLowerCase\(\)===\'r\'/);
   assert.match(macHost, /type:'measurement\.key'/);
   assert.match(macHost, /phase:'up'/);
 	assert.match(macHost, /CDMeasurementKeyForEvent/);

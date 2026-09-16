@@ -3,6 +3,7 @@ package measurement
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"image"
@@ -106,6 +107,7 @@ type activeSession struct {
 	snapEnabled       bool
 	snapSuspended     bool
 	marginView        string
+	lockedCandidate   *CandidateDescriptor
 	regionHandle      RegionEditHandle
 	editAnchor        *Point
 	editOriginal      *Rect
@@ -427,7 +429,7 @@ func (a *activeSession) handle(ctx context.Context, event customui.Event) error 
 		if err != nil {
 			return err
 		}
-		if err := a.pointerUp(ctx, p); err != nil {
+		if err := a.pointerUp(ctx, p, snapshotCandidateFromEvent(event, a.snapshotToken())); err != nil {
 			return err
 		}
 		return a.applyCandidateLocalReference(ctx, event.Fields)
@@ -568,6 +570,7 @@ func setMeasurementTool(a *activeSession, value string) bool {
 	a.manualPending = false
 	a.reference = a.frame.Reference
 	a.marginView = "window"
+	a.lockedCandidate = nil
 	a.regionHandle = RegionEditNone
 	a.editAnchor = nil
 	a.editOriginal = nil
@@ -628,6 +631,7 @@ func (a *activeSession) pointerDown(ctx context.Context, p Point) error {
 		a.regionHandle = RegionEditNone
 		a.editAnchor = nil
 		a.editOriginal = nil
+		a.lockedCandidate = nil
 		a.status = "开始新的区域测量。"
 	}
 	a.dragStart = &p
@@ -655,7 +659,7 @@ func (a *activeSession) pointerMove(ctx context.Context, p Point) error {
 	return a.renderCursorHUD(ctx)
 }
 
-func (a *activeSession) pointerUp(ctx context.Context, p Point) error {
+func (a *activeSession) pointerUp(ctx context.Context, p Point, candidate *CandidateDescriptor) error {
 	a.pointer = &p
 	if a.editAnchor != nil && a.editOriginal != nil {
 		dx, dy := p.X-a.editAnchor.X, p.Y-a.editAnchor.Y
@@ -670,10 +674,10 @@ func (a *activeSession) pointerUp(ctx context.Context, p Point) error {
 		a.status = "区域编辑已应用。"
 		return a.renderSurface(ctx)
 	}
-	return a.completeSelection(ctx, p)
+	return a.completeSelection(ctx, p, candidate)
 }
 
-func (a *activeSession) completeSelection(ctx context.Context, end Point) error {
+func (a *activeSession) completeSelection(ctx context.Context, end Point, candidate *CandidateDescriptor) error {
 	start := end
 	if a.dragStart != nil {
 		start = *a.dragStart
@@ -691,6 +695,7 @@ func (a *activeSession) completeSelection(ctx context.Context, end Point) error 
 		a.result = nil
 		a.spacingFirst = nil
 		a.twoPointFirst = nil
+		a.lockedCandidate = nil
 		a.status = "人工参照已锁定；Window 参照仍保留，当前人工区域作为唯一 Local Layout Reference。"
 		return a.renderSurface(ctx)
 	}
@@ -749,6 +754,11 @@ func (a *activeSession) completeSelection(ctx context.Context, end Point) error 
 		return a.updateStatus(ctx, a.status)
 	}
 	a.result = &result
+	if a.tool == "region" {
+		a.lockedCandidate = candidate
+	} else {
+		a.lockedCandidate = nil
+	}
 	a.status = "结果来自同一冻结快照；颜色读取自原始 Capture Pixel。"
 	return a.renderSurface(ctx)
 }
@@ -834,6 +844,7 @@ func (a *activeSession) beginAdjusting(ctx context.Context) error {
 	a.snapshotID = ""
 	a.stateMu.Unlock()
 	a.result = nil
+	a.lockedCandidate = nil
 	a.pointer = nil
 	a.dragStart = nil
 	a.twoPointFirst = nil
@@ -918,6 +929,7 @@ func (a *activeSession) refresh(ctx context.Context, targetID string) error {
 	oldFrame, oldImage, oldAsset := a.frame, a.image, a.assetPath
 	oldReference, oldTarget := a.reference, a.selectedTarget
 	oldResult := a.result
+	oldCandidate := a.lockedCandidate
 	oldConfirmed, oldStatus := a.targetConfirmed, a.status
 	oldManual, oldCopy, oldInspector, oldSnap, oldMargin := a.manualPending, a.copyMenuOpen, a.inspectorOpen, a.snapSuspended, a.marginView
 	oldHandle := a.regionHandle
@@ -927,6 +939,7 @@ func (a *activeSession) refresh(ctx context.Context, targetID string) error {
 	a.frame, a.image, a.assetPath = frame, img, assetPath
 	a.reference, a.selectedTarget = frame.Reference, frame.SelectedTargetID
 	a.result = nil
+	a.lockedCandidate = nil
 	if wasAdjusting {
 		a.pointer = nil
 		a.inspectorOpen = false
@@ -951,6 +964,7 @@ func (a *activeSession) refresh(ctx context.Context, targetID string) error {
 		a.frame, a.image, a.assetPath = oldFrame, oldImage, oldAsset
 		a.reference, a.selectedTarget = oldReference, oldTarget
 		a.result, a.pointer = oldResult, oldPointer
+		a.lockedCandidate = oldCandidate
 		a.targetConfirmed, a.status = oldConfirmed, oldStatus
 		a.manualPending, a.copyMenuOpen, a.inspectorOpen, a.snapSuspended, a.marginView = oldManual, oldCopy, oldInspector, oldSnap, oldMargin
 		a.regionHandle, a.dragStart, a.twoPointFirst, a.spacingFirst = oldHandle, oldDrag, oldTwo, oldSpacing
@@ -1122,7 +1136,7 @@ func (a *activeSession) copyFormat(ctx context.Context, format string) error {
 	if !isOutputFormat(format) {
 		return a.updateStatus(ctx, "复制失败：未知导出格式。")
 	}
-	outputs, err := a.result.Outputs()
+	outputs, err := a.outputsWithProductEvidence()
 	if err != nil {
 		return a.updateStatus(ctx, "复制失败："+err.Error())
 	}
@@ -1138,7 +1152,7 @@ func (a *activeSession) save(ctx context.Context) error {
 	if a.result == nil {
 		return a.updateStatus(ctx, "保存失败：尚无测量结果。")
 	}
-	outputs, err := a.result.Outputs()
+	outputs, err := a.outputsWithProductEvidence()
 	if err != nil {
 		return a.updateStatus(ctx, "保存失败："+err.Error())
 	}
@@ -1157,12 +1171,93 @@ func (a *activeSession) save(ctx context.Context) error {
 	return a.updateStatus(ctx, "已保存"+outputFormatLabel(a.outputFormat)+"结果："+path)
 }
 
+// outputsWithProductEvidence is the one export path for Inspector, Copy and
+// Save. It keeps the concise and human views stable while making structured
+// output carry the active Snapshot, locator and runtime evidence.
+func (a *activeSession) outputsWithProductEvidence() (Outputs, error) {
+	if a == nil || a.result == nil {
+		return Outputs{}, errors.New("measurement result is unavailable")
+	}
+	outputs, err := a.result.Outputs()
+	if err != nil {
+		return Outputs{}, err
+	}
+	token := a.snapshotToken()
+	var target *Rect
+	if a.result.Region != nil {
+		bounds := a.result.Region.Absolute
+		target = &bounds
+	}
+	var local *LayoutReference
+	if target != nil && a.lockedCandidate != nil {
+		view := a.service.SnapshotCandidates()
+		if view.Token.Matches(token) {
+			candidates := make([]CandidateDescriptor, 0, len(view.Candidates))
+			for _, item := range view.Candidates {
+				candidates = append(candidates, item.CandidateDescriptor)
+			}
+			references, referenceErr := BuildTwoLevelReferences(a.frame.Reference, *target, candidates)
+			if referenceErr != nil {
+				return Outputs{}, referenceErr
+			}
+			local = references.Local
+		}
+	}
+	var cursor *CoordinateTriple
+	if a.pointer != nil {
+		coordinates, coordinateErr := CoordinatesAt(*a.pointer, a.frame.Reference, local)
+		if coordinateErr != nil {
+			return Outputs{}, coordinateErr
+		}
+		cursor = &coordinates
+	}
+	evidence, err := BuildEvidenceWithProduct(
+		token.SessionID,
+		a.source,
+		a.frame,
+		*a.result,
+		a.frame.PNG,
+		EvidenceConfidence{Target: .9, Geometry: 1, Pixel: 1, Overall: .9, Notes: []string{"interactive measurement export"}},
+		token,
+		a.phaseValue(),
+		target,
+		local,
+		a.lockedCandidate,
+		cursor,
+	)
+	if err != nil {
+		return Outputs{}, err
+	}
+	structured, err := StructuredDataFromEvidence(evidence)
+	if err != nil {
+		return Outputs{}, err
+	}
+	encoded, err := json.MarshalIndent(structured, "", "  ")
+	if err != nil {
+		return Outputs{}, err
+	}
+	outputs.JSON = string(encoded)
+	return outputs, nil
+}
+
+func snapshotCandidateFromEvent(event customui.Event, token SnapshotToken) *CandidateDescriptor {
+	candidate, ok := event.Fields[snapshotCandidateEventField].(SnapshotCandidate)
+	if !ok || candidate.Validate() != nil || token.Validate() != nil || !candidate.Token.Matches(token) {
+		return nil
+	}
+	copy := candidate.CandidateDescriptor
+	return &copy
+}
+
 func (a *activeSession) finish(ctx context.Context, closeWindow bool) error {
 	var result error
 	a.closeOnce.Do(func() {
+		a.operationMu.Lock()
+		defer a.operationMu.Unlock()
 		a.copyMenuOpen = false
 		a.inspectorOpen = false
 		a.manualPending = false
+		a.lockedCandidate = nil
 		a.regionHandle = RegionEditNone
 		a.editAnchor = nil
 		a.editOriginal = nil

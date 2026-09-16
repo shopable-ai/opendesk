@@ -40,7 +40,6 @@ func RenderOverlayPNG(path string, mapping CaptureMapping, target Reference, ref
 			drawPoint(img, mapping, result.Point.Absolute, overlayResultColor)
 		case result.Region != nil:
 			drawRect(img, mapping, result.Region.Absolute, overlayResultColor, false)
-			drawRegionHandles(img, mapping, result.Region.Absolute, overlayResultColor)
 			// Exactly one reference is emphasised at a time. The active reference
 			// is supplied by the session (window by default, local when selected).
 			drawMarginGuides(img, mapping, result.Region.Absolute, reference.Bounds, overlayMarginColor)
@@ -128,19 +127,6 @@ func drawPoint(img *image.RGBA, mapping CaptureMapping, point Point, c color.RGB
 	for d := -6; d <= 6; d++ {
 		setSafe(img, p.X+d, p.Y, c)
 		setSafe(img, p.X, p.Y+d, c)
-	}
-}
-
-func drawRegionHandles(img *image.RGBA, mapping CaptureMapping, rect Rect, c color.RGBA) {
-	cx, cy := rect.X+rect.Width/2, rect.Y+rect.Height/2
-	points := []Point{{rect.X, rect.Y}, {cx, rect.Y}, {rect.Right(), rect.Y}, {rect.Right(), cy}, {rect.Right(), rect.Bottom()}, {cx, rect.Bottom()}, {rect.X, rect.Bottom()}, {rect.X, cy}}
-	for _, point := range points {
-		p := logicalPixel(mapping, point)
-		for y := -3; y <= 3; y++ {
-			for x := -3; x <= 3; x++ {
-				setSafe(img, p.X+x, p.Y+y, c)
-			}
-		}
 	}
 }
 
