@@ -75,12 +75,12 @@ type CandidateProviderFailure struct {
 }
 
 type SnapshotCandidateView struct {
-	Token      SnapshotToken             `json:"snapshot"`
-	Candidates []SnapshotCandidate       `json:"candidates"`
-	Index      int                       `json:"index"`
+	Token      SnapshotToken              `json:"snapshot"`
+	Candidates []SnapshotCandidate        `json:"candidates"`
+	Index      int                        `json:"index"`
 	Failures   []CandidateProviderFailure `json:"failures,omitempty"`
-	Magnet     bool                      `json:"magnet"`
-	Suspended  bool                      `json:"suspended"`
+	Magnet     bool                       `json:"magnet"`
+	Suspended  bool                       `json:"suspended"`
 }
 
 type snapshotCandidateRuntime struct {
@@ -266,7 +266,13 @@ func (d *snapshotCandidateDriver) clear(removePreview bool) {
 		d.state.cancel = nil
 	}
 	preview := d.state.preview
-	d.state = snapshotCandidateRuntime{epoch: d.state.epoch, request: d.state.request, magnet: true}
+	d.state.token = SnapshotToken{}
+	d.state.candidates = nil
+	d.state.failures = nil
+	d.state.index = 0
+	d.state.magnet = true
+	d.state.suspended = false
+	d.state.preview = ""
 	d.state.mu.Unlock()
 	if removePreview && preview != "" {
 		_ = os.Remove(preview)
@@ -277,12 +283,12 @@ func (d *snapshotCandidateDriver) snapshotView() SnapshotCandidateView {
 	d.state.mu.Lock()
 	defer d.state.mu.Unlock()
 	return SnapshotCandidateView{
-		Token: d.state.token,
+		Token:      d.state.token,
 		Candidates: append([]SnapshotCandidate(nil), d.state.candidates...),
-		Index: d.state.index,
-		Failures: append([]CandidateProviderFailure(nil), d.state.failures...),
-		Magnet: d.state.magnet,
-		Suspended: d.state.suspended,
+		Index:      d.state.index,
+		Failures:   append([]CandidateProviderFailure(nil), d.state.failures...),
+		Magnet:     d.state.magnet,
+		Suspended:  d.state.suspended,
 	}
 }
 
@@ -455,7 +461,7 @@ func snapshotWindowCandidate(request SnapshotCandidateRequest) SnapshotCandidate
 	}
 	return SnapshotCandidate{
 		CandidateDescriptor: CandidateDescriptor{ID: id, Label: label, Source: "window-reference", Bounds: request.Reference.Bounds, Reliability: CandidateReliabilityReliable, Semantic: true},
-		Token: request.Token, Role: "window", Name: label, Confidence: 1,
+		Token:               request.Token, Role: "window", Name: label, Confidence: 1,
 	}
 }
 
@@ -529,8 +535,48 @@ func (d *snapshotCandidateDriver) snapPointerEvent(a *activeSession, event custo
 	}
 	fields["u"] = clamp(imagePoint.X/width, 0, 1)
 	fields["v"] = clamp(imagePoint.Y/height, 0, 1)
+	if event.Type == "measurement.pointerup" && a.tool == "region" && candidate.Semantic {
+		fields["snapCandidateSemantic"] = true
+		fields["snapCandidateId"] = candidate.ID
+		fields["snapCandidateLabel"] = candidate.Label
+		if local, ok := d.localReferenceFor(candidate, a.snapshotToken()); ok {
+			fields["snapLocalLabel"] = local.Label
+			fields["snapLocalSource"] = local.Source
+			fields["snapLocalReliability"] = string(local.Reliability)
+			fields["snapLocalX"], fields["snapLocalY"] = local.Bounds.X, local.Bounds.Y
+			fields["snapLocalWidth"], fields["snapLocalHeight"] = local.Bounds.Width, local.Bounds.Height
+		}
+	}
 	event.Fields = fields
 	return event
+}
+
+func (d *snapshotCandidateDriver) localReferenceFor(target SnapshotCandidate, token SnapshotToken) (SnapshotCandidate, bool) {
+	if !target.Semantic {
+		return SnapshotCandidate{}, false
+	}
+	d.state.mu.Lock()
+	defer d.state.mu.Unlock()
+	bestArea := 0.0
+	var best SnapshotCandidate
+	found := false
+	for _, candidate := range d.state.candidates {
+		if !candidate.Semantic || !candidate.Token.Matches(token) || candidate.Role == "window" || candidate.ID == target.ID {
+			continue
+		}
+		if !rectWithin(target.Bounds, candidate.Bounds, 1) {
+			continue
+		}
+		area := candidate.Bounds.Width * candidate.Bounds.Height
+		targetArea := target.Bounds.Width * target.Bounds.Height
+		if area <= targetArea+0.01 {
+			continue
+		}
+		if !found || area < bestArea {
+			best, bestArea, found = candidate, area, true
+		}
+	}
+	return best, found
 }
 
 func (d *snapshotCandidateDriver) patchPreview(a *activeSession) {
@@ -585,8 +631,9 @@ func (d *snapshotCandidateDriver) patchInfo(a *activeSession, snapInfo, inspecto
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	_, _ = w.UpdateControl(ctx, "snapInfo", customui.ControlPatch{Text: &snapInfo})
-	if inspector != "" {
-		_, _ = w.UpdateControl(ctx, "measurementInspectorResult", customui.ControlPatch{Text: &inspector})
+	if a.inspectorOpen {
+		complete := a.inspectorEvidence()
+		_, _ = w.UpdateControl(ctx, "measurementInspectorResult", customui.ControlPatch{Text: &complete})
 	}
 }
 

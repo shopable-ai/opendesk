@@ -427,11 +427,36 @@ func (a *activeSession) handle(ctx context.Context, event customui.Event) error 
 		if err != nil {
 			return err
 		}
-		return a.pointerUp(ctx, p)
+		if err := a.pointerUp(ctx, p); err != nil {
+			return err
+		}
+		return a.applyCandidateLocalReference(ctx, event.Fields)
 	case "measurement.key":
 		return a.handleKey(ctx, event.Fields)
 	}
 	return nil
+}
+
+func (a *activeSession) applyCandidateLocalReference(ctx context.Context, fields map[string]any) error {
+	semantic, _ := fields["snapCandidateSemantic"].(bool)
+	if !semantic || a.tool != "region" || a.result == nil || a.result.Region == nil {
+		return nil
+	}
+	x, okX := numberField(fields, "snapLocalX")
+	y, okY := numberField(fields, "snapLocalY")
+	w, okW := numberField(fields, "snapLocalWidth")
+	h, okH := numberField(fields, "snapLocalHeight")
+	if !(okX && okY && okW && okH) || w <= 0 || h <= 0 {
+		return nil
+	}
+	label, _ := fields["snapLocalLabel"].(string)
+	if strings.TrimSpace(label) == "" {
+		label = "局部参照"
+	}
+	a.reference = Reference{Type: ReferenceManualRegion, Bounds: Rect{X: x, Y: y, Width: w, Height: h}}
+	a.marginView = "window"
+	a.status = "已锁定语义 Target；派生唯一 Local Reference：" + label
+	return a.renderSurface(ctx)
 }
 
 func (a *activeSession) handleClick(ctx context.Context, id string) error {
@@ -482,9 +507,9 @@ func (a *activeSession) handleClick(ctx context.Context, id string) error {
 	case "copyHuman":
 		return a.copyFormat(ctx, "human")
 	case "copyStructured":
-		return a.copyFormat(ctx, "json")
+		return a.copyEvidence(ctx)
 	case "inspectorButton":
-		a.inspectorOpen = !a.inspectorOpen
+		a.inspectorOpen = true
 		a.copyMenuOpen = false
 		return a.renderSurface(ctx)
 	case "closeInspector":
@@ -627,9 +652,6 @@ func (a *activeSession) pointerMove(ctx context.Context, p Point) error {
 		return nil
 	}
 	a.lastPointerRender = now
-	if a.editAnchor != nil {
-		return a.renderSurface(ctx)
-	}
 	return a.renderCursorHUD(ctx)
 }
 
@@ -703,8 +725,8 @@ func (a *activeSession) completeSelection(ctx context.Context, end Point) error 
 		a.twoPointFirst = nil
 		a.regionHandle = RegionEditNone
 	case "spacing":
-		if selection.Width <= 0 || selection.Height <= 0 {
-			a.status = "两区域测距需要分别拖拽两个正宽高区域。"
+		if selection.Width < 5 || selection.Height < 5 {
+			a.status = "两区域测距需要分别拖拽两个至少 5×5 logical px 的区域。"
 			return a.updateStatus(ctx, a.status)
 		}
 		if a.spacingFirst == nil {
@@ -793,56 +815,6 @@ func (a *activeSession) handleEscape(ctx context.Context) error {
 		return a.renderSurface(ctx)
 	}
 	return a.finish(ctx, true)
-}
-
-func (a *activeSession) nudge(ctx context.Context, key string, step float64) error {
-	if a.result == nil {
-		a.status = "请先完成一个测量结果，再使用方向键微调。"
-		return a.updateStatus(ctx, a.status)
-	}
-	dx, dy := 0.0, 0.0
-	switch key {
-	case "ArrowLeft":
-		dx = -step
-	case "ArrowRight":
-		dx = step
-	case "ArrowUp":
-		dy = -step
-	case "ArrowDown":
-		dy = step
-	}
-	var result Result
-	var err error
-	switch {
-	case a.result.Point != nil:
-		p := a.result.Point.Absolute
-		p.X = clamp(p.X+dx, a.frame.Snapshot.Mapping.Origin.X, a.frame.Snapshot.Mapping.Origin.X+a.frame.Snapshot.Mapping.LogicalSize.Width)
-		p.Y = clamp(p.Y+dy, a.frame.Snapshot.Mapping.Origin.Y, a.frame.Snapshot.Mapping.Origin.Y+a.frame.Snapshot.Mapping.LogicalSize.Height)
-		result, err = BuildPointResult(a.frame.Snapshot, a.reference, p, a.image)
-	case a.result.Region != nil:
-		handle := a.regionHandle
-		if handle == RegionEditNone {
-			handle = RegionEditBody
-		}
-		region := ApplyRegionEdit(a.result.Region.Absolute, handle, dx, dy, captureLogicalBounds(a.frame.Snapshot.Mapping), 1)
-		result, err = BuildRegionResult(a.frame.Snapshot, a.reference, region)
-	case a.result.TwoPoint != nil:
-		first, second := a.result.TwoPoint.First, a.result.TwoPoint.Second
-		second.X += dx
-		second.Y += dy
-		result, err = BuildTwoPointResult(a.frame.Snapshot, a.reference, first, second)
-	case a.result.Spacing != nil:
-		first, second := a.result.Spacing.First, a.result.Spacing.Second
-		second = ApplyRegionEdit(second, RegionEditBody, dx, dy, captureLogicalBounds(a.frame.Snapshot.Mapping), 1)
-		result, err = BuildSpacingResult(a.frame.Snapshot, a.reference, first, second)
-	}
-	if err != nil {
-		a.status = "微调失败：" + err.Error()
-		return a.updateStatus(ctx, a.status)
-	}
-	a.result = &result
-	a.status = fmt.Sprintf("已按屏幕逻辑坐标微调 %.0f logical unit。", step)
-	return a.renderSurface(ctx)
 }
 
 func (a *activeSession) beginAdjusting(ctx context.Context) error {
@@ -1084,7 +1056,7 @@ func (a *activeSession) renderSurface(ctx context.Context) error {
 		{"measurementInspector", customui.ControlPatch{Visible: boolPtr(a.inspectorOpen)}},
 		{"copyConcise", customui.ControlPatch{Disabled: boolPtr(a.result == nil)}},
 		{"copyHuman", customui.ControlPatch{Disabled: boolPtr(a.result == nil)}},
-		{"copyStructured", customui.ControlPatch{Disabled: boolPtr(a.result == nil)}},
+		{"copyStructured", customui.ControlPatch{Disabled: boolPtr(false)}},
 		{"saveResult", customui.ControlPatch{Disabled: boolPtr(a.result == nil)}},
 		{"targetWindow", customui.ControlPatch{Value: a.selectedTarget, Options: targetOptions(a.frame.Targets)}},
 		{"confirmTarget", customui.ControlPatch{Visible: boolPtr(!a.targetConfirmed)}},
@@ -1099,7 +1071,7 @@ func (a *activeSession) renderSurface(ctx context.Context) error {
 		{"referenceInfo", customui.ControlPatch{Text: stringPtr(measurementReferenceSummary(a))}},
 		{"snapInfo", customui.ControlPatch{Text: stringPtr(snapSummary(a))}},
 		{"snapshotInfo", customui.ControlPatch{Text: stringPtr(snapshotSummary(a.frame) + " · " + snapshotTokenSummary(a.snapshotToken()))}},
-		{"measurementInspectorResult", customui.ControlPatch{Text: stringPtr(a.selectedResult())}},
+		{"measurementInspectorResult", customui.ControlPatch{Text: stringPtr(a.inspectorEvidence())}},
 		{"measurementHint", customui.ControlPatch{Text: stringPtr(measurementHint(a.source))}},
 	}
 	for _, patch := range patches {
@@ -1196,6 +1168,10 @@ func (a *activeSession) finish(ctx context.Context, closeWindow bool) error {
 		a.editOriginal = nil
 		a.snapSuspended = false
 		a.pointer = nil
+		a.result = nil
+		a.dragStart = nil
+		a.twoPointFirst = nil
+		a.spacingFirst = nil
 		a.stateMu.Lock()
 		a.phase = PhaseIdle
 		a.snapshotID = ""
@@ -1280,4 +1256,4 @@ func numberField(fields map[string]any, name string) (float64, bool) {
 }
 
 func stringPtr(value string) *string { return &value }
-func boolPtr(value bool) *bool      { return &value }
+func boolPtr(value bool) *bool       { return &value }

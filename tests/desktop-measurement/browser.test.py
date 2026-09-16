@@ -79,6 +79,8 @@ with sync_playwright() as p:
 
     check("默认进入唯一 MEASURING session", state("active") and state("phase") == "MEASURING" and state("session") == 1)
     check("磁吸定位默认开启", state("magnet") is True and page.locator("#magnet-toggle").get_attribute("class") and "active" in page.locator("#magnet-toggle").get_attribute("class"))
+    check("默认工具为 Region", state("mode") == "region")
+    check("Toolbar 十项顺序", page.locator("#tools button").all_text_contents() == ["点","区域","两点","两区域","磁吸定位","边距：窗口","更新画面","调整界面","详情","退出"])
     check("Inspector 默认关闭", page.locator("#inspector").is_hidden())
     check("窗口外弱蒙版与目标窗口轮廓存在", page.locator("#overlay path.mask").count() == 1 and page.locator("#overlay rect.window-outline").count() == 1)
 
@@ -121,6 +123,9 @@ with sync_playwright() as p:
     check("结构化 Evidence 区分稳定重定位与运行时证据", structured["stableRelocationEvidence"].get("semanticCandidateId") == "input"
           and structured["runtimeEvidence"]["absoluteGeometryIsRuntimeEvidenceOnly"] is True)
     check("结构化 Evidence 包含百分比几何", structured["target"]["windowRelative"]["percentage"] is not None)
+    check("percentage metadata 为 0-100", structured["coordinateSpace"]["percentage"] == "percentage-0-100")
+    numeric = page.evaluate("MeasureModel.relative({x:25,y:25,width:50,height:50},{x:0,y:0,width:100,height:100})")
+    check("percentage 与 ratio 语义分离", numeric["percentage"] == {"x":25,"y":25,"width":50,"height":50} and numeric["areaRatio"] == .25 and numeric["insideRatio"] == 1)
 
     page.click('[data-mode="point"]')
     _, _, x, y = move_to("send")
@@ -148,6 +153,7 @@ with sync_playwright() as p:
     page.mouse.move(stage_box["x"] + 710, stage_box["y"] + 450)
     page.mouse.up()
     check("两区域距离成立", page.evaluate("MeasureDemo.data().spacing") is not None)
+    check("两区域 HUD relation summary 可达", "H gap" in page.locator("#hud-size").inner_text() and "center Δ" in page.locator("#hud-meta").inner_text())
 
     stale_token = page.evaluate("MeasureDemo.token()")
     page.click("#refresh")
@@ -159,13 +165,25 @@ with sync_playwright() as p:
     before_adjust = page.evaluate("MeasureDemo.token()")
     page.click("#details")
     check("Inspector 只在用户主动请求时打开", page.locator("#inspector").is_visible())
+    inspected = json.loads(page.locator("#json-info").inner_text())
+    check("无 Result Inspector 仍有 Snapshot Evidence", inspected["snapshot"] == page.evaluate("MeasureDemo.token()") and inspected["windowReference"] is not None)
+    page.click("#details")
+    check("Details 是 idempotent open", state("inspectorOpen") is True)
+    page.keyboard.press("i")
+    check("I toggle 关闭 Inspector", state("inspectorOpen") is False)
+    page.keyboard.press("i"); page.keyboard.press("Escape")
+    check("Esc 先关闭 Inspector", state("active") is True and state("inspectorOpen") is False)
+    page.click("#details")
+    page.keyboard.down("Alt")
     page.click("#adjust")
     check("调整界面进入 ADJUSTING", state("phase") == "ADJUSTING" and state("adjusting") is True and page.locator("#live-controls").is_visible())
     check("ADJUSTING 不把旧 Snapshot 当当前画面", state("snapshotId") is None and page.evaluate("MeasureDemo.data().snapshot") is None)
+    check("ADJUSTING 清理 Alt/pointer/drag", state("alt") is False and state("pointer") is None and state("dragStart") is None)
     check("ADJUSTING 隐藏冻结层/Overlay/HUD/工具条/Inspector", all(page.locator(selector).evaluate("el => getComputedStyle(el).display === 'none'") for selector in ["#scene", "#overlay", "#hud", "#tools", "#inspector"]))
     page.click("#live-scroll")
     page.click("#live-tab")
     page.click("#live-menu")
+    page.keyboard.up("Alt")
     page.click("#continue")
     after_adjust = page.evaluate("MeasureDemo.token()")
     check("继续测量重新冻结且 session 不变", state("phase") == "MEASURING" and after_adjust["sessionId"] == before_adjust["sessionId"]
@@ -187,17 +205,23 @@ with sync_playwright() as p:
     maps = page.evaluate("MeasureDemo.data().displayMapping")
     check("双屏 1x + 2x 映射成立", len(maps) == 2 and maps[0]["scaleX"] == 1 and maps[1]["scaleX"] == 2)
 
+    page.mouse.move(stage_box["x"] + 800, stage_box["y"] + 520); first_micro = page.locator("#micro").bounding_box()
+    page.mouse.move(stage_box["x"] + 820, stage_box["y"] + 530); second_micro = page.locator("#micro").bounding_box()
+    check("Micro HUD 跟随 pointer", abs(second_micro["x"]-first_micro["x"]-20) < 1 and abs(second_micro["y"]-first_micro["y"]-10) < 1)
     check("Toast 不截获输入", page.locator("#toast").evaluate("el => getComputedStyle(el).pointerEvents") == "none")
     check("没有浏览器脚本异常", not errors, str(errors))
 
     previous_session = state("session")
+    page.keyboard.down("Alt")
     page.click("#exit")
-    check("退出清理 Snapshot/Overlay/候选", state("active") is False and state("snapshotId") is None
-          and page.locator("#scene").evaluate("el => el.childElementCount") == 0 and page.locator("#overlay").evaluate("el => el.childElementCount") == 0)
+    check("退出清理 Snapshot/Overlay/候选", state("active") is False and state("snapshotId") is None and state("alt") is False
+          and page.locator("#scene").evaluate("el => el.childElementCount") == 0 and page.locator("#overlay").evaluate("el => el.childElementCount") == 0
+          and all(page.locator(sel).is_hidden() for sel in ["#scene","#overlay","#micro","#hud","#tools","#status","#inspector","#toast"]))
     page.keyboard.press("Tab")
     check("退出后测量快捷键不继续消费输入", state("active") is False)
+    page.keyboard.up("Alt")
     page.click("#entry-rec")
-    check("退出后 Recorder 入口创建新 session", state("session") == previous_session + 1 and state("phase") == "MEASURING")
+    check("退出后 Recorder 入口创建新 session", state("session") == previous_session + 1 and state("phase") == "MEASURING" and state("magnet") is True and state("alt") is False)
 
     page.screenshot(path=str(evidence_dir / "final-modular-oracle.png"))
     browser.close()

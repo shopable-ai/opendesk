@@ -318,7 +318,7 @@ Recorder「测量」调用 App Mode 持有的同一 Measurement Service。录制
 - Host-owned `MeasurementSurfaceSpec`；
 - bounded pointer events；
 - Measurement keyboard bridge；
-- `Tab / Alt / 1–4 / I / Esc / Arrow` 会话按键语义；
+- `Tab / Shift+Tab / Alt / Option / 1–4 / I / Esc` 会话按键语义；
 - Surface 生命周期与幂等 cleanup。
 
 `R` 不再是 Measurement session shortcut；人工 Local Reference 从 Inspector 显式进入。系统 `Cmd/Ctrl+C` 及其组合也不再由 Measurement bridge 劫持；结构化/简明/中文导出通过 Inspector 动作完成，底层三档编码能力继续保留。
@@ -396,3 +396,21 @@ build PASS
 13. 三入口共享同一个 Session。
 14. Target Window 列表与 Snapshot UI Candidate Stack 永远是两个概念。
 15. 当前没有真实 Candidate Evidence 时不伪造候选、不用 Tab 触发 recapture。
+
+
+## 20. Frozen core、Native invariant 与 Product Extension（2026-09-16）
+
+权威顺序：明确用户需求/后续纠正 → 可执行 Prototype → FROZEN ORACLE → 本文 Native/Framework 合同及明确扩展 → Production → Tests/Qualification。
+
+| 层 | 合同 | 依据与边界 |
+|---|---|---|
+| Frozen HTML Oracle | 十个主 Toolbar 控件、四个工具、Magnet、Margin、Update、Adjust/Continue、Inspector、HUD、Esc、Session/Snapshot | `ORACLE.md` 与可执行 HTML/CSS/JS；不能从旧 Production 或测试反推 |
+| Native / Framework invariant | 干净 capture、真实窗口身份、单 owner/surface、token 校验、坐标映射、资源释放、Recorder 输入隔离 | 本文既有 capture/session/native 章节；harness 不是实现 |
+| EXT-TARGET | Inspector 显式选择/确认真实目标窗口 | 既有目标窗口合同；不得劫持 Tab 或冒充 UI Candidate |
+| EXT-LOCAL | Inspector 人工局部参照 | 最多一个 Local；用户显式选择；不增加 Esc 层级 |
+| EXT-OUTPUT | 简明/中文/结构化编码、保存格式、保存正式结果、Authoring handoff | 低频能力留在 Inspector；核心 Evidence 不依赖 Result/outputFormat |
+| 未批准 | 旧 Region resize/nudge、多级 Esc | 无当前需求依据；不是 Product Extension |
+
+`NOT_SUPPORTED_BY_HTML` 不等于产品禁止；`Production 已实现` 也不等于需求确认。首次默认 Region；同一 Service 内退出后工具保留；新 Session Magnet 重置 ON、Alt 重置 OFF。Region 有效重拖产生新的 Target；Arrow 不修改测量。详情按钮是 open，I 是 toggle；Esc 只有“Inspector 开则关闭，否则退出”。Update 保留工具/Magnet/pointer/Inspector-open，清理旧结果/候选/Local/drag；Adjust 清理 pointer/Inspector/Alt/drag，Continue 重新冻结同一 Session。
+
+Micro HUD 必须由真实 pointer hover 驱动并在边缘翻转，四角 class 只能作为未收到 pointer 前的 fallback。Corner HUD、status、Toolbar、Inspector 是独立信息层。生产 Result 中明确命名的 ratio 字段继续保持 0–1；HTML percentage 修正不得破坏既有 ratio API。
