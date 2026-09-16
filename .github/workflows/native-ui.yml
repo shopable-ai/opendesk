@@ -133,7 +133,7 @@ jobs:
         run: node scripts/audit_test_architecture.js
       - name: Test Script Runner controller and product composition
         if: ${{ !cancelled() }}
-        run: node --test tests/custom-ui/script-runner-simple.test.js tests/custom-ui/product-script-runner.test.js
+        run: node --test tests/custom-ui/script-runner-simple.test.js tests/custom-ui/product-script-runner.test.js tests/custom-ui/script-runner-player.test.js
       - name: Test Recorder controller and history
         run: node --test tests/custom-ui/recording-history.test.js tests/custom-ui/recording-history-icon-adapter.test.js tests/custom-ui/recording-history-interaction.test.js tests/custom-ui/recording-history-pagination.test.js tests/custom-ui/recording-history-presentation.test.js
       - name: Build macOS native UI host
