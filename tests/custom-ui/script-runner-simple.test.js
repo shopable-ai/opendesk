@@ -256,6 +256,20 @@ test('automation list uses compact icon controls with accessible labels', () => 
   ]) {
     assert.match(html, new RegExp(`id="${id}"[^>]*class="[^"]*icon-button[^"]*"[^>]*data-icon="${icon.replace('.', '\\.') }"[^>]*title="[^"]+"[^>]*aria-label="[^"]+"`));
   }
+  assert.match(html, /id="emptyRefresh"[^>]*aria-label="空列表时刷新自动化列表"/);
+  assert.match(html, /id="errorRefresh"[^>]*aria-label="加载失败后重新扫描自动化目录"/);
+});
+
+test('compact selector presents current selection and makes overflow discoverable without changing its five-row layout', () => {
+  const html = Runner.buildCompactSelectorHTML([
+    {name: 'a.js'}, {name: 'b.js'}, {name: 'c.js'},
+    {name: 'd.js'}, {name: 'e.js'}, {name: 'f.js'},
+  ], 'b.js');
+
+  assert.match(html, /当前脚本<\/span><strong>b\.js<\/strong><span class="compact-count">共 6 个 · 可滚动查看/);
+  assert.match(html, /class="compact-list has-overflow"/);
+  assert.match(html, /class="compact-script selected"[^>]*aria-pressed="true"/);
+  assert.doesNotMatch(html, /<p class="compact-title">选择脚本<\/p>/);
 });
 
 test('automation list keeps Runtime-hidden icon and grid controls out of layout', async () => {
@@ -562,7 +576,10 @@ test('Run stays owned until final UI cleanup settles, then the next run owns Sto
 test('compact selector defaults to first sorted script and keeps toolbar label in sync', async () => {
   const f = await fixture({openListOnStart: false, scriptNames: ['c.js', 'a.js', 'b.js']});
   try {
-    await waitFor(() => f.app.state().scriptCount === 3, 'script load');
+    await waitFor(
+      () => f.app.state().scriptCount === 3 && f.toolbar.labels.get('script').text === 'a.js',
+      'script load and toolbar synchronization',
+    );
     assert.deepEqual(f.app.scripts().map(script => script.name), ['a.js', 'b.js', 'c.js']);
     assert.equal(f.app.state().selectedScriptName, 'a.js');
     assert.equal(f.toolbar.labels.get('script').text, 'a.js');
@@ -578,7 +595,7 @@ test('compact selector changes selected script without auto-running and closes a
     assert.equal(f.app.state().selectorVisible, true);
     assert.equal(f.app.state().listVisible, false);
     const selector = f.ui.windows[0];
-    assert.match(selector.spec.content.html, /选择脚本/);
+    assert.match(selector.spec.content.html, /当前脚本<\/span><strong>a\.js<\/strong><span class="compact-count">共 3 个/);
     assert.match(selector.spec.content.css, /overflow-y:auto/);
     await click(selector, 'compactScript1');
     assert.equal(f.app.state().selectedScriptName, 'b.js');

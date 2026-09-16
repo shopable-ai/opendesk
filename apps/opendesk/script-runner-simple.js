@@ -101,10 +101,19 @@
     });
   }
 
+  function isScriptManagerWindowSpec(spec) {
+    return !!spec && typeof spec.id === 'string' && spec.id.startsWith('scriptRunnerList');
+  }
+
   function createRunnerUI(mainWindowId, windowTitle) {
     return Object.freeze({
       createWindow(spec) {
-        return runtimeUI.createWindow(productizeMainWindowSpec(spec, mainWindowId, windowTitle));
+        const source = spec || {};
+        return runtimeUI.createWindow(
+          isScriptManagerWindowSpec(source)
+            ? productizeMainWindowSpec(source, mainWindowId, windowTitle)
+            : source,
+        );
       },
     });
   }

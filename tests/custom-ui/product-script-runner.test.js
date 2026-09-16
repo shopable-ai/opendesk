@@ -299,6 +299,28 @@ test('product Script Runner injects one title into the main window and FloatingW
   assert.equal(harness.floatingWindows[0].spec.title, 'Localized Script Runner');
 });
 
+test('product composition keeps the Compact Selector distinct from the main Script Manager window', async () => {
+  const harness = createHarness();
+  const loaded = loadProductRunner(harness);
+  const runner = loaded.api.create({officialShell: harness.officialShell});
+
+  await runner.launch();
+
+  assert.equal(harness.windows[0].id, 'main');
+  assert.equal(harness.windows[0].spec.title, 'OpenDesk — Script Runner');
+
+  const selector = await harness.runnerOptions.ui.createWindow({
+    id: 'scriptRunnerSelector1',
+    kind: 'normal',
+    title: '选择脚本',
+    content: {html: '<main>selector</main>'},
+  });
+
+  assert.equal(selector.id, 'scriptRunnerSelector1');
+  assert.equal(selector.spec.title, '选择脚本');
+  assert.equal(selector.spec.content.html, '<main>selector</main>');
+});
+
 test('product Script Runner retains title as a compatibility input', async () => {
   const harness = createHarness();
   const loaded = loadProductRunner(harness);

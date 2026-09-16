@@ -6,6 +6,7 @@
   const RUN_LOG_ROOT = ['.runtime', 'examples', 'custom-ui', 'script-runner-simple', 'runs'];
   const MAX_OUTPUT_BYTES = 1024 * 1024;
   const MIN_LIST_ROW_CAPACITY = 32;
+  const COMPACT_VISIBLE_SCRIPT_COUNT = 5;
   const BUTTON_ICONS = Object.freeze({
     run: 'play.fill',
     stop: 'stop.fill',
@@ -103,15 +104,18 @@
   }
 
   function buildCompactSelectorHTML(scripts, selectedScriptName) {
-    const rows = (scripts || []).map((script, index) => {
-      const selected = script.name === selectedScriptName;
+    const items = scripts || [];
+    const selectedName = resolveSelectedScriptName(items, selectedScriptName);
+    const hasOverflow = items.length > COMPACT_VISIBLE_SCRIPT_COUNT;
+    const rows = items.map((script, index) => {
+      const selected = script.name === selectedName;
       return `<button id="compactScript${index}" class="compact-script${selected ? ' selected' : ''}" title="选择 ${escapeHTML(script.name)}" aria-label="选择 ${escapeHTML(script.name)}" aria-pressed="${selected ? 'true' : 'false'}"><span class="check">${selected ? '✓' : ''}</span><span class="script-name">${escapeHTML(script.name)}</span></button>`;
     });
     if (!rows.length) rows.push('<p class="compact-empty">暂无可运行脚本</p>');
     return `<!doctype html><html><head><meta charset="utf-8"></head><body>
       <main>
-        <p class="compact-title">选择脚本</p>
-        <div class="compact-list">${rows.join('\n')}</div>
+        <p class="compact-title"><span>当前脚本</span><strong>${escapeHTML(selectedName || '暂无')}</strong><span class="compact-count">共 ${items.length} 个${hasOverflow ? ' · 可滚动查看' : ''}</span></p>
+        <div class="compact-list${hasOverflow ? ' has-overflow' : ''}">${rows.join('\n')}</div>
         <footer><button id="compactManage" class="manage">管理脚本…</button></footer>
       </main>
     </body></html>`;
@@ -120,8 +124,8 @@
   const COMPACT_SELECTOR_CSS = `
     html,body{margin:0;padding:0;background:#171717;color:#f4f4f4;font:14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
     *{box-sizing:border-box} main{height:100vh;padding:10px;display:flex;flex-direction:column;gap:8px;overflow:hidden}
-    .compact-title{margin:0 4px 2px;font-size:12px;font-weight:700;color:#b9b9b9}
-    .compact-list{flex:1;min-height:0;overflow-y:auto;border:1px solid #333;border-radius:8px;background:#1d1d1d}
+    .compact-title{margin:0 4px 2px;display:flex;align-items:baseline;gap:6px;font-size:12px;color:#b9b9b9;white-space:nowrap}.compact-title strong{min-width:0;max-width:116px;overflow:hidden;text-overflow:ellipsis;color:#f4f4f4;font-size:13px}.compact-count{margin-left:auto;color:#8ea7bf;font-size:11px;font-weight:600}
+    .compact-list{flex:1;min-height:0;overflow-y:auto;border:1px solid #333;border-radius:8px;background:#1d1d1d}.compact-list.has-overflow{box-shadow:inset 0 -14px 18px -18px #8db7ff}
     .compact-script{width:100%;height:36px;border:0;border-bottom:1px solid #303030;border-radius:0;background:transparent;color:#f4f4f4;padding:0 10px;display:flex;align-items:center;gap:8px;text-align:left;font:inherit}
     .compact-script:last-child{border-bottom:0}.compact-script:not(:disabled){cursor:pointer}.compact-script:hover{background:#292929}.compact-script.selected{background:#252d3a}
     .check{width:16px;flex:0 0 16px;text-align:center;color:#8db7ff;font-weight:700}.script-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -190,11 +194,11 @@
         <p id="emptyTitle" class="state-title${emptyVisible ? '' : ' is-hidden'}">暂无可运行脚本</p>
         <p id="emptyHelp" class="state-help${emptyVisible ? '' : ' is-hidden'}">将 JavaScript Recipe 添加到脚本目录后，可以在这里直接运行。</p>
         <button id="emptyOpenDirectory" class="state-action icon-button${emptyVisible ? '' : ' is-hidden'}" data-icon="${BUTTON_ICONS.openDirectory}" title="打开自动化目录" aria-label="打开自动化目录">打开自动化目录</button>
-        <button id="emptyRefresh" class="state-action icon-button${emptyVisible ? '' : ' is-hidden'}" data-icon="${BUTTON_ICONS.refresh}" title="刷新自动化列表" aria-label="刷新自动化列表">刷新自动化列表</button>
+        <button id="emptyRefresh" class="state-action icon-button${emptyVisible ? '' : ' is-hidden'}" data-icon="${BUTTON_ICONS.refresh}" title="刷新自动化列表" aria-label="空列表时刷新自动化列表">刷新自动化列表</button>
 
         <p id="errorTitle" class="state-title error-title${errorVisible ? '' : ' is-hidden'}">脚本列表加载失败</p>
         <p id="errorMessage" class="state-help error-message${errorVisible ? '' : ' is-hidden'}">${escapeHTML(state.loadError ? (state.loadError.message || state.loadError) : state.configError || '未知错误')}</p>
-        <button id="errorRefresh" class="state-action icon-button${errorVisible ? '' : ' is-hidden'}" data-icon="${BUTTON_ICONS.refresh}" title="重新扫描自动化目录" aria-label="重新扫描自动化目录">重新扫描自动化目录</button>
+        <button id="errorRefresh" class="state-action icon-button${errorVisible ? '' : ' is-hidden'}" data-icon="${BUTTON_ICONS.refresh}" title="重新扫描自动化目录" aria-label="加载失败后重新扫描自动化目录">重新扫描自动化目录</button>
 
         <div class="list-grid">
           <p id="colSelect" class="column-head${listVisible ? '' : ' is-hidden'}"></p>
@@ -907,7 +911,7 @@
           title: '选择脚本',
           position: {
             mode: 'anchor',
-            size: {width: 310, height: 272},
+            size: {width: 310, height: 308},
             horizontal: 'right',
             vertical: 'bottom',
             margin: 72,
