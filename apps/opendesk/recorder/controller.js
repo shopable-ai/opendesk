@@ -11,7 +11,7 @@
   }
 
   const DEFAULT_WINDOW_TITLE = 'OpenDesk — Recorder';
-  const MEASUREMENT_ICON = 'ruler.fill';
+  const MEASUREMENT_ICON = 'viewfinder';
   const HISTORY_ICON_GLYPHS = Object.freeze({
     'play.fill': '▶',
     pencil: '✎',
@@ -213,7 +213,7 @@
         // Keep the existing core measure callback (capture-click exclusion,
         // pause, single-flight and failure handling). Only move its native
         // control into the right-hand tools group, after Finder, and present it
-        // with the product-level ruler icon.
+        // with the product-level measurement/viewfinder icon.
         if (id === 'measurement') {
           measurementButton = {id, label, icon: resolvedIcon, callback};
           return wrapper;
