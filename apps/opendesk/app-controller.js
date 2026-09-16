@@ -16,6 +16,7 @@
     const schedulerCenter = settings.schedulerCenter;
     const runtimeLog = settings.runtimeLog;
     const permissionsCenter = settings.permissionsCenter;
+    const about = settings.about;
     const inspectorLauncher = settings.inspectorLauncher;
     const developerTools = settings.developerTools;
     const officialShell = settings.officialShell;
@@ -37,6 +38,9 @@
       || typeof schedulerCenter.open !== 'function'
       || typeof schedulerCenter.openCreate !== 'function') {
       throw new Error('OpenDesk product controller requires Scheduler Center');
+    }
+    if (!about || typeof about.open !== 'function') {
+      throw new Error('OpenDesk product controller requires About');
     }
 
     async function dispatch(event) {
@@ -69,6 +73,9 @@
         case 'permissions.open':
           if (!permissionsCenter || typeof permissionsCenter.open !== 'function') return false;
           await permissionsCenter.open(source);
+          return true;
+        case 'opendesk.about':
+          await about.open(source);
           return true;
         default:
           if (developerTools
@@ -113,6 +120,7 @@
           if (action === 'assistant.open' || action === 'opendesk.assistant.open') prefix = '[ASSISTANT]';
           if (action === 'scheduler.open' || action === 'scheduler.new') prefix = '[SCHEDULER_CENTER]';
           if (action === 'inspector.open' || action === 'opendesk.inspector.open') prefix = '[INSPECTOR]';
+          if (action === 'opendesk.about') prefix = '[ABOUT]';
           logger.error(`${prefix} action=${action} stage=dispatch message=${JSON.stringify(details.message)} stack=${JSON.stringify(details.stack)}`);
         }
         return false;
