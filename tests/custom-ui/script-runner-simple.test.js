@@ -647,7 +647,7 @@ test('running disables Run and compact selection while Stop remains enabled', as
   }
 });
 
-test('refresh preserves selected script by name and falls back when it disappears', async () => {
+test('refresh preserves selected script by name and selects the old-order successor when it disappears', async () => {
   const f = await fixture({openListOnStart: false, scriptNames: ['a.js', 'b.js', 'c.js']});
   try {
     await f.app.selectScript('b.js');
@@ -655,8 +655,8 @@ test('refresh preserves selected script by name and falls back when it disappear
     assert.equal(f.app.state().selectedScriptName, 'b.js');
     fs.rmSync(path.join(f.scriptRoot, 'b.js'));
     assert.equal(await f.app.rescan(), true);
-    assert.equal(f.app.state().selectedScriptName, 'a.js');
-    assert.equal(f.toolbar.labels.get('script').text, 'a.js');
+    assert.equal(f.app.state().selectedScriptName, 'c.js');
+    assert.equal(f.toolbar.labels.get('script').text, 'c.js');
   } finally {
     await f.cleanup();
   }

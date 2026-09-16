@@ -314,6 +314,24 @@ func (w *Window) SetPlacement(ctx context.Context, placement WindowPlacement) (W
 	return w.cachedState(), nil
 }
 
+func (w *Window) SetRelativeTo(ctx context.Context, placement RelativePlacement) (WindowState, error) {
+	w.operation.Lock()
+	defer w.operation.Unlock()
+	normalized, err := NormalizeRelativePlacement(placement)
+	if err != nil {
+		return WindowState{}, withUIErrorContext(err, "setRelativeTo", w.ID(), "")
+	}
+	if err := w.requireOpen("setRelativeTo"); err != nil {
+		return WindowState{}, err
+	}
+	state, err := w.driver.SetRelativeTo(ctx, normalized)
+	if err != nil {
+		return WindowState{}, wrapDriver("setRelativeTo", w.ID(), err)
+	}
+	w.setState(state)
+	return w.cachedState(), nil
+}
+
 func (w *Window) SetAlwaysOnTop(ctx context.Context, enabled bool) (WindowState, error) {
 	w.operation.Lock()
 	defer w.operation.Unlock()

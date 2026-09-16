@@ -70,17 +70,18 @@ type floatingLifecycleListener struct {
 }
 
 type floatingWindowOptionsDeclaration struct {
-	ID          string                             `json:"id,omitempty"`
-	X           *float64                           `json:"x,omitempty"`
-	Y           *float64                           `json:"y,omitempty"`
-	Position    *floatingWindowPositionDeclaration `json:"position,omitempty"`
-	Theme       string                             `json:"theme,omitempty"`
-	Title       string                             `json:"title,omitempty"`
-	AlwaysOnTop *bool                              `json:"alwaysOnTop,omitempty"`
-	Draggable   *bool                              `json:"draggable,omitempty"`
-	Placement   *customui.WindowPlacement          `json:"placement,omitempty"`
-	Orientation string                             `json:"orientation,omitempty"`
-	Toolbar     *floatingToolbarOptionsDeclaration `json:"toolbar,omitempty"`
+	ID               string                             `json:"id,omitempty"`
+	X                *float64                           `json:"x,omitempty"`
+	Y                *float64                           `json:"y,omitempty"`
+	Position         *floatingWindowPositionDeclaration `json:"position,omitempty"`
+	Theme            string                             `json:"theme,omitempty"`
+	Title            string                             `json:"title,omitempty"`
+	AlwaysOnTop      *bool                              `json:"alwaysOnTop,omitempty"`
+	Draggable        *bool                              `json:"draggable,omitempty"`
+	InteractionGroup string                             `json:"interactionGroup,omitempty"`
+	Placement        *customui.WindowPlacement          `json:"placement,omitempty"`
+	Orientation      string                             `json:"orientation,omitempty"`
+	Toolbar          *floatingToolbarOptionsDeclaration `json:"toolbar,omitempty"`
 }
 
 // floatingWindowPositionDeclaration deliberately gives the two initial modes
@@ -152,6 +153,7 @@ type floatingWindow struct {
 	title                 string
 	alwaysOnTop           bool
 	draggable             bool
+	interactionGroup      string
 	placement             *customui.WindowPlacement
 	orientation           string
 	layout                floatingToolbarLayout
@@ -194,6 +196,7 @@ func newFloatingToolbar(ui *CustomUIRuntime, windowID string, options floatingWi
 	if options.Draggable != nil {
 		value.draggable = *options.Draggable
 	}
+	value.interactionGroup = options.InteractionGroup
 	if options.Orientation != "" {
 		value.orientation = options.Orientation
 	}
@@ -742,7 +745,7 @@ func (f *floatingWindow) show() goja.Value {
 	spec := customui.WindowSpec{
 		ID: f.windowID, Kind: "floating", Title: f.title, Theme: f.theme,
 		Bounds: f.bounds, AlwaysOnTop: f.alwaysOnTop, Draggable: f.draggable,
-		Placement: f.placement, Toolbar: &declaration,
+		Placement: f.placement, InteractionGroup: f.interactionGroup, Toolbar: &declaration,
 	}
 	return f.ui.startAsyncFinally("FloatingWindow.show", func(ctx context.Context) (any, error) {
 		window, err := f.ui.session.Create(ctx, spec)

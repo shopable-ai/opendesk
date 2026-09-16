@@ -51,6 +51,10 @@ func Normalize(spec WindowSpec, baseDir string) (WindowSpec, error) {
 	if !publicIDPattern.MatchString(spec.ID) {
 		return WindowSpec{}, invalidSpec("window id must match ^[A-Za-z][A-Za-z0-9_-]{0,63}$")
 	}
+	spec.InteractionGroup = strings.TrimSpace(spec.InteractionGroup)
+	if spec.InteractionGroup != "" && !publicIDPattern.MatchString(spec.InteractionGroup) {
+		return WindowSpec{}, invalidSpec("interactionGroup must match ^[A-Za-z][A-Za-z0-9_-]{0,63}$")
+	}
 	if spec.Controls != nil {
 		return WindowSpec{}, invalidSpec("controls is derived and cannot be declared")
 	}
@@ -68,6 +72,9 @@ func Normalize(spec WindowSpec, baseDir string) (WindowSpec, error) {
 		return normalizeNotificationWindow(spec)
 	}
 	if spec.Toolbar != nil {
+		if spec.KeyEvents {
+			return WindowSpec{}, invalidSpec("keyEvents is available only to normal HTML windows")
+		}
 		return normalizeToolbarWindow(spec)
 	}
 	if spec.Kind == "" {

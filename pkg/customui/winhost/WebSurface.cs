@@ -74,7 +74,7 @@ internal sealed class WebSurface : Surface
         var types=new JsonObject();var array=new JsonArray();
         foreach(var c in J.A(Spec,"controls").OfType<JsonObject>()){string id=J.S(c,"id");array.Add(id);types[id]=J.S(c,"type");}
         var measurement=Spec["measurement"] as JsonObject;
-        var config=new JsonObject { ["ids"]=array,["types"]=types,["css"]=J.S(content,"css"),["draggable"]=Form.BackgroundDraggable,["measurementTarget"]=measurement is null?"":J.S(measurement,"targetId") };
+        var config=new JsonObject { ["ids"]=array,["types"]=types,["css"]=J.S(content,"css"),["draggable"]=Form.BackgroundDraggable,["measurementTarget"]=measurement is null?"":J.S(measurement,"targetId"),["keyEvents"]=J.B(Spec,"keyEvents") };
         using var resource=Assembly.GetExecutingAssembly().GetManifestResourceStream("OpenDesk.UIHost.bridge.js") ?? throw new HostError("UI_DRIVER_FAILURE","fixed WebView bridge is missing");
         string source=await new StreamReader(resource).ReadToEndAsync();
         await Eval(source.Replace("__CONFIG__",config.ToJsonString()));
@@ -127,6 +127,7 @@ internal sealed class WebSurface : Surface
             if(type=="drag"&&Form.BackgroundDraggable){Native.Drag(Form);return;}
             if(type=="dialogCancel"&&J.B(Spec,"centerOnActiveDisplay")){Close("user");return;}
             if(type.StartsWith("measurement.",StringComparison.Ordinal)&&Spec["measurement"] is JsonObject measurement&&target==J.S(measurement,"targetId")&&message["fields"] is JsonObject fields) { Emit(type,target,fields:fields);return; }
+			if(type=="key"&&J.B(Spec,"keyEvents")&&message["fields"] is JsonObject keyFields) { Emit("key",fields:keyFields);return; }
             if(type is not("click" or "input" or "change")||!ids.Contains(target))return;
             JsonObject? bounds=null;
             if(message["bounds"] is JsonObject && type=="click") {

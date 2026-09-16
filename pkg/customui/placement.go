@@ -97,3 +97,92 @@ func ResolveWindowPlacement(bounds Bounds, placement WindowPlacement, workArea B
 	}
 	return bounds, nil
 }
+
+// NormalizeRelativePlacement validates a current-anchor placement request. Its
+// policy is deliberately shared by the native hosts and memory driver: honour
+// the first preferred side that fits, otherwise clamp the first side to the
+// anchor display's work area.
+func NormalizeRelativePlacement(value RelativePlacement) (RelativePlacement, error) {
+	if !validBounds(value.Anchor) {
+		return RelativePlacement{}, &Error{Code: CodeInvalidSpec, Capability: "relativePlacement", Message: "relative anchor must be a finite positive rectangle"}
+	}
+	if len(value.PreferredSides) == 0 || len(value.PreferredSides) > 4 {
+		return RelativePlacement{}, &Error{Code: CodeInvalidSpec, Capability: "relativePlacement", Message: "preferredSides must contain between one and four sides"}
+	}
+	seen := map[string]bool{}
+	for _, side := range value.PreferredSides {
+		if side != "above" && side != "below" && side != "left" && side != "right" || seen[side] {
+			return RelativePlacement{}, &Error{Code: CodeInvalidSpec, Capability: "relativePlacement", Message: "preferredSides may contain each of above, below, left, or right at most once"}
+		}
+		seen[side] = true
+	}
+	if value.Align == "" {
+		value.Align = "center"
+	}
+	if value.Align != "start" && value.Align != "center" && value.Align != "end" {
+		return RelativePlacement{}, &Error{Code: CodeInvalidSpec, Capability: "relativePlacement", Message: "relative align must be start, center, or end"}
+	}
+	if math.IsNaN(value.Gap) || math.IsInf(value.Gap, 0) || value.Gap < 0 {
+		return RelativePlacement{}, &Error{Code: CodeInvalidSpec, Capability: "relativePlacement", Message: "relative gap must be a non-negative finite number"}
+	}
+	return value, nil
+}
+
+// ResolveRelativePlacement computes a work-area-contained frame in the same
+// desktop coordinate space as anchor. It never invents an absolute display
+// origin, so negative-origin displays remain valid.
+func ResolveRelativePlacement(bounds Bounds, value RelativePlacement, workArea Bounds) (Bounds, error) {
+	value, err := NormalizeRelativePlacement(value)
+	if err != nil {
+		return Bounds{}, err
+	}
+	if !validBounds(bounds) || !validBounds(workArea) || bounds.Width > workArea.Width || bounds.Height > workArea.Height {
+		return Bounds{}, &Error{Code: CodeInvalidSpec, Capability: "relativePlacement", Message: "window must fit the anchor display work area"}
+	}
+	place := func(side string) Bounds {
+		candidate := Bounds{Width: bounds.Width, Height: bounds.Height}
+		if side == "above" || side == "below" {
+			switch value.Align {
+			case "start":
+				candidate.X = value.Anchor.X
+			case "end":
+				candidate.X = value.Anchor.X + value.Anchor.Width - bounds.Width
+			default:
+				candidate.X = value.Anchor.X + (value.Anchor.Width-bounds.Width)/2
+			}
+			if side == "above" {
+				candidate.Y = value.Anchor.Y - bounds.Height - value.Gap
+			} else {
+				candidate.Y = value.Anchor.Y + value.Anchor.Height + value.Gap
+			}
+		} else {
+			switch value.Align {
+			case "start":
+				candidate.Y = value.Anchor.Y
+			case "end":
+				candidate.Y = value.Anchor.Y + value.Anchor.Height - bounds.Height
+			default:
+				candidate.Y = value.Anchor.Y + (value.Anchor.Height-bounds.Height)/2
+			}
+			if side == "left" {
+				candidate.X = value.Anchor.X - bounds.Width - value.Gap
+			} else {
+				candidate.X = value.Anchor.X + value.Anchor.Width + value.Gap
+			}
+		}
+		return candidate
+	}
+	contains := func(candidate Bounds) bool {
+		return candidate.X >= workArea.X && candidate.Y >= workArea.Y && candidate.X+candidate.Width <= workArea.X+workArea.Width && candidate.Y+candidate.Height <= workArea.Y+workArea.Height
+	}
+	candidate := place(value.PreferredSides[0])
+	for _, side := range value.PreferredSides {
+		candidate = place(side)
+		if contains(candidate) {
+			return candidate, nil
+		}
+	}
+	candidate.X = math.Max(workArea.X, math.Min(candidate.X, workArea.X+workArea.Width-candidate.Width))
+	candidate.Y = math.Max(workArea.Y, math.Min(candidate.Y, workArea.Y+workArea.Height-candidate.Height))
+	return candidate, nil
+}

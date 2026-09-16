@@ -51,7 +51,11 @@
 
   const DEFAULT_WINDOW_TITLE = 'OpenDesk — Script Runner';
   const PRODUCT_MAIN_WINDOW_ID = 'main';
-  const PRODUCT_TOOLBAR_MAX_WIDTH = 520;
+  // The product shell adds the brand, Customize and Help controls around the
+  // player controls (Run/Stop/Previous/Current/Next/List). Their one-row
+  // native layout needs 590pt including the toolbar chrome; 520pt makes the
+  // host plan a second row and reject the maxRows: 1 declaration at show().
+  const PRODUCT_TOOLBAR_MAX_WIDTH = 590;
   const PRODUCT_HOMEPAGE_ACTION = Object.freeze({
     actionId: 'opendesk.home',
     controlId: 'officialHome',
@@ -162,6 +166,11 @@
             : patch;
           return inner.updateLabel(id, nextPatch);
         },
+        // The player positions its transient list from the actual native List
+        // button bounds. Keep that geometry API intact through the product
+        // toolbar decorator instead of falling back to the whole toolbar.
+        getButtonState(id) { return inner.getButtonState(id); },
+        getState() { return inner.getState(); },
         on(event, callback) { return inner.on(event, callback); },
         onError(callback) { return inner.onError(callback); },
         async show() {

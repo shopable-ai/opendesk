@@ -95,6 +95,27 @@
     return selectedName && names.includes(selectedName) ? selectedName : names[0];
   }
 
+  // A successful rescan may change the collection, but it must preserve the
+  // user's navigation relationship rather than silently choosing an unrelated
+  // first entry when the current script disappears.
+  function reconcileCurrentAfterRefresh(oldOrder, newOrder, currentName) {
+    const before = Array.isArray(oldOrder) ? oldOrder.slice() : [];
+    const after = Array.isArray(newOrder) ? newOrder.slice() : [];
+    if (!after.length) return null;
+    if (currentName && after.includes(currentName)) return currentName;
+    const oldIndex = currentName ? before.indexOf(currentName) : -1;
+    const available = new Set(after);
+    if (oldIndex >= 0) {
+      for (let index = oldIndex + 1; index < before.length; index++) {
+        if (available.has(before[index])) return before[index];
+      }
+      for (let index = oldIndex - 1; index >= 0; index--) {
+        if (available.has(before[index])) return before[index];
+      }
+    }
+    return after[0];
+  }
+
   function deriveViewState(state, scriptCount) {
     if (state.loading) return 'loading';
     if (state.loadError || !state.configValid) return 'error';
@@ -379,7 +400,9 @@
       try {
         discovered = discoverNames();
       } catch (error) {
-        setScriptsFromNames([]);
+        // A directory-read failure is neither an empty list nor permission to
+        // replace the current target. Keep the last known collection inert and
+        // make the explicit loadError gate every execution path.
         configValid = true;
         configError = '';
         loadError = logError(error, 'ScriptRunner.scan', {scriptRoot: root});
@@ -789,6 +812,8 @@
 
     async function restoreDefaultOrder() {
       if (runPromise) return false;
+      const oldOrder = scripts.map(script => script.name);
+      const oldCurrent = selectedScriptName;
       let names;
       try {
         names = discoverNames();
@@ -799,6 +824,7 @@
         return false;
       }
       setScriptsFromNames(names);
+      selectedScriptName = reconcileCurrentAfterRefresh(oldOrder, names, oldCurrent);
       await saveCurrentOrder();
       statusMessage = scripts.length ? `已恢复默认文件名排序；当前脚本 = ${selectedScriptName}` : '已恢复默认排序；当前没有脚本。';
       await ensureListCapacity();
@@ -819,12 +845,17 @@
     async function rescan() {
       if (runPromise) return false;
       if (listWindow) await captureSelection(listWindow);
+      const oldOrder = scripts.map(script => script.name);
+      const oldCurrent = selectedScriptName;
       loading = true;
       loadError = null;
       statusMessage = '正在重新扫描脚本目录…';
       await syncUI();
       loadScripts();
       loading = false;
+      if (!loadError) {
+        selectedScriptName = reconcileCurrentAfterRefresh(oldOrder, scripts.map(script => script.name), oldCurrent);
+      }
       statusMessage = loadError
         ? `重新扫描失败：${loadError.message}`
         : !configValid
@@ -1197,6 +1228,7 @@
     validateOrderConfig,
     reconcileOrder,
     resolveSelectedScriptName,
+    reconcileCurrentAfterRefresh,
     isDirectJavaScriptName,
     deriveViewState,
     buildCompactSelectorHTML,

@@ -8,7 +8,7 @@ import (
 
 // ProtocolVersion advances with native-host schema changes so an older host
 // cannot silently accept a host-owned Measurement surface declaration.
-const ProtocolVersion = "1.11.0"
+const ProtocolVersion = "1.12.0"
 
 type ActivationSource string
 
@@ -44,6 +44,15 @@ type WindowPlacement struct {
 	Display    string  `json:"display,omitempty"`
 }
 
+// RelativePlacement positions a window beside a current logical-desktop
+// anchor. The native host owns display and work-area selection.
+type RelativePlacement struct {
+	Anchor         Bounds   `json:"anchor"`
+	PreferredSides []string `json:"preferredSides"`
+	Align          string   `json:"align,omitempty"`
+	Gap            float64  `json:"gap,omitempty"`
+}
+
 type ContentSpec struct {
 	File string `json:"file,omitempty"`
 	// HTML accepts restricted inline markup. During Normalize, a relative
@@ -57,13 +66,15 @@ type ContentSpec struct {
 }
 
 type WindowSpec struct {
-	ID          string           `json:"id"`
-	Kind        string           `json:"kind,omitempty"`
-	Title       string           `json:"title,omitempty"`
-	Bounds      Bounds           `json:"bounds"`
-	AlwaysOnTop bool             `json:"alwaysOnTop,omitempty"`
-	Draggable   bool             `json:"draggable,omitempty"`
-	Placement   *WindowPlacement `json:"placement,omitempty"`
+	ID               string           `json:"id"`
+	Kind             string           `json:"kind,omitempty"`
+	Title            string           `json:"title,omitempty"`
+	Bounds           Bounds           `json:"bounds"`
+	AlwaysOnTop      bool             `json:"alwaysOnTop,omitempty"`
+	Draggable        bool             `json:"draggable,omitempty"`
+	Placement        *WindowPlacement `json:"placement,omitempty"`
+	KeyEvents        bool             `json:"keyEvents,omitempty"`
+	InteractionGroup string           `json:"interactionGroup,omitempty"`
 	// CenterOnActiveDisplay is reserved for host-owned surfaces such as Dialog.
 	// It is intentionally not present in the JavaScript Custom UI declaration.
 	// The native host resolves it from the current display at creation time.
@@ -212,7 +223,7 @@ type Event struct {
 
 func IsPublicEventType(eventType string) bool {
 	switch eventType {
-	case "*", "click", "change", "input", "move", "resize", "close":
+	case "*", "click", "change", "input", "move", "resize", "key", "interactionOutside", "close":
 		return true
 	default:
 		return false
@@ -234,6 +245,7 @@ type DriverWindow interface {
 	Close(context.Context) (WindowState, error)
 	SetBounds(context.Context, Bounds) (WindowState, error)
 	SetPlacement(context.Context, WindowPlacement) (WindowState, error)
+	SetRelativeTo(context.Context, RelativePlacement) (WindowState, error)
 	SetAlwaysOnTop(context.Context, bool) (WindowState, error)
 	SetDraggable(context.Context, bool) (WindowState, error)
 	State(context.Context) (WindowState, error)

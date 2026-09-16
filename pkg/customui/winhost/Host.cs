@@ -91,6 +91,7 @@ internal abstract class Surface : IDisposable
         Form.FormClosed+=(_,_)=>OnClosed();
         Form.Move+=(_,_)=>{if(Registered&&!Closed){Revision++;Emit("move",null,null,null,J.Rect(Native.Bounds(Form.Handle)));}};
         Form.Resize+=(_,_)=>{if(Registered&&!Closed){Revision++;Emit("resize",null,null,null,J.Rect(Native.Bounds(Form.Handle)));}};
+		Form.Deactivate+=(_,_)=>BeginInvokeInteractionOutside();
     }
     internal abstract Task Initialize();
     protected void InitializeFrame(Size? clientSize=null)
@@ -139,6 +140,7 @@ internal abstract class Surface : IDisposable
             case "getState":break;
             case "setBounds":Native.Place(Form,J.Rect(payload));Revision++;break;
             case "setPlacement":Place(payload);Revision++;break;
+			case "setRelativeTo":PlaceRelative(payload);Revision++;break;
             case "setAlwaysOnTop":Form.TopMost=J.B(payload,"enabled");Revision++;break;
             case "setDraggable":Form.BackgroundDraggable=J.B(payload,"enabled");Revision++;break;
             default: return await ApplyControl(operation,payload);
@@ -158,6 +160,40 @@ internal abstract class Surface : IDisposable
         if(!work.Contains(r))throw new HostError("INVALID_SPEC","window does not fit display work area");
         Native.Place(Form,r);
     }
+	private void PlaceRelative(JsonObject p)
+	{
+		var anchor=J.Rect(p["anchor"]);
+		if(anchor.Width<=0||anchor.Height<=0)throw new HostError("INVALID_SPEC","relative anchor must contain positive bounds");
+		var sides=J.A(p,"preferredSides").Select(value=>value?.GetValue<string>()??"").ToArray();
+		if(sides.Length is <1 or >4||sides.Distinct().Count()!=sides.Length||sides.Any(side=>side is not("above" or "below" or "left" or "right")))throw new HostError("INVALID_SPEC","relative preferredSides is invalid");
+		string align=J.S(p,"align","center");if(align is not("start" or "center" or "end"))throw new HostError("INVALID_SPEC","relative align is invalid");
+		double rawGap=J.N(p,"gap");if(!double.IsFinite(rawGap)||rawGap<0||rawGap>int.MaxValue)throw new HostError("INVALID_SPEC","relative gap is invalid");int gap=(int)Math.Round(rawGap);
+		var work=Screen.FromRectangle(anchor).WorkingArea;var size=Native.Bounds(Form.Handle).Size;
+		if(size.Width>work.Width||size.Height>work.Height)throw new HostError("INVALID_SPEC","window must fit the anchor display work area");
+		Rectangle Candidate(string side){
+			int x,y;
+			if(side is "above" or "below"){
+				x=align=="start"?anchor.Left:align=="end"?anchor.Right-size.Width:anchor.Left+(anchor.Width-size.Width)/2;
+				y=side=="above"?anchor.Top-size.Height-gap:anchor.Bottom+gap;
+			}else{
+				y=align=="start"?anchor.Top:align=="end"?anchor.Bottom-size.Height:anchor.Top+(anchor.Height-size.Height)/2;
+				x=side=="left"?anchor.Left-size.Width-gap:anchor.Right+gap;
+			}
+			return new Rectangle(x,y,size.Width,size.Height);
+		}
+		var frame=Candidate(sides[0]);foreach(var side in sides){frame=Candidate(side);if(work.Contains(frame)){Native.Place(Form,frame);return;}}
+		frame.X=Math.Clamp(frame.X,work.Left,work.Right-frame.Width);frame.Y=Math.Clamp(frame.Y,work.Top,work.Bottom-frame.Height);Native.Place(Form,frame);
+	}
+	private void BeginInvokeInteractionOutside()
+	{
+		if(Closed||!Form.Visible||string.IsNullOrWhiteSpace(J.S(Spec,"interactionGroup")))return;
+		try { Form.BeginInvoke(new Action(()=>{
+			if(Closed||Form.Focused||!Form.Visible)return;
+			var next=Form.ActiveForm;
+			bool grouped=next is not null&&Host.Windows.Values.Any(other=>other!=this&&other.Session==Session&&J.S(other.Spec,"interactionGroup")==J.S(Spec,"interactionGroup")&&other.Form==next);
+			if(!grouped)Emit("interactionOutside",reason:next is null?"appDeactivated":"outsideGroup");
+		})); } catch(InvalidOperationException) { }
+	}
     protected virtual void Release() { }
     private void OnClosed()
     {

@@ -49,6 +49,8 @@ declare global {
     title?: string;
     alwaysOnTop?: boolean;
     draggable?: boolean;
+	/** Execution-scoped group used by related HTML panels to suppress outside interaction events. */
+	interactionGroup?: string;
     /** Defaults to horizontal. Vertical toolbars accept at most five native content items. */
     orientation?: ClawdeskFloatingWindowOrientation;
     /**

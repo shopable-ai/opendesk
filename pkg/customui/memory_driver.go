@@ -306,6 +306,16 @@ func (w *memoryWindow) SetPlacement(_ context.Context, placement WindowPlacement
 	return w.mutate(func(state *WindowState) { state.Bounds = placed }), nil
 }
 
+func (w *memoryWindow) SetRelativeTo(_ context.Context, placement RelativePlacement) (WindowState, error) {
+	// The memory driver is a deterministic contract seam only; production hosts
+	// select the display containing the real anchor and its native work area.
+	placed, err := ResolveRelativePlacement(w.state.Bounds, placement, Bounds{Width: 1440, Height: 900})
+	if err != nil {
+		return WindowState{}, err
+	}
+	return w.mutate(func(state *WindowState) { state.Bounds = placed }), nil
+}
+
 func (w *memoryWindow) SetAlwaysOnTop(_ context.Context, enabled bool) (WindowState, error) {
 	return w.mutate(func(state *WindowState) { state.AlwaysOnTop = enabled }), nil
 }

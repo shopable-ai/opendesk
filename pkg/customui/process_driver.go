@@ -89,8 +89,8 @@ func (d *ProcessDriver) Capabilities(context.Context) Capabilities {
 		ProtocolVersion: ProtocolVersion, Enabled: true, Available: available,
 		Platform: platform, Driver: "native-process", MaxSessions: 1,
 		Window: map[string]bool{
-			"position": available, "placement": available, "size": available, "alwaysOnTop": available,
-			"draggable": available, "nativeIdentity": available, "notify": available,
+			"position": available, "placement": available, "relativePlacement": available, "size": available, "alwaysOnTop": available,
+			"draggable": available, "keyEvents": available, "interactionGroup": available, "nativeIdentity": available, "notify": available,
 		},
 		Controls: []string{"button", "text", "img", "switch", "input", "select", "container"},
 		Reason:   reason,
@@ -472,9 +472,12 @@ func validateHostEvent(event Event, controls map[string]struct{}, lastSequence u
 		if _, exists := controls[event.TargetID]; !exists || event.TargetID == "" {
 			return &Error{Code: CodeDriverFailure, Operation: "readHostEvent", WindowID: event.WindowID, TargetID: event.TargetID, Message: "native UI event target is not a declared control"}
 		}
-	case "move", "resize", "close":
+	case "move", "resize", "key", "interactionOutside", "close":
 		if event.TargetID != "" {
 			return &Error{Code: CodeDriverFailure, Operation: "readHostEvent", WindowID: event.WindowID, TargetID: event.TargetID, Message: "window event must not identify a control target"}
+		}
+		if event.Type == "key" && event.Fields == nil {
+			return &Error{Code: CodeDriverFailure, Operation: "readHostEvent", WindowID: event.WindowID, Message: "key event fields are required"}
 		}
 	case "measurement.pointerdown", "measurement.pointermove", "measurement.pointerup", "measurement.key":
 		if _, exists := controls[event.TargetID]; !exists || event.TargetID == "" {
@@ -666,6 +669,10 @@ func (w *processWindow) SetBounds(ctx context.Context, bounds Bounds) (WindowSta
 
 func (w *processWindow) SetPlacement(ctx context.Context, placement WindowPlacement) (WindowState, error) {
 	return w.stateCall(ctx, "setPlacement", placement)
+}
+
+func (w *processWindow) SetRelativeTo(ctx context.Context, placement RelativePlacement) (WindowState, error) {
+	return w.stateCall(ctx, "setRelativeTo", placement)
 }
 
 func (w *processWindow) SetAlwaysOnTop(ctx context.Context, enabled bool) (WindowState, error) {

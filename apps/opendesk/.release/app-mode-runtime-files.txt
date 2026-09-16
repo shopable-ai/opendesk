@@ -18,8 +18,11 @@ developer-tools.js
 runtime-log.js
 script-runner-simple.js
 script-runner/controller.js
+script-runner/player-controller.js
 assets/product.odcfg
 assets/opendesk-logo.png
+assets/script-previous.png
+assets/script-next.png
 assets/tray-template.png
 assets/tray.ico
 recorder/controller.js

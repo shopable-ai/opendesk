@@ -81,7 +81,7 @@ HTTP UI 还要求 server 已启用 UI、单次请求声明 `"capabilities":["ui"
 | `controls()` | 返回稳定公开控件顺序。 |
 | `show()` / `hide()` / `close()` | 显示、隐藏或终止窗口。 |
 | `getState()` | 读取实际 `WindowState`。 |
-| `setBounds()` / `setPosition()` / `setPlacement()` / `setSize()` | 调整窗口 frame。 |
+| `setBounds()` / `setPosition()` / `setPlacement()` / `setRelativeTo()` / `setSize()` | 调整窗口 frame。 |
 | `setAlwaysOnTop()` / `setDraggable()` | 更新 native 窗口行为。 |
 | `waitUntilClosed()` | 显式等待窗口关闭。 |
 | `control(id)` | 获取 `ControlHandle`。 |
@@ -125,7 +125,7 @@ interface WindowState {
 }
 ```
 
-公开事件为 `click`、`change`、`input`、`move`、`resize`、`close`。事件带 `sessionId`、`windowId`、可选 `targetId`、`type`、单调 `sequence`、`timestamp` 以及相应的 `value` / `checked` / `bounds` / `reason`。
+公开事件为 `click`、`change`、`input`、`move`、`resize`、`key`、`interactionOutside`、`close`。事件带 `sessionId`、`windowId`、可选 `targetId`、`type`、单调 `sequence`、`timestamp` 以及相应的 `value` / `checked` / `bounds` / `reason`；`key` 的 `fields` 带按键及修饰键事实。
 
 事件队列有界；仅高频 `input` / `move` / `resize` 可以在不越过 click/change/close 屏障时合并。溢出以 `UI_EVENT_QUEUE_OVERFLOW` 失败，不伪装成完整事件历史。
 
@@ -380,6 +380,8 @@ ui.createWindow(spec: WindowSpec): Promise<WindowHandle>
 | `bounds` | bounds | 已发布的 absolute compatibility 写法；新代码优先 `position`。 |
 | `alwaysOnTop` | boolean | native 置顶。 |
 | `draggable` | boolean | 是否允许声明 `data-clawdesk-drag` 区域。 |
+| `keyEvents` | boolean | 仅 normal HTML surface：由固定 bridge 发送 `key` 事件；不会开放 document script。 |
+| `interactionGroup` | string | 同一 execution 内相关 surface 的稳定组名；组内切换不产生 `interactionOutside`。 |
 | `theme` | `system \| dark` | 默认 `system`。 |
 | `content` | object | 受限 HTML/CSS 与本地资源声明。 |
 
@@ -704,6 +706,35 @@ Anchor 是一次重新定位动作；用户拖动或显示器拓扑变化不会�
 
 ```js
 await panel.setPlacement({horizontal:'right', vertical:'bottom', margin:16, display:'current'});
+```
+
+## WindowHandle.setRelativeTo(anchor, options)
+
+把窗口放在当前控件或其他已核验 surface 的真实 logical bounds 附近。
+
+**签名**
+
+```ts
+window.setRelativeTo(anchor: Bounds, options: {preferredSides: Array<'above'|'below'|'left'|'right'>, align?: 'start'|'center'|'end', gap?: number}): Promise<WindowState>
+```
+
+**参数**
+
+`anchor` 为正 finite logical desktop bounds。`preferredSides` 按优先级列出 1–4 个不重复方向；`align` 默认为 `center`；`gap` 默认为 `0`。
+
+**返回值**
+
+应用后的 host readback `WindowState`。
+
+**行为与错误**
+
+native host 从 anchor 选择显示器 work area，按优先方向放置；没有一侧完整容纳时会在首选方向内夹紧，绝不把窗口放到 work area 外。该操作是一次性定位，后续 anchor 移动需要调用方以新的 bounds 重调。非法 bounds、方向或不能容纳窗口时以 `INVALID_SPEC` 失败。
+
+**示例**
+
+```js
+const listBounds = (await toolbar.getButtonState('list')).screenBounds;
+await panel.setRelativeTo(listBounds, {preferredSides: ['above', 'below'], align: 'end', gap: 8});
 ```
 
 ## WindowHandle.setSize(width, height)

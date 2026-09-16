@@ -2,8 +2,8 @@
   'use strict';
 
   const PANEL_WIDTH = 320;
-  const PANEL_MIN_HEIGHT = 184;
-  const PANEL_MAX_HEIGHT = 420;
+  const PANEL_MIN_HEIGHT = 88;
+  const PANEL_MAX_HEIGHT = 360;
   const PANEL_ROW_HEIGHT = 38;
   const PANEL_GAP = 8;
 
@@ -51,7 +51,48 @@
 
   function panelHeight(count) {
     const rows = Math.max(1, Math.min(Number(count) || 0, 7));
-    return Math.max(PANEL_MIN_HEIGHT, Math.min(PANEL_MAX_HEIGHT, 102 + rows * PANEL_ROW_HEIGHT));
+    // position.size is the outer native frame. Keep enough vertical allowance
+    // for the normal-window chrome in addition to the compact HTML row area.
+    return Math.max(PANEL_MIN_HEIGHT, Math.min(PANEL_MAX_HEIGHT, 40 + rows * PANEL_ROW_HEIGHT));
+  }
+
+  function finiteBounds(value) {
+    return !!value && ['x', 'y', 'width', 'height'].every(key => Number.isFinite(value[key]))
+      && value.width > 0 && value.height > 0;
+  }
+
+  function displayForBounds(displays, bounds) {
+    if (!finiteBounds(bounds)) return null;
+    const centerX = bounds.x + bounds.width / 2;
+    const centerY = bounds.y + bounds.height / 2;
+    return (displays || []).find(display => finiteBounds(display)
+      && centerX >= display.x && centerX < display.x + display.width
+      && centerY >= display.y && centerY < display.y + display.height) || null;
+  }
+
+  // Compatibility only for an older host that has not yet gained
+  // WindowHandle.setRelativeTo(). Production hosts resolve the selected
+  // display's native work area themselves; this fallback deliberately stays in
+  // logical coordinates and handles negative-origin displays for test adapters.
+  function fallbackPanelPosition(anchor, size, displays) {
+    if (!finiteBounds(anchor) || !finiteBounds(size)) return null;
+    const workArea = displayForBounds(displays, anchor);
+    const candidates = [
+      {x: anchor.x + anchor.width - size.width, y: anchor.y - size.height - PANEL_GAP},
+      {x: anchor.x + anchor.width - size.width, y: anchor.y + anchor.height + PANEL_GAP},
+      {x: anchor.x - size.width - PANEL_GAP, y: anchor.y},
+      {x: anchor.x + anchor.width + PANEL_GAP, y: anchor.y},
+    ];
+    const candidate = candidates.find(item => !workArea || (
+      item.x >= workArea.x && item.y >= workArea.y
+      && item.x + size.width <= workArea.x + workArea.width
+      && item.y + size.height <= workArea.y + workArea.height
+    )) || candidates[0];
+    if (!workArea) return candidate;
+    return {
+      x: Math.max(workArea.x, Math.min(candidate.x, workArea.x + workArea.width - size.width)),
+      y: Math.max(workArea.y, Math.min(candidate.y, workArea.y + workArea.height - size.height)),
+    };
   }
 
   function buildPanelHTML(scripts, state) {
@@ -61,41 +102,36 @@
     const running = !!input.running;
     const loadError = input.loadError || null;
     const all = scripts || [];
-    const options = all.map(script => {
+    const rows = all.map((script, index) => {
       const current = script.name === currentKey;
-      const selected = script.name === highlightKey;
-      const label = `${current ? '✓ ' : ''}${displayScriptName(script.name)}`;
-      return `<option value="${escapeHTML(script.name)}" title="${escapeHTML(script.path || script.name)}"${selected ? ' selected' : ''}>${escapeHTML(label)}</option>`;
+      const highlighted = script.name === highlightKey;
+      const classes = ['script-row'];
+      if (current) classes.push('current');
+      if (highlighted) classes.push('highlight');
+      return `<button id="panelScript${index}" class="${classes.join(' ')}" title="${escapeHTML(script.path || script.name)}" aria-label="选择 ${escapeHTML(displayScriptName(script.name))}"${running || loadError ? ' disabled' : ''}><span class="marker" aria-hidden="true"></span><span class="script-name">${escapeHTML(displayScriptName(script.name))}</span></button>`;
     });
     const list = all.length
-      ? `<select id="panelSelection" class="script-list" size="${Math.max(1, Math.min(all.length, 8))}" aria-label="脚本列表"${running || loadError ? ' disabled' : ''}>${options.join('\n')}</select>`
+      ? `<div id="panelScriptList" class="script-list" aria-label="脚本列表">${rows.join('\n')}</div>`
       : `<p id="panelEmpty" class="empty">${loadError ? '脚本目录读取失败' : '暂无可运行脚本'}</p>`;
     return `<!doctype html><html><head><meta charset="utf-8"></head><body>
       <main>
-        <header><strong>脚本</strong><span id="panelMode" class="mode">${running ? '运行中 · 仅查看' : '选择脚本'}</span></header>
         <div class="list">${list}</div>
-        <p id="panelStatus" class="status">${escapeHTML(loadError ? (loadError.message || String(loadError)) : running ? '运行期间不会改变当前脚本。' : '单击只选择，不会运行；方向键只移动高亮。')}</p>
-        <footer>
-          <button id="panelRefresh" title="刷新脚本列表" aria-label="刷新脚本列表"${running ? ' disabled' : ''}>↻</button>
-          <button id="panelOpenDirectory">打开目录</button>
-          <button id="panelManage">管理脚本…</button>
-        </footer>
-        <button id="panelKeyEnter" class="bridge-sink" data-opendesk-dialog-default aria-hidden="true">key-enter</button>
-        <button id="panelKeyEscape" class="bridge-sink" data-opendesk-dialog-cancel aria-hidden="true">key-escape</button>
-        <button id="panelBlur" class="bridge-sink" aria-hidden="true">blur</button>
+        <button id="panelManage" class="manage-button" title="管理脚本" aria-label="管理脚本">⚙</button>
       </main>
     </body></html>`;
   }
 
   const PANEL_CSS = `
     html,body{margin:0;padding:0;background:#171717;color:#f4f4f4;font:14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-    *{box-sizing:border-box} main{height:100vh;padding:10px;display:flex;flex-direction:column;gap:8px;overflow:hidden}
-    header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 4px}.mode{font-size:11px;color:#9d9d9d;white-space:nowrap}
-    .list{flex:1;min-height:0;overflow:auto;border:1px solid #333;border-radius:9px;background:#1d1d1d}
-    .script-list{width:100%;height:100%;min-height:0;border:0;outline:none;background:#1d1d1d;color:#f4f4f4;padding:4px;font:inherit}.script-list option{padding:8px 9px;border-radius:6px}.script-list option:checked{background:#2d3b52;color:#fff}.script-list:disabled{opacity:.68}.empty{margin:0;padding:24px 12px;text-align:center;color:#999}
-    .status{margin:0;color:#9d9d9d;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    footer{display:flex;gap:7px;padding-top:8px;border-top:1px solid #343434}footer button{height:32px;border:1px solid #505050;border-radius:7px;background:#303030;color:#f4f4f4;padding:0 10px;font:inherit}footer button:not(:disabled){cursor:pointer}footer button:hover:not(:disabled){background:#3b3b3b}footer button:disabled{opacity:.4}#panelRefresh{width:34px;padding:0}.bridge-sink{position:absolute!important;left:-10000px!important;top:-10000px!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important}
+    *{box-sizing:border-box} main{position:relative;height:100vh;padding:8px;overflow:hidden}
+    .list{height:100%;min-height:0;overflow:hidden;border:1px solid #333;border-radius:9px;background:#1d1d1d}
+    .script-list{width:100%;height:100%;min-height:0;overflow:auto;padding:4px 42px 4px 4px}.script-row{width:100%;min-height:34px;border:0;border-radius:6px;background:transparent;color:#f4f4f4;padding:7px 8px;display:flex;align-items:center;gap:7px;text-align:left;font:inherit}.script-row:not(:disabled){cursor:pointer}.script-row:hover:not(:disabled){background:#292929}.script-row.highlight{background:#2d3b52;color:#fff}.script-row.current .marker{color:#8db7ff}.script-row.current .marker::before{content:'✓'}.script-row:disabled{opacity:.68}.marker{flex:0 0 15px;width:15px;text-align:center;color:transparent}.script-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.empty{margin:0;padding:24px 12px;text-align:center;color:#999}
+    .manage-button{position:absolute;top:12px;right:12px;width:30px;height:30px;padding:0;border:1px solid #505050;border-radius:7px;background:#303030;color:#f4f4f4;font:16px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1}.manage-button:not(:disabled){cursor:pointer}.manage-button:hover:not(:disabled){background:#3b3b3b}
   `;
+
+  function buildPanelContent(scripts, state) {
+    return {html: buildPanelHTML(scripts, state), css: PANEL_CSS};
+  }
 
   function createLifecycleToolbar(onUpdate, holder) {
     let closed = false;
@@ -130,9 +166,6 @@
     const BaseController = settings.BaseController;
     const ui = settings.playerUI || settings.ui;
     const Floating = settings.FloatingWindow;
-    const command = settings.command;
-    const execution = settings.execution;
-    const system = settings.system;
     if (!BaseController || typeof BaseController.createApp !== 'function') throw new Error('script runner player requires BaseController');
     if (!ui || typeof ui.createWindow !== 'function') throw new Error('script runner player requires playerUI.createWindow()');
     if (typeof Floating !== 'function') throw new Error('script runner player requires FloatingWindow');
@@ -149,6 +182,7 @@
     let panelIntent = 0;
     let panelSequence = 0;
     let panelHighlightKey = null;
+    let panelCommitPending = false;
     let lastKnownCurrentKey = null;
     let panelSignature = '';
     let syncQueued = false;
@@ -168,6 +202,7 @@
       theme: 'dark',
       alwaysOnTop: true,
       draggable: true,
+      interactionGroup: 'scriptRunnerPlayer',
       orientation: 'horizontal',
       toolbar: {maxWidth: 520, maxRows: 1},
     });
@@ -239,6 +274,23 @@
       return changed !== false;
     }
 
+    async function confirmPanelSelection(name) {
+      if (panelCommitPending || !panelDesiredVisible || isRunning()) return false;
+      if (!orderedNames().includes(name)) return false;
+      // Native HTML buttons can emit a synthetic click after Enter, while a
+      // double-click arrives as two click events. Claim the confirmation before
+      // the first await so every event sequence has one selection side effect.
+      panelCommitPending = true;
+      try {
+        const selected = await selectScript(name);
+        if (!selected) return false;
+        await hidePanel();
+        return true;
+      } finally {
+        panelCommitPending = false;
+      }
+    }
+
     async function shiftCurrent(delta) {
       if (isRunning()) return false;
       const names = orderedNames();
@@ -273,36 +325,34 @@
       return {
         id: `scriptRunnerPanel${++panelSequence}`,
         kind: 'normal',
-        title: '脚本',
+        title: '',
         position: {mode: 'anchor', size: {width: PANEL_WIDTH, height: panelHeight(all.length)}, horizontal: 'right', vertical: 'bottom', margin: 64, display: 'active'},
         alwaysOnTop: true,
         draggable: false,
         theme: 'dark',
-        content: {html: buildPanelHTML(all, {currentKey: state.selectedScriptName, highlightKey: highlight, running: isRunning(), loadError: state.loadError}), css: PANEL_CSS},
+        keyEvents: true,
+        interactionGroup: 'scriptRunnerPlayer',
+        content: buildPanelContent(all, {currentKey: state.selectedScriptName, highlightKey: highlight, running: isRunning(), loadError: state.loadError}),
       };
     }
 
     function bindPanel(window, snapshot) {
       const names = snapshot.map(script => script.name);
-      if (names.length) {
-        window.control('panelSelection').on('change', async event => {
-          const value = event && typeof event.value === 'string' ? event.value : null;
-          if (value && names.includes(value)) panelHighlightKey = value;
-        });
-        window.control('panelSelection').on('click', async event => {
-          if (isRunning()) return;
-          const value = event && typeof event.value === 'string' ? event.value : panelHighlightKey;
-          if (!value || !names.includes(value)) return;
-          panelHighlightKey = value;
-          await selectScript(value);
+      for (let index = 0; index < names.length; index++) {
+        const name = names[index];
+        window.control(`panelScript${index}`).on('click', async () => {
+          return confirmPanelSelection(name);
         });
       }
-      window.control('panelRefresh').on('click', async () => { if (!isRunning()) await refreshScripts(); });
-      window.control('panelOpenDirectory').on('click', async () => { await hidePanel(); await openScriptDirectory(); });
-      window.control('panelManage').on('click', async () => { await hidePanel(); await base.openList('player-manage'); });
-      window.control('panelKeyEnter').on('click', () => panelKey('Enter'));
-      window.control('panelKeyEscape').on('click', () => panelKey('Escape'));
-      window.control('panelBlur').on('click', () => hidePanel());
+      window.control('panelManage').on('click', async () => {
+        // Enter owns keyboard confirmation even if the browser also targets a
+        // focused button with a synthetic click.
+        if (panelCommitPending) return false;
+        await hidePanel();
+        return base.openList('player-manage');
+      });
+      window.on('key', event => panelKey(event && event.fields && event.fields.key));
+      window.on('interactionOutside', () => hidePanel());
       window.on('close', () => {
         if (panel === window) {
           panel = null;
@@ -359,52 +409,62 @@
       const running = isRunning();
       const current = state.selectedScriptName || null;
       if (!panelHighlightKey || !all.some(item => item.name === panelHighlightKey)) panelHighlightKey = current || (all[0] && all[0].name) || null;
-      await safePanelControl('panelMode', {text: running ? '运行中 · 仅查看' : '选择脚本'});
-      await safePanelControl('panelStatus', {text: state.loadError ? (state.loadError.message || String(state.loadError)) : running ? '运行期间不会改变当前脚本。' : '单击只选择，不会运行；方向键只移动高亮。'});
-      await safePanelControl('panelRefresh', {disabled: running});
-      if (all.length) {
-        await safePanelControl('panelSelection', {
+      for (let index = 0; index < all.length; index++) {
+        const script = all[index];
+        const classes = ['script-row'];
+        if (script.name === current) classes.push('current');
+        if (script.name === panelHighlightKey) classes.push('highlight');
+        await safePanelControl(`panelScript${index}`, {
+          classes,
           disabled: running || !!state.loadError,
-          value: panelHighlightKey || '',
-          options: all.map(script => ({
-            value: script.name,
-            label: `${script.name === current ? '✓ ' : ''}${displayScriptName(script.name)}`,
-          })),
         });
       }
     }
 
     async function anchorPanel(explicitBounds) {
       if (!panel) return;
-      let anchor = explicitBounds || lastToolbarBounds || null;
-      if (!anchor) {
-        try {
-          if (typeof toolbar.getButtonState === 'function') {
-            const button = await toolbar.getButtonState('list');
-            anchor = button && button.screenBounds;
-          }
-        } catch (_) {}
-      }
+      let anchor = null;
+      try {
+        if (typeof toolbar.getButtonState === 'function') {
+          const button = await toolbar.getButtonState('list');
+          anchor = button && button.screenBounds;
+        }
+      } catch (_) {}
+      if (!anchor) anchor = explicitBounds || lastToolbarBounds || null;
       if (!anchor) {
         try {
           const state = typeof toolbar.getState === 'function' ? await toolbar.getState() : null;
           anchor = state && state.bounds;
         } catch (_) {}
       }
-      if (!anchor || !Number.isFinite(anchor.x) || !Number.isFinite(anchor.y)) return;
+      if (!finiteBounds(anchor)) return;
+      if (typeof panel.setRelativeTo === 'function') {
+        try {
+          await panel.setRelativeTo(anchor, {
+            preferredSides: ['above', 'below', 'left', 'right'],
+            align: 'end',
+            gap: PANEL_GAP,
+          });
+          return;
+        } catch (_) {}
+      }
       let panelState = null;
       try { panelState = await panel.getState(); } catch (_) {}
       const width = panelState && panelState.bounds && panelState.bounds.width || PANEL_WIDTH;
       const height = panelState && panelState.bounds && panelState.bounds.height || panelHeight(scripts().length);
-      const x = anchor.x + anchor.width - width;
-      const above = anchor.y - height - PANEL_GAP;
-      const below = anchor.y + anchor.height + PANEL_GAP;
-      const y = above >= 0 ? above : below;
-      try { await panel.setPosition(x, y); } catch (_) {}
+      const Screen = settings.Screen || global.Screen;
+      let displays = [];
+      try { displays = Screen && typeof Screen.getDisplays === 'function' ? Screen.getDisplays() : []; } catch (_) {}
+      const position = fallbackPanelPosition(anchor, {x: 0, y: 0, width, height}, displays);
+      if (!position) return;
+      try { await panel.setPosition(position.x, position.y); } catch (_) {}
     }
 
     async function showPanel() {
       if (closed) return null;
+      const all = orderedNames();
+      const selected = currentKey();
+      panelHighlightKey = selected && all.includes(selected) ? selected : all[0] || null;
       panelDesiredVisible = true;
       const intent = ++panelIntent;
       const window = await ensurePanel();
@@ -426,6 +486,9 @@
     async function hidePanel() {
       panelDesiredVisible = false;
       ++panelIntent;
+      const all = orderedNames();
+      const selected = currentKey();
+      panelHighlightKey = selected && all.includes(selected) ? selected : all[0] || null;
       if (panel) {
         try { await panel.hide(); } catch (_) {
           panel = null;
@@ -447,6 +510,7 @@
       if (key === 'Escape') { await hidePanel(); return true; }
       const all = orderedNames();
       if (!all.length) return false;
+      if (isRunning()) return false;
       let index = all.indexOf(panelHighlightKey);
       if (index < 0) index = Math.max(0, all.indexOf(currentKey()));
       if (key === 'ArrowUp' || key === 'ArrowDown') {
@@ -457,11 +521,9 @@
         return target !== index;
       }
       if (key === 'Enter') {
-        if (isRunning()) return false;
         const target = panelHighlightKey || all[0];
         if (!target) return false;
-        await selectScript(target);
-        return true;
+        return confirmPanelSelection(target);
       }
       return false;
     }
@@ -485,15 +547,6 @@
       return true;
     }
 
-    async function openScriptDirectory() {
-      const root = settings.scriptRoot;
-      if (!root || !command || !system || !execution) return null;
-      const platform = system.getPlatformInfo().os;
-      if (platform === 'windows') return command.run('explorer.exe', [root], {cwd: execution.workdir, timeout: 10000, maxOutputBytes: 1024 * 1024, hideWindow: true});
-      if (platform === 'darwin') return command.run('/usr/bin/open', [root], {cwd: execution.workdir, timeout: 10000, maxOutputBytes: 1024 * 1024, hideWindow: true});
-      return command.run('xdg-open', [root], {cwd: execution.workdir, timeout: 10000, maxOutputBytes: 1024 * 1024, hideWindow: true});
-    }
-
     toolbar.addButton('run', '运行', 'play.fill', runCurrent);
     toolbar.addButton('stop', '停止', 'stop.fill', async () => { const stopped = await base.stopRun(); await syncToolbar(); return stopped; });
     toolbar.addButton('previous', '上一个脚本', settings.previousIcon || 'backward.fill', () => shiftCurrent(-1));
@@ -502,7 +555,7 @@
     toolbar.addButton('list', '脚本列表', 'list.bullet', togglePanel);
     toolbar.on('move', event => {
       if (event && event.bounds) lastToolbarBounds = event.bounds;
-      if (panelLifecycle === 'visible') void anchorPanel(event && event.bounds);
+      if (panelLifecycle === 'visible') void anchorPanel();
     });
     toolbar.on('close', () => {
       if (closed) return;
@@ -594,5 +647,7 @@
     displayScriptName,
     reconcileCurrentAfterRefresh,
     buildPanelHTML,
+    buildPanelContent,
+    fallbackPanelPosition,
   });
 })(globalThis);

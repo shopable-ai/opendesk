@@ -5,7 +5,7 @@ declare global {
   type ClawdeskUIWindowKind = "normal" | "floating";
   type ClawdeskUIWindowStatus = "creating" | "hidden" | "visible" | "closing" | "closed" | "failed";
   type ClawdeskUITheme = "system" | "dark";
-  type ClawdeskUIEventType = "click" | "change" | "input" | "move" | "resize" | "close";
+  type ClawdeskUIEventType = "click" | "change" | "input" | "move" | "resize" | "key" | "interactionOutside" | "close";
   type ClawdeskUIControlType = "button" | "text" | "img" | "switch" | "input" | "select" | "container";
 
   type ClawdeskUIHorizontalPlacement = "left" | "center" | "right";
@@ -30,6 +30,13 @@ declare global {
     margin?: number;
     /** Defaults to the display containing the pointer. */
     display?: ClawdeskUIInitialPlacementDisplay;
+  }
+
+  /** Current screen-logical bounds used as the native relative-placement anchor. */
+  interface ClawdeskUIRelativePlacementOptions {
+    preferredSides: Array<"above" | "below" | "left" | "right">;
+    align?: "start" | "center" | "end";
+    gap?: number;
   }
 
   /**
@@ -113,6 +120,10 @@ declare global {
     title?: string;
     alwaysOnTop?: boolean;
     draggable?: boolean;
+	/** Enables fixed-bridge key events for a normal HTML window. */
+	keyEvents?: boolean;
+	/** Local execution-scoped group that suppresses outside events between its surfaces. */
+	interactionGroup?: string;
     theme?: ClawdeskUITheme;
     content: ClawdeskUIContentSpec;
   }
@@ -230,7 +241,7 @@ declare global {
     platform: string;
     driver: string;
     maxSessions: number;
-    window: Record<"position" | "placement" | "size" | "alwaysOnTop" | "draggable" | "nativeIdentity" | "toast" | "notify", boolean>;
+    window: Record<"position" | "placement" | "relativePlacement" | "size" | "alwaysOnTop" | "draggable" | "keyEvents" | "interactionGroup" | "nativeIdentity" | "toast" | "notify", boolean>;
     controls: ClawdeskUIControlType[];
     reason?: string;
   }
@@ -266,6 +277,7 @@ declare global {
     setBounds(bounds: ClawdeskUIBounds): Promise<ClawdeskUIWindowState>;
     setPosition(x: number, y: number): Promise<ClawdeskUIWindowState>;
     setPlacement(placement: ClawdeskUIWindowPlacement): Promise<ClawdeskUIWindowState>;
+	setRelativeTo(anchor: ClawdeskUIBounds, options: ClawdeskUIRelativePlacementOptions): Promise<ClawdeskUIWindowState>;
     setSize(width: number, height: number): Promise<ClawdeskUIWindowState>;
     setAlwaysOnTop(enabled: boolean): Promise<ClawdeskUIWindowState>;
     setDraggable(enabled: boolean): Promise<ClawdeskUIWindowState>;

@@ -66,6 +66,7 @@ function createHarness(options = {}) {
   const recipeRuns = [];
   let createAppCount = 0;
   let runnerOptions = null;
+  let runnerToolbar = null;
 
   const ui = {
     async createWindow(spec) {
@@ -114,6 +115,8 @@ function createHarness(options = {}) {
     }
     updateButton() {}
     updateLabel() {}
+    async getButtonState(id) { return {id, screenBounds: {x: 71, y: 83, width: 42, height: 30}}; }
+    async getState() { return {id: this.id, bounds: {x: 10, y: 20, width: 400, height: 40}}; }
     on(event, callback) { this.handlers.set(event, callback); }
     onError(callback) { this.errorHandler = callback; }
     async show() { return {id: this.id, bounds: {x: 1, y: 2, width: 400, height: 40}}; }
@@ -127,9 +130,12 @@ function createHarness(options = {}) {
       createAppCount += 1;
       runnerOptions = options;
       const toolbar = new options.FloatingWindow({toolbar: {maxWidth: 360}});
+      runnerToolbar = toolbar;
       toolbar.addButton('run', '运行', 'play.fill', () => {});
       toolbar.addButton('stop', '停止', 'stop.fill', () => {});
+      toolbar.addButton('previous', '上一个脚本', 'backward.fill', () => {});
       toolbar.addLabel('script', '暂无脚本', {width: 168});
+      toolbar.addButton('next', '下一个脚本', 'forward.fill', () => {});
       toolbar.addButton('list', '脚本列表', 'list.bullet', () => {});
       let listWindow = null;
       let listCreating = null;
@@ -237,6 +243,7 @@ function createHarness(options = {}) {
     Execution: {scriptDir: '/bundle/apps/opendesk', workdir: '/bundle/apps/opendesk'},
     Command: {run: async () => ({exitCode: 0})},
     get runnerOptions() { return runnerOptions; },
+    get runnerToolbar() { return runnerToolbar; },
   };
 }
 
@@ -263,10 +270,12 @@ test('product Open action keeps the toolbar visible without opening the prepared
   createWindowGate.resolve();
   const state = await launch;
   assert.equal(state.mainWindowId, 'main');
-  assert.equal(state.toolbarMaxWidth, 520);
+  assert.equal(state.toolbarMaxWidth, 590);
   assert.equal(state.windowTitle, 'OpenDesk — Script Runner');
   assert.equal(harness.createAppCount, 1);
   assert.equal(harness.floatingWindows[0].spec.title, 'OpenDesk — Script Runner');
+  assert.deepEqual((await harness.runnerToolbar.getButtonState('list')).screenBounds, {x: 71, y: 83, width: 42, height: 30});
+  assert.deepEqual((await harness.runnerToolbar.getState()).bounds, {x: 10, y: 20, width: 400, height: 40});
 
   await runner.open('test');
   assert.equal(harness.windows.length, 1);
@@ -443,13 +452,13 @@ test('brand home is the first icon and official actions stay independent from ru
   await runner.launch();
 
   const toolbar = harness.floatingWindows[0];
-  assert.equal(toolbar.spec.toolbar.maxWidth, 520);
+  assert.equal(toolbar.spec.toolbar.maxWidth, 590);
   assert.equal(toolbar.spec.toolbar.maxRows, 1);
   assert.deepEqual(
     toolbar.controls.map(control => control.id),
     [
       'officialHome', 'officialBrandSeparator',
-      'run', 'stop', 'script', 'list',
+      'run', 'stop', 'previous', 'script', 'next', 'list',
       'officialActionsSeparator', 'officialCustomize', 'officialHelp',
     ],
   );

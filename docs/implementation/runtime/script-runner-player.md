@@ -31,19 +31,32 @@
 Panel：
 
 - 靠近 Runner 打开；初始优先位于 Runner 上方，并随 Runner move 事件重定位。
-- 单击脚本只更新当前脚本，不执行，Panel 保持打开。
-- 双击与单击同义，不提供任何隐式运行。
+- 每次显示时，键盘高亮从当前脚本开始；当前脚本不存在时才回退到列表第一项。隐藏期间不保留一份待提交选择。
+- 单击脚本是确认动作：立即更新当前脚本，随后隐藏 Panel；即使单击的就是当前脚本，也仍视为确认并隐藏。它不执行脚本。
+- 双击不提供独立语义或隐式运行。宿主可能产生的连续 `click` 与 Enter 后的合成 `click` 由同一个确认闸门去重，不能造成第二次选择或运行。
 - 当前脚本与键盘高亮是两个状态；批量勾选继续由完整管理器独立维护。
-- HTML `select` 承担键盘高亮：`Up / Down` 只改变高亮，`Enter` 才提交为当前脚本，且不执行、不关闭 Panel。
-- `Tab` 使用正常浏览器/系统焦点顺序。
-- `Esc` 的产品语义是只关闭/隐藏 Panel，不停止任务、不关闭 Runner。
-- Panel 提供 `刷新`、`打开目录`、`管理脚本…`。进入目录或完整管理器前先收起 Panel。
+- `Up / Down` 只改变键盘高亮，不改变当前脚本；`Enter` 确认高亮项，与鼠标单击一样更新当前脚本、隐藏 Panel，但不运行。
+- Panel 使用 normal HTML surface 的窗口级键盘事件；不声明默认按钮，也不增加 autofocus。`Tab` 沿用浏览器/系统焦点顺序，显示与隐藏后的实际焦点转移由 native host 管理，不强抢或伪造焦点恢复。
+- `Escape` 只隐藏 Panel 并丢弃临时高亮，不提交、不停止任务、不销毁 Panel，也不关闭 Runner。点击 Panel 与 Runner 交互组之外同样只隐藏，不提交。
+- Panel 不显示原生或内容标题、状态教学文案或底部操作栏；只有脚本列表和右上角的图标化“管理脚本”入口。点击该图标后先收起 Panel，再进入完整管理器。
+- 刷新、打开目录、排序和批量操作保留在完整管理器，不在紧凑 Panel 重复提供。
 
 运行期间：
 
-- Panel 可打开、滚动、关闭。
-- 脚本选择、Enter 提交、刷新等会改变当前脚本/集合的操作全部禁用。
-- `管理脚本…` 可以进入完整管理器；完整管理器自身继续负责运行期禁用排序、刷新和批量选择变更。
+- Panel 可打开、滚动、隐藏。
+- 脚本选择、Enter 提交等会改变当前脚本的操作全部禁用。
+- `Escape`、交互组外点击和“管理脚本”入口仍可隐藏 Panel；“管理脚本”随后可以进入完整管理器，完整管理器自身继续负责运行期禁用排序、刷新和批量选择变更。
+
+## 高亮、确认、隐藏与运行
+
+四个动作互不代替：
+
+1. **高亮**只修改 `panelHighlightKey`，不修改 `selectedScriptName`；
+2. **确认**把目标交给既有 `selectScript`，成功后才进入隐藏；
+3. **隐藏**只调用现有 `WindowHandle.hide()`，保留 native 句柄供下次显示复用；
+4. **运行**只由 Runner 的“运行”按钮进入既有 `requestRun`，Panel 的行点击、Enter、双击和隐藏都不得触发运行。
+
+取消式隐藏（Escape、交互组外点击）不执行确认。`destroy` / `close()` 只用于 native 句柄已经被关闭、脚本集合变化需要重建，或 Runner 自身退出的生命周期清理，不能用“关闭 Panel”含糊代指日常 `hide()`。
 
 ## 状态身份
 
@@ -110,7 +123,7 @@ Player 是高频入口层，不复制这些业务实现。
 
 Player 只依赖公开 CustomUI/FloatingWindow 能力和现有 controller，不新增第二套脚本执行器。
 
-当前源码已经为 Panel 的键盘提交保留 `data-opendesk-dialog-default`，并保留 `panelKeyEscape` / `panelBlur` bridge sink。最终发布前仍必须在 macOS 与 Windows 真机验证：
+当前源码通过 normal HTML surface 的 `keyEvents` 与 `interactionGroup` 接收键盘及组外交互事实，不声明 dialog default/cancel，也不保留隐藏 bridge sink。最终发布前仍必须在 macOS 与 Windows 真机验证：
 
 - Escape 是否按产品语义只收起 Panel；
 - 点击桌面、其他应用、无关 OpenDesk 窗口后是否收起 Panel且不抢回焦点；

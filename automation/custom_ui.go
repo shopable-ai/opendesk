@@ -43,14 +43,16 @@ type customUIWindowDeclaration struct {
 	// remains only as the documented compatibility spelling for an absolute
 	// window; Size and Placement remain decoded solely so a retired draft can
 	// receive a precise INVALID_SPEC migration error instead of being ignored.
-	Position    *customUIWindowPosition    `json:"position,omitempty"`
-	Bounds      *customui.Bounds           `json:"bounds,omitempty"`
-	Size        *customUIWindowSize        `json:"size,omitempty"`
-	AlwaysOnTop bool                       `json:"alwaysOnTop,omitempty"`
-	Draggable   bool                       `json:"draggable,omitempty"`
-	Placement   *customui.WindowPlacement  `json:"placement,omitempty"`
-	Theme       string                     `json:"theme,omitempty"`
-	Content     customUIContentDeclaration `json:"content"`
+	Position         *customUIWindowPosition    `json:"position,omitempty"`
+	Bounds           *customui.Bounds           `json:"bounds,omitempty"`
+	Size             *customUIWindowSize        `json:"size,omitempty"`
+	AlwaysOnTop      bool                       `json:"alwaysOnTop,omitempty"`
+	Draggable        bool                       `json:"draggable,omitempty"`
+	KeyEvents        bool                       `json:"keyEvents,omitempty"`
+	InteractionGroup string                     `json:"interactionGroup,omitempty"`
+	Placement        *customui.WindowPlacement  `json:"placement,omitempty"`
+	Theme            string                     `json:"theme,omitempty"`
+	Content          customUIContentDeclaration `json:"content"`
 }
 
 type customUIWindowSize struct {
@@ -139,7 +141,8 @@ func (declaration customUIWindowDeclaration) windowSpec() (customui.WindowSpec, 
 	return customui.WindowSpec{
 		ID: declaration.ID, Kind: declaration.Kind, Title: declaration.Title,
 		Bounds: bounds, AlwaysOnTop: declaration.AlwaysOnTop,
-		Draggable: declaration.Draggable, Placement: placement, Theme: declaration.Theme,
+		Draggable: declaration.Draggable, Placement: placement, KeyEvents: declaration.KeyEvents,
+		InteractionGroup: declaration.InteractionGroup, Theme: declaration.Theme,
 		Content: customui.ContentSpec{
 			File: declaration.Content.File, HTML: declaration.Content.HTML,
 			CSSFile: declaration.Content.CSSFile, CSS: declaration.Content.CSS,
@@ -430,6 +433,20 @@ func (u *CustomUIRuntime) jsWindowObject(window *customui.Window) map[string]any
 			}
 			return u.startAsync("setPlacement", func(ctx context.Context) (any, error) {
 				return window.SetPlacement(ctx, placement)
+			}, nil)
+		},
+		"setRelativeTo": func(call goja.FunctionCall) goja.Value {
+			var anchor customui.Bounds
+			var options customui.RelativePlacement
+			if err := exportCustomUIValue(call.Argument(0), &anchor); err != nil {
+				panic(customUIJSError(u.runtime, &customui.Error{Code: customui.CodeInvalidSpec, Operation: "setRelativeTo", WindowID: window.ID(), Capability: "relativePlacement", Message: "anchor is invalid", Cause: err}))
+			}
+			if err := exportCustomUIValue(call.Argument(1), &options); err != nil {
+				panic(customUIJSError(u.runtime, &customui.Error{Code: customui.CodeInvalidSpec, Operation: "setRelativeTo", WindowID: window.ID(), Capability: "relativePlacement", Message: "options are invalid", Cause: err}))
+			}
+			options.Anchor = anchor
+			return u.startAsync("setRelativeTo", func(ctx context.Context) (any, error) {
+				return window.SetRelativeTo(ctx, options)
 			}, nil)
 		},
 		"setSize": func(call goja.FunctionCall) goja.Value {

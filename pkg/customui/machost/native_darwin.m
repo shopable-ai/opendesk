@@ -10,7 +10,7 @@
 #import "floating_toolbar_darwin.h"
 #import "notification_darwin.h"
 
-static NSString *const CDProtocolVersion = @"1.11.0";
+static NSString *const CDProtocolVersion = @"1.12.0";
 static NSMutableDictionary<NSString *, id> *CDWindows;
 static NSMutableDictionary<NSString *, NSDictionary *> *CDClosedNotifications;
 
@@ -193,6 +193,65 @@ static BOOL CDResolvePlacementRect(NSWindow *window, NSDictionary *placement, NS
 	return YES;
 }
 
+static BOOL CDResolveRelativeRect(NSWindow *window, NSDictionary *payload, NSRect *resolved, NSString **message) {
+	NSDictionary *anchor = [payload[@"anchor"] isKindOfClass:NSDictionary.class] ? payload[@"anchor"] : nil;
+	NSArray *sides = [payload[@"preferredSides"] isKindOfClass:NSArray.class] ? payload[@"preferredSides"] : nil;
+	NSString *align = [payload[@"align"] isKindOfClass:NSString.class] ? payload[@"align"] : @"center";
+	id rawGap = payload[@"gap"];
+	double gap = rawGap ? [rawGap doubleValue] : 0;
+	for (NSString *key in @[@"x", @"y", @"width", @"height"]) {
+		id value = anchor[key];
+		if (![value isKindOfClass:NSNumber.class] || !isfinite([value doubleValue])) {
+			if (message) *message = @"relative anchor must contain finite bounds";
+			return NO;
+		}
+	}
+	if (!anchor || [anchor[@"width"] doubleValue] <= 0 || [anchor[@"height"] doubleValue] <= 0 || !sides.count || sides.count > 4 ||
+		!([align isEqual:@"start"] || [align isEqual:@"center"] || [align isEqual:@"end"]) || !isfinite(gap) || gap < 0) {
+		if (message) *message = @"relative placement is invalid";
+		return NO;
+	}
+	NSMutableSet *seen = [NSMutableSet set];
+	for (id side in sides) {
+		if (![side isKindOfClass:NSString.class] || !([side isEqual:@"above"] || [side isEqual:@"below"] || [side isEqual:@"left"] || [side isEqual:@"right"]) || [seen containsObject:side]) {
+			if (message) *message = @"relative preferredSides is invalid";
+			return NO;
+		}
+		[seen addObject:side];
+	}
+	NSRect target = CDNativeRect(anchor);
+	NSPoint center = NSMakePoint(NSMidX(target), NSMidY(target));
+	NSScreen *screen = nil;
+	for (NSScreen *candidate in NSScreen.screens) if (NSPointInRect(center, candidate.frame)) { screen = candidate; break; }
+	if (!screen) screen = window.screen ?: CDPrimaryScreen();
+	NSRect work = screen ? screen.visibleFrame : NSMakeRect(0, 0, 1440, 900);
+	NSSize size = window.frame.size;
+	if (size.width > NSWidth(work) || size.height > NSHeight(work)) {
+		if (message) *message = @"window must fit the anchor display work area";
+		return NO;
+	}
+	NSRect (^place)(NSString *) = ^NSRect(NSString *side) {
+		NSRect frame = NSMakeRect(0, 0, size.width, size.height);
+		if ([side isEqual:@"above"] || [side isEqual:@"below"]) {
+			frame.origin.x = [align isEqual:@"start"] ? NSMinX(target) : [align isEqual:@"end"] ? NSMaxX(target) - size.width : NSMidX(target) - size.width / 2.0;
+			frame.origin.y = [side isEqual:@"above"] ? NSMaxY(target) + gap : NSMinY(target) - size.height - gap;
+		} else {
+			frame.origin.y = [align isEqual:@"start"] ? NSMaxY(target) - size.height : [align isEqual:@"end"] ? NSMinY(target) : NSMidY(target) - size.height / 2.0;
+			frame.origin.x = [side isEqual:@"left"] ? NSMinX(target) - size.width - gap : NSMaxX(target) + gap;
+		}
+		return frame;
+	};
+	NSRect frame = place(sides.firstObject);
+	for (NSString *side in sides) {
+		frame = place(side);
+		if (NSContainsRect(work, frame)) { if (resolved) *resolved = frame; return YES; }
+	}
+	frame.origin.x = MAX(NSMinX(work), MIN(NSMinX(frame), NSMaxX(work) - size.width));
+	frame.origin.y = MAX(NSMinY(work), MIN(NSMinY(frame), NSMaxY(work) - size.height));
+	if (resolved) *resolved = frame;
+	return YES;
+}
+
 static NSRect CDCenteredDialogRect(NSRect requested) {
 	NSScreen *screen = CDActiveDialogScreen();
 	NSRect visible = screen ? screen.visibleFrame : NSMakeRect(0, 0, 1440, 900);
@@ -258,7 +317,7 @@ static NSDictionary *CDBoundsForWindow(NSWindow *window) {
 	return bounds.count ? bounds : CDBoundsFromNativeRect(window.frame);
 }
 
-static NSString *CDBridgeSource(NSArray *controls, NSString *css, BOOL draggable, NSString *measurementTarget) {
+static NSString *CDBridgeSource(NSArray *controls, NSString *css, BOOL draggable, NSString *measurementTarget, BOOL keyEvents) {
     NSMutableArray *ids = [NSMutableArray arrayWithCapacity:controls.count];
     NSMutableDictionary *types = [NSMutableDictionary dictionaryWithCapacity:controls.count];
     for (NSDictionary *control in controls) {
@@ -272,8 +331,9 @@ static NSString *CDBridgeSource(NSArray *controls, NSString *css, BOOL draggable
         @"ids": ids,
         @"types": types,
         @"css": css ?: @"",
-        @"draggable": @(draggable),
+		@"draggable": @(draggable),
 		@"measurementTarget": measurementTarget ?: @"",
+		@"keyEvents": @(keyEvents),
     };
     return [NSString stringWithFormat:
         @"(() => {\n"
@@ -296,6 +356,7 @@ static NSString *CDBridgeSource(NSArray *controls, NSString *css, BOOL draggable
 	         "document.addEventListener('click', event => { const el=targetFor(event); if (el && !el.disabled && el.dataset.busy !== 'true') send({type:'click',targetId:el.id,value:('value' in el ? el.value : null),checked:('checked' in el ? !!el.checked : null),bounds:state(el.id).screenBounds}); });\n"
 	         "document.addEventListener('input', event => { const el=targetFor(event); if (el && !el.hasAttribute('data-opendesk-dialog-private-input')) send({type:'input',targetId:el.id,value:('value' in el ? el.value : null),checked:('checked' in el ? !!el.checked : null)}); });\n"
 	         "document.addEventListener('change', event => { const el=targetFor(event); if (el && !el.hasAttribute('data-opendesk-dialog-private-input')) send({type:'change',targetId:el.id,value:('value' in el ? el.value : null),checked:('checked' in el ? !!el.checked : null)}); });\n"
+	         "document.addEventListener('keydown', event => { if (!config.keyEvents || event.isComposing || event.defaultPrevented) return; send({type:'key',fields:{key:String(event.key || ''),code:String(event.code || ''),repeat:!!event.repeat,shift:!!event.shiftKey,alt:!!event.altKey,ctrl:!!event.ctrlKey,meta:!!event.metaKey}}); });\n"
 	         "const measurementPoint = (event, el) => { const r=el.getBoundingClientRect(); const nw=el.naturalWidth||r.width, nh=el.naturalHeight||r.height; const s=Math.min(r.width/nw,r.height/nh); const w=nw*s,h=nh*s,left=r.left+(r.width-w)/2,top=r.top+(r.height-h)/2; return {u:(event.clientX-left)/w,v:(event.clientY-top)/h,left,top,width:w,height:h}; };\n"
 	         "const measurementOverlay = (() => { if (!config.measurementTarget) return null; const el=document.getElementById(config.measurementTarget); if (!el) return null; el.style.touchAction='none'; el.style.userSelect='none'; const micro=document.getElementById('measurementMicro'); const placeMicro=event=>{if(!micro)return;const inset=8,gap=16,r=micro.getBoundingClientRect();let left=event.clientX+gap,top=event.clientY+gap;if(left+r.width>window.innerWidth-inset)left=event.clientX-r.width-gap;if(top+r.height>window.innerHeight-inset)top=event.clientY-r.height-gap;micro.style.left=Math.max(inset,left)+'px';micro.style.top=Math.max(inset,top)+'px';micro.style.right='auto';micro.style.bottom='auto';}; const box=document.createElement('div'); box.style.cssText='position:fixed;pointer-events:none;border:1px solid #34a8ff;background:rgba(52,168,255,.15);z-index:2147483646;display:none'; const lens=document.createElement('div'); lens.style.cssText='position:fixed;pointer-events:none;width:96px;height:96px;border:2px solid #fff;box-shadow:0 2px 14px #000;background-repeat:no-repeat;image-rendering:pixelated;z-index:2147483647;display:none'; document.body.append(box,lens); let start=null; const paint=(event,p) => { placeMicro(event); const x=p.left+Math.max(0,Math.min(1,p.u))*p.width,y=p.top+Math.max(0,Math.min(1,p.v))*p.height; if(start){const sx=start.left+Math.max(0,Math.min(1,start.u))*start.width,sy=start.top+Math.max(0,Math.min(1,start.v))*start.height;box.style.display='block';box.style.left=Math.min(sx,x)+'px';box.style.top=Math.min(sy,y)+'px';box.style.width=Math.abs(x-sx)+'px';box.style.height=Math.abs(y-sy)+'px';} lens.style.display='block';lens.style.left=(event.clientX+18)+'px';lens.style.top=(event.clientY+18)+'px';lens.style.backgroundImage='url('+JSON.stringify(el.currentSrc||el.src).slice(1,-1)+')';lens.style.backgroundSize=(p.width*8)+'px '+(p.height*8)+'px';lens.style.backgroundPosition=(-p.u*p.width*8+48)+'px '+(-p.v*p.height*8+48)+'px'; }; const emit=(phase,event) => { const p=measurementPoint(event,el); if(p.u<0||p.v<0||p.u>1||p.v>1)return; if(phase==='pointerdown')start=p; paint(event,p); send({type:'measurement.'+phase,targetId:el.id,fields:{u:p.u,v:p.v,button:event.button,shift:event.shiftKey,alt:event.altKey,ctrl:event.ctrlKey,meta:event.metaKey}}); if(phase==='pointerup')start=null; }; el.addEventListener('pointerdown',event=>{if(event.button!==0)return;event.preventDefault();el.setPointerCapture(event.pointerId);emit('pointerdown',event);}); el.addEventListener('pointermove',event=>{if(event.buttons===1)event.preventDefault();emit('pointermove',event);}); el.addEventListener('pointerup',event=>{if(event.button!==0)return;event.preventDefault();emit('pointerup',event);}); el.addEventListener('pointerleave',()=>{if(!start)lens.style.display='none';}); return {clear:()=>{box.style.display='none';lens.style.display='none';start=null;}}; })();\n"
 	         "const measurementToolbar=(()=>{if(!config.measurementTarget)return null;const toolbar=document.querySelector('[data-opendesk-measurement-toolbar]'),handle=toolbar&&toolbar.querySelector('[data-opendesk-measurement-toolbar-drag]');if(!toolbar||!handle)return null;const inset=12;let drag=null;const syncMenu=()=>{const panel=toolbar.querySelector('#copyMenuPanel');if(!panel)return;const r=toolbar.getBoundingClientRect();toolbar.dataset.opendeskToolbarMenuPlacement=r.top+r.height+180>window.innerHeight?'above':'below';};const place=(left,top)=>{const r=toolbar.getBoundingClientRect(),maxLeft=Math.max(inset,window.innerWidth-r.width-inset),maxTop=Math.max(inset,window.innerHeight-r.height-inset);toolbar.style.left=Math.max(inset,Math.min(left,maxLeft))+'px';toolbar.style.top=Math.max(inset,Math.min(top,maxTop))+'px';toolbar.style.right='auto';toolbar.style.bottom='auto';toolbar.style.transform='none';syncMenu();};handle.addEventListener('pointerdown',event=>{if(event.button!==0)return;const r=toolbar.getBoundingClientRect();drag={x:event.clientX,y:event.clientY,left:r.left,top:r.top};event.preventDefault();event.stopPropagation();handle.setPointerCapture(event.pointerId);});handle.addEventListener('pointermove',event=>{if(!drag)return;event.preventDefault();event.stopPropagation();place(drag.left+event.clientX-drag.x,drag.top+event.clientY-drag.y);});const end=event=>{if(!drag)return;drag=null;event.preventDefault();event.stopPropagation();};handle.addEventListener('pointerup',end);handle.addEventListener('pointercancel',end);window.addEventListener('resize',()=>{const r=toolbar.getBoundingClientRect();place(r.left,r.top);});requestAnimationFrame(syncMenu);return {syncMenu};})();\n"
@@ -765,7 +826,9 @@ static NSString *CDBridgeSource(NSArray *controls, NSString *css, BOOL draggable
 @property(nonatomic, copy) NSArray<NSDictionary *> *dragRegions;
 @property(nonatomic) CGWindowID nativeWindowID;
 @property(nonatomic) BOOL alwaysOnTop;
-@property(nonatomic) BOOL draggable;
+	@property(nonatomic) BOOL draggable;
+	@property(nonatomic) BOOL keyEvents;
+	@property(nonatomic, copy) NSString *interactionGroup;
 @property(nonatomic) BOOL closed;
 @property(nonatomic) BOOL programmaticClose;
 @property(nonatomic, copy) NSString *appCloseBehavior;
@@ -791,10 +854,18 @@ static NSString *CDBridgeSource(NSArray *controls, NSString *css, BOOL draggable
 - (void)stopMeasurementKeyboardMonitor;
 - (BOOL)fitHostDialogToContentLayout:(NSDictionary *)layout;
 - (void)failInitialNavigation:(NSError *)error;
-- (void)refreshDragRegionsWithCompletion:(void (^)(NSError *error))completion;
+	- (void)refreshDragRegionsWithCompletion:(void (^)(NSError *error))completion;
 @end
 
 static void CDFinalizeClosedWindow(CDWindowController *controller, NSUInteger attempt);
+
+static BOOL CDInteractionGroupContainsWindow(CDWindowController *controller, NSWindow *candidate) {
+	if (!controller.interactionGroup.length || !candidate) return NO;
+	for (CDWindowController *other in CDWindows.allValues) {
+		if (other.window == candidate && [other.sessionID isEqualToString:controller.sessionID] && [other.interactionGroup isEqualToString:controller.interactionGroup]) return YES;
+	}
+	return NO;
+}
 
 @implementation CDWindowController
 
@@ -1193,6 +1264,10 @@ static void CDFinalizeClosedWindow(CDWindowController *controller, NSUInteger at
 		}
 		return;
 	}
+	if ([type isEqualToString:@"key"]) {
+		if (self.keyEvents && [body[@"fields"] isKindOfClass:NSDictionary.class]) [self emitType:@"key" target:nil body:body reason:nil];
+		return;
+	}
 	if ([type isEqualToString:@"dialogCancel"]) {
 		// This message is emitted only by the native, fixed Dialog bridge. It
 		// preserves the user-close semantics instead of exposing a new public
@@ -1215,6 +1290,16 @@ static void CDFinalizeClosedWindow(CDWindowController *controller, NSUInteger at
         [self emitType:@"resize" target:nil body:@{} reason:nil];
 		if (self.webView) [self refreshDragRegionsWithCompletion:nil];
     }
+}
+
+- (void)windowDidResignKey:(NSNotification *)notification {
+	if (self.closed || !self.interactionGroup.length || !self.window.visible) return;
+	dispatch_async(dispatch_get_main_queue(), ^{
+		if (self.closed || self.window.isKeyWindow || !self.window.visible) return;
+		NSWindow *next = NSApp.keyWindow;
+		if (CDInteractionGroupContainsWindow(self, next)) return;
+		[self emitType:@"interactionOutside" target:nil body:@{} reason:(next ? @"outsideGroup" : @"appDeactivated")];
+	});
 }
 
 - (void)windowWillClose:(NSNotification *)notification {
@@ -1673,6 +1758,8 @@ static void CDHandleCreate(NSDictionary *request, NSString *requestID) {
 	controller.nativeWindowID = (CGWindowID)window.windowNumber;
     controller.alwaysOnTop = [spec[@"alwaysOnTop"] boolValue];
     controller.draggable = [spec[@"draggable"] boolValue];
+	controller.keyEvents = [spec[@"keyEvents"] boolValue];
+	controller.interactionGroup = [spec[@"interactionGroup"] isKindOfClass:NSString.class] ? spec[@"interactionGroup"] : @"";
 	NSMutableSet<NSString *> *controlIDs = [NSMutableSet set];
 	for (NSDictionary *control in spec[@"controls"] ?: @[]) {
 		NSString *identifier = control[@"id"];
@@ -1725,7 +1812,7 @@ static void CDHandleCreate(NSDictionary *request, NSString *requestID) {
 	controller.assetSchemeHandler = assetSchemeHandler;
 	[configuration.userContentController addScriptMessageHandler:controller contentWorld:WKContentWorld.defaultClientWorld name:@"opendesk"];
 	NSString *measurementTarget = [spec[@"measurement"] isKindOfClass:NSDictionary.class] ? spec[@"measurement"][@"targetId"] : nil;
-    NSString *bridge = CDBridgeSource(spec[@"controls"] ?: @[], css, controller.draggable, measurementTarget);
+	NSString *bridge = CDBridgeSource(spec[@"controls"] ?: @[], css, controller.draggable, measurementTarget, controller.keyEvents);
 	WKUserScript *script = [[WKUserScript alloc] initWithSource:bridge injectionTime:WKUserScriptInjectionTimeAtDocumentEnd forMainFrameOnly:YES inContentWorld:WKContentWorld.defaultClientWorld];
     [configuration.userContentController addUserScript:script];
 	CDContentView *contentView = [[CDContentView alloc] initWithFrame:window.contentView.bounds];
@@ -1996,7 +2083,19 @@ static void CDHandleRequest(NSDictionary *request) {
 		controller.revision += 1;
 		NSDictionary *expected = CDBoundsFromNativeRect(placedFrame);
 		CDRespondWhenBoundsMatch(controller, requestID, @"setPlacement", expected, 0);
-    } else if ([operation isEqualToString:@"setAlwaysOnTop"]) {
+	} else if ([operation isEqualToString:@"setRelativeTo"]) {
+		NSRect placedFrame = NSZeroRect;
+		NSString *placementError = nil;
+		if (!CDResolveRelativeRect(controller.window, request[@"payload"], &placedFrame, &placementError)) {
+			CDFail(requestID, @"INVALID_SPEC", @"setRelativeTo", controller.windowID, nil, placementError);
+			return;
+		}
+		[controller.floatingToolbarView invalidateTooltips];
+		[controller.window setFrame:placedFrame display:YES];
+		controller.revision += 1;
+		NSDictionary *expected = CDBoundsFromNativeRect(placedFrame);
+		CDRespondWhenBoundsMatch(controller, requestID, @"setRelativeTo", expected, 0);
+	} else if ([operation isEqualToString:@"setAlwaysOnTop"]) {
         [controller.floatingToolbarView invalidateTooltips];
         controller.alwaysOnTop = [request[@"payload"][@"enabled"] boolValue];
 		controller.window.level = controller.alwaysOnTop ? NSFloatingWindowLevel : NSNormalWindowLevel;

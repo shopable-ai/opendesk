@@ -112,3 +112,39 @@ func TestResolveWindowPlacementUsesNegativeWorkAreaAndRejectsOverflow(t *testing
 		t.Fatalf("overflow placement returned %#v", err)
 	}
 }
+
+func TestResolveRelativePlacementRespectsPreferredSidesAndNegativeWorkArea(t *testing.T) {
+	workArea := Bounds{X: -1920, Y: -40, Width: 1920, Height: 1040}
+	placed, err := ResolveRelativePlacement(Bounds{Width: 420, Height: 180}, RelativePlacement{
+		Anchor:         Bounds{X: -520, Y: 40, Width: 40, Height: 40},
+		PreferredSides: []string{"above", "below"},
+		Align:          "end",
+		Gap:            8,
+	}, workArea)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if placed.X != -900 || placed.Y != 88 {
+		t.Fatalf("relative placement = %#v", placed)
+	}
+
+	placed, err = ResolveRelativePlacement(Bounds{Width: 420, Height: 180}, RelativePlacement{
+		Anchor:         Bounds{X: -520, Y: -20, Width: 40, Height: 40},
+		PreferredSides: []string{"above", "below"},
+		Gap:            8,
+	}, workArea)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if placed.Y != 28 {
+		t.Fatalf("relative fallback side = %#v", placed)
+	}
+}
+
+func TestNormalizeRelativePlacementRejectsInvalidInput(t *testing.T) {
+	_, err := NormalizeRelativePlacement(RelativePlacement{Anchor: Bounds{Width: 20, Height: 20}, PreferredSides: []string{"above", "above"}})
+	var uiErr *Error
+	if !errors.As(err, &uiErr) || uiErr.Code != CodeInvalidSpec || uiErr.Capability != "relativePlacement" {
+		t.Fatalf("invalid relative placement returned %#v", err)
+	}
+}

@@ -86,7 +86,7 @@ test('the product composition loads localization before every reachable UI modul
   const main = fs.readFileSync(path.join(productRoot, 'main.js'), 'utf8');
   const helperAt = main.indexOf("'localization.js'");
   for (const module of [
-    'script-runner-simple.js', 'assistantEntries', "'scheduler-center.js'", "'runtime-log.js'",
+    "'player-controller.js'", 'script-runner-simple.js', 'assistantEntries', "'scheduler-center.js'", "'runtime-log.js'",
     "'permissions-center.js'", "'inspector-launcher.js'", "'developer-tools.js'", "'app-controller.js'",
   ]) {
     assert.ok(helperAt >= 0 && helperAt < main.indexOf(module), `localization must load before ${module}`);
@@ -95,6 +95,8 @@ test('the product composition loads localization before every reachable UI modul
   for (const name of [
     'localization.js', 'locales/zh-CN.json', 'locales/en-US.json',
     'recorder/controller.js', 'recorder/controller-core.js', 'recorder/recording-history.js',
+    'script-runner/player-controller.js',
+    'assets/script-previous.png', 'assets/script-next.png',
   ]) {
     assert.match(allowlist, new RegExp(`^${name.replace('.', '\\.')}$`, 'm'));
   }
