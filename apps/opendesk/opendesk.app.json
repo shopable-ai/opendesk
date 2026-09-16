@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "com.opendesk.desktop",
   "name": "OpenDesk",
-  "version": "0.1.0",
+  "version": "2.0.1",
   "entry": "main.js",
   "singleInstance": true,
   "window": {
