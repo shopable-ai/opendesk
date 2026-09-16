@@ -2,6 +2,35 @@
 
 本目录保存 Agent-first Recorder／Agent-to-Recipe、人工 Recorder／Human-to-Recipe、官方产品配置维护，以及受保护包发布和 Script App Packaging 等面向开发、发布与交付的工作流、Skill、设计与案例。文档存在不表示 Skill 已加载、整体调度已实现或桌面任务已通过；这些工作流也不代表 OpenDesk 的全部产品范围。
 
+## 先按本轮目标选择入口
+
+先区分“运行已经会的任务”和“开发／维修新的自动化”，再区分原始来源与授权范围。不要看到“优化脚本”就默认重走完整示范，也不要因为工作流文件存在就假设宿主已自动加载。
+
+| 本轮目标 | 正式入口 | 本轮边界 |
+| --- | --- | --- |
+| 运行已有自动化 | [Conversational Task Runner](../docs/architecture/conversational-task-runner.md)及其真实已实现入口 | 按当前运行合同校验／确认，不顺便探索、开发或发布 |
+| Agent 新示范、已有任务接续、普通 JS 定向修复 | [Agent 执行规程](agent-to-recipe/WORKFLOW.md) | 保留 S1—S12；先盘点可复用成果，缺哪段补哪段 |
+| 人工录制后的业务提炼、参数化、资格 | [human-to-recipe Skill](human-to-recipe/skills/human-to-recipe/SKILL.md) | 保留 Human plan、来源与 H1—H8，不伪装 Agent 示范 |
+| Recorder generated script 的行为保持静态精炼 | [recorder-script-refiner Skill](human-to-recipe/skills/recorder-script-refiner/SKILL.md) | 默认不删改业务意图、不自动参数化、不运行桌面 |
+| 应用认识、定位加固、失败维修 | [application-engineer Skill](agent-to-recipe/skills/application-engineer/SKILL.md) | 被 Agent／Human 共用，返回原工作包，不另建完整生命周期 |
+| 已验证 JS 打包为桌面应用 | [Script App Packaging](script-app-packaging/README.md) | 交付形态，不等于业务开发或源码保护 |
+| `.odpkg` 保护与授权交接 | [受保护包发布](protected-packages/README.md) | 从已有脚本之后开始，不默认扩大 License／发布权限 |
+| 官方网址、按钮地址与生成配置 | [Official Product Config](official-product-config/README.md) | 单一配置来源，不接管业务自动化 |
+
+执行前先交“**已完成可复用／需要补充／证据或授权阻塞**”盘点，并说明本轮入口、来源、目标产物及允许副作用。缺少本地环境时仍可完成仓库与离线部分，但不得把代码存在、静态分数或一次历史通过写成当前真机资格。
+
+## 当前已经可直接使用的推进方式
+
+Agent 主链的逐阶段动作、最低交付和接续顺序集中在 [WORKFLOW.md](agent-to-recipe/WORKFLOW.md)，由当前 Agent 手工协调执行；专业 Skill 仍复用现有入口，不新增平行调度器或每阶段一个 Skill。
+
+新增的 [handoff 完整性检查器](agent-to-recipe/scripts/check-handoff.js) 是只读 Node 维护工具，可核对 Agent request／handoff 的身份、文件引用与 hash；命令、限制和退出码见 [执行规程](agent-to-recipe/WORKFLOW.md)。它不是通用业务资格 Gate，不能将 `integrity: pass` 当成自动恢复或发布许可，也不替代 Human 的现有 validator／scorer。
+
+从仓库根目录运行该工具自身的离线测试：
+
+```bash
+node --test tests/workflows/handoff-integrity.test.js
+```
+
 ## 自动化能力生命周期：运行与生产怎样接起来
 
 跨 Runtime、Catalog 与作者链的唯一架构见 [Automation Capability Lifecycle](../docs/architecture/desktop-automation/task-capability-lifecycle.md)。它定义最小能力发布合同、已有能力/Capability Gap 路由、独立资格、失败维修与新版本发布，以及跨层任务分解树；字段仍复用现有共享合同和 Human 原生 plan，不复制另一套 AppProfile 或业务步骤权威来源。
@@ -54,6 +83,7 @@
 
 ## Agent-to-Recipe：从这里开始
 
+- 直接推进任务先读[手工协调执行规程](agent-to-recipe/WORKFLOW.md)，完成成果盘点、阶段交付和接续检查；下面的设计文档按当前缺口深入阅读。
 - 阅读[设计总纲与文件地图](agent-to-recipe/design/README.md)：了解当前有效决定、职责、资料位置和待完成事项。
 - 阅读[需求发现与基线](agent-to-recipe/design/requirements.md)：先看项目背景与业务目标，再明确来源、事实／未知、开发入口、业务场景、质量和授权。
 - 阅读[Agent-first Recorder｜工作流任务分解树](agent-to-recipe/design/task-decomposition.md)：完整保留五个结果层次、S1—S12、十三节点对照和三个循环。
@@ -65,7 +95,7 @@
 ## 文件职责
 
 - `design/` 保存为什么这样拆、需要什么、怎样交接和怎样验证，不是最终运行指令。
-- [agent-to-recipe/WORKFLOW.md](agent-to-recipe/WORKFLOW.md)负责当前工作流导航和已存在的方法入口；未实现的整体调度不冒充可运行能力。
+- [agent-to-recipe/WORKFLOW.md](agent-to-recipe/WORKFLOW.md)负责当前工作流导航、手工协调执行规程和已存在的方法入口；未实现的整体调度不冒充可运行能力。
 - 各工作流下的 `skills/` 保存已经实际建立的方法入口；规划中的职责只有在对应文件和宿主能力实际落地后才视为可用。
 - 生成与代码改进分开：recipe-build 保留生成职责，code-rebuild 为拟新增的独立可选改进；简单脚本可以跳过深度优化，但不能跳过必要正确性与安全检查。
 - 不新增与 Skill 平行的 `chains/` 目录，不按每个任务节点创建文件或 Skill。计算器是贯穿案例，不另建计算器产品或专用工作流。

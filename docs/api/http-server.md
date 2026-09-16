@@ -185,6 +185,10 @@ curl http://127.0.0.1:60844/executions/http-xxxx
 取消运行中的执行。取消会同时中止执行 context、在途 HTTP、timer 和尚未执行的
 Promise callback；最终状态、摘要和 artifacts 仍通过现有查询接口获得。
 
+该接口是**按 execution ID 的 transport 控制面**。它不等同于 JavaScript 内的 `Execution.cancel()`（该方法不存在），
+也不负责 Script Runner 产品层的多脚本队列。跨入口的统一停止语义见
+[JavaScript Runtime：异步完成与取消](runtime.md#异步完成与取消)。
+
 **签名**
 
 ```text
@@ -201,7 +205,13 @@ DELETE /executions/{id}
 
 **行为与错误**
 
-未知 ID 返回 404；已经完成的 execution 保持终态，不会重新执行。
+未知 ID 返回 404；已经完成的 execution 保持终态，不会重新执行。取消是停止继续执行并进入资源清理，
+不是暂停或事务回滚：已经完成的鼠标／键盘操作、文件写入、外部请求或其他业务副作用不会自动撤销；
+已进入平台或 native backend 的单次动作也不保证可以硬撤回。
+
+若取消与自然完成并发发生，已经进入终态的 execution 保持真实终态。需要确认最终收口时，应继续使用
+`GET /executions/{id}`、`GET /executions/{id}/summary` 或 SSE `done` / `status` 事件观察，而不是把“已发送 DELETE”
+本身当作业务回滚完成的证明。
 
 **示例**
 

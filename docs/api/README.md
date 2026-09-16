@@ -62,6 +62,17 @@ opendesk -script examples/runtime/modules/basic/main.mjs -console-mode script
 
 模块入口与限制见 [JavaScript Runtime](runtime.md)。桌面自动化通常按 [Page](page.md) → [Geometry](geometry.md) → [Desktop UI](desktop-ui.md) → [Mouse](mouse.md) / [Input](input.md) → [Window](window.md) 阅读。
 
+### 停止正在运行的脚本
+
+不同入口使用不同的停止控制，不存在统一的 `Execution.cancel()`：
+
+- **Script Runner**：点击“停止”，请求取消当前 recipe execution，并取消 Runner 队列中尚未开始的剩余脚本；
+- **本地 CLI**：中断当前运行，例如 `Ctrl+C`；
+- **HTTP execution**：调用 `DELETE /executions/{id}` 精确取消指定 execution；
+- **单个可取消操作**：例如 `Command.run(..., {signal})`，使用对应 `AbortController`，只取消该操作而不是整个 execution。
+
+停止是取消与清理，不是暂停或回滚；已经发生的桌面、文件、网络或外部应用副作用不会自动撤销。完整语义见 [JavaScript Runtime：异步完成与取消](runtime.md#异步完成与取消)，外部精确取消见 [HTTP Server API](http-server.md#delete-executionsid)。
+
 ### OpenDesk 自己的 UI
 
 - `ui.toast()`：瞬时 OpenDesk feedback，canonical API。
@@ -170,7 +181,7 @@ localhost URL 与认证 header 配置给真实调用方；它不同于通过 HTT
 
 19. [Capability 状态模型](capabilities.md)
 20. [Execution](execution.md)
-21. [JavaScript Runtime](runtime.md)
+21. [JavaScript Runtime](runtime.md) — 异步生命周期、停止与取消语义
 22. [Global APIs](global-apis.md)
 23. [Environment](environment.md)
 24. [Path](path.md) / [File](file.md) / [Storage](storage.md) / [SQLite](sqlite.md)
