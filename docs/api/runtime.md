@@ -178,6 +178,37 @@ export async function main() {
 }
 ```
 
+### 停止入口与作用范围
+
+停止不是一个统一的 JavaScript `cancel()` 方法，而是由**发起 execution 的控制面**或支持
+`AbortSignal` 的具体异步 API 发起。不同入口的作用范围如下：
+
+| 场景 | 停止入口 | 作用范围 |
+| --- | --- | --- |
+| OpenDesk Desktop Script Runner | 点击“停止” | 请求取消当前 recipe execution，并阻止 Runner 队列继续启动剩余脚本。Runner 的队列属于产品控制面，不是通用 Runtime API。 |
+| 本地 CLI `-script` / `-script-text` / stdin / `ai run` | 中断当前 CLI 运行，例如 `Ctrl+C` | 取消当前 execution，并进入 Runtime teardown。 |
+| HTTP 创建的 execution | `DELETE /executions/{id}` | 按 execution ID 取消指定运行；终态继续通过状态、summary 与 events 接口查询。见 [HTTP Server API](http-server.md#delete-executionsid)。 |
+| `Command.run()` | 向该调用传入的 `AbortSignal` 执行 `abort()` | 只取消这一次命令及其受管进程组，不等同于取消调用者的整个 execution。见 [Command API](command.md#commandruncommand-args-options)。 |
+| 当前 JavaScript execution 自身 | 无 `Execution.cancel()` | `Execution` 是只读上下文；需要停止整个 execution 时由 Runner、CLI 或 transport 控制面发起。见 [Execution](execution.md)。 |
+
+Script Runner 的“停止”因此是重要的产品安全控制，但不是需要脚本作者调用的新全局 API。单个脚本若只想
+停止某项支持 signal 的工作，应优先使用该 API 自己的 `AbortController` / `AbortSignal`，不要把局部取消
+误写成“停止整个 execution”。
+
+### 取消语义与副作用边界
+
+取消表示**停止继续执行并进入清理**，不表示暂停，也不表示事务回滚：
+
+- Runtime 会停止接收或调度能够被取消的后续工作，并清理由当前 execution 持有的已登记资源；
+- Runner 收到停止后不再启动其队列中尚未开始的剩余脚本；这些脚本从未进入当前 execution；
+- 已经完成的鼠标点击、键盘输入、文件写入、HTTP 请求、外部应用提交等副作用不会因为取消自动撤销；
+- 已进入操作系统或 native backend 的单次动作可能无法硬撤回，因此“已请求停止”和“已经完全结束”不是同一个瞬间；
+- 若取消与自然完成同时发生，已经进入终态的 execution 保持其真实终态，不会因为重复停止而重新执行。
+
+调用停止后，如果调用方需要确认最终结果，应等待或查询 execution 的终态，而不是只把“停止请求已发送”
+当成“所有工作已经结束”。HTTP 调用方使用 `GET /executions/{id}`、summary 或 SSE；Script Runner 则由
+Runner 自身等待当前 recipe execution 收口后更新最终状态。
+
 脚本主体返回后，Runtime 会继续等待由其持有的 timer、HTTP 请求、事件回调、声音、窗口、
 录屏和其他已登记资源。执行超时、CLI 中断或 transport cancellation 会取消同一次 execution，
 并触发这些资源的清理。不要启动 Runtime 无法持有的后台任务后立即结束脚本；需要本地命令时
