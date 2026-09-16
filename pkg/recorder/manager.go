@@ -109,11 +109,11 @@ func (m *Manager) Start(options StartOptions) (Manifest, error) {
 		StartedAt:         startedAt,
 		Paths: map[string]string{
 			"root":        dir,
-			"rawTrace":    dir + "/raw/events.ndjson",
+			"rawTrace":    dir + "/events.ndjson",
 			"flow":        dir + "/distilled/flow.json",
 			"variables":   dir + "/distilled/variables.json",
 			"report":      dir + "/distilled/report.json",
-			"generatedJS": dir + "/generated/flow.js",
+			"generatedJS": dir + "/flow.js",
 		},
 	}
 	state := &session{manifest: manifest}
