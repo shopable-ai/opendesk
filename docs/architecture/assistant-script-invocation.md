@@ -1,140 +1,72 @@
 ---
-title: "AI 助手：生产调用链、脚本关联与匹配演进"
-description: "基于真实 master 源码解释提示词如何到达 Calculator JS；区分当前实现与待实施的调用追踪、能力注册、精准匹配和用户脚本接入。"
+title: "AI 助手：真实调用链与用户脚本调用设计"
+description: "区分当前 Calculator 演示接线与正式用户资产架构；支持未参数化固定流程、参数化任务、用户目录、版本发布与统一受管执行。"
 ---
 
-# AI 助手：生产调用链、脚本关联与匹配演进
+# AI 助手：真实调用链与用户脚本调用设计
 
-核查日期：2026-09-16。
-源码基线：`master@8e74b707fc8665ba02624cd545f767cc20458608`。
-状态：**生产调用链源码核查记录 + 待实施改进建议**；不是新增能力已经实现或真机验收通过的证明。
+状态：设计修订 v0.2，2026-09-16。复核源码基线：`master@d7bfffacb59b5f5c557aa47561e4af262d37d86c`。
 
-本次交付只增加文档与源码目录导航，没有修改生产 JS、模型配置、Runtime API 或测试。没有运行 Codex、Calculator、macOS/Windows UI 或仓库测试；未核对用户本机当前进程实际加载的文件，因此“仓库当前实现”和“本机正在运行的实现”不能自动画等号。
+本文是阅读入口：先解释实际代码，再给出用户脚本的目标设计、迁移顺序和验收标准。初版基于 `8e74b707fc8665ba02624cd545f767cc20458608` 的调用核查并未丢失，其核心事实保留在第 2 节；旧版本完整内容可从 Git 历史查阅。
 
-## 1. 先回答：输入提示词后到底生成了什么
+**交付边界：本次只修订架构文档与源码导航，不修改或搬迁生产脚本，不新增可调用 API，不运行 Codex/Calculator/Runtime 测试或实窗验收。设计中的目录、记录字段及输入传递机制凡未注明已存在，均为待实施合同。** 仓库源码不证明用户本地旧进程已加载新文件。
 
-当前正式 AI 助手不是每次生成一份新的 JavaScript 再执行。实际是：
+## 1. 本次修正的架构决定
 
-```text
-自然语言
-→ 固定路由规则判断是否进入 Calculator 任务分支
-→ Codex 生成受约束的 JSON 任务参数
-→ 宿主校验、复制冻结、生成执行预览
-→ 用户确认
-→ 调用已随产品加载的 Calculator JavaScript 能力
-→ 真实桌面按键和 Accessibility 读数
-→ 会话展示结果
-```
+**AI 助手不是业务脚本仓库。用户任务是应用外的用户资产；固定流程和参数化流程都是正式可调用任务。对话负责选择与澄清，宿主负责版本绑定与授权，已有受管执行能力负责运行。**
 
-三种东西必须分开：
+| 不再采用的推导 | 本次决定 |
+| --- | --- |
+| Calculator 放在 `apps/opendesk/capabilities/`，新增用户任务也照此放 | 该文件仅是当前产品内的演示接线；用户任务不得进入产品源码或安装核心目录 |
+| 对话调用必须先把录制脚本改造成带参数函数 | 未参数化固定脚本是一等对象；允许空业务输入，先按原流程验证和调用 |
+| 给脚本增加“描述”或传入参数，就能改变原业务 | 描述不改代码；只有代码真实读取且已验证的字段才可作为参数开放 |
+| 助手 import/eval 用户脚本，调用其全局函数 | 用户任务交给 App-owned 独立 Execution；发现/匹配阶段不加载执行业务代码 |
+| 每个入口各自实现执行器 | 助手、Script Runner、后续 Scheduler 共用执行服务和资源仲裁，保留各自 UI |
+| 必须先做远程插件市场或复杂模块系统 | 先闭合本地固定脚本接入，再增加参数、预设和规模检索 |
 
-| 对象 | 当前来源 | 是否本次由模型生成 |
-| --- | --- | --- |
-| 自然语言回复 | 普通聊天模型通道，或任务状态/结果文案 | 聊天回复可能是；宿主结果文案不是 |
-| 任务参数 envelope | `assistant/task-service.js` 调用受控 `Agent.run()` | 是，随后还必须通过宿主校验 |
-| 实际桌面操作程序 | `apps/opendesk/capabilities/calculator.js` | 否，是预先存在并加载的普通 JS |
-
-**生成参数不等于生成代码；选中任务不等于获准执行；显示“完成”不等于已经独立验证业务结果。**
-
-## 2. 文档所有权：不再增加互相矛盾的设计总纲
-
-本文拥有正式 AI 助手的源码调用地图、当前事实与缺口、调用可见性和分阶段改造入口。
-
-- [对话工作台](conversational-task-workspace.md)：用户体验、会话产品和代码可见性的产品合同。
-- [Conversational Task Runner](conversational-task-runner.md)：`examples/ai-workflows/chat-calculator/` 示例的历史实现、合同和验收记录，不应当作正式助手当前源码的唯一导航。
-- [Automation Capability Lifecycle](desktop-automation/task-capability-lifecycle.md)：Runtime / Catalog / Authoring、Candidate / Qualification / Publish 的唯一跨层总纲。
-- [共享 Skill 合同](../frameworks/agent-to-recipe-skill-contract.md)：已有任务合同、候选、应用画像、资格与交接结构；本文不复制一套新权威 schema。
-
-本文第 3—5 节是上述 SHA 的源码事实；第 6—10 节是实施建议，尚不能作为已发布 API 使用。既有文档里更早的“下一轮只做聊天”等阶段描述应按其日期理解，不能覆盖本次源码事实。
-
-## 3. 正式入口到执行器的真实调用链
-
-### 3.1 应用启动和模块加载
-
-源码：[main.js](../../apps/opendesk/main.js)。
+最终用户链路：
 
 ```text
-apps/opendesk/main.js
-  ├─ 从 Execution.scriptDir 加载 capabilities/calculator.js
-  │    └─ globalThis.OpenDeskCalculatorCapability
-  ├─ 加载 assistant/store.js
-  ├─ 加载 assistant/model-channel.js
-  ├─ 加载 assistant/task-service.js
-  ├─ 加载 assistant/session.js
-  ├─ 加载 assistant/controller.js
-  ├─ OpenDeskAssistantTaskService.create({ agent, calculator })
-  └─ OpenDeskAssistantController.create({ appDataRoot, taskService })
+录制或编写普通 OpenDesk JS
+→ 保存到用户工作区
+→ 明确用途、固定行为、可变输入和适用范围
+→ 冻结候选及依赖 → 验证 → 明确发布到本地目录
+→ 在对话里说要做什么
+→ 匹配真实可用的任务版本
+→ 固定任务不填参；参数化任务只填写已声明参数
+→ 可信预览、确认
+→ App-owned 独立 Execution 运行用户任务
+→ 展示实际代码身份、步骤、结果及验证状态
 ```
 
-当前加载使用 `File.read(...)` 和间接 `eval` 安装产品自有模块。它不是执行模型生成内容，也不是从用户自然语言中获取脚本路径。这里描述事实，不把 `eval` 本身当作安全隔离证明。
+## 2. 当前真实调用链：两条路径尚未统一
 
-实际根路径来自当前 App Mode 的 `Execution.scriptDir`。仓库源文件更新不证明安装目录、副本或旧进程已经更新；调用详情必须最终记录实际 package root、加载文件及加载时内容身份。
+### 2.1 AI 助手当前 Calculator 路径
 
-### 3.2 点击发送、分流和规划
-
-源码：[controller.js](../../apps/opendesk/assistant/controller.js)、[session.js](../../apps/opendesk/assistant/session.js)、[task-service.js](../../apps/opendesk/assistant/task-service.js)。
+实际接线位于 [main.js](../../apps/opendesk/main.js)：从 `Execution.scriptDir` 加载 `capabilities/calculator.js`，建立 `OpenDeskCalculatorCapability`，再注入 `OpenDeskAssistantTaskService.create({agent, calculator})`。
 
 ```text
-controller.bindWindow(): send.click
-→ 读取 composer 的 text
-→ session.submit(text)
-→ store.beginRequest(): 先保存会话/请求/消息身份
-→ session.performRequest(entry, messages, text)
-   ├─ taskService.shouldHandle(text) == false
-   │    → performChatRequest()
-   │    → model-channel.send({ messages, signal, requestId })
-   │    → 普通聊天回复，不进入 Calculator execute
-   └─ taskService.shouldHandle(text) == true
-        → performTaskRequest()
-        → taskService.plan(text, { signal, requestId })
-        → Agent.getCapabilities({ backend: 'codex', profile: 'codex-analysis' })
-        → Agent.run({ backend: 'codex', profile: 'codex-analysis',
-                      prompt, output: native JSON schema, signal,
-                      timeoutMs: 120000 })
-        → result.data
-        → freezeEnvelope() / validateTaskEnvelope()
+main.js：加载 Calculator 模块及 assistant 模块
+→ assistant/controller.js：send.click → session.submit(text)
+→ assistant/session.js：先保存 request/message 身份，再 performRequest()
+  ├─ shouldHandle(text) 为 false
+  │   → model-channel.send(messages) → 普通聊天回复
+  └─ shouldHandle(text) 为 true
+      → task-service.plan(text)
+      → Agent.run(codex / codex-analysis)
+      → result.data：受约束 JSON envelope
+      → 宿主校验并冻结 → 可信预览 → 用户确认
+      → task-service.execute(envelope, context)
+      → OpenDeskCalculatorCapability.execute()
+      → pressAndRead() / twoStage()
+      → 真实计算器操作、显示区读数、结果文字
 ```
 
-`Agent` facade 的源码入口是 [polyfills/008-ai-runtime.js](../../polyfills/008-ai-runtime.js)，它复用 execution-owned `Command` 进程 owner，不是在助手中另造 CLI executor。本次对该 facade 仅核对入口与所有权声明，不替代当前本机 CLI/profile 的完整安全或兼容性验收。
+源文件：[controller](../../apps/opendesk/assistant/controller.js)、[session](../../apps/opendesk/assistant/session.js)、[task-service](../../apps/opendesk/assistant/task-service.js)、[model-channel](../../apps/opendesk/assistant/model-channel.js)、[store](../../apps/opendesk/assistant/store.js)、[Calculator](../../apps/opendesk/capabilities/calculator.js)。
 
-重要边界：当前任务规划使用固定 Codex profile。普通聊天通道与任务规划通道是两个职责；聊天能够回复，不足以证明 Calculator Planner 配置可用。
+当前模型生成的是参数，不是新 JS。两个 task 为 `calculator.pressAndRead` 和 `calculator.twoStage`；能力定义为 `calculator.basic` / `1.0.0`。实际关联是加载对象引用、任务白名单和显式函数分支，不是检索用户脚本，也不受 Script Runner 当前选择影响。
 
-### 3.3 当前路由到底怎样匹配
-
-`shouldHandle(text)` 要求同时满足：
-
-```text
-出现“计算器”或 calculator
-AND
-出现动作/计算关键词或特定算式文本
-```
-
-动作正则包含 `打开 / 使用 / 运行 / 执行 / 自动化 / 点击 / 按键 / 按下 / 实际 / 真实 / 显示区 / 计算 / 算一下 / 乘以 / 加上 / 减去` 等。由于“计算器”自身也含“计算”，这条规则对中文提及的语义区分尤其有限。
-
-以下是依据正则推导的路由行为，不是本次真实模型或桌面测试结果：
-
-| 输入例子 | 当前路由 | 暴露的问题 |
-| --- | --- | --- |
-| 用计算器计算 25 × 4 | Calculator Planner | 正常的固定能力入口 |
-| 帮我算 25 × 4 | 普通聊天 | 没有应用名，不会自动进入桌面任务 |
-| 不要打开计算器，只解释怎么运行 | Calculator Planner | 正则不理解否定；后续规划/确认仍是安全门 |
-| 把乘数改成 7 | 普通聊天 | 不具备通用的结构化任务续改路由 |
-| Calculator 的历史是什么 | 普通聊天 | 英文应用名本身不满足动作正则 |
-
-**路由命中不等于已经错误执行。** 后续 Planner、宿主校验和用户确认仍存在；不能把正则误路由描述成已经发生未经确认的桌面动作。
-
-当前 `performTaskRequest()` 传给 `plan()` 的是本轮 `text`，不是 `messages`。聊天有历史，不代表 Calculator 规划已经拥有结构化多轮任务上下文。若等待确认时提交新消息，`submit()` 会先取消旧任务和旧确认，再建立新请求；后一句没有应用名时，可能转入普通聊天。
-
-### 3.4 参数、确认和执行
-
-当前只开放两个逻辑任务：
-
-```text
-calculator.pressAndRead
-calculator.twoStage
-```
-
-已有两阶段参数形状：
+两阶段 envelope 示例（仅表示现有参数形状，不是运行证据）：
 
 ```json
 {
@@ -147,325 +79,374 @@ calculator.twoStage
 }
 ```
 
-这里没有脚本路径、JS 源码、坐标、`firstResult` 或 `finalResult`。示例参数不是一次实际运行的证据。
+当前具体行为：
+
+- `shouldHandle()` 以“计算器/calculator”和动作/计算正则分流。中文“计算器”自身包含“计算”，不能据此正确理解否定、引用、只解释或任务修订。误路由不等于已经绕过后续确认执行。
+- 任务 Planner 只拿本轮 `text`，普通聊天才拿 `messages`。有聊天历史不代表有结构化任务上下文；“把乘数改成 7”可能不进入任务分支。等待确认时新请求会使旧确认失效，这一保护应保留。
+- `Agent` facade 位于 [008-ai-runtime.js](../../polyfills/008-ai-runtime.js)，复用 execution-owned Command owner。任务 Planner 配置与普通聊天通道不同；普通聊天成功不能证明 Calculator Planner 可用。
+- Calculator 目前限定 macOS、应用身份和 `232×321` Basic 布局（容差 2）。每次点击前核对当前窗口，按相对 keyPoints 计算位置并调用 `mouse.clickForPID()`；Accessibility 用于数字显示读取，要求唯一 numeric staticText 和连续两次相同读数。不能说它已自动改成 AX 按钮 invoke 或 `UI.tapTexts()`。
+- `twoStage()` 清空、点击第一段、读取本次 firstResult，验证可重新输入后生成第二段按钮，再清空、点击并读取 finalResult。没有用 expected/模型猜测替代 firstResult。
+- `session` 里的 taskId 当前取 requestId；`envelope.task` 是逻辑任务类型，不是运行实例身份。
+- `store` 持久化会话、请求、消息和终态；完整 taskState 主要在活动请求内存里，不是完整的参数/版本/候选/步骤审计库。
+- 结果文案里的“未运行 JavaScript”应改为“复用了已有 JavaScript；未执行模型临时生成的代码”。代码中的 version、codeRef 或“已资格化”文字不是资格证据。
+
+`examples/ai-workflows/chat-calculator/` 是另一套示例文件，修改它不证明正式助手已经变化。现有黄金样本仍是来源/测试资产，不应借迁移静默覆盖。
+
+### 2.2 正式 Script Runner 已有的用户文件路径
+
+[script-runner-simple.js](../../apps/opendesk/script-runner-simple.js) 已经将产品代码与用户数据分开：
 
 ```text
-session 再次复制并冻结通过校验的 envelope
-→ taskService.preview(envelope): 宿主生成真实动作预览
-→ awaitingConfirmation
-→ controller 的 confirmTask.click
-→ session.confirmTask(taskId): 检查当前任务和重复确认
-→ taskService.execute(envelope, { signal, requestId, onProgress })
-→ calculator.execute(envelope, context)
-   ├─ calculator.pressAndRead → pressAndRead(...)
-   └─ calculator.twoStage     → twoStage(...)
+appDataRoot = OPENDESK_APP_DATA_DIR（已配置时）
+           或 <HOME/USERPROFILE>/.opendesk/apps/<packageId>
+
+scriptRoot = OPENDESK_SCRIPT_RUNNER_DIR（已配置时）
+          或 <appDataRoot>/recipes
 ```
 
-当前关联是**已加载对象引用 + 白名单任务 ID + 显式函数分支**，不是文件名搜索，也不是 Script Runner 中选中了哪个文件。
+官方默认 packageId 回退为 `com.opendesk.desktop`。这些是已有路径规则，不是本次新增环境变量。原生 [app_paths.go](../../cmd/opendesk/app_paths.go) 同样区分发行包的用户数据与开发 `-app` 的历史工作目录；开发模式仍可能用 packageRoot，不能把开发路径泛化为正式用户资产位置。
 
-`session` 里当前 `taskId` 取 `requestId`，而 `envelope.task` 是逻辑任务类型。不要在日志或后续设计中把两者混为同一种 ID。
-
-### 3.5 Calculator 真正怎么操作
-
-源码：[capabilities/calculator.js](../../apps/opendesk/capabilities/calculator.js)。
-
-当前声明：`capabilityId = calculator.basic`、`version = 1.0.0`、`codeRef = apps/opendesk/capabilities/calculator.js`。
+[Runner controller](../../apps/opendesk/script-runner/controller.js) 现有脚本名称和排序合同面向直接 `.js` 文件，不是通用发布包索引。新增目录层级不会自动成为现有 Runner 可见条目。
 
 ```text
-openCalculator()
-→ 检查 darwin / 启动 com.apple.calculator
-→ 要求唯一目标窗口，核对应用路径、标题和 232×321 Basic 布局（容差 2）
-→ 每次按键前重新检查当前窗口身份、焦点和几何
-→ 使用已存相对 keyPoints 与当前窗口几何换算点击点
-→ mouse.clickForPID(...)
-→ Accessibility.snapshot(...)
-→ 唯一数字 staticText + 连续两次相同读数
+Script Runner 选择实际 scriptPath
+→ productCommand.run() 拦截产品 Recipe 请求
+→ __opendeskRecipeExecution.run({scriptPath, workdir, logDir, signal})
+→ cmd/opendesk/app_recipe_runner.go
+→ 读取 JS，保存本次入口源码快照
+→ pkg/execution.Run(request)
+→ executionId、状态、日志及取消结果
 ```
 
-因此，**当前正式 Calculator 的按键动作仍是相对坐标点击；Accessibility 用于结果读取。** 不能因为框架其他接口增加了 AX 定位，就声称此执行器已自动迁移到 AX 按钮 invoke 或 `UI.tapTexts()`。
+执行器源码：[app_recipe_runner.go](../../cmd/opendesk/app_recipe_runner.go)。它为每次任务创建新的 Runtime/Execution 生命周期，但保留在 App host 进程内；源码说明其目的包括保持 macOS TCC 的已安装 App 身份。**独立 Execution 不等于独立 OS 进程，更不等于恶意代码沙箱。**
 
-两阶段执行实际是：
+当前该入口只接受 `.js`，有 running/BUSY 和 Recorder capture 冲突检查、取消及入口快照；请求使用环境副本，超时配置当前为 0。不能据此宣称跨所有 Runtime/Scheduler 的排他、依赖闭包冻结、结构化业务 input/result、第三方权限隔离或 `.odpkg` 接入都已完成。
 
-```text
-clear 两次
-→ 第一段 buttons
-→ 真实读取 firstResult
-→ 要求 firstResult 是可重新输入的 1–12 位非负整数字符串
-→ 由 multiplier 和本次 firstResult 构造第二段按钮
-→ 再次 clear 两次
-→ 第二段按钮
-→ 真实读取 finalResult
-```
+### 2.3 由现有源码得到的改造方向
 
-有真实读数和输入依赖检查，不等于独立证明每次点击均成功、读数一定是新值、或全部自然语言目标都已满足；这些需要另外的结果验证和 live 证据。单阶段任务也不能仅凭“读到一个数字”替代业务正确性验收。
+不应新造“助手专用任意脚本执行器”，也不能继续在助手会话 Runtime 中 eval 用户资产。应该抽取/复用当前 App-owned 执行 owner，在它之前增加可信任务解析与确认绑定，并按需补齐输入、结果、期限和一致性检查。
 
-整个 OpenDesk 支持多个系统，与这个具体 Calculator 能力当前仅声明 macOS 范围，是两件事；不能把此能力的范围扩大成 Windows 已验证。
+共享的是服务，不是通过模拟点击 Script Runner 的按钮来运行任务；不应该为了助手请求改变播放器当前选择、打开脚本列表或创建另一个主 App。
 
-### 3.6 结果、停止和历史
+## 3. 文件与数据归属
 
-`session.performTaskRequest()` 将执行结果传给 `taskService.resultText()`，再通过 `store.transitionRequest()` 保存结果文字/状态/错误。运行中完整 `taskState` 保存在活动请求内存中。
+### 3.1 必须分清四种内容
 
-[store.js](../../apps/opendesk/assistant/store.js) 的当前 request/message 事件可以保留会话和终态，但没有持久的候选清单、选择原因、精确代码摘要、完整参数绑定与逐步运行轨迹。聊天历史不是完整的执行审计记录。
-
-当前 `AbortController` 经 session 传入 Planner 和 Calculator；确认失效、重复确认和迟到结果都有处理。单次已提交的原生点击不能承诺撤销。此助手的单活动请求约束，也不能据此推断为已建立跨 Script Runner / Recorder / Scheduler 的全局桌面排他。
-
-当前 Calculator 是在 App 已有 JS 上下文中调用模块，不是给每个 Calculator task 创建一个独立子 Execution。后续增加应用层 `runId` 应与宿主 `Execution.id` 分别记录，不能伪造一对一关系。
-
-## 4. 优化时应修改哪里
-
-| 需要改什么 | 正式源码入口 | 不应误改的对象 |
+| 内容 | 归属 | 规则 |
 | --- | --- | --- |
-| 哪些文本进入自动化 | `assistant/task-service.js`: `shouldHandle()`；`assistant/session.js`: `performRequest()` | 只改示例 Planner，期待正式助手变化 |
-| Codex 提示词、输出参数和校验 | `assistant/task-service.js`: `buildPlannerPrompt()`、`plan()`、`validateTaskEnvelope()` | 让模型生成路径/JS 绕过白名单 |
-| 确认、取消、多轮修订 | `assistant/session.js` | 把聊天历史当作执行授权 |
-| 展示调用程序、参数和结果 | `assistant/controller.js` | 展示模型重新写的“等价代码”冒充实际源码 |
-| 历史调用事实和关联 | `assistant/store.js` 及拟建运行记录服务 | 只保存最终一段文字 |
-| 计算器点击、定位、读数 | `capabilities/calculator.js` | 以为已自动调用某个 golden 或 `UI.tapTexts()` |
-| 模块加载和生产接线 | `apps/opendesk/main.js` | 只改 repo 文件而不核验实际加载目录/旧进程 |
+| 官方 UI、索引/加载/执行服务 | 产品源码与安装资源 | 不存用户业务代码，不随新增用户任务修改 main.js |
+| 用户录制/编写的源文件、素材 | 现有 scriptRoot 或用户显式选择的工作区 | 用户可编辑，支持普通 JS 和多文件项目，不强制先打包 |
+| 已发布任务版本 | 用户数据内的受管理发布区 | 固定代码、依赖、合同及资格引用；更新产生新版本，不编辑旧发布内容 |
+| 运行输入、日志、结果、截图 | 对应 run 的记录/产物区 | 与源码和发布区分离，按权限、脱敏和保留策略管理 |
 
-不要修改 `examples/ai-workflows/chat-calculator/` 后就声称正式助手已修复；示例与生产能力是不同文件。共享逻辑后续可以收口，但应显式处理测试和来源关系，不能借本次文档核查静默重写黄金样本。
+目标布局示意，`capability-*` 子目录尚待实施，不是当前已存在的产品格式：
 
-## 5. 当前缺口，不夸大也不掩盖
+```text
+产品安装目录 / apps/opendesk/**
+  仅官方程序，不放用户业务脚本
 
-| 项目 | 已有 | 尚缺 |
+用户工作区（现有 scriptRoot 或显式接入目录）
+  daily-report.js
+  project-a/...
+  原始录制及必要素材
+
+<appDataRoot>/
+  recipes/                         # 已有默认用户脚本根
+  capability-catalog/              # 拟建：发布条目和可重建检索索引
+  capability-releases/<id>/<rev>/   # 拟建：冻结代码/依赖/合同/必要资格证据
+  assistant/                       # 已有会话持久化；拟补 run 引用
+  .runtime/...                     # 运行产物，不作为发布资格唯一证据库
+```
+
+发布区不得塞入 Runner 的普通脚本扫描集合；不让 helper、旧版、备份、测试、launcher 全部变成可选任务。需要在 Runner 展示已发布任务时，应显式适配目录条目，不能用递归扫描所有 `.js` 代替产品设计。
+
+### 3.2 “保留原文件”与“冻结执行版本”同时成立
+
+用户继续编辑原工作区；发布时将明确依赖闭包形成不可变版本。发布副本是有来源、摘要和生命周期的构建成果，不是两套可独立编辑的业务源码。原文件变化标为“有未发布修改”，不会静默改变正在运行或已确认的版本。
+
+任意外部文件夹只因被发现而获得作者态可见性，不因此获得执行信任。显式选择来源后，校验目录边界、符号链接/路径穿越、大小写/Unicode 冲突、依赖和权限。网络盘/云同步目录的半写入不允许直接发布；先稳定取件和校验，再原子激活。
+
+动态拼接 import/eval 路径、运行时下载代码等无法冻结的依赖，不能假装完整；需改成明确依赖或报告不具备当前发布资格。不同机器上的业务文件不是代码依赖：分别声明为业务输入/配置与授权资源。
+
+### 3.3 工作目录不能因搬文件偷偷变化
+
+分别记录 sourceRoot、releaseRoot、entryPath、workdir 和 artifactRoot。相对模块/图片应按脚本或发布根解析，输出按已批准位置写入。旧脚本依赖原 workdir、硬编码绝对路径或写入脚本自身目录时，应保留明确兼容策略并验证，或在作者态修改后形成新候选；不能搬进 run 临时目录后宣称零改动等价。
+
+已发布代码/静态资产按产品策略只读，输出不写回发布树。只读文件属性和摘要不是抵御同账号恶意程序的安全边界；来源信任、OS 权限和更强隔离需分别处理。
+
+## 4. 固定流程与参数化流程：同一体系中的两种输入合同
+
+**是否有业务参数、采用什么执行入口、是否已有资格，是三个独立维度。** 不把“固定/参数化”变成三套 Runtime 或互不兼容的任务格式。
+
+### 4.1 固定流程：不要求改写原 JS
+
+例如已有录制“打开应用 A，导出门店甲的固定报表到指定位置”。这份顶层直接执行的 JS 可以成为固定任务，不必先改成 `execute(input)` 函数。
+
+登记至少说明名称、用途、固定对象/业务影响、不可改项、环境/启动状态、真实文件及依赖、如何判断结果。用户说“运行我录制的门店甲报表任务”，助手选择并确认后执行原入口。
+
+零参数输入合同的示意：
+
+```json
+{
+  "type": "object",
+  "properties": {},
+  "additionalProperties": false
+}
+```
+
+调用 arguments 只能是 `{}`。但用户要求“改成门店乙”时，不能丢掉这项要求再用 `{}` 调用门店甲任务；应返回不支持变更/澄清或作者态扩展请求。
+
+**没有参数不等于没有业务约束、没有外部依赖或没有风险。** 固定流程可能仍发送、覆盖或删除；“当前窗口、剪贴板、选中文件、当前账号、今天”是隐式环境输入，必须声明并在运行前解析/校验。无法知道固定流程会作用于哪个对象时，不进入普通助手执行目录。
+
+### 4.2 参数化流程：只开放真实支持的业务变化
+
+当用户确实需要不同门店、日期、文件或接收对象时，在作者态提取必要参数，验证后发布新版本。只改 metadata 而代码仍使用硬编码值，是必须拒绝发布的合同漂移。
+
+参数分为：
+
+| 种类 | 来源 | 能否让对话临时修改 |
 | --- | --- | --- |
-| 固定任务调用 | 两个 task、固定 Calculator 对象 | 可扩展的可信 Catalog / Resolver |
-| 参数安全 | schema、白名单、表达式和数量约束、确认冻结 | 业务意图一致性、逐参数来源、结构化澄清续改 |
-| 代码身份 | 内置 definition 中有 id/version/codeRef | 实际加载字节/依赖闭包摘要、可核对运行记录、发布资格引用 |
-| 可解释性 | 动作预览和部分结果文字 | 为什么选它、排除了谁、实际入口和版本、查看实际代码 |
-| 历史 | request/message 及终态事件 | 不可变 Run Record、阶段事件、观测和证据引用 |
-| 用户脚本接入 | 此正式助手路径里没有通用接入 | 导入、候选冻结、独立验证、明确发布和撤销 |
-| 多文件规模 | 当前不是从大量文件选脚本 | 正式描述符索引、去重、冲突诊断、检索评测 |
-| 平台范围 | 当前执行器明确检查 macOS | 每个新平台/布局/输入域对应的资格与适用选择 |
+| 业务输入 | 本次明确需求/澄清、已授权上下文 | 仅已声明且已验证字段 |
+| 安装配置 | 用户设置、机器环境 | 不随一次聊天静默改变；绑定配置版本/目标身份 |
+| Secret | 现有 Secret/凭据 owner 的引用 | 不直接进入模型、目录说明或明文日志 |
+| 定位/可靠性常量 | AppProfile、helper、候选代码 | 不作为普通业务参数开放，如坐标、AX locator、等待阈值 |
+| 跨步骤结果 | 本次已验证 Observation | 绑定 run/step/field，不来自模型猜测或任意历史数字 |
 
-`resultText()` 当前有“未运行 JavaScript、Shell、路径或任意脚本”的文案。它应在后续代码修改时改为：
+有默认值的字段也要展示实际采用值。日期/时区、金额/单位、账号、外发对象、文件版本和覆盖策略不能靠“常见默认”猜测。参数化扩大了输入域，需变化输入、边界值和反例验证，不是修改一个变量名就继承全部旧资格。
 
-> 本次复用了已加载的 Calculator JavaScript 能力；模型只生成任务参数，没有执行模型临时生成的代码或任意脚本路径。
+### 4.3 已保存参数预设
 
-当前定义中的 `version`、`codeRef`、变量名和预览中“已资格化”字样，本身都不是精确候选已完成独立资格验证的证据。
+同一个参数化版本可保存“门店甲日报”等预设。预设只是对精确程序版本的一组参数绑定，不复制一份 JS，不是新的执行器。锁定的收件人/账号等字段不能被对话悄悄覆盖；允许覆盖哪些字段必须明确。升级程序需要检查输入合同兼容，旧预设不能自动绑定“最新版本”。
 
-## 6. 改进建议一：先让每次调用可见、可追溯
+### 4.4 最小登记体验，而不是让用户写多份清单
 
-这一批不应等待通用目录完成。先把当前唯一 Calculator 调用展示清楚，但不要给内置能力补造不存在的 candidate/qualification/hash。
+用户界面只需回答：这个任务叫什么、做什么、哪些内容固定、哪些已能变化、在哪些条件下可用、怎样验证。系统可从脚本/录制生成待审描述，但用户/开发者必须核对真实行为。
 
-对话中保留简洁任务卡，详情按需展开，不增加必需的任务库页面或参数表单：
+Definition、Candidate、Qualification 和 Catalog 是逻辑责任，可复用现有工作包和自动生成摘要，不要求用户手填四份 JSON。固定脚本也需验证，但不因“为了接入”而从头录制或重写已有效的资产。
+
+## 5. 调用身份与运行机制
+
+### 5.1 用身份找程序，不让模型给路径
 
 ```text
-复用已有程序：Calculator Basic · 1.0.0
-本次任务：两阶段计算
-执行来源：已加载的内置 JavaScript 模块
-第一段：25 × 4 + 10 =
-第二段：6 × [本次显示区实际读取值] =
-状态：等待确认 / 运行中 / 已停止 / 完成 / 失败
-
-详情：匹配依据｜参数来源｜实际代码｜步骤与结果
+capabilityId / 已明确的任务引用
+→ CatalogEntry：本地明确发布的条目
+→ CandidateManifest：精确入口、代码/依赖摘要、适配器与合同
+→ QualificationRecord：对应候选和适用范围
+→ 宿主解析真实 releaseRoot/entryPath
+→ 本次 RunBinding
 ```
 
-这是建议 UI 文案，不是已完成界面。代码查看必须对应实际执行内容：
+沿用 [生命周期总纲](desktop-automation/task-capability-lifecycle.md) 的既有对象，不增加同义 Program/Skill 注册体系。引用保持无环：Definition 不回指 Candidate，Candidate 不回指 Qualification。权限/发布状态由宿主决定，不从模型字段或脚本注释获取。
 
-- 记录实际 packageRoot、模块加载路径和加载时摘要，而不是运行结束后重新读可能已变化的文件。
-- 已有 bundle 则记录实际 bundle 和来源关系；源码视图不能冒充 bundle 本体。
-- 显示真实入口函数和参数；不把模型生成的伪代码当作“实际执行代码”。
-- `.odpkg` 等受保护内容按现有保护/许可边界展示元信息，不因“查看代码”解密或泄漏源码。
+### 5.2 一个执行服务，两种入口适配
 
-拟议 Run Record 最小信息组（字段名不是已发布 API）：
+```text
+AI 助手 / Script Runner / 后续 Scheduler
+                 ↓
+共享运行服务：身份、授权、输入、执行状态、停止、资源仲裁
+                 ↓
+App-owned Recipe execution（已有 owner，需增量补齐合同）
+                 ↓
+每个运行实例的独立 Runtime/Execution
+  ├─ script entry：直接运行已冻结的顶层 JS
+  └─ module entry：已验证的静态启动入口调用业务模块
+                 ↓
+普通 OpenDesk API → 业务步骤 → Observation / Result
+```
 
-| 信息组 | 内容 |
+本图为目标接线；当前助手尚未接入该共同服务。`__opendeskRecipeExecution` 是产品内部桥，不把它宣传成用户脚本公共 API。只由宿主创建执行，不给任意 Recipe 发放递归启动独立执行者的能力。
+
+固定脚本的“直接运行”指授权后由生产 loader 在新任务 Execution 中运行原入口，不是 catalog 导入时执行。模块的静态启动入口在作者/发布时确定并纳入候选，不能由模型每轮生成 launcher 或改写源代码。一个完整业务可以由 JS 内部组合多个模块，不需要每个 helper 创建一个 Execution。
+
+### 5.3 参数如何真正传入
+
+当前内部调用形状是 `{scriptPath, workdir, logDir, signal}`，缺少可据此宣称已完成的结构化业务 input/result 通道。
+
+拟议实施合同：由宿主将已校验、冻结的业务 input 作为独立运行请求的数据交给原生执行 owner，再在该次 Runtime 初始化阶段提供只读的任务输入；参数化入口主动消费该输入。执行结果同样以带 runId/executionId 的结构化数据返回。具体公共 JS 名称必须在 Runtime/API/类型/测试一并落地后公布，本页不发明现成的 `Execution.input` 或 `Recipe.run()` 调用。
+
+这是每次运行的数据绑定，不是代码生成。不得字符串替换 JS、拼接 Shell、修改共享 config 文件、使用共享 global/临时文件名，或把任意模型字段塞入进程环境绕开 schema。若实现采用 run 专属输入/结果文件，必须由宿主生成路径、隔离访问、绑定身份、原子写入和大小限制；输入内容永远按数据解析。
+
+零参数旧脚本不需要消费新 input，因此是第一批接入对象。没有结构化返回的旧脚本可报告“执行正常结束，业务结果未自动验证”；独立只读 verifier 可在声明范围内验证产物，不伪造脚本返回值。跨步骤自动消费结果必须通过结果合同，不能解析“成功”日志或模型总结当作业务值。
+
+### 5.4 授权不是沙箱，独立 Runtime 也不是
+
+当前原生执行请求开启多项 Runtime 能力，不能假设其具备按 descriptor 强制限制第三方 JS 的权限沙箱。第一阶段仅接入用户自己编写或已明确审阅信任的本地任务；来源不明的第三方脚本不得靠一条 description 自动放行。更强第三方隔离、网络/文件策略和发行验证应单独实现与验收。
+
+同一 App host 保持现有产品模型；没有证据时不把“另起子进程”作为修补方案，也不声称同进程可以保证原生崩溃隔离。JS 中断、阻塞 native 调用、资源释放及停止上限需分别测试。
+
+## 6. 完整运行流程及错误命中防线
+
+```text
+本轮消息 + 当前对话的明确任务 draft/revision
+→ 分清聊天 / 执行已有任务 / 修改任务 / 作者态请求
+→ 保留全部显式约束和禁止项
+→ 从有权访问的已发布描述符中召回候选
+→ 比较“用户要什么”与“程序实际做什么”
+→ 固定任务检查固定行为；参数任务提议参数；预设检查锁定项
+→ 可运行 / 澄清 / 受阻 / 待重验 / 待扩展 / 无能力
+→ 宿主校验身份、范围、依赖、输入与只读 preflight
+→ 展示实际业务影响、来源、固定项/变量、代码版本
+→ 用户确认本次 RunBinding
+→ 原子获取执行权，重查版本、撤销、目标与时效
+→ 执行原业务入口
+→ 保存过程、实际观察、验证状态及结果
+```
+
+匹配不能只看“名字接近”。要求“导出但不发送”时，含发送步骤的固定任务不适用；不能运行到中途临时删步骤。唯一候选也可能不适用。相关但缺权限的任务要显示受阻，而不是被过滤消失后换成另一个不符合需求的程序。
+
+小目录先做确定性字段/词法召回，规模增长后依据评测增加语义召回/重排，只向模型提供少量候选合同。helper、备份、测试、撤销版本不参与匹配；查目录不执行代码，不把全部源码塞入提示词。
+
+稳定 ID 与显示名称分离，允许重名展示来源/应用区分；相同命名空间 ID+版本指向不同内容拒绝，不用 last-write-wins。索引是可重建投影，缓存绑定目录 revision；缺失/损坏时可以重建描述符索引，不能通过执行脚本探测。模型返回未知 ID/路径、伪造权限或非候选 ID 一律拒绝。
+
+“修改刚才的任务”必须绑定本会话 task revision。参数/固定行为、候选版本、相关配置、目标账号或时间窗口变化，使旧确认失效。目录中新增无关任务不必无条件废弃所有确认，但宿主必须证明本次绑定及授权相关状态未变；不能直接使用新目录首项。
+
+命中率评测同时统计正确召回、自动选择精度、拒选/澄清、参数与固定约束一致性。不能用“全部拒绝所以没有错”冒充高质量，也不能用模型自报 confidence 当准确率。
+
+## 7. 录制 → 固定调用 → 可选参数化
+
+```text
+Recorder raw/actions/generated JS
+                 ↓
+工作区保存 + 业务用途/固定效果审阅
+                 ↓
+能保持原行为并满足安全/结果要求？
+  ├─ 是：冻结原 JS 及依赖 → 验证固定范围 → 发布零参数任务
+  └─ 否：沿已有 Human-to-Recipe / application-engineer 修必要缺口
+                 ↓
+普通对话按原业务调用
+                 ↓
+出现真实变化需求？
+  ├─ 否：继续固定任务，不强制抽象
+  └─ 是：明确变更字段 → 作者态参数化 → 扩域测试
+          → 新候选/资格/版本 → 重新发布和确认
+```
+
+录制成功只证明保存了动作；静态 refiner PASS 只证明对应保真检查，不证明业务结果、稳定定位、应用范围或取消。固定任务必须有其范围内的独立验证；可复用已有对应证据，不强迫重做已完成工作。
+
+首次运行对原文件的手动开发者使用保持现有 Script Runner 语义；“导入源文件、允许助手发现、允许本次执行、允许作者修改”是不同状态和授权，不相互自动推出。
+
+参数化前分类常量：业务变量、环境配置、Secret、定位常量、真实结果依赖。不能把录制里的每个字符串都当成参数，尤其不能把坐标、窗口身份或安全限制开放给模型任意填。
+
+## 8. 每次调用的可见性与证据
+
+固定任务卡示意：
+
+```text
+复用已有任务：门店甲报表
+类型：固定流程（本次没有可修改业务参数）
+固定行为：按已保存流程导出；不会自动改为其他门店
+程序来源：你的工作区所发布的版本
+状态：等待确认
+详情：固定内容｜实际入口与版本｜匹配依据｜执行与结果
+```
+
+参数化任务卡使用同一界面，增加真实输入值及来源，不要求另建任务商城、手选程序页或参数表单。
+
+Run Record 最少关联 conversationId/requestId/runId/executionId、任务与发布版本、实际入口和代码/依赖摘要、来源工作区、实际 workdir、输入及来源、配置/环境身份、预览/确认、执行阶段、观察/验证、错误和证据引用。记录结构化选择证据，不保存模型隐藏思维链。
+
+实际代码视图来自运行时加载快照/精确发布内容，不能读取执行后已变化的源文件冒充当时版本。当前入口 snapshot 只是可复用起点，还要补齐依赖身份。`.odpkg` 按既有保护合同展示元信息，不因“查看代码”暴露源码；当前 App runner 尚只接 `.js`，受保护包需显式适配再开放。
+
+状态区分：执行结束、结果已观察、业务验证通过、失败、已取消、效果未知。成功退出不等于业务成功。取消阻止后续动作，不回滚已发送/覆盖/删除的效果；崩溃后恢复历史不得自动重跑。
+
+删除会话、移除目录条目、卸载发布版本、删除源文件、删除业务输出是不同操作。删除记录不能默认删用户脚本；撤销阻止后续运行，保留仍受保留策略约束的历史身份。正在运行的版本与证据不得被垃圾回收。
+
+## 9. 必须同时考虑的横向因素
+
+| 因素 | 必须作出的决定 |
 | --- | --- |
-| 关联 | conversationId、requestId、应用层 runId、宿主 Execution.id、任务类型 |
-| 路由 | chat/task/authoring 的判断依据和结构化原因；规则版本 |
-| 匹配 | 本次候选、排除原因、选中能力、显式约束；目录快照身份 |
-| 执行身份 | capabilityId/version、Candidate 引用、实际模块/依赖摘要；尚不存在的项明确未建立 |
-| 输入 | 已冻结参数及来源：本轮消息、明确澄清、已验证 observation；敏感值脱敏 |
-| 授权 | 宿主预览、确认绑定、权限与环境检查；不能从日志重新获得执行权 |
-| 过程 | 有序事件、当前步骤、最后确认副作用、取消/失败边界、耗时 |
-| 结果 | 真实 observation、独立验证状态、错误、证据引用 |
+| 代码完整性 | 入口、helper、预检、预览、验证器、schema、模型策略固定；加载/使用同一内容，不只先 hash 再重新读可变文件 |
+| 工作目录和资源 | 不同 entry/workdir/artifactRoot；相对路径、外部业务文件、资源缺失与写权限有合同 |
+| 隐式输入 | 当前账号、剪贴板、选中对象、窗口、日期时区显式解析/限制；关键未知不执行 |
+| 平台与应用 | macOS/Windows、应用版本、locale、DPI/layout 分别验证，产品多平台不等于脚本全平台 |
+| 风险和信任 | 固定流程也有副作用；元数据不是沙箱；授权安装与单次授权分开 |
+| 停止和排他 | 接入原生 owner 和既有快捷键/停止链；助手/Runner/Recorder/调度共用仲裁；不能只禁用按钮 |
+| 时效和排队 | 第一阶段 BUSY 不建隐形队列；将来排队/定时需重新校验目标、数据、授权有效期 |
+| 重试与恢复 | 双击/迟到事件幂等；外部效果未知不自动重发；不承诺 exactly-once 业务副作用 |
+| 结果可信性 | raw return、实际 Observation、独立验证分开；无结果合同不用于自动链式传值 |
+| 配置和 Secret | 配置版本/账号变化重验授权；凭据引用与脱敏，不共享临时配置、不泄露模型上下文 |
+| 发布和升级 | 源文件可变、发布内容不可变；依赖和预设兼容、撤销、回退、原子更新与持久证据 |
+| 生命周期与备份 | 工作区/发布资产不是缓存；清理 `.runtime` 不毁用户唯一资产或唯一资格证据 |
+| 规模和检索 | 同名/别名/近义不同副作用、目录修订、非候选文件噪声、模型版本变化回归 |
+| 成本与范围 | 固定任务不必调用模型生成参数；显式任务引用可少一次选择，但不绕过确认和执行门 |
 
-规则：记录结构化选择证据与验证结果，不索要或保存模型隐藏思维链。模型解释不作为宿主验证事实。
+现有 BUSY/Recorder 检查不能直接当作原子跨工具桌面锁；需在共同 owner 内原子取得/释放，并对外部 CLI/其他 Runtime 明确覆盖边界。无法强制覆盖时声明受监督单操作者范围，不宣称无人值守并发安全。
 
-记录区分 `observed / verified / failed / unknown` 等语义；“执行返回”与“业务结果验证通过”不得混为一项成功标记。
+## 10. 迁移与实施顺序
 
-持久化需要兼容旧会话 schema、原子提交/恢复和保留策略。产品记录随现有 appDataRoot 管理；测试日志、截图和一次性运行证据仍归 `.runtime/`，不提交仓库。敏感 prompt、参数、源码和截图默认按最小暴露原则处理；日志不要自动外发。
+### M0：先让真实用户固定脚本走通，不先要求参数化
 
-## 7. 改进建议二：程序的关联单位是能力，而不是文件名
+建立最小本地登记/发布和版本绑定；复用 App-owned 执行器；用一个应用核心目录外、顶层执行、没有业务参数的低风险 JS 完成对话选择、可信预览、确认、运行、停止和运行记录。原文件无需函数式改造，但其路径/环境/固定效果必须真实验证。
 
-继续复用生命周期总纲的四个对象，不新增一套平行 Program/Skill 注册体系：
+该阶段同时做调用详情，不必先单独做一轮仅美化 Calculator 追踪。安全门与真实用户脚本路径是优先级高于演示 UI 装饰的交付。
 
-```text
-CapabilityDefinition：它能做什么、需要什么输入、支持哪些范围
-        ↓
-CandidateManifest：精确代码、依赖闭包和 Definition 身份
-        ↓
-QualificationRecord：哪个候选在哪些条件下验证过
-        ↓
-CatalogEntry：哪个候选被明确发布、允许发现、是否撤销
-```
+### M1：同一体系增加参数和预设
 
-内容引用保持无环：Definition 不回指 Candidate；Candidate 不回指 Qualification；CatalogEntry 汇总引用。模型只能提议逻辑能力与参数，实际版本、模块路径、导出、权限、资格和代码摘要由宿主解析并固定。
+为原生 owner 补齐 per-run 输入/结果与期限合同；旧零参数脚本保持兼容。提取少数确有价值的业务字段，验证代码消费输入，保存参数预设，支持本会话修改与旧确认失效。不允许传参成功但脚本仍执行硬编码业务。
 
-当前 `calculator.basic` 与两个 taskIds 不必立刻重命名；先通过适配器保留兼容，再决定如何表达多个 operation。不能在未验证的情况下把原来受限的两个任务合并成任意数学能力。
+### M2：消除演示特例、增加规模及第二业务
 
-文件与能力不是一对一：一个任务可以依赖多个 JS 文件；多个能力可以使用同一受版本约束的模块；helper、测试、备份、旧版本不是可调用任务。**只有明确发布的 CatalogEntry 参与选择，不扫描所有 `.js` 后逐个猜用途，更不能 import/eval 文件来探测元信息。**
+将 Calculator 整理为可安装示例/测试资产，通过与用户脚本相同的登记、资格和执行路径运行，再移除 `main.js` 的业务专用注入。先保证新路径实测，再删除旧接线，不在本次文档修订中直接搬走文件导致启动失败。正式产品核心仅保留通用服务；示例的分发源可以随发行包提供，但用户安装/修改/运行的资产不写回产品核心。
 
-用户接入已有脚本的目标流程：
+保持原 golden、示例路径与已有用户资产的显式兼容，更新构建资源、测试与导航。验证增加一个用户任务不必修改主程序、不必重新编译 OpenDesk。
 
-```text
-作者侧显式选择已有 JS / Recorder 产物
-→ 明确业务用途、参数、输入输出、应用和平台范围
-→ 识别顶层副作用，必要时提取为可调用模块
-→ 冻结 Definition + Candidate + 依赖
-→ 独立验证输入范围与实际效果
-→ 用户明确发布到本地可信目录
-→ 助手可发现
-→ 新的运行预览和确认
-```
+随后用另一种固定业务和对应参数化变体验证通用性；再做 100/1,000/10,000 描述符的检索和性能实验。合成目录规模不等于这些业务脚本已全部取得资格。
 
-这不是当前已提供的导入按钮或命令。本地 Codex / Recorder 和既有 Agent-to-Recipe / Human-to-Recipe 工作流继续负责作者态；发布不自动执行原请求，不继承开发前的旧确认。
+### 不作为本轮前置
 
-普通开发者仍可按现有 Script Runner 方式运行自己的脚本；“能在 Runner 里运行”和“允许助手自然语言自动选择”是不同授权层次，不要求将所有普通 JS 都强制纳入 Catalog。
+远程 Registry、任意第三方自动安装、复杂 DAG/DSL、第二 Runtime、每次生成代码、强制参数表单和全部录制脚本重写。不改变既有 Agent/Human 作者工作流目录和来源规则。
 
-## 8. 改进建议三：精准匹配采用分层解析，不堆更多关键词
+## 11. 验收标准与评分
 
-目标运行链：
+以下均是后续待运行标准，本次没有测试 PASS：
 
-```text
-本轮消息 + 明确绑定的当前任务上下文
-→ 分清聊天 / 执行已有任务 / 请求生产新能力
-→ 保留用户的应用、对象、动作、输入和禁止事项
-→ 查询有权访问的已发布能力描述符
-→ 相关候选召回与当前可用性判定
-→ 少量候选之间的语义选择和参数提议
-→ 宿主严格校验 / 澄清 / 阻塞 / 能力缺口
-→ 精确绑定版本、代码、依赖、范围和参数
-→ 可信预览与确认
-→ 当前环境再次检查
-→ 执行、观测、验证、记录
-```
-
-### 8.1 先约束，再排序
-
-用户明确指定的应用、业务对象、动作、禁止事项和已明确选择的任务不能被相似度覆盖。平台、权限、发布状态、资格范围等由宿主判断，不由模型自报。
-
-要区分“相关但被阻塞”和“不存在”。例如一个任务需要尚未授予的权限，应报告阻塞；不能把它过滤得无影无踪，再选择语义更差但可运行的另一项。未经授权的目录条目本身不应泄露给模型。
-
-名称/别名只能帮助召回，不能提供执行身份；正式身份需要稳定的命名空间和 ID。重名可以展示作者/来源/应用进行区分；同一个 ID+版本绑定不同内容必须拒绝或隔离，禁止 last-write-wins。已选能力变为不可用时明确失败，不悄悄替换。
-
-### 8.2 小目录先做简单、可测试的索引
-
-先用可信本地描述符的名称、应用、描述、关键词、正例问法和容易混淆的反例做可复现召回；不必为两个能力先建立向量数据库或远程 Registry。
-
-规模扩大后再根据实测引入词法检索与语义检索的组合，仅向模型加载少量相关候选的完整合同，而不是发送所有源码。Top-K、阈值和排序差距属于待评测参数，不能把随意设定的数字当成准确率保证。
-
-缓存绑定目录 revision 和描述符摘要；新增、修改、撤销后使缓存失效。备份文件、测试文件和源码目录增长不应自动扩大能力集合。
-
-### 8.3 允许不选，比强行第一名更重要
-
-候选唯一也不意味着必定适用。相近候选应在当前对话内用简短选项消歧；缺参数就问缺项；相关但不满足条件就阻塞；确实没有能力才产生 Gap。
-
-不强制添加独立脚本选择器。对话内必要的候选澄清是一次请求的交互，不是把助手改成任务商城或参数表单。
-
-用户询问、否定、引用、假设或要求“只解释”时，不应仅因为文本里出现工具名和动词就进入执行授权。高相似度、模型自报 confidence、热门程度或过去成功记录，都不能绕过确认和硬约束。
-
-### 8.4 参数必须有来源，修改必须有新版本
-
-参数提议通过 schema 只证明结构合法。例如用户要求乘以 6，模型提议 7 仍可能通过数字格式校验；需要展示关键参数与来源，并评测语义一致性。
-
-“把乘数改成 7”应绑定当前对话中明确的任务 draft/revision，而不是重新只按这一句话匹配整个库。修改后旧预览和确认失效；不能从别的会话借参数，也不能把任意历史数字当作执行输入。
-
-跨步骤值应绑定已验证 observation 引用及具体 run/step/field；当前两阶段 Calculator 内部读取 firstResult 的规则保持不变。自然语言里“刚才结果”不能直接成为可信结果引用。
-
-### 8.5 匹配不能承担运行隔离的职责
-
-新增能力前还要复用/补齐现有 Runtime 的取消、超时、桌面排他和副作用边界。宿主级策略不是 description 里的声明，也不是靠提示词能保证。
-
-索引 metadata 不自动执行不可信脚本；描述符不能自授权限。实际第三方代码的可信安装、允许来源与现有执行边界需单独审查，不能把普通 JS 同进程模块称为沙箱。
-
-## 9. 实施顺序和当前粒度任务树
-
-```text
-A. 当前调用可见性（第一批）
-   A1. 更正“未运行 JavaScript”的误导文案
-   A2. 展示当前 capability/task、真实模块入口、参数和实际读值
-   A3. 记录请求/run/加载来源及结构化事件，兼容旧会话
-   A4. 区分 observed 与 verified，不伪造 hash/资格或结果
-   A5. 补齐 JS 合同、持久化、迟到事件、渲染测试
-
-B. 最小可信目录与通用解析（第二批）
-   B1. 按现有生命周期合同实现最小本地 Catalog 与只读描述符
-   B2. 冻结候选/依赖，接入独立资格和发布/撤销门
-   B3. 将现有 Calculator 通过兼容适配器接入，不扩大原范围
-   B4. 建立 Resolver 的选中/澄清/阻塞/Gap 结果
-   B5. 测试增删条目、重复身份、过期版本、伪造路径和替换攻击
-
-C. 自然语言和多轮正确性（第三批）
-   C1. 区分请求执行与解释/否定/引用/作者态
-   C2. 建立参数来源和同会话 task draft/revision
-   C3. 候选消歧与缺项澄清，修改使旧确认失效
-   C4. 在有限目录上评测后再优化召回和模型提示词
-
-D. 用户脚本接入（第四批）
-   D1. 对接 Existing Assets / Recorder / 既有作者工作流
-   D2. 安全导入、明确业务合同、冻结依赖和独立验证
-   D3. 发布、更新、停用、撤销；从不自动重跑旧请求
-   D4. 给开发者提供与实际接口一致的接入文档
-
-E. 规模和质量门（与 B—D 同步推进）
-   E1. 结构化匹配案例与保留测试集
-   E2. 100 / 1,000 / 10,000 描述符的合成干扰/性能实验
-   E3. 错误选择、错误参数、拒选、延迟与追溯完整性分别统计
-   E4. 当前构建的 macOS Calculator 独立真机/视觉验收
-   E5. Windows 等能力按各自候选和范围独立验证，不继承 macOS 结论
-```
-
-A 阶段先解决“实际运行哪份代码、为什么调用、结果从哪里来”，不以“通用目录还没做”为理由继续保持黑箱。B 阶段的元数据、候选与资格记录必须接入正式实现后才能被标成可用。
-
-不要一次建设远程插件市场、万能 DAG、临时脚本执行器或第二套 Runtime。明确停止、跨工具桌面排他和未知副作用 fail-stop 是执行扩展的门，不因目录只在本地就可以跳过。
-
-## 10. 如何验证，不以主观评分代替证据
-
-现有测试入口目录：[tests/assistant/](../../tests/assistant/)。本次只核查该目录存在以下相关文件，没有运行它们：
-
-```text
-assistant.test.js
-controller.test.js
-calculator-capability.test.js
-message-rendering.test.js
-assistant-ui-live-macos.js
-calculator-live-macos.js
-calculator-layout-failure-live-macos.js
-```
-
-第一批改动应优先复用这些 JS 测试。后续 Resolver/注册/调用追踪的测试仍使用 `.js`；不能用新增 Go 测试代替用户可观察契约，也不能把 Node mock 说成 OpenDesk 真机运行。
-
-最低行为集合：
-
-| 类别 | 应验证行为 |
+| 验收 | 必须达到的结果 |
 | --- | --- |
-| 路由 | 正常执行、普通聊天、否定、只解释、引用指令、缺应用名 |
-| 匹配 | 重名能力、相似不同动作、平台差异、旧版/禁用/撤销能力、无匹配 |
-| 参数 | 缺字段、范围错误、单位/对象错误、合法但与原需求不同的值 |
-| 多轮 | 修改参数、旧确认、切换会话、跨会话污染、重复确认 |
-| 身份 | 修改磁盘文件、热更新、加载内容与展示内容不符、依赖变化 |
-| 注册 | 导入时无顶层执行、同 ID 冲突、未资格化不得发布、撤销后不得运行 |
-| 执行 | 取消、迟到事件、错误窗口、失焦、读数歧义、未知副作用停止 |
-| 记录 | 会话恢复、完整参数来源、结果观察/验证区分、脱敏、损坏记录诊断 |
+| 应用外资产 | 源脚本在用户目录，新增任务不修改/重编主程序；安装升级不覆盖它 |
+| 固定脚本 | 顶层旧 JS、arguments={}，按原业务执行；导入和匹配阶段零执行 |
+| 固定约束 | 要求改变固定账号/对象/发送行为时拒绝原样错跑；不能吞掉要求后用空参调用 |
+| 参数化 | 真实消费已声明参数；未声明、遗漏、类型/单位错误、代码与描述不符均被阻止 |
+| 预设 | 绑定精确版本；锁定字段不可隐式覆盖；升级不静默改变行为 |
+| 入口与上下文 | 实际 entry/workdir/依赖/素材正确，无宿主全局污染、无伪造 scriptPath/scriptDir |
+| 版本一致 | 确认后源文件/依赖/配置变化有明确冻结或失效行为，不读到另一份代码 |
+| 录制接续 | 复用原动作/证据，固定调用不强制参数化；静态 refiner 不冒充业务资格 |
+| 确认与停止 | 重复确认最多启动一次；旧确认、迟到结果、窗口关闭/崩溃后不隐式运行 |
+| 并发 | 助手/Runner/Recorder/调度相互争抢时在共同 owner 串行或明确拒绝 |
+| 结果 | 正常退出但缺业务证据，显示“未自动验证”；未知效果不自动重试 |
+| 匹配 | 重名、近义不同副作用、否定、只解释、跨会话任务修订均有保留测试 |
+| 生命周期 | 撤销禁止新运行；删除会话不删脚本；保留/清理不破坏活动运行或发布证据 |
+| 真机 | 当前 Runtime/UI-host provenance、macOS/Windows 各自适用范围、真实动作与视觉分别留证 |
 
-评测应分别报告召回率、自动选择精度、错误选择率、应澄清时的澄清率、参数准确率、执行/业务验证成功率、追溯完整率和 p95 延迟。不能只统计“成功调用了一段程序”，也不能把全部拒绝换来的零错误包装成高可用。
+设计自评采用明确权重，不虚构多位专家或实际运行评分：
 
-安全用例以零未经确认执行、零禁用/越权命中、零代码身份错绑为放行目标；达标与否必须由测试结果给出。检索阈值在调试集上调优，在独立保留集上检验；不能把 description 中的正例原样当作全部测试题。合成目录实验只证明检索/规模行为，不证明 10,000 个程序均已验证可运行。
+| 维度 | 权重 | 自评 | 主要依据/扣分 |
+| --- | ---: | ---: | --- |
+| 用户资产与应用边界 | 20 | 20 | 用户目录、发布区、运行区明确，升级不改用户资产 |
+| 固定/参数化兼容 | 20 | 19 | 不强制重写，输入模式与入口正交；复杂旧路径适配仍需验证 |
+| 执行与生命周期 | 15 | 14 | 复用已有 owner、独立 Runtime；跨入口仲裁/阻塞 native 停止待实测 |
+| 意图匹配与授权 | 15 | 14 | 固定效果约束、澄清、版本绑定；自然语言召回需保留集校准 |
+| 追溯与结果 | 10 | 10 | 实际代码/输入/证据绑定，观察与验证分离 |
+| 实施与迁移 | 10 | 9 | M0 先固定流程；新增 input/result 与发行迁移尚需落地 |
+| 范围控制与可维护性 | 10 | 10 | 不造平行注册/Runtime/DSL，不把市场建设前置 |
+| 合计 | 100 | 96 | 设计自评，不是产品完成度或独立实测分数 |
 
-## 11. 外部技术参考的使用边界
+以下是硬否决项，不能靠总分补偿：用户业务写入核心目录、发现时执行脚本、篡改固定行为/丢弃用户约束、未确认执行、代码身份错绑、未知副作用自动重试。任一出现，实施不能验收。
 
-Anthropic 2025-11-24 的工程文章 *Introducing advanced tool use on the Claude Developer Platform* 讨论按需发现工具、相近工具的错误选择和用例说明。它支持“描述符检索后加载少量候选”的方向，不证明 OpenDesk 的实现或准确率，也不要求采用它的代码执行方案。
+## 12. 文档所有权与可复核来源
 
-来源：`https://www.anthropic.com/engineering/advanced-tool-use`，查阅于 2026-09-16。
+- 本文：真实调用链、用户脚本接入/存储/执行的阅读入口、固定与参数化例子、迁移及验收。
+- [Automation Capability Lifecycle](desktop-automation/task-capability-lifecycle.md)：跨 Runtime/Catalog/Authoring 生命周期、Candidate/Qualification/Publish 的唯一总纲；本次同步修正强制函数化和只随产品发布的旧限制。
+- [对话工作台](conversational-task-workspace.md)：会话产品、对话优先、代码可见性；不因此增加必需脚本选择器/参数表单。
+- [Conversational Task Runner](conversational-task-runner.md)：早期 Calculator 示例的历史合同、命令和验收；其旧 P0 表述不是通用用户资产架构。
+- [共享 Skill 合同](../frameworks/agent-to-recipe-skill-contract.md)：TaskContract、AppProfile、SemanticProcedure、CandidateManifest、QualificationRecord 和接续，不复制另一套权威 schema。
+- [源码导航](../../apps/opendesk/assistant/README.md)；[现有测试目录](../../tests/assistant/)。
 
-MCP 的 2025-06-18 Tools 规范将工具身份、描述、输入 schema 与调用交互分开，并建议让用户清楚看到工具调用和有机会拒绝。这里仅作合同与可见性的参考，不把采用 MCP 或工具注解本身视为授权、资格或沙箱。
+外部参考仅支持设计原则，不证明 OpenDesk 已实现：
 
-来源：`https://modelcontextprotocol.io/specification/2025-06-18/server/tools`，查阅于 2026-09-16；此处引用的是明确版本的规范，不声称它是最新版本。
+1. MCP Tools 2025-11-25 规范明确允许无参数工具使用拒绝额外属性的对象 schema，并要求不把不可信工具注解当作可信事实。[规范](https://modelcontextprotocol.io/specification/2025-11-25/server/tools)。
+2. Microsoft Power Automate 将流程变量与显式输入/输出区分，输入声明包括类型、说明、默认值/可选性等；不能把流程所有内部变量都当外部输入。[变量文档](https://learn.microsoft.com/en-us/power-automate/desktop-flows/manage-variables)。
+3. MCP 官方关于工具注解的说明强调注解不是权限强制或沙箱。[说明](https://blog.modelcontextprotocol.io/posts/2026-03-16-tool-annotations/)。
 
-## 12. 接续检查
+以上查阅日期为 2026-09-16，MCP 引用明确版本，不声称其为所有实现的最新兼容版本。
 
-后续实施必须先重新读取当前 `master`、本文所列生产文件、现有测试和对应文档，不沿用本文 SHA 覆盖并行修改。网页版只能核查远端仓库，不能代替用户本地 `git status`、加载来源和 UI 真机事实。
-
-每批完成后更新本页的已实现/待实施边界，并在 `docs/quality/` 记录实际 PASS / FAIL / NOT RUN。新增公开接口后再按 `docs/api/.rules.md` 更新 API 文档；不要提前在 `docs/api/` 宣告 `Capability.run()`、导入命令或日志字段已经存在。
+后续每批实施先重新核对当前 HEAD/源码，按本页更新“已存在/待实施”。公开接口只有实际落地后才按 `docs/api/.rules.md` 写入 API 文档；用户可观察的 Runtime 契约采用 JavaScript 测试，静态/mock/真机/视觉分别记录，不用设计 96 分代替运行证据。
