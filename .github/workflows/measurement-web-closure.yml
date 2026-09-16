@@ -1,0 +1,72 @@
+name: Desktop Measurement Web Closure
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/measurement-web-closure.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  close:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply reviewed repository closure
+        shell: bash
+        run: |
+          python .github/scripts/measurement-close-prototype.py
+          python .github/scripts/measurement-close-production.py
+          python .github/scripts/measurement-close-docs.py
+          python .github/scripts/measurement-close-tests.py
+          gofmt -w \
+            pkg/measurement/surface_product.go \
+            pkg/measurement/session.go \
+            pkg/measurement/oracle_alignment.go \
+            pkg/measurement/candidate_stack.go \
+            pkg/measurement/candidate_stack_test.go \
+            pkg/measurement/session_interaction_test.go \
+            pkg/measurement/session_test.go \
+            pkg/customui/measurement_host_contract_test.go
+          git diff --check
+      - name: Run frozen contract regressions
+        shell: bash
+        run: |
+          node --check apps/opendesk/prototypes/desktop-measurement/interaction-core.js
+          node --test tests/desktop-measurement/model.test.js tests/desktop-measurement/contract.test.js
+          CGO_ENABLED=0 go test ./pkg/measurement/... -count=1
+          CGO_ENABLED=0 go test ./pkg/customui/... -count=1
+      - name: Run executable Prototype browser regression
+        shell: bash
+        run: |
+          python -m pip install --disable-pip-version-check playwright
+          python -m playwright install --with-deps chromium
+          python tests/desktop-measurement/browser.test.py
+      - name: Publish formal files only
+        shell: bash
+        run: |
+          git rm \
+            .github/workflows/measurement-web-closure.yml \
+            .github/scripts/measurement-close-prototype.py \
+            .github/scripts/measurement-close-production.py \
+            .github/scripts/measurement-close-docs.py \
+            .github/scripts/measurement-close-tests.py
+          git config user.name shopable-ai
+          git config user.email 4077725@qq.com
+          git add -A
+          git commit -m "fix(measurement): freeze oracle and align production contract"
+          git fetch origin master
+          test "$(git rev-parse origin/master)" = "$GITHUB_SHA"
+          git push origin HEAD:master
