@@ -68,12 +68,16 @@
     Object.freeze({
       actionId: 'opendesk.customize',
       controlId: 'officialCustomize',
-      icon: 'ai.assistant',
+      label: '定制自动化',
+      icon: 'bag.fill',
     }),
     Object.freeze({
       actionId: 'opendesk.help',
       controlId: 'officialHelp',
-      icon: 'questionmark.circle',
+      icon: Object.freeze({
+        path: file.join(execution.scriptDir, 'assets', 'help-questionmark.png'),
+        renderingMode: 'template',
+      }),
     }),
   ]);
 
@@ -445,7 +449,7 @@
       if (!action || !action.visible) return null;
       return Object.freeze({
         controlId: metadata.controlId,
-        label: action.label,
+        label: metadata.label || action.label,
         icon: metadata.icon,
         onClick: () => activateOfficialAction(action.id),
       });
