@@ -24,12 +24,17 @@
   }
 
   function buildHTML(info, labels) {
-    const text = Object.assign({website: 'OpenDesk 官网', close: '关闭'}, labels || {});
+    const text = Object.assign({
+      versionLabel: '版本',
+      description: 'Agent 驱动的桌面自动化',
+      website: 'OpenDesk 官网',
+      close: '关闭',
+    }, labels || {});
     return `<!doctype html><html><head><meta charset="utf-8"></head><body><main>
       <div class="mark" aria-hidden="true">OD</div>
       <h1>${escapeHTML(info.name)}</h1>
-      <p class="version">Version ${escapeHTML(info.version)}</p>
-      <p class="description">Agent-driven desktop automation</p>
+      <p class="version">${escapeHTML(text.versionLabel)} ${escapeHTML(info.version)}</p>
+      <p class="description">${escapeHTML(text.description)}</p>
       <p class="copyright">© 2026 OpenDesk</p>
       <div class="actions"><button id="website">${escapeHTML(text.website)}</button><button id="close">${escapeHTML(text.close)}</button></div>
     </main></body></html>`;
@@ -58,12 +63,23 @@
     const translate = (key, fallback) => i18n && typeof i18n.translate === 'function'
       ? i18n.translate(key, fallback)
       : fallback;
-    const labels = Object.freeze({
-      website: translate('menu.website', 'OpenDesk 官网'),
-      close: translate('common.close', '关闭'),
-    });
+
+    function resolveLabels() {
+      return Object.freeze({
+        versionLabel: translate('about.versionLabel', '版本'),
+        description: translate('about.description', 'Agent 驱动的桌面自动化'),
+        website: translate('menu.website', 'OpenDesk 官网'),
+        close: translate('common.close', '关闭'),
+      });
+    }
+
+    function labelsSignature(labels) {
+      return [labels.versionLabel, labels.description, labels.website, labels.close].join('\u0000');
+    }
+
     let window = null;
     let opening = null;
+    let renderedLabelsSignature = '';
     let sequence = 0;
 
     async function bind(win) {
@@ -74,24 +90,42 @@
         }
       });
       win.on('close', () => {
-        if (window === win) window = null;
+        if (window === win) {
+          window = null;
+          renderedLabelsSignature = '';
+        }
       });
     }
 
     async function openInternal() {
-      if (window) {
+      const labels = resolveLabels();
+      const signature = labelsSignature(labels);
+      if (window && renderedLabelsSignature === signature) {
         try {
           await window.show();
           return state();
         } catch (_) {
           window = null;
+          renderedLabelsSignature = '';
+        }
+      }
+
+      if (window) {
+        const staleWindow = window;
+        window = null;
+        renderedLabelsSignature = '';
+        try {
+          await staleWindow.close();
+        } catch (_) {
+          // A stale or already-closed About window must not block reopening in
+          // the newly selected product locale.
         }
       }
 
       const next = await runtimeUI.createWindow({
         id: `aboutOpenDesk${++sequence}`,
         kind: 'normal',
-        title: 'OpenDesk',
+        title: productInfo.name,
         position: {mode:'anchor',size:WINDOW_SIZE,horizontal:'center',vertical:'center',margin:0,display:'active'},
         theme: 'dark',
         alwaysOnTop: false,
@@ -99,6 +133,7 @@
         content: {html: buildHTML(productInfo, labels), css: CSS},
       });
       window = next;
+      renderedLabelsSignature = signature;
       await bind(next);
       await next.show();
       return state();
