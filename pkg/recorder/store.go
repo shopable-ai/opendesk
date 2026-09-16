@@ -51,13 +51,12 @@ func (s *Store) PrepareSession(sessionID string) (string, error) {
 		return "", err
 	}
 	paths := []string{
-		filepath.Join(dir, "raw"),
+		dir,
 		filepath.Join(dir, "observations", "screenshots"),
 		filepath.Join(dir, "observations", "windows"),
 		filepath.Join(dir, "observations", "accessibility"),
 		filepath.Join(dir, "observations", "vision"),
 		filepath.Join(dir, "distilled"),
-		filepath.Join(dir, "generated"),
 		filepath.Join(dir, "runs"),
 	}
 	for _, path := range paths {
@@ -79,7 +78,7 @@ func (s *Store) AppendEvent(sessionID string, event TraceEvent) error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	path := filepath.Join(dir, "raw", "events.ndjson")
+	path := filepath.Join(dir, "events.ndjson")
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
 		return fmt.Errorf("open trace: %w", err)
@@ -96,7 +95,13 @@ func (s *Store) LoadEvents(sessionID string) ([]TraceEvent, error) {
 	if err != nil {
 		return nil, err
 	}
-	file, err := os.Open(filepath.Join(dir, "raw", "events.ndjson"))
+	path := filepath.Join(dir, "events.ndjson")
+	file, err := os.Open(path)
+	if errors.Is(err, os.ErrNotExist) {
+		// Backward compatibility for recordings created before the flat artifact layout.
+		path = filepath.Join(dir, "raw", "events.ndjson")
+		file, err = os.Open(path)
+	}
 	if err != nil {
 		return nil, err
 	}
