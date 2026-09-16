@@ -7,6 +7,7 @@ package machost
 #cgo LDFLAGS: -framework Cocoa -framework WebKit
 #include <stdlib.h>
 #include "native_darwin.h"
+#include "edit_menu_darwin.h"
 */
 import "C"
 
@@ -29,6 +30,7 @@ func OpenDeskUIEmitJSON(raw *C.char) {
 	if raw == nil {
 		return
 	}
+
 	hostOutput.Lock()
 	defer hostOutput.Unlock()
 	if hostOutput.writer == nil {
@@ -59,6 +61,10 @@ func Run(input io.Reader, output, diagnostics io.Writer) error {
 		hostOutput.writer = nil
 		hostOutput.Unlock()
 	}()
+
+	// The UI host is a separate AppKit application. It cannot inherit the
+	// parent process's Edit menu or text-editing keyboard equivalents.
+	C.OpenDeskUIInstallEditMenu()
 
 	scanErrors := make(chan error, 1)
 	go func() {
