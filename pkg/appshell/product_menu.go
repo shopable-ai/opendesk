@@ -140,14 +140,11 @@ func openDeskProductMenu(manifest Manifest) []nativeMenuItem {
 	return items
 }
 
-// aboutProductLabel keeps the product-owned About command concise and follows
-// the active product locale. About is native shell chrome (not an App Package
-// manifest field), so it must not include the version number in the menu label.
+// aboutProductLabel keeps the product-owned About command concise, routes it
+// through the same Locale Core as the rest of the native product menu, and
+// deliberately keeps the version number out of the menu label.
 func aboutProductLabel() string {
-	if localization.GetResolvedLocale() == localization.LocaleEnUS {
-		return "About OpenDesk"
-	}
-	return "关于 OpenDesk"
+	return translatedProductLabel("menu.about", "关于 OpenDesk")
 }
 
 // Show the existing global binding directly; discovering it must not require
