@@ -68,5 +68,17 @@ jobs:
           git add -A
           git commit -m "fix(measurement): freeze oracle and align production contract"
           git fetch origin master
-          test "$(git rev-parse origin/master)" = "$GITHUB_SHA"
+          remote_head="$(git rev-parse origin/master)"
+          if [ "$remote_head" != "$GITHUB_SHA" ]; then
+            echo "master advanced during qualification: $GITHUB_SHA -> $remote_head"
+            while IFS= read -r changed; do
+              case "$changed" in
+                apps/opendesk/prototypes/desktop-measurement/*|pkg/measurement/*|pkg/customui/winhost/bridge.js|pkg/customui/machost/native_darwin.m|pkg/customui/measurement_host_contract_test.go|docs/architecture/desktop-automation/desktop-measurement.md|docs/quality/desktop-measurement-qualification.md|tests/desktop-measurement/*|.github/workflows/desktop-measurement.yml|.github/workflows/measurement-web-closure.yml|.github/scripts/measurement-close-*.py)
+                  echo "concurrent Measurement change blocks safe publish: $changed"
+                  exit 1
+                  ;;
+              esac
+            done < <(git diff --name-only "$GITHUB_SHA"..origin/master)
+            git rebase origin/master
+          fi
           git push origin HEAD:master
