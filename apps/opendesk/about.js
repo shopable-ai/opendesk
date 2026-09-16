@@ -30,9 +30,12 @@
       website: 'OpenDesk 官网',
       close: '关闭',
     }, labels || {});
+    // Custom UI v1 deliberately supports a constrained HTML vocabulary. Keep
+    // this document within pkg/customui's allowedElements contract instead of
+    // relying on browser-only semantic heading tags such as h1-h6.
     return `<!doctype html><html><head><meta charset="utf-8"></head><body><main>
-      <div class="mark" aria-hidden="true">OD</div>
-      <h1>${escapeHTML(info.name)}</h1>
+      <div class="mark">OD</div>
+      <div class="product-name">${escapeHTML(info.name)}</div>
       <p class="version">${escapeHTML(text.versionLabel)} ${escapeHTML(info.version)}</p>
       <p class="description">${escapeHTML(text.description)}</p>
       <p class="copyright">© 2026 OpenDesk</p>
@@ -41,7 +44,7 @@
   }
 
   const CSS = `
-    html,body{height:100%;margin:0;overflow:hidden;background:#1b1b1b;color:#f4f4f4;font:13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}*{box-sizing:border-box}main{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px;text-align:center}.mark{width:58px;height:58px;border-radius:14px;display:flex;align-items:center;justify-content:center;background:#2d2d2d;border:1px solid #484848;font-weight:700;font-size:18px;letter-spacing:.5px;margin-bottom:14px}h1{font-size:22px;line-height:1.2;margin:0}.version{margin:8px 0 0;color:#d2d2d2;font-size:13px}.description{margin:8px 0 0;color:#979797}.copyright{margin:18px 0 0;color:#737373;font-size:11px}.actions{display:flex;gap:8px;margin-top:22px}button{min-width:92px;border:1px solid #505050;border-radius:7px;background:#303030;color:#f4f4f4;padding:7px 12px;font:inherit}button:hover{background:#3b3b3b;cursor:pointer}`;
+    html,body{height:100%;margin:0;overflow:hidden;background:#1b1b1b;color:#f4f4f4;font:13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}*{box-sizing:border-box}main{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px;text-align:center}.mark{width:58px;height:58px;border-radius:14px;display:flex;align-items:center;justify-content:center;background:#2d2d2d;border:1px solid #484848;font-weight:700;font-size:18px;letter-spacing:.5px;margin-bottom:14px}.product-name{font-size:22px;line-height:1.2;margin:0;font-weight:700}.version{margin:8px 0 0;color:#d2d2d2;font-size:13px}.description{margin:8px 0 0;color:#979797}.copyright{margin:18px 0 0;color:#737373;font-size:11px}.actions{display:flex;gap:8px;margin-top:22px}button{min-width:92px;border:1px solid #505050;border-radius:7px;background:#303030;color:#f4f4f4;padding:7px 12px;font:inherit}button:hover{background:#3b3b3b;cursor:pointer}`;
 
   function create(options) {
     const settings = options || {};
