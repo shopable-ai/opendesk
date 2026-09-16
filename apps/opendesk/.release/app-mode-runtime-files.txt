@@ -12,6 +12,7 @@ official-shell.js
 scheduler-client.js
 scheduler-center.js
 permissions-center.js
+about.js
 inspector-launcher.js
 app-controller.js
 developer-tools.js
@@ -19,6 +20,7 @@ runtime-log.js
 script-runner-simple.js
 script-runner/controller.js
 script-runner/player-controller.js
+script-runner/shortcut-controller.js
 assets/product.odcfg
 assets/opendesk-logo.png
 assets/script-previous.png
