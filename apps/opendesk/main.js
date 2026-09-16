@@ -55,6 +55,27 @@ globalThis.OpenDeskScriptRunnerSimple = OpenDeskScriptRunnerPlayer.wrapControlle
   },
 });
 
+// Add state-scoped keyboard control only after the player surface has been
+// composed. This keeps shortcut ownership separate from the run lifecycle and
+// ensures the same labels used by native toolbar hover/accessibility include
+// the effective accelerator. Idle exposes Run; while a recipe is executing it
+// releases Run and owns Stop instead, so both accelerators are never reserved
+// at the same time.
+const runnerShortcutEntry = File.join(Execution.scriptDir, 'script-runner', 'shortcut-controller.js');
+(0, eval)(File.read(runnerShortcutEntry) + '\n//# sourceURL=' + runnerShortcutEntry);
+if (!globalThis.OpenDeskScriptRunnerShortcuts
+  || typeof OpenDeskScriptRunnerShortcuts.wrapController !== 'function') {
+  throw new Error('OpenDesk Script Runner shortcut controller did not initialize');
+}
+globalThis.OpenDeskScriptRunnerSimple = OpenDeskScriptRunnerShortcuts.wrapController(
+  OpenDeskScriptRunnerSimple,
+  {
+    globalShortcut: globalThis.globalShortcut,
+    system: System,
+    console: globalThis.console,
+  },
+);
+
 const runnerEntry = File.join(Execution.scriptDir, 'script-runner-simple.js');
 (0, eval)(File.read(runnerEntry) + '\n//# sourceURL=' + runnerEntry);
 if (!globalThis.OpenDeskProductScriptRunner
