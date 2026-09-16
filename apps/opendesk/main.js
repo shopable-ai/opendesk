@@ -25,6 +25,36 @@ if (!globalThis.OpenDeskProductI18n || !OpenDeskProductI18n.install()) {
   throw new Error('OpenDesk product Locale Core bridge did not initialize');
 }
 
+// The low-frequency manager, ordering, batch execution and run lifecycle stay
+// in the established Script Runner controller. The official product decorates
+// that controller with the compact player surface (Previous/Current/Next +
+// transient List Panel) before script-runner-simple.js captures the controller.
+const runnerControllerEntry = File.join(Execution.scriptDir, 'script-runner', 'controller.js');
+(0, eval)(File.read(runnerControllerEntry) + '\n//# sourceURL=' + runnerControllerEntry);
+if (!globalThis.OpenDeskScriptRunnerSimple
+  || typeof OpenDeskScriptRunnerSimple.createApp !== 'function') {
+  throw new Error('OpenDesk Script Runner base controller did not initialize');
+}
+const baseRunnerController = OpenDeskScriptRunnerSimple;
+
+const runnerPlayerEntry = File.join(Execution.scriptDir, 'script-runner', 'player-controller.js');
+(0, eval)(File.read(runnerPlayerEntry) + '\n//# sourceURL=' + runnerPlayerEntry);
+if (!globalThis.OpenDeskScriptRunnerPlayer
+  || typeof OpenDeskScriptRunnerPlayer.wrapController !== 'function') {
+  throw new Error('OpenDesk Script Runner player controller did not initialize');
+}
+globalThis.OpenDeskScriptRunnerSimple = OpenDeskScriptRunnerPlayer.wrapController(baseRunnerController, {
+  playerUI: ui,
+  previousIcon: {
+    path: File.join(Execution.scriptDir, 'assets', 'script-previous.png'),
+    renderingMode: 'template',
+  },
+  nextIcon: {
+    path: File.join(Execution.scriptDir, 'assets', 'script-next.png'),
+    renderingMode: 'template',
+  },
+});
+
 const runnerEntry = File.join(Execution.scriptDir, 'script-runner-simple.js');
 (0, eval)(File.read(runnerEntry) + '\n//# sourceURL=' + runnerEntry);
 if (!globalThis.OpenDeskProductScriptRunner
