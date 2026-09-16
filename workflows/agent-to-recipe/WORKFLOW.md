@@ -1,12 +1,94 @@
 ---
 title: "Agent-to-Recipe｜工作流导航与应用工程入口"
-description: "Agent-to-Recipe 的设计导航、应用工程方法入口及运行边界。"
+description: "Agent-to-Recipe 的手工协调执行规程、交接完整性检查、设计导航及运行边界。"
 order: 10
 ---
 
 # Agent-to-Recipe｜工作流导航与应用工程入口
 
-本文件负责整体工作流导航和当前已存在的方法入口，不是自动调度程序。当前已建立 [application-engineer/SKILL.md](skills/application-engineer/SKILL.md) 方法入口；其余职责只有在对应实现、宿主加载和验证实际完成后才视为可用。本文不复制专业正文，也不自动授予桌面权限。
+本文件负责整体工作流导航、手工协调执行规程和当前已存在的方法入口，不是自动调度程序。当前已建立 [application-engineer/SKILL.md](skills/application-engineer/SKILL.md) 方法入口；其余职责只有在对应实现、宿主加载和验证实际完成后才视为可用。本文不复制专业正文，也不自动授予桌面权限。
+
+## 本轮执行规程：从已有成果继续，而不是重新开始
+
+本节是现有 S1—S12 的**手工协调执行清单**，不是新增 Skill、自动调度器或数据格式。默认由当前 Agent 消费真实文件后连续推进；不能调用尚未实现的 `automation-plan`、`trace-distill`、`recipe-build` 或 `recipe-qualify` 命令。专业方法、字段和完整任务树仍分别以原文件为准。
+
+### 1. 固定入口与本轮边界
+
+先读根 `AGENTS.md`、本入口、[共享合同](../../docs/frameworks/agent-to-recipe-skill-contract.md)第 4—8 节及相关当前 API；定位代码还须读下文的定位修复方法。再按真实来源选择：
+
+| 当前任务 | 从哪里继续 | 不允许偷换为 |
+| --- | --- | --- |
+| 没有既有成果，明确要求新的 Agent 示范与生成 | S1 建立合同与计划，完成全部适用 S1—S12 | 从参考脚本倒推一次“新示范” |
+| 已有任务包、脚本、候选或失败记录 | 先盘点与核验；在首个真实缺口恢复 | 因为换了会话而重新演示全部任务 |
+| 只缺应用认识、定位规则或局部修复 | `application-engineer` 的 discover／harden／repair | 重建第二套应用工程工作流 |
+| 来源是人工 Recorder actions | 返回 [Human 主 Skill](../human-to-recipe/skills/human-to-recipe/SKILL.md) | 改写为 Agent 示范，或跳过 Human plan 门禁 |
+| 只需行为保持的 Recorder 静态精炼 | 返回 [recorder-script-refiner](../human-to-recipe/skills/recorder-script-refiner/SKILL.md) | 借“优化”授权语义变更、参数化或真实执行 |
+| 候选未变，只缺资格证据 | 固定候选后进入 S12 的适用验证 | 重生成代码，或用旧 pass 代替新环境验证 |
+
+本轮要修改仓库时核对实际分支、HEAD 和相关文件；本地可用时检查 `git status`，只有 GitHub 工具时明确无法观察用户未提交工作区。继续用户指定的现有分支，写入前重读最新 HEAD；不创建新分支、强推或覆盖并行修改。
+
+### 2. 先交一张接续盘点表
+
+读取用户指定的 `.runtime/automation-authoring/<task-id>/`，沿 request／handoff 引用找到合同、计划、AppProfile、过程、候选和资格。没有指定任务包时先根据已给出的任务身份与资产路径检索；不能仅凭“最近修改”选中另一个任务。多个候选无法确定时保留歧义，先完成无副作用的盘点，不擅自操作桌面。
+
+| 已完成、可复用 | 需要补充 | 证据／授权阻塞 |
+| --- | --- | --- |
+| 实际路径、固定版本／hash、仍适用的范围 | 缺少的业务成果、下一责任环节、最小补充动作 | 缺文件／hash 漂移／现场未知／未获授权，以及解除条件 |
+
+文件存在只能证明有文件，`progress.json` 也只是进度索引。依次核对：同一 task／工作包／attempt → request 版本 → 实际引用字节 → Gate 声明与证据 → 本轮合同、计划和环境适用性。资格不存在、已失效或证据不可复核的部分仍放在后两列，不能以 `completed` 标签提升为可复用。
+
+同一任务只保留一个进度写入者。没有权限读取的本地任务包明确写“未读取”，不能用仓库里的 Calculator golden 充当该任务的真实成果。
+
+### 3. 按当前输入就绪的阶段推进
+
+以下是完整任务树的执行投影，不新增阶段，不要求短任务每个单元格都建一份文件；真正交接仍使用共享合同。
+
+| 现有阶段 | 输入与本轮动作 | 交给下一环节的最低成果／通过条件 |
+| --- | --- | --- |
+| S1（含前置业务拆解与计划） | 用户来源、目标、已有资产、授权与预算；按业务子目标及依赖拆工作包 | TaskContract／WorkPlan；成功条件、允许副作用、前后依赖和高影响 Unknown 明确；缺授权只做离线整理 |
+| S2 | 有效 AppProfile 优先复用；只核查下一步必需的应用／窗口／结果读取能力 | 限定环境的最小应用认识；关键读值不可行时先暴露，不先执行大量依赖动作 |
+| S3—S6 | 获准真实示范；执行—观察—验证并保存 planned／actual 差异 | Dossier、实际关键业务值及来源、整次示范的独立结果；工具无报错不是成功 |
+| S7 | 消费 Dossier／真实 trace，不从预期结果编造动作 | DistilledSteps；每项保留／合并／省略／恢复有来源，未决动作不进入确定路径 |
+| S8—S9 | 从必要路径建立业务步骤和参数关系 | SemanticProcedure；稳定步骤标识、输入来源、前后条件、实际输出、验证及消费者明确；Expected 不能冒充运行读值 |
+| S10 | 消费过程及应用缺口；调用现有应用工程方法定向加固 | 有范围与失效条件的定位／读取／等待／动作规则；测量来源、父区域、单位、坐标空间、容差可审阅 |
+| S11 | 依据过程、AppProfile 和当前 API 生成普通 JS；仅按需要改进代码 | 冻结 CandidateManifest、真实入口与依赖 hash；完成生成者自检和无输入预检，不把自检当独立资格 |
+| S12 | 固定候选与请求验证范围，从干净状态执行真实入口 | QualificationRecord、实际命令、环境、结果及证据；分别记录 pass／fail／not-run／blocked，失败定向回流 |
+
+S8—S11 必须保留跨步骤真实数据依赖。例如当前计算器案例的第二次计算只能消费第一次从 UI 实际读取的 `firstResult`，不能用 expected 或 JS 算术替代。helper 可以表达业务语义，但不能隐式清空状态、偷偷补点或改变用户要求的操作方式。
+
+Measurement／Recorder／Accessibility／OCR 等都只是依据或实现选择。先核对当前 `docs/api/` 和真实实现，再消费已有证据；不因架构文档出现某个名称就生成未知 API。应用限定的替代定位遵守现有安全模型；任何动作可能已发生或结果未知时立即停止重复输入。
+
+### 4. 交接完整性检查：可执行，但不替代资格
+
+宿主侧只读辅助程序为 [scripts/check-handoff.js](scripts/check-handoff.js)。它检查 `agent-to-recipe/v1` 的 request／handoff 信封必需字段、身份绑定、请求文件绑定、显式引用的文件与 SHA-256，并检查文件是否位于调用者明确允许的根目录。只接受规范相对路径，拒绝跨目录、符号链接、未知根、半写 JSON 和超限输入。
+
+**这是 Node 维护工具，不是 OpenDesk 业务脚本或 Runtime API 测试。** 它不会导入或执行候选、启动新 Execution、修改 progress、生成 handoff、自动恢复或发布。它不是完整 schema／业务 Gate validator，不递归打开产物内部的引用链，也不根据 JSON 中的 `evidenceRoots` 自行扩大读权限。规范化检查不是面对恶意并发文件系统的沙箱；核验前应冻结文件，真正消费前仍需重查版本。
+
+从仓库根目录执行以下命令。`TASK_ID`、`ATTEMPT_ID` 必须替换为已找到的实际任务／尝试；`task` 必须与引用中的 `rootId` 一致，不为适配命令而改写已有引用：
+
+```bash
+node workflows/agent-to-recipe/scripts/check-handoff.js --request ".runtime/automation-authoring/TASK_ID/attempts/ATTEMPT_ID/request.json" --handoff ".runtime/automation-authoring/TASK_ID/attempts/ATTEMPT_ID/handoff.json" --root "task=.runtime/automation-authoring/TASK_ID"
+```
+
+外部 `Execution.artifactDir` 或已有资产根只有经调用者确认后，才通过额外 `--root "实际rootId=实际目录"` 开放。`rootId` 使用字母／数字开头及字母、数字、点、下划线、连字符；引用路径使用 `/` 分隔的相对路径。不要把仓库根或用户主目录作为省事的通配授权。
+
+退出码 `0` 只表示本工具检查的完整性通过；`1` 表示检查失败；`2` 表示命令参数错误。报告中的 `declared.gateVerdict` 原样表达交接声明，不是重新验收；`desktopActionsAuthorized` 始终为 `false`。失败包也可以完整性通过并进入诊断，但不能因此进入正常生成／运行路径。
+
+检查通过后，由协调者继续核对当前计划、producer 版本、必需输出含义、Gate scope／成功条件覆盖、未决项、副作用、授权预算和真实现场。引用 hash 不证明发布者可信，也不证明 macOS／Windows 任何平台运行成功。Human plan 继续使用其原 validator／scorer，不改造成此工具的输入。
+
+本工具的离线测试命令可从仓库根目录直接执行，fixture 仅生成于 `.runtime/tests/workflows/`：
+
+```bash
+node --test tests/workflows/handoff-integrity.test.js
+```
+
+### 5. 结束与恢复必须交付什么
+
+先写实际产物，再发布完整 handoff，最后由唯一协调者核对并更新 progress。产物已存在但 progress 落后时补核状态，不重做业务；只有旧 running／done 标签而缺产物时不得跳过。新尝试、新候选与旧证据分别保留，不能覆盖失败历史。
+
+每次暂停、阻塞或交给新会话时，交付**任务根及当前计划版本、可复用成果引用、本轮变更与受影响范围、实际检查结果、未决项／副作用状态、下一工作包与最小安全动作**。这些内容写回现有 progress／handoff／工作包，不另建一套平行状态文件。
+
+网页环境止于能够完成的源文件、离线检查和明确交接；本地再补当前主程序／UI host 的构建与加载证明、真实窗口／业务结果、视觉及平台资格。macOS 通过不外推 Windows 通过；缺设备的项目标未测，不补写通过。需要安装 Skill、统一调度或 Catalog 发布时仍须单独实现与验证，本规程不宣称这些能力已经落地。
 
 ## 与普通任务运行及能力发布的交接
 
