@@ -11,7 +11,7 @@
   }
 
   const DEFAULT_WINDOW_TITLE = 'OpenDesk — Recorder';
-  const MEASUREMENT_ICON = 'ruler';
+  const MEASUREMENT_ICON = 'ruler.fill';
   const HISTORY_ICON_GLYPHS = Object.freeze({
     'play.fill': '▶',
     pencil: '✎',
