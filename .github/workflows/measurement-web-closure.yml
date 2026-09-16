@@ -74,19 +74,37 @@ jobs:
         run: |
           git config user.name shopable-ai
           git config user.email 4077725@qq.com
-          git add -A
+          git add -- \
+            apps/opendesk/prototypes/desktop-measurement/ORACLE.md \
+            apps/opendesk/prototypes/desktop-measurement/interaction-core.js \
+            docs/architecture/desktop-automation/desktop-measurement.md \
+            docs/quality/desktop-measurement-qualification.md \
+            pkg/customui/machost/native_darwin.m \
+            pkg/customui/measurement_host_contract_test.go \
+            pkg/customui/winhost/bridge.js \
+            pkg/measurement/candidate_stack.go \
+            pkg/measurement/candidate_stack_test.go \
+            pkg/measurement/oracle_alignment.go \
+            pkg/measurement/session.go \
+            pkg/measurement/session_interaction_test.go \
+            pkg/measurement/session_test.go \
+            pkg/measurement/surface_product.go \
+            tests/desktop-measurement/browser.test.py \
+            tests/desktop-measurement/local-codex-validation.md \
+            tests/desktop-measurement/qualification-manifest.json
           if git diff --cached --quiet; then
-            echo "reviewed closure produced no repository changes"
+            echo "reviewed closure produced no publishable repository changes"
             exit 0
           fi
           git commit -m "fix(measurement): freeze oracle and align production contract"
+          git restore --worktree -- .github/workflows/desktop-measurement.yml
           git fetch origin master
           remote_head="$(git rev-parse origin/master)"
           if [ "$remote_head" != "$GITHUB_SHA" ]; then
             echo "master advanced during qualification: $GITHUB_SHA -> $remote_head"
             while IFS= read -r changed; do
               case "$changed" in
-                apps/opendesk/prototypes/desktop-measurement/*|pkg/measurement/*|pkg/customui/winhost/bridge.js|pkg/customui/machost/native_darwin.m|pkg/customui/measurement_host_contract_test.go|docs/architecture/desktop-automation/desktop-measurement.md|docs/quality/desktop-measurement-qualification.md|tests/desktop-measurement/*|.github/workflows/desktop-measurement.yml|.github/workflows/measurement-web-closure.yml|.github/scripts/measurement-close-*.py)
+                apps/opendesk/prototypes/desktop-measurement/*|pkg/measurement/*|pkg/customui/winhost/bridge.js|pkg/customui/machost/native_darwin.m|pkg/customui/measurement_host_contract_test.go|docs/architecture/desktop-automation/desktop-measurement.md|docs/quality/desktop-measurement-qualification.md|tests/desktop-measurement/*)
                   echo "concurrent Measurement change blocks safe publish: $changed"
                   exit 1
                   ;;
