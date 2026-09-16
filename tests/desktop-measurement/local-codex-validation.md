@@ -1,70 +1,70 @@
-# OpenDesk Desktop Measurement Local Runtime / Visual Qualification
+# OpenDesk Desktop Measurement Native Qualification / Repair
 
 ## 目标需求
 
-证明网页版已经冻结并写入 `master` 的 Desktop Measurement 代码，确实进入当前 Mac 的真实运行产物，并完成真实视觉、真实交互和 macOS qualification。
+让当前已经完成 Frozen Oracle 与仓库静态闭环的 Desktop Measurement，在真实 Native Host 上完成可追溯资格验证。
 
-最终用户链路必须成立：
+最终链路必须成立：
 
-菜单 / Recorder / CommandOrControl+Shift+M
-→ 同一个 Measurement Session
-→ 当前源码对应的真实 Native Measurement Surface
-→ Frozen Snapshot
-→ Point / Region / Point↔Point / Region↔Region
-→ Magnet / Local Reference / Margin
-→ pointer-following Micro HUD + Corner HUD + status + bottom Toolbar
-→ Inspector Evidence
-→ Update
-→ Adjust / Continue
-→ Exit
-→ 可重新进入且无旧进程/旧资源/旧状态污染。
+```text
+当前已收口源码
+→ clean native build
+→ binary / resource provenance
+→ 平台权限
+→ Native Measurement Surface
+→ 真实鼠标 / 键盘 / clipboard / global shortcut
+→ Retina / DPI / 多显示器 / negative origin
+→ evidence
+→ 发现失败时最小修复
+→ clean rebuild
+→ 原失败场景重测
+→ Qualification
+```
 
-发现运行期问题时，沿失败链做最小修复并立即重新验证。最终目标不是“能打开”，而是证明当前源码、构建物、UI host、App package、实际 PID 与实窗行为是一条可追溯链。
+只有真实主机、真实本次构建物和可追溯 evidence 实际通过的项目，才允许从 `NOT_RUN` / `LOCAL_REQUIRED` 更新为 `PASS`。
 
 ## 当前状态
 
-网页版已冻结产品合同；不要重新设计 Prototype、重新解释 Oracle、重新决定 percentage 语义、Region handles、Arrow nudge 或 Esc 层级。
+网页版静态闭环已经完成：Frozen Oracle、Production 静态合同、自动测试定义和 Qualification 文档已经按当前合同重新核验并收口。
 
-固定合同包括：默认 Region；percentage 是 0–100，真正 ratio 字段仍是 0–1；Region 再次有效拖拽开始新的测量，没有 body/8-handle edit；Arrow 不修改测量；Details 是 open、I 是 toggle；Esc 只“先关闭 Inspector，否则退出 Measurement”；新 Session Magnet ON、Alt OFF；Micro HUD 必须真实跟随 pointer 并在边缘翻转。
+已有真实 macOS 证据仅证明：Developer 菜单存在、桌面测量快捷键显示为 `⌘⇧M`、菜单入口能够出现 Native Measurement Surface。fresh-bundle 后续流程遇到 macOS Screen Recording consent，因此 macOS 完整物理资格仍不是 PASS；Windows 物理资格也保持 `NOT_RUN`，除非真的在 Windows 主机执行。
 
-正式 Product Extension 仍可存在于 Inspector：真实目标窗口选择/确认、人工局部参照、更多输出格式、保存结果、Authoring handoff。它们不能改变上述 Frozen core。
+browser、MemoryDriver、synthetic、Go unit/integration 或 hosted CI 都不能替代真实 Native Qualification。
 
 ## 本轮执行
 
-从当前 `master` 构建，不使用历史二进制或历史 host。
+直接从当前源码进行 clean native build，并首先证明实际 Runtime、UI host、App bundle / executable、资源加载路径、PID 和构建 hash 属于同一轮产物。
 
-先建立 provenance：当前 HEAD、实际 Runtime 二进制、实际 CustomUI host/App package、资源加载路径、PID、构建时间/hash 必须彼此对应；检查并清理会导致误加载的旧进程，但不要破坏无关用户进程。
+随后处理当前平台真实权限，使用产品真实入口验证 Native Measurement Surface 与完整交互。发现失败时，沿实际 failure chain 定位，只做最小必要修复；修复后必须 clean rebuild，并重新执行原失败场景以及受影响回归场景。
 
-随后 controlled restart，使用真实产品入口打开 Measurement。对每个关键状态保留截图/日志等 evidence。
-
-真实验证至少覆盖：首次打开与三入口复用；Toolbar 十项视觉/active/disabled；hover 时 Micro HUD 持续跟随并在右/下边缘翻转；Point 和 Frozen Source Pixel；Region 候选锁定、语义 Local Reference、人工重拖新 Target；两点和两区域 relation；Tab/Shift+Tab；Magnet/Option；Details/I/Esc；无 Result Inspector Evidence 与复制；Update persistence/cleanup；Adjust 后桌面真实可操作、Continue 同 Session 新 Snapshot；Exit 完整清理并再次进入；Recorder 输入隔离；全局快捷键；Accessibility/capture/clipboard；Retina、负坐标和可用的多屏场景。
-
-若视觉或交互失败：先确认加载 provenance，再沿实际失败链定位到 Runtime / CustomUI host / Measurement production；只做最小必要修复，补对应回归测试后重新构建、重启、复验。不要通过修改 Oracle、降低断言或恢复旧 resize/nudge 行为让测试变绿。
+当前 Mac 上先完成 macOS 能真实完成的全部资格；没有真实 Windows 主机时，Windows 保持 `NOT_RUN` / `LOCAL_REQUIRED`，不要在 macOS 上代签。
 
 ## 完成标准
 
-- 当前 `master` → Runtime → UI host → App package → PID → 实际 Measurement Surface provenance：PASS
-- 不存在旧二进制/旧 host/旧资源误加载：PASS
-- 三入口复用唯一 Session：PASS
-- Toolbar、Corner HUD、status、Inspector 的实窗视觉层级：PASS
-- Micro HUD 真实 pointer-following + edge flip：PASS
-- Point / Region / 两点 / 两区域：PASS
-- Candidate / Tab / Shift+Tab / Magnet / Option：PASS
-- Region 重拖是新测量，无 handles/Arrow nudge：PASS
-- Details open、I toggle、Esc 两层：PASS
-- Inspector 无 Result Evidence 与结构化复制：PASS
-- Update persistence/cleanup：PASS
-- Adjust / Continue：PASS
-- Exit cleanup + re-entry：PASS
-- Recorder entry/input isolation + global shortcut：PASS
-- macOS Accessibility / capture / clipboard / 签名相关实际行为：PASS
-- 当前设备可覆盖的 Retina / DPI / 负坐标 / 多屏：PASS；缺硬件项明确 LOCAL_REQUIRED，不伪造 PASS
-- qualification 文档/manifest 只把有真实 evidence 的 macOS case 更新为 PASS；Windows 保持 NOT_RUN/LOCAL_REQUIRED，除非真的在 Windows 真机执行。
+- clean build 与实际运行 bundle / binary / resources provenance：PASS
+- Screen Recording、Accessibility 等真实平台权限与 fresh-bundle 场景：PASS
+- Developer / Recorder / global shortcut 三入口进入同一个唯一 Measurement Session：PASS
+- `CommandOrControl+Shift+M` 在真实 OS 上注册、触发、退出、重入：PASS
+- `PREPARING → FREEZING → MEASURING → ADJUSTING → FREEZING → MEASURING → IDLE`：PASS
+- Frozen Snapshot、Update、Adjust / Continue、Exit / re-entry：PASS
+- Point、Region、Point↔Point、Region↔Region：PASS
+- 已有 Region 后重新测量必须是 fresh Region drag；不存在 body/8-handle resize/move：PASS
+- Arrow / Shift+Arrow 不修改锁定 geometry：PASS
+- Magnet、Alt/Option temporary suspend、Candidate Stack、Tab / Shift+Tab：PASS
+- Target Window 与 Snapshot UI Candidate 不混淆：PASS
+- Source / Display / WindowLocal coordinates、Frozen Source Pixel color、Window / Local Reference margins：PASS
+- Micro HUD、Corner HUD、Toolbar、Inspector 的真实视觉和交互：PASS
+- 真实 mouse / keyboard / clipboard / global shortcut：PASS
+- 当前主机可覆盖的 Retina / DPI / multi-display / negative-origin：PASS；缺硬件场景明确保留 `LOCAL_REQUIRED`
+- Recorder entry isolation、MeasurementEvidence、structured output 与 authoring / qualification consumer 的真实链路：PASS
+- 每一个 Native `PASS` 都有可追溯到本次 binary、主机环境、时间和操作的 evidence：PASS
+- 任一 native failure 修复后已经 clean rebuild，并对原失败场景重新验证：PASS
+- Windows 只有在真实 Windows 主机执行后才能更新对应物理资格；否则保持 `NOT_RUN`：PASS
 
 ## 必要边界
 
-- 不重新设计或解冻已经冻结的 HTML Oracle。
-- 不恢复 Region resize handles、Arrow nudge 或旧多级 Esc。
-- 不用源码阅读、CI、MemoryDriver 或浏览器样机冒充真机 PASS。
-- 不为了通过验收扩大为无关架构重构；修复必须对应实际失败链。
-- 所有真实 evidence 写入 `.runtime/tests/desktop-measurement/`，正式资格结论再同步到 `docs/quality/desktop-measurement-qualification.md` 与 manifest。
+- 不重新制作 HTML Prototype，不重新提取或冻结 ORACLE，不重新设计 Measurement，不重新执行历史 P0 → P4。
+- 不通过降低 Frozen Oracle、测试断言或 Qualification 标准让失败变绿。
+- 不把源码存在、browser、MemoryDriver、synthetic、Go test 或 hosted CI 冒充 Native PASS。
+- 不做无关重构；native failure 只做沿真实失败链路的最小修复。
+- Qualification / manifest 只能根据真实、可追溯的本地主机 evidence 更新。
