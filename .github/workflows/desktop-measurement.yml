@@ -119,7 +119,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: node --test tests/desktop-measurement/model.test.js
+      - run: node --test tests/desktop-measurement/model.test.js tests/desktop-measurement/contract.test.js
 
   prototype-browser:
     name: Prototype browser oracle
