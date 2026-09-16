@@ -2,6 +2,10 @@ package measurement
 
 import "math"
 
+// RegionEditHandle is retained only as a compatibility sentinel for the
+// pre-Frozen-Oracle region-edit path. The current product contract never enters
+// post-lock move/resize editing: a new valid Region drag starts a new
+// measurement instead.
 type RegionEditHandle string
 
 const (
@@ -17,49 +21,17 @@ const (
 	RegionEditNW RegionEditHandle = "nw"
 )
 
-var regionEditHandles = []RegionEditHandle{RegionEditN,RegionEditNE,RegionEditE,RegionEditSE,RegionEditS,RegionEditSW,RegionEditW,RegionEditNW}
-
+// DetectRegionEditHandle is intentionally inert. Region handles are not part of
+// the Frozen Oracle and must not be rediscovered by Production.
 func DetectRegionEditHandle(point Point, rect Rect, tolerance float64) RegionEditHandle {
-	if tolerance <= 0 { tolerance = 6 }
-	cx,cy:=rect.X+rect.Width/2,rect.Y+rect.Height/2
-	points:=map[RegionEditHandle]Point{
-		RegionEditNW:{rect.X,rect.Y},RegionEditN:{cx,rect.Y},RegionEditNE:{rect.Right(),rect.Y},RegionEditE:{rect.Right(),cy},
-		RegionEditSE:{rect.Right(),rect.Bottom()},RegionEditS:{cx,rect.Bottom()},RegionEditSW:{rect.X,rect.Bottom()},RegionEditW:{rect.X,cy},
-	}
-	for _,handle:=range []RegionEditHandle{RegionEditNW,RegionEditNE,RegionEditSE,RegionEditSW,RegionEditN,RegionEditE,RegionEditS,RegionEditW}{p:=points[handle];if math.Abs(point.X-p.X)<=tolerance&&math.Abs(point.Y-p.Y)<=tolerance{return handle}}
-	if point.X>=rect.X&&point.X<=rect.Right()&&point.Y>=rect.Y&&point.Y<=rect.Bottom(){return RegionEditBody}
 	return RegionEditNone
 }
 
+// ApplyRegionEdit is intentionally inert. It remains only so stale internal
+// compatibility branches fail closed instead of reintroducing body/8-handle
+// editing. Current Region adjustment is a fresh measurement gesture.
 func ApplyRegionEdit(original Rect, handle RegionEditHandle, dx,dy float64, bounds Rect, minSize float64) Rect {
-	if minSize <= 0 { minSize = 1 }
-	left,top,right,bottom:=original.X,original.Y,original.Right(),original.Bottom()
-	switch handle {
-	case RegionEditBody:
-		left+=dx;right+=dx;top+=dy;bottom+=dy
-		if left<bounds.X{d:=bounds.X-left;left+=d;right+=d};if right>bounds.Right(){d:=right-bounds.Right();left-=d;right-=d}
-		if top<bounds.Y{d:=bounds.Y-top;top+=d;bottom+=d};if bottom>bounds.Bottom(){d:=bottom-bounds.Bottom();top-=d;bottom-=d}
-	case RegionEditN: top+=dy
-	case RegionEditNE: top+=dy;right+=dx
-	case RegionEditE: right+=dx
-	case RegionEditSE: right+=dx;bottom+=dy
-	case RegionEditS: bottom+=dy
-	case RegionEditSW: left+=dx;bottom+=dy
-	case RegionEditW: left+=dx
-	case RegionEditNW: left+=dx;top+=dy
-	default:return original
-	}
-	if handle!=RegionEditBody{
-		left=clamp(left,bounds.X,bounds.Right());right=clamp(right,bounds.X,bounds.Right());top=clamp(top,bounds.Y,bounds.Bottom());bottom=clamp(bottom,bounds.Y,bounds.Bottom())
-		if right-left<minSize{
-			if handle==RegionEditW||handle==RegionEditNW||handle==RegionEditSW{left=right-minSize}else{right=left+minSize}
-		}
-		if bottom-top<minSize{
-			if handle==RegionEditN||handle==RegionEditNW||handle==RegionEditNE{top=bottom-minSize}else{bottom=top+minSize}
-		}
-		left=clamp(left,bounds.X,bounds.Right()-minSize);right=clamp(right,left+minSize,bounds.Right());top=clamp(top,bounds.Y,bounds.Bottom()-minSize);bottom=clamp(bottom,top+minSize,bounds.Bottom())
-	}
-	return Rect{X:left,Y:top,Width:right-left,Height:bottom-top}
+	return original
 }
 
 func captureLogicalBounds(mapping CaptureMapping) Rect { return Rect{X:mapping.Origin.X,Y:mapping.Origin.Y,Width:mapping.LogicalSize.Width,Height:mapping.LogicalSize.Height} }
