@@ -32,6 +32,8 @@ order: 300
 
 `Execution` 与 `Execution.env` 在一次 execution 内被冻结。脚本改写字段不会改变宿主持有的 ID、deadline、取消状态、artifact 或最终结果。
 
+停止整个 execution 由创建它的控制面负责：Script Runner 使用产品内“停止”，本地 CLI 使用中断，HTTP transport 使用 `DELETE /executions/{id}`。脚本内部没有 `Execution.cancel()`。统一的停止范围、副作用和终态语义见 [JavaScript Runtime：异步完成与取消](runtime.md#异步完成与取消)。
+
 ### 本地环境来源
 
 本地 `-script`、`-script-text` 与 `ai run` 的环境优先级为 `.env` → `.opendesk.env` → OpenDesk 启动时收到的 OS 环境。显式 env-file 时只读取该文件。HTTP、MCP 与 Scheduler execution 默认使用空环境快照。完整规则见 [`environment.md`](environment.md)。
@@ -397,4 +399,4 @@ console.log(Execution.activationSource);
 
 ## 平台与能力
 
-`Execution` 在每次 JavaScript execution 中提供只读上下文。它没有 `cancel()`、`pause()`、`resume()`、其他 execution 枚举或管理方法。外部 execution 管理使用 [`HTTP Server API`](http-server.md)。
+`Execution` 在每次 JavaScript execution 中提供只读上下文。它没有 `cancel()`、`pause()`、`resume()`、其他 execution 枚举或管理方法。停止与取消的统一语义见 [JavaScript Runtime：异步完成与取消](runtime.md#异步完成与取消)；外部按 ID 管理 execution 使用 [`HTTP Server API`](http-server.md)。
