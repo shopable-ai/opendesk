@@ -259,7 +259,7 @@
     const toolbar = new FloatingWindowAPI({
       id: settings.windowID || 'recording-console',
       position: {
-        mode: 'anchor', horizontal: 'center', vertical: 'bottom', margin: 24, display: 'active',
+        mode: 'anchor', horizontal: 'center', vertical: 'bottom', margin: 16, display: 'active',
       },
       title: windowTitle,
       theme: 'dark',
