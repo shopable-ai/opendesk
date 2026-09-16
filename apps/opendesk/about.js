@@ -23,14 +23,15 @@
     });
   }
 
-  function buildHTML(info) {
+  function buildHTML(info, labels) {
+    const text = Object.assign({website: 'OpenDesk 官网', close: '关闭'}, labels || {});
     return `<!doctype html><html><head><meta charset="utf-8"></head><body><main>
       <div class="mark" aria-hidden="true">OD</div>
       <h1>${escapeHTML(info.name)}</h1>
       <p class="version">Version ${escapeHTML(info.version)}</p>
       <p class="description">Agent-driven desktop automation</p>
       <p class="copyright">© 2026 OpenDesk</p>
-      <div class="actions"><button id="website">OpenDesk 官网</button><button id="close">关闭</button></div>
+      <div class="actions"><button id="website">${escapeHTML(text.website)}</button><button id="close">${escapeHTML(text.close)}</button></div>
     </main></body></html>`;
   }
 
@@ -43,6 +44,7 @@
     const file = settings.file || global.File;
     const packageRoot = settings.packageRoot || (global.Execution && global.Execution.scriptDir);
     const officialShell = settings.officialShell;
+    const i18n = settings.i18n || global.OpenDeskProductI18n;
 
     if (!runtimeUI || typeof runtimeUI.createWindow !== 'function') {
       throw new Error('OpenDesk About requires ui.createWindow()');
@@ -53,6 +55,13 @@
     if (!packageRoot) throw new Error('OpenDesk About requires packageRoot');
 
     const productInfo = readProductInfo(file, packageRoot);
+    const translate = (key, fallback) => i18n && typeof i18n.translate === 'function'
+      ? i18n.translate(key, fallback)
+      : fallback;
+    const labels = Object.freeze({
+      website: translate('menu.website', 'OpenDesk 官网'),
+      close: translate('common.close', '关闭'),
+    });
     let window = null;
     let opening = null;
     let sequence = 0;
@@ -82,12 +91,12 @@
       const next = await runtimeUI.createWindow({
         id: `aboutOpenDesk${++sequence}`,
         kind: 'normal',
-        title: '关于 OpenDesk',
+        title: 'OpenDesk',
         position: {mode:'anchor',size:WINDOW_SIZE,horizontal:'center',vertical:'center',margin:0,display:'active'},
         theme: 'dark',
         alwaysOnTop: false,
         draggable: true,
-        content: {html: buildHTML(productInfo), css: CSS},
+        content: {html: buildHTML(productInfo, labels), css: CSS},
       });
       window = next;
       await bind(next);
