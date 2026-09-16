@@ -22,6 +22,7 @@ const (
 	ActionProductCustomize     = "opendesk.customize"
 	ActionProductExamples      = "opendesk.examples"
 	ActionProductAPIDocs       = "opendesk.api-docs"
+	ActionProductAbout         = "opendesk.about"
 
 	ActionLocaleAuto = "opendesk.locale.auto"
 	ActionLocaleZhCN = "opendesk.locale.zh-CN"
@@ -132,9 +133,21 @@ func openDeskProductMenu(manifest Manifest) []nativeMenuItem {
 			{ID: ActionProductCustomize, Label: translatedProductLabel("menu.customize", "定制")},
 		}},
 		nativeMenuItem{Type: "separator"},
+		nativeMenuItem{ID: ActionProductAbout, Label: aboutProductLabel()},
+		nativeMenuItem{Type: "separator"},
 		nativeMenuItem{ID: ActionQuit, Label: translatedProductLabel("menu.quit", "退出")},
 	)
 	return items
+}
+
+// aboutProductLabel keeps the product-owned About command concise and follows
+// the active product locale. About is native shell chrome (not an App Package
+// manifest field), so it must not include the version number in the menu label.
+func aboutProductLabel() string {
+	if localization.GetResolvedLocale() == localization.LocaleEnUS {
+		return "About OpenDesk"
+	}
+	return "关于 OpenDesk"
 }
 
 // Show the existing global binding directly; discovering it must not require
@@ -187,7 +200,8 @@ func isProductSystemAction(value string) bool {
 		ActionProductDebugDetailed,
 		ActionProductHome,
 		ActionProductHelp,
-		ActionProductCustomize:
+		ActionProductCustomize,
+		ActionProductAbout:
 		return true
 	default:
 		return false
