@@ -29,7 +29,7 @@ func (d *MemoryDriver) Capabilities(context.Context) Capabilities {
 	return Capabilities{
 		ProtocolVersion: ProtocolVersion, Enabled: true, Available: true,
 		Platform: runtime.GOOS, Driver: "memory", MaxSessions: 64,
-		Window:   map[string]bool{"position": true, "placement": true, "size": true, "alwaysOnTop": true, "draggable": true, "notify": true},
+		Window:   map[string]bool{"position": true, "placement": true, "size": true, "alwaysOnTop": true, "draggable": true, "chrome": true, "notify": true},
 		Controls: []string{"button", "text", "img", "switch", "input", "select", "container"},
 	}
 }

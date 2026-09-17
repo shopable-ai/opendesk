@@ -36,9 +36,10 @@ type customUIRuntimeOptions struct {
 // storage such as Assets; exposing that struct directly would let a JavaScript
 // declaration smuggle those fields through as explicit null values.
 type customUIWindowDeclaration struct {
-	ID    string `json:"id"`
-	Kind  string `json:"kind,omitempty"`
-	Title string `json:"title,omitempty"`
+	ID     string `json:"id"`
+	Kind   string `json:"kind,omitempty"`
+	Title  string `json:"title,omitempty"`
+	Chrome string `json:"chrome,omitempty"`
 	// Position is the public discriminated initial-position declaration. Bounds
 	// remains only as the documented compatibility spelling for an absolute
 	// window; Size and Placement remain decoded solely so a retired draft can
@@ -139,7 +140,7 @@ func (declaration customUIWindowDeclaration) windowSpec() (customui.WindowSpec, 
 		}
 	}
 	return customui.WindowSpec{
-		ID: declaration.ID, Kind: declaration.Kind, Title: declaration.Title,
+		ID: declaration.ID, Kind: declaration.Kind, Title: declaration.Title, Chrome: declaration.Chrome,
 		Bounds: bounds, AlwaysOnTop: declaration.AlwaysOnTop,
 		Draggable: declaration.Draggable, Placement: placement, KeyEvents: declaration.KeyEvents,
 		InteractionGroup: declaration.InteractionGroup, Theme: declaration.Theme,
@@ -314,7 +315,7 @@ func registerDisabledCustomUI(runtime *goja.Runtime, source customui.ActivationS
 		ProtocolVersion: customui.ProtocolVersion, Enabled: false, Available: false,
 		ActivationSource: normalizeCustomUIActivationSource(source, false),
 		Platform:         "disabled", Driver: "none", MaxSessions: 0,
-		Window:   map[string]bool{"position": false, "placement": false, "size": false, "alwaysOnTop": false, "draggable": false, "nativeIdentity": false, "notify": false},
+		Window:   map[string]bool{"position": false, "placement": false, "size": false, "alwaysOnTop": false, "draggable": false, "chrome": false, "nativeIdentity": false, "notify": false},
 		Controls: []string{"button", "text", "img", "switch", "input", "select", "container"},
 		Reason:   "custom UI was not explicitly enabled for this execution",
 	}

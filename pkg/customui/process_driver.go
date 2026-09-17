@@ -103,7 +103,7 @@ func (d *ProcessDriver) Capabilities(context.Context) Capabilities {
 		Platform: platform, Driver: "native-process", MaxSessions: 1,
 		Window: map[string]bool{
 			"position": available, "placement": available, "relativePlacement": available, "size": available, "alwaysOnTop": available,
-			"draggable": available, "keyEvents": available, "interactionGroup": available, "nativeIdentity": available, "notify": available,
+			"draggable": available, "chrome": available, "keyEvents": available, "interactionGroup": available, "nativeIdentity": available, "notify": available,
 		},
 		Controls: []string{"button", "text", "img", "switch", "input", "select", "container"},
 		Reason:   reason,

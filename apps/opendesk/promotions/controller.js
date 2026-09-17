@@ -79,7 +79,7 @@
       const token=++revision;phase='opening';creative=value;placementMode=p.mode;motionPlayed=false;const valid=()=>token===revision&&!disposed&&!blocked&&!core.contextReason(context())&&(!o.canShow||o.canShow()===true);
       opening=(async()=>{let candidate=null;try{
         const content=core.render(value,true);
-        candidate=await o.ui.createWindow({id:'opendeskPromotion'+(++sequence),kind:'floating',title:'OpenDesk · 推广',position:{mode:'anchor',size:content.size,horizontal:'right',vertical:'bottom',margin:core.LIMITS.margin,display:'active'},alwaysOnTop:true,draggable:false,keyEvents:true,interactionGroup:o.interactionGroup||'scriptRunnerPlayer',content:{html:content.html,css:content.css}});
+        candidate=await o.ui.createWindow({id:'opendeskPromotion'+(++sequence),kind:'floating',chrome:'none',title:'OpenDesk · 推广',position:{mode:'anchor',size:content.size,horizontal:'right',vertical:'bottom',margin:core.LIMITS.margin,display:'active'},alwaysOnTop:true,draggable:false,keyEvents:true,interactionGroup:o.interactionGroup||'scriptRunnerPlayer',content:{html:content.html,css:content.css}});
         if(!valid()){await candidate.close();return {status:'suppressed',reason:'canceled'};}handle=candidate;
         const placed=await place(candidate,p,content.size);
         if(!placed||!core.validBounds(placed.bounds)){await close('placement');return {status:'suppressed',reason:'placement'};}

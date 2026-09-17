@@ -8,7 +8,7 @@ import (
 
 // ProtocolVersion advances with native-host schema changes so an older host
 // cannot silently accept a host-owned Measurement surface declaration.
-const ProtocolVersion = "1.12.0"
+const ProtocolVersion = "1.13.0"
 
 type ActivationSource string
 
@@ -69,6 +69,7 @@ type WindowSpec struct {
 	ID               string           `json:"id"`
 	Kind             string           `json:"kind,omitempty"`
 	Title            string           `json:"title,omitempty"`
+	Chrome           string           `json:"chrome,omitempty"`
 	Bounds           Bounds           `json:"bounds"`
 	AlwaysOnTop      bool             `json:"alwaysOnTop,omitempty"`
 	Draggable        bool             `json:"draggable,omitempty"`

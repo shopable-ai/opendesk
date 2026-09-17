@@ -61,6 +61,16 @@ func Normalize(spec WindowSpec, baseDir string) (WindowSpec, error) {
 	if spec.AppCloseBehavior != "" && spec.AppCloseBehavior != "hide" && spec.AppCloseBehavior != "quit" {
 		return WindowSpec{}, invalidSpec("app close behavior must be hide, quit, or omitted")
 	}
+	spec.Chrome = strings.TrimSpace(spec.Chrome)
+	if spec.Chrome == "" {
+		spec.Chrome = "system"
+	}
+	if spec.Chrome != "system" && spec.Chrome != "none" {
+		return WindowSpec{}, &Error{Code: CodeUnsupportedCapability, Operation: "createWindow", Capability: "chrome", Message: "custom UI supports system or none window chrome"}
+	}
+	if spec.Chrome == "none" && (spec.Notification != nil || spec.Toolbar != nil) {
+		return WindowSpec{}, invalidSpec("chrome none is available only to floating HTML windows")
+	}
 	if spec.Placement != nil {
 		placement, err := NormalizeInitialWindowPlacement(*spec.Placement)
 		if err != nil {
@@ -82,6 +92,9 @@ func Normalize(spec WindowSpec, baseDir string) (WindowSpec, error) {
 	}
 	if spec.Kind != "normal" && spec.Kind != "floating" && spec.Kind != "measurement" {
 		return WindowSpec{}, invalidSpec("window kind must be normal, floating, or host-owned measurement")
+	}
+	if spec.Chrome == "none" && spec.Kind != "floating" {
+		return WindowSpec{}, invalidSpec("chrome none requires kind floating")
 	}
 	if spec.Theme == "" {
 		spec.Theme = "system"

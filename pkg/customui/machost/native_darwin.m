@@ -10,7 +10,7 @@
 #import "floating_toolbar_darwin.h"
 #import "notification_darwin.h"
 
-static NSString *const CDProtocolVersion = @"1.12.0";
+static NSString *const CDProtocolVersion = @"1.13.0";
 static NSMutableDictionary<NSString *, id> *CDWindows;
 static NSMutableDictionary<NSString *, NSDictionary *> *CDClosedNotifications;
 
@@ -1741,8 +1741,9 @@ static void CDHandleCreate(NSDictionary *request, NSString *requestID) {
 	// window chrome and resize behavior.
 	BOOL isHostDialog = [spec[@"centerOnActiveDisplay"] boolValue];
 	BOOL isMeasurement = [kind isEqualToString:@"measurement"];
-    NSWindowStyleMask style = NSWindowStyleMaskTitled | NSWindowStyleMaskClosable;
-	if (!isHostDialog && !isNativeToolbar) style |= NSWindowStyleMaskResizable | NSWindowStyleMaskMiniaturizable;
+	BOOL frameless = [spec[@"chrome"] isEqualToString:@"none"];
+    NSWindowStyleMask style = frameless ? NSWindowStyleMaskBorderless : (NSWindowStyleMaskTitled | NSWindowStyleMaskClosable);
+	if (!frameless && !isHostDialog && !isNativeToolbar) style |= NSWindowStyleMaskResizable | NSWindowStyleMaskMiniaturizable;
     NSRect frame = CDNativeRect(bounds);
 	if ([spec[@"centerOnActiveDisplay"] boolValue]) {
 		frame = CDCenteredDialogRect(frame);
@@ -1760,12 +1761,19 @@ static void CDHandleCreate(NSDictionary *request, NSString *requestID) {
 		panel.titlebarAppearsTransparent = YES;
 		window = panel;
 	} else if ([kind isEqualToString:@"floating"]) {
-		NSWindowStyleMask panelStyle = toolbarNeedsKeyboard ? style : (style | NSWindowStyleMaskNonactivatingPanel);
+		NSWindowStyleMask panelStyle = frameless
+			? (NSWindowStyleMaskBorderless | NSWindowStyleMaskNonactivatingPanel)
+			: (toolbarNeedsKeyboard ? style : (style | NSWindowStyleMaskNonactivatingPanel));
 		NSPanel *panel = [[NSPanel alloc] initWithContentRect:frame styleMask:panelStyle backing:NSBackingStoreBuffered defer:NO];
         panel.collectionBehavior = NSWindowCollectionBehaviorCanJoinAllSpaces | NSWindowCollectionBehaviorFullScreenAuxiliary;
 		panel.floatingPanel = YES;
 		panel.becomesKeyOnlyIfNeeded = YES;
 		panel.hidesOnDeactivate = NO;
+		if (frameless) {
+			panel.titleVisibility = NSWindowTitleHidden;
+			panel.titlebarAppearsTransparent = YES;
+			panel.hasShadow = YES;
+		}
         window = panel;
 	} else {
 		Class windowClass = isHostDialog ? CDDialogWindow.class : NSWindow.class;
