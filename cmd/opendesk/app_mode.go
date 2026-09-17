@@ -203,23 +203,30 @@ func executeAppMode(config *Config) error {
 		MeasurementOpen:                       openMeasurement,
 	}, environment, sharedUIDriver)
 	if err := shell.BindRecorderAction(func(event appshell.ActionEvent) error {
-		waitBeforeProductDesktopActivity(appContext, shell, productActivity, "recorder", event.Source)
-		finish := productActivity.begin("recorder")
-		if openErr := recorder.Open(appContext, event.Source); openErr != nil {
+		// Keep the native tray/menu callback non-blocking just like Measurement.
+		// The goroutine owns the short Promotion barrier and Recorder lifetime.
+		source := event.Source
+		go func() {
+			waitBeforeProductDesktopActivity(appContext, shell, productActivity, "recorder", source)
+			finish := productActivity.begin("recorder")
+			if openErr := recorder.Open(appContext, source); openErr != nil {
+				finish()
+				log.Printf("Recorder entry %s failed: %v", source, openErr)
+				return
+			}
+			// Open() intentionally returns after launching/re-showing the long-lived
+			// Recorder execution. Follow its existing done channel so the activity
+			// flag remains true until Recorder really closes.
+			recorder.mu.Lock()
+			done := recorder.done
+			recorder.mu.Unlock()
+			if done == nil {
+				finish()
+				return
+			}
+			<-done
 			finish()
-			return openErr
-		}
-		// Open() intentionally returns after launching/re-showing the long-lived
-		// Recorder execution. Follow that execution's existing done channel so the
-		// product activity flag remains true until Recorder really closes.
-		recorder.mu.Lock()
-		done := recorder.done
-		recorder.mu.Unlock()
-		if done == nil {
-			finish()
-		} else {
-			go func() { <-done; finish() }()
-		}
+		}()
 		return nil
 	}); err != nil {
 		return err
