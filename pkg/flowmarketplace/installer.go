@@ -2,6 +2,7 @@ package flowmarketplace
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"opendesk/pkg/flowinstall"
@@ -12,8 +13,31 @@ type InstallConfirmer interface {
 	ConfirmMarketplaceInstall(context.Context, Release) (bool, error)
 }
 
+// InstallConfirmerFunc adapts a host-owned local confirmation callback without
+// making the Marketplace package depend on a particular desktop UI toolkit.
+type InstallConfirmerFunc func(context.Context, Release) (bool, error)
+
+func (fn InstallConfirmerFunc) ConfirmMarketplaceInstall(ctx context.Context, release Release) (bool, error) {
+	if fn == nil {
+		return false, errors.New("marketplace installation confirmation is unavailable")
+	}
+	return fn(ctx, release)
+}
+
 type EntitlementResolver interface {
 	AuthorizeMarketplaceInstall(context.Context, Release) error
+}
+
+// EntitlementResolverFunc adapts the account/subscription owner. It receives
+// only a verified canonical Release, never Deep Link credentials or browser
+// state.
+type EntitlementResolverFunc func(context.Context, Release) error
+
+func (fn EntitlementResolverFunc) AuthorizeMarketplaceInstall(ctx context.Context, release Release) error {
+	if fn == nil {
+		return errors.New("marketplace entitlement resolver is unavailable")
+	}
+	return fn(ctx, release)
 }
 
 type Installer struct {
@@ -22,6 +46,32 @@ type Installer struct {
 	Confirmer   InstallConfirmer
 	Entitlement EntitlementResolver
 	TempRoot    string
+}
+
+// DeepLinkHandler is the desktop protocol-handler boundary. It always parses
+// the raw OS activation before invoking any installer, so an unsupported URL
+// cannot be accidentally forwarded to a future implementation. Its Installer
+// is intentionally an interface to keep OS hosts independent from HTTP,
+// account, and native UI implementations.
+type DeepLinkHandler struct {
+	Installer interface {
+		InstallURL(context.Context, string, flowinstall.InstallOptions) (flowinstall.InstallResult, error)
+	}
+	InstallOptions func(context.Context) flowinstall.InstallOptions
+}
+
+func (handler DeepLinkHandler) Handle(ctx context.Context, rawURL string) (flowinstall.InstallResult, error) {
+	if _, err := ParseInstallURL(rawURL); err != nil {
+		return flowinstall.InstallResult{}, err
+	}
+	if handler.Installer == nil {
+		return flowinstall.InstallResult{}, errors.New("Marketplace installation is not configured in this OpenDesk build")
+	}
+	options := flowinstall.InstallOptions{}
+	if handler.InstallOptions != nil {
+		options = handler.InstallOptions(ctx)
+	}
+	return handler.Installer.InstallURL(ctx, rawURL, options)
 }
 
 // InstallURL is the Web/In-App Marketplace orchestration layer. It resolves a

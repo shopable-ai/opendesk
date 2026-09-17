@@ -25,6 +25,7 @@ type darwinNativeHost struct {
 	mu           sync.RWMutex
 	handler      func(string, string)
 	openDocument func(string)
+	openURL      func(string)
 	started      bool
 	closed       bool
 	done         chan struct{}
@@ -115,6 +116,12 @@ func (h *darwinNativeHost) SetOpenDocumentHandler(handler func(string)) {
 	h.mu.Unlock()
 }
 
+func (h *darwinNativeHost) SetOpenURLHandler(handler func(rawURL string)) {
+	h.mu.Lock()
+	h.openURL = handler
+	h.mu.Unlock()
+}
+
 func (h *darwinNativeHost) OpenFlowFiles(ctx context.Context) ([]string, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -164,6 +171,32 @@ func (h *darwinNativeHost) ConfirmFlowTrust(ctx context.Context, prompt FlowTrus
 	}
 }
 
+func (h *darwinNativeHost) ConfirmMarketplaceInstall(ctx context.Context, prompt MarketplaceInstallPrompt) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	flowID := C.CString(prompt.FlowID)
+	releaseID := C.CString(prompt.ReleaseID)
+	name := C.CString(prompt.Name)
+	version := C.CString(prompt.Version)
+	publisherID := C.CString(prompt.PublisherID)
+	defer C.free(unsafe.Pointer(flowID))
+	defer C.free(unsafe.Pointer(releaseID))
+	defer C.free(unsafe.Pointer(name))
+	defer C.free(unsafe.Pointer(version))
+	defer C.free(unsafe.Pointer(publisherID))
+	verified := C.int(0)
+	if prompt.VerifiedPublisher {
+		verified = 1
+	}
+	confirmed := C.int(0)
+	var nativeError *C.char
+	if C.ODAppShellConfirmMarketplaceInstall(flowID, releaseID, name, version, publisherID, verified, &confirmed, &nativeError) == 0 {
+		return false, darwinError("show Marketplace install confirmation", nativeError)
+	}
+	return confirmed != 0, nil
+}
+
 func (h *darwinNativeHost) UpdateMenuItem(_ context.Context, id string, patch MenuItemPatch) error {
 	itemID := C.CString(id)
 	defer C.free(unsafe.Pointer(itemID))
@@ -201,6 +234,7 @@ func (h *darwinNativeHost) Teardown(context.Context) error {
 		h.closed = true
 		h.handler = nil
 		h.openDocument = nil
+		h.openURL = nil
 		h.mu.Unlock()
 		darwinActiveHost.Lock()
 		if darwinActiveHost.host == h {
@@ -266,5 +300,22 @@ func opendeskAppShellDarwinOpenDocument(path *C.char) {
 	host.mu.RUnlock()
 	if handler != nil && !closed {
 		handler(C.GoString(path))
+	}
+}
+
+//export opendeskAppShellDarwinOpenURL
+func opendeskAppShellDarwinOpenURL(rawURL *C.char) {
+	darwinActiveHost.RLock()
+	host := darwinActiveHost.host
+	darwinActiveHost.RUnlock()
+	if host == nil || rawURL == nil {
+		return
+	}
+	host.mu.RLock()
+	handler := host.openURL
+	closed := host.closed
+	host.mu.RUnlock()
+	if handler != nil && !closed {
+		handler(C.GoString(rawURL))
 	}
 }

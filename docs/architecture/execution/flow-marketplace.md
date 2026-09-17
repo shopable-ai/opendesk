@@ -1,7 +1,7 @@
 # OpenDesk Flow Marketplace：发现、网页安装、授权与更新架构
 
 > 决策日期：2026-09-17  
-> 状态：DESIGN_ACCEPTED / IMPLEMENTATION_PENDING  
+> 状态：DESIGN_ACCEPTED / CLIENT_FOUNDATION_IMPLEMENTED / MACOS_DEEP_LINK_RECEIVER_IMPLEMENTED / PRODUCTION_BACKEND_PENDING
 > 设计成熟度自评：97/100。该评分表示架构方案已足够作为实现合同，不表示 Marketplace 已经实现、部署或完成安全审计。  
 > 基础合同：[Flow 分发、安装、信任、授权与运行模型](flow-distribution-installation.md)
 

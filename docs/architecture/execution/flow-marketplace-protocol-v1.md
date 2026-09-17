@@ -1,7 +1,7 @@
 # OpenDesk Flow Marketplace Protocol V1
 
 > 决策日期：2026-09-17  
-> 状态：CLIENT_FOUNDATION_IMPLEMENTED / OS_PROTOCOL_AND_BACKEND_PENDING  
+> 状态：CLIENT_FOUNDATION_IMPLEMENTED / MACOS_DEEP_LINK_RECEIVER_IMPLEMENTED / PRODUCTION_BACKEND_PENDING
 > 上位架构：[Flow Marketplace](flow-marketplace.md)  
 > 安装安全内核：[Flow 分发、安装、信任、授权与运行模型](flow-distribution-installation.md)
 
@@ -487,14 +487,20 @@ release yank/revoke/update query
 
 测试使用的 `httptest` fixture 只证明 Desktop 协议与安全状态机，不是生产服务。
 
-在正式 Web → Desktop 上线之前，产品还必须拥有：
+当前 macOS bundle build 已注册 `opendesk://`，AppKit 会把原始 URL 交给
+Desktop protocol receiver；receiver 只接受 identifier-only Install Intent。没有
+产品配置的 HTTPS API origin、pinned Marketplace attestation roots 和 account
+adapter 时，receiver 必须 fail closed，绝不尝试用 URL、环境变量或本地文件补齐
+这些信任输入。
+
+在正式 Web → Desktop 上线之前，产品仍必须拥有：
 
 - Production Marketplace HTTPS API base origin；
 - Production Marketplace attestation public root configuration；
-- macOS `opendesk://` URL scheme registration + openURL delivery；
+- 已签名 macOS release bundle 的真实 `opendesk://` launch / `openURLs` 交付验收；
 - Windows protocol registration + safe argument/activation delivery；
 - 单实例场景下 Deep Link 转发；
-- Marketplace 安装确认 UI；
+- 将已实现的 Marketplace 安装确认 UI 接到上述已配置 client 的真实 release；
 - Desktop account session / entitlement adapter。
 
 这些缺一项都不能把测试 Vertical Slice 宣称为“生产 Web 安装已经上线”。
@@ -512,7 +518,17 @@ pkg/flowmarketplace/client.go
   canonical Install Intent API + bounded artifact download
 
 pkg/flowmarketplace/installer.go
+  DeepLinkHandler（先严格 parse，再委托）
   Marketplace orchestration → existing FlowInstallService
+
+pkg/appshell/open_url.go
+pkg/appshell/native_darwin.go
+pkg/appshell/native_darwin.m
+  macOS AppKit openURLs 原样转交给产品 protocol receiver；
+  已 attested Release 的本地安装确认 UI 与 Publisher Trust UI 分离
+
+scripts/build_macos_app.sh
+  OpenDesk.app 注册 opendesk URL scheme
 
 pkg/flowinstall/installer.go
   canonical .odflow trust/license/transaction install kernel
@@ -525,6 +541,9 @@ pkg/flowinstall/catalog.go
 
 pkg/flowmarketplace/marketplace_test.go
   real signed .odflow vertical-slice and negative security tests
+
+pkg/appshell/marketplace_protocol_contract_test.go
+  macOS URL registration / raw delivery / confirmation-boundary source contract
 ```
 
 Marketplace package中不存在 Runtime execute 调用。
@@ -545,6 +564,8 @@ Marketplace package中不存在 Runtime execute 调用。
 - successful Marketplace install writes local user trust only after explicit approver；
 - successful install records release provenance；
 - installed JavaScript is never executed by install path；
+- Desktop protocol handler rejects a malicious URL before it can reach an installer；
+- malformed metadata、unknown release、intent identity mismatch、release/package publisher mismatch fail without catalog or trust mutation；
 - existing double-click / drag-drop / picker side-load regression remains green。
 
 ## 15. 安全不变量

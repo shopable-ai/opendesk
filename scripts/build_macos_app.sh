@@ -232,6 +232,17 @@ cat > "${PLIST_PATH}" <<EOF
   <string>${VERSION}</string>
   <key>CFBundleVersion</key>
   <string>1</string>
+  <key>CFBundleURLTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleURLName</key>
+      <string>com.opendesk.marketplace-install</string>
+      <key>CFBundleURLSchemes</key>
+      <array>
+        <string>opendesk</string>
+      </array>
+    </dict>
+  </array>
   <key>CFBundleDocumentTypes</key>
   <array>
     <dict>

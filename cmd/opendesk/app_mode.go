@@ -10,6 +10,7 @@ import (
 	"opendesk/pkg/customui"
 	pkgExecution "opendesk/pkg/execution"
 	"opendesk/pkg/flowinstall"
+	"opendesk/pkg/flowmarketplace"
 	"opendesk/pkg/measurement"
 	"opendesk/pkg/runtimeenv"
 	"os"
@@ -161,6 +162,39 @@ func executeAppMode(config *Config) error {
 			return flowinstall.DecisionCancel, nil
 		}
 	}
+	marketplaceConfirmer := flowmarketplace.InstallConfirmerFunc(func(ctx context.Context, release flowmarketplace.Release) (bool, error) {
+		host, ok := nativeHost.(appshell.MarketplaceInstallHost)
+		if !ok {
+			return false, fmt.Errorf("native Marketplace install confirmation is unavailable")
+		}
+		return host.ConfirmMarketplaceInstall(ctx, appshell.MarketplaceInstallPrompt{
+			FlowID:            release.FlowID,
+			ReleaseID:         release.ReleaseID,
+			Name:              release.FlowName,
+			Version:           release.Version,
+			PublisherID:       release.PublisherID,
+			VerifiedPublisher: release.VerifiedPublisher,
+		})
+	})
+	// A production Marketplace Client is intentionally not constructed from
+	// environment variables, Deep Link values, or arbitrary local files. This
+	// repository has no deployed Marketplace origin, pinned attestation roots,
+	// or desktop account adapter yet. Keep the protocol receiver fail-closed
+	// until those product-owned inputs are shipped together.
+	marketplaceInstaller := &flowmarketplace.Installer{
+		// Client stays nil until the product ships its pinned Marketplace
+		// origin/root configuration. Keeping the real confirmer and shared Flow
+		// service here makes that future wiring additive rather than a second
+		// installation path.
+		FlowService: flowService,
+		Confirmer:   marketplaceConfirmer,
+	}
+	marketplaceDeepLinkHandler := flowmarketplace.DeepLinkHandler{
+		Installer: marketplaceInstaller,
+		InstallOptions: func(context.Context) flowinstall.InstallOptions {
+			return flowinstall.InstallOptions{Approver: flowTrustApprover}
+		},
+	}
 	installFlowDocument := func(path string, interactive bool) bool {
 		if flowService == nil {
 			return false
@@ -241,6 +275,31 @@ func executeAppMode(config *Config) error {
 			go func() {
 				if installFlowDocument(path, true) {
 					_ = shell.Activate("flow-document")
+				}
+			}()
+		})
+	}
+	if urlHost, ok := nativeHost.(appshell.OpenURLHost); ok {
+		urlHost.SetOpenURLHandler(func(rawURL string) {
+			// AppKit delivers the opaque OS activation on its own event loop. The
+			// handler parses only identifier-only intent and never turns raw URL
+			// data into a path, command, Runtime argument, or download URL.
+			go func() {
+				ref, parseErr := flowmarketplace.ParseInstallURL(rawURL)
+				if parseErr != nil {
+					// Do not log the opaque raw URL: an untrusted caller may include
+					// credentials or other sensitive junk in a rejected query.
+					log.Printf("[MARKETPLACE_INSTALL] rejected invalid install intent error=%v", parseErr)
+					return
+				}
+				result, installErr := marketplaceDeepLinkHandler.Handle(appContext, rawURL)
+				if installErr != nil {
+					log.Printf("[MARKETPLACE_INSTALL] blocked flowId=%s releaseId=%s installIntentId=%s error=%v", ref.FlowID, ref.ReleaseID, ref.InstallIntentID, installErr)
+					return
+				}
+				log.Printf("[MARKETPLACE_INSTALL] installed flowId=%s releaseId=%s installIntentId=%s installId=%s idempotent=%t", ref.FlowID, ref.ReleaseID, ref.InstallIntentID, result.Record.InstallID, result.Idempotent)
+				if activateErr := shell.Activate("marketplace-install"); activateErr != nil {
+					log.Printf("[MARKETPLACE_INSTALL] Runner refresh activation failed: %v", activateErr)
 				}
 			}()
 		})

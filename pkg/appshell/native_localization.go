@@ -124,6 +124,12 @@ func (h *localizedNativeHost) SetOpenDocumentHandler(handler func(string)) {
 	}
 }
 
+func (h *localizedNativeHost) SetOpenURLHandler(handler func(rawURL string)) {
+	if host, ok := h.inner.(OpenURLHost); ok {
+		host.SetOpenURLHandler(handler)
+	}
+}
+
 func (h *localizedNativeHost) OpenFlowFiles(ctx context.Context) ([]string, error) {
 	if host, ok := h.inner.(FlowInstallHost); ok {
 		return host.OpenFlowFiles(ctx)
@@ -136,6 +142,13 @@ func (h *localizedNativeHost) ConfirmFlowTrust(ctx context.Context, prompt FlowT
 		return host.ConfirmFlowTrust(ctx, prompt)
 	}
 	return FlowTrustCancel, fmt.Errorf("native Flow trust prompt is unavailable")
+}
+
+func (h *localizedNativeHost) ConfirmMarketplaceInstall(ctx context.Context, prompt MarketplaceInstallPrompt) (bool, error) {
+	if host, ok := h.inner.(MarketplaceInstallHost); ok {
+		return host.ConfirmMarketplaceInstall(ctx, prompt)
+	}
+	return false, fmt.Errorf("native Marketplace install confirmation is unavailable")
 }
 
 func (h *localizedNativeHost) RunMain(ctx context.Context) error {

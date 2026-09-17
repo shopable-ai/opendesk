@@ -6,11 +6,13 @@ int ODAppShellUpdateMenuItem(const char *itemID, const char *label, int hasLabel
 void ODAppShellActivate(void);
 int ODAppShellPickFlowFiles(char **pathsJSON, char **errorMessage);
 int ODAppShellConfirmFlowTrust(const char *flowID, const char *name, const char *publisherID, const char *keyID, const char *fingerprint, int *decision, char **errorMessage);
+int ODAppShellConfirmMarketplaceInstall(const char *flowID, const char *releaseID, const char *name, const char *version, const char *publisherID, int verifiedPublisher, int *confirmed, char **errorMessage);
 void ODAppShellTeardown(void);
 void ODAppShellRun(void);
 void ODAppShellFree(char *value);
 
 extern void opendeskAppShellDarwinAction(char *itemID, char *source);
 extern void opendeskAppShellDarwinOpenDocument(char *path);
+extern void opendeskAppShellDarwinOpenURL(char *rawURL);
 
 #endif

@@ -26,6 +26,17 @@
     return YES;
 }
 
+- (void)application:(NSApplication *)application openURLs:(NSArray<NSURL *> *)urls {
+    (void)application;
+    for (NSURL *url in urls) {
+        if (![url isKindOfClass:NSURL.class] || !url.absoluteString.length) continue;
+        char *rawURL = strdup(url.absoluteString.UTF8String ?: "");
+        if (!rawURL) continue;
+        opendeskAppShellDarwinOpenURL(rawURL);
+        free(rawURL);
+    }
+}
+
 @end
 
 @interface ODFlowTrustDetailsController : NSObject
@@ -331,6 +342,34 @@ int ODAppShellConfirmFlowTrust(const char *flowID, const char *name, const char 
         }
     });
     if (!success && errorMessage && !*errorMessage) ODSetError(errorMessage, @"Flow trust prompt failed");
+    return success ? 1 : 0;
+}
+
+int ODAppShellConfirmMarketplaceInstall(const char *flowID, const char *releaseID, const char *name, const char *version, const char *publisherID, int verifiedPublisher, int *confirmed, char **errorMessage) {
+    __block BOOL success = NO;
+    ODOnMainThread(^{
+        @autoreleasepool {
+            NSString *flowName = name ? [NSString stringWithUTF8String:name] : @"Flow";
+            NSString *flow = flowID ? [NSString stringWithUTF8String:flowID] : @"unknown";
+            NSString *release = releaseID ? [NSString stringWithUTF8String:releaseID] : @"unknown";
+            NSString *releaseVersion = version ? [NSString stringWithUTF8String:version] : @"unknown";
+            NSString *publisher = publisherID ? [NSString stringWithUTF8String:publisherID] : @"unknown";
+            NSString *verified = verifiedPublisher ? @"Marketplace has verified this publisher identity. This is not local publisher trust." : @"This publisher is not Marketplace-verified.";
+
+            NSAlert *alert = [NSAlert new];
+            alert.alertStyle = NSAlertStyleInformational;
+            alert.messageText = [NSString stringWithFormat:@"Install “%@”?", flowName];
+            alert.informativeText = [NSString stringWithFormat:@"Release %@ (%@)\nFlow: %@\nPublisher: %@\n\n%@\n\nOpenDesk will download the canonical Marketplace artifact, verify its release attestation and package signature, then ask separately before creating local publisher trust. Installing does not run the Flow.", releaseVersion, release, flow, publisher, verified];
+            [alert addButtonWithTitle:@"Install Release"];
+            [alert addButtonWithTitle:@"Cancel"];
+            alert.buttons.firstObject.keyEquivalent = @"\r";
+            alert.buttons.lastObject.keyEquivalent = @"\e";
+            NSModalResponse response = [alert runModal];
+            if (confirmed) *confirmed = response == NSAlertFirstButtonReturn ? 1 : 0;
+            success = YES;
+        }
+    });
+    if (!success) ODSetError(errorMessage, @"Marketplace install confirmation could not be displayed");
     return success ? 1 : 0;
 }
 
